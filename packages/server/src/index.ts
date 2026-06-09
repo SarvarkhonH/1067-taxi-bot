@@ -4,6 +4,7 @@ import { prisma } from "./db";
 import { createApiServer } from "./api/server";
 import { createBot, notifyCashback, notifyNewAchievements, setupBotCommands } from "./bot/bot";
 import { refreshLinkedMembers, runSync } from "./sync/sync";
+import { pushBookingUpdates } from "./services/bookingNotifier";
 
 async function main(): Promise<void> {
   let bot: Bot | null = null;
@@ -75,6 +76,14 @@ async function main(): Promise<void> {
     }
   }, intervalMs);
 
+  // real-time ride status: poll active bookings often, push status changes
+  const bookingTimer =
+    env.KAS_MODE === "live"
+      ? setInterval(() => {
+          if (bot) void pushBookingUpdates(bot).catch((e) => console.error("[booking] push failed:", e));
+        }, 90_000)
+      : null;
+
   // keep the free-tier instance warm (self-ping) so the Mini App never hits a cold start
   const keepAlive = env.WEBHOOK_URL
     ? setInterval(() => {
@@ -85,6 +94,7 @@ async function main(): Promise<void> {
   const shutdown = async () => {
     console.log("\n[server] shutting down…");
     clearInterval(timer);
+    if (bookingTimer) clearInterval(bookingTimer);
     if (keepAlive) clearInterval(keepAlive);
     server.close();
     if (bot && !env.WEBHOOK_URL) await bot.stop();

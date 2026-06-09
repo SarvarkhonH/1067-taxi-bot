@@ -2,6 +2,7 @@ import http from "node:http";
 import https from "node:https";
 import type {
   ActiveBooking,
+  ActiveBookingLite,
   BookingDriver,
   BookingRequest,
   BookingResult,
@@ -346,6 +347,24 @@ export class KasLiveSource implements KasDataSource {
       createdDate: String(b.createdDate ?? ""),
       driver,
     };
+  }
+
+  async listActiveBookings(): Promise<ActiveBookingLite[]> {
+    let list: Record<string, unknown>[] = [];
+    try {
+      const j = JSON.parse((await this.getText("api/bookings")).body);
+      if (Array.isArray(j)) list = j;
+    } catch {
+      return [];
+    }
+    return list.map((b) => ({
+      id: Number(b.id ?? 0),
+      phoneNorm: String(b.phoneNumber ?? "").replace(/\D/g, "").slice(-9),
+      status: String(b.status ?? ""),
+      carNumber: String(b.carNumber ?? ""),
+      addressName: String(b.addressName ?? ""),
+      clientBonus: num(b.clientBonus),
+    }));
   }
 
   /** Log in, pull the SPA shell + its JS bundles, and harvest candidate API paths. */

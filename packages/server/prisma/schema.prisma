@@ -23,6 +23,8 @@ model Member {
   rating     Float     @default(0) // drivers only
   active     Boolean   @default(true)
   lastSyncAt DateTime?
+  lastBookingId     Int?
+  lastBookingStatus String?
   createdAt  DateTime  @default(now())
   updatedAt  DateTime  @updatedAt
 

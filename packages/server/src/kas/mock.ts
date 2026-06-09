@@ -1,5 +1,6 @@
 import type {
   ActiveBooking,
+  ActiveBookingLite,
   BookingRequest,
   BookingResult,
   ClientBookingInfo,
@@ -97,6 +98,10 @@ export class KasMockSource implements KasDataSource {
 
   async addClientBonus(_phone: string, delta: number): Promise<{ ok: boolean; oldBonus: number; newBonus: number; status?: number }> {
     return { ok: true, oldBonus: 0, newBonus: delta, status: 200 };
+  }
+
+  async listActiveBookings(): Promise<ActiveBookingLite[]> {
+    return [];
   }
 
   async getActiveBooking(_phone: string): Promise<ActiveBooking | null> {

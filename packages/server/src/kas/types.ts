@@ -58,6 +58,15 @@ export interface ActiveBooking {
   driver: BookingDriver | null; // assigned once a driver takes it
 }
 
+export interface ActiveBookingLite {
+  id: number;
+  phoneNorm: string; // last 9 digits, for matching members
+  status: string;
+  carNumber: string;
+  addressName: string;
+  clientBonus: number;
+}
+
 export interface KasDataSource {
   readonly name: "mock" | "live";
   /** Full pull (mock seed / optional bulk import). */
@@ -73,6 +82,8 @@ export interface KasDataSource {
   createBooking(req: BookingRequest): Promise<BookingResult>;
   /** Booking tracking: the caller's current active booking (status + assigned driver), by phone. */
   getActiveBooking(phone: string): Promise<ActiveBooking | null>;
+  /** All active bookings (one call) — for the status-push notifier. */
+  listActiveBookings(): Promise<ActiveBookingLite[]>;
 
   /** Reward: set a client's cashback bonus (writes real money via kas1067, code 1303). */
   setClientBonus(phone: string, newBonus: number): Promise<{ ok: boolean; oldBonus: number; name?: string; status?: number }>;
