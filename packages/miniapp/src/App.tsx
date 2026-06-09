@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import type { LeaderboardResponse, MeResponse } from "@t1067/shared";
-import { api } from "./api";
+import { api, getInitData } from "./api";
 import { haptic, tg } from "./telegram";
 import { BadgesView, LeaderboardView, ProfileView, Spinner } from "./components";
 
@@ -71,7 +71,8 @@ export function App() {
 
 function ErrorScreen({ error }: { error: string }) {
   const notAuthed = error.includes("unauthorized");
-  const hasInitData = !!tg?.initData;
+  const initData = getInitData();
+  const hasInitData = !!initData;
   const btn = {
     marginTop: 16,
     padding: "10px 22px",
@@ -95,7 +96,7 @@ function ErrorScreen({ error }: { error: string }) {
         <button onClick={() => location.reload()} style={btn}>🔄 Qayta urinish</button>
         {notAuthed && (
           <p className="muted" style={{ fontSize: 11, marginTop: 12, opacity: 0.55 }}>
-            Telegram: {tg ? "✓" : "✗"} · initData: {hasInitData ? `✓ (${tg!.initData.length})` : "✗ yo'q"}
+            Telegram: {tg ? "✓" : "✗"} · initData: {hasInitData ? `✓ (${initData.length})` : "✗ yo'q"}
           </p>
         )}
       </div>

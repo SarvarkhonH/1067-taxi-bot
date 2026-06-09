@@ -1,10 +1,22 @@
 import type { LeaderboardResponse, MeResponse } from "@t1067/shared";
 import { tg } from "./telegram";
 
+// Telegram provides initData via the SDK AND in the URL hash (tgWebAppData).
+// Read the hash as a fallback so it works even if telegram-web-app.js fails to load.
+export function getInitData(): string {
+  const sdk = tg?.initData ?? "";
+  if (sdk) return sdk;
+  try {
+    return new URLSearchParams(location.hash.slice(1)).get("tgWebAppData") ?? "";
+  } catch {
+    return "";
+  }
+}
+
 // In Telegram we authenticate with signed initData. Outside Telegram (local dev)
 // we fall back to a debug id that the server trusts only when no bot token is set.
 function authHeaders(): Record<string, string> {
-  const initData = tg?.initData ?? "";
+  const initData = getInitData();
   if (initData) return { "X-Telegram-Init-Data": initData };
   // dev only (outside Telegram): pick the demo user via ?tg=<id> or env, else 12345
   const fromUrl = new URLSearchParams(location.search).get("tg");
