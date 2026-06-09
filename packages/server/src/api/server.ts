@@ -10,6 +10,7 @@ import {
   getMe,
   getMemberId,
   isAdmin,
+  linkByPhone,
 } from "../services/memberService";
 import { dailyCheckIn, spinWheel } from "../services/rewardService";
 import { validateInitData } from "./telegramAuth";
@@ -126,6 +127,16 @@ export function createApiServer(opts: ApiOptions = {}) {
 
   app.get("/api/admin/botusers", requireAdmin, async (_req, res) => {
     res.json(await getBotUsers());
+  });
+
+  // Admin tool: manually link a telegram id to a member by phone (e.g. demo/test accounts).
+  app.post("/api/admin/link", requireAdmin, async (req, res) => {
+    const body = (req.body ?? {}) as { telegramId?: string; phone?: string };
+    if (!body.telegramId || !body.phone) {
+      res.status(400).json({ error: "telegramId and phone required" });
+      return;
+    }
+    res.json(await linkByPhone(String(body.telegramId), String(body.phone), {}));
   });
 
   app.post("/api/admin/sync", requireAdmin, async (_req, res) => {
