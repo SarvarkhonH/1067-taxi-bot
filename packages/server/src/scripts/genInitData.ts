@@ -21,6 +21,11 @@ const secret = crypto.createHmac("sha256", "WebAppData").update(env.BOT_TOKEN).d
 params.set("hash", crypto.createHmac("sha256", secret).update(dcs).digest("hex"));
 const initData = params.toString();
 
+if (path === "PRINT") {
+  console.log("INITDATA=" + initData);
+  process.exit(0);
+}
+
 console.log(`GET ${target}${path} as user ${userId} with signed initData…`);
 const res = await fetch(`${target}${path}`, { headers: { "X-Telegram-Init-Data": initData } });
 console.log("status:", res.status);

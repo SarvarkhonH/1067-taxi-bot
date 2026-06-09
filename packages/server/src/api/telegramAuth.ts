@@ -25,18 +25,21 @@ export function validateInitData(initData: string, botToken: string, maxAgeSec =
   const hash = params.get("hash");
   if (!hash) return { ok: false, reason: "no hash" };
 
-  // data-check-string excludes `hash` and `signature` (signature is the separate
-  // Ed25519 third-party field, NOT part of the bot-token HMAC).
-  const pairs: string[] = [];
-  params.forEach((value, key) => {
-    if (key !== "hash" && key !== "signature") pairs.push(`${key}=${value}`);
-  });
-  pairs.sort();
-  const dataCheckString = pairs.join("\n");
-
   const secret = crypto.createHmac("sha256", "WebAppData").update(botToken).digest();
-  const computed = crypto.createHmac("sha256", secret).update(dataCheckString).digest("hex");
-  if (computed !== hash) return { ok: false, reason: "bad signature" };
+  const checkString = (excludeSignature: boolean): string => {
+    const pairs: string[] = [];
+    params.forEach((value, key) => {
+      if (key === "hash") return;
+      if (excludeSignature && key === "signature") return;
+      pairs.push(`${key}=${value}`);
+    });
+    return pairs.sort().join("\n");
+  };
+  const hmac = (s: string) => crypto.createHmac("sha256", secret).update(s).digest("hex");
+  // Accept either interpretation: signature included (spec) or excluded.
+  if (hmac(checkString(false)) !== hash && hmac(checkString(true)) !== hash) {
+    return { ok: false, reason: `bad signature (keys: ${[...params.keys()].sort().join(",")})` };
+  }
 
   const authDate = Number(params.get("auth_date") ?? 0);
   if (maxAgeSec > 0 && authDate > 0) {
