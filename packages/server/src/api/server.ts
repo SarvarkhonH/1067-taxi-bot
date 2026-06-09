@@ -23,13 +23,15 @@ function memberType(req: Request, fallback: MemberType): MemberType {
 
 function resolveTelegramId(req: Request): string | null {
   const initData = (req.header("X-Telegram-Init-Data") as string) || (req.query.initData as string) || "";
+  const dbg = req.header("X-Debug-Telegram-Id");
+  const ua = (req.header("User-Agent") || "").slice(0, 50);
   if (initData && env.BOT_TOKEN) {
     const res = validateInitData(initData, env.BOT_TOKEN);
+    console.log(`[auth] ${req.path} initData.len=${initData.length} ok=${res.ok} reason=${res.reason ?? "-"} user=${res.user?.id ?? "-"} ua="${ua}"`);
     return res.ok && res.user ? String(res.user.id) : null;
   }
-  // Dev fallback: trust a debug header for local admin/miniapp viewing.
+  console.log(`[auth] ${req.path} NO initData (debugHdr=${dbg ?? "-"}, hasBot=${env.hasBot}, allowDebug=${env.allowDebugAuth}) ua="${ua}"`);
   if (!env.hasBot || env.allowDebugAuth) {
-    const dbg = req.header("X-Debug-Telegram-Id");
     if (dbg) return dbg;
   }
   return null;
