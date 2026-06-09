@@ -14,3 +14,5 @@ packages/server/prisma/*.db
 kas-discovery/
 
 .claude/settings.local.json
+
+.vercel/
