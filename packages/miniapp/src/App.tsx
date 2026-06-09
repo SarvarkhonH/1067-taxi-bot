@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import type { LeaderboardResponse, MeResponse } from "@t1067/shared";
 import { api } from "./api";
-import { haptic } from "./telegram";
+import { haptic, tg } from "./telegram";
 import { BadgesView, LeaderboardView, ProfileView, Spinner } from "./components";
 
 type Tab = "profile" | "leaderboard" | "badges";
@@ -70,24 +70,33 @@ export function App() {
 }
 
 function ErrorScreen({ error }: { error: string }) {
-  const notInTelegram = error.includes("unauthorized");
+  const notAuthed = error.includes("unauthorized");
+  const hasInitData = !!tg?.initData;
+  const btn = {
+    marginTop: 16,
+    padding: "10px 22px",
+    background: "var(--accent)",
+    color: "#1a1300",
+    border: 0,
+    borderRadius: 10,
+    fontWeight: 700,
+    fontSize: 14,
+  } as const;
   return (
     <div className="screen center">
       <div className="nl-card">
-        <div className="nl-emoji">{notInTelegram ? "🤖" : "😴"}</div>
-        <h2>{notInTelegram ? "Telegram orqali oching" : "Server uyg'onmoqda"}</h2>
+        <div className="nl-emoji">{notAuthed ? "🤖" : "😴"}</div>
+        <h2>{notAuthed ? "Telegram orqali oching" : "Server uyg'onmoqda"}</h2>
         <p className="muted">
-          {notInTelegram
-            ? "Bu sahifa faqat Telegram bot ichida ishlaydi. @koson1067bot ga kiring va «🚀 Ilova» tugmasini bosing."
+          {notAuthed
+            ? "Mini App'ni botdagi pastki ⊞ menyu yoki «🚀 Ilova» tugmasi orqali oching — havolani brauzerda emas."
             : "Server biroz uxlab qoldi. Bir necha soniya kuting va qayta urinib ko'ring."}
         </p>
-        {!notInTelegram && (
-          <button
-            onClick={() => location.reload()}
-            style={{ marginTop: 16, padding: "10px 22px", background: "var(--accent)", color: "#1a1300", border: 0, borderRadius: 10, fontWeight: 700, fontSize: 14 }}
-          >
-            🔄 Qayta urinish
-          </button>
+        <button onClick={() => location.reload()} style={btn}>🔄 Qayta urinish</button>
+        {notAuthed && (
+          <p className="muted" style={{ fontSize: 11, marginTop: 12, opacity: 0.55 }}>
+            Telegram: {tg ? "✓" : "✗"} · initData: {hasInitData ? `✓ (${tg!.initData.length})` : "✗ yo'q"}
+          </p>
         )}
       </div>
     </div>

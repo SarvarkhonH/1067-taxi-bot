@@ -25,9 +25,11 @@ export function validateInitData(initData: string, botToken: string, maxAgeSec =
   const hash = params.get("hash");
   if (!hash) return { ok: false, reason: "no hash" };
 
+  // data-check-string excludes `hash` and `signature` (signature is the separate
+  // Ed25519 third-party field, NOT part of the bot-token HMAC).
   const pairs: string[] = [];
   params.forEach((value, key) => {
-    if (key !== "hash") pairs.push(`${key}=${value}`);
+    if (key !== "hash" && key !== "signature") pairs.push(`${key}=${value}`);
   });
   pairs.sort();
   const dataCheckString = pairs.join("\n");
