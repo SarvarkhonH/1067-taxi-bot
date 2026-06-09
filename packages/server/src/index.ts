@@ -75,9 +75,17 @@ async function main(): Promise<void> {
     }
   }, intervalMs);
 
+  // keep the free-tier instance warm (self-ping) so the Mini App never hits a cold start
+  const keepAlive = env.WEBHOOK_URL
+    ? setInterval(() => {
+        void fetch(`${env.WEBHOOK_URL.replace(/\/$/, "")}/health`).catch(() => {});
+      }, 10 * 60_000)
+    : null;
+
   const shutdown = async () => {
     console.log("\n[server] shutting down…");
     clearInterval(timer);
+    if (keepAlive) clearInterval(keepAlive);
     server.close();
     if (bot && !env.WEBHOOK_URL) await bot.stop();
     await prisma.$disconnect();

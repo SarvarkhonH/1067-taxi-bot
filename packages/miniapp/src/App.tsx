@@ -28,7 +28,7 @@ export function App() {
     api.leaderboard().then(setBoard).catch(() => undefined);
   }, []);
 
-  if (error) return <div className="screen center muted">⚠️ {error}</div>;
+  if (error) return <ErrorScreen error={error} />;
   if (linked === null) return <Spinner />;
   if (linked === false) return <NotLinked />;
   if (!me) return <Spinner />;
@@ -65,6 +65,31 @@ export function App() {
           <span>🎖</span>Nishonlar
         </button>
       </nav>
+    </div>
+  );
+}
+
+function ErrorScreen({ error }: { error: string }) {
+  const notInTelegram = error.includes("unauthorized");
+  return (
+    <div className="screen center">
+      <div className="nl-card">
+        <div className="nl-emoji">{notInTelegram ? "🤖" : "😴"}</div>
+        <h2>{notInTelegram ? "Telegram orqali oching" : "Server uyg'onmoqda"}</h2>
+        <p className="muted">
+          {notInTelegram
+            ? "Bu sahifa faqat Telegram bot ichida ishlaydi. @koson1067bot ga kiring va «🚀 Ilova» tugmasini bosing."
+            : "Server biroz uxlab qoldi. Bir necha soniya kuting va qayta urinib ko'ring."}
+        </p>
+        {!notInTelegram && (
+          <button
+            onClick={() => location.reload()}
+            style={{ marginTop: 16, padding: "10px 22px", background: "var(--accent)", color: "#1a1300", border: 0, borderRadius: 10, fontWeight: 700, fontSize: 14 }}
+          >
+            🔄 Qayta urinish
+          </button>
+        )}
+      </div>
     </div>
   );
 }
