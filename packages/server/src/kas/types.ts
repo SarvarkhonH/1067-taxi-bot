@@ -73,4 +73,9 @@ export interface KasDataSource {
   createBooking(req: BookingRequest): Promise<BookingResult>;
   /** Booking tracking: the caller's current active booking (status + assigned driver), by phone. */
   getActiveBooking(phone: string): Promise<ActiveBooking | null>;
+
+  /** Reward: set a client's cashback bonus (writes real money via kas1067, code 1303). */
+  setClientBonus(phone: string, newBonus: number): Promise<{ ok: boolean; oldBonus: number; name?: string; status?: number }>;
+  /** Reward: add a delta to a client's cashback bonus. */
+  addClientBonus(phone: string, delta: number): Promise<{ ok: boolean; oldBonus: number; newBonus: number; status?: number }>;
 }

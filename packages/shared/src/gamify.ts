@@ -102,3 +102,26 @@ export function earnedBadges(type: MemberType, s: MemberStats): BadgeDef[] {
 export function badgeByCode(code: string): BadgeDef | undefined {
   return BADGES.find((b) => b.code === code);
 }
+
+// ─── daily streak ─────────────────────────────────────────────
+// Real cashback (so'm) paid when a daily-check-in streak reaches these days.
+export const STREAK_REWARDS: Record<number, number> = {
+  3: 500,
+  7: 2000,
+  14: 5000,
+  30: 15000,
+  60: 30000,
+  100: 60000,
+};
+
+export function streakReward(day: number): number {
+  return STREAK_REWARDS[day] ?? 0;
+}
+
+export function nextStreakMilestone(day: number): { day: number; reward: number } | null {
+  const days = Object.keys(STREAK_REWARDS)
+    .map(Number)
+    .sort((a, b) => a - b);
+  const next = days.find((d) => d > day);
+  return next ? { day: next, reward: STREAK_REWARDS[next]! } : null;
+}

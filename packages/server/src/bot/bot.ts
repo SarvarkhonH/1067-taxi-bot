@@ -10,6 +10,7 @@ import {
   linkByPhone,
   touchTelegramUser,
 } from "../services/memberService";
+import { dailyCheckIn, type CheckInResult } from "../services/rewardService";
 import type { CashbackDelta } from "../sync/sync";
 import { registerBooking } from "./booking";
 import {
@@ -30,11 +31,12 @@ function mainMenu(): Keyboard {
     .text("🚕 Taxi chaqirish")
     .text("📍 Buyurtmam")
     .row()
+    .text("🔥 Kunlik")
     .text("💰 Hisobim")
-    .text("🏆 Reyting")
     .row()
+    .text("🏆 Reyting")
     .text("🎖 Nishonlar");
-  if (canWebApp) kb.webApp("🚀 Ilova", env.TELEGRAM_WEBAPP_URL);
+  if (canWebApp) kb.row().webApp("🚀 Ilova", env.TELEGRAM_WEBAPP_URL);
   return kb.resized();
 }
 
@@ -44,6 +46,22 @@ function contactKeyboard(): Keyboard {
 
 function profileOf(src: { username?: string; first_name?: string; last_name?: string; language_code?: string }) {
   return { username: src.username, firstName: src.first_name, lastName: src.last_name, languageCode: src.language_code };
+}
+
+function renderCheckIn(r: CheckInResult): string {
+  if (r.alreadyChecked) {
+    let s = `🔥 <b>Streak: ${r.current} kun</b>\n\nBugun allaqachon belgilangansiz ✅\nErtaga yana keling — streak'ni uzmang!`;
+    if (r.next) s += `\n\n🎯 ${r.next.day}-kunda: <b>+${formatNumber(r.next.reward)} so'm</b>`;
+    return s;
+  }
+  let s = `🔥 <b>Streak: ${r.current} kun!</b>\n`;
+  if (r.rewardAmount > 0) {
+    s += `\n🎉 <b>+${formatNumber(r.rewardAmount)} so'm cashback!</b>${r.rewardApplied ? " — hisobingizga qo'shildi 💰" : ""}`;
+  } else {
+    s += `\nDavom eting — har kun streak o'sadi 💪`;
+  }
+  if (r.next) s += `\n\n🎯 Keyingi mukofot: ${r.next.day}-kun → <b>+${formatNumber(r.next.reward)} so'm</b>`;
+  return s;
 }
 
 export function createBot(): Bot {
@@ -118,6 +136,18 @@ export function createBot(): Bot {
   };
   bot.hears("🏆 Reyting", showLeaderboard);
   bot.command("top", showLeaderboard);
+
+  const checkIn = async (ctx: Context) => {
+    const me = await getMe(String(ctx.from!.id));
+    if (!me) {
+      await ctx.reply(renderLinkPrompt(), { parse_mode: "HTML", reply_markup: contactKeyboard() });
+      return;
+    }
+    const r = await dailyCheckIn(me.member.id);
+    await ctx.reply(renderCheckIn(r), { parse_mode: "HTML", reply_markup: mainMenu() });
+  };
+  bot.hears("🔥 Kunlik", checkIn);
+  bot.command("daily", checkIn);
 
   bot.hears("🎖 Nishonlar", async (ctx) => {
     const me = await getMe(String(ctx.from!.id));
@@ -196,6 +226,7 @@ export async function setupBotCommands(bot: Bot): Promise<void> {
     { command: "start", description: "Botni boshlash / profil" },
     { command: "book", description: "🚕 Taxi chaqirish" },
     { command: "status", description: "📍 Buyurtmam holati" },
+    { command: "daily", description: "🔥 Kunlik bonus" },
     { command: "me", description: "Mening hisobim" },
     { command: "top", description: "Reyting" },
   ]);

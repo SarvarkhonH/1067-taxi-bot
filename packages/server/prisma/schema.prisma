@@ -28,9 +28,37 @@ model Member {
 
   telegramUser TelegramUser?
   achievements MemberAchievement[]
+  rewardGrants RewardGrant[]
+  streak       Streak?
 
   @@unique([type, kasId])
   @@index([type, points])
+}
+
+// Every cashback we grant (idempotent + audited — this writes REAL money to kas1067).
+model RewardGrant {
+  id             Int      @id @default(autoincrement())
+  member         Member   @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  memberId       Int
+  amount         Float // so'm granted
+  reason         String // human label, e.g. "Streak 7 kun"
+  kind           String // streak | wheel | challenge | referral | manual
+  appliedToKas   Boolean  @default(false)
+  kasMessage     String?
+  idempotencyKey String?  @unique // blocks double-grants (e.g. "streak:42:2026-06-09")
+  createdAt      DateTime @default(now())
+
+  @@index([memberId, createdAt])
+}
+
+model Streak {
+  id          Int       @id @default(autoincrement())
+  member      Member    @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  memberId    Int       @unique
+  current     Int       @default(0)
+  longest     Int       @default(0)
+  lastCheckIn DateTime? // last daily check-in (date)
+  updatedAt   DateTime  @updatedAt
 }
 
 model TelegramUser {

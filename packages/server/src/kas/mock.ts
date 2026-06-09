@@ -91,6 +91,14 @@ export class KasMockSource implements KasDataSource {
     return { ok: true, message: `mock booking for ${req.phoneNumber} @ ${req.addressName}` };
   }
 
+  async setClientBonus(_phone: string, newBonus: number): Promise<{ ok: boolean; oldBonus: number; name?: string; status?: number }> {
+    return { ok: true, oldBonus: 0, name: "mock", status: 200 };
+  }
+
+  async addClientBonus(_phone: string, delta: number): Promise<{ ok: boolean; oldBonus: number; newBonus: number; status?: number }> {
+    return { ok: true, oldBonus: 0, newBonus: delta, status: 200 };
+  }
+
   async getActiveBooking(_phone: string): Promise<ActiveBooking | null> {
     return {
       id: 40400,

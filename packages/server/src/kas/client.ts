@@ -238,6 +238,43 @@ export class KasLiveSource implements KasDataSource {
     return res;
   }
 
+  private async putJson(path: string, body: unknown): Promise<RawResponse> {
+    if (!this.loggedIn) await this.login();
+    const doReq = () =>
+      rawRequest(this.url(path), {
+        method: "PUT",
+        headers: { ...this.baseHeaders(), "Content-Type": "application/json", Accept: "application/json, text/plain, */*" },
+        body: JSON.stringify(body),
+      });
+    let res = await doReq();
+    if (res.status >= 300 && res.status < 400 && /\/login/.test((res.headers.location as string) ?? "")) {
+      this.loggedIn = false;
+      await this.login();
+      res = await doReq();
+    }
+    return res;
+  }
+
+  /** Grant/set a client's cashback bonus by phone (kas1067 admin edit, bonusSecretKey 1303). */
+  async setClientBonus(phone: string, newBonus: number): Promise<{ ok: boolean; oldBonus: number; name?: string; status?: number }> {
+    const norm = phone.replace(/\D/g, "").slice(-9);
+    const data = await this.getJson(`api/clients/byFilter?searchText=${encodeURIComponent(norm)}&sort=bonus&page=0&size=20`);
+    const list = (data.clientDtoList as Record<string, unknown>[]) ?? [];
+    const client = list.find((c) => String(c.phoneNumber ?? "").replace(/\D/g, "").slice(-9) === norm);
+    if (!client) return { ok: false, oldBonus: 0 };
+    const oldBonus = Number(client.bonus) || 0;
+    const res = await this.putJson("api/clients", { ...client, bonus: newBonus, bonusSecretKey: "1303" });
+    return { ok: res.status >= 200 && res.status < 300, oldBonus, name: String(client.fullName ?? client.id), status: res.status };
+  }
+
+  /** Add a delta to a client's cashback bonus (read current + set new total). */
+  async addClientBonus(phone: string, delta: number): Promise<{ ok: boolean; oldBonus: number; newBonus: number; status?: number }> {
+    const cur = (await this.fetchByPhone(phone)).find((m) => m.type === "client")?.points ?? null;
+    if (cur === null) return { ok: false, oldBonus: 0, newBonus: 0 };
+    const res = await this.setClientBonus(phone, cur + delta);
+    return { ok: res.ok, oldBonus: cur, newBonus: cur + delta, status: res.status };
+  }
+
   // ─── booking ────────────────────────────────────────────────────────────────
   async checkClient(phone: string): Promise<ClientBookingInfo | null> {
     const clean = phone.replace(/\s/g, "");
