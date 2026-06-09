@@ -2,9 +2,9 @@ import { useEffect, useState } from "react";
 import type { LeaderboardResponse, MeResponse } from "@t1067/shared";
 import { api, getInitData } from "./api";
 import { haptic, tg } from "./telegram";
-import { BadgesView, LeaderboardView, ProfileView, Spinner } from "./components";
+import { BadgesView, LeaderboardView, MissionsView, ProfileView, ReferralView, Spinner } from "./components";
 
-type Tab = "profile" | "leaderboard" | "badges";
+type Tab = "profile" | "missions" | "leaderboard" | "invite" | "badges";
 
 export function App() {
   const [me, setMe] = useState<MeResponse | null>(null);
@@ -12,6 +12,7 @@ export function App() {
   const [tab, setTab] = useState<Tab>("profile");
   const [board, setBoard] = useState<LeaderboardResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [banner, setBanner] = useState<string | null>(null);
 
   useEffect(() => {
     api
@@ -47,6 +48,12 @@ export function App() {
     setTab(t);
   };
 
+  const flash = (msg: string) => {
+    setBanner(msg);
+    reload();
+    setTimeout(() => setBanner(null), 4000);
+  };
+
   return (
     <div className="app">
       <header className="topbar">
@@ -58,8 +65,11 @@ export function App() {
       </header>
 
       <main className="content">
+        {banner && <div className="reward-banner">{banner}</div>}
         {tab === "profile" && <ProfileView me={me} reload={reload} />}
+        {tab === "missions" && <MissionsView onReward={flash} />}
         {tab === "leaderboard" && (board ? <LeaderboardView board={board} /> : <Spinner />)}
+        {tab === "invite" && <ReferralView />}
         {tab === "badges" && <BadgesView me={me} />}
       </main>
 
@@ -67,11 +77,17 @@ export function App() {
         <button className={tab === "profile" ? "tab active" : "tab"} onClick={() => go("profile")}>
           <span>👤</span>Profil
         </button>
+        <button className={tab === "missions" ? "tab active" : "tab"} onClick={() => go("missions")}>
+          <span>🎯</span>Vazifa
+        </button>
         <button className={tab === "leaderboard" ? "tab active" : "tab"} onClick={() => go("leaderboard")}>
           <span>🏆</span>Reyting
         </button>
+        <button className={tab === "invite" ? "tab active" : "tab"} onClick={() => go("invite")}>
+          <span>👥</span>Do'st
+        </button>
         <button className={tab === "badges" ? "tab active" : "tab"} onClick={() => go("badges")}>
-          <span>🎖</span>Nishonlar
+          <span>🎖</span>Nishon
         </button>
       </nav>
     </div>

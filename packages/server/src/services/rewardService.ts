@@ -9,6 +9,17 @@ function tashkentDayKey(d: Date): string {
   return new Date(d.getTime() + 5 * 3600 * 1000).toISOString().slice(0, 10);
 }
 
+// Dynamic import breaks the rewardService ↔ missionService cycle (missionService
+// claims pay via grantCashback here). Failures must never block the core reward.
+async function bumpMission(memberId: number, code: string): Promise<void> {
+  try {
+    const { incrementMission } = await import("./missionService");
+    await incrementMission(memberId, code);
+  } catch (e) {
+    console.error("[mission] bump failed:", e instanceof Error ? e.message : e);
+  }
+}
+
 export interface GrantResult {
   ok: boolean;
   amount: number;
@@ -100,6 +111,8 @@ export async function dailyCheckIn(memberId: number): Promise<CheckInResult> {
     update: { current, longest, lastCheckIn: now },
   });
 
+  await bumpMission(memberId, "daily_checkin");
+
   const reward = streakReward(current);
   let rewardApplied = false;
   if (reward > 0) {
@@ -137,6 +150,7 @@ export async function spinWheel(memberId: number): Promise<WheelResult> {
 
   const prize = weightedPick();
   await prisma.wheelSpin.create({ data: { memberId, dayKey, prize: prize.label, amount: prize.amount } });
+  await bumpMission(memberId, "daily_spin");
 
   let applied = false;
   if (prize.amount > 0) {

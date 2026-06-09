@@ -1,4 +1,4 @@
-import { Bot, Context, Keyboard } from "grammy";
+import { Bot, Context, InlineKeyboard, Keyboard } from "grammy";
 import { formatNumber } from "@t1067/shared";
 import { env } from "../env";
 import { prisma } from "../db";
@@ -6,11 +6,14 @@ import {
   getAdminStats,
   getLeaderboard,
   getMe,
+  getMemberId,
   isAdmin,
   linkByPhone,
   touchTelegramUser,
 } from "../services/memberService";
 import { dailyCheckIn, spinWheel, type CheckInResult, type WheelResult } from "../services/rewardService";
+import { claimMission, getMissions } from "../services/missionService";
+import { attachPendingReferral, completeReferral, getReferralInfo } from "../services/referralService";
 import type { CashbackDelta } from "../sync/sync";
 import { registerBooking } from "./booking";
 import {
@@ -18,8 +21,11 @@ import {
   renderEarnPush,
   renderLeaderboard,
   renderLinkPrompt,
+  renderMissions,
   renderNotFound,
   renderProfile,
+  renderReferral,
+  renderReferralWin,
   renderTaken,
   renderWelcome,
 } from "./render";
@@ -33,6 +39,9 @@ function mainMenu(): Keyboard {
     .row()
     .text("🔥 Kunlik")
     .text("🎡 G'ildirak")
+    .row()
+    .text("🎯 Vazifalar")
+    .text("👥 Do'st taklif")
     .row()
     .text("💰 Hisobim")
     .text("🏆 Reyting")
@@ -88,6 +97,11 @@ export function createBot(): Bot {
   bot.command("start", async (ctx) => {
     const id = String(ctx.from!.id);
     await touchTelegramUser(id, profileOf(ctx.from!));
+    // referral deep link: t.me/<bot>?start=ref_<code>
+    const payload = (typeof ctx.match === "string" ? ctx.match : "").trim();
+    if (payload.startsWith("ref_")) {
+      await attachPendingReferral(id, payload.slice(4)).catch(() => undefined);
+    }
     const me = await getMe(id);
     if (me) {
       await ctx.reply(renderProfile(me), { parse_mode: "HTML", reply_markup: mainMenu() });
@@ -105,6 +119,20 @@ export function createBot(): Bot {
       const me = await getMe(id);
       const role = res.type === "driver" ? "Haydovchi" : "Mijoz";
       await ctx.reply(`✅ Bog'landi: <b>${res.fullName}</b> (${role})`, { parse_mode: "HTML" });
+      // pay out a pending referral (this user joined via someone's invite)
+      if (res.memberId) {
+        const credit = await completeReferral(id, res.memberId).catch(() => null);
+        if (credit) {
+          await ctx
+            .reply(`🎁 Do'st taklifi bo'yicha <b>+${formatNumber(credit.refereeReward)} so'm</b> sovg'a!`, { parse_mode: "HTML" })
+            .catch(() => undefined);
+          if (credit.referrerReward > 0) {
+            await ctx.api
+              .sendMessage(credit.referrerTelegramId, renderReferralWin(credit.referrerReward), { parse_mode: "HTML" })
+              .catch(() => undefined);
+          }
+        }
+      }
       if (me) await ctx.reply(renderProfile(me), { parse_mode: "HTML", reply_markup: mainMenu() });
     } else if (res.status === "taken") {
       await ctx.reply(renderTaken(), { parse_mode: "HTML" });
@@ -194,6 +222,65 @@ export function createBot(): Bot {
     });
   });
 
+  // ─── missions / quests ──────────────────────────────────────────────────────
+  function claimKeyboard(m: Awaited<ReturnType<typeof getMissions>>): InlineKeyboard {
+    const kb = new InlineKeyboard();
+    [...m.daily, ...m.weekly]
+      .filter((x) => x.claimable)
+      .forEach((x) => kb.text(`🎁 ${x.emoji} +${formatNumber(x.reward)} so'm`, `claim:${x.code}`).row());
+    return kb;
+  }
+
+  const showMissions = async (ctx: Context) => {
+    const memberId = await getMemberId(String(ctx.from!.id));
+    if (!memberId) {
+      await ctx.reply(renderLinkPrompt(), { parse_mode: "HTML", reply_markup: contactKeyboard() });
+      return;
+    }
+    const m = await getMissions(memberId);
+    const kb = claimKeyboard(m);
+    await ctx.reply(renderMissions(m), {
+      parse_mode: "HTML",
+      reply_markup: kb.inline_keyboard.length ? kb : mainMenu(),
+    });
+  };
+  bot.hears("🎯 Vazifalar", showMissions);
+  bot.command("missions", showMissions);
+
+  bot.callbackQuery(/^claim:(.+)$/, async (ctx) => {
+    const code = ctx.match[1]!;
+    const memberId = await getMemberId(String(ctx.from!.id));
+    if (!memberId) {
+      await ctx.answerCallbackQuery({ text: "Avval raqamingizni ulang 🙏", show_alert: true });
+      return;
+    }
+    const r = await claimMission(memberId, code);
+    if (r.ok) {
+      await ctx.answerCallbackQuery({ text: `🎉 +${formatNumber(r.reward)} so'm hisobingizga qo'shildi!`, show_alert: true });
+    } else if (r.reason === "claimed") {
+      await ctx.answerCallbackQuery({ text: "Bu mukofot allaqachon olingan ✅" });
+    } else {
+      await ctx.answerCallbackQuery({ text: "Bu vazifa hali tugamagan 🎯" });
+    }
+    const m = await getMissions(memberId);
+    const kb = claimKeyboard(m);
+    await ctx
+      .editMessageText(renderMissions(m), { parse_mode: "HTML", reply_markup: kb.inline_keyboard.length ? kb : undefined })
+      .catch(() => undefined);
+  });
+
+  // ─── referral ───────────────────────────────────────────────────────────────
+  const showReferral = async (ctx: Context) => {
+    const r = await getReferralInfo(String(ctx.from!.id));
+    const shareUrl =
+      `https://t.me/share/url?url=${encodeURIComponent(r.link)}` +
+      `&text=${encodeURIComponent("🚕 1067 Taxi — har safardan cashback, kunlik sovg'alar va omad g'ildiragi! Qo'shiling:")}`;
+    const kb = new InlineKeyboard().url("📤 Do'stga yuborish", shareUrl);
+    await ctx.reply(renderReferral(r), { parse_mode: "HTML", reply_markup: kb });
+  };
+  bot.hears("👥 Do'st taklif", showReferral);
+  bot.command("invite", showReferral);
+
   bot.command("admin", async (ctx) => {
     const id = String(ctx.from!.id);
     if (!isAdmin(id)) {
@@ -257,6 +344,8 @@ export async function setupBotCommands(bot: Bot): Promise<void> {
     { command: "status", description: "📍 Buyurtmam holati" },
     { command: "daily", description: "🔥 Kunlik bonus" },
     { command: "wheel", description: "🎡 Omad g'ildiragi" },
+    { command: "missions", description: "🎯 Vazifalar (mukofot)" },
+    { command: "invite", description: "👥 Do'st taklif qilish" },
     { command: "me", description: "Mening hisobim" },
     { command: "top", description: "Reyting" },
   ]);

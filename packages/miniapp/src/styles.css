@@ -149,6 +149,40 @@ body {
 .spin-btn { background: var(--accent); color: #1a1300; border: 0; padding: 13px 30px; border-radius: 14px; font-weight: 800; font-size: 16px; box-shadow: 0 6px 22px -6px var(--accent); }
 .spin-btn:disabled { opacity: .5; box-shadow: none; }
 
+/* missions / quests */
+.ready-pill { font-size: 11px; background: var(--accent); color: #1a1300; padding: 2px 9px; border-radius: 999px; font-weight: 800; margin-left: 6px; }
+.mission-group { font-size: 12px; font-weight: 700; margin: 6px 2px -6px; text-transform: uppercase; letter-spacing: .5px; }
+.mission {
+  display: flex; align-items: center; gap: 12px;
+  background: var(--card); border: 1px solid var(--line); border-radius: 16px; padding: 12px 14px;
+}
+.mission.ready { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent) inset, 0 8px 24px -14px var(--accent); }
+.mission.claimed { opacity: .5; }
+.mission-emoji { font-size: 26px; width: 34px; text-align: center; }
+.mission-body { flex: 1; min-width: 0; }
+.mission-title { font-size: 14px; font-weight: 700; }
+.mission-bar { height: 6px; background: #ffffff10; border-radius: 999px; margin: 7px 0 5px; overflow: hidden; }
+.mission-bar span { display: block; height: 100%; border-radius: 999px; background: linear-gradient(90deg, var(--accent), #ffb347); transition: width .6s cubic-bezier(.2,.8,.2,1); }
+.mission-sub { font-size: 11px; }
+.mission-claim { background: var(--accent); color: #1a1300; border: 0; padding: 9px 16px; border-radius: 11px; font-weight: 800; font-size: 13px; animation: pulse 1.6s ease-in-out infinite; }
+.mission-claim:disabled { opacity: .6; animation: none; }
+@keyframes pulse { 0%,100% { transform: scale(1); } 50% { transform: scale(1.06); } }
+.mission-done { font-size: 20px; }
+.mission-pct { font-size: 12px; font-weight: 700; min-width: 34px; text-align: right; }
+
+/* referral */
+.ref-hero { background: radial-gradient(300px 160px at 50% -20%, color-mix(in srgb, var(--accent) 20%, transparent), transparent), linear-gradient(180deg, var(--card-2), var(--card)); border: 1px solid var(--line); border-radius: 20px; padding: 20px 16px; text-align: center; }
+.ref-big { font-size: 48px; }
+.ref-line { font-size: 14px; margin-top: 4px; }
+.ref-rewards { display: flex; align-items: center; justify-content: center; gap: 16px; margin-top: 16px; }
+.ref-reward { background: #ffffff0d; border: 1px solid var(--line); border-radius: 14px; padding: 12px 18px; min-width: 96px; }
+.ref-reward-val { font-size: 22px; font-weight: 900; color: var(--accent); }
+.ref-plus { font-size: 22px; color: var(--muted); }
+.ref-code-label { font-size: 12px; margin: 4px 2px -8px; }
+.ref-code { font-size: 26px; font-weight: 900; letter-spacing: 4px; text-align: center; background: var(--card); border: 1px dashed var(--accent); border-radius: 14px; padding: 14px; color: var(--gold); }
+.ref-share { background: var(--accent); color: #1a1300; border: 0; padding: 15px; border-radius: 14px; font-weight: 800; font-size: 16px; box-shadow: 0 6px 22px -6px var(--accent); }
+.ref-copy { background: var(--card); color: var(--text); border: 1px solid var(--line); padding: 13px; border-radius: 14px; font-weight: 700; font-size: 14px; }
+
 /* tabbar */
 .tabbar {
   position: fixed; bottom: 0; left: 0; right: 0; z-index: 10;

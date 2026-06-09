@@ -71,6 +71,15 @@ export interface LeaderboardResponse {
   me: LeaderboardEntry | null;
 }
 
+export interface ReferralResponse {
+  code: string;
+  link: string; // t.me deep link with the invite code
+  invited: number; // completed referrals
+  earned: number; // total so'm earned from referrals
+  rewardReferrer: number; // what the inviter gets per completed invite
+  rewardReferee: number; // what the new user gets
+}
+
 export interface AdminStats {
   type: MemberType;
   metricLabel: string;

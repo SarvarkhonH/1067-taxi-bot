@@ -2,6 +2,7 @@ import type { Bot } from "grammy";
 import { formatNumber } from "@t1067/shared";
 import { prisma } from "../db";
 import { getDataSource, type ActiveBookingLite } from "../kas";
+import { incrementMission } from "./missionService";
 
 function statusPush(b: ActiveBookingLite): string {
   const assigned = !!b.carNumber;
@@ -57,8 +58,11 @@ export async function pushBookingUpdates(bot: Bot): Promise<void> {
         await prisma.member.update({ where: { id: m.id }, data: { lastBookingId: b.id, lastBookingStatus: b.status } });
       }
     } else if (m.lastBookingId) {
+      // ride just finished → credit the ride quests
+      await incrementMission(m.id, "daily_ride").catch(() => undefined);
+      await incrementMission(m.id, "weekly_rides").catch(() => undefined);
       await bot.api
-        .sendMessage(chatId, "🏁 Safaringiz yakunlandi! Rahmat 🙌\nCashback tez orada hisobingizda ko'rinadi.", { parse_mode: "HTML" })
+        .sendMessage(chatId, "🏁 Safaringiz yakunlandi! Rahmat 🙌\nCashback tez orada hisobingizda ko'rinadi.\n🎯 Vazifalaringizni tekshiring — mukofot kutyapti!", { parse_mode: "HTML" })
         .catch(() => undefined);
       await prisma.member.update({ where: { id: m.id }, data: { lastBookingId: null, lastBookingStatus: null } });
     }

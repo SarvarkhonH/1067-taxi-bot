@@ -13,6 +13,8 @@ import {
   linkByPhone,
 } from "../services/memberService";
 import { dailyCheckIn, spinWheel } from "../services/rewardService";
+import { claimMission, getMissions } from "../services/missionService";
+import { getReferralInfo } from "../services/referralService";
 import { validateInitData } from "./telegramAuth";
 
 export interface ApiOptions {
@@ -106,6 +108,29 @@ export function createApiServer(opts: ApiOptions = {}) {
       return;
     }
     res.json(await spinWheel(memberId));
+  });
+
+  app.get("/api/missions", requireUser, async (_req, res) => {
+    const memberId = await getMemberId(res.locals.telegramId as string);
+    if (!memberId) {
+      res.status(404).json({ error: "not linked" });
+      return;
+    }
+    res.json(await getMissions(memberId));
+  });
+
+  app.post("/api/missions/claim", requireUser, async (req, res) => {
+    const memberId = await getMemberId(res.locals.telegramId as string);
+    if (!memberId) {
+      res.status(404).json({ error: "not linked" });
+      return;
+    }
+    const code = String(req.query.code ?? "");
+    res.json(await claimMission(memberId, code));
+  });
+
+  app.get("/api/referral", requireUser, async (_req, res) => {
+    res.json(await getReferralInfo(res.locals.telegramId as string));
   });
 
   app.get("/api/leaderboard", requireUser, async (req, res) => {

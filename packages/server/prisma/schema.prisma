@@ -33,9 +33,40 @@ model Member {
   rewardGrants RewardGrant[]
   streak       Streak?
   wheelSpins   WheelSpin[]
+  missions     MissionProgress[]
 
   @@unique([type, kasId])
   @@index([type, points])
+}
+
+// Daily/weekly quests. Definitions live in shared/missions.ts; this tracks
+// per-member progress within a period (tashkent day or ISO week).
+model MissionProgress {
+  id        Int       @id @default(autoincrement())
+  member    Member    @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  memberId  Int
+  code      String // mission code from the shared catalog
+  periodKey String // "2026-06-09" (daily) | "2026-W24" (weekly)
+  progress  Int       @default(0)
+  claimedAt DateTime? // set when the reward is collected
+  updatedAt DateTime  @updatedAt
+
+  @@unique([memberId, code, periodKey])
+  @@index([memberId])
+}
+
+// Completed referrals (one credited row per invitee). Telegram-id based so it
+// works before the inviter/invitee are even linked to a kas member.
+model Referral {
+  id              Int      @id @default(autoincrement())
+  referrerId      String // telegram id of the inviter
+  refereeId       String   @unique // telegram id of the invitee — one credit each
+  refereeMemberId Int?
+  rewardReferrer  Float    @default(0)
+  rewardReferee   Float    @default(0)
+  createdAt       DateTime @default(now())
+
+  @@index([referrerId])
 }
 
 model WheelSpin {
@@ -87,6 +118,9 @@ model TelegramUser {
   languageCode String?
   isAdmin      Boolean   @default(false)
   linkedAt     DateTime?
+  referralCode       String?   @unique // this user's own invite code
+  referredByCode     String? // pending invite code captured at /start
+  referralCreditedAt DateTime? // set once the referral reward is paid (one-time)
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @updatedAt
 }

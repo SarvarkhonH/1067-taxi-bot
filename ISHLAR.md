@@ -41,6 +41,17 @@ Yutuqlar haqiqiy pulга aylanib, mijoz bonusiga qo'shiladi (`1303` kodi). Audit
 Botdan taxi chaqir → "qidirilyapti → haydovchi tayinlandi → yetib keldi → yakunlandi" avtomatik push → oxirida cashback.
 - **Kahneman: Peak-end rule** — safar cashback bilan tugaydi (eng yaxshi xotira).
 
+### 🎯 Topshiriqlar (YANGI)
+Kunlik (kirib chiqing / g'ildirak / 1 safar) + haftalik (5 safar / do'st taklif). Har birida progress bar, tugaganda **real cashback** "Olish" tugmasi. Botda inline tugma, Mini App'da alohida tab.
+- **Cialdini: Scarcity** — kunlik/haftalik reset → shoshilinch.
+- **Kahneman: Goal-gradient** — progress bar marraga tortadi.
+- **Octalysis: Accomplishment** — har vazifa = yutuq hissi.
+
+### 👥 Do'st taklif — double-sided (YANGI)
+Har taklif uchun **ikkalangiz ham** pul olasiz: siz +3000, do'stingiz +2000 so'm. Shaxsiy havola (`?start=ref_KOD`), do'st raqamini ulaganda **avtomatik to'lov**. O'zini taklif qilish bloklangan, bir martalik.
+- **Cialdini: Liking + Reciprocity** — tanish odamdan kelgan taklif kuchli.
+- **k-faktor** — har user yangi userlar olib keladi (viral o'sish).
+
 ### ⚙️ Asos
 Telefon-bog'lash · daraja (7 ta) · nishon (10 ta) · reyting · admin dashboard (haydovchi/mijoz/bot-a'zolari) · on-demand sync (kas1067'ga yuklamasiz).
 

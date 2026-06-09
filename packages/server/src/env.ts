@@ -11,6 +11,7 @@ config({ path: resolve(repoRoot, ".env") });
 
 const schema = z.object({
   BOT_TOKEN: z.string().optional().default(""),
+  BOT_USERNAME: z.string().optional().default("koson1067bot"), // for referral deep links
   TELEGRAM_WEBAPP_URL: z.string().default("http://localhost:5173"),
   ADMIN_TELEGRAM_IDS: z.string().optional().default(""),
 

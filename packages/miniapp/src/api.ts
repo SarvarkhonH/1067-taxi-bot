@@ -1,4 +1,12 @@
-import type { CheckInResponse, LeaderboardResponse, MeResponse, WheelSpinResponse } from "@t1067/shared";
+import type {
+  CheckInResponse,
+  LeaderboardResponse,
+  MeResponse,
+  MissionClaimResponse,
+  MissionsResponse,
+  ReferralResponse,
+  WheelSpinResponse,
+} from "@t1067/shared";
 import { tg } from "./telegram";
 
 // Telegram provides initData via the SDK AND in the URL hash (tgWebAppData).
@@ -58,4 +66,7 @@ export const api = {
   leaderboard: () => get<LeaderboardResponse>("/api/leaderboard"),
   checkin: () => post<CheckInResponse>("/api/checkin"),
   spinWheel: () => post<WheelSpinResponse>("/api/wheel"),
+  missions: () => get<MissionsResponse>("/api/missions"),
+  claimMission: (code: string) => post<MissionClaimResponse>(`/api/missions/claim?code=${encodeURIComponent(code)}`),
+  referral: () => get<ReferralResponse>("/api/referral"),
 };

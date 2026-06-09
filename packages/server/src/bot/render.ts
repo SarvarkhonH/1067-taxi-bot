@@ -6,6 +6,9 @@ import {
   type LeaderboardResponse,
   type MeResponse,
   type MemberType,
+  type MissionsResponse,
+  type MissionView,
+  type ReferralResponse,
 } from "@t1067/shared";
 
 function esc(s: string): string {
@@ -103,6 +106,54 @@ export function renderBadgeUnlocked(code: string): string | null {
     `🎉 <b>Yangi nishon ochildi!</b>\n\n` +
     `${b.emoji} <b>${esc(b.name)}</b>\n${esc(b.description)}\n\n` +
     `Tabriklaymiz! 🥳`
+  );
+}
+
+// ─── missions / quests ────────────────────────────────────────
+function missionLine(x: MissionView): string {
+  const bar = progressBar(x.target ? x.progress / x.target : 0, 6);
+  const status = x.claimed
+    ? "✅ olindi"
+    : x.claimable
+      ? `🎁 <b>+${formatNumber(x.reward)} so'm</b> — tayyor!`
+      : `${x.progress}/${x.target} · +${formatNumber(x.reward)}`;
+  return `${x.emoji} ${esc(x.title)}\n   ${bar} ${status}`;
+}
+
+export function renderMissions(m: MissionsResponse): string {
+  const claimable = [...m.daily, ...m.weekly].filter((x) => x.claimable).length;
+  const head =
+    claimable > 0
+      ? `🎯 <b>Topshiriqlar</b> — ${claimable} ta mukofot tayyor! 🎁`
+      : `🎯 <b>Topshiriqlar</b>`;
+  return (
+    `${head}\n\n` +
+    `📅 <b>Kunlik</b>\n${m.daily.map(missionLine).join("\n")}\n\n` +
+    `🗓 <b>Haftalik</b>\n${m.weekly.map(missionLine).join("\n")}\n\n` +
+    `<i>Mukofotni olish uchun pastdagi tugmani bosing yoki «🚀 Ilova»da yig'ing.</i>`
+  );
+}
+
+// ─── referral ─────────────────────────────────────────────────
+export function renderReferral(r: ReferralResponse): string {
+  return (
+    `👥 <b>Do'st taklif qiling — ikkalangiz ham pul olasiz!</b>\n\n` +
+    `Har bir do'st uchun:\n` +
+    `  • Siz: <b>+${formatNumber(r.rewardReferrer)} so'm</b>\n` +
+    `  • Do'stingiz: <b>+${formatNumber(r.rewardReferee)} so'm</b>\n\n` +
+    `🔗 <b>Sizning havolangiz:</b>\n${esc(r.link)}\n\n` +
+    `✅ Taklif qilingan: <b>${r.invited}</b>\n` +
+    `💰 Ishlab topgan: <b>${formatNumber(r.earned)} so'm</b>\n\n` +
+    `<i>Do'stingiz havola orqali kirib, raqamini ulasa — bonus avtomatik tushadi.</i>`
+  );
+}
+
+/** Notify the inviter the moment their referral lands (variable, social-proof reward). */
+export function renderReferralWin(reward: number): string {
+  return (
+    `🎉 <b>Do'stingiz qo'shildi!</b>\n\n` +
+    `💰 <b>+${formatNumber(reward)} so'm</b> hisobingizga qo'shildi.\n\n` +
+    `Yana taklif qiling — daromad cheksiz! 👥`
   );
 }
 

@@ -1,6 +1,17 @@
-import { useState } from "react";
-import { LEVELS, WHEEL_PRIZES, formatNumber, rankMedal, type LeaderboardResponse, type MeResponse } from "@t1067/shared";
+import { useEffect, useState } from "react";
+import {
+  LEVELS,
+  WHEEL_PRIZES,
+  formatNumber,
+  rankMedal,
+  type LeaderboardResponse,
+  type MeResponse,
+  type MissionView,
+  type MissionsResponse,
+  type ReferralResponse,
+} from "@t1067/shared";
 import { api } from "./api";
+import { copyText, shareLink } from "./telegram";
 
 export function Spinner() {
   return (
@@ -239,6 +250,134 @@ export function LeaderboardView({ board }: { board: LeaderboardResponse }) {
           <div className="row-val">{formatNumber(board.me.points)}</div>
         </div>
       )}
+    </div>
+  );
+}
+
+// ─── missions / quests ────────────────────────────────────────
+function MissionCard({ m, onClaim, busy }: { m: MissionView; onClaim: (code: string) => void; busy: boolean }) {
+  const pct = Math.min(100, Math.round((m.progress / m.target) * 100));
+  return (
+    <div className={"mission" + (m.claimed ? " claimed" : m.claimable ? " ready" : "")}>
+      <div className="mission-emoji">{m.emoji}</div>
+      <div className="mission-body">
+        <div className="mission-title">{m.title}</div>
+        <div className="mission-bar">
+          <span style={{ width: `${pct}%` }} />
+        </div>
+        <div className="mission-sub muted">
+          {m.progress}/{m.target} · 💰 {formatNumber(m.reward)} so'm
+        </div>
+      </div>
+      {m.claimed ? (
+        <div className="mission-done">✅</div>
+      ) : m.claimable ? (
+        <button className="mission-claim" disabled={busy} onClick={() => onClaim(m.code)}>
+          {busy ? "…" : "Olish"}
+        </button>
+      ) : (
+        <div className="mission-pct muted">{pct}%</div>
+      )}
+    </div>
+  );
+}
+
+export function MissionsView({ onReward }: { onReward: (msg: string) => void }) {
+  const [data, setData] = useState<MissionsResponse | null>(null);
+  const [busy, setBusy] = useState<string | null>(null);
+
+  const load = () => api.missions().then(setData).catch(() => undefined);
+  useEffect(() => {
+    load();
+  }, []);
+
+  const claim = async (code: string) => {
+    setBusy(code);
+    try {
+      const r = await api.claimMission(code);
+      if (r.ok) onReward(`🎉 +${formatNumber(r.reward)} so'm!`);
+      await load();
+    } catch {
+      /* ignore */
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  if (!data) return <Spinner />;
+  const readyCount = [...data.daily, ...data.weekly].filter((m) => m.claimable).length;
+
+  return (
+    <div className="view">
+      <div className="section-title">
+        🎯 Vazifalar {readyCount > 0 && <span className="ready-pill">{readyCount} ta tayyor 🎁</span>}
+      </div>
+      <div className="mission-group muted">📅 Kunlik</div>
+      {data.daily.map((m) => (
+        <MissionCard key={m.code} m={m} onClaim={claim} busy={busy === m.code} />
+      ))}
+      <div className="mission-group muted">🗓 Haftalik</div>
+      {data.weekly.map((m) => (
+        <MissionCard key={m.code} m={m} onClaim={claim} busy={busy === m.code} />
+      ))}
+    </div>
+  );
+}
+
+// ─── referral ─────────────────────────────────────────────────
+export function ReferralView() {
+  const [data, setData] = useState<ReferralResponse | null>(null);
+  const [copied, setCopied] = useState(false);
+
+  useEffect(() => {
+    api.referral().then(setData).catch(() => undefined);
+  }, []);
+
+  if (!data) return <Spinner />;
+  const share = () =>
+    shareLink(data.link, "🚕 1067 Taxi — har safardan cashback, kunlik sovg'alar va omad g'ildiragi! Qo'shiling:");
+  const copy = async () => {
+    await copyText(data.link);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 1800);
+  };
+
+  return (
+    <div className="view">
+      <div className="section-title">👥 Do'st taklif qiling</div>
+
+      <section className="ref-hero">
+        <div className="ref-big">🎁</div>
+        <div className="ref-line">
+          Har do'st uchun <b>ikkalangiz ham</b> pul olasiz
+        </div>
+        <div className="ref-rewards">
+          <div className="ref-reward">
+            <div className="ref-reward-val">+{formatNumber(data.rewardReferrer)}</div>
+            <div className="muted">Siz</div>
+          </div>
+          <div className="ref-plus">＋</div>
+          <div className="ref-reward">
+            <div className="ref-reward-val">+{formatNumber(data.rewardReferee)}</div>
+            <div className="muted">Do'stingiz</div>
+          </div>
+        </div>
+      </section>
+
+      <section className="tiles">
+        <StatTile icon="✅" label="Taklif qilingan" value={formatNumber(data.invited)} />
+        <StatTile icon="💰" label="Ishlab topgan" value={`${formatNumber(data.earned)}`} accent="#22c55e" />
+      </section>
+
+      <div className="ref-code-label muted">Sizning kodingiz</div>
+      <div className="ref-code">{data.code}</div>
+
+      <button className="ref-share" onClick={share}>
+        📤 Do'stga yuborish
+      </button>
+      <button className="ref-copy" onClick={copy}>
+        {copied ? "✅ Nusxa olindi" : "🔗 Havoladan nusxa olish"}
+      </button>
     </div>
   );
 }
