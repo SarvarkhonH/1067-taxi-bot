@@ -64,6 +64,22 @@ export function createApiServer(opts: ApiOptions = {}) {
     res.json({ ok: true, mode: env.KAS_MODE, bot: env.hasBot });
   });
 
+  // Temporary diagnostic: tests Render -> kas1067 reachability. Gated by the webhook secret.
+  app.get("/debug/kas", async (req, res) => {
+    if (req.query.key !== env.WEBHOOK_SECRET) {
+      res.status(403).json({ error: "forbidden" });
+      return;
+    }
+    const { getDataSource } = await import("../kas");
+    const t0 = Date.now();
+    try {
+      const members = await getDataSource().fetchByPhone(String(req.query.phone ?? "998978072233"));
+      res.json({ ok: true, ms: Date.now() - t0, found: members.length, names: members.map((m) => m.fullName) });
+    } catch (e) {
+      res.json({ ok: false, ms: Date.now() - t0, error: e instanceof Error ? e.message : String(e) });
+    }
+  });
+
   app.get("/api/me", requireUser, async (_req, res) => {
     const me = await getMe(res.locals.telegramId as string);
     res.json(me ?? { linked: false });
