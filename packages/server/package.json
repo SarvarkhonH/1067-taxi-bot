@@ -1,0 +1,35 @@
+{
+  "name": "@t1067/server",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "dotenv -e ../../.env -- tsx watch src/index.ts",
+    "start": "dotenv -e ../../.env -- tsx src/index.ts",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "db:push": "dotenv -e ../../.env -- prisma db push",
+    "db:generate": "dotenv -e ../../.env -- prisma generate",
+    "db:studio": "dotenv -e ../../.env -- prisma studio",
+    "db:seed": "dotenv -e ../../.env -- tsx src/scripts/seed.ts",
+    "demo": "dotenv -e ../../.env -- tsx src/scripts/demoMessage.ts",
+    "kas:discover": "dotenv -e ../../.env -- tsx src/scripts/discover.ts"
+  },
+  "dependencies": {
+    "@prisma/client": "^6.1.0",
+    "@t1067/shared": "workspace:*",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.7",
+    "express": "^4.21.2",
+    "grammy": "^1.30.0",
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "@types/cors": "^2.8.17",
+    "@types/express": "^4.17.21",
+    "@types/node": "^20.17.0",
+    "dotenv-cli": "^7.4.4",
+    "prisma": "^6.1.0",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.2"
+  }
+}

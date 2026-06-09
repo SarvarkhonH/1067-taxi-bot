@@ -1,0 +1,21 @@
+{
+  "name": "taxi-1067-bonus",
+  "version": "0.1.0",
+  "private": true,
+  "description": "1067 Taxi bonus gamification: Telegram bot + Mini App + admin dashboard",
+  "engines": { "node": ">=20" },
+  "pnpm": {
+    "onlyBuiltDependencies": ["@prisma/client", "@prisma/engines", "prisma", "esbuild"]
+  },
+  "scripts": {
+    "dev": "pnpm --filter @t1067/server dev",
+    "dev:miniapp": "pnpm --filter @t1067/miniapp dev",
+    "dev:admin": "pnpm --filter @t1067/admin dev",
+    "typecheck": "pnpm -r typecheck",
+    "db:push": "pnpm --filter @t1067/server db:push",
+    "db:seed": "pnpm --filter @t1067/server db:seed",
+    "db:studio": "pnpm --filter @t1067/server db:studio",
+    "demo": "pnpm --filter @t1067/server demo",
+    "kas:discover": "pnpm --filter @t1067/server kas:discover"
+  }
+}

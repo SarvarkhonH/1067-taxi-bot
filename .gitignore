@@ -1,0 +1,16 @@
+node_modules/
+dist/
+build/
+*.log
+.env
+.env.local
+.env.*.local
+packages/server/prisma/dev.db
+packages/server/prisma/dev.db-journal
+packages/server/prisma/*.db
+.DS_Store
+.idea/
+.vscode/
+kas-discovery/
+
+.claude/settings.local.json

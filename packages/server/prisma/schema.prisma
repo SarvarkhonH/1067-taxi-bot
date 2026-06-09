@@ -1,0 +1,70 @@
+// kas1067 already computes the numbers; this schema mirrors them and adds the
+// gamification layer. A "member" is either a client (passenger loyalty bonus)
+// or a driver (account balance / earnings).
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite" // dev. Switch to "postgresql" for production.
+  url      = env("DATABASE_URL")
+}
+
+model Member {
+  id         Int       @id @default(autoincrement())
+  type       String // "client" | "driver"
+  kasId      String // external id from kas1067 (unique within a type)
+  fullName   String
+  phone      String?
+  carNumber  String? // drivers only
+  points     Float     @default(0) // bonus (client) | balance (driver)
+  trips      Int       @default(0)
+  rating     Float     @default(0) // drivers only
+  active     Boolean   @default(true)
+  lastSyncAt DateTime?
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+
+  telegramUser TelegramUser?
+  achievements MemberAchievement[]
+
+  @@unique([type, kasId])
+  @@index([type, points])
+}
+
+model TelegramUser {
+  id           String    @id // telegram user id, stored as string to avoid BigInt JSON issues
+  member       Member?   @relation(fields: [memberId], references: [id])
+  memberId     Int?      @unique
+  username     String?
+  firstName    String?
+  lastName     String?
+  phone        String?
+  languageCode String?
+  isAdmin      Boolean   @default(false)
+  linkedAt     DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+}
+
+model MemberAchievement {
+  id       Int      @id @default(autoincrement())
+  member   Member   @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  memberId Int
+  code     String // badge code from the shared catalog
+  earnedAt DateTime @default(now())
+  notified Boolean  @default(false)
+
+  @@unique([memberId, code])
+}
+
+model SyncRun {
+  id          Int       @id @default(autoincrement())
+  startedAt   DateTime  @default(now())
+  finishedAt  DateTime?
+  status      String    @default("running") // running | ok | error
+  source      String    @default("mock") // mock | live
+  membersSeen Int       @default(0)
+  message     String?
+}
