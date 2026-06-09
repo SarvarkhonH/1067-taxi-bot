@@ -118,6 +118,26 @@ export function streakReward(day: number): number {
   return STREAK_REWARDS[day] ?? 0;
 }
 
+// ─── spin the wheel (variable-ratio reward) ───────────────────
+export interface WheelPrize {
+  label: string;
+  emoji: string;
+  amount: number; // so'm cashback (0 = no money prize)
+  weight: number; // relative probability
+  color: string;
+}
+
+// Tune amounts/weights to the reward budget. Expected value ≈ sum(amount*weight)/sum(weight).
+export const WHEEL_PRIZES: WheelPrize[] = [
+  { label: "100 so'm", emoji: "🪙", amount: 100, weight: 30, color: "#9CA3AF" },
+  { label: "Omadsiz", emoji: "🍀", amount: 0, weight: 22, color: "#4B5563" },
+  { label: "300 so'm", emoji: "💵", amount: 300, weight: 20, color: "#CD7F32" },
+  { label: "500 so'm", emoji: "💰", amount: 500, weight: 14, color: "#F59E0B" },
+  { label: "1000 so'm", emoji: "💎", amount: 1000, weight: 9, color: "#22D3EE" },
+  { label: "Nishon", emoji: "🎖", amount: 0, weight: 3, color: "#A855F7" },
+  { label: "JACKPOT 5000", emoji: "🎰", amount: 5000, weight: 2, color: "#EF4444" },
+];
+
 export function nextStreakMilestone(day: number): { day: number; reward: number } | null {
   const days = Object.keys(STREAK_REWARDS)
     .map(Number)

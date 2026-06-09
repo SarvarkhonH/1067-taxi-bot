@@ -30,9 +30,22 @@ model Member {
   achievements MemberAchievement[]
   rewardGrants RewardGrant[]
   streak       Streak?
+  wheelSpins   WheelSpin[]
 
   @@unique([type, kasId])
   @@index([type, points])
+}
+
+model WheelSpin {
+  id        Int      @id @default(autoincrement())
+  member    Member   @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  memberId  Int
+  dayKey    String // tashkent day — enforces once-per-day
+  prize     String
+  amount    Float    @default(0)
+  createdAt DateTime @default(now())
+
+  @@unique([memberId, dayKey])
 }
 
 // Every cashback we grant (idempotent + audited — this writes REAL money to kas1067).

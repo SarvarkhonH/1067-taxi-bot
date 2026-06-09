@@ -10,7 +10,7 @@ import {
   linkByPhone,
   touchTelegramUser,
 } from "../services/memberService";
-import { dailyCheckIn, type CheckInResult } from "../services/rewardService";
+import { dailyCheckIn, spinWheel, type CheckInResult, type WheelResult } from "../services/rewardService";
 import type { CashbackDelta } from "../sync/sync";
 import { registerBooking } from "./booking";
 import {
@@ -32,9 +32,11 @@ function mainMenu(): Keyboard {
     .text("📍 Buyurtmam")
     .row()
     .text("🔥 Kunlik")
-    .text("💰 Hisobim")
+    .text("🎡 G'ildirak")
     .row()
+    .text("💰 Hisobim")
     .text("🏆 Reyting")
+    .row()
     .text("🎖 Nishonlar");
   if (canWebApp) kb.row().webApp("🚀 Ilova", env.TELEGRAM_WEBAPP_URL);
   return kb.resized();
@@ -62,6 +64,20 @@ function renderCheckIn(r: CheckInResult): string {
   }
   if (r.next) s += `\n\n🎯 Keyingi mukofot: ${r.next.day}-kun → <b>+${formatNumber(r.next.reward)} so'm</b>`;
   return s;
+}
+
+function renderWheel(r: WheelResult): string {
+  if (r.alreadySpun) {
+    return `🎡 Bugun allaqachon aylantirdingiz!\nYutuq: ${r.prize.emoji} <b>${esc(r.prize.label)}</b>\n\nErtaga yana keling 🌙`;
+  }
+  if (r.prize.amount > 0) {
+    return `🎉 ${r.prize.emoji} <b>${esc(r.prize.label)}!</b>\n\n+${formatNumber(r.prize.amount)} so'm cashback${r.applied ? " — hisobingizga qo'shildi 💰" : ""}!\n\nErtaga yana aylantiring 🎡`;
+  }
+  return `${r.prize.emoji} <b>${esc(r.prize.label)}</b>\n\nBu safar omad kulmadi — ertaga yana urinib ko'ring! 🎡`;
+}
+
+function esc(s: string): string {
+  return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 }
 
 export function createBot(): Bot {
@@ -149,6 +165,19 @@ export function createBot(): Bot {
   bot.hears("🔥 Kunlik", checkIn);
   bot.command("daily", checkIn);
 
+  const spin = async (ctx: Context) => {
+    const me = await getMe(String(ctx.from!.id));
+    if (!me) {
+      await ctx.reply(renderLinkPrompt(), { parse_mode: "HTML", reply_markup: contactKeyboard() });
+      return;
+    }
+    const msg = await ctx.reply("🎡 G'ildirak aylanmoqda…");
+    const r = await spinWheel(me.member.id);
+    await ctx.api.editMessageText(msg.chat.id, msg.message_id, renderWheel(r), { parse_mode: "HTML" });
+  };
+  bot.hears("🎡 G'ildirak", spin);
+  bot.command("wheel", spin);
+
   bot.hears("🎖 Nishonlar", async (ctx) => {
     const me = await getMe(String(ctx.from!.id));
     if (!me) {
@@ -227,6 +256,7 @@ export async function setupBotCommands(bot: Bot): Promise<void> {
     { command: "book", description: "🚕 Taxi chaqirish" },
     { command: "status", description: "📍 Buyurtmam holati" },
     { command: "daily", description: "🔥 Kunlik bonus" },
+    { command: "wheel", description: "🎡 Omad g'ildiragi" },
     { command: "me", description: "Mening hisobim" },
     { command: "top", description: "Reyting" },
   ]);

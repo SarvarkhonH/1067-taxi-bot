@@ -1,4 +1,4 @@
-import { nextStreakMilestone, streakReward } from "@t1067/shared";
+import { nextStreakMilestone, streakReward, WHEEL_PRIZES, type WheelPrize } from "@t1067/shared";
 import { prisma } from "../db";
 import { getDataSource } from "../kas";
 
@@ -108,6 +108,47 @@ export async function dailyCheckIn(memberId: number): Promise<CheckInResult> {
   }
 
   return { alreadyChecked: false, current, longest, rewardAmount: reward, rewardApplied, next: nextStreakMilestone(current) };
+}
+
+// ─── spin the wheel ───────────────────────────────────────────
+function weightedPick(): WheelPrize {
+  const total = WHEEL_PRIZES.reduce((s, p) => s + p.weight, 0);
+  let r = Math.random() * total;
+  for (const p of WHEEL_PRIZES) {
+    r -= p.weight;
+    if (r <= 0) return p;
+  }
+  return WHEEL_PRIZES[0]!;
+}
+
+export interface WheelResult {
+  alreadySpun: boolean;
+  prize: { label: string; emoji: string; amount: number };
+  applied: boolean;
+}
+
+export async function spinWheel(memberId: number): Promise<WheelResult> {
+  const dayKey = tashkentDayKey(new Date());
+  const existing = await prisma.wheelSpin.findUnique({ where: { memberId_dayKey: { memberId, dayKey } } });
+  if (existing) {
+    const def = WHEEL_PRIZES.find((x) => x.label === existing.prize);
+    return { alreadySpun: true, prize: { label: existing.prize, emoji: def?.emoji ?? "🎡", amount: existing.amount }, applied: false };
+  }
+
+  const prize = weightedPick();
+  await prisma.wheelSpin.create({ data: { memberId, dayKey, prize: prize.label, amount: prize.amount } });
+
+  let applied = false;
+  if (prize.amount > 0) {
+    const g = await grantCashback(memberId, prize.amount, `G'ildirak: ${prize.label}`, "wheel", `wheel:${memberId}:${dayKey}`);
+    applied = g.appliedToKas;
+  }
+  return { alreadySpun: false, prize: { label: prize.label, emoji: prize.emoji, amount: prize.amount }, applied };
+}
+
+export async function canSpinWheel(memberId: number): Promise<boolean> {
+  const dayKey = tashkentDayKey(new Date());
+  return !(await prisma.wheelSpin.findUnique({ where: { memberId_dayKey: { memberId, dayKey } } }));
 }
 
 export async function getStreak(memberId: number): Promise<{ current: number; longest: number; checkedToday: boolean }> {
