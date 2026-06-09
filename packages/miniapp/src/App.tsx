@@ -28,6 +28,15 @@ export function App() {
     api.leaderboard().then(setBoard).catch(() => undefined);
   }, []);
 
+  const reload = () => {
+    api
+      .me()
+      .then((r) => {
+        if (!("linked" in r && r.linked === false)) setMe(r as MeResponse);
+      })
+      .catch(() => undefined);
+  };
+
   if (error) return <ErrorScreen error={error} />;
   if (linked === null) return <Spinner />;
   if (linked === false) return <NotLinked />;
@@ -49,7 +58,7 @@ export function App() {
       </header>
 
       <main className="content">
-        {tab === "profile" && <ProfileView me={me} />}
+        {tab === "profile" && <ProfileView me={me} reload={reload} />}
         {tab === "leaderboard" && (board ? <LeaderboardView board={board} /> : <Spinner />)}
         {tab === "badges" && <BadgesView me={me} />}
       </main>

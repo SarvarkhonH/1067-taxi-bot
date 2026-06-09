@@ -8,8 +8,10 @@ import {
   getBotUsers,
   getLeaderboard,
   getMe,
+  getMemberId,
   isAdmin,
 } from "../services/memberService";
+import { dailyCheckIn, spinWheel } from "../services/rewardService";
 import { validateInitData } from "./telegramAuth";
 
 export interface ApiOptions {
@@ -85,6 +87,24 @@ export function createApiServer(opts: ApiOptions = {}) {
   app.get("/api/me", requireUser, async (_req, res) => {
     const me = await getMe(res.locals.telegramId as string);
     res.json(me ?? { linked: false });
+  });
+
+  app.post("/api/checkin", requireUser, async (_req, res) => {
+    const memberId = await getMemberId(res.locals.telegramId as string);
+    if (!memberId) {
+      res.status(404).json({ error: "not linked" });
+      return;
+    }
+    res.json(await dailyCheckIn(memberId));
+  });
+
+  app.post("/api/wheel", requireUser, async (_req, res) => {
+    const memberId = await getMemberId(res.locals.telegramId as string);
+    if (!memberId) {
+      res.status(404).json({ error: "not linked" });
+      return;
+    }
+    res.json(await spinWheel(memberId));
   });
 
   app.get("/api/leaderboard", requireUser, async (req, res) => {

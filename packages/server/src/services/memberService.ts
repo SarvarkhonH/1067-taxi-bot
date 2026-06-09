@@ -15,9 +15,15 @@ import type { Member, MemberAchievement } from "@prisma/client";
 import { prisma } from "../db";
 import { env } from "../env";
 import { getDataSource } from "../kas";
+import { canSpinWheel, getStreak } from "./rewardService";
 
 export function isAdmin(telegramId: string): boolean {
   return env.adminIds.includes(telegramId);
+}
+
+export async function getMemberId(telegramId: string): Promise<number | null> {
+  const tu = await prisma.telegramUser.findUnique({ where: { id: telegramId } });
+  return tu?.memberId ?? null;
 }
 
 function levelOf(m: Pick<Member, "points" | "trips">) {
@@ -76,6 +82,8 @@ async function buildMe(member: Member, achievements: MemberAchievement[]): Promi
     rank,
     totalMembers: sameType.length,
     badges,
+    streak: await getStreak(member.id),
+    wheelAvailable: await canSpinWheel(member.id),
   };
 }
 

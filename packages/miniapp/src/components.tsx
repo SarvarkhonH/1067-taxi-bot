@@ -1,4 +1,6 @@
-import { LEVELS, formatNumber, rankMedal, type LeaderboardResponse, type MeResponse } from "@t1067/shared";
+import { useState } from "react";
+import { LEVELS, WHEEL_PRIZES, formatNumber, rankMedal, type LeaderboardResponse, type MeResponse } from "@t1067/shared";
+import { api } from "./api";
 
 export function Spinner() {
   return (
@@ -33,7 +35,115 @@ function StatTile({ icon, label, value, accent }: { icon: string; label: string;
   );
 }
 
-export function ProfileView({ me }: { me: MeResponse }) {
+function StreakCard({ me, onReward }: { me: MeResponse; onReward: (msg: string) => void }) {
+  const [busy, setBusy] = useState(false);
+  const [checked, setChecked] = useState(me.streak.checkedToday);
+  const checkIn = async () => {
+    setBusy(true);
+    try {
+      const r = await api.checkin();
+      setChecked(true);
+      onReward(
+        r.rewardAmount > 0
+          ? `🎉 +${formatNumber(r.rewardAmount)} so'm! 🔥 ${r.current} kun streak`
+          : `🔥 ${r.current} kun streak! Davom eting`,
+      );
+    } catch {
+      /* ignore */
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <div className="streak-card">
+      <div className="streak-flame">🔥</div>
+      <div className="streak-info">
+        <div className="streak-days">{me.streak.current} kun</div>
+        <div className="streak-label muted">Kunlik streak</div>
+      </div>
+      <button className="streak-btn" onClick={checkIn} disabled={busy || checked}>
+        {checked ? "✅ Olingan" : busy ? "…" : "Belgilash"}
+      </button>
+    </div>
+  );
+}
+
+function SpinWheel({ available, onReward }: { available: boolean; onReward: (msg: string) => void }) {
+  const [rotation, setRotation] = useState(0);
+  const [spinning, setSpinning] = useState(false);
+  const [done, setDone] = useState(!available);
+  const N = WHEEL_PRIZES.length;
+  const seg = 360 / N;
+
+  const spin = async () => {
+    if (spinning || done) return;
+    setSpinning(true);
+    try {
+      const res = await api.spinWheel();
+      const idx = Math.max(0, WHEEL_PRIZES.findIndex((p) => p.label === res.prize.label));
+      const target = 360 * 6 - (idx * seg + seg / 2);
+      setRotation(target);
+      setTimeout(() => {
+        setSpinning(false);
+        setDone(true);
+        onReward(
+          res.prize.amount > 0
+            ? `${res.prize.emoji} +${formatNumber(res.prize.amount)} so'm!`
+            : `${res.prize.emoji} ${res.prize.label} — ertaga yana!`,
+        );
+      }, 4200);
+    } catch {
+      setSpinning(false);
+    }
+  };
+
+  return (
+    <section className="wheel-section">
+      <div className="section-title">🎡 Omad g'ildiragi</div>
+      <div className="wheel-wrap">
+        <div className="wheel-pointer">▼</div>
+        <svg
+          viewBox="0 0 200 200"
+          className="wheel"
+          style={{ transform: `rotate(${rotation}deg)`, transition: spinning ? "transform 4s cubic-bezier(.18,.7,.16,1)" : "none" }}
+        >
+          {WHEEL_PRIZES.map((p, i) => {
+            const a0 = ((i * seg - 90) * Math.PI) / 180;
+            const a1 = (((i + 1) * seg - 90) * Math.PI) / 180;
+            const x0 = 100 + 96 * Math.cos(a0);
+            const y0 = 100 + 96 * Math.sin(a0);
+            const x1 = 100 + 96 * Math.cos(a1);
+            const y1 = 100 + 96 * Math.sin(a1);
+            const mid = (((i + 0.5) * seg - 90) * Math.PI) / 180;
+            const lx = 100 + 62 * Math.cos(mid);
+            const ly = 100 + 62 * Math.sin(mid);
+            return (
+              <g key={i}>
+                <path d={`M100 100 L${x0.toFixed(2)} ${y0.toFixed(2)} A96 96 0 0 1 ${x1.toFixed(2)} ${y1.toFixed(2)} Z`} fill={p.color} stroke="#0b0f1a" strokeWidth="1" />
+                <text x={lx} y={ly} fontSize="17" textAnchor="middle" dominantBaseline="middle" transform={`rotate(${(i + 0.5) * seg} ${lx.toFixed(2)} ${ly.toFixed(2)})`}>
+                  {p.emoji}
+                </text>
+              </g>
+            );
+          })}
+          <circle cx="100" cy="100" r="15" fill="#161d30" stroke="var(--accent)" strokeWidth="2" />
+        </svg>
+      </div>
+      <button className="spin-btn" onClick={spin} disabled={spinning || done}>
+        {done ? "Ertaga yana 🌙" : spinning ? "Aylanmoqda…" : "🎡 Aylantirish"}
+      </button>
+    </section>
+  );
+}
+
+export function ProfileView({ me, reload }: { me: MeResponse; reload: () => void }) {
+  const [banner, setBanner] = useState<string | null>(null);
+  const onReward = (msg: string) => {
+    setBanner(msg);
+    reload();
+    setTimeout(() => setBanner(null), 6000);
+  };
+
   const pct = Math.round(me.progress * 100);
   const toNext =
     me.nextLevel && me.xpForNext !== null
@@ -49,6 +159,8 @@ export function ProfileView({ me }: { me: MeResponse }) {
 
   return (
     <div className="view">
+      {banner && <div className="reward-banner">{banner}</div>}
+
       <section className="hero" style={{ ["--accent" as string]: me.level.color }}>
         <Ring progress={me.progress} color={me.level.color} emoji={me.level.emoji} />
         <div className="hero-name">{me.member.fullName}</div>
@@ -64,11 +176,15 @@ export function ProfileView({ me }: { me: MeResponse }) {
         </div>
       </section>
 
+      <StreakCard me={me} onReward={onReward} />
+
       <section className="tiles">
         {tiles.map((t) => (
           <StatTile key={t.label} icon={t.icon} label={t.label} value={t.value} accent={t.accent} />
         ))}
       </section>
+
+      <SpinWheel available={me.wheelAvailable} onReward={onReward} />
 
       <LevelLadder currentIndex={me.level.index} />
     </div>

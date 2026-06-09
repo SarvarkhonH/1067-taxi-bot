@@ -1,4 +1,4 @@
-import type { LeaderboardResponse, MeResponse } from "@t1067/shared";
+import type { CheckInResponse, LeaderboardResponse, MeResponse, WheelSpinResponse } from "@t1067/shared";
 import { tg } from "./telegram";
 
 // Telegram provides initData via the SDK AND in the URL hash (tgWebAppData).
@@ -29,19 +29,19 @@ const API_BASE = ((import.meta.env.VITE_API_URL as string) || "").replace(/\/$/,
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
-async function get<T>(path: string): Promise<T> {
+async function request<T>(method: string, path: string): Promise<T> {
   let lastErr: unknown;
   // Retry network-level failures (Render free-tier cold start can take ~30s to wake).
+  // POSTs here are idempotent server-side (once-per-day), so retrying is safe.
   for (let attempt = 0; attempt < 5; attempt++) {
     try {
-      const res = await fetch(`${API_BASE}${path}`, { headers: authHeaders() });
+      const res = await fetch(`${API_BASE}${path}`, { method, headers: authHeaders() });
       if (res.status === 401) throw new Error("unauthorized");
       if (!res.ok) throw new Error(`${path} -> ${res.status}`);
       return (await res.json()) as T;
     } catch (e) {
       lastErr = e;
       const msg = e instanceof Error ? e.message : String(e);
-      // don't retry real HTTP errors (401/4xx) — only network failures
       if (msg === "unauthorized" || /-> \d{3}$/.test(msg)) throw e;
       await sleep(1500 * (attempt + 1));
     }
@@ -49,8 +49,13 @@ async function get<T>(path: string): Promise<T> {
   throw lastErr;
 }
 
+const get = <T,>(path: string) => request<T>("GET", path);
+const post = <T,>(path: string) => request<T>("POST", path);
+
 export const api = {
   me: () => get<MeResponse | { linked: false }>("/api/me"),
   // server defaults the leaderboard to the caller's own member type
   leaderboard: () => get<LeaderboardResponse>("/api/leaderboard"),
+  checkin: () => post<CheckInResponse>("/api/checkin"),
+  spinWheel: () => post<WheelSpinResponse>("/api/wheel"),
 };

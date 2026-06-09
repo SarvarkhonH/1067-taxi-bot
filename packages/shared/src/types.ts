@@ -34,6 +34,23 @@ export interface MeResponse {
   rank: number | null;
   totalMembers: number;
   badges: BadgeView[];
+  streak: { current: number; longest: number; checkedToday: boolean };
+  wheelAvailable: boolean;
+}
+
+export interface CheckInResponse {
+  alreadyChecked: boolean;
+  current: number;
+  longest: number;
+  rewardAmount: number;
+  rewardApplied: boolean;
+  next: { day: number; reward: number } | null;
+}
+
+export interface WheelSpinResponse {
+  alreadySpun: boolean;
+  prize: { label: string; emoji: string; amount: number };
+  applied: boolean;
 }
 
 export interface LeaderboardEntry {
