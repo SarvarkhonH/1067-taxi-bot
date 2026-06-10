@@ -621,3 +621,5 @@ body {
 /* skeleton shimmer (available for loading states) */
 .skeleton { background: linear-gradient(100deg, rgba(255,255,255,0.04) 30%, rgba(255,255,255,0.1) 50%, rgba(255,255,255,0.04) 70%); background-size: 200% 100%; border-radius: 12px; animation: shimmer 1.3s linear infinite; }
 @keyframes shimmer { from { background-position: 200% 0; } to { background-position: -200% 0; } }
+
+.bk-gps { margin-bottom: 4px; }

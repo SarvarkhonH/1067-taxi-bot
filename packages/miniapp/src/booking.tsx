@@ -3,6 +3,7 @@ import {
   BOOKING_STEPS,
   bookingStepIndex,
   formatNumber,
+  haversineKm,
   type ActiveBookingView,
   type BookingInfoResponse,
   type FareQuote,
@@ -241,7 +242,30 @@ export function BookingView({ onClose }: { onClose: () => void }) {
         ) : (
           <>
             <div className="muted bk-fare-hint">Qayerdan olib ketamiz?</div>
-            <input className="bk-input" placeholder="📍 Manzilni yozing…" value={q} onChange={(e) => search(e.target.value)} />
+            <button
+              className="btn-primary bk-gps"
+              onClick={() => {
+                haptic();
+                navigator.geolocation?.getCurrentPosition(
+                  (pos) => {
+                    const me = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+                    const withCoords = (info?.savedAddresses ?? []).filter((a) => a.lat != null && a.lng != null);
+                    let best: SavedAddressView | null = null;
+                    let bestKm = 1.5;
+                    for (const a of withCoords) {
+                      const km = haversineKm(me, { lat: a.lat!, lng: a.lng! });
+                      if (km < bestKm) { bestKm = km; best = a; }
+                    }
+                    if (best) setPickup(best);
+                    else setMsg("📍 Yaqin saqlangan manzil topilmadi — yozib qidiring");
+                  },
+                  () => setMsg("📍 Joylashuvga ruxsat berilmadi"),
+                );
+              }}
+            >
+              📍 Mening joylashuvim
+            </button>
+            <input className="bk-input" placeholder="📍 yoki manzilni yozing…" value={q} onChange={(e) => search(e.target.value)} />
             {list.map((a) => (
               <button key={`${a.id}-${a.name}`} className="glass bk-addr" onClick={() => { haptic(); setPickup(a); }}>
                 <span className="bk-addr-pin">{results.length ? "📍" : "⭐"}</span>{a.name}
