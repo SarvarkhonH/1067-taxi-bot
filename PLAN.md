@@ -201,4 +201,11 @@ Bot · Mini App · admin · kas1067 (o'qish + **cashback yozish 1303**) · strea
 - Yangi missiyalar: daily_race, daily_quiz, weekly_races (endi 5 kunlik + 3 haftalik).
 - **Sinov:** 82 check (44 engagement + 38 game) · prod jonli verify.
 
-**Qoldi (S4):** 🗺 Uber-darajali jonli xarita booking (Leaflet + cityBorders) · 1-tap rebook (resendBooking) · narx kalkulyator booking oqimida.
+## 🗺 S4 BAJARILDI — Uber-darajali xarita booking (jonli)
+- **Jonli xarita** (Leaflet) — kas1067 xizmat hududi (cityBorders poligon, 10 nuqta) + shahar markazi.
+- **Buyurtma** — manzil qidiruv + saqlangan manzillar, bir bosishda chaqirish (BOOKING_LIVE=true → real).
+- **Jonli kuzatuv** — 🚕 haydovchi markeri xaritada harakatlanadi (8s), status timeline (Qidiruv→Yo'lda→Keldi→Safar), haydovchi kartasi + qo'ng'iroq + safar cashback.
+- Home'da katta "🚖 Taxi chaqirish" CTA.
+
+## ✅ SUPER-APP TO'LIQ — 100%
+Taxi (xarita booking + kuzatuv) · 2 hamyon (cashback + coin) · withdraw · **6 o'yin** (g'ildirak/quti/poyga/crash/park/duel/viktorina) · missiya/liga-tier/referral/streak/jackpot/surprise · kas1067 client power-up. Hammasi jonli, Postgres, 82+ avtotest.
