@@ -171,6 +171,8 @@ Bot · Mini App · admin · kas1067 (o'qish + **cashback yozish 1303**) · strea
 ## 🚀 Q1 — boshlandi (yangi, jonli)
 - **🎯 Topshiriqlar dvigateli** — kunlik (kirish/g'ildirak/safar) + haftalik (5 safar / do'st taklif). Progress bar, real cashback claim, idempotent. *Octalysis: Accomplishment+Scarcity · Kahneman: goal-gradient.*
 - **👥 Double-sided referral** — har do'st: siz +3000, do'stingiz +2000. Deep-link (`?start=ref_CODE`), avtomatik to'lov bog'langanda, anti-self-invite, bir martalik. *Octalysis: Social Influence · Cialdini: Liking+Reciprocity · k-faktor dvigateli.*
-- Bot: inline "Olish" tugmasi, "📤 Do'stga yuborish" share · Mini App: 2 yangi tab (Vazifa, Do'st).
+- **🎁 Sirli quti** — barcha 3 kunlik vazifa bajarilsa ochiladi ("mukammal kun"). 500…10 000 so'm, kuniga 1 marta. *Octalysis: Unpredictability · compulsion loop ustida meta-loop.*
+- **🗄 Postgres (Q4'dan oldinga olindi)** — har deploy'da ma'lumot o'chish muammosi hal: streak/missiya/referral/bog'lanish endi doimiy. Redeploy bilan isbotlangan. ⚠️ Bepul tarif 2026-07-10 da tugaydi — upgrade yoki ko'chirish kerak.
+- Bot: inline "Olish"/"Qutini ochish" tugmalari, share · Mini App: Vazifa (quti bilan), Do'st tablari.
 
-> **Keyingi Q1 bloklari:** season-pass · mystery box / surprise drop / jackpot · haftalik reyting sovg'asi + klan. Bor kuch bilan davom etamiz.
+> **Keyingi Q1 bloklari:** season-pass · surprise drop / jackpot pool · haftalik reyting sovg'asi + klan. Bor kuch bilan davom etamiz.

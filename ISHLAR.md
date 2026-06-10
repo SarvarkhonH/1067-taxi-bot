@@ -1,6 +1,6 @@
 # 1067 Super-App — Qilingan ishlar hujjati
 
-_Yangilangan: 2026-06-09_
+_Yangilangan: 2026-06-10_
 
 Bu hujjat — botda real qilingan ishlar ro'yxati. Har bir punkt **deploy qilingan va jonli**.
 
@@ -52,8 +52,19 @@ Har taklif uchun **ikkalangiz ham** pul olasiz: siz +3000, do'stingiz +2000 so'm
 - **Cialdini: Liking + Reciprocity** — tanish odamdan kelgan taklif kuchli.
 - **k-faktor** — har user yangi userlar olib keladi (viral o'sish).
 
+### 🎁 Sirli quti — "mukammal kun" mukofoti (YANGI)
+Barcha 3 kunlik vazifani bajaring → quti ochiladi → **500…10 000 so'm** tasodifiy real cashback (kuniga 1 marta). Botda vazifalar ichida inline tugma, Mini App'da animatsiyali karta.
+- **Octalysis: Unpredictability** — eng addictive drayv.
+- **Compulsion meta-loop** — vazifalar tugashi o'z-o'zidan maqsadga aylanadi.
+
+### 🗄 Doimiy baza — Postgres (YANGI, kritik)
+Avval har deploy'da SQLite o'chib, streak/bog'lanish/referral nolga tushardi (loss-aversion psixologiyasini o'ldiradi). Endi **Render Postgres** — redeploy bilan isbotlangan: bog'lanish va referral kodi saqlanib qoldi. ⚠️ Bepul tarif **2026-07-10** gacha — keyin upgrade kerak.
+
 ### ⚙️ Asos
 Telefon-bog'lash · daraja (7 ta) · nishon (10 ta) · reyting · admin dashboard (haydovchi/mijoz/bot-a'zolari) · on-demand sync (kas1067'ga yuklamasiz).
+
+### 🛠 Deploy tartibi (eslatma)
+`git push` → Render avtomatik EMAS: `POST api.render.com/v1/services/srv-d8k27oernols73dhm0ng/deploys` trigger kerak. Mini App: `VITE_API_URL=https://kas1067-taxi-bot.onrender.com pnpm --filter @t1067/miniapp build` → `vercel deploy --prebuilt --prod`. Tekshirish: `tsx src/scripts/prodVerify.ts`.
 
 ---
 
