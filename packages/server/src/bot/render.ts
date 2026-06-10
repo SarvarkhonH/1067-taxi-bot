@@ -137,6 +137,21 @@ export function renderFare(cfg: FareConfigResponse): string {
   );
 }
 
+export function renderHelp(): string {
+  return (
+    `ℹ️ <b>1067 Taxi — yordam</b>\n\n` +
+    `🚖 <b>Taxi</b> — «🚀 Ilova»da xaritadan chaqiring, jonli kuzating, bekor qiling.\n` +
+    `💰 <b>Ikki hamyon</b> — 🚕 cashback (safardan) + 🪙 coin (o'yindan). Ilovada bir-biriga o'tkaziladi, so'mga aylantiriladi.\n\n` +
+    `<b>Coin topish:</b>\n` +
+    `• 🔥 Kunlik streak · 🎯 vazifalar · 🎡 g'ildirak · 🎁 quti\n` +
+    `• 🏎 Poyga · 🎰 Tezlik · 🏙 Park · ⚔️ Duel · 🧠 Viktorina\n` +
+    `• 👥 Do'st taklif: ikkalangizga +coin\n\n` +
+    `<b>Buyruqlar:</b>\n` +
+    `/start · /narx · /daily · /wheel · /missions · /invite · /me · /top\n\n` +
+    `Savol? Dispetcher: «🚖 Narx & cashback»da raqamlar bor.`
+  );
+}
+
 export function renderBadgeUnlocked(code: string): string | null {
   const b = badgeByCode(code);
   if (!b) return null;

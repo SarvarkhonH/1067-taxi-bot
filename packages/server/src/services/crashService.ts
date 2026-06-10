@@ -63,13 +63,17 @@ export async function cashoutCrash(memberId: number, roundId: string): Promise<C
   let golden = false;
   if (won) {
     payout = Math.floor(r.stake * mult);
-    // 1-in-50 jackpot drop on a winning cashout above 2x
-    if (mult >= 2 && (r.seed % 50 === 0)) {
-      const pool = await claimJackpot();
-      payout += pool;
-      golden = true;
-    }
     await grantCoins(memberId, payout, "crash", `Tezlik ${mult.toFixed(2)}x`, `crash_win:${r.id}`);
+    // 1-in-50 jackpot drop on a winning cashout ≥2x — claim AFTER the base win,
+    // and credit via its own idempotent grant so the pool is never silently lost.
+    if (mult >= 2 && r.seed % 50 === 0) {
+      const pool = await claimJackpot();
+      const j = await grantCoins(memberId, pool, "crash", "JACKPOT 🎰", `crash_jackpot:${r.id}`);
+      if (j.ok) {
+        payout += pool;
+        golden = true;
+      }
+    }
   }
   await prisma.crashRound.update({ where: { id: r.id }, data: { multiplier: won ? mult : null, payout, golden } });
 

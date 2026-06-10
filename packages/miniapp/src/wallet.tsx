@@ -132,9 +132,72 @@ function WithdrawSheet({
   );
 }
 
+// Reverse direction: kas cashback bonus → game coins (two-way wallet).
+function TopupSheet({ wallet, onClose, onDone }: { wallet: WalletResponse; onClose: () => void; onDone: (msg: string) => void }) {
+  const max = Math.floor(wallet.cashback);
+  const presets = [1000, 5000, 10000].filter((p) => p >= wallet.topupMin && p <= max);
+  if (max >= wallet.topupMin && !presets.includes(max)) presets.push(max);
+  const [amount, setAmount] = useState<number | null>(presets[0] ?? null);
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+
+  const submit = async () => {
+    if (!amount || busy) return;
+    setBusy(true);
+    setErr(null);
+    try {
+      const r = await api.topup(amount);
+      if (r.ok) {
+        confetti();
+        onDone(`🔁 ${formatNumber(r.amount)} coin hamyoningizga o'tdi!`);
+        onClose();
+      } else {
+        const msgs: Record<string, string> = {
+          below_min: `Minimal: ${formatNumber(wallet.topupMin)} so'm`,
+          insufficient: "Cashback yetarli emas",
+          not_client: "Faqat mijoz hisoblari uchun",
+          kas_failed: "Tizim xatosi — keyinroq urinib ko'ring",
+        };
+        setErr(msgs[r.reason ?? ""] ?? "Xatolik");
+      }
+    } catch {
+      setErr("Tarmoq xatosi");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="sheet-back" onClick={onClose}>
+      <div className="sheet" onClick={(e) => e.stopPropagation()}>
+        <div className="sheet-grip" />
+        <h3>🔁 Cashback → coin</h3>
+        <p className="muted sheet-sub">Taxi <b>cashback</b>ingizni o'yin <b>coin</b>iga o'tkazing va o'ynang. 1 so'm = 1 coin.</p>
+        {max < wallet.topupMin ? (
+          <div className="sheet-warn">Minimal {formatNumber(wallet.topupMin)} so'm cashback kerak.<br /><span className="muted">Sizda: {formatNumber(wallet.cashback)}</span></div>
+        ) : (
+          <>
+            <div className="chip-row">
+              {presets.map((p) => (
+                <button key={p} className={"amt-chip" + (amount === p ? " active" : "")} onClick={() => { haptic(); setAmount(p); }}>
+                  {p === max && presets.length > 1 ? `MAX ${formatNumber(p)}` : formatNumber(p)}
+                </button>
+              ))}
+            </div>
+            {err && <div className="sheet-err">{err}</div>}
+            <button className="btn-violet" disabled={!amount || busy} onClick={submit}>{busy ? "…" : `🔁 ${amount ? formatNumber(amount) : ""} coinga o'tkazish`}</button>
+          </>
+        )}
+        <button className="btn-ghost" onClick={onClose}>Yopish</button>
+      </div>
+    </div>
+  );
+}
+
 export function WalletView({ me, onBanner, reload, onBook }: { me: MeResponse; onBanner: (m: string) => void; reload: () => void; onBook: () => void }) {
   const [wallet, setWallet] = useState<WalletResponse | null>(null);
   const [sheet, setSheet] = useState(false);
+  const [topup, setTopup] = useState(false);
   const coins = useCountUp(wallet?.coins ?? me.coins);
   const cashback = useCountUp(wallet?.cashback ?? me.stats.points);
 
@@ -175,9 +238,12 @@ export function WalletView({ me, onBanner, reload, onBook }: { me: MeResponse; o
           <span>🚕 Taxi cashback (safarlardan)</span>
           <b>{formatNumber(cashback)} so'm</b>
         </div>
-        <button className="btn-primary wh-cta" onClick={() => { haptic(); setSheet(true); }}>
-          💸 So'mga aylantirish
-        </button>
+        <div className="wh-actions">
+          <button className="btn-primary wh-cta" onClick={() => { haptic(); setSheet(true); }}>💸 So'mga</button>
+          {wallet?.canTopup && (
+            <button className="btn-violet wh-cta" onClick={() => { haptic(); setTopup(true); }}>🔁 Coinga</button>
+          )}
+        </div>
         <div className="wh-meta muted">
           {me.rank && <span>O'rin {rankMedal(me.rank)}</span>}
           <span>🚕 {formatNumber(me.stats.trips)} safar</span>
@@ -219,6 +285,7 @@ export function WalletView({ me, onBanner, reload, onBook }: { me: MeResponse; o
       </section>
 
       {sheet && wallet && <WithdrawSheet wallet={wallet} onClose={() => setSheet(false)} onDone={onDone} />}
+      {topup && wallet && <TopupSheet wallet={wallet} onClose={() => setTopup(false)} onDone={onDone} />}
     </div>
   );
 }

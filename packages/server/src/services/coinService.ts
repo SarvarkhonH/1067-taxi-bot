@@ -1,6 +1,19 @@
-import { WITHDRAW_DAILY_CAP, WITHDRAW_MIN, type WalletResponse, type WithdrawResponse } from "@t1067/shared";
+import { TOPUP_MIN, WITHDRAW_DAILY_CAP, WITHDRAW_MIN, type WalletResponse, type WithdrawResponse } from "@t1067/shared";
 import { prisma } from "../db";
 import { getDataSource } from "../kas";
+
+// kas1067 has no compare-and-set, so serialize our own writes per phone to stop
+// concurrent withdraw/top-up from racing (read-modify-write on the bonus).
+const phoneLocks = new Map<string, Promise<unknown>>();
+function withPhoneLock<T>(phone: string, fn: () => Promise<T>): Promise<T> {
+  const prev = phoneLocks.get(phone) ?? Promise.resolve();
+  const run = prev.catch(() => undefined).then(fn);
+  phoneLocks.set(
+    phone,
+    run.catch(() => undefined),
+  );
+  return run;
+}
 
 export interface CoinResult {
   ok: boolean;
@@ -16,6 +29,7 @@ export async function grantCoins(
   reason: string,
   idempotencyKey?: string,
 ): Promise<CoinResult> {
+  amount = Math.floor(amount); // money is whole-coin only
   if (amount <= 0) return { ok: false, balance: await getCoins(memberId) };
   if (idempotencyKey) {
     const existing = await prisma.coinTxn.findUnique({ where: { idempotencyKey } });
@@ -33,6 +47,7 @@ export async function grantCoins(
 
 /** Spend coins (sinks: respins, premium boxes, stakes, upgrades). Atomic — never goes negative. */
 export async function spendCoins(memberId: number, amount: number, kind: string, reason: string): Promise<CoinResult> {
+  amount = Math.floor(amount);
   if (amount <= 0) return { ok: false, balance: await getCoins(memberId) };
   const res = await prisma.member.updateMany({
     where: { id: memberId, coins: { gte: amount } },
@@ -71,6 +86,8 @@ export async function getWallet(memberId: number): Promise<WalletResponse> {
     withdrawMin: WITHDRAW_MIN,
     withdrawDailyCap: WITHDRAW_DAILY_CAP,
     canWithdraw: coins >= WITHDRAW_MIN && today < WITHDRAW_DAILY_CAP,
+    topupMin: TOPUP_MIN,
+    canTopup: (member?.points ?? 0) >= TOPUP_MIN,
     txns: txns.map((t) => ({ amount: t.amount, kind: t.kind, reason: t.reason, at: t.createdAt.toISOString() })),
   };
 }
@@ -81,6 +98,7 @@ export async function getWallet(memberId: number): Promise<WalletResponse> {
  * This is the ONLY point where real money leaves the system.
  */
 export async function withdraw(memberId: number, amount: number): Promise<WithdrawResponse> {
+  amount = Math.floor(amount);
   const member = await prisma.member.findUnique({ where: { id: memberId } });
   const fail = (reason: WithdrawResponse["reason"]): WithdrawResponse => ({
     ok: false,
@@ -101,7 +119,8 @@ export async function withdraw(memberId: number, amount: number): Promise<Withdr
   let kasApplied = false;
   let kasMessage = "";
   try {
-    const res = await getDataSource().addClientBonus(member.phone, amount);
+    // per-phone lock: serialize our concurrent bonus writes (kas has no CAS)
+    const res = await withPhoneLock(member.phone, () => getDataSource().addClientBonus(member.phone!, amount));
     kasApplied = res.ok;
     kasMessage = res.ok ? `${res.oldBonus} -> ${res.newBonus}` : `failed (status ${res.status})`;
   } catch (e) {
@@ -118,4 +137,39 @@ export async function withdraw(memberId: number, amount: number): Promise<Withdr
   await prisma.withdrawal.create({ data: { memberId, amount, kasApplied: true, kasMessage } });
   await prisma.member.update({ where: { id: memberId }, data: { points: { increment: amount } } });
   return { ok: true, amount, coinsLeft: await getCoins(memberId), kasApplied: true };
+}
+
+/**
+ * Reverse direction (user-requested two-way wallet): move the user's OWN kas
+ * cashback bonus INTO their game-coin wallet so they can play. Deduct the kas
+ * bonus first (per-phone lock); credit coins only if the kas write succeeded.
+ */
+export async function topUpFromBonus(memberId: number, amount: number): Promise<WithdrawResponse> {
+  amount = Math.floor(amount);
+  const member = await prisma.member.findUnique({ where: { id: memberId } });
+  const fail = (reason: WithdrawResponse["reason"]): WithdrawResponse => ({
+    ok: false,
+    reason,
+    amount,
+    coinsLeft: member?.coins ?? 0,
+    kasApplied: false,
+  });
+  if (!member || member.type !== "client" || !member.phone) return fail("not_client");
+  if (amount < TOPUP_MIN) return fail("below_min");
+
+  const phone = member.phone;
+  const res = await withPhoneLock(phone, async () => {
+    // re-read the live bonus inside the lock, then deduct
+    const cur = (await getDataSource().fetchByPhone(phone)).find((m) => m.type === "client")?.points ?? null;
+    if (cur === null || cur < amount) return { ok: false as const, reason: "insufficient" as const };
+    const w = await getDataSource().setClientBonus(phone, cur - amount);
+    return w.ok ? { ok: true as const } : { ok: false as const, reason: "kas_failed" as const };
+  });
+
+  if (!res.ok) return fail(res.reason === "insufficient" ? "insufficient" : "kas_failed");
+
+  const g = await grantCoins(memberId, amount, "topup", `Cashback → coin: ${amount}`);
+  // keep the denormalized kas balance roughly in sync
+  await prisma.member.update({ where: { id: memberId }, data: { points: { decrement: amount } } }).catch(() => undefined);
+  return { ok: true, amount, coinsLeft: g.balance, kasApplied: true };
 }

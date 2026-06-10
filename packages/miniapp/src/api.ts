@@ -3,9 +3,13 @@ import type {
   BoxStatusResponse,
   CheckInResponse,
   ActiveBookingView,
+  BookingCancelResponse,
+  BookingCreateBody,
   BookingCreateResponse,
   BookingInfoResponse,
   CrashCashoutResponse,
+  FareQuote,
+  GeoPt,
   CrashStartResponse,
   DuelCreateResponse,
   DuelListResponse,
@@ -99,6 +103,7 @@ export const api = {
   weekly: () => get<WeeklyBoardResponse>("/api/weekly"),
   wallet: () => get<WalletResponse>("/api/wallet"),
   withdraw: (amount: number) => request<WithdrawResponse>("POST", "/api/wallet/withdraw", { amount }, 1),
+  topup: (amount: number) => request<WithdrawResponse>("POST", "/api/wallet/topup", { amount }, 1),
   // games (money ops → no auto-retry)
   raceStart: (stake: number) => request<RaceStartResponse>("POST", "/api/race/create", { stake }, 1),
   raceFinish: (body: RaceFinishBody) => request<RaceFinishResponse>("POST", "/api/race/finish", body, 1),
@@ -118,10 +123,15 @@ export const api = {
   bookingInfo: () => get<BookingInfoResponse | { error: string }>("/api/booking/info"),
   bookingActive: () => get<ActiveBookingView | null>("/api/booking/active"),
   bookingSearch: (q: string) => request<SavedAddr[]>("POST", "/api/booking/search", { q }, 1),
-  bookingCreate: (addressId: number, addressName: string) => request<BookingCreateResponse>("POST", "/api/booking/create", { addressId, addressName }, 1),
+  bookingCreate: (body: BookingCreateBody) => request<BookingCreateResponse>("POST", "/api/booking/create", body, 1),
+  bookingCancel: () => request<BookingCancelResponse>("POST", "/api/booking/cancel", undefined, 1),
+  bookingEstimate: (pickup: GeoPt, dest: GeoPt, surcharge: number) => request<FareQuote>("POST", "/api/booking/estimate", { pickup, dest, surcharge }),
 };
 
 interface SavedAddr {
   id: number;
   name: string;
+  lat?: number;
+  lng?: number;
+  surcharge?: number;
 }

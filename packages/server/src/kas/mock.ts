@@ -6,6 +6,7 @@ import type {
   BookingResult,
   CarModel,
   ClientBookingInfo,
+  KasAddon,
   ClientTariff,
   CompanyInfo,
   GeoPoint,
@@ -78,9 +79,9 @@ export class KasMockSource implements KasDataSource {
       clientName: member?.fullName ?? "Mijoz",
       phoneNumber: phone,
       addresses: [
-        { id: 101, name: "🏠 Uy — Bunyodkor 12" },
-        { id: 102, name: "💼 Ish — Mustaqillik maydoni 1" },
-        { id: 103, name: "📍 Oxirgi — Koson bozori" },
+        { id: 101, name: "🏠 Uy — Bunyodkor 12", lat: 39.0468, lng: 65.564, surcharge: 2000 },
+        { id: 102, name: "💼 Ish — Mustaqillik maydoni 1", lat: 39.0447, lng: 65.5766 },
+        { id: 103, name: "📍 Oxirgi — Koson bozori", lat: 39.0272, lng: 65.6065 },
       ],
       activeBooking: null,
     };
@@ -90,11 +91,23 @@ export class KasMockSource implements KasDataSource {
     const q = text.toLowerCase();
     return MOCK_ADDRESSES.filter((a) => a.toLowerCase().includes(q))
       .slice(0, 5)
-      .map((name, i) => ({ id: 200 + i, name }));
+      .map((name, i) => ({ id: 200 + i, name, lat: 39.034 + i * 0.003, lng: 65.57 + i * 0.003 }));
   }
 
   async createBooking(req: BookingRequest): Promise<BookingResult> {
     return { ok: true, message: `mock booking for ${req.phoneNumber} @ ${req.addressName}` };
+  }
+
+  async getBookingAddons(): Promise<KasAddon[]> {
+    return [
+      { id: 2, name: "ORQA BAGAJ", price: 2000 },
+      { id: 3, name: "TEPA BAGAJ", price: 5000 },
+      { id: 8, name: "MOTO", price: 10000 },
+    ];
+  }
+
+  async cancelBooking(_bookingId: number): Promise<BookingResult> {
+    return { ok: true, message: "mock cancel" };
   }
 
   async setClientBonus(_phone: string, newBonus: number): Promise<{ ok: boolean; oldBonus: number; name?: string; status?: number }> {
@@ -114,6 +127,8 @@ export class KasMockSource implements KasDataSource {
       id: 40400,
       status: "called",
       addressName: "Bunyodkor ko'chasi 12",
+      lat: 39.0468,
+      lng: 65.564,
       clientBonus: 500,
       priceTier: "standard",
       createdDate: "2026-06-09T13:33:00.000+0000",

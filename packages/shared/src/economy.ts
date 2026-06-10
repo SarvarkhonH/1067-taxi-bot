@@ -9,8 +9,9 @@
 
 export const COIN_PER_SOM = 1;
 
-export const WITHDRAW_MIN = 5000; // min coins per conversion
+export const WITHDRAW_MIN = 5000; // min coins per conversion (coin → cashback)
 export const WITHDRAW_DAILY_CAP = 50000; // max so'm leaving per member per day
+export const TOPUP_MIN = 1000; // min bonus to move INTO coins (cashback → coin)
 
 // Sinks (what coins buy) — these recycle coins back into the economy.
 export const WHEEL_RESPIN_COST = 300; // unlimited respins after the free daily one
@@ -39,6 +40,8 @@ export interface WalletResponse {
   withdrawMin: number;
   withdrawDailyCap: number;
   canWithdraw: boolean;
+  topupMin: number; // min cashback to convert INTO coins
+  canTopup: boolean; // cashback >= topupMin
   txns: CoinTxnView[];
 }
 

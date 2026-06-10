@@ -28,6 +28,7 @@ import {
   renderProfile,
   renderReferral,
   renderFare,
+  renderHelp,
   renderReferralWin,
   renderTaken,
   renderWeeklyBlock,
@@ -366,6 +367,10 @@ export function createBot(): Bot {
   bot.hears("🚖 Narx & cashback", showFare);
   bot.command("narx", showFare);
 
+  bot.command("help", async (ctx) => {
+    await ctx.reply(renderHelp(), { parse_mode: "HTML", reply_markup: mainMenu() });
+  });
+
   bot.command("admin", async (ctx) => {
     const id = String(ctx.from!.id);
     if (!isAdmin(id)) {
@@ -434,5 +439,6 @@ export async function setupBotCommands(bot: Bot): Promise<void> {
     { command: "narx", description: "🚖 Narx va cashback" },
     { command: "me", description: "Mening hisobim" },
     { command: "top", description: "Reyting" },
+    { command: "help", description: "ℹ️ Yordam" },
   ]);
 }

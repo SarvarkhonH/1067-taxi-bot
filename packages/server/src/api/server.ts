@@ -17,15 +17,15 @@ import { claimMission, getMissions } from "../services/missionService";
 import { getBoxStatus, openBox } from "../services/boxService";
 import { getReferralInfo } from "../services/referralService";
 import { getWeeklyBoard } from "../services/weeklyService";
-import { getWallet, withdraw } from "../services/coinService";
+import { getWallet, topUpFromBonus, withdraw } from "../services/coinService";
 import { finishRace, getRaceBoard, startRace } from "../services/raceService";
 import { cashoutCrash, startCrash } from "../services/crashService";
 import { buyOrUpgradeCar, collectPark, getPark } from "../services/parkService";
 import { getFareConfig } from "../services/clientInfoService";
 import { acceptDuel, createDuel, listDuels, submitDuelRun } from "../services/duelService";
 import { answerQuiz, getQuiz } from "../services/quizService";
-import { createBookingFor, getActiveBookingFor, getBookingInfo, searchBookingAddress } from "../services/bookingService";
-import type { DuelRunBody, RaceFinishBody } from "@t1067/shared";
+import { cancelBookingFor, createBookingFor, estimateFare, getActiveBookingFor, getBookingInfo, searchBookingAddress } from "../services/bookingService";
+import type { BookingCreateBody, DuelRunBody, GeoPt, RaceFinishBody } from "@t1067/shared";
 import { validateInitData } from "./telegramAuth";
 
 export interface ApiOptions {
@@ -40,13 +40,14 @@ function memberType(req: Request, fallback: MemberType): MemberType {
 function resolveTelegramId(req: Request): string | null {
   const initData = (req.header("X-Telegram-Init-Data") as string) || (req.query.initData as string) || "";
   const dbg = req.header("X-Debug-Telegram-Id");
-  const ua = (req.header("User-Agent") || "").slice(0, 50);
   if (initData && env.BOT_TOKEN) {
     const res = validateInitData(initData, env.BOT_TOKEN);
-    console.log(`[auth] ${req.path} initData.len=${initData.length} ok=${res.ok} reason=${res.reason ?? "-"} user=${res.user?.id ?? "-"} ua="${ua}"`);
+    if (env.allowDebugAuth) {
+      const u = res.user?.id ? `***${String(res.user.id).slice(-3)}` : "-";
+      console.log(`[auth] ${req.path} ok=${res.ok} reason=${res.reason ?? "-"} user=${u}`);
+    }
     return res.ok && res.user ? String(res.user.id) : null;
   }
-  console.log(`[auth] ${req.path} NO initData (debugHdr=${dbg ?? "-"}, hasBot=${env.hasBot}, allowDebug=${env.allowDebugAuth}) ua="${ua}"`);
   if (!env.hasBot || env.allowDebugAuth) {
     if (dbg) return dbg;
   }
@@ -80,22 +81,6 @@ export function createApiServer(opts: ApiOptions = {}) {
 
   app.get("/health", (_req, res) => {
     res.json({ ok: true, mode: env.KAS_MODE, bot: env.hasBot });
-  });
-
-  // Temporary diagnostic: tests Render -> kas1067 reachability. Gated by the webhook secret.
-  app.get("/debug/kas", async (req, res) => {
-    if (req.query.key !== env.WEBHOOK_SECRET) {
-      res.status(403).json({ error: "forbidden" });
-      return;
-    }
-    const { getDataSource } = await import("../kas");
-    const t0 = Date.now();
-    try {
-      const members = await getDataSource().fetchByPhone(String(req.query.phone ?? "998978072233"));
-      res.json({ ok: true, ms: Date.now() - t0, found: members.length, names: members.map((m) => m.fullName) });
-    } catch (e) {
-      res.json({ ok: false, ms: Date.now() - t0, error: e instanceof Error ? e.message : String(e) });
-    }
   });
 
   app.get("/api/me", requireUser, async (_req, res) => {
@@ -144,6 +129,20 @@ export function createApiServer(opts: ApiOptions = {}) {
     res.json(await withdraw(memberId, amount));
   });
 
+  app.post("/api/wallet/topup", requireUser, async (req, res) => {
+    const memberId = await getMemberId(res.locals.telegramId as string);
+    if (!memberId) {
+      res.status(404).json({ error: "not linked" });
+      return;
+    }
+    const amount = Math.floor(Number((req.body as { amount?: number })?.amount ?? 0));
+    if (!Number.isFinite(amount) || amount <= 0) {
+      res.status(400).json({ error: "amount required" });
+      return;
+    }
+    res.json(await topUpFromBonus(memberId, amount));
+  });
+
   app.get("/api/missions", requireUser, async (_req, res) => {
     const memberId = await getMemberId(res.locals.telegramId as string);
     if (!memberId) {
@@ -169,6 +168,10 @@ export function createApiServer(opts: ApiOptions = {}) {
 
   app.get("/api/weekly", requireUser, async (_req, res) => {
     const memberId = await getMemberId(res.locals.telegramId as string);
+    if (!memberId) {
+      res.status(404).json({ error: "not linked" });
+      return;
+    }
     res.json(await getWeeklyBoard(memberId));
   });
 
@@ -232,10 +235,16 @@ export function createApiServer(opts: ApiOptions = {}) {
   app.get("/api/booking/info", requireUser, withMember((id) => getBookingInfo(id)));
   app.get("/api/booking/active", requireUser, withMember((id) => getActiveBookingFor(id)));
   app.post("/api/booking/search", requireUser, withMember((_id, req) => searchBookingAddress(String((req.body as { q?: string })?.q ?? ""))));
-  app.post("/api/booking/create", requireUser, withMember((id, req) => {
-    const b = req.body as { addressId?: number; addressName?: string };
-    return createBookingFor(id, Math.floor(Number(b?.addressId ?? 0)), String(b?.addressName ?? ""));
-  }));
+  app.post("/api/booking/create", requireUser, withMember((id, req) => createBookingFor(id, req.body as BookingCreateBody)));
+  app.post("/api/booking/cancel", requireUser, withMember((id) => cancelBookingFor(id)));
+  app.post("/api/booking/estimate", requireUser, async (req, res) => {
+    const b = req.body as { pickup?: GeoPt; dest?: GeoPt; surcharge?: number };
+    if (!b?.pickup || !b?.dest) {
+      res.status(400).json({ error: "pickup and dest required" });
+      return;
+    }
+    res.json(await estimateFare(b.pickup, b.dest, Math.floor(Number(b.surcharge ?? 0))));
+  });
 
   // ─── client power-ups: fare + cashback config ───────────────────────────────
   app.get("/api/fare/config", requireUser, async (_req, res) => {

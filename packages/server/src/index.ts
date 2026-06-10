@@ -63,7 +63,10 @@ async function main(): Promise<void> {
     if (bot) await bot.api.sendMessage(telegramId, html, { parse_mode: "HTML" });
   };
   const intervalMs = Math.max(1, env.SYNC_INTERVAL_MINUTES) * 60_000;
+  let periodicBusy = false;
   const timer = setInterval(async () => {
+    if (periodicBusy) return; // skip if the previous tick is still running
+    periodicBusy = true;
     try {
       if (env.KAS_MODE === "live") {
         const { checked, deltas } = await refreshLinkedMembers();
@@ -83,14 +86,23 @@ async function main(): Promise<void> {
       }
     } catch (e) {
       console.error("[periodic] failed:", e instanceof Error ? e.message : e);
+    } finally {
+      periodicBusy = false;
     }
   }, intervalMs);
 
   // real-time ride status: poll active bookings often, push status changes
+  let bookingBusy = false;
   const bookingTimer =
     env.KAS_MODE === "live"
       ? setInterval(() => {
-          if (bot) void pushBookingUpdates(bot).catch((e) => console.error("[booking] push failed:", e));
+          if (!bot || bookingBusy) return;
+          bookingBusy = true;
+          void pushBookingUpdates(bot)
+            .catch((e) => console.error("[booking] push failed:", e))
+            .finally(() => {
+              bookingBusy = false;
+            });
         }, 90_000)
       : null;
 

@@ -16,6 +16,9 @@ export interface KasMember {
 export interface SavedAddress {
   id: number;
   name: string;
+  lat?: number; // kas addressDto.latitude
+  lng?: number; // kas addressDto.longitude
+  surcharge?: number; // per-address additionalPayment (so'm)
 }
 
 export interface ClientBookingInfo {
@@ -38,6 +41,12 @@ export interface BookingResult {
   message?: string;
 }
 
+export interface KasAddon {
+  id: number;
+  name: string;
+  price: number;
+}
+
 export interface BookingDriver {
   fullName: string;
   phone: string;
@@ -52,6 +61,8 @@ export interface ActiveBooking {
   id: number;
   status: string; // in_place | called | arrived | ...
   addressName: string;
+  lat?: number; // pickup addressLatitude
+  lng?: number; // pickup addressLongitude
   clientBonus: number; // cashback earned from this ride
   priceTier: string; // bookingPrice (e.g. "standard")
   createdDate: string;
@@ -121,6 +132,10 @@ export interface KasDataSource {
   searchAddresses(text: string): Promise<SavedAddress[]>;
   /** Booking: create a real order (POST throughWeb). Only called when BOOKING_LIVE=true. */
   createBooking(req: BookingRequest): Promise<BookingResult>;
+  /** Booking: optional paid add-ons (bag, moto…) with prices. */
+  getBookingAddons(): Promise<KasAddon[]>;
+  /** Booking: cancel an active order by id (DELETE). Only when BOOKING_LIVE=true. */
+  cancelBooking(bookingId: number): Promise<BookingResult>;
   /** Booking tracking: the caller's current active booking (status + assigned driver), by phone. */
   getActiveBooking(phone: string): Promise<ActiveBooking | null>;
   /** All active bookings (one call) — for the status-push notifier. */

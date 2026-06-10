@@ -1,4 +1,7 @@
-// Mini App booking DTOs — Uber-style map order + live tracking, backed by kas1067.
+// Mini App booking DTOs — Uber-style map order + live tracking, backed by
+// kas1067. NOTE: kas dispatches a taxi to ONE pickup address (taximeter model,
+// no native destination). We add an optional destination purely to ESTIMATE
+// the fare; the dispatch itself is pickup-only.
 
 export interface GeoPt {
   lat: number;
@@ -8,6 +11,22 @@ export interface GeoPt {
 export interface SavedAddressView {
   id: number;
   name: string;
+  lat?: number;
+  lng?: number;
+  surcharge?: number; // per-address additionalPayment (so'm)
+}
+
+export interface BookingAddon {
+  id: number;
+  name: string;
+  price: number;
+}
+
+export interface CarTypeView2 {
+  id: number;
+  name: string;
+  category: number;
+  photo?: string | null;
 }
 
 export interface BookingDriverView {
@@ -22,10 +41,13 @@ export interface BookingDriverView {
 
 export interface ActiveBookingView {
   id: number;
-  status: string; // searching | assigned | arrived | started | …
+  status: string;
   statusLabel: string;
   addressName: string;
+  pickup: GeoPt | null;
   cashback: number; // so'm this ride earns
+  etaMin: number | null; // driver → pickup estimate
+  canCancel: boolean; // early status only
   driver: BookingDriverView | null;
 }
 
@@ -34,16 +56,40 @@ export interface BookingInfoResponse {
   serviceArea: GeoPt[];
   center: GeoPt;
   savedAddresses: SavedAddressView[];
-  cars: { id: number; name: string; category: string }[];
+  cars: CarTypeView2[];
+  addons: BookingAddon[];
   cashbackPerRide: number;
+  bonusBalance: number; // member kas cashback (can pay with it)
   bookingLive: boolean; // false = dry-run (no real dispatch)
   active: ActiveBookingView | null;
+}
+
+export interface FareQuote {
+  km: number;
+  base: number;
+  perKm: number;
+  surcharge: number; // address + add-ons
+  total: number;
+  cashback: number;
+}
+
+export interface BookingCreateBody {
+  pickupId: number;
+  pickupName: string;
+  addonIds?: number[];
+  carCategory?: number;
 }
 
 export interface BookingCreateResponse {
   ok: boolean;
   live: boolean; // real dispatch happened (vs dry-run)
   message?: string;
+}
+
+export interface BookingCancelResponse {
+  ok: boolean;
+  reason?: "no_booking" | "too_late" | "failed";
+  live: boolean;
 }
 
 /** Friendly status label for the order timeline. */
@@ -65,10 +111,25 @@ export function bookingStatusLabel(status: string): string {
 
 export const BOOKING_STEPS = ["🔍 Qidiruv", "🚖 Yo'lda", "✅ Keldi", "🚗 Safar"] as const;
 
-/** Map a kas status to a 0-based step index for the timeline. */
 export function bookingStepIndex(status: string): number {
   if (["arrived"].includes(status)) return 2;
   if (["started"].includes(status)) return 3;
   if (["called", "accepted", "on_the_way"].includes(status)) return 1;
   return 0;
+}
+
+/** Cancellable only before the driver has arrived. */
+export function bookingCancellable(status: string): boolean {
+  return ["in_place", "searching", "new", "called", "accepted", "on_the_way"].includes(status);
+}
+
+/** Great-circle distance in km. */
+export function haversineKm(a: GeoPt, b: GeoPt): number {
+  const R = 6371;
+  const dLat = ((b.lat - a.lat) * Math.PI) / 180;
+  const dLng = ((b.lng - a.lng) * Math.PI) / 180;
+  const la1 = (a.lat * Math.PI) / 180;
+  const la2 = (b.lat * Math.PI) / 180;
+  const h = Math.sin(dLat / 2) ** 2 + Math.cos(la1) * Math.cos(la2) * Math.sin(dLng / 2) ** 2;
+  return 2 * R * Math.asin(Math.min(1, Math.sqrt(h)));
 }

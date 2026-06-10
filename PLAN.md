@@ -1,5 +1,17 @@
 # 1067 — MASTER PLAN v2 (bor kuch bilan)
 
+## 🚀 v3 SCOPE (joriy — foydalanuvchi talablari)
+1. **Boyitilgan xarita** — pin bilan tanlash, joriy joylashuv, haydovchi jonli harakat, ETA (hozirgisi juda oddiy).
+2. **Ikki tomonlama hamyon** — 💸 coin→cashback (bor) **+ 🔁 cashback→coin** (yangi): kas bonusni o'yin coiniga va aksincha.
+3. **Taxi qulayliklari** — saqlangan manzillar (dedup+koordinata), qo'shimchalar (ORQA/TEPA BAGAJ, MOTO), mashina turi, oxirgi manzillar.
+4. **Narxni bilish** — fare prognoz (clientTariffs rate-card + ixtiyoriy "qayerga" pin masofa uchun + manzil ustamasi + qo'shimchalar).
+5. **Safarni aniq bilish** — to'liq booking detali (status, narx tier, cashback, haydovchi) + **safar tarixi/sessiyalar** (bookingReports).
+6. **Bekor qilish** — DELETE booking + bot/Mini App'da tugma.
+7. **Auth gate** — botni ishlatishdan oldin telefon-tasdiq/auth.
+8. **Edge caselar** — hammasini ko'rib chiqish (audit workflow buni qamrab oladi).
+
+
+
 > Telegram-native, o'yinlashtirilgan super-app. Taksi — kirish nuqtasi. Cashback — valyuta. Odat — moat.
 
 ---

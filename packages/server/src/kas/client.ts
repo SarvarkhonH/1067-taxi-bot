@@ -1,5 +1,6 @@
 import http from "node:http";
 import https from "node:https";
+import { env } from "../env";
 import type {
   ActiveBooking,
   ActiveBookingLite,
@@ -7,6 +8,7 @@ import type {
   BookingDriver,
   BookingRequest,
   BookingResult,
+  KasAddon,
   CarModel,
   ClientBookingInfo,
   ClientTariff,
@@ -283,7 +285,7 @@ export class KasLiveSource implements KasDataSource {
     const client = list.find((c) => String(c.phoneNumber ?? "").replace(/\D/g, "").slice(-9) === norm);
     if (!client) return { ok: false, oldBonus: 0 };
     const oldBonus = Number(client.bonus) || 0;
-    const res = await this.putJson("api/clients", { ...client, bonus: newBonus, bonusSecretKey: "1303" });
+    const res = await this.putJson("api/clients", { ...client, bonus: newBonus, bonusSecretKey: env.KAS_BONUS_SECRET_KEY });
     return { ok: res.status >= 200 && res.status < 300, oldBonus, name: String(client.fullName ?? client.id), status: res.status };
   }
 
@@ -326,6 +328,30 @@ export class KasLiveSource implements KasDataSource {
     return { ok: res.status >= 200 && res.status < 300, message: res.body.slice(0, 200) };
   }
 
+  async getBookingAddons(): Promise<KasAddon[]> {
+    return this.cached("addons", 600_000, async () => {
+      const data = await this.getJson("api/bookings/additionalParameters");
+      const list = (data.bookingAdditionalRequirementDtoList as Record<string, unknown>[]) ?? [];
+      return list.map((a) => ({ id: num(a.id), name: String(a.name ?? ""), price: num(a.price) }));
+    });
+  }
+
+  async cancelBooking(bookingId: number): Promise<BookingResult> {
+    if (!this.loggedIn) await this.login();
+    const doReq = () =>
+      rawRequest(this.url(`api/bookings/${bookingId}`), {
+        method: "DELETE",
+        headers: { ...this.baseHeaders(), Accept: "application/json, text/plain, */*" },
+      });
+    let res = await doReq();
+    if (res.status >= 300 && res.status < 400 && /\/login/.test((res.headers.location as string) ?? "")) {
+      this.loggedIn = false;
+      await this.login();
+      res = await doReq();
+    }
+    return { ok: res.status >= 200 && res.status < 300, message: res.body.slice(0, 200) };
+  }
+
   async getActiveBooking(phone: string): Promise<ActiveBooking | null> {
     const norm = phone.replace(/\D/g, "").slice(-9);
     if (!norm) return null;
@@ -361,6 +387,8 @@ export class KasLiveSource implements KasDataSource {
       id: Number(b.id ?? 0),
       status: String(b.status ?? ""),
       addressName: String(b.addressName ?? ""),
+      lat: num(b.addressLatitude) || undefined,
+      lng: num(b.addressLongitude) || undefined,
       clientBonus: num(b.clientBonus),
       priceTier: String(b.bookingPrice ?? ""),
       createdDate: String(b.createdDate ?? ""),
@@ -498,13 +526,27 @@ function harvestEndpoints(text: string, out: Set<string>): void {
 
 function mapAddresses(raw: unknown): SavedAddress[] {
   if (!Array.isArray(raw)) return [];
-  return raw
-    .map((a) => {
-      const o = a as Record<string, unknown>;
-      const name = String(o.name ?? o.value ?? o.addressName ?? o.address ?? "").trim();
-      return { id: Number(o.id ?? 0), name };
-    })
-    .filter((a) => a.name);
+  const seen = new Set<string>();
+  const out: SavedAddress[] = [];
+  for (const a of raw) {
+    const o = a as Record<string, unknown>;
+    const name = String(o.name ?? o.value ?? o.addressName ?? o.address ?? "").trim();
+    if (!name) continue;
+    const id = Number(o.id ?? 0);
+    const key = `${id}:${name}`; // kas returns duplicates — dedupe
+    if (seen.has(key)) continue;
+    seen.add(key);
+    const lat = num(o.latitude ?? o.addressLatitude);
+    const lng = num(o.longitude ?? o.addressLongitude);
+    out.push({
+      id,
+      name,
+      lat: lat || undefined,
+      lng: lng || undefined,
+      surcharge: num(o.additionalPayment) || undefined,
+    });
+  }
+  return out;
 }
 
 function num(v: unknown): number {

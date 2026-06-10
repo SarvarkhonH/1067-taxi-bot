@@ -208,19 +208,17 @@ export async function getJackpot(): Promise<number> {
   return Math.max(JACKPOT_FLOOR, pool);
 }
 
-/** Add to the pool (every spin) and return the new displayed jackpot. */
+/** Add to the pool (every spin) and return the new displayed jackpot. Atomic
+ *  DB-side add — crash/race/duel all feed this concurrently. */
 export async function growJackpot(by: number): Promise<number> {
-  const row = await prisma.appState.upsert({
-    where: { key: JACKPOT_KEY },
-    create: { key: JACKPOT_KEY, value: String(JACKPOT_FLOOR + by) },
-    update: { value: String((await getRawPool()) + by) },
-  });
-  return Math.max(JACKPOT_FLOOR, Number(row.value) || 0);
-}
-
-async function getRawPool(): Promise<number> {
-  const row = await prisma.appState.findUnique({ where: { key: JACKPOT_KEY } });
-  return row ? Number(row.value) || 0 : 0;
+  const inc = Math.floor(by);
+  await prisma.$executeRaw`
+    INSERT INTO "AppState" ("key","value","updatedAt")
+    VALUES (${JACKPOT_KEY}, ${String(JACKPOT_FLOOR + inc)}, NOW())
+    ON CONFLICT ("key") DO UPDATE
+      SET "value" = CAST((CAST("AppState"."value" AS DOUBLE PRECISION) + ${inc}) AS TEXT),
+          "updatedAt" = NOW()`;
+  return getJackpot();
 }
 
 /** Jackpot won: return the payout and reset the pool to the floor. */

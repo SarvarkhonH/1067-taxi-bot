@@ -305,6 +305,26 @@ body {
 .bk-call { font-size: 24px; text-decoration: none; }
 .bk-searching { text-align: center; font-size: 14px; }
 .bk-cashback { font-size: 13px; color: var(--gold); font-weight: 700; text-align: center; }
+.bk-eta { color: var(--cyan); }
+.bk-cancel { width: 100%; background: transparent; border: 1px solid var(--red); color: var(--red); border-radius: 12px; padding: 11px; font-weight: 700; font-size: 14px; }
+.bk-cancel:disabled { opacity: 0.5; }
+.bk-picked { display: flex; align-items: center; gap: 8px; font-size: 14px; padding: 4px 2px; }
+.bk-change { margin-left: auto; background: transparent; border: 0; color: var(--cyan); font-size: 12px; text-decoration: underline; }
+.bk-fare { background: rgba(34,211,238,0.08); border: 1px solid rgba(34,211,238,0.3); border-radius: 14px; padding: 12px 14px; }
+.bk-fare-row { display: flex; justify-content: space-between; align-items: center; font-size: 15px; }
+.bk-fare-row b { color: var(--gold); font-size: 17px; }
+.bk-fare-sub { font-size: 11px; margin-top: 4px; }
+.bk-fare-hint { font-size: 12px; text-align: center; padding: 6px; }
+.bk-cars { display: flex; gap: 8px; overflow-x: auto; padding-bottom: 4px; }
+.bk-car { white-space: nowrap; padding: 9px 13px; border-radius: 11px; font-size: 13px; font-weight: 600; background: rgba(255,255,255,0.05); color: var(--text); border: 1px solid var(--line); }
+.bk-car.on { border-color: var(--gold); background: rgba(255,206,79,0.12); color: var(--gold); }
+.bk-addons { display: flex; flex-direction: column; gap: 6px; }
+.bk-addon { display: flex; align-items: center; gap: 6px; text-align: left; padding: 10px 12px; border-radius: 11px; font-size: 13px; font-weight: 600; background: rgba(255,255,255,0.04); color: var(--text); border: 1px solid var(--line); }
+.bk-addon.on { border-color: var(--gold); }
+.bk-addon span { margin-left: auto; }
+.bk-addr-sur { margin-left: auto; font-size: 11px; }
+.wh-actions { display: flex; gap: 8px; }
+.wh-actions .wh-cta { flex: 1; }
 
 /* ── duel ── */
 .duel-row { display: flex; align-items: center; gap: 12px; padding: 12px 14px; }

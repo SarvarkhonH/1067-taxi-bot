@@ -19,6 +19,8 @@ const schema = z.object({
   KAS_MODE: z.enum(["mock", "live"]).default("mock"),
   KAS_USERNAME: z.string().optional().default(""),
   KAS_PASSWORD: z.string().optional().default(""),
+  KAS_BONUS_SECRET_KEY: z.string().optional().default("1303"), // kas1067 bonus-edit secret
+
   KAS_DRIVERS_PATH: z.string().optional().default(""),
   // When "true", the bot actually dispatches taxis via kas1067. Default = dry-run (safe).
   BOOKING_LIVE: z.string().optional().default("false"),
