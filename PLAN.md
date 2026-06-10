@@ -186,4 +186,12 @@ Bot · Mini App · admin · kas1067 (o'qish + **cashback yozish 1303**) · strea
 **Mini App 2.0:** glass+neon dizayn, count-up balanslar, confetti, bottom-sheet withdraw, 5 tab (Hamyon · O'yinlar · Vazifa · Liga · Do'st), arcade hub + "tez kunda" kartalari.
 **Sinov:** 44/44 test (ledger, sink, refund, respin) · prod verify 6 endpoint.
 
-**Keyingi sprintlar:** S2 🏎 Poyga + 🎰 Slot 777 → S3 🏙 Taxi Park + ⚔️ Duel + 🧠 Viktorina → S4 Uber-darajali booking (jonli xarita).
+## 🏁 S2 BAJARILDI — real pul tikiladigan o'yinlar (jonli)
+- **🏎 1067 Poyga** — coin tikib **boshqa mijozlar bilan** poyga (ularning yozib olingan eng yaxshi yurishi = "sharpa", bir xil seed). Yutsangiz 2x coin (−10% burn → jackpot). Canvas o'yin, server inputlarni qayta hisoblaydi (anti-cheat: bir martalik token, checksum, vaqt chegarasi, soxta-ball rad, idempotent, garov refund). *Octalysis: Social + Killer raqobat · Ownership.*
+- **🎰 Tezlik (crash/Aviator)** — koeffitsiyent oshib boradi, to'xtamasdan oldin "yechib oling". Provably-fair (sha256(seed) oldin, seed keyin), server-tomon koeffitsiyent (uzaytirib bo'lmaydi). RTP ~3.84x o'rtacha. *Prospect theory · loss aversion · peak-end.*
+- **🏙 Taksopark (idle)** — coin'ga taksi ol/upgrade (eksponensial sink), 8 soat offline accrual (kuniga ~3 marta yig'ish), real safarda +25%. *Zeigarnik · appointment · ownership.*
+- **🚖 kas1067 client power-up** — jonli narx + cashback qoidalari botda (/narx) va Mini App'da (cashback karta + narx slayder). Yangi kas accessorlar: tariff, bonusProperties, carModels, companyInfo, cityBorders.
+- **Mini App 🎮 arkada hub** — stake picker → o'yin overlaylari; coin hammasini boqadi, bitta withdrawable balans.
+- **Sinov:** 65 check (44 engagement + 21 game: determinism, anti-cheat, idempotency, crash RTP, park cap) · prod jonli: owner real poyga o'ynab +570 coin yutdi.
+
+**Keyingi:** ⚔️ Duel 1v1 (real-time matchmaking) · 🧠 Viktorina · 🏆 liga tier (promotion/relegation) · S4 Uber-darajali booking (jonli Leaflet xarita, 1-tap rebook).
