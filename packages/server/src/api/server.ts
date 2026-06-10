@@ -18,6 +18,11 @@ import { getBoxStatus, openBox } from "../services/boxService";
 import { getReferralInfo } from "../services/referralService";
 import { getWeeklyBoard } from "../services/weeklyService";
 import { getWallet, withdraw } from "../services/coinService";
+import { finishRace, getRaceBoard, startRace } from "../services/raceService";
+import { cashoutCrash, startCrash } from "../services/crashService";
+import { buyOrUpgradeCar, collectPark, getPark } from "../services/parkService";
+import { getFareConfig } from "../services/clientInfoService";
+import type { RaceFinishBody } from "@t1067/shared";
 import { validateInitData } from "./telegramAuth";
 
 export interface ApiOptions {
@@ -180,6 +185,40 @@ export function createApiServer(opts: ApiOptions = {}) {
       return;
     }
     res.json(await openBox(memberId, { premium: req.query.premium === "1" }));
+  });
+
+  // ─── games: racing ────────────────────────────────────────────────────────
+  const withMember = (
+    handler: (memberId: number, req: Request, res: Response) => Promise<unknown>,
+  ) => async (req: Request, res: Response) => {
+    const memberId = await getMemberId(res.locals.telegramId as string);
+    if (!memberId) {
+      res.status(404).json({ error: "not linked" });
+      return;
+    }
+    res.json(await handler(memberId, req, res));
+  };
+
+  app.post("/api/race/create", requireUser, withMember((id, req) => startRace(id, Math.floor(Number((req.body as { stake?: number })?.stake ?? 0)))));
+  app.post("/api/race/finish", requireUser, withMember((id, req) => finishRace(id, req.body as RaceFinishBody)));
+  app.get("/api/race/board", requireUser, withMember((id, req) => getRaceBoard(id, Math.floor(Number(req.query.stake ?? 0)))));
+
+  // ─── games: crash (Tezlik) ──────────────────────────────────────────────────
+  app.post("/api/crash/start", requireUser, withMember((id, req) => startCrash(id, Math.floor(Number((req.body as { stake?: number })?.stake ?? 0)))));
+  app.post("/api/crash/cashout", requireUser, withMember((id, req) => cashoutCrash(id, String((req.body as { roundId?: string })?.roundId ?? ""))));
+
+  // ─── games: taxi park ───────────────────────────────────────────────────────
+  app.get("/api/park", requireUser, withMember((id) => getPark(id)));
+  app.post("/api/park/buy", requireUser, withMember((id, req) => buyOrUpgradeCar(id, String((req.body as { car?: string })?.car ?? ""))));
+  app.post("/api/park/collect", requireUser, withMember((id) => collectPark(id)));
+
+  // ─── client power-ups: fare + cashback config ───────────────────────────────
+  app.get("/api/fare/config", requireUser, async (_req, res) => {
+    try {
+      res.json(await getFareConfig());
+    } catch (e) {
+      res.status(502).json({ error: e instanceof Error ? e.message : "kas unavailable" });
+    }
   });
 
   app.get("/api/leaderboard", requireUser, async (req, res) => {

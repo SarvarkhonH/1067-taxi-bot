@@ -67,6 +67,47 @@ export interface ActiveBookingLite {
   clientBonus: number;
 }
 
+// ─── client-facing reference data (read-only, cached) ──────────────────────────
+export interface ClientTariff {
+  minimalDistance: number; // metres included in the minimal payment
+  minimalPayment: number; // base fare (so'm)
+  firstKilometerPaymentInCity: number;
+  secondKilometerPaymentInCity: number;
+  distancePaymentInCity: number; // so'm per km after that, in city
+  firstKilometerPaymentInRegion: number;
+  secondKilometerPaymentInRegion: number;
+  distancePaymentInRegion: number;
+  timePayment: number; // so'm per minute (waiting/slow)
+}
+
+export interface BonusRules {
+  enabled: boolean;
+  clientBonusCall: number; // cashback per phone-call booking
+  clientBonusApp: number; // cashback per app/bot booking
+  clientBonusCallFirstTime: number;
+  clientBonusAppFirstTime: number;
+  clientBonusMinimalDistance: number; // metres a ride must reach to earn bonus
+}
+
+export interface CarModel {
+  id: number;
+  name: string;
+  category: string;
+  rating: number;
+}
+
+export interface CompanyInfo {
+  companyName: string;
+  dispatcherPhones: string[];
+  lat: number;
+  lng: number;
+}
+
+export interface GeoPoint {
+  lat: number;
+  lng: number;
+}
+
 export interface KasDataSource {
   readonly name: "mock" | "live";
   /** Full pull (mock seed / optional bulk import). */
@@ -89,4 +130,15 @@ export interface KasDataSource {
   setClientBonus(phone: string, newBonus: number): Promise<{ ok: boolean; oldBonus: number; name?: string; status?: number }>;
   /** Reward: add a delta to a client's cashback bonus. */
   addClientBonus(phone: string, delta: number): Promise<{ ok: boolean; oldBonus: number; newBonus: number; status?: number }>;
+
+  /** Client info: pricing tariff (for fare estimates). */
+  getTariff(): Promise<ClientTariff>;
+  /** Client info: cashback rules (how much a ride earns). */
+  getBonusRules(): Promise<BonusRules>;
+  /** Client info: available car models/categories. */
+  getCarModels(): Promise<CarModel[]>;
+  /** Client info: company name + dispatcher phones + city centre. */
+  getCompanyInfo(): Promise<CompanyInfo>;
+  /** Client info: service-area polygon (lat/lng points). */
+  getServiceArea(): Promise<GeoPoint[]>;
 }

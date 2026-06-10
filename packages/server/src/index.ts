@@ -6,6 +6,7 @@ import { createBot, notifyCashback, notifyNewAchievements, setupBotCommands } fr
 import { refreshLinkedMembers, runSync } from "./sync/sync";
 import { pushBookingUpdates } from "./services/bookingNotifier";
 import { maybeSurpriseDrop, payWeeklyPrizes } from "./services/weeklyService";
+import { refundStaleRaces } from "./services/raceService";
 
 async function main(): Promise<void> {
   let bot: Bot | null = null;
@@ -72,6 +73,7 @@ async function main(): Promise<void> {
         }
         await payWeeklyPrizes(notifyUser).catch((e) => console.error("[weekly] payout failed:", e));
         await maybeSurpriseDrop(notifyUser).catch((e) => console.error("[surprise] failed:", e));
+        await refundStaleRaces().catch((e) => console.error("[race] refund failed:", e));
       } else {
         const s = await runSync();
         await notifyBadges();

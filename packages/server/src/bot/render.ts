@@ -9,6 +9,7 @@ import {
   type BoxStatusResponse,
   type MissionsResponse,
   type MissionView,
+  type FareConfigResponse,
   type ReferralResponse,
   type WeeklyBoardResponse,
 } from "@t1067/shared";
@@ -116,6 +117,24 @@ export function renderWeeklyBlock(w: WeeklyBoardResponse): string {
   if (w.me && w.me.rank > 5) s += `\n— — —\n👉 Siz: <b>#${w.me.rank}</b> · ${w.me.score} ball`;
   s += `\n\n<i>Ball: kunlik +10 · g'ildirak +10 · vazifa +15 · quti +20 · safar +30 · taklif +50. Dushanba — to'lov!</i>`;
   return s;
+}
+
+/** kas1067 cashback + fare rules for passengers (the "use kas for clients" view). */
+export function renderFare(cfg: FareConfigResponse): string {
+  const cars = cfg.cars.length ? cfg.cars.map((c) => esc(c.name)).join(" · ") : "—";
+  return (
+    `🚕 <b>Narx va cashback</b> — ${esc(cfg.company.name)}\n\n` +
+    `💰 <b>Cashback (har safardan):</b>\n` +
+    `  • Ilovadan buyurtma: <b>+${formatNumber(cfg.cashback.perAppRide)} so'm</b>\n` +
+    `  • Ilk safaringiz: <b>+${formatNumber(cfg.cashback.firstAppBonus)} so'm</b>\n` +
+    `  <i>(${formatNumber(cfg.cashback.minDistanceKm)} km dan boshlab)</i>\n\n` +
+    `🧮 <b>Taxi narxi:</b>\n` +
+    `  • Eng kam: <b>${formatNumber(cfg.minimalPayment)} so'm</b> (${formatNumber(cfg.minimalDistanceKm)} km)\n` +
+    `  • Keyin har km: <b>${formatNumber(cfg.perKmCity)} so'm</b> (shahar)\n\n` +
+    `🚗 <b>Mashinalar:</b> ${cars}\n` +
+    (cfg.company.phones.length ? `\n📞 Dispetcher: ${cfg.company.phones.map(esc).join(", ")}` : "") +
+    `\n\n<i>Cashback'ni o'yinlarda oshiring — «🚀 Ilova».</i>`
+  );
 }
 
 export function renderBadgeUnlocked(code: string): string | null {

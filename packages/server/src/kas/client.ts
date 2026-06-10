@@ -3,10 +3,15 @@ import https from "node:https";
 import type {
   ActiveBooking,
   ActiveBookingLite,
+  BonusRules,
   BookingDriver,
   BookingRequest,
   BookingResult,
+  CarModel,
   ClientBookingInfo,
+  ClientTariff,
+  CompanyInfo,
+  GeoPoint,
   KasDataSource,
   KasMember,
   SavedAddress,
@@ -18,6 +23,8 @@ interface RawResponse {
   headers: http.IncomingHttpHeaders;
   body: string;
 }
+
+const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
 
 function rawRequest(
   urlStr: string,
@@ -111,28 +118,40 @@ export class KasLiveSource implements KasDataSource {
     if (!this.opts.username || !this.opts.password) {
       throw new Error("kas1067 live mode needs KAS_USERNAME and KAS_PASSWORD in .env");
     }
-    const page = await rawRequest(this.url("login"), { headers: this.baseHeaders() });
-    this.jar.setFrom(page.headers);
-    const csrf = extractCsrf(page.body);
+    // kas1067 rate-limits login (429); back off and retry a few times.
+    for (let attempt = 0; ; attempt++) {
+      const page = await rawRequest(this.url("login"), { headers: this.baseHeaders() });
+      if (page.status === 429 && attempt < 4) {
+        await sleep(2000 * (attempt + 1));
+        continue;
+      }
+      this.jar.setFrom(page.headers);
+      const csrf = extractCsrf(page.body);
 
-    const form = new URLSearchParams({ username: this.opts.username, password: this.opts.password });
-    if (csrf) form.set(csrf.name, csrf.value);
+      const form = new URLSearchParams({ username: this.opts.username, password: this.opts.password });
+      if (csrf) form.set(csrf.name, csrf.value);
 
-    const res = await rawRequest(this.url("login"), {
-      method: "POST",
-      headers: { ...this.baseHeaders(), "Content-Type": "application/x-www-form-urlencoded" },
-      body: form.toString(),
-    });
-    this.jar.setFrom(res.headers);
+      const res = await rawRequest(this.url("login"), {
+        method: "POST",
+        headers: { ...this.baseHeaders(), "Content-Type": "application/x-www-form-urlencoded" },
+        body: form.toString(),
+      });
+      if (res.status === 429 && attempt < 4) {
+        await sleep(2000 * (attempt + 1));
+        continue;
+      }
+      this.jar.setFrom(res.headers);
 
-    const loc = (res.headers.location as string) ?? "";
-    const ok = res.status >= 300 && res.status < 400 && !/\/login/.test(loc) && !/error/i.test(loc);
-    if (!ok) {
-      throw new Error(
-        `kas1067 login failed (status ${res.status}, redirect "${loc}"). Check KAS_USERNAME / KAS_PASSWORD.`,
-      );
+      const loc = (res.headers.location as string) ?? "";
+      const ok = res.status >= 300 && res.status < 400 && !/\/login/.test(loc) && !/error/i.test(loc);
+      if (!ok) {
+        throw new Error(
+          `kas1067 login failed (status ${res.status}, redirect "${loc}"). Check KAS_USERNAME / KAS_PASSWORD.`,
+        );
+      }
+      this.loggedIn = true;
+      return;
     }
-    this.loggedIn = true;
   }
 
   async getText(path: string, accept = "application/json, text/plain, */*"): Promise<RawResponse> {
@@ -365,6 +384,78 @@ export class KasLiveSource implements KasDataSource {
       addressName: String(b.addressName ?? ""),
       clientBonus: num(b.clientBonus),
     }));
+  }
+
+  // ─── client reference data (cached ~10 min — these change rarely) ─────────────
+  private cache = new Map<string, { at: number; val: unknown }>();
+  private async cached<T>(key: string, ttlMs: number, fetcher: () => Promise<T>): Promise<T> {
+    const hit = this.cache.get(key);
+    if (hit && Date.now() - hit.at < ttlMs) return hit.val as T;
+    const val = await fetcher();
+    this.cache.set(key, { at: Date.now(), val });
+    return val;
+  }
+
+  async getTariff(): Promise<ClientTariff> {
+    return this.cached("tariff", 600_000, async () => {
+      const t = await this.getJson("api/clientTariffs");
+      return {
+        minimalDistance: num(t.minimalDistance),
+        minimalPayment: num(t.minimalPayment),
+        firstKilometerPaymentInCity: num(t.firstKilometerPaymentInCity),
+        secondKilometerPaymentInCity: num(t.secondKilometerPaymentInCity),
+        distancePaymentInCity: num(t.distancePaymentInCity),
+        firstKilometerPaymentInRegion: num(t.firstKilometerPaymentInRegion),
+        secondKilometerPaymentInRegion: num(t.secondKilometerPaymentInRegion),
+        distancePaymentInRegion: num(t.distancePaymentInRegion),
+        timePayment: num(t.timePayment),
+      };
+    });
+  }
+
+  async getBonusRules(): Promise<BonusRules> {
+    return this.cached("bonusRules", 600_000, async () => {
+      const b = await this.getJson("api/bonusProperties");
+      return {
+        enabled: b.enabled !== false,
+        clientBonusCall: num(b.clientBonusCall),
+        clientBonusApp: num(b.clientBonusApp),
+        clientBonusCallFirstTime: num(b.clientBonusCallFirstTime),
+        clientBonusAppFirstTime: num(b.clientBonusAppFirstTime),
+        clientBonusMinimalDistance: num(b.clientBonusMinimalDistance),
+      };
+    });
+  }
+
+  async getCarModels(): Promise<CarModel[]> {
+    return this.cached("carModels", 600_000, async () => {
+      const res = await this.getText("api/carModels");
+      const arr = JSON.parse(res.body) as Record<string, unknown>[];
+      return (Array.isArray(arr) ? arr : []).map((c) => ({
+        id: num(c.id),
+        name: String(c.name ?? ""),
+        category: String(c.category ?? ""),
+        rating: num(c.rating),
+      }));
+    });
+  }
+
+  async getCompanyInfo(): Promise<CompanyInfo> {
+    return this.cached("company", 600_000, async () => {
+      const c = await this.getJson("api/companyInformation");
+      const phones = [c.dispatcherPhoneNumber1, c.dispatcherPhoneNumber2, c.dispatcherPhoneNumber3, c.dispatcherPhoneNumber4, c.dispatcherPhoneNumber5]
+        .map((p) => String(p ?? "").trim())
+        .filter(Boolean);
+      return { companyName: String(c.companyName ?? "1067 Taxi"), dispatcherPhones: phones, lat: num(c.latitude), lng: num(c.longitude) };
+    });
+  }
+
+  async getServiceArea(): Promise<GeoPoint[]> {
+    return this.cached("cityBorders", 600_000, async () => {
+      const res = await this.getText("api/cityBorders");
+      const arr = JSON.parse(res.body) as Record<string, unknown>[];
+      return (Array.isArray(arr) ? arr : []).map((p) => ({ lat: num(p.latitude), lng: num(p.longitude) }));
+    });
   }
 
   /** Log in, pull the SPA shell + its JS bundles, and harvest candidate API paths. */

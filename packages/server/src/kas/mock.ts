@@ -1,9 +1,14 @@
 import type {
   ActiveBooking,
   ActiveBookingLite,
+  BonusRules,
   BookingRequest,
   BookingResult,
+  CarModel,
   ClientBookingInfo,
+  ClientTariff,
+  CompanyInfo,
+  GeoPoint,
   KasDataSource,
   KasMember,
   SavedAddress,
@@ -122,5 +127,51 @@ export class KasMockSource implements KasDataSource {
         lng: 65.5703,
       },
     };
+  }
+
+  async getTariff(): Promise<ClientTariff> {
+    return {
+      minimalDistance: 3000,
+      minimalPayment: 8000,
+      firstKilometerPaymentInCity: 2000,
+      secondKilometerPaymentInCity: 2000,
+      distancePaymentInCity: 1800,
+      firstKilometerPaymentInRegion: 2500,
+      secondKilometerPaymentInRegion: 2500,
+      distancePaymentInRegion: 2200,
+      timePayment: 400,
+    };
+  }
+
+  async getBonusRules(): Promise<BonusRules> {
+    return {
+      enabled: true,
+      clientBonusCall: 300,
+      clientBonusApp: 500,
+      clientBonusCallFirstTime: 1000,
+      clientBonusAppFirstTime: 2000,
+      clientBonusMinimalDistance: 2000,
+    };
+  }
+
+  async getCarModels(): Promise<CarModel[]> {
+    return [
+      { id: 1, name: "Ekonom", category: "economy", rating: 4.5 },
+      { id: 2, name: "Komfort", category: "comfort", rating: 4.7 },
+      { id: 3, name: "Biznes", category: "business", rating: 4.9 },
+    ];
+  }
+
+  async getCompanyInfo(): Promise<CompanyInfo> {
+    return { companyName: "Koson 1067 Taxi", dispatcherPhones: ["1067", "+998 75 451 10 67"], lat: 39.0343, lng: 65.5703 };
+  }
+
+  async getServiceArea(): Promise<GeoPoint[]> {
+    return [
+      { lat: 39.05, lng: 65.55 },
+      { lat: 39.05, lng: 65.59 },
+      { lat: 39.02, lng: 65.59 },
+      { lat: 39.02, lng: 65.55 },
+    ];
   }
 }

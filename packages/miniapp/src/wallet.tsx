@@ -1,9 +1,43 @@
 import { useEffect, useState } from "react";
-import { formatNumber, rankMedal, type MeResponse, type WalletResponse } from "@t1067/shared";
+import { estimateFare, formatNumber, rankMedal, type FareConfigResponse, type MeResponse, type WalletResponse } from "@t1067/shared";
 import { api } from "./api";
 import { haptic } from "./telegram";
 import { confetti, useCountUp } from "./util";
 import { Spinner, StreakCard } from "./components";
+
+// kas1067-powered: shows how much cashback a ride earns + a live fare estimate.
+function CashbackFareCard() {
+  const [cfg, setCfg] = useState<FareConfigResponse | null>(null);
+  const [km, setKm] = useState(5);
+  useEffect(() => {
+    api.fareConfig().then(setCfg).catch(() => undefined);
+  }, []);
+  if (!cfg) return null;
+  const est = estimateFare(cfg, km, false);
+  return (
+    <section className="glass pad cashback-card">
+      <div className="section-title">🚕 Safar = cashback</div>
+      <div className="cashback-rules">
+        <div className="cb-rule">
+          <b>+{formatNumber(cfg.cashback.perAppRide)}</b>
+          <span className="muted">har safar</span>
+        </div>
+        <div className="cb-rule">
+          <b>+{formatNumber(cfg.cashback.firstAppBonus)}</b>
+          <span className="muted">ilk safar</span>
+        </div>
+      </div>
+      <div className="fare-est">
+        <div className="fare-row">
+          <span>📏 {km} km masofa</span>
+          <span className="fare-price">≈ {formatNumber(est.price)} so'm</span>
+        </div>
+        <input className="fare-slider" type="range" min={1} max={30} value={km} onChange={(e) => setKm(Number(e.target.value))} />
+        <div className="muted fare-hint">Bu safardan: 🪙 +{formatNumber(est.cashback)} cashback</div>
+      </div>
+    </section>
+  );
+}
 
 const KIND_EMOJI: Record<string, string> = {
   streak: "🔥",
@@ -146,6 +180,8 @@ export function WalletView({ me, onBanner, reload }: { me: MeResponse; onBanner:
       </section>
 
       <StreakCard me={me} onReward={onDone} />
+
+      <CashbackFareCard />
 
       {earned.length > 0 && (
         <section className="glass pad">

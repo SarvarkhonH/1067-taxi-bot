@@ -186,6 +186,86 @@ body {
   padding: 3px 28px;
 }
 
+/* ── stake games (race / crash hub cards) ── */
+.stake-game { display: flex; flex-direction: column; gap: 12px; border-color: color-mix(in srgb, var(--g) 35%, var(--line)); }
+.stake-head { display: flex; align-items: center; gap: 12px; }
+.stake-emoji { font-size: 34px; }
+.stake-name { font-size: 16px; font-weight: 800; }
+.stake-desc { font-size: 12px; margin-top: 2px; }
+.stake-chips { display: flex; gap: 8px; }
+.stake-chip { flex: 1; padding: 12px 6px; border-radius: 13px; font-weight: 800; font-size: 14px; color: var(--text); background: color-mix(in srgb, var(--g) 14%, transparent); border: 1px solid color-mix(in srgb, var(--g) 40%, var(--line)); }
+.stake-chip:active { transform: scale(0.96); }
+.park-entry { display: flex; align-items: center; gap: 12px; cursor: pointer; }
+.park-entry-body { flex: 1; }
+.park-entry-go { font-size: 28px; color: var(--muted); }
+.park-back { width: auto; padding: 8px 14px; margin: 4px 0 10px; }
+
+/* ── race game ── */
+.race-overlay { position: fixed; inset: 0; z-index: 60; background: #070b14; display: flex; flex-direction: column; align-items: center; justify-content: center; animation: fade 0.2s ease; }
+.race-top { position: absolute; top: 0; left: 0; right: 0; padding: 14px 18px; display: flex; justify-content: space-between; align-items: center; z-index: 2; }
+.race-vs { font-size: 14px; font-weight: 700; }
+.race-stake { font-size: 12px; }
+.race-canvas { width: 100vw; height: 100vh; display: block; touch-action: none; }
+.race-controls { position: absolute; bottom: calc(20px + env(safe-area-inset-bottom)); left: 0; right: 0; display: flex; justify-content: space-between; padding: 0 18px; z-index: 2; }
+.race-controls button { width: 42%; height: 70px; border-radius: 18px; border: 1px solid var(--line); background: rgba(255,255,255,0.08); color: var(--text); font-size: 30px; backdrop-filter: blur(8px); }
+.race-controls button:active { background: rgba(255,206,79,0.2); }
+.race-result { text-align: center; padding: 28px; display: flex; flex-direction: column; gap: 14px; align-items: center; }
+.race-result-emoji { font-size: 72px; }
+.race-result-title { font-size: 26px; font-weight: 900; }
+.race-scores { display: flex; align-items: center; gap: 18px; }
+.race-scores > div { display: flex; flex-direction: column; }
+.race-scores b { font-size: 26px; }
+.race-scores span { font-size: 11px; }
+.race-vs-mid { color: var(--muted); font-size: 14px; }
+.race-reward { font-size: 22px; font-weight: 900; color: var(--gold); }
+.race-result .btn-primary { width: 240px; }
+.race-msg { font-size: 16px; margin-bottom: 14px; }
+.race-close { width: auto; padding: 10px 22px; }
+
+/* ── crash game ── */
+.crash-bg { background: radial-gradient(600px 400px at 50% 30%, rgba(239,68,68,0.14), #070b14); }
+.crash-stage { display: flex; flex-direction: column; align-items: center; gap: 14px; width: 100%; padding: 24px; }
+.crash-stake { font-size: 13px; }
+.crash-mult { font-size: 76px; font-weight: 900; color: var(--cyan); text-shadow: 0 0 36px rgba(34,211,238,0.5); transition: color 0.2s; }
+.crash-mult.danger { color: var(--red); text-shadow: 0 0 36px rgba(239,68,68,0.6); animation: dangerpulse 0.5s ease-in-out infinite; }
+@keyframes dangerpulse { 0%,100% { transform: scale(1); } 50% { transform: scale(1.05); } }
+.crash-taxi { font-size: 46px; transition: transform 0.1s linear; }
+.crash-potential { font-size: 15px; font-weight: 700; }
+.crash-cashout { width: 280px; font-size: 18px; padding: 18px; }
+.crash-hint { font-size: 12px; text-align: center; max-width: 280px; }
+
+/* ── taxi park ── */
+.park-view { gap: 10px; }
+.park-collect { display: flex; flex-direction: column; align-items: center; gap: 8px; text-align: center; background: radial-gradient(300px 160px at 50% -10%, rgba(34,197,94,0.16), transparent), var(--card); }
+.park-collect.full { border-color: var(--red); box-shadow: 0 0 0 1px var(--red) inset; }
+.park-acc-label { font-size: 12px; }
+.park-acc { font-size: 38px; font-weight: 900; color: var(--green); }
+.park-rate { font-size: 12px; }
+.park-bonus { color: var(--gold); font-weight: 700; margin-left: 4px; }
+.park-collect .btn-primary { width: 220px; margin-top: 4px; }
+.park-car { display: flex; align-items: center; gap: 12px; padding: 12px 14px; }
+.park-car.owned { border-color: color-mix(in srgb, var(--gold) 25%, var(--line)); }
+.park-car-emoji { font-size: 30px; }
+.park-car-body { flex: 1; }
+.park-car-name { font-size: 15px; font-weight: 700; }
+.park-lv { font-size: 11px; background: var(--gold); color: #221500; padding: 1px 7px; border-radius: 999px; font-weight: 800; margin-left: 4px; }
+.park-car-out { font-size: 12px; margin-top: 2px; }
+.park-buy { background: linear-gradient(135deg, var(--gold), #ffaa2b); color: #221500; border: 0; padding: 10px 14px; border-radius: 12px; font-weight: 800; font-size: 13px; white-space: nowrap; }
+.park-buy:disabled { opacity: 0.55; }
+.park-foot { font-size: 11px; text-align: center; padding: 6px 12px; }
+
+/* ── cashback / fare card ── */
+.cashback-card { display: flex; flex-direction: column; gap: 12px; }
+.cashback-rules { display: flex; gap: 10px; }
+.cb-rule { flex: 1; display: flex; flex-direction: column; align-items: center; background: rgba(34,211,238,0.08); border: 1px solid rgba(34,211,238,0.25); border-radius: 14px; padding: 12px; }
+.cb-rule b { font-size: 20px; color: var(--cyan); }
+.cb-rule span { font-size: 11px; }
+.fare-est { display: flex; flex-direction: column; gap: 8px; }
+.fare-row { display: flex; justify-content: space-between; align-items: center; font-size: 14px; }
+.fare-price { font-weight: 800; color: var(--gold); }
+.fare-slider { width: 100%; accent-color: var(--gold); }
+.fare-hint { font-size: 12px; }
+
 /* ── streak ── */
 .streak-card { display: flex; align-items: center; gap: 14px; padding: 15px 16px; }
 .streak-flame { font-size: 36px; filter: drop-shadow(0 0 12px #ff6b00); }

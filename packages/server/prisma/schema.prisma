@@ -39,6 +39,12 @@ model Member {
   weeklyScores WeeklyScore[]
   coinTxns     CoinTxn[]
   withdrawals  Withdrawal[]
+  raceSessions RaceSession[]
+  raceResults  RaceResult[]
+  crashRounds  CrashRound[]
+  parkCars     ParkCar[]
+  parkState    ParkState?
+  leagueTier   String        @default("Bronza") // promotion/relegation tier
 
   @@unique([type, kasId])
   @@index([type, points])
@@ -85,6 +91,83 @@ model WheelSpin {
   createdAt DateTime @default(now())
 
   @@index([memberId, dayKey])
+}
+
+// ── 1067 Poyga (racing) — staked async ghost races ────────────────────────────
+// A race the player stakes coins on; they race another client's recorded run
+// (ghost). Server issues seed+token on start, re-scores inputs on finish.
+model RaceSession {
+  id          String      @id @default(cuid())
+  member      Member      @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  memberId    Int
+  stake       Float
+  seed        Int
+  token       String      @unique // burned on first finish (one-time)
+  ghostId     String? // RaceResult.id the player races against
+  status      String      @default("created") // created | finished | refunded
+  createdAt   DateTime    @default(now())
+  finishedAt  DateTime?
+  result      RaceResult?
+
+  @@index([memberId, createdAt])
+  @@index([status, createdAt]) // stale-refund sweep
+}
+
+// A validated, completed run. The pool of these (per stake) are the "ghosts"
+// future players race against, and the racing leaderboard.
+model RaceResult {
+  id        String      @id @default(cuid())
+  session   RaceSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  sessionId String      @unique
+  member    Member      @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  memberId  Int
+  stake     Float
+  score     Int // server-authoritative
+  hits      Int         @default(0)
+  durationMs Int
+  inputs    String // JSON [tick,lane,…] — the ghost replay
+  won       Boolean     @default(false)
+  createdAt DateTime    @default(now())
+
+  @@index([stake, score]) // ghost pool + leaderboard
+  @@index([memberId, createdAt])
+}
+
+// Tezlik (crash game) — provably fair: serverHash committed on start, seed
+// revealed on settle. Multiplier derived from elapsed server time.
+model CrashRound {
+  id         String   @id @default(cuid())
+  member     Member   @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  memberId   Int
+  stake      Float
+  seed       Int
+  serverHash String
+  crashPoint Float // derived from seed, revealed on settle
+  multiplier Float? // where the player cashed out
+  payout     Float    @default(0)
+  golden     Boolean  @default(false)
+  status     String   @default("live") // live | settled
+  createdAt  DateTime @default(now())
+  settledAt  DateTime?
+
+  @@index([memberId, createdAt])
+}
+
+// Idle taxi park: owned cars + last-collect timestamp for offline accrual.
+model ParkCar {
+  id       Int    @id @default(autoincrement())
+  member   Member @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  memberId Int
+  carCode  String
+  level    Int    @default(1)
+
+  @@unique([memberId, carCode])
+}
+
+model ParkState {
+  memberId      Int      @id
+  member        Member   @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  lastCollectAt DateTime @default(now())
 }
 
 // Game-currency ledger. Every coin movement (earn +, spend/withdraw -) is one

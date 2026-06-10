@@ -27,11 +27,13 @@ import {
   renderNotFound,
   renderProfile,
   renderReferral,
+  renderFare,
   renderReferralWin,
   renderTaken,
   renderWeeklyBlock,
   renderWelcome,
 } from "./render";
+import { getFareConfig } from "../services/clientInfoService";
 
 const canWebApp = env.TELEGRAM_WEBAPP_URL.startsWith("https://");
 
@@ -47,10 +49,11 @@ function mainMenu(): Keyboard {
     .text("👥 Do'st taklif")
     .row()
     .text("💰 Hisobim")
-    .text("🏆 Reyting")
+    .text("🚖 Narx & cashback")
     .row()
+    .text("🏆 Reyting")
     .text("🎖 Nishonlar");
-  if (canWebApp) kb.row().webApp("🚀 Ilova", env.TELEGRAM_WEBAPP_URL);
+  if (canWebApp) kb.row().webApp("🎮 O'yinlar & Hamyon", env.TELEGRAM_WEBAPP_URL);
   return kb.resized();
 }
 
@@ -351,6 +354,18 @@ export function createBot(): Bot {
   bot.hears("👥 Do'st taklif", showReferral);
   bot.command("invite", showReferral);
 
+  // ─── kas1067 client power-up: fare + cashback rules ───────────────────────────
+  const showFare = async (ctx: Context) => {
+    try {
+      const cfg = await getFareConfig();
+      await ctx.reply(renderFare(cfg), { parse_mode: "HTML", reply_markup: mainMenu() });
+    } catch {
+      await ctx.reply("Narx ma'lumotini hozir olib bo'lmadi. Birozdan keyin urinib ko'ring.", { reply_markup: mainMenu() });
+    }
+  };
+  bot.hears("🚖 Narx & cashback", showFare);
+  bot.command("narx", showFare);
+
   bot.command("admin", async (ctx) => {
     const id = String(ctx.from!.id);
     if (!isAdmin(id)) {
@@ -416,6 +431,7 @@ export async function setupBotCommands(bot: Bot): Promise<void> {
     { command: "wheel", description: "🎡 Omad g'ildiragi" },
     { command: "missions", description: "🎯 Vazifalar (mukofot)" },
     { command: "invite", description: "👥 Do'st taklif qilish" },
+    { command: "narx", description: "🚖 Narx va cashback" },
     { command: "me", description: "Mening hisobim" },
     { command: "top", description: "Reyting" },
   ]);
