@@ -137,6 +137,60 @@ export interface AdminBotUsersResponse {
   users: AdminBotUser[];
 }
 
+// ─── v4 admin command center ───────────────────────────────────────────────
+export interface AdminHealth {
+  kas: { ok: boolean; ms: number; mode: string; message: string };
+  db: { ok: boolean; ms: number };
+  bot: boolean;
+  bookingLive: boolean;
+  lastSync: { at: string; status: string; ageMin: number } | null;
+  serverTime: string;
+}
+
+export interface AdminEconomy {
+  coinsOutstanding: number; // sum of all member coin balances (liability)
+  emitted: number; // total coins ever granted (+)
+  sunk: number; // total coins spent in games (-, excl withdraw)
+  withdrawnTotal: number; // coins → real cashback (all time)
+  withdrawnToday: number;
+  jackpot: number;
+  byKind: { kind: string; total: number; count: number }[]; // coin flow per source/sink
+}
+
+export interface AdminGrowth {
+  botUsers: number;
+  linked: number;
+  newToday: number;
+  new7d: number;
+  active24h: number; // updated in last 24h
+  coinHolders: number; // members with coins > 0
+}
+
+export interface AdminLiveBooking {
+  id: number;
+  phone: string;
+  addressName: string;
+  status: string;
+  carNumber: string | null;
+  cashback: number;
+  ageMin: number;
+  hasDriver: boolean;
+}
+
+export interface AdminAuditRow {
+  at: string;
+  kind: string; // grant kind / withdraw / admin
+  member: string;
+  amount: number;
+  reason: string;
+  appliedToKas: boolean;
+}
+
+export interface AdminActionResult {
+  ok: boolean;
+  message: string;
+}
+
 export interface AdminMemberRow {
   id: number;
   kasId: string;

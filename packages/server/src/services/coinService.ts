@@ -5,7 +5,7 @@ import { getDataSource } from "../kas";
 // kas1067 has no compare-and-set, so serialize our own writes per phone to stop
 // concurrent withdraw/top-up from racing (read-modify-write on the bonus).
 const phoneLocks = new Map<string, Promise<unknown>>();
-function withPhoneLock<T>(phone: string, fn: () => Promise<T>): Promise<T> {
+export function withPhoneLock<T>(phone: string, fn: () => Promise<T>): Promise<T> {
   const prev = phoneLocks.get(phone) ?? Promise.resolve();
   const run = prev.catch(() => undefined).then(fn);
   phoneLocks.set(

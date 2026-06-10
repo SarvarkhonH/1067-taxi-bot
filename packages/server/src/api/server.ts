@@ -30,6 +30,7 @@ import { validateInitData } from "./telegramAuth";
 
 export interface ApiOptions {
   afterSync?: () => Promise<void>;
+  sendMessage?: (telegramId: string, html: string) => Promise<void>;
 }
 
 function memberType(req: Request, fallback: MemberType): MemberType {
@@ -65,6 +66,13 @@ function requireUser(req: Request, res: Response, next: NextFunction): void {
 }
 
 function requireAdmin(req: Request, res: Response, next: NextFunction): void {
+  // desktop dashboard (no Telegram): a strong shared token grants admin access
+  const token = req.header("X-Admin-Token");
+  if (env.ADMIN_PANEL_TOKEN && token && token === env.ADMIN_PANEL_TOKEN) {
+    res.locals.telegramId = "panel";
+    next();
+    return;
+  }
   const id = resolveTelegramId(req);
   if (!id || !isAdmin(id)) {
     res.status(403).json({ error: "forbidden" });
@@ -284,6 +292,42 @@ export function createApiServer(opts: ApiOptions = {}) {
       return;
     }
     res.json(await linkByPhone(String(body.telegramId), String(body.phone), {}));
+  });
+
+  // ─── v4 admin command center ───────────────────────────────────────────────
+  app.get("/api/admin/health", requireAdmin, async (_req, res) => {
+    const { getHealth } = await import("../services/adminOps");
+    res.json(await getHealth());
+  });
+  app.get("/api/admin/economy", requireAdmin, async (_req, res) => {
+    const { getEconomy } = await import("../services/adminOps");
+    res.json(await getEconomy());
+  });
+  app.get("/api/admin/growth", requireAdmin, async (_req, res) => {
+    const { getGrowth } = await import("../services/adminOps");
+    res.json(await getGrowth());
+  });
+  app.get("/api/admin/bookings", requireAdmin, async (_req, res) => {
+    const { getLiveBookings } = await import("../services/adminOps");
+    res.json(await getLiveBookings());
+  });
+  app.get("/api/admin/audit", requireAdmin, async (_req, res) => {
+    const { getAuditLog } = await import("../services/adminOps");
+    res.json(await getAuditLog());
+  });
+  app.post("/api/admin/grant", requireAdmin, async (req, res) => {
+    const { adminGrant } = await import("../services/adminOps");
+    const b = (req.body ?? {}) as { target?: string; amount?: number; reason?: string };
+    res.json(await adminGrant(String(b.target ?? ""), Number(b.amount ?? 0), String(b.reason ?? ""), res.locals.telegramId as string));
+  });
+  app.post("/api/admin/announce", requireAdmin, async (req, res) => {
+    if (!opts.sendMessage) {
+      res.json({ ok: false, message: "Bot ulanmagan" });
+      return;
+    }
+    const { adminAnnounce } = await import("../services/adminOps");
+    const b = (req.body ?? {}) as { text?: string; segment?: "all" | "linked" };
+    res.json(await adminAnnounce(String(b.text ?? ""), b.segment === "linked" ? "linked" : "all", opts.sendMessage));
   });
 
   app.post("/api/admin/sync", requireAdmin, async (_req, res) => {

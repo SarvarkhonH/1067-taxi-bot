@@ -28,7 +28,12 @@ async function main(): Promise<void> {
   }
 
   // 2. HTTP API for the Mini App + admin dashboard
-  const app = createApiServer({ afterSync: notifyBadges });
+  const app = createApiServer({
+    afterSync: notifyBadges,
+    sendMessage: async (telegramId, html) => {
+      if (bot) await bot.api.sendMessage(telegramId, html, { parse_mode: "HTML" });
+    },
+  });
 
   // 3. Telegram bot — webhook in production, long polling locally
   const webhookPath = `/tg/${env.WEBHOOK_SECRET}`;

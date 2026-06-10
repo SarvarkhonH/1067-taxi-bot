@@ -14,6 +14,7 @@ const schema = z.object({
   BOT_USERNAME: z.string().optional().default("koson1067bot"), // for referral deep links
   TELEGRAM_WEBAPP_URL: z.string().default("http://localhost:5173"),
   ADMIN_TELEGRAM_IDS: z.string().optional().default(""),
+  ADMIN_PANEL_TOKEN: z.string().optional().default(""), // desktop admin dashboard auth (no Telegram initData)
 
   KAS_BASE_URL: z.string().default("http://46.8.176.53/kas1067"),
   KAS_MODE: z.enum(["mock", "live"]).default("mock"),

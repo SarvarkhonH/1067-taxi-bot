@@ -78,3 +78,24 @@ tbody tr:hover { background: #ffffff06; }
   .cards { grid-template-columns: repeat(2, 1fr); }
   .chart-row { grid-template-columns: 130px 1fr 70px; }
 }
+
+/* ── v4 command center ── */
+.seg-tabs { max-width: 720px; margin: 16px 0; flex-wrap: wrap; }
+.hp { display: flex; align-items: center; gap: 7px; font-size: 13px; font-weight: 700; padding: 8px 14px; border-radius: 999px; border: 1px solid var(--line); }
+.hp-ok { color: #34d399; background: rgba(52, 211, 153, 0.1); border-color: rgba(52, 211, 153, 0.35); }
+.hp-bad { color: #f87171; background: rgba(248, 113, 113, 0.12); border-color: rgba(248, 113, 113, 0.4); animation: hpblink 1s ease-in-out infinite; }
+@keyframes hpblink { 50% { opacity: 0.55; } }
+.hp-dot { width: 8px; height: 8px; border-radius: 50%; background: currentColor; box-shadow: 0 0 8px currentColor; }
+.health-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; }
+.hcell { padding: 12px 14px; border-radius: 14px; border: 1px solid var(--line); background: var(--card, rgba(255,255,255,0.03)); }
+.hcell-ok { border-color: rgba(52, 211, 153, 0.3); }
+.hcell-bad { border-color: rgba(248, 113, 113, 0.45); background: rgba(248, 113, 113, 0.08); }
+.hcell-warn { border-color: rgba(255, 206, 79, 0.4); background: rgba(255, 206, 79, 0.07); }
+.hcell-top { font-size: 14px; font-weight: 800; }
+.hcell-detail { font-size: 11px; margin-top: 4px; }
+.actions { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 16px; }
+.form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.action-msg { margin-top: 12px; padding: 10px 12px; border-radius: 10px; background: rgba(255,255,255,0.05); border: 1px solid var(--line); font-size: 13px; font-weight: 600; }
+.lvl.warn { background: rgba(255, 206, 79, 0.18); color: #ffce4f; }
+.row-warn { background: rgba(255, 206, 79, 0.06); }
+textarea.search { font-family: inherit; }
