@@ -6,13 +6,14 @@ import {
   type AdminEconomy,
   type AdminGrowth,
   type AdminHealth,
+  type AdminIntegrity,
   type AdminLiveBooking,
   type AdminMemberRow,
   type AdminStats,
 } from "@t1067/shared";
 import { adminApi } from "./api";
 
-type Tab = "overview" | "driver" | "client" | "botusers" | "actions" | "audit";
+type Tab = "overview" | "driver" | "client" | "botusers" | "actions" | "integrity" | "audit";
 
 export function App() {
   const [tab, setTab] = useState<Tab>("overview");
@@ -35,6 +36,7 @@ export function App() {
     { id: "client", label: "🏅 Mijoz" },
     { id: "botusers", label: "👥 Bot" },
     { id: "actions", label: "⚡ Amallar" },
+    { id: "integrity", label: "🔐 Integrity" },
     { id: "audit", label: "📜 Jurnal" },
   ];
 
@@ -61,6 +63,7 @@ export function App() {
       {(tab === "driver" || tab === "client") && <MembersTab type={tab} />}
       {tab === "botusers" && <BotUsersTab />}
       {tab === "actions" && <ActionsView />}
+      {tab === "integrity" && <IntegrityView />}
       {tab === "audit" && <AuditView />}
     </div>
   );
@@ -264,6 +267,75 @@ function ActionsView() {
         {annMsg && <div className="action-msg">{annMsg}</div>}
       </section>
     </div>
+  );
+}
+
+// ─── 🔐 money integrity (reconciliation) ────────────────────────────────────
+function IntegrityView() {
+  const [data, setData] = useState<AdminIntegrity | null>(null);
+  const [busy, setBusy] = useState<number | null>(null);
+  const load = () => adminApi.integrity().then(setData).catch(() => undefined);
+  useEffect(() => {
+    load();
+  }, []);
+  const heal = async (id: number) => {
+    setBusy(id);
+    try {
+      await adminApi.heal(id);
+      await load();
+    } finally {
+      setBusy(null);
+    }
+  };
+  if (!data) return <div className="screen center"><div className="spinner" /></div>;
+  const ok = data.driftCount === 0;
+  return (
+    <>
+      <section className="panel">
+        <div className="panel-title">🔐 Pul yaxlitligi (balans = ledger)</div>
+        <div className="health-grid">
+          <HealthCell label="Tekshirildi" ok={true} detail={`${formatNumber(data.checked)} hisob`} />
+          <HealthCell label="Nomuvofiqlik" ok={ok} detail={ok ? "✅ hammasi to'g'ri" : `${data.driftCount} drift · ${formatNumber(data.driftTotal)} coin`} warn={!ok} />
+          <HealthCell label="Anomaliya (24s)" ok={data.anomalies.length === 0} detail={data.anomalies.length ? `${data.anomalies.length} shubhali` : "yo'q"} warn={data.anomalies.length > 0} />
+        </div>
+      </section>
+      {data.drifts.length > 0 && (
+        <section className="panel">
+          <div className="panel-title">⚠️ Drift (balans ≠ ledger)</div>
+          <div className="table-wrap">
+            <table>
+              <thead><tr><th>Mijoz</th><th className="num">Balans</th><th className="num">Ledger</th><th className="num">Drift</th><th></th></tr></thead>
+              <tbody>
+                {data.drifts.map((d) => (
+                  <tr key={d.memberId} className="row-warn">
+                    <td className="td-name">{d.member}</td>
+                    <td className="num">{formatNumber(d.balance)}</td>
+                    <td className="num">{formatNumber(d.ledger)}</td>
+                    <td className="num strong" style={{ color: "var(--red)" }}>{d.drift > 0 ? "+" : ""}{formatNumber(d.drift)}</td>
+                    <td><button className="btn" disabled={busy === d.memberId} onClick={() => heal(d.memberId)}>{busy === d.memberId ? "…" : "🔧 Tuzatish"}</button></td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </section>
+      )}
+      {data.anomalies.length > 0 && (
+        <section className="panel">
+          <div className="panel-title">🚨 Anomaliya — 24s eng katta coin yutuqlari (≥{formatNumber(data.anomalyThreshold)})</div>
+          <div className="table-wrap">
+            <table>
+              <thead><tr><th>Mijoz</th><th className="num">24s yutuq</th></tr></thead>
+              <tbody>
+                {data.anomalies.map((a) => (
+                  <tr key={a.memberId} className="row-warn"><td className="td-name">{a.member}</td><td className="num strong">{formatNumber(a.gain24h)}</td></tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </section>
+      )}
+    </>
   );
 }
 

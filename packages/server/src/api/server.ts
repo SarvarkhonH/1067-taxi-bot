@@ -337,6 +337,19 @@ export function createApiServer(opts: ApiOptions = {}) {
     const { getAuditLog } = await import("../services/adminOps");
     res.json(await getAuditLog());
   });
+  app.get("/api/admin/integrity", requireAdmin, async (_req, res) => {
+    const { getIntegrity } = await import("../services/reconciliation");
+    res.json(await getIntegrity());
+  });
+  app.post("/api/admin/heal", requireAdmin, async (req, res) => {
+    const { healMember } = await import("../services/reconciliation");
+    const id = Math.floor(Number((req.body as { memberId?: number })?.memberId ?? 0));
+    if (!id) {
+      res.status(400).json({ ok: false, message: "memberId required" });
+      return;
+    }
+    res.json(await healMember(id));
+  });
   app.post("/api/admin/grant", requireAdmin, rateLimit(10), async (req, res) => {
     const { adminGrant } = await import("../services/adminOps");
     const b = (req.body ?? {}) as { target?: string; amount?: number; reason?: string };

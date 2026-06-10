@@ -5,6 +5,7 @@ import type {
   AdminEconomy,
   AdminGrowth,
   AdminHealth,
+  AdminIntegrity,
   AdminLiveBooking,
   AdminMemberRow,
   AdminStats,
@@ -65,4 +66,6 @@ export const adminApi = {
   audit: () => req<AdminAuditRow[]>("/api/admin/audit"),
   grant: (target: string, amount: number, reason: string) => postJson<AdminActionResult>("/api/admin/grant", { target, amount, reason }),
   announce: (text: string, segment: "all" | "linked") => postJson<AdminActionResult>("/api/admin/announce", { text, segment }),
+  integrity: () => req<AdminIntegrity>("/api/admin/integrity"),
+  heal: (memberId: number) => postJson<AdminActionResult>("/api/admin/heal", { memberId }),
 };

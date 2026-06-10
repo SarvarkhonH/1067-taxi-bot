@@ -86,6 +86,7 @@ async function main(): Promise<void> {
   };
   const intervalMs = Math.max(1, env.SYNC_INTERVAL_MINUTES) * 60_000;
   let periodicBusy = false;
+  let reconcileTick = 0;
   const timer = setInterval(async () => {
     if (periodicBusy) return; // skip if the previous tick is still running
     periodicBusy = true;
@@ -102,6 +103,11 @@ async function main(): Promise<void> {
         await refundStaleRaces().catch((e) => console.error("[race] refund failed:", e));
         await sweepDuels(notifyUser).catch((e) => console.error("[duel] sweep failed:", e));
         await reapStaleSyncs(30 * 60_000).catch(() => undefined); // watchdog (>30min)
+        if (reconcileTick++ % 12 === 0) {
+          // money-integrity sweep ~ every 12 ticks (3h at 15min interval)
+          const { reconciliationWatch } = await import("./services/reconciliation");
+          await reconciliationWatch().catch((e) => console.error("[reconcile] failed:", e));
+        }
       } else {
         const s = await runSync();
         await notifyBadges();

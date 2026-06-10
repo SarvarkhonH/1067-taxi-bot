@@ -192,6 +192,15 @@ export interface AdminActionResult {
   message: string;
 }
 
+export interface AdminIntegrity {
+  checked: number;
+  driftCount: number;
+  driftTotal: number;
+  drifts: { memberId: number; member: string; balance: number; ledger: number; drift: number }[];
+  anomalyThreshold: number;
+  anomalies: { memberId: number; member: string; gain24h: number }[];
+}
+
 export interface AdminMemberRow {
   id: number;
   kasId: string;
