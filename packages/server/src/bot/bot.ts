@@ -16,6 +16,8 @@ import { claimMission, getMissions } from "../services/missionService";
 import { getBoxStatus, openBox } from "../services/boxService";
 import { attachPendingReferral, completeReferral, getReferralInfo } from "../services/referralService";
 import { getWeeklyBoard } from "../services/weeklyService";
+import { getEconomy, getHealth, getLiveBookings } from "../services/adminOps";
+import { getIntegrity } from "../services/reconciliation";
 import type { CashbackDelta } from "../sync/sync";
 import { registerBooking } from "./booking";
 import {
@@ -388,6 +390,53 @@ export function createBot(): Bot {
         `${block(drivers, "🚗 <b>Haydovchilar</b>")}\n\n` +
         `${block(clients, "🏅 <b>Mijozlar</b>")}\n\n` +
         `🔄 Oxirgi sync: ${drivers.lastSync ? `${drivers.lastSync.status} · ${drivers.lastSync.membersSeen} ta` : "—"}`,
+      { parse_mode: "HTML" },
+    );
+  });
+
+  // ─── in-bot operations console (admins monitor everything from Telegram) ──────
+  const opsDash = async (ctx: Context) => {
+    if (!isAdmin(String(ctx.from!.id))) {
+      await ctx.reply("⛔ Faqat administratorlar uchun.");
+      return;
+    }
+    const [h, e, integ] = await Promise.all([getHealth(), getEconomy(), getIntegrity()]);
+    const dot = (ok: boolean) => (ok ? "🟢" : "🔴");
+    const b = e.withdrawBudget;
+    await ctx.reply(
+      `🛡 <b>1067 — Operatsion holat</b>\n\n` +
+        `🚦 <b>Salomatlik</b>\n` +
+        `  kas1067 ${dot(h.kas.ok)} ${h.kas.ms}ms · baza ${dot(h.db.ok)} · bot ${dot(h.bot)}\n` +
+        `  Sync: ${h.lastSync ? `${h.lastSync.status} (${h.lastSync.ageMin} daq)` : "—"} · Booking: ${h.bookingLive ? "JONLI" : "test"}\n\n` +
+        `💰 <b>Iqtisod (coin)</b>\n` +
+        `  Muomalada: <b>${formatNumber(e.coinsOutstanding)}</b> · Jackpot: ${formatNumber(e.jackpot)}\n` +
+        `  Berilgan ${formatNumber(e.emitted)} · Sarflangan ${formatNumber(e.sunk)}\n` +
+        `  💸 So'mga bugun: <b>${formatNumber(e.withdrawnToday)}</b> (jami ${formatNumber(e.withdrawnTotal)})\n\n` +
+        `🛡 <b>Revenue byudjet</b> (${b.rides} safardan)\n` +
+        `  ${formatNumber(b.used)}/${formatNumber(b.total)} · qoldi <b>${formatNumber(b.remaining)}</b>\n\n` +
+        `🔐 <b>Yaxlitlik</b>: ${integ.driftCount === 0 ? "✅ drift yo'q" : `⚠️ ${integ.driftCount} drift`} · anomaliya: ${integ.anomalies.length || "yo'q"}\n\n` +
+        `📋 /orders — jonli buyurtmalar · 🖥 Panel: admin web`,
+      { parse_mode: "HTML" },
+    );
+  };
+  bot.command("dash", opsDash);
+
+  bot.command("orders", async (ctx) => {
+    if (!isAdmin(String(ctx.from!.id))) {
+      await ctx.reply("⛔ Faqat administratorlar uchun.");
+      return;
+    }
+    const list = await getLiveBookings();
+    if (!list.length) {
+      await ctx.reply("🚖 Hozir faol buyurtma yo'q.");
+      return;
+    }
+    const rows = list
+      .slice(0, 20)
+      .map((b) => `${b.hasDriver ? "🚖" : "⏳"} ${esc(b.addressName)} — ${b.hasDriver ? esc(b.carNumber ?? "") : "<b>haydovchi yo'q</b>"} · +${formatNumber(b.cashback)}`);
+    const noDriver = list.filter((b) => !b.hasDriver).length;
+    await ctx.reply(
+      `🚖 <b>Jonli buyurtmalar: ${list.length}</b>${noDriver ? ` · ⚠️ ${noDriver} haydovchisiz` : ""}\n\n${rows.join("\n")}`,
       { parse_mode: "HTML" },
     );
   });

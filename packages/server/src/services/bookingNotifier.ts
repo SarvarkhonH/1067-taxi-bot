@@ -55,6 +55,11 @@ export async function pushBookingUpdates(bot: Bot): Promise<void> {
     if (b) {
       if (m.lastBookingId !== b.id || m.lastBookingStatus !== b.status) {
         await bot.api.sendMessage(chatId, statusPush(b), { parse_mode: "HTML" }).catch(() => undefined);
+        // admins know every booking session: alert on a NEW order from a bot user
+        if (m.lastBookingId !== b.id) {
+          const { alertAdmins } = await import("./economyService");
+          await alertAdmins(`🚖 Yangi buyurtma: <b>${m.fullName}</b> → ${b.addressName}${b.carNumber ? ` · ${b.carNumber}` : " · haydovchi qidirilyapti"}`).catch(() => undefined);
+        }
         await prisma.member.update({ where: { id: m.id }, data: { lastBookingId: b.id, lastBookingStatus: b.status } });
       }
     } else if (m.lastBookingId) {
@@ -67,6 +72,8 @@ export async function pushBookingUpdates(bot: Bot): Promise<void> {
       await bot.api
         .sendMessage(chatId, "🏁 Safaringiz yakunlandi! Rahmat 🙌\nCashback tez orada hisobingizda ko'rinadi.\n🎯 Vazifalaringizni tekshiring — mukofot kutyapti!", { parse_mode: "HTML" })
         .catch(() => undefined);
+      const { alertAdmins } = await import("./economyService");
+      await alertAdmins(`🏁 Safar yakunlandi: <b>${m.fullName}</b>`).catch(() => undefined);
       await prisma.member.update({ where: { id: m.id }, data: { lastBookingId: null, lastBookingStatus: null } });
     }
   }
