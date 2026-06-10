@@ -112,9 +112,16 @@ export async function withdraw(memberId: number, amount: number): Promise<Withdr
   const today = await withdrawnToday(memberId);
   if (today + amount > WITHDRAW_DAILY_CAP) return fail("daily_cap");
 
+  // revenue-linked GLOBAL budget: real money out can't outrun real taxi revenue
+  const { consumeWithdrawBudget, releaseWithdrawBudget, alertAdmins } = await import("./economyService");
+  if (!(await consumeWithdrawBudget(amount))) return fail("daily_cap"); // global budget exhausted (rides too low today)
+
   // optimistic deduct first — blocks double-spend races
   const spent = await spendCoins(memberId, amount, "withdraw", `So'mga aylantirish: ${amount}`);
-  if (!spent.ok) return fail("insufficient");
+  if (!spent.ok) {
+    await releaseWithdrawBudget(amount);
+    return fail("insufficient");
+  }
 
   let kasApplied = false;
   let kasMessage = "";
@@ -130,12 +137,15 @@ export async function withdraw(memberId: number, amount: number): Promise<Withdr
   if (!kasApplied) {
     // refund — the conversion did not happen
     await grantCoins(memberId, amount, "withdraw_refund", "Aylantirish amalga oshmadi — coin qaytarildi");
+    await releaseWithdrawBudget(amount);
     await prisma.withdrawal.create({ data: { memberId, amount, kasApplied: false, kasMessage } });
     return { ok: false, reason: "kas_failed", amount, coinsLeft: await getCoins(memberId), kasApplied: false };
   }
 
   await prisma.withdrawal.create({ data: { memberId, amount, kasApplied: true, kasMessage } });
   await prisma.member.update({ where: { id: memberId }, data: { points: { increment: amount } } });
+  // alert admins on every real-money-out (anomaly visibility)
+  await alertAdmins(`💸 Withdraw: <b>${amount.toLocaleString("ru-RU")} so'm</b> — ${member.fullName} (today ${(today + amount).toLocaleString("ru-RU")})`).catch(() => undefined);
   return { ok: true, amount, coinsLeft: await getCoins(memberId), kasApplied: true };
 }
 

@@ -118,6 +118,17 @@ function Overview({ health }: { health: AdminHealth | null }) {
 
       {eco && (
         <section className="panel">
+          <div className="panel-title">🛡 Revenue-linked withdraw budget (rides → real-money-out)</div>
+          <div className="health-grid" style={{ marginBottom: 12 }}>
+            <HealthCell label="Kunlik byudjet" ok={eco.withdrawBudget.remaining > 0} detail={`${formatNumber(eco.withdrawBudget.total)} so'm (${eco.withdrawBudget.rides} safardan)`} />
+            <HealthCell label="Ishlatilgan" ok={true} detail={`${formatNumber(eco.withdrawBudget.used)} so'm`} />
+            <HealthCell label="Qolgan" ok={eco.withdrawBudget.remaining > 0} detail={`${formatNumber(eco.withdrawBudget.remaining)} so'm`} warn={eco.withdrawBudget.remaining <= 0} />
+          </div>
+        </section>
+      )}
+
+      {eco && (
+        <section className="panel">
           <div className="panel-title">💰 Iqtisod (coin)</div>
           <div className="cards" style={{ marginBottom: 12 }}>
             <Card icon="🪙" label="Muomaladagi" value={formatNumber(eco.coinsOutstanding)} sub="majburiyat" accent />

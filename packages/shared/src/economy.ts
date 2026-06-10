@@ -14,7 +14,7 @@ export const WITHDRAW_DAILY_CAP = 50000; // max so'm leaving per member per day
 export const TOPUP_MIN = 1000; // min bonus to move INTO coins (cashback → coin)
 
 // Sinks (what coins buy) — these recycle coins back into the economy.
-export const WHEEL_RESPIN_COST = 300; // unlimited respins after the free daily one
+export const WHEEL_RESPIN_COST = 500; // > wheel EV (~350) so respins are a SINK, not a +EV money-mint
 export const BOX_PREMIUM_COST = 2000; // unlimited premium boxes
 
 // Premium box paytable (~94% RTP — generous but sustainable).

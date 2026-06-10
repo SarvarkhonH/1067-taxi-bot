@@ -11,6 +11,7 @@ import type {
   CompanyInfo,
   GeoPoint,
   KasDataSource,
+  KasMainReport,
   KasMember,
   SavedAddress,
 } from "./types";
@@ -188,5 +189,9 @@ export class KasMockSource implements KasDataSource {
       { lat: 39.02, lng: 65.59 },
       { lat: 39.02, lng: 65.55 },
     ];
+  }
+
+  async getMainReport(): Promise<KasMainReport> {
+    return { completedYesterday: 160, bookingsYesterday: 200, onlineDrivers: 30, activeDrivers: 120, serviceCost: 0 };
   }
 }

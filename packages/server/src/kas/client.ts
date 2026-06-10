@@ -15,6 +15,7 @@ import type {
   CompanyInfo,
   GeoPoint,
   KasDataSource,
+  KasMainReport,
   KasMember,
   SavedAddress,
 } from "./types";
@@ -483,6 +484,23 @@ export class KasLiveSource implements KasDataSource {
       const res = await this.getText("api/cityBorders");
       const arr = JSON.parse(res.body) as Record<string, unknown>[];
       return (Array.isArray(arr) ? arr : []).map((p) => ({ lat: num(p.latitude), lng: num(p.longitude) }));
+    });
+  }
+
+  async getMainReport(): Promise<KasMainReport> {
+    return this.cached("mainReport", 600_000, async () => {
+      const d = await this.getJson("api/mainReports");
+      const list = (d.bookingCountReportDtoList as Record<string, unknown>[]) ?? [];
+      const latest = list[0] ?? {};
+      const bookings = num(latest.callBookingCount) + num(latest.telegramBookingCount) + num(latest.clientAppBookingCount);
+      const canceled = num(latest.canceledBookingsByCompanyCount) + num(latest.canceledBookingsByDriverCount);
+      return {
+        bookingsYesterday: bookings,
+        completedYesterday: Math.max(0, bookings - canceled),
+        onlineDrivers: num(d.onlineDriversCount),
+        activeDrivers: num(d.activeDriversCount),
+        serviceCost: num(d.serviceCost),
+      };
     });
   }
 

@@ -107,6 +107,14 @@ export interface CarModel {
   rating: number;
 }
 
+export interface KasMainReport {
+  completedYesterday: number; // latest full-day completed rides (= bookings − cancellations)
+  bookingsYesterday: number;
+  onlineDrivers: number;
+  activeDrivers: number;
+  serviceCost: number; // company revenue figure from kas
+}
+
 export interface CompanyInfo {
   companyName: string;
   dispatcherPhones: string[];
@@ -156,4 +164,6 @@ export interface KasDataSource {
   getCompanyInfo(): Promise<CompanyInfo>;
   /** Client info: service-area polygon (lat/lng points). */
   getServiceArea(): Promise<GeoPoint[]>;
+  /** Revenue/volume signal: latest daily ride counts + revenue (drives the reward budget). */
+  getMainReport(): Promise<KasMainReport>;
 }

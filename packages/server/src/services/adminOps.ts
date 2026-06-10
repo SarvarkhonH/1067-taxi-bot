@@ -60,12 +60,14 @@ export async function getHealth(): Promise<AdminHealth> {
 
 // ─── 💰 economy ─────────────────────────────────────────────────────────────
 export async function getEconomy(): Promise<AdminEconomy> {
-  const [outstanding, byKindRaw, wAll, wToday, jackpot] = await Promise.all([
+  const { getWithdrawBudget } = await import("./economyService");
+  const [outstanding, byKindRaw, wAll, wToday, jackpot, budget] = await Promise.all([
     prisma.member.aggregate({ _sum: { coins: true } }),
     prisma.coinTxn.groupBy({ by: ["kind"], _sum: { amount: true }, _count: true }),
     prisma.withdrawal.aggregate({ where: { kasApplied: true }, _sum: { amount: true } }),
     prisma.withdrawal.aggregate({ where: { kasApplied: true, createdAt: { gte: new Date(Date.now() - 24 * 3600 * 1000) } }, _sum: { amount: true } }),
     getJackpot(),
+    getWithdrawBudget(),
   ]);
 
   let emitted = 0;
@@ -87,6 +89,7 @@ export async function getEconomy(): Promise<AdminEconomy> {
     withdrawnToday: wToday._sum.amount ?? 0,
     jackpot,
     byKind,
+    withdrawBudget: budget,
   };
 }
 

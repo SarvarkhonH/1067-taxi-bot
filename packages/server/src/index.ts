@@ -44,12 +44,13 @@ async function main(): Promise<void> {
   }
 
   // 2. HTTP API for the Mini App + admin dashboard
-  const app = createApiServer({
-    afterSync: notifyBadges,
-    sendMessage: async (telegramId, html) => {
-      if (bot) await bot.api.sendMessage(telegramId, html, { parse_mode: "HTML" });
-    },
-  });
+  const sendTg = async (telegramId: string, html: string) => {
+    if (bot) await bot.api.sendMessage(telegramId, html, { parse_mode: "HTML" });
+  };
+  const app = createApiServer({ afterSync: notifyBadges, sendMessage: sendTg });
+  // economy alerts (withdraws, anomalies) → admins
+  const { registerAdminNotifier } = await import("./services/economyService");
+  registerAdminNotifier(sendTg);
 
   // 3. Telegram bot — webhook in production, long polling locally
   const webhookPath = `/tg/${env.WEBHOOK_SECRET}`;

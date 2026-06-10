@@ -155,6 +155,7 @@ export interface AdminEconomy {
   withdrawnToday: number;
   jackpot: number;
   byKind: { kind: string; total: number; count: number }[]; // coin flow per source/sink
+  withdrawBudget: { total: number; used: number; remaining: number; rides: number }; // revenue-linked
 }
 
 export interface AdminGrowth {
