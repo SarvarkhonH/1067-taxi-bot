@@ -10,6 +10,7 @@ import {
   type MissionView,
   type MissionsResponse,
   type ReferralResponse,
+  type WeeklyBoardResponse,
 } from "@t1067/shared";
 import { api } from "./api";
 import { copyText, shareLink } from "./telegram";
@@ -80,7 +81,7 @@ function StreakCard({ me, onReward }: { me: MeResponse; onReward: (msg: string) 
   );
 }
 
-function SpinWheel({ available, onReward }: { available: boolean; onReward: (msg: string) => void }) {
+function SpinWheel({ available, jackpot, onReward }: { available: boolean; jackpot: number; onReward: (msg: string) => void }) {
   const [rotation, setRotation] = useState(0);
   const [spinning, setSpinning] = useState(false);
   const [done, setDone] = useState(!available);
@@ -112,6 +113,7 @@ function SpinWheel({ available, onReward }: { available: boolean; onReward: (msg
   return (
     <section className="wheel-section">
       <div className="section-title">🎡 Omad g'ildiragi</div>
+      <div className="jackpot-badge">🎰 JACKPOT: <b>{formatNumber(jackpot)}</b> so'm</div>
       <div className="wheel-wrap">
         <div className="wheel-pointer">▼</div>
         <svg
@@ -196,7 +198,7 @@ export function ProfileView({ me, reload }: { me: MeResponse; reload: () => void
         ))}
       </section>
 
-      <SpinWheel available={me.wheelAvailable} onReward={onReward} />
+      <SpinWheel available={me.wheelAvailable} jackpot={me.jackpot} onReward={onReward} />
 
       <LevelLadder currentIndex={me.level.index} />
     </div>
@@ -223,10 +225,75 @@ function LevelLadder({ currentIndex }: { currentIndex: number }) {
   );
 }
 
+function WeeklyBoard() {
+  const [w, setW] = useState<WeeklyBoardResponse | null>(null);
+  useEffect(() => {
+    api.weekly().then(setW).catch(() => undefined);
+  }, []);
+  if (!w) return <Spinner />;
+  const max = Math.max(1, ...w.entries.map((e) => e.score));
+  return (
+    <>
+      <div className="weekly-prizes">
+        {w.prizes.map((p) => (
+          <div key={p.rank} className="weekly-prize">
+            <div className="weekly-medal">{p.medal}</div>
+            <div className="weekly-amount">{formatNumber(p.amount)}</div>
+          </div>
+        ))}
+      </div>
+      <div className="weekly-meta muted">
+        ⚡️ Ball: kunlik +10 · g'ildirak +10 · vazifa +15 · quti +20 · safar +30 · taklif +50 — dushanbada to'lov · {w.daysLeft} kun qoldi
+      </div>
+      {w.entries.length === 0 && <div className="weekly-empty muted">Hafta endi boshlandi — birinchi bo'ling! 🚀</div>}
+      <div className="board">
+        {w.entries.map((e) => (
+          <div key={e.memberId} className={"row" + (e.isMe ? " me" : "") + (e.rank <= 3 ? " podium" : "")}>
+            <div className="row-rank">{rankMedal(e.rank)}</div>
+            <div className="row-main">
+              <div className="row-name">
+                {e.fullName}
+                {e.isMe && <span className="you">Siz</span>}
+              </div>
+              <div className="row-bar"><span style={{ width: `${(e.score / max) * 100}%`, background: "var(--accent)" }} /></div>
+            </div>
+            <div className="row-val">{e.score}</div>
+          </div>
+        ))}
+      </div>
+      {w.me && w.me.rank > w.entries.length && (
+        <div className="row me sticky">
+          <div className="row-rank">#{w.me.rank}</div>
+          <div className="row-main"><div className="row-name">{w.me.fullName} <span className="you">Siz</span></div></div>
+          <div className="row-val">{w.me.score}</div>
+        </div>
+      )}
+    </>
+  );
+}
+
 export function LeaderboardView({ board }: { board: LeaderboardResponse }) {
+  const [mode, setMode] = useState<"all" | "weekly">("weekly");
   const max = Math.max(1, ...board.entries.map((e) => e.points));
   return (
     <div className="view">
+      <div className="seg">
+        <button className={"seg-btn" + (mode === "weekly" ? " active" : "")} onClick={() => setMode("weekly")}>
+          ⚡️ Haftalik 🎁
+        </button>
+        <button className={"seg-btn" + (mode === "all" ? " active" : "")} onClick={() => setMode("all")}>
+          🏆 Umumiy
+        </button>
+      </div>
+      {mode === "weekly" && <WeeklyBoard />}
+      {mode === "all" && <AllTimeBoard board={board} max={max} />}
+    </div>
+  );
+}
+
+function AllTimeBoard({ board, max }: { board: LeaderboardResponse; max: number }) {
+  return (
+    <>
       <div className="section-title">🏆 {board.type === "driver" ? "Haydovchilar" : "Mijozlar"} · {board.metricLabel}</div>
       <div className="board">
         {board.entries.map((e) => (
@@ -251,7 +318,7 @@ export function LeaderboardView({ board }: { board: LeaderboardResponse }) {
           <div className="row-val">{formatNumber(board.me.points)}</div>
         </div>
       )}
-    </div>
+    </>
   );
 }
 

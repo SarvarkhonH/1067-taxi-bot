@@ -16,6 +16,7 @@ import { dailyCheckIn, spinWheel } from "../services/rewardService";
 import { claimMission, getMissions } from "../services/missionService";
 import { getBoxStatus, openBox } from "../services/boxService";
 import { getReferralInfo } from "../services/referralService";
+import { getWeeklyBoard } from "../services/weeklyService";
 import { validateInitData } from "./telegramAuth";
 
 export interface ApiOptions {
@@ -132,6 +133,11 @@ export function createApiServer(opts: ApiOptions = {}) {
 
   app.get("/api/referral", requireUser, async (_req, res) => {
     res.json(await getReferralInfo(res.locals.telegramId as string));
+  });
+
+  app.get("/api/weekly", requireUser, async (_req, res) => {
+    const memberId = await getMemberId(res.locals.telegramId as string);
+    res.json(await getWeeklyBoard(memberId));
   });
 
   app.get("/api/box", requireUser, async (_req, res) => {

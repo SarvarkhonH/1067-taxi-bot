@@ -35,6 +35,7 @@ model Member {
   wheelSpins   WheelSpin[]
   missions     MissionProgress[]
   boxOpens     BoxOpen[]
+  weeklyScores WeeklyScore[]
 
   @@unique([type, kasId])
   @@index([type, points])
@@ -80,6 +81,27 @@ model WheelSpin {
   createdAt DateTime @default(now())
 
   @@unique([memberId, dayKey])
+}
+
+// Weekly engagement league: score accrues from bot actions (check-in, spin,
+// missions, rides, referrals); top-3 of the closed week win real cashback.
+model WeeklyScore {
+  id        Int      @id @default(autoincrement())
+  member    Member   @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  memberId  Int
+  weekKey   String // ISO week, e.g. "2026-W24"
+  score     Int      @default(0)
+  updatedAt DateTime @updatedAt
+
+  @@unique([memberId, weekKey])
+  @@index([weekKey, score])
+}
+
+// Tiny global key-value state (jackpot pool, weekly-payout markers).
+model AppState {
+  key       String   @id
+  value     String
+  updatedAt DateTime @updatedAt
 }
 
 // Mystery box: unlocked by completing ALL daily missions, opened once per day.

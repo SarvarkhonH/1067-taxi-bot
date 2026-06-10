@@ -14,12 +14,12 @@ function tashkent(d: Date): Date {
   return new Date(d.getTime() + 5 * 3600 * 1000);
 }
 
-function dayKey(d: Date): string {
+export function dayKey(d: Date): string {
   return tashkent(d).toISOString().slice(0, 10); // YYYY-MM-DD
 }
 
 // ISO-8601 week key, e.g. "2026-W24" (week starts Monday).
-function weekKey(d: Date): string {
+export function weekKey(d: Date): string {
   const t = tashkent(d);
   const date = new Date(Date.UTC(t.getUTCFullYear(), t.getUTCMonth(), t.getUTCDate()));
   const dayNum = (date.getUTCDay() + 6) % 7; // Mon=0 … Sun=6
@@ -92,5 +92,9 @@ export async function claimMission(memberId: number, code: string): Promise<Miss
   // mark claimed first (guards against double-claim races), then pay
   await prisma.missionProgress.update({ where: { id: row.id }, data: { claimedAt: new Date() } });
   const g = await grantCashback(memberId, def.reward, `Vazifa: ${def.title}`, "mission", `mission:${code}:${memberId}:${key}`);
+  // dynamic import: weeklyService depends on this module's week/day keys
+  await import("./weeklyService")
+    .then((w) => w.addScore(memberId, "mission"))
+    .catch(() => undefined);
   return { ok: true, reward: def.reward, applied: g.appliedToKas };
 }

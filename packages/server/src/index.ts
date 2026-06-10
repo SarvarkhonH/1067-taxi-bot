@@ -5,6 +5,7 @@ import { createApiServer } from "./api/server";
 import { createBot, notifyCashback, notifyNewAchievements, setupBotCommands } from "./bot/bot";
 import { refreshLinkedMembers, runSync } from "./sync/sync";
 import { pushBookingUpdates } from "./services/bookingNotifier";
+import { maybeSurpriseDrop, payWeeklyPrizes } from "./services/weeklyService";
 
 async function main(): Promise<void> {
   let bot: Bot | null = null;
@@ -55,7 +56,10 @@ async function main(): Promise<void> {
     }
   });
 
-  // 4. periodic refresh (cashback + badges)
+  // 4. periodic refresh (cashback + badges + weekly payout + surprise drops)
+  const notifyUser = async (telegramId: string, html: string) => {
+    if (bot) await bot.api.sendMessage(telegramId, html, { parse_mode: "HTML" });
+  };
   const intervalMs = Math.max(1, env.SYNC_INTERVAL_MINUTES) * 60_000;
   const timer = setInterval(async () => {
     try {
@@ -66,6 +70,8 @@ async function main(): Promise<void> {
           await notifyCashback(bot, deltas);
           await notifyNewAchievements(bot);
         }
+        await payWeeklyPrizes(notifyUser).catch((e) => console.error("[weekly] payout failed:", e));
+        await maybeSurpriseDrop(notifyUser).catch((e) => console.error("[surprise] failed:", e));
       } else {
         const s = await runSync();
         await notifyBadges();

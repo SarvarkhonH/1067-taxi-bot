@@ -2,11 +2,15 @@
 // Uses throwaway PHONE-LESS members so grantCashback records ledger rows but
 // never writes real money to kas1067. Cleans up after itself.
 import "../env";
-import { BOX_PRIZES } from "@t1067/shared";
+import { BOX_PRIZES, JACKPOT_FLOOR } from "@t1067/shared";
 import { prisma } from "../db";
 import { claimMission, getMissions, incrementMission } from "../services/missionService";
 import { getBoxStatus, openBox } from "../services/boxService";
 import { attachPendingReferral, completeReferral, getReferralInfo } from "../services/referralService";
+import { getJackpot, getWeeklyBoard, growJackpot, payWeeklyPrizes } from "../services/weeklyService";
+import { spinWheel } from "../services/rewardService";
+
+const FAKEWEEK = "2020-W01"; // synthetic closed week for payout tests — never collides with real data
 
 const TAG = "ENGTEST";
 
@@ -21,6 +25,7 @@ async function cleanup(): Promise<void> {
   await prisma.referral.deleteMany({ where: { OR: [{ referrerId: { startsWith: TAG } }, { refereeId: { startsWith: TAG } }] } });
   await prisma.telegramUser.deleteMany({ where: { id: { startsWith: TAG } } });
   await prisma.member.deleteMany({ where: { id: { in: ids } } });
+  await prisma.appState.deleteMany({ where: { key: `weekly_paid_${FAKEWEEK}` } });
 }
 
 async function main(): Promise<void> {
@@ -98,6 +103,48 @@ async function main(): Promise<void> {
 
   const invite = (await getMissions(memberA.id)).weekly.find((x) => x.code === "weekly_invite")!;
   ok(invite.progress === 1 && invite.claimable, `weekly_invite mission auto-bumped by referral`);
+
+  // ── weekly league ────────────────────────────────────────────────────────
+  const myBoard = await getWeeklyBoard(memberA.id);
+  // memberA accrued: mission claim +15, box +20, referral +50 = 85 this week
+  ok(myBoard.me?.score === 85 && myBoard.me.rank >= 1, `weekly score accrued (85, rank #${myBoard.me?.rank})`);
+  ok(myBoard.prizes.length === 3 && myBoard.prizes[0]!.amount === 10000, `weekly prizes catalog (10000/5000/3000)`);
+
+  // payout on a synthetic closed week — never touches the real previous week
+  await prisma.weeklyScore.createMany({
+    data: [
+      { memberId: memberA.id, weekKey: FAKEWEEK, score: 100 },
+      { memberId: memberB.id, weekKey: FAKEWEEK, score: 60 },
+    ],
+  });
+  const pushes: string[] = [];
+  const collect = async (id: string, _html: string) => {
+    pushes.push(id);
+  };
+  const paid1 = await payWeeklyPrizes(collect, FAKEWEEK);
+  ok(paid1 === 2, `weekly payout paid top-2 (only 2 entrants)`);
+  const wg = await prisma.rewardGrant.findMany({ where: { kind: "weekly", memberId: { in: [memberA.id, memberB.id] } } });
+  ok(wg.some((g) => g.amount === 10000) && wg.some((g) => g.amount === 5000), `prizes 10000 + 5000 granted`);
+  ok(pushes.length === 2, `both winners push-notified`);
+  const paid2 = await payWeeklyPrizes(collect, FAKEWEEK);
+  ok(paid2 === 0, `payout idempotent (paid-marker)`);
+
+  // ── jackpot pool ─────────────────────────────────────────────────────────
+  const rawBefore = (await prisma.appState.findUnique({ where: { key: "jackpot_pool" } }))?.value ?? null;
+  const j0 = await getJackpot();
+  ok(j0 >= JACKPOT_FLOOR, `jackpot >= floor (${j0})`);
+  const j1 = await growJackpot(50);
+  ok(j1 >= j0, `jackpot grows (${j0} -> ${j1})`);
+  const spin = await spinWheel(memberB.id);
+  ok(!spin.alreadySpun && spin.jackpot >= JACKPOT_FLOOR, `spin returns live jackpot (${spin.jackpot}), prize: ${spin.prize.label}`);
+  const spin2 = await spinWheel(memberB.id);
+  ok(spin2.alreadySpun, `second spin same day blocked`);
+  // restore the real pool exactly as it was (tests must not move prod state)
+  if (rawBefore === null) {
+    await prisma.appState.deleteMany({ where: { key: "jackpot_pool" } });
+  } else {
+    await prisma.appState.update({ where: { key: "jackpot_pool" }, data: { value: rawBefore } });
+  }
 
   const grants = await prisma.rewardGrant.findMany({ where: { memberId: { in: [memberA.id, memberB.id] } }, orderBy: { id: "asc" } });
   console.log(`\n   ledger: ${grants.map((g) => `${g.kind}+${g.amount}`).join(", ")}`);

@@ -32,4 +32,5 @@ async function hit(path: string): Promise<void> {
 await hit("/api/missions");
 await hit("/api/referral");
 await hit("/api/box");
+await hit("/api/weekly");
 process.exit(0);

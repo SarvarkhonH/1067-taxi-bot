@@ -58,9 +58,12 @@ export async function pushBookingUpdates(bot: Bot): Promise<void> {
         await prisma.member.update({ where: { id: m.id }, data: { lastBookingId: b.id, lastBookingStatus: b.status } });
       }
     } else if (m.lastBookingId) {
-      // ride just finished → credit the ride quests
+      // ride just finished → credit the ride quests + league score
       await incrementMission(m.id, "daily_ride").catch(() => undefined);
       await incrementMission(m.id, "weekly_rides").catch(() => undefined);
+      await import("./weeklyService")
+        .then((w) => w.addScore(m.id, "ride"))
+        .catch(() => undefined);
       await bot.api
         .sendMessage(chatId, "🏁 Safaringiz yakunlandi! Rahmat 🙌\nCashback tez orada hisobingizda ko'rinadi.\n🎯 Vazifalaringizni tekshiring — mukofot kutyapti!", { parse_mode: "HTML" })
         .catch(() => undefined);

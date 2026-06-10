@@ -50,5 +50,8 @@ export async function openBox(memberId: number): Promise<BoxOpenResponse> {
     return { ok: false, reason: "opened", prize: null, applied: false };
   }
   const g = await grantCashback(memberId, prize.amount, `Sirli quti: ${prize.label}`, "box", `box:${memberId}:${dayKey}`);
+  await import("./weeklyService")
+    .then((w) => w.addScore(memberId, "box"))
+    .catch(() => undefined);
   return { ok: true, prize: { label: prize.label, emoji: prize.emoji, amount: prize.amount }, applied: g.appliedToKas };
 }

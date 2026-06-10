@@ -16,6 +16,7 @@ import { prisma } from "../db";
 import { env } from "../env";
 import { getDataSource } from "../kas";
 import { canSpinWheel, getStreak } from "./rewardService";
+import { getJackpot } from "./weeklyService";
 
 export function isAdmin(telegramId: string): boolean {
   return env.adminIds.includes(telegramId);
@@ -84,6 +85,7 @@ async function buildMe(member: Member, achievements: MemberAchievement[]): Promi
     badges,
     streak: await getStreak(member.id),
     wheelAvailable: await canSpinWheel(member.id),
+    jackpot: await getJackpot(),
   };
 }
 

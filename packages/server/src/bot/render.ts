@@ -10,6 +10,7 @@ import {
   type MissionsResponse,
   type MissionView,
   type ReferralResponse,
+  type WeeklyBoardResponse,
 } from "@t1067/shared";
 
 function esc(s: string): string {
@@ -98,6 +99,22 @@ export function renderLeaderboard(lb: LeaderboardResponse, limit = 10): string {
     footer = `\n— — —\n👉 Siz: <b>${rankMedal(lb.me.rank)}</b> · ${formatNumber(lb.me.points)} ${esc(lb.metricLabel.toLowerCase())}`;
   }
   return `🏆 <b>${heading}</b> <i>(${esc(lb.metricLabel)})</i>\n\n${lines.join("\n")}${footer}`;
+}
+
+/** Weekly engagement league block, appended under the all-time leaderboard. */
+export function renderWeeklyBlock(w: WeeklyBoardResponse): string {
+  const prizes = w.prizes.map((p) => `${p.medal} ${formatNumber(p.amount)}`).join(" · ");
+  const rows = w.entries.slice(0, 5).map((e) => {
+    const name = e.isMe ? `<b>${esc(e.fullName)}</b> 👈` : esc(e.fullName);
+    return `${rankMedal(e.rank)} ${name} — ${e.score} ball`;
+  });
+  let s =
+    `\n\n⚡️ <b>Haftalik liga</b> <i>(${w.daysLeft} kun qoldi)</i>\n` +
+    `Sovg'alar: ${prizes} so'm\n\n` +
+    (rows.length ? rows.join("\n") : "<i>Hafta endi boshlandi — birinchi bo'ling!</i>");
+  if (w.me && w.me.rank > 5) s += `\n— — —\n👉 Siz: <b>#${w.me.rank}</b> · ${w.me.score} ball`;
+  s += `\n\n<i>Ball: kunlik +10 · g'ildirak +10 · vazifa +15 · quti +20 · safar +30 · taklif +50. Dushanba — to'lov!</i>`;
+  return s;
 }
 
 export function renderBadgeUnlocked(code: string): string | null {

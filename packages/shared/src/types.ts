@@ -36,6 +36,7 @@ export interface MeResponse {
   badges: BadgeView[];
   streak: { current: number; longest: number; checkedToday: boolean };
   wheelAvailable: boolean;
+  jackpot: number; // current escalating wheel jackpot (so'm)
 }
 
 export interface CheckInResponse {
@@ -51,6 +52,7 @@ export interface WheelSpinResponse {
   alreadySpun: boolean;
   prize: { label: string; emoji: string; amount: number };
   applied: boolean;
+  jackpot: number; // pool value after this spin
 }
 
 export interface LeaderboardEntry {

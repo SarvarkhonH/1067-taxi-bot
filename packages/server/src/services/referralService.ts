@@ -103,6 +103,9 @@ export async function completeReferral(
     const g = await grantCashback(referrer.memberId, REFERRER_REWARD, "Do'st taklif qildingiz", "referral", `ref_referrer:${refereeTelegramId}`);
     if (g.ok) referrerReward = REFERRER_REWARD;
     await incrementMission(referrer.memberId, "weekly_invite");
+    await import("./weeklyService")
+      .then((w) => w.addScore(referrer.memberId!, "referral"))
+      .catch(() => undefined);
   }
 
   await prisma.referral.create({

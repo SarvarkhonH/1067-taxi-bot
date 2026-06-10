@@ -170,6 +170,22 @@ body {
 .mission-done { font-size: 20px; }
 .mission-pct { font-size: 12px; font-weight: 700; min-width: 34px; text-align: right; }
 
+/* jackpot + weekly league */
+.jackpot-badge {
+  background: linear-gradient(90deg, #2a0a0a, #1b1230); border: 1px solid #ef4444;
+  color: #fecaca; font-size: 13px; font-weight: 700; padding: 8px 16px; border-radius: 999px;
+  box-shadow: 0 0 18px -6px #ef4444; animation: jackglow 2.2s ease-in-out infinite;
+}
+.jackpot-badge b { color: #ef4444; font-size: 15px; }
+@keyframes jackglow { 0%,100% { box-shadow: 0 0 14px -6px #ef4444; } 50% { box-shadow: 0 0 26px -4px #ef4444; } }
+.weekly-prizes { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+.weekly-prize { background: linear-gradient(180deg, var(--card-2), var(--card)); border: 1px solid var(--line); border-radius: 14px; padding: 12px 8px; text-align: center; }
+.weekly-prize:first-child { border-color: var(--gold); box-shadow: 0 6px 20px -12px var(--gold); }
+.weekly-medal { font-size: 26px; }
+.weekly-amount { font-size: 15px; font-weight: 900; color: var(--gold); margin-top: 4px; }
+.weekly-meta { font-size: 11px; line-height: 1.5; padding: 0 2px; }
+.weekly-empty { text-align: center; padding: 24px 0; }
+
 /* mystery box */
 .box-card {
   display: flex; align-items: center; gap: 14px;

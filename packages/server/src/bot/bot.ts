@@ -15,6 +15,7 @@ import { dailyCheckIn, spinWheel, type CheckInResult, type WheelResult } from ".
 import { claimMission, getMissions } from "../services/missionService";
 import { getBoxStatus, openBox } from "../services/boxService";
 import { attachPendingReferral, completeReferral, getReferralInfo } from "../services/referralService";
+import { getWeeklyBoard } from "../services/weeklyService";
 import type { CashbackDelta } from "../sync/sync";
 import { registerBooking } from "./booking";
 import {
@@ -28,6 +29,7 @@ import {
   renderReferral,
   renderReferralWin,
   renderTaken,
+  renderWeeklyBlock,
   renderWelcome,
 } from "./render";
 
@@ -77,13 +79,17 @@ function renderCheckIn(r: CheckInResult): string {
 }
 
 function renderWheel(r: WheelResult): string {
+  const pool = `\n\n🎰 JACKPOT hozir: <b>${formatNumber(r.jackpot)} so'm</b> — har spin uni oshiradi!`;
   if (r.alreadySpun) {
-    return `🎡 Bugun allaqachon aylantirdingiz!\nYutuq: ${r.prize.emoji} <b>${esc(r.prize.label)}</b>\n\nErtaga yana keling 🌙`;
+    return `🎡 Bugun allaqachon aylantirdingiz!\nYutuq: ${r.prize.emoji} <b>${esc(r.prize.label)}</b>\n\nErtaga yana keling 🌙${pool}`;
+  }
+  if (r.prize.label.startsWith("JACKPOT")) {
+    return `🎰🎰🎰 <b>JACKPOT!!!</b> 🎰🎰🎰\n\n💥 <b>+${formatNumber(r.prize.amount)} so'm</b>${r.applied ? " — hisobingizga qo'shildi 💰" : ""}!\n\nButun jamg'arma sizniki bo'ldi! 👑${pool}`;
   }
   if (r.prize.amount > 0) {
-    return `🎉 ${r.prize.emoji} <b>${esc(r.prize.label)}!</b>\n\n+${formatNumber(r.prize.amount)} so'm cashback${r.applied ? " — hisobingizga qo'shildi 💰" : ""}!\n\nErtaga yana aylantiring 🎡`;
+    return `🎉 ${r.prize.emoji} <b>${esc(r.prize.label)}!</b>\n\n+${formatNumber(r.prize.amount)} so'm cashback${r.applied ? " — hisobingizga qo'shildi 💰" : ""}!\n\nErtaga yana aylantiring 🎡${pool}`;
   }
-  return `${r.prize.emoji} <b>${esc(r.prize.label)}</b>\n\nBu safar omad kulmadi — ertaga yana urinib ko'ring! 🎡`;
+  return `${r.prize.emoji} <b>${esc(r.prize.label)}</b>\n\nBu safar omad kulmadi — ertaga yana urinib ko'ring! 🎡${pool}`;
 }
 
 function esc(s: string): string {
@@ -176,8 +182,8 @@ export function createBot(): Bot {
       await ctx.reply(renderLinkPrompt(), { parse_mode: "HTML", reply_markup: contactKeyboard() });
       return;
     }
-    const lb = await getLeaderboard(me.type, id);
-    await ctx.reply(renderLeaderboard(lb), { parse_mode: "HTML", reply_markup: mainMenu() });
+    const [lb, weekly] = await Promise.all([getLeaderboard(me.type, id), getWeeklyBoard(me.member.id)]);
+    await ctx.reply(renderLeaderboard(lb) + renderWeeklyBlock(weekly), { parse_mode: "HTML", reply_markup: mainMenu() });
   };
   bot.hears("🏆 Reyting", showLeaderboard);
   bot.command("top", showLeaderboard);

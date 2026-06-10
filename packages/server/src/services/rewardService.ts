@@ -1,4 +1,4 @@
-import { nextStreakMilestone, streakReward, WHEEL_PRIZES, type WheelPrize } from "@t1067/shared";
+import { JACKPOT_INCREMENT, nextStreakMilestone, streakReward, WHEEL_PRIZES, type ScoreKind, type WheelPrize } from "@t1067/shared";
 import { prisma } from "../db";
 import { getDataSource } from "../kas";
 
@@ -17,6 +17,16 @@ async function bumpMission(memberId: number, code: string): Promise<void> {
     await incrementMission(memberId, code);
   } catch (e) {
     console.error("[mission] bump failed:", e instanceof Error ? e.message : e);
+  }
+}
+
+// Same pattern for the weekly league (weeklyService pays prizes via grantCashback).
+async function bumpScore(memberId: number, kind: ScoreKind): Promise<void> {
+  try {
+    const { addScore } = await import("./weeklyService");
+    await addScore(memberId, kind);
+  } catch (e) {
+    console.error("[weekly] score bump failed:", e instanceof Error ? e.message : e);
   }
 }
 
@@ -112,6 +122,7 @@ export async function dailyCheckIn(memberId: number): Promise<CheckInResult> {
   });
 
   await bumpMission(memberId, "daily_checkin");
+  await bumpScore(memberId, "checkin");
 
   const reward = streakReward(current);
   let rewardApplied = false;
@@ -138,26 +149,42 @@ export interface WheelResult {
   alreadySpun: boolean;
   prize: { label: string; emoji: string; amount: number };
   applied: boolean;
+  jackpot: number; // displayed pool after this call
 }
 
 export async function spinWheel(memberId: number): Promise<WheelResult> {
+  const { getJackpot, growJackpot, claimJackpot } = await import("./weeklyService");
   const dayKey = tashkentDayKey(new Date());
   const existing = await prisma.wheelSpin.findUnique({ where: { memberId_dayKey: { memberId, dayKey } } });
   if (existing) {
     const def = WHEEL_PRIZES.find((x) => x.label === existing.prize);
-    return { alreadySpun: true, prize: { label: existing.prize, emoji: def?.emoji ?? "🎡", amount: existing.amount }, applied: false };
+    return {
+      alreadySpun: true,
+      prize: { label: existing.prize, emoji: def?.emoji ?? "🎡", amount: existing.amount },
+      applied: false,
+      jackpot: await getJackpot(),
+    };
   }
 
   const prize = weightedPick();
-  await prisma.wheelSpin.create({ data: { memberId, dayKey, prize: prize.label, amount: prize.amount } });
+  // every spin escalates the pool; the JACKPOT slice wins the whole pool
+  let jackpot = await growJackpot(JACKPOT_INCREMENT);
+  let amount = prize.amount;
+  if (prize.label.startsWith("JACKPOT")) {
+    amount = await claimJackpot();
+    jackpot = await getJackpot(); // back to the floor
+  }
+
+  await prisma.wheelSpin.create({ data: { memberId, dayKey, prize: prize.label, amount } });
   await bumpMission(memberId, "daily_spin");
+  await bumpScore(memberId, "spin");
 
   let applied = false;
-  if (prize.amount > 0) {
-    const g = await grantCashback(memberId, prize.amount, `G'ildirak: ${prize.label}`, "wheel", `wheel:${memberId}:${dayKey}`);
+  if (amount > 0) {
+    const g = await grantCashback(memberId, amount, `G'ildirak: ${prize.label}`, "wheel", `wheel:${memberId}:${dayKey}`);
     applied = g.appliedToKas;
   }
-  return { alreadySpun: false, prize: { label: prize.label, emoji: prize.emoji, amount: prize.amount }, applied };
+  return { alreadySpun: false, prize: { label: prize.label, emoji: prize.emoji, amount }, applied, jackpot };
 }
 
 export async function canSpinWheel(memberId: number): Promise<boolean> {

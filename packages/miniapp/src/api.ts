@@ -7,6 +7,7 @@ import type {
   MissionClaimResponse,
   MissionsResponse,
   ReferralResponse,
+  WeeklyBoardResponse,
   WheelSpinResponse,
 } from "@t1067/shared";
 import { tg } from "./telegram";
@@ -73,4 +74,5 @@ export const api = {
   referral: () => get<ReferralResponse>("/api/referral"),
   box: () => get<BoxStatusResponse>("/api/box"),
   openBox: () => post<BoxOpenResponse>("/api/box/open"),
+  weekly: () => get<WeeklyBoardResponse>("/api/weekly"),
 };

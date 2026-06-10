@@ -127,6 +127,11 @@ export interface WheelPrize {
   color: string;
 }
 
+// Escalating jackpot: every spin feeds the pool; the JACKPOT slice pays the
+// whole pool (never less than the floor). Near-miss + visible growth.
+export const JACKPOT_FLOOR = 5000;
+export const JACKPOT_INCREMENT = 50; // so'm added to the pool per spin
+
 // Tune amounts/weights to the reward budget. Expected value ≈ sum(amount*weight)/sum(weight).
 export const WHEEL_PRIZES: WheelPrize[] = [
   { label: "100 so'm", emoji: "🪙", amount: 100, weight: 30, color: "#9CA3AF" },
