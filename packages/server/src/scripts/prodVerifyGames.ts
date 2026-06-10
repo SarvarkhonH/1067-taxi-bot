@@ -53,5 +53,12 @@ if ((wallet.json.coins ?? 0) >= RACE_STAKES[0]) {
   console.log("ℹ️  owner has < stake coins — skipping live race play (endpoints still 200)");
 }
 
+const duels = await call("/api/duel/list");
+ok(duels.status === 200 && Array.isArray(duels.json.open), "GET /api/duel/list", `open=${duels.json?.open?.length}`);
+
+const quiz = await call("/api/quiz");
+ok(quiz.status === 200 && Array.isArray(quiz.json.questions) && quiz.json.questions.length === 5, "GET /api/quiz", `q=${quiz.json?.questions?.length}`);
+ok(quiz.json?.questions?.[0] && !("correct" in (quiz.json.questions[0].options ?? {})), "quiz answers not leaked to client");
+
 console.log(fails ? `\n❌ ${fails} FAILURES` : "\n🎉 prod games verified");
 process.exit(fails ? 1 : 0);

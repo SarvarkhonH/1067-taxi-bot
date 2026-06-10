@@ -194,4 +194,11 @@ Bot · Mini App · admin · kas1067 (o'qish + **cashback yozish 1303**) · strea
 - **Mini App 🎮 arkada hub** — stake picker → o'yin overlaylari; coin hammasini boqadi, bitta withdrawable balans.
 - **Sinov:** 65 check (44 engagement + 21 game: determinism, anti-cheat, idempotency, crash RTP, park cap) · prod jonli: owner real poyga o'ynab +570 coin yutdi.
 
-**Keyingi:** ⚔️ Duel 1v1 (real-time matchmaking) · 🧠 Viktorina · 🏆 liga tier (promotion/relegation) · S4 Uber-darajali booking (jonli Leaflet xarita, 1-tap rebook).
+## ⚔️ S3 BAJARILDI — duel + viktorina + liga tier (jonli)
+- **⚔️ Duel 1v1** — boshqa mijozga chaqiriq: garov tikib yurasiz (ball yashirin), raqib qabul qilib bir xil trassada yuradi, yuqori ball potni oladi (2x − 10% burn), durang → qaytadi. Sweep: no-show refund + natija push.
+- **🧠 Kunlik viktorina** — hammaga bir xil 5 savol (30 lik bank), har to'g'risi +100, 5/5 = +500. Javoblar clientga chiqmaydi.
+- **🏆 Liga tier** (Duolingo) — Bronza→Olmos, dushanba top 30% ko'tariladi, faolsizlar tushadi. Reyting + hamyonda tier belgisi.
+- Yangi missiyalar: daily_race, daily_quiz, weekly_races (endi 5 kunlik + 3 haftalik).
+- **Sinov:** 82 check (44 engagement + 38 game) · prod jonli verify.
+
+**Qoldi (S4):** 🗺 Uber-darajali jonli xarita booking (Leaflet + cityBorders) · 1-tap rebook (resendBooking) · narx kalkulyator booking oqimida.
