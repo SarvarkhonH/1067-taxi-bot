@@ -13,6 +13,7 @@ import {
 } from "../services/memberService";
 import { dailyCheckIn, spinWheel, type CheckInResult, type WheelResult } from "../services/rewardService";
 import { claimMission, getMissions } from "../services/missionService";
+import { getBoxStatus, openBox } from "../services/boxService";
 import { attachPendingReferral, completeReferral, getReferralInfo } from "../services/referralService";
 import type { CashbackDelta } from "../sync/sync";
 import { registerBooking } from "./booking";
@@ -222,14 +223,23 @@ export function createBot(): Bot {
     });
   });
 
-  // ─── missions / quests ──────────────────────────────────────────────────────
-  function claimKeyboard(m: Awaited<ReturnType<typeof getMissions>>): InlineKeyboard {
+  // ─── missions / quests + mystery box ────────────────────────────────────────
+  function claimKeyboard(
+    m: Awaited<ReturnType<typeof getMissions>>,
+    box: Awaited<ReturnType<typeof getBoxStatus>>,
+  ): InlineKeyboard {
     const kb = new InlineKeyboard();
     [...m.daily, ...m.weekly]
       .filter((x) => x.claimable)
       .forEach((x) => kb.text(`🎁 ${x.emoji} +${formatNumber(x.reward)} so'm`, `claim:${x.code}`).row());
+    if (box.eligible && !box.opened) kb.text("🎁 SIRLI QUTINI OCHISH", "openbox").row();
     return kb;
   }
+
+  const missionsView = async (memberId: number) => {
+    const [m, box] = await Promise.all([getMissions(memberId), getBoxStatus(memberId)]);
+    return { text: renderMissions(m, box), kb: claimKeyboard(m, box) };
+  };
 
   const showMissions = async (ctx: Context) => {
     const memberId = await getMemberId(String(ctx.from!.id));
@@ -237,15 +247,18 @@ export function createBot(): Bot {
       await ctx.reply(renderLinkPrompt(), { parse_mode: "HTML", reply_markup: contactKeyboard() });
       return;
     }
-    const m = await getMissions(memberId);
-    const kb = claimKeyboard(m);
-    await ctx.reply(renderMissions(m), {
-      parse_mode: "HTML",
-      reply_markup: kb.inline_keyboard.length ? kb : mainMenu(),
-    });
+    const { text, kb } = await missionsView(memberId);
+    await ctx.reply(text, { parse_mode: "HTML", reply_markup: kb.inline_keyboard.length ? kb : mainMenu() });
   };
   bot.hears("🎯 Vazifalar", showMissions);
   bot.command("missions", showMissions);
+
+  const refreshMissionsMessage = async (ctx: Context, memberId: number) => {
+    const { text, kb } = await missionsView(memberId);
+    await ctx
+      .editMessageText(text, { parse_mode: "HTML", reply_markup: kb.inline_keyboard.length ? kb : undefined })
+      .catch(() => undefined);
+  };
 
   bot.callbackQuery(/^claim:(.+)$/, async (ctx) => {
     const code = ctx.match[1]!;
@@ -262,11 +275,27 @@ export function createBot(): Bot {
     } else {
       await ctx.answerCallbackQuery({ text: "Bu vazifa hali tugamagan 🎯" });
     }
-    const m = await getMissions(memberId);
-    const kb = claimKeyboard(m);
-    await ctx
-      .editMessageText(renderMissions(m), { parse_mode: "HTML", reply_markup: kb.inline_keyboard.length ? kb : undefined })
-      .catch(() => undefined);
+    await refreshMissionsMessage(ctx, memberId);
+  });
+
+  bot.callbackQuery("openbox", async (ctx) => {
+    const memberId = await getMemberId(String(ctx.from!.id));
+    if (!memberId) {
+      await ctx.answerCallbackQuery({ text: "Avval raqamingizni ulang 🙏", show_alert: true });
+      return;
+    }
+    const r = await openBox(memberId);
+    if (r.ok && r.prize) {
+      await ctx.answerCallbackQuery({
+        text: `🎁 ${r.prize.emoji} ${r.prize.label}! +${formatNumber(r.prize.amount)} so'm hisobingizga qo'shildi!`,
+        show_alert: true,
+      });
+    } else if (r.reason === "opened") {
+      await ctx.answerCallbackQuery({ text: "Bugungi quti allaqachon ochilgan 🌙" });
+    } else {
+      await ctx.answerCallbackQuery({ text: "Avval barcha kunlik vazifalarni tugating 🎯" });
+    }
+    await refreshMissionsMessage(ctx, memberId);
   });
 
   // ─── referral ───────────────────────────────────────────────────────────────

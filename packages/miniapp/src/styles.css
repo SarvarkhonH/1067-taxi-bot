@@ -170,6 +170,25 @@ body {
 .mission-done { font-size: 20px; }
 .mission-pct { font-size: 12px; font-weight: 700; min-width: 34px; text-align: right; }
 
+/* mystery box */
+.box-card {
+  display: flex; align-items: center; gap: 14px;
+  background: linear-gradient(90deg, #1d1530, var(--card)); border: 1px solid var(--line);
+  border-radius: 18px; padding: 15px 16px;
+}
+.box-card.ready { border-color: #a855f7; box-shadow: 0 0 0 1px #a855f7 inset, 0 10px 30px -16px #a855f7; }
+.box-card.opened { opacity: .75; }
+.box-emoji { font-size: 38px; filter: drop-shadow(0 0 12px #a855f7aa); }
+.box-emoji.shaking { animation: boxshake .45s ease-in-out infinite; }
+@keyframes boxshake { 0%,100% { transform: rotate(0); } 25% { transform: rotate(-12deg) scale(1.08); } 75% { transform: rotate(12deg) scale(1.08); } }
+.box-body { flex: 1; min-width: 0; }
+.box-title { font-size: 15px; font-weight: 800; }
+.box-sub { font-size: 12px; margin-top: 3px; }
+.box-bar { height: 6px; background: #ffffff10; border-radius: 999px; margin-top: 7px; overflow: hidden; }
+.box-bar span { display: block; height: 100%; border-radius: 999px; background: linear-gradient(90deg, #a855f7, #d8b4fe); transition: width .6s cubic-bezier(.2,.8,.2,1); }
+.box-open { background: #a855f7; color: #fff; border: 0; padding: 11px 18px; border-radius: 12px; font-weight: 800; font-size: 14px; animation: pulse 1.6s ease-in-out infinite; }
+.box-open:disabled { opacity: .6; animation: none; }
+
 /* referral */
 .ref-hero { background: radial-gradient(300px 160px at 50% -20%, color-mix(in srgb, var(--accent) 20%, transparent), transparent), linear-gradient(180deg, var(--card-2), var(--card)); border: 1px solid var(--line); border-radius: 20px; padding: 20px 16px; text-align: center; }
 .ref-big { font-size: 48px; }

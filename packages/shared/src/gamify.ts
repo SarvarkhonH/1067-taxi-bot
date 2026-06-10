@@ -138,6 +138,25 @@ export const WHEEL_PRIZES: WheelPrize[] = [
   { label: "JACKPOT 5000", emoji: "🎰", amount: 5000, weight: 2, color: "#EF4444" },
 ];
 
+// ─── mystery box (perfect-day meta reward) ────────────────────
+// Unlocks only when ALL daily missions are completed → compulsion loop on top
+// of the quest loop (Octalysis: Unpredictability; "perfect day" completion).
+export interface BoxPrize {
+  label: string;
+  emoji: string;
+  amount: number; // so'm cashback
+  weight: number;
+}
+
+// EV ≈ 1290 so'm per perfect day — the strongest single reward in the system.
+export const BOX_PRIZES: BoxPrize[] = [
+  { label: "500 so'm", emoji: "🪙", amount: 500, weight: 50 },
+  { label: "1000 so'm", emoji: "💵", amount: 1000, weight: 30 },
+  { label: "2000 so'm", emoji: "💰", amount: 2000, weight: 12 },
+  { label: "5000 so'm", emoji: "💎", amount: 5000, weight: 6 },
+  { label: "SUPER 10000", emoji: "👑", amount: 10000, weight: 2 },
+];
+
 export function nextStreakMilestone(day: number): { day: number; reward: number } | null {
   const days = Object.keys(STREAK_REWARDS)
     .map(Number)

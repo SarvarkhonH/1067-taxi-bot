@@ -6,6 +6,7 @@ import {
   type LeaderboardResponse,
   type MeResponse,
   type MemberType,
+  type BoxStatusResponse,
   type MissionsResponse,
   type MissionView,
   type ReferralResponse,
@@ -120,7 +121,17 @@ function missionLine(x: MissionView): string {
   return `${x.emoji} ${esc(x.title)}\n   ${bar} ${status}`;
 }
 
-export function renderMissions(m: MissionsResponse): string {
+function boxLine(box: BoxStatusResponse): string {
+  if (box.opened && box.prize) {
+    return `🎁 Sirli quti: ochildi — ${box.prize.emoji} <b>${esc(box.prize.label)}</b>. Ertaga yana!`;
+  }
+  if (box.eligible) {
+    return `🎁 <b>SIRLI QUTI TAYYOR!</b> Pastdagi tugma bilan oching 👇`;
+  }
+  return `🎁 Sirli quti: kunlik vazifalarni tugating (${box.dailiesDone}/${box.dailiesTotal}) — ichida <b>10 000 so'mgacha</b>!`;
+}
+
+export function renderMissions(m: MissionsResponse, box?: BoxStatusResponse): string {
   const claimable = [...m.daily, ...m.weekly].filter((x) => x.claimable).length;
   const head =
     claimable > 0
@@ -130,6 +141,7 @@ export function renderMissions(m: MissionsResponse): string {
     `${head}\n\n` +
     `📅 <b>Kunlik</b>\n${m.daily.map(missionLine).join("\n")}\n\n` +
     `🗓 <b>Haftalik</b>\n${m.weekly.map(missionLine).join("\n")}\n\n` +
+    (box ? `${boxLine(box)}\n\n` : "") +
     `<i>Mukofotni olish uchun pastdagi tugmani bosing yoki «🚀 Ilova»da yig'ing.</i>`
   );
 }

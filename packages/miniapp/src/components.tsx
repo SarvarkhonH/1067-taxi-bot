@@ -4,6 +4,7 @@ import {
   WHEEL_PRIZES,
   formatNumber,
   rankMedal,
+  type BoxStatusResponse,
   type LeaderboardResponse,
   type MeResponse,
   type MissionView,
@@ -282,11 +283,71 @@ function MissionCard({ m, onClaim, busy }: { m: MissionView; onClaim: (code: str
   );
 }
 
+function BoxCard({ box, onOpened, refresh }: { box: BoxStatusResponse; onOpened: (msg: string) => void; refresh: () => void }) {
+  const [opening, setOpening] = useState(false);
+  const [shake, setShake] = useState(false);
+
+  const open = async () => {
+    if (opening || box.opened || !box.eligible) return;
+    setOpening(true);
+    setShake(true);
+    try {
+      const r = await api.openBox();
+      // let the shake play before the reveal
+      setTimeout(() => {
+        setShake(false);
+        if (r.ok && r.prize) onOpened(`🎁 ${r.prize.emoji} +${formatNumber(r.prize.amount)} so'm!`);
+        refresh();
+        setOpening(false);
+      }, 900);
+    } catch {
+      setShake(false);
+      setOpening(false);
+    }
+  };
+
+  const pct = Math.round((box.dailiesDone / Math.max(1, box.dailiesTotal)) * 100);
+  return (
+    <div className={"box-card" + (box.eligible && !box.opened ? " ready" : "") + (box.opened ? " opened" : "")}>
+      <div className={"box-emoji" + (shake ? " shaking" : "")}>{box.opened ? "🎊" : "🎁"}</div>
+      <div className="box-body">
+        <div className="box-title">Sirli quti</div>
+        {box.opened && box.prize ? (
+          <div className="box-sub muted">
+            Bugun: {box.prize.emoji} <b>{box.prize.label}</b> — ertaga yana!
+          </div>
+        ) : box.eligible ? (
+          <div className="box-sub">Tayyor! Ichida <b>10 000 so'mgacha</b> 👇</div>
+        ) : (
+          <>
+            <div className="box-bar">
+              <span style={{ width: `${pct}%` }} />
+            </div>
+            <div className="box-sub muted">
+              Kunlik vazifalar: {box.dailiesDone}/{box.dailiesTotal} — hammasini tugating
+            </div>
+          </>
+        )}
+      </div>
+      {!box.opened && box.eligible && (
+        <button className="box-open" disabled={opening} onClick={open}>
+          {opening ? "…" : "Ochish"}
+        </button>
+      )}
+    </div>
+  );
+}
+
 export function MissionsView({ onReward }: { onReward: (msg: string) => void }) {
   const [data, setData] = useState<MissionsResponse | null>(null);
+  const [box, setBox] = useState<BoxStatusResponse | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
 
-  const load = () => api.missions().then(setData).catch(() => undefined);
+  const load = () =>
+    Promise.all([
+      api.missions().then(setData).catch(() => undefined),
+      api.box().then(setBox).catch(() => undefined),
+    ]);
   useEffect(() => {
     load();
   }, []);
@@ -312,6 +373,7 @@ export function MissionsView({ onReward }: { onReward: (msg: string) => void }) 
       <div className="section-title">
         🎯 Vazifalar {readyCount > 0 && <span className="ready-pill">{readyCount} ta tayyor 🎁</span>}
       </div>
+      {box && <BoxCard box={box} onOpened={onReward} refresh={load} />}
       <div className="mission-group muted">📅 Kunlik</div>
       {data.daily.map((m) => (
         <MissionCard key={m.code} m={m} onClaim={claim} busy={busy === m.code} />

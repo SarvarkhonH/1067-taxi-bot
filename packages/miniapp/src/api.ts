@@ -1,4 +1,6 @@
 import type {
+  BoxOpenResponse,
+  BoxStatusResponse,
   CheckInResponse,
   LeaderboardResponse,
   MeResponse,
@@ -69,4 +71,6 @@ export const api = {
   missions: () => get<MissionsResponse>("/api/missions"),
   claimMission: (code: string) => post<MissionClaimResponse>(`/api/missions/claim?code=${encodeURIComponent(code)}`),
   referral: () => get<ReferralResponse>("/api/referral"),
+  box: () => get<BoxStatusResponse>("/api/box"),
+  openBox: () => post<BoxOpenResponse>("/api/box/open"),
 };

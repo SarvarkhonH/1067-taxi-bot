@@ -71,6 +71,21 @@ export interface LeaderboardResponse {
   me: LeaderboardEntry | null;
 }
 
+export interface BoxStatusResponse {
+  eligible: boolean; // all daily missions completed today
+  opened: boolean; // already opened today
+  dailiesDone: number;
+  dailiesTotal: number;
+  prize: { label: string; emoji: string; amount: number } | null; // today's prize if opened
+}
+
+export interface BoxOpenResponse {
+  ok: boolean;
+  reason?: "locked" | "opened";
+  prize: { label: string; emoji: string; amount: number } | null;
+  applied: boolean;
+}
+
 export interface ReferralResponse {
   code: string;
   link: string; // t.me deep link with the invite code

@@ -14,6 +14,7 @@ import {
 } from "../services/memberService";
 import { dailyCheckIn, spinWheel } from "../services/rewardService";
 import { claimMission, getMissions } from "../services/missionService";
+import { getBoxStatus, openBox } from "../services/boxService";
 import { getReferralInfo } from "../services/referralService";
 import { validateInitData } from "./telegramAuth";
 
@@ -131,6 +132,24 @@ export function createApiServer(opts: ApiOptions = {}) {
 
   app.get("/api/referral", requireUser, async (_req, res) => {
     res.json(await getReferralInfo(res.locals.telegramId as string));
+  });
+
+  app.get("/api/box", requireUser, async (_req, res) => {
+    const memberId = await getMemberId(res.locals.telegramId as string);
+    if (!memberId) {
+      res.status(404).json({ error: "not linked" });
+      return;
+    }
+    res.json(await getBoxStatus(memberId));
+  });
+
+  app.post("/api/box/open", requireUser, async (_req, res) => {
+    const memberId = await getMemberId(res.locals.telegramId as string);
+    if (!memberId) {
+      res.status(404).json({ error: "not linked" });
+      return;
+    }
+    res.json(await openBox(memberId));
   });
 
   app.get("/api/leaderboard", requireUser, async (req, res) => {

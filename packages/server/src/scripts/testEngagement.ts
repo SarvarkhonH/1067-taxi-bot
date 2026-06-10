@@ -2,8 +2,10 @@
 // Uses throwaway PHONE-LESS members so grantCashback records ledger rows but
 // never writes real money to kas1067. Cleans up after itself.
 import "../env";
+import { BOX_PRIZES } from "@t1067/shared";
 import { prisma } from "../db";
 import { claimMission, getMissions, incrementMission } from "../services/missionService";
+import { getBoxStatus, openBox } from "../services/boxService";
 import { attachPendingReferral, completeReferral, getReferralInfo } from "../services/referralService";
 
 const TAG = "ENGTEST";
@@ -49,6 +51,24 @@ async function main(): Promise<void> {
 
   const notReady = await claimMission(memberA.id, "weekly_rides");
   ok(!notReady.ok && notReady.reason === "not_complete", `claim incomplete mission blocked`);
+
+  // ── mystery box ──────────────────────────────────────────────────────────
+  let box = await getBoxStatus(memberA.id);
+  ok(!box.eligible && box.dailiesDone === 1 && box.dailiesTotal === 3, `box locked at 1/3 dailies`);
+  const locked = await openBox(memberA.id);
+  ok(!locked.ok && locked.reason === "locked", `open locked box blocked`);
+
+  await incrementMission(memberA.id, "daily_spin");
+  await incrementMission(memberA.id, "daily_ride");
+  box = await getBoxStatus(memberA.id);
+  ok(box.eligible && !box.opened, `box unlocks after all 3 dailies`);
+
+  const opened = await openBox(memberA.id);
+  ok(opened.ok && !!opened.prize && BOX_PRIZES.some((p) => p.label === opened.prize!.label), `box opened → prize: ${opened.prize?.label}`);
+  const again = await openBox(memberA.id);
+  ok(!again.ok && again.reason === "opened", `re-open blocked (once per day)`);
+  box = await getBoxStatus(memberA.id);
+  ok(box.opened && box.prize?.label === opened.prize?.label, `box status shows today's prize`);
 
   // ── referral ─────────────────────────────────────────────────────────────
   const infoA = await getReferralInfo(tgA);

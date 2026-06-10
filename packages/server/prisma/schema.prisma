@@ -7,7 +7,7 @@ generator client {
 }
 
 datasource db {
-  provider = "sqlite" // dev. Switch to "postgresql" for production.
+  provider = "postgresql" // Render Postgres (persistent — survives deploys)
   url      = env("DATABASE_URL")
 }
 
@@ -34,6 +34,7 @@ model Member {
   streak       Streak?
   wheelSpins   WheelSpin[]
   missions     MissionProgress[]
+  boxOpens     BoxOpen[]
 
   @@unique([type, kasId])
   @@index([type, points])
@@ -74,6 +75,19 @@ model WheelSpin {
   member    Member   @relation(fields: [memberId], references: [id], onDelete: Cascade)
   memberId  Int
   dayKey    String // tashkent day — enforces once-per-day
+  prize     String
+  amount    Float    @default(0)
+  createdAt DateTime @default(now())
+
+  @@unique([memberId, dayKey])
+}
+
+// Mystery box: unlocked by completing ALL daily missions, opened once per day.
+model BoxOpen {
+  id        Int      @id @default(autoincrement())
+  member    Member   @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  memberId  Int
+  dayKey    String // tashkent day
   prize     String
   amount    Float    @default(0)
   createdAt DateTime @default(now())
