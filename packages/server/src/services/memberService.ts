@@ -86,6 +86,7 @@ async function buildMe(member: Member, achievements: MemberAchievement[]): Promi
     streak: await getStreak(member.id),
     wheelAvailable: await canSpinWheel(member.id),
     jackpot: await getJackpot(),
+    coins: member.coins,
   };
 }
 

@@ -17,6 +17,7 @@ import { claimMission, getMissions } from "../services/missionService";
 import { getBoxStatus, openBox } from "../services/boxService";
 import { getReferralInfo } from "../services/referralService";
 import { getWeeklyBoard } from "../services/weeklyService";
+import { getWallet, withdraw } from "../services/coinService";
 import { validateInitData } from "./telegramAuth";
 
 export interface ApiOptions {
@@ -103,13 +104,36 @@ export function createApiServer(opts: ApiOptions = {}) {
     res.json(await dailyCheckIn(memberId));
   });
 
-  app.post("/api/wheel", requireUser, async (_req, res) => {
+  app.post("/api/wheel", requireUser, async (req, res) => {
     const memberId = await getMemberId(res.locals.telegramId as string);
     if (!memberId) {
       res.status(404).json({ error: "not linked" });
       return;
     }
-    res.json(await spinWheel(memberId));
+    res.json(await spinWheel(memberId, { respin: req.query.respin === "1" }));
+  });
+
+  app.get("/api/wallet", requireUser, async (_req, res) => {
+    const memberId = await getMemberId(res.locals.telegramId as string);
+    if (!memberId) {
+      res.status(404).json({ error: "not linked" });
+      return;
+    }
+    res.json(await getWallet(memberId));
+  });
+
+  app.post("/api/wallet/withdraw", requireUser, async (req, res) => {
+    const memberId = await getMemberId(res.locals.telegramId as string);
+    if (!memberId) {
+      res.status(404).json({ error: "not linked" });
+      return;
+    }
+    const amount = Math.floor(Number((req.body as { amount?: number })?.amount ?? 0));
+    if (!Number.isFinite(amount) || amount <= 0) {
+      res.status(400).json({ error: "amount required" });
+      return;
+    }
+    res.json(await withdraw(memberId, amount));
   });
 
   app.get("/api/missions", requireUser, async (_req, res) => {
@@ -149,13 +173,13 @@ export function createApiServer(opts: ApiOptions = {}) {
     res.json(await getBoxStatus(memberId));
   });
 
-  app.post("/api/box/open", requireUser, async (_req, res) => {
+  app.post("/api/box/open", requireUser, async (req, res) => {
     const memberId = await getMemberId(res.locals.telegramId as string);
     if (!memberId) {
       res.status(404).json({ error: "not linked" });
       return;
     }
-    res.json(await openBox(memberId));
+    res.json(await openBox(memberId, { premium: req.query.premium === "1" }));
   });
 
   app.get("/api/leaderboard", requireUser, async (req, res) => {

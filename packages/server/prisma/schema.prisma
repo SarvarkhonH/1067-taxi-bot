@@ -18,7 +18,8 @@ model Member {
   fullName   String
   phone      String?
   carNumber  String? // drivers only
-  points     Float     @default(0) // bonus (client) | balance (driver)
+  points     Float     @default(0) // bonus (client) | balance (driver) — RIDE cashback, mirrored from kas1067
+  coins      Float     @default(0) // GAME currency (1 coin = 1 so'm), lives only in our DB
   trips      Int       @default(0)
   rating     Float     @default(0) // drivers only
   active     Boolean   @default(true)
@@ -36,6 +37,8 @@ model Member {
   missions     MissionProgress[]
   boxOpens     BoxOpen[]
   weeklyScores WeeklyScore[]
+  coinTxns     CoinTxn[]
+  withdrawals  Withdrawal[]
 
   @@unique([type, kasId])
   @@index([type, points])
@@ -75,12 +78,41 @@ model WheelSpin {
   id        Int      @id @default(autoincrement())
   member    Member   @relation(fields: [memberId], references: [id], onDelete: Cascade)
   memberId  Int
-  dayKey    String // tashkent day — enforces once-per-day
+  dayKey    String // tashkent day — one FREE spin per day; paid respins unlimited
   prize     String
   amount    Float    @default(0)
+  paid      Boolean  @default(false) // true = respin bought with coins
   createdAt DateTime @default(now())
 
-  @@unique([memberId, dayKey])
+  @@index([memberId, dayKey])
+}
+
+// Game-currency ledger. Every coin movement (earn +, spend/withdraw -) is one
+// row; Member.coins is the denormalized running balance.
+model CoinTxn {
+  id             Int      @id @default(autoincrement())
+  member         Member   @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  memberId       Int
+  amount         Float // + earn, - spend/withdraw
+  kind           String // streak|wheel|mission|box|weekly|surprise|referral|respin|premium_box|withdraw|race|duel|park|quiz
+  reason         String
+  idempotencyKey String?  @unique
+  createdAt      DateTime @default(now())
+
+  @@index([memberId, createdAt])
+}
+
+// Coin -> real so'm conversions (the ONLY place real money leaves the system).
+model Withdrawal {
+  id         Int      @id @default(autoincrement())
+  member     Member   @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  memberId   Int
+  amount     Float
+  kasApplied Boolean  @default(false)
+  kasMessage String?
+  createdAt  DateTime @default(now())
+
+  @@index([memberId, createdAt])
 }
 
 // Weekly engagement league: score accrues from bot actions (check-in, spin,
@@ -104,7 +136,8 @@ model AppState {
   updatedAt DateTime @updatedAt
 }
 
-// Mystery box: unlocked by completing ALL daily missions, opened once per day.
+// Mystery box: free one unlocks by completing ALL daily missions (once/day);
+// premium boxes are bought with coins, unlimited.
 model BoxOpen {
   id        Int      @id @default(autoincrement())
   member    Member   @relation(fields: [memberId], references: [id], onDelete: Cascade)
@@ -112,9 +145,10 @@ model BoxOpen {
   dayKey    String // tashkent day
   prize     String
   amount    Float    @default(0)
+  premium   Boolean  @default(false)
   createdAt DateTime @default(now())
 
-  @@unique([memberId, dayKey])
+  @@index([memberId, dayKey])
 }
 
 // Every cashback we grant (idempotent + audited — this writes REAL money to kas1067).

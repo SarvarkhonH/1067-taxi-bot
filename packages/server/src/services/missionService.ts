@@ -7,7 +7,7 @@ import {
   type MissionView,
 } from "@t1067/shared";
 import { prisma } from "../db";
-import { grantCashback } from "./rewardService";
+import { grantCoins } from "./coinService";
 
 // ─── period keys (tashkent, UTC+5) ────────────────────────────────────────────
 function tashkent(d: Date): Date {
@@ -91,10 +91,10 @@ export async function claimMission(memberId: number, code: string): Promise<Miss
 
   // mark claimed first (guards against double-claim races), then pay
   await prisma.missionProgress.update({ where: { id: row.id }, data: { claimedAt: new Date() } });
-  const g = await grantCashback(memberId, def.reward, `Vazifa: ${def.title}`, "mission", `mission:${code}:${memberId}:${key}`);
+  const g = await grantCoins(memberId, def.reward, "mission", `Vazifa: ${def.title}`, `mission:${code}:${memberId}:${key}`);
   // dynamic import: weeklyService depends on this module's week/day keys
   await import("./weeklyService")
     .then((w) => w.addScore(memberId, "mission"))
     .catch(() => undefined);
-  return { ok: true, reward: def.reward, applied: g.appliedToKas };
+  return { ok: true, reward: def.reward, applied: g.ok };
 }

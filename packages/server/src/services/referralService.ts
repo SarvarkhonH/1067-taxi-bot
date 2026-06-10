@@ -2,7 +2,7 @@ import crypto from "node:crypto";
 import type { ReferralResponse } from "@t1067/shared";
 import { prisma } from "../db";
 import { env } from "../env";
-import { grantCashback } from "./rewardService";
+import { grantCoins } from "./coinService";
 import { incrementMission } from "./missionService";
 
 // Double-sided reward (so'm). Tuned so a paid invite stays well under LTV.
@@ -96,11 +96,11 @@ export async function completeReferral(
   // mark first so a concurrent link can't double-pay
   await prisma.telegramUser.update({ where: { id: refereeTelegramId }, data: { referralCreditedAt: new Date() } });
 
-  await grantCashback(refereeMemberId, REFEREE_REWARD, "Do'st taklifi (xush kelibsiz)", "referral", `ref_referee:${refereeTelegramId}`);
+  await grantCoins(refereeMemberId, REFEREE_REWARD, "referral", "Do'st taklifi (xush kelibsiz)", `ref_referee:${refereeTelegramId}`);
 
   let referrerReward = 0;
   if (referrer.memberId) {
-    const g = await grantCashback(referrer.memberId, REFERRER_REWARD, "Do'st taklif qildingiz", "referral", `ref_referrer:${refereeTelegramId}`);
+    const g = await grantCoins(referrer.memberId, REFERRER_REWARD, "referral", "Do'st taklif qildingiz", `ref_referrer:${refereeTelegramId}`);
     if (g.ok) referrerReward = REFERRER_REWARD;
     await incrementMission(referrer.memberId, "weekly_invite");
     await import("./weeklyService")

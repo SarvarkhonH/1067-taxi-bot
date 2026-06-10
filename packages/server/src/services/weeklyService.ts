@@ -9,7 +9,7 @@ import {
   type WeeklyEntry,
 } from "@t1067/shared";
 import { prisma } from "../db";
-import { grantCashback } from "./rewardService";
+import { grantCoins } from "./coinService";
 import { dayKey, weekKey } from "./missionService";
 
 /** Push callback — decoupled from grammY so services and tests stay bot-free. */
@@ -86,11 +86,11 @@ export async function payWeeklyPrizes(notify: Notify, weekKeyOverride?: string):
   for (let i = 0; i < top.length; i++) {
     const prize = WEEKLY_PRIZES[i]!;
     const row = top[i]!;
-    const g = await grantCashback(
+    const g = await grantCoins(
       row.memberId,
       prize.amount,
-      `Haftalik reyting ${prize.medal} (${prevKey})`,
       "weekly",
+      `Haftalik reyting ${prize.medal} (${prevKey})`,
       `weekly:${prevKey}:${row.memberId}`,
     );
     if (g.ok) paid++;
@@ -100,7 +100,8 @@ export async function payWeeklyPrizes(notify: Notify, weekKeyOverride?: string):
         chatId,
         `🏆 <b>Haftalik liga yakunlandi!</b>\n\n` +
           `${prize.medal} Siz <b>${prize.rank}-o'rin</b>ni oldingiz (${row.score} ball)\n` +
-          `💰 Sovg'a: <b>+${formatNumber(prize.amount)} so'm</b> hisobingizga qo'shildi!\n\n` +
+          `🪙 Sovg'a: <b>+${formatNumber(prize.amount)} coin</b> hamyoningizga tushdi!\n` +
+          `💸 Coin'ni ilovada so'mga aylantirishingiz mumkin.\n\n` +
           `Yangi hafta boshlandi — yana kurashing! 🔥`,
       ).catch(() => undefined);
     }
@@ -138,14 +139,14 @@ export async function maybeSurpriseDrop(notify: Notify, probability = 0.0015): P
     if (dropped >= 3) break;
     if (Math.random() >= probability) continue;
     const amount = pickSurprise();
-    const g = await grantCashback(m.id, amount, "Kutilmagan sovg'a", "surprise", `surprise:${m.id}:${today}`);
-    if (!g.ok) continue; // already dropped today / cap reached
+    const g = await grantCoins(m.id, amount, "surprise", "Kutilmagan sovg'a", `surprise:${m.id}:${today}`);
+    if (!g.ok) continue; // already dropped today
     dropped++;
     await notify(
       m.telegramUser!.id,
       `🎁 <b>Kutilmagan sovg'a!</b>\n\n` +
-        `💰 <b>+${formatNumber(amount)} so'm</b> — shunchaki siz biz bilan bo'lganingiz uchun 😊\n\n` +
-        `Hisobingiz: /me`,
+        `🪙 <b>+${formatNumber(amount)} coin</b> — shunchaki siz biz bilan bo'lganingiz uchun 😊\n\n` +
+        `Hamyoningiz: /me`,
     ).catch(() => undefined);
   }
   return dropped;

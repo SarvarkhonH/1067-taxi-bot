@@ -7,8 +7,10 @@ import type {
   MissionClaimResponse,
   MissionsResponse,
   ReferralResponse,
+  WalletResponse,
   WeeklyBoardResponse,
   WheelSpinResponse,
+  WithdrawResponse,
 } from "@t1067/shared";
 import { tg } from "./telegram";
 
@@ -40,13 +42,16 @@ const API_BASE = ((import.meta.env.VITE_API_URL as string) || "").replace(/\/$/,
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
-async function request<T>(method: string, path: string): Promise<T> {
+async function request<T>(method: string, path: string, body?: unknown, retries = 5): Promise<T> {
   let lastErr: unknown;
   // Retry network-level failures (Render free-tier cold start can take ~30s to wake).
-  // POSTs here are idempotent server-side (once-per-day), so retrying is safe.
-  for (let attempt = 0; attempt < 5; attempt++) {
+  for (let attempt = 0; attempt < retries; attempt++) {
     try {
-      const res = await fetch(`${API_BASE}${path}`, { method, headers: authHeaders() });
+      const res = await fetch(`${API_BASE}${path}`, {
+        method,
+        headers: { ...authHeaders(), ...(body !== undefined ? { "Content-Type": "application/json" } : {}) },
+        body: body !== undefined ? JSON.stringify(body) : undefined,
+      });
       if (res.status === 401) throw new Error("unauthorized");
       if (!res.ok) throw new Error(`${path} -> ${res.status}`);
       return (await res.json()) as T;
@@ -61,18 +66,20 @@ async function request<T>(method: string, path: string): Promise<T> {
 }
 
 const get = <T,>(path: string) => request<T>("GET", path);
-const post = <T,>(path: string) => request<T>("POST", path);
+const post = <T,>(path: string, body?: unknown) => request<T>("POST", path, body);
 
 export const api = {
   me: () => get<MeResponse | { linked: false }>("/api/me"),
   // server defaults the leaderboard to the caller's own member type
   leaderboard: () => get<LeaderboardResponse>("/api/leaderboard"),
   checkin: () => post<CheckInResponse>("/api/checkin"),
-  spinWheel: () => post<WheelSpinResponse>("/api/wheel"),
+  spinWheel: (respin = false) => request<WheelSpinResponse>("POST", `/api/wheel${respin ? "?respin=1" : ""}`, undefined, 1),
   missions: () => get<MissionsResponse>("/api/missions"),
   claimMission: (code: string) => post<MissionClaimResponse>(`/api/missions/claim?code=${encodeURIComponent(code)}`),
   referral: () => get<ReferralResponse>("/api/referral"),
   box: () => get<BoxStatusResponse>("/api/box"),
-  openBox: () => post<BoxOpenResponse>("/api/box/open"),
+  openBox: (premium = false) => request<BoxOpenResponse>("POST", `/api/box/open${premium ? "?premium=1" : ""}`, undefined, 1),
   weekly: () => get<WeeklyBoardResponse>("/api/weekly"),
+  wallet: () => get<WalletResponse>("/api/wallet"),
+  withdraw: (amount: number) => request<WithdrawResponse>("POST", "/api/wallet/withdraw", { amount }, 1),
 };

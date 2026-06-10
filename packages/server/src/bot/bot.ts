@@ -65,31 +65,39 @@ function profileOf(src: { username?: string; first_name?: string; last_name?: st
 function renderCheckIn(r: CheckInResult): string {
   if (r.alreadyChecked) {
     let s = `🔥 <b>Streak: ${r.current} kun</b>\n\nBugun allaqachon belgilangansiz ✅\nErtaga yana keling — streak'ni uzmang!`;
-    if (r.next) s += `\n\n🎯 ${r.next.day}-kunda: <b>+${formatNumber(r.next.reward)} so'm</b>`;
+    if (r.next) s += `\n\n🎯 ${r.next.day}-kunda: <b>+${formatNumber(r.next.reward)} coin</b>`;
     return s;
   }
   let s = `🔥 <b>Streak: ${r.current} kun!</b>\n`;
   if (r.rewardAmount > 0) {
-    s += `\n🎉 <b>+${formatNumber(r.rewardAmount)} so'm cashback!</b>${r.rewardApplied ? " — hisobingizga qo'shildi 💰" : ""}`;
+    s += `\n🎉 <b>+${formatNumber(r.rewardAmount)} coin!</b>${r.rewardApplied ? " — hamyoningizga tushdi 🪙" : ""}`;
   } else {
     s += `\nDavom eting — har kun streak o'sadi 💪`;
   }
-  if (r.next) s += `\n\n🎯 Keyingi mukofot: ${r.next.day}-kun → <b>+${formatNumber(r.next.reward)} so'm</b>`;
+  if (r.next) s += `\n\n🎯 Keyingi mukofot: ${r.next.day}-kun → <b>+${formatNumber(r.next.reward)} coin</b>`;
   return s;
 }
 
 function renderWheel(r: WheelResult): string {
-  const pool = `\n\n🎰 JACKPOT hozir: <b>${formatNumber(r.jackpot)} so'm</b> — har spin uni oshiradi!`;
+  const pool = `\n\n🎰 JACKPOT hozir: <b>${formatNumber(r.jackpot)} coin</b> — har spin uni oshiradi!`;
+  if (r.insufficient) {
+    return `🪙 Qayta aylantirish uchun <b>${formatNumber(r.respinCost)} coin</b> kerak.\n\nVazifalar va o'yinlar bilan coin to'plang! 🎯${pool}`;
+  }
   if (r.alreadySpun) {
-    return `🎡 Bugun allaqachon aylantirdingiz!\nYutuq: ${r.prize.emoji} <b>${esc(r.prize.label)}</b>\n\nErtaga yana keling 🌙${pool}`;
+    return `🎡 Bugungi BEPUL spin ishlatilgan.\nYutuq: ${r.prize.emoji} <b>${esc(r.prize.label)}</b>\n\n🪙 ${formatNumber(r.respinCost)} coin'ga xohlagancha qayta aylantiring 👇${pool}`;
   }
   if (r.prize.label.startsWith("JACKPOT")) {
-    return `🎰🎰🎰 <b>JACKPOT!!!</b> 🎰🎰🎰\n\n💥 <b>+${formatNumber(r.prize.amount)} so'm</b>${r.applied ? " — hisobingizga qo'shildi 💰" : ""}!\n\nButun jamg'arma sizniki bo'ldi! 👑${pool}`;
+    return `🎰🎰🎰 <b>JACKPOT!!!</b> 🎰🎰🎰\n\n💥 <b>+${formatNumber(r.prize.amount)} coin</b>${r.applied ? " — hamyoningizga tushdi 🪙" : ""}!\n\nButun jamg'arma sizniki bo'ldi! 👑${pool}`;
   }
   if (r.prize.amount > 0) {
-    return `🎉 ${r.prize.emoji} <b>${esc(r.prize.label)}!</b>\n\n+${formatNumber(r.prize.amount)} so'm cashback${r.applied ? " — hisobingizga qo'shildi 💰" : ""}!\n\nErtaga yana aylantiring 🎡${pool}`;
+    return `🎉 ${r.prize.emoji} <b>${esc(r.prize.label)}!</b>\n\n+${formatNumber(r.prize.amount)} coin${r.applied ? " — hamyoningizga tushdi 🪙" : ""}!${r.paid ? "" : `\n\n🪙 ${formatNumber(r.respinCost)} coin'ga yana aylantiring 👇`}${pool}`;
   }
-  return `${r.prize.emoji} <b>${esc(r.prize.label)}</b>\n\nBu safar omad kulmadi — ertaga yana urinib ko'ring! 🎡${pool}`;
+  return `${r.prize.emoji} <b>${esc(r.prize.label)}</b>\n\nBu safar omad kulmadi — yana urinib ko'ring! 🎡${pool}`;
+}
+
+function wheelKb(r: WheelResult): InlineKeyboard | undefined {
+  if (r.insufficient) return undefined;
+  return new InlineKeyboard().text(`🪙 ${formatNumber(r.respinCost)} — yana aylantirish`, "wheel:respin");
 }
 
 function esc(s: string): string {
@@ -208,10 +216,33 @@ export function createBot(): Bot {
     }
     const msg = await ctx.reply("🎡 G'ildirak aylanmoqda…");
     const r = await spinWheel(me.member.id);
-    await ctx.api.editMessageText(msg.chat.id, msg.message_id, renderWheel(r), { parse_mode: "HTML" });
+    await ctx.api.editMessageText(msg.chat.id, msg.message_id, renderWheel(r), {
+      parse_mode: "HTML",
+      reply_markup: wheelKb(r),
+    });
   };
   bot.hears("🎡 G'ildirak", spin);
   bot.command("wheel", spin);
+
+  // unlimited coin respins — the "no limits" loop
+  bot.callbackQuery("wheel:respin", async (ctx) => {
+    const memberId = await getMemberId(String(ctx.from!.id));
+    if (!memberId) {
+      await ctx.answerCallbackQuery({ text: "Avval raqamingizni ulang 🙏", show_alert: true });
+      return;
+    }
+    const r = await spinWheel(memberId, { respin: true });
+    if (r.insufficient) {
+      await ctx.answerCallbackQuery({ text: `Coin yetarli emas (kerak: ${formatNumber(r.respinCost)}) 🪙`, show_alert: true });
+      return;
+    }
+    await ctx.answerCallbackQuery({
+      text: r.prize.amount > 0 ? `${r.prize.emoji} +${formatNumber(r.prize.amount)} coin!` : `${r.prize.emoji} ${r.prize.label}`,
+    });
+    await ctx
+      .editMessageText(renderWheel(r), { parse_mode: "HTML", reply_markup: wheelKb(r) })
+      .catch(() => undefined);
+  });
 
   bot.hears("🎖 Nishonlar", async (ctx) => {
     const me = await getMe(String(ctx.from!.id));
@@ -237,8 +268,9 @@ export function createBot(): Bot {
     const kb = new InlineKeyboard();
     [...m.daily, ...m.weekly]
       .filter((x) => x.claimable)
-      .forEach((x) => kb.text(`🎁 ${x.emoji} +${formatNumber(x.reward)} so'm`, `claim:${x.code}`).row());
-    if (box.eligible && !box.opened) kb.text("🎁 SIRLI QUTINI OCHISH", "openbox").row();
+      .forEach((x) => kb.text(`🎁 ${x.emoji} +${formatNumber(x.reward)} coin`, `claim:${x.code}`).row());
+    if (box.eligible && !box.opened) kb.text("🎁 BEPUL QUTINI OCHISH", "openbox").row();
+    kb.text(`💎 Premium quti — ${formatNumber(box.premiumCost)} coin`, "openbox:premium").row();
     return kb;
   }
 
@@ -275,7 +307,7 @@ export function createBot(): Bot {
     }
     const r = await claimMission(memberId, code);
     if (r.ok) {
-      await ctx.answerCallbackQuery({ text: `🎉 +${formatNumber(r.reward)} so'm hisobingizga qo'shildi!`, show_alert: true });
+      await ctx.answerCallbackQuery({ text: `🎉 +${formatNumber(r.reward)} coin hamyoningizga tushdi!`, show_alert: true });
     } else if (r.reason === "claimed") {
       await ctx.answerCallbackQuery({ text: "Bu mukofot allaqachon olingan ✅" });
     } else {
@@ -284,20 +316,23 @@ export function createBot(): Bot {
     await refreshMissionsMessage(ctx, memberId);
   });
 
-  bot.callbackQuery("openbox", async (ctx) => {
+  bot.callbackQuery(/^openbox(:premium)?$/, async (ctx) => {
+    const premium = !!ctx.match[1];
     const memberId = await getMemberId(String(ctx.from!.id));
     if (!memberId) {
       await ctx.answerCallbackQuery({ text: "Avval raqamingizni ulang 🙏", show_alert: true });
       return;
     }
-    const r = await openBox(memberId);
+    const r = await openBox(memberId, { premium });
     if (r.ok && r.prize) {
       await ctx.answerCallbackQuery({
-        text: `🎁 ${r.prize.emoji} ${r.prize.label}! +${formatNumber(r.prize.amount)} so'm hisobingizga qo'shildi!`,
+        text: `🎁 ${r.prize.emoji} ${r.prize.label}! +${formatNumber(r.prize.amount)} coin hamyoningizga tushdi!`,
         show_alert: true,
       });
+    } else if (r.reason === "insufficient") {
+      await ctx.answerCallbackQuery({ text: "Coin yetarli emas 🪙 — vazifalar bilan to'plang!", show_alert: true });
     } else if (r.reason === "opened") {
-      await ctx.answerCallbackQuery({ text: "Bugungi quti allaqachon ochilgan 🌙" });
+      await ctx.answerCallbackQuery({ text: "Bugungi bepul quti ochilgan — 💎 Premium esa doim ochiq!" });
     } else {
       await ctx.answerCallbackQuery({ text: "Avval barcha kunlik vazifalarni tugating 🎯" });
     }

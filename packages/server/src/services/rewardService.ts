@@ -1,6 +1,15 @@
-import { JACKPOT_INCREMENT, nextStreakMilestone, streakReward, WHEEL_PRIZES, type ScoreKind, type WheelPrize } from "@t1067/shared";
+import {
+  JACKPOT_INCREMENT,
+  WHEEL_RESPIN_COST,
+  nextStreakMilestone,
+  streakReward,
+  WHEEL_PRIZES,
+  type ScoreKind,
+  type WheelPrize,
+} from "@t1067/shared";
 import { prisma } from "../db";
 import { getDataSource } from "../kas";
+import { grantCoins, spendCoins } from "./coinService";
 
 const DAILY_GRANT_CAP = 50000; // anti-abuse: max so'm a member can be granted per rolling 24h
 
@@ -127,8 +136,8 @@ export async function dailyCheckIn(memberId: number): Promise<CheckInResult> {
   const reward = streakReward(current);
   let rewardApplied = false;
   if (reward > 0) {
-    const g = await grantCashback(memberId, reward, `Streak ${current} kun`, "streak", `streak:${memberId}:${todayKey}`);
-    rewardApplied = g.appliedToKas;
+    const g = await grantCoins(memberId, reward, "streak", `Streak ${current} kun`, `streak:${memberId}:${todayKey}`);
+    rewardApplied = g.ok;
   }
 
   return { alreadyChecked: false, current, longest, rewardAmount: reward, rewardApplied, next: nextStreakMilestone(current) };
@@ -146,50 +155,86 @@ function weightedPick(): WheelPrize {
 }
 
 export interface WheelResult {
-  alreadySpun: boolean;
+  alreadySpun: boolean; // free spin used and no respin requested
   prize: { label: string; emoji: string; amount: number };
   applied: boolean;
   jackpot: number; // displayed pool after this call
+  paid: boolean; // this spin was a coin respin
+  insufficient?: boolean; // respin requested but not enough coins
+  respinCost: number;
 }
 
-export async function spinWheel(memberId: number): Promise<WheelResult> {
+/**
+ * One FREE spin per day; unlimited respins for coins (the "no limits" engine).
+ * Free spin feeds the jackpot +50, paid respins +10% of their cost.
+ */
+export async function spinWheel(memberId: number, opts: { respin?: boolean } = {}): Promise<WheelResult> {
   const { getJackpot, growJackpot, claimJackpot } = await import("./weeklyService");
   const dayKey = tashkentDayKey(new Date());
-  const existing = await prisma.wheelSpin.findUnique({ where: { memberId_dayKey: { memberId, dayKey } } });
-  if (existing) {
-    const def = WHEEL_PRIZES.find((x) => x.label === existing.prize);
-    return {
-      alreadySpun: true,
-      prize: { label: existing.prize, emoji: def?.emoji ?? "🎡", amount: existing.amount },
-      applied: false,
-      jackpot: await getJackpot(),
-    };
+  const freeUsed = await prisma.wheelSpin.findFirst({ where: { memberId, dayKey, paid: false } });
+
+  const base = { respinCost: WHEEL_RESPIN_COST };
+  let paid = false;
+  if (freeUsed) {
+    if (!opts.respin) {
+      const def = WHEEL_PRIZES.find((x) => x.label === freeUsed.prize);
+      return {
+        ...base,
+        alreadySpun: true,
+        prize: { label: freeUsed.prize, emoji: def?.emoji ?? "🎡", amount: freeUsed.amount },
+        applied: false,
+        jackpot: await getJackpot(),
+        paid: false,
+      };
+    }
+    const spend = await spendCoins(memberId, WHEEL_RESPIN_COST, "respin", "G'ildirak qayta aylantirish");
+    if (!spend.ok) {
+      return {
+        ...base,
+        alreadySpun: false,
+        prize: { label: "", emoji: "🎡", amount: 0 },
+        applied: false,
+        jackpot: await getJackpot(),
+        paid: true,
+        insufficient: true,
+      };
+    }
+    paid = true;
   }
 
   const prize = weightedPick();
   // every spin escalates the pool; the JACKPOT slice wins the whole pool
-  let jackpot = await growJackpot(JACKPOT_INCREMENT);
+  let jackpot = await growJackpot(paid ? Math.round(WHEEL_RESPIN_COST * 0.1) : JACKPOT_INCREMENT);
   let amount = prize.amount;
   if (prize.label.startsWith("JACKPOT")) {
     amount = await claimJackpot();
     jackpot = await getJackpot(); // back to the floor
   }
 
-  await prisma.wheelSpin.create({ data: { memberId, dayKey, prize: prize.label, amount } });
-  await bumpMission(memberId, "daily_spin");
-  await bumpScore(memberId, "spin");
+  await prisma.wheelSpin.create({ data: { memberId, dayKey, prize: prize.label, amount, paid } });
+  if (!paid) {
+    await bumpMission(memberId, "daily_spin");
+    await bumpScore(memberId, "spin");
+  }
 
   let applied = false;
   if (amount > 0) {
-    const g = await grantCashback(memberId, amount, `G'ildirak: ${prize.label}`, "wheel", `wheel:${memberId}:${dayKey}`);
-    applied = g.appliedToKas;
+    const g = await grantCoins(
+      memberId,
+      amount,
+      "wheel",
+      `G'ildirak: ${prize.label}`,
+      paid ? undefined : `wheel:${memberId}:${dayKey}`,
+    );
+    applied = g.ok;
   }
-  return { alreadySpun: false, prize: { label: prize.label, emoji: prize.emoji, amount }, applied, jackpot };
+  return { ...base, alreadySpun: false, prize: { label: prize.label, emoji: prize.emoji, amount }, applied, jackpot, paid };
 }
 
+/** True while today's FREE spin is still available (paid respins are always available). */
 export async function canSpinWheel(memberId: number): Promise<boolean> {
   const dayKey = tashkentDayKey(new Date());
-  return !(await prisma.wheelSpin.findUnique({ where: { memberId_dayKey: { memberId, dayKey } } }));
+  return !(await prisma.wheelSpin.findFirst({ where: { memberId, dayKey, paid: false } }));
 }
 
 export async function getStreak(memberId: number): Promise<{ current: number; longest: number; checkedToday: boolean }> {

@@ -72,7 +72,8 @@ export function renderProfile(me: MeResponse): string {
     `${bar}  ${pct}%`,
     toNext,
     ``,
-    `💰 <b>${esc(metricLabel)}</b>: <b>${formatNumber(stats.points)} so'm</b>`,
+    `🚕 <b>${esc(metricLabel)}</b> (safarlardan): <b>${formatNumber(stats.points)} so'm</b>`,
+    `🪙 <b>O'yin hamyoni</b>: <b>${formatNumber(me.coins)} coin</b> <i>(1 coin = 1 so'm, ilovada almashtiriladi)</i>`,
     `🚕 Safarlar: <b>${formatNumber(stats.trips)}</b>`,
   ];
   if (isDriver) lines.push(`⭐ Reyting: <b>${stats.rating.toFixed(2)}</b> ${STARS(stats.rating)}`);
@@ -110,7 +111,7 @@ export function renderWeeklyBlock(w: WeeklyBoardResponse): string {
   });
   let s =
     `\n\n⚡️ <b>Haftalik liga</b> <i>(${w.daysLeft} kun qoldi)</i>\n` +
-    `Sovg'alar: ${prizes} so'm\n\n` +
+    `Sovg'alar: ${prizes} coin\n\n` +
     (rows.length ? rows.join("\n") : "<i>Hafta endi boshlandi — birinchi bo'ling!</i>");
   if (w.me && w.me.rank > 5) s += `\n— — —\n👉 Siz: <b>#${w.me.rank}</b> · ${w.me.score} ball`;
   s += `\n\n<i>Ball: kunlik +10 · g'ildirak +10 · vazifa +15 · quti +20 · safar +30 · taklif +50. Dushanba — to'lov!</i>`;
@@ -133,19 +134,19 @@ function missionLine(x: MissionView): string {
   const status = x.claimed
     ? "✅ olindi"
     : x.claimable
-      ? `🎁 <b>+${formatNumber(x.reward)} so'm</b> — tayyor!`
+      ? `🎁 <b>+${formatNumber(x.reward)} coin</b> — tayyor!`
       : `${x.progress}/${x.target} · +${formatNumber(x.reward)}`;
   return `${x.emoji} ${esc(x.title)}\n   ${bar} ${status}`;
 }
 
 function boxLine(box: BoxStatusResponse): string {
   if (box.opened && box.prize) {
-    return `🎁 Sirli quti: ochildi — ${box.prize.emoji} <b>${esc(box.prize.label)}</b>. Ertaga yana!`;
+    return `🎁 Bepul quti: ochildi — ${box.prize.emoji} <b>${esc(box.prize.label)}</b>. 💎 Premium quti esa doim ochiq (${formatNumber(box.premiumCost)} coin)!`;
   }
   if (box.eligible) {
-    return `🎁 <b>SIRLI QUTI TAYYOR!</b> Pastdagi tugma bilan oching 👇`;
+    return `🎁 <b>BEPUL QUTI TAYYOR!</b> Pastdagi tugma bilan oching 👇`;
   }
-  return `🎁 Sirli quti: kunlik vazifalarni tugating (${box.dailiesDone}/${box.dailiesTotal}) — ichida <b>10 000 so'mgacha</b>!`;
+  return `🎁 Bepul quti: kunlik vazifalarni tugating (${box.dailiesDone}/${box.dailiesTotal}) — ichida <b>10 000 coin'gacha</b>!`;
 }
 
 export function renderMissions(m: MissionsResponse, box?: BoxStatusResponse): string {
@@ -166,14 +167,14 @@ export function renderMissions(m: MissionsResponse, box?: BoxStatusResponse): st
 // ─── referral ─────────────────────────────────────────────────
 export function renderReferral(r: ReferralResponse): string {
   return (
-    `👥 <b>Do'st taklif qiling — ikkalangiz ham pul olasiz!</b>\n\n` +
+    `👥 <b>Do'st taklif qiling — ikkalangiz ham coin olasiz!</b>\n\n` +
     `Har bir do'st uchun:\n` +
-    `  • Siz: <b>+${formatNumber(r.rewardReferrer)} so'm</b>\n` +
-    `  • Do'stingiz: <b>+${formatNumber(r.rewardReferee)} so'm</b>\n\n` +
+    `  • Siz: <b>+${formatNumber(r.rewardReferrer)} coin</b>\n` +
+    `  • Do'stingiz: <b>+${formatNumber(r.rewardReferee)} coin</b>\n\n` +
     `🔗 <b>Sizning havolangiz:</b>\n${esc(r.link)}\n\n` +
     `✅ Taklif qilingan: <b>${r.invited}</b>\n` +
-    `💰 Ishlab topgan: <b>${formatNumber(r.earned)} so'm</b>\n\n` +
-    `<i>Do'stingiz havola orqali kirib, raqamini ulasa — bonus avtomatik tushadi.</i>`
+    `🪙 Ishlab topgan: <b>${formatNumber(r.earned)} coin</b>\n\n` +
+    `<i>1 coin = 1 so'm — ilovada haqiqiy pulga aylantiriladi. Do'stingiz havola orqali kirib, raqamini ulasa — avtomatik tushadi.</i>`
   );
 }
 
@@ -181,7 +182,7 @@ export function renderReferral(r: ReferralResponse): string {
 export function renderReferralWin(reward: number): string {
   return (
     `🎉 <b>Do'stingiz qo'shildi!</b>\n\n` +
-    `💰 <b>+${formatNumber(reward)} so'm</b> hisobingizga qo'shildi.\n\n` +
+    `🪙 <b>+${formatNumber(reward)} coin</b> hamyoningizga tushdi.\n\n` +
     `Yana taklif qiling — daromad cheksiz! 👥`
   );
 }

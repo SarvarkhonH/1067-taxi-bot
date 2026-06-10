@@ -2,13 +2,14 @@
 // Uses throwaway PHONE-LESS members so grantCashback records ledger rows but
 // never writes real money to kas1067. Cleans up after itself.
 import "../env";
-import { BOX_PRIZES, JACKPOT_FLOOR } from "@t1067/shared";
+import { BOX_PRIZES, BOX_PRIZES_PREMIUM, BOX_PREMIUM_COST, JACKPOT_FLOOR, WHEEL_RESPIN_COST } from "@t1067/shared";
 import { prisma } from "../db";
 import { claimMission, getMissions, incrementMission } from "../services/missionService";
 import { getBoxStatus, openBox } from "../services/boxService";
 import { attachPendingReferral, completeReferral, getReferralInfo } from "../services/referralService";
 import { getJackpot, getWeeklyBoard, growJackpot, payWeeklyPrizes } from "../services/weeklyService";
 import { spinWheel } from "../services/rewardService";
+import { getCoins, getWallet, grantCoins, withdraw } from "../services/coinService";
 
 const FAKEWEEK = "2020-W01"; // synthetic closed week for payout tests — never collides with real data
 
@@ -123,11 +124,41 @@ async function main(): Promise<void> {
   };
   const paid1 = await payWeeklyPrizes(collect, FAKEWEEK);
   ok(paid1 === 2, `weekly payout paid top-2 (only 2 entrants)`);
-  const wg = await prisma.rewardGrant.findMany({ where: { kind: "weekly", memberId: { in: [memberA.id, memberB.id] } } });
-  ok(wg.some((g) => g.amount === 10000) && wg.some((g) => g.amount === 5000), `prizes 10000 + 5000 granted`);
+  const wg = await prisma.coinTxn.findMany({ where: { kind: "weekly", memberId: { in: [memberA.id, memberB.id] } } });
+  ok(wg.some((g) => g.amount === 10000) && wg.some((g) => g.amount === 5000), `prizes 10000 + 5000 COIN granted`);
   ok(pushes.length === 2, `both winners push-notified`);
   const paid2 = await payWeeklyPrizes(collect, FAKEWEEK);
   ok(paid2 === 0, `payout idempotent (paid-marker)`);
+
+  // ── coin economy: balance, sinks, premium box, withdraw ──────────────────
+  const txSum = (await prisma.coinTxn.findMany({ where: { memberId: memberA.id } })).reduce((s, t) => s + t.amount, 0);
+  const balA = await getCoins(memberA.id);
+  ok(Math.abs(balA - txSum) < 0.001 && balA > 0, `ledger consistent: coins(${balA}) == txn sum(${txSum})`);
+
+  const balBefore = await getCoins(memberA.id);
+  const prem = await openBox(memberA.id, { premium: true });
+  ok(prem.ok && !!prem.prize && BOX_PRIZES_PREMIUM.some((p) => p.label === prem.prize!.label), `premium box opened → ${prem.prize?.label}`);
+  const balAfter = await getCoins(memberA.id);
+  ok(Math.abs(balAfter - (balBefore - BOX_PREMIUM_COST + (prem.prize?.amount ?? 0))) < 0.001, `premium box charged ${BOX_PREMIUM_COST}, paid prize`);
+
+  // withdraw: phone-less member → not_client
+  const wNoPhone = await withdraw(memberA.id, 6000);
+  ok(!wNoPhone.ok && wNoPhone.reason === "not_client", `withdraw blocked for phone-less member`);
+
+  // memberC: client with a fake phone — kas write fails → coins refunded
+  const memberC = await prisma.member.create({ data: { type: "client", kasId: `${TAG}-C`, fullName: "Test Withdrawer", phone: "+998000000001" } });
+  await grantCoins(memberC.id, 8000, "manual", "test seed");
+  const wMin = await withdraw(memberC.id, 1000);
+  ok(!wMin.ok && wMin.reason === "below_min", `withdraw below min blocked`);
+  const wIns = await withdraw(memberC.id, 9000);
+  ok(!wIns.ok && wIns.reason === "insufficient", `withdraw over balance blocked`);
+  const wKas = await withdraw(memberC.id, 7000);
+  ok(!wKas.ok && wKas.reason === "kas_failed", `withdraw with unknown phone → kas_failed`);
+  ok((await getCoins(memberC.id)) === 8000, `coins refunded after kas failure (8000 intact)`);
+  const wRow = await prisma.withdrawal.findFirst({ where: { memberId: memberC.id } });
+  ok(!!wRow && !wRow.kasApplied, `withdrawal attempt logged (kasApplied=false)`);
+  const wallet = await getWallet(memberC.id);
+  ok(wallet.coins === 8000 && wallet.withdrawMin === 5000 && wallet.txns.length >= 3, `wallet view: balance+txns ok`);
 
   // ── jackpot pool ─────────────────────────────────────────────────────────
   const rawBefore = (await prisma.appState.findUnique({ where: { key: "jackpot_pool" } }))?.value ?? null;
@@ -136,9 +167,14 @@ async function main(): Promise<void> {
   const j1 = await growJackpot(50);
   ok(j1 >= j0, `jackpot grows (${j0} -> ${j1})`);
   const spin = await spinWheel(memberB.id);
-  ok(!spin.alreadySpun && spin.jackpot >= JACKPOT_FLOOR, `spin returns live jackpot (${spin.jackpot}), prize: ${spin.prize.label}`);
+  ok(!spin.alreadySpun && spin.jackpot >= JACKPOT_FLOOR, `free spin ok, jackpot ${spin.jackpot}, prize: ${spin.prize.label}`);
   const spin2 = await spinWheel(memberB.id);
-  ok(spin2.alreadySpun, `second spin same day blocked`);
+  ok(spin2.alreadySpun && spin2.respinCost === WHEEL_RESPIN_COST, `second free spin blocked, respin offered (${spin2.respinCost})`);
+  const balB = await getCoins(memberB.id);
+  const spin3 = await spinWheel(memberB.id, { respin: true });
+  ok(!spin3.alreadySpun && spin3.paid && !spin3.insufficient, `PAID respin works (unlimited play)`);
+  const balB2 = await getCoins(memberB.id);
+  ok(Math.abs(balB2 - (balB - WHEEL_RESPIN_COST + spin3.prize.amount)) < 0.001, `respin charged ${WHEEL_RESPIN_COST}, prize credited`);
   // restore the real pool exactly as it was (tests must not move prod state)
   if (rawBefore === null) {
     await prisma.appState.deleteMany({ where: { key: "jackpot_pool" } });
@@ -146,8 +182,8 @@ async function main(): Promise<void> {
     await prisma.appState.update({ where: { key: "jackpot_pool" }, data: { value: rawBefore } });
   }
 
-  const grants = await prisma.rewardGrant.findMany({ where: { memberId: { in: [memberA.id, memberB.id] } }, orderBy: { id: "asc" } });
-  console.log(`\n   ledger: ${grants.map((g) => `${g.kind}+${g.amount}`).join(", ")}`);
+  const grants = await prisma.coinTxn.findMany({ where: { memberId: { in: [memberA.id, memberB.id] } }, orderBy: { id: "asc" } });
+  console.log(`\n   coin ledger: ${grants.map((g) => `${g.kind}${g.amount > 0 ? "+" : ""}${g.amount}`).join(", ")}`);
 
   await cleanup();
   console.log(process.exitCode ? "\n❌ FAILURES ABOVE" : "\n🎉 all engagement checks passed");
