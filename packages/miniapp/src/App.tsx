@@ -6,15 +6,17 @@ import { LeaderboardView, MissionsView, ReferralView, Spinner } from "./componen
 import { WalletView } from "./wallet";
 import { ArcadeView } from "./arcade";
 import { BookingView } from "./booking";
+import { Icon } from "./icons";
+import { useCountUp } from "./util";
 
 type Tab = "home" | "games" | "missions" | "league" | "friends";
 
-const TABS: { id: Tab; emoji: string; label: string }[] = [
-  { id: "home", emoji: "🏠", label: "Hamyon" },
-  { id: "games", emoji: "🎮", label: "O'yinlar" },
-  { id: "missions", emoji: "🎯", label: "Vazifa" },
-  { id: "league", emoji: "🏆", label: "Liga" },
-  { id: "friends", emoji: "👥", label: "Do'st" },
+const TABS: { id: Tab; icon: string; label: string }[] = [
+  { id: "home", icon: "wallet", label: "Hamyon" },
+  { id: "games", icon: "games", label: "O'yin" },
+  { id: "missions", icon: "missions", label: "Vazifa" },
+  { id: "league", icon: "league", label: "Liga" },
+  { id: "friends", icon: "friends", label: "Do'st" },
 ];
 
 export function App() {
@@ -23,16 +25,16 @@ export function App() {
   const [tab, setTab] = useState<Tab>("home");
   const [board, setBoard] = useState<LeaderboardResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [banner, setBanner] = useState<string | null>(null);
+  const [toast, setToast] = useState<{ id: number; msg: string } | null>(null);
   const [booking, setBooking] = useState(false);
+  const coins = useCountUp(me?.coins ?? 0);
 
   useEffect(() => {
     api
       .me()
       .then((r) => {
-        if ("linked" in r && r.linked === false) {
-          setLinked(false);
-        } else {
+        if ("linked" in r && r.linked === false) setLinked(false);
+        else {
           setMe(r as MeResponse);
           setLinked(true);
         }
@@ -51,46 +53,62 @@ export function App() {
   };
 
   if (error) return <ErrorScreen error={error} />;
-  if (linked === null) return <Spinner />;
+  if (linked === null) return <BootSplash />;
   if (linked === false) return <NotLinked />;
-  if (!me) return <Spinner />;
+  if (!me) return <BootSplash />;
   if (booking) return <BookingView onClose={() => setBooking(false)} />;
 
   const go = (t: Tab) => {
+    if (t === tab) return;
     haptic();
     setTab(t);
   };
 
   const flash = (msg: string) => {
-    setBanner(msg);
+    haptic();
+    setToast({ id: Date.now(), msg });
     reload();
-    setTimeout(() => setBanner(null), 4000);
+    setTimeout(() => setToast((c) => (c && Date.now() - c.id >= 3500 ? null : c)), 3600);
   };
+
+  const activeIndex = TABS.findIndex((t) => t.id === tab);
 
   return (
     <div className="app">
+      <div className="aurora" />
       <header className="topbar">
         <div className="brand">
           <span className="brand-badge">🚕</span>
-          <span className="brand-name">1067 <b>TAXI</b></span>
+          <span className="brand-name">1067<b>TAXI</b></span>
         </div>
-        <div className="coin-pill">🪙 {Math.round(me.coins).toLocaleString("ru-RU")}</div>
+        <div className="coin-pill">
+          <span className="coin-dot">🪙</span>
+          {Math.round(coins).toLocaleString("ru-RU")}
+        </div>
       </header>
 
+      {toast && (
+        <div className="toast" key={toast.id} onClick={() => setToast(null)}>
+          {toast.msg}
+        </div>
+      )}
+
       <main className="content">
-        {banner && <div className="reward-banner">{banner}</div>}
-        {tab === "home" && <WalletView me={me} onBanner={flash} reload={reload} onBook={() => { haptic(); setBooking(true); }} />}
-        {tab === "games" && <ArcadeView me={me} onReward={flash} />}
-        {tab === "missions" && <MissionsView onReward={flash} />}
-        {tab === "league" && (board ? <LeaderboardView board={board} /> : <Spinner />)}
-        {tab === "friends" && <ReferralView />}
+        <div className="page" key={tab}>
+          {tab === "home" && <WalletView me={me} onBanner={flash} reload={reload} onBook={() => { haptic(); setBooking(true); }} />}
+          {tab === "games" && <ArcadeView me={me} onReward={flash} />}
+          {tab === "missions" && <MissionsView onReward={flash} />}
+          {tab === "league" && (board ? <LeaderboardView board={board} /> : <Spinner />)}
+          {tab === "friends" && <ReferralView />}
+        </div>
       </main>
 
       <nav className="tabbar">
+        <span className="tab-ind" style={{ left: `calc(${activeIndex} * 20% + 10%)` }} />
         {TABS.map((t) => (
           <button key={t.id} className={tab === t.id ? "tab active" : "tab"} onClick={() => go(t.id)}>
-            <span>{t.emoji}</span>
-            {t.label}
+            <Icon name={t.icon} filled={tab === t.id} size={23} />
+            <span className="tab-label">{t.label}</span>
           </button>
         ))}
       </nav>
@@ -98,12 +116,23 @@ export function App() {
   );
 }
 
+function BootSplash() {
+  return (
+    <div className="boot">
+      <div className="aurora" />
+      <div className="boot-logo">🚕</div>
+      <div className="boot-name">1067 <b>TAXI</b></div>
+      <div className="boot-bar"><span /></div>
+    </div>
+  );
+}
+
 function ErrorScreen({ error }: { error: string }) {
   const notAuthed = error.includes("unauthorized");
   const initData = getInitData();
-  const hasInitData = !!initData;
   return (
     <div className="screen center">
+      <div className="aurora" />
       <div className="nl-card glass pad">
         <div className="nl-emoji">{notAuthed ? "🤖" : "😴"}</div>
         <h2>{notAuthed ? "Telegram orqali oching" : "Server uyg'onmoqda"}</h2>
@@ -115,7 +144,7 @@ function ErrorScreen({ error }: { error: string }) {
         <button className="btn-primary" onClick={() => location.reload()}>🔄 Qayta urinish</button>
         {notAuthed && (
           <p className="muted" style={{ fontSize: 11, marginTop: 12, opacity: 0.55 }}>
-            Telegram: {tg ? "✓" : "✗"} · initData: {hasInitData ? `✓ (${initData.length})` : "✗ yo'q"}
+            Telegram: {tg ? "✓" : "✗"} · initData: {initData ? `✓ (${initData.length})` : "✗ yo'q"}
           </p>
         )}
       </div>
@@ -126,12 +155,11 @@ function ErrorScreen({ error }: { error: string }) {
 function NotLinked() {
   return (
     <div className="screen center">
+      <div className="aurora" />
       <div className="nl-card glass pad">
         <div className="nl-emoji">🔗</div>
         <h2>Akkaunt bog'lanmagan</h2>
-        <p className="muted">
-          Ma'lumotlaringizni ko'rish uchun Telegram botga kiring va telefon raqamingizni ulashing.
-        </p>
+        <p className="muted">Ma'lumotlaringizni ko'rish uchun Telegram botga kiring va telefon raqamingizni ulashing.</p>
       </div>
     </div>
   );

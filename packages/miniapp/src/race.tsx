@@ -43,7 +43,7 @@ export function RaceCanvasGame({
   const laneRef = useRef(1);
   const tickRef = useRef(0);
   const inputsRef = useRef<number[]>([]);
-  const startedAtRef = useRef(0);
+  const playMsRef = useRef(0); // active play time only (excludes backgrounded/stalled gaps)
   const finishedRef = useRef(false);
 
   const setLane = (lane: number) => {
@@ -65,9 +65,12 @@ export function RaceCanvasGame({
     const playerY = H - 130;
     const rowGap = 110;
     const carH = laneW * 0.52 * 1.7;
-    startedAtRef.current = Date.now();
+    playMsRef.current = 0;
     let acc = 0;
     let last = performance.now();
+    // A backgrounded tab pauses rAF; on return `now - last` is huge. Clamp it so the
+    // course never fast-forwards (which would crash the player into every obstacle).
+    const MAX_FRAME_MS = RACE_TICK_MS * 5;
     let raf = 0;
     let flash = 0;
 
@@ -113,8 +116,10 @@ export function RaceCanvasGame({
     };
 
     const frame = (now: number) => {
-      acc += now - last;
+      const dt = Math.min(now - last, MAX_FRAME_MS); // ignore time spent backgrounded/stalled
       last = now;
+      acc += dt;
+      playMsRef.current += dt; // anti-cheat duration is real play time, not wall-clock
       while (acc >= RACE_TICK_MS && tickRef.current < RACE_TICKS) {
         if (course[tickRef.current] === laneRef.current) flash = 4;
         tickRef.current++;
@@ -128,7 +133,7 @@ export function RaceCanvasGame({
           const { score } = scoreRun(seed, inputs);
           onDone({
             inputs,
-            durationMs: Math.max(RACE_TICKS * RACE_TICK_MS, Date.now() - startedAtRef.current),
+            durationMs: Math.round(playMsRef.current),
             score,
             checksum: raceChecksum(inputs),
           });
@@ -145,12 +150,18 @@ export function RaceCanvasGame({
       const dx = e.changedTouches[0]!.clientX - sx;
       if (Math.abs(dx) > 24) setLane(laneRef.current + (dx > 0 ? 1 : -1));
     };
+    // Returning from background: drop the stale gap so no catch-up tick runs.
+    const onVis = () => {
+      if (!document.hidden) last = performance.now();
+    };
     window.addEventListener("touchstart", ts);
     window.addEventListener("touchend", te);
+    document.addEventListener("visibilitychange", onVis);
     return () => {
       cancelAnimationFrame(raf);
       window.removeEventListener("touchstart", ts);
       window.removeEventListener("touchend", te);
+      document.removeEventListener("visibilitychange", onVis);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [seed]);
