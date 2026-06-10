@@ -60,11 +60,23 @@ Barcha 3 kunlik vazifani bajaring → quti ochiladi → **500…10 000 so'm** ta
 ### 🗄 Doimiy baza — Postgres (YANGI, kritik)
 Avval har deploy'da SQLite o'chib, streak/bog'lanish/referral nolga tushardi (loss-aversion psixologiyasini o'ldiradi). Endi **Render Postgres** — redeploy bilan isbotlangan: bog'lanish va referral kodi saqlanib qoldi. ⚠️ Bepul tarif **2026-07-10** gacha — keyin upgrade kerak.
 
+### ⚡️ Haftalik liga (YANGI)
+Har harakat ball beradi: kunlik +10 · g'ildirak +10 · vazifa +15 · quti +20 · safar +30 · taklif +50. **Dushanba kuni top-3 avtomatik real pul oladi: 🥇 10 000 · 🥈 5 000 · 🥉 3 000 so'm** + push xabar. Har hafta nol'dan — hamma uchun yangi imkon.
+- **Cialdini: Social Proof + raqobat** · **Kahneman: fresh-start effekti**.
+
+### 🎰 O'suvchi JACKPOT (YANGI)
+Har bir spin jackpot'ni +50 so'mga oshiradi, JACKPOT tushganga **butun jamg'arma** beriladi (min 5 000). Bot xabarida va Mini App'da jonli pulsatsiyalanuvchi badge.
+- **Near-miss + escalation** — slot-mashinaning eng kuchli mexanikasi.
+
+### 🎁 Surprise drop (YANGI)
+Faol foydalanuvchilarga kutilmagan 200…1 000 so'm sovg'a (~haftada 1 marta, kuniga max 1). "Shunchaki siz biz bilan bo'lganingiz uchun 😊"
+- **Variable-interval reinforcement · Cialdini: Reciprocity** — qarzdorlik hissi qaytaradi.
+
 ### ⚙️ Asos
 Telefon-bog'lash · daraja (7 ta) · nishon (10 ta) · reyting · admin dashboard (haydovchi/mijoz/bot-a'zolari) · on-demand sync (kas1067'ga yuklamasiz).
 
 ### 🛠 Deploy tartibi (eslatma)
-`git push` → Render avtomatik EMAS: `POST api.render.com/v1/services/srv-d8k27oernols73dhm0ng/deploys` trigger kerak. Mini App: `VITE_API_URL=https://kas1067-taxi-bot.onrender.com pnpm --filter @t1067/miniapp build` → `vercel deploy --prebuilt --prod`. Tekshirish: `tsx src/scripts/prodVerify.ts`.
+`git push` → Render **endi avto-deploy qiladi** (tasdiqlangan); kerak bo'lsa qo'lda: `POST api.render.com/v1/services/srv-d8k27oernols73dhm0ng/deploys`. Mini App: `VITE_API_URL=https://kas1067-taxi-bot.onrender.com pnpm --filter @t1067/miniapp build` → `vercel deploy --prebuilt --prod`. Tekshirish: `tsx src/scripts/prodVerify.ts` (missions/referral/box/weekly). Diqqat: lokal `tsx src/index.ts` ishga tushirish prod webhook'ni o'chiradi (polling) — keyin deploy/restart webhook'ni qaytaradi.
 
 ---
 

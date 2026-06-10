@@ -173,6 +173,9 @@ Bot · Mini App · admin · kas1067 (o'qish + **cashback yozish 1303**) · strea
 - **👥 Double-sided referral** — har do'st: siz +3000, do'stingiz +2000. Deep-link (`?start=ref_CODE`), avtomatik to'lov bog'langanda, anti-self-invite, bir martalik. *Octalysis: Social Influence · Cialdini: Liking+Reciprocity · k-faktor dvigateli.*
 - **🎁 Sirli quti** — barcha 3 kunlik vazifa bajarilsa ochiladi ("mukammal kun"). 500…10 000 so'm, kuniga 1 marta. *Octalysis: Unpredictability · compulsion loop ustida meta-loop.*
 - **🗄 Postgres (Q4'dan oldinga olindi)** — har deploy'da ma'lumot o'chish muammosi hal: streak/missiya/referral/bog'lanish endi doimiy. Redeploy bilan isbotlangan. ⚠️ Bepul tarif 2026-07-10 da tugaydi — upgrade yoki ko'chirish kerak.
-- Bot: inline "Olish"/"Qutini ochish" tugmalari, share · Mini App: Vazifa (quti bilan), Do'st tablari.
+- **⚡️ Haftalik liga** — har harakat ball (kunlik +10 · g'ildirak +10 · vazifa +15 · quti +20 · safar +30 · taklif +50), dushanba top-3 ga real pul (10000/5000/3000) avtomatik + push. *Cialdini: Social Proof + raqobat · Kahneman: fresh-start effekti (har hafta nol'dan).*
+- **🎰 O'suvchi JACKPOT** — har spin pool'ga +50 so'm, JACKPOT bo'lagi butun pool'ni beradi (min 5000). Bot va Mini App'da jonli ko'rinadi. *Near-miss + ko'rinadigan o'sish.*
+- **🎁 Surprise drop** — faol foydalanuvchilarga tasodifiy 200…1000 so'm sovg'a (~haftada 1, kuniga max 1). *Variable-INTERVAL reinforcement · Reciprocity.*
+- Bot: inline "Olish"/"Qutini ochish" tugmalari, share, Reyting'da liga bloki · Mini App: Vazifa (quti), Do'st, Reyting'da Haftalik/Umumiy toggle, jackpot badge.
 
-> **Keyingi Q1 bloklari:** season-pass · surprise drop / jackpot pool · haftalik reyting sovg'asi + klan. Bor kuch bilan davom etamiz.
+> **Keyingi Q1 bloklari:** season-pass · klan/jamoa · onboarding funnel (aha-moment < 5 daq). Bor kuch bilan davom etamiz.
