@@ -7,5 +7,6 @@ export * from "./crash";
 export * from "./park";
 export * from "./clientinfo";
 export * from "./quiz";
+export * from "./booking";
 export * from "./format";
 export * from "./types";

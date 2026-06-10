@@ -24,6 +24,7 @@ import { buyOrUpgradeCar, collectPark, getPark } from "../services/parkService";
 import { getFareConfig } from "../services/clientInfoService";
 import { acceptDuel, createDuel, listDuels, submitDuelRun } from "../services/duelService";
 import { answerQuiz, getQuiz } from "../services/quizService";
+import { createBookingFor, getActiveBookingFor, getBookingInfo, searchBookingAddress } from "../services/bookingService";
 import type { DuelRunBody, RaceFinishBody } from "@t1067/shared";
 import { validateInitData } from "./telegramAuth";
 
@@ -226,6 +227,15 @@ export function createApiServer(opts: ApiOptions = {}) {
   app.get("/api/park", requireUser, withMember((id) => getPark(id)));
   app.post("/api/park/buy", requireUser, withMember((id, req) => buyOrUpgradeCar(id, String((req.body as { car?: string })?.car ?? ""))));
   app.post("/api/park/collect", requireUser, withMember((id) => collectPark(id)));
+
+  // ─── Uber-level booking (map + live tracking) ───────────────────────────────
+  app.get("/api/booking/info", requireUser, withMember((id) => getBookingInfo(id)));
+  app.get("/api/booking/active", requireUser, withMember((id) => getActiveBookingFor(id)));
+  app.post("/api/booking/search", requireUser, withMember((_id, req) => searchBookingAddress(String((req.body as { q?: string })?.q ?? ""))));
+  app.post("/api/booking/create", requireUser, withMember((id, req) => {
+    const b = req.body as { addressId?: number; addressName?: string };
+    return createBookingFor(id, Math.floor(Number(b?.addressId ?? 0)), String(b?.addressName ?? ""));
+  }));
 
   // ─── client power-ups: fare + cashback config ───────────────────────────────
   app.get("/api/fare/config", requireUser, async (_req, res) => {

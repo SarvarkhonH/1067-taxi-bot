@@ -2,6 +2,9 @@ import type {
   BoxOpenResponse,
   BoxStatusResponse,
   CheckInResponse,
+  ActiveBookingView,
+  BookingCreateResponse,
+  BookingInfoResponse,
   CrashCashoutResponse,
   CrashStartResponse,
   DuelCreateResponse,
@@ -112,4 +115,13 @@ export const api = {
   duelRun: (body: DuelRunBody) => request<DuelRunResponse>("POST", "/api/duel/run", body, 1),
   quiz: () => get<QuizResponse>("/api/quiz"),
   quizAnswer: (qIdx: number, answerIdx: number) => request<QuizAnswerResponse>("POST", "/api/quiz/answer", { qIdx, answerIdx }, 1),
+  bookingInfo: () => get<BookingInfoResponse | { error: string }>("/api/booking/info"),
+  bookingActive: () => get<ActiveBookingView | null>("/api/booking/active"),
+  bookingSearch: (q: string) => request<SavedAddr[]>("POST", "/api/booking/search", { q }, 1),
+  bookingCreate: (addressId: number, addressName: string) => request<BookingCreateResponse>("POST", "/api/booking/create", { addressId, addressName }, 1),
 };
+
+interface SavedAddr {
+  id: number;
+  name: string;
+}

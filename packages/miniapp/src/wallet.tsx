@@ -132,7 +132,7 @@ function WithdrawSheet({
   );
 }
 
-export function WalletView({ me, onBanner, reload }: { me: MeResponse; onBanner: (m: string) => void; reload: () => void }) {
+export function WalletView({ me, onBanner, reload, onBook }: { me: MeResponse; onBanner: (m: string) => void; reload: () => void; onBook: () => void }) {
   const [wallet, setWallet] = useState<WalletResponse | null>(null);
   const [sheet, setSheet] = useState(false);
   const coins = useCountUp(wallet?.coins ?? me.coins);
@@ -153,6 +153,11 @@ export function WalletView({ me, onBanner, reload }: { me: MeResponse; onBanner:
 
   return (
     <div className="view">
+      <button className="book-cta" onClick={onBook}>
+        🚖 Taxi chaqirish
+        <span className="book-cta-sub">jonli xarita · cashback</span>
+      </button>
+
       <section className="wallet-hero glass">
         <div className="wh-row">
           <div className="wh-main">

@@ -5,6 +5,7 @@ import { haptic, tg } from "./telegram";
 import { LeaderboardView, MissionsView, ReferralView, Spinner } from "./components";
 import { WalletView } from "./wallet";
 import { ArcadeView } from "./arcade";
+import { BookingView } from "./booking";
 
 type Tab = "home" | "games" | "missions" | "league" | "friends";
 
@@ -23,6 +24,7 @@ export function App() {
   const [board, setBoard] = useState<LeaderboardResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [banner, setBanner] = useState<string | null>(null);
+  const [booking, setBooking] = useState(false);
 
   useEffect(() => {
     api
@@ -52,6 +54,7 @@ export function App() {
   if (linked === null) return <Spinner />;
   if (linked === false) return <NotLinked />;
   if (!me) return <Spinner />;
+  if (booking) return <BookingView onClose={() => setBooking(false)} />;
 
   const go = (t: Tab) => {
     haptic();
@@ -76,7 +79,7 @@ export function App() {
 
       <main className="content">
         {banner && <div className="reward-banner">{banner}</div>}
-        {tab === "home" && <WalletView me={me} onBanner={flash} reload={reload} />}
+        {tab === "home" && <WalletView me={me} onBanner={flash} reload={reload} onBook={() => { haptic(); setBooking(true); }} />}
         {tab === "games" && <ArcadeView me={me} onReward={flash} />}
         {tab === "missions" && <MissionsView onReward={flash} />}
         {tab === "league" && (board ? <LeaderboardView board={board} /> : <Spinner />)}
