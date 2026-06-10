@@ -29,6 +29,7 @@ import {
   renderReferral,
   renderFare,
   renderHelp,
+  renderLinked,
   renderReferralWin,
   renderTaken,
   renderWeeklyBlock,
@@ -137,7 +138,7 @@ export function createBot(): Bot {
     if (res.status === "linked") {
       const me = await getMe(id);
       const role = res.type === "driver" ? "Haydovchi" : "Mijoz";
-      await ctx.reply(`✅ Bog'landi: <b>${res.fullName}</b> (${role})`, { parse_mode: "HTML" });
+      await ctx.reply(renderLinked(res.fullName ?? "Mijoz", role), { parse_mode: "HTML" });
       // pay out a pending referral (this user joined via someone's invite)
       if (res.memberId) {
         const credit = await completeReferral(id, res.memberId).catch(() => null);

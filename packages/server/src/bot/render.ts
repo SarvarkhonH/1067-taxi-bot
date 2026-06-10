@@ -20,34 +20,46 @@ function esc(s: string): string {
 
 const STARS = (r: number): string => "⭐".repeat(Math.max(0, Math.min(5, Math.round(r))));
 
+const DIV = "━━━━━━━━━━━━━━";
+
 export function renderWelcome(name: string): string {
   return (
-    `Assalomu alaykum, <b>${esc(name)}</b>! 👋\n\n` +
-    `Bu — <b>1067 Taxi</b> bonus boti. Bu yerda siz:\n` +
-    `• 💰 to'plagan ball/bonuslaringizni ko'rasiz\n` +
-    `• 🏆 reytingda raqobatlashasiz\n` +
-    `• 🎖 nishonlar yutib, darajangizni oshirasiz\n\n` +
-    `Boshlash uchun telefon raqamingizni ulashing 👇`
+    `🚕 <b>1067 TAXI</b>\n` +
+    `Xush kelibsiz, <b>${esc(name)}</b>! 👋\n\n` +
+    `Har safardan <b>haqiqiy pul cashback</b> oling — o'yinlar bilan ko'paytiring, so'mga yeching.\n\n` +
+    `✨ <b>Sizni nima kutyapti:</b>\n` +
+    `💸 Har safar — cashback (haqiqiy pul)\n` +
+    `🎮 7 o'yin — poyga · crash · duel · viktorina\n` +
+    `🎁 Kunlik sovg'alar — streak · g'ildirak · qutilar\n` +
+    `🏆 Liga + reyting — sovg'a uchun kurash\n` +
+    `👥 Do'st taklif — ikkalangizga coin\n\n` +
+    `Boshlash uchun raqamingizni ulashing 👇`
   );
 }
 
 export function renderLinkPrompt(): string {
   return (
-    `🔗 <b>Akkauntni bog'lash</b>\n\n` +
-    `Ma'lumotlaringizni ko'rsatishim uchun telefon raqamingizni yuboring. ` +
-    `Pastdagi <b>«📱 Raqamni ulashish»</b> tugmasini bosing.`
+    `🔗 <b>Bir qadam qoldi</b>\n\n` +
+    `Hamyon, o'yinlar va cashback'ingizni ochish uchun telefon raqamingizni ulang.\n\n` +
+    `Pastdagi <b>«📱 Raqamni ulashish»</b> tugmasini bosing — bir soniyada tayyor.`
   );
 }
 
 export function renderNotFound(): string {
   return (
-    `😕 Bu raqam bo'yicha hech narsa topilmadi.\n\n` +
-    `1067 Taxi tizimida ro'yxatdan o'tgan raqamingizni yuboring yoki administrator bilan bog'laning.`
+    `😕 <b>Bu raqam topilmadi</b>\n\n` +
+    `1067 Taxi tizimida ro'yxatdan o'tgan raqamni yuboring.\n` +
+    `Hali mijoz emasmisiz? Bir marta <b>«🚖 Taxi chaqirish»</b> bilan safar qiling — keyin shu raqam ishlaydi. 🙌`
   );
 }
 
 export function renderTaken(): string {
-  return `⚠️ Bu profil allaqachon boshqa Telegram akkauntga bog'langan. Administrator bilan bog'laning.`;
+  return `⚠️ <b>Bu profil band</b>\n\nUshbu raqam allaqachon boshqa Telegram akkauntga bog'langan. O'zingizniki bo'lsa — administrator bilan bog'laning.`;
+}
+
+/** Warm celebration the moment an account links. */
+export function renderLinked(name: string, role: string): string {
+  return `✅ <b>Tayyor!</b> ${esc(name)} (${role})\n\n🎉 Hamyon ochildi. Endi o'yna, yut, yech! Pastdagi menyudan boshlang 👇`;
 }
 
 /** The hero card — the "beautiful bonuses" view, adapts to client vs driver. */
@@ -65,25 +77,24 @@ export function renderProfile(me: MeResponse): string {
 
   const earned = me.badges.filter((b) => b.earned);
   const badgeStrip = earned.length ? earned.map((b) => b.emoji).join(" ") : "—";
+  const streak = me.streak?.current ?? 0;
 
   const lines = [
     `${isDriver ? "🚗" : "🏅"} <b>${title}</b>`,
-    ``,
-    `${level.emoji} <b>${esc(level.name)}</b> daraja`,
-    `${bar}  ${pct}%`,
-    toNext,
-    ``,
-    `🚕 <b>${esc(metricLabel)}</b> (safarlardan): <b>${formatNumber(stats.points)} so'm</b>`,
-    `🪙 <b>O'yin hamyoni</b>: <b>${formatNumber(me.coins)} coin</b> <i>(1 coin = 1 so'm, ilovada almashtiriladi)</i>`,
-    `🚕 Safarlar: <b>${formatNumber(stats.trips)}</b>`,
+    `${level.emoji} <b>${esc(level.name)}</b>  ${bar} ${pct}%`,
+    `<i>${toNext}</i>`,
+    DIV,
+    `💼 <b>HAMYON</b>`,
+    `🚕 Cashback: <b>${formatNumber(stats.points)} so'm</b> <i>(safarlardan)</i>`,
+    `🪙 Coin: <b>${formatNumber(me.coins)}</b> <i>(1 coin = 1 so'm — yechiladi)</i>`,
+    DIV,
+    `🔥 Streak: <b>${streak} kun</b>   🚕 Safar: <b>${formatNumber(stats.trips)}</b>`,
   ];
   if (isDriver) lines.push(`⭐ Reyting: <b>${stats.rating.toFixed(2)}</b> ${STARS(stats.rating)}`);
   lines.push(
+    `📊 O'rin: <b>${me.rank ? rankMedal(me.rank) : "—"}</b>/${me.totalMembers}   🎖 <b>${earned.length}/${me.badges.length}</b> ${badgeStrip === "—" ? "" : badgeStrip}`,
     ``,
-    `📊 O'rin: <b>${me.rank ? rankMedal(me.rank) : "—"}</b> / ${me.totalMembers}`,
-    ``,
-    `🎖 Nishonlar: <b>${earned.length}/${me.badges.length}</b>`,
-    badgeStrip,
+    `🎮 <i>Coin'ni ko'paytiring — «🎮 O'yinlar & Hamyon»da o'yna, yut, so'mga yech!</i>`,
   );
   return lines.join("\n");
 }

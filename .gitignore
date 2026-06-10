@@ -16,3 +16,5 @@ kas-discovery/
 .claude/settings.local.json
 
 .vercel/
+
+backups/

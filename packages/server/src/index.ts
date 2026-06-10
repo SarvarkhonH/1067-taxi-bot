@@ -9,7 +9,23 @@ import { maybeSurpriseDrop, payWeeklyPrizes } from "./services/weeklyService";
 import { refundStaleRaces } from "./services/raceService";
 import { sweepDuels } from "./services/duelService";
 
+// P0.4: orphaned SyncRun stuck in "running" (crash mid-sync) → mark error.
+async function reapStaleSyncs(maxAgeMs: number): Promise<void> {
+  const r = await prisma.syncRun.updateMany({
+    where: { status: "running", startedAt: { lt: new Date(Date.now() - maxAgeMs) } },
+    data: { status: "error", message: "abandoned (watchdog)", finishedAt: new Date() },
+  });
+  if (r.count) console.log(`[watchdog] reaped ${r.count} stale sync(s)`);
+}
+
 async function main(): Promise<void> {
+  // P0.2 boot guard: never honor impersonation auth in a deployed (webhook) env.
+  if (env.WEBHOOK_URL && env.allowDebugAuth) {
+    console.error("[FATAL] ALLOW_DEBUG_AUTH=true in a deployed environment — refusing to start (impersonation risk).");
+    process.exit(1);
+  }
+  await reapStaleSyncs(60 * 60_000).catch(() => undefined); // boot cleanup (>1h)
+
   let bot: Bot | null = null;
   const notifyBadges = async () => {
     if (bot) await notifyNewAchievements(bot);
@@ -84,6 +100,7 @@ async function main(): Promise<void> {
         await maybeSurpriseDrop(notifyUser).catch((e) => console.error("[surprise] failed:", e));
         await refundStaleRaces().catch((e) => console.error("[race] refund failed:", e));
         await sweepDuels(notifyUser).catch((e) => console.error("[duel] sweep failed:", e));
+        await reapStaleSyncs(30 * 60_000).catch(() => undefined); // watchdog (>30min)
       } else {
         const s = await runSync();
         await notifyBadges();

@@ -65,6 +65,28 @@ function requireUser(req: Request, res: Response, next: NextFunction): void {
   next();
 }
 
+// P0.8: lightweight in-memory rate limiter (no dep). Keyed on the resolved
+// telegram id (set by requireUser/requireAdmin, which run first).
+const rlBuckets = new Map<string, { n: number; resetAt: number }>();
+function rateLimit(maxPerMin: number) {
+  return (_req: Request, res: Response, next: NextFunction): void => {
+    if (rlBuckets.size > 50_000) rlBuckets.clear(); // bound memory
+    const key = `${(res.locals.telegramId as string) || "anon"}:${maxPerMin}`;
+    const now = Date.now();
+    let b = rlBuckets.get(key);
+    if (!b || now > b.resetAt) {
+      b = { n: 0, resetAt: now + 60_000 };
+      rlBuckets.set(key, b);
+    }
+    b.n++;
+    if (b.n > maxPerMin) {
+      res.status(429).json({ error: "too_many_requests", retryAfter: Math.ceil((b.resetAt - now) / 1000) });
+      return;
+    }
+    next();
+  };
+}
+
 function requireAdmin(req: Request, res: Response, next: NextFunction): void {
   // desktop dashboard (no Telegram): a strong shared token grants admin access
   const token = req.header("X-Admin-Token");
@@ -123,7 +145,7 @@ export function createApiServer(opts: ApiOptions = {}) {
     res.json(await getWallet(memberId));
   });
 
-  app.post("/api/wallet/withdraw", requireUser, async (req, res) => {
+  app.post("/api/wallet/withdraw", requireUser, rateLimit(5), async (req, res) => {
     const memberId = await getMemberId(res.locals.telegramId as string);
     if (!memberId) {
       res.status(404).json({ error: "not linked" });
@@ -137,7 +159,7 @@ export function createApiServer(opts: ApiOptions = {}) {
     res.json(await withdraw(memberId, amount));
   });
 
-  app.post("/api/wallet/topup", requireUser, async (req, res) => {
+  app.post("/api/wallet/topup", requireUser, rateLimit(5), async (req, res) => {
     const memberId = await getMemberId(res.locals.telegramId as string);
     if (!memberId) {
       res.status(404).json({ error: "not linked" });
@@ -213,14 +235,14 @@ export function createApiServer(opts: ApiOptions = {}) {
     res.json(await handler(memberId, req, res));
   };
 
-  app.post("/api/race/create", requireUser, withMember((id, req) => startRace(id, Math.floor(Number((req.body as { stake?: number })?.stake ?? 0)))));
+  app.post("/api/race/create", requireUser, rateLimit(20), withMember((id, req) => startRace(id, Math.floor(Number((req.body as { stake?: number })?.stake ?? 0)))));
   app.post("/api/race/finish", requireUser, withMember((id, req) => finishRace(id, req.body as RaceFinishBody)));
   app.get("/api/race/board", requireUser, withMember((id, req) => getRaceBoard(id, Math.floor(Number(req.query.stake ?? 0)))));
 
   // ─── games: duel 1v1 ────────────────────────────────────────────────────────
   app.get("/api/duel/list", requireUser, withMember((id) => listDuels(id)));
-  app.post("/api/duel/create", requireUser, withMember((id, req) => createDuel(id, Math.floor(Number((req.body as { stake?: number })?.stake ?? 0)))));
-  app.post("/api/duel/accept", requireUser, withMember((id, req) => acceptDuel(id, String((req.body as { duelId?: string })?.duelId ?? ""))));
+  app.post("/api/duel/create", requireUser, rateLimit(10), withMember((id, req) => createDuel(id, Math.floor(Number((req.body as { stake?: number })?.stake ?? 0)))));
+  app.post("/api/duel/accept", requireUser, rateLimit(10), withMember((id, req) => acceptDuel(id, String((req.body as { duelId?: string })?.duelId ?? ""))));
   app.post("/api/duel/run", requireUser, withMember((id, req) => submitDuelRun(id, req.body as DuelRunBody)));
 
   // ─── games: daily quiz ──────────────────────────────────────────────────────
@@ -231,7 +253,7 @@ export function createApiServer(opts: ApiOptions = {}) {
   }));
 
   // ─── games: crash (Tezlik) ──────────────────────────────────────────────────
-  app.post("/api/crash/start", requireUser, withMember((id, req) => startCrash(id, Math.floor(Number((req.body as { stake?: number })?.stake ?? 0)))));
+  app.post("/api/crash/start", requireUser, rateLimit(20), withMember((id, req) => startCrash(id, Math.floor(Number((req.body as { stake?: number })?.stake ?? 0)))));
   app.post("/api/crash/cashout", requireUser, withMember((id, req) => cashoutCrash(id, String((req.body as { roundId?: string })?.roundId ?? ""))));
 
   // ─── games: taxi park ───────────────────────────────────────────────────────
@@ -315,12 +337,12 @@ export function createApiServer(opts: ApiOptions = {}) {
     const { getAuditLog } = await import("../services/adminOps");
     res.json(await getAuditLog());
   });
-  app.post("/api/admin/grant", requireAdmin, async (req, res) => {
+  app.post("/api/admin/grant", requireAdmin, rateLimit(10), async (req, res) => {
     const { adminGrant } = await import("../services/adminOps");
     const b = (req.body ?? {}) as { target?: string; amount?: number; reason?: string };
     res.json(await adminGrant(String(b.target ?? ""), Number(b.amount ?? 0), String(b.reason ?? ""), res.locals.telegramId as string));
   });
-  app.post("/api/admin/announce", requireAdmin, async (req, res) => {
+  app.post("/api/admin/announce", requireAdmin, rateLimit(3), async (req, res) => {
     if (!opts.sendMessage) {
       res.json({ ok: false, message: "Bot ulanmagan" });
       return;
