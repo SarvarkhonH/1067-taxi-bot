@@ -1,6 +1,12 @@
 # 1067 — MASTER PLAN v2 (bor kuch bilan)
 
-## 🚀 v3 SCOPE (joriy — foydalanuvchi talablari)
+## ✅ v3 BAJARILDI (jonli)
+- **Audit fixes:** atomic jackpot (race tuzatildi, 100 concurrent=+1000 isbot) · kas secret→env + per-phone lock · loop reentrancy guard · Math.floor pul · /debug o'chirildi + log redact.
+- **Ikki tomonlama hamyon:** 🔁 cashback→coin (yangi) + 💸 coin→cashback. Mini App'da 2 tugma.
+- **Uber booking v3:** xarita-pin "qayerga" → real narx prognozi (clientTariffs + haversine) · saqlangan manzillar koordinata bilan · qo'shimchalar (ORQA/TEPA BAGAJ, MOTO) · mashina turi (9) · haydovchi ETA · bekor qilish · 3s jonli kuzatuv.
+- **Bot:** /help. **Prod verify:** narx 4.3km→16392 so'm, 3 manzil koordinata, two-way wallet ✅.
+
+## 🚀 v3 SCOPE (talablar — bajarildi)
 1. **Boyitilgan xarita** — pin bilan tanlash, joriy joylashuv, haydovchi jonli harakat, ETA (hozirgisi juda oddiy).
 2. **Ikki tomonlama hamyon** — 💸 coin→cashback (bor) **+ 🔁 cashback→coin** (yangi): kas bonusni o'yin coiniga va aksincha.
 3. **Taxi qulayliklari** — saqlangan manzillar (dedup+koordinata), qo'shimchalar (ORQA/TEPA BAGAJ, MOTO), mashina turi, oxirgi manzillar.
