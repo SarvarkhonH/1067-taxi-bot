@@ -105,6 +105,12 @@ export async function finishRace(memberId: number, b: RaceFinishBody): Promise<R
 
   const jackpot = await growJackpot(burned > 0 ? burned : Math.floor(s.stake * 0.05));
   if (won) await addScore(memberId, "race").catch(() => undefined);
+  await import("./missionService")
+    .then(async (m) => {
+      await m.incrementMission(memberId, "daily_race");
+      await m.incrementMission(memberId, "weekly_races");
+    })
+    .catch(() => undefined);
 
   return {
     ok: true,

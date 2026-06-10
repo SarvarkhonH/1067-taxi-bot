@@ -6,5 +6,6 @@ export * from "./race";
 export * from "./crash";
 export * from "./park";
 export * from "./clientinfo";
+export * from "./quiz";
 export * from "./format";
 export * from "./types";

@@ -45,6 +45,9 @@ model Member {
   parkCars     ParkCar[]
   parkState    ParkState?
   leagueTier   String        @default("Bronza") // promotion/relegation tier
+  duelsCreated  Duel[]       @relation("duelChallenger")
+  duelsAccepted Duel[]       @relation("duelOpponent")
+  quizAnswers   QuizAnswer[]
 
   @@unique([type, kasId])
   @@index([type, points])
@@ -131,6 +134,48 @@ model RaceResult {
 
   @@index([stake, score]) // ghost pool + leaderboard
   @@index([memberId, createdAt])
+}
+
+// ⚔️ Duel 1v1 — async staked head-to-head race on a shared seed. Challenger
+// stakes + runs first (score hidden), the duel sits open; an opponent stakes,
+// runs the SAME course, higher server-validated score takes the pot (−burn).
+model Duel {
+  id           String    @id @default(cuid())
+  stake        Float
+  seed         Int
+  challenger   Member    @relation("duelChallenger", fields: [challengerId], references: [id], onDelete: Cascade)
+  challengerId Int
+  opponent     Member?   @relation("duelOpponent", fields: [opponentId], references: [id])
+  opponentId   Int?
+  chToken      String    @unique // challenger's one-time run token
+  opToken      String?   @unique
+  chScore      Int?
+  opScore      Int?
+  status       String    @default("created") // created | open | accepted | settled | refunded
+  winnerId     Int? // null on settled = tie (both refunded)
+  pot          Float     @default(0)
+  chNotified   Boolean   @default(true) // false after settle → periodic push to challenger
+  createdAt    DateTime  @default(now())
+  openedAt     DateTime?
+  acceptedAt   DateTime?
+  settledAt    DateTime?
+
+  @@index([status, createdAt])
+  @@index([challengerId, createdAt])
+}
+
+// 🧠 Daily quiz — everyone gets the same 5 questions per tashkent day.
+model QuizAnswer {
+  id        Int      @id @default(autoincrement())
+  member    Member   @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  memberId  Int
+  dayKey    String
+  qIdx      Int // index into the shared question bank
+  answerIdx Int
+  correct   Boolean
+  createdAt DateTime @default(now())
+
+  @@unique([memberId, dayKey, qIdx])
 }
 
 // Tezlik (crash game) — provably fair: serverHash committed on start, seed

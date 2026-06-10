@@ -15,6 +15,8 @@ import { confetti } from "./util";
 import { RaceGame } from "./race";
 import { CrashGame } from "./crash";
 import { ParkView } from "./park";
+import { DuelView } from "./duel";
+import { QuizView } from "./quiz";
 
 function SpinWheelGame({ me, onReward }: { me: MeResponse; onReward: (msg: string) => void }) {
   const [rotation, setRotation] = useState(0);
@@ -209,23 +211,20 @@ function StakeGame({
   );
 }
 
-type Active = { game: "race" | "crash"; stake: number } | { game: "park" } | null;
-
-const SOON = [
-  { emoji: "⚔️", name: "Duel 1v1", desc: "Do'st bilan to'g'ridan poyga" },
-  { emoji: "🧠", name: "Viktorina", desc: "Kunlik savollar — coin yutuq" },
-];
+type Active = { game: "race" | "crash"; stake: number } | { game: "park" | "duel" | "quiz" } | null;
 
 export function ArcadeView({ me, onReward }: { me: MeResponse; onReward: (msg: string) => void }) {
   const [active, setActive] = useState<Active>(null);
 
   if (active?.game === "race") return <RaceGame stake={active.stake} onExit={(m) => { if (m) onReward(m); setActive(null); }} />;
   if (active?.game === "crash") return <CrashGame stake={active.stake} onExit={(m) => { if (m) onReward(m); setActive(null); }} />;
-  if (active?.game === "park")
+  if (active?.game === "park" || active?.game === "duel" || active?.game === "quiz")
     return (
       <div>
         <button className="park-back btn-ghost" onClick={() => setActive(null)}>← Orqaga</button>
-        <ParkView onReward={onReward} />
+        {active.game === "park" && <ParkView onReward={onReward} />}
+        {active.game === "duel" && <DuelView onReward={onReward} />}
+        {active.game === "quiz" && <QuizView onReward={onReward} />}
       </div>
     );
 
@@ -248,6 +247,15 @@ export function ArcadeView({ me, onReward }: { me: MeResponse; onReward: (msg: s
         accent="#ef4444"
         onPick={(stake) => setActive({ game: "crash", stake })}
       />
+      <section className="glass pad park-entry" onClick={() => setActive({ game: "duel" })}>
+        <div className="stake-emoji">⚔️</div>
+        <div className="park-entry-body">
+          <div className="stake-name">Duel 1v1</div>
+          <div className="muted stake-desc">Boshqa mijozga chaqiriq — bir xil trassa, g'olib 2x oladi</div>
+        </div>
+        <div className="park-entry-go">›</div>
+      </section>
+
       <section className="glass pad park-entry" onClick={() => setActive({ game: "park" })}>
         <div className="stake-emoji">🏙</div>
         <div className="park-entry-body">
@@ -257,21 +265,18 @@ export function ArcadeView({ me, onReward }: { me: MeResponse; onReward: (msg: s
         <div className="park-entry-go">›</div>
       </section>
 
+      <section className="glass pad park-entry" onClick={() => setActive({ game: "quiz" })}>
+        <div className="stake-emoji">🧠</div>
+        <div className="park-entry-body">
+          <div className="stake-name">Kunlik viktorina</div>
+          <div className="muted stake-desc">5 savol — har to'g'risi 100, 5/5 = +500 coin</div>
+        </div>
+        <div className="park-entry-go">›</div>
+      </section>
+
       <div className="section-title">🎁 Bepul o'yinlar</div>
       <SpinWheelGame me={me} onReward={onReward} />
       <BoxGame onReward={onReward} />
-
-      <div className="section-title soon-title">Tez kunda 🚀</div>
-      <div className="soon-grid">
-        {SOON.map((g) => (
-          <div key={g.name} className="soon-card glass">
-            <div className="soon-emoji">{g.emoji}</div>
-            <div className="soon-name">{g.name}</div>
-            <div className="soon-desc muted">{g.desc}</div>
-            <div className="soon-badge">TEZ KUNDA</div>
-          </div>
-        ))}
-      </div>
     </div>
   );
 }

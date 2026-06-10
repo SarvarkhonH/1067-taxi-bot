@@ -163,6 +163,7 @@ export function WalletView({ me, onBanner, reload }: { me: MeResponse; onBanner:
           <div className="wh-ring" style={{ ["--accent" as string]: me.level.color }}>
             <span className="wh-emoji">{me.level.emoji}</span>
             <span className="wh-lv">{me.level.name}</span>
+            <span className="wh-tier muted">Liga: {me.leagueTier}</span>
           </div>
         </div>
         <div className="wh-cashback">

@@ -42,7 +42,7 @@ async function main(): Promise<void> {
 
   // ── missions ──────────────────────────────────────────────────────────────
   let m = await getMissions(memberA.id);
-  ok(m.daily.length === 3 && m.weekly.length === 2, `missions catalog (3 daily, 2 weekly)`);
+  ok(m.daily.length === 5 && m.weekly.length === 3, `missions catalog (5 daily, 3 weekly)`);
   ok(m.daily.every((x) => x.progress === 0 && !x.claimable), `fresh missions are empty`);
 
   await incrementMission(memberA.id, "daily_checkin");
@@ -58,16 +58,15 @@ async function main(): Promise<void> {
   const notReady = await claimMission(memberA.id, "weekly_rides");
   ok(!notReady.ok && notReady.reason === "not_complete", `claim incomplete mission blocked`);
 
-  // ── mystery box ──────────────────────────────────────────────────────────
+  // ── mystery box (unlocks when ALL daily missions are done) ─────────────────
   let box = await getBoxStatus(memberA.id);
-  ok(!box.eligible && box.dailiesDone === 1 && box.dailiesTotal === 3, `box locked at 1/3 dailies`);
+  ok(!box.eligible && box.dailiesDone === 1, `box locked at 1/${box.dailiesTotal} dailies`);
   const locked = await openBox(memberA.id);
   ok(!locked.ok && locked.reason === "locked", `open locked box blocked`);
 
-  await incrementMission(memberA.id, "daily_spin");
-  await incrementMission(memberA.id, "daily_ride");
+  for (const code of ["daily_spin", "daily_ride", "daily_race", "daily_quiz"]) await incrementMission(memberA.id, code);
   box = await getBoxStatus(memberA.id);
-  ok(box.eligible && !box.opened, `box unlocks after all 3 dailies`);
+  ok(box.eligible && !box.opened, `box unlocks after all ${box.dailiesTotal} dailies`);
 
   const opened = await openBox(memberA.id);
   ok(opened.ok && !!opened.prize && BOX_PRIZES.some((p) => p.label === opened.prize!.label), `box opened → prize: ${opened.prize?.label}`);
@@ -126,7 +125,7 @@ async function main(): Promise<void> {
   ok(paid1 === 2, `weekly payout paid top-2 (only 2 entrants)`);
   const wg = await prisma.coinTxn.findMany({ where: { kind: "weekly", memberId: { in: [memberA.id, memberB.id] } } });
   ok(wg.some((g) => g.amount === 10000) && wg.some((g) => g.amount === 5000), `prizes 10000 + 5000 COIN granted`);
-  ok(pushes.length === 2, `both winners push-notified`);
+  ok(pushes.length >= 2, `winners push-notified (${pushes.length} incl. tier promotions)`);
   const paid2 = await payWeeklyPrizes(collect, FAKEWEEK);
   ok(paid2 === 0, `payout idempotent (paid-marker)`);
 

@@ -131,6 +131,68 @@ export interface RaceFinishResponse {
   jackpot: number;
 }
 
+// ─── duel 1v1 (async head-to-head on a shared seed) ───────────────────────────
+export const DUEL_STAKES = [300, 1000, 5000] as const;
+export const DUEL_RUN_TTL = 15 * 60_000; // run must be submitted within this
+export const DUEL_OPEN_TTL = 24 * 3600_000; // unclaimed challenge auto-refunds
+
+export interface DuelCreateResponse {
+  ok: boolean;
+  reason?: "bad_stake" | "insufficient";
+  duelId?: string;
+  seed?: number;
+  token?: string;
+  stake: number;
+  coins: number;
+}
+
+export interface DuelRunBody {
+  duelId: string;
+  token: string;
+  inputs: number[];
+  durationMs: number;
+  score: number;
+  checksum: string;
+}
+
+export interface DuelRunResponse {
+  ok: boolean;
+  reason?: string;
+  role: "challenger" | "opponent";
+  myScore: number;
+  theirScore: number | null; // revealed only after settle
+  settled: boolean;
+  won: boolean;
+  tie: boolean;
+  pot: number;
+  coins: number;
+}
+
+export interface DuelListItem {
+  duelId: string;
+  stake: number;
+  challengerName: string;
+  ageMin: number;
+}
+
+export interface MyDuelItem {
+  duelId: string;
+  stake: number;
+  status: string;
+  role: "challenger" | "opponent";
+  myScore: number | null;
+  theirScore: number | null;
+  opponentName: string | null;
+  won: boolean | null; // null = pending/tie
+  pot: number;
+}
+
+export interface DuelListResponse {
+  open: DuelListItem[];
+  mine: MyDuelItem[];
+  stakes: number[];
+}
+
 export interface RaceBoardEntry {
   rank: number;
   name: string;

@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import {
   formatNumber,
+  leagueTierEmoji,
   rankMedal,
   type LeaderboardResponse,
   type MeResponse,
@@ -163,6 +164,7 @@ function WeeklyBoard() {
             <div className="row-rank">{rankMedal(e.rank)}</div>
             <div className="row-main">
               <div className="row-name">
+                <span className="row-emoji" title={e.tier}>{leagueTierEmoji(e.tier)}</span>
                 {e.fullName}
                 {e.isMe && <span className="you">Siz</span>}
               </div>

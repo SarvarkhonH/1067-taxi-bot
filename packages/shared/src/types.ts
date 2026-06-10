@@ -38,6 +38,7 @@ export interface MeResponse {
   wheelAvailable: boolean; // free spin still available today
   jackpot: number; // current escalating wheel jackpot
   coins: number; // game-wallet balance (1 coin = 1 so'm)
+  leagueTier: string; // Bronza | Kumush | Oltin | Platina | Olmos
 }
 
 export interface CheckInResponse {

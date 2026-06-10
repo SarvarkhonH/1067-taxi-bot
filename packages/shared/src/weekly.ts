@@ -33,12 +33,33 @@ export const SURPRISE_PRIZES: { amount: number; weight: number }[] = [
   { amount: 1000, weight: 10 },
 ];
 
+// ─── league tiers (Duolingo-style promotion/relegation) ───────────────────────
+// Weekly close: actives in the top share of their tier promote, zero-score
+// members relegate. Fresh-start effect — every Monday everyone restarts at 0.
+export const LEAGUE_TIERS = [
+  { name: "Bronza", emoji: "🥉" },
+  { name: "Kumush", emoji: "🥈" },
+  { name: "Oltin", emoji: "🥇" },
+  { name: "Platina", emoji: "💎" },
+  { name: "Olmos", emoji: "💠" },
+] as const;
+
+export function leagueTierIndex(name: string): number {
+  const i = LEAGUE_TIERS.findIndex((t) => t.name === name);
+  return i < 0 ? 0 : i;
+}
+
+export function leagueTierEmoji(name: string): string {
+  return LEAGUE_TIERS[leagueTierIndex(name)]!.emoji;
+}
+
 export interface WeeklyEntry {
   rank: number;
   memberId: number;
   fullName: string;
   score: number;
   isMe: boolean;
+  tier: string;
 }
 
 export interface WeeklyBoardResponse {

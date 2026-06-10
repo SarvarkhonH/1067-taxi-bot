@@ -19,9 +19,12 @@ export interface MissionDef {
 export const MISSIONS: MissionDef[] = [
   { code: "daily_checkin", title: "Bugun belgilab chiqing", emoji: "🔥", period: "daily", target: 1, reward: 200 },
   { code: "daily_spin", title: "G'ildirakni aylantiring", emoji: "🎡", period: "daily", target: 1, reward: 200 },
+  { code: "daily_race", title: "1 ta poyga o'ynang", emoji: "🏎", period: "daily", target: 1, reward: 300 },
+  { code: "daily_quiz", title: "Viktorinani tugating", emoji: "🧠", period: "daily", target: 1, reward: 300 },
   { code: "daily_ride", title: "1 ta safar qiling", emoji: "🚕", period: "daily", target: 1, reward: 500 },
   { code: "weekly_rides", title: "Haftada 5 ta safar", emoji: "🏁", period: "weekly", target: 5, reward: 3000 },
   { code: "weekly_invite", title: "Do'st taklif qiling", emoji: "👥", period: "weekly", target: 1, reward: 3000 },
+  { code: "weekly_races", title: "Haftada 10 ta poyga", emoji: "🏆", period: "weekly", target: 10, reward: 5000 },
 ];
 
 export function missionByCode(code: string): MissionDef | undefined {

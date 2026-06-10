@@ -22,7 +22,9 @@ import { finishRace, getRaceBoard, startRace } from "../services/raceService";
 import { cashoutCrash, startCrash } from "../services/crashService";
 import { buyOrUpgradeCar, collectPark, getPark } from "../services/parkService";
 import { getFareConfig } from "../services/clientInfoService";
-import type { RaceFinishBody } from "@t1067/shared";
+import { acceptDuel, createDuel, listDuels, submitDuelRun } from "../services/duelService";
+import { answerQuiz, getQuiz } from "../services/quizService";
+import type { DuelRunBody, RaceFinishBody } from "@t1067/shared";
 import { validateInitData } from "./telegramAuth";
 
 export interface ApiOptions {
@@ -202,6 +204,19 @@ export function createApiServer(opts: ApiOptions = {}) {
   app.post("/api/race/create", requireUser, withMember((id, req) => startRace(id, Math.floor(Number((req.body as { stake?: number })?.stake ?? 0)))));
   app.post("/api/race/finish", requireUser, withMember((id, req) => finishRace(id, req.body as RaceFinishBody)));
   app.get("/api/race/board", requireUser, withMember((id, req) => getRaceBoard(id, Math.floor(Number(req.query.stake ?? 0)))));
+
+  // ─── games: duel 1v1 ────────────────────────────────────────────────────────
+  app.get("/api/duel/list", requireUser, withMember((id) => listDuels(id)));
+  app.post("/api/duel/create", requireUser, withMember((id, req) => createDuel(id, Math.floor(Number((req.body as { stake?: number })?.stake ?? 0)))));
+  app.post("/api/duel/accept", requireUser, withMember((id, req) => acceptDuel(id, String((req.body as { duelId?: string })?.duelId ?? ""))));
+  app.post("/api/duel/run", requireUser, withMember((id, req) => submitDuelRun(id, req.body as DuelRunBody)));
+
+  // ─── games: daily quiz ──────────────────────────────────────────────────────
+  app.get("/api/quiz", requireUser, withMember((id) => getQuiz(id)));
+  app.post("/api/quiz/answer", requireUser, withMember((id, req) => {
+    const b = req.body as { qIdx?: number; answerIdx?: number };
+    return answerQuiz(id, Math.floor(Number(b?.qIdx ?? -1)), Math.floor(Number(b?.answerIdx ?? -1)));
+  }));
 
   // ─── games: crash (Tezlik) ──────────────────────────────────────────────────
   app.post("/api/crash/start", requireUser, withMember((id, req) => startCrash(id, Math.floor(Number((req.body as { stake?: number })?.stake ?? 0)))));

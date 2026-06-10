@@ -17,7 +17,7 @@ function sign(): string {
   return p.toString();
 }
 const H = { "X-Telegram-Init-Data": sign(), "Content-Type": "application/json" };
-const call = (path: string, method = "GET", body?: unknown) =>
+const call = (path: string, method = "GET", body?: unknown): Promise<{ status: number; json: any }> =>
   fetch(`${base}${path}`, { method, headers: H, body: body ? JSON.stringify(body) : undefined }).then(async (r) => ({ status: r.status, json: await r.json().catch(() => ({})) }));
 
 let fails = 0;

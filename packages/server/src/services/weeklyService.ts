@@ -1,9 +1,11 @@
 import {
   JACKPOT_FLOOR,
+  LEAGUE_TIERS,
   SCORE_VALUES,
   SURPRISE_PRIZES,
   WEEKLY_PRIZES,
   formatNumber,
+  leagueTierIndex,
   type ScoreKind,
   type WeeklyBoardResponse,
   type WeeklyEntry,
@@ -47,6 +49,7 @@ export async function getWeeklyBoard(myMemberId: number | null, limit = 20): Pro
     fullName: r.member.fullName,
     score: r.score,
     isMe: r.memberId === myMemberId,
+    tier: r.member.leagueTier,
   }));
 
   let me = entries.find((e) => e.isMe) ?? null;
@@ -57,7 +60,7 @@ export async function getWeeklyBoard(myMemberId: number | null, limit = 20): Pro
     });
     if (mine) {
       const higher = await prisma.weeklyScore.count({ where: { weekKey: key, score: { gt: mine.score } } });
-      me = { rank: higher + 1, memberId: myMemberId, fullName: mine.member.fullName, score: mine.score, isMe: true };
+      me = { rank: higher + 1, memberId: myMemberId, fullName: mine.member.fullName, score: mine.score, isMe: true, tier: mine.member.leagueTier };
     }
   }
 
@@ -109,7 +112,51 @@ export async function payWeeklyPrizes(notify: Notify, weekKeyOverride?: string):
 
   await prisma.appState.upsert({ where: { key: marker }, create: { key: marker, value: String(paid) }, update: { value: String(paid) } });
   if (paid) console.log(`[weekly] ${prevKey}: paid ${paid} prizes`);
+
+  await applyTierMovement(prevKey, notify).catch((e) => console.error("[league] tier move failed:", e));
   return paid;
+}
+
+/**
+ * Duolingo-style promotion/relegation for the closed week: top 30% of actives
+ * move up a tier, members who did nothing all week drop one (never below Bronza).
+ */
+async function applyTierMovement(prevKey: string, notify: Notify): Promise<void> {
+  const actives = await prisma.weeklyScore.findMany({
+    where: { weekKey: prevKey, score: { gt: 0 } },
+    orderBy: { score: "desc" },
+    include: { member: { include: { telegramUser: true } } },
+  });
+  const promoteCount = Math.ceil(actives.length * 0.3);
+  const activeIds = new Set(actives.map((a) => a.memberId));
+
+  for (let i = 0; i < actives.length; i++) {
+    const m = actives[i]!.member;
+    if (i < promoteCount) {
+      const idx = leagueTierIndex(m.leagueTier);
+      if (idx < LEAGUE_TIERS.length - 1) {
+        const next = LEAGUE_TIERS[idx + 1]!;
+        await prisma.member.update({ where: { id: m.id }, data: { leagueTier: next.name } });
+        if (m.telegramUser) {
+          await notify(
+            m.telegramUser.id,
+            `${next.emoji} <b>Tabriklaymiz — yangi liga!</b>\n\nSiz <b>${next.name}</b> ligasiga ko'tarildingiz! Yangi hafta — yangi kurash 🔥`,
+          ).catch(() => undefined);
+        }
+      }
+    }
+  }
+
+  // inactives drop one tier (loss aversion — come back or fall)
+  const sleepers = await prisma.member.findMany({
+    where: { leagueTier: { not: LEAGUE_TIERS[0]!.name }, telegramUser: { isNot: null } },
+  });
+  for (const m of sleepers) {
+    if (activeIds.has(m.id)) continue;
+    const idx = leagueTierIndex(m.leagueTier);
+    const prev = LEAGUE_TIERS[Math.max(0, idx - 1)]!;
+    await prisma.member.update({ where: { id: m.id }, data: { leagueTier: prev.name } });
+  }
 }
 
 // ─── surprise drops (variable-interval gift) ──────────────────────────────────

@@ -266,6 +266,31 @@ body {
 .fare-slider { width: 100%; accent-color: var(--gold); }
 .fare-hint { font-size: 12px; }
 
+/* ── duel ── */
+.duel-row { display: flex; align-items: center; gap: 12px; padding: 12px 14px; }
+.duel-row-body { flex: 1; min-width: 0; }
+.duel-name { font-size: 14px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.duel-sub { font-size: 11px; margin-top: 2px; }
+.duel-stake { font-size: 13px; font-weight: 800; }
+
+/* ── quiz ── */
+.quiz-head { display: flex; align-items: center; gap: 12px; }
+.quiz-head > div:nth-child(2) { flex: 1; }
+.quiz-score { font-size: 20px; font-weight: 900; color: var(--gold); }
+.quiz-q { display: flex; flex-direction: column; gap: 10px; }
+.quiz-q.done { opacity: 0.8; }
+.quiz-q-text { font-size: 14px; font-weight: 700; line-height: 1.4; }
+.quiz-opts { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.quiz-opt {
+  padding: 12px 8px; border-radius: 12px; font-size: 13px; font-weight: 600;
+  background: rgba(255, 255, 255, 0.05); color: var(--text); border: 1px solid var(--line);
+}
+.quiz-opt:active { transform: scale(0.97); }
+.quiz-opt.right { background: rgba(34, 197, 94, 0.18); border-color: var(--green); }
+.quiz-opt.wrong { background: rgba(239, 68, 68, 0.18); border-color: var(--red); }
+.quiz-opt.dim { opacity: 0.45; }
+.wh-tier { font-size: 9px; margin-top: 2px; }
+
 /* ── streak ── */
 .streak-card { display: flex; align-items: center; gap: 14px; padding: 15px 16px; }
 .streak-flame { font-size: 36px; filter: drop-shadow(0 0 12px #ff6b00); }
