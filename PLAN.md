@@ -179,3 +179,11 @@ Bot · Mini App · admin · kas1067 (o'qish + **cashback yozish 1303**) · strea
 - Bot: inline "Olish"/"Qutini ochish" tugmalari, share, Reyting'da liga bloki · Mini App: Vazifa (quti), Do'st, Reyting'da Haftalik/Umumiy toggle, jackpot badge.
 
 > **Keyingi Q1 bloklari:** season-pass · klan/jamoa · onboarding funnel (aha-moment < 5 daq). Bor kuch bilan davom etamiz.
+
+## 🎮 SUPER-O'YIN — S1 BAJARILDI (jonli)
+**Ikki hamyon:** 🚕 cashback (faqat safarlar, kas1067) + 🪙 coin (barcha o'yinlar, bizning DB, CoinTxn ledger). **💸 Withdraw:** 1 coin = 1 so'm, min 5k, kunlik 50k, kas-xato bo'lsa avto-refund — real pul FAQAT shu nuqtadan chiqadi.
+**Chegarasiz o'yin:** g'ildirak 1 bepul + 300 coin'ga cheksiz respin · premium quti 2 000 coin cheksiz (~94% RTP) · o'yin ichida cap YO'Q.
+**Mini App 2.0:** glass+neon dizayn, count-up balanslar, confetti, bottom-sheet withdraw, 5 tab (Hamyon · O'yinlar · Vazifa · Liga · Do'st), arcade hub + "tez kunda" kartalari.
+**Sinov:** 44/44 test (ledger, sink, refund, respin) · prod verify 6 endpoint.
+
+**Keyingi sprintlar:** S2 🏎 Poyga + 🎰 Slot 777 → S3 🏙 Taxi Park + ⚔️ Duel + 🧠 Viktorina → S4 Uber-darajali booking (jonli xarita).

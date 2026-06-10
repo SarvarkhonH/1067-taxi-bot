@@ -33,4 +33,6 @@ await hit("/api/missions");
 await hit("/api/referral");
 await hit("/api/box");
 await hit("/api/weekly");
+await hit("/api/wallet");
+await hit("/api/me");
 process.exit(0);
