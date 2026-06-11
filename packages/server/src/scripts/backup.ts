@@ -22,13 +22,6 @@ async function main(): Promise<void> {
     weeklyScore: () => prisma.weeklyScore.findMany(),
     referral: () => prisma.referral.findMany(),
     memberAchievement: () => prisma.memberAchievement.findMany(),
-    duel: () => prisma.duel.findMany(),
-    quizAnswer: () => prisma.quizAnswer.findMany(),
-    crashRound: () => prisma.crashRound.findMany(),
-    parkCar: () => prisma.parkCar.findMany(),
-    parkState: () => prisma.parkState.findMany(),
-    raceSession: () => prisma.raceSession.findMany(),
-    raceResult: () => prisma.raceResult.findMany(),
     appState: () => prisma.appState.findMany(),
     syncRun: () => prisma.syncRun.findMany(),
   };

@@ -18,14 +18,9 @@ import { getBoxStatus, openBox } from "../services/boxService";
 import { getReferralInfo } from "../services/referralService";
 import { getWeeklyBoard } from "../services/weeklyService";
 import { getWallet, topUpFromBonus, withdraw } from "../services/coinService";
-import { finishRace, getRaceBoard, startRace } from "../services/raceService";
-import { cashoutCrash, startCrash } from "../services/crashService";
-import { buyOrUpgradeCar, collectPark, getPark } from "../services/parkService";
 import { getFareConfig } from "../services/clientInfoService";
-import { acceptDuel, createDuel, listDuels, submitDuelRun } from "../services/duelService";
-import { answerQuiz, getQuiz } from "../services/quizService";
 import { cancelBookingFor, createBookingFor, estimateFare, getActiveBookingFor, getBookingInfo, searchBookingAddress } from "../services/bookingService";
-import type { BookingCreateBody, DuelRunBody, GeoPt, RaceFinishBody } from "@t1067/shared";
+import type { BookingCreateBody, GeoPt } from "@t1067/shared";
 import { validateInitData } from "./telegramAuth";
 
 export interface ApiOptions {
@@ -223,7 +218,7 @@ export function createApiServer(opts: ApiOptions = {}) {
     res.json(await openBox(memberId, { premium: req.query.premium === "1" }));
   });
 
-  // ─── games: racing ────────────────────────────────────────────────────────
+  // shared helper: resolve the caller's memberId, 404 if not linked
   const withMember = (
     handler: (memberId: number, req: Request, res: Response) => Promise<unknown>,
   ) => async (req: Request, res: Response) => {
@@ -234,32 +229,6 @@ export function createApiServer(opts: ApiOptions = {}) {
     }
     res.json(await handler(memberId, req, res));
   };
-
-  app.post("/api/race/create", requireUser, rateLimit(20), withMember((id, req) => startRace(id, Math.floor(Number((req.body as { stake?: number })?.stake ?? 0)))));
-  app.post("/api/race/finish", requireUser, withMember((id, req) => finishRace(id, req.body as RaceFinishBody)));
-  app.get("/api/race/board", requireUser, withMember((id, req) => getRaceBoard(id, Math.floor(Number(req.query.stake ?? 0)))));
-
-  // ─── games: duel 1v1 ────────────────────────────────────────────────────────
-  app.get("/api/duel/list", requireUser, withMember((id) => listDuels(id)));
-  app.post("/api/duel/create", requireUser, rateLimit(10), withMember((id, req) => createDuel(id, Math.floor(Number((req.body as { stake?: number })?.stake ?? 0)))));
-  app.post("/api/duel/accept", requireUser, rateLimit(10), withMember((id, req) => acceptDuel(id, String((req.body as { duelId?: string })?.duelId ?? ""))));
-  app.post("/api/duel/run", requireUser, withMember((id, req) => submitDuelRun(id, req.body as DuelRunBody)));
-
-  // ─── games: daily quiz ──────────────────────────────────────────────────────
-  app.get("/api/quiz", requireUser, withMember((id) => getQuiz(id)));
-  app.post("/api/quiz/answer", requireUser, withMember((id, req) => {
-    const b = req.body as { qIdx?: number; answerIdx?: number };
-    return answerQuiz(id, Math.floor(Number(b?.qIdx ?? -1)), Math.floor(Number(b?.answerIdx ?? -1)));
-  }));
-
-  // ─── games: crash (Tezlik) ──────────────────────────────────────────────────
-  app.post("/api/crash/start", requireUser, rateLimit(20), withMember((id, req) => startCrash(id, Math.floor(Number((req.body as { stake?: number })?.stake ?? 0)))));
-  app.post("/api/crash/cashout", requireUser, withMember((id, req) => cashoutCrash(id, String((req.body as { roundId?: string })?.roundId ?? ""))));
-
-  // ─── games: taxi park ───────────────────────────────────────────────────────
-  app.get("/api/park", requireUser, withMember((id) => getPark(id)));
-  app.post("/api/park/buy", requireUser, withMember((id, req) => buyOrUpgradeCar(id, String((req.body as { car?: string })?.car ?? ""))));
-  app.post("/api/park/collect", requireUser, withMember((id) => collectPark(id)));
 
   // ─── Uber-level booking (map + live tracking) ───────────────────────────────
   app.get("/api/booking/info", requireUser, withMember((id) => getBookingInfo(id)));

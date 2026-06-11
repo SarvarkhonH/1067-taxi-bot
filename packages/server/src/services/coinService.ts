@@ -108,6 +108,11 @@ export async function withdraw(memberId: number, amount: number): Promise<Withdr
     kasApplied: false,
   });
   if (!member || member.type !== "client" || !member.phone) return fail("not_client");
+  // RIDE-GATE (load-bearing): real money can only leave an account that has
+  // generated real revenue. Without this, a fresh fake account farms coins
+  // (referral/box/wheel/streak) and cashes out 1:1 — a farm of fakes drains the
+  // whole daily budget. trips is synced from kas1067.
+  if ((member.trips ?? 0) < 1) return fail("no_ride");
   if (amount < WITHDRAW_MIN) return fail("below_min");
   const today = await withdrawnToday(memberId);
   if (today + amount > WITHDRAW_DAILY_CAP) return fail("daily_cap");

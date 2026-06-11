@@ -6,8 +6,6 @@ import { createBot, notifyCashback, notifyNewAchievements, setupBotCommands } fr
 import { refreshLinkedMembers, runSync } from "./sync/sync";
 import { pushBookingUpdates } from "./services/bookingNotifier";
 import { maybeSurpriseDrop, payWeeklyPrizes } from "./services/weeklyService";
-import { refundStaleRaces } from "./services/raceService";
-import { sweepDuels } from "./services/duelService";
 
 // P0.4: orphaned SyncRun stuck in "running" (crash mid-sync) → mark error.
 async function reapStaleSyncs(maxAgeMs: number): Promise<void> {
@@ -100,8 +98,6 @@ async function main(): Promise<void> {
         }
         await payWeeklyPrizes(notifyUser).catch((e) => console.error("[weekly] payout failed:", e));
         await maybeSurpriseDrop(notifyUser).catch((e) => console.error("[surprise] failed:", e));
-        await refundStaleRaces().catch((e) => console.error("[race] refund failed:", e));
-        await sweepDuels(notifyUser).catch((e) => console.error("[duel] sweep failed:", e));
         await reapStaleSyncs(30 * 60_000).catch(() => undefined); // watchdog (>30min)
         if (reconcileTick++ % 12 === 0) {
           // money-integrity sweep ~ every 12 ticks (3h at 15min interval)

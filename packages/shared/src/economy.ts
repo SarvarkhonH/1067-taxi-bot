@@ -47,7 +47,7 @@ export interface WalletResponse {
 
 export interface WithdrawResponse {
   ok: boolean;
-  reason?: "below_min" | "daily_cap" | "insufficient" | "not_client" | "kas_failed";
+  reason?: "below_min" | "daily_cap" | "insufficient" | "not_client" | "kas_failed" | "no_ride";
   amount: number;
   coinsLeft: number;
   kasApplied: boolean;

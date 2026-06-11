@@ -57,7 +57,7 @@ function mainMenu(): Keyboard {
     .row()
     .text("🏆 Reyting")
     .text("🎖 Nishonlar");
-  if (canWebApp) kb.row().webApp("🎮 O'yinlar & Hamyon", env.TELEGRAM_WEBAPP_URL);
+  if (canWebApp) kb.row().webApp("🚀 Ilova — Hamyon & Bonus", env.TELEGRAM_WEBAPP_URL);
   return kb.resized();
 }
 
@@ -88,7 +88,7 @@ function renderCheckIn(r: CheckInResult): string {
 function renderWheel(r: WheelResult): string {
   const pool = `\n\n🎰 JACKPOT hozir: <b>${formatNumber(r.jackpot)} coin</b> — har spin uni oshiradi!`;
   if (r.insufficient) {
-    return `🪙 Qayta aylantirish uchun <b>${formatNumber(r.respinCost)} coin</b> kerak.\n\nVazifalar va o'yinlar bilan coin to'plang! 🎯${pool}`;
+    return `🪙 Qayta aylantirish uchun <b>${formatNumber(r.respinCost)} coin</b> kerak.\n\nVazifalar va safarlar bilan coin to'plang! 🎯${pool}`;
   }
   if (r.alreadySpun) {
     return `🎡 Bugungi BEPUL spin ishlatilgan.\nYutuq: ${r.prize.emoji} <b>${esc(r.prize.label)}</b>\n\n🪙 ${formatNumber(r.respinCost)} coin'ga xohlagancha qayta aylantiring 👇${pool}`;

@@ -42,7 +42,7 @@ async function main(): Promise<void> {
 
   // ── missions ──────────────────────────────────────────────────────────────
   let m = await getMissions(memberA.id);
-  ok(m.daily.length === 5 && m.weekly.length === 3, `missions catalog (5 daily, 3 weekly)`);
+  ok(m.daily.length === 3 && m.weekly.length === 2, `missions catalog (3 daily, 2 weekly)`);
   ok(m.daily.every((x) => x.progress === 0 && !x.claimable), `fresh missions are empty`);
 
   await incrementMission(memberA.id, "daily_checkin");
@@ -64,7 +64,7 @@ async function main(): Promise<void> {
   const locked = await openBox(memberA.id);
   ok(!locked.ok && locked.reason === "locked", `open locked box blocked`);
 
-  for (const code of ["daily_spin", "daily_ride", "daily_race", "daily_quiz"]) await incrementMission(memberA.id, code);
+  for (const code of ["daily_spin", "daily_ride"]) await incrementMission(memberA.id, code);
   box = await getBoxStatus(memberA.id);
   ok(box.eligible && !box.opened, `box unlocks after all ${box.dailiesTotal} dailies`);
 
@@ -144,8 +144,14 @@ async function main(): Promise<void> {
   const wNoPhone = await withdraw(memberA.id, 6000);
   ok(!wNoPhone.ok && wNoPhone.reason === "not_client", `withdraw blocked for phone-less member`);
 
-  // memberC: client with a fake phone — kas write fails → coins refunded
-  const memberC = await prisma.member.create({ data: { type: "client", kasId: `${TAG}-C`, fullName: "Test Withdrawer", phone: "+998000000001" } });
+  // ride-gate: a coin-rich account that has NEVER ridden cannot cash out
+  const memberNoRide = await prisma.member.create({ data: { type: "client", kasId: `${TAG}-NR`, fullName: "Zero Ride", phone: "+998000000009", trips: 0 } });
+  await grantCoins(memberNoRide.id, 8000, "manual", "test seed");
+  const wNoRide = await withdraw(memberNoRide.id, 6000);
+  ok(!wNoRide.ok && wNoRide.reason === "no_ride", `withdraw blocked for zero-ride account (anti-farm gate)`);
+
+  // memberC: client with a fake phone AND real rides — kas write fails → coins refunded
+  const memberC = await prisma.member.create({ data: { type: "client", kasId: `${TAG}-C`, fullName: "Test Withdrawer", phone: "+998000000001", trips: 5 } });
   await grantCoins(memberC.id, 8000, "manual", "test seed");
   const wMin = await withdraw(memberC.id, 1000);
   ok(!wMin.ok && wMin.reason === "below_min", `withdraw below min blocked`);

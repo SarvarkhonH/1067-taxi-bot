@@ -1,8 +1,6 @@
 import { useEffect, useState } from "react";
 import {
   BOX_PREMIUM_COST,
-  CRASH_STAKES,
-  RACE_STAKES,
   WHEEL_PRIZES,
   WHEEL_RESPIN_COST,
   formatNumber,
@@ -12,11 +10,6 @@ import {
 import { api } from "./api";
 import { haptic } from "./telegram";
 import { confetti } from "./util";
-import { RaceGame } from "./race";
-import { CrashGame } from "./crash";
-import { ParkView } from "./park";
-import { DuelView } from "./duel";
-import { QuizView } from "./quiz";
 
 function SpinWheelGame({ me, onReward }: { me: MeResponse; onReward: (msg: string) => void }) {
   const [rotation, setRotation] = useState(0);
@@ -176,107 +169,20 @@ function BoxGame({ onReward }: { onReward: (msg: string) => void }) {
   );
 }
 
-function StakeGame({
-  emoji,
-  name,
-  desc,
-  stakes,
-  accent,
-  onPick,
-}: {
-  emoji: string;
-  name: string;
-  desc: string;
-  stakes: readonly number[];
-  accent: string;
-  onPick: (stake: number) => void;
-}) {
-  return (
-    <section className="glass pad stake-game" style={{ ["--g" as string]: accent }}>
-      <div className="stake-head">
-        <div className="stake-emoji">{emoji}</div>
-        <div>
-          <div className="stake-name">{name}</div>
-          <div className="muted stake-desc">{desc}</div>
-        </div>
-      </div>
-      <div className="stake-chips">
-        {stakes.map((s) => (
-          <button key={s} className="stake-chip" onClick={() => { haptic(); onPick(s); }}>
-            🪙 {formatNumber(s)}
-          </button>
-        ))}
-      </div>
-    </section>
-  );
-}
-
-type Active = { game: "race" | "crash"; stake: number } | { game: "park" | "duel" | "quiz" } | null;
-
-export function ArcadeView({ me, onReward }: { me: MeResponse; onReward: (msg: string) => void }) {
-  const [active, setActive] = useState<Active>(null);
-
-  if (active?.game === "race") return <RaceGame stake={active.stake} onExit={(m) => { if (m) onReward(m); setActive(null); }} />;
-  if (active?.game === "crash") return <CrashGame stake={active.stake} onExit={(m) => { if (m) onReward(m); setActive(null); }} />;
-  if (active?.game === "park" || active?.game === "duel" || active?.game === "quiz")
-    return (
-      <div>
-        <button className="park-back btn-ghost" onClick={() => setActive(null)}>← Orqaga</button>
-        {active.game === "park" && <ParkView onReward={onReward} />}
-        {active.game === "duel" && <DuelView onReward={onReward} />}
-        {active.game === "quiz" && <QuizView onReward={onReward} />}
-      </div>
-    );
-
+/**
+ * Rewards hub (was the arcade): the book-aligned variable-reward layer tied to
+ * rides — daily free spin + mystery box. Arcade games removed; Phase 2 adds the
+ * ride-cashback roll, streak, lucky-day and level here.
+ */
+export function RewardsView({ me, onReward }: { me: MeResponse; onReward: (msg: string) => void }) {
   return (
     <div className="view">
-      <div className="section-title">🎮 Real o'yinlar — coin tiking, yuting</div>
-      <StakeGame
-        emoji="🏎"
-        name="1067 Poyga"
-        desc="Boshqa mijozlar bilan poyga — yutsangiz 2x coin"
-        stakes={RACE_STAKES}
-        accent="#22d3ee"
-        onPick={(stake) => setActive({ game: "race", stake })}
-      />
-      <StakeGame
-        emoji="🎰"
-        name="Tezlik"
-        desc="Koeffitsiyent oshadi — to'xtamasdan oldin yeching"
-        stakes={CRASH_STAKES}
-        accent="#ef4444"
-        onPick={(stake) => setActive({ game: "crash", stake })}
-      />
-      <section className="glass pad park-entry" onClick={() => setActive({ game: "duel" })}>
-        <div className="stake-emoji">⚔️</div>
-        <div className="park-entry-body">
-          <div className="stake-name">Duel 1v1</div>
-          <div className="muted stake-desc">Boshqa mijozga chaqiriq — bir xil trassa, g'olib 2x oladi</div>
-        </div>
-        <div className="park-entry-go">›</div>
-      </section>
-
-      <section className="glass pad park-entry" onClick={() => setActive({ game: "park" })}>
-        <div className="stake-emoji">🏙</div>
-        <div className="park-entry-body">
-          <div className="stake-name">Taksopark</div>
-          <div className="muted stake-desc">Taksilar sotib oling — siz uxlasangiz ham coin ishlaydi</div>
-        </div>
-        <div className="park-entry-go">›</div>
-      </section>
-
-      <section className="glass pad park-entry" onClick={() => setActive({ game: "quiz" })}>
-        <div className="stake-emoji">🧠</div>
-        <div className="park-entry-body">
-          <div className="stake-name">Kunlik viktorina</div>
-          <div className="muted stake-desc">5 savol — har to'g'risi 100, 5/5 = +500 coin</div>
-        </div>
-        <div className="park-entry-go">›</div>
-      </section>
-
-      <div className="section-title">🎁 Bepul o'yinlar</div>
+      <div className="section-title">🎁 Bonuslar</div>
       <SpinWheelGame me={me} onReward={onReward} />
       <BoxGame onReward={onReward} />
+      <div className="muted game-hint" style={{ textAlign: "center", marginTop: 8 }}>
+        Har safar coin va bonus olib keladi 🚕 — ko'proq safar, ko'proq omad!
+      </div>
     </div>
   );
 }

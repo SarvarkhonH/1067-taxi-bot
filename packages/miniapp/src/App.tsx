@@ -4,16 +4,16 @@ import { api, getInitData } from "./api";
 import { haptic, tg } from "./telegram";
 import { LeaderboardView, MissionsView, ReferralView, Spinner } from "./components";
 import { WalletView } from "./wallet";
-import { ArcadeView } from "./arcade";
+import { RewardsView } from "./rewards";
 import { BookingView } from "./booking";
 import { Icon } from "./icons";
 import { useCountUp } from "./util";
 
-type Tab = "home" | "games" | "missions" | "league" | "friends";
+type Tab = "home" | "rewards" | "missions" | "league" | "friends";
 
 const TABS: { id: Tab; icon: string; label: string }[] = [
   { id: "home", icon: "wallet", label: "Hamyon" },
-  { id: "games", icon: "games", label: "O'yin" },
+  { id: "rewards", icon: "games", label: "Bonus" },
   { id: "missions", icon: "missions", label: "Vazifa" },
   { id: "league", icon: "league", label: "Liga" },
   { id: "friends", icon: "friends", label: "Do'st" },
@@ -96,7 +96,7 @@ export function App() {
       <main className="content">
         <div className="page" key={tab}>
           {tab === "home" && <WalletView me={me} onBanner={flash} reload={reload} onBook={() => { haptic(); setBooking(true); }} />}
-          {tab === "games" && <ArcadeView me={me} onReward={flash} />}
+          {tab === "rewards" && <RewardsView me={me} onReward={flash} />}
           {tab === "missions" && <MissionsView onReward={flash} />}
           {tab === "league" && (board ? <LeaderboardView board={board} /> : <Spinner />)}
           {tab === "friends" && <ReferralView />}

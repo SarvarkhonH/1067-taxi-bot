@@ -13,7 +13,6 @@ export const SCORE_VALUES = {
   box: 20,
   ride: 30,
   referral: 50,
-  race: 25,
 } as const;
 
 export type ScoreKind = keyof typeof SCORE_VALUES;

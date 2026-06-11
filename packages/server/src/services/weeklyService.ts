@@ -209,7 +209,7 @@ export async function getJackpot(): Promise<number> {
 }
 
 /** Add to the pool (every spin) and return the new displayed jackpot. Atomic
- *  DB-side add — crash/race/duel all feed this concurrently. */
+ *  DB-side add — concurrent feeders are safe. */
 export async function growJackpot(by: number): Promise<number> {
   const inc = Math.floor(by);
   await prisma.$executeRaw`

@@ -86,6 +86,7 @@ function WithdrawSheet({
           daily_cap: `Bugungi limit tugadi (${formatNumber(wallet.withdrawDailyCap)}/kun)`,
           insufficient: "Coin yetarli emas",
           not_client: "Faqat mijoz hisoblari uchun",
+          no_ride: "So'mga aylantirish uchun avval kamida 1 ta safar qiling 🚕",
           kas_failed: "Tizim xatosi — coin qaytarildi, keyinroq urinib ko'ring",
         };
         setErr(msgs[r.reason ?? ""] ?? "Xatolik yuz berdi");

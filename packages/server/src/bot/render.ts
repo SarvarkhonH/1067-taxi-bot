@@ -26,10 +26,10 @@ export function renderWelcome(name: string): string {
   return (
     `🚕 <b>1067 TAXI</b>\n` +
     `Xush kelibsiz, <b>${esc(name)}</b>! 👋\n\n` +
-    `Har safardan <b>haqiqiy pul cashback</b> oling — o'yinlar bilan ko'paytiring, so'mga yeching.\n\n` +
+    `Bir tugma bilan taxi chaqiring, har safardan <b>haqiqiy pul cashback</b> oling.\n\n` +
     `✨ <b>Sizni nima kutyapti:</b>\n` +
+    `🚕 Taxi chaqirish — bir tugmada\n` +
     `💸 Har safar — cashback (haqiqiy pul)\n` +
-    `🎮 7 o'yin — poyga · crash · duel · viktorina\n` +
     `🎁 Kunlik sovg'alar — streak · g'ildirak · qutilar\n` +
     `🏆 Liga + reyting — sovg'a uchun kurash\n` +
     `👥 Do'st taklif — ikkalangizga coin\n\n` +
@@ -152,10 +152,10 @@ export function renderHelp(): string {
   return (
     `ℹ️ <b>1067 Taxi — yordam</b>\n\n` +
     `🚖 <b>Taxi</b> — «🚀 Ilova»da xaritadan chaqiring, jonli kuzating, bekor qiling.\n` +
-    `💰 <b>Ikki hamyon</b> — 🚕 cashback (safardan) + 🪙 coin (o'yindan). Ilovada bir-biriga o'tkaziladi, so'mga aylantiriladi.\n\n` +
+    `💰 <b>Ikki hamyon</b> — 🚕 cashback (safardan) + 🪙 coin (bonuslardan). Ilovada bir-biriga o'tkaziladi, so'mga aylantiriladi.\n\n` +
     `<b>Coin topish:</b>\n` +
     `• 🔥 Kunlik streak · 🎯 vazifalar · 🎡 g'ildirak · 🎁 quti\n` +
-    `• 🏎 Poyga · 🎰 Tezlik · 🏙 Park · ⚔️ Duel · 🧠 Viktorina\n` +
+    `• 🚕 Har safar — vazifa va liga ochkolari\n` +
     `• 👥 Do'st taklif: ikkalangizga +coin\n\n` +
     `<b>Buyruqlar:</b>\n` +
     `/start · /narx · /daily · /wheel · /missions · /invite · /me · /top\n\n` +
