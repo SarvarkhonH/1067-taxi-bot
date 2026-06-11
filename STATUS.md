@@ -33,8 +33,8 @@
 ### 3. Engagement mexanikalari
 Streak · 🎡 g'ildirak (1 bepul + coin'ga respin) · 🎁 quti (bepul + premium) · 🎯 missiya (5 kunlik/3 haftalik) · 🏆 haftalik liga + **tier** (Bronza→Olmos, promotion/relegation) · 👥 double-referral · 🎰 o'suvchi jackpot · 🎁 surprise drop.
 
-### 4. Real pul tikiladigan 7 o'yin
-🏎 **Poyga** (boshqa mijoz ghost'i bilan, anti-cheat) · ⚔️ **Duel 1v1** (bir xil trassa) · 🎰 **Tezlik/crash** (provably-fair) · 🏙 **Taxi Park** (idle) · 🧠 **Viktorina** · g'ildirak · quti. Hammasi server-authoritative, idempotent, escrow refund.
+### 4. ~~Arcade o'yinlar~~ → SUPER-APP (2026-06-11 pivot)
+Poyga/Tezlik/Duel/Viktorina/Park **OLIB TASHLANDI** (kitob strategiyasiga zid, balanslar saqlanib drain qilindi, drift 0). O'rniga: **1-tap booking** (bot CTA + miniapp hero, `Member`da saqlanadigan manzil xotirasi, `/api/booking/now`) · **Haydovchi bo'limi** (panel + daromad + tip tugmalari safar oxirida) · **P2P o'tkazma** (atomik, 2% burn, 2 tomonlama 30k cap, ring-guard, 48h yosh darvozasi — `testTransfer.ts` 25 tekshiruv) · **🏪 Bozor** (do'konlar coin'ga sotadi, vaucher kod, ABSORB — bizga 0 xarajat; `testMarket.ts` 12 tekshiruv) · **Withdraw ride-gate** (`trips<1` → so'm yechib bo'lmaydi — soxta ferma yopildi). Reja: `SUPERAPP_PLAN.md` + `SUPERAPP_SAFETY.json`.
 
 ### 5. Taxi booking (Uber patterns qo'llangan)
 - Mini App: Leaflet **jonli xarita**, pin tanlash, **fare prognoz** (haversine+tariff), mashina turi, qo'shimchalar (BAGAJ/MOTO), **ETA**, **bekor qilish**, 3s kuzatuv, "📍 Mening joylashuvim" (GPS).
