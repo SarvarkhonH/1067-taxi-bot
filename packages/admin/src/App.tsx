@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type FormEvent } from "react";
 import {
   formatNumber,
   type AdminAuditRow,
@@ -11,7 +11,7 @@ import {
   type AdminMemberRow,
   type AdminStats,
 } from "@t1067/shared";
-import { adminApi } from "./api";
+import { adminApi, clearAdminToken, hasAdminToken, setAdminToken } from "./api";
 
 type Tab = "overview" | "driver" | "client" | "botusers" | "actions" | "integrity" | "audit";
 
@@ -19,16 +19,40 @@ export function App() {
   const [tab, setTab] = useState<Tab>("overview");
   const [health, setHealth] = useState<AdminHealth | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [authed, setAuthed] = useState<boolean>(hasAdminToken);
 
-  // poll health for the always-on status pill
+  // poll health for the always-on status pill (only once we have a credential)
   useEffect(() => {
-    const load = () => adminApi.health().then(setHealth).catch((e) => setError(e instanceof Error ? e.message : String(e)));
+    if (!authed) return;
+    const load = () =>
+      adminApi
+        .health()
+        .then((h) => {
+          setHealth(h);
+          setError(null);
+        })
+        .catch((e) => {
+          const msg = e instanceof Error ? e.message : String(e);
+          setError(msg);
+          if (msg === "forbidden") {
+            // stored credential is wrong/stale → back to the login screen
+            clearAdminToken();
+            setAuthed(false);
+          }
+        });
     load();
     const t = setInterval(load, 30000);
     return () => clearInterval(t);
-  }, []);
+  }, [authed]);
 
-  if (error === "forbidden") return <Denied />;
+  if (!authed) return <LoginScreen onAuthed={() => setAuthed(true)} />;
+
+  function logout() {
+    clearAdminToken();
+    setHealth(null);
+    setError(null);
+    setAuthed(false);
+  }
 
   const TABS: { id: Tab; label: string }[] = [
     { id: "overview", label: "📊 Umumiy" },
@@ -50,7 +74,10 @@ export function App() {
             <div className="bar-sub muted">Boshqaruv markazi v4</div>
           </div>
         </div>
-        <HealthPill h={health} />
+        <div className="bar-right">
+          <HealthPill h={health} />
+          <button className="logout-btn" onClick={logout} title="Chiqish">🚪 Chiqish</button>
+        </div>
       </header>
 
       <div className="seg seg-tabs">
@@ -490,14 +517,62 @@ function Card({ icon, label, value, sub, accent }: { icon: string; label: string
   );
 }
 
-function Denied() {
+function LoginScreen({ onAuthed }: { onAuthed: () => void }) {
+  const [password, setPassword] = useState("");
+  const [show, setShow] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+
+  async function submit(e: FormEvent) {
+    e.preventDefault();
+    const pwd = password.trim();
+    if (!pwd) return;
+    setBusy(true);
+    setErr(null);
+    setAdminToken(pwd);
+    try {
+      await adminApi.health(); // verifies the credential against the backend
+      onAuthed();
+    } catch (e2) {
+      clearAdminToken();
+      const msg = e2 instanceof Error ? e2.message : String(e2);
+      setErr(msg === "forbidden" ? "Noto'g'ri parol. Qayta urinib ko'ring." : "Serverga ulanib bo'lmadi. Internetni tekshiring.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
   return (
-    <div className="screen center">
-      <div>
-        <div style={{ fontSize: 56 }}>⛔</div>
-        <h2>Ruxsat yo'q</h2>
-        <p className="muted">Bu sahifa faqat administratorlar uchun.<br />Telegram id'ingizni <code>ADMIN_TELEGRAM_IDS</code> ga qo'shing.</p>
-      </div>
+    <div className="login-wrap">
+      <form className="login-card" onSubmit={submit}>
+        <div className="login-logo">🚕</div>
+        <h1 className="login-title">1067 TAXI · Command</h1>
+        <p className="login-sub muted">Boshqaruv markaziga kirish</p>
+
+        <label className="login-label">Parol</label>
+        <div className="login-input-row">
+          <input
+            className="login-input"
+            type={show ? "text" : "password"}
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            placeholder="Admin parolingizni kiriting"
+            autoFocus
+            autoComplete="current-password"
+          />
+          <button type="button" className="login-eye" onClick={() => setShow((s) => !s)} tabIndex={-1} title={show ? "Yashirish" : "Ko'rsatish"}>
+            {show ? "🙈" : "👁"}
+          </button>
+        </div>
+
+        {err && <div className="login-err">⛔ {err}</div>}
+
+        <button className="login-btn" type="submit" disabled={busy || !password.trim()}>
+          {busy ? "Tekshirilmoqda…" : "Kirish →"}
+        </button>
+
+        <p className="login-foot muted">Faqat administratorlar uchun · 1067 Taxi</p>
+      </form>
     </div>
   );
 }

@@ -18,16 +18,43 @@ interface TgWindow {
 
 // Prod: absolute Render API base (set at build). Dev: same-origin via Vite proxy.
 const API_BASE = ((import.meta.env.VITE_API_URL as string) || "").replace(/\/$/, "");
-// Desktop dashboard auth: a token in the URL (?key=…) → X-Admin-Token header,
-// persisted to localStorage so a bookmark without the key keeps working.
+const IS_PROD = API_BASE.length > 0; // a real deploy points at the Render backend
+const TOKEN_KEY = "admin_token";
+
+// Desktop dashboard auth: a password/token, sent as the X-Admin-Token header and
+// persisted to localStorage so the user logs in once. A ?key=… URL still works
+// (legacy bookmark) and seeds the same store.
 function adminToken(): string {
   try {
     const fromUrl = new URLSearchParams(location.search).get("key");
-    if (fromUrl) localStorage.setItem("admin_token", fromUrl);
-    return fromUrl || localStorage.getItem("admin_token") || "";
+    if (fromUrl) localStorage.setItem(TOKEN_KEY, fromUrl);
+    return fromUrl || localStorage.getItem(TOKEN_KEY) || "";
   } catch {
     return "";
   }
+}
+
+/** Store the entered password as the admin token (called by the login screen). */
+export function setAdminToken(token: string): void {
+  try {
+    localStorage.setItem(TOKEN_KEY, token.trim());
+  } catch {
+    /* ignore */
+  }
+}
+
+/** Forget the stored credential (logout / wrong password). */
+export function clearAdminToken(): void {
+  try {
+    localStorage.removeItem(TOKEN_KEY);
+  } catch {
+    /* ignore */
+  }
+}
+
+/** True when a credential is already stored — used to skip the login screen. */
+export function hasAdminToken(): boolean {
+  return adminToken().length > 0;
 }
 
 function authHeaders(): Record<string, string> {
@@ -35,6 +62,8 @@ function authHeaders(): Record<string, string> {
   if (token) return { "X-Admin-Token": token };
   const initData = (window as unknown as TgWindow).Telegram?.WebApp?.initData ?? "";
   if (initData) return { "X-Telegram-Init-Data": initData };
+  // Prod has no implicit identity: without a token the request must 403 → login.
+  if (IS_PROD) return {};
   const dbg = (import.meta.env.VITE_DEBUG_TG_ID as string) || "12345";
   return { "X-Debug-Telegram-Id": dbg };
 }
