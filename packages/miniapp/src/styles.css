@@ -138,6 +138,7 @@ body {
 .sheet-sub { font-size: 13px; margin: 0; }
 .sheet-warn { background: rgba(255, 206, 79, 0.08); border: 1px solid rgba(255, 206, 79, 0.3); border-radius: 14px; padding: 14px; font-size: 14px; text-align: center; }
 .sheet-err { color: var(--red); font-size: 13px; font-weight: 700; text-align: center; }
+.sheet-ok { background: rgba(61, 220, 132, 0.08); border: 1px solid rgba(61, 220, 132, 0.3); border-radius: 14px; padding: 10px 14px; font-size: 14px; font-weight: 700; text-align: center; }
 .chip-row { display: flex; gap: 8px; flex-wrap: wrap; }
 .amt-chip {
   flex: 1; min-width: 90px; padding: 13px 8px; border-radius: 13px; font-weight: 800; font-size: 15px;

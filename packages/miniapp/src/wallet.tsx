@@ -1,5 +1,14 @@
-import { useEffect, useState } from "react";
-import { estimateFare, formatNumber, rankMedal, type FareConfigResponse, type MeResponse, type WalletResponse } from "@t1067/shared";
+import { useEffect, useRef, useState } from "react";
+import {
+  TRANSFER_MAX_PER_TX,
+  TRANSFER_MIN,
+  estimateFare,
+  formatNumber,
+  rankMedal,
+  type FareConfigResponse,
+  type MeResponse,
+  type WalletResponse,
+} from "@t1067/shared";
 import { api } from "./api";
 import { haptic } from "./telegram";
 import { confetti, useCountUp } from "./util";
@@ -51,7 +60,108 @@ const KIND_EMOJI: Record<string, string> = {
   premium_box: "💎",
   withdraw: "💸",
   withdraw_refund: "↩️",
+  transfer_in: "📥",
+  transfer_out: "📤",
+  tip_in: "🙏",
+  tip_out: "🙏",
 };
+
+// P2P: send coins to any 1067 member by phone (closed-loop, small burn).
+function TransferSheet({ wallet, onClose, onDone }: { wallet: WalletResponse; onClose: () => void; onDone: (msg: string) => void }) {
+  const [phone, setPhone] = useState("");
+  const [who, setWho] = useState<{ found: boolean; name?: string } | null>(null);
+  const [amount, setAmount] = useState<number | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+  const lookupTimer = useRef<number | null>(null);
+
+  const max = Math.floor(Math.min(wallet.coins, TRANSFER_MAX_PER_TX));
+  const presets = [1000, 5000, 10000].filter((p) => p >= TRANSFER_MIN && p <= max);
+  if (max >= TRANSFER_MIN && !presets.includes(max)) presets.push(max);
+
+  const onPhone = (v: string) => {
+    setPhone(v);
+    setWho(null);
+    if (lookupTimer.current) window.clearTimeout(lookupTimer.current);
+    const digits = v.replace(/\D/g, "");
+    if (digits.length < 9) return;
+    lookupTimer.current = window.setTimeout(() => {
+      api.recipient(v).then(setWho).catch(() => undefined);
+    }, 450);
+  };
+
+  const submit = async () => {
+    if (!amount || busy || !who?.found) return;
+    setBusy(true);
+    setErr(null);
+    try {
+      const r = await api.transfer(phone, amount);
+      if (r.ok) {
+        confetti();
+        onDone(`📤 ${formatNumber(r.amount)} coin ${r.toName ?? "qabul qiluvchi"}ga yuborildi!`);
+        onClose();
+      } else {
+        const msgs: Record<string, string> = {
+          below_min: `Minimal: ${formatNumber(TRANSFER_MIN)} coin`,
+          over_max: `Maksimal: ${formatNumber(TRANSFER_MAX_PER_TX)} coin`,
+          insufficient: "Coin yetarli emas",
+          daily_sent_cap: "Bugungi yuborish limiti tugadi",
+          daily_received_cap: "Qabul qiluvchining bugungi limiti to'ldi",
+          too_many_recipients: "Bugun juda ko'p odamga yubordingiz",
+          account_too_new: "Hisobingiz hali juda yangi (48 soat)",
+          self: "O'zingizga yuborib bo'lmaydi",
+          ring: "Bu o'tkazma hozircha bloklangan",
+          not_found: "Bu raqam 1067da topilmadi",
+        };
+        setErr(msgs[r.reason ?? ""] ?? "Yuborilmadi");
+      }
+    } catch {
+      setErr("Tarmoq xatosi — qayta urinib ko'ring");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="sheet-back" onClick={onClose}>
+      <div className="sheet" onClick={(e) => e.stopPropagation()}>
+        <div className="sheet-grip" />
+        <h3>📤 Coin o'tkazish</h3>
+        <p className="muted sheet-sub">
+          Istalgan 1067 a'zosiga (mijoz yoki haydovchi) coin yuboring. Kichik xizmat haqi 2%.
+        </p>
+        <input
+          className="bk-input"
+          placeholder="📱 Qabul qiluvchi raqami: 90 123 45 67"
+          value={phone}
+          inputMode="tel"
+          onChange={(e) => onPhone(e.target.value)}
+        />
+        {who && (
+          <div className={who.found ? "sheet-ok" : "sheet-warn"}>
+            {who.found ? `→ ${who.name}` : "Bu raqam topilmadi"}
+          </div>
+        )}
+        {who?.found && (
+          <>
+            <div className="chip-row">
+              {presets.map((p) => (
+                <button key={p} className={"amt-chip" + (amount === p ? " active" : "")} onClick={() => { haptic(); setAmount(p); }}>
+                  {p === max && presets.length > 1 ? `MAX ${formatNumber(p)}` : formatNumber(p)}
+                </button>
+              ))}
+            </div>
+            {err && <div className="sheet-err">{err}</div>}
+            <button className="btn-primary" disabled={!amount || busy} onClick={submit}>
+              {busy ? "Yuborilmoqda…" : `📤 ${amount ? formatNumber(amount) : ""} coin yuborish`}
+            </button>
+          </>
+        )}
+        <button className="btn-ghost" onClick={onClose}>Yopish</button>
+      </div>
+    </div>
+  );
+}
 
 function WithdrawSheet({
   wallet,
@@ -199,6 +309,7 @@ export function WalletView({ me, onBanner, reload, onBook }: { me: MeResponse; o
   const [wallet, setWallet] = useState<WalletResponse | null>(null);
   const [sheet, setSheet] = useState(false);
   const [topup, setTopup] = useState(false);
+  const [send, setSend] = useState(false);
   const coins = useCountUp(wallet?.coins ?? me.coins);
   const cashback = useCountUp(wallet?.cashback ?? me.stats.points);
 
@@ -241,6 +352,7 @@ export function WalletView({ me, onBanner, reload, onBook }: { me: MeResponse; o
         </div>
         <div className="wh-actions">
           <button className="btn-primary wh-cta" onClick={() => { haptic(); setSheet(true); }}>💸 So'mga</button>
+          <button className="btn-violet wh-cta" onClick={() => { haptic(); setSend(true); }}>📤 O'tkazish</button>
           {wallet?.canTopup && (
             <button className="btn-violet wh-cta" onClick={() => { haptic(); setTopup(true); }}>🔁 Coinga</button>
           )}
@@ -287,6 +399,7 @@ export function WalletView({ me, onBanner, reload, onBook }: { me: MeResponse; o
 
       {sheet && wallet && <WithdrawSheet wallet={wallet} onClose={() => setSheet(false)} onDone={onDone} />}
       {topup && wallet && <TopupSheet wallet={wallet} onClose={() => setTopup(false)} onDone={onDone} />}
+      {send && wallet && <TransferSheet wallet={wallet} onClose={() => setSend(false)} onDone={onDone} />}
     </div>
   );
 }

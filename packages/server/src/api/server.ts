@@ -18,6 +18,7 @@ import { getBoxStatus, openBox } from "../services/boxService";
 import { getReferralInfo } from "../services/referralService";
 import { getWeeklyBoard } from "../services/weeklyService";
 import { getWallet, topUpFromBonus, withdraw } from "../services/coinService";
+import { findRecipientByPhone, getDriverEarnings, transfer } from "../services/transferService";
 import { getFareConfig } from "../services/clientInfoService";
 import { callOneTapFor, cancelBookingFor, createBookingFor, estimateFare, getActiveBookingFor, getBookingInfo, searchBookingAddress } from "../services/bookingService";
 import type { BookingCreateBody, BookingNowBody, GeoPt } from "@t1067/shared";
@@ -166,6 +167,34 @@ export function createApiServer(opts: ApiOptions = {}) {
       return;
     }
     res.json(await topUpFromBonus(memberId, amount));
+  });
+
+  // ── P2P transfer: closed-loop coin moves (capped, burned, ring-guarded) ─────
+  app.post("/api/wallet/recipient", requireUser, rateLimit(10), async (req, res) => {
+    const r = await findRecipientByPhone(String((req.body as { phone?: string })?.phone ?? ""));
+    res.json(r ? { found: true, name: r.fullName, type: r.type } : { found: false });
+  });
+  app.post("/api/wallet/transfer", requireUser, rateLimit(5), async (req, res) => {
+    const memberId = await getMemberId(res.locals.telegramId as string);
+    if (!memberId) {
+      res.status(404).json({ error: "not linked" });
+      return;
+    }
+    const b = req.body as { phone?: string; amount?: number; note?: string };
+    const amount = Math.floor(Number(b?.amount ?? 0));
+    if (!Number.isFinite(amount) || amount <= 0 || !b?.phone) {
+      res.status(400).json({ error: "phone and amount required" });
+      return;
+    }
+    res.json(await transfer(memberId, String(b.phone), amount, { note: b.note ? String(b.note) : undefined }));
+  });
+  app.get("/api/driver/earnings", requireUser, async (_req, res) => {
+    const memberId = await getMemberId(res.locals.telegramId as string);
+    if (!memberId) {
+      res.status(404).json({ error: "not linked" });
+      return;
+    }
+    res.json(await getDriverEarnings(memberId));
   });
 
   app.get("/api/missions", requireUser, async (_req, res) => {

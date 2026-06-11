@@ -52,3 +52,36 @@ export interface WithdrawResponse {
   coinsLeft: number;
   kasApplied: boolean;
 }
+
+// ── P2P transfer (closed-loop: coins MOVE, never mint) ───────────────────────
+// Anti-funnel walls: two-sided daily caps (received-cap < withdraw-cap so
+// funneling coins into a mule grants ZERO extra cash-out), small burn shrinks
+// supply on every hop, counterparty fan-out capped, fresh accounts locked out.
+export const TRANSFER_MIN = 500;
+export const TRANSFER_MAX_PER_TX = 20000;
+export const TRANSFER_DAILY_SENT = 30000;
+export const TRANSFER_DAILY_RECEIVED = 30000;
+export const TRANSFER_MAX_COUNTERPARTIES = 5; // distinct recipients per day (tips exempt)
+export const TRANSFER_MIN_ACCOUNT_AGE_H = 48; // sender must be linked this long
+export const TRANSFER_BURN_RATE = 0.02; // destroyed on every transfer
+
+export interface TransferResponse {
+  ok: boolean;
+  reason?:
+    | "below_min"
+    | "over_max"
+    | "insufficient"
+    | "daily_sent_cap"
+    | "daily_received_cap"
+    | "too_many_recipients"
+    | "account_too_new"
+    | "self"
+    | "ring"
+    | "not_found"
+    | "failed";
+  amount: number; // debited from sender
+  received: number; // credited to recipient (amount - burn)
+  burn: number;
+  coinsLeft: number; // sender balance after
+  toName?: string;
+}

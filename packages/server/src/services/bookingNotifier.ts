@@ -60,7 +60,10 @@ export async function pushBookingUpdates(bot: Bot): Promise<void> {
           const { alertAdmins } = await import("./economyService");
           await alertAdmins(`🚖 Yangi buyurtma: <b>${m.fullName}</b> → ${b.addressName}${b.carNumber ? ` · ${b.carNumber}` : " · haydovchi qidirilyapti"}`).catch(() => undefined);
         }
-        await prisma.member.update({ where: { id: m.id }, data: { lastBookingId: b.id, lastBookingStatus: b.status } });
+        await prisma.member.update({
+          where: { id: m.id },
+          data: { lastBookingId: b.id, lastBookingStatus: b.status, ...(b.carNumber ? { lastBookingCar: b.carNumber } : {}) },
+        });
       }
     } else if (m.lastBookingId) {
       // ride just finished → credit the ride quests + league score
@@ -69,12 +72,30 @@ export async function pushBookingUpdates(bot: Bot): Promise<void> {
       await import("./weeklyService")
         .then((w) => w.addScore(m.id, "ride"))
         .catch(() => undefined);
+      // tip buttons when we know which driver drove (rider's own coins, closed-loop)
+      let tipKb: { inline_keyboard: { text: string; callback_data: string }[][] } | undefined;
+      if (m.lastBookingCar) {
+        const driver = await prisma.member.findFirst({
+          where: { type: "driver", carNumber: m.lastBookingCar },
+          select: { id: true },
+        });
+        if (driver && driver.id !== m.id) {
+          tipKb = {
+            inline_keyboard: [[1000, 2000, 5000].map((a) => ({ text: `🙏 ${formatNumber(a)} coin`, callback_data: `tip:${driver.id}:${a}` }))],
+          };
+        }
+      }
       await bot.api
-        .sendMessage(chatId, "🏁 Safaringiz yakunlandi! Rahmat 🙌\nCashback tez orada hisobingizda ko'rinadi.\n🎯 Vazifalaringizni tekshiring — mukofot kutyapti!", { parse_mode: "HTML" })
+        .sendMessage(
+          chatId,
+          "🏁 Safaringiz yakunlandi! Rahmat 🙌\nCashback tez orada hisobingizda ko'rinadi.\n🎯 Vazifalaringizni tekshiring — mukofot kutyapti!" +
+            (tipKb ? "\n\n🚗 Haydovchiga coin bilan rahmat aytasizmi?" : ""),
+          { parse_mode: "HTML", ...(tipKb ? { reply_markup: tipKb } : {}) },
+        )
         .catch(() => undefined);
       const { alertAdmins } = await import("./economyService");
       await alertAdmins(`🏁 Safar yakunlandi: <b>${m.fullName}</b>`).catch(() => undefined);
-      await prisma.member.update({ where: { id: m.id }, data: { lastBookingId: null, lastBookingStatus: null } });
+      await prisma.member.update({ where: { id: m.id }, data: { lastBookingId: null, lastBookingStatus: null, lastBookingCar: null } });
     }
   }
 }

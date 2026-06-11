@@ -107,12 +107,14 @@ export async function withdraw(memberId: number, amount: number): Promise<Withdr
     coinsLeft: member?.coins ?? 0,
     kasApplied: false,
   });
-  if (!member || member.type !== "client" || !member.phone) return fail("not_client");
+  if (!member || !member.phone || (member.type !== "client" && member.type !== "driver")) return fail("not_client");
   // RIDE-GATE (load-bearing): real money can only leave an account that has
   // generated real revenue. Without this, a fresh fake account farms coins
   // (referral/box/wheel/streak) and cashes out 1:1 — a farm of fakes drains the
-  // whole daily budget. trips is synced from kas1067.
-  if ((member.trips ?? 0) < 1) return fail("no_ride");
+  // whole daily budget. trips is synced from kas1067. Drivers are exempt: a
+  // driver Member exists only if kas1067 has the driver (vetted identity), and
+  // their kas write below still requires a client record for their phone (A1).
+  if (member.type === "client" && (member.trips ?? 0) < 1) return fail("no_ride");
   if (amount < WITHDRAW_MIN) return fail("below_min");
   const today = await withdrawnToday(memberId);
   if (today + amount > WITHDRAW_DAILY_CAP) return fail("daily_cap");

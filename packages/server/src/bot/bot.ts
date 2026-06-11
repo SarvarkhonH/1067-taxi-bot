@@ -41,7 +41,7 @@ import { getFareConfig } from "../services/clientInfoService";
 
 const canWebApp = env.TELEGRAM_WEBAPP_URL.startsWith("https://");
 
-function mainMenu(): Keyboard {
+function mainMenu(isDriver = false): Keyboard {
   const kb = new Keyboard()
     .text("🚕 Taxi chaqirish")
     .text("📍 Buyurtmam")
@@ -57,6 +57,7 @@ function mainMenu(): Keyboard {
     .row()
     .text("🏆 Reyting")
     .text("🎖 Nishonlar");
+  if (isDriver) kb.row().text("🚗 Haydovchi paneli");
   if (canWebApp) kb.row().webApp("🚀 Ilova — Hamyon & Bonus", env.TELEGRAM_WEBAPP_URL);
   return kb.resized();
 }
@@ -126,7 +127,7 @@ export function createBot(): Bot {
     }
     const me = await getMe(id);
     if (me) {
-      await ctx.reply(renderProfile(me), { parse_mode: "HTML", reply_markup: mainMenu() });
+      await ctx.reply(renderProfile(me), { parse_mode: "HTML", reply_markup: mainMenu(me.type === "driver") });
     } else {
       await ctx.reply(renderWelcome(ctx.from!.first_name ?? "do'st"), { parse_mode: "HTML" });
       await ctx.reply(renderLinkPrompt(), { parse_mode: "HTML", reply_markup: contactKeyboard() });
@@ -155,7 +156,7 @@ export function createBot(): Bot {
           }
         }
       }
-      if (me) await ctx.reply(renderProfile(me), { parse_mode: "HTML", reply_markup: mainMenu() });
+      if (me) await ctx.reply(renderProfile(me), { parse_mode: "HTML", reply_markup: mainMenu(me.type === "driver") });
     } else if (res.status === "taken") {
       await ctx.reply(renderTaken(), { parse_mode: "HTML" });
     } else {
@@ -185,10 +186,40 @@ export function createBot(): Bot {
       await ctx.reply(renderLinkPrompt(), { parse_mode: "HTML", reply_markup: contactKeyboard() });
       return;
     }
-    await ctx.reply(renderProfile(me), { parse_mode: "HTML", reply_markup: mainMenu() });
+    await ctx.reply(renderProfile(me), { parse_mode: "HTML", reply_markup: mainMenu(me.type === "driver") });
   };
   bot.hears("💰 Hisobim", showProfile);
   bot.command("me", showProfile);
+
+  // 🚗 driver panel: earnings (tips + transfers in), recent ledger, cash-out hint
+  const showDriverPanel = async (ctx: Context) => {
+    const me = await getMe(String(ctx.from!.id));
+    if (!me) {
+      await ctx.reply(renderLinkPrompt(), { parse_mode: "HTML", reply_markup: contactKeyboard() });
+      return;
+    }
+    if (me.type !== "driver") {
+      await ctx.reply("Bu bo'lim faqat 1067 haydovchilari uchun 🚗");
+      return;
+    }
+    const { getDriverEarnings } = await import("../services/transferService");
+    const e = await getDriverEarnings(me.member.id);
+    const txnLines = e.txns
+      .slice(0, 6)
+      .map((t) => `  ${t.amount > 0 ? "➕" : "➖"} ${formatNumber(Math.abs(t.amount))} — ${t.reason}`)
+      .join("\n");
+    await ctx.reply(
+      `🚗 <b>Haydovchi paneli</b>\n\n` +
+        `🪙 Coin balans: <b>${formatNumber(me.coins)}</b>\n` +
+        `📈 Bugun tushdi: <b>+${formatNumber(e.todayIn)}</b>\n` +
+        `💼 Jami tushum (tip/o'tkazma): <b>${formatNumber(e.totalIn)}</b>\n` +
+        (txnLines ? `\n📜 Oxirgi amallar:\n${txnLines}\n` : "") +
+        `\n💸 Coinlarni so'mga yechish — «🚀 Ilova» → Hamyon.\n🙏 Mijozlar safardan keyin sizga coin bilan rahmat ayta oladi.`,
+      { parse_mode: "HTML", reply_markup: mainMenu(true) },
+    );
+  };
+  bot.hears("🚗 Haydovchi paneli", showDriverPanel);
+  bot.command("driver", showDriverPanel);
 
   const showLeaderboard = async (ctx: Context) => {
     const id = String(ctx.from!.id);

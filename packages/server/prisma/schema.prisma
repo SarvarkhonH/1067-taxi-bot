@@ -26,6 +26,7 @@ model Member {
   lastSyncAt DateTime?
   lastBookingId     Int?
   lastBookingStatus String?
+  lastBookingCar    String? // car number of the ride in progress → tip target on finish
   // 1-tap booking: persisted pickup memory (in-memory Map died on every deploy)
   defaultPickupId   Int?
   defaultPickupName String?
@@ -94,6 +95,24 @@ model WheelSpin {
   createdAt DateTime @default(now())
 
   @@index([memberId, dayKey])
+}
+
+// P2P coin movement (client<->client, client->driver tip). Coins MOVE, never
+// mint: paired CoinTxn rows (-amount / +net) in one transaction keep the
+// reconciliation invariant per member; the burn shrinks total supply.
+model Transfer {
+  id             Int      @id @default(autoincrement())
+  fromMemberId   Int
+  toMemberId     Int
+  amount         Float // debited from sender
+  burn           Float    @default(0) // destroyed (anti-wash); receiver gets amount-burn
+  note           String?
+  kind           String   @default("transfer") // transfer | tip
+  idempotencyKey String?  @unique
+  createdAt      DateTime @default(now())
+
+  @@index([fromMemberId, createdAt])
+  @@index([toMemberId, createdAt])
 }
 
 // Game-currency ledger. Every coin movement (earn +, spend/withdraw -) is one
