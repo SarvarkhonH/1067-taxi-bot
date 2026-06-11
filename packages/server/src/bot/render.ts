@@ -227,7 +227,7 @@ export function renderReferral(r: ReferralResponse): string {
 export function renderReferralWin(reward: number): string {
   return (
     `🎉 <b>Do'stingiz qo'shildi!</b>\n\n` +
-    `🪙 <b>+${formatNumber(reward)} coin</b> hamyoningizga tushdi.\n\n` +
+    `🪙 U birinchi safarini qilganda sizga <b>+${formatNumber(reward)} coin</b> tushadi.\n\n` +
     `Yana taklif qiling — daromad cheksiz! 👥`
   );
 }

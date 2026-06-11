@@ -17,6 +17,7 @@ import type {
   KasDataSource,
   KasMainReport,
   KasMember,
+  RideHistoryItem,
   SavedAddress,
 } from "./types";
 
@@ -413,6 +414,26 @@ export class KasLiveSource implements KasDataSource {
       addressName: String(b.addressName ?? ""),
       clientBonus: num(b.clientBonus),
     }));
+  }
+
+  /** Ride history (bookingReports — needs the full param set or kas 405s). */
+  async getRideHistory(phone: string, size = 10): Promise<RideHistoryItem[]> {
+    try {
+      const d = await this.getJson(`api/bookingReports?searchText=${encodeURIComponent(phone)}&sort=id&page=0&size=${size}`);
+      const list = (d.bookingReportDtoList as Record<string, unknown>[]) ?? [];
+      return list.map((b) => ({
+        id: Number(b.id ?? 0),
+        addressName: String(b.addressName ?? ""),
+        status: String(b.status ?? ""),
+        carNumber: String(b.carNumber ?? ""),
+        carModel: String(b.carModel ?? ""),
+        payment: num(b.payment),
+        cashback: num(b.clientBonus),
+        at: String(b.date ?? ""),
+      }));
+    } catch {
+      return [];
+    }
   }
 
   // ─── client reference data (cached ~10 min — these change rarely) ─────────────

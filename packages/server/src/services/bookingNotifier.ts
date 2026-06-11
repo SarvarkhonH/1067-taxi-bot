@@ -62,7 +62,14 @@ export async function pushBookingUpdates(bot: Bot): Promise<void> {
         }
         await prisma.member.update({
           where: { id: m.id },
-          data: { lastBookingId: b.id, lastBookingStatus: b.status, ...(b.carNumber ? { lastBookingCar: b.carNumber } : {}) },
+          data: {
+            lastBookingId: b.id,
+            lastBookingStatus: b.status,
+            ...(b.carNumber ? { lastBookingCar: b.carNumber } : {}),
+            // capture the fare-derived cashback NOW — kas drops the booking
+            // from its active list on finish, taking clientBonus with it
+            ...(b.clientBonus ? { lastBookingBonus: b.clientBonus } : {}),
+          },
         });
       }
     } else if (m.lastBookingId) {
@@ -72,30 +79,86 @@ export async function pushBookingUpdates(bot: Bot): Promise<void> {
       await import("./weeklyService")
         .then((w) => w.addScore(m.id, "ride"))
         .catch(() => undefined);
-      // tip buttons when we know which driver drove (rider's own coins, closed-loop)
-      let tipKb: { inline_keyboard: { text: string; callback_data: string }[][] } | undefined;
+
+      // 🎲 variable cashback roll (idempotent per ride; base captured mid-ride)
+      let rollLine = "";
+      try {
+        const { rollRideCashback, renderRideRoll } = await import("./cashbackService");
+        const roll = await rollRideCashback(m.id, m.lastBookingId, m.lastBookingBonus ?? 500);
+        if (roll) rollLine = `\n${renderRideRoll(roll)}`;
+      } catch (e) {
+        console.error("[cashback] roll failed:", e);
+      }
+
+      // 🚗 flat driver thank-you per completed trip (idempotent, daily-capped)
+      let driverId: number | null = null;
       if (m.lastBookingCar) {
         const driver = await prisma.member.findFirst({
           where: { type: "driver", carNumber: m.lastBookingCar },
           select: { id: true },
         });
         if (driver && driver.id !== m.id) {
-          tipKb = {
-            inline_keyboard: [[1000, 2000, 5000].map((a) => ({ text: `🙏 ${formatNumber(a)} coin`, callback_data: `tip:${driver.id}:${a}` }))],
-          };
+          driverId = driver.id;
+          try {
+            const { DRIVER_DAILY_BONUS_CAP, DRIVER_RIDE_BONUS } = await import("@t1067/shared");
+            const since = new Date(Date.now() - 24 * 3600 * 1000);
+            const today = await prisma.coinTxn.aggregate({
+              where: { memberId: driver.id, kind: "driver_bonus", createdAt: { gte: since } },
+              _sum: { amount: true },
+            });
+            if ((today._sum.amount ?? 0) + DRIVER_RIDE_BONUS <= DRIVER_DAILY_BONUS_CAP) {
+              const { grantCoins } = await import("./coinService");
+              await grantCoins(driver.id, DRIVER_RIDE_BONUS, "driver_bonus", "Safar uchun rahmat-bonus", `driver_bonus:${m.id}:${m.lastBookingId}`);
+            }
+          } catch (e) {
+            console.error("[driver_bonus] failed:", e);
+          }
         }
       }
+
+      // 👥 deferred referral payout: the inviter earns only when the invited
+      // friend completes a REAL ride (kills the burner-account referral mint)
+      try {
+        const ref = await prisma.referral.findFirst({
+          where: { refereeMemberId: m.id, referrerPaidAt: null, rewardReferrer: { gt: 0 } },
+        });
+        if (ref) {
+          const refTg = await prisma.telegramUser.findUnique({ where: { id: ref.referrerId } });
+          if (refTg?.memberId) {
+            const { grantCoins } = await import("./coinService");
+            const g = await grantCoins(refTg.memberId, ref.rewardReferrer, "referral", `Do'stingiz birinchi safarini qildi 🚕`, `ref_ride:${ref.id}`);
+            if (g.ok) {
+              await bot.api
+                .sendMessage(refTg.id, `🎉 Taklif qilgan do'stingiz birinchi safarini qildi!\n👥 Sizga <b>+${formatNumber(ref.rewardReferrer)} coin</b> tushdi.`, { parse_mode: "HTML" })
+                .catch(() => undefined);
+            }
+          }
+          await prisma.referral.update({ where: { id: ref.id }, data: { referrerPaidAt: new Date() } });
+        }
+      } catch (e) {
+        console.error("[referral_ride] failed:", e);
+      }
+
+      // tip buttons when we know which driver drove (rider's own coins, closed-loop)
+      const tipKb = driverId
+        ? { inline_keyboard: [[1000, 2000, 5000].map((a) => ({ text: `🙏 ${formatNumber(a)} coin`, callback_data: `tip:${driverId}:${a}` }))] }
+        : undefined;
       await bot.api
         .sendMessage(
           chatId,
-          "🏁 Safaringiz yakunlandi! Rahmat 🙌\nCashback tez orada hisobingizda ko'rinadi.\n🎯 Vazifalaringizni tekshiring — mukofot kutyapti!" +
+          "🏁 Safaringiz yakunlandi! Rahmat 🙌" +
+            rollLine +
+            "\n🎯 Vazifalaringizni tekshiring — mukofot kutyapti!" +
             (tipKb ? "\n\n🚗 Haydovchiga coin bilan rahmat aytasizmi?" : ""),
           { parse_mode: "HTML", ...(tipKb ? { reply_markup: tipKb } : {}) },
         )
         .catch(() => undefined);
       const { alertAdmins } = await import("./economyService");
-      await alertAdmins(`🏁 Safar yakunlandi: <b>${m.fullName}</b>`).catch(() => undefined);
-      await prisma.member.update({ where: { id: m.id }, data: { lastBookingId: null, lastBookingStatus: null, lastBookingCar: null } });
+      await alertAdmins(`🏁 Safar yakunlandi: <b>${m.fullName}</b>${rollLine ? ` ·${rollLine.replace(/<[^>]+>/g, "")}` : ""}`).catch(() => undefined);
+      await prisma.member.update({
+        where: { id: m.id },
+        data: { lastBookingId: null, lastBookingStatus: null, lastBookingCar: null, lastBookingBonus: null },
+      });
     }
   }
 }

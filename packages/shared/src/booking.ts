@@ -77,7 +77,7 @@ export interface BookingNowBody {
 }
 
 export interface BookingNowResponse {
-  state: "dispatched" | "active" | "need_pickup" | "throttled" | "failed" | "test";
+  state: "dispatched" | "active" | "need_pickup" | "throttled" | "failed" | "test" | "confirm_required";
   pickupName?: string; // where we dispatched (state=dispatched/test)
   booking?: ActiveBookingView | null; // state=active
   suggestions?: SavedAddressView[]; // state=need_pickup

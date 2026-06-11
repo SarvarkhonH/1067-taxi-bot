@@ -117,7 +117,7 @@ async function showTracking(ctx: Context): Promise<void> {
   await ctx.reply(renderTracking(b), { parse_mode: "HTML", reply_markup: trackingKb(b) });
 }
 
-async function startBooking(ctx: Context): Promise<void> {
+async function startBooking(ctx: Context, opts: { forceFull?: boolean } = {}): Promise<void> {
   const id = String(ctx.from!.id);
   const me = await getMe(id);
   if (!me?.member.phone) {
@@ -136,7 +136,7 @@ async function startBooking(ctx: Context): Promise<void> {
   sessions.set(id, { awaitingText: false, clientName: info?.clientName ?? me.member.fullName, phone, addresses });
 
   // 1-tap: returning rider gets one big CTA — pickup resolved behind the button
-  const quick = await getQuickPickup(me.member.id).catch(() => null);
+  const quick = opts.forceFull ? null : await getQuickPickup(me.member.id).catch(() => null);
   if (quick) {
     const kb = new InlineKeyboard()
       .text(`🚕 Chaqirish — ${trunc(quick.name, 26)}`, "bk:now")
@@ -182,6 +182,26 @@ export function registerBooking(bot: Bot): void {
   bot.command("status", (ctx) => showTracking(ctx));
   bot.command("qayta", (ctx) => startBooking(ctx)); // returning rider lands on the 1-tap card
 
+  // 📜 ride history (kas bookingReports)
+  bot.command("tarix", async (ctx) => {
+    const me = await getMe(String(ctx.from!.id));
+    if (!me?.member.phone) {
+      await ctx.reply("Avval telefon raqamingizni ulang — /start.");
+      return;
+    }
+    const rides = await getDataSource().getRideHistory(me.member.phone, 8).catch(() => []);
+    if (!rides.length) {
+      await ctx.reply("📜 Safar tarixi topilmadi.");
+      return;
+    }
+    const lines = rides.map((r) => {
+      const d = r.at ? new Date(r.at).toLocaleString("ru-RU", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" }) : "";
+      const done = ["completed", "finished"].includes(r.status) ? "🏁" : "🚖";
+      return `${done} <b>${esc(r.addressName)}</b> · ${d}${r.cashback ? ` · 💰+${formatNumber(r.cashback)}` : ""}`;
+    });
+    await ctx.reply(`📜 <b>Oxirgi safarlaringiz</b>\n\n${lines.join("\n")}`, { parse_mode: "HTML" });
+  });
+
   // the 1-tap dispatch — pickup resolved server-side, real taxi sent
   bot.callbackQuery("bk:now", async (ctx) => {
     const memberId = await getMemberId(String(ctx.from.id));
@@ -208,6 +228,9 @@ export function registerBooking(bot: Bot): void {
     } else if (r.state === "need_pickup") {
       await ctx.editMessageText("📍 Manzil topilmadi — quyidan tanlang:").catch(() => undefined);
       await startBooking(ctx);
+    } else if (r.state === "confirm_required") {
+      await ctx.editMessageText(`⚠️ ${esc(r.message ?? "Manzilni tasdiqlab chaqiring")}`).catch(() => undefined);
+      await startBooking(ctx, { forceFull: true });
     } else {
       await ctx.editMessageText(`⚠️ Yuborilmadi: ${esc(r.message ?? "xatolik")}`, { parse_mode: "HTML" }).catch(() => undefined);
     }

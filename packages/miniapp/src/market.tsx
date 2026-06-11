@@ -94,6 +94,61 @@ function BuySheet({ shop, listing, coins, onClose, onDone }: {
   );
 }
 
+// Shop owner mini-panel: pending vouchers + redeem-by-code.
+function MyShopPanel({ onBanner }: { onBanner: (m: string) => void }) {
+  const [mine, setMine] = useState<Awaited<ReturnType<typeof api.marketMyShop>> | null | undefined>(undefined);
+  const [code, setCode] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  const load = () => api.marketMyShop().then(setMine).catch(() => setMine(null));
+  useEffect(() => {
+    load();
+  }, []);
+
+  if (!mine) return null;
+
+  const redeem = async () => {
+    if (!code.trim() || busy) return;
+    setBusy(true);
+    haptic();
+    try {
+      const r = await api.marketRedeem(code);
+      if (r.ok) {
+        confetti();
+        onBanner(`✅ Vaucher qabul qilindi: ${r.title ?? ""}`);
+        setCode("");
+        load();
+      } else {
+        const msgs: Record<string, string> = { not_found: "Kod topilmadi", already: "Allaqachon ishlatilgan", not_owner: "Bu sizning do'koningiz emas" };
+        onBanner(`⚠️ ${msgs[r.reason ?? ""] ?? "Xatolik"}`);
+      }
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <section className="glass pad">
+      <div className="section-title">{mine.shop.emoji} Mening do'konim — {mine.shop.name}</div>
+      <div className="login-input-row" style={{ gap: 8 }}>
+        <input className="bk-input" placeholder="Mijoz kodi: ABC123" value={code} onChange={(e) => setCode(e.target.value.toUpperCase())} style={{ flex: 1, textTransform: "uppercase" }} />
+        <button className="btn-primary sm" disabled={busy || !code.trim()} onClick={redeem}>{busy ? "…" : "✅"}</button>
+      </div>
+      {mine.pending.length > 0 && (
+        <>
+          <div className="muted mk-sub" style={{ marginTop: 8 }}>Kutilayotgan vaucherlar: {mine.pending.length}</div>
+          {mine.pending.slice(0, 6).map((p) => (
+            <div key={p.id} className="mk-voucher">
+              <span>{p.emoji} {p.title}</span>
+              <span className="muted">🪙 {formatNumber(p.priceCoins)}</span>
+            </div>
+          ))}
+        </>
+      )}
+    </section>
+  );
+}
+
 export function MarketView({ coins, onBanner }: { coins: number; onBanner: (m: string) => void }) {
   const [shops, setShops] = useState<ShopView[] | null>(null);
   const [orders, setOrders] = useState<OrderView[] | null>(null);
@@ -116,6 +171,8 @@ export function MarketView({ coins, onBanner }: { coins: number; onBanner: (m: s
     <div className="view">
       <div className="section-title">🏪 Bozor — coin bilan to'lang</div>
       <p className="muted mk-sub">Coinlaringiz Koson do'konlarida pul: tanlang, kod oling, do'konda ko'rsating.</p>
+
+      <MyShopPanel onBanner={onBanner} />
 
       {activeVouchers.length > 0 && (
         <section className="glass pad">

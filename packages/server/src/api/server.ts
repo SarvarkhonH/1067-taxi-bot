@@ -19,7 +19,7 @@ import { getReferralInfo } from "../services/referralService";
 import { getWeeklyBoard } from "../services/weeklyService";
 import { getWallet, topUpFromBonus, withdraw } from "../services/coinService";
 import { findRecipientByPhone, getDriverEarnings, transfer } from "../services/transferService";
-import { buyListing, listShops, myOrders, redeemVoucher } from "../services/marketService";
+import { buyListing, listShops, myOrders, myShop, redeemVoucher } from "../services/marketService";
 import { prisma } from "../db";
 import { getFareConfig } from "../services/clientInfoService";
 import { callOneTapFor, cancelBookingFor, createBookingFor, estimateFare, getActiveBookingFor, getBookingInfo, searchBookingAddress } from "../services/bookingService";
@@ -235,6 +235,16 @@ export function createApiServer(opts: ApiOptions = {}) {
     const code = String((req.body as { code?: string })?.code ?? "");
     res.json(await redeemVoucher(code, member?.phone ?? "none"));
   });
+  // shop owner panel: pending vouchers for the shop matching my phone
+  app.get("/api/market/myshop", requireUser, async (_req, res) => {
+    const memberId = await getMemberId(res.locals.telegramId as string);
+    if (!memberId) {
+      res.status(404).json({ error: "not linked" });
+      return;
+    }
+    const member = await prisma.member.findUnique({ where: { id: memberId }, select: { phone: true } });
+    res.json(member?.phone ? await myShop(member.phone) : null);
+  });
   // admin: manage shops/listings (manual KYC — owner knows Koson businesses)
   app.post("/api/admin/market/shop", requireAdmin, async (req, res) => {
     const b = req.body as { name?: string; emoji?: string; category?: string; ownerPhone?: string };
@@ -243,6 +253,21 @@ export function createApiServer(opts: ApiOptions = {}) {
       return;
     }
     res.json(await prisma.shop.create({ data: { name: b.name, emoji: b.emoji ?? "🏪", category: b.category ?? "boshqa", ownerPhone: b.ownerPhone ?? null } }));
+  });
+  // admin: flip a shop's settlement mode (trust ladder: absorb → redeem)
+  app.post("/api/admin/market/shopmode", requireAdmin, async (req, res) => {
+    const b = req.body as { shopId?: number; settlementMode?: string; spread?: number; dailyCapCoins?: number };
+    if (!b?.shopId || !["absorb", "redeem"].includes(String(b.settlementMode))) {
+      res.status(400).json({ error: "shopId and settlementMode (absorb|redeem) required" });
+      return;
+    }
+    const spread = Math.min(0.3, Math.max(0.05, Number(b.spread ?? 0.12)));
+    res.json(
+      await prisma.shop.update({
+        where: { id: b.shopId },
+        data: { settlementMode: String(b.settlementMode), spread, ...(b.dailyCapCoins ? { dailyCapCoins: Math.floor(Number(b.dailyCapCoins)) } : {}) },
+      }),
+    );
   });
   app.post("/api/admin/market/listing", requireAdmin, async (req, res) => {
     const b = req.body as { shopId?: number; title?: string; emoji?: string; priceCoins?: number; perUserLimit?: number };
@@ -327,6 +352,13 @@ export function createApiServer(opts: ApiOptions = {}) {
   app.post("/api/booking/create", requireUser, withMember((id, req) => createBookingFor(id, req.body as BookingCreateBody)));
   // 1-tap "1067 Now": server resolves the pickup behind the button (rate-limited — real taxis dispatch here)
   app.post("/api/booking/now", requireUser, rateLimit(3), withMember((id, req) => callOneTapFor(id, (req.body ?? {}) as BookingNowBody)));
+  // ride history (kas bookingReports, newest first)
+  app.get("/api/booking/history", requireUser, withMember(async (id) => {
+    const m = await prisma.member.findUnique({ where: { id }, select: { phone: true } });
+    if (!m?.phone) return [];
+    const { getDataSource } = await import("../kas");
+    return getDataSource().getRideHistory(m.phone, 10);
+  }));
   app.post("/api/booking/cancel", requireUser, withMember((id) => cancelBookingFor(id)));
   app.post("/api/booking/estimate", requireUser, async (req, res) => {
     const b = req.body as { pickup?: GeoPt; dest?: GeoPt; surcharge?: number };
@@ -410,6 +442,15 @@ export function createApiServer(opts: ApiOptions = {}) {
       return;
     }
     res.json(await healMember(id));
+  });
+  app.post("/api/admin/unflag", requireAdmin, async (req, res) => {
+    const { unflagMember } = await import("../services/reconciliation");
+    const id = Math.floor(Number((req.body as { memberId?: number })?.memberId ?? 0));
+    if (!id) {
+      res.status(400).json({ ok: false, message: "memberId required" });
+      return;
+    }
+    res.json(await unflagMember(id));
   });
   app.post("/api/admin/grant", requireAdmin, rateLimit(10), async (req, res) => {
     const { adminGrant } = await import("../services/adminOps");

@@ -68,6 +68,14 @@ export async function healMember(memberId: number): Promise<AdminActionResult> {
   return { ok: true, message: `✅ Balans tuzatildi: ${before} → ${ledger} (ledger)` };
 }
 
+/** Flag a member: freezes ONLY the withdraw door (coins stay spendable). */
+async function flagMember(memberId: number, note: string): Promise<void> {
+  const m = await prisma.member.findUnique({ where: { id: memberId }, select: { riskFlag: true, fullName: true } });
+  if (!m || m.riskFlag) return; // alert once
+  await prisma.member.update({ where: { id: memberId }, data: { riskFlag: true, riskNote: note } });
+  await alertAdmins(`🚩 <b>riskFlag</b>: ${m.fullName} (id ${memberId}) — ${note}. Withdraw muzlatildi; yechish: Integrity → unflag.`).catch(() => undefined);
+}
+
 /** Periodic: alert admins if any drift or anomaly appears (called from the loop). */
 export async function reconciliationWatch(): Promise<void> {
   const r = await getIntegrity();
@@ -77,4 +85,47 @@ export async function reconciliationWatch(): Promise<void> {
   for (const a of r.anomalies) {
     await alertAdmins(`🚨 Anomaliya: <b>${a.member}</b> 24s ichida +${a.gain24h.toLocaleString("ru-RU")} coin yutdi (chegara ${r.anomalyThreshold.toLocaleString("ru-RU")}).`);
   }
+
+  const since = new Date(Date.now() - 24 * 3600 * 1000);
+
+  // earn-with-no-rides: a big balance on an account that never paid us
+  const rich = await prisma.member.findMany({
+    where: { type: "client", trips: 0, coins: { gte: 50_000 }, riskFlag: false },
+    select: { id: true, coins: true },
+  });
+  for (const m of rich) await flagMember(m.id, `safarısız ${Math.floor(m.coins)} coin`);
+
+  // transfer fan-in: ≥5 distinct senders → one recipient in 24h (mule funnel)
+  const inflows = await prisma.transfer.groupBy({
+    by: ["toMemberId", "fromMemberId"],
+    where: { createdAt: { gte: since } },
+  });
+  const fanIn = new Map<number, number>();
+  for (const t of inflows) fanIn.set(t.toMemberId, (fanIn.get(t.toMemberId) ?? 0) + 1);
+  for (const [memberId, senders] of fanIn) {
+    if (senders >= 5) await flagMember(memberId, `fan-in: ${senders} jo'natuvchi/24s`);
+  }
+
+  // referral fan-in: ≥5 fresh referees → one referrer in 7 days (sybil ring)
+  const weekAgo = new Date(Date.now() - 7 * 24 * 3600 * 1000);
+  const refs = await prisma.referral.groupBy({
+    by: ["referrerId"],
+    where: { createdAt: { gte: weekAgo } },
+    _count: { id: true },
+  });
+  for (const g of refs) {
+    if (g._count.id >= 5) {
+      const tu = await prisma.telegramUser.findUnique({ where: { id: g.referrerId }, select: { memberId: true } });
+      if (tu?.memberId) await flagMember(tu.memberId, `referral fan-in: ${g._count.id} taklif/hafta`);
+    }
+  }
+}
+
+/** Admin: lift a risk hold after review. */
+export async function unflagMember(memberId: number): Promise<AdminActionResult> {
+  const m = await prisma.member.findUnique({ where: { id: memberId }, select: { riskFlag: true, fullName: true } });
+  if (!m) return { ok: false, message: "Member topilmadi" };
+  if (!m.riskFlag) return { ok: true, message: "Bayroq yo'q edi" };
+  await prisma.member.update({ where: { id: memberId }, data: { riskFlag: false, riskNote: null } });
+  return { ok: true, message: `✅ ${m.fullName} — withdraw ochildi` };
 }

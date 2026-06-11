@@ -13,6 +13,7 @@ import type {
   KasDataSource,
   KasMainReport,
   KasMember,
+  RideHistoryItem,
   SavedAddress,
 } from "./types";
 
@@ -121,6 +122,13 @@ export class KasMockSource implements KasDataSource {
 
   async listActiveBookings(): Promise<ActiveBookingLite[]> {
     return [];
+  }
+
+  async getRideHistory(_phone: string, size = 10): Promise<RideHistoryItem[]> {
+    return [
+      { id: 9001, addressName: "Koson bozori", status: "completed", carNumber: "70A111AA", carModel: "Cobalt", payment: 12000, cashback: 500, at: "2026-06-10T09:30:00.000+0000" },
+      { id: 9000, addressName: "Bunyodkor 12", status: "completed", carNumber: "70B222BB", carModel: "Nexia", payment: 8000, cashback: 500, at: "2026-06-09T18:05:00.000+0000" },
+    ].slice(0, size);
   }
 
   async getActiveBooking(_phone: string): Promise<ActiveBooking | null> {

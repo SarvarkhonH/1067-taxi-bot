@@ -98,6 +98,12 @@ async function main(): Promise<void> {
         }
         await payWeeklyPrizes(notifyUser).catch((e) => console.error("[weekly] payout failed:", e));
         await maybeSurpriseDrop(notifyUser).catch((e) => console.error("[surprise] failed:", e));
+        if (bot) {
+          const { maybeDailyBackup } = await import("./services/backupService");
+          await maybeDailyBackup(bot).catch((e) => console.error("[backup] failed:", e));
+          const { settleShopsWeekly } = await import("./services/marketService");
+          await settleShopsWeekly().catch((e) => console.error("[bozor settle] failed:", e));
+        }
         await reapStaleSyncs(30 * 60_000).catch(() => undefined); // watchdog (>30min)
         if (reconcileTick++ % 12 === 0) {
           // money-integrity sweep ~ every 12 ticks (3h at 15min interval)

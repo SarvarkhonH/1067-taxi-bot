@@ -115,6 +115,9 @@ export async function withdraw(memberId: number, amount: number): Promise<Withdr
   // driver Member exists only if kas1067 has the driver (vetted identity), and
   // their kas write below still requires a client record for their phone (A1).
   if (member.type === "client" && (member.trips ?? 0) < 1) return fail("no_ride");
+  // anomaly hold: freezes ONLY the cash door — coins stay spendable in-app,
+  // so a falsely-flagged real user loses nothing while an admin reviews
+  if (member.riskFlag) return fail("risk_hold");
   if (amount < WITHDRAW_MIN) return fail("below_min");
   const today = await withdrawnToday(memberId);
   if (today + amount > WITHDRAW_DAILY_CAP) return fail("daily_cap");

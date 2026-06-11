@@ -98,10 +98,27 @@ export async function completeReferral(
 
   await grantCoins(refereeMemberId, REFEREE_REWARD, "referral", "Do'st taklifi (xush kelibsiz)", `ref_referee:${refereeTelegramId}`);
 
+  // ANTI-SYBIL: the inviter's reward is DEFERRED until the invited friend
+  // completes a real ride (paid by the booking sweep, marked referrerPaidAt).
+  // Phone de-dup: the same phone can't earn the same referrer twice across
+  // burner Telegram accounts.
   let referrerReward = 0;
   if (referrer.memberId) {
-    const g = await grantCoins(referrer.memberId, REFERRER_REWARD, "referral", "Do'st taklif qildingiz", `ref_referrer:${refereeTelegramId}`);
-    if (g.ok) referrerReward = REFERRER_REWARD;
+    const norm9 = (p: string) => p.replace(/\D/g, "").slice(-9);
+    const refereeMember = await prisma.member.findUnique({ where: { id: refereeMemberId }, select: { phone: true } });
+    let dup = false;
+    if (refereeMember?.phone) {
+      const prior = await prisma.referral.findMany({
+        where: { referrerId: referrer.id, refereeMemberId: { not: null } },
+        select: { refereeMemberId: true },
+      });
+      const priorMembers = await prisma.member.findMany({
+        where: { id: { in: prior.map((p) => p.refereeMemberId!) } },
+        select: { phone: true },
+      });
+      dup = priorMembers.some((p) => p.phone && norm9(p.phone) === norm9(refereeMember.phone!));
+    }
+    if (!dup) referrerReward = REFERRER_REWARD;
     await incrementMission(referrer.memberId, "weekly_invite");
     await import("./weeklyService")
       .then((w) => w.addScore(referrer.memberId!, "referral"))
@@ -113,7 +130,7 @@ export async function completeReferral(
       referrerId: referrer.id,
       refereeId: refereeTelegramId,
       refereeMemberId,
-      rewardReferrer: referrerReward,
+      rewardReferrer: referrerReward, // promised; granted on the referee's first ride
       rewardReferee: REFEREE_REWARD,
     },
   });

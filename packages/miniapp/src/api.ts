@@ -108,6 +108,15 @@ export const api = {
     get<{ id: number; shopName: string; title: string; emoji: string; priceCoins: number; voucherCode: string; status: string; at: string }[]>(
       "/api/market/orders",
     ),
+  marketMyShop: () =>
+    get<{
+      shop: { id: number; name: string; emoji: string };
+      pending: { id: number; title: string; emoji: string; priceCoins: number; voucherCode: string; at: string }[];
+    } | null>("/api/market/myshop"),
+  marketRedeem: (code: string) =>
+    request<{ ok: boolean; reason?: string; title?: string; shopName?: string }>("POST", "/api/market/redeem", { code }, 1),
+  driverEarnings: () =>
+    get<{ todayIn: number; totalIn: number; txns: { amount: number; kind: string; reason: string; at: string }[] }>("/api/driver/earnings"),
   fareConfig: () => get<FareConfigResponse>("/api/fare/config"),
   bookingInfo: () => get<BookingInfoResponse | { error: string }>("/api/booking/info"),
   bookingActive: () => get<ActiveBookingView | null>("/api/booking/active"),
@@ -116,6 +125,8 @@ export const api = {
   bookingNow: (body: { lat?: number; lng?: number; addressId?: number } = {}) => request<BookingNowResponse>("POST", "/api/booking/now", body, 1),
   bookingCancel: () => request<BookingCancelResponse>("POST", "/api/booking/cancel", undefined, 1),
   bookingEstimate: (pickup: GeoPt, dest: GeoPt, surcharge: number) => request<FareQuote>("POST", "/api/booking/estimate", { pickup, dest, surcharge }),
+  bookingHistory: () =>
+    get<{ id: number; addressName: string; status: string; carModel: string; payment: number; cashback: number; at: string }[]>("/api/booking/history"),
 };
 
 interface SavedAddr {

@@ -47,11 +47,24 @@ export interface WalletResponse {
 
 export interface WithdrawResponse {
   ok: boolean;
-  reason?: "below_min" | "daily_cap" | "insufficient" | "not_client" | "kas_failed" | "no_ride";
+  reason?: "below_min" | "daily_cap" | "insufficient" | "not_client" | "kas_failed" | "no_ride" | "risk_hold";
   amount: number;
   coinsLeft: number;
   kasApplied: boolean;
 }
+
+// ── 🎲 variable ride-cashback (the book's 80/15/4/1 — Hooked variable reward) ─
+// Multiplier is applied to the ride's fare-derived base bonus and granted as
+// COINS (never direct kas money). Jackpot pays the whole shared pool.
+export const RIDE_REWARD_TIERS: { tier: "standard" | "double" | "triple" | "jackpot"; mult: number; weight: number; label: string }[] = [
+  { tier: "standard", mult: 1, weight: 80, label: "Cashback" },
+  { tier: "double", mult: 2, weight: 15, label: "2x DOUBLE" },
+  { tier: "triple", mult: 3, weight: 4, label: "3x TRIPLE" },
+  { tier: "jackpot", mult: 0, weight: 1, label: "JACKPOT" }, // pays the pool instead
+];
+export const RIDE_JACKPOT_FEED = 50; // every completed ride grows the pool
+export const DRIVER_RIDE_BONUS = 250; // flat per-trip driver thank-you (≤ ~2000 net profit/order)
+export const DRIVER_DAILY_BONUS_CAP = 20000;
 
 // ── P2P transfer (closed-loop: coins MOVE, never mint) ───────────────────────
 // Anti-funnel walls: two-sided daily caps (received-cap < withdraw-cap so

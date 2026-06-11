@@ -58,6 +58,33 @@ function TrackingCard({ active, onCancel, busy }: { active: ActiveBookingView; o
   );
 }
 
+// 📜 collapsed ride history under the address picker
+function RideHistory() {
+  const [rides, setRides] = useState<{ id: number; addressName: string; status: string; cashback: number; at: string }[] | null>(null);
+  const [open, setOpen] = useState(false);
+  useEffect(() => {
+    api.bookingHistory().then(setRides).catch(() => setRides([]));
+  }, []);
+  if (!rides?.length) return null;
+  return (
+    <div style={{ marginTop: 6 }}>
+      <button className="btn-ghost" onClick={() => setOpen((v) => !v)}>
+        {open ? "Yopish" : `📜 Oxirgi safarlar (${rides.length})`}
+      </button>
+      {open &&
+        rides.map((r) => (
+          <div key={r.id} className="mk-voucher">
+            <span>{["completed", "finished"].includes(r.status) ? "🏁" : "🚖"} {r.addressName}</span>
+            <span className="muted">
+              {r.at ? new Date(r.at).toLocaleDateString("ru-RU", { day: "2-digit", month: "2-digit" }) : ""}
+              {r.cashback ? ` · +${formatNumber(r.cashback)}` : ""}
+            </span>
+          </div>
+        ))}
+    </div>
+  );
+}
+
 export function BookingView({ onClose }: { onClose: () => void }) {
   const [info, setInfo] = useState<BookingInfoResponse | null>(null);
   const [active, setActive] = useState<ActiveBookingView | null>(null);
@@ -212,6 +239,8 @@ export function BookingView({ onClose }: { onClose: () => void }) {
       } else if (r.state === "need_pickup") {
         setMsg("📍 Manzilni tanlang");
         if (r.suggestions?.length) setResults(r.suggestions);
+      } else if (r.state === "confirm_required") {
+        setMsg(`⚠️ ${r.message ?? "Manzilni tanlab tasdiqlang"}`);
       } else {
         setMsg(`⚠️ ${r.message ?? "Yuborilmadi"}`);
       }
@@ -320,6 +349,7 @@ export function BookingView({ onClose }: { onClose: () => void }) {
               </button>
             ))}
             {!list.length && <div className="muted bk-loading">Manzilni yozib qidiring</div>}
+            <RideHistory />
           </>
         )}
       </div>

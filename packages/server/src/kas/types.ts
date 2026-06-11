@@ -78,6 +78,18 @@ export interface ActiveBookingLite {
   clientBonus: number;
 }
 
+// One row of a client's ride history (kas bookingReports).
+export interface RideHistoryItem {
+  id: number;
+  addressName: string;
+  status: string;
+  carNumber: string;
+  carModel: string;
+  payment: number;
+  cashback: number;
+  at: string; // ISO date
+}
+
 // ─── client-facing reference data (read-only, cached) ──────────────────────────
 export interface ClientTariff {
   minimalDistance: number; // metres included in the minimal payment
@@ -148,6 +160,8 @@ export interface KasDataSource {
   getActiveBooking(phone: string): Promise<ActiveBooking | null>;
   /** All active bookings (one call) — for the status-push notifier. */
   listActiveBookings(): Promise<ActiveBookingLite[]>;
+  /** Ride history for a phone (bookingReports, newest first). */
+  getRideHistory(phone: string, size?: number): Promise<RideHistoryItem[]>;
 
   /** Reward: set a client's cashback bonus (writes real money via kas1067, code 1303). */
   setClientBonus(phone: string, newBonus: number): Promise<{ ok: boolean; oldBonus: number; name?: string; status?: number }>;

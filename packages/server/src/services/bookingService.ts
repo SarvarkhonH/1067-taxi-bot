@@ -129,8 +129,12 @@ export async function cancelBookingFor(memberId: number): Promise<BookingCancelR
   const active = await getDataSource().getActiveBooking(who.phone).catch(() => null);
   if (!active) return { ok: false, reason: "no_booking", live: false };
   if (!bookingCancellable(active.status)) return { ok: false, reason: "too_late", live: env.bookingLive };
-  if (!env.bookingLive) return { ok: true, live: false };
+  if (!env.bookingLive) {
+    await bumpCancelCount(memberId).catch(() => undefined);
+    return { ok: true, live: false };
+  }
   const res = await getDataSource().cancelBooking(active.id).catch(() => ({ ok: false }));
+  if (res.ok) await bumpCancelCount(memberId).catch(() => undefined);
   return { ok: res.ok, reason: res.ok ? undefined : "failed", live: true };
 }
 
@@ -145,6 +149,25 @@ export async function getActiveBookingFor(memberId: number): Promise<ActiveBooki
 const ONE_TAP_GPS_LAST_KM = 0.12; // GPS within 120m of last pickup → same spot
 const ONE_TAP_GPS_SAVED_KM = 0.25; // GPS within 250m of a saved address → snap
 const ONE_TAP_THROTTLE_MS = 60_000; // min gap between dispatches (double-tap guard)
+const CANCEL_FARM_LIMIT = 4; // self-cancels per day before 1-tap demands the full confirm flow
+
+function tashkentDay(d = new Date()): string {
+  return new Date(d.getTime() + 5 * 3600 * 1000).toISOString().slice(0, 10);
+}
+
+/** Count a self-cancel (phantom dispatches waste real drivers — our moat). */
+async function bumpCancelCount(memberId: number): Promise<void> {
+  const key = `cancels:${memberId}:${tashkentDay()}`;
+  await prisma.$executeRaw`
+    INSERT INTO "AppState" ("key","value","updatedAt") VALUES (${key}, '1', NOW())
+    ON CONFLICT ("key") DO UPDATE
+      SET "value" = CAST((CAST("AppState"."value" AS INTEGER) + 1) AS TEXT), "updatedAt" = NOW()`;
+}
+
+async function cancelsToday(memberId: number): Promise<number> {
+  const row = await prisma.appState.findUnique({ where: { key: `cancels:${memberId}:${tashkentDay()}` } });
+  return row ? Number(row.value) || 0 : 0;
+}
 
 /** Remember where this member booked from — the 1-tap memory (survives deploys). */
 export async function rememberPickup(memberId: number, a: { id: number; name: string; lat?: number | null; lng?: number | null }): Promise<void> {
@@ -209,6 +232,12 @@ export async function callOneTapFor(memberId: number, body: BookingNowBody): Pro
   // double-tap / accidental-repeat guard (real taxis get dispatched here)
   if (member.lastBookingAt && Date.now() - member.lastBookingAt.getTime() < ONE_TAP_THROTTLE_MS) {
     return { state: "throttled", message: "Hozirgina buyurtma yuborilgan — bir daqiqa kuting" };
+  }
+
+  // cancel-farm: too many self-cancels today → no more instant dispatch,
+  // the full confirm flow protects driver liquidity from phantom orders
+  if ((await cancelsToday(memberId).catch(() => 0)) >= CANCEL_FARM_LIMIT) {
+    return { state: "confirm_required", message: "Bugun ko'p bekor qilindi — manzilni tasdiqlab chaqiring" };
   }
 
   const ds = getDataSource();

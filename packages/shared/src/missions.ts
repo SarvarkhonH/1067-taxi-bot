@@ -22,6 +22,7 @@ export const MISSIONS: MissionDef[] = [
   { code: "daily_ride", title: "1 ta safar qiling", emoji: "🚕", period: "daily", target: 1, reward: 500 },
   { code: "weekly_rides", title: "Haftada 5 ta safar", emoji: "🏁", period: "weekly", target: 5, reward: 3000 },
   { code: "weekly_invite", title: "Do'st taklif qiling", emoji: "👥", period: "weekly", target: 1, reward: 3000 },
+  { code: "weekly_market", title: "Bozordan xarid qiling", emoji: "🏪", period: "weekly", target: 1, reward: 1000 },
 ];
 
 export function missionByCode(code: string): MissionDef | undefined {

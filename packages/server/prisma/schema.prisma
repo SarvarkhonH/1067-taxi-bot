@@ -27,6 +27,9 @@ model Member {
   lastBookingId     Int?
   lastBookingStatus String?
   lastBookingCar    String? // car number of the ride in progress → tip target on finish
+  lastBookingBonus  Float? // fare-derived cashback captured DURING the ride (kas drops it on finish)
+  riskFlag          Boolean @default(false) // freezes the withdraw door only; coins stay spendable
+  riskNote          String?
   // 1-tap booking: persisted pickup memory (in-memory Map died on every deploy)
   defaultPickupId   Int?
   defaultPickupName String?
@@ -72,6 +75,8 @@ model MissionProgress {
 
 // Completed referrals (one credited row per invitee). Telegram-id based so it
 // works before the inviter/invitee are even linked to a kas member.
+// Anti-sybil: the referee gift pays on link; the REFERRER reward is deferred
+// until the referee completes a real paid ride (referrerPaidAt marks it).
 model Referral {
   id              Int      @id @default(autoincrement())
   referrerId      String // telegram id of the inviter
@@ -79,9 +84,25 @@ model Referral {
   refereeMemberId Int?
   rewardReferrer  Float    @default(0)
   rewardReferee   Float    @default(0)
+  referrerPaidAt  DateTime? // set when the referrer reward is actually granted (first referee ride)
   createdAt       DateTime @default(now())
 
   @@index([referrerId])
+}
+
+// 🎲 Variable ride-cashback roll (the book's 80/15/4/1) — one idempotent row
+// per real completed ride; grants COINS (never direct kas money).
+model RideReward {
+  id        Int      @id @default(autoincrement())
+  memberId  Int
+  bookingId Int
+  tier      String // standard | double | triple | jackpot
+  amount    Float
+  lucky     Boolean  @default(false) // lucky-day doubling applied
+  createdAt DateTime @default(now())
+
+  @@unique([memberId, bookingId])
+  @@index([memberId, createdAt])
 }
 
 model WheelSpin {
@@ -109,6 +130,11 @@ model Shop {
   category  String    @default("boshqa") // oziq-ovqat | xizmat | do'kon | boshqa
   ownerPhone String? // verified owner phone (redeems vouchers)
   status    String    @default("active") // active | paused
+  // settlement trust ladder: every shop starts ABSORB (0 cash risk); admin may
+  // promote to REDEEM (weekly cash settle at spread, bozor-budget gated)
+  settlementMode String  @default("absorb") // absorb | redeem
+  spread         Float   @default(0.12) // our take on REDEEM settlements
+  dailyCapCoins  Float   @default(100000) // max coin volume the shop can take per day
   createdAt DateTime  @default(now())
   listings  Listing[]
 }
@@ -138,6 +164,7 @@ model ShopOrder {
   status       String    @default("issued") // issued | redeemed | expired
   createdAt    DateTime  @default(now())
   redeemedAt   DateTime?
+  settledAt    DateTime? // REDEEM-mode: when the weekly cash settle covered this order
 
   @@index([buyerMemberId, createdAt])
   @@index([shopId, status])

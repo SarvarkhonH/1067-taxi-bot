@@ -42,7 +42,7 @@ async function main(): Promise<void> {
 
   // ── missions ──────────────────────────────────────────────────────────────
   let m = await getMissions(memberA.id);
-  ok(m.daily.length === 3 && m.weekly.length === 2, `missions catalog (3 daily, 2 weekly)`);
+  ok(m.daily.length === 3 && m.weekly.length === 3, `missions catalog (3 daily, 3 weekly)`);
   ok(m.daily.every((x) => x.progress === 0 && !x.claimable), `fresh missions are empty`);
 
   await incrementMission(memberA.id, "daily_checkin");
@@ -92,8 +92,13 @@ async function main(): Promise<void> {
   ok(pending?.referredByCode === infoA.code, `pending referral captured on referee`);
 
   await prisma.telegramUser.update({ where: { id: tgB }, data: { memberId: memberB.id, linkedAt: new Date() } });
+  const refBalBefore = (await prisma.member.findUnique({ where: { id: memberA.id } }))!.coins;
   const credit = await completeReferral(tgB, memberB.id);
-  ok(!!credit && credit.referrerReward === 3000 && credit.refereeReward === 2000, `referral paid both sides (3000 / 2000)`);
+  ok(!!credit && credit.referrerReward === 3000 && credit.refereeReward === 2000, `referral: referee paid now, referrer promised 3000`);
+  const refBalAfter = (await prisma.member.findUnique({ where: { id: memberA.id } }))!.coins;
+  ok(refBalAfter === refBalBefore, `referrer reward DEFERRED (no coins until referee rides)`);
+  const refRow = await prisma.referral.findUnique({ where: { refereeId: tgB } });
+  ok(!!refRow && refRow.referrerPaidAt === null && refRow.rewardReferrer === 3000, `referral row pending payout`);
 
   const dup = await completeReferral(tgB, memberB.id);
   ok(dup === null, `referral completion is one-time (no double pay)`);
