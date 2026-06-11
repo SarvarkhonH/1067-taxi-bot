@@ -5,19 +5,22 @@ import { haptic, tg } from "./telegram";
 import { LeaderboardView, MissionsView, ReferralView, Spinner } from "./components";
 import { WalletView } from "./wallet";
 import { RewardsView } from "./rewards";
+import { MarketView } from "./market";
 import { BookingView } from "./booking";
 import { Icon } from "./icons";
 import { useCountUp } from "./util";
 
-type Tab = "home" | "rewards" | "missions" | "league" | "friends";
+type Tab = "home" | "market" | "rewards" | "missions" | "league" | "friends";
 
 const TABS: { id: Tab; icon: string; label: string }[] = [
   { id: "home", icon: "wallet", label: "Hamyon" },
+  { id: "market", icon: "market", label: "Bozor" },
   { id: "rewards", icon: "games", label: "Bonus" },
   { id: "missions", icon: "missions", label: "Vazifa" },
   { id: "league", icon: "league", label: "Liga" },
   { id: "friends", icon: "friends", label: "Do'st" },
 ];
+const TAB_PCT = 100 / TABS.length;
 
 export function App() {
   const [me, setMe] = useState<MeResponse | null>(null);
@@ -96,6 +99,7 @@ export function App() {
       <main className="content">
         <div className="page" key={tab}>
           {tab === "home" && <WalletView me={me} onBanner={flash} reload={reload} onBook={() => { haptic(); setBooking(true); }} />}
+          {tab === "market" && <MarketView coins={me.coins} onBanner={flash} />}
           {tab === "rewards" && <RewardsView me={me} onReward={flash} />}
           {tab === "missions" && <MissionsView onReward={flash} />}
           {tab === "league" && (board ? <LeaderboardView board={board} /> : <Spinner />)}
@@ -104,7 +108,7 @@ export function App() {
       </main>
 
       <nav className="tabbar">
-        <span className="tab-ind" style={{ left: `calc(${activeIndex} * 20% + 10%)` }} />
+        <span className="tab-ind" style={{ left: `calc(${activeIndex} * ${TAB_PCT}% + ${TAB_PCT / 2}%)` }} />
         {TABS.map((t) => (
           <button key={t.id} className={tab === t.id ? "tab active" : "tab"} onClick={() => go(t.id)}>
             <Icon name={t.icon} filled={tab === t.id} size={23} />

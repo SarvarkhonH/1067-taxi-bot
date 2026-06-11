@@ -625,6 +625,27 @@ body {
 
 .bk-gps { margin-bottom: 4px; }
 
+/* ── 🏪 bozor (market) ─────────────────────────────────────────────────── */
+.mk-sub { font-size: 12.5px; margin: -4px 0 4px; }
+.mk-listings { display: flex; flex-direction: column; gap: 8px; }
+.mk-item {
+  display: flex; align-items: center; gap: 10px; width: 100%; text-align: left;
+  background: rgba(255, 255, 255, 0.04); border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 14px; padding: 12px 14px; color: var(--text); font-size: 14px; font-weight: 700; cursor: pointer;
+}
+.mk-item:active { transform: scale(0.985); }
+.mk-item-emoji { font-size: 20px; }
+.mk-item-title { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.mk-item-price { color: var(--gold); font-weight: 800; white-space: nowrap; }
+.mk-voucher { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 9px 4px; font-size: 13.5px; border-bottom: 1px solid rgba(255,255,255,0.05); }
+.mk-voucher:last-child { border-bottom: 0; }
+.mk-code { font-family: ui-monospace, monospace; letter-spacing: 2px; color: var(--gold); }
+.voucher-code {
+  font-family: ui-monospace, monospace; font-size: 30px; font-weight: 800; letter-spacing: 6px;
+  text-align: center; color: var(--gold); background: rgba(255, 209, 102, 0.08);
+  border: 1.5px dashed rgba(255, 209, 102, 0.5); border-radius: 16px; padding: 18px 10px; margin: 8px 0;
+}
+
 /* 1-tap hero: the one button that calls 1067 now */
 .bk-hero {
   font-size: 16px; font-weight: 800; padding: 17px 16px; margin-bottom: 8px;

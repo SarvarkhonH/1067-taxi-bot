@@ -97,6 +97,52 @@ model WheelSpin {
   @@index([memberId, dayKey])
 }
 
+// ── 🏪 Bozor: spendable-cashback marketplace ──────────────────────────────────
+// Local shops list goods priced in coins; buying BURNS the buyer's coins and
+// issues a voucher code the shop redeems in person. MVP is ABSORB-only: the
+// shop honors the voucher as its own discount/marketing — costs us 0 real
+// money. (Cash settlement / REDEEM mode is a later, separately-budgeted phase.)
+model Shop {
+  id        Int       @id @default(autoincrement())
+  name      String
+  emoji     String    @default("🏪")
+  category  String    @default("boshqa") // oziq-ovqat | xizmat | do'kon | boshqa
+  ownerPhone String? // verified owner phone (redeems vouchers)
+  status    String    @default("active") // active | paused
+  createdAt DateTime  @default(now())
+  listings  Listing[]
+}
+
+model Listing {
+  id           Int     @id @default(autoincrement())
+  shop         Shop    @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  shopId       Int
+  title        String
+  emoji        String  @default("🎁")
+  priceCoins   Float
+  perUserLimit Int     @default(3) // anti-wash: max purchases per member per listing
+  active       Boolean @default(true)
+
+  @@index([shopId, active])
+}
+
+// Escrowed purchase: coins are burned at buy time; the voucher is the durable
+// claim the buyer shows at the shop. Idempotent redeem via status flip.
+model ShopOrder {
+  id           Int       @id @default(autoincrement())
+  shopId       Int
+  listingId    Int
+  buyerMemberId Int
+  priceCoins   Float
+  voucherCode  String    @unique // 6-char code shown at the counter
+  status       String    @default("issued") // issued | redeemed | expired
+  createdAt    DateTime  @default(now())
+  redeemedAt   DateTime?
+
+  @@index([buyerMemberId, createdAt])
+  @@index([shopId, status])
+}
+
 // P2P coin movement (client<->client, client->driver tip). Coins MOVE, never
 // mint: paired CoinTxn rows (-amount / +net) in one transaction keep the
 // reconciliation invariant per member; the burn shrinks total supply.

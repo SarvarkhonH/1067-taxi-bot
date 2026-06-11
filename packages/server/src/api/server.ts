@@ -19,6 +19,8 @@ import { getReferralInfo } from "../services/referralService";
 import { getWeeklyBoard } from "../services/weeklyService";
 import { getWallet, topUpFromBonus, withdraw } from "../services/coinService";
 import { findRecipientByPhone, getDriverEarnings, transfer } from "../services/transferService";
+import { buyListing, listShops, myOrders, redeemVoucher } from "../services/marketService";
+import { prisma } from "../db";
 import { getFareConfig } from "../services/clientInfoService";
 import { callOneTapFor, cancelBookingFor, createBookingFor, estimateFare, getActiveBookingFor, getBookingInfo, searchBookingAddress } from "../services/bookingService";
 import type { BookingCreateBody, BookingNowBody, GeoPt } from "@t1067/shared";
@@ -195,6 +197,65 @@ export function createApiServer(opts: ApiOptions = {}) {
       return;
     }
     res.json(await getDriverEarnings(memberId));
+  });
+
+  // ── 🏪 Bozor: spendable-cashback marketplace (ABSORB MVP — zero cash risk) ──
+  app.get("/api/market/shops", requireUser, async (_req, res) => {
+    res.json(await listShops());
+  });
+  app.post("/api/market/buy", requireUser, rateLimit(10), async (req, res) => {
+    const memberId = await getMemberId(res.locals.telegramId as string);
+    if (!memberId) {
+      res.status(404).json({ error: "not linked" });
+      return;
+    }
+    const listingId = Math.floor(Number((req.body as { listingId?: number })?.listingId ?? 0));
+    if (!listingId) {
+      res.status(400).json({ error: "listingId required" });
+      return;
+    }
+    res.json(await buyListing(memberId, listingId));
+  });
+  app.get("/api/market/orders", requireUser, async (_req, res) => {
+    const memberId = await getMemberId(res.locals.telegramId as string);
+    if (!memberId) {
+      res.status(404).json({ error: "not linked" });
+      return;
+    }
+    res.json(await myOrders(memberId));
+  });
+  // shop owner marks a voucher used (their linked phone is the gate)
+  app.post("/api/market/redeem", requireUser, rateLimit(10), async (req, res) => {
+    const memberId = await getMemberId(res.locals.telegramId as string);
+    if (!memberId) {
+      res.status(404).json({ error: "not linked" });
+      return;
+    }
+    const member = await prisma.member.findUnique({ where: { id: memberId }, select: { phone: true } });
+    const code = String((req.body as { code?: string })?.code ?? "");
+    res.json(await redeemVoucher(code, member?.phone ?? "none"));
+  });
+  // admin: manage shops/listings (manual KYC — owner knows Koson businesses)
+  app.post("/api/admin/market/shop", requireAdmin, async (req, res) => {
+    const b = req.body as { name?: string; emoji?: string; category?: string; ownerPhone?: string };
+    if (!b?.name) {
+      res.status(400).json({ error: "name required" });
+      return;
+    }
+    res.json(await prisma.shop.create({ data: { name: b.name, emoji: b.emoji ?? "🏪", category: b.category ?? "boshqa", ownerPhone: b.ownerPhone ?? null } }));
+  });
+  app.post("/api/admin/market/listing", requireAdmin, async (req, res) => {
+    const b = req.body as { shopId?: number; title?: string; emoji?: string; priceCoins?: number; perUserLimit?: number };
+    const priceCoins = Math.floor(Number(b?.priceCoins ?? 0));
+    if (!b?.shopId || !b?.title || priceCoins <= 0) {
+      res.status(400).json({ error: "shopId, title, priceCoins required" });
+      return;
+    }
+    res.json(
+      await prisma.listing.create({
+        data: { shopId: b.shopId, title: b.title, emoji: b.emoji ?? "🎁", priceCoins, perUserLimit: Math.max(1, Math.floor(Number(b.perUserLimit ?? 3))) },
+      }),
+    );
   });
 
   app.get("/api/missions", requireUser, async (_req, res) => {

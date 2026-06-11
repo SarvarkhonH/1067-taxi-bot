@@ -95,6 +95,19 @@ export const api = {
   topup: (amount: number) => request<WithdrawResponse>("POST", "/api/wallet/topup", { amount }, 1),
   recipient: (phone: string) => request<{ found: boolean; name?: string; type?: string }>("POST", "/api/wallet/recipient", { phone }, 1),
   transfer: (phone: string, amount: number, note?: string) => request<TransferResponse>("POST", "/api/wallet/transfer", { phone, amount, note }, 1),
+  // market (buy = money op → no auto-retry)
+  marketShops: () => get<MarketShop[]>("/api/market/shops"),
+  marketBuy: (listingId: number) =>
+    request<{ ok: boolean; reason?: string; voucherCode?: string; shopName?: string; title?: string; priceCoins?: number; coinsLeft: number }>(
+      "POST",
+      "/api/market/buy",
+      { listingId },
+      1,
+    ),
+  marketOrders: () =>
+    get<{ id: number; shopName: string; title: string; emoji: string; priceCoins: number; voucherCode: string; status: string; at: string }[]>(
+      "/api/market/orders",
+    ),
   fareConfig: () => get<FareConfigResponse>("/api/fare/config"),
   bookingInfo: () => get<BookingInfoResponse | { error: string }>("/api/booking/info"),
   bookingActive: () => get<ActiveBookingView | null>("/api/booking/active"),
@@ -111,4 +124,12 @@ interface SavedAddr {
   lat?: number;
   lng?: number;
   surcharge?: number;
+}
+
+interface MarketShop {
+  id: number;
+  name: string;
+  emoji: string;
+  category: string;
+  listings: { id: number; title: string; emoji: string; priceCoins: number }[];
 }

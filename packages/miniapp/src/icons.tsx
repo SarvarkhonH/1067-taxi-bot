@@ -51,6 +51,14 @@ export function Icon({ name, filled = false, size = 24 }: { name: string; filled
           <path d="M3.5 19a5.5 5.5 0 0 1 11 0M16 6.5a3 3 0 0 1 0 5M17 19a5.5 5.5 0 0 0-2.5-4.5" />
         </svg>
       );
+    case "market":
+      return (
+        <svg {...p}>
+          <path d="M4 9h16l-1-4a2 2 0 0 0-2-1.5H7A2 2 0 0 0 5 5L4 9Z" />
+          <path d="M5 9v9a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V9" />
+          <path d="M9.5 13a2.5 2.5 0 0 0 5 0" />
+        </svg>
+      );
     case "car":
       return (
         <svg {...p}>

@@ -221,6 +221,32 @@ export function createBot(): Bot {
   bot.hears("🚗 Haydovchi paneli", showDriverPanel);
   bot.command("driver", showDriverPanel);
 
+  // 🏪 shop owner redeems a customer's voucher: /vaucher KOD123
+  bot.command("vaucher", async (ctx) => {
+    const code = (typeof ctx.match === "string" ? ctx.match : "").trim();
+    if (!code) {
+      await ctx.reply("Foydalanish: <code>/vaucher KOD</code> — mijoz ko'rsatgan 6 belgili kod.", { parse_mode: "HTML" });
+      return;
+    }
+    const me = await getMe(String(ctx.from!.id));
+    if (!me?.member.phone) {
+      await ctx.reply("Avval telefon raqamingizni ulang — /start.");
+      return;
+    }
+    const { redeemVoucher } = await import("../services/marketService");
+    const r = await redeemVoucher(code, me.member.phone);
+    if (r.ok) {
+      await ctx.reply(`✅ Vaucher qabul qilindi!\n🏪 ${r.shopName ?? ""} — <b>${r.title ?? ""}</b>`, { parse_mode: "HTML" });
+    } else {
+      const msgs: Record<string, string> = {
+        not_found: "❌ Bunday kod topilmadi.",
+        already: "⚠️ Bu vaucher allaqachon ishlatilgan.",
+        not_owner: "⛔ Bu vaucher sizning do'koningizniki emas.",
+      };
+      await ctx.reply(msgs[r.reason ?? ""] ?? "Xatolik.");
+    }
+  });
+
   const showLeaderboard = async (ctx: Context) => {
     const id = String(ctx.from!.id);
     const me = await getMe(id);
