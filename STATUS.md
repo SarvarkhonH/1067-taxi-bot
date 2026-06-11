@@ -64,23 +64,26 @@ DB backup (3473 satr snapshot) · stuck-sync watchdog · rate-limit (withdraw/o'
 
 # ⏳ QOLDI (keyingi ishlar)
 
-### 🔴 Kritik (sizning hisobingiz kerak)
-- **Postgres upgrade/migratsiya** 2026-07-10 gacha — aks holda barcha ma'lumot o'chadi. (Backup oldim, lekin doimiy yechim — to'lov qarori.)
+### 🔴 Kritik (faqat EGANING qarori/hisobi kerak)
+- **Postgres upgrade/migratsiya** 2026-07-10 gacha — aks holda barcha ma'lumot o'chadi (kunlik backup endi avto keladi, lekin doimiy yechim — to'lov qarori).
 - **Maxfiy kalitlarni rotatsiya** (BOT_TOKEN, KAS parol, Vercel/GitHub/Render tokenlar — chatda ko'rsatilgan).
-- **Sentry + Slack alert** (monitoring — sizning hisobingiz).
-- **Avtomatik kunlik backup** S3'ga (hozir qo'lda `tsx src/scripts/backup.ts`).
+- **Bozor'ga 3-5 ta real do'kon qo'shish** (admin route tayyor — biznes nomlari kerak).
+- Sentry/Slack monitoring (ixtiyoriy — admin alertlar botda allaqachon bor).
 
-### 🟠 Booking yaxshilash (siz so'ragan — keyingi chat mavzusi)
-- **Bot xaritasi cheklangan**: Telegram bot ichida interaktiv xarita ko'rsatib bo'lmaydi (platforma cheklovi) — faqat statik/jonli location pin + Mini App. **Boy xarita Mini App'da.** Yaxshilash yo'li: Mini App'ni asosiy booking qilib, bot undan deep-link bilan ochsin; bot oqimini yanada soddalashtirish.
-- **Safar tarixi** (`bookingReports` GET 405 berdi — to'g'ri so'rovni topish kerak).
-- **Bonus bilan to'lash** booking'da (`payViaClientBonusAvailable: true`).
-- DELETE-cancel kas verb'i jonli tasdiqlanmagan (faol buyurtma yo'qligidan).
+### ✅ 2026-06-11 da TUGATILDI (avval "qoldi" edi)
+- 🎲 **Variable safar-cashback** 80/15/4/1 + omad kuni + safar boqadigan jackpot (`cashbackService`, RideReward idempotent).
+- 🚗 Haydovchi avto-bonus (250/safar, 20k/kun cap) + haydovchi miniapp tabi.
+- 🛡 riskFlag muzlatish + detektorlar (safarısız boyish, transfer/referral fan-in) + `/api/admin/unflag`.
+- 👥 Referral himoyasi: taklif mukofoti do'st BIRINCHI SAFAR qilganda to'lanadi + telefon de-dup.
+- 🚫 Cancel-farm cap (kuniga ≥4 bekor → to'liq tasdiqlash).
+- 📜 **Safar tarixi** (bookingReports to'liq param bilan ishladi: `/tarix` + miniapp).
+- 🏪 Bozor REDEEM mexanizmi (alohida byudjet, haftalik settle) — DEFAULT O'CHIQ, admin yoqadi.
+- 🗄 **Avto-backup**: har kuni to'liq JSON snapshot adminga Telegram'da keladi.
+- ❌ Bonus bilan to'lash: kas SPA'da yozish maydoni YO'Q (faqat config flag) — xavfsiz amalga oshirib bo'lmaydi, yopildi.
 
 ### 🟡 Sifat / kelajak
 - Float→Int pul migratsiyasi (kechiktirilgan — jonli ma'lumot xavfi).
-- Park'ni manba'da real safarga bog'lash (hozir budget bilan cheklangan).
-- Per-account anomaliya avto-choralar.
-- CI/testlar, i18n (uz/ru/en), accessibility, GDPR.
+- CI/testlar, i18n (uz/ru/en), accessibility.
 - Liga kohortlari, season-pass.
 
 ---
