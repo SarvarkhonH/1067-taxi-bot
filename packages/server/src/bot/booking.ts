@@ -4,7 +4,7 @@ import { env } from "../env";
 import { getDataSource, type ActiveBooking, type SavedAddress } from "../kas";
 import { getMe, getMemberId } from "../services/memberService";
 import { getFareConfig } from "../services/clientInfoService";
-import { cancelBookingFor } from "../services/bookingService";
+import { callOneTapFor, cancelBookingFor, getQuickPickup, rememberPickup } from "../services/bookingService";
 
 interface BookingSession {
   awaitingText: boolean;
@@ -14,9 +14,9 @@ interface BookingSession {
   pickup?: SavedAddress;
 }
 
-// In-memory booking state + last pickup (for 1-tap rebook), per telegram user.
+// In-memory per-user wizard state (transient by design). The 1-tap pickup
+// memory lives on Member (DB) — it must survive restarts/deploys.
 const sessions = new Map<string, BookingSession>();
-const lastPickup = new Map<string, SavedAddress>();
 
 function esc(s: string): string {
   return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
@@ -135,14 +135,24 @@ async function startBooking(ctx: Context): Promise<void> {
   const addresses = info?.addresses ?? [];
   sessions.set(id, { awaitingText: false, clientName: info?.clientName ?? me.member.fullName, phone, addresses });
 
-  // Uber-style: GPS-first, then saved/recent quick-picks.
+  // 1-tap: returning rider gets one big CTA — pickup resolved behind the button
+  const quick = await getQuickPickup(me.member.id).catch(() => null);
+  if (quick) {
+    const kb = new InlineKeyboard()
+      .text(`🚕 Chaqirish — ${trunc(quick.name, 26)}`, "bk:now")
+      .row()
+      .text("📍 Boshqa manzil", "bk:other");
+    await ctx.reply(`🚕 <b>1067 tayyor!</b>\n\n📍 <b>${esc(quick.name)}</b> dan olib ketamizmi?`, { parse_mode: "HTML", reply_markup: kb });
+    return;
+  }
+
+  // first-timer: GPS-first, then saved quick-picks
   await ctx.reply("🚕 <b>Qayerdan olib ketamiz?</b>\n\n📍 Joylashuvingizni yuboring — eng tez yo'l. Yoki manzilni tanlang/yozing 👇", {
     parse_mode: "HTML",
     reply_markup: pickupKeyboard(),
   });
-  const last = lastPickup.get(id);
-  if (addresses.length || last) {
-    await ctx.reply("⭐ Tez tanlash:", { reply_markup: addressKb(addresses, last) });
+  if (addresses.length) {
+    await ctx.reply("⭐ Tez tanlash:", { reply_markup: addressKb(addresses) });
   }
 }
 
@@ -170,13 +180,47 @@ export function registerBooking(bot: Bot): void {
   bot.command("book", (ctx) => startBooking(ctx));
   bot.hears("📍 Buyurtmam", (ctx) => showTracking(ctx));
   bot.command("status", (ctx) => showTracking(ctx));
-  bot.command("qayta", async (ctx) => {
-    const id = String(ctx.from!.id);
-    const last = lastPickup.get(id);
-    const me = await getMe(id);
-    if (!last || !me?.member.phone) return startBooking(ctx);
-    sessions.set(id, { awaitingText: false, clientName: me.member.fullName, phone: me.member.phone, addresses: [last], pickup: last });
-    await showConfirm(ctx, sessions.get(id)!);
+  bot.command("qayta", (ctx) => startBooking(ctx)); // returning rider lands on the 1-tap card
+
+  // the 1-tap dispatch — pickup resolved server-side, real taxi sent
+  bot.callbackQuery("bk:now", async (ctx) => {
+    const memberId = await getMemberId(String(ctx.from.id));
+    if (!memberId) {
+      await ctx.answerCallbackQuery();
+      return;
+    }
+    await ctx.answerCallbackQuery();
+    await ctx.editMessageText("⏳ Buyurtma yuborilyapti…").catch(() => undefined);
+    const r = await callOneTapFor(memberId, {});
+    if (r.state === "dispatched" || r.state === "test") {
+      const note = r.state === "test" ? "\n\n<i>(Hozir test rejimi)</i>" : "\n\n🔍 Haydovchi qidirilyapti…";
+      await ctx.editMessageText(`✅ <b>Buyurtma qabul qilindi!</b>\n📍 ${esc(r.pickupName ?? "")}${note}`, {
+        parse_mode: "HTML",
+        reply_markup: new InlineKeyboard().text("🔄 Holat", "bk:status"),
+      });
+    } else if (r.state === "active") {
+      await ctx.editMessageText(`ℹ️ Sizda allaqachon faol buyurtma bor:\n📍 ${esc(r.booking?.addressName ?? "")}`, {
+        parse_mode: "HTML",
+        reply_markup: new InlineKeyboard().text("🔄 Holat", "bk:status"),
+      });
+    } else if (r.state === "throttled") {
+      await ctx.editMessageText(`⏳ ${esc(r.message ?? "Bir daqiqa kuting")}`).catch(() => undefined);
+    } else if (r.state === "need_pickup") {
+      await ctx.editMessageText("📍 Manzil topilmadi — quyidan tanlang:").catch(() => undefined);
+      await startBooking(ctx);
+    } else {
+      await ctx.editMessageText(`⚠️ Yuborilmadi: ${esc(r.message ?? "xatolik")}`, { parse_mode: "HTML" }).catch(() => undefined);
+    }
+  });
+
+  // "boshqa manzil" — drop into the full picker (GPS / saved / typed)
+  bot.callbackQuery("bk:other", async (ctx) => {
+    await ctx.answerCallbackQuery();
+    const id = String(ctx.from.id);
+    const s = sessions.get(id);
+    await ctx.editMessageText("📍 Boshqa manzil tanlang:").catch(() => undefined);
+    await ctx.reply("📍 Joylashuvingizni yuboring — eng tez yo'l. Yoki manzilni tanlang/yozing 👇", { reply_markup: pickupKeyboard() });
+    if (s?.addresses.length) await ctx.reply("⭐ Tez tanlash:", { reply_markup: addressKb(s.addresses) });
   });
 
   bot.hears("✍️ Manzil yozish", async (ctx) => {
@@ -245,9 +289,10 @@ export function registerBooking(bot: Bot): void {
     await ctx.answerCallbackQuery();
     const id = String(ctx.from.id);
     const s = sessions.get(id);
-    const last = lastPickup.get(id);
+    const memberId = await getMemberId(id);
+    const last = memberId ? await getQuickPickup(memberId).catch(() => null) : null;
     if (!s || !last) return;
-    s.pickup = last;
+    s.pickup = { id: last.id, name: last.name, lat: last.lat, lng: last.lng };
     await showConfirm(ctx, s);
   });
 
@@ -271,7 +316,9 @@ export function registerBooking(bot: Bot): void {
     const id = String(ctx.from.id);
     const s = sessions.get(id);
     if (!s?.pickup) return;
-    lastPickup.set(id, s.pickup); // remember for 1-tap rebook
+    // persist the 1-tap memory (survives restarts; next time = one button)
+    const memberId = await getMemberId(id);
+    if (memberId) await rememberPickup(memberId, s.pickup).catch(() => undefined);
     const req = { clientName: s.clientName, addressName: s.pickup.name, addressId: s.pickup.id, phoneNumber: s.phone, additionalPayment: 0 };
     sessions.delete(id);
 

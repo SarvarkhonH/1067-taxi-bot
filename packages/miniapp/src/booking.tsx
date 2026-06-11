@@ -178,6 +178,48 @@ export function BookingView({ onClose }: { onClose: () => void }) {
     }
   };
 
+  // 1-tap "1067 Now": silent best-effort GPS, server resolves the pickup
+  const bookNow = async () => {
+    if (busy) return;
+    setBusy(true);
+    haptic();
+    const gps = await new Promise<{ lat?: number; lng?: number }>((resolve) => {
+      let done = false;
+      const finish = (v: { lat?: number; lng?: number }) => {
+        if (!done) {
+          done = true;
+          resolve(v);
+        }
+      };
+      if (!navigator.geolocation) return finish({});
+      navigator.geolocation.getCurrentPosition(
+        (p) => finish({ lat: p.coords.latitude, lng: p.coords.longitude }),
+        () => finish({}),
+        { timeout: 1500, maximumAge: 60000 },
+      );
+      setTimeout(() => finish({}), 1800);
+    });
+    try {
+      const r = await api.bookingNow(gps);
+      if (r.state === "dispatched" || r.state === "test") {
+        setMsg(r.state === "test" ? "🧪 Buyurtma ko'rsatildi (test rejimi)." : `✅ Buyurtma qabul qilindi! 📍 ${r.pickupName ?? ""}`);
+        const a = await api.bookingActive().catch(() => null);
+        if (a) setActive(a);
+      } else if (r.state === "active" && r.booking) {
+        setActive(r.booking);
+      } else if (r.state === "throttled") {
+        setMsg(`⏳ ${r.message ?? "Bir daqiqa kuting"}`);
+      } else if (r.state === "need_pickup") {
+        setMsg("📍 Manzilni tanlang");
+        if (r.suggestions?.length) setResults(r.suggestions);
+      } else {
+        setMsg(`⚠️ ${r.message ?? "Yuborilmadi"}`);
+      }
+    } finally {
+      setBusy(false);
+    }
+  };
+
   const cancel = async () => {
     setBusy(true);
     haptic();
@@ -241,7 +283,12 @@ export function BookingView({ onClose }: { onClose: () => void }) {
           </>
         ) : (
           <>
-            <div className="muted bk-fare-hint">Qayerdan olib ketamiz?</div>
+            {info.quickPickup && (
+              <button className="btn-primary bk-hero" disabled={busy} onClick={bookNow}>
+                {busy ? "⏳ Yuborilyapti…" : `🚕 Hozir chaqirish — ${info.quickPickup.name}`}
+              </button>
+            )}
+            <div className="muted bk-fare-hint">{info.quickPickup ? "yoki boshqa manzildan:" : "Qayerdan olib ketamiz?"}</div>
             <button
               className="btn-primary bk-gps"
               onClick={() => {

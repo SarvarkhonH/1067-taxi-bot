@@ -62,6 +62,26 @@ export interface BookingInfoResponse {
   bonusBalance: number; // member kas cashback (can pay with it)
   bookingLive: boolean; // false = dry-run (no real dispatch)
   active: ActiveBookingView | null;
+  // 1-tap: where "call now" would dispatch to (last/default pickup), if known
+  quickPickup: SavedAddressView | null;
+}
+
+// ── 1-tap "1067 Now" ──────────────────────────────────────────────────────────
+// One contract for bot + miniapp: the server resolves the pickup behind the
+// button (GPS near last pickup → nearest saved → default → last), dispatches,
+// and reports which state the client should render.
+export interface BookingNowBody {
+  lat?: number;
+  lng?: number;
+  addressId?: number; // explicit override (user picked a suggestion)
+}
+
+export interface BookingNowResponse {
+  state: "dispatched" | "active" | "need_pickup" | "throttled" | "failed" | "test";
+  pickupName?: string; // where we dispatched (state=dispatched/test)
+  booking?: ActiveBookingView | null; // state=active
+  suggestions?: SavedAddressView[]; // state=need_pickup
+  message?: string;
 }
 
 export interface FareQuote {

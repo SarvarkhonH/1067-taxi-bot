@@ -19,8 +19,8 @@ import { getReferralInfo } from "../services/referralService";
 import { getWeeklyBoard } from "../services/weeklyService";
 import { getWallet, topUpFromBonus, withdraw } from "../services/coinService";
 import { getFareConfig } from "../services/clientInfoService";
-import { cancelBookingFor, createBookingFor, estimateFare, getActiveBookingFor, getBookingInfo, searchBookingAddress } from "../services/bookingService";
-import type { BookingCreateBody, GeoPt } from "@t1067/shared";
+import { callOneTapFor, cancelBookingFor, createBookingFor, estimateFare, getActiveBookingFor, getBookingInfo, searchBookingAddress } from "../services/bookingService";
+import type { BookingCreateBody, BookingNowBody, GeoPt } from "@t1067/shared";
 import { validateInitData } from "./telegramAuth";
 
 export interface ApiOptions {
@@ -235,6 +235,8 @@ export function createApiServer(opts: ApiOptions = {}) {
   app.get("/api/booking/active", requireUser, withMember((id) => getActiveBookingFor(id)));
   app.post("/api/booking/search", requireUser, withMember((_id, req) => searchBookingAddress(String((req.body as { q?: string })?.q ?? ""))));
   app.post("/api/booking/create", requireUser, withMember((id, req) => createBookingFor(id, req.body as BookingCreateBody)));
+  // 1-tap "1067 Now": server resolves the pickup behind the button (rate-limited — real taxis dispatch here)
+  app.post("/api/booking/now", requireUser, rateLimit(3), withMember((id, req) => callOneTapFor(id, (req.body ?? {}) as BookingNowBody)));
   app.post("/api/booking/cancel", requireUser, withMember((id) => cancelBookingFor(id)));
   app.post("/api/booking/estimate", requireUser, async (req, res) => {
     const b = req.body as { pickup?: GeoPt; dest?: GeoPt; surcharge?: number };

@@ -26,6 +26,14 @@ model Member {
   lastSyncAt DateTime?
   lastBookingId     Int?
   lastBookingStatus String?
+  // 1-tap booking: persisted pickup memory (in-memory Map died on every deploy)
+  defaultPickupId   Int?
+  defaultPickupName String?
+  lastPickupId      Int?
+  lastPickupName    String?
+  lastPickupLat     Float?
+  lastPickupLng     Float?
+  lastBookingAt     DateTime?
   createdAt  DateTime  @default(now())
   updatedAt  DateTime  @updatedAt
 

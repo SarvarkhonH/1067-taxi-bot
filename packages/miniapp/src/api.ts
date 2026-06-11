@@ -7,6 +7,7 @@ import type {
   BookingCreateBody,
   BookingCreateResponse,
   BookingInfoResponse,
+  BookingNowResponse,
   FareQuote,
   GeoPt,
   FareConfigResponse,
@@ -96,6 +97,7 @@ export const api = {
   bookingActive: () => get<ActiveBookingView | null>("/api/booking/active"),
   bookingSearch: (q: string) => request<SavedAddr[]>("POST", "/api/booking/search", { q }, 1),
   bookingCreate: (body: BookingCreateBody) => request<BookingCreateResponse>("POST", "/api/booking/create", body, 1),
+  bookingNow: (body: { lat?: number; lng?: number; addressId?: number } = {}) => request<BookingNowResponse>("POST", "/api/booking/now", body, 1),
   bookingCancel: () => request<BookingCancelResponse>("POST", "/api/booking/cancel", undefined, 1),
   bookingEstimate: (pickup: GeoPt, dest: GeoPt, surcharge: number) => request<FareQuote>("POST", "/api/booking/estimate", { pickup, dest, surcharge }),
 };
