@@ -11,9 +11,9 @@ import {
   type AdminMemberRow,
   type AdminStats,
 } from "@t1067/shared";
-import { adminApi, clearAdminToken, hasAdminToken, setAdminToken } from "./api";
+import { adminApi, clearAdminToken, hasAdminToken, setAdminToken, type Driver360, type Member360 } from "./api";
 
-type Tab = "overview" | "analytics" | "driver" | "client" | "botusers" | "actions" | "integrity" | "audit";
+type Tab = "overview" | "analytics" | "live" | "x360" | "driver" | "client" | "botusers" | "actions" | "integrity" | "audit";
 
 export function App() {
   const [tab, setTab] = useState<Tab>("overview");
@@ -57,6 +57,8 @@ export function App() {
   const TABS: { id: Tab; label: string }[] = [
     { id: "overview", label: "📊 Umumiy" },
     { id: "analytics", label: "📈 Analitika" },
+    { id: "live", label: "🗺 Jonli" },
+    { id: "x360", label: "🔎 360" },
     { id: "driver", label: "🚗 Haydovchi" },
     { id: "client", label: "🏅 Mijoz" },
     { id: "botusers", label: "👥 Bot" },
@@ -89,6 +91,8 @@ export function App() {
 
       {tab === "overview" && <Overview health={health} />}
       {tab === "analytics" && <AnalyticsView />}
+      {tab === "live" && <LiveMapView />}
+      {tab === "x360" && <X360View />}
       {(tab === "driver" || tab === "client") && <MembersTab type={tab} />}
       {tab === "botusers" && <BotUsersTab />}
       {tab === "actions" && (<><ActionsView /><ControlCards /></>)}
@@ -227,6 +231,125 @@ function HealthCell({ label, ok, detail, warn }: { label: string; ok: boolean; d
 }
 
 // ─── ⚡ actions: grant + announce ───────────────────────────────────────────
+// M1: a lightweight live ops map (no Leaflet — plain SVG plot over Koson bbox)
+function LiveMapView() {
+  const [d, setD] = useState<Awaited<ReturnType<typeof adminApi.livemap>> | null>(null);
+  useEffect(() => {
+    const load = () => adminApi.livemap().then(setD).catch(() => undefined);
+    load();
+    const t = setInterval(load, 30_000);
+    return () => clearInterval(t);
+  }, []);
+  if (!d) return <p className="muted">Yuklanmoqda…</p>;
+  const all = [...d.pins.map((p) => ({ lat: p.lat, lng: p.lng })), ...d.bookings.filter((b) => b.lat && b.lng).map((b) => ({ lat: b.lat!, lng: b.lng! }))];
+  const lats = all.map((p) => p.lat);
+  const lngs = all.map((p) => p.lng);
+  const minLat = Math.min(...lats, 39.0), maxLat = Math.max(...lats, 39.09);
+  const minLng = Math.min(...lngs, 65.52), maxLng = Math.max(...lngs, 65.64);
+  const X = (lng: number) => ((lng - minLng) / Math.max(0.0001, maxLng - minLng)) * 760 + 20;
+  const Y = (lat: number) => 480 - ((lat - minLat) / Math.max(0.0001, maxLat - minLat)) * 440;
+  return (
+    <section className="card">
+      <h3>🗺 Jonli operatsiya · 🟢 bo'sh: {d.freeDrivers} · faol buyurtma: {d.bookings.length}</h3>
+      <svg viewBox="0 0 800 500" style={{ width: "100%", background: "#0d1322", borderRadius: 12 }}>
+        {d.pins.map((p, i) => (
+          <circle key={`p${i}`} cx={X(p.lng)} cy={Y(p.lat)} r="7" fill={p.busy ? "#eab308" : "#22c55e"}>
+            <title>{p.busy ? "Band" : "Bo'sh"} haydovchi</title>
+          </circle>
+        ))}
+        {d.bookings.filter((b) => b.lat && b.lng).map((b, i) => (
+          <text key={`b${i}`} x={X(b.lng!)} y={Y(b.lat!)} fontSize="18" textAnchor="middle">📍<title>#{b.id} {b.status} — {b.address}</title></text>
+        ))}
+      </svg>
+      <p className="muted">🟢 bo'sh haydovchi · 🟡 band (taksometr yoniq) · 📍 faol buyurtma. 30 soniyada yangilanadi.</p>
+      <div style={{ maxHeight: 200, overflow: "auto", marginTop: 8 }}>
+        {d.bookings.map((b) => (
+          <div key={b.id} style={{ display: "flex", gap: 10, padding: "4px 0", borderTop: "1px solid #232b3d" }}>
+            <span className="muted">#{b.id}</span><b>{b.status}</b><span>{b.address}</span>
+          </div>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+// M3/M4: phone → client 360, car → driver 360
+function X360View() {
+  const [phone, setPhone] = useState("");
+  const [car, setCar] = useState("");
+  const [m, setM] = useState<Member360 | null>(null);
+  const [dr, setDr] = useState<Driver360 | null>(null);
+  const [err, setErr] = useState<string | null>(null);
+  return (
+    <>
+      <section className="card">
+        <h3>🔎 Mijoz 360</h3>
+        <div style={{ display: "flex", gap: 8 }}>
+          <input className="inp" placeholder="Telefon: 901234567" value={phone} onChange={(e) => setPhone(e.target.value)} />
+          <button className="btn" onClick={async () => { setErr(null); try { setM(await adminApi.member360(phone)); } catch { setErr("Topilmadi"); setM(null); } }}>Qidirish</button>
+        </div>
+        {m && (
+          <div style={{ marginTop: 10 }}>
+            <p><b>{m.member.name}</b> ({m.member.type}) · 🪙 {m.member.coins.toLocaleString("ru-RU")} · {m.member.trips} safar (30 kunda {m.rides30}) {m.member.riskFlag && "· 🚩 RISK"} {m.member.plusUntil && "· 💎Plus"}</p>
+            <p className="muted">💎 buyumlar: {m.items} · 👬 gap: {m.gap ?? "—"} · recruit: {m.recruitedByDriver ? `drv#${m.recruitedByDriver}` : "—"} · baholar: {m.ratings}</p>
+            <div style={{ maxHeight: 220, overflow: "auto" }}>
+              {m.txns.map((t, i) => (
+                <div key={i} style={{ display: "flex", gap: 8, fontSize: 13, padding: "3px 0", borderTop: "1px solid #232b3d" }}>
+                  <b style={{ color: t.amount >= 0 ? "#22c55e" : "#ef4444", minWidth: 70 }}>{t.amount >= 0 ? "+" : ""}{t.amount}</b>
+                  <span className="muted">{t.kind}</span><span>{t.reason}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+      </section>
+      <section className="card">
+        <h3>🚗 Haydovchi 360</h3>
+        <div style={{ display: "flex", gap: 8 }}>
+          <input className="inp" placeholder="Mashina raqami: 70A123BC" value={car} onChange={(e) => setCar(e.target.value.toUpperCase())} />
+          <button className="btn" onClick={async () => { setErr(null); try { setDr(await adminApi.driver360(car)); } catch { setErr("Xato"); setDr(null); } }}>Qidirish</button>
+        </div>
+        {dr && (
+          <div style={{ marginTop: 10 }}>
+            <p><b>{dr.driver?.name ?? "Bot'da ro'yxatdan o'tmagan"}</b> {dr.driver && `· ${dr.driver.tier} · 🪙 ${dr.driver.coins.toLocaleString("ru-RU")}`}</p>
+            <p>⭐ {dr.rating.avg || "—"} ({dr.rating.count} baho) · recruit: {dr.recruits} · 🏆 mashina chiptalari: {dr.mashinaTickets}</p>
+            <p className="muted">{dr.rating.tags.map((t) => `${t.tag} ×${t.n}`).join(" · ") || "Hali teg yo'q"}</p>
+            {dr.driver && (
+              <button className="btn" onClick={async () => {
+                const res = await fetch(adminApi.recruitQrUrl(dr.driver!.id), { headers: { "X-Admin-Token": localStorage.getItem("adminToken") ?? "" } });
+                const blob = await res.blob();
+                const a = document.createElement("a");
+                a.href = URL.createObjectURL(blob);
+                a.download = `recruit-qr-${dr.driver!.id}.png`;
+                a.click();
+              }}>📥 Recruit QR yuklab olish</button>
+            )}
+          </div>
+        )}
+      </section>
+      {err && <p className="muted">{err}</p>}
+    </>
+  );
+}
+
+function MashinaCard() {
+  const [d, setD] = useState<Awaited<ReturnType<typeof adminApi.mashina>> | null>(null);
+  useEffect(() => {
+    adminApi.mashina().then(setD).catch(() => undefined);
+  }, []);
+  if (!d || d.tickets.length === 0) return null;
+  return (
+    <div style={{ marginTop: 8 }}>
+      <p className="muted">🎟 Yillik o'yin chiptalari (to'liq mashina to'plagan haydovchilar):</p>
+      {d.tickets.map((t, i) => (
+        <div key={i} style={{ display: "flex", gap: 10 }}>
+          <b>{t.name}</b><span className="muted">{t.car}</span><span>🎟 ×{t.tickets}</span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 // kill-switch toggles + mashina fund + B2B corp registry
 function ControlCards() {
   const [flags, setFlags] = useState<{ name: string; on: boolean }[] | null>(null);
@@ -236,6 +359,7 @@ function ControlCards() {
   const [empPhone, setEmpPhone] = useState("");
   const [empCorp, setEmpCorp] = useState<number | null>(null);
   const [msg, setMsg] = useState<string | null>(null);
+  const [msg2, setMsg2] = useState<string | null>(null);
 
   const load = () => {
     adminApi.features().then((r) => { setFlags(r.features); setFund(r.mashinaFund); }).catch(() => undefined);
@@ -260,6 +384,11 @@ function ControlCards() {
           ))}
         </div>
         <p className="muted" style={{ marginTop: 8 }}>🏆 Mashina fondi: <b>{fund.toLocaleString("ru-RU")}</b> so'm (100 so'm/safar, withdraw-byudjetdan alohida)</p>
+        <MashinaCard />
+        <div style={{ marginTop: 10 }}>
+          <button className="btn" onClick={async () => { const r = await adminApi.optoken(); setMsg2(`Operator token (faqat bir marta ko'rsatiladi): ${r.token}`); }}>🔑 Operator-token yaratish</button>
+          {msg2 && <p className="muted" style={{ wordBreak: "break-all" }}>{msg2}</p>}
+        </div>
       </section>
 
       <section className="card">

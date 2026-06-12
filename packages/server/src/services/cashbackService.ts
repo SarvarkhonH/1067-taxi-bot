@@ -83,7 +83,7 @@ export async function rollRideCashback(memberId: number, bookingId: number): Pro
   const reason = `🎲 Safar cashback ${t.label}${lucky ? " · OMAD KUNI 2x" : ""}${combo ? " · KOMBO 2x" : ""}${comeback ? " · QAYTISH SOVG'ASI 3x" : ""}${member?.plusUntil && member.plusUntil.getTime() > Date.now() ? " · 💎PLUS" : ""}`;
   if (jackpot) {
     // jackpot pays the pre-funded pool in full — outside the per-ride clamp
-    await grantCoins(memberId, amount, "cashback", reason, `cashback:${memberId}:${bookingId}`);
+    await grantCoins(memberId, amount, "cashback", reason, `jackpotwin:${bookingId}:m${memberId}`);
   } else {
     const { grantRideCoins } = await import("./coinService");
     const g = await grantRideCoins(memberId, bookingId, amount, "cashback", reason, "cashback");

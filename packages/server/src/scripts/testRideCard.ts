@@ -75,6 +75,8 @@ async function cleanup(): Promise<void> {
 }
 
 async function main(): Promise<void> {
+  // tests roll REAL cashback against the live DB — protect the live jackpot pool
+  const jackpotBefore = (await prisma.appState.findUnique({ where: { key: "jackpot_pool" } }))?.value ?? null;
   await cleanup();
 
   // echo real members' active rides back unchanged (zero interference)
@@ -163,6 +165,8 @@ async function main(): Promise<void> {
   ok(stillActive === realActives.length, `real members' rides untouched (${stillActive})`);
 
   await cleanup();
+  if (jackpotBefore === null) await prisma.appState.deleteMany({ where: { key: "jackpot_pool" } });
+  else await prisma.appState.upsert({ where: { key: "jackpot_pool" }, update: { value: jackpotBefore }, create: { key: "jackpot_pool", value: jackpotBefore } });
   await prisma.$disconnect();
   console.log(failed === 0 ? "\n🎉 all ride-card checks passed" : `\n❌ ${failed} FAILED`);
   process.exit(failed === 0 ? 0 : 1);

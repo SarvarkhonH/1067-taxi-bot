@@ -123,6 +123,14 @@ export const api = {
   garageBuy: (car: string) => request<{ ok: boolean; reason?: string; coins: number }>("POST", "/api/garage/buy", { car }, 1),
   garageEquip: (car: string) => request<{ ok: boolean }>("POST", "/api/garage/equip", { car }, 1),
   garageService: (car: string) => request<{ ok: boolean; reason?: string; coins: number }>("POST", "/api/garage/service", { car }, 1),
+  bookingNearby: () => get<{ pins: { lat: number; lng: number; bearing: number; busy: boolean }[]; freeDrivers: number }>("/api/booking/nearby"),
+  bookingPredict: (address?: string) => get<{ rides: number; avg: number; p50: number; byAddress?: { name: string; avg: number; rides: number } | null }>(`/api/booking/predict${address ? `?address=${encodeURIComponent(address)}` : ""}`),
+  bookingRate: (bookingId: number, stars: number, tags: string[]) => request<{ ok: boolean; reason?: string }>("POST", "/api/booking/rate", { bookingId, stars, tags }, 1),
+  trades: () => get<TradesResponse>("/api/trade"),
+  tradeOffer: (itemId: number, coins: number, offerItemId?: number) => request<{ ok: boolean; reason?: string; offerId?: number }>("POST", "/api/trade/offer", { itemId, coins, offerItemId }, 1),
+  tradeAccept: (offerId: number) => request<{ ok: boolean; reason?: string }>("POST", "/api/trade/accept", { offerId }, 1),
+  tradeCancel: (offerId: number) => request<{ ok: boolean; reason?: string }>("POST", "/api/trade/cancel", { offerId }, 1),
+  tradeMessage: (offerId: number, text: string) => request<{ ok: boolean; reason?: string }>("POST", "/api/trade/message", { offerId, text }, 1),
   plus: () => get<{ active: boolean; until: string | null; price: number; trialAvailable: boolean; canBuy: boolean }>("/api/plus"),
   plusSubscribe: () => request<{ ok: boolean; reason?: string; until?: string; free?: boolean }>("POST", "/api/plus/subscribe", {}, 1),
   gap: () => get<{ inGap: boolean; name?: string; code?: string; goal?: number; progress?: number; members?: { name: string; rides: number; isCreator: boolean }[] }>("/api/gap"),
@@ -152,11 +160,16 @@ interface SavedAddr {
   surcharge?: number;
 }
 
+export interface TradesResponse {
+  incoming: { id: number; item: string; offerCoins: number; offerItem: string | null; from: string; mine: boolean; chat: { me: boolean; text: string }[] }[];
+  outgoing: { id: number; item: string; offerCoins: number; offerItem: string | null; from: string; mine: boolean; chat: { me: boolean; text: string }[] }[];
+}
+
 export interface ItemsResponse {
   catalog: { code: string; name: string; emoji: string; rarity: string; price: number; left: number | null }[];
   mine: { id: number; code: string; name: string; emoji: string; serial: number; cap: number; sellable: boolean; listed: boolean }[];
   partsProgress: { have: number; total: number };
-  market: { listingId: number; name: string; emoji: string; serial: number; price: number; mine: boolean }[];
+  market: { listingId: number; itemId: number; name: string; emoji: string; serial: number; price: number; mine: boolean }[];
   coins: number;
 }
 

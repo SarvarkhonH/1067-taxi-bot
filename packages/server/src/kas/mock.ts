@@ -125,6 +125,14 @@ export class KasMockSource implements KasDataSource {
     return [];
   }
 
+  async getDriverPins() {
+    return [
+      { lat: 39.041, lng: 65.585, bearing: 90, busy: false },
+      { lat: 39.045, lng: 65.575, bearing: 180, busy: true },
+      { lat: 39.038, lng: 65.59, bearing: 0, busy: false },
+    ];
+  }
+
   async getDriverByCar(_carNumber: string): Promise<BookingDriver | null> {
     return { fullName: "Davlat Bo'riyev", phone: "+998901234567", carModel: "Cobalt", carNumber: _carNumber || "70A123BC", rating: 4.9, lat: 39.0468, lng: 65.564 };
   }

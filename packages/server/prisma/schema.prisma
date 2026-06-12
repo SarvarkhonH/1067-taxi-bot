@@ -457,3 +457,44 @@ model CorpEmployee {
 
   @@index([corpId])
 }
+
+// ⭐ E7: post-ride rating + quick tags ("Toza mashina")
+model RideRating {
+  id        Int      @id @default(autoincrement())
+  memberId  Int
+  bookingId Int
+  carNumber String   @default("")
+  stars     Int
+  tags      String   @default("")
+  createdAt DateTime @default(now())
+
+  @@unique([memberId, bookingId])
+  @@index([carNumber])
+}
+
+// 🤝 Virtual bozor v2: escrowed offers (coins and/or barter) + per-deal chat.
+model TradeOffer {
+  id          Int            @id @default(autoincrement())
+  itemId      Int // target item being asked for
+  fromId      Int // offerer (coins escrowed on create)
+  toId        Int // current owner
+  offerCoins  Int            @default(0)
+  offerItemId Int? // barter: item offered in exchange
+  status      String         @default("open") // open|accepted|rejected|cancelled
+  createdAt   DateTime       @default(now())
+  messages    TradeMessage[]
+
+  @@index([toId, status])
+  @@index([fromId, status])
+}
+
+model TradeMessage {
+  id        Int        @id @default(autoincrement())
+  offerId   Int
+  fromId    Int
+  text      String
+  createdAt DateTime   @default(now())
+  offer     TradeOffer @relation(fields: [offerId], references: [id])
+
+  @@index([offerId])
+}

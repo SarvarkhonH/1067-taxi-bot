@@ -192,7 +192,7 @@ export async function getCollection(memberId: number) {
       listings.map(async (l) => {
         const i = await prisma.item.findUnique({ where: { id: l.itemId } });
         const t = i ? typeById.get(i.itemTypeId) : null;
-        return { listingId: l.id, name: t?.name ?? "", emoji: t?.emoji ?? "💎", serial: i?.serial ?? 0, price: l.price, mine: l.sellerId === memberId };
+        return { listingId: l.id, itemId: l.itemId, name: t?.name ?? "", emoji: t?.emoji ?? "💎", serial: i?.serial ?? 0, price: l.price, mine: l.sellerId === memberId };
       }),
     ),
     coins: await getCoins(memberId),

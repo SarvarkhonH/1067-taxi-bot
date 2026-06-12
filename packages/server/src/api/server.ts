@@ -102,7 +102,24 @@ function requireAdmin(req: Request, res: Response, next: NextFunction): void {
   const token = req.header("X-Admin-Token");
   if (env.ADMIN_PANEL_TOKEN && token && token === env.ADMIN_PANEL_TOKEN) {
     res.locals.telegramId = "panel";
+    res.locals.adminRole = "owner";
     next();
+    return;
+  }
+  // roles-lite (M6): owner-issued operator tokens live in AppState — read-mostly access
+  if (token) {
+    void prisma.appState
+      .findUnique({ where: { key: `oprtoken:${token}` } })
+      .then((row) => {
+        if (row) {
+          res.locals.telegramId = "panel-operator";
+          res.locals.adminRole = row.value || "operator";
+          next();
+        } else {
+          res.status(403).json({ error: "forbidden" });
+        }
+      })
+      .catch(() => res.status(403).json({ error: "forbidden" }));
     return;
   }
   const id = resolveTelegramId(req);
@@ -111,6 +128,16 @@ function requireAdmin(req: Request, res: Response, next: NextFunction): void {
     return;
   }
   res.locals.telegramId = id;
+  res.locals.adminRole = "owner";
+  next();
+}
+
+// money/config endpoints stay owner-only; operators get read + announce
+function requireOwner(_req: Request, res: Response, next: NextFunction): void {
+  if (res.locals.adminRole !== "owner") {
+    res.status(403).json({ error: "owner_only" });
+    return;
+  }
   next();
 }
 
@@ -487,12 +514,65 @@ export function createApiServer(opts: ApiOptions = {}) {
   });
 
   // ─── admin ──────────────────────────────────────────────────────────────────
+  // ── 🗺 Booking 3.0: prediction + live pins + post-ride rating ────────────
+  app.get("/api/booking/predict", requireUser, async (req, res) => {
+    const { predictFare } = await import("../services/bookingPlus");
+    res.json(await predictFare(req.query.address ? String(req.query.address) : undefined));
+  });
+  app.get("/api/booking/nearby", requireUser, async (_req, res) => {
+    const { nearbyPins } = await import("../services/bookingPlus");
+    res.json(await nearbyPins());
+  });
+  app.post("/api/booking/rate", requireUser, rateLimit(10), withMember2(async (id, req) => {
+    const { rateRide, RATING_TAGS } = await import("../services/bookingPlus");
+    const b = req.body as { bookingId?: number; stars?: number; tags?: string[] };
+    const r = await rateRide(id, Math.floor(Number(b?.bookingId ?? 0)), Number(b?.stars ?? 0), Array.isArray(b?.tags) ? b.tags.map(String) : []);
+    return { ...r, allTags: RATING_TAGS };
+  }));
+
+  // ── 🤝 Virtual bozor v2: escrowed offers/barter + per-deal chat ──────────
+  app.get("/api/trade", requireUser, withMember2(async (id) => {
+    const { myTrades } = await import("../services/tradeService");
+    return myTrades(id);
+  }));
+  app.post("/api/trade/offer", requireUser, rateLimit(10), withMember2(async (id, req) => {
+    const { featureOn } = await import("../services/featureFlags");
+    if (!(await featureOn("items"))) return { ok: false, reason: "disabled" };
+    const { makeOffer } = await import("../services/tradeService");
+    const b = req.body as { itemId?: number; coins?: number; offerItemId?: number };
+    return makeOffer(id, Math.floor(Number(b?.itemId ?? 0)), Math.floor(Number(b?.coins ?? 0)), b?.offerItemId ? Math.floor(Number(b.offerItemId)) : undefined);
+  }));
+  app.post("/api/trade/accept", requireUser, rateLimit(10), withMember2(async (id, req) => {
+    const { acceptOffer } = await import("../services/tradeService");
+    return acceptOffer(id, Math.floor(Number((req.body as { offerId?: number })?.offerId ?? 0)));
+  }));
+  app.post("/api/trade/cancel", requireUser, rateLimit(10), withMember2(async (id, req) => {
+    const { cancelOffer } = await import("../services/tradeService");
+    return cancelOffer(id, Math.floor(Number((req.body as { offerId?: number })?.offerId ?? 0)));
+  }));
+  app.post("/api/trade/message", requireUser, rateLimit(20), withMember2(async (id, req) => {
+    const { sendTradeMessage } = await import("../services/tradeService");
+    const b = req.body as { offerId?: number; text?: string };
+    return sendTradeMessage(id, Math.floor(Number(b?.offerId ?? 0)), String(b?.text ?? ""));
+  }));
+
+  // ── 🤖 AI support (rules-first; LLM only when owner adds free keys) ──────
+  app.post("/api/ai/ask", requireUser, rateLimit(10), withMember2(async (id, req) => {
+    const { parseIntent, aiSupport } = await import("../services/ai/intent");
+    const text = String((req.body as { text?: string })?.text ?? "").slice(0, 300);
+    const intent = parseIntent(text);
+    if (intent.type === "faq") return { source: "rules", answer: intent.answer };
+    if (intent.type === "book") return { source: "rules", answer: "🚕 Taksi kerakmi? Bosh ekrandagi «Taxi chaqirish» tugmasini bosing!", book: true };
+    const llm = await aiSupport(id, text);
+    return llm ? { source: "llm", answer: llm } : { source: "none", answer: "☎️ Bu savolga operator yordam beradi: 1067" };
+  }));
+
   // kill-switch flags + mashina fondi + B2B corp accounts
   app.get("/api/admin/features", requireAdmin, async (_req, res) => {
     const { listFeatures, fundTotal } = await import("../services/featureFlags");
     res.json({ features: await listFeatures(), mashinaFund: await fundTotal() });
   });
-  app.post("/api/admin/features", requireAdmin, async (req, res) => {
+  app.post("/api/admin/features", requireAdmin, requireOwner, async (req, res) => {
     const { setFeature, FEATURES, listFeatures } = await import("../services/featureFlags");
     const b = req.body as { name?: string; on?: boolean };
     if (!FEATURES.includes(b?.name as never)) {
@@ -502,11 +582,98 @@ export function createApiServer(opts: ApiOptions = {}) {
     await setFeature(b.name as never, b.on !== false);
     res.json({ ok: true, features: await listFeatures() });
   });
+  // ── M1/M3/M4/M6: livemap, member/driver 360, mashina draw, op tokens ─────
+  app.get("/api/admin/livemap", requireAdmin, async (_req, res) => {
+    const { nearbyPins } = await import("../services/bookingPlus");
+    const ds = (await import("../kas")).getDataSource();
+    const [pins, bookings] = await Promise.all([nearbyPins(), ds.listActiveBookings().catch(() => [])]);
+    res.json({ ...pins, bookings: bookings.map((b) => ({ id: b.id, status: b.status, lat: b.lat, lng: b.lng, address: b.addressName })) });
+  });
+  app.get("/api/admin/member360", requireAdmin, async (req, res) => {
+    const phone = String(req.query.phone ?? "").replace(/\D/g, "").slice(-9);
+    if (phone.length !== 9) {
+      res.status(400).json({ error: "phone required" });
+      return;
+    }
+    const m = await prisma.member.findFirst({ where: { phone: { endsWith: phone } } });
+    if (!m) {
+      res.status(404).json({ error: "not found" });
+      return;
+    }
+    const [txns, rides30, items, gap, recruit, ratingCount] = await Promise.all([
+      prisma.coinTxn.findMany({ where: { memberId: m.id }, orderBy: { id: "desc" }, take: 30 }),
+      prisma.rideReward.count({ where: { memberId: m.id, createdAt: { gte: new Date(Date.now() - 30 * 86_400_000) } } }),
+      prisma.item.count({ where: { ownerId: m.id } }),
+      prisma.gapMember.findUnique({ where: { memberId: m.id }, include: { gap: true } }),
+      prisma.driverRecruit.findUnique({ where: { riderMemberId: m.id } }),
+      prisma.rideRating.count({ where: { memberId: m.id } }),
+    ]);
+    res.json({
+      member: { id: m.id, name: m.fullName, type: m.type, coins: m.coins, trips: m.trips, riskFlag: m.riskFlag, plusUntil: m.plusUntil, tier: m.driverTier, createdAt: m.createdAt },
+      rides30,
+      items,
+      gap: gap ? gap.gap.name : null,
+      recruitedByDriver: recruit?.driverId ?? null,
+      ratings: ratingCount,
+      txns: txns.map((t) => ({ amount: t.amount, kind: t.kind, reason: t.reason, at: t.createdAt })),
+    });
+  });
+  app.get("/api/admin/driver360", requireAdmin, async (req, res) => {
+    const car = String(req.query.car ?? "").trim();
+    if (!car) {
+      res.status(400).json({ error: "car required" });
+      return;
+    }
+    const m = await prisma.member.findFirst({ where: { type: "driver", carNumber: { equals: car, mode: "insensitive" } } });
+    const { carRatingSummary } = await import("../services/bookingPlus");
+    const rating = await carRatingSummary(car.toUpperCase());
+    const recruits = m ? await prisma.driverRecruit.count({ where: { driverId: m.id } }) : 0;
+    const fullType = await prisma.itemType.findUnique({ where: { code: "car_full" } });
+    const fullCars = m && fullType ? await prisma.item.count({ where: { ownerId: m.id, itemTypeId: fullType.id } }) : 0;
+    res.json({
+      driver: m ? { id: m.id, name: m.fullName, tier: m.driverTier, coins: m.coins, phone: m.phone } : null,
+      rating,
+      recruits,
+      mashinaTickets: fullCars,
+    });
+  });
+  app.get("/api/admin/mashina", requireAdmin, async (_req, res) => {
+    const { fundTotal } = await import("../services/featureFlags");
+    const fullType = await prisma.itemType.findUnique({ where: { code: "car_full" } });
+    const holders = fullType
+      ? await prisma.item.groupBy({ by: ["ownerId"], where: { itemTypeId: fullType.id }, _count: true })
+      : [];
+    const owners = await prisma.member.findMany({ where: { id: { in: holders.map((h) => h.ownerId) } }, select: { id: true, fullName: true, carNumber: true } });
+    const nameOf = new Map(owners.map((o) => [o.id, o]));
+    res.json({
+      fund: await fundTotal(),
+      tickets: holders.map((h) => ({ name: nameOf.get(h.ownerId)?.fullName ?? "?", car: nameOf.get(h.ownerId)?.carNumber ?? "", tickets: h._count })),
+      rule: "Yillik o'yin: har to'liq mashina to'plami = 1 chipta. Sovrin hech qachon fonddan oshmaydi.",
+    });
+  });
+  app.get("/api/admin/recruitqr/:driverId", requireAdmin, async (req, res) => {
+    const id = Math.floor(Number(req.params.driverId));
+    const d = await prisma.member.findUnique({ where: { id } });
+    if (!d || d.type !== "driver") {
+      res.status(404).json({ error: "driver not found" });
+      return;
+    }
+    const QR = await import("qrcode");
+    const png = await QR.toBuffer(`https://t.me/koson1067bot?start=drv_${id}`, { width: 600, margin: 2 });
+    res.setHeader("Content-Type", "image/png");
+    res.send(png);
+  });
+  app.post("/api/admin/optoken", requireAdmin, requireOwner, async (_req, res) => {
+    const token = Array.from({ length: 24 }, () => "abcdefghjkmnpqrstuvwxyz23456789"[Math.floor(Math.random() * 31)]).join("");
+    await prisma.appState.create({ data: { key: `oprtoken:${token}`, value: "operator" } });
+    res.json({ ok: true, token, role: "operator" });
+  });
+
   app.get("/api/admin/corps", requireAdmin, async (_req, res) => {
     const { listCorps } = await import("../services/corpService");
     res.json({ corps: await listCorps() });
   });
-  app.post("/api/admin/corps", requireAdmin, async (req, res) => {
+  app.post("/api/admin/corps", requireAdmin, requireOwner, async (req, res) => {
     const { createCorp } = await import("../services/corpService");
     const b = req.body as { name?: string; cap?: number };
     if (!b?.name) {
@@ -520,7 +687,7 @@ export function createApiServer(opts: ApiOptions = {}) {
     const b = req.body as { phone?: string; name?: string };
     res.json(await addCorpEmployee(Number(req.params.id), String(b?.phone ?? ""), b?.name));
   });
-  app.post("/api/admin/corps/:id/balance", requireAdmin, async (req, res) => {
+  app.post("/api/admin/corps/:id/balance", requireAdmin, requireOwner, async (req, res) => {
     const { adjustCorpBalance } = await import("../services/corpService");
     res.json(await adjustCorpBalance(Number(req.params.id), Math.floor(Number((req.body as { delta?: number })?.delta ?? 0))));
   });
@@ -612,7 +779,7 @@ export function createApiServer(opts: ApiOptions = {}) {
     }
     res.json(await unflagMember(id));
   });
-  app.post("/api/admin/grant", requireAdmin, rateLimit(10), async (req, res) => {
+  app.post("/api/admin/grant", requireAdmin, requireOwner, rateLimit(10), async (req, res) => {
     const { adminGrant } = await import("../services/adminOps");
     const b = (req.body ?? {}) as { target?: string; amount?: number; reason?: string };
     res.json(await adminGrant(String(b.target ?? ""), Number(b.amount ?? 0), String(b.reason ?? ""), res.locals.telegramId as string));

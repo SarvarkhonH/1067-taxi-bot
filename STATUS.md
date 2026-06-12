@@ -148,3 +148,13 @@ economy 18 ✓ · phase2/6 ✓ · engagement ✓ · wheel ✓ · reward ✓ · t
 - **Virtual bozor to'liq** (escrow/barter/savdo-chat/AI moderator) — Kolleksiya resale hozir oddiy fixed-price.
 - **Admin 3.0 qolgan modullari** (M1 jonli xarita, M3/M4 360, rollar auth).
 - Postgres **2026-07-10** muddati; UZ-hosting varianti.
+
+
+# 🚀 2026-06-12 (2-tur): E-TO'LQIN + QOLGAN HAMMASI
+
+- 🗺 **Booking 3.0**: xaritada jonli bo'sh mashinalar (🟢/🚖 pinlar, 45s), tarixdan narx-bashorat (delivered+payment, umumiy + manzil bo'yicha), safar tugagach ⭐ baho + teglar ("Toza mashina") — haydovchi reytingiga yig'iladi.
+- 🤖 **AI qatlami (qoidalar-birinchi)**: `llmRouter` (Gemini→Groq→OpenRouter→Mistral bepul zanjir, KALITSIZ O'CHIQ; kunlik cap 1200/10; telefon-raqamlar sanitize), `intent.ts` — botda erkin matn: "bozorga taksi kerak" → manzil tugmalari + 1-bosish; 12 FAQ javobi; tushunilmagan savol → LLM (kalit bo'lsa) → operator.
+- 🤝 **Virtual bozor v2**: takliflar ESCROW bilan (tanga garovda), barter (50 tanga/tomondan), bitim-ichi chat (raqam/naqd so'zlar regex-blok, 3 strike = 30 kun ban), qabul = 90% sotuvchiga (10% burn). Miniapp: 🤝 taklif tugmasi + "Savdolarim" panel.
+- 🖥 **Admin 3.0**: 🗺 Jonli tab (haydovchi pinlari + faol buyurtmalar, 30s), 🔎 360 tab (telefon→mijoz 360: txn/safar/buyum/gap/risk; mashina→haydovchi 360: ⭐+teg buluti+recruit+chiptalar), Recruit QR PNG yuklab olish, 🎟 Mashina-o'yin chiptalari ro'yxati, 🔑 operator-token (rollar-lite: moliyaviy POSTlar faqat owner).
+- 🛠 Tuzatildi: jackpot to'lovi endi per-ride clamp hisobiga KIRMAYDI (suffiks ajratildi); testRideCard jonli jackpot poolni saqlab-tiklaydi (pool 21 515 ga qaytarildi).
+- 🧪 14 suite yashil (yangi: trade/AI/rating 31 tekshiruv).

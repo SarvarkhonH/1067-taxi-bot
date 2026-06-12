@@ -506,6 +506,40 @@ export function createBot(): Bot {
   });
 
   registerBooking(bot);
+
+  // 🤖 AI-1 rules-first free text: runs AFTER booking's own text handler
+  // (which next()s when no session is waiting). Buttons stay the main UX —
+  // this just catches "bozorga taksi kerak" style messages.
+  bot.on("message:text", async (ctx) => {
+    const { parseIntent, aiSupport, resolveAddress } = await import("../services/ai/intent");
+    const intent = parseIntent(ctx.message.text);
+    if (intent.type === "faq") {
+      await ctx.reply(intent.answer + "\n\n☎️ Operator: 1067", { reply_markup: undefined });
+      return;
+    }
+    if (intent.type === "book") {
+      const { InlineKeyboard } = await import("grammy");
+      const kb = new InlineKeyboard();
+      if (intent.addressQuery) {
+        const found = await resolveAddress(intent.addressQuery);
+        for (const a of found) kb.text(`📍 ${a.name}`, `bk:addr:${a.id}`).row();
+      }
+      kb.text("🚕 1-bosishda chaqirish", "bk:now");
+      const later = intent.when === "later" ? `\n⏰ ${intent.timeText ?? "Keyinroqqa"} — hozircha buyurtma vaqti kelganda yozing, rejali safar tez orada!` : "";
+      await ctx.reply(`🚕 Taksi kerak shekilli!${later}\nQuyidan tanlang:`, { reply_markup: kb });
+      return;
+    }
+    // not understood: try LLM support (disabled w/o keys), else gentle nudge
+    const tu = await (await import("../db")).prisma.telegramUser.findUnique({ where: { id: String(ctx.from!.id) } });
+    if (tu?.memberId) {
+      const ans = await aiSupport(tu.memberId, ctx.message.text).catch(() => null);
+      if (ans) {
+        await ctx.reply(ans + "\n\n☎️ Operator: 1067");
+        return;
+      }
+    }
+    await ctx.reply("Tushunmadim 🙂 Pastdagi tugmalardan foydalaning yoki operator: 1067");
+  });
   return bot;
 }
 

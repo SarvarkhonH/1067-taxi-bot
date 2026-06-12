@@ -2,6 +2,7 @@ import http from "node:http";
 import https from "node:https";
 import { env } from "../env";
 import type {
+  DriverPin,
   ActiveBooking,
   ActiveBookingLite,
   BonusRules,
@@ -352,6 +353,25 @@ export class KasLiveSource implements KasDataSource {
       res = await doReq();
     }
     return { ok: res.status >= 200 && res.status < 300, message: res.body.slice(0, 200) };
+  }
+
+  async getDriverPins(): Promise<DriverPin[]> {
+    // one light page of drivers; only those broadcasting live coordinates
+    try {
+      const data = await this.getJson(`api/drivers/byFilter?searchText=&sort=id&page=0&size=50&date=01.01.2015`);
+      const list = (data as { driverDtoList?: Record<string, unknown>[] })?.driverDtoList ?? [];
+      return list
+        .map((d) => ({
+          lat: Number(d.latitude ?? 0),
+          lng: Number(d.longitude ?? 0),
+          bearing: Number(d.bearing ?? 0),
+          busy: Number(d.taximeterPayment ?? 0) > 0,
+        }))
+        .filter((pin) => pin.lat !== 0 && pin.lng !== 0)
+        .slice(0, 30);
+    } catch {
+      return [];
+    }
   }
 
   async getDriverByCar(carNumber: string): Promise<BookingDriver | null> {

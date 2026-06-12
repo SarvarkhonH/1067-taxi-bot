@@ -4,7 +4,63 @@ import { api } from "./api";
 import { haptic } from "./telegram";
 import { confetti } from "./util";
 import { Spinner } from "./components";
-import type { ItemsResponse } from "./api";
+import type { ItemsResponse, TradesResponse } from "./api";
+
+// Savdolarim — escrowed offers + per-deal chat (moderated server-side).
+function TradesPanel({ onBanner }: { onBanner: (m: string) => void }) {
+  const [t, setT] = useState<TradesResponse | null>(null);
+  const [chatFor, setChatFor] = useState<number | null>(null);
+  const [text, setText] = useState("");
+  const load = () => api.trades().then(setT).catch(() => undefined);
+  useEffect(() => {
+    load();
+  }, []);
+  if (!t || (t.incoming.length === 0 && t.outgoing.length === 0)) return null;
+
+  const act = async (fn: () => Promise<{ ok: boolean; reason?: string }>, okMsg: string) => {
+    haptic();
+    const r = await fn();
+    onBanner(r.ok ? okMsg : r.reason === "moderated" ? "⚠️ Xabar bloklandi (raqam/naqd taqiq!)" : r.reason === "banned" ? "Savdo chat 30 kunga yopilgan" : r.reason === "insufficient" ? "Tanga yetarli emas" : "Xatolik");
+    await load();
+  };
+
+  const row = (o: TradesResponse["incoming"][number], incoming: boolean) => (
+    <div key={o.id} style={{ borderTop: "1px solid rgba(255,255,255,.08)", padding: "8px 0" }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
+        <span style={{ fontSize: 13 }}>
+          {incoming ? `${o.from} taklifi:` : "Sizning taklifingiz:"} <b>{o.item}</b> uchun{" "}
+          {o.offerCoins > 0 && <b>🪙 {formatNumber(o.offerCoins)}</b>}
+          {o.offerItem && <> {o.offerCoins > 0 ? "+" : ""} {o.offerItem} (almashuv)</>}
+        </span>
+        <span style={{ display: "flex", gap: 6 }}>
+          {incoming && <button className="btn-primary sm" onClick={() => act(() => api.tradeAccept(o.id), "🤝 Bitim yakunlandi!")}>✓</button>}
+          <button className="btn-ghost sm" onClick={() => act(() => api.tradeCancel(o.id), incoming ? "Rad etildi" : "Bekor qilindi")}>✗</button>
+          <button className="btn-ghost sm" onClick={() => setChatFor(chatFor === o.id ? null : o.id)}>💬{o.chat.length > 0 ? o.chat.length : ""}</button>
+        </span>
+      </div>
+      {chatFor === o.id && (
+        <div style={{ marginTop: 6 }}>
+          {o.chat.map((c, i) => (
+            <div key={i} className="muted" style={{ fontSize: 12, textAlign: c.me ? "right" : "left" }}>{c.me ? "Siz: " : ""}{c.text}</div>
+          ))}
+          <div style={{ display: "flex", gap: 6, marginTop: 4 }}>
+            <input className="bk-input" style={{ flex: 1 }} placeholder="Xabar (raqam/naqd taqiq)" value={text} onChange={(e) => setText(e.target.value)} />
+            <button className="btn-primary sm" disabled={!text.trim()} onClick={() => act(async () => { const r = await api.tradeMessage(chatFor, text); setText(""); return r; }, "Yuborildi")}>➤</button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+
+  return (
+    <section className="glass pad">
+      <div className="section-title">🤝 Savdolarim</div>
+      {t.incoming.map((o) => row(o, true))}
+      {t.outgoing.map((o) => row(o, false))}
+      <p className="muted game-hint">Hamma bitim escrow bilan — tanga garovda turadi. Real pul savdosi TAQIQLANGAN.</p>
+    </section>
+  );
+}
 
 // 💎 Xazina (Kolleksiya): catalog mint + my items + internal resale (10% burn)
 function CollectionSection({ onBanner }: { onBanner: (m: string) => void }) {
@@ -62,9 +118,15 @@ function CollectionSection({ onBanner }: { onBanner: (m: string) => void }) {
               {l.mine ? (
                 <span className="muted">sizniki</span>
               ) : (
-                <button className="btn-violet sm" disabled={busy} onClick={() => run(() => api.itemBuy(l.listingId), (r) => `💎 ${r.name ?? "Buyum"} sotib olindi!`)}>
-                  🪙 {formatNumber(l.price)}
-                </button>
+                <span style={{ display: "flex", gap: 6 }}>
+                  <button className="btn-violet sm" disabled={busy} onClick={() => run(() => api.itemBuy(l.listingId), (r) => `💎 ${r.name ?? "Buyum"} sotib olindi!`)}>
+                    🪙 {formatNumber(l.price)}
+                  </button>
+                  <button className="btn-ghost sm" disabled={busy} onClick={() => {
+                    const v = prompt(`🤝 ${l.name} uchun taklifingiz (tanga):`, String(Math.floor(l.price * 0.8)));
+                    if (v) run(() => api.tradeOffer(l.itemId, Math.floor(Number(v))), () => "🤝 Taklif yuborildi — egasining javobini kuting!");
+                  }}>🤝</button>
+                </span>
               )}
             </div>
           ))}
@@ -244,6 +306,8 @@ export function MarketView({ coins, onBanner }: { coins: number; onBanner: (m: s
       <MyShopPanel onBanner={onBanner} />
 
       <CollectionSection onBanner={onBanner} />
+
+      <TradesPanel onBanner={onBanner} />
 
       {activeVouchers.length > 0 && (
         <section className="glass pad">

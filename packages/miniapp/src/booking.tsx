@@ -97,6 +97,13 @@ export function BookingView({ onClose }: { onClose: () => void }) {
   const [quote, setQuote] = useState<FareQuote | null>(null);
   const [msg, setMsg] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [freeDrivers, setFreeDrivers] = useState(0);
+  const [predict, setPredict] = useState<{ avg: number; byAddress?: { name: string; avg: number; rides: number } | null } | null>(null);
+  const [rateFor, setRateFor] = useState<number | null>(null);
+  const [stars, setStars] = useState(0);
+  const [rateTags, setRateTags] = useState<string[]>([]);
+  const nearbyMarkers = useRef<any[]>([]);
+  const prevActiveId = useRef<number | null>(null);
 
   const mapRef = useRef<HTMLDivElement | null>(null);
   const map = useRef<any>(null);
@@ -150,6 +157,49 @@ export function BookingView({ onClose }: { onClose: () => void }) {
     else pickMarker.current.setLatLng(ll);
     map.current.panTo(ll);
   }, [pickup]);
+
+  // E1: live free-car pins (45s refresh)
+  useEffect(() => {
+    let alive = true;
+    const load = async () => {
+      const r = await api.bookingNearby().catch(() => null);
+      if (!alive || !r) return;
+      setFreeDrivers(r.freeDrivers);
+      const L = (window as any).L;
+      if (!map.current || !L) return;
+      for (const mk of nearbyMarkers.current) mk.remove();
+      nearbyMarkers.current = r.pins.slice(0, 20).map((d) =>
+        L.marker([d.lat, d.lng], { icon: pin(L, d.busy ? "#666" : "#22c55e", d.busy ? "🚖" : "🟢") }).addTo(map.current),
+      );
+    };
+    load();
+    const t = setInterval(load, 45_000);
+    return () => {
+      alive = false;
+      clearInterval(t);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // E3: history-based fare prediction for the picked address
+  useEffect(() => {
+    if (!pickup) {
+      setPredict(null);
+      return;
+    }
+    api.bookingPredict(pickup.name).then((r) => setPredict({ avg: r.avg, byAddress: r.byAddress })).catch(() => undefined);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pickup?.id]);
+
+  // E7: ride finished (active → null) → ask for stars
+  useEffect(() => {
+    if (active?.id) prevActiveId.current = active.id;
+    else if (prevActiveId.current) {
+      setRateFor(prevActiveId.current);
+      prevActiveId.current = null;
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [active?.id]);
 
   // fare estimate when pickup + dest set
   useEffect(() => {
@@ -276,6 +326,30 @@ export function BookingView({ onClose }: { onClose: () => void }) {
 
       <div className="bk-sheet">
         {msg && <div className="bk-msg" onClick={() => setMsg(null)}>{msg}</div>}
+        {rateFor && (
+          <div className="sheet-back" onClick={() => setRateFor(null)}>
+            <div className="sheet" onClick={(e) => e.stopPropagation()}>
+              <div className="sheet-grip" />
+              <h3>⭐ Safar qanday o'tdi?</h3>
+              <div style={{ display: "flex", gap: 8, justifyContent: "center", fontSize: 34, margin: "10px 0" }}>
+                {[1, 2, 3, 4, 5].map((n) => (
+                  <span key={n} style={{ cursor: "pointer", opacity: n <= stars ? 1 : 0.3 }} onClick={() => { haptic(); setStars(n); }}>⭐</span>
+                ))}
+              </div>
+              <div className="chip-row" style={{ flexWrap: "wrap" }}>
+                {["Toza mashina", "Xushmuomala", "Tez yetib keldi", "Sekin haydadi", "Mashina eski"].map((tg) => (
+                  <button key={tg} className={"amt-chip" + (rateTags.includes(tg) ? " active" : "")} onClick={() => setRateTags((pv) => (pv.includes(tg) ? pv.filter((x) => x !== tg) : [...pv, tg]))}>
+                    {tg}
+                  </button>
+                ))}
+              </div>
+              <button className="btn-primary" disabled={!stars} onClick={async () => { await api.bookingRate(rateFor, stars, rateTags).catch(() => undefined); setRateFor(null); setStars(0); setRateTags([]); setMsg("🙏 Rahmat! Bahoyingiz haydovchi reytingiga qo'shildi."); }}>
+                Yuborish
+              </button>
+              <button className="btn-ghost" onClick={() => setRateFor(null)}>O'tkazib yuborish</button>
+            </div>
+          </div>
+        )}
         {active ? (
           <TrackingCard active={active} onCancel={cancel} busy={busy} />
         ) : !info ? (
@@ -290,6 +364,12 @@ export function BookingView({ onClose }: { onClose: () => void }) {
               </div>
             ) : (
               <div className="muted bk-fare-hint">📍 Borar manzilni xaritada belgilang — narxni ko'rasiz (ixtiyoriy)</div>
+            )}
+            {predict && (
+              <div className="muted" style={{ fontSize: 12, textAlign: "center", marginTop: 4 }}>
+                📊 {predict.byAddress ? `${predict.byAddress.name}: odatda ~${formatNumber(predict.byAddress.avg)} so'm` : `Kosonda o'rtacha safar ~${formatNumber(predict.avg)} so'm`}
+                {freeDrivers > 0 ? ` · 🟢 bo'sh: ${freeDrivers}` : ""}
+              </div>
             )}
             {info.cars.length > 0 && (
               <div className="bk-cars">

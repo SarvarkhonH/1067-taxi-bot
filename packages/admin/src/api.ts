@@ -102,6 +102,12 @@ export const adminApi = {
   corpCreate: (name: string, cap: number) => postJson<{ id: number }>("/api/admin/corps", { name, cap }),
   corpAddEmployee: (id: number, phone: string, name?: string) => postJson<{ ok: boolean; reason?: string }>(`/api/admin/corps/${id}/employees`, { phone, name }),
   corpBalance: (id: number, delta: number) => postJson<{ ok: boolean; balance?: number }>(`/api/admin/corps/${id}/balance`, { delta }),
+  livemap: () => req<{ pins: { lat: number; lng: number; busy: boolean }[]; freeDrivers: number; bookings: { id: number; status: string; lat: number | null; lng: number | null; address: string }[] }>("/api/admin/livemap"),
+  member360: (phone: string) => req<Member360>(`/api/admin/member360?phone=${encodeURIComponent(phone)}`),
+  driver360: (car: string) => req<Driver360>(`/api/admin/driver360?car=${encodeURIComponent(car)}`),
+  mashina: () => req<{ fund: number; tickets: { name: string; car: string; tickets: number }[]; rule: string }>("/api/admin/mashina"),
+  optoken: () => postJson<{ ok: boolean; token: string; role: string }>("/api/admin/optoken", {}),
+  recruitQrUrl: (driverId: number) => `${API_BASE}/api/admin/recruitqr/${driverId}`,
   corpReport: (id: number) => req<{ corp: { name: string; balance: number }; rows: { phone: string; name: string | null; rides: number; overCap: boolean }[]; totalRides: number }>(`/api/admin/corps/${id}/report`),
   northstar: () =>
     req<{ weekCompleted: number; prevWeekCompleted: number; botShare: number; weeklyActiveRiders: number; coinLiability: number }>(
@@ -118,3 +124,20 @@ export const adminApi = {
     }>("/api/admin/analytics/drivers"),
   heal: (memberId: number) => postJson<AdminActionResult>("/api/admin/heal", { memberId }),
 };
+
+export interface Member360 {
+  member: { id: number; name: string; type: string; coins: number; trips: number; riskFlag: boolean; plusUntil: string | null; tier: string; createdAt: string };
+  rides30: number;
+  items: number;
+  gap: string | null;
+  recruitedByDriver: number | null;
+  ratings: number;
+  txns: { amount: number; kind: string; reason: string; at: string }[];
+}
+
+export interface Driver360 {
+  driver: { id: number; name: string; tier: string; coins: number; phone: string | null } | null;
+  rating: { avg: number; count: number; tags: { tag: string; n: number }[] };
+  recruits: number;
+  mashinaTickets: number;
+}

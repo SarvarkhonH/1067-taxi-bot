@@ -81,6 +81,13 @@ export interface ActiveBookingLite {
 }
 
 // One row of a client's ride history (kas bookingReports).
+export interface DriverPin {
+  lat: number;
+  lng: number;
+  bearing: number;
+  busy: boolean;
+}
+
 export interface RideHistoryItem {
   id: number;
   addressName: string;
@@ -164,6 +171,8 @@ export interface KasDataSource {
   listActiveBookings(): Promise<ActiveBookingLite[]>;
   /** Ride history for a phone (bookingReports, newest first). */
   getRideHistory(phone: string, size?: number): Promise<RideHistoryItem[]>;
+  /** E1: free/online driver map pins (best-effort — drivers with live coords). */
+  getDriverPins(): Promise<DriverPin[]>;
   /** Live driver position/identity by car number (the moving pin). */
   getDriverByCar(carNumber: string): Promise<BookingDriver | null>;
   /** Raw bookingReports page (analytics: per-driver distribution, north-star). */

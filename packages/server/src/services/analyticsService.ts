@@ -11,7 +11,7 @@ const DONE = new Set(["delivered", "completed", "finished"]); // kas reports voc
 const WEEK_MS = 7 * 24 * 3600 * 1000;
 
 let cache: { at: number; rows: RideHistoryItem[] } | null = null;
-async function recentReports(): Promise<RideHistoryItem[]> {
+export async function recentReports(): Promise<RideHistoryItem[]> {
   if (cache && Date.now() - cache.at < 600_000) return cache.rows;
   const ds = getDataSource();
   // kas silently caps page size around ~50 — page SEQUENTIALLY (rate-limit
