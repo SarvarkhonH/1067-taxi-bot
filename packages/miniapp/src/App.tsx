@@ -1,4 +1,6 @@
-import { useEffect, useState } from "react";
+import { Suspense, lazy, useEffect, useState } from "react";
+
+const DesignDemo = lazy(() => import("./design/demo")); // #demo dagina yuklanadi
 import type { LeaderboardResponse, MeResponse } from "@t1067/shared";
 import { api, getInitData } from "./api";
 import { haptic, tg } from "./telegram";
@@ -32,6 +34,14 @@ const DRIVER_TABS: { id: Tab; icon: string; label: string }[] = [
 ];
 
 export function App() {
+  if (window.location.hash === "#demo") {
+    return (
+      <Suspense fallback={<div className="boot"><div className="boot-logo">🎨</div></div>}>
+        <DesignDemo />
+      </Suspense>
+    );
+  }
+
   const [me, setMe] = useState<MeResponse | null>(null);
   const [linked, setLinked] = useState<boolean | null>(null);
   const [tab, setTab] = useState<Tab>("home");

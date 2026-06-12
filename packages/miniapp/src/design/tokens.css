@@ -1,0 +1,199 @@
+/* T1 DIZAYN TIZIMI — yagona manba. styles.css'dan KEYIN import qilinadi:
+   :root bu yerda g'olib bo'lib, eski klasslar avtomatik qayta bo'yaladi. */
+:root {
+  /* spec tokenlar */
+  --bg: #0b0f1a;
+  --surface: #151b2b;
+  --surface-2: #1e2638;
+  --brand: #ffb300;
+  --brand-grad: linear-gradient(135deg, #ffc840, #ff9500);
+  --win: #34d399;
+  --danger: #f87171;
+  --premium-grad: linear-gradient(135deg, #8b5cf6, #6366f1);
+  --text: #f2f5fa;
+  --text-dim: #8b94a7;
+  --r-card: 18px;
+  --r-btn: 14px;
+  --r-chip: 999px;
+  --shadow-1: 0 4px 24px rgba(0, 0, 0, 0.35);
+
+  /* harakat tili */
+  --dur-page: 220ms;
+  --dur-press: 90ms;
+  --dur-card: 260ms;
+  --dur-win-confetti: 600ms;
+  --dur-win-count: 800ms;
+  --dur-shimmer: 1.4s;
+  --ease-out: cubic-bezier(0.22, 0.8, 0.32, 1);
+  --ease-spin: cubic-bezier(0.17, 0.67, 0.12, 0.99);
+
+  /* legacy nomlar → yangi tokenlar (styles.css ni butunlay qayta bo'yaydi) */
+  --bg-2: var(--surface);
+  --card: rgba(255, 255, 255, 0.045);
+  --card-solid: var(--surface);
+  --line: rgba(255, 255, 255, 0.09);
+  --muted: var(--text-dim);
+  --gold: var(--brand);
+  --violet: #8b5cf6;
+  --red: var(--danger);
+  --cyan: #22d3ee;
+  --green: var(--win);
+  --accent: var(--brand);
+  --r: var(--r-card);
+}
+
+body { font-variant-numeric: tabular-nums; }
+
+/* ── utility klasslar (inline-style'lar o'rniga) ───────────────────────── */
+.row { display: flex; align-items: center; }
+.col { display: flex; flex-direction: column; }
+.between { display: flex; align-items: center; justify-content: space-between; }
+.center { display: flex; align-items: center; justify-content: center; }
+.wrap { flex-wrap: wrap; }
+.grow { flex: 1; }
+.g4 { gap: 4px; } .g6 { gap: 6px; } .g8 { gap: 8px; } .g10 { gap: 10px; }
+.mt4 { margin-top: 4px; } .mt6 { margin-top: 6px; } .mt8 { margin-top: 8px; } .mt10 { margin-top: 10px; } .mt12 { margin-top: 12px; }
+.mb4 { margin-bottom: 4px; }
+.fs12 { font-size: 12px; } .fs13 { font-size: 13px; } .fs22 { font-size: 22px; } .fs34 { font-size: 34px; } .fs40 { font-size: 40px; }
+.tac { text-align: center; } .tar { text-align: right; } .tal { text-align: left; }
+.dim { color: var(--text-dim); }
+.break { word-break: break-all; }
+.self-center { align-self: center; }
+.pre-line { white-space: pre-line; }
+.pointer { cursor: pointer; }
+.faded { opacity: 0.3; }
+.row-line { border-top: 1px solid rgba(255, 255, 255, 0.08); padding: 8px 0; }
+.minw70 { min-width: 70px; }
+.maxh200 { max-height: 200px; overflow: auto; }
+.uppercase { text-transform: uppercase; }
+
+/* ── dizayn-komponentlar ───────────────────────────────────────────────── */
+.d-btn {
+  border: 0; border-radius: var(--r-btn); padding: 13px 18px; font-weight: 700;
+  font-size: 15px; color: #1a1a1a; background: var(--brand-grad);
+  box-shadow: var(--shadow-1); cursor: pointer; width: 100%;
+  transition: transform var(--dur-press) ease, opacity 160ms ease, filter 160ms ease;
+}
+.d-btn:active:not(:disabled) { transform: scale(0.96); }
+.d-btn:disabled { opacity: 0.45; filter: saturate(0.4); cursor: default; }
+.d-btn.ghost { background: var(--surface-2); color: var(--text); box-shadow: none; border: 1px solid var(--line); }
+.d-btn.danger { background: linear-gradient(135deg, #f87171, #dc2626); color: #fff; }
+.d-btn.sm { padding: 8px 12px; font-size: 13px; width: auto; }
+/* WOW-11: disabled→enabled puls */
+.d-btn.pulse-enable:not(:disabled) { animation: d-pulse 700ms ease 1; }
+@keyframes d-pulse { 0% { transform: scale(1); } 40% { transform: scale(1.04); } 100% { transform: scale(1); } }
+
+.d-card { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-card); box-shadow: var(--shadow-1); padding: 14px; }
+.d-chip {
+  border: 1px solid var(--line); background: var(--surface-2); color: var(--text);
+  border-radius: var(--r-chip); padding: 8px 14px; font-size: 13px; font-weight: 600; cursor: pointer;
+  transition: transform var(--dur-press) ease, border-color 160ms ease;
+}
+.d-chip:active { transform: scale(0.96); }
+.d-chip.on { border-color: var(--brand); color: var(--brand); }
+
+/* Sheet — pastdan, sudrab yopiladi; WOW-5: fon blur + qorayish */
+.d-sheet-back {
+  position: fixed; inset: 0; z-index: 60; background: rgba(4, 6, 12, 0.55);
+  backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);
+  display: flex; align-items: flex-end; animation: d-fade var(--dur-page) var(--ease-out);
+}
+.d-sheet {
+  width: 100%; background: var(--surface-2); border-radius: var(--r-card) var(--r-card) 0 0;
+  padding: 10px 16px calc(18px + env(safe-area-inset-bottom)); box-shadow: var(--shadow-1);
+  animation: d-up var(--dur-card) var(--ease-out); touch-action: none;
+}
+.d-sheet h3 { margin: 8px 0 6px; }
+.d-grip { width: 44px; height: 5px; border-radius: 99px; background: var(--line); margin: 2px auto 8px; }
+@keyframes d-up { from { transform: translateY(40px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+@keyframes d-fade { from { opacity: 0; } to { opacity: 1; } }
+
+/* ProgressBar — WOW-7: 100% da oltin */
+.d-progress { height: 8px; border-radius: 99px; background: var(--surface-2); overflow: hidden; }
+.d-progress > span { display: block; height: 100%; border-radius: 99px; background: linear-gradient(90deg, #38bdf8, #8b5cf6); transition: width 400ms var(--ease-out); }
+.d-progress.full > span { background: var(--brand-grad); box-shadow: 0 0 12px rgba(255, 179, 0, 0.55); }
+
+/* Skeleton shimmer */
+.d-skel { position: relative; overflow: hidden; background: var(--surface-2); border-radius: 10px; min-height: 14px; }
+.d-skel::after {
+  content: ""; position: absolute; inset: 0; transform: translateX(-100%);
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.07), transparent);
+  animation: d-shimmer var(--dur-shimmer) linear infinite;
+}
+@keyframes d-shimmer { to { transform: translateX(100%); } }
+
+/* EmptyState / xato-holat (AUDIT 4.5) */
+.d-empty { text-align: center; padding: 18px 10px; color: var(--text-dim); }
+.d-empty .d-empty-ico { font-size: 38px; margin-bottom: 6px; }
+
+/* Toast + WOW-6: nishon "muhrlanadi" */
+.d-stamp { animation: d-stamp 480ms var(--ease-out); }
+@keyframes d-stamp { 0% { transform: scale(1.7) rotate(-7deg); opacity: 0; } 60% { transform: scale(0.95) rotate(1deg); opacity: 1; } 100% { transform: scale(1) rotate(0); } }
+
+/* CoinCounter — WOW-2: raqam aylanib almashadi */
+.d-coin { font-variant-numeric: tabular-nums; font-weight: 800; }
+.d-coin.rolling { animation: d-roll 360ms var(--ease-out); }
+@keyframes d-roll { 0% { transform: translateY(-0.6em); opacity: 0; } 100% { transform: translateY(0); opacity: 1; } }
+/* WOW-1: tanga ikonkasi sakraydi */
+.d-coin-bounce { display: inline-block; animation: d-bounce 520ms var(--ease-out); }
+@keyframes d-bounce { 0% { transform: translateY(0); } 35% { transform: translateY(-7px) scale(1.15); } 70% { transform: translateY(0); } 85% { transform: translateY(-3px); } 100% { transform: translateY(0); } }
+
+/* StreakFlame — WOW-9 */
+.d-flame { display: inline-block; }
+.d-flame.lit { animation: d-flame 900ms ease-in-out 2; filter: drop-shadow(0 0 8px rgba(255, 150, 0, 0.8)); }
+@keyframes d-flame { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.25) rotate(-4deg); } }
+
+/* TierBadge */
+.d-tier { padding: 3px 10px; border-radius: 99px; font-size: 12px; font-weight: 700; }
+.d-tier.bronza { background: #3d2b1f; color: #d9a066; }
+.d-tier.kumush { background: #2c3340; color: #c9d4e3; }
+.d-tier.oltin { background: #3d3115; color: var(--brand); }
+.d-tier.olmos { background: #14313d; color: #67e8f9; }
+
+/* WOW-3: ligada o'z qatoring porlaydi */
+.me-row { position: relative; border-radius: 12px; box-shadow: inset 0 0 0 1px rgba(255, 179, 0, 0.55), 0 0 14px rgba(255, 179, 0, 0.22); animation: d-glow 2.4s ease-in-out infinite; }
+@keyframes d-glow { 0%, 100% { box-shadow: inset 0 0 0 1px rgba(255, 179, 0, 0.55), 0 0 10px rgba(255, 179, 0, 0.18); } 50% { box-shadow: inset 0 0 0 1px rgba(255, 179, 0, 0.85), 0 0 20px rgba(255, 179, 0, 0.35); } }
+
+/* WOW-4: nodir buyumda sheen */
+.d-sheen { position: relative; overflow: hidden; }
+.d-sheen::after {
+  content: ""; position: absolute; top: -60%; bottom: -60%; width: 38%; left: -50%;
+  transform: rotate(18deg); background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.16), transparent);
+  animation: d-sheen 3.2s var(--ease-out) infinite;
+}
+@keyframes d-sheen { 0% { left: -50%; } 60%, 100% { left: 130%; } }
+
+/* WOW-10: bekor qilingan qator chapga uchadi */
+.fly-left { animation: d-fly 260ms ease-in forwards; }
+@keyframes d-fly { to { transform: translateX(-110%); opacity: 0; } }
+
+/* WOW-12: xarita pini tomchi bo'lib tushadi */
+.pin-drop { animation: d-drop 420ms var(--ease-out); }
+@keyframes d-drop { 0% { transform: translateY(-26px); opacity: 0; } 60% { transform: translateY(2px); opacity: 1; } 100% { transform: translateY(0); } }
+
+/* WOW-8: pull-to-refresh mini-taksi */
+.ptr { position: relative; }
+.ptr-ind { position: absolute; top: -34px; left: 0; right: 0; text-align: center; font-size: 22px; transition: transform 160ms ease; pointer-events: none; }
+
+/* sahifa o'tish (220ms fade + 8px slide) */
+.page { animation: d-page var(--dur-page) var(--ease-out); }
+@keyframes d-page { from { transform: translateY(8px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+/* karta paydo bo'lishi (260ms, stagger 40ms — birinchi 6 ta) */
+.view > section { animation: d-page var(--dur-card) var(--ease-out) backwards; }
+.view > section:nth-child(2) { animation-delay: 40ms; }
+.view > section:nth-child(3) { animation-delay: 80ms; }
+.view > section:nth-child(4) { animation-delay: 120ms; }
+.view > section:nth-child(5) { animation-delay: 160ms; }
+.view > section:nth-child(6) { animation-delay: 200ms; }
+
+/* cold-start ekranlar (4-shart: ikki holat ALOHIDA) */
+.wake-taxi { font-size: 44px; display: inline-block; animation: d-taxi 1.6s ease-in-out infinite; }
+@keyframes d-taxi { 0%, 100% { transform: translateX(-26px); } 50% { transform: translateX(26px); } }
+.wake-bar { height: 6px; border-radius: 99px; background: var(--surface-2); overflow: hidden; margin-top: 12px; }
+.wake-bar > span { display: block; height: 100%; width: 40%; border-radius: 99px; background: var(--brand-grad); animation: d-wake 1.4s ease-in-out infinite; }
+@keyframes d-wake { 0% { margin-left: -40%; } 100% { margin-left: 100%; } }
+
+/* prefers-reduced-motion: hamma harakat o'chadi */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation: none !important; transition: none !important; }
+}
