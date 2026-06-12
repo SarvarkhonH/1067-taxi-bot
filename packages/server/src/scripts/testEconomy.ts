@@ -50,10 +50,14 @@ ok(rollEv + wheelEv + 30 <= RIDE_EMISSION_CAP, `typical ride total ${(rollEv + w
 // streak ladder rebalanced
 ok(STREAK_REWARDS[3] === 100 && STREAK_REWARDS[100] === 10000, `streak 3→100 … 100→10000`);
 
-// missions: 50/50/100 daily, ≤1000 weekly
-const daily = MISSIONS.filter((m) => m.period === "daily");
-ok(daily.every((m) => m.reward <= 100), `daily mission rewards ≤ 100`);
-ok(MISSIONS.filter((m) => m.period === "weekly").every((m) => m.reward <= 1000), `weekly mission rewards ≤ 1000`);
+// missions: 50/50/100 daily, ≤1000 weekly (CLIENT side; driver quests
+// live on a separate ≤25k/day sub-budget — checked separately below)
+const clientMissions = MISSIONS.filter((m) => m.audience !== "driver");
+const daily = clientMissions.filter((m) => m.period === "daily");
+ok(daily.every((m) => m.reward <= 100), `client daily mission rewards ≤ 100`);
+ok(clientMissions.filter((m) => m.period === "weekly").every((m) => m.reward <= 1000), `client weekly mission rewards ≤ 1000`);
+const driverMissions = MISSIONS.filter((m) => m.audience === "driver");
+ok(driverMissions.length === 3 && driverMissions.every((m) => m.reward <= 12000), `driver quests present, each ≤ 12000`);
 
 // weekly league + surprise + driver
 ok(WEEKLY_PRIZES[0]!.amount === 5000 && WEEKLY_PRIZES[2]!.amount === 1000, `league prizes 5000/2500/1000`);
