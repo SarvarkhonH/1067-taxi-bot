@@ -11,6 +11,7 @@ export interface BadgeView {
 }
 
 export interface MeResponse {
+  luckyDay?: boolean;
   linked: boolean;
   type: MemberType;
   metricLabel: string; // "Bonus" (client) | "Balans" (driver)

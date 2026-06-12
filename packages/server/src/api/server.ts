@@ -145,7 +145,8 @@ export function createApiServer(opts: ApiOptions = {}) {
     }
     const { featureOn } = await import("../services/featureFlags");
     if (!(await featureOn("wheel"))) {
-      res.json({ ok: false, reason: "disabled" });
+      res.json({
+      luckyDay: (await import("../services/cashbackService")).isLuckyToday(), ok: false, reason: "disabled" });
       return;
     }
     res.json(await spinWheel(memberId));

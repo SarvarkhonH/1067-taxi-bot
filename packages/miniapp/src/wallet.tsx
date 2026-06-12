@@ -329,6 +329,9 @@ export function WalletView({ me, onBanner, reload, onBook }: { me: MeResponse; o
 
   return (
     <div className="view">
+      {me.luckyDay && (
+        <div className="sheet-ok" style={{ textAlign: "center" }}>🍀 BUGUN OMAD KUNI — har safar cashback 2x!</div>
+      )}
       <div className="jackpot-badge" style={{ alignSelf: "center", marginBottom: 4 }}>🎰 JACKPOT: <b>{formatNumber(me.jackpot)}</b> tanga — har safar oshadi!</div>
       <button className="book-cta" onClick={onBook}>
         🚖 Taxi chaqirish

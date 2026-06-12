@@ -17,6 +17,11 @@ async function reapStaleSyncs(maxAgeMs: number): Promise<void> {
 }
 
 async function main(): Promise<void> {
+  // one-shot: make sure the Kolleksiya catalog exists (idempotent upserts)
+  {
+    const { seedItemTypes } = await import("./services/itemService");
+    await seedItemTypes().catch((e) => console.error("[items] seed failed:", e));
+  }
   // P0.2 boot guard: never honor impersonation auth in a deployed (webhook) env.
   if (env.WEBHOOK_URL && env.allowDebugAuth) {
     console.error("[FATAL] ALLOW_DEBUG_AUTH=true in a deployed environment — refusing to start (impersonation risk).");
