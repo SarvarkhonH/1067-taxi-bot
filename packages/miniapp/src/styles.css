@@ -5,11 +5,11 @@
   --card: rgba(255, 255, 255, 0.045);
   --card-solid: #10182b;
   --line: rgba(255, 255, 255, 0.09);
-  --text: #eef2ff;
+  --text: var(--text);
   --muted: #8b96b5;
-  --gold: #ffce4f;
+  --gold: var(--brand);
   --violet: #a855f7;
-  --red: #ef4444;
+  --red: var(--danger);
   --cyan: #22d3ee;
   --green: #22c55e;
   --accent: var(--gold);
@@ -54,8 +54,8 @@ body {
 }
 .btn-primary:active, .btn-violet:active { transform: scale(0.97); }
 .btn-primary {
-  background: linear-gradient(135deg, var(--gold), #ffaa2b);
-  color: #221500; box-shadow: 0 10px 28px -10px var(--gold);
+  background: linear-gradient(135deg, var(--gold), #ff9500);
+  color: #1a1200; box-shadow: 0 10px 28px -10px var(--gold);
 }
 .btn-violet {
   background: linear-gradient(135deg, var(--violet), #7c3aed);
@@ -202,7 +202,7 @@ body {
 .park-back { width: auto; padding: 8px 14px; margin: 4px 0 10px; }
 
 /* ── race game ── */
-.race-overlay { position: fixed; inset: 0; z-index: 60; background: #070b14; display: flex; flex-direction: column; align-items: center; justify-content: center; animation: fade 0.2s ease; }
+.race-overlay { position: fixed; inset: 0; z-index: 60; background: var(--bg); display: flex; flex-direction: column; align-items: center; justify-content: center; animation: fade 0.2s ease; }
 .race-top { position: absolute; top: 0; left: 0; right: 0; padding: 14px 18px; display: flex; justify-content: space-between; align-items: center; z-index: 2; }
 .race-vs { font-size: 14px; font-weight: 700; }
 .race-stake { font-size: 12px; }
@@ -224,7 +224,7 @@ body {
 .race-close { width: auto; padding: 10px 22px; }
 
 /* ── crash game ── */
-.crash-bg { background: radial-gradient(600px 400px at 50% 30%, rgba(239,68,68,0.14), #070b14); }
+.crash-bg { background: radial-gradient(600px 400px at 50% 30%, rgba(239,68,68,0.14), var(--bg)); }
 .crash-stage { display: flex; flex-direction: column; align-items: center; gap: 14px; width: 100%; padding: 24px; }
 .crash-stake { font-size: 13px; }
 .crash-mult { font-size: 76px; font-weight: 900; color: var(--cyan); text-shadow: 0 0 36px rgba(34,211,238,0.5); transition: color 0.2s; }
@@ -249,9 +249,9 @@ body {
 .park-car-emoji { font-size: 30px; }
 .park-car-body { flex: 1; }
 .park-car-name { font-size: 15px; font-weight: 700; }
-.park-lv { font-size: 11px; background: var(--gold); color: #221500; padding: 1px 7px; border-radius: 999px; font-weight: 800; margin-left: 4px; }
+.park-lv { font-size: 11px; background: var(--gold); color: #1a1200; padding: 1px 7px; border-radius: 999px; font-weight: 800; margin-left: 4px; }
 .park-car-out { font-size: 12px; margin-top: 2px; }
-.park-buy { background: linear-gradient(135deg, var(--gold), #ffaa2b); color: #221500; border: 0; padding: 10px 14px; border-radius: 12px; font-weight: 800; font-size: 13px; white-space: nowrap; }
+.park-buy { background: linear-gradient(135deg, var(--gold), #ff9500); color: #1a1200; border: 0; padding: 10px 14px; border-radius: 12px; font-weight: 800; font-size: 13px; white-space: nowrap; }
 .park-buy:disabled { opacity: 0.55; }
 .park-foot { font-size: 11px; text-align: center; padding: 6px 12px; }
 
@@ -354,11 +354,11 @@ body {
 
 /* ── streak ── */
 .streak-card { display: flex; align-items: center; gap: 14px; padding: 15px 16px; }
-.streak-flame { font-size: 36px; filter: drop-shadow(0 0 12px #ff6b00); }
+.streak-flame { font-size: 36px; filter: drop-shadow(0 0 12px #ff9500); }
 .streak-info { flex: 1; }
 .streak-days { font-size: 22px; font-weight: 900; }
 .streak-label { font-size: 12px; }
-.streak-btn { background: linear-gradient(135deg, var(--gold), #ffaa2b); color: #221500; border: 0; padding: 11px 18px; border-radius: 12px; font-weight: 800; font-size: 14px; }
+.streak-btn { background: linear-gradient(135deg, var(--gold), #ff9500); color: #1a1200; border: 0; padding: 11px 18px; border-radius: 12px; font-weight: 800; font-size: 14px; }
 .streak-btn:disabled { opacity: 0.5; }
 
 /* ── tiles ── */
@@ -369,7 +369,7 @@ body {
 .tile-label { font-size: 11px; color: var(--muted); margin-top: 2px; }
 
 /* ── missions ── */
-.ready-pill { font-size: 11px; background: var(--gold); color: #221500; padding: 2px 9px; border-radius: 999px; font-weight: 800; margin-left: 6px; }
+.ready-pill { font-size: 11px; background: var(--gold); color: #1a1200; padding: 2px 9px; border-radius: 999px; font-weight: 800; margin-left: 6px; }
 .mission-group { font-size: 12px; font-weight: 800; margin: 4px 2px -6px; text-transform: uppercase; letter-spacing: 0.5px; }
 .mission { display: flex; align-items: center; gap: 12px; padding: 12px 14px; }
 .mission.ready { border-color: var(--gold); box-shadow: 0 0 0 1px var(--gold) inset, 0 8px 24px -14px var(--gold); }
@@ -378,9 +378,9 @@ body {
 .mission-body { flex: 1; min-width: 0; }
 .mission-title { font-size: 14px; font-weight: 700; }
 .mission-bar { height: 6px; background: rgba(255, 255, 255, 0.07); border-radius: 999px; margin: 7px 0 5px; overflow: hidden; }
-.mission-bar span { display: block; height: 100%; border-radius: 999px; background: linear-gradient(90deg, var(--gold), #ffaa2b); transition: width 0.6s cubic-bezier(0.2, 0.8, 0.2, 1); }
+.mission-bar span { display: block; height: 100%; border-radius: 999px; background: linear-gradient(90deg, var(--gold), #ff9500); transition: width 0.6s cubic-bezier(0.2, 0.8, 0.2, 1); }
 .mission-sub { font-size: 11px; }
-.mission-claim { background: linear-gradient(135deg, var(--gold), #ffaa2b); color: #221500; border: 0; padding: 9px 16px; border-radius: 11px; font-weight: 800; font-size: 13px; animation: pulse 1.6s ease-in-out infinite; }
+.mission-claim { background: linear-gradient(135deg, var(--gold), #ff9500); color: #1a1200; border: 0; padding: 9px 16px; border-radius: 11px; font-weight: 800; font-size: 13px; animation: pulse 1.6s ease-in-out infinite; }
 .mission-claim:disabled { opacity: 0.6; animation: none; }
 @keyframes pulse { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.06); } }
 .mission-done { font-size: 20px; }
@@ -389,7 +389,7 @@ body {
 /* ── league ── */
 .seg { display: flex; padding: 4px; gap: 4px; border-radius: 14px; }
 .seg-btn { flex: 1; border: 0; background: transparent; color: var(--muted); padding: 10px; border-radius: 10px; font-size: 14px; font-weight: 700; }
-.seg-btn.active { background: var(--gold); color: #221500; }
+.seg-btn.active { background: var(--gold); color: #1a1200; }
 .weekly-prizes { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
 .weekly-prize { padding: 12px 8px; text-align: center; }
 .weekly-prize:first-child { border-color: var(--gold); box-shadow: 0 6px 20px -12px var(--gold); }
@@ -405,7 +405,7 @@ body {
 .row-main { flex: 1; min-width: 0; }
 .row-name { font-size: 14px; font-weight: 600; display: flex; align-items: center; gap: 6px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .row-emoji { font-size: 15px; }
-.you { font-size: 10px; background: var(--gold); color: #221500; padding: 1px 6px; border-radius: 999px; font-weight: 800; }
+.you { font-size: 10px; background: var(--gold); color: #1a1200; padding: 1px 6px; border-radius: 999px; font-weight: 800; }
 .row-bar { height: 5px; background: rgba(255, 255, 255, 0.07); border-radius: 999px; margin-top: 7px; overflow: hidden; }
 .row-bar span { display: block; height: 100%; border-radius: 999px; }
 .row-val { font-size: 15px; font-weight: 800; }
@@ -424,7 +424,7 @@ body {
 
 /* ── reward banner ── */
 .reward-banner {
-  background: linear-gradient(90deg, var(--gold), #ffaa2b); color: #221500;
+  background: linear-gradient(90deg, var(--gold), #ff9500); color: #1a1200;
   font-weight: 800; text-align: center; padding: 13px; border-radius: 14px;
   box-shadow: 0 8px 24px -8px var(--gold); animation: pop 0.4s ease; margin-bottom: 12px;
 }
@@ -464,12 +464,12 @@ body {
   --card: rgba(255, 255, 255, 0.05);
   --card-solid: #121726;
   --line: rgba(255, 255, 255, 0.08);
-  --text: #f1f4ff;
+  --text: var(--text);
   --muted: #8b95b8;
-  --gold: #ffcf5a;
-  --gold-2: #ffb02e;
+  --gold: var(--brand);
+  --gold-2: #ff9500;
   --violet: #b06bff;
-  --red: #ff5468;
+  --red: var(--danger);
   --cyan: #34dcf0;
   --green: #34d399;
   --r: 20px;
