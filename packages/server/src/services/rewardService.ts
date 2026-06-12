@@ -38,59 +38,8 @@ async function bumpScore(memberId: number, kind: ScoreKind): Promise<void> {
   }
 }
 
-export interface GrantResult {
-  ok: boolean;
-  amount: number;
-  appliedToKas: boolean;
-  reason: string;
-  skipped?: "duplicate" | "cap";
-}
-
-/** Grant cashback — records it (audited) and writes REAL money to kas1067 for clients. */
-export async function grantCashback(
-  memberId: number,
-  amount: number,
-  reason: string,
-  kind: string,
-  idempotencyKey?: string,
-): Promise<GrantResult> {
-  if (amount <= 0) return { ok: false, amount: 0, appliedToKas: false, reason };
-
-  if (idempotencyKey) {
-    const existing = await prisma.rewardGrant.findUnique({ where: { idempotencyKey } });
-    if (existing) return { ok: false, amount, appliedToKas: existing.appliedToKas, reason, skipped: "duplicate" };
-  }
-
-  const since = new Date(Date.now() - 24 * 3600 * 1000);
-  const agg = await prisma.rewardGrant.aggregate({ where: { memberId, createdAt: { gte: since } }, _sum: { amount: true } });
-  if ((agg._sum.amount ?? 0) + amount > DAILY_GRANT_CAP) {
-    return { ok: false, amount, appliedToKas: false, reason, skipped: "cap" };
-  }
-
-  const member = await prisma.member.findUnique({ where: { id: memberId } });
-  if (!member) return { ok: false, amount: 0, appliedToKas: false, reason };
-
-  let appliedToKas = false;
-  let kasMessage = "status-only (driver or no phone)";
-  if (member.type === "client" && member.phone) {
-    try {
-      const res = await getDataSource().addClientBonus(member.phone, amount);
-      appliedToKas = res.ok;
-      kasMessage = res.ok ? `${res.oldBonus} -> ${res.newBonus}` : `failed (status ${res.status})`;
-    } catch (e) {
-      kasMessage = e instanceof Error ? e.message : String(e);
-    }
-  }
-
-  await prisma.rewardGrant.create({
-    data: { memberId, amount, reason, kind, appliedToKas, kasMessage, idempotencyKey: idempotencyKey ?? null },
-  });
-  if (appliedToKas) {
-    await prisma.member.update({ where: { id: memberId }, data: { points: { increment: amount } } });
-  }
-
-  return { ok: true, amount, appliedToKas, reason };
-}
+// T0.5 (AUDIT 1.1, ega qarori): legacy grantCashback + GrantResult olib tashlandi —
+// coin-iqtisodga o'tilgach chaqiruvchisi qolmagan edi (grep-isbot AUDIT.md da).
 
 export interface CheckInResult {
   alreadyChecked: boolean;

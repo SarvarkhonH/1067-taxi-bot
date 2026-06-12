@@ -354,6 +354,7 @@ export function createApiServer(opts: ApiOptions = {}) {
     res.json(member?.phone ? await myShop(member.phone) : null);
   });
   // admin: manage shops/listings (manual KYC — owner knows Koson businesses)
+  // AUDIT 1.2 (ega qarori): admin UI'da formasi hali yo'q — T7 da qo'shiladi; endpoint qoladi.
   app.post("/api/admin/market/shop", requireAdmin, async (req, res) => {
     const b = req.body as { name?: string; emoji?: string; category?: string; ownerPhone?: string };
     if (!b?.name) {

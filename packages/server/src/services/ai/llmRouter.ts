@@ -93,8 +93,9 @@ async function dayCount(key: string): Promise<number> {
 }
 
 async function bumpDay(key: string): Promise<void> {
-  const n = (await dayCount(key)) + 1;
-  await prisma.appState.upsert({ where: { key }, update: { value: String(n) }, create: { key, value: String(n) } });
+  // T0.5 (AUDIT 3.11): atomic raw upsert — parallel chaqiriqlarda cap aniq
+  const { atomicIncrement } = await import("../appStateUtil");
+  await atomicIncrement(key, 1);
 }
 
 /** Ask the chain. Returns null when disabled, capped, or every provider fails. */

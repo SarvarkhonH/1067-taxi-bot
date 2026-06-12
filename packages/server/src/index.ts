@@ -101,13 +101,30 @@ async function main(): Promise<void> {
           await notifyCashback(bot, deltas);
           await notifyNewAchievements(bot);
         }
-        await payWeeklyPrizes(notifyUser).catch((e) => console.error("[weekly] payout failed:", e));
+        await payWeeklyPrizes(notifyUser).catch(async (e) => {
+          console.error("[weekly] payout failed:", e);
+          const { alertAdmins } = await import("./services/economyService");
+          await alertAdmins(`🛑 PUL-JOB yiqildi: payWeeklyPrizes — ${e instanceof Error ? e.message : String(e)}`).catch(() => undefined);
+        });
         await maybeSurpriseDrop(notifyUser).catch((e) => console.error("[surprise] failed:", e));
         if (bot) {
           const { maybeDailyBackup } = await import("./services/backupService");
           await maybeDailyBackup(bot).catch((e) => console.error("[backup] failed:", e));
           const { settleShopsWeekly } = await import("./services/marketService");
-          await settleShopsWeekly().catch((e) => console.error("[bozor settle] failed:", e));
+          await settleShopsWeekly().catch(async (e) => {
+            console.error("[bozor settle] failed:", e);
+            const { alertAdmins } = await import("./services/economyService");
+            await alertAdmins(`🛑 PUL-JOB yiqildi: settleShopsWeekly — ${e instanceof Error ? e.message : String(e)}`).catch(() => undefined);
+          });
+          {
+            // T0.5 (AUDIT 3.3/3.8 + sellerpay): osilib qolgan pul-markerlarini qayta urish
+            const { retryPendingMoney } = await import("./services/coinService");
+            const r = await retryPendingMoney().catch((e) => {
+              console.error("[pending] failed:", e);
+              return null;
+            });
+            if (r && (r.wd || r.tp || r.stuck)) console.log(`[pending] retried wd=${r.wd} tp=${r.tp} stuck=${r.stuck}`);
+          }
           const { dispatchScheduled } = await import("./services/scheduledService");
           await dispatchScheduled(bot).catch((e) => console.error("[sched] failed:", e));
           const { pushEngineTick, weeklyRecap } = await import("./services/notifyService");
