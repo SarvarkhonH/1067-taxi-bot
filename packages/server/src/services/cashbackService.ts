@@ -46,9 +46,16 @@ function rollTier(): (typeof RIDE_REWARD_TIERS)[number] {
  * (member, booking): the RideReward unique row is created FIRST — a concurrent
  * or re-polled sweep loses the insert race and grants nothing.
  */
-export async function rollRideCashback(memberId: number, bookingId: number): Promise<RideRollResult | null> {
+export async function rollRideCashback(
+  memberId: number,
+  bookingId: number,
+  opts?: { _forceTier?: string }, // TEST-ONLY hook; ignored in production
+): Promise<RideRollResult | null> {
   const lucky = isLuckyToday();
   let t = rollTier();
+  if (opts?._forceTier && process.env.NODE_ENV !== "production") {
+    t = RIDE_REWARD_TIERS.find((x) => x.tier === opts._forceTier) ?? t;
+  }
 
   // daily combo completed yesterday → today's roll doubles (the comeback hook)
   const member = await prisma.member.findUnique({ where: { id: memberId }, select: { comboBoostDay: true, lastBookingSource: true, comebackOfferUntil: true, plusUntil: true } });
@@ -60,10 +67,9 @@ export async function rollRideCashback(memberId: number, bookingId: number): Pro
   if (comeback && t.tier !== "jackpot") t = RIDE_REWARD_TIERS.find((x) => x.tier === "triple")!;
 
   let amount: number;
-  let jackpot = false;
-  if (t.tier === "jackpot") {
-    amount = Math.floor(await claimJackpot());
-    jackpot = true;
+  const jackpot = t.tier === "jackpot";
+  if (jackpot) {
+    amount = 0; // pool claimed ONLY after the unique insert wins (T0.5 / AUDIT 3.1)
   } else {
     amount = RIDE_REWARD_BASE * t.mult * (lucky ? 2 : 1) * (combo ? 2 : 1);
     // 💎 Plus: ×1.5 on the roll, extra capped at +150 (ride clamp still rules)
@@ -71,12 +77,19 @@ export async function rollRideCashback(memberId: number, bookingId: number): Pro
     if (plus) amount += Math.min(150, Math.floor(amount * 0.5));
   }
 
+  let rewardId: number;
   try {
-    await prisma.rideReward.create({
+    const row = await prisma.rideReward.create({
       data: { memberId, bookingId, tier: t.tier, amount, lucky, source: member?.lastBookingSource ?? "bot" },
     });
+    rewardId = row.id;
   } catch {
-    return null; // already rolled for this ride (unique [memberId, bookingId])
+    return null; // already rolled for this ride (unique [memberId, bookingId]) — pool untouched
+  }
+  if (jackpot) {
+    // duplicate race lost above, so this claim happens at most once per ride
+    amount = Math.floor(await claimJackpot());
+    await prisma.rideReward.update({ where: { id: rewardId }, data: { amount } }).catch(() => undefined);
   }
 
   if (comeback) await prisma.member.update({ where: { id: memberId }, data: { comebackOfferUntil: null } }).catch(() => undefined);
