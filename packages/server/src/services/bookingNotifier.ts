@@ -354,10 +354,18 @@ export async function pushBookingUpdates(bot: Bot, dsOverride?: KasDataSource): 
                 .catch(() => undefined);
             }
           }
+          // T0.5 (AUDIT 3.2): convergence order — grants FIRST (idempotent
+          // per-referral keys block double-pay), paidAt LAST. If this update
+          // dies, the next sweep re-runs: grants skip as duplicates, update
+          // retries. NOTE: keys are deliberately ride-AGNOSTIC — a bookingId
+          // suffix would mint a fresh key on the friend's next ride and pay twice.
           await prisma.referral.update({ where: { id: ref.id }, data: { referrerPaidAt: new Date() } });
         }
       } catch (e) {
         console.error("[referral_ride] failed:", e);
+        // AUDIT 3.10: anything beyond idempotent-duplicate is money-path noise the owner must see
+        const { alertAdmins } = await import("./economyService");
+        await alertAdmins(`⚠️ Referral payout xatosi (member ${m.id}): ${e instanceof Error ? e.message : String(e)}`).catch(() => undefined);
       }
 
       // ── peak-end summary card (message #3 of the ride) ──
