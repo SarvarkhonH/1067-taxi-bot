@@ -151,23 +151,34 @@ export async function buyListedItem(buyerId: number, listingId: number): Promise
   const buyer = await prisma.member.findUnique({ where: { id: buyerId }, select: { trips: true } });
   if ((buyer?.trips ?? 0) < 3) return { ok: false, reason: "need_rides", coins: await coins() };
 
-  const spend = await spendCoins(buyerId, listing.price, "item_buy", `💎 Kolleksiya xaridi #${listing.itemId}`);
-  if (!spend.ok) return { ok: false, reason: "insufficient", coins: spend.balance };
+  // T0.5 (AUDIT 3.7): spend + listing delete + ownership flip + sellerpay
+  // marker in ONE transaction — no pre-spend, so a "gone" listing costs the
+  // buyer nothing and there is no refund path to fail.
   const seller = Math.floor(listing.price * 0.9); // 10% burn
   try {
     await prisma.$transaction(async (tx) => {
       const del = await tx.itemListing.deleteMany({ where: { id: listingId } });
       if (del.count === 0) throw new Error("gone");
+      const spend = await tx.member.updateMany({ where: { id: buyerId, coins: { gte: listing.price } }, data: { coins: { decrement: listing.price } } });
+      if (spend.count === 0) throw new Error("insufficient");
+      await tx.coinTxn.create({ data: { memberId: buyerId, amount: -listing.price, kind: "item_buy", reason: `💎 Kolleksiya xaridi #${listing.itemId}` } });
       await tx.item.update({ where: { id: listing.itemId }, data: { ownerId: buyerId } });
+      await tx.appState.create({
+        data: { key: `pending:sellerpay:item-${listingId}`, value: JSON.stringify({ memberId: listing.sellerId, amount: seller, note: "item", attempts: 0 }) },
+      });
     });
-  } catch {
-    await grantCoins(buyerId, listing.price, "item_buy", "Kolleksiya: buyum sotilib bo'lgan — tanga qaytdi");
-    return { ok: false, reason: "not_found", coins: await coins() };
+  } catch (e) {
+    const r = e instanceof Error && e.message === "insufficient" ? "insufficient" : "not_found";
+    return { ok: false, reason: r, coins: await coins() };
   }
-  await grantCoins(listing.sellerId, seller, "item_sell", `💎 Buyum sotildi (#${listing.itemId})`, `itemsale:${listingId}`);
+  const g = await grantCoins(listing.sellerId, seller, "item_sell", `💎 Buyum sotildi (#${listing.itemId})`, `sellerpay:item-${listingId}`);
+  if (g.ok || g.skipped === "duplicate") {
+    const { pendingResolve } = await import("./appStateUtil");
+    await pendingResolve("sellerpay", `item-${listingId}`);
+  }
   const item = await prisma.item.findUnique({ where: { id: listing.itemId } });
   const t = item ? await prisma.itemType.findUnique({ where: { id: item.itemTypeId } }) : null;
-  return { ok: true, name: t?.name, coins: spend.balance };
+  return { ok: true, name: t?.name, coins: await coins() };
 }
 
 export async function getCollection(memberId: number) {
