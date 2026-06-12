@@ -225,9 +225,18 @@ export async function topUpFromBonus(memberId: number, amount: number): Promise<
 
   if (!res.ok) return fail(res.reason === "insufficient" ? "insufficient" : "kas_failed");
 
-  const g = await grantCoins(memberId, amount, "topup", `Cashback → coin: ${amount}`);
-  // keep the denormalized kas balance roughly in sync
-  await prisma.member.update({ where: { id: memberId }, data: { points: { decrement: amount } } }).catch(() => undefined);
+  // T0.5 (AUDIT 3.8): kas bonus is ALREADY debited here — the coin grant is
+  // owed. Marker + idempotent key: a crash before the grant gets retried by
+  // the tick with the SAME key, so the user gets the coins exactly once.
+  const { pendingCreate, pendingResolve } = await import("./appStateUtil");
+  const reqId = `${memberId}-${Date.now()}`;
+  await pendingCreate("tp", reqId, { memberId, amount });
+  const g = await grantCoins(memberId, amount, "topup", `Cashback → tanga: ${amount}`, `topup:${reqId}`);
+  if (g.ok || g.skipped === "duplicate") {
+    // keep the denormalized kas balance roughly in sync
+    await prisma.member.update({ where: { id: memberId }, data: { points: { decrement: amount } } }).catch(() => undefined);
+    await pendingResolve("tp", reqId);
+  }
   return { ok: true, amount, coinsLeft: g.balance, kasApplied: true };
 }
 
