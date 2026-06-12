@@ -193,6 +193,9 @@ body { font-variant-numeric: tabular-nums; }
 .wake-bar > span { display: block; height: 100%; width: 40%; border-radius: 99px; background: var(--brand-grad); animation: d-wake 1.4s ease-in-out infinite; }
 @keyframes d-wake { 0% { margin-left: -40%; } 100% { margin-left: 100%; } }
 
+.brand-bar > span { background: var(--brand-grad) !important; }
+.badge-strip[data-stretch] { align-items: stretch; }
+
 /* prefers-reduced-motion: hamma harakat o'chadi */
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation: none !important; transition: none !important; }

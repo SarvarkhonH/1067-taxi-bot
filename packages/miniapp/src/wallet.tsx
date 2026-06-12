@@ -70,6 +70,7 @@ const KIND_EMOJI: Record<string, string> = {
 function TransferSheet({ wallet, onClose, onDone }: { wallet: WalletResponse; onClose: () => void; onDone: (msg: string) => void }) {
   const [phone, setPhone] = useState("");
   const [who, setWho] = useState<{ found: boolean; name?: string } | null>(null);
+  const [looking, setLooking] = useState(false);
   const [amount, setAmount] = useState<number | null>(null);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
@@ -82,11 +83,12 @@ function TransferSheet({ wallet, onClose, onDone }: { wallet: WalletResponse; on
   const onPhone = (v: string) => {
     setPhone(v);
     setWho(null);
+    setLooking(v.replace(/\D/g, "").length >= 9);
     if (lookupTimer.current) window.clearTimeout(lookupTimer.current);
     const digits = v.replace(/\D/g, "");
     if (digits.length < 9) return;
     lookupTimer.current = window.setTimeout(() => {
-      api.recipient(v).then(setWho).catch(() => undefined);
+      api.recipient(v).then((r) => { setWho(r); setLooking(false); }).catch(() => setLooking(false));
     }, 450);
   };
 
@@ -137,6 +139,7 @@ function TransferSheet({ wallet, onClose, onDone }: { wallet: WalletResponse; on
           inputMode="tel"
           onChange={(e) => onPhone(e.target.value)}
         />
+        {looking && !who && <div className="dim fs13 mt6">⏳ Tekshirilmoqda…</div>}
         {who && (
           <div className={who.found ? "sheet-ok" : "sheet-warn"}>
             {who.found ? `→ ${who.name}` : "Bu raqam topilmadi"}
@@ -330,9 +333,9 @@ export function WalletView({ me, onBanner, reload, onBook }: { me: MeResponse; o
   return (
     <div className="view">
       {me.luckyDay && (
-        <div className="sheet-ok" style={{ textAlign: "center" }}>🍀 BUGUN OMAD KUNI — har safar cashback 2x!</div>
+        <div className="sheet-ok tac">🍀 BUGUN OMAD KUNI — har safar cashback 2x!</div>
       )}
-      <div className="jackpot-badge" style={{ alignSelf: "center", marginBottom: 4 }}>🎰 JACKPOT: <b>{formatNumber(me.jackpot)}</b> tanga — har safar oshadi!</div>
+      <div className="jackpot-badge self-center mb4">🎰 JACKPOT: <b>{formatNumber(me.jackpot)}</b> tanga — har safar oshadi!</div>
       <button className="book-cta" onClick={onBook}>
         🚖 Taxi chaqirish
         <span className="book-cta-sub">jonli xarita · cashback</span>
@@ -345,7 +348,7 @@ export function WalletView({ me, onBanner, reload, onBook }: { me: MeResponse; o
             <div className="wh-coins">{formatNumber(coins)}</div>
             <div className="wh-sub muted">tanga · 1 tanga = 1 so'm</div>
           </div>
-          <div className="wh-ring" style={{ ["--accent" as string]: me.level.color }}>
+          <div className="wh-ring" ref={(el) => el?.style.setProperty("--accent", me.level.color)}>
             <span className="wh-emoji">{me.level.emoji}</span>
             <span className="wh-lv">{me.level.name}</span>
             <span className="wh-tier muted">Liga: {me.leagueTier}</span>

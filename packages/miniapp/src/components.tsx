@@ -160,7 +160,7 @@ function WeeklyBoard() {
       {w.entries.length === 0 && <div className="weekly-empty muted">Hafta endi boshlandi — birinchi bo'ling! 🚀</div>}
       <div className="board">
         {w.entries.map((e) => (
-          <div key={e.memberId} className={"row glass" + (e.isMe ? " me" : "") + (e.rank <= 3 ? " podium" : "")}>
+          <div key={e.memberId} className={"row glass" + (e.isMe ? " me me-row" : "") + (e.rank <= 3 ? " podium" : "")}>
             <div className="row-rank">{rankMedal(e.rank)}</div>
             <div className="row-main">
               <div className="row-name">
@@ -168,7 +168,7 @@ function WeeklyBoard() {
                 {e.fullName}
                 {e.isMe && <span className="you">Siz</span>}
               </div>
-              <div className="row-bar"><span style={{ width: `${(e.score / max) * 100}%`, background: "var(--gold)" }} /></div>
+              <div className="row-bar brand-bar"><span style={{ width: `${(e.score / max) * 100}%` }} /></div>
             </div>
             <div className="row-val">{e.score}</div>
           </div>
@@ -191,7 +191,7 @@ function AllTimeBoard({ board, max }: { board: LeaderboardResponse; max: number 
       <div className="section-title">🏆 {board.type === "driver" ? "Haydovchilar" : "Mijozlar"} · {board.metricLabel}</div>
       <div className="board">
         {board.entries.map((e) => (
-          <div key={e.memberId} className={"row glass" + (e.isMe ? " me" : "") + (e.rank <= 3 ? " podium" : "")}>
+          <div key={e.memberId} className={"row glass" + (e.isMe ? " me me-row" : "") + (e.rank <= 3 ? " podium" : "")}>
             <div className="row-rank">{rankMedal(e.rank)}</div>
             <div className="row-main">
               <div className="row-name">
@@ -199,7 +199,7 @@ function AllTimeBoard({ board, max }: { board: LeaderboardResponse; max: number 
                 {e.fullName}
                 {e.isMe && <span className="you">Siz</span>}
               </div>
-              <div className="row-bar"><span style={{ width: `${(e.points / max) * 100}%`, background: e.level.color }} /></div>
+              <div className="row-bar brand-bar"><span style={{ width: `${(e.points / max) * 100}%` }} /></div>
             </div>
             <div className="row-val">{formatNumber(e.points)}</div>
           </div>
@@ -274,9 +274,9 @@ function GapSection() {
       {g.inGap ? (
         <>
           <p className="muted mk-sub">"{g.name}" · haftalik maqsad: <b>{g.progress}/{g.goal}</b> safar · bajarilsa hammaga +500, rotatsion POT +2000!</p>
-          <div className="badge-strip" style={{ flexDirection: "column", alignItems: "stretch", gap: 4 }}>
+          <div className="badge-strip col g4" data-stretch>
             {(g.members ?? []).map((m, i) => (
-              <div key={i} style={{ display: "flex", justifyContent: "space-between" }}>
+              <div key={i} className="between">
                 <span>{m.isCreator ? "👑 " : ""}{m.name}</span>
                 <b>{m.rides} safar</b>
               </div>
@@ -287,7 +287,7 @@ function GapSection() {
       ) : mode === "none" ? (
         <>
           <p className="muted mk-sub">3-6 do'st bilan gap tuzing: haftada birga {"~"}8 safar = hammaga +500 tanga, bir kishiga POT +2000 (navbat bilan)!</p>
-          <div style={{ display: "flex", gap: 8 }}>
+          <div className="row g8">
             <button className="btn-primary sm" onClick={() => setMode("create")}>+ Gap tuzish</button>
             <button className="btn-ghost sm" onClick={() => setMode("join")}>Kod bilan kirish</button>
           </div>
@@ -295,13 +295,13 @@ function GapSection() {
       ) : (
         <>
           <input className="bk-input" placeholder={mode === "create" ? "Gap nomi: Mahalla davrasi" : "Kod: ABC123"} value={val} onChange={(e) => setVal(mode === "join" ? e.target.value.toUpperCase() : e.target.value)} />
-          <div style={{ display: "flex", gap: 8 }}>
+          <div className="row g8">
             <button className="btn-primary sm" disabled={busy} onClick={act}>{busy ? "…" : "OK"}</button>
             <button className="btn-ghost sm" onClick={() => setMode("none")}>Bekor</button>
           </div>
         </>
       )}
-      {note && <div className="sheet-ok" style={{ marginTop: 8 }}>{note}</div>}
+      {note && <div className="sheet-ok mt8">{note}</div>}
     </section>
   );
 }
