@@ -248,9 +248,17 @@ export async function retryPendingMoney(): Promise<{ wd: number; tp: number; stu
   const { alertAdmins } = await import("./economyService");
   let stuckN = 0;
 
+  // bitta buzuq marker butun tickni yiqitmasin — har biri o'z try/catch ida
+  const safeGrant = async (...args: Parameters<typeof grantCoins>): Promise<CoinResult> => {
+    try {
+      return await grantCoins(...args);
+    } catch {
+      return { ok: false, balance: 0 };
+    }
+  };
   const wd = await pendingScan("wd");
   for (const r of wd.retry) {
-    const g = await grantCoins(r.payload.memberId, r.payload.amount, "withdraw_refund", "Aylantirish amalga oshmadi — tanga qaytarildi (retry)", `wdrefund:${r.id}`);
+    const g = await safeGrant(r.payload.memberId, r.payload.amount, "withdraw_refund", "Aylantirish amalga oshmadi — tanga qaytarildi (retry)", `wdrefund:${r.id}`);
     if (g.ok || g.skipped === "duplicate") {
       const { releaseWithdrawBudget } = await import("./economyService");
       await releaseWithdrawBudget(r.payload.amount).catch(() => undefined);
@@ -260,7 +268,7 @@ export async function retryPendingMoney(): Promise<{ wd: number; tp: number; stu
   }
   const tp = await pendingScan("tp");
   for (const r of tp.retry) {
-    const g = await grantCoins(r.payload.memberId, r.payload.amount, "topup", `Cashback → tanga: ${r.payload.amount} (retry)`, `topup:${r.id}`);
+    const g = await safeGrant(r.payload.memberId, r.payload.amount, "topup", `Cashback → tanga: ${r.payload.amount} (retry)`, `topup:${r.id}`);
     if (g.ok || g.skipped === "duplicate") {
       await prisma.member.update({ where: { id: r.payload.memberId }, data: { points: { decrement: r.payload.amount } } }).catch(() => undefined);
       await pendingResolve("tp", r.id);
@@ -268,7 +276,7 @@ export async function retryPendingMoney(): Promise<{ wd: number; tp: number; stu
   }
   const sp = await pendingScan("sellerpay");
   for (const r of sp.retry) {
-    const g = await grantCoins(r.payload.memberId, r.payload.amount, r.payload.note === "trade" ? "trade_sale" : "item_sell", "Buyum sotildi (retry)", `sellerpay:${r.id}`);
+    const g = await safeGrant(r.payload.memberId, r.payload.amount, r.payload.note === "trade" ? "trade_sale" : "item_sell", "Buyum sotildi (retry)", `sellerpay:${r.id}`);
     if (g.ok || g.skipped === "duplicate") await pendingResolve("sellerpay", r.id);
   }
   for (const st of [...wd.stuck, ...tp.stuck, ...sp.stuck]) {
