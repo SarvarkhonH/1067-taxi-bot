@@ -108,6 +108,8 @@ async function main(): Promise<void> {
           await maybeDailyBackup(bot).catch((e) => console.error("[backup] failed:", e));
           const { settleShopsWeekly } = await import("./services/marketService");
           await settleShopsWeekly().catch((e) => console.error("[bozor settle] failed:", e));
+          const { dispatchScheduled } = await import("./services/scheduledService");
+          await dispatchScheduled(bot).catch((e) => console.error("[sched] failed:", e));
           const { pushEngineTick, weeklyRecap } = await import("./services/notifyService");
           await pushEngineTick(bot).catch((e) => console.error("[push] failed:", e));
           await weeklyRecap(bot).catch((e) => console.error("[recap] failed:", e));

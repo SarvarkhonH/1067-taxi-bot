@@ -498,3 +498,28 @@ model TradeMessage {
 
   @@index([offerId])
 }
+
+// ⏰ I.2: scheduled rides — we hold them and dispatch via the periodic tick.
+model ScheduledRide {
+  id          Int      @id @default(autoincrement())
+  memberId    Int
+  addressId   Int
+  addressName String
+  phone       String
+  runAt       DateTime
+  status      String   @default("pending") // pending|dispatched|cancelled|failed
+  createdAt   DateTime @default(now())
+
+  @@index([status, runAt])
+  @@index([memberId])
+}
+
+// 👨‍👩‍👧 I.3: family booking targets (max 3, validated at create).
+model FamilyMember {
+  id       Int    @id @default(autoincrement())
+  memberId Int
+  phone    String
+  name     String
+
+  @@unique([memberId, phone])
+}

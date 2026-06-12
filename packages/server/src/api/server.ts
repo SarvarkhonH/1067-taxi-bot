@@ -530,6 +530,35 @@ export function createApiServer(opts: ApiOptions = {}) {
     return { ...r, allTags: RATING_TAGS };
   }));
 
+  // ── ⏰ rejali safar + 👨‍👩‍👧 oila ──────────────────────────────────────────
+  app.get("/api/booking/scheduled", requireUser, withMember2(async (id) => {
+    const { listScheduled, familyOf } = await import("../services/scheduledService");
+    return { scheduled: await listScheduled(id), family: await familyOf(id) };
+  }));
+  app.post("/api/booking/schedule", requireUser, rateLimit(5), withMember2(async (id, req) => {
+    const { createScheduled } = await import("../services/scheduledService");
+    const b = req.body as { pickupId?: number; pickupName?: string; runAt?: string; forPhone?: string };
+    return createScheduled(id, Math.floor(Number(b?.pickupId ?? 0)), String(b?.pickupName ?? ""), String(b?.runAt ?? ""), b?.forPhone ? String(b.forPhone) : undefined);
+  }));
+  app.post("/api/booking/schedule/cancel", requireUser, rateLimit(10), withMember2(async (id, req) => {
+    const { cancelScheduled } = await import("../services/scheduledService");
+    return cancelScheduled(id, Math.floor(Number((req.body as { id?: number })?.id ?? 0)));
+  }));
+  app.post("/api/family/add", requireUser, rateLimit(10), withMember2(async (id, req) => {
+    const { addFamily } = await import("../services/scheduledService");
+    const b = req.body as { phone?: string; name?: string };
+    return addFamily(id, String(b?.phone ?? ""), String(b?.name ?? ""));
+  }));
+  app.post("/api/family/remove", requireUser, rateLimit(10), withMember2(async (id, req) => {
+    const { removeFamily } = await import("../services/scheduledService");
+    return removeFamily(id, Math.floor(Number((req.body as { id?: number })?.id ?? 0)));
+  }));
+  app.post("/api/family/book", requireUser, rateLimit(5), withMember2(async (id, req) => {
+    const { bookForFamily } = await import("../services/scheduledService");
+    const b = req.body as { familyId?: number; pickupId?: number; pickupName?: string };
+    return bookForFamily(id, Math.floor(Number(b?.familyId ?? 0)), Math.floor(Number(b?.pickupId ?? 0)), String(b?.pickupName ?? ""));
+  }));
+
   // ── 🤝 Virtual bozor v2: escrowed offers/barter + per-deal chat ──────────
   app.get("/api/trade", requireUser, withMember2(async (id) => {
     const { myTrades } = await import("../services/tradeService");

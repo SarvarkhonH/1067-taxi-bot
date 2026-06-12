@@ -85,6 +85,74 @@ function RideHistory() {
   );
 }
 
+// ⏰ schedule + 👨‍👩‍👧 family block (shows when a pickup is chosen)
+function ScheduleBlock({ pickup, onMsg }: { pickup: SavedAddressView; onMsg: (m: string) => void }) {
+  const [data, setData] = useState<{ scheduled: { id: number; addressName: string; runAt: string }[]; family: { id: number; phone: string; name: string }[] } | null>(null);
+  const [showTimes, setShowTimes] = useState(false);
+  const load = () => api.bookingScheduled().then(setData).catch(() => undefined);
+  useEffect(() => {
+    load();
+  }, []);
+
+  const slots = (): { label: string; iso: string }[] => {
+    const out: { label: string; iso: string }[] = [];
+    const now = new Date();
+    for (const h of [18, 20]) {
+      const d = new Date(now); d.setHours(h, 0, 0, 0);
+      if (d.getTime() > Date.now() + 20 * 60_000) out.push({ label: `Bugun ${h}:00`, iso: d.toISOString() });
+    }
+    for (const h of [7, 8, 12]) {
+      const d = new Date(now); d.setDate(d.getDate() + 1); d.setHours(h, 0, 0, 0);
+      out.push({ label: `Ertaga ${h}:00`, iso: d.toISOString() });
+    }
+    return out.slice(0, 5);
+  };
+
+  return (
+    <div style={{ marginTop: 6 }}>
+      <div className="chip-row" style={{ flexWrap: "wrap" }}>
+        <button className="amt-chip" onClick={() => { haptic(); setShowTimes((v) => !v); }}>⏰ Keyinroqqa</button>
+        {(data?.family ?? []).map((f) => (
+          <button key={f.id} className="amt-chip" onClick={async () => {
+            haptic();
+            const r = await api.familyBook(f.id, pickup.id, pickup.name);
+            onMsg(r.ok ? (r.message ?? `🚕 ${f.name}ga chaqirildi!`) : `⚠️ ${r.message ?? "Xatolik"}`);
+          }}>👨‍👩‍👧 {f.name}ga</button>
+        ))}
+        {(data?.family ?? []).length < 3 && (
+          <button className="amt-chip" onClick={async () => {
+            const ph = prompt("Yaqiningiz raqami (90 123 45 67):");
+            if (!ph) return;
+            const nm = prompt("Ismi:", "Onam") ?? "Yaqinim";
+            const r = await api.familyAdd(ph, nm);
+            onMsg(r.ok ? "✅ Yaqin qo'shildi" : r.reason === "self" ? "O'z raqamingiz" : r.reason === "max" ? "Ko'pi bilan 3 ta" : "Xatolik");
+            load();
+          }}>＋ Yaqin</button>
+        )}
+      </div>
+      {showTimes && (
+        <div className="chip-row" style={{ flexWrap: "wrap", marginTop: 4 }}>
+          {slots().map((sl) => (
+            <button key={sl.iso} className="amt-chip" onClick={async () => {
+              haptic();
+              const r = await api.bookingSchedule(pickup.id, pickup.name, sl.iso);
+              onMsg(r.ok ? `⏰ Rejalandi: ${sl.label} — ${pickup.name}` : r.reason === "too_many" ? "Ko'pi bilan 3 ta reja" : "Xatolik");
+              setShowTimes(false);
+              load();
+            }}>{sl.label}</button>
+          ))}
+        </div>
+      )}
+      {(data?.scheduled ?? []).map((r) => (
+        <div key={r.id} className="muted" style={{ fontSize: 12, display: "flex", justifyContent: "space-between", marginTop: 4 }}>
+          <span>⏰ {new Date(r.runAt).toLocaleString("ru-RU", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })} — {r.addressName}</span>
+          <button className="bk-change" onClick={async () => { await api.bookingScheduleCancel(r.id); load(); }}>bekor</button>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 export function BookingView({ onClose }: { onClose: () => void }) {
   const [info, setInfo] = useState<BookingInfoResponse | null>(null);
   const [active, setActive] = useState<ActiveBookingView | null>(null);
@@ -357,6 +425,7 @@ export function BookingView({ onClose }: { onClose: () => void }) {
         ) : pickup ? (
           <>
             <div className="bk-picked">🟡 <b>{pickup.name}</b><button className="bk-change" onClick={() => setPickup(null)}>o'zgartirish</button></div>
+            <ScheduleBlock pickup={pickup} onMsg={setMsg} />
             {quote ? (
               <div className="bk-fare">
                 <div className="bk-fare-row"><span>📏 ~{quote.km} km</span><b>≈ {formatNumber(quote.total)} so'm</b></div>
