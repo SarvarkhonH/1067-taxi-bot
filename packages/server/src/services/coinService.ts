@@ -174,10 +174,18 @@ export async function withdraw(memberId: number, amount: number): Promise<Withdr
   }
 
   if (!kasApplied) {
-    // refund — the conversion did not happen
-    await grantCoins(memberId, amount, "withdraw_refund", "Aylantirish amalga oshmadi — coin qaytarildi");
-    await releaseWithdrawBudget(amount);
-    await prisma.withdrawal.create({ data: { memberId, amount, kasApplied: false, kasMessage } });
+    // T0.5 (AUDIT 3.3): refund is OWED — write the marker FIRST, so a crash or
+    // PG drop between here and the grant can never strand the user's coins;
+    // the periodic tick retries via the same idempotent key (max 5, then alert).
+    const { pendingCreate, pendingResolve } = await import("./appStateUtil");
+    const reqId = `${memberId}-${Date.now()}`;
+    await pendingCreate("wd", reqId, { memberId, amount, note: kasMessage.slice(0, 80) });
+    const refund = await grantCoins(memberId, amount, "withdraw_refund", "Aylantirish amalga oshmadi — tanga qaytarildi", `wdrefund:${reqId}`);
+    if (refund.ok || refund.skipped === "duplicate") {
+      await releaseWithdrawBudget(amount);
+      await prisma.withdrawal.create({ data: { memberId, amount, kasApplied: false, kasMessage } }).catch(() => null);
+      await pendingResolve("wd", reqId);
+    }
     return { ok: false, reason: "kas_failed", amount, coinsLeft: await getCoins(memberId), kasApplied: false };
   }
 
@@ -221,4 +229,42 @@ export async function topUpFromBonus(memberId: number, amount: number): Promise<
   // keep the denormalized kas balance roughly in sync
   await prisma.member.update({ where: { id: memberId }, data: { points: { decrement: amount } } }).catch(() => undefined);
   return { ok: true, amount, coinsLeft: g.balance, kasApplied: true };
+}
+
+/** T0.5 (AUDIT 3.3/3.8): periodik tick — osilib qolgan refund/topup markerlari.
+ *  Har marker idempotent kalit bilan qayta uriladi; 5 urinishdan keyin stuck →
+ *  egaga TG alert ("qo'lda ko'rish kerak"). */
+export async function retryPendingMoney(): Promise<{ wd: number; tp: number; stuck: number }> {
+  const { pendingScan, pendingResolve } = await import("./appStateUtil");
+  const { alertAdmins } = await import("./economyService");
+  let stuckN = 0;
+
+  const wd = await pendingScan("wd");
+  for (const r of wd.retry) {
+    const g = await grantCoins(r.payload.memberId, r.payload.amount, "withdraw_refund", "Aylantirish amalga oshmadi — tanga qaytarildi (retry)", `wdrefund:${r.id}`);
+    if (g.ok || g.skipped === "duplicate") {
+      const { releaseWithdrawBudget } = await import("./economyService");
+      await releaseWithdrawBudget(r.payload.amount).catch(() => undefined);
+      await prisma.withdrawal.create({ data: { memberId: r.payload.memberId, amount: r.payload.amount, kasApplied: false, kasMessage: "retry-refund" } }).catch(() => null);
+      await pendingResolve("wd", r.id);
+    }
+  }
+  const tp = await pendingScan("tp");
+  for (const r of tp.retry) {
+    const g = await grantCoins(r.payload.memberId, r.payload.amount, "topup", `Cashback → tanga: ${r.payload.amount} (retry)`, `topup:${r.id}`);
+    if (g.ok || g.skipped === "duplicate") {
+      await prisma.member.update({ where: { id: r.payload.memberId }, data: { points: { decrement: r.payload.amount } } }).catch(() => undefined);
+      await pendingResolve("tp", r.id);
+    }
+  }
+  const sp = await pendingScan("sellerpay");
+  for (const r of sp.retry) {
+    const g = await grantCoins(r.payload.memberId, r.payload.amount, r.payload.note === "trade" ? "trade_sale" : "item_sell", "Buyum sotildi (retry)", `sellerpay:${r.id}`);
+    if (g.ok || g.skipped === "duplicate") await pendingResolve("sellerpay", r.id);
+  }
+  for (const st of [...wd.stuck, ...tp.stuck, ...sp.stuck]) {
+    stuckN++;
+    await alertAdmins(`🛑 Qo'lda ko'rish kerak: pending:${st.id} — member ${st.payload.memberId}, ${st.payload.amount} tanga, 5 urinish muvaffaqiyatsiz`).catch(() => undefined);
+  }
+  return { wd: wd.retry.length, tp: tp.retry.length, stuck: stuckN };
 }
