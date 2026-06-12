@@ -2,6 +2,7 @@ import type {
   ActiveBooking,
   ActiveBookingLite,
   BonusRules,
+  BookingDriver,
   BookingRequest,
   BookingResult,
   CarModel,
@@ -122,6 +123,10 @@ export class KasMockSource implements KasDataSource {
 
   async listActiveBookings(): Promise<ActiveBookingLite[]> {
     return [];
+  }
+
+  async getDriverByCar(_carNumber: string): Promise<BookingDriver | null> {
+    return { fullName: "Davlat Bo'riyev", phone: "+998901234567", carModel: "Cobalt", carNumber: _carNumber || "70A123BC", rating: 4.9, lat: 39.0468, lng: 65.564 };
   }
 
   async getRideHistory(_phone: string, size = 10): Promise<RideHistoryItem[]> {

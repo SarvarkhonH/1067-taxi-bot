@@ -354,6 +354,24 @@ export class KasLiveSource implements KasDataSource {
     return { ok: res.status >= 200 && res.status < 300, message: res.body.slice(0, 200) };
   }
 
+  async getDriverByCar(carNumber: string): Promise<BookingDriver | null> {
+    if (!carNumber) return null;
+    try {
+      const d = await this.getJson(`api/drivers/byCarNumber/${encodeURIComponent(carNumber)}`);
+      return {
+        fullName: String(d.fullName ?? "Haydovchi"),
+        phone: String(d.phoneNumber ?? ""),
+        carModel: String(d.carModel ?? ""),
+        carNumber,
+        rating: num(d.bookingRating) || num(d.companyRating),
+        lat: num(d.latitude),
+        lng: num(d.longitude),
+      };
+    } catch {
+      return null;
+    }
+  }
+
   async getActiveBooking(phone: string): Promise<ActiveBooking | null> {
     const norm = phone.replace(/\D/g, "").slice(-9);
     if (!norm) return null;
@@ -413,6 +431,8 @@ export class KasLiveSource implements KasDataSource {
       carNumber: String(b.carNumber ?? ""),
       addressName: String(b.addressName ?? ""),
       clientBonus: num(b.clientBonus),
+      lat: num(b.addressLatitude) || undefined,
+      lng: num(b.addressLongitude) || undefined,
     }));
   }
 

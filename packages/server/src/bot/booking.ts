@@ -297,6 +297,30 @@ export function registerBooking(bot: Bot): void {
     }
   });
 
+  // ⏱ ETA-guess from the live ride card (one guess per ride, +50 if right)
+  bot.callbackQuery("noop", (ctx) => ctx.answerCallbackQuery());
+  bot.callbackQuery(/^guess:(lt6|6-9|10-14|15p)$/, async (ctx) => {
+    const memberId = await getMemberId(String(ctx.from.id));
+    if (!memberId) {
+      await ctx.answerCallbackQuery();
+      return;
+    }
+    const band = ctx.match[1] === "lt6" ? "<6" : ctx.match[1] === "15p" ? "15+" : ctx.match[1]!;
+    const { getActiveBookingFor } = await import("../services/bookingService");
+    const active = await getActiveBookingFor(memberId).catch(() => null);
+    if (!active || active.status !== "started") {
+      await ctx.answerCallbackQuery({ text: "Taxmin faqat safar paytida 🚕" });
+      return;
+    }
+    const { prisma } = await import("../db");
+    try {
+      await prisma.rideGuess.create({ data: { memberId, bookingId: active.id, guessBand: band } });
+      await ctx.answerCallbackQuery({ text: `⏱ Taxminingiz: ${band} daqiqa — yetib borganda bilamiz!` });
+    } catch {
+      await ctx.answerCallbackQuery({ text: "Bu safarga taxmin qilingansiz ✅" });
+    }
+  });
+
   // 🙏 tip the driver after a ride — rider's own coins move, closed-loop
   bot.callbackQuery(/^tip:(\d+):(\d+)$/, async (ctx) => {
     const riderId = await getMemberId(String(ctx.from.id));

@@ -29,6 +29,10 @@ model Member {
   lastBookingCar    String? // car number of the ride in progress → tip target on finish
   lastBookingBonus  Float? // fare-derived cashback captured DURING the ride (kas drops it on finish)
   comboBoostDay     String? // tashkent day the daily combo earned a 2x roll for
+  // live ride card (ONE message per ride, edited in place) + moving driver pin
+  rideCardMsgId     Int?
+  liveLocMsgId      Int?
+  rideStartedAt     DateTime? // first sweep sighting of status "started" — ride meter (guess + garage)
   riskFlag          Boolean @default(false) // freezes the withdraw door only; coins stay spendable
   riskNote          String?
   // 1-tap booking: persisted pickup memory (in-memory Map died on every deploy)

@@ -49,6 +49,25 @@ export async function incrementMission(memberId: number, code: string, by = 1): 
     create: { memberId, code, periodKey: key, progress: next },
     update: { progress: next },
   });
+
+  // 🔗 daily KOMBO: the moment ALL dailies hit their target, tomorrow's ride
+  // roll doubles (Member.comboBoostDay) — the hook that brings them back.
+  if (def.period === "daily" && next >= def.target) {
+    try {
+      const dailies = MISSIONS.filter((d) => d.period === "daily");
+      const today = dayKey(new Date());
+      const rows = await prisma.missionProgress.findMany({
+        where: { memberId, periodKey: today, code: { in: dailies.map((d) => d.code) } },
+      });
+      const allDone = dailies.every((d) => (rows.find((r) => r.code === d.code)?.progress ?? 0) >= d.target);
+      if (allDone) {
+        const tomorrow = new Date(Date.now() + 24 * 3600 * 1000);
+        await prisma.member.update({ where: { id: memberId }, data: { comboBoostDay: dayKey(tomorrow) } });
+      }
+    } catch {
+      /* combo is best-effort */
+    }
+  }
 }
 
 function toView(def: MissionDef, progress: number, claimed: boolean): MissionView {

@@ -76,6 +76,8 @@ export interface ActiveBookingLite {
   carNumber: string;
   addressName: string;
   clientBonus: number;
+  lat?: number; // pickup coords (ETA for the live card)
+  lng?: number;
 }
 
 // One row of a client's ride history (kas bookingReports).
@@ -162,6 +164,8 @@ export interface KasDataSource {
   listActiveBookings(): Promise<ActiveBookingLite[]>;
   /** Ride history for a phone (bookingReports, newest first). */
   getRideHistory(phone: string, size?: number): Promise<RideHistoryItem[]>;
+  /** Live driver position/identity by car number (the moving pin). */
+  getDriverByCar(carNumber: string): Promise<BookingDriver | null>;
 
   /** Reward: set a client's cashback bonus (writes real money via kas1067, code 1303). */
   setClientBonus(phone: string, newBonus: number): Promise<{ ok: boolean; oldBonus: number; name?: string; status?: number }>;
