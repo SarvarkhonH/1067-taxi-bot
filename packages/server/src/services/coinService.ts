@@ -45,7 +45,36 @@ export async function grantCoins(
   return { ok: true, balance: member.coins };
 }
 
-/** Spend coins (sinks: respins, premium boxes, stakes, upgrades). Atomic — never goes negative. */
+/**
+ * Grant coins TIED TO ONE RIDE, under the hard per-ride emission cap.
+ * Every ride-bound mechanic (roll, wheel, garage, guess) must come through
+ * here with an idempotency key ending `:<memberId>:<bookingId>` — the clamp
+ * sums what this ride already paid and cuts the excess, so individually-valid
+ * mechanics can never COMBINE over budget (plan: O'LCHOV VA BOSHQARUV §1).
+ */
+export async function grantRideCoins(
+  memberId: number,
+  bookingId: number,
+  amount: number,
+  kind: string,
+  reason: string,
+  keyPrefix: string,
+): Promise<CoinResult & { clamped?: number }> {
+  const { RIDE_EMISSION_CAP } = await import("@t1067/shared");
+  amount = Math.floor(amount);
+  const suffix = `:${memberId}:${bookingId}`;
+  const paid = await prisma.coinTxn.aggregate({
+    where: { memberId, amount: { gt: 0 }, idempotencyKey: { endsWith: suffix } },
+    _sum: { amount: true },
+  });
+  const room = Math.max(0, RIDE_EMISSION_CAP - (paid._sum.amount ?? 0));
+  const granted = Math.min(amount, room);
+  if (granted <= 0) return { ok: false, balance: await getCoins(memberId), clamped: amount };
+  const res = await grantCoins(memberId, granted, kind, reason, `${keyPrefix}${suffix}`);
+  return granted < amount ? { ...res, clamped: amount - granted } : res;
+}
+
+/** Spend coins (sinks: stakes, purchases). Atomic — never goes negative. */
 export async function spendCoins(memberId: number, amount: number, kind: string, reason: string): Promise<CoinResult> {
   amount = Math.floor(amount);
   if (amount <= 0) return { ok: false, balance: await getCoins(memberId) };

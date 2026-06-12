@@ -84,7 +84,7 @@ export async function pushBookingUpdates(bot: Bot): Promise<void> {
       let rollLine = "";
       try {
         const { rollRideCashback, renderRideRoll } = await import("./cashbackService");
-        const roll = await rollRideCashback(m.id, m.lastBookingId, m.lastBookingBonus ?? 500);
+        const roll = await rollRideCashback(m.id, m.lastBookingId);
         if (roll) rollLine = `\n${renderRideRoll(roll)}`;
       } catch (e) {
         console.error("[cashback] roll failed:", e);
@@ -116,16 +116,24 @@ export async function pushBookingUpdates(bot: Bot): Promise<void> {
         }
       }
 
-      // 👥 deferred referral payout: the inviter earns only when the invited
-      // friend completes a REAL ride (kills the burner-account referral mint)
+      // 👥 deferred referral payout: BOTH sides unlock on the invited friend's
+      // first REAL ride (kills the burner-account referral mint entirely)
       try {
         const ref = await prisma.referral.findFirst({
-          where: { refereeMemberId: m.id, referrerPaidAt: null, rewardReferrer: { gt: 0 } },
+          where: { refereeMemberId: m.id, referrerPaidAt: null },
         });
         if (ref) {
+          const { grantCoins } = await import("./coinService");
+          if (ref.rewardReferee > 0) {
+            const g = await grantCoins(m.id, ref.rewardReferee, "referral", "Do'st taklifi — birinchi safaringiz uchun 🎁", `ref_referee_ride:${ref.id}`);
+            if (g.ok) {
+              await bot.api
+                .sendMessage(chatId, `🎁 Taklif sovg'asi ochildi: <b>+${formatNumber(ref.rewardReferee)} coin</b> — birinchi safaringiz muborak!`, { parse_mode: "HTML" })
+                .catch(() => undefined);
+            }
+          }
           const refTg = await prisma.telegramUser.findUnique({ where: { id: ref.referrerId } });
-          if (refTg?.memberId) {
-            const { grantCoins } = await import("./coinService");
+          if (refTg?.memberId && ref.rewardReferrer > 0) {
             const g = await grantCoins(refTg.memberId, ref.rewardReferrer, "referral", `Do'stingiz birinchi safarini qildi 🚕`, `ref_ride:${ref.id}`);
             if (g.ok) {
               await bot.api
@@ -141,7 +149,7 @@ export async function pushBookingUpdates(bot: Bot): Promise<void> {
 
       // tip buttons when we know which driver drove (rider's own coins, closed-loop)
       const tipKb = driverId
-        ? { inline_keyboard: [[1000, 2000, 5000].map((a) => ({ text: `🙏 ${formatNumber(a)} coin`, callback_data: `tip:${driverId}:${a}` }))] }
+        ? { inline_keyboard: [[500, 1000, 2000].map((a) => ({ text: `🙏 ${formatNumber(a)} coin`, callback_data: `tip:${driverId}:${a}` }))] }
         : undefined;
       await bot.api
         .sendMessage(

@@ -1,12 +1,6 @@
-import {
-  BOX_PRIZES,
-  BOX_PRIZES_PREMIUM,
-  BOX_PREMIUM_COST,
-  type BoxOpenResponse,
-  type BoxStatusResponse,
-} from "@t1067/shared";
+import { BOX_PRIZES, type BoxOpenResponse, type BoxStatusResponse } from "@t1067/shared";
 import { prisma } from "../db";
-import { grantCoins, spendCoins } from "./coinService";
+import { grantCoins } from "./coinService";
 import { getMissions } from "./missionService";
 
 function tashkentDayKey(d: Date): string {
@@ -30,7 +24,7 @@ function weightedPick(prizes: Weighted[]): Weighted {
   return prizes[0]!;
 }
 
-/** Free box unlocks when ALL daily missions are completed; premium is always buyable. */
+/** Free box unlocks when ALL daily missions are completed (ride-anchored via daily_ride). */
 export async function getBoxStatus(memberId: number): Promise<BoxStatusResponse> {
   const dayKey = tashkentDayKey(new Date());
   const [missions, freeOpen] = await Promise.all([
@@ -46,29 +40,14 @@ export async function getBoxStatus(memberId: number): Promise<BoxStatusResponse>
     dailiesDone,
     dailiesTotal,
     prize: freeOpen ? { label: freeOpen.prize, emoji: def?.emoji ?? "🎁", amount: freeOpen.amount } : null,
-    premiumCost: BOX_PREMIUM_COST,
   };
 }
 
-export async function openBox(memberId: number, opts: { premium?: boolean } = {}): Promise<BoxOpenResponse> {
+export async function openBox(memberId: number): Promise<BoxOpenResponse> {
   const dayKey = tashkentDayKey(new Date());
-
-  if (opts.premium) {
-    // unlimited — coins are the gate
-    const spend = await spendCoins(memberId, BOX_PREMIUM_COST, "premium_box", "Premium quti");
-    if (!spend.ok) return { ok: false, reason: "insufficient", prize: null, applied: false, premium: true };
-    const prize = weightedPick(BOX_PRIZES_PREMIUM);
-    await prisma.boxOpen.create({ data: { memberId, dayKey, prize: prize.label, amount: prize.amount, premium: true } });
-    const g = await grantCoins(memberId, prize.amount, "box", `Premium quti: ${prize.label}`);
-    await import("./weeklyService")
-      .then((w) => w.addScore(memberId, "box"))
-      .catch(() => undefined);
-    return { ok: true, prize: { label: prize.label, emoji: prize.emoji, amount: prize.amount }, applied: g.ok, premium: true };
-  }
-
   const status = await getBoxStatus(memberId);
-  if (status.opened) return { ok: false, reason: "opened", prize: status.prize, applied: false, premium: false };
-  if (!status.eligible) return { ok: false, reason: "locked", prize: null, applied: false, premium: false };
+  if (status.opened) return { ok: false, reason: "opened", prize: status.prize, applied: false };
+  if (!status.eligible) return { ok: false, reason: "locked", prize: null, applied: false };
 
   const prize = weightedPick(BOX_PRIZES);
   await prisma.boxOpen.create({ data: { memberId, dayKey, prize: prize.label, amount: prize.amount, premium: false } });
@@ -76,5 +55,5 @@ export async function openBox(memberId: number, opts: { premium?: boolean } = {}
   await import("./weeklyService")
     .then((w) => w.addScore(memberId, "box"))
     .catch(() => undefined);
-  return { ok: true, prize: { label: prize.label, emoji: prize.emoji, amount: prize.amount }, applied: g.ok, premium: false };
+  return { ok: true, prize: { label: prize.label, emoji: prize.emoji, amount: prize.amount }, applied: g.ok };
 }

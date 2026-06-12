@@ -13,18 +13,10 @@ export const WITHDRAW_MIN = 5000; // min coins per conversion (coin → cashback
 export const WITHDRAW_DAILY_CAP = 50000; // max so'm leaving per member per day
 export const TOPUP_MIN = 1000; // min bonus to move INTO coins (cashback → coin)
 
-// Sinks (what coins buy) — these recycle coins back into the economy.
-export const WHEEL_RESPIN_COST = 500; // > wheel EV (~350) so respins are a SINK, not a +EV money-mint
-export const BOX_PREMIUM_COST = 2000; // unlimited premium boxes
-
-// Premium box paytable (~94% RTP — generous but sustainable).
-export const BOX_PRIZES_PREMIUM: { label: string; emoji: string; amount: number; weight: number }[] = [
-  { label: "800 coin", emoji: "🪙", amount: 800, weight: 45 },
-  { label: "1500 coin", emoji: "💵", amount: 1500, weight: 28 },
-  { label: "2500 coin", emoji: "💰", amount: 2500, weight: 16 },
-  { label: "5000 coin", emoji: "💎", amount: 5000, weight: 8 },
-  { label: "MEGA 10000", emoji: "👑", amount: 10000, weight: 3 },
-];
+// NOTE: paid respins and the premium box were REMOVED deliberately —
+// paying coins for a chance outcome is the gambling pattern Uzbek authorities
+// flagged (Hamster Kombat precedent). Chance rewards are only ever EARNED by
+// riding; coin sinks are deterministic purchases (Garaj, Kolleksiya, Bozor).
 
 export interface CoinTxnView {
   amount: number;
@@ -62,9 +54,14 @@ export const RIDE_REWARD_TIERS: { tier: "standard" | "double" | "triple" | "jack
   { tier: "triple", mult: 3, weight: 4, label: "3x TRIPLE" },
   { tier: "jackpot", mult: 0, weight: 1, label: "JACKPOT" }, // pays the pool instead
 ];
+export const RIDE_REWARD_BASE = 100; // fixed roll base (so'm) — sized to 2000/ride net
 export const RIDE_JACKPOT_FEED = 50; // every completed ride grows the pool
-export const DRIVER_RIDE_BONUS = 250; // flat per-trip driver thank-you (≤ ~2000 net profit/order)
-export const DRIVER_DAILY_BONUS_CAP = 20000;
+export const DRIVER_RIDE_BONUS = 100; // flat per-trip driver thank-you
+export const DRIVER_DAILY_BONUS_CAP = 10000;
+// Hard ceiling on the TOTAL client-side coin emission of ONE ride (roll ×
+// boosts + wheel + garage + guesses). Individual mechanics can be correct yet
+// COMBINE over budget — the clamp cuts the excess at grant time.
+export const RIDE_EMISSION_CAP = 350;
 
 // ── P2P transfer (closed-loop: coins MOVE, never mint) ───────────────────────
 // Anti-funnel walls: two-sided daily caps (received-cap < withdraw-cap so

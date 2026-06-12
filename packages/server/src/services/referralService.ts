@@ -6,8 +6,8 @@ import { grantCoins } from "./coinService";
 import { incrementMission } from "./missionService";
 
 // Double-sided reward (so'm). Tuned so a paid invite stays well under LTV.
-export const REFERRER_REWARD = 3000; // inviter
-export const REFEREE_REWARD = 2000; // the friend who joins
+export const REFERRER_REWARD = 1500; // inviter — paid when the friend completes a real ride
+export const REFEREE_REWARD = 2000; // the friend — ALSO paid on their first real ride
 
 const ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"; // no 0/O/1/I ambiguity
 function genCode(len = 6): string {
@@ -95,8 +95,9 @@ export async function completeReferral(
 
   // mark first so a concurrent link can't double-pay
   await prisma.telegramUser.update({ where: { id: refereeTelegramId }, data: { referralCreditedAt: new Date() } });
-
-  await grantCoins(refereeMemberId, REFEREE_REWARD, "referral", "Do'st taklifi (xush kelibsiz)", `ref_referee:${refereeTelegramId}`);
+  // NOTE: nobody is paid at link time — BOTH sides unlock on the referee's
+  // first completed ride (paid by the booking sweep). Referral is an
+  // acquisition cost only when a real revenue event happened.
 
   // ANTI-SYBIL: the inviter's reward is DEFERRED until the invited friend
   // completes a real ride (paid by the booking sweep, marked referrerPaidAt).

@@ -186,12 +186,12 @@ function missionLine(x: MissionView): string {
 
 function boxLine(box: BoxStatusResponse): string {
   if (box.opened && box.prize) {
-    return `🎁 Bepul quti: ochildi — ${box.prize.emoji} <b>${esc(box.prize.label)}</b>. 💎 Premium quti esa doim ochiq (${formatNumber(box.premiumCost)} coin)!`;
+    return `🎁 Kunlik quti: ochildi — ${box.prize.emoji} <b>${esc(box.prize.label)}</b>. Ertaga yana!`;
   }
   if (box.eligible) {
     return `🎁 <b>BEPUL QUTI TAYYOR!</b> Pastdagi tugma bilan oching 👇`;
   }
-  return `🎁 Bepul quti: kunlik vazifalarni tugating (${box.dailiesDone}/${box.dailiesTotal}) — ichida <b>10 000 coin'gacha</b>!`;
+  return `🎁 Kunlik quti: vazifalarni tugating (${box.dailiesDone}/${box.dailiesTotal}) — ichida <b>1 000 coin'gacha</b>!`;
 }
 
 export function renderMissions(m: MissionsResponse, box?: BoxStatusResponse): string {

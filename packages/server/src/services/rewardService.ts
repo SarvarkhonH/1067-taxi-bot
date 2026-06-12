@@ -1,6 +1,5 @@
 import {
   JACKPOT_INCREMENT,
-  WHEEL_RESPIN_COST,
   nextStreakMilestone,
   streakReward,
   WHEEL_PRIZES,
@@ -9,7 +8,7 @@ import {
 } from "@t1067/shared";
 import { prisma } from "../db";
 import { getDataSource } from "../kas";
-import { grantCoins, spendCoins } from "./coinService";
+import { grantCoins } from "./coinService";
 
 const DAILY_GRANT_CAP = 50000; // anti-abuse: max so'm a member can be granted per rolling 24h
 
@@ -155,86 +154,82 @@ function weightedPick(): WheelPrize {
 }
 
 export interface WheelResult {
-  alreadySpun: boolean; // free spin used and no respin requested
+  noRide?: boolean; // no active started ride — wheel only spins IN the car
+  alreadySpun: boolean; // this ride's spin already used
   prize: { label: string; emoji: string; amount: number };
   applied: boolean;
   jackpot: number; // displayed pool after this call
-  paid: boolean; // this spin was a coin respin
-  insufficient?: boolean; // respin requested but not enough coins
-  respinCost: number;
 }
 
 /**
- * One FREE spin per day; unlimited respins for coins (the "no limits" engine).
- * Free spin feeds the jackpot +50, paid respins +10% of their cost.
+ * IN-RIDE wheel: ONE spin per real ride, only while the booking is in
+ * "started" (you're in the car). Every spin wins (no losing slice) and there
+ * is no paid entry anywhere — chance rewards are only ever EARNED by riding
+ * (UZ gambling posture). The JACKPOT slice pays the shared ride-fed pool.
  */
-export async function spinWheel(memberId: number, opts: { respin?: boolean } = {}): Promise<WheelResult> {
+export async function spinWheel(memberId: number): Promise<WheelResult> {
   const { getJackpot, growJackpot, claimJackpot } = await import("./weeklyService");
-  const dayKey = tashkentDayKey(new Date());
-  const freeUsed = await prisma.wheelSpin.findFirst({ where: { memberId, dayKey, paid: false } });
+  const { getActiveBookingFor } = await import("./bookingService");
+  const empty = { label: "", emoji: "🎡", amount: 0 };
 
-  const base = { respinCost: WHEEL_RESPIN_COST };
-  let paid = false;
-  if (freeUsed) {
-    if (!opts.respin) {
-      const def = WHEEL_PRIZES.find((x) => x.label === freeUsed.prize);
-      return {
-        ...base,
-        alreadySpun: true,
-        prize: { label: freeUsed.prize, emoji: def?.emoji ?? "🎡", amount: freeUsed.amount },
-        applied: false,
-        jackpot: await getJackpot(),
-        paid: false,
-      };
-    }
-    const spend = await spendCoins(memberId, WHEEL_RESPIN_COST, "respin", "G'ildirak qayta aylantirish");
-    if (!spend.ok) {
-      return {
-        ...base,
-        alreadySpun: false,
-        prize: { label: "", emoji: "🎡", amount: 0 },
-        applied: false,
-        jackpot: await getJackpot(),
-        paid: true,
-        insufficient: true,
-      };
-    }
-    paid = true;
+  const active = await getActiveBookingFor(memberId).catch(() => null);
+  if (!active || active.status !== "started") {
+    return { noRide: true, alreadySpun: false, prize: empty, applied: false, jackpot: await getJackpot() };
+  }
+
+  const used = await prisma.wheelSpin.findFirst({ where: { memberId, bookingId: active.id } });
+  if (used) {
+    const def = WHEEL_PRIZES.find((x) => x.label === used.prize);
+    return {
+      alreadySpun: true,
+      prize: { label: used.prize, emoji: def?.emoji ?? "🎡", amount: used.amount },
+      applied: false,
+      jackpot: await getJackpot(),
+    };
   }
 
   const prize = weightedPick();
-  // every spin escalates the pool; the JACKPOT slice wins the whole pool
-  let jackpot = await growJackpot(paid ? Math.round(WHEEL_RESPIN_COST * 0.1) : JACKPOT_INCREMENT);
+  let jackpot = await growJackpot(JACKPOT_INCREMENT);
   let amount = prize.amount;
-  if (prize.label.startsWith("JACKPOT")) {
+  const isJackpot = prize.label.startsWith("JACKPOT");
+  if (isJackpot) {
     amount = await claimJackpot();
     jackpot = await getJackpot(); // back to the floor
   }
 
-  await prisma.wheelSpin.create({ data: { memberId, dayKey, prize: prize.label, amount, paid } });
-  if (!paid) {
-    await bumpMission(memberId, "daily_spin");
-    await bumpScore(memberId, "spin");
+  try {
+    await prisma.wheelSpin.create({
+      data: { memberId, dayKey: tashkentDayKey(new Date()), bookingId: active.id, prize: prize.label, amount, paid: false },
+    });
+  } catch {
+    // unique [memberId, bookingId] — concurrent double-tap lost the race
+    return { alreadySpun: true, prize: empty, applied: false, jackpot };
   }
+  await bumpMission(memberId, "daily_spin");
+  await bumpScore(memberId, "spin");
 
   let applied = false;
   if (amount > 0) {
-    const g = await grantCoins(
-      memberId,
-      amount,
-      "wheel",
-      `G'ildirak: ${prize.label}`,
-      paid ? undefined : `wheel:${memberId}:${dayKey}`,
-    );
-    applied = g.ok;
+    const { grantRideCoins } = await import("./coinService");
+    // jackpot pays the pre-funded pool in full (outside the per-ride clamp);
+    // regular prizes share the ride's emission cap
+    if (isJackpot) {
+      const g = await grantCoins(memberId, amount, "wheel", `G'ildirak: JACKPOT`, `wheel:${memberId}:${active.id}`);
+      applied = g.ok;
+    } else {
+      const g = await grantRideCoins(memberId, active.id, amount, "wheel", `G'ildirak: ${prize.label}`, "wheel");
+      applied = g.ok;
+    }
   }
-  return { ...base, alreadySpun: false, prize: { label: prize.label, emoji: prize.emoji, amount }, applied, jackpot, paid };
+  return { alreadySpun: false, prize: { label: prize.label, emoji: prize.emoji, amount }, applied, jackpot };
 }
 
-/** True while today's FREE spin is still available (paid respins are always available). */
+/** True when a spin is available RIGHT NOW: active started ride, not yet spun. */
 export async function canSpinWheel(memberId: number): Promise<boolean> {
-  const dayKey = tashkentDayKey(new Date());
-  return !(await prisma.wheelSpin.findFirst({ where: { memberId, dayKey, paid: false } }));
+  const { getActiveBookingFor } = await import("./bookingService");
+  const active = await getActiveBookingFor(memberId).catch(() => null);
+  if (!active || active.status !== "started") return false;
+  return !(await prisma.wheelSpin.findFirst({ where: { memberId, bookingId: active.id } }));
 }
 
 export async function getStreak(memberId: number): Promise<{ current: number; longest: number; checkedToday: boolean }> {

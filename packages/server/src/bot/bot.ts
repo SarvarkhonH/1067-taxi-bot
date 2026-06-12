@@ -41,22 +41,16 @@ import { getFareConfig } from "../services/clientInfoService";
 
 const canWebApp = env.TELEGRAM_WEBAPP_URL.startsWith("https://");
 
+// Clean 2-row menu: booking first, everything else folded into Bonuslar/Ilova.
+// Old button labels keep graceful hears-aliases (Telegram caches keyboards).
 function mainMenu(isDriver = false): Keyboard {
   const kb = new Keyboard()
     .text("🚕 Taxi chaqirish")
     .text("📍 Buyurtmam")
     .row()
-    .text("🔥 Kunlik")
-    .text("🎡 G'ildirak")
-    .row()
-    .text("🎯 Vazifalar")
-    .text("👥 Do'st taklif")
-    .row()
-    .text("💰 Hisobim")
-    .text("🚖 Narx & cashback")
-    .row()
-    .text("🏆 Reyting")
-    .text("🎖 Nishonlar");
+    .text("💰 Hamyon")
+    .text("🎁 Bonuslar")
+    .text("👥 Do'st");
   if (isDriver) kb.row().text("🚗 Haydovchi paneli");
   if (canWebApp) kb.row().webApp("🚀 Ilova — Hamyon & Bonus", env.TELEGRAM_WEBAPP_URL);
   return kb.resized();
@@ -87,25 +81,17 @@ function renderCheckIn(r: CheckInResult): string {
 }
 
 function renderWheel(r: WheelResult): string {
-  const pool = `\n\n🎰 JACKPOT hozir: <b>${formatNumber(r.jackpot)} coin</b> — har spin uni oshiradi!`;
-  if (r.insufficient) {
-    return `🪙 Qayta aylantirish uchun <b>${formatNumber(r.respinCost)} coin</b> kerak.\n\nVazifalar va safarlar bilan coin to'plang! 🎯${pool}`;
+  const pool = `\n\n🎰 JACKPOT hozir: <b>${formatNumber(r.jackpot)} coin</b> — har safar uni oshiradi!`;
+  if (r.noRide) {
+    return `🎡 <b>Omad g'ildiragi endi SAFAR ICHIDA aylanadi!</b>\n\nTaxi chaqiring — mashinada ketayotganingizda aylantirasiz. Har spin YUTADI! 🚕${pool}`;
   }
   if (r.alreadySpun) {
-    return `🎡 Bugungi BEPUL spin ishlatilgan.\nYutuq: ${r.prize.emoji} <b>${esc(r.prize.label)}</b>\n\n🪙 ${formatNumber(r.respinCost)} coin'ga xohlagancha qayta aylantiring 👇${pool}`;
+    return `🎡 Bu safarning spini ishlatilgan.\nYutuq: ${r.prize.emoji} <b>${esc(r.prize.label)}</b>\n\nKeyingi safarda yana aylantirasiz! 🚕${pool}`;
   }
   if (r.prize.label.startsWith("JACKPOT")) {
     return `🎰🎰🎰 <b>JACKPOT!!!</b> 🎰🎰🎰\n\n💥 <b>+${formatNumber(r.prize.amount)} coin</b>${r.applied ? " — hamyoningizga tushdi 🪙" : ""}!\n\nButun jamg'arma sizniki bo'ldi! 👑${pool}`;
   }
-  if (r.prize.amount > 0) {
-    return `🎉 ${r.prize.emoji} <b>${esc(r.prize.label)}!</b>\n\n+${formatNumber(r.prize.amount)} coin${r.applied ? " — hamyoningizga tushdi 🪙" : ""}!${r.paid ? "" : `\n\n🪙 ${formatNumber(r.respinCost)} coin'ga yana aylantiring 👇`}${pool}`;
-  }
-  return `${r.prize.emoji} <b>${esc(r.prize.label)}</b>\n\nBu safar omad kulmadi — yana urinib ko'ring! 🎡${pool}`;
-}
-
-function wheelKb(r: WheelResult): InlineKeyboard | undefined {
-  if (r.insufficient) return undefined;
-  return new InlineKeyboard().text(`🪙 ${formatNumber(r.respinCost)} — yana aylantirish`, "wheel:respin");
+  return `🎉 ${r.prize.emoji} <b>${esc(r.prize.label)}!</b>\n\n+${formatNumber(r.prize.amount)} coin${r.applied ? " — hamyoningizga tushdi 🪙" : ""}!${pool}`;
 }
 
 function esc(s: string): string {
@@ -147,7 +133,10 @@ export function createBot(): Bot {
         const credit = await completeReferral(id, res.memberId).catch(() => null);
         if (credit) {
           await ctx
-            .reply(`🎁 Do'st taklifi bo'yicha <b>+${formatNumber(credit.refereeReward)} so'm</b> sovg'a!`, { parse_mode: "HTML" })
+            .reply(
+              `🎁 Do'st taklifi qabul qilindi!\nBirinchi safaringizdan keyin <b>+${formatNumber(credit.refereeReward)} coin</b> sovg'a olasiz 🚕`,
+              { parse_mode: "HTML" },
+            )
             .catch(() => undefined);
           if (credit.referrerReward > 0) {
             await ctx.api
@@ -188,7 +177,8 @@ export function createBot(): Bot {
     }
     await ctx.reply(renderProfile(me), { parse_mode: "HTML", reply_markup: mainMenu(me.type === "driver") });
   };
-  bot.hears("💰 Hisobim", showProfile);
+  bot.hears("💰 Hamyon", showProfile);
+  bot.hears("💰 Hisobim", showProfile); // old cached keyboards
   bot.command("me", showProfile);
 
   // 🚗 driver panel: earnings (tips + transfers in), recent ledger, cash-out hint
@@ -280,32 +270,26 @@ export function createBot(): Bot {
     }
     const msg = await ctx.reply("🎡 G'ildirak aylanmoqda…");
     const r = await spinWheel(me.member.id);
-    await ctx.api.editMessageText(msg.chat.id, msg.message_id, renderWheel(r), {
-      parse_mode: "HTML",
-      reply_markup: wheelKb(r),
-    });
+    await ctx.api.editMessageText(msg.chat.id, msg.message_id, renderWheel(r), { parse_mode: "HTML" });
   };
-  bot.hears("🎡 G'ildirak", spin);
+  bot.hears("🎡 G'ildirak", spin); // old cached keyboards still work
   bot.command("wheel", spin);
-
-  // unlimited coin respins — the "no limits" loop
-  bot.callbackQuery("wheel:respin", async (ctx) => {
+  // in-ride card button (the primary entry from A2's live ride card)
+  bot.callbackQuery("wheel:ride", async (ctx) => {
     const memberId = await getMemberId(String(ctx.from!.id));
     if (!memberId) {
       await ctx.answerCallbackQuery({ text: "Avval raqamingizni ulang 🙏", show_alert: true });
       return;
     }
-    const r = await spinWheel(memberId, { respin: true });
-    if (r.insufficient) {
-      await ctx.answerCallbackQuery({ text: `Coin yetarli emas (kerak: ${formatNumber(r.respinCost)}) 🪙`, show_alert: true });
-      return;
-    }
+    const r = await spinWheel(memberId);
     await ctx.answerCallbackQuery({
-      text: r.prize.amount > 0 ? `${r.prize.emoji} +${formatNumber(r.prize.amount)} coin!` : `${r.prize.emoji} ${r.prize.label}`,
+      text: r.noRide
+        ? "G'ildirak safar paytida aylanadi 🚕"
+        : r.alreadySpun
+          ? "Bu safarning spini ishlatilgan ✅"
+          : `${r.prize.emoji} +${formatNumber(r.prize.amount)} coin!`,
+      show_alert: !r.noRide && !r.alreadySpun,
     });
-    await ctx
-      .editMessageText(renderWheel(r), { parse_mode: "HTML", reply_markup: wheelKb(r) })
-      .catch(() => undefined);
   });
 
   bot.hears("🎖 Nishonlar", async (ctx) => {
@@ -324,23 +308,26 @@ export function createBot(): Bot {
     });
   });
 
-  // ─── missions / quests + mystery box ────────────────────────────────────────
+  // ─── 🎁 Bonuslar: ONE combined screen (streak + missions + box) ──────────────
   function claimKeyboard(
     m: Awaited<ReturnType<typeof getMissions>>,
     box: Awaited<ReturnType<typeof getBoxStatus>>,
+    checkedToday: boolean,
   ): InlineKeyboard {
     const kb = new InlineKeyboard();
+    if (!checkedToday) kb.text("✅ Bugunni belgilash (+streak)", "bonus:checkin").row();
     [...m.daily, ...m.weekly]
       .filter((x) => x.claimable)
       .forEach((x) => kb.text(`🎁 ${x.emoji} +${formatNumber(x.reward)} coin`, `claim:${x.code}`).row());
     if (box.eligible && !box.opened) kb.text("🎁 BEPUL QUTINI OCHISH", "openbox").row();
-    kb.text(`💎 Premium quti — ${formatNumber(box.premiumCost)} coin`, "openbox:premium").row();
     return kb;
   }
 
   const missionsView = async (memberId: number) => {
-    const [m, box] = await Promise.all([getMissions(memberId), getBoxStatus(memberId)]);
-    return { text: renderMissions(m, box), kb: claimKeyboard(m, box) };
+    const { getStreak } = await import("../services/rewardService");
+    const [m, box, streak] = await Promise.all([getMissions(memberId), getBoxStatus(memberId), getStreak(memberId)]);
+    const head = `🔥 Streak: <b>${streak.current} kun</b>${streak.checkedToday ? " ✅" : " — bugun belgilang!"}\n\n`;
+    return { text: head + renderMissions(m, box), kb: claimKeyboard(m, box, streak.checkedToday) };
   };
 
   const showMissions = async (ctx: Context) => {
@@ -352,8 +339,26 @@ export function createBot(): Bot {
     const { text, kb } = await missionsView(memberId);
     await ctx.reply(text, { parse_mode: "HTML", reply_markup: kb.inline_keyboard.length ? kb : mainMenu() });
   };
-  bot.hears("🎯 Vazifalar", showMissions);
+  bot.hears("🎁 Bonuslar", showMissions);
+  bot.hears("🎯 Vazifalar", showMissions); // old cached keyboards
   bot.command("missions", showMissions);
+
+  // streak check-in from the combined screen
+  bot.callbackQuery("bonus:checkin", async (ctx) => {
+    const memberId = await getMemberId(String(ctx.from!.id));
+    if (!memberId) {
+      await ctx.answerCallbackQuery({ text: "Avval raqamingizni ulang 🙏", show_alert: true });
+      return;
+    }
+    const r = await dailyCheckIn(memberId);
+    await ctx.answerCallbackQuery({
+      text: r.alreadyChecked
+        ? `Bugun belgilangansiz ✅ (streak ${r.current})`
+        : `🔥 Streak ${r.current} kun!${r.rewardAmount > 0 ? ` +${formatNumber(r.rewardAmount)} coin!` : ""}`,
+      show_alert: r.rewardAmount > 0,
+    });
+    await refreshMissionsMessage(ctx, memberId);
+  });
 
   const refreshMissionsMessage = async (ctx: Context, memberId: number) => {
     const { text, kb } = await missionsView(memberId);
@@ -380,23 +385,20 @@ export function createBot(): Bot {
     await refreshMissionsMessage(ctx, memberId);
   });
 
-  bot.callbackQuery(/^openbox(:premium)?$/, async (ctx) => {
-    const premium = !!ctx.match[1];
+  bot.callbackQuery("openbox", async (ctx) => {
     const memberId = await getMemberId(String(ctx.from!.id));
     if (!memberId) {
       await ctx.answerCallbackQuery({ text: "Avval raqamingizni ulang 🙏", show_alert: true });
       return;
     }
-    const r = await openBox(memberId, { premium });
+    const r = await openBox(memberId);
     if (r.ok && r.prize) {
       await ctx.answerCallbackQuery({
         text: `🎁 ${r.prize.emoji} ${r.prize.label}! +${formatNumber(r.prize.amount)} coin hamyoningizga tushdi!`,
         show_alert: true,
       });
-    } else if (r.reason === "insufficient") {
-      await ctx.answerCallbackQuery({ text: "Coin yetarli emas 🪙 — vazifalar bilan to'plang!", show_alert: true });
     } else if (r.reason === "opened") {
-      await ctx.answerCallbackQuery({ text: "Bugungi bepul quti ochilgan — 💎 Premium esa doim ochiq!" });
+      await ctx.answerCallbackQuery({ text: "Bugungi bepul quti ochilgan — ertaga yana! 🎁" });
     } else {
       await ctx.answerCallbackQuery({ text: "Avval barcha kunlik vazifalarni tugating 🎯" });
     }
@@ -412,7 +414,8 @@ export function createBot(): Bot {
     const kb = new InlineKeyboard().url("📤 Do'stga yuborish", shareUrl);
     await ctx.reply(renderReferral(r), { parse_mode: "HTML", reply_markup: kb });
   };
-  bot.hears("👥 Do'st taklif", showReferral);
+  bot.hears("👥 Do'st", showReferral);
+  bot.hears("👥 Do'st taklif", showReferral); // old cached keyboards
   bot.command("invite", showReferral);
 
   // ─── kas1067 client power-up: fare + cashback rules ───────────────────────────

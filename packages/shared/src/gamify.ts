@@ -105,13 +105,15 @@ export function badgeByCode(code: string): BadgeDef | undefined {
 
 // ─── daily streak ─────────────────────────────────────────────
 // Real cashback (so'm) paid when a daily-check-in streak reaches these days.
+// Rebalanced to unit economics: company nets ~2000 so'm/ride — every reward
+// number in the system is sized against that (industry norm: 0.6-3% of fare).
 export const STREAK_REWARDS: Record<number, number> = {
-  3: 500,
-  7: 2000,
-  14: 5000,
-  30: 15000,
-  60: 30000,
-  100: 60000,
+  3: 100,
+  7: 300,
+  14: 700,
+  30: 2000,
+  60: 5000,
+  100: 10000,
 };
 
 export function streakReward(day: number): number {
@@ -132,15 +134,17 @@ export interface WheelPrize {
 export const JACKPOT_FLOOR = 5000;
 export const JACKPOT_INCREMENT = 50; // so'm added to the pool per spin
 
-// Tune amounts/weights to the reward budget. Expected value ≈ sum(amount*weight)/sum(weight).
+// In-ride wheel: EVERY spin wins (no losing slice — legal posture + better
+// psychology), no paid entry anywhere. EV = (40·42+50·30+100·17+200·7+500·3)/100
+// ≈ 78 so'm — 3.9% of per-ride net, inside the ≤80 target. The JACKPOT slice
+// pays the shared ride-fed pool.
 export const WHEEL_PRIZES: WheelPrize[] = [
-  { label: "100 so'm", emoji: "🪙", amount: 100, weight: 30, color: "#9CA3AF" },
-  { label: "Omadsiz", emoji: "🍀", amount: 0, weight: 22, color: "#4B5563" },
-  { label: "300 so'm", emoji: "💵", amount: 300, weight: 20, color: "#CD7F32" },
-  { label: "500 so'm", emoji: "💰", amount: 500, weight: 14, color: "#F59E0B" },
-  { label: "1000 so'm", emoji: "💎", amount: 1000, weight: 9, color: "#22D3EE" },
-  { label: "Nishon", emoji: "🎖", amount: 0, weight: 3, color: "#A855F7" },
-  { label: "JACKPOT 5000", emoji: "🎰", amount: 5000, weight: 2, color: "#EF4444" },
+  { label: "40 so'm", emoji: "🪙", amount: 40, weight: 42, color: "#9CA3AF" },
+  { label: "50 so'm", emoji: "💵", amount: 50, weight: 30, color: "#CD7F32" },
+  { label: "100 so'm", emoji: "💰", amount: 100, weight: 17, color: "#F59E0B" },
+  { label: "200 so'm", emoji: "💎", amount: 200, weight: 7, color: "#22D3EE" },
+  { label: "500 so'm", emoji: "🔥", amount: 500, weight: 3, color: "#A855F7" },
+  { label: "JACKPOT", emoji: "🎰", amount: 0, weight: 1, color: "#EF4444" }, // pays the pool
 ];
 
 // ─── mystery box (perfect-day meta reward) ────────────────────
@@ -153,13 +157,13 @@ export interface BoxPrize {
   weight: number;
 }
 
-// EV ≈ 1290 so'm per perfect day — the strongest single reward in the system.
+// EV ≈ 200 so'm per perfect day (ride-anchored via daily_ride mission).
 export const BOX_PRIZES: BoxPrize[] = [
-  { label: "500 so'm", emoji: "🪙", amount: 500, weight: 50 },
-  { label: "1000 so'm", emoji: "💵", amount: 1000, weight: 30 },
-  { label: "2000 so'm", emoji: "💰", amount: 2000, weight: 12 },
-  { label: "5000 so'm", emoji: "💎", amount: 5000, weight: 6 },
-  { label: "SUPER 10000", emoji: "👑", amount: 10000, weight: 2 },
+  { label: "100 so'm", emoji: "🪙", amount: 100, weight: 50 },
+  { label: "200 so'm", emoji: "💵", amount: 200, weight: 28 },
+  { label: "300 so'm", emoji: "💰", amount: 300, weight: 14 },
+  { label: "500 so'm", emoji: "💎", amount: 500, weight: 6 },
+  { label: "SUPER 1000", emoji: "👑", amount: 1000, weight: 2 },
 ];
 
 export function nextStreakMilestone(day: number): { day: number; reward: number } | null {

@@ -35,7 +35,7 @@ export interface MeResponse {
   totalMembers: number;
   badges: BadgeView[];
   streak: { current: number; longest: number; checkedToday: boolean };
-  wheelAvailable: boolean; // free spin still available today
+  wheelAvailable: boolean; // a spin is available RIGHT NOW (active started ride, not yet spun)
   jackpot: number; // current escalating wheel jackpot
   coins: number; // game-wallet balance (1 coin = 1 so'm)
   leagueTier: string; // Bronza | Kumush | Oltin | Platina | Olmos
@@ -50,14 +50,13 @@ export interface CheckInResponse {
   next: { day: number; reward: number } | null;
 }
 
+// In-ride wheel: one spin per real ride, only while the ride is in progress.
 export interface WheelSpinResponse {
-  alreadySpun: boolean;
+  noRide?: boolean; // no active started ride — the wheel only spins in the car
+  alreadySpun: boolean; // this ride's spin was already used
   prize: { label: string; emoji: string; amount: number };
   applied: boolean;
   jackpot: number; // pool value after this spin
-  paid: boolean; // coin respin
-  insufficient?: boolean; // respin requested, not enough coins
-  respinCost: number;
 }
 
 export interface LeaderboardEntry {
@@ -84,15 +83,13 @@ export interface BoxStatusResponse {
   dailiesDone: number;
   dailiesTotal: number;
   prize: { label: string; emoji: string; amount: number } | null; // today's free prize if opened
-  premiumCost: number; // coins per premium box (unlimited)
 }
 
 export interface BoxOpenResponse {
   ok: boolean;
-  reason?: "locked" | "opened" | "insufficient";
+  reason?: "locked" | "opened";
   prize: { label: string; emoji: string; amount: number } | null;
   applied: boolean;
-  premium: boolean;
 }
 
 export interface ReferralResponse {

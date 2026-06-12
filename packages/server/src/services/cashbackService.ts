@@ -5,7 +5,7 @@
 // ride's fare-derived base bonus and grants COINS via the idempotent ledger —
 // a re-polled finish grants nothing, no ride = no roll, and real money still
 // exits only through the budget-gated withdraw door.
-import { RIDE_JACKPOT_FEED, RIDE_REWARD_TIERS, formatNumber } from "@t1067/shared";
+import { RIDE_JACKPOT_FEED, RIDE_REWARD_BASE, RIDE_REWARD_TIERS, formatNumber } from "@t1067/shared";
 import { prisma } from "../db";
 import { grantCoins } from "./coinService";
 import { weekKey } from "./missionService";
@@ -46,10 +46,14 @@ function rollTier(): (typeof RIDE_REWARD_TIERS)[number] {
  * (member, booking): the RideReward unique row is created FIRST — a concurrent
  * or re-polled sweep loses the insert race and grants nothing.
  */
-export async function rollRideCashback(memberId: number, bookingId: number, baseBonus: number): Promise<RideRollResult | null> {
-  const base = Math.max(100, Math.floor(baseBonus || 0)); // fare-derived, floor at a token amount
+export async function rollRideCashback(memberId: number, bookingId: number): Promise<RideRollResult | null> {
   const lucky = isLuckyToday();
   const t = rollTier();
+
+  // daily combo completed yesterday → today's roll doubles (the comeback hook)
+  const member = await prisma.member.findUnique({ where: { id: memberId }, select: { comboBoostDay: true } });
+  const today = new Date(Date.now() + 5 * 3600 * 1000).toISOString().slice(0, 10);
+  const combo = member?.comboBoostDay === today;
 
   let amount: number;
   let jackpot = false;
@@ -57,7 +61,7 @@ export async function rollRideCashback(memberId: number, bookingId: number, base
     amount = Math.floor(await claimJackpot());
     jackpot = true;
   } else {
-    amount = base * t.mult * (lucky ? 2 : 1);
+    amount = RIDE_REWARD_BASE * t.mult * (lucky ? 2 : 1) * (combo ? 2 : 1);
   }
 
   try {
@@ -68,7 +72,15 @@ export async function rollRideCashback(memberId: number, bookingId: number, base
     return null; // already rolled for this ride (unique [memberId, bookingId])
   }
 
-  await grantCoins(memberId, amount, "cashback", `🎲 Safar cashback ${t.label}${lucky ? " · OMAD KUNI 2x" : ""}`, `cashback:${memberId}:${bookingId}`);
+  const reason = `🎲 Safar cashback ${t.label}${lucky ? " · OMAD KUNI 2x" : ""}${combo ? " · KOMBO 2x" : ""}`;
+  if (jackpot) {
+    // jackpot pays the pre-funded pool in full — outside the per-ride clamp
+    await grantCoins(memberId, amount, "cashback", reason, `cashback:${memberId}:${bookingId}`);
+  } else {
+    const { grantRideCoins } = await import("./coinService");
+    const g = await grantRideCoins(memberId, bookingId, amount, "cashback", reason, "cashback");
+    if (g.clamped) amount -= g.clamped; // report what was actually paid
+  }
   // every ride feeds the pool — the most exciting reward grows with orders/day
   await growJackpot(RIDE_JACKPOT_FEED).catch(() => undefined);
 

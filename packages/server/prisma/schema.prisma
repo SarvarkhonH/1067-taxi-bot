@@ -28,6 +28,7 @@ model Member {
   lastBookingStatus String?
   lastBookingCar    String? // car number of the ride in progress → tip target on finish
   lastBookingBonus  Float? // fare-derived cashback captured DURING the ride (kas drops it on finish)
+  comboBoostDay     String? // tashkent day the daily combo earned a 2x roll for
   riskFlag          Boolean @default(false) // freezes the withdraw door only; coins stay spendable
   riskNote          String?
   // 1-tap booking: persisted pickup memory (in-memory Map died on every deploy)
@@ -90,6 +91,19 @@ model Referral {
   @@index([referrerId])
 }
 
+// ⏱ ETA-guess: rider predicts the ride duration range at start; checked at
+// finish against the server-side ride meter. One guess per ride.
+model RideGuess {
+  id        Int      @id @default(autoincrement())
+  memberId  Int
+  bookingId Int
+  guessBand String // "<6" | "6-9" | "10-14" | "15+"
+  won       Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  @@unique([memberId, bookingId])
+}
+
 // 🎲 Variable ride-cashback roll (the book's 80/15/4/1) — one idempotent row
 // per real completed ride; grants COINS (never direct kas money).
 model RideReward {
@@ -105,16 +119,20 @@ model RideReward {
   @@index([memberId, createdAt])
 }
 
+// In-ride wheel: ONE spin per real ride (bookingId), only while the booking is
+// in "started". Paid respins were removed (UZ gambling posture).
 model WheelSpin {
   id        Int      @id @default(autoincrement())
   member    Member   @relation(fields: [memberId], references: [id], onDelete: Cascade)
   memberId  Int
-  dayKey    String // tashkent day — one FREE spin per day; paid respins unlimited
+  dayKey    String // tashkent day (stats)
+  bookingId Int? // the real ride this spin belongs to (null = legacy daily spins)
   prize     String
   amount    Float    @default(0)
-  paid      Boolean  @default(false) // true = respin bought with coins
+  paid      Boolean  @default(false) // legacy respin flag (no new paid spins)
   createdAt DateTime @default(now())
 
+  @@unique([memberId, bookingId])
   @@index([memberId, dayKey])
 }
 

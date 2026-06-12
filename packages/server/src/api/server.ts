@@ -131,7 +131,7 @@ export function createApiServer(opts: ApiOptions = {}) {
       res.status(404).json({ error: "not linked" });
       return;
     }
-    res.json(await spinWheel(memberId, { respin: req.query.respin === "1" }));
+    res.json(await spinWheel(memberId));
   });
 
   app.get("/api/wallet", requireUser, async (_req, res) => {
@@ -330,7 +330,7 @@ export function createApiServer(opts: ApiOptions = {}) {
       res.status(404).json({ error: "not linked" });
       return;
     }
-    res.json(await openBox(memberId, { premium: req.query.premium === "1" }));
+    res.json(await openBox(memberId));
   });
 
   // shared helper: resolve the caller's memberId, 404 if not linked

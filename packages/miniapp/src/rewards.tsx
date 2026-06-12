@@ -1,12 +1,5 @@
 import { useEffect, useState } from "react";
-import {
-  BOX_PREMIUM_COST,
-  WHEEL_PRIZES,
-  WHEEL_RESPIN_COST,
-  formatNumber,
-  type BoxStatusResponse,
-  type MeResponse,
-} from "@t1067/shared";
+import { WHEEL_PRIZES, formatNumber, type BoxStatusResponse, type MeResponse } from "@t1067/shared";
 import { api } from "./api";
 import { haptic } from "./telegram";
 import { confetti } from "./util";
@@ -19,20 +12,21 @@ function SpinWheelGame({ me, onReward }: { me: MeResponse; onReward: (msg: strin
   const N = WHEEL_PRIZES.length;
   const seg = 360 / N;
 
-  const spin = async (respin: boolean) => {
+  const spin = async () => {
     if (spinning) return;
     setSpinning(true);
     haptic();
     try {
-      const res = await api.spinWheel(respin);
-      if (res.insufficient) {
-        onReward(`🪙 Yetarli coin yo'q (kerak: ${formatNumber(res.respinCost)})`);
+      const res = await api.spinWheel();
+      if (res.noRide) {
+        onReward("🚕 G'ildirak safar paytida aylanadi — taxi chaqiring!");
         setSpinning(false);
         return;
       }
-      if (res.alreadySpun && !respin) {
+      if (res.alreadySpun) {
         setFreeUsed(true);
         setSpinning(false);
+        onReward("Bu safarning spini ishlatilgan ✅");
         return;
       }
       const idx = Math.max(0, WHEEL_PRIZES.findIndex((p) => p.label === res.prize.label));
@@ -88,40 +82,36 @@ function SpinWheelGame({ me, onReward }: { me: MeResponse; onReward: (msg: strin
           <circle cx="100" cy="100" r="15" fill="#10182b" stroke="var(--gold)" strokeWidth="2" />
         </svg>
       </div>
-      {!freeUsed ? (
-        <button className="btn-primary" onClick={() => spin(false)} disabled={spinning}>
-          {spinning ? "Aylanmoqda…" : "🎡 BEPUL aylantirish"}
+      {me.wheelAvailable && !freeUsed ? (
+        <button className="btn-primary" onClick={spin} disabled={spinning}>
+          {spinning ? "Aylanmoqda…" : "🎡 AYLANTIRISH (safardasiz!)"}
         </button>
       ) : (
-        <button className="btn-violet" onClick={() => spin(true)} disabled={spinning}>
-          {spinning ? "Aylanmoqda…" : `🪙 ${formatNumber(WHEEL_RESPIN_COST)} — yana aylantirish`}
-        </button>
+        <div className="sheet-warn">🚕 G'ildirak SAFAR PAYTIDA aylanadi — har safar 1 spin, har spin yutadi!</div>
       )}
-      <div className="muted game-hint">Har spin JACKPOT'ni oshiradi — JACKPOT tushsa butun jamg'arma sizniki!</div>
+      <div className="muted game-hint">Har safar JACKPOT'ni oshiradi — JACKPOT tushsa butun jamg'arma sizniki!</div>
     </section>
   );
 }
 
 function BoxGame({ onReward }: { onReward: (msg: string) => void }) {
   const [box, setBox] = useState<BoxStatusResponse | null>(null);
-  const [busy, setBusy] = useState<"free" | "premium" | null>(null);
+  const [busy, setBusy] = useState(false);
 
   const load = () => api.box().then(setBox).catch(() => undefined);
   useEffect(() => {
     load();
   }, []);
 
-  const open = async (premium: boolean) => {
+  const open = async () => {
     if (busy) return;
-    setBusy(premium ? "premium" : "free");
+    setBusy(true);
     haptic();
     try {
-      const r = await api.openBox(premium);
+      const r = await api.openBox();
       if (r.ok && r.prize) {
         confetti();
         onReward(`🎁 ${r.prize.emoji} +${formatNumber(r.prize.amount)} coin!`);
-      } else if (r.reason === "insufficient") {
-        onReward(`🪙 Yetarli coin yo'q (kerak: ${formatNumber(box?.premiumCost ?? BOX_PREMIUM_COST)})`);
       } else if (r.reason === "locked") {
         onReward("🎯 Avval kunlik vazifalarni tugating!");
       }
@@ -129,7 +119,7 @@ function BoxGame({ onReward }: { onReward: (msg: string) => void }) {
     } catch {
       /* ignore */
     } finally {
-      setBusy(null);
+      setBusy(false);
     }
   };
 
@@ -142,12 +132,12 @@ function BoxGame({ onReward }: { onReward: (msg: string) => void }) {
       <div className="box-duo">
         <div className={"box-tile" + (box.eligible && !box.opened ? " ready" : "")}>
           <div className="box-tile-emoji">{box.opened ? "🎊" : "🎁"}</div>
-          <div className="box-tile-name">Bepul quti</div>
+          <div className="box-tile-name">Kunlik quti</div>
           {box.opened && box.prize ? (
             <div className="muted box-tile-sub">Bugun: {box.prize.emoji} {box.prize.label}</div>
           ) : box.eligible ? (
-            <button className="btn-primary sm" disabled={busy !== null} onClick={() => open(false)}>
-              {busy === "free" ? "…" : "Ochish"}
+            <button className="btn-primary sm" disabled={busy} onClick={open}>
+              {busy ? "…" : "Ochish"}
             </button>
           ) : (
             <>
@@ -155,14 +145,6 @@ function BoxGame({ onReward }: { onReward: (msg: string) => void }) {
               <div className="muted box-tile-sub">Vazifalar {box.dailiesDone}/{box.dailiesTotal}</div>
             </>
           )}
-        </div>
-        <div className="box-tile premium">
-          <div className="box-tile-emoji">💎</div>
-          <div className="box-tile-name">Premium quti</div>
-          <div className="muted box-tile-sub">10 000 coin'gacha</div>
-          <button className="btn-violet sm" disabled={busy !== null} onClick={() => open(true)}>
-            {busy === "premium" ? "…" : `🪙 ${formatNumber(box.premiumCost)}`}
-          </button>
         </div>
       </div>
     </section>

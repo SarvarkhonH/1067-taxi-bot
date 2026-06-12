@@ -23,13 +23,13 @@ async function main(): Promise<void> {
   const m = await prisma.member.create({ data: { type: "client", kasId: `${TAG}-1`, fullName: "P2 Test", phone: "+998900003001", trips: 5 } });
 
   // one ride → one roll, coins granted, valid tier
-  const r1 = await rollRideCashback(m.id, 555001, 500);
+  const r1 = await rollRideCashback(m.id, 555001);
   ok(!!r1 && ["standard", "double", "triple", "jackpot"].includes(r1.tier), `roll fired (${r1?.tier} +${r1?.amount})`);
   const bal1 = (await prisma.member.findUnique({ where: { id: m.id } }))!.coins;
   ok(bal1 === (r1?.amount ?? -1), `coins granted exactly once (${bal1})`);
 
   // same booking re-polled → no double grant
-  const r2 = await rollRideCashback(m.id, 555001, 500);
+  const r2 = await rollRideCashback(m.id, 555001);
   const bal2 = (await prisma.member.findUnique({ where: { id: m.id } }))!.coins;
   ok(r2 === null && bal2 === bal1, `re-poll grants nothing (idempotent)`);
 
@@ -40,17 +40,17 @@ async function main(): Promise<void> {
   // tier amounts respect multipliers (standard=base, double=2x, triple=3x; lucky doubles)
   let valid = true;
   for (let i = 0; i < 30; i++) {
-    const r = await rollRideCashback(m.id, 555100 + i, 500);
+    const r = await rollRideCashback(m.id, 555100 + i);
     if (!r) {
       valid = false;
       break;
     }
-    if (r.tier === "standard" && ![500, 1000].includes(r.amount)) valid = false;
-    if (r.tier === "double" && ![1000, 2000].includes(r.amount)) valid = false;
-    if (r.tier === "triple" && ![1500, 3000].includes(r.amount)) valid = false;
+    if (r.tier === "standard" && ![100, 200].includes(r.amount)) valid = false;
+    if (r.tier === "double" && ![200, 350].includes(r.amount)) valid = false; // lucky 400 → clamp 350
+    if (r.tier === "triple" && ![300, 350].includes(r.amount)) valid = false; // lucky 600 → clamp 350
     if (r.tier === "jackpot" && r.amount < 5000) valid = false; // pool floor
   }
-  ok(valid, `30 rolls — every tier amount consistent with base×mult(×lucky)`);
+  ok(valid, `30 rolls — every tier amount consistent with base 100 ×mult(×lucky), clamp ≤350`);
 
   // riskFlag freezes ONLY the withdraw door
   await grantCoins(m.id, 20000, "manual", "seed");
