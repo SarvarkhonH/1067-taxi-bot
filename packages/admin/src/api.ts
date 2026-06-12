@@ -96,6 +96,13 @@ export const adminApi = {
   grant: (target: string, amount: number, reason: string) => postJson<AdminActionResult>("/api/admin/grant", { target, amount, reason }),
   announce: (text: string, segment: "all" | "linked") => postJson<AdminActionResult>("/api/admin/announce", { text, segment }),
   integrity: () => req<AdminIntegrity>("/api/admin/integrity"),
+  features: () => req<{ features: { name: string; on: boolean }[]; mashinaFund: number }>("/api/admin/features"),
+  setFeature: (name: string, on: boolean) => postJson<{ ok: boolean; features: { name: string; on: boolean }[] }>("/api/admin/features", { name, on }),
+  corps: () => req<{ corps: { id: number; name: string; balance: number; employees: number }[] }>("/api/admin/corps"),
+  corpCreate: (name: string, cap: number) => postJson<{ id: number }>("/api/admin/corps", { name, cap }),
+  corpAddEmployee: (id: number, phone: string, name?: string) => postJson<{ ok: boolean; reason?: string }>(`/api/admin/corps/${id}/employees`, { phone, name }),
+  corpBalance: (id: number, delta: number) => postJson<{ ok: boolean; balance?: number }>(`/api/admin/corps/${id}/balance`, { delta }),
+  corpReport: (id: number) => req<{ corp: { name: string; balance: number }; rows: { phone: string; name: string | null; rides: number; overCap: boolean }[]; totalRides: number }>(`/api/admin/corps/${id}/report`),
   northstar: () =>
     req<{ weekCompleted: number; prevWeekCompleted: number; botShare: number; weeklyActiveRiders: number; coinLiability: number }>(
       "/api/admin/analytics/northstar",

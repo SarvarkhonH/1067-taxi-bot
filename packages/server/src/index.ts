@@ -108,6 +108,8 @@ async function main(): Promise<void> {
           await weeklyRecap(bot).catch((e) => console.error("[recap] failed:", e));
           const { recomputeDriverTiers } = await import("./services/analyticsService");
           await recomputeDriverTiers().catch((e) => console.error("[tiers] failed:", e));
+          const { settleGapsWeekly } = await import("./services/gapService");
+          if (new Date(Date.now() + 5 * 3600_000).getUTCDay() === 1) await settleGapsWeekly(bot).catch((e) => console.error("[gap] failed:", e));
         }
         await reapStaleSyncs(30 * 60_000).catch(() => undefined); // watchdog (>30min)
         if (reconcileTick++ % 12 === 0) {

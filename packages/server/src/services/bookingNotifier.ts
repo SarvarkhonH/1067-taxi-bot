@@ -231,6 +231,10 @@ export async function pushBookingUpdates(bot: Bot, dsOverride?: KasDataSource): 
       try {
         const { rollRideCashback, renderRideRoll } = await import("./cashbackService");
         const roll = await rollRideCashback(m.id, m.lastBookingId);
+        {
+          const { fundAddRide } = await import("./featureFlags");
+          await fundAddRide(m.lastBookingId).catch(() => null); // 🏆 Mashina fondi: 100 so'm/safar
+        }
         if (roll) rollLine = `\n${renderRideRoll(roll)}`;
       } catch (e) {
         console.error("[cashback] roll failed:", e);

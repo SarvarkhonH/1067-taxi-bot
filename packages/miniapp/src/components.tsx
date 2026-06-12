@@ -236,6 +236,76 @@ export function LeaderboardView({ board }: { board: LeaderboardResponse }) {
 }
 
 // ─── referral ─────────────────────────────────────────────────
+// Gap — 3-6 friends, weekly team goal, rotating pot.
+function GapSection() {
+  const [g, setG] = useState<{ inGap: boolean; name?: string; code?: string; goal?: number; progress?: number; members?: { name: string; rides: number; isCreator: boolean }[] } | null>(null);
+  const [mode, setMode] = useState<"none" | "create" | "join">("none");
+  const [val, setVal] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [note, setNote] = useState<string | null>(null);
+  const load = () => api.gap().then(setG).catch(() => undefined);
+  useEffect(() => {
+    load();
+  }, []);
+  if (!g) return null;
+
+  const act = async () => {
+    if (busy || !val.trim()) return;
+    setBusy(true);
+    try {
+      const r = mode === "create" ? await api.gapCreate(val.trim()) : await api.gapJoin(val.trim());
+      if (r.ok) {
+        setNote(mode === "create" ? `Gap tuzildi! Kod: ${(r as { code?: string }).code}` : "Gapga qo'shildingiz!");
+        setMode("none");
+        setVal("");
+        await load();
+      } else {
+        const reasons: Record<string, string> = { need_ride: "Avval 1 safar qiling", already_in_gap: "Siz allaqachon gapdasiz", not_found: "Kod topilmadi", full: "Gap to'lgan (max 6)" };
+        setNote(reasons[(r as { reason?: string }).reason ?? ""] ?? "Xatolik");
+      }
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <section className="glass pad">
+      <div className="section-title">👬 Gap — do'stlar davrasi</div>
+      {g.inGap ? (
+        <>
+          <p className="muted mk-sub">"{g.name}" · haftalik maqsad: <b>{g.progress}/{g.goal}</b> safar · bajarilsa hammaga +500, rotatsion POT +2000!</p>
+          <div className="badge-strip" style={{ flexDirection: "column", alignItems: "stretch", gap: 4 }}>
+            {(g.members ?? []).map((m, i) => (
+              <div key={i} style={{ display: "flex", justifyContent: "space-between" }}>
+                <span>{m.isCreator ? "👑 " : ""}{m.name}</span>
+                <b>{m.rides} safar</b>
+              </div>
+            ))}
+          </div>
+          <p className="muted game-hint">Do'st qo'shish kodi: <b>{g.code}</b></p>
+        </>
+      ) : mode === "none" ? (
+        <>
+          <p className="muted mk-sub">3-6 do'st bilan gap tuzing: haftada birga {"~"}8 safar = hammaga +500 tanga, bir kishiga POT +2000 (navbat bilan)!</p>
+          <div style={{ display: "flex", gap: 8 }}>
+            <button className="btn-primary sm" onClick={() => setMode("create")}>+ Gap tuzish</button>
+            <button className="btn-ghost sm" onClick={() => setMode("join")}>Kod bilan kirish</button>
+          </div>
+        </>
+      ) : (
+        <>
+          <input className="bk-input" placeholder={mode === "create" ? "Gap nomi: Mahalla davrasi" : "Kod: ABC123"} value={val} onChange={(e) => setVal(mode === "join" ? e.target.value.toUpperCase() : e.target.value)} />
+          <div style={{ display: "flex", gap: 8 }}>
+            <button className="btn-primary sm" disabled={busy} onClick={act}>{busy ? "…" : "OK"}</button>
+            <button className="btn-ghost sm" onClick={() => setMode("none")}>Bekor</button>
+          </div>
+        </>
+      )}
+      {note && <div className="sheet-ok" style={{ marginTop: 8 }}>{note}</div>}
+    </section>
+  );
+}
+
 export function ReferralView() {
   const [data, setData] = useState<ReferralResponse | null>(null);
   const [copied, setCopied] = useState(false);
@@ -257,10 +327,12 @@ export function ReferralView() {
     <div className="view">
       <div className="section-title">👥 Do'st taklif qiling</div>
 
+      <GapSection />
+
       <section className="ref-hero glass">
         <div className="ref-big">🎁</div>
         <div className="ref-line">
-          Har do'st uchun <b>ikkalangiz ham</b> coin olasiz
+          Har do'st uchun <b>ikkalangiz ham</b> tanga olasiz
         </div>
         <div className="ref-rewards">
           <div className="ref-reward">

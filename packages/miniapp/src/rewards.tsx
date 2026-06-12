@@ -62,6 +62,52 @@ function GarageSection({ onReward }: { onReward: (msg: string) => void }) {
   );
 }
 
+// 1067 Plus — coin-paid sub: roll x1.5 (capped) + garage +20%; first month free.
+function PlusSection({ onReward }: { onReward: (msg: string) => void }) {
+  const [p, setP] = useState<{ active: boolean; until: string | null; price: number; trialAvailable: boolean; canBuy: boolean } | null>(null);
+  const [busy, setBusy] = useState(false);
+  const load = () => api.plus().then(setP).catch(() => undefined);
+  useEffect(() => {
+    load();
+  }, []);
+  if (!p) return null;
+
+  const sub = async () => {
+    if (busy) return;
+    setBusy(true);
+    haptic();
+    try {
+      const r = await api.plusSubscribe();
+      if (r.ok) {
+        confetti();
+        onReward(r.free ? "💎 1067 Plus yoqildi — birinchi oy BEPUL!" : "💎 1067 Plus 30 kunga yangilandi!");
+      } else {
+        onReward(r.reason === "insufficient" ? "Tanga yetarli emas" : r.reason === "need_ride" ? "Avval kamida 1 safar qiling 🚕" : r.reason === "already_active" ? "Plus allaqachon faol" : "Xatolik");
+      }
+      await load();
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <section className="glass pad game-card">
+      <div className="section-title">💎 1067 Plus</div>
+      {p.active ? (
+        <p className="muted mk-sub">Faol{p.until ? ` · ${new Date(p.until).toLocaleDateString("ru-RU")} gacha` : ""} — cashback ×1.5 va Garaj +20% ishlayapti! 🎉</p>
+      ) : (
+        <>
+          <p className="muted mk-sub">Cashback ruletkasi ×1.5 · Garaj +20% · {p.trialAvailable ? "Birinchi oy BEPUL!" : `${formatNumber(p.price)} tanga/oy`}</p>
+          <button className="btn-violet" disabled={busy || !p.canBuy} onClick={sub}>
+            {busy ? "…" : p.trialAvailable ? "💎 BEPUL sinash (30 kun)" : `💎 Yoqish — ${formatNumber(p.price)} tanga`}
+          </button>
+          {!p.canBuy && <div className="muted game-hint">Avval kamida 1 safar qiling 🚕</div>}
+        </>
+      )}
+    </section>
+  );
+}
+
 function SpinWheelGame({ me, onReward }: { me: MeResponse; onReward: (msg: string) => void }) {
   const [rotation, setRotation] = useState(0);
   const [spinning, setSpinning] = useState(false);
@@ -218,7 +264,7 @@ export function RewardsView({ me, onReward }: { me: MeResponse; onReward: (msg: 
   return (
     <div className="view">
       <div className="section-title">🎁 Bonuslar</div>
-      <GarageSection onReward={onReward} />
+      <GarageSection onReward={onReward} />\n      <PlusSection onReward={onReward} />
       <SpinWheelGame me={me} onReward={onReward} />
       <BoxGame onReward={onReward} />
       <div className="muted game-hint" style={{ textAlign: "center", marginTop: 8 }}>

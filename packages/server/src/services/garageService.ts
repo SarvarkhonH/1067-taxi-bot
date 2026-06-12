@@ -11,6 +11,7 @@ import {
   type GarageResponse,
 } from "@t1067/shared";
 import { prisma } from "../db";
+import { isPlus } from "./plusService";
 import { getCoins, grantRideCoins, spendCoins } from "./coinService";
 
 export async function getGarage(memberId: number): Promise<GarageResponse> {
@@ -89,7 +90,9 @@ export async function equippedEstimate(memberId: number, minutes: number): Promi
   if (!car) return null;
   const def = garageCarByCode(car.carCode);
   if (!def) return null;
-  const rate = car.ridesSinceService >= GARAGE_SERVICE_EVERY ? def.ratePerMin * GARAGE_UNSERVICED_RATE : def.ratePerMin;
+  let rate = car.ridesSinceService >= GARAGE_SERVICE_EVERY ? def.ratePerMin * GARAGE_UNSERVICED_RATE : def.ratePerMin;
+  const m = await prisma.member.findUnique({ where: { id: memberId }, select: { plusUntil: true } });
+  if (m && isPlus(m)) rate *= 1.2; // 💎 Plus garage boost
   const amount = Math.floor(Math.min(GARAGE_RIDE_CAP_MIN, Math.max(0, minutes)) * rate);
   return { name: def.name, emoji: def.emoji, amount };
 }
@@ -104,7 +107,9 @@ export async function earnForRide(memberId: number, bookingId: number, minutes: 
   const def = garageCarByCode(car.carCode);
   if (!def) return null;
   const overdue = car.ridesSinceService >= GARAGE_SERVICE_EVERY;
-  const rate = overdue ? def.ratePerMin * GARAGE_UNSERVICED_RATE : def.ratePerMin;
+  let rate = overdue ? def.ratePerMin * GARAGE_UNSERVICED_RATE : def.ratePerMin;
+  const pm = await prisma.member.findUnique({ where: { id: memberId }, select: { plusUntil: true } });
+  if (pm && isPlus(pm)) rate *= 1.2; // 💎 Plus garage boost
   const amount = Math.floor(Math.min(GARAGE_RIDE_CAP_MIN, minutes) * rate);
   await prisma.memberCar.update({ where: { id: car.id }, data: { ridesSinceService: { increment: 1 } } });
   if (amount <= 0) return null;

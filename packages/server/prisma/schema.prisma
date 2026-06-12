@@ -30,7 +30,8 @@ model Member {
   lastBookingBonus  Float? // fare-derived cashback captured DURING the ride (kas drops it on finish)
   lastBookingSource String? // "bot" | "miniapp" — E-gate channel share metric
   comboBoostDay     String? // tashkent day the daily combo earned a 2x roll for
-  comebackOfferUntil DateTime? // win-back: guaranteed 3x roll window
+  comebackOfferUntil DateTime?
+  plusUntil          DateTime? // win-back: guaranteed 3x roll window
   // live ride card (ONE message per ride, edited in place) + moving driver pin
   rideCardMsgId     Int?
   liveLocMsgId      Int?
@@ -414,4 +415,45 @@ model SyncRun {
   source      String    @default("mock") // mock | live
   membersSeen Int       @default(0)
   message     String?
+}
+
+// 👬 Gap (o'zbekona jamoa): 3-6 do'st, haftalik jamoa maqsadi, rotatsion pot.
+model Gap {
+  id        Int         @id @default(autoincrement())
+  name      String
+  code      String      @unique
+  creatorId Int
+  potIndex  Int         @default(0)
+  createdAt DateTime    @default(now())
+  members   GapMember[]
+}
+
+model GapMember {
+  id       Int      @id @default(autoincrement())
+  gapId    Int
+  memberId Int      @unique // one gap per member
+  joinedAt DateTime @default(now())
+  gap      Gap      @relation(fields: [gapId], references: [id])
+
+  @@index([gapId])
+}
+
+// 🏢 B2B prepaid corp accounts: phone-whitelisted employees ride, balance prepaid in coins.
+model CorpAccount {
+  id        Int            @id @default(autoincrement())
+  name      String
+  balance   Float          @default(0)
+  monthlyCapPerEmployee Int @default(30)
+  createdAt DateTime       @default(now())
+  employees CorpEmployee[]
+}
+
+model CorpEmployee {
+  id     Int         @id @default(autoincrement())
+  corpId Int
+  phone  String      @unique // last-9 normalized
+  name   String?
+  corp   CorpAccount @relation(fields: [corpId], references: [id])
+
+  @@index([corpId])
 }

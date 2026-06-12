@@ -143,6 +143,11 @@ export function createApiServer(opts: ApiOptions = {}) {
       res.status(404).json({ error: "not linked" });
       return;
     }
+    const { featureOn } = await import("../services/featureFlags");
+    if (!(await featureOn("wheel"))) {
+      res.json({ ok: false, reason: "disabled" });
+      return;
+    }
     res.json(await spinWheel(memberId));
   });
 
@@ -200,6 +205,11 @@ export function createApiServer(opts: ApiOptions = {}) {
       res.status(400).json({ error: "phone and amount required" });
       return;
     }
+    const { featureOn } = await import("../services/featureFlags");
+    if (!(await featureOn("transfers"))) {
+      res.json({ ok: false, reason: "disabled" });
+      return;
+    }
     res.json(await transfer(memberId, String(b.phone), amount, { note: b.note ? String(b.note) : undefined }));
   });
   // ── 💎 Kolleksiya ────────────────────────────────────────────────────────
@@ -208,6 +218,8 @@ export function createApiServer(opts: ApiOptions = {}) {
     return getCollection(id);
   }));
   app.post("/api/items/mint", requireUser, rateLimit(10), withMember2(async (id, req) => {
+    const { featureOn } = await import("../services/featureFlags");
+    if (!(await featureOn("items"))) return { ok: false, reason: "disabled" };
     const { mintItem } = await import("../services/itemService");
     return mintItem(id, String((req.body as { code?: string })?.code ?? ""));
   }));
@@ -220,6 +232,39 @@ export function createApiServer(opts: ApiOptions = {}) {
     const { unlistItem } = await import("../services/itemService");
     return { ok: await unlistItem(id, Math.floor(Number((req.body as { itemId?: number })?.itemId ?? 0))) };
   }));
+  // 💎 1067 Plus (coin-paid subscription, pure sink)
+  app.get("/api/plus", requireUser, withMember2(async (id) => {
+    const { PLUS_PRICE } = await import("../services/plusService");
+    const m = await prisma.member.findUnique({ where: { id }, select: { plusUntil: true, trips: true } });
+    const active = !!m?.plusUntil && m.plusUntil.getTime() > Date.now();
+    const hadTrial = !!(await prisma.coinTxn.findFirst({ where: { memberId: id, kind: "plus_sub" } }));
+    return { active, until: m?.plusUntil ?? null, price: PLUS_PRICE, trialAvailable: !hadTrial && !m?.plusUntil, canBuy: (m?.trips ?? 0) >= 1 };
+  }));
+  app.post("/api/plus/subscribe", requireUser, rateLimit(5), withMember2(async (id) => {
+    const { featureOn } = await import("../services/featureFlags");
+    if (!(await featureOn("plus"))) return { ok: false, reason: "disabled" };
+    const { subscribePlus } = await import("../services/plusService");
+    return subscribePlus(id);
+  }));
+
+  // 👬 Gap (team circles)
+  app.get("/api/gap", requireUser, withMember2(async (id) => {
+    const { getGapView } = await import("../services/gapService");
+    return getGapView(id);
+  }));
+  app.post("/api/gap/create", requireUser, rateLimit(5), withMember2(async (id, req) => {
+    const { featureOn } = await import("../services/featureFlags");
+    if (!(await featureOn("gap"))) return { ok: false, reason: "disabled" };
+    const { createGap } = await import("../services/gapService");
+    return createGap(id, String((req.body as { name?: string })?.name ?? ""));
+  }));
+  app.post("/api/gap/join", requireUser, rateLimit(5), withMember2(async (id, req) => {
+    const { featureOn } = await import("../services/featureFlags");
+    if (!(await featureOn("gap"))) return { ok: false, reason: "disabled" };
+    const { joinGap } = await import("../services/gapService");
+    return joinGap(id, String((req.body as { code?: string })?.code ?? ""));
+  }));
+
   app.post("/api/items/buy", requireUser, rateLimit(10), withMember2(async (id, req) => {
     const { buyListedItem } = await import("../services/itemService");
     return buyListedItem(id, Math.floor(Number((req.body as { listingId?: number })?.listingId ?? 0)));
@@ -441,6 +486,53 @@ export function createApiServer(opts: ApiOptions = {}) {
   });
 
   // ─── admin ──────────────────────────────────────────────────────────────────
+  // kill-switch flags + mashina fondi + B2B corp accounts
+  app.get("/api/admin/features", requireAdmin, async (_req, res) => {
+    const { listFeatures, fundTotal } = await import("../services/featureFlags");
+    res.json({ features: await listFeatures(), mashinaFund: await fundTotal() });
+  });
+  app.post("/api/admin/features", requireAdmin, async (req, res) => {
+    const { setFeature, FEATURES, listFeatures } = await import("../services/featureFlags");
+    const b = req.body as { name?: string; on?: boolean };
+    if (!FEATURES.includes(b?.name as never)) {
+      res.status(400).json({ error: "unknown feature" });
+      return;
+    }
+    await setFeature(b.name as never, b.on !== false);
+    res.json({ ok: true, features: await listFeatures() });
+  });
+  app.get("/api/admin/corps", requireAdmin, async (_req, res) => {
+    const { listCorps } = await import("../services/corpService");
+    res.json({ corps: await listCorps() });
+  });
+  app.post("/api/admin/corps", requireAdmin, async (req, res) => {
+    const { createCorp } = await import("../services/corpService");
+    const b = req.body as { name?: string; cap?: number };
+    if (!b?.name) {
+      res.status(400).json({ error: "name required" });
+      return;
+    }
+    res.json(await createCorp(String(b.name), Math.floor(Number(b.cap ?? 30))));
+  });
+  app.post("/api/admin/corps/:id/employees", requireAdmin, async (req, res) => {
+    const { addCorpEmployee } = await import("../services/corpService");
+    const b = req.body as { phone?: string; name?: string };
+    res.json(await addCorpEmployee(Number(req.params.id), String(b?.phone ?? ""), b?.name));
+  });
+  app.post("/api/admin/corps/:id/balance", requireAdmin, async (req, res) => {
+    const { adjustCorpBalance } = await import("../services/corpService");
+    res.json(await adjustCorpBalance(Number(req.params.id), Math.floor(Number((req.body as { delta?: number })?.delta ?? 0))));
+  });
+  app.get("/api/admin/corps/:id/report", requireAdmin, async (req, res) => {
+    const { corpReport } = await import("../services/corpService");
+    const r = await corpReport(Number(req.params.id));
+    if (!r) {
+      res.status(404).json({ error: "not found" });
+      return;
+    }
+    res.json(r);
+  });
+
   app.get("/api/admin/stats", requireAdmin, async (req, res) => {
     res.json(await getAdminStats(memberType(req, "driver")));
   });

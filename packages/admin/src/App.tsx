@@ -91,7 +91,7 @@ export function App() {
       {tab === "analytics" && <AnalyticsView />}
       {(tab === "driver" || tab === "client") && <MembersTab type={tab} />}
       {tab === "botusers" && <BotUsersTab />}
-      {tab === "actions" && <ActionsView />}
+      {tab === "actions" && (<><ActionsView /><ControlCards /></>)}
       {tab === "integrity" && <IntegrityView />}
       {tab === "audit" && <AuditView />}
     </div>
@@ -227,6 +227,68 @@ function HealthCell({ label, ok, detail, warn }: { label: string; ok: boolean; d
 }
 
 // ─── ⚡ actions: grant + announce ───────────────────────────────────────────
+// kill-switch toggles + mashina fund + B2B corp registry
+function ControlCards() {
+  const [flags, setFlags] = useState<{ name: string; on: boolean }[] | null>(null);
+  const [fund, setFund] = useState(0);
+  const [corps, setCorps] = useState<{ id: number; name: string; balance: number; employees: number }[]>([]);
+  const [cName, setCName] = useState("");
+  const [empPhone, setEmpPhone] = useState("");
+  const [empCorp, setEmpCorp] = useState<number | null>(null);
+  const [msg, setMsg] = useState<string | null>(null);
+
+  const load = () => {
+    adminApi.features().then((r) => { setFlags(r.features); setFund(r.mashinaFund); }).catch(() => undefined);
+    adminApi.corps().then((r) => setCorps(r.corps)).catch(() => undefined);
+  };
+  useEffect(() => { load(); }, []);
+
+  const toggle = async (name: string, on: boolean) => {
+    const r = await adminApi.setFeature(name, on);
+    setFlags(r.features);
+  };
+
+  return (
+    <>
+      <section className="card">
+        <h3>🔌 Mexanika kill-switch (deploy'siz o'chirish)</h3>
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+          {(flags ?? []).map((f) => (
+            <button key={f.name} className={f.on ? "btn" : "btn danger"} onClick={() => toggle(f.name, !f.on)}>
+              {f.on ? "🟢" : "🔴"} {f.name}
+            </button>
+          ))}
+        </div>
+        <p className="muted" style={{ marginTop: 8 }}>🏆 Mashina fondi: <b>{fund.toLocaleString("ru-RU")}</b> so'm (100 so'm/safar, withdraw-byudjetdan alohida)</p>
+      </section>
+
+      <section className="card">
+        <h3>🏢 1067 Biznes (B2B prepaid)</h3>
+        <div style={{ display: "flex", gap: 8, marginBottom: 8 }}>
+          <input className="inp" placeholder="Korxona nomi" value={cName} onChange={(e) => setCName(e.target.value)} />
+          <button className="btn" onClick={async () => { if (!cName.trim()) return; await adminApi.corpCreate(cName.trim(), 30); setCName(""); load(); }}>+ Qo'shish</button>
+        </div>
+        {corps.map((c) => (
+          <div key={c.id} style={{ display: "flex", gap: 10, alignItems: "center", padding: "6px 0", borderTop: "1px solid var(--line, #2a3242)" }}>
+            <b style={{ flex: 1 }}>{c.name}</b>
+            <span className="muted">balans {c.balance.toLocaleString("ru-RU")} · {c.employees} xodim</span>
+            <button className="btn sm" onClick={async () => { const d = prompt("Balansga qo'shish (so'm):", "100000"); if (d) { await adminApi.corpBalance(c.id, Number(d)); load(); } }}>💰</button>
+            <button className="btn sm" onClick={() => setEmpCorp(empCorp === c.id ? null : c.id)}>👤+</button>
+            <button className="btn sm" onClick={async () => { const r = await adminApi.corpReport(c.id); setMsg(`${r.corp.name}: bu oy ${r.totalRides} safar · ` + r.rows.map((x) => `${x.name ?? x.phone}: ${x.rides}`).join(", ")); }}>📊</button>
+          </div>
+        ))}
+        {empCorp !== null && (
+          <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
+            <input className="inp" placeholder="Xodim raqami: 901234567" value={empPhone} onChange={(e) => setEmpPhone(e.target.value)} />
+            <button className="btn" onClick={async () => { const r = await adminApi.corpAddEmployee(empCorp, empPhone); setMsg(r.ok ? "Xodim qo'shildi" : `Xato: ${r.reason}`); setEmpPhone(""); load(); }}>OK</button>
+          </div>
+        )}
+        {msg && <p className="muted" style={{ marginTop: 8 }}>{msg}</p>}
+      </section>
+    </>
+  );
+}
+
 function ActionsView() {
   const [phone, setPhone] = useState("");
   const [amount, setAmount] = useState("");

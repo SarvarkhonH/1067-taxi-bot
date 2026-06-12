@@ -34,6 +34,8 @@ async function trySend(bot: Bot, chatId: string, memberId: number, kind: string,
 
 /** Periodic tick (piggybacks the existing loop). Cheap checks, hard caps. */
 export async function pushEngineTick(bot: Bot): Promise<void> {
+  const { featureOn } = await import("./featureFlags");
+  if (!(await featureOn("push"))) return;
   if (quietHours()) return;
   const hour = tashkentNow().getUTCHours();
   const dk = dayKey();

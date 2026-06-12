@@ -34,6 +34,8 @@ export async function attachDriverRecruit(riderTelegramId: string, driverMemberI
  * the revshare (rate by recruit age, weekly-active gate, monthly cap).
  */
 export async function payRecruitRevshare(riderMemberId: number, bookingId: number): Promise<void> {
+  const { featureOn } = await import("./featureFlags");
+  if (!(await featureOn("recruit"))) return;
   const tu = await prisma.telegramUser.findFirst({ where: { memberId: riderMemberId } });
   const code = tu?.referredByCode ?? "";
   if (!code.startsWith("drv_")) return;
