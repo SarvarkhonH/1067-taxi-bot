@@ -125,6 +125,11 @@ export function bookingStatusLabel(status: string): string {
     started: "🚗 Safar boshlandi",
     completed: "🏁 Safar yakunlandi",
     finished: "🏁 Safar yakunlandi",
+    delivered: "🏁 Safar yakunlandi", // bookingReports terminal status
+    take: "🚖 Haydovchi oldi",
+    take_back: "↩️ Qaytarildi",
+    cancel_by_operator: "✖ Bekor qilindi",
+    cancel_by_server: "✖ Bekor qilindi",
   };
   return map[status] ?? `ℹ️ ${status}`;
 }

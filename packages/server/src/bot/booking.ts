@@ -196,7 +196,7 @@ export function registerBooking(bot: Bot): void {
     }
     const lines = rides.map((r) => {
       const d = r.at ? new Date(r.at).toLocaleString("ru-RU", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" }) : "";
-      const done = ["completed", "finished"].includes(r.status) ? "🏁" : "🚖";
+      const done = ["delivered", "completed", "finished"].includes(r.status) ? "🏁" : ["cancel_by_operator", "cancel_by_server"].includes(r.status) ? "✖" : "🚖";
       return `${done} <b>${esc(r.addressName)}</b> · ${d}${r.cashback ? ` · 💰+${formatNumber(r.cashback)}` : ""}`;
     });
     await ctx.reply(`📜 <b>Oxirgi safarlaringiz</b>\n\n${lines.join("\n")}`, { parse_mode: "HTML" });

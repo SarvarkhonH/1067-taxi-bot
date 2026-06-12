@@ -7,7 +7,7 @@
 import { prisma } from "../db";
 import { getDataSource, type RideHistoryItem } from "../kas";
 
-const DONE = new Set(["completed", "finished"]);
+const DONE = new Set(["delivered", "completed", "finished"]); // kas reports vocab: terminal = "delivered" (probe 2026-06-12)
 const WEEK_MS = 7 * 24 * 3600 * 1000;
 
 let cache: { at: number; rows: RideHistoryItem[] } | null = null;

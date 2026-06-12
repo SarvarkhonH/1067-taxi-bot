@@ -74,7 +74,7 @@ function RideHistory() {
       {open &&
         rides.map((r) => (
           <div key={r.id} className="mk-voucher">
-            <span>{["completed", "finished"].includes(r.status) ? "🏁" : "🚖"} {r.addressName}</span>
+            <span>{["delivered", "completed", "finished"].includes(r.status) ? "🏁" : "🚖"} {r.addressName}</span>
             <span className="muted">
               {r.at ? new Date(r.at).toLocaleDateString("ru-RU", { day: "2-digit", month: "2-digit" }) : ""}
               {r.cashback ? ` · +${formatNumber(r.cashback)}` : ""}
