@@ -101,7 +101,7 @@ export async function estimateFare(pickup: GeoPt, dest: GeoPt, surcharge = 0): P
   return { km: +km.toFixed(1), base, perKm, surcharge, total, cashback: f?.cashback.perAppRide ?? 0 };
 }
 
-export async function createBookingFor(memberId: number, body: BookingCreateBody): Promise<BookingCreateResponse> {
+export async function createBookingFor(memberId: number, body: BookingCreateBody, source = "miniapp"): Promise<BookingCreateResponse> {
   const who = await phoneOf(memberId);
   if (!who) return { ok: false, live: false, message: "Telefon raqami topilmadi" };
 
@@ -113,13 +113,13 @@ export async function createBookingFor(memberId: number, body: BookingCreateBody
   }
 
   if (!env.bookingLive) {
-    await rememberPickup(memberId, { id: body.pickupId, name: body.pickupName });
+    await rememberPickup(memberId, { id: body.pickupId, name: body.pickupName }, source);
     return { ok: true, live: false, message: "TEST rejimi — haqiqiy taxi chaqirilmadi" };
   }
   const res = await getDataSource()
     .createBooking({ clientName: who.name, addressName: body.pickupName, addressId: body.pickupId, phoneNumber: who.phone, additionalPayment })
     .catch((e) => ({ ok: false, message: e instanceof Error ? e.message : String(e) }));
-  if (res.ok) await rememberPickup(memberId, { id: body.pickupId, name: body.pickupName });
+  if (res.ok) await rememberPickup(memberId, { id: body.pickupId, name: body.pickupName }, source);
   return { ok: res.ok, live: true, message: res.message };
 }
 
@@ -170,7 +170,7 @@ async function cancelsToday(memberId: number): Promise<number> {
 }
 
 /** Remember where this member booked from — the 1-tap memory (survives deploys). */
-export async function rememberPickup(memberId: number, a: { id: number; name: string; lat?: number | null; lng?: number | null }): Promise<void> {
+export async function rememberPickup(memberId: number, a: { id: number; name: string; lat?: number | null; lng?: number | null }, source = "bot"): Promise<void> {
   await prisma.member
     .update({
       where: { id: memberId },
@@ -180,6 +180,7 @@ export async function rememberPickup(memberId: number, a: { id: number; name: st
         lastPickupLat: a.lat ?? null,
         lastPickupLng: a.lng ?? null,
         lastBookingAt: new Date(),
+        lastBookingSource: source,
       },
     })
     .catch(() => undefined);
@@ -208,7 +209,7 @@ export async function getQuickPickup(memberId: number): Promise<SavedAddressView
  * default → last), throttle double-taps, dispatch via the existing
  * createBooking path (additionalPayment 0 — booking never mints coins).
  */
-export async function callOneTapFor(memberId: number, body: BookingNowBody): Promise<BookingNowResponse> {
+export async function callOneTapFor(memberId: number, body: BookingNowBody, source = "bot"): Promise<BookingNowResponse> {
   const member = await prisma.member.findUnique({
     where: { id: memberId },
     select: {
@@ -288,7 +289,7 @@ export async function callOneTapFor(memberId: number, body: BookingNowBody): Pro
   }
 
   if (!env.bookingLive) {
-    await rememberPickup(memberId, pickup);
+    await rememberPickup(memberId, pickup, source);
     return { state: "test", pickupName: pickup.name, message: "TEST rejimi — haqiqiy taxi chaqirilmadi" };
   }
 
@@ -297,6 +298,6 @@ export async function callOneTapFor(memberId: number, body: BookingNowBody): Pro
     .catch((e) => ({ ok: false as const, message: e instanceof Error ? e.message : String(e) }));
   if (!res.ok) return { state: "failed", message: res.message };
 
-  await rememberPickup(memberId, pickup);
+  await rememberPickup(memberId, pickup, source);
   return { state: "dispatched", pickupName: pickup.name };
 }

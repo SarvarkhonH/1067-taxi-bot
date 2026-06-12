@@ -51,7 +51,7 @@ export async function rollRideCashback(memberId: number, bookingId: number): Pro
   const t = rollTier();
 
   // daily combo completed yesterday → today's roll doubles (the comeback hook)
-  const member = await prisma.member.findUnique({ where: { id: memberId }, select: { comboBoostDay: true } });
+  const member = await prisma.member.findUnique({ where: { id: memberId }, select: { comboBoostDay: true, lastBookingSource: true } });
   const today = new Date(Date.now() + 5 * 3600 * 1000).toISOString().slice(0, 10);
   const combo = member?.comboBoostDay === today;
 
@@ -66,7 +66,7 @@ export async function rollRideCashback(memberId: number, bookingId: number): Pro
 
   try {
     await prisma.rideReward.create({
-      data: { memberId, bookingId, tier: t.tier, amount, lucky },
+      data: { memberId, bookingId, tier: t.tier, amount, lucky, source: member?.lastBookingSource ?? "bot" },
     });
   } catch {
     return null; // already rolled for this ride (unique [memberId, bookingId])

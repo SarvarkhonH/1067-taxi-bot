@@ -28,6 +28,7 @@ model Member {
   lastBookingStatus String?
   lastBookingCar    String? // car number of the ride in progress → tip target on finish
   lastBookingBonus  Float? // fare-derived cashback captured DURING the ride (kas drops it on finish)
+  lastBookingSource String? // "bot" | "miniapp" — E-gate channel share metric
   comboBoostDay     String? // tashkent day the daily combo earned a 2x roll for
   // live ride card (ONE message per ride, edited in place) + moving driver pin
   rideCardMsgId     Int?
@@ -117,6 +118,7 @@ model RideReward {
   tier      String // standard | double | triple | jackpot
   amount    Float
   lucky     Boolean  @default(false) // lucky-day doubling applied
+  source    String   @default("bot") // booking channel (bot | miniapp)
   createdAt DateTime @default(now())
 
   @@unique([memberId, bookingId])

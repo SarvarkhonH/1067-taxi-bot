@@ -351,7 +351,7 @@ export function createApiServer(opts: ApiOptions = {}) {
   app.post("/api/booking/search", requireUser, withMember((_id, req) => searchBookingAddress(String((req.body as { q?: string })?.q ?? ""))));
   app.post("/api/booking/create", requireUser, withMember((id, req) => createBookingFor(id, req.body as BookingCreateBody)));
   // 1-tap "1067 Now": server resolves the pickup behind the button (rate-limited — real taxis dispatch here)
-  app.post("/api/booking/now", requireUser, rateLimit(3), withMember((id, req) => callOneTapFor(id, (req.body ?? {}) as BookingNowBody)));
+  app.post("/api/booking/now", requireUser, rateLimit(3), withMember((id, req) => callOneTapFor(id, (req.body ?? {}) as BookingNowBody, "miniapp")));
   // ride history (kas bookingReports, newest first)
   app.get("/api/booking/history", requireUser, withMember(async (id) => {
     const m = await prisma.member.findUnique({ where: { id }, select: { phone: true } });

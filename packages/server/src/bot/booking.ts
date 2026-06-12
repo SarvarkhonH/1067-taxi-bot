@@ -400,7 +400,7 @@ export function registerBooking(bot: Bot): void {
     if (!s?.pickup) return;
     // persist the 1-tap memory (survives restarts; next time = one button)
     const memberId = await getMemberId(id);
-    if (memberId) await rememberPickup(memberId, s.pickup).catch(() => undefined);
+    if (memberId) await rememberPickup(memberId, s.pickup, "bot").catch(() => undefined);
     const req = { clientName: s.clientName, addressName: s.pickup.name, addressId: s.pickup.id, phoneNumber: s.phone, additionalPayment: 0 };
     sessions.delete(id);
 
