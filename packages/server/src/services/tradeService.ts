@@ -77,14 +77,19 @@ export async function makeOffer(
   return { ok: true, offerId: offer.id };
 }
 
-/** Owner accepts: items swap, coins (90%) paid out, barter fee burned from both. */
+/** Owner accepts. T0.5 (AUDIT 3.4+3.6): ALL validation happens before any
+ *  spend; then ONE interactive transaction does status-guard + barter fees +
+ *  ownership-guarded item flips + the sellerpay marker — atomically. The
+ *  seller's 90% payout runs after the tx with an idempotent key; if the
+ *  process dies in that window, the marker makes the tick retry it. */
 export async function acceptOffer(toId: number, offerId: number): Promise<{ ok: boolean; reason?: string }> {
   const offer = await prisma.tradeOffer.findUnique({ where: { id: offerId } });
   if (!offer || offer.status !== "open") return { ok: false, reason: "not_open" };
   if (offer.toId !== toId) return { ok: false, reason: "not_yours" };
+
+  // pre-checks (no money moves here; re-verified by guards inside the tx)
   const item = await prisma.item.findUnique({ where: { id: offer.itemId } });
   if (!item || item.ownerId !== toId) {
-    // target item moved away — cancel + refund escrow
     await cancelOffer(offer.fromId, offerId, true);
     return { ok: false, reason: "item_gone" };
   }
@@ -94,32 +99,53 @@ export async function acceptOffer(toId: number, offerId: number): Promise<{ ok: 
       await cancelOffer(offer.fromId, offerId, true);
       return { ok: false, reason: "barter_gone" };
     }
-    // 50-tanga barter fee from EACH side (offerer pre-paid nothing for barter)
-    const f1 = await spendCoins(offer.fromId, BARTER_FEE, "trade_fee", "🤝 Almashuv to'lovi");
-    if (!f1.ok) return { ok: false, reason: "offerer_cant_fee" };
-    const f2 = await spendCoins(toId, BARTER_FEE, "trade_fee", "🤝 Almashuv to'lovi");
-    if (!f2.ok) {
-      await grantCoins(offer.fromId, BARTER_FEE, "trade_refund", "↩️ Almashuv bekor", `tradefeeref:${offerId}`);
-      return { ok: false, reason: "insufficient_fee" };
+  }
+
+  const sellerAmount = offer.offerCoins > 0 ? Math.floor(offer.offerCoins * 0.9) : 0; // 10% burn
+  try {
+    await prisma.$transaction(async (tx) => {
+      const claimed = await tx.tradeOffer.updateMany({ where: { id: offerId, status: "open" }, data: { status: "accepted" } });
+      if (claimed.count === 0) throw new Error("not_open");
+      if (offer.offerItemId) {
+        // barter fee from EACH side — balance-guarded, atomic with the swap
+        const f1 = await tx.member.updateMany({ where: { id: offer.fromId, coins: { gte: BARTER_FEE } }, data: { coins: { decrement: BARTER_FEE } } });
+        if (f1.count === 0) throw new Error("offerer_cant_fee");
+        const f2 = await tx.member.updateMany({ where: { id: toId, coins: { gte: BARTER_FEE } }, data: { coins: { decrement: BARTER_FEE } } });
+        if (f2.count === 0) throw new Error("insufficient_fee");
+        await tx.coinTxn.createMany({
+          data: [
+            { memberId: offer.fromId, amount: -BARTER_FEE, kind: "trade_fee", reason: "🤝 Almashuv to'lovi" },
+            { memberId: toId, amount: -BARTER_FEE, kind: "trade_fee", reason: "🤝 Almashuv to'lovi" },
+          ],
+        });
+      }
+      // ownership-guarded flips: if either item moved since the pre-check, abort everything
+      const flip1 = await tx.item.updateMany({ where: { id: offer.itemId, ownerId: toId }, data: { ownerId: offer.fromId } });
+      if (flip1.count === 0) throw new Error("item_gone");
+      await tx.itemListing.deleteMany({ where: { itemId: offer.itemId } });
+      if (offer.offerItemId) {
+        const flip2 = await tx.item.updateMany({ where: { id: offer.offerItemId, ownerId: offer.fromId }, data: { ownerId: toId } });
+        if (flip2.count === 0) throw new Error("barter_gone");
+        await tx.itemListing.deleteMany({ where: { itemId: offer.offerItemId } });
+      }
+      if (sellerAmount > 0) {
+        // sellerpay marker INSIDE the tx — the payout below can never be lost
+        await tx.appState.create({
+          data: { key: `pending:sellerpay:trade-${offerId}`, value: JSON.stringify({ memberId: toId, amount: sellerAmount, note: "trade", attempts: 0 }) },
+        });
+      }
+    });
+  } catch (e) {
+    const reason = e instanceof Error ? e.message : "failed";
+    return { ok: false, reason: ["not_open", "offerer_cant_fee", "insufficient_fee", "item_gone", "barter_gone"].includes(reason) ? reason : "failed" };
+  }
+
+  if (sellerAmount > 0) {
+    const g = await grantCoins(toId, sellerAmount, "trade_sale", `🤝 Bitim #${offerId}: buyum sotildi`, `sellerpay:trade-${offerId}`);
+    if (g.ok || g.skipped === "duplicate") {
+      const { pendingResolve } = await import("./appStateUtil");
+      await pendingResolve("sellerpay", `trade-${offerId}`);
     }
-  }
-
-  // atomic settle: status guard first — double-accept loses the race
-  const claimed = await prisma.tradeOffer.updateMany({ where: { id: offerId, status: "open" }, data: { status: "accepted" } });
-  if (claimed.count === 0) return { ok: false, reason: "not_open" };
-
-  const tx: import("@prisma/client").Prisma.PrismaPromise<unknown>[] = [
-    prisma.item.update({ where: { id: offer.itemId }, data: { ownerId: offer.fromId } }),
-    prisma.itemListing.deleteMany({ where: { itemId: offer.itemId } }),
-  ];
-  if (offer.offerItemId) {
-    tx.push(prisma.item.update({ where: { id: offer.offerItemId }, data: { ownerId: toId } }));
-    tx.push(prisma.itemListing.deleteMany({ where: { itemId: offer.offerItemId } }));
-  }
-  await prisma.$transaction(tx);
-  if (offer.offerCoins > 0) {
-    const seller = Math.floor(offer.offerCoins * 0.9); // 10% burn, escrow already taken
-    await grantCoins(toId, seller, "trade_sale", `🤝 Bitim #${offerId}: buyum sotildi`, `tradepay:${offerId}`);
   }
   // auto-reject other open offers on the same item + refund their escrow
   const others = await prisma.tradeOffer.findMany({ where: { itemId: offer.itemId, status: "open" } });
