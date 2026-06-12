@@ -113,3 +113,38 @@ S1-S4: dual wallet → games → duel/quiz/league → map booking.
 **Hajm:** ~30 commit, 5 paket, server+miniapp+admin+shared.
 
 > Hammasi jonli va tekshirilgan. Keyingi chatda eng kuchli ish: **booking'ni yana soddalashtirish (Mini App xarita asosiy) + Postgres mustahkamlash.**
+
+
+---
+
+# 🚀 2026-06-12: TO'LIQ REJA BAJARILDI (A→B→C→D + F-yadro)
+
+Hammasi test bilan (12 suite yashil), deploy qilingan. DB nomi `coins` o'zgarmadi — UI hammasi **TANGA**.
+
+## C-to'lqin — Xazina/Kolleksiya + Recruit
+- 💎 **Kolleksiya** (`itemService`): ItemType/Item, **mintCap o'zgarmas** + serial (#3/50), narx koridori 0.5x-3x, resale **10% burn**, badge/trophy sotilmaydi, xaridga ≥3 safar sharti. Katalog: Oltin 1067 (1/1, 50k), Koson plate (10), Tesla 1067 (50), Tilla Cobalt (20), Asoschi nishoni (100, bepul), 20 ta mashina qismi.
+- 🔧 **Mashina qismlari** (XIII-1): har yakunlangan safar HAYDOVCHIGA tasodifiy qism (idempotent per booking); 20/20 to'plam → 🚗 Yig'ilgan mashina + TG tabrik.
+- 🗺 **Koson kvesti**: yangi manzil = tuman nishoni (lazy mint), 10 tuman → 🧭 Sayyoh + 5000 (bir marta).
+- 🚖 **Haydovchi-recruit QR** (`recruitService`): `?start=drv_<id>` → ride1: haydovchiga +500, ride3: +1000; revshare safariga: 1-6 oy 100, keyin umrbod 25 (faollik sharti = shu hafta driver_bonus, oylik cap 30k, oyiga 15 yangi mijoz). Telefon last-9 self-dedup.
+- 🪙 **TANGA rebrand**: bot + miniapp UI matnlari; jackpot ticker bosh ekranda; 🍀 omad kuni banneri.
+- Miniapp: Bozor tabida 💎 Xazina bo'limi (mint / mening buyumlarim / tanga bozori).
+
+## D-to'lqin — biznes qatlami
+- 💎 **1067 Plus** (`plusService`): 9 990 tanga/30 kun (sof sink), **birinchi oy BEPUL** (bir marta), ≥1 safar sharti. Imtiyozlar CAP bilan: ruletka ×1.5 (qo'shimcha ≤150, ride-clamp 350 baribir kesadi) + Garaj +20%. Miniapp Bonus tabida karta.
+- 👬 **Gap** (`gapService`): 3-6 do'st, kod bilan kirish (≥1 safar), haftalik maqsad ~1.5 safar/a'zo, bajarilsa hammaga +500 + ROTATSION pot +2000, gap 5 kishiga to'lsa tuzuvchiga +1000. Dushanba settle (idempotent marker). Miniapp Do'st tabida.
+- 🏢 **B2B** (`corpService`): CorpAccount (prepaid balans) + telefon-whitelist xodimlar + oylik safar hisobot. Admin panel ⚡ Amallar tabida boshqaruv.
+- 🏆 **Mashina FONDI** (XIII-2): har yakunlangan safar +100 so'm (`mashina_fund` AppState, withdraw-byudjetdan ALOHIDA, per-booking idempotent). Admin'da ko'rinadi.
+
+## F-yadro — boshqaruv
+- 🔌 **Kill-switch**: `feature:<nom>` flaglar (wheel/garage/items/transfers/push/gap/plus/recruit) — admin ⚡ Amallar'da 1-klik ON/OFF, deploy'siz, 30s kesh.
+- Boot'da Kolleksiya katalogi avto-seed (idempotent).
+
+## 🧪 Test natijalari (hammasi yashil)
+economy 18 ✓ · phase2/6 ✓ · engagement ✓ · wheel ✓ · reward ✓ · transfer ✓ · market ✓ · garage 18 ✓ · ridecard 22 ✓ · items/recruit 20 ✓ · plus/gap/fund/corp 22 ✓ · onetap (mock) ✓
+
+## ⏳ Keyingi sessiyaga qolgan (katta bloklar)
+- **Booking 3.0 (E)**: MapLibre xarita-flow 7 ekran — alohida katta pass; narx-bashorat endpointi (delivered+payment tarixidan) shu yerda.
+- **AI qatlami**: kod "qoidalar-birinchi"; LLM uchun egadan BEPUL API kalitlari kerak (Gemini/Groq) — kelguncha o'chiq.
+- **Virtual bozor to'liq** (escrow/barter/savdo-chat/AI moderator) — Kolleksiya resale hozir oddiy fixed-price.
+- **Admin 3.0 qolgan modullari** (M1 jonli xarita, M3/M4 360, rollar auth).
+- Postgres **2026-07-10** muddati; UZ-hosting varianti.
