@@ -63,6 +63,7 @@ function lite(status: string, carNumber = ""): ActiveBookingLite {
 }
 
 async function cleanup(): Promise<void> {
+  await prisma.appState.deleteMany({ where: { key: { in: [`fundride:${BOOKING_ID}`] } } });
   const ms = await prisma.member.findMany({ where: { kasId: { startsWith: TAG } }, select: { id: true } });
   const ids = ms.map((m) => m.id);
   await prisma.rideGuess.deleteMany({ where: { memberId: { in: ids } } });
