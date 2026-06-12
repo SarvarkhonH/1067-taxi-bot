@@ -50,6 +50,19 @@ export function App() {
   const [toast, setToast] = useState<{ id: number; msg: string } | null>(null);
   const [booking, setBooking] = useState(false);
   const coins = useCountUp(me?.coins ?? 0);
+  // WOW-1: balans oshganda tanga ikonkasi sakraydi
+  const [coinBounce, setCoinBounce] = useState(false);
+  const [prevCoins, setPrevCoins] = useState<number | null>(null);
+  useEffect(() => {
+    if (me && prevCoins !== null && me.coins > prevCoins) {
+      setCoinBounce(true);
+      const t = setTimeout(() => setCoinBounce(false), 560);
+      setPrevCoins(me.coins);
+      return () => clearTimeout(t);
+    }
+    if (me) setPrevCoins(me.coins);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [me?.coins]);
 
   useEffect(() => {
     api
@@ -106,7 +119,7 @@ export function App() {
           <span className="brand-name">1067<b>TAXI</b></span>
         </div>
         <div className="coin-pill">
-          <span className="coin-dot">🪙</span>
+          <span className={"coin-dot" + (coinBounce ? " d-coin-bounce" : "")}>🪙</span>
           {Math.round(coins).toLocaleString("ru-RU")}
         </div>
       </header>
@@ -155,6 +168,50 @@ function BootSplash() {
 
 function ErrorScreen({ error }: { error: string }) {
   const notAuthed = error.includes("unauthorized");
+  // 4-shart: internet yo'qmi yoki server uyg'onyaptimi — ALOHIDA ekranlar
+  const [online, setOnline] = useState(navigator.onLine);
+  useEffect(() => {
+    const on = () => setOnline(true);
+    const off = () => setOnline(false);
+    window.addEventListener("online", on);
+    window.addEventListener("offline", off);
+    return () => {
+      window.removeEventListener("online", on);
+      window.removeEventListener("offline", off);
+    };
+  }, []);
+  useEffect(() => {
+    if (notAuthed) return;
+    const t = setTimeout(() => location.reload(), 12_000); // server-uyg'onish: avto-retry
+    return () => clearTimeout(t);
+  }, [notAuthed]);
+  if (!notAuthed && !online) {
+    return (
+      <div className="screen center">
+        <div className="aurora" />
+        <div className="nl-card glass pad tac">
+          <div className="nl-emoji">📡</div>
+          <h2>Internet aloqasi yo'q</h2>
+          <p className="muted">Tarmoqqa ulanib, qayta urinib ko'ring.</p>
+          <button className="d-btn mt8" onClick={() => location.reload()}>🔄 Qayta urinish</button>
+        </div>
+      </div>
+    );
+  }
+  if (!notAuthed) {
+    return (
+      <div className="screen center">
+        <div className="aurora" />
+        <div className="nl-card glass pad tac">
+          <span className="wake-taxi">🚕</span>
+          <h2>1067 uyg'onmoqda…</h2>
+          <p className="muted">Server bir necha soniyada tayyor bo'ladi — avtomatik qayta ulanamiz.</p>
+          <div className="wake-bar"><span /></div>
+          <button className="d-btn ghost mt12" onClick={() => location.reload()}>Hozir urinish</button>
+        </div>
+      </div>
+    );
+  }
   const initData = getInitData();
   return (
     <div className="screen center">
