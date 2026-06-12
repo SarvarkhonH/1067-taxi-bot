@@ -129,6 +129,15 @@ export class KasMockSource implements KasDataSource {
     return { fullName: "Davlat Bo'riyev", phone: "+998901234567", carModel: "Cobalt", carNumber: _carNumber || "70A123BC", rating: 4.9, lat: 39.0468, lng: 65.564 };
   }
 
+  async getReportsPage(page: number, _size: number): Promise<RideHistoryItem[]> {
+    if (page > 0) return [];
+    return [
+      { id: 9100, addressName: "Bozor", status: "completed", carNumber: "01A111AA", carModel: "Cobalt", payment: 12000, cashback: 500, at: new Date().toISOString() },
+      { id: 9099, addressName: "Uy", status: "completed", carNumber: "01A111AA", carModel: "Cobalt", payment: 9000, cashback: 500, at: new Date().toISOString() },
+      { id: 9098, addressName: "Ish", status: "completed", carNumber: "01B222BB", carModel: "Nexia", payment: 8000, cashback: 500, at: new Date().toISOString() },
+    ];
+  }
+
   async getRideHistory(_phone: string, size = 10): Promise<RideHistoryItem[]> {
     return [
       { id: 9001, addressName: "Koson bozori", status: "completed", carNumber: "70A111AA", carModel: "Cobalt", payment: 12000, cashback: 500, at: "2026-06-10T09:30:00.000+0000" },

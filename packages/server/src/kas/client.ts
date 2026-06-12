@@ -436,6 +436,25 @@ export class KasLiveSource implements KasDataSource {
     }));
   }
 
+  async getReportsPage(page: number, size: number): Promise<RideHistoryItem[]> {
+    try {
+      const d = await this.getJson(`api/bookingReports?searchText=&sort=id&page=${page}&size=${size}`);
+      const list = (d.bookingReportDtoList as Record<string, unknown>[]) ?? [];
+      return list.map((b) => ({
+        id: Number(b.id ?? 0),
+        addressName: String(b.addressName ?? ""),
+        status: String(b.status ?? ""),
+        carNumber: String(b.carNumber ?? ""),
+        carModel: String(b.carModel ?? ""),
+        payment: num(b.payment),
+        cashback: num(b.clientBonus),
+        at: String(b.date ?? ""),
+      }));
+    } catch {
+      return [];
+    }
+  }
+
   /** Ride history (bookingReports — needs the full param set or kas 405s). */
   async getRideHistory(phone: string, size = 10): Promise<RideHistoryItem[]> {
     try {

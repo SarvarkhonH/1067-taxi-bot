@@ -96,5 +96,18 @@ export const adminApi = {
   grant: (target: string, amount: number, reason: string) => postJson<AdminActionResult>("/api/admin/grant", { target, amount, reason }),
   announce: (text: string, segment: "all" | "linked") => postJson<AdminActionResult>("/api/admin/announce", { text, segment }),
   integrity: () => req<AdminIntegrity>("/api/admin/integrity"),
+  northstar: () =>
+    req<{ weekCompleted: number; prevWeekCompleted: number; botShare: number; weeklyActiveRiders: number; coinLiability: number }>(
+      "/api/admin/analytics/northstar",
+    ),
+  driverAnalytics: () =>
+    req<{
+      windowDays: number;
+      activeDrivers: number;
+      histogram: { bucket: string; drivers: number }[];
+      percentiles: { p50: number; p75: number; p90: number };
+      top: { carNumber: string; carModel: string; rides: number }[];
+      tierSuggestion: { kumush: number; oltin: number; olmos: number };
+    }>("/api/admin/analytics/drivers"),
   heal: (memberId: number) => postJson<AdminActionResult>("/api/admin/heal", { memberId }),
 };

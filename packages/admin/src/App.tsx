@@ -13,7 +13,7 @@ import {
 } from "@t1067/shared";
 import { adminApi, clearAdminToken, hasAdminToken, setAdminToken } from "./api";
 
-type Tab = "overview" | "driver" | "client" | "botusers" | "actions" | "integrity" | "audit";
+type Tab = "overview" | "analytics" | "driver" | "client" | "botusers" | "actions" | "integrity" | "audit";
 
 export function App() {
   const [tab, setTab] = useState<Tab>("overview");
@@ -56,6 +56,7 @@ export function App() {
 
   const TABS: { id: Tab; label: string }[] = [
     { id: "overview", label: "📊 Umumiy" },
+    { id: "analytics", label: "📈 Analitika" },
     { id: "driver", label: "🚗 Haydovchi" },
     { id: "client", label: "🏅 Mijoz" },
     { id: "botusers", label: "👥 Bot" },
@@ -87,6 +88,7 @@ export function App() {
       </div>
 
       {tab === "overview" && <Overview health={health} />}
+      {tab === "analytics" && <AnalyticsView />}
       {(tab === "driver" || tab === "client") && <MembersTab type={tab} />}
       {tab === "botusers" && <BotUsersTab />}
       {tab === "actions" && <ActionsView />}
@@ -513,6 +515,78 @@ function Card({ icon, label, value, sub, accent }: { icon: string; label: string
       <div className="card-icon">{icon}</div>
       <div className="card-value">{value}</div>
       <div className="card-label muted">{label}{sub ? ` · ${sub}` : ""}</div>
+    </div>
+  );
+}
+
+// ── 📈 A4: north-star + driver distribution (tier gates come from THIS data) ──
+function AnalyticsView() {
+  const [ns, setNs] = useState<Awaited<ReturnType<typeof adminApi.northstar>> | null>(null);
+  const [da, setDa] = useState<Awaited<ReturnType<typeof adminApi.driverAnalytics>> | null>(null);
+  useEffect(() => {
+    adminApi.northstar().then(setNs).catch(() => undefined);
+    adminApi.driverAnalytics().then(setDa).catch(() => undefined);
+  }, []);
+  const delta = ns ? ns.weekCompleted - ns.prevWeekCompleted : 0;
+  const maxBar = da ? Math.max(1, ...da.histogram.map((h) => h.drivers)) : 1;
+  return (
+    <div>
+      <div className="grid">
+        <div className="card accent">
+          <div className="card-title">🌟 Haftalik yakunlangan safarlar</div>
+          <div className="card-value">{ns ? formatNumber(ns.weekCompleted) : "…"}</div>
+          {ns && (
+            <div className={delta >= 0 ? "lvl" : "lvl warn"}>
+              {delta >= 0 ? "▲" : "▼"} {formatNumber(Math.abs(delta))} vs o'tgan hafta
+            </div>
+          )}
+        </div>
+        <div className="card">
+          <div className="card-title">🤖 Bot ulushi</div>
+          <div className="card-value">{ns ? `${ns.botShare}%` : "…"}</div>
+          <div className="muted">safarlarning bot orqali qismi</div>
+        </div>
+        <div className="card">
+          <div className="card-title">👥 Haftalik faol bot-mijozlar</div>
+          <div className="card-value">{ns ? formatNumber(ns.weeklyActiveRiders) : "…"}</div>
+        </div>
+        <div className="card">
+          <div className="card-title">🪙 Coin majburiyati</div>
+          <div className="card-value">{ns ? formatNumber(ns.coinLiability) : "…"}</div>
+          <div className="muted">jami va'da qilingan coin</div>
+        </div>
+      </div>
+
+      <div className="panel">
+        <div className="card-title">🚗 Haydovchi taqsimoti — oxirgi {da?.windowDays ?? 7} kun ({da?.activeDrivers ?? "…"} faol)</div>
+        {da?.histogram.map((h) => (
+          <div key={h.bucket} style={{ display: "flex", alignItems: "center", gap: 10, margin: "6px 0" }}>
+            <span style={{ width: 52, fontSize: 12 }} className="muted">{h.bucket}</span>
+            <div className="chart-bar" style={{ flex: 1 }}>
+              <span style={{ display: "block", height: "100%", width: `${(h.drivers / maxBar) * 100}%`, background: "var(--accent)", borderRadius: 999 }} />
+            </div>
+            <b style={{ width: 36, textAlign: "right" }}>{h.drivers}</b>
+          </div>
+        ))}
+        {da && (
+          <p className="muted" style={{ marginTop: 10 }}>
+            Percentil: p50={da.percentiles.p50} · p75={da.percentiles.p75} · p90={da.percentiles.p90} safar/hafta →{" "}
+            <b>tavsiya tier chegaralari: Kumush ≥{da.tierSuggestion.kumush} · Oltin ≥{da.tierSuggestion.oltin} · Olmos ≥{da.tierSuggestion.olmos}</b>
+          </p>
+        )}
+      </div>
+
+      <div className="panel">
+        <div className="card-title">🏆 Top-20 haydovchi (7 kun)</div>
+        <table>
+          <thead><tr><th>#</th><th>Mashina</th><th>Model</th><th>Safar</th></tr></thead>
+          <tbody>
+            {da?.top.map((t, i) => (
+              <tr key={t.carNumber}><td>{i + 1}</td><td><b>{t.carNumber}</b></td><td>{t.carModel}</td><td>{t.rides}</td></tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 }

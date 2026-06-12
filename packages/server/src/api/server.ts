@@ -443,6 +443,15 @@ export function createApiServer(opts: ApiOptions = {}) {
     }
     res.json(await healMember(id));
   });
+  // ── A4 analytics: north-star + driver distribution (tier gates from data) ──
+  app.get("/api/admin/analytics/northstar", requireAdmin, async (_req, res) => {
+    const { getNorthStar } = await import("../services/analyticsService");
+    res.json(await getNorthStar());
+  });
+  app.get("/api/admin/analytics/drivers", requireAdmin, async (_req, res) => {
+    const { getDriverAnalytics } = await import("../services/analyticsService");
+    res.json(await getDriverAnalytics());
+  });
   app.post("/api/admin/unflag", requireAdmin, async (req, res) => {
     const { unflagMember } = await import("../services/reconciliation");
     const id = Math.floor(Number((req.body as { memberId?: number })?.memberId ?? 0));

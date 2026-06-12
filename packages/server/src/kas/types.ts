@@ -166,6 +166,8 @@ export interface KasDataSource {
   getRideHistory(phone: string, size?: number): Promise<RideHistoryItem[]>;
   /** Live driver position/identity by car number (the moving pin). */
   getDriverByCar(carNumber: string): Promise<BookingDriver | null>;
+  /** Raw bookingReports page (analytics: per-driver distribution, north-star). */
+  getReportsPage(page: number, size: number): Promise<RideHistoryItem[]>;
 
   /** Reward: set a client's cashback bonus (writes real money via kas1067, code 1303). */
   setClientBonus(phone: string, newBonus: number): Promise<{ ok: boolean; oldBonus: number; name?: string; status?: number }>;
