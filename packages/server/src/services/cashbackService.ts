@@ -48,12 +48,16 @@ function rollTier(): (typeof RIDE_REWARD_TIERS)[number] {
  */
 export async function rollRideCashback(memberId: number, bookingId: number): Promise<RideRollResult | null> {
   const lucky = isLuckyToday();
-  const t = rollTier();
+  let t = rollTier();
 
   // daily combo completed yesterday → today's roll doubles (the comeback hook)
-  const member = await prisma.member.findUnique({ where: { id: memberId }, select: { comboBoostDay: true, lastBookingSource: true } });
+  const member = await prisma.member.findUnique({ where: { id: memberId }, select: { comboBoostDay: true, lastBookingSource: true, comebackOfferUntil: true } });
   const today = new Date(Date.now() + 5 * 3600 * 1000).toISOString().slice(0, 10);
   const combo = member?.comboBoostDay === today;
+  // 🎁 comeback win-back: the first ride inside the offer window is a
+  // GUARANTEED 3x (then the offer is consumed)
+  const comeback = !!member?.comebackOfferUntil && member.comebackOfferUntil.getTime() > Date.now();
+  if (comeback && t.tier !== "jackpot") t = RIDE_REWARD_TIERS.find((x) => x.tier === "triple")!;
 
   let amount: number;
   let jackpot = false;
@@ -72,7 +76,8 @@ export async function rollRideCashback(memberId: number, bookingId: number): Pro
     return null; // already rolled for this ride (unique [memberId, bookingId])
   }
 
-  const reason = `🎲 Safar cashback ${t.label}${lucky ? " · OMAD KUNI 2x" : ""}${combo ? " · KOMBO 2x" : ""}`;
+  if (comeback) await prisma.member.update({ where: { id: memberId }, data: { comebackOfferUntil: null } }).catch(() => undefined);
+  const reason = `🎲 Safar cashback ${t.label}${lucky ? " · OMAD KUNI 2x" : ""}${combo ? " · KOMBO 2x" : ""}${comeback ? " · QAYTISH SOVG'ASI 3x" : ""}`;
   if (jackpot) {
     // jackpot pays the pre-funded pool in full — outside the per-ride clamp
     await grantCoins(memberId, amount, "cashback", reason, `cashback:${memberId}:${bookingId}`);

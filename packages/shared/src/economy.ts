@@ -56,8 +56,11 @@ export const RIDE_REWARD_TIERS: { tier: "standard" | "double" | "triple" | "jack
 ];
 export const RIDE_REWARD_BASE = 100; // fixed roll base (so'm) — sized to 2000/ride net
 export const RIDE_JACKPOT_FEED = 50; // every completed ride grows the pool
-export const DRIVER_RIDE_BONUS = 100; // flat per-trip driver thank-you
+export const DRIVER_RIDE_BONUS = 100; // legacy flat (superseded by tier rebate)
 export const DRIVER_DAILY_BONUS_CAP = 10000;
+// Weekly tier rebate per completed ride (commission-discount equivalent we
+// fully control). Tiers recomputed every Monday from MEASURED percentiles.
+export const DRIVER_TIER_REBATE: Record<string, number> = { Bronza: 0, Kumush: 50, Oltin: 100, Olmos: 200 };
 // Hard ceiling on the TOTAL client-side coin emission of ONE ride (roll ×
 // boosts + wheel + garage + guesses). Individual mechanics can be correct yet
 // COMBINE over budget — the clamp cuts the excess at grant time.

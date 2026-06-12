@@ -52,9 +52,9 @@ export async function incrementMission(memberId: number, code: string, by = 1): 
 
   // 🔗 daily KOMBO: the moment ALL dailies hit their target, tomorrow's ride
   // roll doubles (Member.comboBoostDay) — the hook that brings them back.
-  if (def.period === "daily" && next >= def.target) {
+  if (def.period === "daily" && next >= def.target && def.audience !== "driver") {
     try {
-      const dailies = MISSIONS.filter((d) => d.period === "daily");
+      const dailies = MISSIONS.filter((d) => d.period === "daily" && d.audience !== "driver");
       const today = dayKey(new Date());
       const rows = await prisma.missionProgress.findMany({
         where: { memberId, periodKey: today, code: { in: dailies.map((d) => d.code) } },
@@ -85,15 +85,19 @@ function toView(def: MissionDef, progress: number, claimed: boolean): MissionVie
 }
 
 export async function getMissions(memberId: number): Promise<MissionsResponse> {
-  const rows = await prisma.missionProgress.findMany({ where: { memberId } });
+  const [rows, member] = await Promise.all([
+    prisma.missionProgress.findMany({ where: { memberId } }),
+    prisma.member.findUnique({ where: { id: memberId }, select: { type: true } }),
+  ]);
+  const audience = member?.type === "driver" ? "driver" : "client";
   const view = (def: MissionDef): MissionView => {
     const key = periodKey(def);
     const row = rows.find((r) => r.code === def.code && r.periodKey === key);
     return toView(def, row?.progress ?? 0, !!row?.claimedAt);
   };
   return {
-    daily: MISSIONS.filter((m) => m.period === "daily").map(view),
-    weekly: MISSIONS.filter((m) => m.period === "weekly").map(view),
+    daily: MISSIONS.filter((m) => m.period === "daily" && (m.audience ?? "client") === audience).map(view),
+    weekly: MISSIONS.filter((m) => m.period === "weekly" && (m.audience ?? "client") === audience).map(view),
   };
 }
 

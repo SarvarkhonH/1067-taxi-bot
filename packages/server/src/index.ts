@@ -103,6 +103,11 @@ async function main(): Promise<void> {
           await maybeDailyBackup(bot).catch((e) => console.error("[backup] failed:", e));
           const { settleShopsWeekly } = await import("./services/marketService");
           await settleShopsWeekly().catch((e) => console.error("[bozor settle] failed:", e));
+          const { pushEngineTick, weeklyRecap } = await import("./services/notifyService");
+          await pushEngineTick(bot).catch((e) => console.error("[push] failed:", e));
+          await weeklyRecap(bot).catch((e) => console.error("[recap] failed:", e));
+          const { recomputeDriverTiers } = await import("./services/analyticsService");
+          await recomputeDriverTiers().catch((e) => console.error("[tiers] failed:", e));
         }
         await reapStaleSyncs(30 * 60_000).catch(() => undefined); // watchdog (>30min)
         if (reconcileTick++ % 12 === 0) {

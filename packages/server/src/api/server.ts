@@ -360,6 +360,25 @@ export function createApiServer(opts: ApiOptions = {}) {
     return getDataSource().getRideHistory(m.phone, 10);
   }));
   app.post("/api/booking/cancel", requireUser, withMember((id) => cancelBookingFor(id)));
+
+  // ── 🚗 Garaj: ride-to-earn cars ──────────────────────────────────────────
+  app.get("/api/garage", requireUser, withMember(async (id) => {
+    const { getGarage } = await import("../services/garageService");
+    return getGarage(id);
+  }));
+  app.post("/api/garage/buy", requireUser, rateLimit(10), withMember(async (id, req) => {
+    const { buyCar } = await import("../services/garageService");
+    return buyCar(id, String((req.body as { car?: string })?.car ?? ""));
+  }));
+  app.post("/api/garage/equip", requireUser, rateLimit(20), withMember(async (id, req) => {
+    const { equipCar } = await import("../services/garageService");
+    return { ok: await equipCar(id, String((req.body as { car?: string })?.car ?? "")) };
+  }));
+  app.post("/api/garage/service", requireUser, rateLimit(10), withMember(async (id, req) => {
+    const { serviceCar } = await import("../services/garageService");
+    return serviceCar(id, String((req.body as { car?: string })?.car ?? ""));
+  }));
+
   app.post("/api/booking/estimate", requireUser, async (req, res) => {
     const b = req.body as { pickup?: GeoPt; dest?: GeoPt; surcharge?: number };
     if (!b?.pickup || !b?.dest) {

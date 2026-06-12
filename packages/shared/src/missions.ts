@@ -8,6 +8,7 @@
 export type MissionPeriod = "daily" | "weekly";
 
 export interface MissionDef {
+  audience?: "client" | "driver"; // default client
   code: string;
   title: string;
   emoji: string;
@@ -23,6 +24,11 @@ export const MISSIONS: MissionDef[] = [
   { code: "weekly_rides", title: "Haftada 5 ta safar", emoji: "🏁", period: "weekly", target: 5, reward: 700 },
   { code: "weekly_invite", title: "Do'st taklif qiling", emoji: "👥", period: "weekly", target: 1, reward: 1000 },
   { code: "weekly_market", title: "Bozordan xarid qiling", emoji: "🏪", period: "weekly", target: 1, reward: 300 },
+  // driver quests (Lyft Ride Challenge scale; completed-count only — no
+  // acceptance tracking = no Uber sunk-cost backlash)
+  { code: "drv_daily_5", title: "Bugun 5 safar", emoji: "🚖", period: "daily", target: 5, reward: 800, audience: "driver" },
+  { code: "drv_weekly_25", title: "Haftada 25 safar", emoji: "🏁", period: "weekly", target: 25, reward: 5000, audience: "driver" },
+  { code: "drv_weekly_40", title: "Haftada 40 safar", emoji: "🏆", period: "weekly", target: 40, reward: 12000, audience: "driver" },
 ];
 
 export function missionByCode(code: string): MissionDef | undefined {

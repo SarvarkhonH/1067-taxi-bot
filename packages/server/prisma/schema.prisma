@@ -30,6 +30,7 @@ model Member {
   lastBookingBonus  Float? // fare-derived cashback captured DURING the ride (kas drops it on finish)
   lastBookingSource String? // "bot" | "miniapp" — E-gate channel share metric
   comboBoostDay     String? // tashkent day the daily combo earned a 2x roll for
+  comebackOfferUntil DateTime? // win-back: guaranteed 3x roll window
   // live ride card (ONE message per ride, edited in place) + moving driver pin
   rideCardMsgId     Int?
   liveLocMsgId      Int?
@@ -58,6 +59,7 @@ model Member {
   coinTxns     CoinTxn[]
   withdrawals  Withdrawal[]
   leagueTier   String        @default("Bronza") // promotion/relegation tier
+  driverTier   String        @default("Bronza") // weekly driver tier (DiDi model): Bronza|Kumush|Oltin|Olmos
 
   @@unique([type, kasId])
   @@index([type, points])
@@ -94,6 +96,32 @@ model Referral {
   createdAt       DateTime @default(now())
 
   @@index([referrerId])
+}
+
+// 🔔 Push engine log: one row per (member, trigger-kind, day) — the dedupe
+// that enforces "max 2 pushes/day, never the same trigger twice".
+model NotifyLog {
+  id       Int      @id @default(autoincrement())
+  memberId Int
+  kind     String // streak_saver | lucky_day | jackpot | comeback | garage_service | recap
+  dayKey   String
+  sentAt   DateTime @default(now())
+
+  @@unique([memberId, kind, dayKey])
+  @@index([memberId, dayKey])
+}
+
+// 🚗 Garaj: owned ride-to-earn cars. One equipped car earns during real rides.
+model MemberCar {
+  id                Int      @id @default(autoincrement())
+  memberId          Int
+  carCode           String
+  isEquipped        Boolean  @default(false)
+  ridesSinceService Int      @default(0)
+  boughtAt          DateTime @default(now())
+
+  @@unique([memberId, carCode])
+  @@index([memberId])
 }
 
 // ⏱ ETA-guess: rider predicts the ride duration range at start; checked at

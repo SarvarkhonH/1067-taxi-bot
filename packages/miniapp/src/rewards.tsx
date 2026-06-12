@@ -1,8 +1,66 @@
 import { useEffect, useState } from "react";
-import { WHEEL_PRIZES, formatNumber, type BoxStatusResponse, type MeResponse } from "@t1067/shared";
+import { WHEEL_PRIZES, formatNumber, type BoxStatusResponse, type GarageResponse, type MeResponse } from "@t1067/shared";
 import { api } from "./api";
 import { haptic } from "./telegram";
 import { confetti } from "./util";
+
+// 🚗 Garaj — ride-to-earn cars: buy (sink) → it earns ONLY during real rides.
+function GarageSection({ onReward }: { onReward: (msg: string) => void }) {
+  const [g, setG] = useState<GarageResponse | null>(null);
+  const [busy, setBusy] = useState<string | null>(null);
+  const load = () => api.garage().then(setG).catch(() => undefined);
+  useEffect(() => {
+    load();
+  }, []);
+  if (!g) return null;
+
+  const act = async (fn: () => Promise<unknown>, code: string, okMsg: (r: { ok: boolean; reason?: string }) => string) => {
+    if (busy) return;
+    setBusy(code);
+    haptic();
+    try {
+      const r = (await fn()) as { ok: boolean; reason?: string };
+      onReward(okMsg(r));
+      await load();
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  return (
+    <section className="glass pad game-card">
+      <div className="section-title">🚗 Garaj — mashinangiz safarda ishlaydi</div>
+      <p className="muted mk-sub">Mashina sotib oling — siz taksida ketayotganingizda u sizga tanga ishlab beradi (daqiqasiga, 20 daq/safar cap).</p>
+      <div className="mk-listings">
+        {g.cars.map((c) => (
+          <div key={c.code} className="mk-item" style={{ cursor: "default" }}>
+            <span className="mk-item-emoji">{c.emoji}</span>
+            <span className="mk-item-title">
+              {c.name} · {c.ratePerMin}/daq
+              {c.owned && c.serviceDue && <span className="muted"> · 🔧 servis kerak (50%)</span>}
+              {c.equipped && <span> · 🟢 minilgan</span>}
+            </span>
+            {!c.owned ? (
+              <button className="btn-primary sm" disabled={busy !== null} onClick={() => act(() => api.garageBuy(c.code), c.code, (r) => (r.ok ? `🚗 ${c.name} sizniki!` : r.reason === "insufficient" ? "Tanga yetarli emas" : "Xatolik"))}>
+                {busy === c.code ? "…" : `🪙 ${formatNumber(c.price)}`}
+              </button>
+            ) : c.serviceDue ? (
+              <button className="btn-violet sm" disabled={busy !== null} onClick={() => act(() => api.garageService(c.code), c.code, (r) => (r.ok ? "🔧 Servis qilindi — to'liq tezlik!" : r.reason === "insufficient" ? "Tanga yetarli emas" : "Hali kerak emas"))}>
+                {busy === c.code ? "…" : `🔧 ${formatNumber(c.serviceCost)}`}
+              </button>
+            ) : !c.equipped ? (
+              <button className="btn-ghost sm" disabled={busy !== null} onClick={() => act(() => api.garageEquip(c.code), c.code, () => `🟢 ${c.name} minildi!`)}>
+                {busy === c.code ? "…" : "Minish"}
+              </button>
+            ) : (
+              <span className="mk-item-price">🟢</span>
+            )}
+          </div>
+        ))}
+      </div>
+    </section>
+  );
+}
 
 function SpinWheelGame({ me, onReward }: { me: MeResponse; onReward: (msg: string) => void }) {
   const [rotation, setRotation] = useState(0);
@@ -160,6 +218,7 @@ export function RewardsView({ me, onReward }: { me: MeResponse; onReward: (msg: 
   return (
     <div className="view">
       <div className="section-title">🎁 Bonuslar</div>
+      <GarageSection onReward={onReward} />
       <SpinWheelGame me={me} onReward={onReward} />
       <BoxGame onReward={onReward} />
       <div className="muted game-hint" style={{ textAlign: "center", marginTop: 8 }}>

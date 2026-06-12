@@ -25,6 +25,7 @@ interface CardCtx {
   driver?: BookingDriver | null;
   hasGuess?: boolean;
   spinUsed?: boolean;
+  garage?: { name: string; emoji: string; amount: number } | null; // live earn estimate
 }
 
 function renderRideCard(b: ActiveBookingLite, c: CardCtx): string {
@@ -39,6 +40,7 @@ function renderRideCard(b: ActiveBookingLite, c: CardCtx): string {
     lines.push("✅ <b>Haydovchingiz yetib keldi — chiqing!</b>");
   } else if (b.status === "started") {
     lines.push("🚗 <b>Safardasiz…</b> pastdagi o'yinlarni sinang 👇");
+    if (c.garage) lines.push(`${c.garage.emoji} ${esc(c.garage.name)} ishlayapti: <b>+${c.garage.amount}</b> tanga`);
   } else {
     let eta = "";
     if (d?.lat && d?.lng && b.lat && b.lng) {
@@ -146,6 +148,10 @@ export async function pushBookingUpdates(bot: Bot, dsOverride?: KasDataSource): 
         hasGuess: !!(await prisma.rideGuess.findUnique({ where: { memberId_bookingId: { memberId: m.id, bookingId: b.id } } }).catch(() => null)),
         spinUsed: !!(await prisma.wheelSpin.findFirst({ where: { memberId: m.id, bookingId: b.id } }).catch(() => null)),
       };
+      if (b.status === "started" && m.rideStartedAt) {
+        const { equippedEstimate } = await import("./garageService");
+        ctx.garage = await equippedEstimate(m.id, (Date.now() - m.rideStartedAt.getTime()) / 60_000).catch(() => null);
+      }
 
       // ride meter: first sighting of "started"
       const rideStartedAt = b.status === "started" && (isNewRide || !m.rideStartedAt) ? new Date() : m.rideStartedAt;
@@ -233,26 +239,47 @@ export async function pushBookingUpdates(bot: Bot, dsOverride?: KasDataSource): 
       // ⏱ ETA-guess resolution (uses the ride meter)
       const guessLine = await resolveGuess(m.id, m.lastBookingId, m.rideStartedAt).catch(() => "");
 
-      // 🚗 flat driver thank-you per completed trip (idempotent, daily-capped)
+      // 🚗 Garaj earn — the equipped car worked while the ride ran
+      let garageLine = "";
+      if (m.rideStartedAt) {
+        try {
+          const { earnForRide } = await import("./garageService");
+          const e = await earnForRide(m.id, m.lastBookingId, (Date.now() - m.rideStartedAt.getTime()) / 60_000);
+          if (e) garageLine = `
+🚗 ${e.name} ishladi: <b>+${formatNumber(e.amount)}</b> tanga`;
+        } catch (err) {
+          console.error("[garage] earn failed:", err);
+        }
+      }
+
+      // 🥇 tier-based driver rebate (replaces the flat bonus; weekly tier job
+      // sets driverTier from measured percentiles) + quest progress
       let driverId: number | null = null;
       if (m.lastBookingCar) {
         const driver = await prisma.member.findFirst({
           where: { type: "driver", carNumber: m.lastBookingCar },
-          select: { id: true },
+          select: { id: true, driverTier: true },
         });
         if (driver && driver.id !== m.id) {
           driverId = driver.id;
           try {
-            const { DRIVER_DAILY_BONUS_CAP, DRIVER_RIDE_BONUS } = await import("@t1067/shared");
-            const since = new Date(Date.now() - 24 * 3600 * 1000);
-            const today = await prisma.coinTxn.aggregate({
-              where: { memberId: driver.id, kind: "driver_bonus", createdAt: { gte: since } },
-              _sum: { amount: true },
-            });
-            if ((today._sum.amount ?? 0) + DRIVER_RIDE_BONUS <= DRIVER_DAILY_BONUS_CAP) {
-              const { grantCoins } = await import("./coinService");
-              await grantCoins(driver.id, DRIVER_RIDE_BONUS, "driver_bonus", "Safar uchun rahmat-bonus", `driver_bonus:${m.id}:${m.lastBookingId}`);
+            const { DRIVER_DAILY_BONUS_CAP, DRIVER_TIER_REBATE } = await import("@t1067/shared");
+            const rebate = DRIVER_TIER_REBATE[driver.driverTier] ?? 0;
+            if (rebate > 0) {
+              const since = new Date(Date.now() - 24 * 3600 * 1000);
+              const today = await prisma.coinTxn.aggregate({
+                where: { memberId: driver.id, kind: "driver_bonus", createdAt: { gte: since } },
+                _sum: { amount: true },
+              });
+              if ((today._sum.amount ?? 0) + rebate <= DRIVER_DAILY_BONUS_CAP) {
+                const { grantCoins } = await import("./coinService");
+                await grantCoins(driver.id, rebate, "driver_bonus", `Tier-bonus (${driver.driverTier})`, `driver_bonus:${m.id}:${m.lastBookingId}`);
+              }
             }
+            // quest progress: completed-count only
+            await incrementMission(driver.id, "drv_daily_5").catch(() => undefined);
+            await incrementMission(driver.id, "drv_weekly_25").catch(() => undefined);
+            await incrementMission(driver.id, "drv_weekly_40").catch(() => undefined);
           } catch (e) {
             console.error("[driver_bonus] failed:", e);
           }
@@ -305,6 +332,7 @@ export async function pushBookingUpdates(bot: Bot, dsOverride?: KasDataSource): 
           "🏁 <b>Safaringiz yakunlandi — rahmat!</b>" +
             rollLine +
             guessLine +
+            garageLine +
             "\n🎯 Vazifalaringizni «🎁 Bonuslar»da tekshiring." +
             (driverId ? "\n\n🚗 Haydovchiga coin bilan rahmat aytasizmi?" : ""),
           { parse_mode: "HTML", reply_markup: tipKb },

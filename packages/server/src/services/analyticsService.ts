@@ -73,6 +73,46 @@ export async function getDriverAnalytics(): Promise<DriverAnalytics> {
   };
 }
 
+/**
+ * Weekly driver-tier recompute (Mondays, marker-guarded): thresholds come from
+ * the MEASURED percentile suggestion, never from guesses. Drivers without a
+ * single delivered ride drop to Bronza (status loss = the retention hook).
+ */
+export async function recomputeDriverTiers(): Promise<{ updated: number; thresholds: { kumush: number; oltin: number; olmos: number } } | null> {
+  const { weekKey } = await import("./missionService");
+  const wk = weekKey(new Date());
+  const marker = `driver_tiers:${wk}`;
+  if (await prisma.appState.findUnique({ where: { key: marker } })) return null;
+  await prisma.appState.upsert({ where: { key: marker }, create: { key: marker, value: "1" }, update: { value: "1" } });
+
+  const a = await getDriverAnalytics();
+  const t = a.tierSuggestion;
+  const ridesByCar = new Map(a.top.map((x) => [x.carNumber, x.rides]));
+  // top covers 20; rebuild full map from reports for fairness
+  const rows = await recentReports();
+  const since = Date.now() - WEEK_MS;
+  const full = new Map<string, number>();
+  for (const r of rows) {
+    if (!r.carNumber || !DONE.has(r.status)) continue;
+    const ts = Date.parse(r.at);
+    if (Number.isFinite(ts) && ts < since) continue;
+    full.set(r.carNumber, (full.get(r.carNumber) ?? 0) + 1);
+  }
+  void ridesByCar;
+
+  const drivers = await prisma.member.findMany({ where: { type: "driver" }, select: { id: true, carNumber: true } });
+  let updated = 0;
+  for (const d of drivers) {
+    const rides = d.carNumber ? (full.get(d.carNumber) ?? 0) : 0;
+    const tier = rides >= t.olmos ? "Olmos" : rides >= t.oltin ? "Oltin" : rides >= t.kumush ? "Kumush" : "Bronza";
+    await prisma.member.update({ where: { id: d.id }, data: { driverTier: tier } });
+    updated++;
+  }
+  const { alertAdmins } = await import("./economyService");
+  await alertAdmins(`🥇 Haydovchi tierlari yangilandi (${wk}): chegaralar K≥${t.kumush}/O≥${t.oltin}/Ol≥${t.olmos} safar — ${updated} haydovchi`).catch(() => undefined);
+  return { updated, thresholds: t };
+}
+
 export interface NorthStar {
   weekCompleted: number; // THE number (completed rides, last 7 days)
   prevWeekCompleted: number;

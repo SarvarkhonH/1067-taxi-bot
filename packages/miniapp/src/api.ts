@@ -11,6 +11,7 @@ import type {
   FareQuote,
   GeoPt,
   FareConfigResponse,
+  GarageResponse,
   LeaderboardResponse,
   MeResponse,
   MissionClaimResponse,
@@ -118,6 +119,10 @@ export const api = {
   driverEarnings: () =>
     get<{ todayIn: number; totalIn: number; txns: { amount: number; kind: string; reason: string; at: string }[] }>("/api/driver/earnings"),
   fareConfig: () => get<FareConfigResponse>("/api/fare/config"),
+  garage: () => get<GarageResponse>("/api/garage"),
+  garageBuy: (car: string) => request<{ ok: boolean; reason?: string; coins: number }>("POST", "/api/garage/buy", { car }, 1),
+  garageEquip: (car: string) => request<{ ok: boolean }>("POST", "/api/garage/equip", { car }, 1),
+  garageService: (car: string) => request<{ ok: boolean; reason?: string; coins: number }>("POST", "/api/garage/service", { car }, 1),
   bookingInfo: () => get<BookingInfoResponse | { error: string }>("/api/booking/info"),
   bookingActive: () => get<ActiveBookingView | null>("/api/booking/active"),
   bookingSearch: (q: string) => request<SavedAddr[]>("POST", "/api/booking/search", { q }, 1),
