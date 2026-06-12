@@ -4,7 +4,7 @@ import { api } from "./api";
 import { haptic } from "./telegram";
 import { confetti } from "./util";
 import { RouletteWheel } from "./design/RouletteWheel";
-import { LoadSection } from "./design/components";
+import { LoadSection, ProgressBar } from "./design/components";
 
 // 🚗 Garaj — ride-to-earn cars: buy (sink) → it earns ONLY during real rides.
 function GarageSection({ onReward }: { onReward: (msg: string) => void }) {
@@ -250,7 +250,7 @@ function BoxGame({ onReward }: { onReward: (msg: string) => void }) {
             </button>
           ) : (
             <>
-              <div className="d-progress mt6"><span style={{ width: `${pct}%` }} /></div>
+              <ProgressBar className="mt6" value={pct} />
               <div className="muted box-tile-sub">Vazifalar {box.dailiesDone}/{box.dailiesTotal}</div>
             </>
           )}

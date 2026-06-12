@@ -74,7 +74,7 @@ function MissionCard({ m, onClaim, busy }: { m: MissionView; onClaim: (code: str
       <div className="mission-body">
         <div className="mission-title">{m.title}</div>
         <div className="mission-bar">
-          <span style={{ width: `${pct}%` }} />
+          <span ref={(el) => el?.style.setProperty("width", `${pct}%`)} />
         </div>
         <div className="mission-sub muted">
           {m.progress}/{m.target} · 🪙 {formatNumber(m.reward)}
@@ -168,7 +168,7 @@ function WeeklyBoard() {
                 {e.fullName}
                 {e.isMe && <span className="you">Siz</span>}
               </div>
-              <div className="row-bar brand-bar"><span style={{ width: `${(e.score / max) * 100}%` }} /></div>
+              <div className="row-bar brand-bar"><span ref={(el) => el?.style.setProperty("width", `${(e.score / max) * 100}%`)} /></div>
             </div>
             <div className="row-val">{e.score}</div>
           </div>
@@ -199,7 +199,7 @@ function AllTimeBoard({ board, max }: { board: LeaderboardResponse; max: number 
                 {e.fullName}
                 {e.isMe && <span className="you">Siz</span>}
               </div>
-              <div className="row-bar brand-bar"><span style={{ width: `${(e.points / max) * 100}%` }} /></div>
+              <div className="row-bar brand-bar"><span ref={(el) => el?.style.setProperty("width", `${(e.points / max) * 100}%`)} /></div>
             </div>
             <div className="row-val">{formatNumber(e.points)}</div>
           </div>

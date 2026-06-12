@@ -54,6 +54,9 @@ body { font-variant-numeric: tabular-nums; }
 .g4 { gap: 4px; } .g6 { gap: 6px; } .g8 { gap: 8px; } .g10 { gap: 10px; }
 .mt4 { margin-top: 4px; } .mt6 { margin-top: 6px; } .mt8 { margin-top: 8px; } .mt10 { margin-top: 10px; } .mt12 { margin-top: 12px; }
 .mb4 { margin-bottom: 4px; }
+.my10 { margin-top: 10px; margin-bottom: 10px; }
+.fs11 { font-size: 11px; }
+.o55 { opacity: 0.55; }
 .fs12 { font-size: 12px; } .fs13 { font-size: 13px; } .fs22 { font-size: 22px; } .fs34 { font-size: 34px; } .fs40 { font-size: 40px; }
 .tac { text-align: center; } .tar { text-align: right; } .tal { text-align: left; }
 .dim { color: var(--text-dim); }

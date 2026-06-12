@@ -143,7 +143,7 @@ export function App() {
       </main>
 
       <nav className="tabbar">
-        <span className="tab-ind" style={{ left: `calc(${activeIndex} * ${TAB_PCT}% + ${TAB_PCT / 2}%)` }} />
+        <span className="tab-ind" ref={(el) => el?.style.setProperty("left", `calc(${activeIndex} * ${TAB_PCT}% + ${TAB_PCT / 2}%)`)} />
         {TABS.map((t) => (
           <button key={t.id} className={tab === t.id ? "tab active" : "tab"} onClick={() => go(t.id)}>
             <Icon name={t.icon} filled={tab === t.id} size={23} />
@@ -226,7 +226,7 @@ function ErrorScreen({ error }: { error: string }) {
         </p>
         <button className="btn-primary" onClick={() => location.reload()}>🔄 Qayta urinish</button>
         {notAuthed && (
-          <p className="muted" style={{ fontSize: 11, marginTop: 12, opacity: 0.55 }}>
+          <p className="muted fs11 mt12 o55">
             Telegram: {tg ? "✓" : "✗"} · initData: {initData ? `✓ (${initData.length})` : "✗ yo'q"}
           </p>
         )}

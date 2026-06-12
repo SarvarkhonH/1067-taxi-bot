@@ -12,6 +12,7 @@ import {
 import { api } from "./api";
 import { ensureLeaflet } from "./leaflet";
 import { haptic } from "./telegram";
+import { Button, Sheet } from "./design/components";
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
@@ -67,7 +68,7 @@ function RideHistory() {
   }, []);
   if (!rides?.length) return null;
   return (
-    <div style={{ marginTop: 6 }}>
+    <div className="mt6">
       <button className="btn-ghost" onClick={() => setOpen((v) => !v)}>
         {open ? "Yopish" : `📜 Oxirgi safarlar (${rides.length})`}
       </button>
@@ -89,6 +90,9 @@ function RideHistory() {
 function ScheduleBlock({ pickup, onMsg }: { pickup: SavedAddressView; onMsg: (m: string) => void }) {
   const [data, setData] = useState<{ scheduled: { id: number; addressName: string; runAt: string }[]; family: { id: number; phone: string; name: string }[] } | null>(null);
   const [showTimes, setShowTimes] = useState(false);
+  const [famSheet, setFamSheet] = useState(false);
+  const [famPhone, setFamPhone] = useState("");
+  const [famName, setFamName] = useState("");
   const load = () => api.bookingScheduled().then(setData).catch(() => undefined);
   useEffect(() => {
     load();
@@ -109,8 +113,8 @@ function ScheduleBlock({ pickup, onMsg }: { pickup: SavedAddressView; onMsg: (m:
   };
 
   return (
-    <div style={{ marginTop: 6 }}>
-      <div className="chip-row" style={{ flexWrap: "wrap" }}>
+    <div className="mt6">
+      <div className="chip-row wrap">
         <button className="amt-chip" onClick={() => { haptic(); setShowTimes((v) => !v); }}>⏰ Keyinroqqa</button>
         {(data?.family ?? []).map((f) => (
           <button key={f.id} className="amt-chip" onClick={async () => {
@@ -120,18 +124,31 @@ function ScheduleBlock({ pickup, onMsg }: { pickup: SavedAddressView; onMsg: (m:
           }}>👨‍👩‍👧 {f.name}ga</button>
         ))}
         {(data?.family ?? []).length < 3 && (
-          <button className="amt-chip" onClick={async () => {
-            const ph = prompt("Yaqiningiz raqami (90 123 45 67):");
-            if (!ph) return;
-            const nm = prompt("Ismi:", "Onam") ?? "Yaqinim";
-            const r = await api.familyAdd(ph, nm);
-            onMsg(r.ok ? "✅ Yaqin qo'shildi" : r.reason === "self" ? "O'z raqamingiz" : r.reason === "max" ? "Ko'pi bilan 3 ta" : "Xatolik");
-            load();
-          }}>＋ Yaqin</button>
+          <button className="amt-chip" onClick={() => setFamSheet(true)}>＋ Yaqin</button>
         )}
       </div>
+      <Sheet open={famSheet} onClose={() => setFamSheet(false)}>
+        <h3>👨‍👩‍👧 Yaqin qo'shish</h3>
+        <p className="dim fs13">Taksi shu raqamga boradi — siz kuzatuv va cashback'ni o'zingizda saqlaysiz. Ko'pi bilan 3 ta.</p>
+        <input className="bk-input" inputMode="tel" placeholder="Raqami: 90 123 45 67" value={famPhone} onChange={(e) => setFamPhone(e.target.value)} />
+        <input className="bk-input mt6" placeholder="Ismi: Onam" value={famName} onChange={(e) => setFamName(e.target.value)} />
+        <Button
+          disabled={famPhone.replace(/\D/g, "").length < 9}
+          onClick={async () => {
+            const r = await api.familyAdd(famPhone, famName || "Yaqinim");
+            onMsg(r.ok ? "✅ Yaqin qo'shildi" : r.reason === "self" ? "O'z raqamingiz" : r.reason === "max" ? "Ko'pi bilan 3 ta" : "Xatolik");
+            setFamSheet(false);
+            setFamPhone("");
+            setFamName("");
+            load();
+          }}
+        >
+          Qo'shish
+        </Button>
+        <Button variant="ghost" onClick={() => setFamSheet(false)}>Bekor</Button>
+      </Sheet>
       {showTimes && (
-        <div className="chip-row" style={{ flexWrap: "wrap", marginTop: 4 }}>
+        <div className="chip-row wrap mt4">
           {slots().map((sl) => (
             <button key={sl.iso} className="amt-chip" onClick={async () => {
               haptic();
@@ -144,7 +161,7 @@ function ScheduleBlock({ pickup, onMsg }: { pickup: SavedAddressView; onMsg: (m:
         </div>
       )}
       {(data?.scheduled ?? []).map((r) => (
-        <div key={r.id} className="muted" style={{ fontSize: 12, display: "flex", justifyContent: "space-between", marginTop: 4 }}>
+        <div key={r.id} className="muted fs12 between mt4">
           <span>⏰ {new Date(r.runAt).toLocaleString("ru-RU", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })} — {r.addressName}</span>
           <button className="bk-change" onClick={async () => { await api.bookingScheduleCancel(r.id); load(); }}>bekor</button>
         </div>
@@ -214,7 +231,7 @@ export function BookingView({ onClose }: { onClose: () => void }) {
   }, [active]);
 
   const pin = (L: any, color: string, emoji: string) =>
-    L.divIcon({ className: "", html: `<div style="font-size:26px;filter:drop-shadow(0 1px 2px ${color})">${emoji}</div>`, iconSize: [26, 26] });
+    L.divIcon({ className: "", html: `<div class="pin-drop" style="font-size:26px;filter:drop-shadow(0 1px 2px ${color})">${emoji}</div>`, iconSize: [26, 26] });
 
   // place pickup marker + recenter
   useEffect(() => {
@@ -399,12 +416,12 @@ export function BookingView({ onClose }: { onClose: () => void }) {
             <div className="sheet" onClick={(e) => e.stopPropagation()}>
               <div className="sheet-grip" />
               <h3>⭐ Safar qanday o'tdi?</h3>
-              <div style={{ display: "flex", gap: 8, justifyContent: "center", fontSize: 34, margin: "10px 0" }}>
+              <div className="center g8 fs34 my10">
                 {[1, 2, 3, 4, 5].map((n) => (
-                  <span key={n} style={{ cursor: "pointer", opacity: n <= stars ? 1 : 0.3 }} onClick={() => { haptic(); setStars(n); }}>⭐</span>
+                  <span key={n} className={"pointer" + (n <= stars ? "" : " faded")} onClick={() => { haptic(); setStars(n); }}>⭐</span>
                 ))}
               </div>
-              <div className="chip-row" style={{ flexWrap: "wrap" }}>
+              <div className="chip-row wrap">
                 {["Toza mashina", "Xushmuomala", "Tez yetib keldi", "Sekin haydadi", "Mashina eski"].map((tg) => (
                   <button key={tg} className={"amt-chip" + (rateTags.includes(tg) ? " active" : "")} onClick={() => setRateTags((pv) => (pv.includes(tg) ? pv.filter((x) => x !== tg) : [...pv, tg]))}>
                     {tg}
@@ -435,7 +452,7 @@ export function BookingView({ onClose }: { onClose: () => void }) {
               <div className="muted bk-fare-hint">📍 Borar manzilni xaritada belgilang — narxni ko'rasiz (ixtiyoriy)</div>
             )}
             {predict && (
-              <div className="muted" style={{ fontSize: 12, textAlign: "center", marginTop: 4 }}>
+              <div className="muted fs12 tac mt4">
                 📊 {predict.byAddress ? `${predict.byAddress.name}: odatda ~${formatNumber(predict.byAddress.avg)} so'm` : `Kosonda o'rtacha safar ~${formatNumber(predict.avg)} so'm`}
                 {freeDrivers > 0 ? ` · 🟢 bo'sh: ${freeDrivers}` : ""}
               </div>

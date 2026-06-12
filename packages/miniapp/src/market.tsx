@@ -289,7 +289,7 @@ function MyShopPanel({ onBanner }: { onBanner: (m: string) => void }) {
       </div>
       {mine.pending.length > 0 && (
         <>
-          <div className="muted mk-sub" style={{ marginTop: 8 }}>Kutilayotgan vaucherlar: {mine.pending.length}</div>
+          <div className="muted mk-sub mt8">Kutilayotgan vaucherlar: {mine.pending.length}</div>
           {mine.pending.slice(0, 6).map((p) => (
             <div key={p.id} className="mk-voucher">
               <span>{p.emoji} {p.title}</span>
