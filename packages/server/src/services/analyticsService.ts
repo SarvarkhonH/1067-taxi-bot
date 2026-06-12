@@ -14,8 +14,17 @@ let cache: { at: number; rows: RideHistoryItem[] } | null = null;
 async function recentReports(): Promise<RideHistoryItem[]> {
   if (cache && Date.now() - cache.at < 600_000) return cache.rows;
   const ds = getDataSource();
-  const pages = await Promise.all([0, 1, 2].map((p) => ds.getReportsPage(p, 500)));
-  const rows = pages.flat();
+  // kas silently caps page size around ~50 — page SEQUENTIALLY (rate-limit
+  // polite) until we have 2 weeks of data or 40 pages (~2000 rows).
+  const rows: RideHistoryItem[] = [];
+  const cutoff = Date.now() - 2 * WEEK_MS;
+  for (let p = 0; p < 40; p++) {
+    const page = await ds.getReportsPage(p, 50);
+    if (!page.length) break;
+    rows.push(...page);
+    const oldest = Date.parse(page[page.length - 1]!.at);
+    if (Number.isFinite(oldest) && oldest < cutoff) break;
+  }
   cache = { at: Date.now(), rows };
   return rows;
 }
