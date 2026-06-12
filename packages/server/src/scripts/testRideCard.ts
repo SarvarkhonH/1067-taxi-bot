@@ -66,6 +66,8 @@ async function cleanup(): Promise<void> {
   const ms = await prisma.member.findMany({ where: { kasId: { startsWith: TAG } }, select: { id: true } });
   const ids = ms.map((m) => m.id);
   await prisma.rideGuess.deleteMany({ where: { memberId: { in: ids } } });
+  await prisma.missionProgress.deleteMany({ where: { memberId: { in: ids } } });
+  await prisma.notifyLog.deleteMany({ where: { memberId: { in: ids } } });
   await prisma.rideReward.deleteMany({ where: { memberId: { in: ids } } });
   await prisma.telegramUser.deleteMany({ where: { id: { startsWith: `${TAG}-tg` } } });
   await prisma.member.deleteMany({ where: { id: { in: ids } } });
@@ -94,7 +96,7 @@ async function main(): Promise<void> {
   });
   await prisma.telegramUser.create({ data: { id: `${TAG}-tg-R`, memberId: rider.id, linkedAt: new Date() } });
   const driver = await prisma.member.create({
-    data: { type: "driver", kasId: `${TAG}-D`, fullName: "Card Driver", phone: "+998900004002", carNumber: CAR, trips: 100 },
+    data: { type: "driver", kasId: `${TAG}-D`, fullName: "Card Driver", phone: "+998900004002", carNumber: CAR, trips: 100, driverTier: "Oltin" },
   });
 
   // tick 1: searching → ONE card sent (with queue line), no pin yet
@@ -139,7 +141,9 @@ async function main(): Promise<void> {
   const guess = await prisma.rideGuess.findUnique({ where: { memberId_bookingId: { memberId: rider.id, bookingId: BOOKING_ID } } });
   ok(guess?.won === true, `guess marked won`);
   const dBonus = await prisma.coinTxn.findFirst({ where: { memberId: driver.id, kind: "driver_bonus" } });
-  ok(dBonus?.amount === 100, `driver auto-bonus 100 granted`);
+  ok(dBonus?.amount === 100, `tier rebate granted (Oltin = 100)`);
+  const quest = await prisma.missionProgress.findFirst({ where: { memberId: driver.id, code: "drv_daily_5" } });
+  ok(quest?.progress === 1, `driver quest progress incremented (drv_daily_5 = 1)`);
   // ledger invariant for both
   for (const id of [rider.id, driver.id]) {
     const bal = (await prisma.member.findUnique({ where: { id } }))!.coins;

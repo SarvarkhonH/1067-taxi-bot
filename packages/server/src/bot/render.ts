@@ -86,7 +86,7 @@ export function renderProfile(me: MeResponse): string {
     DIV,
     `💼 <b>HAMYON</b>`,
     `🚕 Cashback: <b>${formatNumber(stats.points)} so'm</b> <i>(safarlardan)</i>`,
-    `🪙 Coin: <b>${formatNumber(me.coins)}</b> <i>(1 coin = 1 so'm — yechiladi)</i>`,
+    `🪙 Coin: <b>${formatNumber(me.coins)}</b> <i>(1 tanga = 1 so'm — yechiladi)</i>`,
     DIV,
     `🔥 Streak: <b>${streak} kun</b>   🚕 Safar: <b>${formatNumber(stats.trips)}</b>`,
   ];
@@ -179,7 +179,7 @@ function missionLine(x: MissionView): string {
   const status = x.claimed
     ? "✅ olindi"
     : x.claimable
-      ? `🎁 <b>+${formatNumber(x.reward)} coin</b> — tayyor!`
+      ? `🎁 <b>+${formatNumber(x.reward)} tanga</b> — tayyor!`
       : `${x.progress}/${x.target} · +${formatNumber(x.reward)}`;
   return `${x.emoji} ${esc(x.title)}\n   ${bar} ${status}`;
 }
@@ -191,7 +191,7 @@ function boxLine(box: BoxStatusResponse): string {
   if (box.eligible) {
     return `🎁 <b>BEPUL QUTI TAYYOR!</b> Pastdagi tugma bilan oching 👇`;
   }
-  return `🎁 Kunlik quti: vazifalarni tugating (${box.dailiesDone}/${box.dailiesTotal}) — ichida <b>1 000 coin'gacha</b>!`;
+  return `🎁 Kunlik quti: vazifalarni tugating (${box.dailiesDone}/${box.dailiesTotal}) — ichida <b>1 000 tangagacha</b>!`;
 }
 
 export function renderMissions(m: MissionsResponse, box?: BoxStatusResponse): string {
@@ -214,12 +214,12 @@ export function renderReferral(r: ReferralResponse): string {
   return (
     `👥 <b>Do'st taklif qiling — ikkalangiz ham coin olasiz!</b>\n\n` +
     `Har bir do'st uchun:\n` +
-    `  • Siz: <b>+${formatNumber(r.rewardReferrer)} coin</b>\n` +
-    `  • Do'stingiz: <b>+${formatNumber(r.rewardReferee)} coin</b>\n\n` +
+    `  • Siz: <b>+${formatNumber(r.rewardReferrer)} tanga</b>\n` +
+    `  • Do'stingiz: <b>+${formatNumber(r.rewardReferee)} tanga</b>\n\n` +
     `🔗 <b>Sizning havolangiz:</b>\n${esc(r.link)}\n\n` +
     `✅ Taklif qilingan: <b>${r.invited}</b>\n` +
-    `🪙 Ishlab topgan: <b>${formatNumber(r.earned)} coin</b>\n\n` +
-    `<i>1 coin = 1 so'm — ilovada haqiqiy pulga aylantiriladi. Do'stingiz havola orqali kirib, raqamini ulasa — avtomatik tushadi.</i>`
+    `🪙 Ishlab topgan: <b>${formatNumber(r.earned)} tanga</b>\n\n` +
+    `<i>1 tanga = 1 so'm — ilovada haqiqiy pulga aylantiriladi. Do'stingiz havola orqali kirib, raqamini ulasa — avtomatik tushadi.</i>`
   );
 }
 
@@ -227,7 +227,7 @@ export function renderReferral(r: ReferralResponse): string {
 export function renderReferralWin(reward: number): string {
   return (
     `🎉 <b>Do'stingiz qo'shildi!</b>\n\n` +
-    `🪙 U birinchi safarini qilganda sizga <b>+${formatNumber(reward)} coin</b> tushadi.\n\n` +
+    `🪙 U birinchi safarini qilganda sizga <b>+${formatNumber(reward)} tanga</b> tushadi.\n\n` +
     `Yana taklif qiling — daromad cheksiz! 👥`
   );
 }

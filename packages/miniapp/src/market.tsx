@@ -4,6 +4,75 @@ import { api } from "./api";
 import { haptic } from "./telegram";
 import { confetti } from "./util";
 import { Spinner } from "./components";
+import type { ItemsResponse } from "./api";
+
+// 💎 Xazina (Kolleksiya): catalog mint + my items + internal resale (10% burn)
+function CollectionSection({ onBanner }: { onBanner: (m: string) => void }) {
+  const [data, setData] = useState<ItemsResponse | null>(null);
+  const [busy, setBusy] = useState(false);
+  const load = () => api.items().then(setData).catch(() => undefined);
+  useEffect(() => {
+    load();
+  }, []);
+  if (!data) return null;
+
+  const run = async (fn: () => Promise<{ ok: boolean; reason?: string; name?: string; serial?: number }>, okMsg: (r: { name?: string; serial?: number }) => string) => {
+    if (busy) return;
+    setBusy(true);
+    haptic();
+    try {
+      const r = await fn();
+      onBanner(r.ok ? okMsg(r) : r.reason === "insufficient" ? "Tanga yetarli emas" : r.reason === "sold_out" ? "Sotuvda qolmadi!" : r.reason === "need_rides" ? "Kamida 3 safar kerak" : "Xatolik");
+      await load();
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <section className="glass pad">
+      <div className="section-title">💎 Xazina — noyob buyumlar</div>
+      <div className="mk-listings">
+        {data.catalog.map((c) => (
+          <div key={c.code} className="mk-item" style={{ cursor: "default" }}>
+            <span className="mk-item-emoji">{c.emoji}</span>
+            <span className="mk-item-title">{c.name}{c.left != null && <span className="muted"> · qoldi {c.left}</span>}</span>
+            <button className="btn-primary sm" disabled={busy || c.left === 0} onClick={() => run(() => api.itemMint(c.code), (r) => `💎 ${c.name} #${r.serial} sizniki!`)}>
+              {c.left === 0 ? "TUGADI" : `🪙 ${formatNumber(c.price)}`}
+            </button>
+          </div>
+        ))}
+      </div>
+      {data.mine.length > 0 && (
+        <>
+          <div className="muted mk-sub" style={{ marginTop: 10 }}>Mening xazinam ({data.mine.length}) · qismlar {data.partsProgress.have}/{data.partsProgress.total}</div>
+          <div className="badge-strip" style={{ fontSize: 22 }}>
+            {data.mine.slice(0, 16).map((i) => (
+              <span key={i.id} title={`${i.name}${i.cap > 0 ? ` #${i.serial}/${i.cap}` : ""}`}>{i.emoji}</span>
+            ))}
+          </div>
+        </>
+      )}
+      {data.market.length > 0 && (
+        <>
+          <div className="muted mk-sub" style={{ marginTop: 10 }}>🛒 Tanga bozori (sotuvda):</div>
+          {data.market.slice(0, 8).map((l) => (
+            <div key={l.listingId} className="mk-voucher">
+              <span>{l.emoji} {l.name}{l.serial ? ` #${l.serial}` : ""}</span>
+              {l.mine ? (
+                <span className="muted">sizniki</span>
+              ) : (
+                <button className="btn-violet sm" disabled={busy} onClick={() => run(() => api.itemBuy(l.listingId), (r) => `💎 ${r.name ?? "Buyum"} sotib olindi!`)}>
+                  🪙 {formatNumber(l.price)}
+                </button>
+              )}
+            </div>
+          ))}
+        </>
+      )}
+    </section>
+  );
+}
 
 interface ShopView {
   id: number;
@@ -48,7 +117,7 @@ function BuySheet({ shop, listing, coins, onClose, onDone }: {
         onDone(`🏪 Xarid qilindi! Kod: ${r.voucherCode}`);
       } else {
         const msgs: Record<string, string> = {
-          insufficient: "Coin yetarli emas",
+          insufficient: "Tanga yetarli emas",
           per_user_limit: "Bu mahsulotni ko'p marta olib bo'lmaydi",
           not_found: "Mahsulot topilmadi",
         };
@@ -78,9 +147,9 @@ function BuySheet({ shop, listing, coins, onClose, onDone }: {
         ) : (
           <>
             <h3>{listing.emoji} {listing.title}</h3>
-            <p className="muted sheet-sub">{shop.emoji} {shop.name} · narx <b>{formatNumber(listing.priceCoins)} coin</b></p>
+            <p className="muted sheet-sub">{shop.emoji} {shop.name} · narx <b>{formatNumber(listing.priceCoins)} tanga</b></p>
             <div className={coins >= listing.priceCoins ? "sheet-ok" : "sheet-warn"}>
-              Sizda: {formatNumber(coins)} coin
+              Sizda: {formatNumber(coins)} tanga
             </div>
             {err && <div className="sheet-err">{err}</div>}
             <button className="btn-primary" disabled={busy || coins < listing.priceCoins} onClick={submit}>
@@ -169,10 +238,12 @@ export function MarketView({ coins, onBanner }: { coins: number; onBanner: (m: s
 
   return (
     <div className="view">
-      <div className="section-title">🏪 Bozor — coin bilan to'lang</div>
-      <p className="muted mk-sub">Coinlaringiz Koson do'konlarida pul: tanlang, kod oling, do'konda ko'rsating.</p>
+      <div className="section-title">🏪 Bozor — tanga bilan to'lang</div>
+      <p className="muted mk-sub">Tangalaringiz Koson do'konlarida pul: tanlang, kod oling, do'konda ko'rsating.</p>
 
       <MyShopPanel onBanner={onBanner} />
+
+      <CollectionSection onBanner={onBanner} />
 
       {activeVouchers.length > 0 && (
         <section className="glass pad">

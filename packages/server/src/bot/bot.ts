@@ -67,21 +67,21 @@ function profileOf(src: { username?: string; first_name?: string; last_name?: st
 function renderCheckIn(r: CheckInResult): string {
   if (r.alreadyChecked) {
     let s = `🔥 <b>Streak: ${r.current} kun</b>\n\nBugun allaqachon belgilangansiz ✅\nErtaga yana keling — streak'ni uzmang!`;
-    if (r.next) s += `\n\n🎯 ${r.next.day}-kunda: <b>+${formatNumber(r.next.reward)} coin</b>`;
+    if (r.next) s += `\n\n🎯 ${r.next.day}-kunda: <b>+${formatNumber(r.next.reward)} tanga</b>`;
     return s;
   }
   let s = `🔥 <b>Streak: ${r.current} kun!</b>\n`;
   if (r.rewardAmount > 0) {
-    s += `\n🎉 <b>+${formatNumber(r.rewardAmount)} coin!</b>${r.rewardApplied ? " — hamyoningizga tushdi 🪙" : ""}`;
+    s += `\n🎉 <b>+${formatNumber(r.rewardAmount)} tanga!</b>${r.rewardApplied ? " — hamyoningizga tushdi 🪙" : ""}`;
   } else {
     s += `\nDavom eting — har kun streak o'sadi 💪`;
   }
-  if (r.next) s += `\n\n🎯 Keyingi mukofot: ${r.next.day}-kun → <b>+${formatNumber(r.next.reward)} coin</b>`;
+  if (r.next) s += `\n\n🎯 Keyingi mukofot: ${r.next.day}-kun → <b>+${formatNumber(r.next.reward)} tanga</b>`;
   return s;
 }
 
 function renderWheel(r: WheelResult): string {
-  const pool = `\n\n🎰 JACKPOT hozir: <b>${formatNumber(r.jackpot)} coin</b> — har safar uni oshiradi!`;
+  const pool = `\n\n🎰 JACKPOT hozir: <b>${formatNumber(r.jackpot)} tanga</b> — har safar uni oshiradi!`;
   if (r.noRide) {
     return `🎡 <b>Omad g'ildiragi endi SAFAR ICHIDA aylanadi!</b>\n\nTaxi chaqiring — mashinada ketayotganingizda aylantirasiz. Har spin YUTADI! 🚕${pool}`;
   }
@@ -89,7 +89,7 @@ function renderWheel(r: WheelResult): string {
     return `🎡 Bu safarning spini ishlatilgan.\nYutuq: ${r.prize.emoji} <b>${esc(r.prize.label)}</b>\n\nKeyingi safarda yana aylantirasiz! 🚕${pool}`;
   }
   if (r.prize.label.startsWith("JACKPOT")) {
-    return `🎰🎰🎰 <b>JACKPOT!!!</b> 🎰🎰🎰\n\n💥 <b>+${formatNumber(r.prize.amount)} coin</b>${r.applied ? " — hamyoningizga tushdi 🪙" : ""}!\n\nButun jamg'arma sizniki bo'ldi! 👑${pool}`;
+    return `🎰🎰🎰 <b>JACKPOT!!!</b> 🎰🎰🎰\n\n💥 <b>+${formatNumber(r.prize.amount)} tanga</b>${r.applied ? " — hamyoningizga tushdi 🪙" : ""}!\n\nButun jamg'arma sizniki bo'ldi! 👑${pool}`;
   }
   return `🎉 ${r.prize.emoji} <b>${esc(r.prize.label)}!</b>\n\n+${formatNumber(r.prize.amount)} coin${r.applied ? " — hamyoningizga tushdi 🪙" : ""}!${pool}`;
 }
@@ -110,6 +110,10 @@ export function createBot(): Bot {
     const payload = (typeof ctx.match === "string" ? ctx.match : "").trim();
     if (payload.startsWith("ref_")) {
       await attachPendingReferral(id, payload.slice(4)).catch(() => undefined);
+    }
+    if (payload.startsWith("drv_")) {
+      const { attachDriverRecruit } = await import("../services/recruitService");
+      await attachDriverRecruit(id, Number(payload.slice(4))).catch(() => undefined);
     }
     const me = await getMe(id);
     if (me) {
@@ -134,7 +138,7 @@ export function createBot(): Bot {
         if (credit) {
           await ctx
             .reply(
-              `🎁 Do'st taklifi qabul qilindi!\nBirinchi safaringizdan keyin <b>+${formatNumber(credit.refereeReward)} coin</b> sovg'a olasiz 🚕`,
+              `🎁 Do'st taklifi qabul qilindi!\nBirinchi safaringizdan keyin <b>+${formatNumber(credit.refereeReward)} tanga</b> sovg'a olasiz 🚕`,
               { parse_mode: "HTML" },
             )
             .catch(() => undefined);
@@ -287,7 +291,7 @@ export function createBot(): Bot {
         ? "G'ildirak safar paytida aylanadi 🚕"
         : r.alreadySpun
           ? "Bu safarning spini ishlatilgan ✅"
-          : `${r.prize.emoji} +${formatNumber(r.prize.amount)} coin!`,
+          : `${r.prize.emoji} +${formatNumber(r.prize.amount)} tanga!`,
       show_alert: !r.noRide && !r.alreadySpun,
     });
   });
@@ -354,7 +358,7 @@ export function createBot(): Bot {
     await ctx.answerCallbackQuery({
       text: r.alreadyChecked
         ? `Bugun belgilangansiz ✅ (streak ${r.current})`
-        : `🔥 Streak ${r.current} kun!${r.rewardAmount > 0 ? ` +${formatNumber(r.rewardAmount)} coin!` : ""}`,
+        : `🔥 Streak ${r.current} kun!${r.rewardAmount > 0 ? ` +${formatNumber(r.rewardAmount)} tanga!` : ""}`,
       show_alert: r.rewardAmount > 0,
     });
     await refreshMissionsMessage(ctx, memberId);
@@ -376,7 +380,7 @@ export function createBot(): Bot {
     }
     const r = await claimMission(memberId, code);
     if (r.ok) {
-      await ctx.answerCallbackQuery({ text: `🎉 +${formatNumber(r.reward)} coin hamyoningizga tushdi!`, show_alert: true });
+      await ctx.answerCallbackQuery({ text: `🎉 +${formatNumber(r.reward)} tanga xazinangizga tushdi!`, show_alert: true });
     } else if (r.reason === "claimed") {
       await ctx.answerCallbackQuery({ text: "Bu mukofot allaqachon olingan ✅" });
     } else {
@@ -394,7 +398,7 @@ export function createBot(): Bot {
     const r = await openBox(memberId);
     if (r.ok && r.prize) {
       await ctx.answerCallbackQuery({
-        text: `🎁 ${r.prize.emoji} ${r.prize.label}! +${formatNumber(r.prize.amount)} coin hamyoningizga tushdi!`,
+        text: `🎁 ${r.prize.emoji} ${r.prize.label}! +${formatNumber(r.prize.amount)} tanga xazinangizga tushdi!`,
         show_alert: true,
       });
     } else if (r.reason === "opened") {

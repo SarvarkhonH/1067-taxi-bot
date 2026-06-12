@@ -85,6 +85,18 @@ function rateLimit(maxPerMin: number) {
   };
 }
 
+// like withMember (defined later for booking) but available early for items
+function withMember2(handler: (memberId: number, req: Request, res: Response) => Promise<unknown>) {
+  return async (req: Request, res: Response) => {
+    const memberId = await getMemberId(res.locals.telegramId as string);
+    if (!memberId) {
+      res.status(404).json({ error: "not linked" });
+      return;
+    }
+    res.json(await handler(memberId, req, res));
+  };
+}
+
 function requireAdmin(req: Request, res: Response, next: NextFunction): void {
   // desktop dashboard (no Telegram): a strong shared token grants admin access
   const token = req.header("X-Admin-Token");
@@ -190,6 +202,29 @@ export function createApiServer(opts: ApiOptions = {}) {
     }
     res.json(await transfer(memberId, String(b.phone), amount, { note: b.note ? String(b.note) : undefined }));
   });
+  // ── 💎 Kolleksiya ────────────────────────────────────────────────────────
+  app.get("/api/items", requireUser, withMember2(async (id) => {
+    const { getCollection } = await import("../services/itemService");
+    return getCollection(id);
+  }));
+  app.post("/api/items/mint", requireUser, rateLimit(10), withMember2(async (id, req) => {
+    const { mintItem } = await import("../services/itemService");
+    return mintItem(id, String((req.body as { code?: string })?.code ?? ""));
+  }));
+  app.post("/api/items/list", requireUser, rateLimit(10), withMember2(async (id, req) => {
+    const { listItem } = await import("../services/itemService");
+    const b = req.body as { itemId?: number; price?: number };
+    return listItem(id, Math.floor(Number(b?.itemId ?? 0)), Math.floor(Number(b?.price ?? 0)));
+  }));
+  app.post("/api/items/unlist", requireUser, rateLimit(10), withMember2(async (id, req) => {
+    const { unlistItem } = await import("../services/itemService");
+    return { ok: await unlistItem(id, Math.floor(Number((req.body as { itemId?: number })?.itemId ?? 0))) };
+  }));
+  app.post("/api/items/buy", requireUser, rateLimit(10), withMember2(async (id, req) => {
+    const { buyListedItem } = await import("../services/itemService");
+    return buyListedItem(id, Math.floor(Number((req.body as { listingId?: number })?.listingId ?? 0)));
+  }));
+
   app.get("/api/driver/earnings", requireUser, async (_req, res) => {
     const memberId = await getMemberId(res.locals.telegramId as string);
     if (!memberId) {
@@ -470,6 +505,10 @@ export function createApiServer(opts: ApiOptions = {}) {
   app.get("/api/admin/analytics/drivers", requireAdmin, async (_req, res) => {
     const { getDriverAnalytics } = await import("../services/analyticsService");
     res.json(await getDriverAnalytics());
+  });
+  app.get("/api/admin/recruits", requireAdmin, async (_req, res) => {
+    const { recruitStats } = await import("../services/recruitService");
+    res.json(await recruitStats());
   });
   app.post("/api/admin/unflag", requireAdmin, async (req, res) => {
     const { unflagMember } = await import("../services/reconciliation");

@@ -20,26 +20,26 @@ export function DriverView({ me }: { me: MeResponse }) {
           <div className="wh-main">
             <div className="wh-label">🚗 Haydovchi hamyoni</div>
             <div className="wh-coins">{Math.round(coins).toLocaleString("ru-RU")}</div>
-            <div className="wh-sub muted">coin · 1 coin = 1 so'm · Hamyon tabidan so'mga yeching</div>
+            <div className="wh-sub muted">tanga · 1 tanga = 1 so'm · Hamyon tabidan so'mga yeching</div>
           </div>
         </div>
         {data && (
           <div className="wh-cashback">
             <span>📈 Bugun tushdi</span>
-            <b>+{formatNumber(data.todayIn)} coin</b>
+            <b>+{formatNumber(data.todayIn)} tanga</b>
           </div>
         )}
         {data && (
           <div className="wh-cashback">
             <span>💼 Jami tushum (tip/o'tkazma/bonus)</span>
-            <b>{formatNumber(data.totalIn)} coin</b>
+            <b>{formatNumber(data.totalIn)} tanga</b>
           </div>
         )}
       </section>
 
       <section className="glass pad">
         <div className="section-title">🙏 Daromad manbalari</div>
-        <p className="muted mk-sub">Har yakunlangan safar uchun avtomatik bonus · mijozlar safardan keyin coin bilan rahmat aytadi · istalgan a'zo sizga o'tkazma yubora oladi.</p>
+        <p className="muted mk-sub">Har yakunlangan safar uchun avtomatik bonus · mijozlar safardan keyin tanga bilan rahmat aytadi · istalgan a'zo sizga o'tkazma yubora oladi.</p>
       </section>
 
       <section className="glass pad">

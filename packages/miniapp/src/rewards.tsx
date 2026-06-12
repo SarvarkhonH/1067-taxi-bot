@@ -96,7 +96,7 @@ function SpinWheelGame({ me, onReward }: { me: MeResponse; onReward: (msg: strin
         if (res.prize.amount > 0) confetti();
         onReward(
           res.prize.amount > 0
-            ? `${res.prize.emoji} +${formatNumber(res.prize.amount)} coin!`
+            ? `${res.prize.emoji} +${formatNumber(res.prize.amount)} tanga!`
             : `${res.prize.emoji} ${res.prize.label} — yana urinib ko'ring!`,
         );
       }, 4200);
@@ -169,7 +169,7 @@ function BoxGame({ onReward }: { onReward: (msg: string) => void }) {
       const r = await api.openBox();
       if (r.ok && r.prize) {
         confetti();
-        onReward(`🎁 ${r.prize.emoji} +${formatNumber(r.prize.amount)} coin!`);
+        onReward(`🎁 ${r.prize.emoji} +${formatNumber(r.prize.amount)} tanga!`);
       } else if (r.reason === "locked") {
         onReward("🎯 Avval kunlik vazifalarni tugating!");
       }

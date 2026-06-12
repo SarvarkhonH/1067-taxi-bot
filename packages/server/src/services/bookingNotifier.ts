@@ -96,7 +96,7 @@ async function resolveGuess(memberId: number, bookingId: number, startedAt: Date
   await prisma.rideGuess.update({ where: { id: guess.id }, data: { won: true } });
   const { grantRideCoins } = await import("./coinService");
   const g = await grantRideCoins(memberId, bookingId, 50, "guess", "⏱ Vaqtni topdingiz!", "guess");
-  return g.ok ? `\n⏱ Vaqtni TOPDINGIZ (${Math.round(min)} daq): <b>+50 coin</b>` : "";
+  return g.ok ? `\n⏱ Vaqtni TOPDINGIZ (${Math.round(min)} daq): <b>+50 tanga</b>` : "";
 }
 
 /** Poll active bookings; maintain ONE live card + moving pin per ride.
@@ -236,6 +236,23 @@ export async function pushBookingUpdates(bot: Bot, dsOverride?: KasDataSource): 
         console.error("[cashback] roll failed:", e);
       }
 
+      // 💎 ride-drop collectibles: founder (first 100 riders) + district badge
+      let questLine = "";
+      try {
+        const { dropDistrictBadge, mintItem } = await import("./itemService");
+        const f = await mintItem(m.id, "founder", { free: true });
+        if (f.ok) questLine += `
+🌟 <b>Asoschi nishoni</b> — birinchi 100 ichidasiz! (#${f.serial})`;
+        // district from the finished ride's pickup (lastPickupId set at dispatch)
+        if (m.lastPickupId && m.lastPickupName) {
+          const d = await dropDistrictBadge(m.id, m.lastPickupId, m.lastPickupName);
+          if (d) questLine += `
+📍 Yangi tuman ochildi: <b>${d.name}</b> (${d.total}/10)${d.sayyoh ? " · 🗺 SAYYOH +5000!" : ""}`;
+        }
+      } catch (e) {
+        console.error("[items] drop failed:", e);
+      }
+
       // ⏱ ETA-guess resolution (uses the ride meter)
       const guessLine = await resolveGuess(m.id, m.lastBookingId, m.rideStartedAt).catch(() => "");
 
@@ -280,6 +297,28 @@ export async function pushBookingUpdates(bot: Bot, dsOverride?: KasDataSource): 
             await incrementMission(driver.id, "drv_daily_5").catch(() => undefined);
             await incrementMission(driver.id, "drv_weekly_25").catch(() => undefined);
             await incrementMission(driver.id, "drv_weekly_40").catch(() => undefined);
+            // 🔧 XIII-1: random car part for the driver's completed ride
+            try {
+              const { dropCarPart } = await import("./itemService");
+              const drop = await dropCarPart(driver.id, m.lastBookingId);
+              if (drop?.fullCar) {
+                const dtg = await prisma.telegramUser.findFirst({ where: { memberId: driver.id } });
+                if (dtg) {
+                  await bot.api
+                    .sendMessage(dtg.id, "🚙 <b>TABRIKLAYMIZ!</b> 20 qismni yig'ib TO'LIQ MASHINA yasadingiz!\nYillik katta o'yinda chiptangiz bor. 🏆", { parse_mode: "HTML" })
+                    .catch(() => undefined);
+                }
+              }
+            } catch (e) {
+              console.error("[partdrop] failed:", e);
+            }
+            // 🚖 recruit revshare: this rider was recruited by a driver's QR
+            try {
+              const { payRecruitRevshare } = await import("./recruitService");
+              await payRecruitRevshare(m.id, m.lastBookingId);
+            } catch (e) {
+              console.error("[recruit] revshare failed:", e);
+            }
           } catch (e) {
             console.error("[driver_bonus] failed:", e);
           }
@@ -298,7 +337,7 @@ export async function pushBookingUpdates(bot: Bot, dsOverride?: KasDataSource): 
             const g = await grantCoins(m.id, ref.rewardReferee, "referral", "Do'st taklifi — birinchi safaringiz uchun 🎁", `ref_referee_ride:${ref.id}`);
             if (g.ok) {
               await bot.api
-                .sendMessage(chatId, `🎁 Taklif sovg'asi ochildi: <b>+${formatNumber(ref.rewardReferee)} coin</b> — birinchi safaringiz muborak!`, { parse_mode: "HTML" })
+                .sendMessage(chatId, `🎁 Taklif sovg'asi ochildi: <b>+${formatNumber(ref.rewardReferee)} tanga</b> — birinchi safaringiz muborak!`, { parse_mode: "HTML" })
                 .catch(() => undefined);
             }
           }
@@ -307,7 +346,7 @@ export async function pushBookingUpdates(bot: Bot, dsOverride?: KasDataSource): 
             const g = await grantCoins(refTg.memberId, ref.rewardReferrer, "referral", `Do'stingiz birinchi safarini qildi 🚕`, `ref_ride:${ref.id}`);
             if (g.ok) {
               await bot.api
-                .sendMessage(refTg.id, `🎉 Taklif qilgan do'stingiz birinchi safarini qildi!\n👥 Sizga <b>+${formatNumber(ref.rewardReferrer)} coin</b> tushdi.`, { parse_mode: "HTML" })
+                .sendMessage(refTg.id, `🎉 Taklif qilgan do'stingiz birinchi safarini qildi!\n👥 Sizga <b>+${formatNumber(ref.rewardReferrer)} tanga</b> tushdi.`, { parse_mode: "HTML" })
                 .catch(() => undefined);
             }
           }
@@ -333,6 +372,7 @@ export async function pushBookingUpdates(bot: Bot, dsOverride?: KasDataSource): 
             rollLine +
             guessLine +
             garageLine +
+            questLine +
             "\n🎯 Vazifalaringizni «🎁 Bonuslar»da tekshiring." +
             (driverId ? "\n\n🚗 Haydovchiga coin bilan rahmat aytasizmi?" : ""),
           { parse_mode: "HTML", reply_markup: tipKb },

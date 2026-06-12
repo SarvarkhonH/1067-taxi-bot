@@ -98,6 +98,53 @@ model Referral {
   @@index([referrerId])
 }
 
+// 💎 Kolleksiya: DB-backed numbered collectibles (no blockchain, no "NFT"
+// word). Scarcity = immutable mintCap (no admin restock route exists), value =
+// serial + display + internal resale (10% burn).
+model ItemType {
+  id          Int    @id @default(autoincrement())
+  code        String @unique
+  name        String
+  emoji       String @default("💎")
+  series      String @default("launch")
+  rarity      String @default("oddiy") // oddiy | kam | nodir | afsonaviy
+  kind        String // plate | badge | trophy | ticket | part | car
+  mintCap     Int    @default(0) // 0 = unlimited (drop kinds)
+  mintPrice   Float  @default(0) // 0 = drop-only, not buyable
+  mintedCount Int    @default(0)
+}
+
+model Item {
+  id         Int      @id @default(autoincrement())
+  itemTypeId Int
+  serial     Int
+  ownerId    Int
+  acquiredAt DateTime @default(now())
+
+  @@unique([itemTypeId, serial])
+  @@index([ownerId])
+}
+
+// "Sotuvda" shelf — internal resale market (escrow-by-ownership: the listing
+// locks the item; buy = atomic ownership flip + 10% burn).
+model ItemListing {
+  id        Int      @id @default(autoincrement())
+  itemId    Int      @unique
+  sellerId  Int
+  price     Float
+  createdAt DateTime @default(now())
+}
+
+// 🚖 Driver-recruiter: rider joined via a driver's in-car QR.
+model DriverRecruit {
+  id            Int      @id @default(autoincrement())
+  driverId      Int
+  riderMemberId Int      @unique
+  createdAt     DateTime @default(now())
+
+  @@index([driverId])
+}
+
 // 🔔 Push engine log: one row per (member, trigger-kind, day) — the dedupe
 // that enforces "max 2 pushes/day, never the same trigger twice".
 model NotifyLog {

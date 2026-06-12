@@ -123,6 +123,11 @@ export const api = {
   garageBuy: (car: string) => request<{ ok: boolean; reason?: string; coins: number }>("POST", "/api/garage/buy", { car }, 1),
   garageEquip: (car: string) => request<{ ok: boolean }>("POST", "/api/garage/equip", { car }, 1),
   garageService: (car: string) => request<{ ok: boolean; reason?: string; coins: number }>("POST", "/api/garage/service", { car }, 1),
+  items: () => get<ItemsResponse>("/api/items"),
+  itemMint: (code: string) => request<{ ok: boolean; reason?: string; serial?: number; name?: string }>("POST", "/api/items/mint", { code }, 1),
+  itemList: (itemId: number, price: number) => request<{ ok: boolean; reason?: string }>("POST", "/api/items/list", { itemId, price }, 1),
+  itemUnlist: (itemId: number) => request<{ ok: boolean }>("POST", "/api/items/unlist", { itemId }, 1),
+  itemBuy: (listingId: number) => request<{ ok: boolean; reason?: string; name?: string; coins: number }>("POST", "/api/items/buy", { listingId }, 1),
   bookingInfo: () => get<BookingInfoResponse | { error: string }>("/api/booking/info"),
   bookingActive: () => get<ActiveBookingView | null>("/api/booking/active"),
   bookingSearch: (q: string) => request<SavedAddr[]>("POST", "/api/booking/search", { q }, 1),
@@ -140,6 +145,14 @@ interface SavedAddr {
   lat?: number;
   lng?: number;
   surcharge?: number;
+}
+
+export interface ItemsResponse {
+  catalog: { code: string; name: string; emoji: string; rarity: string; price: number; left: number | null }[];
+  mine: { id: number; code: string; name: string; emoji: string; serial: number; cap: number; sellable: boolean; listed: boolean }[];
+  partsProgress: { have: number; total: number };
+  market: { listingId: number; name: string; emoji: string; serial: number; price: number; mine: boolean }[];
+  coins: number;
 }
 
 interface MarketShop {

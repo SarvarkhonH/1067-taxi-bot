@@ -98,13 +98,13 @@ function TransferSheet({ wallet, onClose, onDone }: { wallet: WalletResponse; on
       const r = await api.transfer(phone, amount);
       if (r.ok) {
         confetti();
-        onDone(`📤 ${formatNumber(r.amount)} coin ${r.toName ?? "qabul qiluvchi"}ga yuborildi!`);
+        onDone(`📤 ${formatNumber(r.amount)} tanga ${r.toName ?? "qabul qiluvchi"}ga yuborildi!`);
         onClose();
       } else {
         const msgs: Record<string, string> = {
-          below_min: `Minimal: ${formatNumber(TRANSFER_MIN)} coin`,
-          over_max: `Maksimal: ${formatNumber(TRANSFER_MAX_PER_TX)} coin`,
-          insufficient: "Coin yetarli emas",
+          below_min: `Minimal: ${formatNumber(TRANSFER_MIN)} tanga`,
+          over_max: `Maksimal: ${formatNumber(TRANSFER_MAX_PER_TX)} tanga`,
+          insufficient: "Tanga yetarli emas",
           daily_sent_cap: "Bugungi yuborish limiti tugadi",
           daily_received_cap: "Qabul qiluvchining bugungi limiti to'ldi",
           too_many_recipients: "Bugun juda ko'p odamga yubordingiz",
@@ -126,9 +126,9 @@ function TransferSheet({ wallet, onClose, onDone }: { wallet: WalletResponse; on
     <div className="sheet-back" onClick={onClose}>
       <div className="sheet" onClick={(e) => e.stopPropagation()}>
         <div className="sheet-grip" />
-        <h3>📤 Coin o'tkazish</h3>
+        <h3>📤 Tanga o'tkazish</h3>
         <p className="muted sheet-sub">
-          Istalgan 1067 a'zosiga (mijoz yoki haydovchi) coin yuboring. Kichik xizmat haqi 2%.
+          Istalgan 1067 a'zosiga (mijoz yoki haydovchi) tanga yuboring. Kichik xizmat haqi 2%.
         </p>
         <input
           className="bk-input"
@@ -153,7 +153,7 @@ function TransferSheet({ wallet, onClose, onDone }: { wallet: WalletResponse; on
             </div>
             {err && <div className="sheet-err">{err}</div>}
             <button className="btn-primary" disabled={!amount || busy} onClick={submit}>
-              {busy ? "Yuborilmoqda…" : `📤 ${amount ? formatNumber(amount) : ""} coin yuborish`}
+              {busy ? "Yuborilmoqda…" : `📤 ${amount ? formatNumber(amount) : ""} tanga yuborish`}
             </button>
           </>
         )}
@@ -194,7 +194,7 @@ function WithdrawSheet({
         const msgs: Record<string, string> = {
           below_min: `Minimal: ${formatNumber(wallet.withdrawMin)} coin`,
           daily_cap: `Bugungi limit tugadi (${formatNumber(wallet.withdrawDailyCap)}/kun)`,
-          insufficient: "Coin yetarli emas",
+          insufficient: "Tanga yetarli emas",
           not_client: "Faqat mijoz hisoblari uchun",
           no_ride: "So'mga aylantirish uchun avval kamida 1 ta safar qiling 🚕",
           risk_hold: "Hisobingiz tekshiruvda — dispetcherga murojaat qiling",
@@ -215,11 +215,11 @@ function WithdrawSheet({
         <div className="sheet-grip" />
         <h3>💸 So'mga aylantirish</h3>
         <p className="muted sheet-sub">
-          1 coin = 1 so'm. Pul <b>taxi cashback</b> hisobingizga tushadi va safarlarda ishlatiladi.
+          1 tanga = 1 so'm. Pul <b>taxi cashback</b> hisobingizga tushadi va safarlarda ishlatiladi.
         </p>
         {max < wallet.withdrawMin ? (
           <div className="sheet-warn">
-            Minimal {formatNumber(wallet.withdrawMin)} coin kerak.
+            Minimal {formatNumber(wallet.withdrawMin)} tanga kerak.
             <br />
             <span className="muted">Sizda: {formatNumber(wallet.coins)} — o'ynab to'plang! 🎮</span>
           </div>
@@ -261,7 +261,7 @@ function TopupSheet({ wallet, onClose, onDone }: { wallet: WalletResponse; onClo
       const r = await api.topup(amount);
       if (r.ok) {
         confetti();
-        onDone(`🔁 ${formatNumber(r.amount)} coin hamyoningizga o'tdi!`);
+        onDone(`🔁 ${formatNumber(r.amount)} tanga xazinangizga o'tdi!`);
         onClose();
       } else {
         const msgs: Record<string, string> = {
@@ -329,6 +329,7 @@ export function WalletView({ me, onBanner, reload, onBook }: { me: MeResponse; o
 
   return (
     <div className="view">
+      <div className="jackpot-badge" style={{ alignSelf: "center", marginBottom: 4 }}>🎰 JACKPOT: <b>{formatNumber(me.jackpot)}</b> tanga — har safar oshadi!</div>
       <button className="book-cta" onClick={onBook}>
         🚖 Taxi chaqirish
         <span className="book-cta-sub">jonli xarita · cashback</span>
@@ -339,7 +340,7 @@ export function WalletView({ me, onBanner, reload, onBook }: { me: MeResponse; o
           <div className="wh-main">
             <div className="wh-label">🪙 O'yin hamyoni</div>
             <div className="wh-coins">{formatNumber(coins)}</div>
-            <div className="wh-sub muted">coin · 1 coin = 1 so'm</div>
+            <div className="wh-sub muted">tanga · 1 tanga = 1 so'm</div>
           </div>
           <div className="wh-ring" style={{ ["--accent" as string]: me.level.color }}>
             <span className="wh-emoji">{me.level.emoji}</span>
