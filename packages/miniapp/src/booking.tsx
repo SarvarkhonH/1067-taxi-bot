@@ -63,6 +63,7 @@ function TrackingCard({ active, onCancel, busy }: { active: ActiveBookingView; o
 function RideHistory() {
   const [rides, setRides] = useState<{ id: number; addressName: string; status: string; cashback: number; at: string }[] | null>(null);
   const [open, setOpen] = useState(false);
+  const [limit, setLimit] = useState(10); // T2 (AUDIT 2.13): avval 10 ta, keyin "yana"
   useEffect(() => {
     api.bookingHistory().then(setRides).catch(() => setRides([]));
   }, []);
@@ -73,7 +74,7 @@ function RideHistory() {
         {open ? "Yopish" : `📜 Oxirgi safarlar (${rides.length})`}
       </button>
       {open &&
-        rides.map((r) => (
+        rides.slice(0, limit).map((r) => (
           <div key={r.id} className="mk-voucher">
             <span>{["delivered", "completed", "finished"].includes(r.status) ? "🏁" : "🚖"} {r.addressName}</span>
             <span className="muted">
@@ -82,6 +83,11 @@ function RideHistory() {
             </span>
           </div>
         ))}
+      {open && rides.length > limit && (
+        <button className="btn-ghost" onClick={() => setLimit((n) => n + 10)}>
+          Yana ({rides.length - limit})
+        </button>
+      )}
     </div>
   );
 }

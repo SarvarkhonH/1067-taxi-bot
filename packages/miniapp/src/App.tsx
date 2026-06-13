@@ -5,11 +5,12 @@ import type { LeaderboardResponse, MeResponse } from "@t1067/shared";
 import { api, getInitData } from "./api";
 import { haptic, tg } from "./telegram";
 import { LeaderboardView, MissionsView, ReferralView, Spinner } from "./components";
-import { WalletView } from "./wallet";
-import { RewardsView } from "./rewards";
-import { MarketView } from "./market";
-import { DriverView } from "./driver";
-import { BookingView } from "./booking";
+import { WalletView } from "./wallet"; // bosh tab — eager (birinchi paint)
+// T2 (AUDIT 2.9): boshqa tablar lazy — har biri alohida chunk, asosiy bundle kichrayadi
+const RewardsView = lazy(() => import("./rewards").then((m) => ({ default: m.RewardsView })));
+const MarketView = lazy(() => import("./market").then((m) => ({ default: m.MarketView })));
+const DriverView = lazy(() => import("./driver").then((m) => ({ default: m.DriverView })));
+const BookingView = lazy(() => import("./booking").then((m) => ({ default: m.BookingView })));
 import { Icon } from "./icons";
 import { useCountUp } from "./util";
 
@@ -91,7 +92,7 @@ export function App() {
   if (linked === null) return <BootSplash />;
   if (linked === false) return <NotLinked />;
   if (!me) return <BootSplash />;
-  if (booking) return <BookingView onClose={() => setBooking(false)} />;
+  if (booking) return <Suspense fallback={<BootSplash />}><BookingView onClose={() => setBooking(false)} /></Suspense>;
 
   const go = (t: Tab) => {
     if (t === tab) return;
@@ -132,13 +133,15 @@ export function App() {
 
       <main className="content">
         <div className="page" key={tab}>
-          {tab === "home" && <WalletView me={me} onBanner={flash} reload={reload} onBook={() => { haptic(); setBooking(true); }} />}
-          {tab === "market" && <MarketView coins={me.coins} onBanner={flash} />}
-          {tab === "driver" && <DriverView me={me} />}
-          {tab === "rewards" && <RewardsView me={me} onReward={flash} />}
-          {tab === "missions" && <MissionsView onReward={flash} />}
-          {tab === "league" && (board ? <LeaderboardView board={board} /> : <Spinner />)}
-          {tab === "friends" && <ReferralView />}
+          <Suspense fallback={<Spinner />}>
+            {tab === "home" && <WalletView me={me} onBanner={flash} reload={reload} onBook={() => { haptic(); setBooking(true); }} />}
+            {tab === "market" && <MarketView coins={me.coins} onBanner={flash} />}
+            {tab === "driver" && <DriverView me={me} />}
+            {tab === "rewards" && <RewardsView me={me} onReward={flash} />}
+            {tab === "missions" && <MissionsView onReward={flash} />}
+            {tab === "league" && (board ? <LeaderboardView board={board} /> : <Spinner />)}
+            {tab === "friends" && <ReferralView />}
+          </Suspense>
         </div>
       </main>
 
