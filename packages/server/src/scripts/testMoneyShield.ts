@@ -28,7 +28,7 @@ async function cleanup(): Promise<void> {
   await prisma.itemListing.deleteMany({ where: { sellerId: { in: ids } } });
   await prisma.item.deleteMany({ where: { ownerId: { in: ids } } });
   await prisma.rideReward.deleteMany({ where: { memberId: { in: ids } } });
-  await prisma.referral.deleteMany({ where: { refereeMemberId: { in: ids } } });
+  await prisma.referral.deleteMany({ where: { OR: [{ refereeMemberId: { in: ids } }, { referrerId: { startsWith: TAG } }, { refereeId: { startsWith: TAG } }] } });
   await prisma.withdrawal.deleteMany({ where: { memberId: { in: ids } } });
   await prisma.appState.deleteMany({ where: { key: { startsWith: "pending:" } } });
   await prisma.appState.deleteMany({ where: { key: { in: ["shield_atomic", "fundride:888901"] } } });
