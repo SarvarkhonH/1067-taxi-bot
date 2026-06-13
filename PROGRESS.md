@@ -33,6 +33,8 @@
 ⚠️ Telefon-raqamlari (bosh <1.5s, 2-ochilish <0.7s) Render free-tier cold-start tufayli hozir o'lchanmaydi — Render qaroridan keyin.
 
 ## Qarorlar jurnali
+- 2026-06-13: T1 QAYTA TEKSHIRILDI (ega "eski/buggy" deb e'tiroz qildi). REAL autentifikatsiyalangan ilova render qilindi (demo emas): botsiz lokal server (BOT_TOKEN= → prodga tegmaydi, dotenv override qilmasligi probe bilan tasdiqlangan) + KAS_MODE=mock + ALLOW_DEBUG_AUTH=true + Neon data; vite dev /api→8080 proxy + ?tg=6506297119. Computed-style isbot: Hamyon balans 52px gradient + wallet-hero 2-gradient + coin-pill oltin + tabbar frost + mesh fon + "v2.0✨" stamp; Bonus game-card glass+wheel; Bozor+Xazina; Liga me-row oltin glow; 0 console-xato. XULOSA: theme 100% ekranlarga yetadi (demoda to'xtamagan). Pixel-skrinshot sandbox'da MUMKIN EMAS (tool osiladi) — computed-style+struktura isbot ishlatildi.
+- "Eski/buggy" sababi = Telegram KESH (eski bundle telefonda). Yechim: topbar "v2.0✨" stamp deploy qilindi (kesh testi); egaga yo'riqnoma yuborildi.
 - 2026-06-13: T2 shart-1 — EGA QARORI: Render free-tier'dan BOSHQA always-on hostga KO'CHIRISH (paid Render emas). Postgres ham 2026-07-10 da tugaydi → ikkalasi birga ko'chiriladi. Telefon-o'lchovlari ko'chishdan keyin. Host tanlovi + provisioning egadan kutilmoqda.
 - 2026-06-13: T1 dizayn EGA TOMONIDAN QABUL qilindi (premium 2026 qatlam bilan). T1 yopildi.
 - T0.5 EGA QARORLARI: AUDIT 1.1 grantCashback O'CHIRILDI; 1.2 market/shop endpoint QOLDI (T7 da UI) — komentariy qo'yildi.
