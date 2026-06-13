@@ -10,6 +10,14 @@
 - Testlar: 15 suite (~250 tekshiruv) yashil. Deploy: Render + Vercel (bundle-grep isbotlangan).
 
 ## Jarayonda
+- T4 BOOKING 3.0 (E1-E4) — KEYINGI. EGA-KO'Z DARVOZASI (xaritali oqim — skrinshot/video kerak).
+
+## T3 YAKUNLANDI (REAL ISBOT, 2026-06-13)
+- coin→tanga: user-facing 'coin' = 0 (bot.ts+render.ts tuzatildi; grep isbot).
+- Jonli karta 3-xabar oqimi: testRideCard 6/6 DETERMINISTIK yashil (6-status sweep → 1 karta edit + 1 yakun-xabar, status-tugmalar, edit-fail→yangi xabar).
+- REAL BUG topildi+tuzatildi: finish-branch re-entry'da haydovchi/mijoz kvest increment'i IKKI marta sanashi mumkin edi (increment↔lastBookingId-clear oynasida transient) → per-ride `ridefin:` idempotent marker qo'shildi (qo'sh-sanash yopildi).
+- Test-reliability: testRideCard'ga warm-up (Neon free-tier cold-start) + transient-retry (4x) + counter-reset qo'shildi. PROD'da Neon 90s-sweep bilan iliq qoladi → foydalanuvchi cold-start ko'rmaydi.
+- testMoneyShield + 13 suite yashil (pul-logika buzilmagani isboti).
 - T2 TEZLIK server-tomon BAJARILDI + live (Render). Telefon-o'lchovlari ko'chishdan keyin.
 - DB → NEON KO'CHIRILDI (BEPUL, $0): ega bepul yo'lni tanladi (Fly pullik ekan). Neon (eu-central-1, doim-yoqiq, kartasiz) schema `db push` + 4045 satr ko'chirildi (Member 2526 = Render bilan bir xil, ledger drift 0). Render env DATABASE_URL + lokal .env → Neon. **2026-07-10 Postgres muddati MUAMMOSI HAL.** Web Render free'da qoldi (cold-start uyg'onish ekrani bilan). Eski Render PG fallback sifatida 07-10 gacha qoladi (o'chirilmaydi).
 - CUTOVER-DELTA (2026-06-13): Render PG vs Neon — 35 jadval row-count solishtirildi. **delta: 0 satr** (ikkala baza aynan bir xil; migratsiya↔env-flip oynasida yozuv bo'lmagan — isbotlandi, taxmin emas). Reconcile shart emas.

@@ -32,7 +32,7 @@ export function renderWelcome(name: string): string {
     `💸 Har safar — cashback (haqiqiy pul)\n` +
     `🎁 Kunlik sovg'alar — streak · g'ildirak · qutilar\n` +
     `🏆 Liga + reyting — sovg'a uchun kurash\n` +
-    `👥 Do'st taklif — ikkalangizga coin\n\n` +
+    `👥 Do'st taklif — ikkalangizga tanga\n\n` +
     `Boshlash uchun raqamingizni ulashing 👇`
   );
 }
@@ -123,7 +123,7 @@ export function renderWeeklyBlock(w: WeeklyBoardResponse): string {
   });
   let s =
     `\n\n⚡️ <b>Haftalik liga</b> <i>(${w.daysLeft} kun qoldi)</i>\n` +
-    `Sovg'alar: ${prizes} coin\n\n` +
+    `Sovg'alar: ${prizes} tanga\n\n` +
     (rows.length ? rows.join("\n") : "<i>Hafta endi boshlandi — birinchi bo'ling!</i>");
   if (w.me && w.me.rank > 5) s += `\n— — —\n👉 Siz: <b>#${w.me.rank}</b> · ${w.me.score} ball`;
   s += `\n\n<i>Ball: kunlik +10 · g'ildirak +10 · vazifa +15 · quti +20 · safar +30 · taklif +50. Dushanba — to'lov!</i>`;
@@ -152,11 +152,11 @@ export function renderHelp(): string {
   return (
     `ℹ️ <b>1067 Taxi — yordam</b>\n\n` +
     `🚖 <b>Taxi</b> — «🚀 Ilova»da xaritadan chaqiring, jonli kuzating, bekor qiling.\n` +
-    `💰 <b>Ikki hamyon</b> — 🚕 cashback (safardan) + 🪙 coin (bonuslardan). Ilovada bir-biriga o'tkaziladi, so'mga aylantiriladi.\n\n` +
+    `💰 <b>Ikki hamyon</b> — 🚕 cashback (safardan) + 🪙 tanga (bonuslardan). Ilovada bir-biriga o'tkaziladi, so'mga aylantiriladi.\n\n` +
     `<b>Coin topish:</b>\n` +
     `• 🔥 Kunlik streak · 🎯 vazifalar · 🎡 g'ildirak · 🎁 quti\n` +
     `• 🚕 Har safar — vazifa va liga ochkolari\n` +
-    `• 👥 Do'st taklif: ikkalangizga +coin\n\n` +
+    `• 👥 Do'st taklif: ikkalangizga +tanga\n\n` +
     `<b>Buyruqlar:</b>\n` +
     `/start · /narx · /daily · /wheel · /missions · /invite · /me · /top\n\n` +
     `Savol? Dispetcher: «🚖 Narx & cashback»da raqamlar bor.`
@@ -212,7 +212,7 @@ export function renderMissions(m: MissionsResponse, box?: BoxStatusResponse): st
 // ─── referral ─────────────────────────────────────────────────
 export function renderReferral(r: ReferralResponse): string {
   return (
-    `👥 <b>Do'st taklif qiling — ikkalangiz ham coin olasiz!</b>\n\n` +
+    `👥 <b>Do'st taklif qiling — ikkalangiz ham tanga olasiz!</b>\n\n` +
     `Har bir do'st uchun:\n` +
     `  • Siz: <b>+${formatNumber(r.rewardReferrer)} tanga</b>\n` +
     `  • Do'stingiz: <b>+${formatNumber(r.rewardReferee)} tanga</b>\n\n` +

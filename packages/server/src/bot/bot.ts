@@ -91,7 +91,7 @@ function renderWheel(r: WheelResult): string {
   if (r.prize.label.startsWith("JACKPOT")) {
     return `🎰🎰🎰 <b>JACKPOT!!!</b> 🎰🎰🎰\n\n💥 <b>+${formatNumber(r.prize.amount)} tanga</b>${r.applied ? " — hamyoningizga tushdi 🪙" : ""}!\n\nButun jamg'arma sizniki bo'ldi! 👑${pool}`;
   }
-  return `🎉 ${r.prize.emoji} <b>${esc(r.prize.label)}!</b>\n\n+${formatNumber(r.prize.amount)} coin${r.applied ? " — hamyoningizga tushdi 🪙" : ""}!${pool}`;
+  return `🎉 ${r.prize.emoji} <b>${esc(r.prize.label)}!</b>\n\n+${formatNumber(r.prize.amount)} tanga${r.applied ? " — hamyoningizga tushdi 🪙" : ""}!${pool}`;
 }
 
 function esc(s: string): string {
@@ -204,11 +204,11 @@ export function createBot(): Bot {
       .join("\n");
     await ctx.reply(
       `🚗 <b>Haydovchi paneli</b>\n\n` +
-        `🪙 Coin balans: <b>${formatNumber(me.coins)}</b>\n` +
+        `🪙 Tanga balans: <b>${formatNumber(me.coins)}</b>\n` +
         `📈 Bugun tushdi: <b>+${formatNumber(e.todayIn)}</b>\n` +
         `💼 Jami tushum (tip/o'tkazma): <b>${formatNumber(e.totalIn)}</b>\n` +
         (txnLines ? `\n📜 Oxirgi amallar:\n${txnLines}\n` : "") +
-        `\n💸 Coinlarni so'mga yechish — «🚀 Ilova» → Hamyon.\n🙏 Mijozlar safardan keyin sizga coin bilan rahmat ayta oladi.`,
+        `\n💸 Tangalarni so'mga yechish — «🚀 Ilova» → Hamyon.\n🙏 Mijozlar safardan keyin sizga tanga bilan rahmat ayta oladi.`,
       { parse_mode: "HTML", reply_markup: mainMenu(true) },
     );
   };
@@ -322,7 +322,7 @@ export function createBot(): Bot {
     if (!checkedToday) kb.text("✅ Bugunni belgilash (+streak)", "bonus:checkin").row();
     [...m.daily, ...m.weekly]
       .filter((x) => x.claimable)
-      .forEach((x) => kb.text(`🎁 ${x.emoji} +${formatNumber(x.reward)} coin`, `claim:${x.code}`).row());
+      .forEach((x) => kb.text(`🎁 ${x.emoji} +${formatNumber(x.reward)} tanga`, `claim:${x.code}`).row());
     if (box.eligible && !box.opened) kb.text("🎁 BEPUL QUTINI OCHISH", "openbox").row();
     return kb;
   }
@@ -472,7 +472,7 @@ export function createBot(): Bot {
         `🚦 <b>Salomatlik</b>\n` +
         `  kas1067 ${dot(h.kas.ok)} ${h.kas.ms}ms · baza ${dot(h.db.ok)} · bot ${dot(h.bot)}\n` +
         `  Sync: ${h.lastSync ? `${h.lastSync.status} (${h.lastSync.ageMin} daq)` : "—"} · Booking: ${h.bookingLive ? "JONLI" : "test"}\n\n` +
-        `💰 <b>Iqtisod (coin)</b>\n` +
+        `💰 <b>Iqtisod (tanga)</b>\n` +
         `  Muomalada: <b>${formatNumber(e.coinsOutstanding)}</b> · Jackpot: ${formatNumber(e.jackpot)}\n` +
         `  Berilgan ${formatNumber(e.emitted)} · Sarflangan ${formatNumber(e.sunk)}\n` +
         `  💸 So'mga bugun: <b>${formatNumber(e.withdrawnToday)}</b> (jami ${formatNumber(e.withdrawnTotal)})\n\n` +

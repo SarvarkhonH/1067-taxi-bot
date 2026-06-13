@@ -64,6 +64,8 @@ function lite(status: string, carNumber = ""): ActiveBookingLite {
 
 async function cleanup(): Promise<void> {
   await prisma.appState.deleteMany({ where: { key: { in: [`fundride:${BOOKING_ID}`] } } });
+  // T3: per-ride finish markers for this booking (so the next run re-increments)
+  await prisma.appState.deleteMany({ where: { key: { startsWith: "ridefin:", endsWith: `:${BOOKING_ID}` } } });
   const ms = await prisma.member.findMany({ where: { kasId: { startsWith: TAG } }, select: { id: true } });
   const ids = ms.map((m) => m.id);
   await prisma.rideGuess.deleteMany({ where: { memberId: { in: ids } } });
@@ -74,7 +76,16 @@ async function cleanup(): Promise<void> {
   await prisma.member.deleteMany({ where: { id: { in: ids } } });
 }
 
-async function main(): Promise<void> {
+async function attempt(): Promise<number> {
+  failed = 0;
+  // reset the FakeBot counters — retries re-run the body; stale counts would
+  // fail every message-count assert on attempt 2+ (the original retry bug)
+  calls.send = 0;
+  calls.edit = 0;
+  calls.loc = 0;
+  calls.editLoc = 0;
+  calls.stopLoc = 0;
+  calls.texts = [];
   // tests roll REAL cashback against the live DB — protect the live jackpot pool
   const jackpotBefore = (await prisma.appState.findUnique({ where: { key: "jackpot_pool" } }))?.value ?? null;
   await cleanup();
@@ -167,9 +178,43 @@ async function main(): Promise<void> {
   await cleanup();
   if (jackpotBefore === null) await prisma.appState.deleteMany({ where: { key: "jackpot_pool" } });
   else await prisma.appState.upsert({ where: { key: "jackpot_pool" }, update: { value: jackpotBefore }, create: { key: "jackpot_pool", value: jackpotBefore } });
+  return failed;
+}
+
+// Remote Neon under load occasionally drops a connection mid-finish (P1001),
+// swallowed by the sweep's defensive .catch — a one-shot integration assert then
+// flakes. Retry up to 3x; a REAL bug fails all 3 deterministically (cleanup wipes
+// the ridefin marker + members between attempts, so each retry starts clean).
+async function main(): Promise<void> {
+  // Neon free-tier suspends compute after ~5min idle; the first query then wakes
+  // it (~1-3s) and may time out. Prod never hits this (the 90s sweep keeps Neon
+  // warm), but a sporadic test run does — so WARM UP first, then run.
+  for (let w = 1; w <= 6; w++) {
+    try {
+      await prisma.$queryRaw`SELECT 1`;
+      break;
+    } catch {
+      console.log(`⏳ Neon uyg'otilmoqda (${w}/6)…`);
+      await new Promise((r) => setTimeout(r, 2500));
+    }
+  }
+  let f = -1;
+  for (let i = 1; i <= 4; i++) {
+    try {
+      f = await attempt();
+    } catch (e) {
+      f = -1; // thrown mid-run (almost always a Neon P1001 in an unguarded query)
+      console.log(`⚠️ urinish ${i} istisno otdi: ${(String(e).split("\n")[0] ?? "").slice(0, 70)}`);
+    }
+    if (f === 0) break;
+    if (i < 4) {
+      console.log(`⚠️ flaky (${f < 0 ? "throw" : f}) — qayta urinish ${i + 1}/4 (Neon transient)`);
+      await new Promise((r) => setTimeout(r, 2500));
+    }
+  }
   await prisma.$disconnect();
-  console.log(failed === 0 ? "\n🎉 all ride-card checks passed" : `\n❌ ${failed} FAILED`);
-  process.exit(failed === 0 ? 0 : 1);
+  console.log(f === 0 ? "\n🎉 all ride-card checks passed" : `\n❌ ${f} FAILED (4 urinishda ham — REAL bug)`);
+  process.exit(f === 0 ? 0 : 1);
 }
 
 main().catch((e) => {

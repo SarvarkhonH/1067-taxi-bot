@@ -215,11 +215,22 @@ export async function pushBookingUpdates(bot: Bot, dsOverride?: KasDataSource): 
       }
     } else if (m.lastBookingId) {
       // ── ride finished ──
-      await incrementMission(m.id, "daily_ride").catch(() => undefined);
-      await incrementMission(m.id, "weekly_rides").catch(() => undefined);
-      await import("./weeklyService")
-        .then((w) => w.addScore(m.id, "ride"))
-        .catch(() => undefined);
+      // T3: per-ride finish marker — increments/score are NOT idempotent, so a
+      // re-entry (transient between increment and the lastBookingId=null clear
+      // below) would double-count driver/rider quests. Claim once per booking.
+      let firstFinish = true;
+      try {
+        await prisma.appState.create({ data: { key: `ridefin:${m.id}:${m.lastBookingId}`, value: "1" } });
+      } catch {
+        firstFinish = false;
+      }
+      if (firstFinish) {
+        await incrementMission(m.id, "daily_ride").catch(() => undefined);
+        await incrementMission(m.id, "weekly_rides").catch(() => undefined);
+        await import("./weeklyService")
+          .then((w) => w.addScore(m.id, "ride"))
+          .catch(() => undefined);
+      }
 
       // freeze the card + stop the pin
       if (m.rideCardMsgId) {
@@ -303,9 +314,11 @@ export async function pushBookingUpdates(bot: Bot, dsOverride?: KasDataSource): 
               }
             }
             // quest progress: completed-count only
-            await incrementMission(driver.id, "drv_daily_5").catch(() => undefined);
-            await incrementMission(driver.id, "drv_weekly_25").catch(() => undefined);
-            await incrementMission(driver.id, "drv_weekly_40").catch(() => undefined);
+            if (firstFinish) {
+              await incrementMission(driver.id, "drv_daily_5").catch(() => undefined);
+              await incrementMission(driver.id, "drv_weekly_25").catch(() => undefined);
+              await incrementMission(driver.id, "drv_weekly_40").catch(() => undefined);
+            }
             // 🔧 XIII-1: random car part for the driver's completed ride
             try {
               const { dropCarPart } = await import("./itemService");
