@@ -27,6 +27,7 @@
 ⚠️ Telefon-raqamlari (bosh <1.5s, 2-ochilish <0.7s) Render free-tier cold-start tufayli hozir o'lchanmaydi — Render qaroridan keyin.
 
 ## Qarorlar jurnali
+- 2026-06-13: T2 shart-1 — EGA QARORI: Render free-tier'dan BOSHQA always-on hostga KO'CHIRISH (paid Render emas). Postgres ham 2026-07-10 da tugaydi → ikkalasi birga ko'chiriladi. Telefon-o'lchovlari ko'chishdan keyin. Host tanlovi + provisioning egadan kutilmoqda.
 - 2026-06-13: T1 dizayn EGA TOMONIDAN QABUL qilindi (premium 2026 qatlam bilan). T1 yopildi.
 - T0.5 EGA QARORLARI: AUDIT 1.1 grantCashback O'CHIRILDI; 1.2 market/shop endpoint QOLDI (T7 da UI) — komentariy qo'yildi.
 - T0.5: referral idem-kalitlarga bookingId ATAYIN QO'SHILMADI — paidAt yiqilib keyingi safarda yangi kalit double-pay ochardi; per-referral kalit = exactly-once, konvergensiya testda isbotlandi.
