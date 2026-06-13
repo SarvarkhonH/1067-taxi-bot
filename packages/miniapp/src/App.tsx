@@ -10,7 +10,8 @@ import { WalletView } from "./wallet"; // bosh tab — eager (birinchi paint)
 const RewardsView = lazy(() => import("./rewards").then((m) => ({ default: m.RewardsView })));
 const MarketView = lazy(() => import("./market").then((m) => ({ default: m.MarketView })));
 const DriverView = lazy(() => import("./driver").then((m) => ({ default: m.DriverView })));
-const BookingView = lazy(() => import("./booking").then((m) => ({ default: m.BookingView })));
+// T4: Booking 3.0 (MapLibre) — internally falls back to classic Leaflet if feature:booking3 OFF
+const Booking3View = lazy(() => import("./booking3").then((m) => ({ default: m.Booking3View })));
 import { Icon } from "./icons";
 import { useCountUp } from "./util";
 
@@ -92,7 +93,7 @@ export function App() {
   if (linked === null) return <BootSplash />;
   if (linked === false) return <NotLinked />;
   if (!me) return <BootSplash />;
-  if (booking) return <Suspense fallback={<BootSplash />}><BookingView onClose={() => setBooking(false)} /></Suspense>;
+  if (booking) return <Suspense fallback={<BootSplash />}><Booking3View me={me} onClose={() => setBooking(false)} /></Suspense>;
 
   const go = (t: Tab) => {
     if (t === tab) return;

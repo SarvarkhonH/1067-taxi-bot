@@ -3,7 +3,7 @@
 // the sweep doesn't hammer the DB.
 import { prisma } from "../db";
 
-export const FEATURES = ["wheel", "garage", "items", "transfers", "push", "gap", "plus", "recruit"] as const;
+export const FEATURES = ["wheel", "garage", "items", "transfers", "push", "gap", "plus", "recruit", "booking3"] as const;
 export type FeatureName = (typeof FEATURES)[number];
 
 let cache: { at: number; map: Record<string, boolean> } = { at: 0, map: {} };

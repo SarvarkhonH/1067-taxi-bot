@@ -64,6 +64,7 @@ export interface BookingInfoResponse {
   active: ActiveBookingView | null;
   // 1-tap: where "call now" would dispatch to (last/default pickup), if known
   quickPickup: SavedAddressView | null;
+  booking3?: boolean; // T4: feature flag — show the MapLibre flow vs the old Leaflet one
 }
 
 // ── 1-tap "1067 Now" ──────────────────────────────────────────────────────────

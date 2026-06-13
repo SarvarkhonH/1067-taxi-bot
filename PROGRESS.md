@@ -12,9 +12,33 @@
 ## Jarayonda
 - T4-OLDIN TUGADI (ega shart #1 — idempotentlik retry'dan oldin): finish-sweep'ning BARCHA reward-grant'lari resilient()+idempotent (cashback unique, fund marker, garaj grantRideCoins kalit, founder one-per-member, tuman marker, driver_bonus kalit, kvest increment'lar endi ATOMIK rideKey marker bilan — fragile firstFinish gate olib tashlandi). Reward-yo'lda silent-catch = 0. testMoneyShield: 4 idempotentlik assert (garaj/fund/driver_bonus/incrementMission rideKey 2x→1x) ✅.
 - testRideCard FLAKINESS ANIQ ISOLATSIYA QILINDI (ega shart): izolyatsiyalangan DB'da 6/6 deterministik yashil (retry/masking YO'Q) → flakiness = JONLI FRA bot'ning 90s sweep'i test sintetik rider'ini baham Neon'da poygalashidan (production bug EMAS, pre-existing test-izolyatsiya). FIX: sweep-testlar TEST_DATABASE_URL (izolyatsiyalangan, eski Render PG → keyin Neon test-branch) da ishlaydi — `_testDb.ts` birinchi import.
-- T4 E1-E4 (xarita) — KEYINGI (ega-ko'z darvozasi).
+### T4 E1-E4 — QURILMOQDA (yangi sessiya SHU YERDAN davom etadi)
+EGA-KO'Z DARVOZASI: tugagach REAL autentifikatsiyalangan render ko'rsatiladi (grep/demo EMAS), ega "QABUL" demaguncha T5 yo'q.
 
-- T4 BOOKING 3.0 (E1-E4) — KEYINGI. EGA-KO'Z DARVOZASI (xaritali oqim — skrinshot/video kerak).
+**YONDASHUV:** MapLibre dark, xarita-birinchi, `feature:booking3` flag ostida. Flag OFF → eski Leaflet `BookingView`ga avtomatik fallback (regressiya yo'q). kas PICKUP-ONLY (manzil-marshrut yo'q) → PICKUP tanlanadi, narx tarixdan "≈", manzil haydovchiga aytiladi. Oltin FAQAT CHAQIRISH tugmasida.
+
+**O'ZGARGAN/YANGI FAYLLAR (hammasi commit qilindi, typecheck TOZA):**
+- `packages/server/src/services/featureFlags.ts`: FEATURES'ga `"booking3"` qo'shildi (kill-switch + A/B).
+- `packages/server/src/api/server.ts`: `/api/booking/info` javobiga `booking3: featureOn("booking3")` qo'shildi (miniapp qaysi oqimni biladi).
+- `packages/shared/src/booking.ts`: `BookingInfoResponse.booking3?: boolean`.
+- `packages/miniapp/package.json` + `pnpm-lock.yaml`: `maplibre-gl` dep.
+- `packages/miniapp/src/booking3.tsx` (YANGI): `Booking3View` — E1 (map+pin+sheet "Taxi qayerga kelsin?"+🏠+oxirgi-3 chip+1-bosish), E2 (fuzzy `bookingSearch` qidiruv natijalari), E3 (tanlangan pickup + narx `bookingPredict` "≈" + halol izoh "to'lov haydovchiga, manzilni aytasiz" + katta oltin CHAQIRISH), E4 (radar puls + halol navbat `bookingNearby` freeDrivers + bekor). Top status bar: 🪙tanga·🔥streak·🎰jackpot. Flag-off → `BookingViewOld` (lazy) fallback. Carto dark style URL.
+- `packages/miniapp/src/App.tsx`: booking=true → `<Booking3View me onClose/>` (lazy). Eski `BookingView` lazy olib tashlandi (booking3 ichida import qiladi).
+- `packages/miniapp/src/design/tokens.css`: `.b3-*` klasslar (b3-screen/map/top/stats/sheet/grip/results/chips/picked/fare/honest/radar/pin/pickpin) — dark, sheet pastda bo'shliq bilan, radar puls, gold faqat CALL.
+
+**DONE + ISBOT:** typecheck TOZA (server+miniapp+shared). Server flag endpointda. booking3.tsx kompilatsiya bo'ladi.
+
+**QOLGAN (keyingi sessiya — aniq qadamlar):**
+1. `pnpm --filter @t1067/miniapp exec vite build` — booking3 chunk + maplibre lazy bo'lishini tasdiqla (asosiy bundle ortmasin).
+2. REAL RENDER ISBOT (T3-recheck texnikasi): botsiz lokal server (`BOT_TOKEN= KAS_MODE=mock ALLOW_DEBUG_AUTH=true WEBHOOK_URL= PORT=8080` — dotenv override QILMAYDI, probe bilan tasdiqlangan) + miniapp dev (5173, /api→8080 proxy) + preview navigate `localhost:5173/?tg=6506297119`. **MUHIM:** `feature:booking3` ni ON qil (admin `/api/admin/features` yoki AppState `feature:booking3`=on; default ON chunki FEATURES'da bor). preview_eval bilan: xarita yuklanadi (MapLibre WebGL preview'da ishlamasligi mumkin — Carto style fetch + .b3-sheet computed-style tekshir), sheet/chip/CALL ko'rinadi, oltin FAQAT CALL'da (computed-style), tugmalar map-chetiga yopishmaydi (sheet padding), dark fon. Screenshot sandbox'da OSILADI — computed-style+struktura + EGA telefonda yakuniy.
+3. 2-bosish isboti: chip→confirm→CALL = 2 bosish (struktura/eval bilan ko'rsat).
+4. Vercel deploy (TO'G'RI flow: `VITE_API_URL=https://kas1067-taxi-fra.onrender.com vite build` → dist→.vercel/output/static→`vercel deploy --prebuilt --prod`; keyin bundle-grep "b3-sheet"/"booking3"). Server FRA auto-deploy push'da.
+5. Egaga REAL render ko'rsat → "QABUL" KUT (T5 dan oldin).
+6. Regressiya: 13 suite + testMoneyShield yashil (sweep-testlar `_testDb` bilan).
+
+**XAVF/HALOL:** MapLibre WebGL past Android'da — flag OFF Leaflet fallback. kas pickup-only → manzil-marshrut yo'q (halol izoh UI'da). pay-with-bonus kas'da DEAD END → toggle YO'Q (rost izoh o'rniga). Pixel-skrinshot sandbox'da imkonsiz.
+
+### T4-OLDIN TUGADI
 
 ## T3 YAKUNLANDI (REAL ISBOT, 2026-06-13)
 - coin→tanga: user-facing 'coin' = 0 (bot.ts+render.ts tuzatildi; grep isbot).

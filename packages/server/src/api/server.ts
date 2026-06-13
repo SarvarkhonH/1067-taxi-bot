@@ -458,7 +458,11 @@ export function createApiServer(opts: ApiOptions = {}) {
   };
 
   // ─── Uber-level booking (map + live tracking) ───────────────────────────────
-  app.get("/api/booking/info", requireUser, withMember((id) => getBookingInfo(id)));
+  app.get("/api/booking/info", requireUser, withMember(async (id) => {
+    const { featureOn } = await import("../services/featureFlags");
+    const [info, booking3] = await Promise.all([getBookingInfo(id), featureOn("booking3")]);
+    return { ...info, booking3 };
+  }));
   app.get("/api/booking/active", requireUser, withMember((id) => getActiveBookingFor(id)));
   app.post("/api/booking/search", requireUser, withMember((_id, req) => searchBookingAddress(String((req.body as { q?: string })?.q ?? ""))));
   app.post("/api/booking/create", requireUser, withMember((id, req) => createBookingFor(id, req.body as BookingCreateBody)));
