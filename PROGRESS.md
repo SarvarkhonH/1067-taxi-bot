@@ -12,6 +12,7 @@
 ## Jarayonda
 - T2 TEZLIK server-tomon BAJARILDI + live (Render). Telefon-o'lchovlari ko'chishdan keyin.
 - DB → NEON KO'CHIRILDI (BEPUL, $0): ega bepul yo'lni tanladi (Fly pullik ekan). Neon (eu-central-1, doim-yoqiq, kartasiz) schema `db push` + 4045 satr ko'chirildi (Member 2526 = Render bilan bir xil, ledger drift 0). Render env DATABASE_URL + lokal .env → Neon. **2026-07-10 Postgres muddati MUAMMOSI HAL.** Web Render free'da qoldi (cold-start uyg'onish ekrani bilan). Eski Render PG fallback sifatida 07-10 gacha qoladi (o'chirilmaydi).
+- NEON POOLER: runtime DATABASE_URL=pooled host (-pooler), migratsiya DIRECT_URL=direct host; schema'da directUrl qo'shildi (Prisma+Neon tavsiyasi, free-tier ulanish-limitidan himoya). Render env + .env yangilandi.
 - migrateToNeon.ts qayta ishlatsa bo'ladi. Neon string + Fly token /tmp da (commit emas) — EGA ROTATSIYA QILSIN.
 
 ## T2 O'LCHOVLAR (baseline-avval, jonli PG, shart-4)
