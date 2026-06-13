@@ -17,13 +17,25 @@ export async function recentReports(): Promise<RideHistoryItem[]> {
   // kas silently caps page size around ~50 — page SEQUENTIALLY (rate-limit
   // polite) until we have 2 weeks of data or 40 pages (~2000 rows).
   const rows: RideHistoryItem[] = [];
+  // T2 (AUDIT 2.8): ketma-ket 40 sahifa → 3-li PARALLEL batch (kas rate-limitiga
+  // ehtiyot), har batch'dan keyin cutoff tekshiruvi. 8-20s → ~1/3 ga qisqaradi.
   const cutoff = Date.now() - 2 * WEEK_MS;
-  for (let p = 0; p < 40; p++) {
-    const page = await ds.getReportsPage(p, 50);
-    if (!page.length) break;
-    rows.push(...page);
-    const oldest = Date.parse(page[page.length - 1]!.at);
-    if (Number.isFinite(oldest) && oldest < cutoff) break;
+  const BATCH = 3;
+  for (let base = 0; base < 40; base += BATCH) {
+    const pages = await Promise.all(
+      Array.from({ length: BATCH }, (_, i) => ds.getReportsPage(base + i, 50).catch(() => [] as RideHistoryItem[])),
+    );
+    let stop = false;
+    for (const page of pages) {
+      if (!page.length) {
+        stop = true;
+        continue;
+      }
+      rows.push(...page);
+      const oldest = Date.parse(page[page.length - 1]!.at);
+      if (Number.isFinite(oldest) && oldest < cutoff) stop = true;
+    }
+    if (stop) break;
   }
   cache = { at: Date.now(), rows };
   return rows;

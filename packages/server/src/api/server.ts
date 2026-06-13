@@ -1,5 +1,6 @@
 import express, { type NextFunction, type Request, type Response } from "express";
 import cors from "cors";
+import compression from "compression";
 import type { MemberType } from "@t1067/shared";
 import { env } from "../env";
 import {
@@ -144,7 +145,9 @@ function requireOwner(_req: Request, res: Response, next: NextFunction): void {
 export function createApiServer(opts: ApiOptions = {}) {
   const app = express();
   app.use(cors());
+  app.use(compression()); // T2: gzip har javobga — WAN'da payload kichrayadi (telefon uchun)
   app.use(express.json());
+  app.set("etag", "strong"); // T2: shartli so'rovlar uchun ETag (304)
 
   app.get("/health", (_req, res) => {
     res.json({ ok: true, mode: env.KAS_MODE, bot: env.hasBot });
@@ -835,9 +838,13 @@ export function createApiServer(opts: ApiOptions = {}) {
     }
   });
 
-  app.use((err: unknown, _req: Request, res: Response, _next: NextFunction) => {
-    console.error("[api] error:", err);
-    res.status(500).json({ error: "internal" });
+  // T2: yagona errorHandler — log + kunlik xato hisoblagich (egaga kunlik hisobotda)
+  app.use((err: unknown, req: Request, res: Response, _next: NextFunction) => {
+    console.error(`[api] error ${req.method} ${req.path}:`, err);
+    void import("../services/appStateUtil")
+      .then(({ atomicIncrement }) => atomicIncrement(`apierr:${new Date(Date.now() + 5 * 3600_000).toISOString().slice(0, 10)}`, 1))
+      .catch(() => undefined);
+    if (!res.headersSent) res.status(500).json({ error: "internal" });
   });
 
   return app;

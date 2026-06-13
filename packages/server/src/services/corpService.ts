@@ -33,11 +33,29 @@ export async function corpReport(corpId: number): Promise<{
   if (!corp) return null;
   const now = new Date();
   const monthStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1) - 5 * 3600_000);
+  // T2 (AUDIT 2.7): N+1 (xodim boshiga 2 so'rov) → 2 to'plamli so'rov.
+  const phones = corp.employees.map((e) => e.phone);
+  const members =
+    phones.length > 0
+      ? await prisma.member.findMany({ where: { OR: phones.map((p) => ({ phone: { endsWith: p } })) }, select: { id: true, phone: true } })
+      : [];
+  // member.id → o'sha xodimning oxirgi-9 telefoni (endsWith mosligi)
+  const memberByPhone = new Map<string, number>();
+  for (const m of members) {
+    const last9 = (m.phone ?? "").replace(/\D/g, "").slice(-9);
+    if (last9) memberByPhone.set(last9, m.id);
+  }
+  const ids = [...memberByPhone.values()];
+  const rideGroups =
+    ids.length > 0
+      ? await prisma.rideReward.groupBy({ by: ["memberId"], where: { memberId: { in: ids }, createdAt: { gte: monthStart } }, _count: true })
+      : [];
+  const ridesByMember = new Map(rideGroups.map((g) => [g.memberId, g._count]));
   const rows: { phone: string; name: string | null; rides: number; overCap: boolean }[] = [];
   let totalRides = 0;
   for (const e of corp.employees) {
-    const member = await prisma.member.findFirst({ where: { phone: { endsWith: e.phone } } });
-    const rides = member ? await prisma.rideReward.count({ where: { memberId: member.id, createdAt: { gte: monthStart } } }) : 0;
+    const mid = memberByPhone.get(e.phone);
+    const rides = mid ? (ridesByMember.get(mid) ?? 0) : 0;
     totalRides += rides;
     rows.push({ phone: e.phone, name: e.name, rides, overCap: rides > corp.monthlyCapPerEmployee });
   }

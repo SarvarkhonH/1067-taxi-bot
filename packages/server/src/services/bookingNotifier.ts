@@ -141,12 +141,17 @@ export async function pushBookingUpdates(bot: Bot, dsOverride?: KasDataSource): 
       const statusChanged = isNewRide || m.lastBookingStatus !== b.status;
       const driver = b.carNumber ? await driverByCar(b.carNumber) : null;
 
+      // T2 (AUDIT 2.2): 2 ketma-ket so'rov → 1 parallel to'lqin (faol-safar a'zosiga)
+      const [guessRow, spinRow] = await Promise.all([
+        prisma.rideGuess.findUnique({ where: { memberId_bookingId: { memberId: m.id, bookingId: b.id } } }).catch(() => null),
+        prisma.wheelSpin.findFirst({ where: { memberId: m.id, bookingId: b.id } }).catch(() => null),
+      ]);
       const ctx: CardCtx = {
         driver,
         freeDrivers,
         queuePos: SEARCHING.has(b.status) && !b.carNumber ? searchQueue.findIndex((x) => x.id === b.id) + 1 || undefined : undefined,
-        hasGuess: !!(await prisma.rideGuess.findUnique({ where: { memberId_bookingId: { memberId: m.id, bookingId: b.id } } }).catch(() => null)),
-        spinUsed: !!(await prisma.wheelSpin.findFirst({ where: { memberId: m.id, bookingId: b.id } }).catch(() => null)),
+        hasGuess: !!guessRow,
+        spinUsed: !!spinRow,
       };
       if (b.status === "started" && m.rideStartedAt) {
         const { equippedEstimate } = await import("./garageService");

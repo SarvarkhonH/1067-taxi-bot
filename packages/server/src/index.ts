@@ -17,6 +17,21 @@ async function reapStaleSyncs(maxAgeMs: number): Promise<void> {
 }
 
 async function main(): Promise<void> {
+  // T2: global xato tutqichlari — jim yiqilish o'rniga log + egaga alert (throttled 60s)
+  let lastCrashAlert = 0;
+  const onFatal = (kind: string) => (err: unknown) => {
+    console.error(`[${kind}]`, err);
+    const now = Date.now();
+    if (now - lastCrashAlert > 60_000) {
+      lastCrashAlert = now;
+      void import("./services/economyService")
+        .then(({ alertAdmins }) => alertAdmins(`🛑 Server xatosi (${kind}): ${err instanceof Error ? err.message.slice(0, 200) : String(err).slice(0, 200)}`))
+        .catch(() => undefined);
+    }
+  };
+  process.on("unhandledRejection", onFatal("unhandledRejection"));
+  process.on("uncaughtException", onFatal("uncaughtException"));
+
   // one-shot: make sure the Kolleksiya catalog exists (idempotent upserts)
   {
     const { seedItemTypes } = await import("./services/itemService");
