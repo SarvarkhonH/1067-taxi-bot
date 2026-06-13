@@ -148,7 +148,7 @@ function Overview({ health }: { health: AdminHealth | null }) {
           <Card icon="👥" label="Bot a'zolari" value={formatNumber(growth.botUsers)} sub={`${growth.linked} bog'langan`} accent />
           <Card icon="🆕" label="Bugun yangi" value={formatNumber(growth.newToday)} sub={`7 kun: ${growth.new7d}`} />
           <Card icon="🔥" label="24s faol" value={formatNumber(growth.active24h)} />
-          <Card icon="🪙" label="Coin egalari" value={formatNumber(growth.coinHolders)} />
+          <Card icon="🪙" label="Tanga egalari" value={formatNumber(growth.coinHolders)} />
         </section>
       )}
 
@@ -165,7 +165,7 @@ function Overview({ health }: { health: AdminHealth | null }) {
 
       {eco && (
         <section className="panel">
-          <div className="panel-title">💰 Iqtisod (coin)</div>
+          <div className="panel-title">💰 Iqtisod (tanga)</div>
           <div className="cards" style={{ marginBottom: 12 }}>
             <Card icon="🪙" label="Muomaladagi" value={formatNumber(eco.coinsOutstanding)} sub="majburiyat" accent />
             <Card icon="📤" label="Berilgan" value={formatNumber(eco.emitted)} />
@@ -515,7 +515,7 @@ function IntegrityView() {
         <div className="panel-title">🔐 Pul yaxlitligi (balans = ledger)</div>
         <div className="health-grid">
           <HealthCell label="Tekshirildi" ok={true} detail={`${formatNumber(data.checked)} hisob`} />
-          <HealthCell label="Nomuvofiqlik" ok={ok} detail={ok ? "✅ hammasi to'g'ri" : `${data.driftCount} drift · ${formatNumber(data.driftTotal)} coin`} warn={!ok} />
+          <HealthCell label="Nomuvofiqlik" ok={ok} detail={ok ? "✅ hammasi to'g'ri" : `${data.driftCount} drift · ${formatNumber(data.driftTotal)} tanga`} warn={!ok} />
           <HealthCell label="Anomaliya (24s)" ok={data.anomalies.length === 0} detail={data.anomalies.length ? `${data.anomalies.length} shubhali` : "yo'q"} warn={data.anomalies.length > 0} />
         </div>
       </section>
@@ -542,7 +542,7 @@ function IntegrityView() {
       )}
       {data.anomalies.length > 0 && (
         <section className="panel">
-          <div className="panel-title">🚨 Anomaliya — 24s eng katta coin yutuqlari (≥{formatNumber(data.anomalyThreshold)})</div>
+          <div className="panel-title">🚨 Anomaliya — 24s eng katta tanga yutuqlari (≥{formatNumber(data.anomalyThreshold)})</div>
           <div className="table-wrap">
             <table>
               <thead><tr><th>Mijoz</th><th className="num">24s yutuq</th></tr></thead>
@@ -742,9 +742,9 @@ function AnalyticsView() {
           <div className="card-value">{ns ? formatNumber(ns.weeklyActiveRiders) : "…"}</div>
         </div>
         <div className="card">
-          <div className="card-title">🪙 Coin majburiyati</div>
+          <div className="card-title">🪙 Tanga majburiyati</div>
           <div className="card-value">{ns ? formatNumber(ns.coinLiability) : "…"}</div>
-          <div className="muted">jami va'da qilingan coin</div>
+          <div className="muted">jami va'da qilingan tanga</div>
         </div>
       </div>
 

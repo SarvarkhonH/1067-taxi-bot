@@ -273,7 +273,7 @@ export function RewardsView({ me, onReward }: { me: MeResponse; onReward: (msg: 
       <SpinWheelGame me={me} onReward={onReward} />
       <BoxGame onReward={onReward} />
       <div className="muted game-hint tac mt8">
-        Har safar coin va bonus olib keladi 🚕 — ko'proq safar, ko'proq omad!
+        Har safar tanga va bonus olib keladi 🚕 — ko'proq safar, ko'proq omad!
       </div>
     </div>
   );

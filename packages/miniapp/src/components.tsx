@@ -42,7 +42,7 @@ export function StreakCard({ me, onReward }: { me: MeResponse; onReward: (msg: s
       setChecked(true);
       onReward(
         r.rewardAmount > 0
-          ? `🎉 +${formatNumber(r.rewardAmount)} coin! 🔥 ${r.current} kun streak`
+          ? `🎉 +${formatNumber(r.rewardAmount)} tanga! 🔥 ${r.current} kun streak`
           : `🔥 ${r.current} kun streak! Davom eting`,
       );
     } catch {
@@ -107,7 +107,7 @@ export function MissionsView({ onReward }: { onReward: (msg: string) => void }) 
     haptic();
     try {
       const r = await api.claimMission(code);
-      if (r.ok) onReward(`🎉 +${formatNumber(r.reward)} coin!`);
+      if (r.ok) onReward(`🎉 +${formatNumber(r.reward)} tanga!`);
       await load();
     } catch {
       /* ignore */
@@ -155,7 +155,7 @@ function WeeklyBoard() {
         ))}
       </div>
       <div className="weekly-meta muted">
-        ⚡️ Ball: kunlik +10 · g'ildirak +10 · vazifa +15 · quti +20 · safar +30 · taklif +50 — dushanbada coin to'lov · {w.daysLeft} kun qoldi
+        ⚡️ Ball: kunlik +10 · g'ildirak +10 · vazifa +15 · quti +20 · safar +30 · taklif +50 — dushanbada tanga to'lov · {w.daysLeft} kun qoldi
       </div>
       {w.entries.length === 0 && <div className="weekly-empty muted">Hafta endi boshlandi — birinchi bo'ling! 🚀</div>}
       <div className="board">
@@ -316,7 +316,7 @@ export function ReferralView() {
 
   if (!data) return <Spinner />;
   const share = () =>
-    shareLink(data.link, "🚕 1067 Taxi — har safardan cashback, o'yinlar bilan coin yutib, so'mga aylantiring! Qo'shiling:");
+    shareLink(data.link, "🚕 1067 Taxi — har safardan cashback, o'yinlar bilan tanga yutib, so'mga aylantiring! Qo'shiling:");
   const copy = async () => {
     await copyText(data.link);
     setCopied(true);

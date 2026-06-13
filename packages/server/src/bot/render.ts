@@ -86,7 +86,7 @@ export function renderProfile(me: MeResponse): string {
     DIV,
     `💼 <b>HAMYON</b>`,
     `🚕 Cashback: <b>${formatNumber(stats.points)} so'm</b> <i>(safarlardan)</i>`,
-    `🪙 Coin: <b>${formatNumber(me.coins)}</b> <i>(1 tanga = 1 so'm — yechiladi)</i>`,
+    `🪙 Tanga: <b>${formatNumber(me.coins)}</b> <i>(1 tanga = 1 so'm — yechiladi)</i>`,
     DIV,
     `🔥 Streak: <b>${streak} kun</b>   🚕 Safar: <b>${formatNumber(stats.trips)}</b>`,
   ];
@@ -94,7 +94,7 @@ export function renderProfile(me: MeResponse): string {
   lines.push(
     `📊 O'rin: <b>${me.rank ? rankMedal(me.rank) : "—"}</b>/${me.totalMembers}   🎖 <b>${earned.length}/${me.badges.length}</b> ${badgeStrip === "—" ? "" : badgeStrip}`,
     ``,
-    `🎮 <i>Coin'ni ko'paytiring — «🎮 O'yinlar & Hamyon»da o'yna, yut, so'mga yech!</i>`,
+    `🎮 <i>Tangani ko'paytiring — «🎮 O'yinlar & Hamyon»da o'yna, yut, so'mga yech!</i>`,
   );
   return lines.join("\n");
 }
@@ -153,7 +153,7 @@ export function renderHelp(): string {
     `ℹ️ <b>1067 Taxi — yordam</b>\n\n` +
     `🚖 <b>Taxi</b> — «🚀 Ilova»da xaritadan chaqiring, jonli kuzating, bekor qiling.\n` +
     `💰 <b>Ikki hamyon</b> — 🚕 cashback (safardan) + 🪙 tanga (bonuslardan). Ilovada bir-biriga o'tkaziladi, so'mga aylantiriladi.\n\n` +
-    `<b>Coin topish:</b>\n` +
+    `<b>Tanga topish:</b>\n` +
     `• 🔥 Kunlik streak · 🎯 vazifalar · 🎡 g'ildirak · 🎁 quti\n` +
     `• 🚕 Har safar — vazifa va liga ochkolari\n` +
     `• 👥 Do'st taklif: ikkalangizga +tanga\n\n` +

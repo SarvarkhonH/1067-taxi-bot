@@ -195,13 +195,13 @@ function WithdrawSheet({
         onClose();
       } else {
         const msgs: Record<string, string> = {
-          below_min: `Minimal: ${formatNumber(wallet.withdrawMin)} coin`,
+          below_min: `Minimal: ${formatNumber(wallet.withdrawMin)} tanga`,
           daily_cap: `Bugungi limit tugadi (${formatNumber(wallet.withdrawDailyCap)}/kun)`,
           insufficient: "Tanga yetarli emas",
           not_client: "Faqat mijoz hisoblari uchun",
           no_ride: "So'mga aylantirish uchun avval kamida 1 ta safar qiling 🚕",
           risk_hold: "Hisobingiz tekshiruvda — dispetcherga murojaat qiling",
-          kas_failed: "Tizim xatosi — coin qaytarildi, keyinroq urinib ko'ring",
+          kas_failed: "Tizim xatosi — tanga qaytarildi, keyinroq urinib ko'ring",
         };
         setErr(msgs[r.reason ?? ""] ?? "Xatolik yuz berdi");
       }
@@ -286,8 +286,8 @@ function TopupSheet({ wallet, onClose, onDone }: { wallet: WalletResponse; onClo
     <div className="sheet-back" onClick={onClose}>
       <div className="sheet" onClick={(e) => e.stopPropagation()}>
         <div className="sheet-grip" />
-        <h3>🔁 Cashback → coin</h3>
-        <p className="muted sheet-sub">Taxi <b>cashback</b>ingizni o'yin <b>coin</b>iga o'tkazing va o'ynang. 1 so'm = 1 coin.</p>
+        <h3>🔁 Cashback → tanga</h3>
+        <p className="muted sheet-sub">Taxi <b>cashback</b>ingizni o'yin <b>tanga</b>siga o'tkazing va o'ynang. 1 so'm = 1 tanga.</p>
         {max < wallet.topupMin ? (
           <div className="sheet-warn">Minimal {formatNumber(wallet.topupMin)} so'm cashback kerak.<br /><span className="muted">Sizda: {formatNumber(wallet.cashback)}</span></div>
         ) : (
@@ -300,7 +300,7 @@ function TopupSheet({ wallet, onClose, onDone }: { wallet: WalletResponse; onClo
               ))}
             </div>
             {err && <div className="sheet-err">{err}</div>}
-            <button className="btn-violet" disabled={!amount || busy} onClick={submit}>{busy ? "…" : `🔁 ${amount ? formatNumber(amount) : ""} coinga o'tkazish`}</button>
+            <button className="btn-violet" disabled={!amount || busy} onClick={submit}>{busy ? "…" : `🔁 ${amount ? formatNumber(amount) : ""} tangaga o'tkazish`}</button>
           </>
         )}
         <button className="btn-ghost" onClick={onClose}>Yopish</button>
@@ -362,7 +362,7 @@ export function WalletView({ me, onBanner, reload, onBook }: { me: MeResponse; o
           <button className="btn-primary wh-cta" onClick={() => { haptic(); setSheet(true); }}>💸 So'mga</button>
           <button className="btn-violet wh-cta" onClick={() => { haptic(); setSend(true); }}>📤 O'tkazish</button>
           {wallet?.canTopup && (
-            <button className="btn-violet wh-cta" onClick={() => { haptic(); setTopup(true); }}>🔁 Coinga</button>
+            <button className="btn-violet wh-cta" onClick={() => { haptic(); setTopup(true); }}>🔁 Tangaga</button>
           )}
         </div>
         <div className="wh-meta muted">
