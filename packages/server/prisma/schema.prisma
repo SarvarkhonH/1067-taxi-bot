@@ -7,8 +7,9 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql" // Render Postgres (persistent — survives deploys)
-  url      = env("DATABASE_URL")
+  provider  = "postgresql" // Neon (eu-central-1, doim-yoqiq) — 2026-06-13 da Render'dan ko'chirildi
+  url       = env("DATABASE_URL") // runtime: POOLED ulanish (ko'p ulanishni ko'taradi)
+  directUrl = env("DIRECT_URL") // migratsiya/db push: DIRECT ulanish (pooler'siz)
 }
 
 model Member {
