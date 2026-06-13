@@ -3,6 +3,7 @@
 // Uses a scripted datasource + fake bot; real members' active rides are echoed
 // back unchanged so the sweep never touches them.
 // Run: dotenv -e ../../.env -- tsx src/scripts/testRideCard.ts
+import "./_testDb"; // ENG BIRINCHI: izolyatsiyalangan test-DB (jonli bot poygasini oldini oladi)
 import "../env";
 import type { Bot } from "grammy";
 import { prisma } from "../db";
@@ -65,7 +66,15 @@ function lite(status: string, carNumber = ""): ActiveBookingLite {
 async function cleanup(): Promise<void> {
   await prisma.appState.deleteMany({ where: { key: { in: [`fundride:${BOOKING_ID}`] } } });
   // T3: per-ride finish markers for this booking (so the next run re-increments)
-  await prisma.appState.deleteMany({ where: { key: { startsWith: "ridefin:", endsWith: `:${BOOKING_ID}` } } });
+  // per-ride quest/score idempotency markers for this booking (qinc:/qscore:)
+  await prisma.appState.deleteMany({
+    where: {
+      OR: [
+        { key: { startsWith: "qinc:", endsWith: `:${BOOKING_ID}` } },
+        { key: { startsWith: "qscore:", endsWith: `:${BOOKING_ID}` } },
+      ],
+    },
+  });
   const ms = await prisma.member.findMany({ where: { kasId: { startsWith: TAG } }, select: { id: true } });
   const ids = ms.map((m) => m.id);
   await prisma.rideGuess.deleteMany({ where: { memberId: { in: ids } } });

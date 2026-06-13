@@ -35,20 +35,49 @@ function periodKey(def: MissionDef, now = new Date()): string {
 
 // ─── progress ─────────────────────────────────────────────────────────────────
 /** Bump a mission's counter for the current period (idempotent-safe, capped at target). */
-export async function incrementMission(memberId: number, code: string, by = 1): Promise<void> {
+// rideKey (optional): makes the increment IDEMPOTENT per ride — the marker
+// create + the upsert run in ONE transaction. A duplicate ride → P2002 on the
+// marker → tx rolls back → no double-count. A transient → the tx aborts and the
+// caller's resilient() retries the WHOLE tx cleanly. (T4: finish-sweep quests.)
+export async function incrementMission(memberId: number, code: string, by = 1, rideKey?: string): Promise<void> {
   const def = missionByCode(code);
   if (!def) return;
   const key = periodKey(def);
-  const existing = await prisma.missionProgress.findUnique({
-    where: { memberId_code_periodKey: { memberId, code, periodKey: key } },
-  });
-  if (existing?.claimedAt) return; // already collected this period
-  const next = Math.min(def.target, (existing?.progress ?? 0) + by);
-  await prisma.missionProgress.upsert({
-    where: { memberId_code_periodKey: { memberId, code, periodKey: key } },
-    create: { memberId, code, periodKey: key, progress: next },
-    update: { progress: next },
-  });
+  let next = -1;
+
+  if (rideKey) {
+    try {
+      await prisma.$transaction(async (tx) => {
+        await tx.appState.create({ data: { key: rideKey, value: "1" } }); // P2002 = this ride already counted
+        const existing = await tx.missionProgress.findUnique({ where: { memberId_code_periodKey: { memberId, code, periodKey: key } } });
+        if (existing?.claimedAt) {
+          next = existing.progress;
+          return;
+        }
+        next = Math.min(def.target, (existing?.progress ?? 0) + by);
+        await tx.missionProgress.upsert({
+          where: { memberId_code_periodKey: { memberId, code, periodKey: key } },
+          create: { memberId, code, periodKey: key, progress: next },
+          update: { progress: next },
+        });
+      });
+    } catch (e) {
+      if ((e as { code?: string })?.code === "P2002") return; // already counted this ride — idempotent
+      throw e; // transient → caller's resilient() retries the atomic tx
+    }
+  } else {
+    const existing = await prisma.missionProgress.findUnique({
+      where: { memberId_code_periodKey: { memberId, code, periodKey: key } },
+    });
+    if (existing?.claimedAt) return; // already collected this period
+    next = Math.min(def.target, (existing?.progress ?? 0) + by);
+    await prisma.missionProgress.upsert({
+      where: { memberId_code_periodKey: { memberId, code, periodKey: key } },
+      create: { memberId, code, periodKey: key, progress: next },
+      update: { progress: next },
+    });
+  }
+  if (next < 0) return; // claimed-skip path
 
   // 🔗 daily KOMBO: the moment ALL dailies hit their target, tomorrow's ride
   // roll doubles (Member.comboBoostDay) — the hook that brings them back.

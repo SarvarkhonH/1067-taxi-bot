@@ -239,21 +239,17 @@ export async function pushBookingUpdates(bot: Bot, dsOverride?: KasDataSource): 
       }
     } else if (m.lastBookingId) {
       // ── ride finished ──
-      // T3: per-ride finish marker — increments/score are NOT idempotent, so a
-      // re-entry (transient between increment and the lastBookingId=null clear
-      // below) would double-count driver/rider quests. Claim once per booking.
-      let firstFinish = true;
-      try {
-        await prisma.appState.create({ data: { key: `ridefin:${m.id}:${m.lastBookingId}`, value: "1" } });
-      } catch {
-        firstFinish = false;
-      }
-      if (firstFinish) {
-        await resilient("daily_ride", () => incrementMission(m.id, "daily_ride"));
-        await resilient("weekly_rides", () => incrementMission(m.id, "weekly_rides"));
+      // T4 fix: each quest/score increment is now IDEMPOTENT per ride via its own
+      // rideKey marker (atomic marker+upsert in incrementMission/addScore). No
+      // fragile firstFinish gate — a transient just makes resilient() retry the
+      // atomic tx; a re-entry is a P2002 no-op. Zero double-count, zero silent loss.
+      const bid = m.lastBookingId;
+      {
+        await resilient("daily_ride", () => incrementMission(m.id, "daily_ride", 1, `qinc:${m.id}:daily_ride:${bid}`));
+        await resilient("weekly_rides", () => incrementMission(m.id, "weekly_rides", 1, `qinc:${m.id}:weekly_rides:${bid}`));
         await resilient("addScore", async () => {
           const w = await import("./weeklyService");
-          await w.addScore(m.id, "ride");
+          await w.addScore(m.id, "ride", `qscore:${m.id}:${bid}`);
         });
       }
 
@@ -271,10 +267,10 @@ export async function pushBookingUpdates(bot: Bot, dsOverride?: KasDataSource): 
       let rollLine = "";
       try {
         const { rollRideCashback, renderRideRoll } = await import("./cashbackService");
-        const roll = await rollRideCashback(m.id, m.lastBookingId);
+        const roll = await resilient("cashback-roll", () => rollRideCashback(m.id, m.lastBookingId!)); // idempotent: RideReward unique
         {
           const { fundAddRide } = await import("./featureFlags");
-          await fundAddRide(m.lastBookingId).catch(() => null); // 🏆 Mashina fondi: 100 so'm/safar
+          await resilient("fund", () => fundAddRide(m.lastBookingId!)); // 🏆 Mashina fondi (idempotent: fundride marker)
         }
         if (roll) rollLine = `\n${renderRideRoll(roll)}`;
       } catch (e) {
@@ -285,12 +281,12 @@ export async function pushBookingUpdates(bot: Bot, dsOverride?: KasDataSource): 
       let questLine = "";
       try {
         const { dropDistrictBadge, mintItem } = await import("./itemService");
-        const f = await mintItem(m.id, "founder", { free: true });
-        if (f.ok) questLine += `
+        const f = await resilient("founder", () => mintItem(m.id, "founder", { free: true })); // idempotent: one-per-member
+        if (f?.ok) questLine += `
 🌟 <b>Asoschi nishoni</b> — birinchi 100 ichidasiz! (#${f.serial})`;
         // district from the finished ride's pickup (lastPickupId set at dispatch)
         if (m.lastPickupId && m.lastPickupName) {
-          const d = await dropDistrictBadge(m.id, m.lastPickupId, m.lastPickupName);
+          const d = await resilient("district", () => dropDistrictBadge(m.id, m.lastPickupId!, m.lastPickupName!)); // idempotent: marker
           if (d) questLine += `
 📍 Yangi tuman ochildi: <b>${d.name}</b> (${d.total}/10)${d.sayyoh ? " · 🗺 SAYYOH +5000!" : ""}`;
         }
@@ -307,7 +303,7 @@ export async function pushBookingUpdates(bot: Bot, dsOverride?: KasDataSource): 
       if (m.rideStartedAt) {
         try {
           const { earnForRide } = await import("./garageService");
-          const e = await earnForRide(m.id, m.lastBookingId, (Date.now() - m.rideStartedAt.getTime()) / 60_000);
+          const e = await resilient("garage", () => earnForRide(m.id, m.lastBookingId!, (Date.now() - m.rideStartedAt!.getTime()) / 60_000)); // idempotent: garage:<m>:<b>
           if (e) garageLine = `
 🚗 ${e.name} ishladi: <b>+${formatNumber(e.amount)}</b> tanga`;
         } catch (err) {
@@ -336,15 +332,13 @@ export async function pushBookingUpdates(bot: Bot, dsOverride?: KasDataSource): 
               });
               if ((today._sum.amount ?? 0) + rebate <= DRIVER_DAILY_BONUS_CAP) {
                 const { grantCoins } = await import("./coinService");
-                await grantCoins(driver.id, rebate, "driver_bonus", `Tier-bonus (${driver.driverTier})`, `driver_bonus:${m.id}:${m.lastBookingId}`);
+                await resilient("driver_bonus", () => grantCoins(driver.id, rebate, "driver_bonus", `Tier-bonus (${driver.driverTier})`, `driver_bonus:${m.id}:${m.lastBookingId}`)); // idempotent key
               }
             }
-            // quest progress: completed-count only
-            if (firstFinish) {
-              await resilient("drv_daily_5", () => incrementMission(driver.id, "drv_daily_5"));
-              await resilient("drv_weekly_25", () => incrementMission(driver.id, "drv_weekly_25"));
-              await resilient("drv_weekly_40", () => incrementMission(driver.id, "drv_weekly_40"));
-            }
+            // quest progress: completed-count only (idempotent per ride via rideKey)
+            await resilient("drv_daily_5", () => incrementMission(driver.id, "drv_daily_5", 1, `qinc:${driver.id}:drv_daily_5:${m.lastBookingId}`));
+            await resilient("drv_weekly_25", () => incrementMission(driver.id, "drv_weekly_25", 1, `qinc:${driver.id}:drv_weekly_25:${m.lastBookingId}`));
+            await resilient("drv_weekly_40", () => incrementMission(driver.id, "drv_weekly_40", 1, `qinc:${driver.id}:drv_weekly_40:${m.lastBookingId}`));
             // 🔧 XIII-1: random car part for the driver's completed ride
             try {
               const { dropCarPart } = await import("./itemService");

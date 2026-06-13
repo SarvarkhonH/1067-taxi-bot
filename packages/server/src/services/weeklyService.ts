@@ -18,9 +18,26 @@ import { dayKey, weekKey } from "./missionService";
 export type Notify = (telegramId: string, html: string) => Promise<void>;
 
 // ─── score ────────────────────────────────────────────────────────────────────
-export async function addScore(memberId: number, kind: ScoreKind): Promise<void> {
+export async function addScore(memberId: number, kind: ScoreKind, rideKey?: string): Promise<void> {
   const points = SCORE_VALUES[kind];
   const key = weekKey(new Date());
+  // rideKey: idempotent per ride (marker + increment in one tx). T4 finish-sweep.
+  if (rideKey) {
+    try {
+      await prisma.$transaction(async (tx) => {
+        await tx.appState.create({ data: { key: rideKey, value: "1" } }); // P2002 = already scored this ride
+        await tx.weeklyScore.upsert({
+          where: { memberId_weekKey: { memberId, weekKey: key } },
+          create: { memberId, weekKey: key, score: points },
+          update: { score: { increment: points } },
+        });
+      });
+    } catch (e) {
+      if ((e as { code?: string })?.code === "P2002") return; // already scored — idempotent
+      throw e; // transient → caller's resilient() retries
+    }
+    return;
+  }
   await prisma.weeklyScore.upsert({
     where: { memberId_weekKey: { memberId, weekKey: key } },
     create: { memberId, weekKey: key, score: points },

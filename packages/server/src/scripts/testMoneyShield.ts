@@ -9,6 +9,9 @@ import { atomicIncrement, pendingCreate, pendingScan, pendingResolve } from "../
 import { retryPendingMoney } from "../services/coinService";
 import { mintItem, buyListedItem, listItem, seedItemTypes } from "../services/itemService";
 import { makeOffer, acceptOffer } from "../services/tradeService";
+import { buyCar, earnForRide } from "../services/garageService";
+import { fundAddRide, fundTotal } from "../services/featureFlags";
+import { incrementMission } from "../services/missionService";
 
 const TAG = "shield-test";
 let failed = 0;
@@ -31,7 +34,9 @@ async function cleanup(): Promise<void> {
   await prisma.referral.deleteMany({ where: { OR: [{ refereeMemberId: { in: ids } }, { referrerId: { startsWith: TAG } }, { refereeId: { startsWith: TAG } }] } });
   await prisma.withdrawal.deleteMany({ where: { memberId: { in: ids } } });
   await prisma.appState.deleteMany({ where: { key: { startsWith: "pending:" } } });
-  await prisma.appState.deleteMany({ where: { key: { in: ["shield_atomic", "fundride:888901"] } } });
+  await prisma.appState.deleteMany({ where: { key: { in: ["shield_atomic", "fundride:888901", "fundride:950002"] } } });
+  await prisma.appState.deleteMany({ where: { key: { endsWith: ":950004" } } }); // qinc test marker
+  await prisma.memberCar.deleteMany({ where: { memberId: { in: ids } } });
   await prisma.itemType.deleteMany({ where: { code: "shield_test_t" } });
   await prisma.telegramUser.deleteMany({ where: { id: { startsWith: `${TAG}-tg` } } });
   await prisma.member.deleteMany({ where: { id: { in: ids } } });
@@ -41,6 +46,7 @@ async function main(): Promise<void> {
   await cleanup();
   await seedItemTypes();
   const jackpotBefore = (await prisma.appState.findUnique({ where: { key: "jackpot_pool" } }))?.value ?? null;
+  const fundBefore = (await prisma.appState.findUnique({ where: { key: "mashina_fund" } }))?.value ?? null; // global — restore at end
 
   const a = await prisma.member.create({ data: { type: "client", kasId: `${TAG}-A`, fullName: "Shield A", phone: "+998900011001", trips: 5 } });
   const b = await prisma.member.create({ data: { type: "client", kasId: `${TAG}-B`, fullName: "Shield B", phone: "+998900011002", trips: 5 } });
@@ -159,14 +165,44 @@ async function main(): Promise<void> {
   const reward = await import("../services/rewardService");
   ok(!("grantCashback" in reward), `1.1 legacy grantCashback o'chirilgan`);
 
+  // ── T4-OLDIN: resilient()-o'ralgan grant'lar IDEMPOTENT (2x → 1x) ─────────
+  // resilient() transient'da retry qiladi — agar grant idempotent bo'lmasa,
+  // retry double-to'laydi (T0.5 3.1 bug). Har o'ralgan grant 2x chaqirilib,
+  // 1x to'langani tasdiqlanadi.
+  await grantCoins(a.id, 10000, "manual", "garage-test seed");
+  await buyCar(a.id, "damas");
+  const gB = await bal(a.id);
+  await earnForRide(a.id, 950001, 10); // garage:<a>:950001 kaliti
+  await earnForRide(a.id, 950001, 10); // RETRY simulyatsiya — bir xil ride
+  ok((await bal(a.id)) - gB === 10, `garage earn 2x → 1x to'landi (damas 10daq=+10, double bo'lsa 20 bo'lardi; got ${(await bal(a.id)) - gB})`);
+
+  await prisma.appState.deleteMany({ where: { key: "fundride:950002" } }); // faqat marker (global fond TEGILMAYDI)
+  const fB = await fundTotal();
+  await fundAddRide(950002);
+  await fundAddRide(950002); // RETRY — bir xil booking
+  ok((await fundTotal()) - fB === 100, `fundAddRide 2x → +100 1x (got ${(await fundTotal()) - fB})`);
+
+  const dvB = await bal(b.id);
+  for (let i = 0; i < 2; i++) await grantCoins(b.id, 100, "driver_bonus", "tier", `driver_bonus:777:950003`); // RETRY
+  ok((await bal(b.id)) - dvB === 100, `driver_bonus 2x → 1x (+100, got ${(await bal(b.id)) - dvB})`);
+
+  // incrementMission rideKey: 2x bir xil ride → progress +1 (retry double-sanamaydi)
+  await prisma.appState.deleteMany({ where: { key: "qinc:0:daily_ride:950004" } });
+  await prisma.missionProgress.deleteMany({ where: { memberId: b.id, code: "daily_ride" } });
+  for (let i = 0; i < 2; i++) await incrementMission(b.id, "daily_ride", 1, `qinc:${b.id}:daily_ride:950004`); // RETRY
+  const mp = await prisma.missionProgress.findFirst({ where: { memberId: b.id, code: "daily_ride" } });
+  ok(mp?.progress === 1, `incrementMission rideKey 2x → progress 1 (double bo'lsa 2; got ${mp?.progress})`);
+
   // ── yakuniy ledger invariantlar ─────────────────────────────────────────
   for (const id of [a.id, b.id, poor.id]) {
     ok(Math.abs((await bal(id)) - (await ledger(id))) < 0.001, `ledger invariant (member ${id})`);
   }
 
-  // jonli jackpot poolni tiklash
+  // jonli jackpot + mashina-fond global holatini tiklash
   if (jackpotBefore === null) await prisma.appState.deleteMany({ where: { key: "jackpot_pool" } });
   else await prisma.appState.upsert({ where: { key: "jackpot_pool" }, update: { value: jackpotBefore }, create: { key: "jackpot_pool", value: jackpotBefore } });
+  if (fundBefore === null) await prisma.appState.deleteMany({ where: { key: "mashina_fund" } });
+  else await prisma.appState.upsert({ where: { key: "mashina_fund" }, update: { value: fundBefore }, create: { key: "mashina_fund", value: fundBefore } });
   await cleanup();
   await prisma.$disconnect();
   console.log(failed === 0 ? "\n🛡 PUL-QALQON: hamma tekshiruv o'tdi" : `\n❌ ${failed} FAILED`);
