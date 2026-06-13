@@ -11,7 +11,8 @@
 
 ## Jarayonda
 - T2 TEZLIK server-tomon BAJARILDI + live (Render). Telefon-o'lchovlari ko'chishdan keyin.
-- FLY.IO KO'CHIRISH BOSHLANDI: flyctl o'rnatildi (/tmp/flybin), token ishlaydi (org=personal), region=fra tanlandi. TO'SIQ: Fly billing — karta kerak (https://fly.io/dashboard/sarvarkhon-habibov/billing). Karta qo'shilgach: PG yaratish → Render'dan import → server deploy (Dockerfile+fly.toml) → secrets → sinov (botga tegmasdan) → cutover tasdiq → webhook+Vercel+Render to'xtatish.
+- DB → NEON KO'CHIRILDI (BEPUL, $0): ega bepul yo'lni tanladi (Fly pullik ekan). Neon (eu-central-1, doim-yoqiq, kartasiz) schema `db push` + 4045 satr ko'chirildi (Member 2526 = Render bilan bir xil, ledger drift 0). Render env DATABASE_URL + lokal .env → Neon. **2026-07-10 Postgres muddati MUAMMOSI HAL.** Web Render free'da qoldi (cold-start uyg'onish ekrani bilan). Eski Render PG fallback sifatida 07-10 gacha qoladi (o'chirilmaydi).
+- migrateToNeon.ts qayta ishlatsa bo'ladi. Neon string + Fly token /tmp da (commit emas) — EGA ROTATSIYA QILSIN.
 
 ## T2 O'LCHOVLAR (baseline-avval, jonli PG, shart-4)
 | Element | ESKI | YANGI | Isbot |
