@@ -19,6 +19,30 @@ function esc(s: string): string {
   return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 }
 
+// T3 fix: finish-sweep reward ops (quest increments, weekly score, ETA-guess)
+// used to `.catch(() => undefined)` — a transient Neon drop (P1001) SILENTLY
+// lost a real user's quest/ETA reward. Now: retry on transient, then LOG (never
+// silent). The ops are gated once-per-ride by the `ridefin:` marker, so retry
+// can't double-count.
+export function isTransient(e: unknown): boolean {
+  return /P10(01|08|17)|ECONNRESET|ETIMEDOUT|can't reach|connection|terminat|socket/i.test(String(e));
+}
+export async function resilient<T>(label: string, fn: () => Promise<T>): Promise<T | undefined> {
+  for (let i = 1; i <= 3; i++) {
+    try {
+      return await fn();
+    } catch (e) {
+      if (i < 3 && isTransient(e)) {
+        await new Promise((r) => setTimeout(r, 400 * i));
+        continue;
+      }
+      console.error(`[finish] ${label} failed (urinish ${i}/3):`, e instanceof Error ? e.message.split("\n")[0] : e);
+      return undefined;
+    }
+  }
+  return undefined;
+}
+
 interface CardCtx {
   queuePos?: number; // 1-based position among searching orders
   freeDrivers?: number;
@@ -225,11 +249,12 @@ export async function pushBookingUpdates(bot: Bot, dsOverride?: KasDataSource): 
         firstFinish = false;
       }
       if (firstFinish) {
-        await incrementMission(m.id, "daily_ride").catch(() => undefined);
-        await incrementMission(m.id, "weekly_rides").catch(() => undefined);
-        await import("./weeklyService")
-          .then((w) => w.addScore(m.id, "ride"))
-          .catch(() => undefined);
+        await resilient("daily_ride", () => incrementMission(m.id, "daily_ride"));
+        await resilient("weekly_rides", () => incrementMission(m.id, "weekly_rides"));
+        await resilient("addScore", async () => {
+          const w = await import("./weeklyService");
+          await w.addScore(m.id, "ride");
+        });
       }
 
       // freeze the card + stop the pin
@@ -274,7 +299,8 @@ export async function pushBookingUpdates(bot: Bot, dsOverride?: KasDataSource): 
       }
 
       // ⏱ ETA-guess resolution (uses the ride meter)
-      const guessLine = await resolveGuess(m.id, m.lastBookingId, m.rideStartedAt).catch(() => "");
+      // resolveGuess's grant is idempotent (grantRideCoins key) → retry-safe
+      const guessLine = (await resilient("guess", () => resolveGuess(m.id, m.lastBookingId!, m.rideStartedAt))) ?? "";
 
       // 🚗 Garaj earn — the equipped car worked while the ride ran
       let garageLine = "";
@@ -315,9 +341,9 @@ export async function pushBookingUpdates(bot: Bot, dsOverride?: KasDataSource): 
             }
             // quest progress: completed-count only
             if (firstFinish) {
-              await incrementMission(driver.id, "drv_daily_5").catch(() => undefined);
-              await incrementMission(driver.id, "drv_weekly_25").catch(() => undefined);
-              await incrementMission(driver.id, "drv_weekly_40").catch(() => undefined);
+              await resilient("drv_daily_5", () => incrementMission(driver.id, "drv_daily_5"));
+              await resilient("drv_weekly_25", () => incrementMission(driver.id, "drv_weekly_25"));
+              await resilient("drv_weekly_40", () => incrementMission(driver.id, "drv_weekly_40"));
             }
             // 🔧 XIII-1: random car part for the driver's completed ride
             try {

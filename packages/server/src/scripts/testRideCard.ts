@@ -183,12 +183,15 @@ async function attempt(): Promise<number> {
 
 // Remote Neon under load occasionally drops a connection mid-finish (P1001),
 // swallowed by the sweep's defensive .catch — a one-shot integration assert then
-// flakes. Retry up to 3x; a REAL bug fails all 3 deterministically (cleanup wipes
-// the ridefin marker + members between attempts, so each retry starts clean).
+// The production finish-sweep is now transient-resilient (resilient() retries +
+// logs), so an assert-fail here is a REAL bug — we NEVER retry on it (fail loud).
+// We retry ONLY a thrown CONNECTION error from setup/teardown (P1001), since that
+// is pure test-infra noise against remote Neon, not product behaviour.
+const isConnErr = (e: unknown): boolean =>
+  /P10(01|08|17)|ECONNRESET|ETIMEDOUT|can't reach|connection|terminat|socket/i.test(String(e));
+
 async function main(): Promise<void> {
-  // Neon free-tier suspends compute after ~5min idle; the first query then wakes
-  // it (~1-3s) and may time out. Prod never hits this (the 90s sweep keeps Neon
-  // warm), but a sporadic test run does — so WARM UP first, then run.
+  // Neon free-tier suspends compute after ~5min idle; wake it before the run.
   for (let w = 1; w <= 6; w++) {
     try {
       await prisma.$queryRaw`SELECT 1`;
@@ -199,21 +202,22 @@ async function main(): Promise<void> {
     }
   }
   let f = -1;
-  for (let i = 1; i <= 4; i++) {
+  for (let i = 1; i <= 3; i++) {
     try {
-      f = await attempt();
+      f = await attempt(); // assert-fails are COUNTED (returned), never thrown → no retry on them
+      break;
     } catch (e) {
-      f = -1; // thrown mid-run (almost always a Neon P1001 in an unguarded query)
-      console.log(`⚠️ urinish ${i} istisno otdi: ${(String(e).split("\n")[0] ?? "").slice(0, 70)}`);
-    }
-    if (f === 0) break;
-    if (i < 4) {
-      console.log(`⚠️ flaky (${f < 0 ? "throw" : f}) — qayta urinish ${i + 1}/4 (Neon transient)`);
-      await new Promise((r) => setTimeout(r, 2500));
+      // ONLY setup/teardown connection transients get a retry (owner rule #3)
+      if (isConnErr(e) && i < 3) {
+        console.log(`⚠️ setup/teardown P1001 (test-infra) — qayta urinish ${i + 1}/3: ${(String(e).split("\n")[0] ?? "").slice(0, 60)}`);
+        await new Promise((r) => setTimeout(r, 2500));
+        continue;
+      }
+      throw e; // assert-fails never reach here; a non-transient/final throw fails loud
     }
   }
   await prisma.$disconnect();
-  console.log(f === 0 ? "\n🎉 all ride-card checks passed" : `\n❌ ${f} FAILED (4 urinishda ham — REAL bug)`);
+  console.log(f === 0 ? "\n🎉 all ride-card checks passed" : `\n❌ ${f} FAILED (REAL — retry YO'Q)`);
   process.exit(f === 0 ? 0 : 1);
 }
 
