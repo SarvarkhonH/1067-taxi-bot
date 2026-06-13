@@ -458,10 +458,13 @@ export function createApiServer(opts: ApiOptions = {}) {
   };
 
   // ─── Uber-level booking (map + live tracking) ───────────────────────────────
-  app.get("/api/booking/info", requireUser, withMember(async (id) => {
+  app.get("/api/booking/info", requireUser, withMember(async (id, req) => {
     const { featureOn } = await import("../services/featureFlags");
-    const [info, booking3] = await Promise.all([getBookingInfo(id), featureOn("booking3")]);
-    return { ...info, booking3 };
+    const [info, flagOn] = await Promise.all([getBookingInfo(id), featureOn("booking3")]);
+    // Booking 3.0 ega-ko'z darvozasi: global flag OFF bo'lsa ham EGA yangi oqimni ko'radi
+    // (ilovani oddiy ochib — tasdiqdan oldin preview). QABUL → flag global ON → bu ahamiyatsiz.
+    const previewer = resolveTelegramId(req) === "6506297119";
+    return { ...info, booking3: flagOn || previewer };
   }));
   app.get("/api/booking/active", requireUser, withMember((id) => getActiveBookingFor(id)));
   app.post("/api/booking/search", requireUser, withMember((_id, req) => searchBookingAddress(String((req.body as { q?: string })?.q ?? ""))));
