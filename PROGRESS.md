@@ -10,7 +10,21 @@
 - Testlar: 15 suite (~250 tekshiruv) yashil. Deploy: Render + Vercel (bundle-grep isbotlangan).
 
 ## Jarayonda
-- T2 TEZLIK — REJA tasdig'i kutilmoqda (kod yozilmagan).
+- T2 TEZLIK — server-tomon BAJARILDI (deploy). Telefon-o'lchovlari RENDER QAROridan keyin (shart-1).
+
+## T2 O'LCHOVLAR (baseline-avval, jonli PG, shart-4)
+| Element | ESKI | YANGI | Isbot |
+|---|---|---|---|
+| rank query (/api/me, /liga) | 545 ms (2523 satr findMany + JS sort) | 274 ms (count-ahead, 1 int) | **−50%**, EXPLAIN: Index Only Scan (Member_type_points_idx), 12 satr ishlanadi |
+| /api/me round-trips | 5 ketma-ket await | 1 Promise.all | rank+total+streak+wheel+jackpot parallel |
+| miniapp asosiy chunk | 217 KB | 179.7 KB (jonli) | −38KB; market/rewards/driver/booking lazy chunk |
+| corpReport | xodim×2 so'rov (N+1) | 2 batch so'rov | testPlusGap yashil |
+| analytics sahifalash | 40 ketma-ket | 3-batch parallel | kas rate-limitiga ehtiyot |
+| sweep (faol safar) | 2 ketma-ket so'rov | 1 parallel | per-active-member |
+| har API javob | siqilmagan | gzip + ETag | compression middleware |
+| phone endsWith | seq-scan | seq-scan (o'zgarmadi) | HALOL: leading-wildcard btree'ni ishlatmaydi; 2526 satrda ~0ms; to'g'ri yechim (normallashtirilgan last-9) yozuv-yo'liga tegadi — kechiktirildi |
+
+⚠️ Telefon-raqamlari (bosh <1.5s, 2-ochilish <0.7s) Render free-tier cold-start tufayli hozir o'lchanmaydi — Render qaroridan keyin.
 
 ## Qarorlar jurnali
 - 2026-06-13: T1 dizayn EGA TOMONIDAN QABUL qilindi (premium 2026 qatlam bilan). T1 yopildi.
