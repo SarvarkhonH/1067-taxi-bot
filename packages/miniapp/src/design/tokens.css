@@ -312,6 +312,8 @@ body {
 
 /* topbar brand — nozik porlash */
 .brand-name b { text-shadow: 0 0 14px rgba(255, 179, 0, 0.5); }
+/* build-versiya stamp — kesh tekshiruvi uchun (yangi bundle yuklanganini ko'rsatadi) */
+.build-ver { font-size: 9px; font-weight: 700; color: var(--brand); opacity: 0.7; margin-left: 6px; letter-spacing: 0.3px; }
 
 /* prefers-reduced-motion: hamma harakat o'chadi */
 @media (prefers-reduced-motion: reduce) {

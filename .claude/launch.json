@@ -14,6 +14,12 @@
       "port": 4173
     },
     {
+      "name": "verify",
+      "runtimeExecutable": "pnpm",
+      "runtimeArgs": ["--filter", "@t1067/miniapp", "exec", "vite", "preview", "--port", "4199"],
+      "port": 4199
+    },
+    {
       "name": "admin",
       "runtimeExecutable": "pnpm",
       "runtimeArgs": ["--filter", "@t1067/admin", "dev"],
