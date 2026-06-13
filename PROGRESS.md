@@ -10,9 +10,10 @@
 - Testlar: 15 suite (~250 tekshiruv) yashil. Deploy: Render + Vercel (bundle-grep isbotlangan).
 
 ## Jarayonda
-- T1 DEPLOY QILINDI — EGA TASDIG'I KUTILMOQDA ("dizayn QABUL" demaguncha T2 boshlanmaydi). Revert bir buyruq bilan sinab qo'yilgan: git revert --no-edit ae243eee9f89519da778cdec341834f7c00b7f92^..HEAD
+- T2 TEZLIK — REJA tasdig'i kutilmoqda (kod yozilmagan).
 
 ## Qarorlar jurnali
+- 2026-06-13: T1 dizayn EGA TOMONIDAN QABUL qilindi (premium 2026 qatlam bilan). T1 yopildi.
 - T0.5 EGA QARORLARI: AUDIT 1.1 grantCashback O'CHIRILDI; 1.2 market/shop endpoint QOLDI (T7 da UI) — komentariy qo'yildi.
 - T0.5: referral idem-kalitlarga bookingId ATAYIN QO'SHILMADI — paidAt yiqilib keyingi safarda yangi kalit double-pay ochardi; per-referral kalit = exactly-once, konvergensiya testda isbotlandi.
 - T0.5: pending-marker retry 5 urinish → stuck + egaga TG alert; retry-tick har markerni alohida try/catch da (bitta buzuq marker tickni yiqitmaydi).
