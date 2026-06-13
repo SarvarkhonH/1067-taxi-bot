@@ -12,6 +12,9 @@
 ## Jarayonda
 - T2 TEZLIK server-tomon BAJARILDI + live (Render). Telefon-o'lchovlari ko'chishdan keyin.
 - DB → NEON KO'CHIRILDI (BEPUL, $0): ega bepul yo'lni tanladi (Fly pullik ekan). Neon (eu-central-1, doim-yoqiq, kartasiz) schema `db push` + 4045 satr ko'chirildi (Member 2526 = Render bilan bir xil, ledger drift 0). Render env DATABASE_URL + lokal .env → Neon. **2026-07-10 Postgres muddati MUAMMOSI HAL.** Web Render free'da qoldi (cold-start uyg'onish ekrani bilan). Eski Render PG fallback sifatida 07-10 gacha qoladi (o'chirilmaydi).
+- CUTOVER-DELTA (2026-06-13): Render PG vs Neon — 35 jadval row-count solishtirildi. **delta: 0 satr** (ikkala baza aynan bir xil; migratsiya↔env-flip oynasida yozuv bo'lmagan — isbotlandi, taxmin emas). Reconcile shart emas.
+- DEPLOY-ZANJIR TASDIQLANDI: (1) git origin/main barcha T1+premium commitlar bor, HEAD sinxron; (2) Vercel prod "Ready" (prebuilt, alias 1067taxi-miniapp.vercel.app); (3) bot menyu web_app URL = o'sha alias (eskirmagan); (4) @koson1067bot, Render BOT_TOKEN == .env (chalkashlik yo'q; rotate qilingan FLY tokeni, bot tokeni emas); (5) jonli bundle = premium (feTurbulence/52px/cta-shine grep=1) — server yangi, telefon keshini tozalash uchun miniapp'ni to'liq yopib qayta ochish kerak.
+- ⚠️ NEON PAROL ROTATSIYASI: ega "<...>" placeholder yubordi — haqiqiy yangi parol KELMADI. Eski parol hali ishlaydi (prod sog'lom). Yangi parol kelganda env'lar yangilanadi.
 - NEON POOLER: runtime DATABASE_URL=pooled host (-pooler), migratsiya DIRECT_URL=direct host; schema'da directUrl qo'shildi (Prisma+Neon tavsiyasi, free-tier ulanish-limitidan himoya). Render env + .env yangilandi.
 - migrateToNeon.ts qayta ishlatsa bo'ladi. Neon string + Fly token /tmp da (commit emas) — EGA ROTATSIYA QILSIN.
 
