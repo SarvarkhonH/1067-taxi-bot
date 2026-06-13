@@ -10,7 +10,8 @@
 - Testlar: 15 suite (~250 tekshiruv) yashil. Deploy: Render + Vercel (bundle-grep isbotlangan).
 
 ## Jarayonda
-- T2 TEZLIK — server-tomon BAJARILDI (deploy). Telefon-o'lchovlari RENDER QAROridan keyin (shart-1).
+- T2 TEZLIK server-tomon BAJARILDI + live (Render). Telefon-o'lchovlari ko'chishdan keyin.
+- FLY.IO KO'CHIRISH BOSHLANDI: flyctl o'rnatildi (/tmp/flybin), token ishlaydi (org=personal), region=fra tanlandi. TO'SIQ: Fly billing — karta kerak (https://fly.io/dashboard/sarvarkhon-habibov/billing). Karta qo'shilgach: PG yaratish → Render'dan import → server deploy (Dockerfile+fly.toml) → secrets → sinov (botga tegmasdan) → cutover tasdiq → webhook+Vercel+Render to'xtatish.
 
 ## T2 O'LCHOVLAR (baseline-avval, jonli PG, shart-4)
 | Element | ESKI | YANGI | Isbot |
