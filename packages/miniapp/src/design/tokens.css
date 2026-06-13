@@ -334,7 +334,8 @@ body {
 .b3-result:active { background: var(--surface); }
 .b3-chips { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 4px; }
 .b3-picked { display: flex; align-items: center; gap: 6px; font-size: 15px; padding: 4px 0 10px; }
-.b3-change { margin-left: auto; background: none; border: 0; color: var(--brand); font-size: 12px; cursor: pointer; }
+.b3-picked b { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.b3-change { margin-left: auto; background: none; border: 0; color: var(--text-dim); font-size: 12px; cursor: pointer; text-decoration: underline; }
 .b3-fare { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-card); padding: 12px; }
 .b3-fare-row { display: flex; justify-content: space-between; align-items: center; font-size: 15px; }
 .b3-fare-row b { font-size: 18px; }

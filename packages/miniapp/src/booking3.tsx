@@ -8,7 +8,7 @@ import maplibregl from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
 import { formatNumber, type BookingInfoResponse, type MeResponse, type SavedAddressView } from "@t1067/shared";
 import { api } from "./api";
-import { haptic } from "./telegram";
+import { haptic, tg } from "./telegram";
 import { confetti } from "./util";
 import { Button, Sheet, Skeleton } from "./design/components";
 
@@ -33,7 +33,12 @@ export function Booking3View({ me, onClose }: { me: MeResponse; onClose: () => v
           setErrored(true);
           return;
         }
-        if (r.booking3 === false) setFlagOff(true); // kill-switch → classic flow
+        // preview override: ?b3=1 (browser) or Telegram startapp=b3 lets the owner see the
+        // new flow on a real phone while everyone else stays on classic (global flag OFF).
+        const forceB3 =
+          new URLSearchParams(location.search).get("b3") === "1" ||
+          (tg as { initDataUnsafe?: { start_param?: string } } | undefined)?.initDataUnsafe?.start_param === "b3";
+        if (r.booking3 === false && !forceB3) setFlagOff(true); // kill-switch → classic flow
         setInfo(r);
       })
       .catch(() => alive && setErrored(true));
@@ -54,7 +59,7 @@ export function Booking3View({ me, onClose }: { me: MeResponse; onClose: () => v
     return (
       <div className="bk-screen">
         <div className="bk-bar"><button className="btn-ghost bk-back" onClick={onClose}>←</button><div className="bk-title">🚖 Taxi</div></div>
-        <div className="d-empty"><div className="d-empty-ico">📡</div><p>Yuklanmadi — internetni tekshirib qayta urinib ko'ring</p><Button onClick={() => location.reload()}>🔄 Qayta urinish</Button></div>
+        <div className="d-empty"><div className="d-empty-ico">📡</div><p>Yuklanmadi — internetni tekshirib qayta urinib ko'ring</p><Button variant="ghost" onClick={() => location.reload()}>🔄 Qayta urinish</Button></div>
       </div>
     );
   }
@@ -85,7 +90,6 @@ function Booking3Inner({ me, info, onClose }: { me: MeResponse; info: BookingInf
   const [searching, setSearching] = useState(false);
   const [predict, setPredict] = useState<{ avg: number; byAddress?: { avg: number; rides: number } | null } | null>(null);
   const [freeDrivers, setFreeDrivers] = useState(0);
-  const [queuePos, setQueuePos] = useState<number | null>(null);
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
 
@@ -173,7 +177,6 @@ function Booking3Inner({ me, info, onClose }: { me: MeResponse; info: BookingInf
       if (a?.driver) {
         setMsg(`✅ Haydovchi tayinlandi: ${a.driver.carModel} · ${a.driver.carNumber}`);
       }
-      setQueuePos((p) => (p == null ? 2 : p)); // honest-ish position (kas gives no exact queue)
     };
     tick();
     const t = setInterval(tick, 30_000);
@@ -220,7 +223,6 @@ function Booking3Inner({ me, info, onClose }: { me: MeResponse; info: BookingInf
     haptic();
     await api.bookingCancel().catch(() => undefined);
     setScreen("map");
-    setQueuePos(null);
     setMsg(null);
     setBusy(false);
   };
@@ -267,7 +269,7 @@ function Booking3Inner({ me, info, onClose }: { me: MeResponse; info: BookingInf
                 ))}
               </div>
               {info.quickPickup && (
-                <Button className="mt8" onClick={() => choose(info.quickPickup!)}>🚕 1 bosishda: {info.quickPickup.name}</Button>
+                <Button variant="ghost" className="mt8" onClick={() => choose(info.quickPickup!)}>🚕 1 bosishda: {info.quickPickup.name}</Button>
               )}
             </>
           )}
@@ -300,7 +302,7 @@ function Booking3Inner({ me, info, onClose }: { me: MeResponse; info: BookingInf
           <div className="b3-radar"><span /><span /><span />🚕</div>
           <div className="b3-search-title">🔍 Haydovchi qidirilyapti…</div>
           <div className="dim tac fs13">
-            {queuePos ? `Navbatda ~${queuePos}-chi · ` : ""}🚖 {freeDrivers} bo'sh mashina · ~4 daqiqa
+            {freeDrivers > 0 ? `🚖 ${freeDrivers} bo'sh mashina yaqinda · ` : ""}haydovchi javobini kutmoqda…
           </div>
           <Button variant="danger" disabled={busy} onClick={cancel}>✖ Bekor qilish</Button>
         </div>

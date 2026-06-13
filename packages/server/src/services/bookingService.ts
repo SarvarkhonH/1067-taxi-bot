@@ -70,6 +70,14 @@ export async function getBookingInfo(memberId: number): Promise<BookingInfoRespo
     getQuickPickup(memberId).catch(() => null),
   ]);
   const saved: SavedAddressView[] = (client?.addresses ?? []).map((a) => ({ id: a.id, name: a.name, lat: a.lat, lng: a.lng, surcharge: a.surcharge }));
+  // T4: the default-pickup branch of getQuickPickup carries no coords (no schema column for it);
+  // resolve them from the freshly-fetched saved list so the 1-tap pin-drop + recenter work.
+  let quick = quickPickup;
+  if (quick && (quick.lat == null || quick.lng == null)) {
+    const qid = quick.id;
+    const hit = saved.find((a) => a.id === qid);
+    if (hit) quick = { ...quick, lat: hit.lat, lng: hit.lng };
+  }
   return {
     clientName: client?.clientName ?? who.name,
     serviceArea: area.map((p) => ({ lat: p.lat, lng: p.lng })),
@@ -81,7 +89,7 @@ export async function getBookingInfo(memberId: number): Promise<BookingInfoRespo
     bonusBalance: who.bonus,
     bookingLive: env.bookingLive,
     active: toView(active),
-    quickPickup,
+    quickPickup: quick,
   };
 }
 
@@ -104,6 +112,16 @@ export async function estimateFare(pickup: GeoPt, dest: GeoPt, surcharge = 0): P
 export async function createBookingFor(memberId: number, body: BookingCreateBody, source = "miniapp"): Promise<BookingCreateResponse> {
   const who = await phoneOf(memberId);
   if (!who) return { ok: false, live: false, message: "Telefon raqami topilmadi" };
+
+  // T4 (money-shield): server-side double-dispatch guard. The miniapp `busy` flag does NOT
+  // survive a reload / second tab / slow double-tap; phantom dispatches waste real drivers
+  // (our moat). Mirrors the hardened 1-tap path (callOneTapFor). No coins are minted here.
+  const active = await getActiveBookingFor(memberId);
+  if (active) return { ok: false, live: env.bookingLive, message: "Sizda faol buyurtma bor" };
+  const throttle = await prisma.member.findUnique({ where: { id: memberId }, select: { lastBookingAt: true } });
+  if (throttle?.lastBookingAt && Date.now() - throttle.lastBookingAt.getTime() < ONE_TAP_THROTTLE_MS) {
+    return { ok: false, live: env.bookingLive, message: "Hozirgina buyurtma yuborilgan — bir daqiqa kuting" };
+  }
 
   // add-ons + per-address surcharge → additionalPayment
   let additionalPayment = 0;
