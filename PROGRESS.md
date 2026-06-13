@@ -40,7 +40,9 @@ EGA-KO'Z DARVOZASI: ega real render'ni KO'RIB "QABUL" demaguncha T5 BOSHLANMAYDI
 - Miniapp Vercel prebuilt → `https://1067taxi-miniapp.vercel.app` LIVE. Bundle-grep tasdiq: yangi hash, "javobini kutmoqda" bor, "~4 daqiqa" yo'q, .b3-change=--text-dim, override bor.
 - `feature:booking3` = **off** (tasdiqlangan) → hamma klassik; ega `?b3=1` bilan ko'radi.
 
-**QOLGAN — FAQAT EGA QABULI:** ega `t.me/...startapp=b3` yoki miniapp `?b3=1` bilan E1-E4 ni telefonda ko'radi → "QABUL" → keyin `feature:booking3`=on (global) + T5 boshlanadi. QABUL'gacha T5 YO'Q.
+**EGA-PREVIEW MEXANIZMI (ishonchli):** `/api/booking/info` EGA (tg 6506297119) uchun `booking3:true` qaytaradi (flag OFF bo'lsa ham) → ega ilovani ODDIY ochib (⊞/🚀) yangi oqimni ko'radi; boshqalar klassik. (Deep-link/`?b3=1` override ham kodda bor, lekin menyu-tugma startapp uzatmaydi, shuning uchun server owner-check asosiy.) FRA LIVE (commit 61ebf1e).
+
+**QOLGAN — FAQAT EGA QABULI:** ega ilovani ochib E1-E4 ni telefonda ko'radi → "QABUL" → keyin `feature:booking3`=on (global, hammaga) + T5 boshlanadi. QABUL'gacha T5 YO'Q.
 
 **XAVF/HALOL:** MapLibre 1MB chunk past-Android'da og'ir → flag OFF Leaflet fallback saqlanadi. kas pickup-only → marshrut yo'q (halol izoh). pay-with-bonus DEAD END → toggle yo'q. Pinlar: kas faol haydovchilarga koordinata bermaydi (freeDrivers soni real, lekin xaritada harakatlanuvchi pin yo'q — hozircha halol).
 
