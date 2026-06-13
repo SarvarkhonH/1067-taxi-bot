@@ -52,9 +52,16 @@ async function buildMe(member: Member, achievements: MemberAchievement[]): Promi
   const xp = computeXp({ points: member.points, trips: member.trips });
   const lp = levelForXp(xp);
 
-  const sameType = await prisma.member.findMany({ where: { type }, select: { id: true, points: true } });
-  const sorted = [...sameType].sort((a, b) => b.points - a.points);
-  const rank = sorted.findIndex((x) => x.id === member.id) + 1 || null;
+  // T2 (AUDIT 2.1 + 2.10): rank/total via indeksli COUNT (butun jadval emas),
+  // streak/wheel/jackpot bilan birga PARALLEL — 5 ketma-ket so'rov → 1 to'lqin.
+  const [ahead, totalMembers, streak, wheelAvailable, jackpot] = await Promise.all([
+    prisma.member.count({ where: { type, points: { gt: member.points } } }),
+    prisma.member.count({ where: { type } }),
+    getStreak(member.id),
+    canSpinWheel(member.id),
+    getJackpot(),
+  ]);
+  const rank = ahead + 1;
 
   const earnedMap = new Map(achievements.map((a) => [a.code, a.earnedAt]));
   const badges = badgesForType(type).map((b) => ({
@@ -81,11 +88,11 @@ async function buildMe(member: Member, achievements: MemberAchievement[]): Promi
     xpForNext: lp.xpForNext,
     progress: lp.progress,
     rank,
-    totalMembers: sameType.length,
+    totalMembers,
     badges,
-    streak: await getStreak(member.id),
-    wheelAvailable: await canSpinWheel(member.id),
-    jackpot: await getJackpot(),
+    streak,
+    wheelAvailable,
+    jackpot,
     coins: member.coins,
     leagueTier: member.leagueTier,
   };

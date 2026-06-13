@@ -64,6 +64,8 @@ model Member {
 
   @@unique([type, kasId])
   @@index([type, points])
+  @@index([type, carNumber]) // T2: driver-by-car lookup in ride finish (AUDIT 2.4)
+  @@index([phone]) // T2: endsWith phone lookups — corp/transfer/360 (AUDIT 2.5)
 }
 
 // Daily/weekly quests. Definitions live in shared/missions.ts; this tracks
@@ -199,6 +201,7 @@ model RideReward {
 
   @@unique([memberId, bookingId])
   @@index([memberId, createdAt])
+  @@index([createdAt]) // T2: cross-member monthly counts — corp/gap (AUDIT 2.11)
 }
 
 // In-ride wheel: ONE spin per real ride (bookingId), only while the booking is
