@@ -55,6 +55,9 @@ export interface BookingDriver {
   rating: number;
   lat: number;
   lng: number;
+  bearing?: number; // C: heading (deg) for the rotating car marker
+  meterPayment?: number; // C: live taximeter running fare (so'm)
+  meterDistance?: number; // C: live taximeter distance (m)
 }
 
 export interface ActiveBooking {

@@ -52,6 +52,8 @@ function toView(
           rating: b.driver.rating,
           lat: b.driver.lat,
           lng: b.driver.lng,
+          bearing: b.driver.bearing,
+          meterPayment: b.driver.meterPayment,
         }
       : null,
   };

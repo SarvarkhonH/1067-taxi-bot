@@ -22,6 +22,8 @@ async function main(): Promise<void> {
     ok(a?.notifiedCount === 3, `notifiedCount passes through (carNumberList → ${a?.notifiedCount}) — honest "N haydovchiga yuborildi"`);
     ok(!!a?.driver, `driver present → "accepted" shown ONLY when a driver actually took it`);
     ok(a?.driver?.carNumber === "01A777AA", `assigned carNumber: ${a?.driver?.carNumber}`);
+    ok(a?.driver?.bearing === 120, `C: driver bearing passes through (rotating marker) → ${a?.driver?.bearing}`);
+    ok(a?.driver?.meterPayment === 8400, `C: live taximeter passes through (real running fare) → ${a?.driver?.meterPayment}`);
     ok((a?.statusLabel?.length ?? 0) > 0, `status→label mapped: "${a?.statusLabel}"`);
     // status→label mapping spans the real lifecycle
     ok(bookingStatusLabel("new").includes("qidirilyapti"), `new → searching`);

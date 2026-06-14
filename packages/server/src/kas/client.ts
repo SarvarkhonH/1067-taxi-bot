@@ -386,6 +386,9 @@ export class KasLiveSource implements KasDataSource {
         rating: num(d.bookingRating) || num(d.companyRating),
         lat: num(d.latitude),
         lng: num(d.longitude),
+        bearing: num(d.bearing),
+        meterPayment: num(d.taximeterPayment),
+        meterDistance: num(d.taximeterDistance),
       };
     } catch {
       return null;
@@ -418,6 +421,9 @@ export class KasLiveSource implements KasDataSource {
           rating: num(d.bookingRating) || num(d.companyRating),
           lat: num(d.latitude),
           lng: num(d.longitude),
+          bearing: num(d.bearing),
+          meterPayment: num(d.taximeterPayment),
+          meterDistance: num(d.taximeterDistance),
         };
       } catch {
         /* driver lookup is best-effort */

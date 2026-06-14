@@ -354,6 +354,9 @@ body {
 .b3-search-title { text-align: center; font-weight: 800; font-size: 16px; margin-bottom: 4px; }
 /* live car pins */
 .b3-pin { font-size: 22px; filter: drop-shadow(0 2px 3px rgba(0,0,0,.6)); transition: transform .6s linear; }
+/* C: assigned driver — glide position between polls; inner span rotates by bearing */
+.b3-carpin { font-size: 28px; transition: transform .9s linear; }
+.b3-carpin-i { display: inline-block; filter: drop-shadow(0 2px 4px rgba(0,0,0,.7)); transition: transform .9s linear; }
 .b3-pin.busy { opacity: .55; }
 .b3-pickpin { font-size: 30px; filter: drop-shadow(0 2px 4px rgba(255,179,0,.8)); }
 

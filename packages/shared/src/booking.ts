@@ -37,6 +37,8 @@ export interface BookingDriverView {
   rating: number;
   lat: number;
   lng: number;
+  bearing?: number; // C: heading (deg) for the rotating car marker
+  meterPayment?: number; // C: live taximeter running fare (so'm)
 }
 
 export interface ActiveBookingView {

@@ -110,6 +110,7 @@ function Booking3Inner({ me, info, onClose }: { me: MeResponse; info: BookingInf
   const map = useRef<maplibregl.Map | null>(null);
   const pinMarkers = useRef<maplibregl.Marker[]>([]);
   const pickMarker = useRef<maplibregl.Marker | null>(null);
+  const driverMarker = useRef<maplibregl.Marker | null>(null);
   const [mapOk] = useState(webglOk); // WebGL available? (computed once)
   const [mapFailed, setMapFailed] = useState(false); // style/CDN failed to load
 
@@ -184,6 +185,25 @@ function Booking3Inner({ me, info, onClose }: { me: MeResponse; info: BookingInf
     map.current.easeTo({ center: [pickup.lng, pickup.lat], zoom: 15, duration: 500 });
   }, [pickup]);
 
+  // ── C: live assigned-driver car marker — moves toward you + rotates by bearing ──
+  useEffect(() => {
+    const d = active?.driver;
+    if (!map.current || !d?.lat || !d?.lng) {
+      if (driverMarker.current) { driverMarker.current.remove(); driverMarker.current = null; }
+      return;
+    }
+    if (!driverMarker.current) {
+      const el = document.createElement("div");
+      el.className = "b3-carpin"; // CSS transition glides the position between polls
+      el.innerHTML = '<span class="b3-carpin-i">🚖</span>';
+      driverMarker.current = new maplibregl.Marker({ element: el }).setLngLat([d.lng, d.lat]).addTo(map.current);
+    } else {
+      driverMarker.current.setLngLat([d.lng, d.lat]);
+    }
+    const inner = driverMarker.current.getElement().querySelector(".b3-carpin-i") as HTMLElement | null;
+    if (inner && typeof d.bearing === "number") inner.style.transform = `rotate(${d.bearing}deg)`;
+  }, [active?.driver?.lat, active?.driver?.lng, active?.driver?.bearing]);
+
   // ── E4 honest queue while searching ─────────────────────────────────────
   useEffect(() => {
     if (screen !== "searching") return;
@@ -193,7 +213,7 @@ function Booking3Inner({ me, info, onClose }: { me: MeResponse; info: BookingInf
       setActive(a); // B: real status — searching → accepted (only when a driver actually takes it) → arrived
     };
     tick();
-    const t = setInterval(tick, 30_000);
+    const t = setInterval(tick, 12_000); // C: faster poll → smooth live car tracking + meter
     return () => clearInterval(t);
   }, [screen]);
 
@@ -339,6 +359,9 @@ function Booking3Inner({ me, info, onClose }: { me: MeResponse; info: BookingInf
                     : "🚖 Haydovchi yo'lda"}
                 {active.etaMin ? ` · ~${active.etaMin} daq` : ""}
               </div>
+              {active.driver.meterPayment ? (
+                <div className="b3-fare-row mt8"><span>🧮 Hisoblagich (jonli)</span><b>{formatNumber(active.driver.meterPayment)} so'm</b></div>
+              ) : null}
             </>
           ) : (
             // searching — no driver yet; show the honest notified count, never "accepted"

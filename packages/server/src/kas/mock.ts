@@ -171,6 +171,9 @@ export class KasMockSource implements KasDataSource {
         rating: 4.8,
         lat: 39.0343,
         lng: 65.5703,
+        bearing: 120,
+        meterPayment: 8400,
+        meterDistance: 1500,
       },
       notifiedCount: 3,
     };
