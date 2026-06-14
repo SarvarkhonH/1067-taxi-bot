@@ -80,10 +80,10 @@ async function flagMember(memberId: number, note: string): Promise<void> {
 export async function reconciliationWatch(): Promise<void> {
   const r = await getIntegrity();
   if (r.driftCount > 0) {
-    await alertAdmins(`⚠️ <b>Pul drift!</b> ${r.driftCount} hisobda nomuvofiqlik (jami ${r.driftTotal.toLocaleString("ru-RU")} coin). Admin → Jurnal/Integrity.`);
+    await alertAdmins(`⚠️ <b>Pul drift!</b> ${r.driftCount} hisobda nomuvofiqlik (jami ${r.driftTotal.toLocaleString("ru-RU")} tanga). Admin → Jurnal/Integrity.`);
   }
   for (const a of r.anomalies) {
-    await alertAdmins(`🚨 Anomaliya: <b>${a.member}</b> 24s ichida +${a.gain24h.toLocaleString("ru-RU")} coin yutdi (chegara ${r.anomalyThreshold.toLocaleString("ru-RU")}).`);
+    await alertAdmins(`🚨 Anomaliya: <b>${a.member}</b> 24s ichida +${a.gain24h.toLocaleString("ru-RU")} tanga yutdi (chegara ${r.anomalyThreshold.toLocaleString("ru-RU")}).`);
   }
 
   const since = new Date(Date.now() - 24 * 3600 * 1000);
@@ -93,7 +93,7 @@ export async function reconciliationWatch(): Promise<void> {
     where: { type: "client", trips: 0, coins: { gte: 50_000 }, riskFlag: false },
     select: { id: true, coins: true },
   });
-  for (const m of rich) await flagMember(m.id, `safarısız ${Math.floor(m.coins)} coin`);
+  for (const m of rich) await flagMember(m.id, `safarısız ${Math.floor(m.coins)} tanga`);
 
   // transfer fan-in: ≥5 distinct senders → one recipient in 24h (mule funnel)
   const inflows = await prisma.transfer.groupBy({

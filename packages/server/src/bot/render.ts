@@ -13,6 +13,7 @@ import {
   type ReferralResponse,
   type WeeklyBoardResponse,
 } from "@t1067/shared";
+import type { CheckInResult, WheelResult } from "../services/rewardService";
 
 function esc(s: string): string {
   return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
@@ -198,8 +199,8 @@ export function renderMissions(m: MissionsResponse, box?: BoxStatusResponse): st
   const claimable = [...m.daily, ...m.weekly].filter((x) => x.claimable).length;
   const head =
     claimable > 0
-      ? `🎯 <b>Topshiriqlar</b> — ${claimable} ta mukofot tayyor! 🎁`
-      : `🎯 <b>Topshiriqlar</b>`;
+      ? `🎯 <b>Vazifalar</b> — ${claimable} ta mukofot tayyor! 🎁`
+      : `🎯 <b>Vazifalar</b>`;
   return (
     `${head}\n\n` +
     `📅 <b>Kunlik</b>\n${m.daily.map(missionLine).join("\n")}\n\n` +
@@ -239,4 +240,59 @@ export function renderEarnPush(delta: number, total: number, type: MemberType): 
       ? `🎉 <b>+${formatNumber(delta)} so'm</b> cashback oldingiz!`
       : `💵 <b>+${formatNumber(delta)} so'm</b> balansingizga qo'shildi!`;
   return `${head}\n\n💰 Jami: <b>${formatNumber(total)} so'm</b>\n\nBatafsil: /me`;
+}
+
+// ── moved from bot.ts (T3 G5: centralize user-facing text in render.ts) ──
+
+export function renderCheckIn(r: CheckInResult): string {
+  if (r.alreadyChecked) {
+    let s = `🔥 <b>Streak: ${r.current} kun</b>\n\nBugun allaqachon belgilangansiz ✅\nErtaga yana keling — streak'ni uzmang!`;
+    if (r.next) s += `\n\n🎯 ${r.next.day}-kunda: <b>+${formatNumber(r.next.reward)} tanga</b>`;
+    return s;
+  }
+  let s = `🔥 <b>Streak: ${r.current} kun!</b>\n`;
+  if (r.rewardAmount > 0) {
+    s += `\n🎉 <b>+${formatNumber(r.rewardAmount)} tanga!</b>${r.rewardApplied ? " — hamyoningizga tushdi 🪙" : ""}`;
+  } else {
+    s += `\nDavom eting — har kun streak o'sadi 💪`;
+  }
+  if (r.next) s += `\n\n🎯 Keyingi mukofot: ${r.next.day}-kun → <b>+${formatNumber(r.next.reward)} tanga</b>`;
+  return s;
+}
+
+export function renderWheel(r: WheelResult): string {
+  const pool = `\n\n🎰 JACKPOT hozir: <b>${formatNumber(r.jackpot)} tanga</b> — har safar uni oshiradi!`;
+  if (r.noRide) {
+    return `🎡 <b>Omad g'ildiragi endi SAFAR ICHIDA aylanadi!</b>\n\nTaxi chaqiring — mashinada ketayotganingizda aylantirasiz. Har spin YUTADI! 🚕${pool}`;
+  }
+  if (r.alreadySpun) {
+    return `🎡 Bu safarning spini ishlatilgan.\nYutuq: ${r.prize.emoji} <b>${esc(r.prize.label)}</b>\n\nKeyingi safarda yana aylantirasiz! 🚕${pool}`;
+  }
+  if (r.prize.label.startsWith("JACKPOT")) {
+    return `🎰🎰🎰 <b>JACKPOT!!!</b> 🎰🎰🎰\n\n💥 <b>+${formatNumber(r.prize.amount)} tanga</b>${r.applied ? " — hamyoningizga tushdi 🪙" : ""}!\n\nButun jamg'arma sizniki bo'ldi! 👑${pool}`;
+  }
+  return `🎉 ${r.prize.emoji} <b>${esc(r.prize.label)}!</b>\n\n+${formatNumber(r.prize.amount)} tanga${r.applied ? " — hamyoningizga tushdi 🪙" : ""}!${pool}`;
+}
+
+/** Driver earnings panel (text). */
+export function renderDriverPanel(coins: number, e: { todayIn: number; totalIn: number; txns: { amount: number; reason: string }[] }): string {
+  const txnLines = e.txns
+    .slice(0, 6)
+    .map((t) => `  ${t.amount > 0 ? "➕" : "➖"} ${formatNumber(Math.abs(t.amount))} — ${esc(t.reason)}`)
+    .join("\n");
+  return (
+    `🚗 <b>Haydovchi paneli</b>\n\n` +
+    `🪙 Tanga balans: <b>${formatNumber(coins)}</b>\n` +
+    `📈 Bugun tushdi: <b>+${formatNumber(e.todayIn)}</b>\n` +
+    `💼 Jami tushum (tip/o'tkazma): <b>${formatNumber(e.totalIn)}</b>\n` +
+    (txnLines ? `\n📜 Oxirgi amallar:\n${txnLines}\n` : "") +
+    `\n💸 Tangalarni so'mga yechish — «🚀 Ilova» → Hamyon.\n🙏 Mijozlar safardan keyin sizga tanga bilan rahmat ayta oladi.`
+  );
+}
+
+/** Badges screen (text). */
+export function renderBadges(me: MeResponse): string {
+  const lines = me.badges.map((b) => `${b.earned ? b.emoji : "🔒"} <b>${esc(b.name)}</b> — ${b.earned ? "olingan ✅" : esc(b.description)}`);
+  const earned = me.badges.filter((b) => b.earned).length;
+  return `🎖 <b>Nishonlar</b> (${earned}/${me.badges.length})\n\n${lines.join("\n")}`;
 }

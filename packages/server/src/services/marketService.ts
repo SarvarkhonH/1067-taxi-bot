@@ -204,7 +204,7 @@ export async function settleShopsWeekly(): Promise<void> {
     const { alertAdmins } = await import("./economyService");
     if (ok) {
       await prisma.shopOrder.updateMany({ where: { id: { in: unsettled.map((o) => o.id) } }, data: { settledAt: new Date() } });
-      await alertAdmins(`🏪 Bozor settle: <b>${shop.name}</b> — ${unsettled.length} vaucher, ${volume} coin → <b>${payout} so'm</b> (spread ${Math.round(shop.spread * 100)}%)`).catch(() => undefined);
+      await alertAdmins(`🏪 Bozor settle: <b>${shop.name}</b> — ${unsettled.length} vaucher, ${volume} tanga → <b>${payout} so'm</b> (spread ${Math.round(shop.spread * 100)}%)`).catch(() => undefined);
     } else {
       // release the reserved bozor budget — the kas write didn't happen
       await prisma.$executeRaw`
@@ -259,6 +259,6 @@ export async function redeemVoucher(code: string, byPhone?: string): Promise<{ o
   if (flipped.count === 0) return { ok: false, reason: "already" };
   const listing = await prisma.listing.findUnique({ where: { id: order.listingId } });
   const { alertAdmins } = await import("./economyService");
-  await alertAdmins(`🏪 Vaucher ishlatildi: <b>${shop?.name ?? "?"}</b> — ${listing?.title ?? "?"} (${order.priceCoins} coin)`).catch(() => undefined);
+  await alertAdmins(`🏪 Vaucher ishlatildi: <b>${shop?.name ?? "?"}</b> — ${listing?.title ?? "?"} (${order.priceCoins} tanga)`).catch(() => undefined);
   return { ok: true, title: listing?.title, shopName: shop?.name };
 }

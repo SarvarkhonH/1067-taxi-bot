@@ -120,8 +120,8 @@ export async function payWeeklyPrizes(notify: Notify, weekKeyOverride?: string):
         chatId,
         `🏆 <b>Haftalik liga yakunlandi!</b>\n\n` +
           `${prize.medal} Siz <b>${prize.rank}-o'rin</b>ni oldingiz (${row.score} ball)\n` +
-          `🪙 Sovg'a: <b>+${formatNumber(prize.amount)} coin</b> hamyoningizga tushdi!\n` +
-          `💸 Coin'ni ilovada so'mga aylantirishingiz mumkin.\n\n` +
+          `🪙 Sovg'a: <b>+${formatNumber(prize.amount)} tanga</b> hamyoningizga tushdi!\n` +
+          `💸 Tangani ilovada so'mga aylantirishingiz mumkin.\n\n` +
           `Yangi hafta boshlandi — yana kurashing! 🔥`,
       ).catch(() => undefined);
     }
@@ -209,7 +209,7 @@ export async function maybeSurpriseDrop(notify: Notify, probability = 0.0015): P
     await notify(
       m.telegramUser!.id,
       `🎁 <b>Kutilmagan sovg'a!</b>\n\n` +
-        `🪙 <b>+${formatNumber(amount)} coin</b> — shunchaki siz biz bilan bo'lganingiz uchun 😊\n\n` +
+        `🪙 <b>+${formatNumber(amount)} tanga</b> — shunchaki siz biz bilan bo'lganingiz uchun 😊\n\n` +
         `Hamyoningiz: /me`,
     ).catch(() => undefined);
   }

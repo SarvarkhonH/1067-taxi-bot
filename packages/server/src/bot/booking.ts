@@ -297,6 +297,19 @@ export function registerBooking(bot: Bot): void {
     }
   });
 
+  // 📞 en-route call: surface the driver's number as tap-to-call text
+  // (tel: inline buttons are rejected by Telegram; plain numbers auto-linkify on mobile).
+  bot.callbackQuery("bk:call", async (ctx) => {
+    const me = await getMe(String(ctx.from.id));
+    const b = me?.member.phone ? await getDataSource().getActiveBooking(me.member.phone).catch(() => null) : null;
+    if (b?.driver?.phone) {
+      await ctx.answerCallbackQuery();
+      await ctx.reply(`📞 Haydovchi: ${b.driver.phone}\n<i>Raqamga bosib qo'ng'iroq qiling</i>`, { parse_mode: "HTML" });
+    } else {
+      await ctx.answerCallbackQuery({ text: "Haydovchi raqami hozir mavjud emas", show_alert: true });
+    }
+  });
+
   // ⏱ ETA-guess from the live ride card (one guess per ride, +50 if right)
   bot.callbackQuery("noop", (ctx) => ctx.answerCallbackQuery());
   bot.callbackQuery(/^guess:(lt6|6-9|10-14|15p)$/, async (ctx) => {

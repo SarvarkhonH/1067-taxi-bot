@@ -11,7 +11,7 @@ import {
   linkByPhone,
   touchTelegramUser,
 } from "../services/memberService";
-import { dailyCheckIn, spinWheel, type CheckInResult, type WheelResult } from "../services/rewardService";
+import { dailyCheckIn, spinWheel } from "../services/rewardService";
 import { claimMission, getMissions } from "../services/missionService";
 import { getBoxStatus, openBox } from "../services/boxService";
 import { attachPendingReferral, completeReferral, getReferralInfo } from "../services/referralService";
@@ -22,6 +22,9 @@ import type { CashbackDelta } from "../sync/sync";
 import { registerBooking } from "./booking";
 import {
   renderBadgeUnlocked,
+  renderBadges,
+  renderCheckIn,
+  renderDriverPanel,
   renderEarnPush,
   renderLeaderboard,
   renderLinkPrompt,
@@ -36,6 +39,7 @@ import {
   renderTaken,
   renderWeeklyBlock,
   renderWelcome,
+  renderWheel,
 } from "./render";
 import { getFareConfig } from "../services/clientInfoService";
 
@@ -64,36 +68,6 @@ function profileOf(src: { username?: string; first_name?: string; last_name?: st
   return { username: src.username, firstName: src.first_name, lastName: src.last_name, languageCode: src.language_code };
 }
 
-function renderCheckIn(r: CheckInResult): string {
-  if (r.alreadyChecked) {
-    let s = `🔥 <b>Streak: ${r.current} kun</b>\n\nBugun allaqachon belgilangansiz ✅\nErtaga yana keling — streak'ni uzmang!`;
-    if (r.next) s += `\n\n🎯 ${r.next.day}-kunda: <b>+${formatNumber(r.next.reward)} tanga</b>`;
-    return s;
-  }
-  let s = `🔥 <b>Streak: ${r.current} kun!</b>\n`;
-  if (r.rewardAmount > 0) {
-    s += `\n🎉 <b>+${formatNumber(r.rewardAmount)} tanga!</b>${r.rewardApplied ? " — hamyoningizga tushdi 🪙" : ""}`;
-  } else {
-    s += `\nDavom eting — har kun streak o'sadi 💪`;
-  }
-  if (r.next) s += `\n\n🎯 Keyingi mukofot: ${r.next.day}-kun → <b>+${formatNumber(r.next.reward)} tanga</b>`;
-  return s;
-}
-
-function renderWheel(r: WheelResult): string {
-  const pool = `\n\n🎰 JACKPOT hozir: <b>${formatNumber(r.jackpot)} tanga</b> — har safar uni oshiradi!`;
-  if (r.noRide) {
-    return `🎡 <b>Omad g'ildiragi endi SAFAR ICHIDA aylanadi!</b>\n\nTaxi chaqiring — mashinada ketayotganingizda aylantirasiz. Har spin YUTADI! 🚕${pool}`;
-  }
-  if (r.alreadySpun) {
-    return `🎡 Bu safarning spini ishlatilgan.\nYutuq: ${r.prize.emoji} <b>${esc(r.prize.label)}</b>\n\nKeyingi safarda yana aylantirasiz! 🚕${pool}`;
-  }
-  if (r.prize.label.startsWith("JACKPOT")) {
-    return `🎰🎰🎰 <b>JACKPOT!!!</b> 🎰🎰🎰\n\n💥 <b>+${formatNumber(r.prize.amount)} tanga</b>${r.applied ? " — hamyoningizga tushdi 🪙" : ""}!\n\nButun jamg'arma sizniki bo'ldi! 👑${pool}`;
-  }
-  return `🎉 ${r.prize.emoji} <b>${esc(r.prize.label)}!</b>\n\n+${formatNumber(r.prize.amount)} tanga${r.applied ? " — hamyoningizga tushdi 🪙" : ""}!${pool}`;
-}
-
 function esc(s: string): string {
   return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 }
@@ -119,7 +93,7 @@ export function createBot(): Bot {
     if (me) {
       await ctx.reply(renderProfile(me), { parse_mode: "HTML", reply_markup: mainMenu(me.type === "driver") });
     } else {
-      await ctx.reply(renderWelcome(ctx.from!.first_name ?? "do'st"), { parse_mode: "HTML" });
+      await ctx.reply(renderWelcome(ctx.from!.first_name ?? "do'st"), { parse_mode: "HTML", reply_markup: contactKeyboard() });
       await ctx.reply(renderLinkPrompt(), { parse_mode: "HTML", reply_markup: contactKeyboard() });
     }
   });
@@ -131,7 +105,7 @@ export function createBot(): Bot {
     if (res.status === "linked") {
       const me = await getMe(id);
       const role = res.type === "driver" ? "Haydovchi" : "Mijoz";
-      await ctx.reply(renderLinked(res.fullName ?? "Mijoz", role), { parse_mode: "HTML" });
+      await ctx.reply(renderLinked(res.fullName ?? "Mijoz", role), { parse_mode: "HTML", reply_markup: mainMenu(res.type === "driver") });
       // pay out a pending referral (this user joined via someone's invite)
       if (res.memberId) {
         const credit = await completeReferral(id, res.memberId).catch(() => null);
@@ -198,19 +172,7 @@ export function createBot(): Bot {
     }
     const { getDriverEarnings } = await import("../services/transferService");
     const e = await getDriverEarnings(me.member.id);
-    const txnLines = e.txns
-      .slice(0, 6)
-      .map((t) => `  ${t.amount > 0 ? "➕" : "➖"} ${formatNumber(Math.abs(t.amount))} — ${t.reason}`)
-      .join("\n");
-    await ctx.reply(
-      `🚗 <b>Haydovchi paneli</b>\n\n` +
-        `🪙 Tanga balans: <b>${formatNumber(me.coins)}</b>\n` +
-        `📈 Bugun tushdi: <b>+${formatNumber(e.todayIn)}</b>\n` +
-        `💼 Jami tushum (tip/o'tkazma): <b>${formatNumber(e.totalIn)}</b>\n` +
-        (txnLines ? `\n📜 Oxirgi amallar:\n${txnLines}\n` : "") +
-        `\n💸 Tangalarni so'mga yechish — «🚀 Ilova» → Hamyon.\n🙏 Mijozlar safardan keyin sizga tanga bilan rahmat ayta oladi.`,
-      { parse_mode: "HTML", reply_markup: mainMenu(true) },
-    );
+    await ctx.reply(renderDriverPanel(me.coins, e), { parse_mode: "HTML", reply_markup: mainMenu(true) });
   };
   bot.hears("🚗 Haydovchi paneli", showDriverPanel);
   bot.command("driver", showDriverPanel);
@@ -302,14 +264,7 @@ export function createBot(): Bot {
       await ctx.reply(renderLinkPrompt(), { parse_mode: "HTML", reply_markup: contactKeyboard() });
       return;
     }
-    const lines = me.badges.map(
-      (b) => `${b.earned ? b.emoji : "🔒"} <b>${b.name}</b> — ${b.earned ? "olingan ✅" : b.description}`,
-    );
-    const earned = me.badges.filter((b) => b.earned).length;
-    await ctx.reply(`🎖 <b>Nishonlar</b> (${earned}/${me.badges.length})\n\n${lines.join("\n")}`, {
-      parse_mode: "HTML",
-      reply_markup: mainMenu(),
-    });
+    await ctx.reply(renderBadges(me), { parse_mode: "HTML", reply_markup: mainMenu() });
   });
 
   // ─── 🎁 Bonuslar: ONE combined screen (streak + missions + box) ──────────────
@@ -538,7 +493,11 @@ export function createBot(): Bot {
         return;
       }
     }
-    await ctx.reply("Tushunmadim 🙂 Pastdagi tugmalardan foydalaning yoki operator: 1067");
+    const meF = await getMe(String(ctx.from!.id)).catch(() => null);
+    await ctx.reply(
+      "🔄 <b>Menyu yangilandi</b> — eski tugmalar o'zgargan bo'lishi mumkin.\nPastdagi yangi tugmalardan foydalaning yoki /start bosing. ☎️ Operator: 1067",
+      { parse_mode: "HTML", reply_markup: mainMenu(meF?.type === "driver") },
+    );
   });
   return bot;
 }

@@ -108,14 +108,14 @@ export async function rollRideCashback(
   if (jackpot) {
     const { alertAdmins } = await import("./economyService");
     const m = await prisma.member.findUnique({ where: { id: memberId }, select: { fullName: true } });
-    await alertAdmins(`🎰 RIDE-JACKPOT: <b>${m?.fullName ?? memberId}</b> yutdi — ${formatNumber(amount)} coin!`).catch(() => undefined);
+    await alertAdmins(`🎰 RIDE-JACKPOT: <b>${m?.fullName ?? memberId}</b> yutdi — ${formatNumber(amount)} tanga!`).catch(() => undefined);
   }
   return { tier: t.tier, label: t.label, amount, lucky, jackpot };
 }
 
 /** Push text for the completion message. */
 export function renderRideRoll(r: RideRollResult): string {
-  if (r.jackpot) return `🎰🎰🎰 <b>JACKPOT!</b> Bu safar butun jamg'armani yutdingiz: <b>+${formatNumber(r.amount)} coin</b>! 👑`;
+  if (r.jackpot) return `🎰🎰🎰 <b>JACKPOT!</b> Bu safar butun jamg'armani yutdingiz: <b>+${formatNumber(r.amount)} tanga</b>! 👑`;
   const head = r.tier === "standard" ? "💰" : r.tier === "double" ? "✨ 2x DOUBLE!" : "🔥 3x TRIPLE!";
-  return `${head} Safar cashback: <b>+${formatNumber(r.amount)} coin</b>${r.lucky ? " · 🍀 OMAD KUNI (2x)" : ""}`;
+  return `${head} Safar cashback: <b>+${formatNumber(r.amount)} tanga</b>${r.lucky ? " · 🍀 OMAD KUNI (2x)" : ""}`;
 }

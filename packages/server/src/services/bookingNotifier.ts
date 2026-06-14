@@ -97,6 +97,14 @@ function rideCardKb(b: ActiveBookingLite, c: CardCtx): InlineKeyboard | undefine
       kb.text("<6", "guess:lt6").text("6-9", "guess:6-9").text("10-14", "guess:10-14").text("15+", "guess:15p").row();
       any = true;
     }
+  } else if (c.driver) {
+    // en-route (driver assigned, coming): 📞 call (callback → tap-to-call number;
+    // tel: inline buttons are rejected by Telegram — proven) + 🛡 share trip. ✖ added below.
+    kb.text("📞 Qo'ng'iroq", "bk:call");
+    const share = `🚕 Men 1067 taxida ketyapman${b.carNumber ? ` — mashina ${b.carNumber}` : ""}. Kuzating: @koson1067bot`;
+    kb.url("🛡 Ulashish", `https://t.me/share/url?url=${encodeURIComponent("https://t.me/koson1067bot")}&text=${encodeURIComponent(share)}`);
+    kb.row();
+    any = true;
   }
   if (CANCELLABLE.has(b.status)) {
     kb.text("✖ Bekor qilish", "bk:cancelride");
@@ -406,6 +414,10 @@ export async function pushBookingUpdates(bot: Bot, dsOverride?: KasDataSource): 
         await alertAdmins(`⚠️ Referral payout xatosi (member ${m.id}): ${e instanceof Error ? e.message : String(e)}`).catch(() => undefined);
       }
 
+      // 🔥 streak line for the peak-end card (read-only; safe on transient)
+      const streak = await prisma.streak.findUnique({ where: { memberId: m.id } }).catch(() => null);
+      const streakLine = streak?.current ? `\n🔥 Streak: <b>${streak.current} kun</b> — davom eting!` : "";
+
       // ── peak-end summary card (message #3 of the ride) ──
       const tipKb = driverId
         ? new InlineKeyboard()
@@ -422,9 +434,10 @@ export async function pushBookingUpdates(bot: Bot, dsOverride?: KasDataSource): 
             rollLine +
             guessLine +
             garageLine +
+            streakLine +
             questLine +
             "\n🎯 Vazifalaringizni «🎁 Bonuslar»da tekshiring." +
-            (driverId ? "\n\n🚗 Haydovchiga coin bilan rahmat aytasizmi?" : ""),
+            (driverId ? "\n\n🚗 Haydovchiga tanga bilan rahmat aytasizmi?" : ""),
           { parse_mode: "HTML", reply_markup: tipKb },
         )
         .catch(() => undefined);

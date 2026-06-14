@@ -19,7 +19,8 @@ function ok(cond: boolean, label: string): void {
 
 // ── fake bot: counts every call, returns increasing message ids ──
 let msgId = 1000;
-const calls = { send: 0, edit: 0, loc: 0, editLoc: 0, stopLoc: 0, texts: [] as string[] };
+type KbBtn = { text: string; callback_data?: string; url?: string };
+const calls = { send: 0, edit: 0, loc: 0, editLoc: 0, stopLoc: 0, texts: [] as string[], lastEditKb: undefined as { inline_keyboard: KbBtn[][] } | undefined };
 const fakeBot = {
   api: {
     sendMessage: async (_c: string, text: string) => {
@@ -27,8 +28,9 @@ const fakeBot = {
       calls.texts.push(text);
       return { message_id: ++msgId };
     },
-    editMessageText: async () => {
+    editMessageText: async (_c: string, _m: number, _t: string, opts?: { reply_markup?: { inline_keyboard: KbBtn[][] } }) => {
       calls.edit++;
+      if (opts?.reply_markup) calls.lastEditKb = opts.reply_markup;
       return true;
     },
     sendLocation: async () => {
@@ -77,6 +79,7 @@ async function cleanup(): Promise<void> {
   });
   const ms = await prisma.member.findMany({ where: { kasId: { startsWith: TAG } }, select: { id: true } });
   const ids = ms.map((m) => m.id);
+  await prisma.streak.deleteMany({ where: { memberId: { in: ids } } });
   await prisma.rideGuess.deleteMany({ where: { memberId: { in: ids } } });
   await prisma.missionProgress.deleteMany({ where: { memberId: { in: ids } } });
   await prisma.notifyLog.deleteMany({ where: { memberId: { in: ids } } });
@@ -95,6 +98,7 @@ async function attempt(): Promise<number> {
   calls.editLoc = 0;
   calls.stopLoc = 0;
   calls.texts = [];
+  calls.lastEditKb = undefined;
   // tests roll REAL cashback against the live DB — protect the live jackpot pool
   const jackpotBefore = (await prisma.appState.findUnique({ where: { key: "jackpot_pool" } }))?.value ?? null;
   await cleanup();
@@ -133,6 +137,12 @@ async function attempt(): Promise<number> {
   ok(calls.send === 1, `tick2 assigned: still 1 sent message (edit, not send)`);
   ok(calls.edit >= 1, `card edited in place (${calls.edit})`);
   ok(calls.loc === 1, `moving pin sent once`);
+  // G3: en-route card keyboard = 📞 call + 🛡 share + ✖ cancel
+  const ek = calls.lastEditKb as { inline_keyboard: KbBtn[][] } | undefined;
+  const kb2: KbBtn[] = (ek?.inline_keyboard ?? []).flat();
+  ok(kb2.some((b) => b.callback_data === "bk:call"), `en-route card has 📞 call button (bk:call)`);
+  ok(kb2.some((b) => typeof b.url === "string" && b.url.includes("t.me/share")), `en-route card has 🛡 share button (t.me/share url)`);
+  ok(kb2.some((b) => b.callback_data === "bk:cancelride"), `en-route card has ✖ cancel button`);
 
   // tick 3: started → meter starts, card offers wheel + guess
   await pushBookingUpdates(fakeBot, makeDs(lite("started", CAR), echo));
@@ -148,6 +158,9 @@ async function attempt(): Promise<number> {
   await pushBookingUpdates(fakeBot, makeDs(lite("started", CAR), echo));
   ok(calls.send === 1, `tick4: still no extra messages`);
 
+  // G4: give the rider a streak so the peak-end card shows the streak line
+  await prisma.streak.create({ data: { memberId: rider.id, current: 5, longest: 5, lastCheckIn: new Date() } });
+
   // tick 5: ride gone → finish: card frozen, pin stopped, ONE summary
   await pushBookingUpdates(fakeBot, makeDs(null, echo));
   ok(calls.send === 2, `finish: exactly 1 summary message (total sends ${calls.send})`);
@@ -155,6 +168,7 @@ async function attempt(): Promise<number> {
   const summary = calls.texts[1]!;
   ok(summary.includes("Safar cashback") || summary.includes("JACKPOT"), `summary contains the roll result`);
   ok(summary.includes("TOPDINGIZ"), `ETA-guess resolved as WIN (7 min in 6-9)`);
+  ok(summary.includes("🔥 Streak:") && summary.includes("5 kun"), `end-card shows streak line (5 kun)`);
 
   // state + money assertions
   const m2 = await prisma.member.findUnique({ where: { id: rider.id } });
