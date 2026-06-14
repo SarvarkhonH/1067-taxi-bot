@@ -48,8 +48,13 @@ EGA-KO'Z DARVOZASI: ega real render'ni KO'RIB "QABUL" demaguncha T5 BOSHLANMAYDI
 
 ### T4-OLDIN TUGADI
 
-## T3 YAKUNLANDI (REAL ISBOT, 2026-06-13)
-- coin→tanga: user-facing 'coin' = 0 (bot.ts+render.ts tuzatildi; grep isbot).
+## T3 — READY FOR VERIFICATION (5 gap yopildi 2026-06-14, Rule-4 mustaqil tekshiruv O'TDI; ega QABUL kutilmoqda — owner-accepted EMAS)
+STATUS (Rule 7): `ready for verification`. Compliance-report 5 gap yopildi; kodni YOZMAGAN mustaqil agent HAMMA DoD satrini PASS dedi (grep+test+typecheck+live qayta yugurtirdi). FRA LIVE (commit a21b598). Ega telefonda ko'rib QABUL bersa → `owner-accepted`.
+- G6 coin→tanga BUTUN repo (server services + admin alertAdmins ham): 12 yuborilgan-xabar satri tanga'ga. Grep isbot: 0 standalone 'coin' har qanday yuborilgan xabarda. **AVVALGI "coin=0" DA'VOSI NOTO'G'RI EDI** — services/ (cashbackService/weeklyService/bookingNotifier/marketService/reconciliation) qolib ketgan edi; endi tuzatildi.
+- G3 en-route karta: 📞 bk:call (tap-to-call raqam — tel: inline tugma Telegram tomonidan RAD etiladi, isbotlangan) + 🛡 t.me/share + ✖. G4: yakun-kartada 🔥 streak (prisma.streak). G1: noma'lum/eski tugma → "Menyu yangilandi … /start" + yangi mainMenu (eski "Tushunmadim" o'rniga). G5: renderCheckIn/Wheel/DriverPanel/Badges → render.ts; "Topshiriqlar"→"Vazifa"; welcome+linked reply_markup.
+- ISBOT: testRideCard 26/26 (yangi en-route 📞/🛡/✖ + streak assert) izolyatsiyalangan DB'da; testMoneyShield yashil; typecheck 0 xato.
+### T3 dastlabki ish (2026-06-13)
+- coin→tanga (1-urinish, bot.ts+render.ts) — keyin services/ qolgani topildi (G6 da yopildi).
 - Jonli karta 3-xabar oqimi: testRideCard 6/6 DETERMINISTIK yashil (6-status sweep → 1 karta edit + 1 yakun-xabar, status-tugmalar, edit-fail→yangi xabar).
 - REAL BUG topildi+tuzatildi: finish-branch re-entry'da haydovchi/mijoz kvest increment'i IKKI marta sanashi mumkin edi (increment↔lastBookingId-clear oynasida transient) → per-ride `ridefin:` idempotent marker qo'shildi (qo'sh-sanash yopildi).
 - Test-reliability: testRideCard'ga warm-up (Neon free-tier cold-start) + transient-retry (4x) + counter-reset qo'shildi. PROD'da Neon 90s-sweep bilan iliq qoladi → foydalanuvchi cold-start ko'rmaydi.
