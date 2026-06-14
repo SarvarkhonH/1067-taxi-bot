@@ -14,7 +14,17 @@ import { Button, Sheet, Skeleton } from "./design/components";
 
 const BookingViewOld = lazy(() => import("./booking").then((m) => ({ default: m.BookingView })));
 
-const DARK_STYLE = "https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json";
+// Carto's vector CDN (basemaps.cartocdn.com) is blocked on UZ networks → no map for any
+// UZ customer. kas1067 itself runs on Google Maps (proven reachable here), so we use Google
+// raster tiles via a minimal MapLibre raster style (keeps every marker). The light tiles are
+// darkened with a CSS filter on the canvas only (.b3-map .maplibregl-canvas) — markers are
+// HTML overlays, untouched. hl=uz → Uzbek labels.
+const G = (i: number): string => `https://mt${i}.google.com/vt/lyrs=m&hl=uz&x={x}&y={y}&z={z}`;
+const DARK_STYLE: maplibregl.StyleSpecification = {
+  version: 8,
+  sources: { g: { type: "raster", tiles: [G(0), G(1), G(2), G(3)], tileSize: 256, attribution: "© Google" } },
+  layers: [{ id: "g", type: "raster", source: "g" }],
+};
 
 // D: the map must NEVER be a blank canvas. Detect WebGL up front (low-end devices / some
 // Telegram WebViews lack it); ?nomap=1 forces the fallback for testing. If WebGL is missing
