@@ -67,6 +67,7 @@ export interface ActiveBooking {
   priceTier: string; // bookingPrice (e.g. "standard")
   createdDate: string;
   driver: BookingDriver | null; // assigned once a driver takes it
+  notifiedCount?: number; // drivers notified (carNumberList length) — honest "N haydovchiga yuborildi"
 }
 
 export interface ActiveBookingLite {

@@ -6,7 +6,7 @@
 import { lazy, Suspense, useEffect, useRef, useState } from "react";
 import maplibregl from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
-import { formatNumber, type BookingInfoResponse, type MeResponse, type SavedAddressView } from "@t1067/shared";
+import { formatNumber, type ActiveBookingView, type BookingInfoResponse, type MeResponse, type SavedAddressView } from "@t1067/shared";
 import { api } from "./api";
 import { haptic, tg } from "./telegram";
 import { confetti } from "./util";
@@ -104,6 +104,7 @@ function Booking3Inner({ me, info, onClose }: { me: MeResponse; info: BookingInf
   const [freeDrivers, setFreeDrivers] = useState(0);
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
+  const [active, setActive] = useState<ActiveBookingView | null>(info.active ?? null); // B: live status
 
   const mapRef = useRef<HTMLDivElement | null>(null);
   const map = useRef<maplibregl.Map | null>(null);
@@ -189,9 +190,7 @@ function Booking3Inner({ me, info, onClose }: { me: MeResponse; info: BookingInf
     const tick = async () => {
       const [a, near] = await Promise.all([api.bookingActive().catch(() => null), api.bookingNearby().catch(() => null)]);
       if (near) setFreeDrivers(near.freeDrivers);
-      if (a?.driver) {
-        setMsg(`✅ Haydovchi tayinlandi: ${a.driver.carModel} · ${a.driver.carNumber}`);
-      }
+      setActive(a); // B: real status — searching → accepted (only when a driver actually takes it) → arrived
     };
     tick();
     const t = setInterval(tick, 30_000);
@@ -321,15 +320,40 @@ function Booking3Inner({ me, info, onClose }: { me: MeResponse; info: BookingInf
         </div>
       )}
 
-      {/* ── E4: searching ── */}
+      {/* ── E4: real-status (searching → accepted → arrived) ── */}
       {screen === "searching" && (
         <div className="b3-sheet">
           <div className="b3-grip" />
-          <div className="b3-radar"><span /><span /><span />🚕</div>
-          <div className="b3-search-title">🔍 Haydovchi qidirilyapti…</div>
-          <div className="dim tac fs13">
-            {freeDrivers > 0 ? `🚖 ${freeDrivers} bo'sh mashina yaqinda · ` : ""}haydovchi javobini kutmoqda…
-          </div>
+          {active?.driver ? (
+            // accepted — a driver actually took the order (carNumber present)
+            <>
+              <div className="b3-search-title">
+                {active.status === "arrived" ? "🚕 Haydovchi yetib keldi — chiqing!" : "✅ Haydovchi qabul qildi"}
+              </div>
+              <div className="b3-picked">🚘 <b>{active.driver.carModel} · {active.driver.carNumber}</b>{active.driver.rating ? ` ⭐${active.driver.rating.toFixed(1)}` : ""}</div>
+              <div className="dim tac fs13">
+                {active.status === "arrived"
+                  ? "Mashina sizni kutmoqda"
+                  : active.status === "called"
+                    ? "📞 Haydovchi qo'ng'iroq qilishi mumkin"
+                    : "🚖 Haydovchi yo'lda"}
+                {active.etaMin ? ` · ~${active.etaMin} daq` : ""}
+              </div>
+            </>
+          ) : (
+            // searching — no driver yet; show the honest notified count, never "accepted"
+            <>
+              <div className="b3-radar"><span /><span /><span />🚕</div>
+              <div className="b3-search-title">🔍 Haydovchi qidirilyapti…</div>
+              <div className="dim tac fs13">
+                {active?.notifiedCount
+                  ? `📨 ${active.notifiedCount} haydovchiga yuborildi · javob kutilmoqda`
+                  : freeDrivers > 0
+                    ? `🚖 ${freeDrivers} bo'sh mashina yaqinda`
+                    : "haydovchi javobini kutmoqda…"}
+              </div>
+            </>
+          )}
           <Button variant="danger" disabled={busy} onClick={cancel}>✖ Bekor qilish</Button>
         </div>
       )}

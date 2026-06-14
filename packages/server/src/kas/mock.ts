@@ -172,6 +172,7 @@ export class KasMockSource implements KasDataSource {
         lat: 39.0343,
         lng: 65.5703,
       },
+      notifiedCount: 3,
     };
   }
 

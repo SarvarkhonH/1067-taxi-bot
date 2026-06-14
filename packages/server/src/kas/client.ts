@@ -433,6 +433,7 @@ export class KasLiveSource implements KasDataSource {
       priceTier: String(b.bookingPrice ?? ""),
       createdDate: String(b.createdDate ?? ""),
       driver,
+      notifiedCount: Array.isArray(b.carNumberList) ? b.carNumberList.length : 0,
     };
   }
 

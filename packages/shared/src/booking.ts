@@ -49,6 +49,7 @@ export interface ActiveBookingView {
   etaMin: number | null; // driver → pickup estimate
   canCancel: boolean; // early status only
   driver: BookingDriverView | null;
+  notifiedCount?: number; // T4-B: drivers notified (carNumberList) — honest "N haydovchiga yuborildi" while searching
 }
 
 export interface BookingInfoResponse {

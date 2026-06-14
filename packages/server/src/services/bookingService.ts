@@ -42,6 +42,7 @@ function toView(
     cashback: b.clientBonus,
     etaMin,
     canCancel: bookingCancellable(b.status),
+    notifiedCount: b.notifiedCount,
     driver: b.driver
       ? {
           fullName: b.driver.fullName,
