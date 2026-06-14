@@ -16,6 +16,19 @@ const BookingViewOld = lazy(() => import("./booking").then((m) => ({ default: m.
 
 const DARK_STYLE = "https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json";
 
+// D: the map must NEVER be a blank canvas. Detect WebGL up front (low-end devices / some
+// Telegram WebViews lack it); ?nomap=1 forces the fallback for testing. If WebGL is missing
+// OR the style fails to load, we show a clear placeholder — the booking flow stays fully usable.
+function webglOk(): boolean {
+  try {
+    if (new URLSearchParams(location.search).get("nomap") === "1") return false;
+    const c = document.createElement("canvas");
+    return !!(window.WebGLRenderingContext && (c.getContext("webgl") || c.getContext("experimental-webgl")));
+  } catch {
+    return false;
+  }
+}
+
 type Screen = "map" | "confirm" | "searching";
 
 export function Booking3View({ me, onClose }: { me: MeResponse; onClose: () => void }) {
@@ -88,7 +101,6 @@ function Booking3Inner({ me, info, onClose }: { me: MeResponse; info: BookingInf
   const [q, setQ] = useState("");
   const [results, setResults] = useState<SavedAddressView[]>([]);
   const [searching, setSearching] = useState(false);
-  const [predict, setPredict] = useState<{ avg: number; byAddress?: { avg: number; rides: number } | null } | null>(null);
   const [freeDrivers, setFreeDrivers] = useState(0);
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
@@ -97,10 +109,12 @@ function Booking3Inner({ me, info, onClose }: { me: MeResponse; info: BookingInf
   const map = useRef<maplibregl.Map | null>(null);
   const pinMarkers = useRef<maplibregl.Marker[]>([]);
   const pickMarker = useRef<maplibregl.Marker | null>(null);
+  const [mapOk] = useState(webglOk); // WebGL available? (computed once)
+  const [mapFailed, setMapFailed] = useState(false); // style/CDN failed to load
 
   // ── E1: MapLibre dark map ──────────────────────────────────────────────
   useEffect(() => {
-    if (!mapRef.current || map.current) return;
+    if (!mapRef.current || map.current || !mapOk) return; // D: no WebGL → skip init, show placeholder
     const m = new maplibregl.Map({
       container: mapRef.current,
       style: DARK_STYLE,
@@ -109,12 +123,19 @@ function Booking3Inner({ me, info, onClose }: { me: MeResponse; info: BookingInf
       attributionControl: { compact: true },
     });
     map.current = m;
-    m.on("load", () => m.resize());
+    // D: if the style/tiles never load (CDN blocked / offline), show the placeholder, not a blank
+    const failTimer = setTimeout(() => setMapFailed(true), 8000);
+    m.on("load", () => {
+      clearTimeout(failTimer);
+      setMapFailed(false);
+      m.resize();
+    });
     // E2: drag map → drop pin at center → nearest saved address
     m.on("moveend", () => {
       if (screenRef.current !== "map" || !pickRef.current) return;
     });
     return () => {
+      clearTimeout(failTimer);
       m.remove();
       map.current = null;
     };
@@ -161,12 +182,6 @@ function Booking3Inner({ me, info, onClose }: { me: MeResponse; info: BookingInf
     pickMarker.current = new maplibregl.Marker({ element: el }).setLngLat([pickup.lng, pickup.lat]).addTo(map.current);
     map.current.easeTo({ center: [pickup.lng, pickup.lat], zoom: 15, duration: 500 });
   }, [pickup]);
-
-  // ── E3 fare prediction (history ≈) for the chosen pickup ────────────────
-  useEffect(() => {
-    if (!pickup) return setPredict(null);
-    api.bookingPredict(pickup.name).then((r) => setPredict({ avg: r.avg, byAddress: r.byAddress })).catch(() => undefined);
-  }, [pickup?.id]);
 
   // ── E4 honest queue while searching ─────────────────────────────────────
   useEffect(() => {
@@ -242,6 +257,13 @@ function Booking3Inner({ me, info, onClose }: { me: MeResponse; info: BookingInf
       </div>
 
       <div ref={mapRef} className="b3-map" />
+      {(!mapOk || mapFailed) && (
+        <div className="b3-map-fallback">
+          <div className="b3-map-fallback-ico">🗺</div>
+          <div>Xarita bu qurilmada ko'rinmadi</div>
+          <div className="dim fs12">Buyurtma to'liq ishlaydi — pastdan davom eting 👇</div>
+        </div>
+      )}
 
       {msg && <div className="b3-msg" onClick={() => setMsg(null)}>{msg}</div>}
 
@@ -282,8 +304,12 @@ function Booking3Inner({ me, info, onClose }: { me: MeResponse; info: BookingInf
           <div className="b3-grip" />
           <div className="b3-picked">📍 <b>{pickup.name}</b><button className="b3-change" onClick={() => setScreen("map")}>o'zgartirish</button></div>
           <div className="b3-fare">
-            {predict && predict.avg > 0 ? (
-              <div className="b3-fare-row"><span>📊 Odatdagi narx</span><b>≈ {formatNumber(predict.byAddress?.avg ?? predict.avg)} so'm</b></div>
+            {info.tariff ? (
+              <>
+                <div className="b3-fare-row"><span>🚕 Boshlanish</span><b>{formatNumber(info.tariff.minimalPayment)} so'm</b></div>
+                <div className="b3-fare-row"><span>📏 Har km</span><b>{formatNumber(info.tariff.perKmCity)} so'm</b></div>
+                <div className="dim fs12 mt4">+ {formatNumber(info.tariff.perMinute)} so'm/daq kutish · narx taksometr bo'yicha (masofaga qarab)</div>
+              </>
             ) : (
               <div className="dim fs13">Narx taksometr bo'yicha — safar oxirida aniqlanadi</div>
             )}

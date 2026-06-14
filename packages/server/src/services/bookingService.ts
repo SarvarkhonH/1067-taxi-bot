@@ -90,6 +90,7 @@ export async function getBookingInfo(memberId: number): Promise<BookingInfoRespo
     bookingLive: env.bookingLive,
     active: toView(active),
     quickPickup: quick,
+    tariff: fare ? { minimalPayment: fare.minimalPayment, minimalDistanceKm: fare.minimalDistanceKm, perKmCity: fare.perKmCity, perMinute: fare.perMinute } : null,
   };
 }
 
