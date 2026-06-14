@@ -10,6 +10,16 @@
 - Testlar: 15 suite (~250 tekshiruv) yashil. Deploy: Render + Vercel (bundle-grep isbotlangan).
 
 ## Jarayonda
+
+### T4 BOOKING UPGRADE (A+B+C+D) — JONLI HOLAT (tartib: A+D → B → C)
+T4 to'liq tugamaydi ALL A+B+C+D mustaqil tekshirilib + ega QABUL bermaguncha. Qisman = `in progress (remaining: …)`.
+- [x] **A — per-km narx** — `ready for verification`. Soxta `≈ Odatdagi narx` (bookingPredict) OLIB TASHLANDI; E3 rate-card: `Boshlanish 5000 · Har km 2200 · +400/daq` (kas getTariff → BookingInfoResponse.tariff). ISBOT: typecheck 0; jonli render (ega, real kas) rate-card; LIVE FRA forged-initData tariff={5000,0,2200,400}; prod bundle grep (Boshlanish/Har km bor, predict yo'q); Rule-4 mustaqil tekshiruv PASS. **EGA QABUL kutilmoqda.**
+- [x] **D — xarita doim ko'rinadi** — `ready for verification`. webglOk() (+ `?nomap=1` force) → WebGL yo'q YOKI style 8s load-timeout → `.b3-map-fallback` placeholder ("Xarita bu qurilmada ko'rinmadi — buyurtma to'liq ishlaydi"), HECH QACHON bo'sh emas. ISBOT: jonli render `?nomap=1` → placeholder + ishlaydigan oqim, 0 console-xato; prod bundle grep (fallback bor); Rule-4 PASS. **EGA QABUL kutilmoqda.**
+- [ ] **B — real kas status** — `not started`. (notified N → accepted {car} → arriving → at-place; api/bookings status + carNumberList.)
+- [ ] **C — jonli harakatlanuvchi mashina + hisoblagich** — `not started`. (byCarNumber polling → moving car + live taximeter.)
+- Deploy: FRA server `49df2d8` (tariff endpoint) + miniapp Vercel `1067taxi-miniapp.vercel.app` (v4 💸 marker). booking3 flag OFF (global); ega owner-preview bilan ko'radi.
+- KEYINGI (yangi sessiya shu yerdan): ega A+D QABUL → keyin B (DoD→build→proof→Rule4→QABUL) → keyin C. Boshqa tiketga O'TMA.
+
 - T4-OLDIN TUGADI (ega shart #1 — idempotentlik retry'dan oldin): finish-sweep'ning BARCHA reward-grant'lari resilient()+idempotent (cashback unique, fund marker, garaj grantRideCoins kalit, founder one-per-member, tuman marker, driver_bonus kalit, kvest increment'lar endi ATOMIK rideKey marker bilan — fragile firstFinish gate olib tashlandi). Reward-yo'lda silent-catch = 0. testMoneyShield: 4 idempotentlik assert (garaj/fund/driver_bonus/incrementMission rideKey 2x→1x) ✅.
 - testRideCard FLAKINESS ANIQ ISOLATSIYA QILINDI (ega shart): izolyatsiyalangan DB'da 6/6 deterministik yashil (retry/masking YO'Q) → flakiness = JONLI FRA bot'ning 90s sweep'i test sintetik rider'ini baham Neon'da poygalashidan (production bug EMAS, pre-existing test-izolyatsiya). FIX: sweep-testlar TEST_DATABASE_URL (izolyatsiyalangan, eski Render PG → keyin Neon test-branch) da ishlaydi — `_testDb.ts` birinchi import.
 ### T4 BOOKING 3.0 (E1-E4) — KOD+AUDIT+DEPLOY DONE, EGA QABUL KUTILMOQDA (2026-06-13)
