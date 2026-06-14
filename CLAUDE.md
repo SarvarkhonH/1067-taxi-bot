@@ -5,7 +5,7 @@ Sen 1067 loyihasining bosh muhandisi VA mahsulot dizaynerisan. Har qaror ikkala 
 "kod to'g'rimi?" + "mijoz his qiladimi?". Sifat mezoning: Uber/Bolt darajasi, undan kam emas.
 
 ## ISHLASH PROTOKOLI (har sessiyada, har doim)
-1. Avval o'qi: CLAUDE.md → PROGRESS.md → (bo'lsa) AUDIT.md → berilgan tiket.
+1. Avval o'qi: CLAUDE.md → PROGRESS.md → AUDIT.md → V3_PLAN.md → V3_AUDIT.md → berilgan tiket.
 2. REJA chiqar: o'zgaradigan fayllar ro'yxati + yondashuv + xavflar. TASDIQNI KUT.
 3. Kod yoz. Har fayl o'zgarishidan keyin typecheck.
 4. O'Z-O'ZINGNI TEKSHIR: tiketdagi har qabul mezonini birma-bir isbotla
@@ -36,3 +36,17 @@ Sen 1067 loyihasining bosh muhandisi VA mahsulot dizaynerisan. Har qaror ikkala 
 - Render: push avto-deploy qilmasligi mumkin — POST .../deploys bilan trigger;
   start buyrug'i `prisma db push` qiladi — destruktiv schema lokalda avval.
 - kas1067: sahifa ~50 cap; terminal status "delivered" (payment bilan).
+
+## TAYYORLIK TA'RIFI & TEKSHIRUV PROTOKOLI (DoD) — har qanday yumshoqroq "done"ni BEKOR qiladi
+Builder qayta-qayta "tayyor/done" dedi, aslida tugamagan (coin services/ da, tor grep, eski "to'lqin"lar T-tiket bilan aralashtirildi). Bu 8 qoida "done"ni isbotlanadigan qiladi. Tezlikdan ko'ra TO'LIQLIK.
+
+1. Builder HECH QACHON "done/tayyor/complete/finished/shipped" demaydi — faqat **"READY FOR VERIFICATION"** + buyruq+natija isbot bilan. "Done" — egasining (yoki mustaqil tekshiruv) so'zi, kod yozgan agentniki EMAS.
+2. DoD kod yozishdan OLDIN yoziladi + ega TASDIQLAYDI: har qabul satri, har biri sinaladigan, har biriga ANIQ tekshiruv-buyrug'i. Shu ro'yxatga quriladi; har satr buyruq+natija bilan isbotlanmaguncha hech narsa "ready" emas.
+3. Butun-repo tekshiruvi, hech qachon qism EMAS: har "0 X"/"hammasi"/"hamma joyda" da'vosi BARCHA packages/*/src bo'ylab buyruq+xom natija bilan. Faqat qismni tekshirgan bo'lsang — nimani QAMRAMAGANingni ayt. (Tor grep "o'tdi" = coin/services xatosini keltirgan bug.)
+4. Mustaqil tekshiruv bosqichi (eng muhim): "READY" deyishdan oldin ALOHIDA bosqich (kodni yozMAGAN yangi sub-agent) HAR DoD satrini kod+jonli deploy ga qarshi qayta tekshiradi, faqat-isbot (file:line + iqtibos + natija). Builder da'vosi yolg'iz turmaydi.
+5. Da'vo-vs-haqiqat solishtiruv har yopilishda: jadval (element / kodda? / jonli? / gated? / nima bilan isbot / gap). PROGRESS.md vs git vs jonli solishtiriladi. Har gap nomi bilan. "Gap yo'q" — isbotlanishi kerak bo'lgan da'vo.
+6. Foydalanuvchiga ko'rinadigan har narsa egadan sign-off: UI isbot = REAL autentifikatsiyalangan render (grep/demo EMAS). Ega real telefonda QABUL beradi. QABUL'dan oldin global flag yoqilmaydi.
+7. PROGRESS.md = LITERAL haqiqat. Aralashtirish yo'q (eski "to'lqin" ≠ tugagan T-tiket). Har tiket holati ANIQ bittasi: `not started` / `in progress (gaps: …)` / `ready for verification` / `owner-accepted`. "Done" FAQAT owner-accepted'dan keyin. PROGRESS haqiqatga zid bo'lsa — o'sha commit'da tuzatiladi.
+8. Qisman = qisman deb aytiladi. Bitta isbotlanmagan qabul satri = butun tiket ready EMAS. Tezlik hech qachon yuqoriga yaxlitlamaydi.
+
+**"v2 100%"** = har T-tiket DoD bajarilgan, mustaqil tekshirilgan (R4), owner-accepted (R6), PROGRESS literal-haqiqat (R7). Tartib: T3 tugat → T4 qabul (A+B+C + QABUL) → T5 → T6 → T7 → T8; oldingi owner-accepted bo'lmaguncha keyingisi boshlanmaydi.
