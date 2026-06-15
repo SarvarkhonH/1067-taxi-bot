@@ -317,7 +317,10 @@ body {
 
 /* ═══ BOOKING 3.0 (E1-E4) — xarita-birinchi ═══ */
 .b3-screen { position: fixed; inset: 0; z-index: 50; background: var(--bg); }
-.b3-map { position: absolute; inset: 0; }
+/* z-index:0 makes .b3-map its OWN stacking context → Leaflet's internal panes (tile/marker/
+   control, z-index 200-700) stay CONTAINED below the sheet/top bar. Without this the map
+   covers the whole screen (MapLibre's single canvas didn't, Leaflet's many panes do). */
+.b3-map { position: absolute; inset: 0; z-index: 0; }
 /* dark map from Google light raster tiles — filter hits ONLY the tile pane; markers live in
    .leaflet-marker-pane (separate) so the cars/pins stay full-color. No WebGL (Leaflet raster). */
 .b3-map .leaflet-container { background: var(--surface); }
