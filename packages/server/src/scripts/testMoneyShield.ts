@@ -53,6 +53,20 @@ async function main(): Promise<void> {
   await grantCoins(a.id, 30000, "manual", "seed");
   await grantCoins(b.id, 30000, "manual", "seed");
 
+  // ── P0 (QA fleet): grantCoins CONCURRENT-DUPLICATE → EXACTLY ONE credit ──────
+  // The old code checked-then-incremented non-atomically: N concurrent callers with the
+  // same idempotencyKey all passed the guard and all incremented (double-grant, no audit).
+  // The fix wraps unique-keyed insert + increment in one tx → only one wins, rest roll back.
+  const race = await prisma.member.create({ data: { type: "client", kasId: `${TAG}-RACE`, fullName: "Race", phone: "+998900011009", trips: 1 } });
+  const rkey = `racekey:${race.id}:777`;
+  const raceResults = await Promise.all(Array.from({ length: 8 }, () => grantCoins(race.id, 250, "race", "concurrent dup", rkey)));
+  const raceBal = await bal(race.id);
+  const raceRows = await prisma.coinTxn.count({ where: { idempotencyKey: rkey } });
+  const raceOk = raceResults.filter((x) => x.ok).length;
+  ok(raceBal === 250, `P0 grantCoins: 8 concurrent same-key → balance EXACTLY +250 once (got ${raceBal})`);
+  ok(raceRows === 1, `P0 grantCoins: exactly 1 CoinTxn audit row for the key (got ${raceRows})`);
+  ok(raceOk === 1, `P0 grantCoins: exactly 1 call returned ok, 7 skipped as duplicate (got ${raceOk} ok)`);
+
   // ── 3.1 JACKPOT: duplicate'da pool TEGILMAYDI ───────────────────────────
   await prisma.appState.upsert({ where: { key: "jackpot_pool" }, update: { value: "44444" }, create: { key: "jackpot_pool", value: "44444" } });
   // duplicate stsenariy: roll allaqachon bo'lgan safar uchun jackpot-roll keladi
