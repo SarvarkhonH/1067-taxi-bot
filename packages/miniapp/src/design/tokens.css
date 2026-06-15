@@ -318,8 +318,10 @@ body {
 /* ═══ BOOKING 3.0 (E1-E4) — xarita-birinchi ═══ */
 .b3-screen { position: fixed; inset: 0; z-index: 50; background: var(--bg); }
 .b3-map { position: absolute; inset: 0; }
-/* dark map from Google light raster tiles — filter hits ONLY the tile canvas; markers (HTML overlays) stay full-color */
-.b3-map .maplibregl-canvas { filter: invert(1) hue-rotate(180deg) brightness(.92) contrast(.9); }
+/* dark map from Google light raster tiles — filter hits ONLY the tile pane; markers live in
+   .leaflet-marker-pane (separate) so the cars/pins stay full-color. No WebGL (Leaflet raster). */
+.b3-map .leaflet-container { background: var(--surface); }
+.b3-map .leaflet-tile-pane { filter: invert(1) hue-rotate(180deg) brightness(.92) contrast(.9); }
 /* D: map fallback — clear placeholder when WebGL is unavailable or the style fails to load (never a blank) */
 .b3-map-fallback { position: absolute; inset: 0; z-index: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; text-align: center; padding: 24px; color: var(--text); background: var(--bg); }
 .b3-map-fallback-ico { font-size: 44px; opacity: 0.7; }

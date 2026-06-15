@@ -1,11 +1,14 @@
-// 🗺 BOOKING 3.0 (E1-E4) — MapLibre dark, map-first. feature:booking3 gated;
-// when off, falls back to the classic Leaflet BookingView (zero regression).
-// kas is PICKUP-ONLY (taximeter, no destination routing) — so we honestly select
-// the PICKUP and show a history-based fare "≈" (not a promise). The destination
-// is told to the driver. Gold is ONLY on the CALL button.
+// 🗺 BOOKING 3.0 (E1-E4) — Leaflet (raster <img> tiles, NO WebGL) dark, map-first.
+// WHY Leaflet, not MapLibre: MapLibre needs WebGL, which many Telegram WebViews (and budget
+// Android) do NOT support → the map rendered nothing for real customers. Leaflet draws plain
+// <img> tiles (like the old flow that always worked), so the map shows on every device.
+// Leaflet is BUNDLED (npm), not loaded from unpkg — no foreign-CDN dependency (the Carto lesson).
+// feature:booking3 gated; when off, falls back to the classic Leaflet BookingView (zero regression).
+// kas is PICKUP-ONLY (taximeter, no destination routing) — so we honestly select the PICKUP and
+// show a history-based fare "≈" (not a promise). Gold is ONLY on the CALL button.
 import { lazy, Suspense, useEffect, useRef, useState } from "react";
-import maplibregl from "maplibre-gl";
-import "maplibre-gl/dist/maplibre-gl.css";
+import L from "leaflet";
+import "leaflet/dist/leaflet.css";
 import { formatNumber, type ActiveBookingView, type BookingInfoResponse, type MeResponse, type SavedAddressView } from "@t1067/shared";
 import { api } from "./api";
 import { haptic, tg } from "./telegram";
@@ -14,28 +17,25 @@ import { Button, Sheet, Skeleton } from "./design/components";
 
 const BookingViewOld = lazy(() => import("./booking").then((m) => ({ default: m.BookingView })));
 
-// Carto's vector CDN (basemaps.cartocdn.com) is blocked on UZ networks → no map for any
-// UZ customer. kas1067 itself runs on Google Maps (proven reachable here), so we use Google
-// raster tiles via a minimal MapLibre raster style (keeps every marker). The light tiles are
-// darkened with a CSS filter on the canvas only (.b3-map .maplibregl-canvas) — markers are
-// HTML overlays, untouched. hl=uz → Uzbek labels.
-const G = (i: number): string => `https://mt${i}.google.com/vt/lyrs=m&hl=uz&x={x}&y={y}&z={z}`;
-const DARK_STYLE: maplibregl.StyleSpecification = {
-  version: 8,
-  sources: { g: { type: "raster", tiles: [G(0), G(1), G(2), G(3)], tileSize: 256, attribution: "© Google" } },
-  layers: [{ id: "g", type: "raster", source: "g" }],
-};
+// Google raster tiles ({s}=subdomain) — proven reachable on UZ networks (kas1067 runs on Google);
+// Carto's vector CDN was UZ-blocked. Plain raster <img> tiles, NO WebGL. hl=uz → Uzbek labels.
+const TILE_URL = "https://mt{s}.google.com/vt/lyrs=m&hl=uz&x={x}&y={y}&z={z}";
+const TILE_SUBDOMAINS = ["0", "1", "2", "3"];
 
-// D: the map must NEVER be a blank canvas. Detect WebGL up front (low-end devices / some
-// Telegram WebViews lack it); ?nomap=1 forces the fallback for testing. If WebGL is missing
-// OR the style fails to load, we show a clear placeholder — the booking flow stays fully usable.
-function webglOk(): boolean {
+// Leaflet divIcon with NO default white box (className:"" drops .leaflet-div-icon styling);
+// our own class styles the marker. Markers live in .leaflet-marker-pane → never dark-filtered.
+function divIcon(cls: string, html: string): L.DivIcon {
+  return L.divIcon({ className: "", html: `<div class="${cls}">${html}</div>`, iconSize: [28, 28], iconAnchor: [14, 14] });
+}
+
+// D: the map must NEVER be blank. Leaflet needs no WebGL, but ?nomap=1 still forces the
+// placeholder for testing; if no tile loads (network blocked / offline) we show a clear
+// placeholder instead — the booking flow stays fully usable.
+function mapAllowed(): boolean {
   try {
-    if (new URLSearchParams(location.search).get("nomap") === "1") return false;
-    const c = document.createElement("canvas");
-    return !!(window.WebGLRenderingContext && (c.getContext("webgl") || c.getContext("experimental-webgl")));
+    return new URLSearchParams(location.search).get("nomap") !== "1";
   } catch {
-    return false;
+    return true;
   }
 }
 
@@ -117,51 +117,46 @@ function Booking3Inner({ me, info, onClose }: { me: MeResponse; info: BookingInf
   const [active, setActive] = useState<ActiveBookingView | null>(info.active ?? null); // B: live status
 
   const mapRef = useRef<HTMLDivElement | null>(null);
-  const map = useRef<maplibregl.Map | null>(null);
-  const pinMarkers = useRef<maplibregl.Marker[]>([]);
-  const pickMarker = useRef<maplibregl.Marker | null>(null);
-  const driverMarker = useRef<maplibregl.Marker | null>(null);
-  const [mapOk] = useState(webglOk); // WebGL available? (computed once)
-  const [mapFailed, setMapFailed] = useState(false); // style/CDN failed to load
+  const map = useRef<L.Map | null>(null);
+  const pinMarkers = useRef<L.Marker[]>([]);
+  const pickMarker = useRef<L.Marker | null>(null);
+  const driverMarker = useRef<L.Marker | null>(null);
+  const [mapOk] = useState(mapAllowed); // false only when ?nomap=1 → show placeholder
+  const [mapFailed, setMapFailed] = useState(false); // no tiles loaded (network blocked)
 
-  // ── E1: MapLibre dark map ──────────────────────────────────────────────
+  // ── E1: Leaflet raster map (no WebGL — renders on every Telegram WebView) ──
   useEffect(() => {
-    if (!mapRef.current || map.current || !mapOk) return; // D: no WebGL → skip init, show placeholder
-    const m = new maplibregl.Map({
-      container: mapRef.current,
-      style: DARK_STYLE,
-      center: [info.center.lng, info.center.lat],
-      zoom: 13,
-      attributionControl: { compact: true },
-    });
-    map.current = m;
-    // D: if the style/tiles never load (CDN blocked / offline), show the placeholder, not a blank
-    const failTimer = setTimeout(() => setMapFailed(true), 8000);
-    m.on("load", () => {
-      clearTimeout(failTimer);
-      setMapFailed(false);
-      m.resize();
-    });
-    // E2: drag map → drop pin at center → nearest saved address
-    m.on("moveend", () => {
-      if (screenRef.current !== "map" || !pickRef.current) return;
-    });
+    if (!mapRef.current || map.current || !mapOk) return; // ?nomap=1 → skip, show placeholder
+    let failTimer: ReturnType<typeof setTimeout> | undefined;
+    try {
+      const m = L.map(mapRef.current, { zoomControl: false, attributionControl: false }).setView(
+        [info.center.lat, info.center.lng],
+        14,
+      );
+      L.tileLayer(TILE_URL, { subdomains: TILE_SUBDOMAINS, maxZoom: 20, crossOrigin: true }).addTo(m);
+      map.current = m;
+      // if NO tile loads within 8s (network blocked / offline) → placeholder, never a blank map
+      failTimer = setTimeout(() => setMapFailed(true), 8000);
+      let firstTile = false;
+      m.on("tileload", () => {
+        if (firstTile) return;
+        firstTile = true;
+        if (failTimer) clearTimeout(failTimer);
+        setMapFailed(false);
+      });
+      setTimeout(() => map.current?.invalidateSize(), 200); // size correctly after layout settles
+    } catch {
+      setMapFailed(true);
+    }
     return () => {
-      clearTimeout(failTimer);
-      m.remove();
+      if (failTimer) clearTimeout(failTimer);
+      map.current?.remove();
       map.current = null;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const screenRef = useRef(screen);
-  const pickRef = useRef(pickup);
-  useEffect(() => {
-    screenRef.current = screen;
-    pickRef.current = pickup;
-  }, [screen, pickup]);
-
-  // ── E1 live pins (free cars), 45s, glide via marker setLngLat transition ──
+  // ── E1 live pins (free cars), 45s refresh ──
   useEffect(() => {
     let alive = true;
     const load = async () => {
@@ -169,12 +164,9 @@ function Booking3Inner({ me, info, onClose }: { me: MeResponse; info: BookingInf
       if (!alive || !r || !map.current) return;
       setFreeDrivers(r.freeDrivers);
       for (const mk of pinMarkers.current) mk.remove();
-      pinMarkers.current = r.pins.slice(0, 20).map((d) => {
-        const el = document.createElement("div");
-        el.className = "b3-pin" + (d.busy ? " busy" : "");
-        el.textContent = d.busy ? "🚖" : "🟢";
-        return new maplibregl.Marker({ element: el }).setLngLat([d.lng, d.lat]).addTo(map.current!);
-      });
+      pinMarkers.current = r.pins
+        .slice(0, 20)
+        .map((d) => L.marker([d.lat, d.lng], { icon: divIcon("b3-pin" + (d.busy ? " busy" : ""), d.busy ? "🚖" : "🟢") }).addTo(map.current!));
     };
     load();
     const t = setInterval(load, 45_000);
@@ -182,35 +174,32 @@ function Booking3Inner({ me, info, onClose }: { me: MeResponse; info: BookingInf
       alive = false;
       clearInterval(t);
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // place pickup marker + recenter
+  // place pickup marker + recenter (remove+recreate replays the pin-drop animation)
   useEffect(() => {
     if (!map.current || !pickup?.lat || !pickup?.lng) return;
-    const el = document.createElement("div");
-    el.className = "b3-pickpin pin-drop";
-    el.textContent = "📍";
     if (pickMarker.current) pickMarker.current.remove();
-    pickMarker.current = new maplibregl.Marker({ element: el }).setLngLat([pickup.lng, pickup.lat]).addTo(map.current);
-    map.current.easeTo({ center: [pickup.lng, pickup.lat], zoom: 15, duration: 500 });
+    pickMarker.current = L.marker([pickup.lat, pickup.lng], { icon: divIcon("b3-pickpin pin-drop", "📍") }).addTo(map.current);
+    map.current.setView([pickup.lat, pickup.lng], 15, { animate: true });
   }, [pickup]);
 
-  // ── C: live assigned-driver car marker — moves toward you + rotates by bearing ──
+  // ── C: live assigned-driver car marker — glides toward you + rotates by bearing ──
   useEffect(() => {
     const d = active?.driver;
-    if (!map.current || !d?.lat || !d?.lng) {
+    if (!map.current || typeof d?.lat !== "number" || typeof d?.lng !== "number") {
       if (driverMarker.current) { driverMarker.current.remove(); driverMarker.current = null; }
       return;
     }
     if (!driverMarker.current) {
-      const el = document.createElement("div");
-      el.className = "b3-carpin"; // CSS transition glides the position between polls
-      el.innerHTML = '<span class="b3-carpin-i">🚖</span>';
-      driverMarker.current = new maplibregl.Marker({ element: el }).setLngLat([d.lng, d.lat]).addTo(map.current);
+      // className → CSS transition on .b3-carpin glides the marker position between polls
+      const icon = L.divIcon({ className: "b3-carpin", html: '<span class="b3-carpin-i">🚖</span>', iconSize: [30, 30], iconAnchor: [15, 15] });
+      driverMarker.current = L.marker([d.lat, d.lng], { icon, zIndexOffset: 1000 }).addTo(map.current);
     } else {
-      driverMarker.current.setLngLat([d.lng, d.lat]);
+      driverMarker.current.setLatLng([d.lat, d.lng]);
     }
-    const inner = driverMarker.current.getElement().querySelector(".b3-carpin-i") as HTMLElement | null;
+    const inner = driverMarker.current.getElement()?.querySelector(".b3-carpin-i") as HTMLElement | null;
     if (inner && typeof d.bearing === "number") inner.style.transform = `rotate(${d.bearing}deg)`;
   }, [active?.driver?.lat, active?.driver?.lng, active?.driver?.bearing]);
 
