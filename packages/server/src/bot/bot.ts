@@ -48,18 +48,22 @@ const canWebApp = env.TELEGRAM_WEBAPP_URL.startsWith("https://");
 // Telegram caches the Mini App aggressively BY URL — the owner kept seeing stale builds.
 // Versioning the URL (?v=<build>) makes Telegram treat each release as a brand-new app →
 // guaranteed fresh load. BUMP this on every frontend deploy (matches App.tsx build marker).
-const WEBAPP_BUILD = "v11";
-function webAppUrl(): string {
+const WEBAPP_BUILD = "v12";
+function webAppUrl(go?: string): string {
   const u = env.TELEGRAM_WEBAPP_URL;
-  return u + (u.includes("?") ? "&" : "?") + "v=" + WEBAPP_BUILD;
+  return u + (u.includes("?") ? "&" : "?") + "v=" + WEBAPP_BUILD + (go ? "&go=" + go : "");
 }
 
 // Clean 2-row menu: booking first, everything else folded into Bonuslar/Ilova.
 // Old button labels keep graceful hears-aliases (Telegram caches keyboards).
 function mainMenu(isDriver = false): Keyboard {
-  const kb = new Keyboard()
-    .text("🚕 Taxi chaqirish")
-    .text("📍 Buyurtmam")
+  // Taxi ordering = the NEW Mini App flow. The button opens the Mini App straight to
+  // booking (?go=book), not the old bot text flow. Old cached keyboards still send the
+  // text → bot.hears("🚕 Taxi chaqirish") falls back to startBooking (graceful).
+  const kb = new Keyboard();
+  if (canWebApp) kb.webApp("🚕 Taxi chaqirish", webAppUrl("book"));
+  else kb.text("🚕 Taxi chaqirish");
+  kb.text("📍 Buyurtmam")
     .row()
     .text("💰 Hamyon")
     .text("🎁 Bonuslar")

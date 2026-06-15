@@ -50,7 +50,16 @@ export function App() {
   const [board, setBoard] = useState<LeaderboardResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [toast, setToast] = useState<{ id: number; msg: string } | null>(null);
-  const [booking, setBooking] = useState(false);
+  // Deep-link: the bot's "🚕 Taxi chaqirish" button opens the Mini App with ?go=book
+  // (or startapp=book) → land straight on the booking flow, not the wallet tab.
+  const [booking, setBooking] = useState(() => {
+    try {
+      const sp = (tg as { initDataUnsafe?: { start_param?: string } } | undefined)?.initDataUnsafe?.start_param;
+      return new URLSearchParams(location.search).get("go") === "book" || sp === "book";
+    } catch {
+      return false;
+    }
+  });
   const coins = useCountUp(me?.coins ?? 0);
   // WOW-1: balans oshganda tanga ikonkasi sakraydi
   const [coinBounce, setCoinBounce] = useState(false);
@@ -119,7 +128,7 @@ export function App() {
         <div className="brand">
           <span className="brand-badge">🚕</span>
           <span className="brand-name">1067<b>TAXI</b></span>
-          <span className="build-ver">v11 🎡</span>
+          <span className="build-ver">v12 🚕</span>
         </div>
         <div className="coin-pill">
           <span className={"coin-dot" + (coinBounce ? " d-coin-bounce" : "")}>🪙</span>
