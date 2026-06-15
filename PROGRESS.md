@@ -20,6 +20,10 @@
   - **P1 (broken UX/feature):** blank-state .catch(()=>undefined) (market/missions/wallet/referral/driver/booking3-cancel) · dead bot button bk:addr/bk:other/bk:now · WheelSpinResponse disabled-shape · withMember no-try/catch · MyShopPanel blank · rateRide zero-window · garage kill-switch not enforced · admin QR 403 + toggle no-catch · marketService settle wrong day-key · bookingPlus rating window.
   - **P2:** tanga/so'm icon mislabel (mission/referral/wallet) · comeback×lucky×combo clamp-before-write.
   - **NEEDS OWNER:** WEBHOOK_SECRET + KAS_BONUS_SECRET_KEY — Render env'ga real qiymat o'rnatilsa, default'lar olib tashlanadi (aks holda deploy buziladi). Operator economic-config (shopmode/listing) gate qilinsinmi — qaror.
+  - **P0-MONEY BATCH (fix-design fleet wv4oqf6is: 11 apply / 5 revise / 1 false-positive):**
+    - ✅ **2/16 DONE + PROVEN (7b9f5c5):** completeReferral (insert-first + stamp-after), payRecruitRevshare (P2002-catch+re-read). PROOF: testRaceFixes (concurrent → 1 row/1 grant), money-shield GREEN, fleet-reviewed closesRace. recruit3-once = FALSE-POSITIVE (key already per-recruit).
+    - ⏳ **APPLY-ready (9):** checkin-streak-atomic, withdraw-budget-toctou, withdraw-atomic, finish-card-multisend, kas-cancel-finish-missed (low) · jackpot-namespace (subtle claimJackpot pool-drain — care), grantRideCoins-clamp + phantom-ride-finish (medium). mintItem (needs tx-aware spendCoins).
+    - ⏳ **REVISE (5):** openBox (migration load-bearing), claimMission (contract), garage-ridesSinceService (contract), createBooking-guard (null-rollback), barter-multipledge. Fleet flagged real concerns → I refine each before apply.
   - **Tartib:** P0-money (har biri proven) → P0-sec → P1 → T5-E7 → P2. Bir batch/fleet bir vaqtda (rate-limit saboq).
 
 ### T4 BOOKING UPGRADE (A+B+C+D) — JONLI HOLAT (tartib: A+D → B → C)
