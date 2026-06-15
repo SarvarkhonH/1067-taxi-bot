@@ -119,7 +119,7 @@ export function App() {
         <div className="brand">
           <span className="brand-badge">🚕</span>
           <span className="brand-name">1067<b>TAXI</b></span>
-          <span className="build-ver">v10 🚗</span>
+          <span className="build-ver">v11 🎡</span>
         </div>
         <div className="coin-pill">
           <span className={"coin-dot" + (coinBounce ? " d-coin-bounce" : "")}>🪙</span>

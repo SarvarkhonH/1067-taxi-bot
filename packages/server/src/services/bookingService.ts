@@ -163,7 +163,14 @@ export async function cancelBookingFor(memberId: number): Promise<BookingCancelR
 export async function getActiveBookingFor(memberId: number): Promise<ActiveBookingView | null> {
   const who = await phoneOf(memberId);
   if (!who) return null;
-  return toView(await getDataSource().getActiveBooking(who.phone).catch(() => null));
+  const view = toView(await getDataSource().getActiveBooking(who.phone).catch(() => null));
+  // T5-E6: once the ride has started, expose rideStartedAt (set by the sweep) so the
+  // Mini App can show a live garage counter. Display-only — grants stay in the bot sweep.
+  if (view && view.status === "started") {
+    const m = await prisma.member.findUnique({ where: { id: memberId }, select: { rideStartedAt: true } }).catch(() => null);
+    view.rideStartedAt = m?.rideStartedAt ? m.rideStartedAt.toISOString() : null;
+  }
+  return view;
 }
 
 // ── 1-tap "1067 Now" ──────────────────────────────────────────────────────────

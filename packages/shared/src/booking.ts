@@ -52,6 +52,7 @@ export interface ActiveBookingView {
   canCancel: boolean; // early status only
   driver: BookingDriverView | null;
   notifiedCount?: number; // T4-B: drivers notified (carNumberList) — honest "N haydovchiga yuborildi" while searching
+  rideStartedAt?: string | null; // T5-E6: ISO time the ride started (status=started) → live garage counter
 }
 
 export interface BookingInfoResponse {

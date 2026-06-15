@@ -9,7 +9,7 @@
 import { lazy, Suspense, useEffect, useRef, useState } from "react";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
-import { formatNumber, type ActiveBookingView, type BookingDriverView, type BookingInfoResponse, type MeResponse, type SavedAddressView } from "@t1067/shared";
+import { formatNumber, GARAGE_RIDE_CAP_MIN, type ActiveBookingView, type BookingDriverView, type BookingInfoResponse, type GarageResponse, type MeResponse, type SavedAddressView, type WheelSpinResponse } from "@t1067/shared";
 import { api } from "./api";
 import { haptic, tg } from "./telegram";
 import { confetti } from "./util";
@@ -75,6 +75,64 @@ function shareTrip(d: BookingDriverView): void {
   const w = tg as { openTelegramLink?: (u: string) => void } | undefined;
   if (w?.openTelegramLink) w.openTelegramLink(url);
   else window.open(url, "_blank");
+}
+
+// ── E6: in-trip (status=started) — live garage counter + one in-ride roulette ──
+// DISPLAY-ONLY. The garage earning is GRANTED by the bot sweep at ride end (idempotent
+// garage:<m>:<b>); this counter only mirrors it for motivation. The roulette calls the
+// existing /api/wheel which is in-ride-gated AND idempotent per booking (1 spin/ride) —
+// the server is the single source of the grant; the Mini App just shows the prize.
+function InTripExtras({ rideStartedAt }: { rideStartedAt: string | null }) {
+  const [garage, setGarage] = useState<GarageResponse | null>(null);
+  const [now, setNow] = useState<number>(() => 0); // ticks recompute the counter (0 = "use Date.now at render")
+  const [spin, setSpin] = useState<WheelSpinResponse | null>(null);
+  const [spinning, setSpinning] = useState(false);
+  const startMs = useRef<number>(rideStartedAt ? Date.parse(rideStartedAt) : Date.now());
+
+  useEffect(() => {
+    api.garage().then(setGarage).catch(() => undefined);
+    const t = setInterval(() => setNow((n) => n + 1), 5000); // re-render every 5s → counter ticks
+    return () => clearInterval(t);
+  }, []);
+
+  const equipped = garage?.cars.find((c) => c.equipped) ?? null;
+  const elapsedMin = Math.max(0, (Date.now() - startMs.current) / 60_000);
+  const cappedMin = Math.min(elapsedMin, GARAGE_RIDE_CAP_MIN);
+  const earned = equipped ? Math.floor(cappedMin * equipped.ratePerMin) : 0;
+  void now; // dependency: forces recompute each tick
+
+  const doSpin = async (): Promise<void> => {
+    if (spinning || spin) return;
+    setSpinning(true);
+    haptic();
+    const r = await api.spinWheel().catch(() => null);
+    if (r) setSpin(r);
+    setSpinning(false);
+  };
+
+  return (
+    <div className="b3-intrip">
+      {equipped ? (
+        <div className="b3-garage">
+          <span className="b3-garage-car">{equipped.emoji}</span>
+          <div className="b3-garage-meta">
+            <div className="fs12 dim">{equipped.name} siz bilan ishlayapti</div>
+            <div className="b3-garage-earn">+{formatNumber(earned)} 🪙{elapsedMin >= GARAGE_RIDE_CAP_MIN ? <span className="fs11 dim"> · maks</span> : null}</div>
+          </div>
+        </div>
+      ) : null}
+      {spin && !spin.noRide ? (
+        <div className="b3-spin-done">
+          {spin.alreadySpun ? "🎡 Bu safar omadingiz: " : "🎉 "}
+          <b>{spin.prize.emoji} {spin.alreadySpun ? spin.prize.label : `+${formatNumber(spin.prize.amount)} 🪙`}</b>
+        </div>
+      ) : (
+        <button className="b3-spin-btn" disabled={spinning} onClick={doSpin}>
+          {spinning ? "🎡 Aylanyapti…" : "🎡 Omadni sina — safar sovg'asi"}
+        </button>
+      )}
+    </div>
+  );
 }
 
 export function Booking3View({ me, onClose }: { me: MeResponse; onClose: () => void }) {
@@ -400,6 +458,7 @@ function Booking3Inner({ me, info, onClose }: { me: MeResponse; info: BookingInf
               {active.driver.meterPayment ? (
                 <div className="b3-fare-row mt8"><span>🧮 Hisoblagich (jonli)</span><b>{formatNumber(active.driver.meterPayment)} so'm</b></div>
               ) : null}
+              {active.status === "started" ? <InTripExtras rideStartedAt={active.rideStartedAt ?? null} /> : null}
               <div className="b3-acts">
                 {active.driver.phone ? <a className="b3-act b3-act-call" href={`tel:${active.driver.phone}`}>📞 Qo'ng'iroq</a> : null}
                 <button className="b3-act" onClick={() => active.driver && shareTrip(active.driver)}>🛡 Ulashish</button>
