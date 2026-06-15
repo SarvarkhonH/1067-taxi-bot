@@ -788,7 +788,7 @@ export function createApiServer(opts: ApiOptions = {}) {
     const { getIntegrity } = await import("../services/reconciliation");
     res.json(await getIntegrity());
   });
-  app.post("/api/admin/heal", requireAdmin, async (req, res) => {
+  app.post("/api/admin/heal", requireAdmin, requireOwner, async (req, res) => {
     const { healMember } = await import("../services/reconciliation");
     const id = Math.floor(Number((req.body as { memberId?: number })?.memberId ?? 0));
     if (!id) {
@@ -810,7 +810,7 @@ export function createApiServer(opts: ApiOptions = {}) {
     const { recruitStats } = await import("../services/recruitService");
     res.json(await recruitStats());
   });
-  app.post("/api/admin/unflag", requireAdmin, async (req, res) => {
+  app.post("/api/admin/unflag", requireAdmin, requireOwner, async (req, res) => {
     const { unflagMember } = await import("../services/reconciliation");
     const id = Math.floor(Number((req.body as { memberId?: number })?.memberId ?? 0));
     if (!id) {

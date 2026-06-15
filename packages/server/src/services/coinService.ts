@@ -35,14 +35,24 @@ export async function grantCoins(
     const existing = await prisma.coinTxn.findUnique({ where: { idempotencyKey } });
     if (existing) return { ok: false, balance: await getCoins(memberId), skipped: "duplicate" };
   }
-  const member = await prisma.member.update({
-    where: { id: memberId },
-    data: { coins: { increment: amount } },
-  });
-  await prisma.coinTxn.create({
-    data: { memberId, amount, kind, reason, idempotencyKey: idempotencyKey ?? null },
-  });
-  return { ok: true, balance: member.coins };
+  // P0 (QA fleet): the audit insert + balance increment MUST be atomic. The old code
+  // incremented coins then created the CoinTxn in two separate statements — two concurrent
+  // callers with the same key both passed the findUnique guard, both incremented, and only
+  // the second create hit the unique constraint (AFTER money already double-moved). Now both
+  // run in ONE transaction with the unique-keyed insert FIRST, so a concurrent duplicate
+  // aborts the whole tx before any coins move (P2002 → reported as a clean duplicate-skip).
+  try {
+    const member = await prisma.$transaction(async (tx) => {
+      await tx.coinTxn.create({ data: { memberId, amount, kind, reason, idempotencyKey: idempotencyKey ?? null } });
+      return tx.member.update({ where: { id: memberId }, data: { coins: { increment: amount } } });
+    });
+    return { ok: true, balance: member.coins };
+  } catch (e) {
+    if (idempotencyKey && (e as { code?: string } | null)?.code === "P2002") {
+      return { ok: false, balance: await getCoins(memberId), skipped: "duplicate" };
+    }
+    throw e;
+  }
 }
 
 /**

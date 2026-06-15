@@ -121,7 +121,7 @@ function InTripExtras({ rideStartedAt }: { rideStartedAt: string | null }) {
           </div>
         </div>
       ) : null}
-      {spin && !spin.noRide ? (
+      {spin && !spin.noRide && spin.prize ? (
         <div className="b3-spin-done">
           {spin.alreadySpun ? "🎡 Bu safar omadingiz: " : "🎉 "}
           <b>{spin.prize.emoji} {spin.alreadySpun ? spin.prize.label : `+${formatNumber(spin.prize.amount)} 🪙`}</b>
