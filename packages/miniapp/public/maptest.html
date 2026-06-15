@@ -1,0 +1,142 @@
+<!doctype html>
+<html lang="uz">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
+<title>1067 — Xarita testi</title>
+<style>
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  body { margin: 0; font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; background: #0b0f1a; color: #fff; padding: 14px 14px 40px; }
+  h1 { font-size: 20px; margin: 0 0 4px; }
+  .sub { color: #9aa4bb; font-size: 13px; line-height: 1.45; margin: 0 0 16px; }
+  .card { background: #141a2b; border-radius: 14px; padding: 12px; margin-bottom: 14px; }
+  .card h2 { font-size: 15px; margin: 0 0 9px; display: flex; align-items: center; gap: 8px; }
+  .map { width: 100%; height: 220px; border-radius: 10px; overflow: hidden; background: #222; }
+  .grid { display: grid; grid-template-columns: repeat(3, 1fr); grid-template-rows: repeat(3, 1fr); width: 100%; height: 100%; }
+  .grid img { width: 100%; height: 100%; display: block; object-fit: cover; background: #1a2030; }
+  .row { display: flex; justify-content: space-between; align-items: center; padding: 9px 11px; border-radius: 9px; background: #0e1320; margin-top: 7px; font-size: 14px; }
+  .name { font-weight: 600; }
+  .ok { color: #34d399; font-weight: 700; }
+  .bad { color: #f87171; font-weight: 700; }
+  .pend { color: #fbbf24; }
+  .verdict { background: #161d30; border: 1px solid #233; border-radius: 14px; padding: 14px; margin-bottom: 14px; font-size: 15px; line-height: 1.55; }
+  .verdict .big { font-size: 17px; font-weight: 800; display: block; margin-bottom: 6px; }
+  .muted { color: #8893ad; font-size: 12px; }
+  code { background: #0e1320; padding: 2px 6px; border-radius: 5px; font-size: 12px; }
+</style>
+</head>
+<body>
+  <h1>🗺 1067 — Xarita testi</h1>
+  <p class="sub">
+    Bu sahifa <b>Telegramsiz, parolsiz</b>. Telefoningizning <b>oddiy brauzerida</b> (Chrome / Safari) oching —
+    Telegram ichida EMAS. Pastda 2 ta xarita ko'rinishi kerak. Ko'ringan/ko'rinmaganini menga ayting.
+    <br /><span class="muted">Yuklangan vaqt: <span id="ts">…</span> · build maptest-1</span>
+  </p>
+
+  <div class="verdict" id="verdict">
+    <span class="big pend">⏳ Tekshirilmoqda…</span>
+    Tile'lar yuklanmoqda, biroz kuting.
+  </div>
+
+  <div class="card">
+    <h2>① Google xarita <span class="muted">(booking shu tile'lardan foydalanadi)</span></h2>
+    <div class="map"><div class="grid" id="g-grid"></div></div>
+  </div>
+
+  <div class="card">
+    <h2>② OpenStreetMap <span class="muted">(zaxira variant)</span></h2>
+    <div class="map"><div class="grid" id="o-grid"></div></div>
+  </div>
+
+  <div class="card">
+    <h2>③ Server'larga erishish (UZ tarmoq)</h2>
+    <div id="status"></div>
+    <p class="muted" style="margin:9px 2px 0">✅ = serverga erishildi (bloklanmagan) · ❌ = bloklangan / erishilmadi</p>
+  </div>
+
+  <script>
+    (function () {
+      document.getElementById("ts").textContent = new Date().toLocaleString();
+
+      // Koson markazi → z14 tile koordinatalari (standart Web-Mercator)
+      var lat = 39.0458, lon = 65.5897, z = 14;
+      var n = Math.pow(2, z);
+      var latR = (lat * Math.PI) / 180;
+      var cx = Math.floor(((lon + 180) / 360) * n);
+      var cy = Math.floor(((1 - Math.log(Math.tan(latR) + 1 / Math.cos(latR)) / Math.PI) / 2) * n);
+
+      // 3×3 tile to'r — har provayder uchun
+      function fillGrid(elId, urlFn) {
+        var el = document.getElementById(elId);
+        for (var dy = -1; dy <= 1; dy++) {
+          for (var dx = -1; dx <= 1; dx++) {
+            var img = document.createElement("img");
+            img.src = urlFn(cx + dx, cy + dy, z);
+            img.alt = "";
+            img.loading = "eager";
+            el.appendChild(img);
+          }
+        }
+      }
+      var googleUrl = function (x, y, z) { return "https://mt" + ((x + y) % 4) + ".google.com/vt/lyrs=m&hl=uz&x=" + x + "&y=" + y + "&z=" + z; };
+      var osmUrl = function (x, y, z) { return "https://tile.openstreetmap.org/" + z + "/" + x + "/" + y + ".png"; };
+      fillGrid("g-grid", googleUrl);
+      fillGrid("o-grid", osmUrl);
+
+      // Erishish testi — bitta tile/provayder, onload=erishildi onerror=bloklangan
+      var providers = [
+        { key: "google", name: "Google", url: googleUrl(cx, cy, z) },
+        { key: "osm", name: "OpenStreetMap", url: osmUrl(cx, cy, z) },
+        { key: "yandex", name: "Yandex", url: "https://core-renderer-tiles.maps.yandex.net/tiles?l=map&x=" + cx + "&y=" + cy + "&z=" + z + "&scale=1&lang=ru_RU" },
+        { key: "carto", name: "Carto (eski — UZ'da bloklangan deb gumon)", url: "https://basemaps.cartocdn.com/light_all/" + z + "/" + cx + "/" + cy + ".png" }
+      ];
+      var statusEl = document.getElementById("status");
+      var results = {};
+      providers.forEach(function (p) {
+        var row = document.createElement("div");
+        row.className = "row";
+        row.innerHTML = '<span class="name">' + p.name + "</span><span class='pend' id='st-" + p.key + "'>⏳ tekshirilmoqda</span>";
+        statusEl.appendChild(row);
+        var im = new Image();
+        var settled = false;
+        var done = function (ok) {
+          if (settled) return; settled = true;
+          results[p.key] = ok;
+          var st = document.getElementById("st-" + p.key);
+          st.className = ok ? "ok" : "bad";
+          st.textContent = ok ? "✅ erishildi" : "❌ bloklangan";
+          updateVerdict();
+        };
+        im.onload = function () { done(true); };
+        im.onerror = function () { done(false); };
+        setTimeout(function () { done(false); }, 9000); // timeout = bloklangan
+        im.src = p.url;
+      });
+
+      function updateVerdict() {
+        if (Object.keys(results).length < providers.length) return;
+        var v = document.getElementById("verdict");
+        var g = results.google, o = results.osm, y = results.yandex, c = results.carto;
+        if (g) {
+          v.innerHTML =
+            '<span class="big ok">✅ Google xarita ISHLAYDI (UZ tarmog\'ida erishildi).</span>' +
+            "Demak booking xaritasi tile tomondan to'g'ri. Agar Telegram <b>ichida</b> hali ko'rinmasa — bu <b>Telegram keshi</b>: " +
+            "endi Mini App havolasiga <code>?v=</code> qo'shildi + <code>no-store</code> sarlavha — keyingi ochishda yangi versiya tushadi. " +
+            '<br /><span class="muted">Menga ayting: yuqorida Google xaritasi (ko\'cha to\'ri) ko\'rindimi?</span>';
+        } else if (o || y) {
+          v.innerHTML =
+            '<span class="big bad">❌ Google bloklangan</span>' +
+            "ammo " + (o ? "OpenStreetMap" : "") + (o && y ? " va " : "") + (y ? "Yandex" : "") + " ISHLAYDI. " +
+            "Booking xaritasini shu ishlaydigan provayderga o'tkazaman (keyingi qadam).";
+        } else {
+          v.innerHTML =
+            '<span class="big bad">❌ Hech bir xarita serveriga erishilmadi.</span>' +
+            "Bu tarmoq/Wi-Fi xarita serverlarini umuman bloklayapti yoki internet sekin. " +
+            "Boshqa tarmoqda (mobil internet) qayta urinib ko'ring va natijani ayting.";
+        }
+        if (c) v.innerHTML += '<br /><span class="muted">⚠️ Carto ham erishildi — demak bu tarmoqda Carto bloklanmagan; muammo boshqa joyda.</span>';
+      }
+    })();
+  </script>
+</body>
+</html>

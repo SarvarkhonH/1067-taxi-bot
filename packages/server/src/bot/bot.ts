@@ -45,6 +45,15 @@ import { getFareConfig } from "../services/clientInfoService";
 
 const canWebApp = env.TELEGRAM_WEBAPP_URL.startsWith("https://");
 
+// Telegram caches the Mini App aggressively BY URL — the owner kept seeing stale builds.
+// Versioning the URL (?v=<build>) makes Telegram treat each release as a brand-new app →
+// guaranteed fresh load. BUMP this on every frontend deploy (matches App.tsx build marker).
+const WEBAPP_BUILD = "v7";
+function webAppUrl(): string {
+  const u = env.TELEGRAM_WEBAPP_URL;
+  return u + (u.includes("?") ? "&" : "?") + "v=" + WEBAPP_BUILD;
+}
+
 // Clean 2-row menu: booking first, everything else folded into Bonuslar/Ilova.
 // Old button labels keep graceful hears-aliases (Telegram caches keyboards).
 function mainMenu(isDriver = false): Keyboard {
@@ -56,7 +65,7 @@ function mainMenu(isDriver = false): Keyboard {
     .text("🎁 Bonuslar")
     .text("👥 Do'st");
   if (isDriver) kb.row().text("🚗 Haydovchi paneli");
-  if (canWebApp) kb.row().webApp("🚀 Ilova — Hamyon & Bonus", env.TELEGRAM_WEBAPP_URL);
+  if (canWebApp) kb.row().webApp("🚀 Ilova — Hamyon & Bonus", webAppUrl());
   return kb.resized();
 }
 
