@@ -93,8 +93,9 @@ export async function completeReferral(
     return null;
   }
 
-  // mark first so a concurrent link can't double-pay
-  await prisma.telegramUser.update({ where: { id: refereeTelegramId }, data: { referralCreditedAt: new Date() } });
+  // P0 (QA fleet): insert the Referral row FIRST (refereeId @unique = idempotency guard),
+  // THEN stamp referralCreditedAt below. The OLD order stamped first → a crash before
+  // referral.create left the guard set with NO row, so the sweep never paid either side.
   // NOTE: nobody is paid at link time — BOTH sides unlock on the referee's
   // first completed ride (paid by the booking sweep). Referral is an
   // acquisition cost only when a real revenue event happened.
@@ -126,15 +127,24 @@ export async function completeReferral(
       .catch(() => undefined);
   }
 
-  await prisma.referral.create({
-    data: {
-      referrerId: referrer.id,
-      refereeId: refereeTelegramId,
-      refereeMemberId,
-      rewardReferrer: referrerReward, // promised; granted on the referee's first ride
-      rewardReferee: REFEREE_REWARD,
-    },
-  });
+  try {
+    await prisma.referral.create({
+      data: {
+        referrerId: referrer.id,
+        refereeId: refereeTelegramId,
+        refereeMemberId,
+        rewardReferrer: referrerReward, // promised; granted on the referee's first ride
+        rewardReferee: REFEREE_REWARD,
+      },
+    });
+  } catch (e) {
+    // refereeId @unique → a concurrent link already created the row; skip (no double-row, no loss).
+    if ((e as { code?: string } | null)?.code === "P2002") return null;
+    throw e;
+  }
+  // durable row now exists → safe to stamp the fast-path guard (crash before this is recoverable:
+  // retry re-hits the @unique insert → P2002 → null, and the row already lets the sweep pay).
+  await prisma.telegramUser.update({ where: { id: refereeTelegramId }, data: { referralCreditedAt: new Date() } });
 
   return {
     referrerTelegramId: referrer.id,

@@ -55,7 +55,17 @@ export async function payRecruitRevshare(riderMemberId: number, bookingId: numbe
     const monthAgo = new Date(Date.now() - 30 * 24 * 3600 * 1000);
     const newThisMonth = await prisma.driverRecruit.count({ where: { driverId, createdAt: { gte: monthAgo } } });
     if (newThisMonth >= RECRUIT_MONTHLY_CAP) return;
-    recruit = await prisma.driverRecruit.create({ data: { driverId, riderMemberId } });
+    // P0 (QA fleet): riderMemberId is @unique — two concurrent first-rides could both pass
+    // the findUnique(null) above and double-create (→ double 500 grant on distinct ids).
+    // Catch P2002 and re-read so exactly one recruit row exists; recruit1 grant is then
+    // idempotent by recruit.id even if both racers reach it.
+    try {
+      recruit = await prisma.driverRecruit.create({ data: { driverId, riderMemberId } });
+    } catch (e) {
+      if ((e as { code?: string } | null)?.code !== "P2002") throw e;
+      recruit = await prisma.driverRecruit.findUnique({ where: { riderMemberId } });
+      if (!recruit) throw e;
+    }
     await grantCoins(driverId, 500, "recruit", "🚖 QR: yangi mijozingiz birinchi safarini qildi", `recruit1:${recruit.id}`);
   }
   if (rideCount >= 3) {
