@@ -350,6 +350,26 @@ body {
 .b3-fare-row { display: flex; justify-content: space-between; align-items: center; font-size: 15px; }
 .b3-fare-row b { font-size: 18px; }
 .b3-honest { margin: 8px 0; line-height: 1.4; }
+/* E5: assigned-driver tracking — status timeline + driver card + call/share actions */
+.b3-timeline { display: flex; align-items: flex-start; margin: 10px 0 12px; }
+.b3-tl-step { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 4px; position: relative; font-size: 11px; color: var(--text-dim); text-align: center; }
+.b3-tl-dot { width: 28px; height: 28px; border-radius: 50%; display: flex; align-items: center; justify-content: center; background: var(--surface); border: 1.5px solid var(--line); font-size: 14px; position: relative; z-index: 1; }
+.b3-tl-step span { position: relative; z-index: 1; }
+.b3-tl-step.done .b3-tl-dot, .b3-tl-step.active .b3-tl-dot { background: var(--brand); border-color: var(--brand); }
+.b3-tl-step.active { color: var(--text); font-weight: 800; }
+.b3-tl-step:not(:last-child)::after { content: ""; position: absolute; top: 14px; left: 50%; width: 100%; height: 2px; background: var(--line); }
+.b3-tl-step.done:not(:last-child)::after { background: var(--brand); }
+.b3-driver { display: flex; align-items: center; gap: 12px; background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-card); padding: 12px; }
+.b3-driver-av { width: 44px; height: 44px; border-radius: 50%; background: var(--surface-2); display: flex; align-items: center; justify-content: center; font-size: 24px; flex: none; }
+.b3-driver-meta { flex: 1; min-width: 0; }
+.b3-driver-name { font-weight: 800; font-size: 15px; }
+.b3-driver-rate { color: var(--brand); font-size: 13px; }
+.b3-eta { display: flex; flex-direction: column; align-items: center; line-height: 1; flex: none; }
+.b3-eta b { font-size: 22px; color: var(--brand); }
+.b3-eta span { font-size: 11px; color: var(--text-dim); }
+.b3-acts { display: flex; gap: 8px; margin-top: 10px; }
+.b3-act { flex: 1; display: flex; align-items: center; justify-content: center; gap: 6px; padding: 12px; border-radius: 12px; border: 1px solid var(--line); background: var(--surface-2); color: var(--text); font-size: 14px; font-weight: 700; text-decoration: none; cursor: pointer; }
+.b3-act-call { background: var(--brand); color: #1a1205; border-color: var(--brand); }
 /* CALL = oltin (d-btn default brand). Ghost/danger ikkilamchi — oltin-ustiga-oltin yo'q. */
 .b3-sheet .d-btn { margin-top: 8px; }
 /* E4 radar puls */

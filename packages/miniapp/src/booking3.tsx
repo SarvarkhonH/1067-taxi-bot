@@ -9,7 +9,7 @@
 import { lazy, Suspense, useEffect, useRef, useState } from "react";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
-import { formatNumber, type ActiveBookingView, type BookingInfoResponse, type MeResponse, type SavedAddressView } from "@t1067/shared";
+import { formatNumber, type ActiveBookingView, type BookingDriverView, type BookingInfoResponse, type MeResponse, type SavedAddressView } from "@t1067/shared";
 import { api } from "./api";
 import { haptic, tg } from "./telegram";
 import { confetti } from "./util";
@@ -40,6 +40,42 @@ function mapAllowed(): boolean {
 }
 
 type Screen = "map" | "confirm" | "searching";
+
+// ── E5: ride status timeline (Qabul → Yo'lda → Yetib keldi → Safarda) ──
+function rideStep(status: string): number {
+  if (status === "started") return 3;
+  if (status === "arrived" || status === "in_place") return 2;
+  if (status === "called" || status === "on_the_way") return 1;
+  return 0; // take/accepted
+}
+const TL_STEPS = [
+  { ico: "✅", label: "Qabul" },
+  { ico: "🚗", label: "Yo'lda" },
+  { ico: "📍", label: "Yetib keldi" },
+  { ico: "🏁", label: "Safarda" },
+];
+function RideTimeline({ status }: { status: string }) {
+  const idx = rideStep(status);
+  return (
+    <div className="b3-timeline">
+      {TL_STEPS.map((s, i) => (
+        <div key={i} className={"b3-tl-step" + (i < idx ? " done" : i === idx ? " active" : "")}>
+          <div className="b3-tl-dot">{s.ico}</div>
+          <span>{s.label}</span>
+        </div>
+      ))}
+    </div>
+  );
+}
+// E5: share trip to a contact (safety) — Telegram share sheet, falls back to a new tab
+function shareTrip(d: BookingDriverView): void {
+  haptic();
+  const text = `Men 1067 taksidaman 🚕\nMashina: ${d.carModel} ${d.carNumber}`;
+  const url = `https://t.me/share/url?url=${encodeURIComponent("https://t.me/koson1067bot")}&text=${encodeURIComponent(text)}`;
+  const w = tg as { openTelegramLink?: (u: string) => void } | undefined;
+  if (w?.openTelegramLink) w.openTelegramLink(url);
+  else window.open(url, "_blank");
+}
 
 export function Booking3View({ me, onClose }: { me: MeResponse; onClose: () => void }) {
   const [info, setInfo] = useState<BookingInfoResponse | null>(null);
@@ -349,18 +385,25 @@ function Booking3Inner({ me, info, onClose }: { me: MeResponse; info: BookingInf
               <div className="b3-search-title">
                 {active.status === "arrived" ? "🚕 Haydovchi yetib keldi — chiqing!" : "✅ Haydovchi qabul qildi"}
               </div>
-              <div className="b3-picked">🚘 <b>{active.driver.carModel} · {active.driver.carNumber}</b>{active.driver.rating ? ` ⭐${active.driver.rating.toFixed(1)}` : ""}</div>
-              <div className="dim tac fs13">
-                {active.status === "arrived"
-                  ? "Mashina sizni kutmoqda"
-                  : active.status === "called"
-                    ? "📞 Haydovchi qo'ng'iroq qilishi mumkin"
-                    : "🚖 Haydovchi yo'lda"}
-                {active.etaMin ? ` · ~${active.etaMin} daq` : ""}
+              <RideTimeline status={active.status} />
+              <div className="b3-driver">
+                <div className="b3-driver-av">🧑‍✈️</div>
+                <div className="b3-driver-meta">
+                  <div className="b3-driver-name">
+                    {active.driver.fullName || "Haydovchi"}
+                    {active.driver.rating ? <span className="b3-driver-rate"> ⭐{active.driver.rating.toFixed(1)}</span> : null}
+                  </div>
+                  <div className="dim fs13">🚘 {active.driver.carModel} · <b>{active.driver.carNumber}</b></div>
+                </div>
+                {active.etaMin ? <div className="b3-eta"><b>{active.etaMin}</b><span>daq</span></div> : null}
               </div>
               {active.driver.meterPayment ? (
                 <div className="b3-fare-row mt8"><span>🧮 Hisoblagich (jonli)</span><b>{formatNumber(active.driver.meterPayment)} so'm</b></div>
               ) : null}
+              <div className="b3-acts">
+                {active.driver.phone ? <a className="b3-act b3-act-call" href={`tel:${active.driver.phone}`}>📞 Qo'ng'iroq</a> : null}
+                <button className="b3-act" onClick={() => active.driver && shareTrip(active.driver)}>🛡 Ulashish</button>
+              </div>
             </>
           ) : (
             // searching — no driver yet; show the honest notified count, never "accepted"
