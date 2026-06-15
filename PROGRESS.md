@@ -11,6 +11,11 @@
 
 ## Jarayonda
 
+### 🛡 QA FLEET (1000-agent) — 56 confirmed bug, fixlash davom etmoqda
+2 fleet ishladi: (A) bug-hunt wp30x7zia (18 finder → 3-ovoz adversarial verify) = **56 tasdiqlangan bug (1 P0, 48 P1, 7 P2)** → `.qa-bugs.json` (commit qilinmaydi, ishchi fayl). (B) functional-audit wh3vyhhca (26 feature × 3 lens) = works-matrix + improvement backlog (money-core SOLID; asosiy risk = klassik oqim unpkg blank-map + atomiklik race'lar). Eslatma: ikkala fleet bir vaqtda → API rate-limit (verifierlarning yarmi tushdi); natijalar HALI yuqori-sifatli lead, lekin har fix KODGA QARSHI qayta tekshiriladi.
+- **✅ BATCH 1 (money/security/crash) — FIXED (b1239d8):** (1) **P0 grantCoins TOCTOU** double-grant → atomik `$transaction` (unique-keyed insert OLDIN + increment; P2002=duplicate-skip) — money-shield YASHIL (2x→1x, clamp, ledger). (2) **P1 auth** `/api/admin/heal`+`/api/admin/unflag` endi `requireOwner` (operator riskFlag fraud-hold'ni ocholmaydi). (3) **P1 E6 crash** `spin.prize` guard (wheel flag off bo'lsa crash yo'q). typecheck 0, Render+Vercel deploy.
+- **⏳ BATCH 2 (keyingi) — atomiklik race'lari (P0 bilan bir sinf):** boxService/missionService/referralService/recruitService/checkin/withdraw-budget/grantRideCoins-clamp/jackpot-namespace/createBooking-guard — har biri transactional fix + money-shield. **BATCH 3 — blank-state (.catch(()=>undefined) → doimiy spinner):** market/missions/wallet/referral/driver/booking3-cancel (ega "blank yo'q" qoidasi). **BATCH 4 — tanga/so'm yorliq + dead button (bk:addr/bk:other) + kas cancel_* finish detect.** **NEEDS OWNER:** WEBHOOK_SECRET='hook' + KAS_BONUS_SECRET_KEY='1303' default (env.ts) — Render env o'rnatilsa default olib tashlanadi (aks holda deploy buziladi).
+
 ### T4 BOOKING UPGRADE (A+B+C+D) — JONLI HOLAT (tartib: A+D → B → C)
 T4 to'liq tugamaydi ALL A+B+C+D mustaqil tekshirilib + ega QABUL bermaguncha. Qisman = `in progress (remaining: …)`.
 - [x] **A — per-km narx** — `ready for verification`. Soxta `≈ Odatdagi narx` (bookingPredict) OLIB TASHLANDI; E3 rate-card: `Boshlanish 5000 · Har km 2200 · +400/daq` (kas getTariff → BookingInfoResponse.tariff). ISBOT: typecheck 0; jonli render (ega, real kas) rate-card; LIVE FRA forged-initData tariff={5000,0,2200,400}; prod bundle grep (Boshlanish/Har km bor, predict yo'q); Rule-4 mustaqil tekshiruv PASS. **EGA QABUL kutilmoqda.**

@@ -18,3 +18,5 @@ kas-discovery/
 .vercel/
 
 backups/
+
+.qa-bugs.json
