@@ -93,11 +93,27 @@ function MissionCard({ m, onClaim, busy }: { m: MissionView; onClaim: (code: str
   );
 }
 
+// P1 (QA fleet): every async view needs an error+retry state — the old `.catch(()=>undefined)`
+// left data null forever → a permanent Spinner on any network blip (Render cold start, offline).
+export function LoadError({ onRetry }: { onRetry: () => void }) {
+  return (
+    <div className="d-empty">
+      <div className="d-empty-ico">📡</div>
+      <p>Yuklanmadi — internetni tekshirib qayta urinib ko'ring</p>
+      <button className="d-btn ghost" onClick={onRetry}>🔄 Qayta urinish</button>
+    </div>
+  );
+}
+
 export function MissionsView({ onReward }: { onReward: (msg: string) => void }) {
   const [data, setData] = useState<MissionsResponse | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
+  const [err, setErr] = useState(false);
 
-  const load = () => api.missions().then(setData).catch(() => undefined);
+  const load = () => {
+    setErr(false);
+    api.missions().then(setData).catch(() => setErr(true));
+  };
   useEffect(() => {
     load();
   }, []);
@@ -116,6 +132,7 @@ export function MissionsView({ onReward }: { onReward: (msg: string) => void }) 
     }
   };
 
+  if (err && !data) return <LoadError onRetry={load} />;
   if (!data) return <Spinner />;
   const readyCount = [...data.daily, ...data.weekly].filter((m) => m.claimable).length;
 
@@ -139,9 +156,15 @@ export function MissionsView({ onReward }: { onReward: (msg: string) => void }) 
 // ─── leaderboard (weekly league + all-time) ───────────────────
 function WeeklyBoard() {
   const [w, setW] = useState<WeeklyBoardResponse | null>(null);
+  const [err, setErr] = useState(false);
+  const load = () => {
+    setErr(false);
+    api.weekly().then(setW).catch(() => setErr(true));
+  };
   useEffect(() => {
-    api.weekly().then(setW).catch(() => undefined);
+    load();
   }, []);
+  if (err && !w) return <LoadError onRetry={load} />;
   if (!w) return <Spinner />;
   const max = Math.max(1, ...w.entries.map((e) => e.score));
   return (
@@ -243,11 +266,16 @@ function GapSection() {
   const [val, setVal] = useState("");
   const [busy, setBusy] = useState(false);
   const [note, setNote] = useState<string | null>(null);
-  const load = () => api.gap().then(setG).catch(() => undefined);
+  const [err, setErr] = useState(false);
+  const load = () => {
+    setErr(false);
+    api.gap().then(setG).catch(() => setErr(true));
+  };
   useEffect(() => {
     load();
   }, []);
-  if (!g) return null;
+  if (err && !g) return <LoadError onRetry={load} />;
+  if (!g) return <Spinner />;
 
   const act = async () => {
     if (busy || !val.trim()) return;
@@ -309,11 +337,17 @@ function GapSection() {
 export function ReferralView() {
   const [data, setData] = useState<ReferralResponse | null>(null);
   const [copied, setCopied] = useState(false);
+  const [err, setErr] = useState(false);
 
+  const load = () => {
+    setErr(false);
+    api.referral().then(setData).catch(() => setErr(true));
+  };
   useEffect(() => {
-    api.referral().then(setData).catch(() => undefined);
+    load();
   }, []);
 
+  if (err && !data) return <LoadError onRetry={load} />;
   if (!data) return <Spinner />;
   const share = () =>
     shareLink(data.link, "🚕 1067 Taxi — har safardan cashback, o'yinlar bilan tanga yutib, so'mga aylantiring! Qo'shiling:");

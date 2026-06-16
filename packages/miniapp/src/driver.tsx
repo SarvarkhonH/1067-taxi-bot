@@ -7,10 +7,15 @@ import { useCountUp } from "./util";
 /** Driver earnings hub — tips + transfers in, recent ledger. Tab shows only for drivers. */
 export function DriverView({ me }: { me: MeResponse }) {
   const [data, setData] = useState<{ todayIn: number; totalIn: number; txns: { amount: number; kind: string; reason: string; at: string }[] } | null>(null);
+  const [err, setErr] = useState(false);
   const coins = useCountUp(me.coins);
 
+  const load = () => {
+    setErr(false);
+    api.driverEarnings().then(setData).catch(() => setErr(true)); // P1: no permanent spinner on error
+  };
   useEffect(() => {
-    api.driverEarnings().then(setData).catch(() => undefined);
+    load();
   }, []);
 
   return (
@@ -44,7 +49,9 @@ export function DriverView({ me }: { me: MeResponse }) {
 
       <section className="glass pad">
         <div className="section-title">📜 Oxirgi amallar</div>
-        {!data ? (
+        {err && !data ? (
+          <div className="txn-empty muted">📡 Yuklanmadi · <button className="d-link" onClick={load}>qayta urinish</button></div>
+        ) : !data ? (
           <Spinner />
         ) : data.txns.length === 0 ? (
           <div className="muted txn-empty">Hali tushum yo'q — safarlar boshlanishi bilan ko'rinadi.</div>

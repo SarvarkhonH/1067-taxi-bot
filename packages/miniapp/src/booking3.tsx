@@ -348,10 +348,16 @@ function Booking3Inner({ me, info, onClose }: { me: MeResponse; info: BookingInf
   const cancel = async () => {
     setBusy(true);
     haptic();
-    await api.bookingCancel().catch(() => undefined);
+    // P1 (QA fleet): don't silently swallow a failed cancel and drop the user to the map while
+    // the ride is still live — surface it and keep them on the active-ride screen to retry.
+    const r = await api.bookingCancel().catch(() => null);
+    setBusy(false);
+    if (!r || r.ok === false) {
+      setMsg("⚠️ Bekor qilinmadi — qayta urinib ko'ring");
+      return;
+    }
     setScreen("map");
     setMsg(null);
-    setBusy(false);
   };
 
   const recents = info.savedAddresses.slice(0, 3);

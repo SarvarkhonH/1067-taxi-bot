@@ -81,6 +81,8 @@ body { font-variant-numeric: tabular-nums; }
 .d-btn:disabled { opacity: 0.45; filter: saturate(0.4); cursor: default; }
 .d-btn.ghost { background: var(--surface-2); color: var(--text); box-shadow: none; border: 1px solid var(--line); }
 .d-btn.danger { background: linear-gradient(135deg, #f87171, #dc2626); color: #fff; }
+/* inline text-link button (P1 retry affordances) */
+.d-link { background: none; border: 0; padding: 0; font: inherit; color: var(--brand); text-decoration: underline; cursor: pointer; }
 .d-btn.sm { padding: 8px 12px; font-size: 13px; width: auto; }
 /* WOW-11: disabled→enabled puls */
 .d-btn.pulse-enable:not(:disabled) { animation: d-pulse 700ms ease 1; }

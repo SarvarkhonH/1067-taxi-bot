@@ -311,13 +311,17 @@ function TopupSheet({ wallet, onClose, onDone }: { wallet: WalletResponse; onClo
 
 export function WalletView({ me, onBanner, reload, onBook }: { me: MeResponse; onBanner: (m: string) => void; reload: () => void; onBook: () => void }) {
   const [wallet, setWallet] = useState<WalletResponse | null>(null);
+  const [walletErr, setWalletErr] = useState(false);
   const [sheet, setSheet] = useState(false);
   const [topup, setTopup] = useState(false);
   const [send, setSend] = useState(false);
   const coins = useCountUp(wallet?.coins ?? me.coins);
   const cashback = useCountUp(wallet?.cashback ?? me.stats.points);
 
-  const loadWallet = () => api.wallet().then(setWallet).catch(() => undefined);
+  const loadWallet = () => {
+    setWalletErr(false);
+    api.wallet().then(setWallet).catch(() => setWalletErr(true)); // P1: no permanent spinner on error
+  };
   useEffect(() => {
     loadWallet();
   }, []);
@@ -385,7 +389,9 @@ export function WalletView({ me, onBanner, reload, onBook }: { me: MeResponse; o
 
       <section className="glass pad">
         <div className="section-title">📜 So'nggi harakatlar</div>
-        {!wallet ? (
+        {walletErr && !wallet ? (
+          <div className="txn-empty muted">📡 Yuklanmadi · <button className="d-link" onClick={loadWallet}>qayta urinish</button></div>
+        ) : !wallet ? (
           <Spinner />
         ) : wallet.txns.length === 0 ? (
           <div className="muted txn-empty">Hali harakat yo'q — 🎮 O'yinlardan boshlang!</div>
