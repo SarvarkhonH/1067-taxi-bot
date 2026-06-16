@@ -176,6 +176,51 @@ export interface AdminLiveBooking {
   hasDriver: boolean;
 }
 
+// ── T7 / M1 — operations pulse (today vs same weekday last week + live alerts) ──
+export interface OpsPulseMetric {
+  label: string; // "Safarlar" | "Bot ulushi" | "Bekor %"
+  today: number;
+  prev: number; // same weekday last week, same elapsed hours
+  unit: "count" | "pct";
+  goodWhen: "up" | "down"; // which direction is healthy (rides up, cancels down)
+}
+export interface OpsAlert {
+  level: "red" | "amber";
+  text: string;
+}
+export interface OpsPulse {
+  weekday: string; // Uzbek weekday name
+  metrics: OpsPulseMetric[];
+  activeNow: number; // active bookings right now
+  unassigned: number; // active bookings still without a driver
+  emissionToday: number; // coins emitted today (+)
+  emissionCapDay: number; // soft daily emission ceiling (drives the alert)
+  alerts: OpsAlert[];
+  reportsStale: boolean; // kas reports unavailable → pulse is partial
+}
+
+// ── T7 / M2 — finance center (real money figures only; no speculative P&L) ──
+export interface WithdrawQueueRow {
+  member: string;
+  amount: number;
+  ageMin: number;
+  failed: boolean; // kasApplied = false → cashout did not reach kas
+  message: string | null;
+}
+export interface AdminFinance {
+  coinLiability: number; // Σ member.coins — what the ecosystem owes
+  liabilityByKind: { kind: string; total: number; count: number }[]; // emitters, biggest first
+  withdrawnToday: number; // real so'm cashed out today
+  withdrawnTotal: number; // all-time real cashout
+  withdrawBudget: { total: number; used: number; remaining: number; rides: number };
+  gmvToday: number; // gross fares today (Σ kas payment) — informational, not our revenue
+  gmvWeek: number;
+  daysToCoverLiability: number | null; // liability ÷ daily withdraw budget (null if budget 0)
+  withdrawQueue: WithdrawQueueRow[]; // failed/unsent cashouts needing attention
+  corpBalances: { name: string; balance: number; employees: number }[]; // B2B prepaid (separate ledger)
+  corpTotal: number;
+}
+
 export interface AdminAuditRow {
   at: string;
   kind: string; // grant kind / withdraw / admin

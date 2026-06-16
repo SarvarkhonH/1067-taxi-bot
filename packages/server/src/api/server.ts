@@ -806,6 +806,15 @@ export function createApiServer(opts: ApiOptions = {}) {
     const { getDriverAnalytics } = await import("../services/analyticsService");
     res.json(await getDriverAnalytics());
   });
+  // ── T7 / M1 operations pulse + M2 finance center (read-only aggregates) ──
+  app.get("/api/admin/pulse", requireAdmin, async (_req, res) => {
+    const { getOpsPulse } = await import("../services/adminModules");
+    res.json(await getOpsPulse());
+  });
+  app.get("/api/admin/finance", requireAdmin, async (_req, res) => {
+    const { getFinance } = await import("../services/adminModules");
+    res.json(await getFinance());
+  });
   app.get("/api/admin/recruits", requireAdmin, async (_req, res) => {
     const { recruitStats } = await import("../services/recruitService");
     res.json(await recruitStats());

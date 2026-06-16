@@ -13,7 +13,7 @@ import {
 } from "@t1067/shared";
 import { adminApi, clearAdminToken, hasAdminToken, setAdminToken, type Driver360, type Member360 } from "./api";
 
-type Tab = "overview" | "analytics" | "live" | "x360" | "driver" | "client" | "botusers" | "actions" | "integrity" | "audit";
+type Tab = "overview" | "pulse" | "analytics" | "finance" | "live" | "x360" | "driver" | "client" | "botusers" | "actions" | "integrity" | "audit";
 
 export function App() {
   const [tab, setTab] = useState<Tab>("overview");
@@ -56,7 +56,9 @@ export function App() {
 
   const TABS: { id: Tab; label: string }[] = [
     { id: "overview", label: "📊 Umumiy" },
+    { id: "pulse", label: "💓 Puls" },
     { id: "analytics", label: "📈 Analitika" },
+    { id: "finance", label: "💰 Moliya" },
     { id: "live", label: "🗺 Jonli" },
     { id: "x360", label: "🔎 360" },
     { id: "driver", label: "🚗 Haydovchi" },
@@ -90,7 +92,9 @@ export function App() {
       </div>
 
       {tab === "overview" && <Overview health={health} />}
+      {tab === "pulse" && <PulseView />}
       {tab === "analytics" && <AnalyticsView />}
+      {tab === "finance" && <FinanceView />}
       {tab === "live" && <LiveMapView />}
       {tab === "x360" && <X360View />}
       {(tab === "driver" || tab === "client") && <MembersTab type={tab} />}
@@ -721,6 +725,128 @@ function Card({ icon, label, value, sub, accent }: { icon: string; label: string
       <div className="card-value">{value}</div>
       <div className="card-label muted">{label}{sub ? ` · ${sub}` : ""}</div>
     </div>
+  );
+}
+
+// ── 💓 M1: operations pulse — today vs same weekday last week + live alerts ──
+function PulseView() {
+  const [p, setP] = useState<Awaited<ReturnType<typeof adminApi.pulse>> | null>(null);
+  const [err, setErr] = useState(false);
+  const load = () => adminApi.pulse().then((x) => { setP(x); setErr(false); }).catch(() => setErr(true));
+  useEffect(() => {
+    load();
+    const t = setInterval(load, 30000);
+    return () => clearInterval(t);
+  }, []);
+  if (err && !p)
+    return <section className="panel"><div className="muted" style={{ padding: 12 }}>⚠️ Puls yuklanmadi · <button className="btn sm" onClick={load}>qayta urinish</button></div></section>;
+  if (!p) return <section className="panel"><div className="muted" style={{ padding: 12 }}>Yuklanmoqda…</div></section>;
+  const delta = (m: typeof p.metrics[number]) => {
+    const d = m.today - m.prev;
+    if (d === 0) return { txt: "= o'zgarishsiz", cls: "muted" };
+    const up = d > 0;
+    const good = (up && m.goodWhen === "up") || (!up && m.goodWhen === "down");
+    return { txt: `${up ? "▲" : "▼"} ${Math.abs(d)}${m.unit === "pct" ? "%" : ""} (o'tgan: ${m.prev}${m.unit === "pct" ? "%" : ""})`, cls: good ? "good" : "bad" };
+  };
+  return (
+    <>
+      {p.alerts.length > 0 && (
+        <section className="panel">
+          <div className="panel-title">🔔 Ogohlantirishlar</div>
+          {p.alerts.map((a, i) => (
+            <div key={i} className={"alert " + (a.level === "red" ? "alert-red" : "alert-amber")}>{a.level === "red" ? "🔴" : "🟠"} {a.text}</div>
+          ))}
+        </section>
+      )}
+      <section className="panel">
+        <div className="panel-head">
+          <div className="panel-title">💓 Bugungi puls — {p.weekday}</div>
+          <span className="muted" style={{ fontSize: 12 }}>o'tgan hafta shu kun, shu soatgacha · 30s</span>
+        </div>
+        <div className="cards">
+          {p.metrics.map((m) => {
+            const d = delta(m);
+            return (
+              <div key={m.label} className="card">
+                <div className="card-value">{m.today}{m.unit === "pct" ? "%" : ""}</div>
+                <div className="card-label muted">{m.label}</div>
+                <div className={"delta " + d.cls}>{d.txt}</div>
+              </div>
+            );
+          })}
+        </div>
+      </section>
+      <section className="cards">
+        <Card icon="🚖" label="Hozir faol" value={String(p.activeNow)} sub={`${p.unassigned} haydovchisiz`} accent={p.unassigned > 0} />
+        <Card icon="🪙" label="Bugun emissiya" value={formatNumber(p.emissionToday)} sub={`tavan ${formatNumber(p.emissionCapDay)}`} />
+      </section>
+    </>
+  );
+}
+
+// ── 💰 M2: finance center — real money figures only (liability, cashout, GMV, B2B) ──
+function FinanceView() {
+  const [f, setF] = useState<Awaited<ReturnType<typeof adminApi.finance>> | null>(null);
+  const [err, setErr] = useState(false);
+  const load = () => adminApi.finance().then((x) => { setF(x); setErr(false); }).catch(() => setErr(true));
+  useEffect(() => {
+    load();
+    const t = setInterval(load, 30000);
+    return () => clearInterval(t);
+  }, []);
+  if (err && !f)
+    return <section className="panel"><div className="muted" style={{ padding: 12 }}>⚠️ Moliya yuklanmadi · <button className="btn sm" onClick={load}>qayta urinish</button></div></section>;
+  if (!f) return <section className="panel"><div className="muted" style={{ padding: 12 }}>Yuklanmoqda…</div></section>;
+  const max = Math.max(1, ...f.liabilityByKind.map((k) => Math.abs(k.total)));
+  return (
+    <>
+      <section className="cards">
+        <Card icon="🪙" label="Tanga majburiyati" value={formatNumber(f.coinLiability)} sub={f.daysToCoverLiability != null ? `~${f.daysToCoverLiability} kun byudjet` : "byudjet yo'q"} accent />
+        <Card icon="💸" label="Bugun yechildi" value={formatNumber(f.withdrawnToday)} sub={`jami ${formatNumber(f.withdrawnTotal)}`} />
+        <Card icon="🛡" label="Withdraw qoldi" value={formatNumber(f.withdrawBudget.remaining)} sub={`${f.withdrawBudget.rides} safardan`} />
+        <Card icon="🚕" label="GMV bugun" value={formatNumber(f.gmvToday)} sub={`hafta ${formatNumber(f.gmvWeek)}`} />
+      </section>
+      <section className="panel">
+        <div className="panel-title">🪙 Majburiyat manbalari (eng katta)</div>
+        {f.liabilityByKind.length === 0 ? (
+          <div className="muted" style={{ padding: 12 }}>Ma'lumot yo'q</div>
+        ) : (
+          <div className="chart">
+            {f.liabilityByKind.map((k) => (
+              <div key={k.kind} className="chart-row">
+                <div className="chart-label">{k.kind} <span className="muted">×{k.count}</span></div>
+                <div className="chart-bar"><span style={{ width: `${(Math.abs(k.total) / max) * 100}%`, background: "var(--green)" }} /></div>
+                <div className="chart-val">{formatNumber(k.total)}</div>
+              </div>
+            ))}
+          </div>
+        )}
+      </section>
+      {f.corpBalances.length > 0 && (
+        <section className="panel">
+          <div className="panel-title">🏢 B2B prepaid balanslar — alohida ledger (jami {formatNumber(f.corpTotal)})</div>
+          <div className="table-wrap">
+            <table>
+              <thead><tr><th>Korxona</th><th className="num">Balans</th><th className="num">Xodim</th></tr></thead>
+              <tbody>{f.corpBalances.map((c, i) => (<tr key={i}><td className="td-name">{c.name}</td><td className="num">{formatNumber(c.balance)}</td><td className="num">{c.employees}</td></tr>))}</tbody>
+            </table>
+          </div>
+        </section>
+      )}
+      <section className="panel">
+        <div className="panel-title">⚠️ Withdraw navbati — kas'ga yetib bormaganlar ({f.withdrawQueue.length})</div>
+        {f.withdrawQueue.length === 0 ? (
+          <div className="muted" style={{ padding: 12 }}>✅ Hammasi yetib borgan</div>
+        ) : (
+          <div className="table-wrap">
+            <table>
+              <thead><tr><th>Mijoz</th><th className="num">So'm</th><th className="num">Yosh</th><th>Sabab</th></tr></thead>
+              <tbody>{f.withdrawQueue.map((w, i) => (<tr key={i} className="row-warn"><td className="td-name">{w.member}</td><td className="num">{formatNumber(w.amount)}</td><td className="num">{w.ageMin}m</td><td className="muted">{w.message ?? "—"}</td></tr>))}</tbody>
+            </table>
+          </div>
+        )}
+      </section>
+    </>
   );
 }
 

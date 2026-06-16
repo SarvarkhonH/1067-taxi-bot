@@ -5,11 +5,13 @@ import type {
   AdminEconomy,
   AdminGrowth,
   AdminHealth,
+  AdminFinance,
   AdminIntegrity,
   AdminLiveBooking,
   AdminMemberRow,
   AdminStats,
   MemberType,
+  OpsPulse,
 } from "@t1067/shared";
 
 interface TgWindow {
@@ -123,6 +125,8 @@ export const adminApi = {
       tierSuggestion: { kumush: number; oltin: number; olmos: number };
     }>("/api/admin/analytics/drivers"),
   heal: (memberId: number) => postJson<AdminActionResult>("/api/admin/heal", { memberId }),
+  pulse: () => req<OpsPulse>("/api/admin/pulse"),
+  finance: () => req<AdminFinance>("/api/admin/finance"),
 };
 
 export interface Member360 {
