@@ -172,52 +172,57 @@ export async function withdraw(memberId: number, amount: number): Promise<Withdr
   // so a falsely-flagged real user loses nothing while an admin reviews
   if (member.riskFlag) return fail("risk_hold");
   if (amount < WITHDRAW_MIN) return fail("below_min");
-  const today = await withdrawnToday(memberId);
-  if (today + amount > WITHDRAW_DAILY_CAP) return fail("daily_cap");
+  // P0 (QA fleet): serialize per member — the cap check + budget + spend + kas + row-create
+  // must run atomically per member, else two concurrent withdrawals both read withdrawnToday=0
+  // and both blow past the 50000/day cap (real money out 2x). Same in-process lock as grantRideCoins.
+  return withMemberLock(memberId, async () => {
+    const today = await withdrawnToday(memberId);
+    if (today + amount > WITHDRAW_DAILY_CAP) return fail("daily_cap");
 
-  // revenue-linked GLOBAL budget: real money out can't outrun real taxi revenue
-  const { consumeWithdrawBudget, releaseWithdrawBudget, alertAdmins } = await import("./economyService");
-  if (!(await consumeWithdrawBudget(amount))) return fail("daily_cap"); // global budget exhausted (rides too low today)
+    // revenue-linked GLOBAL budget: real money out can't outrun real taxi revenue
+    const { consumeWithdrawBudget, releaseWithdrawBudget, alertAdmins } = await import("./economyService");
+    if (!(await consumeWithdrawBudget(amount))) return fail("daily_cap"); // global budget exhausted (rides too low today)
 
-  // optimistic deduct first — blocks double-spend races
-  const spent = await spendCoins(memberId, amount, "withdraw", `So'mga aylantirish: ${amount}`);
-  if (!spent.ok) {
-    await releaseWithdrawBudget(amount);
-    return fail("insufficient");
-  }
-
-  let kasApplied = false;
-  let kasMessage = "";
-  try {
-    // per-phone lock: serialize our concurrent bonus writes (kas has no CAS)
-    const res = await withPhoneLock(member.phone, () => getDataSource().addClientBonus(member.phone!, amount));
-    kasApplied = res.ok;
-    kasMessage = res.ok ? `${res.oldBonus} -> ${res.newBonus}` : `failed (status ${res.status})`;
-  } catch (e) {
-    kasMessage = e instanceof Error ? e.message : String(e);
-  }
-
-  if (!kasApplied) {
-    // T0.5 (AUDIT 3.3): refund is OWED — write the marker FIRST, so a crash or
-    // PG drop between here and the grant can never strand the user's coins;
-    // the periodic tick retries via the same idempotent key (max 5, then alert).
-    const { pendingCreate, pendingResolve } = await import("./appStateUtil");
-    const reqId = `${memberId}-${Date.now()}`;
-    await pendingCreate("wd", reqId, { memberId, amount, note: kasMessage.slice(0, 80) });
-    const refund = await grantCoins(memberId, amount, "withdraw_refund", "Aylantirish amalga oshmadi — tanga qaytarildi", `wdrefund:${reqId}`);
-    if (refund.ok || refund.skipped === "duplicate") {
+    // optimistic deduct first — blocks double-spend races
+    const spent = await spendCoins(memberId, amount, "withdraw", `So'mga aylantirish: ${amount}`);
+    if (!spent.ok) {
       await releaseWithdrawBudget(amount);
-      await prisma.withdrawal.create({ data: { memberId, amount, kasApplied: false, kasMessage } }).catch(() => null);
-      await pendingResolve("wd", reqId);
+      return fail("insufficient");
     }
-    return { ok: false, reason: "kas_failed", amount, coinsLeft: await getCoins(memberId), kasApplied: false };
-  }
 
-  await prisma.withdrawal.create({ data: { memberId, amount, kasApplied: true, kasMessage } });
-  await prisma.member.update({ where: { id: memberId }, data: { points: { increment: amount } } });
-  // alert admins on every real-money-out (anomaly visibility)
-  await alertAdmins(`💸 Withdraw: <b>${amount.toLocaleString("ru-RU")} so'm</b> — ${member.fullName} (today ${(today + amount).toLocaleString("ru-RU")})`).catch(() => undefined);
-  return { ok: true, amount, coinsLeft: await getCoins(memberId), kasApplied: true };
+    let kasApplied = false;
+    let kasMessage = "";
+    try {
+      // per-phone lock: serialize our concurrent bonus writes (kas has no CAS)
+      const res = await withPhoneLock(member.phone!, () => getDataSource().addClientBonus(member.phone!, amount));
+      kasApplied = res.ok;
+      kasMessage = res.ok ? `${res.oldBonus} -> ${res.newBonus}` : `failed (status ${res.status})`;
+    } catch (e) {
+      kasMessage = e instanceof Error ? e.message : String(e);
+    }
+
+    if (!kasApplied) {
+      // T0.5 (AUDIT 3.3): refund is OWED — write the marker FIRST, so a crash or
+      // PG drop between here and the grant can never strand the user's coins;
+      // the periodic tick retries via the same idempotent key (max 5, then alert).
+      const { pendingCreate, pendingResolve } = await import("./appStateUtil");
+      const reqId = `${memberId}-${Date.now()}`;
+      await pendingCreate("wd", reqId, { memberId, amount, note: kasMessage.slice(0, 80) });
+      const refund = await grantCoins(memberId, amount, "withdraw_refund", "Aylantirish amalga oshmadi — tanga qaytarildi", `wdrefund:${reqId}`);
+      if (refund.ok || refund.skipped === "duplicate") {
+        await releaseWithdrawBudget(amount);
+        await prisma.withdrawal.create({ data: { memberId, amount, kasApplied: false, kasMessage } }).catch(() => null);
+        await pendingResolve("wd", reqId);
+      }
+      return { ok: false, reason: "kas_failed", amount, coinsLeft: await getCoins(memberId), kasApplied: false };
+    }
+
+    await prisma.withdrawal.create({ data: { memberId, amount, kasApplied: true, kasMessage } });
+    await prisma.member.update({ where: { id: memberId }, data: { points: { increment: amount } } });
+    // alert admins on every real-money-out (anomaly visibility)
+    await alertAdmins(`💸 Withdraw: <b>${amount.toLocaleString("ru-RU")} so'm</b> — ${member.fullName} (today ${(today + amount).toLocaleString("ru-RU")})`).catch(() => undefined);
+    return { ok: true, amount, coinsLeft: await getCoins(memberId), kasApplied: true };
+  });
 }
 
 /**
