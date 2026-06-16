@@ -8,8 +8,9 @@ import { completeReferral } from "../services/referralService";
 import { payRecruitRevshare } from "../services/recruitService";
 import { dailyCheckIn } from "../services/rewardService";
 import { grantRideCoins } from "../services/coinService";
+import { spinWheel } from "../services/rewardService";
 import { setFeature } from "../services/featureFlags";
-import { RIDE_EMISSION_CAP } from "@t1067/shared";
+import { RIDE_EMISSION_CAP, WHEEL_PRIZES, JACKPOT_FLOOR } from "@t1067/shared";
 
 const TAG = "racefix-test";
 let failed = 0;
@@ -22,6 +23,7 @@ async function cleanup(): Promise<void> {
   await prisma.referral.deleteMany({ where: { OR: [{ refereeId: { startsWith: `${TAG}-tg` } }, { refereeMemberId: { in: ids } }] } });
   await prisma.driverRecruit.deleteMany({ where: { riderMemberId: { in: ids } } });
   await prisma.streak.deleteMany({ where: { memberId: { in: ids } } });
+  await prisma.wheelSpin.deleteMany({ where: { memberId: { in: ids } } });
   await prisma.coinTxn.deleteMany({ where: { memberId: { in: ids } } });
   await prisma.telegramUser.deleteMany({ where: { id: { startsWith: `${TAG}-tg` } } });
   await prisma.member.deleteMany({ where: { id: { in: ids } } });
@@ -30,6 +32,7 @@ async function cleanup(): Promise<void> {
 async function main(): Promise<void> {
   // snapshot the recruit flag (restore exactly at the end), force ON for the test
   const snap = await prisma.appState.findUnique({ where: { key: "feature:recruit" } });
+  const jpSnap = await prisma.appState.findUnique({ where: { key: "jackpot_pool" } }); // global — restore at end
   await setFeature("recruit", true);
   await cleanup();
   try {
@@ -75,11 +78,32 @@ async function main(): Promise<void> {
     ]);
     const ridePaid = (await prisma.coinTxn.aggregate({ where: { memberId: clampM.id, amount: { gt: 0 }, idempotencyKey: { endsWith: `:${clampM.id}:${bid}` } }, _sum: { amount: true } }))._sum.amount ?? 0;
     ok(ridePaid <= RIDE_EMISSION_CAP, `grantRideCoins race → combined ride emission CLAMPED ≤${RIDE_EMISSION_CAP} (got ${ridePaid})`);
+
+    // ── wheel JACKPOT: concurrent spins → pool claimed ONCE, NO drain-without-payout ──
+    // (T0.5/3.1: wheelSpin insert BEFORE claim → only the winner claims AND pays out)
+    const jpLabel = WHEEL_PRIZES.find((p) => p.label.startsWith("JACKPOT"))!.label;
+    const jpPool = JACKPOT_FLOOR + 5000; // clearly above the floor so "claimed→reset" is visible
+    await prisma.appState.upsert({ where: { key: "jackpot_pool" }, update: { value: String(jpPool) }, create: { key: "jackpot_pool", value: String(jpPool) } });
+    const jm = await prisma.member.create({ data: { type: "client", kasId: `${TAG}-jp`, fullName: "JP", phone: "+998900022007", trips: 1 } });
+    const jbid = 7700;
+    const jpBefore = await bal(jm.id);
+    const active = { id: jbid, status: "started" };
+    await Promise.all([spinWheel(jm.id, { _forcePrize: jpLabel, _active: active }), spinWheel(jm.id, { _forcePrize: jpLabel, _active: active })]);
+    const jpAfter = await bal(jm.id);
+    const spinRows = await prisma.wheelSpin.count({ where: { memberId: jm.id, bookingId: jbid } });
+    const jpGrants = await prisma.coinTxn.count({ where: { memberId: jm.id, idempotencyKey: `jackpotwin:${jbid}:m${jm.id}` } });
+    const poolNow = Number((await prisma.appState.findUnique({ where: { key: "jackpot_pool" } }))!.value);
+    ok(spinRows === 1, `wheel jackpot race → exactly 1 wheelSpin row (got ${spinRows})`);
+    ok(jpGrants === 1, `wheel jackpot race → exactly 1 jackpot grant, NO double-payout (got ${jpGrants})`);
+    ok(jpAfter - jpBefore >= jpPool, `wheel jackpot → full pool PAID OUT to winner (claim→payout, got +${jpAfter - jpBefore} of ${jpPool})`);
+    ok(poolNow <= JACKPOT_FLOOR + 200, `wheel jackpot → pool claimed once & reset to floor (no drain-without-payout, got ${poolNow})`);
   } finally {
     await cleanup();
     // restore the recruit flag exactly as it was
     if (!snap) await prisma.appState.deleteMany({ where: { key: "feature:recruit" } });
     else await prisma.appState.update({ where: { key: "feature:recruit" }, data: { value: snap.value } });
+    if (!jpSnap) await prisma.appState.deleteMany({ where: { key: "jackpot_pool" } });
+    else await prisma.appState.update({ where: { key: "jackpot_pool" }, data: { value: jpSnap.value } });
     await prisma.$disconnect();
   }
   console.log(failed ? `\n❌ ${failed} FAIL` : "\n✅ RACE-FIXES: referral + recruit concurrent-duplicate → exactly one row/grant");
