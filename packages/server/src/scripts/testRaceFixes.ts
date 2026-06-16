@@ -9,6 +9,7 @@ import { payRecruitRevshare } from "../services/recruitService";
 import { dailyCheckIn } from "../services/rewardService";
 import { grantRideCoins } from "../services/coinService";
 import { spinWheel } from "../services/rewardService";
+import { mintItem } from "../services/itemService";
 import { setFeature } from "../services/featureFlags";
 import { RIDE_EMISSION_CAP, WHEEL_PRIZES, JACKPOT_FLOOR } from "@t1067/shared";
 
@@ -24,6 +25,8 @@ async function cleanup(): Promise<void> {
   await prisma.driverRecruit.deleteMany({ where: { riderMemberId: { in: ids } } });
   await prisma.streak.deleteMany({ where: { memberId: { in: ids } } });
   await prisma.wheelSpin.deleteMany({ where: { memberId: { in: ids } } });
+  await prisma.item.deleteMany({ where: { ownerId: { in: ids } } }); // test items are owned by TAG members
+  await prisma.itemType.deleteMany({ where: { code: { startsWith: TAG } } });
   await prisma.coinTxn.deleteMany({ where: { memberId: { in: ids } } });
   await prisma.telegramUser.deleteMany({ where: { id: { startsWith: `${TAG}-tg` } } });
   await prisma.member.deleteMany({ where: { id: { in: ids } } });
@@ -97,6 +100,20 @@ async function main(): Promise<void> {
     ok(jpGrants === 1, `wheel jackpot race → exactly 1 jackpot grant, NO double-payout (got ${jpGrants})`);
     ok(jpAfter - jpBefore >= jpPool, `wheel jackpot → full pool PAID OUT to winner (claim→payout, got +${jpAfter - jpBefore} of ${jpPool})`);
     ok(poolNow <= JACKPOT_FLOOR + 200, `wheel jackpot → pool claimed once & reset to floor (no drain-without-payout, got ${poolNow})`);
+
+    // ── mintItem: SOLD-OUT must NOT deduct coins (spend is now INSIDE the mint tx → rolls back) ──
+    await prisma.itemType.create({ data: { code: `${TAG}-so`, name: "SoldOut", kind: "plate", mintPrice: 500, mintCap: 1, mintedCount: 1 } });
+    const mm = await prisma.member.create({ data: { type: "client", kasId: `${TAG}-mint`, fullName: "Mint", phone: "+998900022008", trips: 1, coins: 2000 } });
+    const mBefore = await bal(mm.id);
+    const soldOut = await mintItem(mm.id, `${TAG}-so`);
+    const mAfterSold = await bal(mm.id);
+    ok(soldOut.ok === false && soldOut.reason === "sold_out", `mintItem sold-out → rejected (reason: ${soldOut.reason})`);
+    ok(mAfterSold === mBefore, `mintItem sold-out → coins NOT deducted (tx rollback, ${mBefore}→${mAfterSold})`);
+    await prisma.itemType.update({ where: { code: `${TAG}-so` }, data: { mintCap: 5, mintedCount: 0 } });
+    const minted = await mintItem(mm.id, `${TAG}-so`);
+    const mAfterOk = await bal(mm.id);
+    ok(minted.ok === true, `mintItem available → minted (serial ${minted.serial})`);
+    ok(mAfterOk === mBefore - 500, `mintItem success → coins deducted exactly 500 (${mBefore}→${mAfterOk})`);
   } finally {
     await cleanup();
     // restore the recruit flag exactly as it was

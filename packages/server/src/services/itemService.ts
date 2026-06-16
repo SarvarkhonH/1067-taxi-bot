@@ -2,7 +2,7 @@
 // ride-drop), resale = 10% burn. mintCap is immutable by convention: there is
 // deliberately NO route that raises a cap.
 import { prisma } from "../db";
-import { getCoins, grantCoins, spendCoins } from "./coinService";
+import { getCoins, grantCoins } from "./coinService";
 
 export const CAR_PARTS = [
   "g'ildirak", "motor", "eshik", "kapot", "oyna", "rul", "o'rindiq", "far",
@@ -41,25 +41,28 @@ export async function mintItem(
     const has = await prisma.item.findFirst({ where: { ownerId: memberId, itemTypeId: t.id } });
     if (has) return { ok: false, reason: "already" };
   }
-  if (!opts.free && t.mintPrice > 0) {
-    const spend = await spendCoins(memberId, t.mintPrice, "item_mint", `💎 ${t.name}`);
-    if (!spend.ok) return { ok: false, reason: "insufficient" };
-  }
+  // P0 (QA fleet): spend + cap-check + mint in ONE transaction (mirror buyListedItem T0.5/3.7).
+  // The OLD code spent coins BEFORE the mint tx and refunded in the catch — a crash between the
+  // spend and the refund stranded the coins. In-tx: a sold-out / insufficient mint rolls the
+  // spend back automatically, so coins never leave unless the item is actually minted. No refund.
+  const paid = !opts.free && t.mintPrice > 0;
   try {
     const serial = await prisma.$transaction(async (tx) => {
       const fresh = await tx.itemType.findUnique({ where: { id: t.id } });
       if (!fresh) throw new Error("sold_out");
       if (fresh.mintCap > 0 && fresh.mintedCount >= fresh.mintCap) throw new Error("sold_out");
+      if (paid) {
+        const dec = await tx.member.updateMany({ where: { id: memberId, coins: { gte: t.mintPrice } }, data: { coins: { decrement: t.mintPrice } } });
+        if (dec.count === 0) throw new Error("insufficient");
+        await tx.coinTxn.create({ data: { memberId, amount: -t.mintPrice, kind: "item_mint", reason: `💎 ${t.name}` } });
+      }
       const upd = await tx.itemType.update({ where: { id: t.id }, data: { mintedCount: { increment: 1 } } });
       await tx.item.create({ data: { itemTypeId: t.id, serial: upd.mintedCount, ownerId: memberId } });
       return upd.mintedCount;
     });
     return { ok: true, serial, name: t.name };
-  } catch {
-    if (!opts.free && t.mintPrice > 0) {
-      await grantCoins(memberId, t.mintPrice, "item_mint", `💎 ${t.name} — sotuvda qolmadi, tanga qaytdi`);
-    }
-    return { ok: false, reason: "sold_out" };
+  } catch (e) {
+    return { ok: false, reason: e instanceof Error && e.message === "insufficient" ? "insufficient" : "sold_out" };
   }
 }
 
