@@ -15,6 +15,17 @@ export function withPhoneLock<T>(phone: string, fn: () => Promise<T>): Promise<T
   return run;
 }
 
+// P0 (QA fleet): serialize ride-grants per member so the grantRideCoins <=CAP clamp can't be
+// raced — two mechanics on the same ride both read the same `paid`, both pass the room check,
+// and combine over the cap. Single-instance (Render) in-process lock, same pattern as withPhoneLock.
+const memberLocks = new Map<number, Promise<unknown>>();
+function withMemberLock<T>(memberId: number, fn: () => Promise<T>): Promise<T> {
+  const prev = memberLocks.get(memberId) ?? Promise.resolve();
+  const run = prev.catch(() => undefined).then(fn);
+  memberLocks.set(memberId, run.catch(() => undefined));
+  return run;
+}
+
 export interface CoinResult {
   ok: boolean;
   balance: number;
@@ -70,18 +81,21 @@ export async function grantRideCoins(
   reason: string,
   keyPrefix: string,
 ): Promise<CoinResult & { clamped?: number }> {
-  const { RIDE_EMISSION_CAP } = await import("@t1067/shared");
-  amount = Math.floor(amount);
-  const suffix = `:${memberId}:${bookingId}`;
-  const paid = await prisma.coinTxn.aggregate({
-    where: { memberId, amount: { gt: 0 }, idempotencyKey: { endsWith: suffix } },
-    _sum: { amount: true },
+  // serialized per member so the aggregate(paid)→grant read-then-write can't be raced over the cap
+  return withMemberLock(memberId, async () => {
+    const { RIDE_EMISSION_CAP } = await import("@t1067/shared");
+    amount = Math.floor(amount);
+    const suffix = `:${memberId}:${bookingId}`;
+    const paid = await prisma.coinTxn.aggregate({
+      where: { memberId, amount: { gt: 0 }, idempotencyKey: { endsWith: suffix } },
+      _sum: { amount: true },
+    });
+    const room = Math.max(0, RIDE_EMISSION_CAP - (paid._sum.amount ?? 0));
+    const granted = Math.min(amount, room);
+    if (granted <= 0) return { ok: false, balance: await getCoins(memberId), clamped: amount };
+    const res = await grantCoins(memberId, granted, kind, reason, `${keyPrefix}${suffix}`);
+    return granted < amount ? { ...res, clamped: amount - granted } : res;
   });
-  const room = Math.max(0, RIDE_EMISSION_CAP - (paid._sum.amount ?? 0));
-  const granted = Math.min(amount, room);
-  if (granted <= 0) return { ok: false, balance: await getCoins(memberId), clamped: amount };
-  const res = await grantCoins(memberId, granted, kind, reason, `${keyPrefix}${suffix}`);
-  return granted < amount ? { ...res, clamped: amount - granted } : res;
 }
 
 /** Spend coins (sinks: stakes, purchases). Atomic — never goes negative. */

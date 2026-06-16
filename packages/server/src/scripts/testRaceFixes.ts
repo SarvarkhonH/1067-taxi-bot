@@ -7,7 +7,9 @@ import { prisma } from "../db";
 import { completeReferral } from "../services/referralService";
 import { payRecruitRevshare } from "../services/recruitService";
 import { dailyCheckIn } from "../services/rewardService";
+import { grantRideCoins } from "../services/coinService";
 import { setFeature } from "../services/featureFlags";
+import { RIDE_EMISSION_CAP } from "@t1067/shared";
 
 const TAG = "racefix-test";
 let failed = 0;
@@ -62,6 +64,17 @@ async function main(): Promise<void> {
     const streakGrants = await prisma.coinTxn.count({ where: { memberId: chk.id, kind: "streak" } });
     ok(st?.current === 7, `dailyCheckIn race → streak advances EXACTLY once (6→7, got ${st?.current})`);
     ok(streakGrants <= 1, `dailyCheckIn race → streak reward granted at most once (got ${streakGrants})`);
+
+    // ── grantRideCoins concurrent (2 mechanics, same ride) → combined emission CLAMPED ≤ CAP ──
+    const clampM = await prisma.member.create({ data: { type: "client", kasId: `${TAG}-clamp`, fullName: "Clamp", phone: "+998900022006", trips: 1 } });
+    const bid = 6001;
+    const half = Math.floor(RIDE_EMISSION_CAP * 0.6); // each alone is valid; combined (1.2x) must be clamped
+    await Promise.allSettled([
+      grantRideCoins(clampM.id, bid, half, "cashback", "race", "cashback"),
+      grantRideCoins(clampM.id, bid, half, "wheel", "race", "wheel"),
+    ]);
+    const ridePaid = (await prisma.coinTxn.aggregate({ where: { memberId: clampM.id, amount: { gt: 0 }, idempotencyKey: { endsWith: `:${clampM.id}:${bid}` } }, _sum: { amount: true } }))._sum.amount ?? 0;
+    ok(ridePaid <= RIDE_EMISSION_CAP, `grantRideCoins race → combined ride emission CLAMPED ≤${RIDE_EMISSION_CAP} (got ${ridePaid})`);
   } finally {
     await cleanup();
     // restore the recruit flag exactly as it was
