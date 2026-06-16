@@ -63,7 +63,15 @@ export async function rateRide(
   const s = Math.round(stars);
   if (s < 1 || s > 5) return { ok: false, reason: "bad_stars" };
   const m = await prisma.member.findUnique({ where: { id: memberId }, select: { lastBookingCar: true, lastBookingId: true } });
-  if (!m || m.lastBookingId !== bookingId) return { ok: false, reason: "not_your_ride" };
+  if (!m) return { ok: false, reason: "not_your_ride" };
+  // P1 (QA fleet): the rating window was effectively ZERO — the finish-sweep nulls lastBookingId
+  // before the Mini App can prompt, so `lastBookingId === bookingId` always failed. Accept a
+  // DURABLE ownership signal: the member has a RideReward for this ride (created at finish), OR
+  // it's still their current ride. Double-rating is still blocked by the RideRating unique key.
+  const owns =
+    m.lastBookingId === bookingId ||
+    (await prisma.rideReward.findFirst({ where: { memberId, bookingId }, select: { id: true } })) !== null;
+  if (!owns) return { ok: false, reason: "not_your_ride" };
   const clean = tags.filter((t) => RATING_TAGS.includes(t)).slice(0, 3);
   try {
     await prisma.rideRating.create({

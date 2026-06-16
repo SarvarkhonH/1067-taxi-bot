@@ -474,12 +474,14 @@ export async function pushBookingUpdates(bot: Bot, dsOverride?: KasDataSource): 
         const { alertAdmins } = await import("./economyService");
         await alertAdmins(`🏁 Safar yakunlandi: <b>${m.fullName}</b>${rollLine ? ` ·${rollLine.replace(/<[^>]+>/g, "")}` : ""}`).catch(() => undefined);
       }
+      // P1 (QA fleet): keep lastBookingCar after a COMPLETED ride so the Mini App rating (which
+      // arrives after this clear) can still attribute stars to the driver's car. lastBookingId is
+      // cleared (finish won't re-trigger); the next ride overwrites lastBookingCar.
       await prisma.member.update({
         where: { id: m.id },
         data: {
           lastBookingId: null,
           lastBookingStatus: null,
-          lastBookingCar: null,
           lastBookingBonus: null,
           rideCardMsgId: null,
           liveLocMsgId: null,

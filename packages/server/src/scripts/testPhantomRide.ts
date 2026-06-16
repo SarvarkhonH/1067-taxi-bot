@@ -9,6 +9,7 @@ import type { Bot } from "grammy";
 import { prisma } from "../db";
 import type { ActiveBookingLite, BookingDriver, KasDataSource, KasMainReport } from "../kas";
 import { pushBookingUpdates } from "../services/bookingNotifier";
+import { rateRide } from "../services/bookingPlus";
 
 const TAG = "phantom-test";
 let failed = 0;
@@ -37,6 +38,7 @@ async function cleanup(): Promise<void> {
   const ms = await prisma.member.findMany({ where: { kasId: { startsWith: TAG } }, select: { id: true } });
   const ids = ms.map((m) => m.id);
   await prisma.rideReward.deleteMany({ where: { memberId: { in: ids } } });
+  await prisma.rideRating.deleteMany({ where: { memberId: { in: ids } } });
   await prisma.missionProgress.deleteMany({ where: { memberId: { in: ids } } });
   await prisma.coinTxn.deleteMany({ where: { memberId: { in: ids } } });
   await prisma.telegramUser.deleteMany({ where: { id: { startsWith: `${TAG}-tg` } } });
@@ -80,6 +82,15 @@ async function main(): Promise<void> {
     await pushBookingUpdates(fakeBot, ds);
     ok(finishCards() === 1, `finish-card: transient re-entry → card NOT re-sent (still 1)`);
     ok((await rr(dn.id)) === 1, `finish-card re-entry → rewards stay idempotent (1 RideReward, no double)`);
+
+    // P1: rating works AFTER finish — lastBookingId is cleared, so ownership now comes from the
+    // durable RideReward; car is attributed from the preserved lastBookingCar.
+    const rated = await rateRide(dn.id, 880003, 5, ["Toza mashina"]);
+    ok(rated.ok === true, `rateRide AFTER finish → accepted via RideReward ownership (${rated.reason ?? "ok"})`);
+    const ratingRow = await prisma.rideRating.findFirst({ where: { memberId: dn.id, bookingId: 880003 } });
+    ok(ratingRow?.carNumber === "70DON01", `rateRide → driver car attributed (got ${ratingRow?.carNumber})`);
+    const notMine = await rateRide(cx.id, 999999, 5, []);
+    ok(notMine.ok === false && notMine.reason === "not_your_ride", `rateRide a ride you never had → rejected (${notMine.reason})`);
   } finally {
     await cleanup();
     await prisma.$disconnect();
