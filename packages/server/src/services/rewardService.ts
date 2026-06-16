@@ -124,6 +124,14 @@ export async function spinWheel(
   const { getActiveBookingFor } = await import("./bookingService");
   const empty = { label: "", emoji: "🎡", amount: 0 };
 
+  // P0-sec (QA fleet): the wheel kill-switch was only enforced at /api/wheel — bot handlers
+  // (hears/command/callback) called spinWheel directly, bypassing it. Gate at the SERVICE so
+  // every caller is covered: disabled → no spin, no grant (graceful no-op).
+  const { featureOn } = await import("./featureFlags");
+  if (!(await featureOn("wheel"))) {
+    return { noRide: true, alreadySpun: false, prize: empty, applied: false, jackpot: await getJackpot() };
+  }
+
   const active = opts._active ?? (await getActiveBookingFor(memberId).catch(() => null));
   if (!active || active.status !== "started") {
     return { noRide: true, alreadySpun: false, prize: empty, applied: false, jackpot: await getJackpot() };
