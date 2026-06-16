@@ -152,36 +152,32 @@ export async function recomputeDriverTiers(): Promise<{ updated: number; thresho
 }
 
 export interface NorthStar {
-  weekCompleted: number; // THE number (completed rides, last 7 days)
-  prevWeekCompleted: number;
+  weekCompleted: number; // completed rides, last 7 days (from the local DailyStat rollup)
+  prevWeekCompleted: number; // completed rides, the 7 days before that
   botShare: number; // % of completed rides that ran through our bot (RideReward)
   weeklyActiveRiders: number; // distinct bot riders with a ride this week
   coinLiability: number; // Σ member.coins — what we owe the ecosystem
+  weekDays: number; // DailyStat rows present in the last 7 days (week-compare meaningful at 7)
 }
 
+// week-over-week now comes from the local DailyStat rollup — kas can't serve 7
+// days through bookingReports at real volume. weekCompleted is partial until the
+// rollup accrues 7 days (weekDays < 7); the consumer can show that honestly.
 export async function getNorthStar(): Promise<NorthStar> {
-  const rows = await recentReports();
-  const now = Date.now();
-  let weekCompleted = 0;
-  let prevWeekCompleted = 0;
-  for (const r of rows) {
-    if (!DONE.has(r.status)) continue;
-    const t = Date.parse(r.at);
-    if (!Number.isFinite(t)) continue;
-    if (t >= now - WEEK_MS) weekCompleted++;
-    else if (t >= now - 2 * WEEK_MS) prevWeekCompleted++;
-  }
-  const since = new Date(now - WEEK_MS);
-  const [botRides, riders, liability] = await Promise.all([
-    prisma.rideReward.count({ where: { createdAt: { gte: since } } }),
-    prisma.rideReward.findMany({ where: { createdAt: { gte: since } }, select: { memberId: true }, distinct: ["memberId"] }),
+  const { sumDailyRange, addDays, tashkentDay } = await import("./rollupService");
+  const today = tashkentDay();
+  const [week, prev, riders, liability] = await Promise.all([
+    sumDailyRange(addDays(today, -6), today), // last 7 days incl. today
+    sumDailyRange(addDays(today, -13), addDays(today, -7)), // the 7 days before that
+    prisma.rideReward.findMany({ where: { createdAt: { gte: new Date(Date.now() - WEEK_MS) } }, select: { memberId: true }, distinct: ["memberId"] }),
     prisma.member.aggregate({ _sum: { coins: true } }),
   ]);
   return {
-    weekCompleted,
-    prevWeekCompleted,
-    botShare: weekCompleted ? Math.round((botRides / weekCompleted) * 100) : 0,
+    weekCompleted: week.completedRides,
+    prevWeekCompleted: prev.completedRides,
+    botShare: week.completedRides ? Math.round((week.botRides / week.completedRides) * 100) : 0,
     weeklyActiveRiders: riders.length,
     coinLiability: Math.round(liability._sum.coins ?? 0),
+    weekDays: week.days,
   };
 }

@@ -742,11 +742,12 @@ function PulseView() {
     return <section className="panel"><div className="muted" style={{ padding: 12 }}>⚠️ Puls yuklanmadi · <button className="btn sm" onClick={load}>qayta urinish</button></div></section>;
   if (!p) return <section className="panel"><div className="muted" style={{ padding: 12 }}>Yuklanmoqda…</div></section>;
   const delta = (m: typeof p.metrics[number]) => {
+    if (!m.prevAvailable) return { txt: "📈 ma'lumot to'planmoqda (~7 kun)", cls: "muted" };
     const d = m.today - m.prev;
-    if (d === 0) return { txt: "= o'zgarishsiz", cls: "muted" };
+    if (d === 0) return { txt: "= o'tgan hafta bilan bir xil", cls: "muted" };
     const up = d > 0;
     const good = (up && m.goodWhen === "up") || (!up && m.goodWhen === "down");
-    return { txt: `${up ? "▲" : "▼"} ${Math.abs(d)}${m.unit === "pct" ? "%" : ""} (o'tgan: ${m.prev}${m.unit === "pct" ? "%" : ""})`, cls: good ? "good" : "bad" };
+    return { txt: `${up ? "▲" : "▼"} ${Math.abs(d)}${m.unit === "pct" ? "%" : ""} (o'tgan hafta: ${m.prev}${m.unit === "pct" ? "%" : ""})`, cls: good ? "good" : "bad" };
   };
   return (
     <>
@@ -866,11 +867,13 @@ function AnalyticsView() {
         <div className="card accent">
           <div className="card-title">🌟 Haftalik yakunlangan safarlar</div>
           <div className="card-value">{ns ? formatNumber(ns.weekCompleted) : "…"}</div>
-          {ns && (
+          {ns && (ns.weekDays < 7 ? (
+            <div className="muted">📈 {ns.weekDays}/7 kun yig'ilmoqda</div>
+          ) : (
             <div className={delta >= 0 ? "lvl" : "lvl warn"}>
               {delta >= 0 ? "▲" : "▼"} {formatNumber(Math.abs(delta))} vs o'tgan hafta
             </div>
-          )}
+          ))}
         </div>
         <div className="card">
           <div className="card-title">🤖 Bot ulushi</div>

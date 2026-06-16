@@ -8,6 +8,7 @@ import { prisma } from "../db";
 import { getDataSource } from "../kas";
 import { recentReports } from "./analyticsService";
 import { getEconomy } from "./adminOps";
+import { addDays, getDailyStat, tashkentDay } from "./rollupService";
 
 const DONE = new Set(["delivered", "completed", "finished"]); // kas terminal vocab (probe 2026-06-12)
 const isCancel = (s: string) => s.startsWith("cancel"); // cancel_by_operator | cancel_by_server
@@ -22,12 +23,9 @@ export async function getOpsPulse(): Promise<OpsPulse> {
   const midnight = new Date();
   midnight.setHours(0, 0, 0, 0);
   const m0 = midnight.getTime();
-  const elapsed = now - m0; // ms since local midnight
-  const prevStart = m0 - WEEK_MS; // same weekday last week, midnight
-  const prevEnd = prevStart + elapsed; // same elapsed hours → fair like-for-like compare
-  // NOTE: the "prev" (last-week) numbers are only as deep as recentReports() reaches.
-  // Under kas rate-limiting that window can be shallow (today-heavy) → prev≈0; the
-  // widget then shows today's absolute numbers honestly and the delta degrades to "▲ N".
+  // "today" comes from kas's recent window (reliably covers today); "prev" comes
+  // from the local DailyStat rollup at the SAME weekday last week — deep kas paging
+  // can't reach a week at real volume, so we read it from our own DB instead.
 
   let rows: Awaited<ReturnType<typeof recentReports>> = [];
   let reportsStale = false;
@@ -38,40 +36,32 @@ export async function getOpsPulse(): Promise<OpsPulse> {
   }
 
   let doneToday = 0;
-  let donePrev = 0;
   let cancelToday = 0;
-  let cancelPrev = 0;
   for (const r of rows) {
     const t = Date.parse(r.at);
-    if (!Number.isFinite(t)) continue;
-    const done = DONE.has(r.status);
-    const cancel = isCancel(r.status);
-    if (t >= m0 && t <= now) {
-      if (done) doneToday++;
-      else if (cancel) cancelToday++;
-    } else if (t >= prevStart && t <= prevEnd) {
-      if (done) donePrev++;
-      else if (cancel) cancelPrev++;
-    }
+    if (!Number.isFinite(t) || t < m0 || t > now) continue;
+    if (DONE.has(r.status)) doneToday++;
+    else if (isCancel(r.status)) cancelToday++;
   }
 
-  const [botToday, botPrev, emAgg, active] = await Promise.all([
+  const prevDay = addDays(tashkentDay(now), -7);
+  const [botToday, emAgg, active, prevStat] = await Promise.all([
     prisma.rideReward.count({ where: { createdAt: { gte: midnight } } }),
-    prisma.rideReward.count({ where: { createdAt: { gte: new Date(prevStart), lte: new Date(prevEnd) } } }),
     prisma.coinTxn.aggregate({ where: { amount: { gt: 0 }, createdAt: { gte: midnight } }, _sum: { amount: true } }),
     getDataSource().listActiveBookings().catch(() => []),
+    getDailyStat(prevDay),
   ]);
   const emissionToday = Math.round(emAgg._sum.amount ?? 0);
   const activeNow = active.length;
   const unassigned = active.filter((b) => !b.carNumber).length;
 
   const cancelPctToday = pct(cancelToday, doneToday + cancelToday);
-  const cancelPctPrev = pct(cancelPrev, donePrev + cancelPrev);
+  const prevAvail = prevStat !== null;
 
   const metrics: OpsPulseMetric[] = [
-    { label: "Safarlar", today: doneToday, prev: donePrev, unit: "count", goodWhen: "up" },
-    { label: "Bot ulushi", today: pct(botToday, doneToday), prev: pct(botPrev, donePrev), unit: "pct", goodWhen: "up" },
-    { label: "Bekor", today: cancelPctToday, prev: cancelPctPrev, unit: "pct", goodWhen: "down" },
+    { label: "Safarlar", today: doneToday, prev: prevStat?.completedRides ?? 0, prevAvailable: prevAvail, unit: "count", goodWhen: "up" },
+    { label: "Bot ulushi", today: pct(botToday, doneToday), prev: prevStat ? pct(prevStat.botRides, prevStat.completedRides) : 0, prevAvailable: prevAvail, unit: "pct", goodWhen: "up" },
+    { label: "Bekor", today: cancelPctToday, prev: prevStat ? pct(prevStat.cancelledRides, prevStat.completedRides + prevStat.cancelledRides) : 0, prevAvailable: prevAvail, unit: "pct", goodWhen: "down" },
   ];
 
   const alerts: OpsAlert[] = [];

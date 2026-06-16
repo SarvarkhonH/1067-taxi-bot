@@ -122,6 +122,10 @@ async function main(): Promise<void> {
           await alertAdmins(`🛑 PUL-JOB yiqildi: payWeeklyPrizes — ${e instanceof Error ? e.message : String(e)}`).catch(() => undefined);
         });
         await maybeSurpriseDrop(notifyUser).catch((e) => console.error("[surprise] failed:", e));
+        // T8: refresh the local daily rollup (today + yesterday) so week-over-week
+        // metrics read from our DB, not impractically deep kas paging. No new poller.
+        const { rollupRecentDays } = await import("./services/rollupService");
+        await rollupRecentDays().catch((e) => console.error("[rollup] failed:", e));
         if (bot) {
           const { maybeDailyBackup } = await import("./services/backupService");
           await maybeDailyBackup(bot).catch((e) => console.error("[backup] failed:", e));

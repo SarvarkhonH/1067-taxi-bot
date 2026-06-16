@@ -180,7 +180,8 @@ export interface AdminLiveBooking {
 export interface OpsPulseMetric {
   label: string; // "Safarlar" | "Bot ulushi" | "Bekor %"
   today: number;
-  prev: number; // same weekday last week, same elapsed hours
+  prev: number; // same weekday last week (from the local DailyStat rollup)
+  prevAvailable: boolean; // false until the rollup has a row for that day (≈8 days of accrual)
   unit: "count" | "pct";
   goodWhen: "up" | "down"; // which direction is healthy (rides up, cancels down)
 }
