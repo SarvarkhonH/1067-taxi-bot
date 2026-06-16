@@ -36,6 +36,12 @@ Sen 1067 loyihasining bosh muhandisi VA mahsulot dizaynerisan. Har qaror ikkala 
 - Render: push avto-deploy qilmasligi mumkin — POST .../deploys bilan trigger;
   start buyrug'i `prisma db push` qiladi — destruktiv schema lokalda avval.
 - kas1067: sahifa ~50 cap; terminal status "delivered" (payment bilan).
+- SWEEP testlari (testPhantomRide/testRideCard global finish-sweep'ni yurgizadi) — APP DB'da
+  HECH QACHON: jonli bot'ning 90s sweep'i test a'zolarini poygalaydi → flaky + prod'ni buzadi
+  (T3-bug'ni shu pattern yashirgan). `_testDb` ALOHIDA DB talab qiladi (TEST_DATABASE_URL),
+  app DB'da ishlashdan BOSH TORTADI; +sweep `memberScope` bilan faqat o'z TAG-a'zolariga
+  qisqartiriladi. App DB=Neon EU (DATABASE_URL); TEST_DATABASE_URL=alohida (Render kas1067_db).
+  Trust isboti: gate'ni 3× ket-ket yashil yugurt (flaky pul-test = ishonchsiz gate).
 
 ## TAYYORLIK TA'RIFI & TEKSHIRUV PROTOKOLI (DoD) — har qanday yumshoqroq "done"ni BEKOR qiladi
 Builder qayta-qayta "tayyor/done" dedi, aslida tugamagan (coin services/ da, tor grep, eski "to'lqin"lar T-tiket bilan aralashtirildi). Bu 8 qoida "done"ni isbotlanadigan qiladi. Tezlikdan ko'ra TO'LIQLIK.

@@ -12,6 +12,7 @@ import { pushBookingUpdates } from "../services/bookingNotifier";
 import { rateRide } from "../services/bookingPlus";
 
 const TAG = "phantom-test";
+const DECOY = "decoy-phantom"; // a NON-test linked member mid-ride; the scoped sweep must NOT touch it
 let failed = 0;
 const ok = (c: boolean, l: string): void => { console.log(`${c ? "✅" : "❌"} ${l}`); if (!c) failed++; };
 
@@ -35,13 +36,13 @@ const ds: KasDataSource = {
 } as unknown as KasDataSource;
 
 async function cleanup(): Promise<void> {
-  const ms = await prisma.member.findMany({ where: { kasId: { startsWith: TAG } }, select: { id: true } });
+  const ms = await prisma.member.findMany({ where: { OR: [{ kasId: { startsWith: TAG } }, { kasId: { startsWith: DECOY } }] }, select: { id: true } });
   const ids = ms.map((m) => m.id);
   await prisma.rideReward.deleteMany({ where: { memberId: { in: ids } } });
   await prisma.rideRating.deleteMany({ where: { memberId: { in: ids } } });
   await prisma.missionProgress.deleteMany({ where: { memberId: { in: ids } } });
   await prisma.coinTxn.deleteMany({ where: { memberId: { in: ids } } });
-  await prisma.telegramUser.deleteMany({ where: { id: { startsWith: `${TAG}-tg` } } });
+  await prisma.telegramUser.deleteMany({ where: { OR: [{ id: { startsWith: `${TAG}-tg` } }, { id: { startsWith: `${DECOY}-tg` } }] } });
   await prisma.member.deleteMany({ where: { id: { in: ids } } });
   // per-ride markers (finishcard / qinc / qscore / fundride) keyed by the test booking ids
   await prisma.appState.deleteMany({
@@ -61,8 +62,13 @@ async function main(): Promise<void> {
     // COMPLETED ride: reached "started" (rideStartedAt set), then vanished → real completion.
     const dn = await prisma.member.create({ data: { type: "client", kasId: `${TAG}-done`, fullName: "Done", phone: "+998900055003", trips: 3, lastBookingId: 880003, lastBookingStatus: "started", lastBookingCar: "70DON01", rideStartedAt: new Date(Date.now() - 6 * 60 * 1000) } });
     await prisma.telegramUser.create({ data: { id: `${TAG}-tg-d`, memberId: dn.id, linkedAt: new Date() } });
+    // DECOY: a real linked member mid-ride (rideStartedAt set, active booking). The OLD
+    // global sweep would have cleared its state + sent it a finish card (the flake source +
+    // a prod-corruption). The scoped sweep must leave it COMPLETELY untouched.
+    const decoy = await prisma.member.create({ data: { type: "client", kasId: `${DECOY}-1`, fullName: "Decoy", phone: "+998900055009", trips: 9, lastBookingId: 870001, lastBookingStatus: "started", lastBookingCar: "70DEC09", rideStartedAt: new Date(Date.now() - 6 * 60 * 1000) } });
+    await prisma.telegramUser.create({ data: { id: `${DECOY}-tg`, memberId: decoy.id, linkedAt: new Date() } });
 
-    await pushBookingUpdates(fakeBot, ds);
+    await pushBookingUpdates(fakeBot, ds, { memberScope: { kasId: { startsWith: TAG } } });
 
     const rr = async (id: number): Promise<number> => prisma.rideReward.count({ where: { memberId: id } });
     const cleared = async (id: number): Promise<boolean> => ((await prisma.member.findUnique({ where: { id } }))?.lastBookingId ?? null) === null;
@@ -74,12 +80,19 @@ async function main(): Promise<void> {
     ok(await cleared(px.id), `PHANTOM → ride state cleared`);
     ok(await cleared(dn.id), `COMPLETED → ride state cleared`);
 
+    // ISOLATION PROOF (root-cause guard): the scoped sweep left the decoy untouched —
+    // booking state intact, no reward, no finish card. The old global sweep would have
+    // swept it (flaky card count + real prod members corrupted).
+    const decoyAfter = await prisma.member.findUnique({ where: { id: decoy.id } });
+    ok(decoyAfter?.lastBookingId === 870001 && decoyAfter?.rideStartedAt !== null, `DECOY non-test member NOT swept → booking state intact (got lastBookingId=${decoyAfter?.lastBookingId})`);
+    ok((await rr(decoy.id)) === 0, `DECOY → scoped sweep granted it nothing (got ${await rr(decoy.id)})`);
+
     // finish-card multi-send: re-entering the finish branch (transient = card sent but state
     // not cleared) must NOT re-send the card (per-ride marker), rewards stay idempotent.
     const cardsAfter1 = finishCards();
     ok(cardsAfter1 === 1, `COMPLETED → exactly 1 finish card sent (got ${cardsAfter1})`);
     await prisma.member.update({ where: { id: dn.id }, data: { lastBookingId: 880003, lastBookingStatus: "started", lastBookingCar: "70DON01", rideStartedAt: new Date(Date.now() - 6 * 60 * 1000) } });
-    await pushBookingUpdates(fakeBot, ds);
+    await pushBookingUpdates(fakeBot, ds, { memberScope: { kasId: { startsWith: TAG } } });
     ok(finishCards() === 1, `finish-card: transient re-entry → card NOT re-sent (still 1)`);
     ok((await rr(dn.id)) === 1, `finish-card re-entry → rewards stay idempotent (1 RideReward, no double)`);
 

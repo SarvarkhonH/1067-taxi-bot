@@ -127,13 +127,13 @@ async function attempt(): Promise<number> {
   });
 
   // tick 1: searching → ONE card sent (with queue line), no pin yet
-  await pushBookingUpdates(fakeBot, makeDs(lite("searching"), echo));
+  await pushBookingUpdates(fakeBot, makeDs(lite("searching"), echo), { memberScope: { kasId: { startsWith: TAG } } });
   ok(calls.send === 1, `tick1 searching: exactly 1 card sent (${calls.send})`);
   ok(calls.texts[0]!.includes("Navbatda"), `card shows honest queue position`);
   ok(calls.loc === 0, `no pin before a driver exists`);
 
   // tick 2: driver assigned → card EDITED (not re-sent), pin appears
-  await pushBookingUpdates(fakeBot, makeDs(lite("called", CAR), echo));
+  await pushBookingUpdates(fakeBot, makeDs(lite("called", CAR), echo), { memberScope: { kasId: { startsWith: TAG } } });
   ok(calls.send === 1, `tick2 assigned: still 1 sent message (edit, not send)`);
   ok(calls.edit >= 1, `card edited in place (${calls.edit})`);
   ok(calls.loc === 1, `moving pin sent once`);
@@ -145,7 +145,7 @@ async function attempt(): Promise<number> {
   ok(kb2.some((b) => b.callback_data === "bk:cancelride"), `en-route card has ✖ cancel button`);
 
   // tick 3: started → meter starts, card offers wheel + guess
-  await pushBookingUpdates(fakeBot, makeDs(lite("started", CAR), echo));
+  await pushBookingUpdates(fakeBot, makeDs(lite("started", CAR), echo), { memberScope: { kasId: { startsWith: TAG } } });
   const m1 = await prisma.member.findUnique({ where: { id: rider.id } });
   ok(!!m1?.rideStartedAt, `ride meter started on first 'started' sighting`);
   ok(calls.editLoc >= 1, `pin position edited (${calls.editLoc})`);
@@ -155,14 +155,14 @@ async function attempt(): Promise<number> {
   await prisma.member.update({ where: { id: rider.id }, data: { rideStartedAt: new Date(Date.now() - 7 * 60_000) } });
 
   // tick 4: still started → no new sends
-  await pushBookingUpdates(fakeBot, makeDs(lite("started", CAR), echo));
+  await pushBookingUpdates(fakeBot, makeDs(lite("started", CAR), echo), { memberScope: { kasId: { startsWith: TAG } } });
   ok(calls.send === 1, `tick4: still no extra messages`);
 
   // G4: give the rider a streak so the peak-end card shows the streak line
   await prisma.streak.create({ data: { memberId: rider.id, current: 5, longest: 5, lastCheckIn: new Date() } });
 
   // tick 5: ride gone → finish: card frozen, pin stopped, ONE summary
-  await pushBookingUpdates(fakeBot, makeDs(null, echo));
+  await pushBookingUpdates(fakeBot, makeDs(null, echo), { memberScope: { kasId: { startsWith: TAG } } });
   ok(calls.send === 2, `finish: exactly 1 summary message (total sends ${calls.send})`);
   ok(calls.stopLoc === 1, `live pin stopped`);
   const summary = calls.texts[1]!;

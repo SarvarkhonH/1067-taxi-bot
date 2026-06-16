@@ -6,6 +6,7 @@
 // The 90s sweep is also the ride METER (rideStartedAt → minutes) powering the
 // ETA-guess game now and the Garaj earn in Wave B.
 import { InlineKeyboard, type Bot } from "grammy";
+import type { Prisma } from "@prisma/client";
 import { formatNumber, haversineKm } from "@t1067/shared";
 import { prisma } from "../db";
 import { getDataSource, type ActiveBookingLite, type BookingDriver, type KasDataSource } from "../kas";
@@ -132,8 +133,15 @@ async function resolveGuess(memberId: number, bookingId: number, startedAt: Date
 }
 
 /** Poll active bookings; maintain ONE live card + moving pin per ride.
- *  dsOverride exists for the sweep-simulation test. */
-export async function pushBookingUpdates(bot: Bot, dsOverride?: KasDataSource): Promise<void> {
+ *  dsOverride + opts.memberScope exist for the sweep-simulation tests: the sweep
+ *  processes EVERY linked member, so a test on a shared DB would otherwise grant/
+ *  clear state for real members and count their finish cards (flaky + prod-unsafe).
+ *  memberScope narrows the member set to the test's own rows — hermetic on any DB. */
+export async function pushBookingUpdates(
+  bot: Bot,
+  dsOverride?: KasDataSource,
+  opts?: { memberScope?: Prisma.MemberWhereInput },
+): Promise<void> {
   const ds = dsOverride ?? getDataSource();
   let bookings: ActiveBookingLite[];
   try {
@@ -159,7 +167,7 @@ export async function pushBookingUpdates(bot: Bot, dsOverride?: KasDataSource): 
   };
 
   const linked = await prisma.member.findMany({
-    where: { telegramUser: { isNot: null }, phone: { not: null } },
+    where: { telegramUser: { isNot: null }, phone: { not: null }, ...(opts?.memberScope ?? {}) },
     include: { telegramUser: true },
   });
 
