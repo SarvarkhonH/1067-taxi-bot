@@ -381,6 +381,18 @@ body {
 .b3-spin-btn { width: 100%; padding: 13px; border-radius: 12px; border: 0; background: var(--brand); color: #1a1205; font-size: 15px; font-weight: 800; cursor: pointer; }
 .b3-spin-btn:disabled { opacity: .7; }
 .b3-spin-done { text-align: center; padding: 11px; border-radius: 12px; background: var(--surface); border: 1px solid var(--brand); font-size: 15px; }
+/* E7: peak-end finish card */
+@keyframes b3-pop { 0% { transform: scale(.3); opacity: 0; } 70% { transform: scale(1.15); } 100% { transform: scale(1); opacity: 1; } }
+.b3-finish { text-align: center; }
+.b3-finish-emoji { font-size: 48px; animation: b3-pop 500ms var(--ease-out); }
+.b3-finish-streak { color: var(--brand); font-weight: 800; font-size: 15px; margin-top: 4px; }
+.b3-finish-thanks { color: var(--brand); font-weight: 700; padding: 14px; font-size: 15px; }
+.b3-stars { display: flex; justify-content: center; gap: 8px; margin: 12px 0 8px; }
+.b3-star { background: none; border: 0; font-size: 34px; color: var(--line); cursor: pointer; line-height: 1; transition: transform .1s; }
+.b3-star.on { color: var(--brand); }
+.b3-star:active { transform: scale(1.2); }
+.b3-tags { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; margin: 8px 0; }
+.b3-tags .d-chip.on { background: var(--brand); color: #1a1205; border-color: var(--brand); }
 /* CALL = oltin (d-btn default brand). Ghost/danger ikkilamchi — oltin-ustiga-oltin yo'q. */
 .b3-sheet .d-btn { margin-top: 8px; }
 /* E4 radar puls */

@@ -48,7 +48,7 @@ const canWebApp = env.TELEGRAM_WEBAPP_URL.startsWith("https://");
 // Telegram caches the Mini App aggressively BY URL — the owner kept seeing stale builds.
 // Versioning the URL (?v=<build>) makes Telegram treat each release as a brand-new app →
 // guaranteed fresh load. BUMP this on every frontend deploy (matches App.tsx build marker).
-const WEBAPP_BUILD = "v12";
+const WEBAPP_BUILD = "v13";
 function webAppUrl(go?: string): string {
   const u = env.TELEGRAM_WEBAPP_URL;
   return u + (u.includes("?") ? "&" : "?") + "v=" + WEBAPP_BUILD + (go ? "&go=" + go : "");

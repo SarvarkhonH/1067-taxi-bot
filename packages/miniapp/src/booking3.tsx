@@ -39,7 +39,9 @@ function mapAllowed(): boolean {
   }
 }
 
-type Screen = "map" | "confirm" | "searching";
+type Screen = "map" | "confirm" | "searching" | "finished";
+// mirror of server RATING_TAGS (bookingPlus) — kept in sync manually (shared has no DTO for it)
+const RIDE_TAGS = ["Toza mashina", "Xushmuomala", "Tez yetib keldi", "Sekin haydadi", "Mashina eski"];
 
 // ── E5: ride status timeline (Qabul → Yo'lda → Yetib keldi → Safarda) ──
 function rideStep(status: string): number {
@@ -209,6 +211,11 @@ function Booking3Inner({ me, info, onClose }: { me: MeResponse; info: BookingInf
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
   const [active, setActive] = useState<ActiveBookingView | null>(info.active ?? null); // B: live status
+  const activeRef = useRef<ActiveBookingView | null>(info.active ?? null); // E7: detect active→null finish
+  const [finishedBid, setFinishedBid] = useState<number | null>(null); // E7: the just-finished ride
+  const [stars, setStars] = useState(0);
+  const [rateTags, setRateTags] = useState<string[]>([]);
+  const [rated, setRated] = useState(false);
 
   const mapRef = useRef<HTMLDivElement | null>(null);
   const map = useRef<L.Map | null>(null);
@@ -303,6 +310,15 @@ function Booking3Inner({ me, info, onClose }: { me: MeResponse; info: BookingInf
     const tick = async () => {
       const [a, near] = await Promise.all([api.bookingActive().catch(() => null), api.bookingNearby().catch(() => null)]);
       if (near) setFreeDrivers(near.freeDrivers);
+      // E7: ride finished — had an active ride last poll, now gone → peak-end finish screen.
+      // DISPLAY only: rewards were granted by the bot sweep; the Mini App never grants.
+      if (!a && activeRef.current) {
+        setFinishedBid(activeRef.current.id);
+        setScreen("finished");
+        confetti();
+        haptic();
+      }
+      activeRef.current = a;
       setActive(a); // B: real status — searching → accepted (only when a driver actually takes it) → arrived
     };
     tick();
@@ -358,6 +374,24 @@ function Booking3Inner({ me, info, onClose }: { me: MeResponse; info: BookingInf
     }
     setScreen("map");
     setMsg(null);
+  };
+
+  // E7: rate the finished ride (feedback only — NOT a coin grant). Server gates double-rating.
+  const rate = async () => {
+    if (!finishedBid || !stars) return;
+    haptic();
+    const r = await api.bookingRate(finishedBid, stars, rateTags).catch(() => null);
+    if (r?.ok) setRated(true);
+    else setMsg("⚠️ Baho yuborilmadi — qayta urinib ko'ring");
+  };
+  const rebook = () => {
+    setScreen("map");
+    setActive(null);
+    activeRef.current = null;
+    setFinishedBid(null);
+    setStars(0);
+    setRateTags([]);
+    setRated(false);
   };
 
   const recents = info.savedAddresses.slice(0, 3);
@@ -485,6 +519,41 @@ function Booking3Inner({ me, info, onClose }: { me: MeResponse; info: BookingInf
             </>
           )}
           <Button variant="danger" disabled={busy} onClick={cancel}>✖ Bekor qilish</Button>
+        </div>
+      )}
+
+      {/* ── E7: peak-end finish card (DISPLAY-ONLY; rewards were granted by the bot sweep) ── */}
+      {screen === "finished" && (
+        <div className="b3-sheet b3-finish">
+          <div className="b3-grip" />
+          <div className="b3-finish-emoji">🏁</div>
+          <div className="b3-sheet-title tac">Safaringiz yakunlandi — rahmat!</div>
+          {me.streak?.current ? <div className="b3-finish-streak">🔥 {me.streak.current} kun streak — davom eting!</div> : null}
+          <div className="dim tac fs13 mt6">🎁 Tanga mukofotingiz Hamyon va botda hisoblandi.</div>
+          {rated ? (
+            <div className="b3-finish-thanks">🙏 Bahoyingiz uchun rahmat!</div>
+          ) : (
+            <>
+              <div className="b3-stars">
+                {[1, 2, 3, 4, 5].map((n) => (
+                  <button key={n} className={"b3-star" + (n <= stars ? " on" : "")} onClick={() => { haptic(); setStars(n); }}>★</button>
+                ))}
+              </div>
+              {stars > 0 && (
+                <>
+                  <div className="b3-tags">
+                    {RIDE_TAGS.map((t) => (
+                      <button key={t} className={"d-chip" + (rateTags.includes(t) ? " on" : "")} onClick={() => setRateTags((p) => (p.includes(t) ? p.filter((x) => x !== t) : [...p, t]))}>
+                        {t}
+                      </button>
+                    ))}
+                  </div>
+                  <Button onClick={rate}>⭐ Baholash</Button>
+                </>
+              )}
+            </>
+          )}
+          <Button variant="ghost" onClick={rebook}>🔁 Yana 1067</Button>
         </div>
       )}
     </div>
