@@ -20,6 +20,12 @@
       "port": 4422
     },
     {
+      "name": "verify2",
+      "runtimeExecutable": "pnpm",
+      "runtimeArgs": ["--filter", "@t1067/miniapp", "exec", "vite", "preview", "--port", "4458", "--strictPort"],
+      "port": 4458
+    },
+    {
       "name": "admin",
       "runtimeExecutable": "pnpm",
       "runtimeArgs": ["--filter", "@t1067/admin", "dev"],

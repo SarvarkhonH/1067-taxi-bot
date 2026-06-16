@@ -1,9 +1,25 @@
 // T1 demo-sahifa (storybook-lite). FAQAT #demo hash bilan, lazy-yuklanadi.
 // HECH QANDAY real API chaqirig'i yo'q — sof ko'rinish.
 import { useState } from "react";
+import type { MeResponse, MissionsResponse } from "@t1067/shared";
 import { Button, Card, Chip, CoinCounter, EmptyState, LoadSection, ProgressBar, Sheet, Skeleton, StreakFlame, TierBadge } from "./components";
 import { RouletteWheel } from "./RouletteWheel";
+import { BonusCenterView } from "../rewards";
 import { confetti } from "../util";
+
+// T6 render-proof fixtures (pure view, no API).
+const demoMeActive = { streak: { current: 12, longest: 30, checkedToday: false } } as unknown as MeResponse;
+const demoMeFull = { streak: { current: 30, longest: 30, checkedToday: true } } as unknown as MeResponse;
+const m = (code: string, progress: number, claimable: boolean, claimed: boolean): MissionsResponse["daily"][number] =>
+  ({ code, title: code, emoji: "🎯", period: "daily", target: 1, reward: 50, progress, claimable, claimed });
+const demoMissionsPartial: MissionsResponse = {
+  daily: [m("daily_ride", 1, false, true), m("daily_spin", 0, false, false), m("daily_checkin", 1, true, false)],
+  weekly: [{ ...m("weekly_rides", 5, true, false), period: "weekly", target: 5, reward: 700 }],
+};
+const demoMissionsFull: MissionsResponse = {
+  daily: [m("daily_ride", 1, false, true), m("daily_spin", 1, false, true)],
+  weekly: [],
+};
 
 const DEMO_PRIZES = [
   { label: "40", emoji: "🪙", color: "#243049" },
@@ -28,6 +44,11 @@ export default function DesignDemo() {
       <main className="content">
         <div className="view">
           <div className="section-title">🎨 T1 dizayn-demo (#demo)</div>
+
+          <div className="section-title">🎁 T6 Bonus-markaz (faol holat)</div>
+          <BonusCenterView me={demoMeActive} missions={demoMissionsPartial} err={false} checking={false} onCheckin={() => confetti()} onRetry={() => undefined} />
+          <div className="section-title mt8">🎁 T6 Bonus-markaz (kombo 3/3)</div>
+          <BonusCenterView me={demoMeFull} missions={demoMissionsFull} err={false} checking={false} onCheckin={() => undefined} onRetry={() => undefined} />
 
           <Card>
             <div className="between">

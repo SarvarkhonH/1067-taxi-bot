@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { WHEEL_PRIZES, formatNumber, type BoxStatusResponse, type GarageResponse, type MeResponse } from "@t1067/shared";
+import { WHEEL_PRIZES, formatNumber, type BoxStatusResponse, type GarageResponse, type MeResponse, type MissionsResponse } from "@t1067/shared";
 import { api } from "./api";
 import { haptic } from "./telegram";
 import { confetti } from "./util";
@@ -260,16 +260,96 @@ function BoxGame({ onReward }: { onReward: (msg: string) => void }) {
   );
 }
 
+// T6: BONUS LIVING CENTER — the top of the Bonus tab aggregates streak + daily kombo
+// (check-in · ride · spin) + missions-ready into one "what do I do today" glance.
+// Split into a pure view (demo-able, no API) + a data-loading wrapper.
+export function BonusCenterView({
+  me, missions, err, checking, onCheckin, onRetry,
+}: {
+  me: MeResponse;
+  missions: MissionsResponse | null;
+  err: boolean;
+  checking: boolean;
+  onCheckin: () => void;
+  onRetry: () => void;
+}) {
+  const daily = missions?.daily ?? [];
+  const did = (code: string) => daily.some((m) => m.code === code && (m.progress > 0 || m.claimed || m.claimable));
+  const kombo = [
+    { label: "Kirish", ok: me.streak.checkedToday },
+    { label: "Safar", ok: did("daily_ride") },
+    { label: "Spin", ok: did("daily_spin") },
+  ];
+  const komboN = kombo.filter((k) => k.ok).length;
+  const claimable = [...(missions?.daily ?? []), ...(missions?.weekly ?? [])].filter((m) => m.claimable).length;
+
+  return (
+    <section className="glass pad bonus-center">
+      <div className="bc-streak">
+        <span className="bc-fire">🔥</span>
+        <div className="bc-streak-meta">
+          <div className="bc-streak-n">{me.streak.current} kun streak</div>
+          <div className="muted fs12">{me.streak.checkedToday ? "bugun belgilangan ✓" : "bugun kirib streakni saqlang"}</div>
+        </div>
+        {!me.streak.checkedToday && (
+          <button className="btn-primary sm" disabled={checking} onClick={onCheckin}>{checking ? "…" : "✅ Belgilash"}</button>
+        )}
+      </div>
+      <div className="bc-kombo">
+        {kombo.map((k) => (
+          <div key={k.label} className={"bc-cell" + (k.ok ? " on" : "")}>
+            <span className="bc-cell-ico">{k.ok ? "✅" : "⬜"}</span>
+            <span className="bc-cell-label">{k.label}</span>
+          </div>
+        ))}
+      </div>
+      <div className="bc-hint">{komboN === 3 ? "🎉 Kombo to'liq — ertaga ruleta ×2!" : `Kunlik kombo ${komboN}/3 · 3/3 = ertaga ruleta ×2`}</div>
+      {claimable > 0 && <div className="bc-missions">🎁 {claimable} ta vazifa tayyor — «Vazifa» tabidan oling!</div>}
+      {err && !missions && <div className="muted fs12 mt6">⚠️ Holat yuklanmadi · <button className="d-link" onClick={onRetry}>qayta urinish</button></div>}
+    </section>
+  );
+}
+
+function BonusCenter({ me, onReward }: { me: MeResponse; onReward: (msg: string) => void }) {
+  const [missions, setMissions] = useState<MissionsResponse | null>(null);
+  const [err, setErr] = useState(false);
+  const [checking, setChecking] = useState(false);
+  const load = () => {
+    setErr(false);
+    api.missions().then(setMissions).catch(() => setErr(true));
+  };
+  useEffect(() => {
+    load();
+  }, []);
+
+  const checkin = async () => {
+    if (checking || me.streak.checkedToday) return;
+    setChecking(true);
+    haptic();
+    try {
+      const r = await api.checkin();
+      if (!r.alreadyChecked) confetti();
+      onReward(r.rewardAmount > 0 ? `🔥 ${r.current} kun streak · +${formatNumber(r.rewardAmount)} so'm!` : `🔥 ${r.current} kun streak!`);
+      load();
+    } finally {
+      setChecking(false);
+    }
+  };
+
+  return <BonusCenterView me={me} missions={missions} err={err} checking={checking} onCheckin={checkin} onRetry={load} />;
+}
+
 /**
- * Rewards hub (was the arcade): the book-aligned variable-reward layer tied to
- * rides — daily free spin + mystery box. Arcade games removed; Phase 2 adds the
- * ride-cashback roll, streak, lucky-day and level here.
+ * Bonus tab — T6 living center (streak + kombo + missions) on top, then the
+ * ride-tied variable-reward layer: garaj, Plus, in-ride wheel, mystery box.
  */
 export function RewardsView({ me, onReward }: { me: MeResponse; onReward: (msg: string) => void }) {
   return (
     <div className="view">
       <div className="section-title">🎁 Bonuslar</div>
-      <GarageSection onReward={onReward} />\n      <PlusSection onReward={onReward} />
+      <BonusCenter me={me} onReward={onReward} />
+      <GarageSection onReward={onReward} />
+      <PlusSection onReward={onReward} />
       <SpinWheelGame me={me} onReward={onReward} />
       <BoxGame onReward={onReward} />
       <div className="muted game-hint tac mt8">
