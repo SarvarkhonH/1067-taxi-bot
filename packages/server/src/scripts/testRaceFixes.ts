@@ -10,6 +10,7 @@ import { dailyCheckIn } from "../services/rewardService";
 import { grantRideCoins } from "../services/coinService";
 import { spinWheel } from "../services/rewardService";
 import { mintItem } from "../services/itemService";
+import { earnForRide } from "../services/garageService";
 import { setFeature } from "../services/featureFlags";
 import { RIDE_EMISSION_CAP, WHEEL_PRIZES, JACKPOT_FLOOR } from "@t1067/shared";
 
@@ -37,6 +38,7 @@ async function main(): Promise<void> {
   const snap = await prisma.appState.findUnique({ where: { key: "feature:recruit" } });
   const jpSnap = await prisma.appState.findUnique({ where: { key: "jackpot_pool" } }); // global — restore at end
   const wheelSnap = await prisma.appState.findUnique({ where: { key: "feature:wheel" } });
+  const garageSnap = await prisma.appState.findUnique({ where: { key: "feature:garage" } });
   await setFeature("recruit", true);
   await setFeature("wheel", true); // jackpot block needs it ON; the kill-switch block flips it OFF
   await cleanup();
@@ -126,6 +128,12 @@ async function main(): Promise<void> {
     ok(offRes.noRide === true && offRes.applied === false, `wheel OFF → spinWheel no-op (noRide, no grant)`);
     ok(wmSpins === 0 && wmCoins === 0, `wheel OFF → no wheelSpin recorded, no coins granted (kill-switch enforced at service)`);
     await setFeature("wheel", true);
+
+    // ── P1: garage kill-switch enforced at the service (was declared but never checked) ──
+    await setFeature("garage", false);
+    const garageOff = await earnForRide(wm.id, 7702, 10);
+    ok(garageOff === null, `garage OFF → earnForRide returns null, no grant (kill-switch enforced)`);
+    await setFeature("garage", true);
   } finally {
     await cleanup();
     // restore the recruit flag exactly as it was
@@ -135,6 +143,8 @@ async function main(): Promise<void> {
     else await prisma.appState.update({ where: { key: "jackpot_pool" }, data: { value: jpSnap.value } });
     if (!wheelSnap) await prisma.appState.deleteMany({ where: { key: "feature:wheel" } });
     else await prisma.appState.update({ where: { key: "feature:wheel" }, data: { value: wheelSnap.value } });
+    if (!garageSnap) await prisma.appState.deleteMany({ where: { key: "feature:garage" } });
+    else await prisma.appState.update({ where: { key: "feature:garage" }, data: { value: garageSnap.value } });
     await prisma.$disconnect();
   }
   console.log(failed ? `\n❌ ${failed} FAIL` : "\n✅ RACE-FIXES: referral + recruit concurrent-duplicate → exactly one row/grant");

@@ -102,6 +102,10 @@ export async function equippedEstimate(memberId: number, minutes: number): Promi
  * sweep). Idempotent via the per-ride key; clamped by RIDE_EMISSION_CAP.
  */
 export async function earnForRide(memberId: number, bookingId: number, minutes: number): Promise<{ amount: number; name: string } | null> {
+  // P1 (QA fleet): the garage kill-switch was declared in FEATURES but never enforced —
+  // earning kept paying even when feature:garage was OFF. Gate it here (the only earn path).
+  const { featureOn } = await import("./featureFlags");
+  if (!(await featureOn("garage"))) return null;
   const car = await prisma.memberCar.findFirst({ where: { memberId, isEquipped: true } });
   if (!car || minutes <= 0) return null;
   const def = garageCarByCode(car.carCode);
@@ -111,9 +115,14 @@ export async function earnForRide(memberId: number, bookingId: number, minutes: 
   const pm = await prisma.member.findUnique({ where: { id: memberId }, select: { plusUntil: true } });
   if (pm && isPlus(pm)) rate *= 1.2; // 💎 Plus garage boost
   const amount = Math.floor(Math.min(GARAGE_RIDE_CAP_MIN, minutes) * rate);
-  await prisma.memberCar.update({ where: { id: car.id }, data: { ridesSinceService: { increment: 1 } } });
   if (amount <= 0) return null;
   const g = await grantRideCoins(memberId, bookingId, amount, "garage", `🚗 ${def.name} ishladi (${Math.min(GARAGE_RIDE_CAP_MIN, Math.round(minutes))} daq)`, "garage");
+  // Exactly-once wear: advance ONLY when the grant actually landed. grantRideCoins
+  // is ok:false on (a) a fully-clamped ride (0 coins → 0 wear) and (b) a retry/concurrent
+  // duplicate (the per-ride key garage:<m>:<b> already paid). Gating on g.ok ties the
+  // increment to that same atomic CoinTxn unique-key guarantee, so a sweep retry or two
+  // concurrent calls for the same (memberId, bookingId) increment ridesSinceService once total.
   if (!g.ok) return null;
+  await prisma.memberCar.update({ where: { id: car.id }, data: { ridesSinceService: { increment: 1 } } });
   return { amount: amount - (g.clamped ?? 0), name: def.name };
 }
