@@ -35,6 +35,10 @@ async function main(): Promise<void> {
   // OPERATOR (non-owner) must be REJECTED on the fraud/money routes
   ok((await call("/api/admin/unflag", TOK)) === 403, "operator token REJECTED on /api/admin/unflag → 403");
   ok((await call("/api/admin/heal", TOK)) === 403, "operator token REJECTED on /api/admin/heal → 403");
+  // economic/shop config = owner-only (operators read-only) — decision locked
+  ok((await call("/api/admin/market/shopmode", TOK)) === 403, "operator token REJECTED on /api/admin/market/shopmode → 403");
+  ok((await call("/api/admin/market/listing", TOK)) === 403, "operator token REJECTED on /api/admin/market/listing → 403");
+  ok((await call("/api/admin/market/shop", TOK)) === 403, "operator token REJECTED on /api/admin/market/shop → 403");
   // sanity: the operator token IS valid for a non-owner route (proves 403 is owner-gate, not bad token)
   const rd = await fetch(`${base}/api/admin/recruits`, { headers: { "X-Admin-Token": TOK } });
   ok(rd.status !== 403, `operator token is VALID (passes requireAdmin on a read route → ${rd.status}, not 403)`);
@@ -45,7 +49,7 @@ async function main(): Promise<void> {
   await new Promise<void>((r) => srv.close(() => r()));
   await prisma.appState.deleteMany({ where: { key: { in: [`oprtoken:${TOK}`, `oprtoken:${OWN}`] } } });
   await prisma.$disconnect();
-  console.log(failed ? `\n❌ ${failed} FAIL` : "\n✅ AUTH-GATE: heal/unflag reject operators (403), allow owner");
+  console.log(failed ? `\n❌ ${failed} FAIL` : "\n✅ AUTH-GATE: heal/unflag + market shop/shopmode/listing reject operators (403), allow owner");
   process.exit(failed ? 1 : 0);
 }
 main().catch((e) => { console.error("FATAL", e instanceof Error ? e.message : e); process.exit(1); });

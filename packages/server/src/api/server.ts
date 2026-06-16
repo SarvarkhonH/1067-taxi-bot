@@ -358,7 +358,7 @@ export function createApiServer(opts: ApiOptions = {}) {
   });
   // admin: manage shops/listings (manual KYC — owner knows Koson businesses)
   // AUDIT 1.2 (ega qarori): admin UI'da formasi hali yo'q — T7 da qo'shiladi; endpoint qoladi.
-  app.post("/api/admin/market/shop", requireAdmin, async (req, res) => {
+  app.post("/api/admin/market/shop", requireAdmin, requireOwner, async (req, res) => {
     const b = req.body as { name?: string; emoji?: string; category?: string; ownerPhone?: string };
     if (!b?.name) {
       res.status(400).json({ error: "name required" });
@@ -367,7 +367,7 @@ export function createApiServer(opts: ApiOptions = {}) {
     res.json(await prisma.shop.create({ data: { name: b.name, emoji: b.emoji ?? "🏪", category: b.category ?? "boshqa", ownerPhone: b.ownerPhone ?? null } }));
   });
   // admin: flip a shop's settlement mode (trust ladder: absorb → redeem)
-  app.post("/api/admin/market/shopmode", requireAdmin, async (req, res) => {
+  app.post("/api/admin/market/shopmode", requireAdmin, requireOwner, async (req, res) => {
     const b = req.body as { shopId?: number; settlementMode?: string; spread?: number; dailyCapCoins?: number };
     if (!b?.shopId || !["absorb", "redeem"].includes(String(b.settlementMode))) {
       res.status(400).json({ error: "shopId and settlementMode (absorb|redeem) required" });
@@ -381,7 +381,7 @@ export function createApiServer(opts: ApiOptions = {}) {
       }),
     );
   });
-  app.post("/api/admin/market/listing", requireAdmin, async (req, res) => {
+  app.post("/api/admin/market/listing", requireAdmin, requireOwner, async (req, res) => {
     const b = req.body as { shopId?: number; title?: string; emoji?: string; priceCoins?: number; perUserLimit?: number };
     const priceCoins = Math.floor(Number(b?.priceCoins ?? 0));
     if (!b?.shopId || !b?.title || priceCoins <= 0) {
