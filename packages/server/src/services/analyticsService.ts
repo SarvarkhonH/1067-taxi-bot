@@ -2,40 +2,66 @@
 // - north-star: weekly completed rides (Uber/Lyft's NSM) + bot share + WAU
 // - driver distribution: rides/driver last 7 days — tier thresholds come from
 //   these PERCENTILES, never from guesses (plan: IV.1).
-// Data source: kas bookingReports paged (3×500 ≈ last ~9 days at 165/day),
-// cached 10 minutes — cheap enough for an admin dashboard.
+// Data source: kas bookingReports, paged 50/row in rate-limit-polite batches,
+// cached 10 minutes. REALITY CHECK (live, 2026-06-16): kas emits ~1650 report
+// rows/DAY (≈10× the old "165/day" guess), so the 40-page (~2100-row) cap spans
+// only ~1.3 days. That is plenty for "today" metrics, but the WEEK-OVER-WEEK
+// numbers (prevWeek*, getOpsPulse "prev") will read ~0 — reaching 7+ days would
+// need ~260 pages, too heavy to fetch politely every 10 min. The correct fix for
+// "vs last week" is a LOCAL daily-rollup table fed by the sweep, NOT deeper kas
+// paging (separate follow-up). What WAS fixed here: a rate-limited page no longer
+// masquerades as end-of-data and truncates the window early.
 import { prisma } from "../db";
 import { getDataSource, type RideHistoryItem } from "../kas";
 
 const DONE = new Set(["delivered", "completed", "finished"]); // kas reports vocab: terminal = "delivered" (probe 2026-06-12)
 const WEEK_MS = 7 * 24 * 3600 * 1000;
 
+// Report-window paging config. kas silently caps page size ~50; we page in
+// rate-limit-polite parallel batches up to a 2-week cutoff.
+const REPORTS_WINDOW_DAYS = 14; // cutoff target; at real volume MAX_PAGES binds first (~1.3 days)
+const REPORTS_MAX_PAGES = 40; // ~2100 rows; polite ceiling — deeper needs a local rollup, not more pages
+const REPORTS_PAGE_SIZE = 50;
+const REPORTS_BATCH = 3; // pages per parallel batch (AUDIT 2.8: 8-20s → ~1/3)
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+// Fetch one reports page, retrying transient failures (kas 429 / network — note
+// getJson does NOT retry data 429s, only login does). Returns the rows on
+// success (possibly []), or null after persistent failure. null is DISTINCT
+// from [] so a rate-limited page is NEVER mistaken for the real end of data
+// (the old `.catch(() => [])` conflated them → premature stop → shallow window).
+async function fetchReportsPage(ds: ReturnType<typeof getDataSource>, page: number): Promise<RideHistoryItem[] | null> {
+  for (let attempt = 0; attempt < 3; attempt++) {
+    try {
+      return await ds.getReportsPage(page, REPORTS_PAGE_SIZE);
+    } catch {
+      if (attempt < 2) await sleep(500 * (attempt + 1)); // 0.5s → 1s backoff, polite to kas 429
+    }
+  }
+  return null;
+}
+
 let cache: { at: number; rows: RideHistoryItem[] } | null = null;
 export async function recentReports(): Promise<RideHistoryItem[]> {
   if (cache && Date.now() - cache.at < 600_000) return cache.rows;
   const ds = getDataSource();
-  // kas silently caps page size around ~50 — page SEQUENTIALLY (rate-limit
-  // polite) until we have 2 weeks of data or 40 pages (~2000 rows).
   const rows: RideHistoryItem[] = [];
-  // T2 (AUDIT 2.8): ketma-ket 40 sahifa → 3-li PARALLEL batch (kas rate-limitiga
-  // ehtiyot), har batch'dan keyin cutoff tekshiruvi. 8-20s → ~1/3 ga qisqaradi.
-  const cutoff = Date.now() - 2 * WEEK_MS;
-  const BATCH = 3;
-  for (let base = 0; base < 40; base += BATCH) {
-    const pages = await Promise.all(
-      Array.from({ length: BATCH }, (_, i) => ds.getReportsPage(base + i, 50).catch(() => [] as RideHistoryItem[])),
-    );
-    let stop = false;
-    for (const page of pages) {
-      if (!page.length) {
-        stop = true;
+  const cutoff = Date.now() - REPORTS_WINDOW_DAYS * 24 * 3600 * 1000;
+  let stop = false;
+  for (let base = 0; base < REPORTS_MAX_PAGES && !stop; base += REPORTS_BATCH) {
+    const results = await Promise.all(Array.from({ length: REPORTS_BATCH }, (_, i) => fetchReportsPage(ds, base + i)));
+    // A whole batch of failures → kas is unreachable right now; stop hammering.
+    if (results.every((p) => p === null)) break;
+    for (const page of results) {
+      if (page === null) continue; // transient page failure → SKIP, keep paging (was: premature stop)
+      if (page.length === 0) {
+        stop = true; // genuinely-empty page = the real end of the report history
         continue;
       }
       rows.push(...page);
       const oldest = Date.parse(page[page.length - 1]!.at);
-      if (Number.isFinite(oldest) && oldest < cutoff) stop = true;
+      if (Number.isFinite(oldest) && oldest < cutoff) stop = true; // reached the 2-week window
     }
-    if (stop) break;
   }
   cache = { at: Date.now(), rows };
   return rows;
