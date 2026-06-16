@@ -252,6 +252,25 @@ export async function pushBookingUpdates(bot: Bot, dsOverride?: KasDataSource): 
       // fragile firstFinish gate — a transient just makes resilient() retry the
       // atomic tx; a re-entry is a P2002 no-op. Zero double-count, zero silent loss.
       const bid = m.lastBookingId;
+      // P0 (QA fleet): the kas active list drops a booking on BOTH completion AND cancellation,
+      // so this "finished" branch can't tell them apart — a CANCELLED ride would otherwise pay
+      // out cashback/garage/fund and send a "yakunlandi" card. Guard on a POSITIVE completion
+      // signal: the ride must have reached "started" (passenger in the car) AND its last status
+      // must not be a cancel. Otherwise clear the ride state but fire NO rewards / finish card.
+      const CANCEL_STATUSES = ["cancel_by_operator", "cancel_by_server", "take_back", "cancel"];
+      if (!m.rideStartedAt || CANCEL_STATUSES.includes(m.lastBookingStatus ?? "")) {
+        if (m.rideCardMsgId) {
+          await bot.api.editMessageText(chatId, m.rideCardMsgId, "❌ <b>Buyurtma bekor qilindi</b>", { parse_mode: "HTML" }).catch(() => undefined);
+        }
+        if (m.liveLocMsgId) {
+          await bot.api.stopMessageLiveLocation(chatId, m.liveLocMsgId).catch(() => undefined);
+        }
+        await prisma.member.update({
+          where: { id: m.id },
+          data: { lastBookingId: null, lastBookingStatus: null, lastBookingCar: null, lastBookingBonus: null, rideCardMsgId: null, liveLocMsgId: null, rideStartedAt: null },
+        });
+        continue;
+      }
       {
         await resilient("daily_ride", () => incrementMission(m.id, "daily_ride", 1, `qinc:${m.id}:daily_ride:${bid}`));
         await resilient("weekly_rides", () => incrementMission(m.id, "weekly_rides", 1, `qinc:${m.id}:weekly_rides:${bid}`));
