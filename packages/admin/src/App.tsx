@@ -316,12 +316,20 @@ function X360View() {
             <p className="muted">{dr.rating.tags.map((t) => `${t.tag} ×${t.n}`).join(" · ") || "Hali teg yo'q"}</p>
             {dr.driver && (
               <button className="btn" onClick={async () => {
-                const res = await fetch(adminApi.recruitQrUrl(dr.driver!.id), { headers: { "X-Admin-Token": localStorage.getItem("adminToken") ?? "" } });
-                const blob = await res.blob();
-                const a = document.createElement("a");
-                a.href = URL.createObjectURL(blob);
-                a.download = `recruit-qr-${dr.driver!.id}.png`;
-                a.click();
+                // P1 (QA fleet): token is stored under "admin_token" (TOKEN_KEY), not "adminToken"
+                // → the old key was always null → 403, QR never downloaded. Use the right key + check ok.
+                try {
+                  const res = await fetch(adminApi.recruitQrUrl(dr.driver!.id), { headers: { "X-Admin-Token": localStorage.getItem("admin_token") ?? "" } });
+                  if (!res.ok) { alert(`QR yuklab bo'lmadi (${res.status})`); return; }
+                  const blob = await res.blob();
+                  const a = document.createElement("a");
+                  a.href = URL.createObjectURL(blob);
+                  a.download = `recruit-qr-${dr.driver!.id}.png`;
+                  a.click();
+                  URL.revokeObjectURL(a.href);
+                } catch {
+                  alert("QR yuklab bo'lmadi — tarmoqni tekshiring");
+                }
               }}>📥 Recruit QR yuklab olish</button>
             )}
           </div>
@@ -368,8 +376,14 @@ function ControlCards() {
   useEffect(() => { load(); }, []);
 
   const toggle = async (name: string, on: boolean) => {
-    const r = await adminApi.setFeature(name, on);
-    setFlags(r.features);
+    // P1 (QA fleet): no try/catch → a failed kill-switch toggle was an unhandled rejection with
+    // no UI feedback (the operator couldn't tell the flag didn't flip). Surface it.
+    try {
+      const r = await adminApi.setFeature(name, on);
+      setFlags(r.features);
+    } catch {
+      alert(`'${name}' kill-switch'ni o'zgartirib bo'lmadi — qayta urinib ko'ring`);
+    }
   };
 
   return (
