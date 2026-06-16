@@ -176,12 +176,9 @@ export function createApiServer(opts: ApiOptions = {}) {
       res.status(404).json({ error: "not linked" });
       return;
     }
-    const { featureOn } = await import("../services/featureFlags");
-    if (!(await featureOn("wheel"))) {
-      res.json({
-      luckyDay: (await import("../services/cashbackService")).isLuckyToday(), ok: false, reason: "disabled" });
-      return;
-    }
+    // P1 (QA fleet): spinWheel now gates feature:wheel internally and ALWAYS returns a valid
+    // WheelSpinResponse (noRide when off). The old endpoint disabled-branch returned an
+    // off-contract {luckyDay, ok, reason} shape → the typed client read .prize and crashed.
     res.json(await spinWheel(memberId));
   });
 
