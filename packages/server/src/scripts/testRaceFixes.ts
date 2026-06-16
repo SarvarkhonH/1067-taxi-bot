@@ -6,6 +6,7 @@ import "../env";
 import { prisma } from "../db";
 import { completeReferral } from "../services/referralService";
 import { payRecruitRevshare } from "../services/recruitService";
+import { dailyCheckIn } from "../services/rewardService";
 import { setFeature } from "../services/featureFlags";
 
 const TAG = "racefix-test";
@@ -18,6 +19,7 @@ async function cleanup(): Promise<void> {
   const ids = ms.map((m) => m.id);
   await prisma.referral.deleteMany({ where: { OR: [{ refereeId: { startsWith: `${TAG}-tg` } }, { refereeMemberId: { in: ids } }] } });
   await prisma.driverRecruit.deleteMany({ where: { riderMemberId: { in: ids } } });
+  await prisma.streak.deleteMany({ where: { memberId: { in: ids } } });
   await prisma.coinTxn.deleteMany({ where: { memberId: { in: ids } } });
   await prisma.telegramUser.deleteMany({ where: { id: { startsWith: `${TAG}-tg` } } });
   await prisma.member.deleteMany({ where: { id: { in: ids } } });
@@ -50,6 +52,16 @@ async function main(): Promise<void> {
     const dAfter = await bal(driver.id);
     ok(recRows === 1, `payRecruitRevshare race → EXACTLY 1 DriverRecruit row (got ${recRows})`);
     ok(dAfter - dBefore === 500, `payRecruitRevshare race → recruit1 paid EXACTLY once (+500, got +${dAfter - dBefore})`);
+
+    // ── dailyCheckIn concurrent → streak advances ONCE, milestone reward granted ONCE ──
+    // (test-first: the grant key streak:m:today + atomic grantCoins may already protect it)
+    const chk = await prisma.member.create({ data: { type: "client", kasId: `${TAG}-chk`, fullName: "Chk", phone: "+998900022005", trips: 1 } });
+    await prisma.streak.create({ data: { memberId: chk.id, current: 6, longest: 6, lastCheckIn: new Date(Date.now() - 24 * 3600 * 1000) } });
+    await Promise.allSettled([dailyCheckIn(chk.id), dailyCheckIn(chk.id)]);
+    const st = await prisma.streak.findUnique({ where: { memberId: chk.id } });
+    const streakGrants = await prisma.coinTxn.count({ where: { memberId: chk.id, kind: "streak" } });
+    ok(st?.current === 7, `dailyCheckIn race → streak advances EXACTLY once (6→7, got ${st?.current})`);
+    ok(streakGrants <= 1, `dailyCheckIn race → streak reward granted at most once (got ${streakGrants})`);
   } finally {
     await cleanup();
     // restore the recruit flag exactly as it was
