@@ -125,6 +125,8 @@ async function main(): Promise<void> {
         if (bot) {
           const { maybeDailyBackup } = await import("./services/backupService");
           await maybeDailyBackup(bot).catch((e) => console.error("[backup] failed:", e));
+          const { maybeNightlySelfCheck } = await import("./services/selfCheck");
+          await maybeNightlySelfCheck(bot).catch((e) => console.error("[selfcheck] failed:", e));
           const { settleShopsWeekly } = await import("./services/marketService");
           await settleShopsWeekly().catch(async (e) => {
             console.error("[bozor settle] failed:", e);

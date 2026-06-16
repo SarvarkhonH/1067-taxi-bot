@@ -1,0 +1,40 @@
+name: CI shield
+
+# T8 shield — the merge gate. Two checks that need NO secrets and NO live DB, so
+# they run safely on every push/PR and block on regression:
+#   1. typecheck every package (catches type/contract breaks)
+#   2. the Monte-Carlo economy sim (proves the ≤350/ride BUZILMAS rule still holds)
+# The DB-integration E2E (testE2E.ts) hits live Neon + writes TAG'd rows, so it is
+# run locally / pre-release (see packages/server/src/scripts/testE2E.ts), NOT here.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  shield:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.33.0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
+      - name: Prisma generate (types for the server typecheck)
+        run: pnpm --filter @t1067/server exec prisma generate
+
+      - name: Typecheck (all packages)
+        run: pnpm -r typecheck
+
+      - name: Economy invariant — Monte-Carlo sim (≤350/ride, no DB)
+        run: pnpm --filter @t1067/server exec tsx src/scripts/simEconomy.ts
