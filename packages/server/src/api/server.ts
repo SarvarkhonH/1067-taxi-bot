@@ -38,7 +38,9 @@ function memberType(req: Request, fallback: MemberType): MemberType {
 }
 
 function resolveTelegramId(req: Request): string | null {
-  const initData = (req.header("X-Telegram-Init-Data") as string) || (req.query.initData as string) || "";
+  // P0-sec (QA fleet): initData ONLY from the header — NOT the query string (a signed initData
+  // in the URL leaks into server logs + Referer headers and can be replayed).
+  const initData = (req.header("X-Telegram-Init-Data") as string) || "";
   const dbg = req.header("X-Debug-Telegram-Id");
   if (initData && env.BOT_TOKEN) {
     const res = validateInitData(initData, env.BOT_TOKEN);
@@ -48,9 +50,10 @@ function resolveTelegramId(req: Request): string | null {
     }
     return res.ok && res.user ? String(res.user.id) : null;
   }
-  if (!env.hasBot || env.allowDebugAuth) {
-    if (dbg) return dbg;
-  }
+  // P0-sec: trust the debug header ONLY on an EXPLICIT opt-in (ALLOW_DEBUG_AUTH=true), never
+  // merely because a bot token is absent — otherwise a prod misconfig (empty BOT_TOKEN) would
+  // let anyone impersonate any user via X-Debug-Telegram-Id.
+  if (env.allowDebugAuth && dbg) return dbg;
   return null;
 }
 
