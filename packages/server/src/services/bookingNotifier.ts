@@ -438,31 +438,42 @@ export async function pushBookingUpdates(bot: Bot, dsOverride?: KasDataSource): 
       const streakLine = streak?.current ? `\n🔥 Streak: <b>${streak.current} kun</b> — davom eting!` : "";
 
       // ── peak-end summary card (message #3 of the ride) ──
-      const tipKb = driverId
-        ? new InlineKeyboard()
-            .text("🙏 500", `tip:${driverId}:500`)
-            .text("🙏 1 000", `tip:${driverId}:1000`)
-            .text("🙏 2 000", `tip:${driverId}:2000`)
-            .row()
-            .text("🔁 Yana 1067", "bk:now")
-        : new InlineKeyboard().text("🔁 Yana 1067", "bk:now");
-      await bot.api
-        .sendMessage(
-          chatId,
-          "🏁 <b>Safaringiz yakunlandi — rahmat!</b>" +
-            rollLine +
-            guessLine +
-            garageLine +
-            streakLine +
-            questLine +
-            "\n🎯 Vazifalaringizni «🎁 Bonuslar»da tekshiring." +
-            (driverId ? "\n\n🚗 Haydovchiga tanga bilan rahmat aytasizmi?" : ""),
-          { parse_mode: "HTML", reply_markup: tipKb },
-        )
-        .catch(() => undefined);
-
-      const { alertAdmins } = await import("./economyService");
-      await alertAdmins(`🏁 Safar yakunlandi: <b>${m.fullName}</b>${rollLine ? ` ·${rollLine.replace(/<[^>]+>/g, "")}` : ""}`).catch(() => undefined);
+      // P1 (QA fleet): the finish card was RE-SENT on a PG transient (the branch re-entered
+      // before the state-clear below). Gate the card + admin alert on a per-ride marker → sent
+      // at most ONCE. The rewards above stay retry-able (idempotent) so a transient never loses
+      // money — only the duplicate message is suppressed.
+      let cardSent = false;
+      try {
+        await prisma.appState.create({ data: { key: `finishcard:${bid}`, value: "1" } });
+      } catch {
+        cardSent = true; // marker exists → card already sent on a prior (transient) pass
+      }
+      if (!cardSent) {
+        const tipKb = driverId
+          ? new InlineKeyboard()
+              .text("🙏 500", `tip:${driverId}:500`)
+              .text("🙏 1 000", `tip:${driverId}:1000`)
+              .text("🙏 2 000", `tip:${driverId}:2000`)
+              .row()
+              .text("🔁 Yana 1067", "bk:now")
+          : new InlineKeyboard().text("🔁 Yana 1067", "bk:now");
+        await bot.api
+          .sendMessage(
+            chatId,
+            "🏁 <b>Safaringiz yakunlandi — rahmat!</b>" +
+              rollLine +
+              guessLine +
+              garageLine +
+              streakLine +
+              questLine +
+              "\n🎯 Vazifalaringizni «🎁 Bonuslar»da tekshiring." +
+              (driverId ? "\n\n🚗 Haydovchiga tanga bilan rahmat aytasizmi?" : ""),
+            { parse_mode: "HTML", reply_markup: tipKb },
+          )
+          .catch(() => undefined);
+        const { alertAdmins } = await import("./economyService");
+        await alertAdmins(`🏁 Safar yakunlandi: <b>${m.fullName}</b>${rollLine ? ` ·${rollLine.replace(/<[^>]+>/g, "")}` : ""}`).catch(() => undefined);
+      }
       await prisma.member.update({
         where: { id: m.id },
         data: {

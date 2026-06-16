@@ -15,9 +15,11 @@ let failed = 0;
 const ok = (c: boolean, l: string): void => { console.log(`${c ? "✅" : "❌"} ${l}`); if (!c) failed++; };
 
 let msgId = 1000;
+const sentTexts: string[] = [];
+const finishCards = (): number => sentTexts.filter((t) => t.includes("yakunlandi — rahmat")).length;
 const fakeBot = {
   api: {
-    sendMessage: async () => ({ message_id: ++msgId }),
+    sendMessage: async (_c: string, text: string) => { sentTexts.push(text); return { message_id: ++msgId }; },
     editMessageText: async () => true,
     sendLocation: async () => ({ message_id: ++msgId }),
     editMessageLiveLocation: async () => true,
@@ -39,6 +41,10 @@ async function cleanup(): Promise<void> {
   await prisma.coinTxn.deleteMany({ where: { memberId: { in: ids } } });
   await prisma.telegramUser.deleteMany({ where: { id: { startsWith: `${TAG}-tg` } } });
   await prisma.member.deleteMany({ where: { id: { in: ids } } });
+  // per-ride markers (finishcard / qinc / qscore / fundride) keyed by the test booking ids
+  await prisma.appState.deleteMany({
+    where: { OR: [{ key: { startsWith: "finishcard:88000" } }, { key: { endsWith: ":880001" } }, { key: { endsWith: ":880002" } }, { key: { endsWith: ":880003" } }, { key: { in: ["fundride:880001", "fundride:880002", "fundride:880003"] } }] },
+  });
 }
 
 async function main(): Promise<void> {
@@ -65,6 +71,15 @@ async function main(): Promise<void> {
     ok(await cleared(cx.id), `CANCELLED → ride state cleared (no stuck booking)`);
     ok(await cleared(px.id), `PHANTOM → ride state cleared`);
     ok(await cleared(dn.id), `COMPLETED → ride state cleared`);
+
+    // finish-card multi-send: re-entering the finish branch (transient = card sent but state
+    // not cleared) must NOT re-send the card (per-ride marker), rewards stay idempotent.
+    const cardsAfter1 = finishCards();
+    ok(cardsAfter1 === 1, `COMPLETED → exactly 1 finish card sent (got ${cardsAfter1})`);
+    await prisma.member.update({ where: { id: dn.id }, data: { lastBookingId: 880003, lastBookingStatus: "started", lastBookingCar: "70DON01", rideStartedAt: new Date(Date.now() - 6 * 60 * 1000) } });
+    await pushBookingUpdates(fakeBot, ds);
+    ok(finishCards() === 1, `finish-card: transient re-entry → card NOT re-sent (still 1)`);
+    ok((await rr(dn.id)) === 1, `finish-card re-entry → rewards stay idempotent (1 RideReward, no double)`);
   } finally {
     await cleanup();
     await prisma.$disconnect();
