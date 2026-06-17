@@ -22,7 +22,7 @@ the ≤350 money clamp re-proven (simEconomy: 0 violations / 30,160 rides), the 
 | T4 | Booking 3.0 E1-E4 (map-first, tariff, live car) | ✅ | testBookingStatus/Guard, Rule-4 | owner-preview only | **OFF** (default-off now) | owner QABUL + 1 pilot ride |
 | T5 | Trip cards E5-E7 (timeline, in-trip garage/spin, finish) | ✅ | testPhantomRide, money-shield (display≠grant), render-proof | owner-preview only | OFF (with booking3) | owner QABUL pending |
 | T6 | Bonus living center (streak+kombo+missions) | ✅ | render-proof #demo, money-shield, Rule-4 | ✅ (Bonus tab) | – | owner QABUL pending |
-| T7 | Admin 3.0 — M1 Puls + M2 Moliya | ✅ | testAdminModules 17/17 live, Rule-4 | admin deployed (200) | requireAdmin | admin redeploy + visual QABUL |
+| T7 | Admin 3.0 — M1 Puls + M2 Moliya | ✅ | testAdminModules 17/17 live, Rule-4 | **NOW deployed to the "admin" Vercel project (Puls/Moliya in bundle) — but behind Vercel Authentication (401)** | requireAdmin | ⚠️ CORRECTION: earlier "deployed (200)" was a WRONG URL (admin-six-xi = a different app). Reachability gap: owner must turn OFF Vercel Deployment Protection on the admin project |
 | T8 | Shield: sim + E2E runner + nightly self-check + CI | ✅ | simEconomy, testE2E 10/10, testSelfCheck, CI yaml | CI on GitHub; self-check in live tick | – | none |
 | + | Action-first home + deep-linked bot menu | ✅ | render-proof #demo, bundle-grep prod | ✅ (v14) | – | owner QABUL + menu-refresh announce |
 | + | Live map fix (classic booking: bundled Leaflet + Google tiles) | ✅ | bundle-grep prod (0 unpkg, 0 OSM) | ✅ | – | map-paints-in-UZ = QABUL |
@@ -66,7 +66,8 @@ the ≤350 money clamp re-proven (simEconomy: 0 violations / 30,160 rides), the 
 | 1 | Set **`KAS_BONUS_SECRET_KEY`** to the real value (not `"1303"`) | it mutates real kas money | Render env → then tell me, I drop the source default |
 | 2 | Set **`WEBHOOK_SECRET`** to a strong value (not `"hook"`) | guessable webhook | Render env → then I drop the default |
 | 3 | Confirm **`ALLOW_DEBUG_AUTH`** is NOT `"true"` in Render | true lets anyone impersonate a user | Render env |
-| 4 | **Redeploy the admin** project | T7 Puls/Moliya go live (separate Vercel project; server endpoints already deployed) | Vercel admin project |
+| 4 | **Turn OFF Vercel "Deployment Protection / Vercel Authentication"** on the `admin` Vercel project | the admin is now deployed with T7 (Puls/Moliya), but the project returns 401 to anyone not logged into Vercel → unreachable on your phone. The admin has its own token login, so it doesn't need Vercel's. | Vercel → admin project → Settings → Deployment Protection → off |
+| 4b | Confirm Render **`TELEGRAM_WEBAPP_URL`** = `https://1067taxi-miniapp.vercel.app` | the local .env defaults to `localhost:5173`; if Render isn't the https Vercel URL, the bot menu shows NO web-app buttons (canWebApp needs https) → Mini App unreachable from the bot | Render env |
 | 5 | **QABUL on your phone**: T3 bot card · T6 Bonus tab · home · map paints · T7 admin | DoD R6 — owner accepts on real render | Telegram + admin |
 | 6 | **1 real pilot ride** (T4/T5) | the decisive booking/trip/reward test | Telegram |
 | 7 | **Go-live flip** for Booking 3.0 *(after you QABUL it)*: turn `feature:booking3` ON | it's default-OFF now; this ships the new flow to all users | admin kill-switch panel / `setFeature("booking3", true)` |
