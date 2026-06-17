@@ -24,6 +24,7 @@ const SUITES = [
   "testAuthGate.ts", // admin auth (owner vs operator) + operator-token revoke
   "testCorpGuard.ts", // corp balance guard: NaN/0/over-debit rejected, never negative
   "testMarket.ts", // market buy/redeem + per-user-cap race (concurrent buys → 1 voucher)
+  "testTolqin.ts", // V4 game: tanga-only daily cap holds, one-time token, idempotent
 ];
 
 interface Res {

@@ -14,6 +14,8 @@ const DriverView = lazy(() => import("./driver").then((m) => ({ default: m.Drive
 const Booking3View = lazy(() => import("./booking3").then((m) => ({ default: m.Booking3View })));
 // V1: living AI home — lazy (loads Leaflet); shown on the home tab when feature:livinghome ON
 const LivingHome = lazy(() => import("./home").then((m) => ({ default: m.LivingHome })));
+// V4: Yashil to'lqin skill game — lazy; launched from a FAB when feature:tolqin ON
+const TolqinGame = lazy(() => import("./tolqin").then((m) => ({ default: m.TolqinGame })));
 import { Icon } from "./icons";
 import { useCountUp } from "./util";
 
@@ -69,6 +71,8 @@ export function App() {
   const [board, setBoard] = useState<LeaderboardResponse | null>(null);
   const [boardErr, setBoardErr] = useState(false);
   const [livinghome, setLivinghome] = useState(false);
+  const [tolqin, setTolqin] = useState(false);
+  const [playTolqin, setPlayTolqin] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [toast, setToast] = useState<{ id: number; msg: string } | null>(null);
   const [booking, setBooking] = useState(() => readGo() === "book");
@@ -104,7 +108,7 @@ export function App() {
       .catch((e) => setError(String(e)));
     loadBoard();
     // V1: learn whether the living home is enabled (same flag channel as booking3)
-    api.bookingInfo().then((r) => { if (!("error" in r)) setLivinghome(!!r.livinghome); }).catch(() => undefined);
+    api.bookingInfo().then((r) => { if (!("error" in r)) { setLivinghome(!!r.livinghome); setTolqin(!!r.tolqin); } }).catch(() => undefined);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -199,6 +203,14 @@ export function App() {
           </button>
         ))}
       </nav>
+      {tolqin && !playTolqin && (
+        <button className="tolqin-fab" onClick={() => { haptic(); setPlayTolqin(true); }} aria-label="Yashil to'lqin o'yini">🎮</button>
+      )}
+      {playTolqin && (
+        <Suspense fallback={<BootSplash />}>
+          <TolqinGame onClose={() => setPlayTolqin(false)} onReward={flash} />
+        </Suspense>
+      )}
     </div>
   );
 }

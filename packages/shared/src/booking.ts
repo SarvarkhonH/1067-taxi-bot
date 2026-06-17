@@ -72,6 +72,7 @@ export interface BookingInfoResponse {
   tariff: { minimalPayment: number; minimalDistanceKm: number; perKmCity: number; perMinute: number } | null;
   booking3?: boolean; // T4: feature flag — show the MapLibre flow vs the old Leaflet one
   livinghome?: boolean; // V1: feature flag — show the living AI home screen
+  tolqin?: boolean; // V4: feature flag — Yashil to'lqin skill game
 }
 
 // V1 living home aggregate — greeting, your usual ride, live cars, balances.

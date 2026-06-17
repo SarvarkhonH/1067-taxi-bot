@@ -156,6 +156,9 @@ export const api = {
       gaps: { gapId: number; name: string; members: number; score: number; rank: number }[];
       me: { gapId: number; name: string; rank: number; score: number } | null;
     }>("/api/mahalla"),
+  tolqinStart: () => request<{ off: boolean; token: string }>("POST", "/api/tolqin/start", {}, 1),
+  tolqinFinish: (token: string, score: number) =>
+    request<{ off?: boolean; ok: boolean; granted: number; dailyCap: number; roomLeft: number; reason?: string }>("POST", "/api/tolqin/finish", { token, score }, 1),
   bookingActive: () => get<ActiveBookingView | null>("/api/booking/active"),
   bookingSearch: (q: string) => request<SavedAddr[]>("POST", "/api/booking/search", { q }, 1),
   bookingCreate: (body: BookingCreateBody) => request<BookingCreateResponse>("POST", "/api/booking/create", body, 1),

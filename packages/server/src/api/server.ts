@@ -460,11 +460,11 @@ export function createApiServer(opts: ApiOptions = {}) {
   // ─── Uber-level booking (map + live tracking) ───────────────────────────────
   app.get("/api/booking/info", requireUser, withMember(async (id, req) => {
     const { featureOn } = await import("../services/featureFlags");
-    const [info, flagOn, livinghome] = await Promise.all([getBookingInfo(id), featureOn("booking3"), featureOn("livinghome")]);
+    const [info, flagOn, livinghome, tolqin] = await Promise.all([getBookingInfo(id), featureOn("booking3"), featureOn("livinghome"), featureOn("tolqin")]);
     // Booking 3.0 ega-ko'z darvozasi: global flag OFF bo'lsa ham EGA yangi oqimni ko'radi
     // (ilovani oddiy ochib — tasdiqdan oldin preview). QABUL → flag global ON → bu ahamiyatsiz.
     const previewer = resolveTelegramId(req) === "6506297119";
-    return { ...info, booking3: flagOn || previewer, livinghome: livinghome || previewer };
+    return { ...info, booking3: flagOn || previewer, livinghome: livinghome || previewer, tolqin: tolqin || previewer };
   }));
   // V1 living home aggregate: greeting name, usual ride, live cars, balances.
   app.get("/api/home", requireUser, withMember(async (id) => {
@@ -498,6 +498,20 @@ export function createApiServer(opts: ApiOptions = {}) {
     if (!(await featureOn("mahalla"))) return { off: true, week: "", gaps: [], me: null };
     const { getMahallaBoard } = await import("../services/mahallaService");
     return { off: false, ...(await getMahallaBoard(id)) };
+  }));
+  // V4 Yashil to'lqin skill game (tanga-only, ride-scaled hard daily cap) — gated.
+  app.post("/api/tolqin/start", requireUser, withMember(async (id) => {
+    const { featureOn } = await import("../services/featureFlags");
+    if (!(await featureOn("tolqin"))) return { off: true, token: "" };
+    const { startTolqinRun } = await import("../services/tolqinService");
+    return { off: false, ...(await startTolqinRun(id)) };
+  }));
+  app.post("/api/tolqin/finish", requireUser, withMember(async (id, req) => {
+    const { featureOn } = await import("../services/featureFlags");
+    if (!(await featureOn("tolqin"))) return { off: true, ok: false, granted: 0 };
+    const { finishTolqinRun } = await import("../services/tolqinService");
+    const b = req.body as { token?: string; score?: number };
+    return finishTolqinRun(id, String(b?.token ?? ""), Number(b?.score ?? 0));
   }));
   app.get("/api/booking/active", requireUser, withMember((id) => getActiveBookingFor(id)));
   app.post("/api/booking/search", requireUser, withMember((_id, req) => searchBookingAddress(String((req.body as { q?: string })?.q ?? ""))));
