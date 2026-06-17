@@ -11,6 +11,19 @@
 
 ## Jarayonda
 
+### 🎮 v3 O'YIN OVERHAUL (2026-06-17) — READY FOR VERIFICATION (jonli + test-proven; owner real-telefon QABUL kutilmoqda)
+Owner: "o'yin tabini mukammal qil … hammasi ketma-ket va garajni haqiqiy 3d qil". O'yin tab to'liq qayta ishlandi — har biri typecheck 0 + build + jonli (bundle HTTP 200) yoki server E2E-green:
+- **Garaj upgrade/daraja** (7635090) — TUNING L1→L5 (🥉 Bronza…💠 Olmos), spend-only sink, leveled rate. Shared `GARAGE_LEVEL_*`; `MemberCar.level` (Neon `db push`, additiv/non-destruktiv).
+- **Bot menu mini-appsiz** (445075d) — eski usulda bot ICHIDA taxi/hamyon/bonus/reyting/hisobim ishlaydi (web-app shart emas).
+- **5-tab nav redesign** (777aa08) — 6→5 toza tab (Uy/Hamyon/O'yin/Bozor/Reyting) + profil gear; `GO_MAP` eski→yangi yo'naltirish.
+- **G'ildirak bepul kunlik spin** (d3b247e) — doim o'ynaladi (safar shart emas); 1/kun idempotent `freeSpin`, JACKPOT-slice hali in-ride-only.
+- **Garaj 3D showroom** (c6fc701) — premium NFS-his: aylanib-suzuvchi mashina (CSS-3D rotateY), daraja-rang nuri, stats HUD, yashil TUNING. Halol qaror: literal 3D-model (Three.js) RAD etildi — <200KB + arzon Android budjetini buzardi.
+- **Yutuq juice — WinBurst** (2a0bb4d) — har HAQIQIY tanga yutug'ida: success-haptik + konfetti + 0→N count-up. FAQAT faucet (g'ildirak/quti/streak); spend/sink emas. `hapticSuccess` + streak "so'm"→tanga yozuv tuzatildi.
+- **Premium quti + kombo** (0d013f2) — quti full-width: tayyor→suzadi, OCHISH→750ms titraydi/zaryadlanadi→WinBurst. Kombo 3/3 → tilla pill + sakrash. Animatsiya transform/opacity + `prefers-reduced-motion`.
+- **+3 mashina** (c4bda22) — 5→8 (Tracker/Tahoe/Gelandewagen, 45 000 tavanida). Pure SINK; earning hali ≤350/safar klamp. `testGarage` 25/25 (payback ≥30: 64/81/94).
+- **Kunlik garaj kvesti** (c442c61) — "Garaj mashinangiz pul ishlasin" +80 (≤100 client-daily qoidaga mos). YANGI `MissionDef.core` flag: `core:false` BONUS kvest → qutini/komboni BLOKLAMAYDI (mashinasiz haydovchi ham qutini ochadi). `boxService` + kombo-hook endi core-only. ISBOT: `testGarage` (kvest 1/1 claimable) + `testEngagement` (4 daily, quti 3-core'da ochiladi) + `testEconomy` (≤100) + E2E 13/13.
+ISBOT (umumiy): miniapp #1-7 jonli (bundle HTTP 200; asosiy bundle 187KB o'zgarmadi — juice lazy `rewards` chunk'da); server #8-9 Render deploy (c4bda22 live; c442c61 deploy). Money-shield: har garaj/kvest o'zgarish ≤350 klamp + ledger invariant + E2E 13/13 yashil. **owner real-telefon QABUL (R6) kutilmoqda — global o'zgarish yo'q, hammasi mavjud oqimga additiv.**
+
 ### 🛡 QA FLEET (1000-agent) — 56 confirmed bug, fixlash davom etmoqda
 2 fleet ishladi: (A) bug-hunt wp30x7zia (18 finder → 3-ovoz adversarial verify) = **56 tasdiqlangan bug (1 P0, 48 P1, 7 P2)** → `.qa-bugs.json` (commit qilinmaydi, ishchi fayl). (B) functional-audit wh3vyhhca (26 feature × 3 lens) = works-matrix + improvement backlog (money-core SOLID; asosiy risk = klassik oqim unpkg blank-map + atomiklik race'lar). Eslatma: ikkala fleet bir vaqtda → API rate-limit (verifierlarning yarmi tushdi); natijalar HALI yuqori-sifatli lead, lekin har fix KODGA QARSHI qayta tekshiriladi.
 - **✅ BATCH 1 — FIXED + PROVEN + Rule-4 PASS (b1239d8, tests c098aa5):** (1) **P0 grantCoins TOCTOU** → atomik `$transaction` (unique-keyed insert OLDIN + increment; P2002=duplicate-skip). ISBOT: testMoneyShield P0 race-assert (8 parallel same-key → balance AYNAN +250 bir marta, 1 audit row, 1 ok/7 skip) + clamp/ledger YASHIL. (2) **P1 auth** heal/unflag `requireOwner`. ISBOT: testAuthGate (REAL app: operator→403, owner→200). (3) **P1 E6 crash** spin.prize guard. **Rule-4 mustaqil verify: IKKALASI PASS** (DB unique + atomik tx race-safe, under-credit yo'q, kontrakt buzilmagan; auth real non-owner token bilan).
