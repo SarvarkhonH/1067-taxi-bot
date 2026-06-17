@@ -30,7 +30,7 @@ const P_CAR_OWNER = 0.25; // owns a garage car (earns during rides)
 const P_PLUS = 0.15; // 💎 Plus subscriber (×1.5 roll, +150 cap)
 const P_COMBO = 0.2; // completed yesterday's daily kombo → today's roll ×2
 const P_GUESS_RIGHT = 0.25; // ETA-guess correct → +50
-const GARAGE_RATES = [1, 2, 3, 5, 8]; // Damas..Malibu so'm/min (20-min cap) — server catalog mirror
+const GARAGE_RATES = [1, 2, 3, 5, 8, 11, 16, 24]; // Damas..Gelandewagen tanga/min (20-min cap) — server catalog mirror
 const RIDES_PER_DAY = [0, 0, 0, 0, 1, 1, 1, 2, 2, 3]; // empirical-ish: mean ~0.9 rides/customer/day
 
 function pickWeighted<T extends { weight: number }>(arr: T[]): T {

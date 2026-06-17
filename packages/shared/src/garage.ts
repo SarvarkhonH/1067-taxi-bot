@@ -11,12 +11,18 @@ export interface GarageCarDef {
   ratePerMin: number; // coins per ride-minute while equipped
 }
 
+// The per-ride earning is ALWAYS clamped to RIDE_EMISSION_CAP (≤350/ride), so higher-rate
+// cars never break the emission rule — they just reach the cap in fewer ride-minutes. Their
+// real cost is the (large) tanga SINK to buy + upgrade them: a STEPN-safe collection ladder.
 export const GARAGE_CARS: GarageCarDef[] = [
   { code: "damas", name: "Damas", emoji: "🚐", price: 600, ratePerMin: 1 },
   { code: "matiz", name: "Matiz", emoji: "🚗", price: 1500, ratePerMin: 2 },
   { code: "nexia", name: "Nexia", emoji: "🚙", price: 2800, ratePerMin: 3 },
   { code: "cobalt", name: "Cobalt", emoji: "🚘", price: 5000, ratePerMin: 5 },
   { code: "malibu", name: "Malibu", emoji: "🏎", price: 9000, ratePerMin: 8 },
+  { code: "tracker", name: "Tracker", emoji: "🛻", price: 14000, ratePerMin: 11 },
+  { code: "tahoe", name: "Tahoe", emoji: "🚙", price: 26000, ratePerMin: 16 },
+  { code: "gelik", name: "Gelandewagen", emoji: "🏁", price: 45000, ratePerMin: 24 },
 ];
 
 export const GARAGE_RIDE_CAP_MIN = 20; // max earning minutes per ride
