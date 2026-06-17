@@ -19,7 +19,7 @@ export function withPhoneLock<T>(phone: string, fn: () => Promise<T>): Promise<T
 // raced — two mechanics on the same ride both read the same `paid`, both pass the room check,
 // and combine over the cap. Single-instance (Render) in-process lock, same pattern as withPhoneLock.
 const memberLocks = new Map<number, Promise<unknown>>();
-function withMemberLock<T>(memberId: number, fn: () => Promise<T>): Promise<T> {
+export function withMemberLock<T>(memberId: number, fn: () => Promise<T>): Promise<T> {
   const prev = memberLocks.get(memberId) ?? Promise.resolve();
   const run = prev.catch(() => undefined).then(fn);
   memberLocks.set(memberId, run.catch(() => undefined));

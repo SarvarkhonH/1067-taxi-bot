@@ -24,6 +24,7 @@ import {
   type TransferResponse,
 } from "@t1067/shared";
 import { prisma } from "../db";
+import { withMemberLock } from "./coinService";
 
 const DAY_MS = 24 * 3600 * 1000;
 
@@ -88,7 +89,11 @@ export async function transfer(
 
   const since = new Date(Date.now() - DAY_MS);
   try {
-    const result = await prisma.$transaction(async (tx) => {
+    // Serialize this sender's transfers (same in-process lock as ride-grants/withdraw):
+    // the daily-sent cap is a read-then-write on the sender's own 24h outflow, so two
+    // concurrent sends could each read the same sum and both slip past. The lock makes
+    // the 2nd send see the 1st's committed row → the cap holds under concurrency.
+    const result = await withMemberLock(fromMemberId, () => prisma.$transaction(async (tx) => {
       // caps checked inside the transaction — concurrent sends can't slip past
       const sent = await tx.transfer.aggregate({ where: { fromMemberId, createdAt: { gte: since } }, _sum: { amount: true } });
       if ((sent._sum.amount ?? 0) + amount > TRANSFER_DAILY_SENT) throw new Error("daily_sent_cap");
@@ -133,7 +138,7 @@ export async function transfer(
         data: { memberId: recipient.id, amount: net, kind: `${kind}_in`, reason: `${label} ← ${sender.fullName}`, idempotencyKey: `transfer:${row.id}:in` },
       });
       return row;
-    });
+    }));
 
     if (amount >= 10000) {
       const { alertAdmins } = await import("./economyService");

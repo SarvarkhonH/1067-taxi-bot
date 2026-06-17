@@ -1,6 +1,7 @@
 // P2P transfer safety suite: ledger invariant (incl. under concurrency),
 // two-sided caps, counterparty fan-out, ring guard, burn, tips.
 // Run: dotenv -e ../../.env -- tsx src/scripts/testTransfer.ts
+import { TRANSFER_DAILY_SENT } from "@t1067/shared";
 import "../env";
 import { prisma } from "../db";
 import { grantCoins } from "../services/coinService";
@@ -123,6 +124,26 @@ async function main(): Promise<void> {
   const totalCoins = all.reduce((s, m) => s + m.coins, 0);
   const seeded = 50000 + 5000 + 5000 + 30000 + 30000 + 5000;
   ok(totalCoins < seeded, `supply shrank by burns (${seeded} → ${totalCoins})`);
+
+  // CONCURRENCY — daily SENT cap can't be raced (the one money path flagged as inspection-only).
+  // Seed S to 22000 sent today, then fire 5 concurrent 5000-sends: each individually passes
+  // (22000+5000 ≤ 30000) but two together hit 32000 > 30000. Without the per-sender lock several
+  // slip past the read-then-check; with it, exactly ONE succeeds and the cap holds.
+  const S = await mkMember("S", "+998900001010", { coins: 100000 });
+  await mkMember("Rr", "+998900001011", {});
+  const dummy = await mkMember("dummy", "+998900001012", {});
+  await prisma.transfer.create({ data: { fromMemberId: S, toMemberId: dummy, amount: 22000, burn: 440, kind: "transfer" } });
+  const capRes = await Promise.all(
+    Array.from({ length: 5 }, () => transfer(S, "+998900001011", 5000).catch(() => ({ ok: false }) as { ok: boolean })),
+  );
+  const capOk = capRes.filter((x) => x.ok).length;
+  const sentAgg = await prisma.transfer.aggregate({
+    where: { fromMemberId: S, createdAt: { gte: new Date(Date.now() - 24 * 3600 * 1000) } },
+    _sum: { amount: true },
+  });
+  ok(capOk === 1, `daily-sent-cap race: exactly 1/5 concurrent sends passed (got ${capOk})`);
+  ok((sentAgg._sum.amount ?? 0) <= TRANSFER_DAILY_SENT, `daily-sent total ≤ cap under concurrency (${sentAgg._sum.amount} ≤ ${TRANSFER_DAILY_SENT})`);
+  ok(await invariant(S), `sender ledger invariant holds after cap-race`);
 
   await cleanup();
   await prisma.$disconnect();

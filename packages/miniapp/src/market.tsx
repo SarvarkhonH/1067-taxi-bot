@@ -3,7 +3,7 @@ import { formatNumber } from "@t1067/shared";
 import { api } from "./api";
 import { haptic } from "./telegram";
 import { confetti } from "./util";
-import { Spinner } from "./components";
+import { LoadError, Spinner } from "./components";
 import { Button, Sheet } from "./design/components";
 import type { ItemsResponse, TradesResponse } from "./api";
 
@@ -305,17 +305,22 @@ function MyShopPanel({ onBanner }: { onBanner: (m: string) => void }) {
 export function MarketView({ coins, onBanner }: { coins: number; onBanner: (m: string) => void }) {
   const [shops, setShops] = useState<ShopView[] | null>(null);
   const [orders, setOrders] = useState<OrderView[] | null>(null);
+  const [shopsErr, setShopsErr] = useState(false);
   const [buy, setBuy] = useState<{ shop: ShopView; listing: ShopView["listings"][number] } | null>(null);
   const [showOrders, setShowOrders] = useState(false);
 
   const load = () => {
-    api.marketShops().then(setShops).catch(() => setShops([]));
+    setShopsErr(false);
+    // On failure surface a retry instead of silently degrading to an empty market
+    // (an empty [] is indistinguishable from "no shops yet" → user is stuck).
+    api.marketShops().then(setShops).catch(() => setShopsErr(true));
     api.marketOrders().then(setOrders).catch(() => undefined);
   };
   useEffect(() => {
     load();
   }, []);
 
+  if (shopsErr && !shops) return <LoadError onRetry={load} />;
   if (!shops) return <Spinner />;
 
   const activeVouchers = (orders ?? []).filter((o) => o.status === "issued");
