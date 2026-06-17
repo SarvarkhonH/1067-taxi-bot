@@ -45,15 +45,27 @@ export async function getBoxStatus(memberId: number): Promise<BoxStatusResponse>
 
 export async function openBox(memberId: number): Promise<BoxOpenResponse> {
   const dayKey = tashkentDayKey(new Date());
-  const status = await getBoxStatus(memberId);
-  if (status.opened) return { ok: false, reason: "opened", prize: status.prize, applied: false };
-  if (!status.eligible) return { ok: false, reason: "locked", prize: null, applied: false };
-
-  const prize = weightedPick(BOX_PRIZES);
-  await prisma.boxOpen.create({ data: { memberId, dayKey, prize: prize.label, amount: prize.amount, premium: false } });
-  const g = await grantCoins(memberId, prize.amount, "box", `Sirli quti: ${prize.label}`, `box:${memberId}:${dayKey}`);
+  // Find-or-create the day's free box as the idempotency ANCHOR; the grant below is
+  // keyed identically (box:m:day), so the two can never diverge: a retry after a
+  // crash/transient grant failure COMPLETES the grant (was: row created, coins lost
+  // forever — box showed "opened" but never paid), and a concurrent call can't
+  // double-pay. The prize is fixed by the row, never re-rolled on retry.
+  let row = await prisma.boxOpen.findFirst({ where: { memberId, dayKey, premium: false } });
+  const fresh = !row;
+  if (!row) {
+    const status = await getBoxStatus(memberId);
+    if (!status.eligible) return { ok: false, reason: "locked", prize: null, applied: false };
+    const prize = weightedPick(BOX_PRIZES);
+    row = await prisma.boxOpen.create({ data: { memberId, dayKey, prize: prize.label, amount: prize.amount, premium: false } });
+  }
+  const def = BOX_PRIZES.find((p) => p.label === row!.prize);
+  const prize = { label: row.prize, emoji: def?.emoji ?? "🎁", amount: row.amount };
+  const g = await grantCoins(memberId, row.amount, "box", `Sirli quti: ${row.prize}`, `box:${memberId}:${dayKey}`);
   await import("./weeklyService")
     .then((w) => w.addScore(memberId, "box"))
     .catch(() => undefined);
-  return { ok: true, prize: { label: prize.label, emoji: prize.emoji, amount: prize.amount }, applied: g.ok };
+  // already-granted (normal re-open) → surface "opened"; a fresh open or a completed
+  // retry (g.ok) → success with the prize.
+  if (!fresh && g.skipped === "duplicate") return { ok: false, reason: "opened", prize, applied: false };
+  return { ok: true, prize, applied: g.ok };
 }

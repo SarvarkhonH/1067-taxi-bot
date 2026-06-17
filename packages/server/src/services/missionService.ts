@@ -141,9 +141,17 @@ export async function claimMission(memberId: number, code: string): Promise<Miss
   if (!row || row.progress < def.target) return { ok: false, reason: "not_complete", reward: def.reward, applied: false };
   if (row.claimedAt) return { ok: false, reason: "claimed", reward: def.reward, applied: false };
 
-  // mark claimed first (guards against double-claim races), then pay
-  await prisma.missionProgress.update({ where: { id: row.id }, data: { claimedAt: new Date() } });
+  // Pay FIRST via the idempotent key (that key — not claimedAt — is the real
+  // anti-double-claim guard), THEN stamp claimedAt. Reversed from before so a
+  // crash/transient between the two can't leave the mission "claimed" but UNPAID:
+  // a retry re-runs the idempotent grant and completes it (duplicate → no double pay).
   const g = await grantCoins(memberId, def.reward, "mission", `Vazifa: ${def.title}`, `mission:${code}:${memberId}:${key}`);
+  if (g.skipped === "duplicate") {
+    // a concurrent claim already paid — ensure it's stamped, report as claimed
+    await prisma.missionProgress.update({ where: { id: row.id }, data: { claimedAt: row.claimedAt ?? new Date() } }).catch(() => undefined);
+    return { ok: false, reason: "claimed", reward: def.reward, applied: false };
+  }
+  await prisma.missionProgress.update({ where: { id: row.id }, data: { claimedAt: new Date() } });
   // dynamic import: weeklyService depends on this module's week/day keys
   await import("./weeklyService")
     .then((w) => w.addScore(memberId, "mission"))

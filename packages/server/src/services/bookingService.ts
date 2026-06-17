@@ -138,10 +138,14 @@ export async function createBookingFor(memberId: number, body: BookingCreateBody
     await rememberPickup(memberId, { id: body.pickupId, name: body.pickupName }, source);
     return { ok: true, live: false, message: "TEST rejimi — haqiqiy taxi chaqirilmadi" };
   }
+  // atomic anti-double-dispatch claim (the early throttle check above is only a fast UX reject)
+  const slot = await claimDispatchSlot(memberId);
+  if (!slot.ok) return { ok: false, live: true, message: "Hozirgina buyurtma yuborilgan — bir daqiqa kuting" };
   const res = await getDataSource()
     .createBooking({ clientName: who.name, addressName: body.pickupName, addressId: body.pickupId, phoneNumber: who.phone, additionalPayment })
     .catch((e) => ({ ok: false, message: e instanceof Error ? e.message : String(e) }));
   if (res.ok) await rememberPickup(memberId, { id: body.pickupId, name: body.pickupName }, source);
+  else await releaseDispatchSlot(memberId, slot.prev);
   return { ok: res.ok, live: true, message: res.message };
 }
 
@@ -178,6 +182,25 @@ export async function getActiveBookingFor(memberId: number): Promise<ActiveBooki
 const ONE_TAP_GPS_LAST_KM = 0.12; // GPS within 120m of last pickup → same spot
 const ONE_TAP_GPS_SAVED_KM = 0.25; // GPS within 250m of a saved address → snap
 const ONE_TAP_THROTTLE_MS = 60_000; // min gap between dispatches (double-tap guard)
+
+/** Atomically claim the dispatch slot (CAS on lastBookingAt) RIGHT BEFORE a real kas
+ *  dispatch — the early throttle check is read-then-act (TOCTOU), so two concurrent
+ *  taps / a reload / a second tab can both pass it and dispatch two taxis (wasted
+ *  driver — the supply moat). This updateMany only succeeds for ONE caller; the loser
+ *  is throttled. Returns the prior value so a FAILED dispatch can release it (below). */
+export async function claimDispatchSlot(memberId: number): Promise<{ ok: boolean; prev: Date | null }> {
+  const before = await prisma.member.findUnique({ where: { id: memberId }, select: { lastBookingAt: true } });
+  const cutoff = new Date(Date.now() - ONE_TAP_THROTTLE_MS);
+  const claim = await prisma.member.updateMany({
+    where: { id: memberId, OR: [{ lastBookingAt: null }, { lastBookingAt: { lt: cutoff } }] },
+    data: { lastBookingAt: new Date() },
+  });
+  return { ok: claim.count > 0, prev: before?.lastBookingAt ?? null };
+}
+/** Release the slot after a FAILED dispatch so the user can retry immediately. */
+async function releaseDispatchSlot(memberId: number, prev: Date | null): Promise<void> {
+  await prisma.member.updateMany({ where: { id: memberId }, data: { lastBookingAt: prev } }).catch(() => undefined);
+}
 const CANCEL_FARM_LIMIT = 4; // self-cancels per day before 1-tap demands the full confirm flow
 
 function tashkentDay(d = new Date()): string {
@@ -322,10 +345,16 @@ export async function callOneTapFor(memberId: number, body: BookingNowBody, sour
     return { state: "test", pickupName: pickup.name, message: "TEST rejimi — haqiqiy taxi chaqirilmadi" };
   }
 
+  // atomic anti-double-dispatch claim (the early throttle check above is only a fast UX reject)
+  const slot = await claimDispatchSlot(memberId);
+  if (!slot.ok) return { state: "throttled", message: "Hozirgina buyurtma yuborilgan — bir daqiqa kuting" };
   const res = await ds
     .createBooking({ clientName: member.fullName, addressName: pickup.name, addressId: pickup.id, phoneNumber: member.phone, additionalPayment: 0 })
     .catch((e) => ({ ok: false as const, message: e instanceof Error ? e.message : String(e) }));
-  if (!res.ok) return { state: "failed", message: res.message };
+  if (!res.ok) {
+    await releaseDispatchSlot(memberId, slot.prev);
+    return { state: "failed", message: res.message };
+  }
 
   await rememberPickup(memberId, pickup, source);
   return { state: "dispatched", pickupName: pickup.name };
