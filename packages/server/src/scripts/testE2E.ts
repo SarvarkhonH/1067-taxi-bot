@@ -19,6 +19,7 @@ const SUITES = [
   "testPhantomRide.ts", // phantom/cancel finish · rateRide ownership · finish-card idempotency
   "testAdminModules.ts", // T7 read-only aggregates (pulse + finance)
   "testReviseFixes.ts", // openBox crash-safe · claimMission no-double · dispatch atomic
+  "testFeatureFlags.ts", // booking3 default-OFF safety (no row → off, not silent-live)
   "testRollup.ts", // DailyStat rollup + week-over-week reads (snapshot/restores its rows)
   "testAuthGate.ts", // admin auth (owner vs operator)
 ];

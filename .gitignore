@@ -20,3 +20,5 @@ kas-discovery/
 backups/
 
 .qa-bugs.json
+
+.qa-fixes.json

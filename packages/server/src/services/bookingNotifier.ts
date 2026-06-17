@@ -172,6 +172,10 @@ export async function pushBookingUpdates(
   });
 
   for (const m of linked) {
+    // T8 hardening: isolate each member — one member's transient (e.g. a Postgres blip on a
+    // bare member.update) must NOT skip the rest of this 90s tick for everyone else. Next
+    // tick re-runs; every money op below is idempotent/resilient, so no double/lost grants.
+    try {
     const norm = m.phone!.replace(/\D/g, "").slice(-9);
     const b = byPhone.get(norm);
     const chatId = m.telegramUser!.id;
@@ -496,6 +500,9 @@ export async function pushBookingUpdates(
           rideStartedAt: null,
         },
       });
+    }
+    } catch (e) {
+      console.error(`[sweep] member ${m.id} skipped this tick:`, e instanceof Error ? e.message.split("\n")[0] : e);
     }
   }
 }

@@ -1,10 +1,16 @@
-// 🔌 Kill-switch flags: every risky mechanic can be turned OFF without a
-// deploy via AppState "feature:<name>" = "off". Default is ON. 30s cache so
-// the sweep doesn't hammer the DB.
+// 🔌 Kill-switch flags: every risky mechanic can be turned OFF without a deploy
+// via AppState "feature:<name>" = "off". Default is ON — EXCEPT DEFAULT_OFF flags,
+// which stay OFF until an explicit "on" row exists (a not-yet-owner-accepted feature
+// must NOT go live just because its kill-switch row is missing). 30s cache.
 import { prisma } from "../db";
 
 export const FEATURES = ["wheel", "garage", "items", "transfers", "push", "gap", "plus", "recruit", "booking3"] as const;
 export type FeatureName = (typeof FEATURES)[number];
+
+// Off until explicitly enabled (go-live flip = setFeature(name, true) after owner QABUL).
+// booking3 = the new map/trip flow; owner still gets a preview via server.ts owner-branch,
+// but real users stay on the (fixed) classic flow until it's accepted. A missing row → OFF.
+const DEFAULT_OFF = new Set<FeatureName>(["booking3"]);
 
 let cache: { at: number; map: Record<string, boolean> } = { at: 0, map: {} };
 
@@ -15,7 +21,13 @@ export async function featureOn(name: FeatureName): Promise<boolean> {
     for (const r of rows) map[r.key.slice(8)] = r.value !== "off";
     cache = { at: Date.now(), map };
   }
+  if (DEFAULT_OFF.has(name)) return cache.map[name] === true; // OFF unless an explicit "on" row
   return cache.map[name] !== false;
+}
+
+/** TEST-ONLY: force the next featureOn() to re-read the DB (bypass the 30s cache). */
+export function __resetFeatureCache(): void {
+  cache = { at: 0, map: {} };
 }
 
 export async function setFeature(name: FeatureName, on: boolean): Promise<void> {
@@ -30,7 +42,7 @@ export async function setFeature(name: FeatureName, on: boolean): Promise<void> 
 export async function listFeatures(): Promise<{ name: string; on: boolean }[]> {
   const rows = await prisma.appState.findMany({ where: { key: { startsWith: "feature:" } } }).catch(() => []);
   const map = new Map(rows.map((r) => [r.key.slice(8), r.value !== "off"]));
-  return FEATURES.map((f) => ({ name: f, on: map.get(f) !== false }));
+  return FEATURES.map((f) => ({ name: f, on: DEFAULT_OFF.has(f) ? map.get(f) === true : map.get(f) !== false }));
 }
 
 /** 🏆 Mashina FONDI: 100 so'm per completed ride, prefunded, separate from

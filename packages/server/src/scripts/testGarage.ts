@@ -52,9 +52,20 @@ async function main(): Promise<void> {
 
   // idempotent per ride (same booking id → duplicate key, no double pay)
   const before = (await prisma.member.findUnique({ where: { id: m.id } }))!.coins;
+  const wearBefore = (await prisma.memberCar.findFirst({ where: { memberId: m.id, isEquipped: true } }))!.ridesSinceService;
   e = await earnForRide(m.id, 666001, 10);
   const after = (await prisma.member.findUnique({ where: { id: m.id } }))!.coins;
+  const wearAfter = (await prisma.memberCar.findFirst({ where: { memberId: m.id, isEquipped: true } }))!.ridesSinceService;
   ok(after === before, `re-earn same ride grants nothing (idempotent)`);
+  ok(wearAfter === wearBefore, `re-earn same ride does NOT advance ridesSinceService (was ${wearBefore}, now ${wearAfter})`);
+
+  // exactly-once wear under concurrency: 6 parallel earns for ONE fresh booking → +1 wear, 1 grant
+  const wearC0 = (await prisma.memberCar.findFirst({ where: { memberId: m.id, isEquipped: true } }))!.ridesSinceService;
+  await Promise.all(Array.from({ length: 6 }, () => earnForRide(m.id, 666999, 10)));
+  const wearC1 = (await prisma.memberCar.findFirst({ where: { memberId: m.id, isEquipped: true } }))!.ridesSinceService;
+  const grants666999 = await prisma.coinTxn.count({ where: { memberId: m.id, idempotencyKey: `garage:${m.id}:666999` } });
+  ok(wearC1 - wearC0 === 1, `6 concurrent earns (same booking) → wear +1 exactly (was ${wearC0}, now ${wearC1})`);
+  ok(grants666999 === 1, `6 concurrent earns (same booking) → exactly 1 garage CoinTxn (got ${grants666999})`);
 
   // service flow: force overdue → half rate → service resets
   await prisma.memberCar.updateMany({ where: { memberId: m.id, carCode: "matiz" }, data: { ridesSinceService: GARAGE_SERVICE_EVERY } });
