@@ -12,6 +12,8 @@ const MarketView = lazy(() => import("./market").then((m) => ({ default: m.Marke
 const DriverView = lazy(() => import("./driver").then((m) => ({ default: m.DriverView })));
 // T4: Booking 3.0 (MapLibre) — internally falls back to classic Leaflet if feature:booking3 OFF
 const Booking3View = lazy(() => import("./booking3").then((m) => ({ default: m.Booking3View })));
+// V1: living AI home — lazy (loads Leaflet); shown on the home tab when feature:livinghome ON
+const LivingHome = lazy(() => import("./home").then((m) => ({ default: m.LivingHome })));
 import { Icon } from "./icons";
 import { useCountUp } from "./util";
 
@@ -66,6 +68,7 @@ export function App() {
   });
   const [board, setBoard] = useState<LeaderboardResponse | null>(null);
   const [boardErr, setBoardErr] = useState(false);
+  const [livinghome, setLivinghome] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [toast, setToast] = useState<{ id: number; msg: string } | null>(null);
   const [booking, setBooking] = useState(() => readGo() === "book");
@@ -100,6 +103,8 @@ export function App() {
       })
       .catch((e) => setError(String(e)));
     loadBoard();
+    // V1: learn whether the living home is enabled (same flag channel as booking3)
+    api.bookingInfo().then((r) => { if (!("error" in r)) setLivinghome(!!r.livinghome); }).catch(() => undefined);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -159,7 +164,12 @@ export function App() {
       <main className="content">
         <div className="page" key={tab}>
           <Suspense fallback={<Spinner />}>
-            {tab === "home" && <WalletView me={me} onBanner={flash} reload={reload} onBook={() => { haptic(); setBooking(true); }} onNav={go} />}
+            {tab === "home" &&
+              (livinghome ? (
+                <LivingHome me={me} onBanner={flash} reload={reload} onBook={() => { haptic(); setBooking(true); }} onNav={(t) => go(t as Tab)} />
+              ) : (
+                <WalletView me={me} onBanner={flash} reload={reload} onBook={() => { haptic(); setBooking(true); }} onNav={go} />
+              ))}
             {tab === "market" && <MarketView coins={me.coins} onBanner={flash} />}
             {tab === "driver" && <DriverView me={me} />}
             {tab === "rewards" && <RewardsView me={me} onReward={flash} />}

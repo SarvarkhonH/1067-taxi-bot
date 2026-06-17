@@ -4,13 +4,20 @@
 // must NOT go live just because its kill-switch row is missing). 30s cache.
 import { prisma } from "../db";
 
-export const FEATURES = ["wheel", "garage", "items", "transfers", "push", "gap", "plus", "recruit", "booking3"] as const;
+export const FEATURES = [
+  "wheel", "garage", "items", "transfers", "push", "gap", "plus", "recruit", "booking3",
+  // v3 tracks — each ships dark behind its flag until owner QABUL:
+  "livinghome", // V1 living AI home screen
+  "aibrain", // V2 AI concierge (proactive + conversational)
+  "mahalla", // V5 mahalla-scoped leaderboard
+  "tolqin", // V4 Yashil to'lqin skill game
+] as const;
 export type FeatureName = (typeof FEATURES)[number];
 
 // Off until explicitly enabled (go-live flip = setFeature(name, true) after owner QABUL).
 // booking3 = the new map/trip flow; owner still gets a preview via server.ts owner-branch,
 // but real users stay on the (fixed) classic flow until it's accepted. A missing row → OFF.
-const DEFAULT_OFF = new Set<FeatureName>(["booking3"]);
+const DEFAULT_OFF = new Set<FeatureName>(["booking3", "livinghome", "aibrain", "mahalla", "tolqin"]);
 
 let cache: { at: number; map: Record<string, boolean> } = { at: 0, map: {} };
 

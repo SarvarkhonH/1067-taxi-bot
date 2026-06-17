@@ -71,6 +71,20 @@ export interface BookingInfoResponse {
   // T4-A: real per-km tariff for the honest rate card (NO fabricated total — kas is taximeter)
   tariff: { minimalPayment: number; minimalDistanceKm: number; perKmCity: number; perMinute: number } | null;
   booking3?: boolean; // T4: feature flag — show the MapLibre flow vs the old Leaflet one
+  livinghome?: boolean; // V1: feature flag — show the living AI home screen
+}
+
+// V1 living home aggregate — greeting, your usual ride, live cars, balances.
+export interface HomeResponse {
+  name: string;
+  coins: number;
+  cashback: number;
+  streak: number;
+  freeCars: number;
+  carPins: { lat: number; lng: number; bearing: number; busy: boolean }[];
+  center: GeoPt;
+  usualRide: { id: number; name: string } | null;
+  todayRides: number;
 }
 
 // ── 1-tap "1067 Now" ──────────────────────────────────────────────────────────

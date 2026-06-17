@@ -460,11 +460,37 @@ export function createApiServer(opts: ApiOptions = {}) {
   // ─── Uber-level booking (map + live tracking) ───────────────────────────────
   app.get("/api/booking/info", requireUser, withMember(async (id, req) => {
     const { featureOn } = await import("../services/featureFlags");
-    const [info, flagOn] = await Promise.all([getBookingInfo(id), featureOn("booking3")]);
+    const [info, flagOn, livinghome] = await Promise.all([getBookingInfo(id), featureOn("booking3"), featureOn("livinghome")]);
     // Booking 3.0 ega-ko'z darvozasi: global flag OFF bo'lsa ham EGA yangi oqimni ko'radi
     // (ilovani oddiy ochib — tasdiqdan oldin preview). QABUL → flag global ON → bu ahamiyatsiz.
     const previewer = resolveTelegramId(req) === "6506297119";
-    return { ...info, booking3: flagOn || previewer };
+    return { ...info, booking3: flagOn || previewer, livinghome: livinghome || previewer };
+  }));
+  // V1 living home aggregate: greeting name, usual ride, live cars, balances.
+  app.get("/api/home", requireUser, withMember(async (id) => {
+    const { getMeByMemberId } = await import("../services/memberService");
+    const { nearbyPins } = await import("../services/bookingPlus");
+    const [info, me, pins] = await Promise.all([
+      getBookingInfo(id),
+      getMeByMemberId(id),
+      nearbyPins().catch(() => ({ pins: [] as { lat: number; lng: number; bearing: number; busy: boolean }[], freeDrivers: 0 })),
+    ]);
+    const since = new Date(Date.now() - 24 * 3600 * 1000);
+    const todayRides = await prisma.rideReward.count({ where: { memberId: id, createdAt: { gte: since } } });
+    const errored = "error" in info;
+    const center = errored ? { lat: 39.045, lng: 65.535 } : info.center; // Koson markazi fallback
+    const q = errored ? null : info.quickPickup;
+    return {
+      name: (me?.member.fullName ?? "").split(" ")[0] || "do'stim",
+      coins: me?.coins ?? 0,
+      cashback: me?.stats.points ?? 0,
+      streak: me?.streak?.current ?? 0,
+      freeCars: pins.freeDrivers,
+      carPins: pins.pins.slice(0, 12),
+      center,
+      usualRide: q ? { id: q.id, name: q.name } : null,
+      todayRides,
+    };
   }));
   app.get("/api/booking/active", requireUser, withMember((id) => getActiveBookingFor(id)));
   app.post("/api/booking/search", requireUser, withMember((_id, req) => searchBookingAddress(String((req.body as { q?: string })?.q ?? ""))));
