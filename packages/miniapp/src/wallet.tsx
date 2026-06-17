@@ -467,7 +467,7 @@ type AccountInfo = {
   trips: number;
   notifyOff: boolean;
 };
-function AccountCard() {
+export function AccountCard() {
   const [a, setA] = useState<AccountInfo | null>(null);
   useEffect(() => {
     api.account().then(setA).catch(() => undefined);

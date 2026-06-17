@@ -503,6 +503,22 @@ body {
 .garage-earn { font-weight: 800; color: #00c853; }
 .garage-tier { color: #ffb300; font-weight: 700; }
 
+/* Topbar profile gear + Uy (taxi-first home) */
+.topbar-right { display: flex; align-items: center; gap: 8px; }
+.profile-btn { width: 34px; height: 34px; border-radius: 50%; display: flex; align-items: center; justify-content: center;
+  background: var(--surface, #1a2130); border: 1px solid var(--line, #2a3242); color: var(--text, #e8edf4); }
+.profile-btn:active { transform: scale(.94); }
+.uy-view { display: flex; flex-direction: column; gap: 14px; }
+.uy-greet { font-size: 18px; font-weight: 800; }
+.uy-bal { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 6px; }
+.uy-coin { font-size: 14px; font-weight: 700; background: linear-gradient(135deg,#ffc233,#ff9800); color: #1a1205; padding: 6px 12px; border-radius: 999px; }
+.uy-cash { font-size: 13px; color: var(--muted, #9aa4b2); background: var(--surface, #1a2130); border: 1px solid var(--line, #2a3242); padding: 6px 12px; border-radius: 999px; }
+.uy-tiles { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+.uy-tile { display: flex; flex-direction: column; align-items: center; gap: 4px; font-size: 24px; padding: 12px 0;
+  background: var(--surface, #1a2130); border: 1px solid var(--line, #2a3242); border-radius: 14px; color: var(--text, #e8edf4); }
+.uy-tile span { font-size: 11px; font-weight: 600; color: var(--muted, #9aa4b2); }
+.uy-tile:active { transform: scale(.95); }
+
 /* Account & settings card (Mini App) */
 .acct-card .acct-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 8px 0; border-bottom: 1px solid var(--line, #2a3242); font-size: 14px; }
 .acct-card .acct-row:last-of-type { border-bottom: none; }

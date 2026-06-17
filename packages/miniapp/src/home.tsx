@@ -99,9 +99,9 @@ export function LivingHome(props: {
         )}
         <button className="lh-cta" onClick={() => { haptic(); onBook(); }}>🚖 Taxi chaqirish</button>
         <div className="lh-places">
-          <button className="lh-place" onClick={() => { haptic(); onNav("rewards"); }}>🎁<span>Bonus</span></button>
+          <button className="lh-place" onClick={() => { haptic(); onNav("play"); }}>🎮<span>O'yin</span></button>
           <button className="lh-place" onClick={() => { haptic(); onNav("market"); }}>🏪<span>Bozor</span></button>
-          <button className="lh-place" onClick={() => { haptic(); onNav("friends"); }}>👥<span>Do'st</span></button>
+          <button className="lh-place" onClick={() => { haptic(); onNav("reyting"); }}>🏆<span>Reyting</span></button>
           <button className="lh-place" onClick={() => { haptic(); setShowWallet(true); }}>💰<span>Hamyon</span></button>
         </div>
       </div>

@@ -77,14 +77,17 @@ function mainMenu(isDriver = false): Keyboard {
   btn("🚕 Taxi chaqirish", "book");
   btn("📍 Buyurtmam", "book"); // booking3 shows the live order if one is active
   kb.row();
-  btn("💰 Hamyon", "home");
-  btn("🎁 Bonuslar", "rewards");
+  btn("💰 Hamyon", "wallet");
+  btn("🎁 Bonuslar", "play");
   btn("👥 Do'st", "friends");
+  kb.row();
+  btn("🏆 Reyting", "reyting");
+  btn("👤 Hisobim", "profile");
   if (isDriver) {
     kb.row();
     btn("🚗 Haydovchi paneli", "driver");
   }
-  if (canWebApp) kb.row().webApp("🚀 Ilova — Hamyon & Bonus", webAppUrl());
+  if (canWebApp) kb.row().webApp("🚀 Ilova — O'yin, Bozor & ko'p", webAppUrl());
   return kb.resized();
 }
 

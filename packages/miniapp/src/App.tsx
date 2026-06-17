@@ -5,7 +5,8 @@ import type { LeaderboardResponse, MeResponse } from "@t1067/shared";
 import { api, getInitData } from "./api";
 import { haptic, tg } from "./telegram";
 import { LeaderboardView, LoadError, MahallaSection, MissionsView, ReferralView, Spinner } from "./components";
-import { WalletView } from "./wallet"; // bosh tab — eager (birinchi paint)
+import { AccountCard, WalletView } from "./wallet"; // bosh tab — eager (birinchi paint)
+import { UyView } from "./uy"; // Uy tabi — yengil (leaflet-siz), eager
 // T2 (AUDIT 2.9): boshqa tablar lazy — har biri alohida chunk, asosiy bundle kichrayadi
 const RewardsView = lazy(() => import("./rewards").then((m) => ({ default: m.RewardsView })));
 const MarketView = lazy(() => import("./market").then((m) => ({ default: m.MarketView })));
@@ -19,25 +20,32 @@ const TolqinGame = lazy(() => import("./tolqin").then((m) => ({ default: m.Tolqi
 import { Icon } from "./icons";
 import { useCountUp } from "./util";
 
-type Tab = "home" | "market" | "rewards" | "missions" | "league" | "friends" | "driver";
+type Tab = "uy" | "wallet" | "play" | "market" | "reyting" | "driver" | "profile";
 
+// 5 aniq tab: Uy (taxi-first) · Hamyon (pul) · O'yin (bonus+vazifa) · Bozor · Reyting (liga+do'st)
 const BASE_TABS: { id: Tab; icon: string; label: string }[] = [
-  { id: "home", icon: "wallet", label: "Hamyon" },
+  { id: "uy", icon: "home", label: "Uy" },
+  { id: "wallet", icon: "wallet", label: "Hamyon" },
+  { id: "play", icon: "games", label: "O'yin" },
   { id: "market", icon: "market", label: "Bozor" },
-  { id: "rewards", icon: "games", label: "Bonus" },
-  { id: "missions", icon: "missions", label: "Vazifa" },
-  { id: "league", icon: "league", label: "Liga" },
-  { id: "friends", icon: "friends", label: "Do'st" },
+  { id: "reyting", icon: "league", label: "Reyting" },
 ];
-// drivers trade the social tabs for their earnings hub
+// drivers swap Bozor for their earnings hub
 const DRIVER_TABS: { id: Tab; icon: string; label: string }[] = [
-  { id: "home", icon: "wallet", label: "Hamyon" },
+  { id: "uy", icon: "home", label: "Uy" },
+  { id: "wallet", icon: "wallet", label: "Hamyon" },
   { id: "driver", icon: "car", label: "Daromad" },
-  { id: "market", icon: "market", label: "Bozor" },
-  { id: "rewards", icon: "games", label: "Bonus" },
-  { id: "missions", icon: "missions", label: "Vazifa" },
-  { id: "league", icon: "league", label: "Liga" },
+  { id: "play", icon: "games", label: "O'yin" },
+  { id: "reyting", icon: "league", label: "Reyting" },
 ];
+// old deep-link / child-nav targets → new tabs (so cached bot menus + components still work)
+const GO_MAP: Record<string, Tab> = {
+  home: "uy", uy: "uy", wallet: "wallet", hamyon: "wallet",
+  rewards: "play", missions: "play", play: "play", bonus: "play", vazifa: "play",
+  market: "market", bozor: "market",
+  league: "reyting", friends: "reyting", reyting: "reyting", liga: "reyting", dost: "reyting",
+  driver: "driver", profile: "profile",
+};
 
 // Deep-link target from the bot: ?go=<tab|book> (query) or start_param. The bot menu
 // buttons open the Mini App straight on the matching screen.
@@ -49,7 +57,6 @@ function readGo(): string {
     return "";
   }
 }
-const TAB_IDS: Tab[] = ["home", "market", "rewards", "missions", "league", "friends", "driver"];
 
 export function App() {
   if (window.location.hash === "#demo") {
@@ -64,10 +71,7 @@ export function App() {
   const [linked, setLinked] = useState<boolean | null>(null);
   // Deep-link: a bot-menu button opens the Mini App with ?go=<tab|book> → land straight
   // on that screen (booking flow / the matching tab), not always the home tab.
-  const [tab, setTab] = useState<Tab>(() => {
-    const g = readGo();
-    return TAB_IDS.includes(g as Tab) ? (g as Tab) : "home";
-  });
+  const [tab, setTab] = useState<Tab>(() => GO_MAP[readGo()] ?? "uy");
   const [board, setBoard] = useState<LeaderboardResponse | null>(null);
   const [boardErr, setBoardErr] = useState(false);
   const [livinghome, setLivinghome] = useState(false);
@@ -132,6 +136,8 @@ export function App() {
     haptic();
     setTab(t);
   };
+  // child components nav by string label (incl. old names) → map to the 5 tabs
+  const nav = (t: string) => go(GO_MAP[t] ?? "uy");
 
   const flash = (msg: string) => {
     haptic();
@@ -151,11 +157,16 @@ export function App() {
         <div className="brand">
           <span className="brand-badge">🚕</span>
           <span className="brand-name">1067<b>TAXI</b></span>
-          <span className="build-ver">v14 🏠</span>
+          <span className="build-ver">v15 ✨</span>
         </div>
-        <div className="coin-pill">
-          <span className={"coin-dot" + (coinBounce ? " d-coin-bounce" : "")}>🪙</span>
-          {Math.round(coins).toLocaleString("ru-RU")}
+        <div className="topbar-right">
+          <div className="coin-pill">
+            <span className={"coin-dot" + (coinBounce ? " d-coin-bounce" : "")}>🪙</span>
+            {Math.round(coins).toLocaleString("ru-RU")}
+          </div>
+          <button className="profile-btn" onClick={() => { haptic(); setTab("profile"); }} aria-label="Hisobim & sozlamalar">
+            <Icon name="user" size={20} />
+          </button>
         </div>
       </header>
 
@@ -168,28 +179,34 @@ export function App() {
       <main className="content">
         <div className="page" key={tab}>
           <Suspense fallback={<Spinner />}>
-            {tab === "home" &&
+            {tab === "uy" &&
               (livinghome ? (
-                <LivingHome me={me} onBanner={flash} reload={reload} onBook={() => { haptic(); setBooking(true); }} onNav={(t) => go(t as Tab)} />
+                <LivingHome me={me} onBanner={flash} reload={reload} onBook={() => { haptic(); setBooking(true); }} onNav={nav} />
               ) : (
-                <WalletView me={me} onBanner={flash} reload={reload} onBook={() => { haptic(); setBooking(true); }} onNav={go} />
+                <UyView me={me} onBook={() => { haptic(); setBooking(true); }} onNav={nav} />
               ))}
+            {tab === "wallet" && <WalletView me={me} onBanner={flash} reload={reload} onBook={() => { haptic(); setBooking(true); }} onNav={nav} />}
+            {tab === "play" && (
+              <>
+                <RewardsView me={me} onReward={flash} />
+                <MissionsView onReward={flash} />
+              </>
+            )}
             {tab === "market" && <MarketView coins={me.coins} onBanner={flash} />}
-            {tab === "driver" && <DriverView me={me} />}
-            {tab === "rewards" && <RewardsView me={me} onReward={flash} />}
-            {tab === "missions" && <MissionsView onReward={flash} />}
-            {tab === "league" &&
+            {tab === "reyting" &&
               (board ? (
                 <>
                   <LeaderboardView board={board} />
                   <MahallaSection />
+                  <ReferralView />
                 </>
               ) : boardErr ? (
                 <LoadError onRetry={loadBoard} />
               ) : (
                 <Spinner />
               ))}
-            {tab === "friends" && <ReferralView />}
+            {tab === "driver" && <DriverView me={me} />}
+            {tab === "profile" && <div className="view"><AccountCard /></div>}
           </Suspense>
         </div>
       </main>

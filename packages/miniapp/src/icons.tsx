@@ -68,6 +68,21 @@ export function Icon({ name, filled = false, size = 24 }: { name: string; filled
           <circle cx="16.5" cy="19" r="1.4" fill="currentColor" stroke="none" />
         </svg>
       );
+    case "home":
+      return (
+        <svg {...p}>
+          <path d="M4 11l8-6 8 6" />
+          <path d="M6 10v9a1 1 0 0 0 1 1h10a1 1 0 0 0 1-1v-9" />
+          <path d="M10 20v-5h4v5" />
+        </svg>
+      );
+    case "user":
+      return (
+        <svg {...p}>
+          <circle cx="12" cy="8" r="3.4" />
+          <path d="M5 20a7 7 0 0 1 14 0" />
+        </svg>
+      );
     default:
       return null;
   }
