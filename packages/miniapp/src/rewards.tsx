@@ -1,10 +1,46 @@
 import { useEffect, useRef, useState } from "react";
 import { WHEEL_PRIZES, formatNumber, type BoxStatusResponse, type GarageResponse, type MeResponse, type MissionsResponse } from "@t1067/shared";
 import { api } from "./api";
-import { haptic } from "./telegram";
+import { haptic, hapticSuccess } from "./telegram";
 import { confetti } from "./util";
 import { RouletteWheel } from "./design/RouletteWheel";
 import { LoadSection, ProgressBar } from "./design/components";
+
+// ✨ Yutuq "juice" — har HAQIQIY tanga yutug'ida bitta katta bayram: konfetti + success-haptik
+// + 0→N count-up. O'yinlar buni celebrate(amount, emoji, label) bilan chaqiradi. FAQAT faucet
+// (g'ildirak/quti/streak-milestone) — spend/sink (garaj olish, Plus) emas.
+type Celebrate = (amount: number, emoji: string, label?: string) => void;
+
+function WinBurst({ amount, emoji, label, onDone }: { amount: number; emoji: string; label?: string; onDone: () => void }) {
+  const [n, setN] = useState(0);
+  const doneRef = useRef(onDone);
+  doneRef.current = onDone;
+  useEffect(() => {
+    hapticSuccess();
+    confetti(34);
+    const ms = 900;
+    const t0 = performance.now();
+    let raf = 0;
+    const tick = (t: number) => {
+      const p = Math.min(1, (t - t0) / ms);
+      const eased = 1 - Math.pow(1 - p, 3);
+      setN(Math.round(amount * eased));
+      if (p < 1) raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+    const done = setTimeout(() => doneRef.current(), 1750);
+    return () => { cancelAnimationFrame(raf); clearTimeout(done); };
+  }, [amount]);
+  return (
+    <div className="winburst" onClick={() => doneRef.current()}>
+      <div className="wb-card">
+        <div className="wb-emoji">{emoji}</div>
+        <div className="wb-amount">+{formatNumber(n)} <span className="wb-coin">🪙</span></div>
+        {label ? <div className="wb-label">{label}</div> : null}
+      </div>
+    </div>
+  );
+}
 
 // 🚗 Garaj — ride-to-earn cars: buy (sink) → it earns ONLY during real rides.
 function GarageSection({ onReward }: { onReward: (msg: string) => void }) {
@@ -155,13 +191,13 @@ function PlusSection({ onReward }: { onReward: (msg: string) => void }) {
   );
 }
 
-function SpinWheelGame({ me, onReward }: { me: MeResponse; onReward: (msg: string) => void }) {
+function SpinWheelGame({ me, onReward, celebrate }: { me: MeResponse; onReward: (msg: string) => void; celebrate: Celebrate }) {
   const [spinId, setSpinId] = useState(0);
   const [target, setTarget] = useState<number | null>(null);
   const [spinning, setSpinning] = useState(false);
   const [freeUsed, setFreeUsed] = useState(!me.wheelAvailable);
   const [jackpot, setJackpot] = useState(me.jackpot);
-  const pend = useRef<{ msg: string; jackpot: number; win: boolean } | null>(null);
+  const pend = useRef<{ msg: string; jackpot: number; win: boolean; amount: number; emoji: string } | null>(null);
 
   const spin = async () => {
     if (spinning) return;
@@ -183,6 +219,8 @@ function SpinWheelGame({ me, onReward }: { me: MeResponse; onReward: (msg: strin
       const idx = Math.max(0, WHEEL_PRIZES.findIndex((p) => p.label === res.prize.label));
       pend.current = {
         win: res.prize.amount > 0,
+        amount: res.prize.amount,
+        emoji: res.prize.emoji,
         jackpot: res.jackpot,
         msg: res.prize.amount > 0 ? `${res.prize.emoji} +${formatNumber(res.prize.amount)} tanga!` : `${res.prize.emoji} ${res.prize.label} — yana urinib ko'ring!`,
       };
@@ -206,7 +244,7 @@ function SpinWheelGame({ me, onReward }: { me: MeResponse; onReward: (msg: strin
         return;
       }
       const idx = Math.max(0, WHEEL_PRIZES.findIndex((p) => p.label === res.prize.label));
-      pend.current = { win: res.prize.amount > 0, jackpot: res.jackpot, msg: `${res.prize.emoji} +${formatNumber(res.prize.amount)} tanga!` };
+      pend.current = { win: res.prize.amount > 0, amount: res.prize.amount, emoji: res.prize.emoji, jackpot: res.jackpot, msg: `${res.prize.emoji} +${formatNumber(res.prize.amount)} tanga!` };
       setTarget(idx);
       setSpinId((n) => n + 1);
     } catch {
@@ -214,15 +252,16 @@ function SpinWheelGame({ me, onReward }: { me: MeResponse; onReward: (msg: strin
     }
   };
 
-  // g'ildirak to'xtadi: yutuq oqimi — konfetti 600ms → toast/countup → haptic
+  // g'ildirak to'xtadi: yutuq oqimi — yutsa katta WinBurst bayrami, aks holda oddiy toast
   const onWheelDone = () => {
     setSpinning(false);
     setFreeUsed(true);
     if (!pend.current) return;
     setJackpot(pend.current.jackpot);
-    if (pend.current.win) confetti();
-    onReward(pend.current.msg);
+    const p = pend.current;
     pend.current = null;
+    if (p.win) celebrate(p.amount, p.emoji, "Omad g'ildiragi");
+    else onReward(p.msg);
   };
 
   return (
@@ -249,7 +288,7 @@ function SpinWheelGame({ me, onReward }: { me: MeResponse; onReward: (msg: strin
   );
 }
 
-function BoxGame({ onReward }: { onReward: (msg: string) => void }) {
+function BoxGame({ onReward, celebrate }: { onReward: (msg: string) => void; celebrate: Celebrate }) {
   const [box, setBox] = useState<BoxStatusResponse | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -266,8 +305,7 @@ function BoxGame({ onReward }: { onReward: (msg: string) => void }) {
     try {
       const r = await api.openBox();
       if (r.ok && r.prize) {
-        confetti();
-        onReward(`🎁 ${r.prize.emoji} +${formatNumber(r.prize.amount)} tanga!`);
+        celebrate(r.prize.amount, r.prize.emoji, "Sirli quti");
       } else if (r.reason === "locked") {
         onReward("🎯 Avval kunlik vazifalarni tugating!");
       }
@@ -365,7 +403,7 @@ export function BonusCenterView({
   );
 }
 
-function BonusCenter({ me, onReward }: { me: MeResponse; onReward: (msg: string) => void }) {
+function BonusCenter({ me, onReward, celebrate }: { me: MeResponse; onReward: (msg: string) => void; celebrate: Celebrate }) {
   const [missions, setMissions] = useState<MissionsResponse | null>(null);
   const [err, setErr] = useState(false);
   const [checking, setChecking] = useState(false);
@@ -383,8 +421,8 @@ function BonusCenter({ me, onReward }: { me: MeResponse; onReward: (msg: string)
     haptic();
     try {
       const r = await api.checkin();
-      if (!r.alreadyChecked) confetti();
-      onReward(r.rewardAmount > 0 ? `🔥 ${r.current} kun streak · +${formatNumber(r.rewardAmount)} so'm!` : `🔥 ${r.current} kun streak!`);
+      if (r.rewardAmount > 0) celebrate(r.rewardAmount, "🔥", `${r.current} kun streak!`);
+      else onReward(`🔥 ${r.current} kun streak!`);
       load();
     } finally {
       setChecking(false);
@@ -399,17 +437,28 @@ function BonusCenter({ me, onReward }: { me: MeResponse; onReward: (msg: string)
  * ride-tied variable-reward layer: garaj, Plus, in-ride wheel, mystery box.
  */
 export function RewardsView({ me, onReward }: { me: MeResponse; onReward: (msg: string) => void }) {
+  const [win, setWin] = useState<{ amount: number; emoji: string; label?: string; key: number } | null>(null);
+  const keyRef = useRef(0);
+  const celebrate: Celebrate = (amount, emoji, label) => {
+    if (amount <= 0) {
+      onReward(`${emoji} ${label ?? ""}`.trim());
+      return;
+    }
+    keyRef.current += 1;
+    setWin({ amount, emoji, label, key: keyRef.current });
+  };
   return (
     <div className="view">
       <div className="section-title">🎁 Bonuslar</div>
-      <BonusCenter me={me} onReward={onReward} />
+      <BonusCenter me={me} onReward={onReward} celebrate={celebrate} />
       <GarageSection onReward={onReward} />
       <PlusSection onReward={onReward} />
-      <SpinWheelGame me={me} onReward={onReward} />
-      <BoxGame onReward={onReward} />
+      <SpinWheelGame me={me} onReward={onReward} celebrate={celebrate} />
+      <BoxGame onReward={onReward} celebrate={celebrate} />
       <div className="muted game-hint tac mt8">
         Har safar tanga va bonus olib keladi 🚕 — ko'proq safar, ko'proq omad!
       </div>
+      {win ? <WinBurst key={win.key} amount={win.amount} emoji={win.emoji} label={win.label} onDone={() => setWin(null)} /> : null}
     </div>
   );
 }

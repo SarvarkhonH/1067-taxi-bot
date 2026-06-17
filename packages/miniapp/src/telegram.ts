@@ -8,7 +8,7 @@ interface TelegramWebApp {
   setHeaderColor?: (color: string) => void;
   setBackgroundColor?: (color: string) => void;
   openTelegramLink?: (url: string) => void;
-  HapticFeedback?: { impactOccurred: (s: string) => void; selectionChanged: () => void };
+  HapticFeedback?: { impactOccurred: (s: string) => void; selectionChanged: () => void; notificationOccurred?: (t: string) => void };
 }
 
 declare global {
@@ -29,6 +29,13 @@ export function initTelegram(): void {
 
 export function haptic(): void {
   tg?.HapticFeedback?.selectionChanged();
+}
+
+/** Stronger "you won" feedback — native success notification, falls back to a heavy tap. */
+export function hapticSuccess(): void {
+  const h = tg?.HapticFeedback;
+  if (h?.notificationOccurred) h.notificationOccurred("success");
+  else h?.impactOccurred("heavy");
 }
 
 /** Open Telegram's native "share to a chat" dialog with an invite link. */

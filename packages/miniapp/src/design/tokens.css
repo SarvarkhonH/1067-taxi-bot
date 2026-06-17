@@ -532,6 +532,26 @@ body {
 .gs-maxed { font-size: 15px; font-weight: 800; color: #b06cff; padding: 10px; }
 .garage-empty { text-align: center; color: var(--muted, #9aa4b2); padding: 18px; }
 
+/* ✨ Win burst — full-screen "you won" celebration with 0→N count-up (every tanga faucet) */
+.winburst { position: fixed; inset: 0; z-index: 95; display: flex; align-items: center; justify-content: center;
+  background: radial-gradient(circle at center, rgba(8,10,18,.5), rgba(8,10,18,.14) 58%, transparent);
+  animation: wb-fade .24s ease both; }
+.wb-card { text-align: center; padding: 22px 30px; border-radius: 24px;
+  background: linear-gradient(160deg, rgba(28,32,48,.97), rgba(16,18,30,.97));
+  border: 1px solid rgba(255,210,90,.34);
+  box-shadow: 0 24px 70px rgba(0,0,0,.5), 0 0 50px rgba(255,196,64,.28);
+  animation: wb-pop .5s cubic-bezier(.18,1.4,.4,1) both; }
+.wb-emoji { font-size: 62px; line-height: 1; animation: wb-emoji-pop .6s cubic-bezier(.2,1.5,.4,1) both; }
+.wb-amount { margin-top: 8px; font-size: 42px; font-weight: 900; letter-spacing: -.5px;
+  background: linear-gradient(180deg, #ffe79a, #ffb43a); -webkit-background-clip: text; background-clip: text; color: transparent;
+  text-shadow: 0 2px 18px rgba(255,180,58,.35); }
+.wb-coin { -webkit-text-fill-color: initial; }
+.wb-label { margin-top: 4px; font-size: 13px; font-weight: 700; color: var(--muted, #9aa4b2); }
+@keyframes wb-fade { from { opacity: 0; } to { opacity: 1; } }
+@keyframes wb-pop { 0% { opacity: 0; transform: scale(.7) translateY(10px); } 100% { opacity: 1; transform: none; } }
+@keyframes wb-emoji-pop { 0% { transform: scale(0) rotate(-18deg); } 70% { transform: scale(1.25) rotate(6deg); } 100% { transform: scale(1); } }
+@media (prefers-reduced-motion: reduce) { .winburst, .wb-card, .wb-emoji { animation-duration: .01ms; } }
+
 /* Topbar profile gear + Uy (taxi-first home) */
 .topbar-right { display: flex; align-items: center; gap: 8px; }
 .profile-btn { width: 34px; height: 34px; border-radius: 50%; display: flex; align-items: center; justify-content: center;
