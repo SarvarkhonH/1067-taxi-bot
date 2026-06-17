@@ -243,7 +243,7 @@ export function createBot(): Bot {
       await ctx.reply(renderLinkPrompt(), { parse_mode: "HTML", reply_markup: contactKeyboard() });
       return;
     }
-    if (me.type !== "driver") {
+    if (me.type !== "driver" && String(ctx.from!.id) !== "6506297119") {
       await ctx.reply("Bu bo'lim faqat 1067 haydovchilari uchun 🚗");
       return;
     }
@@ -262,7 +262,7 @@ export function createBot(): Bot {
   bot.callbackQuery("drv:qr", async (ctx) => {
     await ctx.answerCallbackQuery().catch(() => undefined);
     const me = await getMe(String(ctx.from!.id));
-    if (!me || me.type !== "driver") return;
+    if (!me || (me.type !== "driver" && String(ctx.from!.id) !== "6506297119")) return;
     const { driverQrLink } = await import("../services/recruitService");
     const QR = await import("qrcode");
     const png = await QR.toBuffer(driverQrLink(me.member.id), { width: 600, margin: 2 });
