@@ -154,5 +154,12 @@ export async function earnForRide(memberId: number, bookingId: number, minutes: 
   // concurrent calls for the same (memberId, bookingId) increment ridesSinceService once total.
   if (!g.ok) return null;
   await prisma.memberCar.update({ where: { id: car.id }, data: { ridesSinceService: { increment: 1 } } });
+  // 🏎 daily garage quest — bump once per ride (idempotent via the per-ride key), best-effort
+  try {
+    const { incrementMission } = await import("./missionService");
+    await incrementMission(memberId, "daily_garage", 1, `gquest:${memberId}:${bookingId}`);
+  } catch {
+    /* quest bump must never block the core earn */
+  }
   return { amount: amount - (g.clamped ?? 0), name: def.name };
 }

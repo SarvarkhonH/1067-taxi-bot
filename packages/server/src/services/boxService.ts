@@ -1,4 +1,4 @@
-import { BOX_PRIZES, type BoxOpenResponse, type BoxStatusResponse } from "@t1067/shared";
+import { BOX_PRIZES, MISSIONS, type BoxOpenResponse, type BoxStatusResponse } from "@t1067/shared";
 import { prisma } from "../db";
 import { grantCoins } from "./coinService";
 import { getMissions } from "./missionService";
@@ -31,8 +31,12 @@ export async function getBoxStatus(memberId: number): Promise<BoxStatusResponse>
     getMissions(memberId),
     prisma.boxOpen.findFirst({ where: { memberId, dayKey, premium: false } }),
   ]);
-  const dailiesDone = missions.daily.filter((m) => m.progress >= m.target).length;
-  const dailiesTotal = missions.daily.length;
+  // Only CORE dailies gate the box — exclude bonus quests (core:false, e.g. garage)
+  // so a rider without that optional asset can still always unlock the box.
+  const bonusCodes = new Set(MISSIONS.filter((d) => d.core === false).map((d) => d.code));
+  const gateDailies = missions.daily.filter((m) => !bonusCodes.has(m.code));
+  const dailiesDone = gateDailies.filter((m) => m.progress >= m.target).length;
+  const dailiesTotal = gateDailies.length;
   const def = freeOpen ? BOX_PRIZES.find((p) => p.label === freeOpen.prize) : null;
   return {
     eligible: dailiesDone === dailiesTotal,

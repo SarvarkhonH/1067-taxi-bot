@@ -5,6 +5,7 @@ import { GARAGE_CARS, GARAGE_RIDE_CAP_MIN, GARAGE_SERVICE_EVERY } from "@t1067/s
 import { prisma } from "../db";
 import { grantCoins } from "../services/coinService";
 import { buyCar, earnForRide, equipCar, getGarage, serviceCar } from "../services/garageService";
+import { getMissions } from "../services/missionService";
 
 const TAG = "garage-test";
 let failed = 0;
@@ -15,8 +16,12 @@ function ok(cond: boolean, label: string): void {
 
 async function cleanup(): Promise<void> {
   const ms = await prisma.member.findMany({ where: { kasId: { startsWith: TAG } }, select: { id: true } });
-  await prisma.memberCar.deleteMany({ where: { memberId: { in: ms.map((m) => m.id) } } });
-  await prisma.member.deleteMany({ where: { id: { in: ms.map((m) => m.id) } } });
+  const ids = ms.map((m) => m.id);
+  await prisma.memberCar.deleteMany({ where: { memberId: { in: ids } } });
+  // daily_garage quest leaves missionProgress rows + per-ride gquest:<id>:<booking> markers
+  await prisma.missionProgress.deleteMany({ where: { memberId: { in: ids } } });
+  for (const id of ids) await prisma.appState.deleteMany({ where: { key: { startsWith: `gquest:${id}:` } } });
+  await prisma.member.deleteMany({ where: { id: { in: ids } } });
 }
 
 async function main(): Promise<void> {
@@ -47,6 +52,10 @@ async function main(): Promise<void> {
   // ride earn: 10 min × 2/min = 20; 30 min capped at 20 min × 2 = 40
   let e = await earnForRide(m.id, 666001, 10);
   ok(e?.amount === 20, `10-min ride → +20 (matiz 2/min): ${e?.amount}`);
+
+  // 🏎 daily garage quest auto-bumps when the equipped car earns on a ride
+  const gq = (await getMissions(m.id)).daily.find((x) => x.code === "daily_garage");
+  ok(!!gq && gq.progress === 1 && gq.claimable, `daily_garage quest bumped by garage earn (1/1 claimable)`);
   e = await earnForRide(m.id, 666002, 35);
   ok(e?.amount === 40, `35-min ride capped at 20 min → +40: ${e?.amount}`);
 

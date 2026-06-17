@@ -15,12 +15,18 @@ export interface MissionDef {
   period: MissionPeriod;
   target: number;
   reward: number; // so'm cashback paid when claimed
+  // CORE daily missions (default) gate the mystery box + the daily-kombo boost.
+  // A `core: false` daily is a BONUS quest: claimable on its own, but NOT required
+  // for the box/kombo — so an optional task (e.g. garage, which needs owning a car)
+  // can never lock a car-less rider out of the box or the kombo.
+  core?: boolean;
 }
 
 export const MISSIONS: MissionDef[] = [
   { code: "daily_checkin", title: "Bugun belgilab chiqing", emoji: "🔥", period: "daily", target: 1, reward: 50 },
   { code: "daily_spin", title: "Safarda g'ildirak aylantiring", emoji: "🎡", period: "daily", target: 1, reward: 50 },
   { code: "daily_ride", title: "1 ta safar qiling", emoji: "🚕", period: "daily", target: 1, reward: 100 },
+  { code: "daily_garage", title: "Garaj mashinangiz pul ishlasin", emoji: "🏎", period: "daily", target: 1, reward: 80, core: false },
   { code: "weekly_rides", title: "Haftada 5 ta safar", emoji: "🏁", period: "weekly", target: 5, reward: 700 },
   { code: "weekly_invite", title: "Do'st taklif qiling", emoji: "👥", period: "weekly", target: 1, reward: 1000 },
   { code: "weekly_market", title: "Bozordan xarid qiling", emoji: "🏪", period: "weekly", target: 1, reward: 300 },

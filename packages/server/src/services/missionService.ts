@@ -79,11 +79,12 @@ export async function incrementMission(memberId: number, code: string, by = 1, r
   }
   if (next < 0) return; // claimed-skip path
 
-  // 🔗 daily KOMBO: the moment ALL dailies hit their target, tomorrow's ride
-  // roll doubles (Member.comboBoostDay) — the hook that brings them back.
-  if (def.period === "daily" && next >= def.target && def.audience !== "driver") {
+  // 🔗 daily KOMBO: the moment ALL CORE dailies hit their target, tomorrow's ride
+  // roll doubles (Member.comboBoostDay) — the hook that brings them back. Bonus
+  // quests (core:false, e.g. garage) are excluded so they neither gate nor trigger it.
+  if (def.period === "daily" && def.core !== false && next >= def.target && def.audience !== "driver") {
     try {
-      const dailies = MISSIONS.filter((d) => d.period === "daily" && d.audience !== "driver");
+      const dailies = MISSIONS.filter((d) => d.period === "daily" && d.audience !== "driver" && d.core !== false);
       const today = dayKey(new Date());
       const rows = await prisma.missionProgress.findMany({
         where: { memberId, periodKey: today, code: { in: dailies.map((d) => d.code) } },
