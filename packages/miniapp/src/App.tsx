@@ -4,7 +4,7 @@ const DesignDemo = lazy(() => import("./design/demo")); // #demo dagina yuklanad
 import type { LeaderboardResponse, MeResponse } from "@t1067/shared";
 import { api, getInitData } from "./api";
 import { haptic, tg } from "./telegram";
-import { LeaderboardView, LoadError, MissionsView, ReferralView, Spinner } from "./components";
+import { LeaderboardView, LoadError, MahallaSection, MissionsView, ReferralView, Spinner } from "./components";
 import { WalletView } from "./wallet"; // bosh tab — eager (birinchi paint)
 // T2 (AUDIT 2.9): boshqa tablar lazy — har biri alohida chunk, asosiy bundle kichrayadi
 const RewardsView = lazy(() => import("./rewards").then((m) => ({ default: m.RewardsView })));
@@ -174,7 +174,17 @@ export function App() {
             {tab === "driver" && <DriverView me={me} />}
             {tab === "rewards" && <RewardsView me={me} onReward={flash} />}
             {tab === "missions" && <MissionsView onReward={flash} />}
-            {tab === "league" && (board ? <LeaderboardView board={board} /> : boardErr ? <LoadError onRetry={loadBoard} /> : <Spinner />)}
+            {tab === "league" &&
+              (board ? (
+                <>
+                  <LeaderboardView board={board} />
+                  <MahallaSection />
+                </>
+              ) : boardErr ? (
+                <LoadError onRetry={loadBoard} />
+              ) : (
+                <Spinner />
+              ))}
             {tab === "friends" && <ReferralView />}
           </Suspense>
         </div>

@@ -492,6 +492,13 @@ export function createApiServer(opts: ApiOptions = {}) {
       todayRides,
     };
   }));
+  // V5 mahalla league (gap-vs-gap weekly) — gated behind feature:mahalla.
+  app.get("/api/mahalla", requireUser, withMember(async (id) => {
+    const { featureOn } = await import("../services/featureFlags");
+    if (!(await featureOn("mahalla"))) return { off: true, week: "", gaps: [], me: null };
+    const { getMahallaBoard } = await import("../services/mahallaService");
+    return { off: false, ...(await getMahallaBoard(id)) };
+  }));
   app.get("/api/booking/active", requireUser, withMember((id) => getActiveBookingFor(id)));
   app.post("/api/booking/search", requireUser, withMember((_id, req) => searchBookingAddress(String((req.body as { q?: string })?.q ?? ""))));
   app.post("/api/booking/create", requireUser, rateLimit(3), withMember((id, req) => createBookingFor(id, req.body as BookingCreateBody)));

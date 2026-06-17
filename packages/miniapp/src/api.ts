@@ -149,6 +149,13 @@ export const api = {
   itemBuy: (listingId: number) => request<{ ok: boolean; reason?: string; name?: string; coins: number }>("POST", "/api/items/buy", { listingId }, 1),
   bookingInfo: () => get<BookingInfoResponse | { error: string }>("/api/booking/info"),
   home: () => get<HomeResponse>("/api/home"),
+  mahalla: () =>
+    get<{
+      off: boolean;
+      week: string;
+      gaps: { gapId: number; name: string; members: number; score: number; rank: number }[];
+      me: { gapId: number; name: string; rank: number; score: number } | null;
+    }>("/api/mahalla"),
   bookingActive: () => get<ActiveBookingView | null>("/api/booking/active"),
   bookingSearch: (q: string) => request<SavedAddr[]>("POST", "/api/booking/search", { q }, 1),
   bookingCreate: (body: BookingCreateBody) => request<BookingCreateResponse>("POST", "/api/booking/create", body, 1),

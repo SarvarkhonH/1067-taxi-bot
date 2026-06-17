@@ -28,6 +28,7 @@ import {
   renderDriverPanel,
   renderEarnPush,
   renderLeaderboard,
+  renderMahalla,
   renderLinkPrompt,
   renderMissions,
   renderNotFound,
@@ -216,6 +217,24 @@ export function createBot(): Bot {
     await setNotifyOff(me.member.id, !(await isNotifyOff(me.member.id)));
     await showAccount(ctx);
   });
+
+  // 🏘 V5 — mahalla (gap-vs-gap) league
+  const showMahalla = async (ctx: Context) => {
+    const me = await getMe(String(ctx.from!.id));
+    if (!me) {
+      await ctx.reply(renderLinkPrompt(), { parse_mode: "HTML", reply_markup: contactKeyboard() });
+      return;
+    }
+    const { featureOn } = await import("../services/featureFlags");
+    if (!(await featureOn("mahalla"))) {
+      await ctx.reply("🏘 Mahalla ligasi tez orada!");
+      return;
+    }
+    const { getMahallaBoard } = await import("../services/mahallaService");
+    await ctx.reply(renderMahalla(await getMahallaBoard(me.member.id)), { parse_mode: "HTML" });
+  };
+  bot.hears("🏘 Mahalla", showMahalla);
+  bot.command("mahalla", showMahalla);
 
   // 🚗 driver panel: earnings (tips + transfers in), recent ledger, cash-out hint
   const showDriverPanel = async (ctx: Context) => {
