@@ -45,24 +45,34 @@ function GarageSection({ onReward }: { onReward: (msg: string) => void }) {
     }
   };
 
+  const eq = g.cars.find((c) => c.equipped) ?? null;
   return (
-    <section className="glass pad game-card">
-      <div className="section-title">🚗 Garaj — mashinangiz safarda ishlaydi</div>
-      <p className="muted mk-sub">Mashina sotib oling — siz taksida ketayotganingizda u sizga tanga ishlab beradi (daqiqasiga, 20 daq/safar cap).</p>
-      <div className="garage-stat">
-        {g.equippedEstimate ? (
-          <div className="garage-stat-row">
-            <span>{g.equippedEstimate.emoji} <b>{g.equippedEstimate.name}</b> minilgan</span>
-            <span className="garage-earn">~{formatNumber(g.equippedEstimate.amount)} 🪙/safar</span>
+    <section className="glass pad game-card garage-card">
+      <div className="section-title">🏎 GARAJ</div>
+      {eq ? (
+        <div className="garage-showroom" data-tier={eq.level}>
+          <div className="gs-glow" />
+          <div className="gs-stage">
+            <div className="gs-car">{eq.emoji}</div>
+            <div className="gs-shadow" />
           </div>
-        ) : (
-          <div className="garage-stat-row"><span className="muted">Mashina oling va «Minish» bosing — safarda ishlaydi.</span></div>
-        )}
-        <div className="garage-stat-row">
-          <span className="muted">💰 Hozirgacha ishlab berdi</span>
-          <b>{formatNumber(g.totalEarned)} 🪙</b>
+          <div className="gs-name">{eq.name} <span className="gs-tier">{eq.tier}</span></div>
+          <div className="gs-stats">
+            <div className="gs-stat"><b>{eq.ratePerMin}</b><span>🪙/daq</span></div>
+            <div className="gs-stat"><b>Lv{eq.level}</b><span>daraja</span></div>
+            <div className="gs-stat"><b>{formatNumber(g.totalEarned)}</b><span>jami 🪙</span></div>
+          </div>
+          {eq.upgradeCost !== null ? (
+            <button className="gs-tune" disabled={busy !== null} onClick={() => act(() => api.garageUpgrade(eq.code), eq.code, (r) => (r.ok ? "⬆️ TUNING — daraja oshdi!" : r.reason === "insufficient" ? "Tanga yetarli emas" : "Xatolik"))}>
+              {busy === eq.code ? "…" : `⬆️ TUNING → Lv${eq.level + 1} · ${formatNumber(eq.upgradeCost)} 🪙`}
+            </button>
+          ) : (
+            <div className="gs-maxed">💠 MAX DARAJA</div>
+          )}
         </div>
-      </div>
+      ) : (
+        <div className="garage-empty">🏁 Garaj bo'sh — pastdan mashina oling, «Minish» bosing.</div>
+      )}
       <div className="mk-listings">
         {g.cars.map((c) => (
           <div key={c.code} className="mk-item">
