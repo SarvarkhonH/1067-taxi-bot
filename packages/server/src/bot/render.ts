@@ -100,6 +100,32 @@ export function renderProfile(me: MeResponse): string {
   return lines.join("\n");
 }
 
+/** 👤 Account & settings — full info (kas-managed name/phone, read-only) + editable prefs. */
+export function renderAccount(me: MeResponse, opts: { joined: Date | null; notifyOff: boolean }): string {
+  const { member, stats, level, type } = me;
+  const isDriver = type === "driver";
+  const phone = member.phone ?? "";
+  const maskedPhone = phone ? `${phone.slice(0, 4)}•••${phone.slice(-2)}` : "—";
+  const joined = opts.joined ? opts.joined.toISOString().slice(0, 10) : "—";
+  return [
+    `👤 <b>${esc(member.fullName)}</b>${isDriver && member.carNumber ? ` · ${esc(member.carNumber)}` : ""}`,
+    `${level.emoji} <b>${esc(level.name)}</b>`,
+    DIV,
+    `📞 Telefon: <b>${maskedPhone}</b>  <i>(1067 orqali)</i>`,
+    `🆔 Holat: <b>${isDriver ? "Haydovchi" : "Mijoz"}</b>`,
+    `📅 A'zo: <b>${joined}</b>`,
+    DIV,
+    `🚕 Safar: <b>${formatNumber(stats.trips)}</b>${isDriver ? `   ⭐ Reyting: <b>${stats.rating.toFixed(2)}</b>` : ""}`,
+    `💰 Cashback: <b>${formatNumber(stats.points)} so'm</b>   🪙 Tanga: <b>${formatNumber(me.coins)}</b>`,
+    `🔥 Streak: <b>${me.streak?.current ?? 0} kun</b>   📊 O'rin: <b>${me.rank ?? "—"}</b>/${me.totalMembers}`,
+    DIV,
+    `⚙️ <b>Sozlamalar</b>`,
+    `🔔 Bildirishnomalar: <b>${opts.notifyOff ? "🔴 o'chiq" : "🟢 yoniq"}</b>`,
+    ``,
+    `<i>Ism va telefon 1067 tizimida boshqariladi — o'zgartirish: 1067 ga qo'ng'iroq.</i>`,
+  ].join("\n");
+}
+
 export function renderLeaderboard(lb: LeaderboardResponse, limit = 10): string {
   const heading = lb.type === "driver" ? "Haydovchilar reytingi" : "Mijozlar reytingi";
   const lines = lb.entries.slice(0, limit).map((e) => {

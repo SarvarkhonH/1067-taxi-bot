@@ -19,8 +19,19 @@ function quietHours(): boolean {
   return h >= 21 || h < 8;
 }
 
+/** User's "notifications off" setting (account → settings), stored in AppState (no schema change). */
+export async function isNotifyOff(memberId: number): Promise<boolean> {
+  return !!(await prisma.appState.findUnique({ where: { key: `notifyoff:${memberId}` } }));
+}
+export async function setNotifyOff(memberId: number, off: boolean): Promise<void> {
+  const key = `notifyoff:${memberId}`;
+  if (off) await prisma.appState.upsert({ where: { key }, create: { key, value: "1" }, update: { value: "1" } });
+  else await prisma.appState.deleteMany({ where: { key } });
+}
+
 async function trySend(bot: Bot, chatId: string, memberId: number, kind: string, html: string): Promise<boolean> {
   const dk = dayKey();
+  if (await isNotifyOff(memberId)) return false; // user opted out of smart push
   const sentToday = await prisma.notifyLog.count({ where: { memberId, dayKey: dk } });
   if (sentToday >= DAILY_PUSH_CAP) return false;
   try {

@@ -22,6 +22,7 @@ import type { CashbackDelta } from "../sync/sync";
 import { registerBooking } from "./booking";
 import {
   renderBadgeUnlocked,
+  renderAccount,
   renderBadges,
   renderCheckIn,
   renderDriverPanel,
@@ -176,11 +177,45 @@ export function createBot(): Bot {
       await ctx.reply(renderLinkPrompt(), { parse_mode: "HTML", reply_markup: contactKeyboard() });
       return;
     }
-    await ctx.reply(renderProfile(me), { parse_mode: "HTML", reply_markup: mainMenu(me.type === "driver") });
+    await ctx.reply(renderProfile(me), {
+      parse_mode: "HTML",
+      reply_markup: new InlineKeyboard().text("⚙️ Hisobim / Sozlamalar", "acct:open"),
+    });
   };
   bot.hears("💰 Hamyon", showProfile);
   bot.hears("💰 Hisobim", showProfile); // old cached keyboards
   bot.command("me", showProfile);
+
+  // 👤 Account & settings — see full info (kas-managed name/phone) + edit what we own (notifications).
+  const showAccount = async (ctx: Context) => {
+    const me = await getMe(String(ctx.from!.id));
+    if (!me) {
+      await ctx.reply(renderLinkPrompt(), { parse_mode: "HTML", reply_markup: contactKeyboard() });
+      return;
+    }
+    const { isNotifyOff } = await import("../services/notifyService");
+    const [tu, notifyOff] = await Promise.all([
+      prisma.telegramUser.findFirst({ where: { memberId: me.member.id }, select: { linkedAt: true, createdAt: true } }),
+      isNotifyOff(me.member.id),
+    ]);
+    const kb = new InlineKeyboard().text(notifyOff ? "🔔 Bildirishnomani yoqish" : "🔕 Bildirishnomani o'chirish", "acct:notify");
+    await ctx.reply(renderAccount(me, { joined: tu?.linkedAt ?? tu?.createdAt ?? null, notifyOff }), { parse_mode: "HTML", reply_markup: kb });
+  };
+  bot.hears("👤 Hisobim", showAccount);
+  bot.hears("⚙️ Sozlamalar", showAccount);
+  bot.command("account", showAccount);
+  bot.callbackQuery("acct:open", async (ctx) => {
+    await ctx.answerCallbackQuery().catch(() => undefined);
+    await showAccount(ctx);
+  });
+  bot.callbackQuery("acct:notify", async (ctx) => {
+    await ctx.answerCallbackQuery({ text: "Saqlandi ✅" }).catch(() => undefined);
+    const me = await getMe(String(ctx.from!.id));
+    if (!me) return;
+    const { isNotifyOff, setNotifyOff } = await import("../services/notifyService");
+    await setNotifyOff(me.member.id, !(await isNotifyOff(me.member.id)));
+    await showAccount(ctx);
+  });
 
   // 🚗 driver panel: earnings (tips + transfers in), recent ledger, cash-out hint
   const showDriverPanel = async (ctx: Context) => {
@@ -586,7 +621,8 @@ export async function setupBotCommands(bot: Bot): Promise<void> {
     { command: "missions", description: "🎯 Vazifalar (mukofot)" },
     { command: "invite", description: "👥 Do'st taklif qilish" },
     { command: "narx", description: "🚖 Narx va cashback" },
-    { command: "me", description: "Mening hisobim" },
+    { command: "me", description: "💰 Hamyon / profil" },
+    { command: "account", description: "👤 Hisobim & sozlamalar" },
     { command: "top", description: "Reyting" },
     { command: "help", description: "ℹ️ Yordam" },
   ]);
