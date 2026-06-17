@@ -70,6 +70,20 @@ async function main(): Promise<void> {
   const after = (await prisma.member.findUnique({ where: { id: buyer.id } }))?.coins ?? -1;
   ok(after === 2000, `coins are a pure sink (12000 → ${after})`);
 
+  // CONCURRENCY — per-user cap can't be raced (count-then-create TOCTOU): a limit-1 listing,
+  // a member with plenty of coins, 6 concurrent buys → the per-member lock must let exactly ONE
+  // voucher through (without the lock all 6 read count=0 and mint 6 vouchers).
+  const capListing = await prisma.listing.create({ data: { shopId: shop.id, title: "Limit-1", emoji: "🎟", priceCoins: 1000, perUserLimit: 1 } });
+  const racer = await prisma.member.create({ data: { type: "client", kasId: `${TAG}-R`, fullName: "Mkt Racer", phone: "+998900002004", trips: 3 } });
+  await grantCoins(racer.id, 50000, "manual", "test seed");
+  const capRes = await Promise.all(Array.from({ length: 6 }, () => buyListing(racer.id, capListing.id).catch(() => ({ ok: false }) as { ok: boolean })));
+  const capOk = capRes.filter((x) => x.ok).length;
+  const capOrders = await prisma.shopOrder.count({ where: { buyerMemberId: racer.id, listingId: capListing.id } });
+  const racerCoins = (await prisma.member.findUnique({ where: { id: racer.id } }))?.coins ?? -1;
+  ok(capOk === 1, `per-user-cap race: exactly 1/6 concurrent buys passed (got ${capOk})`);
+  ok(capOrders === 1, `per-user-cap race: exactly 1 order row created (got ${capOrders})`);
+  ok(racerCoins === 49000, `per-user-cap race: coins debited exactly once (50000 → ${racerCoins})`);
+
   await cleanup();
   await prisma.$disconnect();
   console.log(failed === 0 ? "\n🎉 all market checks passed" : `\n❌ ${failed} FAILED`);

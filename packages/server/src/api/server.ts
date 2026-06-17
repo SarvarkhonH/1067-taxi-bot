@@ -708,6 +708,15 @@ export function createApiServer(opts: ApiOptions = {}) {
     await prisma.appState.create({ data: { key: `oprtoken:${token}`, value: "operator" } });
     res.json({ ok: true, token, role: "operator" });
   });
+  // List + revoke operator tokens (owner-only): a leaked/ex-employee token must be killable.
+  app.get("/api/admin/optokens", requireAdmin, requireOwner, async (_req, res) => {
+    const rows = await prisma.appState.findMany({ where: { key: { startsWith: "oprtoken:" } }, orderBy: { updatedAt: "desc" } });
+    res.json({ tokens: rows.map((r) => ({ token: r.key.slice("oprtoken:".length), role: r.value, createdAt: r.updatedAt.toISOString() })) });
+  });
+  app.delete("/api/admin/optokens/:token", requireAdmin, requireOwner, async (req, res) => {
+    const del = await prisma.appState.deleteMany({ where: { key: `oprtoken:${String(req.params.token)}` } });
+    res.json({ ok: del.count > 0 });
+  });
 
   app.get("/api/admin/corps", requireAdmin, async (_req, res) => {
     const { listCorps } = await import("../services/corpService");
@@ -722,7 +731,7 @@ export function createApiServer(opts: ApiOptions = {}) {
     }
     res.json(await createCorp(String(b.name), Math.floor(Number(b.cap ?? 30))));
   });
-  app.post("/api/admin/corps/:id/employees", requireAdmin, async (req, res) => {
+  app.post("/api/admin/corps/:id/employees", requireAdmin, requireOwner, async (req, res) => {
     const { addCorpEmployee } = await import("../services/corpService");
     const b = req.body as { phone?: string; name?: string };
     res.json(await addCorpEmployee(Number(req.params.id), String(b?.phone ?? ""), b?.name));

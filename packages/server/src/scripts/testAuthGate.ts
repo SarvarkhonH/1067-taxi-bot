@@ -31,6 +31,14 @@ async function main(): Promise<void> {
     });
     return res.status;
   };
+  const hit = async (method: string, path: string, token: string, body?: unknown): Promise<number> => {
+    const res = await fetch(`${base}${path}`, {
+      method,
+      headers: { "X-Admin-Token": token, "Content-Type": "application/json" },
+      body: body !== undefined ? JSON.stringify(body) : undefined,
+    });
+    return res.status;
+  };
 
   // OPERATOR (non-owner) must be REJECTED on the fraud/money routes
   ok((await call("/api/admin/unflag", TOK)) === 403, "operator token REJECTED on /api/admin/unflag → 403");
@@ -46,10 +54,28 @@ async function main(): Promise<void> {
   const ownerUnflag = await call("/api/admin/unflag", OWN);
   ok(ownerUnflag !== 403, `owner token PASSES /api/admin/unflag → ${ownerUnflag} (not 403)`);
 
+  // #3 — corps/:id/employees is now OWNER-only (was operator-open: an operator could add
+  // members who spend a corp's prepaid balance). phone "123" fails validation early → no FK risk.
+  ok((await hit("POST", "/api/admin/corps/1/employees", TOK, { phone: "123" })) === 403, "operator REJECTED on corps/:id/employees → 403");
+  ok((await hit("POST", "/api/admin/corps/1/employees", OWN, { phone: "123" })) !== 403, "owner PASSES corps/:id/employees (not 403)");
+
+  // #2 — operator-token list/revoke are owner-only, AND revocation actually kills a token
+  ok((await hit("GET", "/api/admin/optokens", TOK)) === 403, "operator REJECTED on GET /optokens → 403");
+  ok((await hit("GET", "/api/admin/optokens", OWN)) === 200, "owner PASSES GET /optokens → 200");
+  ok((await hit("DELETE", `/api/admin/optokens/${TOK}`, TOK)) === 403, "operator REJECTED on DELETE /optokens → 403");
+  // seed a throwaway operator token, prove it authenticates, owner revokes it, prove it now 403s
+  const VICT = "authgate-victim-Zx9";
+  await prisma.appState.deleteMany({ where: { key: `oprtoken:${VICT}` } });
+  await prisma.appState.create({ data: { key: `oprtoken:${VICT}`, value: "operator" } });
+  ok((await fetch(`${base}/api/admin/recruits`, { headers: { "X-Admin-Token": VICT } })).status !== 403, "victim token VALID before revoke (read route not 403)");
+  ok((await hit("DELETE", `/api/admin/optokens/${VICT}`, OWN)) === 200, "owner revokes the victim token → 200");
+  ok((await fetch(`${base}/api/admin/recruits`, { headers: { "X-Admin-Token": VICT } })).status === 403, "revoked token now REJECTED on read route → 403");
+  await prisma.appState.deleteMany({ where: { key: `oprtoken:${VICT}` } });
+
   await new Promise<void>((r) => srv.close(() => r()));
   await prisma.appState.deleteMany({ where: { key: { in: [`oprtoken:${TOK}`, `oprtoken:${OWN}`] } } });
   await prisma.$disconnect();
-  console.log(failed ? `\n❌ ${failed} FAIL` : "\n✅ AUTH-GATE: heal/unflag + market shop/shopmode/listing reject operators (403), allow owner");
+  console.log(failed ? `\n❌ ${failed} FAIL` : "\n✅ AUTH-GATE: heal/unflag + market + corps/employees reject operators (403), allow owner; operator-token list/revoke owner-only + revocation kills the token");
   process.exit(failed ? 1 : 0);
 }
 main().catch((e) => { console.error("FATAL", e instanceof Error ? e.message : e); process.exit(1); });

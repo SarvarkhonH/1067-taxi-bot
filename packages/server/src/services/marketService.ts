@@ -9,7 +9,7 @@
 import { randomBytes } from "node:crypto";
 import { prisma } from "../db";
 import { getDataSource } from "../kas";
-import { spendCoins, withPhoneLock } from "./coinService";
+import { spendCoins, withMemberLock, withPhoneLock } from "./coinService";
 import { weekKey } from "./missionService";
 
 export interface MarketShopView {
@@ -68,6 +68,10 @@ export async function listShops(): Promise<MarketShopView[]> {
 }
 
 export async function buyListing(memberId: number, listingId: number): Promise<MarketBuyResponse> {
+  // Serialize this member's buys (same in-process lock as ride-grants/withdraw/transfer):
+  // the per-user cap below is a count-then-create, so two concurrent buys could each pass
+  // the cap and mint two vouchers. The lock makes the 2nd buy's count see the 1st's order.
+  return withMemberLock(memberId, async () => {
   const listing = await prisma.listing.findUnique({ where: { id: listingId }, include: { shop: true } });
   const coinsOf = async () => (await prisma.member.findUnique({ where: { id: memberId }, select: { coins: true } }))?.coins ?? 0;
   if (!listing || !listing.active || listing.shop.status !== "active") {
@@ -102,6 +106,7 @@ export async function buyListing(memberId: number, listingId: number): Promise<M
     priceCoins: listing.priceCoins,
     coinsLeft: spent.balance,
   };
+  });
 }
 
 export async function myOrders(memberId: number): Promise<MarketOrderView[]> {

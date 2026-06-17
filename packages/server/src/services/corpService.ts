@@ -18,9 +18,22 @@ export async function addCorpEmployee(corpId: number, phone: string, name?: stri
   return { ok: true };
 }
 
-export async function adjustCorpBalance(corpId: number, delta: number): Promise<{ ok: boolean; balance?: number }> {
-  const c = await prisma.corpAccount.update({ where: { id: corpId }, data: { balance: { increment: delta } } }).catch(() => null);
-  return c ? { ok: true, balance: c.balance } : { ok: false };
+export async function adjustCorpBalance(corpId: number, delta: number): Promise<{ ok: boolean; balance?: number; reason?: string }> {
+  // Guard the money mutation: a typo'd / non-numeric delta (NaN/Infinity) must never
+  // touch the balance, and a prepaid corp balance can never be driven below 0.
+  if (!Number.isFinite(delta)) return { ok: false, reason: "bad_amount" };
+  delta = Math.trunc(delta);
+  if (delta === 0) return { ok: false, reason: "bad_amount" };
+  if (delta < 0) {
+    // atomic guarded debit — the WHERE makes "balance stays ≥ 0" race-safe
+    const dec = await prisma.corpAccount.updateMany({ where: { id: corpId, balance: { gte: -delta } }, data: { balance: { increment: delta } } });
+    if (dec.count === 0) return { ok: false, reason: "insufficient" };
+  } else {
+    const inc = await prisma.corpAccount.updateMany({ where: { id: corpId }, data: { balance: { increment: delta } } });
+    if (inc.count === 0) return { ok: false, reason: "not_found" };
+  }
+  const c = await prisma.corpAccount.findUnique({ where: { id: corpId }, select: { balance: true } });
+  return c ? { ok: true, balance: c.balance } : { ok: false, reason: "not_found" };
 }
 
 /** Monthly report: rides per employee (matched by member phone last-9) this month. */

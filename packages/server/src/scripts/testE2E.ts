@@ -21,7 +21,9 @@ const SUITES = [
   "testReviseFixes.ts", // openBox crash-safe · claimMission no-double · dispatch atomic
   "testFeatureFlags.ts", // booking3 default-OFF safety (no row → off, not silent-live)
   "testRollup.ts", // DailyStat rollup + week-over-week reads (snapshot/restores its rows)
-  "testAuthGate.ts", // admin auth (owner vs operator)
+  "testAuthGate.ts", // admin auth (owner vs operator) + operator-token revoke
+  "testCorpGuard.ts", // corp balance guard: NaN/0/over-debit rejected, never negative
+  "testMarket.ts", // market buy/redeem + per-user-cap race (concurrent buys → 1 voucher)
 ];
 
 interface Res {

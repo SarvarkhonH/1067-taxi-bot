@@ -370,12 +370,16 @@ function ControlCards() {
   const [cName, setCName] = useState("");
   const [empPhone, setEmpPhone] = useState("");
   const [empCorp, setEmpCorp] = useState<number | null>(null);
+  const [balCorp, setBalCorp] = useState<number | null>(null);
+  const [balAmt, setBalAmt] = useState("");
+  const [optokens, setOptokens] = useState<{ token: string; role: string; createdAt: string }[]>([]);
   const [msg, setMsg] = useState<string | null>(null);
   const [msg2, setMsg2] = useState<string | null>(null);
 
   const load = () => {
     adminApi.features().then((r) => { setFlags(r.features); setFund(r.mashinaFund); }).catch(() => undefined);
     adminApi.corps().then((r) => setCorps(r.corps)).catch(() => undefined);
+    adminApi.optokens().then((r) => setOptokens(r.tokens)).catch(() => undefined);
   };
   useEffect(() => { load(); }, []);
 
@@ -404,8 +408,19 @@ function ControlCards() {
         <p className="muted" style={{ marginTop: 8 }}>🏆 Mashina fondi: <b>{fund.toLocaleString("ru-RU")}</b> so'm (100 so'm/safar, withdraw-byudjetdan alohida)</p>
         <MashinaCard />
         <div style={{ marginTop: 10 }}>
-          <button className="btn" onClick={async () => { const r = await adminApi.optoken(); setMsg2(`Operator token (faqat bir marta ko'rsatiladi): ${r.token}`); }}>🔑 Operator-token yaratish</button>
+          <button className="btn" onClick={async () => { const r = await adminApi.optoken(); setMsg2(`Operator token (faqat bir marta ko'rsatiladi): ${r.token}`); load(); }}>🔑 Operator-token yaratish</button>
           {msg2 && <p className="muted" style={{ wordBreak: "break-all" }}>{msg2}</p>}
+          {optokens.length > 0 && (
+            <div style={{ marginTop: 8 }}>
+              <p className="muted" style={{ marginBottom: 4 }}>Faol operator-tokenlar ({optokens.length}) — bekor qilsangiz egasi darhol kira olmaydi:</p>
+              {optokens.map((t) => (
+                <div key={t.token} style={{ display: "flex", gap: 8, alignItems: "center", padding: "3px 0" }}>
+                  <code style={{ flex: 1, fontSize: 12, opacity: 0.8 }}>{t.token.slice(0, 8)}…{t.token.slice(-4)} · {t.role}</code>
+                  <button className="btn sm danger" onClick={async () => { await adminApi.optokenRevoke(t.token); load(); }}>🗑 Bekor</button>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       </section>
 
@@ -416,12 +431,26 @@ function ControlCards() {
           <button className="btn" onClick={async () => { if (!cName.trim()) return; await adminApi.corpCreate(cName.trim(), 30); setCName(""); load(); }}>+ Qo'shish</button>
         </div>
         {corps.map((c) => (
-          <div key={c.id} style={{ display: "flex", gap: 10, alignItems: "center", padding: "6px 0", borderTop: "1px solid var(--line, #2a3242)" }}>
-            <b style={{ flex: 1 }}>{c.name}</b>
-            <span className="muted">balans {c.balance.toLocaleString("ru-RU")} · {c.employees} xodim</span>
-            <button className="btn sm" onClick={async () => { const d = prompt("Balansga qo'shish (so'm):", "100000"); if (d) { await adminApi.corpBalance(c.id, Number(d)); load(); } }}>💰</button>
-            <button className="btn sm" onClick={() => setEmpCorp(empCorp === c.id ? null : c.id)}>👤+</button>
-            <button className="btn sm" onClick={async () => { const r = await adminApi.corpReport(c.id); setMsg(`${r.corp.name}: bu oy ${r.totalRides} safar · ` + r.rows.map((x) => `${x.name ?? x.phone}: ${x.rides}`).join(", ")); }}>📊</button>
+          <div key={c.id}>
+            <div style={{ display: "flex", gap: 10, alignItems: "center", padding: "6px 0", borderTop: "1px solid var(--line, #2a3242)" }}>
+              <b style={{ flex: 1 }}>{c.name}</b>
+              <span className="muted">balans {c.balance.toLocaleString("ru-RU")} · {c.employees} xodim</span>
+              <button className="btn sm" onClick={() => { setBalCorp(balCorp === c.id ? null : c.id); setBalAmt(""); }}>💰</button>
+              <button className="btn sm" onClick={() => setEmpCorp(empCorp === c.id ? null : c.id)}>👤+</button>
+              <button className="btn sm" onClick={async () => { const r = await adminApi.corpReport(c.id); setMsg(`${r.corp.name}: bu oy ${r.totalRides} safar · ` + r.rows.map((x) => `${x.name ?? x.phone}: ${x.rides}`).join(", ")); }}>📊</button>
+            </div>
+            {balCorp === c.id && (
+              <div style={{ display: "flex", gap: 8, padding: "4px 0 8px" }}>
+                <input className="inp" inputMode="numeric" placeholder="Summa: + qo'shish / − yechish (so'm)" value={balAmt} onChange={(e) => setBalAmt(e.target.value)} />
+                <button className="btn" onClick={async () => {
+                  const n = Math.trunc(Number(balAmt));
+                  if (!Number.isFinite(n) || n === 0) { setMsg("Noto'g'ri summa — butun, noldan farqli son kiriting"); return; }
+                  const r = await adminApi.corpBalance(c.id, n);
+                  setMsg(r.ok ? `✅ ${c.name}: yangi balans ${r.balance?.toLocaleString("ru-RU")} so'm` : `Xato: ${r.reason === "insufficient" ? "balans 0 dan past bo'lolmaydi" : r.reason === "bad_amount" ? "noto'g'ri summa" : (r.reason ?? "bajarilmadi")}`);
+                  setBalCorp(null); setBalAmt(""); load();
+                }}>OK</button>
+              </div>
+            )}
           </div>
         ))}
         {empCorp !== null && (
@@ -512,6 +541,9 @@ function ActionsView() {
 function IntegrityView() {
   const [data, setData] = useState<AdminIntegrity | null>(null);
   const [busy, setBusy] = useState<number | null>(null);
+  const [unflagId, setUnflagId] = useState("");
+  const [unflagMsg, setUnflagMsg] = useState<string | null>(null);
+  const [ubusy, setUbusy] = useState(false);
   const load = () => adminApi.integrity().then(setData).catch(() => undefined);
   useEffect(() => {
     load();
@@ -525,6 +557,20 @@ function IntegrityView() {
       setBusy(null);
     }
   };
+  const doUnflag = async () => {
+    const id = Math.trunc(Number(unflagId));
+    if (!id) { setUnflagMsg("member id kiriting"); return; }
+    setUbusy(true);
+    try {
+      const r = await adminApi.unflag(id);
+      setUnflagMsg(r.message);
+      setUnflagId("");
+    } catch {
+      setUnflagMsg("Xato — owner huquqi kerak yoki tarmoq xatosi");
+    } finally {
+      setUbusy(false);
+    }
+  };
   if (!data) return <div className="screen center"><div className="spinner" /></div>;
   const ok = data.driftCount === 0;
   return (
@@ -535,6 +581,15 @@ function IntegrityView() {
           <HealthCell label="Tekshirildi" ok={true} detail={`${formatNumber(data.checked)} hisob`} />
           <HealthCell label="Nomuvofiqlik" ok={ok} detail={ok ? "✅ hammasi to'g'ri" : `${data.driftCount} drift · ${formatNumber(data.driftTotal)} tanga`} warn={!ok} />
           <HealthCell label="Anomaliya (24s)" ok={data.anomalies.length === 0} detail={data.anomalies.length ? `${data.anomalies.length} shubhali` : "yo'q"} warn={data.anomalies.length > 0} />
+        </div>
+      </section>
+      <section className="panel">
+        <div className="panel-title">🚩 Risk-bayroqni yechish (withdraw'ni qayta ochish)</div>
+        <p className="muted" style={{ marginBottom: 8 }}>Anomaliya/fan-in bo'yicha muzlatilgan hisobni ko'rib chiqqach, member id bilan withdraw'ni oching (owner-only).</p>
+        <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+          <input className="inp" inputMode="numeric" placeholder="member id" value={unflagId} onChange={(e) => setUnflagId(e.target.value)} style={{ maxWidth: 160 }} />
+          <button className="btn" disabled={ubusy} onClick={doUnflag}>{ubusy ? "…" : "🚩 Bayroqni yechish"}</button>
+          {unflagMsg && <span className="muted">{unflagMsg}</span>}
         </div>
       </section>
       {data.drifts.length > 0 && (
