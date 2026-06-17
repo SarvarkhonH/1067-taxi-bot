@@ -1,7 +1,6 @@
 import {
   JACKPOT_FLOOR,
   LEAGUE_TIERS,
-  SCORE_VALUES,
   SURPRISE_PRIZES,
   WEEKLY_PRIZES,
   formatNumber,
@@ -18,30 +17,22 @@ import { dayKey, weekKey } from "./missionService";
 export type Notify = (telegramId: string, html: string) => Promise<void>;
 
 // ─── score ────────────────────────────────────────────────────────────────────
-export async function addScore(memberId: number, kind: ScoreKind, rideKey?: string): Promise<void> {
-  const points = SCORE_VALUES[kind];
+// reyting = tangalar: the weekly leaderboard now ranks by EARNED tanga, accumulated in
+// grantCoins → addWeeklyTanga. Action-point scoring is retired; addScore is a kept no-op for
+// its many callers (ride/box/mission/referral/checkin/spin) so nothing else has to change.
+export async function addScore(_memberId: number, _kind: ScoreKind, _rideKey?: string): Promise<void> {
+  return;
+}
+
+/** Add EARNED tanga to the member's current-week leaderboard score (called from grantCoins). */
+export async function addWeeklyTanga(memberId: number, amount: number): Promise<void> {
+  const inc = Math.round(amount);
+  if (inc <= 0) return;
   const key = weekKey(new Date());
-  // rideKey: idempotent per ride (marker + increment in one tx). T4 finish-sweep.
-  if (rideKey) {
-    try {
-      await prisma.$transaction(async (tx) => {
-        await tx.appState.create({ data: { key: rideKey, value: "1" } }); // P2002 = already scored this ride
-        await tx.weeklyScore.upsert({
-          where: { memberId_weekKey: { memberId, weekKey: key } },
-          create: { memberId, weekKey: key, score: points },
-          update: { score: { increment: points } },
-        });
-      });
-    } catch (e) {
-      if ((e as { code?: string })?.code === "P2002") return; // already scored — idempotent
-      throw e; // transient → caller's resilient() retries
-    }
-    return;
-  }
   await prisma.weeklyScore.upsert({
     where: { memberId_weekKey: { memberId, weekKey: key } },
-    create: { memberId, weekKey: key, score: points },
-    update: { score: { increment: points } },
+    create: { memberId, weekKey: key, score: inc },
+    update: { score: { increment: inc } },
   });
 }
 
@@ -119,7 +110,7 @@ export async function payWeeklyPrizes(notify: Notify, weekKeyOverride?: string):
       await notify(
         chatId,
         `🏆 <b>Haftalik liga yakunlandi!</b>\n\n` +
-          `${prize.medal} Siz <b>${prize.rank}-o'rin</b>ni oldingiz (${row.score} ball)\n` +
+          `${prize.medal} Siz <b>${prize.rank}-o'rin</b>ni oldingiz (${formatNumber(row.score)} tanga)\n` +
           `🪙 Sovg'a: <b>+${formatNumber(prize.amount)} tanga</b> hamyoningizga tushdi!\n` +
           `💸 Tangani ilovada so'mga aylantirishingiz mumkin.\n\n` +
           `Yangi hafta boshlandi — yana kurashing! 🔥`,

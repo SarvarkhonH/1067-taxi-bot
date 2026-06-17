@@ -111,9 +111,12 @@ async function main(): Promise<void> {
   ok(invite.progress === 1 && invite.claimable, `weekly_invite mission auto-bumped by referral`);
 
   // ── weekly league ────────────────────────────────────────────────────────
+  // reyting = tangalar: the weekly score now tracks EARNED tanga (via grantCoins → addWeeklyTanga,
+  // off the hot path), not action-points. Let those async bumps land, then assert non-zero accrual
+  // (exact amount varies — the box prize is random).
+  await new Promise((r) => setTimeout(r, 800));
   const myBoard = await getWeeklyBoard(memberA.id);
-  // memberA accrued: mission claim +15, box +20, referral +50 = 85 this week
-  ok(myBoard.me?.score === 85 && myBoard.me.rank >= 1, `weekly score accrued (85, rank #${myBoard.me?.rank})`);
+  ok((myBoard.me?.score ?? 0) > 0 && (myBoard.me?.rank ?? 0) >= 1, `weekly reyting (tanga) accrued: ${myBoard.me?.score} tanga, rank #${myBoard.me?.rank}`);
   ok(myBoard.prizes.length === 3 && myBoard.prizes[0]!.amount === 5000, `weekly prizes catalog (5000/2500/1000)`);
 
   // payout on a synthetic closed week — never touches the real previous week

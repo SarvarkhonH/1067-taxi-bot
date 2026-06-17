@@ -32,6 +32,10 @@ export interface CoinResult {
   skipped?: "duplicate" | "insufficient";
 }
 
+// reyting = tangalar: these positive-grant kinds are NOT "earned" (received transfers, the
+// weekly prize itself, top-up conversion, admin) → excluded from the weekly tanga leaderboard.
+const REYTING_EXCLUDE = new Set(["transfer_in", "tip_in", "weekly", "manual", "topup"]);
+
 /** Earn coins (game currency). Idempotent via key; NO caps — coins are internal. */
 export async function grantCoins(
   memberId: number,
@@ -57,6 +61,8 @@ export async function grantCoins(
       await tx.coinTxn.create({ data: { memberId, amount, kind, reason, idempotencyKey: idempotencyKey ?? null } });
       return tx.member.update({ where: { id: memberId }, data: { coins: { increment: amount } } });
     });
+    // v3 (reyting = tangalar): EARNED tanga feeds the weekly leaderboard (best-effort, off the hot path)
+    if (!REYTING_EXCLUDE.has(kind)) void import("./weeklyService").then((w) => w.addWeeklyTanga(memberId, amount)).catch(() => undefined);
     return { ok: true, balance: member.coins };
   } catch (e) {
     if (idempotencyKey && (e as { code?: string } | null)?.code === "P2002") {

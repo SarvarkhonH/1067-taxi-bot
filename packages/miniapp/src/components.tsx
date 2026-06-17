@@ -193,7 +193,7 @@ function WeeklyBoard() {
               </div>
               <div className="row-bar brand-bar"><span ref={(el) => el?.style.setProperty("width", `${(e.score / max) * 100}%`)} /></div>
             </div>
-            <div className="row-val">{e.score}</div>
+            <div className="row-val">🪙 {e.score.toLocaleString("ru-RU")}</div>
           </div>
         ))}
       </div>
@@ -201,7 +201,7 @@ function WeeklyBoard() {
         <div className="row glass me sticky">
           <div className="row-rank">#{w.me.rank}</div>
           <div className="row-main"><div className="row-name">{w.me.fullName} <span className="you">Siz</span></div></div>
-          <div className="row-val">{w.me.score}</div>
+          <div className="row-val">🪙 {w.me.score.toLocaleString("ru-RU")}</div>
         </div>
       )}
     </>
@@ -415,7 +415,7 @@ export function MahallaSection() {
   return (
     <section className="glass pad" style={{ marginTop: 12 }}>
       <div className="section-title">🏘 Mahalla ligasi</div>
-      <p className="muted" style={{ marginBottom: 8 }}>Davra-vs-davra haftalik ball</p>
+      <p className="muted" style={{ marginBottom: 8 }}>Davra-vs-davra haftalik tanga</p>
       {b.gaps.slice(0, 10).map((g) => (
         <div
           key={g.gapId}

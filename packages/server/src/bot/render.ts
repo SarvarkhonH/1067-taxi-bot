@@ -132,13 +132,13 @@ export function renderMahalla(b: {
   gaps: { name: string; members: number; score: number; rank: number }[];
   me: { name: string; rank: number; score: number } | null;
 }): string {
-  if (!b.gaps.length) return "🏘 <b>Mahalla ligasi</b>\n\nHali davralar yo'q. «👥 Do'st» → Gap davra ochib, mahallangiz uchun ball to'plang!";
+  if (!b.gaps.length) return "🏘 <b>Mahalla ligasi</b>\n\nHali davralar yo'q. «👥 Do'st» → Gap davra ochib, mahallangiz uchun tanga to'plang!";
   const medal = (r: number): string => (r === 1 ? "🥇" : r === 2 ? "🥈" : r === 3 ? "🥉" : `${r}.`);
-  const rows = b.gaps.slice(0, 10).map((g) => `${medal(g.rank)} <b>${esc(g.name)}</b> — ${formatNumber(g.score)} ball · ${g.members} kishi`).join("\n");
+  const rows = b.gaps.slice(0, 10).map((g) => `${medal(g.rank)} <b>${esc(g.name)}</b> — ${formatNumber(g.score)} tanga · ${g.members} kishi`).join("\n");
   const mine = b.me
-    ? `\n\n📍 Sizning davrangiz: <b>${esc(b.me.name)}</b> — ${medal(b.me.rank)} o'rin (${formatNumber(b.me.score)} ball)`
+    ? `\n\n📍 Sizning davrangiz: <b>${esc(b.me.name)}</b> — ${medal(b.me.rank)} o'rin (${formatNumber(b.me.score)} tanga)`
     : `\n\n<i>Siz hali davrada emassiz — «👥 Do'st» → Gap orqali qo'shiling.</i>`;
-  return `🏘 <b>Mahalla ligasi</b> <i>(${b.week})</i>\nDavra-vs-davra haftalik ball:\n\n${rows}${mine}`;
+  return `🏘 <b>Mahalla ligasi</b> <i>(${b.week})</i>\nDavra-vs-davra haftalik tanga:\n\n${rows}${mine}`;
 }
 
 export function renderLeaderboard(lb: LeaderboardResponse, limit = 10): string {
@@ -161,13 +161,13 @@ export function renderWeeklyBlock(w: WeeklyBoardResponse): string {
   const prizes = w.prizes.map((p) => `${p.medal} ${formatNumber(p.amount)}`).join(" · ");
   const rows = w.entries.slice(0, 5).map((e) => {
     const name = e.isMe ? `<b>${esc(e.fullName)}</b> 👈` : esc(e.fullName);
-    return `${rankMedal(e.rank)} ${name} — ${e.score} ball`;
+    return `${rankMedal(e.rank)} ${name} — 🪙 ${formatNumber(e.score)} tanga`;
   });
   let s =
     `\n\n⚡️ <b>Haftalik liga</b> <i>(${w.daysLeft} kun qoldi)</i>\n` +
     `Sovg'alar: ${prizes} tanga\n\n` +
     (rows.length ? rows.join("\n") : "<i>Hafta endi boshlandi — birinchi bo'ling!</i>");
-  if (w.me && w.me.rank > 5) s += `\n— — —\n👉 Siz: <b>#${w.me.rank}</b> · ${w.me.score} ball`;
+  if (w.me && w.me.rank > 5) s += `\n— — —\n👉 Siz: <b>#${w.me.rank}</b> · 🪙 ${formatNumber(w.me.score)} tanga`;
   s += `\n\n<i>Ball: kunlik +10 · g'ildirak +10 · vazifa +15 · quti +20 · safar +30 · taklif +50. Dushanba — to'lov!</i>`;
   return s;
 }
