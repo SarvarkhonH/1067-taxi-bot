@@ -67,9 +67,12 @@ function mainMenu(isDriver = false): Keyboard {
   // screen (?go=…). Old cached keyboards send the label as text → the bot.hears(…)
   // aliases below still answer in-chat (graceful fallback + the path when a client
   // doesn't support web-app buttons).
-  const btn = (label: string, go: string): void => {
-    if (canWebApp) kb.webApp(label, webAppUrl(go));
-    else kb.text(label);
+  // Eski usul (ega tilagi): menu tugmalari BOTNING O'ZIDA ishlaydi — mini-appsiz.
+  // Har tugma matn → bot.hears(...) ushlaydi (taxi→startBooking, Hamyon→profil,
+  // Bonuslar→vazifalar, Do'st→referral...). Mini App'ni xohlaganlar pastdagi "🚀 Ilova".
+  const btn = (label: string, _go: string): void => {
+    void _go;
+    kb.text(label);
   };
   btn("🚕 Taxi chaqirish", "book");
   btn("📍 Buyurtmam", "book"); // booking3 shows the live order if one is active
