@@ -156,6 +156,11 @@ export const api = {
       gaps: { gapId: number; name: string; members: number; score: number; rank: number }[];
       me: { gapId: number; name: string; rank: number; score: number } | null;
     }>("/api/mahalla"),
+  account: () =>
+    get<{ name: string; phone: string; joined: string | null; type: string; coins: number; cashback: number; streak: number; trips: number; notifyOff: boolean }>(
+      "/api/account",
+    ),
+  accountNotify: (off: boolean) => request<{ ok: boolean; off: boolean }>("POST", "/api/account/notify", { off }, 1),
   tolqinStart: () => request<{ off: boolean; token: string }>("POST", "/api/tolqin/start", {}, 1),
   tolqinFinish: (token: string, score: number) =>
     request<{ off?: boolean; ok: boolean; granted: number; dailyCap: number; roomLeft: number; reason?: string }>("POST", "/api/tolqin/finish", { token, score }, 1),

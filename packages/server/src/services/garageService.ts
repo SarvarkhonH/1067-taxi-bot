@@ -32,10 +32,16 @@ export async function getGarage(memberId: number): Promise<GarageResponse> {
       serviceCost: Math.floor(def.price * GARAGE_SERVICE_COST_PCT),
     };
   });
+  const [earned, estimate] = await Promise.all([
+    prisma.coinTxn.aggregate({ where: { memberId, kind: "garage" }, _sum: { amount: true } }),
+    equippedEstimate(memberId, GARAGE_RIDE_CAP_MIN), // earn for a full-length ride
+  ]);
   return {
     cars,
     equippedCode: owned.find((c) => c.isEquipped)?.carCode ?? null,
     coins: await getCoins(memberId),
+    totalEarned: Math.round(earned._sum.amount ?? 0),
+    equippedEstimate: estimate,
   };
 }
 

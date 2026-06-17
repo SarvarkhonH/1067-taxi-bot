@@ -45,4 +45,6 @@ export interface GarageResponse {
   cars: GarageCarView[];
   equippedCode: string | null;
   coins: number;
+  totalEarned: number; // lifetime tanga the garage has earned (sum of "garage" grants)
+  equippedEstimate: { name: string; emoji: string; amount: number } | null; // equipped car's earn per full ride
 }

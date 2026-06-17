@@ -49,6 +49,20 @@ function GarageSection({ onReward }: { onReward: (msg: string) => void }) {
     <section className="glass pad game-card">
       <div className="section-title">🚗 Garaj — mashinangiz safarda ishlaydi</div>
       <p className="muted mk-sub">Mashina sotib oling — siz taksida ketayotganingizda u sizga tanga ishlab beradi (daqiqasiga, 20 daq/safar cap).</p>
+      <div className="garage-stat">
+        {g.equippedEstimate ? (
+          <div className="garage-stat-row">
+            <span>{g.equippedEstimate.emoji} <b>{g.equippedEstimate.name}</b> minilgan</span>
+            <span className="garage-earn">~{formatNumber(g.equippedEstimate.amount)} 🪙/safar</span>
+          </div>
+        ) : (
+          <div className="garage-stat-row"><span className="muted">Mashina oling va «Minish» bosing — safarda ishlaydi.</span></div>
+        )}
+        <div className="garage-stat-row">
+          <span className="muted">💰 Hozirgacha ishlab berdi</span>
+          <b>{formatNumber(g.totalEarned)} 🪙</b>
+        </div>
+      </div>
       <div className="mk-listings">
         {g.cars.map((c) => (
           <div key={c.code} className="mk-item">

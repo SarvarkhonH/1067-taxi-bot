@@ -446,9 +446,51 @@ export function WalletView({ me, onBanner, reload, onBook, onNav }: { me: MeResp
         )}
       </section>
 
+      <AccountCard />
+
       {sheet && wallet && <WithdrawSheet wallet={wallet} onClose={() => setSheet(false)} onDone={onDone} />}
       {topup && wallet && <TopupSheet wallet={wallet} onClose={() => setTopup(false)} onDone={onDone} />}
       {send && wallet && <TransferSheet wallet={wallet} onClose={() => setSend(false)} onDone={onDone} />}
     </div>
+  );
+}
+
+// ⚙️ Account & settings IN the Mini App (mirrors the bot /account): info + notification toggle.
+type AccountInfo = {
+  name: string;
+  phone: string;
+  joined: string | null;
+  type: string;
+  coins: number;
+  cashback: number;
+  streak: number;
+  trips: number;
+  notifyOff: boolean;
+};
+function AccountCard() {
+  const [a, setA] = useState<AccountInfo | null>(null);
+  useEffect(() => {
+    api.account().then(setA).catch(() => undefined);
+  }, []);
+  const toggle = async () => {
+    if (!a) return;
+    haptic();
+    const r = await api.accountNotify(!a.notifyOff).catch(() => null);
+    if (r) setA({ ...a, notifyOff: r.off });
+  };
+  if (!a) return null;
+  return (
+    <section className="glass pad acct-card">
+      <div className="section-title">⚙️ Hisobim &amp; sozlamalar</div>
+      <div className="acct-row"><span className="muted">👤 Ism</span><b>{a.name}</b></div>
+      <div className="acct-row"><span className="muted">📞 Telefon</span><span>{a.phone} <i className="muted">(1067)</i></span></div>
+      {a.joined && <div className="acct-row"><span className="muted">📅 A&apos;zo</span><span>{a.joined}</span></div>}
+      <div className="acct-row"><span className="muted">🚕 Safar / 🔥 streak</span><span>{formatNumber(a.trips)} · {a.streak}</span></div>
+      <div className="acct-row">
+        <span>🔔 Bildirishnomalar</span>
+        <button className={"acct-switch" + (a.notifyOff ? "" : " on")} onClick={toggle}>{a.notifyOff ? "🔴 O'chiq" : "🟢 Yoniq"}</button>
+      </div>
+      <p className="muted" style={{ fontSize: 12, marginTop: 4 }}>Ism va telefon 1067 tizimida boshqariladi — o&apos;zgartirish: 1067.</p>
+    </section>
   );
 }

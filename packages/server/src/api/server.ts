@@ -513,6 +513,35 @@ export function createApiServer(opts: ApiOptions = {}) {
     const b = req.body as { token?: string; score?: number };
     return finishTolqinRun(id, String(b?.token ?? ""), Number(b?.score ?? 0));
   }));
+  // Account & settings IN the Mini App (mirrors the bot /account): info + notification toggle.
+  app.get("/api/account", requireUser, withMember(async (id) => {
+    const { getMeByMemberId } = await import("../services/memberService");
+    const { isNotifyOff } = await import("../services/notifyService");
+    const [me, tu, notifyOff, m] = await Promise.all([
+      getMeByMemberId(id),
+      prisma.telegramUser.findFirst({ where: { memberId: id }, select: { linkedAt: true, createdAt: true } }),
+      isNotifyOff(id),
+      prisma.member.findUnique({ where: { id }, select: { phone: true } }),
+    ]);
+    const phone = m?.phone ?? "";
+    return {
+      name: me?.member.fullName ?? "",
+      phone: phone ? `${phone.slice(0, 4)}•••${phone.slice(-2)}` : "—",
+      joined: (tu?.linkedAt ?? tu?.createdAt ?? null)?.toISOString().slice(0, 10) ?? null,
+      type: me?.type ?? "client",
+      coins: me?.coins ?? 0,
+      cashback: me?.stats.points ?? 0,
+      streak: me?.streak?.current ?? 0,
+      trips: me?.stats.trips ?? 0,
+      notifyOff,
+    };
+  }));
+  app.post("/api/account/notify", requireUser, withMember(async (id, req) => {
+    const { setNotifyOff } = await import("../services/notifyService");
+    const off = !!(req.body as { off?: boolean })?.off;
+    await setNotifyOff(id, off);
+    return { ok: true, off };
+  }));
   app.get("/api/booking/active", requireUser, withMember((id) => getActiveBookingFor(id)));
   app.post("/api/booking/search", requireUser, withMember((_id, req) => searchBookingAddress(String((req.body as { q?: string })?.q ?? ""))));
   app.post("/api/booking/create", requireUser, rateLimit(3), withMember((id, req) => createBookingFor(id, req.body as BookingCreateBody)));
