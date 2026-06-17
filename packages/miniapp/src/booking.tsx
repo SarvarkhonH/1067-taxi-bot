@@ -211,7 +211,15 @@ export function BookingView({ onClose }: { onClose: () => void }) {
       ensureLeaflet().then((L: any) => {
         if (!alive || !mapRef.current || map.current) return;
         const m = L.map(mapRef.current, { zoomControl: false, attributionControl: false }).setView([r.center.lat, r.center.lng], 13);
-        L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", { maxZoom: 19 }).addTo(m);
+        // Google tiles (hl=uz) — OSM's tile.openstreetmap.org was unreachable/slow in UZ
+        // and blanked the map (same class as the unpkg Leaflet bug). Google is proven
+        // reachable here (kas1067 itself runs on it). Fallback: flag the map if tiles fail.
+        const tiles = L.tileLayer("https://mt{s}.google.com/vt/lyrs=m&hl=uz&x={x}&y={y}&z={z}", { subdomains: ["0", "1", "2", "3"], maxZoom: 20, crossOrigin: true });
+        let tileErrs = 0;
+        tiles.on("tileerror", () => {
+          if (++tileErrs >= 4) mapRef.current?.classList.add("bk-map-dead"); // hint user to use search instead
+        });
+        tiles.addTo(m);
         if (r.serviceArea.length >= 3) L.polygon(r.serviceArea.map((p) => [p.lat, p.lng]), { color: "#ffce4f", weight: 2, fillOpacity: 0.05 }).addTo(m);
         // tap map = drop destination pin (for fare estimate)
         m.on("click", (e: any) => {

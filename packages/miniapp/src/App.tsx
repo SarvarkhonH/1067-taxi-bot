@@ -4,7 +4,7 @@ const DesignDemo = lazy(() => import("./design/demo")); // #demo dagina yuklanad
 import type { LeaderboardResponse, MeResponse } from "@t1067/shared";
 import { api, getInitData } from "./api";
 import { haptic, tg } from "./telegram";
-import { LeaderboardView, MissionsView, ReferralView, Spinner } from "./components";
+import { LeaderboardView, LoadError, MissionsView, ReferralView, Spinner } from "./components";
 import { WalletView } from "./wallet"; // bosh tab — eager (birinchi paint)
 // T2 (AUDIT 2.9): boshqa tablar lazy — har biri alohida chunk, asosiy bundle kichrayadi
 const RewardsView = lazy(() => import("./rewards").then((m) => ({ default: m.RewardsView })));
@@ -65,6 +65,7 @@ export function App() {
     return TAB_IDS.includes(g as Tab) ? (g as Tab) : "home";
   });
   const [board, setBoard] = useState<LeaderboardResponse | null>(null);
+  const [boardErr, setBoardErr] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [toast, setToast] = useState<{ id: number; msg: string } | null>(null);
   const [booking, setBooking] = useState(() => readGo() === "book");
@@ -83,6 +84,10 @@ export function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [me?.coins]);
 
+  const loadBoard = () => {
+    setBoardErr(false);
+    api.leaderboard().then(setBoard).catch(() => setBoardErr(true)); // P1: no permanent spinner on Liga
+  };
   useEffect(() => {
     api
       .me()
@@ -94,7 +99,8 @@ export function App() {
         }
       })
       .catch((e) => setError(String(e)));
-    api.leaderboard().then(setBoard).catch(() => undefined);
+    loadBoard();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const reload = () => {
@@ -158,7 +164,7 @@ export function App() {
             {tab === "driver" && <DriverView me={me} />}
             {tab === "rewards" && <RewardsView me={me} onReward={flash} />}
             {tab === "missions" && <MissionsView onReward={flash} />}
-            {tab === "league" && (board ? <LeaderboardView board={board} /> : <Spinner />)}
+            {tab === "league" && (board ? <LeaderboardView board={board} /> : boardErr ? <LoadError onRetry={loadBoard} /> : <Spinner />)}
             {tab === "friends" && <ReferralView />}
           </Suspense>
         </div>
