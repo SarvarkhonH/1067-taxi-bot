@@ -70,7 +70,11 @@ export async function dailyCheckIn(memberId: number): Promise<CheckInResult> {
     };
   }
 
-  const current = lastKey === yesterdayKey ? (streak?.current ?? 0) + 1 : 1;
+  // v3 healthy-engagement: a 1-day grace (Duolingo "freeze") — missing a single day
+  // keeps the streak alive (it still counts up); only 2+ missed days reset it to 1.
+  const graceKey = tashkentDayKey(new Date(now.getTime() - 2 * 24 * 3600 * 1000));
+  const kept = lastKey === yesterdayKey || lastKey === graceKey;
+  const current = kept ? (streak?.current ?? 0) + 1 : 1;
   const longest = Math.max(current, streak?.longest ?? 0);
   await prisma.streak.upsert({
     where: { memberId },

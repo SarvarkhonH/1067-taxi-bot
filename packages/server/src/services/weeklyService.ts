@@ -164,16 +164,10 @@ async function applyTierMovement(prevKey: string, notify: Notify): Promise<void>
     }
   }
 
-  // inactives drop one tier (loss aversion — come back or fall)
-  const sleepers = await prisma.member.findMany({
-    where: { leagueTier: { not: LEAGUE_TIERS[0]!.name }, telegramUser: { isNot: null } },
-  });
-  for (const m of sleepers) {
-    if (activeIds.has(m.id)) continue;
-    const idx = leagueTierIndex(m.leagueTier);
-    const prev = LEAGUE_TIERS[Math.max(0, idx - 1)]!;
-    await prisma.member.update({ where: { id: m.id }, data: { leagueTier: prev.name } });
-  }
+  // v3 healthy-engagement guardrail: NO relegation-for-inactivity. Promotion is the
+  // only tier movement — a member is never demoted for simply not playing a week
+  // (the old "come back or fall" drop was the FOMO/punishment pattern v3 prohibits).
+  void activeIds; // (kept above for promotion; intentionally not used to relegate)
 }
 
 // ─── surprise drops (variable-interval gift) ──────────────────────────────────
