@@ -208,3 +208,27 @@ export async function getStreak(memberId: number): Promise<{ current: number; lo
   const checkedToday = streak?.lastCheckIn ? tashkentDayKey(streak.lastCheckIn) === tashkentDayKey(new Date()) : false;
   return { current: streak?.current ?? 0, longest: streak?.longest ?? 0, checkedToday };
 }
+
+// 🎁 Free DAILY spin — the wheel is always playable now (not just in-ride). One per Tashkent
+// day, idempotent by key, prizes capped to the wheel set minus the in-ride-only JACKPOT — a
+// small, money-safe engagement faucet (real money still exits only via the budget-gated withdraw).
+const FREE_SPIN_PRIZES = WHEEL_PRIZES.filter((p) => p.amount > 0);
+export async function freeSpin(memberId: number): Promise<{ ok: boolean; alreadyUsed?: boolean; prize: WheelPrize; jackpot: number }> {
+  const { getJackpot } = await import("./weeklyService");
+  const key = `freespin:${memberId}:${tashkentDayKey(new Date())}`;
+  if (await prisma.coinTxn.findUnique({ where: { idempotencyKey: key } })) {
+    return { ok: false, alreadyUsed: true, prize: FREE_SPIN_PRIZES[0]!, jackpot: await getJackpot() };
+  }
+  const total = FREE_SPIN_PRIZES.reduce((s, p) => s + p.weight, 0);
+  let r = Math.random() * total;
+  let prize = FREE_SPIN_PRIZES[0]!;
+  for (const p of FREE_SPIN_PRIZES) {
+    r -= p.weight;
+    if (r <= 0) {
+      prize = p;
+      break;
+    }
+  }
+  await grantCoins(memberId, prize.amount, "freespin", `🎁 Bepul kunlik spin: ${prize.label}`, key);
+  return { ok: true, prize, jackpot: await getJackpot() };
+}

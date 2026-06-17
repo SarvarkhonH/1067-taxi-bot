@@ -86,6 +86,13 @@ export const api = {
   leaderboard: () => get<LeaderboardResponse>("/api/leaderboard"),
   checkin: () => post<CheckInResponse>("/api/checkin"),
   spinWheel: () => request<WheelSpinResponse>("POST", "/api/wheel", undefined, 1),
+  wheelFree: () =>
+    request<{ ok: boolean; alreadyUsed?: boolean; prize: { label: string; emoji: string; amount: number }; jackpot: number }>(
+      "POST",
+      "/api/wheel/free",
+      undefined,
+      1,
+    ),
   missions: () => get<MissionsResponse>("/api/missions"),
   claimMission: (code: string) => post<MissionClaimResponse>(`/api/missions/claim?code=${encodeURIComponent(code)}`),
   referral: () => get<ReferralResponse>("/api/referral"),

@@ -181,6 +181,15 @@ export function createApiServer(opts: ApiOptions = {}) {
     // off-contract {luckyDay, ok, reason} shape → the typed client read .prize and crashed.
     res.json(await spinWheel(memberId));
   });
+  app.post("/api/wheel/free", requireUser, rateLimit(20), async (req, res) => {
+    const memberId = await getMemberId(res.locals.telegramId as string);
+    if (!memberId) {
+      res.status(404).json({ error: "not linked" });
+      return;
+    }
+    const { freeSpin } = await import("../services/rewardService");
+    res.json(await freeSpin(memberId));
+  });
 
   app.get("/api/wallet", requireUser, async (_req, res) => {
     const memberId = await getMemberId(res.locals.telegramId as string);

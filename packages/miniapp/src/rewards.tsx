@@ -183,6 +183,27 @@ function SpinWheelGame({ me, onReward }: { me: MeResponse; onReward: (msg: strin
     }
   };
 
+  // 🎁 Free DAILY spin — the wheel is playable even when not on a ride (1/day, server-capped)
+  const freeSpinFn = async () => {
+    if (spinning) return;
+    setSpinning(true);
+    haptic();
+    try {
+      const res = await api.wheelFree();
+      if (res.alreadyUsed) {
+        setSpinning(false);
+        onReward("Bugungi bepul spin ishlatilgan — ertaga yana! ✅");
+        return;
+      }
+      const idx = Math.max(0, WHEEL_PRIZES.findIndex((p) => p.label === res.prize.label));
+      pend.current = { win: res.prize.amount > 0, jackpot: res.jackpot, msg: `${res.prize.emoji} +${formatNumber(res.prize.amount)} tanga!` };
+      setTarget(idx);
+      setSpinId((n) => n + 1);
+    } catch {
+      setSpinning(false);
+    }
+  };
+
   // g'ildirak to'xtadi: yutuq oqimi — konfetti 600ms → toast/countup → haptic
   const onWheelDone = () => {
     setSpinning(false);
@@ -206,7 +227,12 @@ function SpinWheelGame({ me, onReward }: { me: MeResponse; onReward: (msg: strin
           {spinning ? "Aylanmoqda…" : "🎡 AYLANTIRISH (safardasiz!)"}
         </button>
       ) : (
-        <div className="sheet-warn">🚕 G'ildirak SAFAR PAYTIDA aylanadi — har safar 1 spin, har spin yutadi!</div>
+        <>
+          <button className="btn-primary" onClick={freeSpinFn} disabled={spinning}>
+            {spinning ? "Aylanmoqda…" : "🎁 Bepul kunlik spin"}
+          </button>
+          <div className="muted game-hint">Kuniga 1 bepul spin. Safar paytida g'ildirak ko'proq yutadi + JACKPOT!</div>
+        </>
       )}
       <div className="muted game-hint">Har safar JACKPOT'ni oshiradi — JACKPOT tushsa butun jamg'arma sizniki!</div>
     </section>
