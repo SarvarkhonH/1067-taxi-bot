@@ -1,4 +1,4 @@
-import { Bot, Context, InlineKeyboard, Keyboard } from "grammy";
+import { Bot, Context, InlineKeyboard, InputFile, Keyboard } from "grammy";
 import { formatNumber } from "@t1067/shared";
 import { env } from "../env";
 import { prisma } from "../db";
@@ -194,11 +194,30 @@ export function createBot(): Bot {
       return;
     }
     const { getDriverEarnings } = await import("../services/transferService");
-    const e = await getDriverEarnings(me.member.id);
-    await ctx.reply(renderDriverPanel(me.coins, e), { parse_mode: "HTML", reply_markup: mainMenu(true) });
+    const { driverRecruitStats } = await import("../services/recruitService");
+    const [e, recruit] = await Promise.all([getDriverEarnings(me.member.id), driverRecruitStats(me.member.id)]);
+    await ctx.reply(renderDriverPanel(me.coins, e, recruit), {
+      parse_mode: "HTML",
+      reply_markup: new InlineKeyboard().text("📷 Mening QR kodim", "drv:qr"),
+    });
   };
   bot.hears("🚗 Haydovchi paneli", showDriverPanel);
   bot.command("driver", showDriverPanel);
+  // Driver self-serves their in-car recruit QR (was admin-download-only) — show it to
+  // passengers; when they scan + ride, the driver earns 500 then per-ride revshare.
+  bot.callbackQuery("drv:qr", async (ctx) => {
+    await ctx.answerCallbackQuery().catch(() => undefined);
+    const me = await getMe(String(ctx.from!.id));
+    if (!me || me.type !== "driver") return;
+    const { driverQrLink } = await import("../services/recruitService");
+    const QR = await import("qrcode");
+    const png = await QR.toBuffer(driverQrLink(me.member.id), { width: 600, margin: 2 });
+    await ctx.replyWithPhoto(new InputFile(png), {
+      caption:
+        "🚖 <b>Mening QR kodim</b>\n\nBuni mijozga ko'rsating. U skanerlab botga kirsa va birinchi safarini qilsa — sizga <b>500 tanga</b>, so'ng har safaridan ulush tushadi.\n\n📅 Oyiga 15 ta yangi mijoz · 30 000 tangagacha.",
+      parse_mode: "HTML",
+    });
+  });
 
   // 🏪 shop owner redeems a customer's voucher: /vaucher KOD123
   bot.command("vaucher", async (ctx) => {

@@ -275,16 +275,29 @@ export function renderWheel(r: WheelResult): string {
 }
 
 /** Driver earnings panel (text). */
-export function renderDriverPanel(coins: number, e: { todayIn: number; totalIn: number; txns: { amount: number; reason: string }[] }): string {
+export function renderDriverPanel(
+  coins: number,
+  e: { todayIn: number; totalIn: number; txns: { amount: number; reason: string }[] },
+  recruit?: { recruits: number; recruitsThisMonth: number; earnedTotal: number; earnedThisMonth: number; revshareCapLeft: number; newRecruitCapLeft: number },
+): string {
   const txnLines = e.txns
     .slice(0, 6)
     .map((t) => `  ${t.amount > 0 ? "➕" : "➖"} ${formatNumber(Math.abs(t.amount))} — ${esc(t.reason)}`)
     .join("\n");
+  const recruitBlock = recruit
+    ? `\n🚖 <b>MIJOZ TAKLIF (QR)</b>\n` +
+      `👥 Mijozlaringiz: <b>${formatNumber(recruit.recruits)}</b>` +
+      (recruit.recruitsThisMonth ? ` <i>(bu oy +${formatNumber(recruit.recruitsThisMonth)})</i>` : "") +
+      `\n💰 QR-dan tushum: bu oy <b>${formatNumber(recruit.earnedThisMonth)}</b> · jami <b>${formatNumber(recruit.earnedTotal)}</b> tanga\n` +
+      `📅 Bu oy yana: <b>${formatNumber(recruit.revshareCapLeft)}</b> tanga · <b>${formatNumber(recruit.newRecruitCapLeft)}</b> yangi mijoz\n` +
+      `<i>«📷 Mening QR kodim» — mijozga ko'rsating; skanerlab safar qilsa sizga tanga tushadi.</i>\n`
+    : "";
   return (
     `🚗 <b>Haydovchi paneli</b>\n\n` +
     `🪙 Tanga balans: <b>${formatNumber(coins)}</b>\n` +
     `📈 Bugun tushdi: <b>+${formatNumber(e.todayIn)}</b>\n` +
     `💼 Jami tushum (tip/o'tkazma): <b>${formatNumber(e.totalIn)}</b>\n` +
+    recruitBlock +
     (txnLines ? `\n📜 Oxirgi amallar:\n${txnLines}\n` : "") +
     `\n💸 Tangalarni so'mga yechish — «🚀 Ilova» → Hamyon.\n🙏 Mijozlar safardan keyin sizga tanga bilan rahmat ayta oladi.`
   );

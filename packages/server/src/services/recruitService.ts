@@ -88,6 +88,39 @@ export async function payRecruitRevshare(riderMemberId: number, bookingId: numbe
   await grantCoins(driverId, rate, "revshare", "🚖 QR-mijozingiz safari", `rev:${recruit.id}:${bookingId}`);
 }
 
+/** Driver's OWN recruit panel: counts, QR earnings, and remaining monthly room. */
+export async function driverRecruitStats(driverId: number): Promise<{
+  recruits: number;
+  recruitsThisMonth: number;
+  earnedTotal: number;
+  earnedThisMonth: number;
+  revshareCapLeft: number;
+  newRecruitCapLeft: number;
+}> {
+  const monthAgo = new Date(Date.now() - 30 * 24 * 3600 * 1000);
+  const [recruits, recruitsThisMonth, earnedTotal, earnedMonth, revMonth] = await Promise.all([
+    prisma.driverRecruit.count({ where: { driverId } }),
+    prisma.driverRecruit.count({ where: { driverId, createdAt: { gte: monthAgo } } }),
+    prisma.coinTxn.aggregate({ where: { memberId: driverId, kind: { in: ["recruit", "revshare"] } }, _sum: { amount: true } }),
+    prisma.coinTxn.aggregate({ where: { memberId: driverId, kind: { in: ["recruit", "revshare"] }, createdAt: { gte: monthAgo } }, _sum: { amount: true } }),
+    prisma.coinTxn.aggregate({ where: { memberId: driverId, kind: "revshare", createdAt: { gte: monthAgo } }, _sum: { amount: true } }),
+  ]);
+  return {
+    recruits,
+    recruitsThisMonth,
+    earnedTotal: Math.round(earnedTotal._sum.amount ?? 0),
+    earnedThisMonth: Math.round(earnedMonth._sum.amount ?? 0),
+    revshareCapLeft: Math.max(0, REVSHARE_MONTH_CAP - (revMonth._sum.amount ?? 0)),
+    newRecruitCapLeft: Math.max(0, RECRUIT_MONTHLY_CAP - recruitsThisMonth),
+  };
+}
+
+/** The driver's personal in-car QR deep-link (passenger scans → driver earns). */
+export function driverQrLink(driverMemberId: number): string {
+  const user = process.env.BOT_USERNAME || "koson1067bot";
+  return `https://t.me/${user}?start=drv_${driverMemberId}`;
+}
+
 /** Admin: per-driver recruit leaderboard. */
 export async function recruitStats(): Promise<{ driverId: number; fullName: string; recruits: number; earned: number }[]> {
   const rows = await prisma.driverRecruit.groupBy({ by: ["driverId"], _count: { id: true } });
