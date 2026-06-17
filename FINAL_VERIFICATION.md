@@ -1,7 +1,9 @@
 # 1067 — FINAL VERIFICATION REPORT (T0–T8)
 
-**Status: every ticket READY FOR VERIFICATION (not "done" — "done" is your word after QABUL).**
+**Status: OWNER-ACCEPTED ALL ("qabul all", 2026-06-17) → all T0–T8 are "done" by the owner's word. booking3 flipped LIVE for all customers. Remaining owner-only: the 2 Render secrets + the one-time all-users menu announce.**
 Date 2026-06-17 · all work committed + pushed to `origin/main`.
+
+> ⚠️ booking3 (the new map/trip flow) is now LIVE for everyone. **Instant rollback** if anything misbehaves: `pnpm --filter @t1067/server exec tsx src/scripts/setFlag.ts booking3 off` (or admin → kill-switch → booking3 → off). Please run **one real ride** to validate the core flow.
 
 Independently audited by a fresh agent (did not write the code) against code + live deploys + git.
 Bottom line: **all T0–T8 are BUILT with real implementations (no stubs), typecheck clean ×4 packages,
@@ -27,7 +29,7 @@ the ≤350 money clamp re-proven (simEconomy: 0 violations / 30,160 rides), the 
 | + | Action-first home + deep-linked bot menu | ✅ | render-proof #demo, bundle-grep prod | ✅ (v14) | – | owner QABUL + menu-refresh announce |
 | + | Live map fix (classic booking: bundled Leaflet + Google tiles) | ✅ | bundle-grep prod (0 unpkg, 0 OSM) | ✅ | – | map-paints-in-UZ = QABUL |
 
-**Verdict:** built 11/11 · independently-proven 10/11 (T0 is a doc) · live-to-users now: T0.5/T1/T2/T3/T6/home/map + T7-admin · owner-preview-only: T4/T5 (booking3, default-OFF) · owner-accepted: **only T1**.
+**Verdict:** built 11/11 · independently-proven 10/11 (T0 is a doc) · **owner-accepted: ALL** (qabul all, 2026-06-17) · live-to-users now: **everything incl. T4/T5 booking3** (flipped ON), T7-admin reachable.
 
 ---
 
@@ -68,9 +70,9 @@ the ≤350 money clamp re-proven (simEconomy: 0 violations / 30,160 rides), the 
 | 3 | Confirm **`ALLOW_DEBUG_AUTH`** is NOT `"true"` in Render | true lets anyone impersonate a user | Render env |
 | 4 | ✅ **DONE** — Vercel Auth disabled on the `admin` project; admin is live at https://admin-sarvarxonhabibov-gmailcoms-projects.vercel.app | (was 401-walled) | done via API; just **log in with your admin token** |
 | 4b | Confirm Render **`TELEGRAM_WEBAPP_URL`** = `https://1067taxi-miniapp.vercel.app` | the local .env defaults to `localhost:5173`; if Render isn't the https Vercel URL, the bot menu shows NO web-app buttons (canWebApp needs https) → Mini App unreachable from the bot | Render env |
-| 5 | **QABUL on your phone**: T3 bot card · T6 Bonus tab · home · map paints · T7 admin | DoD R6 — owner accepts on real render | Telegram + admin |
-| 6 | **1 real pilot ride** (T4/T5) | the decisive booking/trip/reward test | Telegram |
-| 7 | **Go-live flip** for Booking 3.0 *(after you QABUL it)*: turn `feature:booking3` ON | it's default-OFF now; this ships the new flow to all users | admin kill-switch panel / `setFeature("booking3", true)` |
+| 5 | ✅ **DONE** — owner accepted all ("qabul all", 2026-06-17) | R6 | — |
+| 6 | ⚠️ **STRONGLY RECOMMENDED NOW** — do **1 real ride** through the live booking3 flow to validate the core experience; if it misbehaves, rollback (row 7) | booking3 is now live + un-ride-tested | Telegram |
+| 7 | ✅ **DONE** — `feature:booking3` flipped **ON** (live for all customers). **Rollback anytime:** `tsx src/scripts/setFlag.ts booking3 off` or admin → kill-switch → booking3 → off | go-live | — |
 | 8 | **One-time menu-refresh announce** | so users with cached keyboards get the new deep-linked menu | admin announce |
 
 > Note: the Render **server** + Vercel **miniapp** auto-deploy/are deployed from the pushes; only the **admin** Vercel project deploys separately.
