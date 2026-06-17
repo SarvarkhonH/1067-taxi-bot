@@ -573,6 +573,10 @@ export function createApiServer(opts: ApiOptions = {}) {
     const { serviceCar } = await import("../services/garageService");
     return serviceCar(id, String((req.body as { car?: string })?.car ?? ""));
   }));
+  app.post("/api/garage/upgrade", requireUser, rateLimit(10), withMember(async (id, req) => {
+    const { upgradeCar } = await import("../services/garageService");
+    return upgradeCar(id, String((req.body as { car?: string })?.car ?? ""));
+  }));
 
   app.post("/api/booking/estimate", requireUser, async (req, res) => {
     const b = req.body as { pickup?: GeoPt; dest?: GeoPt; surcharge?: number };

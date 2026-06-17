@@ -124,6 +124,7 @@ export const api = {
   garageBuy: (car: string) => request<{ ok: boolean; reason?: string; coins: number }>("POST", "/api/garage/buy", { car }, 1),
   garageEquip: (car: string) => request<{ ok: boolean }>("POST", "/api/garage/equip", { car }, 1),
   garageService: (car: string) => request<{ ok: boolean; reason?: string; coins: number }>("POST", "/api/garage/service", { car }, 1),
+  garageUpgrade: (car: string) => request<{ ok: boolean; reason?: string; coins: number; level?: number }>("POST", "/api/garage/upgrade", { car }, 1),
   bookingNearby: () => get<{ pins: { lat: number; lng: number; bearing: number; busy: boolean }[]; freeDrivers: number }>("/api/booking/nearby"),
   bookingPredict: (address?: string) => get<{ rides: number; avg: number; p50: number; byAddress?: { name: string; avg: number; rides: number } | null }>(`/api/booking/predict${address ? `?address=${encodeURIComponent(address)}` : ""}`),
   bookingRate: (bookingId: number, stars: number, tags: string[]) => request<{ ok: boolean; reason?: string }>("POST", "/api/booking/rate", { bookingId, stars, tags }, 1),

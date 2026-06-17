@@ -169,6 +169,7 @@ model MemberCar {
   carCode           String
   isEquipped        Boolean  @default(false)
   ridesSinceService Int      @default(0)
+  level             Int      @default(1) // garage upgrade level (1..GARAGE_MAX_LEVEL) — scales earn rate
   boughtAt          DateTime @default(now())
 
   @@unique([memberId, carCode])

@@ -68,8 +68,9 @@ function GarageSection({ onReward }: { onReward: (msg: string) => void }) {
           <div key={c.code} className="mk-item">
             <span className="mk-item-emoji">{c.emoji}</span>
             <span className="mk-item-title">
-              {c.name} · {c.ratePerMin}/daq
-              {c.owned && c.serviceDue && <span className="muted"> · 🔧 servis kerak (50%)</span>}
+              {c.name}
+              {c.owned && <span className="garage-tier"> · {c.tier} Lv{c.level}</span>} · {c.ratePerMin} 🪙/daq
+              {c.owned && c.serviceDue && <span className="muted"> · 🔧 servis (50%)</span>}
               {c.equipped && <span> · 🟢 minilgan</span>}
             </span>
             {!c.owned ? (
@@ -84,8 +85,12 @@ function GarageSection({ onReward }: { onReward: (msg: string) => void }) {
               <button className="btn-ghost sm" disabled={busy !== null} onClick={() => act(() => api.garageEquip(c.code), c.code, () => `🟢 ${c.name} minildi!`)}>
                 {busy === c.code ? "…" : "Minish"}
               </button>
+            ) : c.upgradeCost !== null ? (
+              <button className="btn-primary sm" disabled={busy !== null} onClick={() => act(() => api.garageUpgrade(c.code), c.code, (r) => (r.ok ? `⬆️ ${c.name} — daraja oshdi!` : r.reason === "insufficient" ? "Tanga yetarli emas" : r.reason === "maxed" ? "Eng yuqori daraja" : "Xatolik"))}>
+                {busy === c.code ? "…" : `⬆️ ${formatNumber(c.upgradeCost)}`}
+              </button>
             ) : (
-              <span className="mk-item-price">🟢</span>
+              <span className="mk-item-price">💠 MAX</span>
             )}
           </div>
         ))}

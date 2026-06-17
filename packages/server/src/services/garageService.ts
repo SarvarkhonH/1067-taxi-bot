@@ -3,11 +3,15 @@
 // the per-ride emission clamp. One equipped car at a time.
 import {
   GARAGE_CARS,
+  GARAGE_MAX_LEVEL,
   GARAGE_RIDE_CAP_MIN,
   GARAGE_SERVICE_COST_PCT,
   GARAGE_SERVICE_EVERY,
   GARAGE_UNSERVICED_RATE,
   garageCarByCode,
+  garageLeveledRate,
+  garageTier,
+  garageUpgradeCost,
   type GarageResponse,
 } from "@t1067/shared";
 import { prisma } from "../db";
@@ -19,17 +23,21 @@ export async function getGarage(memberId: number): Promise<GarageResponse> {
   const byCode = new Map(owned.map((c) => [c.carCode, c]));
   const cars = GARAGE_CARS.map((def) => {
     const o = byCode.get(def.code);
+    const level = o?.level ?? 1;
     return {
       code: def.code,
       name: def.name,
       emoji: def.emoji,
       price: def.price,
-      ratePerMin: def.ratePerMin,
+      ratePerMin: Math.round(garageLeveledRate(def.ratePerMin, level) * 10) / 10, // leveled (1 dp)
       owned: !!o,
       equipped: o?.isEquipped ?? false,
       ridesSinceService: o?.ridesSinceService ?? 0,
       serviceDue: (o?.ridesSinceService ?? 0) >= GARAGE_SERVICE_EVERY,
       serviceCost: Math.floor(def.price * GARAGE_SERVICE_COST_PCT),
+      level,
+      tier: garageTier(level),
+      upgradeCost: o && level < GARAGE_MAX_LEVEL ? garageUpgradeCost(def.price, level) : null,
     };
   });
   const [earned, estimate] = await Promise.all([
@@ -90,13 +98,28 @@ export async function serviceCar(memberId: number, carCode: string): Promise<{ o
   return { ok: true, coins: spend.balance };
 }
 
+/** Upgrade an owned car one level (pure SINK) — raises its earn rate. */
+export async function upgradeCar(memberId: number, carCode: string): Promise<{ ok: boolean; reason?: "unknown" | "not_owned" | "maxed" | "insufficient"; coins: number; level?: number }> {
+  const def = garageCarByCode(carCode);
+  if (!def) return { ok: false, reason: "unknown", coins: await getCoins(memberId) };
+  const car = await prisma.memberCar.findUnique({ where: { memberId_carCode: { memberId, carCode } } });
+  if (!car) return { ok: false, reason: "not_owned", coins: await getCoins(memberId) };
+  if (car.level >= GARAGE_MAX_LEVEL) return { ok: false, reason: "maxed", coins: await getCoins(memberId) };
+  const cost = garageUpgradeCost(def.price, car.level);
+  const spend = await spendCoins(memberId, cost, "garage_upgrade", `🔧 ${def.name} → daraja ${car.level + 1}`);
+  if (!spend.ok) return { ok: false, reason: "insufficient", coins: spend.balance };
+  await prisma.memberCar.update({ where: { id: car.id }, data: { level: { increment: 1 } } });
+  return { ok: true, coins: spend.balance, level: car.level + 1 };
+}
+
 /** The equipped car's live earn estimate for N minutes (the ride-card line). */
 export async function equippedEstimate(memberId: number, minutes: number): Promise<{ name: string; emoji: string; amount: number } | null> {
   const car = await prisma.memberCar.findFirst({ where: { memberId, isEquipped: true } });
   if (!car) return null;
   const def = garageCarByCode(car.carCode);
   if (!def) return null;
-  let rate = car.ridesSinceService >= GARAGE_SERVICE_EVERY ? def.ratePerMin * GARAGE_UNSERVICED_RATE : def.ratePerMin;
+  const leveled = garageLeveledRate(def.ratePerMin, car.level);
+  let rate = car.ridesSinceService >= GARAGE_SERVICE_EVERY ? leveled * GARAGE_UNSERVICED_RATE : leveled;
   const m = await prisma.member.findUnique({ where: { id: memberId }, select: { plusUntil: true } });
   if (m && isPlus(m)) rate *= 1.2; // 💎 Plus garage boost
   const amount = Math.floor(Math.min(GARAGE_RIDE_CAP_MIN, Math.max(0, minutes)) * rate);
@@ -117,7 +140,8 @@ export async function earnForRide(memberId: number, bookingId: number, minutes: 
   const def = garageCarByCode(car.carCode);
   if (!def) return null;
   const overdue = car.ridesSinceService >= GARAGE_SERVICE_EVERY;
-  let rate = overdue ? def.ratePerMin * GARAGE_UNSERVICED_RATE : def.ratePerMin;
+  const leveled = garageLeveledRate(def.ratePerMin, car.level);
+  let rate = overdue ? leveled * GARAGE_UNSERVICED_RATE : leveled;
   const pm = await prisma.member.findUnique({ where: { id: memberId }, select: { plusUntil: true } });
   if (pm && isPlus(pm)) rate *= 1.2; // 💎 Plus garage boost
   const amount = Math.floor(Math.min(GARAGE_RIDE_CAP_MIN, minutes) * rate);

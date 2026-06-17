@@ -24,6 +24,22 @@ export const GARAGE_SERVICE_EVERY = 25; // rides between "Moy almashtirish"
 export const GARAGE_SERVICE_COST_PCT = 0.1; // service costs 10% of car price (recurring sink)
 export const GARAGE_UNSERVICED_RATE = 0.5; // overdue car earns at half rate
 
+// 🔧 Upgrade/level system: spend tanga to level a car up (1..MAX), raising its earn rate.
+export const GARAGE_MAX_LEVEL = 5;
+export const GARAGE_LEVEL_RATE = [1, 1.3, 1.6, 2.0, 2.5]; // rate multiplier by (level-1)
+export const GARAGE_LEVEL_TIER = ["🥉 Bronza", "🥈 Kumush", "🥇 Oltin", "💎 Platina", "💠 Olmos"];
+/** Cost to upgrade L→L+1, scaling with car price + current level (a real grind). */
+export function garageUpgradeCost(price: number, level: number): number {
+  return Math.floor(price * 0.5 * level);
+}
+/** A car's earn rate at a given level (base rate × the level multiplier). */
+export function garageLeveledRate(baseRate: number, level: number): number {
+  return baseRate * (GARAGE_LEVEL_RATE[Math.max(0, Math.min(GARAGE_MAX_LEVEL, level) - 1)] ?? 1);
+}
+export function garageTier(level: number): string {
+  return GARAGE_LEVEL_TIER[Math.max(0, Math.min(GARAGE_MAX_LEVEL, level) - 1)] ?? GARAGE_LEVEL_TIER[0]!;
+}
+
 export function garageCarByCode(code: string): GarageCarDef | undefined {
   return GARAGE_CARS.find((c) => c.code === code);
 }
@@ -39,6 +55,9 @@ export interface GarageCarView {
   ridesSinceService: number;
   serviceDue: boolean; // earning at half rate until serviced
   serviceCost: number;
+  level: number; // 1..GARAGE_MAX_LEVEL
+  tier: string; // visual tier label for the level (🥉…💠)
+  upgradeCost: number | null; // tanga to reach the next level, or null if maxed
 }
 
 export interface GarageResponse {
