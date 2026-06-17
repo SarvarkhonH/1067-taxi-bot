@@ -291,6 +291,7 @@ function SpinWheelGame({ me, onReward, celebrate }: { me: MeResponse; onReward: 
 function BoxGame({ onReward, celebrate }: { onReward: (msg: string) => void; celebrate: Celebrate }) {
   const [box, setBox] = useState<BoxStatusResponse | null>(null);
   const [busy, setBusy] = useState(false);
+  const [opening, setOpening] = useState(false);
 
   const [boxErr, setBoxErr] = useState(false);
   const load = () => api.box().then((r) => { setBox(r); setBoxErr(false); }).catch(() => setBoxErr(true));
@@ -301,9 +302,12 @@ function BoxGame({ onReward, celebrate }: { onReward: (msg: string) => void; cel
   const open = async () => {
     if (busy) return;
     setBusy(true);
+    setOpening(true);
     haptic();
     try {
       const r = await api.openBox();
+      // anticipation: let the box rattle/charge ~750ms before the reveal bursts
+      await new Promise((res) => setTimeout(res, 750));
       if (r.ok && r.prize) {
         celebrate(r.prize.amount, r.prize.emoji, "Sirli quti");
       } else if (r.reason === "locked") {
@@ -314,41 +318,41 @@ function BoxGame({ onReward, celebrate }: { onReward: (msg: string) => void; cel
       /* ignore */
     } finally {
       setBusy(false);
+      setOpening(false);
     }
   };
 
   if (boxErr) {
     return (
       <section className="glass pad game-card">
-        <div className="section-title">🎁 Sirli qutilar</div>
+        <div className="section-title">🎁 Sirli quti</div>
         <LoadSection state="error" onRetry={load}><span /></LoadSection>
       </section>
     );
   }
   if (!box) return null;
   const pct = Math.round((box.dailiesDone / Math.max(1, box.dailiesTotal)) * 100);
+  const ready = box.eligible && !box.opened;
 
   return (
     <section className="glass pad game-card">
-      <div className="section-title">🎁 Sirli qutilar</div>
-      <div className="box-duo">
-        <div className={"box-tile" + (box.eligible && !box.opened ? " ready" : "")}>
-          <div className="box-tile-emoji">{box.opened ? "🎊" : "🎁"}</div>
-          <div className="box-tile-name">Kunlik quti</div>
-          {box.opened && box.prize ? (
-            <div className="muted box-tile-sub">Bugun: {box.prize.emoji} {box.prize.label}</div>
-          ) : box.eligible ? (
-            <button className="btn-primary sm" disabled={busy} onClick={open}>
-              {busy ? "…" : "Ochish"}
-            </button>
-          ) : (
-            <>
-              <ProgressBar className="mt6" value={pct} />
-              <div className="muted box-tile-sub">Vazifalar {box.dailiesDone}/{box.dailiesTotal}</div>
-            </>
-          )}
-        </div>
+      <div className="section-title">🎁 Sirli quti</div>
+      <div className={"box-hero" + (ready ? " ready" : "") + (opening ? " opening" : "")}>
+        <div className="box-rays" />
+        <div className="box-lid">{box.opened ? "🎊" : "🎁"}</div>
       </div>
+      {box.opened && box.prize ? (
+        <div className="box-result">Bugun ochildi: {box.prize.emoji} <b>{box.prize.label}</b> — ertaga yana! 🎁</div>
+      ) : box.eligible ? (
+        <button className="btn-primary" disabled={busy} onClick={open}>
+          {opening ? "🔓 Ochilmoqda…" : "🎁 QUTINI OCHISH"}
+        </button>
+      ) : (
+        <>
+          <ProgressBar className="mt6" value={pct} />
+          <div className="muted box-tile-sub tac">Kunlik vazifalar {box.dailiesDone}/{box.dailiesTotal} — tugating, quti ochiladi 🔓</div>
+        </>
+      )}
     </section>
   );
 }
@@ -388,7 +392,7 @@ export function BonusCenterView({
           <button className="btn-primary sm" disabled={checking} onClick={onCheckin}>{checking ? "…" : "✅ Belgilash"}</button>
         )}
       </div>
-      <div className="bc-kombo">
+      <div className={"bc-kombo" + (komboN === 3 ? " complete" : "")}>
         {kombo.map((k) => (
           <div key={k.label} className={"bc-cell" + (k.ok ? " on" : "")}>
             <span className="bc-cell-ico">{k.ok ? "✅" : "⬜"}</span>
@@ -396,7 +400,7 @@ export function BonusCenterView({
           </div>
         ))}
       </div>
-      <div className="bc-hint">{komboN === 3 ? "🎉 Kombo to'liq — ertaga ruleta ×2!" : `Kunlik kombo ${komboN}/3 · 3/3 = ertaga ruleta ×2`}</div>
+      <div className={"bc-hint" + (komboN === 3 ? " complete" : "")}>{komboN === 3 ? "🎉 KOMBO TO'LIQ — ertaga ruleta ×2!" : `Kunlik kombo ${komboN}/3 · 3/3 = ertaga ruleta ×2`}</div>
       {claimable > 0 && <div className="bc-missions">🎁 {claimable} ta vazifa tayyor — «Vazifa» tabidan oling!</div>}
       {err && !missions && <div className="muted fs12 mt6">⚠️ Holat yuklanmadi · <button className="d-link" onClick={onRetry}>qayta urinish</button></div>}
     </section>

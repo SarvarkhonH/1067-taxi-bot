@@ -422,6 +422,14 @@ body {
 .bc-cell-label { color: var(--text-dim); font-size: 12px; }
 .bc-cell.on .bc-cell-label { color: var(--text); font-weight: 700; }
 .bc-hint { text-align: center; font-size: 13px; color: var(--brand); font-weight: 700; }
+/* kombo to'liq (3/3) — hujayralar nurlanib navbatma-navbat sakraydi, hint tilla-pillaga aylanadi */
+.bc-kombo.complete .bc-cell { border-color: var(--brand); box-shadow: 0 0 14px -3px rgba(255,179,0,.5); animation: bc-bob 1.6s ease-in-out infinite; }
+.bc-kombo.complete .bc-cell:nth-child(2) { animation-delay: .16s; }
+.bc-kombo.complete .bc-cell:nth-child(3) { animation-delay: .32s; }
+@keyframes bc-bob { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-3px); } }
+.bc-hint.complete { margin: 2px auto 0; color: #1a1205; font-weight: 800; background: linear-gradient(135deg, #ffd24a, #ffb300);
+  border-radius: 999px; padding: 7px 14px; box-shadow: 0 6px 16px -6px rgba(255,179,0,.7); }
+@media (prefers-reduced-motion: reduce) { .bc-kombo.complete .bc-cell { animation: none; } }
 .bc-missions { text-align: center; font-size: 13px; padding: 8px; border-radius: 10px; background: var(--surface); border: 1px solid var(--line); }
 /* CALL = oltin (d-btn default brand). Ghost/danger ikkilamchi — oltin-ustiga-oltin yo'q. */
 .b3-sheet .d-btn { margin-top: 8px; }
@@ -551,6 +559,24 @@ body {
 @keyframes wb-pop { 0% { opacity: 0; transform: scale(.7) translateY(10px); } 100% { opacity: 1; transform: none; } }
 @keyframes wb-emoji-pop { 0% { transform: scale(0) rotate(-18deg); } 70% { transform: scale(1.25) rotate(6deg); } 100% { transform: scale(1); } }
 @media (prefers-reduced-motion: reduce) { .winburst, .wb-card, .wb-emoji { animation-duration: .01ms; } }
+
+/* 🎁 Premium mystery box — idle float + glow rays, then rattle/charge-up on open */
+.box-hero { position: relative; height: 134px; margin: 6px 0 12px; display: flex; align-items: center; justify-content: center;
+  border-radius: 18px; overflow: hidden; border: 1px solid rgba(168,85,247,.28);
+  background: radial-gradient(120% 90% at 50% 30%, #2a1d3e 0%, #120c1d 72%); }
+.box-lid { position: relative; z-index: 1; font-size: 72px; line-height: 1; filter: drop-shadow(0 8px 16px rgba(168,85,247,.5)); }
+.box-rays { position: absolute; width: 200px; height: 200px; border-radius: 50%; opacity: .25; pointer-events: none;
+  background: radial-gradient(circle, rgba(216,180,254,.55), transparent 62%); }
+.box-hero.ready .box-lid { animation: box-bob 1.8s ease-in-out infinite; }
+.box-hero.ready .box-rays { animation: box-rays 2.4s ease-in-out infinite; }
+@keyframes box-bob { 0%,100% { transform: translateY(3px) rotate(-3deg); } 50% { transform: translateY(-6px) rotate(3deg); } }
+@keyframes box-rays { 0%,100% { transform: scale(.85); opacity: .35; } 50% { transform: scale(1.12); opacity: .8; } }
+.box-hero.opening .box-lid { animation: box-rattle .11s linear infinite; }
+@keyframes box-rattle { 0%,100% { transform: translateX(-3px) rotate(-8deg); } 50% { transform: translateX(3px) rotate(8deg); } }
+.box-hero.opening .box-rays { animation: box-charge .75s ease-in forwards; }
+@keyframes box-charge { 0% { transform: scale(.6); opacity: .35; } 100% { transform: scale(1.7); opacity: 0; } }
+.box-result { text-align: center; font-size: 14px; font-weight: 700; margin: 4px 0 2px; }
+@media (prefers-reduced-motion: reduce) { .box-lid, .box-rays { animation: none !important; } }
 
 /* Topbar profile gear + Uy (taxi-first home) */
 .topbar-right { display: flex; align-items: center; gap: 8px; }
