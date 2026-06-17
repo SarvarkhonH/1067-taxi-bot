@@ -309,7 +309,42 @@ function TopupSheet({ wallet, onClose, onDone }: { wallet: WalletResponse; onClo
   );
 }
 
-export function WalletView({ me, onBanner, reload, onBook }: { me: MeResponse; onBanner: (m: string) => void; reload: () => void; onBook: () => void }) {
+// "Bugun" strip — the action-first glance under the hero CTA: streak · missions-ready
+// · jackpot. Each cell deep-jumps to its tab. Missions-ready is fetched once.
+export function BugunStripView({ me, ready, onNav }: { me: MeResponse; ready: number | null; onNav: (t: "rewards" | "missions") => void }) {
+  return (
+    <div className="bugun-strip">
+      <button className="bugun-cell" onClick={() => { haptic(); onNav("rewards"); }}>
+        <span className="bugun-ico">🔥</span>
+        <span className="bugun-val">{me.streak.current}</span>
+        <span className="bugun-lbl">kun streak</span>
+      </button>
+      <button className={"bugun-cell" + (ready ? " hot" : "")} onClick={() => { haptic(); onNav("missions"); }}>
+        <span className="bugun-ico">🎁</span>
+        <span className="bugun-val">{ready ?? "·"}</span>
+        <span className="bugun-lbl">vazifa tayyor</span>
+      </button>
+      <button className="bugun-cell" onClick={() => { haptic(); onNav("rewards"); }}>
+        <span className="bugun-ico">🎰</span>
+        <span className="bugun-val">{formatNumber(me.jackpot)}</span>
+        <span className="bugun-lbl">jackpot</span>
+      </button>
+    </div>
+  );
+}
+
+function BugunStrip({ me, onNav }: { me: MeResponse; onNav: (t: "rewards" | "missions") => void }) {
+  const [ready, setReady] = useState<number | null>(null);
+  useEffect(() => {
+    api
+      .missions()
+      .then((m) => setReady([...m.daily, ...m.weekly].filter((x) => x.claimable).length))
+      .catch(() => setReady(null));
+  }, []);
+  return <BugunStripView me={me} ready={ready} onNav={onNav} />;
+}
+
+export function WalletView({ me, onBanner, reload, onBook, onNav }: { me: MeResponse; onBanner: (m: string) => void; reload: () => void; onBook: () => void; onNav: (t: "rewards" | "missions") => void }) {
   const [wallet, setWallet] = useState<WalletResponse | null>(null);
   const [walletErr, setWalletErr] = useState(false);
   const [sheet, setSheet] = useState(false);
@@ -339,11 +374,11 @@ export function WalletView({ me, onBanner, reload, onBook }: { me: MeResponse; o
       {me.luckyDay && (
         <div className="sheet-ok tac">🍀 BUGUN OMAD KUNI — har safar cashback 2x!</div>
       )}
-      <div className="jackpot-badge self-center mb4">🎰 JACKPOT: <b>{formatNumber(me.jackpot)}</b> tanga — har safar oshadi!</div>
-      <button className="book-cta" onClick={onBook}>
-        🚖 Taxi chaqirish
-        <span className="book-cta-sub">jonli xarita · cashback</span>
+      <button className="book-cta book-cta-hero" onClick={onBook}>
+        <span className="book-cta-main">🚖 Taxi chaqirish</span>
+        <span className="book-cta-sub">jonli xarita · ETA · cashback</span>
       </button>
+      <BugunStrip me={me} onNav={onNav} />
 
       <section className="wallet-hero glass">
         <div className="wh-row">

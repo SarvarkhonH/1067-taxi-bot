@@ -35,6 +35,18 @@ const DRIVER_TABS: { id: Tab; icon: string; label: string }[] = [
   { id: "league", icon: "league", label: "Liga" },
 ];
 
+// Deep-link target from the bot: ?go=<tab|book> (query) or start_param. The bot menu
+// buttons open the Mini App straight on the matching screen.
+function readGo(): string {
+  try {
+    const sp = (tg as { initDataUnsafe?: { start_param?: string } } | undefined)?.initDataUnsafe?.start_param;
+    return new URLSearchParams(location.search).get("go") || sp || "";
+  } catch {
+    return "";
+  }
+}
+const TAB_IDS: Tab[] = ["home", "market", "rewards", "missions", "league", "friends", "driver"];
+
 export function App() {
   if (window.location.hash === "#demo") {
     return (
@@ -46,20 +58,16 @@ export function App() {
 
   const [me, setMe] = useState<MeResponse | null>(null);
   const [linked, setLinked] = useState<boolean | null>(null);
-  const [tab, setTab] = useState<Tab>("home");
+  // Deep-link: a bot-menu button opens the Mini App with ?go=<tab|book> → land straight
+  // on that screen (booking flow / the matching tab), not always the home tab.
+  const [tab, setTab] = useState<Tab>(() => {
+    const g = readGo();
+    return TAB_IDS.includes(g as Tab) ? (g as Tab) : "home";
+  });
   const [board, setBoard] = useState<LeaderboardResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [toast, setToast] = useState<{ id: number; msg: string } | null>(null);
-  // Deep-link: the bot's "🚕 Taxi chaqirish" button opens the Mini App with ?go=book
-  // (or startapp=book) → land straight on the booking flow, not the wallet tab.
-  const [booking, setBooking] = useState(() => {
-    try {
-      const sp = (tg as { initDataUnsafe?: { start_param?: string } } | undefined)?.initDataUnsafe?.start_param;
-      return new URLSearchParams(location.search).get("go") === "book" || sp === "book";
-    } catch {
-      return false;
-    }
-  });
+  const [booking, setBooking] = useState(() => readGo() === "book");
   const coins = useCountUp(me?.coins ?? 0);
   // WOW-1: balans oshganda tanga ikonkasi sakraydi
   const [coinBounce, setCoinBounce] = useState(false);
@@ -128,7 +136,7 @@ export function App() {
         <div className="brand">
           <span className="brand-badge">🚕</span>
           <span className="brand-name">1067<b>TAXI</b></span>
-          <span className="build-ver">v13 🏁</span>
+          <span className="build-ver">v14 🏠</span>
         </div>
         <div className="coin-pill">
           <span className={"coin-dot" + (coinBounce ? " d-coin-bounce" : "")}>🪙</span>
@@ -145,7 +153,7 @@ export function App() {
       <main className="content">
         <div className="page" key={tab}>
           <Suspense fallback={<Spinner />}>
-            {tab === "home" && <WalletView me={me} onBanner={flash} reload={reload} onBook={() => { haptic(); setBooking(true); }} />}
+            {tab === "home" && <WalletView me={me} onBanner={flash} reload={reload} onBook={() => { haptic(); setBooking(true); }} onNav={go} />}
             {tab === "market" && <MarketView coins={me.coins} onBanner={flash} />}
             {tab === "driver" && <DriverView me={me} />}
             {tab === "rewards" && <RewardsView me={me} onReward={flash} />}

@@ -48,7 +48,7 @@ const canWebApp = env.TELEGRAM_WEBAPP_URL.startsWith("https://");
 // Telegram caches the Mini App aggressively BY URL — the owner kept seeing stale builds.
 // Versioning the URL (?v=<build>) makes Telegram treat each release as a brand-new app →
 // guaranteed fresh load. BUMP this on every frontend deploy (matches App.tsx build marker).
-const WEBAPP_BUILD = "v13";
+const WEBAPP_BUILD = "v14";
 function webAppUrl(go?: string): string {
   const u = env.TELEGRAM_WEBAPP_URL;
   return u + (u.includes("?") ? "&" : "?") + "v=" + WEBAPP_BUILD + (go ? "&go=" + go : "");
@@ -61,14 +61,24 @@ function mainMenu(isDriver = false): Keyboard {
   // booking (?go=book), not the old bot text flow. Old cached keyboards still send the
   // text → bot.hears("🚕 Taxi chaqirish") falls back to startBooking (graceful).
   const kb = new Keyboard();
-  if (canWebApp) kb.webApp("🚕 Taxi chaqirish", webAppUrl("book"));
-  else kb.text("🚕 Taxi chaqirish");
-  kb.text("📍 Buyurtmam")
-    .row()
-    .text("💰 Hamyon")
-    .text("🎁 Bonuslar")
-    .text("👥 Do'st");
-  if (isDriver) kb.row().text("🚗 Haydovchi paneli");
+  // Action-first: EVERY button deep-links straight into the Mini App on its exact
+  // screen (?go=…). Old cached keyboards send the label as text → the bot.hears(…)
+  // aliases below still answer in-chat (graceful fallback + the path when a client
+  // doesn't support web-app buttons).
+  const btn = (label: string, go: string): void => {
+    if (canWebApp) kb.webApp(label, webAppUrl(go));
+    else kb.text(label);
+  };
+  btn("🚕 Taxi chaqirish", "book");
+  btn("📍 Buyurtmam", "book"); // booking3 shows the live order if one is active
+  kb.row();
+  btn("💰 Hamyon", "home");
+  btn("🎁 Bonuslar", "rewards");
+  btn("👥 Do'st", "friends");
+  if (isDriver) {
+    kb.row();
+    btn("🚗 Haydovchi paneli", "driver");
+  }
   if (canWebApp) kb.row().webApp("🚀 Ilova — Hamyon & Bonus", webAppUrl());
   return kb.resized();
 }

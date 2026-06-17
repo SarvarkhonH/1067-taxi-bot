@@ -312,6 +312,19 @@ body {
 }
 @keyframes cta-shine { 0% { left: -60%; } 55%, 100% { left: 150%; } }
 
+/* ═══ ACTION-FIRST HOME: hero CTA + "bugun" strip ═══ */
+.book-cta-hero { display: flex; flex-direction: column; align-items: center; gap: 3px; width: 100%; padding: 20px 16px; border: 0; cursor: pointer; }
+.book-cta-hero:active { transform: scale(0.985); }
+.book-cta-main { font-size: 21px; font-weight: 900; letter-spacing: 0.2px; }
+.book-cta-sub { font-size: 12.5px; font-weight: 700; opacity: 0.72; }
+.bugun-strip { display: flex; gap: 8px; margin-top: 10px; }
+.bugun-cell { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 12px 6px; border-radius: 14px; background: var(--surface); border: 1px solid var(--line); cursor: pointer; color: var(--text); }
+.bugun-cell:active { transform: scale(0.97); }
+.bugun-cell.hot { border-color: var(--brand); background: linear-gradient(135deg, rgba(255, 179, 0, 0.14), var(--surface)); }
+.bugun-ico { font-size: 20px; }
+.bugun-val { font-size: 17px; font-weight: 800; }
+.bugun-lbl { font-size: 10.5px; color: var(--text-dim); }
+
 /* topbar brand — nozik porlash */
 .brand-name b { text-shadow: 0 0 14px rgba(255, 179, 0, 0.5); }
 /* build-versiya stamp — kesh tekshiruvi uchun (yangi bundle yuklanganini ko'rsatadi) */

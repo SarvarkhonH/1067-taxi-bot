@@ -5,7 +5,11 @@ import type { MeResponse, MissionsResponse } from "@t1067/shared";
 import { Button, Card, Chip, CoinCounter, EmptyState, LoadSection, ProgressBar, Sheet, Skeleton, StreakFlame, TierBadge } from "./components";
 import { RouletteWheel } from "./RouletteWheel";
 import { BonusCenterView } from "../rewards";
+import { BugunStripView } from "../wallet";
 import { confetti } from "../util";
+
+// Action-first home fixture (streak + jackpot for the Bugun strip).
+const demoMeHome = { streak: { current: 12, longest: 30, checkedToday: true }, jackpot: 44120 } as unknown as MeResponse;
 
 // T6 render-proof fixtures (pure view, no API).
 const demoMeActive = { streak: { current: 12, longest: 30, checkedToday: false } } as unknown as MeResponse;
@@ -44,6 +48,16 @@ export default function DesignDemo() {
       <main className="content">
         <div className="view">
           <div className="section-title">🎨 T1 dizayn-demo (#demo)</div>
+
+          <div className="section-title">🏠 Action-first home (hero + bugun strip)</div>
+          <button className="book-cta book-cta-hero" onClick={() => confetti()}>
+            <span className="book-cta-main">🚖 Taxi chaqirish</span>
+            <span className="book-cta-sub">jonli xarita · ETA · cashback</span>
+          </button>
+          <BugunStripView me={demoMeHome} ready={2} onNav={() => undefined} />
+          <div className="mt8" />
+          <BugunStripView me={demoMeHome} ready={0} onNav={() => undefined} />
+
 
           <div className="section-title">🎁 T6 Bonus-markaz (faol holat)</div>
           <BonusCenterView me={demoMeActive} missions={demoMissionsPartial} err={false} checking={false} onCheckin={() => confetti()} onRetry={() => undefined} />
