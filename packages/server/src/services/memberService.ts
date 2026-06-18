@@ -272,18 +272,25 @@ export async function getBotUsers(): Promise<AdminBotUsersResponse> {
   const startToday = new Date();
   startToday.setHours(0, 0, 0, 0);
 
-  const users = tus.map((t) => ({
-    telegramId: t.id,
-    name: [t.firstName, t.lastName].filter(Boolean).join(" ") || (t.username ? `@${t.username}` : "—"),
-    username: t.username,
-    phone: t.phone,
-    linked: !!t.memberId,
-    memberType: (t.member?.type as MemberType) ?? null,
-    memberName: t.member?.fullName ?? null,
-    isAdmin: t.isAdmin,
-    linkedAt: t.linkedAt?.toISOString() ?? null,
-    lastActive: t.updatedAt.toISOString(),
-  }));
+  const users = tus.map((t) => {
+    const tgName = [t.firstName, t.lastName].filter(Boolean).join(" ") || (t.username ? `@${t.username}` : "");
+    const kasName = t.member?.fullName ?? null;
+    // kas leaves nameless clients as "Mijoz <id>" (drivers "Haydovchi") — show the real
+    // Telegram name/username instead so the admin sees a person, not a placeholder.
+    const placeholder = kasName ? /^(Mijoz|Haydovchi)( \d+)?$/.test(kasName) : false;
+    return {
+      telegramId: t.id,
+      name: tgName || "—",
+      username: t.username,
+      phone: t.phone,
+      linked: !!t.memberId,
+      memberType: (t.member?.type as MemberType) ?? null,
+      memberName: kasName && !placeholder ? kasName : tgName || kasName,
+      isAdmin: t.isAdmin,
+      linkedAt: t.linkedAt?.toISOString() ?? null,
+      lastActive: t.updatedAt.toISOString(),
+    };
+  });
 
   return {
     total: tus.length,
