@@ -1,6 +1,7 @@
 import { earnedBadges, type MemberStats, type MemberType } from "@t1067/shared";
 import { prisma } from "../db";
 import { getDataSource } from "../kas";
+import { upsertKasMember } from "../services/memberService";
 
 export interface NewAchievement {
   memberId: number;
@@ -22,24 +23,10 @@ export async function runSync(): Promise<SyncSummary> {
 
   try {
     const members = await source.fetchMembers();
-    const now = new Date();
 
+    // adopt-aware upsert → a self-registered (tg_) member is reconciled in place, never duplicated
     for (const m of members) {
-      const common = {
-        fullName: m.fullName,
-        phone: m.phone ?? null,
-        carNumber: m.carNumber ?? null,
-        points: m.points,
-        trips: m.trips,
-        rating: m.rating,
-        active: true,
-        lastSyncAt: now,
-      };
-      await prisma.member.upsert({
-        where: { type_kasId: { type: m.type, kasId: m.kasId } },
-        create: { type: m.type, kasId: m.kasId, ...common },
-        update: common,
-      });
+      await upsertKasMember(m);
     }
 
     const newAchievements = await evaluateAchievements();

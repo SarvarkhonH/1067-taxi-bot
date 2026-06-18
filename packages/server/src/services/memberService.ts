@@ -152,6 +152,59 @@ export interface LinkResult {
   fullName?: string;
 }
 
+/**
+ * Upsert a kas1067 member, ADOPTING a self-registered (tg_) member with the same phone so a
+ * person who joined the app BEFORE kas knew them is never duplicated once they appear in kas.
+ * The member id is preserved (tangas + all app data intact) — only kasId is swapped
+ * tg_<telegramId> → the real kas id. Used by every kas-upsert path (runSync + linkByPhone).
+ */
+export async function upsertKasMember(km: {
+  type: MemberType;
+  kasId: string;
+  fullName: string;
+  phone?: string | null;
+  carNumber?: string | null;
+  points: number;
+  trips: number;
+  rating: number;
+}): Promise<{ id: number; type: MemberType; fullName: string }> {
+  const data = {
+    fullName: km.fullName,
+    phone: km.phone ?? null,
+    carNumber: km.carNumber ?? null,
+    points: km.points,
+    trips: km.trips,
+    rating: km.rating,
+    active: true,
+    lastSyncAt: new Date(),
+  };
+  // 1) we already track this real kas record → update it
+  const byKas = await prisma.member.findUnique({ where: { type_kasId: { type: km.type, kasId: km.kasId } } });
+  if (byKas) {
+    const m = await prisma.member.update({ where: { id: byKas.id }, data });
+    return { id: m.id, type: m.type as MemberType, fullName: m.fullName };
+  }
+  // 2) ADOPT a self-registered member with the same phone+type (no duplicate; id preserved)
+  if (km.phone) {
+    const want = normPhone(km.phone);
+    const selfRegs = await prisma.member.findMany({ where: { type: km.type, kasId: { startsWith: "tg_" }, phone: { not: null } } });
+    const tg = selfRegs.find((m) => m.phone && normPhone(m.phone) === want);
+    if (tg) {
+      try {
+        const m = await prisma.member.update({ where: { id: tg.id }, data: { kasId: km.kasId, ...data } });
+        return { id: m.id, type: m.type as MemberType, fullName: m.fullName };
+      } catch {
+        // a concurrent path grabbed the real kasId first — read it back
+        const m = await prisma.member.findUnique({ where: { type_kasId: { type: km.type, kasId: km.kasId } } });
+        if (m) return { id: m.id, type: m.type as MemberType, fullName: m.fullName };
+      }
+    }
+  }
+  // 3) brand-new kas member
+  const m = await prisma.member.create({ data: { type: km.type, kasId: km.kasId, ...data } });
+  return { id: m.id, type: m.type as MemberType, fullName: m.fullName };
+}
+
 export async function linkByPhone(
   telegramId: string,
   rawPhone: string,
@@ -159,26 +212,11 @@ export async function linkByPhone(
 ): Promise<LinkResult> {
   const norm = normPhone(rawPhone);
 
-  // On-demand: pull this phone's record(s) from kas1067 (light) and upsert them.
+  // On-demand: pull this phone's record(s) from kas1067 (light) and upsert them (adopt-aware).
   let found: { id: number; type: MemberType; fullName: string }[] = [];
   try {
     for (const km of await getDataSource().fetchByPhone(rawPhone)) {
-      const data = {
-        fullName: km.fullName,
-        phone: km.phone ?? null,
-        carNumber: km.carNumber ?? null,
-        points: km.points,
-        trips: km.trips,
-        rating: km.rating,
-        active: true,
-        lastSyncAt: new Date(),
-      };
-      const m = await prisma.member.upsert({
-        where: { type_kasId: { type: km.type, kasId: km.kasId } },
-        create: { type: km.type, kasId: km.kasId, ...data },
-        update: data,
-      });
-      found.push({ id: m.id, type: m.type as MemberType, fullName: m.fullName });
+      found.push(await upsertKasMember(km));
     }
   } catch (e) {
     console.error("[link] kas1067 lookup failed:", e instanceof Error ? e.message : e);
@@ -203,8 +241,28 @@ export async function linkByPhone(
   };
 
   if (!match) {
-    await prisma.telegramUser.upsert({ where: { id: telegramId }, create: { id: telegramId, ...base }, update: base });
-    return { status: "not_found" };
+    // A1 SELF-REGISTER: this phone isn't in kas1067 yet. Instead of locking a brand-new
+    // person out, create a local client member so they can use the app + order their FIRST
+    // taxi. kasId is synthetic (tg_<telegramId>); once they appear in kas, upsertKasMember
+    // ADOPTS this same member (no duplicate, tangas preserved). Money stays safe — withdraw
+    // still needs real rides (no_ride gate) and writes to kas BY PHONE, so the synthetic
+    // kasId changes nothing there.
+    const selfKasId = `tg_${telegramId}`;
+    const selfName = [profile.firstName, profile.lastName].filter(Boolean).join(" ") || (profile.username ? `@${profile.username}` : "Mijoz");
+    const created =
+      (await prisma.member
+        .create({ data: { type: "client", kasId: selfKasId, fullName: selfName, phone: rawPhone, points: 0, trips: 0, rating: 0, active: true } })
+        .catch(() => null)) ?? (await prisma.member.findUnique({ where: { type_kasId: { type: "client", kasId: selfKasId } } }));
+    if (!created) {
+      await prisma.telegramUser.upsert({ where: { id: telegramId }, create: { id: telegramId, ...base }, update: base });
+      return { status: "not_found" };
+    }
+    await prisma.telegramUser.upsert({
+      where: { id: telegramId },
+      create: { id: telegramId, ...base, memberId: created.id, linkedAt: new Date() },
+      update: { ...base, memberId: created.id, linkedAt: new Date() },
+    });
+    return { status: "linked", memberId: created.id, type: "client", fullName: created.fullName };
   }
 
   const existing = await prisma.telegramUser.findUnique({ where: { memberId: match.id } });
