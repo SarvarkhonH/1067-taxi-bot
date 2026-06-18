@@ -61,6 +61,34 @@ export const DROP_BUCKETS: Record<string, readonly [number, number]> = {
 export const INSPECT_COSTS = { VISUAL_OWN: 0, VISUAL_MARKET: 30, TOOL: 120, EXPERT: 400 } as const;
 export const PART_SHOP_PRICES: Record<string, number> = { SALVAGE: 40, STD: 80, OEM: 200, SPORT: 500 };
 
+// 🔧 Repair-depth: a car has 5 ZONES; you fix each with a chosen PART tier. Better
+// part = more condition gained + a higher repairQualityBonus (→ higher flip price),
+// but costs more. The flip CAP (computeFlipGrant) already accounts for repairSpent,
+// so spending more on parts can never extract a disproportionate grant (audit M4).
+export const REPAIR_ZONES = ["engine", "body", "transmission", "electric", "interior"] as const;
+export type RepairZone = (typeof REPAIR_ZONES)[number];
+export const ZONE_NAMES: Record<string, string> = { engine: "Dvigatel", body: "Kuzov", transmission: "Transmissiya", electric: "Elektr", interior: "Salon" };
+export const PART_TIERS: { code: string; name: string; cost: number; gain: number; quality: number }[] = [
+  { code: "SALVAGE", name: "Salvage", cost: 40, gain: 16, quality: 0.99 },
+  { code: "STD", name: "Standart", cost: 80, gain: 26, quality: 1.02 },
+  { code: "OEM", name: "OEM", cost: 200, gain: 42, quality: 1.06 },
+  { code: "SPORT", name: "Sport", cost: 500, gain: 62, quality: 1.1 },
+];
+export function partTier(code: string): { code: string; name: string; cost: number; gain: number; quality: number } | undefined {
+  return PART_TIERS.find((p) => p.code === code);
+}
+/** Overall car condition from the 5 zone conditions (0-100). MINT needs a high
+ *  average AND no neglected zone — so you must fix the worst zones, not just one. */
+export function conditionFromZones(zones: Record<string, number>): CarCondition {
+  const vals = REPAIR_ZONES.map((z) => Math.max(0, Math.min(100, zones[z] ?? 0)));
+  const avg = vals.reduce((a, b) => a + b, 0) / vals.length;
+  const min = Math.min(...vals);
+  if (avg >= 90 && min >= 80) return "MINT";
+  if (avg >= 70 && min >= 55) return "GOOD";
+  if (avg >= 45 && min >= 30) return "FAIR";
+  return "WORN";
+}
+
 // cumulative branch XP per specialization tier (1..5)
 export const MECH_XP_TIERS = [0, 25, 75, 150, 300] as const;
 /** Specialization tier (1..5) from accumulated branch XP. */
@@ -264,6 +292,7 @@ export interface GarajCarView {
   level: number;
   diagnosed: boolean;
   diagnosis: Record<string, number> | null; // revealed condition zones (0-100)
+  zones: Record<string, number> | null; // CURRENT per-zone condition (post-repair), 0-100
   acquireCost: number;
   repairSpent: number;
 }

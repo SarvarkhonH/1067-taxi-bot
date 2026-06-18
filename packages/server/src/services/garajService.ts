@@ -21,6 +21,10 @@ import {
   TIMING_BONUS,
   REPAIR_QUALITY_MIN,
   REPAIR_QUALITY_MAX,
+  REPAIR_ZONES,
+  ZONE_NAMES,
+  partTier,
+  conditionFromZones,
   KOZACHA_SHOP,
   computeFlipGrant,
   garajCarMeta,
@@ -169,6 +173,7 @@ export async function getGarajState(memberId: number): Promise<GarajStateRespons
       level: c.level,
       diagnosed: !!c.diagnosedAt,
       diagnosis: c.diagnosisResult ? (JSON.parse(c.diagnosisResult) as Record<string, number>) : null,
+      zones: c.repairZones ? (JSON.parse(c.repairZones) as Record<string, number>) : null,
       acquireCost: c.acquireCost,
       repairSpent: c.repairSpent,
     };
@@ -270,7 +275,7 @@ export async function acquireCar(memberId: number, carCode: string): Promise<Gar
       const car = await tx.garajCar.upsert({
         where: { memberId_carCode: { memberId, carCode } },
         create: { memberId, carCode, source: "shop", condition: "worn", acquireCost: buyPrice },
-        update: { source: "shop", condition: "worn", acquireCost: buyPrice, repairSpent: 0, level: 1, style: null, styleLockedAt: null, diagnosisSeed: null, diagnosisResult: null, diagnosedAt: null, repairQualityBonus: 1.0, ridesSinceService: 0, soldAt: null, onboardCar: false },
+        update: { source: "shop", condition: "worn", acquireCost: buyPrice, repairSpent: 0, level: 1, style: null, styleLockedAt: null, diagnosisSeed: null, diagnosisResult: null, repairZones: null, diagnosedAt: null, repairQualityBonus: 1.0, ridesSinceService: 0, soldAt: null, onboardCar: false },
       });
       await tx.memberGarajMeta.upsert({
         where: { memberId },
@@ -281,6 +286,16 @@ export async function acquireCar(memberId: number, carCode: string): Promise<Gar
     });
     return result.ok ? { ok: true, carId: result.carId, coins: await getCoins(memberId) } : { ok: false, reason: result.reason, coins: await getCoins(memberId) };
   });
+}
+
+// Hidden per-zone STARTING condition (20..99) derived from the server-only seed.
+// Diagnosis reveals these; repairZone improves them. One source of truth for both.
+function zonesFromSeed(seed: number): Record<string, number> {
+  const all: Record<string, number> = {};
+  REPAIR_ZONES.forEach((z, i) => {
+    all[z] = 20 + ((seed >>> (i * 5)) % 80); // 20..99 (lower = more damaged)
+  });
+  return all;
 }
 
 // ── diagnose (reveal hidden condition zones; cost by tier) ────────────────────
@@ -294,14 +309,11 @@ export async function diagnoseCar(memberId: number, garajCarId: number, tier: "V
     if (!spend.ok && spend.skipped !== "duplicate") return { ok: false, reason: "insufficient", coins: spend.balance };
   }
   const seed = car.diagnosisSeed ?? seedFor(`diag:${memberId}:${car.carCode}:${car.id}`);
-  const zones = ["engine", "body", "transmission", "electric", "interior"];
-  const all: Record<string, number> = {};
-  zones.forEach((z, i) => {
-    all[z] = 20 + ((seed >>> (i * 5)) % 80); // 20..99
-  });
+  // if zones already repaired, reveal the CURRENT condition (not the original damage)
+  const live: Record<string, number> = car.repairZones ? (JSON.parse(car.repairZones) as Record<string, number>) : zonesFromSeed(seed);
   const prior: Record<string, number> = car.diagnosisResult ? (JSON.parse(car.diagnosisResult) as Record<string, number>) : {};
-  const reveal = tier === "EXPERT" ? zones : tier === "TOOL" ? ["engine", "transmission", "electric"] : ["body", "interior"];
-  for (const z of reveal) prior[z] = all[z]!;
+  const reveal = tier === "EXPERT" ? [...REPAIR_ZONES] : tier === "TOOL" ? ["engine", "transmission", "electric"] : ["body", "interior"];
+  for (const z of reveal) prior[z] = live[z]!;
   await prisma.garajCar.update({ where: { id: garajCarId }, data: { diagnosisSeed: seed, diagnosisResult: JSON.stringify(prior), diagnosedAt: new Date() } });
   await bumpSkill(memberId, { diag: 1 });
   return { ok: true, coins: await getCoins(memberId) };
@@ -336,6 +348,49 @@ export async function completeRepairTask(memberId: number, garajCarId: number, t
   return { ok: true, coins: spend.balance };
 }
 
+// ── repairZone — the DEEP repair: fix one of the 5 zones with a chosen PART tier.
+// Better part = more condition gained (×timing) + higher repairQualityBonus, costs
+// more. Overall condition derives from all 5 zones (conditionFromZones), so you must
+// fix the worst ones to reach MINT. Money-safe: inline spend within withMemberLock
+// (no re-locking helper → no deadlock, like flipCar/acquireCar); the zone-state guard
+// prevents double-tap; the flip CAP already accounts for repairSpent so heavier spend
+// never extracts a disproportionate grant (audit M4). repairZones resets on re-buy.
+export async function repairZone(memberId: number, garajCarId: number, zone: string, partTierCode: string, style?: RestoreStyle, quality?: RepairQuality): Promise<GarajActionResult & { zone?: string; zoneVal?: number; condition?: string }> {
+  if (!(await garajEnabledFor(memberId))) return { ok: false, reason: "off" };
+  if (!(REPAIR_ZONES as readonly string[]).includes(zone)) return { ok: false, reason: "unknown_zone" };
+  const tier = partTier(partTierCode) ?? partTier("STD")!;
+  return withMemberLock(memberId, async () => {
+    const car = await prisma.garajCar.findFirst({ where: { id: garajCarId, memberId, soldAt: null } });
+    if (!car) return { ok: false, reason: "not_found" };
+    if (car.onboardCar) return { ok: false, reason: "onboard_car" };
+    const seed = car.diagnosisSeed ?? seedFor(`diag:${memberId}:${car.carCode}:${car.id}`);
+    const zones: Record<string, number> = car.repairZones ? (JSON.parse(car.repairZones) as Record<string, number>) : zonesFromSeed(seed);
+    const cur = Math.max(0, Math.min(100, zones[zone] ?? 0));
+    if (cur >= 96) return { ok: false, reason: "zone_done", coins: await getCoins(memberId) }; // already pristine
+    const lockedStyle = car.style ?? style ?? "QUICK_FLIP";
+    const timing = quality ? (TIMING_BONUS[quality] ?? 1.0) : 1.0;
+    const newZoneVal = Math.min(100, Math.round(cur + tier.gain * timing)); // timing → condition gained
+    zones[zone] = newZoneVal;
+    const newCond = conditionFromZones(zones).toLowerCase();
+    const newRQB = Math.max(REPAIR_QUALITY_MIN, Math.min(REPAIR_QUALITY_MAX, car.repairQualityBonus * tier.quality)); // part tier → flip-quality (clamped 1.25)
+    const result = await prisma.$transaction(async (tx) => {
+      const m = await tx.member.findUnique({ where: { id: memberId }, select: { coins: true } });
+      if ((m?.coins ?? 0) < tier.cost) return { ok: false as const, reason: "insufficient" as const };
+      await tx.coinTxn.create({ data: { memberId, amount: -tier.cost, kind: "garaj_repair", reason: `Ta'mir ${ZONE_NAMES[zone] ?? zone} (${tier.name})`, idempotencyKey: `repairzone:${memberId}:${garajCarId}:${zone}:${Date.now()}` } });
+      await tx.member.update({ where: { id: memberId }, data: { coins: { decrement: tier.cost } } });
+      // seed diagnosisSeed too (so a blind repair fixes a deterministic zone set)
+      await tx.garajCar.update({
+        where: { id: garajCarId },
+        data: { diagnosisSeed: seed, repairZones: JSON.stringify(zones), condition: newCond, style: lockedStyle, styleLockedAt: car.styleLockedAt ?? new Date(), repairSpent: { increment: tier.cost }, repairQualityBonus: newRQB },
+      });
+      return { ok: true as const };
+    });
+    if (!result.ok) return { ok: false, reason: result.reason, coins: await getCoins(memberId) };
+    if (newZoneVal >= 80) await bumpSkill(memberId, /engine|transmission|electric/.test(zone) ? { muhandis: 4 } : { kuzovchi: 4 });
+    return { ok: true, zone, zoneVal: newZoneVal, condition: newCond, coins: await getCoins(memberId) };
+  });
+}
+
 // ── flip (sell) — the money moment. B1 saleId + B4 atomic daily cap ───────────
 // Holds the single withMemberLock itself (it inlines its tx — never calls a
 // locking helper, so no re-entrant deadlock).
@@ -366,9 +421,13 @@ export async function flipCar(memberId: number, garajCarId: number, buyerArchety
       acquireCost: car.acquireCost,
       repairSpent: car.repairSpent,
     });
-    // deterministic + unique per car instance (audit B1). NON-numeric tail (`g..c..`)
-    // so the flip key can NEVER collide with the ride-clamp suffix `:memberId:bookingId`.
-    const saleId = `g${memberId}c${garajCarId}`;
+    // unique per SALE (audit B1). The car row is REUSED across buy→sell→re-buy cycles
+    // (acquire upsert), so the key must include a per-car flip generation — else a
+    // re-bought car's flip would collide with the first sale's key and be treated as a
+    // duplicate (no sale). NON-numeric tail (`g..c..g..`) so it can never collide with
+    // the ride-clamp suffix `:memberId:bookingId`.
+    const flipGen = await prisma.garajFlip.count({ where: { memberId, garajCarId } });
+    const saleId = `g${memberId}c${garajCarId}g${flipGen}`;
     const flipKey = `flip:${saleId}`;
     const dup = await prisma.coinTxn.findUnique({ where: { idempotencyKey: flipKey } });
     if (dup) return { ok: true, reason: "already", grant, profit: grant - car.acquireCost - car.repairSpent, coins: await getCoins(memberId) };

@@ -139,6 +139,7 @@ export const api = {
   garajAcquire: (carCode: string) => request<GarajActionResult>("POST", "/api/garaj/acquire", { carCode }, 1),
   garajDiagnose: (garajCarId: number, tier: "VISUAL" | "TOOL" | "EXPERT") => request<GarajActionResult>("POST", "/api/garaj/diagnose", { garajCarId, tier }, 1),
   garajRepair: (garajCarId: number, taskCode: string, style?: string, quality?: string) => request<GarajActionResult>("POST", "/api/garaj/repair", { garajCarId, taskCode, style, quality }, 1),
+  garajRepairZone: (garajCarId: number, zone: string, partTier: string, style?: string, quality?: string) => request<GarajActionResult & { zone?: string; zoneVal?: number; condition?: string }>("POST", "/api/garaj/repair-zone", { garajCarId, zone, partTier, style, quality }, 1),
   garajFlip: (garajCarId: number, buyerArchetype: string) => request<GarajActionResult>("POST", "/api/garaj/flip", { garajCarId, buyerArchetype }, 1),
   garajOnboardFinish: () => request<GarajActionResult>("POST", "/api/garaj/onboard/finish", {}, 1),
   garajKozBuy: (itemCode: string, garajCarId: number) => request<GarajActionResult>("POST", "/api/garaj/kozshop/buy", { itemCode, garajCarId }, 1),

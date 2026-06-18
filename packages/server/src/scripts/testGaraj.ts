@@ -1,13 +1,18 @@
 // 🏆 GARAJ v2 tests: kill-switch, acquire sink, idempotent diagnose/repair,
 // flip grant + double-flip idempotency, flip OUTSIDE the ride clamp, ride-drop
 // zero-emission + idempotency, atomic daily flip cap (B4), ledger invariant.
-// Live Postgres (app DB) — TAG'd throwaway member + full cleanup, NOT a sweep test.
+// Runs on the ISOLATED test DB (TEST_DATABASE_URL). Even though it doesn't drive the
+// sweep itself, it shares GLOBAL game state with the live bot's 90s sweep — mahalla weekly
+// settle, auction settle, the garajx flag — so on the app DB that sweep races the test's
+// members (intermittent null member reads at the ledger invariant). _testDb points Prisma
+// at the separate DB the live bot never touches → hermetic. TAG'd rows + full cleanup.
 // Run: dotenv -e ../../.env -- tsx src/scripts/testGaraj.ts
+import "./_testDb"; // ENG BIRINCHI: izolyatsiyalangan test-DB (jonli sweep poygasini oldini oladi)
 import "../env";
 import { MAKE_BASE, GARAJ_BUY_FACTOR, FLIP_DAILY_CAP, CIPHER_REWARD, OFFLINE_DAILY_CAP, PRESTIGE_REP_HEADSTART, prestigeMultiplier, activeSeasonalEvent } from "@t1067/shared";
 import { prisma } from "../db";
 import { getCoins, grantCoins } from "../services/coinService";
-import { acquireCar, completeRepairTask, diagnoseCar, flipCar, garajAuctionBid, garajAuctionCreate, garajBazaarBuy, garajBazaarList, garajBazaarUnlist, getGarajHistory, getMemberCollection, garajKozachaBuy, grantKozacha, processRideDrop, settleAuctions, spendKozachaIdempotent, updateStreakOnRide, garajCipherGuess, collectOfflineBox, garajPrestige, mahallaCreate, mahallaJoin, mahallaLeave, addMahallaScore, settleMahallaWeek, getMahallaLeague, getMahallaState } from "../services/garajService";
+import { acquireCar, completeRepairTask, repairZone, diagnoseCar, flipCar, garajAuctionBid, garajAuctionCreate, garajBazaarBuy, garajBazaarList, garajBazaarUnlist, getGarajHistory, getMemberCollection, garajKozachaBuy, grantKozacha, processRideDrop, settleAuctions, spendKozachaIdempotent, updateStreakOnRide, garajCipherGuess, collectOfflineBox, garajPrestige, mahallaCreate, mahallaJoin, mahallaLeave, addMahallaScore, settleMahallaWeek, getMahallaLeague, getMahallaState } from "../services/garajService";
 import { __resetFeatureCache, setFeature } from "../services/featureFlags";
 
 const TAG = "garaj-test";
@@ -42,7 +47,11 @@ async function cleanup(): Promise<void> {
     await prisma.memberGarajMeta.deleteMany({ where: { memberId: { in: ids } } });
     for (const id of ids) await prisma.appState.deleteMany({ where: { key: { startsWith: `garaj:flipbudget:${id}:` } } });
     for (const id of ids) await prisma.appState.deleteMany({ where: { key: { startsWith: `cipher:attempts:${id}:` } } });
-    await prisma.member.deleteMany({ where: { id: { in: ids } } }); // cascades CoinTxn
+    // explicit CoinTxn delete: the test DB has NO member→CoinTxn cascade, so relying on
+    // it left ORPHAN idempotency keys (repair:/flip:/acquire:) from crashed runs that
+    // then collided with fresh car ids → silent duplicate-skips. Delete them by member.
+    await prisma.coinTxn.deleteMany({ where: { memberId: { in: ids } } });
+    await prisma.member.deleteMany({ where: { id: { in: ids } } });
   }
   await prisma.appState.deleteMany({ where: { key: `cipher:code:${todayKey()}` } }); // the test's daily cipher code
   await prisma.mahallaWeeklyResult.deleteMany({ where: { weekKey: "2026-W99" } }); // the test's settle weekKey
@@ -105,12 +114,35 @@ async function main(): Promise<void> {
   await completeRepairTask(m.id, carId, "tyre");
   await completeRepairTask(m.id, carId, "body"); // worn → mint over 3 task bumps
 
+  // 5b. repairZone (DEEP repair) + re-buy→re-flip cycle — on a DEDICATED member so
+  // it doesn't consume m's daily flip budget (which later tests assert against).
+  const rzM = await prisma.member.create({ data: { type: "client", kasId: `${TAG}-rz`, fullName: "Zoner", phone: "+998900006009", trips: 5 } });
+  await grantCoins(rzM.id, 50000, "manual", "seed");
+  await acquireCar(rzM.id, "spark");
+  const spark = (await prisma.garajCar.findFirst({ where: { memberId: rzM.id, carCode: "spark", soldAt: null } }))!;
+  const cz0 = await getCoins(rzM.id);
+  const rz = await repairZone(rzM.id, spark.id, "engine", "OEM", "FULL_RESTORE", "GOOD");
+  ok(rz.ok && cz0 - (rz.coins ?? 0) === 200, `repairZone OEM charged 200 (got ${cz0 - (rz.coins ?? 0)})`);
+  const sparkRow = (await prisma.garajCar.findUnique({ where: { id: spark.id } }))!;
+  const sparkZones = JSON.parse(sparkRow.repairZones ?? "{}") as Record<string, number>;
+  ok(typeof sparkZones.engine === "number" && sparkZones.engine > 0, `repairZone improved the engine zone (${sparkZones.engine})`);
+  ok(sparkRow.repairSpent >= 200 && sparkRow.repairQualityBonus > 1.0, `repairZone bumped repairSpent (${sparkRow.repairSpent}) + quality (${sparkRow.repairQualityBonus.toFixed(2)})`);
+  ok((await repairZone(rzM.id, spark.id, "spoiler", "STD")).reason === "unknown_zone", `repairZone rejects an unknown zone`);
+  // the FULL cycle: flip (gen0) → re-buy (resets zones) → flip AGAIN (gen1, no key collision)
+  const f1 = await flipCar(rzM.id, spark.id, "YOUNG_TUNER");
+  ok(f1.ok && (f1.grant ?? 0) > 0, `repaired car flips (gen0, +${f1.grant})`);
+  await acquireCar(rzM.id, "spark");
+  const spark2 = (await prisma.garajCar.findUnique({ where: { id: spark.id } }))!;
+  ok(spark2.repairZones === null && spark2.soldAt === null, `re-bought car resets zones (fresh project)`);
+  const f2 = await flipCar(rzM.id, spark.id, "YOUNG_TUNER");
+  ok(f2.ok && f2.reason !== "already", `re-bought car FLIPS AGAIN (flipGen fix — no key collision)`);
+
   // 6+7. flip → grant; retry → no double grant
   const c7 = await getCoins(m.id);
   const f = await flipCar(m.id, carId, "FAMILY_DRIVER");
   const c8 = await getCoins(m.id);
   ok(f.ok && (f.grant ?? 0) > 0 && c8 - c7 === f.grant, `flip grant +${f.grant} credited once`);
-  const flipKey = `flip:g${m.id}c${carId}`;
+  const flipKey = `flip:g${m.id}c${carId}g0`; // first flip of this car instance (generation 0)
   ok((await prisma.coinTxn.count({ where: { idempotencyKey: flipKey } })) === 1, `exactly 1 flip CoinTxn`);
   await flipCar(m.id, carId, "FAMILY_DRIVER");
   ok((await getCoins(m.id)) === c8, `flip 2× → no double grant (idempotent)`);
@@ -287,7 +319,8 @@ async function main(): Promise<void> {
   ok(!locked.ok && locked.reason === "locked", `cipher: locked after 5 wrong attempts (got ${locked.reason})`);
 
   // 16. Offline box: bounded payout ≤ cap, daily idempotent
-  await acquireCar(bM.id, "tiko"); // sumCarLevels = 1
+  const bAcq = await acquireCar(bM.id, "tiko"); // sumCarLevels = 1
+  ok(bAcq.ok, `bM acquired tiko (${bAcq.reason ?? "ok"}, coins ${bAcq.coins})`);
   await prisma.memberGarajMeta.update({ where: { memberId: bM.id }, data: { lastBoxCollectedAt: new Date(Date.now() - 48 * 3600 * 1000) } });
   const box = await collectOfflineBox(bM.id);
   ok(box.ok && (box.grant ?? 0) > 0 && (box.grant ?? 0) <= OFFLINE_DAILY_CAP, `offline box pays bounded (+${box.grant}, ≤${OFFLINE_DAILY_CAP})`);

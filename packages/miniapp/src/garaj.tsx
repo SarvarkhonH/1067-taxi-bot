@@ -3,19 +3,12 @@
 // Pure view layer — all money logic + idempotency live on the server.
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { GarajStateResponse, RepairQuality } from "@t1067/shared";
-import { KOZACHA_SHOP, reputationTier, REPUTATION_TIERS } from "@t1067/shared";
+import { KOZACHA_SHOP, reputationTier, REPUTATION_TIERS, REPAIR_ZONES, ZONE_NAMES, PART_TIERS } from "@t1067/shared";
 import { api } from "./api";
 import { haptic, hapticSuccess } from "./telegram";
 import { Button, Card, Chip, CoinCounter, LoadSection, ProgressBar, Sheet } from "./design/components";
 import "./garaj.css";
 
-const TASKS = [
-  { code: "oil_change", label: "Moy almashtirish" },
-  { code: "tyre", label: "G'ildiraklar" },
-  { code: "body", label: "Kuzov" },
-  { code: "interior", label: "Salon" },
-  { code: "engine", label: "Dvigatel" },
-];
 // buyer chips carry their style preference in the label — no hidden rules.
 const BUYERS = [
   { code: "FAMILY_DRIVER", name: "👨‍👩‍👧 Oilaviy · To'liq" },
@@ -30,7 +23,6 @@ const STYLES = [
   { code: "TUNING", name: "Tюнинг", minTier: 2 },
   { code: "PERIOD_CORRECT", name: "Davr asili", minTier: 3 },
 ];
-const ZONE_LABELS: Record<string, string> = { engine: "Dvigatel", body: "Kuzov", transmission: "Transmissiya", electric: "Elektr", interior: "Salon" };
 const COND_LABEL: Record<string, string> = { WORN: "Eski", FAIR: "O'rtacha", GOOD: "Yaxshi", MINT: "A'lo" };
 
 // per-model paint so each car reads as ITS car (not a generic emoji)
@@ -85,6 +77,8 @@ export function GarajShell({ onClose, initial }: { onClose: () => void; initial?
   const [burst, setBurst] = useState<{ amount: number; label: string } | null>(null);
   const [repairing, setRepairing] = useState(false);
   const [selectedStyle, setSelectedStyle] = useState<string>("QUICK_FLIP");
+  const [repairZoneSel, setRepairZoneSel] = useState<string | null>(null); // zone being repaired
+  const [partSel, setPartSel] = useState<string>("STD"); // chosen part tier
   const [bazaar, setBazaar] = useState<{ id: number; carCode: string; name: string; emoji: string; askPrice: number; mine: boolean }[]>([]);
   const [auctions, setAuctions] = useState<{ id: number; carCode: string; name: string; emoji: string; minBid: number; endsAt: string; mine: boolean }[]>([]);
   const [league, setLeague] = useState<{ rank: number; name: string; score: number; memberCount: number }[]>([]);
@@ -130,8 +124,6 @@ export function GarajShell({ onClose, initial }: { onClose: () => void; initial?
   };
 
   const coins = st?.coins ?? 0;
-  const doneCount = car ? Math.floor(car.repairSpent / 80) : 0;
-  const nextTask = TASKS[doneCount] ?? null;
 
   // 🏠 "my garage" hero: the active PROJECT car = the one still needing work (else newest)
   const condRank: Record<string, number> = { WORN: 0, FAIR: 1, GOOD: 2, MINT: 3 };
@@ -420,57 +412,68 @@ export function GarajShell({ onClose, initial }: { onClose: () => void; initial?
               <span className={`gz-cond ${car.condition.toLowerCase()}`}>{COND_LABEL[car.condition] ?? car.condition}</span>
             </div>
 
-            {car.diagnosis ? (
-              Object.entries(car.diagnosis).map(([zone, val]) => (
-                <div key={zone} className="gz-zone">
-                  <span className="gz-zone-label">{ZONE_LABELS[zone] ?? zone}</span>
-                  <ProgressBar value={val} max={100} />
-                  <span className="gz-zone-val">{val}</span>
-                </div>
-              ))
-            ) : (
-              <p className="gz-empty">Ichki holati noma'lum — diagnoz qiling.</p>
-            )}
-
+            {/* diagnose — reveals which zones are bad (so you don't waste a Sport part) */}
             <div className="gz-buyers">
               <Chip onClick={() => diagnose(car.id, "VISUAL")}>👁 Ko'z (bepul)</Chip>
               <Chip onClick={() => diagnose(car.id, "TOOL")}>🔧 Asbob (120)</Chip>
               <Chip onClick={() => diagnose(car.id, "EXPERT")}>🔬 Ekspert (400)</Chip>
             </div>
 
-            <div className="gz-actions">
-              {!car.style ? (
-                <>
-                  <div className="gz-sec-title">Uslubni tanlang (birinchi ta'mirda qulflanadi)</div>
-                  <div className="gz-buyers">
-                    {STYLES.map((s) => {
-                      const locked = (st?.garageTier ?? 1) < s.minTier;
-                      return (
-                        <Chip key={s.code} on={selectedStyle === s.code} onClick={() => { if (!locked) { haptic(); setSelectedStyle(s.code); } }}>
-                          {locked ? `🔒 ${s.name}` : s.name}
-                        </Chip>
-                      );
-                    })}
-                  </div>
-                </>
-              ) : (
-                <div className="fs12 dim">Uslub: {car.style}</div>
-              )}
-              {nextTask ? (
-                repairing ? (
-                  <TimingBar
-                    onResult={(q) => { setRepairing(false); repair(car.id, nextTask.code, q); }}
-                    onCancel={() => setRepairing(false)}
-                  />
-                ) : (
-                  <Button disabled={busy || coins < 80} onClick={() => { haptic(); setRepairing(true); }}>
-                    🔧 {nextTask.label} — 80 tanga
-                  </Button>
-                )
-              ) : (
-                <Button variant="ghost" disabled>✓ To'liq ta'mirlangan</Button>
-              )}
+            {!car.style ? (
+              <>
+                <div className="gz-sec-title">Uslubni tanlang (birinchi ta'mirda qulflanadi)</div>
+                <div className="gz-buyers">
+                  {STYLES.map((s) => {
+                    const locked = (st?.garageTier ?? 1) < s.minTier;
+                    return (
+                      <Chip key={s.code} on={selectedStyle === s.code} onClick={() => { if (!locked) { haptic(); setSelectedStyle(s.code); } }}>
+                        {locked ? `🔒 ${s.name}` : s.name}
+                      </Chip>
+                    );
+                  })}
+                </div>
+              </>
+            ) : (
+              <div className="fs12 dim">Uslub: {car.style}</div>
+            )}
 
+            {/* zones — fix each with a chosen part (Salvage→Sport): better part = +kondisiya + narx */}
+            <div className="gz-sec-title">Zonalar — har birini ta'mirlang</div>
+            {!(car.zones || car.diagnosis) ? (
+              <p className="gz-empty">Ichki holat noma'lum — avval diagnoz qiling (qaysi zona buzuq ko'rinadi).</p>
+            ) : (
+              REPAIR_ZONES.map((zone) => {
+                const known = (car.zones ?? car.diagnosis ?? {})[zone];
+                const sel = repairZoneSel === zone;
+                return (
+                  <div key={zone} className="gz-zonecard">
+                    <div className="gz-zone">
+                      <span className="gz-zone-label">{ZONE_NAMES[zone] ?? zone}</span>
+                      <ProgressBar value={known ?? 0} max={100} />
+                      <span className="gz-zone-val">{known != null ? known : "?"}</span>
+                    </div>
+                    {known != null && known >= 96 ? (
+                      <span className="fs11 dim gz-zone-done">✓ A'lo holatda</span>
+                    ) : sel && repairing ? (
+                      <TimingBar onResult={(q) => { setRepairing(false); setRepairZoneSel(null); repairZoneAct(car.id, zone, partSel, q); }} onCancel={() => { setRepairing(false); setRepairZoneSel(null); }} />
+                    ) : sel ? (
+                      <div className="gz-parts">
+                        {PART_TIERS.map((p) => (
+                          <Chip key={p.code} disabled={busy || coins < p.cost} onClick={() => { haptic(); setPartSel(p.code); setRepairing(true); }}>
+                            {p.name} · 🪙{p.cost}
+                          </Chip>
+                        ))}
+                        <button className="gz-timing-cancel" onClick={() => setRepairZoneSel(null)}>Bekor</button>
+                      </div>
+                    ) : (
+                      <Button variant="ghost" sm disabled={busy} onClick={() => { haptic(); setRepairZoneSel(zone); }}>🔧 Detal qo'yish</Button>
+                    )}
+                  </div>
+                );
+              })
+            )}
+
+            <div className="gz-actions">
               <div className="gz-sec-title">Sotish — xaridorni tanlang</div>
               <div className="gz-buyers">
                 {BUYERS.map((b) => (
@@ -577,8 +580,8 @@ export function GarajShell({ onClose, initial }: { onClose: () => void; initial?
   function diagnose(id: number, tier: "VISUAL" | "TOOL" | "EXPERT"): void {
     void act(() => api.garajDiagnose(id, tier));
   }
-  function repair(id: number, taskCode: string, quality?: RepairQuality): void {
-    void act(() => api.garajRepair(id, taskCode, car?.style ?? selectedStyle, quality));
+  function repairZoneAct(id: number, zone: string, partTierCode: string, quality?: RepairQuality): void {
+    void act(() => api.garajRepairZone(id, zone, partTierCode, car?.style ?? selectedStyle, quality));
   }
   function kozBuy(itemCode: string, id: number): void {
     void act(() => api.garajKozBuy(itemCode, id));
@@ -648,8 +651,8 @@ export const GARAJ_DEMO: GarajStateResponse = {
   reputationScore: 1340,
   onboardStep: 5,
   cars: [
-    { id: 1, carCode: "nexia", name: "Nexia", emoji: "🚙", basePrice: 2600, source: "ride_drop", condition: "GOOD", style: "FULL_RESTORE", level: 2, diagnosed: true, diagnosis: { engine: 72, body: 58, transmission: 64, electric: 80, interior: 45 }, acquireCost: 1690, repairSpent: 240 },
-    { id: 2, carCode: "damas", name: "Damas", emoji: "🚐", basePrice: 900, source: "shop", condition: "WORN", style: null, level: 1, diagnosed: false, diagnosis: null, acquireCost: 585, repairSpent: 0 },
+    { id: 1, carCode: "nexia", name: "Nexia", emoji: "🚙", basePrice: 2600, source: "ride_drop", condition: "GOOD", style: "FULL_RESTORE", level: 2, diagnosed: true, diagnosis: { engine: 72, body: 58, transmission: 64, electric: 80, interior: 45 }, zones: { engine: 72, body: 58, transmission: 64, electric: 80, interior: 45 }, acquireCost: 1690, repairSpent: 240 },
+    { id: 2, carCode: "damas", name: "Damas", emoji: "🚐", basePrice: 900, source: "shop", condition: "WORN", style: null, level: 1, diagnosed: false, diagnosis: null, zones: null, acquireCost: 585, repairSpent: 0 },
   ],
   shop: [
     { carCode: "tiko", name: "Tiko", emoji: "🚙", buyPrice: 455, owned: false },

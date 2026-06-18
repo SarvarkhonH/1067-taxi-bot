@@ -49,9 +49,9 @@ export function Card({ children, className = "", sheen }: { children: ReactNode;
   return <section className={`d-card ${sheen ? "d-sheen" : ""} ${className}`.trim()}>{children}</section>;
 }
 
-export function Chip({ children, on, onClick, className = "" }: { children: ReactNode; on?: boolean; onClick?: () => void; className?: string }) {
+export function Chip({ children, on, onClick, className = "", disabled }: { children: ReactNode; on?: boolean; onClick?: () => void; className?: string; disabled?: boolean }) {
   return (
-    <button className={`d-chip ${on ? "on" : ""} ${className}`.trim()} onClick={() => { haptic(); onClick?.(); }}>
+    <button className={`d-chip ${on ? "on" : ""} ${className}`.trim()} disabled={disabled} onClick={() => { haptic(); onClick?.(); }}>
       {children}
     </button>
   );

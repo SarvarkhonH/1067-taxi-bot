@@ -143,6 +143,12 @@ button.gz-car:hover { border-color: rgba(255, 179, 0, 0.4); }
 .gz-zone-label { width: 86px; font-size: 12px; color: var(--text-dim); }
 .gz-zone .d-progress { flex: 1; }
 .gz-zone-val { width: 30px; text-align: right; font-size: 12px; font-weight: 700; }
+/* repair-depth: per-zone card + part-tier picker */
+.gz-zonecard { padding: 8px 10px; border-radius: var(--r-card); background: var(--surface); border: 1px solid var(--line); margin-bottom: 8px; }
+.gz-zonecard .gz-zone { margin: 0 0 6px; }
+.gz-zonecard .d-btn { width: 100%; }
+.gz-zone-done { color: var(--win); }
+.gz-parts { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
 .gz-actions { display: flex; flex-direction: column; gap: 8px; margin-top: 14px; }
 .gz-buyers { display: flex; gap: 8px; flex-wrap: wrap; margin: 4px 0 2px; }
 .gz-empty { color: var(--text-dim); font-size: 13px; text-align: center; padding: 14px; }

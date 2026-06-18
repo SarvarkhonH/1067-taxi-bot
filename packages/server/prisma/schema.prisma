@@ -571,7 +571,8 @@ model GarajCar {
   source             String    @default("shop") // shop | ride_drop | onboard
   condition          String    @default("worn") // worn | fair | good | mint
   diagnosisSeed      Int?
-  diagnosisResult    String? // JSON zone breakdown
+  diagnosisResult    String? // JSON zone breakdown (revealed by diagnosis)
+  repairZones        String? // JSON CURRENT per-zone condition 0-100 (driven by repairZone)
   diagnosedAt        DateTime?
   style              String? // QUICK_FLIP | FULL_RESTORE | TUNING | PERIOD_CORRECT
   styleLockedAt      DateTime?
