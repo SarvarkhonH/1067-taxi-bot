@@ -47,13 +47,26 @@ import { getFareConfig } from "../services/clientInfoService";
 
 const canWebApp = env.TELEGRAM_WEBAPP_URL.startsWith("https://");
 
-// Telegram caches the Mini App aggressively BY URL — the owner kept seeing stale builds.
-// Versioning the URL (?v=<build>) makes Telegram treat each release as a brand-new app →
-// guaranteed fresh load. BUMP this on every frontend deploy (matches App.tsx build marker).
-const WEBAPP_BUILD = "v14";
+// Telegram caches the Mini App aggressively BY URL — the owner kept seeing stale builds
+// (worst: the persistent Menu Button, whose URL had NO version → permanently cached → the
+// old UZ-blocked map → blank). We version the URL (?v=<token>) so Telegram treats each
+// release as a brand-new app → guaranteed fresh load. The token AUTO-tracks the live
+// frontend: we probe index.html's hashed bundle name at startup, so no manual bump is
+// needed on a frontend deploy (the stale "v14" that caused this never auto-updated).
+const WEBAPP_BUILD = "v16"; // static fallback if the live-hash probe fails
+let webAppVer = WEBAPP_BUILD;
+async function refreshWebAppVer(): Promise<void> {
+  try {
+    const res = await fetch(env.TELEGRAM_WEBAPP_URL);
+    const m = (await res.text()).match(/index-([A-Za-z0-9_]+)\.js/);
+    if (m) webAppVer = m[1]!;
+  } catch (e) {
+    console.error("[bot] webapp version probe failed → fallback", WEBAPP_BUILD, e instanceof Error ? e.message : e);
+  }
+}
 function webAppUrl(go?: string): string {
   const u = env.TELEGRAM_WEBAPP_URL;
-  return u + (u.includes("?") ? "&" : "?") + "v=" + WEBAPP_BUILD + (go ? "&go=" + go : "");
+  return u + (u.includes("?") ? "&" : "?") + "v=" + webAppVer + (go ? "&go=" + go : "");
 }
 
 // Clean 2-row menu: booking first, everything else folded into Bonuslar/Ilova.
@@ -692,4 +705,16 @@ export async function setupBotCommands(bot: Bot): Promise<void> {
     { command: "top", description: "Reyting" },
     { command: "help", description: "ℹ️ Yordam" },
   ]);
+
+  // Point the persistent Menu Button at the VERSIONED app URL. The old menu button had no
+  // ?v= → Telegram cached it forever → users opened the stale (UZ-blocked-map) build. This
+  // syncs to EVERY user automatically (no /start needed); re-runs each boot with the live hash.
+  await refreshWebAppVer();
+  if (canWebApp) {
+    try {
+      await bot.api.setChatMenuButton({ menu_button: { type: "web_app", text: "Ilova", web_app: { url: webAppUrl() } } });
+    } catch (e) {
+      console.error("[bot] setChatMenuButton failed", e instanceof Error ? e.message : e);
+    }
+  }
 }
