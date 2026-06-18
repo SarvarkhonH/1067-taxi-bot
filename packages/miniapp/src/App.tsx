@@ -20,6 +20,8 @@ const TolqinGame = lazy(() => import("./tolqin").then((m) => ({ default: m.Tolqi
 // 🏆 GARAJ v2: the new full-screen restoration game — lazy; opens when feature "garajx" ON
 const GarajShell = lazy(() => import("./garaj").then((m) => ({ default: m.GarajShell })));
 const GarajDemo = lazy(() => import("./garaj").then((m) => ({ default: m.GarajDemo })));
+const GarajMarketView = lazy(() => import("./garaj").then((m) => ({ default: m.GarajMarketView })));
+const GarajCollectionSheet = lazy(() => import("./garaj").then((m) => ({ default: m.GarajCollectionSheet })));
 import { Icon } from "./icons";
 import { useCountUp } from "./util";
 
@@ -89,6 +91,7 @@ export function App() {
   const [playTolqin, setPlayTolqin] = useState(false);
   const [garajx, setGarajx] = useState(false); // 🏆 GARAJ v2 feature flag
   const [garaj, setGaraj] = useState(false); // GARAJ shell open
+  const [collectionTarget, setCollectionTarget] = useState<{ id: number; name: string } | null>(null); // Reyting → player garage
   const [error, setError] = useState<string | null>(null);
   const [toast, setToast] = useState<{ id: number; msg: string } | null>(null);
   const [booking, setBooking] = useState(() => readGo() === "book");
@@ -217,11 +220,18 @@ export function App() {
                 <MissionsView onReward={flash} />
               </>
             )}
-            {tab === "market" && <MarketView coins={me.coins} onBanner={flash} />}
+            {tab === "market" &&
+              (garajx ? (
+                <Suspense fallback={<div className="view"><Spinner /></div>}>
+                  <GarajMarketView coins={me.coins} onBanner={flash} />
+                </Suspense>
+              ) : (
+                <MarketView coins={me.coins} onBanner={flash} />
+              ))}
             {tab === "reyting" &&
               (board ? (
                 <>
-                  <LeaderboardView board={board} />
+                  <LeaderboardView board={board} onRow={garajx ? (id, name) => { setCollectionTarget({ id, name }); } : undefined} />
                   <MahallaSection />
                   <ReferralView />
                 </>
@@ -251,6 +261,11 @@ export function App() {
       {playTolqin && (
         <Suspense fallback={<BootSplash />}>
           <TolqinGame onClose={() => setPlayTolqin(false)} onReward={flash} />
+        </Suspense>
+      )}
+      {collectionTarget && (
+        <Suspense fallback={null}>
+          <GarajCollectionSheet memberId={collectionTarget.id} name={collectionTarget.name} onClose={() => setCollectionTarget(null)} />
         </Suspense>
       )}
     </div>

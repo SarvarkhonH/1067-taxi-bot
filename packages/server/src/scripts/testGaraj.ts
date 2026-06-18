@@ -7,7 +7,7 @@ import "../env";
 import { MAKE_BASE, GARAJ_BUY_FACTOR, FLIP_DAILY_CAP, CIPHER_REWARD, OFFLINE_DAILY_CAP, PRESTIGE_REP_HEADSTART, prestigeMultiplier, activeSeasonalEvent } from "@t1067/shared";
 import { prisma } from "../db";
 import { getCoins, grantCoins } from "../services/coinService";
-import { acquireCar, completeRepairTask, diagnoseCar, flipCar, garajAuctionBid, garajAuctionCreate, garajBazaarBuy, garajBazaarList, garajBazaarUnlist, getGarajHistory, garajKozachaBuy, grantKozacha, processRideDrop, settleAuctions, spendKozachaIdempotent, updateStreakOnRide, garajCipherGuess, collectOfflineBox, garajPrestige, mahallaCreate, mahallaJoin, mahallaLeave, addMahallaScore, settleMahallaWeek, getMahallaLeague, getMahallaState } from "../services/garajService";
+import { acquireCar, completeRepairTask, diagnoseCar, flipCar, garajAuctionBid, garajAuctionCreate, garajBazaarBuy, garajBazaarList, garajBazaarUnlist, getGarajHistory, getMemberCollection, garajKozachaBuy, grantKozacha, processRideDrop, settleAuctions, spendKozachaIdempotent, updateStreakOnRide, garajCipherGuess, collectOfflineBox, garajPrestige, mahallaCreate, mahallaJoin, mahallaLeave, addMahallaScore, settleMahallaWeek, getMahallaLeague, getMahallaState } from "../services/garajService";
 import { __resetFeatureCache, setFeature } from "../services/featureFlags";
 
 const TAG = "garaj-test";
@@ -213,6 +213,11 @@ async function main(): Promise<void> {
   ok(unl.ok && (await prisma.garajBazaarListing.findUnique({ where: { id: myList.id } }))?.status === "cancelled", `bazaar unlist cancels own open listing`);
   ok((await prisma.garajCar.findUnique({ where: { id: matiz.id } }))?.memberId === m.id, `unlisted car stays owned by seller`);
   ok(!(await garajBazaarUnlist(m2.id, myList.id)).ok, `cannot unlist someone else's listing`);
+
+  // 11i. public collection (Reyting → garage) — viewer sees target's cars + rep + flips
+  const coll = await getMemberCollection(m2.id, m.id);
+  ok(!!coll && coll.memberId === m.id && coll.reputationScore > 0, `collection: rep visible (${coll?.reputationScore})`);
+  ok(!!coll && coll.flips >= 1 && coll.cars.some((c) => c.name === "Matiz"), `collection: flips counted + owned cars listed`);
 
   // ═══ W5 social + meta ══════════════════════════════════════════════════════
   const sM = await prisma.member.create({ data: { type: "client", kasId: `${TAG}-streak`, fullName: "Streaker", phone: "+998900006004", trips: 5 } });

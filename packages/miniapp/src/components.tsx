@@ -154,7 +154,7 @@ export function MissionsView({ onReward }: { onReward: (msg: string) => void }) 
 }
 
 // ─── leaderboard (weekly league + all-time) ───────────────────
-function WeeklyBoard() {
+function WeeklyBoard({ onRow }: { onRow?: (memberId: number, name: string) => void }) {
   const [w, setW] = useState<WeeklyBoardResponse | null>(null);
   const [err, setErr] = useState(false);
   const load = () => {
@@ -183,7 +183,7 @@ function WeeklyBoard() {
       {w.entries.length === 0 && <div className="weekly-empty muted">Hafta endi boshlandi — birinchi bo'ling! 🚀</div>}
       <div className="board">
         {w.entries.map((e) => (
-          <div key={e.memberId} className={"row glass" + (e.isMe ? " me me-row" : "") + (e.rank <= 3 ? " podium" : "")}>
+          <div key={e.memberId} className={"row glass" + (e.isMe ? " me me-row" : "") + (e.rank <= 3 ? " podium" : "") + (onRow ? " pointer" : "")} onClick={onRow ? () => { haptic(); onRow(e.memberId, e.fullName); } : undefined}>
             <div className="row-rank">{rankMedal(e.rank)}</div>
             <div className="row-main">
               <div className="row-name">
@@ -193,7 +193,7 @@ function WeeklyBoard() {
               </div>
               <div className="row-bar brand-bar"><span ref={(el) => el?.style.setProperty("width", `${(e.score / max) * 100}%`)} /></div>
             </div>
-            <div className="row-val">🪙 {e.score.toLocaleString("ru-RU")}</div>
+            <div className="row-val">🪙 {e.score.toLocaleString("ru-RU")}{onRow && <span className="row-chev">›</span>}</div>
           </div>
         ))}
       </div>
@@ -208,13 +208,13 @@ function WeeklyBoard() {
   );
 }
 
-function AllTimeBoard({ board, max }: { board: LeaderboardResponse; max: number }) {
+function AllTimeBoard({ board, max, onRow }: { board: LeaderboardResponse; max: number; onRow?: (memberId: number, name: string) => void }) {
   return (
     <>
       <div className="section-title">🏆 {board.type === "driver" ? "Haydovchilar" : "Mijozlar"} · {board.metricLabel}</div>
       <div className="board">
         {board.entries.map((e) => (
-          <div key={e.memberId} className={"row glass" + (e.isMe ? " me me-row" : "") + (e.rank <= 3 ? " podium" : "")}>
+          <div key={e.memberId} className={"row glass" + (e.isMe ? " me me-row" : "") + (e.rank <= 3 ? " podium" : "") + (onRow ? " pointer" : "")} onClick={onRow ? () => { haptic(); onRow(e.memberId, e.fullName); } : undefined}>
             <div className="row-rank">{rankMedal(e.rank)}</div>
             <div className="row-main">
               <div className="row-name">
@@ -224,7 +224,7 @@ function AllTimeBoard({ board, max }: { board: LeaderboardResponse; max: number 
               </div>
               <div className="row-bar brand-bar"><span ref={(el) => el?.style.setProperty("width", `${(e.points / max) * 100}%`)} /></div>
             </div>
-            <div className="row-val">{formatNumber(e.points)}</div>
+            <div className="row-val">{formatNumber(e.points)}{onRow && <span className="row-chev">›</span>}</div>
           </div>
         ))}
       </div>
@@ -239,7 +239,7 @@ function AllTimeBoard({ board, max }: { board: LeaderboardResponse; max: number 
   );
 }
 
-export function LeaderboardView({ board }: { board: LeaderboardResponse }) {
+export function LeaderboardView({ board, onRow }: { board: LeaderboardResponse; onRow?: (memberId: number, name: string) => void }) {
   const [mode, setMode] = useState<"all" | "weekly">("weekly");
   const max = Math.max(1, ...board.entries.map((e) => e.points));
   return (
@@ -252,8 +252,9 @@ export function LeaderboardView({ board }: { board: LeaderboardResponse }) {
           🏆 Umumiy
         </button>
       </div>
-      {mode === "weekly" && <WeeklyBoard />}
-      {mode === "all" && <AllTimeBoard board={board} max={max} />}
+      {onRow && <div className="weekly-meta muted">👤 O'yinchiga bosing — uning garaj kolleksiyasini ko'ring</div>}
+      {mode === "weekly" && <WeeklyBoard onRow={onRow} />}
+      {mode === "all" && <AllTimeBoard board={board} max={max} onRow={onRow} />}
     </div>
   );
 }

@@ -409,6 +409,8 @@ body {
 .row-bar { height: 5px; background: rgba(255, 255, 255, 0.07); border-radius: 999px; margin-top: 7px; overflow: hidden; }
 .row-bar span { display: block; height: 100%; border-radius: 999px; }
 .row-val { font-size: 15px; font-weight: 800; }
+.row.pointer { cursor: pointer; }
+.row-chev { margin-left: 6px; color: var(--gold); font-weight: 800; opacity: 0.7; }
 .row.sticky { position: sticky; bottom: 88px; background: var(--card-solid); }
 
 /* ── referral ── */

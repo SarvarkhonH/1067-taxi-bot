@@ -295,6 +295,7 @@ export interface GarajCipherView {
   solvedToday: boolean;
   attemptsLeft: number;
   reward: number;
+  hasCode: boolean; // admin set today's code? (UI shows pad vs "bugun kod yo'q")
 }
 export interface GarajPrestigeView {
   count: number;

@@ -170,6 +170,7 @@ export function createApiServer(opts: ApiOptions = {}) {
   app.post("/api/garaj/bazaar/buy", requireUser, rateLimit(10), withMember2(async (id, req) => (await import("../services/garajService")).garajBazaarBuy(id, Number(req.body?.listingId))));
   app.post("/api/garaj/bazaar/unlist", requireUser, rateLimit(10), withMember2(async (id, req) => (await import("../services/garajService")).garajBazaarUnlist(id, Number(req.body?.listingId))));
   app.get("/api/garaj/history", requireUser, withMember2(async (id) => (await import("../services/garajService")).getGarajHistory(id)));
+  app.get("/api/garaj/collection", requireUser, withMember2(async (id, req) => (await import("../services/garajService")).getMemberCollection(id, Number(req.query?.memberId))));
   app.get("/api/garaj/auctions", requireUser, withMember2(async (id) => (await import("../services/garajService")).getAuctions(id)));
   app.post("/api/garaj/auction/create", requireUser, rateLimit(10), withMember2(async (id, req) => (await import("../services/garajService")).garajAuctionCreate(id, Number(req.body?.garajCarId), Number(req.body?.minBid))));
   app.post("/api/garaj/auction/bid", requireUser, rateLimit(20), withMember2(async (id, req) => (await import("../services/garajService")).garajAuctionBid(id, Number(req.body?.auctionId), Number(req.body?.amount))));

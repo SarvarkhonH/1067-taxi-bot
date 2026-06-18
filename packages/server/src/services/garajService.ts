@@ -200,6 +200,7 @@ export async function getGarajState(memberId: number): Promise<GarajStateRespons
     solvedToday: !!cipherSolved,
     attemptsLeft: cipherCode ? Math.max(0, CIPHER_MAX_ATTEMPTS - attempts) : 0,
     reward: CIPHER_REWARD,
+    hasCode: !!cipherCode,
   };
   const prestige: GarajPrestigeView = {
     count: prestigeCount,
@@ -568,6 +569,54 @@ export async function garajBazaarUnlist(memberId: number, listingId: number): Pr
   if (!(await garajEnabledFor(memberId))) return { ok: false, reason: "off" };
   const upd = await prisma.garajBazaarListing.updateMany({ where: { id: listingId, sellerId: memberId, status: "open" }, data: { status: "cancelled" } });
   return upd.count > 0 ? { ok: true } : { ok: false, reason: "not_found" };
+}
+
+// 👤 Public collection — what OTHERS see of a player's garage (from the Reyting tab):
+// owned cars, reputation/tier, prestige, flip stats, mahalla. Read-only, no money path.
+export async function getMemberCollection(
+  viewerId: number,
+  targetId: number,
+): Promise<{
+  memberId: number;
+  name: string;
+  reputationScore: number;
+  reputationName: string;
+  garageTier: number;
+  prestige: number;
+  flips: number;
+  bestProfit: number;
+  carsOwned: number;
+  mahalla: string | null;
+  cars: { name: string; emoji: string; condition: string; level: number }[];
+} | null> {
+  if (!(await garajEnabledFor(viewerId))) return null;
+  const [meta, cars, flipAgg, flipCount, mship, member] = await Promise.all([
+    prisma.memberGarajMeta.findUnique({ where: { memberId: targetId } }),
+    prisma.garajCar.findMany({ where: { memberId: targetId, soldAt: null }, orderBy: [{ level: "desc" }, { acquireCost: "desc" }], take: 12 }),
+    prisma.garajFlip.aggregate({ where: { memberId: targetId }, _max: { profitT: true } }),
+    prisma.garajFlip.count({ where: { memberId: targetId } }),
+    prisma.mahallaGroupMember.findUnique({ where: { memberId: targetId } }),
+    prisma.member.findUnique({ where: { id: targetId }, select: { fullName: true } }),
+  ]);
+  let mahallaName: string | null = null;
+  if (mship) mahallaName = (await prisma.mahallaGroup.findUnique({ where: { id: mship.groupId }, select: { name: true } }))?.name ?? null;
+  const rep = meta?.reputationScore ?? 0;
+  return {
+    memberId: targetId,
+    name: member?.fullName ?? "Usta",
+    reputationScore: rep,
+    reputationName: reputationTier(rep),
+    garageTier: garageTierFromRep(rep),
+    prestige: meta?.prestigeCount ?? 0,
+    flips: flipCount,
+    bestProfit: flipAgg._max.profitT ?? 0,
+    carsOwned: meta?.carsOwnedCount ?? cars.length,
+    mahalla: mahallaName,
+    cars: cars.map((c) => {
+      const cm = garajCarMeta(c.carCode);
+      return { name: cm?.name ?? c.carCode, emoji: cm?.emoji ?? "🚗", condition: c.condition.toUpperCase(), level: c.level };
+    }),
+  };
 }
 
 // 📜 Sotuvlar tarixi — your recent sales (NPC flips + P2P bazaar sells), newest first.
