@@ -695,8 +695,12 @@ export function GarajMarketView({ coins, onBanner }: { coins: number; onBanner?:
       if (r.ok) { hapticSuccess(); if (okMsg) onBanner?.(okMsg); }
       else if (r.reason === "insufficient") onBanner?.("Tanga yetarli emas");
       else if (r.reason === "already_sold") onBanner?.("Allaqachon sotilgan");
+      else if (r.reason === "owned") onBanner?.("Bu mashina sizda bor");
+      else if (r.reason === "self_trade") onBanner?.("O'z e'loningizni sotib ololmaysiz");
+      else if (r.reason === "off") onBanner?.("Hozir mavjud emas");
+      else if (!r.ok) onBanner?.("Xatolik — qayta urining");
       load();
-    } catch { /* keep state */ } finally { setBusy(false); }
+    } catch { onBanner?.("Internet xatosi — qayta urining"); } finally { setBusy(false); }
   };
   const open = bazaar.filter((b) => !b.mine).sort((a, b) => (sortAsc ? a.askPrice - b.askPrice : b.askPrice - a.askPrice));
   const mine = bazaar.filter((b) => b.mine);
