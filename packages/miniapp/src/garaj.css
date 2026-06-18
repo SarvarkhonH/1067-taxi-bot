@@ -229,6 +229,25 @@
   animation: gz-fade var(--dur-page) var(--ease-out);
 }
 
+/* sotuvlar tarixi */
+.gz-hist { display: flex; flex-direction: column; gap: 6px; }
+.gz-hist-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  border-radius: var(--r-card);
+  background: var(--surface);
+  border: 1px solid var(--line);
+}
+.gz-hist-emoji { font-size: 20px; }
+.gz-hist-name { flex: 1; font-size: 13px; font-weight: 600; }
+.gz-hist-kind { color: var(--text-dim); font-weight: 400; font-size: 11px; }
+.gz-hist-amt { display: flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 700; }
+.gz-hist-prof { font-size: 12px; font-weight: 700; }
+.gz-hist-prof.up { color: var(--win); }
+.gz-hist-prof.down { color: var(--danger); }
+
 @media (prefers-reduced-motion: reduce) {
   .gz, .gz-burst, .gz-burst-emoji, .gz-toast { animation: none; }
 }

@@ -7,7 +7,7 @@ import "../env";
 import { MAKE_BASE, GARAJ_BUY_FACTOR, FLIP_DAILY_CAP, CIPHER_REWARD, OFFLINE_DAILY_CAP, PRESTIGE_REP_HEADSTART, prestigeMultiplier, activeSeasonalEvent } from "@t1067/shared";
 import { prisma } from "../db";
 import { getCoins, grantCoins } from "../services/coinService";
-import { acquireCar, completeRepairTask, diagnoseCar, flipCar, garajAuctionBid, garajAuctionCreate, garajBazaarBuy, garajBazaarList, garajKozachaBuy, grantKozacha, processRideDrop, settleAuctions, spendKozachaIdempotent, updateStreakOnRide, garajCipherGuess, collectOfflineBox, garajPrestige, mahallaCreate, mahallaJoin, mahallaLeave, addMahallaScore, settleMahallaWeek, getMahallaLeague, getMahallaState } from "../services/garajService";
+import { acquireCar, completeRepairTask, diagnoseCar, flipCar, garajAuctionBid, garajAuctionCreate, garajBazaarBuy, garajBazaarList, garajBazaarUnlist, getGarajHistory, garajKozachaBuy, grantKozacha, processRideDrop, settleAuctions, spendKozachaIdempotent, updateStreakOnRide, garajCipherGuess, collectOfflineBox, garajPrestige, mahallaCreate, mahallaJoin, mahallaLeave, addMahallaScore, settleMahallaWeek, getMahallaLeague, getMahallaState } from "../services/garajService";
 import { __resetFeatureCache, setFeature } from "../services/featureFlags";
 
 const TAG = "garaj-test";
@@ -198,6 +198,21 @@ async function main(): Promise<void> {
 
   // 11f. W5 reputation accrues from flip + acquire
   ok((await prisma.memberGarajMeta.findUnique({ where: { memberId: m.id } }))!.reputationScore >= 30, `reputation accrues (flip +30 / acquire +5)`);
+
+  // 11g. sales history surfaces past sells (flip + bazaar) — fixes "istoriya yo'q"
+  const hist = await getGarajHistory(m.id);
+  ok(hist.some((h) => h.kind === "flip") && hist.some((h) => h.kind === "bazaar"), `sales history has both flip + bazaar rows (${hist.length})`);
+  ok(hist.length >= 2 && hist[0]!.at >= hist[hist.length - 1]!.at, `history sorted newest-first`);
+
+  // 11h. bazaar unlist — own open listing cancels, car stays owned (fixes stuck listing)
+  await acquireCar(m.id, "matiz");
+  const matiz = (await prisma.garajCar.findFirst({ where: { memberId: m.id, carCode: "matiz", soldAt: null } }))!;
+  await garajBazaarList(m.id, matiz.id, 2000);
+  const myList = (await prisma.garajBazaarListing.findFirst({ where: { sellerId: m.id, garajCarId: matiz.id, status: "open" } }))!;
+  const unl = await garajBazaarUnlist(m.id, myList.id);
+  ok(unl.ok && (await prisma.garajBazaarListing.findUnique({ where: { id: myList.id } }))?.status === "cancelled", `bazaar unlist cancels own open listing`);
+  ok((await prisma.garajCar.findUnique({ where: { id: matiz.id } }))?.memberId === m.id, `unlisted car stays owned by seller`);
+  ok(!(await garajBazaarUnlist(m2.id, myList.id)).ok, `cannot unlist someone else's listing`);
 
   // ═══ W5 social + meta ══════════════════════════════════════════════════════
   const sM = await prisma.member.create({ data: { type: "client", kasId: `${TAG}-streak`, fullName: "Streaker", phone: "+998900006004", trips: 5 } });

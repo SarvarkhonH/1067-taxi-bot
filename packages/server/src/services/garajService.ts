@@ -563,6 +563,35 @@ export async function garajBazaarBuy(buyerId: number, listingId: number): Promis
   return { ok: true };
 }
 
+// Cancel your own OPEN listing (the car returns to your garage — it was never moved).
+export async function garajBazaarUnlist(memberId: number, listingId: number): Promise<GarajActionResult> {
+  if (!(await garajEnabledFor(memberId))) return { ok: false, reason: "off" };
+  const upd = await prisma.garajBazaarListing.updateMany({ where: { id: listingId, sellerId: memberId, status: "open" }, data: { status: "cancelled" } });
+  return upd.count > 0 ? { ok: true } : { ok: false, reason: "not_found" };
+}
+
+// 📜 Sotuvlar tarixi — your recent sales (NPC flips + P2P bazaar sells), newest first.
+export async function getGarajHistory(memberId: number): Promise<{ kind: string; carCode: string; name: string; emoji: string; amount: number; profit: number | null; at: string }[]> {
+  if (!(await garajEnabledFor(memberId))) return [];
+  const [flips, sells] = await Promise.all([
+    prisma.garajFlip.findMany({ where: { memberId }, orderBy: { createdAt: "desc" }, take: 20 }),
+    prisma.coinTxn.findMany({ where: { memberId, kind: "garaj_bazaar_sell" }, orderBy: { createdAt: "desc" }, take: 20 }),
+  ]);
+  const rows = [
+    ...flips.map((f) => {
+      const cm = garajCarMeta(f.carCode);
+      return { kind: "flip", carCode: f.carCode, name: cm?.name ?? f.carCode, emoji: cm?.emoji ?? "🚗", amount: f.soldForT, profit: f.profitT, at: f.createdAt.toISOString() };
+    }),
+    ...sells.map((s) => {
+      const code = s.reason.replace(/^Bozor sotuv:\s*/, "").trim();
+      const cm = garajCarMeta(code);
+      return { kind: "bazaar", carCode: code, name: cm?.name ?? code, emoji: cm?.emoji ?? "🛒", amount: s.amount, profit: null as number | null, at: s.createdAt.toISOString() };
+    }),
+  ];
+  rows.sort((a, b) => (a.at < b.at ? 1 : -1));
+  return rows.slice(0, 25);
+}
+
 // ══ W4 sealed-bid auction ════════════════════════════════════════════════════
 export async function getAuctions(memberId: number): Promise<{ id: number; carCode: string; name: string; emoji: string; minBid: number; endsAt: string; mine: boolean }[]> {
   if (!(await garajEnabledFor(memberId))) return [];

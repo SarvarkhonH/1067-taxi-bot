@@ -44,6 +44,7 @@ export function GarajShell({ onClose, initial }: { onClose: () => void; initial?
   const [bazaar, setBazaar] = useState<{ id: number; carCode: string; name: string; emoji: string; askPrice: number; mine: boolean }[]>([]);
   const [auctions, setAuctions] = useState<{ id: number; carCode: string; name: string; emoji: string; minBid: number; endsAt: string; mine: boolean }[]>([]);
   const [league, setLeague] = useState<{ rank: number; name: string; score: number; memberCount: number }[]>([]);
+  const [history, setHistory] = useState<{ kind: string; carCode: string; name: string; emoji: string; amount: number; profit: number | null; at: string }[]>(initial ? GARAJ_DEMO_HISTORY : []);
   const [cipherInput, setCipherInput] = useState("");
   const [joinCode, setJoinCode] = useState("");
   const [toast, setToast] = useState<string | null>(null);
@@ -54,6 +55,7 @@ export function GarajShell({ onClose, initial }: { onClose: () => void; initial?
     void api.garajBazaar().then(setBazaar).catch(() => undefined);
     void api.garajAuctions().then(setAuctions).catch(() => undefined);
     void api.garajMahallaLeague().then(setLeague).catch(() => undefined);
+    void api.garajHistory().then(setHistory).catch(() => undefined);
     api
       .garajState()
       .then((s) => {
@@ -75,6 +77,7 @@ export function GarajShell({ onClose, initial }: { onClose: () => void; initial?
       const r = await fn();
       if (r.ok && onWin && r.grant) onWin(r.grant);
       setSt(await api.garajState());
+      void api.garajHistory().then(setHistory).catch(() => undefined); // keep "Sotuvlar tarixi" fresh
     } catch {
       /* keep current state; user can retry */
     } finally {
@@ -190,24 +193,44 @@ export function GarajShell({ onClose, initial }: { onClose: () => void; initial?
                   ))}
               </div>
 
-              {bazaar.filter((b) => !b.mine).length > 0 && (
+              {bazaar.filter((b) => b.mine).length > 0 && (
                 <>
-                  <div className="gz-sec-title">🛒 Bozor — boshqa ustalardan</div>
+                  <div className="gz-sec-title">🏷 Mening sotuvdagilarim</div>
                   <div className="gz-grid">
                     {bazaar
-                      .filter((b) => !b.mine)
+                      .filter((b) => b.mine)
                       .map((b) => (
                         <Card key={b.id} className="gz-car">
                           <span className="gz-car-emoji">{b.emoji}</span>
                           <span className="gz-car-name">{b.name}</span>
-                          <span className="gz-car-sub">🪙 {b.askPrice.toLocaleString("ru-RU")}</span>
-                          <Button sm disabled={busy || coins < b.askPrice} onClick={() => bazaarBuy(b.id)}>
-                            Sotib olish
+                          <span className="gz-car-sub">🪙 {b.askPrice.toLocaleString("ru-RU")} · sotuvda</span>
+                          <Button variant="ghost" sm disabled={busy} onClick={() => bazaarUnlist(b.id)}>
+                            Bekor qilish
                           </Button>
                         </Card>
                       ))}
                   </div>
                 </>
+              )}
+
+              <div className="gz-sec-title">🛒 Bozor — boshqa ustalardan</div>
+              {bazaar.filter((b) => !b.mine).length === 0 ? (
+                <p className="gz-empty">Hozircha boshqa ustalar e'loni yo'q. Mashinangizni sotuvga qo'ying — boshqalar shu yerdan sotib oladi.</p>
+              ) : (
+                <div className="gz-grid">
+                  {bazaar
+                    .filter((b) => !b.mine)
+                    .map((b) => (
+                      <Card key={b.id} className="gz-car">
+                        <span className="gz-car-emoji">{b.emoji}</span>
+                        <span className="gz-car-name">{b.name}</span>
+                        <span className="gz-car-sub">🪙 {b.askPrice.toLocaleString("ru-RU")}</span>
+                        <Button sm disabled={busy || coins < b.askPrice} onClick={() => bazaarBuy(b.id)}>
+                          Sotib olish
+                        </Button>
+                      </Card>
+                    ))}
+                </div>
               )}
 
               {auctions.filter((a) => !a.mine).length > 0 && (
@@ -234,6 +257,25 @@ export function GarajShell({ onClose, initial }: { onClose: () => void; initial?
                           </div>
                         </Card>
                       ))}
+                  </div>
+                </>
+              )}
+
+              {/* 📜 Sotuvlar tarixi — past flips + bazaar sales */}
+              {history.length > 0 && (
+                <>
+                  <div className="gz-sec-title">📜 Sotuvlar tarixi</div>
+                  <div className="gz-hist">
+                    {history.map((h, i) => (
+                      <div key={i} className="gz-hist-row">
+                        <span className="gz-hist-emoji">{h.emoji}</span>
+                        <span className="gz-hist-name">{h.name}<span className="gz-hist-kind">{h.kind === "bazaar" ? " · bozor" : ""}</span></span>
+                        <span className="gz-hist-amt">
+                          🪙 {h.amount.toLocaleString("ru-RU")}
+                          {h.profit != null && <span className={h.profit >= 0 ? "gz-hist-prof up" : "gz-hist-prof down"}>{h.profit >= 0 ? "+" : ""}{h.profit.toLocaleString("ru-RU")}</span>}
+                        </span>
+                      </div>
+                    ))}
                   </div>
                 </>
               )}
@@ -470,6 +512,7 @@ export function GarajShell({ onClose, initial }: { onClose: () => void; initial?
         setSt(await api.garajState());
         setBazaar(await api.garajBazaar());
         setAuctions(await api.garajAuctions());
+        void api.garajHistory().then(setHistory).catch(() => undefined);
       }
     } catch {
       /* keep state */
@@ -480,9 +523,13 @@ export function GarajShell({ onClose, initial }: { onClose: () => void; initial?
   function bazaarList(id: number, price: number): void {
     void bazaarAct(() => api.garajBazaarList(id, price));
     setOpenId(null);
+    flash("Bozorga qo'yildi — pastdagi 🏷 «Mening sotuvdagilarim»da");
   }
   function bazaarBuy(listingId: number): void {
     void bazaarAct(() => api.garajBazaarBuy(listingId));
+  }
+  function bazaarUnlist(listingId: number): void {
+    void bazaarAct(() => api.garajBazaarUnlist(listingId));
   }
   function aucBid(auctionId: number, amount: number): void {
     void bazaarAct(() => api.garajAuctionBid(auctionId, amount));
@@ -503,6 +550,13 @@ export function GarajShell({ onClose, initial }: { onClose: () => void; initial?
     );
   }
 }
+
+// Sales-history fixture for the #garajdemo render-proof.
+export const GARAJ_DEMO_HISTORY: { kind: string; carCode: string; name: string; emoji: string; amount: number; profit: number | null; at: string }[] = [
+  { kind: "flip", carCode: "nexia", name: "Nexia", emoji: "🚙", amount: 3120, profit: 980, at: "2026-06-18T10:00:00Z" },
+  { kind: "flip", carCode: "tiko", name: "Tiko", emoji: "🚙", amount: 845, profit: 210, at: "2026-06-18T09:00:00Z" },
+  { kind: "bazaar", carCode: "matiz", name: "Matiz", emoji: "🚗", amount: 1700, profit: null, at: "2026-06-17T18:00:00Z" },
+];
 
 // Static fixture for the #garajdemo render-proof (no backend, no auth).
 export const GARAJ_DEMO: GarajStateResponse = {
