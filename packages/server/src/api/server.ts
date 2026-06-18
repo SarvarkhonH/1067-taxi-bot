@@ -156,6 +156,32 @@ export function createApiServer(opts: ApiOptions = {}) {
     res.json({ ok: true, mode: env.KAS_MODE, bot: env.hasBot });
   });
 
+  // 🏆 GARAJ v2 — the new dedicated restoration game. Service no-ops when feature
+  // "garajx" is OFF (DEFAULT_OFF), so these are safe to ship dark before QABUL.
+  app.get("/api/garaj/state", requireUser, withMember2(async (id) => (await import("../services/garajService")).getGarajState(id)));
+  app.post("/api/garaj/acquire", requireUser, rateLimit(20), withMember2(async (id, req) => (await import("../services/garajService")).acquireCar(id, String(req.body?.carCode ?? ""))));
+  app.post("/api/garaj/diagnose", requireUser, rateLimit(20), withMember2(async (id, req) => (await import("../services/garajService")).diagnoseCar(id, Number(req.body?.garajCarId), req.body?.tier === "EXPERT" ? "EXPERT" : req.body?.tier === "TOOL" ? "TOOL" : "VISUAL")));
+  app.post("/api/garaj/repair", requireUser, rateLimit(20), withMember2(async (id, req) => (await import("../services/garajService")).completeRepairTask(id, Number(req.body?.garajCarId), String(req.body?.taskCode ?? "oil_change"), req.body?.style, req.body?.quality)));
+  app.post("/api/garaj/flip", requireUser, rateLimit(10), withMember2(async (id, req) => (await import("../services/garajService")).flipCar(id, Number(req.body?.garajCarId), req.body?.buyerArchetype)));
+  app.post("/api/garaj/onboard/finish", requireUser, rateLimit(10), withMember2(async (id, _req, res) => (await import("../services/garajService")).garajOnboardFinish(id, String(res.locals.telegramId ?? ""))));
+  app.post("/api/garaj/kozshop/buy", requireUser, rateLimit(20), withMember2(async (id, req) => (await import("../services/garajService")).garajKozachaBuy(id, String(req.body?.itemCode ?? ""), Number(req.body?.garajCarId))));
+  app.get("/api/garaj/bazaar", requireUser, withMember2(async (id) => (await import("../services/garajService")).getBazaar(id)));
+  app.post("/api/garaj/bazaar/list", requireUser, rateLimit(10), withMember2(async (id, req) => (await import("../services/garajService")).garajBazaarList(id, Number(req.body?.garajCarId), Number(req.body?.askPrice))));
+  app.post("/api/garaj/bazaar/buy", requireUser, rateLimit(10), withMember2(async (id, req) => (await import("../services/garajService")).garajBazaarBuy(id, Number(req.body?.listingId))));
+  app.get("/api/garaj/auctions", requireUser, withMember2(async (id) => (await import("../services/garajService")).getAuctions(id)));
+  app.post("/api/garaj/auction/create", requireUser, rateLimit(10), withMember2(async (id, req) => (await import("../services/garajService")).garajAuctionCreate(id, Number(req.body?.garajCarId), Number(req.body?.minBid))));
+  app.post("/api/garaj/auction/bid", requireUser, rateLimit(20), withMember2(async (id, req) => (await import("../services/garajService")).garajAuctionBid(id, Number(req.body?.auctionId), Number(req.body?.amount))));
+  // W5 meta + social
+  app.post("/api/garaj/cipher", requireUser, rateLimit(20), withMember2(async (id, req) => (await import("../services/garajService")).garajCipherGuess(id, String(req.body?.guess ?? ""))));
+  app.post("/api/garaj/box/collect", requireUser, rateLimit(10), withMember2(async (id) => (await import("../services/garajService")).collectOfflineBox(id)));
+  app.post("/api/garaj/comeback", requireUser, rateLimit(10), withMember2(async (id) => (await import("../services/garajService")).garajComebackBonus(id)));
+  app.post("/api/garaj/prestige", requireUser, rateLimit(5), withMember2(async (id) => (await import("../services/garajService")).garajPrestige(id)));
+  app.get("/api/garaj/hall", requireUser, withMember2(async () => (await import("../services/garajService")).getHallOfFame()));
+  app.get("/api/garaj/mahalla/league", requireUser, withMember2(async (id) => (await import("../services/garajService")).getMahallaLeague(id)));
+  app.post("/api/garaj/mahalla/create", requireUser, rateLimit(5), withMember2(async (id, req) => (await import("../services/garajService")).mahallaCreate(id, String(req.body?.name ?? ""))));
+  app.post("/api/garaj/mahalla/join", requireUser, rateLimit(10), withMember2(async (id, req) => (await import("../services/garajService")).mahallaJoin(id, String(req.body?.code ?? ""))));
+  app.post("/api/garaj/mahalla/leave", requireUser, rateLimit(10), withMember2(async (id) => (await import("../services/garajService")).mahallaLeave(id)));
+
   app.get("/api/me", requireUser, async (_req, res) => {
     const me = await getMe(res.locals.telegramId as string);
     res.json(me ?? { linked: false });
@@ -469,11 +495,11 @@ export function createApiServer(opts: ApiOptions = {}) {
   // ─── Uber-level booking (map + live tracking) ───────────────────────────────
   app.get("/api/booking/info", requireUser, withMember(async (id, req) => {
     const { featureOn } = await import("../services/featureFlags");
-    const [info, flagOn, livinghome, tolqin] = await Promise.all([getBookingInfo(id), featureOn("booking3"), featureOn("livinghome"), featureOn("tolqin")]);
+    const [info, flagOn, livinghome, tolqin, garajx] = await Promise.all([getBookingInfo(id), featureOn("booking3"), featureOn("livinghome"), featureOn("tolqin"), featureOn("garajx")]);
     // Booking 3.0 ega-ko'z darvozasi: global flag OFF bo'lsa ham EGA yangi oqimni ko'radi
     // (ilovani oddiy ochib — tasdiqdan oldin preview). QABUL → flag global ON → bu ahamiyatsiz.
     const previewer = resolveTelegramId(req) === "6506297119";
-    return { ...info, booking3: flagOn || previewer, livinghome: livinghome || previewer, tolqin: tolqin || previewer };
+    return { ...info, booking3: flagOn || previewer, livinghome: livinghome || previewer, tolqin: tolqin || previewer, garajx: garajx || previewer };
   }));
   // V1 living home aggregate: greeting name, usual ride, live cars, balances.
   app.get("/api/home", requireUser, withMember(async (id) => {

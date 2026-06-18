@@ -171,6 +171,17 @@ export async function pushBookingUpdates(
     include: { telegramUser: true },
   });
 
+  // 🏘 GARAJ v2: mahalla weekly league reset/award runs BEFORE the member loop so
+  // the first sweep of a new ISO week snapshots + resets the just-closed week first,
+  // then this sweep's rides accrue into the fresh week (no self-wipe). Idempotent via
+  // MahallaWeeklyResult (presence = settled); later sweeps no-op. OFF-safe.
+  try {
+    const { closedWeekKey, settleMahallaWeek } = await import("./garajService");
+    await settleMahallaWeek(closedWeekKey());
+  } catch (e) {
+    console.error("[garaj] mahalla weekly settle failed:", e);
+  }
+
   for (const m of linked) {
     // T8 hardening: isolate each member — one member's transient (e.g. a Postgres blip on a
     // bare member.update) must NOT skip the rest of this 90s tick for everyone else. Next
@@ -350,6 +361,39 @@ export async function pushBookingUpdates(
         }
       }
 
+      // 🏆 GARAJ v2: ride → game raw-material drop. Idempotent per ride via the
+      // GarajRideDrop unique; NO coin emission (the 350 clamp is untouched);
+      // gated by feature "garajx". No new poller — rides on this sweep.
+      try {
+        const { processRideDrop, updateStreakOnRide, addMahallaScore } = await import("./garajService");
+        const fresh = await resilient("garaj_drop", () => processRideDrop(m.id, m.lastBookingId!, m.rideStartedAt));
+        // once-per-ride W5 hooks — only on the FIRST processing of this ride (the
+        // finish block re-runs across sweeps, so these must not be re-counted).
+        if (fresh) {
+          const rideDate = new Date(Date.now() + 5 * 3600 * 1000).toISOString().slice(0, 10); // Tashkent day
+          await resilient("garaj_streak", () => updateStreakOnRide(m.id, rideDate));
+          if (m.rideStartedAt) {
+            const mins = (Date.now() - m.rideStartedAt.getTime()) / 60_000;
+            await resilient("garaj_mahalla", () => addMahallaScore(m.id, mins));
+          }
+        }
+      } catch (e) {
+        console.error("[garaj] ride-drop failed:", e);
+      }
+
+      // 🏺 Ko'zacha — premium currency from REAL rides only (≤8/ride). NOT tanga →
+      // separate ledger, outside the 350 clamp. Gated by feature "kozacha".
+      try {
+        const { featureOn } = await import("./featureFlags");
+        if (m.rideStartedAt && (await featureOn("kozacha"))) {
+          const { grantKozacha } = await import("./garajService");
+          const mins = Math.min(8, Math.floor((Date.now() - m.rideStartedAt.getTime()) / 60_000));
+          if (mins > 0) await resilient("kozacha", () => grantKozacha(m.id, mins, "ride", `kozacha:ride:${m.id}:${m.lastBookingId}`));
+        }
+      } catch (e) {
+        console.error("[kozacha] earn failed:", e);
+      }
+
       // 🥇 tier-based driver rebate (replaces the flat bonus; weekly tier job
       // sets driverTier from measured percentiles) + quest progress
       let driverId: number | null = null;
@@ -504,5 +548,13 @@ export async function pushBookingUpdates(
     } catch (e) {
       console.error(`[sweep] member ${m.id} skipped this tick:`, e instanceof Error ? e.message.split("\n")[0] : e);
     }
+  }
+
+  // 🔨 GARAJ v2: settle due auctions once per sweep (no new poller; no-ops when "garajx" OFF).
+  try {
+    const { settleAuctions } = await import("./garajService");
+    await settleAuctions();
+  } catch (e) {
+    console.error("[garaj] auction settle failed:", e);
   }
 }

@@ -440,7 +440,7 @@ function BonusCenter({ me, onReward, celebrate }: { me: MeResponse; onReward: (m
  * Bonus tab — T6 living center (streak + kombo + missions) on top, then the
  * ride-tied variable-reward layer: garaj, Plus, in-ride wheel, mystery box.
  */
-export function RewardsView({ me, onReward }: { me: MeResponse; onReward: (msg: string) => void }) {
+export function RewardsView({ me, onReward, hideGarage }: { me: MeResponse; onReward: (msg: string) => void; hideGarage?: boolean }) {
   const [win, setWin] = useState<{ amount: number; emoji: string; label?: string; key: number } | null>(null);
   const keyRef = useRef(0);
   const celebrate: Celebrate = (amount, emoji, label) => {
@@ -455,7 +455,8 @@ export function RewardsView({ me, onReward }: { me: MeResponse; onReward: (msg: 
     <div className="view">
       <div className="section-title">🎁 Bonuslar</div>
       <BonusCenter me={me} onReward={onReward} celebrate={celebrate} />
-      <GarageSection onReward={onReward} />
+      {/* 🏆 GARAJ v2 replaces the old idle garage — hidden when feature "garajx" is ON */}
+      {!hideGarage && <GarageSection onReward={onReward} />}
       <PlusSection onReward={onReward} />
       <SpinWheelGame me={me} onReward={onReward} celebrate={celebrate} />
       <BoxGame onReward={onReward} celebrate={celebrate} />

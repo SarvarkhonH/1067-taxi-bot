@@ -117,6 +117,46 @@ export async function spendCoins(memberId: number, amount: number, kind: string,
   return { ok: true, balance: await getCoins(memberId) };
 }
 
+/**
+ * Spend coins IDEMPOTENTLY (sinks tied to a specific action: garaj inspect /
+ * acquire / repair task). The unique idempotencyKey turns a double-tap or retry
+ * into a no-op instead of a double-debit (plain spendCoins has no key → debits
+ * twice). Atomic: the balance check + decrement + ledger insert run in ONE
+ * transaction, so a crash between them rolls back both (audit B1/B4 pattern).
+ */
+export async function spendCoinsIdempotent(
+  memberId: number,
+  amount: number,
+  kind: string,
+  reason: string,
+  idempotencyKey: string,
+): Promise<CoinResult> {
+  amount = Math.floor(amount);
+  if (amount <= 0) return { ok: false, balance: await getCoins(memberId) };
+  return withMemberLock(memberId, async () => {
+    const existing = await prisma.coinTxn.findUnique({ where: { idempotencyKey } });
+    if (existing) return { ok: true, balance: await getCoins(memberId), skipped: "duplicate" };
+    try {
+      const r = await prisma.$transaction(async (tx) => {
+        const upd = await tx.member.updateMany({
+          where: { id: memberId, coins: { gte: amount } },
+          data: { coins: { decrement: amount } },
+        });
+        if (upd.count === 0) return { ok: false as const, skipped: "insufficient" as const };
+        await tx.coinTxn.create({ data: { memberId, amount: -amount, kind, reason, idempotencyKey } });
+        return { ok: true as const, skipped: undefined };
+      });
+      return { ...r, balance: await getCoins(memberId) };
+    } catch (e) {
+      // concurrent duplicate raced past the findUnique guard → unique constraint catches it
+      if ((e as { code?: string } | null)?.code === "P2002") {
+        return { ok: true, balance: await getCoins(memberId), skipped: "duplicate" };
+      }
+      throw e;
+    }
+  });
+}
+
 export async function getCoins(memberId: number): Promise<number> {
   const m = await prisma.member.findUnique({ where: { id: memberId }, select: { coins: true } });
   return m?.coins ?? 0;

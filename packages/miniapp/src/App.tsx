@@ -17,6 +17,9 @@ const Booking3View = lazy(() => import("./booking3").then((m) => ({ default: m.B
 const LivingHome = lazy(() => import("./home").then((m) => ({ default: m.LivingHome })));
 // V4: Yashil to'lqin skill game — lazy; launched from a FAB when feature:tolqin ON
 const TolqinGame = lazy(() => import("./tolqin").then((m) => ({ default: m.TolqinGame })));
+// 🏆 GARAJ v2: the new full-screen restoration game — lazy; opens when feature "garajx" ON
+const GarajShell = lazy(() => import("./garaj").then((m) => ({ default: m.GarajShell })));
+const GarajDemo = lazy(() => import("./garaj").then((m) => ({ default: m.GarajDemo })));
 import { Icon } from "./icons";
 import { useCountUp } from "./util";
 
@@ -66,6 +69,13 @@ export function App() {
       </Suspense>
     );
   }
+  if (window.location.hash === "#garajdemo") {
+    return (
+      <Suspense fallback={<div className="boot"><div className="boot-logo">🏆</div></div>}>
+        <GarajDemo />
+      </Suspense>
+    );
+  }
 
   const [me, setMe] = useState<MeResponse | null>(null);
   const [linked, setLinked] = useState<boolean | null>(null);
@@ -77,6 +87,8 @@ export function App() {
   const [livinghome, setLivinghome] = useState(false);
   const [tolqin, setTolqin] = useState(false);
   const [playTolqin, setPlayTolqin] = useState(false);
+  const [garajx, setGarajx] = useState(false); // 🏆 GARAJ v2 feature flag
+  const [garaj, setGaraj] = useState(false); // GARAJ shell open
   const [error, setError] = useState<string | null>(null);
   const [toast, setToast] = useState<{ id: number; msg: string } | null>(null);
   const [booking, setBooking] = useState(() => readGo() === "book");
@@ -112,7 +124,7 @@ export function App() {
       .catch((e) => setError(String(e)));
     loadBoard();
     // V1: learn whether the living home is enabled (same flag channel as booking3)
-    api.bookingInfo().then((r) => { if (!("error" in r)) { setLivinghome(!!r.livinghome); setTolqin(!!r.tolqin); } }).catch(() => undefined);
+    api.bookingInfo().then((r) => { if (!("error" in r)) { setLivinghome(!!r.livinghome); setTolqin(!!r.tolqin); setGarajx(!!r.garajx); } }).catch(() => undefined);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -130,6 +142,7 @@ export function App() {
   if (linked === false) return <NotLinked />;
   if (!me) return <BootSplash />;
   if (booking) return <Suspense fallback={<BootSplash />}><Booking3View me={me} onClose={() => setBooking(false)} /></Suspense>;
+  if (garaj) return <Suspense fallback={<BootSplash />}><GarajShell onClose={() => { setGaraj(false); reload(); }} /></Suspense>;
 
   const go = (t: Tab) => {
     if (t === tab) return;
@@ -188,7 +201,19 @@ export function App() {
             {tab === "wallet" && <WalletView me={me} onBanner={flash} reload={reload} onBook={() => { haptic(); setBooking(true); }} onNav={nav} />}
             {tab === "play" && (
               <>
-                <RewardsView me={me} onReward={flash} />
+                {garajx && (
+                  <div className="d-card pointer row between" onClick={() => { haptic(); setGaraj(true); }}>
+                    <div className="row g10">
+                      <span className="fs34">🏆</span>
+                      <div className="col">
+                        <b>GARAJ</b>
+                        <span className="fs12 dim">Ol · ta'mirla · foyda bilan sot</span>
+                      </div>
+                    </div>
+                    <span className="fs22">▶</span>
+                  </div>
+                )}
+                <RewardsView me={me} onReward={flash} hideGarage={garajx} />
                 <MissionsView onReward={flash} />
               </>
             )}

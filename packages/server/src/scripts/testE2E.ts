@@ -25,6 +25,7 @@ const SUITES = [
   "testCorpGuard.ts", // corp balance guard: NaN/0/over-debit rejected, never negative
   "testMarket.ts", // market buy/redeem + per-user-cap race (concurrent buys → 1 voucher)
   "testTolqin.ts", // V4 game: tanga-only daily cap holds, one-time token, idempotent
+  "testGaraj.ts", // 🏆 GARAJ v2: kill-switch · idempotent acquire/diagnose/repair · flip outside clamp · B4 daily cap · ledger
 ];
 
 interface Res {

@@ -11,13 +11,16 @@ export const FEATURES = [
   "aibrain", // V2 AI concierge (proactive + conversational)
   "mahalla", // V5 mahalla-scoped leaderboard
   "tolqin", // V4 Yashil to'lqin skill game
+  // GARAJ v2 — deep car-restoration game (replaces old idle garage), ships dark:
+  "garajx", // master flag for the new full-screen GARAJ game
+  "kozacha", // 🏺 Ko'zacha second currency (real-ride only)
 ] as const;
 export type FeatureName = (typeof FEATURES)[number];
 
 // Off until explicitly enabled (go-live flip = setFeature(name, true) after owner QABUL).
 // booking3 = the new map/trip flow; owner still gets a preview via server.ts owner-branch,
 // but real users stay on the (fixed) classic flow until it's accepted. A missing row → OFF.
-const DEFAULT_OFF = new Set<FeatureName>(["booking3", "livinghome", "aibrain", "mahalla", "tolqin"]);
+const DEFAULT_OFF = new Set<FeatureName>(["booking3", "livinghome", "aibrain", "mahalla", "tolqin", "garajx", "kozacha"]);
 
 let cache: { at: number; map: Record<string, boolean> } = { at: 0, map: {} };
 

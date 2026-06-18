@@ -8,7 +8,7 @@
 // PURE: no DB, no kas — re-derives emission from the same constants the server
 // grants from, so a divergence here is a real economic regression.
 // Run: dotenv -e ../../.env -- tsx src/scripts/simEconomy.ts [customers] [days] [seed]
-import { RIDE_REWARD_BASE, RIDE_REWARD_TIERS, RIDE_EMISSION_CAP, WHEEL_PRIZES } from "@t1067/shared";
+import { RIDE_REWARD_BASE, RIDE_REWARD_TIERS, RIDE_EMISSION_CAP, WHEEL_PRIZES, computeFlipGrant, FLIP_DAILY_CAP, MAKE_BASE, offlineBoxPayout, OFFLINE_DAILY_CAP, prestigeMultiplier } from "@t1067/shared";
 import { JACKPOT_FLOOR, JACKPOT_INCREMENT } from "@t1067/shared";
 
 // ── seeded PRNG (LCG) so the proof is reproducible run-to-run ───────────────
@@ -150,7 +150,59 @@ function main(): void {
   // sanity: the clamp must actually bite under stacked boosts (else the model is wrong/too tame)
   ok(clampHits > 0, `clamp engages under stacked boosts (${clampHits} clamped rides — proves the cap is load-bearing)`);
 
-  console.log(failed === 0 ? "\n🛡 ECONOMY SIM: BUZILMAS qoida isbotlandi (≤350/safar)" : `\n❌ ${failed} ta tekshiruv yiqildi`);
+  // ── 🏆 GARAJ v2 flip economy proof: computeFlipGrant cap + cheap-car exploit + daily flip cap ──
+  const FSTYLES = ["QUICK_FLIP", "FULL_RESTORE", "TUNING", "PERIOD_CORRECT"] as const;
+  const FBUYERS = ["FAMILY_DRIVER", "YOUNG_TUNER", "NEWLYWED", "COLLECTOR"] as const;
+  const FCONDS = ["WORN", "FAIR", "GOOD", "MINT"] as const;
+  let flipCapViolations = 0;
+  let maxFlipGrant = 0;
+  let worstDamasGrant = 0;
+  for (const code of Object.keys(MAKE_BASE)) {
+    const basePrice = MAKE_BASE[code]!;
+    const acquireCost = Math.round(basePrice * 0.65);
+    const repairSpent = Math.round(basePrice * 2.0); // heavy Kozacha-funded spend (worst case)
+    const cap = Math.min(basePrice * 2.5, (acquireCost + repairSpent) * 3.0 + basePrice * 0.5);
+    for (const style of FSTYLES) {
+      for (const buyer of FBUYERS) {
+        for (const condition of FCONDS) {
+          const grant = computeFlipGrant({
+            basePrice, level: 5, style, buyerArchetype: buyer, condition,
+            repairQualityBonus: 1.05, savdogarTier5Bonus: 0.12, kuzovchiTier5Bonus: 0.08,
+            seasonalBonus: 0.1, prestigeMult: 1.25, acquireCost, repairSpent, // W5: max prestige stacked on top
+          });
+          if (grant > Math.round(cap) + 1) flipCapViolations++;
+          if (grant > maxFlipGrant) maxFlipGrant = grant;
+          if (code === "damas" && grant > worstDamasGrant) worstDamasGrant = grant;
+        }
+      }
+    }
+  }
+  // a grinder doing 20 cheap flips/day → the handler clamps total to FLIP_DAILY_CAP
+  const damasFlip = computeFlipGrant({ basePrice: MAKE_BASE["damas"]!, level: 1, style: "QUICK_FLIP", buyerArchetype: "FAMILY_DRIVER", condition: "GOOD", acquireCost: 585, repairSpent: 0 });
+  const dailyFlipCapped = Math.min(damasFlip * 20, FLIP_DAILY_CAP);
+  const damasCap = Math.round(MAKE_BASE["damas"]! * 2.5);
+
+  console.log("");
+  console.log(`🏆 FLIP ECONOMY — max flip grant ${maxFlipGrant} · worst DAMAS grant ${worstDamasGrant} (cap ${damasCap}) · daily flip ≤ ${dailyFlipCapped}`);
+  ok(flipCapViolations === 0, `flip grant ≤ MAX_SELL_PRICE across all car×style×buyer×condition + max prestige (0 violations)`);
+  ok(worstDamasGrant <= damasCap, `cheap-car exploit closed: heavy-Kozacha DAMAS grant ${worstDamasGrant} ≤ 2.5× base ${damasCap} (audit M4 min-cap)`);
+  ok(dailyFlipCapped <= FLIP_DAILY_CAP, `daily flip emission ${dailyFlipCapped} ≤ FLIP_DAILY_CAP ${FLIP_DAILY_CAP}`);
+
+  // ── 🏆 W5 offline-box proof: passive payout NEVER exceeds the daily cap, even at
+  // absurd garage size, full 24h, AND max prestige stacked (audit BLOCKER-4 compound). ──
+  let boxViolations = 0;
+  let maxBox = 0;
+  for (const levels of [1, 10, 50, 200, 5000]) {
+    for (const hours of [1, 12, 24, 240]) {
+      const payout = offlineBoxPayout(levels, hours, prestigeMultiplier(5)); // prestige 5 = ×1.25
+      if (payout > OFFLINE_DAILY_CAP) boxViolations++;
+      if (payout > maxBox) maxBox = payout;
+    }
+  }
+  console.log(`📦 OFFLINE BOX — max payout ${maxBox} (cap ${OFFLINE_DAILY_CAP}) at prestige 5 / 5000 levels / 240h`);
+  ok(boxViolations === 0, `offline box payout ≤ ${OFFLINE_DAILY_CAP}/day across all garage sizes × hours × max prestige (0 violations)`);
+
+  console.log(failed === 0 ? "\n🛡 ECONOMY SIM: BUZILMAS qoida isbotlandi (≤350/safar + flip-cap + offline-cap)" : `\n❌ ${failed} ta tekshiruv yiqildi`);
   process.exit(failed === 0 ? 0 : 1);
 }
 

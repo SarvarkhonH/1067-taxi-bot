@@ -1,5 +1,6 @@
 export * from "./gamify";
 export * from "./garage";
+export * from "./garajGame";
 export * from "./missions";
 export * from "./weekly";
 export * from "./economy";

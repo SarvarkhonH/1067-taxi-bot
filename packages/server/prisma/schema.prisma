@@ -13,42 +13,42 @@ datasource db {
 }
 
 model Member {
-  id         Int       @id @default(autoincrement())
-  type       String // "client" | "driver"
-  kasId      String // external id from kas1067 (unique within a type)
-  fullName   String
-  phone      String?
-  carNumber  String? // drivers only
-  points     Float     @default(0) // bonus (client) | balance (driver) — RIDE cashback, mirrored from kas1067
-  coins      Float     @default(0) // GAME currency (1 coin = 1 so'm), lives only in our DB
-  trips      Int       @default(0)
-  rating     Float     @default(0) // drivers only
-  active     Boolean   @default(true)
-  lastSyncAt DateTime?
-  lastBookingId     Int?
-  lastBookingStatus String?
-  lastBookingCar    String? // car number of the ride in progress → tip target on finish
-  lastBookingBonus  Float? // fare-derived cashback captured DURING the ride (kas drops it on finish)
-  lastBookingSource String? // "bot" | "miniapp" — E-gate channel share metric
-  comboBoostDay     String? // tashkent day the daily combo earned a 2x roll for
+  id                 Int       @id @default(autoincrement())
+  type               String // "client" | "driver"
+  kasId              String // external id from kas1067 (unique within a type)
+  fullName           String
+  phone              String?
+  carNumber          String? // drivers only
+  points             Float     @default(0) // bonus (client) | balance (driver) — RIDE cashback, mirrored from kas1067
+  coins              Float     @default(0) // GAME currency (1 coin = 1 so'm), lives only in our DB
+  trips              Int       @default(0)
+  rating             Float     @default(0) // drivers only
+  active             Boolean   @default(true)
+  lastSyncAt         DateTime?
+  lastBookingId      Int?
+  lastBookingStatus  String?
+  lastBookingCar     String? // car number of the ride in progress → tip target on finish
+  lastBookingBonus   Float? // fare-derived cashback captured DURING the ride (kas drops it on finish)
+  lastBookingSource  String? // "bot" | "miniapp" — E-gate channel share metric
+  comboBoostDay      String? // tashkent day the daily combo earned a 2x roll for
   comebackOfferUntil DateTime?
   plusUntil          DateTime? // win-back: guaranteed 3x roll window
   // live ride card (ONE message per ride, edited in place) + moving driver pin
-  rideCardMsgId     Int?
-  liveLocMsgId      Int?
-  rideStartedAt     DateTime? // first sweep sighting of status "started" — ride meter (guess + garage)
-  riskFlag          Boolean @default(false) // freezes the withdraw door only; coins stay spendable
-  riskNote          String?
+  rideCardMsgId      Int?
+  liveLocMsgId       Int?
+  rideStartedAt      DateTime? // first sweep sighting of status "started" — ride meter (guess + garage)
+  riskFlag           Boolean   @default(false) // freezes the withdraw door only; coins stay spendable
+  riskNote           String?
   // 1-tap booking: persisted pickup memory (in-memory Map died on every deploy)
-  defaultPickupId   Int?
-  defaultPickupName String?
-  lastPickupId      Int?
-  lastPickupName    String?
-  lastPickupLat     Float?
-  lastPickupLng     Float?
-  lastBookingAt     DateTime?
-  createdAt  DateTime  @default(now())
-  updatedAt  DateTime  @updatedAt
+  defaultPickupId    Int?
+  defaultPickupName  String?
+  lastPickupId       Int?
+  lastPickupName     String?
+  lastPickupLat      Float?
+  lastPickupLng      Float?
+  lastBookingAt      DateTime?
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
 
   telegramUser TelegramUser?
   achievements MemberAchievement[]
@@ -60,8 +60,8 @@ model Member {
   weeklyScores WeeklyScore[]
   coinTxns     CoinTxn[]
   withdrawals  Withdrawal[]
-  leagueTier   String        @default("Bronza") // promotion/relegation tier
-  driverTier   String        @default("Bronza") // weekly driver tier (DiDi model): Bronza|Kumush|Oltin|Olmos
+  leagueTier   String              @default("Bronza") // promotion/relegation tier
+  driverTier   String              @default("Bronza") // weekly driver tier (DiDi model): Bronza|Kumush|Oltin|Olmos
 
   @@unique([type, kasId])
   @@index([type, points])
@@ -90,14 +90,14 @@ model MissionProgress {
 // Anti-sybil: the referee gift pays on link; the REFERRER reward is deferred
 // until the referee completes a real paid ride (referrerPaidAt marks it).
 model Referral {
-  id              Int      @id @default(autoincrement())
+  id              Int       @id @default(autoincrement())
   referrerId      String // telegram id of the inviter
-  refereeId       String   @unique // telegram id of the invitee — one credit each
+  refereeId       String    @unique // telegram id of the invitee — one credit each
   refereeMemberId Int?
-  rewardReferrer  Float    @default(0)
-  rewardReferee   Float    @default(0)
+  rewardReferrer  Float     @default(0)
+  rewardReferee   Float     @default(0)
   referrerPaidAt  DateTime? // set when the referrer reward is actually granted (first referee ride)
-  createdAt       DateTime @default(now())
+  createdAt       DateTime  @default(now())
 
   @@index([referrerId])
 }
@@ -229,19 +229,19 @@ model WheelSpin {
 // shop honors the voucher as its own discount/marketing — costs us 0 real
 // money. (Cash settlement / REDEEM mode is a later, separately-budgeted phase.)
 model Shop {
-  id        Int       @id @default(autoincrement())
-  name      String
-  emoji     String    @default("🏪")
-  category  String    @default("boshqa") // oziq-ovqat | xizmat | do'kon | boshqa
-  ownerPhone String? // verified owner phone (redeems vouchers)
-  status    String    @default("active") // active | paused
+  id             Int       @id @default(autoincrement())
+  name           String
+  emoji          String    @default("🏪")
+  category       String    @default("boshqa") // oziq-ovqat | xizmat | do'kon | boshqa
+  ownerPhone     String? // verified owner phone (redeems vouchers)
+  status         String    @default("active") // active | paused
   // settlement trust ladder: every shop starts ABSORB (0 cash risk); admin may
   // promote to REDEEM (weekly cash settle at spread, bozor-budget gated)
-  settlementMode String  @default("absorb") // absorb | redeem
-  spread         Float   @default(0.12) // our take on REDEEM settlements
-  dailyCapCoins  Float   @default(100000) // max coin volume the shop can take per day
-  createdAt DateTime  @default(now())
-  listings  Listing[]
+  settlementMode String    @default("absorb") // absorb | redeem
+  spread         Float     @default(0.12) // our take on REDEEM settlements
+  dailyCapCoins  Float     @default(100000) // max coin volume the shop can take per day
+  createdAt      DateTime  @default(now())
+  listings       Listing[]
 }
 
 model Listing {
@@ -260,16 +260,16 @@ model Listing {
 // Escrowed purchase: coins are burned at buy time; the voucher is the durable
 // claim the buyer shows at the shop. Idempotent redeem via status flip.
 model ShopOrder {
-  id           Int       @id @default(autoincrement())
-  shopId       Int
-  listingId    Int
+  id            Int       @id @default(autoincrement())
+  shopId        Int
+  listingId     Int
   buyerMemberId Int
-  priceCoins   Float
-  voucherCode  String    @unique // 6-char code shown at the counter
-  status       String    @default("issued") // issued | redeemed | expired
-  createdAt    DateTime  @default(now())
-  redeemedAt   DateTime?
-  settledAt    DateTime? // REDEEM-mode: when the weekly cash settle covered this order
+  priceCoins    Float
+  voucherCode   String    @unique // 6-char code shown at the counter
+  status        String    @default("issued") // issued | redeemed | expired
+  createdAt     DateTime  @default(now())
+  redeemedAt    DateTime?
+  settledAt     DateTime? // REDEEM-mode: when the weekly cash settle covered this order
 
   @@index([buyerMemberId, createdAt])
   @@index([shopId, status])
@@ -396,21 +396,21 @@ model Streak {
 }
 
 model TelegramUser {
-  id           String    @id // telegram user id, stored as string to avoid BigInt JSON issues
-  member       Member?   @relation(fields: [memberId], references: [id])
-  memberId     Int?      @unique
-  username     String?
-  firstName    String?
-  lastName     String?
-  phone        String?
-  languageCode String?
-  isAdmin      Boolean   @default(false)
-  linkedAt     DateTime?
+  id                 String    @id // telegram user id, stored as string to avoid BigInt JSON issues
+  member             Member?   @relation(fields: [memberId], references: [id])
+  memberId           Int?      @unique
+  username           String?
+  firstName          String?
+  lastName           String?
+  phone              String?
+  languageCode       String?
+  isAdmin            Boolean   @default(false)
+  linkedAt           DateTime?
   referralCode       String?   @unique // this user's own invite code
   referredByCode     String? // pending invite code captured at /start
   referralCreditedAt DateTime? // set once the referral reward is paid (one-time)
-  createdAt    DateTime  @default(now())
-  updatedAt    DateTime  @updatedAt
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
 }
 
 model MemberAchievement {
@@ -457,12 +457,12 @@ model GapMember {
 
 // 🏢 B2B prepaid corp accounts: phone-whitelisted employees ride, balance prepaid in coins.
 model CorpAccount {
-  id        Int            @id @default(autoincrement())
-  name      String
-  balance   Float          @default(0)
-  monthlyCapPerEmployee Int @default(30)
-  createdAt DateTime       @default(now())
-  employees CorpEmployee[]
+  id                    Int            @id @default(autoincrement())
+  name                  String
+  balance               Float          @default(0)
+  monthlyCapPerEmployee Int            @default(30)
+  createdAt             DateTime       @default(now())
+  employees             CorpEmployee[]
 }
 
 model CorpEmployee {
@@ -539,4 +539,222 @@ model FamilyMember {
   name     String
 
   @@unique([memberId, phone])
+}
+
+// ══ 🏆 GARAJ v2 — deep car-restoration game (gated by feature "garajx"; replaces idle garage) ══
+// Follows the existing game-table convention: Int ids, plain `memberId Int` + @@index
+// (like MemberCar) — no relation field on Member, no Member-model edit.
+
+// 1:1 per-member garage meta. carsOwnedCount/sumCarLevels are DENORMALIZED so the
+// reputation/score recompute never needs a COUNT/SUM on every ride (audit M2).
+model MemberGarajMeta {
+  memberId           Int       @id
+  garageTier         Int       @default(1)
+  reputationScore    Int       @default(0)
+  prestigeCount      Int       @default(0)
+  prestigeMultiplier Float     @default(1.0)
+  kozachaBalance     Int       @default(0)
+  carsOwnedCount     Int       @default(0)
+  sumCarLevels       Int       @default(0)
+  dreamCarCode       String?
+  onboardStep        Int       @default(0)
+  lastBoxCollectedAt DateTime?
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+}
+
+// Per-car restoration project. One of each model per member (memberId+carCode unique).
+model GarajCar {
+  id                 Int       @id @default(autoincrement())
+  memberId           Int
+  carCode            String
+  source             String    @default("shop") // shop | ride_drop | onboard
+  condition          String    @default("worn") // worn | fair | good | mint
+  diagnosisSeed      Int?
+  diagnosisResult    String? // JSON zone breakdown
+  diagnosedAt        DateTime?
+  style              String? // QUICK_FLIP | FULL_RESTORE | TUNING | PERIOD_CORRECT
+  styleLockedAt      DateTime?
+  level              Int       @default(1)
+  repairQualityBonus Float     @default(1.0)
+  acquireCost        Int       @default(0)
+  repairSpent        Int       @default(0)
+  ridesSinceService  Int       @default(0)
+  onboardCar         Boolean   @default(false) // FTUE car — blocks the real flip endpoint
+  soldAt             DateTime?
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+
+  @@unique([memberId, carCode])
+  @@index([memberId])
+}
+
+// Flip/sale archive. saleId is computed BEFORE the tx (audit B1) and anchors the
+// idempotent grant key flip:{memberId}:{garajCarId}:{saleId}.
+model GarajFlip {
+  id             Int      @id @default(autoincrement())
+  memberId       Int
+  garajCarId     Int
+  carCode        String
+  saleId         String   @unique
+  boughtForT     Int
+  repairSpentT   Int
+  soldForT       Int
+  profitT        Int
+  style          String
+  buyerArchetype String
+  createdAt      DateTime @default(now())
+
+  @@index([memberId, createdAt])
+}
+
+// Ride → game drop idempotency anchor + record. ONE row per (member, ride) so a
+// sweep retry never re-rolls. NO coin emission here (the 350 clamp is untouched).
+model GarajRideDrop {
+  id        Int      @id @default(autoincrement())
+  memberId  Int
+  bookingId Int
+  dropType  String // NONE | PART | TOWED_CAR
+  dropCode  String   @default("")
+  seed      Int      @default(0)
+  createdAt DateTime @default(now())
+
+  @@unique([memberId, bookingId])
+  @@index([memberId])
+}
+
+// 🏺 Ko'zacha ledger — the SECOND currency, earned ONLY from real rides (≤8/ride),
+// spent in the Kozacha shop. Fully SEPARATE from CoinTxn (never flows into tanga).
+// Balance is denormalized on MemberGarajMeta.kozachaBalance.
+model KozachaTxn {
+  id             Int      @id @default(autoincrement())
+  memberId       Int
+  amount         Int // + earn, - spend
+  reason         String
+  idempotencyKey String   @unique
+  createdAt      DateTime @default(now())
+
+  @@index([memberId, createdAt])
+}
+
+// 🔧 Mechanic skill — Usta-ko'z rank (diagnosis accuracy) + 4 specialization
+// branches (XP accrues from repair/flip; tier derived from MECH_XP_TIERS).
+model MemberMechanicSkill {
+  memberId        Int      @id
+  ustaKozRank     Int      @default(0) // 0..100, +1 per 3 diagnoses
+  totalDiagnoses  Int      @default(0)
+  muhandisXp      Int      @default(0) // engine
+  kuzovchiXp      Int      @default(0) // body
+  savdogarXp      Int      @default(0) // merchant
+  kollektsionerXp Int      @default(0) // collector
+  firstRepairDone Boolean  @default(false)
+  updatedAt       DateTime @updatedAt
+}
+
+// 🛒 W4 Bazaar — player-to-player car market. Anti-wash: 3% tax burn, price
+// ceiling 3× base, self-trade blocked, claim-before-pay (status open→pending→sold).
+model GarajBazaarListing {
+  id         Int       @id @default(autoincrement())
+  sellerId   Int
+  garajCarId Int
+  carCode    String
+  askPrice   Int
+  status     String    @default("open") // open | pending_payment | sold | cancelled | expired
+  buyerId    Int?
+  soldAt     DateTime?
+  expiresAt  DateTime
+  createdAt  DateTime  @default(now())
+
+  @@index([status, expiresAt])
+  @@index([sellerId, status])
+  @@index([garajCarId, status])
+}
+
+// 🔨 W4 sealed-bid auction. Escrow at bid (one bid/bidder, no revision), anti-snipe
+// (+5min if bid in last 5min), settle in the sweep: highest wins, losers refunded.
+model GarajAuction {
+  id           Int       @id @default(autoincrement())
+  sellerId     Int
+  garajCarId   Int
+  carCode      String
+  minBid       Int
+  highBid      Int       @default(0) // display cache; settle uses max(bids) authoritatively
+  highBidderId Int?
+  status       String    @default("open") // open | settled | cancelled
+  endsAt       DateTime
+  createdAt    DateTime  @default(now())
+
+  @@index([status, endsAt])
+}
+
+model GarajAuctionBid {
+  id        Int      @id @default(autoincrement())
+  auctionId Int
+  bidderId  Int
+  amount    Int // escrowed at bid time
+  refunded  Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  @@unique([auctionId, bidderId]) // sealed-bid: one bid per bidder, no revision
+  @@index([auctionId])
+}
+
+// 🔥 W5 Forgiving streak — daily ride streak with ONE "spare tire" freeze. Updated
+// in the ride-finish sweep (one increment per Tashkent day). Milestone rewards are
+// grantCoins (mission-style, OUTSIDE the 350/ride clamp) keyed by milestone+date.
+model GarajStreak {
+  memberId        Int      @id
+  current         Int      @default(0)
+  longest         Int      @default(0)
+  lastRideDate    String? // YYYY-MM-DD Tashkent
+  freezeAvailable Boolean  @default(false)
+  freezeUsed      Boolean  @default(false)
+  updatedAt       DateTime @updatedAt
+}
+
+// 🏘 W5 Mahalla — neighbourhood clan (max 20). Weekly score is ride-time ×
+// car-quality (NOT tanga) so it can never be coin-farmed. One mahalla per member.
+model MahallaGroup {
+  id          Int      @id @default(autoincrement())
+  name        String
+  code        String   @unique // 6-char invite slug
+  founderId   Int
+  weeklyScore Int      @default(0)
+  memberCount Int      @default(1)
+  createdAt   DateTime @default(now())
+
+  @@index([weeklyScore])
+}
+
+model MahallaGroupMember {
+  id          Int      @id @default(autoincrement())
+  groupId     Int
+  memberId    Int      @unique // one mahalla per member (hard constraint)
+  role        String   @default("MEMBER") // FOUNDER | MEMBER
+  weekContrib Int      @default(0)
+  joinedAt    DateTime @default(now())
+
+  @@index([groupId])
+}
+
+// Weekly league result. Its presence IS the reset idempotency marker (no separate
+// AppState key) — @@unique([groupId, weekKey]) makes a partial-reset crash-safe.
+model MahallaWeeklyResult {
+  id        Int      @id @default(autoincrement())
+  groupId   Int
+  weekKey   String
+  rank      Int
+  score     Int
+  createdAt DateTime @default(now())
+
+  @@unique([groupId, weekKey])
+}
+
+// 🏆 W5 Hall of Fame — permanent entry after Prestige 5, shown to all on the Museum.
+model GarajHallOfFame {
+  id            Int      @id @default(autoincrement())
+  memberId      Int      @unique
+  prestigeCount Int
+  repAtEntry    Int
+  createdAt     DateTime @default(now())
 }
