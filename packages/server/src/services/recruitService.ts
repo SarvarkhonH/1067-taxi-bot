@@ -15,17 +15,26 @@ function norm9(p: string): string {
   return p.replace(/\D/g, "").slice(-9);
 }
 
-/** Capture a drv_ deep-link for a FRESH user (no payout yet). */
-export async function attachDriverRecruit(riderTelegramId: string, driverMemberId: number): Promise<void> {
+/**
+ * Capture a drv_ deep-link for a FRESH user (no payout yet). Returns whether it
+ * actually attached + the driver's telegram id, so the caller can give the driver
+ * the immediate "someone joined via your QR" feedback (the signal that was missing).
+ */
+export async function attachDriverRecruit(
+  riderTelegramId: string,
+  driverMemberId: number,
+): Promise<{ attached: boolean; driverTelegramId?: string }> {
   const tu = await prisma.telegramUser.findUnique({ where: { id: riderTelegramId } });
-  if (tu?.memberId || tu?.referredByCode) return; // only brand-new users
+  if (tu?.memberId || tu?.referredByCode) return { attached: false }; // only brand-new users
   const driver = await prisma.member.findUnique({ where: { id: driverMemberId }, select: { type: true } });
-  if (driver?.type !== "driver") return;
+  if (driver?.type !== "driver") return { attached: false };
   await prisma.telegramUser.upsert({
     where: { id: riderTelegramId },
     create: { id: riderTelegramId, referredByCode: `drv_${driverMemberId}` },
     update: { referredByCode: `drv_${driverMemberId}` },
   });
+  const drvTu = await prisma.telegramUser.findFirst({ where: { memberId: driverMemberId }, select: { id: true } });
+  return { attached: true, driverTelegramId: drvTu?.id };
 }
 
 /**
@@ -92,15 +101,17 @@ export async function payRecruitRevshare(riderMemberId: number, bookingId: numbe
 export async function driverRecruitStats(driverId: number): Promise<{
   recruits: number;
   recruitsThisMonth: number;
+  pendingRecruits: number;
   earnedTotal: number;
   earnedThisMonth: number;
   revshareCapLeft: number;
   newRecruitCapLeft: number;
 }> {
   const monthAgo = new Date(Date.now() - 30 * 24 * 3600 * 1000);
-  const [recruits, recruitsThisMonth, earnedTotal, earnedMonth, revMonth] = await Promise.all([
+  const [recruits, recruitsThisMonth, scanned, earnedTotal, earnedMonth, revMonth] = await Promise.all([
     prisma.driverRecruit.count({ where: { driverId } }),
     prisma.driverRecruit.count({ where: { driverId, createdAt: { gte: monthAgo } } }),
+    prisma.telegramUser.count({ where: { referredByCode: `drv_${driverId}` } }),
     prisma.coinTxn.aggregate({ where: { memberId: driverId, kind: { in: ["recruit", "revshare"] } }, _sum: { amount: true } }),
     prisma.coinTxn.aggregate({ where: { memberId: driverId, kind: { in: ["recruit", "revshare"] }, createdAt: { gte: monthAgo } }, _sum: { amount: true } }),
     prisma.coinTxn.aggregate({ where: { memberId: driverId, kind: "revshare", createdAt: { gte: monthAgo } }, _sum: { amount: true } }),
@@ -108,6 +119,8 @@ export async function driverRecruitStats(driverId: number): Promise<{
   return {
     recruits,
     recruitsThisMonth,
+    // scanned the QR but no completed first ride yet (not yet a materialized recruit)
+    pendingRecruits: Math.max(0, scanned - recruits),
     earnedTotal: Math.round(earnedTotal._sum.amount ?? 0),
     earnedThisMonth: Math.round(earnedMonth._sum.amount ?? 0),
     revshareCapLeft: Math.max(0, REVSHARE_MONTH_CAP - (revMonth._sum.amount ?? 0)),

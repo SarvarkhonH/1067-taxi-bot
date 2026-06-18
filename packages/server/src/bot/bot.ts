@@ -131,7 +131,17 @@ export function createBot(): Bot {
     }
     if (payload.startsWith("drv_")) {
       const { attachDriverRecruit } = await import("../services/recruitService");
-      await attachDriverRecruit(id, Number(payload.slice(4))).catch(() => undefined);
+      const r = await attachDriverRecruit(id, Number(payload.slice(4))).catch(() => ({ attached: false }) as { attached: boolean; driverTelegramId?: string });
+      // immediate driver feedback — the signal that was missing ("nimaga ma'lum bo'lmadi")
+      if (r.attached && r.driverTelegramId) {
+        await bot.api
+          .sendMessage(
+            r.driverTelegramId,
+            "✅ <b>Yangi yo'lovchi QR kodingiz orqali qo'shildi!</b>\n\nU birinchi safarini qilganda siz <b>500 tanga</b> olasiz, keyin har safaridan ulush. 🚖\n<i>Panelda «⏳ Kutilmoqda» da ko'rinadi.</i>",
+            { parse_mode: "HTML" },
+          )
+          .catch(() => undefined);
+      }
     }
     const me = await getMe(id);
     if (me) {

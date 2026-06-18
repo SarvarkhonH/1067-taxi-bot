@@ -319,7 +319,7 @@ export function renderWheel(r: WheelResult): string {
 export function renderDriverPanel(
   coins: number,
   e: { todayIn: number; totalIn: number; txns: { amount: number; reason: string }[] },
-  recruit?: { recruits: number; recruitsThisMonth: number; earnedTotal: number; earnedThisMonth: number; revshareCapLeft: number; newRecruitCapLeft: number },
+  recruit?: { recruits: number; recruitsThisMonth: number; pendingRecruits: number; earnedTotal: number; earnedThisMonth: number; revshareCapLeft: number; newRecruitCapLeft: number },
 ): string {
   const txnLines = e.txns
     .slice(0, 6)
@@ -329,7 +329,9 @@ export function renderDriverPanel(
     ? `\n🚖 <b>MIJOZ TAKLIF (QR)</b>\n` +
       `👥 Mijozlaringiz: <b>${formatNumber(recruit.recruits)}</b>` +
       (recruit.recruitsThisMonth ? ` <i>(bu oy +${formatNumber(recruit.recruitsThisMonth)})</i>` : "") +
-      `\n💰 QR-dan tushum: bu oy <b>${formatNumber(recruit.earnedThisMonth)}</b> · jami <b>${formatNumber(recruit.earnedTotal)}</b> tanga\n` +
+      `\n` +
+      (recruit.pendingRecruits ? `⏳ Kutilmoqda: <b>${formatNumber(recruit.pendingRecruits)}</b> — skanladi, hali 1-safar qilmagan\n` : "") +
+      `💰 QR-dan tushum: bu oy <b>${formatNumber(recruit.earnedThisMonth)}</b> · jami <b>${formatNumber(recruit.earnedTotal)}</b> tanga\n` +
       `📅 Bu oy yana: <b>${formatNumber(recruit.revshareCapLeft)}</b> tanga · <b>${formatNumber(recruit.newRecruitCapLeft)}</b> yangi mijoz\n` +
       `<i>«📷 Mening QR kodim» — mijozga ko'rsating; skanerlab safar qilsa sizga tanga tushadi.</i>\n`
     : "";

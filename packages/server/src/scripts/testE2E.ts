@@ -26,6 +26,7 @@ const SUITES = [
   "testMarket.ts", // market buy/redeem + per-user-cap race (concurrent buys → 1 voucher)
   "testTolqin.ts", // V4 game: tanga-only daily cap holds, one-time token, idempotent
   "testGaraj.ts", // 🏆 GARAJ v2: kill-switch · idempotent acquire/diagnose/repair · flip outside clamp · B4 daily cap · ledger
+  "testRecruitFeedback.ts", // 🚖 QR recruit: fresh scan attaches (+driver notify), existing user ignored, pending count
 ];
 
 interface Res {
