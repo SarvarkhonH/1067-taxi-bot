@@ -103,6 +103,15 @@ async function main(): Promise<void> {
   ok((await getCoins(m.id)) === c8, `flip 2× → no double grant (idempotent)`);
   ok((await prisma.coinTxn.count({ where: { idempotencyKey: flipKey } })) === 1, `still exactly 1 flip CoinTxn after retry`);
 
+  // 7b. RE-BUY after sell — the CORE LOOP must repeat (bug: sold row + @@unique blocked it)
+  const cReb0 = await getCoins(m.id);
+  const reb = await acquireCar(m.id, "nexia");
+  ok(reb.ok && !!reb.carId, `re-buy nexia after flip succeeds (loop repeats)`);
+  ok(cReb0 - (reb.coins ?? 0) === expectBuy, `re-buy CHARGED again (${cReb0 - (reb.coins ?? 0)} === ${expectBuy})`);
+  ok((await prisma.garajCar.count({ where: { memberId: m.id, carCode: "nexia", soldAt: null } })) === 1, `exactly 1 ACTIVE nexia after re-buy`);
+  const ownNow = await acquireCar(m.id, "nexia");
+  ok(!ownNow.ok && ownNow.reason === "owned", `can't buy a model you currently own (active) again`);
+
   // 8. flip is OUTSIDE the ride clamp: its key can't match the suffix `:memberId:<carId>`
   const clampAgg = await prisma.coinTxn.aggregate({
     where: { memberId: m.id, amount: { gt: 0 }, idempotencyKey: { endsWith: `:${m.id}:${carId}` } },

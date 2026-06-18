@@ -246,27 +246,41 @@ export async function getGarajState(memberId: number): Promise<GarajStateRespons
 }
 
 // ── acquire a car (Phase 1: static buy at the sourcing-discount price) ────────
-// No outer lock: spendCoinsIdempotent self-locks; the @@unique([memberId,carCode])
-// + the idempotency key are the race guards.
+// The core loop is buy→restore→SELL→buy-AGAIN. A previously-sold car keeps its
+// GarajCar row (soldAt set) under @@unique([memberId,carCode]), so re-buying the
+// SAME model must RESET that row, not create a new one. We "own" only when an
+// ACTIVE (soldAt:null) row exists. Holds withMemberLock + an INLINE tx (never a
+// re-locking helper → no re-entrant deadlock, same discipline as flipCar) so a
+// double-tap can't double-charge and a re-buy charges correctly.
 export async function acquireCar(memberId: number, carCode: string): Promise<GarajActionResult> {
   if (!(await garajEnabledFor(memberId))) return { ok: false, reason: "off" };
   const basePrice = MAKE_BASE[carCode];
   if (!basePrice) return { ok: false, reason: "unknown" };
-  const existing = await prisma.garajCar.findFirst({ where: { memberId, carCode } });
-  if (existing) return { ok: false, reason: "owned", coins: await getCoins(memberId) };
   const buyPrice = Math.round(basePrice * GARAJ_BUY_FACTOR);
-  const spend = await spendCoinsIdempotent(memberId, buyPrice, "garaj_acquire", `Garaj: ${carCode} sotib olindi`, `garaj:acquire:${memberId}:${carCode}`);
-  if (!spend.ok) return { ok: false, reason: spend.skipped === "insufficient" ? "insufficient" : "error", coins: spend.balance };
-  let car;
-  try {
-    car = await prisma.garajCar.create({ data: { memberId, carCode, source: "shop", condition: "worn", acquireCost: buyPrice } });
-  } catch {
-    return { ok: false, reason: "owned", coins: await getCoins(memberId) };
-  }
-  // ensure meta row exists (race → catch), then atomic increment of denormalized counts
-  await prisma.memberGarajMeta.upsert({ where: { memberId }, create: { memberId }, update: {} }).catch(() => undefined);
-  await prisma.memberGarajMeta.update({ where: { memberId }, data: { carsOwnedCount: { increment: 1 }, sumCarLevels: { increment: 1 }, reputationScore: { increment: 5 } } }).catch(() => undefined);
-  return { ok: true, carId: car.id, coins: spend.balance };
+  return withMemberLock(memberId, async () => {
+    // own = an ACTIVE (unsold) car of this model. Sold rows do NOT block re-buying.
+    const active = await prisma.garajCar.findFirst({ where: { memberId, carCode, soldAt: null } });
+    if (active) return { ok: false, reason: "owned", coins: await getCoins(memberId) };
+    const result = await prisma.$transaction(async (tx) => {
+      const m = await tx.member.findUnique({ where: { id: memberId }, select: { coins: true } });
+      if ((m?.coins ?? 0) < buyPrice) return { ok: false as const, reason: "insufficient" as const };
+      await tx.coinTxn.create({ data: { memberId, amount: -buyPrice, kind: "garaj_acquire", reason: `Garaj: ${carCode} sotib olindi`, idempotencyKey: `garaj:acquire:${memberId}:${carCode}:${Date.now()}` } });
+      await tx.member.update({ where: { id: memberId }, data: { coins: { decrement: buyPrice } } });
+      // reset-or-create: re-buying a sold model reuses its unique row (fresh worn state)
+      const car = await tx.garajCar.upsert({
+        where: { memberId_carCode: { memberId, carCode } },
+        create: { memberId, carCode, source: "shop", condition: "worn", acquireCost: buyPrice },
+        update: { source: "shop", condition: "worn", acquireCost: buyPrice, repairSpent: 0, level: 1, style: null, styleLockedAt: null, diagnosisSeed: null, diagnosisResult: null, diagnosedAt: null, repairQualityBonus: 1.0, ridesSinceService: 0, soldAt: null, onboardCar: false },
+      });
+      await tx.memberGarajMeta.upsert({
+        where: { memberId },
+        create: { memberId, carsOwnedCount: 1, sumCarLevels: 1, reputationScore: 5 },
+        update: { carsOwnedCount: { increment: 1 }, sumCarLevels: { increment: 1 }, reputationScore: { increment: 5 } },
+      });
+      return { ok: true as const, carId: car.id };
+    });
+    return result.ok ? { ok: true, carId: result.carId, coins: await getCoins(memberId) } : { ok: false, reason: result.reason, coins: await getCoins(memberId) };
+  });
 }
 
 // ── diagnose (reveal hidden condition zones; cost by tier) ────────────────────
