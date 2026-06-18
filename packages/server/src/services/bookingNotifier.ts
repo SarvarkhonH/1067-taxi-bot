@@ -493,6 +493,18 @@ export async function pushBookingUpdates(
       const streak = await prisma.streak.findUnique({ where: { memberId: m.id } }).catch(() => null);
       const streakLine = streak?.current ? `\n🔥 Streak: <b>${streak.current} kun</b> — davom eting!` : "";
 
+      // 🧾 yo'l haqi — the completed ride's FINAL fare from kas (like the kas1067 SMS), shown
+      // at the end next to the bonus. Read-only (no money path); matched to THIS booking by id
+      // and omitted gracefully if kas hasn't posted the payment yet.
+      let fareLine = "";
+      try {
+        const hist = await resilient("fare", () => ds.getRideHistory(m.phone!, 6));
+        const done = hist?.find((h) => h.id === bid);
+        if (done && done.payment > 0) fareLine = `\n🧾 Yo'l haqi: <b>${formatNumber(done.payment)} so'm</b>`;
+      } catch (e) {
+        console.error("[fare] lookup failed:", e instanceof Error ? e.message : e);
+      }
+
       // ── peak-end summary card (message #3 of the ride) ──
       // P1 (QA fleet): the finish card was RE-SENT on a PG transient (the branch re-entered
       // before the state-clear below). Gate the card + admin alert on a per-ride marker → sent
@@ -517,6 +529,7 @@ export async function pushBookingUpdates(
           .sendMessage(
             chatId,
             "🏁 <b>Safaringiz yakunlandi — rahmat!</b>" +
+              fareLine +
               rollLine +
               guessLine +
               garageLine +

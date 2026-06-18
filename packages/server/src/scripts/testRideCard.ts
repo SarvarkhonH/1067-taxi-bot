@@ -58,6 +58,8 @@ function makeDs(current: ActiveBookingLite | null, echo: ActiveBookingLite[]): K
     getMainReport: async (): Promise<KasMainReport> => ({ completedYesterday: 160, bookingsYesterday: 200, onlineDrivers: 12, activeDrivers: 100, serviceCost: 0 }),
     getDriverByCar: async (car: string): Promise<BookingDriver | null> =>
       car === CAR ? { fullName: "Test Driver", phone: "+998900004002", carModel: "Cobalt", carNumber: CAR, rating: 4.9, lat: 39.05, lng: 65.57 } : null,
+    // completed-ride fare (kas1067 SMS equivalent) — consulted on the finish tick
+    getRideHistory: async () => [{ id: BOOKING_ID, addressName: "Test manzil", status: "delivered", carNumber: CAR, carModel: "Cobalt", payment: 15000, cashback: 500, at: new Date().toISOString() }],
   } as unknown as KasDataSource;
 }
 
@@ -66,7 +68,7 @@ function lite(status: string, carNumber = ""): ActiveBookingLite {
 }
 
 async function cleanup(): Promise<void> {
-  await prisma.appState.deleteMany({ where: { key: { in: [`fundride:${BOOKING_ID}`] } } });
+  await prisma.appState.deleteMany({ where: { key: { in: [`fundride:${BOOKING_ID}`, `finishcard:${BOOKING_ID}`] } } });
   // T3: per-ride finish markers for this booking (so the next run re-increments)
   // per-ride quest/score idempotency markers for this booking (qinc:/qscore:)
   await prisma.appState.deleteMany({
@@ -169,6 +171,7 @@ async function attempt(): Promise<number> {
   ok(summary.includes("Safar cashback") || summary.includes("JACKPOT"), `summary contains the roll result`);
   ok(summary.includes("TOPDINGIZ"), `ETA-guess resolved as WIN (7 min in 6-9)`);
   ok(summary.includes("🔥 Streak:") && summary.includes("5 kun"), `end-card shows streak line (5 kun)`);
+  ok(summary.includes("Yo'l haqi") && summary.includes("15 000"), `end-card shows the FARE (🧾 Yo'l haqi 15 000 so'm) — kas1067 SMS equivalent`);
 
   // state + money assertions
   const m2 = await prisma.member.findUnique({ where: { id: rider.id } });
