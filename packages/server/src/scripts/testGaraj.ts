@@ -46,12 +46,25 @@ async function cleanup(): Promise<void> {
   }
   await prisma.appState.deleteMany({ where: { key: `cipher:code:${todayKey()}` } }); // the test's daily cipher code
   await prisma.mahallaWeeklyResult.deleteMany({ where: { weekKey: "2026-W99" } }); // the test's settle weekKey
-  await prisma.appState.deleteMany({ where: { key: "feature:garajx" } }); // back to DEFAULT_OFF
+  // NOTE: do NOT delete feature:garajx here — on the LIVE DB that would knock the
+  // game OFF for all real users. main() SAVES the flag's prior value and RESTORES it.
+  __resetFeatureCache();
+}
+
+// The garajx flag's value BEFORE this test ran (so a run on the live DB never leaves
+// the game OFF). Captured at main() start, restored in finally + the crash handler.
+let prevGarajx: string | null = null;
+async function restoreGarajxFlag(): Promise<void> {
+  if (prevGarajx === null) await prisma.appState.deleteMany({ where: { key: "feature:garajx" } }).catch(() => undefined);
+  else await prisma.appState.upsert({ where: { key: "feature:garajx" }, create: { key: "feature:garajx", value: prevGarajx }, update: { value: prevGarajx } }).catch(() => undefined);
   __resetFeatureCache();
 }
 
 async function main(): Promise<void> {
+  prevGarajx = (await prisma.appState.findUnique({ where: { key: "feature:garajx" } }))?.value ?? null; // SAVE prod state first
   await cleanup();
+  await setFeature("garajx", false); // kill-switch test needs OFF (restored to prevGarajx at the end)
+  __resetFeatureCache();
   const m = await prisma.member.create({ data: { type: "client", kasId: `${TAG}-1`, fullName: "Garaj Tester", phone: "+998900006001", trips: 5 } });
   await grantCoins(m.id, 50000, "manual", "seed");
 
@@ -332,12 +345,15 @@ async function main(): Promise<void> {
   ok(Math.abs(bal - (tx._sum.amount ?? 0)) < 0.001, `ledger invariant holds (bal ${bal} == ledger ${tx._sum.amount ?? 0})`);
 
   await cleanup();
+  await restoreGarajxFlag(); // put the live flag back exactly as it was (never leave the game OFF)
   await prisma.$disconnect();
   console.log(failed === 0 ? "\n🎉 all GARAJ checks passed" : `\n❌ ${failed} FAILED`);
   process.exit(failed === 0 ? 0 : 1);
 }
 
-main().catch((e) => {
+main().catch(async (e) => {
   console.error(e);
+  await restoreGarajxFlag().catch(() => undefined); // crash mid-test must NOT leave the live game OFF
+  await prisma.$disconnect().catch(() => undefined);
   process.exit(1);
 });
