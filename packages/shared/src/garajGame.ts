@@ -337,6 +337,27 @@ export function dailyOrders(seed: number): GarajDailyOrder[] {
   return out;
 }
 
+// ── #6 Haftalik eventlar — one auto-rotating live event per ISO week (admin can
+// override). Each effect is money-safe: discount LOWERS a sink; bonus_orders only
+// scales the already-bounded order bonus; double_drops adds item offers (no emission);
+// xp_boost is progression. The active event shows as a chip at the top of the screen.
+export interface GarajWeeklyEvent {
+  type: string;
+  label: string;
+  mult: number;
+}
+export const WEEKLY_EVENTS: GarajWeeklyEvent[] = [
+  { type: "discount_service", label: "🔧 Arzon ta'mir haftasi (−20%)", mult: 0.8 },
+  { type: "bonus_orders", label: "📋 Buyurtma bonusi ×1.5", mult: 1.5 },
+  { type: "double_drops", label: "📦 Ko'p yo'l-sovg'asi haftasi", mult: 2 },
+  { type: "xp_boost", label: "⭐ Tezkor o'sish — XP ×2", mult: 2 },
+];
+export const ORDER_BONUS_EVENT_CAP = 600; // hard ceiling on a single order bonus even with the event mult
+/** Deterministic weekly event from a week-seed (rotates each ISO week). */
+export function weeklyEvent(weekSeed: number): GarajWeeklyEvent {
+  return WEEKLY_EVENTS[Math.abs(weekSeed) % WEEKLY_EVENTS.length]!;
+}
+
 // ── #3 Demand waves — a per-car multiplier (0.85..1.20) from real activity. Stored in
 // AppState market:demand:{carCode}, recomputed in the sweep. Drives the shop buy price
 // and a small flip nudge (fed like seasonalBonus, so the flip CAP still bounds it). ─
@@ -444,6 +465,7 @@ export interface GarajStateResponse {
   mahalla: GarajMahallaView | null;
   orders: GarajDailyOrder[]; // #2 today's 3 NPC commissions (done flag per member)
   roadDrops: GarajRoadDrop[]; // #4 pending towed-car offers from real rides
+  weeklyEvent: GarajWeeklyEvent | null; // #6 this week's live event (chip)
 }
 export interface GarajActionResult {
   ok: boolean;

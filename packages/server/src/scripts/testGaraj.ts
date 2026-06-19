@@ -12,7 +12,7 @@ import "../env";
 import { MAKE_BASE, GARAJ_BUY_FACTOR, FLIP_DAILY_CAP, CIPHER_REWARD, OFFLINE_DAILY_CAP, PRESTIGE_REP_HEADSTART, CRAFT_MAX_LEVEL, prestigeMultiplier, activeSeasonalEvent } from "@t1067/shared";
 import { prisma } from "../db";
 import { getCoins, grantCoins } from "../services/coinService";
-import { acquireCar, completeRepairTask, repairZone, diagnoseCar, flipCar, garajAuctionBid, garajAuctionCreate, garajBazaarBuy, garajBazaarList, garajBazaarUnlist, getGarajHistory, getMemberCollection, garajKozachaBuy, grantKozacha, processRideDrop, settleAuctions, spendKozachaIdempotent, updateStreakOnRide, garajCipherGuess, collectOfflineBox, garajPrestige, mahallaCreate, mahallaJoin, mahallaLeave, addMahallaScore, settleMahallaWeek, getMahallaLeague, getMahallaState, getDailyOrders, recomputeDemand, getRoadDrops, claimTowedCar, declineTowedCar, garajCraft } from "../services/garajService";
+import { acquireCar, completeRepairTask, repairZone, diagnoseCar, flipCar, garajAuctionBid, garajAuctionCreate, garajBazaarBuy, garajBazaarList, garajBazaarUnlist, getGarajHistory, getMemberCollection, garajKozachaBuy, grantKozacha, processRideDrop, settleAuctions, spendKozachaIdempotent, updateStreakOnRide, garajCipherGuess, collectOfflineBox, garajPrestige, mahallaCreate, mahallaJoin, mahallaLeave, addMahallaScore, settleMahallaWeek, getMahallaLeague, getMahallaState, getDailyOrders, recomputeDemand, getRoadDrops, claimTowedCar, declineTowedCar, garajCraft, __resetWeekEventCache } from "../services/garajService";
 import { __resetFeatureCache, setFeature } from "../services/featureFlags";
 
 const TAG = "garaj-test";
@@ -55,6 +55,8 @@ async function cleanup(): Promise<void> {
   }
   await prisma.appState.deleteMany({ where: { key: `cipher:code:${todayKey()}` } }); // the test's daily cipher code
   await prisma.appState.deleteMany({ where: { key: { startsWith: "market:demand:" } } }); // #3 demand cache
+  await prisma.appState.deleteMany({ where: { key: "garaj:weekevent" } }); // #6 admin override
+  __resetWeekEventCache();
   await prisma.mahallaWeeklyResult.deleteMany({ where: { weekKey: "2026-W99" } }); // the test's settle weekKey
   // NOTE: do NOT delete feature:garajx here — on the LIVE DB that would knock the
   // game OFF for all real users. main() SAVES the flag's prior value and RESTORES it.
@@ -84,6 +86,11 @@ async function main(): Promise<void> {
 
   await setFeature("garajx", true);
   __resetFeatureCache();
+  // #6: pin a NEUTRAL weekly event (double_drops touches only drop-rate, not any exact
+  // cost/bonus the economy tests assert) so those checks are deterministic regardless of
+  // the real ISO week. The #6 test below overrides this explicitly; cleanup clears it.
+  await prisma.appState.upsert({ where: { key: "garaj:weekevent" }, create: { key: "garaj:weekevent", value: "double_drops" }, update: { value: "double_drops" } });
+  __resetWeekEventCache();
 
   // 2. acquire nexia: sink = round(MAKE_BASE.nexia × 0.65)
   const expectBuy = Math.round(MAKE_BASE["nexia"]! * GARAJ_BUY_FACTOR);
@@ -121,6 +128,8 @@ async function main(): Promise<void> {
   await grantCoins(rzM.id, 50000, "manual", "seed");
   await acquireCar(rzM.id, "spark");
   const spark = (await prisma.garajCar.findFirst({ where: { memberId: rzM.id, carCode: "spark", soldAt: null } }))!;
+  // pin zones low so "engine" is definitely damaged (seed could otherwise roll ≥96 = already pristine)
+  await prisma.garajCar.update({ where: { id: spark.id }, data: { repairZones: JSON.stringify({ engine: 30, body: 30, transmission: 30, electric: 30, interior: 30 }) } });
   const cz0 = await getCoins(rzM.id);
   const rz = await repairZone(rzM.id, spark.id, "engine", "OEM", "FULL_RESTORE", "GOOD");
   ok(rz.ok && cz0 - (rz.coins ?? 0) === 200, `repairZone OEM charged 200 (got ${cz0 - (rz.coins ?? 0)})`);
@@ -428,8 +437,24 @@ async function main(): Promise<void> {
   ok((await garajCraft(xM.id, xc.id, "TUNE")).reason === "max_level", `craft TUNE blocked at level ${CRAFT_MAX_LEVEL}`);
   ok((await garajCraft(xM.id, xc.id, "XXX")).reason === "unknown_station", `craft rejects an unknown station`);
 
+  // 25. #6 weekly event — discount_service lowers repair cost (admin override + cache reset)
+  const wM = await prisma.member.create({ data: { type: "client", kasId: `${TAG}-week`, fullName: "Weeker", phone: "+998900006013", trips: 5 } });
+  await grantCoins(wM.id, 50000, "manual", "seed");
+  await acquireCar(wM.id, "nexia");
+  const wc = (await prisma.garajCar.findFirst({ where: { memberId: wM.id, carCode: "nexia", soldAt: null } }))!;
+  await prisma.appState.upsert({ where: { key: "garaj:weekevent" }, create: { key: "garaj:weekevent", value: "discount_service" }, update: { value: "discount_service" } });
+  __resetWeekEventCache();
+  const wc0 = await getCoins(wM.id);
+  await repairZone(wM.id, wc.id, "engine", "STD"); // STD = 80; discount → 64
+  ok(wc0 - (await getCoins(wM.id)) === 64, `discount week: STD repair 80→64 (got ${wc0 - (await getCoins(wM.id))})`);
+  await prisma.appState.update({ where: { key: "garaj:weekevent" }, data: { value: "xp_boost" } });
+  __resetWeekEventCache();
+  const wc1 = await getCoins(wM.id);
+  await repairZone(wM.id, wc.id, "body", "STD"); // non-discount week → full 80
+  ok(wc1 - (await getCoins(wM.id)) === 80, `non-discount week: STD repair full 80 (got ${wc1 - (await getCoins(wM.id))})`);
+
   // 20. W5 ledger invariant across all new members (every grant is a real CoinTxn)
-  for (const mm of [sM, cM, bM, oM, tM, xM]) {
+  for (const mm of [sM, cM, bM, oM, tM, xM, wM]) {
     const b = (await prisma.member.findUnique({ where: { id: mm.id } }))!.coins;
     const t = await prisma.coinTxn.aggregate({ where: { memberId: mm.id }, _sum: { amount: true } });
     ok(Math.abs(b - (t._sum.amount ?? 0)) < 0.001, `W5 ledger invariant (member ${mm.id}: bal ${b} == ledger ${t._sum.amount ?? 0})`);

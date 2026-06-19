@@ -158,6 +158,9 @@ export function GarajShell({ onClose, initial }: { onClose: () => void; initial?
         <LoadSection state={state} onRetry={load}>
           {st && (
             <>
+              {/* 📅 weekly liveops event — a screen-wide chip (discount / bonus / drops / xp) */}
+              {st.weeklyEvent && <div className="gz-weekevent">{st.weeklyEvent.label}</div>}
+
               {/* 🏠 STAGE — your active project car is the hero of the screen */}
               {projectCar ? (
                 <button className="gz-stage" onClick={() => { haptic(); setOpenId(projectCar.id); }}>
@@ -761,6 +764,7 @@ export const GARAJ_DEMO: GarajStateResponse = {
     { slot: 2, carCode: "tiko", style: "PERIOD_CORRECT", buyer: "COLLECTOR", bonus: 120, done: false },
   ],
   roadDrops: [{ id: 1, carCode: "matiz", name: "Matiz", emoji: "🚗", price: 825, expiresAt: "2026-06-20T10:00:00Z" }],
+  weeklyEvent: { type: "discount_service", label: "🔧 Arzon ta'mir haftasi (−20%)", mult: 0.8 },
 };
 
 /** #garajdemo render-proof entry — the shell populated from the static fixture. */

@@ -38,8 +38,12 @@ import {
   dailyOrders,
   demandMultiplier,
   demandFlipBonus,
+  weeklyEvent,
+  WEEKLY_EVENTS,
+  ORDER_BONUS_EVENT_CAP,
   type GarajDailyOrder,
   type GarajRoadDrop,
+  type GarajWeeklyEvent,
   STREAK_LADDER,
   STREAK_FREEZE_DAY,
   COMEBACK_GRANT,
@@ -114,6 +118,26 @@ function isoWeekKey(d = new Date()): string {
 export function closedWeekKey(d = new Date()): string {
   return isoWeekKey(new Date(d.getTime() - 7 * 86400000));
 }
+
+// #6 weekly event — deterministic by ISO week (admin can override via AppState
+// garaj:weekevent). Cached in-process (~10 min) so the hot paths that read it
+// (repair/craft cost, order bonus, drop rate, xp) don't each hit the DB.
+let _weekEvCache: { at: number; ev: GarajWeeklyEvent } | null = null;
+async function getWeeklyEvent(): Promise<GarajWeeklyEvent> {
+  if (_weekEvCache && Date.now() - _weekEvCache.at < 10 * 60 * 1000) return _weekEvCache.ev;
+  let ev = weeklyEvent(seedFor(`week:${isoWeekKey()}`));
+  const override = await prisma.appState.findUnique({ where: { key: "garaj:weekevent" } }).catch(() => null);
+  if (override?.value) {
+    const m = WEEKLY_EVENTS.find((e) => e.type === override.value);
+    if (m) ev = m;
+  }
+  _weekEvCache = { at: Date.now(), ev };
+  return ev;
+}
+/** TEST-ONLY: force getWeeklyEvent to re-read (after setting the admin override). */
+export function __resetWeekEventCache(): void {
+  _weekEvCache = null;
+}
 const CONDITIONS = ["worn", "fair", "good", "mint"] as const;
 function nextCondition(c: string): string {
   const i = CONDITIONS.indexOf(c as (typeof CONDITIONS)[number]);
@@ -127,22 +151,24 @@ async function bumpSkill(
   patch: { diag?: number; muhandis?: number; kuzovchi?: number; savdogar?: number; kollektsioner?: number },
 ): Promise<void> {
   try {
+    const ev = await getWeeklyEvent(); // #6 XP ×2 week (branch XP only; diagnoses count is unscaled)
+    const xm = ev.type === "xp_boost" ? ev.mult : 1;
     const row = await prisma.memberMechanicSkill.upsert({
       where: { memberId },
       create: {
         memberId,
         totalDiagnoses: patch.diag ?? 0,
-        muhandisXp: patch.muhandis ?? 0,
-        kuzovchiXp: patch.kuzovchi ?? 0,
-        savdogarXp: patch.savdogar ?? 0,
-        kollektsionerXp: patch.kollektsioner ?? 0,
+        muhandisXp: (patch.muhandis ?? 0) * xm,
+        kuzovchiXp: (patch.kuzovchi ?? 0) * xm,
+        savdogarXp: (patch.savdogar ?? 0) * xm,
+        kollektsionerXp: (patch.kollektsioner ?? 0) * xm,
       },
       update: {
         totalDiagnoses: { increment: patch.diag ?? 0 },
-        muhandisXp: { increment: patch.muhandis ?? 0 },
-        kuzovchiXp: { increment: patch.kuzovchi ?? 0 },
-        savdogarXp: { increment: patch.savdogar ?? 0 },
-        kollektsionerXp: { increment: patch.kollektsioner ?? 0 },
+        muhandisXp: { increment: (patch.muhandis ?? 0) * xm },
+        kuzovchiXp: { increment: (patch.kuzovchi ?? 0) * xm },
+        savdogarXp: { increment: (patch.savdogar ?? 0) * xm },
+        kollektsionerXp: { increment: (patch.kollektsioner ?? 0) * xm },
       },
     });
     const rank = Math.min(100, Math.floor(row.totalDiagnoses / 3));
@@ -155,7 +181,7 @@ async function bumpSkill(
 // ── read: full state for the dedicated shell (one round-trip) ─────────────────
 export async function getGarajState(memberId: number): Promise<GarajStateResponse> {
   const today = tashkentDate();
-  const [enabled, meta, cars, coins, sk, streakRow, cipherSolved, cipherAttempts, cipherCode, mahalla, demand, orders, roadDrops] = await Promise.all([
+  const [enabled, meta, cars, coins, sk, streakRow, cipherSolved, cipherAttempts, cipherCode, mahalla, demand, orders, roadDrops, weekEv] = await Promise.all([
     garajEnabledFor(memberId),
     prisma.memberGarajMeta.findUnique({ where: { memberId } }),
     prisma.garajCar.findMany({ where: { memberId, soldAt: null } }),
@@ -169,6 +195,7 @@ export async function getGarajState(memberId: number): Promise<GarajStateRespons
     getDemandMap(),
     getDailyOrders(memberId),
     getRoadDrops(memberId),
+    getWeeklyEvent(),
   ]);
   const ownedCodes = new Set(cars.map((c) => c.carCode));
   const carViews: GarajCarView[] = cars.map((c) => {
@@ -263,6 +290,7 @@ export async function getGarajState(memberId: number): Promise<GarajStateRespons
     mahalla,
     orders,
     roadDrops,
+    weeklyEvent: weekEv,
   };
 }
 
@@ -389,15 +417,17 @@ export async function repairZone(memberId: number, garajCarId: number, zone: str
     zones[zone] = newZoneVal;
     const newCond = conditionFromZones(zones).toLowerCase();
     const newRQB = Math.max(REPAIR_QUALITY_MIN, Math.min(REPAIR_QUALITY_MAX, car.repairQualityBonus * tier.quality)); // part tier → flip-quality (clamped 1.25)
+    const ev = await getWeeklyEvent();
+    const cost = ev.type === "discount_service" ? Math.round(tier.cost * ev.mult) : tier.cost; // #6 cheap-repair week
     const result = await prisma.$transaction(async (tx) => {
       const m = await tx.member.findUnique({ where: { id: memberId }, select: { coins: true } });
-      if ((m?.coins ?? 0) < tier.cost) return { ok: false as const, reason: "insufficient" as const };
-      await tx.coinTxn.create({ data: { memberId, amount: -tier.cost, kind: "garaj_repair", reason: `Ta'mir ${ZONE_NAMES[zone] ?? zone} (${tier.name})`, idempotencyKey: `repairzone:${memberId}:${garajCarId}:${zone}:${Date.now()}` } });
-      await tx.member.update({ where: { id: memberId }, data: { coins: { decrement: tier.cost } } });
+      if ((m?.coins ?? 0) < cost) return { ok: false as const, reason: "insufficient" as const };
+      await tx.coinTxn.create({ data: { memberId, amount: -cost, kind: "garaj_repair", reason: `Ta'mir ${ZONE_NAMES[zone] ?? zone} (${tier.name})`, idempotencyKey: `repairzone:${memberId}:${garajCarId}:${zone}:${Date.now()}` } });
+      await tx.member.update({ where: { id: memberId }, data: { coins: { decrement: cost } } });
       // seed diagnosisSeed too (so a blind repair fixes a deterministic zone set)
       await tx.garajCar.update({
         where: { id: garajCarId },
-        data: { diagnosisSeed: seed, repairZones: JSON.stringify(zones), condition: newCond, style: lockedStyle, styleLockedAt: car.styleLockedAt ?? new Date(), repairSpent: { increment: tier.cost }, repairQualityBonus: newRQB },
+        data: { diagnosisSeed: seed, repairZones: JSON.stringify(zones), condition: newCond, style: lockedStyle, styleLockedAt: car.styleLockedAt ?? new Date(), repairSpent: { increment: cost }, repairQualityBonus: newRQB },
       });
       return { ok: true as const };
     });
@@ -420,7 +450,8 @@ export async function garajCraft(memberId: number, garajCarId: number, station: 
     const basePrice = MAKE_BASE[car.carCode] ?? 1000;
     if (station === "TUNE" && car.level >= CRAFT_MAX_LEVEL) return { ok: false, reason: "max_level", coins: await getCoins(memberId) };
     if (station === "PAINT" && car.repairQualityBonus >= REPAIR_QUALITY_MAX - 0.001) return { ok: false, reason: "max_quality", coins: await getCoins(memberId) };
-    const cost = craftCost(station, basePrice, car.level);
+    const ev = await getWeeklyEvent();
+    const cost = Math.round(craftCost(station, basePrice, car.level) * (ev.type === "discount_service" ? ev.mult : 1)); // #6 cheap-repair week
     const result = await prisma.$transaction(async (tx) => {
       const m = await tx.member.findUnique({ where: { id: memberId }, select: { coins: true } });
       if ((m?.coins ?? 0) < cost) return { ok: false as const, reason: "insufficient" as const };
@@ -532,8 +563,10 @@ export async function flipCar(memberId: number, garajCarId: number, buyerArchety
     const oDate = tashkentDate();
     const match = dailyOrders(seedFor(`orders:${oDate}`)).find((o) => o.carCode === car.carCode && o.style === style && o.buyer === buyerArchetype);
     if (match) {
-      const ob = await grantCoins(memberId, match.bonus, "garaj_order", `📋 Buyurtma bajarildi: ${car.carCode}`, `orderbonus:${memberId}:${oDate}:${match.slot}`);
-      orderBonus = ob.skipped === "duplicate" ? 0 : match.bonus;
+      const ev = await getWeeklyEvent();
+      const bonusAmt = ev.type === "bonus_orders" ? Math.min(ORDER_BONUS_EVENT_CAP, Math.round(match.bonus * ev.mult)) : match.bonus; // #6 bonus-orders week (hard-capped)
+      const ob = await grantCoins(memberId, bonusAmt, "garaj_order", `📋 Buyurtma bajarildi: ${car.carCode}`, `orderbonus:${memberId}:${oDate}:${match.slot}`);
+      orderBonus = ob.skipped === "duplicate" ? 0 : bonusAmt;
     }
     return { ok: true, grant: result.grant, profit: result.profit, orderBonus, coins: await getCoins(memberId) };
   });
@@ -629,6 +662,8 @@ export async function garajKozachaBuy(memberId: number, itemCode: string, garajC
 export async function processRideDrop(memberId: number, bookingId: number, _rideStartedAt: Date | null): Promise<boolean> {
   if (!(await featureOn("garajx"))) return false;
   const bucket = seedFor(`drop:${memberId}:${bookingId}`) % 1000;
+  const ev = await getWeeklyEvent();
+  const towHi = ev.type === "double_drops" ? 800 : 700; // #6 more ride finds this week
   let dropType = "NONE";
   let dropCode = "";
   if (bucket < 400) {
@@ -637,7 +672,7 @@ export async function processRideDrop(memberId: number, bookingId: number, _ride
   } else if (bucket < 600) {
     dropType = "PART";
     dropCode = "rare";
-  } else if (bucket < 700) {
+  } else if (bucket < towHi) {
     dropType = "TOWED_CAR";
     const codes = Object.keys(MAKE_BASE);
     dropCode = codes[seedFor(`tow:${memberId}:${bookingId}`) % codes.length]!;
