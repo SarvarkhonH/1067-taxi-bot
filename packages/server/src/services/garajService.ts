@@ -41,9 +41,12 @@ import {
   weeklyEvent,
   WEEKLY_EVENTS,
   ORDER_BONUS_EVENT_CAP,
+  EXHIBITION_PRIZE,
+  EXHIBITION_MIN_ENTRIES,
   type GarajDailyOrder,
   type GarajRoadDrop,
   type GarajWeeklyEvent,
+  type GarajExhibitionView,
   STREAK_LADDER,
   STREAK_FREEZE_DAY,
   COMEBACK_GRANT,
@@ -181,7 +184,7 @@ async function bumpSkill(
 // ── read: full state for the dedicated shell (one round-trip) ─────────────────
 export async function getGarajState(memberId: number): Promise<GarajStateResponse> {
   const today = tashkentDate();
-  const [enabled, meta, cars, coins, sk, streakRow, cipherSolved, cipherAttempts, cipherCode, mahalla, demand, orders, roadDrops, weekEv] = await Promise.all([
+  const [enabled, meta, cars, coins, sk, streakRow, cipherSolved, cipherAttempts, cipherCode, mahalla, demand, orders, roadDrops, weekEv, exhibition] = await Promise.all([
     garajEnabledFor(memberId),
     prisma.memberGarajMeta.findUnique({ where: { memberId } }),
     prisma.garajCar.findMany({ where: { memberId, soldAt: null } }),
@@ -196,6 +199,7 @@ export async function getGarajState(memberId: number): Promise<GarajStateRespons
     getDailyOrders(memberId),
     getRoadDrops(memberId),
     getWeeklyEvent(),
+    getExhibition(memberId),
   ]);
   const ownedCodes = new Set(cars.map((c) => c.carCode));
   const carViews: GarajCarView[] = cars.map((c) => {
@@ -291,6 +295,7 @@ export async function getGarajState(memberId: number): Promise<GarajStateRespons
     orders,
     roadDrops,
     weeklyEvent: weekEv,
+    exhibition,
   };
 }
 
@@ -1265,4 +1270,78 @@ export async function declineTowedCar(memberId: number, dropId: number): Promise
   if (!(await garajEnabledFor(memberId))) return { ok: false, reason: "off" };
   const upd = await prisma.garajRideDrop.updateMany({ where: { id: dropId, memberId, dropType: "TOWED_CAR", status: "pending" }, data: { status: "declined" } });
   return upd.count > 0 ? { ok: true } : { ok: false, reason: "not_found" };
+}
+
+// ══ #8 Exhibition — weekly car show ══════════════════════════════════════════
+// Submit a snapshot of your best car (one/week); others vote (one/week, not your own);
+// the top-voted entry of the CLOSED week wins a bounded, idempotent prize (sweep-settled,
+// only if ≥EXHIBITION_MIN_ENTRIES so a solo player can't auto-farm it). Votes are NOT
+// tanga, so the leaderboard can't be coin-farmed.
+export async function exhibitionSubmit(memberId: number, garajCarId: number): Promise<GarajActionResult> {
+  if (!(await garajEnabledFor(memberId))) return { ok: false, reason: "off" };
+  return withMemberLock(memberId, async () => {
+    const car = await prisma.garajCar.findFirst({ where: { id: garajCarId, memberId, soldAt: null } });
+    if (!car) return { ok: false, reason: "not_found" };
+    const weekKey = isoWeekKey();
+    // snapshot (persists even if the car is later sold). One entry/week — re-submitting updates it.
+    await prisma.garajExhibitionEntry.upsert({
+      where: { memberId_weekKey: { memberId, weekKey } },
+      create: { memberId, weekKey, carCode: car.carCode, level: car.level, condition: car.condition },
+      update: { carCode: car.carCode, level: car.level, condition: car.condition },
+    });
+    return { ok: true };
+  });
+}
+
+export async function exhibitionVote(voterId: number, entryId: number): Promise<GarajActionResult> {
+  if (!(await garajEnabledFor(voterId))) return { ok: false, reason: "off" };
+  const weekKey = isoWeekKey();
+  const entry = await prisma.garajExhibitionEntry.findUnique({ where: { id: entryId } });
+  if (!entry || entry.weekKey !== weekKey) return { ok: false, reason: "not_found" };
+  if (entry.memberId === voterId) return { ok: false, reason: "self_vote" };
+  try {
+    await prisma.$transaction(async (tx) => {
+      await tx.garajExhibitionVote.create({ data: { entryId, voterId, weekKey } }); // @@unique(voterId,weekKey) → P2002 on 2nd vote
+      await tx.garajExhibitionEntry.update({ where: { id: entryId }, data: { votes: { increment: 1 } } });
+    });
+    return { ok: true };
+  } catch (e) {
+    if ((e as { code?: string } | null)?.code === "P2002") return { ok: false, reason: "already_voted" };
+    throw e;
+  }
+}
+
+export async function getExhibition(memberId: number): Promise<GarajExhibitionView> {
+  if (!(await garajEnabledFor(memberId))) return { entries: [], myEntryId: null, myVoteEntryId: null, lastWinner: null };
+  const weekKey = isoWeekKey();
+  const [rows, myVote, lastWin] = await Promise.all([
+    prisma.garajExhibitionEntry.findMany({ where: { weekKey }, orderBy: [{ votes: "desc" }, { createdAt: "asc" }], take: 30 }),
+    prisma.garajExhibitionVote.findUnique({ where: { voterId_weekKey: { voterId: memberId, weekKey } } }),
+    prisma.garajExhibitionEntry.findFirst({ where: { weekKey: closedWeekKey() }, orderBy: [{ votes: "desc" }, { createdAt: "asc" }] }),
+  ]);
+  const entries = rows.map((r) => {
+    const cm = garajCarMeta(r.carCode);
+    return { id: r.id, carCode: r.carCode, name: cm?.name ?? r.carCode, emoji: cm?.emoji ?? "🚗", level: r.level, condition: r.condition.toUpperCase(), votes: r.votes, mine: r.memberId === memberId };
+  });
+  let lastWinner: GarajExhibitionView["lastWinner"] = null;
+  if (lastWin && lastWin.votes > 0) {
+    const member = await prisma.member.findUnique({ where: { id: lastWin.memberId }, select: { fullName: true } });
+    const cm = garajCarMeta(lastWin.carCode);
+    lastWinner = { name: member?.fullName ?? "Usta", carName: cm?.name ?? lastWin.carCode, emoji: cm?.emoji ?? "🚗", votes: lastWin.votes };
+  }
+  return { entries, myEntryId: rows.find((r) => r.memberId === memberId)?.id ?? null, myVoteEntryId: myVote?.entryId ?? null, lastWinner };
+}
+
+// Settle the CLOSED week's exhibition: top-voted entry wins the prize (bounded + idempotent
+// via exhibwin:{weekKey}); only pays when ≥EXHIBITION_MIN_ENTRIES (no solo farming). Sweep-run.
+export async function settleExhibition(weekKey: string): Promise<boolean> {
+  if (!(await featureOn("garajx"))) return false;
+  const key = `exhibwin:${weekKey}`;
+  if (await prisma.coinTxn.findUnique({ where: { idempotencyKey: key } })) return false; // already settled
+  const entries = await prisma.garajExhibitionEntry.findMany({ where: { weekKey }, orderBy: [{ votes: "desc" }, { createdAt: "asc" }] });
+  if (entries.length < EXHIBITION_MIN_ENTRIES) return false; // not enough competition → no prize
+  const winner = entries[0]!;
+  if (winner.votes <= 0) return false; // nobody voted
+  const g = await grantCoins(winner.memberId, EXHIBITION_PRIZE, "garaj_exhibition", `🏆 Ko'rgazma g'olibi: ${winner.carCode}`, key);
+  return g.ok;
 }

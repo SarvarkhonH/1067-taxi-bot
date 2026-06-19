@@ -176,10 +176,11 @@ export async function pushBookingUpdates(
   // then this sweep's rides accrue into the fresh week (no self-wipe). Idempotent via
   // MahallaWeeklyResult (presence = settled); later sweeps no-op. OFF-safe.
   try {
-    const { closedWeekKey, settleMahallaWeek } = await import("./garajService");
+    const { closedWeekKey, settleMahallaWeek, settleExhibition } = await import("./garajService");
     await settleMahallaWeek(closedWeekKey());
+    await settleExhibition(closedWeekKey()); // #8: award last week's top-voted car (idempotent)
   } catch (e) {
-    console.error("[garaj] mahalla weekly settle failed:", e);
+    console.error("[garaj] weekly settle failed:", e);
   }
 
   for (const m of linked) {

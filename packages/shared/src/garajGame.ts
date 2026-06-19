@@ -299,6 +299,27 @@ export function activeSeasonalEvent(monthDay: string): SeasonalEvent | null {
   return null;
 }
 
+// ── #8 Exhibition — weekly car show. Winner prize is a bounded, idempotent grant;
+// requires ≥2 entries so a solo player can't auto-farm it every week.
+export const EXHIBITION_PRIZE = 1000;
+export const EXHIBITION_MIN_ENTRIES = 2;
+export interface GarajExhibitionEntryView {
+  id: number;
+  carCode: string;
+  name: string;
+  emoji: string;
+  level: number;
+  condition: string;
+  votes: number;
+  mine: boolean;
+}
+export interface GarajExhibitionView {
+  entries: GarajExhibitionEntryView[];
+  myEntryId: number | null;
+  myVoteEntryId: number | null;
+  lastWinner: { name: string; carName: string; emoji: string; votes: number } | null;
+}
+
 // ── #7 NPC personajlar — the 4 buyer archetypes become named, characterful people
 // (Koson mahalla residents). Pure flavor/config (no money path): orders read like real
 // commissions and the flip buyers have a face + a line. Browser + node safe.
@@ -490,6 +511,7 @@ export interface GarajStateResponse {
   orders: GarajDailyOrder[]; // #2 today's 3 NPC commissions (done flag per member)
   roadDrops: GarajRoadDrop[]; // #4 pending towed-car offers from real rides
   weeklyEvent: GarajWeeklyEvent | null; // #6 this week's live event (chip)
+  exhibition: GarajExhibitionView; // #8 weekly car show (entries + my vote + last winner)
 }
 export interface GarajActionResult {
   ok: boolean;

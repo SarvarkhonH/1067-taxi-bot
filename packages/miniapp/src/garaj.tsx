@@ -439,6 +439,33 @@ export function GarajShell({ onClose, initial }: { onClose: () => void; initial?
                 </Card>
               )}
 
+              {/* 🏆 Ko'rgazma — weekly car show: submit, vote, last week's winner */}
+              <div className="gz-sec-title">🏆 Haftalik ko'rgazma</div>
+              <Card className="gz-exhib">
+                {st.exhibition.lastWinner && (
+                  <div className="gz-exhib-winner">🏅 O'tgan hafta g'olibi: {st.exhibition.lastWinner.emoji} <b>{st.exhibition.lastWinner.carName}</b> · {st.exhibition.lastWinner.name} ({st.exhibition.lastWinner.votes} ovoz)</div>
+                )}
+                {projectCar && st.exhibition.myEntryId == null && (
+                  <Button sm className="mt4" disabled={busy} onClick={() => exhibitionSubmitAct(projectCar.id)}>📸 «{projectCar.name}»ni ko'rgazmaga qo'yish</Button>
+                )}
+                {st.exhibition.entries.length === 0 ? (
+                  <p className="fs12 dim mt4">Hali hech kim qo'ymadi — birinchi bo'ling!</p>
+                ) : (
+                  <div className="gz-exhib-list mt8">
+                    {st.exhibition.entries.map((e) => (
+                      <div key={e.id} className={`gz-exhib-row${e.mine ? " mine" : ""}`}>
+                        <span className="gz-exhib-car">{e.emoji} {e.name}{e.level > 1 ? ` ★${e.level}` : ""}{e.mine ? " · siz" : ""}</span>
+                        <span className="gz-exhib-votes">👍 {e.votes}</span>
+                        {!e.mine && st.exhibition.myVoteEntryId == null && (
+                          <Button sm variant="ghost" disabled={busy} onClick={() => exhibitionVoteAct(e.id)}>Ovoz</Button>
+                        )}
+                        {st.exhibition.myVoteEntryId === e.id && <span className="gz-exhib-voted">✓</span>}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </Card>
+
               {/* ♻️ Prestige — end-game reset for a permanent multiplier */}
               {st.prestige.eligible && (
                 <Card className="gz-prestige">
@@ -652,6 +679,14 @@ export function GarajShell({ onClose, initial }: { onClose: () => void; initial?
   function doPrestige(): void {
     void act(() => api.garajPrestige(), () => { hapticSuccess(); flash("Prestij! Doimiy bonus ochildi ♻️"); });
   }
+  function exhibitionSubmitAct(id: number): void {
+    void act(() => api.garajExhibitionSubmit(id));
+    flash("Ko'rgazmaga qo'yildi 🏆");
+  }
+  function exhibitionVoteAct(entryId: number): void {
+    void act(() => api.garajExhibitionVote(entryId));
+    flash("Ovoz berildi 👍");
+  }
   function mahallaNameDefault(): string {
     return `Garaj ${Math.floor(coins % 1000)}`; // simple auto-name; rename UI ships later
   }
@@ -769,6 +804,15 @@ export const GARAJ_DEMO: GarajStateResponse = {
   ],
   roadDrops: [{ id: 1, carCode: "matiz", name: "Matiz", emoji: "🚗", price: 825, expiresAt: "2026-06-20T10:00:00Z" }],
   weeklyEvent: { type: "discount_service", label: "🔧 Arzon ta'mir haftasi (−20%)", mult: 0.8 },
+  exhibition: {
+    entries: [
+      { id: 1, carCode: "tahoe", name: "Tahoe", emoji: "🚙", level: 4, condition: "MINT", votes: 12, mine: false },
+      { id: 2, carCode: "nexia", name: "Nexia", emoji: "🚙", level: 2, condition: "GOOD", votes: 5, mine: true },
+    ],
+    myEntryId: 2,
+    myVoteEntryId: null,
+    lastWinner: { name: "Jasur", carName: "Malibu", emoji: "🏎", votes: 19 },
+  },
 };
 
 /** #garajdemo render-proof entry — the shell populated from the static fixture. */

@@ -760,3 +760,31 @@ model GarajHallOfFame {
   repAtEntry    Int
   createdAt     DateTime @default(now())
 }
+
+// 🏆 #8 Exhibition — weekly car show. One entry per member per week (a snapshot so it
+// persists even if the car is sold); one vote per member per week (self-vote blocked).
+// The top-voted entry of the closed week wins a bounded, idempotent prize (sweep-settled).
+model GarajExhibitionEntry {
+  id        Int      @id @default(autoincrement())
+  memberId  Int
+  weekKey   String
+  carCode   String
+  level     Int      @default(1)
+  condition String   @default("good")
+  votes     Int      @default(0) // denormalized vote count
+  createdAt DateTime @default(now())
+
+  @@unique([memberId, weekKey])
+  @@index([weekKey])
+}
+
+model GarajExhibitionVote {
+  id        Int      @id @default(autoincrement())
+  entryId   Int
+  voterId   Int
+  weekKey   String
+  createdAt DateTime @default(now())
+
+  @@unique([voterId, weekKey]) // one vote per member per week
+  @@index([entryId])
+}

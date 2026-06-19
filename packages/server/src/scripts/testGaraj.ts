@@ -12,7 +12,7 @@ import "../env";
 import { MAKE_BASE, GARAJ_BUY_FACTOR, FLIP_DAILY_CAP, CIPHER_REWARD, OFFLINE_DAILY_CAP, PRESTIGE_REP_HEADSTART, CRAFT_MAX_LEVEL, prestigeMultiplier, activeSeasonalEvent, npcForBuyer, npcLine } from "@t1067/shared";
 import { prisma } from "../db";
 import { getCoins, grantCoins } from "../services/coinService";
-import { acquireCar, completeRepairTask, repairZone, diagnoseCar, flipCar, garajAuctionBid, garajAuctionCreate, garajBazaarBuy, garajBazaarList, garajBazaarUnlist, getGarajHistory, getMemberCollection, garajKozachaBuy, grantKozacha, processRideDrop, settleAuctions, spendKozachaIdempotent, updateStreakOnRide, garajCipherGuess, collectOfflineBox, garajPrestige, mahallaCreate, mahallaJoin, mahallaLeave, addMahallaScore, settleMahallaWeek, getMahallaLeague, getMahallaState, getDailyOrders, recomputeDemand, getRoadDrops, claimTowedCar, declineTowedCar, garajCraft, __resetWeekEventCache } from "../services/garajService";
+import { acquireCar, completeRepairTask, repairZone, diagnoseCar, flipCar, garajAuctionBid, garajAuctionCreate, garajBazaarBuy, garajBazaarList, garajBazaarUnlist, getGarajHistory, getMemberCollection, garajKozachaBuy, grantKozacha, processRideDrop, settleAuctions, spendKozachaIdempotent, updateStreakOnRide, garajCipherGuess, collectOfflineBox, garajPrestige, mahallaCreate, mahallaJoin, mahallaLeave, addMahallaScore, settleMahallaWeek, getMahallaLeague, getMahallaState, getDailyOrders, recomputeDemand, getRoadDrops, claimTowedCar, declineTowedCar, garajCraft, __resetWeekEventCache, exhibitionSubmit, exhibitionVote, settleExhibition } from "../services/garajService";
 import { __resetFeatureCache, setFeature } from "../services/featureFlags";
 
 const TAG = "garaj-test";
@@ -36,6 +36,8 @@ async function cleanup(): Promise<void> {
     await prisma.mahallaGroup.deleteMany({ where: { id: { in: groupIds } } });
     await prisma.garajStreak.deleteMany({ where: { memberId: { in: ids } } });
     await prisma.garajHallOfFame.deleteMany({ where: { memberId: { in: ids } } });
+    await prisma.garajExhibitionVote.deleteMany({ where: { voterId: { in: ids } } });
+    await prisma.garajExhibitionEntry.deleteMany({ where: { memberId: { in: ids } } });
     await prisma.garajCar.deleteMany({ where: { memberId: { in: ids } } });
     await prisma.garajFlip.deleteMany({ where: { memberId: { in: ids } } });
     await prisma.garajRideDrop.deleteMany({ where: { memberId: { in: ids } } });
@@ -457,8 +459,31 @@ async function main(): Promise<void> {
   await repairZone(wM.id, wc.id, "body", "STD"); // non-discount week → full 80
   ok(wc1 - (await getCoins(wM.id)) === 80, `non-discount week: STD repair full 80 (got ${wc1 - (await getCoins(wM.id))})`);
 
+  // 26. #8 Exhibition — submit, vote (self/double blocked), settle picks winner (idempotent, ≥2 gate)
+  const eM = await prisma.member.create({ data: { type: "client", kasId: `${TAG}-exA`, fullName: "Exhibitor A", phone: "+998900006014", trips: 5 } });
+  const fM = await prisma.member.create({ data: { type: "client", kasId: `${TAG}-exB`, fullName: "Exhibitor B", phone: "+998900006015", trips: 5 } });
+  const gM = await prisma.member.create({ data: { type: "client", kasId: `${TAG}-exC`, fullName: "Voter C", phone: "+998900006016", trips: 5 } });
+  for (const mm of [eM, fM, gM]) await grantCoins(mm.id, 50000, "manual", "seed");
+  await acquireCar(eM.id, "tahoe");
+  await acquireCar(fM.id, "malibu");
+  const ec = (await prisma.garajCar.findFirst({ where: { memberId: eM.id, carCode: "tahoe", soldAt: null } }))!;
+  const fc = (await prisma.garajCar.findFirst({ where: { memberId: fM.id, carCode: "malibu", soldAt: null } }))!;
+  ok((await exhibitionSubmit(eM.id, ec.id)).ok && (await exhibitionSubmit(fM.id, fc.id)).ok, `exhibition: 2 entries submitted`);
+  const eEntry = (await prisma.garajExhibitionEntry.findFirst({ where: { memberId: eM.id } }))!;
+  const fEntry = (await prisma.garajExhibitionEntry.findFirst({ where: { memberId: fM.id } }))!;
+  const wk = eEntry.weekKey;
+  ok((await exhibitionVote(eM.id, eEntry.id)).reason === "self_vote", `exhibition: self-vote blocked`);
+  ok((await exhibitionVote(gM.id, eEntry.id)).ok && (await exhibitionVote(fM.id, eEntry.id)).ok, `exhibition: 2 votes for entry A`);
+  ok((await exhibitionVote(gM.id, fEntry.id)).reason === "already_voted", `exhibition: one vote per member per week`);
+  ok((await prisma.garajExhibitionEntry.findUnique({ where: { id: eEntry.id } }))!.votes === 2, `exhibition: vote count = 2`);
+  const eBal0 = (await prisma.member.findUnique({ where: { id: eM.id } }))!.coins;
+  ok((await settleExhibition(wk)) === true, `exhibition: settle pays the winner`);
+  ok((await prisma.member.findUnique({ where: { id: eM.id } }))!.coins === eBal0 + 1000, `exhibition: winner +1000 prize`);
+  ok((await settleExhibition(wk)) === false && (await prisma.member.findUnique({ where: { id: eM.id } }))!.coins === eBal0 + 1000, `exhibition: re-settle idempotent (no double prize)`);
+  ok((await settleExhibition("2099-W01")) === false, `exhibition: <2 entries → no prize (no solo farming)`);
+
   // 20. W5 ledger invariant across all new members (every grant is a real CoinTxn)
-  for (const mm of [sM, cM, bM, oM, tM, xM, wM]) {
+  for (const mm of [sM, cM, bM, oM, tM, xM, wM, eM, fM, gM]) {
     const b = (await prisma.member.findUnique({ where: { id: mm.id } }))!.coins;
     const t = await prisma.coinTxn.aggregate({ where: { memberId: mm.id }, _sum: { amount: true } });
     ok(Math.abs(b - (t._sum.amount ?? 0)) < 0.001, `W5 ledger invariant (member ${mm.id}: bal ${b} == ledger ${t._sum.amount ?? 0})`);

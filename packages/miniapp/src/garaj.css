@@ -393,6 +393,16 @@ button.gz-coll-car:hover { border-color: rgba(255, 179, 0, 0.4); }
   padding: 2px 9px;
 }
 
+/* 🏆 exhibition */
+.gz-exhib { padding: 12px 14px; }
+.gz-exhib-winner { font-size: 12px; color: var(--brand); margin-bottom: 4px; }
+.gz-exhib-list { display: flex; flex-direction: column; gap: 6px; }
+.gz-exhib-row { display: flex; align-items: center; gap: 10px; padding: 6px 8px; border-radius: var(--r-chip); background: var(--surface-2); }
+.gz-exhib-row.mine { border: 1px solid rgba(255, 179, 0, 0.3); }
+.gz-exhib-car { flex: 1; font-size: 13px; }
+.gz-exhib-votes { font-weight: 700; font-size: 13px; }
+.gz-exhib-voted { color: var(--win); font-weight: 800; }
+
 /* 📅 weekly event banner */
 .gz-weekevent {
   margin-bottom: 12px;
