@@ -149,6 +149,8 @@ export const api = {
   garajBazaarUnlist: (listingId: number) => request<GarajActionResult>("POST", "/api/garaj/bazaar/unlist", { listingId }, 1),
   garajHistory: () => get<{ kind: string; carCode: string; name: string; emoji: string; amount: number; profit: number | null; at: string }[]>("/api/garaj/history"),
   garajCollection: (memberId: number) => get<{ memberId: number; name: string; reputationScore: number; reputationName: string; garageTier: number; prestige: number; flips: number; bestProfit: number; carsOwned: number; mahalla: string | null; cars: { name: string; emoji: string; condition: string; level: number }[] } | null>(`/api/garaj/collection?memberId=${memberId}`),
+  garajClaimTow: (dropId: number) => request<GarajActionResult>("POST", "/api/garaj/tow/claim", { dropId }, 1),
+  garajDeclineTow: (dropId: number) => request<GarajActionResult>("POST", "/api/garaj/tow/decline", { dropId }, 1),
   garajAuctions: () => get<{ id: number; carCode: string; name: string; emoji: string; minBid: number; endsAt: string; mine: boolean }[]>("/api/garaj/auctions"),
   garajAuctionCreate: (garajCarId: number, minBid: number) => request<GarajActionResult>("POST", "/api/garaj/auction/create", { garajCarId, minBid }, 1),
   garajAuctionBid: (auctionId: number, amount: number) => request<GarajActionResult>("POST", "/api/garaj/auction/bid", { auctionId, amount }, 1),

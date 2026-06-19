@@ -239,6 +239,27 @@ export function GarajShell({ onClose, initial }: { onClose: () => void; initial?
                 </div>
               )}
 
+              {/* 📦 Yo'l sovg'alari — real safarlardan topilgan buzuq mashina takliflari */}
+              {st.roadDrops && st.roadDrops.length > 0 && (
+                <>
+                  <div className="gz-sec-title">📦 Yo'l sovg'alari</div>
+                  <div className="col g8">
+                    {st.roadDrops.map((d) => (
+                      <Card key={d.id} className="gz-tow">
+                        <div className="row between">
+                          <span className="gz-tow-car">{d.emoji} <b>{d.name}</b> · yo'lda topildi</span>
+                          <span className="gz-tow-price">🪙 {d.price.toLocaleString("ru-RU")}</span>
+                        </div>
+                        <div className="row g8 mt8">
+                          <Button sm disabled={busy || coins < d.price} onClick={() => claimTow(d.id)}>Olish</Button>
+                          <Button variant="ghost" sm disabled={busy} onClick={() => declineTow(d.id)}>Rad etish</Button>
+                        </div>
+                      </Card>
+                    ))}
+                  </div>
+                </>
+              )}
+
               {/* 📋 NPC buyurtmalar — bugungi 3 topshiriq (mos mashinani tiklab → soting → bonus) */}
               {st.orders && st.orders.length > 0 && (
                 <>
@@ -557,6 +578,13 @@ export function GarajShell({ onClose, initial }: { onClose: () => void; initial?
       (grant) => { hapticSuccess(); setBurst({ amount: grant, label: "OFFLINE QUTI 📦" }); setTimeout(() => setBurst(null), 1900); },
     );
   }
+  function claimTow(dropId: number): void {
+    void act(() => api.garajClaimTow(dropId));
+    flash("Mashina garajga qo'shildi 🚗");
+  }
+  function declineTow(dropId: number): void {
+    void act(() => api.garajDeclineTow(dropId));
+  }
   async function submitCipher(): Promise<void> {
     if (busy) return;
     setBusy(true);
@@ -708,6 +736,7 @@ export const GARAJ_DEMO: GarajStateResponse = {
     { slot: 1, carCode: "matiz", style: "TUNING", buyer: "YOUNG_TUNER", bonus: 120, done: true },
     { slot: 2, carCode: "tiko", style: "PERIOD_CORRECT", buyer: "COLLECTOR", bonus: 120, done: false },
   ],
+  roadDrops: [{ id: 1, carCode: "matiz", name: "Matiz", emoji: "🚗", price: 825, expiresAt: "2026-06-20T10:00:00Z" }],
 };
 
 /** #garajdemo render-proof entry — the shell populated from the static fixture. */

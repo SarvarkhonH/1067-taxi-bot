@@ -12,7 +12,7 @@ import "../env";
 import { MAKE_BASE, GARAJ_BUY_FACTOR, FLIP_DAILY_CAP, CIPHER_REWARD, OFFLINE_DAILY_CAP, PRESTIGE_REP_HEADSTART, prestigeMultiplier, activeSeasonalEvent } from "@t1067/shared";
 import { prisma } from "../db";
 import { getCoins, grantCoins } from "../services/coinService";
-import { acquireCar, completeRepairTask, repairZone, diagnoseCar, flipCar, garajAuctionBid, garajAuctionCreate, garajBazaarBuy, garajBazaarList, garajBazaarUnlist, getGarajHistory, getMemberCollection, garajKozachaBuy, grantKozacha, processRideDrop, settleAuctions, spendKozachaIdempotent, updateStreakOnRide, garajCipherGuess, collectOfflineBox, garajPrestige, mahallaCreate, mahallaJoin, mahallaLeave, addMahallaScore, settleMahallaWeek, getMahallaLeague, getMahallaState, getDailyOrders, recomputeDemand } from "../services/garajService";
+import { acquireCar, completeRepairTask, repairZone, diagnoseCar, flipCar, garajAuctionBid, garajAuctionCreate, garajBazaarBuy, garajBazaarList, garajBazaarUnlist, getGarajHistory, getMemberCollection, garajKozachaBuy, grantKozacha, processRideDrop, settleAuctions, spendKozachaIdempotent, updateStreakOnRide, garajCipherGuess, collectOfflineBox, garajPrestige, mahallaCreate, mahallaJoin, mahallaLeave, addMahallaScore, settleMahallaWeek, getMahallaLeague, getMahallaState, getDailyOrders, recomputeDemand, getRoadDrops, claimTowedCar, declineTowedCar } from "../services/garajService";
 import { __resetFeatureCache, setFeature } from "../services/featureFlags";
 
 const TAG = "garaj-test";
@@ -393,8 +393,25 @@ async function main(): Promise<void> {
   ok(dMult >= 0.85 && dMult <= 1.2, `demand multiplier bounded 0.85–1.20 (nexia=${dMult})`);
   ok((await recomputeDemand()) === 0, `demand recompute guarded — immediate 2nd call is a no-op (≤15min)`);
 
+  // 23. #4 towed-car ride-find: offer → claim (discounted acquire) / decline
+  const tM = await prisma.member.create({ data: { type: "client", kasId: `${TAG}-tow`, fullName: "Towed", phone: "+998900006011", trips: 5 } });
+  await grantCoins(tM.id, 50000, "manual", "seed");
+  await prisma.garajRideDrop.create({ data: { memberId: tM.id, bookingId: 991001, dropType: "TOWED_CAR", dropCode: "lacetti", seed: 650, status: "pending" } });
+  const rd = await getRoadDrops(tM.id);
+  const towPrice = Math.round(MAKE_BASE["lacetti"]! * 0.55);
+  ok(rd.length >= 1 && rd[0]!.carCode === "lacetti" && rd[0]!.price === towPrice, `road-find offer surfaces at 55% base (🪙${rd[0]?.price})`);
+  const cT0 = await getCoins(tM.id);
+  const claim = await claimTowedCar(tM.id, rd[0]!.id);
+  ok(claim.ok && cT0 - (claim.coins ?? 0) === towPrice, `claim towed car charged ${towPrice} (got ${cT0 - (claim.coins ?? 0)})`);
+  ok((await prisma.garajCar.count({ where: { memberId: tM.id, carCode: "lacetti", soldAt: null } })) === 1, `claimed car added to garage`);
+  ok(!(await claimTowedCar(tM.id, rd[0]!.id)).ok, `2nd claim → not_found (idempotent)`);
+  await prisma.garajRideDrop.create({ data: { memberId: tM.id, bookingId: 991002, dropType: "TOWED_CAR", dropCode: "tahoe", seed: 650, status: "pending" } });
+  const tahoe = (await getRoadDrops(tM.id)).find((x) => x.carCode === "tahoe")!;
+  ok((await declineTowedCar(tM.id, tahoe.id)).ok, `decline towed offer`);
+  ok((await getRoadDrops(tM.id)).every((x) => x.carCode !== "tahoe"), `declined offer no longer shown`);
+
   // 20. W5 ledger invariant across all new members (every grant is a real CoinTxn)
-  for (const mm of [sM, cM, bM, oM]) {
+  for (const mm of [sM, cM, bM, oM, tM]) {
     const b = (await prisma.member.findUnique({ where: { id: mm.id } }))!.coins;
     const t = await prisma.coinTxn.aggregate({ where: { memberId: mm.id }, _sum: { amount: true } });
     ok(Math.abs(b - (t._sum.amount ?? 0)) < 0.001, `W5 ledger invariant (member ${mm.id}: bal ${b} == ledger ${t._sum.amount ?? 0})`);

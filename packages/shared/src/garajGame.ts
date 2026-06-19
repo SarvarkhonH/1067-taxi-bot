@@ -199,6 +199,7 @@ export function garajCarMeta(code: string): { code: string; name: string; emoji:
   return GARAJ_CARS.find((c) => c.code === code);
 }
 export const GARAJ_BUY_FACTOR = 0.65; // Phase 1 static buy price = MAKE_BASE × this
+export const TOW_FACTOR = 0.55; // #4 towed-car ride-find: cheaper than the shop (a real bargain)
 
 // reputation arc — the master-mechanic identity ladder (W5).
 export const REPUTATION_TIERS: { name: string; min: number }[] = [
@@ -397,6 +398,14 @@ export interface GarajMahallaView {
   rank: number; // live league rank (1-based), 0 if unranked
   role: string;
 }
+export interface GarajRoadDrop {
+  id: number;
+  carCode: string;
+  name: string;
+  emoji: string;
+  price: number; // discounted tow price (TOW_FACTOR × base)
+  expiresAt: string;
+}
 export interface GarajStateResponse {
   enabled: boolean;
   coins: number;
@@ -415,6 +424,7 @@ export interface GarajStateResponse {
   seasonalEvent: string | null; // active event display name, or null
   mahalla: GarajMahallaView | null;
   orders: GarajDailyOrder[]; // #2 today's 3 NPC commissions (done flag per member)
+  roadDrops: GarajRoadDrop[]; // #4 pending towed-car offers from real rides
 }
 export interface GarajActionResult {
   ok: boolean;

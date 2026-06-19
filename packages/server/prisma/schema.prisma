@@ -618,6 +618,7 @@ model GarajRideDrop {
   dropType  String // NONE | PART | TOWED_CAR
   dropCode  String   @default("")
   seed      Int      @default(0)
+  status    String   @default("pending") // #4 TOWED_CAR offer lifecycle: pending | claimed | declined
   createdAt DateTime @default(now())
 
   @@unique([memberId, bookingId])

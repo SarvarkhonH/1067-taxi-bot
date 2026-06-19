@@ -16,6 +16,7 @@ import { createHmac } from "node:crypto";
 import {
   MAKE_BASE,
   GARAJ_BUY_FACTOR,
+  TOW_FACTOR,
   FLIP_DAILY_CAP,
   INSPECT_COSTS,
   TIMING_BONUS,
@@ -35,6 +36,7 @@ import {
   demandMultiplier,
   demandFlipBonus,
   type GarajDailyOrder,
+  type GarajRoadDrop,
   STREAK_LADDER,
   STREAK_FREEZE_DAY,
   COMEBACK_GRANT,
@@ -150,7 +152,7 @@ async function bumpSkill(
 // ── read: full state for the dedicated shell (one round-trip) ─────────────────
 export async function getGarajState(memberId: number): Promise<GarajStateResponse> {
   const today = tashkentDate();
-  const [enabled, meta, cars, coins, sk, streakRow, cipherSolved, cipherAttempts, cipherCode, mahalla, demand, orders] = await Promise.all([
+  const [enabled, meta, cars, coins, sk, streakRow, cipherSolved, cipherAttempts, cipherCode, mahalla, demand, orders, roadDrops] = await Promise.all([
     garajEnabledFor(memberId),
     prisma.memberGarajMeta.findUnique({ where: { memberId } }),
     prisma.garajCar.findMany({ where: { memberId, soldAt: null } }),
@@ -163,6 +165,7 @@ export async function getGarajState(memberId: number): Promise<GarajStateRespons
     getMahallaState(memberId),
     getDemandMap(),
     getDailyOrders(memberId),
+    getRoadDrops(memberId),
   ]);
   const ownedCodes = new Set(cars.map((c) => c.carCode));
   const carViews: GarajCarView[] = cars.map((c) => {
@@ -256,6 +259,7 @@ export async function getGarajState(memberId: number): Promise<GarajStateRespons
     seasonalEvent: season?.name ?? null,
     mahalla,
     orders,
+    roadDrops,
   };
 }
 
@@ -1130,4 +1134,55 @@ export async function getDailyOrders(memberId: number): Promise<GarajDailyOrder[
   const done = await prisma.coinTxn.findMany({ where: { idempotencyKey: { in: keys } }, select: { idempotencyKey: true } });
   const doneSet = new Set(done.map((d) => d.idempotencyKey));
   return orders.map((o) => ({ ...o, done: doneSet.has(`orderbonus:${memberId}:${date}:${o.slot}`) }));
+}
+
+// ══ #4 Yo'l sovg'alari — towed-car offers from real rides ════════════════════
+// processRideDrop already records a TOWED_CAR drop (status "pending"). These surface
+// it as a 48h discounted offer; claiming = a cheaper acquire (spend-gated, idempotent),
+// declining marks it done. Money-safe: claim spends tanga (no emission); the upsert
+// reuses the per-model row like acquireCar so re-acquiring a sold model works.
+const TOW_TTL_MS = 48 * 3600 * 1000;
+export async function getRoadDrops(memberId: number): Promise<GarajRoadDrop[]> {
+  if (!(await garajEnabledFor(memberId))) return [];
+  const drops = await prisma.garajRideDrop.findMany({ where: { memberId, dropType: "TOWED_CAR", status: "pending", createdAt: { gte: new Date(Date.now() - TOW_TTL_MS) } }, orderBy: { createdAt: "desc" }, take: 10 });
+  const owned = new Set((await prisma.garajCar.findMany({ where: { memberId, soldAt: null }, select: { carCode: true } })).map((c) => c.carCode));
+  return drops
+    .filter((d) => MAKE_BASE[d.dropCode] && !owned.has(d.dropCode))
+    .map((d) => {
+      const cm = garajCarMeta(d.dropCode);
+      return { id: d.id, carCode: d.dropCode, name: cm?.name ?? d.dropCode, emoji: cm?.emoji ?? "🚗", price: Math.round((MAKE_BASE[d.dropCode] ?? 1000) * TOW_FACTOR), expiresAt: new Date(d.createdAt.getTime() + TOW_TTL_MS).toISOString() };
+    });
+}
+
+export async function claimTowedCar(memberId: number, dropId: number): Promise<GarajActionResult> {
+  if (!(await garajEnabledFor(memberId))) return { ok: false, reason: "off" };
+  return withMemberLock(memberId, async () => {
+    const drop = await prisma.garajRideDrop.findFirst({ where: { id: dropId, memberId, dropType: "TOWED_CAR", status: "pending" } });
+    if (!drop) return { ok: false, reason: "not_found" };
+    const carCode = drop.dropCode;
+    if (!MAKE_BASE[carCode]) return { ok: false, reason: "unknown" };
+    if (await prisma.garajCar.findFirst({ where: { memberId, carCode, soldAt: null } })) return { ok: false, reason: "owned" };
+    const price = Math.round((MAKE_BASE[carCode] ?? 1000) * TOW_FACTOR);
+    const result = await prisma.$transaction(async (tx) => {
+      const m = await tx.member.findUnique({ where: { id: memberId }, select: { coins: true } });
+      if ((m?.coins ?? 0) < price) return { ok: false as const, reason: "insufficient" as const };
+      await tx.coinTxn.create({ data: { memberId, amount: -price, kind: "garaj_tow", reason: `Yo'l topildi: ${carCode}`, idempotencyKey: `tow:${memberId}:${dropId}` } });
+      await tx.member.update({ where: { id: memberId }, data: { coins: { decrement: price } } });
+      const car = await tx.garajCar.upsert({
+        where: { memberId_carCode: { memberId, carCode } },
+        create: { memberId, carCode, source: "ride_drop", condition: "worn", acquireCost: price },
+        update: { source: "ride_drop", condition: "worn", acquireCost: price, repairSpent: 0, level: 1, style: null, styleLockedAt: null, diagnosisSeed: null, diagnosisResult: null, repairZones: null, diagnosedAt: null, repairQualityBonus: 1.0, ridesSinceService: 0, soldAt: null, onboardCar: false },
+      });
+      await tx.garajRideDrop.update({ where: { id: dropId }, data: { status: "claimed" } });
+      await tx.memberGarajMeta.upsert({ where: { memberId }, create: { memberId, carsOwnedCount: 1, sumCarLevels: 1, reputationScore: 5 }, update: { carsOwnedCount: { increment: 1 }, sumCarLevels: { increment: 1 }, reputationScore: { increment: 5 } } });
+      return { ok: true as const, carId: car.id };
+    });
+    return result.ok ? { ok: true, carId: result.carId, coins: await getCoins(memberId) } : { ok: false, reason: result.reason, coins: await getCoins(memberId) };
+  });
+}
+
+export async function declineTowedCar(memberId: number, dropId: number): Promise<GarajActionResult> {
+  if (!(await garajEnabledFor(memberId))) return { ok: false, reason: "off" };
+  const upd = await prisma.garajRideDrop.updateMany({ where: { id: dropId, memberId, dropType: "TOWED_CAR", status: "pending" }, data: { status: "declined" } });
+  return upd.count > 0 ? { ok: true } : { ok: false, reason: "not_found" };
 }

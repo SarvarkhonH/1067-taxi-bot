@@ -393,6 +393,11 @@ button.gz-coll-car:hover { border-color: rgba(255, 179, 0, 0.4); }
   padding: 2px 9px;
 }
 
+/* 📦 yo'l sovg'alari (towed-car offers) */
+.gz-tow { padding: 11px 13px; border-color: rgba(255, 179, 0, 0.3); }
+.gz-tow-car { font-size: 13px; }
+.gz-tow-price { font-weight: 800; color: var(--brand); font-size: 14px; }
+
 /* 📋 NPC buyurtmalar */
 .gz-order { padding: 11px 13px; }
 .gz-order.done { opacity: 0.55; }
