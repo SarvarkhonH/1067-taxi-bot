@@ -3,18 +3,18 @@
 // Pure view layer — all money logic + idempotency live on the server.
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { GarajStateResponse, RepairQuality } from "@t1067/shared";
-import { KOZACHA_SHOP, reputationTier, REPUTATION_TIERS, REPAIR_ZONES, ZONE_NAMES, PART_TIERS, garajCarMeta, CRAFT_STATIONS, craftCost, MAKE_BASE } from "@t1067/shared";
+import { KOZACHA_SHOP, reputationTier, REPUTATION_TIERS, REPAIR_ZONES, ZONE_NAMES, PART_TIERS, garajCarMeta, CRAFT_STATIONS, craftCost, MAKE_BASE, npcForBuyer, npcLine } from "@t1067/shared";
 import { api } from "./api";
 import { haptic, hapticSuccess } from "./telegram";
 import { Button, Card, Chip, CoinCounter, LoadSection, ProgressBar, Sheet } from "./design/components";
 import "./garaj.css";
 
-// buyer chips carry their style preference in the label — no hidden rules.
+// buyer chips = named NPCs (#7) + their style preference hint — no hidden rules.
 const BUYERS = [
-  { code: "FAMILY_DRIVER", name: "👨‍👩‍👧 Oilaviy · To'liq" },
-  { code: "YOUNG_TUNER", name: "🏁 Yoshlar · Tюнинг" },
-  { code: "NEWLYWED", name: "💍 Kelin-kuyov · To'liq/davr" },
-  { code: "COLLECTOR", name: "👑 Kolleksioner · Davr (retro)" },
+  { code: "FAMILY_DRIVER", hint: "To'liq" },
+  { code: "YOUNG_TUNER", hint: "Tюнинг" },
+  { code: "NEWLYWED", hint: "To'liq/davr" },
+  { code: "COLLECTOR", hint: "Davr (retro)" },
 ];
 // restoration styles; TUNING/PERIOD_CORRECT gate on garage tier (matches the plan).
 const STYLES = [
@@ -25,7 +25,6 @@ const STYLES = [
 ];
 const COND_LABEL: Record<string, string> = { WORN: "Eski", FAIR: "O'rtacha", GOOD: "Yaxshi", MINT: "A'lo" };
 const STYLE_SHORT: Record<string, string> = { QUICK_FLIP: "Tezkor", FULL_RESTORE: "To'liq", TUNING: "Tюнинг", PERIOD_CORRECT: "Davr asili" };
-const BUYER_SHORT: Record<string, string> = { FAMILY_DRIVER: "Oilaviy", YOUNG_TUNER: "Yoshlar", NEWLYWED: "Kelin-kuyov", COLLECTOR: "Kolleksioner" };
 
 // per-model paint so each car reads as ITS car (not a generic emoji)
 const CAR_PAINT: Record<string, string> = {
@@ -270,13 +269,15 @@ export function GarajShell({ onClose, initial }: { onClose: () => void; initial?
                   <div className="col g8">
                     {st.orders.map((o) => {
                       const cm = garajCarMeta(o.carCode);
+                      const npc = npcForBuyer(o.buyer);
                       return (
                         <Card key={o.slot} className={`gz-order${o.done ? " done" : ""}`}>
                           <div className="row between">
-                            <span className="gz-order-car">{cm?.emoji ?? "🚗"} <b>{cm?.name ?? o.carCode}</b> · {STYLE_SHORT[o.style] ?? o.style}</span>
+                            <span className="gz-order-car">{npc.emoji} <b>{npc.name}</b> so'rayapti</span>
                             <span className="gz-order-bonus">{o.done ? "✓" : `+${o.bonus}`}</span>
                           </div>
-                          <span className="fs11 dim">Xaridor: {BUYER_SHORT[o.buyer] ?? o.buyer} — shu uslubda tiklab, shu xaridorga soting</span>
+                          <span className="gz-order-line">"{npcLine(npc, o.slot)}"</span>
+                          <span className="fs11 dim">→ {cm?.emoji ?? "🚗"} {cm?.name ?? o.carCode} · {STYLE_SHORT[o.style] ?? o.style} uslubda tiklab soting</span>
                         </Card>
                       );
                     })}
@@ -543,11 +544,14 @@ export function GarajShell({ onClose, initial }: { onClose: () => void; initial?
 
               <div className="gz-sec-title">Sotish — xaridorni tanlang</div>
               <div className="gz-buyers">
-                {BUYERS.map((b) => (
-                  <Chip key={b.code} onClick={() => flip(car.id, b.code)}>
-                    {b.name}
-                  </Chip>
-                ))}
+                {BUYERS.map((b) => {
+                  const n = npcForBuyer(b.code as never);
+                  return (
+                    <Chip key={b.code} onClick={() => flip(car.id, b.code)}>
+                      {n.emoji} {n.name} · {b.hint}
+                    </Chip>
+                  );
+                })}
               </div>
 
               <div className="gz-sec-title">🏺 Ko'zacha do'kon ({st?.kozacha ?? 0})</div>

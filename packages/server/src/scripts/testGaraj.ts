@@ -9,7 +9,7 @@
 // Run: dotenv -e ../../.env -- tsx src/scripts/testGaraj.ts
 import "./_testDb"; // ENG BIRINCHI: izolyatsiyalangan test-DB (jonli sweep poygasini oldini oladi)
 import "../env";
-import { MAKE_BASE, GARAJ_BUY_FACTOR, FLIP_DAILY_CAP, CIPHER_REWARD, OFFLINE_DAILY_CAP, PRESTIGE_REP_HEADSTART, CRAFT_MAX_LEVEL, prestigeMultiplier, activeSeasonalEvent } from "@t1067/shared";
+import { MAKE_BASE, GARAJ_BUY_FACTOR, FLIP_DAILY_CAP, CIPHER_REWARD, OFFLINE_DAILY_CAP, PRESTIGE_REP_HEADSTART, CRAFT_MAX_LEVEL, prestigeMultiplier, activeSeasonalEvent, npcForBuyer, npcLine } from "@t1067/shared";
 import { prisma } from "../db";
 import { getCoins, grantCoins } from "../services/coinService";
 import { acquireCar, completeRepairTask, repairZone, diagnoseCar, flipCar, garajAuctionBid, garajAuctionCreate, garajBazaarBuy, garajBazaarList, garajBazaarUnlist, getGarajHistory, getMemberCollection, garajKozachaBuy, grantKozacha, processRideDrop, settleAuctions, spendKozachaIdempotent, updateStreakOnRide, garajCipherGuess, collectOfflineBox, garajPrestige, mahallaCreate, mahallaJoin, mahallaLeave, addMahallaScore, settleMahallaWeek, getMahallaLeague, getMahallaState, getDailyOrders, recomputeDemand, getRoadDrops, claimTowedCar, declineTowedCar, garajCraft, __resetWeekEventCache } from "../services/garajService";
@@ -374,6 +374,10 @@ async function main(): Promise<void> {
   ok(activeSeasonalEvent("03-22")?.code === "navruz", `seasonal: Navruz active 03-22`);
   ok(activeSeasonalEvent("12-25")?.code === "qish", `seasonal: Qish active 12-25`);
   ok(activeSeasonalEvent("07-15") === null, `seasonal: no event mid-July`);
+
+  // 19b. #7 NPC personas — each buyer archetype maps to a named NPC (pure config)
+  ok(npcForBuyer("FAMILY_DRIVER").name === "Hamid aka" && npcForBuyer("COLLECTOR").name === "Usta Karim", `NPC: buyer→persona mapping`);
+  ok(npcForBuyer("YOUNG_TUNER").lines.length > 0 && typeof npcLine(npcForBuyer("YOUNG_TUNER"), 0) === "string", `NPC: dialogue lines present`);
 
   // 21. #2 NPC order bonus — a flip matching today's order pays the bonus, once/slot/day
   const oM = await prisma.member.create({ data: { type: "client", kasId: `${TAG}-ord`, fullName: "Orderer", phone: "+998900006010", trips: 5 } });

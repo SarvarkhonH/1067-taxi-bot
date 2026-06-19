@@ -420,6 +420,7 @@ button.gz-coll-car:hover { border-color: rgba(255, 179, 0, 0.4); }
 .gz-order.done { opacity: 0.55; }
 .gz-order-car { font-size: 13px; }
 .gz-order-bonus { font-weight: 800; color: var(--brand); font-size: 14px; }
+.gz-order-line { font-size: 12px; font-style: italic; color: var(--text); margin: 2px 0; }
 .gz-order.done .gz-order-bonus { color: var(--win); }
 /* 📈 demand chip */
 .gz-demand { font-size: 10px; font-weight: 800; padding: 1px 7px; border-radius: 999px; }

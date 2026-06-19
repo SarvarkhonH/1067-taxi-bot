@@ -299,6 +299,30 @@ export function activeSeasonalEvent(monthDay: string): SeasonalEvent | null {
   return null;
 }
 
+// ── #7 NPC personajlar — the 4 buyer archetypes become named, characterful people
+// (Koson mahalla residents). Pure flavor/config (no money path): orders read like real
+// commissions and the flip buyers have a face + a line. Browser + node safe.
+export interface GarajNpc {
+  code: string;
+  name: string;
+  emoji: string;
+  buyer: BuyerArchetype;
+  tagline: string;
+  lines: string[];
+}
+export const GARAJ_NPCS: GarajNpc[] = [
+  { code: "hamid", name: "Hamid aka", emoji: "👨‍👧‍👦", buyer: "FAMILY_DRIVER", tagline: "Oilaviy haydovchi", lines: ["Oilam uchun ishonchli, keng mashina kerak.", "Bolalarni maktabga tashiyman — xavfsiz bo'lsin.", "Tejamkor bo'lsa — zo'r."] },
+  { code: "jahongir", name: "Jahongir", emoji: "🏎", buyer: "YOUNG_TUNER", tagline: "Yosh tюner", lines: ["Ko'chada eng zo'ri men bo'lay!", "Tюнинг bo'lsin — ovozi gumburlasin.", "Sport ruhi bo'lsin, aka."] },
+  { code: "maftuna", name: "Maftuna", emoji: "💍", buyer: "NEWLYWED", tagline: "Kelin-kuyov", lines: ["To'yimga chiroyli, yaltiroq mashina kerak.", "Bir kunlik — lekin esda qolsin.", "Toza va nafis bo'lsin."] },
+  { code: "karim", name: "Usta Karim", emoji: "🎩", buyer: "COLLECTOR", tagline: "Kolleksioner", lines: ["Faqat asl holat — davr ruhi bo'lsin.", "Retro qadrli; tюнинг — yo'q.", "Kolleksiyamga arziydigan bo'lsin."] },
+];
+export function npcForBuyer(buyer: BuyerArchetype): GarajNpc {
+  return GARAJ_NPCS.find((n) => n.buyer === buyer) ?? GARAJ_NPCS[0]!;
+}
+export function npcLine(npc: GarajNpc, seed: number): string {
+  return npc.lines[Math.abs(seed) % npc.lines.length]!;
+}
+
 // ── #2 NPC Buyurtma (order) board — 3 deterministic daily commissions. Fulfilling
 // one (flip a matching car: carCode + style + buyer) pays a BONUS on top of the flip.
 // The bonus is a separate idempotent grant (NOT through computeFlipGrant), bounded by
