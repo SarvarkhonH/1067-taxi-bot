@@ -128,6 +128,21 @@ async function attempt(): Promise<number> {
     data: { type: "driver", kasId: `${TAG}-D`, fullName: "Card Driver", phone: "+998900004002", carNumber: CAR, trips: 100, driverTier: "Oltin" },
   });
 
+  // ── ADOPT: a pending in-bot order card (rideCardMsgId pre-set, lastBookingId null) is
+  // EDITED in place by the sweep — the order confirmation BECOMES the live card (no new send) ──
+  {
+    const aPhone = "+998900004099";
+    const aRider = await prisma.member.create({ data: { type: "client", kasId: `${TAG}-A`, fullName: "Adopt Rider", phone: aPhone, trips: 1, rideCardMsgId: 55501, lastBookingStatus: "searching" } });
+    await prisma.telegramUser.create({ data: { id: `${TAG}-tg-A`, memberId: aRider.id, linkedAt: new Date() } });
+    const aLite: ActiveBookingLite = { id: 888001, phoneNorm: aPhone.replace(/\D/g, "").slice(-9), status: "searching", carNumber: "", addressName: "Adopt manzil", clientBonus: 0, lat: 39.04, lng: 65.56 };
+    const aDs = { listActiveBookings: async () => [aLite], getMainReport: async () => ({ completedYesterday: 0, bookingsYesterday: 0, onlineDrivers: 5, activeDrivers: 50, serviceCost: 0 }), getDriverByCar: async () => null, getRideHistory: async () => [] } as unknown as KasDataSource;
+    await pushBookingUpdates(fakeBot, aDs, { memberScope: { kasId: { startsWith: `${TAG}-A` } } });
+    ok(calls.send === 0 && calls.edit >= 1, `bot-order pending card ADOPTED — edited in place, no new card (send ${calls.send}, edit ${calls.edit})`);
+    await prisma.telegramUser.deleteMany({ where: { id: `${TAG}-tg-A` } });
+    await prisma.member.deleteMany({ where: { id: aRider.id } });
+    calls.send = 0; calls.edit = 0; calls.loc = 0; calls.editLoc = 0; calls.texts = [];
+  }
+
   // tick 1: searching → ONE card sent (with queue line), no pin yet
   await pushBookingUpdates(fakeBot, makeDs(lite("searching"), echo), { memberScope: { kasId: { startsWith: TAG } } });
   ok(calls.send === 1, `tick1 searching: exactly 1 card sent (${calls.send})`);

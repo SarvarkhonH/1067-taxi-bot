@@ -217,7 +217,11 @@ export async function pushBookingUpdates(
       const rideStartedAt = b.status === "started" && (isNewRide || !m.rideStartedAt) ? new Date() : m.rideStartedAt;
 
       // ── the ONE live card ──
-      let cardId = isNewRide ? null : m.rideCardMsgId;
+      // Adopt a PENDING bot-order card: an in-bot order stores its confirmation message id as
+      // rideCardMsgId with lastBookingId=null, so the sweep EDITS that message in place — the
+      // confirmation BECOMES the live card (no separate message, no manual refresh). A genuinely
+      // different new ride (lastBookingId still holds the OLD id) starts a fresh card as before.
+      let cardId = isNewRide && m.lastBookingId !== null ? null : m.rideCardMsgId;
       if (!cardId) {
         const sent = await bot.api
           .sendMessage(chatId, renderRideCard(b, ctx), { parse_mode: "HTML", reply_markup: rideCardKb(b, ctx) })

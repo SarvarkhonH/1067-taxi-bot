@@ -25,6 +25,18 @@ function trunc(s: string, n = 38): string {
   return s.length > n ? s.slice(0, n - 1) + "…" : s;
 }
 
+/** Hand a freshly-placed in-bot order's message to the live sweep: it then EDITS this same
+ *  card in place through every status (driver, ETA, moving pin, finish + fare/bonus) — one
+ *  message, auto-updating, no manual "Holat". lastBookingId stays null so the sweep adopts it
+ *  on first sighting (and sets the real kas id then). */
+async function markBotOrderCard(memberId: number | null, msgId: number | undefined): Promise<void> {
+  if (!memberId || !msgId) return;
+  const { prisma } = await import("../db");
+  await prisma.member
+    .update({ where: { id: memberId }, data: { rideCardMsgId: msgId, lastBookingStatus: "searching", lastBookingId: null } })
+    .catch(() => undefined);
+}
+
 // Uber pattern #1: GPS pickup. Reply keyboard with a native location request.
 function pickupKeyboard(): Keyboard {
   return new Keyboard().requestLocation("📍 Joylashuvni yuborish").row().text("✍️ Manzil yozish").text("❌ Bekor").resized().oneTime();
@@ -213,11 +225,9 @@ export function registerBooking(bot: Bot): void {
     await ctx.editMessageText("⏳ Buyurtma yuborilyapti…").catch(() => undefined);
     const r = await callOneTapFor(memberId, {});
     if (r.state === "dispatched" || r.state === "test") {
-      const note = r.state === "test" ? "\n\n<i>(Hozir test rejimi)</i>" : "\n\n🔍 Haydovchi qidirilyapti…";
-      await ctx.editMessageText(`✅ <b>Buyurtma qabul qilindi!</b>\n📍 ${esc(r.pickupName ?? "")}${note}`, {
-        parse_mode: "HTML",
-        reply_markup: new InlineKeyboard().text("🔄 Holat", "bk:status"),
-      });
+      const note = r.state === "test" ? "\n\n<i>(Hozir test rejimi)</i>" : "\n\n🔍 Haydovchi qidirilyapti — holat shu yerda <b>jonli</b> yangilanadi 👇";
+      await ctx.editMessageText(`✅ <b>Buyurtma qabul qilindi!</b>\n📍 ${esc(r.pickupName ?? "")}${note}`, { parse_mode: "HTML" });
+      if (r.state === "dispatched") await markBotOrderCard(memberId, ctx.callbackQuery.message?.message_id);
     } else if (r.state === "active") {
       await ctx.editMessageText(`ℹ️ Sizda allaqachon faol buyurtma bor:\n📍 ${esc(r.booking?.addressName ?? "")}`, {
         parse_mode: "HTML",
@@ -424,10 +434,12 @@ export function registerBooking(bot: Bot): void {
     await ctx.editMessageText("⏳ Buyurtma yuborilyapti…");
     const res = await getDataSource().createBooking(req);
     if (res.ok) {
-      await ctx.editMessageText(`✅ <b>Buyurtma qabul qilindi!</b>\n📍 ${esc(req.addressName)}\n\n🔍 Haydovchi qidirilyapti…`, {
+      await ctx.editMessageText(`✅ <b>Buyurtma qabul qilindi!</b>\n📍 ${esc(req.addressName)}\n\n🔍 Haydovchi qidirilyapti — holat shu yerda <b>jonli</b> yangilanadi 👇`, {
         parse_mode: "HTML",
-        reply_markup: new InlineKeyboard().text("🔄 Holat", "bk:status"),
       });
+      // hand this card to the live sweep: it EDITS this same message through every status
+      // (driver, ETA, moving pin, finish + fare/bonus). No separate card, no manual refresh.
+      await markBotOrderCard(memberId, ctx.callbackQuery.message?.message_id);
     } else {
       await ctx.editMessageText(`⚠️ Yuborilmadi: ${esc(res.message ?? "xatolik")}`, { parse_mode: "HTML" });
     }
