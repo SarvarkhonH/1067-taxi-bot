@@ -198,17 +198,34 @@ export function createBot(): Bot {
 
   bot.on("message:contact", async (ctx) => {
     const contact = ctx.message.contact;
-    if (contact.user_id && contact.user_id !== ctx.from!.id) {
-      await ctx.reply("Iltimos, o'zingizning raqamingizni ulashing 🙏", { reply_markup: contactKeyboard() });
+    // SECURITY: accept ONLY the user's OWN Telegram-verified number. The «Raqamni ulashish»
+    // button always sets contact.user_id = the sharer; a MANUALLY-added contact (someone else's
+    // number) has no/other user_id → reject. This is the identity proof — you can only register
+    // the number Telegram confirmed is yours, so nobody can claim another person's account.
+    if (contact.user_id !== ctx.from!.id) {
+      await ctx.reply(
+        "⚠️ Faqat <b>o'z</b> raqamingizni — pastdagi «📱 Raqamni ulashish» tugmasi orqali ulashing.\n<i>Qo'lda kiritilgan begona raqam qabul qilinmaydi.</i>",
+        { parse_mode: "HTML", reply_markup: contactKeyboard() },
+      );
       return;
     }
     await touchTelegramUser(String(ctx.from!.id), profileOf(ctx.from!));
     await handleLink(ctx, contact.phone_number);
   });
 
-  // manual phone entry (typing a number), handy for testing + users who won't share a contact
+  // SECURITY: typing a number proves NOTHING — anyone could type someone else's number and
+  // claim their account/bonuses. Registration MUST go through the verified «Raqamni ulashish»
+  // button (own Telegram number). The typed path stays ONLY for admins (testing/support).
   bot.hears(/^\+?\d[\d\s\-()]{8,}$/, async (ctx) => {
-    await touchTelegramUser(String(ctx.from!.id), profileOf(ctx.from!));
+    const id = String(ctx.from!.id);
+    if (!isAdmin(id)) {
+      await ctx.reply(
+        "🔒 Raqamni <b>qo'lda yozib bo'lmaydi</b> — bu xavfsiz emas.\nPastdagi «📱 Raqamni ulashish» tugmasi orqali <b>o'z</b> raqamingizni tasdiqlang 🙏",
+        { parse_mode: "HTML", reply_markup: contactKeyboard() },
+      );
+      return;
+    }
+    await touchTelegramUser(id, profileOf(ctx.from!));
     await handleLink(ctx, ctx.message!.text!);
   });
 
