@@ -613,7 +613,7 @@ export function createBot(): Bot {
     );
   });
 
-  registerBooking(bot);
+  registerBooking(bot, mainMenu);
 
   // 🤖 AI-1 rules-first free text: runs AFTER booking's own text handler
   // (which next()s when no session is waiting). Buttons stay the main UX —
