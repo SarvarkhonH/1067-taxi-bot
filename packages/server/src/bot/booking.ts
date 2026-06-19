@@ -347,6 +347,32 @@ export function registerBooking(bot: Bot, mainMenu: (isDriver?: boolean) => Keyb
     }
   });
 
+  // 🙏 tip the LAST ride's driver anytime — not just on the finish card (which scrolls away).
+  // Finds the driver via the preserved lastBookingCar; reuses the tip:<driver>:<amount> flow.
+  bot.command("rahmat", async (ctx) => {
+    const me = await getMe(String(ctx.from!.id));
+    if (!me?.member.phone) {
+      await ctx.reply("Avval telefon raqamingizni ulang — /start.");
+      return;
+    }
+    const { prisma } = await import("../db");
+    const mem = await prisma.member.findUnique({ where: { id: me.member.id }, select: { lastBookingCar: true } });
+    const driver = mem?.lastBookingCar
+      ? await prisma.member.findFirst({ where: { type: "driver", carNumber: mem.lastBookingCar }, select: { id: true, fullName: true } })
+      : null;
+    if (!driver || driver.id === me.member.id) {
+      await ctx.reply("🙏 Oxirgi safaringiz haydovchisi topilmadi.\nSafar qilganingizdan keyin haydovchiga choychaqa (tanga) yubora olasiz 🚕");
+      return;
+    }
+    await ctx.reply(
+      `🙏 <b>${esc(driver.fullName)}</b>ga choychaqa yuboring — sizning tangalaringizdan ko'chadi, haydovchi so'mga yecha oladi:`,
+      {
+        parse_mode: "HTML",
+        reply_markup: new InlineKeyboard().text("🙏 500", `tip:${driver.id}:500`).text("🙏 1 000", `tip:${driver.id}:1000`).text("🙏 2 000", `tip:${driver.id}:2000`),
+      },
+    );
+  });
+
   // 🙏 tip the driver after a ride — rider's own coins move, closed-loop
   bot.callbackQuery(/^tip:(\d+):(\d+)$/, async (ctx) => {
     const riderId = await getMemberId(String(ctx.from.id));

@@ -830,6 +830,7 @@ export async function setupBotCommands(bot: Bot): Promise<void> {
     { command: "missions", description: "🎯 Vazifalar (mukofot)" },
     { command: "invite", description: "👥 Do'st taklif qilish" },
     { command: "narx", description: "🚖 Narx va cashback" },
+    { command: "rahmat", description: "🙏 Haydovchiga choychaqa" },
     { command: "me", description: "💰 Hamyon / profil" },
     { command: "account", description: "👤 Hisobim & sozlamalar" },
     { command: "top", description: "Reyting" },
