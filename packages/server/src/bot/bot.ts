@@ -14,7 +14,7 @@ import {
 import { dailyCheckIn, spinWheel } from "../services/rewardService";
 import { claimMission, getMissions } from "../services/missionService";
 import { getBoxStatus, openBox } from "../services/boxService";
-import { attachPendingReferral, completeReferral, getReferralInfo } from "../services/referralService";
+import { attachPendingReferral, completeReferral, getReferralInfo, REFERRER_REWARD } from "../services/referralService";
 import { getWeeklyBoard } from "../services/weeklyService";
 import { getEconomy, getHealth, getLiveBookings } from "../services/adminOps";
 import { getIntegrity } from "../services/reconciliation";
@@ -126,18 +126,29 @@ export function createBot(): Bot {
     await touchTelegramUser(id, profileOf(ctx.from!));
     // referral deep link: t.me/<bot>?start=ref_<code>
     const payload = (typeof ctx.match === "string" ? ctx.match : "").trim();
+    const joinerName = esc(ctx.from!.first_name ?? "Yangi mijoz"); // the person who clicked/scanned the invite
     if (payload.startsWith("ref_")) {
-      await attachPendingReferral(id, payload.slice(4)).catch(() => undefined);
+      // tell the inviter the moment their link is clicked — "you invited <name>" (the proof they asked for)
+      const r = await attachPendingReferral(id, payload.slice(4)).catch(() => ({ attached: false }) as { attached: boolean; referrerTelegramId?: string });
+      if (r.attached && r.referrerTelegramId) {
+        await bot.api
+          .sendMessage(
+            r.referrerTelegramId,
+            `🎉 <b>Siz ${joinerName}ni taklif qildingiz!</b>\n\n<b>${joinerName}</b> havolangiz orqali botga kirdi. U telefon ulab birinchi safarini qilsa — sizga <b>${formatNumber(REFERRER_REWARD)} tanga</b> tushadi. 🎁`,
+            { parse_mode: "HTML" },
+          )
+          .catch(() => undefined);
+      }
     }
     if (payload.startsWith("drv_")) {
       const { attachDriverRecruit } = await import("../services/recruitService");
       const r = await attachDriverRecruit(id, Number(payload.slice(4))).catch(() => ({ attached: false }) as { attached: boolean; driverTelegramId?: string });
-      // immediate driver feedback — the signal that was missing ("nimaga ma'lum bo'lmadi")
+      // immediate driver feedback — "you invited <name>" the moment their QR is scanned
       if (r.attached && r.driverTelegramId) {
         await bot.api
           .sendMessage(
             r.driverTelegramId,
-            "✅ <b>Yangi yo'lovchi QR kodingiz orqali qo'shildi!</b>\n\nU birinchi safarini qilganda siz <b>500 tanga</b> olasiz, keyin har safaridan ulush. 🚖\n<i>Panelda «⏳ Kutilmoqda» da ko'rinadi.</i>",
+            `🎉 <b>Siz ${joinerName}ni taklif qildingiz!</b>\n\n<b>${joinerName}</b> QR kodingiz orqali qo'shildi. U birinchi safarini qilganda siz <b>500 tanga</b> olasiz, keyin har safaridan ulush. 🚖\n<i>Panelda «⏳ Kutilmoqda» da ko'rinadi.</i>`,
             { parse_mode: "HTML" },
           )
           .catch(() => undefined);

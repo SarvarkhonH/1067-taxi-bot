@@ -82,12 +82,14 @@ async function main(): Promise<void> {
   ok(infoA.invited === 0, `referrer starts with 0 invites`);
 
   // self-invite must be ignored
-  await attachPendingReferral(tgA, infoA.code);
+  const selfAttach = await attachPendingReferral(tgA, infoA.code);
+  ok(!selfAttach.attached, `self-invite → attached:false (no self-notify)`);
   const selfTu = await prisma.telegramUser.findUnique({ where: { id: tgA } });
   ok(!selfTu?.referredByCode, `self-invite ignored`);
 
-  // referee opens the link, then links a phone
-  await attachPendingReferral(tgB, infoA.code);
+  // referee opens the link → attach returns the referrer to notify ("you invited <name>")
+  const attach = await attachPendingReferral(tgB, infoA.code);
+  ok(attach.attached && attach.referrerTelegramId === tgA, `attach returns referrer to notify (you-invited signal)`);
   const pending = await prisma.telegramUser.findUnique({ where: { id: tgB } });
   ok(pending?.referredByCode === infoA.code, `pending referral captured on referee`);
 

@@ -56,17 +56,23 @@ export async function getReferralInfo(telegramId: string): Promise<ReferralRespo
 }
 
 /**
- * Capture a pending invite when a NEW user opens the bot via a ref link.
- * No-ops for self-invites, unknown codes, or users who already joined/were credited.
+ * Capture a pending invite when a NEW user opens the bot via a ref link. Returns the
+ * referrer's telegram id when it actually attaches, so the caller can tell the inviter
+ * "you invited <them>" the moment their link is clicked. No-ops (attached:false) for
+ * self-invites, unknown codes, or users who already joined/were credited.
  */
-export async function attachPendingReferral(refereeTelegramId: string, code: string): Promise<void> {
+export async function attachPendingReferral(
+  refereeTelegramId: string,
+  code: string,
+): Promise<{ attached: boolean; referrerTelegramId?: string }> {
   const referee = await prisma.telegramUser.findUnique({ where: { id: refereeTelegramId } });
-  if (referee?.memberId || referee?.referralCreditedAt || referee?.referredByCode) return; // only fresh users
+  if (referee?.memberId || referee?.referralCreditedAt || referee?.referredByCode) return { attached: false }; // only fresh users
 
   const referrer = await prisma.telegramUser.findUnique({ where: { referralCode: code } });
-  if (!referrer || referrer.id === refereeTelegramId) return;
+  if (!referrer || referrer.id === refereeTelegramId) return { attached: false };
 
   await prisma.telegramUser.update({ where: { id: refereeTelegramId }, data: { referredByCode: code } });
+  return { attached: true, referrerTelegramId: referrer.id };
 }
 
 export interface ReferralCredit {
