@@ -26,6 +26,9 @@ import {
   ZONE_NAMES,
   partTier,
   conditionFromZones,
+  CRAFT_MAX_LEVEL,
+  CRAFT_PAINT_STEP,
+  craftCost,
   KOZACHA_SHOP,
   computeFlipGrant,
   garajCarMeta,
@@ -401,6 +404,48 @@ export async function repairZone(memberId: number, garajCarId: number, zone: str
     if (!result.ok) return { ok: false, reason: result.reason, coins: await getCoins(memberId) };
     if (newZoneVal >= 80) await bumpSkill(memberId, /engine|transmission|electric/.test(zone) ? { muhandis: 4 } : { kuzovchi: 4 });
     return { ok: true, zone, zoneVal: newZoneVal, condition: newCond, coins: await getCoins(memberId) };
+  });
+}
+
+// ── 🏭 #5 Ustaxona crafting — UPGRADE a car beyond stock (tune level / paint / full
+// restore). Pure tanga SINK (inline spend in withMemberLock, no re-locking helper →
+// no deadlock); the flip CAP still bounds the payout so over-crafting just loses tanga.
+export async function garajCraft(memberId: number, garajCarId: number, station: string): Promise<GarajActionResult & { level?: number; condition?: string }> {
+  if (!(await garajEnabledFor(memberId))) return { ok: false, reason: "off" };
+  if (!["TUNE", "PAINT", "RESTORE"].includes(station)) return { ok: false, reason: "unknown_station" };
+  return withMemberLock(memberId, async () => {
+    const car = await prisma.garajCar.findFirst({ where: { id: garajCarId, memberId, soldAt: null } });
+    if (!car) return { ok: false, reason: "not_found" };
+    if (car.onboardCar) return { ok: false, reason: "onboard_car" };
+    const basePrice = MAKE_BASE[car.carCode] ?? 1000;
+    if (station === "TUNE" && car.level >= CRAFT_MAX_LEVEL) return { ok: false, reason: "max_level", coins: await getCoins(memberId) };
+    if (station === "PAINT" && car.repairQualityBonus >= REPAIR_QUALITY_MAX - 0.001) return { ok: false, reason: "max_quality", coins: await getCoins(memberId) };
+    const cost = craftCost(station, basePrice, car.level);
+    const result = await prisma.$transaction(async (tx) => {
+      const m = await tx.member.findUnique({ where: { id: memberId }, select: { coins: true } });
+      if ((m?.coins ?? 0) < cost) return { ok: false as const, reason: "insufficient" as const };
+      await tx.coinTxn.create({ data: { memberId, amount: -cost, kind: "garaj_craft", reason: `Ustaxona ${station}: ${car.carCode}`, idempotencyKey: `craft:${memberId}:${garajCarId}:${station}:${Date.now()}` } });
+      await tx.member.update({ where: { id: memberId }, data: { coins: { decrement: cost } } });
+      const data: { level?: number; repairQualityBonus?: number; condition?: string; repairZones?: string } = {};
+      if (station === "TUNE") {
+        data.level = car.level + 1;
+        await tx.memberGarajMeta.upsert({ where: { memberId }, create: { memberId, sumCarLevels: 1 }, update: { sumCarLevels: { increment: 1 } } });
+      } else if (station === "PAINT") {
+        data.repairQualityBonus = Math.min(REPAIR_QUALITY_MAX, car.repairQualityBonus + CRAFT_PAINT_STEP);
+      } else {
+        // RESTORE: all 5 zones to 90 → MINT
+        const zones: Record<string, number> = {};
+        for (const z of REPAIR_ZONES) zones[z] = 90;
+        data.repairZones = JSON.stringify(zones);
+        data.condition = conditionFromZones(zones).toLowerCase();
+      }
+      await tx.garajCar.update({ where: { id: garajCarId }, data });
+      return { ok: true as const, level: data.level ?? car.level, condition: data.condition ?? car.condition };
+    });
+    if (!result.ok) return { ok: false, reason: result.reason, coins: await getCoins(memberId) };
+    if (station === "TUNE") await bumpSkill(memberId, { muhandis: 3 });
+    if (station === "PAINT") await bumpSkill(memberId, { kuzovchi: 3 });
+    return { ok: true, level: result.level, condition: result.condition, coins: await getCoins(memberId) };
   });
 }
 

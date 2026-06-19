@@ -393,6 +393,10 @@ button.gz-coll-car:hover { border-color: rgba(255, 179, 0, 0.4); }
   padding: 2px 9px;
 }
 
+/* 🏭 ustaxona crafting */
+.gz-craft { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 9px 12px; border-radius: var(--r-card); background: var(--surface); border: 1px solid var(--line); }
+.gz-craft-name { font-size: 13px; font-weight: 700; }
+
 /* 📦 yo'l sovg'alari (towed-car offers) */
 .gz-tow { padding: 11px 13px; border-color: rgba(255, 179, 0, 0.3); }
 .gz-tow-car { font-size: 13px; }

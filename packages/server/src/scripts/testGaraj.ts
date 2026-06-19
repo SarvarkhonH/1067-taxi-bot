@@ -9,10 +9,10 @@
 // Run: dotenv -e ../../.env -- tsx src/scripts/testGaraj.ts
 import "./_testDb"; // ENG BIRINCHI: izolyatsiyalangan test-DB (jonli sweep poygasini oldini oladi)
 import "../env";
-import { MAKE_BASE, GARAJ_BUY_FACTOR, FLIP_DAILY_CAP, CIPHER_REWARD, OFFLINE_DAILY_CAP, PRESTIGE_REP_HEADSTART, prestigeMultiplier, activeSeasonalEvent } from "@t1067/shared";
+import { MAKE_BASE, GARAJ_BUY_FACTOR, FLIP_DAILY_CAP, CIPHER_REWARD, OFFLINE_DAILY_CAP, PRESTIGE_REP_HEADSTART, CRAFT_MAX_LEVEL, prestigeMultiplier, activeSeasonalEvent } from "@t1067/shared";
 import { prisma } from "../db";
 import { getCoins, grantCoins } from "../services/coinService";
-import { acquireCar, completeRepairTask, repairZone, diagnoseCar, flipCar, garajAuctionBid, garajAuctionCreate, garajBazaarBuy, garajBazaarList, garajBazaarUnlist, getGarajHistory, getMemberCollection, garajKozachaBuy, grantKozacha, processRideDrop, settleAuctions, spendKozachaIdempotent, updateStreakOnRide, garajCipherGuess, collectOfflineBox, garajPrestige, mahallaCreate, mahallaJoin, mahallaLeave, addMahallaScore, settleMahallaWeek, getMahallaLeague, getMahallaState, getDailyOrders, recomputeDemand, getRoadDrops, claimTowedCar, declineTowedCar } from "../services/garajService";
+import { acquireCar, completeRepairTask, repairZone, diagnoseCar, flipCar, garajAuctionBid, garajAuctionCreate, garajBazaarBuy, garajBazaarList, garajBazaarUnlist, getGarajHistory, getMemberCollection, garajKozachaBuy, grantKozacha, processRideDrop, settleAuctions, spendKozachaIdempotent, updateStreakOnRide, garajCipherGuess, collectOfflineBox, garajPrestige, mahallaCreate, mahallaJoin, mahallaLeave, addMahallaScore, settleMahallaWeek, getMahallaLeague, getMahallaState, getDailyOrders, recomputeDemand, getRoadDrops, claimTowedCar, declineTowedCar, garajCraft } from "../services/garajService";
 import { __resetFeatureCache, setFeature } from "../services/featureFlags";
 
 const TAG = "garaj-test";
@@ -410,8 +410,26 @@ async function main(): Promise<void> {
   ok((await declineTowedCar(tM.id, tahoe.id)).ok, `decline towed offer`);
   ok((await getRoadDrops(tM.id)).every((x) => x.carCode !== "tahoe"), `declined offer no longer shown`);
 
+  // 24. #5 Ustaxona crafting — tune (level+1) / paint (RQB) / restore (MINT); all tanga sinks
+  const xM = await prisma.member.create({ data: { type: "client", kasId: `${TAG}-craft`, fullName: "Crafter", phone: "+998900006012", trips: 5 } });
+  await grantCoins(xM.id, 80000, "manual", "seed");
+  await acquireCar(xM.id, "cobalt");
+  const xc = (await prisma.garajCar.findFirst({ where: { memberId: xM.id, carCode: "cobalt", soldAt: null } }))!;
+  const xbase = MAKE_BASE["cobalt"]!;
+  const cx0 = await getCoins(xM.id);
+  const tune = await garajCraft(xM.id, xc.id, "TUNE");
+  ok(tune.ok && tune.level === 2 && cx0 - (tune.coins ?? 0) === Math.round(xbase * 0.25 * 1), `craft TUNE: level→2 + charged (${cx0 - (tune.coins ?? 0)})`);
+  const rqbB4Paint = (await prisma.garajCar.findUnique({ where: { id: xc.id } }))!.repairQualityBonus;
+  await garajCraft(xM.id, xc.id, "PAINT");
+  ok((await prisma.garajCar.findUnique({ where: { id: xc.id } }))!.repairQualityBonus > rqbB4Paint, `craft PAINT: quality boosted`);
+  const restore = await garajCraft(xM.id, xc.id, "RESTORE");
+  ok(restore.ok && (await prisma.garajCar.findUnique({ where: { id: xc.id } }))!.condition === "mint", `craft RESTORE: condition → MINT`);
+  for (let i = 0; i < 3; i++) await garajCraft(xM.id, xc.id, "TUNE"); // 2→3→4→5
+  ok((await garajCraft(xM.id, xc.id, "TUNE")).reason === "max_level", `craft TUNE blocked at level ${CRAFT_MAX_LEVEL}`);
+  ok((await garajCraft(xM.id, xc.id, "XXX")).reason === "unknown_station", `craft rejects an unknown station`);
+
   // 20. W5 ledger invariant across all new members (every grant is a real CoinTxn)
-  for (const mm of [sM, cM, bM, oM, tM]) {
+  for (const mm of [sM, cM, bM, oM, tM, xM]) {
     const b = (await prisma.member.findUnique({ where: { id: mm.id } }))!.coins;
     const t = await prisma.coinTxn.aggregate({ where: { memberId: mm.id }, _sum: { amount: true } });
     ok(Math.abs(b - (t._sum.amount ?? 0)) < 0.001, `W5 ledger invariant (member ${mm.id}: bal ${b} == ledger ${t._sum.amount ?? 0})`);

@@ -167,8 +167,8 @@ function main(): void {
         for (const condition of FCONDS) {
           const grant = computeFlipGrant({
             basePrice, level: 5, style, buyerArchetype: buyer, condition,
-            repairQualityBonus: 1.05, savdogarTier5Bonus: 0.12, kuzovchiTier5Bonus: 0.08,
-            seasonalBonus: 0.22, prestigeMult: 1.25, acquireCost, repairSpent, // MAX stack: seasonal 0.10 + demand 0.12 + prestige 1.25
+            repairQualityBonus: 1.25, savdogarTier5Bonus: 0.12, kuzovchiTier5Bonus: 0.08,
+            seasonalBonus: 0.22, prestigeMult: 1.25, acquireCost, repairSpent, // MAX stack: RQB 1.25 (paint) + seasonal 0.10 + demand 0.12 + prestige 1.25
           });
           if (grant > Math.round(cap) + 1) flipCapViolations++;
           if (grant > maxFlipGrant) maxFlipGrant = grant;

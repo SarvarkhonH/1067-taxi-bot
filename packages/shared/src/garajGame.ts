@@ -201,6 +201,25 @@ export function garajCarMeta(code: string): { code: string; name: string; emoji:
 export const GARAJ_BUY_FACTOR = 0.65; // Phase 1 static buy price = MAKE_BASE × this
 export const TOW_FACTOR = 0.55; // #4 towed-car ride-find: cheaper than the shop (a real bargain)
 
+// 🏭 #5 Ustaxona crafting — the UPGRADE layer (beyond repair): make a car better than
+// stock for a higher flip. All 3 stations are pure TANGA SINKS (no emission); the flip
+// CAP (computeFlipGrant) still bounds the output, so over-crafting a cheap car just loses
+// tanga (cap-protected). Distinct from repairZone (which only fixes damage to baseline).
+export const CRAFT_MAX_LEVEL = 5;
+export const CRAFT_PAINT_STEP = 0.04; // permanent repairQualityBonus boost per paint (clamped REPAIR_QUALITY_MAX)
+export const CRAFT_STATIONS: { code: string; name: string; desc: string }[] = [
+  { code: "TUNE", name: "🔧 Tюнинг stendi", desc: "Daraja +1 — flip narxi oshadi" },
+  { code: "PAINT", name: "🎨 Bo'yoq kamerasi", desc: "Sifat +4% (doimiy)" },
+  { code: "RESTORE", name: "⚙ To'liq restavratsiya", desc: "Barcha zonalar A'lo (MINT)" },
+];
+/** Crafting cost (tanga sink). TUNE scales with the current level; PAINT/RESTORE flat-ish. */
+export function craftCost(station: string, basePrice: number, level: number): number {
+  if (station === "TUNE") return Math.round(basePrice * 0.25 * Math.max(1, level));
+  if (station === "PAINT") return Math.round(basePrice * 0.15);
+  if (station === "RESTORE") return Math.round(basePrice * 0.5);
+  return 0;
+}
+
 // reputation arc — the master-mechanic identity ladder (W5).
 export const REPUTATION_TIERS: { name: string; min: number }[] = [
   { name: "Havaskor", min: 0 },

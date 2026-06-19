@@ -3,7 +3,7 @@
 // Pure view layer — all money logic + idempotency live on the server.
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { GarajStateResponse, RepairQuality } from "@t1067/shared";
-import { KOZACHA_SHOP, reputationTier, REPUTATION_TIERS, REPAIR_ZONES, ZONE_NAMES, PART_TIERS, garajCarMeta } from "@t1067/shared";
+import { KOZACHA_SHOP, reputationTier, REPUTATION_TIERS, REPAIR_ZONES, ZONE_NAMES, PART_TIERS, garajCarMeta, CRAFT_STATIONS, craftCost, MAKE_BASE } from "@t1067/shared";
 import { api } from "./api";
 import { haptic, hapticSuccess } from "./telegram";
 import { Button, Card, Chip, CoinCounter, LoadSection, ProgressBar, Sheet } from "./design/components";
@@ -518,6 +518,26 @@ export function GarajShell({ onClose, initial }: { onClose: () => void; initial?
             )}
 
             <div className="gz-actions">
+              {/* 🏭 Ustaxona — upgrade beyond stock for a higher flip (tanga sink) */}
+              <div className="gz-sec-title">🏭 Ustaxona · Daraja {car.level}/5</div>
+              <div className="col g8">
+                {CRAFT_STATIONS.map((s) => {
+                  const cost = craftCost(s.code, MAKE_BASE[car.carCode] ?? 1000, car.level);
+                  const maxed = s.code === "TUNE" && car.level >= 5;
+                  return (
+                    <div key={s.code} className="gz-craft">
+                      <div className="col">
+                        <span className="gz-craft-name">{s.name}</span>
+                        <span className="fs11 dim">{s.desc}</span>
+                      </div>
+                      <Button sm variant="ghost" disabled={busy || maxed || coins < cost} onClick={() => craft(car.id, s.code)}>
+                        {maxed ? "Max" : `🪙 ${cost.toLocaleString("ru-RU")}`}
+                      </Button>
+                    </div>
+                  );
+                })}
+              </div>
+
               <div className="gz-sec-title">Sotish — xaridorni tanlang</div>
               <div className="gz-buyers">
                 {BUYERS.map((b) => (
@@ -636,6 +656,10 @@ export function GarajShell({ onClose, initial }: { onClose: () => void; initial?
   }
   function kozBuy(itemCode: string, id: number): void {
     void act(() => api.garajKozBuy(itemCode, id));
+  }
+  function craft(id: number, station: string): void {
+    void act(() => api.garajCraft(id, station));
+    flash(station === "TUNE" ? "Daraja oshdi 🔧" : station === "PAINT" ? "Bo'yaldi — sifat +4% 🎨" : "To'liq restavratsiya ⚙");
   }
   async function bazaarAct(fn: () => Promise<{ ok: boolean }>): Promise<void> {
     if (busy) return;
