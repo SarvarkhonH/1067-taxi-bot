@@ -302,7 +302,7 @@ export class KasLiveSource implements KasDataSource {
 
   // ─── booking ────────────────────────────────────────────────────────────────
   async checkClient(phone: string): Promise<ClientBookingInfo | null> {
-    const clean = phone.replace(/\s/g, "");
+    const clean = kasPhone(phone); // normalize to +998<last9> — kas rejects other shapes
     const data = await this.getJson(`api/bookings/checkClientPhoneNumber/${encodeURIComponent(clean)}`);
     const bd = data.bookingDto as Record<string, unknown> | null | undefined;
     return {
@@ -327,7 +327,8 @@ export class KasLiveSource implements KasDataSource {
   }
 
   async createBooking(req: BookingRequest): Promise<BookingResult> {
-    const res = await this.postJson("api/bookings/throughWeb", req);
+    const body = { ...req, phoneNumber: kasPhone(req.phoneNumber) }; // kas-standard phone (+998<last9>)
+    const res = await this.postJson("api/bookings/throughWeb", body);
     return { ok: res.status >= 200 && res.status < 300, message: res.body.slice(0, 200) };
   }
 
@@ -485,7 +486,8 @@ export class KasLiveSource implements KasDataSource {
   /** Ride history (bookingReports — needs the full param set or kas 405s). */
   async getRideHistory(phone: string, size = 10): Promise<RideHistoryItem[]> {
     try {
-      const d = await this.getJson(`api/bookingReports?searchText=${encodeURIComponent(phone)}&sort=id&page=0&size=${size}`);
+      const last9 = phone.replace(/\D/g, "").slice(-9); // searchText matches like byFilter (9-digit)
+      const d = await this.getJson(`api/bookingReports?searchText=${encodeURIComponent(last9 || phone)}&sort=id&page=0&size=${size}`);
       const list = (d.bookingReportDtoList as Record<string, unknown>[]) ?? [];
       return list.map((b) => ({
         id: Number(b.id ?? 0),
@@ -657,6 +659,14 @@ function mapAddresses(raw: unknown): SavedAddress[] {
 function num(v: unknown): number {
   const n = typeof v === "string" ? parseFloat(v.replace(/\s/g, "").replace(",", ".")) : Number(v);
   return Number.isFinite(n) ? n : 0;
+}
+
+/** kas1067 phone STANDARD: "+998" + the local 9 digits. kas's checkClient/booking endpoints
+ *  return empty/error for any other shape (no "+", bare 9 digits, etc.) — proven against the
+ *  live API. Telegram contacts + self-register store mixed formats, so normalize here. */
+export function kasPhone(phone: string): string {
+  const last9 = phone.replace(/\D/g, "").slice(-9);
+  return last9.length === 9 ? `+998${last9}` : phone;
 }
 
 function cleanName(name: unknown, id: unknown, prefix: string): string {
