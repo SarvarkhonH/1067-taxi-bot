@@ -31,6 +31,19 @@ function levelOf(m: Pick<Member, "points" | "trips">) {
   return levelForXp(computeXp({ points: m.points, trips: m.trips })).level;
 }
 
+// A nameless kas client is stored as "Mijoz <id>" (driver "Haydovchi"). For anything the
+// USER sees, fall back to their real Telegram name/username so nobody is shown a placeholder.
+// A real kas name always wins; an explicit edited name (when present) is handled by callers.
+const PLACEHOLDER_NAME = /^(Mijoz|Haydovchi)( \d+)?$/;
+export function resolveDisplayName(
+  kasName: string | null,
+  tg?: { firstName?: string | null; lastName?: string | null; username?: string | null } | null,
+): string {
+  if (kasName && !PLACEHOLDER_NAME.test(kasName)) return kasName;
+  const tgName = [tg?.firstName, tg?.lastName].filter(Boolean).join(" ") || (tg?.username ? `@${tg.username}` : "");
+  return tgName || kasName || "Mijoz";
+}
+
 // ─── member self view ─────────────────────────────────────────────────────────
 export async function getMe(telegramId: string): Promise<MeResponse | null> {
   const tu = await prisma.telegramUser.findUnique({
@@ -38,16 +51,21 @@ export async function getMe(telegramId: string): Promise<MeResponse | null> {
     include: { member: { include: { achievements: true } } },
   });
   if (!tu?.member) return null;
-  return buildMe(tu.member, tu.member.achievements);
+  return buildMe(tu.member, tu.member.achievements, tu);
 }
 
 export async function getMeByMemberId(memberId: number): Promise<MeResponse | null> {
   const member = await prisma.member.findUnique({ where: { id: memberId }, include: { achievements: true } });
   if (!member) return null;
-  return buildMe(member, member.achievements);
+  const tu = await prisma.telegramUser.findFirst({ where: { memberId } });
+  return buildMe(member, member.achievements, tu);
 }
 
-async function buildMe(member: Member, achievements: MemberAchievement[]): Promise<MeResponse> {
+async function buildMe(
+  member: Member,
+  achievements: MemberAchievement[],
+  tg?: { firstName?: string | null; lastName?: string | null; username?: string | null } | null,
+): Promise<MeResponse> {
   const type = member.type as MemberType;
   const xp = computeXp({ points: member.points, trips: member.trips });
   const lp = levelForXp(xp);
@@ -77,7 +95,7 @@ async function buildMe(member: Member, achievements: MemberAchievement[]): Promi
     linked: true,
     type,
     metricLabel: metricLabel(type),
-    member: { id: member.id, fullName: member.fullName, phone: member.phone, carNumber: member.carNumber },
+    member: { id: member.id, fullName: resolveDisplayName(member.fullName, tg), phone: member.phone, carNumber: member.carNumber },
     stats: { points: member.points, trips: member.trips, rating: member.rating },
     level: { index: lp.level.index, name: lp.level.name, emoji: lp.level.emoji, color: lp.level.color },
     nextLevel: lp.next
@@ -332,10 +350,6 @@ export async function getBotUsers(): Promise<AdminBotUsersResponse> {
 
   const users = tus.map((t) => {
     const tgName = [t.firstName, t.lastName].filter(Boolean).join(" ") || (t.username ? `@${t.username}` : "");
-    const kasName = t.member?.fullName ?? null;
-    // kas leaves nameless clients as "Mijoz <id>" (drivers "Haydovchi") — show the real
-    // Telegram name/username instead so the admin sees a person, not a placeholder.
-    const placeholder = kasName ? /^(Mijoz|Haydovchi)( \d+)?$/.test(kasName) : false;
     return {
       telegramId: t.id,
       name: tgName || "—",
@@ -343,7 +357,8 @@ export async function getBotUsers(): Promise<AdminBotUsersResponse> {
       phone: t.phone,
       linked: !!t.memberId,
       memberType: (t.member?.type as MemberType) ?? null,
-      memberName: kasName && !placeholder ? kasName : tgName || kasName,
+      // show a real person, not the kas "Mijoz <id>" placeholder (same resolver as the user view)
+      memberName: t.member ? resolveDisplayName(t.member.fullName, t) : null,
       isAdmin: t.isAdmin,
       linkedAt: t.linkedAt?.toISOString() ?? null,
       lastActive: t.updatedAt.toISOString(),
