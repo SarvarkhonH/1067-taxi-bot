@@ -29,7 +29,6 @@ export const MISSIONS: MissionDef[] = [
   { code: "daily_garage", title: "Garaj mashinangiz pul ishlasin", emoji: "🏎", period: "daily", target: 1, reward: 80, core: false },
   { code: "weekly_rides", title: "Haftada 5 ta safar", emoji: "🏁", period: "weekly", target: 5, reward: 700 },
   { code: "weekly_invite", title: "Do'st taklif qiling", emoji: "👥", period: "weekly", target: 1, reward: 1000 },
-  { code: "weekly_market", title: "Bozordan xarid qiling", emoji: "🏪", period: "weekly", target: 1, reward: 300 },
   // driver quests (Lyft Ride Challenge scale; completed-count only — no
   // acceptance tracking = no Uber sunk-cost backlash)
   { code: "drv_daily_5", title: "Bugun 5 safar", emoji: "🚖", period: "daily", target: 5, reward: 800, audience: "driver" },

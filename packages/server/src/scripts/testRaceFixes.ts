@@ -59,11 +59,14 @@ async function main(): Promise<void> {
     const rider = await prisma.member.create({ data: { type: "client", kasId: `${TAG}-rid`, fullName: "Rid", phone: "+998900022004" } });
     await prisma.telegramUser.create({ data: { id: `${TAG}-tg-rid`, referredByCode: `drv_${driver.id}`, memberId: rider.id } });
     const dBefore = await bal(driver.id);
+    const rBefore = await bal(rider.id);
     await Promise.allSettled([payRecruitRevshare(rider.id, 5001), payRecruitRevshare(rider.id, 5002)]);
     const recRows = await prisma.driverRecruit.count({ where: { riderMemberId: rider.id } });
     const dAfter = await bal(driver.id);
+    const rAfter = await bal(rider.id);
     ok(recRows === 1, `payRecruitRevshare race → EXACTLY 1 DriverRecruit row (got ${recRows})`);
     ok(dAfter - dBefore === 500, `payRecruitRevshare race → recruit1 paid EXACTLY once (+500, got +${dAfter - dBefore})`);
+    ok(rAfter - rBefore === 2000, `recruited CUSTOMER gets the +2000 welcome EXACTLY once (got +${rAfter - rBefore})`);
 
     // ── dailyCheckIn concurrent → streak advances ONCE, milestone reward granted ONCE ──
     // (test-first: the grant key streak:m:today + atomic grantCoins may already protect it)

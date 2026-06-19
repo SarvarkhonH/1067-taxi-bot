@@ -42,7 +42,7 @@ async function main(): Promise<void> {
 
   // ── missions ──────────────────────────────────────────────────────────────
   let m = await getMissions(memberA.id);
-  ok(m.daily.length === 4 && m.weekly.length === 3, `missions catalog (4 daily incl. garage, 3 weekly)`);
+  ok(m.daily.length === 4 && m.weekly.length === 2, `missions catalog (4 daily incl. garage, 2 weekly)`);
   ok(m.daily.every((x) => x.progress === 0 && !x.claimable), `fresh missions are empty`);
 
   await incrementMission(memberA.id, "daily_checkin");

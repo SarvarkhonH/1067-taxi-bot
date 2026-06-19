@@ -10,6 +10,7 @@ const REVSHARE_FRESH = 100; // coins/ride, first 6 months
 const REVSHARE_VETERAN = 25; // after 6 months, forever (activity-gated)
 const REVSHARE_MONTH_CAP = 30000; // per driver per month
 const SIX_MONTHS = 183 * 24 * 3600 * 1000;
+const RECRUIT_WELCOME = 2000; // the recruited CUSTOMER's first-ride welcome bonus (matches the referral referee reward)
 
 function norm9(p: string): string {
   return p.replace(/\D/g, "").slice(-9);
@@ -76,6 +77,10 @@ export async function payRecruitRevshare(riderMemberId: number, bookingId: numbe
       if (!recruit) throw e;
     }
     await grantCoins(driverId, 500, "recruit", "🚖 QR: yangi mijozingiz birinchi safarini qildi", `recruit1:${recruit.id}`);
+    // 🎁 the recruited CUSTOMER's first-ride welcome bonus — the driver QR promises it. Paid via
+    // grantCoins (OUTSIDE the per-ride clamp, like a referral referee reward), idempotent per
+    // recruit so it lands exactly once.
+    await grantCoins(riderMemberId, RECRUIT_WELCOME, "referral", "🎁 QR orqali qo'shildingiz — birinchi safar sovg'asi!", `recruit_welcome:${recruit.id}`);
   }
   if (rideCount >= 3) {
     await grantCoins(driverId, 1000, "recruit", "🚖 QR: mijozingiz 3-safarini qildi", `recruit3:${recruit.id}`);
