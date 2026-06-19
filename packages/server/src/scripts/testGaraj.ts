@@ -12,7 +12,7 @@ import "../env";
 import { MAKE_BASE, GARAJ_BUY_FACTOR, FLIP_DAILY_CAP, CIPHER_REWARD, OFFLINE_DAILY_CAP, PRESTIGE_REP_HEADSTART, CRAFT_MAX_LEVEL, prestigeMultiplier, activeSeasonalEvent, npcForBuyer, npcLine } from "@t1067/shared";
 import { prisma } from "../db";
 import { getCoins, grantCoins } from "../services/coinService";
-import { acquireCar, completeRepairTask, repairZone, diagnoseCar, flipCar, garajAuctionBid, garajAuctionCreate, garajBazaarBuy, garajBazaarList, garajBazaarUnlist, getGarajHistory, getMemberCollection, garajKozachaBuy, grantKozacha, processRideDrop, settleAuctions, spendKozachaIdempotent, updateStreakOnRide, garajCipherGuess, collectOfflineBox, garajPrestige, mahallaCreate, mahallaJoin, mahallaLeave, addMahallaScore, settleMahallaWeek, getMahallaLeague, getMahallaState, getDailyOrders, recomputeDemand, getRoadDrops, claimTowedCar, declineTowedCar, garajCraft, __resetWeekEventCache, exhibitionSubmit, exhibitionVote, settleExhibition } from "../services/garajService";
+import { acquireCar, completeRepairTask, repairZone, diagnoseCar, flipCar, garajAuctionBid, garajAuctionCreate, garajBazaarBuy, garajBazaarList, garajBazaarUnlist, getGarajHistory, getMemberCollection, garajKozachaBuy, grantKozacha, processRideDrop, settleAuctions, spendKozachaIdempotent, updateStreakOnRide, garajCipherGuess, collectOfflineBox, garajPrestige, mahallaCreate, mahallaJoin, mahallaLeave, addMahallaScore, settleMahallaWeek, getMahallaLeague, getMahallaState, getDailyOrders, recomputeDemand, getRoadDrops, claimTowedCar, declineTowedCar, garajCraft, __resetWeekEventCache, exhibitionSubmit, exhibitionVote, settleExhibition, getMuseum } from "../services/garajService";
 import { __resetFeatureCache, setFeature } from "../services/featureFlags";
 
 const TAG = "garaj-test";
@@ -481,6 +481,11 @@ async function main(): Promise<void> {
   ok((await prisma.member.findUnique({ where: { id: eM.id } }))!.coins === eBal0 + 1000, `exhibition: winner +1000 prize`);
   ok((await settleExhibition(wk)) === false && (await prisma.member.findUnique({ where: { id: eM.id } }))!.coins === eBal0 + 1000, `exhibition: re-settle idempotent (no double prize)`);
   ok((await settleExhibition("2099-W01")) === false, `exhibition: <2 entries → no prize (no solo farming)`);
+
+  // 27. #9 Museum — collection (ever-owned models) + records (read-only)
+  const museum = await getMuseum(m.id);
+  ok(museum.totalModels === 11 && museum.collectedCount >= 3, `museum: collection counted (${museum.collectedCount}/${museum.totalModels})`);
+  ok(museum.collection.some((c) => c.carCode === "nexia" && c.owned) && museum.totalFlips >= 1 && museum.bestProfit > 0, `museum: owned models + flip records (flips ${museum.totalFlips}, best ${museum.bestProfit})`);
 
   // 20. W5 ledger invariant across all new members (every grant is a real CoinTxn)
   for (const mm of [sM, cM, bM, oM, tM, xM, wM, eM, fM, gM]) {

@@ -87,6 +87,7 @@ export function GarajShell({ onClose, initial }: { onClose: () => void; initial?
   const [cipherInput, setCipherInput] = useState("");
   const [joinCode, setJoinCode] = useState("");
   const [toast, setToast] = useState<string | null>(null);
+  const [museumOpen, setMuseumOpen] = useState(false);
 
   const load = useCallback(() => {
     if (initial) return; // demo/fixture mode — no backend fetch
@@ -148,6 +149,7 @@ export function GarajShell({ onClose, initial }: { onClose: () => void; initial?
         <button className="gz-back" onClick={() => { haptic(); onClose(); }} aria-label="Ortga">←</button>
         <span className="gz-title">🏆 <b>GARAJ</b></span>
         <div className="gz-purse">
+          <button className="gz-back" onClick={() => { haptic(); setMuseumOpen(true); }} aria-label="Muzey">🏛</button>
           <span className="gz-pill">🪙 <CoinCounter value={coins} /></span>
           <span className="gz-pill koz">🏺 {st?.kozacha ?? 0}</span>
         </div>
@@ -623,6 +625,8 @@ export function GarajShell({ onClose, initial }: { onClose: () => void; initial?
       )}
 
       {toast && <div className="gz-toast" onClick={() => setToast(null)}>{toast}</div>}
+
+      {museumOpen && <GarajMuseumSheet demo={initial ? GARAJ_DEMO_MUSEUM : undefined} onClose={() => setMuseumOpen(false)} />}
     </div>
   );
 
@@ -770,6 +774,27 @@ export const GARAJ_DEMO_HISTORY: { kind: string; carCode: string; name: string; 
   { kind: "flip", carCode: "tiko", name: "Tiko", emoji: "🚙", amount: 845, profit: 210, at: "2026-06-18T09:00:00Z" },
   { kind: "bazaar", carCode: "matiz", name: "Matiz", emoji: "🚗", amount: 1700, profit: null, at: "2026-06-17T18:00:00Z" },
 ];
+
+export const GARAJ_DEMO_MUSEUM = {
+  collection: [
+    { carCode: "tiko", name: "Tiko", emoji: "🚙", owned: true },
+    { carCode: "damas", name: "Damas", emoji: "🚐", owned: true },
+    { carCode: "matiz", name: "Matiz", emoji: "🚗", owned: true },
+    { carCode: "nexia", name: "Nexia", emoji: "🚙", owned: true },
+    { carCode: "spark", name: "Spark", emoji: "🚗", owned: false },
+    { carCode: "cobalt", name: "Cobalt", emoji: "🚘", owned: true },
+    { carCode: "lacetti", name: "Lacetti", emoji: "🚖", owned: false },
+    { carCode: "malibu", name: "Malibu", emoji: "🏎", owned: false },
+    { carCode: "tracker", name: "Tracker", emoji: "🛻", owned: true },
+    { carCode: "tahoe", name: "Tahoe", emoji: "🚙", owned: false },
+    { carCode: "gelik", name: "Gelandewagen", emoji: "🏁", owned: false },
+  ],
+  collectedCount: 6,
+  totalModels: 11,
+  totalFlips: 14,
+  bestProfit: 3480,
+  hallOfFame: [{ name: "Jasur", prestigeCount: 5, repAtEntry: 26800 }, { name: "Dilnoza", prestigeCount: 3, repAtEntry: 12400 }],
+};
 
 // Static fixture for the #garajdemo render-proof (no backend, no auth).
 export const GARAJ_DEMO: GarajStateResponse = {
@@ -980,6 +1005,59 @@ export function GarajCollectionSheet({ memberId, name, onClose }: { memberId: nu
                 </Card>
               ))}
             </div>
+          )}
+        </div>
+      )}
+    </Sheet>
+  );
+}
+
+// 🏛 #9 Museum sheet — your collection progress + records + the Hall of Fame.
+export function GarajMuseumSheet({ demo, onClose }: { demo?: typeof GARAJ_DEMO_MUSEUM; onClose: () => void }) {
+  const [m, setM] = useState<Awaited<ReturnType<typeof api.garajMuseum>> | null>(demo ?? null);
+  const [loading, setLoading] = useState(!demo);
+  useEffect(() => {
+    if (demo) return;
+    let alive = true;
+    api.garajMuseum().then((d) => { if (alive) { setM(d); setLoading(false); } }).catch(() => { if (alive) setLoading(false); });
+    return () => { alive = false; };
+  }, [demo]);
+  return (
+    <Sheet open onClose={onClose}>
+      {loading ? (
+        <p className="gz-empty">Yuklanmoqda…</p>
+      ) : !m ? (
+        <p className="gz-empty">Muzey topilmadi.</p>
+      ) : (
+        <div className="col g8">
+          <div className="gz-title">🏛 Muzey</div>
+          <div className="gz-col-stats">
+            <div><b>{m.collectedCount}/{m.totalModels}</b><span>kolleksiya</span></div>
+            <div><b>{m.totalFlips}</b><span>sotuv</span></div>
+            <div><b>{m.bestProfit.toLocaleString("ru-RU")}</b><span>rekord foyda</span></div>
+          </div>
+          <div className="gz-sec-title">Kolleksiya — egallagan modellaringiz</div>
+          <div className="gz-museum-grid">
+            {m.collection.map((c) => (
+              <div key={c.carCode} className={`gz-museum-car${c.owned ? "" : " locked"}`}>
+                <span className="gz-museum-emoji">{c.owned ? c.emoji : "🔒"}</span>
+                <span className="fs11">{c.name}</span>
+              </div>
+            ))}
+          </div>
+          {m.hallOfFame.length > 0 && (
+            <>
+              <div className="gz-sec-title">🏅 Shon zali — Prestij afsonalari</div>
+              <div className="gz-hist">
+                {m.hallOfFame.map((h, i) => (
+                  <div key={i} className="gz-hist-row">
+                    <span className="gz-hist-emoji">{"★".repeat(Math.min(5, h.prestigeCount))}</span>
+                    <span className="gz-hist-name">{h.name}</span>
+                    <span className="gz-hist-amt">obro' {h.repAtEntry.toLocaleString("ru-RU")}</span>
+                  </div>
+                ))}
+              </div>
+            </>
           )}
         </div>
       )}

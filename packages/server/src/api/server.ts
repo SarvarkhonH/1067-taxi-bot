@@ -190,6 +190,7 @@ export function createApiServer(opts: ApiOptions = {}) {
   app.post("/api/garaj/mahalla/leave", requireUser, rateLimit(10), withMember2(async (id) => (await import("../services/garajService")).mahallaLeave(id)));
   app.post("/api/garaj/exhibition/submit", requireUser, rateLimit(10), withMember2(async (id, req) => (await import("../services/garajService")).exhibitionSubmit(id, Number(req.body?.garajCarId))));
   app.post("/api/garaj/exhibition/vote", requireUser, rateLimit(20), withMember2(async (id, req) => (await import("../services/garajService")).exhibitionVote(id, Number(req.body?.entryId))));
+  app.get("/api/garaj/museum", requireUser, withMember2(async (id) => (await import("../services/garajService")).getMuseum(id)));
 
   app.get("/api/me", requireUser, async (_req, res) => {
     const me = await getMe(res.locals.telegramId as string);

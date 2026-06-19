@@ -47,6 +47,7 @@ import {
   type GarajRoadDrop,
   type GarajWeeklyEvent,
   type GarajExhibitionView,
+  type GarajMuseumView,
   STREAK_LADDER,
   STREAK_FREEZE_DAY,
   COMEBACK_GRANT,
@@ -1344,4 +1345,30 @@ export async function settleExhibition(weekKey: string): Promise<boolean> {
   if (winner.votes <= 0) return false; // nobody voted
   const g = await grantCoins(winner.memberId, EXHIBITION_PRIZE, "garaj_exhibition", `🏆 Ko'rgazma g'olibi: ${winner.carCode}`, key);
   return g.ok;
+}
+
+// ══ #9 Muzey — read-only showcase (collection / records / Hall of Fame) ═══════
+export async function getMuseum(memberId: number): Promise<GarajMuseumView> {
+  const empty: GarajMuseumView = { collection: [], collectedCount: 0, totalModels: Object.keys(MAKE_BASE).length, totalFlips: 0, bestProfit: 0, hallOfFame: [] };
+  if (!(await garajEnabledFor(memberId))) return empty;
+  // "ever-owned" = current cars + NPC-flipped + P2P-sold (bazaar/auction move the row's
+  // memberId to the buyer, so those models must be counted from the sale records too).
+  const [cur, flipped, bzSold, aucSold, flipAgg, flipCount, hof] = await Promise.all([
+    prisma.garajCar.findMany({ where: { memberId }, select: { carCode: true }, distinct: ["carCode"] }),
+    prisma.garajFlip.findMany({ where: { memberId }, select: { carCode: true }, distinct: ["carCode"] }),
+    prisma.garajBazaarListing.findMany({ where: { sellerId: memberId, status: "sold" }, select: { carCode: true }, distinct: ["carCode"] }),
+    prisma.garajAuction.findMany({ where: { sellerId: memberId, status: "settled" }, select: { carCode: true }, distinct: ["carCode"] }),
+    prisma.garajFlip.aggregate({ where: { memberId }, _max: { profitT: true } }),
+    prisma.garajFlip.count({ where: { memberId } }),
+    prisma.garajHallOfFame.findMany({ orderBy: [{ prestigeCount: "desc" }, { repAtEntry: "desc" }], take: 10 }),
+  ]);
+  const ownedSet = new Set([...cur, ...flipped, ...bzSold, ...aucSold].map((o) => o.carCode));
+  const collection = Object.keys(MAKE_BASE).map((code) => {
+    const cm = garajCarMeta(code);
+    return { carCode: code, name: cm?.name ?? code, emoji: cm?.emoji ?? "🚗", owned: ownedSet.has(code) };
+  });
+  const hofMembers = hof.length ? await prisma.member.findMany({ where: { id: { in: hof.map((h) => h.memberId) } }, select: { id: true, fullName: true } }) : [];
+  const nameById = new Map(hofMembers.map((m) => [m.id, m.fullName]));
+  const hallOfFame = hof.map((h) => ({ name: nameById.get(h.memberId) ?? "Usta", prestigeCount: h.prestigeCount, repAtEntry: h.repAtEntry }));
+  return { collection, collectedCount: ownedSet.size, totalModels: collection.length, totalFlips: flipCount, bestProfit: flipAgg._max.profitT ?? 0, hallOfFame };
 }

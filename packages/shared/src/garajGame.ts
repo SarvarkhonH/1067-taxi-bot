@@ -299,6 +299,17 @@ export function activeSeasonalEvent(monthDay: string): SeasonalEvent | null {
   return null;
 }
 
+// ── #9 Muzey — a read-only showcase: which of the 11 models you've ever owned,
+// your personal records, and the Hall of Fame (Prestige-5 legends). No money path.
+export interface GarajMuseumView {
+  collection: { carCode: string; name: string; emoji: string; owned: boolean }[];
+  collectedCount: number;
+  totalModels: number;
+  totalFlips: number;
+  bestProfit: number;
+  hallOfFame: { name: string; prestigeCount: number; repAtEntry: number }[];
+}
+
 // ── #8 Exhibition — weekly car show. Winner prize is a bounded, idempotent grant;
 // requires ≥2 entries so a solo player can't auto-farm it every week.
 export const EXHIBITION_PRIZE = 1000;

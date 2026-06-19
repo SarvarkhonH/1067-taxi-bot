@@ -154,6 +154,7 @@ export const api = {
   garajDeclineTow: (dropId: number) => request<GarajActionResult>("POST", "/api/garaj/tow/decline", { dropId }, 1),
   garajExhibitionSubmit: (garajCarId: number) => request<GarajActionResult>("POST", "/api/garaj/exhibition/submit", { garajCarId }, 1),
   garajExhibitionVote: (entryId: number) => request<GarajActionResult>("POST", "/api/garaj/exhibition/vote", { entryId }, 1),
+  garajMuseum: () => get<{ collection: { carCode: string; name: string; emoji: string; owned: boolean }[]; collectedCount: number; totalModels: number; totalFlips: number; bestProfit: number; hallOfFame: { name: string; prestigeCount: number; repAtEntry: number }[] }>("/api/garaj/museum"),
   garajAuctions: () => get<{ id: number; carCode: string; name: string; emoji: string; minBid: number; endsAt: string; mine: boolean }[]>("/api/garaj/auctions"),
   garajAuctionCreate: (garajCarId: number, minBid: number) => request<GarajActionResult>("POST", "/api/garaj/auction/create", { garajCarId, minBid }, 1),
   garajAuctionBid: (auctionId: number, amount: number) => request<GarajActionResult>("POST", "/api/garaj/auction/bid", { auctionId, amount }, 1),
