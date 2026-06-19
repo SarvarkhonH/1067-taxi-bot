@@ -279,6 +279,62 @@ export function activeSeasonalEvent(monthDay: string): SeasonalEvent | null {
   return null;
 }
 
+// ── #2 NPC Buyurtma (order) board — 3 deterministic daily commissions. Fulfilling
+// one (flip a matching car: carCode + style + buyer) pays a BONUS on top of the flip.
+// The bonus is a separate idempotent grant (NOT through computeFlipGrant), bounded by
+// 3 slots × ORDER_BONUS_MAX/day, so it can't touch the flip cap or the ride clamp. ─
+export const ORDER_SLOTS = 3;
+export const ORDER_BONUS_MIN = 120;
+export const ORDER_BONUS_MAX = 400;
+export interface GarajDailyOrder {
+  slot: number;
+  carCode: string;
+  style: RestoreStyle;
+  buyer: BuyerArchetype;
+  bonus: number;
+  done?: boolean; // filled per-member by the server
+}
+/** 3 deterministic daily orders from a day-seed. Always picks a profitable (non-rejected)
+ *  buyer×style so the order is fulfillable; bonus scales with car value (clamped). */
+export function dailyOrders(seed: number): GarajDailyOrder[] {
+  const cars = Object.keys(MAKE_BASE);
+  const styles: RestoreStyle[] = ["QUICK_FLIP", "FULL_RESTORE", "TUNING", "PERIOD_CORRECT"];
+  const buyers: BuyerArchetype[] = ["FAMILY_DRIVER", "YOUNG_TUNER", "NEWLYWED", "COLLECTOR"];
+  const out: GarajDailyOrder[] = [];
+  for (let s = 0; s < ORDER_SLOTS; s++) {
+    const r = (seed >>> (s * 7)) >>> 0;
+    const carCode = cars[r % cars.length]!;
+    let style = styles[(r >>> 3) % styles.length]!;
+    let buyer = buyers[(r >>> 6) % buyers.length]!;
+    if (BUYER_STYLE_MATCH[buyer][style] <= -1) {
+      style = "FULL_RESTORE";
+      buyer = "FAMILY_DRIVER";
+    } // never an impossible order
+    const base = MAKE_BASE[carCode] ?? 1000;
+    const bonus = Math.max(ORDER_BONUS_MIN, Math.min(ORDER_BONUS_MAX, Math.round(base * 0.08)));
+    out.push({ slot: s, carCode, style, buyer, bonus });
+  }
+  return out;
+}
+
+// ── #3 Demand waves — a per-car multiplier (0.85..1.20) from real activity. Stored in
+// AppState market:demand:{carCode}, recomputed in the sweep. Drives the shop buy price
+// and a small flip nudge (fed like seasonalBonus, so the flip CAP still bounds it). ─
+export const DEMAND_MIN = 0.85;
+export const DEMAND_MAX = 1.2;
+export const DEMAND_FLIP_BONUS_MAX = 0.12; // demand's flip contribution caps at +12% (within-cap)
+/** Demand multiplier from activity signals (all non-negative). More rides for the model
+ *  and more recent sales lift demand; a glut of open listings cools it. Clamped. */
+export function demandMultiplier(sig: { ridesLast7d: number; salesLast24h: number; listingVolume: number }): number {
+  const raw = 1.0 + 0.04 * Math.min(10, sig.ridesLast7d) + 0.06 * Math.min(6, sig.salesLast24h) - 0.05 * Math.min(8, sig.listingVolume);
+  return Math.max(DEMAND_MIN, Math.min(DEMAND_MAX, Math.round(raw * 100) / 100));
+}
+/** The flip-side nudge from demand: maps the [0.85,1.20] multiplier to a [−,+0.12] bonus
+ *  fed into computeFlipGrant as seasonalBonus-style (cap-bounded). */
+export function demandFlipBonus(mult: number): number {
+  return Math.max(-DEMAND_FLIP_BONUS_MAX, Math.min(DEMAND_FLIP_BONUS_MAX, mult - 1.0));
+}
+
 // ── DTOs shared between the server and the mini-app (browser-safe) ────────────
 export interface GarajCarView {
   id: number;
@@ -302,6 +358,7 @@ export interface GarajShopItem {
   emoji: string;
   buyPrice: number;
   owned: boolean;
+  demandMult?: number; // #3 live demand (1.0 = neutral); buyPrice already reflects it
 }
 export interface GarajSkillView {
   ustaKozRank: number; // 0..100
@@ -357,6 +414,7 @@ export interface GarajStateResponse {
   offlineBoxPending: number; // collectable tanga right now (0 if none / already today)
   seasonalEvent: string | null; // active event display name, or null
   mahalla: GarajMahallaView | null;
+  orders: GarajDailyOrder[]; // #2 today's 3 NPC commissions (done flag per member)
 }
 export interface GarajActionResult {
   ok: boolean;
@@ -365,4 +423,5 @@ export interface GarajActionResult {
   carId?: number;
   grant?: number;
   profit?: number;
+  orderBonus?: number; // #2 NPC-order bonus paid on this flip (matched a daily order)
 }

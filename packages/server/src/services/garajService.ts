@@ -31,6 +31,10 @@ import {
   branchTier,
   garageTierFromRep,
   reputationTier,
+  dailyOrders,
+  demandMultiplier,
+  demandFlipBonus,
+  type GarajDailyOrder,
   STREAK_LADDER,
   STREAK_FREEZE_DAY,
   COMEBACK_GRANT,
@@ -146,7 +150,7 @@ async function bumpSkill(
 // ── read: full state for the dedicated shell (one round-trip) ─────────────────
 export async function getGarajState(memberId: number): Promise<GarajStateResponse> {
   const today = tashkentDate();
-  const [enabled, meta, cars, coins, sk, streakRow, cipherSolved, cipherAttempts, cipherCode, mahalla] = await Promise.all([
+  const [enabled, meta, cars, coins, sk, streakRow, cipherSolved, cipherAttempts, cipherCode, mahalla, demand, orders] = await Promise.all([
     garajEnabledFor(memberId),
     prisma.memberGarajMeta.findUnique({ where: { memberId } }),
     prisma.garajCar.findMany({ where: { memberId, soldAt: null } }),
@@ -157,6 +161,8 @@ export async function getGarajState(memberId: number): Promise<GarajStateRespons
     prisma.appState.findUnique({ where: { key: `cipher:attempts:${memberId}:${today}` } }),
     prisma.appState.findUnique({ where: { key: `cipher:code:${today}` } }),
     getMahallaState(memberId),
+    getDemandMap(),
+    getDailyOrders(memberId),
   ]);
   const ownedCodes = new Set(cars.map((c) => c.carCode));
   const carViews: GarajCarView[] = cars.map((c) => {
@@ -180,12 +186,14 @@ export async function getGarajState(memberId: number): Promise<GarajStateRespons
   });
   const shop = Object.keys(MAKE_BASE).map((code) => {
     const cm = garajCarMeta(code);
+    const dm = demand[code] ?? 1.0; // #3 live demand drives the buy price
     return {
       carCode: code,
       name: cm?.name ?? code,
       emoji: cm?.emoji ?? "🚗",
-      buyPrice: Math.round(MAKE_BASE[code]! * GARAJ_BUY_FACTOR),
+      buyPrice: Math.round(MAKE_BASE[code]! * GARAJ_BUY_FACTOR * dm),
       owned: ownedCodes.has(code),
+      demandMult: dm,
     };
   });
   const rep = meta?.reputationScore ?? 0;
@@ -247,6 +255,7 @@ export async function getGarajState(memberId: number): Promise<GarajStateRespons
     offlineBoxPending,
     seasonalEvent: season?.name ?? null,
     mahalla,
+    orders,
   };
 }
 
@@ -408,7 +417,10 @@ export async function flipCar(memberId: number, garajCarId: number, buyerArchety
     const meta = await prisma.memberGarajMeta.findUnique({ where: { memberId } });
     const pMult = prestigeMultiplier(meta?.prestigeCount ?? 0);
     const season = activeSeasonalEvent(tashkentMonthDay());
-    const seasonalBonus = season && season.flipBonusStyle === style ? (season.flipBonus ?? 0) : 0;
+    const seasonal = season && season.flipBonusStyle === style ? (season.flipBonus ?? 0) : 0;
+    // #3 demand nudge (≤±12%) — combined with seasonal into the cap-bounded seasonalBonus slot.
+    const demandRow = await prisma.appState.findUnique({ where: { key: `market:demand:${car.carCode}` } });
+    const demandBonus = demandRow ? demandFlipBonus(parseFloat(demandRow.value) || 1.0) : 0;
     const grant = computeFlipGrant({
       basePrice,
       level: car.level,
@@ -417,7 +429,7 @@ export async function flipCar(memberId: number, garajCarId: number, buyerArchety
       condition,
       repairQualityBonus: car.repairQualityBonus,
       prestigeMult: pMult,
-      seasonalBonus,
+      seasonalBonus: seasonal + demandBonus,
       acquireCost: car.acquireCost,
       repairSpent: car.repairSpent,
     });
@@ -465,7 +477,16 @@ export async function flipCar(memberId: number, garajCarId: number, buyerArchety
       .update({ where: { memberId }, data: { carsOwnedCount: { decrement: 1 }, sumCarLevels: { decrement: car.level }, reputationScore: { increment: 30 } } })
       .catch(() => undefined);
     await bumpSkill(memberId, { savdogar: 4, kollektsioner: condition === "MINT" ? 2 : 0 });
-    return { ok: true, grant: result.grant, profit: result.profit, coins: await getCoins(memberId) };
+    // #2: did this flip fulfill a daily NPC order? (carCode + style + buyer match) → bonus,
+    // idempotent per (member, day, slot); bounded by 3 slots/day. Separate from the flip cap.
+    let orderBonus = 0;
+    const oDate = tashkentDate();
+    const match = dailyOrders(seedFor(`orders:${oDate}`)).find((o) => o.carCode === car.carCode && o.style === style && o.buyer === buyerArchetype);
+    if (match) {
+      const ob = await grantCoins(memberId, match.bonus, "garaj_order", `📋 Buyurtma bajarildi: ${car.carCode}`, `orderbonus:${memberId}:${oDate}:${match.slot}`);
+      orderBonus = ob.skipped === "duplicate" ? 0 : match.bonus;
+    }
+    return { ok: true, grant: result.grant, profit: result.profit, orderBonus, coins: await getCoins(memberId) };
   });
 }
 
@@ -1058,4 +1079,55 @@ export async function getMahallaLeague(viewerId?: number): Promise<{ rank: numbe
   if (!(viewerId !== undefined ? await garajEnabledFor(viewerId) : await featureOn("garajx"))) return [];
   const groups = await prisma.mahallaGroup.findMany({ orderBy: { weeklyScore: "desc" }, take: 20 });
   return groups.map((g, i) => ({ rank: i + 1, name: g.name, score: g.weeklyScore, memberCount: g.memberCount }));
+}
+
+// ══ #3 Demand waves ══════════════════════════════════════════════════════════
+// Per-car demand multiplier from REAL activity (recent sales lift it, an open-listing
+// glut cools it). Recomputed at most every 15 min (AppState nextRecalcAt guard — NOT
+// every sweep, audit M1). Stored in market:demand:{carCode}; drives the shop buy price
+// + a capped flip nudge (fed like seasonalBonus, so computeFlipGrant's cap still bounds it).
+const DEMAND_RECALC_MS = 15 * 60 * 1000;
+export async function recomputeDemand(): Promise<number> {
+  if (!(await featureOn("garajx"))) return 0;
+  const nextRow = await prisma.appState.findUnique({ where: { key: "market:demand:nextRecalcAt" } });
+  if (Date.now() < (nextRow ? parseInt(nextRow.value, 10) || 0 : 0)) return 0; // not due → skip the whole block
+  const since24 = new Date(Date.now() - 24 * 3600 * 1000);
+  const since7d = new Date(Date.now() - 7 * 86400 * 1000);
+  let n = 0;
+  for (const carCode of Object.keys(MAKE_BASE)) {
+    const [salesLast24h, ridesLast7d, listingVolume] = await Promise.all([
+      prisma.garajFlip.count({ where: { carCode, createdAt: { gte: since24 } } }),
+      prisma.garajFlip.count({ where: { carCode, createdAt: { gte: since7d } } }),
+      prisma.garajBazaarListing.count({ where: { carCode, status: "open" } }),
+    ]);
+    const mult = demandMultiplier({ ridesLast7d, salesLast24h, listingVolume });
+    await prisma.appState.upsert({ where: { key: `market:demand:${carCode}` }, create: { key: `market:demand:${carCode}`, value: String(mult) }, update: { value: String(mult) } });
+    n++;
+  }
+  const nv = String(Date.now() + DEMAND_RECALC_MS);
+  await prisma.appState.upsert({ where: { key: "market:demand:nextRecalcAt" }, create: { key: "market:demand:nextRecalcAt", value: nv }, update: { value: nv } });
+  return n;
+}
+async function getDemandMap(): Promise<Record<string, number>> {
+  const rows = await prisma.appState.findMany({ where: { key: { startsWith: "market:demand:" } } });
+  const map: Record<string, number> = {};
+  for (const r of rows) {
+    const code = r.key.slice("market:demand:".length);
+    if (code !== "nextRecalcAt") map[code] = parseFloat(r.value) || 1.0;
+  }
+  return map;
+}
+
+// ══ #2 NPC Buyurtma board ════════════════════════════════════════════════════
+// 3 deterministic daily orders (shared, seeded by Tashkent date). Fulfilled when a
+// flip matches (carCode+style+buyer) → a bonus grant (in flipCar). Done flag = the
+// per-member orderbonus CoinTxn key exists.
+export async function getDailyOrders(memberId: number): Promise<GarajDailyOrder[]> {
+  if (!(await garajEnabledFor(memberId))) return [];
+  const date = tashkentDate();
+  const orders = dailyOrders(seedFor(`orders:${date}`));
+  const keys = orders.map((o) => `orderbonus:${memberId}:${date}:${o.slot}`);
+  const done = await prisma.coinTxn.findMany({ where: { idempotencyKey: { in: keys } }, select: { idempotencyKey: true } });
+  const doneSet = new Set(done.map((d) => d.idempotencyKey));
+  return orders.map((o) => ({ ...o, done: doneSet.has(`orderbonus:${memberId}:${date}:${o.slot}`) }));
 }

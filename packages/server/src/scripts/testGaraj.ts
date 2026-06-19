@@ -12,7 +12,7 @@ import "../env";
 import { MAKE_BASE, GARAJ_BUY_FACTOR, FLIP_DAILY_CAP, CIPHER_REWARD, OFFLINE_DAILY_CAP, PRESTIGE_REP_HEADSTART, prestigeMultiplier, activeSeasonalEvent } from "@t1067/shared";
 import { prisma } from "../db";
 import { getCoins, grantCoins } from "../services/coinService";
-import { acquireCar, completeRepairTask, repairZone, diagnoseCar, flipCar, garajAuctionBid, garajAuctionCreate, garajBazaarBuy, garajBazaarList, garajBazaarUnlist, getGarajHistory, getMemberCollection, garajKozachaBuy, grantKozacha, processRideDrop, settleAuctions, spendKozachaIdempotent, updateStreakOnRide, garajCipherGuess, collectOfflineBox, garajPrestige, mahallaCreate, mahallaJoin, mahallaLeave, addMahallaScore, settleMahallaWeek, getMahallaLeague, getMahallaState } from "../services/garajService";
+import { acquireCar, completeRepairTask, repairZone, diagnoseCar, flipCar, garajAuctionBid, garajAuctionCreate, garajBazaarBuy, garajBazaarList, garajBazaarUnlist, getGarajHistory, getMemberCollection, garajKozachaBuy, grantKozacha, processRideDrop, settleAuctions, spendKozachaIdempotent, updateStreakOnRide, garajCipherGuess, collectOfflineBox, garajPrestige, mahallaCreate, mahallaJoin, mahallaLeave, addMahallaScore, settleMahallaWeek, getMahallaLeague, getMahallaState, getDailyOrders, recomputeDemand } from "../services/garajService";
 import { __resetFeatureCache, setFeature } from "../services/featureFlags";
 
 const TAG = "garaj-test";
@@ -54,6 +54,7 @@ async function cleanup(): Promise<void> {
     await prisma.member.deleteMany({ where: { id: { in: ids } } });
   }
   await prisma.appState.deleteMany({ where: { key: `cipher:code:${todayKey()}` } }); // the test's daily cipher code
+  await prisma.appState.deleteMany({ where: { key: { startsWith: "market:demand:" } } }); // #3 demand cache
   await prisma.mahallaWeeklyResult.deleteMany({ where: { weekKey: "2026-W99" } }); // the test's settle weekKey
   // NOTE: do NOT delete feature:garajx here — on the LIVE DB that would knock the
   // game OFF for all real users. main() SAVES the flag's prior value and RESTORES it.
@@ -365,8 +366,35 @@ async function main(): Promise<void> {
   ok(activeSeasonalEvent("12-25")?.code === "qish", `seasonal: Qish active 12-25`);
   ok(activeSeasonalEvent("07-15") === null, `seasonal: no event mid-July`);
 
+  // 21. #2 NPC order bonus — a flip matching today's order pays the bonus, once/slot/day
+  const oM = await prisma.member.create({ data: { type: "client", kasId: `${TAG}-ord`, fullName: "Orderer", phone: "+998900006010", trips: 5 } });
+  await grantCoins(oM.id, 50000, "manual", "seed");
+  const ords = await getDailyOrders(oM.id);
+  ok(ords.length === 3, `daily orders: 3 slots (got ${ords.length})`);
+  const o0 = ords[0]!;
+  await acquireCar(oM.id, o0.carCode);
+  const oc = (await prisma.garajCar.findFirst({ where: { memberId: oM.id, carCode: o0.carCode, soldAt: null } }))!;
+  await prisma.garajCar.update({ where: { id: oc.id }, data: { style: o0.style, condition: "good" } });
+  const of1 = await flipCar(oM.id, oc.id, o0.buyer);
+  ok(of1.ok && (of1.orderBonus ?? 0) === o0.bonus, `order bonus paid on matching flip (+${of1.orderBonus} === ${o0.bonus})`);
+  ok((await getDailyOrders(oM.id))[0]!.done === true, `order slot marked done after fulfilment`);
+  // re-buy + re-flip the SAME match today → no second order bonus (idempotent per slot/day)
+  await acquireCar(oM.id, o0.carCode);
+  await prisma.garajCar.update({ where: { id: oc.id }, data: { style: o0.style, condition: "good" } });
+  const of2 = await flipCar(oM.id, oc.id, o0.buyer);
+  ok(of2.ok && (of2.orderBonus ?? 0) === 0, `order bonus NOT re-paid same slot/day (idempotent)`);
+
+  // 22. #3 demand waves — recompute bounded multiplier + 15-min guard
+  await prisma.appState.deleteMany({ where: { key: "market:demand:nextRecalcAt" } }); // force due
+  const dN = await recomputeDemand();
+  ok(dN > 0, `demand recomputed for ${dN} cars`);
+  const dRow = await prisma.appState.findUnique({ where: { key: "market:demand:nexia" } });
+  const dMult = parseFloat(dRow?.value ?? "1");
+  ok(dMult >= 0.85 && dMult <= 1.2, `demand multiplier bounded 0.85–1.20 (nexia=${dMult})`);
+  ok((await recomputeDemand()) === 0, `demand recompute guarded — immediate 2nd call is a no-op (≤15min)`);
+
   // 20. W5 ledger invariant across all new members (every grant is a real CoinTxn)
-  for (const mm of [sM, cM, bM]) {
+  for (const mm of [sM, cM, bM, oM]) {
     const b = (await prisma.member.findUnique({ where: { id: mm.id } }))!.coins;
     const t = await prisma.coinTxn.aggregate({ where: { memberId: mm.id }, _sum: { amount: true } });
     ok(Math.abs(b - (t._sum.amount ?? 0)) < 0.001, `W5 ledger invariant (member ${mm.id}: bal ${b} == ledger ${t._sum.amount ?? 0})`);

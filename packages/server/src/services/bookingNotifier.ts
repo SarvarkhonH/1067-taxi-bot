@@ -574,4 +574,13 @@ export async function pushBookingUpdates(
   } catch (e) {
     console.error("[garaj] auction settle failed:", e);
   }
+
+  // 📈 GARAJ v2 #3: recompute demand waves (self-guarded to ≤ every 15 min via an
+  // AppState nextRecalcAt timestamp — cheap no-op on most sweeps; OFF-safe).
+  try {
+    const { recomputeDemand } = await import("./garajService");
+    await recomputeDemand();
+  } catch (e) {
+    console.error("[garaj] demand recompute failed:", e);
+  }
 }

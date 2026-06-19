@@ -3,7 +3,7 @@
 // Pure view layer — all money logic + idempotency live on the server.
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { GarajStateResponse, RepairQuality } from "@t1067/shared";
-import { KOZACHA_SHOP, reputationTier, REPUTATION_TIERS, REPAIR_ZONES, ZONE_NAMES, PART_TIERS } from "@t1067/shared";
+import { KOZACHA_SHOP, reputationTier, REPUTATION_TIERS, REPAIR_ZONES, ZONE_NAMES, PART_TIERS, garajCarMeta } from "@t1067/shared";
 import { api } from "./api";
 import { haptic, hapticSuccess } from "./telegram";
 import { Button, Card, Chip, CoinCounter, LoadSection, ProgressBar, Sheet } from "./design/components";
@@ -24,6 +24,8 @@ const STYLES = [
   { code: "PERIOD_CORRECT", name: "Davr asili", minTier: 3 },
 ];
 const COND_LABEL: Record<string, string> = { WORN: "Eski", FAIR: "O'rtacha", GOOD: "Yaxshi", MINT: "A'lo" };
+const STYLE_SHORT: Record<string, string> = { QUICK_FLIP: "Tezkor", FULL_RESTORE: "To'liq", TUNING: "Tюнинг", PERIOD_CORRECT: "Davr asili" };
+const BUYER_SHORT: Record<string, string> = { FAMILY_DRIVER: "Oilaviy", YOUNG_TUNER: "Yoshlar", NEWLYWED: "Kelin-kuyov", COLLECTOR: "Kolleksioner" };
 
 // per-model paint so each car reads as ITS car (not a generic emoji)
 const CAR_PAINT: Record<string, string> = {
@@ -235,6 +237,27 @@ export function GarajShell({ onClose, initial }: { onClose: () => void; initial?
                     <span className="fs11 dim">{coins.toLocaleString("ru-RU")} / {dream.buyPrice.toLocaleString("ru-RU")} · Bozorda oling</span>
                   </div>
                 </div>
+              )}
+
+              {/* 📋 NPC buyurtmalar — bugungi 3 topshiriq (mos mashinani tiklab → soting → bonus) */}
+              {st.orders && st.orders.length > 0 && (
+                <>
+                  <div className="gz-sec-title">📋 Bugungi buyurtmalar</div>
+                  <div className="col g8">
+                    {st.orders.map((o) => {
+                      const cm = garajCarMeta(o.carCode);
+                      return (
+                        <Card key={o.slot} className={`gz-order${o.done ? " done" : ""}`}>
+                          <div className="row between">
+                            <span className="gz-order-car">{cm?.emoji ?? "🚗"} <b>{cm?.name ?? o.carCode}</b> · {STYLE_SHORT[o.style] ?? o.style}</span>
+                            <span className="gz-order-bonus">{o.done ? "✓" : `+${o.bonus}`}</span>
+                          </div>
+                          <span className="fs11 dim">Xaridor: {BUYER_SHORT[o.buyer] ?? o.buyer} — shu uslubda tiklab, shu xaridorga soting</span>
+                        </Card>
+                      );
+                    })}
+                  </div>
+                </>
               )}
 
               {/* 🚗 collection — owned + locked (replaces the shop grid; shop now lives in Bozor) */}
@@ -622,16 +645,28 @@ export function GarajShell({ onClose, initial }: { onClose: () => void; initial?
     void bazaarAct(() => api.garajAuctionCreate(id, minBid));
     setOpenId(null);
   }
-  function flip(id: number, buyer: string): void {
-    void act(
-      () => api.garajFlip(id, buyer),
-      (grant) => {
+  async function flip(id: number, buyer: string): Promise<void> {
+    if (busy) return;
+    setBusy(true);
+    haptic();
+    try {
+      const r = await api.garajFlip(id, buyer);
+      if (r.ok) {
         hapticSuccess();
-        setBurst({ amount: grant, label: "SOTILDI!" });
+        const ob = r.orderBonus ?? 0;
+        setBurst({ amount: (r.grant ?? 0) + ob, label: ob > 0 ? `SOTILDI! 📋 buyurtma +${ob}` : "SOTILDI!" });
         setOpenId(null);
-        setTimeout(() => setBurst(null), 1900);
-      },
-    );
+        setTimeout(() => setBurst(null), 2100);
+      } else if (r.reason === "daily_cap") flash("Bugungi sotuv chegarasi to'ldi");
+      if (!initial) {
+        setSt(await api.garajState());
+        void api.garajHistory().then(setHistory).catch(() => undefined);
+      }
+    } catch {
+      /* keep state */
+    } finally {
+      setBusy(false);
+    }
   }
 }
 
@@ -668,6 +703,11 @@ export const GARAJ_DEMO: GarajStateResponse = {
   offlineBoxPending: 18,
   seasonalEvent: "Navro'z",
   mahalla: { id: 1, name: "Koson Ustalari", code: "LUPYQG", weeklyScore: 1240, memberCount: 7, rank: 2, role: "MEMBER" },
+  orders: [
+    { slot: 0, carCode: "nexia", style: "FULL_RESTORE", buyer: "FAMILY_DRIVER", bonus: 208, done: false },
+    { slot: 1, carCode: "matiz", style: "TUNING", buyer: "YOUNG_TUNER", bonus: 120, done: true },
+    { slot: 2, carCode: "tiko", style: "PERIOD_CORRECT", buyer: "COLLECTOR", bonus: 120, done: false },
+  ],
 };
 
 /** #garajdemo render-proof entry — the shell populated from the static fixture. */
@@ -680,7 +720,7 @@ export function GarajDemo() {
 export function GarajMarketView({ coins, onBanner }: { coins: number; onBanner?: (m: string) => void }) {
   const [bazaar, setBazaar] = useState<{ id: number; carCode: string; name: string; emoji: string; askPrice: number; mine: boolean }[]>([]);
   const [auctions, setAuctions] = useState<{ id: number; carCode: string; name: string; emoji: string; minBid: number; endsAt: string; mine: boolean }[]>([]);
-  const [shop, setShop] = useState<{ carCode: string; name: string; emoji: string; buyPrice: number; owned: boolean }[]>([]);
+  const [shop, setShop] = useState<{ carCode: string; name: string; emoji: string; buyPrice: number; owned: boolean; demandMult?: number }[]>([]);
   const [busy, setBusy] = useState(false);
   const [sortAsc, setSortAsc] = useState(true);
   const load = useCallback(() => {
@@ -722,6 +762,9 @@ export function GarajMarketView({ coins, onBanner }: { coins: number; onBanner?:
           <div key={s.carCode} className="gz-coll-car">
             <GarajCarArt carCode={s.carCode} condition="WORN" level={1} size={94} />
             <span className="gz-coll-name">{s.name}</span>
+            {s.demandMult != null && Math.abs(s.demandMult - 1) >= 0.03 && (
+              <span className={`gz-demand ${s.demandMult > 1 ? "up" : "down"}`}>{s.demandMult > 1 ? `talab ↑ ${Math.round((s.demandMult - 1) * 100)}%` : `talab ↓ ${Math.round((1 - s.demandMult) * 100)}%`}</span>
+            )}
             <Button sm disabled={busy || coins < s.buyPrice} onClick={() => act(() => api.garajAcquire(s.carCode), `${s.name} olindi! 🔧`)}>🪙 {s.buyPrice.toLocaleString("ru-RU")}</Button>
           </div>
         ))}

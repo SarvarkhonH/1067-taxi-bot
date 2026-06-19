@@ -393,6 +393,17 @@ button.gz-coll-car:hover { border-color: rgba(255, 179, 0, 0.4); }
   padding: 2px 9px;
 }
 
+/* 📋 NPC buyurtmalar */
+.gz-order { padding: 11px 13px; }
+.gz-order.done { opacity: 0.55; }
+.gz-order-car { font-size: 13px; }
+.gz-order-bonus { font-weight: 800; color: var(--brand); font-size: 14px; }
+.gz-order.done .gz-order-bonus { color: var(--win); }
+/* 📈 demand chip */
+.gz-demand { font-size: 10px; font-weight: 800; padding: 1px 7px; border-radius: 999px; }
+.gz-demand.up { background: #22321f; color: var(--win); }
+.gz-demand.down { background: #3a2222; color: var(--danger); }
+
 /* sotuvlar tarixi */
 .gz-hist { display: flex; flex-direction: column; gap: 6px; }
 .gz-hist-row {
