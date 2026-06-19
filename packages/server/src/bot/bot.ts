@@ -19,7 +19,7 @@ import { getWeeklyBoard } from "../services/weeklyService";
 import { getEconomy, getHealth, getLiveBookings } from "../services/adminOps";
 import { getIntegrity } from "../services/reconciliation";
 import type { CashbackDelta } from "../sync/sync";
-import { registerBooking } from "./booking";
+import { payDriver, registerBooking } from "./booking";
 import {
   renderBadgeUnlocked,
   renderAccount,
@@ -128,6 +128,7 @@ export function createBot(): Bot {
   bot.command("start", async (ctx) => {
     const id = String(ctx.from!.id);
     codeLink.delete(id); // /start cancels any pending "link a different number" flow
+    payDriver.delete(id); // …and the "pay a driver by car number" flow
     await touchTelegramUser(id, profileOf(ctx.from!));
     // referral deep link: t.me/<bot>?start=ref_<code>
     const payload = (typeof ctx.match === "string" ? ctx.match : "").trim();
@@ -831,6 +832,7 @@ export async function setupBotCommands(bot: Bot): Promise<void> {
     { command: "invite", description: "👥 Do'st taklif qilish" },
     { command: "narx", description: "🚖 Narx va cashback" },
     { command: "rahmat", description: "🙏 Haydovchiga choychaqa" },
+    { command: "haydovchi", description: "🚖 Mashina raqami bo'yicha haydovchiga to'lash" },
     { command: "me", description: "💰 Hamyon / profil" },
     { command: "account", description: "👤 Hisobim & sozlamalar" },
     { command: "top", description: "Reyting" },

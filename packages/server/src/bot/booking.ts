@@ -17,6 +17,9 @@ interface BookingSession {
 // In-memory per-user wizard state (transient by design). The 1-tap pickup
 // memory lives on Member (DB) — it must survive restarts/deploys.
 const sessions = new Map<string, BookingSession>();
+// "pay a driver by car number" flow: telegramId → awaiting the car number. Exported so
+// /start can cancel it (the bot's start handler clears all pending wizards).
+export const payDriver = new Map<string, boolean>();
 
 function esc(s: string): string {
   return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
@@ -345,6 +348,50 @@ export function registerBooking(bot: Bot, mainMenu: (isDriver?: boolean) => Keyb
     } catch {
       await ctx.answerCallbackQuery({ text: "Bu safarga taxmin qilingansiz ✅" });
     }
+  });
+
+  // 🚖 pay/tip ANY driver by car number: type the plate → driver's name shows → send tangas
+  // (lands in the driver's tanga balance; they top up / cash out from there).
+  const startPayDriver = async (ctx: Context): Promise<void> => {
+    const me = await getMe(String(ctx.from!.id));
+    if (!me?.member.phone) {
+      await ctx.reply("Avval /start orqali raqamingizni ulang.");
+      return;
+    }
+    payDriver.set(String(ctx.from!.id), true);
+    await ctx.reply("🚖 <b>Haydovchiga to'lash</b>\n\nMashina raqamini yozing (masalan <code>01A123BC</code>):\n<i>Bekor — /start</i>", { parse_mode: "HTML" });
+  };
+  bot.command("haydovchi", (ctx) => startPayDriver(ctx));
+  bot.callbackQuery("paydrv:start", async (ctx) => {
+    await ctx.answerCallbackQuery().catch(() => undefined);
+    await startPayDriver(ctx);
+  });
+  // car-number entry — registered BEFORE the address-search text handler below; falls through
+  // (next) when the user isn't in the pay-driver flow.
+  bot.on("message:text", async (ctx, next) => {
+    const id = String(ctx.from!.id);
+    if (!payDriver.get(id)) return next();
+    const text = ctx.message.text.trim();
+    if (text.startsWith("/")) {
+      payDriver.delete(id);
+      return next();
+    }
+    const carNum = text.toUpperCase().replace(/\s+/g, "");
+    const { prisma } = await import("../db");
+    const me = await getMe(id);
+    const driver = await prisma.member.findFirst({ where: { type: "driver", carNumber: carNum }, select: { id: true, fullName: true, carNumber: true } });
+    if (!driver || driver.id === me?.member.id) {
+      await ctx.reply("❌ Bu raqamli haydovchi topilmadi. Qayta yozing (yoki /start bilan bekor):");
+      return;
+    }
+    payDriver.delete(id);
+    await ctx.reply(`🚖 Haydovchi: <b>${esc(driver.fullName)}</b> · <code>${esc(driver.carNumber ?? "")}</code>\n\nQancha tanga yuborasiz?`, {
+      parse_mode: "HTML",
+      reply_markup: new InlineKeyboard()
+        .text("🙏 500", `tip:${driver.id}:500`)
+        .text("🙏 1 000", `tip:${driver.id}:1000`)
+        .text("🙏 2 000", `tip:${driver.id}:2000`),
+    });
   });
 
   // 🙏 tip the LAST ride's driver anytime — not just on the finish card (which scrolls away).
