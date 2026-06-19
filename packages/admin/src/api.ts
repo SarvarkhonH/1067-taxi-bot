@@ -130,7 +130,35 @@ export const adminApi = {
   heal: (memberId: number) => postJson<AdminActionResult>("/api/admin/heal", { memberId }),
   pulse: () => req<OpsPulse>("/api/admin/pulse"),
   finance: () => req<AdminFinance>("/api/admin/finance"),
+  // 👑 user management ("boshqaruv")
+  searchUsers: (q: string) => req<AdminUserRow[]>(`/api/admin/users?q=${encodeURIComponent(q)}`),
+  relinkUser: (telegramId: string, memberId: number) => postJson<{ ok: boolean; reason?: string }>("/api/admin/users/relink", { telegramId, memberId }),
+  unlinkUser: (telegramId: string) => postJson<{ ok: boolean; reason?: string }>("/api/admin/users/unlink", { telegramId }),
+  linkCode: (phone: string) => postJson<{ ok: boolean; code?: string; message?: string }>("/api/admin/linkcode", { phone }),
+  withdrawals: (limit = 50) => req<AdminWithdrawalRow[]>(`/api/admin/withdrawals?limit=${limit}`),
 };
+
+export interface AdminUserRow {
+  id: number;
+  type: string;
+  kasId: string;
+  fullName: string;
+  phone: string | null;
+  coins: number;
+  points: number;
+  trips: number;
+  tier: string;
+  telegram: { id: string; username: string | null; name: string | null; linkedAt: string | null } | null;
+}
+
+export interface AdminWithdrawalRow {
+  id: number;
+  amount: number;
+  kasApplied: boolean;
+  kasMessage: string | null;
+  at: string;
+  member: { name: string; phone: string | null; type: string } | null;
+}
 
 export interface Member360 {
   member: { id: number; name: string; type: string; coins: number; trips: number; riskFlag: boolean; plusUntil: string | null; tier: string; createdAt: string };

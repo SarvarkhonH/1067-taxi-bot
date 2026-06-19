@@ -11,9 +11,9 @@ import {
   type AdminMemberRow,
   type AdminStats,
 } from "@t1067/shared";
-import { adminApi, clearAdminToken, hasAdminToken, setAdminToken, type Driver360, type Member360 } from "./api";
+import { adminApi, clearAdminToken, hasAdminToken, setAdminToken, type AdminUserRow, type AdminWithdrawalRow, type Driver360, type Member360 } from "./api";
 
-type Tab = "overview" | "pulse" | "analytics" | "finance" | "live" | "x360" | "driver" | "client" | "botusers" | "actions" | "integrity" | "audit";
+type Tab = "overview" | "pulse" | "analytics" | "finance" | "live" | "x360" | "driver" | "client" | "botusers" | "boshqaruv" | "actions" | "integrity" | "audit";
 
 export function App() {
   const [tab, setTab] = useState<Tab>("overview");
@@ -64,6 +64,7 @@ export function App() {
     { id: "driver", label: "🚗 Haydovchi" },
     { id: "client", label: "🏅 Mijoz" },
     { id: "botusers", label: "👥 Bot" },
+    { id: "boshqaruv", label: "👑 Boshqaruv" },
     { id: "actions", label: "⚡ Amallar" },
     { id: "integrity", label: "🔐 Integrity" },
     { id: "audit", label: "📜 Jurnal" },
@@ -99,6 +100,7 @@ export function App() {
       {tab === "x360" && <X360View />}
       {(tab === "driver" || tab === "client") && <MembersTab type={tab} />}
       {tab === "botusers" && <BotUsersTab />}
+      {tab === "boshqaruv" && <BoshqaruvView />}
       {tab === "actions" && (<><ActionsView /><ControlCards /></>)}
       {tab === "integrity" && <IntegrityView />}
       {tab === "audit" && <AuditView />}
@@ -673,6 +675,96 @@ function MembersTab({ type }: { type: "driver" | "client" }) {
     Promise.all([adminApi.stats(type), adminApi.members(type)]).then(([s, m]) => { setStats(s); setMembers(m); }).catch(() => undefined);
   }, [type]);
   return <MembersView type={type} stats={stats} members={members} query={query} setQuery={setQuery} />;
+}
+
+// 👑 user management ("boshqaruv"): search → accounts → re-link/unlink/code/coin-adjust + withdrawals
+function BoshqaruvView() {
+  const [q, setQ] = useState("");
+  const [users, setUsers] = useState<AdminUserRow[] | null>(null);
+  const [msg, setMsg] = useState("");
+  const [wds, setWds] = useState<AdminWithdrawalRow[] | null>(null);
+
+  const search = async () => {
+    setMsg("⏳ qidirilmoqda…");
+    try {
+      setUsers(await adminApi.searchUsers(q));
+      setMsg("");
+    } catch {
+      setMsg("❌ qidiruv xatosi");
+    }
+  };
+  useEffect(() => {
+    adminApi.withdrawals(30).then(setWds).catch(() => undefined);
+  }, []);
+
+  const tgId = users?.find((u) => u.telegram)?.telegram?.id ?? null;
+  const done = async (m: string) => {
+    setMsg(m);
+    await search();
+  };
+  const relink = async (memberId: number) => {
+    if (!tgId) {
+      setMsg("⚠️ Bu odamning hech qaysi akkauntiga Telegram ulanmagan");
+      return;
+    }
+    const r = await adminApi.relinkUser(tgId, memberId).catch(() => ({ ok: false, reason: "net" }));
+    await done(r.ok ? "✅ Telegram qayta ulandi" : "❌ " + (r.reason ?? "xato"));
+  };
+  const unlink = async (id: string) => {
+    const r = await adminApi.unlinkUser(id).catch(() => ({ ok: false }));
+    await done(r.ok ? "✅ Uzildi (foydalanuvchi qayta /start qila oladi)" : "❌ xato");
+  };
+  const genCode = async (phone: string) => {
+    const r = await adminApi.linkCode(phone).catch(() => ({ ok: false, message: "net" }) as { ok: boolean; code?: string; message?: string });
+    setMsg(r.ok ? `🔑 ${phone} → kod: ${r.code} (1 soat amal qiladi)` : "❌ " + (r.message ?? ""));
+  };
+  const adjust = async (phone: string) => {
+    const a = window.prompt("Tanga (+ berish / − ayirish):");
+    if (a === null) return;
+    const reason = window.prompt("Sabab:") ?? "admin";
+    const r = await adminApi.grant(phone, Number(a), reason).catch(() => ({ ok: false, message: "net" }) as { ok: boolean; message?: string });
+    await done(r.ok ? "✅ " + (r.message ?? "bajarildi") : "❌ " + (r.message ?? ""));
+  };
+
+  return (
+    <>
+      <section className="panel">
+        <div className="panel-title">👑 Foydalanuvchi boshqaruvi</div>
+        <div style={{ display: "flex", gap: 8, marginBottom: 10 }}>
+          <input style={{ flex: 1, padding: "8px 10px" }} value={q} onChange={(e) => setQ(e.target.value)} placeholder="Raqam yoki ism…" onKeyDown={(e) => e.key === "Enter" && search()} />
+          <button onClick={search}>🔎 Qidirish</button>
+        </div>
+        {msg && <div className="muted" style={{ marginBottom: 8 }}>{msg}</div>}
+        {users && users.length === 0 && <div className="muted">Topilmadi.</div>}
+        {users?.map((u) => (
+          <div key={u.id} style={{ borderTop: "1px solid var(--line, #2a3242)", padding: "10px 0" }}>
+            <div>
+              <b>{u.fullName}</b> · {u.type === "driver" ? "🚗 Haydovchi" : "🏅 Mijoz"} · {u.phone ?? "—"}
+            </div>
+            <div className="muted">
+              id={u.id} · kasId={u.kasId} · 🪙 {u.coins} tanga · kas-ball {u.points} · {u.trips} safar · {u.tier}
+            </div>
+            <div className="muted">{u.telegram ? `📱 ${u.telegram.id}${u.telegram.username ? " @" + u.telegram.username : ""}${u.telegram.name ? " (" + u.telegram.name + ")" : ""}` : "📱 Telegram ulanmagan"}</div>
+            <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 6 }}>
+              <button onClick={() => relink(u.id)}>📱 Telegram'ni bunga ulash</button>
+              {u.telegram && <button onClick={() => unlink(u.telegram!.id)}>🔌 Uzish</button>}
+              {u.phone && <button onClick={() => genCode(u.phone!)}>🔑 Kod</button>}
+              {u.phone && <button onClick={() => adjust(u.phone!)}>🪙 Tanga ±</button>}
+            </div>
+          </div>
+        ))}
+      </section>
+      <section className="panel">
+        <div className="panel-title">💸 Oxirgi yechishlar (cashout)</div>
+        {!wds && <div className="muted">⏳</div>}
+        {wds?.map((w) => (
+          <div key={w.id} className="muted" style={{ padding: "3px 0" }}>
+            {w.kasApplied ? "✅" : "⏳"} <b>{w.amount.toLocaleString("ru-RU")}</b> — {w.member?.name ?? "?"} ({w.member?.phone ?? "—"}) · {new Date(w.at).toLocaleString("ru-RU", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })}
+          </div>
+        ))}
+      </section>
+    </>
+  );
 }
 
 function BotUsersTab() {

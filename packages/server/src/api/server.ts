@@ -188,6 +188,8 @@ export function createApiServer(opts: ApiOptions = {}) {
   app.post("/api/garaj/mahalla/create", requireUser, rateLimit(5), withMember2(async (id, req) => (await import("../services/garajService")).mahallaCreate(id, String(req.body?.name ?? ""))));
   app.post("/api/garaj/mahalla/join", requireUser, rateLimit(10), withMember2(async (id, req) => (await import("../services/garajService")).mahallaJoin(id, String(req.body?.code ?? ""))));
   app.post("/api/garaj/mahalla/leave", requireUser, rateLimit(10), withMember2(async (id) => (await import("../services/garajService")).mahallaLeave(id)));
+  app.post("/api/garaj/exhibition/submit", requireUser, rateLimit(10), withMember2(async (id, req) => (await import("../services/garajService")).exhibitionSubmit(id, Number(req.body?.garajCarId))));
+  app.post("/api/garaj/exhibition/vote", requireUser, rateLimit(20), withMember2(async (id, req) => (await import("../services/garajService")).exhibitionVote(id, Number(req.body?.entryId))));
 
   app.get("/api/me", requireUser, async (_req, res) => {
     const me = await getMe(res.locals.telegramId as string);
@@ -964,6 +966,37 @@ export function createApiServer(opts: ApiOptions = {}) {
     const b = (req.body ?? {}) as { target?: string; amount?: number; reason?: string };
     res.json(await adminGrant(String(b.target ?? ""), Number(b.amount ?? 0), String(b.reason ?? ""), res.locals.telegramId as string));
   });
+
+  // 👑 user management ("boshqaruv"): search · re-link/unlink · link-code · withdrawals
+  app.get("/api/admin/users", requireAdmin, async (req, res) => {
+    const { adminSearchUsers } = await import("../services/adminUsers");
+    res.json(await adminSearchUsers(String(req.query.q ?? "")));
+  });
+  app.post("/api/admin/users/relink", requireAdmin, requireOwner, rateLimit(20), async (req, res) => {
+    const { adminRelink } = await import("../services/adminUsers");
+    const b = (req.body ?? {}) as { telegramId?: string; memberId?: number };
+    res.json(await adminRelink(String(b.telegramId ?? ""), Number(b.memberId ?? 0)));
+  });
+  app.post("/api/admin/users/unlink", requireAdmin, requireOwner, rateLimit(20), async (req, res) => {
+    const { adminUnlink } = await import("../services/adminUsers");
+    const b = (req.body ?? {}) as { telegramId?: string };
+    res.json(await adminUnlink(String(b.telegramId ?? "")));
+  });
+  app.post("/api/admin/linkcode", requireAdmin, rateLimit(20), async (req, res) => {
+    const b = (req.body ?? {}) as { phone?: string };
+    const phone = String(b.phone ?? "");
+    if (!/^\+?\d[\d\s\-()]{8,}$/.test(phone)) {
+      res.json({ ok: false, message: "Raqam noto'g'ri" });
+      return;
+    }
+    const { generateLinkCode } = await import("../services/verifyCodeService");
+    res.json({ ok: true, code: await generateLinkCode(phone) });
+  });
+  app.get("/api/admin/withdrawals", requireAdmin, async (req, res) => {
+    const { adminWithdrawals } = await import("../services/adminUsers");
+    res.json(await adminWithdrawals(Number(req.query.limit ?? 50)));
+  });
+
   app.post("/api/admin/announce", requireAdmin, rateLimit(3), async (req, res) => {
     if (!opts.sendMessage) {
       res.json({ ok: false, message: "Bot ulanmagan" });
