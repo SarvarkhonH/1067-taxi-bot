@@ -116,6 +116,10 @@ function esc(s: string): string {
   return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 }
 
+// 🔑 in-flight "link a different number via 1067 code" sessions. No phone yet → awaiting the
+// number; phone set → awaiting the 4-digit code. Transient (in-memory) by design.
+const codeLink = new Map<string, { phone?: string }>();
+
 export function createBot(): Bot {
   const bot = new Bot(env.BOT_TOKEN);
 
@@ -123,6 +127,7 @@ export function createBot(): Bot {
 
   bot.command("start", async (ctx) => {
     const id = String(ctx.from!.id);
+    codeLink.delete(id); // /start cancels any pending "link a different number" flow
     await touchTelegramUser(id, profileOf(ctx.from!));
     // referral deep link: t.me/<bot>?start=ref_<code>
     const payload = (typeof ctx.match === "string" ? ctx.match : "").trim();
@@ -160,6 +165,10 @@ export function createBot(): Bot {
     } else {
       await ctx.reply(renderWelcome(ctx.from!.first_name ?? "do'st"), { parse_mode: "HTML", reply_markup: contactKeyboard() });
       await ctx.reply(renderLinkPrompt(), { parse_mode: "HTML", reply_markup: contactKeyboard() });
+      await ctx.reply("1067 raqamingiz Telegram raqamingizdan <b>boshqa</b> bo'lsa 👇", {
+        parse_mode: "HTML",
+        reply_markup: new InlineKeyboard().text("📱 Boshqa raqam (1067 kodi bilan)", "clink:start"),
+      });
     }
   });
 
@@ -211,6 +220,89 @@ export function createBot(): Bot {
     }
     await touchTelegramUser(String(ctx.from!.id), profileOf(ctx.from!));
     await handleLink(ctx, contact.phone_number);
+  });
+
+  // ── 🔑 link a DIFFERENT number via a 1067-issued 4-digit code (Telegram ≠ 1067 number) ──
+  const startCodeLink = async (ctx: Context): Promise<void> => {
+    codeLink.set(String(ctx.from!.id), {});
+    await ctx.reply(
+      "📱 <b>Boshqa raqam ulash</b>\n\n1067'da ishlatadigan raqamingizni yozing (masalan <code>+998901234567</code>):\n<i>Bekor qilish — /start</i>",
+      { parse_mode: "HTML" },
+    );
+  };
+  bot.command("boshqaraqam", (ctx) => startCodeLink(ctx));
+  bot.callbackQuery("clink:start", async (ctx) => {
+    await ctx.answerCallbackQuery();
+    await startCodeLink(ctx);
+  });
+
+  // admin issues the code (after verifying the caller by phone): /kod +998901234567
+  bot.command("kod", async (ctx) => {
+    const id = String(ctx.from!.id);
+    if (!isAdmin(id)) return; // admin-only (silent for others)
+    const phone = (typeof ctx.match === "string" ? ctx.match : "").trim();
+    if (!/^\+?\d[\d\s\-()]{8,}$/.test(phone)) {
+      await ctx.reply("Foydalanish: <code>/kod +998901234567</code>", { parse_mode: "HTML" });
+      return;
+    }
+    const { generateLinkCode } = await import("../services/verifyCodeService");
+    const code = await generateLinkCode(phone);
+    await ctx.reply(
+      `🔑 <b>${esc(phone)}</b> uchun kod: <b>${code}</b>\n\nMijozga ayting — u botda /boshqaraqam orqali kiritadi. 1 soat amal qiladi.`,
+      { parse_mode: "HTML" },
+    );
+  });
+
+  // code-link text steps — BEFORE the phone-regex below so the number step isn't swallowed by
+  // the admin-only typed-number guard. Falls through (next) when not in the code-link flow.
+  bot.on("message:text", async (ctx, next) => {
+    const id = String(ctx.from!.id);
+    const sess = codeLink.get(id);
+    if (!sess) return next();
+    const text = ctx.message.text.trim();
+    if (text.startsWith("/")) {
+      codeLink.delete(id);
+      return next();
+    }
+    if (!sess.phone) {
+      if (!/^\+?\d[\d\s\-()]{8,}$/.test(text)) {
+        await ctx.reply("❌ Raqam noto'g'ri. Masalan: <code>+998901234567</code>", { parse_mode: "HTML" });
+        return;
+      }
+      sess.phone = text;
+      await ctx.reply("✅ Raqam qabul qilindi.\n\n📞 Endi <b>1067'ga qo'ng'iroq qiling</b>, <b>4-xonali kod</b> oling va shu yerga yozing:", { parse_mode: "HTML" });
+      return;
+    }
+    if (!/^\d{4}$/.test(text)) {
+      await ctx.reply("❌ Kod 4 xonali bo'lishi kerak. Qayta yozing (yoki /start bilan bekor):");
+      return;
+    }
+    const { checkLinkCode } = await import("../services/verifyCodeService");
+    const r = await checkLinkCode(sess.phone, text);
+    if (!r.ok) {
+      const msg: Record<string, string> = {
+        no_code: "Bu raqamga kod berilmagan. 1067'ga qo'ng'iroq qiling.",
+        expired: "Kod muddati tugadi. 1067'dan yangi kod oling.",
+        wrong: "Kod xato. Qayta urinib ko'ring.",
+        locked: "Juda ko'p urinish. 1067'dan yangi kod oling.",
+      };
+      await ctx.reply(`❌ ${msg[r.reason ?? "wrong"]}`);
+      if (r.reason !== "wrong") codeLink.delete(id);
+      return;
+    }
+    // verified by 1067 → link the number to this Telegram account
+    codeLink.delete(id);
+    await touchTelegramUser(id, profileOf(ctx.from!));
+    const res = await linkByPhone(id, sess.phone, profileOf(ctx.from!));
+    if (res.status === "linked") {
+      await ctx.reply(`✅ <b>Raqam tasdiqlandi va ulandi!</b> Xush kelibsiz, ${esc(res.fullName ?? "Mijoz")} 🎉`, { parse_mode: "HTML", reply_markup: mainMenu(res.type === "driver") });
+      const me = await getMe(id);
+      if (me) await ctx.reply(renderProfile(me), { parse_mode: "HTML", reply_markup: mainMenu(me.type === "driver") });
+    } else if (res.status === "taken") {
+      await ctx.reply("⚠️ Bu raqam allaqachon boshqa akkauntga ulangan. 1067 support bilan bog'laning.");
+    } else {
+      await ctx.reply("⚠️ Ulashda xatolik. Qayta urinib ko'ring.");
+    }
   });
 
   // SECURITY: typing a number proves NOTHING — anyone could type someone else's number and

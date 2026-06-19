@@ -28,6 +28,7 @@ const SUITES = [
   "testGaraj.ts", // 🏆 GARAJ v2: kill-switch · idempotent acquire/diagnose/repair · flip outside clamp · B4 daily cap · ledger
   "testRecruitFeedback.ts", // 🚖 QR recruit: fresh scan attaches (+driver notify), existing user ignored, pending count
   "testSelfRegister.ts", // 🆕 self-register (non-kas phone) + adopt-in-place reconciliation (no dup, tangas kept, withdraw gated)
+  "testVerifyCode.ts", // 🔑 4-digit link code: single-use, rate-limit lock (no brute-force), TTL expiry
 ];
 
 interface Res {
