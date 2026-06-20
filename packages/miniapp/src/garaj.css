@@ -425,6 +425,8 @@ button.gz-coll-car:hover { border-color: rgba(255, 179, 0, 0.4); }
 /* 🏭 ustaxona crafting */
 .gz-craft { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 9px 12px; border-radius: var(--r-card); background: var(--surface); border: 1px solid var(--line); }
 .gz-craft-name { font-size: 13px; font-weight: 700; }
+/* #5 active craft job (shared Workshop slot) — a highlighted "in progress" row */
+.gz-craftjob { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 10px 12px; border-radius: var(--r-card); background: linear-gradient(180deg, #1c1608, var(--surface)); border: 1px solid var(--brand); }
 
 /* 📦 yo'l sovg'alari (towed-car offers) */
 .gz-tow { padding: 11px 13px; border-color: rgba(255, 179, 0, 0.3); }

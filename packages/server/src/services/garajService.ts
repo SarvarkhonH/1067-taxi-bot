@@ -28,7 +28,10 @@ import {
   conditionFromZones,
   CRAFT_MAX_LEVEL,
   CRAFT_PAINT_STEP,
+  CRAFT_STATIONS,
   craftCost,
+  craftSpeedupCost,
+  craftDurationMs,
   KOZACHA_SHOP,
   computeFlipGrant,
   garajCarMeta,
@@ -47,6 +50,7 @@ import {
   type GarajRoadDrop,
   type GarajWeeklyEvent,
   type GarajExhibitionView,
+  type GarajCraftJobView,
   type GarajMuseumView,
   STREAK_LADDER,
   STREAK_FREEZE_DAY,
@@ -185,7 +189,7 @@ async function bumpSkill(
 // ── read: full state for the dedicated shell (one round-trip) ─────────────────
 export async function getGarajState(memberId: number): Promise<GarajStateResponse> {
   const today = tashkentDate();
-  const [enabled, meta, cars, coins, sk, streakRow, cipherSolved, cipherAttempts, cipherCode, mahalla, demand, orders, roadDrops, weekEv, exhibition] = await Promise.all([
+  const [enabled, meta, cars, coins, sk, streakRow, cipherSolved, cipherAttempts, cipherCode, mahalla, demand, orders, roadDrops, weekEv, exhibition, craftJobRow] = await Promise.all([
     garajEnabledFor(memberId),
     prisma.memberGarajMeta.findUnique({ where: { memberId } }),
     prisma.garajCar.findMany({ where: { memberId, soldAt: null } }),
@@ -201,6 +205,7 @@ export async function getGarajState(memberId: number): Promise<GarajStateRespons
     getRoadDrops(memberId),
     getWeeklyEvent(),
     getExhibition(memberId),
+    prisma.garajCraftJob.findFirst({ where: { memberId, status: "in_progress" } }), // #5 shared craft slot
   ]);
   const ownedCodes = new Set(cars.map((c) => c.carCode));
   const carViews: GarajCarView[] = cars.map((c) => {
@@ -265,6 +270,23 @@ export async function getGarajState(memberId: number): Promise<GarajStateRespons
     const hours = (Date.now() - since.getTime()) / 3600000;
     offlineBoxPending = offlineBoxPayout(meta.sumCarLevels, hours, prestigeMultiplier(prestigeCount));
   }
+  // #5 active craft job (the shared Workshop slot) — name/emoji from the owned-car view
+  let craftJob: GarajCraftJobView | null = null;
+  if (craftJobRow) {
+    const cm = garajCarMeta(carViews.find((c) => c.id === craftJobRow.garajCarId)?.carCode ?? "");
+    const remaining = craftJobRow.finishesAt.getTime() - Date.now();
+    craftJob = {
+      id: craftJobRow.id,
+      garajCarId: craftJobRow.garajCarId,
+      carName: cm?.name ?? "Mashina",
+      emoji: cm?.emoji ?? "🚗",
+      station: craftJobRow.station,
+      stationName: CRAFT_STATIONS.find((s) => s.code === craftJobRow.station)?.name ?? craftJobRow.station,
+      finishesAt: craftJobRow.finishesAt.toISOString(),
+      ready: remaining <= 0,
+      speedupCost: remaining <= 0 ? 0 : craftSpeedupCost(remaining),
+    };
+  }
   const season = activeSeasonalEvent(tashkentMonthDay());
   return {
     enabled,
@@ -297,6 +319,7 @@ export async function getGarajState(memberId: number): Promise<GarajStateRespons
     roadDrops,
     weeklyEvent: weekEv,
     exhibition,
+    craftJob,
   };
 }
 
@@ -443,46 +466,119 @@ export async function repairZone(memberId: number, garajCarId: number, zone: str
   });
 }
 
-// ── 🏭 #5 Ustaxona crafting — UPGRADE a car beyond stock (tune level / paint / full
-// restore). Pure tanga SINK (inline spend in withMemberLock, no re-locking helper →
-// no deadlock); the flip CAP still bounds the payout so over-crafting just loses tanga.
-export async function garajCraft(memberId: number, garajCarId: number, station: string): Promise<GarajActionResult & { level?: number; condition?: string }> {
+// ── 🏭 #5 Ustaxona crafting — UPGRADE a car beyond stock (tune level / paint / full restore).
+// TIMED + single shared craftsman slot: garajCraft ENQUEUES a job (charges the tanga sink up
+// front, the spend is inline in withMemberLock → no re-locking deadlock). Only ONE job runs at
+// a time per member (cross-car contention). The effect applies when finishesAt passes
+// (settleCraftJobs, in the sweep) or instantly via a paid speedup. The flip CAP still bounds the
+// crafted output, so over-crafting a cheap car only loses tanga.
+export async function garajCraft(memberId: number, garajCarId: number, station: string): Promise<GarajActionResult & { queued?: boolean; finishesAt?: string }> {
   if (!(await garajEnabledFor(memberId))) return { ok: false, reason: "off" };
   if (!["TUNE", "PAINT", "RESTORE"].includes(station)) return { ok: false, reason: "unknown_station" };
   return withMemberLock(memberId, async () => {
     const car = await prisma.garajCar.findFirst({ where: { id: garajCarId, memberId, soldAt: null } });
     if (!car) return { ok: false, reason: "not_found" };
     if (car.onboardCar) return { ok: false, reason: "onboard_car" };
+    // single shared craftsman slot — one job at a time across ALL the member's cars
+    const busyJob = await prisma.garajCraftJob.findFirst({ where: { memberId, status: "in_progress" } });
+    if (busyJob) return { ok: false, reason: "workshop_busy", coins: await getCoins(memberId) };
     const basePrice = MAKE_BASE[car.carCode] ?? 1000;
     if (station === "TUNE" && car.level >= CRAFT_MAX_LEVEL) return { ok: false, reason: "max_level", coins: await getCoins(memberId) };
     if (station === "PAINT" && car.repairQualityBonus >= REPAIR_QUALITY_MAX - 0.001) return { ok: false, reason: "max_quality", coins: await getCoins(memberId) };
     const ev = await getWeeklyEvent();
     const cost = Math.round(craftCost(station, basePrice, car.level) * (ev.type === "discount_service" ? ev.mult : 1)); // #6 cheap-repair week
+    const finishesAt = new Date(Date.now() + craftDurationMs(station));
     const result = await prisma.$transaction(async (tx) => {
       const m = await tx.member.findUnique({ where: { id: memberId }, select: { coins: true } });
       if ((m?.coins ?? 0) < cost) return { ok: false as const, reason: "insufficient" as const };
+      if ((await tx.garajCraftJob.count({ where: { memberId, status: "in_progress" } })) > 0) return { ok: false as const, reason: "workshop_busy" as const }; // re-check in tx
       await tx.coinTxn.create({ data: { memberId, amount: -cost, kind: "garaj_craft", reason: `Ustaxona ${station}: ${car.carCode}`, idempotencyKey: `craft:${memberId}:${garajCarId}:${station}:${Date.now()}` } });
       await tx.member.update({ where: { id: memberId }, data: { coins: { decrement: cost } } });
+      await tx.garajCraftJob.create({ data: { memberId, garajCarId, station, cost, finishesAt } });
+      return { ok: true as const };
+    });
+    if (!result.ok) return { ok: false, reason: result.reason, coins: await getCoins(memberId) };
+    return { ok: true, queued: true, finishesAt: finishesAt.toISOString(), coins: await getCoins(memberId) };
+  });
+}
+
+// Apply a finished craft job's effect to the car. IDEMPOTENT: atomically flips in_progress→done
+// (updateMany guard) so a double-settle (sweep + speedup) applies the effect exactly once. No
+// coin movement here (already charged at enqueue). Returns the member+station for skill XP, or
+// null if already settled / car no longer eligible.
+async function applyCraftEffect(jobId: number): Promise<{ memberId: number; station: string } | null> {
+  return prisma.$transaction(async (tx) => {
+    const claimed = await tx.garajCraftJob.updateMany({ where: { id: jobId, status: "in_progress" }, data: { status: "done" } });
+    if (claimed.count === 0) return null; // someone already settled it
+    const job = await tx.garajCraftJob.findUnique({ where: { id: jobId } });
+    if (!job) return null;
+    const car = await tx.garajCar.findFirst({ where: { id: job.garajCarId, memberId: job.memberId, soldAt: null } });
+    if (car && !car.onboardCar) {
       const data: { level?: number; repairQualityBonus?: number; condition?: string; repairZones?: string } = {};
-      if (station === "TUNE") {
-        data.level = car.level + 1;
-        await tx.memberGarajMeta.upsert({ where: { memberId }, create: { memberId, sumCarLevels: 1 }, update: { sumCarLevels: { increment: 1 } } });
-      } else if (station === "PAINT") {
+      if (job.station === "TUNE") {
+        if (car.level < CRAFT_MAX_LEVEL) {
+          data.level = car.level + 1;
+          await tx.memberGarajMeta.upsert({ where: { memberId: job.memberId }, create: { memberId: job.memberId, sumCarLevels: 1 }, update: { sumCarLevels: { increment: 1 } } });
+        }
+      } else if (job.station === "PAINT") {
         data.repairQualityBonus = Math.min(REPAIR_QUALITY_MAX, car.repairQualityBonus + CRAFT_PAINT_STEP);
       } else {
-        // RESTORE: all 5 zones to 90 → MINT
         const zones: Record<string, number> = {};
-        for (const z of REPAIR_ZONES) zones[z] = 90;
+        for (const z of REPAIR_ZONES) zones[z] = 90; // RESTORE: all 5 zones to 90 → MINT
         data.repairZones = JSON.stringify(zones);
         data.condition = conditionFromZones(zones).toLowerCase();
       }
-      await tx.garajCar.update({ where: { id: garajCarId }, data });
-      return { ok: true as const, level: data.level ?? car.level, condition: data.condition ?? car.condition };
+      if (Object.keys(data).length) await tx.garajCar.update({ where: { id: car.id }, data });
+    }
+    return { memberId: job.memberId, station: job.station };
+  });
+}
+
+// Sweep hook: apply every craft job whose timer has elapsed. Idempotent + bounded batch; no
+// new poller (called from bookingNotifier's existing sweep).
+export async function settleCraftJobs(): Promise<number> {
+  if (!(await featureOn("garajx"))) return 0;
+  const due = await prisma.garajCraftJob.findMany({ where: { status: "in_progress", finishesAt: { lte: new Date() } }, take: 50, select: { id: true } });
+  let n = 0;
+  for (const d of due) {
+    const applied = await applyCraftEffect(d.id);
+    if (applied) {
+      if (applied.station === "TUNE") await bumpSkill(applied.memberId, { muhandis: 3 });
+      if (applied.station === "PAINT") await bumpSkill(applied.memberId, { kuzovchi: 3 });
+      n++;
+    }
+  }
+  return n;
+}
+
+// Pay a tanga SPEEDUP to finish the running craft NOW (sink; cost by remaining time). Applies
+// the effect immediately (doesn't wait for the sweep). Inline spend in withMemberLock; the
+// effect-apply (applyCraftEffect) uses its own tx with no lock → no re-entrant deadlock.
+export async function garajCraftSpeedup(memberId: number): Promise<GarajActionResult & { level?: number; condition?: string }> {
+  if (!(await garajEnabledFor(memberId))) return { ok: false, reason: "off" };
+  return withMemberLock(memberId, async () => {
+    const job = await prisma.garajCraftJob.findFirst({ where: { memberId, status: "in_progress" } });
+    if (!job) return { ok: false, reason: "no_job", coins: await getCoins(memberId) };
+    const remaining = job.finishesAt.getTime() - Date.now();
+    const cost = remaining <= 0 ? 0 : craftSpeedupCost(remaining);
+    const result = await prisma.$transaction(async (tx) => {
+      if (cost > 0) {
+        const m = await tx.member.findUnique({ where: { id: memberId }, select: { coins: true } });
+        if ((m?.coins ?? 0) < cost) return { ok: false as const, reason: "insufficient" as const };
+        await tx.coinTxn.create({ data: { memberId, amount: -cost, kind: "garaj_craft", reason: `Ustaxona tezlashtirish: ${job.station}`, idempotencyKey: `craftspeed:${memberId}:${job.id}` } });
+        await tx.member.update({ where: { id: memberId }, data: { coins: { decrement: cost } } });
+      }
+      await tx.garajCraftJob.update({ where: { id: job.id }, data: { finishesAt: new Date() } });
+      return { ok: true as const };
     });
     if (!result.ok) return { ok: false, reason: result.reason, coins: await getCoins(memberId) };
-    if (station === "TUNE") await bumpSkill(memberId, { muhandis: 3 });
-    if (station === "PAINT") await bumpSkill(memberId, { kuzovchi: 3 });
-    return { ok: true, level: result.level, condition: result.condition, coins: await getCoins(memberId) };
+    const applied = await applyCraftEffect(job.id); // apply now, don't wait for the sweep
+    if (applied) {
+      if (applied.station === "TUNE") await bumpSkill(memberId, { muhandis: 3 });
+      if (applied.station === "PAINT") await bumpSkill(memberId, { kuzovchi: 3 });
+    }
+    const car = await prisma.garajCar.findFirst({ where: { id: job.garajCarId, memberId } });
+    return { ok: true, level: car?.level, condition: car?.condition, coins: await getCoins(memberId) };
   });
 }
 
@@ -1185,12 +1281,15 @@ export async function recomputeDemand(): Promise<number> {
   const since7d = new Date(Date.now() - 7 * 86400 * 1000);
   let n = 0;
   for (const carCode of Object.keys(MAKE_BASE)) {
-    const [salesLast24h, ridesLast7d, listingVolume] = await Promise.all([
+    const [salesLast24h, ridesLast7d, listingAgg] = await Promise.all([
       prisma.garajFlip.count({ where: { carCode, createdAt: { gte: since24 } } }),
       prisma.garajFlip.count({ where: { carCode, createdAt: { gte: since7d } } }),
-      prisma.garajBazaarListing.count({ where: { carCode, status: "open" } }),
+      // #3 MAJOR-2 anti-manipulation: SUM of open-listing askPrice, not a raw count, so a
+      // seller can't pump demand by spamming cheap listings (value-weighted supply).
+      prisma.garajBazaarListing.aggregate({ _sum: { askPrice: true }, where: { carCode, status: "open" } }),
     ]);
-    const mult = demandMultiplier({ ridesLast7d, salesLast24h, listingVolume });
+    const supplyUnits = (listingAgg._sum.askPrice ?? 0) / (MAKE_BASE[carCode] ?? 1000); // inventory in car-value units
+    const mult = demandMultiplier({ ridesLast7d, salesLast24h, supplyUnits });
     await prisma.appState.upsert({ where: { key: `market:demand:${carCode}` }, create: { key: `market:demand:${carCode}`, value: String(mult) }, update: { value: String(mult) } });
     n++;
   }

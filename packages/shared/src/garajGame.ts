@@ -220,6 +220,26 @@ export function craftCost(station: string, basePrice: number, level: number): nu
   return 0;
 }
 
+// #5 TIMED CRAFTING — the Workshop has ONE craftsman: only a SINGLE job runs at a time per
+// member (cross-car contention — the core tradeoff). A job takes real time; a paid tanga
+// SPEEDUP finishes it now. Durations: alive-feeling yet long enough to make the slot a choice.
+export const CRAFT_DURATION_MS: Record<string, number> = {
+  TUNE: 60 * 60 * 1000, // 1h
+  PAINT: 45 * 60 * 1000, // 45m
+  RESTORE: 2 * 60 * 60 * 1000, // 2h
+};
+export const CRAFT_SPEEDUP_PER_HOUR = 200; // tanga per remaining hour (rounded up)
+export const CRAFT_SPEEDUP_MIN = 60;
+/** Cost to instantly finish a running craft, by remaining time. Pure tanga sink (the crafted
+ *  output is still bounded by the flip CAP, so this only ever loses tanga on a cheap car). */
+export function craftSpeedupCost(remainingMs: number): number {
+  const hours = Math.ceil(Math.max(0, remainingMs) / 3_600_000);
+  return Math.max(CRAFT_SPEEDUP_MIN, hours * CRAFT_SPEEDUP_PER_HOUR);
+}
+export function craftDurationMs(station: string): number {
+  return CRAFT_DURATION_MS[station] ?? 60 * 60 * 1000;
+}
+
 // reputation arc — the master-mechanic identity ladder (W5).
 export const REPUTATION_TIERS: { name: string; min: number }[] = [
   { name: "Havaskor", min: 0 },
@@ -342,14 +362,33 @@ export interface GarajNpc {
   tagline: string;
   lines: string[];
 }
+// 12 NPCs — 3 distinct people per buyer archetype. The order board + flip buyer-picker
+// pick one DETERMINISTICALLY by seed (order slot / saleId), so the same commission always
+// shows the same face, and different commissions rotate through the cast. Pure flavor.
 export const GARAJ_NPCS: GarajNpc[] = [
-  { code: "hamid", name: "Hamid aka", emoji: "👨‍👧‍👦", buyer: "FAMILY_DRIVER", tagline: "Oilaviy haydovchi", lines: ["Oilam uchun ishonchli, keng mashina kerak.", "Bolalarni maktabga tashiyman — xavfsiz bo'lsin.", "Tejamkor bo'lsa — zo'r."] },
+  // FAMILY_DRIVER ──
+  { code: "hamid", name: "Hamid aka", emoji: "👨‍👧‍👦", buyer: "FAMILY_DRIVER", tagline: "Oilaviy haydovchi", lines: ["Oilam uchun ishonchli, keng mashina kerak.", "Bolalarni maktabga tashiyman — xavfsiz bo'lsin.", "Tejamkor bo'lsa — zo'r, aka."] },
+  { code: "dilshod", name: "Dilshod aka", emoji: "🧔", buyer: "FAMILY_DRIVER", tagline: "Uch bolaning otasi", lines: ["Bagaji keng bo'lsin — bozorga boraman.", "Mator ishonchli bo'lsa bas, ortiqchasi shart emas.", "Yo'lda qolib ketmaydigani bo'lsin."] },
+  { code: "nodira", name: "Nodira opa", emoji: "👩", buyer: "FAMILY_DRIVER", tagline: "Maktab o'qituvchisi", lines: ["Har kuni ishga qatnayman — kam yoqilg'i yesin.", "Toza, ozoda bo'lsa — menga shu yetadi.", "Pulга-arziydigan bo'lsin."] },
+  // YOUNG_TUNER ──
   { code: "jahongir", name: "Jahongir", emoji: "🏎", buyer: "YOUNG_TUNER", tagline: "Yosh tюner", lines: ["Ko'chada eng zo'ri men bo'lay!", "Tюнинг bo'lsin — ovozi gumburlasin.", "Sport ruhi bo'lsin, aka."] },
-  { code: "maftuna", name: "Maftuna", emoji: "💍", buyer: "NEWLYWED", tagline: "Kelin-kuyov", lines: ["To'yimga chiroyli, yaltiroq mashina kerak.", "Bir kunlik — lekin esda qolsin.", "Toza va nafis bo'lsin."] },
+  { code: "sardor", name: "Sardor", emoji: "🔥", buyer: "YOUNG_TUNER", tagline: "Drift ishqibozi", lines: ["Past tushirilgan, qattiq podveska — shu!", "Disklari yarqirasin, akusi bo'g'iq bo'lsin.", "Tezligi bo'lsin — qolgani keyin."] },
+  { code: "bekzod", name: "Bekzod", emoji: "🎧", buyer: "YOUNG_TUNER", tagline: "Studentlar lideri", lines: ["Ichi yangilangan, ekranli bo'lsin.", "Rangi yorqin — ko'zga tashlanadigan bo'lsin.", "Instagramga qo'yaman — chiroyli bo'lsin!"] },
+  // NEWLYWED ──
+  { code: "maftuna", name: "Maftuna", emoji: "💍", buyer: "NEWLYWED", tagline: "Kelin", lines: ["To'yimga chiroyli, yaltiroq mashina kerak.", "Bir kunlik — lekin esda qolsin.", "Toza va nafis bo'lsin."] },
+  { code: "gulnoza", name: "Gulnoza", emoji: "💐", buyer: "NEWLYWED", tagline: "Kuyov singlisi", lines: ["Oq rangli, bezatilgan bo'lsin.", "Kortejda eng ko'rkamı bo'lsin.", "Suratga tushganda yarqirasin."] },
+  { code: "aziz", name: "Aziz", emoji: "🤵", buyer: "NEWLYWED", tagline: "Kuyov", lines: ["Hayotimning eng katta kuni — eng yaxshisi bo'lsin.", "Ichi-tashi besh baho bo'lsin.", "Pulni ayamayman — sifat bo'lsin."] },
+  // COLLECTOR ──
   { code: "karim", name: "Usta Karim", emoji: "🎩", buyer: "COLLECTOR", tagline: "Kolleksioner", lines: ["Faqat asl holat — davr ruhi bo'lsin.", "Retro qadrli; tюнинг — yo'q.", "Kolleksiyamga arziydigan bo'lsin."] },
+  { code: "rustam", name: "Rustam aka", emoji: "📜", buyer: "COLLECTOR", tagline: "Antikvar", lines: ["Zavoddan qanday chiqqan bo'lsa — shundayligi muhim.", "Har bir detal asl bo'lsin.", "Davr guvohi — uni asrayman."] },
+  { code: "anvar", name: "Anvar boboy", emoji: "🧓", buyer: "COLLECTOR", tagline: "Keksa havaskor", lines: ["Yoshligimdagi mashina — qadrini bilaman.", "Toza restavratsiya bo'lsin, bo'yoq asl rangda.", "Bunaqasini endi topib bo'lmaydi."] },
 ];
-export function npcForBuyer(buyer: BuyerArchetype): GarajNpc {
-  return GARAJ_NPCS.find((n) => n.buyer === buyer) ?? GARAJ_NPCS[0]!;
+/** Pick one NPC of the buyer's archetype, deterministically by seed (so a given order/sale
+ *  always shows the same person, and different ones rotate through the 3 per archetype). */
+export function npcForBuyer(buyer: BuyerArchetype, seed = 0): GarajNpc {
+  const pool = GARAJ_NPCS.filter((n) => n.buyer === buyer);
+  if (pool.length === 0) return GARAJ_NPCS[0]!;
+  return pool[Math.abs(seed) % pool.length]!;
 }
 export function npcLine(npc: GarajNpc, seed: number): string {
   return npc.lines[Math.abs(seed) % npc.lines.length]!;
@@ -414,20 +453,29 @@ export function weeklyEvent(weekSeed: number): GarajWeeklyEvent {
   return WEEKLY_EVENTS[Math.abs(weekSeed) % WEEKLY_EVENTS.length]!;
 }
 
-// ── #3 Demand waves — a per-car multiplier (0.85..1.20) from real activity. Stored in
-// AppState market:demand:{carCode}, recomputed in the sweep. Drives the shop buy price
-// and a small flip nudge (fed like seasonalBonus, so the flip CAP still bounds it). ─
-export const DEMAND_MIN = 0.85;
-export const DEMAND_MAX = 1.2;
+// ── #3 Demand waves — a per-car multiplier (0.70..1.50) from real activity, via a tanh
+// sigmoid on NET pressure = demand − supply. Stored in AppState market:demand:{carCode},
+// recomputed in the sweep. Drives the shop buy price (full range — a SINK, so safe) and a
+// small flip nudge (clamped ≤±0.12, fed like seasonalBonus, so the flip CAP still bounds it). ─
+export const DEMAND_MIN = 0.7;
+export const DEMAND_MAX = 1.5;
 export const DEMAND_FLIP_BONUS_MAX = 0.12; // demand's flip contribution caps at +12% (within-cap)
-/** Demand multiplier from activity signals (all non-negative). More rides for the model
- *  and more recent sales lift demand; a glut of open listings cools it. Clamped. */
-export function demandMultiplier(sig: { ridesLast7d: number; salesLast24h: number; listingVolume: number }): number {
-  const raw = 1.0 + 0.04 * Math.min(10, sig.ridesLast7d) + 0.06 * Math.min(6, sig.salesLast24h) - 0.05 * Math.min(8, sig.listingVolume);
+/** Demand multiplier via a logistic (tanh) curve, neutral = 1.0.
+ *  - demand rises with recent SALES (completed flips) + real ride activity for the model.
+ *  - supply COOLS it and is VALUE-WEIGHTED inventory: Σ(open-listing askPrice) ÷ basePrice,
+ *    NOT a raw listing count — so a player cannot pump demand by spamming cheap listings
+ *    (more/pricier listings only push demand DOWN). [MAJOR-2 anti-manipulation guard.]
+ *  Range [0.70, 1.50], centered at 1.0. */
+export function demandMultiplier(sig: { ridesLast7d: number; salesLast24h: number; supplyUnits: number }): number {
+  const demand = Math.min(12, Math.max(0, sig.salesLast24h)) * 1.0 + Math.min(20, Math.max(0, sig.ridesLast7d)) * 0.15;
+  const supply = Math.min(15, Math.max(0, sig.supplyUnits));
+  const s = Math.tanh(0.4 * (demand - supply)); // −1..1, 0 at neutral (demand == supply)
+  const raw = s >= 0 ? 1.0 + (DEMAND_MAX - 1.0) * s : 1.0 + (1.0 - DEMAND_MIN) * s;
   return Math.max(DEMAND_MIN, Math.min(DEMAND_MAX, Math.round(raw * 100) / 100));
 }
-/** The flip-side nudge from demand: maps the [0.85,1.20] multiplier to a [−,+0.12] bonus
- *  fed into computeFlipGrant as seasonalBonus-style (cap-bounded). */
+/** The flip-side nudge from demand: maps the multiplier to a [−0.12,+0.12] bonus fed into
+ *  computeFlipGrant as seasonalBonus-style (cap-bounded). Stays small even though the buy-
+ *  price range widened, so the flip worst-case is unchanged. */
 export function demandFlipBonus(mult: number): number {
   return Math.max(-DEMAND_FLIP_BONUS_MAX, Math.min(DEMAND_FLIP_BONUS_MAX, mult - 1.0));
 }
@@ -502,6 +550,18 @@ export interface GarajRoadDrop {
   price: number; // discounted tow price (TOW_FACTOR × base)
   expiresAt: string;
 }
+// #5 the single in-progress craft job (the shared Workshop slot), or null when idle.
+export interface GarajCraftJobView {
+  id: number;
+  garajCarId: number;
+  carName: string;
+  emoji: string;
+  station: string;
+  stationName: string;
+  finishesAt: string; // ISO; client counts down
+  ready: boolean; // finishesAt <= now (effect applies on the next sweep)
+  speedupCost: number; // tanga to finish now (0 once ready)
+}
 export interface GarajStateResponse {
   enabled: boolean;
   coins: number;
@@ -523,6 +583,7 @@ export interface GarajStateResponse {
   roadDrops: GarajRoadDrop[]; // #4 pending towed-car offers from real rides
   weeklyEvent: GarajWeeklyEvent | null; // #6 this week's live event (chip)
   exhibition: GarajExhibitionView; // #8 weekly car show (entries + my vote + last winner)
+  craftJob: GarajCraftJobView | null; // #5 the one running Workshop craft (shared slot), or null
 }
 export interface GarajActionResult {
   ok: boolean;

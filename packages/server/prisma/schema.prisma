@@ -788,3 +788,22 @@ model GarajExhibitionVote {
   @@unique([voterId, weekKey]) // one vote per member per week
   @@index([entryId])
 }
+
+// #5 timed Workshop craft jobs. Exactly ONE in_progress per member = the shared craftsman
+// slot (cross-car contention, the core tradeoff). settleCraftJobs (sweep) applies the effect
+// once finishesAt passes; a paid speedup sets finishesAt=now. The single-slot rule is enforced
+// in code inside withMemberLock (count in_progress == 0 before enqueue). status: in_progress | done.
+model GarajCraftJob {
+  id         Int      @id @default(autoincrement())
+  memberId   Int
+  garajCarId Int
+  station    String
+  cost       Int      @default(0)
+  status     String   @default("in_progress")
+  startedAt  DateTime @default(now())
+  finishesAt DateTime
+  createdAt  DateTime @default(now())
+
+  @@index([memberId, status])
+  @@index([status, finishesAt])
+}

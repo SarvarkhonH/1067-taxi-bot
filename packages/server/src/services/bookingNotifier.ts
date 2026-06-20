@@ -584,4 +584,13 @@ export async function pushBookingUpdates(
   } catch (e) {
     console.error("[garaj] demand recompute failed:", e);
   }
+
+  // 🏭 GARAJ v2 #5: apply finished Workshop craft jobs (idempotent; frees the slot). No new
+  // poller — piggybacks this sweep. OFF-safe (no-ops when "garajx" is off).
+  try {
+    const { settleCraftJobs } = await import("./garajService");
+    await settleCraftJobs();
+  } catch (e) {
+    console.error("[garaj] craft settle failed:", e);
+  }
 }

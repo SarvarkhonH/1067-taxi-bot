@@ -26,6 +26,20 @@ const STYLES = [
 const COND_LABEL: Record<string, string> = { WORN: "Eski", FAIR: "O'rtacha", GOOD: "Yaxshi", MINT: "A'lo" };
 const STYLE_SHORT: Record<string, string> = { QUICK_FLIP: "Tezkor", FULL_RESTORE: "To'liq", TUNING: "Tюнинг", PERIOD_CORRECT: "Davr asili" };
 
+// #5 craft-timer countdown — short Uzbek format, capped so a far-future demo job reads cleanly.
+function fmtCraftCountdown(finishesAtISO: string, now: number): string {
+  const ms = new Date(finishesAtISO).getTime() - now;
+  if (ms <= 0) return "tayyor";
+  const totalMin = Math.floor(ms / 60000);
+  const h = Math.floor(totalMin / 60);
+  const m = totalMin % 60;
+  const s = Math.floor((ms % 60000) / 1000);
+  if (h >= 100) return "99+ soat";
+  if (h > 0) return `${h} soat ${m} daq`;
+  if (m > 0) return `${m} daq ${s} s`;
+  return `${s} soniya`;
+}
+
 // 🎉 tier-unlock ceremony copy — what crossing into each garage tier grants you.
 // Keyed by the tier number (2..5); tier 1 is the start, no ceremony.
 const TIER_UNLOCK: Record<number, { emoji: string; perks: string[] }> = {
@@ -156,6 +170,7 @@ export function GarajShell({ onClose, initial }: { onClose: () => void; initial?
   const [museumOpen, setMuseumOpen] = useState(false);
   const [ceremonyTier, setCeremonyTier] = useState<number | null>(null);
   const prevTierRef = useRef<number | null>(null);
+  const [nowTick, setNowTick] = useState(() => Date.now()); // #5 craft-timer ticker
 
   const load = useCallback(() => {
     if (initial) return; // demo/fixture mode — no backend fetch
@@ -187,6 +202,13 @@ export function GarajShell({ onClose, initial }: { onClose: () => void; initial?
     }
     prevTierRef.current = t;
   }, [st?.garageTier]);
+
+  // #5 tick once a second while a craft is running, so the countdown updates live
+  useEffect(() => {
+    if (!st?.craftJob || st.craftJob.ready) return;
+    const t = setInterval(() => setNowTick(Date.now()), 1000);
+    return () => clearInterval(t);
+  }, [st?.craftJob?.id, st?.craftJob?.ready, st?.craftJob?.finishesAt]);
 
   const flash = (msg: string): void => { setToast(msg); setTimeout(() => setToast(null), 2200); };
 
@@ -355,7 +377,7 @@ export function GarajShell({ onClose, initial }: { onClose: () => void; initial?
                   <div className="col g8">
                     {st.orders.map((o) => {
                       const cm = garajCarMeta(o.carCode);
-                      const npc = npcForBuyer(o.buyer);
+                      const npc = npcForBuyer(o.buyer, o.slot);
                       return (
                         <Card key={o.slot} className={`gz-order${o.done ? " done" : ""}`}>
                           <div className="row between">
@@ -635,30 +657,45 @@ export function GarajShell({ onClose, initial }: { onClose: () => void; initial?
             )}
 
             <div className="gz-actions">
-              {/* 🏭 Ustaxona — upgrade beyond stock for a higher flip (tanga sink) */}
+              {/* 🏭 Ustaxona — ONE craftsman, timed jobs. A job anywhere busies the shared slot. */}
               <div className="gz-sec-title">🏭 Ustaxona · Daraja {car.level}/5</div>
-              <div className="col g8">
-                {CRAFT_STATIONS.map((s) => {
-                  const cost = craftCost(s.code, MAKE_BASE[car.carCode] ?? 1000, car.level);
-                  const maxed = s.code === "TUNE" && car.level >= 5;
-                  return (
-                    <div key={s.code} className="gz-craft">
-                      <div className="col">
-                        <span className="gz-craft-name">{s.name}</span>
-                        <span className="fs11 dim">{s.desc}</span>
+              {st?.craftJob ? (
+                <div className="gz-craftjob">
+                  <div className="col">
+                    <span className="gz-craft-name">{st.craftJob.emoji} {st.craftJob.stationName}</span>
+                    <span className="fs11 dim">
+                      {st.craftJob.carName} · {st.craftJob.ready ? "✓ tayyor" : `⏳ ${fmtCraftCountdown(st.craftJob.finishesAt, nowTick)}`}
+                      {st.craftJob.garajCarId !== car.id ? " · usta band" : ""}
+                    </span>
+                  </div>
+                  <Button sm disabled={busy || coins < st.craftJob.speedupCost} onClick={() => craftSpeedup()}>
+                    {st.craftJob.ready ? "Qabul qilish" : `⚡ ${st.craftJob.speedupCost.toLocaleString("ru-RU")}`}
+                  </Button>
+                </div>
+              ) : (
+                <div className="col g8">
+                  {CRAFT_STATIONS.map((s) => {
+                    const cost = craftCost(s.code, MAKE_BASE[car.carCode] ?? 1000, car.level);
+                    const maxed = s.code === "TUNE" && car.level >= 5;
+                    return (
+                      <div key={s.code} className="gz-craft">
+                        <div className="col">
+                          <span className="gz-craft-name">{s.name}</span>
+                          <span className="fs11 dim">{s.desc}</span>
+                        </div>
+                        <Button sm variant="ghost" disabled={busy || maxed || coins < cost} onClick={() => craft(car.id, s.code)}>
+                          {maxed ? "Max" : `🪙 ${cost.toLocaleString("ru-RU")}`}
+                        </Button>
                       </div>
-                      <Button sm variant="ghost" disabled={busy || maxed || coins < cost} onClick={() => craft(car.id, s.code)}>
-                        {maxed ? "Max" : `🪙 ${cost.toLocaleString("ru-RU")}`}
-                      </Button>
-                    </div>
-                  );
-                })}
-              </div>
+                    );
+                  })}
+                </div>
+              )}
 
               <div className="gz-sec-title">Sotish — xaridorni tanlang</div>
               <div className="gz-buyers">
                 {BUYERS.map((b) => {
-                  const n = npcForBuyer(b.code as never);
+                  const n = npcForBuyer(b.code as never, car.id);
                   return (
                     <Chip key={b.code} onClick={() => flip(car.id, b.code)}>
                       {n.emoji} {n.name} · {b.hint}
@@ -808,7 +845,11 @@ export function GarajShell({ onClose, initial }: { onClose: () => void; initial?
   }
   function craft(id: number, station: string): void {
     void act(() => api.garajCraft(id, station));
-    flash(station === "TUNE" ? "Daraja oshdi 🔧" : station === "PAINT" ? "Bo'yaldi — sifat +4% 🎨" : "To'liq restavratsiya ⚙");
+    flash("🏭 Ustaxonaga qo'yildi — usta ishlamoqda");
+  }
+  function craftSpeedup(): void {
+    void act(() => api.garajCraftSpeedup());
+    flash("✓ Ustaxona ishi tayyor!");
   }
   async function bazaarAct(fn: () => Promise<{ ok: boolean }>): Promise<void> {
     if (busy) return;
@@ -941,6 +982,7 @@ export const GARAJ_DEMO: GarajStateResponse = {
     myVoteEntryId: null,
     lastWinner: { name: "Jasur", carName: "Malibu", emoji: "🏎", votes: 19 },
   },
+  craftJob: { id: 9, garajCarId: 1, carName: "Nexia", emoji: "🚙", station: "TUNE", stationName: "🔧 Tюнинг stendi", finishesAt: "2030-01-01T00:00:00Z", ready: false, speedupCost: 400 },
 };
 
 /** #garajdemo render-proof entry — the shell populated from the static fixture. */

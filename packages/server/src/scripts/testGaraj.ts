@@ -9,10 +9,10 @@
 // Run: dotenv -e ../../.env -- tsx src/scripts/testGaraj.ts
 import "./_testDb"; // ENG BIRINCHI: izolyatsiyalangan test-DB (jonli sweep poygasini oldini oladi)
 import "../env";
-import { MAKE_BASE, GARAJ_BUY_FACTOR, FLIP_DAILY_CAP, CIPHER_REWARD, OFFLINE_DAILY_CAP, PRESTIGE_REP_HEADSTART, CRAFT_MAX_LEVEL, prestigeMultiplier, activeSeasonalEvent, npcForBuyer, npcLine } from "@t1067/shared";
+import { MAKE_BASE, GARAJ_BUY_FACTOR, FLIP_DAILY_CAP, CIPHER_REWARD, OFFLINE_DAILY_CAP, PRESTIGE_REP_HEADSTART, CRAFT_MAX_LEVEL, CRAFT_SPEEDUP_MIN, prestigeMultiplier, activeSeasonalEvent, demandMultiplier, GARAJ_NPCS, npcForBuyer, npcLine } from "@t1067/shared";
 import { prisma } from "../db";
 import { getCoins, grantCoins } from "../services/coinService";
-import { acquireCar, completeRepairTask, repairZone, diagnoseCar, flipCar, garajAuctionBid, garajAuctionCreate, garajBazaarBuy, garajBazaarList, garajBazaarUnlist, getGarajHistory, getMemberCollection, garajKozachaBuy, grantKozacha, processRideDrop, settleAuctions, spendKozachaIdempotent, updateStreakOnRide, garajCipherGuess, collectOfflineBox, garajPrestige, mahallaCreate, mahallaJoin, mahallaLeave, addMahallaScore, settleMahallaWeek, getMahallaLeague, getMahallaState, getDailyOrders, recomputeDemand, getRoadDrops, claimTowedCar, declineTowedCar, garajCraft, __resetWeekEventCache, exhibitionSubmit, exhibitionVote, settleExhibition, getMuseum } from "../services/garajService";
+import { acquireCar, completeRepairTask, repairZone, diagnoseCar, flipCar, garajAuctionBid, garajAuctionCreate, garajBazaarBuy, garajBazaarList, garajBazaarUnlist, getGarajHistory, getMemberCollection, garajKozachaBuy, grantKozacha, processRideDrop, settleAuctions, spendKozachaIdempotent, updateStreakOnRide, garajCipherGuess, collectOfflineBox, garajPrestige, mahallaCreate, mahallaJoin, mahallaLeave, addMahallaScore, settleMahallaWeek, getMahallaLeague, getMahallaState, getDailyOrders, recomputeDemand, getRoadDrops, claimTowedCar, declineTowedCar, garajCraft, garajCraftSpeedup, settleCraftJobs, __resetWeekEventCache, exhibitionSubmit, exhibitionVote, settleExhibition, getMuseum } from "../services/garajService";
 import { __resetFeatureCache, setFeature } from "../services/featureFlags";
 
 const TAG = "garaj-test";
@@ -38,6 +38,7 @@ async function cleanup(): Promise<void> {
     await prisma.garajHallOfFame.deleteMany({ where: { memberId: { in: ids } } });
     await prisma.garajExhibitionVote.deleteMany({ where: { voterId: { in: ids } } });
     await prisma.garajExhibitionEntry.deleteMany({ where: { memberId: { in: ids } } });
+    await prisma.garajCraftJob.deleteMany({ where: { memberId: { in: ids } } });
     await prisma.garajCar.deleteMany({ where: { memberId: { in: ids } } });
     await prisma.garajFlip.deleteMany({ where: { memberId: { in: ids } } });
     await prisma.garajRideDrop.deleteMany({ where: { memberId: { in: ids } } });
@@ -377,9 +378,12 @@ async function main(): Promise<void> {
   ok(activeSeasonalEvent("12-25")?.code === "qish", `seasonal: Qish active 12-25`);
   ok(activeSeasonalEvent("07-15") === null, `seasonal: no event mid-July`);
 
-  // 19b. #7 NPC personas — each buyer archetype maps to a named NPC (pure config)
-  ok(npcForBuyer("FAMILY_DRIVER").name === "Hamid aka" && npcForBuyer("COLLECTOR").name === "Usta Karim", `NPC: buyer→persona mapping`);
-  ok(npcForBuyer("YOUNG_TUNER").lines.length > 0 && typeof npcLine(npcForBuyer("YOUNG_TUNER"), 0) === "string", `NPC: dialogue lines present`);
+  // 19b. #7 NPC personas — 12 people, 3 per buyer archetype, deterministic seed pick (pure config)
+  ok(GARAJ_NPCS.length === 12, `NPC: 12 personas (got ${GARAJ_NPCS.length})`);
+  ok((["FAMILY_DRIVER", "YOUNG_TUNER", "NEWLYWED", "COLLECTOR"] as const).every((b) => GARAJ_NPCS.filter((n) => n.buyer === b).length === 3), `NPC: exactly 3 per archetype`);
+  ok(npcForBuyer("FAMILY_DRIVER", 0).name === "Hamid aka" && npcForBuyer("COLLECTOR", 0).name === "Usta Karim", `NPC: buyer→persona (seed 0)`);
+  ok(npcForBuyer("FAMILY_DRIVER", 0).code !== npcForBuyer("FAMILY_DRIVER", 1).code, `NPC: seed rotates within an archetype`);
+  ok(npcForBuyer("YOUNG_TUNER", 2).lines.length > 0 && typeof npcLine(npcForBuyer("YOUNG_TUNER", 2), 1) === "string", `NPC: dialogue lines present`);
 
   // 21. #2 NPC order bonus — a flip matching today's order pays the bonus, once/slot/day
   const oM = await prisma.member.create({ data: { type: "client", kasId: `${TAG}-ord`, fullName: "Orderer", phone: "+998900006010", trips: 5 } });
@@ -399,13 +403,18 @@ async function main(): Promise<void> {
   const of2 = await flipCar(oM.id, oc.id, o0.buyer);
   ok(of2.ok && (of2.orderBonus ?? 0) === 0, `order bonus NOT re-paid same slot/day (idempotent)`);
 
-  // 22. #3 demand waves — recompute bounded multiplier + 15-min guard
+  // 22. #3 demand waves — tanh sigmoid [0.70,1.50], value-weighted supply (anti-manip), 15-min guard
+  ok(demandMultiplier({ ridesLast7d: 0, salesLast24h: 0, supplyUnits: 0 }) === 1.0, `demand neutral (no activity) = 1.0`);
+  ok(demandMultiplier({ ridesLast7d: 20, salesLast24h: 12, supplyUnits: 0 }) > 1.2, `demand: heavy sales lift it high`);
+  ok(demandMultiplier({ ridesLast7d: 0, salesLast24h: 0, supplyUnits: 15 }) < 0.85, `demand: heavy SUPPLY cools it (anti-manip via Σ ask)`);
+  const dmAll = [0, 5, 12].flatMap((s) => [0, 8, 15].map((v) => demandMultiplier({ ridesLast7d: 6, salesLast24h: s, supplyUnits: v })));
+  ok(dmAll.every((m) => m >= 0.7 && m <= 1.5), `demand multiplier bounded 0.70–1.50 across signals`);
   await prisma.appState.deleteMany({ where: { key: "market:demand:nextRecalcAt" } }); // force due
   const dN = await recomputeDemand();
   ok(dN > 0, `demand recomputed for ${dN} cars`);
   const dRow = await prisma.appState.findUnique({ where: { key: "market:demand:nexia" } });
   const dMult = parseFloat(dRow?.value ?? "1");
-  ok(dMult >= 0.85 && dMult <= 1.2, `demand multiplier bounded 0.85–1.20 (nexia=${dMult})`);
+  ok(dMult >= 0.7 && dMult <= 1.5, `demand multiplier bounded 0.70–1.50 (nexia=${dMult})`);
   ok((await recomputeDemand()) === 0, `demand recompute guarded — immediate 2nd call is a no-op (≤15min)`);
 
   // 23. #4 towed-car ride-find: offer → claim (discounted acquire) / decline
@@ -425,21 +434,40 @@ async function main(): Promise<void> {
   ok((await declineTowedCar(tM.id, tahoe.id)).ok, `decline towed offer`);
   ok((await getRoadDrops(tM.id)).every((x) => x.carCode !== "tahoe"), `declined offer no longer shown`);
 
-  // 24. #5 Ustaxona crafting — tune (level+1) / paint (RQB) / restore (MINT); all tanga sinks
+  // 24. #5 Ustaxona TIMED crafting — enqueue (charges up front) → single shared slot →
+  // settle (sweep) / speedup applies the effect; all pure tanga sinks.
   const xM = await prisma.member.create({ data: { type: "client", kasId: `${TAG}-craft`, fullName: "Crafter", phone: "+998900006012", trips: 5 } });
   await grantCoins(xM.id, 80000, "manual", "seed");
   await acquireCar(xM.id, "cobalt");
   const xc = (await prisma.garajCar.findFirst({ where: { memberId: xM.id, carCode: "cobalt", soldAt: null } }))!;
   const xbase = MAKE_BASE["cobalt"]!;
+  const dueNow = async (): Promise<void> => { await prisma.garajCraftJob.updateMany({ where: { memberId: xM.id, status: "in_progress" }, data: { finishesAt: new Date(Date.now() - 1000) } }); };
   const cx0 = await getCoins(xM.id);
   const tune = await garajCraft(xM.id, xc.id, "TUNE");
-  ok(tune.ok && tune.level === 2 && cx0 - (tune.coins ?? 0) === Math.round(xbase * 0.25 * 1), `craft TUNE: level→2 + charged (${cx0 - (tune.coins ?? 0)})`);
+  ok(tune.ok && tune.queued === true && cx0 - (tune.coins ?? 0) === Math.round(xbase * 0.25 * 1), `craft TUNE: queued + charged up front (${cx0 - (tune.coins ?? 0)})`);
+  ok((await prisma.garajCraftJob.count({ where: { memberId: xM.id, status: "in_progress" } })) === 1, `one in-progress craft job created`);
+  ok((await prisma.garajCar.findUnique({ where: { id: xc.id } }))!.level === 1, `effect deferred — level still 1 until settle`);
+  ok((await garajCraft(xM.id, xc.id, "PAINT")).reason === "workshop_busy", `single shared slot: 2nd craft blocked while busy`);
+  await dueNow();
+  const settledN = await settleCraftJobs();
+  ok(settledN >= 1 && (await prisma.garajCar.findUnique({ where: { id: xc.id } }))!.level === 2, `settle applies TUNE: level→2 (settled ${settledN})`);
+  ok((await prisma.garajCraftJob.count({ where: { memberId: xM.id, status: "in_progress" } })) === 0, `slot freed after settle`);
+  await settleCraftJobs(); // idempotent
+  ok((await prisma.garajCar.findUnique({ where: { id: xc.id } }))!.level === 2, `settle idempotent — no double level`);
+  // speedup path — enqueue PAINT, pay a tanga sink to finish instantly
   const rqbB4Paint = (await prisma.garajCar.findUnique({ where: { id: xc.id } }))!.repairQualityBonus;
-  await garajCraft(xM.id, xc.id, "PAINT");
-  ok((await prisma.garajCar.findUnique({ where: { id: xc.id } }))!.repairQualityBonus > rqbB4Paint, `craft PAINT: quality boosted`);
-  const restore = await garajCraft(xM.id, xc.id, "RESTORE");
-  ok(restore.ok && (await prisma.garajCar.findUnique({ where: { id: xc.id } }))!.condition === "mint", `craft RESTORE: condition → MINT`);
-  for (let i = 0; i < 3; i++) await garajCraft(xM.id, xc.id, "TUNE"); // 2→3→4→5
+  ok((await garajCraft(xM.id, xc.id, "PAINT")).queued === true, `PAINT queued`);
+  const cSpeed0 = await getCoins(xM.id);
+  const sp = await garajCraftSpeedup(xM.id);
+  ok(sp.ok && cSpeed0 - (sp.coins ?? 0) >= CRAFT_SPEEDUP_MIN, `speedup is a tanga sink (charged ${cSpeed0 - (sp.coins ?? 0)} ≥ ${CRAFT_SPEEDUP_MIN})`);
+  ok((await prisma.garajCar.findUnique({ where: { id: xc.id } }))!.repairQualityBonus > rqbB4Paint, `speedup applied PAINT instantly`);
+  ok((await prisma.garajCraftJob.count({ where: { memberId: xM.id, status: "in_progress" } })) === 0, `slot freed after speedup`);
+  // RESTORE via settle → MINT
+  await garajCraft(xM.id, xc.id, "RESTORE");
+  await dueNow();
+  await settleCraftJobs();
+  ok((await prisma.garajCar.findUnique({ where: { id: xc.id } }))!.condition === "mint", `craft RESTORE via settle → MINT`);
+  for (let i = 0; i < 3; i++) { await garajCraft(xM.id, xc.id, "TUNE"); await dueNow(); await settleCraftJobs(); } // 2→3→4→5
   ok((await garajCraft(xM.id, xc.id, "TUNE")).reason === "max_level", `craft TUNE blocked at level ${CRAFT_MAX_LEVEL}`);
   ok((await garajCraft(xM.id, xc.id, "XXX")).reason === "unknown_station", `craft rejects an unknown station`);
 
