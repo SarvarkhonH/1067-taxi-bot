@@ -22,16 +22,18 @@ export async function adminSearchUsers(q: string): Promise<AdminUserRow[]> {
   const term = q.trim();
   if (term.length < 2) return [];
   const digits = term.replace(/\D/g, "");
-  const where =
-    digits.length >= 4
-      ? { phone: { contains: digits.slice(-9) } }
-      : { fullName: { contains: term, mode: "insensitive" as const } };
+  const numeric = digits.length > 0 && digits === term.replace(/[\s+]/g, "");
+  // numeric → phone OR driver kas-id ("878"); text → name OR kas-id
+  const where = numeric
+    ? { OR: [{ phone: { contains: digits.slice(-9) } }, { kasId: { contains: digits } }] }
+    : { OR: [{ fullName: { contains: term, mode: "insensitive" as const } }, { kasId: { contains: term } }] };
   const members = await prisma.member.findMany({
     where,
     take: 40,
     orderBy: [{ type: "asc" }, { points: "desc" }],
     include: { telegramUser: { select: { id: true, username: true, firstName: true, lastName: true, linkedAt: true } } },
   });
+  if (numeric) members.sort((a, b) => Number(b.kasId === digits) - Number(a.kasId === digits)); // exact driver-id first
   return members.map((m) => ({
     id: m.id,
     type: m.type,
