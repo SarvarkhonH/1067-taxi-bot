@@ -326,6 +326,22 @@ export class KasLiveSource implements KasDataSource {
     }
   }
 
+  /** Add a payment to a DRIVER's kas BALANCE (the SPA's POST api/drivers/payment). The owner's
+   *  captured body: { driverId, carNumber, payViaCash:"<sum>", payViaOnline:<sum>, comment, debt }.
+   *  This is how a driver tops up their kas1067 driver balance — NOT addClientBonus (that's the
+   *  client bonus). Returns the raw response so the caller can confirm. */
+  async addDriverPayment(driverId: number, carNumber: string, amount: number, comment = ""): Promise<{ ok: boolean; balance: number | null; status: number }> {
+    // online top-up: payViaOnline carries the sum, payViaCash "0" (proven: +N raises the kas balance)
+    const res = await this.postJson("api/drivers/payment", { driverId, carNumber, payViaCash: "0", payViaOnline: Math.floor(amount), comment, debt: false });
+    let balance: number | null = null;
+    try {
+      balance = (JSON.parse(res.body) as { balance?: number })?.balance ?? null;
+    } catch {
+      /* non-JSON */
+    }
+    return { ok: res.status >= 200 && res.status < 300, balance, status: res.status };
+  }
+
   async createBooking(req: BookingRequest): Promise<BookingResult> {
     const body = { ...req, phoneNumber: kasPhone(req.phoneNumber) }; // kas-standard phone (+998<last9>)
     const res = await this.postJson("api/bookings/throughWeb", body);

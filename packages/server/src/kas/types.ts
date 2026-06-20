@@ -188,6 +188,8 @@ export interface KasDataSource {
   setClientBonus(phone: string, newBonus: number): Promise<{ ok: boolean; oldBonus: number; name?: string; status?: number }>;
   /** Reward: add a delta to a client's cashback bonus. */
   addClientBonus(phone: string, delta: number): Promise<{ ok: boolean; oldBonus: number; newBonus: number; status?: number }>;
+  /** Top up a DRIVER's kas balance (drivers/payment, online). Driver write — NOT the client bonus. */
+  addDriverPayment(driverId: number, carNumber: string, amount: number, comment?: string): Promise<{ ok: boolean; balance: number | null; status: number }>;
 
   /** Client info: pricing tariff (for fare estimates). */
   getTariff(): Promise<ClientTariff>;

@@ -240,10 +240,16 @@ export async function withdraw(memberId: number, amount: number): Promise<Withdr
     let kasApplied = false;
     let kasMessage = "";
     try {
-      // per-phone lock: serialize our concurrent bonus writes (kas has no CAS)
-      const res = await withPhoneLock(member.phone!, () => getDataSource().addClientBonus(member.phone!, amount));
+      // per-phone lock: serialize our concurrent balance writes (kas has no CAS).
+      // DRIVER → their own kas driver balance (drivers/payment); CLIENT → the client bonus.
+      type KasWriteRes = { ok: boolean; status?: number; balance?: number | null; oldBonus?: number; newBonus?: number };
+      const res: KasWriteRes = await withPhoneLock<KasWriteRes>(member.phone!, () =>
+        member.type === "driver"
+          ? getDataSource().addDriverPayment(Number(member.kasId), member.carNumber ?? "", amount, "1067 ilova: tanga → balans")
+          : getDataSource().addClientBonus(member.phone!, amount),
+      );
       kasApplied = res.ok;
-      kasMessage = res.ok ? `${res.oldBonus} -> ${res.newBonus}` : `failed (status ${res.status})`;
+      kasMessage = !res.ok ? `failed (status ${res.status})` : res.balance != null ? `driver balance: ${res.balance}` : `${res.oldBonus} -> ${res.newBonus}`;
     } catch (e) {
       kasMessage = e instanceof Error ? e.message : String(e);
     }
