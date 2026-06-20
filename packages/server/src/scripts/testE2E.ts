@@ -32,6 +32,7 @@ const SUITES = [
   "testAdminUsers.ts", // 👑 admin user mgmt: search all accounts · re-link (taken-guard) · unlink
   "testPayDriver.ts", // 🚖 Mini App pay-driver-by-car: plate lookup (normalized) + tip transfer + self-guard
   "testDriverWallet.ts", // 🚗 driver wallet: driver withdraws tanga→kas balance, topup stays client-only (no swap)
+  "testDriverMissions.ts", // 🎯 driver missions: live ride-count progress · idempotent daily claim · reward cap · client sees none
 ];
 
 interface Res {

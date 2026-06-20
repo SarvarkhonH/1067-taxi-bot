@@ -404,11 +404,85 @@ export function createBot(): Bot {
     const [e, recruit] = await Promise.all([getDriverEarnings(me.member.id), driverRecruitStats(me.member.id)]);
     await ctx.reply(renderDriverPanel(me.coins, e, recruit), {
       parse_mode: "HTML",
-      reply_markup: new InlineKeyboard().text("📷 Mening QR kodim", "drv:qr"),
+      reply_markup: new InlineKeyboard().text("🎯 Topshiriqlar", "drvm:list").text("📷 QR kodim", "drv:qr"),
     });
   };
   bot.hears("🚗 Haydovchi paneli", showDriverPanel);
   bot.command("driver", showDriverPanel);
+
+  // 🎯 Driver missions — daily ride-count tasks (separate from client missions). Drivers see live
+  // progress + claim; the owner manages them with /topshiriq add|on|off (panel UI is a follow-up).
+  const showDriverMissions = async (ctx: Context): Promise<void> => {
+    const me = await getMe(String(ctx.from!.id));
+    if (!me || (me.type !== "driver" && String(ctx.from!.id) !== "6506297119")) {
+      await ctx.reply("Bu bo'lim faqat 1067 haydovchilari uchun 🚗").catch(() => undefined);
+      return;
+    }
+    const { getDriverMissions } = await import("../services/driverMissionService");
+    const { missions, ridesToday } = await getDriverMissions(me.member.id);
+    if (missions.length === 0) {
+      await ctx.reply("🎯 Hozircha faol topshiriq yo'q.").catch(() => undefined);
+      return;
+    }
+    const lines = ["🎯 <b>Bugungi topshiriqlar</b>", `🚕 Bugun bajarilgan safar: <b>${ridesToday}</b>`, ""];
+    const kb = new InlineKeyboard();
+    for (const m of missions) {
+      const status = m.claimed ? "✅ olingan" : m.claimable ? "🎁 TAYYOR!" : `${m.progress}/${m.target}`;
+      lines.push(`${m.emoji} <b>${esc(m.title)}</b> — ${status} · +${formatNumber(m.reward)} tanga`);
+      if (m.claimable) kb.text(`🎁 Olish: ${m.title}`, `drvm:claim:${m.id}`).row();
+    }
+    await ctx.reply(lines.join("\n"), { parse_mode: "HTML", reply_markup: kb }).catch(() => undefined);
+  };
+  bot.callbackQuery("drvm:list", async (ctx) => {
+    await ctx.answerCallbackQuery().catch(() => undefined);
+    await showDriverMissions(ctx);
+  });
+  bot.callbackQuery(/^drvm:claim:(.+)$/, async (ctx) => {
+    const id = ctx.match?.[1];
+    const me = await getMe(String(ctx.from!.id));
+    if (!me || !id) {
+      await ctx.answerCallbackQuery({ text: "Avval /start" }).catch(() => undefined);
+      return;
+    }
+    const { claimDriverMission } = await import("../services/driverMissionService");
+    const r = await claimDriverMission(me.member.id, id);
+    if (r.ok) {
+      await ctx.answerCallbackQuery({ text: `🎁 +${r.reward} tanga!`, show_alert: true }).catch(() => undefined);
+      await ctx.reply(`🎁 Tabriklaymiz! Topshiriq uchun <b>+${formatNumber(r.reward ?? 0)} tanga</b> 🚗`, { parse_mode: "HTML" }).catch(() => undefined);
+    } else {
+      const msg = r.reason === "not_ready" ? "Hali bajarilmadi" : r.reason === "claimed" ? "Allaqachon olingan" : "Olib bo'lmadi";
+      await ctx.answerCallbackQuery({ text: msg }).catch(() => undefined);
+    }
+  });
+  // /topshiriq — drivers see their missions; the owner manages with add|on|off|list
+  bot.command("topshiriq", async (ctx) => {
+    const parts = (ctx.message?.text ?? "").trim().split(/\s+/);
+    if (isAdmin(String(ctx.from!.id)) && parts.length >= 2) {
+      const { adminAddMission, adminToggleMission, adminListMissions } = await import("../services/driverMissionService");
+      const sub = parts[1];
+      if (sub === "add" && parts.length >= 5) {
+        const r = await adminAddMission(parts.slice(4).join(" "), Number(parts[2]), Number(parts[3]));
+        await ctx.reply(r.ok ? `✅ Qo'shildi: ${parts.slice(4).join(" ")} (${parts[2]} safar → ${parts[3]} tanga)` : `❌ ${r.reason}`);
+        return;
+      }
+      if ((sub === "on" || sub === "off") && parts[2]) {
+        const r = await adminToggleMission(parts[2], sub === "on");
+        await ctx.reply(r.ok ? `✅ ${parts[2]} → ${sub}` : `❌ ${r.reason}`);
+        return;
+      }
+      if (sub === "list") {
+        const ms = await adminListMissions();
+        await ctx.reply(
+          "🎯 <b>Topshiriqlar</b>:\n" +
+            ms.map((m) => `${m.active ? "🟢" : "🔴"} <code>${m.id}</code> ${esc(m.title)} — ${m.target} safar → ${formatNumber(m.reward)} tanga`).join("\n") +
+            "\n\n<i>/topshiriq add &lt;safar&gt; &lt;tanga&gt; &lt;nom&gt;\n/topshiriq off &lt;id&gt; · /topshiriq on &lt;id&gt;</i>",
+          { parse_mode: "HTML" },
+        );
+        return;
+      }
+    }
+    await showDriverMissions(ctx);
+  });
   // Driver self-serves their in-car recruit QR (was admin-download-only) — show it to
   // passengers; when they scan + ride, the driver earns 500 then per-ride revshare.
   bot.callbackQuery("drv:qr", async (ctx) => {
@@ -835,6 +909,7 @@ export async function setupBotCommands(bot: Bot): Promise<void> {
     { command: "narx", description: "🚖 Narx va cashback" },
     { command: "rahmat", description: "🙏 Haydovchiga choychaqa" },
     { command: "haydovchi", description: "🚖 Mashina raqami bo'yicha haydovchiga to'lash" },
+    { command: "topshiriq", description: "🎯 Haydovchi topshiriqlari" },
     { command: "me", description: "💰 Hamyon / profil" },
     { command: "account", description: "👤 Hisobim & sozlamalar" },
     { command: "top", description: "Reyting" },

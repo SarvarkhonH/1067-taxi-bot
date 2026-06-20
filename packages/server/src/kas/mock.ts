@@ -155,9 +155,10 @@ export class KasMockSource implements KasDataSource {
 
   async getRidesByCar(carNumber: string, size = 15): Promise<RideHistoryItem[]> {
     const car = carNumber.replace(/\s/g, "").toUpperCase() || "70A111AA";
+    const now = new Date().toISOString(); // today, so daily driver-missions resolve in mock/tests
     return [
-      { id: 9201, addressName: "Koson bozori", status: "delivered", carNumber: car, carModel: "Cobalt", payment: 14000, cashback: 500, at: "2026-06-20T09:30:00.000+0000" },
-      { id: 9200, addressName: "Bunyodkor 12", status: "delivered", carNumber: car, carModel: "Cobalt", payment: 9000, cashback: 500, at: "2026-06-20T08:05:00.000+0000" },
+      { id: 9201, addressName: "Koson bozori", status: "delivered", carNumber: car, carModel: "Cobalt", payment: 14000, cashback: 500, at: now },
+      { id: 9200, addressName: "Bunyodkor 12", status: "delivered", carNumber: car, carModel: "Cobalt", payment: 9000, cashback: 500, at: now },
     ].slice(0, size);
   }
 
