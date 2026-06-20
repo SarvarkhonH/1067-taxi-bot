@@ -308,6 +308,40 @@ export async function pushBookingUpdates(
         });
       }
 
+      // 🎰 BARABAN: grant a 5-minute spin token for THIS finished ride + fire an immediate
+      // notification. No coin emission here (the win lands later, on /baraban spin, via
+      // grantCoins OUTSIDE the 350 clamp). Token grant is idempotent per ride (re-entry keeps
+      // the existing token), so the sweep re-running can't reset the clock. Gated by "baraban"
+      // (DEFAULT_OFF → dark until owner QABUL). No new poller — rides on this sweep.
+      try {
+        const { featureOn } = await import("./featureFlags");
+        if (await featureOn("baraban")) {
+          const { grantWheelToken } = await import("./rideWheelService");
+          // only NOTIFY on the FIRST processing of this ride (token grant is idempotent, but the
+          // bot message is not — a fresh token here means we haven't pinged for this ride yet)
+          const before = await prisma.appState.findUnique({ where: { key: `barabantoken:${m.id}` } }).catch(() => null);
+          const firstForRide = (() => {
+            try {
+              return !before || (JSON.parse(before.value) as { bookingId?: number }).bookingId !== bid;
+            } catch {
+              return true;
+            }
+          })();
+          await resilient("baraban_token", () => grantWheelToken(m.id, bid));
+          if (firstForRide) {
+            await bot.api
+              .sendMessage(
+                chatId,
+                "🎰 <b>Safar tugadi!</b> 5 daqiqa ichida barabanni aylantiring — tanga yutib oling! /baraban",
+                { parse_mode: "HTML", reply_markup: new InlineKeyboard().text("🎰 Aylantirish", "baraban:spin") },
+              )
+              .catch(() => undefined);
+          }
+        }
+      } catch (e) {
+        console.error("[baraban] token/notify failed:", e);
+      }
+
       // freeze the card + stop the pin
       if (m.rideCardMsgId) {
         await bot.api

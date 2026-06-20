@@ -580,6 +580,56 @@ export function createBot(): Bot {
     });
   });
 
+  // ─── 🎰 BARABAN — post-ride spin wheel (5-min token granted on ride finish) ───
+  const spinBaraban = async (ctx: Context): Promise<{ replied: boolean }> => {
+    const memberId = await getMemberId(String(ctx.from!.id));
+    if (!memberId) return { replied: false };
+    const { spinRideWheel } = await import("../services/rideWheelService");
+    const r = await spinRideWheel(memberId);
+    if (!r.ok) {
+      await ctx
+        .reply("Baraban tayyor emas — safardan keyin 5 daqiqa ichida aylantiring 🚕", { reply_markup: mainMenu() })
+        .catch(() => undefined);
+      return { replied: true };
+    }
+    if ((r.prize ?? 0) > 0) {
+      await ctx
+        .reply(`🎉 Tabriklaymiz! <b>+${formatNumber(r.prize ?? 0)} tanga</b> yutdingiz! 🎰`, { parse_mode: "HTML", reply_markup: mainMenu() })
+        .catch(() => undefined);
+    } else {
+      await ctx.reply("😢 Bu safar omad kulmadi — keyingi safar! 🎰", { reply_markup: mainMenu() }).catch(() => undefined);
+    }
+    return { replied: true };
+  };
+  bot.command("baraban", async (ctx) => {
+    const memberId = await getMemberId(String(ctx.from!.id));
+    if (!memberId) {
+      await ctx.reply(renderLinkPrompt(), { parse_mode: "HTML", reply_markup: contactKeyboard() });
+      return;
+    }
+    await spinBaraban(ctx);
+  });
+  // 🎰 inline button from the ride-finish notification
+  bot.callbackQuery("baraban:spin", async (ctx) => {
+    const memberId = await getMemberId(String(ctx.from!.id));
+    if (!memberId) {
+      await ctx.answerCallbackQuery({ text: "Avval raqamingizni ulang 🙏", show_alert: true }).catch(() => undefined);
+      return;
+    }
+    const { spinRideWheel } = await import("../services/rideWheelService");
+    const r = await spinRideWheel(memberId);
+    if (!r.ok) {
+      await ctx.answerCallbackQuery({ text: "Baraban tayyor emas — safardan keyin 5 daqiqa ichida 🚕", show_alert: true }).catch(() => undefined);
+      return;
+    }
+    await ctx
+      .answerCallbackQuery({
+        text: (r.prize ?? 0) > 0 ? `🎉 +${formatNumber(r.prize ?? 0)} tanga yutdingiz! 🎰` : "😢 Bu safar omad kulmadi — keyingi safar! 🎰",
+        show_alert: true,
+      })
+      .catch(() => undefined);
+  });
+
   bot.hears("🎖 Nishonlar", async (ctx) => {
     const me = await getMe(String(ctx.from!.id));
     if (!me) {
@@ -904,6 +954,7 @@ export async function setupBotCommands(bot: Bot): Promise<void> {
     { command: "status", description: "📍 Buyurtmam holati" },
     { command: "daily", description: "🔥 Kunlik bonus" },
     { command: "wheel", description: "🎡 Omad g'ildiragi" },
+    { command: "baraban", description: "🎰 Safar barabani (yutuq)" },
     { command: "missions", description: "🎯 Vazifalar (mukofot)" },
     { command: "invite", description: "👥 Do'st taklif qilish" },
     { command: "narx", description: "🚖 Narx va cashback" },
