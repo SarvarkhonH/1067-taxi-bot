@@ -43,14 +43,26 @@ export async function findRecipientByPhone(phone: string): Promise<{ id: number;
   return m;
 }
 
-/** Look up a driver by car number (normalized: UPPER, no spaces) for the pay-driver flow. */
+// Uzbek plates are stored Latin ("01A111AA") but a Cyrillic keyboard types lookalike letters
+// (01А111АА — Cyrillic А/В/С…). Map the lookalikes → Latin so either keyboard finds the same
+// driver. UPPER + strip spaces too.
+const CYR2LAT: Record<string, string> = {
+  А: "A", В: "B", С: "C", Е: "E", Н: "H", К: "K", М: "M", О: "O", Р: "P", Т: "T", Х: "X", У: "Y", І: "I",
+};
+function normCar(car: string): string {
+  return car.toUpperCase().replace(/\s+/g, "").split("").map((ch) => CYR2LAT[ch] ?? ch).join("");
+}
+
+/** Look up a driver by car number, tolerant of Cyrillic/Latin lookalikes + spacing/case.
+ *  Scans drivers (a small set) and matches on the normalized plate so both keyboards work. */
 export async function findDriverByCar(car: string): Promise<{ id: number; fullName: string; carNumber: string | null } | null> {
-  const norm = car.toUpperCase().replace(/\s+/g, "");
+  const norm = normCar(car);
   if (norm.length < 4) return null;
-  return prisma.member.findFirst({
-    where: { type: "driver", carNumber: norm },
+  const drivers = await prisma.member.findMany({
+    where: { type: "driver", carNumber: { not: null } },
     select: { id: true, fullName: true, carNumber: true },
   });
+  return drivers.find((d) => normCar(d.carNumber ?? "") === norm) ?? null;
 }
 
 export async function transfer(
@@ -66,7 +78,7 @@ export async function transfer(
 
   const sender = await prisma.member.findUnique({
     where: { id: fromMemberId },
-    select: { id: true, coins: true, fullName: true, phone: true, telegramUser: { select: { linkedAt: true, createdAt: true } } },
+    select: { id: true, coins: true, fullName: true, phone: true, trips: true, createdAt: true },
   });
   const fail = (reason: TransferResponse["reason"]): TransferResponse => ({
     ok: false,
@@ -80,9 +92,13 @@ export async function transfer(
   if (amount < TRANSFER_MIN) return fail("below_min");
   if (amount > TRANSFER_MAX_PER_TX) return fail("over_max");
 
-  // sender must be an established account (sybil farms are fresh)
-  const linkedAt = sender.telegramUser?.linkedAt ?? sender.telegramUser?.createdAt ?? null;
-  if (!linkedAt || Date.now() - linkedAt.getTime() < TRANSFER_MIN_ACCOUNT_AGE_H * 3600 * 1000) {
+  // sender must be an established account (sybil farms are fresh). Trust the ACCOUNT's age
+  // (member.createdAt), NOT the telegram LINK age — re-linking a mis-linked account (the Elbek
+  // fix) must not reset trust. P2P transfers always face the gate; a TIP is exempt once you've
+  // taken any ride (so you can tip your driver right after the trip).
+  const acctAgeMs = sender.createdAt ? Date.now() - sender.createdAt.getTime() : 0;
+  const tooNew = acctAgeMs < TRANSFER_MIN_ACCOUNT_AGE_H * 3600 * 1000;
+  if (tooNew && !(kind === "tip" && sender.trips > 0)) {
     return fail("account_too_new");
   }
 

@@ -212,6 +212,8 @@ function PayDriverSheet({ wallet, onClose, onDone }: { wallet: WalletResponse; o
           daily_sent_cap: "Bugungi yuborish limiti tugadi",
           self: "O'zingizga yuborib bo'lmaydi",
           not_found: "Bu mashina raqamli haydovchi topilmadi",
+          account_too_new: "Hisobingiz hali juda yangi (48 soat)",
+          daily_received_cap: "Haydovchining bugungi qabul limiti to'ldi",
           disabled: "O'tkazma hozircha o'chiq",
         };
         setErr(msgs[r.reason ?? ""] ?? "Yuborilmadi");
@@ -496,15 +498,17 @@ export function WalletView({ me, onBanner, reload, onBook, onNav }: { me: MeResp
           <b>{formatNumber(cashback)} so'm</b>
         </div>
         <div className="wh-actions">
+          <button className="btn-violet wh-cta" onClick={() => { haptic(); setTopup(true); }}>🔁 Cashback → tanga</button>
+        </div>
+        <div className="wh-actions">
           <button className="btn-violet wh-cta" onClick={() => { haptic(); setSend(true); }}>👥 Do'stga</button>
           <button className="btn-primary wh-cta" onClick={() => { haptic(); setPayd(true); }}>🚖 Haydovchiga</button>
         </div>
-        <div className="wh-actions">
-          {wallet?.canTopup && (
-            <button className="btn-violet wh-cta" onClick={() => { haptic(); setTopup(true); }}>🔁 Cashback→tanga</button>
-          )}
-          <button className="btn-ghost wh-cta" onClick={() => { haptic(); setSheet(true); }}>💸 So'mga yechish</button>
-        </div>
+        {wallet?.isClient && (
+          <div className="wh-actions">
+            <button className="btn-ghost wh-cta" onClick={() => { haptic(); setSheet(true); }}>💸 So'mga yechish</button>
+          </div>
+        )}
         <div className="wh-meta muted">
           {me.rank && <span>O'rin {rankMedal(me.rank)}</span>}
           <span>🚕 {formatNumber(me.stats.trips)} safar</span>

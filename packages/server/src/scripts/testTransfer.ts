@@ -14,9 +14,11 @@ function ok(cond: boolean, label: string): void {
   if (!cond) failed++;
 }
 
-async function mkMember(suffix: string, phone: string, opts: { type?: string; coins?: number; agedTg?: boolean } = {}): Promise<number> {
+async function mkMember(suffix: string, phone: string, opts: { type?: string; coins?: number; agedTg?: boolean; fresh?: boolean } = {}): Promise<number> {
   const m = await prisma.member.create({
-    data: { type: opts.type ?? "client", kasId: `${TAG}-${suffix}`, fullName: `Xfer ${suffix}`, phone, trips: 1 },
+    // the anti-sybil gate reads ACCOUNT age (member.createdAt) — backdate so normal senders are
+    // "established"; opts.fresh keeps createdAt=now to exercise the gate.
+    data: { type: opts.type ?? "client", kasId: `${TAG}-${suffix}`, fullName: `Xfer ${suffix}`, phone, trips: 1, createdAt: opts.fresh ? new Date() : new Date(Date.now() - 72 * 3600 * 1000) },
   });
   if (opts.coins) await grantCoins(m.id, opts.coins, "manual", "test seed");
   if (opts.agedTg !== false) {
@@ -66,7 +68,7 @@ async function main(): Promise<void> {
   ok(!r.ok && r.reason === "not_found", `unknown phone blocked`);
 
   // fresh account can't send
-  const F = await mkMember("F", "+998900001004", { coins: 5000, agedTg: false });
+  const F = await mkMember("F", "+998900001004", { coins: 5000, agedTg: false, fresh: true });
   await prisma.telegramUser.create({ data: { id: `${TAG}-tg-F`, memberId: F, linkedAt: new Date() } });
   r = await transfer(F, "+998900001002", 1000);
   ok(!r.ok && r.reason === "account_too_new", `fresh account blocked (48h gate)`);

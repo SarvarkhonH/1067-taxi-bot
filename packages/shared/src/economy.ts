@@ -32,6 +32,7 @@ export interface WalletResponse {
   withdrawMin: number;
   withdrawDailyCap: number;
   canWithdraw: boolean;
+  isClient: boolean; // only clients cash tanga out to so'm — drivers convert/transfer only
   topupMin: number; // min cashback to convert INTO coins
   canTopup: boolean; // cashback >= topupMin
   txns: CoinTxnView[];
