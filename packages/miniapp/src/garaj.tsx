@@ -41,38 +41,95 @@ const CAR_PAINT: Record<string, string> = {
   cobalt: "#2b3a67", lacetti: "#c39a3c", malibu: "#262a33", tracker: "#e07b39", tahoe: "#2b313d", gelik: "#15171d",
 };
 
-/** Stylized side-view car. Condition drives grime/sheen/headlights; level ≥5 = gold frame.
- *  Pure SVG (no WebGL, no foreign images) → renders instantly inside Telegram in UZ. */
+// 🚗 per-model silhouette geometry (car faces RIGHT; viewBox 0 0 200 124).
+// Each real model maps to a body archetype with its own proportions, so a Damas
+// reads as a van, a Gelik as a boxy off-roader, a Malibu as a long low sedan — not
+// one shape recolored. rear: notch=trunk · hatch=sloped tail · square=vertical tail.
+type CarGeo = {
+  rear: "notch" | "hatch" | "square"; front: "slope" | "upright";
+  x0: number; x1: number; sillY: number; roofY: number; beltY: number; noseY: number;
+  rRoofX: number; fRoofX: number; trunkY: number;
+  wRX: number; wFX: number; wY: number; wR: number; rails: boolean; spare: boolean;
+};
+const MINI: CarGeo  = { rear: "hatch",  front: "slope",   x0: 44, x1: 160, sillY: 92, roofY: 42, beltY: 60, noseY: 67, rRoofX: 78, fRoofX: 126, trunkY: 62, wRX: 72, wFX: 140, wY: 95, wR: 14, rails: false, spare: false };
+const HATCH: CarGeo = { rear: "hatch",  front: "slope",   x0: 26, x1: 182, sillY: 92, roofY: 37, beltY: 57, noseY: 65, rRoofX: 74, fRoofX: 124, trunkY: 60, wRX: 62, wFX: 150, wY: 95, wR: 16, rails: false, spare: false };
+const SEDAN: CarGeo = { rear: "notch",  front: "slope",   x0: 18, x1: 186, sillY: 92, roofY: 41, beltY: 58, noseY: 66, rRoofX: 74, fRoofX: 118, trunkY: 61, wRX: 58, wFX: 146, wY: 95, wR: 16, rails: false, spare: false };
+const VAN: CarGeo   = { rear: "square", front: "upright", x0: 22, x1: 184, sillY: 92, roofY: 28, beltY: 50, noseY: 60, rRoofX: 30, fRoofX: 150, trunkY: 50, wRX: 56, wFX: 154, wY: 95, wR: 16, rails: false, spare: false };
+const SUV: CarGeo   = { rear: "square", front: "slope",   x0: 20, x1: 188, sillY: 90, roofY: 33, beltY: 54, noseY: 63, rRoofX: 58, fRoofX: 130, trunkY: 55, wRX: 58, wFX: 150, wY: 92, wR: 18, rails: true,  spare: false };
+const BOX: CarGeo   = { rear: "square", front: "upright", x0: 28, x1: 180, sillY: 90, roofY: 31, beltY: 53, noseY: 57, rRoofX: 36, fRoofX: 150, trunkY: 53, wRX: 62, wFX: 148, wY: 92, wR: 17, rails: false, spare: true };
+
+const CAR_GEO: Record<string, CarGeo> = {
+  tiko:    { ...MINI, roofY: 40, x0: 46, x1: 158, rRoofX: 80, fRoofX: 124, wRX: 74, wFX: 138 },
+  matiz:   { ...MINI, roofY: 43, x0: 42, x1: 162, wRX: 70, wFX: 142 },
+  spark:   { ...HATCH },
+  nexia:   { ...SEDAN, x1: 180, roofY: 42, fRoofX: 114, wFX: 142 },
+  cobalt:  { ...SEDAN, x1: 188, fRoofX: 120, wFX: 148 },
+  lacetti: { ...SEDAN, x1: 188, roofY: 40, rRoofX: 76, fRoofX: 124, wFX: 148 },
+  malibu:  { ...SEDAN, x1: 192, roofY: 38, beltY: 57, fRoofX: 126, wFX: 152 },
+  damas:   { ...VAN },
+  tracker: { ...SUV, x1: 182, roofY: 35, rear: "hatch", rRoofX: 70, fRoofX: 126, wFX: 146, wR: 17 },
+  tahoe:   { ...SUV, x1: 194, roofY: 31, rRoofX: 52, fRoofX: 140, wFX: 154, wR: 18 },
+  gelik:   { ...BOX },
+};
+
+function carBodyPath(g: CarGeo): string {
+  const { x0, x1, sillY, roofY, beltY, noseY, rRoofX, fRoofX, trunkY } = g;
+  const cowlX = fRoofX + (g.front === "upright" ? 8 : 18); // windshield base (hood start)
+  let d = `M${x0} ${sillY} `;
+  if (g.rear === "square") d += `L${x0} ${roofY} `;
+  else if (g.rear === "hatch") d += `L${x0} ${beltY - 2} Q${x0} ${roofY} ${rRoofX} ${roofY} `;
+  else d += `L${x0} ${trunkY} L${x0 + 16} ${trunkY - 3} L${rRoofX} ${roofY} `; // notch trunk deck
+  d += `L${fRoofX} ${roofY} `;                                   // roof
+  d += `L${cowlX} ${beltY} `;                                    // windshield
+  d += `L${x1 - 4} ${noseY} Q${x1} ${noseY} ${x1} ${noseY + 6} `; // hood → rounded nose
+  d += `L${x1} ${sillY} Z`;                                      // front face + bottom
+  return d;
+}
+function carCabinPath(g: CarGeo): string {
+  const r0 = g.rear === "square" ? g.x0 + 6 : g.rRoofX;
+  const top = g.roofY + 3;
+  return `M${r0 + 5} ${top} L${g.fRoofX - 4} ${top} L${g.fRoofX - 8} ${g.beltY - 3} L${r0 + 9} ${g.beltY - 3} Z`;
+}
+
+/** Stylized side-view car, distinct silhouette per model (sedan / hatch / van / SUV / box / mini).
+ *  Condition drives grime/sheen/headlights; level ≥5 = gold frame. Pure SVG (no WebGL, no foreign
+ *  images) → renders instantly inside Telegram in UZ. */
 export function GarajCarArt({ carCode, condition, level, size = 132 }: { carCode: string; condition: string; level: number; size?: number }) {
   const body = CAR_PAINT[carCode] ?? "#8a93a3";
+  const g = CAR_GEO[carCode] ?? SEDAN;
   const cond = (condition || "WORN").toUpperCase();
   const grime = cond === "WORN" ? 0.55 : cond === "FAIR" ? 0.3 : cond === "GOOD" ? 0.08 : 0;
   const sheen = cond === "MINT" ? 0.55 : cond === "GOOD" ? 0.28 : 0.12;
   const lightsOn = cond === "GOOD" || cond === "MINT";
   const gold = level >= 5;
+  const hub = +(g.wR * 0.44).toFixed(1);
+  const lightY = (g.noseY + g.sillY) / 2;
+  const bodyW = g.x1 - g.x0;
   return (
     <svg viewBox="0 0 200 124" width={size} height={size * 0.62} className={`gz-art${cond === "MINT" ? " mint" : ""}${gold ? " gold" : ""}`} role="img" aria-label={`${carCode} ${cond}`}>
-      <ellipse cx="100" cy="113" rx="80" ry="8" fill="rgba(0,0,0,0.4)" />
+      <ellipse cx={(g.x0 + g.x1) / 2} cy="113" rx={bodyW / 2 + 4} ry="8" fill="rgba(0,0,0,0.4)" />
+      {/* rear-mounted spare (off-roaders) */}
+      {g.spare && <><circle cx={g.x0 - 1} cy={lightY - 2} r="11" fill="#1c1f26" /><circle cx={g.x0 - 1} cy={lightY - 2} r="5" fill="#39414e" /></>}
       {/* body */}
-      <path d="M16 88 L30 60 Q34 51 45 49 L72 47 Q82 35 100 34 L130 35 Q152 37 164 56 L184 64 Q192 69 192 79 L192 89 Q192 95 184 95 L24 95 Q16 95 16 88 Z"
-        fill={body} stroke={gold ? "#ffce4f" : "rgba(0,0,0,0.3)"} strokeWidth={gold ? 3.5 : 1.5} />
+      <path d={carBodyPath(g)} fill={body} stroke={gold ? "#ffce4f" : "rgba(0,0,0,0.3)"} strokeWidth={gold ? 3.5 : 1.5} strokeLinejoin="round" />
+      {/* roof rails (SUV) */}
+      {g.rails && <rect x={g.rRoofX + 8} y={g.roofY - 3} width={Math.max(10, g.fRoofX - g.rRoofX - 14)} height="3" rx="1.5" fill="rgba(0,0,0,0.45)" />}
       {/* cabin glass */}
-      <path d="M78 48 Q86 38 100 37 L124 38 Q140 40 148 54 L100 56 Z" fill="rgba(186,214,238,0.6)" />
+      <path d={carCabinPath(g)} fill="rgba(186,214,238,0.6)" />
       {/* sheen */}
-      <path d="M40 70 L150 56 L150 62 L40 78 Z" fill="#ffffff" opacity={sheen} />
+      <path d={`M${g.x0 + 10} ${g.beltY + 10} L${g.fRoofX} ${g.beltY - 1} L${g.fRoofX} ${g.beltY + 4} L${g.x0 + 10} ${g.beltY + 15} Z`} fill="#ffffff" opacity={sheen} />
       {/* headlight */}
-      {lightsOn && <circle cx="186" cy="75" r="12" fill="#fff3c4" opacity="0.32" />}
-      <circle cx="186" cy="75" r="5" fill={lightsOn ? "#fff6d0" : "#5b626d"} />
+      {lightsOn && <circle cx={g.x1 - 6} cy={lightY} r="12" fill="#fff3c4" opacity="0.32" />}
+      <circle cx={g.x1 - 6} cy={lightY} r="5" fill={lightsOn ? "#fff6d0" : "#5b626d"} />
       {/* wheels */}
-      <circle cx="60" cy="95" r="17" fill="#14161b" /><circle cx="60" cy="95" r="7.5" fill="#3a4350" />
-      <circle cx="146" cy="95" r="17" fill="#14161b" /><circle cx="146" cy="95" r="7.5" fill="#3a4350" />
+      <circle cx={g.wRX} cy={g.wY} r={g.wR} fill="#14161b" /><circle cx={g.wRX} cy={g.wY} r={hub} fill="#3a4350" />
+      <circle cx={g.wFX} cy={g.wY} r={g.wR} fill="#14161b" /><circle cx={g.wFX} cy={g.wY} r={hub} fill="#3a4350" />
       {/* grime + rust (worn) */}
       {grime > 0 && (
         <g opacity={grime}>
-          <rect x="16" y="62" width="176" height="33" fill="#3b2f22" opacity="0.45" />
-          <ellipse cx="52" cy="80" rx="11" ry="6" fill="#6b4423" />
-          <ellipse cx="118" cy="84" rx="9" ry="5" fill="#6b4423" />
-          <ellipse cx="168" cy="82" rx="7" ry="4" fill="#6b4423" />
+          <rect x={g.x0} y={g.beltY + 2} width={bodyW} height={g.sillY - g.beltY - 2} fill="#3b2f22" opacity="0.4" />
+          <ellipse cx={g.x0 + bodyW * 0.3} cy={g.sillY - 11} rx="11" ry="6" fill="#6b4423" />
+          <ellipse cx={g.x0 + bodyW * 0.62} cy={g.sillY - 8} rx="9" ry="5" fill="#6b4423" />
         </g>
       )}
     </svg>
