@@ -43,6 +43,16 @@ export async function findRecipientByPhone(phone: string): Promise<{ id: number;
   return m;
 }
 
+/** Look up a driver by car number (normalized: UPPER, no spaces) for the pay-driver flow. */
+export async function findDriverByCar(car: string): Promise<{ id: number; fullName: string; carNumber: string | null } | null> {
+  const norm = car.toUpperCase().replace(/\s+/g, "");
+  if (norm.length < 4) return null;
+  return prisma.member.findFirst({
+    where: { type: "driver", carNumber: norm },
+    select: { id: true, fullName: true, carNumber: true },
+  });
+}
+
 export async function transfer(
   fromMemberId: number,
   toPhone: string,

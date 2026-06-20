@@ -19,7 +19,7 @@ import { getBoxStatus, openBox } from "../services/boxService";
 import { getReferralInfo } from "../services/referralService";
 import { getWeeklyBoard } from "../services/weeklyService";
 import { getWallet, topUpFromBonus, withdraw } from "../services/coinService";
-import { findRecipientByPhone, getDriverEarnings, transfer } from "../services/transferService";
+import { findDriverByCar, findRecipientByPhone, getDriverEarnings, transfer } from "../services/transferService";
 import { buyListing, listShops, myOrders, myShop, redeemVoucher } from "../services/marketService";
 import { prisma } from "../db";
 import { getFareConfig } from "../services/clientInfoService";
@@ -287,6 +287,37 @@ export function createApiServer(opts: ApiOptions = {}) {
       return;
     }
     res.json(await transfer(memberId, String(b.phone), amount, { note: b.note ? String(b.note) : undefined }));
+  });
+  // 🚖 Pay the driver by CAR number (Mini App). Preview the name, then send tanga as a tip —
+  // reuses the SAME transfer(kind:"tip", toMemberId) path as the bot's /haydovchi + finish-card tip.
+  app.post("/api/wallet/driver-by-car", requireUser, rateLimit(10), async (req, res) => {
+    const memberId = await getMemberId(res.locals.telegramId as string);
+    const d = await findDriverByCar(String((req.body as { car?: string })?.car ?? ""));
+    res.json(d && d.id !== memberId ? { found: true, name: d.fullName, car: d.carNumber } : { found: false });
+  });
+  app.post("/api/wallet/pay-driver", requireUser, rateLimit(5), async (req, res) => {
+    const memberId = await getMemberId(res.locals.telegramId as string);
+    if (!memberId) {
+      res.status(404).json({ error: "not linked" });
+      return;
+    }
+    const b = req.body as { car?: string; amount?: number };
+    const amount = Math.floor(Number(b?.amount ?? 0));
+    if (!Number.isFinite(amount) || amount <= 0 || !b?.car) {
+      res.status(400).json({ error: "car and amount required" });
+      return;
+    }
+    const { featureOn } = await import("../services/featureFlags");
+    if (!(await featureOn("transfers"))) {
+      res.json({ ok: false, reason: "disabled" });
+      return;
+    }
+    const driver = await findDriverByCar(String(b.car));
+    if (!driver || driver.id === memberId) {
+      res.json({ ok: false, reason: "not_found" });
+      return;
+    }
+    res.json(await transfer(memberId, "", amount, { kind: "tip", toMemberId: driver.id }));
   });
   // ── 💎 Kolleksiya ────────────────────────────────────────────────────────
   app.get("/api/items", requireUser, withMember2(async (id) => {

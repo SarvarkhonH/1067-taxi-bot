@@ -166,6 +166,103 @@ function TransferSheet({ wallet, onClose, onDone }: { wallet: WalletResponse; on
   );
 }
 
+// 🚖 Pay the driver by CAR number — type the plate, the driver's name appears, send the fare
+// as tanga (same closed-loop tip path as the bot's /haydovchi).
+function PayDriverSheet({ wallet, onClose, onDone }: { wallet: WalletResponse; onClose: () => void; onDone: (msg: string) => void }) {
+  const [car, setCar] = useState("");
+  const [who, setWho] = useState<{ found: boolean; name?: string } | null>(null);
+  const [looking, setLooking] = useState(false);
+  const [amount, setAmount] = useState<number | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+  const lookupTimer = useRef<number | null>(null);
+
+  const max = Math.floor(Math.min(wallet.coins, TRANSFER_MAX_PER_TX));
+  const presets = [1000, 5000, 10000].filter((p) => p >= TRANSFER_MIN && p <= max);
+  if (max >= TRANSFER_MIN && !presets.includes(max)) presets.push(max);
+
+  const onCar = (v: string) => {
+    const up = v.toUpperCase();
+    setCar(up);
+    setWho(null);
+    const clean = up.replace(/\s+/g, "");
+    setLooking(clean.length >= 4);
+    if (lookupTimer.current) window.clearTimeout(lookupTimer.current);
+    if (clean.length < 4) return;
+    lookupTimer.current = window.setTimeout(() => {
+      api.driverByCar(clean).then((r) => { setWho(r); setLooking(false); }).catch(() => setLooking(false));
+    }, 450);
+  };
+
+  const submit = async () => {
+    if (!amount || busy || !who?.found) return;
+    setBusy(true);
+    setErr(null);
+    try {
+      const r = await api.payDriver(car.replace(/\s+/g, ""), amount);
+      if (r.ok) {
+        confetti();
+        onDone(`🙏 ${formatNumber(r.amount)} tanga ${r.toName ?? "haydovchi"}ga yuborildi!`);
+        onClose();
+      } else {
+        const msgs: Record<string, string> = {
+          below_min: `Minimal: ${formatNumber(TRANSFER_MIN)} tanga`,
+          over_max: `Maksimal: ${formatNumber(TRANSFER_MAX_PER_TX)} tanga`,
+          insufficient: "Tanga yetarli emas",
+          daily_sent_cap: "Bugungi yuborish limiti tugadi",
+          self: "O'zingizga yuborib bo'lmaydi",
+          not_found: "Bu mashina raqamli haydovchi topilmadi",
+          disabled: "O'tkazma hozircha o'chiq",
+        };
+        setErr(msgs[r.reason ?? ""] ?? "Yuborilmadi");
+      }
+    } catch {
+      setErr("Tarmoq xatosi — qayta urinib ko'ring");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="sheet-back" onClick={onClose}>
+      <div className="sheet" onClick={(e) => e.stopPropagation()}>
+        <div className="sheet-grip" />
+        <h3>🚖 Haydovchiga to'lash</h3>
+        <p className="muted sheet-sub">Mashina raqamini yozing — haydovchi ismi chiqadi, yo'l haqini tangada yuborasiz.</p>
+        <input
+          className="bk-input"
+          placeholder="🚗 Mashina raqami: 01A123BC"
+          value={car}
+          autoCapitalize="characters"
+          onChange={(e) => onCar(e.target.value)}
+        />
+        {looking && !who && <div className="dim fs13 mt6">⏳ Tekshirilmoqda…</div>}
+        {who && (
+          <div className={who.found ? "sheet-ok" : "sheet-warn"}>
+            {who.found ? `🚖 ${who.name}` : "Bu raqamli haydovchi topilmadi"}
+          </div>
+        )}
+        {who?.found && (
+          <>
+            <div className="chip-row">
+              {presets.map((p) => (
+                <button key={p} className={"amt-chip" + (amount === p ? " active" : "")} onClick={() => { haptic(); setAmount(p); }}>
+                  {p === max && presets.length > 1 ? `MAX ${formatNumber(p)}` : formatNumber(p)}
+                </button>
+              ))}
+            </div>
+            {err && <div className="sheet-err">{err}</div>}
+            <button className="btn-primary" disabled={!amount || busy} onClick={submit}>
+              {busy ? "Yuborilmoqda…" : `🙏 ${amount ? formatNumber(amount) : ""} tanga yuborish`}
+            </button>
+          </>
+        )}
+        <button className="btn-ghost" onClick={onClose}>Yopish</button>
+      </div>
+    </div>
+  );
+}
+
 function WithdrawSheet({
   wallet,
   onClose,
@@ -350,6 +447,7 @@ export function WalletView({ me, onBanner, reload, onBook, onNav }: { me: MeResp
   const [sheet, setSheet] = useState(false);
   const [topup, setTopup] = useState(false);
   const [send, setSend] = useState(false);
+  const [payd, setPayd] = useState(false);
   const coins = useCountUp(wallet?.coins ?? me.coins);
   const cashback = useCountUp(wallet?.cashback ?? me.stats.points);
 
@@ -398,11 +496,14 @@ export function WalletView({ me, onBanner, reload, onBook, onNav }: { me: MeResp
           <b>{formatNumber(cashback)} so'm</b>
         </div>
         <div className="wh-actions">
-          <button className="btn-primary wh-cta" onClick={() => { haptic(); setSheet(true); }}>💸 So'mga</button>
-          <button className="btn-violet wh-cta" onClick={() => { haptic(); setSend(true); }}>📤 O'tkazish</button>
+          <button className="btn-violet wh-cta" onClick={() => { haptic(); setSend(true); }}>👥 Do'stga</button>
+          <button className="btn-primary wh-cta" onClick={() => { haptic(); setPayd(true); }}>🚖 Haydovchiga</button>
+        </div>
+        <div className="wh-actions">
           {wallet?.canTopup && (
-            <button className="btn-violet wh-cta" onClick={() => { haptic(); setTopup(true); }}>🔁 Tangaga</button>
+            <button className="btn-violet wh-cta" onClick={() => { haptic(); setTopup(true); }}>🔁 Cashback→tanga</button>
           )}
+          <button className="btn-ghost wh-cta" onClick={() => { haptic(); setSheet(true); }}>💸 So'mga yechish</button>
         </div>
         <div className="wh-meta muted">
           {me.rank && <span>O'rin {rankMedal(me.rank)}</span>}
@@ -451,6 +552,7 @@ export function WalletView({ me, onBanner, reload, onBook, onNav }: { me: MeResp
       {sheet && wallet && <WithdrawSheet wallet={wallet} onClose={() => setSheet(false)} onDone={onDone} />}
       {topup && wallet && <TopupSheet wallet={wallet} onClose={() => setTopup(false)} onDone={onDone} />}
       {send && wallet && <TransferSheet wallet={wallet} onClose={() => setSend(false)} onDone={onDone} />}
+      {payd && wallet && <PayDriverSheet wallet={wallet} onClose={() => setPayd(false)} onDone={onDone} />}
     </div>
   );
 }

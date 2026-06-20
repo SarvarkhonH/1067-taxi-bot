@@ -30,6 +30,7 @@ const SUITES = [
   "testSelfRegister.ts", // 🆕 self-register (non-kas phone) + adopt-in-place reconciliation (no dup, tangas kept, withdraw gated)
   "testVerifyCode.ts", // 🔑 4-digit link code: single-use, rate-limit lock (no brute-force), TTL expiry
   "testAdminUsers.ts", // 👑 admin user mgmt: search all accounts · re-link (taken-guard) · unlink
+  "testPayDriver.ts", // 🚖 Mini App pay-driver-by-car: plate lookup (normalized) + tip transfer + self-guard
 ];
 
 interface Res {
