@@ -472,6 +472,21 @@ export function WalletView({ me, onBanner, reload, onBook, onNav }: { me: MeResp
     reload();
   };
 
+  // C: convert ALL cashback → tanga in ONE click (no sheet, no amount picking)
+  const convertAll = async () => {
+    if (!wallet || wallet.cashback < wallet.topupMin) {
+      onBanner(`Minimal ${formatNumber(wallet?.topupMin ?? 1000)} so'm cashback kerak`);
+      return;
+    }
+    const r = await api.topup(Math.floor(wallet.cashback)).catch(() => null);
+    if (r?.ok) {
+      confetti();
+      onDone(`🔁 ${formatNumber(r.amount)} tanga xazinangizga o'tdi!`);
+    } else {
+      onBanner("Hozircha o'tkazib bo'lmadi");
+    }
+  };
+
   const earned = me.badges.filter((b) => b.earned);
 
   return (
@@ -504,7 +519,7 @@ export function WalletView({ me, onBanner, reload, onBook, onNav }: { me: MeResp
         </div>
         {wallet?.isClient && (
           <div className="wh-actions">
-            <button className="btn-violet wh-cta" onClick={() => { haptic(); setTopup(true); }}>🔁 Cashback → tanga</button>
+            <button className="btn-violet wh-cta" onClick={() => { haptic(); convertAll(); }}>🔁 Hammasini tangaga</button>
           </div>
         )}
         <div className="wh-actions">
