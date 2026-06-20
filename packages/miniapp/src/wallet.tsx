@@ -315,9 +315,14 @@ function WithdrawSheet({
     <div className="sheet-back" onClick={onClose}>
       <div className="sheet" onClick={(e) => e.stopPropagation()}>
         <div className="sheet-grip" />
-        <h3>💸 So'mga aylantirish</h3>
+        <h3>{wallet.isClient ? "💸 So'mga aylantirish" : "💳 kas1067 balansiga"}</h3>
         <p className="muted sheet-sub">
-          1 tanga = 1 so'm. Pul <b>taxi cashback</b> hisobingizga tushadi va safarlarda ishlatiladi.
+          1 tanga = 1 so'm.{" "}
+          {wallet.isClient ? (
+            <>Pul <b>taxi cashback</b> hisobingizga tushadi va safarlarda ishlatiladi.</>
+          ) : (
+            <>Tangangiz <b>kas1067 balansingizga</b> so'm bo'lib o'tadi.</>
+          )}
         </p>
         {max < wallet.withdrawMin ? (
           <div className="sheet-warn">
@@ -497,18 +502,19 @@ export function WalletView({ me, onBanner, reload, onBook, onNav }: { me: MeResp
           <span>🚕 Taxi cashback (safarlardan)</span>
           <b>{formatNumber(cashback)} so'm</b>
         </div>
-        <div className="wh-actions">
-          <button className="btn-violet wh-cta" onClick={() => { haptic(); setTopup(true); }}>🔁 Cashback → tanga</button>
-        </div>
+        {wallet?.isClient && (
+          <div className="wh-actions">
+            <button className="btn-violet wh-cta" onClick={() => { haptic(); setTopup(true); }}>🔁 Cashback → tanga</button>
+          </div>
+        )}
         <div className="wh-actions">
           <button className="btn-violet wh-cta" onClick={() => { haptic(); setSend(true); }}>👥 Do'stga</button>
           <button className="btn-primary wh-cta" onClick={() => { haptic(); setPayd(true); }}>🚖 Haydovchiga</button>
         </div>
-        {wallet?.isClient && (
-          <div className="wh-actions">
-            <button className="btn-ghost wh-cta" onClick={() => { haptic(); setSheet(true); }}>💸 So'mga yechish</button>
-          </div>
-        )}
+        <div className="wh-actions">
+          {/* withdraw works for BOTH client + driver (tanga → kas1067 balance). Drivers see it as a deposit. */}
+          <button className="btn-ghost wh-cta" onClick={() => { haptic(); setSheet(true); }}>{wallet?.isClient ? "💸 So'mga yechish" : "💳 kas1067 balansiga"}</button>
+        </div>
         <div className="wh-meta muted">
           {me.rank && <span>O'rin {rankMedal(me.rank)}</span>}
           <span>🚕 {formatNumber(me.stats.trips)} safar</span>

@@ -184,8 +184,8 @@ export async function getWallet(memberId: number): Promise<WalletResponse> {
     withdrawnToday: today,
     withdrawMin: WITHDRAW_MIN,
     withdrawDailyCap: WITHDRAW_DAILY_CAP,
-    canWithdraw: member?.type === "client" && coins >= WITHDRAW_MIN && today < WITHDRAW_DAILY_CAP,
-    isClient: member?.type === "client", // drivers can't cash out (not_client) — hide the so'm button for them
+    canWithdraw: (member?.type === "client" || member?.type === "driver") && coins >= WITHDRAW_MIN && today < WITHDRAW_DAILY_CAP,
+    isClient: member?.type === "client", // ONLY clients convert cashback→tanga (topup); BOTH can withdraw tanga→kas balance
     topupMin: TOPUP_MIN,
     canTopup: (member?.points ?? 0) >= TOPUP_MIN,
     txns: txns.map((t) => ({ amount: t.amount, kind: t.kind, reason: t.reason, at: t.createdAt.toISOString() })),
