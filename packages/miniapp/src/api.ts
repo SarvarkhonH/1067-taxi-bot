@@ -130,6 +130,8 @@ export const api = {
     request<{ ok: boolean; reason?: string; title?: string; shopName?: string }>("POST", "/api/market/redeem", { code }, 1),
   driverEarnings: () =>
     get<{ todayIn: number; totalIn: number; txns: { amount: number; kind: string; reason: string; at: string }[] }>("/api/driver/earnings"),
+  driverRides: () =>
+    get<{ rides: { id: number; addressName: string; status: string; carModel: string; payment: number; cashback: number; at: string }[] }>("/api/driver/rides"),
   fareConfig: () => get<FareConfigResponse>("/api/fare/config"),
   garage: () => get<GarageResponse>("/api/garage"),
   garageBuy: (car: string) => request<{ ok: boolean; reason?: string; coins: number }>("POST", "/api/garage/buy", { car }, 1),

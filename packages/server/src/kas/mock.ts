@@ -153,6 +153,14 @@ export class KasMockSource implements KasDataSource {
     ].slice(0, size);
   }
 
+  async getRidesByCar(carNumber: string, size = 15): Promise<RideHistoryItem[]> {
+    const car = carNumber.replace(/\s/g, "").toUpperCase() || "70A111AA";
+    return [
+      { id: 9201, addressName: "Koson bozori", status: "delivered", carNumber: car, carModel: "Cobalt", payment: 14000, cashback: 500, at: "2026-06-20T09:30:00.000+0000" },
+      { id: 9200, addressName: "Bunyodkor 12", status: "delivered", carNumber: car, carModel: "Cobalt", payment: 9000, cashback: 500, at: "2026-06-20T08:05:00.000+0000" },
+    ].slice(0, size);
+  }
+
   async getActiveBooking(_phone: string): Promise<ActiveBooking | null> {
     return {
       id: 40400,

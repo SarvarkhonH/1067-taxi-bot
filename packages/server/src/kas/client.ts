@@ -483,6 +483,31 @@ export class KasLiveSource implements KasDataSource {
     }));
   }
 
+  /** Rides DRIVEN by a car. bookingReports is indexed by the CLIENT phone, so a driver's own
+   *  rides aren't reachable by phone — search by the plate and keep only this car's rows. */
+  async getRidesByCar(carNumber: string, size = 15): Promise<RideHistoryItem[]> {
+    try {
+      const car = carNumber.replace(/\s/g, "").toUpperCase();
+      if (car.length < 4) return [];
+      const d = await this.getJson(`api/bookingReports?searchText=${encodeURIComponent(car)}&sort=id&page=0&size=${size}`);
+      const list = (d.bookingReportDtoList as Record<string, unknown>[]) ?? [];
+      return list
+        .map((b) => ({
+          id: Number(b.id ?? 0),
+          addressName: String(b.addressName ?? ""),
+          status: String(b.status ?? ""),
+          carNumber: String(b.carNumber ?? ""),
+          carModel: String(b.carModel ?? ""),
+          payment: num(b.payment),
+          cashback: num(b.clientBonus),
+          at: String(b.date ?? ""),
+        }))
+        .filter((r) => r.carNumber.replace(/\s/g, "").toUpperCase() === car); // only THIS car's rides
+    } catch {
+      return [];
+    }
+  }
+
   /** Ride history (bookingReports — needs the full param set or kas 405s). */
   async getRideHistory(phone: string, size = 10): Promise<RideHistoryItem[]> {
     try {

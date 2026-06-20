@@ -175,6 +175,8 @@ export interface KasDataSource {
   listActiveBookings(): Promise<ActiveBookingLite[]>;
   /** Ride history for a phone (bookingReports, newest first). */
   getRideHistory(phone: string, size?: number): Promise<RideHistoryItem[]>;
+  /** Rides DRIVEN by a car (bookingReports is client-indexed, so search by plate). */
+  getRidesByCar(carNumber: string, size?: number): Promise<RideHistoryItem[]>;
   /** E1: free/online driver map pins (best-effort — drivers with live coords). */
   getDriverPins(): Promise<DriverPin[]>;
   /** Live driver position/identity by car number (the moving pin). */

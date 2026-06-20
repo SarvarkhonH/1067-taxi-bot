@@ -386,6 +386,22 @@ export function createApiServer(opts: ApiOptions = {}) {
     res.json(await getDriverEarnings(memberId));
   });
 
+  // 🚕 Driver's OWN rides (the ones they drove) — by plate, since bookingReports is client-indexed.
+  app.get("/api/driver/rides", requireUser, async (_req, res) => {
+    const memberId = await getMemberId(res.locals.telegramId as string);
+    if (!memberId) {
+      res.status(404).json({ error: "not linked" });
+      return;
+    }
+    const m = await prisma.member.findUnique({ where: { id: memberId }, select: { type: true, carNumber: true } });
+    if (m?.type !== "driver" || !m.carNumber) {
+      res.json({ rides: [] });
+      return;
+    }
+    const { getDataSource } = await import("../kas");
+    res.json({ rides: await getDataSource().getRidesByCar(m.carNumber, 20) });
+  });
+
   // ── 🏪 Bozor: spendable-cashback marketplace (ABSORB MVP — zero cash risk) ──
   app.get("/api/market/shops", requireUser, async (_req, res) => {
     res.json(await listShops());
