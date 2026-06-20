@@ -499,7 +499,7 @@ export function WalletView({ me, onBanner, reload, onBook, onNav }: { me: MeResp
           </div>
         </div>
         <div className="wh-cashback">
-          <span>🚕 Taxi cashback (safarlardan)</span>
+          <span>{me.type === "driver" ? "💼 kas1067 balans (haydovchi)" : "🚕 Taxi cashback (safarlardan)"}</span>
           <b>{formatNumber(cashback)} so'm</b>
         </div>
         {wallet?.isClient && (
