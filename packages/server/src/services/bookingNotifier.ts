@@ -386,17 +386,20 @@ export async function pushBookingUpdates(
         console.error("[garaj] ride-drop failed:", e);
       }
 
-      // 🏺 Ko'zacha — premium currency from REAL rides only (≤8/ride). NOT tanga →
-      // separate ledger, outside the 350 clamp. Gated by feature "kozacha".
+      // 🪙 Garaj tanga from REAL rides only (≤8/ride). ONE currency now: a game faucet
+      // OUTSIDE the 350/ride clamp (grantKozacha → grantCoins, which is NOT clamped).
+      // The key tail is NON-numeric (`g<m>r<b>`) so it can NEVER match the ride-clamp
+      // suffix `:<memberId>:<bookingId>` — this grant must stay outside that aggregate.
+      // Gated by feature "kozacha".
       try {
         const { featureOn } = await import("./featureFlags");
         if (m.rideStartedAt && (await featureOn("kozacha"))) {
           const { grantKozacha } = await import("./garajService");
           const mins = Math.min(8, Math.floor((Date.now() - m.rideStartedAt.getTime()) / 60_000));
-          if (mins > 0) await resilient("kozacha", () => grantKozacha(m.id, mins, "ride", `kozacha:ride:${m.id}:${m.lastBookingId}`));
+          if (mins > 0) await resilient("garaj_tanga", () => grantKozacha(m.id, mins, "ride", `garajtanga:ride:g${m.id}r${m.lastBookingId}`));
         }
       } catch (e) {
-        console.error("[kozacha] earn failed:", e);
+        console.error("[garaj tanga] earn failed:", e);
       }
 
       // 🥇 tier-based driver rebate (replaces the flat bonus; weekly tier job

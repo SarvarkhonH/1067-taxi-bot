@@ -195,29 +195,31 @@ async function main(): Promise<void> {
   const fcap = await flipCar(m.id, tracker.id, "FAMILY_DRIVER");
   ok(!fcap.ok && fcap.reason === "daily_cap", `flip blocked by daily cap (B4 atomic): ${fcap.reason}`);
 
-  // 11b. Ko'zacha: separate currency — ride-earned, idempotent, never touches tanga
+  // 11b. Garaj currency = TANGA now (ONE currency): grantKozacha is a game faucet that
+  // moves Member.coins via a CoinTxn (kind "garaj"), idempotent per key. spendKozacha
+  // decrements coins atomically (never below 0) and is insufficient-rejected.
   const tangaBeforeKoz = await getCoins(m.id);
-  const gk = await grantKozacha(m.id, 5, "ride", `kozacha:test:${m.id}:1`);
-  const meta1 = await prisma.memberGarajMeta.findUnique({ where: { memberId: m.id } });
-  ok(gk === 5 && (meta1?.kozachaBalance ?? 0) >= 5, `kozacha earned (+5, balance ${meta1?.kozachaBalance})`);
-  ok((await getCoins(m.id)) === tangaBeforeKoz, `kozacha earn does NOT touch tanga (separate ledger)`);
-  await grantKozacha(m.id, 5, "ride", `kozacha:test:${m.id}:1`);
-  const meta2 = await prisma.memberGarajMeta.findUnique({ where: { memberId: m.id } });
-  ok((meta2?.kozachaBalance ?? 0) === (meta1?.kozachaBalance ?? 0), `kozacha grant idempotent (same key → no double)`);
-  const spent = await spendKozachaIdempotent(m.id, 3, "shop", `kozspend:${m.id}:1`);
-  const meta3 = await prisma.memberGarajMeta.findUnique({ where: { memberId: m.id } });
-  ok(spent && (meta3?.kozachaBalance ?? 0) === (meta2?.kozachaBalance ?? 0) - 3, `kozacha spent -3`);
-  const over = await spendKozachaIdempotent(m.id, 9999, "shop", `kozspend:${m.id}:over`);
-  ok(!over, `kozacha overspend rejected (never negative)`);
+  const gk = await grantKozacha(m.id, 5, "ride", `garajtanga:test:${m.id}:1`);
+  ok(gk === 5 && (await getCoins(m.id)) === tangaBeforeKoz + 5, `garaj grant credits tanga (+5, coins ${tangaBeforeKoz}→${await getCoins(m.id)})`);
+  ok((await prisma.coinTxn.count({ where: { idempotencyKey: `garajtanga:test:${m.id}:1` } })) === 1, `garaj grant wrote exactly 1 CoinTxn (real ledger, kind garaj)`);
+  const gkDup = await grantKozacha(m.id, 5, "ride", `garajtanga:test:${m.id}:1`);
+  ok(gkDup === 0 && (await getCoins(m.id)) === tangaBeforeKoz + 5, `garaj grant idempotent (same key → no double credit)`);
+  const tangaBeforeSpend = await getCoins(m.id);
+  const spent = await spendKozachaIdempotent(m.id, 3, "shop", `garajspend:${m.id}:1`);
+  ok(spent && (await getCoins(m.id)) === tangaBeforeSpend - 3, `garaj spend -3 tanga (atomic CoinTxn decrement)`);
+  const spentDup = await spendKozachaIdempotent(m.id, 3, "shop", `garajspend:${m.id}:1`);
+  ok(spentDup && (await getCoins(m.id)) === tangaBeforeSpend - 3, `garaj spend idempotent (same key → no second debit)`);
+  const over = await spendKozachaIdempotent(m.id, 9999999, "shop", `garajspend:${m.id}:over`);
+  ok(!over && (await getCoins(m.id)) === tangaBeforeSpend - 3, `garaj overspend rejected (never negative)`);
 
-  // 11b2. Ko'zacha shop — buy a flip boost on the tracker (atomic, apply-once)
-  await grantKozacha(m.id, 20, "ride", `kozacha:test:${m.id}:2`);
+  // 11b2. Garaj shop — buy a flip boost on the tracker (atomic tanga sink, apply-once)
   const rqbBefore = (await prisma.garajCar.findUnique({ where: { id: tracker.id } }))?.repairQualityBonus ?? 1;
+  const tangaBeforeBuy = await getCoins(m.id);
   const buy = await garajKozachaBuy(m.id, "FLIP_BOOST_5", tracker.id);
   const rqbAfter = (await prisma.garajCar.findUnique({ where: { id: tracker.id } }))?.repairQualityBonus ?? 1;
-  ok(buy.ok && rqbAfter > rqbBefore, `kozacha shop: flip boost applied (RQB ${rqbBefore}→${rqbAfter.toFixed(2)})`);
+  ok(buy.ok && rqbAfter > rqbBefore && (await getCoins(m.id)) === tangaBeforeBuy - 15, `garaj shop: flip boost applied + 15 tanga spent (RQB ${rqbBefore}→${rqbAfter.toFixed(2)})`);
   const buy2 = await garajKozachaBuy(m.id, "FLIP_BOOST_5", tracker.id);
-  ok(!buy2.ok && buy2.reason === "already", `kozacha shop buy idempotent (one boost per car)`);
+  ok(!buy2.ok && buy2.reason === "already" && (await getCoins(m.id)) === tangaBeforeBuy - 15, `garaj shop buy idempotent (one boost per car, no second debit)`);
 
   // 11d. W4 Bazaar — list (seller m) → buy (member2): atomic, 3% tax, self-trade block
   const m2 = await prisma.member.create({ data: { type: "client", kasId: `${TAG}-2`, fullName: "Garaj Buyer", phone: "+998900006002", trips: 5 } });

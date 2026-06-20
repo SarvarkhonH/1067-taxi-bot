@@ -256,7 +256,6 @@ export function GarajShell({ onClose, initial }: { onClose: () => void; initial?
         <div className="gz-purse">
           <button className="gz-back" onClick={() => { haptic(); setMuseumOpen(true); }} aria-label="Muzey">🏛</button>
           <span className="gz-pill">🪙 <CoinCounter value={coins} /></span>
-          <span className="gz-pill koz">🏺 {st?.kozacha ?? 0}</span>
         </div>
       </div>
 
@@ -704,11 +703,11 @@ export function GarajShell({ onClose, initial }: { onClose: () => void; initial?
                 })}
               </div>
 
-              <div className="gz-sec-title">🏺 Ko'zacha do'kon ({st?.kozacha ?? 0})</div>
+              <div className="gz-sec-title">🪙 Do'kon — sotuvni oshirish</div>
               <div className="gz-buyers">
                 {KOZACHA_SHOP.map((it) => (
                   <Chip key={it.code} onClick={() => kozBuy(it.code, car.id)}>
-                    {it.name} · 🏺{it.cost}
+                    {it.name} · 🪙{it.cost}
                   </Chip>
                 ))}
               </div>

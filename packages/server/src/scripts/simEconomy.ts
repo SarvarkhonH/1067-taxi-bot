@@ -160,7 +160,7 @@ function main(): void {
   for (const code of Object.keys(MAKE_BASE)) {
     const basePrice = MAKE_BASE[code]!;
     const acquireCost = Math.round(basePrice * 0.65);
-    const repairSpent = Math.round(basePrice * 2.0); // heavy Kozacha-funded spend (worst case)
+    const repairSpent = Math.round(basePrice * 2.0); // heavy tanga-funded spend (worst case)
     const cap = Math.min(basePrice * 2.5, (acquireCost + repairSpent) * 3.0 + basePrice * 0.5);
     for (const style of FSTYLES) {
       for (const buyer of FBUYERS) {
@@ -185,7 +185,7 @@ function main(): void {
   console.log("");
   console.log(`🏆 FLIP ECONOMY — max flip grant ${maxFlipGrant} · worst DAMAS grant ${worstDamasGrant} (cap ${damasCap}) · daily flip ≤ ${dailyFlipCapped}`);
   ok(flipCapViolations === 0, `flip grant ≤ MAX_SELL_PRICE across all car×style×buyer×condition + max prestige (0 violations)`);
-  ok(worstDamasGrant <= damasCap, `cheap-car exploit closed: heavy-Kozacha DAMAS grant ${worstDamasGrant} ≤ 2.5× base ${damasCap} (audit M4 min-cap)`);
+  ok(worstDamasGrant <= damasCap, `cheap-car exploit closed: heavy-spend DAMAS grant ${worstDamasGrant} ≤ 2.5× base ${damasCap} (audit M4 min-cap)`);
   ok(dailyFlipCapped <= FLIP_DAILY_CAP, `daily flip emission ${dailyFlipCapped} ≤ FLIP_DAILY_CAP ${FLIP_DAILY_CAP}`);
 
   // ── 🏆 W5 offline-box proof: passive payout NEVER exceeds the daily cap, even at

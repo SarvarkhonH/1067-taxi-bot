@@ -13,7 +13,7 @@ export const FEATURES = [
   "tolqin", // V4 Yashil to'lqin skill game
   // GARAJ v2 — deep car-restoration game (replaces old idle garage), ships dark:
   "garajx", // master flag for the new full-screen GARAJ game
-  "kozacha", // 🏺 Ko'zacha second currency (real-ride only)
+  "kozacha", // 🪙 Garaj ride→tanga faucet (real-ride only; ONE currency now)
 ] as const;
 export type FeatureName = (typeof FEATURES)[number];
 

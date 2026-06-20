@@ -291,7 +291,7 @@ export async function getGarajState(memberId: number): Promise<GarajStateRespons
   return {
     enabled,
     coins,
-    kozacha: meta?.kozachaBalance ?? 0,
+    kozacha: coins, // ONE currency: the garaj "purse" IS the player's tanga wallet now
     garageTier: garageTierFromRep(rep),
     reputationScore: rep,
     reputationName: reputationTier(rep),
@@ -687,46 +687,42 @@ export async function garajOnboardFinish(memberId: number, telegramUserId: strin
   return { ok: true, grant: g.skipped === "duplicate" ? 0 : 80, coins: await getCoins(memberId) };
 }
 
-// ── 🏺 Ko'zacha (second currency) — earn from rides, spend in the shop. SEPARATE
-// from tanga: writes KozachaTxn + MemberGarajMeta.kozachaBalance only, NEVER CoinTxn,
-// so it can never affect the 350/ride tanga clamp or be withdrawn.
+// ── 🪙 Garaj currency (ONE currency: tanga) — earn from rides, spend in the shop.
+// These were the old "ko'zacha" second-currency faucets/sinks; they now move REAL
+// tanga (Member.coins + CoinTxn, kind "garaj"). grantKozacha grants via grantCoins
+// (a game faucet OUTSIDE the 350/ride clamp — that clamp lives only in grantRideCoins,
+// audit M-emission). The function names are kept to avoid churn at the call sites.
 export async function grantKozacha(memberId: number, amount: number, reason: string, idempotencyKey: string): Promise<number> {
   amount = Math.floor(amount);
   if (amount <= 0) return 0;
-  try {
-    await prisma.$transaction(async (tx) => {
-      await tx.kozachaTxn.create({ data: { memberId, amount, reason, idempotencyKey } }); // @unique key → P2002 on dup
-      await tx.memberGarajMeta.upsert({ where: { memberId }, create: { memberId, kozachaBalance: amount }, update: { kozachaBalance: { increment: amount } } });
-    });
-    return amount;
-  } catch (e) {
-    if ((e as { code?: string } | null)?.code === "P2002") return 0; // already granted for this key
-    throw e;
-  }
+  const g = await grantCoins(memberId, amount, "garaj", reason, idempotencyKey); // idempotent via the CoinTxn unique key
+  return g.ok ? amount : 0; // 0 on a duplicate (already granted for this key) or non-positive
 }
 
 export async function spendKozachaIdempotent(memberId: number, amount: number, reason: string, idempotencyKey: string): Promise<boolean> {
   amount = Math.floor(amount);
   if (amount <= 0) return false;
   return withMemberLock(memberId, async () => {
-    const dup = await prisma.kozachaTxn.findUnique({ where: { idempotencyKey } });
+    const dup = await prisma.coinTxn.findUnique({ where: { idempotencyKey } });
     if (dup) return true;
     try {
       return await prisma.$transaction(async (tx) => {
-        const upd = await tx.memberGarajMeta.updateMany({ where: { memberId, kozachaBalance: { gte: amount } }, data: { kozachaBalance: { decrement: amount } } });
+        // never below 0: guarded by `coins >= amount` in the updateMany
+        const upd = await tx.member.updateMany({ where: { id: memberId, coins: { gte: amount } }, data: { coins: { decrement: amount } } });
         if (upd.count === 0) return false;
-        await tx.kozachaTxn.create({ data: { memberId, amount: -amount, reason, idempotencyKey } });
+        await tx.coinTxn.create({ data: { memberId, amount: -amount, kind: "garaj", reason, idempotencyKey } });
         return true;
       });
     } catch (e) {
-      if ((e as { code?: string } | null)?.code === "P2002") return true;
+      if ((e as { code?: string } | null)?.code === "P2002") return true; // concurrent dup raced past the findUnique → treat as success
       throw e;
     }
   });
 }
 
-// ── Ko'zacha shop buy — spend kozacha to boost a car's flip price. Atomic + apply-once
-// (decrement + ledger + boost in ONE tx, idempotent per item+car via the unique key).
+// ── Garaj shop buy — spend tanga to boost a car's flip price. Atomic + apply-once
+// (decrement coins + CoinTxn ledger + boost in ONE tx, idempotent per item+car via the
+// unique key). Tanga sink (kind "garaj"); the flip CAP still bounds the boosted output.
 export async function garajKozachaBuy(memberId: number, itemCode: string, garajCarId: number): Promise<GarajActionResult> {
   if (!(await garajEnabledFor(memberId))) return { ok: false, reason: "off" };
   const item = KOZACHA_SHOP.find((i) => i.code === itemCode);
@@ -735,17 +731,18 @@ export async function garajKozachaBuy(memberId: number, itemCode: string, garajC
     const car = await prisma.garajCar.findFirst({ where: { id: garajCarId, memberId, soldAt: null } });
     if (!car) return { ok: false, reason: "not_found" };
     const key = `kozbuy:${itemCode}:${garajCarId}`;
-    if (await prisma.kozachaTxn.findUnique({ where: { idempotencyKey: key } })) return { ok: false, reason: "already" };
+    if (await prisma.coinTxn.findUnique({ where: { idempotencyKey: key } })) return { ok: false, reason: "already" };
     const newRQB = Math.max(REPAIR_QUALITY_MIN, Math.min(REPAIR_QUALITY_MAX, car.repairQualityBonus * item.factor));
     try {
       const done = await prisma.$transaction(async (tx) => {
-        const upd = await tx.memberGarajMeta.updateMany({ where: { memberId, kozachaBalance: { gte: item.cost } }, data: { kozachaBalance: { decrement: item.cost } } });
+        // never below 0: guarded by `coins >= item.cost`
+        const upd = await tx.member.updateMany({ where: { id: memberId, coins: { gte: item.cost } }, data: { coins: { decrement: item.cost } } });
         if (upd.count === 0) return false;
-        await tx.kozachaTxn.create({ data: { memberId, amount: -item.cost, reason: `kozshop:${itemCode}`, idempotencyKey: key } });
+        await tx.coinTxn.create({ data: { memberId, amount: -item.cost, kind: "garaj", reason: `kozshop:${itemCode}`, idempotencyKey: key } });
         await tx.garajCar.update({ where: { id: garajCarId }, data: { repairQualityBonus: newRQB } });
         return true;
       });
-      return done ? { ok: true } : { ok: false, reason: "insufficient_kozacha" };
+      return done ? { ok: true } : { ok: false, reason: "insufficient" };
     } catch (e) {
       if ((e as { code?: string } | null)?.code === "P2002") return { ok: false, reason: "already" };
       throw e;
