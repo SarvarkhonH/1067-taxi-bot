@@ -630,6 +630,42 @@ export function createBot(): Bot {
       .catch(() => undefined);
   });
 
+  // 🪙 Pay the ride fare with tanga from the finish card → straight to the driver (driver gets TANGA).
+  // Reuses the SAME closed-loop tip transfer (no new money logic): rider's tanga → driver member id.
+  bot.callbackQuery(/^payfare:(\d+):(\d+)$/, async (ctx) => {
+    const riderId = await getMemberId(String(ctx.from.id));
+    if (!riderId) {
+      await ctx.answerCallbackQuery({ text: "Avval raqamingizni ulang 🙏", show_alert: true }).catch(() => undefined);
+      return;
+    }
+    const driverId = Number(ctx.match[1]);
+    const amount = Number(ctx.match[2]);
+    const { transfer } = await import("../services/transferService");
+    const r = await transfer(riderId, "", amount, { kind: "tip", toMemberId: driverId });
+    if (r.ok) {
+      await ctx.answerCallbackQuery({ text: `✅ Yo'l haqi to'landi 🚕`, show_alert: true }).catch(() => undefined);
+      await ctx.editMessageReplyMarkup({ reply_markup: undefined }).catch(() => undefined);
+      await ctx.reply(`✅ Yo'l haqi <b>${formatNumber(amount)} tanga</b> haydovchiga to'landi 🚕`, { parse_mode: "HTML" }).catch(() => undefined);
+      // notify the driver
+      const tg = await prisma.telegramUser.findUnique({ where: { memberId: driverId } });
+      if (tg) {
+        await ctx.api
+          .sendMessage(tg.id, `🪙 Mijoz yo'l haqini tanga bilan to'ladi: <b>+${formatNumber(r.received)} tanga</b> 🚗\n«🚗 Haydovchi paneli»da ko'ring.`, { parse_mode: "HTML" })
+          .catch(() => undefined);
+      }
+    } else {
+      const msgs: Record<string, string> = {
+        insufficient: "Tanga yetarli emas",
+        self: "O'zingizga to'lab bo'lmaydi",
+        account_too_new: "Hisobingiz hali juda yangi (48 soat kutiladi)",
+        daily_sent_cap: "Bugungi o'tkazma limiti tugadi",
+        daily_received_cap: "Haydovchining bugungi limiti to'ldi",
+        ring: "Bu amal hozircha bloklangan",
+      };
+      await ctx.answerCallbackQuery({ text: msgs[r.reason ?? ""] ?? "To'lanmadi", show_alert: true }).catch(() => undefined);
+    }
+  });
+
   bot.hears("🎖 Nishonlar", async (ctx) => {
     const me = await getMe(String(ctx.from!.id));
     if (!me) {

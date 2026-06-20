@@ -1042,6 +1042,13 @@ export function createApiServer(opts: ApiOptions = {}) {
     const b = (req.body ?? {}) as { memberId?: number; amount?: number; reason?: string };
     res.json(await adminGrantCoins(Math.floor(Number(b.memberId ?? 0)), Number(b.amount ?? 0), String(b.reason ?? ""), res.locals.telegramId as string));
   });
+  // 💼 Move an account's OWN tanga → their OWN kas balance, NO daily cap (admin-trusted bypass of the
+  // 50 000/day user withdraw cap). Audited + refund-on-kas-failure (see adminMoveToBalance).
+  app.post("/api/admin/move-to-balance", requireAdmin, requireOwner, rateLimit(10), async (req, res) => {
+    const { adminMoveToBalance } = await import("../services/adminOps");
+    const b = (req.body ?? {}) as { memberId?: number; amount?: number };
+    res.json(await adminMoveToBalance(Math.floor(Number(b.memberId ?? 0)), Number(b.amount ?? 0), res.locals.telegramId as string));
+  });
 
   // 👑 user management ("boshqaruv"): search · re-link/unlink · link-code · withdrawals
   app.get("/api/admin/users", requireAdmin, async (req, res) => {

@@ -220,6 +220,52 @@ export async function adminGrantCoins(memberId: number, amount: number, reason: 
   return { ok: true, message: `✅ ${member.fullName} [${member.type}]: −${ded} tanga (balans ${member.coins - ded})` };
 }
 
+// 💼 Admin: move an account's OWN tanga → their OWN kas balance, with NO daily cap.
+// The user-facing withdraw has a 50 000/day per-user cap (anti-farm); the owner legitimately
+// needs to settle a real user's full tanga in one go, so this ADMIN-TRUSTED path bypasses that
+// cap. Money-safe by construction: deduct atomically FIRST (never below 0, audited), then write
+// kas — and if the kas write fails/throws, REFUND the exact amount (audited) so tanga is never lost.
+export async function adminMoveToBalance(memberId: number, amount: number, adminId: string): Promise<AdminActionResult> {
+  const amt = Math.floor(Number(amount));
+  if (!Number.isFinite(amt) || amt < 1 || amt > 1_000_000) return { ok: false, message: "Noto'g'ri summa (1..1000000)" };
+
+  const member = await prisma.member.findUnique({
+    where: { id: memberId },
+    select: { id: true, type: true, fullName: true, coins: true, kasId: true, carNumber: true, phone: true },
+  });
+  if (!member) return { ok: false, message: "Akkaunt topilmadi" };
+  if (member.type === "driver" ? member.kasId == null : !member.phone) {
+    return { ok: false, message: member.type === "driver" ? "Haydovchi kas-id yo'q" : "Telefon raqami yo'q" };
+  }
+  const last4 = adminId.slice(-4);
+
+  // ── atomic deduct: never below 0 (the row-level guard is the whole safety) ──
+  const dec = await prisma.member.updateMany({ where: { id: memberId, coins: { gte: amt } }, data: { coins: { decrement: amt } } });
+  if (dec.count === 0) return { ok: false, message: "Tanga yetarli emas" };
+  await prisma.coinTxn.create({ data: { memberId, amount: -amt, kind: "admin_coin", reason: `Admin: balansga ko'chirdi (by ${last4})` } });
+
+  // ── kas write: driver → own driver balance; client → own cashback bonus ──
+  const refund = async (): Promise<void> => {
+    await prisma.member.update({ where: { id: memberId }, data: { coins: { increment: amt } } });
+    await prisma.coinTxn.create({ data: { memberId, amount: amt, kind: "admin_coin", reason: "balansga ko'chirish amalga oshmadi — qaytarildi" } });
+  };
+  try {
+    const res =
+      member.type === "driver"
+        ? await getDataSource().addDriverPayment(Number(member.kasId), member.carNumber ?? "", amt, "Admin balans")
+        : await getDataSource().addClientBonus(member.phone!, amt);
+    if (!res.ok) {
+      await refund();
+      return { ok: false, message: `kas xato: status ${"status" in res ? res.status : "?"}` };
+    }
+    const where = member.type === "driver" ? `balans: ${(res as { balance: number | null }).balance}` : `${(res as { oldBonus: number; newBonus: number }).oldBonus} → ${(res as { oldBonus: number; newBonus: number }).newBonus}`;
+    return { ok: true, message: `✅ ${member.fullName}: ${amt} tanga → balans (${where})` };
+  } catch (e) {
+    await refund().catch(() => undefined);
+    return { ok: false, message: `kas xato: ${e instanceof Error ? e.message.slice(0, 80) : "xatolik"}` };
+  }
+}
+
 // ─── 📣 announce (admin broadcast) ──────────────────────────────────────────
 export async function adminAnnounce(
   text: string,

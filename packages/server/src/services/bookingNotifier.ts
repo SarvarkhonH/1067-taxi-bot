@@ -539,10 +539,14 @@ export async function pushBookingUpdates(
       // at the end next to the bonus. Read-only (no money path); matched to THIS booking by id
       // and omitted gracefully if kas hasn't posted the payment yet.
       let fareLine = "";
+      let fareAmount = 0; // raw fare → powers the one-tap "pay the fare with tanga" button below
       try {
         const hist = await resilient("fare", () => ds.getRideHistory(m.phone!, 6));
         const done = hist?.find((h) => h.id === bid);
-        if (done && done.payment > 0) fareLine = `\n🧾 Yo'l haqi: <b>${formatNumber(done.payment)} so'm</b>`;
+        if (done && done.payment > 0) {
+          fareAmount = Math.floor(done.payment);
+          fareLine = `\n🧾 Yo'l haqi: <b>${formatNumber(done.payment)} so'm</b>`;
+        }
       } catch (e) {
         console.error("[fare] lookup failed:", e instanceof Error ? e.message : e);
       }
@@ -559,14 +563,19 @@ export async function pushBookingUpdates(
         cardSent = true; // marker exists → card already sent on a prior (transient) pass
       }
       if (!cardSent) {
-        const tipKb = driverId
-          ? new InlineKeyboard()
-              .text("🙏 500", `tip:${driverId}:500`)
-              .text("🙏 1 000", `tip:${driverId}:1000`)
-              .text("🙏 2 000", `tip:${driverId}:2000`)
-              .row()
-              .text("🔁 Yana 1067", "bk:now")
-          : new InlineKeyboard().text("🔁 Yana 1067", "bk:now");
+        const tipKb = new InlineKeyboard();
+        // 🪙 one-tap "pay the fare with tanga" → reuses the tip transfer (rider's tanga → driver as tanga).
+        // Only when BOTH the driver member id AND the fare are known (graceful: no button otherwise).
+        const canPayFare = driverId != null && fareAmount > 0;
+        if (canPayFare) tipKb.text(`🪙 Yo'l haqini to'la (${formatNumber(fareAmount)})`, `payfare:${driverId}:${fareAmount}`).row();
+        if (driverId) {
+          tipKb
+            .text("🙏 500", `tip:${driverId}:500`)
+            .text("🙏 1 000", `tip:${driverId}:1000`)
+            .text("🙏 2 000", `tip:${driverId}:2000`)
+            .row();
+        }
+        tipKb.text("🔁 Yana 1067", "bk:now");
         await bot.api
           .sendMessage(
             chatId,
@@ -578,7 +587,7 @@ export async function pushBookingUpdates(
               streakLine +
               questLine +
               "\n🎯 Vazifalaringizni «🎁 Bonuslar»da tekshiring." +
-              (driverId ? "\n\n🚗 Haydovchiga tanga bilan rahmat aytasizmi?" : ""),
+              (canPayFare ? "\n\n🪙 Yo'l haqini tanga bilan to'lashingiz mumkin 👇" : driverId ? "\n\n🚗 Haydovchiga tanga bilan rahmat aytasizmi?" : ""),
             { parse_mode: "HTML", reply_markup: tipKb },
           )
           .catch(() => undefined);

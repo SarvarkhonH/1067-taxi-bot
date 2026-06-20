@@ -838,6 +838,13 @@ function BoshqaruvView() {
     const r = await adminApi.grantMemberCoins(memberId, Number(a), reason).catch(() => ({ ok: false, message: "net" }) as { ok: boolean; message?: string });
     await done(r.ok ? "✅ " + (r.message ?? "bajarildi") : "❌ " + (r.message ?? ""));
   };
+  // 💼 move this account's OWN tanga → their OWN kas balance, with NO daily cap (admin bypass).
+  const moveBal = async (memberId: number) => {
+    const a = window.prompt("Balansga necha tanga?");
+    if (a === null) return;
+    const r = await adminApi.moveToBalance(memberId, Number(a)).catch(() => ({ ok: false, message: "net" }) as { ok: boolean; message?: string });
+    await done(r.ok ? (r.message ?? "✅ bajarildi") : "❌ " + (r.message ?? ""));
+  };
 
   return (
     <>
@@ -863,6 +870,7 @@ function BoshqaruvView() {
               {u.telegram && <button onClick={() => unlink(u.telegram!.id)}>🔌 Uzish</button>}
               {u.phone && <button onClick={() => genCode(u.phone!)}>🔑 Kod</button>}
               <button onClick={() => adjust(u.id)}>🪙 Tanga ±</button>
+              <button onClick={() => moveBal(u.id)}>💼 → Balans</button>
             </div>
           </div>
         ))}
