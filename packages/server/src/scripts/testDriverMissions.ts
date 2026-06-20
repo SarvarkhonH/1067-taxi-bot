@@ -3,7 +3,7 @@
 // the GLOBAL drvmissions AppState + restores it; TAG'd members cleaned. Runs KAS_MODE=mock (2 rides/day).
 import "../env";
 import { prisma } from "../db";
-import { getDriverMissions, claimDriverMission, adminAddMission, adminToggleMission } from "../services/driverMissionService";
+import { getDriverMissions, claimDriverMission, adminAddMission, adminToggleMission, adminEditMission, adminDeleteMission, adminListMissions } from "../services/driverMissionService";
 
 const TAG = "DRVMISSION";
 let failed = 0;
@@ -58,6 +58,17 @@ async function main(): Promise<void> {
 
   // 7. admin toggle off
   ok((await adminToggleMission(add.id!, false)).ok, `admin toggle off`);
+
+  // 8. edit changes title/target/reward
+  ok((await adminEditMission(add.id!, "Edited", 9, 999)).ok, `edit mission`);
+  const edited = (await adminListMissions()).find((x) => x.id === add.id);
+  ok(edited?.title === "Edited" && edited?.target === 9 && edited?.reward === 999, `edit applied (${edited?.title}/${edited?.target}/${edited?.reward})`);
+  ok(!(await adminEditMission(add.id!, "X", 1, 999999)).ok, `edit reward cap enforced`);
+
+  // 9. delete removes it
+  ok((await adminDeleteMission(add.id!)).ok, `delete mission`);
+  ok(!(await adminListMissions()).some((x) => x.id === add.id), `mission gone after delete`);
+  ok((await adminDeleteMission("nope")).reason === "not_found", `delete missing → not_found`);
 
   await cleanup();
   if (snapshot) await prisma.appState.upsert({ where: { key: "drvmissions" }, create: { key: "drvmissions", value: snapshot.value }, update: { value: snapshot.value } });

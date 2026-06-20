@@ -142,6 +142,9 @@ export const adminApi = {
     postJson<{ ok: boolean; reason?: string; id?: string }>("/api/admin/driver-missions", { title, target, reward }),
   toggleDriverMission: (id: string, active: boolean) =>
     postJson<{ ok: boolean; reason?: string }>("/api/admin/driver-missions/toggle", { id, active }),
+  editDriverMission: (id: string, title: string, target: number, reward: number) =>
+    postJson<{ ok: boolean; reason?: string }>("/api/admin/driver-missions/edit", { id, title, target, reward }),
+  deleteDriverMission: (id: string) => postJson<{ ok: boolean; reason?: string }>("/api/admin/driver-missions/delete", { id }),
 };
 
 export interface DriverMissionRow {

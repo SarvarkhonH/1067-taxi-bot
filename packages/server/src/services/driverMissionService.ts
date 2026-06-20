@@ -29,10 +29,10 @@ function todayKoson(): string {
 
 export async function loadMissions(): Promise<DrvMission[]> {
   const row = await prisma.appState.findUnique({ where: { key: KEY } });
-  if (!row?.value) return DEFAULTS;
+  if (!row?.value) return DEFAULTS; // never configured → seed sensible defaults
   try {
     const parsed = JSON.parse(row.value) as DrvMission[];
-    return Array.isArray(parsed) && parsed.length ? parsed : DEFAULTS;
+    return Array.isArray(parsed) ? parsed : DEFAULTS; // allow an intentionally-empty list (admin deleted all)
   } catch {
     return DEFAULTS;
   }
@@ -101,5 +101,24 @@ export async function adminToggleMission(id: string, active: boolean): Promise<{
   if (!m) return { ok: false, reason: "not_found" };
   m.active = active;
   await saveMissions(ms);
+  return { ok: true };
+}
+export async function adminEditMission(id: string, title: string, target: number, reward: number): Promise<{ ok: boolean; reason?: string }> {
+  if (!title || target <= 0) return { ok: false, reason: "bad_input" };
+  if (reward <= 0 || reward > MAX_REWARD) return { ok: false, reason: "bad_reward" };
+  const ms = await loadMissions();
+  const m = ms.find((x) => x.id === id);
+  if (!m) return { ok: false, reason: "not_found" };
+  m.title = title.slice(0, 40);
+  m.target = Math.floor(target);
+  m.reward = Math.floor(reward);
+  await saveMissions(ms);
+  return { ok: true };
+}
+export async function adminDeleteMission(id: string): Promise<{ ok: boolean; reason?: string }> {
+  const ms = await loadMissions();
+  const next = ms.filter((x) => x.id !== id);
+  if (next.length === ms.length) return { ok: false, reason: "not_found" };
+  await saveMissions(next);
   return { ok: true };
 }

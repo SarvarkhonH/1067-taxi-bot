@@ -682,6 +682,7 @@ function MembersTab({ type }: { type: "driver" | "client" }) {
 // 👑 user management ("boshqaruv"): search → accounts → re-link/unlink/code/coin-adjust + withdrawals
 function DriverMissionsView() {
   const [missions, setMissions] = useState<DriverMissionRow[] | null>(null);
+  const [editingId, setEditingId] = useState<string | null>(null);
   const [title, setTitle] = useState("");
   const [target, setTarget] = useState("");
   const [reward, setReward] = useState("");
@@ -692,21 +693,41 @@ function DriverMissionsView() {
     load();
   }, []);
 
-  const add = async () => {
+  const reset = () => {
+    setEditingId(null);
+    setTitle("");
+    setTarget("");
+    setReward("");
+  };
+  const submit = async () => {
     const t = Number(target);
     const r = Number(reward);
     if (!title.trim() || t <= 0 || r <= 0) {
       setMsg("⚠️ Nom, safar soni va tanga to'g'ri bo'lsin");
       return;
     }
-    const res = await adminApi.addDriverMission(title.trim(), t, r).catch(() => ({ ok: false, reason: "net" }));
-    setMsg(res.ok ? "✅ Topshiriq qo'shildi" : "❌ " + (res.reason ?? ""));
+    const res = editingId
+      ? await adminApi.editDriverMission(editingId, title.trim(), t, r).catch(() => ({ ok: false, reason: "net" }))
+      : await adminApi.addDriverMission(title.trim(), t, r).catch(() => ({ ok: false, reason: "net" }));
+    setMsg(res.ok ? (editingId ? "✅ Saqlandi" : "✅ Qo'shildi") : "❌ " + (res.reason ?? ""));
     if (res.ok) {
-      setTitle("");
-      setTarget("");
-      setReward("");
+      reset();
       load();
     }
+  };
+  const startEdit = (m: DriverMissionRow) => {
+    setEditingId(m.id);
+    setTitle(m.title);
+    setTarget(String(m.target));
+    setReward(String(m.reward));
+    setMsg("✏️ Tahrirlanmoqda…");
+  };
+  const del = async (m: DriverMissionRow) => {
+    if (!window.confirm(`"${m.title}" o'chirilsinmi?`)) return;
+    await adminApi.deleteDriverMission(m.id).catch(() => undefined);
+    if (editingId === m.id) reset();
+    setMsg("🗑 O'chirildi");
+    load();
   };
   const toggle = async (id: string, active: boolean) => {
     await adminApi.toggleDriverMission(id, active).catch(() => undefined);
@@ -716,13 +737,14 @@ function DriverMissionsView() {
   return (
     <>
       <section className="panel">
-        <div className="panel-title">🎯 Yangi haydovchi topshirig&apos;i</div>
+        <div className="panel-title">{editingId ? "✏️ Topshiriqni tahrirlash" : "🎯 Yangi haydovchi topshirig'i"}</div>
         <p className="muted" style={{ marginTop: 0 }}>Kunlik safar soniga bog&apos;liq. Mukofot = tanga, haydovchi kuniga bir marta oladi.</p>
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
           <input style={{ flex: "2 1 160px", padding: "8px 10px" }} value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Nom: Bugun 15 safar" />
           <input style={{ flex: "1 1 80px", padding: "8px 10px" }} type="number" value={target} onChange={(e) => setTarget(e.target.value)} placeholder="Safar" />
           <input style={{ flex: "1 1 80px", padding: "8px 10px" }} type="number" value={reward} onChange={(e) => setReward(e.target.value)} placeholder="Tanga" />
-          <button onClick={add}>➕ Qo&apos;shish</button>
+          <button onClick={submit}>{editingId ? "💾 Saqlash" : "➕ Qo'shish"}</button>
+          {editingId && <button onClick={reset}>✖️ Bekor</button>}
         </div>
         {msg && <div className="muted" style={{ marginTop: 8 }}>{msg}</div>}
       </section>
@@ -753,8 +775,10 @@ function DriverMissionsView() {
                   </td>
                   <td style={{ textAlign: "center" }}>{m.target}</td>
                   <td style={{ textAlign: "center" }}>{m.reward.toLocaleString("ru-RU")}</td>
-                  <td style={{ textAlign: "right" }}>
-                    <button onClick={() => toggle(m.id, !m.active)}>{m.active ? "O'chir" : "Yoq"}</button>
+                  <td style={{ textAlign: "right", whiteSpace: "nowrap" }}>
+                    <button onClick={() => startEdit(m)} title="Tahrirlash">✏️</button>{" "}
+                    <button onClick={() => toggle(m.id, !m.active)} title={m.active ? "To'xtatish" : "Yoqish"}>{m.active ? "⏸" : "▶️"}</button>{" "}
+                    <button onClick={() => del(m)} title="O'chirish">🗑</button>
                   </td>
                 </tr>
               ))}

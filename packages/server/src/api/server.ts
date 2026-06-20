@@ -1081,6 +1081,15 @@ export function createApiServer(opts: ApiOptions = {}) {
     const { adminToggleMission } = await import("../services/driverMissionService");
     res.json(await adminToggleMission(String(b?.id ?? ""), !!b?.active));
   });
+  app.post("/api/admin/driver-missions/edit", requireAdmin, requireOwner, rateLimit(20), async (req, res) => {
+    const b = req.body as { id?: string; title?: string; target?: number; reward?: number };
+    const { adminEditMission } = await import("../services/driverMissionService");
+    res.json(await adminEditMission(String(b?.id ?? ""), String(b?.title ?? ""), Math.floor(Number(b?.target ?? 0)), Math.floor(Number(b?.reward ?? 0))));
+  });
+  app.post("/api/admin/driver-missions/delete", requireAdmin, requireOwner, rateLimit(20), async (req, res) => {
+    const { adminDeleteMission } = await import("../services/driverMissionService");
+    res.json(await adminDeleteMission(String((req.body as { id?: string })?.id ?? "")));
+  });
 
   app.post("/api/admin/announce", requireAdmin, rateLimit(3), async (req, res) => {
     if (!opts.sendMessage) {
