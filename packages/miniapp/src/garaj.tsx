@@ -5,7 +5,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type { GarajStateResponse, RepairQuality } from "@t1067/shared";
 import { KOZACHA_SHOP, reputationTier, REPUTATION_TIERS, REPAIR_ZONES, ZONE_NAMES, PART_TIERS, garajCarMeta, CRAFT_STATIONS, craftCost, MAKE_BASE, npcForBuyer, npcLine } from "@t1067/shared";
 import { api } from "./api";
-import { haptic, hapticSuccess } from "./telegram";
+import { haptic, hapticSuccess, playTierFanfare } from "./telegram";
 import { Button, Card, Chip, CoinCounter, LoadSection, ProgressBar, Sheet } from "./design/components";
 import "./garaj.css";
 
@@ -25,6 +25,15 @@ const STYLES = [
 ];
 const COND_LABEL: Record<string, string> = { WORN: "Eski", FAIR: "O'rtacha", GOOD: "Yaxshi", MINT: "A'lo" };
 const STYLE_SHORT: Record<string, string> = { QUICK_FLIP: "Tezkor", FULL_RESTORE: "To'liq", TUNING: "Tюнинг", PERIOD_CORRECT: "Davr asili" };
+
+// 🎉 tier-unlock ceremony copy — what crossing into each garage tier grants you.
+// Keyed by the tier number (2..5); tier 1 is the start, no ceremony.
+const TIER_UNLOCK: Record<number, { emoji: string; perks: string[] }> = {
+  2: { emoji: "🔧", perks: ["Tюнинг uslubi ochildi", "Kattaroq flip narxlari", "Ko'proq buyurtmalar"] },
+  3: { emoji: "🛠", perks: ["«Davr asili» uslubi ochildi", "Premium buyurtmachilar", "Yuqori talab to'lqinlari"] },
+  4: { emoji: "💎", perks: ["Diler maqomi — eng qimmat mashinalar", "Eng yirik sotuvlar sizniki", "Mahalla reytingida yuqoriga"] },
+  5: { emoji: "🏁", perks: ["Koson afsonasi — eng yuqori daraja", "Shon zalida abadiy nom", "To'liq prestij imkoniyati"] },
+};
 
 // per-model paint so each car reads as ITS car (not a generic emoji)
 const CAR_PAINT: Record<string, string> = {
@@ -88,6 +97,8 @@ export function GarajShell({ onClose, initial }: { onClose: () => void; initial?
   const [joinCode, setJoinCode] = useState("");
   const [toast, setToast] = useState<string | null>(null);
   const [museumOpen, setMuseumOpen] = useState(false);
+  const [ceremonyTier, setCeremonyTier] = useState<number | null>(null);
+  const prevTierRef = useRef<number | null>(null);
 
   const load = useCallback(() => {
     if (initial) return; // demo/fixture mode — no backend fetch
@@ -105,6 +116,21 @@ export function GarajShell({ onClose, initial }: { onClose: () => void; initial?
       .catch(() => setState("error"));
   }, [initial]);
   useEffect(() => load(), [load]);
+
+  // 🎉 tier-unlock ceremony — fires whenever garageTier crosses UPWARD, no matter
+  // which path bumped it (load / repair / flip / box). First observation only records
+  // the baseline (no ceremony on mount), so it can't false-fire for returning players.
+  useEffect(() => {
+    const t = st?.garageTier;
+    if (t == null) return;
+    if (prevTierRef.current != null && t > prevTierRef.current && TIER_UNLOCK[t]) {
+      setCeremonyTier(t);
+      hapticSuccess();
+      playTierFanfare();
+    }
+    prevTierRef.current = t;
+  }, [st?.garageTier]);
+
   const flash = (msg: string): void => { setToast(msg); setTimeout(() => setToast(null), 2200); };
 
   const car = st?.cars.find((c) => c.id === openId) ?? null;
@@ -187,7 +213,8 @@ export function GarajShell({ onClose, initial }: { onClose: () => void; initial?
               )}
 
               {/* tier / reputation progress (compact, under the stage) */}
-              <div className="gz-tier">
+              {/* in demo/fixture mode (initial set, never prod) the tier line previews the ceremony */}
+              <div className="gz-tier" onClick={initial ? () => { const next = Math.min(5, (st.garageTier ?? 1) + 1); setCeremonyTier(next); hapticSuccess(); playTierFanfare(); } : undefined}>
                 <div className="gz-tier-line"><span className="dim fs12">Obro'</span> <b>{rep.toLocaleString("ru-RU")}</b> <span className="dim fs12">· Daraja {st.garageTier}/5</span></div>
                 <ProgressBar value={tierProg.cur} max={tierProg.max} />
                 <span className="gz-hero-next">{tierProg.nextName ? `${tierProg.toNext.toLocaleString("ru-RU")} obro' → ${tierProg.nextName}` : "Eng yuqori daraja 🏁"}</span>
@@ -627,6 +654,25 @@ export function GarajShell({ onClose, initial }: { onClose: () => void; initial?
       {toast && <div className="gz-toast" onClick={() => setToast(null)}>{toast}</div>}
 
       {museumOpen && <GarajMuseumSheet demo={initial ? GARAJ_DEMO_MUSEUM : undefined} onClose={() => setMuseumOpen(false)} />}
+
+      {/* 🎉 tier-unlock ceremony — full-screen celebration when you reach a new garage tier */}
+      {ceremonyTier != null && TIER_UNLOCK[ceremonyTier] && (
+        <div className="gz-ceremony" onClick={() => setCeremonyTier(null)}>
+          <div className="gz-cer-rays" aria-hidden />
+          <div className="gz-cer-card" onClick={(e) => e.stopPropagation()}>
+            <div className="gz-cer-badge">{TIER_UNLOCK[ceremonyTier]!.emoji}</div>
+            <div className="gz-cer-kicker">Yangi daraja ochildi</div>
+            <div className="gz-cer-tier">{REPUTATION_TIERS[ceremonyTier - 1]?.name ?? ""}</div>
+            <div className="gz-cer-sub">Daraja {ceremonyTier}/5</div>
+            <ul className="gz-cer-perks">
+              {TIER_UNLOCK[ceremonyTier]!.perks.map((p) => (
+                <li key={p}><span className="gz-cer-tick">✓</span> {p}</li>
+              ))}
+            </ul>
+            <Button onClick={() => { haptic(); setCeremonyTier(null); }}>Davom etish</Button>
+          </div>
+        </div>
+      )}
     </div>
   );
 

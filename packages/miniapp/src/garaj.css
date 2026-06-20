@@ -462,6 +462,73 @@ button.gz-coll-car:hover { border-color: rgba(255, 179, 0, 0.4); }
 .gz-hist-prof.up { color: var(--win); }
 .gz-hist-prof.down { color: var(--danger); }
 
+/* 🎉 tier-unlock ceremony — full-screen celebration on reaching a new garage tier */
+.gz-ceremony {
+  position: fixed;
+  inset: 0;
+  z-index: 300;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: radial-gradient(120% 90% at 50% 42%, rgba(42, 31, 8, 0.93) 0%, rgba(11, 15, 26, 0.95) 60%);
+  animation: gz-fade var(--dur-page) var(--ease-out);
+  overflow: hidden;
+}
+.gz-cer-rays {
+  position: absolute;
+  width: 170vmax;
+  height: 170vmax;
+  top: 50%;
+  left: 50%;
+  margin: -85vmax 0 0 -85vmax;
+  background: conic-gradient(from 0deg, rgba(255, 179, 0, 0.13) 0 6deg, transparent 6deg 18deg);
+  animation: gz-spin 20s linear infinite;
+  pointer-events: none;
+}
+@keyframes gz-spin { to { transform: rotate(360deg); } }
+.gz-cer-card {
+  position: relative;
+  z-index: 1;
+  width: 100%;
+  max-width: 340px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 28px 22px 22px;
+  text-align: center;
+  border-radius: var(--r-card);
+  background: linear-gradient(180deg, #1c1608 0%, var(--surface) 100%);
+  border: 1px solid var(--brand);
+  box-shadow: 0 0 40px rgba(255, 179, 0, 0.25);
+  animation: gz-cer-rise 460ms var(--ease-out);
+}
+@keyframes gz-cer-rise {
+  0% { transform: translateY(24px) scale(0.92); opacity: 0; }
+  100% { transform: translateY(0) scale(1); opacity: 1; }
+}
+.gz-cer-badge {
+  font-size: 64px;
+  line-height: 1;
+  animation: gz-pop 600ms var(--ease-out);
+  filter: drop-shadow(0 0 14px rgba(255, 179, 0, 0.5));
+}
+.gz-cer-kicker { font-size: 12px; font-weight: 700; letter-spacing: 1.5px; text-transform: uppercase; color: var(--brand); }
+.gz-cer-tier {
+  font-size: 28px;
+  font-weight: 900;
+  background: linear-gradient(180deg, #ffe9a8, var(--brand));
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+.gz-cer-sub { font-size: 13px; color: var(--text-dim); margin-bottom: 6px; }
+.gz-cer-perks { list-style: none; margin: 4px 0 16px; padding: 0; display: flex; flex-direction: column; gap: 9px; width: 100%; }
+.gz-cer-perks li { font-size: 14px; color: var(--text); display: flex; align-items: center; gap: 9px; text-align: left; }
+.gz-cer-tick { color: var(--win); font-weight: 900; }
+
 @media (prefers-reduced-motion: reduce) {
-  .gz, .gz-burst, .gz-burst-emoji, .gz-toast { animation: none; }
+  .gz, .gz-burst, .gz-burst-emoji, .gz-toast,
+  .gz-ceremony, .gz-cer-rays, .gz-cer-card, .gz-cer-badge { animation: none; }
 }
