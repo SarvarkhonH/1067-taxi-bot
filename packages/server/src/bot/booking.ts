@@ -362,6 +362,7 @@ export function registerBooking(bot: Bot, mainMenu: (isDriver?: boolean) => Keyb
     await ctx.reply("🚖 <b>Haydovchiga to'lash</b>\n\nMashina raqamini yozing (masalan <code>01A123BC</code>):\n<i>Bekor — /start</i>", { parse_mode: "HTML" });
   };
   bot.command("haydovchi", (ctx) => startPayDriver(ctx));
+  bot.hears("🙏 Haydovchiga to'lash", (ctx) => startPayDriver(ctx)); // main-menu one-tap alias (registered before message:text)
   bot.callbackQuery("paydrv:start", async (ctx) => {
     await ctx.answerCallbackQuery().catch(() => undefined);
     await startPayDriver(ctx);

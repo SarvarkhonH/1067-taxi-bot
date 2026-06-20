@@ -96,6 +96,8 @@ function mainMenu(isDriver = false): Keyboard {
   kb.row();
   btn("🏆 Reyting", "reyting");
   btn("👤 Hisobim", "profile");
+  kb.row();
+  btn("🙏 Haydovchiga to'lash", "tip"); // one-tap → booking.ts bot.hears → startPayDriver
   if (isDriver) {
     kb.row();
     btn("🚗 Haydovchi paneli", "driver");
