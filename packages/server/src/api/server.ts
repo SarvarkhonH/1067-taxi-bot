@@ -403,6 +403,26 @@ export function createApiServer(opts: ApiOptions = {}) {
     res.json({ rides: await getDataSource().getRidesByCar(m.carNumber, 20) });
   });
 
+  // 🎯 Driver missions (app): live progress + claim. Same service the bot /topshiriq uses.
+  app.get("/api/driver/missions", requireUser, async (_req, res) => {
+    const memberId = await getMemberId(res.locals.telegramId as string);
+    if (!memberId) {
+      res.status(404).json({ error: "not linked" });
+      return;
+    }
+    const { getDriverMissions } = await import("../services/driverMissionService");
+    res.json(await getDriverMissions(memberId));
+  });
+  app.post("/api/driver/missions/claim", requireUser, rateLimit(20), async (req, res) => {
+    const memberId = await getMemberId(res.locals.telegramId as string);
+    if (!memberId) {
+      res.status(404).json({ error: "not linked" });
+      return;
+    }
+    const { claimDriverMission } = await import("../services/driverMissionService");
+    res.json(await claimDriverMission(memberId, String((req.body as { missionId?: string })?.missionId ?? "")));
+  });
+
   // ── 🏪 Bozor: spendable-cashback marketplace (ABSORB MVP — zero cash risk) ──
   app.get("/api/market/shops", requireUser, async (_req, res) => {
     res.json(await listShops());
@@ -1044,6 +1064,22 @@ export function createApiServer(opts: ApiOptions = {}) {
   app.get("/api/admin/withdrawals", requireAdmin, async (req, res) => {
     const { adminWithdrawals } = await import("../services/adminUsers");
     res.json(await adminWithdrawals(Number(req.query.limit ?? 50)));
+  });
+
+  // 🎯 Driver missions (panel): list (read) + create/toggle (owner-only, like grant).
+  app.get("/api/admin/driver-missions", requireAdmin, async (_req, res) => {
+    const { adminListMissions } = await import("../services/driverMissionService");
+    res.json(await adminListMissions());
+  });
+  app.post("/api/admin/driver-missions", requireAdmin, requireOwner, rateLimit(20), async (req, res) => {
+    const b = req.body as { title?: string; target?: number; reward?: number };
+    const { adminAddMission } = await import("../services/driverMissionService");
+    res.json(await adminAddMission(String(b?.title ?? ""), Math.floor(Number(b?.target ?? 0)), Math.floor(Number(b?.reward ?? 0))));
+  });
+  app.post("/api/admin/driver-missions/toggle", requireAdmin, requireOwner, rateLimit(20), async (req, res) => {
+    const b = req.body as { id?: string; active?: boolean };
+    const { adminToggleMission } = await import("../services/driverMissionService");
+    res.json(await adminToggleMission(String(b?.id ?? ""), !!b?.active));
   });
 
   app.post("/api/admin/announce", requireAdmin, rateLimit(3), async (req, res) => {

@@ -11,9 +11,9 @@ import {
   type AdminMemberRow,
   type AdminStats,
 } from "@t1067/shared";
-import { adminApi, clearAdminToken, hasAdminToken, setAdminToken, type AdminUserRow, type AdminWithdrawalRow, type Driver360, type Member360 } from "./api";
+import { adminApi, clearAdminToken, hasAdminToken, setAdminToken, type AdminUserRow, type AdminWithdrawalRow, type Driver360, type DriverMissionRow, type Member360 } from "./api";
 
-type Tab = "overview" | "pulse" | "analytics" | "finance" | "live" | "x360" | "driver" | "client" | "botusers" | "boshqaruv" | "actions" | "integrity" | "audit";
+type Tab = "overview" | "pulse" | "analytics" | "finance" | "live" | "x360" | "driver" | "client" | "botusers" | "boshqaruv" | "topshiriq" | "actions" | "integrity" | "audit";
 
 export function App() {
   const [tab, setTab] = useState<Tab>("overview");
@@ -65,6 +65,7 @@ export function App() {
     { id: "client", label: "🏅 Mijoz" },
     { id: "botusers", label: "👥 Bot" },
     { id: "boshqaruv", label: "👑 Boshqaruv" },
+    { id: "topshiriq", label: "🎯 Topshiriq" },
     { id: "actions", label: "⚡ Amallar" },
     { id: "integrity", label: "🔐 Integrity" },
     { id: "audit", label: "📜 Jurnal" },
@@ -101,6 +102,7 @@ export function App() {
       {(tab === "driver" || tab === "client") && <MembersTab type={tab} />}
       {tab === "botusers" && <BotUsersTab />}
       {tab === "boshqaruv" && <BoshqaruvView />}
+      {tab === "topshiriq" && <DriverMissionsView />}
       {tab === "actions" && (<><ActionsView /><ControlCards /></>)}
       {tab === "integrity" && <IntegrityView />}
       {tab === "audit" && <AuditView />}
@@ -678,6 +680,92 @@ function MembersTab({ type }: { type: "driver" | "client" }) {
 }
 
 // 👑 user management ("boshqaruv"): search → accounts → re-link/unlink/code/coin-adjust + withdrawals
+function DriverMissionsView() {
+  const [missions, setMissions] = useState<DriverMissionRow[] | null>(null);
+  const [title, setTitle] = useState("");
+  const [target, setTarget] = useState("");
+  const [reward, setReward] = useState("");
+  const [msg, setMsg] = useState("");
+
+  const load = () => adminApi.driverMissions().then(setMissions).catch(() => setMissions([]));
+  useEffect(() => {
+    load();
+  }, []);
+
+  const add = async () => {
+    const t = Number(target);
+    const r = Number(reward);
+    if (!title.trim() || t <= 0 || r <= 0) {
+      setMsg("⚠️ Nom, safar soni va tanga to'g'ri bo'lsin");
+      return;
+    }
+    const res = await adminApi.addDriverMission(title.trim(), t, r).catch(() => ({ ok: false, reason: "net" }));
+    setMsg(res.ok ? "✅ Topshiriq qo'shildi" : "❌ " + (res.reason ?? ""));
+    if (res.ok) {
+      setTitle("");
+      setTarget("");
+      setReward("");
+      load();
+    }
+  };
+  const toggle = async (id: string, active: boolean) => {
+    await adminApi.toggleDriverMission(id, active).catch(() => undefined);
+    load();
+  };
+
+  return (
+    <>
+      <section className="panel">
+        <div className="panel-title">🎯 Yangi haydovchi topshirig&apos;i</div>
+        <p className="muted" style={{ marginTop: 0 }}>Kunlik safar soniga bog&apos;liq. Mukofot = tanga, haydovchi kuniga bir marta oladi.</p>
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+          <input style={{ flex: "2 1 160px", padding: "8px 10px" }} value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Nom: Bugun 15 safar" />
+          <input style={{ flex: "1 1 80px", padding: "8px 10px" }} type="number" value={target} onChange={(e) => setTarget(e.target.value)} placeholder="Safar" />
+          <input style={{ flex: "1 1 80px", padding: "8px 10px" }} type="number" value={reward} onChange={(e) => setReward(e.target.value)} placeholder="Tanga" />
+          <button onClick={add}>➕ Qo&apos;shish</button>
+        </div>
+        {msg && <div className="muted" style={{ marginTop: 8 }}>{msg}</div>}
+      </section>
+
+      <section className="panel">
+        <div className="panel-title">🎯 Topshiriqlar</div>
+        {missions === null ? (
+          <div className="muted">Yuklanmoqda…</div>
+        ) : missions.length === 0 ? (
+          <div className="muted">Hozircha topshiriq yo&apos;q</div>
+        ) : (
+          <table style={{ width: "100%", borderCollapse: "collapse" }}>
+            <thead>
+              <tr>
+                <th style={{ textAlign: "left" }}>Holat</th>
+                <th style={{ textAlign: "left" }}>Nom</th>
+                <th>Safar</th>
+                <th>Tanga</th>
+                <th />
+              </tr>
+            </thead>
+            <tbody>
+              {missions.map((m) => (
+                <tr key={m.id}>
+                  <td>{m.active ? "🟢" : "🔴"}</td>
+                  <td>
+                    {m.emoji} {m.title}
+                  </td>
+                  <td style={{ textAlign: "center" }}>{m.target}</td>
+                  <td style={{ textAlign: "center" }}>{m.reward.toLocaleString("ru-RU")}</td>
+                  <td style={{ textAlign: "right" }}>
+                    <button onClick={() => toggle(m.id, !m.active)}>{m.active ? "O'chir" : "Yoq"}</button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </section>
+    </>
+  );
+}
+
 function BoshqaruvView() {
   const [q, setQ] = useState("");
   const [users, setUsers] = useState<AdminUserRow[] | null>(null);

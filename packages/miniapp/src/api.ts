@@ -132,6 +132,9 @@ export const api = {
     get<{ todayIn: number; totalIn: number; txns: { amount: number; kind: string; reason: string; at: string }[] }>("/api/driver/earnings"),
   driverRides: () =>
     get<{ rides: { id: number; addressName: string; status: string; carModel: string; payment: number; cashback: number; at: string }[] }>("/api/driver/rides"),
+  driverMissions: () =>
+    get<{ missions: { id: string; emoji: string; title: string; target: number; reward: number; progress: number; claimable: boolean; claimed: boolean }[]; ridesToday: number }>("/api/driver/missions"),
+  claimDriverMission: (missionId: string) => request<{ ok: boolean; reason?: string; reward?: number }>("POST", "/api/driver/missions/claim", { missionId }, 1),
   fareConfig: () => get<FareConfigResponse>("/api/fare/config"),
   garage: () => get<GarageResponse>("/api/garage"),
   garageBuy: (car: string) => request<{ ok: boolean; reason?: string; coins: number }>("POST", "/api/garage/buy", { car }, 1),

@@ -2,7 +2,10 @@ import { useEffect, useState } from "react";
 import { formatNumber, type MeResponse } from "@t1067/shared";
 import { api } from "./api";
 import { Spinner } from "./components";
-import { useCountUp } from "./util";
+import { useCountUp, confetti } from "./util";
+import { hapticSuccess } from "./telegram";
+
+type DriverMission = { id: string; emoji: string; title: string; target: number; reward: number; progress: number; claimable: boolean; claimed: boolean };
 
 type DriverRide = { id: number; addressName: string; status: string; carModel: string; payment: number; cashback: number; at: string };
 const RIDE_STATUS: Record<string, { e: string; t: string }> = {
@@ -24,13 +27,27 @@ function rideTime(at: string): string {
 export function DriverView({ me }: { me: MeResponse }) {
   const [data, setData] = useState<{ todayIn: number; totalIn: number; txns: { amount: number; kind: string; reason: string; at: string }[] } | null>(null);
   const [rides, setRides] = useState<DriverRide[] | null>(null);
+  const [missions, setMissions] = useState<{ missions: DriverMission[]; ridesToday: number } | null>(null);
+  const [msg, setMsg] = useState<string | null>(null);
   const [err, setErr] = useState(false);
   const coins = useCountUp(me.coins);
 
+  const loadMissions = () => api.driverMissions().then(setMissions).catch(() => setMissions({ missions: [], ridesToday: 0 }));
   const load = () => {
     setErr(false);
     api.driverEarnings().then(setData).catch(() => setErr(true)); // P1: no permanent spinner on error
     api.driverRides().then((r) => setRides(r.rides)).catch(() => setRides([]));
+    loadMissions();
+  };
+  const claim = async (id: string) => {
+    const r = await api.claimDriverMission(id);
+    if (r.ok) {
+      hapticSuccess();
+      confetti();
+      setMsg(`🎁 +${formatNumber(r.reward ?? 0)} tanga!`);
+      setTimeout(() => setMsg(null), 3000);
+      void loadMissions();
+    }
   };
   useEffect(() => {
     load();
@@ -56,6 +73,36 @@ export function DriverView({ me }: { me: MeResponse }) {
           <div className="wh-cashback">
             <span>💼 Jami tushum (tip/o'tkazma/bonus)</span>
             <b>{formatNumber(data.totalIn)} tanga</b>
+          </div>
+        )}
+      </section>
+
+      <section className="glass pad">
+        <div className="section-title">🎯 Bugungi topshiriqlar{missions ? ` · 🚕 ${missions.ridesToday}` : ""}</div>
+        {msg && <div className="sheet-ok tac">{msg}</div>}
+        {missions === null ? (
+          <Spinner />
+        ) : missions.missions.length === 0 ? (
+          <div className="muted txn-empty">Hozircha topshiriq yo'q.</div>
+        ) : (
+          <div className="txn-list">
+            {missions.missions.map((m) => (
+              <div key={m.id} className="txn">
+                <span className="txn-emoji">{m.emoji}</span>
+                <span className="txn-reason">
+                  <b>{m.title}</b>
+                  <br />
+                  <span className="muted" style={{ fontSize: 12 }}>{m.progress}/{m.target} safar · +{formatNumber(m.reward)} tanga</span>
+                </span>
+                {m.claimed ? (
+                  <span className="txn-amt">✅</span>
+                ) : m.claimable ? (
+                  <button className="amt-chip active" onClick={() => claim(m.id)}>🎁 Olish</button>
+                ) : (
+                  <span className="txn-amt">{m.progress}/{m.target}</span>
+                )}
+              </div>
+            ))}
           </div>
         )}
       </section>

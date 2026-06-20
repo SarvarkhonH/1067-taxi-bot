@@ -136,7 +136,23 @@ export const adminApi = {
   unlinkUser: (telegramId: string) => postJson<{ ok: boolean; reason?: string }>("/api/admin/users/unlink", { telegramId }),
   linkCode: (phone: string) => postJson<{ ok: boolean; code?: string; message?: string }>("/api/admin/linkcode", { phone }),
   withdrawals: (limit = 50) => req<AdminWithdrawalRow[]>(`/api/admin/withdrawals?limit=${limit}`),
+  // 🎯 driver missions
+  driverMissions: () => req<DriverMissionRow[]>("/api/admin/driver-missions"),
+  addDriverMission: (title: string, target: number, reward: number) =>
+    postJson<{ ok: boolean; reason?: string; id?: string }>("/api/admin/driver-missions", { title, target, reward }),
+  toggleDriverMission: (id: string, active: boolean) =>
+    postJson<{ ok: boolean; reason?: string }>("/api/admin/driver-missions/toggle", { id, active }),
 };
+
+export interface DriverMissionRow {
+  id: string;
+  emoji: string;
+  title: string;
+  target: number;
+  reward: number;
+  period: string;
+  active: boolean;
+}
 
 export interface AdminUserRow {
   id: number;
