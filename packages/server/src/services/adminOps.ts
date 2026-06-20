@@ -10,7 +10,7 @@ import { prisma } from "../db";
 import { env } from "../env";
 import { getDataSource } from "../kas";
 import { getJackpot } from "./weeklyService";
-import { withPhoneLock } from "./coinService";
+import { grantCoins, withPhoneLock } from "./coinService";
 
 // ─── 🚦 system health ───────────────────────────────────────────────────────
 export async function getHealth(): Promise<AdminHealth> {
@@ -194,6 +194,30 @@ export async function adminGrant(target: string, amount: number, reason: string,
   } catch (e) {
     return { ok: false, message: e instanceof Error ? e.message.slice(0, 100) : "xatolik" };
   }
+}
+
+// Grant/deduct TANGA (coins) to a SPECIFIC account by id — any type (client OR driver). Fixes the
+// adminGrant gap: that one is client-only + writes kas POINTS by phone, so a grant to a driver (or
+// to someone who has both a client AND a driver account) never lands on the account the owner sees.
+export async function adminGrantCoins(memberId: number, amount: number, reason: string, adminId: string): Promise<AdminActionResult> {
+  const amt = Math.floor(Number(amount));
+  if (!Number.isFinite(amt) || amt === 0 || Math.abs(amt) > 1_000_000) return { ok: false, message: "Noto'g'ri summa (±1..1000000)" };
+  const member = await prisma.member.findUnique({ where: { id: memberId }, select: { id: true, fullName: true, type: true, coins: true } });
+  if (!member) return { ok: false, message: "Akkaunt topilmadi" };
+  if (amt > 0) {
+    const since = new Date(Date.now() - 24 * 3600 * 1000);
+    const agg = await prisma.coinTxn.aggregate({ where: { kind: "admin_coin", amount: { gt: 0 }, createdAt: { gte: since } }, _sum: { amount: true } });
+    if ((agg._sum.amount ?? 0) + amt > ADMIN_GRANT_DAILY_CAP) return { ok: false, message: `Kunlik admin-tanga limiti (${ADMIN_GRANT_DAILY_CAP.toLocaleString("ru-RU")}) oshib ketadi` };
+    const g = await grantCoins(member.id, amt, "admin_coin", `Admin tanga: ${reason || "qo'lda"} (by ${adminId.slice(-4)})`, `admincoin:${member.id}:${Date.now()}`);
+    return g.ok ? { ok: true, message: `✅ ${member.fullName} [${member.type}]: +${amt} tanga (balans ${g.balance})` } : { ok: false, message: "Berib bo'lmadi" };
+  }
+  const ded = Math.min(member.coins, -amt); // never below 0
+  if (ded <= 0) return { ok: false, message: "Balans 0 — ayirib bo'lmaydi" };
+  await prisma.$transaction(async (tx) => {
+    await tx.coinTxn.create({ data: { memberId: member.id, amount: -ded, kind: "admin_coin", reason: `Admin tanga ayirdi: ${reason || "qo'lda"} (by ${adminId.slice(-4)})` } });
+    await tx.member.update({ where: { id: member.id }, data: { coins: { decrement: ded } } });
+  });
+  return { ok: true, message: `✅ ${member.fullName} [${member.type}]: −${ded} tanga (balans ${member.coins - ded})` };
 }
 
 // ─── 📣 announce (admin broadcast) ──────────────────────────────────────────

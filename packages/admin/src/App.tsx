@@ -830,11 +830,12 @@ function BoshqaruvView() {
     const r = await adminApi.linkCode(phone).catch(() => ({ ok: false, message: "net" }) as { ok: boolean; code?: string; message?: string });
     setMsg(r.ok ? `🔑 ${phone} → kod: ${r.code} (1 soat amal qiladi)` : "❌ " + (r.message ?? ""));
   };
-  const adjust = async (phone: string) => {
+  const adjust = async (memberId: number) => {
     const a = window.prompt("Tanga (+ berish / − ayirish):");
     if (a === null) return;
     const reason = window.prompt("Sabab:") ?? "admin";
-    const r = await adminApi.grant(phone, Number(a), reason).catch(() => ({ ok: false, message: "net" }) as { ok: boolean; message?: string });
+    // grant TANGA to THIS exact account (by id) — not by phone (a phone can have client+driver)
+    const r = await adminApi.grantMemberCoins(memberId, Number(a), reason).catch(() => ({ ok: false, message: "net" }) as { ok: boolean; message?: string });
     await done(r.ok ? "✅ " + (r.message ?? "bajarildi") : "❌ " + (r.message ?? ""));
   };
 
@@ -861,7 +862,7 @@ function BoshqaruvView() {
               <button onClick={() => relink(u.id)}>📱 Telegram'ni bunga ulash</button>
               {u.telegram && <button onClick={() => unlink(u.telegram!.id)}>🔌 Uzish</button>}
               {u.phone && <button onClick={() => genCode(u.phone!)}>🔑 Kod</button>}
-              {u.phone && <button onClick={() => adjust(u.phone!)}>🪙 Tanga ±</button>}
+              <button onClick={() => adjust(u.id)}>🪙 Tanga ±</button>
             </div>
           </div>
         ))}

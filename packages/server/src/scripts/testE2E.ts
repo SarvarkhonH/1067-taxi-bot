@@ -33,6 +33,7 @@ const SUITES = [
   "testPayDriver.ts", // 🚖 Mini App pay-driver-by-car: plate lookup (normalized) + tip transfer + self-guard
   "testDriverWallet.ts", // 🚗 driver wallet: driver withdraws tanga→kas balance, topup stays client-only (no swap)
   "testDriverMissions.ts", // 🎯 driver missions: live ride-count progress · idempotent daily claim · reward cap · client sees none
+  "testAdminGrantCoins.ts", // 🪙 admin grant TANGA by exact account id (driver vs same-phone client) · deduct clamps to 0
 ];
 
 interface Res {

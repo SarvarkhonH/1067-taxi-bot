@@ -1035,6 +1035,13 @@ export function createApiServer(opts: ApiOptions = {}) {
     const b = (req.body ?? {}) as { target?: string; amount?: number; reason?: string };
     res.json(await adminGrant(String(b.target ?? ""), Number(b.amount ?? 0), String(b.reason ?? ""), res.locals.telegramId as string));
   });
+  // 🪙 Grant/deduct TANGA to the EXACT account by id (any type) — what the panel's "Tanga ±" needs
+  // so a grant to a driver lands on the driver, not a same-phone client.
+  app.post("/api/admin/grant-coins", requireAdmin, requireOwner, rateLimit(10), async (req, res) => {
+    const { adminGrantCoins } = await import("../services/adminOps");
+    const b = (req.body ?? {}) as { memberId?: number; amount?: number; reason?: string };
+    res.json(await adminGrantCoins(Math.floor(Number(b.memberId ?? 0)), Number(b.amount ?? 0), String(b.reason ?? ""), res.locals.telegramId as string));
+  });
 
   // 👑 user management ("boshqaruv"): search · re-link/unlink · link-code · withdrawals
   app.get("/api/admin/users", requireAdmin, async (req, res) => {
