@@ -499,23 +499,39 @@ export class KasLiveSource implements KasDataSource {
   }
 
   async listActiveBookings(): Promise<ActiveBookingLite[]> {
-    let list: Record<string, unknown>[] = [];
-    try {
-      const j = JSON.parse((await this.getText("api/bookings")).body);
-      if (Array.isArray(j)) list = j;
-    } catch {
-      return [];
+    // A LIVE session returns a JSON array. A DEAD session (a concurrent login on the shared kas
+    // account evicted ours) serves the login PAGE at HTTP 200 — the old code JSON-parse-failed and
+    // returned [] → the sweep read "no active rides" and FINISHED every live ride, stopping the
+    // live-location pin ("xarita yo'qoldi") and flipping cards to cancelled. So on a non-array
+    // response we re-login fresh and retry once; only then throw (the sweep's catch then SKIPS this
+    // tick, PRESERVING every ride's state until the session recovers).
+    for (let attempt = 0; attempt < 2; attempt++) {
+      const res = await this.getText("api/bookings");
+      let j: unknown = null;
+      try {
+        j = JSON.parse(res.body);
+      } catch {
+        /* non-JSON (login page) → handled below */
+      }
+      if (Array.isArray(j)) {
+        return (j as Record<string, unknown>[]).map((b) => ({
+          id: Number(b.id ?? 0),
+          phoneNorm: String(b.phoneNumber ?? "").replace(/\D/g, "").slice(-9),
+          status: normBookingStatus(String(b.status ?? "")),
+          carNumber: String(b.carNumber ?? ""),
+          addressName: String(b.addressName ?? ""),
+          clientBonus: num(b.clientBonus),
+          lat: num(b.addressLatitude) || undefined,
+          lng: num(b.addressLongitude) || undefined,
+        }));
+      }
+      if (attempt === 0) {
+        this.loggedIn = false; // dead session → drop it; getText re-logins fresh on retry
+        continue;
+      }
+      throw new Error(`kas1067 api/bookings: no booking array after re-login (status ${res.status})`);
     }
-    return list.map((b) => ({
-      id: Number(b.id ?? 0),
-      phoneNorm: String(b.phoneNumber ?? "").replace(/\D/g, "").slice(-9),
-      status: normBookingStatus(String(b.status ?? "")),
-      carNumber: String(b.carNumber ?? ""),
-      addressName: String(b.addressName ?? ""),
-      clientBonus: num(b.clientBonus),
-      lat: num(b.addressLatitude) || undefined,
-      lng: num(b.addressLongitude) || undefined,
-    }));
+    throw new Error("kas1067 api/bookings failed");
   }
 
   async getReportsPage(page: number, size: number): Promise<RideHistoryItem[]> {
