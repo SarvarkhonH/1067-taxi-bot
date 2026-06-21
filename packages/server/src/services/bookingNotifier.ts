@@ -11,6 +11,7 @@ import { formatNumber, haversineKm } from "@t1067/shared";
 import { prisma } from "../db";
 import { getDataSource, type ActiveBookingLite, type BookingDriver, type KasDataSource } from "../kas";
 import { incrementMission } from "./missionService";
+import { kasMapSocket } from "./kasMapSocket";
 
 const CITY_KMH = 24;
 // kas lifecycle: new → take → in_place → delivered. "in_place" is normalized to "started" in the
@@ -248,10 +249,18 @@ export async function pushBookingUpdates(
           .sendMessage(chatId, `🚖 <b>Haydovchingiz keldi — kutyapti, chiqing!</b>\n🚘 ${esc(ctx.driver?.carModel ?? "Mashina")}${car}${ph}${bonus}`, { parse_mode: "HTML" })
           .catch(() => undefined);
       } else if (statusChanged && cardId && b.status === "started") {
-        // kas "in_place" → "started": the driver is at the pickup and the meter is running. kas has
-        // no separate "arrived", so THIS is the rider's arrival + trip-start ping (fires once).
-        const car = driver ? `\n🚘 ${esc(driver.carModel)} · <b>${esc(driver.carNumber)}</b>` : b.carNumber ? `\n🚘 <b>${esc(b.carNumber)}</b>` : "";
-        await bot.api.sendMessage(chatId, `🚕 <b>Haydovchingiz YETIB KELDI — chiqing!</b>${car}`, { parse_mode: "HTML" }).catch(() => undefined);
+        // arrival ping. kas "in_place"→"started" OR the map-socket geofence, whichever the rider
+        // hits FIRST: a wsarrived:<id> marker (idempotent create) makes exactly ONE of them ping.
+        let firstArrival = true;
+        try {
+          await prisma.appState.create({ data: { key: `wsarrived:${b.id}`, value: "1" } });
+        } catch {
+          firstArrival = false; // the map socket already pinged this ride
+        }
+        if (firstArrival) {
+          const car = driver ? `\n🚘 ${esc(driver.carModel)} · <b>${esc(driver.carNumber)}</b>` : b.carNumber ? `\n🚘 <b>${esc(b.carNumber)}</b>` : "";
+          await bot.api.sendMessage(chatId, `🚕 <b>Haydovchingiz YETIB KELDI — chiqing!</b>${car}`, { parse_mode: "HTML" }).catch(() => undefined);
+        }
       } else if (cardId && !isNewRide && b.carNumber && !m.lastBookingCar && b.status !== "arrived" && b.status !== "started") {
         // 🚖 driver JUST assigned — a car appeared on an already-shown «qidirilyapti» card. The
         // edit above is SILENT, so PING this moment; otherwise the rider only finds out when the
@@ -265,6 +274,25 @@ export async function pushBookingUpdates(
         await bot.api
           .sendMessage(chatId, `🚖 <b>Haydovchi topildi — yo'lda!</b>${eta}${name}\n🚘 ${esc(driver?.carModel ?? "Mashina")} · <b>${esc(b.carNumber)}</b>${ph}`, { parse_mode: "HTML" })
           .catch(() => undefined);
+      }
+
+      // 📡 register the assigned car with the kas map WebSocket → INSTANT "arrived" ping the moment
+      // it reaches the pickup (no 15s wait). The wsarrived:<id> marker coordinates with the
+      // started-ping above so exactly one fires. Re-armed per booking (no unregister needed).
+      if (b.carNumber && b.lat && b.lng) {
+        const bid2 = b.id;
+        const chat2 = chatId;
+        const carLine = driver ? `\n🚘 ${esc(driver.carModel)} · <b>${esc(driver.carNumber)}</b>` : `\n🚘 <b>${esc(b.carNumber)}</b>`;
+        kasMapSocket.register(b.carNumber, b.id, { lat: b.lat, lng: b.lng }, () => {
+          void (async () => {
+            try {
+              await prisma.appState.create({ data: { key: `wsarrived:${bid2}`, value: "1" } });
+            } catch {
+              return; // started-ping already fired for this ride
+            }
+            await bot.api.sendMessage(chat2, `🚕 <b>Haydovchingiz YETIB KELDI — chiqing!</b>${carLine}`, { parse_mode: "HTML" }).catch(() => undefined);
+          })();
+        });
       }
 
       // ── the moving pin ──

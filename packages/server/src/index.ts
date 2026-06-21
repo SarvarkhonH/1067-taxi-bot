@@ -5,6 +5,7 @@ import { createApiServer } from "./api/server";
 import { createBot, notifyCashback, notifyNewAchievements, setupBotCommands } from "./bot/bot";
 import { refreshLinkedMembers, runSync } from "./sync/sync";
 import { pushBookingUpdates } from "./services/bookingNotifier";
+import { kasMapSocket } from "./services/kasMapSocket";
 import { maybeSurpriseDrop, payWeeklyPrizes } from "./services/weeklyService";
 
 // P0.4: orphaned SyncRun stuck in "running" (crash mid-sync) → mark error.
@@ -197,6 +198,9 @@ async function main(): Promise<void> {
   };
   if (env.KAS_MODE === "live") bookingTimer = setTimeout(() => void tickBooking(), 15_000);
 
+  // 📡 kas map WebSocket — real-time driver positions → INSTANT "arrived" pings (no 15s wait)
+  kasMapSocket.start();
+
   // keep the free-tier instance warm (self-ping) so the Mini App never hits a cold start
   const keepAlive = env.WEBHOOK_URL
     ? setInterval(() => {
@@ -209,6 +213,7 @@ async function main(): Promise<void> {
     clearInterval(timer);
     bookingStopped = true;
     if (bookingTimer) clearTimeout(bookingTimer);
+    kasMapSocket.stop();
     if (keepAlive) clearInterval(keepAlive);
     server.close();
     if (bot && !env.WEBHOOK_URL) await bot.stop();

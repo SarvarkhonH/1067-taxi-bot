@@ -17,12 +17,14 @@
   "dependencies": {
     "@prisma/client": "^6.1.0",
     "@t1067/shared": "workspace:*",
+    "@types/ws": "^8.18.1",
     "compression": "^1.8.1",
     "cors": "^2.8.5",
     "dotenv": "^16.4.7",
     "express": "^4.21.2",
     "grammy": "^1.30.0",
     "qrcode": "^1.5.4",
+    "ws": "^8.21.0",
     "zod": "^3.23.8"
   },
   "devDependencies": {
