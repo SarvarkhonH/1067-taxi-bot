@@ -2,7 +2,7 @@
 // "garajx" is ON). Core loop: ol (buy) → diagnoz → ta'mirla → sot (flip).
 // Pure view layer — all money logic + idempotency live on the server.
 import { useCallback, useEffect, useRef, useState } from "react";
-import type { GarajStateResponse, RepairQuality } from "@t1067/shared";
+import type { GarajStateResponse, RepairQuality, PublicProfileView } from "@t1067/shared";
 import { KOZACHA_SHOP, reputationTier, REPUTATION_TIERS, REPAIR_ZONES, ZONE_NAMES, PART_TIERS, garajCarMeta, CRAFT_STATIONS, craftCost, MAKE_BASE, npcForBuyer, npcLine } from "@t1067/shared";
 import { api } from "./api";
 import { haptic, hapticSuccess, playTierFanfare } from "./telegram";
@@ -168,6 +168,7 @@ export function GarajShell({ onClose, initial }: { onClose: () => void; initial?
   const [joinCode, setJoinCode] = useState("");
   const [toast, setToast] = useState<string | null>(null);
   const [museumOpen, setMuseumOpen] = useState(false);
+  const [profileOpen, setProfileOpen] = useState(false); // 🌍 ochiq profil
   const [ceremonyTier, setCeremonyTier] = useState<number | null>(null);
   const prevTierRef = useRef<number | null>(null);
   const [nowTick, setNowTick] = useState(() => Date.now()); // #5 craft-timer ticker
@@ -254,6 +255,7 @@ export function GarajShell({ onClose, initial }: { onClose: () => void; initial?
         <button className="gz-back" onClick={() => { haptic(); onClose(); }} aria-label="Ortga">←</button>
         <span className="gz-title">🏆 <b>GARAJ</b></span>
         <div className="gz-purse">
+          {st?.motorEnabled && <button className="gz-back" onClick={() => { haptic(); setProfileOpen(true); }} aria-label="Ochiq profil">🌍</button>}
           <button className="gz-back" onClick={() => { haptic(); setMuseumOpen(true); }} aria-label="Muzey">🏛</button>
           <span className="gz-pill">🪙 <CoinCounter value={coins} /></span>
         </div>
@@ -287,6 +289,23 @@ export function GarajShell({ onClose, initial }: { onClose: () => void; initial?
                   <GarajCarArt carCode="tiko" condition="WORN" level={1} size={150} />
                   <div className="gz-stage-name">Garajingiz hozircha bo'sh</div>
                   <p className="gz-empty mt0">Bozor tabidan birinchi loyiha mashinangizni oling — keyin shu yerda tiklaysiz.</p>
+                </div>
+              )}
+
+              {/* 🌍 MOTOR OLAMI — the car earns; #serial identity + «Yig'ish» (daily-return hook) */}
+              {st.motorEnabled && projectCar?.serial != null && (
+                <div className={`gz-motor${projectCar.dead ? " dead" : ""}`}>
+                  <div className="col">
+                    <span className="gz-motor-id">#{projectCar.serial}</span>
+                    <span className="fs11 dim">⚙️ {projectCar.engineHp ?? 100}% · 🕐 {projectCar.ageDays ?? 0} kun · ⚡ {projectCar.speed}/soat · 👥 {projectCar.ownerCount ?? 1}</span>
+                  </div>
+                  {projectCar.dead ? (
+                    <span className="gz-motor-dead">⚠️ Eskirdi — soting/yangilang</span>
+                  ) : (
+                    <Button sm disabled={busy || (projectCar.earnPendingNet ?? 0) <= 0} onClick={() => motorCollect()}>
+                      💰 Yig'ish +{(projectCar.earnPendingNet ?? 0).toLocaleString("ru-RU")}
+                    </Button>
+                  )}
                 </div>
               )}
 
@@ -747,6 +766,7 @@ export function GarajShell({ onClose, initial }: { onClose: () => void; initial?
       {toast && <div className="gz-toast" onClick={() => setToast(null)}>{toast}</div>}
 
       {museumOpen && <GarajMuseumSheet demo={initial ? GARAJ_DEMO_MUSEUM : undefined} onClose={() => setMuseumOpen(false)} />}
+      {profileOpen && <GarajProfileSheet demo={initial ? GARAJ_DEMO_PROFILE : undefined} onClose={() => setProfileOpen(false)} />}
 
       {/* 🎉 tier-unlock ceremony — full-screen celebration when you reach a new garage tier */}
       {ceremonyTier != null && TIER_UNLOCK[ceremonyTier] && (
@@ -850,6 +870,26 @@ export function GarajShell({ onClose, initial }: { onClose: () => void; initial?
     void act(() => api.garajCraftSpeedup());
     flash("✓ Ustaxona ishi tayyor!");
   }
+  // 🌍 Motor Olami «Yig'ish» — credit net, show gross−xarajat dopamin burst
+  async function motorCollect(): Promise<void> {
+    if (busy) return;
+    setBusy(true);
+    haptic();
+    try {
+      const r = await api.garajMotorCollect();
+      if (r.ok && (r.net ?? 0) > 0) {
+        hapticSuccess();
+        setBurst({ amount: r.net ?? 0, label: `🚗 ${(r.gross ?? 0).toLocaleString("ru-RU")} − ${((r.fuel ?? 0) + (r.wear ?? 0)).toLocaleString("ru-RU")} xarajat` });
+        setTimeout(() => setBurst(null), 2200);
+      } else if (r.dead) flash("⚠️ Mashina eskirgan — soting yoki yangilang");
+      else flash("Hali daromad to'planmadi");
+      if (!initial) setSt(await api.garajState());
+    } catch {
+      /* keep state */
+    } finally {
+      setBusy(false);
+    }
+  }
   async function bazaarAct(fn: () => Promise<{ ok: boolean }>): Promise<void> {
     if (busy) return;
     setBusy(true);
@@ -942,14 +982,15 @@ export const GARAJ_DEMO_MUSEUM = {
 // Static fixture for the #garajdemo render-proof (no backend, no auth).
 export const GARAJ_DEMO: GarajStateResponse = {
   enabled: true,
+  motorEnabled: true,
   coins: 4820,
   kozacha: 24,
   garageTier: 2,
   reputationScore: 1340,
   onboardStep: 5,
   cars: [
-    { id: 1, carCode: "nexia", name: "Nexia", emoji: "🚙", basePrice: 2600, source: "ride_drop", condition: "GOOD", style: "FULL_RESTORE", level: 2, diagnosed: true, diagnosis: { engine: 72, body: 58, transmission: 64, electric: 80, interior: 45 }, zones: { engine: 72, body: 58, transmission: 64, electric: 80, interior: 45 }, acquireCost: 1690, repairSpent: 240 },
-    { id: 2, carCode: "damas", name: "Damas", emoji: "🚐", basePrice: 900, source: "shop", condition: "WORN", style: null, level: 1, diagnosed: false, diagnosis: null, zones: null, acquireCost: 585, repairSpent: 0 },
+    { id: 1, carCode: "nexia", name: "Nexia", emoji: "🚙", basePrice: 2600, source: "ride_drop", condition: "GOOD", style: "FULL_RESTORE", level: 2, diagnosed: true, diagnosis: { engine: 72, body: 58, transmission: 64, electric: 80, interior: 45 }, zones: { engine: 72, body: 58, transmission: 64, electric: 80, interior: 45 }, acquireCost: 1690, repairSpent: 240, serial: 1251, engineHp: 88, ageDays: 3, dead: false, speed: 47, earnPendingNet: 220, ownerCount: 4, totalTrips: 1213 },
+    { id: 2, carCode: "damas", name: "Damas", emoji: "🚐", basePrice: 900, source: "shop", condition: "WORN", style: null, level: 1, diagnosed: false, diagnosis: null, zones: null, acquireCost: 585, repairSpent: 0, serial: 1342, engineHp: 64, ageDays: 6, dead: false, speed: 16, earnPendingNet: 180, ownerCount: 2, totalTrips: 540 },
   ],
   shop: [
     { carCode: "tiko", name: "Tiko", emoji: "🚙", buyPrice: 455, owned: false },
@@ -1157,6 +1198,65 @@ export function GarajCollectionSheet({ memberId, name, onClose }: { memberId: nu
 }
 
 // 🏛 #9 Museum sheet — your collection progress + records + the Hall of Fame.
+// 🌍 ochiq profil render-proof fixture (#garajdemo)
+export const GARAJ_DEMO_PROFILE: PublicProfileView = {
+  memberId: 0,
+  name: "Sarvar",
+  reputation: 18200,
+  garageValue: 1250000,
+  rank: 41,
+  cars: [
+    { serial: 11, carCode: "tracker", name: "Tracker", emoji: "🛻", engineHp: 92, dead: false },
+    { serial: 211, carCode: "nexia", name: "Nexia", emoji: "🚙", engineHp: 70, dead: false },
+    { serial: 987, carCode: "damas", name: "Damas", emoji: "🚐", engineHp: 0, dead: true },
+  ],
+};
+
+// 🌍 ochiq profil — boshqalar garajini ko'rish (status/maqtanish). "me" = o'zingnikini ko'rish.
+export function GarajProfileSheet({ demo, target, onClose }: { demo?: PublicProfileView; target?: number | "me"; onClose: () => void }) {
+  const [p, setP] = useState<PublicProfileView | null>(demo ?? null);
+  const [loading, setLoading] = useState(!demo);
+  useEffect(() => {
+    if (demo) return;
+    let alive = true;
+    api.garajProfile(target ?? "me").then((d) => { if (alive) { setP(d); setLoading(false); } }).catch(() => { if (alive) setLoading(false); });
+    return () => { alive = false; };
+  }, [demo, target]);
+  return (
+    <Sheet open onClose={onClose}>
+      {loading ? (
+        <p className="gz-empty">Yuklanmoqda…</p>
+      ) : !p ? (
+        <p className="gz-empty">Profil topilmadi.</p>
+      ) : (
+        <div className="col g8">
+          <div className="gz-title">👤 {p.name} garaji</div>
+          <div className="gz-col-stats">
+            <div><b>{p.garageValue.toLocaleString("ru-RU")}</b><span>jami qiymat</span></div>
+            <div><b>{p.reputation.toLocaleString("ru-RU")}</b><span>obro'</span></div>
+            <div><b>{p.rank != null ? `#${p.rank}` : "—"}</b><span>reyting</span></div>
+          </div>
+          <div className="gz-sec-title">Mashinalar ({p.cars.length})</div>
+          <div className="col g8">
+            {p.cars.map((c) => (
+              <div key={`${c.carCode}-${c.serial}`} className={`gz-craft${c.dead ? " gz-motor dead" : ""}`}>
+                <div className="row" style={{ gap: 10, alignItems: "center" }}>
+                  <GarajCarArt carCode={c.carCode} condition={c.dead ? "WORN" : "GOOD"} level={1} size={56} />
+                  <div className="col">
+                    <span className="gz-craft-name">{c.emoji} {c.name} <span className="gz-motor-id">#{c.serial}</span></span>
+                    <span className="fs11 dim">{c.dead ? "⚠️ eskirgan" : `⚙️ ${c.engineHp}%`}</span>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+          <p className="fs11 dim mt4">👀 Boshqalar sizning garajingizni ham shunday ko'radi.</p>
+        </div>
+      )}
+    </Sheet>
+  );
+}
+
 export function GarajMuseumSheet({ demo, onClose }: { demo?: typeof GARAJ_DEMO_MUSEUM; onClose: () => void }) {
   const [m, setM] = useState<Awaited<ReturnType<typeof api.garajMuseum>> | null>(demo ?? null);
   const [loading, setLoading] = useState(!demo);

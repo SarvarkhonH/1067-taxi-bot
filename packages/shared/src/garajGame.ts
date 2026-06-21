@@ -480,6 +480,46 @@ export function demandFlipBonus(mult: number): number {
   return Math.max(-DEMAND_FLIP_BONUS_MAX, Math.min(DEMAND_FLIP_BONUS_MAX, mult - 1.0));
 }
 
+// ══ 🌍 MOTOR OLAMI (v3) — mashina pul ishlaydi (passiv earn). Flag "motorolami" (DEFAULT_OFF).
+// Earn = speed×soat; yoqilg'i (70%, dial bilan) + eyilish (10%, engineHp↓) SINK; net qoladi.
+// engineHp 100→0 (~14 kun) = umr → o'lim. Chore yo'q: kunlik avtomatik, «Yig'ish» tugmasi. ══
+export const MOTOR_FLAG = "motorolami";
+export const MOTOR_SPEED_RATE = 0.018; // speed (t/soat) = basePrice × rate (sim-tuned)
+export const MOTOR_FUEL_PCT = 0.7; // yoqilg'i = gross×70% (SINK; ×fuelMult dial)
+export const MOTOR_WEAR_PCT = 0.1; // eyilish = gross×10% (SINK + engineHp↓)
+export const MOTOR_MAX_ACCRUE_HOURS = 24; // bir «Yig'ish»da ≤24 soat (anti-hoard + emission bound)
+export const MOTOR_TAXI_MULT = 2; // real taksida 2×
+export const MOTOR_LIFESPAN_DAYS = 14; // umr (engineHp 0 ga tushishi)
+export const MOTOR_WEAR_PER_DAY = 100 / MOTOR_LIFESPAN_DAYS; // engineHp/kun (~7.14)
+export const MOTOR_FUELMULT_MIN = 0.5; // yoqilg'i-dial chegarasi (sink o'lmasin / absurd bo'lmasin)
+export const MOTOR_FUELMULT_MAX = 2.0;
+/** speed (t/soat) modelga qarab — basePrice'dan kelib chiqadi (hamma 11 mashina avto-qamraladi). */
+export function motorSpeed(carCode: string): number {
+  return Math.max(1, Math.round((MAKE_BASE[carCode] ?? 1000) * MOTOR_SPEED_RATE));
+}
+/** Bir «Yig'ish» daromadi. hours service'da ≤MOTOR_MAX_ACCRUE_HOURS ga capped. fuelMult = dial.
+ *  taxiHours = shu davrda real taksida o'tgan soat (o'sha qismda 2×). net = gross − fuel − wear. */
+export function computeMotorEarn(speedPerHour: number, hours: number, fuelMult = 1, taxiHours = 0): { gross: number; fuel: number; wear: number; net: number } {
+  const h = Math.max(0, Math.min(hours, MOTOR_MAX_ACCRUE_HOURS));
+  const taxiBonus = speedPerHour * Math.min(h, Math.max(0, taxiHours)) * (MOTOR_TAXI_MULT - 1);
+  const gross = Math.round(speedPerHour * h + taxiBonus);
+  const fm = Math.max(MOTOR_FUELMULT_MIN, Math.min(MOTOR_FUELMULT_MAX, fuelMult));
+  const fuel = Math.round(gross * MOTOR_FUEL_PCT * fm);
+  const wear = Math.round(gross * MOTOR_WEAR_PCT);
+  const net = Math.max(0, gross - fuel - wear);
+  return { gross, fuel, wear, net };
+}
+
+// 🌍 ochiq profil — boshqa o'yinchining garajini ko'rish (status/maqtanish, P0 litmus).
+export interface PublicProfileView {
+  memberId: number;
+  name: string;
+  reputation: number;
+  garageValue: number; // jami taxminiy qiymat
+  rank: number | null;
+  cars: { serial: number | null; carCode: string; name: string; emoji: string; engineHp: number; dead: boolean }[];
+}
+
 // ── DTOs shared between the server and the mini-app (browser-safe) ────────────
 export interface GarajCarView {
   id: number;
@@ -496,6 +536,15 @@ export interface GarajCarView {
   zones: Record<string, number> | null; // CURRENT per-zone condition (post-repair), 0-100
   acquireCost: number;
   repairSpent: number;
+  // 🌍 motorolami (flag ON bo'lsa to'ldiriladi; OFF da null/undefined)
+  serial?: number | null; // global #raqam
+  engineHp?: number; // 0-100 (eyilish)
+  ageDays?: number; // bornAt'dan beri
+  dead?: boolean; // engineHp ≤ 0 → daromad 0, "eskirdi" prompt
+  speed?: number; // t/soat
+  earnPendingNet?: number; // hozir «Yig'ish» bersa keladigan net
+  ownerCount?: number;
+  totalTrips?: number;
 }
 export interface GarajShopItem {
   carCode: string;
@@ -584,6 +633,7 @@ export interface GarajStateResponse {
   weeklyEvent: GarajWeeklyEvent | null; // #6 this week's live event (chip)
   exhibition: GarajExhibitionView; // #8 weekly car show (entries + my vote + last winner)
   craftJob: GarajCraftJobView | null; // #5 the one running Workshop craft (shared slot), or null
+  motorEnabled?: boolean; // 🌍 motorolami flag — UI shows earn/serial/age when true
 }
 export interface GarajActionResult {
   ok: boolean;

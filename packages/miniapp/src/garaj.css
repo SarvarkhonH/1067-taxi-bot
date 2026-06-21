@@ -427,6 +427,11 @@ button.gz-coll-car:hover { border-color: rgba(255, 179, 0, 0.4); }
 .gz-craft-name { font-size: 13px; font-weight: 700; }
 /* #5 active craft job (shared Workshop slot) — a highlighted "in progress" row */
 .gz-craftjob { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 10px 12px; border-radius: var(--r-card); background: linear-gradient(180deg, #1c1608, var(--surface)); border: 1px solid var(--brand); }
+/* 🌍 motor olami — the car earns; #serial identity + «Yig'ish» */
+.gz-motor { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 10px 12px; margin-top: 8px; border-radius: var(--r-card); background: linear-gradient(180deg, #0e1a14, var(--surface)); border: 1px solid var(--win); }
+.gz-motor.dead { border-color: var(--danger); background: linear-gradient(180deg, #1a0e0e, var(--surface)); }
+.gz-motor-id { font-size: 15px; font-weight: 900; color: var(--brand); letter-spacing: 0.5px; }
+.gz-motor-dead { font-size: 12px; color: var(--danger); font-weight: 700; }
 
 /* 📦 yo'l sovg'alari (towed-car offers) */
 .gz-tow { padding: 11px 13px; border-color: rgba(255, 179, 0, 0.3); }

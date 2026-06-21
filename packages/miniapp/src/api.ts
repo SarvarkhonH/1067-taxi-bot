@@ -15,6 +15,7 @@ import type {
   GarageResponse,
   GarajActionResult,
   GarajStateResponse,
+  PublicProfileView,
   LeaderboardResponse,
   MeResponse,
   MissionClaimResponse,
@@ -163,6 +164,9 @@ export const api = {
   garajExhibitionSubmit: (garajCarId: number) => request<GarajActionResult>("POST", "/api/garaj/exhibition/submit", { garajCarId }, 1),
   garajExhibitionVote: (entryId: number) => request<GarajActionResult>("POST", "/api/garaj/exhibition/vote", { entryId }, 1),
   garajMuseum: () => get<{ collection: { carCode: string; name: string; emoji: string; owned: boolean }[]; collectedCount: number; totalModels: number; totalFlips: number; bestProfit: number; hallOfFame: { name: string; prestigeCount: number; repAtEntry: number }[] }>("/api/garaj/museum"),
+  // 🌍 MOTOR OLAMI (v3)
+  garajMotorCollect: () => request<GarajActionResult & { gross?: number; fuel?: number; wear?: number; net?: number; engineHp?: number; dead?: boolean }>("POST", "/api/garaj/motor/collect", {}, 1),
+  garajProfile: (id: number | "me") => get<PublicProfileView | null>(`/api/garaj/profile/${id}`),
   garajAuctions: () => get<{ id: number; carCode: string; name: string; emoji: string; minBid: number; endsAt: string; mine: boolean }[]>("/api/garaj/auctions"),
   garajAuctionCreate: (garajCarId: number, minBid: number) => request<GarajActionResult>("POST", "/api/garaj/auction/create", { garajCarId, minBid }, 1),
   garajAuctionBid: (auctionId: number, amount: number) => request<GarajActionResult>("POST", "/api/garaj/auction/bid", { auctionId, amount }, 1),

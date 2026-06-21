@@ -192,6 +192,9 @@ export function createApiServer(opts: ApiOptions = {}) {
   app.post("/api/garaj/exhibition/submit", requireUser, rateLimit(10), withMember2(async (id, req) => (await import("../services/garajService")).exhibitionSubmit(id, Number(req.body?.garajCarId))));
   app.post("/api/garaj/exhibition/vote", requireUser, rateLimit(20), withMember2(async (id, req) => (await import("../services/garajService")).exhibitionVote(id, Number(req.body?.entryId))));
   app.get("/api/garaj/museum", requireUser, withMember2(async (id) => (await import("../services/garajService")).getMuseum(id)));
+  // 🌍 MOTOR OLAMI (v3, gated by "motorolami") — passive «Yig'ish» + public profile
+  app.post("/api/garaj/motor/collect", requireUser, rateLimit(30), withMember2(async (id) => (await import("../services/garajService")).motorCollect(id)));
+  app.get("/api/garaj/profile/:id", requireUser, withMember2(async (id, req) => (await import("../services/garajService")).getPublicProfile(id, req.params?.id === "me" ? id : Number(req.params?.id))));
 
   app.get("/api/me", requireUser, async (_req, res) => {
     const me = await getMe(res.locals.telegramId as string);

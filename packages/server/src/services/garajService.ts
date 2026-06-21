@@ -32,6 +32,14 @@ import {
   craftCost,
   craftSpeedupCost,
   craftDurationMs,
+  MOTOR_FLAG,
+  MOTOR_MAX_ACCRUE_HOURS,
+  MOTOR_WEAR_PER_DAY,
+  MOTOR_FUELMULT_MIN,
+  MOTOR_FUELMULT_MAX,
+  motorSpeed,
+  computeMotorEarn,
+  type PublicProfileView,
   KOZACHA_SHOP,
   computeFlipGrant,
   garajCarMeta,
@@ -75,6 +83,7 @@ import {
   type GarajPrestigeView,
   type GarajMahallaView,
 } from "@t1067/shared";
+import type { Prisma } from "@prisma/client";
 import { prisma } from "../db";
 import { featureOn } from "./featureFlags";
 import { getCoins, grantCoins, spendCoinsIdempotent, withMemberLock } from "./coinService";
@@ -95,6 +104,30 @@ async function garajEnabledFor(memberId: number): Promise<boolean> {
     _ownerMemberId = tu?.memberId ?? null;
   }
   return memberId === _ownerMemberId;
+}
+
+// 🌍 MOTOR OLAMI gate — same owner-preview pattern (flag "motorolami", DEFAULT_OFF → dark).
+async function motorEnabledFor(memberId: number): Promise<boolean> {
+  if (await featureOn(MOTOR_FLAG)) return true;
+  if (_ownerMemberId === undefined) {
+    const tu = await prisma.telegramUser.findUnique({ where: { id: GARAJ_PREVIEW_TG }, select: { memberId: true } }).catch(() => null);
+    _ownerMemberId = tu?.memberId ?? null;
+  }
+  return memberId === _ownerMemberId;
+}
+// Global, race-safe #serial — one atomic SQL upsert (ON CONFLICT increments). Starts at 1001.
+async function nextMotorSerial(tx: Prisma.TransactionClient): Promise<number> {
+  const rows = await tx.$queryRaw<{ value: string }[]>`
+    INSERT INTO "AppState" ("key","value","updatedAt") VALUES ('mo:serial:next','1001', now())
+    ON CONFLICT ("key") DO UPDATE SET value = (CAST("AppState"."value" AS INTEGER) + 1)::text, "updatedAt" = now()
+    RETURNING "value"`;
+  return parseInt(rows[0]!.value, 10);
+}
+// Yoqilg'i-dial (markaziy bank dastagi) — AppState "mo:fuelmult", clamp [0.5, 2.0], default 1.
+async function getMotorFuelMult(): Promise<number> {
+  const row = await prisma.appState.findUnique({ where: { key: "mo:fuelmult" } });
+  const v = row ? parseFloat(row.value) : 1;
+  return Math.max(MOTOR_FUELMULT_MIN, Math.min(MOTOR_FUELMULT_MAX, isNaN(v) ? 1 : v));
 }
 
 /** Deterministic, server-only seed (never sent to the client → drops/diagnoses unpredictable).
@@ -189,7 +222,7 @@ async function bumpSkill(
 // ── read: full state for the dedicated shell (one round-trip) ─────────────────
 export async function getGarajState(memberId: number): Promise<GarajStateResponse> {
   const today = tashkentDate();
-  const [enabled, meta, cars, coins, sk, streakRow, cipherSolved, cipherAttempts, cipherCode, mahalla, demand, orders, roadDrops, weekEv, exhibition, craftJobRow] = await Promise.all([
+  const [enabled, meta, cars, coins, sk, streakRow, cipherSolved, cipherAttempts, cipherCode, mahalla, demand, orders, roadDrops, weekEv, exhibition, craftJobRow, motorEnabled, motorFuelMult] = await Promise.all([
     garajEnabledFor(memberId),
     prisma.memberGarajMeta.findUnique({ where: { memberId } }),
     prisma.garajCar.findMany({ where: { memberId, soldAt: null } }),
@@ -206,11 +239,14 @@ export async function getGarajState(memberId: number): Promise<GarajStateRespons
     getWeeklyEvent(),
     getExhibition(memberId),
     prisma.garajCraftJob.findFirst({ where: { memberId, status: "in_progress" } }), // #5 shared craft slot
+    motorEnabledFor(memberId), // 🌍 motorolami flag/owner-preview
+    getMotorFuelMult(), // 🌍 yoqilg'i dial
   ]);
+  const nowMs = Date.now();
   const ownedCodes = new Set(cars.map((c) => c.carCode));
   const carViews: GarajCarView[] = cars.map((c) => {
     const cm = garajCarMeta(c.carCode);
-    return {
+    const view: GarajCarView = {
       id: c.id,
       carCode: c.carCode,
       name: cm?.name ?? c.carCode,
@@ -226,6 +262,21 @@ export async function getGarajState(memberId: number): Promise<GarajStateRespons
       acquireCost: c.acquireCost,
       repairSpent: c.repairSpent,
     };
+    if (motorEnabled && c.serial != null) {
+      // 🌍 motorolami: surface serial, engine wear, age + the pending «Yig'ish» net (preview math)
+      const hp = c.engineHp ?? 100;
+      const hrs = c.lastAccrualAt ? Math.max(0, (nowMs - c.lastAccrualAt.getTime()) / 3_600_000) : 0;
+      const speed = motorSpeed(c.carCode);
+      view.serial = c.serial;
+      view.engineHp = hp;
+      view.dead = hp <= 0;
+      view.speed = speed;
+      view.ageDays = c.bornAt ? Math.floor((nowMs - c.bornAt.getTime()) / 86_400_000) : 0;
+      view.ownerCount = c.ownerCount ?? 1;
+      view.totalTrips = c.totalTrips ?? 0;
+      view.earnPendingNet = hp <= 0 ? 0 : computeMotorEarn(speed, hrs, motorFuelMult, 0).net;
+    }
+    return view;
   });
   const shop = Object.keys(MAKE_BASE).map((code) => {
     const cm = garajCarMeta(code);
@@ -320,6 +371,7 @@ export async function getGarajState(memberId: number): Promise<GarajStateRespons
     weeklyEvent: weekEv,
     exhibition,
     craftJob,
+    motorEnabled,
   };
 }
 
@@ -332,6 +384,7 @@ export async function getGarajState(memberId: number): Promise<GarajStateRespons
 // double-tap can't double-charge and a re-buy charges correctly.
 export async function acquireCar(memberId: number, carCode: string): Promise<GarajActionResult> {
   if (!(await garajEnabledFor(memberId))) return { ok: false, reason: "off" };
+  const motorOn = await motorEnabledFor(memberId); // 🌍 assign a global #serial + start the earn/age clock
   const basePrice = MAKE_BASE[carCode];
   if (!basePrice) return { ok: false, reason: "unknown" };
   const buyPrice = Math.round(basePrice * GARAJ_BUY_FACTOR);
@@ -350,6 +403,11 @@ export async function acquireCar(memberId: number, carCode: string): Promise<Gar
         create: { memberId, carCode, source: "shop", condition: "worn", acquireCost: buyPrice },
         update: { source: "shop", condition: "worn", acquireCost: buyPrice, repairSpent: 0, level: 1, style: null, styleLockedAt: null, diagnosisSeed: null, diagnosisResult: null, repairZones: null, diagnosedAt: null, repairQualityBonus: 1.0, ridesSinceService: 0, soldAt: null, onboardCar: false },
       });
+      if (motorOn) {
+        // 🌍 fresh global #serial + restart the earn/age clock (re-buy = a NEW car identity)
+        const serial = await nextMotorSerial(tx);
+        await tx.garajCar.update({ where: { id: car.id }, data: { serial, bornAt: new Date(), engineHp: 100, lastAccrualAt: new Date(), ownerCount: 1, totalTrips: 0 } });
+      }
       await tx.memberGarajMeta.upsert({
         where: { memberId },
         create: { memberId, carsOwnedCount: 1, sumCarLevels: 1, reputationScore: 5 },
@@ -359,6 +417,51 @@ export async function acquireCar(memberId: number, carCode: string): Promise<Gar
     });
     return result.ok ? { ok: true, carId: result.carId, coins: await getCoins(memberId) } : { ok: false, reason: result.reason, coins: await getCoins(memberId) };
   });
+}
+
+// ══ 🌍 MOTOR OLAMI (v3) — passiv earn («Yig'ish») + ochiq profil ══════════════
+// «Yig'ish»: oxirgi accrual'dan beri o'tgan soat (≤24) × speed = gross; yoqilg'i(dial)+eyilish
+// CHIQARILMAYDI (faqat net minted → emission past). engineHp vaqt bilan tushadi (~14 kun → o'lim).
+// net grantCoins bilan (idempotent, ride-clamp'dan tashqari faucet, ALOHIDA cap=24soat-vaqt).
+// withMemberLock + inline grant → re-entrant deadlock yo'q (grantCoins o'zi lock oladi → uni
+// lock TASHQARISIDA chaqiramiz). Withdraw o'zgarmaydi (real safar + revenue byudjet).
+export async function motorCollect(memberId: number): Promise<GarajActionResult & { gross?: number; fuel?: number; wear?: number; net?: number; engineHp?: number; dead?: boolean }> {
+  if (!(await motorEnabledFor(memberId))) return { ok: false, reason: "off" };
+  const car = await prisma.garajCar.findFirst({ where: { memberId, soldAt: null, serial: { not: null } } });
+  if (!car) return { ok: false, reason: "no_car", coins: await getCoins(memberId) };
+  const now = Date.now();
+  const last = car.lastAccrualAt?.getTime() ?? now;
+  const hours = Math.max(0, (now - last) / 3_600_000);
+  if ((car.engineHp ?? 0) <= 0) {
+    await prisma.garajCar.update({ where: { id: car.id }, data: { lastAccrualAt: new Date() } });
+    return { ok: true, gross: 0, fuel: 0, wear: 0, net: 0, engineHp: 0, dead: true, coins: await getCoins(memberId) };
+  }
+  const fuelMult = await getMotorFuelMult();
+  const speed = motorSpeed(car.carCode);
+  const { gross, fuel, wear, net } = computeMotorEarn(speed, hours, fuelMult, 0); // taxi 2× = sweep ride-hooki (P0.4)
+  const cappedHours = Math.min(hours, MOTOR_MAX_ACCRUE_HOURS);
+  const newHp = Math.max(0, Math.round((car.engineHp ?? 100) - MOTOR_WEAR_PER_DAY * (cappedHours / 24)));
+  // credit ONLY net (idempotent on the accrual-start epoch → double-tap = same key = skip)
+  if (net > 0) await grantCoins(memberId, net, "motor_earn", `🚗 Mashina daromadi (${car.carCode} #${car.serial})`, `mo:earn:${memberId}:${last}`);
+  await prisma.garajCar.update({ where: { id: car.id }, data: { lastAccrualAt: new Date(), engineHp: newHp } });
+  return { ok: true, gross, fuel, wear, net, engineHp: newHp, dead: newHp <= 0, coins: await getCoins(memberId) };
+}
+
+// 🌍 ochiq profil — boshqa o'yinchining garaji (status/maqtanish). Read-only, pulga tegmaydi.
+export async function getPublicProfile(viewerId: number, targetId: number): Promise<PublicProfileView | null> {
+  if (!(await motorEnabledFor(viewerId))) return null;
+  const member = await prisma.member.findUnique({ where: { id: targetId }, select: { fullName: true } });
+  if (!member) return null;
+  const [meta, cars] = await Promise.all([
+    prisma.memberGarajMeta.findUnique({ where: { memberId: targetId } }),
+    prisma.garajCar.findMany({ where: { memberId: targetId, soldAt: null } }),
+  ]);
+  const carViews = cars.map((c) => {
+    const cm = garajCarMeta(c.carCode);
+    return { serial: c.serial ?? null, carCode: c.carCode, name: cm?.name ?? c.carCode, emoji: cm?.emoji ?? "🚗", engineHp: c.engineHp ?? 100, dead: (c.engineHp ?? 100) <= 0 };
+  });
+  const garageValue = cars.reduce((s, c) => s + (MAKE_BASE[c.carCode] ?? 0), 0);
+  return { memberId: targetId, name: member.fullName ?? "O'yinchi", reputation: meta?.reputationScore ?? 0, garageValue, rank: null, cars: carViews };
 }
 
 // Hidden per-zone STARTING condition (20..99) derived from the server-only seed.

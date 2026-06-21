@@ -8,7 +8,7 @@
 // PURE: no DB, no kas — re-derives emission from the same constants the server
 // grants from, so a divergence here is a real economic regression.
 // Run: dotenv -e ../../.env -- tsx src/scripts/simEconomy.ts [customers] [days] [seed]
-import { RIDE_REWARD_BASE, RIDE_REWARD_TIERS, RIDE_EMISSION_CAP, WHEEL_PRIZES, computeFlipGrant, FLIP_DAILY_CAP, MAKE_BASE, offlineBoxPayout, OFFLINE_DAILY_CAP, prestigeMultiplier } from "@t1067/shared";
+import { RIDE_REWARD_BASE, RIDE_REWARD_TIERS, RIDE_EMISSION_CAP, WHEEL_PRIZES, computeFlipGrant, FLIP_DAILY_CAP, MAKE_BASE, offlineBoxPayout, OFFLINE_DAILY_CAP, prestigeMultiplier, motorSpeed, computeMotorEarn, MOTOR_FUELMULT_MIN } from "@t1067/shared";
 import { JACKPOT_FLOOR, JACKPOT_INCREMENT } from "@t1067/shared";
 
 // ── seeded PRNG (LCG) so the proof is reproducible run-to-run ───────────────
@@ -202,7 +202,23 @@ function main(): void {
   console.log(`📦 OFFLINE BOX — max payout ${maxBox} (cap ${OFFLINE_DAILY_CAP}) at prestige 5 / 5000 levels / 240h`);
   ok(boxViolations === 0, `offline box payout ≤ ${OFFLINE_DAILY_CAP}/day across all garage sizes × hours × max prestige (0 violations)`);
 
-  console.log(failed === 0 ? "\n🛡 ECONOMY SIM: BUZILMAS qoida isbotlandi (≤350/safar + flip-cap + offline-cap)" : `\n❌ ${failed} ta tekshiruv yiqildi`);
+  // 🌍 MOTOR OLAMI — passive earn faucet is BOUNDED: only NET minted (fuel+wear sink ≥80% at
+  // normal fuel), gross capped at 24h/collect. Worst-case ceiling disclosed (full-taxi×cheap-fuel),
+  // and withdraw stays real-ride+revenue-gated so it can't threaten solvency.
+  let motorViol = 0;
+  let maxMotorDay = 0;
+  for (const code of Object.keys(MAKE_BASE)) {
+    const sp = motorSpeed(code);
+    const normal = computeMotorEarn(sp, 24, 1, 0); // offline, normal fuel
+    if (normal.net > Math.ceil(normal.gross * 0.2)) motorViol++; // sink must keep net ≤ 20% of gross
+    if (normal.gross > 0 && normal.fuel + normal.wear <= 0) motorViol++; // faucet must always have a sink
+    const worst = computeMotorEarn(sp, 24, MOTOR_FUELMULT_MIN, 24); // full-taxi + cheapest fuel = theoretical ceiling
+    if (worst.net > maxMotorDay) maxMotorDay = worst.net;
+  }
+  console.log(`🌍 MOTOR OLAMI — offline net ≤20% gross (sink ≥80%); worst-case ceiling ${maxMotorDay}/kun (full-taxi×cheap-fuel; withdraw safar+revenue-gated)`);
+  ok(motorViol === 0, `motor faucet bounded: only NET minted, sink ≥80% @ normal fuel, 24h time-cap (0 violations)`);
+
+  console.log(failed === 0 ? "\n🛡 ECONOMY SIM: BUZILMAS qoida isbotlandi (≤350/safar + flip-cap + offline-cap + motor-bound)" : `\n❌ ${failed} ta tekshiruv yiqildi`);
   process.exit(failed === 0 ? 0 : 1);
 }
 

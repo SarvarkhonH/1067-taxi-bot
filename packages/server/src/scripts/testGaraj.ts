@@ -9,10 +9,10 @@
 // Run: dotenv -e ../../.env -- tsx src/scripts/testGaraj.ts
 import "./_testDb"; // ENG BIRINCHI: izolyatsiyalangan test-DB (jonli sweep poygasini oldini oladi)
 import "../env";
-import { MAKE_BASE, GARAJ_BUY_FACTOR, FLIP_DAILY_CAP, CIPHER_REWARD, OFFLINE_DAILY_CAP, PRESTIGE_REP_HEADSTART, CRAFT_MAX_LEVEL, CRAFT_SPEEDUP_MIN, prestigeMultiplier, activeSeasonalEvent, demandMultiplier, GARAJ_NPCS, npcForBuyer, npcLine } from "@t1067/shared";
+import { MAKE_BASE, GARAJ_BUY_FACTOR, FLIP_DAILY_CAP, CIPHER_REWARD, OFFLINE_DAILY_CAP, PRESTIGE_REP_HEADSTART, CRAFT_MAX_LEVEL, CRAFT_SPEEDUP_MIN, prestigeMultiplier, activeSeasonalEvent, demandMultiplier, GARAJ_NPCS, npcForBuyer, npcLine, motorSpeed, MOTOR_MAX_ACCRUE_HOURS } from "@t1067/shared";
 import { prisma } from "../db";
 import { getCoins, grantCoins } from "../services/coinService";
-import { acquireCar, completeRepairTask, repairZone, diagnoseCar, flipCar, garajAuctionBid, garajAuctionCreate, garajBazaarBuy, garajBazaarList, garajBazaarUnlist, getGarajHistory, getMemberCollection, garajKozachaBuy, grantKozacha, processRideDrop, settleAuctions, spendKozachaIdempotent, updateStreakOnRide, garajCipherGuess, collectOfflineBox, garajPrestige, mahallaCreate, mahallaJoin, mahallaLeave, addMahallaScore, settleMahallaWeek, getMahallaLeague, getMahallaState, getDailyOrders, recomputeDemand, getRoadDrops, claimTowedCar, declineTowedCar, garajCraft, garajCraftSpeedup, settleCraftJobs, __resetWeekEventCache, exhibitionSubmit, exhibitionVote, settleExhibition, getMuseum } from "../services/garajService";
+import { acquireCar, completeRepairTask, repairZone, diagnoseCar, flipCar, garajAuctionBid, garajAuctionCreate, garajBazaarBuy, garajBazaarList, garajBazaarUnlist, getGarajHistory, getMemberCollection, garajKozachaBuy, grantKozacha, processRideDrop, settleAuctions, spendKozachaIdempotent, updateStreakOnRide, garajCipherGuess, collectOfflineBox, garajPrestige, mahallaCreate, mahallaJoin, mahallaLeave, addMahallaScore, settleMahallaWeek, getMahallaLeague, getMahallaState, getDailyOrders, recomputeDemand, getRoadDrops, claimTowedCar, declineTowedCar, garajCraft, garajCraftSpeedup, settleCraftJobs, __resetWeekEventCache, exhibitionSubmit, exhibitionVote, settleExhibition, getMuseum, motorCollect, getPublicProfile } from "../services/garajService";
 import { __resetFeatureCache, setFeature } from "../services/featureFlags";
 
 const TAG = "garaj-test";
@@ -59,6 +59,7 @@ async function cleanup(): Promise<void> {
   await prisma.appState.deleteMany({ where: { key: `cipher:code:${todayKey()}` } }); // the test's daily cipher code
   await prisma.appState.deleteMany({ where: { key: { startsWith: "market:demand:" } } }); // #3 demand cache
   await prisma.appState.deleteMany({ where: { key: "garaj:weekevent" } }); // #6 admin override
+  await prisma.appState.deleteMany({ where: { key: { in: ["feature:motorolami", "mo:fuelmult"] } } }); // 🌍 motor test flag/dial (test DB only)
   __resetWeekEventCache();
   await prisma.mahallaWeeklyResult.deleteMany({ where: { weekKey: "2026-W99" } }); // the test's settle weekKey
   // NOTE: do NOT delete feature:garajx here — on the LIVE DB that would knock the
@@ -517,8 +518,40 @@ async function main(): Promise<void> {
   ok(museum.totalModels === 11 && museum.collectedCount >= 3, `museum: collection counted (${museum.collectedCount}/${museum.totalModels})`);
   ok(museum.collection.some((c) => c.carCode === "nexia" && c.owned) && museum.totalFlips >= 1 && museum.bestProfit > 0, `museum: owned models + flip records (flips ${museum.totalFlips}, best ${museum.bestProfit})`);
 
+  // 28. 🌍 MOTOR OLAMI — serial + accrual (gross−fuel−wear) + time-cap + lifespan + public profile
+  await setFeature("motorolami", true);
+  __resetFeatureCache();
+  const moM = await prisma.member.create({ data: { type: "client", kasId: `${TAG}-motor`, fullName: "Motorchi", phone: "+998900006016", trips: 5 } });
+  await grantCoins(moM.id, 50000, "manual", "seed");
+  ok((await acquireCar(moM.id, "nexia")).ok, `motor: acquire ok`);
+  const moCar = (await prisma.garajCar.findFirst({ where: { memberId: moM.id, carCode: "nexia", soldAt: null } }))!;
+  const moSpeed = motorSpeed("nexia");
+  ok(moCar.serial != null && moCar.serial >= 1001, `motor: global #serial assigned (#${moCar.serial})`);
+  ok(moCar.engineHp === 100 && moCar.bornAt != null, `motor: engineHp 100 + bornAt set on acquire`);
+  // accrual: backdate 10h → collect → gross = speed×10, only NET credited, fuel+wear are sink
+  await prisma.garajCar.update({ where: { id: moCar.id }, data: { lastAccrualAt: new Date(Date.now() - 10 * 3600 * 1000) } });
+  const moC0 = await getCoins(moM.id);
+  const col = await motorCollect(moM.id);
+  ok(col.ok && col.gross === moSpeed * 10, `motor: gross = speed×10h (${col.gross})`);
+  ok((col.net ?? 0) > 0 && (col.fuel ?? 0) + (col.wear ?? 0) > (col.net ?? 0) && (col.net ?? 0) < (col.gross ?? 0), `motor: fuel+wear sink → net<gross (net ${col.net})`);
+  ok((await getCoins(moM.id)) - moC0 === (col.net ?? 0), `motor: ONLY net credited (${col.net}) — gross not minted`);
+  // idempotent / no-time: immediate re-collect ~0
+  ok(((await motorCollect(moM.id)).net ?? 0) < 5, `motor: immediate re-collect ~0 (no time / idempotent)`);
+  // time-cap: backdate 100h → gross capped at MOTOR_MAX_ACCRUE_HOURS
+  await prisma.garajCar.update({ where: { id: moCar.id }, data: { lastAccrualAt: new Date(Date.now() - 100 * 3600 * 1000) } });
+  ok((await motorCollect(moM.id)).gross === moSpeed * MOTOR_MAX_ACCRUE_HOURS, `motor: accrual capped at ${MOTOR_MAX_ACCRUE_HOURS}h`);
+  // lifespan: engineHp 0 → dead → earns 0
+  await prisma.garajCar.update({ where: { id: moCar.id }, data: { engineHp: 0, lastAccrualAt: new Date(Date.now() - 10 * 3600 * 1000) } });
+  const colDead = await motorCollect(moM.id);
+  ok(colDead.dead === true && colDead.net === 0, `motor: dead car (engineHp 0) earns 0`);
+  // public profile
+  const prof = await getPublicProfile(moM.id, moM.id);
+  ok(prof != null && prof.cars.some((c) => c.serial === moCar.serial) && prof.garageValue > 0, `motor: public profile shows #serial + garageValue`);
+  await setFeature("motorolami", false);
+  __resetFeatureCache();
+
   // 20. W5 ledger invariant across all new members (every grant is a real CoinTxn)
-  for (const mm of [sM, cM, bM, oM, tM, xM, wM, eM, fM, gM]) {
+  for (const mm of [sM, cM, bM, oM, tM, xM, wM, eM, fM, gM, moM]) {
     const b = (await prisma.member.findUnique({ where: { id: mm.id } }))!.coins;
     const t = await prisma.coinTxn.aggregate({ where: { memberId: mm.id }, _sum: { amount: true } });
     ok(Math.abs(b - (t._sum.amount ?? 0)) < 0.001, `W5 ledger invariant (member ${mm.id}: bal ${b} == ledger ${t._sum.amount ?? 0})`);

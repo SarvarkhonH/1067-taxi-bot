@@ -586,6 +586,16 @@ model GarajCar {
   createdAt          DateTime  @default(now())
   updatedAt          DateTime  @updatedAt
 
+  // ── 🌍 MOTOR OLAMI (v3, gated by feature "motorolami"; additive/non-destructive) ──
+  // Noyob global #serial + tarix; mashina pul ishlaydi (speed→tanga, fuel/wear kunlik auto);
+  // engineHp = wear holati (0-100); bornAt+lifespan = umr → o'lim. Speed/fuel/wear/umr CONFIG'dan.
+  serial             Int?      @unique // global noyob #raqam (motorolami acquire'da beriladi)
+  bornAt             DateTime? // umr hisobi boshlanishi (lifespan config'dan)
+  engineHp           Int       @default(100) // dvigatel holati 0-100 (eyilish tushiradi; CarCheck ko'rsatadi)
+  lastAccrualAt      DateTime? // oxirgi earn hisoblangani (accrue shu vaqtdan)
+  ownerCount         Int       @default(1) // egalar soni (tarix)
+  totalTrips         Int       @default(0) // jami safar (taksi 2× hooki)
+
   @@unique([memberId, carCode])
   @@index([memberId])
 }
