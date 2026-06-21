@@ -235,6 +235,20 @@ export async function pushBookingUpdates(
           .catch(() => undefined);
       }
 
+      // PING on the key transition — the card EDIT above is SILENT (Telegram edits don't notify),
+      // so without this the rider never notices the driver arrived. Fires ONCE per transition
+      // (lastBookingStatus gates statusChanged, updated below).
+      if (statusChanged && cardId && b.status === "arrived") {
+        const car = b.carNumber ? ` · <b>${esc(b.carNumber)}</b>` : "";
+        const ph = ctx.driver?.phone ? ` · 📞 ${esc(ctx.driver.phone)}` : "";
+        const bonus = b.clientBonus ? `\n💰 +${formatNumber(b.clientBonus)} so'm cashback · narx taksometr bo'yicha` : "\n💰 narx taksometr bo'yicha";
+        await bot.api
+          .sendMessage(chatId, `🚖 <b>Haydovchingiz keldi — kutyapti, chiqing!</b>\n🚘 ${esc(ctx.driver?.carModel ?? "Mashina")}${car}${ph}${bonus}`, { parse_mode: "HTML" })
+          .catch(() => undefined);
+      } else if (statusChanged && cardId && b.status === "started") {
+        await bot.api.sendMessage(chatId, "🚗 <b>Safar boshlandi — yaxshi yo'l!</b> 🚕", { parse_mode: "HTML" }).catch(() => undefined);
+      }
+
       // ── the moving pin ──
       let pinId = isNewRide ? null : m.liveLocMsgId;
       if (driver?.lat && driver?.lng) {
