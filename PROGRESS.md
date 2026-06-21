@@ -11,6 +11,14 @@
 
 ## Jarayonda
 
+### 🌍 MOTOR OLAMI v3 — noyob #serial mashinalar PUL ISHLAYDI (2026-06-20) — ⚫ DARK (flag `motorolami` OFF + owner-preview; owner real-telefon QABUL kutilmoqda)
+Reja: `MOTOR_OLAMI_PLAN.md` (+PDF). Pul-modeli = yagona TANGA + guardrail (savdo net-0, Ofis byudjetli, **withdraw o'zgarmaydi — real safar+revenue**). GARAJ-flip vorisi; supersedes "ta'mirla-sot".
+- **P0 (5-yadro litmus) — QURILDI + DARK-DEPLOY (commit `a60c420`):** (1) noyob **#serial** (global atomik AppState-upsert, #1001+, sotuvdan keyin saqlanadi) + immutable tarix; (2) **ochiq profil** (`/api/garaj/profile/:id`, ":id"=me, 🌍 sheet); (3) **bozor** (mavjud bazaar qayta-ishlatiladi); (4) **mashina pul ishlaydi** (speed=base×0.018 t/soat, offline+2×taksi; «Yig'ish» = gross−yoqilg'i(70%,dial)−eyilish(10%); FAQAT net minted; 24soat time-cap; chore yo'q); (5) **qarishi** (engineHp 100→0 ~14kun → o'lim → "eskirdi" prompt).
+- **Pul-xavfsizligi:** faqat NET minted (sink ≥80%), withdraw o'zgarmagan (safar+revenue-gated), poller yo'q (lazy collect), idempotent grantCoins. Schema additiv → Neon + test DB.
+- **ISBOT:** typecheck 4/4 · `testGaraj` **162/162 ×3** (serial/accrual/sink/24h-cap/o'lim/profil) · `simEconomy` **0 violation** (≤350/safar + flip-cap + offline-cap + **motor-bound**: only-net, sink≥80%, 24h-cap) · jonli bundle-grep (`garaj-BVbJvxMS.js`: gz-motor/«Yig'ish»/Ochiq profil) · jonli route'lar **401** (motor/collect, profile/:id) · flag `motorolami:false` (DARK), `garajx/kozacha` baribir ON · UI render-tasdiq (#garajdemo).
+- **⚠ GO-LIVE'GACHA SOZLASH:** simEconomy premium-mashina worst-case ceiling **~19958 tanga/kun** (eng qimmat × full-taxi × eng-arzon-yoqilg'i — imkonsiz kombo, withdraw-gated, flag off) oshkor qildi. `MOTOR_SPEED_RATE` pasaytirish yoki qattiq kunlik NET cap qo'shish — owner-accept'dan oldin.
+- **QOLDI:** P1 (1067 Ofis market-maker + scarcity slotlar + CarCheck + ORZU + sweep auto-accrual/2×-taxi) · P2 (merge + event + jackpot + Speeder). Har biri owner-accept'dan keyin.
+
 ### 🏆 GARAJ v2 — chuqur mashina-tiklash + flip o'yini (2026-06-18) — 🟢 LIVE (owner "go live" → global flaglar ON; test-proven + R4 mustaqil-audit PASS)
 Owner: "eski oddiy garajni olib tashla, GARAJ bosilganda yangi to'liq-ekran kuchli o'yin ochilsin; berilgan plani aniq tugat va live ga chiqor". Eski `GarageSection` SAQLANDI (flag OFF → oddiy user o'shani ko'radi); yangi GARAJ faqat `garajx` ON yoki owner-preview'da almashtiradi. Migratsiya/refund/bonus YO'Q (greenfield — hali hech kim o'ynamadi, owner qarori).
 - **W0-W2 (yadro):** ol→diagnoz→ta'mirla→sot (flip). FTUE (90s, bir martalik +80 grant, telegram-id keyed multi-akkaunt himoya). `garajGame.ts` (pure config: `computeFlipGrant` yagona narx-manbai), `garajService.ts`, schema (Neon additiv `db push`), `garaj.tsx`/`garaj.css` (faqat tokens/CSS — WebGL YO'Q, UZ uchun bundle'langan).
