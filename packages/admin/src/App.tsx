@@ -795,6 +795,8 @@ function BoshqaruvView() {
   const [users, setUsers] = useState<AdminUserRow[] | null>(null);
   const [msg, setMsg] = useState("");
   const [wds, setWds] = useState<AdminWithdrawalRow[] | null>(null);
+  const [codePhone, setCodePhone] = useState("");
+  const [codeResult, setCodeResult] = useState<{ phone: string; code: string } | null>(null);
 
   const search = async () => {
     setMsg("⏳ qidirilmoqda…");
@@ -827,8 +829,20 @@ function BoshqaruvView() {
     await done(r.ok ? "✅ Uzildi (foydalanuvchi qayta /start qila oladi)" : "❌ xato");
   };
   const genCode = async (phone: string) => {
+    setMsg("⏳ kod yaratilmoqda…");
     const r = await adminApi.linkCode(phone).catch(() => ({ ok: false, message: "net" }) as { ok: boolean; code?: string; message?: string });
-    setMsg(r.ok ? `🔑 ${phone} → kod: ${r.code} (1 soat amal qiladi)` : "❌ " + (r.message ?? ""));
+    if (r.ok && r.code) {
+      setCodeResult({ phone, code: r.code });
+      setMsg("");
+    } else setMsg("❌ " + (r.message ?? "xato"));
+  };
+  const makeCode = () => {
+    const phone = codePhone.trim();
+    if (!/^\+?\d[\d\s\-()]{8,}$/.test(phone)) {
+      setMsg("❌ Raqam noto'g'ri (masalan: +998901234567)");
+      return;
+    }
+    genCode(phone);
   };
   const adjust = async (memberId: number) => {
     const a = window.prompt("Tanga (+ berish / − ayirish):");
@@ -848,6 +862,29 @@ function BoshqaruvView() {
 
   return (
     <>
+      <section className="panel">
+        <div className="panel-title">🔑 Boshqa raqam uchun login kod</div>
+        <div className="muted" style={{ marginBottom: 10, lineHeight: 1.5 }}>
+          Telegrami <b>boshqa</b> raqamda bo'lgan odam o'z 1067 raqami bilan kirmoqchi bo'lsa — raqamini yozing, kod yarating va unga ayting. U botda «📱 Boshqa raqam» tugmasi orqali kiritadi. Kod <b>1 soat</b> amal qiladi, bir marta ishlaydi.
+        </div>
+        <div style={{ display: "flex", gap: 8 }}>
+          <input
+            style={{ flex: 1, padding: "8px 10px" }}
+            value={codePhone}
+            onChange={(e) => setCodePhone(e.target.value)}
+            placeholder="+998901234567"
+            onKeyDown={(e) => e.key === "Enter" && makeCode()}
+          />
+          <button onClick={makeCode}>🔑 Kod yaratish</button>
+        </div>
+        {codeResult && (
+          <div style={{ marginTop: 12, textAlign: "center", padding: 14, border: "1px solid var(--line, #2a3242)", borderRadius: 12 }}>
+            <div className="muted">{codeResult.phone} uchun kod:</div>
+            <div style={{ fontSize: 40, fontWeight: 800, letterSpacing: 12, margin: "6px 0" }}>{codeResult.code}</div>
+            <div className="muted">1 soat amal qiladi · odamga ayting</div>
+          </div>
+        )}
+      </section>
       <section className="panel">
         <div className="panel-title">👑 Foydalanuvchi boshqaruvi</div>
         <div style={{ display: "flex", gap: 8, marginBottom: 10 }}>

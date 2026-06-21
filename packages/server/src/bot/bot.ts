@@ -308,20 +308,20 @@ export function createBot(): Bot {
     }
   });
 
-  // SECURITY: typing a number proves NOTHING — anyone could type someone else's number and
-  // claim their account/bonuses. Registration MUST go through the verified «Raqamni ulashish»
-  // button (own Telegram number). The typed path stays ONLY for admins (testing/support).
+  // SECURITY: typing a number proves NOTHING — anyone (INCLUDING an admin) could type someone
+  // else's number and walk into their account. There is NO typed-number auto-link anymore —
+  // not even for admins. Two safe paths only: (1) OWN number → the verified «Raqamni ulashish»
+  // button (Telegram confirms it's yours); (2) a DIFFERENT number (1067 ≠ Telegram) → «📱 Boshqa
+  // raqam» + a 4-digit code that an admin generates in the panel (👑 Boshqaruv → «🔑 Kod
+  // yaratish»). Admins manage other people's accounts from the panel (search → relink), never
+  // by typing a number here. This closes the "anyone can enter anyone's account" hole.
   bot.hears(/^\+?\d[\d\s\-()]{8,}$/, async (ctx) => {
-    const id = String(ctx.from!.id);
-    if (!isAdmin(id)) {
-      await ctx.reply(
-        "🔒 Raqamni <b>qo'lda yozib bo'lmaydi</b> — bu xavfsiz emas.\nPastdagi «📱 Raqamni ulashish» tugmasi orqali <b>o'z</b> raqamingizni tasdiqlang 🙏",
-        { parse_mode: "HTML", reply_markup: contactKeyboard() },
-      );
-      return;
-    }
-    await touchTelegramUser(id, profileOf(ctx.from!));
-    await handleLink(ctx, ctx.message!.text!);
+    await ctx.reply(
+      "🔒 Raqamni <b>qo'lda yozib bo'lmaydi</b> — bu xavfsiz emas.\n\n" +
+        "• <b>O'z</b> raqamingiz → pastdagi «📱 Raqamni ulashish» tugmasi (Telegram tasdiqlaydi)\n" +
+        "• <b>Boshqa</b> raqam (1067 raqamingiz Telegramnikidan farq qilsa) → «📱 Boshqa raqam» tugmasi → 1067'dan 4 xonali kod oling",
+      { parse_mode: "HTML", reply_markup: contactKeyboard() },
+    );
   });
 
   const showProfile = async (ctx: Context) => {
