@@ -174,20 +174,28 @@ async function main(): Promise<void> {
     }
   }, intervalMs);
 
-  // real-time ride status: poll active bookings often, push status changes
+  // ADAPTIVE self-scheduling sweep: fast (15s) while any ride is live so "driver found /
+  // arrived / started / finished" pings land within ~15s, idle (90s) otherwise to spare kas.
+  // ONE sweep (no new poller); ALWAYS re-schedules so it never stops. pushBookingUpdates
+  // returns the count of live rides → drives the next delay.
   let bookingBusy = false;
-  const bookingTimer =
-    env.KAS_MODE === "live"
-      ? setInterval(() => {
-          if (!bot || bookingBusy) return;
-          bookingBusy = true;
-          void pushBookingUpdates(bot)
-            .catch((e) => console.error("[booking] push failed:", e))
-            .finally(() => {
-              bookingBusy = false;
-            });
-        }, 90_000)
-      : null;
+  let bookingStopped = false;
+  let bookingTimer: ReturnType<typeof setTimeout> | null = null;
+  const tickBooking = async (): Promise<void> => {
+    let activeRides = 0;
+    if (bot && !bookingBusy) {
+      bookingBusy = true;
+      try {
+        activeRides = await pushBookingUpdates(bot);
+      } catch (e) {
+        console.error("[booking] push failed:", e);
+      } finally {
+        bookingBusy = false;
+      }
+    }
+    if (!bookingStopped) bookingTimer = setTimeout(() => void tickBooking(), activeRides > 0 ? 15_000 : 90_000);
+  };
+  if (env.KAS_MODE === "live") bookingTimer = setTimeout(() => void tickBooking(), 15_000);
 
   // keep the free-tier instance warm (self-ping) so the Mini App never hits a cold start
   const keepAlive = env.WEBHOOK_URL
@@ -199,7 +207,8 @@ async function main(): Promise<void> {
   const shutdown = async () => {
     console.log("\n[server] shutting down…");
     clearInterval(timer);
-    if (bookingTimer) clearInterval(bookingTimer);
+    bookingStopped = true;
+    if (bookingTimer) clearTimeout(bookingTimer);
     if (keepAlive) clearInterval(keepAlive);
     server.close();
     if (bot && !env.WEBHOOK_URL) await bot.stop();

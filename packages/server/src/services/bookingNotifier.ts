@@ -141,13 +141,13 @@ export async function pushBookingUpdates(
   bot: Bot,
   dsOverride?: KasDataSource,
   opts?: { memberScope?: Prisma.MemberWhereInput },
-): Promise<void> {
+): Promise<number> {
   const ds = dsOverride ?? getDataSource();
   let bookings: ActiveBookingLite[];
   try {
     bookings = await ds.listActiveBookings();
   } catch {
-    return;
+    return 0;
   }
   const byPhone = new Map(bookings.map((b) => [b.phoneNorm, b]));
   // honest queue: searching orders in arrival order (kas ids are monotonic)
@@ -247,6 +247,18 @@ export async function pushBookingUpdates(
           .catch(() => undefined);
       } else if (statusChanged && cardId && b.status === "started") {
         await bot.api.sendMessage(chatId, "🚗 <b>Safar boshlandi — yaxshi yo'l!</b> 🚕", { parse_mode: "HTML" }).catch(() => undefined);
+      } else if (cardId && !isNewRide && b.carNumber && !m.lastBookingCar && b.status !== "arrived" && b.status !== "started") {
+        // 🚖 driver JUST assigned — a car appeared on an already-shown «qidirilyapti» card. The
+        // edit above is SILENT, so PING this moment; otherwise the rider only finds out when the
+        // driver arrives. Fires once per ride (next tick sets lastBookingCar).
+        const eta =
+          driver?.lat && driver?.lng && b.lat && b.lng
+            ? ` · ~${Math.max(1, Math.ceil((haversineKm({ lat: driver.lat, lng: driver.lng }, { lat: b.lat, lng: b.lng }) / CITY_KMH) * 60))} daq`
+            : "";
+        const ph = driver?.phone ? `\n📞 ${esc(driver.phone)}` : "";
+        await bot.api
+          .sendMessage(chatId, `🚖 <b>Haydovchi topildi — yo'lda!</b>${eta}\n🚘 ${esc(driver?.carModel ?? "Mashina")} · <b>${esc(b.carNumber)}</b>${ph}`, { parse_mode: "HTML" })
+          .catch(() => undefined);
       }
 
       // ── the moving pin ──
@@ -653,4 +665,8 @@ export async function pushBookingUpdates(
   } catch (e) {
     console.error("[garaj] craft settle failed:", e);
   }
+
+  // count of live rides this tick → the index sweep schedules its NEXT run fast (15s) while a
+  // ride is active, idle (90s) otherwise. Same data already fetched (no extra kas call).
+  return linked.filter((m) => m.phone && byPhone.has(m.phone.replace(/\D/g, "").slice(-9))).length;
 }
