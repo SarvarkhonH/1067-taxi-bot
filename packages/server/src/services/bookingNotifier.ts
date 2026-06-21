@@ -152,7 +152,14 @@ export async function pushBookingUpdates(
   } catch {
     return 0;
   }
-  const byPhone = new Map(bookings.map((b) => [b.phoneNorm, b]));
+  // newest order per phone WINS: kas ids are monotonic, so a lingering OLD booking (one that never
+  // left kas's active list) must never shadow the rider's CURRENT order. Map-from-array kept the
+  // LAST array entry, which could be the stale one → the bot announced the WRONG taxi. Fixed here.
+  const byPhone = new Map<string, ActiveBookingLite>();
+  for (const bk of bookings) {
+    const prev = byPhone.get(bk.phoneNorm);
+    if (!prev || bk.id > prev.id) byPhone.set(bk.phoneNorm, bk);
+  }
   // honest queue: searching orders in arrival order (kas ids are monotonic)
   const searchQueue = bookings.filter((x) => SEARCHING.has(x.status) && !x.carNumber).sort((a, b) => a.id - b.id);
   let freeDrivers: number | undefined;
@@ -199,6 +206,13 @@ export async function pushBookingUpdates(
       const isNewRide = m.lastBookingId !== b.id;
       const statusChanged = isNewRide || m.lastBookingStatus !== b.status;
       const driver = b.carNumber ? await driverByCar(b.carNumber) : null;
+      // trace which booking/car the bot resolved for this member — proves the correct taxi vs the
+      // stale-booking bug. Logged only on a transition so Render logs stay readable.
+      if (isNewRide || statusChanged) {
+        console.log(
+          `[booking] m${m.id} → b${b.id} ${b.status} car=${b.carNumber || "—"} drv=${driver?.fullName || "—"} (prev b${m.lastBookingId ?? "—"} car=${m.lastBookingCar ?? "—"})`,
+        );
+      }
 
       // T2 (AUDIT 2.2): 2 ketma-ket so'rov → 1 parallel to'lqin (faol-safar a'zosiga)
       const [guessRow, spinRow] = await Promise.all([
@@ -261,10 +275,12 @@ export async function pushBookingUpdates(
           const car = driver ? `\n🚘 ${esc(driver.carModel)} · <b>${esc(driver.carNumber)}</b>` : b.carNumber ? `\n🚘 <b>${esc(b.carNumber)}</b>` : "";
           await bot.api.sendMessage(chatId, `🚕 <b>Haydovchingiz YETIB KELDI — chiqing!</b>${car}`, { parse_mode: "HTML" }).catch(() => undefined);
         }
-      } else if (cardId && !isNewRide && b.carNumber && !m.lastBookingCar && b.status !== "arrived" && b.status !== "started") {
-        // 🚖 driver JUST assigned — a car appeared on an already-shown «qidirilyapti» card. The
-        // edit above is SILENT, so PING this moment; otherwise the rider only finds out when the
-        // driver arrives. Fires once per ride (next tick sets lastBookingCar).
+      } else if (cardId && b.carNumber && b.carNumber !== m.lastBookingCar && b.status !== "arrived" && b.status !== "started") {
+        // 🚖 driver JUST assigned — a car appeared (or CHANGED) for THIS ride. Gate on the car
+        // DIFFERING from the one last recorded, NOT on "member never had a car": a previous ride
+        // left lastBookingCar set, so the old `!m.lastBookingCar` gate silently suppressed this
+        // ping for every later ride ("kim qabul qildi" never arrived). Fires on the first sighting
+        // too (new ride's car ≠ stale old car). Next tick sets lastBookingCar → no re-fire.
         const eta =
           driver?.lat && driver?.lng && b.lat && b.lng
             ? ` · ~${Math.max(1, Math.ceil((haversineKm({ lat: driver.lat, lng: driver.lng }, { lat: b.lat, lng: b.lng }) / CITY_KMH) * 60))} daq`
