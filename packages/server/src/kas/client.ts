@@ -22,6 +22,17 @@ import type {
   SavedAddress,
 } from "./types";
 
+// ─── kas booking status normalization ────────────────────────────────────────
+// kas booking lifecycle: new → take → in_place → delivered. There is NO "started"/"arrived".
+// "in_place" = the driver is in place at the pickup AND the taximeter is running — the trip is
+// underway. Map it to the canonical "started" the bot sweep + Mini App expect, so rideStartedAt
+// is set and the ride is rewarded on finish (baraban / cashback / fare). Without this EVERY real
+// ride looked like a phantom (no rideStartedAt) and paid nothing. Other kas statuses already map:
+// new/searching → SEARCHING, take/on_the_way → en-route, cancel_*/take_back → cancel.
+export function normBookingStatus(s: string): string {
+  return s === "in_place" ? "started" : s;
+}
+
 // ─── low-level HTTP (raw, so we fully control cookies + redirects) ───────────
 interface RawResponse {
   status: number;
@@ -448,7 +459,7 @@ export class KasLiveSource implements KasDataSource {
     }
     return {
       id: Number(b.id ?? 0),
-      status: String(b.status ?? ""),
+      status: normBookingStatus(String(b.status ?? "")),
       addressName: String(b.addressName ?? ""),
       lat: num(b.addressLatitude) || undefined,
       lng: num(b.addressLongitude) || undefined,
@@ -471,7 +482,7 @@ export class KasLiveSource implements KasDataSource {
     return list.map((b) => ({
       id: Number(b.id ?? 0),
       phoneNorm: String(b.phoneNumber ?? "").replace(/\D/g, "").slice(-9),
-      status: String(b.status ?? ""),
+      status: normBookingStatus(String(b.status ?? "")),
       carNumber: String(b.carNumber ?? ""),
       addressName: String(b.addressName ?? ""),
       clientBonus: num(b.clientBonus),

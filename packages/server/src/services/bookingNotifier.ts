@@ -13,8 +13,10 @@ import { getDataSource, type ActiveBookingLite, type BookingDriver, type KasData
 import { incrementMission } from "./missionService";
 
 const CITY_KMH = 24;
-const SEARCHING = new Set(["in_place", "new", "searching"]);
-const CANCELLABLE = new Set(["in_place", "searching", "new", "called", "accepted", "on_the_way"]);
+// kas lifecycle: new → take → in_place → delivered. "in_place" is normalized to "started" in the
+// kas client (driver at pickup + meter running = in-trip), so it is NOT searching and NOT cancellable.
+const SEARCHING = new Set(["new", "searching"]);
+const CANCELLABLE = new Set(["searching", "new", "called", "accepted", "on_the_way", "take"]);
 
 function esc(s: string): string {
   return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
@@ -246,7 +248,9 @@ export async function pushBookingUpdates(
           .sendMessage(chatId, `🚖 <b>Haydovchingiz keldi — kutyapti, chiqing!</b>\n🚘 ${esc(ctx.driver?.carModel ?? "Mashina")}${car}${ph}${bonus}`, { parse_mode: "HTML" })
           .catch(() => undefined);
       } else if (statusChanged && cardId && b.status === "started") {
-        await bot.api.sendMessage(chatId, "🚗 <b>Safar boshlandi — yaxshi yo'l!</b> 🚕", { parse_mode: "HTML" }).catch(() => undefined);
+        // kas "in_place" → "started": the driver is at the pickup and the meter is running. kas has
+        // no separate "arrived", so THIS is the rider's arrival + trip-start ping (fires once).
+        await bot.api.sendMessage(chatId, "🚕 <b>Haydovchingiz keldi — chiqing, yaxshi yo'l!</b> 🚖", { parse_mode: "HTML" }).catch(() => undefined);
       } else if (cardId && !isNewRide && b.carNumber && !m.lastBookingCar && b.status !== "arrived" && b.status !== "started") {
         // 🚖 driver JUST assigned — a car appeared on an already-shown «qidirilyapti» card. The
         // edit above is SILENT, so PING this moment; otherwise the rider only finds out when the
