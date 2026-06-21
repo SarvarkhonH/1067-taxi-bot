@@ -370,6 +370,7 @@ function MashinaCard() {
 function ControlCards() {
   const [flags, setFlags] = useState<{ name: string; on: boolean }[] | null>(null);
   const [fund, setFund] = useState(0);
+  const [econ, setEcon] = useState<{ knobs: { key: string; label: string; def: number; min: number; max: number; step: number; live: boolean }[]; values: Record<string, number> } | null>(null);
   const [corps, setCorps] = useState<{ id: number; name: string; balance: number; employees: number }[]>([]);
   const [cName, setCName] = useState("");
   const [empPhone, setEmpPhone] = useState("");
@@ -382,10 +383,16 @@ function ControlCards() {
 
   const load = () => {
     adminApi.features().then((r) => { setFlags(r.features); setFund(r.mashinaFund); }).catch(() => undefined);
+    adminApi.motorEconomy().then(setEcon).catch(() => undefined);
     adminApi.corps().then((r) => setCorps(r.corps)).catch(() => undefined);
     adminApi.optokens().then((r) => setOptokens(r.tokens)).catch(() => undefined);
   };
   useEffect(() => { load(); }, []);
+
+  const saveEcon = async (key: string, value: number) => {
+    try { const r = await adminApi.setMotorEconomy(key, value); setEcon((e) => (e ? { ...e, values: r.values } : e)); }
+    catch { alert(`'${key}' qiymatini saqlab bo'lmadi`); }
+  };
 
   const toggle = async (name: string, on: boolean) => {
     // P1 (QA fleet): no try/catch → a failed kill-switch toggle was an unhandled rejection with
@@ -410,6 +417,22 @@ function ControlCards() {
           ))}
         </div>
         <p className="muted" style={{ marginTop: 8 }}>🏆 Mashina fondi: <b>{fund.toLocaleString("ru-RU")}</b> so'm (100 so'm/safar, withdraw-byudjetdan alohida)</p>
+        {econ && (
+          <div style={{ marginTop: 14, borderTop: "1px solid rgba(255,255,255,0.12)", paddingTop: 10 }}>
+            <h3 style={{ margin: "0 0 6px" }}>🎛 Motor Olami iqtisod — jonli narx boshqaruvi</h3>
+            <div style={{ display: "grid", gap: 8 }}>
+              {econ.knobs.map((k) => (
+                <div key={k.key} style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+                  <span style={{ flex: 1, minWidth: 190 }}>{k.label}{!k.live && <span className="muted"> (P2)</span>}</span>
+                  <input type="number" step={k.step} min={k.min} max={k.max} defaultValue={econ.values[k.key]} id={`econ-${k.key}`} style={{ width: 90 }} />
+                  <span className="muted" style={{ fontSize: 11 }}>[{k.min}–{k.max}]</span>
+                  <button className="btn sm" onClick={() => { const el = document.getElementById(`econ-${k.key}`) as HTMLInputElement | null; if (el) void saveEcon(k.key, Number(el.value)); }}>Saqlash</button>
+                </div>
+              ))}
+            </div>
+            <p className="muted" style={{ marginTop: 6, fontSize: 11 }}>⛽ Yoqilg'i ×0.7 = arzon-promo (faollik↑). ⚡ Daromad ×0.5 = inflyatsiya tormozi. Har qiymat clamp'langan — buzib bo'lmaydi.</p>
+          </div>
+        )}
         <MashinaCard />
         <div style={{ marginTop: 10 }}>
           <button className="btn" onClick={async () => { const r = await adminApi.optoken(); setMsg2(`Operator token (faqat bir marta ko'rsatiladi): ${r.token}`); load(); }}>🔑 Operator-token yaratish</button>

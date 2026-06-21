@@ -818,6 +818,22 @@ export function createApiServer(opts: ApiOptions = {}) {
     await setFeature(b.name as never, b.on !== false);
     res.json({ ok: true, features: await listFeatures() });
   });
+  // 🎛 MOTOR OLAMI operator economy — owner controls fuel/earn/speeder prices live (clamped)
+  app.get("/api/admin/motor-economy", requireAdmin, async (_req, res) => {
+    const { MOTOR_ECON_KNOBS } = await import("@t1067/shared");
+    const { getMotorEcon } = await import("../services/garajService");
+    res.json({ knobs: MOTOR_ECON_KNOBS, values: await getMotorEcon() });
+  });
+  app.post("/api/admin/motor-economy", requireAdmin, requireOwner, async (req, res) => {
+    const b = req.body as { key?: string; value?: number };
+    const { MOTOR_ECON_KNOBS } = await import("@t1067/shared");
+    if (!MOTOR_ECON_KNOBS.some((k) => k.key === b?.key) || typeof b?.value !== "number") {
+      res.status(400).json({ error: "unknown knob or bad value" });
+      return;
+    }
+    const { setMotorEcon } = await import("../services/garajService");
+    res.json({ ok: true, values: await setMotorEcon(b.key as string, b.value) });
+  });
   // ── M1/M3/M4/M6: livemap, member/driver 360, mashina draw, op tokens ─────
   app.get("/api/admin/livemap", requireAdmin, async (_req, res) => {
     const { nearbyPins } = await import("../services/bookingPlus");

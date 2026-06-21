@@ -493,6 +493,26 @@ export const MOTOR_LIFESPAN_DAYS = 14; // umr (engineHp 0 ga tushishi)
 export const MOTOR_WEAR_PER_DAY = 100 / MOTOR_LIFESPAN_DAYS; // engineHp/kun (~7.14)
 export const MOTOR_FUELMULT_MIN = 0.5; // yoqilg'i-dial chegarasi (sink o'lmasin / absurd bo'lmasin)
 export const MOTOR_FUELMULT_MAX = 2.0;
+
+// 🎛 OPERATOR IQTISOD-DASTAKLARI — admin paneldan jonli boshqariladi (AppState "mo:econ" JSON).
+// Har knob CLAMP'langan (admin xato qiymat bersa ham iqtisod buzilmaydi). live:true = P0'da
+// hozir qo'llanadi (fuelMult, speedMult); live:false = P2 speeder uchun ro'yxatga olingan.
+export interface MotorEconKnob { key: string; label: string; def: number; min: number; max: number; step: number; live: boolean }
+export const MOTOR_ECON_KNOBS: MotorEconKnob[] = [
+  { key: "fuelMult", label: "⛽ Yoqilg'i narxi (×)", def: 1, min: MOTOR_FUELMULT_MIN, max: MOTOR_FUELMULT_MAX, step: 0.05, live: true },
+  { key: "speedMult", label: "⚡ Daromad tezligi (×)", def: 1, min: 0.25, max: 2, step: 0.05, live: true },
+  { key: "speederPrice", label: "🚀 Speeder narxi (tanga)", def: 5000, min: 500, max: 50000, step: 100, live: false },
+  { key: "speederStock", label: "🚀 Speeder zaxira (dona)", def: 500, min: 0, max: 100000, step: 50, live: false },
+  { key: "speederMult", label: "🚀 Speeder kuchi (×)", def: 4, min: 2, max: 6, step: 1, live: false },
+];
+export function clampMotorEcon(key: string, val: number): number {
+  const k = MOTOR_ECON_KNOBS.find((x) => x.key === key);
+  if (!k || isNaN(val)) return k?.def ?? val;
+  return Math.max(k.min, Math.min(k.max, val));
+}
+export function motorEconDefaults(): Record<string, number> {
+  return Object.fromEntries(MOTOR_ECON_KNOBS.map((k) => [k.key, k.def]));
+}
 /** speed (t/soat) modelga qarab — basePrice'dan kelib chiqadi (hamma 11 mashina avto-qamraladi). */
 export function motorSpeed(carCode: string): number {
   return Math.max(1, Math.round((MAKE_BASE[carCode] ?? 1000) * MOTOR_SPEED_RATE));

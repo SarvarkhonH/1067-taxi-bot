@@ -35,8 +35,8 @@ import {
   MOTOR_FLAG,
   MOTOR_MAX_ACCRUE_HOURS,
   MOTOR_WEAR_PER_DAY,
-  MOTOR_FUELMULT_MIN,
-  MOTOR_FUELMULT_MAX,
+  motorEconDefaults,
+  clampMotorEcon,
   motorSpeed,
   computeMotorEarn,
   type PublicProfileView,
@@ -123,11 +123,24 @@ async function nextMotorSerial(tx: Prisma.TransactionClient): Promise<number> {
     RETURNING "value"`;
   return parseInt(rows[0]!.value, 10);
 }
-// Yoqilg'i-dial (markaziy bank dastagi) — AppState "mo:fuelmult", clamp [0.5, 2.0], default 1.
-async function getMotorFuelMult(): Promise<number> {
-  const row = await prisma.appState.findUnique({ where: { key: "mo:fuelmult" } });
-  const v = row ? parseFloat(row.value) : 1;
-  return Math.max(MOTOR_FUELMULT_MIN, Math.min(MOTOR_FUELMULT_MAX, isNaN(v) ? 1 : v));
+// 🎛 OPERATOR IQTISOD — admin paneldan boshqariladigan dastaklar (AppState "mo:econ" JSON;
+// defaults + override, har biri CLAMP'langan → admin xato qiymat bersa ham buzilmaydi).
+export async function getMotorEcon(): Promise<Record<string, number>> {
+  const defaults = motorEconDefaults();
+  const row = await prisma.appState.findUnique({ where: { key: "mo:econ" } });
+  if (!row) return defaults;
+  let saved: Record<string, unknown> = {};
+  try { saved = JSON.parse(row.value) as Record<string, unknown>; } catch { saved = {}; }
+  const out: Record<string, number> = {};
+  for (const k of Object.keys(defaults)) out[k] = clampMotorEcon(k, typeof saved[k] === "number" ? (saved[k] as number) : defaults[k]!);
+  return out;
+}
+// admin: set one knob (clamped + persisted), returns the full config
+export async function setMotorEcon(key: string, value: number): Promise<Record<string, number>> {
+  const cur = await getMotorEcon();
+  if (key in cur) cur[key] = clampMotorEcon(key, value);
+  await prisma.appState.upsert({ where: { key: "mo:econ" }, create: { key: "mo:econ", value: JSON.stringify(cur) }, update: { value: JSON.stringify(cur) } });
+  return cur;
 }
 
 /** Deterministic, server-only seed (never sent to the client → drops/diagnoses unpredictable).
@@ -222,7 +235,7 @@ async function bumpSkill(
 // ── read: full state for the dedicated shell (one round-trip) ─────────────────
 export async function getGarajState(memberId: number): Promise<GarajStateResponse> {
   const today = tashkentDate();
-  const [enabled, meta, cars, coins, sk, streakRow, cipherSolved, cipherAttempts, cipherCode, mahalla, demand, orders, roadDrops, weekEv, exhibition, craftJobRow, motorEnabled, motorFuelMult] = await Promise.all([
+  const [enabled, meta, cars, coins, sk, streakRow, cipherSolved, cipherAttempts, cipherCode, mahalla, demand, orders, roadDrops, weekEv, exhibition, craftJobRow, motorEnabled, motorEcon] = await Promise.all([
     garajEnabledFor(memberId),
     prisma.memberGarajMeta.findUnique({ where: { memberId } }),
     prisma.garajCar.findMany({ where: { memberId, soldAt: null } }),
@@ -240,7 +253,7 @@ export async function getGarajState(memberId: number): Promise<GarajStateRespons
     getExhibition(memberId),
     prisma.garajCraftJob.findFirst({ where: { memberId, status: "in_progress" } }), // #5 shared craft slot
     motorEnabledFor(memberId), // 🌍 motorolami flag/owner-preview
-    getMotorFuelMult(), // 🌍 yoqilg'i dial
+    getMotorEcon(), // 🎛 admin iqtisod-dastaklar (fuelMult + speedMult)
   ]);
   const nowMs = Date.now();
   const ownedCodes = new Set(cars.map((c) => c.carCode));
@@ -266,7 +279,7 @@ export async function getGarajState(memberId: number): Promise<GarajStateRespons
       // 🌍 motorolami: surface serial, engine wear, age + the pending «Yig'ish» net (preview math)
       const hp = c.engineHp ?? 100;
       const hrs = c.lastAccrualAt ? Math.max(0, (nowMs - c.lastAccrualAt.getTime()) / 3_600_000) : 0;
-      const speed = motorSpeed(c.carCode);
+      const speed = Math.round(motorSpeed(c.carCode) * (motorEcon.speedMult ?? 1));
       view.serial = c.serial;
       view.engineHp = hp;
       view.dead = hp <= 0;
@@ -274,7 +287,7 @@ export async function getGarajState(memberId: number): Promise<GarajStateRespons
       view.ageDays = c.bornAt ? Math.floor((nowMs - c.bornAt.getTime()) / 86_400_000) : 0;
       view.ownerCount = c.ownerCount ?? 1;
       view.totalTrips = c.totalTrips ?? 0;
-      view.earnPendingNet = hp <= 0 ? 0 : computeMotorEarn(speed, hrs, motorFuelMult, 0).net;
+      view.earnPendingNet = hp <= 0 ? 0 : computeMotorEarn(speed, hrs, motorEcon.fuelMult ?? 1, 0).net;
     }
     return view;
   });
@@ -436,9 +449,9 @@ export async function motorCollect(memberId: number): Promise<GarajActionResult 
     await prisma.garajCar.update({ where: { id: car.id }, data: { lastAccrualAt: new Date() } });
     return { ok: true, gross: 0, fuel: 0, wear: 0, net: 0, engineHp: 0, dead: true, coins: await getCoins(memberId) };
   }
-  const fuelMult = await getMotorFuelMult();
-  const speed = motorSpeed(car.carCode);
-  const { gross, fuel, wear, net } = computeMotorEarn(speed, hours, fuelMult, 0); // taxi 2× = sweep ride-hooki (P0.4)
+  const econ = await getMotorEcon(); // 🎛 admin dastaklar: yoqilg'i × + daromad-tezligi ×
+  const speed = Math.round(motorSpeed(car.carCode) * (econ.speedMult ?? 1));
+  const { gross, fuel, wear, net } = computeMotorEarn(speed, hours, econ.fuelMult ?? 1, 0); // taxi 2× = sweep ride-hooki (P0.4)
   const cappedHours = Math.min(hours, MOTOR_MAX_ACCRUE_HOURS);
   const newHp = Math.max(0, Math.round((car.engineHp ?? 100) - MOTOR_WEAR_PER_DAY * (cappedHours / 24)));
   // credit ONLY net (idempotent on the accrual-start epoch → double-tap = same key = skip)

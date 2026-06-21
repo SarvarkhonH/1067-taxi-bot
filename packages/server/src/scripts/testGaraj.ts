@@ -12,7 +12,7 @@ import "../env";
 import { MAKE_BASE, GARAJ_BUY_FACTOR, FLIP_DAILY_CAP, CIPHER_REWARD, OFFLINE_DAILY_CAP, PRESTIGE_REP_HEADSTART, CRAFT_MAX_LEVEL, CRAFT_SPEEDUP_MIN, prestigeMultiplier, activeSeasonalEvent, demandMultiplier, GARAJ_NPCS, npcForBuyer, npcLine, motorSpeed, MOTOR_MAX_ACCRUE_HOURS } from "@t1067/shared";
 import { prisma } from "../db";
 import { getCoins, grantCoins } from "../services/coinService";
-import { acquireCar, completeRepairTask, repairZone, diagnoseCar, flipCar, garajAuctionBid, garajAuctionCreate, garajBazaarBuy, garajBazaarList, garajBazaarUnlist, getGarajHistory, getMemberCollection, garajKozachaBuy, grantKozacha, processRideDrop, settleAuctions, spendKozachaIdempotent, updateStreakOnRide, garajCipherGuess, collectOfflineBox, garajPrestige, mahallaCreate, mahallaJoin, mahallaLeave, addMahallaScore, settleMahallaWeek, getMahallaLeague, getMahallaState, getDailyOrders, recomputeDemand, getRoadDrops, claimTowedCar, declineTowedCar, garajCraft, garajCraftSpeedup, settleCraftJobs, __resetWeekEventCache, exhibitionSubmit, exhibitionVote, settleExhibition, getMuseum, motorCollect, getPublicProfile } from "../services/garajService";
+import { acquireCar, completeRepairTask, repairZone, diagnoseCar, flipCar, garajAuctionBid, garajAuctionCreate, garajBazaarBuy, garajBazaarList, garajBazaarUnlist, getGarajHistory, getMemberCollection, garajKozachaBuy, grantKozacha, processRideDrop, settleAuctions, spendKozachaIdempotent, updateStreakOnRide, garajCipherGuess, collectOfflineBox, garajPrestige, mahallaCreate, mahallaJoin, mahallaLeave, addMahallaScore, settleMahallaWeek, getMahallaLeague, getMahallaState, getDailyOrders, recomputeDemand, getRoadDrops, claimTowedCar, declineTowedCar, garajCraft, garajCraftSpeedup, settleCraftJobs, __resetWeekEventCache, exhibitionSubmit, exhibitionVote, settleExhibition, getMuseum, motorCollect, getPublicProfile, getMotorEcon, setMotorEcon } from "../services/garajService";
 import { __resetFeatureCache, setFeature } from "../services/featureFlags";
 
 const TAG = "garaj-test";
@@ -59,7 +59,7 @@ async function cleanup(): Promise<void> {
   await prisma.appState.deleteMany({ where: { key: `cipher:code:${todayKey()}` } }); // the test's daily cipher code
   await prisma.appState.deleteMany({ where: { key: { startsWith: "market:demand:" } } }); // #3 demand cache
   await prisma.appState.deleteMany({ where: { key: "garaj:weekevent" } }); // #6 admin override
-  await prisma.appState.deleteMany({ where: { key: { in: ["feature:motorolami", "mo:fuelmult"] } } }); // 🌍 motor test flag/dial (test DB only)
+  await prisma.appState.deleteMany({ where: { key: { in: ["feature:motorolami", "mo:econ"] } } }); // 🌍 motor test flag/econ (test DB only)
   __resetWeekEventCache();
   await prisma.mahallaWeeklyResult.deleteMany({ where: { weekKey: "2026-W99" } }); // the test's settle weekKey
   // NOTE: do NOT delete feature:garajx here — on the LIVE DB that would knock the
@@ -547,6 +547,14 @@ async function main(): Promise<void> {
   // public profile
   const prof = await getPublicProfile(moM.id, moM.id);
   ok(prof != null && prof.cars.some((c) => c.serial === moCar.serial) && prof.garageValue > 0, `motor: public profile shows #serial + garageValue`);
+  // 🎛 admin economy control — out-of-range CLAMPED; speedMult applied to earnings
+  await setMotorEcon("fuelMult", 99);
+  ok((await getMotorEcon()).fuelMult === 2, `econ: fuelMult clamped to max (admin can't break it)`);
+  await setMotorEcon("speedMult", 0.5);
+  await prisma.garajCar.update({ where: { id: moCar.id }, data: { engineHp: 100, lastAccrualAt: new Date(Date.now() - 10 * 3600 * 1000) } });
+  ok((await motorCollect(moM.id)).gross === Math.round(moSpeed * 0.5) * 10, `econ: speedMult 0.5 halves earnings (admin earn-dial works)`);
+  await setMotorEcon("fuelMult", 1);
+  await setMotorEcon("speedMult", 1);
   await setFeature("motorolami", false);
   __resetFeatureCache();
 
