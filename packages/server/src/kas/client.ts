@@ -85,6 +85,9 @@ class CookieJar {
   header(): string {
     return [...this.jar.entries()].map(([k, v]) => `${k}=${v}`).join("; ");
   }
+  clear(): void {
+    this.jar.clear();
+  }
 }
 
 function extractCsrf(html: string): { name: string; value: string } | null {
@@ -134,8 +137,13 @@ export class KasLiveSource implements KasDataSource {
     if (!this.opts.username || !this.opts.password) {
       throw new Error("kas1067 live mode needs KAS_USERNAME and KAS_PASSWORD in .env");
     }
-    // kas1067 rate-limits login (429); back off and retry a few times.
+    // kas1067 rate-limits login (429) AND a STALE session cookie makes a re-login return the login
+    // page (200, no redirect) instead of a fresh CSRF form → "login failed". A long-running process
+    // accumulates that stale JSESSIONID, so each login starts from a CLEARED jar (anonymous GET
+    // /login → fresh CSRF), and a 200-failure is RETRIED with backoff (transient under load) before
+    // giving up. A fresh client instance already logs in fine — this makes the long-lived one match.
     for (let attempt = 0; ; attempt++) {
+      this.jar.clear();
       const page = await rawRequest(this.url("login"), { headers: this.baseHeaders() });
       if (page.status === 429 && attempt < 4) {
         await sleep(2000 * (attempt + 1));
@@ -161,6 +169,10 @@ export class KasLiveSource implements KasDataSource {
       const loc = (res.headers.location as string) ?? "";
       const ok = res.status >= 300 && res.status < 400 && !/\/login/.test(loc) && !/error/i.test(loc);
       if (!ok) {
+        if (attempt < 4) {
+          await sleep(2000 * (attempt + 1)); // transient 200 / redirect-to-login → retry with a fresh jar
+          continue;
+        }
         throw new Error(
           `kas1067 login failed (status ${res.status}, redirect "${loc}"). Check KAS_USERNAME / KAS_PASSWORD.`,
         );
