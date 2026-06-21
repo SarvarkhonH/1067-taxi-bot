@@ -367,8 +367,23 @@ export class KasLiveSource implements KasDataSource {
 
   async createBooking(req: BookingRequest): Promise<BookingResult> {
     const body = { ...req, phoneNumber: kasPhone(req.phoneNumber) }; // kas-standard phone (+998<last9>)
-    const res = await this.postJson("api/bookings/throughWeb", body);
-    return { ok: res.status >= 200 && res.status < 300, message: res.body.slice(0, 200) };
+    // A LIVE session returns the created booking JSON (always a numeric "id"). A DEAD session
+    // (another login on the shared kas account killed ours) makes kas serve the LOGIN PAGE with
+    // HTTP 200 — postJson's 302-check misses it, so the old code read that as success → a PHANTOM
+    // booking that never reached kas (rider stuck on "qidirilyapti", no driver, no notifications).
+    // So REQUIRE a booking-shaped body; if missing, force a fresh login and retry once.
+    for (let attempt = 0; attempt < 2; attempt++) {
+      const res = await this.postJson("api/bookings/throughWeb", body);
+      if (res.status >= 200 && res.status < 300 && /"id"\s*:\s*\d/.test(res.body)) {
+        return { ok: true, message: res.body.slice(0, 200) };
+      }
+      if (attempt === 0) {
+        this.loggedIn = false; // dead/garbage response → drop session, re-login fresh, retry
+        continue;
+      }
+      return { ok: false, message: res.body.slice(0, 200) || `kas status ${res.status}` };
+    }
+    return { ok: false, message: "createBooking: kas did not return a booking" };
   }
 
   async getBookingAddons(): Promise<KasAddon[]> {
