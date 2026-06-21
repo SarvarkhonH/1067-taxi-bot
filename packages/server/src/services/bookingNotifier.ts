@@ -250,7 +250,8 @@ export async function pushBookingUpdates(
       } else if (statusChanged && cardId && b.status === "started") {
         // kas "in_place" → "started": the driver is at the pickup and the meter is running. kas has
         // no separate "arrived", so THIS is the rider's arrival + trip-start ping (fires once).
-        await bot.api.sendMessage(chatId, "🚕 <b>Haydovchingiz keldi — chiqing, yaxshi yo'l!</b> 🚖", { parse_mode: "HTML" }).catch(() => undefined);
+        const car = driver ? `\n🚘 ${esc(driver.carModel)} · <b>${esc(driver.carNumber)}</b>` : b.carNumber ? `\n🚘 <b>${esc(b.carNumber)}</b>` : "";
+        await bot.api.sendMessage(chatId, `🚕 <b>Haydovchingiz YETIB KELDI — chiqing!</b>${car}`, { parse_mode: "HTML" }).catch(() => undefined);
       } else if (cardId && !isNewRide && b.carNumber && !m.lastBookingCar && b.status !== "arrived" && b.status !== "started") {
         // 🚖 driver JUST assigned — a car appeared on an already-shown «qidirilyapti» card. The
         // edit above is SILENT, so PING this moment; otherwise the rider only finds out when the
@@ -259,9 +260,10 @@ export async function pushBookingUpdates(
           driver?.lat && driver?.lng && b.lat && b.lng
             ? ` · ~${Math.max(1, Math.ceil((haversineKm({ lat: driver.lat, lng: driver.lng }, { lat: b.lat, lng: b.lng }) / CITY_KMH) * 60))} daq`
             : "";
+        const name = driver?.fullName ? `\n👤 ${esc(driver.fullName)}${driver.rating ? ` ⭐${driver.rating.toFixed(1)}` : ""}` : "";
         const ph = driver?.phone ? `\n📞 ${esc(driver.phone)}` : "";
         await bot.api
-          .sendMessage(chatId, `🚖 <b>Haydovchi topildi — yo'lda!</b>${eta}\n🚘 ${esc(driver?.carModel ?? "Mashina")} · <b>${esc(b.carNumber)}</b>${ph}`, { parse_mode: "HTML" })
+          .sendMessage(chatId, `🚖 <b>Haydovchi topildi — yo'lda!</b>${eta}${name}\n🚘 ${esc(driver?.carModel ?? "Mashina")} · <b>${esc(b.carNumber)}</b>${ph}`, { parse_mode: "HTML" })
           .catch(() => undefined);
       }
 
@@ -575,7 +577,9 @@ export async function pushBookingUpdates(
         const done = hist?.find((h) => h.id === bid);
         if (done && done.payment > 0) {
           fareAmount = Math.floor(done.payment);
-          fareLine = `\n🧾 Yo'l haqi: <b>${formatNumber(done.payment)} so'm</b>`;
+          const km = done.distance ? ` · 📏 ${done.distance} km` : "";
+          const mins = done.time ? ` · ⏱ ${done.time} daq` : "";
+          fareLine = `\n🧾 Yo'l haqi: <b>${formatNumber(done.payment)} so'm</b>${km}${mins}`;
         }
       } catch (e) {
         console.error("[fare] lookup failed:", e instanceof Error ? e.message : e);

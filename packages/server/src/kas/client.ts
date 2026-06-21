@@ -576,6 +576,8 @@ export class KasLiveSource implements KasDataSource {
         carModel: String(b.carModel ?? ""),
         payment: num(b.payment),
         cashback: num(b.clientBonus),
+        distance: num(b.distance),
+        time: num(b.time),
         at: String(b.date ?? ""),
       }));
     } catch {

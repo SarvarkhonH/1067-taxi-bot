@@ -100,6 +100,8 @@ export interface RideHistoryItem {
   carModel: string;
   payment: number;
   cashback: number;
+  distance?: number; // km (kas taximeter — set on a completed ride)
+  time?: number; // minutes (kas taximeter — set on a completed ride)
   at: string; // ISO date
 }
 
