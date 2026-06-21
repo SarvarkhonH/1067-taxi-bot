@@ -8,7 +8,7 @@
 // PURE: no DB, no kas — re-derives emission from the same constants the server
 // grants from, so a divergence here is a real economic regression.
 // Run: dotenv -e ../../.env -- tsx src/scripts/simEconomy.ts [customers] [days] [seed]
-import { RIDE_REWARD_BASE, RIDE_REWARD_TIERS, RIDE_EMISSION_CAP, WHEEL_PRIZES, computeFlipGrant, FLIP_DAILY_CAP, MAKE_BASE, offlineBoxPayout, OFFLINE_DAILY_CAP, prestigeMultiplier, motorSpeed, computeMotorEarn, MOTOR_FUELMULT_MIN } from "@t1067/shared";
+import { RIDE_REWARD_BASE, RIDE_REWARD_TIERS, RIDE_EMISSION_CAP, WHEEL_PRIZES, computeFlipGrant, FLIP_DAILY_CAP, MAKE_BASE, offlineBoxPayout, OFFLINE_DAILY_CAP, prestigeMultiplier, motorSpeed, computeMotorEarn, MOTOR_FUELMULT_MIN, effectiveEcon } from "@t1067/shared";
 import { JACKPOT_FLOOR, JACKPOT_INCREMENT } from "@t1067/shared";
 
 // ── seeded PRNG (LCG) so the proof is reproducible run-to-run ───────────────
@@ -218,7 +218,24 @@ function main(): void {
   console.log(`🌍 MOTOR OLAMI — offline net ≤20% gross (sink ≥80%); worst-case ceiling ${maxMotorDay}/kun (full-taxi×cheap-fuel; withdraw safar+revenue-gated)`);
   ok(motorViol === 0, `motor faucet bounded: only NET minted, sink ≥80% @ normal fuel, 24h time-cap (0 violations)`);
 
-  console.log(failed === 0 ? "\n🛡 ECONOMY SIM: BUZILMAS qoida isbotlandi (≤350/safar + flip-cap + offline-cap + motor-bound)" : `\n❌ ${failed} ta tekshiruv yiqildi`);
+  // 🎁 BONUS HAFTASI — admin bonus knoblari ham stacked'da sink-positive qoladimi? (worst-case
+  // bonus: speedMult=2 max, fuelMult=0.5 min, bonusSpeedMult=3 max, bonusFuelMult=0.1 min →
+  // effectiveEcon floor/ceiling bilan clamp'lanadi). Daromad ko'p, lekin gross hech qachon
+  // sinksiz emas (effective fuelMult floor=0.1 → fuel ≥ gross*0.07; wear yana 10%).
+  let bonusViol = 0;
+  let maxBonusDay = 0;
+  const worstBase = { fuelMult: MOTOR_FUELMULT_MIN, speedMult: 2, bonusFuelMult: 0.1, bonusSpeedMult: 3 };
+  const eff = effectiveEcon(worstBase, true);
+  for (const code of Object.keys(MAKE_BASE)) {
+    const sp = Math.round(motorSpeed(code) * eff.speedMult);
+    const r = computeMotorEarn(sp, 24, eff.fuelMult, 24); // 24h + full-taxi + max bonus
+    if (r.gross > 0 && r.fuel + r.wear <= 0) bonusViol++; // sink must always exist
+    if (r.net > maxBonusDay) maxBonusDay = r.net;
+  }
+  console.log(`🎁 BONUS HAFTASI — worst-case bonus net ceiling ${maxBonusDay}/kun (eng qimmat × 2×admin × 3×bonus × cheap-fuel; faqat o'zining bonus haftasida; per-player one-shot)`);
+  ok(bonusViol === 0, `bonus stacked-worst: sink hech qachon nolga tushmaydi (clamp floor 0.1 saqlaydi)`);
+
+  console.log(failed === 0 ? "\n🛡 ECONOMY SIM: BUZILMAS qoida isbotlandi (≤350/safar + flip-cap + offline-cap + motor-bound + bonus-bound)" : `\n❌ ${failed} ta tekshiruv yiqildi`);
   process.exit(failed === 0 ? 0 : 1);
 }
 

@@ -12,7 +12,7 @@ import "../env";
 import { MAKE_BASE, GARAJ_BUY_FACTOR, FLIP_DAILY_CAP, CIPHER_REWARD, OFFLINE_DAILY_CAP, PRESTIGE_REP_HEADSTART, CRAFT_MAX_LEVEL, CRAFT_SPEEDUP_MIN, prestigeMultiplier, activeSeasonalEvent, demandMultiplier, GARAJ_NPCS, npcForBuyer, npcLine, motorSpeed, MOTOR_MAX_ACCRUE_HOURS } from "@t1067/shared";
 import { prisma } from "../db";
 import { getCoins, grantCoins } from "../services/coinService";
-import { acquireCar, completeRepairTask, repairZone, diagnoseCar, flipCar, garajAuctionBid, garajAuctionCreate, garajBazaarBuy, garajBazaarList, garajBazaarUnlist, getGarajHistory, getMemberCollection, garajKozachaBuy, grantKozacha, processRideDrop, settleAuctions, spendKozachaIdempotent, updateStreakOnRide, garajCipherGuess, collectOfflineBox, garajPrestige, mahallaCreate, mahallaJoin, mahallaLeave, addMahallaScore, settleMahallaWeek, getMahallaLeague, getMahallaState, getDailyOrders, recomputeDemand, getRoadDrops, claimTowedCar, declineTowedCar, garajCraft, garajCraftSpeedup, settleCraftJobs, __resetWeekEventCache, exhibitionSubmit, exhibitionVote, settleExhibition, getMuseum, motorCollect, getPublicProfile, getMotorEcon, setMotorEcon } from "../services/garajService";
+import { acquireCar, completeRepairTask, repairZone, diagnoseCar, flipCar, garajAuctionBid, garajAuctionCreate, garajBazaarBuy, garajBazaarList, garajBazaarUnlist, getGarajHistory, getMemberCollection, garajKozachaBuy, grantKozacha, processRideDrop, settleAuctions, spendKozachaIdempotent, updateStreakOnRide, garajCipherGuess, collectOfflineBox, garajPrestige, mahallaCreate, mahallaJoin, mahallaLeave, addMahallaScore, settleMahallaWeek, getMahallaLeague, getMahallaState, getDailyOrders, recomputeDemand, getRoadDrops, claimTowedCar, declineTowedCar, garajCraft, garajCraftSpeedup, settleCraftJobs, __resetWeekEventCache, exhibitionSubmit, exhibitionVote, settleExhibition, getMuseum, motorCollect, getPublicProfile, getMotorEcon, setMotorEcon, getMotorBonusFor } from "../services/garajService";
 import { __resetFeatureCache, setFeature } from "../services/featureFlags";
 
 const TAG = "garaj-test";
@@ -555,11 +555,49 @@ async function main(): Promise<void> {
   ok((await motorCollect(moM.id)).gross === Math.round(moSpeed * 0.5) * 10, `econ: speedMult 0.5 halves earnings (admin earn-dial works)`);
   await setMotorEcon("fuelMult", 1);
   await setMotorEcon("speedMult", 1);
+  // 🎁 BONUS HAFTASI — admin-tunable per-player onboard hook
+  // (a) bonusDays=0 (OFF default) → new acquire does NOT stamp
+  await setMotorEcon("bonusDays", 0);
+  const bM0 = await prisma.member.create({ data: { type: "client", kasId: `${TAG}-bonusoff`, fullName: "BonusOff", phone: "+998900006017", trips: 5 } });
+  await grantCoins(bM0.id, 50000, "manual", "seed");
+  await acquireCar(bM0.id, "tiko");
+  ok((await prisma.memberGarajMeta.findUnique({ where: { memberId: bM0.id }, select: { motorBonusUntilAt: true } }))?.motorBonusUntilAt == null, `bonus: bonusDays=0 → no stamp (OFF)`);
+  ok((await getMotorBonusFor(bM0.id)).active === false, `bonus: not active when no stamp`);
+  // (b) bonusDays=7 → new acquire stamps + motorCollect yields ~2× net (default bonusSpeedMult=2)
+  await setMotorEcon("bonusDays", 7);
+  await setMotorEcon("bonusFuelMult", 0.3);
+  await setMotorEcon("bonusSpeedMult", 2);
+  const bM1 = await prisma.member.create({ data: { type: "client", kasId: `${TAG}-bonuson`, fullName: "BonusOn", phone: "+998900006018", trips: 5 } });
+  await grantCoins(bM1.id, 50000, "manual", "seed");
+  await acquireCar(bM1.id, "nexia");
+  const bMeta = await prisma.memberGarajMeta.findUnique({ where: { memberId: bM1.id }, select: { motorBonusUntilAt: true } });
+  ok(bMeta?.motorBonusUntilAt != null && bMeta.motorBonusUntilAt.getTime() > Date.now() + 6 * 86_400_000, `bonus: bonusDays=7 → stamped ~7d ahead`);
+  const bView = await getMotorBonusFor(bM1.id);
+  ok(bView.active === true && bView.daysLeft >= 6 && bView.daysLeft <= 7, `bonus: active + ${bView.daysLeft} days left`);
+  // earn check: bonus 2× speed + 0.3 fuel → gross 2×, net higher than normal
+  const bCar = (await prisma.garajCar.findFirst({ where: { memberId: bM1.id, carCode: "nexia", soldAt: null } }))!;
+  await prisma.garajCar.update({ where: { id: bCar.id }, data: { lastAccrualAt: new Date(Date.now() - 10 * 3600 * 1000) } });
+  const bColB = await motorCollect(bM1.id);
+  const bonusSpeed = Math.round(motorSpeed("nexia") * 2);
+  ok(bColB.gross === bonusSpeed * 10, `bonus: gross uses bonus speed (${bColB.gross} == ${bonusSpeed * 10})`);
+  ok((bColB.net ?? 0) > (col.net ?? 0), `bonus: net > non-bonus baseline (${bColB.net} > ${col.net})`);
+  // (c) bonus is ONE-SHOT: re-buying does NOT re-stamp
+  const prevUntil = bMeta!.motorBonusUntilAt;
+  await prisma.garajCar.update({ where: { id: bCar.id }, data: { soldAt: new Date() } });
+  await acquireCar(bM1.id, "nexia");
+  const bMeta2 = await prisma.memberGarajMeta.findUnique({ where: { memberId: bM1.id }, select: { motorBonusUntilAt: true } });
+  ok(bMeta2?.motorBonusUntilAt?.getTime() === prevUntil!.getTime(), `bonus: re-buy does NOT re-stamp (one-shot per player)`);
+  // (d) expired bonus → active=false, normal earnings
+  await prisma.memberGarajMeta.update({ where: { memberId: bM1.id }, data: { motorBonusUntilAt: new Date(Date.now() - 60_000) } });
+  ok((await getMotorBonusFor(bM1.id)).active === false, `bonus: expired → active=false`);
+  await setMotorEcon("bonusDays", 0);
+  await setMotorEcon("bonusFuelMult", 0.3);
+  await setMotorEcon("bonusSpeedMult", 2);
   await setFeature("motorolami", false);
   __resetFeatureCache();
 
   // 20. W5 ledger invariant across all new members (every grant is a real CoinTxn)
-  for (const mm of [sM, cM, bM, oM, tM, xM, wM, eM, fM, gM, moM]) {
+  for (const mm of [sM, cM, bM, oM, tM, xM, wM, eM, fM, gM, moM, bM0, bM1]) {
     const b = (await prisma.member.findUnique({ where: { id: mm.id } }))!.coins;
     const t = await prisma.coinTxn.aggregate({ where: { memberId: mm.id }, _sum: { amount: true } });
     ok(Math.abs(b - (t._sum.amount ?? 0)) < 0.001, `W5 ledger invariant (member ${mm.id}: bal ${b} == ledger ${t._sum.amount ?? 0})`);

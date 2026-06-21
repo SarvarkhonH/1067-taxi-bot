@@ -501,10 +501,22 @@ export interface MotorEconKnob { key: string; label: string; def: number; min: n
 export const MOTOR_ECON_KNOBS: MotorEconKnob[] = [
   { key: "fuelMult", label: "⛽ Yoqilg'i narxi (×)", def: 1, min: MOTOR_FUELMULT_MIN, max: MOTOR_FUELMULT_MAX, step: 0.05, live: true },
   { key: "speedMult", label: "⚡ Daromad tezligi (×)", def: 1, min: 0.25, max: 2, step: 0.05, live: true },
+  // 🎁 BONUS HAFTASI — yangi o'yinchini ilashtirish ("birinchi N kun zo'r pul ishlasin"). bonusDays=0 → OFF.
+  // Stamp acquireCar'da: motorBonusUntilAt = now + bonusDays. Vaqt o'tguncha bonus* multiplikator qo'llanadi.
+  { key: "bonusDays", label: "🎁 Bonus kunlar (0=o'chiq)", def: 0, min: 0, max: 30, step: 1, live: true },
+  { key: "bonusFuelMult", label: "🎁 Bonus yoqilg'i (×)", def: 0.3, min: 0.1, max: 1, step: 0.05, live: true },
+  { key: "bonusSpeedMult", label: "🎁 Bonus tezlik (×)", def: 2, min: 1, max: 3, step: 0.1, live: true },
   { key: "speederPrice", label: "🚀 Speeder narxi (tanga)", def: 5000, min: 500, max: 50000, step: 100, live: false },
   { key: "speederStock", label: "🚀 Speeder zaxira (dona)", def: 500, min: 0, max: 100000, step: 50, live: false },
   { key: "speederMult", label: "🚀 Speeder kuchi (×)", def: 4, min: 2, max: 6, step: 1, live: false },
 ];
+/** Bonus aktivmi va effektiv (fuel, speed) multiplikatorlar — bonus base econ ustiga ko'paytiriladi.
+ *  Pol/tom himoyasi: bonus paytida ham fuel ≥0.1 (sink hech qachon o'lmasin), speed ≤6 (worst-case ceil). */
+export function effectiveEcon(base: Record<string, number>, bonusActive: boolean): { fuelMult: number; speedMult: number } {
+  const f = (base.fuelMult ?? 1) * (bonusActive ? (base.bonusFuelMult ?? 0.3) : 1);
+  const s = (base.speedMult ?? 1) * (bonusActive ? (base.bonusSpeedMult ?? 2) : 1);
+  return { fuelMult: Math.max(0.1, Math.min(2, f)), speedMult: Math.max(0.25, Math.min(6, s)) };
+}
 export function clampMotorEcon(key: string, val: number): number {
   const k = MOTOR_ECON_KNOBS.find((x) => x.key === key);
   if (!k || isNaN(val)) return k?.def ?? val;
@@ -654,6 +666,7 @@ export interface GarajStateResponse {
   exhibition: GarajExhibitionView; // #8 weekly car show (entries + my vote + last winner)
   craftJob: GarajCraftJobView | null; // #5 the one running Workshop craft (shared slot), or null
   motorEnabled?: boolean; // 🌍 motorolami flag — UI shows earn/serial/age when true
+  motorBonus?: { active: boolean; untilAt: string | null; daysLeft: number; speedMult: number; fuelMult: number } | null;
 }
 export interface GarajActionResult {
   ok: boolean;

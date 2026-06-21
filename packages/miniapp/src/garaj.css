@@ -429,6 +429,10 @@ button.gz-coll-car:hover { border-color: rgba(255, 179, 0, 0.4); }
 .gz-craftjob { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 10px 12px; border-radius: var(--r-card); background: linear-gradient(180deg, #1c1608, var(--surface)); border: 1px solid var(--brand); }
 /* 🌍 motor olami — the car earns; #serial identity + «Yig'ish» */
 .gz-motor { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 10px 12px; margin-top: 8px; border-radius: var(--r-card); background: linear-gradient(180deg, #0e1a14, var(--surface)); border: 1px solid var(--win); }
+/* 🎁 bonus hafta banneri (yangi o'yinchi hook) */
+.gz-motor-bonus { display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 8px 12px; margin-top: 8px; border-radius: var(--r-card); background: linear-gradient(180deg, #2a1808, #1a1206); border: 1px solid var(--brand); text-align: center; }
+.gz-motor-bonus-pill { font-size: 13px; font-weight: 700; color: var(--brand); }
+.gz-motor-bonus-pill b { color: #ffe9a8; }
 .gz-motor.dead { border-color: var(--danger); background: linear-gradient(180deg, #1a0e0e, var(--surface)); }
 .gz-motor-id { font-size: 15px; font-weight: 900; color: var(--brand); letter-spacing: 0.5px; }
 .gz-motor-dead { font-size: 12px; color: var(--danger); font-weight: 700; }

@@ -559,6 +559,9 @@ model MemberGarajMeta {
   dreamCarCode       String?
   onboardStep        Int       @default(0)
   lastBoxCollectedAt DateTime?
+  // 🌍 MOTOR OLAMI bonus-week (admin-tunable): stamped on first motor acquire when bonusDays>0;
+  // while now < motorBonusUntilAt, getMotorEconFor applies bonus* multipliers on top of base econ.
+  motorBonusUntilAt  DateTime?
   createdAt          DateTime  @default(now())
   updatedAt          DateTime  @updatedAt
 }

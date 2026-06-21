@@ -37,6 +37,7 @@ import {
   MOTOR_WEAR_PER_DAY,
   motorEconDefaults,
   clampMotorEcon,
+  effectiveEcon,
   motorSpeed,
   computeMotorEarn,
   type PublicProfileView,
@@ -143,6 +144,26 @@ export async function setMotorEcon(key: string, value: number): Promise<Record<s
   return cur;
 }
 
+// 🎁 BONUS HAFTASI — per-o'yinchi state. Stamp = motorBonusUntilAt (acquireCar'da bir martalik
+// belgilanadi, faqat bonusDays>0 va meta'da hech ham bonus bo'lmagan bo'lsa). bonusActive =
+// untilAt > now. Effektiv multiplikatorlar effectiveEcon() da hisoblanadi (admin base ×
+// bonus mult, pol/tom himoyasi bilan).
+export interface MotorBonusView { active: boolean; untilAt: string | null; daysLeft: number; speedMult: number; fuelMult: number }
+export async function getMotorBonusFor(memberId: number, econ?: Record<string, number>): Promise<MotorBonusView> {
+  const e = econ ?? (await getMotorEcon());
+  const meta = await prisma.memberGarajMeta.findUnique({ where: { memberId }, select: { motorBonusUntilAt: true } });
+  const until = meta?.motorBonusUntilAt ?? null;
+  const active = until != null && until.getTime() > Date.now();
+  const eff = effectiveEcon(e, active);
+  return {
+    active,
+    untilAt: until ? until.toISOString() : null,
+    daysLeft: active && until ? Math.max(0, Math.ceil((until.getTime() - Date.now()) / 86_400_000)) : 0,
+    speedMult: eff.speedMult,
+    fuelMult: eff.fuelMult,
+  };
+}
+
 /** Deterministic, server-only seed (never sent to the client → drops/diagnoses unpredictable).
  *  Masked to 31 bits (0..2147483647) so it fits Postgres INT4 — a full uint32 overflows it. */
 function seedFor(input: string): number {
@@ -235,7 +256,7 @@ async function bumpSkill(
 // ── read: full state for the dedicated shell (one round-trip) ─────────────────
 export async function getGarajState(memberId: number): Promise<GarajStateResponse> {
   const today = tashkentDate();
-  const [enabled, meta, cars, coins, sk, streakRow, cipherSolved, cipherAttempts, cipherCode, mahalla, demand, orders, roadDrops, weekEv, exhibition, craftJobRow, motorEnabled, motorEcon] = await Promise.all([
+  const [enabled, meta, cars, coins, sk, streakRow, cipherSolved, cipherAttempts, cipherCode, mahalla, demand, orders, roadDrops, weekEv, exhibition, craftJobRow, motorEnabled, motorEcon, motorBonus] = await Promise.all([
     garajEnabledFor(memberId),
     prisma.memberGarajMeta.findUnique({ where: { memberId } }),
     prisma.garajCar.findMany({ where: { memberId, soldAt: null } }),
@@ -254,6 +275,7 @@ export async function getGarajState(memberId: number): Promise<GarajStateRespons
     prisma.garajCraftJob.findFirst({ where: { memberId, status: "in_progress" } }), // #5 shared craft slot
     motorEnabledFor(memberId), // 🌍 motorolami flag/owner-preview
     getMotorEcon(), // 🎛 admin iqtisod-dastaklar (fuelMult + speedMult)
+    getMotorBonusFor(memberId), // 🎁 bonus-hafta o'yinchi-darajasidagi
   ]);
   const nowMs = Date.now();
   const ownedCodes = new Set(cars.map((c) => c.carCode));
@@ -279,7 +301,8 @@ export async function getGarajState(memberId: number): Promise<GarajStateRespons
       // 🌍 motorolami: surface serial, engine wear, age + the pending «Yig'ish» net (preview math)
       const hp = c.engineHp ?? 100;
       const hrs = c.lastAccrualAt ? Math.max(0, (nowMs - c.lastAccrualAt.getTime()) / 3_600_000) : 0;
-      const speed = Math.round(motorSpeed(c.carCode) * (motorEcon.speedMult ?? 1));
+      const eff = effectiveEcon(motorEcon, motorBonus.active); // 🎁 bonus-hafta multiplikator
+      const speed = Math.round(motorSpeed(c.carCode) * eff.speedMult);
       view.serial = c.serial;
       view.engineHp = hp;
       view.dead = hp <= 0;
@@ -287,7 +310,7 @@ export async function getGarajState(memberId: number): Promise<GarajStateRespons
       view.ageDays = c.bornAt ? Math.floor((nowMs - c.bornAt.getTime()) / 86_400_000) : 0;
       view.ownerCount = c.ownerCount ?? 1;
       view.totalTrips = c.totalTrips ?? 0;
-      view.earnPendingNet = hp <= 0 ? 0 : computeMotorEarn(speed, hrs, motorEcon.fuelMult ?? 1, 0).net;
+      view.earnPendingNet = hp <= 0 ? 0 : computeMotorEarn(speed, hrs, eff.fuelMult, 0).net;
     }
     return view;
   });
@@ -385,6 +408,7 @@ export async function getGarajState(memberId: number): Promise<GarajStateRespons
     exhibition,
     craftJob,
     motorEnabled,
+    motorBonus: motorEnabled ? motorBonus : null,
   };
 }
 
@@ -426,6 +450,17 @@ export async function acquireCar(memberId: number, carCode: string): Promise<Gar
         create: { memberId, carsOwnedCount: 1, sumCarLevels: 1, reputationScore: 5 },
         update: { carsOwnedCount: { increment: 1 }, sumCarLevels: { increment: 1 }, reputationScore: { increment: 5 } },
       });
+      if (motorOn) {
+        // 🎁 BONUS HAFTASI — bir martalik stamp (faqat admin bonusDays>0 qo'ygan bo'lsa AND
+        // o'yinchi ilgari hech bonus olmagan bo'lsa). Re-buy = re-stamp YO'Q. AFTER upsert
+        // (yuqorida) ishlaydi, shunda meta-row har doim mavjud (P2025'dan saqlanadi).
+        const econ = await getMotorEcon();
+        const days = Math.floor(econ.bonusDays ?? 0);
+        const existing = await tx.memberGarajMeta.findUnique({ where: { memberId }, select: { motorBonusUntilAt: true } });
+        if (days > 0 && existing?.motorBonusUntilAt == null) {
+          await tx.memberGarajMeta.update({ where: { memberId }, data: { motorBonusUntilAt: new Date(Date.now() + days * 86_400_000) } });
+        }
+      }
       return { ok: true as const, carId: car.id };
     });
     return result.ok ? { ok: true, carId: result.carId, coins: await getCoins(memberId) } : { ok: false, reason: result.reason, coins: await getCoins(memberId) };
@@ -450,8 +485,10 @@ export async function motorCollect(memberId: number): Promise<GarajActionResult 
     return { ok: true, gross: 0, fuel: 0, wear: 0, net: 0, engineHp: 0, dead: true, coins: await getCoins(memberId) };
   }
   const econ = await getMotorEcon(); // 🎛 admin dastaklar: yoqilg'i × + daromad-tezligi ×
-  const speed = Math.round(motorSpeed(car.carCode) * (econ.speedMult ?? 1));
-  const { gross, fuel, wear, net } = computeMotorEarn(speed, hours, econ.fuelMult ?? 1, 0); // taxi 2× = sweep ride-hooki (P0.4)
+  const bonus = await getMotorBonusFor(memberId, econ); // 🎁 bonus-hafta o'yinchi-darajasidagi multiplikator
+  const eff = effectiveEcon(econ, bonus.active);
+  const speed = Math.round(motorSpeed(car.carCode) * eff.speedMult);
+  const { gross, fuel, wear, net } = computeMotorEarn(speed, hours, eff.fuelMult, 0); // taxi 2× = sweep ride-hooki (P0.4)
   const cappedHours = Math.min(hours, MOTOR_MAX_ACCRUE_HOURS);
   const newHp = Math.max(0, Math.round((car.engineHp ?? 100) - MOTOR_WEAR_PER_DAY * (cappedHours / 24)));
   // credit ONLY net (idempotent on the accrual-start epoch → double-tap = same key = skip)

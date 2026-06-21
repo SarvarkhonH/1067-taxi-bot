@@ -292,6 +292,13 @@ export function GarajShell({ onClose, initial }: { onClose: () => void; initial?
                 </div>
               )}
 
+              {/* 🎁 BONUS HAFTASI — new-player onboard hook (admin-tunable bonusDays/Mults) */}
+              {st.motorEnabled && st.motorBonus?.active && (
+                <div className="gz-motor-bonus">
+                  <span className="gz-motor-bonus-pill">🎁 Bonus hafta — <b>{st.motorBonus.daysLeft} kun qoldi</b></span>
+                  <span className="fs11 dim">⚡ {st.motorBonus.speedMult.toFixed(1)}× daromad · ⛽ {Math.round(st.motorBonus.fuelMult * 100)}% yoqilg'i</span>
+                </div>
+              )}
               {/* 🌍 MOTOR OLAMI — the car earns; #serial identity + «Yig'ish» (daily-return hook) */}
               {st.motorEnabled && projectCar?.serial != null && (
                 <div className={`gz-motor${projectCar.dead ? " dead" : ""}`}>
@@ -1023,6 +1030,7 @@ export const GARAJ_DEMO: GarajStateResponse = {
     lastWinner: { name: "Jasur", carName: "Malibu", emoji: "🏎", votes: 19 },
   },
   craftJob: { id: 9, garajCarId: 1, carName: "Nexia", emoji: "🚙", station: "TUNE", stationName: "🔧 Tюнинг stendi", finishesAt: "2030-01-01T00:00:00Z", ready: false, speedupCost: 400 },
+  motorBonus: { active: true, untilAt: "2030-01-01T00:00:00Z", daysLeft: 5, speedMult: 2, fuelMult: 0.3 },
 };
 
 /** #garajdemo render-proof entry — the shell populated from the static fixture. */
