@@ -295,19 +295,28 @@ export async function pushBookingUpdates(
         });
       }
 
-      // ── the moving pin ──
+      // ── the moving pin ── ONE live-location message per ride, EDITED in place (Telegram slides
+      // the dot). Position comes from the real-time map socket (updates every few seconds) with the
+      // kas API driver position as fallback. We must NEVER send a fresh location each tick.
+      const wsPos = b.carNumber ? kasMapSocket.position(b.carNumber) : null;
+      const pinLat = wsPos?.lat ?? driver?.lat;
+      const pinLng = wsPos?.lng ?? driver?.lng;
       let pinId = isNewRide ? null : m.liveLocMsgId;
-      if (driver?.lat && driver?.lng) {
+      if (typeof pinLat === "number" && typeof pinLng === "number") {
         if (!pinId) {
           const pin = await bot.api
-            .sendLocation(chatId, driver.lat, driver.lng, { live_period: 3600, disable_notification: true })
+            .sendLocation(chatId, pinLat, pinLng, { live_period: 3600, disable_notification: true })
             .catch(() => null);
           pinId = pin?.message_id ?? null;
         } else {
-          await bot.api.editMessageLiveLocation(chatId, pinId, driver.lat, driver.lng).catch(async () => {
-            // live period expired or message gone → fresh pin
+          await bot.api.editMessageLiveLocation(chatId, pinId, pinLat, pinLng).catch(async (e) => {
+            // "message is not modified" = the car hasn't moved since the last tick → the pin is
+            // ALREADY correct, do nothing. (Re-sending a fresh location here was the bug that
+            // spammed a new pin every 15 s.) Only a genuinely gone/expired message gets a fresh pin.
+            const msg = e instanceof Error ? e.message : String(e);
+            if (/not modified/i.test(msg)) return;
             const pin = await bot.api
-              .sendLocation(chatId, driver!.lat, driver!.lng, { live_period: 3600, disable_notification: true })
+              .sendLocation(chatId, pinLat, pinLng, { live_period: 3600, disable_notification: true })
               .catch(() => null);
             pinId = pin?.message_id ?? pinId;
           });
