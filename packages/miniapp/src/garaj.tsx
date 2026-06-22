@@ -333,32 +333,63 @@ export function GarajShell({ onClose, initial }: { onClose: () => void; initial?
         <LoadSection state={state} onRetry={load}>
           {st && (
             <>
-              {/* 📅 weekly liveops event — a screen-wide chip (discount / bonus / drops / xp) */}
-              {st.weeklyEvent && <div className="gz-weekevent">{st.weeklyEvent.label}</div>}
+              {/* 🌟 P-Polish-Home-1 — cinematic showroom: vignette + slow rays + dust + car breathe */}
+              <div className="gz-showroom" aria-hidden={false}>
+                <div className="gz-showroom-rays" aria-hidden />
+                <div className="gz-showroom-vignette" aria-hidden />
+                {projectCar ? (
+                  <button className="gz-stage" onClick={() => { haptic(); setOpenId(projectCar.id); }}>
+                    <div className="gz-stage-art">
+                      <GarajCarArt carCode={projectCar.carCode} condition={projectCar.condition} level={projectCar.level} size={186} />
+                    </div>
+                    <div className="gz-stage-name">{projectCar.name}{projectCar.level > 1 ? ` ★${projectCar.level}` : ""}</div>
+                    <div className="gz-stage-cond">
+                      <span className={`gz-cond ${projectCar.condition.toLowerCase()}`}>{COND_LABEL[projectCar.condition] ?? projectCar.condition}</span>
+                      <div className="gz-stage-bar"><ProgressBar value={condPct(projectCar.condition)} max={100} /></div>
+                    </div>
+                    <span className="gz-stage-cta">{projectCar.condition === "MINT" ? "💰 Sotishga tayyor" : projectCar.diagnosed ? "🔧 Ta'mirlash" : "🔍 Diagnoz qilish"} ›</span>
+                  </button>
+                ) : (
+                  <div className="gz-stage empty">
+                    <div className="gz-stage-art">
+                      <GarajCarArt carCode="tiko" condition="WORN" level={1} size={150} />
+                    </div>
+                    <div className="gz-stage-name">Garajingiz hozircha bo'sh</div>
+                    <p className="gz-empty mt0">Bozor tabidan birinchi loyiha mashinangizni oling — keyin shu yerda tiklaysiz.</p>
+                  </div>
+                )}
+              </div>
 
-              {/* 🏠 STAGE — your active project car is the hero of the screen */}
-              {projectCar ? (
-                <button className="gz-stage" onClick={() => { haptic(); setOpenId(projectCar.id); }}>
-                  <div className="gz-stage-badges">
-                    <span className="gz-hero-badge">{st.reputationName ?? reputationTier(rep)}</span>
-                    {st.prestige.count > 0 && <span className="gz-hero-stars">{"★".repeat(st.prestige.count)}</span>}
-                    {st.seasonalEvent && <span className="gz-stage-season">🎉 {st.seasonalEvent}</span>}
-                  </div>
-                  <GarajCarArt carCode={projectCar.carCode} condition={projectCar.condition} level={projectCar.level} size={186} />
-                  <div className="gz-stage-name">{projectCar.name}{projectCar.level > 1 ? ` ★${projectCar.level}` : ""}</div>
-                  <div className="gz-stage-cond">
-                    <span className={`gz-cond ${projectCar.condition.toLowerCase()}`}>{COND_LABEL[projectCar.condition] ?? projectCar.condition}</span>
-                    <div className="gz-stage-bar"><ProgressBar value={condPct(projectCar.condition)} max={100} /></div>
-                  </div>
-                  <span className="gz-stage-cta">{projectCar.condition === "MINT" ? "💰 Sotishga tayyor" : projectCar.diagnosed ? "🔧 Ta'mirlash" : "🔍 Diagnoz qilish"} ›</span>
-                </button>
-              ) : (
-                <div className="gz-stage empty">
-                  <GarajCarArt carCode="tiko" condition="WORN" level={1} size={150} />
-                  <div className="gz-stage-name">Garajingiz hozircha bo'sh</div>
-                  <p className="gz-empty mt0">Bozor tabidan birinchi loyiha mashinangizni oling — keyin shu yerda tiklaysiz.</p>
-                </div>
-              )}
+              {/* 🌟 status pill-strip — 4 ta sochilgan badge → bitta horizontal scroll-snap qator */}
+              <div className="gz-pillstrip" role="list">
+                <span className="gz-pill-chip" role="listitem">
+                  <span className="dim fs11">Maqom</span>
+                  <b>{st.reputationName ?? reputationTier(rep)}</b>
+                </span>
+                {st.prestige.count > 0 && (
+                  <span className="gz-pill-chip gold" role="listitem">
+                    <span className="dim fs11">Prestij</span>
+                    <b>{"★".repeat(st.prestige.count)}</b>
+                  </span>
+                )}
+                <span className="gz-pill-chip" role="listitem">
+                  <span className="dim fs11">Streak</span>
+                  <b>🔥 {st.streak.current}</b>
+                </span>
+                {st.seasonalEvent && (
+                  <span className="gz-pill-chip season" role="listitem">
+                    <span className="dim fs11">Mavsum</span>
+                    <b>🎉 {st.seasonalEvent}</b>
+                  </span>
+                )}
+                {st.weeklyEvent && (
+                  <span className="gz-pill-chip event" role="listitem">
+                    <span className="dim fs11">Hafta</span>
+                    <b>{st.weeklyEvent.label}</b>
+                  </span>
+                )}
+              </div>
+
 
               {/* 🎁 BONUS HAFTASI — new-player onboard hook (admin-tunable bonusDays/Mults) */}
               {st.motorEnabled && st.motorBonus?.active && (

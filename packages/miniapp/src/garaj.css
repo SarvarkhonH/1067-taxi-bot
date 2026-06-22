@@ -326,6 +326,53 @@ button.gz-stage:active { transform: scale(0.985); }
   box-shadow: 0 3px 14px rgba(255, 179, 0, 0.4);
 }
 
+/* 🌟 P-Polish-Home-1 — cinematic showroom wrapper around the hero stage */
+.gz-showroom { position: relative; overflow: hidden; border-radius: var(--r-card); isolation: isolate; }
+.gz-showroom .gz-stage { position: relative; z-index: 2; background: radial-gradient(120% 92% at 50% 0%, rgba(32,25,10,0.85) 0%, rgba(16,13,7,0.92) 56%, var(--surface) 100%); }
+.gz-showroom-rays {
+  position: absolute; left: 50%; top: -40%; width: 220%; height: 220%;
+  transform: translate(-50%, 0);
+  background: conic-gradient(from 0deg, rgba(255,179,0,0.07) 0 6deg, transparent 6deg 18deg);
+  animation: gz-showroom-spin 60s linear infinite;
+  z-index: 1; pointer-events: none;
+}
+@keyframes gz-showroom-spin { to { transform: translate(-50%, 0) rotate(360deg); } }
+.gz-showroom-vignette {
+  position: absolute; inset: 0;
+  background: radial-gradient(70% 60% at 50% 35%, transparent 0%, rgba(0,0,0,0.45) 100%);
+  z-index: 3; pointer-events: none;
+}
+.gz-stage-art { position: relative; z-index: 4; animation: gz-stage-breathe 5.2s ease-in-out infinite; }
+@keyframes gz-stage-breathe { 0%, 100% { transform: translateY(0) scale(1); } 50% { transform: translateY(-3px) scale(1.012); } }
+
+/* 🌟 status pill-strip — horizontal scroll-snap row, 4 ribbons → 1 strip */
+.gz-pillstrip {
+  display: flex; gap: 8px; overflow-x: auto; padding: 4px 2px; margin-top: 10px;
+  scroll-snap-type: x mandatory;
+  scrollbar-width: none;
+}
+.gz-pillstrip::-webkit-scrollbar { display: none; }
+.gz-pill-chip {
+  flex-shrink: 0; scroll-snap-align: start;
+  display: inline-flex; flex-direction: column; gap: 1px;
+  padding: 6px 12px; border-radius: 14px;
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  font-size: 13px;
+  min-width: 78px;
+}
+.gz-pill-chip b { color: var(--text); font-size: 13px; font-weight: 700; }
+.gz-pill-chip.gold { background: linear-gradient(180deg, #2a1f08, #1a1206); border-color: var(--brand); }
+.gz-pill-chip.gold b { color: var(--brand); }
+.gz-pill-chip.season b { color: #ffd784; }
+.gz-pill-chip.event { background: linear-gradient(180deg, #0e1a14, #0a120e); border-color: var(--win); }
+.gz-pill-chip.event b { color: var(--win); }
+
+@media (prefers-reduced-motion: reduce) {
+  .gz-showroom-rays { animation: none; }
+  .gz-stage-art { animation: none; }
+}
+
 /* tier / reputation bar under the stage */
 .gz-tier { margin-top: 10px; padding: 11px 14px; border-radius: var(--r-card); background: var(--surface); border: 1px solid var(--line); display: flex; flex-direction: column; gap: 6px; }
 .gz-tier-line { font-size: 13px; }
