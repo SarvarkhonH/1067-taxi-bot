@@ -254,6 +254,12 @@ function Booking3Inner({ me, info, onClose }: { me: MeResponse; info: BookingInf
   useEffect(() => {
     if (!mapRef.current || map.current || !mapOk) return; // ?nomap=1 → skip, show placeholder
     let failTimer: ReturnType<typeof setTimeout> | undefined;
+    // Telegram's tg.expand() + safe-area settle resize the WebView AFTER the map inits → Leaflet
+    // keeps the stale (small) size and the map goes grey/blank "within seconds". Re-run
+    // invalidateSize across the expand animation AND on every viewport/resize event.
+    const fix = () => map.current?.invalidateSize();
+    let fixTimers: ReturnType<typeof setTimeout>[] = [];
+    const tgEv = tg as unknown as { onEvent?: (e: string, cb: () => void) => void; offEvent?: (e: string, cb: () => void) => void };
     try {
       const m = L.map(mapRef.current, { zoomControl: false, attributionControl: false }).setView(
         [info.center.lat, info.center.lng],
@@ -270,12 +276,17 @@ function Booking3Inner({ me, info, onClose }: { me: MeResponse; info: BookingInf
         if (failTimer) clearTimeout(failTimer);
         setMapFailed(false);
       });
-      setTimeout(() => map.current?.invalidateSize(), 200); // size correctly after layout settles
+      fixTimers = [120, 350, 700, 1400].map((d) => setTimeout(fix, d)); // catch the expand animation
+      window.addEventListener("resize", fix);
+      tgEv?.onEvent?.("viewportChanged", fix); // Telegram WebView height settled → re-fit tiles
     } catch {
       setMapFailed(true);
     }
     return () => {
       if (failTimer) clearTimeout(failTimer);
+      fixTimers.forEach(clearTimeout);
+      window.removeEventListener("resize", fix);
+      tgEv?.offEvent?.("viewportChanged", fix);
       map.current?.remove();
       map.current = null;
     };
