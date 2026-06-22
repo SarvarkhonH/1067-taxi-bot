@@ -307,6 +307,8 @@ export function GarajShell({ onClose, initial }: { onClose: () => void; initial?
   const marathonAbortRef = useRef(false);
   // 🛒 P-Polish-Listing-1 — bazaar list flow
   const [listingFor, setListingFor] = useState<number | null>(null); // carId being listed
+  // 🛒 P-Polish-Listing-2 — post-list ceremony state
+  const [listLift, setListLift] = useState<{ name: string } | null>(null);
 
   const load = useCallback(() => {
     if (initial) return; // demo/fixture mode — no backend fetch
@@ -1020,6 +1022,17 @@ export function GarajShell({ onClose, initial }: { onClose: () => void; initial?
         </div>
       )}
 
+      {/* 🛒 P-Polish-Listing-2 — post-list lift effect (car lifts off + dust dots) */}
+      {listLift && (
+        <div className="gz-list-lift" aria-hidden onAnimationEnd={() => setListLift(null)}>
+          <span className="gz-list-lift-icon">🛒</span>
+          <span className="gz-list-lift-dust d1" />
+          <span className="gz-list-lift-dust d2" />
+          <span className="gz-list-lift-dust d3" />
+          <span className="gz-list-lift-name">{listLift.name} → Bozorda</span>
+        </div>
+      )}
+
       {/* 🛠 P-Polish-Repair-2 — full-car MINT ceremony when all 5 zones cross ≥80 */}
       {mintCelebration && (
         <div className="gz-ceremony" onClick={() => setMintCelebration(null)}>
@@ -1276,9 +1289,17 @@ export function GarajShell({ onClose, initial }: { onClose: () => void; initial?
     }
   }
   function bazaarList(id: number, price: number): void {
-    void bazaarAct(() => api.garajBazaarList(id, price));
-    setOpenId(null);
-    flash("Bozorga qo'yildi — pastdagi 🏷 «Mening sotuvdagilarim»da");
+    const car = st?.cars.find((c) => c.id === id);
+    void (async () => {
+      await bazaarAct(() => api.garajBazaarList(id, price));
+      setOpenId(null);
+      // 🛒 P-Polish-Listing-2 — post-list ceremony: car "lifts" off the garage + dust + burst
+      setListLift({ name: car?.name ?? "Mashina" });
+      hapticSuccess();
+      setBurst({ amount: price, label: `🛒 ${car?.name ?? "Mashina"} bozorda` });
+      setTimeout(() => setBurst(null), 2000);
+      setTimeout(() => setListLift(null), 2400);
+    })();
   }
   function bazaarBuy(listingId: number): void {
     void bazaarAct(() => api.garajBazaarBuy(listingId));

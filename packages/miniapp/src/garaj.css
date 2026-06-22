@@ -186,6 +186,30 @@ button.gz-car:hover { border-color: rgba(255, 179, 0, 0.4); }
 .gz-list-preview-price { font-size: 14px; font-weight: 900; color: var(--brand); }
 .fs13 { font-size: 13px; }
 .b { font-weight: 700; }
+
+/* 🛒 P-Polish-Listing-2 — post-list lift overlay (full-screen, 2.4s) */
+.gz-list-lift {
+  position: fixed; inset: 0; z-index: 250; display: flex; flex-direction: column;
+  align-items: center; justify-content: center; gap: 14px; pointer-events: none;
+  background: radial-gradient(60% 60% at 50% 50%, rgba(11,15,26,0.7), transparent);
+  animation: gz-list-fade 2.4s ease-out forwards;
+}
+.gz-list-lift-icon { font-size: 56px; animation: gz-list-lift-rise 2.4s var(--ease-out) forwards; }
+.gz-list-lift-name { font-size: 16px; font-weight: 800; color: var(--brand); animation: gz-list-fade 2.4s ease-out forwards; }
+.gz-list-lift-dust { position: absolute; width: 8px; height: 8px; border-radius: 50%; background: var(--text-dim); opacity: 0; }
+.gz-list-lift-dust.d1 { left: 42%; top: 56%; animation: gz-list-dust1 1200ms ease-out forwards; }
+.gz-list-lift-dust.d2 { left: 50%; top: 58%; animation: gz-list-dust2 1200ms 80ms ease-out forwards; }
+.gz-list-lift-dust.d3 { left: 58%; top: 56%; animation: gz-list-dust3 1200ms 160ms ease-out forwards; }
+@keyframes gz-list-lift-rise { 0% { transform: translateY(20px) scale(0.6); opacity: 0; } 25% { transform: translateY(0) scale(1.1); opacity: 1; } 80% { transform: translateY(-14px) scale(1.04); opacity: 1; } 100% { transform: translateY(-30px) scale(0.95); opacity: 0; } }
+@keyframes gz-list-fade { 0%, 80% { opacity: 1; } 100% { opacity: 0; } }
+@keyframes gz-list-dust1 { 0% { opacity: 0; transform: translate(0,0); } 30% { opacity: 0.7; transform: translate(-14px, 12px); } 100% { opacity: 0; transform: translate(-26px, 18px); } }
+@keyframes gz-list-dust2 { 0% { opacity: 0; transform: translate(0,0); } 30% { opacity: 0.7; transform: translate(0, 14px); } 100% { opacity: 0; transform: translate(0, 22px); } }
+@keyframes gz-list-dust3 { 0% { opacity: 0; transform: translate(0,0); } 30% { opacity: 0.7; transform: translate(14px, 12px); } 100% { opacity: 0; transform: translate(26px, 18px); } }
+
+@media (prefers-reduced-motion: reduce) {
+  .gz-list-lift-icon, .gz-list-lift-name, .gz-list-lift-dust { animation: none; opacity: 1; }
+  .gz-list-lift { animation: none; }
+}
 .gz-parts { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
 .gz-actions { display: flex; flex-direction: column; gap: 8px; margin-top: 14px; }
 .gz-buyers { display: flex; gap: 8px; flex-wrap: wrap; margin: 4px 0 2px; }
