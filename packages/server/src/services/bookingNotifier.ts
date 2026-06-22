@@ -56,6 +56,20 @@ interface CardCtx {
   garage?: { name: string; emoji: string; amount: number } | null; // live earn estimate
 }
 
+// B5: compact ride progress bar for the live card (mirrors the Mini App RideTimeline).
+const TL_STEPS = ["Qabul", "Yo'lda", "Yetdi", "Safar"];
+function rideTimeline(status: string): string {
+  const idx = status === "started" ? 3 : status === "arrived" ? 2 : 1; // driver assigned → ≥ "Yo'lda"
+  return TL_STEPS.map((s, i) => (i < idx ? `✅ ${s}` : i === idx ? `🔵 <b>${s}</b>` : `▫️ ${s}`)).join(" · ");
+}
+
+// B6: mirror the official taximeter — show the running fare rounded UP to the next 100 with the
+// delta, so the rider sees the round figure they'll hand over (display only; kas keeps the exact).
+function roundUp100(n: number): { shown: number; delta: number } {
+  const up = Math.ceil(n / 100) * 100;
+  return { shown: up, delta: up - n };
+}
+
 function renderRideCard(b: ActiveBookingLite, c: CardCtx): string {
   const lines: string[] = ["🚕 <b>1067 · SAFAR</b>", "━━━━━━━━━━━━"];
   const d = c.driver;
@@ -70,7 +84,10 @@ function renderRideCard(b: ActiveBookingLite, c: CardCtx): string {
     lines.push("🚗 <b>Safardasiz…</b> pastdagi o'yinlarni sinang 👇");
     // 🧾 live taximeter — drivers/byCarNumber.taximeterPayment is the running fare (kas API). The
     // card is edited every tick during the ride, so the rider watches the meter climb in real time.
-    if (d?.meterPayment && d.meterPayment > 0) lines.push(`🧾 Taksometr: <b>${formatNumber(d.meterPayment)} so'm</b> · hisoblanyapti`);
+    if (d?.meterPayment && d.meterPayment > 0) {
+      const r = roundUp100(d.meterPayment);
+      lines.push(`🧾 Taksometr: <b>${formatNumber(r.shown)} so'm</b>${r.delta ? ` (+${r.delta})` : ""} · hisoblanyapti`);
+    }
     if (c.garage) lines.push(`${c.garage.emoji} ${esc(c.garage.name)} ishlayapti: <b>+${c.garage.amount}</b> tanga`);
   } else {
     let eta = "";
@@ -81,6 +98,7 @@ function renderRideCard(b: ActiveBookingLite, c: CardCtx): string {
     lines.push(`🟢 <b>Haydovchi yo'lda</b>${eta}`);
   }
   if (d) {
+    lines.push(rideTimeline(b.status)); // B5: Qabul → Yo'lda → Yetdi → Safar
     lines.push(`🚘 ${esc(d.fullName)} · ${esc(d.carModel)} · <b>${esc(d.carNumber)}</b>${d.rating ? ` ⭐${d.rating.toFixed(1)}` : ""}`);
     if (d.phone) lines.push(`📞 ${esc(d.phone)}`);
   }

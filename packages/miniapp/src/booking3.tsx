@@ -28,6 +28,27 @@ function divIcon(cls: string, html: string): L.DivIcon {
   return L.divIcon({ className: "", html: `<div class="${cls}">${html}</div>`, iconSize: [28, 28], iconAnchor: [14, 14] });
 }
 
+// M5: OSRM road route (driver → pickup). Public demo server; it can be slow/blocked on some
+// UZ networks (same lesson as OSM tiles), so the caller falls back to a straight dashed line —
+// there is ALWAYS a visual link from the car to the pickup. coords come back [lng,lat] → swap.
+async function osrmRoute(
+  from: { lat: number; lng: number },
+  to: { lat: number; lng: number },
+  signal: AbortSignal,
+): Promise<L.LatLngTuple[] | null> {
+  try {
+    const url = `https://router.project-osrm.org/route/v1/driving/${from.lng},${from.lat};${to.lng},${to.lat}?overview=full&geometries=geojson`;
+    const r = await fetch(url, { signal });
+    if (!r.ok) return null;
+    const j = (await r.json()) as { routes?: { geometry?: { coordinates?: [number, number][] } }[] };
+    const coords = j.routes?.[0]?.geometry?.coordinates;
+    if (!coords?.length) return null;
+    return coords.map(([lng, lat]) => [lat, lng] as L.LatLngTuple);
+  } catch {
+    return null; // aborted / network blocked / bad JSON → straight-line fallback
+  }
+}
+
 // D: the map must NEVER be blank. Leaflet needs no WebGL, but ?nomap=1 still forces the
 // placeholder for testing; if no tile loads (network blocked / offline) we show a clear
 // placeholder instead — the booking flow stays fully usable.
@@ -222,6 +243,7 @@ function Booking3Inner({ me, info, onClose }: { me: MeResponse; info: BookingInf
   const pinMarkers = useRef<L.Marker[]>([]);
   const pickMarker = useRef<L.Marker | null>(null);
   const driverMarker = useRef<L.Marker | null>(null);
+  const routeLine = useRef<L.Polyline | null>(null);
   const [mapOk] = useState(mapAllowed); // false only when ?nomap=1 → show placeholder
   const [mapFailed, setMapFailed] = useState(false); // no tiles loaded (network blocked)
 
@@ -304,11 +326,62 @@ function Booking3Inner({ me, info, onClose }: { me: MeResponse; info: BookingInf
     if (inner && typeof d.bearing === "number") inner.style.transform = `rotate(${d.bearing}deg)`;
   }, [active?.driver?.lat, active?.driver?.lng, active?.driver?.bearing]);
 
+  // ── M5: road route driver → pickup, only while the driver is en route (not yet started).
+  // Real OSRM road line when the server answers; straight dashed fallback otherwise. Re-runs on
+  // each driver-position poll so the line tracks the car; fits bounds once so both ends are seen.
+  useEffect(() => {
+    const d = active?.driver;
+    const enRoute = !!active && active.status !== "started"; // kas is pickup-only → no in-trip route
+    if (
+      !map.current || !enRoute ||
+      typeof d?.lat !== "number" || typeof d?.lng !== "number" ||
+      typeof pickup?.lat !== "number" || typeof pickup?.lng !== "number"
+    ) {
+      if (routeLine.current) { routeLine.current.remove(); routeLine.current = null; }
+      return;
+    }
+    const from = { lat: d.lat, lng: d.lng };
+    const to = { lat: pickup.lat, lng: pickup.lng };
+    const firstDraw = !routeLine.current;
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), 6000);
+    let alive = true;
+
+    const draw = (pts: L.LatLngTuple[], road: boolean) => {
+      if (!alive || !map.current) return;
+      if (routeLine.current) {
+        routeLine.current.setLatLngs(pts);
+        routeLine.current.setStyle({ dashArray: road ? undefined : "6 8" });
+      } else {
+        routeLine.current = L.polyline(pts, { color: "#1a73e8", weight: 5, opacity: 0.85, dashArray: road ? undefined : "6 8" }).addTo(map.current);
+      }
+      if (firstDraw) map.current.fitBounds(L.latLngBounds(pts).pad(0.25), { animate: true });
+    };
+
+    osrmRoute(from, to, ctrl.signal).then((road) => {
+      if (road) draw(road, true);
+      else draw([[from.lat, from.lng], [to.lat, to.lng]], false); // straight-line fallback
+    });
+
+    return () => { alive = false; clearTimeout(timer); ctrl.abort(); };
+  }, [active?.driver?.lat, active?.driver?.lng, active?.status, pickup?.lat, pickup?.lng]);
+
   // ── E4 honest queue while searching ─────────────────────────────────────
+  // M6: adaptive cadence (self-scheduling, not a fixed interval). Once a driver is ASSIGNED we
+  // poll every 5s (vs 12s) so the car marker glides + the meter ticks near the official app's
+  // ~3-5s Netty cadence; while still searching we stay at 12s and also pull nearby free-car count.
+  // Assigned rides skip bookingNearby (free-car pins are noise mid-ride) → faster poll, same load.
   useEffect(() => {
     if (screen !== "searching") return;
+    let alive = true;
+    let timer: ReturnType<typeof setTimeout> | undefined;
     const tick = async () => {
-      const [a, near] = await Promise.all([api.bookingActive().catch(() => null), api.bookingNearby().catch(() => null)]);
+      const assigned = !!activeRef.current?.driver; // previous tick's state — decides what to fetch
+      const [a, near] = await Promise.all([
+        api.bookingActive().catch(() => null),
+        assigned ? Promise.resolve(null) : api.bookingNearby().catch(() => null),
+      ]);
+      if (!alive) return;
       if (near) setFreeDrivers(near.freeDrivers);
       // E7: ride finished — had an active ride last poll, now gone → peak-end finish screen.
       // DISPLAY only: rewards were granted by the bot sweep; the Mini App never grants.
@@ -320,10 +393,13 @@ function Booking3Inner({ me, info, onClose }: { me: MeResponse; info: BookingInf
       }
       activeRef.current = a;
       setActive(a); // B: real status — searching → accepted (only when a driver actually takes it) → arrived
+      if (alive) timer = setTimeout(tick, a?.driver ? 5_000 : 12_000); // faster once a driver is assigned
     };
     tick();
-    const t = setInterval(tick, 12_000); // C: faster poll → smooth live car tracking + meter
-    return () => clearInterval(t);
+    return () => {
+      alive = false;
+      if (timer) clearTimeout(timer);
+    };
   }, [screen]);
 
   const search = async (text: string) => {
