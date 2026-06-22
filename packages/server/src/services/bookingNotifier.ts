@@ -68,6 +68,9 @@ function renderRideCard(b: ActiveBookingLite, c: CardCtx): string {
     lines.push("✅ <b>Haydovchingiz yetib keldi — chiqing!</b>");
   } else if (b.status === "started") {
     lines.push("🚗 <b>Safardasiz…</b> pastdagi o'yinlarni sinang 👇");
+    // 🧾 live taximeter — drivers/byCarNumber.taximeterPayment is the running fare (kas API). The
+    // card is edited every tick during the ride, so the rider watches the meter climb in real time.
+    if (d?.meterPayment && d.meterPayment > 0) lines.push(`🧾 Taksometr: <b>${formatNumber(d.meterPayment)} so'm</b> · hisoblanyapti`);
     if (c.garage) lines.push(`${c.garage.emoji} ${esc(c.garage.name)} ishlayapti: <b>+${c.garage.amount}</b> tanga`);
   } else {
     let eta = "";
