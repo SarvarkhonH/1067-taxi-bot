@@ -40,6 +40,8 @@ import {
   effectiveEcon,
   motorSpeed,
   computeMotorEarn,
+  computeMotorEarnNoFuel,
+  computeMotorRefillCost,
   type PublicProfileView,
   KOZACHA_SHOP,
   computeFlipGrant,
@@ -300,7 +302,6 @@ export async function getGarajState(memberId: number): Promise<GarajStateRespons
     if (motorEnabled && c.serial != null) {
       // 🌍 motorolami: surface serial, engine wear, age + the pending «Yig'ish» net (preview math)
       const hp = c.engineHp ?? 100;
-      const hrs = c.lastAccrualAt ? Math.max(0, (nowMs - c.lastAccrualAt.getTime()) / 3_600_000) : 0;
       const eff = effectiveEcon(motorEcon, motorBonus.active); // 🎁 bonus-hafta multiplikator
       const speed = Math.round(motorSpeed(c.carCode) * eff.speedMult);
       view.serial = c.serial;
@@ -310,7 +311,18 @@ export async function getGarajState(memberId: number): Promise<GarajStateRespons
       view.ageDays = c.bornAt ? Math.floor((nowMs - c.bornAt.getTime()) / 86_400_000) : 0;
       view.ownerCount = c.ownerCount ?? 1;
       view.totalTrips = c.totalTrips ?? 0;
-      view.earnPendingNet = hp <= 0 ? 0 : computeMotorEarn(speed, hrs, eff.fuelMult, 0).net;
+      // 🔥 P-Fuel-A — fuel state (runway from now until fueledUntilAt; dry-tank → 0 net preview)
+      const tankHoursForView = Math.max(1, Math.min(72, motorEcon.fuelTankHours ?? 24));
+      const fueledUntilMs = c.fueledUntilAt?.getTime() ?? 0;
+      const lastMs = c.lastAccrualAt?.getTime() ?? nowMs;
+      const runwayEnd = Math.min(nowMs, fueledUntilMs);
+      const hrs = Math.max(0, (runwayEnd - lastMs) / 3_600_000);
+      const hoursLeft = Math.max(0, (fueledUntilMs - nowMs) / 3_600_000);
+      view.fuelPct = Math.max(0, Math.min(100, Math.round((hoursLeft / tankHoursForView) * 100)));
+      view.fuelHoursLeft = Math.round(hoursLeft * 10) / 10;
+      view.fuelDry = fueledUntilMs <= lastMs;
+      view.fuelRefillCost = computeMotorRefillCost(c.carCode, tankHoursForView, eff.fuelMult);
+      view.earnPendingNet = hp <= 0 || view.fuelDry ? 0 : computeMotorEarnNoFuel(speed, hrs, 0).net;
     }
     return view;
   });
@@ -442,8 +454,13 @@ export async function acquireCar(memberId: number, carCode: string): Promise<Gar
       });
       if (motorOn) {
         // 🌍 fresh global #serial + restart the earn/age clock (re-buy = a NEW car identity)
+        // 🔥 P-Fuel-A — free first tank on every acquire (FTUE-friction relief; safe: acquireCost >
+        // tank value → no sell→rebuy exploit). fuelRefillCount NOT TOUCHED (audit-B1 guard).
         const serial = await nextMotorSerial(tx);
-        await tx.garajCar.update({ where: { id: car.id }, data: { serial, bornAt: new Date(), engineHp: 100, lastAccrualAt: new Date(), ownerCount: 1, totalTrips: 0 } });
+        const econForTank = await getMotorEcon();
+        const tankHours = Math.max(1, Math.min(72, econForTank.fuelTankHours ?? 24));
+        const freeTankUntil = new Date(Date.now() + tankHours * 3_600_000);
+        await tx.garajCar.update({ where: { id: car.id }, data: { serial, bornAt: new Date(), engineHp: 100, lastAccrualAt: new Date(), ownerCount: 1, totalTrips: 0, fueledUntilAt: freeTankUntil } });
       }
       await tx.memberGarajMeta.upsert({
         where: { memberId },
@@ -473,28 +490,72 @@ export async function acquireCar(memberId: number, carCode: string): Promise<Gar
 // net grantCoins bilan (idempotent, ride-clamp'dan tashqari faucet, ALOHIDA cap=24soat-vaqt).
 // withMemberLock + inline grant → re-entrant deadlock yo'q (grantCoins o'zi lock oladi → uni
 // lock TASHQARISIDA chaqiramiz). Withdraw o'zgarmaydi (real safar + revenue byudjet).
-export async function motorCollect(memberId: number): Promise<GarajActionResult & { gross?: number; fuel?: number; wear?: number; net?: number; engineHp?: number; dead?: boolean }> {
+export async function motorCollect(memberId: number): Promise<GarajActionResult & { gross?: number; fuel?: number; wear?: number; net?: number; engineHp?: number; dead?: boolean; dry?: boolean }> {
   if (!(await motorEnabledFor(memberId))) return { ok: false, reason: "off" };
   const car = await prisma.garajCar.findFirst({ where: { memberId, soldAt: null, serial: { not: null } } });
   if (!car) return { ok: false, reason: "no_car", coins: await getCoins(memberId) };
   const now = Date.now();
   const last = car.lastAccrualAt?.getTime() ?? now;
-  const hours = Math.max(0, (now - last) / 3_600_000);
   if ((car.engineHp ?? 0) <= 0) {
     await prisma.garajCar.update({ where: { id: car.id }, data: { lastAccrualAt: new Date() } });
     return { ok: true, gross: 0, fuel: 0, wear: 0, net: 0, engineHp: 0, dead: true, coins: await getCoins(memberId) };
   }
-  const econ = await getMotorEcon(); // 🎛 admin dastaklar: yoqilg'i × + daromad-tezligi ×
-  const bonus = await getMotorBonusFor(memberId, econ); // 🎁 bonus-hafta o'yinchi-darajasidagi multiplikator
+  const econ = await getMotorEcon();
+  const bonus = await getMotorBonusFor(memberId, econ);
   const eff = effectiveEcon(econ, bonus.active);
+  // 🔥 P-Fuel-A — dry tank guard: agar fueledUntilAt yo'q (yangi mashina) yoki o'tib ketgan,
+  // tank quruq. Old NET = gross−fuel−wear modeli o'rniga yangi: runway oxirigacha gross+wear only.
+  // Fuel auto-yechilmaydi — refill alohida spend qiladi (motorRefuel). Bonus-week SAQLANADI.
+  const fueledUntilMs = car.fueledUntilAt?.getTime() ?? 0;
+  const runwayEnd = Math.min(now, fueledUntilMs);
+  const hours = Math.max(0, (runwayEnd - last) / 3_600_000);
+  const dry = fueledUntilMs <= last; // tank tugagan / hech qachon quyilmagan
   const speed = Math.round(motorSpeed(car.carCode) * eff.speedMult);
-  const { gross, fuel, wear, net } = computeMotorEarn(speed, hours, eff.fuelMult, 0); // taxi 2× = sweep ride-hooki (P0.4)
+  const { gross, wear, net } = computeMotorEarnNoFuel(speed, hours, 0); // taxi 2× = sweep ride-hooki (P0.4)
   const cappedHours = Math.min(hours, MOTOR_MAX_ACCRUE_HOURS);
   const newHp = Math.max(0, Math.round((car.engineHp ?? 100) - MOTOR_WEAR_PER_DAY * (cappedHours / 24)));
-  // credit ONLY net (idempotent on the accrual-start epoch → double-tap = same key = skip)
   if (net > 0) await grantCoins(memberId, net, "motor_earn", `🚗 Mashina daromadi (${car.carCode} #${car.serial})`, `mo:earn:${memberId}:${last}`);
-  await prisma.garajCar.update({ where: { id: car.id }, data: { lastAccrualAt: new Date(), engineHp: newHp } });
-  return { ok: true, gross, fuel, wear, net, engineHp: newHp, dead: newHp <= 0, coins: await getCoins(memberId) };
+  await prisma.garajCar.update({ where: { id: car.id }, data: { lastAccrualAt: new Date(runwayEnd), engineHp: newHp } });
+  // back-compat: fuel field present but always 0 in new model (UI old assertions may read it)
+  return { ok: true, gross, fuel: 0, wear, net, engineHp: newHp, dead: newHp <= 0, dry, coins: await getCoins(memberId) };
+}
+
+// 🔥 P-Fuel-A — manual fuel-fill. Player pays the refill upfront, the tank extends by tankHours
+// from MAX(now, current fueledUntilAt). MONOTONIC (never shrinks). Idempotent on fuelRefillCount.
+// MUST NOT RESET fuelRefillCount on re-buy (audit-B1 pattern): the deterministic key prevents
+// silent double-spend across the buy→sell→rebuy cycle. acquireCar above leaves the field alone.
+export async function motorRefuel(memberId: number, garajCarId: number): Promise<GarajActionResult & { cost?: number; fueledUntilAt?: string; fuelPct?: number }> {
+  if (!(await motorEnabledFor(memberId))) return { ok: false, reason: "off" };
+  return withMemberLock(memberId, async () => {
+    const car = await prisma.garajCar.findFirst({ where: { id: garajCarId, memberId, soldAt: null, serial: { not: null } } });
+    if (!car) return { ok: false, reason: "not_found", coins: await getCoins(memberId) };
+    if ((car.engineHp ?? 0) <= 0) return { ok: false, reason: "dead_car", coins: await getCoins(memberId) };
+    const econ = await getMotorEcon();
+    const bonus = await getMotorBonusFor(memberId, econ);
+    const eff = effectiveEcon(econ, bonus.active);
+    const tankHours = Math.max(1, Math.min(72, econ.fuelTankHours ?? 24));
+    // Hard-block stockpiling: refuse if existing runway is already > tankHours - 1 (only 1h headroom).
+    const now = Date.now();
+    const remainHours = Math.max(0, ((car.fueledUntilAt?.getTime() ?? 0) - now) / 3_600_000);
+    if (remainHours > tankHours - 1) return { ok: false, reason: "already_full", coins: await getCoins(memberId) };
+    const cost = computeMotorRefillCost(car.carCode, tankHours, eff.fuelMult);
+    const result = await prisma.$transaction(async (tx) => {
+      const m = await tx.member.findUnique({ where: { id: memberId }, select: { coins: true } });
+      if ((m?.coins ?? 0) < cost) return { ok: false as const, reason: "insufficient" as const };
+      // Idempotent key uses fuelRefillCount (immutable counter, never reset on re-buy → audit-B1 safe).
+      // Pre-increment + dedup happens via CoinTxn @unique idempotencyKey constraint.
+      const nextCount = (car.fuelRefillCount ?? 0) + 1;
+      await tx.coinTxn.create({ data: { memberId, amount: -cost, kind: "motor_fuel", reason: `⛽ ${car.carCode} #${car.serial} yoqilg'i`, idempotencyKey: `mo:fuel:${memberId}:${car.id}:${nextCount}` } });
+      await tx.member.update({ where: { id: memberId }, data: { coins: { decrement: cost } } });
+      // Monotonic: new runway = MAX(now, current) + tankHours (never shrink).
+      const baseMs = Math.max(now, car.fueledUntilAt?.getTime() ?? now);
+      const nextUntil = new Date(baseMs + tankHours * 3_600_000);
+      await tx.garajCar.update({ where: { id: car.id }, data: { fueledUntilAt: nextUntil, fuelRefillCount: nextCount, lastAccrualAt: car.lastAccrualAt ?? new Date() } });
+      return { ok: true as const, cost, until: nextUntil };
+    });
+    if (!result.ok) return { ok: false, reason: result.reason, coins: await getCoins(memberId) };
+    return { ok: true, cost: result.cost, fueledUntilAt: result.until.toISOString(), fuelPct: 100, coins: await getCoins(memberId) };
+  });
 }
 
 // 🌍 ochiq profil — boshqa o'yinchining garaji (status/maqtanish). Read-only, pulga tegmaydi.

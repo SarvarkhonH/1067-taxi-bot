@@ -509,6 +509,12 @@ export const MOTOR_ECON_KNOBS: MotorEconKnob[] = [
   { key: "speederPrice", label: "🚀 Speeder narxi (tanga)", def: 5000, min: 500, max: 50000, step: 100, live: false },
   { key: "speederStock", label: "🚀 Speeder zaxira (dona)", def: 500, min: 0, max: 100000, step: 50, live: false },
   { key: "speederMult", label: "🚀 Speeder kuchi (×)", def: 4, min: 2, max: 6, step: 1, live: false },
+  // 🔥 P-Fuel-A — bak o'lchami va push siyosati (push P-Fuel-C da jonlanadi)
+  { key: "fuelTankHours", label: "⛽ Bak hajmi (soat)", def: 24, min: 6, max: 72, step: 1, live: true },
+  { key: "pushFeatureOn", label: "🔔 Push kill-switch", def: 1, min: 0, max: 1, step: 1, live: false },
+  { key: "pushWarnPct", label: "🔔 Ogohlantirish % (yoqilg'i)", def: 30, min: 10, max: 50, step: 1, live: false },
+  { key: "pushQuietStartHour", label: "🌙 Sukut boshi (Toshkent)", def: 23, min: 18, max: 23, step: 1, live: false },
+  { key: "pushQuietEndHour", label: "🌅 Sukut oxiri (Toshkent)", def: 7, min: 5, max: 10, step: 1, live: false },
 ];
 /** Bonus aktivmi va effektiv (fuel, speed) multiplikatorlar — bonus base econ ustiga ko'paytiriladi.
  *  Pol/tom himoyasi: bonus paytida ham fuel ≥0.1 (sink hech qachon o'lmasin), speed ≤6 (worst-case ceil). */
@@ -530,7 +536,9 @@ export function motorSpeed(carCode: string): number {
   return Math.max(1, Math.round((MAKE_BASE[carCode] ?? 1000) * MOTOR_SPEED_RATE));
 }
 /** Bir «Yig'ish» daromadi. hours service'da ≤MOTOR_MAX_ACCRUE_HOURS ga capped. fuelMult = dial.
- *  taxiHours = shu davrda real taksida o'tgan soat (o'sha qismda 2×). net = gross − fuel − wear. */
+ *  taxiHours = shu davrda real taksida o'tgan soat (o'sha qismda 2×). net = gross − fuel − wear.
+ *  LEGACY (auto-deduct model) — saqlanadi backward-compat uchun va testlar uchun. P-Fuel-A
+ *  dan keyin motorCollect computeMotorEarnNoFuel ni ishlatadi (manual refuel modeli). */
 export function computeMotorEarn(speedPerHour: number, hours: number, fuelMult = 1, taxiHours = 0): { gross: number; fuel: number; wear: number; net: number } {
   const h = Math.max(0, Math.min(hours, MOTOR_MAX_ACCRUE_HOURS));
   const taxiBonus = speedPerHour * Math.min(h, Math.max(0, taxiHours)) * (MOTOR_TAXI_MULT - 1);
@@ -540,6 +548,28 @@ export function computeMotorEarn(speedPerHour: number, hours: number, fuelMult =
   const wear = Math.round(gross * MOTOR_WEAR_PCT);
   const net = Math.max(0, gross - fuel - wear);
   return { gross, fuel, wear, net };
+}
+
+/** P-Fuel-A: manual fuel-fill model. Yoqilg'i AVTO yechilmaydi — o'yinchi oldindan to'laydi
+ *  (motorRefuel), keyin tank davomida gross−wear minted bo'ladi. NET ekspektatsiyada bir xil
+ *  (refill cost ≈ avvalgi auto-fuel sink). speedMult faqat EARN ga ta'sir qiladi, fuelMult
+ *  faqat REFILL narxiga (burn-rate wall-clock only). */
+export function computeMotorEarnNoFuel(speedPerHour: number, hours: number, taxiHours = 0): { gross: number; wear: number; net: number } {
+  const h = Math.max(0, Math.min(hours, MOTOR_MAX_ACCRUE_HOURS));
+  const taxiBonus = speedPerHour * Math.min(h, Math.max(0, taxiHours)) * (MOTOR_TAXI_MULT - 1);
+  const gross = Math.round(speedPerHour * h + taxiBonus);
+  const wear = Math.round(gross * MOTOR_WEAR_PCT);
+  const net = Math.max(0, gross - wear);
+  return { gross, wear, net };
+}
+/** Refill narxi. Har refill da QAYTA hisoblanadi (cache YO'Q) — admin fuelMult o'zgarsa darhol qo'llanadi.
+ *  Tank lasts tankHours wall-clock. cost ≈ avvalgi auto-sink (gross × fuel_pct × fuelMult). */
+export function computeMotorRefillCost(carCode: string, tankHours: number, fuelMult: number): number {
+  const sp = motorSpeed(carCode);
+  const h = Math.max(1, Math.min(72, tankHours));
+  const fm = Math.max(MOTOR_FUELMULT_MIN, Math.min(MOTOR_FUELMULT_MAX, fuelMult));
+  // Math.ceil → refill always over-charges by ≤0.5 tanga, keeps sink ≥80% gross at all rounding edges
+  return Math.max(1, Math.ceil(sp * h * MOTOR_FUEL_PCT * fm));
 }
 
 // 🌍 ochiq profil — boshqa o'yinchining garajini ko'rish (status/maqtanish, P0 litmus).
@@ -577,6 +607,11 @@ export interface GarajCarView {
   earnPendingNet?: number; // hozir «Yig'ish» bersa keladigan net
   ownerCount?: number;
   totalTrips?: number;
+  // 🔥 P-Fuel-A — manual fuel-fill model
+  fuelPct?: number; // 0-100, qancha qoldi (hozirgi hisob: clamp(((fueledUntilAt - now) / tankMs) * 100))
+  fuelHoursLeft?: number; // float, soatlarda — push trigger uchun + UI countdown
+  fuelDry?: boolean; // tank tugagan → daromad 0 · «Quyish» CTA Yig'ish o'rnini bosadi
+  fuelRefillCost?: number; // hozirgi refill narxi (admin fuelMult o'zgarsa darhol yangilanadi)
 }
 export interface GarajShopItem {
   carCode: string;

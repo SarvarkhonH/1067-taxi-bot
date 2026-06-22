@@ -12,7 +12,7 @@ import "../env";
 import { MAKE_BASE, GARAJ_BUY_FACTOR, FLIP_DAILY_CAP, CIPHER_REWARD, OFFLINE_DAILY_CAP, PRESTIGE_REP_HEADSTART, CRAFT_MAX_LEVEL, CRAFT_SPEEDUP_MIN, prestigeMultiplier, activeSeasonalEvent, demandMultiplier, GARAJ_NPCS, npcForBuyer, npcLine, motorSpeed, MOTOR_MAX_ACCRUE_HOURS } from "@t1067/shared";
 import { prisma } from "../db";
 import { getCoins, grantCoins } from "../services/coinService";
-import { acquireCar, completeRepairTask, repairZone, diagnoseCar, flipCar, garajAuctionBid, garajAuctionCreate, garajBazaarBuy, garajBazaarList, garajBazaarUnlist, getGarajHistory, getMemberCollection, garajKozachaBuy, grantKozacha, processRideDrop, settleAuctions, spendKozachaIdempotent, updateStreakOnRide, garajCipherGuess, collectOfflineBox, garajPrestige, mahallaCreate, mahallaJoin, mahallaLeave, addMahallaScore, settleMahallaWeek, getMahallaLeague, getMahallaState, getDailyOrders, recomputeDemand, getRoadDrops, claimTowedCar, declineTowedCar, garajCraft, garajCraftSpeedup, settleCraftJobs, __resetWeekEventCache, exhibitionSubmit, exhibitionVote, settleExhibition, getMuseum, motorCollect, getPublicProfile, getMotorEcon, setMotorEcon, getMotorBonusFor } from "../services/garajService";
+import { acquireCar, completeRepairTask, repairZone, diagnoseCar, flipCar, garajAuctionBid, garajAuctionCreate, garajBazaarBuy, garajBazaarList, garajBazaarUnlist, getGarajHistory, getMemberCollection, garajKozachaBuy, grantKozacha, processRideDrop, settleAuctions, spendKozachaIdempotent, updateStreakOnRide, garajCipherGuess, collectOfflineBox, garajPrestige, mahallaCreate, mahallaJoin, mahallaLeave, addMahallaScore, settleMahallaWeek, getMahallaLeague, getMahallaState, getDailyOrders, recomputeDemand, getRoadDrops, claimTowedCar, declineTowedCar, garajCraft, garajCraftSpeedup, settleCraftJobs, __resetWeekEventCache, exhibitionSubmit, exhibitionVote, settleExhibition, getMuseum, motorCollect, getPublicProfile, getMotorEcon, setMotorEcon, getMotorBonusFor, motorRefuel } from "../services/garajService";
 import { __resetFeatureCache, setFeature } from "../services/featureFlags";
 
 const TAG = "garaj-test";
@@ -533,7 +533,7 @@ async function main(): Promise<void> {
   const moC0 = await getCoins(moM.id);
   const col = await motorCollect(moM.id);
   ok(col.ok && col.gross === moSpeed * 10, `motor: gross = speed×10h (${col.gross})`);
-  ok((col.net ?? 0) > 0 && (col.fuel ?? 0) + (col.wear ?? 0) > (col.net ?? 0) && (col.net ?? 0) < (col.gross ?? 0), `motor: fuel+wear sink → net<gross (net ${col.net})`);
+  ok((col.net ?? 0) > 0 && (col.wear ?? 0) > 0 && (col.net ?? 0) < (col.gross ?? 0), `motor: wear sink → net<gross (gross ${col.gross} net ${col.net} wear ${col.wear})`);
   ok((await getCoins(moM.id)) - moC0 === (col.net ?? 0), `motor: ONLY net credited (${col.net}) — gross not minted`);
   // idempotent / no-time: immediate re-collect ~0
   ok(((await motorCollect(moM.id)).net ?? 0) < 5, `motor: immediate re-collect ~0 (no time / idempotent)`);
@@ -547,6 +547,47 @@ async function main(): Promise<void> {
   // public profile
   const prof = await getPublicProfile(moM.id, moM.id);
   ok(prof != null && prof.cars.some((c) => c.serial === moCar.serial) && prof.garageValue > 0, `motor: public profile shows #serial + garageValue`);
+
+  // 29. 🔥 P-Fuel-A — manual fuel: dry tank earns 0 · refuel charges + extends runway · idempotent counter survives re-buy
+  // Setup a fresh fuel test member
+  const fuM = await prisma.member.create({ data: { type: "client", kasId: `${TAG}-fuel`, fullName: "Fueler", phone: "+998900006019", trips: 5 } });
+  await grantCoins(fuM.id, 50000, "manual", "seed");
+  await acquireCar(fuM.id, "nexia");
+  const fuCar = (await prisma.garajCar.findFirst({ where: { memberId: fuM.id, carCode: "nexia", soldAt: null } }))!;
+  // (a) DRY: fueledUntilAt null, lastAccrualAt 10h ago → collect returns dry:true, net:0
+  await prisma.garajCar.update({ where: { id: fuCar.id }, data: { fueledUntilAt: null, lastAccrualAt: new Date(Date.now() - 10 * 3600 * 1000) } });
+  const colDry = await motorCollect(fuM.id);
+  ok(colDry.ok && colDry.dry === true && (colDry.net ?? 0) === 0, `fuel: dry tank → 0 net (collect ${colDry.net})`);
+  // (b) REFILL: charges expected cost (basePrice 2600 × 0.018 = 47 t/h × 24h × 0.7 = 790)
+  const cFu0 = await getCoins(fuM.id);
+  const ref1 = await motorRefuel(fuM.id, fuCar.id);
+  const expectedCost = 47 * 24 * 0.7; // ≈ 790, rounded
+  ok(ref1.ok && Math.abs((ref1.cost ?? 0) - Math.round(expectedCost)) <= 5, `fuel: refill cost ~${Math.round(expectedCost)} (got ${ref1.cost})`);
+  ok((cFu0 - (await getCoins(fuM.id))) === (ref1.cost ?? 0), `fuel: refill charged exactly cost`);
+  ok((await prisma.garajCar.findUnique({ where: { id: fuCar.id } }))!.fuelRefillCount === 1, `fuel: refillCount=1 after first refill`);
+  // (c) After refill: collect for 10h yields gross−wear (no fuel deduction now)
+  await prisma.garajCar.update({ where: { id: fuCar.id }, data: { lastAccrualAt: new Date(Date.now() - 10 * 3600 * 1000) } });
+  const colFull = await motorCollect(fuM.id);
+  ok(colFull.ok && colFull.dry === false && (colFull.net ?? 0) > 400, `fuel: full tank → net ${colFull.net} >400 (gross−wear only, no fuel)`);
+  // (d) ALREADY_FULL: refilling while runway > tankHours-1 is rejected (anti-stockpile)
+  const ref2 = await motorRefuel(fuM.id, fuCar.id);
+  ok(!ref2.ok && ref2.reason === "already_full", `fuel: stockpile refused while runway full (reason ${ref2.reason})`);
+  // (e) AUDIT-B1: sell + re-buy DOES NOT reset fuelRefillCount (deterministic idempotency key survives)
+  await prisma.garajCar.update({ where: { id: fuCar.id }, data: { soldAt: new Date() } });
+  await acquireCar(fuM.id, "nexia");
+  const fuCar2 = (await prisma.garajCar.findFirst({ where: { memberId: fuM.id, carCode: "nexia", soldAt: null } }))!;
+  ok(fuCar2.id === fuCar.id && fuCar2.fuelRefillCount === 1, `fuel: re-buy DOES NOT reset fuelRefillCount (audit-B1 guard, count=${fuCar2.fuelRefillCount})`);
+  // Re-buy gives a FREE 24h tank → must drain it before testing the 2nd refill (anti-stockpile guard).
+  // The DETERMINISTIC idempotency key is the key proof: count survived re-buy, next refill = count+1 = 2.
+  await prisma.garajCar.update({ where: { id: fuCar2.id }, data: { fueledUntilAt: new Date(Date.now() - 60_000), lastAccrualAt: new Date(Date.now() - 1 * 3600 * 1000) } });
+  const ref3 = await motorRefuel(fuM.id, fuCar2.id);
+  ok(ref3.ok && (await prisma.garajCar.findUnique({ where: { id: fuCar2.id } }))!.fuelRefillCount === 2, `fuel: 2nd refill increments counter to 2 (deterministic key)`);
+  // (f) DEAD CAR: cannot refuel a dead car (no refund-on-death exploit)
+  await prisma.garajCar.update({ where: { id: fuCar2.id }, data: { engineHp: 0 } });
+  const refDead = await motorRefuel(fuM.id, fuCar2.id);
+  ok(!refDead.ok && refDead.reason === "dead_car", `fuel: dead car refuel refused (no exploit)`);
+  // restore for ledger invariant loop below
+  await prisma.garajCar.update({ where: { id: fuCar2.id }, data: { engineHp: 100 } });
   // 🎛 admin economy control — out-of-range CLAMPED; speedMult applied to earnings
   await setMotorEcon("fuelMult", 99);
   ok((await getMotorEcon()).fuelMult === 2, `econ: fuelMult clamped to max (admin can't break it)`);
@@ -597,7 +638,7 @@ async function main(): Promise<void> {
   __resetFeatureCache();
 
   // 20. W5 ledger invariant across all new members (every grant is a real CoinTxn)
-  for (const mm of [sM, cM, bM, oM, tM, xM, wM, eM, fM, gM, moM, bM0, bM1]) {
+  for (const mm of [sM, cM, bM, oM, tM, xM, wM, eM, fM, gM, moM, bM0, bM1, fuM]) {
     const b = (await prisma.member.findUnique({ where: { id: mm.id } }))!.coins;
     const t = await prisma.coinTxn.aggregate({ where: { memberId: mm.id }, _sum: { amount: true } });
     ok(Math.abs(b - (t._sum.amount ?? 0)) < 0.001, `W5 ledger invariant (member ${mm.id}: bal ${b} == ledger ${t._sum.amount ?? 0})`);
