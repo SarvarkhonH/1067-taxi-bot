@@ -1139,6 +1139,24 @@ export async function settleAuctions(): Promise<number> {
       const fresh = await tx.garajAuction.findUnique({ where: { id: a.id } });
       if (!fresh || fresh.status !== "open") return; // already settled — idempotent
       if (winner) {
+        // A member can hold at most ONE GarajCar per carCode (@@unique([memberId, carCode]); a SOLD
+        // row still occupies the slot). If the winner already owns this model, transferring the car
+        // would throw P2002 and the whole $transaction would roll back — leaving the auction "open"
+        // so the sweep re-settles it EVERY tick forever (the recurring "[garaj] auction settle
+        // failed" (memberId, carCode) flood, with bidders' coins frozen). Void it money-safely:
+        // refund ALL bidders, leave the car with the seller, close the auction. (Bidding on an
+        // already-owned model should also be blocked upstream; this is the safe settlement-side cure.)
+        const clash = await tx.garajCar.findUnique({
+          where: { memberId_carCode: { memberId: winner.bidderId, carCode: a.carCode } },
+        });
+        if (clash) {
+          for (const b of bids) {
+            await tx.coinTxn.create({ data: { memberId: b.bidderId, amount: b.amount, kind: "garaj_auction_refund", reason: `Auksion bekor (dublikat model): ${a.carCode}`, idempotencyKey: `auctionrefund:${b.id}` } });
+            await tx.member.update({ where: { id: b.bidderId }, data: { coins: { increment: b.amount } } });
+          }
+          await tx.garajAuction.update({ where: { id: a.id }, data: { status: "cancelled" } });
+          return;
+        }
         const fee = Math.round(winner.amount * 0.05);
         await tx.coinTxn.create({ data: { memberId: a.sellerId, amount: winner.amount - fee, kind: "garaj_auction_sell", reason: `Auksion sotuv: ${a.carCode}`, idempotencyKey: `auctionsell:${a.id}` } });
         await tx.member.update({ where: { id: a.sellerId }, data: { coins: { increment: winner.amount - fee } } });
