@@ -319,9 +319,16 @@ export function createBot(): Bot {
     await ctx.reply(
       "🔒 Raqamni <b>qo'lda yozib bo'lmaydi</b> — bu xavfsiz emas.\n\n" +
         "• <b>O'z</b> raqamingiz → pastdagi «📱 Raqamni ulashish» tugmasi (Telegram tasdiqlaydi)\n" +
-        "• <b>Boshqa</b> raqam (1067 raqamingiz Telegramnikidan farq qilsa) → «📱 Boshqa raqam» tugmasi → 1067'dan 4 xonali kod oling",
+        "• <b>Boshqa</b> raqam (1067 raqamingiz Telegramnikidan farq qilsa) → pastdagi «📱 Boshqa raqam» tugmasi 👇",
       { parse_mode: "HTML", reply_markup: contactKeyboard() },
     );
+    // The «📱 Boshqa raqam» button referenced above was only ever sent on /start — a user who
+    // typed a number saw the instruction with NO button to tap. Re-offer it right here (one
+    // message can't carry both a reply + inline keyboard, so it's a second message, like /start).
+    await ctx.reply("1067 raqamingiz Telegram raqamingizdan <b>boshqa</b> bo'lsa 👇", {
+      parse_mode: "HTML",
+      reply_markup: new InlineKeyboard().text("📱 Boshqa raqam (1067 kodi bilan)", "clink:start"),
+    });
   });
 
   const showProfile = async (ctx: Context) => {
@@ -944,7 +951,7 @@ export function createBot(): Bot {
     }
     const meF = await getMe(String(ctx.from!.id)).catch(() => null);
     await ctx.reply(
-      "🔄 <b>Menyu yangilandi</b> — eski tugmalar o'zgargan bo'lishi mumkin.\nPastdagi yangi tugmalardan foydalaning yoki /start bosing. ☎️ Operator: 1067",
+      "🤔 <b>Tushunmadim.</b>\n📍 Manzilni yozing (masalan «Saripul bozorcha») yoki joylashuvingizni yuboring — darrov taksi chaqiraman.\nYoki «🚕 Taxi chaqirish» tugmasi · /start · ☎️ 1067",
       { parse_mode: "HTML", reply_markup: mainMenu(meF?.type === "driver") },
     );
   });
