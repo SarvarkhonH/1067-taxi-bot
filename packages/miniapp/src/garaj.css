@@ -172,6 +172,20 @@ button.gz-car:hover { border-color: rgba(255, 179, 0, 0.4); }
   .gz-zonecard.tier-up, .gz-zonecard.shake { animation: none; }
   .gz-repair-tag, .gz-spark { animation: none; opacity: 0; }
 }
+
+/* 🛒 P-Polish-Listing-1 — list-for-sale sheet styles */
+.gz-list-hero { display: flex; gap: 12px; align-items: center; padding: 12px; border-radius: var(--r-card); background: linear-gradient(180deg, #1c1608, var(--surface)); border: 1px solid var(--brand); }
+.gz-list-name { font-size: 16px; font-weight: 800; }
+.gz-list-price { display: flex; flex-direction: column; gap: 8px; padding: 12px; border-radius: var(--r-card); background: var(--surface); border: 1px solid var(--line); }
+.gz-list-price-big { font-size: 20px; color: var(--brand); }
+.gz-list-slider { width: 100%; accent-color: var(--brand); }
+.gz-list-suggest { background: transparent; border: 1px solid var(--brand); color: var(--brand); font-size: 11px; padding: 3px 9px; border-radius: 999px; cursor: pointer; }
+.gz-list-break { display: flex; flex-direction: column; gap: 4px; padding: 10px 12px; border-radius: var(--r-card); background: var(--surface); border: 1px dashed var(--line); }
+.gz-list-divider { height: 1px; background: var(--line); margin: 4px 0; }
+.gz-list-preview { display: flex; gap: 10px; align-items: center; padding: 10px 12px; border-radius: var(--r-card); background: var(--surface-2); border: 1px solid var(--line); }
+.gz-list-preview-price { font-size: 14px; font-weight: 900; color: var(--brand); }
+.fs13 { font-size: 13px; }
+.b { font-weight: 700; }
 .gz-parts { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
 .gz-actions { display: flex; flex-direction: column; gap: 8px; margin-top: 14px; }
 .gz-buyers { display: flex; gap: 8px; flex-wrap: wrap; margin: 4px 0 2px; }

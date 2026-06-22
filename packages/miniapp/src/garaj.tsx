@@ -218,6 +218,61 @@ function MotorScene({ car, busy, onCollect, onRefuel }: { car: GarajCarView; bus
   );
 }
 
+// 🛒 P-Polish-Listing-1 — beautiful list-for-sale sheet: hero + slider + buyer preview + tax breakdown
+function GarajListSheet({ car, busy, onConfirm, onClose }: { car: GarajCarView; busy: boolean; onConfirm: (price: number) => void; onClose: () => void }) {
+  const minPrice = Math.max(1, Math.floor(car.basePrice * 0.5));
+  const maxPrice = car.basePrice * 3;
+  const suggested = Math.round(car.basePrice);
+  const [price, setPrice] = useState(suggested);
+  const tax = Math.round(price * 0.03);
+  const net = price - tax;
+  return (
+    <Sheet open onClose={onClose}>
+      <div className="col g8">
+        <div className="gz-title">🛒 Bozorga qo'yish</div>
+        <div className="gz-list-hero">
+          <GarajCarArt carCode={car.carCode} condition={car.condition} level={car.level} size={140} />
+          <div className="col" style={{ gap: 2 }}>
+            <span className="gz-list-name">{car.emoji} {car.name}{car.level > 1 ? ` ★${car.level}` : ""}</span>
+            <span className="fs11 dim">{COND_LABEL[car.condition] ?? car.condition} · ta'mir: 🪙{car.repairSpent.toLocaleString("ru-RU")}</span>
+            {car.serial != null && <span className="fs11" style={{ color: "var(--brand)" }}>#{car.serial}</span>}
+          </div>
+        </div>
+        <div className="gz-list-price">
+          <div className="row between">
+            <span className="dim fs12">Sotuv narxi</span>
+            <b className="gz-list-price-big">🪙 {price.toLocaleString("ru-RU")}</b>
+          </div>
+          <input type="range" min={minPrice} max={maxPrice} step={Math.max(1, Math.round(car.basePrice * 0.05))} value={price} onChange={(e) => setPrice(parseInt(e.target.value, 10))} className="gz-list-slider" aria-label="Narx" />
+          <div className="row between fs11 dim">
+            <span>min {minPrice.toLocaleString("ru-RU")}</span>
+            <button type="button" className="gz-list-suggest" onClick={() => { haptic(); setPrice(suggested); }}>Tavsiya {suggested.toLocaleString("ru-RU")}</button>
+            <span>max {maxPrice.toLocaleString("ru-RU")}</span>
+          </div>
+        </div>
+        <div className="gz-list-break">
+          <div className="row between"><span className="dim fs12">Xaridor to'laydi</span><b>🪙 {price.toLocaleString("ru-RU")}</b></div>
+          <div className="row between"><span className="dim fs12">Soliq (3%)</span><span className="dim">−🪙 {tax.toLocaleString("ru-RU")}</span></div>
+          <div className="gz-list-divider" />
+          <div className="row between"><b>Siz olasiz</b><b style={{ color: "var(--win)" }}>🪙 {net.toLocaleString("ru-RU")}</b></div>
+        </div>
+        <div className="gz-sec-title">Xaridorlar shunday ko'radi:</div>
+        <div className="gz-list-preview">
+          <GarajCarArt carCode={car.carCode} condition={car.condition} level={car.level} size={56} />
+          <div className="col" style={{ flex: 1 }}>
+            <span className="fs13 b">{car.emoji} {car.name}{car.level > 1 ? ` ★${car.level}` : ""}</span>
+            <span className="fs11 dim">{COND_LABEL[car.condition] ?? car.condition}</span>
+          </div>
+          <span className="gz-list-preview-price">🪙 {price.toLocaleString("ru-RU")}</span>
+        </div>
+        <p className="fs11 dim">⏱ 48 soat ichida sotilmasa, mashina garajingizga qaytadi.</p>
+        <Button disabled={busy} onClick={() => onConfirm(price)}>✓ Tasdiqlash · Bozorga qo'yish</Button>
+        <Button variant="ghost" sm onClick={onClose}>Bekor</Button>
+      </div>
+    </Sheet>
+  );
+}
+
 export function GarajShell({ onClose, initial }: { onClose: () => void; initial?: GarajStateResponse }) {
   const [st, setSt] = useState<GarajStateResponse | null>(initial ?? null);
   const [state, setState] = useState<"loading" | "error" | "ready">(initial ? "ready" : "loading");
@@ -250,6 +305,8 @@ export function GarajShell({ onClose, initial }: { onClose: () => void; initial?
   const [mintCelebration, setMintCelebration] = useState<{ name: string } | null>(null);
   const [marathonRunning, setMarathonRunning] = useState(false);
   const marathonAbortRef = useRef(false);
+  // 🛒 P-Polish-Listing-1 — bazaar list flow
+  const [listingFor, setListingFor] = useState<number | null>(null); // carId being listed
 
   const load = useCallback(() => {
     if (initial) return; // demo/fixture mode — no backend fetch
@@ -903,8 +960,8 @@ export function GarajShell({ onClose, initial }: { onClose: () => void; initial?
                 ))}
               </div>
 
-              <Button variant="ghost" sm onClick={() => bazaarList(car.id, car.basePrice)}>
-                🛒 Bozorga qo'yish ({car.basePrice.toLocaleString("ru-RU")})
+              <Button variant="ghost" sm onClick={() => { haptic(); setListingFor(car.id); }}>
+                🛒 Bozorga qo'yish
               </Button>
               <Button variant="ghost" sm onClick={() => aucCreate(car.id, Math.round(car.basePrice * 0.5))}>
                 🔨 Auksionga qo'yish (min {Math.round(car.basePrice * 0.5).toLocaleString("ru-RU")})
@@ -939,6 +996,10 @@ export function GarajShell({ onClose, initial }: { onClose: () => void; initial?
 
       {museumOpen && <GarajMuseumSheet demo={initial ? GARAJ_DEMO_MUSEUM : undefined} onClose={() => setMuseumOpen(false)} />}
       {profileOpen && <GarajProfileSheet demo={initial ? GARAJ_DEMO_PROFILE : undefined} onClose={() => setProfileOpen(false)} />}
+      {listingFor != null && (() => {
+        const lc = st?.cars.find((c) => c.id === listingFor);
+        return lc ? <GarajListSheet car={lc} busy={busy} onConfirm={(price) => { bazaarList(lc.id, price); setListingFor(null); }} onClose={() => setListingFor(null)} /> : null;
+      })()}
 
       {/* 🎉 tier-unlock ceremony — full-screen celebration when you reach a new garage tier */}
       {ceremonyTier != null && TIER_UNLOCK[ceremonyTier] && (
