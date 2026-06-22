@@ -559,6 +559,69 @@ export async function motorRefuel(memberId: number, garajCarId: number): Promise
 }
 
 // 🌍 ochiq profil — boshqa o'yinchining garaji (status/maqtanish). Read-only, pulga tegmaydi.
+// 🔥 P-Fuel-C — fuel-push sweep. Piggybacks bookingNotifier (no new poller).
+// Triggers: 30% soft warn + 0% urgent. Idempotent per car per day via AppState fuelpush:<carId>:<date>:<kind>.
+// Hard caps: 2 push/owner/day (kind-counted); Tashkent quiet hours 23:00–07:00 → DEFERRED (not silent
+// — when next sweep lands in waking hours, push goes out). Admin kill: feature flag motorolami=off
+// OR mo:econ knob pushFeatureOn=0. Owner-preview + flag-off → no-op.
+export async function sweepFuelPushes(send: (chatId: string, html: string) => Promise<void>): Promise<number> {
+  if (!(await featureOn(MOTOR_FLAG))) return 0;
+  const econ = await getMotorEcon();
+  if ((econ.pushFeatureOn ?? 1) <= 0) return 0;
+  const tankHours = Math.max(1, Math.min(72, econ.fuelTankHours ?? 24));
+  const warnPct = Math.max(10, Math.min(50, Math.round(econ.pushWarnPct ?? 30)));
+  // Tashkent quiet hours — if current TSK hour is in [start, end), defer (skip; next sweep retries).
+  const qStart = Math.max(18, Math.min(23, Math.round(econ.pushQuietStartHour ?? 23)));
+  const qEnd = Math.max(5, Math.min(10, Math.round(econ.pushQuietEndHour ?? 7)));
+  if (qStart === qEnd) return 0; // misconfigured (would silence all day); refuse
+  const tskHour = (new Date().getUTCHours() + 5) % 24; // Asia/Tashkent = UTC+5
+  const inQuiet = qStart < qEnd ? tskHour >= qStart && tskHour < qEnd : tskHour >= qStart || tskHour < qEnd;
+  if (inQuiet) return 0;
+  const today = tashkentDate();
+  const now = Date.now();
+  const cars = await prisma.garajCar.findMany({ where: { soldAt: null, serial: { not: null }, engineHp: { gt: 0 } }, select: { id: true, memberId: true, carCode: true, serial: true, fueledUntilAt: true } });
+  let sent = 0;
+  // Per-owner cap: count how many fuel pushes today already
+  const ownerCount = new Map<number, number>();
+  const todayCounts = await prisma.appState.findMany({ where: { key: { startsWith: "fuelpush:" }, value: today } });
+  for (const r of todayCounts) {
+    const parts = r.key.split(":");
+    const carId = parts[1] ? parseInt(parts[1], 10) : NaN;
+    if (!Number.isFinite(carId)) continue;
+    const c = cars.find((x) => x.id === carId);
+    if (c) ownerCount.set(c.memberId, (ownerCount.get(c.memberId) ?? 0) + 1);
+  }
+  for (const c of cars) {
+    const ownedSent = ownerCount.get(c.memberId) ?? 0;
+    if (ownedSent >= 2) continue; // hard cap
+    const untilMs = c.fueledUntilAt?.getTime() ?? 0;
+    const hoursLeft = Math.max(0, (untilMs - now) / 3_600_000);
+    const pct = Math.max(0, Math.min(100, (hoursLeft / tankHours) * 100));
+    let kind: "warn" | "empty" | null = null;
+    if (untilMs > 0 && pct <= 0) kind = "empty";
+    else if (untilMs > 0 && pct <= warnPct) kind = "warn";
+    if (!kind) continue;
+    // Idempotent — key fuelpush:carId:YYYY-MM-DD:kind
+    const dedupeKey = `fuelpush:${c.id}:${today}:${kind}`;
+    try {
+      await prisma.appState.create({ data: { key: dedupeKey, value: today } });
+    } catch {
+      continue; // already sent today
+    }
+    const tu = await prisma.telegramUser.findFirst({ where: { memberId: c.memberId }, select: { id: true } }).catch(() => null);
+    if (!tu) continue;
+    const cm = garajCarMeta(c.carCode);
+    const carName = cm?.name ?? c.carCode;
+    const html = kind === "warn"
+      ? `⛽ <b>${carName} #${c.serial}</b> da yoqilg'i kam (~${Math.round(pct)}%).\n${Math.round(hoursLeft)} soat qoldi — qachondir to'ldirib qo'ying.\n👉 Garaj → Quyish`
+      : `🛑 <b>${carName} #${c.serial} to'xtadi</b> — yoqilg'i tugadi.\nHozir pul ishlamayapti. Bir tap — yana yo'lga.\n👉 Garaj → Quyish`;
+    await send(tu.id, html).catch(() => undefined);
+    ownerCount.set(c.memberId, ownedSent + 1);
+    sent++;
+  }
+  return sent;
+}
+
 export async function getPublicProfile(viewerId: number, targetId: number): Promise<PublicProfileView | null> {
   if (!(await motorEnabledFor(viewerId))) return null;
   const member = await prisma.member.findUnique({ where: { id: targetId }, select: { fullName: true } });

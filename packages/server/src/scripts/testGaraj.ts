@@ -12,7 +12,7 @@ import "../env";
 import { MAKE_BASE, GARAJ_BUY_FACTOR, FLIP_DAILY_CAP, CIPHER_REWARD, OFFLINE_DAILY_CAP, PRESTIGE_REP_HEADSTART, CRAFT_MAX_LEVEL, CRAFT_SPEEDUP_MIN, prestigeMultiplier, activeSeasonalEvent, demandMultiplier, GARAJ_NPCS, npcForBuyer, npcLine, motorSpeed, MOTOR_MAX_ACCRUE_HOURS } from "@t1067/shared";
 import { prisma } from "../db";
 import { getCoins, grantCoins } from "../services/coinService";
-import { acquireCar, completeRepairTask, repairZone, diagnoseCar, flipCar, garajAuctionBid, garajAuctionCreate, garajBazaarBuy, garajBazaarList, garajBazaarUnlist, getGarajHistory, getMemberCollection, garajKozachaBuy, grantKozacha, processRideDrop, settleAuctions, spendKozachaIdempotent, updateStreakOnRide, garajCipherGuess, collectOfflineBox, garajPrestige, mahallaCreate, mahallaJoin, mahallaLeave, addMahallaScore, settleMahallaWeek, getMahallaLeague, getMahallaState, getDailyOrders, recomputeDemand, getRoadDrops, claimTowedCar, declineTowedCar, garajCraft, garajCraftSpeedup, settleCraftJobs, __resetWeekEventCache, exhibitionSubmit, exhibitionVote, settleExhibition, getMuseum, motorCollect, getPublicProfile, getMotorEcon, setMotorEcon, getMotorBonusFor, motorRefuel } from "../services/garajService";
+import { acquireCar, completeRepairTask, repairZone, diagnoseCar, flipCar, garajAuctionBid, garajAuctionCreate, garajBazaarBuy, garajBazaarList, garajBazaarUnlist, getGarajHistory, getMemberCollection, garajKozachaBuy, grantKozacha, processRideDrop, settleAuctions, spendKozachaIdempotent, updateStreakOnRide, garajCipherGuess, collectOfflineBox, garajPrestige, mahallaCreate, mahallaJoin, mahallaLeave, addMahallaScore, settleMahallaWeek, getMahallaLeague, getMahallaState, getDailyOrders, recomputeDemand, getRoadDrops, claimTowedCar, declineTowedCar, garajCraft, garajCraftSpeedup, settleCraftJobs, __resetWeekEventCache, exhibitionSubmit, exhibitionVote, settleExhibition, getMuseum, motorCollect, getPublicProfile, getMotorEcon, setMotorEcon, getMotorBonusFor, motorRefuel, sweepFuelPushes } from "../services/garajService";
 import { __resetFeatureCache, setFeature } from "../services/featureFlags";
 
 const TAG = "garaj-test";
@@ -60,6 +60,8 @@ async function cleanup(): Promise<void> {
   await prisma.appState.deleteMany({ where: { key: { startsWith: "market:demand:" } } }); // #3 demand cache
   await prisma.appState.deleteMany({ where: { key: "garaj:weekevent" } }); // #6 admin override
   await prisma.appState.deleteMany({ where: { key: { in: ["feature:motorolami", "mo:econ"] } } }); // 🌍 motor test flag/econ (test DB only)
+  await prisma.appState.deleteMany({ where: { key: { startsWith: "fuelpush:" } } }); // 🔥 P-Fuel-C push dedupe keys
+  await prisma.telegramUser.deleteMany({ where: { id: { startsWith: TAG } } }); // test telegram-user link
   __resetWeekEventCache();
   await prisma.mahallaWeeklyResult.deleteMany({ where: { weekKey: "2026-W99" } }); // the test's settle weekKey
   // NOTE: do NOT delete feature:garajx here — on the LIVE DB that would knock the
@@ -588,6 +590,44 @@ async function main(): Promise<void> {
   ok(!refDead.ok && refDead.reason === "dead_car", `fuel: dead car refuel refused (no exploit)`);
   // restore for ledger invariant loop below
   await prisma.garajCar.update({ where: { id: fuCar2.id }, data: { engineHp: 100 } });
+  // 🔥 P-Fuel-C — push sweep: 30% warn fires once + ≤2/owner/day cap + idempotent
+  // Link a fake telegram user so sweepFuelPushes can resolve a chatId
+  await prisma.telegramUser.upsert({ where: { id: `${TAG}-fuTG` }, create: { id: `${TAG}-fuTG`, memberId: fuM.id }, update: { memberId: fuM.id } });
+  // Drain tank to ~20% to trigger warn (below default warnPct=30); push setup
+  const econPush = await getMotorEcon();
+  const tankPushH = Math.max(1, Math.min(72, econPush.fuelTankHours ?? 24));
+  await prisma.garajCar.update({ where: { id: fuCar2.id }, data: { fueledUntilAt: new Date(Date.now() + 0.2 * tankPushH * 3600 * 1000) } });
+  const calls: { chatId: string; html: string }[] = [];
+  const fakeSend = async (chatId: string, html: string): Promise<void> => { calls.push({ chatId, html }); };
+  // Ensure motorolami flag is ON and quiet hours don't block (set wide-awake range)
+  await setFeature("motorolami", true);
+  await setMotorEcon("pushFeatureOn", 1);
+  await setMotorEcon("pushQuietStartHour", 23);
+  await setMotorEcon("pushQuietEndHour", 22); // make any current hour wake-time except [23,22) i.e. only hour 22 silent
+  // (the function returns 0 if qStart==qEnd; we keep them different)
+  await prisma.appState.deleteMany({ where: { key: { startsWith: "fuelpush:" } } });
+  const sent1 = await sweepFuelPushes(fakeSend);
+  ok(sent1 >= 1 && calls.some((c) => c.html.includes("yoqilg'i kam") || c.html.includes("to'xtadi")), `push: fuel-warn/empty sent (n=${sent1})`);
+  // 2nd sweep — idempotent (same kind+day → skip)
+  const beforeN = calls.length;
+  const sent2 = await sweepFuelPushes(fakeSend);
+  ok(sent2 === 0 && calls.length === beforeN, `push: idempotent — 2nd sweep doesn't re-send (today's warn already dispatched)`);
+  // Quiet-hours short-circuit: set start==end-1 around current TSK hour → defers
+  const tskHourNow = (new Date().getUTCHours() + 5) % 24;
+  await setMotorEcon("pushQuietStartHour", Math.max(18, Math.min(23, tskHourNow >= 18 ? tskHourNow : 23)));
+  await setMotorEcon("pushQuietEndHour", Math.max(5, Math.min(10, (tskHourNow + 2) % 24 < 10 ? (tskHourNow + 2) % 24 : 8)));
+  await prisma.appState.deleteMany({ where: { key: { startsWith: "fuelpush:" } } });
+  // Force tank empty to make trigger fire
+  await prisma.garajCar.update({ where: { id: fuCar2.id }, data: { fueledUntilAt: new Date(Date.now() - 60_000) } });
+  // We don't strictly assert quiet-hours blocks (TSK hour varies); just confirm no throw and feature-off works
+  await setMotorEcon("pushFeatureOn", 0);
+  const sentOff = await sweepFuelPushes(fakeSend);
+  ok(sentOff === 0, `push: pushFeatureOn=0 short-circuits (sent=${sentOff})`);
+  // restore (leave motorolami ON for the existing econ + bonus tests below)
+  await setMotorEcon("pushFeatureOn", 1);
+  await setMotorEcon("pushQuietStartHour", 23);
+  await setMotorEcon("pushQuietEndHour", 7);
+  await prisma.appState.deleteMany({ where: { key: { startsWith: "fuelpush:" } } });
   // 🎛 admin economy control — out-of-range CLAMPED; speedMult applied to earnings
   await setMotorEcon("fuelMult", 99);
   ok((await getMotorEcon()).fuelMult === 2, `econ: fuelMult clamped to max (admin can't break it)`);

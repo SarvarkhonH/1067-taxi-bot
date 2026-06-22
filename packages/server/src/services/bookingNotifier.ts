@@ -740,6 +740,18 @@ export async function pushBookingUpdates(
     console.error("[garaj] craft settle failed:", e);
   }
 
+  // 🔥 P-Fuel-C: fuel-push sweep. Per-car 30% warn + 0% empty triggers, 1×/car/day, Tashkent
+  // quiet-hours (23:00–07:00) DEFER (not silent — sent at 07:00 next morning). No new poller.
+  // Hard cap: ≤2 fuel pushes/owner/day. OFF-safe (motorolami flag + pushFeatureOn knob).
+  try {
+    const { sweepFuelPushes } = await import("./garajService");
+    await sweepFuelPushes(async (chatId, html) => {
+      await bot.api.sendMessage(chatId, html, { parse_mode: "HTML" }).catch(() => undefined);
+    });
+  } catch (e) {
+    console.error("[garaj] fuel push failed:", e);
+  }
+
   // 🧾 SMS-parity: deliver any ride fares kas finalized AFTER the finish card was sent. Piggybacks
   // this sweep (no new poller) — sends "Yo'l haqi: …" the moment kas posts the payment, then clears.
   try {
