@@ -35,6 +35,7 @@ export interface WalletResponse {
   isClient: boolean; // only clients cash tanga out to so'm — drivers convert/transfer only
   topupMin: number; // min cashback to convert INTO coins
   canTopup: boolean; // cashback >= topupMin
+  commissionPct: number; // live transfer/pay commission % (0 when the "komissiya" flag is off)
   txns: CoinTxnView[];
 }
 
@@ -75,9 +76,60 @@ export const TRANSFER_MIN = 500;
 export const TRANSFER_MAX_PER_TX = 20000;
 export const TRANSFER_DAILY_SENT = 30000;
 export const TRANSFER_DAILY_RECEIVED = 30000;
-export const TRANSFER_MAX_COUNTERPARTIES = 5; // distinct recipients per day (tips exempt)
+export const TRANSFER_MAX_COUNTERPARTIES = 5; // distinct recipients per day (driver tips/fares exempt)
 export const TRANSFER_MIN_ACCOUNT_AGE_H = 48; // sender must be linked this long
-export const TRANSFER_BURN_RATE = 0.02; // destroyed on every transfer
+export const TRANSFER_BURN_RATE = 0.02; // legacy (kept for back-compat; commission replaces it when the flag is on)
+// A real ride FARE can far exceed the P2P friend cap, and pays a VETTED kas driver — so the
+// fare kind gets its own high ceiling and bypasses the anti-mule walls (the driver recipient
+// is a kas identity, not a farm mule; the withdraw gate still bounds real money out).
+export const FARE_MAX_PER_TX = 200000;
+
+// ── 💸 dashboard-configurable transfer commission (owner-tunable, like MOTOR_ECON_KNOBS) ─────
+// commissionPct is a PERCENT (1 = 1%), charged ON TOP of the amount to the SENDER; the recipient
+// receives the full amount and the fee is booked to the PlatformLedger. Gated by the "komissiya"
+// feature flag (DEFAULT_OFF) so it ships dark until owner QABUL.
+export interface TransferEconKnob { key: string; label: string; def: number; min: number; max: number; step: number }
+export const TRANSFER_ECON_KNOBS: TransferEconKnob[] = [
+  { key: "commissionPct", label: "💸 Komissiya (%) — har o'tkazma/to'lov", def: 1.0, min: 0, max: 10, step: 0.1 },
+];
+export function transferEconDefaults(): Record<string, number> {
+  return Object.fromEntries(TRANSFER_ECON_KNOBS.map((k) => [k.key, k.def]));
+}
+export function clampTransferEcon(key: string, val: number): number {
+  const k = TRANSFER_ECON_KNOBS.find((x) => x.key === key);
+  if (!k || isNaN(val)) return k?.def ?? val;
+  return Math.max(k.min, Math.min(k.max, val));
+}
+
+// PURE fee math (no DB) — the single source of truth used by the server's feeModel, so it is
+// directly unit-testable. The recipient ALWAYS gets the full amount. DARK (commission off) =
+// no fee at all (replaces the legacy burn). LIVE = commission charged ON TOP of the sender,
+// booked as platform income. Invariant: charged = received + commission; received == amount.
+export function computeTransferFee(amount: number, commissionPct: number, commissionOn: boolean): { burn: number; commission: number; received: number; charged: number } {
+  const commission = commissionOn ? Math.floor(amount * (commissionPct / 100)) : 0;
+  return { burn: 0, commission, received: amount, charged: amount + commission };
+}
+
+// ── rich lookups for the redesigned pay flows ────────────────────────────────────────────────
+// Driver pay-by-plate: exact details from kas (name, phone, model, rating) + typo suggestions.
+export interface DriverPayLookup {
+  found: boolean;
+  id?: number;
+  name?: string;
+  phone?: string;
+  carNumber?: string;
+  carModel?: string;
+  rating?: number;
+  suggestions?: { car: string; name: string }[]; // closest plates when not found (typo tolerance)
+}
+// Friend pay-by-phone: name, type, phone + Telegram @username.
+export interface RecipientLookup {
+  found: boolean;
+  name?: string;
+  type?: string;
+  phone?: string;
+  username?: string | null;
+}
 
 export interface TransferResponse {
   ok: boolean;
@@ -93,9 +145,11 @@ export interface TransferResponse {
     | "ring"
     | "not_found"
     | "failed";
-  amount: number; // debited from sender
-  received: number; // credited to recipient (amount - burn)
-  burn: number;
+  amount: number; // base — credited to the recipient IN FULL
+  received: number; // = amount (recipient gets the full amount; commission is charged on top)
+  burn: number; // legacy, 0 now
+  commission: number; // platform fee charged to the sender on top of amount
+  charged: number; // total debited from the sender = amount + commission
   coinsLeft: number; // sender balance after
   toName?: string;
 }

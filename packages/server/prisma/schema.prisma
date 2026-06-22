@@ -282,15 +282,29 @@ model Transfer {
   id             Int      @id @default(autoincrement())
   fromMemberId   Int
   toMemberId     Int
-  amount         Float // debited from sender
-  burn           Float    @default(0) // destroyed (anti-wash); receiver gets amount-burn
+  amount         Float // base — credited to the recipient IN FULL (commission is charged ON TOP of the sender)
+  burn           Float    @default(0) // legacy anti-wash burn (0 now — superseded by commission)
+  commission     Float    @default(0) // platform fee charged to the sender, on top of amount
   note           String?
-  kind           String   @default("transfer") // transfer | tip
+  kind           String   @default("transfer") // transfer | tip | fare
   idempotencyKey String?  @unique
   createdAt      DateTime @default(now())
 
   @@index([fromMemberId, createdAt])
   @@index([toMemberId, createdAt])
+}
+
+// 💼 Platform commission revenue. Coins collected as the configurable transfer fee live
+// OUTSIDE the member closed-loop (like a burn, but TRACKED as company income so the dashboard
+// can show total earned). One row per commissioned transfer; transferId makes it idempotent.
+model PlatformLedger {
+  id         Int      @id @default(autoincrement())
+  amount     Float // commission collected (coins)
+  source     String // transfer | tip | fare
+  transferId Int?     @unique
+  createdAt  DateTime @default(now())
+
+  @@index([createdAt])
 }
 
 // Game-currency ledger. Every coin movement (earn +, spend/withdraw -) is one
@@ -598,6 +612,9 @@ model GarajCar {
   lastAccrualAt      DateTime? // oxirgi earn hisoblangani (accrue shu vaqtdan)
   ownerCount         Int       @default(1) // egalar soni (tarix)
   totalTrips         Int       @default(0) // jami safar (taksi 2× hooki)
+  // 🔥 P-Fuel-A — Hay Day hook: manual fuel-fill (tank empties → push → user returns → refuel)
+  fueledUntilAt      DateTime? // tank "runway end" — earn faqat shu vaqtgacha. now > this → dry → 0 net
+  fuelRefillCount    Int       @default(0) // MUST NOT RESET on re-buy (audit-B1 pattern). Deterministic idempotency key tail.
 
   @@unique([memberId, carCode])
   @@index([memberId])

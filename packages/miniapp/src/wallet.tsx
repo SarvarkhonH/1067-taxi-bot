@@ -1,12 +1,15 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import {
+  FARE_MAX_PER_TX,
   TRANSFER_MAX_PER_TX,
   TRANSFER_MIN,
   estimateFare,
   formatNumber,
   rankMedal,
+  type DriverPayLookup,
   type FareConfigResponse,
   type MeResponse,
+  type RecipientLookup,
   type WalletResponse,
 } from "@t1067/shared";
 import { api } from "./api";
@@ -66,34 +69,90 @@ const KIND_EMOJI: Record<string, string> = {
   tip_out: "🙏",
 };
 
-// P2P: send coins to any 1067 member by phone (closed-loop, small burn).
+// shared error copy for transfer/pay flows
+function txErr(reason: string | undefined, maxLabel: number): string {
+  const msgs: Record<string, string> = {
+    below_min: `Minimal: ${formatNumber(TRANSFER_MIN)} tanga`,
+    over_max: `Maksimal: ${formatNumber(maxLabel)} tanga`,
+    insufficient: "Tanga yetarli emas",
+    daily_sent_cap: "Bugungi yuborish limiti tugadi",
+    daily_received_cap: "Qabul qiluvchining bugungi limiti to'ldi",
+    too_many_recipients: "Bugun juda ko'p odamga yubordingiz",
+    account_too_new: "Hisobingiz hali juda yangi (48 soat)",
+    self: "O'zingizga yuborib bo'lmaydi",
+    ring: "Bu o'tkazma hozircha bloklangan",
+    not_found: "Topilmadi",
+    disabled: "O'tkazma hozircha o'chiq",
+  };
+  return msgs[reason ?? ""] ?? "Yuborilmadi";
+}
+
+// Dedicated amount-entry step (the "yangi oyna"): big input, presets, live commission preview.
+// Shared by friend-transfer and driver-fare. The fee line only shows when commission is live.
+function PayAmountStep({
+  coins, maxTx, commissionPct, confirm, cta, busy, err, onBack, onSubmit,
+}: {
+  coins: number; maxTx: number; commissionPct: number; confirm: ReactNode; cta: string;
+  busy: boolean; err: string | null; onBack: () => void; onSubmit: (amount: number) => void;
+}) {
+  const [val, setVal] = useState("");
+  const amount = Math.floor(Number(val.replace(/\D/g, "")) || 0);
+  const fee = Math.floor((amount * commissionPct) / 100);
+  const charged = amount + fee;
+  const maxAmt = Math.min(maxTx, Math.floor(coins / (1 + commissionPct / 100)));
+  const presets = [5000, 10000, 20000, 50000].filter((p) => p <= maxTx && p + Math.floor((p * commissionPct) / 100) <= coins);
+  const valid = amount >= TRANSFER_MIN && amount <= maxTx && charged <= coins;
+  return (
+    <>
+      <button className="pay-back" onClick={onBack}>‹ Orqaga</button>
+      <div className="pay-confirm">{confirm}</div>
+      <div className="pay-amt-wrap">
+        <input className="pay-amt" inputMode="numeric" placeholder="0" value={val ? formatNumber(amount) : ""} onChange={(e) => setVal(e.target.value)} autoFocus />
+        <span className="pay-amt-cur">tanga</span>
+      </div>
+      <div className="chip-row">
+        {presets.map((p) => (
+          <button key={p} className={"amt-chip" + (amount === p ? " active" : "")} onClick={() => { haptic(); setVal(String(p)); }}>{formatNumber(p)}</button>
+        ))}
+        {maxAmt >= TRANSFER_MIN && (
+          <button className={"amt-chip" + (amount === maxAmt ? " active" : "")} onClick={() => { haptic(); setVal(String(maxAmt)); }}>MAX</button>
+        )}
+      </div>
+      {commissionPct > 0 && amount > 0 ? (
+        <div className="pay-fee">+{commissionPct}% komissiya ({formatNumber(fee)}) · jami <b>{formatNumber(charged)}</b> tanga yechiladi</div>
+      ) : null}
+      {err && <div className="sheet-err">{err}</div>}
+      <button className="btn-primary" disabled={!valid || busy} onClick={() => onSubmit(amount)}>
+        {busy ? "Yuborilmoqda…" : cta.replace("{a}", amount ? formatNumber(amount) : "—")}
+      </button>
+    </>
+  );
+}
+
+// 👥 Send tanga to any 1067 member by phone — 2-step: pick recipient (rich confirm: name, type,
+// Telegram @nick, phone) → dedicated amount screen.
 function TransferSheet({ wallet, onClose, onDone }: { wallet: WalletResponse; onClose: () => void; onDone: (msg: string) => void }) {
+  const [step, setStep] = useState<"who" | "amount">("who");
   const [phone, setPhone] = useState("");
-  const [who, setWho] = useState<{ found: boolean; name?: string } | null>(null);
+  const [who, setWho] = useState<RecipientLookup | null>(null);
   const [looking, setLooking] = useState(false);
-  const [amount, setAmount] = useState<number | null>(null);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const lookupTimer = useRef<number | null>(null);
 
-  const max = Math.floor(Math.min(wallet.coins, TRANSFER_MAX_PER_TX));
-  const presets = [1000, 5000, 10000].filter((p) => p >= TRANSFER_MIN && p <= max);
-  if (max >= TRANSFER_MIN && !presets.includes(max)) presets.push(max);
-
   const onPhone = (v: string) => {
     setPhone(v);
     setWho(null);
-    setLooking(v.replace(/\D/g, "").length >= 9);
-    if (lookupTimer.current) window.clearTimeout(lookupTimer.current);
     const digits = v.replace(/\D/g, "");
-    if (digits.length < 9) return;
+    setLooking(digits.length >= 9);
+    if (lookupTimer.current) window.clearTimeout(lookupTimer.current);
+    if (digits.length < 9) { setLooking(false); return; }
     lookupTimer.current = window.setTimeout(() => {
       api.recipient(v).then((r) => { setWho(r); setLooking(false); }).catch(() => setLooking(false));
     }, 450);
   };
 
-  const submit = async () => {
-    if (!amount || busy || !who?.found) return;
+  const submit = async (amount: number) => {
     setBusy(true);
     setErr(null);
     try {
@@ -103,19 +162,7 @@ function TransferSheet({ wallet, onClose, onDone }: { wallet: WalletResponse; on
         onDone(`📤 ${formatNumber(r.amount)} tanga ${r.toName ?? "qabul qiluvchi"}ga yuborildi!`);
         onClose();
       } else {
-        const msgs: Record<string, string> = {
-          below_min: `Minimal: ${formatNumber(TRANSFER_MIN)} tanga`,
-          over_max: `Maksimal: ${formatNumber(TRANSFER_MAX_PER_TX)} tanga`,
-          insufficient: "Tanga yetarli emas",
-          daily_sent_cap: "Bugungi yuborish limiti tugadi",
-          daily_received_cap: "Qabul qiluvchining bugungi limiti to'ldi",
-          too_many_recipients: "Bugun juda ko'p odamga yubordingiz",
-          account_too_new: "Hisobingiz hali juda yangi (48 soat)",
-          self: "O'zingizga yuborib bo'lmaydi",
-          ring: "Bu o'tkazma hozircha bloklangan",
-          not_found: "Bu raqam 1067da topilmadi",
-        };
-        setErr(msgs[r.reason ?? ""] ?? "Yuborilmadi");
+        setErr(txErr(r.reason, TRANSFER_MAX_PER_TX));
       }
     } catch {
       setErr("Tarmoq xatosi — qayta urinib ko'ring");
@@ -128,59 +175,61 @@ function TransferSheet({ wallet, onClose, onDone }: { wallet: WalletResponse; on
     <div className="sheet-back" onClick={onClose}>
       <div className="sheet" onClick={(e) => e.stopPropagation()}>
         <div className="sheet-grip" />
-        <h3>📤 Tanga o'tkazish</h3>
-        <p className="muted sheet-sub">
-          Istalgan 1067 a'zosiga (mijoz yoki haydovchi) tanga yuboring. Kichik xizmat haqi 2%.
-        </p>
-        <input
-          className="bk-input"
-          placeholder="📱 Qabul qiluvchi raqami: 90 123 45 67"
-          value={phone}
-          inputMode="tel"
-          onChange={(e) => onPhone(e.target.value)}
-        />
-        {looking && !who && <div className="dim fs13 mt6">⏳ Tekshirilmoqda…</div>}
-        {who && (
-          <div className={who.found ? "sheet-ok" : "sheet-warn"}>
-            {who.found ? `→ ${who.name}` : "Bu raqam topilmadi"}
-          </div>
-        )}
-        {who?.found && (
+        {step === "who" ? (
           <>
-            <div className="chip-row">
-              {presets.map((p) => (
-                <button key={p} className={"amt-chip" + (amount === p ? " active" : "")} onClick={() => { haptic(); setAmount(p); }}>
-                  {p === max && presets.length > 1 ? `MAX ${formatNumber(p)}` : formatNumber(p)}
-                </button>
-              ))}
-            </div>
-            {err && <div className="sheet-err">{err}</div>}
-            <button className="btn-primary" disabled={!amount || busy} onClick={submit}>
-              {busy ? "Yuborilmoqda…" : `📤 ${amount ? formatNumber(amount) : ""} tanga yuborish`}
-            </button>
+            <h3>👥 Do'stga tanga yuborish</h3>
+            <p className="muted sheet-sub">Raqamni yozing — kim ekani chiqadi, keyin summani kiritasiz.</p>
+            <input className="bk-input" placeholder="📱 Qabul qiluvchi raqami: 90 123 45 67" value={phone} inputMode="tel" onChange={(e) => onPhone(e.target.value)} />
+            {looking && !who && <div className="dim fs13 mt6">⏳ Tekshirilmoqda…</div>}
+            {who && !who.found && <div className="sheet-warn">Bu raqam 1067da topilmadi</div>}
+            {who?.found && (
+              <button className="pay-card" onClick={() => { haptic(); setStep("amount"); }}>
+                <div className="pay-card-av">{who.type === "driver" ? "🚖" : "👤"}</div>
+                <div className="pay-card-main">
+                  <div className="pay-card-name">{who.name}</div>
+                  <div className="pay-card-sub">
+                    {who.type === "driver" ? "Haydovchi" : "Mijoz"}
+                    {who.username ? ` · @${who.username}` : ""}
+                    {who.phone ? ` · ${who.phone}` : ""}
+                  </div>
+                </div>
+                <div className="pay-card-go">Davom →</div>
+              </button>
+            )}
+            <button className="btn-ghost" onClick={onClose}>Yopish</button>
           </>
+        ) : (
+          <PayAmountStep
+            coins={wallet.coins}
+            maxTx={TRANSFER_MAX_PER_TX}
+            commissionPct={wallet.commissionPct}
+            confirm={<>👥 <b>{who?.name}</b>ga yuborasiz{who?.username ? ` · @${who.username}` : ""}</>}
+            cta="📤 {a} tanga yuborish"
+            busy={busy}
+            err={err}
+            onBack={() => { setErr(null); setStep("who"); }}
+            onSubmit={submit}
+          />
         )}
-        <button className="btn-ghost" onClick={onClose}>Yopish</button>
       </div>
     </div>
   );
 }
 
-// 🚖 Pay the driver by CAR number — type the plate, the driver's name appears, send the fare
-// as tanga (same closed-loop tip path as the bot's /haydovchi).
+// 🚖 Pay the driver's FARE by car number — 2-step: type the plate → rich kas confirm (name,
+// model, plate, phone, rating) with typo suggestions → dedicated amount screen. NOT a tip.
 function PayDriverSheet({ wallet, onClose, onDone }: { wallet: WalletResponse; onClose: () => void; onDone: (msg: string) => void }) {
+  const [step, setStep] = useState<"who" | "amount">("who");
   const [car, setCar] = useState("");
-  const [who, setWho] = useState<{ found: boolean; name?: string } | null>(null);
+  const [who, setWho] = useState<DriverPayLookup | null>(null);
   const [looking, setLooking] = useState(false);
-  const [amount, setAmount] = useState<number | null>(null);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const lookupTimer = useRef<number | null>(null);
 
-  const max = Math.floor(Math.min(wallet.coins, TRANSFER_MAX_PER_TX));
-  const presets = [1000, 5000, 10000].filter((p) => p >= TRANSFER_MIN && p <= max);
-  if (max >= TRANSFER_MIN && !presets.includes(max)) presets.push(max);
-
+  const runLookup = (clean: string) => {
+    api.driverByCar(clean).then((r) => { setWho(r); setLooking(false); }).catch(() => setLooking(false));
+  };
   const onCar = (v: string) => {
     const up = v.toUpperCase();
     setCar(up);
@@ -188,35 +237,27 @@ function PayDriverSheet({ wallet, onClose, onDone }: { wallet: WalletResponse; o
     const clean = up.replace(/\s+/g, "");
     setLooking(clean.length >= 4);
     if (lookupTimer.current) window.clearTimeout(lookupTimer.current);
-    if (clean.length < 4) return;
-    lookupTimer.current = window.setTimeout(() => {
-      api.driverByCar(clean).then((r) => { setWho(r); setLooking(false); }).catch(() => setLooking(false));
-    }, 450);
+    if (clean.length < 4) { setLooking(false); return; }
+    lookupTimer.current = window.setTimeout(() => runLookup(clean), 450);
+  };
+  const pickSuggestion = (plate: string) => {
+    setCar(plate);
+    setWho(null);
+    setLooking(true);
+    runLookup(plate.replace(/\s+/g, ""));
   };
 
-  const submit = async () => {
-    if (!amount || busy || !who?.found) return;
+  const submit = async (amount: number) => {
     setBusy(true);
     setErr(null);
     try {
       const r = await api.payDriver(car.replace(/\s+/g, ""), amount);
       if (r.ok) {
         confetti();
-        onDone(`🙏 ${formatNumber(r.amount)} tanga ${r.toName ?? "haydovchi"}ga yuborildi!`);
+        onDone(`🚕 Yo'l haqi ${formatNumber(r.amount)} tanga ${r.toName ?? "haydovchi"}ga to'landi!`);
         onClose();
       } else {
-        const msgs: Record<string, string> = {
-          below_min: `Minimal: ${formatNumber(TRANSFER_MIN)} tanga`,
-          over_max: `Maksimal: ${formatNumber(TRANSFER_MAX_PER_TX)} tanga`,
-          insufficient: "Tanga yetarli emas",
-          daily_sent_cap: "Bugungi yuborish limiti tugadi",
-          self: "O'zingizga yuborib bo'lmaydi",
-          not_found: "Bu mashina raqamli haydovchi topilmadi",
-          account_too_new: "Hisobingiz hali juda yangi (48 soat)",
-          daily_received_cap: "Haydovchining bugungi qabul limiti to'ldi",
-          disabled: "O'tkazma hozircha o'chiq",
-        };
-        setErr(msgs[r.reason ?? ""] ?? "Yuborilmadi");
+        setErr(txErr(r.reason, FARE_MAX_PER_TX));
       }
     } catch {
       setErr("Tarmoq xatosi — qayta urinib ko'ring");
@@ -229,37 +270,54 @@ function PayDriverSheet({ wallet, onClose, onDone }: { wallet: WalletResponse; o
     <div className="sheet-back" onClick={onClose}>
       <div className="sheet" onClick={(e) => e.stopPropagation()}>
         <div className="sheet-grip" />
-        <h3>🚖 Haydovchiga to'lash</h3>
-        <p className="muted sheet-sub">Mashina raqamini yozing — haydovchi ismi chiqadi, yo'l haqini tangada yuborasiz.</p>
-        <input
-          className="bk-input"
-          placeholder="🚗 Mashina raqami: 01A123BC"
-          value={car}
-          autoCapitalize="characters"
-          onChange={(e) => onCar(e.target.value)}
-        />
-        {looking && !who && <div className="dim fs13 mt6">⏳ Tekshirilmoqda…</div>}
-        {who && (
-          <div className={who.found ? "sheet-ok" : "sheet-warn"}>
-            {who.found ? `🚖 ${who.name}` : "Bu raqamli haydovchi topilmadi"}
-          </div>
-        )}
-        {who?.found && (
+        {step === "who" ? (
           <>
-            <div className="chip-row">
-              {presets.map((p) => (
-                <button key={p} className={"amt-chip" + (amount === p ? " active" : "")} onClick={() => { haptic(); setAmount(p); }}>
-                  {p === max && presets.length > 1 ? `MAX ${formatNumber(p)}` : formatNumber(p)}
-                </button>
-              ))}
-            </div>
-            {err && <div className="sheet-err">{err}</div>}
-            <button className="btn-primary" disabled={!amount || busy} onClick={submit}>
-              {busy ? "Yuborilmoqda…" : `🙏 ${amount ? formatNumber(amount) : ""} tanga yuborish`}
-            </button>
+            <h3>🚖 Haydovchiga yo'l haqini to'lash</h3>
+            <p className="muted sheet-sub">Mashina raqamini yozing — haydovchi ma'lumoti chiqadi, keyin yo'l haqi summasini kiritasiz.</p>
+            <input className="bk-input" placeholder="🚗 Mashina raqami: 01A123BC" value={car} autoCapitalize="characters" onChange={(e) => onCar(e.target.value)} />
+            {looking && <div className="dim fs13 mt6">⏳ Tekshirilmoqda…</div>}
+            {who?.found && (
+              <button className="pay-card" onClick={() => { haptic(); setStep("amount"); }}>
+                <div className="pay-card-av">🚖</div>
+                <div className="pay-card-main">
+                  <div className="pay-card-name">{who.name}{who.rating ? ` ⭐${who.rating.toFixed(1)}` : ""}</div>
+                  <div className="pay-card-sub">
+                    {who.carModel ? `${who.carModel} · ` : ""}<b>{who.carNumber}</b>{who.phone ? ` · ${who.phone}` : ""}
+                  </div>
+                </div>
+                <div className="pay-card-go">Davom →</div>
+              </button>
+            )}
+            {who && !who.found && (
+              <>
+                <div className="sheet-warn">Bu raqamli haydovchi topilmadi</div>
+                {who.suggestions && who.suggestions.length > 0 && (
+                  <div className="pay-sugg-wrap">
+                    <div className="dim fs13">Balki shulardan biri?</div>
+                    {who.suggestions.map((s) => (
+                      <button key={s.car} className="pay-sugg" onClick={() => { haptic(); pickSuggestion(s.car); }}>
+                        🚗 <b>{s.car}</b> · {s.name}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </>
+            )}
+            <button className="btn-ghost" onClick={onClose}>Yopish</button>
           </>
+        ) : (
+          <PayAmountStep
+            coins={wallet.coins}
+            maxTx={FARE_MAX_PER_TX}
+            commissionPct={wallet.commissionPct}
+            confirm={<>🚖 <b>{who?.name}</b> · {who?.carNumber} — yo'l haqi</>}
+            cta="🚕 {a} tanga to'lash"
+            busy={busy}
+            err={err}
+            onBack={() => { setErr(null); setStep("who"); }}
+            onSubmit={submit}
+          />
         )}
-        <button className="btn-ghost" onClick={onClose}>Yopish</button>
       </div>
     </div>
   );

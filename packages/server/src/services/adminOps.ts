@@ -93,6 +93,16 @@ export async function getEconomy(): Promise<AdminEconomy> {
   };
 }
 
+/** 💼 Platform commission revenue (PlatformLedger): lifetime + last 24h, coins collected. */
+export async function platformEarned(): Promise<{ total: number; today: number }> {
+  const since = new Date(Date.now() - 24 * 3600 * 1000);
+  const [all, today] = await Promise.all([
+    prisma.platformLedger.aggregate({ _sum: { amount: true } }),
+    prisma.platformLedger.aggregate({ where: { createdAt: { gte: since } }, _sum: { amount: true } }),
+  ]);
+  return { total: all._sum.amount ?? 0, today: today._sum.amount ?? 0 };
+}
+
 // ─── 📈 growth ──────────────────────────────────────────────────────────────
 export async function getGrowth(): Promise<AdminGrowth> {
   const startToday = new Date();

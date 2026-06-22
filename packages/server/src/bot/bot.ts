@@ -110,6 +110,17 @@ function contactKeyboard(): Keyboard {
   return new Keyboard().requestContact("📱 Raqamni ulashish").resized().oneTime();
 }
 
+// Unlinked prompt — ALWAYS offers BOTH paths: the verified «Raqamni ulashish» (reply keyboard)
+// AND the «Boshqa raqam» (1067 code) inline button. Previously the inline button only appeared
+// on /start, so users reaching the prompt from a menu had no way to link a different number.
+async function promptLink(ctx: Context): Promise<void> {
+  await ctx.reply(renderLinkPrompt(), { parse_mode: "HTML", reply_markup: contactKeyboard() });
+  await ctx.reply("1067 raqamingiz Telegram raqamingizdan <b>boshqa</b> bo'lsa 👇", {
+    parse_mode: "HTML",
+    reply_markup: new InlineKeyboard().text("📱 Boshqa raqam (1067 kodi bilan)", "clink:start"),
+  });
+}
+
 function profileOf(src: { username?: string; first_name?: string; last_name?: string; language_code?: string }) {
   return { username: src.username, firstName: src.first_name, lastName: src.last_name, languageCode: src.language_code };
 }
@@ -334,7 +345,7 @@ export function createBot(): Bot {
   const showProfile = async (ctx: Context) => {
     const me = await getMe(String(ctx.from!.id));
     if (!me) {
-      await ctx.reply(renderLinkPrompt(), { parse_mode: "HTML", reply_markup: contactKeyboard() });
+      await promptLink(ctx);
       return;
     }
     await ctx.reply(renderProfile(me), {
@@ -350,7 +361,7 @@ export function createBot(): Bot {
   const showAccount = async (ctx: Context) => {
     const me = await getMe(String(ctx.from!.id));
     if (!me) {
-      await ctx.reply(renderLinkPrompt(), { parse_mode: "HTML", reply_markup: contactKeyboard() });
+      await promptLink(ctx);
       return;
     }
     const { isNotifyOff } = await import("../services/notifyService");
@@ -381,7 +392,7 @@ export function createBot(): Bot {
   const showMahalla = async (ctx: Context) => {
     const me = await getMe(String(ctx.from!.id));
     if (!me) {
-      await ctx.reply(renderLinkPrompt(), { parse_mode: "HTML", reply_markup: contactKeyboard() });
+      await promptLink(ctx);
       return;
     }
     const { featureOn } = await import("../services/featureFlags");
@@ -399,7 +410,7 @@ export function createBot(): Bot {
   const showDriverPanel = async (ctx: Context) => {
     const me = await getMe(String(ctx.from!.id));
     if (!me) {
-      await ctx.reply(renderLinkPrompt(), { parse_mode: "HTML", reply_markup: contactKeyboard() });
+      await promptLink(ctx);
       return;
     }
     if (me.type !== "driver" && String(ctx.from!.id) !== "6506297119") {
@@ -536,7 +547,7 @@ export function createBot(): Bot {
     const id = String(ctx.from!.id);
     const me = await getMe(id);
     if (!me) {
-      await ctx.reply(renderLinkPrompt(), { parse_mode: "HTML", reply_markup: contactKeyboard() });
+      await promptLink(ctx);
       return;
     }
     const [lb, weekly] = await Promise.all([getLeaderboard(me.type, id), getWeeklyBoard(me.member.id)]);
@@ -548,7 +559,7 @@ export function createBot(): Bot {
   const checkIn = async (ctx: Context) => {
     const me = await getMe(String(ctx.from!.id));
     if (!me) {
-      await ctx.reply(renderLinkPrompt(), { parse_mode: "HTML", reply_markup: contactKeyboard() });
+      await promptLink(ctx);
       return;
     }
     const r = await dailyCheckIn(me.member.id);
@@ -560,7 +571,7 @@ export function createBot(): Bot {
   const spin = async (ctx: Context) => {
     const me = await getMe(String(ctx.from!.id));
     if (!me) {
-      await ctx.reply(renderLinkPrompt(), { parse_mode: "HTML", reply_markup: contactKeyboard() });
+      await promptLink(ctx);
       return;
     }
     const msg = await ctx.reply("🎡 G'ildirak aylanmoqda…");
@@ -611,7 +622,7 @@ export function createBot(): Bot {
   bot.command("baraban", async (ctx) => {
     const memberId = await getMemberId(String(ctx.from!.id));
     if (!memberId) {
-      await ctx.reply(renderLinkPrompt(), { parse_mode: "HTML", reply_markup: contactKeyboard() });
+      await promptLink(ctx);
       return;
     }
     await spinBaraban(ctx);
@@ -648,7 +659,8 @@ export function createBot(): Bot {
     const driverId = Number(ctx.match[1]);
     const amount = Number(ctx.match[2]);
     const { transfer } = await import("../services/transferService");
-    const r = await transfer(riderId, "", amount, { kind: "tip", toMemberId: driverId });
+    // FARE payment (not a tip): high cap so a real 20k+ fare goes through; driver gets the full fare.
+    const r = await transfer(riderId, "", amount, { kind: "fare", toMemberId: driverId });
     if (r.ok) {
       await ctx.answerCallbackQuery({ text: `✅ Yo'l haqi to'landi 🚕`, show_alert: true }).catch(() => undefined);
       await ctx.editMessageReplyMarkup({ reply_markup: undefined }).catch(() => undefined);
@@ -676,7 +688,7 @@ export function createBot(): Bot {
   bot.hears("🎖 Nishonlar", async (ctx) => {
     const me = await getMe(String(ctx.from!.id));
     if (!me) {
-      await ctx.reply(renderLinkPrompt(), { parse_mode: "HTML", reply_markup: contactKeyboard() });
+      await promptLink(ctx);
       return;
     }
     await ctx.reply(renderBadges(me), { parse_mode: "HTML", reply_markup: mainMenu() });
@@ -707,7 +719,7 @@ export function createBot(): Bot {
   const showMissions = async (ctx: Context) => {
     const memberId = await getMemberId(String(ctx.from!.id));
     if (!memberId) {
-      await ctx.reply(renderLinkPrompt(), { parse_mode: "HTML", reply_markup: contactKeyboard() });
+      await promptLink(ctx);
       return;
     }
     const { text, kb } = await missionsView(memberId);

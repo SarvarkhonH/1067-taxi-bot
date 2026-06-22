@@ -371,6 +371,7 @@ function ControlCards() {
   const [flags, setFlags] = useState<{ name: string; on: boolean }[] | null>(null);
   const [fund, setFund] = useState(0);
   const [econ, setEcon] = useState<{ knobs: { key: string; label: string; def: number; min: number; max: number; step: number; live: boolean }[]; values: Record<string, number> } | null>(null);
+  const [txEcon, setTxEcon] = useState<{ knobs: { key: string; label: string; def: number; min: number; max: number; step: number }[]; values: Record<string, number>; enabled: boolean; earned: { total: number; today: number } } | null>(null);
   const [corps, setCorps] = useState<{ id: number; name: string; balance: number; employees: number }[]>([]);
   const [cName, setCName] = useState("");
   const [empPhone, setEmpPhone] = useState("");
@@ -384,6 +385,7 @@ function ControlCards() {
   const load = () => {
     adminApi.features().then((r) => { setFlags(r.features); setFund(r.mashinaFund); }).catch(() => undefined);
     adminApi.motorEconomy().then(setEcon).catch(() => undefined);
+    adminApi.transferEconomy().then(setTxEcon).catch(() => undefined);
     adminApi.corps().then((r) => setCorps(r.corps)).catch(() => undefined);
     adminApi.optokens().then((r) => setOptokens(r.tokens)).catch(() => undefined);
   };
@@ -391,6 +393,10 @@ function ControlCards() {
 
   const saveEcon = async (key: string, value: number) => {
     try { const r = await adminApi.setMotorEconomy(key, value); setEcon((e) => (e ? { ...e, values: r.values } : e)); }
+    catch { alert(`'${key}' qiymatini saqlab bo'lmadi`); }
+  };
+  const saveTxEcon = async (key: string, value: number) => {
+    try { const r = await adminApi.setTransferEconomy(key, value); setTxEcon((e) => (e ? { ...e, values: r.values } : e)); }
     catch { alert(`'${key}' qiymatini saqlab bo'lmadi`); }
   };
 
@@ -431,6 +437,22 @@ function ControlCards() {
               ))}
             </div>
             <p className="muted" style={{ marginTop: 6, fontSize: 11 }}>⛽ Yoqilg'i ×0.7 = arzon-promo (faollik↑). ⚡ Daromad ×0.5 = inflyatsiya tormozi. Har qiymat clamp'langan — buzib bo'lmaydi.</p>
+          </div>
+        )}
+        {txEcon && (
+          <div style={{ marginTop: 14, borderTop: "1px solid rgba(255,255,255,0.12)", paddingTop: 10 }}>
+            <h3 style={{ margin: "0 0 6px" }}>💸 O'tkazma komissiyasi {txEcon.enabled ? <span style={{ color: "#34d399" }}>(YONIQ)</span> : <span className="muted">(o'chiq — «komissiya» flag'ni yoqing)</span>}</h3>
+            <div style={{ display: "grid", gap: 8 }}>
+              {txEcon.knobs.map((k) => (
+                <div key={k.key} style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+                  <span style={{ flex: 1, minWidth: 190 }}>{k.label}</span>
+                  <input type="number" step={k.step} min={k.min} max={k.max} defaultValue={txEcon.values[k.key]} id={`txecon-${k.key}`} style={{ width: 90 }} />
+                  <span className="muted" style={{ fontSize: 11 }}>[{k.min}–{k.max}%]</span>
+                  <button className="btn sm" onClick={() => { const el = document.getElementById(`txecon-${k.key}`) as HTMLInputElement | null; if (el) void saveTxEcon(k.key, Number(el.value)); }}>Saqlash</button>
+                </div>
+              ))}
+            </div>
+            <p className="muted" style={{ marginTop: 6, fontSize: 11 }}>💼 Yig'ilgan komissiya: <b>{txEcon.earned.total.toLocaleString("ru-RU")}</b> tanga (bugun {txEcon.earned.today.toLocaleString("ru-RU")}). Yuboruvchidan +% olinadi, qabul qiluvchi to'liq oladi. «komissiya» flag YONIQ bo'lgandagina ishlaydi.</p>
           </div>
         )}
         <MashinaCard />

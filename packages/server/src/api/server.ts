@@ -19,7 +19,7 @@ import { getBoxStatus, openBox } from "../services/boxService";
 import { getReferralInfo } from "../services/referralService";
 import { getWeeklyBoard } from "../services/weeklyService";
 import { getWallet, topUpFromBonus, withdraw } from "../services/coinService";
-import { findDriverByCar, findRecipientByPhone, getDriverEarnings, transfer } from "../services/transferService";
+import { findDriverByCar, getDriverEarnings, lookupDriverForPay, lookupRecipient, transfer } from "../services/transferService";
 import { buyListing, listShops, myOrders, myShop, redeemVoucher } from "../services/marketService";
 import { prisma } from "../db";
 import { getFareConfig } from "../services/clientInfoService";
@@ -194,6 +194,7 @@ export function createApiServer(opts: ApiOptions = {}) {
   app.get("/api/garaj/museum", requireUser, withMember2(async (id) => (await import("../services/garajService")).getMuseum(id)));
   // 🌍 MOTOR OLAMI (v3, gated by "motorolami") — passive «Yig'ish» + public profile
   app.post("/api/garaj/motor/collect", requireUser, rateLimit(30), withMember2(async (id) => (await import("../services/garajService")).motorCollect(id)));
+  app.post("/api/garaj/motor/refuel", requireUser, rateLimit(20), withMember2(async (id, req) => (await import("../services/garajService")).motorRefuel(id, Number(req.body?.garajCarId))));
   app.get("/api/garaj/profile/:id", requireUser, withMember2(async (id, req) => (await import("../services/garajService")).getPublicProfile(id, req.params?.id === "me" ? id : Number(req.params?.id))));
 
   app.get("/api/me", requireUser, async (_req, res) => {
@@ -270,8 +271,8 @@ export function createApiServer(opts: ApiOptions = {}) {
 
   // ── P2P transfer: closed-loop coin moves (capped, burned, ring-guarded) ─────
   app.post("/api/wallet/recipient", requireUser, rateLimit(10), async (req, res) => {
-    const r = await findRecipientByPhone(String((req.body as { phone?: string })?.phone ?? ""));
-    res.json(r ? { found: true, name: r.fullName, type: r.type } : { found: false });
+    // rich confirm: name + type + phone + Telegram @username (so the sender sees WHO they pay)
+    res.json(await lookupRecipient(String((req.body as { phone?: string })?.phone ?? "")));
   });
   app.post("/api/wallet/transfer", requireUser, rateLimit(5), async (req, res) => {
     const memberId = await getMemberId(res.locals.telegramId as string);
@@ -292,12 +293,11 @@ export function createApiServer(opts: ApiOptions = {}) {
     }
     res.json(await transfer(memberId, String(b.phone), amount, { note: b.note ? String(b.note) : undefined }));
   });
-  // 🚖 Pay the driver by CAR number (Mini App). Preview the name, then send tanga as a tip —
-  // reuses the SAME transfer(kind:"tip", toMemberId) path as the bot's /haydovchi + finish-card tip.
+  // 🚖 Pay the driver by CAR number (Mini App). Rich confirm — exact kas details (name, phone,
+  // model, rating) + typo suggestions when the plate doesn't match. This is a FARE payment.
   app.post("/api/wallet/driver-by-car", requireUser, rateLimit(10), async (req, res) => {
     const memberId = await getMemberId(res.locals.telegramId as string);
-    const d = await findDriverByCar(String((req.body as { car?: string })?.car ?? ""));
-    res.json(d && d.id !== memberId ? { found: true, name: d.fullName, car: d.carNumber } : { found: false });
+    res.json(await lookupDriverForPay(String((req.body as { car?: string })?.car ?? ""), memberId));
   });
   app.post("/api/wallet/pay-driver", requireUser, rateLimit(5), async (req, res) => {
     const memberId = await getMemberId(res.locals.telegramId as string);
@@ -321,7 +321,8 @@ export function createApiServer(opts: ApiOptions = {}) {
       res.json({ ok: false, reason: "not_found" });
       return;
     }
-    res.json(await transfer(memberId, "", amount, { kind: "tip", toMemberId: driver.id }));
+    // FARE payment (not a tip) — high cap, driver gets the full fare, +commission charged to rider.
+    res.json(await transfer(memberId, "", amount, { kind: "fare", toMemberId: driver.id }));
   });
   // ── 💎 Kolleksiya ────────────────────────────────────────────────────────
   app.get("/api/items", requireUser, withMember2(async (id) => {
@@ -833,6 +834,25 @@ export function createApiServer(opts: ApiOptions = {}) {
     }
     const { setMotorEcon } = await import("../services/garajService");
     res.json({ ok: true, values: await setMotorEcon(b.key as string, b.value) });
+  });
+  // 💸 Transfer commission — owner sets the % charged on every transfer/tip/fare (gated by the
+  // "komissiya" flag; the knob is live but only bites once that flag is ON).
+  app.get("/api/admin/transfer-economy", requireAdmin, async (_req, res) => {
+    const { TRANSFER_ECON_KNOBS } = await import("@t1067/shared");
+    const { getTransferEcon } = await import("../services/transferService");
+    const { featureOn } = await import("../services/featureFlags");
+    const { platformEarned } = await import("../services/adminOps");
+    res.json({ knobs: TRANSFER_ECON_KNOBS, values: await getTransferEcon(), enabled: await featureOn("komissiya"), earned: await platformEarned() });
+  });
+  app.post("/api/admin/transfer-economy", requireAdmin, requireOwner, async (req, res) => {
+    const b = req.body as { key?: string; value?: number };
+    const { TRANSFER_ECON_KNOBS } = await import("@t1067/shared");
+    if (!TRANSFER_ECON_KNOBS.some((k) => k.key === b?.key) || typeof b?.value !== "number") {
+      res.status(400).json({ error: "unknown knob or bad value" });
+      return;
+    }
+    const { setTransferEcon } = await import("../services/transferService");
+    res.json({ ok: true, values: await setTransferEcon(b.key as string, b.value) });
   });
   // ── M1/M3/M4/M6: livemap, member/driver 360, mashina draw, op tokens ─────
   app.get("/api/admin/livemap", requireAdmin, async (_req, res) => {

@@ -178,6 +178,13 @@ export async function getWallet(memberId: number): Promise<WalletResponse> {
     withdrawnToday(memberId),
   ]);
   const coins = member?.coins ?? 0;
+  // live commission % (0 unless the "komissiya" flag is on) — lets the Mini App preview the fee
+  const { featureOn } = await import("./featureFlags");
+  let commissionPct = 0;
+  if (await featureOn("komissiya")) {
+    const { getTransferEcon } = await import("./transferService");
+    commissionPct = (await getTransferEcon()).commissionPct ?? 0;
+  }
   return {
     coins,
     cashback: member?.points ?? 0,
@@ -188,6 +195,7 @@ export async function getWallet(memberId: number): Promise<WalletResponse> {
     isClient: member?.type === "client", // ONLY clients convert cashback→tanga (topup); BOTH can withdraw tanga→kas balance
     topupMin: TOPUP_MIN,
     canTopup: (member?.points ?? 0) >= TOPUP_MIN,
+    commissionPct,
     txns: txns.map((t) => ({ amount: t.amount, kind: t.kind, reason: t.reason, at: t.createdAt.toISOString() })),
   };
 }
