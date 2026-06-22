@@ -122,3 +122,112 @@ export async function driverConfirmSms(carNumber: string, smsCode: string): Prom
 export function botDeviceSerial(memberId: number): string {
   return `1067bot-${memberId}`;
 }
+
+// ─── Bosqich 4: driver history (read-only) ─────────────────────────────────────
+// These two endpoints live at the ROOT api/ level (NOT under driverApp/) and are GET with
+// (carNumber, secretKey, dateInMillisecond) query params — see the decompiled ApiService.
+function rootApiBase(): string {
+  return `${env.KAS_BASE_URL.replace(/\/$/, "")}/api`;
+}
+
+async function getJsonArray<T>(path: string, params: Record<string, string>): Promise<{ status: number; data: T[] }> {
+  const ctrl = new AbortController();
+  const t = setTimeout(() => ctrl.abort(), TIMEOUT_MS);
+  try {
+    const qs = new URLSearchParams(params).toString();
+    const res = await fetch(`${rootApiBase()}/${path}?${qs}`, { headers: { Accept: "application/json" }, signal: ctrl.signal });
+    const text = await res.text();
+    let data: T[] = [];
+    try {
+      const j = text ? JSON.parse(text) : [];
+      if (Array.isArray(j)) data = j as T[];
+    } catch {
+      /* non-JSON → empty */
+    }
+    return { status: res.status, data };
+  } catch {
+    return { status: 0, data: [] };
+  } finally {
+    clearTimeout(t);
+  }
+}
+
+// One ride from the driver's own booking-history report (driver-app, scoped to this car).
+export interface DriverRide {
+  id: number;
+  addressName: string;
+  carModel: string;
+  payment: number; // fare the driver collected (so'm)
+  clientBonus: number;
+  distance: number; // kas raw (metres on the wire)
+  time: number; // kas raw (minutes)
+  status: string;
+  type: string; // call | app | street
+  date: string; // ISO
+}
+
+// One row of the driver's financial ledger — each balance/debt change kas recorded.
+export interface DriverLedgerRow {
+  id: number;
+  addressName: string;
+  payment: number;
+  type: string; // booking | debt | topup … (kas-defined)
+  oldBalance: number;
+  newBalance: number;
+  oldDebt: number;
+  newDebt: number;
+  date: string; // ISO
+}
+
+const num = (v: unknown): number => (typeof v === "number" ? v : Number(v) || 0);
+
+/** The driver's own rides (driver-app driverBookingHistoryReports). `dateMs` is kas's
+ *  dateInMillisecond filter; pass start-of-day for "today". Mock returns 2 fixed rides. */
+export async function getDriverBookingHistory(carNumber: string, secretKey: string, dateMs: number): Promise<DriverRide[]> {
+  const car = carNumber.replace(/\s/g, "").toUpperCase();
+  if (env.KAS_MODE === "mock") {
+    const now = new Date().toISOString();
+    return [
+      { id: 9301, addressName: "Koson bozori", carModel: "Cobalt", payment: 14000, clientBonus: 500, distance: 4200, time: 12, status: "delivered", type: "app", date: now },
+      { id: 9300, addressName: "Bunyodkor 12", carModel: "Cobalt", payment: 9000, clientBonus: 0, distance: 2600, time: 8, status: "delivered", type: "call", date: now },
+    ];
+  }
+  const r = await getJsonArray<Record<string, unknown>>("driverBookingHistoryReports", { carNumber: car, secretKey, dateInMillisecond: String(dateMs) });
+  return r.data.map((b) => ({
+    id: num(b.id),
+    addressName: String(b.addressName ?? ""),
+    carModel: String(b.carModel ?? ""),
+    payment: num(b.payment),
+    clientBonus: num(b.clientBonus),
+    distance: num(b.distance),
+    time: num(b.time),
+    status: String(b.status ?? ""),
+    type: String(b.type ?? ""),
+    date: typeof b.date === "string" ? b.date : new Date(num(b.date)).toISOString(),
+  }));
+}
+
+/** The driver's financial ledger (driver-app driverPaymentHistoryReports). Shows each
+ *  balance/debt movement — the honest earnings + commission view. Mock returns 2 rows. */
+export async function getDriverPaymentHistory(carNumber: string, secretKey: string, dateMs: number): Promise<DriverLedgerRow[]> {
+  const car = carNumber.replace(/\s/g, "").toUpperCase();
+  if (env.KAS_MODE === "mock") {
+    const now = new Date().toISOString();
+    return [
+      { id: 7101, addressName: "Koson bozori", payment: 14000, type: "booking", oldBalance: 18200, newBalance: 32200, oldDebt: 45000, newDebt: 45000, date: now },
+      { id: 7100, addressName: "—", payment: 5000, type: "debt", oldBalance: 32200, newBalance: 27200, oldDebt: 45000, newDebt: 40000, date: now },
+    ];
+  }
+  const r = await getJsonArray<Record<string, unknown>>("driverPaymentHistoryReports", { carNumber: car, secretKey, dateInMillisecond: String(dateMs) });
+  return r.data.map((p) => ({
+    id: num(p.id),
+    addressName: String(p.bookingAddressName ?? ""),
+    payment: num(p.payment),
+    type: String(p.type ?? ""),
+    oldBalance: num(p.oldBalance),
+    newBalance: num(p.newBalance),
+    oldDebt: num(p.oldDebt),
+    newDebt: num(p.newDebt),
+    date: typeof p.date === "string" ? p.date : new Date(num(p.date)).toISOString(),
+  }));
+}

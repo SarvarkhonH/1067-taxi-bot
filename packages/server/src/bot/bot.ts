@@ -22,6 +22,7 @@ import type { CashbackDelta } from "../sync/sync";
 import { payDriver, registerBooking } from "./booking";
 import { driverLoginFlow, registerDriverLogin } from "./driverLogin";
 import { registerDriverDebt } from "./driverDebt";
+import { registerDriverReports } from "./driverReports";
 import {
   renderBadgeUnlocked,
   renderAccount,
@@ -892,6 +893,7 @@ export function createBot(): Bot {
 
   registerDriverLogin(bot); // Bosqich 2: /driver_login + /driver_logout wizard (before booking so its text-handler wins for its state)
   registerDriverDebt(bot); // Bosqich 3: /qarz — pay kas debt with tanga (gated behind `qarz` flag)
+  registerDriverReports(bot); // Bosqich 4: /safarlarim + /daromad (read-only driver reports)
   registerBooking(bot, mainMenu);
 
   // 🤖 AI-1 rules-first free text: runs AFTER booking's own text handler
