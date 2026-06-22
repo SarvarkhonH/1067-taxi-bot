@@ -61,7 +61,10 @@ let webAppVer = WEBAPP_BUILD;
 async function refreshWebAppVer(): Promise<void> {
   try {
     const res = await fetch(env.TELEGRAM_WEBAPP_URL);
-    const m = (await res.text()).match(/index-([A-Za-z0-9_]+)\.js/);
+    // Vite content hashes are base64url → can contain "-" and "_" (e.g. index-BilONG-Z.js).
+    // The old [A-Za-z0-9_]+ class missed the hyphen → probe failed → menu button fell back to
+    // the stale "v16", so every user opened a cached old build. Include "-" so it always parses.
+    const m = (await res.text()).match(/index-([A-Za-z0-9_-]+)\.js/);
     if (m) webAppVer = m[1]!;
   } catch (e) {
     console.error("[bot] webapp version probe failed → fallback", WEBAPP_BUILD, e instanceof Error ? e.message : e);
