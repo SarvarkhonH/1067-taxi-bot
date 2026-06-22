@@ -5,7 +5,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type { GarajStateResponse, GarajCarView, RepairQuality, PublicProfileView } from "@t1067/shared";
 import { KOZACHA_SHOP, reputationTier, REPUTATION_TIERS, REPAIR_ZONES, ZONE_NAMES, PART_TIERS, garajCarMeta, CRAFT_STATIONS, craftCost, MAKE_BASE, npcForBuyer, npcLine } from "@t1067/shared";
 import { api } from "./api";
-import { haptic, hapticSuccess, playTierFanfare } from "./telegram";
+import { haptic, hapticSuccess, playTierFanfare, playRepairChirp, playTierUpRing, playRepairFail } from "./telegram";
 import { Button, Card, Chip, CoinCounter, LoadSection, ProgressBar, Sheet } from "./design/components";
 import "./garaj.css";
 
@@ -242,6 +242,10 @@ export function GarajShell({ onClose, initial }: { onClose: () => void; initial?
   const [nowTick, setNowTick] = useState(() => Date.now()); // #5 craft-timer ticker
   const [firstCarShown, setFirstCarShown] = useState(false); // 🌟 first-car ceremony one-shot
   const prevCarCountRef = useRef<number | null>(null);
+  // 🛠 P-Polish-Repair-1 — repair-moment fx
+  const [repairFx, setRepairFx] = useState<{ zone: string; before: number; after: number; ts: number } | null>(null);
+  const [tierUpZone, setTierUpZone] = useState<string | null>(null);
+  const [shakeZone, setShakeZone] = useState<string | null>(null);
 
   const load = useCallback(() => {
     if (initial) return; // demo/fixture mode — no backend fetch
@@ -776,13 +780,30 @@ export function GarajShell({ onClose, initial }: { onClose: () => void; initial?
               REPAIR_ZONES.map((zone) => {
                 const known = (car.zones ?? car.diagnosis ?? {})[zone];
                 const sel = repairZoneSel === zone;
+                const fx = repairFx?.zone === zone ? repairFx : null;
+                const isTierUp = tierUpZone === zone;
+                const isShake = shakeZone === zone;
                 return (
-                  <div key={zone} className="gz-zonecard">
+                  <div key={zone} className={`gz-zonecard${isTierUp ? " tier-up" : ""}${isShake ? " shake" : ""}`}>
                     <div className="gz-zone">
                       <span className="gz-zone-label">{ZONE_NAMES[zone] ?? zone}</span>
                       <ProgressBar value={known ?? 0} max={100} />
                       <span className="gz-zone-val">{known != null ? known : "?"}</span>
                     </div>
+                    {fx && (
+                      <div className="gz-repair-fx" aria-hidden>
+                        <span className="gz-repair-tag">{fx.after > fx.before ? `+${fx.after - fx.before}` : `${fx.after - fx.before}`}</span>
+                        {fx.after > fx.before && (
+                          <>
+                            <span className="gz-spark s1" />
+                            <span className="gz-spark s2" />
+                            <span className="gz-spark s3" />
+                            <span className="gz-spark s4" />
+                            <span className="gz-spark s5" />
+                          </>
+                        )}
+                      </div>
+                    )}
                     {known != null && known >= 96 ? (
                       <span className="fs11 dim gz-zone-done">✓ A'lo holatda</span>
                     ) : sel && repairing ? (
@@ -1005,8 +1026,48 @@ export function GarajShell({ onClose, initial }: { onClose: () => void; initial?
   function diagnose(id: number, tier: "VISUAL" | "TOOL" | "EXPERT"): void {
     void act(() => api.garajDiagnose(id, tier));
   }
+  // 🛠 P-Polish-Repair-1 — repair moment with bay-open + spark burst + tier-up ring + audio
   function repairZoneAct(id: number, zone: string, partTierCode: string, quality?: RepairQuality): void {
-    void act(() => api.garajRepairZone(id, zone, partTierCode, car?.style ?? selectedStyle, quality));
+    const target = st?.cars.find((c) => c.id === id);
+    const before = (target?.zones ?? target?.diagnosis ?? {})[zone];
+    const beforeVal = typeof before === "number" ? before : 0;
+    (async () => {
+      if (busy) return;
+      setBusy(true);
+      haptic();
+      try {
+        const r = await api.garajRepairZone(id, zone, partTierCode, car?.style ?? selectedStyle, quality);
+        if (r.ok) {
+          // Pull fresh state, then compare to compute the delta + detect tier crossings
+          const fresh = !initial ? await api.garajState() : st;
+          const after = (fresh?.cars.find((c) => c.id === id)?.zones ?? {})[zone];
+          const afterVal = typeof after === "number" ? after : beforeVal;
+          const delta = afterVal - beforeVal;
+          setRepairFx({ zone, before: beforeVal, after: afterVal, ts: Date.now() });
+          if (delta > 0) {
+            hapticSuccess();
+            playRepairChirp();
+            // Tier-up ring: zone crossed 80 (GOOD) or 96 (MINT-ready)
+            if ((beforeVal < 80 && afterVal >= 80) || (beforeVal < 96 && afterVal >= 96)) {
+              playTierUpRing();
+              setTierUpZone(zone);
+              setTimeout(() => setTierUpZone(null), 1400);
+            }
+          } else {
+            playRepairFail();
+            setShakeZone(zone);
+            setTimeout(() => setShakeZone(null), 260);
+          }
+          setSt(fresh);
+          void api.garajHistory().then(setHistory).catch(() => undefined);
+        }
+      } catch {
+        /* keep state */
+      } finally {
+        setBusy(false);
+        setTimeout(() => setRepairFx(null), 1000);
+      }
+    })();
   }
   function kozBuy(itemCode: string, id: number): void {
     void act(() => api.garajKozBuy(itemCode, id));

@@ -87,6 +87,84 @@ export function playTierFanfare(): void {
   }
 }
 
+// 🛠 P-Polish-Repair-1 — short synthesized sounds for the repair-bay flow.
+// All reuse the singleton audioCtx (no extra AudioContext allocation). Tap-driven
+// (user-initiated → autoplay policy passes). Silent if Web Audio blocked.
+
+/** Repair success: ascending short chirp (~140ms). Used on every successful repairZone. */
+export function playRepairChirp(): void {
+  const ctx = audioCtx();
+  if (!ctx) return;
+  try {
+    const now = ctx.currentTime;
+    const g = ctx.createGain();
+    g.gain.setValueAtTime(0.0001, now);
+    g.gain.exponentialRampToValueAtTime(0.18, now + 0.01);
+    g.gain.exponentialRampToValueAtTime(0.0001, now + 0.14);
+    const osc = ctx.createOscillator();
+    osc.type = "triangle";
+    osc.frequency.setValueAtTime(660, now);
+    osc.frequency.exponentialRampToValueAtTime(990, now + 0.12);
+    osc.connect(g);
+    g.connect(ctx.destination);
+    osc.start(now);
+    osc.stop(now + 0.16);
+  } catch {
+    /* silent */
+  }
+}
+
+/** Tier-up ring (zone crosses 80 GOOD or 96 MINT): bright two-tone bell (~280ms). */
+export function playTierUpRing(): void {
+  const ctx = audioCtx();
+  if (!ctx) return;
+  try {
+    const now = ctx.currentTime;
+    const master = ctx.createGain();
+    master.gain.value = 0.15;
+    master.connect(ctx.destination);
+    [880, 1320].forEach((freq, i) => {
+      const t = now + i * 0.08;
+      const osc = ctx.createOscillator();
+      const g = ctx.createGain();
+      osc.type = "triangle";
+      osc.frequency.value = freq;
+      g.gain.setValueAtTime(0.0001, t);
+      g.gain.exponentialRampToValueAtTime(1, t + 0.015);
+      g.gain.exponentialRampToValueAtTime(0.0001, t + 0.18);
+      osc.connect(g);
+      g.connect(master);
+      osc.start(t);
+      osc.stop(t + 0.2);
+    });
+  } catch {
+    /* silent */
+  }
+}
+
+/** Repair failed (low quality / DEFECT): brief sawtooth thunk (~180ms). */
+export function playRepairFail(): void {
+  const ctx = audioCtx();
+  if (!ctx) return;
+  try {
+    const now = ctx.currentTime;
+    const g = ctx.createGain();
+    g.gain.setValueAtTime(0.0001, now);
+    g.gain.exponentialRampToValueAtTime(0.15, now + 0.01);
+    g.gain.exponentialRampToValueAtTime(0.0001, now + 0.18);
+    const osc = ctx.createOscillator();
+    osc.type = "sawtooth";
+    osc.frequency.setValueAtTime(220, now);
+    osc.frequency.exponentialRampToValueAtTime(140, now + 0.16);
+    osc.connect(g);
+    g.connect(ctx.destination);
+    osc.start(now);
+    osc.stop(now + 0.2);
+  } catch {
+    /* silent */
+  }
+}
+
 /** Open Telegram's native "share to a chat" dialog with an invite link. */
 export function shareLink(url: string, text: string): void {
   const share = `https://t.me/share/url?url=${encodeURIComponent(url)}&text=${encodeURIComponent(text)}`;
