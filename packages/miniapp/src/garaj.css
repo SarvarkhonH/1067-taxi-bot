@@ -437,6 +437,39 @@ button.gz-coll-car:hover { border-color: rgba(255, 179, 0, 0.4); }
 .gz-motor-id { font-size: 15px; font-weight: 900; color: var(--brand); letter-spacing: 0.5px; }
 .gz-motor-dead { font-size: 12px; color: var(--danger); font-weight: 700; }
 
+/* 🔥 P-Fuel-B — MotorScene: fuel gauge | car art | meta+CTA. 60fps target. */
+.gz-fuel-scene { display: grid; grid-template-columns: 36px 1fr 130px; gap: 10px; align-items: center; padding: 12px; margin-top: 8px; border-radius: var(--r-card); background: linear-gradient(180deg, #0e1a14, var(--surface)); border: 1px solid var(--win); position: relative; overflow: hidden; }
+.gz-fuel-scene.dry { background: linear-gradient(180deg, #1a1206, var(--surface)); border-color: var(--danger); }
+.gz-fuel-scene.dead { background: linear-gradient(180deg, #1a0e0e, var(--surface)); border-color: var(--danger); }
+.gz-fuel-scene.dead .gz-art { filter: grayscale(1) brightness(0.6); }
+.gz-fuel-scene.dry .gz-art { filter: grayscale(0.45) brightness(0.78); }
+
+.gz-fuel-gauge { display: flex; flex-direction: column; align-items: center; gap: 4px; }
+.gz-fuel-track { width: 18px; height: 100px; border-radius: 9px; background: #2a2e3a; position: relative; overflow: hidden; }
+.gz-fuel-fill { position: absolute; left: 0; bottom: 0; width: 100%; height: 100%; transform-origin: bottom; transform: scaleY(0); transition: transform 500ms var(--ease-out); border-radius: 9px; }
+.gz-fuel-gauge.state-high .gz-fuel-fill { background: linear-gradient(180deg, #6ee7b7, var(--win)); }
+.gz-fuel-gauge.state-mid .gz-fuel-fill { background: linear-gradient(180deg, #fde047, #eab308); }
+.gz-fuel-gauge.state-low .gz-fuel-fill { background: linear-gradient(180deg, #f87171, #b91c1c); animation: gz-fuel-pulse 1.2s ease-in-out infinite; }
+.gz-fuel-gauge.state-empty .gz-fuel-track { border: 1px solid var(--danger); }
+.gz-fuel-pct { font-size: 11px; font-weight: 700; color: var(--text-dim); }
+.gz-fuel-gauge.state-low .gz-fuel-pct { color: var(--danger); }
+.gz-fuel-gauge.state-high .gz-fuel-pct { color: var(--win); }
+@keyframes gz-fuel-pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.55; } }
+
+.gz-fuel-car { position: relative; display: flex; align-items: center; justify-content: center; min-height: 100px; }
+.gz-fuel-coins { position: absolute; inset: 0; pointer-events: none; }
+.gz-fuel-coin { position: absolute; bottom: 30%; font-size: 11px; font-weight: 900; color: var(--brand); animation: gz-fuel-coin-rise 1.5s ease-out forwards; pointer-events: none; }
+@keyframes gz-fuel-coin-rise { 0% { opacity: 0; transform: translateY(0) scale(0.6); } 30% { opacity: 1; transform: translateY(-12px) scale(1); } 100% { opacity: 0; transform: translateY(-32px) scale(0.9); } }
+.gz-fuel-zzz { position: absolute; top: 10%; right: 20%; font-size: 13px; font-weight: 700; color: var(--text-dim); opacity: 0.6; letter-spacing: 2px; }
+
+.gz-fuel-meta { display: flex; flex-direction: column; align-items: stretch; gap: 4px; }
+
+@media (prefers-reduced-motion: reduce) {
+  .gz-fuel-fill { transition: none; }
+  .gz-fuel-gauge.state-low .gz-fuel-fill { animation: none; }
+  .gz-fuel-coin { display: none; }
+}
+
 /* 📦 yo'l sovg'alari (towed-car offers) */
 .gz-tow { padding: 11px 13px; border-color: rgba(255, 179, 0, 0.3); }
 .gz-tow-car { font-size: 13px; }

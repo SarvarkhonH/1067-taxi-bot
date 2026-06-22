@@ -2,7 +2,7 @@
 // "garajx" is ON). Core loop: ol (buy) → diagnoz → ta'mirla → sot (flip).
 // Pure view layer — all money logic + idempotency live on the server.
 import { useCallback, useEffect, useRef, useState } from "react";
-import type { GarajStateResponse, RepairQuality, PublicProfileView } from "@t1067/shared";
+import type { GarajStateResponse, GarajCarView, RepairQuality, PublicProfileView } from "@t1067/shared";
 import { KOZACHA_SHOP, reputationTier, REPUTATION_TIERS, REPAIR_ZONES, ZONE_NAMES, PART_TIERS, garajCarMeta, CRAFT_STATIONS, craftCost, MAKE_BASE, npcForBuyer, npcLine } from "@t1067/shared";
 import { api } from "./api";
 import { haptic, hapticSuccess, playTierFanfare } from "./telegram";
@@ -147,6 +147,74 @@ export function GarajCarArt({ carCode, condition, level, size = 132 }: { carCode
         </g>
       )}
     </svg>
+  );
+}
+
+// 🔥 P-Fuel-B — MotorScene: vertikal yoqilg'i bar | mashina art | meta+CTA. Hay Day hook.
+// Reduced-motion safe (matchMedia + CSS @media), 60fps targeted (transform/opacity only).
+function MotorScene({ car, busy, onCollect, onRefuel }: { car: GarajCarView; busy: boolean; onCollect: () => void; onRefuel: () => void }) {
+  const pct = car.fuelPct ?? 0;
+  const dry = !!car.fuelDry;
+  const dead = !!car.dead;
+  const state = pct >= 50 ? "high" : pct >= 30 ? "mid" : pct >= 10 ? "low" : "empty";
+  const cost = car.fuelRefillCost ?? 0;
+  const reducedMotion = typeof window !== "undefined" && window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+  // Ambient coin-float (only when earning, sheet/tab visible, reduced-motion respected)
+  const sceneRef = useRef<HTMLDivElement | null>(null);
+  useEffect(() => {
+    if (reducedMotion || dry || dead || pct <= 0) return;
+    let alive = true;
+    const tick = () => {
+      if (!alive || !sceneRef.current || document.hidden) return;
+      const host = sceneRef.current.querySelector(".gz-fuel-coins");
+      if (!host || host.childElementCount >= 4) return;
+      const c = document.createElement("span");
+      c.className = "gz-fuel-coin";
+      c.style.left = `${30 + Math.random() * 60}%`;
+      c.textContent = "+1";
+      host.appendChild(c);
+      setTimeout(() => c.remove(), 1600);
+    };
+    const id = window.setInterval(tick, 2200 + Math.random() * 1500);
+    return () => { alive = false; window.clearInterval(id); };
+  }, [reducedMotion, dry, dead, pct]);
+  return (
+    <div ref={sceneRef} className={`gz-fuel-scene${dead ? " dead" : ""}${dry ? " dry" : ""}`}>
+      <div className={`gz-fuel-gauge state-${state}`} aria-label={`Yoqilg'i ${pct}%`}>
+        <div className="gz-fuel-track">
+          <div className="gz-fuel-fill" style={{ transform: `scaleY(${Math.max(0, Math.min(100, pct)) / 100})` }} />
+        </div>
+        <span className="gz-fuel-pct">{pct}%</span>
+      </div>
+      <div className="gz-fuel-car">
+        <GarajCarArt carCode={car.carCode} condition={car.condition} level={car.level} size={120} />
+        <div className="gz-fuel-coins" aria-hidden />
+        {dry && !dead && <span className="gz-fuel-zzz">z z z</span>}
+      </div>
+      <div className="gz-fuel-meta">
+        <span className="gz-motor-id">#{car.serial}</span>
+        <span className="fs11 dim">⚙️ {car.engineHp ?? 100}% · ⚡ {car.speed}/soat</span>
+        <span className="fs11 dim">🕐 {car.ageDays ?? 0} kun · 👥 {car.ownerCount ?? 1}</span>
+        {dead ? (
+          <span className="gz-motor-dead">⚠️ Eskirdi</span>
+        ) : dry ? (
+          <Button sm disabled={busy} onClick={onRefuel}>
+            ⛽ Quyish · {cost.toLocaleString("ru-RU")}
+          </Button>
+        ) : (
+          <>
+            <Button sm disabled={busy || (car.earnPendingNet ?? 0) <= 0} onClick={onCollect}>
+              💰 Yig'ish +{(car.earnPendingNet ?? 0).toLocaleString("ru-RU")}
+            </Button>
+            {pct <= 30 && (
+              <Button sm variant="ghost" disabled={busy} onClick={onRefuel}>
+                ⛽ Quyish · {cost.toLocaleString("ru-RU")}
+              </Button>
+            )}
+          </>
+        )}
+      </div>
+    </div>
   );
 }
 
@@ -299,21 +367,9 @@ export function GarajShell({ onClose, initial }: { onClose: () => void; initial?
                   <span className="fs11 dim">⚡ {st.motorBonus.speedMult.toFixed(1)}× daromad · ⛽ {Math.round(st.motorBonus.fuelMult * 100)}% yoqilg'i</span>
                 </div>
               )}
-              {/* 🌍 MOTOR OLAMI — the car earns; #serial identity + «Yig'ish» (daily-return hook) */}
+              {/* 🌍 MOTOR OLAMI — the car earns; #serial identity + «Yig'ish» (Hay Day hook) */}
               {st.motorEnabled && projectCar?.serial != null && (
-                <div className={`gz-motor${projectCar.dead ? " dead" : ""}`}>
-                  <div className="col">
-                    <span className="gz-motor-id">#{projectCar.serial}</span>
-                    <span className="fs11 dim">⚙️ {projectCar.engineHp ?? 100}% · 🕐 {projectCar.ageDays ?? 0} kun · ⚡ {projectCar.speed}/soat · 👥 {projectCar.ownerCount ?? 1}</span>
-                  </div>
-                  {projectCar.dead ? (
-                    <span className="gz-motor-dead">⚠️ Eskirdi — soting/yangilang</span>
-                  ) : (
-                    <Button sm disabled={busy || (projectCar.earnPendingNet ?? 0) <= 0} onClick={() => motorCollect()}>
-                      💰 Yig'ish +{(projectCar.earnPendingNet ?? 0).toLocaleString("ru-RU")}
-                    </Button>
-                  )}
-                </div>
+                <MotorScene car={projectCar} busy={busy} onCollect={() => motorCollect()} onRefuel={() => motorRefuel(projectCar.id)} />
               )}
 
               {/* tier / reputation progress (compact, under the stage) */}
@@ -877,7 +933,29 @@ export function GarajShell({ onClose, initial }: { onClose: () => void; initial?
     void act(() => api.garajCraftSpeedup());
     flash("✓ Ustaxona ishi tayyor!");
   }
-  // 🌍 Motor Olami «Yig'ish» — credit net, show gross−xarajat dopamin burst
+  // 🔥 P-Fuel-A — Motor Olami yoqilg'i quyish (manual refill, Hay Day hook)
+  async function motorRefuel(garajCarId: number): Promise<void> {
+    if (busy) return;
+    setBusy(true);
+    haptic();
+    try {
+      const r = await api.garajMotorRefuel(garajCarId);
+      if (r.ok) {
+        hapticSuccess();
+        setBurst({ amount: r.cost ?? 0, label: `⛽ Yoqilg'i quyildi · 24 soat` });
+        setTimeout(() => setBurst(null), 1800);
+      } else if (r.reason === "already_full") flash("Bak hali to'la — keyinroq quying");
+      else if (r.reason === "insufficient") flash("Tanga yetarli emas");
+      else if (r.reason === "dead_car") flash("Mashina eskirgan — soting yoki yangilang");
+      else flash("Quyib bo'lmadi");
+      if (!initial) setSt(await api.garajState());
+    } catch {
+      /* keep state */
+    } finally {
+      setBusy(false);
+    }
+  }
+  // 🌍 Motor Olami «Yig'ish» — credit net (gross−wear in fuel model), dopamin burst
   async function motorCollect(): Promise<void> {
     if (busy) return;
     setBusy(true);
@@ -886,9 +964,10 @@ export function GarajShell({ onClose, initial }: { onClose: () => void; initial?
       const r = await api.garajMotorCollect();
       if (r.ok && (r.net ?? 0) > 0) {
         hapticSuccess();
-        setBurst({ amount: r.net ?? 0, label: `🚗 ${(r.gross ?? 0).toLocaleString("ru-RU")} − ${((r.fuel ?? 0) + (r.wear ?? 0)).toLocaleString("ru-RU")} xarajat` });
+        setBurst({ amount: r.net ?? 0, label: `🚗 ${(r.gross ?? 0).toLocaleString("ru-RU")} − ${(r.wear ?? 0).toLocaleString("ru-RU")} eyilish` });
         setTimeout(() => setBurst(null), 2200);
       } else if (r.dead) flash("⚠️ Mashina eskirgan — soting yoki yangilang");
+      else if (r.dry) flash("⛽ Yoqilg'i tugagan — quying");
       else flash("Hali daromad to'planmadi");
       if (!initial) setSt(await api.garajState());
     } catch {
@@ -996,8 +1075,8 @@ export const GARAJ_DEMO: GarajStateResponse = {
   reputationScore: 1340,
   onboardStep: 5,
   cars: [
-    { id: 1, carCode: "nexia", name: "Nexia", emoji: "🚙", basePrice: 2600, source: "ride_drop", condition: "GOOD", style: "FULL_RESTORE", level: 2, diagnosed: true, diagnosis: { engine: 72, body: 58, transmission: 64, electric: 80, interior: 45 }, zones: { engine: 72, body: 58, transmission: 64, electric: 80, interior: 45 }, acquireCost: 1690, repairSpent: 240, serial: 1251, engineHp: 88, ageDays: 3, dead: false, speed: 47, earnPendingNet: 220, ownerCount: 4, totalTrips: 1213 },
-    { id: 2, carCode: "damas", name: "Damas", emoji: "🚐", basePrice: 900, source: "shop", condition: "WORN", style: null, level: 1, diagnosed: false, diagnosis: null, zones: null, acquireCost: 585, repairSpent: 0, serial: 1342, engineHp: 64, ageDays: 6, dead: false, speed: 16, earnPendingNet: 180, ownerCount: 2, totalTrips: 540 },
+    { id: 1, carCode: "nexia", name: "Nexia", emoji: "🚙", basePrice: 2600, source: "ride_drop", condition: "GOOD", style: "FULL_RESTORE", level: 2, diagnosed: true, diagnosis: { engine: 72, body: 58, transmission: 64, electric: 80, interior: 45 }, zones: { engine: 72, body: 58, transmission: 64, electric: 80, interior: 45 }, acquireCost: 1690, repairSpent: 240, serial: 1251, engineHp: 88, ageDays: 3, dead: false, speed: 47, earnPendingNet: 220, ownerCount: 4, totalTrips: 1213, fuelPct: 78, fuelHoursLeft: 18.7, fuelDry: false, fuelRefillCost: 790 },
+    { id: 2, carCode: "damas", name: "Damas", emoji: "🚐", basePrice: 900, source: "shop", condition: "WORN", style: null, level: 1, diagnosed: false, diagnosis: null, zones: null, acquireCost: 585, repairSpent: 0, serial: 1342, engineHp: 64, ageDays: 6, dead: false, speed: 16, earnPendingNet: 180, ownerCount: 2, totalTrips: 540, fuelPct: 22, fuelHoursLeft: 5.2, fuelDry: false, fuelRefillCost: 269 },
   ],
   shop: [
     { carCode: "tiko", name: "Tiko", emoji: "🚙", buyPrice: 455, owned: false },
