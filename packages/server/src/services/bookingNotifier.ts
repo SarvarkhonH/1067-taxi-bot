@@ -637,6 +637,16 @@ export async function pushBookingUpdates(
       } catch (e) {
         console.error("[fare] lookup failed:", e instanceof Error ? e.message : e);
       }
+      // 🧾 SMS-parity: kas often finalizes the fare a few seconds AFTER the booking leaves the active
+      // list, so done.payment can be 0 right here. Log the value seen, and if the fare wasn't ready
+      // mark the ride pending → resolvePendingFares (same sweep, later ticks) sends "Yo'l haqi: …"
+      // the moment kas posts the payment — a separate message, exactly like the kas SMS.
+      console.log(`[fare] m${m.id} b${bid} payment=${fareAmount} ${fareLine ? "shown-in-card" : "PENDING"}`);
+      if (!fareLine) {
+        await prisma.appState
+          .create({ data: { key: `farepending:${bid}`, value: `${chatId}|${m.phone}|0` } })
+          .catch(() => undefined); // already pending → idempotent
+      }
 
       // ── peak-end summary card (message #3 of the ride) ──
       // P1 (QA fleet): the finish card was RE-SENT on a PG transient (the branch re-entered
@@ -727,7 +737,60 @@ export async function pushBookingUpdates(
     console.error("[garaj] craft settle failed:", e);
   }
 
+  // 🧾 SMS-parity: deliver any ride fares kas finalized AFTER the finish card was sent. Piggybacks
+  // this sweep (no new poller) — sends "Yo'l haqi: …" the moment kas posts the payment, then clears.
+  try {
+    await resolvePendingFares(bot, ds);
+  } catch (e) {
+    console.error("[fare] pending resolve failed:", e);
+  }
+
   // count of live rides this tick → the index sweep schedules its NEXT run fast (15s) while a
   // ride is active, idle (90s) otherwise. Same data already fetched (no extra kas call).
   return linked.filter((m) => m.phone && byPhone.has(m.phone.replace(/\D/g, "").slice(-9))).length;
+}
+
+// 🧾 Deliver ride fares that kas finalized AFTER the finish card was sent (SMS-parity). Called once
+// per sweep from pushBookingUpdates — NOT a new poller. A `farepending:<bid>` marker (chatId|phone|
+// attempts, created at finish when the fare wasn't ready) drives it: re-query kas and, the moment a
+// payment posts, send "Yo'l haqi: …" exactly once (a faredone:<bid> claim guards a finish re-entry)
+// then clear the marker. Gives up after FARE_MAX_ATTEMPTS sweeps so a never-paid ride can't leak it.
+const FARE_MAX_ATTEMPTS = 20;
+async function resolvePendingFares(bot: Bot, ds: KasDataSource): Promise<void> {
+  const pending = await prisma.appState.findMany({ where: { key: { startsWith: "farepending:" } } });
+  for (const p of pending) {
+    const bid = Number(p.key.split(":")[1] ?? 0);
+    const [chatId, phone, attRaw] = p.value.split("|");
+    const attempts = Number(attRaw ?? 0);
+    let settled = !chatId || !phone || !bid; // malformed marker → drop it
+    if (!settled) {
+      try {
+        const hist = await ds.getRideHistory(phone!, 6);
+        const ride = hist?.find((h) => h.id === bid);
+        if (ride && ride.payment > 0) {
+          let firstSend = true;
+          try {
+            await prisma.appState.create({ data: { key: `faredone:${bid}`, value: "1" } });
+          } catch {
+            firstSend = false; // a prior pass already delivered this fare
+          }
+          if (firstSend) {
+            const km = ride.distance ? ` · 📏 ${ride.distance} km` : "";
+            const mins = ride.time ? ` · ⏱ ${ride.time} daq` : "";
+            await bot.api
+              .sendMessage(chatId!, `🧾 <b>Yo'l haqi: ${formatNumber(ride.payment)} so'm</b>${km}${mins}`, { parse_mode: "HTML" })
+              .catch(() => undefined);
+          }
+          settled = true;
+        }
+      } catch {
+        /* kas blip — retry next sweep */
+      }
+    }
+    if (settled || attempts + 1 >= FARE_MAX_ATTEMPTS) {
+      await prisma.appState.delete({ where: { key: p.key } }).catch(() => undefined);
+    } else {
+      await prisma.appState.update({ where: { key: p.key }, data: { value: `${chatId}|${phone}|${attempts + 1}` } }).catch(() => undefined);
+    }
+  }
 }
