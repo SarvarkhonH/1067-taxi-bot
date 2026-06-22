@@ -9,7 +9,7 @@
 import { lazy, Suspense, useEffect, useRef, useState } from "react";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
-import { formatNumber, GARAGE_RIDE_CAP_MIN, type ActiveBookingView, type BookingDriverView, type BookingInfoResponse, type GarageResponse, type MeResponse, type SavedAddressView, type WheelSpinResponse } from "@t1067/shared";
+import { formatNumber, GARAGE_RIDE_CAP_MIN, haversineKm, type ActiveBookingView, type BookingDriverView, type BookingInfoResponse, type GarageResponse, type MeResponse, type SavedAddressView, type WheelSpinResponse } from "@t1067/shared";
 import { api } from "./api";
 import { haptic, tg } from "./telegram";
 import { confetti } from "./util";
@@ -60,7 +60,7 @@ function mapAllowed(): boolean {
   }
 }
 
-type Screen = "map" | "confirm" | "searching" | "finished";
+type Screen = "map" | "pinpick" | "confirm" | "searching" | "finished";
 // mirror of server RATING_TAGS (bookingPlus) — kept in sync manually (shared has no DTO for it)
 const RIDE_TAGS = ["Toza mashina", "Xushmuomala", "Tez yetib keldi", "Sekin haydadi", "Mashina eski"];
 
@@ -225,6 +225,9 @@ function MapSkeleton() {
 function Booking3Inner({ me, info, onClose }: { me: MeResponse; info: BookingInfoResponse; onClose: () => void }) {
   const [screen, setScreen] = useState<Screen>(info.active ? "searching" : "map");
   const [pickup, setPickup] = useState<SavedAddressView | null>(info.quickPickup ?? null);
+  const [pinAddr, setPinAddr] = useState<SavedAddressView | null>(null); // M7: nearest saved addr (proximity hint)
+  const [pinPt, setPinPt] = useState<{ lat: number; lng: number } | null>(null); // M7: the dragged map center
+  const [pinBusy, setPinBusy] = useState(false);
   const [q, setQ] = useState("");
   const [results, setResults] = useState<SavedAddressView[]>([]);
   const [searching, setSearching] = useState(false);
@@ -366,6 +369,29 @@ function Booking3Inner({ me, info, onClose }: { me: MeResponse; info: BookingInf
     return () => { alive = false; clearTimeout(timer); ctrl.abort(); };
   }, [active?.driver?.lat, active?.driver?.lng, active?.status, pickup?.lat, pickup?.lng]);
 
+  // ── M7 center-pin: drag the map → snap to the nearest catalog address (the official app's
+  // getAddressByLocation). Read-only lookup, debounced on moveend; confirming reuses the
+  // existing addressId booking path (dispatch flow untouched). ──
+  useEffect(() => {
+    if (screen !== "pinpick" || !map.current) return;
+    const m = map.current;
+    let alive = true;
+    let deb: ReturnType<typeof setTimeout> | undefined;
+    const snap = () => {
+      const c = m.getCenter();
+      setPinPt({ lat: c.lat, lng: c.lng });
+      setPinBusy(true);
+      api.bookingNearestAddr(c.lat, c.lng)
+        .then((a) => { if (alive) { setPinAddr(a); setPinBusy(false); } })
+        .catch(() => { if (alive) setPinBusy(false); });
+    };
+    const onMove = () => { if (deb) clearTimeout(deb); deb = setTimeout(snap, 450); };
+    m.on("moveend", onMove);
+    if (m.getZoom() < 16) m.setZoom(16); // tighter zoom for precise picking (fires moveend → snap)
+    else snap();
+    return () => { alive = false; if (deb) clearTimeout(deb); m.off("moveend", onMove); };
+  }, [screen]);
+
   // ── E4 honest queue while searching ─────────────────────────────────────
   // M6: adaptive cadence (self-scheduling, not a fixed interval). Once a driver is ASSIGNED we
   // poll every 5s (vs 12s) so the car marker glides + the meter ticks near the official app's
@@ -424,7 +450,11 @@ function Booking3Inner({ me, info, onClose }: { me: MeResponse; info: BookingInf
     setBusy(true);
     haptic();
     try {
-      const r = await api.bookingCreate({ pickupId: pickup.id, pickupName: pickup.name });
+      const r = await api.bookingCreate({
+        pickupId: pickup.id,
+        pickupName: pickup.name,
+        ...(pickup.id === 0 && typeof pickup.lat === "number" && typeof pickup.lng === "number" ? { lat: pickup.lat, lng: pickup.lng } : {}),
+      });
       if (r.ok) {
         confetti();
         setScreen("searching");
@@ -470,6 +500,19 @@ function Booking3Inner({ me, info, onClose }: { me: MeResponse; info: BookingInf
     setRated(false);
   };
 
+  // M7: if the dragged pin is within 400m of a known saved address, name it as a hint;
+  // otherwise it's an arbitrary point → kas dispatches to the exact pin (addressId 0).
+  const pinNear =
+    pinPt && pinAddr && typeof pinAddr.lat === "number" && typeof pinAddr.lng === "number" && haversineKm(pinPt, { lat: pinAddr.lat, lng: pinAddr.lng }) <= 0.4
+      ? pinAddr.name
+      : null;
+  const confirmPin = () => {
+    if (!pinPt || pinBusy) return;
+    haptic();
+    setPickup({ id: 0, name: pinNear ?? "Xaritada belgilangan nuqta", lat: pinPt.lat, lng: pinPt.lng });
+    setScreen("confirm");
+  };
+
   const recents = info.savedAddresses.slice(0, 3);
 
   return (
@@ -493,6 +536,8 @@ function Booking3Inner({ me, info, onClose }: { me: MeResponse; info: BookingInf
         </div>
       )}
 
+      {screen === "pinpick" && <div className="b3-centerpin">📍</div>}
+
       {msg && <div className="b3-msg" onClick={() => setMsg(null)}>{msg}</div>}
 
       {/* ── E1/E2: pickup selection sheet ── */}
@@ -501,6 +546,7 @@ function Booking3Inner({ me, info, onClose }: { me: MeResponse; info: BookingInf
           <div className="b3-grip" />
           <div className="b3-sheet-title">🚕 Taxi qayerga kelsin?</div>
           <input className="bk-input" placeholder="🔍 Manzil qidiring (xato yozsangiz ham topadi)" value={q} onChange={(e) => search(e.target.value)} />
+          <button className="b3-mappick" onClick={() => { haptic(); setScreen("pinpick"); }}>🗺 Xaritadan belgilash</button>
           {searching && <div className="dim fs13 mt6">⏳ Qidirilmoqda…</div>}
           {results.length > 0 ? (
             <div className="b3-results">
@@ -523,6 +569,18 @@ function Booking3Inner({ me, info, onClose }: { me: MeResponse; info: BookingInf
               )}
             </>
           )}
+        </div>
+      )}
+
+      {/* ── M7: center-pin map pick (drag → nearest catalog address) ── */}
+      {screen === "pinpick" && (
+        <div className="b3-pinbar">
+          <div className="b3-grip" />
+          <div className="b3-pin-label">
+            {pinBusy ? "⏳ Manzil aniqlanmoqda…" : pinNear ? <>📍 <b>{pinNear}</b> yaqinida</> : "📍 Xaritada belgilangan nuqta"}
+          </div>
+          <Button disabled={!pinPt || pinBusy} onClick={confirmPin}>✅ Shu yerdan chaqirish</Button>
+          <Button variant="ghost" onClick={() => setScreen("map")}>← Orqaga</Button>
         </div>
       )}
 

@@ -102,6 +102,31 @@ export async function searchBookingAddress(q: string): Promise<SavedAddressView[
   return res.map((a) => ({ id: a.id, name: a.name, lat: a.lat, lng: a.lng, surcharge: a.surcharge }));
 }
 
+/** M7 center-pin: nearest kas catalog address to an arbitrary map point — the official rider
+ *  app's getAddressByLocation (Haversine over the full company catalog from checkClient). READ-ONLY:
+ *  the returned address is then booked through the unchanged createBooking-by-addressId path, so
+ *  the dispatch flow is untouched (no raw lat/lng booking). */
+export async function nearestAddressFor(memberId: number, lat: number, lng: number): Promise<SavedAddressView | null> {
+  if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
+  const who = await phoneOf(memberId);
+  if (!who) return null;
+  const cat = await getDataSource()
+    .checkClient(who.phone)
+    .then((c) => c?.addresses ?? [])
+    .catch(() => [] as { id: number; name: string; lat?: number; lng?: number; surcharge?: number }[]);
+  let best: SavedAddressView | null = null;
+  let bestKm = Infinity;
+  for (const a of cat) {
+    if (a.lat == null || a.lng == null) continue;
+    const km = haversineKm({ lat, lng }, { lat: a.lat, lng: a.lng });
+    if (km < bestKm) {
+      bestKm = km;
+      best = { id: a.id, name: a.name, lat: a.lat, lng: a.lng, surcharge: a.surcharge };
+    }
+  }
+  return best;
+}
+
 /** Fare estimate for a pickup→destination distance (kas dispatch stays pickup-only). */
 export async function estimateFare(pickup: GeoPt, dest: GeoPt, surcharge = 0): Promise<FareQuote> {
   const f = await getFareConfig();
@@ -134,17 +159,30 @@ export async function createBookingFor(memberId: number, body: BookingCreateBody
     additionalPayment += addons.filter((a) => body.addonIds!.includes(a.id)).reduce((s, a) => s + a.price, 0);
   }
 
+  // M7 center-pin: raw map point (pickupId 0) → dispatch to the exact pin (addressId 0 +
+  // addressLatitude/Longitude), same proven path as a Telegram GPS-location share. Absent for
+  // normal saved-address orders → behaviour identical to before.
+  const hasPin = Number.isFinite(body.lat) && Number.isFinite(body.lng);
+  const pinMem = { id: body.pickupId, name: body.pickupName, lat: hasPin ? body.lat! : null, lng: hasPin ? body.lng! : null };
+
   if (!env.bookingLive) {
-    await rememberPickup(memberId, { id: body.pickupId, name: body.pickupName }, source);
+    await rememberPickup(memberId, pinMem, source);
     return { ok: true, live: false, message: "TEST rejimi — haqiqiy taxi chaqirilmadi" };
   }
   // atomic anti-double-dispatch claim (the early throttle check above is only a fast UX reject)
   const slot = await claimDispatchSlot(memberId);
   if (!slot.ok) return { ok: false, live: true, message: "Hozirgina buyurtma yuborilgan — bir daqiqa kuting" };
   const res = await getDataSource()
-    .createBooking({ clientName: who.name, addressName: body.pickupName, addressId: body.pickupId, phoneNumber: who.phone, additionalPayment })
+    .createBooking({
+      clientName: who.name,
+      addressName: body.pickupName,
+      addressId: body.pickupId,
+      phoneNumber: who.phone,
+      additionalPayment,
+      ...(hasPin ? { addressLatitude: body.lat, addressLongitude: body.lng } : {}),
+    })
     .catch((e) => ({ ok: false, message: e instanceof Error ? e.message : String(e) }));
-  if (res.ok) await rememberPickup(memberId, { id: body.pickupId, name: body.pickupName }, source);
+  if (res.ok) await rememberPickup(memberId, pinMem, source);
   else await releaseDispatchSlot(memberId, slot.prev);
   return { ok: res.ok, live: true, message: res.message };
 }

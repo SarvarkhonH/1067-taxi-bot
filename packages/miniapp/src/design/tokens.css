@@ -448,6 +448,12 @@ body {
 .b3-pin.busy { opacity: .55; }
 .b3-pickpin { font-size: 30px; filter: drop-shadow(0 2px 4px rgba(255,179,0,.8)); }
 
+/* ── M7 center-pin map pick ── */
+.b3-centerpin { position: absolute; left: 50%; top: 50%; z-index: 5; transform: translate(-50%, -100%); font-size: 40px; pointer-events: none; filter: drop-shadow(0 4px 6px rgba(0,0,0,.55)); animation: d-drop 420ms var(--ease-out); }
+.b3-mappick { width: 100%; margin-top: 8px; padding: 11px; border-radius: 12px; background: var(--surface); border: 1px solid var(--line); color: var(--text); font-size: 14px; font-weight: 600; }
+.b3-pinbar { position: absolute; left: 0; right: 0; bottom: 0; z-index: 3; background: var(--surface-2); border-radius: 20px 20px 0 0; padding: 8px 16px calc(16px + env(safe-area-inset-bottom)); box-shadow: 0 -8px 30px rgba(0,0,0,.5); animation: d-up var(--dur-card) var(--ease-out); }
+.b3-pin-label { text-align: center; font-size: 15px; margin: 6px 0 10px; min-height: 20px; }
+
 /* ── V1 Living AI home ─────────────────────────────────────────────────────── */
 .living-home { position: relative; height: calc(100vh - 64px); min-height: 480px; overflow: hidden; }
 .lh-map { position: absolute; inset: 0; z-index: 0; }

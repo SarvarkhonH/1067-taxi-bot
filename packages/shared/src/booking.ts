@@ -121,6 +121,10 @@ export interface BookingCreateBody {
   pickupName: string;
   addonIds?: number[];
   carCategory?: number;
+  // M7 center-pin: raw map point. When present (pickupId 0), kas dispatches to the exact pin
+  // (addressId 0 + addressLatitude/Longitude — same path as a Telegram GPS-location share).
+  lat?: number;
+  lng?: number;
 }
 
 export interface BookingCreateResponse {
