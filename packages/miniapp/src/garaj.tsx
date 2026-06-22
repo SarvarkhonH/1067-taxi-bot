@@ -246,6 +246,10 @@ export function GarajShell({ onClose, initial }: { onClose: () => void; initial?
   const [repairFx, setRepairFx] = useState<{ zone: string; before: number; after: number; ts: number } | null>(null);
   const [tierUpZone, setTierUpZone] = useState<string | null>(null);
   const [shakeZone, setShakeZone] = useState<string | null>(null);
+  // 🛠 P-Polish-Repair-2 — full-car MINT ceremony + marathon
+  const [mintCelebration, setMintCelebration] = useState<{ name: string } | null>(null);
+  const [marathonRunning, setMarathonRunning] = useState(false);
+  const marathonAbortRef = useRef(false);
 
   const load = useCallback(() => {
     if (initial) return; // demo/fixture mode — no backend fetch
@@ -825,6 +829,23 @@ export function GarajShell({ onClose, initial }: { onClose: () => void; initial?
               })
             )}
 
+            {/* 🛠 P-Polish-Repair-2 — "Hammasini ta'mirlash" marathon: any zone <80 with STD parts, capped */}
+            {(() => {
+              const bad = car.zones || car.diagnosis ? REPAIR_ZONES.filter((z) => ((car.zones ?? car.diagnosis ?? {})[z] ?? 0) < 80) : [];
+              if (bad.length < 3) return null;
+              const stdCost = PART_TIERS.find((p) => p.code === "STD")?.cost ?? 80;
+              const totalCost = bad.length * stdCost;
+              return marathonRunning ? (
+                <Button variant="ghost" sm onClick={() => { marathonAbortRef.current = true; setMarathonRunning(false); }}>
+                  ⏸ Marafon to'xtatish ({bad.length} qoldi)
+                </Button>
+              ) : (
+                <Button sm disabled={busy || coins < totalCost} onClick={() => runMarathon(car.id, bad, "STD")}>
+                  🔧 Hammasini ta'mirlash ({bad.length} zona · 🪙{totalCost.toLocaleString("ru-RU")})
+                </Button>
+              );
+            })()}
+
             <div className="gz-actions">
               {/* 🏭 Ustaxona — ONE craftsman, timed jobs. A job anywhere busies the shared slot. */}
               <div className="gz-sec-title">🏭 Ustaxona · Daraja {car.level}/5</div>
@@ -934,6 +955,25 @@ export function GarajShell({ onClose, initial }: { onClose: () => void; initial?
               ))}
             </ul>
             <Button onClick={() => { haptic(); setCeremonyTier(null); }}>Davom etish</Button>
+          </div>
+        </div>
+      )}
+
+      {/* 🛠 P-Polish-Repair-2 — full-car MINT ceremony when all 5 zones cross ≥80 */}
+      {mintCelebration && (
+        <div className="gz-ceremony" onClick={() => setMintCelebration(null)}>
+          <div className="gz-cer-rays" aria-hidden />
+          <div className="gz-cer-card" onClick={(e) => e.stopPropagation()}>
+            <div className="gz-cer-badge">💎</div>
+            <div className="gz-cer-kicker">Mukammal holat</div>
+            <div className="gz-cer-tier">{mintCelebration.name}</div>
+            <div className="gz-cer-sub">A'lo · MINT</div>
+            <ul className="gz-cer-perks">
+              <li><span className="gz-cer-tick">✓</span> Barcha 5 zona ≥80 holatda</li>
+              <li><span className="gz-cer-tick">✓</span> Eng yuqori sotuv narxiga tayyor</li>
+              <li><span className="gz-cer-tick">✓</span> Premium xaridorlar uchun</li>
+            </ul>
+            <Button onClick={() => { haptic(); setMintCelebration(null); }}>Davom etish</Button>
           </div>
         </div>
       )}
@@ -1053,6 +1093,14 @@ export function GarajShell({ onClose, initial }: { onClose: () => void; initial?
               setTierUpZone(zone);
               setTimeout(() => setTierUpZone(null), 1400);
             }
+            // 🛠 P-Polish-Repair-2 — full-car MINT crossing: was the car NOT-MINT before, IS-MINT-ready after?
+            const beforeMint = target ? REPAIR_ZONES.every((z) => ((target.zones ?? target.diagnosis ?? {})[z] ?? 0) >= 80) : false;
+            const freshCar = fresh?.cars.find((c) => c.id === id);
+            const afterMint = freshCar ? REPAIR_ZONES.every((z) => ((freshCar.zones ?? freshCar.diagnosis ?? {})[z] ?? 0) >= 80) : false;
+            if (!beforeMint && afterMint && freshCar) {
+              setMintCelebration({ name: freshCar.name });
+              playTierFanfare();
+            }
           } else {
             playRepairFail();
             setShakeZone(zone);
@@ -1068,6 +1116,31 @@ export function GarajShell({ onClose, initial }: { onClose: () => void; initial?
         setTimeout(() => setRepairFx(null), 1000);
       }
     })();
+  }
+  // 🛠 P-Polish-Repair-2 — "Hammasini ta'mirlash" marathon: queue STD repairs, ~5s cap, abortable
+  async function runMarathon(carId: number, zones: string[], partTierCode: string): Promise<void> {
+    if (marathonRunning) return;
+    setMarathonRunning(true);
+    marathonAbortRef.current = false;
+    const start = Date.now();
+    haptic();
+    try {
+      for (const z of zones) {
+        if (marathonAbortRef.current || Date.now() - start > 5000) break;
+        try {
+          const r = await api.garajRepairZone(carId, z, partTierCode, car?.style ?? selectedStyle);
+          if (r.ok) playRepairChirp();
+        } catch { /* skip & continue */ }
+        // small stagger between zone hits so user sees them progressively
+        await new Promise((r) => setTimeout(r, 200));
+      }
+      if (!initial) {
+        setSt(await api.garajState());
+        void api.garajHistory().then(setHistory).catch(() => undefined);
+      }
+    } finally {
+      setMarathonRunning(false);
+    }
   }
   function kozBuy(itemCode: string, id: number): void {
     void act(() => api.garajKozBuy(itemCode, id));
