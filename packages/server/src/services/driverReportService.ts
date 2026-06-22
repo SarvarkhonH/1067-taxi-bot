@@ -2,7 +2,9 @@
 // kas reports (via their stored session creds) and rolls them up into today's figures. Read-only:
 // no money path, no flag (the data is the driver's own, gated only by /driver_login). A short cache
 // avoids hammering kas when a driver taps around.
+import { getDataSource } from "../kas";
 import { getDriverSession } from "./driverAuth";
+import { featureOn } from "./featureFlags";
 import { getDriverBookingHistory, getDriverPaymentHistory, type DriverRide, type DriverLedgerRow } from "./kasDriverApi";
 
 const CACHE_MS = 60_000;
@@ -71,6 +73,39 @@ export async function getDriverEarningsToday(memberId: number): Promise<DriverEa
     debtPaidToday,
     latestBalance: latest?.newBalance,
     latestDebt: latest?.newDebt,
+  };
+}
+
+export interface DriverPanelExtras {
+  linked: boolean; // has a driver session (did /driver_login)
+  carNumber?: string;
+  balance?: number;
+  debt?: number;
+  ridesToday?: number;
+  fareToday?: number;
+  canPayDebt?: boolean; // qarz feature flag is on AND there's debt
+}
+
+/** One bundle for the unified /driver panel: session status + kas balance/debt + today's rides.
+ *  Read-only. Degrades gracefully — if kas is unreachable, returns linked:true with figures undefined
+ *  rather than throwing (the panel still renders the rest). */
+export async function getDriverPanelExtras(memberId: number): Promise<DriverPanelExtras> {
+  const session = await getDriverSession(memberId);
+  if (!session) return { linked: false };
+  const [acct, rides, qarzOn] = await Promise.all([
+    getDataSource().getDriverAccount(session.carNumber).catch(() => null),
+    cached(`rides:${memberId}`, () => getDriverBookingHistory(session.carNumber, session.secretKey, startOfTodayMs())).catch(() => [] as DriverRide[]),
+    featureOn("qarz").catch(() => false),
+  ]);
+  const fareToday = rides.reduce((s, r) => s + r.payment, 0);
+  return {
+    linked: true,
+    carNumber: session.carNumber,
+    balance: acct?.balance,
+    debt: acct?.debt,
+    ridesToday: rides.length,
+    fareToday,
+    canPayDebt: qarzOn && (acct?.debt ?? 0) > 0,
   };
 }
 

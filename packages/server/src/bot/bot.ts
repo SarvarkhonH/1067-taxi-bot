@@ -23,6 +23,7 @@ import { payDriver, registerBooking } from "./booking";
 import { driverLoginFlow, registerDriverLogin } from "./driverLogin";
 import { registerDriverDebt } from "./driverDebt";
 import { registerDriverReports } from "./driverReports";
+import type { DriverPanelExtras } from "../services/driverReportService";
 import {
   renderBadgeUnlocked,
   renderAccount,
@@ -423,11 +424,20 @@ export function createBot(): Bot {
     }
     const { getDriverEarnings } = await import("../services/transferService");
     const { driverRecruitStats } = await import("../services/recruitService");
-    const [e, recruit] = await Promise.all([getDriverEarnings(me.member.id), driverRecruitStats(me.member.id)]);
-    await ctx.reply(renderDriverPanel(me.coins, e, recruit), {
-      parse_mode: "HTML",
-      reply_markup: new InlineKeyboard().text("🎯 Topshiriqlar", "drvm:list").text("📷 QR kodim", "drv:qr"),
-    });
+    const { getDriverPanelExtras } = await import("../services/driverReportService");
+    const [e, recruit, kas] = await Promise.all([
+      getDriverEarnings(me.member.id),
+      driverRecruitStats(me.member.id),
+      getDriverPanelExtras(me.member.id).catch((): DriverPanelExtras => ({ linked: false })),
+    ]);
+    // Adaptive keyboard: kas-linked drivers get the live report buttons; unlinked get a connect CTA.
+    const kb = new InlineKeyboard();
+    if (kas.linked) {
+      if (kas.canPayDebt) kb.text("💸 Qarz", "drv:debt");
+      kb.text("📜 Safarlar", "drv:hist").text("💰 Daromad", "drv:earn").row();
+    }
+    kb.text("🎯 Topshiriqlar", "drvm:list").text("📷 QR kodim", "drv:qr");
+    await ctx.reply(renderDriverPanel(me.coins, e, recruit, kas), { parse_mode: "HTML", reply_markup: kb });
   };
   bot.hears("🚗 Haydovchi paneli", showDriverPanel);
   bot.command("driver", showDriverPanel);

@@ -320,7 +320,18 @@ export function renderDriverPanel(
   coins: number,
   e: { todayIn: number; totalIn: number; txns: { amount: number; reason: string }[] },
   recruit?: { recruits: number; recruitsThisMonth: number; pendingRecruits: number; earnedTotal: number; earnedThisMonth: number; revshareCapLeft: number; newRecruitCapLeft: number },
+  kas?: { linked: boolean; carNumber?: string; balance?: number; debt?: number; ridesToday?: number; fareToday?: number },
 ): string {
+  // kas account block (Bosqich 2-4): shown only after /driver_login. Surfaces the driver's REAL kas
+  // balance/debt + today's rides; an unlinked driver gets a one-line prompt to connect.
+  const kasBlock = !kas
+    ? ""
+    : kas.linked
+      ? `\n🚗 <b>KAS HISOBI</b> · <code>${esc(kas.carNumber ?? "")}</code>\n` +
+        (kas.balance != null ? `👛 Balans: <b>${formatNumber(kas.balance)} so'm</b>\n` : "") +
+        (kas.debt != null && kas.debt > 0 ? `⚠️ Qarz: <b>${formatNumber(kas.debt)} so'm</b> — /qarz\n` : "") +
+        (kas.ridesToday != null ? `🚕 Bugun: <b>${formatNumber(kas.ridesToday)}</b> safar · <b>${formatNumber(kas.fareToday ?? 0)} so'm</b>\n` : "")
+      : `\n🔑 <b>Kas hisobingizni ulang</b> — /driver_login bilan safar, daromad va qarzni shu yerda ko'rasiz.\n`;
   const txnLines = e.txns
     .slice(0, 6)
     .map((t) => `  ${t.amount > 0 ? "➕" : "➖"} ${formatNumber(Math.abs(t.amount))} — ${esc(t.reason)}`)
@@ -340,6 +351,7 @@ export function renderDriverPanel(
     `🪙 Tanga balans: <b>${formatNumber(coins)}</b>\n` +
     `📈 Bugun tushdi: <b>+${formatNumber(e.todayIn)}</b>\n` +
     `💼 Jami tushum (tip/o'tkazma): <b>${formatNumber(e.totalIn)}</b>\n` +
+    kasBlock +
     recruitBlock +
     (txnLines ? `\n📜 Oxirgi amallar:\n${txnLines}\n` : "") +
     `\n💸 Tangalarni so'mga yechish — «🚀 Ilova» → Hamyon.\n🙏 Mijozlar safardan keyin sizga tanga bilan rahmat ayta oladi.`
