@@ -34,6 +34,10 @@ export interface BookingRequest {
   addressId: number;
   phoneNumber: string;
   additionalPayment: number;
+  // GPS pickup (Telegram «location» share) — sent to kas throughWeb so the driver gets the exact
+  // pin when there is no saved addressId (addressId 0). Omitted for normal saved-address orders.
+  addressLatitude?: number;
+  addressLongitude?: number;
 }
 
 export interface BookingResult {

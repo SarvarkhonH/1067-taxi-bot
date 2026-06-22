@@ -28,6 +28,54 @@ function trunc(s: string, n = 38): string {
   return s.length > n ? s.slice(0, n - 1) + "…" : s;
 }
 
+// Gate for the "just type an address — no need to press the button first" path: a bare free-text
+// message only gets treated as an address query if it plausibly IS one. Keeps greetings, reactions,
+// commands, and phone numbers from hitting kas / triggering a booking. (Menu-button labels never
+// reach here — their bot.hears run earlier; see registration order in bot.ts.)
+const GREETINGS = new Set(["salom", "assalom", "assalomu alaykum", "rahmat", "ok", "ha", "yo'q", "yoq", "yaxshi", "hi", "hello", "привет", "спасибо", "да", "нет"]);
+function looksLikeAddress(text: string): boolean {
+  const t = text.trim();
+  if (t.length < 3 || t.length > 60) return false;
+  if (t.startsWith("/")) return false; // command
+  if (/^\+?\d[\d\s\-()]{6,}$/.test(t)) return false; // phone-shaped → handled by its own handler
+  if (GREETINGS.has(t.toLowerCase())) return false;
+  return /[a-zA-Zа-яёА-ЯЁ\d]/.test(t); // must contain a letter or digit
+}
+
+// Strip the obvious taxi-intent words so a typed SENTENCE resolves to its address part:
+// "Amir Temur 12 ga taxi kerak" → "Amir Temur 12 ga". Conservative (only unambiguous intent
+// words) — leftover particles like "ga"/"da" are harmless to kas's fuzzy address search.
+function addressQuery(text: string): string {
+  const q = text
+    .replace(/[.,!?]+/g, " ")
+    .replace(/\b(taxi|taksi|kerak|chaqir\w*|buyurtma|iltimos|pliz|please)\b/gi, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+  return q.length >= 3 ? q : text.trim();
+}
+
+/** Get (or lazily create) the booking wizard session for a LINKED rider who started a booking by
+ *  sending a location or typing an address directly — i.e. without first pressing «🚕 Taxi
+ *  chaqirish». Returns null (and replies) if the rider isn't linked or already has an active ride. */
+async function ensureSession(ctx: Context): Promise<BookingSession | null> {
+  const id = String(ctx.from!.id);
+  const existing = sessions.get(id);
+  if (existing) return existing;
+  const me = await getMe(id);
+  if (!me?.member.phone) {
+    await ctx.reply("Avval telefon raqamingizni ulang — /start.");
+    return null;
+  }
+  const info = await getDataSource().checkClient(me.member.phone).catch(() => null);
+  if (info?.activeBooking) {
+    await ctx.reply(`ℹ️ Sizda faol buyurtma bor:\n📍 ${esc(info.activeBooking.addressName)}\n\n«📍 Buyurtmam» — holatini ko'ring.`, { parse_mode: "HTML" });
+    return null;
+  }
+  const s: BookingSession = { awaitingText: false, clientName: info?.clientName ?? me.member.fullName, phone: me.member.phone, addresses: info?.addresses ?? [] };
+  sessions.set(id, s);
+  return s;
+}
+
 /** Hand a freshly-placed in-bot order's message to the live sweep: it then EDITS this same
  *  card in place through every status (driver, ETA, moving pin, finish + fare/bonus) — one
  *  message, auto-updating, no manual "Holat". lastBookingId stays null so the sweep adopts it
@@ -273,21 +321,21 @@ export function registerBooking(bot: Bot, mainMenu: (isDriver?: boolean) => Keyb
     await ctx.reply("❌ Bekor qilindi.", { reply_markup: mainMenu(me?.type === "driver") });
   });
 
-  // Uber pattern #1: GPS pickup → nearest saved address → confirm.
+  // Uber pattern #1: GPS pickup. Works even WITHOUT first pressing «🚕 Taxi chaqirish» — a linked
+  // rider can just share a location and the bot books from there. Nearest saved address (≤1.2 km)
+  // → its real addressId; otherwise the EXACT GPS (addressId 0 + lat/lng) so the driver gets the pin.
   bot.on("message:location", async (ctx) => {
-    const id = String(ctx.from!.id);
-    const s = sessions.get(id);
+    const s = await ensureSession(ctx);
     if (!s) return;
     const { latitude, longitude } = ctx.message.location;
     const near = nearestAddress(s.addresses, latitude, longitude);
     if (near) {
       s.pickup = near;
       await ctx.reply(`📍 Sizga eng yaqin: <b>${esc(near.name)}</b>`, { parse_mode: "HTML" });
-      await showConfirm(ctx, s);
     } else {
-      s.awaitingText = true;
-      await ctx.reply("📍 Joylashuvingizga yaqin saqlangan manzil topilmadi.\n✍️ Manzilni yozib qidiring:");
+      s.pickup = { id: 0, name: "📍 Yuborilgan joylashuv", lat: latitude, lng: longitude };
     }
+    await showConfirm(ctx, s);
   });
 
   bot.callbackQuery("bk:status", async (ctx) => {
@@ -504,7 +552,16 @@ export function registerBooking(bot: Bot, mainMenu: (isDriver?: boolean) => Keyb
     // persist the 1-tap memory (survives restarts; next time = one button)
     const memberId = await getMemberId(id);
     if (memberId) await rememberPickup(memberId, s.pickup, "bot").catch(() => undefined);
-    const req = { clientName: s.clientName, addressName: s.pickup.name, addressId: s.pickup.id, phoneNumber: s.phone, additionalPayment: 0 };
+    // GPS pickup (no saved addressId) → send the exact lat/lng so kas dispatches to the pin.
+    const isGps = s.pickup.id === 0 && s.pickup.lat != null && s.pickup.lng != null;
+    const req = {
+      clientName: s.clientName,
+      addressName: s.pickup.name,
+      addressId: s.pickup.id,
+      phoneNumber: s.phone,
+      additionalPayment: 0,
+      ...(isGps ? { addressLatitude: s.pickup.lat, addressLongitude: s.pickup.lng } : {}),
+    };
     sessions.delete(id);
 
     if (!env.bookingLive) {
@@ -525,17 +582,36 @@ export function registerBooking(bot: Bot, mainMenu: (isDriver?: boolean) => Keyb
     }
   });
 
-  // free-text address search — only while a booking is awaiting an address
+  // free-text address. (a) mid-wizard «✍️ Manzil yozish» → search & pick (existing). (b) NO wizard:
+  // a linked rider just TYPED an address with no «🚕 Taxi chaqirish» first → search & pick. Heavily
+  // gated (looksLikeAddress + must resolve in kas) so greetings/non-addresses fall through untouched.
   bot.on("message:text", async (ctx, next) => {
-    const s = sessions.get(String(ctx.from!.id));
-    if (!s || !s.awaitingText) return next();
-    const results = await getDataSource().searchAddresses(ctx.message.text).catch(() => []);
-    if (!results.length) {
-      await ctx.reply("Topilmadi. Boshqacha yozib ko'ring:");
+    const id = String(ctx.from!.id);
+    const s = sessions.get(id);
+    const text = ctx.message.text.trim();
+    if (s?.awaitingText) {
+      const results = await getDataSource().searchAddresses(text).catch(() => []);
+      if (!results.length) {
+        await ctx.reply("Topilmadi. Boshqacha yozib ko'ring:");
+        return;
+      }
+      s.addresses = results;
+      s.awaitingText = false;
+      await ctx.reply("📍 Manzilni tanlang:", { reply_markup: addressKb(results) });
       return;
     }
-    s.addresses = results;
-    s.awaitingText = false;
+    if (s) return next(); // mid-wizard but not awaiting text → leave for other handlers
+    if (!looksLikeAddress(text)) return next();
+    const me = await getMe(id);
+    if (!me?.member.phone) return next(); // unlinked → not a booking
+    const results = await getDataSource().searchAddresses(addressQuery(text)).catch(() => []);
+    if (!results.length) return next(); // not a kas address → don't hijack the message
+    const info = await getDataSource().checkClient(me.member.phone).catch(() => null);
+    if (info?.activeBooking) {
+      await ctx.reply(`ℹ️ Sizda faol buyurtma bor:\n📍 ${esc(info.activeBooking.addressName)}\n\n«📍 Buyurtmam» — holatini ko'ring.`, { parse_mode: "HTML" });
+      return;
+    }
+    sessions.set(id, { awaitingText: false, clientName: info?.clientName ?? me.member.fullName, phone: me.member.phone, addresses: results });
     await ctx.reply("📍 Manzilni tanlang:", { reply_markup: addressKb(results) });
   });
 }
