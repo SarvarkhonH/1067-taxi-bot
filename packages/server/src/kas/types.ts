@@ -75,6 +75,13 @@ export interface ActiveBooking {
   createdDate: string;
   driver: BookingDriver | null; // assigned once a driver takes it
   notifiedCount?: number; // drivers notified (carNumberList length) — honest "N haydovchiga yuborildi"
+  // Surcharge breakdown — kas's three stacked extras on top of the meter base. The driver app's
+  // ProvideBooking screen displays addressName + (addr + client + company); the rider's `payment`
+  // already includes addr+client (taximeter starts at minimalPayment+addr+client), while company is
+  // tracked separately as commission. Surfacing all three lets us show an honest breakdown.
+  additionalPaymentAddress?: number;
+  additionalPaymentClient?: number;
+  additionalPaymentCompany?: number;
 }
 
 export interface ActiveBookingLite {
@@ -86,6 +93,9 @@ export interface ActiveBookingLite {
   clientBonus: number;
   lat?: number; // pickup coords (ETA for the live card)
   lng?: number;
+  additionalPaymentAddress?: number;
+  additionalPaymentClient?: number;
+  additionalPaymentCompany?: number;
 }
 
 // One row of a client's ride history (kas bookingReports).
@@ -102,11 +112,16 @@ export interface RideHistoryItem {
   status: string;
   carNumber: string;
   carModel: string;
-  payment: number;
+  payment: number; // total paid (already includes address + client surcharges)
   cashback: number;
   distance?: number; // km (kas taximeter — set on a completed ride)
   time?: number; // minutes (kas taximeter — set on a completed ride)
   at: string; // ISO date
+  // Surcharge breakdown (see ActiveBooking for the math). The company portion is the kas commission
+  // recorded against the ride — needed for honest "driver take-home" math in driver-side history.
+  additionalPaymentAddress?: number;
+  additionalPaymentClient?: number;
+  additionalPaymentCompany?: number;
 }
 
 // ─── client-facing reference data (read-only, cached) ──────────────────────────

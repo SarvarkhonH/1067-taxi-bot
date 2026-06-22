@@ -495,6 +495,9 @@ export class KasLiveSource implements KasDataSource {
       createdDate: String(b.createdDate ?? ""),
       driver,
       notifiedCount: Array.isArray(b.carNumberList) ? b.carNumberList.length : 0,
+      additionalPaymentAddress: num(b.additionalPaymentAddress) || undefined,
+      additionalPaymentClient: num(b.additionalPaymentClient) || undefined,
+      additionalPaymentCompany: num(b.additionalPaymentCompany) || undefined,
     };
   }
 
@@ -523,6 +526,9 @@ export class KasLiveSource implements KasDataSource {
           clientBonus: num(b.clientBonus),
           lat: num(b.addressLatitude) || undefined,
           lng: num(b.addressLongitude) || undefined,
+          additionalPaymentAddress: num(b.additionalPaymentAddress) || undefined,
+          additionalPaymentClient: num(b.additionalPaymentClient) || undefined,
+          additionalPaymentCompany: num(b.additionalPaymentCompany) || undefined,
         }));
       }
       if (attempt === 0) {
@@ -550,6 +556,9 @@ export class KasLiveSource implements KasDataSource {
       payment: num(b.payment),
       cashback: num(b.clientBonus),
       at: String(b.date ?? ""),
+      additionalPaymentAddress: num(b.additionalPaymentAddress) || undefined,
+      additionalPaymentClient: num(b.additionalPaymentClient) || undefined,
+      additionalPaymentCompany: num(b.additionalPaymentCompany) || undefined,
     }));
   }
 
@@ -571,6 +580,9 @@ export class KasLiveSource implements KasDataSource {
           payment: num(b.payment),
           cashback: num(b.clientBonus),
           at: String(b.date ?? ""),
+          additionalPaymentAddress: num(b.additionalPaymentAddress) || undefined,
+          additionalPaymentClient: num(b.additionalPaymentClient) || undefined,
+          additionalPaymentCompany: num(b.additionalPaymentCompany) || undefined,
         }))
         .filter((r) => r.carNumber.replace(/\s/g, "").toUpperCase() === car); // only THIS car's rides
     } catch {
@@ -595,6 +607,9 @@ export class KasLiveSource implements KasDataSource {
         distance: num(b.distance),
         time: num(b.time),
         at: String(b.date ?? ""),
+        additionalPaymentAddress: num(b.additionalPaymentAddress) || undefined,
+        additionalPaymentClient: num(b.additionalPaymentClient) || undefined,
+        additionalPaymentCompany: num(b.additionalPaymentCompany) || undefined,
       }));
     } catch {
       return [];

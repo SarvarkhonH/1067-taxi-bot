@@ -161,8 +161,9 @@ export class KasMockSource implements KasDataSource {
     const car = carNumber.replace(/\s/g, "").toUpperCase() || "70A111AA";
     const now = new Date().toISOString(); // today, so daily driver-missions resolve in mock/tests
     return [
-      { id: 9201, addressName: "Koson bozori", status: "delivered", carNumber: car, carModel: "Cobalt", payment: 14000, cashback: 500, at: now },
-      { id: 9200, addressName: "Bunyodkor 12", status: "delivered", carNumber: car, carModel: "Cobalt", payment: 9000, cashback: 500, at: now },
+      // 14000 = meter ~11500 + 2500 addressAdd (Koson bozori); 700 of it goes to company commission
+      { id: 9201, addressName: "Koson bozori", status: "delivered", carNumber: car, carModel: "Cobalt", payment: 14000, cashback: 500, at: now, additionalPaymentAddress: 2500, additionalPaymentCompany: 700 },
+      { id: 9200, addressName: "Bunyodkor 12", status: "delivered", carNumber: car, carModel: "Cobalt", payment: 9000, cashback: 500, at: now, additionalPaymentAddress: 2000, additionalPaymentCompany: 450 },
     ].slice(0, size);
   }
 
@@ -189,6 +190,9 @@ export class KasMockSource implements KasDataSource {
         meterDistance: 1500,
       },
       notifiedCount: 3,
+      additionalPaymentAddress: 2000, // saved-address surcharge ("Bunyodkor 12")
+      additionalPaymentClient: 0,
+      additionalPaymentCompany: 500, // peak-hour company commission row
     };
   }
 
