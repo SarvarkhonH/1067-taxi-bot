@@ -206,6 +206,18 @@ export async function adminGrant(target: string, amount: number, reason: string,
   }
 }
 
+// 🪙 Grant/deduct TANGA by PHONE — resolves the account the user actually uses (telegram-linked
+// first, else client). The actions-panel "give money" uses this: an admin top-up must land as
+// SPENDABLE TANGA (wallet / games / transfers / fare), not as kas cashback.
+export async function adminGrantCoinsByPhone(phone: string, amount: number, reason: string, adminId: string): Promise<AdminActionResult> {
+  const norm = phone.replace(/\D/g, "").slice(-9);
+  if (norm.length < 9) return { ok: false, message: "Raqam noto'g'ri (+998…)" };
+  const members = await prisma.member.findMany({ where: { phone: { endsWith: norm } }, include: { telegramUser: true } });
+  if (!members.length) return { ok: false, message: "Bu raqamli foydalanuvchi topilmadi" };
+  const target = members.find((m) => m.telegramUser) ?? members.find((m) => m.type === "client") ?? members[0]!;
+  return adminGrantCoins(target.id, amount, reason, adminId);
+}
+
 // Grant/deduct TANGA (coins) to a SPECIFIC account by id — any type (client OR driver). Fixes the
 // adminGrant gap: that one is client-only + writes kas POINTS by phone, so a grant to a driver (or
 // to someone who has both a client AND a driver account) never lands on the account the owner sees.

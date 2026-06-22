@@ -520,6 +520,7 @@ function ActionsView() {
   const [reason, setReason] = useState("");
   const [grantMsg, setGrantMsg] = useState<string | null>(null);
   const [grantBusy, setGrantBusy] = useState(false);
+  const [currency, setCurrency] = useState<"tanga" | "cashback">("tanga"); // admin "give money" → spendable TANGA by default
 
   const [text, setText] = useState("");
   const [segment, setSegment] = useState<"all" | "linked">("all");
@@ -531,7 +532,9 @@ function ActionsView() {
     setGrantBusy(true);
     setGrantMsg(null);
     try {
-      const r = await adminApi.grant(phone, Number(amount), reason);
+      const r = currency === "tanga"
+        ? await adminApi.grantTanga(phone, Number(amount), reason)
+        : await adminApi.grant(phone, Number(amount), reason);
       setGrantMsg(r.message);
       if (r.ok) { setAmount(""); setReason(""); }
     } catch (e) {
@@ -560,14 +563,22 @@ function ActionsView() {
   return (
     <div className="actions">
       <section className="panel">
-        <div className="panel-title">💸 Cashback berish / tuzatish</div>
-        <p className="muted" style={{ fontSize: 13, margin: "4px 0 12px" }}>Mijoz raqamiga bonus yozadi (kas1067 · 1303). Manfiy ham bo'ladi (tuzatish).</p>
+        <div className="panel-title">💰 Pul berish / tuzatish</div>
+        <div style={{ display: "flex", gap: 6, margin: "4px 0 8px" }}>
+          <button className="btn" style={{ flex: 1, opacity: currency === "tanga" ? 1 : 0.45 }} onClick={() => setCurrency("tanga")}>🪙 Tanga</button>
+          <button className="btn" style={{ flex: 1, opacity: currency === "cashback" ? 1 : 0.45 }} onClick={() => setCurrency("cashback")}>💸 Cashback</button>
+        </div>
+        <p className="muted" style={{ fontSize: 13, margin: "0 0 12px" }}>
+          {currency === "tanga"
+            ? "🪙 TANGA yoziladi — ilovada ishlatiladigan pul (hamyon · o'yin · o'tkazma · yo'l haqi). Manfiy ham bo'ladi."
+            : "💸 kas1067 CASHBACK yoziladi (1303) — faqat safar-bonusini tuzatish uchun. Manfiy ham bo'ladi."}
+        </p>
         <div className="form-grid">
           <input className="search" placeholder="📱 Telefon (+998…)" value={phone} onChange={(e) => setPhone(e.target.value)} />
           <input className="search" placeholder="💰 Summa (+ yoki −)" value={amount} onChange={(e) => setAmount(e.target.value)} type="number" />
         </div>
         <input className="search" style={{ width: "100%", marginTop: 8 }} placeholder="📝 Sabab (ixtiyoriy)" value={reason} onChange={(e) => setReason(e.target.value)} />
-        <button className="btn" style={{ marginTop: 12 }} onClick={doGrant} disabled={grantBusy}>{grantBusy ? "⏳…" : "💸 Berish"}</button>
+        <button className="btn" style={{ marginTop: 12 }} onClick={doGrant} disabled={grantBusy}>{grantBusy ? "⏳…" : currency === "tanga" ? "🪙 Tanga berish" : "💸 Cashback berish"}</button>
         {grantMsg && <div className="action-msg">{grantMsg}</div>}
       </section>
 
