@@ -25,6 +25,10 @@ const schema = z.object({
   KAS_USERNAME: z.string().optional().default(""),
   KAS_PASSWORD: z.string().optional().default(""),
   KAS_BONUS_SECRET_KEY: z.string().optional().default("1303"), // kas1067 bonus-edit secret
+  // Bosqich 2: AES-256-GCM key (32 bytes / 64 hex chars) for encrypting driver kas secretKeys at
+  // rest. Optional in DEV so typecheck/tests pass; driverAuth throws a clear error if used without
+  // it in prod. Generate: openssl rand -hex 32. Render secret — NEVER commit a real value.
+  DRIVER_KEY_AES: z.string().optional().default(""),
 
   KAS_DRIVERS_PATH: z.string().optional().default(""),
   // When "true", the bot actually dispatches taxis via kas1067. Default = dry-run (safe).

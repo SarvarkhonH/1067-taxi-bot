@@ -20,6 +20,7 @@ import { getEconomy, getHealth, getLiveBookings } from "../services/adminOps";
 import { getIntegrity } from "../services/reconciliation";
 import type { CashbackDelta } from "../sync/sync";
 import { payDriver, registerBooking } from "./booking";
+import { driverLoginFlow, registerDriverLogin } from "./driverLogin";
 import {
   renderBadgeUnlocked,
   renderAccount,
@@ -142,6 +143,7 @@ export function createBot(): Bot {
     const id = String(ctx.from!.id);
     codeLink.delete(id); // /start cancels any pending "link a different number" flow
     payDriver.delete(id); // …and the "pay a driver by car number" flow
+    driverLoginFlow.delete(id); // …and the kas driver-login wizard (Bosqich 2)
     await touchTelegramUser(id, profileOf(ctx.from!));
     // referral deep link: t.me/<bot>?start=ref_<code>
     const payload = (typeof ctx.match === "string" ? ctx.match : "").trim();
@@ -887,6 +889,7 @@ export function createBot(): Bot {
     );
   });
 
+  registerDriverLogin(bot); // Bosqich 2: /driver_login + /driver_logout wizard (before booking so its text-handler wins for its state)
   registerBooking(bot, mainMenu);
 
   // 🤖 AI-1 rules-first free text: runs AFTER booking's own text handler

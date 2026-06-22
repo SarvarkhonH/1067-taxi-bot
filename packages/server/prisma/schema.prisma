@@ -50,16 +50,17 @@ model Member {
   createdAt          DateTime  @default(now())
   updatedAt          DateTime  @updatedAt
 
-  telegramUser TelegramUser?
-  achievements MemberAchievement[]
-  rewardGrants RewardGrant[]
-  streak       Streak?
-  wheelSpins   WheelSpin[]
-  missions     MissionProgress[]
-  boxOpens     BoxOpen[]
-  weeklyScores WeeklyScore[]
-  coinTxns     CoinTxn[]
-  withdrawals  Withdrawal[]
+  telegramUser  TelegramUser?
+  achievements  MemberAchievement[]
+  rewardGrants  RewardGrant[]
+  streak        Streak?
+  wheelSpins    WheelSpin[]
+  missions      MissionProgress[]
+  boxOpens      BoxOpen[]
+  weeklyScores  WeeklyScore[]
+  coinTxns      CoinTxn[]
+  withdrawals   Withdrawal[]
+  driverSession DriverSession? // Bosqich 2: kas /api/driverApp/* auth (drivers only)
   leagueTier   String              @default("Bronza") // promotion/relegation tier
   driverTier   String              @default("Bronza") // weekly driver tier (DiDi model): Bronza|Kumush|Oltin|Olmos
 
@@ -836,4 +837,23 @@ model GarajCraftJob {
 
   @@index([memberId, status])
   @@index([status, finishesAt])
+}
+
+// 🔑 Driver-side kas creds. A driver logs into the bot ONCE via /driver_login (carNumber + SMS) —
+// kas returns a long-lived secretKey that authenticates every /api/driverApp/* call. We store it
+// AES-256-GCM-encrypted (key from env DRIVER_KEY_AES, NEVER in DB) so a DB leak alone can't
+// impersonate drivers. revokedAt is set when the driver explicitly logs out or kas returns 401
+// on a previously-good key; the row stays for audit.
+model DriverSession {
+  memberId     Int       @id // one session per member
+  carNumber    String    @unique // also kas's identity key — used in every driver-app body
+  encryptedKey String // hex(AES-256-GCM ciphertext)
+  keyIv        String // hex(12-byte IV) — random per encryption
+  keyTag       String // hex(16-byte auth tag) — GCM integrity
+  lastLoginAt  DateTime  @default(now())
+  revokedAt    DateTime?
+  member       Member    @relation(fields: [memberId], references: [id], onDelete: Cascade)
+
+  @@index([carNumber])
+  @@index([revokedAt])
 }
