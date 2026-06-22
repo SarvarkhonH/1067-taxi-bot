@@ -3,9 +3,11 @@ import { formatNumber, type MeResponse } from "@t1067/shared";
 import { api } from "./api";
 import { Spinner } from "./components";
 import { useCountUp, confetti } from "./util";
-import { hapticSuccess } from "./telegram";
+import { hapticSuccess, shareLink, copyText } from "./telegram";
 
 type DriverMission = { id: string; emoji: string; title: string; target: number; reward: number; progress: number; claimable: boolean; claimed: boolean };
+type DriverAccount = { linked: boolean; carNumber?: string; balance?: number; debt?: number; ridesToday?: number; fareToday?: number; canPayDebt?: boolean };
+type DriverQr = { ok: boolean; link?: string; png?: string; shareText?: string };
 
 type DriverRide = { id: number; addressName: string; status: string; carModel: string; payment: number; cashback: number; at: string };
 const RIDE_STATUS: Record<string, { e: string; t: string }> = {
@@ -28,16 +30,50 @@ export function DriverView({ me }: { me: MeResponse }) {
   const [data, setData] = useState<{ todayIn: number; totalIn: number; txns: { amount: number; kind: string; reason: string; at: string }[] } | null>(null);
   const [rides, setRides] = useState<DriverRide[] | null>(null);
   const [missions, setMissions] = useState<{ missions: DriverMission[]; ridesToday: number } | null>(null);
+  const [account, setAccount] = useState<DriverAccount | null>(null);
+  const [qr, setQr] = useState<DriverQr | null>(null);
   const [msg, setMsg] = useState<string | null>(null);
   const [err, setErr] = useState(false);
-  const coins = useCountUp(me.coins);
+  // money-balance shown live (after a debt payment it drops); seeded from me.coins
+  const [coinBal, setCoinBal] = useState(me.coins);
+  const [paying, setPaying] = useState(false);
+  const [payNonce] = useState(() => `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`); // stable per card session
+  const coins = useCountUp(coinBal);
 
   const loadMissions = () => api.driverMissions().then(setMissions).catch(() => setMissions({ missions: [], ridesToday: 0 }));
+  const loadAccount = () => api.driverAccount().then(setAccount).catch(() => setAccount({ linked: false }));
   const load = () => {
     setErr(false);
     api.driverEarnings().then(setData).catch(() => setErr(true)); // P1: no permanent spinner on error
     api.driverRides().then((r) => setRides(r.rides)).catch(() => setRides([]));
     loadMissions();
+    loadAccount();
+    api.driverQr().then(setQr).catch(() => setQr({ ok: false }));
+  };
+
+  const payDebt = async (amount: number) => {
+    if (paying || amount < 1) return;
+    setPaying(true);
+    const r = await api.payDriverDebt(amount, payNonce).catch(() => ({ ok: false, message: "Tarmoq xatosi" }));
+    setPaying(false);
+    setMsg(r.message);
+    setTimeout(() => setMsg(null), 4000);
+    if (r.ok) {
+      hapticSuccess();
+      confetti();
+      setCoinBal((c) => Math.max(0, c - amount)); // reflect the spend immediately
+      void loadAccount(); // refresh debt figure
+    }
+  };
+  const shareQr = () => {
+    if (qr?.link) shareLink(qr.link, qr.shareText ?? "1067 Taxi 🚕");
+  };
+  const copyQr = async () => {
+    if (qr?.link) {
+      await copyText(qr.link);
+      setMsg("📋 Havola nusxalandi");
+      setTimeout(() => setMsg(null), 2500);
+    }
   };
   const claim = async (id: string) => {
     const r = await api.claimDriverMission(id);
@@ -53,8 +89,17 @@ export function DriverView({ me }: { me: MeResponse }) {
     load();
   }, []);
 
+  // pay-amount presets: "max you can" + round chunks, each capped at min(debt, coins)
+  const debt = account?.debt ?? 0;
+  const payable = Math.min(debt, coinBal);
+  const payOptions = [...new Set([payable, ...[10_000, 25_000, 50_000].filter((c) => c < payable)])]
+    .filter((a) => a >= 1)
+    .sort((a, b) => b - a)
+    .slice(0, 4);
+
   return (
     <div className="view">
+      {msg && <div className="sheet-ok tac" style={{ marginBottom: 10 }}>{msg}</div>}
       <section className="wallet-hero glass">
         <div className="wh-row">
           <div className="wh-main">
@@ -77,9 +122,46 @@ export function DriverView({ me }: { me: MeResponse }) {
         )}
       </section>
 
+      {account?.linked && (
+        <section className="glass pad">
+          <div className="section-title">🚕 Kas hisobi{account.carNumber ? ` · ${account.carNumber}` : ""}</div>
+          <div className="wh-cashback">
+            <span>👛 Kas balans</span>
+            <b>{formatNumber(account.balance ?? 0)} so'm</b>
+          </div>
+          <div className="wh-cashback">
+            <span>🚕 Bugun</span>
+            <b>{formatNumber(account.ridesToday ?? 0)} safar · {formatNumber(account.fareToday ?? 0)} so'm</b>
+          </div>
+          {debt > 0 && (
+            <div className="wh-cashback" style={{ color: "var(--warn, #f5a623)" }}>
+              <span>⚠️ Qarz</span>
+              <b>{formatNumber(debt)} so'm</b>
+            </div>
+          )}
+          {account.canPayDebt && debt > 0 && (
+            <div style={{ marginTop: 10 }}>
+              {payOptions.length === 0 ? (
+                <p className="muted" style={{ fontSize: 13 }}>Qarzni to'lash uchun tanga yetarli emas — safar qilib tanga to'plang.</p>
+              ) : (
+                <>
+                  <p className="muted" style={{ fontSize: 13, marginBottom: 6 }}>Qarzni tanga bilan to'lang (1 tanga = 1 so'm):</p>
+                  <div className="amt-row">
+                    {payOptions.map((amt) => (
+                      <button key={amt} className="amt-chip active" disabled={paying} onClick={() => payDebt(amt)}>
+                        {amt === payable ? `💸 ${formatNumber(amt)}` : formatNumber(amt)}
+                      </button>
+                    ))}
+                  </div>
+                </>
+              )}
+            </div>
+          )}
+        </section>
+      )}
+
       <section className="glass pad">
         <div className="section-title">🎯 Bugungi topshiriqlar{missions ? ` · 🚕 ${missions.ridesToday}` : ""}</div>
-        {msg && <div className="sheet-ok tac">{msg}</div>}
         {missions === null ? (
           <Spinner />
         ) : missions.missions.length === 0 ? (
@@ -132,6 +214,20 @@ export function DriverView({ me }: { me: MeResponse }) {
           </div>
         )}
       </section>
+
+      {qr?.ok && qr.png && (
+        <section className="glass pad">
+          <div className="section-title">📷 Mening QR kodim</div>
+          <p className="muted mk-sub">Mijozga ko'rsating — skanerlab birinchi safarini qilsa, sizga tanga tushadi.</p>
+          <div style={{ display: "flex", justifyContent: "center", padding: "10px 0" }}>
+            <img src={qr.png} alt="QR" width={200} height={200} style={{ borderRadius: 12, background: "#fff", padding: 8 }} />
+          </div>
+          <div className="amt-row">
+            <button className="amt-chip active" onClick={shareQr} style={{ flex: 1 }}>📤 Ulashish</button>
+            <button className="amt-chip" onClick={copyQr} style={{ flex: 1 }}>📋 Havola</button>
+          </div>
+        </section>
+      )}
 
       <section className="glass pad">
         <div className="section-title">🙏 Daromad manbalari</div>

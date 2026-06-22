@@ -23,7 +23,7 @@ import { findDriverByCar, getDriverEarnings, lookupDriverForPay, lookupRecipient
 import { buyListing, listShops, myOrders, myShop, redeemVoucher } from "../services/marketService";
 import { prisma } from "../db";
 import { getFareConfig } from "../services/clientInfoService";
-import { callOneTapFor, cancelBookingFor, createBookingFor, estimateFare, getActiveBookingFor, getBookingInfo, searchBookingAddress } from "../services/bookingService";
+import { callOneTapFor, cancelBookingFor, createBookingFor, estimateFare, getActiveBookingFor, getBookingInfo, nearestAddressFor, searchBookingAddress } from "../services/bookingService";
 import type { BookingCreateBody, BookingNowBody, GeoPt } from "@t1067/shared";
 import { validateInitData } from "./telegramAuth";
 
@@ -427,6 +427,54 @@ export function createApiServer(opts: ApiOptions = {}) {
     res.json(await claimDriverMission(memberId, String((req.body as { missionId?: string })?.missionId ?? "")));
   });
 
+  // 🚗 Driver kas account (Mini App): balance + debt + today's rides. No /driver_login — uses the
+  // member's already-linked plate + the admin kas client. canPayDebt gates the pay button (qarz flag).
+  app.get("/api/driver/account", requireUser, async (_req, res) => {
+    const memberId = await getMemberId(res.locals.telegramId as string);
+    if (!memberId) {
+      res.status(404).json({ error: "not linked" });
+      return;
+    }
+    const { getDriverPanelExtras } = await import("../services/driverReportService");
+    res.json(await getDriverPanelExtras(memberId));
+  });
+
+  // 💸 Pay kas company debt with tanga. MONEY PATH — atomic hold + refund (driverDebtService).
+  // nonce makes a double-submit of the SAME pay-card a no-op. Gated behind the qarz flag.
+  app.post("/api/driver/debt/pay", requireUser, rateLimit(10), async (req, res) => {
+    const memberId = await getMemberId(res.locals.telegramId as string);
+    if (!memberId) {
+      res.status(404).json({ error: "not linked" });
+      return;
+    }
+    const body = req.body as { amount?: number; nonce?: string };
+    const amount = Math.floor(Number(body?.amount ?? 0));
+    const nonce = String(body?.nonce ?? "").slice(0, 64) || "noNonce";
+    const { payDebtWithCoins } = await import("../services/driverDebtService");
+    res.json(await payDebtWithCoins(memberId, amount, nonce));
+  });
+
+  // 📷 Driver's in-car recruit QR — link + PNG data URL + ready-to-share text. Drivers show it to
+  // riders; a scan+ride pays the driver. Surfaced in the Mini App so sharing is one tap.
+  app.get("/api/driver/qr", requireUser, async (_req, res) => {
+    const memberId = await getMemberId(res.locals.telegramId as string);
+    if (!memberId) {
+      res.status(404).json({ error: "not linked" });
+      return;
+    }
+    const m = await prisma.member.findUnique({ where: { id: memberId }, select: { type: true } });
+    if (m?.type !== "driver") {
+      res.json({ ok: false, reason: "not_driver" });
+      return;
+    }
+    const { driverQrLink } = await import("../services/recruitService");
+    const link = driverQrLink(memberId);
+    const QR = await import("qrcode");
+    const png = await QR.toDataURL(link, { width: 600, margin: 2 }).catch(() => null);
+    const shareText = "1067 Taxi — chaqiring, tejang, bonus yig'ing! 🚕 Mening havolam orqali qo'shiling:";
+    res.json({ ok: true, link, png, shareText });
+  });
+
   // ── 🏪 Bozor: spendable-cashback marketplace (ABSORB MVP — zero cash risk) ──
   app.get("/api/market/shops", requireUser, async (_req, res) => {
     res.json(await listShops());
@@ -661,6 +709,11 @@ export function createApiServer(opts: ApiOptions = {}) {
   }));
   app.get("/api/booking/active", requireUser, withMember((id) => getActiveBookingFor(id)));
   app.post("/api/booking/search", requireUser, withMember((_id, req) => searchBookingAddress(String((req.body as { q?: string })?.q ?? ""))));
+  // M7 center-pin: nearest catalog address to a dragged map point (read-only; booking still by addressId)
+  app.post("/api/booking/nearest", requireUser, withMember((id, req) => {
+    const b = (req.body ?? {}) as { lat?: number; lng?: number };
+    return nearestAddressFor(id, Number(b.lat), Number(b.lng));
+  }));
   app.post("/api/booking/create", requireUser, rateLimit(3), withMember((id, req) => createBookingFor(id, req.body as BookingCreateBody)));
   // 1-tap "1067 Now": server resolves the pickup behind the button (rate-limited — real taxis dispatch here)
   app.post("/api/booking/now", requireUser, rateLimit(3), withMember((id, req) => callOneTapFor(id, (req.body ?? {}) as BookingNowBody, "miniapp")));
@@ -1080,6 +1133,12 @@ export function createApiServer(opts: ApiOptions = {}) {
     const { adminGrantCoins } = await import("../services/adminOps");
     const b = (req.body ?? {}) as { memberId?: number; amount?: number; reason?: string };
     res.json(await adminGrantCoins(Math.floor(Number(b.memberId ?? 0)), Number(b.amount ?? 0), String(b.reason ?? ""), res.locals.telegramId as string));
+  });
+  // 🪙 Grant/deduct TANGA by PHONE — the actions-panel "give money" default (spendable tanga, not cashback)
+  app.post("/api/admin/grant-tanga", requireAdmin, requireOwner, rateLimit(10), async (req, res) => {
+    const { adminGrantCoinsByPhone } = await import("../services/adminOps");
+    const b = (req.body ?? {}) as { phone?: string; amount?: number; reason?: string };
+    res.json(await adminGrantCoinsByPhone(String(b.phone ?? ""), Number(b.amount ?? 0), String(b.reason ?? ""), res.locals.telegramId as string));
   });
   // 💼 Move an account's OWN tanga → their OWN kas balance, NO daily cap (admin-trusted bypass of the
   // 50 000/day user withdraw cap). Audited + refund-on-kas-failure (see adminMoveToBalance).

@@ -138,6 +138,11 @@ export const api = {
   driverMissions: () =>
     get<{ missions: { id: string; emoji: string; title: string; target: number; reward: number; progress: number; claimable: boolean; claimed: boolean }[]; ridesToday: number }>("/api/driver/missions"),
   claimDriverMission: (missionId: string) => request<{ ok: boolean; reason?: string; reward?: number }>("POST", "/api/driver/missions/claim", { missionId }, 1),
+  driverAccount: () =>
+    get<{ linked: boolean; carNumber?: string; balance?: number; debt?: number; ridesToday?: number; fareToday?: number; canPayDebt?: boolean }>("/api/driver/account"),
+  payDriverDebt: (amount: number, nonce: string) =>
+    request<{ ok: boolean; message: string; paid?: number; kasBalance?: number | null }>("POST", "/api/driver/debt/pay", { amount, nonce }, 1),
+  driverQr: () => get<{ ok: boolean; reason?: string; link?: string; png?: string; shareText?: string }>("/api/driver/qr"),
   fareConfig: () => get<FareConfigResponse>("/api/fare/config"),
   garage: () => get<GarageResponse>("/api/garage"),
   garageBuy: (car: string) => request<{ ok: boolean; reason?: string; coins: number }>("POST", "/api/garage/buy", { car }, 1),
@@ -224,6 +229,7 @@ export const api = {
     request<{ off?: boolean; ok: boolean; granted: number; dailyCap: number; roomLeft: number; reason?: string }>("POST", "/api/tolqin/finish", { token, score }, 1),
   bookingActive: () => get<ActiveBookingView | null>("/api/booking/active"),
   bookingSearch: (q: string) => request<SavedAddr[]>("POST", "/api/booking/search", { q }, 1),
+  bookingNearestAddr: (lat: number, lng: number) => request<SavedAddr | null>("POST", "/api/booking/nearest", { lat, lng }, 1),
   bookingCreate: (body: BookingCreateBody) => request<BookingCreateResponse>("POST", "/api/booking/create", body, 1),
   bookingNow: (body: { lat?: number; lng?: number; addressId?: number } = {}) => request<BookingNowResponse>("POST", "/api/booking/now", body, 1),
   bookingCancel: () => request<BookingCancelResponse>("POST", "/api/booking/cancel", undefined, 1),

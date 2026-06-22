@@ -13,7 +13,6 @@ import "../env";
 import { prisma } from "../db";
 import { getDataSource } from "../kas";
 import { getDriverDebtInfo, payDebtWithCoins } from "../services/driverDebtService";
-import { saveDriverSession } from "../services/driverAuth";
 import { getCoins } from "../services/coinService";
 import { setFeature, __resetFeatureCache } from "../services/featureFlags";
 
@@ -33,10 +32,9 @@ async function cleanup(): Promise<void> {
 
 let carSeq = 0;
 async function freshDriver(coins: number): Promise<number> {
-  // unique plate per driver — DriverSession.carNumber is @unique (one session per car)
+  // The driver is already linked (type=driver + carNumber) — no session needed; the kas writes are admin-side.
   const car = `99T${String(++carSeq).padStart(3, "0")}ZZ`;
   const m = await prisma.member.create({ data: { type: "driver", kasId: `${TAG}-${Math.random().toString(36).slice(2, 8)}`, fullName: "Debt Test", carNumber: car, coins } });
-  await saveDriverSession(m.id, car, `mock-secret-${car}`);
   return m.id;
 }
 

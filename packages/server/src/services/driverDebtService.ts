@@ -13,27 +13,36 @@
 import { prisma } from "../db";
 import { getDataSource } from "../kas";
 import { getCoins, grantCoins, spendCoinsIdempotent } from "./coinService";
-import { getDriverSession } from "./driverAuth";
 import { featureOn } from "./featureFlags";
 
 export interface DriverDebtInfo {
   ok: boolean;
-  reason?: "feature_off" | "not_logged_in" | "kas_unreachable";
+  reason?: "feature_off" | "not_driver" | "kas_unreachable";
   carNumber?: string;
   debt?: number; // so'm owed to the company
   balance?: number; // kas wallet balance
   coins?: number; // our tanga balance (1 tanga = 1 so'm)
 }
 
-/** Read the driver's debt + balances for the /qarz card. Requires a stored driver session. */
+// The driver is ALREADY linked via /start (phone → kas member, type=driver, carNumber mirrored from
+// kas). No /driver_login is needed: the kas writes here (getDriverAccount, addDriverPayment debt=true)
+// are ADMIN-authenticated SPA calls, so the driver's secretKey is never required. We just need their
+// plate, which the Member row already holds.
+async function driverCar(memberId: number): Promise<string | null> {
+  const m = await prisma.member.findUnique({ where: { id: memberId }, select: { type: true, carNumber: true } });
+  if (m?.type !== "driver" || !m.carNumber) return null;
+  return m.carNumber;
+}
+
+/** Read the driver's debt + balances for the qarz card. Uses the member's own (already-linked) plate. */
 export async function getDriverDebtInfo(memberId: number): Promise<DriverDebtInfo> {
   if (!(await featureOn("qarz"))) return { ok: false, reason: "feature_off" };
-  const session = await getDriverSession(memberId);
-  if (!session) return { ok: false, reason: "not_logged_in" };
-  const acct = await getDataSource().getDriverAccount(session.carNumber);
-  if (!acct) return { ok: false, reason: "kas_unreachable", carNumber: session.carNumber };
+  const carNumber = await driverCar(memberId);
+  if (!carNumber) return { ok: false, reason: "not_driver" };
+  const acct = await getDataSource().getDriverAccount(carNumber);
+  if (!acct) return { ok: false, reason: "kas_unreachable", carNumber };
   const coins = await getCoins(memberId);
-  return { ok: true, carNumber: session.carNumber, debt: acct.debt, balance: acct.balance, coins };
+  return { ok: true, carNumber, debt: acct.debt, balance: acct.balance, coins };
 }
 
 export interface DebtPayResult {
@@ -54,10 +63,10 @@ export async function payDebtWithCoins(memberId: number, amount: number, nonce: 
   if (!Number.isFinite(amt) || amt < 1) return { ok: false, message: "Noto'g'ri summa." };
   if (!(await featureOn("qarz"))) return { ok: false, message: "Bu imkoniyat hozir o'chirilgan." };
 
-  const session = await getDriverSession(memberId);
-  if (!session) return { ok: false, message: "Avval /driver_login orqali kiring." };
+  const carNumber = await driverCar(memberId);
+  if (!carNumber) return { ok: false, message: "Bu hisob haydovchi sifatida ulanmagan." };
 
-  const acct = await getDataSource().getDriverAccount(session.carNumber);
+  const acct = await getDataSource().getDriverAccount(carNumber);
   if (!acct) return { ok: false, message: "Kas serverdan ma'lumot olinmadi. Birozdan keyin urinib ko'ring." };
   if (acct.debt <= 0) return { ok: false, message: "Qarzingiz yo'q 🎉" };
   if (amt > acct.debt) return { ok: false, message: `Qarzingiz ${acct.debt} so'm — undan ko'p to'lab bo'lmaydi.` };
@@ -74,7 +83,7 @@ export async function payDebtWithCoins(memberId: number, amount: number, nonce: 
   }
 
   // ── 1) hold tanga atomically (idempotent: double-tap → no-op) ──────────────
-  const hold = await spendCoinsIdempotent(memberId, amt, "debt_pay", `Qarz to'lash: ${amt} so'm (${session.carNumber})`, idempotencyKey);
+  const hold = await spendCoinsIdempotent(memberId, amt, "debt_pay", `Qarz to'lash: ${amt} so'm (${carNumber})`, idempotencyKey);
   if (!hold.ok) {
     if (hold.skipped === "insufficient") return { ok: false, message: `Tanga yetarli emas. Sizda ${await getCoins(memberId)} tanga, kerak ${amt}.` };
     return { ok: false, message: "Tanga ushlab turishda xato." };
@@ -83,17 +92,17 @@ export async function payDebtWithCoins(memberId: number, amount: number, nonce: 
   // ── 2) persist a "sent" guard BEFORE the kas write (crash-retry won't repay) ─
   await prisma.driverDebtPayment.upsert({
     where: { idempotencyKey },
-    create: { memberId, carNumber: session.carNumber, amount: amt, status: "sent", idempotencyKey },
+    create: { memberId, carNumber: carNumber, amount: amt, status: "sent", idempotencyKey },
     update: { status: "sent", amount: amt },
   });
 
   // ── 3) kas write: settle debt (debt=true). On KNOWN failure, refund tanga. ──
   const refund = async (note: string, code?: number): Promise<void> => {
-    await grantCoins(memberId, amt, "debt_refund", `Qarz to'lash amalga oshmadi — qaytarildi (${session.carNumber})`, `${idempotencyKey}:refund`);
+    await grantCoins(memberId, amt, "debt_refund", `Qarz to'lash amalga oshmadi — qaytarildi (${carNumber})`, `${idempotencyKey}:refund`);
     await prisma.driverDebtPayment.update({ where: { idempotencyKey }, data: { status: "refunded", errorNote: note.slice(0, 200), kasStatusCode: code ?? null } });
   };
   try {
-    const res = await getDataSource().addDriverPayment(acct.kasId, session.carNumber, amt, "1067 bot — qarz to'lash", true);
+    const res = await getDataSource().addDriverPayment(acct.kasId, carNumber, amt, "1067 bot — qarz to'lash", true);
     if (!res.ok) {
       await refund(`kas status ${res.status}`, res.status);
       return { ok: false, message: `❌ Kas qabul qilmadi (status ${res.status}). Tanga qaytarildi.` };

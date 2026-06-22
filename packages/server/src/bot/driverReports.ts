@@ -19,7 +19,7 @@ async function showRides(ctx: Context): Promise<void> {
   }
   const r = await getDriverRidesToday(me.member.id);
   if (!r.ok) {
-    await ctx.reply("Avval /driver_login orqali haydovchi hisobingizni ulang.");
+    await ctx.reply("Bu bo'lim faqat 1067 haydovchilari uchun 🚗");
     return;
   }
   if (!r.rides?.length) {
@@ -28,9 +28,10 @@ async function showRides(ctx: Context): Promise<void> {
   }
   const lines = [`🚗 <b>Bugungi safarlar: ${r.count}</b>`, `💰 Jami: <b>${formatNumber(r.totalFare ?? 0)} so'm</b>`, ``];
   for (const ride of r.rides.slice(0, 15)) {
-    const km = (ride.distance / 1000).toFixed(1);
+    const km = ride.distance ? (ride.distance / 1000).toFixed(1) + "km · " : "";
+    const mins = ride.time ? `${ride.time}daq` : "";
     const emoji = RIDE_STATUS[ride.status] ?? "•";
-    lines.push(`${emoji} ${esc(ride.addressName)} — <b>${formatNumber(ride.payment)}</b> · ${km}km · ${ride.time}daq`);
+    lines.push(`${emoji} ${esc(ride.addressName)} — <b>${formatNumber(ride.payment)}</b> · ${km}${mins}`);
   }
   if (r.rides.length > 15) lines.push(`<i>…va yana ${r.rides.length - 15} ta</i>`);
   await ctx.reply(lines.join("\n"), { parse_mode: "HTML" });
@@ -44,25 +45,14 @@ async function showEarnings(ctx: Context): Promise<void> {
   }
   const r = await getDriverEarningsToday(me.member.id);
   if (!r.ok) {
-    await ctx.reply("Avval /driver_login orqali haydovchi hisobingizni ulang.");
+    await ctx.reply("Bu bo'lim faqat 1067 haydovchilari uchun 🚗");
     return;
   }
   const lines = [`💰 <b>Bugungi daromad</b>`, `🚗 <code>${esc(r.carNumber ?? "")}</code>`, ``];
-  lines.push(`🟢 Ishlab topdingiz: <b>${formatNumber(r.earnedToday ?? 0)} so'm</b>`);
-  if ((r.debtPaidToday ?? 0) > 0) lines.push(`💸 Qarz to'landi: <b>${formatNumber(r.debtPaidToday ?? 0)} so'm</b>`);
-  if (r.latestBalance != null) lines.push(`👛 Balans: <b>${formatNumber(r.latestBalance)} so'm</b>`);
-  if (r.latestDebt != null && r.latestDebt > 0) lines.push(`⚠️ Qarz: <b>${formatNumber(r.latestDebt)} so'm</b> — /qarz`);
-  if (r.ledger?.length) {
-    lines.push(``, `<b>So'nggi harakatlar:</b>`);
-    for (const row of r.ledger.slice(0, 8)) {
-      const sign = row.newBalance >= row.oldBalance ? "➕" : "➖";
-      const delta = Math.abs(row.newBalance - row.oldBalance);
-      const label = row.type === "debt" ? "Qarz" : row.addressName || row.type;
-      lines.push(`${sign} ${esc(label)}: <b>${formatNumber(delta)}</b>`);
-    }
-  } else {
-    lines.push(``, `<i>Bugun harakat yo'q.</i>`);
-  }
+  lines.push(`🟢 Bugun ishlab topdingiz: <b>${formatNumber(r.earnedToday ?? 0)} so'm</b>`);
+  if ((r.debtPaidToday ?? 0) > 0) lines.push(`💸 Bugun qarz to'ladingiz: <b>${formatNumber(r.debtPaidToday ?? 0)} so'm</b>`);
+  if (r.balance != null) lines.push(`👛 Kas balans: <b>${formatNumber(r.balance)} so'm</b>`);
+  if (r.debt != null && r.debt > 0) lines.push(`⚠️ Qarz: <b>${formatNumber(r.debt)} so'm</b> — /qarz`);
   await ctx.reply(lines.join("\n"), { parse_mode: "HTML" });
 }
 

@@ -41,8 +41,8 @@ async function showDebtCard(ctx: Context): Promise<void> {
     const msg =
       info.reason === "feature_off"
         ? "💸 Qarz to'lash hozircha mavjud emas."
-        : info.reason === "not_logged_in"
-          ? "Avval /driver_login orqali haydovchi hisobingizni ulang."
+        : info.reason === "not_driver"
+          ? "Bu bo'lim faqat 1067 haydovchilari uchun 🚗"
           : "Kas serverdan ma'lumot olinmadi. Birozdan keyin urinib ko'ring.";
     await ctx.reply(msg);
     return;

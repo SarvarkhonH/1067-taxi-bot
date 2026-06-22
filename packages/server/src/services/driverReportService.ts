@@ -1,11 +1,11 @@
-// 📊 Bosqich 4 — driver-side report aggregation for /safarlarim + /daromad. Pulls the driver's own
-// kas reports (via their stored session creds) and rolls them up into today's figures. Read-only:
-// no money path, no flag (the data is the driver's own, gated only by /driver_login). A short cache
-// avoids hammering kas when a driver taps around.
+// 📊 Driver-side report aggregation for the /driver panel + Mini App. The driver is ALREADY linked
+// (phone → kas member, type=driver, carNumber mirrored from kas), so NO /driver_login is needed —
+// every read here uses the member's own plate + the ADMIN kas client (getRidesByCar, getDriverAccount).
+// Read-only, no money path. A short cache avoids hammering kas when a driver taps around.
+import { prisma } from "../db";
 import { getDataSource } from "../kas";
-import { getDriverSession } from "./driverAuth";
 import { featureOn } from "./featureFlags";
-import { getDriverBookingHistory, getDriverPaymentHistory, type DriverRide, type DriverLedgerRow } from "./kasDriverApi";
+import type { RideHistoryItem } from "../kas/types";
 
 const CACHE_MS = 60_000;
 const cache = new Map<string, { at: number; val: unknown }>();
@@ -17,67 +17,86 @@ async function cached<T>(key: string, fetcher: () => Promise<T>): Promise<T> {
   return val;
 }
 
-// Koson is UTC+5 — start-of-today in ms, local. kas's dateInMillisecond filter is day-based.
-function startOfTodayMs(): number {
-  const d = new Date();
-  d.setUTCHours(d.getUTCHours() + 5); // shift into Koson local
-  d.setUTCHours(0, 0, 0, 0);
-  d.setUTCHours(d.getUTCHours() - 5); // back to UTC instant of local midnight
-  return d.getTime();
+// Koson is UTC+5 — count a ride against the LOCAL day so late-night rides land on the right date.
+function kosonDay(at: string | Date): string {
+  const d = new Date(at);
+  if (isNaN(d.getTime())) return "";
+  d.setUTCHours(d.getUTCHours() + 5);
+  return d.toISOString().slice(0, 10);
+}
+function todayKoson(): string {
+  return kosonDay(new Date());
+}
+
+/** The member's plate if they're a linked driver, else null. */
+async function driverCar(memberId: number): Promise<string | null> {
+  const m = await prisma.member.findUnique({ where: { id: memberId }, select: { type: true, carNumber: true } });
+  if (m?.type !== "driver" || !m.carNumber) return null;
+  return m.carNumber;
+}
+
+/** This car's recent rides (admin getRidesByCar), cached. */
+async function recentRides(memberId: number, carNumber: string): Promise<RideHistoryItem[]> {
+  return cached(`rides:${memberId}`, () => getDataSource().getRidesByCar(carNumber, 25).catch(() => [] as RideHistoryItem[]));
 }
 
 export interface DriverRidesReport {
   ok: boolean;
-  reason?: "not_logged_in";
+  reason?: "not_driver";
   carNumber?: string;
-  rides?: DriverRide[];
+  rides?: RideHistoryItem[];
   count?: number;
   totalFare?: number;
 }
 
-/** Today's rides for the logged-in driver. */
+/** Today's rides for the linked driver (filtered to the Koson day). */
 export async function getDriverRidesToday(memberId: number): Promise<DriverRidesReport> {
-  const session = await getDriverSession(memberId);
-  if (!session) return { ok: false, reason: "not_logged_in" };
-  const rides = await cached(`rides:${memberId}`, () => getDriverBookingHistory(session.carNumber, session.secretKey, startOfTodayMs()));
+  const carNumber = await driverCar(memberId);
+  if (!carNumber) return { ok: false, reason: "not_driver" };
+  const all = await recentRides(memberId, carNumber);
+  const today = todayKoson();
+  const rides = all.filter((r) => kosonDay(r.at) === today);
   const totalFare = rides.reduce((s, r) => s + r.payment, 0);
-  return { ok: true, carNumber: session.carNumber, rides, count: rides.length, totalFare };
+  return { ok: true, carNumber, rides, count: rides.length, totalFare };
 }
 
 export interface DriverEarningsReport {
   ok: boolean;
-  reason?: "not_logged_in";
+  reason?: "not_driver";
   carNumber?: string;
-  ledger?: DriverLedgerRow[];
-  earnedToday?: number; // Σ payment of "booking"-type rows today
-  debtPaidToday?: number; // Σ payment of "debt"-type rows today
-  latestBalance?: number;
-  latestDebt?: number;
+  earnedToday?: number; // Σ fare of today's rides
+  debtPaidToday?: number; // Σ tanga debt-payments we processed today (our own log)
+  balance?: number; // current kas wallet
+  debt?: number; // current kas debt
 }
 
-/** Today's earnings ledger for the logged-in driver. The ledger rows ARE the honest take-home view
- *  (each shows old→new balance + old→new debt, so commission shows as the balance delta). */
+/** Today's earnings snapshot: today's ride fares + current kas balance/debt + our debt-payments. */
 export async function getDriverEarningsToday(memberId: number): Promise<DriverEarningsReport> {
-  const session = await getDriverSession(memberId);
-  if (!session) return { ok: false, reason: "not_logged_in" };
-  const ledger = await cached(`earn:${memberId}`, () => getDriverPaymentHistory(session.carNumber, session.secretKey, startOfTodayMs()));
-  const earnedToday = ledger.filter((r) => r.type === "booking").reduce((s, r) => s + r.payment, 0);
-  const debtPaidToday = ledger.filter((r) => r.type === "debt").reduce((s, r) => s + r.payment, 0);
-  // ledger is newest-first → row[0] carries the latest balance/debt
-  const latest = ledger[0];
+  const carNumber = await driverCar(memberId);
+  if (!carNumber) return { ok: false, reason: "not_driver" };
+  const [all, acct, debtPaid] = await Promise.all([
+    recentRides(memberId, carNumber),
+    getDataSource().getDriverAccount(carNumber).catch(() => null),
+    // our own confirmed debt-payments today (the part WE moved)
+    prisma.driverDebtPayment.aggregate({
+      where: { memberId, status: "confirmed", createdAt: { gte: new Date(`${todayKoson()}T00:00:00.000Z`) } },
+      _sum: { amount: true },
+    }).catch(() => ({ _sum: { amount: 0 } })),
+  ]);
+  const today = todayKoson();
+  const earnedToday = all.filter((r) => kosonDay(r.at) === today).reduce((s, r) => s + r.payment, 0);
   return {
     ok: true,
-    carNumber: session.carNumber,
-    ledger,
+    carNumber,
     earnedToday,
-    debtPaidToday,
-    latestBalance: latest?.newBalance,
-    latestDebt: latest?.newDebt,
+    debtPaidToday: debtPaid._sum.amount ?? 0,
+    balance: acct?.balance,
+    debt: acct?.debt,
   };
 }
 
 export interface DriverPanelExtras {
-  linked: boolean; // has a driver session (did /driver_login)
+  linked: boolean; // is a linked driver (type=driver + carNumber)
   carNumber?: string;
   balance?: number;
   debt?: number;
@@ -86,24 +105,25 @@ export interface DriverPanelExtras {
   canPayDebt?: boolean; // qarz feature flag is on AND there's debt
 }
 
-/** One bundle for the unified /driver panel: session status + kas balance/debt + today's rides.
- *  Read-only. Degrades gracefully — if kas is unreachable, returns linked:true with figures undefined
- *  rather than throwing (the panel still renders the rest). */
+/** One bundle for the unified /driver panel: kas balance/debt + today's rides. Read-only, degrades
+ *  gracefully (kas unreachable → figures undefined, panel still renders). */
 export async function getDriverPanelExtras(memberId: number): Promise<DriverPanelExtras> {
-  const session = await getDriverSession(memberId);
-  if (!session) return { linked: false };
-  const [acct, rides, qarzOn] = await Promise.all([
-    getDataSource().getDriverAccount(session.carNumber).catch(() => null),
-    cached(`rides:${memberId}`, () => getDriverBookingHistory(session.carNumber, session.secretKey, startOfTodayMs())).catch(() => [] as DriverRide[]),
+  const carNumber = await driverCar(memberId);
+  if (!carNumber) return { linked: false };
+  const [acct, all, qarzOn] = await Promise.all([
+    getDataSource().getDriverAccount(carNumber).catch(() => null),
+    recentRides(memberId, carNumber),
     featureOn("qarz").catch(() => false),
   ]);
-  const fareToday = rides.reduce((s, r) => s + r.payment, 0);
+  const today = todayKoson();
+  const todays = all.filter((r) => kosonDay(r.at) === today);
+  const fareToday = todays.reduce((s, r) => s + r.payment, 0);
   return {
     linked: true,
-    carNumber: session.carNumber,
+    carNumber,
     balance: acct?.balance,
     debt: acct?.debt,
-    ridesToday: rides.length,
+    ridesToday: todays.length,
     fareToday,
     canPayDebt: qarzOn && (acct?.debt ?? 0) > 0,
   };

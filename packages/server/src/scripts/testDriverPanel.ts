@@ -1,11 +1,10 @@
-// Bosqich 4b: unified /driver panel extras (getDriverPanelExtras). Read-only. Proves the kas block
-// aggregates correctly for a logged-in driver, degrades to linked:false when no session, and the
+// Unified /driver panel extras (getDriverPanelExtras), no-login. Proves the kas block aggregates
+// from the member's own plate + admin kas, a non-driver/plate-less member is linked:false, and the
 // canPayDebt gate respects BOTH the qarz flag AND a positive debt. Snapshot-restores feature:qarz.
 //
-// Run: DRIVER_KEY_AES=<hex> KAS_MODE=mock pnpm tsx src/scripts/testDriverPanel.ts
+// Run: KAS_MODE=mock pnpm tsx src/scripts/testDriverPanel.ts
 import "../env";
 import { prisma } from "../db";
-import { saveDriverSession } from "../services/driverAuth";
 import { getDriverPanelExtras, __clearDriverReportCache } from "../services/driverReportService";
 import { setFeature, __resetFeatureCache } from "../services/featureFlags";
 
@@ -14,8 +13,6 @@ let failed = 0;
 const ok = (c: boolean, l: string): void => { console.log(`${c ? "✅" : "❌"} ${l}`); if (!c) failed++; };
 
 async function cleanup(): Promise<void> {
-  const ids = (await prisma.member.findMany({ where: { kasId: { startsWith: TAG } }, select: { id: true } })).map((m) => m.id);
-  if (ids.length) await prisma.driverSession.deleteMany({ where: { memberId: { in: ids } } });
   await prisma.member.deleteMany({ where: { kasId: { startsWith: TAG } } });
 }
 
@@ -25,17 +22,16 @@ async function main(): Promise<void> {
   const flagBefore = await prisma.appState.findUnique({ where: { key: "feature:qarz" } });
 
   try {
-    // ── unlinked driver → linked:false ────────────────────────────────────────
+    // ── not a driver (client) → linked:false ──────────────────────────────────
     {
-      const m = await prisma.member.create({ data: { type: "driver", kasId: `${TAG}-u`, fullName: "Unlinked", carNumber: "44Q001WW" } });
+      const m = await prisma.member.create({ data: { type: "client", kasId: `${TAG}-u`, fullName: "Client", phone: "+998900099002" } });
       const x = await getDriverPanelExtras(m.id);
-      ok(!x.linked, `unlinked → linked:false`);
-      ok(x.canPayDebt === undefined, `unlinked → no canPayDebt`);
+      ok(!x.linked, `client → linked:false`);
+      ok(x.canPayDebt === undefined, `client → no canPayDebt`);
     }
 
     // ── linked driver, qarz OFF → figures present, canPayDebt false ────────────
     const m = await prisma.member.create({ data: { type: "driver", kasId: `${TAG}-m`, fullName: "Panel Test", carNumber: "44Q002WW" } });
-    await saveDriverSession(m.id, "44Q002WW", "mock-secret-44Q002WW");
 
     await setFeature("qarz", false);
     __resetFeatureCache();
