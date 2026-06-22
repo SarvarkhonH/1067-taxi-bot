@@ -240,6 +240,8 @@ export function GarajShell({ onClose, initial }: { onClose: () => void; initial?
   const [ceremonyTier, setCeremonyTier] = useState<number | null>(null);
   const prevTierRef = useRef<number | null>(null);
   const [nowTick, setNowTick] = useState(() => Date.now()); // #5 craft-timer ticker
+  const [firstCarShown, setFirstCarShown] = useState(false); // 🌟 first-car ceremony one-shot
+  const prevCarCountRef = useRef<number | null>(null);
 
   const load = useCallback(() => {
     if (initial) return; // demo/fixture mode — no backend fetch
@@ -278,6 +280,40 @@ export function GarajShell({ onClose, initial }: { onClose: () => void; initial?
     const t = setInterval(() => setNowTick(Date.now()), 1000);
     return () => clearInterval(t);
   }, [st?.craftJob?.id, st?.craftJob?.ready, st?.craftJob?.finishesAt]);
+
+  // 🌟 P-Polish-Home-2 — first-car ceremony: 0 → 1 cars triggers a one-shot welcome
+  // (reuses .gz-ceremony shell; copy adapted for "Birinchi mashinangiz"). Baseline-only on
+  // first mount so returning players don't re-trigger.
+  useEffect(() => {
+    const n = st?.cars.length ?? 0;
+    if (prevCarCountRef.current != null && prevCarCountRef.current === 0 && n >= 1 && !firstCarShown) {
+      setFirstCarShown(true);
+      hapticSuccess();
+      playTierFanfare();
+    }
+    prevCarCountRef.current = n;
+  }, [st?.cars.length, firstCarShown]);
+
+  // 🌟 P-Polish-Home-2 — scene-reveal: tag sections with [data-reveal] → fade+slide up on view.
+  // IntersectionObserver runs once per element (60ms stagger via delay attr); reduced-motion users
+  // get instant-visible. Safe: pure CSS class toggle, no layout thrash.
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    if (window.matchMedia?.("(prefers-reduced-motion: reduce)").matches) {
+      document.querySelectorAll<HTMLElement>("[data-reveal]").forEach((el) => el.classList.add("revealed"));
+      return;
+    }
+    const io = new IntersectionObserver((entries) => {
+      entries.forEach((e) => {
+        if (e.isIntersecting) {
+          (e.target as HTMLElement).classList.add("revealed");
+          io.unobserve(e.target);
+        }
+      });
+    }, { threshold: 0.15 });
+    document.querySelectorAll<HTMLElement>("[data-reveal]:not(.revealed)").forEach((el) => io.observe(el));
+    return () => io.disconnect();
+  }, [st?.cars.length, st?.motorEnabled]);
 
   const flash = (msg: string): void => { setToast(msg); setTimeout(() => setToast(null), 2200); };
 
@@ -361,7 +397,7 @@ export function GarajShell({ onClose, initial }: { onClose: () => void; initial?
               </div>
 
               {/* 🌟 status pill-strip — 4 ta sochilgan badge → bitta horizontal scroll-snap qator */}
-              <div className="gz-pillstrip" role="list">
+              <div className="gz-pillstrip" role="list" data-reveal style={{ ["--reveal-delay" as never]: "0ms" }}>
                 <span className="gz-pill-chip" role="listitem">
                   <span className="dim fs11">Maqom</span>
                   <b>{st.reputationName ?? reputationTier(rep)}</b>
@@ -405,14 +441,14 @@ export function GarajShell({ onClose, initial }: { onClose: () => void; initial?
 
               {/* tier / reputation progress (compact, under the stage) */}
               {/* in demo/fixture mode (initial set, never prod) the tier line previews the ceremony */}
-              <div className="gz-tier" onClick={initial ? () => { const next = Math.min(5, (st.garageTier ?? 1) + 1); setCeremonyTier(next); hapticSuccess(); playTierFanfare(); } : undefined}>
+              <div className="gz-tier" data-reveal style={{ ["--reveal-delay" as never]: "60ms" }} onClick={initial ? () => { const next = Math.min(5, (st.garageTier ?? 1) + 1); setCeremonyTier(next); hapticSuccess(); playTierFanfare(); } : undefined}>
                 <div className="gz-tier-line"><span className="dim fs12">Obro'</span> <b>{rep.toLocaleString("ru-RU")}</b> <span className="dim fs12">· Daraja {st.garageTier}/5</span></div>
                 <ProgressBar value={tierProg.cur} max={tierProg.max} />
                 <span className="gz-hero-next">{tierProg.nextName ? `${tierProg.toNext.toLocaleString("ru-RU")} obro' → ${tierProg.nextName}` : "Eng yuqori daraja 🏁"}</span>
               </div>
 
               {/* daily strip: streak + offline box (box ALWAYS visible) */}
-              <div className="gz-daily">
+              <div className="gz-daily" data-reveal style={{ ["--reveal-delay" as never]: "120ms" }}>
                 <div className="gz-streak">
                   <span className="gz-streak-fire">🔥</span>
                   <span className="gz-streak-n">{st.streak.current}</span>
@@ -877,6 +913,25 @@ export function GarajShell({ onClose, initial }: { onClose: () => void; initial?
               ))}
             </ul>
             <Button onClick={() => { haptic(); setCeremonyTier(null); }}>Davom etish</Button>
+          </div>
+        </div>
+      )}
+
+      {/* 🌟 P-Polish-Home-2 — first-car welcome (one-shot when player goes from 0 → 1 cars) */}
+      {firstCarShown && (
+        <div className="gz-ceremony" onClick={() => setFirstCarShown(false)}>
+          <div className="gz-cer-rays" aria-hidden />
+          <div className="gz-cer-card" onClick={(e) => e.stopPropagation()}>
+            <div className="gz-cer-badge">🚗</div>
+            <div className="gz-cer-kicker">Birinchi mashinangiz</div>
+            <div className="gz-cer-tier">Xush kelibsiz!</div>
+            <div className="gz-cer-sub">Garaj endi sizniki</div>
+            <ul className="gz-cer-perks">
+              <li><span className="gz-cer-tick">✓</span> Mashina pul ishlay boshladi</li>
+              <li><span className="gz-cer-tick">✓</span> «Yig'ish» bilan tanga oling</li>
+              <li><span className="gz-cer-tick">✓</span> Bozorda boshqalar bilan savdo qiling</li>
+            </ul>
+            <Button onClick={() => { haptic(); setFirstCarShown(false); }}>Boshlash</Button>
           </div>
         </div>
       )}
