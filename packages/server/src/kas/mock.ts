@@ -7,6 +7,7 @@ import type {
   BookingResult,
   CarModel,
   ClientBookingInfo,
+  DriverAccount,
   KasAddon,
   ClientTariff,
   CompanyInfo,
@@ -121,8 +122,13 @@ export class KasMockSource implements KasDataSource {
     return { ok: true, oldBonus: 0, newBonus: delta, status: 200 };
   }
 
-  async addDriverPayment(_driverId: number, _carNumber: string, amount: number): Promise<{ ok: boolean; balance: number | null; status: number }> {
+  async addDriverPayment(_driverId: number, _carNumber: string, amount: number, _comment = "", _debt = false): Promise<{ ok: boolean; balance: number | null; status: number }> {
     return { ok: true, balance: amount, status: 200 };
+  }
+
+  async getDriverAccount(carNumber: string): Promise<DriverAccount | null> {
+    const car = carNumber.replace(/\s/g, "").toUpperCase() || "01A111AA";
+    return { kasId: 1001, carNumber: car, balance: 18200, debt: 45000 }; // mock: a driver with 45k debt
   }
 
   async listActiveBookings(): Promise<ActiveBookingLite[]> {

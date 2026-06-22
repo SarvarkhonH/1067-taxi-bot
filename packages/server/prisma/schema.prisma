@@ -839,6 +839,33 @@ model GarajCraftJob {
   @@index([status, finishesAt])
 }
 
+// 💸 Bosqich 3 audit log for driver-self debt repayments through the bot. ONE row per attempt; the
+// `status` column distinguishes the failure mode so a wedged row never silently passes (and the
+// driver doesn't see the wrong total). The idempotencyKey ("debt:<memberId>:<nonce>") matches the
+// CoinTxn key so a retry that already debited tanga doesn't double-charge.
+//   pending      = tanga held, kas write not started (process crash window)
+//   balance_ok   = addDriverPayment succeeded (kas balance +amount)
+//   confirmed    = takeDebt succeeded too (kas balance applied to debt; the happy path)
+//   stuck        = balance_ok but takeDebt failed → tanga stays gone, kas balance up but debt
+//                  unchanged; driver can retry takeDebt manually or use the leftover balance
+//   refunded     = addDriverPayment failed → CoinTxn reversed, member made whole
+model DriverDebtPayment {
+  id             Int      @id @default(autoincrement())
+  memberId       Int
+  carNumber      String
+  amount         Int // so'm == tanga (1:1 internal)
+  status         String   @default("pending")
+  idempotencyKey String   @unique
+  kasBalance     Int? // post-write kas balance, when known
+  kasStatusCode  Int?
+  errorNote      String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@index([memberId, createdAt])
+  @@index([status])
+}
+
 // 🔑 Driver-side kas creds. A driver logs into the bot ONCE via /driver_login (carNumber + SMS) —
 // kas returns a long-lived secretKey that authenticates every /api/driverApp/* call. We store it
 // AES-256-GCM-encrypted (key from env DRIVER_KEY_AES, NEVER in DB) so a DB leak alone can't

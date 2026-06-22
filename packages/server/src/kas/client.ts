@@ -3,6 +3,7 @@ import https from "node:https";
 import { env } from "../env";
 import type {
   DriverPin,
+  DriverAccount,
   ActiveBooking,
   ActiveBookingLite,
   BonusRules,
@@ -353,9 +354,10 @@ export class KasLiveSource implements KasDataSource {
    *  captured body: { driverId, carNumber, payViaCash:"<sum>", payViaOnline:<sum>, comment, debt }.
    *  This is how a driver tops up their kas1067 driver balance — NOT addClientBonus (that's the
    *  client bonus). Returns the raw response so the caller can confirm. */
-  async addDriverPayment(driverId: number, carNumber: string, amount: number, comment = ""): Promise<{ ok: boolean; balance: number | null; status: number }> {
-    // online top-up: payViaOnline carries the sum, payViaCash "0" (proven: +N raises the kas balance)
-    const res = await this.postJson("api/drivers/payment", { driverId, carNumber, payViaCash: "0", payViaOnline: Math.floor(amount), comment, debt: false });
+  async addDriverPayment(driverId: number, carNumber: string, amount: number, comment = "", debt = false): Promise<{ ok: boolean; balance: number | null; status: number }> {
+    // online top-up: payViaOnline carries the sum, payViaCash "0" (proven: +N raises the kas balance).
+    // debt=true flags it as a debt settlement (the SPA's debt checkbox) — Bosqich 3 /qarz path.
+    const res = await this.postJson("api/drivers/payment", { driverId, carNumber, payViaCash: "0", payViaOnline: Math.floor(amount), comment, debt });
     let balance: number | null = null;
     try {
       balance = (JSON.parse(res.body) as { balance?: number })?.balance ?? null;
@@ -363,6 +365,21 @@ export class KasLiveSource implements KasDataSource {
       /* non-JSON */
     }
     return { ok: res.status >= 200 && res.status < 300, balance, status: res.status };
+  }
+
+  /** Bosqich 3: a driver's financial snapshot by car number (kas drivers/byCarNumber returns the
+   *  full driver record incl. balance + debt). Returns null on lookup failure (best-effort). */
+  async getDriverAccount(carNumber: string): Promise<DriverAccount | null> {
+    const car = carNumber.replace(/\s/g, "").toUpperCase();
+    if (car.length < 4) return null;
+    try {
+      const d = await this.getJson(`api/drivers/byCarNumber/${encodeURIComponent(car)}`);
+      const kasId = Number(d.id ?? 0);
+      if (!kasId) return null;
+      return { kasId, carNumber: String(d.carNumber ?? car), balance: num(d.balance), debt: num(d.debt) };
+    } catch {
+      return null;
+    }
   }
 
   async createBooking(req: BookingRequest): Promise<BookingResult> {

@@ -168,6 +168,16 @@ export interface CompanyInfo {
   lng: number;
 }
 
+// Bosqich 3: a driver's financial snapshot (kas drivers/byCarNumber). debt = what the driver owes
+// the company (commission), balance = their kas wallet. Used by /qarz to show the figure and to
+// settle it from tanga.
+export interface DriverAccount {
+  kasId: number;
+  carNumber: string;
+  balance: number;
+  debt: number;
+}
+
 export interface GeoPoint {
   lat: number;
   lng: number;
@@ -209,8 +219,12 @@ export interface KasDataSource {
   setClientBonus(phone: string, newBonus: number): Promise<{ ok: boolean; oldBonus: number; name?: string; status?: number }>;
   /** Reward: add a delta to a client's cashback bonus. */
   addClientBonus(phone: string, delta: number): Promise<{ ok: boolean; oldBonus: number; newBonus: number; status?: number }>;
-  /** Top up a DRIVER's kas balance (drivers/payment, online). Driver write — NOT the client bonus. */
-  addDriverPayment(driverId: number, carNumber: string, amount: number, comment?: string): Promise<{ ok: boolean; balance: number | null; status: number }>;
+  /** Top up a DRIVER's kas balance (drivers/payment, online). Driver write — NOT the client bonus.
+   *  `debt=true` flags the payment as a debt settlement (the SPA's debt checkbox) instead of a plain
+   *  balance top-up. */
+  addDriverPayment(driverId: number, carNumber: string, amount: number, comment?: string, debt?: boolean): Promise<{ ok: boolean; balance: number | null; status: number }>;
+  /** Bosqich 3: a driver's financial snapshot (balance + debt + kasId) by car number. */
+  getDriverAccount(carNumber: string): Promise<DriverAccount | null>;
 
   /** Client info: pricing tariff (for fare estimates). */
   getTariff(): Promise<ClientTariff>;

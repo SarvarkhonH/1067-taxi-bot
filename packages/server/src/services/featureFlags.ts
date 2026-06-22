@@ -17,13 +17,14 @@ export const FEATURES = [
   "baraban", // 🎰 post-ride spin wheel (5-min token on ride finish → one spin, real tanga; ships dark)
   "motorolami", // 🌍 MOTOR OLAMI v3 — unique #serial cars that earn (speed→tanga), ships dark
   "komissiya", // 💸 platform commission on transfers/tips/fares (configurable %); OFF until owner QABUL
+  "qarz", // 💸 Bosqich 3: driver pays kas company debt with tanga (real kas write); OFF until owner pilot
 ] as const;
 export type FeatureName = (typeof FEATURES)[number];
 
 // Off until explicitly enabled (go-live flip = setFeature(name, true) after owner QABUL).
 // booking3 = the new map/trip flow; owner still gets a preview via server.ts owner-branch,
 // but real users stay on the (fixed) classic flow until it's accepted. A missing row → OFF.
-const DEFAULT_OFF = new Set<FeatureName>(["booking3", "livinghome", "aibrain", "mahalla", "tolqin", "garajx", "kozacha", "baraban", "motorolami", "komissiya"]);
+const DEFAULT_OFF = new Set<FeatureName>(["booking3", "livinghome", "aibrain", "mahalla", "tolqin", "garajx", "kozacha", "baraban", "motorolami", "komissiya", "qarz"]);
 
 let cache: { at: number; map: Record<string, boolean> } = { at: 0, map: {} };
 
