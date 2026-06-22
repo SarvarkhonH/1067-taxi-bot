@@ -183,18 +183,23 @@ async function main(): Promise<void> {
   let bookingStopped = false;
   let bookingTimer: ReturnType<typeof setTimeout> | null = null;
   const tickBooking = async (): Promise<void> => {
-    let activeRides = 0;
+    let active = 0;
+    let awaitingDriver = 0;
     if (bot && !bookingBusy) {
       bookingBusy = true;
       try {
-        activeRides = await pushBookingUpdates(bot);
+        ({ active, awaitingDriver } = await pushBookingUpdates(bot));
       } catch (e) {
         console.error("[booking] push failed:", e);
       } finally {
         bookingBusy = false;
       }
     }
-    if (!bookingStopped) bookingTimer = setTimeout(() => void tickBooking(), activeRides > 0 ? 15_000 : 90_000);
+    // 🚖 SMS-parity speed: while a rider is WAITING for a driver, poll every 5s so "Haydovchi
+    // topildi" lands in seconds like the kas SMS. Assigned / in-trip → 15s (arrival is WS-instant).
+    // Idle → 90s. One api/bookings call per tick regardless of ride count — cheap at any scale.
+    const delay = awaitingDriver > 0 ? 5_000 : active > 0 ? 15_000 : 90_000;
+    if (!bookingStopped) bookingTimer = setTimeout(() => void tickBooking(), delay);
   };
   if (env.KAS_MODE === "live") bookingTimer = setTimeout(() => void tickBooking(), 15_000);
 

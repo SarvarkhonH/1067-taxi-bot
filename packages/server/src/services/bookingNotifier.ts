@@ -144,13 +144,13 @@ export async function pushBookingUpdates(
   bot: Bot,
   dsOverride?: KasDataSource,
   opts?: { memberScope?: Prisma.MemberWhereInput },
-): Promise<number> {
+): Promise<{ active: number; awaitingDriver: number }> {
   const ds = dsOverride ?? getDataSource();
   let bookings: ActiveBookingLite[];
   try {
     bookings = await ds.listActiveBookings();
   } catch {
-    return 0;
+    return { active: 0, awaitingDriver: 0 };
   }
   // newest order per phone WINS: kas ids are monotonic, so a lingering OLD booking (one that never
   // left kas's active list) must never shadow the rider's CURRENT order. Map-from-array kept the
@@ -745,9 +745,15 @@ export async function pushBookingUpdates(
     console.error("[fare] pending resolve failed:", e);
   }
 
-  // count of live rides this tick → the index sweep schedules its NEXT run fast (15s) while a
-  // ride is active, idle (90s) otherwise. Same data already fetched (no extra kas call).
-  return linked.filter((m) => m.phone && byPhone.has(m.phone.replace(/\D/g, "").slice(-9))).length;
+  // tier the next sweep (no extra kas call — reuse byPhone): a rider still WAITING for a driver
+  // (active booking, no car assigned yet) → poll 5s so "Haydovchi topildi" lands in seconds like the
+  // kas SMS; any active ride (assigned / in-trip — arrival is WS-instant) → 15s; idle → 90s.
+  const activeMembers = linked.filter((m) => m.phone && byPhone.has(m.phone.replace(/\D/g, "").slice(-9)));
+  const awaitingDriver = activeMembers.filter((m) => {
+    const b = byPhone.get(m.phone!.replace(/\D/g, "").slice(-9));
+    return b ? !b.carNumber : false;
+  }).length;
+  return { active: activeMembers.length, awaitingDriver };
 }
 
 // 🧾 Deliver ride fares that kas finalized AFTER the finish card was sent (SMS-parity). Called once

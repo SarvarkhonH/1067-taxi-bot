@@ -68,7 +68,9 @@ function lite(status: string, carNumber = ""): ActiveBookingLite {
 }
 
 async function cleanup(): Promise<void> {
-  await prisma.appState.deleteMany({ where: { key: { in: [`fundride:${BOOKING_ID}`, `finishcard:${BOOKING_ID}`] } } });
+  await prisma.appState.deleteMany({
+    where: { key: { in: [`fundride:${BOOKING_ID}`, `finishcard:${BOOKING_ID}`, `wsarrived:${BOOKING_ID}`, `farepending:${BOOKING_ID}`, `faredone:${BOOKING_ID}`] } },
+  });
   // T3: per-ride finish markers for this booking (so the next run re-increments)
   // per-ride quest/score idempotency markers for this booking (qinc:/qscore:)
   await prisma.appState.deleteMany({
@@ -151,7 +153,8 @@ async function attempt(): Promise<number> {
 
   // tick 2: driver assigned → card EDITED (not re-sent), pin appears
   await pushBookingUpdates(fakeBot, makeDs(lite("called", CAR), echo), { memberScope: { kasId: { startsWith: TAG } } });
-  ok(calls.send === 1, `tick2 assigned: still 1 sent message (edit, not send)`);
+  ok(calls.send === 2, `tick2 assigned: card EDITED in place + 🚖 driver-found ping sent (send ${calls.send})`);
+  ok(calls.texts[1]!.includes("topildi"), `tick2: the new send IS the driver-found ping, not a duplicate card (kas OnTakeBooking SMS)`);
   ok(calls.edit >= 1, `card edited in place (${calls.edit})`);
   ok(calls.loc === 1, `moving pin sent once`);
   // G3: en-route card keyboard = 📞 call + 🛡 share + ✖ cancel
@@ -165,6 +168,7 @@ async function attempt(): Promise<number> {
   await pushBookingUpdates(fakeBot, makeDs(lite("started", CAR), echo), { memberScope: { kasId: { startsWith: TAG } } });
   const m1 = await prisma.member.findUnique({ where: { id: rider.id } });
   ok(!!m1?.rideStartedAt, `ride meter started on first 'started' sighting`);
+  ok(calls.send === 3, `tick3 started: 🚕 arrival "keldi" ping sent (kas OnInPlace SMS) (send ${calls.send})`);
   ok(calls.editLoc >= 1, `pin position edited (${calls.editLoc})`);
 
   // rider guesses 6-9; backdate the meter so the ride measures ~7 min
@@ -173,16 +177,16 @@ async function attempt(): Promise<number> {
 
   // tick 4: still started → no new sends
   await pushBookingUpdates(fakeBot, makeDs(lite("started", CAR), echo), { memberScope: { kasId: { startsWith: TAG } } });
-  ok(calls.send === 1, `tick4: still no extra messages`);
+  ok(calls.send === 3, `tick4: no new sends — searching-card + driver-found + arrival pings, nothing more (send ${calls.send})`);
 
   // G4: give the rider a streak so the peak-end card shows the streak line
   await prisma.streak.create({ data: { memberId: rider.id, current: 5, longest: 5, lastCheckIn: new Date() } });
 
   // tick 5: ride gone → finish: card frozen, pin stopped, ONE summary
   await pushBookingUpdates(fakeBot, makeDs(null, echo), { memberScope: { kasId: { startsWith: TAG } } });
-  ok(calls.send === 2, `finish: exactly 1 summary message (total sends ${calls.send})`);
+  ok(calls.send === 4, `finish: 1 summary added on top of searching-card + driver-found + arrival pings (total sends ${calls.send})`);
   ok(calls.stopLoc === 1, `live pin stopped`);
-  const summary = calls.texts[1]!;
+  const summary = calls.texts.find((t) => t.includes("yakunlandi")) ?? calls.texts[calls.texts.length - 1]!;
   ok(summary.includes("Safar cashback") || summary.includes("JACKPOT"), `summary contains the roll result`);
   ok(summary.includes("TOPDINGIZ"), `ETA-guess resolved as WIN (7 min in 6-9)`);
   ok(summary.includes("🔥 Streak:") && summary.includes("5 kun"), `end-card shows streak line (5 kun)`);
