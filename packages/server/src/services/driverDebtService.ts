@@ -102,7 +102,10 @@ export async function payDebtWithCoins(memberId: number, amount: number, nonce: 
     await prisma.driverDebtPayment.update({ where: { idempotencyKey }, data: { status: "refunded", errorNote: note.slice(0, 200), kasStatusCode: code ?? null } });
   };
   try {
-    const res = await getDataSource().addDriverPayment(acct.kasId, carNumber, amt, "1067 bot — qarz to'lash", true);
+    // PAY VIA ПЛАСТИК (debt=FALSE) — kas's online/card method REDUCES the debt by the amount
+    // (proven on 70A111AA: 60000→55000 for a 5000 payment). NEVER debt=TRUE: that's the kas "долг"
+    // method which makes the driver BORROW (debt goes UP) — the original bug the owner caught.
+    const res = await getDataSource().addDriverPayment(acct.kasId, carNumber, amt, "1067 bot — qarz to'lash (plastik)", false);
     if (!res.ok) {
       await refund(`kas status ${res.status}`, res.status);
       return { ok: false, message: `❌ Kas qabul qilmadi (status ${res.status}). Tanga qaytarildi.` };

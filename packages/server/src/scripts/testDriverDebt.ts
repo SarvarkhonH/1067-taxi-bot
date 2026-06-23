@@ -86,11 +86,20 @@ async function runTests(): Promise<void> {
     ok(info.coins === 100_000, `coins surfaced (got ${info.coins})`);
   }
 
-  // ── happy path ────────────────────────────────────────────────────────────────
+  // ── happy path + DEBT-DIRECTION GUARD (must call kas with debt=FALSE = пластик) ──
   {
     const id = await freshDriver(100_000);
+    const ds = getDataSource();
+    const realPay = ds.addDriverPayment.bind(ds);
+    let seenDebtFlag: boolean | undefined;
+    ds.addDriverPayment = async (kasId, car, amt, comment, debt) => {
+      seenDebtFlag = debt; // capture HOW we pay kas
+      return realPay(kasId, car, amt, comment, debt);
+    };
     const r = await payDebtWithCoins(id, 45_000, "card1");
+    ds.addDriverPayment = realPay;
     ok(r.ok && r.paid === 45_000, `happy: paid 45000 (ok=${r.ok})`);
+    ok(seenDebtFlag === false, `happy: kas called with debt=FALSE (пластик, reduces debt) — NOT долг (got debt=${seenDebtFlag})`);
     ok((await getCoins(id)) === 55_000, `happy: tanga 100000 → 55000 (got ${await getCoins(id)})`);
     const row = await prisma.driverDebtPayment.findFirst({ where: { memberId: id } });
     ok(row?.status === "confirmed", `happy: DriverDebtPayment.status=confirmed (got ${row?.status})`);
