@@ -44,7 +44,7 @@ export function LivingHome(props: {
         [home.center.lat, home.center.lng],
         14,
       );
-      L.tileLayer(TILE_URL, { subdomains: TILE_SUBDOMAINS, maxZoom: 20, crossOrigin: true }).addTo(m);
+      L.tileLayer(TILE_URL, { subdomains: TILE_SUBDOMAINS, maxZoom: 20 }).addTo(m); // no crossOrigin: WebView tile-load fix (see booking3)
       const layer = L.layerGroup().addTo(m);
       for (const c of home.carPins) {
         const icon = L.divIcon({

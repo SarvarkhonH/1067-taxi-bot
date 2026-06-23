@@ -214,7 +214,9 @@ export function BookingView({ onClose }: { onClose: () => void }) {
         // Google tiles (hl=uz) — OSM's tile.openstreetmap.org was unreachable/slow in UZ
         // and blanked the map (same class as the unpkg Leaflet bug). Google is proven
         // reachable here (kas1067 itself runs on it). Fallback: flag the map if tiles fail.
-        const tiles = L.tileLayer("https://mt{s}.google.com/vt/lyrs=m&hl=uz&x={x}&y={y}&z={z}", { subdomains: ["0", "1", "2", "3"], maxZoom: 20, crossOrigin: true });
+        // no crossOrigin: a crossorigin <img> tile often never fires `load`/`error` in the Telegram
+        // WebView → blank map; tile display needs no CORS, so drop it (same fix as booking3).
+        const tiles = L.tileLayer("https://mt{s}.google.com/vt/lyrs=m&hl=uz&x={x}&y={y}&z={z}", { subdomains: ["0", "1", "2", "3"], maxZoom: 20 });
         let tileErrs = 0;
         tiles.on("tileerror", () => {
           if (++tileErrs >= 4) mapRef.current?.classList.add("bk-map-dead"); // hint user to use search instead

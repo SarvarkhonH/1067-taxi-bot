@@ -265,10 +265,14 @@ function Booking3Inner({ me, info, onClose }: { me: MeResponse; info: BookingInf
         [info.center.lat, info.center.lng],
         14,
       );
-      L.tileLayer(TILE_URL, { subdomains: TILE_SUBDOMAINS, maxZoom: 20, crossOrigin: true }).addTo(m);
+      // NO crossOrigin: in the Telegram WebView a crossorigin <img> tile often never fires the
+      // `load` event (so tileload below never clears the fallback) even though Google sends CORS.
+      // Tile DISPLAY needs no CORS (only canvas pixel-reads do; the dark CSS filter doesn't), so
+      // dropping it lets tiles paint + tileload fire. THIS was the "Xarita ko'rinmadi" blank.
+      L.tileLayer(TILE_URL, { subdomains: TILE_SUBDOMAINS, maxZoom: 20 }).addTo(m);
       map.current = m;
-      // if NO tile loads within 8s (network blocked / offline) → placeholder, never a blank map
-      failTimer = setTimeout(() => setMapFailed(true), 8000);
+      // if NO tile loads within 12s (weak UZ 4G headroom) → placeholder, never a blank map
+      failTimer = setTimeout(() => setMapFailed(true), 12000);
       let firstTile = false;
       m.on("tileload", () => {
         if (firstTile) return;
