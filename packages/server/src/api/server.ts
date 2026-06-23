@@ -888,6 +888,22 @@ export function createApiServer(opts: ApiOptions = {}) {
     const { setMotorEcon } = await import("../services/garajService");
     res.json({ ok: true, values: await setMotorEcon(b.key as string, b.value) });
   });
+  // 🎁 Acquisition bonuses — owner sets first-ride / referral / recruit / driver→driver amounts live.
+  app.get("/api/admin/bonus-economy", requireAdmin, async (_req, res) => {
+    const { BONUS_ECON_KNOBS } = await import("@t1067/shared");
+    const { getBonusEcon } = await import("../services/bonusConfig");
+    res.json({ knobs: BONUS_ECON_KNOBS, values: await getBonusEcon() });
+  });
+  app.post("/api/admin/bonus-economy", requireAdmin, requireOwner, async (req, res) => {
+    const b = req.body as { key?: string; value?: number };
+    const { BONUS_ECON_KNOBS } = await import("@t1067/shared");
+    if (!BONUS_ECON_KNOBS.some((k) => k.key === b?.key) || typeof b?.value !== "number") {
+      res.status(400).json({ error: "unknown knob or bad value" });
+      return;
+    }
+    const { setBonusEcon } = await import("../services/bonusConfig");
+    res.json({ ok: true, values: await setBonusEcon(b.key as string, b.value) });
+  });
   // 💸 Transfer commission — owner sets the % charged on every transfer/tip/fare (gated by the
   // "komissiya" flag; the knob is live but only bites once that flag is ON).
   app.get("/api/admin/transfer-economy", requireAdmin, async (_req, res) => {

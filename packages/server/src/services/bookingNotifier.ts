@@ -672,11 +672,12 @@ export async function pushBookingUpdates(
             const recruited = code.startsWith("drv_") && !code.startsWith("drvdrv_");
             if (!referred && !recruited) {
               const { grantCoins } = await import("./coinService");
-              const { REFEREE_REWARD } = await import("./referralService");
-              const g = await grantCoins(m.id, REFEREE_REWARD, "referral", "🎁 Birinchi safaringiz uchun sovg'a!", `welcome_first_ride:${m.id}`);
+              const { getBonusEcon } = await import("./bonusConfig");
+              const amt = (await getBonusEcon()).firstRide ?? 5000;
+              const g = amt > 0 ? await grantCoins(m.id, amt, "referral", "🎁 Birinchi safaringiz uchun sovg'a!", `welcome_first_ride:${m.id}`) : { ok: false };
               if (g.ok) {
                 await bot.api
-                  .sendMessage(chatId, `🎁 <b>Birinchi safaringiz muborak!</b>\nSovg'a: <b>+${formatNumber(REFEREE_REWARD)} tanga</b> hisobingizga tushdi 🚕`, { parse_mode: "HTML" })
+                  .sendMessage(chatId, `🎁 <b>Birinchi safaringiz muborak!</b>\nSovg'a: <b>+${formatNumber(amt)} tanga</b> hisobingizga tushdi 🚕`, { parse_mode: "HTML" })
                   .catch(() => undefined);
               }
             }

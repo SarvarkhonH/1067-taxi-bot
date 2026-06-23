@@ -101,6 +101,28 @@ export function clampTransferEcon(key: string, val: number): number {
   return Math.max(k.min, Math.min(k.max, val));
 }
 
+// ── 🎁 dashboard-configurable acquisition bonuses (owner-tunable, like MOTOR_ECON_KNOBS) ──────
+// The growth levers the owner tunes WITHOUT a deploy. `firstRide` is the single first-ride bonus
+// (welcome + referee + recruit-welcome all read it); the rest are the per-flow sharer rewards.
+// Defaults match the shipped code constants (REFEREE_REWARD=5000, REFERRER_REWARD=1500, …).
+export interface BonusEconKnob { key: string; label: string; def: number; min: number; max: number; step: number }
+export const BONUS_ECON_KNOBS: BonusEconKnob[] = [
+  { key: "firstRide", label: "🎁 Birinchi safar bonusi (tanga)", def: 5000, min: 0, max: 20000, step: 500 },
+  { key: "referrer", label: "👥 Do'st taklif — taklif qilganga (tanga)", def: 1500, min: 0, max: 20000, step: 250 },
+  { key: "recruitFirst", label: "🚖 Mijoz QR — haydovchiga 1-safar (tanga)", def: 500, min: 0, max: 10000, step: 100 },
+  { key: "drvMilestone", label: "🚖 Haydovchi→haydovchi mukofot (tanga)", def: 5000, min: 0, max: 50000, step: 500 },
+  { key: "drvRides", label: "🚖 Haydovchi→haydovchi — necha safar", def: 10, min: 1, max: 50, step: 1 },
+];
+export function bonusEconDefaults(): Record<string, number> {
+  return Object.fromEntries(BONUS_ECON_KNOBS.map((k) => [k.key, k.def]));
+}
+export function clampBonusEcon(key: string, val: number): number {
+  const k = BONUS_ECON_KNOBS.find((x) => x.key === key);
+  if (!k || isNaN(val)) return k?.def ?? val;
+  const clamped = Math.max(k.min, Math.min(k.max, val));
+  return k.step >= 1 ? Math.round(clamped) : clamped; // integer knobs (drvRides) stay whole
+}
+
 // PURE fee math (no DB) — the single source of truth used by the server's feeModel, so it is
 // directly unit-testable. The recipient ALWAYS gets the full amount. DARK (commission off) =
 // no fee at all (replaces the legacy burn). LIVE = commission charged ON TOP of the sender,

@@ -371,6 +371,7 @@ function ControlCards() {
   const [flags, setFlags] = useState<{ name: string; on: boolean }[] | null>(null);
   const [fund, setFund] = useState(0);
   const [econ, setEcon] = useState<{ knobs: { key: string; label: string; def: number; min: number; max: number; step: number; live: boolean }[]; values: Record<string, number> } | null>(null);
+  const [bonusEcon, setBonusEcon] = useState<{ knobs: { key: string; label: string; def: number; min: number; max: number; step: number }[]; values: Record<string, number> } | null>(null);
   const [txEcon, setTxEcon] = useState<{ knobs: { key: string; label: string; def: number; min: number; max: number; step: number }[]; values: Record<string, number>; enabled: boolean; earned: { total: number; today: number } } | null>(null);
   const [corps, setCorps] = useState<{ id: number; name: string; balance: number; employees: number }[]>([]);
   const [cName, setCName] = useState("");
@@ -384,6 +385,7 @@ function ControlCards() {
 
   const load = () => {
     adminApi.features().then((r) => { setFlags(r.features); setFund(r.mashinaFund); }).catch(() => undefined);
+    adminApi.bonusEconomy().then(setBonusEcon).catch(() => undefined);
     adminApi.motorEconomy().then(setEcon).catch(() => undefined);
     adminApi.transferEconomy().then(setTxEcon).catch(() => undefined);
     adminApi.corps().then((r) => setCorps(r.corps)).catch(() => undefined);
@@ -393,6 +395,10 @@ function ControlCards() {
 
   const saveEcon = async (key: string, value: number) => {
     try { const r = await adminApi.setMotorEconomy(key, value); setEcon((e) => (e ? { ...e, values: r.values } : e)); }
+    catch { alert(`'${key}' qiymatini saqlab bo'lmadi`); }
+  };
+  const saveBonusEcon = async (key: string, value: number) => {
+    try { const r = await adminApi.setBonusEconomy(key, value); setBonusEcon((e) => (e ? { ...e, values: r.values } : e)); }
     catch { alert(`'${key}' qiymatini saqlab bo'lmadi`); }
   };
   const saveTxEcon = async (key: string, value: number) => {
@@ -413,6 +419,22 @@ function ControlCards() {
 
   return (
     <>
+      {bonusEcon && (
+        <section className="card">
+          <h3>🎁 Bonus narxlari — jonli boshqaruv (deploy'siz)</h3>
+          <p className="muted" style={{ margin: "0 0 8px", fontSize: 12 }}>Birinchi safar, do'st-taklif va haydovchi-recruit summalari (tanga). Har biri clamp'langan — buzib bo'lmaydi. O'zgartirish ~30s ichida botda ko'rinadi.</p>
+          <div style={{ display: "grid", gap: 8 }}>
+            {bonusEcon.knobs.map((k) => (
+              <div key={k.key} style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+                <span style={{ flex: 1, minWidth: 200 }}>{k.label}</span>
+                <input type="number" step={k.step} min={k.min} max={k.max} defaultValue={bonusEcon.values[k.key]} id={`bonus-${k.key}`} style={{ width: 100 }} />
+                <span className="muted" style={{ fontSize: 11 }}>[{k.min}–{k.max}]</span>
+                <button className="btn sm" onClick={() => { const el = document.getElementById(`bonus-${k.key}`) as HTMLInputElement | null; if (el) void saveBonusEcon(k.key, Number(el.value)); }}>Saqlash</button>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
       <section className="card">
         <h3>🔌 Mexanika kill-switch (deploy'siz o'chirish)</h3>
         <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>

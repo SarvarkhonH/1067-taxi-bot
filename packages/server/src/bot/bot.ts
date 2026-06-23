@@ -16,6 +16,7 @@ import { claimMission, getMissions } from "../services/missionService";
 import { getBoxStatus, openBox } from "../services/boxService";
 import { attachPendingReferral, completeReferral, getReferralInfo, REFERRER_REWARD, REFEREE_REWARD } from "../services/referralService";
 import { featureOn } from "../services/featureFlags";
+import { getBonusEcon } from "../services/bonusConfig";
 import { getWeeklyBoard } from "../services/weeklyService";
 import { getEconomy, getHealth, getLiveBookings } from "../services/adminOps";
 import { getIntegrity } from "../services/reconciliation";
@@ -205,7 +206,7 @@ export function createBot(): Bot {
       // soda). «Boshqa raqam» yo'li endi welcome ichidagi /boshqaraqam ipi (avvalgi 3 ta stacked
       // xabar o'rniga). Ega tilagi: «birinchi marta kirganda chiroyli + juda soda».
       // Hook FAQAT welcomebonus flag yonganda ko'rinadi — to'lanmaydigan va'da bermaymiz.
-      const wb = (await featureOn("welcomebonus")) ? REFEREE_REWARD : 0;
+      const wb = (await featureOn("welcomebonus")) ? ((await getBonusEcon()).firstRide ?? REFEREE_REWARD) : 0;
       await ctx.reply(renderWelcome(ctx.from!.first_name ?? "do'st", wb), { parse_mode: "HTML", reply_markup: contactKeyboard() });
     }
     // 📌 always-visible entry: a one-tap «Ochish» web-app card, PINNED to the top of the chat the
@@ -642,11 +643,12 @@ export function createBot(): Bot {
     const me = await getMe(String(ctx.from!.id));
     if (!me || (me.type !== "driver" && String(ctx.from!.id) !== "6506297119")) return;
     const { driverQrLink } = await import("../services/recruitService");
+    const econ = await getBonusEcon();
     const QR = await import("qrcode");
     const png = await QR.toBuffer(driverQrLink(me.member.id), { width: 600, margin: 2 });
     await ctx.replyWithPhoto(new InputFile(png), {
       caption:
-        `🚖 <b>Mening QR kodim</b>\n\n📣 <b>Mijozga ayting:</b>\n«Bu QR'ni skanlang, botga ulaning — <b>birinchi safaringiz BEPUL</b> (${formatNumber(REFEREE_REWARD)} tanga sovg'a)! 🎁»\n\n✅ U birinchi safarini qilsa — sizga <b>500 tanga</b>, so'ng har safaridan ulush.\n📅 Oyiga 15 ta yangi mijoz · 30 000 tangagacha.`,
+        `🚖 <b>Mening QR kodim</b>\n\n📣 <b>Mijozga ayting:</b>\n«Bu QR'ni skanlang, botga ulaning — <b>birinchi safaringiz BEPUL</b> (${formatNumber(econ.firstRide ?? REFEREE_REWARD)} tanga sovg'a)! 🎁»\n\n✅ U birinchi safarini qilsa — sizga <b>${formatNumber(econ.recruitFirst ?? 500)} tanga</b>, so'ng har safaridan ulush.\n📅 Oyiga 15 ta yangi mijoz · 30 000 tangagacha.`,
       parse_mode: "HTML",
     });
   });
@@ -956,9 +958,10 @@ export function createBot(): Bot {
     if (me?.type === "driver") {
       const { driverQrLink } = await import("../services/recruitService");
       const link = driverQrLink(me.member.id);
+      const econ = await getBonusEcon();
       const shareUrl =
         `https://t.me/share/url?url=${encodeURIComponent(link)}` +
-        `&text=${encodeURIComponent(`🚕 1067 Taxi botiga ulaning — birinchi safaringiz BEPUL (${formatNumber(REFEREE_REWARD)} tanga sovg'a)! 🎁`)}`;
+        `&text=${encodeURIComponent(`🚕 1067 Taxi botiga ulaning — birinchi safaringiz BEPUL (${formatNumber(econ.firstRide ?? REFEREE_REWARD)} tanga sovg'a)! 🎁`)}`;
       const kb = new InlineKeyboard()
         .url("📤 Havolani ulashish", shareUrl)
         .row()
@@ -969,10 +972,10 @@ export function createBot(): Bot {
         "🚖 <b>Mijoz taklif havolangiz</b>\n\n" +
           "Siz haydovchisiz — sizda mijoz-referal emas, <b>mijoz taklif havolasi</b> bor.\n\n" +
           `🔗 <code>${link}</code>\n\n` +
-          "Havolani yuboring yoki QR'ni ko'rsating. Mijoz ulanib birinchi safarini qilsa — sizga <b>500 tanga</b>, " +
+          `Havolani yuboring yoki QR'ni ko'rsating. Mijoz ulanib birinchi safarini qilsa — sizga <b>${formatNumber(econ.recruitFirst ?? 500)} tanga</b>, ` +
           "so'ng har safaridan ulush. 📅 Oyiga 15 ta yangi mijoz · 30 000 tangagacha." +
           (drvOn
-            ? "\n\n🚖 <b>Haydovchi ham chaqira olasiz!</b> Yangi haydovchi ulanib 10 ta safar qilsa — sizga <b>5000 tanga</b>. Pastdagi «🚖 Haydovchi chaqirish»."
+            ? `\n\n🚖 <b>Haydovchi ham chaqira olasiz!</b> Yangi haydovchi ulanib ${econ.drvRides ?? 10} ta safar qilsa — sizga <b>${formatNumber(econ.drvMilestone ?? 5000)} tanga</b>. Pastdagi «🚖 Haydovchi chaqirish».`
             : ""),
         { parse_mode: "HTML", reply_markup: kb },
       );
@@ -1001,7 +1004,7 @@ export function createBot(): Bot {
     await ctx.replyWithPhoto(new InputFile(png), {
       caption:
         "👥 <b>Do'st taklif — havola + QR</b>\n\n" +
-        `Do'stingizga ulashing yoki QR'ni ko'rsating. U ulanib birinchi safarini qilsa — sizga <b>+${formatNumber(REFERRER_REWARD)} tanga</b>, unga <b>+${formatNumber(REFEREE_REWARD)} tanga</b>! 🎁\n\n` +
+        `Do'stingizga ulashing yoki QR'ni ko'rsating. U ulanib birinchi safarini qilsa — sizga <b>+${formatNumber(r.rewardReferrer)} tanga</b>, unga <b>+${formatNumber(r.rewardReferee)} tanga</b>! 🎁\n\n` +
         `🔗 <code>${r.link}</code>`,
       parse_mode: "HTML",
       reply_markup: new InlineKeyboard().url("📤 Do'stga yuborish", shareUrl),

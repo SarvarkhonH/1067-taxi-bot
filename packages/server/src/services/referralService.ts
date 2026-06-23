@@ -4,6 +4,7 @@ import { prisma } from "../db";
 import { env } from "../env";
 import { grantCoins } from "./coinService";
 import { incrementMission } from "./missionService";
+import { getBonusEcon } from "./bonusConfig";
 
 // Double-sided reward (so'm). Tuned so a paid invite stays well under LTV.
 export const REFERRER_REWARD = 1500; // inviter — paid when the friend completes a real ride
@@ -47,13 +48,14 @@ export async function getOrCreateCode(telegramId: string): Promise<string> {
 export async function getReferralInfo(telegramId: string): Promise<ReferralResponse> {
   const code = await getOrCreateCode(telegramId);
   const refs = await prisma.referral.findMany({ where: { referrerId: telegramId } });
+  const econ = await getBonusEcon();
   return {
     code,
     link: inviteLink(code),
     invited: refs.length,
     earned: refs.reduce((s, r) => s + r.rewardReferrer, 0),
-    rewardReferrer: REFERRER_REWARD,
-    rewardReferee: REFEREE_REWARD,
+    rewardReferrer: econ.referrer ?? REFERRER_REWARD,
+    rewardReferee: econ.firstRide ?? REFEREE_REWARD,
   };
 }
 
@@ -112,6 +114,7 @@ export async function completeReferral(
   // completes a real ride (paid by the booking sweep, marked referrerPaidAt).
   // Phone de-dup: the same phone can't earn the same referrer twice across
   // burner Telegram accounts.
+  const econ = await getBonusEcon();
   let referrerReward = 0;
   if (referrer.memberId) {
     const norm9 = (p: string) => p.replace(/\D/g, "").slice(-9);
@@ -128,7 +131,7 @@ export async function completeReferral(
       });
       dup = priorMembers.some((p) => p.phone && norm9(p.phone) === norm9(refereeMember.phone!));
     }
-    if (!dup) referrerReward = REFERRER_REWARD;
+    if (!dup) referrerReward = econ.referrer ?? REFERRER_REWARD;
     await incrementMission(referrer.memberId, "weekly_invite");
     await import("./weeklyService")
       .then((w) => w.addScore(referrer.memberId!, "referral"))
@@ -142,7 +145,7 @@ export async function completeReferral(
         refereeId: refereeTelegramId,
         refereeMemberId,
         rewardReferrer: referrerReward, // promised; granted on the referee's first ride
-        rewardReferee: REFEREE_REWARD,
+        rewardReferee: econ.firstRide ?? REFEREE_REWARD,
       },
     });
   } catch (e) {
@@ -157,7 +160,7 @@ export async function completeReferral(
   return {
     referrerTelegramId: referrer.id,
     referrerMemberId: referrer.memberId,
-    refereeReward: REFEREE_REWARD,
+    refereeReward: econ.firstRide ?? REFEREE_REWARD,
     referrerReward,
   };
 }
