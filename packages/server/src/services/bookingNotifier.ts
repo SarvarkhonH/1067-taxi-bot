@@ -637,6 +637,35 @@ export async function pushBookingUpdates(
         await alertAdmins(`⚠️ Referral payout xatosi (member ${m.id}): ${e instanceof Error ? e.message : String(e)}`).catch(() => undefined);
       }
 
+      // 🎁 Universal birinchi-safar bonusi (flag "welcomebonus", default DARK). Referral (ref_) yoki
+      // QR (drv_) bilan kelmagan — oddiy /start yoki eski 1067 mijozi — ham birinchi safarida shu
+      // bonusni oladi. Shunda HAR yangi user aynan BITTA 2000 tanga oladi (referral/recruit/welcome —
+      // bittasi, ikkitasi emas). grantCoins → klampdan TASHQARI (referee bonusi kabi); idempotent
+      // (welcome_first_ride:<m>); FAQAT botdagi birinchi safar (eski riderlarga retroaktiv emas).
+      try {
+        const { featureOn } = await import("./featureFlags");
+        if (await featureOn("welcomebonus")) {
+          const priorRides = await prisma.rideReward.count({ where: { memberId: m.id, bookingId: { not: m.lastBookingId! } } });
+          if (priorRides === 0) {
+            const referred = (await prisma.referral.findFirst({ where: { refereeMemberId: m.id }, select: { id: true } })) !== null;
+            const tu = await prisma.telegramUser.findFirst({ where: { memberId: m.id }, select: { referredByCode: true } });
+            const recruited = (tu?.referredByCode ?? "").startsWith("drv_");
+            if (!referred && !recruited) {
+              const { grantCoins } = await import("./coinService");
+              const { REFEREE_REWARD } = await import("./referralService");
+              const g = await grantCoins(m.id, REFEREE_REWARD, "referral", "🎁 Birinchi safaringiz uchun sovg'a!", `welcome_first_ride:${m.id}`);
+              if (g.ok) {
+                await bot.api
+                  .sendMessage(chatId, `🎁 <b>Birinchi safaringiz muborak!</b>\nSovg'a: <b>+${formatNumber(REFEREE_REWARD)} tanga</b> hisobingizga tushdi 🚕`, { parse_mode: "HTML" })
+                  .catch(() => undefined);
+              }
+            }
+          }
+        }
+      } catch (e) {
+        console.error("[welcome_bonus] failed:", e);
+      }
+
       // 🔥 streak line for the peak-end card (read-only; safe on transient)
       const streak = await prisma.streak.findUnique({ where: { memberId: m.id } }).catch(() => null);
       const streakLine = streak?.current ? `\n🔥 Streak: <b>${streak.current} kun</b> — davom eting!` : "";

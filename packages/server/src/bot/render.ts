@@ -23,10 +23,15 @@ const STARS = (r: number): string => "⭐".repeat(Math.max(0, Math.min(5, Math.r
 
 const DIV = "━━━━━━━━━━━━━━";
 
-export function renderWelcome(name: string): string {
+// firstRideBonus > 0 → show the "first ride = N tanga" hook (gated by the welcomebonus flag
+// in the caller, so the copy NEVER promises a bonus the mechanic won't pay).
+export function renderWelcome(name: string, firstRideBonus = 0): string {
+  const hook =
+    firstRideBonus > 0 ? `🎁 <b>Birinchi safaringiz uchun ${formatNumber(firstRideBonus)} tanga sovg'a!</b>\n\n` : "";
   return (
     `🚕 <b>1067 TAXI</b>\n` +
     `Salom, <b>${esc(name)}</b>! 👋\n\n` +
+    hook +
     `Bir tugmada taxi · har safardan <b>haqiqiy pul cashback</b> · kunlik sovg'alar, o'yin va bozor.\n\n` +
     `👇 Pastdagi katta <b>«📱 Raqamni ulashish»</b> tugmasini bosing — 1 soniyada hammasi ochiladi.\n` +
     `<i>Telegram raqamingiz 1067'dagidan boshqa bo'lsa — /boshqaraqam</i>`

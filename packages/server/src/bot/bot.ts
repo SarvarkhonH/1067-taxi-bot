@@ -14,7 +14,8 @@ import {
 import { dailyCheckIn, spinWheel } from "../services/rewardService";
 import { claimMission, getMissions } from "../services/missionService";
 import { getBoxStatus, openBox } from "../services/boxService";
-import { attachPendingReferral, completeReferral, getReferralInfo, REFERRER_REWARD } from "../services/referralService";
+import { attachPendingReferral, completeReferral, getReferralInfo, REFERRER_REWARD, REFEREE_REWARD } from "../services/referralService";
+import { featureOn } from "../services/featureFlags";
 import { getWeeklyBoard } from "../services/weeklyService";
 import { getEconomy, getHealth, getLiveBookings } from "../services/adminOps";
 import { getIntegrity } from "../services/reconciliation";
@@ -189,7 +190,9 @@ export function createBot(): Bot {
       // Birinchi kirish — BITTA chiroyli ekran: katta «📱 Raqamni ulashish» tugmasi (asosiy,
       // soda). «Boshqa raqam» yo'li endi welcome ichidagi /boshqaraqam ipi (avvalgi 3 ta stacked
       // xabar o'rniga). Ega tilagi: «birinchi marta kirganda chiroyli + juda soda».
-      await ctx.reply(renderWelcome(ctx.from!.first_name ?? "do'st"), { parse_mode: "HTML", reply_markup: contactKeyboard() });
+      // Hook FAQAT welcomebonus flag yonganda ko'rinadi — to'lanmaydigan va'da bermaymiz.
+      const wb = (await featureOn("welcomebonus")) ? REFEREE_REWARD : 0;
+      await ctx.reply(renderWelcome(ctx.from!.first_name ?? "do'st", wb), { parse_mode: "HTML", reply_markup: contactKeyboard() });
     }
     // 📌 always-visible entry: a one-tap «Ochish» web-app card, PINNED to the top of the chat the
     // FIRST time only (silent). The ☰ Menu button is always there too; this pin makes the app the
