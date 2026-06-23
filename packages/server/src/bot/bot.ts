@@ -646,7 +646,7 @@ export function createBot(): Bot {
     const png = await QR.toBuffer(driverQrLink(me.member.id), { width: 600, margin: 2 });
     await ctx.replyWithPhoto(new InputFile(png), {
       caption:
-        "🚖 <b>Mening QR kodim</b>\n\n📣 <b>Mijozga ayting:</b>\n«Bu QR'ni skanlang, botga ulaning va <b>birinchi safaringiz uchun 2000 tanga</b> oling! 🎁»\n\n✅ U birinchi safarini qilsa — sizga <b>500 tanga</b>, so'ng har safaridan ulush.\n📅 Oyiga 15 ta yangi mijoz · 30 000 tangagacha.",
+        `🚖 <b>Mening QR kodim</b>\n\n📣 <b>Mijozga ayting:</b>\n«Bu QR'ni skanlang, botga ulaning — <b>birinchi safaringiz BEPUL</b> (${formatNumber(REFEREE_REWARD)} tanga sovg'a)! 🎁»\n\n✅ U birinchi safarini qilsa — sizga <b>500 tanga</b>, so'ng har safaridan ulush.\n📅 Oyiga 15 ta yangi mijoz · 30 000 tangagacha.`,
       parse_mode: "HTML",
     });
   });
@@ -958,7 +958,7 @@ export function createBot(): Bot {
       const link = driverQrLink(me.member.id);
       const shareUrl =
         `https://t.me/share/url?url=${encodeURIComponent(link)}` +
-        `&text=${encodeURIComponent("🚕 1067 Taxi botiga ulaning — birinchi safaringizga 2000 tanga sovg'a! 🎁")}`;
+        `&text=${encodeURIComponent(`🚕 1067 Taxi botiga ulaning — birinchi safaringiz BEPUL (${formatNumber(REFEREE_REWARD)} tanga sovg'a)! 🎁`)}`;
       const kb = new InlineKeyboard()
         .url("📤 Havolani ulashish", shareUrl)
         .row()

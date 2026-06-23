@@ -36,7 +36,7 @@ const FAQ: { re: RegExp; a: string }[] = [
   { re: /haydovchi\s+bo'l|ishga\s+kir|driver/i, a: "🚖 Haydovchi bo'lishni xohlaysizmi? 1067 dispetcheriga qo'ng'iroq qiling: 1067." },
   { re: /bekor|cancel|отмен/i, a: "✖️ Faol buyurtmani «📍 Buyurtmam» tugmasi orqali bekor qilishingiz mumkin." },
   { re: /qayer|qachon\s+kel|мошина\s+қаер|mashina\s+qayer/i, a: "📍 «Buyurtmam» tugmasini bosing — jonli kartada mashina qayerdaligini ko'rasiz." },
-  { re: /referal|do'st\s+taklif|taklif\s+qil/i, a: "👥 Do'st taklif qiling: u ilk safarini qilsa SIZGA 1500, UNGA 2000 tanga! Mini App → Do'st." },
+  { re: /referal|do'st\s+taklif|taklif\s+qil/i, a: "👥 Do'st taklif qiling: u ilk safarini qilsa SIZGA 1500, UNGA 5000 tanga (birinchi safar BEPUL)! Mini App → Do'st." },
   { re: /operator|dispetcher|yordam|help|aloqa/i, a: "☎️ Operator: 1067 raqamiga qo'ng'iroq qiling — dispetcherlar 24/7." },
 ];
 

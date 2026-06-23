@@ -96,7 +96,7 @@ async function main(): Promise<void> {
   await prisma.telegramUser.update({ where: { id: tgB }, data: { memberId: memberB.id, linkedAt: new Date() } });
   const refBalBefore = (await prisma.member.findUnique({ where: { id: memberA.id } }))!.coins;
   const credit = await completeReferral(tgB, memberB.id);
-  ok(!!credit && credit.referrerReward === 1500 && credit.refereeReward === 2000, `referral: both sides PROMISED (1500/2000), nobody paid yet`);
+  ok(!!credit && credit.referrerReward === 1500 && credit.refereeReward === 5000, `referral: both sides PROMISED (1500/5000), nobody paid yet`);
   const refBalAfter = (await prisma.member.findUnique({ where: { id: memberA.id } }))!.coins;
   ok(refBalAfter === refBalBefore, `referrer reward DEFERRED (no coins until referee rides)`);
   ok((await prisma.member.findUnique({ where: { id: memberB.id } }))!.coins === 0, `referee ALSO deferred (no coins until first ride)`);

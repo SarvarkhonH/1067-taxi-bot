@@ -656,7 +656,7 @@ export async function pushBookingUpdates(
 
       // 🎁 Universal birinchi-safar bonusi (flag "welcomebonus", default DARK). Referral (ref_) yoki
       // QR (drv_) bilan kelmagan — oddiy /start yoki eski 1067 mijozi — ham birinchi safarida shu
-      // bonusni oladi. Shunda HAR yangi user aynan BITTA 2000 tanga oladi (referral/recruit/welcome —
+      // bonusni oladi. Shunda HAR yangi user aynan BITTA 5000 tanga oladi (referral/recruit/welcome —
       // bittasi, ikkitasi emas). grantCoins → klampdan TASHQARI (referee bonusi kabi); idempotent
       // (welcome_first_ride:<m>); FAQAT botdagi birinchi safar (eski riderlarga retroaktiv emas).
       try {

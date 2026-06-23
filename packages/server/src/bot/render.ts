@@ -27,7 +27,9 @@ const DIV = "━━━━━━━━━━━━━━";
 // in the caller, so the copy NEVER promises a bonus the mechanic won't pay).
 export function renderWelcome(name: string, firstRideBonus = 0): string {
   const hook =
-    firstRideBonus > 0 ? `🎁 <b>Birinchi safaringiz uchun ${formatNumber(firstRideBonus)} tanga sovg'a!</b>\n\n` : "";
+    firstRideBonus > 0
+      ? `🎁 <b>Birinchi safaringiz BEPUL!</b> ${formatNumber(firstRideBonus)} tanga sovg'a — boshlanish narxini to'liq qoplaydi 🚕\n\n`
+      : "";
   return (
     `🚕 <b>1067 TAXI</b>\n` +
     `Salom, <b>${esc(name)}</b>! 👋\n\n` +

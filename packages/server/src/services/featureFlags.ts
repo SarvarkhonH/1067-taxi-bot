@@ -18,7 +18,7 @@ export const FEATURES = [
   "motorolami", // 🌍 MOTOR OLAMI v3 — unique #serial cars that earn (speed→tanga), ships dark
   "komissiya", // 💸 platform commission on transfers/tips/fares (configurable %); OFF until owner QABUL
   "qarz", // 💸 Bosqich 3: driver pays kas company debt with tanga (real kas write); OFF until owner pilot
-  "welcomebonus", // 🎁 universal first-ride bonus (2000 tanga) for riders who did NOT arrive via referral/recruit — every new bot user gets exactly one 2000; OFF until owner pilot
+  "welcomebonus", // 🎁 universal first-ride bonus (REFEREE_REWARD=5000 tanga) for riders who did NOT arrive via referral/recruit — every new bot user gets exactly one; OFF until owner pilot
   "drvrecruit", // 🚖 driver→driver recruit: a driver brings a new DRIVER; when that driver completes 10 rides the recruiter earns 5000; OFF until owner pilot
 ] as const;
 export type FeatureName = (typeof FEATURES)[number];

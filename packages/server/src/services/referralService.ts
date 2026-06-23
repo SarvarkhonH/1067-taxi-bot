@@ -7,7 +7,9 @@ import { incrementMission } from "./missionService";
 
 // Double-sided reward (so'm). Tuned so a paid invite stays well under LTV.
 export const REFERRER_REWARD = 1500; // inviter — paid when the friend completes a real ride
-export const REFEREE_REWARD = 2000; // the friend — ALSO paid on their first real ride
+// The new rider's first-ride bonus — the SINGLE source for ALL first-ride flows (welcome, referee,
+// recruit). 5000 = exactly one Koson base fare (boshlanish 5000 so'm) → the first ride is FREE.
+export const REFEREE_REWARD = 5000; // the friend — ALSO paid on their first real ride
 
 const ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"; // no 0/O/1/I ambiguity
 function genCode(len = 6): string {

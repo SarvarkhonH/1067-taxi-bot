@@ -4,13 +4,14 @@
 // veteran, weekly-active driver only, 30k/month cap, 15 recruits/month).
 import { prisma } from "../db";
 import { grantCoins } from "./coinService";
+import { REFEREE_REWARD } from "./referralService";
 
 const RECRUIT_MONTHLY_CAP = 15; // new recruits per driver per month
 const REVSHARE_FRESH = 100; // coins/ride, first 6 months
 const REVSHARE_VETERAN = 25; // after 6 months, forever (activity-gated)
 const REVSHARE_MONTH_CAP = 30000; // per driver per month
 const SIX_MONTHS = 183 * 24 * 3600 * 1000;
-const RECRUIT_WELCOME = 2000; // the recruited CUSTOMER's first-ride welcome bonus (matches the referral referee reward)
+const RECRUIT_WELCOME = REFEREE_REWARD; // the recruited CUSTOMER's first-ride welcome bonus — same single source as referee/welcome
 // 🚖 driver→driver recruit: a driver brings a NEW DRIVER. The recruiter earns the milestone once the
 // recruited driver proves real+active by completing DRIVER_RECRUIT_RIDES rides AS A DRIVER.
 const DRIVER_RECRUIT_MILESTONE = 5000; // tanga to the recruiter
