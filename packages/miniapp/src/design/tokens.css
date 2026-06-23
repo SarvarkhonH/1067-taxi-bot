@@ -606,6 +606,57 @@ body {
 .acct-switch { font-size: 13px; font-weight: 700; padding: 6px 14px; border-radius: 999px; border: 1px solid var(--line, #2a3242); background: var(--surface, #1a2130); color: var(--text, #e8edf4); }
 .acct-switch.on { background: rgba(0,200,83,.14); border-color: rgba(0,200,83,.3); }
 
+/* ═══ DRIVER HUB — haydovchi paneli (chiroyli + qulay) ═══════════════════════ */
+/* Kas hisobi: 2×2 stat grid — bir qarashda safar/daromad/balans/qarz */
+.drv-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 9px; margin-top: 12px; }
+.drv-stat { display: flex; flex-direction: column; gap: 3px; padding: 13px; border-radius: 14px;
+  background: linear-gradient(160deg, rgba(255,255,255,.05), rgba(255,255,255,.012)), var(--surface);
+  border: 1px solid var(--line); box-shadow: inset 0 1px 0 rgba(255,255,255,.05); }
+.drv-stat-top { display: flex; align-items: center; gap: 6px; }
+.drv-stat-ico { font-size: 16px; line-height: 1; }
+.drv-stat-lbl { font-size: 10.5px; font-weight: 800; letter-spacing: .5px; text-transform: uppercase; color: var(--text-dim); }
+.drv-stat-val { font-size: 20px; font-weight: 900; letter-spacing: -.4px; color: var(--text); line-height: 1.1; }
+.drv-stat-val small { font-size: 12px; font-weight: 700; color: var(--text-dim); letter-spacing: 0; }
+.drv-stat.warn { background: linear-gradient(150deg, rgba(248,113,113,.16), var(--surface)); border-color: rgba(248,113,113,.32); }
+.drv-stat.warn .drv-stat-val { color: #fda4a4; }
+.drv-stat.ok { background: linear-gradient(150deg, rgba(52,211,153,.14), var(--surface)); border-color: rgba(52,211,153,.28); }
+.drv-stat.ok .drv-stat-val { color: var(--win); }
+.drv-stat.gold { background: linear-gradient(150deg, rgba(255,179,0,.13), var(--surface)); border-color: rgba(255,179,0,.26); }
+
+/* Qarz to'lash bloki — oltin urg'u + summa chiplari */
+.drv-debt { margin-top: 11px; padding: 13px; border-radius: 14px;
+  background: linear-gradient(150deg, rgba(255,179,0,.11), var(--surface)); border: 1px solid rgba(255,179,0,.26); }
+.drv-debt-h { font-size: 13.5px; font-weight: 800; margin-bottom: 4px; }
+.drv-debt-sub { font-size: 11.5px; color: var(--text-dim); margin-bottom: 10px; }
+.drv-debt-chips { display: flex; flex-wrap: wrap; gap: 8px; }
+.drv-debt-chip { flex: 1 1 86px; padding: 12px 6px; border-radius: 12px; border: 1px solid rgba(255,179,0,.34);
+  background: rgba(255,179,0,.07); color: #ffe7a8; font-weight: 800; font-size: 14px; cursor: pointer;
+  transition: transform var(--dur-press) ease, filter 160ms ease; }
+.drv-debt-chip.full { background: linear-gradient(165deg,#ffd060,var(--brand) 46%,#ff8f00); color: #2a1900; border-color: transparent;
+  box-shadow: 0 8px 20px -8px rgba(255,159,0,.7), inset 0 1px 0 rgba(255,255,255,.4); }
+.drv-debt-chip:active:not(:disabled) { transform: scale(.95); }
+.drv-debt-chip:disabled { opacity: .45; filter: saturate(.4); cursor: default; }
+.drv-debt-warn { font-size: 12.5px; color: var(--text-dim); margin-top: 8px; line-height: 1.45; }
+
+/* QR — chiroyli ramka + ulashish tugmalari */
+.drv-qr-wrap { display: flex; justify-content: center; padding: 12px 0 4px; }
+.drv-qr { border-radius: 16px; background: #fff; padding: 10px; box-shadow: 0 10px 30px -10px rgba(0,0,0,.6); }
+.drv-share { display: flex; gap: 8px; margin-top: 12px; }
+.drv-share button { flex: 1; padding: 12px; border-radius: 12px; font-weight: 800; font-size: 14px; cursor: pointer; border: 1px solid var(--line);
+  background: var(--surface-2); color: var(--text); transition: transform var(--dur-press) ease; }
+.drv-share button:active { transform: scale(.96); }
+.drv-share .primary { background: linear-gradient(165deg,#ffd060,var(--brand) 46%,#ff8f00); color: #2a1900; border-color: transparent;
+  box-shadow: 0 8px 20px -8px rgba(255,159,0,.6); }
+
+/* Safar qatori — toza ikonka + meta + narx */
+.drv-ride { display: flex; align-items: center; gap: 11px; padding: 11px 0; border-top: 1px solid var(--line); }
+.drv-ride:first-child { border-top: 0; }
+.drv-ride-ico { font-size: 19px; flex: none; width: 26px; text-align: center; }
+.drv-ride-meta { flex: 1; min-width: 0; }
+.drv-ride-addr { font-weight: 700; font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.drv-ride-sub { font-size: 11.5px; color: var(--text-dim); margin-top: 1px; }
+.drv-ride-amt { font-weight: 900; font-size: 15px; color: var(--text); letter-spacing: -.3px; flex: none; }
+
 /* prefers-reduced-motion: hamma harakat o'chadi */
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation: none !important; transition: none !important; }

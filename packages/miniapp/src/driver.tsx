@@ -12,8 +12,8 @@ type DriverQr = { ok: boolean; link?: string; png?: string; shareText?: string }
 type DriverRide = { id: number; addressName: string; status: string; carModel: string; payment: number; cashback: number; at: string };
 const RIDE_STATUS: Record<string, { e: string; t: string }> = {
   delivered: { e: "✅", t: "Yakunlandi" },
-  cancelled: { e: "❌", t: "Bekor" },
-  canceled: { e: "❌", t: "Bekor" },
+  cancelled: { e: "✖️", t: "Bekor" },
+  canceled: { e: "✖️", t: "Bekor" },
   new: { e: "🆕", t: "Yangi" },
   take: { e: "🚕", t: "Qabul" },
   in_place: { e: "📍", t: "Joyda" },
@@ -25,7 +25,8 @@ function rideTime(at: string): string {
   return `${p(d.getDate())}.${p(d.getMonth() + 1)} · ${p(d.getHours())}:${p(d.getMinutes())}`;
 }
 
-/** Driver earnings hub — tips + transfers in, recent ledger. Tab shows only for drivers. */
+/** Driver hub — kas account at a glance (rides/earnings/balance/debt), debt-pay with tanga,
+ *  missions, ride history, in-car QR. Tab shows only for drivers. */
 export function DriverView({ me }: { me: MeResponse }) {
   const [data, setData] = useState<{ todayIn: number; totalIn: number; txns: { amount: number; kind: string; reason: string; at: string }[] } | null>(null);
   const [rides, setRides] = useState<DriverRide[] | null>(null);
@@ -100,6 +101,8 @@ export function DriverView({ me }: { me: MeResponse }) {
   return (
     <div className="view">
       {msg && <div className="sheet-ok tac" style={{ marginBottom: 10 }}>{msg}</div>}
+
+      {/* ── HERO: tanga wallet ─────────────────────────────────────────── */}
       <section className="wallet-hero glass">
         <div className="wh-row">
           <div className="wh-main">
@@ -122,32 +125,47 @@ export function DriverView({ me }: { me: MeResponse }) {
         )}
       </section>
 
-      {account?.linked && (
+      {/* ── KAS HISOBI: stat grid + debt-pay ───────────────────────────── */}
+      {account === null ? (
+        <section className="glass pad"><Spinner /></section>
+      ) : account.linked ? (
         <section className="glass pad">
           <div className="section-title">🚕 Kas hisobi{account.carNumber ? ` · ${account.carNumber}` : ""}</div>
-          <div className="wh-cashback">
-            <span>👛 Kas balans</span>
-            <b>{formatNumber(account.balance ?? 0)} so'm</b>
+          <div className="drv-grid">
+            <div className="drv-stat">
+              <div className="drv-stat-top"><span className="drv-stat-ico">🚕</span><span className="drv-stat-lbl">Bugun safar</span></div>
+              <div className="drv-stat-val">{formatNumber(account.ridesToday ?? 0)}</div>
+            </div>
+            <div className="drv-stat gold">
+              <div className="drv-stat-top"><span className="drv-stat-ico">💰</span><span className="drv-stat-lbl">Bugun daromad</span></div>
+              <div className="drv-stat-val">{formatNumber(account.fareToday ?? 0)} <small>so'm</small></div>
+            </div>
+            <div className="drv-stat">
+              <div className="drv-stat-top"><span className="drv-stat-ico">👛</span><span className="drv-stat-lbl">Kas balans</span></div>
+              <div className="drv-stat-val">{formatNumber(account.balance ?? 0)} <small>so'm</small></div>
+            </div>
+            <div className={"drv-stat " + (debt > 0 ? "warn" : "ok")}>
+              <div className="drv-stat-top"><span className="drv-stat-ico">{debt > 0 ? "⚠️" : "✅"}</span><span className="drv-stat-lbl">Qarz</span></div>
+              <div className="drv-stat-val">{debt > 0 ? <>{formatNumber(debt)} <small>so'm</small></> : "yo'q"}</div>
+            </div>
           </div>
-          <div className="wh-cashback">
-            <span>🚕 Bugun</span>
-            <b>{formatNumber(account.ridesToday ?? 0)} safar · {formatNumber(account.fareToday ?? 0)} so'm</b>
-          </div>
-          <div className="wh-cashback" style={debt > 0 ? { color: "var(--warn, #f5a623)" } : undefined}>
-            <span>{debt > 0 ? "⚠️ Qarz" : "✅ Qarz"}</span>
-            <b>{debt > 0 ? `${formatNumber(debt)} so'm` : "yo'q"}</b>
-          </div>
+
+          {/* debt-pay: only when qarz feature on + there IS debt */}
           {account.canPayDebt && debt > 0 && (
-            <div style={{ marginTop: 10 }}>
+            <div className="drv-debt">
               {payOptions.length === 0 ? (
-                <p className="muted" style={{ fontSize: 13 }}>Qarzni to'lash uchun tanga yetarli emas — safar qilib tanga to'plang.</p>
+                <>
+                  <div className="drv-debt-h">💸 Qarzni tanga bilan to'lash</div>
+                  <div className="drv-debt-warn">Tanga yetarli emas — safar qilib tanga to'plang, keyin shu yerdan to'lang.</div>
+                </>
               ) : (
                 <>
-                  <p className="muted" style={{ fontSize: 13, marginBottom: 6 }}>Qarzni tanga bilan to'lang (1 tanga = 1 so'm):</p>
-                  <div className="amt-row">
+                  <div className="drv-debt-h">💸 Qarzni tanga bilan to'lang</div>
+                  <div className="drv-debt-sub">1 tanga = 1 so'm · darhol kas hisobingizga o'tadi</div>
+                  <div className="drv-debt-chips">
                     {payOptions.map((amt) => (
-                      <button key={amt} className="amt-chip active" disabled={paying} onClick={() => payDebt(amt)}>
-                        {amt === payable ? `💸 ${formatNumber(amt)}` : formatNumber(amt)}
+                      <button key={amt} className={"drv-debt-chip" + (amt === payable ? " full" : "")} disabled={paying} onClick={() => payDebt(amt)}>
+                        {amt === payable ? `Hammasi · ${formatNumber(amt)}` : formatNumber(amt)}
                       </button>
                     ))}
                   </div>
@@ -156,8 +174,9 @@ export function DriverView({ me }: { me: MeResponse }) {
             </div>
           )}
         </section>
-      )}
+      ) : null}
 
+      {/* ── TOPSHIRIQLAR ───────────────────────────────────────────────── */}
       <section className="glass pad">
         <div className="section-title">🎯 Bugungi topshiriqlar{missions ? ` · 🚕 ${missions.ridesToday}` : ""}</div>
         {missions === null ? (
@@ -187,25 +206,25 @@ export function DriverView({ me }: { me: MeResponse }) {
         )}
       </section>
 
+      {/* ── SAFARLARIM ─────────────────────────────────────────────────── */}
       <section className="glass pad">
-        <div className="section-title">🚕 Safarlarim {rides && rides.length > 0 ? `(${rides.length})` : ""}</div>
+        <div className="section-title">🚕 Safarlarim{rides && rides.length > 0 ? ` · ${rides.length}` : ""}</div>
         {rides === null ? (
           <Spinner />
         ) : rides.length === 0 ? (
           <div className="muted txn-empty">Hali safar yo'q — mashina raqamingiz bo'yicha topilmadi.</div>
         ) : (
-          <div className="txn-list">
+          <div>
             {rides.map((r) => {
               const s = RIDE_STATUS[r.status] ?? { e: "🚗", t: r.status };
               return (
-                <div key={r.id} className="txn">
-                  <span className="txn-emoji">{s.e}</span>
-                  <span className="txn-reason">
-                    {r.addressName || "—"}
-                    <br />
-                    <span className="muted" style={{ fontSize: 12 }}>{rideTime(r.at)} · {r.carModel} · {s.t}</span>
+                <div key={r.id} className="drv-ride">
+                  <span className="drv-ride-ico">{s.e}</span>
+                  <span className="drv-ride-meta">
+                    <div className="drv-ride-addr">{r.addressName || "—"}</div>
+                    <div className="drv-ride-sub">{rideTime(r.at)} · {r.carModel || "—"} · {s.t}</div>
                   </span>
-                  {r.payment > 0 && <span className="txn-amt">{formatNumber(r.payment)}</span>}
+                  {r.payment > 0 && <span className="drv-ride-amt">{formatNumber(r.payment)}</span>}
                 </div>
               );
             })}
@@ -213,25 +232,22 @@ export function DriverView({ me }: { me: MeResponse }) {
         )}
       </section>
 
+      {/* ── MENING QR ──────────────────────────────────────────────────── */}
       {qr?.ok && qr.png && (
         <section className="glass pad">
           <div className="section-title">📷 Mening QR kodim</div>
           <p className="muted mk-sub">Mijozga ko'rsating — skanerlab birinchi safarini qilsa, sizga tanga tushadi.</p>
-          <div style={{ display: "flex", justifyContent: "center", padding: "10px 0" }}>
-            <img src={qr.png} alt="QR" width={200} height={200} style={{ borderRadius: 12, background: "#fff", padding: 8 }} />
+          <div className="drv-qr-wrap">
+            <img className="drv-qr" src={qr.png} alt="QR" width={196} height={196} />
           </div>
-          <div className="amt-row">
-            <button className="amt-chip active" onClick={shareQr} style={{ flex: 1 }}>📤 Ulashish</button>
-            <button className="amt-chip" onClick={copyQr} style={{ flex: 1 }}>📋 Havola</button>
+          <div className="drv-share">
+            <button className="primary" onClick={shareQr}>📤 Ulashish</button>
+            <button onClick={copyQr}>📋 Havola</button>
           </div>
         </section>
       )}
 
-      <section className="glass pad">
-        <div className="section-title">🙏 Daromad manbalari</div>
-        <p className="muted mk-sub">Har yakunlangan safar uchun avtomatik bonus · mijozlar safardan keyin tanga bilan rahmat aytadi · istalgan a'zo sizga o'tkazma yubora oladi.</p>
-      </section>
-
+      {/* ── OXIRGI AMALLAR (tanga ledger) ──────────────────────────────── */}
       <section className="glass pad">
         <div className="section-title">📜 Oxirgi amallar</div>
         {err && !data ? (
@@ -244,7 +260,7 @@ export function DriverView({ me }: { me: MeResponse }) {
           <div className="txn-list">
             {data.txns.map((t, i) => (
               <div key={i} className="txn">
-                <span className="txn-emoji">{t.kind === "tip_in" ? "🙏" : t.kind === "driver_bonus" ? "🚗" : t.amount > 0 ? "📥" : "📤"}</span>
+                <span className="txn-emoji">{t.kind === "tip_in" ? "🙏" : t.kind === "driver_bonus" ? "🚗" : t.kind === "debt_pay" ? "💸" : t.amount > 0 ? "📥" : "📤"}</span>
                 <span className="txn-reason">{t.reason}</span>
                 <span className={"txn-amt" + (t.amount < 0 ? " neg" : "")}>
                   {t.amount > 0 ? "+" : ""}
