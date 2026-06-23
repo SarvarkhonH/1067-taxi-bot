@@ -35,7 +35,7 @@ function trunc(s: string, n = 38): string {
 const GREETINGS = new Set(["salom", "assalom", "assalomu alaykum", "rahmat", "ok", "ha", "yo'q", "yoq", "yaxshi", "hi", "hello", "привет", "спасибо", "да", "нет"]);
 function looksLikeAddress(text: string): boolean {
   const t = text.trim();
-  if (t.length < 3 || t.length > 60) return false;
+  if (t.length < 2 || t.length > 60) return false; // app's search box also fires at 2 chars
   if (t.startsWith("/")) return false; // command
   if (/^\+?\d[\d\s\-()]{6,}$/.test(t)) return false; // phone-shaped → handled by its own handler
   if (GREETINGS.has(t.toLowerCase())) return false;
@@ -52,6 +52,42 @@ function addressQuery(text: string): string {
     .replace(/\s+/g, " ")
     .trim();
   return q.length >= 3 ? q : text.trim();
+}
+
+// Normalize for catalog substring matching (case + apostrophe variants + spacing).
+function normAddr(s: string): string {
+  return s.toLowerCase().replace(/[''`]/g, "'").replace(/\s+/g, " ").trim();
+}
+
+// Resolve a typed address to bookable options. The bot used to call kas `byName` only — a curated,
+// narrow list that MISSES many real places ("shabada"). The official rider app also reverse-snaps to
+// the FULL company catalog (getAllAddresses → ~111 named places, cached 6h). Merge both: byName first
+// (kas's own ranking), then catalog substring matches (name⊆query OR query⊆name, so "shabada" and
+// "shabada ga" both hit "Shabada"), deduped by id, top 6 — so anything the catalog knows is now
+// typeable in the bot, matching/exceeding the app.
+async function resolveAddresses(query: string): Promise<SavedAddress[]> {
+  const ds = getDataSource();
+  const [byName, catalog] = await Promise.all([
+    ds.searchAddresses(query).catch(() => [] as SavedAddress[]),
+    ds.getAllAddresses().catch(() => [] as SavedAddress[]),
+  ]);
+  const q = normAddr(query);
+  const sub =
+    q.length >= 2
+      ? catalog.filter((a) => {
+          const n = normAddr(a.name);
+          return n.length >= 2 && (n.includes(q) || (n.length >= 3 && q.includes(n)));
+        })
+      : [];
+  const out: SavedAddress[] = [];
+  const seen = new Set<number>();
+  for (const a of [...byName, ...sub]) {
+    if (seen.has(a.id)) continue;
+    seen.add(a.id);
+    out.push(a);
+    if (out.length >= 6) break;
+  }
+  return out;
 }
 
 /** Get (or lazily create) the booking wizard session for a LINKED rider who started a booking by
@@ -590,7 +626,7 @@ export function registerBooking(bot: Bot, mainMenu: (isDriver?: boolean) => Keyb
     const s = sessions.get(id);
     const text = ctx.message.text.trim();
     if (s?.awaitingText) {
-      const results = await getDataSource().searchAddresses(text).catch(() => []);
+      const results = await resolveAddresses(text);
       if (!results.length) {
         await ctx.reply("Topilmadi. Boshqacha yozib ko'ring:");
         return;
@@ -604,8 +640,8 @@ export function registerBooking(bot: Bot, mainMenu: (isDriver?: boolean) => Keyb
     if (!looksLikeAddress(text)) return next();
     const me = await getMe(id);
     if (!me?.member.phone) return next(); // unlinked → not a booking
-    const results = await getDataSource().searchAddresses(addressQuery(text)).catch(() => []);
-    if (!results.length) return next(); // not a kas address → don't hijack the message
+    const results = await resolveAddresses(addressQuery(text));
+    if (!results.length) return next(); // not a kas/catalog address → don't hijack the message
     const info = await getDataSource().checkClient(me.member.phone).catch(() => null);
     if (info?.activeBooking) {
       await ctx.reply(`ℹ️ Sizda faol buyurtma bor:\n📍 ${esc(info.activeBooking.addressName)}\n\n«📍 Buyurtmam» — holatini ko'ring.`, { parse_mode: "HTML" });
