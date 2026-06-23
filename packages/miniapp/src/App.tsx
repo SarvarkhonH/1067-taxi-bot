@@ -276,8 +276,12 @@ function BootSplash() {
   return (
     <div className="boot">
       <div className="aurora" />
-      <div className="boot-logo">🚕</div>
+      <div className="boot-stage">
+        <div className="boot-rings"><span /><span /><span /></div>
+        <div className="boot-badge">🚕</div>
+      </div>
       <div className="boot-name">1067 <b>TAXI</b></div>
+      <div className="boot-tag">Chaqiring · Tejang · Bonus yig'ing</div>
       <div className="boot-bar"><span /></div>
     </div>
   );
@@ -320,10 +324,13 @@ function ErrorScreen({ error }: { error: string }) {
       <div className="screen center">
         <div className="aurora" />
         <div className="nl-card glass pad tac">
-          <span className="wake-taxi">🚕</span>
+          <div className="boot-stage" style={{ margin: "4px auto 18px" }}>
+            <div className="boot-rings"><span /><span /><span /></div>
+            <div className="boot-badge">🚕</div>
+          </div>
           <h2>1067 uyg'onmoqda…</h2>
           <p className="muted">Server bir necha soniyada tayyor bo'ladi — avtomatik qayta ulanamiz.</p>
-          <div className="wake-bar"><span /></div>
+          <div className="boot-bar" style={{ margin: "18px auto 0" }}><span /></div>
           <button className="d-btn ghost mt12" onClick={() => location.reload()}>Hozir urinish</button>
         </div>
       </div>
