@@ -138,6 +138,8 @@ function esc(s: string): string {
 // 🔑 in-flight "link a different number via 1067 code" sessions. No phone yet → awaiting the
 // number; phone set → awaiting the 4-digit code. Transient (in-memory) by design.
 const codeLink = new Map<string, { phone?: string }>();
+// telegramIds currently typing a new display name (✏️ from the account screen). Transient by design.
+const editName = new Set<string>();
 
 export function createBot(): Bot {
   const bot = new Bot(env.BOT_TOKEN);
@@ -148,6 +150,7 @@ export function createBot(): Bot {
     const id = String(ctx.from!.id);
     codeLink.delete(id); // /start cancels any pending "link a different number" flow
     payDriver.delete(id); // …and the "pay a driver by car number" flow
+    editName.delete(id); // …and a pending "edit my name" flow
     await touchTelegramUser(id, profileOf(ctx.from!));
     // referral deep link: t.me/<bot>?start=ref_<code>
     const payload = (typeof ctx.match === "string" ? ctx.match : "").trim();
@@ -408,7 +411,12 @@ export function createBot(): Bot {
       prisma.telegramUser.findFirst({ where: { memberId: me.member.id }, select: { linkedAt: true, createdAt: true } }),
       isNotifyOff(me.member.id),
     ]);
-    const kb = new InlineKeyboard().text(notifyOff ? "🔔 Bildirishnomani yoqish" : "🔕 Bildirishnomani o'chirish", "acct:notify");
+    const kb = new InlineKeyboard()
+      .text("✏️ Ismni o'zgartirish", "acct:editname")
+      .row()
+      .text("📱 Raqamni o'zgartirish", "acct:editphone")
+      .row()
+      .text(notifyOff ? "🔔 Bildirishnomani yoqish" : "🔕 Bildirishnomani o'chirish", "acct:notify");
     await ctx.reply(renderAccount(me, { joined: tu?.linkedAt ?? tu?.createdAt ?? null, notifyOff }), { parse_mode: "HTML", reply_markup: kb });
   };
   bot.hears("👤 Hisobim", showAccount);
@@ -425,6 +433,51 @@ export function createBot(): Bot {
     const { isNotifyOff, setNotifyOff } = await import("../services/notifyService");
     await setNotifyOff(me.member.id, !(await isNotifyOff(me.member.id)));
     await showAccount(ctx);
+  });
+
+  // ✏️ edit display name — tap → type → saved. Simple self-service.
+  bot.callbackQuery("acct:editname", async (ctx) => {
+    await ctx.answerCallbackQuery().catch(() => undefined);
+    editName.add(String(ctx.from.id));
+    await ctx.reply("✏️ <b>Yangi ismingizni yozing:</b>\n<i>(bekor — /start)</i>", { parse_mode: "HTML" });
+  });
+  bot.on("message:text", async (ctx, next) => {
+    const id = String(ctx.from!.id);
+    if (!editName.has(id)) return next();
+    const name = ctx.message.text.trim();
+    if (name.startsWith("/")) {
+      editName.delete(id);
+      return next();
+    }
+    if (name.length < 2 || name.length > 40) {
+      await ctx.reply("Ism 2–40 belgi bo'lsin. Qayta yozing (yoki /start bilan bekor):");
+      return;
+    }
+    editName.delete(id);
+    const me = await getMe(id);
+    if (!me) {
+      await ctx.reply("Avval /start orqali ulaning.");
+      return;
+    }
+    await prisma.member.update({ where: { id: me.member.id }, data: { fullName: name } }).catch(() => undefined);
+    await ctx.reply(`✅ Ismingiz o'zgartirildi: <b>${esc(name)}</b>`, { parse_mode: "HTML" });
+    await showAccount(ctx);
+  });
+
+  // 📱 change linked phone — SECURE paths only: the Telegram-verified «Raqamni ulashish» (your own
+  // number) or a 1067 admin code (a different number). Never free-typed (that was the old account-
+  // hijack hole). Re-uses the existing contact + code-link flows → linkByPhone re-points the account.
+  bot.callbackQuery("acct:editphone", async (ctx) => {
+    await ctx.answerCallbackQuery().catch(() => undefined);
+    editName.delete(String(ctx.from.id));
+    await ctx.reply(
+      "📱 <b>Raqamni o'zgartirish</b>\n\nYangi raqamni pastdagi <b>«📱 Raqamni ulashish»</b> tugmasi bilan ulang — Telegram tasdiqlaydi (xavfsiz).",
+      { parse_mode: "HTML", reply_markup: contactKeyboard() },
+    );
+    await ctx.reply("1067 raqamingiz Telegram raqamingizdan <b>boshqa</b> bo'lsa 👇", {
+      parse_mode: "HTML",
+      reply_markup: new InlineKeyboard().text("📱 Boshqa raqam (1067 kodi bilan)", "clink:start"),
+    });
   });
 
   // 🏘 V5 — mahalla (gap-vs-gap) league
