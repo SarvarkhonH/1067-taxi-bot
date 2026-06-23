@@ -9,7 +9,7 @@ import { InlineKeyboard, type Bot } from "grammy";
 import type { Prisma } from "@prisma/client";
 import { formatNumber, haversineKm } from "@t1067/shared";
 import { prisma } from "../db";
-import { getDataSource, type ActiveBookingLite, type BookingDriver, type KasDataSource } from "../kas";
+import { getDataSource, type ActiveBookingLite, type BookingDriver, type KasDataSource, type RideHistoryItem } from "../kas";
 import { incrementMission } from "./missionService";
 import { kasMapSocket } from "./kasMapSocket";
 
@@ -648,7 +648,7 @@ export async function pushBookingUpdates(
       let fareAmount = 0; // raw fare → powers the one-tap "pay the fare with tanga" button below
       try {
         const hist = await resilient("fare", () => ds.getRideHistory(m.phone!, 6));
-        const done = hist?.find((h) => h.id === bid);
+        const done = matchFareRow(hist ?? [], bid, m.lastBookingCar ?? undefined);
         if (done && done.payment > 0) {
           fareAmount = Math.floor(done.payment);
           const km = done.distance ? ` · 📏 ${done.distance} km` : "";
@@ -664,8 +664,9 @@ export async function pushBookingUpdates(
       // the moment kas posts the payment — a separate message, exactly like the kas SMS.
       console.log(`[fare] m${m.id} b${bid} payment=${fareAmount} ${fareLine ? "shown-in-card" : "PENDING"}`);
       if (!fareLine) {
+        // carry carNumber + finish time so resolvePendingFares can match the right report row
         await prisma.appState
-          .create({ data: { key: `farepending:${bid}`, value: `${chatId}|${m.phone}|0` } })
+          .create({ data: { key: `farepending:${bid}`, value: `${chatId}|${m.phone}|0|${m.lastBookingCar ?? ""}|${Date.now()}` } })
           .catch(() => undefined); // already pending → idempotent
       }
 
@@ -789,23 +790,43 @@ export async function pushBookingUpdates(
   return { active: activeMembers.length, awaitingDriver };
 }
 
+// Match the just-finished ride to a kas bookingReports row to read its FINAL fare. kas history uses
+// a SEPARATE id space from the live booking id (booking 47115 ↔ report 133373) and exposes NO link
+// field, so `h.id === bid` almost never matches — that's why the fare message went missing. Match by
+// the driver's car instead (history is id-desc → first hit = most recent ride with that car); fall
+// back to the most recent paid ride that isn't stale (within ~1h of finish) when the car is unknown.
+function matchFareRow(hist: RideHistoryItem[], bid: number, carNumber?: string, sinceMs?: number): RideHistoryItem | undefined {
+  const norm = (s: string | undefined) => (s ?? "").replace(/\s/g, "").toUpperCase();
+  const paid = hist.filter((h) => h.payment > 0);
+  const byId = paid.find((h) => h.id === bid);
+  if (byId) return byId; // harmless if a config ever does share ids
+  if (carNumber) {
+    const car = paid.find((h) => norm(h.carNumber) === norm(carNumber));
+    if (car) return car;
+  }
+  const fresh = sinceMs ? paid.filter((h) => { const t = Date.parse(h.at); return !Number.isFinite(t) || t >= sinceMs - 60 * 60 * 1000; }) : paid;
+  return fresh[0]; // most recent paid ride (id-desc)
+}
+
 // 🧾 Deliver ride fares that kas finalized AFTER the finish card was sent (SMS-parity). Called once
-// per sweep from pushBookingUpdates — NOT a new poller. A `farepending:<bid>` marker (chatId|phone|
-// attempts, created at finish when the fare wasn't ready) drives it: re-query kas and, the moment a
-// payment posts, send "Yo'l haqi: …" exactly once (a faredone:<bid> claim guards a finish re-entry)
-// then clear the marker. Gives up after FARE_MAX_ATTEMPTS sweeps so a never-paid ride can't leak it.
+// per sweep from pushBookingUpdates — NOT a new poller. A `farepending:<bid>` marker
+// (chatId|phone|attempts|carNumber|createMs, created at finish when the fare wasn't ready) drives it:
+// re-query kas and, the moment a payment posts, send "Yo'l haqi: …" exactly once (a faredone:<bid>
+// claim guards a finish re-entry) then clear the marker. Gives up after FARE_MAX_ATTEMPTS sweeps.
 const FARE_MAX_ATTEMPTS = 20;
 async function resolvePendingFares(bot: Bot, ds: KasDataSource): Promise<void> {
   const pending = await prisma.appState.findMany({ where: { key: { startsWith: "farepending:" } } });
   for (const p of pending) {
     const bid = Number(p.key.split(":")[1] ?? 0);
-    const [chatId, phone, attRaw] = p.value.split("|");
+    const [chatId, phone, attRaw, carRaw, sinceRaw] = p.value.split("|");
     const attempts = Number(attRaw ?? 0);
+    const carNumber = carRaw || undefined; // absent on pre-fix markers
+    const sinceMs = Number(sinceRaw) || undefined;
     let settled = !chatId || !phone || !bid; // malformed marker → drop it
     if (!settled) {
       try {
         const hist = await ds.getRideHistory(phone!, 6);
-        const ride = hist?.find((h) => h.id === bid);
+        const ride = matchFareRow(hist ?? [], bid, carNumber, sinceMs);
         if (ride && ride.payment > 0) {
           let firstSend = true;
           try {
@@ -829,7 +850,7 @@ async function resolvePendingFares(bot: Bot, ds: KasDataSource): Promise<void> {
     if (settled || attempts + 1 >= FARE_MAX_ATTEMPTS) {
       await prisma.appState.delete({ where: { key: p.key } }).catch(() => undefined);
     } else {
-      await prisma.appState.update({ where: { key: p.key }, data: { value: `${chatId}|${phone}|${attempts + 1}` } }).catch(() => undefined);
+      await prisma.appState.update({ where: { key: p.key }, data: { value: `${chatId}|${phone}|${attempts + 1}|${carRaw ?? ""}|${sinceRaw ?? ""}` } }).catch(() => undefined);
     }
   }
 }
