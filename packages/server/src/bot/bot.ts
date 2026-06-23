@@ -982,12 +982,31 @@ export function createBot(): Bot {
     const shareUrl =
       `https://t.me/share/url?url=${encodeURIComponent(r.link)}` +
       `&text=${encodeURIComponent("🚕 1067 Taxi — har safardan cashback, kunlik sovg'alar va omad g'ildiragi! Qo'shiling:")}`;
-    const kb = new InlineKeyboard().url("📤 Do'stga yuborish", shareUrl);
+    const kb = new InlineKeyboard().url("📤 Do'stga yuborish", shareUrl).row().text("📷 QR kod", "ref:qr");
     await ctx.reply(renderReferral(r), { parse_mode: "HTML", reply_markup: kb });
   };
   bot.hears("👥 Do'st", showReferral);
   bot.hears("👥 Do'st taklif", showReferral); // old cached keyboards
   bot.command("invite", showReferral);
+  // 👥 client referral as a scannable QR (parity with the driver QR flows) — show your phone, a
+  // friend scans, joins, rides → you +REFERRER_REWARD, they +REFEREE_REWARD.
+  bot.callbackQuery("ref:qr", async (ctx) => {
+    await ctx.answerCallbackQuery().catch(() => undefined);
+    const r = await getReferralInfo(String(ctx.from!.id));
+    const QR = await import("qrcode");
+    const png = await QR.toBuffer(r.link, { width: 600, margin: 2 });
+    const shareUrl =
+      `https://t.me/share/url?url=${encodeURIComponent(r.link)}` +
+      `&text=${encodeURIComponent("🚕 1067 Taxi — har safardan cashback va sovg'alar! Qo'shiling:")}`;
+    await ctx.replyWithPhoto(new InputFile(png), {
+      caption:
+        "👥 <b>Do'st taklif — havola + QR</b>\n\n" +
+        `Do'stingizga ulashing yoki QR'ni ko'rsating. U ulanib birinchi safarini qilsa — sizga <b>+${formatNumber(REFERRER_REWARD)} tanga</b>, unga <b>+${formatNumber(REFEREE_REWARD)} tanga</b>! 🎁\n\n` +
+        `🔗 <code>${r.link}</code>`,
+      parse_mode: "HTML",
+      reply_markup: new InlineKeyboard().url("📤 Do'stga yuborish", shareUrl),
+    });
+  });
 
   // ─── kas1067 client power-up: fare + cashback rules ───────────────────────────
   const showFare = async (ctx: Context) => {
