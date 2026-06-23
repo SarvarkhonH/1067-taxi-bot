@@ -28,6 +28,26 @@ function divIcon(cls: string, html: string): L.DivIcon {
   return L.divIcon({ className: "", html: `<div class="${cls}">${html}</div>`, iconSize: [28, 28], iconAnchor: [14, 14] });
 }
 
+// Clean top-down car marker (nose points up = heading 0; the wrapper is rotated by bearing so it
+// looks like it's driving) — replaces the ugly 🚖/🟢 emoji. Two dark windows + a body tint read as
+// a car at a glance even at small size, like Uber/Yandex map cars.
+function carSvg(color: string, size: number): string {
+  return `<svg width="${size}" height="${size}" viewBox="0 0 32 32" xmlns="http://www.w3.org/2000/svg" style="display:block">
+    <rect x="9.5" y="3" width="13" height="26" rx="6" fill="${color}"/>
+    <path d="M11 7 Q16 4.3 21 7 L20 12 H12 Z" fill="#0b1f3a" opacity=".78"/>
+    <rect x="12" y="19.3" width="8" height="5.6" rx="2.3" fill="#0b1f3a" opacity=".62"/>
+    <circle cx="16" cy="15.4" r="1.15" fill="#fff" opacity=".5"/>
+  </svg>`;
+}
+function carIcon(color: string, bearing: number, size = 30): L.DivIcon {
+  return L.divIcon({
+    className: "",
+    html: `<div class="b3-carmark" style="transform:rotate(${bearing}deg)">${carSvg(color, size)}</div>`,
+    iconSize: [size, size],
+    iconAnchor: [size / 2, size / 2],
+  });
+}
+
 // M5: OSRM road route (driver → pickup). Public demo server; it can be slow/blocked on some
 // UZ networks (same lesson as OSM tiles), so the caller falls back to a straight dashed line —
 // there is ALWAYS a visual link from the car to the pickup. coords come back [lng,lat] → swap.
@@ -321,7 +341,7 @@ function Booking3Inner({ me, info, onClose }: { me: MeResponse; info: BookingInf
       for (const mk of pinMarkers.current) mk.remove();
       pinMarkers.current = r.pins
         .slice(0, 40)
-        .map((d) => L.marker([d.lat, d.lng], { icon: divIcon("b3-pin" + (d.busy ? " busy" : ""), d.busy ? "🚖" : "🟢") }).addTo(map.current!));
+        .map((d) => L.marker([d.lat, d.lng], { icon: carIcon(d.busy ? "#9ca3af" : "#22c55e", d.bearing || 0, 26) }).addTo(map.current!));
     };
     load();
     const t = setInterval(load, 15_000);
@@ -349,7 +369,7 @@ function Booking3Inner({ me, info, onClose }: { me: MeResponse; info: BookingInf
     }
     if (!driverMarker.current) {
       // className → CSS transition on .b3-carpin glides the marker position between polls
-      const icon = L.divIcon({ className: "b3-carpin", html: '<span class="b3-carpin-i">🚖</span>', iconSize: [30, 30], iconAnchor: [15, 15] });
+      const icon = L.divIcon({ className: "b3-carpin", html: `<span class="b3-carpin-i">${carSvg("#FFB300", 36)}</span>`, iconSize: [36, 36], iconAnchor: [18, 18] });
       driverMarker.current = L.marker([d.lat, d.lng], { icon, zIndexOffset: 1000 }).addTo(map.current);
     } else {
       driverMarker.current.setLatLng([d.lat, d.lng]);
