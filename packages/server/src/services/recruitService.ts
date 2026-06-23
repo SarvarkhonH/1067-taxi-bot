@@ -11,6 +11,11 @@ const REVSHARE_VETERAN = 25; // after 6 months, forever (activity-gated)
 const REVSHARE_MONTH_CAP = 30000; // per driver per month
 const SIX_MONTHS = 183 * 24 * 3600 * 1000;
 const RECRUIT_WELCOME = 2000; // the recruited CUSTOMER's first-ride welcome bonus (matches the referral referee reward)
+// 🚖 driver→driver recruit: a driver brings a NEW DRIVER. The recruiter earns the milestone once the
+// recruited driver proves real+active by completing DRIVER_RECRUIT_RIDES rides AS A DRIVER.
+const DRIVER_RECRUIT_MILESTONE = 5000; // tanga to the recruiter
+const DRIVER_RECRUIT_RIDES = 10; // recruited driver's completed rides that unlock it
+const DRIVER_RECRUIT_MONTHLY_CAP = 10; // paid driver-recruits per recruiter per month (anti-abuse)
 
 function norm9(p: string): string {
   return p.replace(/\D/g, "").slice(-9);
@@ -48,7 +53,7 @@ export async function payRecruitRevshare(riderMemberId: number, bookingId: numbe
   if (!(await featureOn("recruit"))) return;
   const tu = await prisma.telegramUser.findFirst({ where: { memberId: riderMemberId } });
   const code = tu?.referredByCode ?? "";
-  if (!code.startsWith("drv_")) return;
+  if (!code.startsWith("drv_") || code.startsWith("drvdrv_")) return; // drvdrv_ = driver→driver link, NOT a client recruit
   const driverId = Number(code.slice(4));
   if (!Number.isFinite(driverId)) return;
   const driver = await prisma.member.findUnique({ where: { id: driverId }, select: { id: true, type: true, phone: true } });
@@ -137,6 +142,71 @@ export async function driverRecruitStats(driverId: number): Promise<{
 export function driverQrLink(driverMemberId: number): string {
   const user = process.env.BOT_USERNAME || "koson1067bot";
   return `https://t.me/${user}?start=drv_${driverMemberId}`;
+}
+
+/** 🚖 A driver's "recruit another DRIVER" deep-link (a NEW driver joins via this → recruiter earns
+ *  5000 once that driver completes 10 rides). Distinct prefix `drvdrv_` from the client QR `drv_`. */
+export function driverRecruitQrLink(driverMemberId: number): string {
+  const user = process.env.BOT_USERNAME || "koson1067bot";
+  return `https://t.me/${user}?start=drvdrv_${driverMemberId}`;
+}
+
+/** Capture a drvdrv_ deep-link for a FRESH user (brand-new only). Returns the recruiter's telegram id
+ *  so the caller can give the "a driver candidate joined via your link" feedback. Payout happens later,
+ *  only after the recruited person becomes a driver and completes 10 rides. */
+export async function attachDriverDriverRecruit(
+  newTelegramId: string,
+  recruiterDriverId: number,
+): Promise<{ attached: boolean; recruiterTelegramId?: string }> {
+  const tu = await prisma.telegramUser.findUnique({ where: { id: newTelegramId } });
+  if (tu?.memberId || tu?.referredByCode) return { attached: false }; // only brand-new users
+  const recruiter = await prisma.member.findUnique({ where: { id: recruiterDriverId }, select: { type: true } });
+  if (recruiter?.type !== "driver") return { attached: false };
+  await prisma.telegramUser.upsert({
+    where: { id: newTelegramId },
+    create: { id: newTelegramId, referredByCode: `drvdrv_${recruiterDriverId}` },
+    update: { referredByCode: `drvdrv_${recruiterDriverId}` },
+  });
+  const rTu = await prisma.telegramUser.findFirst({ where: { memberId: recruiterDriverId }, select: { id: true } });
+  return { attached: true, recruiterTelegramId: rTu?.id };
+}
+
+/**
+ * On a recruited DRIVER's completed rides (called from the sweep with the driver who drove THIS ride):
+ * count toward the 10-ride milestone and, on the 10th, pay the recruiter 5000 — once. Gated by the
+ * "drvrecruit" flag. Idempotent: a per-booking AppState marker counts rides (so re-sweeps never
+ * double-count and only POST-recruit rides count); the payout key `drvdrv_milestone:<newDriverId>`
+ * blocks any double-pay. Self/family-recruit blocked by phone last-9. Monthly cap per recruiter.
+ */
+export async function payDriverRecruitMilestone(
+  newDriverId: number,
+  bookingId: number,
+): Promise<{ paid: boolean; recruiterTelegramId?: string; amount?: number }> {
+  const { featureOn } = await import("./featureFlags");
+  if (!(await featureOn("drvrecruit"))) return { paid: false };
+  const tu = await prisma.telegramUser.findFirst({ where: { memberId: newDriverId } });
+  const code = tu?.referredByCode ?? "";
+  if (!code.startsWith("drvdrv_")) return { paid: false };
+  const recruiterId = Number(code.slice(7));
+  if (!Number.isFinite(recruiterId) || recruiterId === newDriverId) return { paid: false };
+  // already paid for this recruited driver?
+  if (await prisma.coinTxn.findUnique({ where: { idempotencyKey: `drvdrv_milestone:${newDriverId}` } }).catch(() => null)) return { paid: false };
+  const recruiter = await prisma.member.findUnique({ where: { id: recruiterId }, select: { id: true, type: true, phone: true } });
+  if (!recruiter || recruiter.type !== "driver") return { paid: false };
+  const nd = await prisma.member.findUnique({ where: { id: newDriverId }, select: { phone: true } });
+  if (nd?.phone && recruiter.phone && norm9(nd.phone) === norm9(recruiter.phone)) return { paid: false }; // self/family
+  // count this recruited driver's rides via a durable, idempotent per-booking marker
+  await prisma.appState.create({ data: { key: `drvdrvride:${newDriverId}:${bookingId}`, value: "1" } }).catch(() => undefined);
+  const rides = await prisma.appState.count({ where: { key: { startsWith: `drvdrvride:${newDriverId}:` } } });
+  if (rides < DRIVER_RECRUIT_RIDES) return { paid: false };
+  // monthly cap on PAID driver-recruits per recruiter
+  const monthAgo = new Date(Date.now() - 30 * 24 * 3600 * 1000);
+  const paidThisMonth = await prisma.coinTxn.count({ where: { memberId: recruiterId, kind: "drvrecruit", createdAt: { gte: monthAgo } } });
+  if (paidThisMonth >= DRIVER_RECRUIT_MONTHLY_CAP) return { paid: false };
+  const g = await grantCoins(recruiterId, DRIVER_RECRUIT_MILESTONE, "drvrecruit", "🚖 Olib kelgan haydovchingiz 10 ta safar qildi!", `drvdrv_milestone:${newDriverId}`);
+  if (!g.ok) return { paid: false };
+  const rTu = await prisma.telegramUser.findFirst({ where: { memberId: recruiterId }, select: { id: true } });
+  return { paid: true, recruiterTelegramId: rTu?.id, amount: DRIVER_RECRUIT_MILESTONE };
 }
 
 /** Admin: per-driver recruit leaderboard. */

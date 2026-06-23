@@ -592,6 +592,23 @@ export async function pushBookingUpdates(
             } catch (e) {
               console.error("[recruit] revshare failed:", e);
             }
+            // 🚖 driver→driver milestone: the DRIVER who drove this ride may have been recruited by
+            // another driver — count toward 10 rides; pay the recruiter 5000 once (flag drvrecruit, DARK).
+            try {
+              const { payDriverRecruitMilestone } = await import("./recruitService");
+              const r = await payDriverRecruitMilestone(driver.id, m.lastBookingId!);
+              if (r.paid && r.recruiterTelegramId) {
+                await bot.api
+                  .sendMessage(
+                    r.recruiterTelegramId,
+                    `🚖 <b>Tabriklaymiz!</b>\nOlib kelgan haydovchingiz <b>10 ta safar</b> qildi — sizga <b>+${formatNumber(r.amount ?? 0)} tanga</b> tushdi! 🎉`,
+                    { parse_mode: "HTML" },
+                  )
+                  .catch(() => undefined);
+              }
+            } catch (e) {
+              console.error("[drvrecruit] milestone failed:", e);
+            }
           } catch (e) {
             console.error("[driver_bonus] failed:", e);
           }
@@ -649,7 +666,10 @@ export async function pushBookingUpdates(
           if (priorRides === 0) {
             const referred = (await prisma.referral.findFirst({ where: { refereeMemberId: m.id }, select: { id: true } })) !== null;
             const tu = await prisma.telegramUser.findFirst({ where: { memberId: m.id }, select: { referredByCode: true } });
-            const recruited = (tu?.referredByCode ?? "").startsWith("drv_");
+            const code = tu?.referredByCode ?? "";
+            // client-recruit is `drv_<id>`; the driver-recruit `drvdrv_<id>` must NOT count here (a
+            // driver-candidate link that ends up a client still deserves the client welcome bonus).
+            const recruited = code.startsWith("drv_") && !code.startsWith("drvdrv_");
             if (!referred && !recruited) {
               const { grantCoins } = await import("./coinService");
               const { REFEREE_REWARD } = await import("./referralService");

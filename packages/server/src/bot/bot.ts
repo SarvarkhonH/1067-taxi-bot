@@ -169,7 +169,21 @@ export function createBot(): Bot {
           .catch(() => undefined);
       }
     }
-    if (payload.startsWith("drv_")) {
+    if (payload.startsWith("drvdrv_")) {
+      // 🚖 driver→driver: a NEW driver candidate arrived via another driver's recruit link. Checked
+      // BEFORE drv_ because "drvdrv_" also startsWith "drv_". Payout is deferred to the 10th ride.
+      const { attachDriverDriverRecruit } = await import("../services/recruitService");
+      const dr = await attachDriverDriverRecruit(id, Number(payload.slice(7))).catch(() => ({ attached: false }) as { attached: boolean; recruiterTelegramId?: string });
+      if (dr.attached && dr.recruiterTelegramId) {
+        await bot.api
+          .sendMessage(
+            dr.recruiterTelegramId,
+            `🚖 <b>Havolangiz orqali yangi haydovchi nomzodi keldi!</b>\n\n<b>${joinerName}</b> qo'shildi. U haydovchi bo'lib ulanib <b>10 ta safar</b> qilsa — sizga <b>5000 tanga</b>. 🎉`,
+            { parse_mode: "HTML" },
+          )
+          .catch(() => undefined);
+      }
+    } else if (payload.startsWith("drv_")) {
       const { attachDriverRecruit } = await import("../services/recruitService");
       const r = await attachDriverRecruit(id, Number(payload.slice(4))).catch(() => ({ attached: false }) as { attached: boolean; driverTelegramId?: string });
       // immediate driver feedback — "you invited <name>" the moment their QR is scanned
@@ -636,6 +650,28 @@ export function createBot(): Bot {
       parse_mode: "HTML",
     });
   });
+  // 🚖 driver→driver recruit: a driver shares this to bring ANOTHER DRIVER (gated by drvrecruit flag).
+  bot.callbackQuery("drvdrv:show", async (ctx) => {
+    await ctx.answerCallbackQuery().catch(() => undefined);
+    const me = await getMe(String(ctx.from!.id));
+    if (!me || (me.type !== "driver" && String(ctx.from!.id) !== "6506297119")) return;
+    if (!(await featureOn("drvrecruit"))) return;
+    const { driverRecruitQrLink } = await import("../services/recruitService");
+    const link = driverRecruitQrLink(me.member.id);
+    const QR = await import("qrcode");
+    const png = await QR.toBuffer(link, { width: 600, margin: 2 });
+    const shareUrl =
+      `https://t.me/share/url?url=${encodeURIComponent(link)}` +
+      `&text=${encodeURIComponent("🚖 1067 Taxi'da haydovchi bo'ling — yaxshi daromad, bonuslar, jonli buyurtmalar!")}`;
+    await ctx.replyWithPhoto(new InputFile(png), {
+      caption:
+        "🚖 <b>Haydovchi chaqirish — havola + QR</b>\n\n" +
+        "Boshqa haydovchiga ulashing. U botga <b>haydovchi bo'lib</b> ulanib <b>10 ta safar</b> qilsa — sizga <b>5000 tanga</b>. 🎉\n\n" +
+        `🔗 <code>${link}</code>`,
+      parse_mode: "HTML",
+      reply_markup: new InlineKeyboard().url("📤 Havolani ulashish", shareUrl),
+    });
+  });
 
   // 🏪 shop owner redeems a customer's voucher: /vaucher KOD123
   bot.command("vaucher", async (ctx) => {
@@ -927,12 +963,17 @@ export function createBot(): Bot {
         .url("📤 Havolani ulashish", shareUrl)
         .row()
         .text("📷 QR kodim", "drv:qr");
+      const drvOn = await featureOn("drvrecruit");
+      if (drvOn) kb.row().text("🚖 Haydovchi chaqirish", "drvdrv:show");
       await ctx.reply(
         "🚖 <b>Mijoz taklif havolangiz</b>\n\n" +
           "Siz haydovchisiz — sizda mijoz-referal emas, <b>mijoz taklif havolasi</b> bor.\n\n" +
           `🔗 <code>${link}</code>\n\n` +
           "Havolani yuboring yoki QR'ni ko'rsating. Mijoz ulanib birinchi safarini qilsa — sizga <b>500 tanga</b>, " +
-          "so'ng har safaridan ulush. 📅 Oyiga 15 ta yangi mijoz · 30 000 tangagacha.",
+          "so'ng har safaridan ulush. 📅 Oyiga 15 ta yangi mijoz · 30 000 tangagacha." +
+          (drvOn
+            ? "\n\n🚖 <b>Haydovchi ham chaqira olasiz!</b> Yangi haydovchi ulanib 10 ta safar qilsa — sizga <b>5000 tanga</b>. Pastdagi «🚖 Haydovchi chaqirish»."
+            : ""),
         { parse_mode: "HTML", reply_markup: kb },
       );
       return;
