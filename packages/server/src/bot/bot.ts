@@ -894,6 +894,30 @@ export function createBot(): Bot {
 
   // ─── referral ───────────────────────────────────────────────────────────────
   const showReferral = async (ctx: Context) => {
+    const me = await getMe(String(ctx.from!.id));
+    // Haydovchi mijoz-referalini OLMAYDI — u o'z havolasi + QR'i bilan MIJOZ taklif qiladi
+    // (mijoz ulanib birinchi safarini qilsa: +500 tanga, so'ng har safardan ulush). Mijozlar
+    // esa do'st-referalini oladi (pastdagi tarmoq). Ega tilagi: «haydovchiga mijozdek referal yo'q».
+    if (me?.type === "driver") {
+      const { driverQrLink } = await import("../services/recruitService");
+      const link = driverQrLink(me.member.id);
+      const shareUrl =
+        `https://t.me/share/url?url=${encodeURIComponent(link)}` +
+        `&text=${encodeURIComponent("🚕 1067 Taxi botiga ulaning — birinchi safaringizga 2000 tanga sovg'a! 🎁")}`;
+      const kb = new InlineKeyboard()
+        .url("📤 Havolani ulashish", shareUrl)
+        .row()
+        .text("📷 QR kodim", "drv:qr");
+      await ctx.reply(
+        "🚖 <b>Mijoz taklif havolangiz</b>\n\n" +
+          "Siz haydovchisiz — sizda mijoz-referal emas, <b>mijoz taklif havolasi</b> bor.\n\n" +
+          `🔗 <code>${link}</code>\n\n` +
+          "Havolani yuboring yoki QR'ni ko'rsating. Mijoz ulanib birinchi safarini qilsa — sizga <b>500 tanga</b>, " +
+          "so'ng har safaridan ulush. 📅 Oyiga 15 ta yangi mijoz · 30 000 tangagacha.",
+        { parse_mode: "HTML", reply_markup: kb },
+      );
+      return;
+    }
     const r = await getReferralInfo(String(ctx.from!.id));
     const shareUrl =
       `https://t.me/share/url?url=${encodeURIComponent(r.link)}` +
