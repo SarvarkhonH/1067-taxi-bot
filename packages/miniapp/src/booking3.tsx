@@ -259,6 +259,7 @@ function Booking3Inner({ me, info, onClose }: { me: MeResponse; info: BookingInf
     // invalidateSize across the expand animation AND on every viewport/resize event.
     const fix = () => map.current?.invalidateSize();
     let fixTimers: ReturnType<typeof setTimeout>[] = [];
+    let poll: ReturnType<typeof setInterval> | undefined;
     const tgEv = tg as unknown as { onEvent?: (e: string, cb: () => void) => void; offEvent?: (e: string, cb: () => void) => void };
     try {
       const m = L.map(mapRef.current, { zoomControl: false, attributionControl: false }).setView(
@@ -271,15 +272,31 @@ function Booking3Inner({ me, info, onClose }: { me: MeResponse; info: BookingInf
       // dropping it lets tiles paint + tileload fire. THIS was the "Xarita ko'rinmadi" blank.
       L.tileLayer(TILE_URL, { subdomains: TILE_SUBDOMAINS, maxZoom: 20 }).addTo(m);
       map.current = m;
-      // if NO tile loads within 12s (weak UZ 4G headroom) → placeholder, never a blank map
-      failTimer = setTimeout(() => setMapFailed(true), 12000);
-      let firstTile = false;
-      m.on("tileload", () => {
-        if (firstTile) return;
-        firstTile = true;
-        if (failTimer) clearTimeout(failTimer);
-        setMapFailed(false);
-      });
+      // Robust load detection: the `tileload` EVENT is unreliable in the Telegram WebView (it can
+      // fail to fire even while tiles visibly paint → the old timer wrongly showed the fallback after
+      // a few seconds / after panning the pin). So poll the DOM for actually-loaded tiles instead.
+      // Once ANY real tile exists we are settled forever — panning never re-triggers the fallback.
+      let settled = false;
+      const markOk = () => {
+        if (settled || !mapRef.current) return;
+        // A tile has REAL pixels once img.complete && naturalWidth>0 — this is true even when the
+        // WebView fails to fire the load event (Leaflet's own leaflet-tile-loaded class also depends
+        // on that event, so we must check the image DATA directly, not any event/class).
+        let painted = false;
+        mapRef.current.querySelectorAll<HTMLImageElement>("img.leaflet-tile").forEach((im) => {
+          if (im.complete && im.naturalWidth > 0) painted = true;
+        });
+        if (painted) {
+          settled = true;
+          setMapFailed(false);
+          if (failTimer) clearTimeout(failTimer);
+          if (poll) clearInterval(poll);
+        }
+      };
+      poll = setInterval(markOk, 800);
+      m.on("tileload", markOk); // extra signal on top of the DOM poll
+      // only if NO tile has actually painted within 12s (weak UZ 4G headroom) → placeholder
+      failTimer = setTimeout(() => { if (poll) clearInterval(poll); if (!settled) setMapFailed(true); }, 12000);
       fixTimers = [120, 350, 700, 1400].map((d) => setTimeout(fix, d)); // catch the expand animation
       window.addEventListener("resize", fix);
       tgEv?.onEvent?.("viewportChanged", fix); // Telegram WebView height settled → re-fit tiles
@@ -288,6 +305,7 @@ function Booking3Inner({ me, info, onClose }: { me: MeResponse; info: BookingInf
     }
     return () => {
       if (failTimer) clearTimeout(failTimer);
+      if (poll) clearInterval(poll);
       fixTimers.forEach(clearTimeout);
       window.removeEventListener("resize", fix);
       tgEv?.offEvent?.("viewportChanged", fix);
