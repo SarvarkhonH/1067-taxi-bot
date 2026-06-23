@@ -374,6 +374,24 @@ export function createBot(): Bot {
       reply_markup: new InlineKeyboard().text("⚙️ Hisobim / Sozlamalar", "acct:open"),
     });
   };
+  // 🚀 Mini App opener. The reply-keyboard «🚀 Ilova» IS a web_app button, but Telegram caches
+  // keyboards hard — an OLD cached keyboard sends this label as plain TEXT, so nothing opened
+  // ("kirib bo'lmaydi"). Catch the label and open the app via an INLINE web_app button (the
+  // reliable path — same mechanism as the working pinned /start card and ☰ menu button).
+  bot.hears(/^🚀\s*Ilova/i, async (ctx) => {
+    if (!canWebApp) {
+      await ctx.reply("Ilova hozircha mavjud emas — /start bilan yangilang.");
+      return;
+    }
+    await ctx.reply("🚖 <b>Ilova</b> — buyurtma · o'yin · bozor · hamyon 👇", {
+      parse_mode: "HTML",
+      reply_markup: new InlineKeyboard().webApp("🚕 Ochish", webAppUrl()),
+    });
+  });
+  bot.command("app", async (ctx) => {
+    if (!canWebApp) return;
+    await ctx.reply("🚖 <b>Ilova</b> 👇", { parse_mode: "HTML", reply_markup: new InlineKeyboard().webApp("🚕 Ochish", webAppUrl()) });
+  });
   bot.hears("💰 Hamyon", showProfile);
   bot.hears("💰 Hisobim", showProfile); // old cached keyboards
   bot.command("me", showProfile);
