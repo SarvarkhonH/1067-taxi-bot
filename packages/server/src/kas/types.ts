@@ -194,6 +194,9 @@ export interface KasDataSource {
   checkClient(phone: string): Promise<ClientBookingInfo | null>;
   /** Booking: address autocomplete. */
   searchAddresses(text: string): Promise<SavedAddress[]>;
+  /** Booking: the FULL company address catalog (GET api/addresses/) — the same list the official
+   *  rider app uses for getAddressByLocation. Lets a map pin snap to the nearest real place name. */
+  getAllAddresses(): Promise<SavedAddress[]>;
   /** Booking: create a real order (POST throughWeb). Only called when BOOKING_LIVE=true. */
   createBooking(req: BookingRequest): Promise<BookingResult>;
   /** Booking: optional paid add-ons (bag, moto…) with prices. */

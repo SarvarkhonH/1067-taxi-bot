@@ -528,11 +528,14 @@ function Booking3Inner({ me, info, onClose }: { me: MeResponse; info: BookingInf
     setRated(false);
   };
 
-  // M7: if the dragged pin is within 400m of a known saved address, name it as a hint;
-  // otherwise it's an arbitrary point → kas dispatches to the exact pin (addressId 0).
+  // M7: label the dragged pin with the nearest REAL catalog place (~111 places cover the city, so
+  // there's almost always one close). On it (≤150m) → the bare name ("Shabada"); a bit off → "… yaqini".
+  // The server re-resolves this name authoritatively at booking, so the driver always gets a real place.
   const pinNear =
-    pinPt && pinAddr && typeof pinAddr.lat === "number" && typeof pinAddr.lng === "number" && haversineKm(pinPt, { lat: pinAddr.lat, lng: pinAddr.lng }) <= 0.4
-      ? pinAddr.name
+    pinPt && pinAddr && typeof pinAddr.lat === "number" && typeof pinAddr.lng === "number"
+      ? haversineKm(pinPt, { lat: pinAddr.lat, lng: pinAddr.lng }) <= 0.15
+        ? pinAddr.name
+        : `${pinAddr.name} yaqini`
       : null;
   const confirmPin = () => {
     if (!pinPt || pinBusy) return;
@@ -605,7 +608,7 @@ function Booking3Inner({ me, info, onClose }: { me: MeResponse; info: BookingInf
         <div className="b3-pinbar">
           <div className="b3-grip" />
           <div className="b3-pin-label">
-            {pinBusy ? "⏳ Manzil aniqlanmoqda…" : pinNear ? <>📍 <b>{pinNear}</b> yaqinida</> : "📍 Xaritada belgilangan nuqta"}
+            {pinBusy ? "⏳ Manzil aniqlanmoqda…" : pinNear ? <>📍 <b>{pinNear}</b></> : "📍 Xaritada belgilangan nuqta"}
           </div>
           <Button disabled={!pinPt || pinBusy} onClick={confirmPin}>✅ Shu yerdan chaqirish</Button>
           <Button variant="ghost" onClick={() => setScreen("map")}>← Orqaga</Button>

@@ -98,6 +98,10 @@ export class KasMockSource implements KasDataSource {
       .map((name, i) => ({ id: 200 + i, name, lat: 39.034 + i * 0.003, lng: 65.57 + i * 0.003 }));
   }
 
+  async getAllAddresses(): Promise<SavedAddress[]> {
+    return MOCK_ADDRESSES.map((name, i) => ({ id: 300 + i, name, lat: 39.034 + i * 0.003, lng: 65.57 + i * 0.003 }));
+  }
+
   async createBooking(req: BookingRequest): Promise<BookingResult> {
     return { ok: true, message: `mock booking for ${req.phoneNumber} @ ${req.addressName}` };
   }

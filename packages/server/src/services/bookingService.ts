@@ -107,13 +107,17 @@ export async function searchBookingAddress(q: string): Promise<SavedAddressView[
  *  the returned address is then booked through the unchanged createBooking-by-addressId path, so
  *  the dispatch flow is untouched (no raw lat/lng booking). */
 export async function nearestAddressFor(memberId: number, lat: number, lng: number): Promise<SavedAddressView | null> {
+  void memberId; // catalog is company-wide, not per-member (kept in the signature for the route)
+  const hit = await nearestCatalogAddress(lat, lng);
+  return hit ? hit.addr : null;
+}
+
+/** Nearest place in the FULL company catalog (~111 named addresses) to an arbitrary map point —
+ *  the official rider app's getAddressByLocation. Returns the address + its distance so callers can
+ *  label a pin honestly ("Shabada" when on it, "Shabada yaqini" when a few hundred metres off). */
+export async function nearestCatalogAddress(lat: number, lng: number): Promise<{ addr: SavedAddressView; km: number } | null> {
   if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
-  const who = await phoneOf(memberId);
-  if (!who) return null;
-  const cat = await getDataSource()
-    .checkClient(who.phone)
-    .then((c) => c?.addresses ?? [])
-    .catch(() => [] as { id: number; name: string; lat?: number; lng?: number; surcharge?: number }[]);
+  const cat = await getDataSource().getAllAddresses().catch(() => [] as SavedAddressView[]);
   let best: SavedAddressView | null = null;
   let bestKm = Infinity;
   for (const a of cat) {
@@ -124,7 +128,15 @@ export async function nearestAddressFor(memberId: number, lat: number, lng: numb
       best = { id: a.id, name: a.name, lat: a.lat, lng: a.lng, surcharge: a.surcharge };
     }
   }
-  return best;
+  return best ? { addr: best, km: bestKm } : null;
+}
+
+/** Human label for a map pin: nearest catalog place, with a "yaqini" suffix when the pin is a few
+ *  hundred metres off it (so the driver knows it's an approximate reference, not the exact door). */
+export async function pinLabel(lat: number, lng: number): Promise<string> {
+  const hit = await nearestCatalogAddress(lat, lng);
+  if (!hit) return "Xaritada belgilangan nuqta";
+  return hit.km <= 0.15 ? hit.addr.name : `${hit.addr.name} yaqini`;
 }
 
 /** Fare estimate for a pickup→destination distance (kas dispatch stays pickup-only). */
@@ -163,7 +175,11 @@ export async function createBookingFor(memberId: number, body: BookingCreateBody
   // addressLatitude/Longitude), same proven path as a Telegram GPS-location share. Absent for
   // normal saved-address orders → behaviour identical to before.
   const hasPin = Number.isFinite(body.lat) && Number.isFinite(body.lng);
-  const pinMem = { id: body.pickupId, name: body.pickupName, lat: hasPin ? body.lat! : null, lng: hasPin ? body.lng! : null };
+  // Resolve the nearest REAL catalog place server-side so the DRIVER gets a meaningful name (e.g.
+  // "Shabada"), never "Xaritada belgilangan nuqta" — regardless of what the client sent. The exact
+  // lat/lng is still dispatched for precise navigation; this only fixes the human label.
+  const pinName = hasPin ? await pinLabel(body.lat!, body.lng!) : body.pickupName;
+  const pinMem = { id: body.pickupId, name: pinName, lat: hasPin ? body.lat! : null, lng: hasPin ? body.lng! : null };
 
   if (!env.bookingLive) {
     await rememberPickup(memberId, pinMem, source);
@@ -175,7 +191,7 @@ export async function createBookingFor(memberId: number, body: BookingCreateBody
   const res = await getDataSource()
     .createBooking({
       clientName: who.name,
-      addressName: body.pickupName,
+      addressName: pinName,
       addressId: body.pickupId,
       phoneNumber: who.phone,
       additionalPayment,

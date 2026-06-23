@@ -350,6 +350,23 @@ export class KasLiveSource implements KasDataSource {
     }
   }
 
+  // Full company address catalog (GET api/addresses/ → ~111 named places with lat/lng), the same
+  // list the official rider app gets via clientAppV1/checkClient. Static city data → cached 6h so a
+  // map-pin reverse-snap (nearestAddressFor) doesn't re-fetch on every drag.
+  private allAddrCache: { at: number; rows: SavedAddress[] } | null = null;
+  async getAllAddresses(): Promise<SavedAddress[]> {
+    const SIX_H = 6 * 60 * 60 * 1000;
+    if (this.allAddrCache && Date.now() - this.allAddrCache.at < SIX_H) return this.allAddrCache.rows;
+    try {
+      const data = await this.getJson("api/addresses/");
+      const rows = mapAddresses(data);
+      if (rows.length) this.allAddrCache = { at: Date.now(), rows };
+      return rows;
+    } catch {
+      return this.allAddrCache?.rows ?? []; // serve stale on a transient error rather than nothing
+    }
+  }
+
   /** Add a payment to a DRIVER's kas BALANCE (the SPA's POST api/drivers/payment). The owner's
    *  captured body: { driverId, carNumber, payViaCash:"<sum>", payViaOnline:<sum>, comment, debt }.
    *  This is how a driver tops up their kas1067 driver balance — NOT addClientBonus (that's the
