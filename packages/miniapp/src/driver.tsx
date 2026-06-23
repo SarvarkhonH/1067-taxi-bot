@@ -133,12 +133,10 @@ export function DriverView({ me }: { me: MeResponse }) {
             <span>🚕 Bugun</span>
             <b>{formatNumber(account.ridesToday ?? 0)} safar · {formatNumber(account.fareToday ?? 0)} so'm</b>
           </div>
-          {debt > 0 && (
-            <div className="wh-cashback" style={{ color: "var(--warn, #f5a623)" }}>
-              <span>⚠️ Qarz</span>
-              <b>{formatNumber(debt)} so'm</b>
-            </div>
-          )}
+          <div className="wh-cashback" style={debt > 0 ? { color: "var(--warn, #f5a623)" } : undefined}>
+            <span>{debt > 0 ? "⚠️ Qarz" : "✅ Qarz"}</span>
+            <b>{debt > 0 ? `${formatNumber(debt)} so'm` : "yo'q"}</b>
+          </div>
           {account.canPayDebt && debt > 0 && (
             <div style={{ marginTop: 10 }}>
               {payOptions.length === 0 ? (
