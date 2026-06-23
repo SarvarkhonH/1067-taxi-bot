@@ -186,12 +186,10 @@ export function createBot(): Bot {
     if (me) {
       await ctx.reply(renderProfile(me), { parse_mode: "HTML", reply_markup: mainMenu(me.type === "driver") });
     } else {
+      // Birinchi kirish — BITTA chiroyli ekran: katta «📱 Raqamni ulashish» tugmasi (asosiy,
+      // soda). «Boshqa raqam» yo'li endi welcome ichidagi /boshqaraqam ipi (avvalgi 3 ta stacked
+      // xabar o'rniga). Ega tilagi: «birinchi marta kirganda chiroyli + juda soda».
       await ctx.reply(renderWelcome(ctx.from!.first_name ?? "do'st"), { parse_mode: "HTML", reply_markup: contactKeyboard() });
-      await ctx.reply(renderLinkPrompt(), { parse_mode: "HTML", reply_markup: contactKeyboard() });
-      await ctx.reply("1067 raqamingiz Telegram raqamingizdan <b>boshqa</b> bo'lsa 👇", {
-        parse_mode: "HTML",
-        reply_markup: new InlineKeyboard().text("📱 Boshqa raqam (1067 kodi bilan)", "clink:start"),
-      });
     }
     // 📌 always-visible entry: a one-tap «Ochish» web-app card, PINNED to the top of the chat the
     // FIRST time only (silent). The ☰ Menu button is always there too; this pin makes the app the
@@ -236,6 +234,15 @@ export function createBot(): Bot {
         }
       }
       if (me) await ctx.reply(renderProfile(me), { parse_mode: "HTML", reply_markup: mainMenu(me.type === "driver") });
+      // Ulangan zahoti ilovani BIR MARTA ko'zga tashlash — "odamlar web app borligini bilmaydi".
+      if (canWebApp) {
+        await ctx
+          .reply("🎮 <b>1067 ilovasi ham bor!</b>\nJonli xarita · o'yin · bozor · garaj — hammasi bitta joyda 👇", {
+            parse_mode: "HTML",
+            reply_markup: new InlineKeyboard().webApp("🚕 Ilovani ochish", webAppUrl()),
+          })
+          .catch(() => undefined);
+      }
     } else if (res.status === "taken") {
       await ctx.reply(renderTaken(), { parse_mode: "HTML" });
     } else {
@@ -336,6 +343,15 @@ export function createBot(): Bot {
       await ctx.reply(`✅ <b>Raqam tasdiqlandi va ulandi!</b> Xush kelibsiz, ${esc(res.fullName ?? "Mijoz")} 🎉`, { parse_mode: "HTML", reply_markup: mainMenu(res.type === "driver") });
       const me = await getMe(id);
       if (me) await ctx.reply(renderProfile(me), { parse_mode: "HTML", reply_markup: mainMenu(me.type === "driver") });
+      // Ulangan zahoti ilovani BIR MARTA ko'zga tashlash — "odamlar web app borligini bilmaydi".
+      if (canWebApp) {
+        await ctx
+          .reply("🎮 <b>1067 ilovasi ham bor!</b>\nJonli xarita · o'yin · bozor · garaj — hammasi bitta joyda 👇", {
+            parse_mode: "HTML",
+            reply_markup: new InlineKeyboard().webApp("🚕 Ilovani ochish", webAppUrl()),
+          })
+          .catch(() => undefined);
+      }
     } else if (res.status === "taken") {
       await ctx.reply("⚠️ Bu raqam allaqachon boshqa akkauntga ulangan. 1067 support bilan bog'laning.");
     } else {
@@ -1155,7 +1171,7 @@ export async function setupBotCommands(bot: Bot): Promise<void> {
   await refreshWebAppVer();
   if (canWebApp) {
     try {
-      await bot.api.setChatMenuButton({ menu_button: { type: "web_app", text: "Ilova", web_app: { url: webAppUrl() } } });
+      await bot.api.setChatMenuButton({ menu_button: { type: "web_app", text: "🚕 Ilova", web_app: { url: webAppUrl() } } });
     } catch (e) {
       console.error("[bot] setChatMenuButton failed", e instanceof Error ? e.message : e);
     }

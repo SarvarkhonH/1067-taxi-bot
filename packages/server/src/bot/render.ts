@@ -26,15 +26,10 @@ const DIV = "━━━━━━━━━━━━━━";
 export function renderWelcome(name: string): string {
   return (
     `🚕 <b>1067 TAXI</b>\n` +
-    `Xush kelibsiz, <b>${esc(name)}</b>! 👋\n\n` +
-    `Bir tugma bilan taxi chaqiring, har safardan <b>haqiqiy pul cashback</b> oling.\n\n` +
-    `✨ <b>Sizni nima kutyapti:</b>\n` +
-    `🚕 Taxi chaqirish — bir tugmada\n` +
-    `💸 Har safar — cashback (haqiqiy pul)\n` +
-    `🎁 Kunlik sovg'alar — streak · g'ildirak · qutilar\n` +
-    `🏆 Liga + reyting — sovg'a uchun kurash\n` +
-    `👥 Do'st taklif — ikkalangizga tanga\n\n` +
-    `Boshlash uchun raqamingizni ulashing 👇`
+    `Salom, <b>${esc(name)}</b>! 👋\n\n` +
+    `Bir tugmada taxi · har safardan <b>haqiqiy pul cashback</b> · kunlik sovg'alar, o'yin va bozor.\n\n` +
+    `👇 Pastdagi katta <b>«📱 Raqamni ulashish»</b> tugmasini bosing — 1 soniyada hammasi ochiladi.\n` +
+    `<i>Telegram raqamingiz 1067'dagidan boshqa bo'lsa — /boshqaraqam</i>`
   );
 }
 
@@ -50,6 +45,7 @@ export function renderNotFound(): string {
   return (
     `😕 <b>Bu raqam topilmadi</b>\n\n` +
     `1067 Taxi tizimida ro'yxatdan o'tgan raqamni yuboring.\n` +
+    `📲 1067'dagi raqamingiz Telegram raqamingizdan boshqa bo'lsa — /boshqaraqam bilan ulang.\n` +
     `Hali mijoz emasmisiz? Bir marta <b>«🚖 Taxi chaqirish»</b> bilan safar qiling — keyin shu raqam ishlaydi. 🙌`
   );
 }
