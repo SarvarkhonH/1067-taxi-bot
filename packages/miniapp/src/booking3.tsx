@@ -310,7 +310,8 @@ function Booking3Inner({ me, info, onClose }: { me: MeResponse; info: BookingInf
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // ── E1 live pins (free cars), 45s refresh ──
+  // ── E1 live pins (free cars), 15s refresh — pins come from the in-memory WS fleet now (cheap, no
+  // kas REST call per request), so we can poll often enough that cars visibly move like the app. ──
   useEffect(() => {
     let alive = true;
     const load = async () => {
@@ -319,11 +320,11 @@ function Booking3Inner({ me, info, onClose }: { me: MeResponse; info: BookingInf
       setFreeDrivers(r.freeDrivers);
       for (const mk of pinMarkers.current) mk.remove();
       pinMarkers.current = r.pins
-        .slice(0, 20)
+        .slice(0, 40)
         .map((d) => L.marker([d.lat, d.lng], { icon: divIcon("b3-pin" + (d.busy ? " busy" : ""), d.busy ? "🚖" : "🟢") }).addTo(map.current!));
     };
     load();
-    const t = setInterval(load, 45_000);
+    const t = setInterval(load, 15_000);
     return () => {
       alive = false;
       clearInterval(t);

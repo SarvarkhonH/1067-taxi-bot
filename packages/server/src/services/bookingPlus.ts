@@ -6,6 +6,7 @@
 import { prisma } from "../db";
 import { getDataSource } from "../kas";
 import { recentReports } from "./analyticsService";
+import { kasMapSocket } from "./kasMapSocket";
 
 const DONE = new Set(["delivered", "completed", "finished"]);
 
@@ -39,6 +40,14 @@ export async function predictFare(addressName?: string): Promise<FarePrediction>
 let pinCache: { at: number; pins: { lat: number; lng: number; bearing: number; busy: boolean }[] } | null = null;
 
 export async function nearbyPins(): Promise<{ pins: { lat: number; lng: number; bearing: number; busy: boolean }[]; freeDrivers: number }> {
+  // PRIMARY: the live WS fleet (kasMapSocket) — the SAME source the official rider app shows. The
+  // REST drivers/byFilter snapshot carries lat/lng=0 (probed: 50 drivers, 0 with coords), so it was
+  // returning ZERO pins — that's why the bot map had no cars. Use the socket; fall back to REST only
+  // if the socket hasn't filled yet (fresh boot / disconnected).
+  const live = kasMapSocket.livePins();
+  if (live.length) {
+    return { pins: live.slice(0, 40), freeDrivers: live.filter((p) => !p.busy).length };
+  }
   if (!pinCache || Date.now() - pinCache.at > 45_000) {
     const pins = await getDataSource().getDriverPins().catch(() => []);
     pinCache = { at: Date.now(), pins };

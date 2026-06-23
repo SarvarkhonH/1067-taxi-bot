@@ -116,6 +116,19 @@ class KasMapSocket {
     return pos && Date.now() - pos.at < POS_TTL_MS ? pos : null;
   }
 
+  /** All cars currently broadcasting (fresh within POS_TTL_MS) → live map pins, exactly what the
+   *  official rider app shows. The REST drivers/byFilter snapshot carries lat/lng=0, so THIS socket
+   *  cache is the only real source of the live fleet. busy = metered/occupied (status "busy"). */
+  livePins(): { lat: number; lng: number; bearing: number; busy: boolean }[] {
+    const now = Date.now();
+    const out: { lat: number; lng: number; bearing: number; busy: boolean }[] = [];
+    for (const pos of this.cars.values()) {
+      if (now - pos.at > POS_TTL_MS) continue;
+      out.push({ lat: pos.lat, lng: pos.lng, bearing: pos.bearing, busy: pos.status.toLowerCase() === "busy" });
+    }
+    return out;
+  }
+
   isUp(): boolean {
     return this.connected;
   }
