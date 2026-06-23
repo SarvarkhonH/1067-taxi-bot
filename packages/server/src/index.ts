@@ -152,6 +152,8 @@ async function main(): Promise<void> {
           const { pushEngineTick, weeklyRecap } = await import("./services/notifyService");
           await pushEngineTick(bot).catch((e) => console.error("[push] failed:", e));
           await weeklyRecap(bot).catch((e) => console.error("[recap] failed:", e));
+          const { driverEngageTick } = await import("./services/driverEngageService");
+          await driverEngageTick(bot).catch((e) => console.error("[drvpush] failed:", e));
           const { recomputeDriverTiers } = await import("./services/analyticsService");
           await recomputeDriverTiers().catch((e) => console.error("[tiers] failed:", e));
           const { settleGapsWeekly } = await import("./services/gapService");

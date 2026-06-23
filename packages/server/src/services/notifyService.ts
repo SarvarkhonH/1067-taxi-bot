@@ -8,13 +8,13 @@ import { prisma } from "../db";
 
 const DAILY_PUSH_CAP = 2;
 
-function tashkentNow(): Date {
+export function tashkentNow(): Date {
   return new Date(Date.now() + 5 * 3600 * 1000);
 }
-function dayKey(d = new Date()): string {
+export function dayKey(d = new Date()): string {
   return new Date(d.getTime() + 5 * 3600 * 1000).toISOString().slice(0, 10);
 }
-function quietHours(): boolean {
+export function quietHours(): boolean {
   const h = tashkentNow().getUTCHours();
   return h >= 21 || h < 8;
 }
@@ -27,6 +27,12 @@ export async function setNotifyOff(memberId: number, off: boolean): Promise<void
   const key = `notifyoff:${memberId}`;
   if (off) await prisma.appState.upsert({ where: { key }, create: { key, value: "1" }, update: { value: "1" } });
   else await prisma.appState.deleteMany({ where: { key } });
+}
+
+/** Public wrapper so other engagement ticks (e.g. driver pushes) reuse the SAME dedup/cap/quiet
+ *  rules. Returns true only if the message was actually sent (claimed the once-per-day slot). */
+export async function notifyOnce(bot: Bot, chatId: string, memberId: number, kind: string, html: string): Promise<boolean> {
+  return trySend(bot, chatId, memberId, kind, html);
 }
 
 async function trySend(bot: Bot, chatId: string, memberId: number, kind: string, html: string): Promise<boolean> {
