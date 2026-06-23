@@ -95,6 +95,10 @@ export async function getDriverEarningsToday(memberId: number): Promise<DriverEa
   };
 }
 
+export interface HotZone {
+  name: string;
+  count: number;
+}
 export interface DriverPanelExtras {
   linked: boolean; // is a linked driver (type=driver + carNumber)
   carNumber?: string;
@@ -103,17 +107,39 @@ export interface DriverPanelExtras {
   ridesToday?: number;
   fareToday?: number;
   canPayDebt?: boolean; // qarz feature flag is on AND there's debt
+  // enrichment
+  rating?: number;
+  takeCount?: number;
+  cancelCount?: number;
+  blocked?: boolean; // kas account disabled → driver can't take orders
+  dispatcherPhones?: string[]; // company hotlines (tap-to-call)
+  hotZones?: HotZone[]; // this driver's most-frequent pickup areas (where to wait)
 }
 
-/** One bundle for the unified /driver panel: kas balance/debt + today's rides. Read-only, degrades
- *  gracefully (kas unreachable → figures undefined, panel still renders). */
+/** Top pickup areas from a driver's recent rides (where they earn most → "where to wait"). */
+function computeHotZones(rides: RideHistoryItem[]): HotZone[] {
+  const tally = new Map<string, number>();
+  for (const r of rides) {
+    const name = (r.addressName || "").trim();
+    if (!name || name === "-") continue;
+    tally.set(name, (tally.get(name) ?? 0) + 1);
+  }
+  return [...tally.entries()]
+    .map(([name, count]) => ({ name, count }))
+    .sort((a, b) => b.count - a.count)
+    .slice(0, 4);
+}
+
+/** One bundle for the unified /driver panel: kas balance/debt/rating + today's rides + dispatcher
+ *  hotlines + hot zones. Read-only, degrades gracefully (kas unreachable → figures undefined). */
 export async function getDriverPanelExtras(memberId: number): Promise<DriverPanelExtras> {
   const carNumber = await driverCar(memberId);
   if (!carNumber) return { linked: false };
-  const [acct, all, qarzOn] = await Promise.all([
+  const [acct, all, qarzOn, company] = await Promise.all([
     getDataSource().getDriverAccount(carNumber).catch(() => null),
     recentRides(memberId, carNumber),
     featureOn("qarz").catch(() => false),
+    getDataSource().getCompanyInfo().catch(() => null),
   ]);
   const today = todayKoson();
   const todays = all.filter((r) => kosonDay(r.at) === today);
@@ -126,6 +152,12 @@ export async function getDriverPanelExtras(memberId: number): Promise<DriverPane
     ridesToday: todays.length,
     fareToday,
     canPayDebt: qarzOn && (acct?.debt ?? 0) > 0,
+    rating: acct?.rating,
+    takeCount: acct?.takeCount,
+    cancelCount: acct?.cancelCount,
+    blocked: acct?.active === false,
+    dispatcherPhones: company?.dispatcherPhones ?? [],
+    hotZones: computeHotZones(all),
   };
 }
 

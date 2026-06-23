@@ -6,7 +6,11 @@ import { useCountUp, confetti } from "./util";
 import { hapticSuccess, shareLink, copyText } from "./telegram";
 
 type DriverMission = { id: string; emoji: string; title: string; target: number; reward: number; progress: number; claimable: boolean; claimed: boolean };
-type DriverAccount = { linked: boolean; carNumber?: string; balance?: number; debt?: number; ridesToday?: number; fareToday?: number; canPayDebt?: boolean };
+type HotZone = { name: string; count: number };
+type DriverAccount = {
+  linked: boolean; carNumber?: string; balance?: number; debt?: number; ridesToday?: number; fareToday?: number; canPayDebt?: boolean;
+  rating?: number; takeCount?: number; cancelCount?: number; blocked?: boolean; dispatcherPhones?: string[]; hotZones?: HotZone[];
+};
 type DriverQr = { ok: boolean; link?: string; png?: string; shareText?: string };
 
 type DriverRide = { id: number; addressName: string; status: string; carModel: string; payment: number; cashback: number; at: string };
@@ -102,6 +106,17 @@ export function DriverView({ me }: { me: MeResponse }) {
     <div className="view">
       {msg && <div className="sheet-ok tac" style={{ marginBottom: 10 }}>{msg}</div>}
 
+      {/* ── BLOKLANGAN HOLAT ─────────────────────────────────────────────── */}
+      {account?.blocked && (
+        <div className="drv-blocked">
+          <span className="drv-blocked-ico">⛔</span>
+          <div>
+            <b>Hisobingiz bloklangan</b>
+            <span>Buyurtma olish vaqtincha to'xtatilgan. Dispetcherga murojaat qiling 👇</span>
+          </div>
+        </div>
+      )}
+
       {/* ── HERO: tanga wallet ─────────────────────────────────────────── */}
       <section className="wallet-hero glass">
         <div className="wh-row">
@@ -173,8 +188,52 @@ export function DriverView({ me }: { me: MeResponse }) {
               )}
             </div>
           )}
+
+          {/* rating + take/cancel */}
+          {(account.rating != null || account.takeCount != null) && (
+            <div className="drv-meta-row">
+              {account.rating != null && (
+                <div className="drv-meta"><span className="star">⭐</span> <b>{account.rating.toFixed(1)}</b> reyting</div>
+              )}
+              {account.takeCount != null && (
+                <div className="drv-meta">🚕 <b>{formatNumber(account.takeCount)}</b> / {formatNumber(account.cancelCount ?? 0)} bekor</div>
+              )}
+            </div>
+          )}
+
+          {/* hot zones — where this driver gets the most rides */}
+          {account.hotZones && account.hotZones.length > 0 && (
+            <>
+              <p className="muted" style={{ fontSize: 12, margin: "12px 0 0" }}>🔥 Eng ko'p safar joylaringiz:</p>
+              <div className="drv-zones">
+                {account.hotZones.map((z) => (
+                  <span key={z.name} className="drv-zone">{z.name} <small>{z.count}</small></span>
+                ))}
+              </div>
+            </>
+          )}
         </section>
       ) : null}
+
+      {/* ── DISPETCHER HOTLINE'LAR ─────────────────────────────────────── */}
+      {account?.dispatcherPhones && account.dispatcherPhones.length > 0 && (
+        <section className="glass pad">
+          <div className="section-title">📞 Dispetcher</div>
+          <p className="muted mk-sub">Yordam kerakmi? Bir bosishda qo'ng'iroq qiling.</p>
+          <div className="drv-calls">
+            {account.dispatcherPhones.map((phone, i) => (
+              <a key={phone} className="drv-call" href={`tel:${phone.replace(/[^\d+]/g, "")}`}>
+                <span className="drv-call-ico">📞</span>
+                <span className="drv-call-meta">
+                  <b>{phone}</b>
+                  <span>{i === 0 ? "Asosiy dispetcher" : `Dispetcher ${i + 1}`}</span>
+                </span>
+                <span className="drv-call-go">›</span>
+              </a>
+            ))}
+          </div>
+        </section>
+      )}
 
       {/* ── TOPSHIRIQLAR ───────────────────────────────────────────────── */}
       <section className="glass pad">

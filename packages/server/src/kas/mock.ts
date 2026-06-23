@@ -132,7 +132,7 @@ export class KasMockSource implements KasDataSource {
 
   async getDriverAccount(carNumber: string): Promise<DriverAccount | null> {
     const car = carNumber.replace(/\s/g, "").toUpperCase() || "01A111AA";
-    return { kasId: 1001, carNumber: car, balance: 18200, debt: 45000 }; // mock: a driver with 45k debt
+    return { kasId: 1001, carNumber: car, balance: 18200, debt: 45000, rating: 4.8, takeCount: 1240, cancelCount: 37, active: true };
   }
 
   async listActiveBookings(): Promise<ActiveBookingLite[]> {

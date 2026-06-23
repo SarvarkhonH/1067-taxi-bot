@@ -372,8 +372,10 @@ export class KasLiveSource implements KasDataSource {
    *  This is how a driver tops up their kas1067 driver balance — NOT addClientBonus (that's the
    *  client bonus). Returns the raw response so the caller can confirm. */
   async addDriverPayment(driverId: number, carNumber: string, amount: number, comment = "", debt = false): Promise<{ ok: boolean; balance: number | null; status: number }> {
-    // online top-up: payViaOnline carries the sum, payViaCash "0" (proven: +N raises the kas balance).
-    // debt=true flags it as a debt settlement (the SPA's debt checkbox) — Bosqich 3 /qarz path.
+    // kas drivers/payment has 3 methods: наличный (cash) / пластик (payViaOnline, debt=FALSE) / долг
+    // (debt=TRUE). debt=FALSE = пластик REDUCES the driver's debt (proven 70A111AA: 60000→55000).
+    // debt=TRUE = долг = the driver BORROWS (debt goes UP) — never use it for repayment (the bug the
+    // owner caught). So /qarz repayment passes debt=FALSE.
     const res = await this.postJson("api/drivers/payment", { driverId, carNumber, payViaCash: "0", payViaOnline: Math.floor(amount), comment, debt });
     let balance: number | null = null;
     try {
@@ -393,7 +395,16 @@ export class KasLiveSource implements KasDataSource {
       const d = await this.getJson(`api/drivers/byCarNumber/${encodeURIComponent(car)}`);
       const kasId = Number(d.id ?? 0);
       if (!kasId) return null;
-      return { kasId, carNumber: String(d.carNumber ?? car), balance: num(d.balance), debt: num(d.debt) };
+      return {
+        kasId,
+        carNumber: String(d.carNumber ?? car),
+        balance: num(d.balance),
+        debt: num(d.debt),
+        rating: num(d.bookingRating) || num(d.companyRating) || undefined,
+        takeCount: Math.round(num(d.takeBookingCount)) || undefined,
+        cancelCount: Math.round(num(d.cancelBookingCount)) || undefined,
+        active: typeof d.active === "boolean" ? d.active : undefined,
+      };
     } catch {
       return null;
     }

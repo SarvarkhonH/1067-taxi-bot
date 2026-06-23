@@ -44,6 +44,13 @@ async function main(): Promise<void> {
       ok(x.ridesToday === 2, `rides today (got ${x.ridesToday})`);
       ok(x.fareToday === 23000, `fare today 14000+9000 (got ${x.fareToday})`);
       ok(x.canPayDebt === false, `qarz OFF → canPayDebt false even with debt`);
+      // enrichment: rating + take/cancel + blocked + dispatcher + hot zones
+      ok(x.rating === 4.8, `rating surfaced (got ${x.rating})`);
+      ok(x.takeCount === 1240 && x.cancelCount === 37, `take/cancel counts (got ${x.takeCount}/${x.cancelCount})`);
+      ok(x.blocked === false, `active driver → blocked:false`);
+      ok(Array.isArray(x.dispatcherPhones), `dispatcherPhones present (${x.dispatcherPhones?.length})`);
+      ok(Array.isArray(x.hotZones) && (x.hotZones?.length ?? 0) > 0, `hotZones computed from rides (got ${x.hotZones?.length})`);
+      ok((x.hotZones?.[0]?.count ?? 0) >= (x.hotZones?.[1]?.count ?? 0), `hotZones sorted desc by count`);
     }
 
     // ── qarz ON + debt>0 → canPayDebt true ─────────────────────────────────────

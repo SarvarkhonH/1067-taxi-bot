@@ -176,6 +176,10 @@ export interface DriverAccount {
   carNumber: string;
   balance: number;
   debt: number;
+  rating?: number; // bookingRating (fallback companyRating)
+  takeCount?: number; // lifetime taken bookings
+  cancelCount?: number; // lifetime cancelled bookings
+  active?: boolean; // false = blocked/disabled by the company
 }
 
 export interface GeoPoint {

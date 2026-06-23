@@ -445,7 +445,10 @@ body {
 .b3-spulse span:nth-child(2) { animation-delay: .85s; }
 .b3-spulse span:nth-child(3) { animation-delay: 1.7s; }
 @keyframes b3-spulse { 0% { transform: scale(.2); opacity: .85; } 100% { transform: scale(6); opacity: 0; } }
-@media (prefers-reduced-motion: reduce) { .b3-spulse span { animation: none; } }
+/* "asking this driver" beam: a gold comet travels from the pickup out to the targeted car */
+.b3-beam { stroke: #FFB300; stroke-width: 3.5; fill: none; stroke-linecap: round; stroke-dasharray: 14 700; filter: drop-shadow(0 0 3px rgba(255,179,0,.55)); animation: b3-beam 1.3s ease-out infinite; }
+@keyframes b3-beam { 0% { stroke-dashoffset: 714; opacity: 0; } 18% { opacity: 1; } 100% { stroke-dashoffset: 0; opacity: .12; } }
+@media (prefers-reduced-motion: reduce) { .b3-spulse span, .b3-beam { animation: none; } .b3-beam { opacity: .5; } }
 .b3-search-title { text-align: center; font-weight: 800; font-size: 16px; margin-bottom: 4px; }
 /* live car pins */
 .b3-pin { font-size: 22px; filter: drop-shadow(0 2px 3px rgba(0,0,0,.6)); transition: transform .6s linear; }
@@ -665,6 +668,38 @@ body {
 .drv-ride-addr { font-weight: 700; font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .drv-ride-sub { font-size: 11.5px; color: var(--text-dim); margin-top: 1px; }
 .drv-ride-amt { font-weight: 900; font-size: 15px; color: var(--text); letter-spacing: -.3px; flex: none; }
+
+/* Bloklangan haydovchi — qizil ogohlantirish banner */
+.drv-blocked { display: flex; align-items: center; gap: 11px; padding: 14px; margin-bottom: 12px; border-radius: 14px;
+  background: linear-gradient(150deg, rgba(248,113,113,.18), var(--surface)); border: 1px solid rgba(248,113,113,.4); }
+.drv-blocked-ico { font-size: 26px; flex: none; }
+.drv-blocked b { color: #fda4a4; font-size: 14px; }
+.drv-blocked span { display: block; font-size: 12px; color: var(--text-dim); margin-top: 2px; }
+
+/* Reyting + qabul/bekor mini-qator (Kas hisobi ostida) */
+.drv-meta-row { display: flex; gap: 8px; margin-top: 9px; }
+.drv-meta { flex: 1; display: flex; align-items: center; gap: 6px; padding: 9px 11px; border-radius: 11px; background: var(--surface); border: 1px solid var(--line); font-size: 13px; }
+.drv-meta b { color: var(--text); font-weight: 800; }
+.drv-meta .star { color: var(--brand); }
+
+/* Hot-zones — qaerda turish chiplari */
+.drv-zones { display: flex; flex-wrap: wrap; gap: 7px; margin-top: 8px; }
+.drv-zone { display: flex; align-items: center; gap: 5px; padding: 7px 11px; border-radius: 999px;
+  background: linear-gradient(135deg, rgba(255,179,0,.12), var(--surface)); border: 1px solid rgba(255,179,0,.24);
+  font-size: 12.5px; font-weight: 700; color: var(--text); }
+.drv-zone small { color: var(--brand); font-weight: 800; }
+
+/* Dispetcher hotline'lar — bosib qo'ng'iroq */
+.drv-calls { display: flex; flex-direction: column; gap: 8px; }
+.drv-call { display: flex; align-items: center; gap: 11px; padding: 12px 13px; border-radius: 12px; text-decoration: none;
+  background: var(--surface); border: 1px solid var(--line); color: var(--text); transition: transform var(--dur-press) ease; }
+.drv-call:active { transform: scale(.98); }
+.drv-call-ico { width: 38px; height: 38px; border-radius: 50%; display: flex; align-items: center; justify-content: center; flex: none;
+  background: linear-gradient(135deg, rgba(52,211,153,.2), rgba(52,211,153,.06)); font-size: 18px; }
+.drv-call-meta { flex: 1; min-width: 0; }
+.drv-call-meta b { font-size: 14px; font-weight: 700; }
+.drv-call-meta span { display: block; font-size: 12px; color: var(--text-dim); }
+.drv-call-go { color: var(--win); font-size: 20px; }
 
 /* prefers-reduced-motion: hamma harakat o'chadi */
 @media (prefers-reduced-motion: reduce) {
