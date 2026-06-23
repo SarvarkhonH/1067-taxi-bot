@@ -190,6 +190,21 @@ export function createBot(): Bot {
         reply_markup: new InlineKeyboard().text("📱 Boshqa raqam (1067 kodi bilan)", "clink:start"),
       });
     }
+    // 📌 always-visible entry: a one-tap «Ochish» web-app card, PINNED to the top of the chat the
+    // FIRST time only (silent). The ☰ Menu button is always there too; this pin makes the app the
+    // first thing a user sees and keeps it at the top. Re-/start never re-pins (apppinned:<id>).
+    if (canWebApp) {
+      const firstPin = await prisma.appState.create({ data: { key: `apppinned:${id}`, value: "1" } }).then(() => true).catch(() => false);
+      if (firstPin) {
+        const card = await ctx
+          .reply("🚖 <b>1067 — bir bosishda taxi!</b>\nManzilni tanlang, jonli xaritada haydovchini kuzating, bonuslar yig'ing 👇", {
+            parse_mode: "HTML",
+            reply_markup: new InlineKeyboard().webApp("🚕 Ilovani ochish", webAppUrl()),
+          })
+          .catch(() => null);
+        if (card) await ctx.api.pinChatMessage(ctx.chat!.id, card.message_id, { disable_notification: true }).catch(() => undefined);
+      }
+    }
   });
 
   const handleLink = async (ctx: Context, phone: string) => {
