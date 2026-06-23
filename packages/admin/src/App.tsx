@@ -1238,14 +1238,46 @@ function FinanceView() {
 function AnalyticsView() {
   const [ns, setNs] = useState<Awaited<ReturnType<typeof adminApi.northstar>> | null>(null);
   const [da, setDa] = useState<Awaited<ReturnType<typeof adminApi.driverAnalytics>> | null>(null);
+  const [fn, setFn] = useState<Awaited<ReturnType<typeof adminApi.growthFunnel>> | null>(null);
   useEffect(() => {
     adminApi.northstar().then(setNs).catch(() => undefined);
     adminApi.driverAnalytics().then(setDa).catch(() => undefined);
+    adminApi.growthFunnel().then(setFn).catch(() => undefined);
   }, []);
   const delta = ns ? ns.weekCompleted - ns.prevWeekCompleted : 0;
   const maxBar = da ? Math.max(1, ...da.histogram.map((h) => h.drivers)) : 1;
   return (
     <div>
+      {fn && (
+        <div className="panel" style={{ marginBottom: 12 }}>
+          <div className="card-title">🎯 Koson'ni egalash funneli — 7 kun</div>
+          <div className="grid">
+            <div className="card accent">
+              <div className="card-title">🆕 Yangi mijoz</div>
+              <div className="card-value">{formatNumber(fn.newRiders7d)}</div>
+              <div className={fn.newRiders7d >= fn.newRidersPrev7d ? "lvl" : "lvl warn"}>
+                {fn.newRiders7d >= fn.newRidersPrev7d ? "▲" : "▼"} o&apos;tgan hafta {formatNumber(fn.newRidersPrev7d)}
+              </div>
+            </div>
+            <div className="card">
+              <div className="card-title">🔁 Qaytish (2-safar)</div>
+              <div className="card-value">{fn.retentionPct}%</div>
+              <div className="muted">{formatNumber(fn.retentionCohort)} mijozdan (8–30 kun)</div>
+            </div>
+            <div className="card">
+              <div className="card-title">💸 CAC — har yangi mijoz</div>
+              <div className="card-value">{formatNumber(fn.cacTanga)}</div>
+              <div className="muted">bonus/mijoz · 7 kun jami {formatNumber(fn.acqEmission7d)}</div>
+            </div>
+            <div className="card">
+              <div className="card-title">🔥 Viral ulush</div>
+              <div className="card-value">{fn.viralPct}%</div>
+              <div className="muted">havola/QR orqali kelgan</div>
+            </div>
+          </div>
+          <p className="muted" style={{ marginTop: 6, fontSize: 12 }}>Yangi mijoz = botda ILK safar (eski 1067 mijozi ham). Qaytish past bo&apos;lsa — 2-safar tajribasi; CAC yuqori bo&apos;lsa — bonusni pasaytiring; viral past bo&apos;lsa — QR/referalni kuchaytiring.</p>
+        </div>
+      )}
       <div className="grid">
         <div className="card accent">
           <div className="card-title">🌟 Haftalik yakunlangan safarlar</div>

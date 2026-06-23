@@ -127,6 +127,10 @@ export const adminApi = {
     req<{ weekCompleted: number; prevWeekCompleted: number; botShare: number; weeklyActiveRiders: number; coinLiability: number; weekDays: number }>(
       "/api/admin/analytics/northstar",
     ),
+  growthFunnel: () =>
+    req<{ newRiders7d: number; newRidersPrev7d: number; retentionPct: number; retentionCohort: number; acqEmission7d: number; cacTanga: number; viralPct: number }>(
+      "/api/admin/analytics/funnel",
+    ),
   driverAnalytics: () =>
     req<{
       windowDays: number;

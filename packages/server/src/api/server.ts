@@ -1112,6 +1112,11 @@ export function createApiServer(opts: ApiOptions = {}) {
     const { getNorthStar } = await import("../services/analyticsService");
     res.json(await getNorthStar());
   });
+  // 📈 "capturing Koson" acquisition funnel — new riders, 2nd-ride retention, CAC, viral share
+  app.get("/api/admin/analytics/funnel", requireAdmin, async (_req, res) => {
+    const { getGrowthFunnel } = await import("../services/analyticsService");
+    res.json(await getGrowthFunnel());
+  });
   app.get("/api/admin/analytics/drivers", requireAdmin, async (_req, res) => {
     const { getDriverAnalytics } = await import("../services/analyticsService");
     res.json(await getDriverAnalytics());

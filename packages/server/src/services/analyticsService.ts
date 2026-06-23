@@ -181,3 +181,71 @@ export async function getNorthStar(): Promise<NorthStar> {
     weekDays: week.days,
   };
 }
+
+// ── "capturing Koson" acquisition funnel — the are-we-winning scoreboard ──────
+// All bot-native (RideReward = a completed BOT ride; a member's FIRST RideReward = their first bot
+// ride, so this naturally counts riders NEW TO THE BOT, incl. existing 1067 customers who just joined).
+export interface GrowthFunnel {
+  newRiders7d: number; // riders whose first bot ride was in the last 7 days
+  newRidersPrev7d: number; // the 7 days before that (trend)
+  retentionPct: number; // of riders whose 1st ride was 8–30d ago, % who did a 2nd ride
+  retentionCohort: number; // size of that cohort (keeps the % honest)
+  acqEmission7d: number; // acquisition tanga emitted in 7d (first-ride + sharer bonuses)
+  cacTanga: number; // acqEmission7d / newRiders7d — bonus cost per new rider
+  viralPct: number; // % of new riders (7d) who arrived via referral/recruit (self-spread)
+}
+
+export async function getGrowthFunnel(): Promise<GrowthFunnel> {
+  const now = Date.now();
+  const d7 = now - WEEK_MS;
+  const d14 = now - 2 * WEEK_MS;
+  const d8 = now - 8 * 24 * 3600 * 1000;
+  const d30 = now - 30 * 24 * 3600 * 1000;
+
+  // one pass over RideReward: per-member FIRST ride + total ride count
+  const grp = await prisma.rideReward.groupBy({ by: ["memberId"], _min: { createdAt: true }, _count: true });
+  let newRiders7d = 0,
+    newRidersPrev7d = 0,
+    cohort = 0,
+    cohortRetained = 0;
+  const newMemberIds: number[] = [];
+  for (const g of grp) {
+    const first = g._min.createdAt?.getTime() ?? 0;
+    const rides = g._count;
+    if (first >= d7) {
+      newRiders7d++;
+      newMemberIds.push(g.memberId);
+    } else if (first >= d14) {
+      newRidersPrev7d++;
+    }
+    if (first >= d30 && first < d8) {
+      cohort++;
+      if (rides >= 2) cohortRetained++;
+    }
+  }
+  const retentionPct = cohort ? Math.round((cohortRetained / cohort) * 100) : 0;
+
+  // acquisition emission (7d): every first-ride/referral/recruit/driver→driver payout
+  const acq = await prisma.coinTxn.aggregate({
+    where: { kind: { in: ["referral", "recruit", "revshare", "drvrecruit"] }, amount: { gt: 0 }, createdAt: { gte: new Date(d7) } },
+    _sum: { amount: true },
+  });
+  const acqEmission7d = Math.round(acq._sum.amount ?? 0);
+  const cacTanga = newRiders7d ? Math.round(acqEmission7d / newRiders7d) : 0;
+
+  // viral share: how many of THIS week's new riders arrived via a referral or a driver QR
+  let viral = 0;
+  if (newMemberIds.length) {
+    const [tus, refs] = await Promise.all([
+      prisma.telegramUser.findMany({ where: { memberId: { in: newMemberIds }, referredByCode: { not: null } }, select: { memberId: true } }),
+      prisma.referral.findMany({ where: { refereeMemberId: { in: newMemberIds } }, select: { refereeMemberId: true } }),
+    ]);
+    const viralSet = new Set<number>();
+    for (const t of tus) if (t.memberId != null) viralSet.add(t.memberId);
+    for (const r of refs) if (r.refereeMemberId != null) viralSet.add(r.refereeMemberId);
+    viral = viralSet.size;
+  }
+  const viralPct = newRiders7d ? Math.round((viral / newRiders7d) * 100) : 0;
+
+  return { newRiders7d, newRidersPrev7d, retentionPct, retentionCohort: cohort, acqEmission7d, cacTanga, viralPct };
+}
