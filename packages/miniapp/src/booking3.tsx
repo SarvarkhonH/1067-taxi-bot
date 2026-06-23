@@ -265,6 +265,7 @@ function Booking3Inner({ me, info, onClose }: { me: MeResponse; info: BookingInf
   const map = useRef<L.Map | null>(null);
   const pinMarkers = useRef<L.Marker[]>([]);
   const pickMarker = useRef<L.Marker | null>(null);
+  const searchPulse = useRef<L.Marker | null>(null);
   const driverMarker = useRef<L.Marker | null>(null);
   const routeLine = useRef<L.Polyline | null>(null);
   const [mapOk] = useState(mapAllowed); // false only when ?nomap=1 → show placeholder
@@ -359,6 +360,23 @@ function Booking3Inner({ me, info, onClose }: { me: MeResponse; info: BookingInf
     pickMarker.current = L.marker([pickup.lat, pickup.lng], { icon: divIcon("b3-pickpin pin-drop", "📍") }).addTo(map.current);
     map.current.setView([pickup.lat, pickup.lng], 15, { animate: true });
   }, [pickup]);
+
+  // ── Yandex-style search radar: expanding pulse rings on the MAP at the pickup while a driver is
+  // being found (kas offers each driver ~15s then cascades to the next). Stops the moment a driver
+  // takes it (then the gliding car + route take over). Pure CSS rings, centered on the pickup. ──
+  useEffect(() => {
+    const searching = screen === "searching" && !active?.driver;
+    if (!map.current || !searching || typeof pickup?.lat !== "number" || typeof pickup?.lng !== "number") {
+      if (searchPulse.current) { searchPulse.current.remove(); searchPulse.current = null; }
+      return;
+    }
+    if (!searchPulse.current) {
+      const icon = L.divIcon({ className: "", html: '<div class="b3-spulse"><span></span><span></span><span></span></div>', iconSize: [0, 0], iconAnchor: [0, 0] });
+      searchPulse.current = L.marker([pickup.lat, pickup.lng], { icon, interactive: false, zIndexOffset: -100 }).addTo(map.current);
+    } else {
+      searchPulse.current.setLatLng([pickup.lat, pickup.lng]);
+    }
+  }, [screen, active?.driver, pickup?.lat, pickup?.lng]);
 
   // ── C: live assigned-driver car marker — glides toward you + rotates by bearing ──
   useEffect(() => {
