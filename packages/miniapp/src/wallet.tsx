@@ -597,15 +597,6 @@ export function WalletView({ me, onBanner, reload, onBook, onNav }: { me: MeResp
 
       <StreakCard me={me} onReward={onDone} />
 
-      <CashbackFareCard />
-
-      {earned.length > 0 && (
-        <section className="glass pad">
-          <div className="section-title">🎖 Nishonlar</div>
-          <div className="badge-strip">{earned.map((b) => <span key={b.code} title={b.name}>{b.emoji}</span>)}</div>
-        </section>
-      )}
-
       <section className="glass pad">
         <div className="section-title">📜 So'nggi harakatlar</div>
         {walletErr && !wallet ? (
