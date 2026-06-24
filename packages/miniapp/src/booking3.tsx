@@ -72,6 +72,14 @@ function CountUp({ value }: { value: number }) {
   return <>{formatNumber(shown)}</>;
 }
 
+// 💥 a declined car "blows up" when the dispatch moves on — leans into the rider's read of the pings
+// as shots at the car. Self-removing, purely cosmetic (the real next-driver cascade is unchanged).
+function boom(map: L.Map, latlng: L.LatLng): void {
+  const icon = L.divIcon({ className: "", html: `<div class="b3-boom"><span class="b3-boom-core">💥</span><i></i><i></i><i></i><i></i><i></i></div>`, iconSize: [0, 0], iconAnchor: [0, 0] });
+  const m = L.marker(latlng, { icon, interactive: false, zIndexOffset: 600 }).addTo(map);
+  window.setTimeout(() => m.remove(), 700);
+}
+
 // Clean top-down car marker (nose points up = heading 0; the wrapper is rotated by bearing so it
 // looks like it's driving) — replaces the ugly 🚖/🟢 emoji. Two dark windows + a body tint read as
 // a car at a glance even at small size, like Uber/Yandex map cars.
@@ -504,7 +512,7 @@ function Booking3Inner({ me, info, onClose }: { me: MeResponse; info: BookingInf
       pingMarker.current = L.marker([from[0], from[1]], { icon: ping, interactive: false, zIndexOffset: 400 }).addTo(map.current);
       // the offered car: glowing + bouncing + a "📨 so'ralmoqda" bubble — unmistakably THIS car
       const ticon = L.divIcon({ className: "", html: `<div class="b3-target"><span class="b3-target-bubble">📨</span><i class="b3-target-ring"></i><i class="b3-target-ring b3-target-ring2"></i>${carSvg("#FFB300", 28)}</div>`, iconSize: [28, 28], iconAnchor: [14, 14] });
-      if (targetMarker.current) targetMarker.current.remove();
+      if (targetMarker.current) { boom(map.current, targetMarker.current.getLatLng()); targetMarker.current.remove(); } // prev car "declined" → 💥
       targetMarker.current = L.marker([t.lat, t.lng], { icon: ticon, interactive: false, zIndexOffset: 500 }).addTo(map.current);
     };
     reach();
