@@ -83,18 +83,20 @@ function boom(map: L.Map, latlng: L.LatLng): void {
 // Clean top-down car marker (nose points up = heading 0; the wrapper is rotated by bearing so it
 // looks like it's driving) — replaces the ugly 🚖/🟢 emoji. Two dark windows + a body tint read as
 // a car at a glance even at small size, like Uber/Yandex map cars.
-function carSvg(color: string, size: number): string {
+function carSvg(color: string, size: number, passenger = false): string {
   return `<svg width="${size}" height="${size}" viewBox="0 0 32 32" xmlns="http://www.w3.org/2000/svg" style="display:block">
     <rect x="9.5" y="3" width="13" height="26" rx="6" fill="${color}"/>
     <path d="M11 7 Q16 4.3 21 7 L20 12 H12 Z" fill="#0b1f3a" opacity=".78"/>
     <rect x="12" y="19.3" width="8" height="5.6" rx="2.3" fill="#0b1f3a" opacity=".62"/>
-    <circle cx="16" cy="15.4" r="1.15" fill="#fff" opacity=".5"/>
+    ${passenger
+      ? `<rect x="13.3" y="22.2" width="5.4" height="3.6" rx="1.8" fill="#3b4a63"/><circle cx="16" cy="20.5" r="2.3" fill="#f0c9a0"/>`
+      : `<circle cx="16" cy="15.4" r="1.15" fill="#fff" opacity=".5"/>`}
   </svg>`;
 }
-function carIcon(color: string, bearing: number, size = 30): L.DivIcon {
+function carIcon(color: string, bearing: number, size = 30, passenger = false): L.DivIcon {
   return L.divIcon({
     className: "",
-    html: `<div class="b3-carmark" style="transform:rotate(${bearing}deg)">${carSvg(color, size)}</div>`,
+    html: `<div class="b3-carmark" style="transform:rotate(${bearing}deg)">${carSvg(color, size, passenger)}</div>`,
     iconSize: [size, size],
     iconAnchor: [size / 2, size / 2],
   });
@@ -104,17 +106,21 @@ function carIcon(color: string, bearing: number, size = 30): L.DivIcon {
 // (the people-counterpart to the ghost cars). VISUAL ONLY, non-interactive, dimmed, gently bobbing.
 const GHOST_SHIRTS = ["#ef9f27", "#5dcaa5", "#85b7eb", "#ed93b1", "#f0997b", "#b388ff", "#c0dd97"];
 const GHOST_SKINS = ["#e8b58a", "#d9a066", "#f0c9a0"];
-function ghostPersonSvg(shirt: string, skin: string, size: number): string {
+function ghostPersonSvg(shirt: string, skin: string, size: number, hail = false): string {
+  // hail → right arm raised with a skin-coloured hand (someone flagging a taxi); else both arms at the sides
   return `<svg viewBox="0 0 24 34" width="${size}" height="${size * 1.4}" aria-hidden="true">
     <ellipse cx="12" cy="32" rx="6" ry="1.6" fill="rgba(0,0,0,.34)"/>
     <rect x="8.4" y="23" width="2.6" height="9" rx="1.3" fill="#28303f"/>
     <rect x="13" y="23" width="2.6" height="9" rx="1.3" fill="#28303f"/>
+    <rect x="5" y="12.4" width="2.5" height="8.4" rx="1.25" fill="${shirt}"/>
+    ${hail ? "" : `<rect x="16.5" y="12.4" width="2.5" height="8.4" rx="1.25" fill="${shirt}"/>`}
     <rect x="6.8" y="11.5" width="10.4" height="14" rx="4.6" fill="${shirt}"/>
     <circle cx="12" cy="6.6" r="4.4" fill="${skin}"/>
+    ${hail ? `<g transform="rotate(30 16.6 13)"><rect x="15.35" y="2.4" width="2.5" height="11.2" rx="1.25" fill="${shirt}"/><circle cx="16.6" cy="2.4" r="1.85" fill="${skin}"/></g>` : ""}
   </svg>`;
 }
-function ghostPersonIcon(shirt: string, skin: string, size = 22): L.DivIcon {
-  return L.divIcon({ className: "", html: `<div class="b3-ghostperson">${ghostPersonSvg(shirt, skin, size)}</div>`, iconSize: [size, size * 1.4], iconAnchor: [size / 2, size * 1.4 - 2] });
+function ghostPersonIcon(shirt: string, skin: string, size = 22, hail = false): L.DivIcon {
+  return L.divIcon({ className: "", html: `<div class="b3-ghostperson">${ghostPersonSvg(shirt, skin, size, hail)}</div>`, iconSize: [size, size * 1.4], iconAnchor: [size / 2, size * 1.4 - 2] });
 }
 
 // M5: OSRM road route (driver → pickup). Public demo server; it can be slow/blocked on some
@@ -368,7 +374,7 @@ function Booking3Inner({ me, info, onClose }: { me: MeResponse; info: BookingInf
   const ghostPeople = useRef<L.Marker[]>([]); // 🚶 decoy clients waiting around the city (varied clothes/places, new each session)
   const GHOST_FREE = 7; // idle decoy cars scattered around the view
   const GHOST_RIDES = 4; // moving decoy cars (rides in progress)
-  const GHOST_CLIENTS = 5; // idle decoy PEOPLE scattered around (people-counterpart to the cars)
+  const GHOST_CLIENTS = 8; // idle decoy PEOPLE scattered around (people-counterpart to the cars; ~⅓ hailing)
   const [mapOk] = useState(mapAllowed); // false only when ?nomap=1 → show placeholder
   const [mapFailed, setMapFailed] = useState(false); // no tiles loaded (network blocked)
 
@@ -470,15 +476,17 @@ function Booking3Inner({ me, info, onClose }: { me: MeResponse; info: BookingInf
         const c = map.current.getCenter();
         const seed = (busy: boolean) => ({ lat: c.lat + rnd(0.013), lng: c.lng + rnd(0.018), bearing: Math.floor(Math.random() * 360), busy, vlat: busy ? rnd(0.00016) : 0, vlng: busy ? rnd(0.0002) : 0 });
         ghostRef.current = [...Array.from({ length: GHOST_FREE }, () => seed(false)), ...Array.from({ length: GHOST_RIDES }, () => seed(true))];
-        ghostMarkers.current = ghostRef.current.map((g) => L.marker([g.lat, g.lng], { icon: carIcon(g.busy ? "#9ca3af" : "#22c55e", g.bearing, 24), interactive: false, zIndexOffset: -50 }).addTo(map.current!));
+        // busy ghost cars = rides in progress → draw a visible passenger in the back seat ("mashinada yurgani")
+        ghostMarkers.current = ghostRef.current.map((g) => L.marker([g.lat, g.lng], { icon: carIcon(g.busy ? "#9ca3af" : "#22c55e", g.bearing, 24, g.busy), interactive: false, zIndexOffset: -50 }).addTo(map.current!));
         // 🚶 ghost CLIENTS — a handful of people waiting, scattered, each a random shirt/skin/size (varied
         // clothes "har xil kiyimchalarda") + a stagger so they don't bob in unison. Static (people stand);
         // the CSS bob gives life. Seeded ONCE per session → new layout every time.
-        ghostPeople.current = Array.from({ length: GHOST_CLIENTS }, () => {
+        ghostPeople.current = Array.from({ length: GHOST_CLIENTS }, (_, i) => {
           const shirt = GHOST_SHIRTS[Math.floor(Math.random() * GHOST_SHIRTS.length)]!;
           const skin = GHOST_SKINS[Math.floor(Math.random() * GHOST_SKINS.length)]!;
           const size = 19 + Math.floor(Math.random() * 7);
-          const mk = L.marker([c.lat + rnd(0.012), c.lng + rnd(0.016)], { icon: ghostPersonIcon(shirt, skin, size), interactive: false, zIndexOffset: -40 }).addTo(map.current!);
+          const hail = i < 3 || Math.random() < 0.18; // guarantee ≥3 hailing, sprinkle a few more
+          const mk = L.marker([c.lat + rnd(0.012), c.lng + rnd(0.016)], { icon: ghostPersonIcon(shirt, skin, size, hail), interactive: false, zIndexOffset: -40 }).addTo(map.current!);
           const el = mk.getElement()?.querySelector(".b3-ghostperson") as HTMLElement | null;
           if (el) el.style.animationDelay = `${(Math.random() * 2.4).toFixed(2)}s`;
           return mk;
@@ -495,7 +503,7 @@ function Booking3Inner({ me, info, onClose }: { me: MeResponse; info: BookingInf
           g.bearing = ((Math.atan2(g.vlng, g.vlat) * 180) / Math.PI + 360) % 360;
         }
         ghostMarkers.current[i]?.setLatLng([g.lat, g.lng]);
-        ghostMarkers.current[i]?.setIcon(carIcon("#9ca3af", g.bearing, 24));
+        ghostMarkers.current[i]?.setIcon(carIcon("#9ca3af", g.bearing, 24, true));
       });
     };
     const gt = window.setInterval(tick, 2000);
