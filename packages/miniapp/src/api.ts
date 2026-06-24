@@ -85,8 +85,22 @@ async function request<T>(method: string, path: string, body?: unknown, retries 
 const get = <T,>(path: string) => request<T>("GET", path);
 const post = <T,>(path: string, body?: unknown) => request<T>("POST", path, body);
 
+// 🛡 public read-only trip (family safety) — no PII, active-only
+export interface PublicTrip {
+  active: boolean;
+  status?: string;
+  statusLabel?: string;
+  addressName?: string;
+  pickup?: { lat: number; lng: number } | null;
+  fare?: number | null;
+  etaMin?: number | null;
+  driver?: { name: string; carModel: string; carNumber: string; rating?: number; lat?: number; lng?: number; bearing?: number } | null;
+}
+
 export const api = {
   me: () => get<MeResponse | { linked: false }>("/api/me"),
+  createTrack: () => post<{ token: string }>("/api/track"),
+  trackTrip: (token: string) => get<PublicTrip>(`/api/track/${encodeURIComponent(token)}`),
   // server defaults the leaderboard to the caller's own member type
   leaderboard: () => get<LeaderboardResponse>("/api/leaderboard"),
   checkin: () => post<CheckInResponse>("/api/checkin"),

@@ -715,6 +715,16 @@ export function createApiServer(opts: ApiOptions = {}) {
     return { ok: true, name };
   }));
   app.get("/api/booking/active", requireUser, withMember((id) => getActiveBookingFor(id)));
+  // 🛡 share-my-trip (family safety): POST mints a token (auth'd rider); GET is PUBLIC, read-only,
+  // active-only — anyone with the link watches the car + live fare until the trip ends. No PII.
+  app.post("/api/track", requireUser, rateLimit(20), withMember(async (id) => {
+    const { createTrackToken } = await import("../services/trackService");
+    return { token: await createTrackToken(id) };
+  }));
+  app.get("/api/track/:token", async (req, res) => {
+    const { resolveTrack } = await import("../services/trackService");
+    res.json(await resolveTrack(String(req.params.token)));
+  });
   app.post("/api/booking/search", requireUser, withMember((_id, req) => searchBookingAddress(String((req.body as { q?: string })?.q ?? ""))));
   // M7 center-pin: nearest catalog address to a dragged map point (read-only; booking still by addressId)
   app.post("/api/booking/nearest", requireUser, withMember((id, req) => {

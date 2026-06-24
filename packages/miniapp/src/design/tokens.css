@@ -499,6 +499,19 @@ body {
 /* passenger aboard: a head shown on the car only in-trip (.b3-aboard) — "odamcha ichida" */
 .b3-carpax { position: absolute; left: 50%; top: 50%; width: 8px; height: 8px; margin: -4px 0 0 -4px; border-radius: 50%; background: #f4c89a; box-shadow: 0 0 3px rgba(0,0,0,.55); opacity: 0; transition: opacity .5s ease; }
 .b3-carpin.b3-aboard .b3-carpax { opacity: 1; }
+/* 🛡 TrackView — read-only family-safety live trip page (public ?track=<token>) */
+.tv-wrap { position: fixed; inset: 0; display: flex; flex-direction: column; background: var(--bg); }
+.tv-top { padding: calc(10px + env(safe-area-inset-top)) 16px 10px; font-weight: 800; font-size: 16px; color: var(--text); background: var(--surface-2); border-bottom: 1px solid var(--line); text-align: center; }
+.tv-map { flex: 1; min-height: 0; }
+.tv-map .leaflet-container { background: var(--surface); }
+.tv-map .leaflet-tile-pane { filter: invert(1) hue-rotate(180deg) brightness(.92) contrast(.9); }
+.tv-car svg { filter: drop-shadow(0 0 6px rgba(255,179,0,.6)) drop-shadow(0 2px 3px rgba(0,0,0,.5)); transition: transform .9s linear; }
+.tv-panel { padding: 14px 16px calc(16px + env(safe-area-inset-bottom)); background: var(--surface-2); border-top: 1px solid var(--line); box-shadow: 0 -8px 24px rgba(0,0,0,.4); display: flex; flex-direction: column; gap: 6px; }
+.tv-status { font-weight: 800; font-size: 16px; color: var(--text); }
+.tv-drv, .tv-addr, .tv-fare { font-size: 14px; color: var(--text); }
+.tv-fare b { color: #34d399; }
+.tv-foot { font-size: 12px; color: var(--muted, #9aa0a6); margin-top: 4px; }
+.tv-dim, .tv-ended { font-size: 15px; color: var(--text); text-align: center; padding: 10px; }
 .b3-pin.busy { opacity: .55; }
 .b3-pickpin { font-size: 30px; filter: drop-shadow(0 2px 4px rgba(255,179,0,.8)); }
 

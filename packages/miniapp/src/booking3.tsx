@@ -163,10 +163,19 @@ function RideTimeline({ status }: { status: string }) {
   );
 }
 // E5: share trip to a contact (safety) — Telegram share sheet, falls back to a new tab
-function shareTrip(d: BookingDriverView): void {
+async function shareTrip(d: BookingDriverView): Promise<void> {
   haptic();
-  const text = `Men 1067 taksidaman 🚕\nMashina: ${d.carModel} ${d.carNumber}`;
-  const url = `https://t.me/share/url?url=${encodeURIComponent("https://t.me/koson1067bot")}&text=${encodeURIComponent(text)}`;
+  // 🛡 family safety: mint a public read-only link — recipient opens it in ANY browser (no login) and
+  // watches the car + live fare until the trip ends. Falls back to the bot link if the mint fails.
+  let link = "https://t.me/koson1067bot";
+  try {
+    const { token } = await api.createTrack();
+    link = `${location.origin}/?track=${token}`;
+  } catch {
+    /* keep the fallback */
+  }
+  const text = `Men 1067 taksidaman 🚕 — jonli kuzating (mashina qayerda + narx). Mashina: ${d.carModel} ${d.carNumber}`;
+  const url = `https://t.me/share/url?url=${encodeURIComponent(link)}&text=${encodeURIComponent(text)}`;
   const w = tg as { openTelegramLink?: (u: string) => void } | undefined;
   if (w?.openTelegramLink) w.openTelegramLink(url);
   else window.open(url, "_blank");
@@ -990,7 +999,7 @@ function Booking3Inner({ me, info, onClose }: { me: MeResponse; info: BookingInf
               {active.status === "started" ? <InTripExtras rideStartedAt={active.rideStartedAt ?? null} /> : null}
               <div className="b3-acts">
                 {active.driver.phone ? <a className="b3-act b3-act-call" href={`tel:${active.driver.phone}`}>📞 Qo'ng'iroq</a> : null}
-                <button className="b3-act" onClick={() => active.driver && shareTrip(active.driver)}>🛡 Ulashish</button>
+                <button className="b3-act" onClick={() => { if (active.driver) void shareTrip(active.driver); }}>🛡 Ulashish</button>
               </div>
             </>
           ) : (
