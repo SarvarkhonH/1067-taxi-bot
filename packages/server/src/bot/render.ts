@@ -256,14 +256,22 @@ export function renderMissions(m: MissionsResponse, box?: BoxStatusResponse): st
 
 // ─── referral ─────────────────────────────────────────────────
 export function renderReferral(r: ReferralResponse): string {
+  const stats =
+    r.invited > 0
+      ? `🔥 Siz allaqachon <b>${r.invited}</b> do'st chaqirib <b>${formatNumber(r.earned)} tanga</b> ishladingiz!\n\n`
+      : `<i>Hali hech kimni chaqirmadingiz — birinchi do'stingiz bir bosishda 👇</i>\n\n`;
   return (
-    `🎁 <b>Do'st chaqiring — ikkalangizga ham sovg'a!</b>\n\n` +
-    `Do'stingiz havolangiz orqali qo'shilib birinchi safarini qilsa:\n` +
-    `  🚕 Unga — birinchi safar <b>BEPUL</b> (+${formatNumber(r.rewardReferee)} tanga)\n` +
-    `  💚 Sizga — <b>+${formatNumber(r.rewardReferrer)} tanga</b>\n\n` +
-    `🔗 <b>Havolangiz:</b>\n${esc(r.link)}\n\n` +
-    `✅ Taklif qilingan: <b>${r.invited}</b>  ·  🪙 Ishlab topgan: <b>${formatNumber(r.earned)} tanga</b>\n\n` +
-    `<i>1 tanga = 1 so'm — ilovada haqiqiy pulga aylanadi. Pastdagi tugma bilan ulashing 👇</i>`
+    `🎁 <b>Do'st chaqiring — IKKALANGIZ ham yutasiz</b>\n\n` +
+    `Har bir do'stingiz havolangiz orqali kelib birinchi safarini qilganda:\n\n` +
+    `🚕 <b>Do'stingizga</b> — birinchi safar butunlay <b>BEPUL</b>\n` +
+    `     <i>(+${formatNumber(r.rewardReferee)} tanga sovg'a)</i>\n` +
+    `💚 <b>Sizga</b> — <b>+${formatNumber(r.rewardReferrer)} tanga</b>, har bir do'st uchun\n` +
+    `     <i>cheklov yo'q — qancha ko'p chaqirsangiz, shuncha ko'p 🪙</i>\n\n` +
+    stats +
+    `🔗 <b>Shaxsiy havolangiz</b> <i>(ustiga bosib nusxalang)</i>:\n` +
+    `<code>${esc(r.link)}</code>\n\n` +
+    `<i>1 tanga = 1 so'm — ilovada haqiqiy pulga aylanadi.</i>\n` +
+    `Pastdagi tugma bilan bir bosishda ulashing 👇`
   );
 }
 
