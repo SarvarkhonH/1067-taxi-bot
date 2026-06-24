@@ -208,11 +208,15 @@ async function main(): Promise<void> {
   // 📡 kas map WebSocket — real-time driver positions → INSTANT "arrived" pings (no 15s wait)
   kasMapSocket.start();
 
-  // keep the free-tier instance warm (self-ping) so the Mini App never hits a cold start
+  // keep the free-tier instance warm (self-ping) so the Mini App never hits a cold start. Render
+  // free spins down after 15 min idle → ping every 5 min so even a single failed ping still beats
+  // the threshold. NOTE: a self-ping can't WAKE a sleeping instance (its timers are suspended too);
+  // for bulletproof uptime add an EXTERNAL pinger (UptimeRobot/cron-job.org → /health) or upgrade
+  // to a paid Render plan.
   const keepAlive = env.WEBHOOK_URL
     ? setInterval(() => {
         void fetch(`${env.WEBHOOK_URL.replace(/\/$/, "")}/health`).catch(() => {});
-      }, 10 * 60_000)
+      }, 5 * 60_000)
     : null;
 
   const shutdown = async () => {

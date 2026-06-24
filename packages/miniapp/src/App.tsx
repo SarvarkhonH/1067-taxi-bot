@@ -27,6 +27,43 @@ import { useCountUp } from "./util";
 
 type Tab = "uy" | "wallet" | "play" | "market" | "reyting" | "driver" | "profile";
 
+// ── `me` stale-while-revalidate cache (instant repeat opens, hides cold-start) ──
+// Keyed by the Telegram user id so a shared device never shows one user another's cached data.
+function meCacheKey(): string {
+  const uid = (tg as unknown as { initDataUnsafe?: { user?: { id?: number } } })?.initDataUnsafe?.user?.id ?? "dev";
+  return `me_v2_${uid}`;
+}
+function readMeCache(): MeResponse | null {
+  try {
+    const s = localStorage.getItem(meCacheKey());
+    if (!s) return null;
+    const m = JSON.parse(s) as Partial<MeResponse>;
+    // shape guard: an OLD/partial cache (different MeResponse shape from a previous deploy) must NOT
+    // hydrate — child views would crash on a missing field → white screen. If it doesn't carry the
+    // essentials, ignore it and fall back to the normal fetch (BootSplash).
+    if (!m || typeof m !== "object" || !m.member || !m.stats || !m.level || typeof m.coins !== "number" || !m.type || !m.metricLabel) {
+      return null;
+    }
+    return m as MeResponse;
+  } catch {
+    return null;
+  }
+}
+function writeMeCache(m: MeResponse): void {
+  try {
+    localStorage.setItem(meCacheKey(), JSON.stringify(m));
+  } catch {
+    /* private mode / quota — fine, just no cache */
+  }
+}
+function clearMeCache(): void {
+  try {
+    localStorage.removeItem(meCacheKey());
+  } catch {
+    /* ignore */
+  }
+}
+
 // 5 aniq tab: Uy (taxi-first) · Hamyon (pul) · O'yin (bonus+vazifa) · Bozor · Reyting (liga+do'st)
 const BASE_TABS: { id: Tab; icon: string; label: string }[] = [
   { id: "uy", icon: "home", label: "Uy" },
@@ -79,8 +116,11 @@ export function App() {
     );
   }
 
-  const [me, setMe] = useState<MeResponse | null>(null);
-  const [linked, setLinked] = useState<boolean | null>(null);
+  // Stale-while-revalidate: hydrate `me` from the last cached payload so a repeat open renders the
+  // app INSTANTLY (no BootSplash, no cold-start wait) and the real data refreshes in the background.
+  const cachedMe = readMeCache();
+  const [me, setMe] = useState<MeResponse | null>(cachedMe);
+  const [linked, setLinked] = useState<boolean | null>(cachedMe ? true : null);
   // Deep-link: a bot-menu button opens the Mini App with ?go=<tab|book> → land straight
   // on that screen (booking flow / the matching tab), not always the home tab.
   const [tab, setTab] = useState<Tab>(() => GO_MAP[readGo()] ?? "uy");
@@ -118,13 +158,20 @@ export function App() {
     api
       .me()
       .then((r) => {
-        if ("linked" in r && r.linked === false) setLinked(false);
-        else {
+        if ("linked" in r && r.linked === false) {
+          clearMeCache();
+          setLinked(false);
+        } else {
           setMe(r as MeResponse);
+          writeMeCache(r as MeResponse); // refresh the cache for the next instant open
           setLinked(true);
         }
       })
-      .catch((e) => setError(String(e)));
+      .catch((e) => {
+        // only surface the error if we have NOTHING to show (no cache) — otherwise the cached
+        // UI stays up and we silently retry, so a cold/slow server never blanks the screen.
+        if (!cachedMe) setError(String(e));
+      });
     loadBoard();
     // V1: learn whether the living home is enabled (same flag channel as booking3)
     api.bookingInfo().then((r) => { if (!("error" in r)) { setLivinghome(!!r.livinghome); setTolqin(!!r.tolqin); setGarajx(!!r.garajx); } }).catch(() => undefined);
@@ -135,7 +182,10 @@ export function App() {
     api
       .me()
       .then((r) => {
-        if (!("linked" in r && r.linked === false)) setMe(r as MeResponse);
+        if (!("linked" in r && r.linked === false)) {
+          setMe(r as MeResponse);
+          writeMeCache(r as MeResponse);
+        }
       })
       .catch(() => undefined);
   };
