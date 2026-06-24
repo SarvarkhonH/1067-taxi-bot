@@ -212,8 +212,19 @@ export async function adminGrant(target: string, amount: number, reason: string,
 export async function adminGrantCoinsByPhone(phone: string, amount: number, reason: string, adminId: string): Promise<AdminActionResult> {
   const norm = phone.replace(/\D/g, "").slice(-9);
   if (norm.length < 9) return { ok: false, message: "Raqam noto'g'ri (+998…)" };
-  const members = await prisma.member.findMany({ where: { phone: { endsWith: norm } }, include: { telegramUser: true } });
-  if (!members.length) return { ok: false, message: "Bu raqamli foydalanuvchi topilmadi" };
+  let members = await prisma.member.findMany({ where: { phone: { endsWith: norm } }, include: { telegramUser: true } });
+  if (!members.length) {
+    // on-demand: pull this phone from kas (client OR driver) + upsert (adopt-aware), so an account
+    // that hasn't used the bot yet can STILL be bonused by phone — same as the cashback grant does.
+    try {
+      const { upsertKasMember } = await import("./memberService");
+      for (const km of await getDataSource().fetchByPhone(phone)) await upsertKasMember(km);
+    } catch {
+      /* kas lookup best-effort */
+    }
+    members = await prisma.member.findMany({ where: { phone: { endsWith: norm } }, include: { telegramUser: true } });
+  }
+  if (!members.length) return { ok: false, message: "Bu raqamli foydalanuvchi 1067'da topilmadi" };
   const target = members.find((m) => m.telegramUser) ?? members.find((m) => m.type === "client") ?? members[0]!;
   return adminGrantCoins(target.id, amount, reason, adminId);
 }

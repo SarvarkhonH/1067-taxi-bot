@@ -288,6 +288,14 @@ function X360View() {
   const [m, setM] = useState<Member360 | null>(null);
   const [dr, setDr] = useState<Driver360 | null>(null);
   const [err, setErr] = useState<string | null>(null);
+  // 🎁 grant TANGA to THIS exact account (by id — any type), straight from the 360 view
+  const giveBonus = async (memberId: number, name: string) => {
+    const a = window.prompt(`🎁 ${name}ga necha tanga? (− = ayirish)`);
+    if (a === null || !Number(a)) return;
+    const reason = window.prompt("Sabab:") ?? "admin bonus";
+    const r = await adminApi.grantMemberCoins(memberId, Number(a), reason).catch(() => ({ ok: false, message: "net" }) as { ok: boolean; message?: string });
+    alert(r.ok ? "✅ " + (r.message ?? "berildi") : "❌ " + (r.message ?? ""));
+  };
   return (
     <>
       <section className="card">
@@ -308,6 +316,7 @@ function X360View() {
                 </div>
               ))}
             </div>
+            <button className="btn" style={{ marginTop: 8 }} onClick={() => giveBonus(m.member.id, m.member.name)}>🎁 Bonus berish</button>
           </div>
         )}
       </section>
@@ -323,6 +332,7 @@ function X360View() {
             <p>⭐ {dr.rating.avg || "—"} ({dr.rating.count} baho) · recruit: {dr.recruits} · 🏆 mashina chiptalari: {dr.mashinaTickets}</p>
             <p className="muted">{dr.rating.tags.map((t) => `${t.tag} ×${t.n}`).join(" · ") || "Hali teg yo'q"}</p>
             {dr.driver && (
+              <>
               <button className="btn" onClick={async () => {
                 // P1 (QA fleet): token is stored under "admin_token" (TOKEN_KEY), not "adminToken"
                 // → the old key was always null → 403, QR never downloaded. Use the right key + check ok.
@@ -339,6 +349,8 @@ function X360View() {
                   alert("QR yuklab bo'lmadi — tarmoqni tekshiring");
                 }
               }}>📥 Recruit QR yuklab olish</button>
+              <button className="btn" style={{ marginLeft: 6 }} onClick={() => giveBonus(dr.driver!.id, dr.driver!.name ?? "Haydovchi")}>🎁 Bonus berish</button>
+              </>
             )}
           </div>
         )}
