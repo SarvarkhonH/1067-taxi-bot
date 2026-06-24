@@ -11,7 +11,7 @@ import {
   type WeeklyBoardResponse,
 } from "@t1067/shared";
 import { api } from "./api";
-import { copyText, haptic, shareLink } from "./telegram";
+import { copyText, haptic, shareLink, inviteText } from "./telegram";
 
 export function Spinner() {
   return (
@@ -350,8 +350,7 @@ export function ReferralView() {
 
   if (err && !data) return <LoadError onRetry={load} />;
   if (!data) return <Spinner />;
-  const share = () =>
-    shareLink(data.link, "🚕 1067 Taxi — har safardan cashback, o'yinlar bilan tanga yutib, so'mga aylantiring! Qo'shiling:");
+  const share = () => shareLink(data.link, inviteText(data.rewardReferee));
   const copy = async () => {
     await copyText(data.link);
     setCopied(true);

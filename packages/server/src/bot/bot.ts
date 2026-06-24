@@ -52,6 +52,17 @@ import { getFareConfig } from "../services/clientInfoService";
 
 const canWebApp = env.TELEGRAM_WEBAPP_URL.startsWith("https://");
 
+// The friend-facing invite message (the text Telegram prepends before the link in the
+// share dialog). Single source so every client share point — bot link, bot QR, driver→client
+// — reads identically. Hook first (first ride FREE), then value, then CTA. `bonus` = the
+// referee's reward (firstRide tanga); it pays out AFTER their first ride, so we say "BEPUL",
+// never "hozir oling". UI currency stays "tanga" (project rule), the free-ride hook carries
+// the real-money feel for someone who's never heard of tanga.
+const clientInviteText = (bonus: number): string =>
+  `🎁 Birinchi safaringiz BEPUL — ${formatNumber(bonus)} tanga sovg'a kutyapti!\n` +
+  `🚕 1067 Taxi: bir tap — eng yaqin haydovchi keladi · har safardan cashback.\n` +
+  `👇 Shu havola orqali qo'shiling:`;
+
 // Telegram caches the Mini App aggressively BY URL — the owner kept seeing stale builds
 // (worst: the persistent Menu Button, whose URL had NO version → permanently cached → the
 // old UZ-blocked map → blank). We version the URL (?v=<token>) so Telegram treats each
@@ -673,7 +684,7 @@ export function createBot(): Bot {
     const png = await QR.toBuffer(link, { width: 600, margin: 2 });
     const shareUrl =
       `https://t.me/share/url?url=${encodeURIComponent(link)}` +
-      `&text=${encodeURIComponent("🚖 1067 Taxi'da haydovchi bo'ling — yaxshi daromad, bonuslar, jonli buyurtmalar!")}`;
+      `&text=${encodeURIComponent("🚖 1067 Taxi'da haydovchi bo'ling!\n💰 Yaxshi daromad, bonuslar va jonli buyurtmalar — bir tap bilan ish boshlang.\n👇 Shu havola orqali qo'shiling:")}`;
     await ctx.replyWithPhoto(new InputFile(png), {
       caption:
         "🚖 <b>Haydovchi chaqirish — havola + QR</b>\n\n" +
@@ -970,7 +981,7 @@ export function createBot(): Bot {
       const econ = await getBonusEcon();
       const shareUrl =
         `https://t.me/share/url?url=${encodeURIComponent(link)}` +
-        `&text=${encodeURIComponent(`🚕 1067 Taxi botiga ulaning — birinchi safaringiz BEPUL (${formatNumber(econ.firstRide ?? REFEREE_REWARD)} tanga sovg'a)! 🎁`)}`;
+        `&text=${encodeURIComponent(clientInviteText(econ.firstRide ?? REFEREE_REWARD))}`;
       const kb = new InlineKeyboard()
         .url("📤 Havolani ulashish", shareUrl)
         .row()
@@ -993,7 +1004,7 @@ export function createBot(): Bot {
     const r = await getReferralInfo(String(ctx.from!.id));
     const shareUrl =
       `https://t.me/share/url?url=${encodeURIComponent(r.link)}` +
-      `&text=${encodeURIComponent("🚕 1067 Taxi — har safardan cashback, kunlik sovg'alar va omad g'ildiragi! Qo'shiling:")}`;
+      `&text=${encodeURIComponent(clientInviteText(r.rewardReferee))}`;
     const kb = new InlineKeyboard().url("📤 Do'stga yuborish", shareUrl).row().text("📷 QR kod", "ref:qr");
     await ctx.reply(renderReferral(r), { parse_mode: "HTML", reply_markup: kb });
   };
@@ -1009,7 +1020,7 @@ export function createBot(): Bot {
     const png = await QR.toBuffer(r.link, { width: 600, margin: 2 });
     const shareUrl =
       `https://t.me/share/url?url=${encodeURIComponent(r.link)}` +
-      `&text=${encodeURIComponent("🚕 1067 Taxi — har safardan cashback va sovg'alar! Qo'shiling:")}`;
+      `&text=${encodeURIComponent(clientInviteText(r.rewardReferee))}`;
     await ctx.replyWithPhoto(new InputFile(png), {
       caption:
         "👥 <b>Do'st taklif — havola + QR</b>\n\n" +

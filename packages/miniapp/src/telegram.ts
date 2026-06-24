@@ -165,6 +165,21 @@ export function playRepairFail(): void {
   }
 }
 
+/**
+ * The friend-facing invite message. Leads with the emotional hook (first ride FREE)
+ * then the value, then the CTA. `bonus` is the referee's reward (= firstRide tanga);
+ * it lands after their first ride, so we say "BEPUL", never "hozir oling". Keep this
+ * the single source for every client share point so the copy stays in sync.
+ */
+export function inviteText(bonus: number): string {
+  const n = bonus.toLocaleString("ru-RU");
+  return (
+    `🎁 Birinchi safaringiz BEPUL — ${n} tanga sovg'a kutyapti!\n` +
+    `🚕 1067 Taxi: bir tap — eng yaqin haydovchi keladi · har safardan cashback.\n` +
+    `👇 Shu havola orqali qo'shiling:`
+  );
+}
+
 /** Open Telegram's native "share to a chat" dialog with an invite link. */
 export function shareLink(url: string, text: string): void {
   const share = `https://t.me/share/url?url=${encodeURIComponent(url)}&text=${encodeURIComponent(text)}`;
