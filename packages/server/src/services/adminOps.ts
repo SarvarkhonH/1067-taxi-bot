@@ -288,21 +288,45 @@ export async function adminMoveToBalance(memberId: number, amount: number, admin
   }
 }
 
-// ─── 📣 announce (admin broadcast) ──────────────────────────────────────────
+// ─── 📣 announce / 🎁 segment grant / 😴 wake-up (admin) ─────────────────────
+export type AdminSegment = "all" | "linked" | "dormant";
+const ADMIN_DAY = 24 * 3600 * 1000;
+
+/** Telegram ids of DORMANT linked clients — no ride in `days` (re-engagement target). */
+async function dormantClientTgIds(days: number): Promise<string[]> {
+  const cutoff = new Date(Date.now() - Math.max(1, days) * ADMIN_DAY);
+  const recent = await prisma.rideReward.findMany({ where: { createdAt: { gte: cutoff } }, distinct: ["memberId"], select: { memberId: true } });
+  const active = new Set(recent.map((r) => r.memberId));
+  const clients = await prisma.member.findMany({ where: { type: "client", telegramUser: { isNot: null } }, select: { id: true, telegramUser: { select: { id: true } } } });
+  return clients.filter((c) => c.telegramUser && !active.has(c.id)).map((c) => c.telegramUser!.id);
+}
+/** Member ids for a segment (for bulk grant). */
+async function segmentMemberIds(segment: AdminSegment, days: number): Promise<number[]> {
+  if (segment === "dormant") {
+    const cutoff = new Date(Date.now() - Math.max(1, days) * ADMIN_DAY);
+    const recent = await prisma.rideReward.findMany({ where: { createdAt: { gte: cutoff } }, distinct: ["memberId"], select: { memberId: true } });
+    const active = new Set(recent.map((r) => r.memberId));
+    const clients = await prisma.member.findMany({ where: { type: "client", telegramUser: { isNot: null } }, select: { id: true } });
+    return clients.filter((c) => !active.has(c.id)).map((c) => c.id);
+  }
+  const ms = await prisma.member.findMany({ where: segment === "linked" ? { telegramUser: { isNot: null } } : {}, select: { id: true } });
+  return ms.map((m) => m.id);
+}
+
 export async function adminAnnounce(
   text: string,
-  segment: "all" | "linked",
+  segment: AdminSegment,
   send: (telegramId: string, html: string) => Promise<void>,
+  days = 14,
 ): Promise<AdminActionResult> {
   const body = text.trim();
   if (body.length < 3 || body.length > 2000) return { ok: false, message: "Matn 3..2000 belgi bo'lsin" };
-  if (segment !== "all" && segment !== "linked") return { ok: false, message: "Segment noto'g'ri" };
+  if (!["all", "linked", "dormant"].includes(segment)) return { ok: false, message: "Segment noto'g'ri" };
   // escape HTML so a literal <, >, & in admin text can't break EVERY send (Telegram 400)
   const esc = body.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
-  const users = await prisma.telegramUser.findMany({
-    where: segment === "linked" ? { memberId: { not: null } } : {},
-    select: { id: true },
-  });
+  const users = segment === "dormant"
+    ? (await dormantClientTgIds(days)).map((id) => ({ id }))
+    : await prisma.telegramUser.findMany({ where: segment === "linked" ? { memberId: { not: null } } : {}, select: { id: true } });
   let sent = 0;
   let failed = 0;
   for (const u of users) {
@@ -316,4 +340,38 @@ export async function adminAnnounce(
   }
   console.log(`[admin] announce segment=${segment} sent=${sent}/${users.length} len=${body.length}`);
   return { ok: true, message: `📤 ${sent}/${users.length} yuborildi${failed ? ` (${failed} yetib bormadi)` : ""}` };
+}
+
+/** 🎁 Bulk grant tanga to a whole segment (idempotent per batch, hard total-emission guard). */
+export async function adminGrantSegment(segment: AdminSegment, amount: number, reason: string, adminId: string, days = 14): Promise<AdminActionResult> {
+  amount = Math.floor(amount);
+  if (!(amount > 0) || amount > 100000) return { ok: false, message: "Summa 1..100000 bo'lsin" };
+  const ids = await segmentMemberIds(segment, days);
+  const total = ids.length * amount;
+  if (total > 5_000_000) return { ok: false, message: `Juda katta: ${ids.length} × ${amount} = ${total.toLocaleString("ru-RU")} tanga. Kichikroq summa yoki segment tanlang.` };
+  const batch = `adminseg:${Date.now()}`;
+  let granted = 0;
+  let skipped = 0;
+  for (const id of ids) {
+    const g = await grantCoins(id, amount, "admin_gift", reason || "🎁 1067 sovg'asi", `${batch}:${id}`).catch(() => ({ ok: false } as { ok: boolean }));
+    if (g.ok) granted++;
+    else skipped++;
+    if ((granted + skipped) % 25 === 0) await new Promise((r) => setTimeout(r, 400));
+  }
+  const { alertAdmins } = await import("./economyService");
+  await alertAdmins(`🎁 Admin segment-bonus: <b>${amount}</b> tanga × ${granted} a'zo (segment ${segment}) — admin ${adminId}`).catch(() => undefined);
+  console.log(`[admin] grant-segment ${segment} amount=${amount} granted=${granted}/${ids.length}`);
+  return { ok: true, message: `🎁 ${granted}/${ids.length} a'zoga ${amount} tanga berildi${skipped ? ` (${skipped} o'tkazildi)` : ""}` };
+}
+
+/** 😴 Wake-up: message the dormant segment AND (optionally) drop a comeback bonus — one action. */
+export async function adminWakeUp(text: string, bonus: number, days: number, send: (telegramId: string, html: string) => Promise<void>, adminId: string): Promise<AdminActionResult> {
+  const msg = await adminAnnounce(text, "dormant", send, days);
+  if (!msg.ok) return msg;
+  let gift = "";
+  if (Math.floor(bonus) > 0) {
+    const g = await adminGrantSegment("dormant", Math.floor(bonus), "🎁 Sizni sog'indik — qaytib keling!", adminId, days);
+    gift = g.ok ? ` · ${g.message}` : ` · ⚠️ bonus: ${g.message}`;
+  }
+  return { ok: true, message: `😴→🔔 ${msg.message}${gift}` };
 }

@@ -550,9 +550,18 @@ function ActionsView() {
   const [currency, setCurrency] = useState<"tanga" | "cashback">("tanga"); // admin "give money" → spendable TANGA by default
 
   const [text, setText] = useState("");
-  const [segment, setSegment] = useState<"all" | "linked">("all");
+  const [segment, setSegment] = useState<"all" | "linked" | "dormant">("all");
+  const [days, setDays] = useState("14");
   const [annMsg, setAnnMsg] = useState<string | null>(null);
   const [annBusy, setAnnBusy] = useState(false);
+  // 🎁 segment bonus + 😴 wake-up
+  const [segAmount, setSegAmount] = useState("");
+  const [segBusy, setSegBusy] = useState(false);
+  const [segMsg, setSegMsg] = useState<string | null>(null);
+  const [wakeText, setWakeText] = useState("");
+  const [wakeBonus, setWakeBonus] = useState("");
+  const [wakeBusy, setWakeBusy] = useState(false);
+  const [wakeMsg, setWakeMsg] = useState<string | null>(null);
 
   const doGrant = async () => {
     if (!phone || !amount || grantBusy) return;
@@ -571,19 +580,52 @@ function ActionsView() {
     }
   };
 
+  const segLabel = segment === "all" ? "BARCHA" : segment === "linked" ? "bog'langan" : `uxlagan (${days} kun)`;
   const doAnnounce = async () => {
     if (text.trim().length < 3 || annBusy) return;
-    if (!confirm(`${segment === "all" ? "BARCHA" : "bog'langan"} foydalanuvchilarga yuborilsinmi?`)) return;
+    if (!confirm(`${segLabel} foydalanuvchilarga yuborilsinmi?`)) return;
     setAnnBusy(true);
     setAnnMsg(null);
     try {
-      const r = await adminApi.announce(text, segment);
+      const r = await adminApi.announce(text, segment, Number(days));
       setAnnMsg(r.message);
       if (r.ok) setText("");
     } catch (e) {
       setAnnMsg(e instanceof Error ? e.message : "xatolik");
     } finally {
       setAnnBusy(false);
+    }
+  };
+  const doSegGrant = async () => {
+    const a = Number(segAmount);
+    if (!(a > 0) || segBusy) return;
+    if (!confirm(`${segLabel} segmentidagi HAR a'zoga ${a} tanga berilsinmi? (ortga qaytmaydi)`)) return;
+    setSegBusy(true);
+    setSegMsg(null);
+    try {
+      const r = await adminApi.grantSegment(segment, a, "🎁 1067 sovg'asi", Number(days));
+      setSegMsg(r.message);
+      if (r.ok) setSegAmount("");
+    } catch (e) {
+      setSegMsg(e instanceof Error ? e.message : "xatolik");
+    } finally {
+      setSegBusy(false);
+    }
+  };
+  const doWake = async () => {
+    if (wakeText.trim().length < 3 || wakeBusy) return;
+    const bonus = Number(wakeBonus) || 0;
+    if (!confirm(`Uxlagan (${days} kun) mijozlarga xabar${bonus > 0 ? ` + ${bonus} tanga bonus` : ""} yuborilsinmi?`)) return;
+    setWakeBusy(true);
+    setWakeMsg(null);
+    try {
+      const r = await adminApi.wakeUp(wakeText, bonus, Number(days));
+      setWakeMsg(r.message);
+      if (r.ok) { setWakeText(""); setWakeBonus(""); }
+    } catch (e) {
+      setWakeMsg(e instanceof Error ? e.message : "xatolik");
+    } finally {
+      setWakeBusy(false);
     }
   };
 
@@ -610,15 +652,39 @@ function ActionsView() {
       </section>
 
       <section className="panel">
-        <div className="panel-title">📣 E'lon yuborish</div>
-        <p className="muted" style={{ fontSize: 13, margin: "4px 0 12px" }}>Botdagi foydalanuvchilarga xabar. HTML qo'llanadi.</p>
-        <textarea className="search" style={{ width: "100%", minHeight: 90, resize: "vertical" }} placeholder="📢 Xabar matni… (masalan: Bugun 2x cashback!)" value={text} onChange={(e) => setText(e.target.value)} />
-        <div className="seg" style={{ maxWidth: 320, marginTop: 10 }}>
+        <div className="panel-title">📣 Xabar / 🎁 Segmentga bonus</div>
+        <div className="seg" style={{ maxWidth: 440, marginTop: 4 }}>
           <button className={segment === "all" ? "seg-btn active" : "seg-btn"} onClick={() => setSegment("all")}>Hammaga</button>
-          <button className={segment === "linked" ? "seg-btn active" : "seg-btn"} onClick={() => setSegment("linked")}>Bog'langanlarga</button>
+          <button className={segment === "linked" ? "seg-btn active" : "seg-btn"} onClick={() => setSegment("linked")}>Bog'langan</button>
+          <button className={segment === "dormant" ? "seg-btn active" : "seg-btn"} onClick={() => setSegment("dormant")}>😴 Uxlagan</button>
         </div>
-        <button className="btn" style={{ marginTop: 12 }} onClick={doAnnounce} disabled={annBusy}>{annBusy ? "⏳ Yuborilmoqda…" : "📤 Yuborish"}</button>
+        {segment === "dormant" && (
+          <div style={{ display: "flex", gap: 8, alignItems: "center", marginTop: 8 }}>
+            <span className="muted" style={{ fontSize: 13 }}>Necha kundan beri safarsiz:</span>
+            <input className="search" style={{ width: 80 }} type="number" value={days} onChange={(e) => setDays(e.target.value)} />
+          </div>
+        )}
+        <textarea className="search" style={{ width: "100%", minHeight: 80, resize: "vertical", marginTop: 8 }} placeholder="📢 Xabar matni… (HTML qo'llanadi)" value={text} onChange={(e) => setText(e.target.value)} />
+        <button className="btn" style={{ marginTop: 8 }} onClick={doAnnounce} disabled={annBusy}>{annBusy ? "⏳…" : "📤 Xabar yuborish"}</button>
         {annMsg && <div className="action-msg">{annMsg}</div>}
+        <div style={{ borderTop: "1px solid rgba(255,255,255,0.1)", margin: "12px 0 8px" }} />
+        <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+          <input className="search" style={{ flex: "1 1 140px" }} type="number" placeholder="🎁 Bonus (tanga)" value={segAmount} onChange={(e) => setSegAmount(e.target.value)} />
+          <button className="btn" onClick={doSegGrant} disabled={segBusy}>{segBusy ? "⏳…" : `🎁 ${segment === "all" ? "Hammaga" : segment === "linked" ? "Bog'langanga" : "Uxlaganga"} bonus`}</button>
+        </div>
+        <p className="muted" style={{ fontSize: 11, marginTop: 6 }}>Bonus tanlangan segmentdagi HAR a'zoga beriladi (jami cap 5M tanga). Ortga qaytmaydi.</p>
+        {segMsg && <div className="action-msg">{segMsg}</div>}
+      </section>
+
+      <section className="panel">
+        <div className="panel-title">😴 Uyg'otish — uxlagan mijozlar</div>
+        <p className="muted" style={{ fontSize: 13, margin: "4px 0 10px" }}>Yuqoridagi «kun» bo'yicha uxlaganlarga xabar + (ixtiyoriy) qaytish bonusi — bitta tugma.</p>
+        <textarea className="search" style={{ width: "100%", minHeight: 70, resize: "vertical" }} placeholder="🔔 Sizni sog'indik! Bugun qaytib keling — sovg'a kutyapti 🎁" value={wakeText} onChange={(e) => setWakeText(e.target.value)} />
+        <div style={{ display: "flex", gap: 8, alignItems: "center", marginTop: 8, flexWrap: "wrap" }}>
+          <input className="search" style={{ flex: "1 1 140px" }} type="number" placeholder="🎁 Bonus (0 = faqat xabar)" value={wakeBonus} onChange={(e) => setWakeBonus(e.target.value)} />
+          <button className="btn" onClick={doWake} disabled={wakeBusy}>{wakeBusy ? "⏳…" : "😴→🔔 Uyg'otish"}</button>
+        </div>
+        {wakeMsg && <div className="action-msg">{wakeMsg}</div>}
       </section>
     </div>
   );
