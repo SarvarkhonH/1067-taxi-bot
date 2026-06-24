@@ -264,8 +264,10 @@ function Booking3Inner({ me, info, onClose }: { me: MeResponse; info: BookingInf
   const mapRef = useRef<HTMLDivElement | null>(null);
   const map = useRef<L.Map | null>(null);
   const pinMarkers = useRef<L.Marker[]>([]);
+  const fleetRef = useRef<{ lat: number; lng: number; busy: boolean }[]>([]); // raw nearby cars for the search beam
   const pickMarker = useRef<L.Marker | null>(null);
   const searchPulse = useRef<L.Marker | null>(null);
+  const beamLine = useRef<L.Polyline | null>(null);
   const driverMarker = useRef<L.Marker | null>(null);
   const routeLine = useRef<L.Polyline | null>(null);
   const [mapOk] = useState(mapAllowed); // false only when ?nomap=1 → show placeholder
@@ -339,6 +341,7 @@ function Booking3Inner({ me, info, onClose }: { me: MeResponse; info: BookingInf
       const r = await api.bookingNearby().catch(() => null);
       if (!alive || !r || !map.current) return;
       setFreeDrivers(r.freeDrivers);
+      fleetRef.current = r.pins; // raw coords for the search beam
       for (const mk of pinMarkers.current) mk.remove();
       pinMarkers.current = r.pins
         .slice(0, 40)
@@ -376,6 +379,34 @@ function Booking3Inner({ me, info, onClose }: { me: MeResponse; info: BookingInf
     } else {
       searchPulse.current.setLatLng([pickup.lat, pickup.lng]);
     }
+  }, [screen, active?.driver, pickup?.lat, pickup?.lng]);
+
+  // ── Yandex-style "asking this driver" beam: a gold pulse reaches from the pickup OUT to a nearby
+  // car, cycling through the closest few every ~2.6s (mirrors kas offering each driver in turn). The
+  // line is recreated each switch so the reach animation replays toward the new car. Stops on accept. ──
+  useEffect(() => {
+    const searching = screen === "searching" && !active?.driver;
+    if (!map.current || !searching || typeof pickup?.lat !== "number" || typeof pickup?.lng !== "number") {
+      if (beamLine.current) { beamLine.current.remove(); beamLine.current = null; }
+      return;
+    }
+    const from: [number, number] = [pickup.lat, pickup.lng];
+    let i = 0;
+    const reach = () => {
+      if (!map.current) return;
+      const cars = fleetRef.current
+        .filter((c) => Number.isFinite(c.lat) && Number.isFinite(c.lng))
+        .sort((a, b) => haversineKm({ lat: from[0], lng: from[1] }, a) - haversineKm({ lat: from[0], lng: from[1] }, b))
+        .slice(0, 4);
+      const t = cars[i % cars.length];
+      i++;
+      if (!t) return;
+      if (beamLine.current) beamLine.current.remove();
+      beamLine.current = L.polyline([from, [t.lat, t.lng]], { className: "b3-beam", interactive: false }).addTo(map.current);
+    };
+    reach();
+    const timer = setInterval(reach, 2600);
+    return () => { clearInterval(timer); if (beamLine.current) { beamLine.current.remove(); beamLine.current = null; } };
   }, [screen, active?.driver, pickup?.lat, pickup?.lng]);
 
   // ── C: live assigned-driver car marker — glides toward you + rotates by bearing ──
@@ -512,6 +543,25 @@ function Booking3Inner({ me, info, onClose }: { me: MeResponse; info: BookingInf
     setScreen("confirm");
   };
 
+  // 📍 "turgan joyim" — recenter the map on the device GPS; the center-pin then snaps to the
+  // nearest catalog place (the existing M7 reverse-lookup), so the rider doesn't have to pan.
+  const locateMe = () => {
+    if (!navigator.geolocation || !map.current) {
+      setMsg("📍 Joylashuv mavjud emas — manzilni qo'lda belgilang");
+      return;
+    }
+    haptic();
+    setMsg("📍 Joylashuv aniqlanmoqda…");
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        map.current?.setView([pos.coords.latitude, pos.coords.longitude], 16, { animate: true });
+        setMsg(null);
+      },
+      () => setMsg("📍 Joylashuvni aniqlab bo'lmadi — ruxsat bering yoki qo'lda belgilang"),
+      { enableHighAccuracy: true, timeout: 8000, maximumAge: 10000 },
+    );
+  };
+
   const call = async () => {
     if (!pickup || busy) return;
     setBusy(true);
@@ -606,7 +656,25 @@ function Booking3Inner({ me, info, onClose }: { me: MeResponse; info: BookingInf
         </div>
       )}
 
-      {screen === "pinpick" && <div className="b3-centerpin">📍</div>}
+      {screen === "pinpick" && (
+        <>
+          <div className="b3-centerpin" aria-hidden="true">
+            <svg viewBox="0 0 44 60" width="44" height="60">
+              <ellipse className="b3-hail-shadow" cx="22" cy="56" rx="10" ry="2.6" />
+              <g className="b3-hail-fig">
+                <path className="b3-hail-leg" d="M18 39 L16 52" />
+                <path className="b3-hail-leg" d="M26 39 L28 52" />
+                <rect className="b3-hail-torso" x="14" y="22" width="16" height="20" rx="7" />
+                <path className="b3-hail-arm0" d="M15 26 L9 35" />
+                <circle className="b3-hail-head" cx="22" cy="13" r="7.5" />
+                <path className="b3-hail-arm" d="M29 25 L36 11" />
+                <circle className="b3-hail-hand" cx="36" cy="11" r="2.6" />
+              </g>
+            </svg>
+          </div>
+          <button className="b3-myloc" onClick={locateMe} aria-label="Turgan joyim" title="Turgan joyim">🎯</button>
+        </>
+      )}
 
       {msg && <div className="b3-msg" onClick={() => setMsg(null)}>{msg}</div>}
 

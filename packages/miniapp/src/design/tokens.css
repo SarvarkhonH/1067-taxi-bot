@@ -461,7 +461,23 @@ body {
 .b3-pickpin { font-size: 30px; filter: drop-shadow(0 2px 4px rgba(255,179,0,.8)); }
 
 /* ── M7 center-pin map pick ── */
-.b3-centerpin { position: absolute; left: 50%; top: 50%; z-index: 5; transform: translate(-50%, -100%); font-size: 40px; pointer-events: none; filter: drop-shadow(0 4px 6px rgba(0,0,0,.55)); animation: d-drop 420ms var(--ease-out); }
+/* center-pin: friendly "hailing a taxi" character (replaces the bare 📍) — feet sit on the snap point */
+.b3-centerpin { position: absolute; left: 50%; top: 50%; z-index: 5; transform: translate(-50%, -100%); pointer-events: none; animation: b3-hail-bob 1.7s var(--ease-out) infinite; }
+.b3-hail-shadow { fill: rgba(0,0,0,.4); animation: b3-hail-shadow 1.7s var(--ease-out) infinite; }
+.b3-hail-fig { filter: drop-shadow(0 3px 4px rgba(0,0,0,.45)); }
+.b3-hail-leg { stroke: #2a3344; stroke-width: 4; stroke-linecap: round; fill: none; }
+.b3-hail-torso { fill: var(--brand); }
+.b3-hail-arm0 { stroke: var(--brand); stroke-width: 4.4; stroke-linecap: round; fill: none; }
+.b3-hail-head { fill: #f4c89a; }
+.b3-hail-arm { stroke: #f4c89a; stroke-width: 4.4; stroke-linecap: round; fill: none; transform-box: fill-box; transform-origin: 0% 100%; animation: b3-hail-wave .85s ease-in-out infinite; }
+.b3-hail-hand { fill: #f4c89a; transform-box: fill-box; transform-origin: 50% 240%; animation: b3-hail-wave .85s ease-in-out infinite; }
+@keyframes b3-hail-bob { 0%, 100% { transform: translate(-50%, -100%); } 50% { transform: translate(-50%, calc(-100% - 3px)); } }
+@keyframes b3-hail-shadow { 0%, 100% { opacity: .4; } 50% { opacity: .28; } }
+@keyframes b3-hail-wave { 0%, 100% { transform: rotate(-7deg); } 50% { transform: rotate(15deg); } }
+/* 🎯 "turgan joyim" — recenter the map on device GPS (pinpick) */
+.b3-myloc { position: absolute; right: 14px; bottom: 176px; z-index: 6; width: 46px; height: 46px; border-radius: 50%; border: 1px solid var(--line); background: var(--surface-2); color: var(--brand); font-size: 20px; box-shadow: var(--shadow-1); cursor: pointer; display: flex; align-items: center; justify-content: center; }
+.b3-myloc:active { transform: scale(.93); }
+@media (prefers-reduced-motion: reduce) { .b3-centerpin, .b3-hail-arm, .b3-hail-hand, .b3-hail-shadow { animation: none !important; } }
 .b3-mappick { width: 100%; margin-top: 8px; padding: 11px; border-radius: 12px; background: var(--surface); border: 1px solid var(--line); color: var(--text); font-size: 14px; font-weight: 600; }
 .b3-pinbar { position: absolute; left: 0; right: 0; bottom: 0; z-index: 3; background: var(--surface-2); border-radius: 20px 20px 0 0; padding: 8px 16px calc(16px + env(safe-area-inset-bottom)); box-shadow: 0 -8px 30px rgba(0,0,0,.5); animation: d-up var(--dur-card) var(--ease-out); }
 .b3-pin-label { text-align: center; font-size: 15px; margin: 6px 0 10px; min-height: 20px; }
