@@ -462,6 +462,21 @@ body {
 @keyframes b3-ping { 0% { transform: translate(0, 0) scale(.5); opacity: 0; } 14% { opacity: 1; } 100% { transform: translate(var(--dx), var(--dy)) scale(.9); opacity: .15; } }
 @media (prefers-reduced-motion: reduce) { .b3-target, .b3-target .b3-target-ring, .b3-target-bubble, .b3-ping { animation: none; } }
 .b3-search-title { text-align: center; font-weight: 800; font-size: 16px; margin-bottom: 4px; }
+/* A: driver-found celebration pop */
+.b3-found { position: absolute; inset: 0; z-index: 8; display: grid; place-items: center; pointer-events: none; }
+.b3-found-card { background: var(--surface-2); border: 1px solid var(--line); border-radius: 18px; padding: 18px 26px; text-align: center; box-shadow: var(--shadow-1); animation: b3-found-pop .4s var(--ease-out) both; }
+.b3-found-emoji { font-size: 44px; line-height: 1; animation: b3-found-emoji .55s var(--ease-out) both; }
+.b3-found-title { font-weight: 800; font-size: 20px; margin-top: 6px; color: #34d399; }
+.b3-found-sub { font-size: 13px; color: var(--text); opacity: .85; margin-top: 2px; }
+@keyframes b3-found-pop { 0% { transform: scale(.7); opacity: 0; } 60% { transform: scale(1.04); } 100% { transform: scale(1); opacity: 1; } }
+@keyframes b3-found-emoji { 0% { transform: scale(0) rotate(-25deg); } 70% { transform: scale(1.25) rotate(8deg); } 100% { transform: scale(1) rotate(0); } }
+/* B: arrival title pulse */
+.b3-arrived { color: #34d399; animation: b3-arrived 1s ease-in-out infinite; }
+@keyframes b3-arrived { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.04); } }
+/* D: character in empty states (map fallback, etc.) */
+.b3-empty-person { width: 56px; margin: 0 auto 4px; opacity: .9; }
+.b3-empty-person svg { width: 56px; height: auto; display: block; margin: 0 auto; }
+@media (prefers-reduced-motion: reduce) { .b3-found-card, .b3-found-emoji, .b3-arrived { animation: none; } }
 /* live car pins */
 .b3-pin { font-size: 22px; filter: drop-shadow(0 2px 3px rgba(0,0,0,.6)); transition: transform .6s linear; }
 /* fleet cars (SVG) — wrapper rotates by bearing so they look like they're driving */

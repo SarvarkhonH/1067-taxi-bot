@@ -11,7 +11,7 @@ import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import { formatNumber, GARAGE_RIDE_CAP_MIN, haversineKm, type ActiveBookingView, type BookingDriverView, type BookingInfoResponse, type GarageResponse, type MeResponse, type SavedAddressView, type WheelSpinResponse } from "@t1067/shared";
 import { api } from "./api";
-import { haptic, tg } from "./telegram";
+import { haptic, hapticSuccess, tg } from "./telegram";
 import { confetti } from "./util";
 import { Button, Sheet, Skeleton } from "./design/components";
 
@@ -47,6 +47,29 @@ const PERSON_SVG = `<svg viewBox="0 0 44 60" width="38" height="52" style="displ
 function personIcon(): L.DivIcon {
   // inner wrapper carries the bob — Leaflet owns transform on the icon ROOT for positioning
   return L.divIcon({ className: "", html: `<div class="b3-pickperson">${PERSON_SVG}</div>`, iconSize: [38, 52], iconAnchor: [19, 49] });
+}
+
+// Smooth count-up for fare figures — premium "meter climbing" feel (eased, animates on each change).
+function CountUp({ value }: { value: number }) {
+  const [shown, setShown] = useState(value);
+  const prev = useRef(value);
+  useEffect(() => {
+    const from = prev.current;
+    const to = value;
+    prev.current = to;
+    if (from === to) return;
+    const start = performance.now();
+    const dur = 700;
+    let raf = 0;
+    const step = (now: number): void => {
+      const p = Math.min(1, (now - start) / dur);
+      setShown(Math.round(from + (to - from) * (1 - Math.pow(1 - p, 3))));
+      if (p < 1) raf = requestAnimationFrame(step);
+    };
+    raf = requestAnimationFrame(step);
+    return () => cancelAnimationFrame(raf);
+  }, [value]);
+  return <>{formatNumber(shown)}</>;
 }
 
 // Clean top-down car marker (nose points up = heading 0; the wrapper is rotated by bearing so it
@@ -270,6 +293,9 @@ function Booking3Inner({ me, info, onClose }: { me: MeResponse; info: BookingInf
   const [pinPt, setPinPt] = useState<{ lat: number; lng: number } | null>(null); // M7: the dragged map center
   const [pinBusy, setPinBusy] = useState(false);
   const [walking, setWalking] = useState(false); // center-pin character walks while the map is dragged
+  const [justFound, setJustFound] = useState(false); // "✅ Topildi!" celebration on driver-accept
+  const wasDriver = useRef(false);
+  const wasArrived = useRef(false);
   const [q, setQ] = useState("");
   const [results, setResults] = useState<SavedAddressView[]>([]);
   const [searching, setSearching] = useState(false);
@@ -532,6 +558,23 @@ function Booking3Inner({ me, info, onClose }: { me: MeResponse; info: BookingInf
         routeLine.current.setStyle({ dashArray: road ? undefined : "6 8" });
       } else {
         routeLine.current = L.polyline(pts, { color: "#1a73e8", weight: 5, opacity: 0.85, dashArray: road ? undefined : "6 8" }).addTo(map.current);
+        // ✨ "route draws in" — animate stroke-dashoffset once on creation (solid road line only), then
+        // clear the dash so later position-poll updates track the moving car normally.
+        if (road) {
+          const el = routeLine.current.getElement() as SVGPathElement | null;
+          if (el) {
+            requestAnimationFrame(() => {
+              const len = el.getTotalLength();
+              el.style.transition = "none";
+              el.style.strokeDasharray = String(len);
+              el.style.strokeDashoffset = String(len);
+              el.getBoundingClientRect(); // force reflow so the transition runs
+              el.style.transition = "stroke-dashoffset .85s ease-out";
+              el.style.strokeDashoffset = "0";
+              window.setTimeout(() => { el.style.strokeDasharray = "none"; el.style.transition = "none"; }, 900);
+            });
+          }
+        }
       }
       if (firstDraw) map.current.fitBounds(L.latLngBounds(pts).pad(0.25), { animate: true });
     };
@@ -641,6 +684,22 @@ function Booking3Inner({ me, info, onClose }: { me: MeResponse; info: BookingInf
     );
   };
 
+  // A: celebrate the moment a driver ACCEPTS (haptic + "✅ Topildi!" pop). B: haptic on ARRIVAL.
+  // Rising-edge via refs → fires once per transition, never on every status poll.
+  useEffect(() => {
+    const hasDriver = !!active?.driver;
+    if (hasDriver && !wasDriver.current) { hapticSuccess(); setJustFound(true); }
+    wasDriver.current = hasDriver;
+    const arrived = active?.status === "arrived";
+    if (arrived && !wasArrived.current) hapticSuccess();
+    wasArrived.current = arrived;
+  }, [active?.driver, active?.status]);
+  useEffect(() => {
+    if (!justFound) return;
+    const t = window.setTimeout(() => setJustFound(false), 3500);
+    return () => clearTimeout(t);
+  }, [justFound]);
+
   const call = async () => {
     if (!pickup || busy) return;
     setBusy(true);
@@ -729,7 +788,7 @@ function Booking3Inner({ me, info, onClose }: { me: MeResponse; info: BookingInf
       <div ref={mapRef} className="b3-map" />
       {(!mapOk || mapFailed) && (
         <div className="b3-map-fallback">
-          <div className="b3-map-fallback-ico">🗺</div>
+          <div className="b3-empty-person" dangerouslySetInnerHTML={{ __html: PERSON_SVG }} />
           <div>Xarita bu qurilmada ko'rinmadi</div>
           <div className="dim fs12">Buyurtma to'liq ishlaydi — pastdan davom eting 👇</div>
         </div>
@@ -760,6 +819,19 @@ function Booking3Inner({ me, info, onClose }: { me: MeResponse; info: BookingInf
       )}
 
       {msg && <div className="b3-msg" onClick={() => setMsg(null)}>{msg}</div>}
+
+      {/* A: driver-found celebration — a quick "Topildi!" pop (haptic fired in the effect) */}
+      {justFound && (
+        <div className="b3-found" aria-live="polite">
+          <div className="b3-found-card">
+            <div className="b3-found-emoji">✅</div>
+            <div className="b3-found-title">Topildi!</div>
+            {active?.driver && (
+              <div className="b3-found-sub">{active.driver.fullName || "Haydovchi"} · {active.driver.carModel} kelyapti 🚖</div>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* ── E1/E2: pickup selection sheet ── */}
       {screen === "map" && (
@@ -835,7 +907,7 @@ function Booking3Inner({ me, info, onClose }: { me: MeResponse; info: BookingInf
           {active?.driver ? (
             // accepted — a driver actually took the order (carNumber present)
             <>
-              <div className="b3-search-title">
+              <div className={`b3-search-title${active.status === "arrived" ? " b3-arrived" : ""}`}>
                 {active.status === "arrived" ? "🚕 Haydovchi yetib keldi — chiqing!" : "✅ Haydovchi qabul qildi"}
               </div>
               <RideTimeline status={active.status} />
@@ -851,7 +923,7 @@ function Booking3Inner({ me, info, onClose }: { me: MeResponse; info: BookingInf
                 {active.etaMin ? <div className="b3-eta"><b>{active.etaMin}</b><span>daq</span></div> : null}
               </div>
               {active.driver.meterPayment ? (
-                <div className="b3-fare-row mt8"><span>🧮 Hisoblagich (jonli)</span><b>{formatNumber(active.driver.meterPayment)} so'm</b></div>
+                <div className="b3-fare-row mt8"><span>🧮 Hisoblagich (jonli)</span><b><CountUp value={active.driver.meterPayment} /> so'm</b></div>
               ) : null}
               {active.status === "started" ? <InTripExtras rideStartedAt={active.rideStartedAt ?? null} /> : null}
               <div className="b3-acts">
