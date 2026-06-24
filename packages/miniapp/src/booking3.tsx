@@ -100,6 +100,23 @@ function carIcon(color: string, bearing: number, size = 30): L.DivIcon {
   });
 }
 
+// 🚶 decoy "ghost" CLIENT — a small person waiting around the city so the map reads as busy/alive
+// (the people-counterpart to the ghost cars). VISUAL ONLY, non-interactive, dimmed, gently bobbing.
+const GHOST_SHIRTS = ["#ef9f27", "#5dcaa5", "#85b7eb", "#ed93b1", "#f0997b", "#b388ff", "#c0dd97"];
+const GHOST_SKINS = ["#e8b58a", "#d9a066", "#f0c9a0"];
+function ghostPersonSvg(shirt: string, skin: string, size: number): string {
+  return `<svg viewBox="0 0 24 34" width="${size}" height="${size * 1.4}" aria-hidden="true">
+    <ellipse cx="12" cy="32" rx="6" ry="1.6" fill="rgba(0,0,0,.34)"/>
+    <rect x="8.4" y="23" width="2.6" height="9" rx="1.3" fill="#28303f"/>
+    <rect x="13" y="23" width="2.6" height="9" rx="1.3" fill="#28303f"/>
+    <rect x="6.8" y="11.5" width="10.4" height="14" rx="4.6" fill="${shirt}"/>
+    <circle cx="12" cy="6.6" r="4.4" fill="${skin}"/>
+  </svg>`;
+}
+function ghostPersonIcon(shirt: string, skin: string, size = 22): L.DivIcon {
+  return L.divIcon({ className: "", html: `<div class="b3-ghostperson">${ghostPersonSvg(shirt, skin, size)}</div>`, iconSize: [size, size * 1.4], iconAnchor: [size / 2, size * 1.4 - 2] });
+}
+
 // M5: OSRM road route (driver → pickup). Public demo server; it can be slow/blocked on some
 // UZ networks (same lesson as OSM tiles), so the caller falls back to a straight dashed line —
 // there is ALWAYS a visual link from the car to the pickup. coords come back [lng,lat] → swap.
@@ -348,8 +365,10 @@ function Booking3Inner({ me, info, onClose }: { me: MeResponse; info: BookingInf
   // dispatch only to real drivers; only the perceived density + the "bo'sh mashina" count are inflated.
   const ghostMarkers = useRef<L.Marker[]>([]);
   const ghostRef = useRef<{ lat: number; lng: number; bearing: number; busy: boolean; vlat: number; vlng: number }[]>([]);
+  const ghostPeople = useRef<L.Marker[]>([]); // 🚶 decoy clients waiting around the city (varied clothes/places, new each session)
   const GHOST_FREE = 7; // idle decoy cars scattered around the view
   const GHOST_RIDES = 4; // moving decoy cars (rides in progress)
+  const GHOST_CLIENTS = 5; // idle decoy PEOPLE scattered around (people-counterpart to the cars)
   const [mapOk] = useState(mapAllowed); // false only when ?nomap=1 → show placeholder
   const [mapFailed, setMapFailed] = useState(false); // no tiles loaded (network blocked)
 
@@ -452,6 +471,18 @@ function Booking3Inner({ me, info, onClose }: { me: MeResponse; info: BookingInf
         const seed = (busy: boolean) => ({ lat: c.lat + rnd(0.013), lng: c.lng + rnd(0.018), bearing: Math.floor(Math.random() * 360), busy, vlat: busy ? rnd(0.00016) : 0, vlng: busy ? rnd(0.0002) : 0 });
         ghostRef.current = [...Array.from({ length: GHOST_FREE }, () => seed(false)), ...Array.from({ length: GHOST_RIDES }, () => seed(true))];
         ghostMarkers.current = ghostRef.current.map((g) => L.marker([g.lat, g.lng], { icon: carIcon(g.busy ? "#9ca3af" : "#22c55e", g.bearing, 24), interactive: false, zIndexOffset: -50 }).addTo(map.current!));
+        // 🚶 ghost CLIENTS — a handful of people waiting, scattered, each a random shirt/skin/size (varied
+        // clothes "har xil kiyimchalarda") + a stagger so they don't bob in unison. Static (people stand);
+        // the CSS bob gives life. Seeded ONCE per session → new layout every time.
+        ghostPeople.current = Array.from({ length: GHOST_CLIENTS }, () => {
+          const shirt = GHOST_SHIRTS[Math.floor(Math.random() * GHOST_SHIRTS.length)]!;
+          const skin = GHOST_SKINS[Math.floor(Math.random() * GHOST_SKINS.length)]!;
+          const size = 19 + Math.floor(Math.random() * 7);
+          const mk = L.marker([c.lat + rnd(0.012), c.lng + rnd(0.016)], { icon: ghostPersonIcon(shirt, skin, size), interactive: false, zIndexOffset: -40 }).addTo(map.current!);
+          const el = mk.getElement()?.querySelector(".b3-ghostperson") as HTMLElement | null;
+          if (el) el.style.animationDelay = `${(Math.random() * 2.4).toFixed(2)}s`;
+          return mk;
+        });
         return;
       }
       ghostRef.current.forEach((g, i) => {
@@ -472,13 +503,21 @@ function Booking3Inner({ me, info, onClose }: { me: MeResponse; info: BookingInf
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mapOk]);
 
-  // place pickup marker + recenter (remove+recreate replays the pin-drop animation)
+  // place pickup marker + recenter (remove+recreate replays the pin-drop animation). During PICKING
+  // (pinpick/map) the center-pin character IS the pickup indicator — showing a second person at the
+  // pre-set quickPickup is the "two people" bug. So only render this marker once a pickup is CHOSEN
+  // (confirm/searching).
   useEffect(() => {
-    if (!map.current || !pickup?.lat || !pickup?.lng) return;
+    if (!map.current) return;
+    const picking = screen === "pinpick" || screen === "map";
+    if (picking || !pickup?.lat || !pickup?.lng) {
+      if (pickMarker.current) { pickMarker.current.remove(); pickMarker.current = null; }
+      return;
+    }
     if (pickMarker.current) pickMarker.current.remove();
     pickMarker.current = L.marker([pickup.lat, pickup.lng], { icon: personIcon() }).addTo(map.current);
     map.current.setView([pickup.lat, pickup.lng], 15, { animate: true });
-  }, [pickup]);
+  }, [pickup, screen]);
 
   // ── Yandex-style search radar: expanding pulse rings on the MAP at the pickup while a driver is
   // being found (kas offers each driver ~15s then cascades to the next). Stops the moment a driver

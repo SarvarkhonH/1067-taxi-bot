@@ -544,8 +544,17 @@ body {
 @keyframes b3-pp-bob { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-2px); } }
 @media (prefers-reduced-motion: reduce) { .b3-pickperson { animation: none; } }
 /* 🎯 "turgan joyim" — recenter the map on device GPS (pinpick) */
-.b3-myloc { position: absolute; right: 14px; bottom: 176px; z-index: 6; width: 46px; height: 46px; border-radius: 50%; border: 1px solid var(--line); background: var(--surface-2); color: var(--brand); font-size: 20px; box-shadow: var(--shadow-1); cursor: pointer; display: flex; align-items: center; justify-content: center; }
+.b3-myloc { position: absolute; right: 14px; bottom: 212px; z-index: 6; width: 48px; height: 48px; border-radius: 50%;
+  border: 1px solid rgba(255,179,0,.4); background: radial-gradient(120% 120% at 50% 25%, rgba(255,210,90,.22), rgba(21,27,43,.96)); color: var(--brand);
+  font-size: 21px; box-shadow: 0 10px 26px -8px rgba(0,0,0,.6), inset 0 1px 0 rgba(255,255,255,.14); cursor: pointer; display: flex; align-items: center; justify-content: center; }
+.b3-myloc::before { content: ""; position: absolute; inset: -1px; border-radius: 50%; border: 2px solid rgba(255,179,0,.5); opacity: 0; animation: b3-loc-pulse 2.8s var(--ease-out) infinite; }
+@keyframes b3-loc-pulse { 0% { transform: scale(.85); opacity: .6; } 100% { transform: scale(1.35); opacity: 0; } }
 .b3-myloc:active { transform: scale(.93); }
+
+/* 🚶 ghost clients — gentle bob + slightly dimmed so they read as ambient, never as the real pickup */
+.b3-ghostperson { display: block; opacity: .85; animation: b3-ghostbob 2.6s ease-in-out infinite; will-change: transform; }
+@keyframes b3-ghostbob { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-3px); } }
+@media (prefers-reduced-motion: reduce) { .b3-ghostperson, .b3-myloc::before { animation: none !important; } }
 @media (prefers-reduced-motion: reduce) { .b3-centerpin, .b3-hail-arm, .b3-hail-hand, .b3-hail-shadow, .b3-walking, .b3-walking .b3-leg-l, .b3-walking .b3-leg-r, .b3-walking .b3-case { animation: none !important; } }
 .b3-mappick { width: 100%; margin-top: 8px; padding: 11px; border-radius: 12px; background: var(--surface); border: 1px solid var(--line); color: var(--text); font-size: 14px; font-weight: 600; }
 .b3-pinbar { position: absolute; left: 0; right: 0; bottom: 0; z-index: 3; background: var(--surface-2); border-radius: 20px 20px 0 0; padding: 8px 16px calc(16px + env(safe-area-inset-bottom)); box-shadow: 0 -8px 30px rgba(0,0,0,.5); animation: d-up var(--dur-card) var(--ease-out); transition: transform .3s var(--ease-out); }
