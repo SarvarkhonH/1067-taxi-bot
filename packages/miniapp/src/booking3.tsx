@@ -28,6 +28,27 @@ function divIcon(cls: string, html: string): L.DivIcon {
   return L.divIcon({ className: "", html: `<div class="${cls}">${html}</div>`, iconSize: [28, 28], iconAnchor: [14, 14] });
 }
 
+// The friendly "hailing" traveller (same character as the map center-pin) — reused for the pickup
+// marker so every map pin is the little person, never a bare 📍. Waves + shadow pulse come from the
+// shared .b3-hail-* CSS; the container .b3-pickperson adds a gentle bob.
+const PERSON_SVG = `<svg viewBox="0 0 44 60" width="38" height="52" style="display:block">
+  <ellipse class="b3-hail-shadow" cx="22" cy="56" rx="10" ry="2.6"/>
+  <g class="b3-hail-fig">
+    <path class="b3-hail-leg" d="M19 40 L17 52"/>
+    <path class="b3-hail-leg" d="M25 40 L27 52"/>
+    <rect class="b3-hail-torso" x="14" y="22" width="16" height="20" rx="7"/>
+    <g class="b3-case"><rect x="2" y="42" width="9" height="10" rx="2" fill="#52607a"/><rect x="5.4" y="39.6" width="2.6" height="3" rx="1" fill="#52607a"/></g>
+    <path class="b3-hail-arm0" d="M14 29 L9 42"/>
+    <circle class="b3-hail-head" cx="22" cy="13" r="7.5"/>
+    <path class="b3-hail-arm" d="M29 25 L36 11"/>
+    <circle class="b3-hail-hand" cx="36" cy="11" r="2.6"/>
+  </g>
+</svg>`;
+function personIcon(): L.DivIcon {
+  // inner wrapper carries the bob — Leaflet owns transform on the icon ROOT for positioning
+  return L.divIcon({ className: "", html: `<div class="b3-pickperson">${PERSON_SVG}</div>`, iconSize: [38, 52], iconAnchor: [19, 49] });
+}
+
 // Clean top-down car marker (nose points up = heading 0; the wrapper is rotated by bearing so it
 // looks like it's driving) — replaces the ugly 🚖/🟢 emoji. Two dark windows + a body tint read as
 // a car at a glance even at small size, like Uber/Yandex map cars.
@@ -270,6 +291,7 @@ function Booking3Inner({ me, info, onClose }: { me: MeResponse; info: BookingInf
   const searchPulse = useRef<L.Marker | null>(null);
   const beamLine = useRef<L.Polyline | null>(null);
   const targetMarker = useRef<L.Marker | null>(null); // the car currently being OFFERED the order
+  const pingMarker = useRef<L.Marker | null>(null); // streaming "request" packets pickup → offered car
   const driverMarker = useRef<L.Marker | null>(null);
   const routeLine = useRef<L.Polyline | null>(null);
   // 🚗 liveliness: decoy "ghost" cars + moving ghost rides so a small real fleet never looks empty
@@ -403,7 +425,7 @@ function Booking3Inner({ me, info, onClose }: { me: MeResponse; info: BookingInf
   useEffect(() => {
     if (!map.current || !pickup?.lat || !pickup?.lng) return;
     if (pickMarker.current) pickMarker.current.remove();
-    pickMarker.current = L.marker([pickup.lat, pickup.lng], { icon: divIcon("b3-pickpin pin-drop", "📍") }).addTo(map.current);
+    pickMarker.current = L.marker([pickup.lat, pickup.lng], { icon: personIcon() }).addTo(map.current);
     map.current.setView([pickup.lat, pickup.lng], 15, { animate: true });
   }, [pickup]);
 
@@ -432,6 +454,7 @@ function Booking3Inner({ me, info, onClose }: { me: MeResponse; info: BookingInf
     if (!map.current || !searching || typeof pickup?.lat !== "number" || typeof pickup?.lng !== "number") {
       if (beamLine.current) { beamLine.current.remove(); beamLine.current = null; }
       if (targetMarker.current) { targetMarker.current.remove(); targetMarker.current = null; }
+      if (pingMarker.current) { pingMarker.current.remove(); pingMarker.current = null; }
       return;
     }
     const from: [number, number] = [pickup.lat, pickup.lng];
@@ -447,14 +470,20 @@ function Booking3Inner({ me, info, onClose }: { me: MeResponse; info: BookingInf
       if (!t) return;
       if (beamLine.current) beamLine.current.remove();
       beamLine.current = L.polyline([from, [t.lat, t.lng]], { className: "b3-beam", interactive: false }).addTo(map.current);
-      // clear "buyurtma SHU mashinaga" cue — a glowing gold car with an expanding ring on the target
-      const ticon = L.divIcon({ className: "", html: `<div class="b3-target"><i class="b3-target-ring"></i><i class="b3-target-ring b3-target-ring2"></i>${carSvg("#FFB300", 28)}</div>`, iconSize: [28, 28], iconAnchor: [14, 14] });
+      // 📨 a stream of glowing request-packets flies pickup → the offered car (screen-space travel)
+      const fromPt = map.current.latLngToContainerPoint(L.latLng(from[0], from[1]));
+      const toPt = map.current.latLngToContainerPoint(L.latLng(t.lat, t.lng));
+      const ping = L.divIcon({ className: "", html: `<span class="b3-ping" style="--dx:${(toPt.x - fromPt.x).toFixed(0)}px;--dy:${(toPt.y - fromPt.y).toFixed(0)}px"></span>`, iconSize: [0, 0], iconAnchor: [0, 0] });
+      if (pingMarker.current) pingMarker.current.remove();
+      pingMarker.current = L.marker([from[0], from[1]], { icon: ping, interactive: false, zIndexOffset: 400 }).addTo(map.current);
+      // the offered car: glowing + bouncing + a "📨 so'ralmoqda" bubble — unmistakably THIS car
+      const ticon = L.divIcon({ className: "", html: `<div class="b3-target"><span class="b3-target-bubble">📨</span><i class="b3-target-ring"></i><i class="b3-target-ring b3-target-ring2"></i>${carSvg("#FFB300", 28)}</div>`, iconSize: [28, 28], iconAnchor: [14, 14] });
       if (targetMarker.current) targetMarker.current.remove();
       targetMarker.current = L.marker([t.lat, t.lng], { icon: ticon, interactive: false, zIndexOffset: 500 }).addTo(map.current);
     };
     reach();
     const timer = setInterval(reach, 2600);
-    return () => { clearInterval(timer); if (beamLine.current) { beamLine.current.remove(); beamLine.current = null; } if (targetMarker.current) { targetMarker.current.remove(); targetMarker.current = null; } };
+    return () => { clearInterval(timer); if (beamLine.current) { beamLine.current.remove(); beamLine.current = null; } if (targetMarker.current) { targetMarker.current.remove(); targetMarker.current = null; } if (pingMarker.current) { pingMarker.current.remove(); pingMarker.current = null; } };
   }, [screen, active?.driver, pickup?.lat, pickup?.lng]);
 
   // ── C: live assigned-driver car marker — glides toward you + rotates by bearing ──
