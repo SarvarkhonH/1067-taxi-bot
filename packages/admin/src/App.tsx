@@ -11,7 +11,7 @@ import {
   type AdminMemberRow,
   type AdminStats,
 } from "@t1067/shared";
-import { adminApi, clearAdminToken, hasAdminToken, setAdminToken, type AdminUserRow, type AdminWithdrawalRow, type Driver360, type DriverMissionRow, type Member360 } from "./api";
+import { adminApi, clearAdminToken, hasAdminToken, setAdminToken, type AdminUserRow, type AdminWithdrawalRow, type CampaignRow, type Driver360, type DriverMissionRow, type Member360 } from "./api";
 
 type Tab = "overview" | "pulse" | "analytics" | "finance" | "live" | "x360" | "driver" | "client" | "botusers" | "boshqaruv" | "topshiriq" | "actions" | "integrity" | "audit";
 
@@ -102,7 +102,7 @@ export function App() {
       {(tab === "driver" || tab === "client") && <MembersTab type={tab} />}
       {tab === "botusers" && <BotUsersTab />}
       {tab === "boshqaruv" && <BoshqaruvView />}
-      {tab === "topshiriq" && <DriverMissionsView />}
+      {tab === "topshiriq" && <><CampaignsView /><DriverMissionsView /></>}
       {tab === "actions" && (<><ActionsView /><ControlCards /></>)}
       {tab === "integrity" && <IntegrityView />}
       {tab === "audit" && <AuditView />}
@@ -763,6 +763,81 @@ function MembersTab({ type }: { type: "driver" | "client" }) {
 }
 
 // 👑 user management ("boshqaruv"): search → accounts → re-link/unlink/code/coin-adjust + withdrawals
+function CampaignsView() {
+  const [data, setData] = useState<{ campaigns: CampaignRow[]; conds: { cond: string; label: string; unit: string }[]; enabled: boolean } | null>(null);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [title, setTitle] = useState("");
+  const [emoji, setEmoji] = useState("🎁");
+  const [cond, setCond] = useState("invite_ride");
+  const [target, setTarget] = useState("");
+  const [windowDays, setWindowDays] = useState("");
+  const [reward, setReward] = useState("");
+  const [audience, setAudience] = useState("client");
+  const [msg, setMsg] = useState("");
+
+  const load = () => adminApi.campaigns().then(setData).catch(() => undefined);
+  useEffect(() => { load(); }, []);
+
+  const reset = () => { setEditingId(null); setTitle(""); setEmoji("🎁"); setCond("invite_ride"); setTarget(""); setWindowDays(""); setReward(""); setAudience("client"); };
+  const submit = async () => {
+    const t = Number(target), w = Number(windowDays), r = Number(reward);
+    if (!title.trim() || t <= 0 || w <= 0) { setMsg("⚠️ Nom, target va muddat to'g'ri bo'lsin"); return; }
+    const payload = { title: title.trim(), emoji, cond, target: t, windowDays: w, reward: r, audience };
+    const res = editingId
+      ? await adminApi.editCampaign(editingId, payload).catch(() => ({ ok: false, reason: "net" }))
+      : await adminApi.addCampaign(payload).catch(() => ({ ok: false, reason: "net" }));
+    setMsg(res.ok ? "✅ Saqlandi" : "❌ " + (res.reason ?? ""));
+    if (res.ok) { reset(); load(); }
+  };
+  const startEdit = (c: CampaignRow) => { setEditingId(c.id); setTitle(c.title); setEmoji(c.emoji); setCond(c.cond); setTarget(String(c.target)); setWindowDays(String(c.windowDays)); setReward(String(c.reward)); setAudience(c.audience); setMsg("✏️ Tahrirlanmoqda…"); };
+  const toggle = async (id: string, active: boolean) => { await adminApi.toggleCampaign(id, active).catch(() => undefined); load(); };
+  const del = async (c: CampaignRow) => { if (!window.confirm(`"${c.title}" o'chirilsinmi?`)) return; await adminApi.deleteCampaign(c.id).catch(() => undefined); if (editingId === c.id) reset(); load(); };
+
+  const unit = data?.conds.find((x) => x.cond === cond)?.unit ?? "";
+  return (
+    <>
+      <section className="panel">
+        <div className="panel-title">{editingId ? "✏️ Promo tahrirlash" : "🎁 Yangi promo-task"}</div>
+        <p className="muted" style={{ marginTop: 0 }}>
+          Masalan: «5 kunda 5 do&apos;st» → <b>Do&apos;st taklif (safar qilsa)</b> · target 5 · muddat 5 · 10000 tanga.{" "}
+          {data && !data.enabled && <b style={{ color: "#f59e0b" }}>«promo» flag o&apos;chiq — actions&apos;dan yoqing.</b>}
+        </p>
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
+          <input style={{ width: 50, padding: 8 }} value={emoji} onChange={(e) => setEmoji(e.target.value)} placeholder="🎁" />
+          <input style={{ flex: "2 1 160px", padding: "8px 10px" }} value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Nom: 5 kunda 5 do'st" />
+          <select value={cond} onChange={(e) => setCond(e.target.value)} style={{ flex: "1 1 180px", padding: 8 }}>
+            {data?.conds.map((c) => <option key={c.cond} value={c.cond}>{c.label}</option>)}
+          </select>
+          <input style={{ flex: "1 1 70px", padding: 8 }} type="number" value={target} onChange={(e) => setTarget(e.target.value)} placeholder={`Target${unit ? " (" + unit + ")" : ""}`} />
+          <input style={{ flex: "1 1 70px", padding: 8 }} type="number" value={windowDays} onChange={(e) => setWindowDays(e.target.value)} placeholder="Muddat (kun)" />
+          <input style={{ flex: "1 1 80px", padding: 8 }} type="number" value={reward} onChange={(e) => setReward(e.target.value)} placeholder="Bonus (tanga)" />
+          <select value={audience} onChange={(e) => setAudience(e.target.value)} style={{ padding: 8 }}>
+            <option value="client">Mijozlar</option><option value="driver">Haydovchilar</option><option value="all">Hammasi</option>
+          </select>
+          <button onClick={submit}>{editingId ? "💾 Saqlash" : "➕ Qo'shish"}</button>
+          {editingId && <button onClick={reset}>✖️</button>}
+        </div>
+        {msg && <div className="muted" style={{ marginTop: 8 }}>{msg}</div>}
+      </section>
+      <section className="panel">
+        <div className="panel-title">📋 Promolar ({data?.campaigns.length ?? 0})</div>
+        {(data?.campaigns ?? []).map((c) => (
+          <div key={c.id} style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", padding: "8px 0", borderBottom: "1px solid rgba(255,255,255,0.08)" }}>
+            <span style={{ flex: "2 1 220px" }}>
+              {c.emoji} <b>{c.title}</b> <span className="muted">· {data?.conds.find((x) => x.cond === c.cond)?.label ?? c.cond} ≥{c.target} · {c.windowDays} kun · +{c.reward} tanga · {c.audience}</span>
+            </span>
+            <span className="muted" style={{ fontSize: 12 }}>✅ {c.completions} ta {c.ended ? "· ⏹ tugagan" : ""}</span>
+            <button className="btn sm" onClick={() => toggle(c.id, !c.active)}>{c.active ? "🟢 Yoniq" : "🔴 O'chiq"}</button>
+            <button className="btn sm" onClick={() => startEdit(c)}>✏️</button>
+            <button className="btn sm" onClick={() => del(c)}>🗑</button>
+          </div>
+        ))}
+        {data && data.campaigns.length === 0 && <p className="muted">Hali promo yo'q.</p>}
+      </section>
+    </>
+  );
+}
+
 function DriverMissionsView() {
   const [missions, setMissions] = useState<DriverMissionRow[] | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);

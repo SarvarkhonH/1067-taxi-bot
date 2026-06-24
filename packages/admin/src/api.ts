@@ -158,6 +158,13 @@ export const adminApi = {
   editDriverMission: (id: string, title: string, target: number, reward: number) =>
     postJson<{ ok: boolean; reason?: string }>("/api/admin/driver-missions/edit", { id, title, target, reward }),
   deleteDriverMission: (id: string) => postJson<{ ok: boolean; reason?: string }>("/api/admin/driver-missions/delete", { id }),
+  // 🎁 promo campaigns
+  campaigns: () => req<{ campaigns: CampaignRow[]; conds: { cond: string; label: string; unit: string }[]; enabled: boolean }>("/api/admin/campaigns"),
+  addCampaign: (c: { title: string; emoji?: string; cond: string; target: number; windowDays: number; reward: number; audience: string }) =>
+    postJson<{ ok: boolean; id?: string; reason?: string }>("/api/admin/campaigns", c),
+  toggleCampaign: (id: string, active: boolean) => postJson<{ ok: boolean; reason?: string }>("/api/admin/campaigns/toggle", { id, active }),
+  editCampaign: (id: string, patch: Record<string, unknown>) => postJson<{ ok: boolean; reason?: string }>("/api/admin/campaigns/edit", { id, ...patch }),
+  deleteCampaign: (id: string) => postJson<{ ok: boolean }>("/api/admin/campaigns/delete", { id }),
 };
 
 export interface DriverMissionRow {
@@ -168,6 +175,22 @@ export interface DriverMissionRow {
   reward: number;
   period: string;
   active: boolean;
+}
+
+export interface CampaignRow {
+  id: string;
+  emoji: string;
+  title: string;
+  cond: string;
+  target: number;
+  windowDays: number;
+  reward: number;
+  audience: string;
+  active: boolean;
+  startAt: string;
+  endAt: string;
+  ended: boolean;
+  completions: number;
 }
 
 export interface AdminUserRow {

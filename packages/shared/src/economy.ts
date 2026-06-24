@@ -146,6 +146,44 @@ export function clampBonusEcon(key: string, val: number): number {
   return k.step >= 1 ? Math.round(clamped) : clamped; // integer knobs (drvRides) stay whole
 }
 
+// ── 🎁 admin-configurable PROMO campaigns ("tasks with promises") ──────────────────────────────
+// Owner builds time-bound challenges in the dashboard ("invite 5 friends in 5 days who ride → 10k").
+// Progress is computed live from OUR DB (referrals/rides/coin txns) within the campaign window;
+// completion grants the reward once (idempotent) + pushes a message. Gated by the "promo" flag.
+export type CampaignCond =
+  | "invite_ride" | "invite_signup" | "rides" | "streak" | "comeback"
+  | "first_ride" | "spend_tanga" | "earn_tanga" | "pay_fare" | "weekend_rides";
+export const CAMPAIGN_CONDS: { cond: CampaignCond; label: string; unit: string }[] = [
+  { cond: "invite_ride", label: "Do'st taklif — har biri safar qilsa", unit: "kishi" },
+  { cond: "invite_signup", label: "Do'st taklif — ulansa (telefon)", unit: "kishi" },
+  { cond: "rides", label: "O'zi safar qilsa", unit: "safar" },
+  { cond: "streak", label: "Ketma-ket kunlar (streak)", unit: "kun" },
+  { cond: "comeback", label: "Tanaffusdan keyin qaytib safar", unit: "safar" },
+  { cond: "first_ride", label: "Birinchi safarini qilsa", unit: "safar" },
+  { cond: "spend_tanga", label: "Tanga sarflasa (bozor/garaj)", unit: "tanga" },
+  { cond: "earn_tanga", label: "Tanga ishlasa", unit: "tanga" },
+  { cond: "pay_fare", label: "Yo'l haqini tanga bilan to'lasa", unit: "marta" },
+  { cond: "weekend_rides", label: "Dam olish kunlari safar", unit: "safar" },
+];
+export interface Campaign {
+  id: string;
+  emoji: string;
+  title: string;
+  cond: CampaignCond;
+  target: number;
+  windowDays: number; // promo runs this many days from startAt
+  reward: number; // tanga on completion
+  audience: "client" | "driver" | "all";
+  active: boolean;
+  startAt: string; // ISO — when the window opened
+}
+export const CAMPAIGN_MAX_REWARD = 50000; // safety ceiling per completion
+export interface CampaignView extends Campaign {
+  endAt: string;
+  ended: boolean;
+  completions: number; // how many members already earned it
+}
+
 // PURE fee math (no DB) — the single source of truth used by the server's feeModel, so it is
 // directly unit-testable. The recipient ALWAYS gets the full amount. DARK (commission off) =
 // no fee at all (replaces the legacy burn). LIVE = commission charged ON TOP of the sender,

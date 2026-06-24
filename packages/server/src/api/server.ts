@@ -1224,6 +1224,45 @@ export function createApiServer(opts: ApiOptions = {}) {
     res.json(await adminDeleteMission(String((req.body as { id?: string })?.id ?? "")));
   });
 
+  // 🎁 PROMO campaigns ("tasks with promises") — admin-configurable, gated by the "promo" flag.
+  app.get("/api/admin/campaigns", requireAdmin, async (_req, res) => {
+    const { adminListCampaigns } = await import("../services/campaignService");
+    const { CAMPAIGN_CONDS } = await import("@t1067/shared");
+    const { featureOn } = await import("../services/featureFlags");
+    res.json({ campaigns: await adminListCampaigns(), conds: CAMPAIGN_CONDS, enabled: await featureOn("promo") });
+  });
+  app.post("/api/admin/campaigns", requireAdmin, requireOwner, rateLimit(20), async (req, res) => {
+    const b = req.body as { title?: string; emoji?: string; cond?: string; target?: number; windowDays?: number; reward?: number; audience?: string };
+    const { CAMPAIGN_CONDS } = await import("@t1067/shared");
+    if (!CAMPAIGN_CONDS.some((c) => c.cond === b?.cond)) { res.status(400).json({ ok: false, reason: "bad_cond" }); return; }
+    const { adminAddCampaign } = await import("../services/campaignService");
+    res.json(await adminAddCampaign({
+      title: String(b?.title ?? ""), emoji: b?.emoji ? String(b.emoji) : undefined,
+      cond: b!.cond as never, target: Math.floor(Number(b?.target ?? 0)), windowDays: Math.floor(Number(b?.windowDays ?? 0)),
+      reward: Math.floor(Number(b?.reward ?? 0)), audience: (b?.audience === "driver" || b?.audience === "all" ? b.audience : "client") as never,
+    }));
+  });
+  app.post("/api/admin/campaigns/toggle", requireAdmin, requireOwner, rateLimit(20), async (req, res) => {
+    const b = req.body as { id?: string; active?: boolean };
+    const { adminToggleCampaign } = await import("../services/campaignService");
+    res.json(await adminToggleCampaign(String(b?.id ?? ""), !!b?.active));
+  });
+  app.post("/api/admin/campaigns/edit", requireAdmin, requireOwner, rateLimit(20), async (req, res) => {
+    const b = req.body as { id?: string; title?: string; emoji?: string; cond?: string; target?: number; windowDays?: number; reward?: number; audience?: string };
+    const { adminEditCampaign } = await import("../services/campaignService");
+    res.json(await adminEditCampaign(String(b?.id ?? ""), {
+      title: b?.title, emoji: b?.emoji, cond: b?.cond as never,
+      target: b?.target != null ? Math.floor(Number(b.target)) : undefined,
+      windowDays: b?.windowDays != null ? Math.floor(Number(b.windowDays)) : undefined,
+      reward: b?.reward != null ? Math.floor(Number(b.reward)) : undefined,
+      audience: b?.audience as never,
+    }));
+  });
+  app.post("/api/admin/campaigns/delete", requireAdmin, requireOwner, rateLimit(20), async (req, res) => {
+    const { adminDeleteCampaign } = await import("../services/campaignService");
+    res.json(await adminDeleteCampaign(String((req.body as { id?: string })?.id ?? "")));
+  });
+
   app.post("/api/admin/announce", requireAdmin, rateLimit(3), async (req, res) => {
     if (!opts.sendMessage) {
       res.json({ ok: false, message: "Bot ulanmagan" });
