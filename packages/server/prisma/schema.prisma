@@ -16,7 +16,8 @@ model Member {
   id                 Int       @id @default(autoincrement())
   type               String // "client" | "driver"
   kasId              String // external id from kas1067 (unique within a type)
-  fullName           String
+  fullName           String // mirrored from kas1067 (overwritten on every sync — NOT user-editable)
+  displayName        String? // user's own chosen name (bot/Mini App edit); sync NEVER touches it → wins over fullName
   phone              String?
   carNumber          String? // drivers only
   points             Float     @default(0) // bonus (client) | balance (driver) — RIDE cashback, mirrored from kas1067

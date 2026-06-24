@@ -493,7 +493,10 @@ export function createBot(): Bot {
       await ctx.reply("Avval /start orqali ulaning.");
       return;
     }
-    await prisma.member.update({ where: { id: me.member.id }, data: { fullName: name } }).catch(() => undefined);
+    // write to displayName (NOT fullName) — kas sync overwrites fullName, so editing it reverts;
+    // displayName is user-owned and sync never touches it.
+    const { setDisplayName } = await import("../services/memberService");
+    await setDisplayName(me.member.id, name).catch(() => undefined);
     await ctx.reply(`✅ Ismingiz o'zgartirildi: <b>${esc(name)}</b>`, { parse_mode: "HTML" });
     await showAccount(ctx);
   });

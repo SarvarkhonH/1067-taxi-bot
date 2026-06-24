@@ -804,6 +804,20 @@ body {
 }
 @keyframes boot-slide { from { transform: translateX(-130%); } to { transform: translateX(360%); } }
 
+/* Hisob: ism tahrirlash + do'st-taklif tugmasi */
+.acct-name-row { display: flex; align-items: center; gap: 8px; }
+.acct-edit { background: none; border: 0; font-size: 15px; cursor: pointer; padding: 2px 4px; opacity: .8; }
+.acct-edit:active { transform: scale(.9); }
+.acct-name-input { flex: 1; min-width: 0; padding: 9px 12px; border-radius: 10px; border: 1px solid var(--line);
+  background: var(--surface); color: var(--text); font-size: 14px; font-weight: 600; }
+.acct-name-input:focus { outline: none; border-color: var(--brand); }
+.acct-invite { width: 100%; margin-top: 12px; padding: 13px; border: 0; border-radius: 13px; cursor: pointer;
+  font-size: 14px; font-weight: 800; color: #2a1900; letter-spacing: -.2px;
+  background: linear-gradient(165deg, #ffd060, var(--brand) 46%, #ff8f00);
+  box-shadow: 0 10px 24px -10px rgba(255,159,0,.7), inset 0 1px 0 rgba(255,255,255,.4);
+  transition: transform var(--dur-press) ease; }
+.acct-invite:active { transform: scale(.97); }
+
 /* prefers-reduced-motion: hamma harakat o'chadi */
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation: none !important; transition: none !important; }

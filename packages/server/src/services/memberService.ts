@@ -61,6 +61,16 @@ export async function getMeByMemberId(memberId: number): Promise<MeResponse | nu
   return buildMe(member, member.achievements, tu);
 }
 
+/** Set the user's OWN display name (bot/Mini App edit). Written to `displayName`, which the kas sync
+ *  never touches — so it survives (unlike editing fullName, which reverts on the next sync). Returns
+ *  the cleaned name, or null if it's invalid. Pass "" to clear (revert to the kas/Telegram name). */
+export async function setDisplayName(memberId: number, raw: string): Promise<string | null> {
+  const name = raw.trim().replace(/\s+/g, " ").slice(0, 40);
+  if (name && name.length < 2) return null; // too short (but "" is allowed = clear)
+  await prisma.member.update({ where: { id: memberId }, data: { displayName: name || null } });
+  return name;
+}
+
 async function buildMe(
   member: Member,
   achievements: MemberAchievement[],
@@ -95,7 +105,7 @@ async function buildMe(
     linked: true,
     type,
     metricLabel: metricLabel(type),
-    member: { id: member.id, fullName: resolveDisplayName(member.fullName, tg), phone: member.phone, carNumber: member.carNumber },
+    member: { id: member.id, fullName: member.displayName || resolveDisplayName(member.fullName, tg), phone: member.phone, carNumber: member.carNumber },
     stats: { points: member.points, trips: member.trips, rating: member.rating },
     level: { index: lp.level.index, name: lp.level.name, emoji: lp.level.emoji, color: lp.level.color },
     nextLevel: lp.next

@@ -13,7 +13,7 @@ import {
   type WalletResponse,
 } from "@t1067/shared";
 import { api } from "./api";
-import { haptic } from "./telegram";
+import { haptic, shareLink } from "./telegram";
 import { confetti, useCountUp } from "./util";
 import { Spinner, StreakCard } from "./components";
 
@@ -645,6 +645,10 @@ type AccountInfo = {
 };
 export function AccountCard() {
   const [a, setA] = useState<AccountInfo | null>(null);
+  const [editing, setEditing] = useState(false);
+  const [nameVal, setNameVal] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [msg, setMsg] = useState<string | null>(null);
   useEffect(() => {
     api.account().then(setA).catch(() => undefined);
   }, []);
@@ -654,11 +658,58 @@ export function AccountCard() {
     const r = await api.accountNotify(!a.notifyOff).catch(() => null);
     if (r) setA({ ...a, notifyOff: r.off });
   };
+  const startEdit = () => {
+    if (!a) return;
+    setNameVal(a.name);
+    setEditing(true);
+  };
+  const saveName = async () => {
+    if (!a || saving) return;
+    const v = nameVal.trim();
+    if (v.length < 2 || v.length > 40) {
+      setMsg("Ism 2–40 belgi bo'lsin");
+      setTimeout(() => setMsg(null), 2500);
+      return;
+    }
+    setSaving(true);
+    const r = await api.accountName(v).catch(() => null);
+    setSaving(false);
+    if (r?.ok) {
+      haptic();
+      setA({ ...a, name: r.name ?? v });
+      setEditing(false);
+      setMsg("✅ Ism saqlandi");
+      setTimeout(() => setMsg(null), 2000);
+    } else {
+      setMsg("Saqlanmadi — qayta urinib ko'ring");
+      setTimeout(() => setMsg(null), 2500);
+    }
+  };
+  const invite = async () => {
+    haptic();
+    const r = await api.referral().catch(() => null);
+    if (r?.link) shareLink(r.link, "🚕 1067 Taxi — har safardan cashback, o'yinlar bilan tanga yutib so'mga aylantiring! Qo'shiling:");
+  };
   if (!a) return null;
   return (
     <section className="glass pad acct-card">
+      {msg && <div className="sheet-ok tac" style={{ marginBottom: 8 }}>{msg}</div>}
       <div className="section-title">⚙️ Hisobim &amp; sozlamalar</div>
-      <div className="acct-row"><span className="muted">👤 Ism</span><b>{a.name}</b></div>
+
+      {/* editable name */}
+      {editing ? (
+        <div className="acct-row" style={{ gap: 8 }}>
+          <input className="acct-name-input" value={nameVal} maxLength={40} autoFocus onChange={(e) => setNameVal(e.target.value)} placeholder="Ismingiz" />
+          <button className="acct-switch on" disabled={saving} onClick={saveName}>{saving ? "…" : "✅ Saqlash"}</button>
+          <button className="acct-switch" onClick={() => setEditing(false)}>✖</button>
+        </div>
+      ) : (
+        <div className="acct-row">
+          <span className="muted">👤 Ism</span>
+          <span className="acct-name-row"><b>{a.name}</b> <button className="acct-edit" onClick={startEdit}>✏️</button></span>
+        </div>
+      )}
+
       <div className="acct-row"><span className="muted">📞 Telefon</span><span>{a.phone} <i className="muted">(1067)</i></span></div>
       {a.joined && <div className="acct-row"><span className="muted">📅 A&apos;zo</span><span>{a.joined}</span></div>}
       <div className="acct-row"><span className="muted">🚕 Safar / 🔥 streak</span><span>{formatNumber(a.trips)} · {a.streak}</span></div>
@@ -666,7 +717,11 @@ export function AccountCard() {
         <span>🔔 Bildirishnomalar</span>
         <button className={"acct-switch" + (a.notifyOff ? "" : " on")} onClick={toggle}>{a.notifyOff ? "🔴 O'chiq" : "🟢 Yoniq"}</button>
       </div>
-      <p className="muted" style={{ fontSize: 12, marginTop: 4 }}>Ism va telefon 1067 tizimida boshqariladi — o&apos;zgartirish: 1067.</p>
+
+      {/* one-tap invite a friend */}
+      <button className="acct-invite" onClick={invite}>👥 Do&apos;stni taklif qilish — ikkalangizga tanga 🎁</button>
+
+      <p className="muted" style={{ fontSize: 12, marginTop: 8 }}>Ismni o&apos;zingiz tahrirlaysiz. Telefon 1067 tizimida boshqariladi.</p>
     </section>
   );
 }

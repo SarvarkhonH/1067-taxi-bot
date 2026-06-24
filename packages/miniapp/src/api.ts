@@ -224,6 +224,7 @@ export const api = {
       "/api/account",
     ),
   accountNotify: (off: boolean) => request<{ ok: boolean; off: boolean }>("POST", "/api/account/notify", { off }, 1),
+  accountName: (name: string) => request<{ ok: boolean; name?: string; reason?: string }>("POST", "/api/account/name", { name }, 1),
   tolqinStart: () => request<{ off: boolean; token: string }>("POST", "/api/tolqin/start", {}, 1),
   tolqinFinish: (token: string, score: number) =>
     request<{ off?: boolean; ok: boolean; granted: number; dailyCap: number; roomLeft: number; reason?: string }>("POST", "/api/tolqin/finish", { token, score }, 1),

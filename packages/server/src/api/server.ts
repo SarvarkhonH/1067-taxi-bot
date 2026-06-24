@@ -707,6 +707,13 @@ export function createApiServer(opts: ApiOptions = {}) {
     await setNotifyOff(id, off);
     return { ok: true, off };
   }));
+  // ✏️ user edits their OWN display name (saved to displayName, survives kas sync). "" clears it.
+  app.post("/api/account/name", requireUser, rateLimit(10), withMember(async (id, req) => {
+    const { setDisplayName } = await import("../services/memberService");
+    const name = await setDisplayName(id, String((req.body as { name?: string })?.name ?? ""));
+    if (name === null) return { ok: false, reason: "invalid" };
+    return { ok: true, name };
+  }));
   app.get("/api/booking/active", requireUser, withMember((id) => getActiveBookingFor(id)));
   app.post("/api/booking/search", requireUser, withMember((_id, req) => searchBookingAddress(String((req.body as { q?: string })?.q ?? ""))));
   // M7 center-pin: nearest catalog address to a dragged map point (read-only; booking still by addressId)
@@ -1269,8 +1276,24 @@ export function createApiServer(opts: ApiOptions = {}) {
       return;
     }
     const { adminAnnounce } = await import("../services/adminOps");
-    const b = (req.body ?? {}) as { text?: string; segment?: "all" | "linked" };
-    res.json(await adminAnnounce(String(b.text ?? ""), b.segment === "linked" ? "linked" : "all", opts.sendMessage));
+    const b = (req.body ?? {}) as { text?: string; segment?: string; days?: number };
+    const seg = b.segment === "linked" || b.segment === "dormant" ? b.segment : "all";
+    res.json(await adminAnnounce(String(b.text ?? ""), seg, opts.sendMessage, Math.max(1, Math.floor(Number(b.days ?? 14)))));
+  });
+
+  // 🎁 bulk grant tanga to a whole segment (owner-gated; capped + idempotent per batch)
+  app.post("/api/admin/grant-segment", requireAdmin, requireOwner, rateLimit(3), async (req, res) => {
+    const b = (req.body ?? {}) as { segment?: string; amount?: number; reason?: string; days?: number };
+    const seg = b.segment === "linked" || b.segment === "dormant" ? b.segment : "all";
+    const { adminGrantSegment } = await import("../services/adminOps");
+    res.json(await adminGrantSegment(seg, Math.floor(Number(b.amount ?? 0)), String(b.reason ?? ""), String(res.locals.telegramId ?? "admin"), Math.max(1, Math.floor(Number(b.days ?? 14)))));
+  });
+  // 😴 wake-up: message the dormant segment + optional comeback bonus, one action (owner-gated)
+  app.post("/api/admin/wake-up", requireAdmin, requireOwner, rateLimit(3), async (req, res) => {
+    if (!opts.sendMessage) { res.json({ ok: false, message: "Bot ulanmagan" }); return; }
+    const b = (req.body ?? {}) as { text?: string; bonus?: number; days?: number };
+    const { adminWakeUp } = await import("../services/adminOps");
+    res.json(await adminWakeUp(String(b.text ?? ""), Math.floor(Number(b.bonus ?? 0)), Math.max(1, Math.floor(Number(b.days ?? 14))), opts.sendMessage, String(res.locals.telegramId ?? "admin")));
   });
 
   app.post("/api/admin/sync", requireAdmin, async (_req, res) => {
