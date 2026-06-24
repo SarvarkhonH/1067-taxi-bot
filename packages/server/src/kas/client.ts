@@ -600,6 +600,8 @@ export class KasLiveSource implements KasDataSource {
       carModel: String(b.carModel ?? ""),
       payment: num(b.payment),
       cashback: num(b.clientBonus),
+      distance: num(b.distance) || undefined, // metres (kas) — UI divides by 1000 for km
+      time: num(b.time) || undefined,
       at: String(b.date ?? ""),
       additionalPaymentAddress: num(b.additionalPaymentAddress) || undefined,
       additionalPaymentClient: num(b.additionalPaymentClient) || undefined,
@@ -624,6 +626,8 @@ export class KasLiveSource implements KasDataSource {
           carModel: String(b.carModel ?? ""),
           payment: num(b.payment),
           cashback: num(b.clientBonus),
+          distance: num(b.distance) || undefined, // metres (kas) — UI divides by 1000 for km
+          time: num(b.time) || undefined,
           at: String(b.date ?? ""),
           additionalPaymentAddress: num(b.additionalPaymentAddress) || undefined,
           additionalPaymentClient: num(b.additionalPaymentClient) || undefined,

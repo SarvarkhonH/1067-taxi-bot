@@ -5,18 +5,21 @@
 import { prisma } from "../db";
 import { bonusEconDefaults, clampBonusEcon } from "@t1067/shared";
 
+// 30s cache: knobs are now read on per-ride money paths (cashback roll, tier rebate, missions),
+// so re-reading AppState every grant would add needless DB load. setBonusEcon invalidates.
+let cache: { at: number; val: Record<string, number> } | null = null;
+
 export async function getBonusEcon(): Promise<Record<string, number>> {
+  if (cache && Date.now() - cache.at < 30_000) return cache.val;
   const defaults = bonusEconDefaults();
   const row = await prisma.appState.findUnique({ where: { key: "bonus:econ" } }).catch(() => null);
-  if (!row) return defaults;
-  let saved: Record<string, unknown> = {};
-  try {
-    saved = JSON.parse(row.value) as Record<string, unknown>;
-  } catch {
-    saved = {};
-  }
+  const saved: Record<string, unknown> = (() => {
+    if (!row) return {};
+    try { return JSON.parse(row.value) as Record<string, unknown>; } catch { return {}; }
+  })();
   const out: Record<string, number> = {};
   for (const k of Object.keys(defaults)) out[k] = clampBonusEcon(k, typeof saved[k] === "number" ? (saved[k] as number) : defaults[k]!);
+  cache = { at: Date.now(), val: out };
   return out;
 }
 
@@ -29,5 +32,6 @@ export async function setBonusEcon(key: string, value: number): Promise<Record<s
     create: { key: "bonus:econ", value: JSON.stringify(cur) },
     update: { value: JSON.stringify(cur) },
   });
+  cache = null; // invalidate so the new value takes effect immediately
   return cur;
 }

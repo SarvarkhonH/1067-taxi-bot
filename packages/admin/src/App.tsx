@@ -371,7 +371,7 @@ function ControlCards() {
   const [flags, setFlags] = useState<{ name: string; on: boolean }[] | null>(null);
   const [fund, setFund] = useState(0);
   const [econ, setEcon] = useState<{ knobs: { key: string; label: string; def: number; min: number; max: number; step: number; live: boolean }[]; values: Record<string, number> } | null>(null);
-  const [bonusEcon, setBonusEcon] = useState<{ knobs: { key: string; label: string; def: number; min: number; max: number; step: number }[]; values: Record<string, number> } | null>(null);
+  const [bonusEcon, setBonusEcon] = useState<{ knobs: { key: string; label: string; def: number; min: number; max: number; step: number; group: string }[]; values: Record<string, number> } | null>(null);
   const [txEcon, setTxEcon] = useState<{ knobs: { key: string; label: string; def: number; min: number; max: number; step: number }[]; values: Record<string, number>; enabled: boolean; earned: { total: number; today: number } } | null>(null);
   const [corps, setCorps] = useState<{ id: number; name: string; balance: number; employees: number }[]>([]);
   const [cName, setCName] = useState("");
@@ -422,14 +422,19 @@ function ControlCards() {
       {bonusEcon && (
         <section className="card">
           <h3>🎁 Bonus narxlari — jonli boshqaruv (deploy'siz)</h3>
-          <p className="muted" style={{ margin: "0 0 8px", fontSize: 12 }}>Birinchi safar, do'st-taklif va haydovchi-recruit summalari (tanga). Har biri clamp'langan — buzib bo'lmaydi. O'zgartirish ~30s ichida botda ko'rinadi.</p>
-          <div style={{ display: "grid", gap: 8 }}>
-            {bonusEcon.knobs.map((k) => (
-              <div key={k.key} style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
-                <span style={{ flex: 1, minWidth: 200 }}>{k.label}</span>
-                <input type="number" step={k.step} min={k.min} max={k.max} defaultValue={bonusEcon.values[k.key]} id={`bonus-${k.key}`} style={{ width: 100 }} />
-                <span className="muted" style={{ fontSize: 11 }}>[{k.min}–{k.max}]</span>
-                <button className="btn sm" onClick={() => { const el = document.getElementById(`bonus-${k.key}`) as HTMLInputElement | null; if (el) void saveBonusEcon(k.key, Number(el.value)); }}>Saqlash</button>
+          <p className="muted" style={{ margin: "0 0 8px", fontSize: 12 }}>Har bonus turi: taklif/recruit, safar mukofoti, haydovchi tier, missionlar (tanga). Har biri clamp'langan — buzib bo'lmaydi. O'zgartirish ~30s ichida kuchga kiradi.</p>
+          <div style={{ display: "grid", gap: 4 }}>
+            {[...new Set(bonusEcon.knobs.map((k) => k.group))].map((grp) => (
+              <div key={grp}>
+                <div className="muted" style={{ fontSize: 11, fontWeight: 800, textTransform: "uppercase", letterSpacing: 0.5, margin: "8px 0 2px" }}>{grp}</div>
+                {bonusEcon.knobs.filter((k) => k.group === grp).map((k) => (
+                  <div key={k.key} style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", padding: "2px 0" }}>
+                    <span style={{ flex: 1, minWidth: 200 }}>{k.label}</span>
+                    <input type="number" step={k.step} min={k.min} max={k.max} defaultValue={bonusEcon.values[k.key]} id={`bonus-${k.key}`} style={{ width: 100 }} />
+                    <span className="muted" style={{ fontSize: 11 }}>[{k.min}–{k.max}]</span>
+                    <button className="btn sm" onClick={() => { const el = document.getElementById(`bonus-${k.key}`) as HTMLInputElement | null; if (el) void saveBonusEcon(k.key, Number(el.value)); }}>Saqlash</button>
+                  </div>
+                ))}
               </div>
             ))}
           </div>

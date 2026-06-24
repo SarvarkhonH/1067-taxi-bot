@@ -554,14 +554,22 @@ export async function pushBookingUpdates(
           driverId = driver.id;
           try {
             const { DRIVER_DAILY_BONUS_CAP, DRIVER_TIER_REBATE } = await import("@t1067/shared");
-            const rebate = DRIVER_TIER_REBATE[driver.driverTier] ?? 0;
+            const { getBonusEcon } = await import("./bonusConfig");
+            const econ = await getBonusEcon();
+            const rebateByTier: Record<string, number> = {
+              Bronza: 0,
+              Kumush: econ.tierKumush ?? DRIVER_TIER_REBATE.Kumush ?? 50,
+              Oltin: econ.tierOltin ?? DRIVER_TIER_REBATE.Oltin ?? 100,
+              Olmos: econ.tierOlmos ?? DRIVER_TIER_REBATE.Olmos ?? 200,
+            };
+            const rebate = rebateByTier[driver.driverTier] ?? 0;
             if (rebate > 0) {
               const since = new Date(Date.now() - 24 * 3600 * 1000);
               const today = await prisma.coinTxn.aggregate({
                 where: { memberId: driver.id, kind: "driver_bonus", createdAt: { gte: since } },
                 _sum: { amount: true },
               });
-              if ((today._sum.amount ?? 0) + rebate <= DRIVER_DAILY_BONUS_CAP) {
+              if ((today._sum.amount ?? 0) + rebate <= (econ.driverDailyCap ?? DRIVER_DAILY_BONUS_CAP)) {
                 const { grantCoins } = await import("./coinService");
                 await resilient("driver_bonus", () => grantCoins(driver.id, rebate, "driver_bonus", `Tier-bonus (${driver.driverTier})`, `driver_bonus:${m.id}:${m.lastBookingId}`)); // idempotent key
               }

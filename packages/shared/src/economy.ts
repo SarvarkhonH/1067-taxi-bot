@@ -105,13 +105,36 @@ export function clampTransferEcon(key: string, val: number): number {
 // The growth levers the owner tunes WITHOUT a deploy. `firstRide` is the single first-ride bonus
 // (welcome + referee + recruit-welcome all read it); the rest are the per-flow sharer rewards.
 // Defaults match the shipped code constants (REFEREE_REWARD=5000, REFERRER_REWARD=1500, …).
-export interface BonusEconKnob { key: string; label: string; def: number; min: number; max: number; step: number }
+export interface BonusEconKnob { key: string; label: string; def: number; min: number; max: number; step: number; group: string }
 export const BONUS_ECON_KNOBS: BonusEconKnob[] = [
-  { key: "firstRide", label: "🎁 Birinchi safar bonusi (tanga)", def: 5000, min: 0, max: 20000, step: 500 },
-  { key: "referrer", label: "👥 Do'st taklif — taklif qilganga (tanga)", def: 1500, min: 0, max: 20000, step: 250 },
-  { key: "recruitFirst", label: "🚖 Mijoz QR — haydovchiga 1-safar (tanga)", def: 500, min: 0, max: 10000, step: 100 },
-  { key: "drvMilestone", label: "🚖 Haydovchi→haydovchi mukofot (tanga)", def: 5000, min: 0, max: 50000, step: 500 },
-  { key: "drvRides", label: "🚖 Haydovchi→haydovchi — necha safar", def: 10, min: 1, max: 50, step: 1 },
+  // ── Taklif & Recruit ──
+  { key: "firstRide", label: "🎁 Birinchi safar bonusi (tanga)", def: 5000, min: 0, max: 20000, step: 500, group: "Taklif & Recruit" },
+  { key: "referrer", label: "👥 Do'st taklif — taklif qilganga", def: 1500, min: 0, max: 20000, step: 250, group: "Taklif & Recruit" },
+  { key: "recruitFirst", label: "🚖 Mijoz QR — haydovchiga 1-safar", def: 500, min: 0, max: 10000, step: 100, group: "Taklif & Recruit" },
+  { key: "recruit3", label: "🚖 Mijoz QR — 3-safar bonusi", def: 1000, min: 0, max: 10000, step: 100, group: "Taklif & Recruit" },
+  { key: "revshareFresh", label: "🚖 Revshare — yangi (6 oygacha, /safar)", def: 100, min: 0, max: 1000, step: 10, group: "Taklif & Recruit" },
+  { key: "revshareVeteran", label: "🚖 Revshare — veteran (6 oydan keyin, /safar)", def: 25, min: 0, max: 1000, step: 5, group: "Taklif & Recruit" },
+  { key: "revshareMonthCap", label: "🚖 Revshare — oylik cap (haydovchiga)", def: 30000, min: 0, max: 200000, step: 1000, group: "Taklif & Recruit" },
+  { key: "drvMilestone", label: "🚖 Haydovchi→haydovchi mukofot", def: 5000, min: 0, max: 50000, step: 500, group: "Taklif & Recruit" },
+  { key: "drvRides", label: "🚖 Haydovchi→haydovchi — necha safar", def: 10, min: 1, max: 50, step: 1, group: "Taklif & Recruit" },
+  // ── Safar mukofoti ──
+  { key: "rideBase", label: "🎲 Safar cashback bazasi (×1/×2/×3)", def: 100, min: 0, max: 2000, step: 10, group: "Safar mukofoti" },
+  { key: "jackpotFeed", label: "🎰 Jackpot pul to'ldirish (/safar)", def: 50, min: 0, max: 1000, step: 10, group: "Safar mukofoti" },
+  { key: "driverDailyCap", label: "🚕 Haydovchi kunlik bonus cap", def: 10000, min: 0, max: 100000, step: 1000, group: "Safar mukofoti" },
+  // ── Haydovchi tier rebate (/safar) ──
+  { key: "tierKumush", label: "🥈 Kumush rebate (/safar)", def: 50, min: 0, max: 2000, step: 10, group: "Haydovchi tier" },
+  { key: "tierOltin", label: "🥇 Oltin rebate (/safar)", def: 100, min: 0, max: 2000, step: 10, group: "Haydovchi tier" },
+  { key: "tierOlmos", label: "💎 Olmos rebate (/safar)", def: 200, min: 0, max: 2000, step: 10, group: "Haydovchi tier" },
+  // ── Missionlar (mukofot) ──
+  { key: "mDailyCheckin", label: "✅ Kunlik kirish", def: 50, min: 0, max: 5000, step: 10, group: "Missionlar" },
+  { key: "mDailySpin", label: "🎡 Kunlik g'ildirak", def: 50, min: 0, max: 5000, step: 10, group: "Missionlar" },
+  { key: "mDailyRide", label: "🚕 Kunlik 1-safar", def: 100, min: 0, max: 5000, step: 10, group: "Missionlar" },
+  { key: "mDailyGarage", label: "🚗 Kunlik garaj", def: 80, min: 0, max: 5000, step: 10, group: "Missionlar" },
+  { key: "mWeeklyRides", label: "🚕 Haftalik 5-safar", def: 700, min: 0, max: 20000, step: 50, group: "Missionlar" },
+  { key: "mWeeklyInvite", label: "👥 Haftalik taklif", def: 1000, min: 0, max: 20000, step: 50, group: "Missionlar" },
+  { key: "mDrvDaily5", label: "🚖 Haydovchi kunlik 5-safar", def: 800, min: 0, max: 20000, step: 50, group: "Missionlar" },
+  { key: "mDrvWeekly25", label: "🚖 Haydovchi haftalik 25-safar", def: 5000, min: 0, max: 50000, step: 100, group: "Missionlar" },
+  { key: "mDrvWeekly40", label: "🚖 Haydovchi haftalik 40-safar", def: 12000, min: 0, max: 50000, step: 100, group: "Missionlar" },
 ];
 export function bonusEconDefaults(): Record<string, number> {
   return Object.fromEntries(BONUS_ECON_KNOBS.map((k) => [k.key, k.def]));

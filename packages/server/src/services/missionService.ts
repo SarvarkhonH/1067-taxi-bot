@@ -8,6 +8,18 @@ import {
 } from "@t1067/shared";
 import { prisma } from "../db";
 import { grantCoins } from "./coinService";
+import { getBonusEcon } from "./bonusConfig";
+
+// mission code → owner-tunable bonus-econ knob (falls back to the catalog reward when unset).
+const MISSION_KNOB: Record<string, string> = {
+  daily_checkin: "mDailyCheckin", daily_spin: "mDailySpin", daily_ride: "mDailyRide", daily_garage: "mDailyGarage",
+  weekly_rides: "mWeeklyRides", weekly_invite: "mWeeklyInvite",
+  drv_daily_5: "mDrvDaily5", drv_weekly_25: "mDrvWeekly25", drv_weekly_40: "mDrvWeekly40",
+};
+function mreward(def: MissionDef, econ: Record<string, number>): number {
+  const k = MISSION_KNOB[def.code];
+  return k && typeof econ[k] === "number" ? econ[k]! : def.reward;
+}
 
 // ─── period keys (tashkent, UTC+5) ────────────────────────────────────────────
 function tashkent(d: Date): Date {
@@ -100,14 +112,14 @@ export async function incrementMission(memberId: number, code: string, by = 1, r
   }
 }
 
-function toView(def: MissionDef, progress: number, claimed: boolean): MissionView {
+function toView(def: MissionDef, progress: number, claimed: boolean, econ: Record<string, number>): MissionView {
   return {
     code: def.code,
     title: def.title,
     emoji: def.emoji,
     period: def.period,
     target: def.target,
-    reward: def.reward,
+    reward: mreward(def, econ),
     progress: Math.min(def.target, progress),
     claimable: progress >= def.target && !claimed,
     claimed,
@@ -115,15 +127,16 @@ function toView(def: MissionDef, progress: number, claimed: boolean): MissionVie
 }
 
 export async function getMissions(memberId: number): Promise<MissionsResponse> {
-  const [rows, member] = await Promise.all([
+  const [rows, member, econ] = await Promise.all([
     prisma.missionProgress.findMany({ where: { memberId } }),
     prisma.member.findUnique({ where: { id: memberId }, select: { type: true } }),
+    getBonusEcon(),
   ]);
   const audience = member?.type === "driver" ? "driver" : "client";
   const view = (def: MissionDef): MissionView => {
     const key = periodKey(def);
     const row = rows.find((r) => r.code === def.code && r.periodKey === key);
-    return toView(def, row?.progress ?? 0, !!row?.claimedAt);
+    return toView(def, row?.progress ?? 0, !!row?.claimedAt, econ);
   };
   return {
     daily: MISSIONS.filter((m) => m.period === "daily" && (m.audience ?? "client") === audience).map(view),
@@ -135,27 +148,29 @@ export async function getMissions(memberId: number): Promise<MissionsResponse> {
 export async function claimMission(memberId: number, code: string): Promise<MissionClaimResponse> {
   const def = missionByCode(code);
   if (!def) return { ok: false, reason: "not_found", reward: 0, applied: false };
+  const econ = await getBonusEcon();
+  const reward = mreward(def, econ); // owner-tunable knob, falls back to the catalog reward
   const key = periodKey(def);
   const row = await prisma.missionProgress.findUnique({
     where: { memberId_code_periodKey: { memberId, code, periodKey: key } },
   });
-  if (!row || row.progress < def.target) return { ok: false, reason: "not_complete", reward: def.reward, applied: false };
-  if (row.claimedAt) return { ok: false, reason: "claimed", reward: def.reward, applied: false };
+  if (!row || row.progress < def.target) return { ok: false, reason: "not_complete", reward, applied: false };
+  if (row.claimedAt) return { ok: false, reason: "claimed", reward, applied: false };
 
   // Pay FIRST via the idempotent key (that key — not claimedAt — is the real
   // anti-double-claim guard), THEN stamp claimedAt. Reversed from before so a
   // crash/transient between the two can't leave the mission "claimed" but UNPAID:
   // a retry re-runs the idempotent grant and completes it (duplicate → no double pay).
-  const g = await grantCoins(memberId, def.reward, "mission", `Vazifa: ${def.title}`, `mission:${code}:${memberId}:${key}`);
+  const g = await grantCoins(memberId, reward, "mission", `Vazifa: ${def.title}`, `mission:${code}:${memberId}:${key}`);
   if (g.skipped === "duplicate") {
     // a concurrent claim already paid — ensure it's stamped, report as claimed
     await prisma.missionProgress.update({ where: { id: row.id }, data: { claimedAt: row.claimedAt ?? new Date() } }).catch(() => undefined);
-    return { ok: false, reason: "claimed", reward: def.reward, applied: false };
+    return { ok: false, reason: "claimed", reward, applied: false };
   }
   await prisma.missionProgress.update({ where: { id: row.id }, data: { claimedAt: new Date() } });
   // dynamic import: weeklyService depends on this module's week/day keys
   await import("./weeklyService")
     .then((w) => w.addScore(memberId, "mission"))
     .catch(() => undefined);
-  return { ok: true, reward: def.reward, applied: g.ok };
+  return { ok: true, reward, applied: g.ok };
 }

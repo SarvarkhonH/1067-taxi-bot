@@ -91,7 +91,7 @@ export async function payRecruitRevshare(riderMemberId: number, bookingId: numbe
     await grantCoins(riderMemberId, econ.firstRide ?? RECRUIT_WELCOME, "referral", "🎁 QR orqali qo'shildingiz — birinchi safar sovg'asi!", `recruit_welcome:${recruit.id}`);
   }
   if (rideCount >= 3) {
-    await grantCoins(driverId, 1000, "recruit", "🚖 QR: mijozingiz 3-safarini qildi", `recruit3:${recruit.id}`);
+    await grantCoins(driverId, econ.recruit3 ?? 1000, "recruit", "🚖 QR: mijozingiz 3-safarini qildi", `recruit3:${recruit.id}`);
   }
 
   // activity gate: driver completed ≥1 ride this week (tier job keeps tiers;
@@ -100,13 +100,13 @@ export async function payRecruitRevshare(riderMemberId: number, bookingId: numbe
   const active = await prisma.coinTxn.findFirst({ where: { memberId: driverId, kind: "driver_bonus", createdAt: { gte: weekAgo } } });
   if (!active) return;
 
-  const rate = Date.now() - recruit.createdAt.getTime() < SIX_MONTHS ? REVSHARE_FRESH : REVSHARE_VETERAN;
+  const rate = Date.now() - recruit.createdAt.getTime() < SIX_MONTHS ? (econ.revshareFresh ?? REVSHARE_FRESH) : (econ.revshareVeteran ?? REVSHARE_VETERAN);
   const monthAgo = new Date(Date.now() - 30 * 24 * 3600 * 1000);
   const monthSum = await prisma.coinTxn.aggregate({
     where: { memberId: driverId, kind: "revshare", createdAt: { gte: monthAgo } },
     _sum: { amount: true },
   });
-  if ((monthSum._sum.amount ?? 0) + rate > REVSHARE_MONTH_CAP) return;
+  if ((monthSum._sum.amount ?? 0) + rate > (econ.revshareMonthCap ?? REVSHARE_MONTH_CAP)) return;
   await grantCoins(driverId, rate, "revshare", "🚖 QR-mijozingiz safari", `rev:${recruit.id}:${bookingId}`);
 }
 

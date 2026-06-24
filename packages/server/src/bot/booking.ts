@@ -296,7 +296,9 @@ export function registerBooking(bot: Bot, mainMenu: (isDriver?: boolean) => Keyb
     const lines = rides.map((r) => {
       const d = r.at ? new Date(r.at).toLocaleString("ru-RU", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" }) : "";
       const done = ["delivered", "completed", "finished"].includes(r.status) ? "🏁" : ["cancel_by_operator", "cancel_by_server"].includes(r.status) ? "✖" : "🚖";
-      return `${done} <b>${esc(r.addressName)}</b> · ${d}${r.cashback ? ` · 💰+${formatNumber(r.cashback)}` : ""}`;
+      const fare = r.payment ? ` · 🧾${formatNumber(r.payment)} so'm` : "";
+      const km = r.distance ? ` · ${(r.distance / 1000).toFixed(1)}km` : "";
+      return `${done} <b>${esc(r.addressName)}</b> · ${d}${fare}${km}${r.cashback ? ` · 💰+${formatNumber(r.cashback)}` : ""}`;
     });
     await ctx.reply(`📜 <b>Oxirgi safarlaringiz</b>\n\n${lines.join("\n")}`, { parse_mode: "HTML" });
   });

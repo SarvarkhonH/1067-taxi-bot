@@ -10,6 +10,7 @@ import { prisma } from "../db";
 import { grantCoins } from "./coinService";
 import { weekKey } from "./missionService";
 import { claimJackpot, growJackpot } from "./weeklyService";
+import { getBonusEcon } from "./bonusConfig";
 
 export interface RideRollResult {
   tier: string;
@@ -67,11 +68,12 @@ export async function rollRideCashback(
   if (comeback && t.tier !== "jackpot") t = RIDE_REWARD_TIERS.find((x) => x.tier === "triple")!;
 
   let amount: number;
+  const econ = await getBonusEcon();
   const jackpot = t.tier === "jackpot";
   if (jackpot) {
     amount = 0; // pool claimed ONLY after the unique insert wins (T0.5 / AUDIT 3.1)
   } else {
-    amount = RIDE_REWARD_BASE * t.mult * (lucky ? 2 : 1) * (combo ? 2 : 1);
+    amount = (econ.rideBase ?? RIDE_REWARD_BASE) * t.mult * (lucky ? 2 : 1) * (combo ? 2 : 1);
     // 💎 Plus: ×1.5 on the roll, extra capped at +150 (ride clamp still rules)
     const plus = !!member?.plusUntil && member.plusUntil.getTime() > Date.now();
     if (plus) amount += Math.min(150, Math.floor(amount * 0.5));
@@ -103,7 +105,7 @@ export async function rollRideCashback(
     if (g.clamped) amount -= g.clamped; // report what was actually paid
   }
   // every ride feeds the pool — the most exciting reward grows with orders/day
-  await growJackpot(RIDE_JACKPOT_FEED).catch(() => undefined);
+  await growJackpot(econ.jackpotFeed ?? RIDE_JACKPOT_FEED).catch(() => undefined);
 
   if (jackpot) {
     const { alertAdmins } = await import("./economyService");
