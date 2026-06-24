@@ -556,6 +556,27 @@ export async function pushBookingUpdates(
         });
         if (driver && driver.id !== m.id) {
           driverId = driver.id;
+          // 🎁 Universal welcome (flag "welcomebonus", DARK): a driver who recently JOINED the bot
+          // gets ONE 5000 on their first tracked drive — the same single first-time bonus a new rider
+          // gets, on the driver side. Idempotent (welcome_first_drive:<id>); the recent-link gate
+          // skips veterans so flipping the flag doesn't retro-pay every existing driver.
+          try {
+            const { featureOn } = await import("./featureFlags");
+            if (await featureOn("welcomebonus")) {
+              const dtg = await prisma.telegramUser.findFirst({ where: { memberId: driver.id }, select: { id: true, linkedAt: true } });
+              if (dtg?.linkedAt && Date.now() - dtg.linkedAt.getTime() < 45 * 24 * 3600 * 1000) {
+                const { getBonusEcon } = await import("./bonusConfig");
+                const { grantCoins } = await import("./coinService");
+                const amt = (await getBonusEcon()).firstRide ?? 5000;
+                if (amt > 0) {
+                  const g = await grantCoins(driver.id, amt, "referral", "🎁 Birinchi safaringiz uchun sovg'a!", `welcome_first_drive:${driver.id}`);
+                  if (g.ok) await bot.api.sendMessage(dtg.id, `🎁 <b>Birinchi safaringiz muborak, haydovchi!</b>\nSovg'a: <b>+${formatNumber(amt)} tanga</b> hisobingizga tushdi 🚕`, { parse_mode: "HTML" }).catch(() => undefined);
+                }
+              }
+            }
+          } catch (e) {
+            console.error("[driver_welcome] failed:", e);
+          }
           try {
             const { DRIVER_DAILY_BONUS_CAP, DRIVER_TIER_REBATE } = await import("@t1067/shared");
             const { getBonusEcon } = await import("./bonusConfig");

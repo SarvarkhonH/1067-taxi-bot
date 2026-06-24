@@ -228,17 +228,21 @@ export async function upsertKasMember(km: {
     const m = await prisma.member.update({ where: { id: byKas.id }, data });
     return { id: m.id, type: m.type as MemberType, fullName: m.fullName };
   }
-  // 2) ADOPT a self-registered member with the same phone+type (no duplicate; id preserved)
+  // 2) ADOPT a self-registered member (synthetic tg_ kasId) with the same phone — ACROSS TYPES.
+  //    A person who self-registered as a CLIENT (the default when they weren't in kas yet) and later
+  //    turns out to be a kas DRIVER is UPGRADED IN PLACE: same member id, telegram link + tangas kept,
+  //    type corrected. Without this they got a duplicate driver row and stayed a "client" in the bot,
+  //    so their recruit/welcome bonuses landed on the orphan account they don't see.
   if (km.phone) {
     const want = normPhone(km.phone);
-    const selfRegs = await prisma.member.findMany({ where: { type: km.type, kasId: { startsWith: "tg_" }, phone: { not: null } } });
+    const selfRegs = await prisma.member.findMany({ where: { kasId: { startsWith: "tg_" }, phone: { not: null } } });
     const tg = selfRegs.find((m) => m.phone && normPhone(m.phone) === want);
     if (tg) {
       try {
-        const m = await prisma.member.update({ where: { id: tg.id }, data: { kasId: km.kasId, ...data } });
+        const m = await prisma.member.update({ where: { id: tg.id }, data: { type: km.type, kasId: km.kasId, ...data } });
         return { id: m.id, type: m.type as MemberType, fullName: m.fullName };
       } catch {
-        // a concurrent path grabbed the real kasId first — read it back
+        // a concurrent path (or an existing real row for this type+kasId) won — read it back
         const m = await prisma.member.findUnique({ where: { type_kasId: { type: km.type, kasId: km.kasId } } });
         if (m) return { id: m.id, type: m.type as MemberType, fullName: m.fullName };
       }
