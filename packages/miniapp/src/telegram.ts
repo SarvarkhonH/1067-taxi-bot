@@ -1,4 +1,6 @@
 // Minimal typings + bootstrap for the Telegram WebApp runtime.
+import { formatNumber } from "@t1067/shared";
+
 interface TelegramWebApp {
   initData: string;
   colorScheme: "light" | "dark";
@@ -172,7 +174,7 @@ export function playRepairFail(): void {
  * the single source for every client share point so the copy stays in sync.
  */
 export function inviteText(bonus: number): string {
-  const n = bonus.toLocaleString("ru-RU");
+  const n = formatNumber(bonus); // same thousands format as the bot's clientInviteText
   return (
     `🎁 Birinchi safaringiz BEPUL — ${n} tanga sovg'a kutyapti!\n` +
     `🚕 1067 Taxi: bir tap — eng yaqin haydovchi keladi · har safardan cashback.\n` +
