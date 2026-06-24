@@ -304,6 +304,7 @@ function Booking3Inner({ me, info, onClose }: { me: MeResponse; info: BookingInf
   const [justFound, setJustFound] = useState(false); // "✅ Topildi!" celebration on driver-accept
   const wasDriver = useRef(false);
   const wasArrived = useRef(false);
+  const boarded = useRef(false); // pickup person "gets in" the car when the trip starts (not frozen)
   const [q, setQ] = useState("");
   const [results, setResults] = useState<SavedAddressView[]>([]);
   const [searching, setSearching] = useState(false);
@@ -707,6 +708,32 @@ function Booking3Inner({ me, info, onClose }: { me: MeResponse; info: BookingInf
     const t = window.setTimeout(() => setJustFound(false), 3500);
     return () => clearTimeout(t);
   }, [justFound]);
+
+  // When the trip STARTS, the waiting pickup person "boards" the car — slides into it + fades, then the
+  // marker is removed (the car then drives off with them on its real position). No more frozen person.
+  useEffect(() => {
+    if (active?.status !== "started") { boarded.current = false; return; }
+    if (boarded.current || !map.current) return;
+    boarded.current = true;
+    const pm = pickMarker.current;
+    const el = pm?.getElement()?.querySelector(".b3-pickperson") as HTMLElement | null;
+    if (pm && el) {
+      let dx = 0;
+      let dy = -8;
+      const dm = driverMarker.current;
+      if (dm) {
+        const a = map.current.latLngToContainerPoint(pm.getLatLng());
+        const b = map.current.latLngToContainerPoint(dm.getLatLng());
+        dx = b.x - a.x;
+        dy = b.y - a.y;
+      }
+      el.style.animation = "none";
+      el.style.transition = "transform .75s ease-in, opacity .75s ease-in";
+      el.style.transform = `translate(${dx}px, ${dy}px) scale(.2)`;
+      el.style.opacity = "0";
+      window.setTimeout(() => { pickMarker.current?.remove(); pickMarker.current = null; }, 800);
+    }
+  }, [active?.status]);
 
   const call = async () => {
     if (!pickup || busy) return;
