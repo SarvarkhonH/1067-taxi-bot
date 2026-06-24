@@ -235,7 +235,7 @@ export async function getActiveBookingFor(memberId: number): Promise<ActiveBooki
 
 const ONE_TAP_GPS_LAST_KM = 0.12; // GPS within 120m of last pickup → same spot
 const ONE_TAP_GPS_SAVED_KM = 0.25; // GPS within 250m of a saved address → snap
-const ONE_TAP_THROTTLE_MS = 60_000; // min gap between dispatches (double-tap guard)
+const ONE_TAP_THROTTLE_MS = 30_000; // min gap between dispatches (double-tap guard; 60s felt too long — a real re-book after a quick cancel was blocked for a full minute)
 
 /** Atomically claim the dispatch slot (CAS on lastBookingAt) RIGHT BEFORE a real kas
  *  dispatch — the early throttle check is read-then-act (TOCTOU), so two concurrent
