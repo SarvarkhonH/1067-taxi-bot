@@ -556,27 +556,7 @@ export async function pushBookingUpdates(
         });
         if (driver && driver.id !== m.id) {
           driverId = driver.id;
-          // 🎁 Universal welcome (flag "welcomebonus", DARK): a driver who recently JOINED the bot
-          // gets ONE 5000 on their first tracked drive — the same single first-time bonus a new rider
-          // gets, on the driver side. Idempotent (welcome_first_drive:<id>); the recent-link gate
-          // skips veterans so flipping the flag doesn't retro-pay every existing driver.
-          try {
-            const { featureOn } = await import("./featureFlags");
-            if (await featureOn("welcomebonus")) {
-              const dtg = await prisma.telegramUser.findFirst({ where: { memberId: driver.id }, select: { id: true, linkedAt: true } });
-              if (dtg?.linkedAt && Date.now() - dtg.linkedAt.getTime() < 45 * 24 * 3600 * 1000) {
-                const { getBonusEcon } = await import("./bonusConfig");
-                const { grantCoins } = await import("./coinService");
-                const amt = (await getBonusEcon()).firstRide ?? 5000;
-                if (amt > 0) {
-                  const g = await grantCoins(driver.id, amt, "referral", "🎁 Birinchi safaringiz uchun sovg'a!", `welcome_first_drive:${driver.id}`);
-                  if (g.ok) await bot.api.sendMessage(dtg.id, `🎁 <b>Birinchi safaringiz muborak, haydovchi!</b>\nSovg'a: <b>+${formatNumber(amt)} tanga</b> hisobingizga tushdi 🚕`, { parse_mode: "HTML" }).catch(() => undefined);
-                }
-              }
-            }
-          } catch (e) {
-            console.error("[driver_welcome] failed:", e);
-          }
+          // (driver welcome MOVED to JOIN — grantJoinWelcome on link, same as riders)
           try {
             const { DRIVER_DAILY_BONUS_CAP, DRIVER_TIER_REBATE } = await import("@t1067/shared");
             const { getBonusEcon } = await import("./bonusConfig");
@@ -687,38 +667,9 @@ export async function pushBookingUpdates(
         await alertAdmins(`⚠️ Referral payout xatosi (member ${m.id}): ${e instanceof Error ? e.message : String(e)}`).catch(() => undefined);
       }
 
-      // 🎁 Universal birinchi-safar bonusi (flag "welcomebonus", default DARK). Referral (ref_) yoki
-      // QR (drv_) bilan kelmagan — oddiy /start yoki eski 1067 mijozi — ham birinchi safarida shu
-      // bonusni oladi. Shunda HAR yangi user aynan BITTA 5000 tanga oladi (referral/recruit/welcome —
-      // bittasi, ikkitasi emas). grantCoins → klampdan TASHQARI (referee bonusi kabi); idempotent
-      // (welcome_first_ride:<m>); FAQAT botdagi birinchi safar (eski riderlarga retroaktiv emas).
-      try {
-        const { featureOn } = await import("./featureFlags");
-        if (await featureOn("welcomebonus")) {
-          const priorRides = await prisma.rideReward.count({ where: { memberId: m.id, bookingId: { not: m.lastBookingId! } } });
-          if (priorRides === 0) {
-            const referred = (await prisma.referral.findFirst({ where: { refereeMemberId: m.id }, select: { id: true } })) !== null;
-            const tu = await prisma.telegramUser.findFirst({ where: { memberId: m.id }, select: { referredByCode: true } });
-            const code = tu?.referredByCode ?? "";
-            // client-recruit is `drv_<id>`; the driver-recruit `drvdrv_<id>` must NOT count here (a
-            // driver-candidate link that ends up a client still deserves the client welcome bonus).
-            const recruited = code.startsWith("drv_") && !code.startsWith("drvdrv_");
-            if (!referred && !recruited) {
-              const { grantCoins } = await import("./coinService");
-              const { getBonusEcon } = await import("./bonusConfig");
-              const amt = (await getBonusEcon()).firstRide ?? 5000;
-              const g = amt > 0 ? await grantCoins(m.id, amt, "referral", "🎁 Birinchi safaringiz uchun sovg'a!", `welcome_first_ride:${m.id}`) : { ok: false };
-              if (g.ok) {
-                await bot.api
-                  .sendMessage(chatId, `🎁 <b>Birinchi safaringiz muborak!</b>\nSovg'a: <b>+${formatNumber(amt)} tanga</b> hisobingizga tushdi 🚕`, { parse_mode: "HTML" })
-                  .catch(() => undefined);
-              }
-            }
-          }
-        }
-      } catch (e) {
-        console.error("[welcome_bonus] failed:", e);
-      }
+      // 🎁 Welcome bonus MOVED to JOIN — every new user (client OR driver) now gets the 5000 the
+      // moment they link their phone (grantJoinWelcome in memberService.linkByPhone), no ride needed.
+      // Was here on first ride; removed so nobody is double-paid (join-grant + ride-grant).
 
       // 🔥 streak line for the peak-end card (read-only; safe on transient)
       const streak = await prisma.streak.findUnique({ where: { memberId: m.id } }).catch(() => null);

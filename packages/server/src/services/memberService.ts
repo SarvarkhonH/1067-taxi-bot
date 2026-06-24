@@ -194,6 +194,32 @@ export interface LinkResult {
   memberId?: number;
   type?: MemberType;
   fullName?: string;
+  welcomeBonus?: number; // tanga granted on first join (welcomebonus flag); caller shows the message
+}
+
+/**
+ * 🎁 Universal JOIN welcome: the moment ANYONE (client OR driver) first links their phone, they
+ * get ONE firstRide (5000) tanga — no ride/drive needed. Idempotent (welcome_join:<memberId>),
+ * gated by "welcomebonus" (DARK). Referral/recruit joiners are SKIPPED here — they receive the
+ * same 5000 through their invite flow (anti-abuse, on first ride), so nobody is double-paid.
+ * Tanga stays withdraw-gated (no_ride), so a non-rider can't cash it — soft, low-risk incentive.
+ */
+async function grantJoinWelcome(memberId: number, telegramId: string): Promise<number> {
+  try {
+    const { featureOn } = await import("./featureFlags");
+    if (!(await featureOn("welcomebonus"))) return 0;
+    const tu = await prisma.telegramUser.findUnique({ where: { id: telegramId }, select: { referredByCode: true } });
+    const code = tu?.referredByCode ?? "";
+    if (code.startsWith("ref_") || code.startsWith("drv_")) return 0; // invited → paid via the invite flow
+    const { getBonusEcon } = await import("./bonusConfig");
+    const amt = (await getBonusEcon()).firstRide ?? 5000;
+    if (amt <= 0) return 0;
+    const { grantCoins } = await import("./coinService");
+    const g = await grantCoins(memberId, amt, "referral", "🎁 Botga xush kelibsiz — sovg'a!", `welcome_join:${memberId}`);
+    return g.ok ? amt : 0;
+  } catch {
+    return 0;
+  }
 }
 
 /**
@@ -310,7 +336,8 @@ export async function linkByPhone(
       create: { id: telegramId, ...base, memberId: created.id, linkedAt: new Date() },
       update: { ...base, memberId: created.id, linkedAt: new Date() },
     });
-    return { status: "linked", memberId: created.id, type: "client", fullName: created.fullName };
+    const welcomeBonus = await grantJoinWelcome(created.id, telegramId);
+    return { status: "linked", memberId: created.id, type: "client", fullName: created.fullName, welcomeBonus };
   }
 
   const existing = await prisma.telegramUser.findUnique({ where: { memberId: match.id } });
@@ -324,7 +351,8 @@ export async function linkByPhone(
     create: { id: telegramId, ...base, memberId: match.id, linkedAt: new Date() },
     update: { ...base, memberId: match.id, linkedAt: new Date() },
   });
-  return { status: "linked", memberId: match.id, type: match.type as MemberType, fullName: match.fullName };
+  const welcomeBonus = await grantJoinWelcome(match.id, telegramId);
+  return { status: "linked", memberId: match.id, type: match.type as MemberType, fullName: match.fullName, welcomeBonus };
 }
 
 export async function touchTelegramUser(

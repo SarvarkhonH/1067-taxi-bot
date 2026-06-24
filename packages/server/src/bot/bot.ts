@@ -234,6 +234,9 @@ export function createBot(): Bot {
       const me = await getMe(id);
       const role = res.type === "driver" ? "Haydovchi" : "Mijoz";
       await ctx.reply(renderLinked(res.fullName ?? "Mijoz", role), { parse_mode: "HTML", reply_markup: mainMenu(res.type === "driver") });
+      if (res.welcomeBonus) {
+        await ctx.reply(`🎁 <b>Xush kelibsiz! Sovg'a: +${formatNumber(res.welcomeBonus)} tanga</b> hisobingizga tushdi 🚕\nIlovada ishlating yoki safar qiling.`, { parse_mode: "HTML" }).catch(() => undefined);
+      }
       // pay out a pending referral (this user joined via someone's invite)
       if (res.memberId) {
         const credit = await completeReferral(id, res.memberId).catch(() => null);
@@ -359,6 +362,9 @@ export function createBot(): Bot {
     const res = await linkByPhone(id, sess.phone, profileOf(ctx.from!));
     if (res.status === "linked") {
       await ctx.reply(`✅ <b>Raqam tasdiqlandi va ulandi!</b> Xush kelibsiz, ${esc(res.fullName ?? "Mijoz")} 🎉`, { parse_mode: "HTML", reply_markup: mainMenu(res.type === "driver") });
+      if (res.welcomeBonus) {
+        await ctx.reply(`🎁 <b>Sovg'a: +${formatNumber(res.welcomeBonus)} tanga</b> hisobingizga tushdi 🚕`, { parse_mode: "HTML" }).catch(() => undefined);
+      }
       const me = await getMe(id);
       if (me) await ctx.reply(renderProfile(me), { parse_mode: "HTML", reply_markup: mainMenu(me.type === "driver") });
       // Ulangan zahoti ilovani BIR MARTA ko'zga tashlash — "odamlar web app borligini bilmaydi".
