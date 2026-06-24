@@ -126,6 +126,10 @@ export class KasMockSource implements KasDataSource {
     return { ok: true, oldBonus: 0, newBonus: delta, status: 200 };
   }
 
+  async setClientName(_phone: string, _fullName: string): Promise<{ ok: boolean; status?: number }> {
+    return { ok: true, status: 200 };
+  }
+
   async addDriverPayment(_driverId: number, _carNumber: string, amount: number, _comment = "", _debt = false): Promise<{ ok: boolean; balance: number | null; status: number }> {
     return { ok: true, balance: amount, status: 200 };
   }

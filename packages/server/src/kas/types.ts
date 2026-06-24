@@ -226,6 +226,8 @@ export interface KasDataSource {
   setClientBonus(phone: string, newBonus: number): Promise<{ ok: boolean; oldBonus: number; name?: string; status?: number }>;
   /** Reward: add a delta to a client's cashback bonus. */
   addClientBonus(phone: string, delta: number): Promise<{ ok: boolean; oldBonus: number; newBonus: number; status?: number }>;
+  /** Update a CLIENT's name in kas1067 (PUT api/clients with the full record + bonusSecretKey). */
+  setClientName(phone: string, fullName: string): Promise<{ ok: boolean; status?: number }>;
   /** Top up a DRIVER's kas balance (drivers/payment, online). Driver write — NOT the client bonus.
    *  `debt=true` flags the payment as a debt settlement (the SPA's debt checkbox) instead of a plain
    *  balance top-up. */

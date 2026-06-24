@@ -67,7 +67,23 @@ export async function getMeByMemberId(memberId: number): Promise<MeResponse | nu
 export async function setDisplayName(memberId: number, raw: string): Promise<string | null> {
   const name = raw.trim().replace(/\s+/g, " ").slice(0, 40);
   if (name && name.length < 2) return null; // too short (but "" is allowed = clear)
-  await prisma.member.update({ where: { id: memberId }, data: { displayName: name || null } });
+  const m = await prisma.member.update({ where: { id: memberId }, data: { displayName: name || null }, select: { type: true, phone: true } });
+  // Also push the name to kas1067 for CLIENTS (best-effort) so the official record + the dispatcher
+  // view match what the user chose. Drivers have no kas name-update endpoint → local-only. Never
+  // blocks/fails the edit: the local displayName already took effect. Only on a real (non-empty)
+  // name and only in live mode.
+  if (name && m.type === "client" && m.phone) {
+    try {
+      const { getDataSource } = await import("../kas");
+      const ds = getDataSource();
+      if (ds.name === "live") {
+        const r = await ds.setClientName(m.phone, name);
+        if (!r.ok) console.error(`[name] kas setClientName failed for member ${memberId} (status ${r.status ?? "?"})`);
+      }
+    } catch (e) {
+      console.error(`[name] kas push errored for member ${memberId}:`, e instanceof Error ? e.message : e);
+    }
+  }
   return name;
 }
 

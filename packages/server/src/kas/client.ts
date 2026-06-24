@@ -316,6 +316,20 @@ export class KasLiveSource implements KasDataSource {
     return { ok: res.status >= 200 && res.status < 300, oldBonus, name: String(client.fullName ?? client.id), status: res.status };
   }
 
+  /** Update a CLIENT's name in kas1067. Same proven mechanism as setClientBonus: fetch the full
+   *  client record, PUT it back with fullName changed (+ bonusSecretKey, which the PUT requires).
+   *  NOTE: kas may or may not honor a fullName change on this endpoint — owner pilot confirms it. */
+  async setClientName(phone: string, fullName: string): Promise<{ ok: boolean; status?: number }> {
+    const norm = phone.replace(/\D/g, "").slice(-9);
+    if (!norm || !fullName) return { ok: false };
+    const data = await this.getJson(`api/clients/byFilter?searchText=${encodeURIComponent(norm)}&sort=bonus&page=0&size=20`);
+    const list = (data.clientDtoList as Record<string, unknown>[]) ?? [];
+    const client = list.find((c) => String(c.phoneNumber ?? "").replace(/\D/g, "").slice(-9) === norm);
+    if (!client) return { ok: false };
+    const res = await this.putJson("api/clients", { ...client, fullName, bonusSecretKey: env.KAS_BONUS_SECRET_KEY });
+    return { ok: res.status >= 200 && res.status < 300, status: res.status };
+  }
+
   /** Add a delta to a client's cashback bonus (read current + set new total). */
   async addClientBonus(phone: string, delta: number): Promise<{ ok: boolean; oldBonus: number; newBonus: number; status?: number }> {
     const cur = (await this.fetchByPhone(phone)).find((m) => m.type === "client")?.points ?? null;
