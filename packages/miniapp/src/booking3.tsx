@@ -248,6 +248,7 @@ function Booking3Inner({ me, info, onClose }: { me: MeResponse; info: BookingInf
   const [pinAddr, setPinAddr] = useState<SavedAddressView | null>(null); // M7: nearest saved addr (proximity hint)
   const [pinPt, setPinPt] = useState<{ lat: number; lng: number } | null>(null); // M7: the dragged map center
   const [pinBusy, setPinBusy] = useState(false);
+  const [walking, setWalking] = useState(false); // center-pin character walks while the map is dragged
   const [q, setQ] = useState("");
   const [results, setResults] = useState<SavedAddressView[]>([]);
   const [searching, setSearching] = useState(false);
@@ -524,11 +525,13 @@ function Booking3Inner({ me, info, onClose }: { me: MeResponse; info: BookingInf
         .then((a) => { if (alive) { setPinAddr(a); setPinBusy(false); } })
         .catch(() => { if (alive) setPinBusy(false); });
     };
-    const onMove = () => { if (deb) clearTimeout(deb); deb = setTimeout(snap, 450); };
+    const onMove = () => { setWalking(false); if (deb) clearTimeout(deb); deb = setTimeout(snap, 450); };
+    const onStart = () => setWalking(true); // dragging → the traveler walks
+    m.on("movestart", onStart);
     m.on("moveend", onMove);
     if (m.getZoom() < 16) m.setZoom(16); // tighter zoom for precise picking (fires moveend → snap)
     else snap();
-    return () => { alive = false; if (deb) clearTimeout(deb); m.off("moveend", onMove); };
+    return () => { alive = false; setWalking(false); if (deb) clearTimeout(deb); m.off("movestart", onStart); m.off("moveend", onMove); };
   }, [screen]);
 
   // ── E4 honest queue while searching ─────────────────────────────────────
@@ -699,14 +702,18 @@ function Booking3Inner({ me, info, onClose }: { me: MeResponse; info: BookingInf
 
       {screen === "pinpick" && (
         <>
-          <div className="b3-centerpin" aria-hidden="true">
+          <div className={`b3-centerpin${walking ? " b3-walking" : ""}`} aria-hidden="true">
             <svg viewBox="0 0 44 60" width="44" height="60">
               <ellipse className="b3-hail-shadow" cx="22" cy="56" rx="10" ry="2.6" />
               <g className="b3-hail-fig">
-                <path className="b3-hail-leg" d="M18 39 L16 52" />
-                <path className="b3-hail-leg" d="M26 39 L28 52" />
+                <path className="b3-hail-leg b3-leg-l" d="M21 40 L18 52" />
+                <path className="b3-hail-leg b3-leg-r" d="M23 40 L26 52" />
                 <rect className="b3-hail-torso" x="14" y="22" width="16" height="20" rx="7" />
-                <path className="b3-hail-arm0" d="M15 26 L9 35" />
+                <g className="b3-case">
+                  <rect x="2" y="42" width="9" height="10" rx="2" fill="#52607a" />
+                  <rect x="5.4" y="39.6" width="2.6" height="3" rx="1" fill="#52607a" />
+                </g>
+                <path className="b3-hail-arm0" d="M14 29 L9 42" />
                 <circle className="b3-hail-head" cx="22" cy="13" r="7.5" />
                 <path className="b3-hail-arm" d="M29 25 L36 11" />
                 <circle className="b3-hail-hand" cx="36" cy="11" r="2.6" />
