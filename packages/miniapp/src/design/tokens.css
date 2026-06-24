@@ -496,6 +496,9 @@ body {
 /* C: assigned driver — glide position between polls; inner span rotates by bearing */
 .b3-carpin { font-size: 28px; transition: transform .9s linear; }
 .b3-carpin-i { display: inline-block; transition: transform .9s linear; filter: drop-shadow(0 0 6px rgba(255,179,0,.6)) drop-shadow(0 2px 3px rgba(0,0,0,.5)); }
+/* passenger aboard: a head shown on the car only in-trip (.b3-aboard) — "odamcha ichida" */
+.b3-carpax { position: absolute; left: 50%; top: 50%; width: 8px; height: 8px; margin: -4px 0 0 -4px; border-radius: 50%; background: #f4c89a; box-shadow: 0 0 3px rgba(0,0,0,.55); opacity: 0; transition: opacity .5s ease; }
+.b3-carpin.b3-aboard .b3-carpax { opacity: 1; }
 .b3-pin.busy { opacity: .55; }
 .b3-pickpin { font-size: 30px; filter: drop-shadow(0 2px 4px rgba(255,179,0,.8)); }
 

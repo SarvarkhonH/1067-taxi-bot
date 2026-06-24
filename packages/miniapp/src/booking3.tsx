@@ -305,6 +305,8 @@ function Booking3Inner({ me, info, onClose }: { me: MeResponse; info: BookingInf
   const wasDriver = useRef(false);
   const wasArrived = useRef(false);
   const boarded = useRef(false); // pickup person "gets in" the car when the trip starts (not frozen)
+  const [speedKmh, setSpeedKmh] = useState(0); // rough live speed (kas gives none) — from position deltas
+  const prevPos = useRef<{ lat: number; lng: number; t: number } | null>(null);
   const [q, setQ] = useState("");
   const [results, setResults] = useState<SavedAddressView[]>([]);
   const [searching, setSearching] = useState(false);
@@ -530,14 +532,16 @@ function Booking3Inner({ me, info, onClose }: { me: MeResponse; info: BookingInf
     }
     if (!driverMarker.current) {
       // className → CSS transition on .b3-carpin glides the marker position between polls
-      const icon = L.divIcon({ className: "b3-carpin", html: `<span class="b3-carpin-i">${carSvg("#FFB300", 36)}</span>`, iconSize: [36, 36], iconAnchor: [18, 18] });
+      const icon = L.divIcon({ className: "b3-carpin", html: `<span class="b3-carpin-i">${carSvg("#FFB300", 36)}<i class="b3-carpax"></i></span>`, iconSize: [36, 36], iconAnchor: [18, 18] });
       driverMarker.current = L.marker([d.lat, d.lng], { icon, zIndexOffset: 1000 }).addTo(map.current);
     } else {
       driverMarker.current.setLatLng([d.lat, d.lng]);
     }
-    const inner = driverMarker.current.getElement()?.querySelector(".b3-carpin-i") as HTMLElement | null;
+    const root = driverMarker.current.getElement();
+    if (root) root.classList.toggle("b3-aboard", active?.status === "started"); // passenger visibly aboard in-trip
+    const inner = root?.querySelector(".b3-carpin-i") as HTMLElement | null;
     if (inner && typeof d.bearing === "number") inner.style.transform = `rotate(${d.bearing}deg)`;
-  }, [active?.driver?.lat, active?.driver?.lng, active?.driver?.bearing]);
+  }, [active?.driver?.lat, active?.driver?.lng, active?.driver?.bearing, active?.status]);
 
   // ── M5: road route driver → pickup, only while the driver is en route (not yet started).
   // Real OSRM road line when the server answers; straight dashed fallback otherwise. Re-runs on
@@ -734,6 +738,26 @@ function Booking3Inner({ me, info, onClose }: { me: MeResponse; info: BookingInf
       window.setTimeout(() => { pickMarker.current?.remove(); pickMarker.current = null; }, 800);
     }
   }, [active?.status]);
+
+  // B: rough live speed in-trip — kas exposes none, so derive it from consecutive driver positions
+  // (EMA-smoothed + capped; ~5–15s polls make it approximate, hence the "~").
+  useEffect(() => {
+    const d = active?.driver;
+    if (active?.status !== "started" || typeof d?.lat !== "number" || typeof d?.lng !== "number") {
+      prevPos.current = null;
+      if (speedKmh !== 0) setSpeedKmh(0);
+      return;
+    }
+    const now = Date.now();
+    const p = prevPos.current;
+    prevPos.current = { lat: d.lat, lng: d.lng, t: now };
+    if (!p) return;
+    const dtH = (now - p.t) / 3_600_000;
+    if (dtH <= 0) return;
+    const kmh = Math.min(120, haversineKm({ lat: p.lat, lng: p.lng }, { lat: d.lat, lng: d.lng }) / dtH);
+    setSpeedKmh((prev) => Math.round(prev ? prev * 0.5 + kmh * 0.5 : kmh));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [active?.driver?.lat, active?.driver?.lng, active?.status]);
 
   const call = async () => {
     if (!pickup || busy) return;
@@ -959,6 +983,9 @@ function Booking3Inner({ me, info, onClose }: { me: MeResponse; info: BookingInf
               </div>
               {active.driver.meterPayment ? (
                 <div className="b3-fare-row mt8"><span>🧮 Hisoblagich (jonli)</span><b><CountUp value={active.driver.meterPayment} /> so'm</b></div>
+              ) : null}
+              {active.status === "started" && speedKmh > 0 ? (
+                <div className="b3-fare-row"><span>🚗 Tezlik</span><b>~{speedKmh} km/soat</b></div>
               ) : null}
               {active.status === "started" ? <InTripExtras rideStartedAt={active.rideStartedAt ?? null} /> : null}
               <div className="b3-acts">
