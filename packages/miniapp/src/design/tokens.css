@@ -449,6 +449,13 @@ body {
 .b3-beam { stroke: #FFB300; stroke-width: 3.5; fill: none; stroke-linecap: round; stroke-dasharray: 14 700; filter: drop-shadow(0 0 3px rgba(255,179,0,.55)); animation: b3-beam 1.3s ease-out infinite; }
 @keyframes b3-beam { 0% { stroke-dashoffset: 714; opacity: 0; } 18% { opacity: 1; } 100% { stroke-dashoffset: 0; opacity: .12; } }
 @media (prefers-reduced-motion: reduce) { .b3-spulse span, .b3-beam { animation: none; } .b3-beam { opacity: .5; } }
+/* target car: clear "buyurtma SHU mashinaga" cue — glowing gold car + expanding ring */
+.b3-target { position: relative; width: 28px; height: 28px; display: grid; place-items: center; }
+.b3-target .b3-target-ring { position: absolute; left: 50%; top: 50%; width: 28px; height: 28px; margin: -14px 0 0 -14px; border-radius: 50%; border: 2.5px solid #FFB300; opacity: 0; animation: b3-target 2s ease-out infinite; }
+.b3-target .b3-target-ring2 { animation-delay: 1s; }
+.b3-target svg { position: relative; filter: drop-shadow(0 0 5px rgba(255,179,0,.95)) drop-shadow(0 2px 3px rgba(0,0,0,.5)); }
+@keyframes b3-target { 0% { transform: scale(.4); opacity: .9; } 70% { opacity: .25; } 100% { transform: scale(2.8); opacity: 0; } }
+@media (prefers-reduced-motion: reduce) { .b3-target .b3-target-ring { animation: none; } }
 .b3-search-title { text-align: center; font-weight: 800; font-size: 16px; margin-bottom: 4px; }
 /* live car pins */
 .b3-pin { font-size: 22px; filter: drop-shadow(0 2px 3px rgba(0,0,0,.6)); transition: transform .6s linear; }

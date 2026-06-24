@@ -269,6 +269,7 @@ function Booking3Inner({ me, info, onClose }: { me: MeResponse; info: BookingInf
   const pickMarker = useRef<L.Marker | null>(null);
   const searchPulse = useRef<L.Marker | null>(null);
   const beamLine = useRef<L.Polyline | null>(null);
+  const targetMarker = useRef<L.Marker | null>(null); // the car currently being OFFERED the order
   const driverMarker = useRef<L.Marker | null>(null);
   const routeLine = useRef<L.Polyline | null>(null);
   // 🚗 liveliness: decoy "ghost" cars + moving ghost rides so a small real fleet never looks empty
@@ -430,6 +431,7 @@ function Booking3Inner({ me, info, onClose }: { me: MeResponse; info: BookingInf
     const searching = screen === "searching" && !active?.driver;
     if (!map.current || !searching || typeof pickup?.lat !== "number" || typeof pickup?.lng !== "number") {
       if (beamLine.current) { beamLine.current.remove(); beamLine.current = null; }
+      if (targetMarker.current) { targetMarker.current.remove(); targetMarker.current = null; }
       return;
     }
     const from: [number, number] = [pickup.lat, pickup.lng];
@@ -445,10 +447,14 @@ function Booking3Inner({ me, info, onClose }: { me: MeResponse; info: BookingInf
       if (!t) return;
       if (beamLine.current) beamLine.current.remove();
       beamLine.current = L.polyline([from, [t.lat, t.lng]], { className: "b3-beam", interactive: false }).addTo(map.current);
+      // clear "buyurtma SHU mashinaga" cue — a glowing gold car with an expanding ring on the target
+      const ticon = L.divIcon({ className: "", html: `<div class="b3-target"><i class="b3-target-ring"></i><i class="b3-target-ring b3-target-ring2"></i>${carSvg("#FFB300", 28)}</div>`, iconSize: [28, 28], iconAnchor: [14, 14] });
+      if (targetMarker.current) targetMarker.current.remove();
+      targetMarker.current = L.marker([t.lat, t.lng], { icon: ticon, interactive: false, zIndexOffset: 500 }).addTo(map.current);
     };
     reach();
     const timer = setInterval(reach, 2600);
-    return () => { clearInterval(timer); if (beamLine.current) { beamLine.current.remove(); beamLine.current = null; } };
+    return () => { clearInterval(timer); if (beamLine.current) { beamLine.current.remove(); beamLine.current = null; } if (targetMarker.current) { targetMarker.current.remove(); targetMarker.current = null; } };
   }, [screen, active?.driver, pickup?.lat, pickup?.lng]);
 
   // ── C: live assigned-driver car marker — glides toward you + rotates by bearing ──
