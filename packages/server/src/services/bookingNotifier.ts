@@ -73,8 +73,10 @@ function roundUp100(n: number): { shown: number; delta: number } {
 function renderRideCard(b: ActiveBookingLite, c: CardCtx): string {
   const lines: string[] = ["🚕 <b>1067 · SAFAR</b>", "━━━━━━━━━━━━"];
   const d = c.driver;
-  if (SEARCHING.has(b.status) && !b.carNumber) {
-    lines.push("🔍 <b>Haydovchi qidirilyapti…</b>");
+  if (b.status === "new" || (SEARCHING.has(b.status) && !b.carNumber)) {
+    // "new" = the order is being OFFERED to drivers — NOT yet accepted (acceptance is "take").
+    // So never render it as «yo'lda»: a candidate car → "taklif qilinmoqda", otherwise "qidirilyapti".
+    lines.push(b.status === "new" && b.carNumber ? "📤 <b>Haydovchiga taklif qilinmoqda…</b>" : "🔍 <b>Haydovchi qidirilyapti…</b>");
     if (c.queuePos) {
       lines.push(`📊 Navbatda: <b>${c.queuePos}-chi</b>${c.freeDrivers ? ` · bo'sh mashinalar: ${c.freeDrivers}` : ""}`);
     }
@@ -226,7 +228,9 @@ export async function pushBookingUpdates(
     if (b) {
       const isNewRide = m.lastBookingId !== b.id;
       const statusChanged = isNewRide || m.lastBookingStatus !== b.status;
-      const driver = b.carNumber ? await driverByCar(b.carNumber) : null;
+      // "new" = the booking is being OFFERED (not accepted) — don't show kas's candidate car as the
+      // assigned driver (no pin, no "topildi" ping, no ETA). Only "take"+ has a real driver.
+      const driver = b.carNumber && b.status !== "new" ? await driverByCar(b.carNumber) : null;
       // trace which booking/car the bot resolved for this member — proves the correct taxi vs the
       // stale-booking bug. Logged only on a transition so Render logs stay readable.
       if (isNewRide || statusChanged) {
@@ -296,7 +300,7 @@ export async function pushBookingUpdates(
           const car = driver ? `\n🚘 ${esc(driver.carModel)} · <b>${esc(driver.carNumber)}</b>` : b.carNumber ? `\n🚘 <b>${esc(b.carNumber)}</b>` : "";
           await bot.api.sendMessage(chatId, `🚕 <b>Haydovchingiz YETIB KELDI — chiqing!</b>${car}`, { parse_mode: "HTML" }).catch(() => undefined);
         }
-      } else if (cardId && b.carNumber && b.carNumber !== m.lastBookingCar && b.status !== "arrived" && b.status !== "started") {
+      } else if (cardId && b.carNumber && b.carNumber !== m.lastBookingCar && b.status !== "new" && b.status !== "arrived" && b.status !== "started") {
         // 🚖 driver JUST assigned — a car appeared (or CHANGED) for THIS ride. Gate on the car
         // DIFFERING from the one last recorded, NOT on "member never had a car": a previous ride
         // left lastBookingCar set, so the old `!m.lastBookingCar` gate silently suppressed this
@@ -374,7 +378,7 @@ export async function pushBookingUpdates(
             rideCardMsgId: cardId,
             liveLocMsgId: pinId,
             rideStartedAt,
-            ...(b.carNumber ? { lastBookingCar: b.carNumber } : {}),
+            ...(b.carNumber && b.status !== "new" ? { lastBookingCar: b.carNumber } : {}), // don't record a "new" candidate as the assigned car
             ...(b.clientBonus ? { lastBookingBonus: b.clientBonus } : {}),
           },
         });
@@ -709,7 +713,7 @@ export async function pushBookingUpdates(
         const done = matchFareRow(hist ?? [], bid, m.lastBookingCar ?? undefined);
         if (done && done.payment > 0) {
           fareAmount = Math.floor(done.payment);
-          const km = done.distance ? ` · 📏 ${done.distance} km` : "";
+          const km = done.distance ? ` · 📏 ${(done.distance / 1000).toFixed(1)} km` : ""; // kas distance is METRES
           const mins = done.time ? ` · ⏱ ${done.time} daq` : "";
           fareLine = `\n🧾 Yo'l haqi: <b>${formatNumber(done.payment)} so'm</b>${km}${mins}`;
         }
@@ -893,7 +897,7 @@ async function resolvePendingFares(bot: Bot, ds: KasDataSource): Promise<void> {
             firstSend = false; // a prior pass already delivered this fare
           }
           if (firstSend) {
-            const km = ride.distance ? ` · 📏 ${ride.distance} km` : "";
+            const km = ride.distance ? ` · 📏 ${(ride.distance / 1000).toFixed(1)} km` : ""; // kas distance is METRES
             const mins = ride.time ? ` · ⏱ ${ride.time} daq` : "";
             await bot.api
               .sendMessage(chatId!, `🧾 <b>Yo'l haqi: ${formatNumber(ride.payment)} so'm</b>${km}${mins}`, { parse_mode: "HTML" })
