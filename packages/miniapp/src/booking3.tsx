@@ -270,6 +270,13 @@ function Booking3Inner({ me, info, onClose }: { me: MeResponse; info: BookingInf
   const beamLine = useRef<L.Polyline | null>(null);
   const driverMarker = useRef<L.Marker | null>(null);
   const routeLine = useRef<L.Polyline | null>(null);
+  // 🚗 liveliness: decoy "ghost" cars + moving ghost rides so a small real fleet never looks empty
+  // (owner: "kamdek tuyulmasin", "hamma mashinadan yurgandek"). PURELY VISUAL — real bookings still
+  // dispatch only to real drivers; only the perceived density + the "bo'sh mashina" count are inflated.
+  const ghostMarkers = useRef<L.Marker[]>([]);
+  const ghostRef = useRef<{ lat: number; lng: number; bearing: number; busy: boolean; vlat: number; vlng: number }[]>([]);
+  const GHOST_FREE = 7; // idle decoy cars scattered around the view
+  const GHOST_RIDES = 4; // moving decoy cars (rides in progress)
   const [mapOk] = useState(mapAllowed); // false only when ?nomap=1 → show placeholder
   const [mapFailed, setMapFailed] = useState(false); // no tiles loaded (network blocked)
 
@@ -340,7 +347,8 @@ function Booking3Inner({ me, info, onClose }: { me: MeResponse; info: BookingInf
     const load = async () => {
       const r = await api.bookingNearby().catch(() => null);
       if (!alive || !r || !map.current) return;
-      setFreeDrivers(r.freeDrivers);
+      // owner: show ~2× online cars, never below the ghost floor so the map never reads "empty"
+      setFreeDrivers(Math.max(r.freeDrivers * 2, GHOST_FREE + GHOST_RIDES));
       fleetRef.current = r.pins; // raw coords for the search beam
       for (const mk of pinMarkers.current) mk.remove();
       pinMarkers.current = r.pins
@@ -355,6 +363,39 @@ function Booking3Inner({ me, info, onClose }: { me: MeResponse; info: BookingInf
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // 🚗 ghost fleet: once the map is up, scatter decoy cars around the view and keep a few "rides"
+  // gliding so the city never looks empty (owner). Own marker ref → the 15s real-pin refresh never
+  // wipes them; zIndexOffset −50 keeps them BEHIND real pins + the assigned driver. VISUAL ONLY.
+  useEffect(() => {
+    if (!mapOk) return;
+    const rnd = (r: number) => (Math.random() - 0.5) * 2 * r;
+    const tick = () => {
+      if (!map.current) return; // wait until the map exists
+      if (!ghostRef.current.length) {
+        const c = map.current.getCenter();
+        const seed = (busy: boolean) => ({ lat: c.lat + rnd(0.013), lng: c.lng + rnd(0.018), bearing: Math.floor(Math.random() * 360), busy, vlat: busy ? rnd(0.00016) : 0, vlng: busy ? rnd(0.0002) : 0 });
+        ghostRef.current = [...Array.from({ length: GHOST_FREE }, () => seed(false)), ...Array.from({ length: GHOST_RIDES }, () => seed(true))];
+        ghostMarkers.current = ghostRef.current.map((g) => L.marker([g.lat, g.lng], { icon: carIcon(g.busy ? "#9ca3af" : "#22c55e", g.bearing, 24), interactive: false, zIndexOffset: -50 }).addTo(map.current!));
+        return;
+      }
+      ghostRef.current.forEach((g, i) => {
+        if (!g.busy) return; // free cars idle; only the "rides" glide
+        g.lat += g.vlat;
+        g.lng += g.vlng;
+        if (Math.random() < 0.18) {
+          g.vlat += (Math.random() - 0.5) * 0.00009;
+          g.vlng += (Math.random() - 0.5) * 0.00009;
+          g.bearing = ((Math.atan2(g.vlng, g.vlat) * 180) / Math.PI + 360) % 360;
+        }
+        ghostMarkers.current[i]?.setLatLng([g.lat, g.lng]);
+        ghostMarkers.current[i]?.setIcon(carIcon("#9ca3af", g.bearing, 24));
+      });
+    };
+    const gt = window.setInterval(tick, 2000);
+    return () => clearInterval(gt);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mapOk]);
 
   // place pickup marker + recenter (remove+recreate replays the pin-drop animation)
   useEffect(() => {
