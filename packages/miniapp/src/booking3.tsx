@@ -304,11 +304,14 @@ function MapSkeleton() {
 }
 
 function Booking3Inner({ me, info, onClose }: { me: MeResponse; info: BookingInfoResponse; onClose: () => void }) {
-  const [screen, setScreen] = useState<Screen>(info.active ? "searching" : "map");
+  // Map-is-picker redesign: the entry IS the live map picker (pinpick), not a separate search sheet.
+  // The search sheet ("map") is now a sub-screen reached via the top search pill.
+  const [screen, setScreen] = useState<Screen>(info.active ? "searching" : "pinpick");
   const [pickup, setPickup] = useState<SavedAddressView | null>(info.quickPickup ?? null);
   const [pinAddr, setPinAddr] = useState<SavedAddressView | null>(null); // M7: nearest saved addr (proximity hint)
   const [pinPt, setPinPt] = useState<{ lat: number; lng: number } | null>(null); // M7: the dragged map center
   const [pinBusy, setPinBusy] = useState(false);
+  const [mapReady, setMapReady] = useState(false); // map-is-picker: the pinpick drag effect waits for the Leaflet map to exist (pinpick is now the ENTRY, so it can mount before the map)
   const [walking, setWalking] = useState(false); // center-pin character walks while the map is dragged
   const [justFound, setJustFound] = useState(false); // "✅ Topildi!" celebration on driver-accept
   const wasDriver = useRef(false);
@@ -371,6 +374,7 @@ function Booking3Inner({ me, info, onClose }: { me: MeResponse; info: BookingInf
       // dropping it lets tiles paint + tileload fire. THIS was the "Xarita ko'rinmadi" blank.
       L.tileLayer(TILE_URL, { subdomains: TILE_SUBDOMAINS, maxZoom: 20 }).addTo(m);
       map.current = m;
+      setMapReady(true); // signal the pinpick drag effect that the map now exists
       // Robust, RECOVERABLE load detection. The Telegram WebView often never fires the tile `load`
       // event (Leaflet's leaflet-tile-loaded class depends on it too), so we check the image DATA
       // (complete && naturalWidth>0) on a 1s poll. The poll keeps running for 30s so a slow tile can
@@ -406,6 +410,7 @@ function Booking3Inner({ me, info, onClose }: { me: MeResponse; info: BookingInf
       tgEv?.offEvent?.("viewportChanged", fix);
       map.current?.remove();
       map.current = null;
+      setMapReady(false);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -632,7 +637,8 @@ function Booking3Inner({ me, info, onClose }: { me: MeResponse; info: BookingInf
     if (m.getZoom() < 16) m.setZoom(16); // tighter zoom for precise picking (fires moveend → snap)
     else snap();
     return () => { alive = false; setWalking(false); if (deb) clearTimeout(deb); m.off("movestart", onStart); m.off("moveend", onMove); };
-  }, [screen]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [screen, mapReady]);
 
   // ── E4 honest queue while searching ─────────────────────────────────────
   // M6: adaptive cadence (self-scheduling, not a fixed interval). Once a driver is ASSIGNED we
@@ -801,7 +807,7 @@ function Booking3Inner({ me, info, onClose }: { me: MeResponse; info: BookingInf
       setMsg("⚠️ Bekor qilinmadi — qayta urinib ko'ring");
       return;
     }
-    setScreen("map");
+    setScreen("pinpick");
     setMsg(null);
   };
 
@@ -814,7 +820,7 @@ function Booking3Inner({ me, info, onClose }: { me: MeResponse; info: BookingInf
     else setMsg("⚠️ Baho yuborilmadi — qayta urinib ko'ring");
   };
   const rebook = () => {
-    setScreen("map");
+    setScreen("pinpick");
     setActive(null);
     activeRef.current = null;
     setFinishedBid(null);
@@ -864,6 +870,11 @@ function Booking3Inner({ me, info, onClose }: { me: MeResponse; info: BookingInf
 
       {screen === "pinpick" && (
         <>
+          {/* top search pill — tap to TYPE an address (opens the search sheet) */}
+          <button className={`b3-pin-search${walking ? " hide" : ""}`} onClick={() => { haptic(); setScreen("map"); }}>
+            <span className="b3-pin-search-ico">🔍</span>
+            <span>Qayerdan?</span>
+          </button>
           <div className={`b3-centerpin${walking ? " b3-walking" : ""}`} aria-hidden="true">
             <svg viewBox="0 0 44 60" width="44" height="60">
               <ellipse className="b3-hail-shadow" cx="22" cy="56" rx="10" ry="2.6" />
@@ -882,7 +893,7 @@ function Booking3Inner({ me, info, onClose }: { me: MeResponse; info: BookingInf
               </g>
             </svg>
           </div>
-          <button className="b3-myloc" onClick={locateMe} aria-label="Turgan joyim" title="Turgan joyim">🎯</button>
+          <button className="b3-myloc" onClick={locateMe} aria-label="Joylashuvim" title="Joylashuvim">📍</button>
         </>
       )}
 
@@ -905,9 +916,11 @@ function Booking3Inner({ me, info, onClose }: { me: MeResponse; info: BookingInf
       {screen === "map" && (
         <div className="b3-sheet">
           <div className="b3-grip" />
-          <div className="b3-sheet-title">🚕 Taxi qayerga kelsin?</div>
-          <input className="bk-input" placeholder="🔍 Manzil qidiring (xato yozsangiz ham topadi)" value={q} onChange={(e) => search(e.target.value)} />
-          <button className="b3-mappick" onClick={() => { haptic(); setScreen("pinpick"); }}>🗺 Xaritadan belgilash</button>
+          <div className="b3-sheet-head">
+            <button className="b3-sheet-back" onClick={() => { haptic(); setScreen("pinpick"); }}>← Xaritaga</button>
+            <div className="b3-sheet-title">🔍 Manzilni yozing</div>
+          </div>
+          <input className="bk-input" placeholder="Manzil qidiring (xato yozsangiz ham topadi)" autoFocus value={q} onChange={(e) => search(e.target.value)} />
           {searching && <div className="dim fs13 mt6">⏳ Qidirilmoqda…</div>}
           {results.length > 0 ? (
             <div className="b3-results">
@@ -933,15 +946,23 @@ function Booking3Inner({ me, info, onClose }: { me: MeResponse; info: BookingInf
         </div>
       )}
 
-      {/* ── M7: center-pin map pick (drag → nearest catalog address) ── */}
+      {/* ── Map-is-picker: compact bar — slides DOWN while dragging (map open, character walks),
+             returns when you stop. Detected place + quick chips + the single confirm CTA. ── */}
       {screen === "pinpick" && (
-        <div className="b3-pinbar">
+        <div className={`b3-pinbar${walking ? " dragging" : ""}`}>
           <div className="b3-grip" />
           <div className="b3-pin-label">
-            {pinBusy ? "⏳ Manzil aniqlanmoqda…" : pinNear ? <>📍 <b>{pinNear}</b></> : "📍 Xaritada belgilangan nuqta"}
+            {pinBusy ? "⏳ Manzil aniqlanmoqda…" : pinNear ? <>📍 <b>{pinNear}</b></> : "📍 Xaritani suring — joyni belgilang"}
           </div>
-          <Button disabled={!pinPt || pinBusy} onClick={confirmPin}>✅ Shu yerdan chaqirish</Button>
-          <Button variant="ghost" onClick={() => setScreen("map")}>← Orqaga</Button>
+          {(info.quickPickup || recents.length > 0) && (
+            <div className="b3-chips b3-pin-chips">
+              {info.quickPickup && <button className="d-chip" onClick={() => choose(info.quickPickup!)}>🏠 {info.quickPickup.name}</button>}
+              {recents.slice(0, 2).map((a) => (
+                <button key={a.id} className="d-chip" onClick={() => choose(a)}>🕐 {a.name}</button>
+              ))}
+            </div>
+          )}
+          <Button disabled={!pinPt || pinBusy} onClick={confirmPin}>✅ Shu yerdan</Button>
         </div>
       )}
 
