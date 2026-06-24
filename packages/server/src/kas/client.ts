@@ -410,8 +410,40 @@ export class KasLiveSource implements KasDataSource {
     }
   }
 
+  // GPS orders (addressId 0 + coords — bot location-share / Mini App pin) are LABELLED here at the
+  // single dispatch chokepoint so the driver app shows a real "<place> lokatsiyalik" order they can
+  // tap-to-navigate (kas's native location-order behaviour), never a bare "-". Saved-address orders
+  // (with a real addressId, no coords) are untouched → dispatch unchanged. Only the display label
+  // changes; the lat/lng that actually route the driver are passed through as-is.
+  private async nearestCatalogName(lat: number, lng: number): Promise<string> {
+    const cat = await this.getAllAddresses().catch(() => [] as SavedAddress[]);
+    const coslat = Math.cos((lat * Math.PI) / 180);
+    let best = "";
+    let bestD = Infinity;
+    for (const a of cat) {
+      if (a.lat == null || a.lng == null) continue;
+      const dx = (a.lng - lng) * coslat;
+      const dy = a.lat - lat;
+      const d = dx * dx + dy * dy;
+      if (d < bestD) {
+        bestD = d;
+        best = a.name;
+      }
+    }
+    return bestD <= 5.2e-5 ? best : ""; // ~0.8 km cap in squared-degrees
+  }
+
   async createBooking(req: BookingRequest): Promise<BookingResult> {
-    const body = { ...req, phoneNumber: kasPhone(req.phoneNumber) }; // kas-standard phone (+998<last9>)
+    let addressName = req.addressName;
+    const hasGps = Number.isFinite(req.addressLatitude) && Number.isFinite(req.addressLongitude);
+    if (hasGps) {
+      let base = (addressName || "").replace(/\s*(yaqini|lokatsiyalik)\s*$/i, "").trim();
+      if (!base || base === "-" || /belgilangan/i.test(base)) {
+        base = (await this.nearestCatalogName(req.addressLatitude!, req.addressLongitude!).catch(() => "")) || "Belgilangan joy";
+      }
+      addressName = `${base} lokatsiyalik`;
+    }
+    const body = { ...req, addressName, phoneNumber: kasPhone(req.phoneNumber) }; // kas-standard phone (+998<last9>)
     // A LIVE session returns the created booking JSON (always a numeric "id"). A DEAD session
     // (another login on the shared kas account killed ours) makes kas serve the LOGIN PAGE with
     // HTTP 200 — postJson's 302-check misses it, so the old code read that as success → a PHANTOM
