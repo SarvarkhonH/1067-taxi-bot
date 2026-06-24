@@ -724,6 +724,23 @@ body {
 .uy-tile span { font-size: 11px; font-weight: 600; color: var(--muted, #9aa4b2); }
 .uy-tile:active { transform: scale(.95); }
 
+/* 🎁 home invite banner — gold-tinted, eye-catching but secondary to the taxi CTA */
+.uy-invite { display: flex; align-items: center; gap: 12px; width: 100%; text-align: left; cursor: pointer;
+  padding: 13px 15px; border-radius: 16px; border: 1px solid #5a4519;
+  background: linear-gradient(135deg, #2c2212, #211a0d); }
+.uy-invite:active { transform: scale(.985); }
+.uy-invite-ic { font-size: 30px; line-height: 1; animation: uy-gift 2.4s ease-in-out infinite; }
+.uy-invite-txt { display: flex; flex-direction: column; gap: 2px; flex: 1; min-width: 0; }
+.uy-invite-txt b { font-size: 15px; font-weight: 800; color: #ffd87a; }
+.uy-invite-txt small { font-size: 11.5px; line-height: 1.3; color: #cbb98e; }
+.uy-invite-arr { font-size: 20px; font-weight: 700; color: var(--brand, #ffb300); flex: 0 0 auto; }
+@keyframes uy-gift { 0%, 88%, 100% { transform: rotate(0); } 91% { transform: rotate(-13deg); } 95% { transform: rotate(13deg); } }
+@media (prefers-reduced-motion: reduce) { .uy-invite-ic { animation: none; } }
+
+/* invite overlay back header (one-tap from home, no Reyting scroll) */
+.inv-overlay-head { display: flex; align-items: center; gap: 6px; margin-bottom: 4px; }
+.inv-back { background: none; border: 0; padding: 6px 4px; font-size: 15px; font-weight: 600; color: var(--brand, #ffb300); cursor: pointer; }
+
 /* Account & settings card (Mini App) */
 .acct-card .acct-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 8px 0; border-bottom: 1px solid var(--line, #2a3242); font-size: 14px; }
 .acct-card .acct-row:last-of-type { border-bottom: none; }

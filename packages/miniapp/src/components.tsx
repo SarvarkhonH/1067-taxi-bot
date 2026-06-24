@@ -335,7 +335,7 @@ function GapSection() {
   );
 }
 
-export function ReferralView() {
+export function ReferralView({ onClose }: { onClose?: () => void } = {}) {
   const [data, setData] = useState<ReferralResponse | null>(null);
   const [copied, setCopied] = useState(false);
   const [err, setErr] = useState(false);
@@ -359,6 +359,11 @@ export function ReferralView() {
 
   return (
     <div className="view">
+      {onClose && (
+        <div className="inv-overlay-head">
+          <button className="inv-back" onClick={() => { haptic(); onClose(); }}>← Orqaga</button>
+        </div>
+      )}
       <div className="section-title">👥 Do'st taklif qiling</div>
 
       <GapSection />

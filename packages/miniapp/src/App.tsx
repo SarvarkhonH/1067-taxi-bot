@@ -135,6 +135,7 @@ export function App() {
   const [error, setError] = useState<string | null>(null);
   const [toast, setToast] = useState<{ id: number; msg: string } | null>(null);
   const [booking, setBooking] = useState(() => readGo() === "book");
+  const [invite, setInvite] = useState(() => readGo() === "invite"); // 🎁 invite overlay (one-tap from home / ?go=invite)
   const coins = useCountUp(me?.coins ?? 0);
   // WOW-1: balans oshganda tanga ikonkasi sakraydi
   const [coinBounce, setCoinBounce] = useState(false);
@@ -195,6 +196,7 @@ export function App() {
   if (linked === false) return <NotLinked />;
   if (!me) return <BootSplash />;
   if (booking) return <Suspense fallback={<BootSplash />}><Booking3View me={me} onClose={() => setBooking(false)} /></Suspense>;
+  if (invite) return <div className="app"><main className="content"><ReferralView onClose={() => setInvite(false)} /></main></div>;
   if (garaj) return <Suspense fallback={<BootSplash />}><GarajShell onClose={() => { setGaraj(false); reload(); }} /></Suspense>;
 
   const go = (t: Tab) => {
@@ -203,7 +205,10 @@ export function App() {
     setTab(t);
   };
   // child components nav by string label (incl. old names) → map to the 5 tabs
-  const nav = (t: string) => go(GO_MAP[t] ?? "uy");
+  const nav = (t: string) => {
+    if (t === "invite") { haptic(); setInvite(true); return; } // 🎁 open invite overlay directly
+    go(GO_MAP[t] ?? "uy");
+  };
 
   const flash = (msg: string) => {
     haptic();

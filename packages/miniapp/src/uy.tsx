@@ -24,6 +24,15 @@ export function UyView({ me, onBook, onNav }: { me: MeResponse; onBook: () => vo
         </div>
       </div>
       <button className="book-cta-hero" onClick={() => { haptic(); onBook(); }}>🚖 Taxi chaqirish</button>
+      {/* 🎁 invite — top-of-home so a client never hunts for it (was buried under Reyting) */}
+      <button className="uy-invite" onClick={() => { haptic(); onNav("invite"); }}>
+        <span className="uy-invite-ic">🎁</span>
+        <span className="uy-invite-txt">
+          <b>Do'stni chaqir — pul ishla</b>
+          <small>Har do'st uchun sovg'a · do'stingizga birinchi safar bepul</small>
+        </span>
+        <span className="uy-invite-arr">→</span>
+      </button>
       <BugunStripView me={me} ready={ready} onNav={() => onNav("play")} />
       <div className="uy-tiles">
         <button className="uy-tile" onClick={() => { haptic(); onNav("play"); }}>🎮<span>O'yin</span></button>
