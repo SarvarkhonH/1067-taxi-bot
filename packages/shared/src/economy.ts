@@ -109,7 +109,11 @@ export interface BonusEconKnob { key: string; label: string; def: number; min: n
 export const BONUS_ECON_KNOBS: BonusEconKnob[] = [
   // ── Taklif & Recruit ──
   { key: "firstRide", label: "🎁 Birinchi safar bonusi (tanga)", def: 5000, min: 0, max: 20000, step: 500, group: "Taklif & Recruit" },
-  { key: "referrer", label: "👥 Do'st taklif — taklif qilganga", def: 1500, min: 0, max: 20000, step: 250, group: "Taklif & Recruit" },
+  // Bosqichli taklif mukofoti (refstaged flag ON bo'lganda) — taklif qilgan har bosqichda oladi:
+  { key: "refStart", label: "👥 Do'st START bosganda → taklif qilganga", def: 500, min: 0, max: 10000, step: 100, group: "Taklif & Recruit" },
+  { key: "refShare", label: "👥 Do'st raqam ulaganda → taklif qilganga", def: 500, min: 0, max: 10000, step: 100, group: "Taklif & Recruit" },
+  { key: "refRide", label: "👥 Do'st 1-safar qilganda → taklif qilganga", def: 1000, min: 0, max: 10000, step: 100, group: "Taklif & Recruit" },
+  { key: "referrer", label: "👥 Do'st taklif — ESKI (bosqichsiz, refstaged OFF)", def: 1500, min: 0, max: 20000, step: 250, group: "Taklif & Recruit" },
   { key: "recruitFirst", label: "🚖 Mijoz QR — haydovchiga 1-safar", def: 500, min: 0, max: 10000, step: 100, group: "Taklif & Recruit" },
   { key: "recruit3", label: "🚖 Mijoz QR — 3-safar bonusi", def: 1000, min: 0, max: 10000, step: 100, group: "Taklif & Recruit" },
   { key: "revshareFresh", label: "🚖 Revshare — yangi (6 oygacha, /safar)", def: 100, min: 0, max: 1000, step: 10, group: "Taklif & Recruit" },

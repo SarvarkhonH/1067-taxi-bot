@@ -20,6 +20,7 @@ export const FEATURES = [
   "promo", // 🎁 admin-configurable promo campaigns ("tasks with promises") + completion pushes; OFF until owner QABUL
   "qarz", // 💸 Bosqich 3: driver pays kas company debt with tanga (real kas write); OFF until owner pilot
   "welcomebonus", // 🎁 universal first-ride bonus (REFEREE_REWARD=5000 tanga) for riders who did NOT arrive via referral/recruit — every new bot user gets exactly one; OFF until owner pilot
+  "refstaged", // 👥 STAGED referral payout: inviter earns in 3 steps (friend START → +refStart, friend links number → +refShare, friend 1st ride → +refRide); friend gets 5000 on JOIN like everyone. OFF = legacy (all on first ride). DARK until owner QABUL
   "drvrecruit", // 🚖 driver→driver recruit: a driver brings a new DRIVER; when that driver completes 10 rides the recruiter earns 5000; OFF until owner pilot
   "drvpush", // 🔔 driver engagement pushes (ishga chiqing / demand-spike / EOD work summary); read-only, OFF until owner QABUL
 ] as const;
@@ -28,7 +29,7 @@ export type FeatureName = (typeof FEATURES)[number];
 // Off until explicitly enabled (go-live flip = setFeature(name, true) after owner QABUL).
 // booking3 = the new map/trip flow; owner still gets a preview via server.ts owner-branch,
 // but real users stay on the (fixed) classic flow until it's accepted. A missing row → OFF.
-const DEFAULT_OFF = new Set<FeatureName>(["booking3", "livinghome", "aibrain", "mahalla", "tolqin", "garajx", "kozacha", "baraban", "motorolami", "komissiya", "qarz", "welcomebonus", "drvrecruit", "drvpush", "promo"]);
+const DEFAULT_OFF = new Set<FeatureName>(["booking3", "livinghome", "aibrain", "mahalla", "tolqin", "garajx", "kozacha", "baraban", "motorolami", "komissiya", "qarz", "welcomebonus", "refstaged", "drvrecruit", "drvpush", "promo"]);
 
 let cache: { at: number; map: Record<string, boolean> } = { at: 0, map: {} };
 

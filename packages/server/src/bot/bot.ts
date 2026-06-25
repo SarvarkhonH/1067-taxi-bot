@@ -170,15 +170,14 @@ export function createBot(): Bot {
     const joinerName = esc(ctx.from!.first_name ?? "Yangi mijoz"); // the person who clicked/scanned the invite
     if (payload.startsWith("ref_")) {
       // tell the inviter the moment their link is clicked — "you invited <name>" (the proof they asked for)
-      const r = await attachPendingReferral(id, payload.slice(4)).catch(() => ({ attached: false }) as { attached: boolean; referrerTelegramId?: string });
+      const r = await attachPendingReferral(id, payload.slice(4)).catch(() => ({ attached: false }) as { attached: boolean; referrerTelegramId?: string; startReward?: number });
       if (r.attached && r.referrerTelegramId) {
-        await bot.api
-          .sendMessage(
-            r.referrerTelegramId,
-            `🎉 <b>Siz ${joinerName}ni taklif qildingiz!</b>\n\n<b>${joinerName}</b> havolangiz orqali botga kirdi. U telefon ulab birinchi safarini qilsa — sizga <b>${formatNumber(REFERRER_REWARD)} tanga</b> tushadi. 🎁`,
-            { parse_mode: "HTML" },
-          )
-          .catch(() => undefined);
+        const start = r.startReward ?? 0;
+        const msg =
+          start > 0
+            ? `🎉 <b>${joinerName} havolangiz orqali qo'shildi!</b>\n\n👥 Sizga darhol <b>+${formatNumber(start)} tanga</b> tushdi. Do'stingiz raqamini ulasa — yana sovg'a, birinchi safarini qilsa — yana! 🚕`
+            : `🎉 <b>Siz ${joinerName}ni taklif qildingiz!</b>\n\n<b>${joinerName}</b> havolangiz orqali botga kirdi. U telefon ulab birinchi safarini qilsa — sizga <b>${formatNumber(REFERRER_REWARD)} tanga</b> tushadi. 🎁`;
+        await bot.api.sendMessage(r.referrerTelegramId, msg, { parse_mode: "HTML" }).catch(() => undefined);
       }
     }
     if (payload.startsWith("drvdrv_")) {
@@ -252,13 +251,28 @@ export function createBot(): Bot {
       if (res.memberId) {
         const credit = await completeReferral(id, res.memberId).catch(() => null);
         if (credit) {
-          await ctx
-            .reply(
-              `🎁 Do'st taklifi qabul qilindi!\nBirinchi safaringizdan keyin <b>+${formatNumber(credit.refereeReward)} tanga</b> sovg'a olasiz 🚕`,
-              { parse_mode: "HTML" },
-            )
-            .catch(() => undefined);
-          if (credit.referrerReward > 0) {
+          // friend: only promise an on-ride bonus when there IS one (legacy, or staged w/o join-welcome).
+          // In STAGED with the join-welcome ON, the friend already saw their +5000 message above.
+          if (credit.refereeReward > 0) {
+            await ctx
+              .reply(
+                `🎁 Do'st taklifi qabul qilindi!\nBirinchi safaringizdan keyin <b>+${formatNumber(credit.refereeReward)} tanga</b> sovg'a olasiz 🚕`,
+                { parse_mode: "HTML" },
+              )
+              .catch(() => undefined);
+          }
+          // inviter: STAGED → "raqam ulandi, +refShare now, +refRide on ride"; LEGACY → the win card.
+          if (credit.staged && credit.shareReward > 0) {
+            const rideMore =
+              credit.referrerReward > 0 ? ` Birinchi safarini qilsa — yana <b>+${formatNumber(credit.referrerReward)} tanga</b>! 🚕` : "";
+            await ctx.api
+              .sendMessage(
+                credit.referrerTelegramId,
+                `📱 <b>Do'stingiz raqamini uladi!</b>\n\n👥 Sizga <b>+${formatNumber(credit.shareReward)} tanga</b> tushdi.${rideMore}`,
+                { parse_mode: "HTML" },
+              )
+              .catch(() => undefined);
+          } else if (!credit.staged && credit.referrerReward > 0) {
             await ctx.api
               .sendMessage(credit.referrerTelegramId, renderReferralWin(credit.referrerReward), { parse_mode: "HTML" })
               .catch(() => undefined);

@@ -200,8 +200,9 @@ export interface LinkResult {
 /**
  * 🎁 Universal JOIN welcome: the moment ANYONE (client OR driver) first links their phone, they
  * get ONE firstRide (5000) tanga — no ride/drive needed. Idempotent (welcome_join:<memberId>),
- * gated by "welcomebonus" (DARK). Referral/recruit joiners are SKIPPED here — they receive the
- * same 5000 through their invite flow (anti-abuse, on first ride), so nobody is double-paid.
+ * gated by "welcomebonus" (DARK). Driver-recruit joiners are SKIPPED (paid via the recruit flow).
+ * Client-referral (ref_) joiners: LEGACY skips them (paid 5000 on first ride via the invite flow);
+ * STAGED (refstaged) pays them HERE on join like everyone else — see below. Never double-paid.
  * Tanga stays withdraw-gated (no_ride), so a non-rider can't cash it — soft, low-risk incentive.
  */
 async function grantJoinWelcome(memberId: number, telegramId: string): Promise<number> {
@@ -210,7 +211,11 @@ async function grantJoinWelcome(memberId: number, telegramId: string): Promise<n
     if (!(await featureOn("welcomebonus"))) return 0;
     const tu = await prisma.telegramUser.findUnique({ where: { id: telegramId }, select: { referredByCode: true } });
     const code = tu?.referredByCode ?? "";
-    if (code.startsWith("ref_") || code.startsWith("drv_")) return 0; // invited → paid via the invite flow
+    if (code.startsWith("drv_")) return 0; // driver recruit → paid via its own recruit flow
+    // ref_ (client referral): LEGACY pays the friend's 5000 on their FIRST RIDE → skip here to avoid
+    // double-pay. STAGED (refstaged) pays the friend's 5000 HERE on JOIN — same as every other joiner,
+    // so the invited friend no longer waits for a ride → let ref_ through when staged.
+    if (code.startsWith("ref_") && !(await featureOn("refstaged"))) return 0;
     const { getBonusEcon } = await import("./bonusConfig");
     const amt = (await getBonusEcon()).firstRide ?? 5000;
     if (amt <= 0) return 0;
