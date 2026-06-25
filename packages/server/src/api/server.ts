@@ -1154,6 +1154,12 @@ export function createApiServer(opts: ApiOptions = {}) {
     const { recruitStats } = await import("../services/recruitService");
     res.json(await recruitStats());
   });
+  app.get("/api/admin/recruits/:driverId", requireAdmin, async (req, res) => {
+    const { recruitDetail } = await import("../services/recruitService");
+    const id = Math.floor(Number(req.params.driverId));
+    if (!id) { res.status(400).json({ error: "bad driverId" }); return; }
+    res.json(await recruitDetail(id));
+  });
   app.post("/api/admin/unflag", requireAdmin, requireOwner, async (req, res) => {
     const { unflagMember } = await import("../services/reconciliation");
     const id = Math.floor(Number((req.body as { memberId?: number })?.memberId ?? 0));

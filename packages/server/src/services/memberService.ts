@@ -211,7 +211,11 @@ async function grantJoinWelcome(memberId: number, telegramId: string): Promise<n
     if (!(await featureOn("welcomebonus"))) return 0;
     const tu = await prisma.telegramUser.findUnique({ where: { id: telegramId }, select: { referredByCode: true } });
     const code = tu?.referredByCode ?? "";
-    if (code.startsWith("drv_")) return 0; // driver recruit → paid via its own recruit flow
+    if (code.startsWith("drvdrv_")) return 0; // driver→driver recruit → recruited DRIVER gets no client welcome
+    // drv_ (client via a driver's QR): LEGACY pays the client's 5000 on ride #1 (recruit_welcome) → skip
+    // here. STAGED (drvstaged) pays it HERE on JOIN like everyone → let drv_ through when staged.
+    // (checked AFTER drvdrv_ since "drvdrv_" also startsWith "drv_").
+    if (code.startsWith("drv_") && !(await featureOn("drvstaged"))) return 0;
     // ref_ (client referral): LEGACY pays the friend's 5000 on their FIRST RIDE → skip here to avoid
     // double-pay. STAGED (refstaged) pays the friend's 5000 HERE on JOIN — same as every other joiner,
     // so the invited friend no longer waits for a ride → let ref_ through when staged.

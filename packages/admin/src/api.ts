@@ -124,6 +124,14 @@ export const adminApi = {
   optokenRevoke: (token: string) => req<{ ok: boolean }>(`/api/admin/optokens/${encodeURIComponent(token)}`, { method: "DELETE" }),
   unflag: (memberId: number) => postJson<AdminActionResult>("/api/admin/unflag", { memberId }),
   recruitQrUrl: (driverId: number) => `${API_BASE}/api/admin/recruitqr/${driverId}`,
+  recruits: () => req<{ driverId: number; fullName: string; scanned: number; joined: number; rode: number; earned: number }[]>("/api/admin/recruits"),
+  recruitDetail: (driverId: number) =>
+    req<{
+      driverId: number;
+      fullName: string;
+      clients: { name: string; phone: string; status: "scanned" | "joined" | "rode"; rides: number }[];
+      earned: { start: number; share: number; revshare: number; legacy: number; total: number };
+    }>(`/api/admin/recruits/${driverId}`),
   corpReport: (id: number) => req<{ corp: { name: string; balance: number }; rows: { phone: string; name: string | null; rides: number; overCap: boolean }[]; totalRides: number }>(`/api/admin/corps/${id}/report`),
   northstar: () =>
     req<{ weekCompleted: number; prevWeekCompleted: number; botShare: number; weeklyActiveRiders: number; coinLiability: number; weekDays: number }>(

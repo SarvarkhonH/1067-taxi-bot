@@ -196,16 +196,15 @@ export function createBot(): Bot {
       }
     } else if (payload.startsWith("drv_")) {
       const { attachDriverRecruit } = await import("../services/recruitService");
-      const r = await attachDriverRecruit(id, Number(payload.slice(4))).catch(() => ({ attached: false }) as { attached: boolean; driverTelegramId?: string });
+      const r = await attachDriverRecruit(id, Number(payload.slice(4))).catch(() => ({ attached: false }) as { attached: boolean; driverTelegramId?: string; startReward?: number });
       // immediate driver feedback — "you invited <name>" the moment their QR is scanned
       if (r.attached && r.driverTelegramId) {
-        await bot.api
-          .sendMessage(
-            r.driverTelegramId,
-            `🎉 <b>Siz ${joinerName}ni taklif qildingiz!</b>\n\n<b>${joinerName}</b> QR kodingiz orqali qo'shildi. U birinchi safarini qilganda siz <b>500 tanga</b> olasiz, keyin har safaridan ulush. 🚖\n<i>Panelda «⏳ Kutilmoqda» da ko'rinadi.</i>`,
-            { parse_mode: "HTML" },
-          )
-          .catch(() => undefined);
+        const start = r.startReward ?? 0;
+        const msg =
+          start > 0
+            ? `🎉 <b>${joinerName} QR kodingiz orqali qo'shildi!</b>\n\n🚖 Sizga darhol <b>+${formatNumber(start)} tanga</b> tushdi. U raqamini ulasa — yana sovg'a, har safaridan — ulush! 💰`
+            : `🎉 <b>Siz ${joinerName}ni taklif qildingiz!</b>\n\n<b>${joinerName}</b> QR kodingiz orqali qo'shildi. U birinchi safarini qilganda siz <b>500 tanga</b> olasiz, keyin har safaridan ulush. 🚖\n<i>Panelda «⏳ Kutilmoqda» da ko'rinadi.</i>`;
+        await bot.api.sendMessage(r.driverTelegramId, msg, { parse_mode: "HTML" }).catch(() => undefined);
       }
     }
     const me = await getMe(id);
@@ -277,6 +276,18 @@ export function createBot(): Bot {
               .sendMessage(credit.referrerTelegramId, renderReferralWin(credit.referrerReward), { parse_mode: "HTML" })
               .catch(() => undefined);
           }
+        }
+        // 🚖 driver-QR staged: if this client arrived via a driver's QR, pay the driver the share-stage reward.
+        const { completeDriverRecruitShare } = await import("../services/recruitService");
+        const drv = await completeDriverRecruitShare(id, res.memberId).catch(() => null);
+        if (drv?.driverTelegramId && drv.shareReward > 0) {
+          await ctx.api
+            .sendMessage(
+              drv.driverTelegramId,
+              `📱 <b>QR-mijozingiz raqamini uladi!</b>\n\n🚖 Sizga <b>+${formatNumber(drv.shareReward)} tanga</b> tushdi. Endi har safaridan ulush olasiz! 💰`,
+              { parse_mode: "HTML" },
+            )
+            .catch(() => undefined);
         }
       }
       if (me) await ctx.reply(renderProfile(me), { parse_mode: "HTML", reply_markup: mainMenu(me.type === "driver") });

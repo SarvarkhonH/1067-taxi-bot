@@ -31,7 +31,7 @@ function norm9(p: string): string {
 export async function attachDriverRecruit(
   riderTelegramId: string,
   driverMemberId: number,
-): Promise<{ attached: boolean; driverTelegramId?: string }> {
+): Promise<{ attached: boolean; driverTelegramId?: string; startReward?: number }> {
   const tu = await prisma.telegramUser.findUnique({ where: { id: riderTelegramId } });
   if (tu?.memberId || tu?.referredByCode) return { attached: false }; // only brand-new users
   const driver = await prisma.member.findUnique({ where: { id: driverMemberId }, select: { type: true } });
@@ -42,7 +42,53 @@ export async function attachDriverRecruit(
     update: { referredByCode: `drv_${driverMemberId}` },
   });
   const drvTu = await prisma.telegramUser.findFirst({ where: { memberId: driverMemberId }, select: { id: true } });
-  return { attached: true, driverTelegramId: drvTu?.id };
+  // 🚖 STAGED (drvstaged): the driver earns the moment their passenger presses START. Idempotent per
+  // rider Telegram id (drv_start:<id>) — re-scans no-op (referredByCode is now set → attach returns
+  // early above). Legacy mode (flag OFF) pays nothing here (driver paid on the rider's rides instead).
+  let startReward = 0;
+  try {
+    const { featureOn } = await import("./featureFlags");
+    if (await featureOn("drvstaged")) {
+      const amt = (await getBonusEcon()).drvStart ?? 0;
+      if (amt > 0) {
+        const g = await grantCoins(driverMemberId, amt, "recruit", "🚖 QR: yangi mijoz qo'shildi", `drv_start:${riderTelegramId}`);
+        if (g.ok) startReward = amt;
+      }
+    }
+  } catch {
+    /* start-bonus is best-effort; never block the attach (the recruit is already recorded) */
+  }
+  return { attached: true, driverTelegramId: drvTu?.id, startReward };
+}
+
+/**
+ * 🚖 STAGED driver-QR: when a QR-recruited rider LINKS their phone, the driver earns drvShare (once).
+ * Idempotent (drv_share:<riderTg>), self/family phone-deduped, gated by drvstaged. Returns the driver's
+ * telegram id + the amount so the caller can notify the driver. No-op for non-drv_ codes / legacy mode.
+ */
+export async function completeDriverRecruitShare(
+  riderTelegramId: string,
+  riderMemberId: number,
+): Promise<{ driverTelegramId?: string; shareReward: number } | null> {
+  const { featureOn } = await import("./featureFlags");
+  if (!(await featureOn("drvstaged"))) return null;
+  const tu = await prisma.telegramUser.findUnique({ where: { id: riderTelegramId }, select: { referredByCode: true } });
+  const code = tu?.referredByCode ?? "";
+  if (!code.startsWith("drv_") || code.startsWith("drvdrv_")) return null; // client-recruit only (not driver→driver)
+  const driverId = Number(code.slice(4));
+  if (!Number.isFinite(driverId)) return null;
+  const driver = await prisma.member.findUnique({ where: { id: driverId }, select: { type: true, phone: true } });
+  if (!driver || driver.type !== "driver") return null;
+  const rider = await prisma.member.findUnique({ where: { id: riderMemberId }, select: { phone: true } });
+  if (rider?.phone && driver.phone && norm9(rider.phone) === norm9(driver.phone)) return null; // self/family
+  const amt = (await getBonusEcon()).drvShare ?? 0;
+  let shareReward = 0;
+  if (amt > 0) {
+    const g = await grantCoins(driverId, amt, "recruit", "🚖 QR: mijozingiz raqamini uladi", `drv_share:${riderTelegramId}`);
+    if (g.ok) shareReward = amt;
+  }
+  const drvTu = await prisma.telegramUser.findFirst({ where: { memberId: driverId }, select: { id: true } });
+  return { driverTelegramId: drvTu?.id, shareReward };
 }
 
 /**
@@ -57,6 +103,7 @@ export async function payRecruitRevshare(riderMemberId: number, bookingId: numbe
   const code = tu?.referredByCode ?? "";
   if (!code.startsWith("drv_") || code.startsWith("drvdrv_")) return; // drvdrv_ = driver→driver link, NOT a client recruit
   const econ = await getBonusEcon();
+  const staged = await featureOn("drvstaged");
   const driverId = Number(code.slice(4));
   if (!Number.isFinite(driverId)) return;
   const driver = await prisma.member.findUnique({ where: { id: driverId }, select: { id: true, type: true, phone: true } });
@@ -84,13 +131,21 @@ export async function payRecruitRevshare(riderMemberId: number, bookingId: numbe
       recruit = await prisma.driverRecruit.findUnique({ where: { riderMemberId } });
       if (!recruit) throw e;
     }
-    await grantCoins(driverId, econ.recruitFirst ?? 500, "recruit", "🚖 QR: yangi mijozingiz birinchi safarini qildi", `recruit1:${recruit.id}`);
-    // 🎁 the recruited CUSTOMER's first-ride welcome bonus — the driver QR promises it. Paid via
-    // grantCoins (OUTSIDE the per-ride clamp, like a referral referee reward), idempotent per
-    // recruit so it lands exactly once. Same admin knob as welcome/referee (econ.firstRide).
-    await grantCoins(riderMemberId, econ.firstRide ?? RECRUIT_WELCOME, "referral", "🎁 QR orqali qo'shildingiz — birinchi safar sovg'asi!", `recruit_welcome:${recruit.id}`);
+    // LEGACY pays the driver 500 + the client's 5000 welcome HERE on ride #1. STAGED (drvstaged) pays the
+    // driver earlier (drv_start/drv_share) → skip the driver 500 here. The client's 5000 is paid on JOIN in
+    // staged mode (grantJoinWelcome) — but ONLY when welcomebonus is ON; if it's OFF, fall back to paying it
+    // here so the recruited client is NEVER left with nothing (mirrors the ref_ staged fallback).
+    if (!staged) {
+      await grantCoins(driverId, econ.recruitFirst ?? 500, "recruit", "🚖 QR: yangi mijozingiz birinchi safarini qildi", `recruit1:${recruit.id}`);
+    }
+    const clientPaidOnJoin = staged && (await featureOn("welcomebonus"));
+    if (!clientPaidOnJoin) {
+      // 🎁 the recruited CUSTOMER's first-ride welcome (OUTSIDE the per-ride clamp), idempotent per recruit.
+      await grantCoins(riderMemberId, econ.firstRide ?? RECRUIT_WELCOME, "referral", "🎁 QR orqali qo'shildingiz — birinchi safar sovg'asi!", `recruit_welcome:${recruit.id}`);
+    }
   }
-  if (rideCount >= 3) {
+  if (!staged && rideCount >= 3) {
+    // legacy ride#3 bonus; STAGED replaces it with the driver's upfront drvStart + drvShare.
     await grantCoins(driverId, econ.recruit3 ?? 1000, "recruit", "🚖 QR: mijozingiz 3-safarini qildi", `recruit3:${recruit.id}`);
   }
 
@@ -100,7 +155,9 @@ export async function payRecruitRevshare(riderMemberId: number, bookingId: numbe
   const active = await prisma.coinTxn.findFirst({ where: { memberId: driverId, kind: "driver_bonus", createdAt: { gte: weekAgo } } });
   if (!active) return;
 
-  const rate = Date.now() - recruit.createdAt.getTime() < SIX_MONTHS ? (econ.revshareFresh ?? REVSHARE_FRESH) : (econ.revshareVeteran ?? REVSHARE_VETERAN);
+  // fresh-rate window: STAGED uses the revshareMonths knob (default 1mo); legacy keeps the 6-month window.
+  const freshWindowMs = staged ? (econ.revshareMonths ?? 1) * 30 * 24 * 3600 * 1000 : SIX_MONTHS;
+  const rate = Date.now() - recruit.createdAt.getTime() < freshWindowMs ? (econ.revshareFresh ?? REVSHARE_FRESH) : (econ.revshareVeteran ?? REVSHARE_VETERAN);
   const monthAgo = new Date(Date.now() - 30 * 24 * 3600 * 1000);
   const monthSum = await prisma.coinTxn.aggregate({
     where: { memberId: driverId, kind: "revshare", createdAt: { gte: monthAgo } },
@@ -216,17 +273,75 @@ export async function payDriverRecruitMilestone(
   return { paid: true, recruiterTelegramId: rTu?.id, amount: milestone };
 }
 
-/** Admin: per-driver recruit leaderboard. */
-export async function recruitStats(): Promise<{ driverId: number; fullName: string; recruits: number; earned: number }[]> {
-  const rows = await prisma.driverRecruit.groupBy({ by: ["driverId"], _count: { id: true } });
-  const out: { driverId: number; fullName: string; recruits: number; earned: number }[] = [];
-  for (const r of rows) {
-    const m = await prisma.member.findUnique({ where: { id: r.driverId }, select: { fullName: true } });
-    const earned = await prisma.coinTxn.aggregate({
-      where: { memberId: r.driverId, kind: { in: ["recruit", "revshare"] } },
-      _sum: { amount: true },
-    });
-    out.push({ driverId: r.driverId, fullName: m?.fullName ?? "?", recruits: r._count.id, earned: Math.round(earned._sum.amount ?? 0) });
+/** Admin: per-driver QR funnel — scanned (QR opened) → joined (linked phone) → rode (≥1 ride) + money.
+ *  Scan-based (not driverRecruit-row based) so STAGED drivers who earned on scan/share BEFORE any ride
+ *  still show up. drvdrv_ (driver→driver) is excluded — this is the client-QR funnel only. */
+export async function recruitStats(): Promise<{ driverId: number; fullName: string; scanned: number; joined: number; rode: number; earned: number }[]> {
+  const scans = await prisma.telegramUser.findMany({
+    where: { referredByCode: { startsWith: "drv_" } },
+    select: { referredByCode: true, memberId: true },
+  });
+  const byDriver = new Map<number, { scanned: number; joined: number }>();
+  for (const s of scans) {
+    const code = s.referredByCode ?? "";
+    if (code.startsWith("drvdrv_")) continue; // driver→driver recruit, not a client QR
+    const id = Number(code.slice(4));
+    if (!Number.isFinite(id)) continue;
+    const cur = byDriver.get(id) ?? { scanned: 0, joined: 0 };
+    cur.scanned++;
+    if (s.memberId) cur.joined++;
+    byDriver.set(id, cur);
   }
-  return out.sort((a, b) => b.recruits - a.recruits).slice(0, 50);
+  const out: { driverId: number; fullName: string; scanned: number; joined: number; rode: number; earned: number }[] = [];
+  for (const [driverId, c] of byDriver) {
+    const [m, rode, earned] = await Promise.all([
+      prisma.member.findUnique({ where: { id: driverId }, select: { fullName: true } }),
+      prisma.driverRecruit.count({ where: { driverId } }),
+      prisma.coinTxn.aggregate({ where: { memberId: driverId, kind: { in: ["recruit", "revshare"] } }, _sum: { amount: true } }),
+    ]);
+    out.push({ driverId, fullName: m?.fullName ?? "?", scanned: c.scanned, joined: c.joined, rode, earned: Math.round(earned._sum.amount ?? 0) });
+  }
+  return out.sort((a, b) => b.earned - a.earned).slice(0, 100);
+}
+
+/** Admin drill-down: a single driver's recruited clients (who scanned/joined/rode) + money breakdown
+ *  by stage (drv_start / drv_share / revshare / legacy recruit). Lets the owner monitor & control. */
+export async function recruitDetail(driverId: number): Promise<{
+  driverId: number;
+  fullName: string;
+  clients: { name: string; phone: string; status: "scanned" | "joined" | "rode"; rides: number }[];
+  earned: { start: number; share: number; revshare: number; legacy: number; total: number };
+}> {
+  const driver = await prisma.member.findUnique({ where: { id: driverId }, select: { fullName: true } });
+  const scans = await prisma.telegramUser.findMany({ where: { referredByCode: `drv_${driverId}` }, select: { memberId: true } });
+  const clients: { name: string; phone: string; status: "scanned" | "joined" | "rode"; rides: number }[] = [];
+  for (const s of scans) {
+    if (!s.memberId) {
+      clients.push({ name: "—", phone: "—", status: "scanned", rides: 0 });
+      continue;
+    }
+    const [m, rides] = await Promise.all([
+      prisma.member.findUnique({ where: { id: s.memberId }, select: { fullName: true, phone: true } }),
+      prisma.rideReward.count({ where: { memberId: s.memberId } }),
+    ]);
+    clients.push({ name: m?.fullName ?? "—", phone: m?.phone ?? "—", status: rides > 0 ? "rode" : "joined", rides });
+  }
+  const txns = await prisma.coinTxn.findMany({
+    where: { memberId: driverId, kind: { in: ["recruit", "revshare"] } },
+    select: { amount: true, idempotencyKey: true },
+  });
+  let start = 0, share = 0, revshare = 0, legacy = 0;
+  for (const t of txns) {
+    const k = t.idempotencyKey ?? "";
+    if (k.startsWith("drv_start:")) start += t.amount;
+    else if (k.startsWith("drv_share:")) share += t.amount;
+    else if (k.startsWith("rev:")) revshare += t.amount;
+    else legacy += t.amount; // recruit1 / recruit3
+  }
+  return {
+    driverId,
+    fullName: driver?.fullName ?? "?",
+    clients: clients.sort((a, b) => b.rides - a.rides),
+    earned: { start, share, revshare, legacy, total: start + share + revshare + legacy },
+  };
 }

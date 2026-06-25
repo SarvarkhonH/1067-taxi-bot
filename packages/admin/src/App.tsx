@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type FormEvent } from "react";
+import { Fragment, useEffect, useMemo, useState, type FormEvent } from "react";
 import {
   formatNumber,
   type AdminAuditRow,
@@ -101,7 +101,7 @@ export function App() {
       {tab === "x360" && <X360View />}
       {(tab === "driver" || tab === "client") && <MembersTab type={tab} />}
       {tab === "botusers" && <BotUsersTab />}
-      {tab === "boshqaruv" && <BoshqaruvView />}
+      {tab === "boshqaruv" && <><BoshqaruvView /><RecruitsView /></>}
       {tab === "topshiriq" && <><CampaignsView /><DriverMissionsView /></>}
       {tab === "actions" && (<><ActionsView /><ControlCards /></>)}
       {tab === "integrity" && <IntegrityView />}
@@ -1023,6 +1023,85 @@ function DriverMissionsView() {
         )}
       </section>
     </>
+  );
+}
+
+function RecruitsView() {
+  const [rows, setRows] = useState<{ driverId: number; fullName: string; scanned: number; joined: number; rode: number; earned: number }[] | null>(null);
+  const [openId, setOpenId] = useState<number | null>(null);
+  const [detail, setDetail] = useState<{ driverId: number; fullName: string; clients: { name: string; phone: string; status: "scanned" | "joined" | "rode"; rides: number }[]; earned: { start: number; share: number; revshare: number; legacy: number; total: number } } | null>(null);
+  useEffect(() => { adminApi.recruits().then(setRows).catch(() => setRows([])); }, []);
+  const toggle = async (id: number) => {
+    if (openId === id) { setOpenId(null); setDetail(null); return; }
+    setOpenId(id);
+    setDetail(null);
+    setDetail(await adminApi.recruitDetail(id).catch(() => null));
+  };
+  return (
+    <section className="card">
+      <h3>🚖 Haydovchi QR nazorati</h3>
+      <p className="muted" style={{ margin: "0 0 8px", fontSize: 12 }}>
+        Kim nechta skaner qildirgan → kimlar raqam ulagan → kimlar safar qilgan, va har haydovchi qancha topgan. «Ko'rish» — mijozlar ro'yxati + pul taqsimoti (START / raqam / revshare).
+      </p>
+      {!rows ? (
+        <p className="muted">Yuklanmoqda…</p>
+      ) : rows.length === 0 ? (
+        <p className="muted">Hali QR orqali recruit yo'q.</p>
+      ) : (
+        <table>
+          <thead>
+            <tr><th>Haydovchi</th><th className="num">Skaner</th><th className="num">Ulandi</th><th className="num">Safar</th><th className="num">🪙 Topdi</th><th></th></tr>
+          </thead>
+          <tbody>
+            {rows.map((r) => (
+              <Fragment key={r.driverId}>
+                <tr>
+                  <td>{r.fullName} <span className="muted">#{r.driverId}</span></td>
+                  <td className="num">{r.scanned}</td>
+                  <td className="num">{r.joined}</td>
+                  <td className="num">{r.rode}</td>
+                  <td className="num">{formatNumber(r.earned)}</td>
+                  <td><button className="btn" onClick={() => toggle(r.driverId)}>{openId === r.driverId ? "Yopish" : "Ko'rish"}</button></td>
+                </tr>
+                {openId === r.driverId && (
+                  <tr>
+                    <td colSpan={6}>
+                      {!detail ? (
+                        <span className="muted">Yuklanmoqda…</span>
+                      ) : (
+                        <div style={{ padding: "4px 0 8px" }}>
+                          <p className="muted" style={{ margin: "0 0 6px", fontSize: 12 }}>
+                            💰 START: {formatNumber(detail.earned.start)} · raqam: {formatNumber(detail.earned.share)} · revshare: {formatNumber(detail.earned.revshare)}
+                            {detail.earned.legacy ? ` · eski: ${formatNumber(detail.earned.legacy)}` : ""} · jami: <b>{formatNumber(detail.earned.total)}</b>
+                          </p>
+                          {detail.clients.length === 0 ? (
+                            <span className="muted">Mijoz yo'q.</span>
+                          ) : (
+                            <table>
+                              <thead><tr><th>Mijoz</th><th>Telefon</th><th>Holat</th><th className="num">Safar</th></tr></thead>
+                              <tbody>
+                                {detail.clients.map((c, i) => (
+                                  <tr key={i}>
+                                    <td>{c.name}</td>
+                                    <td>{c.phone}</td>
+                                    <td>{c.status === "rode" ? "🚕 safar qildi" : c.status === "joined" ? "📱 ulandi" : "👀 skaner"}</td>
+                                    <td className="num">{c.rides}</td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          )}
+                        </div>
+                      )}
+                    </td>
+                  </tr>
+                )}
+              </Fragment>
+            ))}
+          </tbody>
+        </table>
+      )}
+    </section>
   );
 }
 
