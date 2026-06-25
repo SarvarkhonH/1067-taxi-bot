@@ -635,6 +635,7 @@ export function createApiServer(opts: ApiOptions = {}) {
   app.get("/api/home", requireUser, withMember(async (id) => {
     const { getMeByMemberId } = await import("../services/memberService");
     const { nearbyPins } = await import("../services/bookingPlus");
+    const { inflateOnline } = await import("@t1067/shared");
     const [info, me, pins] = await Promise.all([
       getBookingInfo(id),
       getMeByMemberId(id),
@@ -650,7 +651,7 @@ export function createApiServer(opts: ApiOptions = {}) {
       coins: me?.coins ?? 0,
       cashback: me?.stats.points ?? 0,
       streak: me?.streak?.current ?? 0,
-      freeCars: pins.freeDrivers,
+      freeCars: inflateOnline(pins.freeDrivers), // riders see ~2× free cars (display only)
       carPins: pins.pins.slice(0, 12),
       center,
       usualRide: q ? { id: q.id, name: q.name } : null,
@@ -799,7 +800,9 @@ export function createApiServer(opts: ApiOptions = {}) {
   });
   app.get("/api/booking/nearby", requireUser, async (_req, res) => {
     const { nearbyPins } = await import("../services/bookingPlus");
-    res.json(await nearbyPins());
+    const { inflateOnline } = await import("@t1067/shared");
+    const np = await nearbyPins();
+    res.json({ ...np, freeDrivers: inflateOnline(np.freeDrivers) }); // riders see ~2× free cars; pins stay real
   });
   app.post("/api/booking/rate", requireUser, rateLimit(10), withMember2(async (id, req) => {
     const { rateRide, RATING_TAGS } = await import("../services/bookingPlus");

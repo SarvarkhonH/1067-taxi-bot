@@ -7,7 +7,7 @@
 // ETA-guess game now and the Garaj earn in Wave B.
 import { InlineKeyboard, type Bot } from "grammy";
 import type { Prisma } from "@prisma/client";
-import { formatNumber, haversineKm } from "@t1067/shared";
+import { formatNumber, haversineKm, inflateOnline } from "@t1067/shared";
 import { prisma } from "../db";
 import { getDataSource, type ActiveBookingLite, type BookingDriver, type KasDataSource, type RideHistoryItem } from "../kas";
 import { incrementMission } from "./missionService";
@@ -187,7 +187,8 @@ export async function pushBookingUpdates(
   const searchQueue = bookings.filter((x) => SEARCHING.has(x.status) && !x.carNumber).sort((a, b) => a.id - b.id);
   let freeDrivers: number | undefined;
   try {
-    freeDrivers = (await ds.getMainReport()).onlineDrivers || undefined;
+    const onlineReal = (await ds.getMainReport()).onlineDrivers;
+    freeDrivers = onlineReal ? inflateOnline(onlineReal) : undefined; // riders see ~2× (display only; dispatch uses real)
   } catch {
     /* optional */
   }

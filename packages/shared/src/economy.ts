@@ -101,6 +101,15 @@ export function clampTransferEcon(key: string, val: number): number {
   return Math.max(k.min, Math.min(k.max, val));
 }
 
+// ── 🚗 perceived liveliness: online-driver count shown to RIDERS is inflated (the city must never
+// read "empty"). Riders see ~2× the real free-driver count everywhere it's displayed (home badge,
+// booking map, bot search timeline). Dispatch + the ADMIN livemap always use the REAL number — this
+// helper is DISPLAY-ONLY. Single source so "2×" is changed in one place. ──────────────────────────
+export const ONLINE_DISPLAY_MULT = 2;
+export function inflateOnline(real: number): number {
+  return Math.round((real || 0) * ONLINE_DISPLAY_MULT);
+}
+
 // ── 🎁 dashboard-configurable acquisition bonuses (owner-tunable, like MOTOR_ECON_KNOBS) ──────
 // The growth levers the owner tunes WITHOUT a deploy. `firstRide` is the single first-ride bonus
 // (welcome + referee + recruit-welcome all read it); the rest are the per-flow sharer rewards.

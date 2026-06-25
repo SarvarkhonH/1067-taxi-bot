@@ -447,8 +447,8 @@ function Booking3Inner({ me, info, onClose }: { me: MeResponse; info: BookingInf
     const load = async () => {
       const r = await api.bookingNearby().catch(() => null);
       if (!alive || !r || !map.current) return;
-      // owner: show ~2× online cars, never below the ghost floor so the map never reads "empty"
-      setFreeDrivers(Math.max(r.freeDrivers * 2, GHOST_FREE + GHOST_RIDES));
+      // server already inflates the count ~2× (inflateOnline) — keep the ghost floor so it never reads "empty"
+      setFreeDrivers(Math.max(r.freeDrivers, GHOST_FREE + GHOST_RIDES));
       fleetRef.current = r.pins; // raw coords for the search beam
       for (const mk of pinMarkers.current) mk.remove();
       pinMarkers.current = r.pins
@@ -703,7 +703,7 @@ function Booking3Inner({ me, info, onClose }: { me: MeResponse; info: BookingInf
         assigned ? Promise.resolve(null) : api.bookingNearby().catch(() => null),
       ]);
       if (!alive) return;
-      if (near) setFreeDrivers(near.freeDrivers);
+      if (near) setFreeDrivers(Math.max(near.freeDrivers, GHOST_FREE + GHOST_RIDES)); // server-inflated; keep ghost floor
       // E7: ride finished — had an active ride last poll, now gone → peak-end finish screen.
       // DISPLAY only: rewards were granted by the bot sweep; the Mini App never grants.
       if (!a && activeRef.current) {
