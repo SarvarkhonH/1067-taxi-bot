@@ -58,7 +58,7 @@ export const DROP_BUCKETS: Record<string, readonly [number, number]> = {
 };
 
 // ── costs / sinks ─────────────────────────────────────────────────────────────
-export const INSPECT_COSTS = { VISUAL_OWN: 0, VISUAL_MARKET: 30, TOOL: 120, EXPERT: 400 } as const;
+export const INSPECT_COSTS = { TOOL: 120, EXPERT: 400 } as const;
 export const PART_SHOP_PRICES: Record<string, number> = { SALVAGE: 40, STD: 80, OEM: 200, SPORT: 500 };
 
 // 🔧 Repair-depth: a car has 5 ZONES; you fix each with a chosen PART tier. Better

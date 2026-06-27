@@ -744,35 +744,6 @@ export async function ofisSellToOfis(memberId: number, garajCarId: number): Prom
   });
 }
 
-/** Ofis releases a held car back into the bazaar at +5% (small markup keeps Ofis solvent). */
-export async function ofisRelease(garajCarId: number): Promise<{ ok: boolean; reason?: string; listingId?: number }> {
-  const car = await prisma.garajCar.findFirst({ where: { id: garajCarId, ofisHeld: true } });
-  if (!car) return { ok: false, reason: "not_found" };
-  const econ = await getMotorEcon();
-  const factor = Math.max(0.5, Math.min(0.95, econ.ofisBidFactor ?? OFIS_BID_FACTOR));
-  const basePrice = MAKE_BASE[car.carCode] ?? 0;
-  // Re-list at 1.05× of the bid we paid (Ofis margin ~25% before tax)
-  const askPrice = Math.max(1, Math.floor(basePrice * factor * 1.05));
-  // Use a sentinel sellerId for Ofis (member id 0 = Ofis — guaranteed not a real player; convention)
-  const ofisSellerId = 0;
-  const ledger = await prisma.ofisLedger.create({ data: { kind: "release", amount: 0, carCode: car.carCode, refCarId: car.id, dayKey: tashkentDate(), status: "relisted" } });
-  const listing = await prisma.garajBazaarListing.create({ data: { sellerId: ofisSellerId, garajCarId: car.id, carCode: car.carCode, askPrice, status: "open", expiresAt: new Date(Date.now() + 48 * 3600 * 1000) } });
-  // Mark the car released (still ofisHeld = true until a buyer claims; release just creates the listing)
-  return { ok: true, listingId: listing.id };
-}
-
-/** Ofis scraps a held car — permanent global supply destruction. The GarajCar row is hard
- *  deleted (true scarcity). Ledger row preserves the audit trail (refCarId points at a row
- *  that no longer exists, intentionally). */
-export async function ofisScrap(garajCarId: number): Promise<{ ok: boolean; reason?: string; carCode?: string }> {
-  const car = await prisma.garajCar.findFirst({ where: { id: garajCarId, ofisHeld: true } });
-  if (!car) return { ok: false, reason: "not_found" };
-  await prisma.ofisLedger.create({ data: { kind: "scrap", amount: 0, carCode: car.carCode, refCarId: car.id, dayKey: tashkentDate(), status: "scrapped" } });
-  // Hard delete — true supply destruction. Cascade to dependent rows handled by FK defaults.
-  await prisma.garajCar.delete({ where: { id: car.id } }).catch(() => undefined);
-  return { ok: true, carCode: car.carCode };
-}
-
 /** Stats endpoint for admin/UI: budget left + held cars + scrapped count today. */
 export async function getOfisStats(): Promise<{ budget: number; spent: number; left: number; heldCount: number; scrappedToday: number }> {
   const { budget, spent, left } = await ofisBudgetLeftToday();

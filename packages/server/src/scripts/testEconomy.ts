@@ -3,7 +3,6 @@
 import {
   BOX_PRIZES,
   DRIVER_DAILY_BONUS_CAP,
-  DRIVER_RIDE_BONUS,
   MISSIONS,
   RIDE_EMISSION_CAP,
   RIDE_REWARD_BASE,
@@ -62,7 +61,7 @@ ok(driverMissions.length === 3 && driverMissions.every((m) => m.reward <= 12000)
 // weekly league + surprise + driver
 ok(WEEKLY_PRIZES[0]!.amount === 5000 && WEEKLY_PRIZES[2]!.amount === 1000, `league prizes 5000/2500/1000`);
 ok(Math.max(...SURPRISE_PRIZES.map((p) => p.amount)) <= 300, `surprise max ≤ 300`);
-ok(DRIVER_RIDE_BONUS === 100 && DRIVER_DAILY_BONUS_CAP === 10000, `driver bonus 100, cap 10k`);
+ok(DRIVER_DAILY_BONUS_CAP === 10000, `driver daily bonus cap 10k`);
 
 // LEGAL POSTURE: no pay-for-chance constants may exist anywhere in shared
 const bag = shared as Record<string, unknown>;

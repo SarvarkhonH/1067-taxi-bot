@@ -58,7 +58,6 @@ export const RIDE_REWARD_TIERS: { tier: "standard" | "double" | "triple" | "jack
 ];
 export const RIDE_REWARD_BASE = 100; // fixed roll base (so'm) — sized to 2000/ride net
 export const RIDE_JACKPOT_FEED = 50; // every completed ride grows the pool
-export const DRIVER_RIDE_BONUS = 100; // legacy flat (superseded by tier rebate)
 export const DRIVER_DAILY_BONUS_CAP = 10000;
 // Weekly tier rebate per completed ride (commission-discount equivalent we
 // fully control). Tiers recomputed every Monday from MEASURED percentiles.
@@ -78,7 +77,6 @@ export const TRANSFER_DAILY_SENT = 30000;
 export const TRANSFER_DAILY_RECEIVED = 100000; // owner-raised 30k→100k 2026-06-27 (note: now == withdraw cap, weakens the received<withdraw anti-mule margin)
 export const TRANSFER_MAX_COUNTERPARTIES = 5; // distinct recipients per day (driver tips/fares exempt)
 export const TRANSFER_MIN_ACCOUNT_AGE_H = 48; // sender must be linked this long
-export const TRANSFER_BURN_RATE = 0.02; // legacy (kept for back-compat; commission replaces it when the flag is on)
 // A real ride FARE can far exceed the P2P friend cap, and pays a VETTED kas driver — so the
 // fare kind gets its own high ceiling and bypasses the anti-mule walls (the driver recipient
 // is a kas identity, not a farm mule; the withdraw gate still bounds real money out).
