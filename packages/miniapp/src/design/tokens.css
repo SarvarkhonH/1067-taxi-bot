@@ -544,12 +544,16 @@ body {
 @keyframes b3-pp-bob { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-2px); } }
 @media (prefers-reduced-motion: reduce) { .b3-pickperson { animation: none; } }
 /* 🎯 "turgan joyim" — recenter the map on device GPS (pinpick) */
-.b3-myloc { position: absolute; right: 14px; bottom: 212px; z-index: 6; width: 48px; height: 48px; border-radius: 50%;
-  border: 1px solid rgba(255,179,0,.4); background: radial-gradient(120% 120% at 50% 25%, rgba(255,210,90,.22), rgba(21,27,43,.96)); color: var(--brand);
-  font-size: 21px; box-shadow: 0 10px 26px -8px rgba(0,0,0,.6), inset 0 1px 0 rgba(255,255,255,.14); cursor: pointer; display: flex; align-items: center; justify-content: center; }
-.b3-myloc::before { content: ""; position: absolute; inset: -1px; border-radius: 50%; border: 2px solid rgba(255,179,0,.5); opacity: 0; animation: b3-loc-pulse 2.8s var(--ease-out) infinite; }
-@keyframes b3-loc-pulse { 0% { transform: scale(.85); opacity: .6; } 100% { transform: scale(1.35); opacity: 0; } }
-.b3-myloc:active { transform: scale(.93); }
+/* 📍 "share my location" — modern frosted-glass button with a crisp blue locate-target icon
+   (replaces the old gold-gradient 📍 emoji). The icon ring spins briefly while locating. */
+.b3-myloc { position: absolute; right: 14px; bottom: 212px; z-index: 6; width: 48px; height: 48px; border-radius: 16px;
+  border: 1px solid rgba(255,255,255,.16); background: rgba(16,22,34,.82); -webkit-backdrop-filter: blur(12px); backdrop-filter: blur(12px);
+  box-shadow: 0 10px 26px -8px rgba(0,0,0,.65), inset 0 1px 0 rgba(255,255,255,.12); cursor: pointer; display: flex; align-items: center; justify-content: center; padding: 0; }
+.b3-myloc svg { width: 24px; height: 24px; color: #38b6ff; }
+.b3-myloc:active { transform: scale(.92); }
+.b3-myloc.locating svg { animation: b3-loc-spin 1s linear infinite; }
+@keyframes b3-loc-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .b3-myloc.locating svg { animation: none; } }
 
 /* 🚶 ghost clients — gentle bob + slightly dimmed so they read as ambient, never as the real pickup */
 .b3-ghostperson { display: block; opacity: .85; animation: b3-ghostbob 2.6s ease-in-out infinite; will-change: transform; }
@@ -589,15 +593,6 @@ body {
    .leaflet-marker-pane and stay their real colours. Same proven filter as .b3-map. */
 .lh-map .leaflet-container { background: var(--surface); }
 .lh-map .leaflet-tile-pane { filter: invert(1) hue-rotate(180deg) brightness(.92) contrast(.9); }
-/* 📍 "you are here" — a modern teardrop pin that gently floats above a pulsing ground ring
-   (markers are never dark-filtered, so it keeps its gold colour on the dark map) */
-.lh-meloc { position: relative; }
-.lh-meloc svg { position: relative; z-index: 2; display: block; filter: drop-shadow(0 4px 5px rgba(0,0,0,.55)); animation: lh-meloc-bob 3s ease-in-out infinite; }
-.lh-meloc-pulse { position: absolute; left: 50%; bottom: 1px; width: 22px; height: 9px; border-radius: 50%;
-  background: rgba(255,179,0,.5); transform: translate(-50%, 35%); animation: lh-meloc-ground 2.2s ease-out infinite; z-index: 1; }
-@keyframes lh-meloc-ground { 0% { transform: translate(-50%, 35%) scale(.45); opacity: .7; } 100% { transform: translate(-50%, 35%) scale(1.9); opacity: 0; } }
-@keyframes lh-meloc-bob { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-3px); } }
-@media (prefers-reduced-motion: reduce) { .lh-meloc svg, .lh-meloc-pulse { animation: none; } }
 /* lighter now that the map itself is dark — just enough top/bottom fade for the greeting +
    a soft blend into the controls; the middle stays clear so cars/people read crisply. */
 .lh-veil { position: absolute; inset: 0; z-index: 1; pointer-events: none;

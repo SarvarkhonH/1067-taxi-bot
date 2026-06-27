@@ -348,6 +348,7 @@ function Booking3Inner({ me, info, onClose }: { me: MeResponse; info: BookingInf
   const [freeDrivers, setFreeDrivers] = useState(0);
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
+  const [locating, setLocating] = useState(false); // GPS in-flight → spin the locate icon
   const [active, setActive] = useState<ActiveBookingView | null>(info.active ?? null); // B: live status
   const activeRef = useRef<ActiveBookingView | null>(info.active ?? null); // E7: detect active→null finish
   const [finishedBid, setFinishedBid] = useState<number | null>(null); // E7: the just-finished ride
@@ -748,13 +749,15 @@ function Booking3Inner({ me, info, onClose }: { me: MeResponse; info: BookingInf
       return;
     }
     haptic();
+    setLocating(true);
     setMsg("📍 Joylashuv aniqlanmoqda…");
     navigator.geolocation.getCurrentPosition(
       (pos) => {
         map.current?.setView([pos.coords.latitude, pos.coords.longitude], 16, { animate: true });
         setMsg(null);
+        setLocating(false);
       },
-      () => setMsg("📍 Joylashuvni aniqlab bo'lmadi — ruxsat bering yoki qo'lda belgilang"),
+      () => { setMsg("📍 Joylashuvni aniqlab bo'lmadi — ruxsat bering yoki qo'lda belgilang"); setLocating(false); },
       // maximumAge:0 forces a FRESH high-accuracy fix (no stale/coarse network position); the longer
       // timeout lets the GPS chip actually lock (a real cold fix often takes >8s on a phone).
       { enableHighAccuracy: true, timeout: 14000, maximumAge: 0 },
@@ -942,7 +945,16 @@ function Booking3Inner({ me, info, onClose }: { me: MeResponse; info: BookingInf
               </g>
             </svg>
           </div>
-          <button className="b3-myloc" onClick={locateMe} aria-label="Joylashuvim" title="Joylashuvim">📍</button>
+          <button className={`b3-myloc${locating ? " locating" : ""}`} onClick={locateMe} aria-label="Joylashuvni yuborish" title="Joylashuvim">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true">
+              <circle cx="12" cy="12" r="6.5" />
+              <circle cx="12" cy="12" r="2" fill="currentColor" stroke="none" />
+              <line x1="12" y1="1.8" x2="12" y2="4.6" />
+              <line x1="12" y1="19.4" x2="12" y2="22.2" />
+              <line x1="1.8" y1="12" x2="4.6" y2="12" />
+              <line x1="19.4" y1="12" x2="22.2" y2="12" />
+            </svg>
+          </button>
         </>
       )}
 

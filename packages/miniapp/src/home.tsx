@@ -5,7 +5,7 @@ import { useEffect, useRef, useState } from "react";
 import type { HomeResponse, MeResponse } from "@t1067/shared";
 import { api } from "./api";
 import { ensureLeaflet } from "./leaflet";
-import { carDivIcon, pinkTaxiDivIcon, ghostPersonDivIcon, myLocationDivIcon, GHOST_SHIRTS, GHOST_SKINS, GHOST_DRESSES, GHOST_HAIRS, type PersonKind } from "./mapDecor";
+import { carDivIcon, pinkTaxiDivIcon, ghostPersonDivIcon, GHOST_SHIRTS, GHOST_SKINS, GHOST_DRESSES, GHOST_HAIRS, type PersonKind } from "./mapDecor";
 import { haptic } from "./telegram";
 import { WalletView } from "./wallet";
 
@@ -81,10 +81,6 @@ export function LivingHome(props: {
         const el = mk.getElement()?.querySelector(".b3-ghostperson") as HTMLElement | null;
         if (el) el.style.animationDelay = `${(Math.random() * 2.4).toFixed(2)}s`; // stagger the bob
       }
-      // 📍 "you are here" — glowing pulse at the rider's area, on top of everything
-      L.marker([home.center.lat, home.center.lng], {
-        icon: L.divIcon(myLocationDivIcon(34)), interactive: false, zIndexOffset: 600,
-      }).addTo(m);
       map.current = m;
     });
     return () => {
