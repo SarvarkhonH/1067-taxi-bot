@@ -5,6 +5,7 @@ import { useEffect, useRef, useState } from "react";
 import type { HomeResponse, MeResponse } from "@t1067/shared";
 import { api } from "./api";
 import { ensureLeaflet } from "./leaflet";
+import { carDivIcon, ghostPersonDivIcon, GHOST_SHIRTS, GHOST_SKINS } from "./mapDecor";
 import { haptic } from "./telegram";
 import { WalletView } from "./wallet";
 
@@ -46,14 +47,27 @@ export function LivingHome(props: {
       );
       L.tileLayer(TILE_URL, { subdomains: TILE_SUBDOMAINS, maxZoom: 20 }).addTo(m); // no crossOrigin: WebView tile-load fix (see booking3)
       const layer = L.layerGroup().addTo(m);
+      // 🚕 cars as real taxis (green = free, grey = busy + a visible passenger), rotated by bearing
       for (const c of home.carPins) {
-        const icon = L.divIcon({
-          className: "",
-          html: `<div class="lh-car${c.busy ? " busy" : ""}">${c.busy ? "🚕" : "🟢"}</div>`,
-          iconSize: [26, 26],
-          iconAnchor: [13, 13],
+        const icon = L.divIcon(carDivIcon(c.busy ? "#9ca3af" : "#22c55e", c.bearing || 0, 26, c.busy));
+        layer.addLayer(L.marker([c.lat, c.lng], { icon, interactive: false }));
+      }
+      // 🚶 ghost clients waiting around the city — varied clothes/skin/size, ≥3 hailing a taxi
+      const rnd = (s: number): number => (Math.random() - 0.5) * s;
+      const people = Math.min(8, Math.max(5, Math.round(home.carPins.length * 0.7)));
+      for (let i = 0; i < people; i++) {
+        const shirt = GHOST_SHIRTS[Math.floor(Math.random() * GHOST_SHIRTS.length)]!;
+        const skin = GHOST_SKINS[Math.floor(Math.random() * GHOST_SKINS.length)]!;
+        const size = 18 + Math.floor(Math.random() * 6);
+        const hail = i < 3 || Math.random() < 0.18; // guarantee a few hands up
+        const mk = L.marker([home.center.lat + rnd(0.02), home.center.lng + rnd(0.026)], {
+          icon: L.divIcon(ghostPersonDivIcon(shirt, skin, size, hail)),
+          interactive: false,
+          zIndexOffset: -40,
         });
-        layer.addLayer(L.marker([c.lat, c.lng], { icon }));
+        layer.addLayer(mk);
+        const el = mk.getElement()?.querySelector(".b3-ghostperson") as HTMLElement | null;
+        if (el) el.style.animationDelay = `${(Math.random() * 2.4).toFixed(2)}s`; // stagger the bob
       }
       map.current = m;
     });
