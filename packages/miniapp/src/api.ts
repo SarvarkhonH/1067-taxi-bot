@@ -16,6 +16,7 @@ import type {
   GarajActionResult,
   GarajStateResponse,
   PublicProfileView,
+  CarCheckView,
   LeaderboardResponse,
   MeResponse,
   MissionClaimResponse,
@@ -195,6 +196,9 @@ export const api = {
   // 🪪 P1-D — slot system
   garajSlotStatus: () => get<{ slotCount: number; activeCount: number; nextSlotCost: number | null }>("/api/garaj/slot/status"),
   garajSlotPurchase: () => request<GarajActionResult & { newSlotCount?: number; cost?: number }>("POST", "/api/garaj/slot/purchase", {}, 1),
+  // 🔍 P1-E — CarCheck
+  garajCarCheck: (garajCarId: number, tier: "ODDIY" | "EKSPERT" | "PREMIUM") => request<GarajActionResult & { check?: CarCheckView }>("POST", "/api/garaj/carcheck", { garajCarId, tier }, 1),
+  garajRateSeller: (listingId: number, stars: number) => request<GarajActionResult>("POST", "/api/garaj/rate-seller", { listingId, stars }, 1),
   garajProfile: (id: number | "me") => get<PublicProfileView | null>(`/api/garaj/profile/${id}`),
   garajAuctions: () => get<{ id: number; carCode: string; name: string; emoji: string; minBid: number; endsAt: string; mine: boolean }[]>("/api/garaj/auctions"),
   garajAuctionCreate: (garajCarId: number, minBid: number) => request<GarajActionResult>("POST", "/api/garaj/auction/create", { garajCarId, minBid }, 1),

@@ -48,6 +48,10 @@ import {
   repairNarxFactor,
   slotCost,
   SLOT_COSTS,
+  CARCHECK_COSTS,
+  type CarCheckTier,
+  type CarCheckView,
+  type HiddenDefect,
   type PublicProfileView,
   KOZACHA_SHOP,
   computeFlipGrant,
@@ -816,6 +820,94 @@ export async function sweepMotorAging(): Promise<number> {
     aged++;
   }
   return aged;
+}
+
+// ══ 🔍 P1-E — CarCheck (3 tier reveal) + seller reputation ════════════════════
+// Pay-for-truth: 50/500/5000 tanga to progressively reveal a car's IMMUTABLE history.
+// Tizim yozadi → soxtalashtirib bo'lmaydi. First Premium check per player = FREE
+// (newbie protection: don't burn a fresh player by hiding the defect rule).
+// Costs are pure tanga SINK. Idempotent: each tier purchase is a separate CoinTxn.
+
+export async function getCarCheck(viewerId: number, garajCarId: number, tier: CarCheckTier): Promise<GarajActionResult & { check?: CarCheckView }> {
+  if (!(await motorEnabledFor(viewerId))) return { ok: false, reason: "off" };
+  const car = await prisma.garajCar.findFirst({ where: { id: garajCarId, soldAt: null } });
+  if (!car) return { ok: false, reason: "not_found" };
+  const econ = await getMotorEcon();
+  const baseCost = tier === "ODDIY" ? (econ.carCheckOddiy ?? CARCHECK_COSTS.ODDIY)
+    : tier === "EKSPERT" ? (econ.carCheckEkspert ?? CARCHECK_COSTS.EKSPERT)
+    : (econ.carCheckPremium ?? CARCHECK_COSTS.PREMIUM);
+  const cost = Math.max(1, Math.floor(baseCost));
+  // First-Premium-free for newbies (one-shot per player)
+  let freeUsed = false;
+  let actualCost = cost;
+  if (tier === "PREMIUM") {
+    const meta = await prisma.memberGarajMeta.findUnique({ where: { memberId: viewerId }, select: { carCheckFreeUsed: true } });
+    if (!meta?.carCheckFreeUsed) {
+      actualCost = 0;
+      freeUsed = true;
+    }
+  }
+  // Spend the tanga (skip if free)
+  if (actualCost > 0) {
+    const spend = await spendCoinsIdempotent(viewerId, actualCost, "garaj_carcheck", `🔍 CarCheck ${tier}: ${car.carCode} #${car.serial ?? "?"}`, `carcheck:${viewerId}:${garajCarId}:${tier}:${Date.now()}`);
+    if (!spend.ok && spend.skipped !== "duplicate") return { ok: false, reason: "insufficient", coins: spend.balance };
+  }
+  // If freeUsed: mark it as consumed (only AFTER we know the read will succeed)
+  if (freeUsed) {
+    await prisma.memberGarajMeta.upsert({ where: { memberId: viewerId }, create: { memberId: viewerId, carCheckFreeUsed: true }, update: { carCheckFreeUsed: true } });
+  }
+  // Build the view (tier-gated fields)
+  const nowMs = Date.now();
+  const ageDays = car.bornAt ? Math.floor((nowMs - car.bornAt.getTime()) / 86_400_000) : 0;
+  const baseView: CarCheckView = {
+    tier,
+    serial: car.serial ?? null,
+    engineHp: car.engineHp ?? 100,
+    ageDays,
+    ownerCount: car.ownerCount ?? 1,
+    totalTrips: car.totalTrips ?? 0,
+  };
+  if (tier === "EKSPERT" || tier === "PREMIUM") {
+    baseView.zones = car.repairZones ? (JSON.parse(car.repairZones) as Record<string, number>) : null;
+    baseView.capitalRepairCount = car.capitalRepairCount ?? 0;
+  }
+  if (tier === "PREMIUM") {
+    // Hidden defect (if any) + reference price + seller rating
+    let defect: HiddenDefect | null = null;
+    try { if (car.hiddenDefect) defect = JSON.parse(car.hiddenDefect) as HiddenDefect; } catch { /* tolerate corrupt JSON */ }
+    baseView.hiddenDefect = defect;
+    const basePrice = MAKE_BASE[car.carCode] ?? 0;
+    baseView.referencePrice = Math.max(1, Math.floor(basePrice * repairNarxFactor(car.capitalRepairCount ?? 0)));
+    const sellerMeta = await prisma.memberGarajMeta.findUnique({ where: { memberId: car.memberId }, select: { sellerRatingSum: true, sellerRatingCount: true } });
+    const count = sellerMeta?.sellerRatingCount ?? 0;
+    baseView.sellerRating = count > 0 ? Math.round(((sellerMeta?.sellerRatingSum ?? 0) / count) * 10) / 10 : null;
+    baseView.freeOfChargeUsed = freeUsed;
+  }
+  return { ok: true, check: baseView, coins: await getCoins(viewerId) };
+}
+
+/** Buyer rates a seller after a bazaar purchase (1-5). Idempotent: ONE rating per buyer per
+ *  listing. Updates MemberGarajMeta.sellerRatingSum/Count atomically. */
+export async function rateSeller(buyerId: number, listingId: number, stars: number): Promise<GarajActionResult> {
+  if (!(await motorEnabledFor(buyerId))) return { ok: false, reason: "off" };
+  const score = Math.max(1, Math.min(5, Math.floor(stars)));
+  // Look up the listing — must be sold, buyer must match
+  const listing = await prisma.garajBazaarListing.findUnique({ where: { id: listingId } });
+  if (!listing || listing.status !== "sold" || listing.buyerId !== buyerId) return { ok: false, reason: "not_found" };
+  if (listing.sellerId === buyerId) return { ok: false, reason: "self_rating" };
+  // Idempotent via AppState marker (one rating per listing per buyer)
+  const dedupeKey = `sellerrate:${listingId}:${buyerId}`;
+  try {
+    await prisma.appState.create({ data: { key: dedupeKey, value: String(score) } });
+  } catch {
+    return { ok: false, reason: "already_rated" };
+  }
+  await prisma.memberGarajMeta.upsert({
+    where: { memberId: listing.sellerId },
+    create: { memberId: listing.sellerId, sellerRatingSum: score, sellerRatingCount: 1 },
+    update: { sellerRatingSum: { increment: score }, sellerRatingCount: { increment: 1 } },
+  });
+  return { ok: true };
 }
 
 export async function getPublicProfile(viewerId: number, targetId: number): Promise<PublicProfileView | null> {
