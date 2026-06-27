@@ -43,6 +43,25 @@ async function main(): Promise<void> {
     console.error("[FATAL] ALLOW_DEBUG_AUTH=true in a deployed environment — refusing to start (impersonation risk).");
     process.exit(1);
   }
+  // P0.2 boot guard: weak default secrets in deployed env (Render = WEBHOOK_URL set).
+  // — WEBHOOK_SECRET hard-fails (we own the value; rotation is purely our side).
+  // — KAS_BONUS_SECRET_KEY warns only (it must match what kas1067 expects; rotating
+  //   requires coordination with kas1067 ops — a unilateral hard-fail would crash prod
+  //   the moment Render forgets to set the env. The warning surfaces the leak risk
+  //   without blocking startup).
+  if (env.WEBHOOK_URL) {
+    const WEAK_HOOK = new Set(["", "hook", "default", "secret", "test"]);
+    if (WEAK_HOOK.has(env.WEBHOOK_SECRET)) {
+      console.error("[FATAL] WEBHOOK_SECRET is default/weak in a deployed env — refusing to start.");
+      console.error("   The webhook path /tg/<secret> becomes guessable. Set Render env WEBHOOK_SECRET=<long random>.");
+      process.exit(1);
+    }
+    const KNOWN_LEAKED_KAS = new Set(["", "1303"]); // "1303" lives in PUBLIC env.ts default — rotate w/ kas1067 ops
+    if (KNOWN_LEAKED_KAS.has(env.KAS_BONUS_SECRET_KEY)) {
+      console.warn("⚠️  [WARN] KAS_BONUS_SECRET_KEY is the public-repo default — kas1067 bonus writes are forgeable.");
+      console.warn("   Coordinate with kas1067 ops to rotate the secret, then set Render env KAS_BONUS_SECRET_KEY=<new>.");
+    }
+  }
   await reapStaleSyncs(60 * 60_000).catch(() => undefined); // boot cleanup (>1h)
 
   let bot: Bot | null = null;
@@ -157,6 +176,8 @@ async function main(): Promise<void> {
           await campaignTick(bot).catch((e) => console.error("[promo] failed:", e));
           const { driverEngageTick } = await import("./services/driverEngageService");
           await driverEngageTick(bot).catch((e) => console.error("[drvpush] failed:", e));
+          const { dispatchLinkReminders } = await import("./services/linkReminderService");
+          await dispatchLinkReminders(bot).catch((e) => console.error("[linkReminder] failed:", e));
           const { recomputeDriverTiers } = await import("./services/analyticsService");
           await recomputeDriverTiers().catch((e) => console.error("[tiers] failed:", e));
           const { settleGapsWeekly } = await import("./services/gapService");
