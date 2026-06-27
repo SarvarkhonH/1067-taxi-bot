@@ -44,6 +44,8 @@ import {
   computeMotorRefillCost,
   ofisBidPrice,
   OFIS_BID_FACTOR,
+  hiddenDefectFor,
+  repairNarxFactor,
   type PublicProfileView,
   KOZACHA_SHOP,
   computeFlipGrant,
@@ -462,7 +464,10 @@ export async function acquireCar(memberId: number, carCode: string): Promise<Gar
         const econForTank = await getMotorEcon();
         const tankHours = Math.max(1, Math.min(72, econForTank.fuelTankHours ?? 24));
         const freeTankUntil = new Date(Date.now() + tankHours * 3_600_000);
-        await tx.garajCar.update({ where: { id: car.id }, data: { serial, bornAt: new Date(), engineHp: 100, lastAccrualAt: new Date(), ownerCount: 1, totalTrips: 0, fueledUntilAt: freeTankUntil } });
+        // 🏛 P1-C — hidden defect stamp (3% by default, admin-tunable hiddenDefectPct knob)
+        const defectPct = Math.max(0, Math.min(10, econForTank.hiddenDefectPct ?? 3)) / 100;
+        const defect = hiddenDefectFor(serial, defectPct);
+        await tx.garajCar.update({ where: { id: car.id }, data: { serial, bornAt: new Date(), engineHp: 100, lastAccrualAt: new Date(), ownerCount: 1, totalTrips: 0, fueledUntilAt: freeTankUntil, hiddenDefect: defect ? JSON.stringify(defect) : null } });
       }
       await tx.memberGarajMeta.upsert({
         where: { memberId },
@@ -731,6 +736,34 @@ export async function getOfisStats(): Promise<{ budget: number; spent: number; l
   return { budget, spent, left, heldCount, scrappedToday };
 }
 
+// 🏛 P1-C — sweep-side lifespan aging. motorCollect already decays engineHp on collect,
+// but PARKED cars (never collected) would never age. This sweep tick processes all active
+// motor cars, decaying engineHp based on wall-clock since lastAccrualAt. Idempotent, bounded
+// batch, NO new poller (called from bookingNotifier's existing sweep). OFF-safe.
+export async function sweepMotorAging(): Promise<number> {
+  if (!(await featureOn(MOTOR_FLAG))) return 0;
+  const econ = await getMotorEcon();
+  const lifespanDays = Math.max(7, Math.min(30, Math.floor(econ.lifespanDays ?? 14)));
+  const hpPerDay = 100 / lifespanDays;
+  const now = Date.now();
+  // Take a batch — keep memory bounded; each sweep handles up to 200 cars.
+  const cars = await prisma.garajCar.findMany({ where: { soldAt: null, serial: { not: null }, engineHp: { gt: 0 }, ofisHeld: false }, select: { id: true, engineHp: true, lastAccrualAt: true }, take: 200 });
+  let aged = 0;
+  for (const c of cars) {
+    const last = c.lastAccrualAt?.getTime() ?? now;
+    const hours = Math.max(0, (now - last) / 3_600_000);
+    if (hours < 1) continue; // skip if collected recently (motorCollect already aged it)
+    const decay = Math.max(0, Math.round(hpPerDay * (hours / 24)));
+    if (decay <= 0) continue;
+    const newHp = Math.max(0, (c.engineHp ?? 100) - decay);
+    if (newHp === c.engineHp) continue;
+    // CAS-style update: only write if engineHp hasn't moved (collect may have already aged it)
+    await prisma.garajCar.updateMany({ where: { id: c.id, engineHp: c.engineHp }, data: { engineHp: newHp, lastAccrualAt: new Date() } });
+    aged++;
+  }
+  return aged;
+}
+
 export async function getPublicProfile(viewerId: number, targetId: number): Promise<PublicProfileView | null> {
   if (!(await motorEnabledFor(viewerId))) return null;
   const member = await prisma.member.findUnique({ where: { id: targetId }, select: { fullName: true } });
@@ -913,6 +946,9 @@ async function applyCraftEffect(jobId: number): Promise<{ memberId: number; stat
         for (const z of REPAIR_ZONES) zones[z] = 90; // RESTORE: all 5 zones to 90 → MINT
         data.repairZones = JSON.stringify(zones);
         data.condition = conditionFromZones(zones).toLowerCase();
+        // 🏛 P1-C — RESTORE = kapital remont → increment immutable counter (feeds REPAIR_NARX_FACTOR
+        // resale discount). MUST NOT RESET on re-buy (audit-B1 pattern, like fuelRefillCount).
+        await tx.garajCar.update({ where: { id: car.id }, data: { capitalRepairCount: { increment: 1 } } });
       }
       if (Object.keys(data).length) await tx.garajCar.update({ where: { id: car.id }, data });
     }

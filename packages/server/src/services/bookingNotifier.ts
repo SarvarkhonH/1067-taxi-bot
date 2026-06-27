@@ -806,6 +806,15 @@ export async function pushBookingUpdates(
     console.error("[garaj] fuel push failed:", e);
   }
 
+  // 🏛 P1-C: motor lifespan aging — decay engineHp for parked cars too (collected cars are
+  // aged by motorCollect itself). Bounded batch 200/sweep; no new poller; OFF-safe.
+  try {
+    const { sweepMotorAging } = await import("./garajService");
+    await sweepMotorAging();
+  } catch (e) {
+    console.error("[garaj] motor aging failed:", e);
+  }
+
   // 🧾 SMS-parity: deliver any ride fares kas finalized AFTER the finish card was sent. Piggybacks
   // this sweep (no new poller) — sends "Yo'l haqi: …" the moment kas posts the payment, then clears.
   try {
