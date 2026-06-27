@@ -3,7 +3,7 @@
 // Pure view layer — all money logic + idempotency live on the server.
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { GarajStateResponse, GarajCarView, RepairQuality, PublicProfileView, OrzuBoardView, CarCheckView } from "@t1067/shared";
-import { KOZACHA_SHOP, reputationTier, REPUTATION_TIERS, REPAIR_ZONES, ZONE_NAMES, PART_TIERS, garajCarMeta, CRAFT_STATIONS, craftCost, MAKE_BASE, npcForBuyer, npcLine } from "@t1067/shared";
+import { KOZACHA_SHOP, reputationTier, REPUTATION_TIERS, REPAIR_ZONES, ZONE_NAMES, PART_TIERS, garajCarMeta, CRAFT_STATIONS, craftCost, MAKE_BASE, npcForBuyer, npcLine, getVariant, mergeMult, MERGE_MAX_COUNT, SPEEDER_DAYS } from "@t1067/shared";
 import { api } from "./api";
 import { haptic, hapticSuccess, playTierFanfare, playRepairChirp, playTierUpRing, playRepairFail } from "./telegram";
 import { Button, Card, Chip, CoinCounter, LoadSection, ProgressBar, Sheet } from "./design/components";
@@ -152,7 +152,7 @@ export function GarajCarArt({ carCode, condition, level, size = 132 }: { carCode
 
 // 🔥 P-Fuel-B — MotorScene: vertikal yoqilg'i bar | mashina art | meta+CTA. Hay Day hook.
 // Reduced-motion safe (matchMedia + CSS @media), 60fps targeted (transform/opacity only).
-function MotorScene({ car, busy, onCollect, onRefuel, onEskirdi, onCarCheck }: { car: GarajCarView; busy: boolean; onCollect: () => void; onRefuel: () => void; onEskirdi: () => void; onCarCheck: () => void }) {
+function MotorScene({ car, busy, onCollect, onRefuel, onEskirdi, onCarCheck, onSpeeder, onMerge, canMerge }: { car: GarajCarView; busy: boolean; onCollect: () => void; onRefuel: () => void; onEskirdi: () => void; onCarCheck: () => void; onSpeeder: () => void; onMerge: () => void; canMerge: boolean }) {
   const pct = car.fuelPct ?? 0;
   const dry = !!car.fuelDry;
   const dead = !!car.dead;
@@ -193,8 +193,21 @@ function MotorScene({ car, busy, onCollect, onRefuel, onEskirdi, onCarCheck }: {
       </div>
       <div className="gz-fuel-meta">
         <span className="gz-motor-id">#{car.serial}</span>
-        <span className="fs11 dim">⚙️ {car.engineHp ?? 100}% · ⚡ {car.speed}/soat</span>
-        <span className="fs11 dim">🕐 {car.ageDays ?? 0} kun · 👥 {car.ownerCount ?? 1}{car.cleanHistory ? " · ✨ Toza" : ""}{car.capitalRepairCount ? ` · 🔧×${car.capitalRepairCount}` : ""}</span>
+        {/* 🎁 P2-B — Jackpot variant badge (Qora/Afsonaviy) — shown above stats for "wow" */}
+        {(() => {
+          const v = getVariant(car.variant);
+          return v ? (
+            <span className="gz-pill-chip gold" style={{ alignSelf: "flex-start" }}>
+              <span>{v.emoji} {v.label}</span>
+              <b style={{ color: "var(--brand)" }}>×{v.mult.toFixed(1)}</b>
+            </span>
+          ) : null;
+        })()}
+        <span className="fs11 dim">⚙️ {car.engineHp ?? 100}% · ⚡ {car.speed}/soat{car.speederActive ? ` · 🚀×${car.speederMult ?? 1}` : ""}</span>
+        <span className="fs11 dim">🕐 {car.ageDays ?? 0} kun · 👥 {car.ownerCount ?? 1}{car.cleanHistory ? " · ✨ Toza" : ""}{car.capitalRepairCount ? ` · 🔧×${car.capitalRepairCount}` : ""}{(car.mergeCount ?? 0) > 0 ? ` · 🔗★${car.mergeCount}` : ""}</span>
+        {car.speederActive && (car.speederHoursLeft ?? 0) > 0 && (
+          <span className="fs11" style={{ color: "var(--brand)" }}>🚀 Speeder · {Math.round(car.speederHoursLeft! / 24)} kun qoldi</span>
+        )}
         {car.ofisBidPrice != null && !dead && (
           <span className="fs11 dim">🏛 Ofis: 🪙 {car.ofisBidPrice.toLocaleString("ru-RU")}</span>
         )}
@@ -213,6 +226,16 @@ function MotorScene({ car, busy, onCollect, onRefuel, onEskirdi, onCarCheck }: {
             {pct <= 30 && (
               <Button sm variant="ghost" disabled={busy} onClick={onRefuel}>
                 ⛽ Quyish · {cost.toLocaleString("ru-RU")}
+              </Button>
+            )}
+            {/* 🚀 P2-C — Speeder CTA (always offered when alive; sheet shows price+stock+state) */}
+            <Button sm variant="ghost" disabled={busy} onClick={() => { haptic(); onSpeeder(); }}>
+              🚀 {car.speederActive ? "Speeder uzaytirish" : "Speeder olish"}
+            </Button>
+            {/* 🔗 P2-A — Merge CTA (only if mergeCount < MAX and there's another car to sacrifice) */}
+            {canMerge && (car.mergeCount ?? 0) < MERGE_MAX_COUNT && (
+              <Button sm variant="ghost" disabled={busy} onClick={() => { haptic(); onMerge(); }}>
+                🔗 Toplash (★{car.mergeCount ?? 0}/{MERGE_MAX_COUNT})
               </Button>
             )}
           </>
@@ -318,6 +341,9 @@ export function GarajShell({ onClose, initial }: { onClose: () => void; initial?
   const [checkOpen, setCheckOpen] = useState<number | null>(null); // carId
   const [eskirdiOpen, setEskirdiOpen] = useState<number | null>(null); // carId (dead)
   const [slot, setSlot] = useState<{ slotCount: number; activeCount: number; nextSlotCost: number | null } | null>(null);
+  // 🚀 P2-C + 🔗 P2-A sheet state
+  const [speederOpen, setSpeederOpen] = useState<number | null>(null); // carId
+  const [mergeOpen, setMergeOpen] = useState<number | null>(null); // keep carId
 
   const load = useCallback(() => {
     if (initial) return; // demo/fixture mode — no backend fetch
@@ -520,7 +546,7 @@ export function GarajShell({ onClose, initial }: { onClose: () => void; initial?
               )}
               {/* 🌍 MOTOR OLAMI — the car earns; #serial identity + «Yig'ish» (Hay Day hook) */}
               {st.motorEnabled && projectCar?.serial != null && (
-                <MotorScene car={projectCar} busy={busy} onCollect={() => motorCollect()} onRefuel={() => motorRefuel(projectCar.id)} onEskirdi={() => setEskirdiOpen(projectCar.id)} onCarCheck={() => setCheckOpen(projectCar.id)} />
+                <MotorScene car={projectCar} busy={busy} onCollect={() => motorCollect()} onRefuel={() => motorRefuel(projectCar.id)} onEskirdi={() => setEskirdiOpen(projectCar.id)} onCarCheck={() => setCheckOpen(projectCar.id)} onSpeeder={() => setSpeederOpen(projectCar.id)} onMerge={() => setMergeOpen(projectCar.id)} canMerge={(st?.cars?.length ?? 0) >= 2} />
               )}
 
               {/* tier / reputation progress (compact, under the stage) */}
@@ -1024,6 +1050,15 @@ export function GarajShell({ onClose, initial }: { onClose: () => void; initial?
         const ec = st?.cars.find((c) => c.id === eskirdiOpen);
         return ec ? <GarajEskirdiSheet car={ec} busy={busy} onSellOfis={() => void eskirdiSellOfis(ec.id)} onCapital={() => eskirdiCapital(ec.id)} onClose={() => setEskirdiOpen(null)} /> : null;
       })()}
+      {speederOpen != null && (() => {
+        const sc = st?.cars.find((c) => c.id === speederOpen);
+        return sc ? <GarajSpeederSheet car={sc} onBuy={speederBuy} onClose={() => setSpeederOpen(null)} /> : null;
+      })()}
+      {mergeOpen != null && (() => {
+        const kc = st?.cars.find((c) => c.id === mergeOpen);
+        const others = st?.cars.filter((c) => c.id !== mergeOpen) ?? [];
+        return kc ? <GarajMergeSheet keep={kc} others={others} onMerge={(sacId) => mergeConfirm(kc.id, sacId)} onClose={() => setMergeOpen(null)} /> : null;
+      })()}
       {listingFor != null && (() => {
         const lc = st?.cars.find((c) => c.id === listingFor);
         return lc ? <GarajListSheet car={lc} busy={busy} onConfirm={(price) => { bazaarList(lc.id, price); setListingFor(null); }} onClose={() => setListingFor(null)} /> : null;
@@ -1281,6 +1316,34 @@ export function GarajShell({ onClose, initial }: { onClose: () => void; initial?
   function eskirdiCapital(carId: number): void {
     setEskirdiOpen(null);
     void act(() => api.garajCraft(carId, "RESTORE"));
+  }
+  // 🚀 P2-C — Speeder buy
+  async function speederBuy(carId: number): Promise<void> {
+    if (busy) return; setBusy(true); haptic();
+    try {
+      const r = await api.garajSpeederBuy(carId);
+      if (r.ok) { hapticSuccess(); setBurst({ amount: 0, label: `🚀 Speeder yoqildi · ${SPEEDER_DAYS} kun` }); setTimeout(() => setBurst(null), 2000); }
+      else if (r.reason === "out_of_stock" || r.reason === "stock_race") flash("Zaxira tugadi — ertaga qayta urinib ko'ring");
+      else if (r.reason === "insufficient") flash("Tanga yetarli emas");
+      else if (r.reason === "dead_car") flash("Mashina eskirgan");
+      else if (r.reason === "already") flash("Bugun allaqachon olingan");
+      else flash("Sotib bo'lmadi");
+      if (!initial) setSt(await api.garajState());
+    } finally { setBusy(false); }
+  }
+  // 🔗 P2-A — Merge confirm
+  async function mergeConfirm(keepId: number, sacId: number): Promise<void> {
+    if (busy) return; setBusy(true); haptic();
+    try {
+      const r = await api.garajMerge(keepId, sacId);
+      if (r.ok) { hapticSuccess(); setBurst({ amount: 0, label: `🔗 Toplandi · ★${r.mergeCount} (×${(r.newMult ?? 1).toFixed(2)})` }); setTimeout(() => setBurst(null), 2400); }
+      else if (r.reason === "max_merge") flash("Maksimum bosqichga yetilgan");
+      else if (r.reason === "same_car") flash("Boshqa mashinani tanlang");
+      else if (r.reason === "not_found") flash("Mashina topilmadi");
+      else if (r.reason === "already_merged") flash("Bu juftlik allaqachon ishlatilgan");
+      else flash("Toplab bo'lmadi");
+      if (!initial) { setSt(await api.garajState()); void api.garajSlotStatus().then((s) => setSlot(s)).catch(() => undefined); }
+    } finally { setBusy(false); }
   }
   async function motorRefuel(garajCarId: number): Promise<void> {
     if (busy) return;
@@ -1881,6 +1944,103 @@ export function GarajCarCheckSheet({ car, onClose }: { car: GarajCarView; onClos
             <Button variant="ghost" onClick={onClose}>Yopish</Button>
           </div>
         )}
+      </div>
+    </Sheet>
+  );
+}
+
+// 🚀 P2-C — Speeder sheet (limited daily stock + price + duration + active state)
+export function GarajSpeederSheet({ car, onBuy, onClose }: { car: GarajCarView; onBuy: (carId: number) => Promise<void>; onClose: () => void }) {
+  const [st, setSt] = useState<Awaited<ReturnType<typeof api.garajSpeederState>> | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [loading, setLoading] = useState(true);
+  useEffect(() => {
+    let alive = true;
+    api.garajSpeederState().then((r) => { if (alive) { setSt(r); setLoading(false); } }).catch(() => { if (alive) setLoading(false); });
+    return () => { alive = false; };
+  }, []);
+  async function buy(): Promise<void> {
+    if (busy) return; setBusy(true);
+    try { await onBuy(car.id); } finally { setBusy(false); onClose(); }
+  }
+  return (
+    <Sheet open onClose={onClose}>
+      <div className="col g8">
+        <div className="gz-title">🚀 Speeder · {car.emoji} {car.name} <span className="gz-motor-id">#{car.serial ?? "?"}</span></div>
+        {loading ? (
+          <p className="gz-empty">Yuklanmoqda…</p>
+        ) : !st || !st.ok ? (
+          <p className="gz-empty">{st?.reason === "off" ? "Speeder hozir ochiq emas." : "Yuklab bo'lmadi."}</p>
+        ) : (
+          <>
+            <div className="gz-list-break">
+              <div className="row between"><span className="dim fs12">Daromad tezligi (×)</span><b style={{ color: "var(--brand)" }}>×{st.mult ?? 4}</b></div>
+              <div className="row between"><span className="dim fs12">Davomiyligi</span><b>{st.days ?? SPEEDER_DAYS} kun</b></div>
+              <div className="row between"><span className="dim fs12">Narxi</span><b>🪙 {(st.price ?? 5000).toLocaleString("ru-RU")}</b></div>
+              <div className="row between"><span className="dim fs12">Zaxira</span><b>{st.stockLeft ?? 0}/{st.stockMax ?? 0}</b></div>
+            </div>
+            {car.speederActive && (car.speederHoursLeft ?? 0) > 0 ? (
+              <div className="fs12" style={{ color: "var(--brand)" }}>🚀 Hozir aktiv · {Math.round((car.speederHoursLeft ?? 0) / 24)} kun qoldi. Sotib olsangiz vaqt UZAYADI.</div>
+            ) : (
+              <div className="fs12 dim">⚠️ Speeder yoqilg'ini TEZ tugatadi — bak qisqaroq turadi. Lekin daromad ×{st.mult ?? 4} bo'ladi.</div>
+            )}
+            <Button disabled={busy || (st.stockLeft ?? 0) <= 0} onClick={buy}>
+              🚀 {car.speederActive ? "Uzaytirish" : "Sotib olish"} · 🪙{(st.price ?? 5000).toLocaleString("ru-RU")}
+            </Button>
+            {(st.stockLeft ?? 0) <= 0 && <div className="fs11" style={{ color: "var(--err)" }}>Bugun zaxira tugadi — ertaga qayta urinib ko'ring.</div>}
+            <Button variant="ghost" onClick={onClose}>Yopish</Button>
+          </>
+        )}
+      </div>
+    </Sheet>
+  );
+}
+
+// 🔗 P2-A — Merge sheet (pick a sacrifice to promote this car; mergeMult preview)
+export function GarajMergeSheet({ keep, others, onMerge, onClose }: { keep: GarajCarView; others: GarajCarView[]; onMerge: (sacId: number) => Promise<void>; onClose: () => void }) {
+  const [selected, setSelected] = useState<number | null>(others.length === 1 ? others[0]!.id : null);
+  const [busy, setBusy] = useState(false);
+  const cur = keep.mergeCount ?? 0;
+  const next = Math.min(MERGE_MAX_COUNT, cur + 1);
+  const curMult = mergeMult(cur);
+  const nextMult = mergeMult(next);
+  async function confirm(): Promise<void> {
+    if (busy || selected == null) return;
+    setBusy(true);
+    try { await onMerge(selected); } finally { setBusy(false); onClose(); }
+  }
+  return (
+    <Sheet open onClose={onClose}>
+      <div className="col g8">
+        <div className="gz-title">🔗 Toplash · {keep.emoji} {keep.name}</div>
+        <div className="gz-list-break">
+          <div className="row between"><span className="dim fs12">Hozirgi bosqich</span><b>★{cur}/{MERGE_MAX_COUNT} · ×{curMult.toFixed(2)}</b></div>
+          <div className="row between"><span className="dim fs12">Toplashdan keyin</span><b style={{ color: "var(--brand)" }}>★{next}/{MERGE_MAX_COUNT} · ×{nextMult.toFixed(2)}</b></div>
+        </div>
+        <p className="fs12 dim mt0">Boshqa mashinangizdan birini qurbon qiling. U abadiy yo'qoladi, lekin bu mashina KUCHAYADI: dvigatel 100% gacha tiklanadi, daraja oshadi, sotuv narxi +10% bo'ladi.</p>
+        <div className="gz-sec-title">Qurbon mashinasi:</div>
+        <div className="col g8">
+          {others.length === 0 ? (
+            <p className="gz-empty">Boshqa mashinangiz yo'q — avval yana bitta oling.</p>
+          ) : (
+            others.map((o) => (
+              <button key={o.id} type="button" className={`gz-craft${selected === o.id ? " selected" : ""}`} onClick={() => { haptic(); setSelected(o.id); }}>
+                <div className="row" style={{ gap: 10, alignItems: "center" }}>
+                  <GarajCarArt carCode={o.carCode} condition={o.condition} level={o.level} size={56} />
+                  <div className="col">
+                    <span className="gz-craft-name">{o.emoji} {o.name} <span className="gz-motor-id">#{o.serial ?? "?"}</span></span>
+                    <span className="fs11 dim">⚙️ {o.engineHp ?? 100}% · 🕐 {o.ageDays ?? 0} kun</span>
+                  </div>
+                </div>
+              </button>
+            ))
+          )}
+        </div>
+        <Button disabled={busy || selected == null || cur >= MERGE_MAX_COUNT} onClick={confirm}>
+          🔗 Toplashni tasdiqlash
+        </Button>
+        <Button variant="ghost" onClick={onClose}>Bekor</Button>
+        {cur >= MERGE_MAX_COUNT && <div className="fs11" style={{ color: "var(--err)" }}>Maksimum bosqichga yetilgan — endi toplab bo'lmaydi.</div>}
       </div>
     </Sheet>
   );
