@@ -125,6 +125,7 @@ export interface AdminBotUser {
   isAdmin: boolean;
   linkedAt: string | null;
   lastActive: string;
+  joinedAt: string;
 }
 
 export interface AdminBotUsersResponse {

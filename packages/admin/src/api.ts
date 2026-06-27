@@ -133,6 +133,12 @@ export const adminApi = {
       earned: { start: number; share: number; revshare: number; legacy: number; total: number };
     }>(`/api/admin/recruits/${driverId}`),
   corpReport: (id: number) => req<{ corp: { name: string; balance: number }; rows: { phone: string; name: string | null; rides: number; overCap: boolean }[]; totalRides: number }>(`/api/admin/corps/${id}/report`),
+  rides: (limit = 150) => req<AdminRideRow[]>(`/api/admin/rides?limit=${limit}`),
+  driverDebts: () => req<AdminDebtRow[]>("/api/admin/driver-debts"),
+  referrals: () => req<AdminReferralRow[]>("/api/admin/referrals"),
+  banned: () => req<AdminBannedRow[]>("/api/admin/banned"),
+  ban: (memberId: number, reason: string) => postJson<{ ok: boolean; message: string }>("/api/admin/ban", { memberId, reason }),
+  unban: (memberId: number) => postJson<{ ok: boolean; message: string }>("/api/admin/unban", { memberId }),
   northstar: () =>
     req<{ weekCompleted: number; prevWeekCompleted: number; botShare: number; weeklyActiveRiders: number; coinLiability: number; weekDays: number }>(
       "/api/admin/analytics/northstar",
@@ -233,6 +239,52 @@ export interface Member360 {
   recruitedByDriver: number | null;
   ratings: number;
   txns: { amount: number; kind: string; reason: string; at: string }[];
+}
+
+export interface AdminRideRow {
+  id: number;
+  memberId: number;
+  memberName: string;
+  phone: string | null;
+  bookingId: number;
+  amount: number;
+  tier: string;
+  lucky: boolean;
+  source: string;
+  at: string;
+}
+
+export interface AdminDebtRow {
+  id: number;
+  memberId: number;
+  carNumber: string;
+  amount: number;
+  status: string;
+  kasBalance: number | null;
+  errorNote: string | null;
+  at: string;
+}
+
+export interface AdminReferralRow {
+  id: number;
+  referrerId: string;
+  referrerName: string;
+  refereeId: string;
+  refereeName: string;
+  rewardReferrer: number;
+  rewardReferee: number;
+  paid: boolean;
+  at: string;
+}
+
+export interface AdminBannedRow {
+  id: number;
+  fullName: string | null;
+  phone: string | null;
+  type: string;
+  riskNote: string | null;
+  trips: number;
+  coins: number;
 }
 
 export interface Driver360 {

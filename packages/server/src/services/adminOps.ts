@@ -386,3 +386,106 @@ export async function adminWakeUp(text: string, bonus: number, days: number, sen
   }
   return { ok: true, message: `😴→🔔 ${msg.message}${gift}` };
 }
+
+// ─── 🏁 ride history (from RideReward — our local record of every cashback-earning trip) ───
+export async function getAdminRides(limit = 150): Promise<{ id: number; memberId: number; memberName: string; phone: string | null; bookingId: number; amount: number; tier: string; lucky: boolean; source: string; at: string }[]> {
+  const rows = await prisma.rideReward.findMany({
+    orderBy: { createdAt: "desc" },
+    take: limit,
+  });
+  const memberIds = [...new Set(rows.map((r) => r.memberId))];
+  const members = await prisma.member.findMany({
+    where: { id: { in: memberIds } },
+    select: { id: true, fullName: true, phone: true },
+  });
+  const mmap = new Map(members.map((m) => [m.id, m]));
+  return rows.map((r) => {
+    const m = mmap.get(r.memberId);
+    return {
+      id: r.id,
+      memberId: r.memberId,
+      memberName: m?.fullName ?? "—",
+      phone: m?.phone ?? null,
+      bookingId: r.bookingId,
+      amount: r.amount,
+      tier: r.tier,
+      lucky: r.lucky,
+      source: r.source,
+      at: r.createdAt.toISOString(),
+    };
+  });
+}
+
+// ─── 💳 driver debt payments ─────────────────────────────────────────────────
+export async function getAdminDriverDebts(limit = 100): Promise<{ id: number; memberId: number; carNumber: string; amount: number; status: string; kasBalance: number | null; errorNote: string | null; at: string }[]> {
+  const rows = await prisma.driverDebtPayment.findMany({
+    orderBy: { createdAt: "desc" },
+    take: limit,
+  });
+  return rows.map((r) => ({
+    id: r.id,
+    memberId: r.memberId,
+    carNumber: r.carNumber,
+    amount: r.amount,
+    status: r.status,
+    kasBalance: r.kasBalance ?? null,
+    errorNote: r.errorNote ?? null,
+    at: r.createdAt.toISOString(),
+  }));
+}
+
+// ─── 👥 referral chain ───────────────────────────────────────────────────────
+export async function getAdminReferrals(limit = 200): Promise<{ id: number; referrerId: string; referrerName: string; refereeId: string; refereeName: string; rewardReferrer: number; rewardReferee: number; paid: boolean; at: string }[]> {
+  const rows = await prisma.referral.findMany({
+    orderBy: { createdAt: "desc" },
+    take: limit,
+  });
+  const tgIds = [...new Set([...rows.map((r) => r.referrerId), ...rows.map((r) => r.refereeId)])];
+  const users = await prisma.telegramUser.findMany({
+    where: { id: { in: tgIds } },
+    select: { id: true, firstName: true, lastName: true, username: true },
+  });
+  const nameOf = (id: string) => {
+    const u = users.find((x) => x.id === id);
+    if (!u) return id;
+    return [u.firstName, u.lastName].filter(Boolean).join(" ") || (u.username ? "@" + u.username : id);
+  };
+  return rows.map((r) => ({
+    id: r.id,
+    referrerId: r.referrerId,
+    referrerName: nameOf(r.referrerId),
+    refereeId: r.refereeId,
+    refereeName: nameOf(r.refereeId),
+    rewardReferrer: r.rewardReferrer,
+    rewardReferee: r.rewardReferee,
+    paid: !!r.referrerPaidAt,
+    at: r.createdAt.toISOString(),
+  }));
+}
+
+// ─── 🚫 ban / unban ──────────────────────────────────────────────────────────
+export async function adminBan(memberId: number, reason: string): Promise<{ ok: boolean; message: string }> {
+  await prisma.member.update({ where: { id: memberId }, data: { riskFlag: true, riskNote: reason || "admin ban" } });
+  return { ok: true, message: `🚫 #${memberId} bloklandi` };
+}
+
+export async function adminUnban(memberId: number): Promise<{ ok: boolean; message: string }> {
+  await prisma.member.update({ where: { id: memberId }, data: { riskFlag: false, riskNote: null } });
+  return { ok: true, message: `✅ #${memberId} blok olib tashlandi` };
+}
+
+export async function getAdminBanned(): Promise<{ id: number; fullName: string | null; phone: string | null; type: string; riskNote: string | null; trips: number; coins: number }[]> {
+  const rows = await prisma.member.findMany({
+    where: { riskFlag: true },
+    orderBy: { updatedAt: "desc" },
+  });
+  return rows.map((m) => ({
+    id: m.id,
+    fullName: m.fullName,
+    phone: m.phone,
+    type: m.type,
+    riskNote: m.riskNote ?? null,
+    trips: m.trips,
+    coins: m.coins,
+  }));
+}

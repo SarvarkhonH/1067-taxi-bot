@@ -429,6 +429,7 @@ export async function getBotUsers(): Promise<AdminBotUsersResponse> {
       isAdmin: t.isAdmin,
       linkedAt: t.linkedAt?.toISOString() ?? null,
       lastActive: t.updatedAt.toISOString(),
+      joinedAt: t.createdAt.toISOString(),
     };
   });
 

@@ -1335,6 +1335,41 @@ export function createApiServer(opts: ApiOptions = {}) {
     res.json(await adminWakeUp(String(b.text ?? ""), Math.floor(Number(b.bonus ?? 0)), Math.max(1, Math.floor(Number(b.days ?? 14))), opts.sendMessage, String(res.locals.telegramId ?? "admin")));
   });
 
+  app.get("/api/admin/rides", requireAdmin, async (req, res) => {
+    const limit = Math.min(500, Number(req.query.limit) || 150);
+    const { getAdminRides } = await import("../services/adminOps");
+    res.json(await getAdminRides(limit));
+  });
+
+  app.get("/api/admin/driver-debts", requireAdmin, async (_req, res) => {
+    const { getAdminDriverDebts } = await import("../services/adminOps");
+    res.json(await getAdminDriverDebts());
+  });
+
+  app.get("/api/admin/referrals", requireAdmin, async (_req, res) => {
+    const { getAdminReferrals } = await import("../services/adminOps");
+    res.json(await getAdminReferrals());
+  });
+
+  app.get("/api/admin/banned", requireAdmin, async (_req, res) => {
+    const { getAdminBanned } = await import("../services/adminOps");
+    res.json(await getAdminBanned());
+  });
+
+  app.post("/api/admin/ban", requireAdmin, requireOwner, rateLimit(20), async (req, res) => {
+    const { memberId, reason } = req.body as { memberId: number; reason?: string };
+    if (!memberId) { res.status(400).json({ ok: false, message: "memberId kerak" }); return; }
+    const { adminBan } = await import("../services/adminOps");
+    res.json(await adminBan(memberId, reason ?? "admin ban"));
+  });
+
+  app.post("/api/admin/unban", requireAdmin, requireOwner, rateLimit(20), async (req, res) => {
+    const { memberId } = req.body as { memberId: number };
+    if (!memberId) { res.status(400).json({ ok: false, message: "memberId kerak" }); return; }
+    const { adminUnban } = await import("../services/adminOps");
+    res.json(await adminUnban(memberId));
+  });
+
   app.post("/api/admin/sync", requireAdmin, async (_req, res) => {
     const { runSync } = await import("../sync/sync");
     try {

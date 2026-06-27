@@ -11,34 +11,71 @@ import {
   type AdminMemberRow,
   type AdminStats,
 } from "@t1067/shared";
-import { adminApi, clearAdminToken, hasAdminToken, setAdminToken, type AdminUserRow, type AdminWithdrawalRow, type CampaignRow, type Driver360, type DriverMissionRow, type Member360 } from "./api";
+import { adminApi, clearAdminToken, hasAdminToken, setAdminToken, type AdminBannedRow, type AdminDebtRow, type AdminReferralRow, type AdminRideRow, type AdminUserRow, type AdminWithdrawalRow, type CampaignRow, type Driver360, type DriverMissionRow, type Member360 } from "./api";
 
-type Tab = "overview" | "pulse" | "analytics" | "finance" | "live" | "x360" | "driver" | "client" | "botusers" | "boshqaruv" | "topshiriq" | "actions" | "integrity" | "audit";
+type Tab = "overview" | "pulse" | "analytics" | "finance" | "live" | "x360" | "driver" | "client" | "botusers" | "boshqaruv" | "topshiriq" | "actions" | "integrity" | "audit" | "safarlar" | "qarzlar" | "referallar" | "banlist";
+
+const NAV_GROUPS: { label: string; items: { id: Tab; icon: string; label: string }[] }[] = [
+  {
+    label: "ASOSIY",
+    items: [
+      { id: "overview", icon: "🏠", label: "Dashboard" },
+      { id: "pulse", icon: "💓", label: "Puls" },
+      { id: "live", icon: "🗺", label: "Jonli xarita" },
+    ],
+  },
+  {
+    label: "MOLIYA",
+    items: [
+      { id: "finance", icon: "💰", label: "Moliya" },
+      { id: "analytics", icon: "📈", label: "Analitika" },
+    ],
+  },
+  {
+    label: "A'ZOLAR",
+    items: [
+      { id: "driver", icon: "🚗", label: "Haydovchilar" },
+      { id: "client", icon: "🏅", label: "Mijozlar" },
+      { id: "botusers", icon: "👥", label: "Bot foydalanuvchilar" },
+      { id: "x360", icon: "🔎", label: "360 qidiruv" },
+    ],
+  },
+  {
+    label: "TARIX",
+    items: [
+      { id: "safarlar", icon: "🚕", label: "Safarlar tarixi" },
+      { id: "qarzlar", icon: "💳", label: "Haydovchi qarzlari" },
+      { id: "referallar", icon: "👥", label: "Referallar" },
+      { id: "banlist", icon: "🚫", label: "Bloklangan" },
+    ],
+  },
+  {
+    label: "BOSHQARUV",
+    items: [
+      { id: "actions", icon: "⚡", label: "Amallar" },
+      { id: "topshiriq", icon: "🎯", label: "Topshiriqlar" },
+      { id: "boshqaruv", icon: "👑", label: "Foydalanuvchilar" },
+      { id: "integrity", icon: "🔐", label: "Integrity" },
+      { id: "audit", icon: "📜", label: "Jurnal" },
+    ],
+  },
+];
 
 export function App() {
   const [tab, setTab] = useState<Tab>("overview");
   const [health, setHealth] = useState<AdminHealth | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const [sideOpen, setSideOpen] = useState(false);
   const [authed, setAuthed] = useState<boolean>(hasAdminToken);
 
-  // poll health for the always-on status pill (only once we have a credential)
   useEffect(() => {
     if (!authed) return;
     const load = () =>
       adminApi
         .health()
-        .then((h) => {
-          setHealth(h);
-          setError(null);
-        })
+        .then((h) => { setHealth(h); })
         .catch((e) => {
           const msg = e instanceof Error ? e.message : String(e);
-          setError(msg);
-          if (msg === "forbidden") {
-            // stored credential is wrong/stale → back to the login screen
-            clearAdminToken();
-            setAuthed(false);
-          }
+          if (msg === "forbidden") { clearAdminToken(); setAuthed(false); }
         });
     load();
     const t = setInterval(load, 30000);
@@ -47,65 +84,81 @@ export function App() {
 
   if (!authed) return <LoginScreen onAuthed={() => setAuthed(true)} />;
 
-  function logout() {
-    clearAdminToken();
-    setHealth(null);
-    setError(null);
-    setAuthed(false);
-  }
+  function logout() { clearAdminToken(); setHealth(null); setAuthed(false); }
 
-  const TABS: { id: Tab; label: string }[] = [
-    { id: "overview", label: "📊 Umumiy" },
-    { id: "pulse", label: "💓 Puls" },
-    { id: "analytics", label: "📈 Analitika" },
-    { id: "finance", label: "💰 Moliya" },
-    { id: "live", label: "🗺 Jonli" },
-    { id: "x360", label: "🔎 360" },
-    { id: "driver", label: "🚗 Haydovchi" },
-    { id: "client", label: "🏅 Mijoz" },
-    { id: "botusers", label: "👥 Bot" },
-    { id: "boshqaruv", label: "👑 Boshqaruv" },
-    { id: "topshiriq", label: "🎯 Topshiriq" },
-    { id: "actions", label: "⚡ Amallar" },
-    { id: "integrity", label: "🔐 Integrity" },
-    { id: "audit", label: "📜 Jurnal" },
-  ];
+  const allItems = NAV_GROUPS.flatMap((g) => g.items);
+  const current = allItems.find((i) => i.id === tab);
+
+  const goTab = (id: Tab) => { setTab(id); setSideOpen(false); };
 
   return (
     <div className="dash">
-      <header className="bar">
-        <div className="bar-brand">
-          <span className="logo">🚕</span>
+      {/* ── sidebar ── */}
+      <aside className={"sidebar" + (sideOpen ? " sidebar-open" : "")}>
+        <div className="sb-brand">
+          <span className="sb-logo">🚕</span>
           <div>
-            <div className="bar-title">1067 TAXI · <b>Command</b></div>
-            <div className="bar-sub muted">Boshqaruv markazi v4</div>
+            <div className="sb-title">1067 TAXI</div>
+            <div className="sb-sub">Command Center</div>
           </div>
         </div>
-        <div className="bar-right">
+
+        <nav className="sb-nav">
+          {NAV_GROUPS.map((g) => (
+            <div key={g.label} className="sb-group">
+              <div className="sb-group-label">{g.label}</div>
+              {g.items.map((item) => (
+                <button
+                  key={item.id}
+                  className={"sb-item" + (tab === item.id ? " active" : "")}
+                  onClick={() => goTab(item.id)}
+                >
+                  <span className="sb-icon">{item.icon}</span>
+                  <span className="sb-label">{item.label}</span>
+                </button>
+              ))}
+            </div>
+          ))}
+        </nav>
+
+        <div className="sb-footer">
           <HealthPill h={health} />
-          <button className="logout-btn" onClick={logout} title="Chiqish">🚪 Chiqish</button>
+          <button className="logout-btn" onClick={logout}>🚪 Chiqish</button>
         </div>
-      </header>
+      </aside>
 
-      <div className="seg seg-tabs">
-        {TABS.map((t) => (
-          <button key={t.id} className={tab === t.id ? "seg-btn active" : "seg-btn"} onClick={() => setTab(t.id)}>{t.label}</button>
-        ))}
+      {sideOpen && <div className="sidebar-backdrop" onClick={() => setSideOpen(false)} />}
+
+      {/* ── main content ── */}
+      <div className="content">
+        <div className="content-header">
+          <button className="hamburger" onClick={() => setSideOpen((s) => !s)} aria-label="menu">☰</button>
+          <div className="content-title">{current?.icon} {current?.label}</div>
+          <div className="content-header-right">
+            <HealthPill h={health} />
+          </div>
+        </div>
+
+        <div className="content-body">
+          {tab === "overview" && <Overview health={health} />}
+          {tab === "pulse" && <PulseView />}
+          {tab === "analytics" && <AnalyticsView />}
+          {tab === "finance" && <FinanceView />}
+          {tab === "live" && <LiveMapView />}
+          {tab === "x360" && <X360View />}
+          {(tab === "driver" || tab === "client") && <MembersTab type={tab} />}
+          {tab === "botusers" && <BotUsersTab />}
+          {tab === "boshqaruv" && <><BoshqaruvView /><RecruitsView /></>}
+          {tab === "topshiriq" && <><CampaignsView /><DriverMissionsView /></>}
+          {tab === "actions" && <><ActionsView /><ControlCards /></>}
+          {tab === "integrity" && <IntegrityView />}
+          {tab === "audit" && <AuditView />}
+          {tab === "safarlar" && <SafarlarView />}
+          {tab === "qarzlar" && <QarzlarView />}
+          {tab === "referallar" && <ReferallarView />}
+          {tab === "banlist" && <BanListView />}
+        </div>
       </div>
-
-      {tab === "overview" && <Overview health={health} />}
-      {tab === "pulse" && <PulseView />}
-      {tab === "analytics" && <AnalyticsView />}
-      {tab === "finance" && <FinanceView />}
-      {tab === "live" && <LiveMapView />}
-      {tab === "x360" && <X360View />}
-      {(tab === "driver" || tab === "client") && <MembersTab type={tab} />}
-      {tab === "botusers" && <BotUsersTab />}
-      {tab === "boshqaruv" && <><BoshqaruvView /><RecruitsView /></>}
-      {tab === "topshiriq" && <><CampaignsView /><DriverMissionsView /></>}
-      {tab === "actions" && (<><ActionsView /><ControlCards /></>)}
-      {tab === "integrity" && <IntegrityView />}
-      {tab === "audit" && <AuditView />}
     </div>
   );
 }
@@ -1295,37 +1348,51 @@ function MembersView({ type, stats, members, query, setQuery }: { type: "driver"
 }
 
 function BotUsersView({ data, query, setQuery }: { data: AdminBotUsersResponse | null; query: string; setQuery: (s: string) => void }) {
+  const [onlyUnlinked, setOnlyUnlinked] = useState(false);
   const filtered = useMemo(() => {
     if (!data) return [];
     const q = query.trim().toLowerCase();
-    if (!q) return data.users;
-    return data.users.filter((u) => [u.name, u.username, u.phone, u.memberName].some((v) => v?.toLowerCase().includes(q)));
-  }, [data, query]);
+    let list = data.users;
+    if (onlyUnlinked) list = list.filter((u) => !u.linked);
+    if (!q) return list;
+    return list.filter((u) => [u.name, u.username, u.phone, u.memberName].some((v) => v?.toLowerCase().includes(q)));
+  }, [data, query, onlyUnlinked]);
   if (!data) return <div className="screen center"><div className="spinner" /></div>;
+  const unlinkedCount = data.total - data.linked;
   return (
     <>
       <section className="cards">
         <Card icon="👥" label="Botga kirganlar" value={formatNumber(data.total)} accent />
         <Card icon="🔗" label="Bog'langan" value={formatNumber(data.linked)} sub="profil bilan" />
+        <Card icon="⏳" label="Bog'lanmagan" value={formatNumber(unlinkedCount)} sub="raqam ulamagan" />
         <Card icon="🆕" label="Bugun yangi" value={formatNumber(data.newToday)} />
-        <Card icon="🛠" label="Adminlar" value={formatNumber(data.admins)} />
       </section>
       <section className="panel">
         <div className="panel-head">
           <div className="panel-title">Bot foydalanuvchilari ({formatNumber(filtered.length)})</div>
-          <input className="search" placeholder="🔍 Ism, username, telefon…" value={query} onChange={(e) => setQuery(e.target.value)} />
+          <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+            <button
+              className={"btn-sm" + (onlyUnlinked ? " active" : "")}
+              onClick={() => setOnlyUnlinked((v) => !v)}
+              style={{ fontSize: 12, padding: "4px 10px", borderRadius: 6, border: "1px solid var(--border)", background: onlyUnlinked ? "var(--accent)" : "transparent", color: onlyUnlinked ? "#fff" : "inherit", cursor: "pointer" }}
+            >
+              Faqat bog'lanmaganlar
+            </button>
+            <input className="search" placeholder="🔍 Ism, username, telefon…" value={query} onChange={(e) => setQuery(e.target.value)} />
+          </div>
         </div>
         <div className="table-wrap">
           <table>
-            <thead><tr><th>#</th><th>Foydalanuvchi</th><th>Telefon</th><th>Profil</th><th>Tur</th><th>Oxirgi faollik</th></tr></thead>
+            <thead><tr><th>#</th><th>Foydalanuvchi</th><th>Telefon</th><th>Profil</th><th>Tur</th><th>Qo'shilgan</th><th>Oxirgi faollik</th></tr></thead>
             <tbody>
               {filtered.slice(0, 500).map((u, i) => (
-                <tr key={u.telegramId}>
+                <tr key={u.telegramId} style={!u.linked ? { background: "rgba(255,80,80,0.04)" } : undefined}>
                   <td className="muted">{i + 1}</td>
                   <td><div className="td-name">{u.name} {u.isAdmin && <span className="lvl">admin</span>}</div><div className="td-sub muted">{u.username ? `@${u.username}` : u.telegramId}</div></td>
                   <td>{u.phone ?? "—"}</td>
                   <td>{u.linked ? <span className="td-name">{u.memberName}</span> : <span className="muted">— bog'lanmagan</span>}</td>
                   <td>{u.memberType ? <span className="lvl">{u.memberType === "driver" ? "🚗 Haydovchi" : "🏅 Mijoz"}</span> : "—"}</td>
+                  <td className="muted">{fmtTime(u.joinedAt)}</td>
                   <td className="muted">{fmtTime(u.lastActive)}</td>
                 </tr>
               ))}
@@ -1634,6 +1701,200 @@ function LoginScreen({ onAuthed }: { onAuthed: () => void }) {
         <p className="login-foot muted">Faqat administratorlar uchun · 1067 Taxi</p>
       </form>
     </div>
+  );
+}
+
+// ─── 🚕 safarlar tarixi ─────────────────────────────────────────────────────
+function SafarlarView() {
+  const [rows, setRows] = useState<AdminRideRow[] | null>(null);
+  const [q, setQ] = useState("");
+  useEffect(() => { adminApi.rides(150).then(setRows).catch(() => setRows([])); }, []);
+  const filtered = useMemo(() => {
+    if (!rows) return [];
+    const s = q.trim().toLowerCase();
+    if (!s) return rows;
+    return rows.filter((r) => [r.memberName, r.phone, String(r.bookingId), r.tier].some((v) => v?.toLowerCase().includes(s)));
+  }, [rows, q]);
+  if (!rows) return <div className="screen center"><div className="spinner" /></div>;
+  const total = rows.reduce((s, r) => s + r.amount, 0);
+  return (
+    <section className="panel">
+      <div className="panel-head">
+        <div className="panel-title">🚕 Safarlar tarixi — so'nggi 150 ta cashback</div>
+        <input className="search" placeholder="🔍 Ism, telefon, booking#, daraja…" value={q} onChange={(e) => setQ(e.target.value)} />
+      </div>
+      <div className="cards" style={{ marginBottom: 12 }}>
+        <Card icon="🚕" label="Jami safarlar" value={formatNumber(rows.length)} accent />
+        <Card icon="🪙" label="Jami cashback" value={formatNumber(total)} sub="tanga" />
+        <Card icon="🍀" label="Lucky safarlar" value={formatNumber(rows.filter((r) => r.lucky).length)} />
+      </div>
+      <div className="table-wrap">
+        <table>
+          <thead><tr><th>#</th><th>A'zo</th><th>Telefon</th><th>Booking</th><th>Daraja</th><th className="num">Tanga</th><th>Lucky</th><th>Manba</th><th>Vaqt</th></tr></thead>
+          <tbody>
+            {filtered.slice(0, 300).map((r, i) => (
+              <tr key={r.id}>
+                <td className="muted">{i + 1}</td>
+                <td className="td-name">{r.memberName}</td>
+                <td className="muted">{r.phone ?? "—"}</td>
+                <td className="muted">#{r.bookingId}</td>
+                <td><span className="lvl">{r.tier}</span></td>
+                <td className="num strong" style={{ color: "var(--green)" }}>+{formatNumber(r.amount)}</td>
+                <td>{r.lucky ? "🍀" : "—"}</td>
+                <td className="muted">{r.source}</td>
+                <td className="muted">{fmtTime(r.at)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+        {filtered.length > 300 && <div className="muted" style={{ padding: 10, fontSize: 12 }}>Birinchi 300 ko'rsatildi.</div>}
+      </div>
+    </section>
+  );
+}
+
+// ─── 💳 haydovchi qarzlari ──────────────────────────────────────────────────
+function QarzlarView() {
+  const [rows, setRows] = useState<AdminDebtRow[] | null>(null);
+  useEffect(() => { adminApi.driverDebts().then(setRows).catch(() => setRows([])); }, []);
+  if (!rows) return <div className="screen center"><div className="spinner" /></div>;
+  const byStatus = (s: string) => rows.filter((r) => r.status === s).length;
+  return (
+    <section className="panel">
+      <div className="panel-title">💳 Haydovchi qarz to'lovlari — so'nggi 100 ta</div>
+      <div className="cards" style={{ marginBottom: 12 }}>
+        <Card icon="💳" label="Jami yozuvlar" value={formatNumber(rows.length)} accent />
+        <Card icon="✅" label="Muvaffaqiyatli" value={formatNumber(byStatus("success"))} />
+        <Card icon="⏳" label="Kutilmoqda" value={formatNumber(byStatus("pending"))} />
+        <Card icon="❌" label="Xatolik" value={formatNumber(byStatus("error"))} />
+      </div>
+      <div className="table-wrap">
+        <table>
+          <thead><tr><th>#</th><th>A'zo ID</th><th>Mashina</th><th className="num">Summa</th><th>Holat</th><th>kas Balans</th><th>Xato</th><th>Vaqt</th></tr></thead>
+          <tbody>
+            {rows.map((r, i) => (
+              <tr key={r.id} className={r.status === "error" ? "row-warn" : ""}>
+                <td className="muted">{i + 1}</td>
+                <td className="muted">#{r.memberId}</td>
+                <td><b>{r.carNumber}</b></td>
+                <td className="num strong">{formatNumber(r.amount)}</td>
+                <td><span className={"lvl" + (r.status === "error" ? " warn" : "")}>{r.status === "success" ? "✅" : r.status === "error" ? "❌" : "⏳"} {r.status}</span></td>
+                <td className="muted">{r.kasBalance != null ? formatNumber(r.kasBalance) : "—"}</td>
+                <td className="muted" style={{ fontSize: 11 }}>{r.errorNote ?? "—"}</td>
+                <td className="muted">{fmtTime(r.at)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </section>
+  );
+}
+
+// ─── 👥 referallar ──────────────────────────────────────────────────────────
+function ReferallarView() {
+  const [rows, setRows] = useState<AdminReferralRow[] | null>(null);
+  const [q, setQ] = useState("");
+  useEffect(() => { adminApi.referrals().then(setRows).catch(() => setRows([])); }, []);
+  const filtered = useMemo(() => {
+    if (!rows) return [];
+    const s = q.trim().toLowerCase();
+    if (!s) return rows;
+    return rows.filter((r) => [r.referrerName, r.refereeName].some((v) => v?.toLowerCase().includes(s)));
+  }, [rows, q]);
+  if (!rows) return <div className="screen center"><div className="spinner" /></div>;
+  const paidCount = rows.filter((r) => r.paid).length;
+  const totalReferrer = rows.reduce((s, r) => s + r.rewardReferrer, 0);
+  return (
+    <section className="panel">
+      <div className="panel-head">
+        <div className="panel-title">👥 Referal zanjiri — so'nggi 200 ta</div>
+        <input className="search" placeholder="🔍 Ism bo'yicha…" value={q} onChange={(e) => setQ(e.target.value)} />
+      </div>
+      <div className="cards" style={{ marginBottom: 12 }}>
+        <Card icon="👥" label="Jami referallar" value={formatNumber(rows.length)} accent />
+        <Card icon="✅" label="To'langan" value={formatNumber(paidCount)} />
+        <Card icon="🪙" label="Mukofot (jami)" value={formatNumber(totalReferrer)} sub="taklif qilganlarga" />
+      </div>
+      <div className="table-wrap">
+        <table>
+          <thead><tr><th>#</th><th>Taklif qildi</th><th>Keldi</th><th className="num">Mukofot</th><th className="num">Yangi a'zo</th><th>To'landi</th><th>Vaqt</th></tr></thead>
+          <tbody>
+            {filtered.slice(0, 300).map((r, i) => (
+              <tr key={r.id}>
+                <td className="muted">{i + 1}</td>
+                <td className="td-name">{r.referrerName}</td>
+                <td className="td-name">{r.refereeName}</td>
+                <td className="num strong" style={{ color: "var(--green)" }}>+{formatNumber(r.rewardReferrer)}</td>
+                <td className="num">{formatNumber(r.rewardReferee)}</td>
+                <td>{r.paid ? <span className="dot ok" /> : <span className="dot" />}</td>
+                <td className="muted">{fmtTime(r.at)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </section>
+  );
+}
+
+// ─── 🚫 bloklangan a'zolar ──────────────────────────────────────────────────
+function BanListView() {
+  const [rows, setRows] = useState<AdminBannedRow[] | null>(null);
+  const [msg, setMsg] = useState<string | null>(null);
+  const load = () => adminApi.banned().then(setRows).catch(() => setRows([]));
+  useEffect(() => { load(); }, []);
+
+  const ban = async () => {
+    const idStr = window.prompt("Bloklash uchun member ID:");
+    if (!idStr) return;
+    const id = Number(idStr);
+    if (!id) { setMsg("Noto'g'ri ID"); return; }
+    const reason = window.prompt("Blok sababi:") ?? "admin ban";
+    const r = await adminApi.ban(id, reason).catch(() => ({ ok: false, message: "xato" }));
+    setMsg(r.message);
+    await load();
+  };
+
+  const unban = async (id: number, name: string | null) => {
+    if (!window.confirm(`${name ?? `#${id}`} blokini ochishni tasdiqlaysizmi?`)) return;
+    const r = await adminApi.unban(id).catch(() => ({ ok: false, message: "xato" }));
+    setMsg(r.message);
+    await load();
+  };
+
+  if (!rows) return <div className="screen center"><div className="spinner" /></div>;
+  return (
+    <section className="panel">
+      <div className="panel-head">
+        <div className="panel-title">🚫 Bloklangan a'zolar ({rows.length})</div>
+        <button className="btn" onClick={ban}>+ Bloklash</button>
+      </div>
+      {msg && <div className="action-msg" style={{ marginBottom: 8 }}>{msg}</div>}
+      {rows.length === 0 ? (
+        <div className="muted" style={{ padding: 12 }}>✅ Hozircha bloklangan a'zo yo'q.</div>
+      ) : (
+        <div className="table-wrap">
+          <table>
+            <thead><tr><th>ID</th><th>Ism</th><th>Telefon</th><th>Tur</th><th>Sabab</th><th className="num">Safar</th><th className="num">Tanga</th><th></th></tr></thead>
+            <tbody>
+              {rows.map((r) => (
+                <tr key={r.id} className="row-warn">
+                  <td className="muted">#{r.id}</td>
+                  <td className="td-name">{r.fullName ?? "—"}</td>
+                  <td className="muted">{r.phone ?? "—"}</td>
+                  <td><span className="lvl">{r.type === "driver" ? "🚗" : "🏅"} {r.type}</span></td>
+                  <td className="muted" style={{ fontSize: 12 }}>{r.riskNote ?? "—"}</td>
+                  <td className="num">{r.trips}</td>
+                  <td className="num">{formatNumber(r.coins)}</td>
+                  <td><button className="btn sm" onClick={() => unban(r.id, r.fullName)}>Ochish</button></td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </section>
   );
 }
 
