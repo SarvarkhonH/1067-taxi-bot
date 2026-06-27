@@ -59,9 +59,10 @@ const canWebApp = env.TELEGRAM_WEBAPP_URL.startsWith("https://");
 // never "hozir oling". UI currency stays "tanga" (project rule), the free-ride hook carries
 // the real-money feel for someone who's never heard of tanga.
 const clientInviteText = (bonus: number): string =>
-  `🎁 Birinchi safaringiz BEPUL — ${formatNumber(bonus)} tanga sovg'a kutyapti!\n` +
-  `🚕 1067 Taxi: bir tap — eng yaqin haydovchi keladi · har safardan cashback.\n` +
-  `👇 Shu havola orqali qo'shiling:`;
+  `🚖 1067 Taxi — Kosonda bir tap bilan taksi. Ishonchli haydovchi, halol narx, jonli xarita.\n` +
+  `🎁 Shu havola orqali qo'shilsangiz, birinchi safaringiz BEPUL — ${formatNumber(bonus)} tanga sovg'a.\n` +
+  `💰 Har safardan cashback qaytadi — keyingi safaringizga ishlatib, yo'l pulingizni tejaysiz.\n` +
+  `👇 Qo'shilish:`;
 
 // Telegram caches the Mini App aggressively BY URL — the owner kept seeing stale builds
 // (worst: the persistent Menu Button, whose URL had NO version → permanently cached → the
