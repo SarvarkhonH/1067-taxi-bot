@@ -46,6 +46,8 @@ import {
   OFIS_BID_FACTOR,
   hiddenDefectFor,
   repairNarxFactor,
+  slotCost,
+  SLOT_COSTS,
   type PublicProfileView,
   KOZACHA_SHOP,
   computeFlipGrant,
@@ -445,6 +447,14 @@ export async function acquireCar(memberId: number, carCode: string): Promise<Gar
     // own = an ACTIVE (unsold) car of this model. Sold rows do NOT block re-buying.
     const active = await prisma.garajCar.findFirst({ where: { memberId, carCode, soldAt: null } });
     if (active) return { ok: false, reason: "owned", coins: await getCoins(memberId) };
+    // 🪪 P1-D — slot enforcement: total active cars ≤ slotCount (default 1). Buy more slots via purchaseSlot.
+    // Only enforced when motorolami flag is ON (so P0-only players keep the old free-multi behavior).
+    if (await motorEnabledFor(memberId)) {
+      const slotMeta = await prisma.memberGarajMeta.findUnique({ where: { memberId }, select: { slotCount: true } });
+      const slotCount = Math.max(1, slotMeta?.slotCount ?? 1);
+      const activeCount = await prisma.garajCar.count({ where: { memberId, soldAt: null } });
+      if (activeCount >= slotCount) return { ok: false, reason: "no_slot", coins: await getCoins(memberId) };
+    }
     const result = await prisma.$transaction(async (tx) => {
       const m = await tx.member.findUnique({ where: { id: memberId }, select: { coins: true } });
       if ((m?.coins ?? 0) < buyPrice) return { ok: false as const, reason: "insufficient" as const };
@@ -734,6 +744,50 @@ export async function getOfisStats(): Promise<{ budget: number; spent: number; l
     prisma.ofisLedger.count({ where: { kind: "scrap", dayKey: today } }),
   ]);
   return { budget, spent, left, heldCount, scrappedToday };
+}
+
+// 🪪 P1-D — purchase one extra slot. Default slot 1 = free; slot 2 = 50k, 3 = 250k, 4 = 1M
+// (admin-tunable via slot2Cost/slot3Cost/slot4Cost knobs). Pure tanga sink (corp-ledger-safe).
+// Idempotency key uses the TARGET slot number (so retry of the same target is rejected as duplicate).
+export async function purchaseSlot(memberId: number): Promise<GarajActionResult & { newSlotCount?: number; cost?: number }> {
+  if (!(await motorEnabledFor(memberId))) return { ok: false, reason: "off" };
+  return withMemberLock(memberId, async () => {
+    const meta = await prisma.memberGarajMeta.findUnique({ where: { memberId }, select: { slotCount: true } });
+    const current = Math.max(1, meta?.slotCount ?? 1);
+    const target = current + 1;
+    if (target > SLOT_COSTS.length - 1 + 1) return { ok: false, reason: "max_slots", coins: await getCoins(memberId) };
+    const econ = await getMotorEcon();
+    // Per-slot admin knob override (slot2Cost/slot3Cost/slot4Cost), falls back to shared default.
+    const knob = target === 2 ? econ.slot2Cost : target === 3 ? econ.slot3Cost : target === 4 ? econ.slot4Cost : null;
+    const cost = Math.max(1, Math.floor(knob ?? slotCost(target)));
+    const result = await prisma.$transaction(async (tx) => {
+      const m = await tx.member.findUnique({ where: { id: memberId }, select: { coins: true } });
+      if ((m?.coins ?? 0) < cost) return { ok: false as const, reason: "insufficient" as const };
+      await tx.coinTxn.create({ data: { memberId, amount: -cost, kind: "garaj_slot", reason: `🪪 Slot ${target}`, idempotencyKey: `slot:${memberId}:${target}` } });
+      await tx.member.update({ where: { id: memberId }, data: { coins: { decrement: cost } } });
+      await tx.memberGarajMeta.upsert({ where: { memberId }, create: { memberId, slotCount: target }, update: { slotCount: target } });
+      return { ok: true as const, target, cost };
+    });
+    if (!result.ok) return { ok: false, reason: result.reason, coins: await getCoins(memberId) };
+    return { ok: true, newSlotCount: result.target, cost: result.cost, coins: await getCoins(memberId) };
+  });
+}
+
+/** Read the current slot status + next-slot cost (for UI). */
+export async function getSlotStatus(memberId: number): Promise<{ slotCount: number; activeCount: number; nextSlotCost: number | null }> {
+  const econ = await getMotorEcon();
+  const [meta, activeCount] = await Promise.all([
+    prisma.memberGarajMeta.findUnique({ where: { memberId }, select: { slotCount: true } }),
+    prisma.garajCar.count({ where: { memberId, soldAt: null } }),
+  ]);
+  const slotCount = Math.max(1, meta?.slotCount ?? 1);
+  const next = slotCount + 1;
+  let nextSlotCost: number | null = null;
+  if (next <= SLOT_COSTS.length - 1 + 1) {
+    const knob = next === 2 ? econ.slot2Cost : next === 3 ? econ.slot3Cost : next === 4 ? econ.slot4Cost : null;
+    nextSlotCost = Math.max(1, Math.floor(knob ?? slotCost(next)));
+  }
+  return { slotCount, activeCount, nextSlotCost };
 }
 
 // 🏛 P1-C — sweep-side lifespan aging. motorCollect already decays engineHp on collect,

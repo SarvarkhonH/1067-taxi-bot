@@ -202,6 +202,9 @@ export function createApiServer(opts: ApiOptions = {}) {
     res.json(r ?? { error: "not_found" });
   });
   app.post("/api/garaj/ofis/sell", requireUser, rateLimit(10), withMember2(async (id, req) => (await import("../services/garajService")).ofisSellToOfis(id, Number(req.body?.garajCarId))));
+  // 🪪 P1-D — slot system
+  app.get("/api/garaj/slot/status", requireUser, withMember2(async (id) => (await import("../services/garajService")).getSlotStatus(id)));
+  app.post("/api/garaj/slot/purchase", requireUser, rateLimit(5), withMember2(async (id) => (await import("../services/garajService")).purchaseSlot(id)));
   app.get("/api/garaj/profile/:id", requireUser, withMember2(async (id, req) => (await import("../services/garajService")).getPublicProfile(id, req.params?.id === "me" ? id : Number(req.params?.id))));
 
   app.get("/api/me", requireUser, async (_req, res) => {

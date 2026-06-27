@@ -192,6 +192,9 @@ export const api = {
   garajOfisStats: () => get<{ budget: number; spent: number; left: number; heldCount: number; scrappedToday: number }>("/api/garaj/ofis/stats"),
   garajOfisBid: (garajCarId: number) => get<{ bid: number; basePrice: number; carCode: string } | { error: string }>(`/api/garaj/ofis/bid/${garajCarId}`),
   garajOfisSell: (garajCarId: number) => request<GarajActionResult & { received?: number; bid?: number }>("POST", "/api/garaj/ofis/sell", { garajCarId }, 1),
+  // 🪪 P1-D — slot system
+  garajSlotStatus: () => get<{ slotCount: number; activeCount: number; nextSlotCost: number | null }>("/api/garaj/slot/status"),
+  garajSlotPurchase: () => request<GarajActionResult & { newSlotCount?: number; cost?: number }>("POST", "/api/garaj/slot/purchase", {}, 1),
   garajProfile: (id: number | "me") => get<PublicProfileView | null>(`/api/garaj/profile/${id}`),
   garajAuctions: () => get<{ id: number; carCode: string; name: string; emoji: string; minBid: number; endsAt: string; mine: boolean }[]>("/api/garaj/auctions"),
   garajAuctionCreate: (garajCarId: number, minBid: number) => request<GarajActionResult>("POST", "/api/garaj/auction/create", { garajCarId, minBid }, 1),
