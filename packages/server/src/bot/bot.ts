@@ -110,6 +110,11 @@ function mainMenu(isDriver = false): Keyboard {
   btn("🚕 Taxi chaqirish", "book");
   btn("📍 Buyurtmam", "book"); // booking3 shows the live order if one is active
   kb.row();
+  // 🚀 Mini App — promoted to a prominent full-width row right under the taxi CTA (was buried last)
+  if (canWebApp) {
+    kb.webApp("🚀 Ilova — O'yin, Bozor & ko'p", webAppUrl());
+    kb.row();
+  }
   btn("💰 Hamyon", "wallet");
   btn("🎁 Bonuslar", "play");
   btn("👥 Do'st", "friends");
@@ -122,8 +127,8 @@ function mainMenu(isDriver = false): Keyboard {
     kb.row();
     btn("🚗 Haydovchi paneli", "driver");
   }
-  if (canWebApp) kb.row().webApp("🚀 Ilova — O'yin, Bozor & ko'p", webAppUrl());
-  return kb.resized();
+  // is_persistent → the menu stays pinned open (app-like nav); placeholder → modern input hint
+  return kb.resized().persistent().placeholder("Menyudan tanlang yoki manzilni yozing…");
 }
 
 function contactKeyboard(): Keyboard {
@@ -1037,6 +1042,20 @@ export function createBot(): Bot {
   bot.hears("👥 Do'st", showReferral);
   bot.hears("👥 Do'st taklif", showReferral); // old cached keyboards
   bot.command("invite", showReferral);
+
+  // 📋 /menu — modern in-chat INLINE panel: every button deep-links straight into the Mini App on
+  // its screen (web_app buttons). Complements the persistent reply keyboard (sleek tappable cards).
+  const showInlineMenu = async (ctx: Context): Promise<void> => {
+    if (!canWebApp) { await ctx.reply("📋 Menyu pastdagi tugmalarda 👇"); return; }
+    const kb = new InlineKeyboard()
+      .webApp("🚕 Taxi chaqirish", webAppUrl("book")).row()
+      .webApp("🚀 Ilovani ochish", webAppUrl()).row()
+      .webApp("💰 Hamyon", webAppUrl("wallet")).webApp("🎁 Bonuslar", webAppUrl("play")).row()
+      .webApp("👥 Do'st chaqir", webAppUrl("invite")).webApp("🏆 Reyting", webAppUrl("reyting"));
+    await ctx.reply("📋 <b>Menyu</b> — kerakli bo'limni tanlang 👇", { parse_mode: "HTML", reply_markup: kb });
+  };
+  bot.command("menu", showInlineMenu);
+  bot.hears("📋 Menyu", showInlineMenu);
   // 👥 client referral as a scannable QR (parity with the driver QR flows) — show your phone, a
   // friend scans, joins, rides → you +REFERRER_REWARD, they +REFEREE_REWARD.
   bot.callbackQuery("ref:qr", async (ctx) => {
@@ -1260,6 +1279,7 @@ export async function notifyCashback(bot: Bot, deltas: CashbackDelta[]): Promise
 export async function setupBotCommands(bot: Bot): Promise<void> {
   await bot.api.setMyCommands([
     { command: "start", description: "Botni boshlash / profil" },
+    { command: "menu", description: "📋 Menyu (barcha bo'limlar)" },
     { command: "book", description: "🚕 Taxi chaqirish" },
     { command: "status", description: "📍 Buyurtmam holati" },
     { command: "daily", description: "🔥 Kunlik bonus" },
