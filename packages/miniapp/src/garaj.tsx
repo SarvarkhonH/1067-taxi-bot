@@ -310,8 +310,8 @@ export function GarajShell({ onClose, initial }: { onClose: () => void; initial?
   const [selectedStyle, setSelectedStyle] = useState<string>("QUICK_FLIP");
   const [repairZoneSel, setRepairZoneSel] = useState<string | null>(null); // zone being repaired
   const [partSel, setPartSel] = useState<string>("STD"); // chosen part tier
-  const [bazaar, setBazaar] = useState<{ id: number; carCode: string; name: string; emoji: string; askPrice: number; mine: boolean }[]>([]);
-  const [auctions, setAuctions] = useState<{ id: number; carCode: string; name: string; emoji: string; minBid: number; endsAt: string; mine: boolean }[]>([]);
+  const [bazaar, setBazaar] = useState<{ id: number; garajCarId: number; carCode: string; name: string; emoji: string; askPrice: number; mine: boolean }[]>([]);
+  const [auctions, setAuctions] = useState<{ id: number; garajCarId: number; carCode: string; name: string; emoji: string; minBid: number; endsAt: string; mine: boolean }[]>([]);
   const [league, setLeague] = useState<{ rank: number; name: string; score: number; memberCount: number }[]>([]);
   const [history, setHistory] = useState<{ kind: string; carCode: string; name: string; emoji: string; amount: number; profit: number | null; at: string }[]>(initial ? GARAJ_DEMO_HISTORY : []);
   const [cipherInput, setCipherInput] = useState("");
@@ -338,7 +338,9 @@ export function GarajShell({ onClose, initial }: { onClose: () => void; initial?
   const [listLift, setListLift] = useState<{ name: string } | null>(null);
   // ✨ P1-G — UI for ORZU + CarCheck + Eskirdi 4-tugma + slot status
   const [orzuOpen, setOrzuOpen] = useState(false);
-  const [checkOpen, setCheckOpen] = useState<number | null>(null); // carId
+  const [checkOpen, setCheckOpen] = useState<number | null>(null); // carId (own car)
+  // DIAG-Bazaar — generic target for inspecting OTHER people's cars from bazaar/auction
+  const [checkTarget, setCheckTarget] = useState<CarCheckTarget | null>(null);
   const [eskirdiOpen, setEskirdiOpen] = useState<number | null>(null); // carId (dead)
   const [slot, setSlot] = useState<{ slotCount: number; activeCount: number; nextSlotCost: number | null } | null>(null);
   // 🚀 P2-C + 🔗 P2-A sheet state
@@ -715,6 +717,12 @@ export function GarajShell({ onClose, initial }: { onClose: () => void; initial?
                         <span className="gz-car-emoji">{b.emoji}</span>
                         <span className="gz-car-name">{b.name}</span>
                         <span className="gz-car-sub">🪙 {b.askPrice.toLocaleString("ru-RU")}</span>
+                        {/* 🔍 DIAG-Bazaar — pre-buy CarCheck (tarix sotib olishdan oldin ko'rinadi) */}
+                        {st?.motorEnabled && (
+                          <Button sm variant="ghost" onClick={() => { haptic(); setCheckTarget({ id: b.garajCarId, carCode: b.carCode, name: b.name, emoji: b.emoji }); }}>
+                            🔍 Tekshir
+                          </Button>
+                        )}
                         <Button sm disabled={busy || coins < b.askPrice} onClick={() => bazaarBuy(b.id)}>
                           Sotib olish
                         </Button>
@@ -733,7 +741,15 @@ export function GarajShell({ onClose, initial }: { onClose: () => void; initial?
                         <Card key={a.id} className="gz-auc">
                           <div className="row between">
                             <span>{a.emoji} {a.name}</span>
-                            <span className="fs12 dim">min 🪙{a.minBid.toLocaleString("ru-RU")}</span>
+                            <div className="row g8">
+                              <span className="fs12 dim">min 🪙{a.minBid.toLocaleString("ru-RU")}</span>
+                              {/* 🔍 DIAG-Bazaar — pre-bid CarCheck */}
+                              {st?.motorEnabled && (
+                                <button type="button" className="gz-list-suggest" onClick={() => { haptic(); setCheckTarget({ id: a.garajCarId, carCode: a.carCode, name: a.name, emoji: a.emoji }); }}>
+                                  🔍 Tekshir
+                                </button>
+                              )}
+                            </div>
                           </div>
                           <div className="gz-buyers">
                             {[1, 1.5, 2].map((mult) => {
@@ -1046,6 +1062,7 @@ export function GarajShell({ onClose, initial }: { onClose: () => void; initial?
         const cc = st?.cars.find((c) => c.id === checkOpen);
         return cc ? <GarajCarCheckSheet car={cc} onClose={() => setCheckOpen(null)} /> : null;
       })()}
+      {checkTarget != null && <GarajCarCheckSheet car={checkTarget} onClose={() => setCheckTarget(null)} />}
       {eskirdiOpen != null && (() => {
         const ec = st?.cars.find((c) => c.id === eskirdiOpen);
         return ec ? <GarajEskirdiSheet car={ec} busy={busy} onSellOfis={() => void eskirdiSellOfis(ec.id)} onCapital={() => eskirdiCapital(ec.id)} onClose={() => setEskirdiOpen(null)} /> : null;
@@ -1539,8 +1556,8 @@ export function GarajDemo() {
 // 🏁 Garaj Bozori — the app-level "Bozor" tab market: every player's open listings
 // + live auctions, buyable here without entering the game. Money logic is server-side.
 export function GarajMarketView({ coins, onBanner }: { coins: number; onBanner?: (m: string) => void }) {
-  const [bazaar, setBazaar] = useState<{ id: number; carCode: string; name: string; emoji: string; askPrice: number; mine: boolean }[]>([]);
-  const [auctions, setAuctions] = useState<{ id: number; carCode: string; name: string; emoji: string; minBid: number; endsAt: string; mine: boolean }[]>([]);
+  const [bazaar, setBazaar] = useState<{ id: number; garajCarId: number; carCode: string; name: string; emoji: string; askPrice: number; mine: boolean }[]>([]);
+  const [auctions, setAuctions] = useState<{ id: number; garajCarId: number; carCode: string; name: string; emoji: string; minBid: number; endsAt: string; mine: boolean }[]>([]);
   const [shop, setShop] = useState<{ carCode: string; name: string; emoji: string; buyPrice: number; owned: boolean; demandMult?: number }[]>([]);
   const [busy, setBusy] = useState(false);
   const [sortAsc, setSortAsc] = useState(true);
@@ -1878,8 +1895,11 @@ export function GarajOrzuSheet({ onClose }: { onClose: () => void }) {
   );
 }
 
-// 🔍 P1-E — CarCheck 3-tier modal (Pay-for-truth: 50/500/5000; PREMIUM bepul birinchi marta)
-export function GarajCarCheckSheet({ car, onClose }: { car: GarajCarView; onClose: () => void }) {
+// 🔍 P1-E + DIAG-Bazaar — CarCheck 3-tier modal. Accepts EITHER a GarajCarView (own car) OR a
+// lightweight target { id, carCode, name, emoji, serial? } (e.g. a bazaar/auction listing of
+// SOMEONE ELSE'S car — pre-buy inspection). Backend allows any garajCarId.
+export type CarCheckTarget = { id: number; carCode: string; name: string; emoji: string; serial?: number | null };
+export function GarajCarCheckSheet({ car, onClose }: { car: CarCheckTarget; onClose: () => void }) {
   const [tier, setTier] = useState<"ODDIY" | "EKSPERT" | "PREMIUM">("ODDIY");
   const [check, setCheck] = useState<CarCheckView | null>(null);
   const [busy, setBusy] = useState(false);
@@ -1896,7 +1916,7 @@ export function GarajCarCheckSheet({ car, onClose }: { car: GarajCarView; onClos
   return (
     <Sheet open onClose={onClose}>
       <div className="col g8">
-        <div className="gz-title">🔍 CarCheck · {car.emoji} {car.name} <span className="gz-motor-id">#{car.serial ?? "?"}</span></div>
+        <div className="gz-title">🔍 CarCheck · {car.emoji} {car.name}{car.serial != null ? <> <span className="gz-motor-id">#{car.serial}</span></> : null}</div>
         {!check ? (
           <>
             <p className="fs12 dim mt0">Tarix saqlanadi, soxtalashtirib bo'lmaydi. Tier qancha balandsa, shuncha ko'p ma'lumot.</p>

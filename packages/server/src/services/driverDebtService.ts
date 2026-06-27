@@ -15,6 +15,16 @@ import { getDataSource } from "../kas";
 import { getCoins, grantCoins, spendCoinsIdempotent } from "./coinService";
 import { featureOn } from "./featureFlags";
 
+// 🚦 qarz gate: pilot whitelist OR global flag. The whitelist is intentional — it lets the
+// owner pilot 1-5 real drivers WITHOUT flipping the global flag (which would expose qarz to
+// every linked driver at once). Whitelist key shape: AppState["qarz:pilot:{memberId}"]="on".
+// Once the global flag is ON, the whitelist short-circuits to TRUE (no need to clean up).
+export async function qarzEnabledFor(memberId: number): Promise<boolean> {
+  if (await featureOn("qarz")) return true;
+  const row = await prisma.appState.findUnique({ where: { key: `qarz:pilot:${memberId}` } });
+  return row?.value === "on";
+}
+
 export interface DriverDebtInfo {
   ok: boolean;
   reason?: "feature_off" | "not_driver" | "kas_unreachable";
@@ -36,7 +46,7 @@ async function driverCar(memberId: number): Promise<string | null> {
 
 /** Read the driver's debt + balances for the qarz card. Uses the member's own (already-linked) plate. */
 export async function getDriverDebtInfo(memberId: number): Promise<DriverDebtInfo> {
-  if (!(await featureOn("qarz"))) return { ok: false, reason: "feature_off" };
+  if (!(await qarzEnabledFor(memberId))) return { ok: false, reason: "feature_off" };
   const carNumber = await driverCar(memberId);
   if (!carNumber) return { ok: false, reason: "not_driver" };
   const acct = await getDataSource().getDriverAccount(carNumber);
@@ -61,7 +71,7 @@ export interface DebtPayResult {
 export async function payDebtWithCoins(memberId: number, amount: number, nonce: string | number): Promise<DebtPayResult> {
   const amt = Math.floor(Number(amount));
   if (!Number.isFinite(amt) || amt < 1) return { ok: false, message: "Noto'g'ri summa." };
-  if (!(await featureOn("qarz"))) return { ok: false, message: "Bu imkoniyat hozir o'chirilgan." };
+  if (!(await qarzEnabledFor(memberId))) return { ok: false, message: "Bu imkoniyat hozir o'chirilgan." };
 
   const carNumber = await driverCar(memberId);
   if (!carNumber) return { ok: false, message: "Bu hisob haydovchi sifatida ulanmagan." };

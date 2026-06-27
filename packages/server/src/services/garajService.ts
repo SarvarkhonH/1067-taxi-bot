@@ -1589,12 +1589,13 @@ export async function processRideDrop(memberId: number, bookingId: number, _ride
 // ══ W4 Bazaar (player-to-player car market) ══════════════════════════════════
 // Money-safe: claim-before-pay (status open→pending_payment is an atomic single
 // winner), 3% tax burn (anti-wash), self-trade blocked, price ceiling 3× base.
-export async function getBazaar(memberId: number): Promise<{ id: number; carCode: string; name: string; emoji: string; askPrice: number; mine: boolean }[]> {
+export async function getBazaar(memberId: number): Promise<{ id: number; garajCarId: number; carCode: string; name: string; emoji: string; askPrice: number; mine: boolean }[]> {
   if (!(await garajEnabledFor(memberId))) return [];
   const rows = await prisma.garajBazaarListing.findMany({ where: { status: "open" }, orderBy: { createdAt: "desc" }, take: 50 });
   return rows.map((r) => {
     const cm = garajCarMeta(r.carCode);
-    return { id: r.id, carCode: r.carCode, name: cm?.name ?? r.carCode, emoji: cm?.emoji ?? "🚗", askPrice: r.askPrice, mine: r.sellerId === memberId };
+    // garajCarId exposed so the BUYER can call /api/garaj/carcheck BEFORE purchase (DIAG-P1 pre-buy inspection)
+    return { id: r.id, garajCarId: r.garajCarId, carCode: r.carCode, name: cm?.name ?? r.carCode, emoji: cm?.emoji ?? "🚗", askPrice: r.askPrice, mine: r.sellerId === memberId };
   });
 }
 
@@ -1720,12 +1721,13 @@ export async function getGarajHistory(memberId: number): Promise<{ kind: string;
 }
 
 // ══ W4 sealed-bid auction ════════════════════════════════════════════════════
-export async function getAuctions(memberId: number): Promise<{ id: number; carCode: string; name: string; emoji: string; minBid: number; endsAt: string; mine: boolean }[]> {
+export async function getAuctions(memberId: number): Promise<{ id: number; garajCarId: number; carCode: string; name: string; emoji: string; minBid: number; endsAt: string; mine: boolean }[]> {
   if (!(await garajEnabledFor(memberId))) return [];
   const rows = await prisma.garajAuction.findMany({ where: { status: "open" }, orderBy: { endsAt: "asc" }, take: 50 });
   return rows.map((r) => {
     const cm = garajCarMeta(r.carCode);
-    return { id: r.id, carCode: r.carCode, name: cm?.name ?? r.carCode, emoji: cm?.emoji ?? "🚗", minBid: r.minBid, endsAt: r.endsAt.toISOString(), mine: r.sellerId === memberId };
+    // garajCarId exposed so the BIDDER can pre-buy CarCheck against the listed car (DIAG-P1)
+    return { id: r.id, garajCarId: r.garajCarId, carCode: r.carCode, name: cm?.name ?? r.carCode, emoji: cm?.emoji ?? "🚗", minBid: r.minBid, endsAt: r.endsAt.toISOString(), mine: r.sellerId === memberId };
   });
 }
 

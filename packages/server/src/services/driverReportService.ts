@@ -138,7 +138,8 @@ export async function getDriverPanelExtras(memberId: number): Promise<DriverPane
   const [acct, all, qarzOn, company] = await Promise.all([
     getDataSource().getDriverAccount(carNumber).catch(() => null),
     recentRides(memberId, carNumber),
-    featureOn("qarz").catch(() => false),
+    // 🚦 qarz: per-member pilot whitelist OR global flag (parity with driverDebtService.qarzEnabledFor)
+    (await import("./driverDebtService")).qarzEnabledFor(memberId).catch(() => false),
     getDataSource().getCompanyInfo().catch(() => null),
   ]);
   const today = todayKoson();
