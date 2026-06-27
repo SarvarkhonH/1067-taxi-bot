@@ -799,3 +799,25 @@ export interface GarajActionResult {
   profit?: number;
   orderBonus?: number; // #2 NPC-order bonus paid on this flip (matched a daily order)
 }
+
+// ✨ P1-F — ORZU board (global ranking + per-model Top-1)
+export interface OrzuTopOwner {
+  rank: number;
+  memberId: number;
+  name: string;
+  garageValue: number; // sum of MAKE_BASE × active cars
+  carCount: number;
+  cleanHistoryCount: number; // cars meeting cleanHistory criteria
+  topSerial?: number | null; // shiniest serial in the garage (lowest serial wins)
+}
+export interface OrzuModelTop {
+  carCode: string;
+  name: string;
+  emoji: string;
+  champion: { memberId: number; name: string; serial: number; engineHp: number } | null;
+}
+export interface OrzuBoardView {
+  topGarages: OrzuTopOwner[]; // global Top 20 by garageValue
+  modelChampions: OrzuModelTop[]; // per-model #1 (oldest active serial wins — Muzey extend)
+  myRank: number | null; // viewer's own rank (null if unranked)
+}

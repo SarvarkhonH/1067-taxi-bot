@@ -53,6 +53,9 @@ import {
   type CarCheckView,
   type HiddenDefect,
   type PublicProfileView,
+  type OrzuBoardView,
+  type OrzuTopOwner,
+  type OrzuModelTop,
   KOZACHA_SHOP,
   computeFlipGrant,
   garajCarMeta,
@@ -333,6 +336,11 @@ export async function getGarajState(memberId: number): Promise<GarajStateRespons
       view.fuelDry = fueledUntilMs <= lastMs;
       view.fuelRefillCost = computeMotorRefillCost(c.carCode, tankHoursForView, eff.fuelMult);
       view.earnPendingNet = hp <= 0 || view.fuelDry ? 0 : computeMotorEarnNoFuel(speed, hrs, 0).net;
+      // 🏛 P1-A/F — surface motor history + Ofis bid + Clean History badge
+      view.capitalRepairCount = c.capitalRepairCount ?? 0;
+      view.hasHiddenDefect = !!c.hiddenDefect;
+      view.ofisBidPrice = ofisBidPrice(MAKE_BASE[c.carCode] ?? 0, MAKE_BASE[c.carCode] ?? 0);
+      view.cleanHistory = (c.capitalRepairCount ?? 0) === 0 && (c.ownerCount ?? 1) === 1;
     }
     return view;
   });
@@ -923,7 +931,81 @@ export async function getPublicProfile(viewerId: number, targetId: number): Prom
     return { serial: c.serial ?? null, carCode: c.carCode, name: cm?.name ?? c.carCode, emoji: cm?.emoji ?? "🚗", engineHp: c.engineHp ?? 100, dead: (c.engineHp ?? 100) <= 0 };
   });
   const garageValue = cars.reduce((s, c) => s + (MAKE_BASE[c.carCode] ?? 0), 0);
-  return { memberId: targetId, name: member.fullName ?? "O'yinchi", reputation: meta?.reputationScore ?? 0, garageValue, rank: null, cars: carViews };
+  // ✨ P1-F — sellerRating (avg of stars) + cleanHistoryCount (cars meeting badge criteria)
+  const ratingCount = meta?.sellerRatingCount ?? 0;
+  const sellerRating = ratingCount > 0
+    ? { avg: Math.round(((meta?.sellerRatingSum ?? 0) / ratingCount) * 10) / 10, count: ratingCount }
+    : null;
+  const cleanHistoryCount = cars.filter((c) => (c.capitalRepairCount ?? 0) === 0 && (c.ownerCount ?? 1) === 1).length;
+  return { memberId: targetId, name: member.fullName ?? "O'yinchi", reputation: meta?.reputationScore ?? 0, garageValue, rank: null, cars: carViews, sellerRating, cleanHistoryCount };
+}
+
+// ══ ✨ P1-F — ORZU board (global ranking + per-model Top-1 podium) ═════════════
+// Pure SHOWCASE — no tanga, no rewards. Visible to ALL motorolami-enabled players.
+// Aggregates over GarajCar (soldAt:null) — no extra table needed. Top 20 by sum of
+// MAKE_BASE; per-model champion = OLDEST active serial alive (Muzey extend: the OG
+// of each model is a permanent display). Money-safe: read-only, no CoinTxn.
+export async function getOrzuBoard(viewerId: number): Promise<{ ok: boolean; reason?: string; board?: OrzuBoardView }> {
+  if (!(await motorEnabledFor(viewerId))) return { ok: false, reason: "off" };
+  // Pull every active motor car (serial != null). Garage is small (≤4 cars/player × few hundred),
+  // single scan + in-memory aggregation beats N queries.
+  const cars = await prisma.garajCar.findMany({
+    where: { soldAt: null, serial: { not: null } },
+    select: { memberId: true, carCode: true, serial: true, engineHp: true, capitalRepairCount: true, ownerCount: true },
+  });
+  if (cars.length === 0) {
+    return { ok: true, board: { topGarages: [], modelChampions: [], myRank: null } };
+  }
+  // Aggregate per-member
+  const byMember = new Map<number, { value: number; count: number; clean: number; topSerial: number | null }>();
+  for (const c of cars) {
+    const v = MAKE_BASE[c.carCode] ?? 0;
+    const existing = byMember.get(c.memberId) ?? { value: 0, count: 0, clean: 0, topSerial: null };
+    existing.value += v;
+    existing.count += 1;
+    if ((c.capitalRepairCount ?? 0) === 0 && (c.ownerCount ?? 1) === 1) existing.clean += 1;
+    if (c.serial != null && (existing.topSerial == null || c.serial < existing.topSerial)) existing.topSerial = c.serial;
+    byMember.set(c.memberId, existing);
+  }
+  const memberIds = Array.from(byMember.keys());
+  const members = await prisma.member.findMany({ where: { id: { in: memberIds } }, select: { id: true, fullName: true } });
+  const nameById = new Map(members.map((m) => [m.id, m.fullName ?? "O'yinchi"]));
+  // Sort by garageValue desc, take Top 20
+  const ranked = Array.from(byMember.entries())
+    .map(([memberId, agg]) => ({ memberId, ...agg }))
+    .sort((a, b) => b.value - a.value || a.memberId - b.memberId);
+  const topGarages: OrzuTopOwner[] = ranked.slice(0, 20).map((r, i) => ({
+    rank: i + 1,
+    memberId: r.memberId,
+    name: nameById.get(r.memberId) ?? "O'yinchi",
+    garageValue: r.value,
+    carCount: r.count,
+    cleanHistoryCount: r.clean,
+    topSerial: r.topSerial,
+  }));
+  // Per-model champion: lowest serial = OLDEST = Muzey-tier OG
+  const byCode = new Map<string, { memberId: number; serial: number; engineHp: number }>();
+  for (const c of cars) {
+    if (c.serial == null) continue;
+    const cur = byCode.get(c.carCode);
+    if (!cur || c.serial < cur.serial) {
+      byCode.set(c.carCode, { memberId: c.memberId, serial: c.serial, engineHp: c.engineHp ?? 100 });
+    }
+  }
+  const modelChampions: OrzuModelTop[] = Object.keys(MAKE_BASE).map((carCode) => {
+    const cm = garajCarMeta(carCode);
+    const champ = byCode.get(carCode);
+    return {
+      carCode,
+      name: cm?.name ?? carCode,
+      emoji: cm?.emoji ?? "🚗",
+      champion: champ ? { memberId: champ.memberId, name: nameById.get(champ.memberId) ?? "O'yinchi", serial: champ.serial, engineHp: champ.engineHp } : null,
+    };
+  });
+  // Viewer's own rank (1-based; null if unranked)
+  const myIdx = ranked.findIndex((r) => r.memberId === viewerId);
+  const myRank = myIdx >= 0 ? myIdx + 1 : null;
+  return { ok: true, board: { topGarages, modelChampions, myRank } };
 }
 
 // Hidden per-zone STARTING condition (20..99) derived from the server-only seed.

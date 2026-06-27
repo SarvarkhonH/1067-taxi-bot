@@ -208,6 +208,8 @@ export function createApiServer(opts: ApiOptions = {}) {
   // 🔍 P1-E — CarCheck (pay-for-truth) + sotuvchi reputatsiyasi
   app.post("/api/garaj/carcheck", requireUser, rateLimit(15), withMember2(async (id, req) => (await import("../services/garajService")).getCarCheck(id, Number(req.body?.garajCarId), (req.body?.tier === "EKSPERT" ? "EKSPERT" : req.body?.tier === "PREMIUM" ? "PREMIUM" : "ODDIY"))));
   app.post("/api/garaj/rate-seller", requireUser, rateLimit(10), withMember2(async (id, req) => (await import("../services/garajService")).rateSeller(id, Number(req.body?.listingId), Number(req.body?.stars))));
+  // ✨ P1-F — ORZU board (global Top + per-model #1)
+  app.get("/api/garaj/orzu", requireUser, rateLimit(20), withMember2(async (id) => (await import("../services/garajService")).getOrzuBoard(id)));
   app.get("/api/garaj/profile/:id", requireUser, withMember2(async (id, req) => (await import("../services/garajService")).getPublicProfile(id, req.params?.id === "me" ? id : Number(req.params?.id))));
 
   app.get("/api/me", requireUser, async (_req, res) => {

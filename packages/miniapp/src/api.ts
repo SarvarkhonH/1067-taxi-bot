@@ -17,6 +17,7 @@ import type {
   GarajStateResponse,
   PublicProfileView,
   CarCheckView,
+  OrzuBoardView,
   LeaderboardResponse,
   MeResponse,
   MissionClaimResponse,
@@ -199,6 +200,8 @@ export const api = {
   // 🔍 P1-E — CarCheck
   garajCarCheck: (garajCarId: number, tier: "ODDIY" | "EKSPERT" | "PREMIUM") => request<GarajActionResult & { check?: CarCheckView }>("POST", "/api/garaj/carcheck", { garajCarId, tier }, 1),
   garajRateSeller: (listingId: number, stars: number) => request<GarajActionResult>("POST", "/api/garaj/rate-seller", { listingId, stars }, 1),
+  // ✨ P1-F — ORZU board
+  garajOrzu: () => get<{ ok: boolean; reason?: string; board?: OrzuBoardView }>("/api/garaj/orzu"),
   garajProfile: (id: number | "me") => get<PublicProfileView | null>(`/api/garaj/profile/${id}`),
   garajAuctions: () => get<{ id: number; carCode: string; name: string; emoji: string; minBid: number; endsAt: string; mine: boolean }[]>("/api/garaj/auctions"),
   garajAuctionCreate: (garajCarId: number, minBid: number) => request<GarajActionResult>("POST", "/api/garaj/auction/create", { garajCarId, minBid }, 1),
