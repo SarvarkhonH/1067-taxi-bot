@@ -573,9 +573,9 @@ export const MOTOR_ECON_KNOBS: MotorEconKnob[] = [
   { key: "bonusDays", label: "🎁 Bonus kunlar (0=o'chiq)", def: 0, min: 0, max: 30, step: 1, live: true },
   { key: "bonusFuelMult", label: "🎁 Bonus yoqilg'i (×)", def: 0.3, min: 0.1, max: 1, step: 0.05, live: true },
   { key: "bonusSpeedMult", label: "🎁 Bonus tezlik (×)", def: 2, min: 1, max: 3, step: 0.1, live: true },
-  { key: "speederPrice", label: "🚀 Speeder narxi (tanga)", def: 5000, min: 500, max: 50000, step: 100, live: false },
-  { key: "speederStock", label: "🚀 Speeder zaxira (dona)", def: 500, min: 0, max: 100000, step: 50, live: false },
-  { key: "speederMult", label: "🚀 Speeder kuchi (×)", def: 4, min: 2, max: 6, step: 1, live: false },
+  { key: "speederPrice", label: "🚀 Speeder narxi (tanga)", def: 5000, min: 500, max: 50000, step: 100, live: true },
+  { key: "speederStock", label: "🚀 Speeder zaxira (dona)", def: 500, min: 0, max: 100000, step: 50, live: true },
+  { key: "speederMult", label: "🚀 Speeder kuchi (×)", def: 4, min: 2, max: 6, step: 1, live: true },
   // 🔥 P-Fuel-A — bak o'lchami va push siyosati (push P-Fuel-C da jonlanadi)
   { key: "fuelTankHours", label: "⛽ Bak hajmi (soat)", def: 24, min: 6, max: 72, step: 1, live: true },
   { key: "pushFeatureOn", label: "🔔 Push kill-switch", def: 1, min: 0, max: 1, step: 1, live: false },
@@ -600,6 +600,17 @@ export const MOTOR_ECON_KNOBS: MotorEconKnob[] = [
   { key: "variantQoraNexiaOneIn", label: "🎁 Qora Nexia (1/N)", def: 100, min: 10, max: 10000, step: 10, live: false },
   { key: "variantAfsonaviyTikoOneIn", label: "🎁 Afsonaviy Tiko (1/N)", def: 2000, min: 100, max: 100000, step: 50, live: false },
 ];
+
+// 🚀 P2-C — Speeder booster (limited stock, 10-day duration, admin-tuned ×N to speedMult)
+export const SPEEDER_DAYS = 10;
+/** True iff `speederUntilAt` is in the future. */
+export function isSpeederActive(speederUntilAt: Date | string | null | undefined, now: number = -1): boolean {
+  if (!speederUntilAt) return false;
+  const u = typeof speederUntilAt === "string" ? new Date(speederUntilAt).getTime() : speederUntilAt.getTime();
+  // -1 sentinel = read clock now (caller can pass an explicit number for determinism)
+  const n = now === -1 ? Date.now() : now;
+  return u > n;
+}
 
 // 🎁 P2-B — Jackpot rarity variants (deterministic from serial — no grinding, no manipulation).
 // Each variant gates on a specific carCode (only Nexia rolls Qora, only Tiko rolls Afsonaviy)
@@ -747,6 +758,9 @@ export interface GarajCarView {
   cleanHistory?: boolean; // ✨ badge: capitalRepairCount===0 && ownerCount===1 (P1-F ORZU)
   mergeCount?: number; // 🔗 P2-A — merge bosqichi (0..MERGE_MAX_COUNT); 0 → oddiy, 1+ → "Toplangan ★N"
   variant?: string | null; // 🎁 P2-B — Jackpot variant key (qora_nexia, afsonaviy_tiko); null=oddiy
+  speederActive?: boolean; // 🚀 P2-C — speeder shu mashinada aktivmi
+  speederHoursLeft?: number; // 🚀 P2-C — qancha soat qoldi (countdown UCHUN)
+  speederMult?: number; // 🚀 P2-C — aktiv bo'lsa: admin's speederMult; aks holda 1
 }
 export interface GarajShopItem {
   carCode: string;

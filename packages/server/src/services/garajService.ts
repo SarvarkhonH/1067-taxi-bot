@@ -54,6 +54,8 @@ import {
   mergeMult,
   variantFor,
   getVariant,
+  SPEEDER_DAYS,
+  isSpeederActive,
   type CarCheckTier,
   type CarCheckView,
   type HiddenDefect,
@@ -348,6 +350,13 @@ export async function getGarajState(memberId: number): Promise<GarajStateRespons
       view.cleanHistory = (c.capitalRepairCount ?? 0) === 0 && (c.ownerCount ?? 1) === 1;
       view.mergeCount = c.mergeCount ?? 0; // 🔗 P2-A — UI shows "Toplangan ★N" when > 0
       view.variant = c.variant; // 🎁 P2-B — Jackpot variant key (UI looks up label/emoji via getVariant)
+      // 🚀 P2-C — Speeder live state
+      const speederOn = isSpeederActive(c.speederUntilAt, nowMs);
+      view.speederActive = speederOn;
+      view.speederHoursLeft = c.speederUntilAt ? Math.max(0, (c.speederUntilAt.getTime() - nowMs) / 3_600_000) : 0;
+      view.speederMult = speederOn ? Math.max(2, Math.min(6, Math.floor(motorEcon.speederMult ?? 4))) : 1;
+      // If speeder active, the displayed speed is the BOOSTED speed
+      if (speederOn) view.speed = Math.round((view.speed ?? 0) * view.speederMult!);
     }
     return view;
   });
@@ -552,7 +561,11 @@ export async function motorCollect(memberId: number): Promise<GarajActionResult 
   const runwayEnd = Math.min(now, fueledUntilMs);
   const hours = Math.max(0, (runwayEnd - last) / 3_600_000);
   const dry = fueledUntilMs <= last; // tank tugagan / hech qachon quyilmagan
-  const speed = Math.round(motorSpeed(car.carCode) * eff.speedMult);
+  // 🚀 P2-C — Speeder booster: if active, the earn-side speed is multiplied. Capped to runway hours
+  // (no exploit: the booster only multiplies the SAME runway hours the tank already covers).
+  const speederOn = isSpeederActive(car.speederUntilAt, now);
+  const speederMult = speederOn ? Math.max(2, Math.min(6, Math.floor(econ.speederMult ?? 4))) : 1;
+  const speed = Math.round(motorSpeed(car.carCode) * eff.speedMult * speederMult);
   const { gross, wear, net } = computeMotorEarnNoFuel(speed, hours, 0); // taxi 2× = sweep ride-hooki (P0.4)
   const cappedHours = Math.min(hours, MOTOR_MAX_ACCRUE_HOURS);
   const newHp = Math.max(0, Math.round((car.engineHp ?? 100) - MOTOR_WEAR_PER_DAY * (cappedHours / 24)));
@@ -951,6 +964,78 @@ export async function getPublicProfile(viewerId: number, targetId: number): Prom
     : null;
   const cleanHistoryCount = cars.filter((c) => (c.capitalRepairCount ?? 0) === 0 && (c.ownerCount ?? 1) === 1).length;
   return { memberId: targetId, name: member.fullName ?? "O'yinchi", reputation: meta?.reputationScore ?? 0, garageValue, rank: null, cars: carViews, sellerRating, cleanHistoryCount };
+}
+
+// ══ 🚀 P2-C — Speeder booster (limited stock, 10-day duration) ════════════════
+// Spends speederPrice tanga, extends the car's earn-rate by speederMult (×3 / ×4) for SPEEDER_DAYS.
+// Global stock counter (AppState "mo:speeder:stock") so the offer is scarce; admin reseeds via
+// econ.speederStock. Money-safe: spendCoinsIdempotent + atomic stock decrement (CAS via updateMany).
+const SPEEDER_STOCK_KEY = "mo:speeder:stock";
+const SPEEDER_DAY_KEY = "mo:speeder:day"; // tracks the day the stock was last seeded
+export async function getSpeederState(memberId: number): Promise<{ ok: boolean; reason?: string; price?: number; mult?: number; stockLeft?: number; stockMax?: number; days?: number; activeCarId?: number | null; activeUntilAt?: string | null }> {
+  if (!(await motorEnabledFor(memberId))) return { ok: false, reason: "off" };
+  const econ = await getMotorEcon();
+  const price = Math.max(1, Math.floor(econ.speederPrice ?? 5000));
+  const mult = Math.max(2, Math.min(6, Math.floor(econ.speederMult ?? 4)));
+  const stockMax = Math.max(0, Math.floor(econ.speederStock ?? 500));
+  // Lazy-reseed: if today's seed day doesn't match, refill the live stock to stockMax
+  const today = tashkentDate();
+  const dayRow = await prisma.appState.findUnique({ where: { key: SPEEDER_DAY_KEY } });
+  let stockLeft: number;
+  if (dayRow?.value !== today) {
+    await prisma.appState.upsert({ where: { key: SPEEDER_STOCK_KEY }, create: { key: SPEEDER_STOCK_KEY, value: String(stockMax) }, update: { value: String(stockMax) } });
+    await prisma.appState.upsert({ where: { key: SPEEDER_DAY_KEY }, create: { key: SPEEDER_DAY_KEY, value: today }, update: { value: today } });
+    stockLeft = stockMax;
+  } else {
+    const r = await prisma.appState.findUnique({ where: { key: SPEEDER_STOCK_KEY } });
+    stockLeft = parseInt(r?.value ?? String(stockMax), 10);
+    if (isNaN(stockLeft)) stockLeft = stockMax;
+  }
+  // Active car for the viewer
+  const activeCar = await prisma.garajCar.findFirst({ where: { memberId, soldAt: null, speederUntilAt: { gt: new Date() } }, select: { id: true, speederUntilAt: true } });
+  return { ok: true, price, mult, stockLeft: Math.max(0, stockLeft), stockMax, days: SPEEDER_DAYS, activeCarId: activeCar?.id ?? null, activeUntilAt: activeCar?.speederUntilAt?.toISOString() ?? null };
+}
+export async function purchaseSpeeder(memberId: number, garajCarId: number): Promise<GarajActionResult & { speederUntilAt?: string; stockLeft?: number }> {
+  if (!(await motorEnabledFor(memberId))) return { ok: false, reason: "off" };
+  const econ = await getMotorEcon();
+  const price = Math.max(1, Math.floor(econ.speederPrice ?? 5000));
+  const stockMax = Math.max(0, Math.floor(econ.speederStock ?? 500));
+  if (stockMax === 0) return { ok: false, reason: "out_of_stock" };
+  // Refresh stock if day changed
+  await getSpeederState(memberId);
+  return withMemberLock(memberId, async () => {
+    const car = await prisma.garajCar.findFirst({ where: { id: garajCarId, memberId, soldAt: null, serial: { not: null } } });
+    if (!car) return { ok: false, reason: "not_found" };
+    if ((car.engineHp ?? 0) <= 0) return { ok: false, reason: "dead_car" };
+    // Atomic stock decrement — CAS via updateMany (only proceeds if value > 0)
+    const stockRow = await prisma.appState.findUnique({ where: { key: SPEEDER_STOCK_KEY } });
+    const before = parseInt(stockRow?.value ?? "0", 10);
+    if (isNaN(before) || before <= 0) return { ok: false, reason: "out_of_stock" };
+    const upd = await prisma.appState.updateMany({ where: { key: SPEEDER_STOCK_KEY, value: String(before) }, data: { value: String(before - 1) } });
+    if (upd.count === 0) return { ok: false, reason: "stock_race" }; // someone else bought between read and write
+    // Spend the tanga (idempotent — same member, same car, same day = same key)
+    const dayKey = tashkentDate();
+    const spend = await spendCoinsIdempotent(memberId, price, "garaj_speeder", `🚀 Speeder ${SPEEDER_DAYS} kun: ${car.carCode} #${car.serial ?? "?"}`, `speeder:${memberId}:${garajCarId}:${dayKey}`);
+    if (!spend.ok && spend.skipped !== "duplicate") {
+      // Refund stock on failure (CAS again)
+      const refundBefore = parseInt((await prisma.appState.findUnique({ where: { key: SPEEDER_STOCK_KEY } }))?.value ?? "0", 10);
+      if (!isNaN(refundBefore)) await prisma.appState.updateMany({ where: { key: SPEEDER_STOCK_KEY, value: String(refundBefore) }, data: { value: String(refundBefore + 1) } });
+      return { ok: false, reason: "insufficient", coins: spend.balance };
+    }
+    if (spend.skipped === "duplicate") {
+      // Refund stock on duplicate
+      const refundBefore = parseInt((await prisma.appState.findUnique({ where: { key: SPEEDER_STOCK_KEY } }))?.value ?? "0", 10);
+      if (!isNaN(refundBefore)) await prisma.appState.updateMany({ where: { key: SPEEDER_STOCK_KEY, value: String(refundBefore) }, data: { value: String(refundBefore + 1) } });
+      return { ok: true, reason: "already", coins: spend.balance };
+    }
+    // Extend speederUntilAt — MONOTONIC (re-buy stacks ON TOP of remaining time)
+    const now = Date.now();
+    const cur = car.speederUntilAt?.getTime() ?? 0;
+    const newUntil = new Date(Math.max(cur, now) + SPEEDER_DAYS * 86_400_000);
+    await prisma.garajCar.update({ where: { id: garajCarId }, data: { speederUntilAt: newUntil } });
+    const after = parseInt((await prisma.appState.findUnique({ where: { key: SPEEDER_STOCK_KEY } }))?.value ?? "0", 10);
+    return { ok: true, speederUntilAt: newUntil.toISOString(), stockLeft: isNaN(after) ? 0 : after, coins: spend.balance };
+  });
 }
 
 // ══ 🔗 P2-A — Merge mechanic (2→1, anti-inflyatsiya bounded) ═════════════════

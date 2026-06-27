@@ -204,6 +204,9 @@ export const api = {
   garajOrzu: () => get<{ ok: boolean; reason?: string; board?: OrzuBoardView }>("/api/garaj/orzu"),
   // 🔗 P2-A — Merge (sacrifice → promote)
   garajMerge: (keepCarId: number, sacrificeCarId: number) => request<GarajActionResult & { mergeCount?: number; newMult?: number }>("POST", "/api/garaj/merge", { keepCarId, sacrificeCarId }, 1),
+  // 🚀 P2-C — Speeder
+  garajSpeederState: () => get<{ ok: boolean; reason?: string; price?: number; mult?: number; stockLeft?: number; stockMax?: number; days?: number; activeCarId?: number | null; activeUntilAt?: string | null }>("/api/garaj/speeder/state"),
+  garajSpeederBuy: (garajCarId: number) => request<GarajActionResult & { speederUntilAt?: string; stockLeft?: number }>("POST", "/api/garaj/speeder/buy", { garajCarId }, 1),
   garajProfile: (id: number | "me") => get<PublicProfileView | null>(`/api/garaj/profile/${id}`),
   garajAuctions: () => get<{ id: number; carCode: string; name: string; emoji: string; minBid: number; endsAt: string; mine: boolean }[]>("/api/garaj/auctions"),
   garajAuctionCreate: (garajCarId: number, minBid: number) => request<GarajActionResult>("POST", "/api/garaj/auction/create", { garajCarId, minBid }, 1),

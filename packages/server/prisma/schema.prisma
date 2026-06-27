@@ -635,6 +635,9 @@ model GarajCar {
   // Deterministic from serial → re-buy doesn't change result (no grinding). RESET on re-buy
   // (a re-bought car gets a NEW serial → NEW variant roll).
   variant            String?
+  // 🚀 P2-C — Speeder booster (10-day, admin-tuned ×3/×4 to speedMult). RESET on re-buy
+  // (a re-bought car loses its speeder — re-purchase needed).
+  speederUntilAt     DateTime?
 
   @@unique([memberId, carCode])
   @@index([memberId])
