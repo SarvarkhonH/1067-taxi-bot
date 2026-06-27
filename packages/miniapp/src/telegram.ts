@@ -174,11 +174,12 @@ export function playRepairFail(): void {
  * the single source for every client share point so the copy stays in sync.
  */
 export function inviteText(bonus: number): string {
-  const n = formatNumber(bonus); // same thousands format as the bot's clientInviteText
+  const n = formatNumber(bonus); // KEEP IN SYNC with the bot's clientInviteText (server/src/bot/bot.ts)
   return (
-    `🎁 Birinchi safaringiz BEPUL — ${n} tanga sovg'a kutyapti!\n` +
-    `🚕 1067 Taxi: bir tap — eng yaqin haydovchi keladi · har safardan cashback.\n` +
-    `👇 Shu havola orqali qo'shiling:`
+    `🚖 1067 Taxi — Kosonda bir tap bilan taksi. Ishonchli haydovchi, halol narx, jonli xarita.\n` +
+    `🎁 Shu havola orqali qo'shilsangiz, birinchi safaringiz BEPUL — ${n} tanga sovg'a.\n` +
+    `💰 Har safardan cashback qaytadi — keyingi safaringizga ishlatib, yo'l pulingizni tejaysiz.\n` +
+    `👇 Qo'shilish:`
   );
 }
 
