@@ -631,6 +631,10 @@ model GarajCar {
   // 🔗 P2-A — merge mechanic counter; +1 per 2→1 fuse (sacrifice ANY car to promote this one);
   // bounded by MERGE_MAX_COUNT (anti-runaway). MUST NOT RESET on re-buy (audit-B1 pattern).
   mergeCount         Int       @default(0)
+  // 🎁 P2-B — Jackpot variant (null=oddiy, "qora_nexia"=1%, "afsonaviy_tiko"=0.05%).
+  // Deterministic from serial → re-buy doesn't change result (no grinding). RESET on re-buy
+  // (a re-bought car gets a NEW serial → NEW variant roll).
+  variant            String?
 
   @@unique([memberId, carCode])
   @@index([memberId])

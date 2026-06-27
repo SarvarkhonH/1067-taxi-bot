@@ -52,6 +52,8 @@ import {
   MERGE_BONUS_PCT,
   MERGE_MAX_COUNT,
   mergeMult,
+  variantFor,
+  getVariant,
   type CarCheckTier,
   type CarCheckView,
   type HiddenDefect,
@@ -345,6 +347,7 @@ export async function getGarajState(memberId: number): Promise<GarajStateRespons
       view.ofisBidPrice = ofisBidPrice(MAKE_BASE[c.carCode] ?? 0, MAKE_BASE[c.carCode] ?? 0);
       view.cleanHistory = (c.capitalRepairCount ?? 0) === 0 && (c.ownerCount ?? 1) === 1;
       view.mergeCount = c.mergeCount ?? 0; // 🔗 P2-A — UI shows "Toplangan ★N" when > 0
+      view.variant = c.variant; // 🎁 P2-B — Jackpot variant key (UI looks up label/emoji via getVariant)
     }
     return view;
   });
@@ -493,7 +496,13 @@ export async function acquireCar(memberId: number, carCode: string): Promise<Gar
         // 🏛 P1-C — hidden defect stamp (3% by default, admin-tunable hiddenDefectPct knob)
         const defectPct = Math.max(0, Math.min(10, econForTank.hiddenDefectPct ?? 3)) / 100;
         const defect = hiddenDefectFor(serial, defectPct);
-        await tx.garajCar.update({ where: { id: car.id }, data: { serial, bornAt: new Date(), engineHp: 100, lastAccrualAt: new Date(), ownerCount: 1, totalTrips: 0, fueledUntilAt: freeTankUntil, hiddenDefect: defect ? JSON.stringify(defect) : null } });
+        // 🎁 P2-B — Jackpot variant roll (1% Qora Nexia / 0.05% Afsonaviy Tiko by default)
+        const variantOverride: Record<string, number> = {
+          qora_nexia: Math.max(2, Math.floor(econForTank.variantQoraNexiaOneIn ?? 100)),
+          afsonaviy_tiko: Math.max(2, Math.floor(econForTank.variantAfsonaviyTikoOneIn ?? 2000)),
+        };
+        const variant = variantFor(carCode, serial, variantOverride);
+        await tx.garajCar.update({ where: { id: car.id }, data: { serial, bornAt: new Date(), engineHp: 100, lastAccrualAt: new Date(), ownerCount: 1, totalTrips: 0, fueledUntilAt: freeTankUntil, hiddenDefect: defect ? JSON.stringify(defect) : null, variant } });
       }
       await tx.memberGarajMeta.upsert({
         where: { memberId },
@@ -1286,7 +1295,16 @@ export async function flipCar(memberId: number, garajCarId: number, buyerArchety
     const car = await prisma.garajCar.findFirst({ where: { id: garajCarId, memberId, soldAt: null } });
     if (!car) return { ok: false, reason: "not_found" };
     if (car.onboardCar) return { ok: false, reason: "onboard_car" }; // FTUE car uses its own flow
-    const basePrice = MAKE_BASE[car.carCode] ?? 0;
+    // 🎁 P2-B Jackpot variant + 🔗 P2-A merge bonuses both inflate the effective basePrice
+    // (audit M4 stays intact: cap is min-bounded by acquireCost+repairSpent, which DON'T
+    // grow with variant/merge — those bonuses are pure upside vs the cap's natural ceiling).
+    const baseRaw = MAKE_BASE[car.carCode] ?? 0;
+    const econForFlip = await getMotorEcon();
+    const variantInfo = getVariant(car.variant);
+    const variantMult = variantInfo?.mult ?? 1.0;
+    const mergeBonusPct = econForFlip.mergeBonusPct;
+    const mMult = mergeMult(car.mergeCount ?? 0, mergeBonusPct);
+    const basePrice = Math.round(baseRaw * variantMult * mMult);
     const style = (car.style as RestoreStyle | null) ?? "QUICK_FLIP";
     const condition = car.condition.toUpperCase() as CarCondition;
     // W5: prestige multiplier (≤1.25) + active seasonal style-bonus both feed raw;

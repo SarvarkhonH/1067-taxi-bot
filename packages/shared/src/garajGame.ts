@@ -596,7 +596,39 @@ export const MOTOR_ECON_KNOBS: MotorEconKnob[] = [
   // 🔗 P2-A — Merge mechanic admin dastaklari (anti-inflyatsiya bounded)
   { key: "mergeBonusPct", label: "🔗 Merge bonus % (har bosqich)", def: 10, min: 0, max: 30, step: 1, live: false },
   { key: "mergeMaxCount", label: "🔗 Merge maksimum bosqich", def: 3, min: 1, max: 5, step: 1, live: false },
+  // 🎁 P2-B — Jackpot rarity admin dastaklari (1/N qiymati past = ko'p uchraydi)
+  { key: "variantQoraNexiaOneIn", label: "🎁 Qora Nexia (1/N)", def: 100, min: 10, max: 10000, step: 10, live: false },
+  { key: "variantAfsonaviyTikoOneIn", label: "🎁 Afsonaviy Tiko (1/N)", def: 2000, min: 100, max: 100000, step: 50, live: false },
 ];
+
+// 🎁 P2-B — Jackpot rarity variants (deterministic from serial — no grinding, no manipulation).
+// Each variant gates on a specific carCode (only Nexia rolls Qora, only Tiko rolls Afsonaviy)
+// and has a fixed `oneIn` rarity. variantFor(carCode, serial, oneIn) returns the variant key
+// or null. Display side reads the variant key from GarajCar.variant and renders the badge.
+export interface MotorVariant { key: string; carCode: string; oneInDefault: number; mult: number; label: string; emoji: string }
+export const MOTOR_VARIANTS: MotorVariant[] = [
+  { key: "qora_nexia", carCode: "nexia", oneInDefault: 100, mult: 1.5, label: "Qora Nexia", emoji: "⚫" },
+  { key: "afsonaviy_tiko", carCode: "tiko", oneInDefault: 2000, mult: 3.0, label: "Afsonaviy Tiko", emoji: "🏆" },
+];
+/** Look up variant metadata by key (server reads from GarajCar.variant string). */
+export function getVariant(key: string | null | undefined): MotorVariant | null {
+  if (!key) return null;
+  return MOTOR_VARIANTS.find((v) => v.key === key) ?? null;
+}
+/** Deterministic variant roll for a specific carCode given the global #serial.
+ *  Hash uses a different multiplier than hiddenDefectFor to ensure independence
+ *  (a defective car can still be Qora — they're separate rolls).
+ *  Returns the variant key (string) or null. `oneInOverride` lets the admin tune rarity. */
+export function variantFor(carCode: string, serial: number, oneInOverride?: Partial<Record<string, number>>): string | null {
+  for (const v of MOTOR_VARIANTS) {
+    if (v.carCode !== carCode) continue;
+    const oneIn = Math.max(2, Math.floor(oneInOverride?.[v.key] ?? v.oneInDefault));
+    // Deterministic — different prime from hiddenDefect (16777619 = FNV prime)
+    const hash = ((serial * 16777619) >>> 0) % oneIn;
+    if (hash === 0) return v.key;
+  }
+  return null;
+}
 
 // 🔗 P2-A — Merge mechanic constants + helpers (anti-inflyatsiya: 2 cars → 1 buffed; supply DROPS)
 export const MERGE_BONUS_PCT = 0.10; // each merge step adds +10% to basePrice/flip computation
@@ -714,6 +746,7 @@ export interface GarajCarView {
   ofisBidPrice?: number; // hozirgi 1067 Ofis bid (basePrice + factor); UI "Ofis 80% ga oladi" chip
   cleanHistory?: boolean; // ✨ badge: capitalRepairCount===0 && ownerCount===1 (P1-F ORZU)
   mergeCount?: number; // 🔗 P2-A — merge bosqichi (0..MERGE_MAX_COUNT); 0 → oddiy, 1+ → "Toplangan ★N"
+  variant?: string | null; // 🎁 P2-B — Jackpot variant key (qora_nexia, afsonaviy_tiko); null=oddiy
 }
 export interface GarajShopItem {
   carCode: string;
