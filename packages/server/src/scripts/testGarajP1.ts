@@ -1,10 +1,11 @@
-// 🏆 GARAJ P1 tests: Ofis sell, slot system, CarCheck 3-tier (+ newbie-bepul),
-// rateSeller idempotency, ORZU board ranking, lifespan sweep, capital remont counter.
+// 🏆 GARAJ P1+P2 tests: Ofis sell, slot system, CarCheck 3-tier (+ newbie-bepul),
+// rateSeller idempotency, ORZU board ranking, lifespan sweep, capital remont counter,
+// P2-A merge mechanic, P2-B Jackpot variant determinism, P2-C Speeder boost.
 // Runs on the isolated test DB (TEST_DATABASE_URL) — same hermetic posture as testGaraj.
 // Run: pnpm --filter @t1067/server exec dotenv -e ../../.env -- tsx src/scripts/testGarajP1.ts
 import "./_testDb";
 import "../env";
-import { MAKE_BASE, SLOT_COSTS, CARCHECK_COSTS, OFIS_BID_FACTOR, ofisBidPrice } from "@t1067/shared";
+import { MAKE_BASE, SLOT_COSTS, CARCHECK_COSTS, OFIS_BID_FACTOR, ofisBidPrice, MERGE_MAX_COUNT, MERGE_BONUS_PCT, mergeMult, variantFor, getVariant, SPEEDER_DAYS, isSpeederActive } from "@t1067/shared";
 import { prisma } from "../db";
 import { getCoins, grantCoins } from "../services/coinService";
 import {
@@ -19,6 +20,9 @@ import {
   getPublicProfile,
   sweepMotorAging,
   setMotorEcon,
+  mergeCars,
+  purchaseSpeeder,
+  getSpeederState,
 } from "../services/garajService";
 import { __resetFeatureCache, setFeature } from "../services/featureFlags";
 
@@ -42,6 +46,8 @@ async function cleanup(): Promise<void> {
   await prisma.appState.deleteMany({ where: { key: { in: ["feature:garajx", "feature:motorolami", "mo:econ"] } } });
   await prisma.appState.deleteMany({ where: { key: { startsWith: "sellerrate:" } } });
   await prisma.appState.deleteMany({ where: { key: { startsWith: "ofis:" } } });
+  await prisma.appState.deleteMany({ where: { key: { startsWith: "merge:" } } });
+  await prisma.appState.deleteMany({ where: { key: { in: ["mo:speeder:stock", "mo:speeder:day"] } } });
   await prisma.ofisLedger.deleteMany({}).catch(() => undefined); // test DB only
   __resetFeatureCache();
 }
@@ -186,6 +192,77 @@ async function main(): Promise<void> {
     const bal = (await prisma.member.findUnique({ where: { id: mm.id } }))!.coins;
     const tot = await prisma.coinTxn.aggregate({ where: { memberId: mm.id }, _sum: { amount: true } });
     ok(Math.abs(bal - (tot._sum.amount ?? 0)) < 0.001, `ledger invariant (member ${mm.id}: bal ${bal} == ledger ${tot._sum.amount ?? 0})`);
+  }
+
+  // ── 9) P2-A: Merge mechanic ──────────────────────────────────────────────
+  ok(mergeMult(0) === 1.0, `mergeMult(0) = 1.0 (oddiy)`);
+  ok(Math.abs(mergeMult(1) - 1.1) < 0.001, `mergeMult(1) = 1.10 (+10%)`);
+  ok(Math.abs(mergeMult(3) - 1.3) < 0.001, `mergeMult(MAX=3) = 1.30 (+30%)`);
+  ok(mergeMult(99) === mergeMult(MERGE_MAX_COUNT), `mergeMult clamps at MERGE_MAX_COUNT=${MERGE_MAX_COUNT}`);
+  // sellerM has 1 car (tiko). Buy a second car so we can merge.
+  const sellerSlot = await getSlotStatus(sellerM.id);
+  if (sellerSlot.slotCount < 2) await purchaseSlot(sellerM.id);
+  const acqB = await acquireCar(sellerM.id, "damas");
+  ok(acqB.ok, `merge prep: acquire damas as sacrifice`);
+  const keepCar = (await prisma.garajCar.findFirst({ where: { memberId: sellerM.id, carCode: "tiko", soldAt: null } }))!;
+  const sacCar = (await prisma.garajCar.findFirst({ where: { memberId: sellerM.id, carCode: "damas", soldAt: null } }))!;
+  const merge1 = await mergeCars(sellerM.id, keepCar.id, sacCar.id);
+  ok(merge1.ok && merge1.mergeCount === 1 && Math.abs((merge1.newMult ?? 0) - 1.1) < 0.001, `merge1 ok: mergeCount=1, newMult=1.1`);
+  const keptAfter = await prisma.garajCar.findUnique({ where: { id: keepCar.id } });
+  ok((keptAfter?.mergeCount ?? 0) === 1, `keeper mergeCount stamped in DB`);
+  const sacAfter = await prisma.garajCar.findUnique({ where: { id: sacCar.id } });
+  ok(sacAfter === null, `sacrifice DELETED (supply down 1)`);
+  // Idempotency: same merge call should be rejected (already_merged marker)
+  const mergeDup = await mergeCars(sellerM.id, keepCar.id, sacCar.id);
+  ok(!mergeDup.ok && (mergeDup.reason === "not_found" || mergeDup.reason === "already_merged"), `merge dup rejected: ${mergeDup.reason}`);
+
+  // ── 10) P2-B: Jackpot rarity (deterministic) ─────────────────────────────
+  // qora_nexia hits on serials where (serial * 16777619) % 100 === 0 (default 1/100)
+  // Find one such serial deterministically and verify
+  let foundQora: number | null = null;
+  for (let s = 1; s < 200; s++) {
+    if (variantFor("nexia", s) === "qora_nexia") { foundQora = s; break; }
+  }
+  ok(foundQora != null, `variantFor: deterministic Qora Nexia roll found at serial ${foundQora}`);
+  // Tiko ≠ nexia → no qora_nexia possible
+  ok(variantFor("tiko", foundQora ?? 0) !== "qora_nexia", `variantFor: tiko never rolls qora_nexia (carCode-gated)`);
+  // Override: 1/2 (max rate, floor enforced) → every even-serial nexia is qora
+  // (serial × 16777619 = even × odd = even; % 2 = 0)
+  ok(variantFor("nexia", 2, { qora_nexia: 2 }) === "qora_nexia", `variantFor: oneIn=2 override + even serial → qora`);
+  ok(variantFor("damas", 100, { qora_nexia: 1 }) === null, `variantFor: damas (no variant) → null`);
+  // getVariant lookup
+  const qora = getVariant("qora_nexia");
+  ok(qora != null && qora.mult === 1.5, `getVariant("qora_nexia").mult = 1.5`);
+  ok(getVariant(null) === null, `getVariant(null) = null`);
+
+  // ── 11) P2-C: Speeder booster ────────────────────────────────────────────
+  const spState1 = await getSpeederState(sellerM.id);
+  ok(spState1.ok && (spState1.stockLeft ?? 0) > 0 && spState1.days === SPEEDER_DAYS, `Speeder state: stock=${spState1.stockLeft}, days=${SPEEDER_DAYS}`);
+  // sellerM's keep car (merged tiko) is alive, buy a speeder for it
+  const sellerCarForSpeeder = keptAfter!;
+  const beforeSpeederStock = spState1.stockLeft ?? 0;
+  const beforeSpeederBal = await getCoins(sellerM.id);
+  const spBuy = await purchaseSpeeder(sellerM.id, sellerCarForSpeeder.id);
+  ok(spBuy.ok && spBuy.speederUntilAt != null && (spBuy.stockLeft ?? 0) === beforeSpeederStock - 1, `Speeder bought: stock ${beforeSpeederStock}→${spBuy.stockLeft}`);
+  const speederPrice = spState1.price ?? 5000;
+  const afterSpeederBal = await getCoins(sellerM.id);
+  ok(afterSpeederBal === beforeSpeederBal - speederPrice, `Speeder cost: spent ${speederPrice}`);
+  const carAfterSp = await prisma.garajCar.findUnique({ where: { id: sellerCarForSpeeder.id } });
+  ok(isSpeederActive(carAfterSp?.speederUntilAt ?? null), `Speeder is active on keeper car (until ${carAfterSp?.speederUntilAt?.toISOString()})`);
+  // Monotonic stack: buying again extends from existing untilAt
+  const firstUntilMs = carAfterSp?.speederUntilAt?.getTime() ?? 0;
+  const spBuy2 = await purchaseSpeeder(sellerM.id, sellerCarForSpeeder.id);
+  ok(spBuy2.ok || spBuy2.reason === "already", `Speeder second buy: ${spBuy2.ok ? "ok (stacked)" : spBuy2.reason}`);
+  if (spBuy2.ok && spBuy2.speederUntilAt) {
+    const newUntilMs = new Date(spBuy2.speederUntilAt).getTime();
+    ok(newUntilMs > firstUntilMs, `Speeder monotonic: untilAt extended from ${firstUntilMs} → ${newUntilMs}`);
+  }
+
+  // ── 12) Ledger invariant AFTER P2 sequence ───────────────────────────────
+  for (const mm of [sellerM, buyerM]) {
+    const bal = (await prisma.member.findUnique({ where: { id: mm.id } }))!.coins;
+    const tot = await prisma.coinTxn.aggregate({ where: { memberId: mm.id }, _sum: { amount: true } });
+    ok(Math.abs(bal - (tot._sum.amount ?? 0)) < 0.001, `P2 ledger invariant (member ${mm.id}: bal ${bal} == ledger ${tot._sum.amount ?? 0})`);
   }
 
   await cleanup();

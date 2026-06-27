@@ -1003,38 +1003,41 @@ export async function purchaseSpeeder(memberId: number, garajCarId: number): Pro
   if (stockMax === 0) return { ok: false, reason: "out_of_stock" };
   // Refresh stock if day changed
   await getSpeederState(memberId);
+  const dayKey = tashkentDate();
+  const idemKey = `speeder:${memberId}:${garajCarId}:${dayKey}`;
+  // Withlock + INLINE tx (NO spendCoinsIdempotent — that re-acquires the same lock → deadlock)
   return withMemberLock(memberId, async () => {
     const car = await prisma.garajCar.findFirst({ where: { id: garajCarId, memberId, soldAt: null, serial: { not: null } } });
     if (!car) return { ok: false, reason: "not_found" };
     if ((car.engineHp ?? 0) <= 0) return { ok: false, reason: "dead_car" };
-    // Atomic stock decrement — CAS via updateMany (only proceeds if value > 0)
+    // Idempotency: same key today → no-op (already bought)
+    const dup = await prisma.coinTxn.findUnique({ where: { idempotencyKey: idemKey } });
+    if (dup) return { ok: true, reason: "already", coins: await getCoins(memberId) };
+    // Atomic stock decrement — CAS via updateMany (only proceeds if value matches expected)
     const stockRow = await prisma.appState.findUnique({ where: { key: SPEEDER_STOCK_KEY } });
     const before = parseInt(stockRow?.value ?? "0", 10);
     if (isNaN(before) || before <= 0) return { ok: false, reason: "out_of_stock" };
     const upd = await prisma.appState.updateMany({ where: { key: SPEEDER_STOCK_KEY, value: String(before) }, data: { value: String(before - 1) } });
-    if (upd.count === 0) return { ok: false, reason: "stock_race" }; // someone else bought between read and write
-    // Spend the tanga (idempotent — same member, same car, same day = same key)
-    const dayKey = tashkentDate();
-    const spend = await spendCoinsIdempotent(memberId, price, "garaj_speeder", `🚀 Speeder ${SPEEDER_DAYS} kun: ${car.carCode} #${car.serial ?? "?"}`, `speeder:${memberId}:${garajCarId}:${dayKey}`);
-    if (!spend.ok && spend.skipped !== "duplicate") {
-      // Refund stock on failure (CAS again)
+    if (upd.count === 0) return { ok: false, reason: "stock_race" };
+    // Inline tanga spend (no re-lock): debit member + create txn in ONE prisma tx, then update car
+    try {
+      const newUntil = new Date(Math.max(car.speederUntilAt?.getTime() ?? 0, Date.now()) + SPEEDER_DAYS * 86_400_000);
+      await prisma.$transaction(async (tx) => {
+        const debit = await tx.member.updateMany({ where: { id: memberId, coins: { gte: price } }, data: { coins: { decrement: price } } });
+        if (debit.count === 0) throw new Error("INSUFFICIENT_FUNDS");
+        await tx.coinTxn.create({ data: { memberId, amount: -price, kind: "garaj_speeder", reason: `🚀 Speeder ${SPEEDER_DAYS} kun: ${car.carCode} #${car.serial ?? "?"}`, idempotencyKey: idemKey } });
+        await tx.garajCar.update({ where: { id: garajCarId }, data: { speederUntilAt: newUntil } });
+      });
+      const after = parseInt((await prisma.appState.findUnique({ where: { key: SPEEDER_STOCK_KEY } }))?.value ?? "0", 10);
+      return { ok: true, speederUntilAt: newUntil.toISOString(), stockLeft: isNaN(after) ? 0 : after, coins: await getCoins(memberId) };
+    } catch (e) {
+      // Refund stock on failure
       const refundBefore = parseInt((await prisma.appState.findUnique({ where: { key: SPEEDER_STOCK_KEY } }))?.value ?? "0", 10);
       if (!isNaN(refundBefore)) await prisma.appState.updateMany({ where: { key: SPEEDER_STOCK_KEY, value: String(refundBefore) }, data: { value: String(refundBefore + 1) } });
-      return { ok: false, reason: "insufficient", coins: spend.balance };
+      const msg = (e as Error)?.message;
+      if (msg === "INSUFFICIENT_FUNDS") return { ok: false, reason: "insufficient", coins: await getCoins(memberId) };
+      throw e;
     }
-    if (spend.skipped === "duplicate") {
-      // Refund stock on duplicate
-      const refundBefore = parseInt((await prisma.appState.findUnique({ where: { key: SPEEDER_STOCK_KEY } }))?.value ?? "0", 10);
-      if (!isNaN(refundBefore)) await prisma.appState.updateMany({ where: { key: SPEEDER_STOCK_KEY, value: String(refundBefore) }, data: { value: String(refundBefore + 1) } });
-      return { ok: true, reason: "already", coins: spend.balance };
-    }
-    // Extend speederUntilAt — MONOTONIC (re-buy stacks ON TOP of remaining time)
-    const now = Date.now();
-    const cur = car.speederUntilAt?.getTime() ?? 0;
-    const newUntil = new Date(Math.max(cur, now) + SPEEDER_DAYS * 86_400_000);
-    await prisma.garajCar.update({ where: { id: garajCarId }, data: { speederUntilAt: newUntil } });
-    const after = parseInt((await prisma.appState.findUnique({ where: { key: SPEEDER_STOCK_KEY } }))?.value ?? "0", 10);
-    return { ok: true, speederUntilAt: newUntil.toISOString(), stockLeft: isNaN(after) ? 0 : after, coins: spend.balance };
   });
 }
 
