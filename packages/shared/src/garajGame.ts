@@ -593,7 +593,21 @@ export const MOTOR_ECON_KNOBS: MotorEconKnob[] = [
   { key: "slot2Cost", label: "🪪 Slot 2 narxi", def: 50000, min: 10000, max: 200000, step: 1000, live: false },
   { key: "slot3Cost", label: "🪪 Slot 3 narxi", def: 250000, min: 50000, max: 500000, step: 5000, live: false },
   { key: "slot4Cost", label: "🪪 Slot 4 narxi", def: 1000000, min: 200000, max: 2000000, step: 10000, live: false },
+  // 🔗 P2-A — Merge mechanic admin dastaklari (anti-inflyatsiya bounded)
+  { key: "mergeBonusPct", label: "🔗 Merge bonus % (har bosqich)", def: 10, min: 0, max: 30, step: 1, live: false },
+  { key: "mergeMaxCount", label: "🔗 Merge maksimum bosqich", def: 3, min: 1, max: 5, step: 1, live: false },
 ];
+
+// 🔗 P2-A — Merge mechanic constants + helpers (anti-inflyatsiya: 2 cars → 1 buffed; supply DROPS)
+export const MERGE_BONUS_PCT = 0.10; // each merge step adds +10% to basePrice/flip computation
+export const MERGE_MAX_COUNT = 3; // hard cap (anti-runaway: cap +30%, then the car must be sold)
+/** mergeMult — multiplies the promoted car's effective basePrice for flip/Ofis-bid/CarCheck.
+ *  e.g., mergeCount=0 → 1.00; mergeCount=1 → 1.10; mergeCount=2 → 1.20; mergeCount=3 → 1.30. */
+export function mergeMult(mergeCount: number, bonusPctOverride?: number): number {
+  const pct = (bonusPctOverride ?? MERGE_BONUS_PCT * 100) / 100;
+  const n = Math.max(0, Math.min(MERGE_MAX_COUNT, mergeCount));
+  return 1 + n * pct;
+}
 /** Bonus aktivmi va effektiv (fuel, speed) multiplikatorlar — bonus base econ ustiga ko'paytiriladi.
  *  Pol/tom himoyasi: bonus paytida ham fuel ≥0.1 (sink hech qachon o'lmasin), speed ≤6 (worst-case ceil). */
 export function effectiveEcon(base: Record<string, number>, bonusActive: boolean): { fuelMult: number; speedMult: number } {
@@ -699,6 +713,7 @@ export interface GarajCarView {
   hasHiddenDefect?: boolean; // boolean hint for UI (true → "yashirin nuqson bo'lishi mumkin"); actual zone/severity at Premium tier
   ofisBidPrice?: number; // hozirgi 1067 Ofis bid (basePrice + factor); UI "Ofis 80% ga oladi" chip
   cleanHistory?: boolean; // ✨ badge: capitalRepairCount===0 && ownerCount===1 (P1-F ORZU)
+  mergeCount?: number; // 🔗 P2-A — merge bosqichi (0..MERGE_MAX_COUNT); 0 → oddiy, 1+ → "Toplangan ★N"
 }
 export interface GarajShopItem {
   carCode: string;

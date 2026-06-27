@@ -628,6 +628,9 @@ model GarajCar {
   capitalRepairCount Int       @default(0) // immutable counter (RESTORE craft ++), feeds REPAIR_NARX_FACTOR resale clamp
   hiddenDefect       String?   // JSON {zone, severity} — 3% deterministic stamp on acquire; Premium CarCheck reveals
   ofisHeld           Boolean   @default(false) // true while 1067 Ofis owns the car (re-list / scrap pending)
+  // 🔗 P2-A — merge mechanic counter; +1 per 2→1 fuse (sacrifice ANY car to promote this one);
+  // bounded by MERGE_MAX_COUNT (anti-runaway). MUST NOT RESET on re-buy (audit-B1 pattern).
+  mergeCount         Int       @default(0)
 
   @@unique([memberId, carCode])
   @@index([memberId])

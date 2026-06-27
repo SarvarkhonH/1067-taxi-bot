@@ -49,6 +49,9 @@ import {
   slotCost,
   SLOT_COSTS,
   CARCHECK_COSTS,
+  MERGE_BONUS_PCT,
+  MERGE_MAX_COUNT,
+  mergeMult,
   type CarCheckTier,
   type CarCheckView,
   type HiddenDefect,
@@ -341,6 +344,7 @@ export async function getGarajState(memberId: number): Promise<GarajStateRespons
       view.hasHiddenDefect = !!c.hiddenDefect;
       view.ofisBidPrice = ofisBidPrice(MAKE_BASE[c.carCode] ?? 0, MAKE_BASE[c.carCode] ?? 0);
       view.cleanHistory = (c.capitalRepairCount ?? 0) === 0 && (c.ownerCount ?? 1) === 1;
+      view.mergeCount = c.mergeCount ?? 0; // 🔗 P2-A — UI shows "Toplangan ★N" when > 0
     }
     return view;
   });
@@ -938,6 +942,47 @@ export async function getPublicProfile(viewerId: number, targetId: number): Prom
     : null;
   const cleanHistoryCount = cars.filter((c) => (c.capitalRepairCount ?? 0) === 0 && (c.ownerCount ?? 1) === 1).length;
   return { memberId: targetId, name: member.fullName ?? "O'yinchi", reputation: meta?.reputationScore ?? 0, garageValue, rank: null, cars: carViews, sellerRating, cleanHistoryCount };
+}
+
+// ══ 🔗 P2-A — Merge mechanic (2→1, anti-inflyatsiya bounded) ═════════════════
+// Sacrifice ANY active car (sacrificeCarId) to promote ANOTHER active car
+// (keepCarId) by +mergeBonusPct (admin) per step, capped at MERGE_MAX_COUNT.
+// Anti-inflyatsiya: supply DROPS by 1 each merge (1 GarajCar HARD-DELETED) and
+// the keeper's mergeCount increments (NOT reset on re-buy → audit-B1 pattern).
+// Money-safe: atomic within withMemberLock + inline tx; no CoinTxn (no tanga
+// changes hands — pure stat transfer); idempotency key = `merge:{keepId}:{sacId}`.
+export async function mergeCars(memberId: number, keepCarId: number, sacrificeCarId: number): Promise<GarajActionResult & { mergeCount?: number; newMult?: number }> {
+  if (!(await motorEnabledFor(memberId))) return { ok: false, reason: "off" };
+  if (keepCarId === sacrificeCarId) return { ok: false, reason: "same_car" };
+  return withMemberLock(memberId, async () => {
+    return prisma.$transaction(async (tx) => {
+      const keep = await tx.garajCar.findFirst({ where: { id: keepCarId, memberId, soldAt: null } });
+      const sac = await tx.garajCar.findFirst({ where: { id: sacrificeCarId, memberId, soldAt: null } });
+      if (!keep || !sac) return { ok: false, reason: "not_found" };
+      if ((keep.mergeCount ?? 0) >= MERGE_MAX_COUNT) return { ok: false, reason: "max_merge" };
+      // Idempotent guard — AppState marker prevents same merge twice (e.g., double-tap)
+      const dedupeKey = `merge:${memberId}:${keepCarId}:${sacrificeCarId}`;
+      try { await tx.appState.create({ data: { key: dedupeKey, value: "1" } }); }
+      catch { return { ok: false, reason: "already_merged" }; }
+      // Hard-delete the sacrifice (supply drops by 1 → frees a slot)
+      await tx.garajCar.delete({ where: { id: sac.id } });
+      // Promote the keeper: mergeCount++, engineHp refreshed to 100, level capped at +1 within CRAFT_MAX_LEVEL=5
+      const econ = await getMotorEcon();
+      const newMergeCount = Math.min(MERGE_MAX_COUNT, (keep.mergeCount ?? 0) + 1);
+      const newLevel = Math.min(5, (keep.level ?? 1) + 1);
+      await tx.garajCar.update({
+        where: { id: keep.id },
+        data: {
+          mergeCount: newMergeCount,
+          level: newLevel,
+          engineHp: 100, // merged car's engine is "refurbished"
+          repairQualityBonus: Math.max(0.9, Math.min(1.25, (keep.repairQualityBonus ?? 1) * 1.05)),
+        },
+      });
+      const newMult = mergeMult(newMergeCount, econ.mergeBonusPct);
+      return { ok: true, mergeCount: newMergeCount, newMult, coins: await getCoins(memberId) };
+    });
+  });
 }
 
 // ══ ✨ P1-F — ORZU board (global ranking + per-model Top-1 podium) ═════════════

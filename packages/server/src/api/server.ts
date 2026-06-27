@@ -210,6 +210,8 @@ export function createApiServer(opts: ApiOptions = {}) {
   app.post("/api/garaj/rate-seller", requireUser, rateLimit(10), withMember2(async (id, req) => (await import("../services/garajService")).rateSeller(id, Number(req.body?.listingId), Number(req.body?.stars))));
   // ✨ P1-F — ORZU board (global Top + per-model #1)
   app.get("/api/garaj/orzu", requireUser, rateLimit(20), withMember2(async (id) => (await import("../services/garajService")).getOrzuBoard(id)));
+  // 🔗 P2-A — Merge mechanic (sacrifice 1 active car to promote another; supply drops by 1)
+  app.post("/api/garaj/merge", requireUser, rateLimit(5), withMember2(async (id, req) => (await import("../services/garajService")).mergeCars(id, Number(req.body?.keepCarId), Number(req.body?.sacrificeCarId))));
   app.get("/api/garaj/profile/:id", requireUser, withMember2(async (id, req) => (await import("../services/garajService")).getPublicProfile(id, req.params?.id === "me" ? id : Number(req.params?.id))));
 
   app.get("/api/me", requireUser, async (_req, res) => {
