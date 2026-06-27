@@ -10,7 +10,7 @@
 export const COIN_PER_SOM = 1;
 
 export const WITHDRAW_MIN = 5000; // min coins per conversion (coin → cashback)
-export const WITHDRAW_DAILY_CAP = 50000; // max so'm leaving per member per day
+export const WITHDRAW_DAILY_CAP = 100000; // max so'm leaving per member per day (owner-raised 50k→100k 2026-06-27)
 export const TOPUP_MIN = 1000; // min bonus to move INTO coins (cashback → coin)
 
 // NOTE: paid respins and the premium box were REMOVED deliberately —
@@ -75,7 +75,7 @@ export const RIDE_EMISSION_CAP = 350;
 export const TRANSFER_MIN = 500;
 export const TRANSFER_MAX_PER_TX = 20000;
 export const TRANSFER_DAILY_SENT = 30000;
-export const TRANSFER_DAILY_RECEIVED = 30000;
+export const TRANSFER_DAILY_RECEIVED = 100000; // owner-raised 30k→100k 2026-06-27 (note: now == withdraw cap, weakens the received<withdraw anti-mule margin)
 export const TRANSFER_MAX_COUNTERPARTIES = 5; // distinct recipients per day (driver tips/fares exempt)
 export const TRANSFER_MIN_ACCOUNT_AGE_H = 48; // sender must be linked this long
 export const TRANSFER_BURN_RATE = 0.02; // legacy (kept for back-compat; commission replaces it when the flag is on)
