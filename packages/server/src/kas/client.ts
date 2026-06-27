@@ -429,10 +429,10 @@ export class KasLiveSource implements KasDataSource {
   // tap-to-navigate (kas's native location-order behaviour), never a bare "-". Saved-address orders
   // (with a real addressId, no coords) are untouched → dispatch unchanged. Only the display label
   // changes; the lat/lng that actually route the driver are passed through as-is.
-  private async nearestCatalogName(lat: number, lng: number): Promise<string> {
+  private async nearestCatalogAddress(lat: number, lng: number): Promise<SavedAddress | null> {
     const cat = await this.getAllAddresses().catch(() => [] as SavedAddress[]);
     const coslat = Math.cos((lat * Math.PI) / 180);
-    let best = "";
+    let best: SavedAddress | null = null;
     let bestD = Infinity;
     for (const a of cat) {
       if (a.lat == null || a.lng == null) continue;
@@ -441,23 +441,32 @@ export class KasLiveSource implements KasDataSource {
       const d = dx * dx + dy * dy;
       if (d < bestD) {
         bestD = d;
-        best = a.name;
+        best = a;
       }
     }
-    return bestD <= 5.2e-5 ? best : ""; // ~0.8 km cap in squared-degrees
+    // ~8 km cap in squared-degrees (0.072° ≈ 8 km). A pin truly outside the service area still
+    // falls back to addressId 0; everything inside Koson snaps to a real catalog address.
+    return bestD <= 5.2e-3 ? best : null;
   }
 
   async createBooking(req: BookingRequest): Promise<BookingResult> {
     let addressName = req.addressName;
+    let addressId = req.addressId;
     const hasGps = Number.isFinite(req.addressLatitude) && Number.isFinite(req.addressLongitude);
     if (hasGps) {
+      // Snap the GPS pin to the nearest catalog address — REPLICATES what the kas server itself does
+      // for the official client app (KAS1067_CLIENT_API.md:86: "server lat/lng → eng yaqin manzilga
+      // snap"). A real addressId makes the dispatcher file the order as «new» (dispatched) instead of
+      // «hamma uchun» — the broadcast pool that addressId 0 lands in via the operator/throughWeb path.
+      // The exact lat/lng are STILL sent (body spreads req), so the driver routes to the pin, not the
+      // snapped place. Only fill addressId when the caller didn't already pick a real saved address.
+      const near = await this.nearestCatalogAddress(req.addressLatitude!, req.addressLongitude!).catch(() => null);
       let base = (addressName || "").replace(/\s*(yaqini|lokatsiyalik)\s*$/i, "").trim();
-      if (!base || base === "-" || /belgilangan/i.test(base)) {
-        base = (await this.nearestCatalogName(req.addressLatitude!, req.addressLongitude!).catch(() => "")) || "Belgilangan joy";
-      }
+      if (!base || base === "-" || /belgilangan/i.test(base)) base = near?.name || "Belgilangan joy";
       addressName = `${base} lokatsiyalik`;
+      if ((!addressId || addressId === 0) && near) addressId = near.id; // → dispatcher shows «new», not «hamma uchun»
     }
-    const body = { ...req, addressName, phoneNumber: kasPhone(req.phoneNumber) }; // kas-standard phone (+998<last9>)
+    const body = { ...req, addressId, addressName, phoneNumber: kasPhone(req.phoneNumber) }; // kas-standard phone (+998<last9>)
     // A LIVE session returns the created booking JSON (always a numeric "id"). A DEAD session
     // (another login on the shared kas account killed ours) makes kas serve the LOGIN PAGE with
     // HTTP 200 — postJson's 302-check misses it, so the old code read that as success → a PHANTOM

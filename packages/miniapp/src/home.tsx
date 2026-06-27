@@ -5,7 +5,7 @@ import { useEffect, useRef, useState } from "react";
 import type { HomeResponse, MeResponse } from "@t1067/shared";
 import { api } from "./api";
 import { ensureLeaflet } from "./leaflet";
-import { carDivIcon, ghostPersonDivIcon, GHOST_SHIRTS, GHOST_SKINS } from "./mapDecor";
+import { carDivIcon, pinkTaxiDivIcon, ghostPersonDivIcon, myLocationDivIcon, GHOST_SHIRTS, GHOST_SKINS, GHOST_DRESSES, GHOST_HAIRS, type PersonKind } from "./mapDecor";
 import { haptic } from "./telegram";
 import { WalletView } from "./wallet";
 
@@ -47,21 +47,33 @@ export function LivingHome(props: {
       );
       L.tileLayer(TILE_URL, { subdomains: TILE_SUBDOMAINS, maxZoom: 20 }).addTo(m); // no crossOrigin: WebView tile-load fix (see booking3)
       const layer = L.layerGroup().addTo(m);
+      const rnd = (s: number): number => (Math.random() - 0.5) * s;
+      const pick = <T,>(a: readonly T[]): T => a[Math.floor(Math.random() * a.length)]!;
       // 🚕 cars as real taxis (green = free, grey = busy + a visible passenger), rotated by bearing
       for (const c of home.carPins) {
         const icon = L.divIcon(carDivIcon(c.busy ? "#9ca3af" : "#22c55e", c.bearing || 0, 26, c.busy));
         layer.addLayer(L.marker([c.lat, c.lng], { icon, interactive: false }));
       }
-      // 🚶 ghost clients waiting around the city — varied clothes/skin/size, ≥3 hailing a taxi
-      const rnd = (s: number): number => (Math.random() - 0.5) * s;
-      const people = Math.min(8, Math.max(5, Math.round(home.carPins.length * 0.7)));
+      // 💗 2-3 playful pink high-heel taxis parked around (kept upright)
+      const pinks = 2 + (Math.random() < 0.5 ? 1 : 0);
+      for (let i = 0; i < pinks; i++) {
+        layer.addLayer(L.marker([home.center.lat + rnd(0.018), home.center.lng + rnd(0.024)], {
+          icon: L.divIcon(pinkTaxiDivIcon(26)), interactive: false, zIndexOffset: -30,
+        }));
+      }
+      // 🚶 ghost clients — a real street mix: men, women, girls + a mum with a small child; ≥a few hailing
+      const KINDS: PersonKind[] = ["mother", "woman", "girl", "woman", "man", "man", "man", "man"];
+      const people = Math.min(8, Math.max(6, Math.round(home.carPins.length * 0.8)));
       for (let i = 0; i < people; i++) {
-        const shirt = GHOST_SHIRTS[Math.floor(Math.random() * GHOST_SHIRTS.length)]!;
-        const skin = GHOST_SKINS[Math.floor(Math.random() * GHOST_SKINS.length)]!;
-        const size = 18 + Math.floor(Math.random() * 6);
-        const hail = i < 3 || Math.random() < 0.18; // guarantee a few hands up
+        const kind = KINDS[i % KINDS.length]!;
+        const female = kind !== "man";
+        const shirt = female ? pick(GHOST_DRESSES) : pick(GHOST_SHIRTS);
+        const skin = pick(GHOST_SKINS);
+        const hair = pick(GHOST_HAIRS);
+        const size = (kind === "mother" ? 25 : kind === "girl" ? 17 : 19) + Math.floor(Math.random() * 4);
+        const hail = (kind === "man" || kind === "woman") && (i < 3 || Math.random() < 0.2);
         const mk = L.marker([home.center.lat + rnd(0.02), home.center.lng + rnd(0.026)], {
-          icon: L.divIcon(ghostPersonDivIcon(shirt, skin, size, hail)),
+          icon: L.divIcon(ghostPersonDivIcon({ shirt, skin, size, hail, kind, hair })),
           interactive: false,
           zIndexOffset: -40,
         });
@@ -69,6 +81,10 @@ export function LivingHome(props: {
         const el = mk.getElement()?.querySelector(".b3-ghostperson") as HTMLElement | null;
         if (el) el.style.animationDelay = `${(Math.random() * 2.4).toFixed(2)}s`; // stagger the bob
       }
+      // 📍 "you are here" — glowing pulse at the rider's area, on top of everything
+      L.marker([home.center.lat, home.center.lng], {
+        icon: L.divIcon(myLocationDivIcon(22)), interactive: false, zIndexOffset: 600,
+      }).addTo(m);
       map.current = m;
     });
     return () => {

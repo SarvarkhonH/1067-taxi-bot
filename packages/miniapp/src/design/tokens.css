@@ -589,6 +589,13 @@ body {
    .leaflet-marker-pane and stay their real colours. Same proven filter as .b3-map. */
 .lh-map .leaflet-container { background: var(--surface); }
 .lh-map .leaflet-tile-pane { filter: invert(1) hue-rotate(180deg) brightness(.92) contrast(.9); }
+/* 📍 "you are here" — a glowing blue dot with a pulsing halo (markers are never dark-filtered) */
+.lh-meloc { position: relative; width: 22px; height: 22px; }
+.lh-meloc-dot { position: absolute; inset: 6px; border-radius: 50%; background: #2da8ff; border: 2px solid #fff;
+  box-shadow: 0 0 0 2px rgba(45,168,255,.45), 0 2px 7px rgba(0,0,0,.6); }
+.lh-meloc-ring { position: absolute; inset: 0; border-radius: 50%; background: rgba(45,168,255,.4); animation: lh-meloc-pulse 2.4s ease-out infinite; }
+@keyframes lh-meloc-pulse { 0% { transform: scale(.45); opacity: .75; } 100% { transform: scale(1.8); opacity: 0; } }
+@media (prefers-reduced-motion: reduce) { .lh-meloc-ring { animation: none; } }
 /* lighter now that the map itself is dark — just enough top/bottom fade for the greeting +
    a soft blend into the controls; the middle stays clear so cars/people read crisply. */
 .lh-veil { position: absolute; inset: 0; z-index: 1; pointer-events: none;

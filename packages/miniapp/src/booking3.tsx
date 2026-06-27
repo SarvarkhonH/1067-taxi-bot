@@ -755,7 +755,9 @@ function Booking3Inner({ me, info, onClose }: { me: MeResponse; info: BookingInf
         setMsg(null);
       },
       () => setMsg("📍 Joylashuvni aniqlab bo'lmadi — ruxsat bering yoki qo'lda belgilang"),
-      { enableHighAccuracy: true, timeout: 8000, maximumAge: 10000 },
+      // maximumAge:0 forces a FRESH high-accuracy fix (no stale/coarse network position); the longer
+      // timeout lets the GPS chip actually lock (a real cold fix often takes >8s on a phone).
+      { enableHighAccuracy: true, timeout: 14000, maximumAge: 0 },
     );
   };
 
