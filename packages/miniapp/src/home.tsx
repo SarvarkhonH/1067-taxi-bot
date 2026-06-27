@@ -75,15 +75,19 @@ export function LivingHome(props: {
   const name = home?.name ?? me.member.fullName.split(" ")[0] ?? "do'stim";
   return (
     <div className="living-home">
-      <div className="lh-map" ref={mapRef} />
-      <div className="lh-veil" />
-      <div className="lh-top">
-        <div className="lh-hi">{g.hi}, {name} 👋</div>
-        <div className="lh-sub">{g.sub}</div>
-        <div className="lh-chips">
-          <span className="lh-chip">🪙 {(home?.coins ?? me.coins).toLocaleString("ru-RU")}</span>
-          {(home?.streak ?? 0) > 0 && <span className="lh-chip hot">🔥 {home!.streak}</span>}
-          <span className="lh-chip">🚖 {home?.freeCars ?? 0} bo'sh</span>
+      {/* map is its own flexible block (flex:1) so it shrinks to leftover space — the
+          controls below always fit above the tabbar, on any phone height */}
+      <div className="lh-mapwrap">
+        <div className="lh-map" ref={mapRef} />
+        <div className="lh-veil" />
+        <div className="lh-top">
+          <div className="lh-hi">{g.hi}, {name} 👋</div>
+          <div className="lh-sub">{g.sub}</div>
+          <div className="lh-chips">
+            <span className="lh-chip">🪙 {(home?.coins ?? me.coins).toLocaleString("ru-RU")}</span>
+            {(home?.streak ?? 0) > 0 && <span className="lh-chip hot">🔥 {home!.streak}</span>}
+            <span className="lh-chip">🚖 {home?.freeCars ?? 0} bo'sh</span>
+          </div>
         </div>
       </div>
       <div className="lh-bottom">

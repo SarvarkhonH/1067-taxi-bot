@@ -579,34 +579,38 @@ body {
 .b3-sheet-head .b3-sheet-title { margin: 0; }
 
 /* ── V1 Living AI home ─────────────────────────────────────────────────────── */
-.living-home { position: relative; height: calc(100vh - 64px); min-height: 480px; overflow: hidden; }
+/* flex column: the map flexes to leftover space (compact, never dominating); the
+   controls sit in normal flow and always fit above the fixed tabbar. 158 = topbar +
+   tabbar + breathing room (device-independent chrome). */
+.living-home { display: flex; flex-direction: column; gap: 10px; height: calc(100dvh - 158px); min-height: 430px; }
+.lh-mapwrap { position: relative; flex: 1 1 auto; min-height: 168px; border-radius: 20px; overflow: hidden; box-shadow: 0 12px 30px -14px rgba(0,0,0,.7); }
 .lh-map { position: absolute; inset: 0; z-index: 0; }
 .lh-veil { position: absolute; inset: 0; z-index: 1; pointer-events: none;
-  background: linear-gradient(180deg, rgba(10,14,22,.62) 0%, rgba(10,14,22,.20) 32%, rgba(10,14,22,.30) 60%, rgba(10,14,22,.86) 100%); }
+  background: linear-gradient(180deg, rgba(10,14,22,.62) 0%, rgba(10,14,22,.18) 30%, rgba(10,14,22,.28) 60%, rgba(10,14,22,.86) 100%); }
 .lh-car { font-size: 18px; filter: drop-shadow(0 1px 3px rgba(0,0,0,.6)); animation: lh-bob 3s ease-in-out infinite; }
 .lh-car.busy { opacity: .85; }
 @keyframes lh-bob { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-3px); } }
-.lh-top { position: absolute; top: 0; left: 0; right: 0; z-index: 2; padding: 16px 16px 0; }
-.lh-hi { font-size: 22px; font-weight: 800; color: #fff; text-shadow: 0 1px 8px rgba(0,0,0,.5); }
-.lh-sub { font-size: 13px; color: rgba(255,255,255,.82); margin-top: 2px; text-shadow: 0 1px 6px rgba(0,0,0,.5); }
-.lh-chips { display: flex; gap: 6px; margin-top: 10px; flex-wrap: wrap; }
+.lh-top { position: absolute; top: 0; left: 0; right: 0; z-index: 2; padding: 14px 14px 0; }
+.lh-hi { font-size: 20px; font-weight: 800; color: #fff; text-shadow: 0 1px 8px rgba(0,0,0,.5); }
+.lh-sub { font-size: 12.5px; color: rgba(255,255,255,.82); margin-top: 2px; text-shadow: 0 1px 6px rgba(0,0,0,.5); }
+.lh-chips { display: flex; gap: 6px; margin-top: 8px; flex-wrap: wrap; }
 .lh-chip { font-size: 12px; font-weight: 700; color: #fff; background: rgba(20,26,38,.66);
   border: 1px solid rgba(255,255,255,.12); border-radius: 999px; padding: 5px 10px; backdrop-filter: blur(6px); }
 .lh-chip.hot { background: linear-gradient(135deg, #ffb300, #ff8f00); color: #1a1205; border-color: transparent; }
-.lh-bottom { position: absolute; left: 0; right: 0; bottom: 0; z-index: 2; padding: 0 14px 16px; display: flex; flex-direction: column; gap: 10px; }
+.lh-bottom { flex: 0 0 auto; display: flex; flex-direction: column; gap: 8px; }
 .lh-usual { display: flex; align-items: center; gap: 10px; width: 100%; text-align: left;
-  background: rgba(20,26,38,.82); border: 1px solid rgba(255,255,255,.12); border-radius: 16px; padding: 10px 14px; backdrop-filter: blur(8px); }
-.lh-usual-ico { font-size: 22px; }
+  background: rgba(20,26,38,.82); border: 1px solid rgba(255,255,255,.12); border-radius: 14px; padding: 8px 12px; backdrop-filter: blur(8px); }
+.lh-usual-ico { font-size: 20px; }
 .lh-usual-txt { display: flex; flex-direction: column; flex: 1; color: #fff; }
-.lh-usual-txt b { font-size: 14px; } .lh-usual-txt small { font-size: 12px; color: rgba(255,255,255,.7); }
-.lh-usual-go { font-size: 20px; color: #ffb300; }
-.lh-cta { width: 100%; padding: 16px; font-size: 17px; font-weight: 800; color: #1a1205;
-  background: linear-gradient(135deg, #ffc233, #ff9800); border: none; border-radius: 18px;
+.lh-usual-txt b { font-size: 13.5px; } .lh-usual-txt small { font-size: 11.5px; color: rgba(255,255,255,.7); }
+.lh-usual-go { font-size: 19px; color: #ffb300; }
+.lh-cta { width: 100%; padding: 14px; font-size: 17px; font-weight: 800; color: #1a1205;
+  background: linear-gradient(135deg, #ffc233, #ff9800); border: none; border-radius: 16px;
   box-shadow: 0 8px 24px rgba(255,152,0,.36); transition: transform .08s; }
 .lh-cta:active { transform: scale(.97); }
 .lh-places { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
-.lh-place { display: flex; flex-direction: column; align-items: center; gap: 3px; font-size: 22px;
-  color: #fff; background: rgba(20,26,38,.7); border: 1px solid rgba(255,255,255,.1); border-radius: 14px; padding: 10px 0; backdrop-filter: blur(6px); }
+.lh-place { display: flex; flex-direction: column; align-items: center; gap: 3px; font-size: 20px;
+  color: #fff; background: rgba(20,26,38,.7); border: 1px solid rgba(255,255,255,.1); border-radius: 13px; padding: 8px 0; backdrop-filter: blur(6px); }
 .lh-place span { font-size: 11px; font-weight: 600; color: rgba(255,255,255,.85); }
 .lh-place:active { transform: scale(.95); }
 .lh-back { align-self: flex-start; margin: 4px 0 8px; font-size: 14px; font-weight: 700;
