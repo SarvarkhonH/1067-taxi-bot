@@ -123,12 +123,25 @@ export function ghostPersonDivIcon(o: PersonOpts) {
   };
 }
 
-/** L.divIcon options for the rider's own location — a glowing dot with a pulsing halo. */
-export function myLocationDivIcon(size = 22) {
+// A modern teardrop location pin (gold, white-outlined, white core) — the universal «here» marker.
+function meLocPinSvg(w: number): string {
+  const h = w * 1.32;
+  return `<svg width="${w}" height="${h}" viewBox="0 0 28 37" xmlns="http://www.w3.org/2000/svg" style="display:block">
+    <defs><linearGradient id="mlg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ffd24d"/><stop offset="1" stop-color="#ff9a00"/></linearGradient></defs>
+    <path d="M14 1.6 C6.9 1.6 2.6 6.7 2.6 12.5 C2.6 20 14 34.6 14 34.6 C14 34.6 25.4 20 25.4 12.5 C25.4 6.7 21.1 1.6 14 1.6 Z" fill="url(#mlg)" stroke="#fff" stroke-width="1.6"/>
+    <circle cx="14" cy="12.5" r="5" fill="#fff"/>
+    <circle cx="14" cy="12.5" r="2.6" fill="#ff9a00"/>
+  </svg>`;
+}
+
+/** L.divIcon options for the rider's own location — a modern pin that floats over a ground pulse. */
+export function myLocationDivIcon(size = 34) {
+  const w = size;
+  const h = size * 1.32;
   return {
     className: "",
-    html: `<div class="lh-meloc"><span class="lh-meloc-ring"></span><span class="lh-meloc-dot"></span></div>`,
-    iconSize: [size, size] as [number, number],
-    iconAnchor: [size / 2, size / 2] as [number, number],
+    html: `<div class="lh-meloc"><span class="lh-meloc-pulse"></span>${meLocPinSvg(w)}</div>`,
+    iconSize: [w, h] as [number, number],
+    iconAnchor: [w / 2, h] as [number, number], // tip sits exactly on the location
   };
 }

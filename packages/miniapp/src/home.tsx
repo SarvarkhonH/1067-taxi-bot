@@ -83,7 +83,7 @@ export function LivingHome(props: {
       }
       // 📍 "you are here" — glowing pulse at the rider's area, on top of everything
       L.marker([home.center.lat, home.center.lng], {
-        icon: L.divIcon(myLocationDivIcon(22)), interactive: false, zIndexOffset: 600,
+        icon: L.divIcon(myLocationDivIcon(34)), interactive: false, zIndexOffset: 600,
       }).addTo(m);
       map.current = m;
     });
