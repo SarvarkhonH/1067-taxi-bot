@@ -188,6 +188,10 @@ export const api = {
   // 🌍 MOTOR OLAMI (v3)
   garajMotorCollect: () => request<GarajActionResult & { gross?: number; fuel?: number; wear?: number; net?: number; engineHp?: number; dead?: boolean; dry?: boolean }>("POST", "/api/garaj/motor/collect", {}, 1),
   garajMotorRefuel: (garajCarId: number) => request<GarajActionResult & { cost?: number; fueledUntilAt?: string; fuelPct?: number }>("POST", "/api/garaj/motor/refuel", { garajCarId }, 1),
+  // 🏛 P1-B — 1067 Ofis market-maker (always-on buyer)
+  garajOfisStats: () => get<{ budget: number; spent: number; left: number; heldCount: number; scrappedToday: number }>("/api/garaj/ofis/stats"),
+  garajOfisBid: (garajCarId: number) => get<{ bid: number; basePrice: number; carCode: string } | { error: string }>(`/api/garaj/ofis/bid/${garajCarId}`),
+  garajOfisSell: (garajCarId: number) => request<GarajActionResult & { received?: number; bid?: number }>("POST", "/api/garaj/ofis/sell", { garajCarId }, 1),
   garajProfile: (id: number | "me") => get<PublicProfileView | null>(`/api/garaj/profile/${id}`),
   garajAuctions: () => get<{ id: number; carCode: string; name: string; emoji: string; minBid: number; endsAt: string; mine: boolean }[]>("/api/garaj/auctions"),
   garajAuctionCreate: (garajCarId: number, minBid: number) => request<GarajActionResult>("POST", "/api/garaj/auction/create", { garajCarId, minBid }, 1),

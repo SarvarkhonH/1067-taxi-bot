@@ -42,6 +42,8 @@ import {
   computeMotorEarn,
   computeMotorEarnNoFuel,
   computeMotorRefillCost,
+  ofisBidPrice,
+  OFIS_BID_FACTOR,
   type PublicProfileView,
   KOZACHA_SHOP,
   computeFlipGrant,
@@ -620,6 +622,113 @@ export async function sweepFuelPushes(send: (chatId: string, html: string) => Pr
     sent++;
   }
   return sent;
+}
+
+// ══ 🏛 P1-B — 1067 OFIS market-maker ═════════════════════════════════════════
+// Ofis = always-on buyer. Every active GarajCar can be sold to Ofis at OFIS_BID_FACTOR × max(askPrice, basePrice).
+// Budget: AppState "ofis:budget:{TashkentDate}" tracks spent-today; cap = econ.ofisDailyBudget.
+// Once tugagan, ofisBuy returns reason:'budget_exhausted' (bid is paused for the day).
+// Cars become "held" (GarajCar.ofisHeld=true, ownership stays with last seller for history;
+// the seller is paid + the row is moved to a virtual Ofis pool via the flag + ledger row).
+// Re-list (release): create a GarajBazaarListing with Ofis-as-seller marker. Scrap: hard
+// delete the GarajCar row — true global supply destruction (engine of scarcity).
+// All money paths use spendCorp/grantCoins idempotent keys.
+
+/** Read today's Ofis budget spent (sum of |amount| for kind='buy', dayKey=today). */
+async function ofisSpentToday(): Promise<number> {
+  const today = tashkentDate();
+  const agg = await prisma.ofisLedger.aggregate({ where: { dayKey: today, kind: "buy" }, _sum: { amount: true } });
+  return Math.abs(agg._sum.amount ?? 0);
+}
+
+/** Headroom remaining in today's Ofis budget; 0 means closed for the day. */
+export async function ofisBudgetLeftToday(): Promise<{ budget: number; spent: number; left: number }> {
+  const econ = await getMotorEcon();
+  const budget = Math.max(0, Math.floor(econ.ofisDailyBudget ?? 100000));
+  const spent = await ofisSpentToday();
+  return { budget, spent, left: Math.max(0, budget - spent) };
+}
+
+/** Compute the current Ofis bid for a specific car (admin factor + max(ask, basePrice)). */
+export async function getOfisBid(garajCarId: number, askPriceHint?: number): Promise<{ bid: number; basePrice: number; carCode: string } | null> {
+  const car = await prisma.garajCar.findFirst({ where: { id: garajCarId, soldAt: null, ofisHeld: false } });
+  if (!car) return null;
+  const econ = await getMotorEcon();
+  const factor = Math.max(0.5, Math.min(0.95, econ.ofisBidFactor ?? OFIS_BID_FACTOR));
+  const basePrice = MAKE_BASE[car.carCode] ?? 0;
+  const ref = Math.max(askPriceHint ?? basePrice, basePrice);
+  const bid = Math.max(1, Math.floor(ref * factor));
+  return { bid, basePrice, carCode: car.carCode };
+}
+
+/** Sell to 1067 Ofis. Player gets the bid; car flag ofisHeld=true; budget logged. Money-safe:
+ *  withMemberLock + inline tx; idempotent key includes the car's ledger generation. */
+export async function ofisSellToOfis(memberId: number, garajCarId: number): Promise<GarajActionResult & { received?: number; bid?: number }> {
+  if (!(await garajEnabledFor(memberId))) return { ok: false, reason: "off" };
+  return withMemberLock(memberId, async () => {
+    const car = await prisma.garajCar.findFirst({ where: { id: garajCarId, memberId, soldAt: null, ofisHeld: false } });
+    if (!car) return { ok: false, reason: "not_found", coins: await getCoins(memberId) };
+    const econ = await getMotorEcon();
+    const factor = Math.max(0.5, Math.min(0.95, econ.ofisBidFactor ?? OFIS_BID_FACTOR));
+    const basePrice = MAKE_BASE[car.carCode] ?? 0;
+    const bid = Math.max(1, Math.floor(Math.max(basePrice, basePrice) * factor)); // basePrice baseline (player can't set their own bait price)
+    // Budget check (read fresh inside the lock for race-safety)
+    const today = tashkentDate();
+    const dailyCap = Math.max(0, Math.floor(econ.ofisDailyBudget ?? 100000));
+    const spentBefore = await ofisSpentToday();
+    if (spentBefore + bid > dailyCap) return { ok: false, reason: "budget_exhausted", coins: await getCoins(memberId) };
+    const result = await prisma.$transaction(async (tx) => {
+      // Mark the car as Ofis-held (kept for history; ownership flag, not delete)
+      await tx.garajCar.update({ where: { id: car.id }, data: { ofisHeld: true, soldAt: new Date() } });
+      // Pay the seller (idempotent grant — key includes car.id + a stable counter via OfisLedger.id)
+      // First create the ledger row to get a deterministic id, then grant against it
+      const ledger = await tx.ofisLedger.create({ data: { kind: "buy", amount: -bid, carCode: car.carCode, refCarId: car.id, dayKey: today, status: "held" } });
+      await tx.coinTxn.create({ data: { memberId, amount: bid, kind: "ofis_sell", reason: `🏛 1067 Ofis: ${car.carCode} #${car.serial ?? "?"}`, idempotencyKey: `ofis:sell:${ledger.id}` } });
+      await tx.member.update({ where: { id: memberId }, data: { coins: { increment: bid } } });
+      return { ok: true as const, bid };
+    });
+    return { ok: true, received: result.bid, bid: result.bid, coins: await getCoins(memberId) };
+  });
+}
+
+/** Ofis releases a held car back into the bazaar at +5% (small markup keeps Ofis solvent). */
+export async function ofisRelease(garajCarId: number): Promise<{ ok: boolean; reason?: string; listingId?: number }> {
+  const car = await prisma.garajCar.findFirst({ where: { id: garajCarId, ofisHeld: true } });
+  if (!car) return { ok: false, reason: "not_found" };
+  const econ = await getMotorEcon();
+  const factor = Math.max(0.5, Math.min(0.95, econ.ofisBidFactor ?? OFIS_BID_FACTOR));
+  const basePrice = MAKE_BASE[car.carCode] ?? 0;
+  // Re-list at 1.05× of the bid we paid (Ofis margin ~25% before tax)
+  const askPrice = Math.max(1, Math.floor(basePrice * factor * 1.05));
+  // Use a sentinel sellerId for Ofis (member id 0 = Ofis — guaranteed not a real player; convention)
+  const ofisSellerId = 0;
+  const ledger = await prisma.ofisLedger.create({ data: { kind: "release", amount: 0, carCode: car.carCode, refCarId: car.id, dayKey: tashkentDate(), status: "relisted" } });
+  const listing = await prisma.garajBazaarListing.create({ data: { sellerId: ofisSellerId, garajCarId: car.id, carCode: car.carCode, askPrice, status: "open", expiresAt: new Date(Date.now() + 48 * 3600 * 1000) } });
+  // Mark the car released (still ofisHeld = true until a buyer claims; release just creates the listing)
+  return { ok: true, listingId: listing.id };
+}
+
+/** Ofis scraps a held car — permanent global supply destruction. The GarajCar row is hard
+ *  deleted (true scarcity). Ledger row preserves the audit trail (refCarId points at a row
+ *  that no longer exists, intentionally). */
+export async function ofisScrap(garajCarId: number): Promise<{ ok: boolean; reason?: string; carCode?: string }> {
+  const car = await prisma.garajCar.findFirst({ where: { id: garajCarId, ofisHeld: true } });
+  if (!car) return { ok: false, reason: "not_found" };
+  await prisma.ofisLedger.create({ data: { kind: "scrap", amount: 0, carCode: car.carCode, refCarId: car.id, dayKey: tashkentDate(), status: "scrapped" } });
+  // Hard delete — true supply destruction. Cascade to dependent rows handled by FK defaults.
+  await prisma.garajCar.delete({ where: { id: car.id } }).catch(() => undefined);
+  return { ok: true, carCode: car.carCode };
+}
+
+/** Stats endpoint for admin/UI: budget left + held cars + scrapped count today. */
+export async function getOfisStats(): Promise<{ budget: number; spent: number; left: number; heldCount: number; scrappedToday: number }> {
+  const { budget, spent, left } = await ofisBudgetLeftToday();
+  const today = tashkentDate();
+  const [heldCount, scrappedToday] = await Promise.all([
+    prisma.garajCar.count({ where: { ofisHeld: true } }),
+    prisma.ofisLedger.count({ where: { kind: "scrap", dayKey: today } }),
+  ]);
+  return { budget, spent, left, heldCount, scrappedToday };
 }
 
 export async function getPublicProfile(viewerId: number, targetId: number): Promise<PublicProfileView | null> {

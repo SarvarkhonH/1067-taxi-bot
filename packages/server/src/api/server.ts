@@ -195,6 +195,13 @@ export function createApiServer(opts: ApiOptions = {}) {
   // 🌍 MOTOR OLAMI (v3, gated by "motorolami") — passive «Yig'ish» + public profile
   app.post("/api/garaj/motor/collect", requireUser, rateLimit(30), withMember2(async (id) => (await import("../services/garajService")).motorCollect(id)));
   app.post("/api/garaj/motor/refuel", requireUser, rateLimit(20), withMember2(async (id, req) => (await import("../services/garajService")).motorRefuel(id, Number(req.body?.garajCarId))));
+  // 🏛 P1-B — 1067 Ofis market-maker endpoints (always-on buyer; daily budget; supply burn)
+  app.get("/api/garaj/ofis/stats", requireUser, async (_req, res) => res.json(await (await import("../services/garajService")).getOfisStats()));
+  app.get("/api/garaj/ofis/bid/:carId", requireUser, async (req, res) => {
+    const r = await (await import("../services/garajService")).getOfisBid(Number(req.params?.carId));
+    res.json(r ?? { error: "not_found" });
+  });
+  app.post("/api/garaj/ofis/sell", requireUser, rateLimit(10), withMember2(async (id, req) => (await import("../services/garajService")).ofisSellToOfis(id, Number(req.body?.garajCarId))));
   app.get("/api/garaj/profile/:id", requireUser, withMember2(async (id, req) => (await import("../services/garajService")).getPublicProfile(id, req.params?.id === "me" ? id : Number(req.params?.id))));
 
   app.get("/api/me", requireUser, async (_req, res) => {
