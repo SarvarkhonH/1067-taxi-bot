@@ -578,6 +578,13 @@ model MemberGarajMeta {
   // 🌍 MOTOR OLAMI bonus-week (admin-tunable): stamped on first motor acquire when bonusDays>0;
   // while now < motorBonusUntilAt, getMotorEconFor applies bonus* multipliers on top of base econ.
   motorBonusUntilAt  DateTime?
+  // 🏛 P1-A — scarcity slot system (default 1 active car; purchaseSlot → 50k/250k/1M)
+  slotCount          Int       @default(1)
+  // 🔍 P1-A — CarCheck: first Premium reveal is free (newbie protection, one-shot)
+  carCheckFreeUsed   Boolean   @default(false)
+  // ⭐ P1-A — seller reputation aggregate (xaridor rates 1-5 → updates these; rating = sum/count)
+  sellerRatingSum    Int       @default(0)
+  sellerRatingCount  Int       @default(0)
   createdAt          DateTime  @default(now())
   updatedAt          DateTime  @updatedAt
 }
@@ -617,6 +624,10 @@ model GarajCar {
   // 🔥 P-Fuel-A — Hay Day hook: manual fuel-fill (tank empties → push → user returns → refuel)
   fueledUntilAt      DateTime? // tank "runway end" — earn faqat shu vaqtgacha. now > this → dry → 0 net
   fuelRefillCount    Int       @default(0) // MUST NOT RESET on re-buy (audit-B1 pattern). Deterministic idempotency key tail.
+  // 🏛 P1-A — Motor Olami P1 fields (lifespan + capital remont + hidden defect + Ofis-held)
+  capitalRepairCount Int       @default(0) // immutable counter (RESTORE craft ++), feeds REPAIR_NARX_FACTOR resale clamp
+  hiddenDefect       String?   // JSON {zone, severity} — 3% deterministic stamp on acquire; Premium CarCheck reveals
+  ofisHeld           Boolean   @default(false) // true while 1067 Ofis owns the car (re-list / scrap pending)
 
   @@unique([memberId, carCode])
   @@index([memberId])
@@ -838,6 +849,23 @@ model GarajCraftJob {
 
   @@index([memberId, status])
   @@index([status, finishesAt])
+}
+
+// 🏛 P1-A — 1067 Ofis korp-ledger: every market-maker action (buy/release/scrap) audited
+// here, kept SEPARATE from CoinTxn so corp budget is not confused with player emission. The
+// daily budget cap is enforced by aggregating amount per dayKey. status: held|relisted|scrapped.
+model OfisLedger {
+  id         Int      @id @default(autoincrement())
+  kind       String // buy | release | scrap
+  amount     Int      @default(0) // tanga moved (negative = spent, positive = recovered)
+  carCode    String?
+  refCarId   Int? // GarajCar.id at time of action (audit reference; may be deleted)
+  dayKey     String // tashkent date — budget aggregation key
+  status     String   @default("held") // held | relisted | scrapped
+  createdAt  DateTime @default(now())
+
+  @@index([dayKey, kind])
+  @@index([refCarId])
 }
 
 // 💸 Bosqich 3 audit log for driver-self debt repayments through the bot. ONE row per attempt; the

@@ -240,6 +240,73 @@ export function craftDurationMs(station: string): number {
   return CRAFT_DURATION_MS[station] ?? 60 * 60 * 1000;
 }
 
+// ══ 🏛 P1-A — Motor Olami P1 config: Ofis market-maker, slots, CarCheck, lifespan, defects ══
+
+/** Capital-remont (RESTORE craft) discount on resale price. count=0 → 100%, 1 → 85%, ...
+ *  ≥4 → 40%. Hard floor 0.40 — bozor halolligi: ko'p remont qilingan mashina kam turadi. */
+export function repairNarxFactor(capitalRepairCount: number): number {
+  const table = [1.0, 0.85, 0.70, 0.55, 0.40];
+  const i = Math.max(0, Math.min(4, Math.floor(capitalRepairCount)));
+  return table[i]!;
+}
+
+/** 1067 Ofis bid price = OFIS_BID_FACTOR × max(askPrice, basePrice). Pure floor — Ofis never
+ *  pays MORE than the player's ask. Clamped to basePrice baseline to avoid lowball spam. */
+export const OFIS_BID_FACTOR = 0.8;
+export function ofisBidPrice(askPrice: number, basePrice: number): number {
+  const ref = Math.max(askPrice, basePrice);
+  return Math.max(1, Math.floor(ref * OFIS_BID_FACTOR));
+}
+
+/** Slot purchase costs (slot 2 / 3 / 4). Default slot 1 = free. Keskin oshish → ko'p o'yinchi
+ *  1 mashina bilan qoladi → jami mashina ≈ o'yinchilar soni (supply-demand asos). */
+export const SLOT_COSTS: number[] = [0, 50_000, 250_000, 1_000_000];
+export function slotCost(targetSlot: number): number {
+  return SLOT_COSTS[Math.max(0, Math.min(SLOT_COSTS.length - 1, Math.floor(targetSlot - 1)))] ?? 0;
+}
+
+/** Hidden defect — 3% of acquired cars carry one (deterministic from serial seed). Only Premium
+ *  CarCheck reveals it; not revealing it lets the seller pretend it's clean (reputation hit). */
+export const HIDDEN_DEFECT_PROB = 0.03;
+export interface HiddenDefect { zone: string; severity: "minor" | "major" }
+/** Returns the defect if the serial hash falls in the 3% band, else null. Deterministic. */
+export function hiddenDefectFor(serial: number, prob = HIDDEN_DEFECT_PROB): HiddenDefect | null {
+  if (!Number.isFinite(serial) || serial <= 0) return null;
+  const h = ((serial * 2654435761) >>> 0) % 10_000;
+  const threshold = Math.max(0, Math.min(1, prob)) * 10_000;
+  if (h >= threshold) return null;
+  const zones = ["engine", "body", "transmission", "electric", "interior"];
+  const zone = zones[(h >>> 4) % zones.length]!;
+  const severity: "minor" | "major" = (h >>> 8) % 5 === 0 ? "major" : "minor";
+  return { zone, severity };
+}
+
+/** CarCheck — 3 tier reveal of a car's history. Oddiy = basic; Ekspert = + zones + capital
+ *  remont count; Premium = + hidden defect + reference price + seller rating. First Premium
+ *  is FREE per player (newbie protection: don't burn a fresh player by hiding the defect rule). */
+export const CARCHECK_TIERS = ["ODDIY", "EKSPERT", "PREMIUM"] as const;
+export type CarCheckTier = (typeof CARCHECK_TIERS)[number];
+export const CARCHECK_COSTS: Record<CarCheckTier, number> = { ODDIY: 50, EKSPERT: 500, PREMIUM: 5000 };
+export interface CarCheckView {
+  tier: CarCheckTier;
+  serial: number | null;
+  engineHp: number;
+  ageDays: number;
+  ownerCount: number;
+  totalTrips: number;
+  zones?: Record<string, number> | null; // EKSPERT+
+  capitalRepairCount?: number; // EKSPERT+
+  hiddenDefect?: HiddenDefect | null; // PREMIUM
+  referencePrice?: number | null; // PREMIUM — taxminiy bozor narxi
+  sellerRating?: number | null; // PREMIUM — 1..5
+  freeOfChargeUsed?: boolean; // true if this was the player's free Premium
+}
+
+// ── DTO additions for P1-A (P1-B+ services populate these) ──────────────────
+export interface OfisLedgerView { kind: "buy" | "release" | "scrap"; amount: number; carCode: string | null; status: "held" | "relisted" | "scrapped"; createdAt: string }
+export interface SellerRatingView { avg: number; count: number }
+
+
 // reputation arc — the master-mechanic identity ladder (W5).
 export const REPUTATION_TIERS: { name: string; min: number }[] = [
   { name: "Havaskor", min: 0 },
@@ -515,6 +582,17 @@ export const MOTOR_ECON_KNOBS: MotorEconKnob[] = [
   { key: "pushWarnPct", label: "🔔 Ogohlantirish % (yoqilg'i)", def: 30, min: 10, max: 50, step: 1, live: false },
   { key: "pushQuietStartHour", label: "🌙 Sukut boshi (Toshkent)", def: 23, min: 18, max: 23, step: 1, live: false },
   { key: "pushQuietEndHour", label: "🌅 Sukut oxiri (Toshkent)", def: 7, min: 5, max: 10, step: 1, live: false },
+  // 🏛 P1-A — Motor Olami P1 admin dastaklari (Ofis market-maker, slots, CarCheck, defects)
+  { key: "ofisBidFactor", label: "🏛 Ofis bid foizi", def: 0.8, min: 0.5, max: 0.95, step: 0.05, live: false },
+  { key: "ofisDailyBudget", label: "🏛 Ofis kunlik byudjet (tanga)", def: 100000, min: 10000, max: 1000000, step: 5000, live: false },
+  { key: "lifespanDays", label: "⏳ Mashina umri (kun)", def: 14, min: 7, max: 30, step: 1, live: false },
+  { key: "hiddenDefectPct", label: "🕵 Yashirin nuqson %", def: 3, min: 0, max: 10, step: 0.5, live: false },
+  { key: "carCheckOddiy", label: "🔍 CarCheck Oddiy (tanga)", def: 50, min: 10, max: 200, step: 10, live: false },
+  { key: "carCheckEkspert", label: "🔍 CarCheck Ekspert (tanga)", def: 500, min: 100, max: 2000, step: 50, live: false },
+  { key: "carCheckPremium", label: "🔍 CarCheck Premium (tanga)", def: 5000, min: 1000, max: 20000, step: 100, live: false },
+  { key: "slot2Cost", label: "🪪 Slot 2 narxi", def: 50000, min: 10000, max: 200000, step: 1000, live: false },
+  { key: "slot3Cost", label: "🪪 Slot 3 narxi", def: 250000, min: 50000, max: 500000, step: 5000, live: false },
+  { key: "slot4Cost", label: "🪪 Slot 4 narxi", def: 1000000, min: 200000, max: 2000000, step: 10000, live: false },
 ];
 /** Bonus aktivmi va effektiv (fuel, speed) multiplikatorlar — bonus base econ ustiga ko'paytiriladi.
  *  Pol/tom himoyasi: bonus paytida ham fuel ≥0.1 (sink hech qachon o'lmasin), speed ≤6 (worst-case ceil). */
@@ -580,6 +658,10 @@ export interface PublicProfileView {
   garageValue: number; // jami taxminiy qiymat
   rank: number | null;
   cars: { serial: number | null; carCode: string; name: string; emoji: string; engineHp: number; dead: boolean }[];
+  // P1-E — sotuvchi reputatsiyasi (rateSeller average); null if no ratings yet
+  sellerRating?: { avg: number; count: number } | null;
+  // P1-F — ✨ ORZU: Clean History badge holder?
+  cleanHistoryCount?: number; // how many cars meet capitalRepairCount===0 && ownerCount===1
 }
 
 // ── DTOs shared between the server and the mini-app (browser-safe) ────────────
@@ -612,6 +694,11 @@ export interface GarajCarView {
   fuelHoursLeft?: number; // float, soatlarda — push trigger uchun + UI countdown
   fuelDry?: boolean; // tank tugagan → daromad 0 · «Quyish» CTA Yig'ish o'rnini bosadi
   fuelRefillCost?: number; // hozirgi refill narxi (admin fuelMult o'zgarsa darhol yangilanadi)
+  // 🏛 P1-A — Motor Olami P1 (P1-B+ services populate)
+  capitalRepairCount?: number; // capital remont counter — feeds REPAIR_NARX_FACTOR (CarCheck Ekspert)
+  hasHiddenDefect?: boolean; // boolean hint for UI (true → "yashirin nuqson bo'lishi mumkin"); actual zone/severity at Premium tier
+  ofisBidPrice?: number; // hozirgi 1067 Ofis bid (basePrice + factor); UI "Ofis 80% ga oladi" chip
+  cleanHistory?: boolean; // ✨ badge: capitalRepairCount===0 && ownerCount===1 (P1-F ORZU)
 }
 export interface GarajShopItem {
   carCode: string;
