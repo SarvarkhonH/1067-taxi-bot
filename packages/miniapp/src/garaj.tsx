@@ -2,7 +2,7 @@
 // "garajx" is ON). Core loop: ol (buy) → diagnoz → ta'mirla → sot (flip).
 // Pure view layer — all money logic + idempotency live on the server.
 import { useCallback, useEffect, useRef, useState } from "react";
-import type { GarajStateResponse, GarajCarView, RepairQuality, PublicProfileView } from "@t1067/shared";
+import type { GarajStateResponse, GarajCarView, RepairQuality, PublicProfileView, OrzuBoardView, CarCheckView } from "@t1067/shared";
 import { KOZACHA_SHOP, reputationTier, REPUTATION_TIERS, REPAIR_ZONES, ZONE_NAMES, PART_TIERS, garajCarMeta, CRAFT_STATIONS, craftCost, MAKE_BASE, npcForBuyer, npcLine } from "@t1067/shared";
 import { api } from "./api";
 import { haptic, hapticSuccess, playTierFanfare, playRepairChirp, playTierUpRing, playRepairFail } from "./telegram";
@@ -152,7 +152,7 @@ export function GarajCarArt({ carCode, condition, level, size = 132 }: { carCode
 
 // 🔥 P-Fuel-B — MotorScene: vertikal yoqilg'i bar | mashina art | meta+CTA. Hay Day hook.
 // Reduced-motion safe (matchMedia + CSS @media), 60fps targeted (transform/opacity only).
-function MotorScene({ car, busy, onCollect, onRefuel }: { car: GarajCarView; busy: boolean; onCollect: () => void; onRefuel: () => void }) {
+function MotorScene({ car, busy, onCollect, onRefuel, onEskirdi, onCarCheck }: { car: GarajCarView; busy: boolean; onCollect: () => void; onRefuel: () => void; onEskirdi: () => void; onCarCheck: () => void }) {
   const pct = car.fuelPct ?? 0;
   const dry = !!car.fuelDry;
   const dead = !!car.dead;
@@ -194,9 +194,13 @@ function MotorScene({ car, busy, onCollect, onRefuel }: { car: GarajCarView; bus
       <div className="gz-fuel-meta">
         <span className="gz-motor-id">#{car.serial}</span>
         <span className="fs11 dim">⚙️ {car.engineHp ?? 100}% · ⚡ {car.speed}/soat</span>
-        <span className="fs11 dim">🕐 {car.ageDays ?? 0} kun · 👥 {car.ownerCount ?? 1}</span>
+        <span className="fs11 dim">🕐 {car.ageDays ?? 0} kun · 👥 {car.ownerCount ?? 1}{car.cleanHistory ? " · ✨ Toza" : ""}{car.capitalRepairCount ? ` · 🔧×${car.capitalRepairCount}` : ""}</span>
+        {car.ofisBidPrice != null && !dead && (
+          <span className="fs11 dim">🏛 Ofis: 🪙 {car.ofisBidPrice.toLocaleString("ru-RU")}</span>
+        )}
+        <button type="button" className="gz-list-suggest" onClick={(e) => { e.stopPropagation(); haptic(); onCarCheck(); }}>🔍 CarCheck</button>
         {dead ? (
-          <span className="gz-motor-dead">⚠️ Eskirdi</span>
+          <Button sm onClick={onEskirdi}>⚠️ Eskirdi — tanlash</Button>
         ) : dry ? (
           <Button sm disabled={busy} onClick={onRefuel}>
             ⛽ Quyish · {cost.toLocaleString("ru-RU")}
@@ -309,6 +313,11 @@ export function GarajShell({ onClose, initial }: { onClose: () => void; initial?
   const [listingFor, setListingFor] = useState<number | null>(null); // carId being listed
   // 🛒 P-Polish-Listing-2 — post-list ceremony state
   const [listLift, setListLift] = useState<{ name: string } | null>(null);
+  // ✨ P1-G — UI for ORZU + CarCheck + Eskirdi 4-tugma + slot status
+  const [orzuOpen, setOrzuOpen] = useState(false);
+  const [checkOpen, setCheckOpen] = useState<number | null>(null); // carId
+  const [eskirdiOpen, setEskirdiOpen] = useState<number | null>(null); // carId (dead)
+  const [slot, setSlot] = useState<{ slotCount: number; activeCount: number; nextSlotCost: number | null } | null>(null);
 
   const load = useCallback(() => {
     if (initial) return; // demo/fixture mode — no backend fetch
@@ -317,6 +326,7 @@ export function GarajShell({ onClose, initial }: { onClose: () => void; initial?
     void api.garajAuctions().then(setAuctions).catch(() => undefined);
     void api.garajMahallaLeague().then(setLeague).catch(() => undefined);
     void api.garajHistory().then(setHistory).catch(() => undefined);
+    void api.garajSlotStatus().then((r) => setSlot(r)).catch(() => undefined); // 🪪 P1-D
     api
       .garajState()
       .then((s) => {
@@ -426,6 +436,7 @@ export function GarajShell({ onClose, initial }: { onClose: () => void; initial?
         <button className="gz-back" onClick={() => { haptic(); onClose(); }} aria-label="Ortga">←</button>
         <span className="gz-title">🏆 <b>GARAJ</b></span>
         <div className="gz-purse">
+          {st?.motorEnabled && <button className="gz-back" onClick={() => { haptic(); setOrzuOpen(true); }} aria-label="ORZU board">✨</button>}
           {st?.motorEnabled && <button className="gz-back" onClick={() => { haptic(); setProfileOpen(true); }} aria-label="Ochiq profil">🌍</button>}
           <button className="gz-back" onClick={() => { haptic(); setMuseumOpen(true); }} aria-label="Muzey">🏛</button>
           <span className="gz-pill">🪙 <CoinCounter value={coins} /></span>
@@ -491,6 +502,12 @@ export function GarajShell({ onClose, initial }: { onClose: () => void; initial?
                     <b>{st.weeklyEvent.label}</b>
                   </span>
                 )}
+                {st.motorEnabled && slot && (
+                  <button type="button" className="gz-pill-chip" role="listitem" disabled={busy || slot.nextSlotCost == null} onClick={() => slot.nextSlotCost != null && void slotBuy()}>
+                    <span className="dim fs11">Slot</span>
+                    <b>{slot.activeCount}/{slot.slotCount}{slot.nextSlotCost != null ? ` · +🪙${slot.nextSlotCost.toLocaleString("ru-RU")}` : " · Max"}</b>
+                  </button>
+                )}
               </div>
 
 
@@ -503,7 +520,7 @@ export function GarajShell({ onClose, initial }: { onClose: () => void; initial?
               )}
               {/* 🌍 MOTOR OLAMI — the car earns; #serial identity + «Yig'ish» (Hay Day hook) */}
               {st.motorEnabled && projectCar?.serial != null && (
-                <MotorScene car={projectCar} busy={busy} onCollect={() => motorCollect()} onRefuel={() => motorRefuel(projectCar.id)} />
+                <MotorScene car={projectCar} busy={busy} onCollect={() => motorCollect()} onRefuel={() => motorRefuel(projectCar.id)} onEskirdi={() => setEskirdiOpen(projectCar.id)} onCarCheck={() => setCheckOpen(projectCar.id)} />
               )}
 
               {/* tier / reputation progress (compact, under the stage) */}
@@ -998,6 +1015,15 @@ export function GarajShell({ onClose, initial }: { onClose: () => void; initial?
 
       {museumOpen && <GarajMuseumSheet demo={initial ? GARAJ_DEMO_MUSEUM : undefined} onClose={() => setMuseumOpen(false)} />}
       {profileOpen && <GarajProfileSheet demo={initial ? GARAJ_DEMO_PROFILE : undefined} onClose={() => setProfileOpen(false)} />}
+      {orzuOpen && <GarajOrzuSheet onClose={() => setOrzuOpen(false)} />}
+      {checkOpen != null && (() => {
+        const cc = st?.cars.find((c) => c.id === checkOpen);
+        return cc ? <GarajCarCheckSheet car={cc} onClose={() => setCheckOpen(null)} /> : null;
+      })()}
+      {eskirdiOpen != null && (() => {
+        const ec = st?.cars.find((c) => c.id === eskirdiOpen);
+        return ec ? <GarajEskirdiSheet car={ec} busy={busy} onSellOfis={() => void eskirdiSellOfis(ec.id)} onCapital={() => eskirdiCapital(ec.id)} onClose={() => setEskirdiOpen(null)} /> : null;
+      })()}
       {listingFor != null && (() => {
         const lc = st?.cars.find((c) => c.id === listingFor);
         return lc ? <GarajListSheet car={lc} busy={busy} onConfirm={(price) => { bazaarList(lc.id, price); setListingFor(null); }} onClose={() => setListingFor(null)} /> : null;
@@ -1228,6 +1254,34 @@ export function GarajShell({ onClose, initial }: { onClose: () => void; initial?
     flash("✓ Ustaxona ishi tayyor!");
   }
   // 🔥 P-Fuel-A — Motor Olami yoqilg'i quyish (manual refill, Hay Day hook)
+  // 🪪 P1-D — buy next slot
+  async function slotBuy(): Promise<void> {
+    if (busy) return; setBusy(true); haptic();
+    try {
+      const r = await api.garajSlotPurchase();
+      if (r.ok) { hapticSuccess(); flash(`✓ Slot #${r.newSlotCount} ochildi`); }
+      else if (r.reason === "insufficient") flash("Tanga yetarli emas");
+      else if (r.reason === "max_slot") flash("Maksimal slot soni");
+      else flash("Slot ololmadik");
+      void api.garajSlotStatus().then((s) => setSlot(s)).catch(() => undefined);
+      if (!initial) setSt(await api.garajState());
+    } finally { setBusy(false); }
+  }
+  // 🏛 P1-B — Sell to 1067 Ofis (instant 80% × reference price)
+  async function eskirdiSellOfis(carId: number): Promise<void> {
+    if (busy) return; setBusy(true); haptic();
+    try {
+      const r = await api.garajOfisSell(carId);
+      if (r.ok) { hapticSuccess(); setBurst({ amount: r.received ?? 0, label: `🏛 Ofis sotib oldi · +${(r.received ?? 0).toLocaleString("ru-RU")}` }); setTimeout(() => setBurst(null), 2200); setEskirdiOpen(null); }
+      else flash(r.reason === "budget_dry" ? "Ofis bugun byudjeti tugadi" : "Sotib bo'lmadi");
+      if (!initial) { setSt(await api.garajState()); void api.garajSlotStatus().then((s) => setSlot(s)).catch(() => undefined); }
+    } finally { setBusy(false); }
+  }
+  // 🔧 Kapital remont — opens the existing RESTORE craft station (Workshop)
+  function eskirdiCapital(carId: number): void {
+    setEskirdiOpen(null);
+    void act(() => api.garajCraft(carId, "RESTORE"));
+  }
   async function motorRefuel(garajCarId: number): Promise<void> {
     if (busy) return;
     setBusy(true);
@@ -1625,6 +1679,16 @@ export function GarajProfileSheet({ demo, target, onClose }: { demo?: PublicProf
             <div><b>{p.reputation.toLocaleString("ru-RU")}</b><span>obro'</span></div>
             <div><b>{p.rank != null ? `#${p.rank}` : "—"}</b><span>reyting</span></div>
           </div>
+          <div className="gz-pillstrip" role="list">
+            {p.sellerRating ? (
+              <span className="gz-pill-chip gold" role="listitem"><span className="dim fs11">Sotuvchi</span><b>⭐ {p.sellerRating.avg} ({p.sellerRating.count})</b></span>
+            ) : (
+              <span className="gz-pill-chip" role="listitem"><span className="dim fs11">Sotuvchi</span><b>—</b></span>
+            )}
+            {p.cleanHistoryCount != null && p.cleanHistoryCount > 0 && (
+              <span className="gz-pill-chip" role="listitem"><span className="dim fs11">Toza tarix</span><b>✨ {p.cleanHistoryCount}</b></span>
+            )}
+          </div>
           <div className="gz-sec-title">Mashinalar ({p.cars.length})</div>
           <div className="col g8">
             {p.cars.map((c) => (
@@ -1694,6 +1758,147 @@ export function GarajMuseumSheet({ demo, onClose }: { demo?: typeof GARAJ_DEMO_M
           )}
         </div>
       )}
+    </Sheet>
+  );
+}
+
+// ✨ P1-F — ORZU board sheet (global ranking + per-model #1 podium + Muzey extend)
+export function GarajOrzuSheet({ onClose }: { onClose: () => void }) {
+  const [b, setB] = useState<OrzuBoardView | null>(null);
+  const [loading, setLoading] = useState(true);
+  useEffect(() => {
+    let alive = true;
+    api.garajOrzu().then((r) => { if (alive) { setB(r.board ?? null); setLoading(false); } }).catch(() => { if (alive) setLoading(false); });
+    return () => { alive = false; };
+  }, []);
+  return (
+    <Sheet open onClose={onClose}>
+      {loading ? (
+        <p className="gz-empty">Yuklanmoqda…</p>
+      ) : !b ? (
+        <p className="gz-empty">ORZU hozir ochiq emas.</p>
+      ) : (
+        <div className="col g8">
+          <div className="gz-title">✨ ORZU — eng zo'rlar</div>
+          {b.myRank != null && (
+            <div className="gz-pillstrip" role="list">
+              <span className="gz-pill-chip gold"><span className="dim fs11">Mening o'rnim</span><b>#{b.myRank}</b></span>
+            </div>
+          )}
+          <div className="gz-sec-title">🏆 Top garajlar</div>
+          {b.topGarages.length === 0 ? (
+            <p className="gz-empty">Hali hech kim garaj yig'magan.</p>
+          ) : (
+            <div className="gz-hist">
+              {b.topGarages.map((t) => (
+                <div key={t.memberId} className="gz-hist-row">
+                  <span className="gz-hist-emoji">{t.rank <= 3 ? ["🥇","🥈","🥉"][t.rank - 1] : `#${t.rank}`}</span>
+                  <span className="gz-hist-name">{t.name}{t.cleanHistoryCount > 0 ? ` ✨${t.cleanHistoryCount}` : ""}</span>
+                  <span className="gz-hist-amt">🪙 {t.garageValue.toLocaleString("ru-RU")} · {t.carCount} 🚗</span>
+                </div>
+              ))}
+            </div>
+          )}
+          <div className="gz-sec-title">🏛 Model chempionlari (eng eski #raqam)</div>
+          <div className="gz-museum-grid">
+            {b.modelChampions.map((m) => (
+              <div key={m.carCode} className={`gz-museum-car${m.champion ? "" : " locked"}`}>
+                <span className="gz-museum-emoji">{m.emoji}</span>
+                <span className="fs11">{m.name}</span>
+                <span className="fs11 dim">{m.champion ? `#${m.champion.serial} · ${m.champion.name}` : "—"}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </Sheet>
+  );
+}
+
+// 🔍 P1-E — CarCheck 3-tier modal (Pay-for-truth: 50/500/5000; PREMIUM bepul birinchi marta)
+export function GarajCarCheckSheet({ car, onClose }: { car: GarajCarView; onClose: () => void }) {
+  const [tier, setTier] = useState<"ODDIY" | "EKSPERT" | "PREMIUM">("ODDIY");
+  const [check, setCheck] = useState<CarCheckView | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+  const cost = tier === "ODDIY" ? 50 : tier === "EKSPERT" ? 500 : 5000;
+  async function run(): Promise<void> {
+    if (busy) return; setBusy(true); setErr(null); haptic();
+    try {
+      const r = await api.garajCarCheck(car.id, tier);
+      if (r.ok && r.check) { setCheck(r.check); hapticSuccess(); }
+      else setErr(r.reason === "insufficient" ? "Tanga yetarli emas" : "Tekshirib bo'lmadi");
+    } catch { setErr("Xato"); } finally { setBusy(false); }
+  }
+  return (
+    <Sheet open onClose={onClose}>
+      <div className="col g8">
+        <div className="gz-title">🔍 CarCheck · {car.emoji} {car.name} <span className="gz-motor-id">#{car.serial ?? "?"}</span></div>
+        {!check ? (
+          <>
+            <p className="fs12 dim mt0">Tarix saqlanadi, soxtalashtirib bo'lmaydi. Tier qancha balandsa, shuncha ko'p ma'lumot.</p>
+            <div className="row g8">
+              {(["ODDIY","EKSPERT","PREMIUM"] as const).map((t) => (
+                <Chip key={t} on={tier === t} onClick={() => { haptic(); setTier(t); }}>
+                  {t === "ODDIY" ? "Oddiy" : t === "EKSPERT" ? "Ekspert" : "Premium"}
+                </Chip>
+              ))}
+            </div>
+            <div className="fs12 dim">
+              {tier === "ODDIY" && "Asosiy ma'lumot: #serial, yosh, eyilish."}
+              {tier === "EKSPERT" && "+ Zona kondisiyalari, kapital remont soni."}
+              {tier === "PREMIUM" && "+ Yashirin nuqson · ma'lumot narxi · sotuvchi reytingi (birinchi marta BEPUL)"}
+            </div>
+            <Button disabled={busy} onClick={run}>🔍 Tekshirish · 🪙{cost.toLocaleString("ru-RU")}</Button>
+            {err && <div className="fs12" style={{ color: "var(--err)" }}>{err}</div>}
+          </>
+        ) : (
+          <div className="col g8">
+            <div className="gz-list-break">
+              <div className="row between"><span className="dim">#raqam</span><b>{check.serial ?? "—"}</b></div>
+              <div className="row between"><span className="dim">Eyilish</span><b>{check.engineHp}%</b></div>
+              <div className="row between"><span className="dim">Yosh</span><b>{check.ageDays} kun</b></div>
+              <div className="row between"><span className="dim">Egalar / safarlar</span><b>{check.ownerCount} / {check.totalTrips}</b></div>
+              {check.capitalRepairCount != null && <div className="row between"><span className="dim">Kapital remont</span><b>{check.capitalRepairCount}</b></div>}
+              {check.zones && (
+                <div className="col g2">
+                  <span className="dim fs11">Zonalar:</span>
+                  {Object.entries(check.zones).map(([z, v]) => (
+                    <div key={z} className="row between fs12"><span>{ZONE_NAMES[z] ?? z}</span><b>{v}%</b></div>
+                  ))}
+                </div>
+              )}
+              {check.referencePrice != null && <div className="row between"><span className="dim">Bozor narxi (ko'rsatkich)</span><b>🪙 {check.referencePrice.toLocaleString("ru-RU")}</b></div>}
+              {check.sellerRating != null && <div className="row between"><span className="dim">Sotuvchi reytingi</span><b>⭐ {check.sellerRating}</b></div>}
+              {check.hiddenDefect && (
+                <div className="row between" style={{ color: "var(--err)" }}>
+                  <span>⚠️ Yashirin nuqson</span><b>{ZONE_NAMES[check.hiddenDefect.zone] ?? check.hiddenDefect.zone} ({check.hiddenDefect.severity === "major" ? "katta" : "kichik"})</b>
+                </div>
+              )}
+              {check.tier === "PREMIUM" && !check.hiddenDefect && <div className="row between" style={{ color: "var(--win)" }}><span>✓ Yashirin nuqson</span><b>YO'Q</b></div>}
+              {check.freeOfChargeUsed && <div className="fs11 dim">🎁 Birinchi Premium BEPUL ishlatildi.</div>}
+            </div>
+            <Button variant="ghost" onClick={onClose}>Yopish</Button>
+          </div>
+        )}
+      </div>
+    </Sheet>
+  );
+}
+
+// ⚠️ P1-B/C — Eskirdi action sheet (Ofis sotish · Kapital remont · Bekor)
+export function GarajEskirdiSheet({ car, busy, onSellOfis, onCapital, onClose }: { car: GarajCarView; busy: boolean; onSellOfis: () => void; onCapital: () => void; onClose: () => void }) {
+  const ofisBid = car.ofisBidPrice ?? Math.floor((MAKE_BASE[car.carCode] ?? 0) * 0.8);
+  return (
+    <Sheet open onClose={onClose}>
+      <div className="col g8">
+        <div className="gz-title">⚠️ Eskirdi · {car.emoji} {car.name} <span className="gz-motor-id">#{car.serial ?? "?"}</span></div>
+        <p className="fs12 dim mt0">Mashinangizning dvigateli tugadi. Tanlang:</p>
+        <Button disabled={busy} onClick={onSellOfis}>🏛 1067 Ofisga sotish · 🪙 {ofisBid.toLocaleString("ru-RU")}</Button>
+        <Button variant="ghost" disabled={busy} onClick={onCapital}>🔧 Kapital remont (dvigatel almashtirish)</Button>
+        <Button variant="ghost" disabled={busy} onClick={onClose}>Hozir emas</Button>
+        <p className="fs11 dim mt0">💡 Ofis sotish — eng tezi · Kapital remont — eyilish 100% qayta tiklanadi.</p>
+      </div>
     </Sheet>
   );
 }
