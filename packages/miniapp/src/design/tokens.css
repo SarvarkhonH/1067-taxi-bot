@@ -583,10 +583,16 @@ body {
    controls sit in normal flow and always fit above the fixed tabbar. 158 = topbar +
    tabbar + breathing room (device-independent chrome). */
 .living-home { display: flex; flex-direction: column; gap: 10px; height: calc(100dvh - 158px); min-height: 430px; }
-.lh-mapwrap { position: relative; flex: 1 1 auto; min-height: 168px; border-radius: 20px; overflow: hidden; box-shadow: 0 12px 30px -14px rgba(0,0,0,.7); }
+.lh-mapwrap { position: relative; flex: 1 1 auto; min-height: 168px; border-radius: 20px; overflow: hidden; box-shadow: 0 12px 30px -14px rgba(0,0,0,.7); background: var(--surface); }
 .lh-map { position: absolute; inset: 0; z-index: 0; }
+/* dark map like the booking flow — invert only the TILE pane; markers (cars/people) live in
+   .leaflet-marker-pane and stay their real colours. Same proven filter as .b3-map. */
+.lh-map .leaflet-container { background: var(--surface); }
+.lh-map .leaflet-tile-pane { filter: invert(1) hue-rotate(180deg) brightness(.92) contrast(.9); }
+/* lighter now that the map itself is dark — just enough top/bottom fade for the greeting +
+   a soft blend into the controls; the middle stays clear so cars/people read crisply. */
 .lh-veil { position: absolute; inset: 0; z-index: 1; pointer-events: none;
-  background: linear-gradient(180deg, rgba(10,14,22,.62) 0%, rgba(10,14,22,.18) 30%, rgba(10,14,22,.28) 60%, rgba(10,14,22,.86) 100%); }
+  background: linear-gradient(180deg, rgba(8,11,18,.55) 0%, rgba(8,11,18,.10) 26%, rgba(8,11,18,.06) 68%, rgba(8,11,18,.5) 100%); }
 .lh-car { font-size: 18px; filter: drop-shadow(0 1px 3px rgba(0,0,0,.6)); animation: lh-bob 3s ease-in-out infinite; }
 .lh-car.busy { opacity: .85; }
 @keyframes lh-bob { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-3px); } }
