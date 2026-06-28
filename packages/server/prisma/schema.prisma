@@ -923,3 +923,14 @@ model DriverSession {
   @@index([carNumber])
   @@index([revokedAt])
 }
+
+model SupportMsg {
+  id         Int      @id @default(autoincrement())
+  telegramId String
+  direction  String   // "in" | "out"
+  text       String
+  read       Boolean  @default(false)
+  createdAt  DateTime @default(now())
+
+  @@index([telegramId, createdAt])
+}

@@ -1191,6 +1191,16 @@ export function createBot(): Bot {
       await ctx.reply(`⚠️ Rejalashtirib bo'lmadi: ${why[r.reason ?? ""] ?? "xatolik"}.`);
     }
   });
+  // Save incoming messages for admin support chat
+  bot.on("message:text", async (ctx, next) => {
+    const id = String(ctx.from!.id);
+    const text = ctx.message.text;
+    if (text && !text.startsWith("/")) {
+      void prisma.supportMsg.create({ data: { telegramId: id, direction: "in", text: text.slice(0, 1000) } }).catch(() => undefined);
+    }
+    return next();
+  });
+
   bot.on("message:text", async (ctx) => {
     const { parseIntent, aiSupport, resolveAddress } = await import("../services/ai/intent");
     const { featureOn } = await import("../services/featureFlags");

@@ -181,6 +181,16 @@ export const adminApi = {
   toggleCampaign: (id: string, active: boolean) => postJson<{ ok: boolean; reason?: string }>("/api/admin/campaigns/toggle", { id, active }),
   editCampaign: (id: string, patch: Record<string, unknown>) => postJson<{ ok: boolean; reason?: string }>("/api/admin/campaigns/edit", { id, ...patch }),
   deleteCampaign: (id: string) => postJson<{ ok: boolean }>("/api/admin/campaigns/delete", { id }),
+  // 💸 withdrawals tab
+  withdrawalsTab: (limit = 100) => req<AdminWithdrawalTabRow[]>(`/api/admin/withdrawals-tab?limit=${limit}`),
+  // ⭐ ratings
+  ratings: () => req<AdminRatingRow[]>("/api/admin/ratings"),
+  // 💬 support chat
+  chatConversations: () => req<AdminChatConvo[]>("/api/admin/chat/conversations"),
+  chatMessages: (telegramId: string) => req<AdminChatMsg[]>(`/api/admin/chat/messages/${encodeURIComponent(telegramId)}`),
+  chatReply: (telegramId: string, text: string) => postJson<{ ok: boolean }>("/api/admin/chat/reply", { telegramId, text }),
+  // 📱 message history
+  msgHistory: (limit = 200) => req<AdminMsgHistoryRow[]>(`/api/admin/msg-history?limit=${limit}`),
 };
 
 export interface DriverMissionRow {
@@ -239,6 +249,51 @@ export interface Member360 {
   recruitedByDriver: number | null;
   ratings: number;
   txns: { amount: number; kind: string; reason: string; at: string }[];
+}
+
+export interface AdminWithdrawalTabRow {
+  id: number;
+  amount: number;
+  kasApplied: boolean;
+  kasMessage: string | null;
+  memberName: string | null;
+  phone: string | null;
+  type: string | null;
+  at: string;
+}
+
+export interface AdminRatingRow {
+  id: number;
+  memberId: number;
+  bookingId: number;
+  carNumber: string;
+  stars: number;
+  tags: string;
+  at: string;
+}
+
+export interface AdminChatConvo {
+  telegramId: string;
+  name: string | null;
+  username: string | null;
+  lastMsg: string;
+  lastAt: string;
+  unread: number;
+}
+
+export interface AdminChatMsg {
+  id: number;
+  direction: string;
+  text: string;
+  at: string;
+}
+
+export interface AdminMsgHistoryRow {
+  id: number;
+  telegramId: string;
+  direction: string;
+  text: string;
+  at: string;
 }
 
 export interface AdminRideRow {

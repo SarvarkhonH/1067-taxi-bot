@@ -489,3 +489,91 @@ export async function getAdminBanned(): Promise<{ id: number; fullName: string |
     coins: m.coins,
   }));
 }
+
+// ─── 💸 withdrawals (dedicated tab) ─────────────────────────────────────────
+export async function getAdminWithdrawals(limit = 100): Promise<{ id: number; amount: number; kasApplied: boolean; kasMessage: string | null; memberName: string | null; phone: string | null; type: string | null; at: string }[]> {
+  const rows = await prisma.withdrawal.findMany({
+    orderBy: { createdAt: "desc" },
+    take: limit,
+    include: { member: { select: { fullName: true, phone: true, type: true } } },
+  });
+  return rows.map((r) => ({
+    id: r.id,
+    amount: r.amount,
+    kasApplied: r.kasApplied,
+    kasMessage: r.kasMessage ?? null,
+    memberName: r.member?.fullName ?? null,
+    phone: r.member?.phone ?? null,
+    type: r.member?.type ?? null,
+    at: r.createdAt.toISOString(),
+  }));
+}
+
+// ─── ⭐ ride ratings ──────────────────────────────────────────────────────────
+export async function getAdminRatings(limit = 200): Promise<{ id: number; memberId: number; bookingId: number; carNumber: string; stars: number; tags: string; at: string }[]> {
+  const rows = await prisma.rideRating.findMany({
+    orderBy: { createdAt: "desc" },
+    take: limit,
+  });
+  return rows.map((r) => ({
+    id: r.id,
+    memberId: r.memberId,
+    bookingId: r.bookingId,
+    carNumber: r.carNumber,
+    stars: r.stars,
+    tags: r.tags,
+    at: r.createdAt.toISOString(),
+  }));
+}
+
+// ─── 💬 support chat ─────────────────────────────────────────────────────────
+export async function getChatConversations(): Promise<{ telegramId: string; name: string | null; username: string | null; lastMsg: string; lastAt: string; unread: number }[]> {
+  const msgs = await prisma.supportMsg.findMany({
+    orderBy: { createdAt: "desc" },
+    take: 500,
+  });
+  const byId = new Map<string, typeof msgs[0][]>();
+  for (const m of msgs) {
+    if (!byId.has(m.telegramId)) byId.set(m.telegramId, []);
+    byId.get(m.telegramId)!.push(m);
+  }
+  const tgIds = [...byId.keys()];
+  const users = await prisma.telegramUser.findMany({
+    where: { id: { in: tgIds } },
+    select: { id: true, firstName: true, lastName: true, username: true },
+  });
+  const umap = new Map(users.map((u) => [u.id, u]));
+  return tgIds.map((id) => {
+    const ms = byId.get(id)!;
+    const u = umap.get(id);
+    const name = u ? [u.firstName, u.lastName].filter(Boolean).join(" ") || null : null;
+    const latest = ms[0]!;
+    const unread = ms.filter((m) => m.direction === "in" && !m.read).length;
+    return { telegramId: id, name, username: u?.username ?? null, lastMsg: latest.text.slice(0, 80), lastAt: latest.createdAt.toISOString(), unread };
+  });
+}
+
+export async function getChatMessages(telegramId: string): Promise<{ id: number; direction: string; text: string; at: string }[]> {
+  const rows = await prisma.supportMsg.findMany({
+    where: { telegramId },
+    orderBy: { createdAt: "asc" },
+    take: 100,
+  });
+  await prisma.supportMsg.updateMany({ where: { telegramId, direction: "in", read: false }, data: { read: true } });
+  return rows.map((r) => ({ id: r.id, direction: r.direction, text: r.text, at: r.createdAt.toISOString() }));
+}
+
+export async function sendChatReply(telegramId: string, text: string, sendTg: (id: string, html: string) => Promise<void>): Promise<{ ok: boolean }> {
+  await sendTg(telegramId, text);
+  await prisma.supportMsg.create({ data: { telegramId, direction: "out", text: text.slice(0, 1000), read: true } });
+  return { ok: true };
+}
+
+// ─── 📱 notify/message history (outgoing from admin) ─────────────────────────
+export async function getAdminMsgHistory(limit = 200): Promise<{ id: number; telegramId: string; direction: string; text: string; at: string }[]> {
+  const rows = await prisma.supportMsg.findMany({
+    orderBy: { createdAt: "desc" },
+    take: limit,
+  });
+  return rows.map((r) => ({ id: r.id, telegramId: r.telegramId, direction: r.direction, text: r.text, at: r.createdAt.toISOString() }));
+}

@@ -1370,6 +1370,41 @@ export function createApiServer(opts: ApiOptions = {}) {
     res.json(await adminUnban(memberId));
   });
 
+  app.get("/api/admin/withdrawals-tab", requireAdmin, async (req, res) => {
+    const limit = Math.min(500, Number(req.query.limit) || 100);
+    const { getAdminWithdrawals } = await import("../services/adminOps");
+    res.json(await getAdminWithdrawals(limit));
+  });
+
+  app.get("/api/admin/ratings", requireAdmin, async (_req, res) => {
+    const { getAdminRatings } = await import("../services/adminOps");
+    res.json(await getAdminRatings());
+  });
+
+  app.get("/api/admin/chat/conversations", requireAdmin, async (_req, res) => {
+    const { getChatConversations } = await import("../services/adminOps");
+    res.json(await getChatConversations());
+  });
+
+  app.get("/api/admin/chat/messages/:telegramId", requireAdmin, async (req, res) => {
+    const { getChatMessages } = await import("../services/adminOps");
+    res.json(await getChatMessages(req.params.telegramId!));
+  });
+
+  app.post("/api/admin/chat/reply", requireAdmin, rateLimit(30), async (req, res) => {
+    const { telegramId, text } = req.body as { telegramId: string; text: string };
+    if (!telegramId || !text?.trim()) { res.status(400).json({ ok: false }); return; }
+    const { sendChatReply } = await import("../services/adminOps");
+    if (!opts.sendMessage) { res.status(503).json({ ok: false, message: "Bot ulanmagan" }); return; }
+    res.json(await sendChatReply(telegramId, text.trim(), opts.sendMessage));
+  });
+
+  app.get("/api/admin/msg-history", requireAdmin, async (req, res) => {
+    const limit = Math.min(500, Number(req.query.limit) || 200);
+    const { getAdminMsgHistory } = await import("../services/adminOps");
+    res.json(await getAdminMsgHistory(limit));
+  });
+
   app.post("/api/admin/sync", requireAdmin, async (_req, res) => {
     const { runSync } = await import("../sync/sync");
     try {

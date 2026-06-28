@@ -11,9 +11,9 @@ import {
   type AdminMemberRow,
   type AdminStats,
 } from "@t1067/shared";
-import { adminApi, clearAdminToken, hasAdminToken, setAdminToken, type AdminBannedRow, type AdminDebtRow, type AdminReferralRow, type AdminRideRow, type AdminUserRow, type AdminWithdrawalRow, type CampaignRow, type Driver360, type DriverMissionRow, type Member360 } from "./api";
+import { adminApi, clearAdminToken, hasAdminToken, setAdminToken, type AdminBannedRow, type AdminChatConvo, type AdminChatMsg, type AdminDebtRow, type AdminMsgHistoryRow, type AdminRatingRow, type AdminReferralRow, type AdminRideRow, type AdminUserRow, type AdminWithdrawalRow, type AdminWithdrawalTabRow, type CampaignRow, type Driver360, type DriverMissionRow, type Member360 } from "./api";
 
-type Tab = "overview" | "pulse" | "analytics" | "finance" | "live" | "x360" | "driver" | "client" | "botusers" | "boshqaruv" | "topshiriq" | "actions" | "integrity" | "audit" | "safarlar" | "qarzlar" | "referallar" | "banlist";
+type Tab = "overview" | "pulse" | "analytics" | "finance" | "live" | "x360" | "driver" | "client" | "botusers" | "boshqaruv" | "topshiriq" | "actions" | "integrity" | "audit" | "safarlar" | "qarzlar" | "referallar" | "banlist" | "yechishlar" | "baholar" | "xabar" | "chat";
 
 const NAV_GROUPS: { label: string; items: { id: Tab; icon: string; label: string }[] }[] = [
   {
@@ -44,9 +44,18 @@ const NAV_GROUPS: { label: string; items: { id: Tab; icon: string; label: string
     label: "TARIX",
     items: [
       { id: "safarlar", icon: "🚕", label: "Safarlar tarixi" },
+      { id: "yechishlar", icon: "💸", label: "Yechishlar" },
+      { id: "baholar", icon: "⭐", label: "Baholar" },
       { id: "qarzlar", icon: "💳", label: "Haydovchi qarzlari" },
       { id: "referallar", icon: "👥", label: "Referallar" },
       { id: "banlist", icon: "🚫", label: "Bloklangan" },
+    ],
+  },
+  {
+    label: "MULOQOT",
+    items: [
+      { id: "chat", icon: "💬", label: "Mijozlar chat" },
+      { id: "xabar", icon: "📱", label: "Xabar tarixi" },
     ],
   },
   {
@@ -154,9 +163,13 @@ export function App() {
           {tab === "integrity" && <IntegrityView />}
           {tab === "audit" && <AuditView />}
           {tab === "safarlar" && <SafarlarView />}
+          {tab === "yechishlar" && <YechishlarView />}
+          {tab === "baholar" && <BaholarView />}
           {tab === "qarzlar" && <QarzlarView />}
           {tab === "referallar" && <ReferallarView />}
           {tab === "banlist" && <BanListView />}
+          {tab === "chat" && <ChatView />}
+          {tab === "xabar" && <XabarView />}
         </div>
       </div>
     </div>
@@ -1701,6 +1714,276 @@ function LoginScreen({ onAuthed }: { onAuthed: () => void }) {
         <p className="login-foot muted">Faqat administratorlar uchun · 1067 Taxi</p>
       </form>
     </div>
+  );
+}
+
+// ─── 💸 yechishlar (dedicated tab) ─────────────────────────────────────────
+function YechishlarView() {
+  const [rows, setRows] = useState<AdminWithdrawalTabRow[] | null>(null);
+  const [q, setQ] = useState("");
+  const load = () => adminApi.withdrawalsTab(200).then(setRows).catch(() => setRows([]));
+  useEffect(() => { load(); }, []);
+
+  const filtered = useMemo(() => {
+    if (!rows) return [];
+    const s = q.trim().toLowerCase();
+    if (!s) return rows;
+    return rows.filter((r) => [r.memberName, r.phone, r.type].some((v) => v?.toLowerCase().includes(s)));
+  }, [rows, q]);
+
+  if (!rows) return <div className="screen center"><div className="spinner" /></div>;
+  const total = rows.reduce((s, r) => s + r.amount, 0);
+  const pending = rows.filter((r) => !r.kasApplied).length;
+
+  const exportCsv = () => {
+    const header = "ID,Ism,Telefon,Tur,Summa,kas,Xabar,Vaqt";
+    const lines = rows.map((r) => [r.id, r.memberName ?? "", r.phone ?? "", r.type ?? "", r.amount, r.kasApplied ? "ha" : "yoq", (r.kasMessage ?? "").replace(/,/g, ";"), r.at].join(","));
+    const blob = new Blob([header + "\n" + lines.join("\n")], { type: "text/csv" });
+    const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = "yechishlar.csv"; a.click();
+  };
+
+  return (
+    <section className="panel">
+      <div className="panel-head">
+        <div className="panel-title">💸 Yechishlar — so'nggi 200 ta</div>
+        <div style={{ display: "flex", gap: 8 }}>
+          <input className="search" placeholder="🔍 Ism, telefon…" value={q} onChange={(e) => setQ(e.target.value)} />
+          <button className="btn sm" onClick={exportCsv}>📥 CSV</button>
+        </div>
+      </div>
+      <div className="cards" style={{ marginBottom: 12 }}>
+        <Card icon="💸" label="Jami yechildi" value={formatNumber(total)} sub="so'm" accent />
+        <Card icon="✅" label="kas'ga yetdi" value={formatNumber(rows.length - pending)} />
+        <Card icon="⏳" label="Kutilmoqda" value={formatNumber(pending)} />
+      </div>
+      <div className="table-wrap">
+        <table>
+          <thead><tr><th>#</th><th>A'zo</th><th>Telefon</th><th>Tur</th><th className="num">Summa</th><th>kas</th><th>Xabar</th><th>Vaqt</th></tr></thead>
+          <tbody>
+            {filtered.slice(0, 300).map((r, i) => (
+              <tr key={r.id} className={!r.kasApplied ? "row-warn" : ""}>
+                <td className="muted">{i + 1}</td>
+                <td className="td-name">{r.memberName ?? "—"}</td>
+                <td className="muted">{r.phone ?? "—"}</td>
+                <td><span className="lvl">{r.type === "driver" ? "🚗" : "🏅"} {r.type ?? "—"}</span></td>
+                <td className="num strong">{formatNumber(r.amount)}</td>
+                <td>{r.kasApplied ? <span className="dot ok" /> : <span className="dot" />}</td>
+                <td className="muted" style={{ fontSize: 11, maxWidth: 200, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{r.kasMessage ?? "—"}</td>
+                <td className="muted">{fmtTime(r.at)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </section>
+  );
+}
+
+// ─── ⭐ baholar ──────────────────────────────────────────────────────────────
+function BaholarView() {
+  const [rows, setRows] = useState<AdminRatingRow[] | null>(null);
+  const [q, setQ] = useState("");
+  useEffect(() => { adminApi.ratings().then(setRows).catch(() => setRows([])); }, []);
+
+  const filtered = useMemo(() => {
+    if (!rows) return [];
+    const s = q.trim().toLowerCase();
+    if (!s) return rows;
+    return rows.filter((r) => r.carNumber.toLowerCase().includes(s) || r.tags.toLowerCase().includes(s));
+  }, [rows, q]);
+
+  if (!rows) return <div className="screen center"><div className="spinner" /></div>;
+  const avg = rows.length ? (rows.reduce((s, r) => s + r.stars, 0) / rows.length).toFixed(2) : "—";
+  const starCount = (n: number) => rows.filter((r) => r.stars === n).length;
+  const exportCsv = () => {
+    const header = "ID,Booking,Mashina,Yulduz,Teglar,Vaqt";
+    const lines = rows.map((r) => [r.id, r.bookingId, r.carNumber, r.stars, r.tags, r.at].join(","));
+    const blob = new Blob([header + "\n" + lines.join("\n")], { type: "text/csv" });
+    const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = "baholar.csv"; a.click();
+  };
+
+  return (
+    <section className="panel">
+      <div className="panel-head">
+        <div className="panel-title">⭐ Baholar — so'nggi 200 ta</div>
+        <div style={{ display: "flex", gap: 8 }}>
+          <input className="search" placeholder="🔍 Mashina, teg…" value={q} onChange={(e) => setQ(e.target.value)} />
+          <button className="btn sm" onClick={exportCsv}>📥 CSV</button>
+        </div>
+      </div>
+      <div className="cards" style={{ marginBottom: 12 }}>
+        <Card icon="⭐" label="O'rtacha baho" value={String(avg)} accent />
+        <Card icon="5️⃣" label="5 yulduz" value={formatNumber(starCount(5))} />
+        <Card icon="4️⃣" label="4 yulduz" value={formatNumber(starCount(4))} />
+        <Card icon="🔴" label="1-3 yulduz" value={formatNumber(rows.length - starCount(5) - starCount(4))} />
+      </div>
+      <div className="table-wrap">
+        <table>
+          <thead><tr><th>#</th><th>Booking</th><th>Mashina</th><th>Yulduz</th><th>Teglar</th><th>Vaqt</th></tr></thead>
+          <tbody>
+            {filtered.slice(0, 300).map((r, i) => (
+              <tr key={r.id} className={r.stars <= 2 ? "row-warn" : ""}>
+                <td className="muted">{i + 1}</td>
+                <td className="muted">#{r.bookingId}</td>
+                <td><b>{r.carNumber}</b></td>
+                <td><span style={{ color: r.stars >= 4 ? "var(--green)" : r.stars <= 2 ? "var(--red)" : "var(--accent)" }}>{"⭐".repeat(r.stars)}</span></td>
+                <td className="muted">{r.tags || "—"}</td>
+                <td className="muted">{fmtTime(r.at)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </section>
+  );
+}
+
+// ─── 💬 mijozlar chat ────────────────────────────────────────────────────────
+function ChatView() {
+  const [convos, setConvos] = useState<AdminChatConvo[] | null>(null);
+  const [active, setActive] = useState<string | null>(null);
+  const [msgs, setMsgs] = useState<AdminChatMsg[] | null>(null);
+  const [reply, setReply] = useState("");
+  const [sending, setSending] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+
+  const loadConvos = () => adminApi.chatConversations().then(setConvos).catch(() => setConvos([]));
+  useEffect(() => { loadConvos(); const t = setInterval(loadConvos, 15000); return () => clearInterval(t); }, []);
+
+  const openChat = async (tgId: string) => {
+    setActive(tgId); setMsgs(null); setErr(null);
+    const m = await adminApi.chatMessages(tgId).catch(() => null);
+    setMsgs(m ?? []);
+    loadConvos();
+  };
+
+  const send = async () => {
+    if (!active || !reply.trim() || sending) return;
+    setSending(true); setErr(null);
+    try {
+      await adminApi.chatReply(active, reply.trim());
+      setReply("");
+      const m = await adminApi.chatMessages(active).catch(() => null);
+      setMsgs(m ?? []);
+    } catch {
+      setErr("Xabar yuborib bo'lmadi");
+    } finally {
+      setSending(false);
+    }
+  };
+
+  const activeConvo = convos?.find((c) => c.telegramId === active);
+
+  return (
+    <div style={{ display: "flex", gap: 12, height: "calc(100vh - 120px)", minHeight: 400 }}>
+      {/* conversation list */}
+      <div style={{ width: 260, flexShrink: 0, background: "var(--card)", borderRadius: 12, overflow: "hidden", display: "flex", flexDirection: "column", border: "1px solid var(--line)" }}>
+        <div style={{ padding: "12px 14px", borderBottom: "1px solid var(--line)", fontWeight: 700 }}>💬 Suhbatlar</div>
+        <div style={{ flex: 1, overflowY: "auto" }}>
+          {!convos && <div className="muted" style={{ padding: 14 }}>Yuklanmoqda…</div>}
+          {convos?.length === 0 && <div className="muted" style={{ padding: 14 }}>Hali xabar yo'q.<br /><span style={{ fontSize: 12 }}>Foydalanuvchilar bot orqali yozganda bu yerda ko'rinadi.</span></div>}
+          {convos?.map((c) => (
+            <button key={c.telegramId} onClick={() => openChat(c.telegramId)} style={{ width: "100%", padding: "10px 14px", border: 0, background: active === c.telegramId ? "rgba(255,209,102,.12)" : "transparent", borderLeft: active === c.telegramId ? "3px solid var(--accent)" : "3px solid transparent", cursor: "pointer", textAlign: "left", color: "var(--text)" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                <span style={{ fontWeight: 600, fontSize: 13 }}>{c.name ?? c.username ?? c.telegramId}</span>
+                {c.unread > 0 && <span style={{ background: "var(--red)", color: "#fff", fontSize: 11, padding: "1px 6px", borderRadius: 99 }}>{c.unread}</span>}
+              </div>
+              <div className="muted" style={{ fontSize: 12, marginTop: 2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{c.lastMsg}</div>
+              <div className="muted" style={{ fontSize: 11, marginTop: 2 }}>{fmtTime(c.lastAt)}</div>
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* message thread */}
+      <div style={{ flex: 1, background: "var(--card)", borderRadius: 12, display: "flex", flexDirection: "column", border: "1px solid var(--line)", overflow: "hidden" }}>
+        {!active ? (
+          <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center" }}>
+            <div className="muted" style={{ textAlign: "center" }}>
+              <div style={{ fontSize: 40, marginBottom: 8 }}>💬</div>
+              <div>Chap tarafdan suhbat tanlang</div>
+            </div>
+          </div>
+        ) : (
+          <>
+            <div style={{ padding: "12px 16px", borderBottom: "1px solid var(--line)", fontWeight: 700 }}>
+              {activeConvo?.name ?? activeConvo?.username ?? active}
+              {activeConvo?.username && <span className="muted" style={{ fontSize: 12, marginLeft: 6 }}>@{activeConvo.username}</span>}
+            </div>
+            <div style={{ flex: 1, overflowY: "auto", padding: "12px 16px", display: "flex", flexDirection: "column", gap: 8 }}>
+              {!msgs && <div className="muted">Yuklanmoqda…</div>}
+              {msgs?.length === 0 && <div className="muted">Xabar yo'q</div>}
+              {msgs?.map((m) => (
+                <div key={m.id} style={{ display: "flex", justifyContent: m.direction === "out" ? "flex-end" : "flex-start" }}>
+                  <div style={{ maxWidth: "75%", padding: "8px 12px", borderRadius: m.direction === "out" ? "14px 14px 2px 14px" : "14px 14px 14px 2px", background: m.direction === "out" ? "var(--accent)" : "var(--card-2)", color: m.direction === "out" ? "#000" : "var(--text)", fontSize: 13 }}>
+                    <div>{m.text}</div>
+                    <div style={{ fontSize: 10, opacity: 0.6, marginTop: 3, textAlign: "right" }}>{fmtTime(m.at)}</div>
+                  </div>
+                </div>
+              ))}
+            </div>
+            <div style={{ padding: "10px 14px", borderTop: "1px solid var(--line)", display: "flex", gap: 8 }}>
+              <input className="inp" style={{ flex: 1 }} placeholder="Javob yozing…" value={reply} onChange={(e) => setReply(e.target.value)} onKeyDown={(e) => e.key === "Enter" && !e.shiftKey && void send()} />
+              <button className="btn" onClick={send} disabled={sending || !reply.trim()}>{sending ? "…" : "Yuborish"}</button>
+            </div>
+            {err && <div className="muted" style={{ padding: "4px 14px 8px", color: "var(--red)" }}>{err}</div>}
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ─── 📱 xabar tarixi ────────────────────────────────────────────────────────
+function XabarView() {
+  const [rows, setRows] = useState<AdminMsgHistoryRow[] | null>(null);
+  const [dir, setDir] = useState<"all" | "in" | "out">("all");
+  const [q, setQ] = useState("");
+  useEffect(() => { adminApi.msgHistory(300).then(setRows).catch(() => setRows([])); }, []);
+
+  const filtered = useMemo(() => {
+    if (!rows) return [];
+    let list = rows;
+    if (dir !== "all") list = list.filter((r) => r.direction === dir);
+    const s = q.trim().toLowerCase();
+    if (s) list = list.filter((r) => r.text.toLowerCase().includes(s) || r.telegramId.includes(s));
+    return list;
+  }, [rows, dir, q]);
+
+  if (!rows) return <div className="screen center"><div className="spinner" /></div>;
+  const inCount = rows.filter((r) => r.direction === "in").length;
+  const outCount = rows.filter((r) => r.direction === "out").length;
+
+  return (
+    <section className="panel">
+      <div className="panel-head">
+        <div className="panel-title">📱 Xabar tarixi — so'nggi 300 ta</div>
+        <input className="search" placeholder="🔍 Matn, telegram id…" value={q} onChange={(e) => setQ(e.target.value)} />
+      </div>
+      <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
+        {(["all", "in", "out"] as const).map((d) => (
+          <button key={d} className={"btn sm" + (dir === d ? " active" : "")} onClick={() => setDir(d)} style={{ background: dir === d ? "var(--accent)" : "transparent", color: dir === d ? "#000" : "inherit", border: "1px solid var(--line)" }}>
+            {d === "all" ? "Hammasi" : d === "in" ? "📩 Kelgan" : "📤 Yuborilgan"}
+          </button>
+        ))}
+        <span className="muted" style={{ marginLeft: 6, fontSize: 12, alignSelf: "center" }}>📩 {inCount} ta · 📤 {outCount} ta</span>
+      </div>
+      <div className="table-wrap">
+        <table>
+          <thead><tr><th>Yo'nalish</th><th>Telegram ID</th><th>Xabar</th><th>Vaqt</th></tr></thead>
+          <tbody>
+            {filtered.slice(0, 300).map((r) => (
+              <tr key={r.id}>
+                <td>{r.direction === "in" ? "📩 kelgan" : "📤 yuborilgan"}</td>
+                <td className="muted">{r.telegramId}</td>
+                <td style={{ maxWidth: 400, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{r.text}</td>
+                <td className="muted">{fmtTime(r.at)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </section>
   );
 }
 
