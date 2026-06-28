@@ -8,6 +8,7 @@ import { ensureLeaflet } from "./leaflet";
 import { carDivIcon, pinkTaxiDivIcon, ghostPersonDivIcon, GHOST_SHIRTS, GHOST_SKINS, GHOST_DRESSES, GHOST_HAIRS, type PersonKind } from "./mapDecor";
 import { haptic } from "./telegram";
 import { WalletView } from "./wallet";
+import { ServiceView } from "./service";
 
 const TILE_URL = "https://mt{s}.google.com/vt/lyrs=m&hl=uz&x={x}&y={y}&z={z}";
 const TILE_SUBDOMAINS = ["0", "1", "2", "3"];
@@ -29,6 +30,7 @@ export function LivingHome(props: {
   const { me, onBook, onNav, onBanner, reload } = props;
   const [home, setHome] = useState<HomeResponse | null>(null);
   const [showWallet, setShowWallet] = useState(false);
+  const [showService, setShowService] = useState(false);
   const [refInfo, setRefInfo] = useState<ReferralResponse | null>(null);
   const mapRef = useRef<HTMLDivElement>(null);
   const map = useRef<unknown>(null);
@@ -99,6 +101,8 @@ export function LivingHome(props: {
     };
   }, [home, showWallet]);
 
+  if (showService) return <ServiceView onBack={() => setShowService(false)} />;
+
   if (showWallet) {
     return (
       <div className="view">
@@ -143,6 +147,7 @@ export function LivingHome(props: {
           <button className="lh-place" onClick={() => { haptic(); onNav("play"); }}>🎮<span>O'yin</span></button>
           <button className="lh-place" onClick={shareInvite}>👥<span>Do'st taklif</span></button>
           <button className="lh-place" onClick={() => { haptic(); onNav("reyting"); }}>🏆<span>Reyting</span></button>
+          <button className="lh-place" onClick={() => { haptic(); setShowService(true); }}>💍<span>Service</span></button>
           <button className="lh-place" onClick={() => { haptic(); setShowWallet(true); }}>💰<span>Hamyon</span></button>
         </div>
       </div>
