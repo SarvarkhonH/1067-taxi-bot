@@ -162,7 +162,9 @@ export async function getLeaderboard(
   telegramId?: string,
   limit = 50,
 ): Promise<LeaderboardResponse> {
-  const members = await prisma.member.findMany({ where: { type }, orderBy: { points: "desc" }, take: limit });
+  // Rank by ORDER COUNT (trips), not money — drivers by orders completed, clients by rides taken.
+  // points is only the tiebreaker so equal-trip members get a stable order.
+  const members = await prisma.member.findMany({ where: { type }, orderBy: [{ trips: "desc" }, { points: "desc" }], take: limit });
 
   let myMemberId: number | null = null;
   if (telegramId) {
@@ -176,12 +178,12 @@ export async function getLeaderboard(
   if (!me && myMemberId) {
     const mine = await prisma.member.findUnique({ where: { id: myMemberId } });
     if (mine) {
-      const higher = await prisma.member.count({ where: { type, points: { gt: mine.points } } });
+      const higher = await prisma.member.count({ where: { type, trips: { gt: mine.trips } } });
       me = toEntry(mine, higher + 1, myMemberId);
     }
   }
 
-  return { type, metricLabel: metricLabel(type), entries, me };
+  return { type, metricLabel: type === "driver" ? "Buyurtma" : "Safar", entries, me };
 }
 
 // ─── account linking (member shares phone in the bot) ──────────────────────────

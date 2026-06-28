@@ -222,9 +222,9 @@ function AllTimeBoard({ board, max, onRow }: { board: LeaderboardResponse; max: 
                 {e.fullName}
                 {e.isMe && <span className="you">Siz</span>}
               </div>
-              <div className="row-bar brand-bar"><span ref={(el) => el?.style.setProperty("width", `${(e.points / max) * 100}%`)} /></div>
+              <div className="row-bar brand-bar"><span ref={(el) => el?.style.setProperty("width", `${(e.trips / max) * 100}%`)} /></div>
             </div>
-            <div className="row-val">{formatNumber(e.points)}{onRow && <span className="row-chev">›</span>}</div>
+            <div className="row-val">{formatNumber(e.trips)}{onRow && <span className="row-chev">›</span>}</div>
           </div>
         ))}
       </div>
@@ -232,7 +232,7 @@ function AllTimeBoard({ board, max, onRow }: { board: LeaderboardResponse; max: 
         <div className="row glass me sticky">
           <div className="row-rank">{rankMedal(board.me.rank)}</div>
           <div className="row-main"><div className="row-name">{board.me.fullName} <span className="you">Siz</span></div></div>
-          <div className="row-val">{formatNumber(board.me.points)}</div>
+          <div className="row-val">{formatNumber(board.me.trips)}</div>
         </div>
       )}
     </>
@@ -240,8 +240,8 @@ function AllTimeBoard({ board, max, onRow }: { board: LeaderboardResponse; max: 
 }
 
 export function LeaderboardView({ board, onRow }: { board: LeaderboardResponse; onRow?: (memberId: number, name: string) => void }) {
-  const [mode, setMode] = useState<"all" | "weekly">("weekly");
-  const max = Math.max(1, ...board.entries.map((e) => e.points));
+  const [mode, setMode] = useState<"all" | "weekly">("all");
+  const max = Math.max(1, ...board.entries.map((e) => e.trips));
   return (
     <div className="view">
       <div className="seg glass">
