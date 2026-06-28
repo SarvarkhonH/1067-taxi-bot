@@ -477,7 +477,7 @@ export class KasLiveSource implements KasDataSource {
               phone: req.phoneNumber,
               lat: req.addressLatitude!,
               lng: req.addressLongitude!,
-              carModel: "Nexia",
+              carModel: "", // empty → kas names it «℗ <place>» (no car model), standard fare. Owner: drop "NEXIA"
               additionalPayment: req.additionalPayment ?? 0,
             });
             if (cr.status >= 200 && cr.status < 300 && /"status"\s*:\s*"new"/.test(cr.body)) {
