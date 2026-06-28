@@ -1,5 +1,6 @@
 import {
   MISSIONS,
+  getDailyClientMissions,
   missionByCode,
   type MissionClaimResponse,
   type MissionDef,
@@ -96,7 +97,7 @@ export async function incrementMission(memberId: number, code: string, by = 1, r
   // quests (core:false, e.g. garage) are excluded so they neither gate nor trigger it.
   if (def.period === "daily" && def.core !== false && next >= def.target && def.audience !== "driver") {
     try {
-      const dailies = MISSIONS.filter((d) => d.period === "daily" && d.audience !== "driver" && d.core !== false);
+      const dailies = getDailyClientMissions(dayKey(new Date())).filter((d) => d.core !== false);
       const today = dayKey(new Date());
       const rows = await prisma.missionProgress.findMany({
         where: { memberId, periodKey: today, code: { in: dailies.map((d) => d.code) } },
@@ -138,8 +139,12 @@ export async function getMissions(memberId: number): Promise<MissionsResponse> {
     const row = rows.find((r) => r.code === def.code && r.periodKey === key);
     return toView(def, row?.progress ?? 0, !!row?.claimedAt, econ);
   };
+  const today = dayKey(new Date());
+  const clientDailies = audience === "client"
+    ? getDailyClientMissions(today)
+    : MISSIONS.filter((m) => m.period === "daily" && m.audience === "driver");
   return {
-    daily: MISSIONS.filter((m) => m.period === "daily" && (m.audience ?? "client") === audience).map(view),
+    daily: clientDailies.map(view),
     weekly: MISSIONS.filter((m) => m.period === "weekly" && (m.audience ?? "client") === audience).map(view),
   };
 }

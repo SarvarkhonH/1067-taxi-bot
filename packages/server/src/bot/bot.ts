@@ -1247,10 +1247,60 @@ export function createBot(): Bot {
     }
     const meF = await getMe(String(ctx.from!.id)).catch(() => null);
     await ctx.reply(
-      "🤔 <b>Tushunmadim.</b>\n📍 Manzilni yozing (masalan «Saripul bozorcha») yoki joylashuvingizni yuboring — darrov taksi chaqiraman.\nYoki «🚕 Taxi chaqirish» tugmasi · /start · ☎️ 1067",
+      "🤔 <b>Tushunmadim.</b>\n📍 Manzilni yozing (masalan «Saripul bozorcha») yoki joylashuvingizni yubording — darrov taksi chaqiraman.\nYoki «🚕 Taxi chaqirish» tugmasi · /start · ☎️ 1067",
       { parse_mode: "HTML", reply_markup: mainMenu(meF?.type === "driver") },
     );
   });
+
+  // ── 👥 Group chat support (/taksi in a group → DM flow) ──
+  // When bot is added to a group: greet. /taksi → tell the user to DM the bot.
+  // Only works in whitelisted groups (AppState key "allowed_groups" = comma-sep chatIds).
+  bot.on("my_chat_member", async (ctx) => {
+    const upd = ctx.update.my_chat_member;
+    if (!upd) return;
+    const chat = upd.chat;
+    if (chat.type !== "group" && chat.type !== "supergroup") return;
+    const newStatus = upd.new_chat_member.status;
+    if (newStatus === "member" || newStatus === "administrator") {
+      await ctx.api.sendMessage(
+        chat.id,
+        `👋 Assalomu alaykum! Men <b>1067 taxi</b> botiman.\n\n` +
+        `Bu guruhda /taksi yozing — men sizni bot'ga yo'naltirib taksi chaqirishga yordam beraman. 🚕`,
+        { parse_mode: "HTML" },
+      ).catch(() => undefined);
+    }
+  });
+
+  bot.command("taksi", async (ctx) => {
+    const chat = ctx.chat;
+    // In private chat — same as /book
+    if (chat.type === "private") {
+      await ctx.reply("🚕 Taxi chaqirish uchun quyidagi tugmani bosing:", { parse_mode: "HTML", reply_markup: mainMenu(false) });
+      return;
+    }
+    // In group — check whitelist
+    const allowed = await prisma.appState.findUnique({ where: { key: "allowed_groups" } });
+    const ids = (allowed?.value ?? "").split(",").map((s) => s.trim()).filter(Boolean);
+    if (!ids.includes(String(chat.id)) && !isAdmin(String(ctx.from?.id))) {
+      // silently ignore non-whitelisted groups to avoid spam
+      return;
+    }
+    const from = ctx.from;
+    if (!from) return;
+    const mention = from.username ? `@${from.username}` : from.first_name;
+    await ctx.reply(
+      `${mention}, taxi chaqirish uchun bot'ga o'ting 👇`,
+      {
+        reply_markup: {
+          inline_keyboard: [[{
+            text: "🚕 1067 Taxi chaqirish",
+            url: `https://t.me/${ctx.me.username}?start=book`,
+          }]],
+        },
+      },
+    );
+  });
+
   return bot;
 }
 

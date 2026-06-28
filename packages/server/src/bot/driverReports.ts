@@ -1,9 +1,10 @@
-// 📊 /safarlarim + /daromad — a logged-in driver sees today's rides and earnings, pulled from kas
-// with their own creds (Bosqich 4). Read-only; if not logged in, points to /driver_login.
+// 📊 /safarlarim + /daromad + /daraja — driver stats and tier progress.
 import { Bot, Context } from "grammy";
-import { formatNumber } from "@t1067/shared";
+import { formatNumber, DRIVER_TIER_REBATE } from "@t1067/shared";
 import { getMe } from "../services/memberService";
 import { getDriverRidesToday, getDriverEarningsToday } from "../services/driverReportService";
+import { prisma } from "../db";
+import { recentReports } from "../services/analyticsService";
 
 function esc(s: string): string {
   return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
@@ -56,9 +57,81 @@ async function showEarnings(ctx: Context): Promise<void> {
   await ctx.reply(lines.join("\n"), { parse_mode: "HTML" });
 }
 
+// Tier thresholds — same defaults as analyticsService; dynamic thresholds are stored in AppState.
+const DEFAULT_T = { kumush: 2, oltin: 3, olmos: 5 };
+async function getTierThresholds(): Promise<{ kumush: number; oltin: number; olmos: number }> {
+  try {
+    const row = await prisma.appState.findUnique({ where: { key: "driver_tier_thresholds" } });
+    if (row) return JSON.parse(row.value) as typeof DEFAULT_T;
+  } catch { /* ignore */ }
+  return DEFAULT_T;
+}
+
+function progressBar(current: number, max: number, len = 10): string {
+  const filled = Math.min(len, Math.round((current / max) * len));
+  return "█".repeat(filled) + "░".repeat(len - filled);
+}
+
+const TIER_EMOJI: Record<string, string> = { Bronza: "🥉", Kumush: "🥈", Oltin: "🥇", Olmos: "💎" };
+const TIER_ORDER = ["Bronza", "Kumush", "Oltin", "Olmos"] as const;
+
+async function showTier(ctx: Context): Promise<void> {
+  const me = await getMe(String(ctx.from!.id));
+  if (!me) { await ctx.reply("Avval /start orqali raqamingizni ulang."); return; }
+  const m = await prisma.member.findUnique({ where: { id: me.member.id }, select: { id: true, type: true, carNumber: true, driverTier: true } });
+  if (!m || m.type !== "driver") {
+    await ctx.reply("Bu bo'lim faqat 1067 haydovchilari uchun 🚗");
+    return;
+  }
+  const t = await getTierThresholds();
+  // count this week's rides from kas reports
+  const WEEK_MS = 7 * 86_400_000;
+  const since = Date.now() - WEEK_MS;
+  const rows = await recentReports().catch(() => []);
+  const DONE = new Set(["delivered", "completed", "finished"]);
+  const weekRides = rows.filter((r) => r.carNumber === m.carNumber && DONE.has(r.status) && Date.parse(r.at) >= since).length;
+
+  const tier = m.driverTier ?? "Bronza";
+  const tierIdx = TIER_ORDER.indexOf(tier as (typeof TIER_ORDER)[number]);
+  const nextTier = TIER_ORDER[tierIdx + 1];
+  const nextThreshold = nextTier === "Kumush" ? t.kumush : nextTier === "Oltin" ? t.oltin : nextTier === "Olmos" ? t.olmos : null;
+  const rebate = DRIVER_TIER_REBATE[tier as keyof typeof DRIVER_TIER_REBATE] ?? 0;
+
+  const lines: string[] = [
+    `${TIER_EMOJI[tier] ?? "🏅"} <b>Sizning darajangiz: ${tier}</b>`,
+    ``,
+    `🚗 Bu hafta: <b>${weekRides} ta safar</b>`,
+  ];
+
+  if (nextTier && nextThreshold !== null) {
+    const remaining = Math.max(0, nextThreshold - weekRides);
+    const bar = progressBar(weekRides, nextThreshold);
+    lines.push(`📊 <code>${bar}</code> ${weekRides}/${nextThreshold}`);
+    lines.push(remaining > 0
+      ? `➡️ <b>${nextTier}</b> darajasi uchun yana <b>${remaining} ta safar</b>`
+      : `✅ <b>${nextTier}</b> darajasiga o'tishga tayyorsiz!`);
+  } else {
+    lines.push(`🏆 Eng yuqori daraja — davom eting!`);
+  }
+
+  lines.push(``);
+  lines.push(`💰 Har safar uchun bonus: <b>${rebate > 0 ? `+${formatNumber(rebate)} 🪙` : "Kumush darajasidan boshlanadi"}</b>`);
+  lines.push(``);
+  lines.push(`<b>Daraja chegaralari:</b>`);
+  lines.push(`🥉 Bronza: 0–${t.kumush - 1} safar · 0 🪙/safar`);
+  lines.push(`🥈 Kumush: ${t.kumush}+ safar · +${DRIVER_TIER_REBATE.Kumush} 🪙/safar`);
+  lines.push(`🥇 Oltin: ${t.oltin}+ safar · +${DRIVER_TIER_REBATE.Oltin} 🪙/safar`);
+  lines.push(`💎 Olmos: ${t.olmos}+ safar · +${DRIVER_TIER_REBATE.Olmos} 🪙/safar`);
+  lines.push(``);
+  lines.push(`<i>Daraja har dushanba yangilanadi</i>`);
+
+  await ctx.reply(lines.join("\n"), { parse_mode: "HTML" });
+}
+
 export function registerDriverReports(bot: Bot): void {
   bot.command("safarlarim", showRides);
   bot.command("daromad", showEarnings);
+  bot.command("daraja", showTier);
   bot.callbackQuery("drv:hist", async (ctx) => {
     await ctx.answerCallbackQuery().catch(() => undefined);
     await showRides(ctx);
@@ -66,5 +139,9 @@ export function registerDriverReports(bot: Bot): void {
   bot.callbackQuery("drv:earn", async (ctx) => {
     await ctx.answerCallbackQuery().catch(() => undefined);
     await showEarnings(ctx);
+  });
+  bot.callbackQuery("drv:tier", async (ctx) => {
+    await ctx.answerCallbackQuery().catch(() => undefined);
+    await showTier(ctx);
   });
 }

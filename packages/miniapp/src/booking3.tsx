@@ -155,7 +155,7 @@ function mapAllowed(): boolean {
   }
 }
 
-type Screen = "map" | "pinpick" | "confirm" | "searching" | "finished";
+type Screen = "map" | "pinpick" | "confirm" | "searching" | "finished" | "schedule" | "family";
 // mirror of server RATING_TAGS (bookingPlus) — kept in sync manually (shared has no DTO for it)
 const RIDE_TAGS = ["Toza mashina", "Xushmuomala", "Tez yetib keldi", "Sekin haydadi", "Mashina eski"];
 
@@ -355,6 +355,61 @@ function Booking3Inner({ me, info, onClose }: { me: MeResponse; info: BookingInf
   const [stars, setStars] = useState(0);
   const [rateTags, setRateTags] = useState<string[]>([]);
   const [rated, setRated] = useState(false);
+
+  // ── Schedule + Family state ──
+  type FamilyMember = { id: number; phone: string; name: string };
+  type ScheduledRide = { id: number; addressName: string; runAt: string; phone: string };
+  const [famList, setFamList] = useState<FamilyMember[]>([]);
+  const [schedList, setSchedList] = useState<ScheduledRide[]>([]);
+  const [famLoaded, setFamLoaded] = useState(false);
+  const [famPhone, setFamPhone] = useState("");
+  const [famName, setFamName] = useState("");
+  const [famAdding, setFamAdding] = useState(false);
+  const [schedDay, setSchedDay] = useState<"today" | "tomorrow">("today");
+  const [schedHour, setSchedHour] = useState(8);
+  const [schedMin, setSchedMin] = useState(0);
+  const [schedBusy, setSchedBusy] = useState(false);
+
+  const loadFamily = async (): Promise<void> => {
+    if (famLoaded) return;
+    const d = await api.bookingScheduled().catch(() => null);
+    if (d) { setFamList(d.family); setSchedList(d.scheduled); }
+    setFamLoaded(true);
+  };
+
+  const addFamily = async (): Promise<void> => {
+    if (!famPhone || famAdding) return;
+    setFamAdding(true);
+    const r = await api.familyAdd(famPhone, famName || "Yaqinim").catch(() => null);
+    if (r?.ok) { setFamPhone(""); setFamName(""); void loadFamily().then(() => setFamLoaded(false)).then(loadFamily); }
+    else setMsg(r?.reason === "already" ? "Bu raqam allaqachon qo'shilgan" : r?.reason === "max" ? "Maksimal 3 ta" : "Xatolik");
+    setFamAdding(false);
+  };
+
+  const bookFamily = async (fam: FamilyMember): Promise<void> => {
+    if (!pickup || busy) return;
+    setBusy(true);
+    const r = await api.familyBook(fam.id, pickup.id, pickup.name).catch(() => null);
+    setBusy(false);
+    setMsg(r?.message ?? (r?.ok ? `🚕 ${fam.name}ga taxi chaqirildi!` : "Xatolik yuz berdi"));
+    if (r?.ok) setScreen("pinpick");
+  };
+
+  const saveSchedule = async (): Promise<void> => {
+    if (!pickup || schedBusy) return;
+    setSchedBusy(true);
+    const base = new Date();
+    if (schedDay === "tomorrow") base.setDate(base.getDate() + 1);
+    base.setHours(schedHour, schedMin, 0, 0);
+    const r = await api.bookingSchedule(pickup.id, pickup.name, base.toISOString()).catch(() => null);
+    setSchedBusy(false);
+    if (r?.ok) {
+      setMsg(`⏰ Rejali safar saqlandi: ${schedDay === "today" ? "Bugun" : "Ertaga"} ${String(schedHour).padStart(2, "0")}:${String(schedMin).padStart(2, "0")}`);
+      setScreen("pinpick");
+    } else {
+      setMsg(r?.reason === "too_soon" ? "Kamida 15 daqiqa oldin bo'lishi kerak" : r?.reason === "too_many" ? "Maksimal 3 ta rejali safar" : "Xatolik");
+    }
+  };
 
   const mapRef = useRef<HTMLDivElement | null>(null);
   const map = useRef<L.Map | null>(null);
@@ -1063,6 +1118,10 @@ function Booking3Inner({ me, info, onClose }: { me: MeResponse; info: BookingInf
           </div>
           <div className="dim fs12 b3-honest">💵 To'lov haydovchiga (naqd/karta). 🪙 Tanga = ilova bonuslari, Hamyon'da so'mga yechiladi.</div>
           <Button disabled={busy} onClick={call}>{busy ? "Chaqirilmoqda…" : "🚕 TAXI CHAQIRISH"}</Button>
+          <div className="b3-extra-row">
+            <button className="b3-extra-btn" onClick={() => { haptic(); setScreen("schedule"); }}>⏰ Keyinroqqa</button>
+            <button className="b3-extra-btn" onClick={() => { haptic(); void loadFamily(); setScreen("family"); }}>👨‍👩‍👧 Oila uchun</button>
+          </div>
           <Button variant="ghost" onClick={() => setScreen("map")}>Bekor</Button>
         </div>
       )}
@@ -1151,6 +1210,91 @@ function Booking3Inner({ me, info, onClose }: { me: MeResponse; info: BookingInf
             </>
           )}
           <Button variant="ghost" onClick={rebook}>🔁 Yana 1067</Button>
+        </div>
+      )}
+
+      {/* ── ⏰ Schedule sheet ── */}
+      {screen === "schedule" && pickup && (
+        <div className="b3-sheet b3-sched-sheet">
+          <div className="b3-grip" />
+          <div className="b3-sheet-head">
+            <button className="b3-sheet-back" onClick={() => { haptic(); setScreen("confirm"); }}>← Orqaga</button>
+            <div className="b3-sheet-title">⏰ Rejali safar</div>
+          </div>
+          <div className="b3-sched-addr">📍 <b>{pickup.name}</b></div>
+          <div className="b3-sched-row">
+            <button className={"b3-sched-day" + (schedDay === "today" ? " on" : "")} onClick={() => setSchedDay("today")}>Bugun</button>
+            <button className={"b3-sched-day" + (schedDay === "tomorrow" ? " on" : "")} onClick={() => setSchedDay("tomorrow")}>Ertaga</button>
+          </div>
+          <div className="b3-sched-label">Soat</div>
+          <div className="b3-sched-hours">
+            {[6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22].map((h) => (
+              <button key={h} className={"b3-sched-h" + (schedHour === h ? " on" : "")} onClick={() => setSchedHour(h)}>{String(h).padStart(2,"0")}</button>
+            ))}
+          </div>
+          <div className="b3-sched-label">Daqiqa</div>
+          <div className="b3-sched-row">
+            {[0,15,30,45].map((m) => (
+              <button key={m} className={"b3-sched-day" + (schedMin === m ? " on" : "")} onClick={() => setSchedMin(m)}>{String(m).padStart(2,"0")}</button>
+            ))}
+          </div>
+          <div className="b3-sched-preview dim fs13">
+            {schedDay === "today" ? "Bugun" : "Ertaga"} soat <b>{String(schedHour).padStart(2,"0")}:{String(schedMin).padStart(2,"0")}</b> da taxi chaqiriladi
+          </div>
+          {schedList.length > 0 && (
+            <div className="b3-sched-list">
+              <div className="dim fs12 mb4">Saqlangan rejalar:</div>
+              {schedList.map((s) => {
+                const d = new Date(s.runAt);
+                return (
+                  <div key={s.id} className="b3-sched-item">
+                    <span>📍 {s.addressName}</span>
+                    <span className="dim fs12">{d.toLocaleTimeString("uz-UZ", { hour: "2-digit", minute: "2-digit" })}</span>
+                    <button className="b3-sched-del" onClick={async () => {
+                      await api.bookingScheduleCancel(s.id).catch(() => null);
+                      setSchedList((p) => p.filter((x) => x.id !== s.id));
+                    }}>✖</button>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+          <Button disabled={schedBusy} onClick={saveSchedule}>{schedBusy ? "Saqlanmoqda…" : "✅ Saqlash"}</Button>
+        </div>
+      )}
+
+      {/* ── 👨‍👩‍👧 Family sheet ── */}
+      {screen === "family" && (
+        <div className="b3-sheet b3-fam-sheet">
+          <div className="b3-grip" />
+          <div className="b3-sheet-head">
+            <button className="b3-sheet-back" onClick={() => { haptic(); setScreen("confirm"); }}>← Orqaga</button>
+            <div className="b3-sheet-title">👨‍👩‍👧 Oila uchun</div>
+          </div>
+          {pickup && <div className="b3-sched-addr">📍 <b>{pickup.name}</b></div>}
+          {!famLoaded ? (
+            <div className="dim fs13 tac mt12">Yuklanmoqda…</div>
+          ) : famList.length === 0 ? (
+            <div className="d-empty"><div className="d-empty-ico">👥</div><p>Hali oila a'zolari yo'q</p></div>
+          ) : (
+            <div className="b3-fam-list">
+              {famList.map((f) => (
+                <div key={f.id} className="b3-fam-item">
+                  <div className="b3-fam-info">
+                    <div className="b3-fam-name">{f.name}</div>
+                    <div className="dim fs12">{f.phone}</div>
+                  </div>
+                  <Button disabled={busy || !pickup} onClick={() => bookFamily(f)}>🚕 Chaqir</Button>
+                </div>
+              ))}
+            </div>
+          )}
+          <div className="b3-fam-add">
+            <div className="dim fs13 mb6">+ Yangi a'zo qo'shish (maks. 3 ta)</div>
+            <input className="bk-input mb6" placeholder="Telefon: 901234567" value={famPhone} onChange={(e) => setFamPhone(e.target.value.replace(/\D/g, "").slice(0, 9))} inputMode="numeric" />
+            <input className="bk-input mb6" placeholder="Ismi (Onam, Xotinim…)" value={famName} onChange={(e) => setFamName(e.target.value)} />
+            <Button disabled={famPhone.length < 9 || famAdding} onClick={addFamily}>{famAdding ? "Qo'shilmoqda…" : "➕ Qo'shish"}</Button>
+          </div>
         </div>
       )}
     </div>

@@ -407,6 +407,7 @@ export function ReferralView({ onClose }: { onClose?: () => void } = {}) {
 // 🏘 V5 — mahalla (gap-vs-gap) league section in the Liga tab. Hidden until feature:mahalla.
 type MahallaBoard = {
   off: boolean;
+  week: string;
   gaps: { gapId: number; name: string; members: number; score: number; rank: number }[];
   me: { gapId: number; name: string; rank: number; score: number } | null;
 };
@@ -416,28 +417,52 @@ export function MahallaSection() {
     api.mahalla().then(setB).catch(() => undefined);
   }, []);
   if (!b || b.off || !b.gaps.length) return null;
-  const medal = (r: number): string => (r === 1 ? "🥇" : r === 2 ? "🥈" : r === 3 ? "🥉" : `${r}.`);
+  const medal = (r: number): string => (r === 1 ? "🥇" : r === 2 ? "🥈" : r === 3 ? "🥉" : `#${r}`);
+  const leader = b.gaps[0];
+  const me = b.me;
   return (
     <section className="glass pad" style={{ marginTop: 12 }}>
-      <div className="section-title">🏘 Mahalla ligasi</div>
-      <p className="muted" style={{ marginBottom: 8 }}>Davra-vs-davra haftalik tanga</p>
-      {b.gaps.slice(0, 10).map((g) => (
-        <div
-          key={g.gapId}
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: 8,
-            padding: "7px 8px",
-            borderRadius: 10,
-            background: b.me?.gapId === g.gapId ? "rgba(255,179,0,.12)" : "transparent",
-          }}
-        >
-          <span style={{ width: 26, fontWeight: 700 }}>{medal(g.rank)}</span>
-          <span style={{ flex: 1, fontWeight: 600 }}>{g.name}</span>
-          <span className="muted" style={{ fontSize: 13 }}>{g.score.toLocaleString("ru-RU")} · {g.members}👤</span>
+      <div className="section-title">🏘 Mahalla ligasi · {b.week}</div>
+
+      {/* "Mening mahallam" highlight — always shown if joined, even if out of top-10 */}
+      {me && (
+        <div className="mahalla-me-card">
+          <span className="mahalla-me-rank">{medal(me.rank)}</span>
+          <span className="mahalla-me-name">{me.name}</span>
+          <span className="mahalla-me-score">{me.score.toLocaleString("ru-RU")} ball</span>
+          {me.rank === 1 && <span className="mahalla-crown">👑</span>}
         </div>
-      ))}
+      )}
+
+      {/* Leader banner (only when NOT the user's own mahalla) */}
+      {leader && (!me || leader.gapId !== me.gapId) && (
+        <div className="mahalla-leader">
+          🥇 Lider: <b>{leader.name}</b> — {leader.score.toLocaleString("ru-RU")} ball
+        </div>
+      )}
+
+      {/* Full board */}
+      <div className="mahalla-board">
+        {b.gaps.slice(0, 10).map((g) => {
+          const isMe = me?.gapId === g.gapId;
+          return (
+            <div key={g.gapId} className={"mahalla-row" + (isMe ? " me" : "")}>
+              <span className="mahalla-rank">{medal(g.rank)}</span>
+              <span className="mahalla-name">{g.name}</span>
+              <div className="mahalla-meta">
+                <span className="mahalla-score">{g.score.toLocaleString("ru-RU")}</span>
+                <span className="mahalla-members">{g.members}👤</span>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      {!me && (
+        <p className="muted" style={{ fontSize: 12, marginTop: 8, textAlign: "center" }}>
+          Davra (gap) qo'shiling — mahallangiz uchun ball to'plang
+        </p>
+      )}
     </section>
   );
 }

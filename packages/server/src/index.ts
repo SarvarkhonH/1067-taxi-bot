@@ -107,7 +107,10 @@ async function main(): Promise<void> {
       await setupBotCommands(bot);
       if (env.WEBHOOK_URL) {
         try {
-          await bot.api.setWebhook(`${env.WEBHOOK_URL.replace(/\/$/, "")}${webhookPath}`, { drop_pending_updates: true });
+          await bot.api.setWebhook(`${env.WEBHOOK_URL.replace(/\/$/, "")}${webhookPath}`, {
+            drop_pending_updates: true,
+            allowed_updates: ["message", "callback_query", "my_chat_member", "chat_member"],
+          });
           console.log(`[bot] webhook set → ${env.WEBHOOK_URL}${webhookPath}`);
         } catch (e) {
           console.error("[bot] setWebhook failed:", e instanceof Error ? e.message : e);

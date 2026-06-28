@@ -158,7 +158,7 @@ export function App() {
           {(tab === "driver" || tab === "client") && <MembersTab type={tab} />}
           {tab === "botusers" && <BotUsersTab />}
           {tab === "boshqaruv" && <><BoshqaruvView /><RecruitsView /></>}
-          {tab === "topshiriq" && <><CampaignsView /><DriverMissionsView /></>}
+          {tab === "topshiriq" && <><QuickAnnounceView /><CampaignsView /><DriverMissionsView /></>}
           {tab === "actions" && <><ActionsView /><ControlCards /></>}
           {tab === "integrity" && <IntegrityView />}
           {tab === "audit" && <AuditView />}
@@ -907,6 +907,54 @@ function MembersTab({ type }: { type: "driver" | "client" }) {
 }
 
 // 👑 user management ("boshqaruv"): search → accounts → re-link/unlink/code/coin-adjust + withdrawals
+// ─── 📢 Tezkor e'lon (topshiriq tabida ham ko'rinadigan sodda forma) ──────────
+function QuickAnnounceView() {
+  const [text, setText] = useState("");
+  const [segment, setSegment] = useState<"all" | "linked" | "dormant">("linked");
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState<string | null>(null);
+
+  const send = async () => {
+    if (text.trim().length < 3 || busy) return;
+    const segLabel = segment === "all" ? "BARCHA" : segment === "linked" ? "bog'langan" : "uxlagan";
+    if (!confirm(`${segLabel} foydalanuvchilarga xabar yuborilsinmi?`)) return;
+    setBusy(true); setMsg(null);
+    try {
+      const r = await adminApi.announce(text, segment, 30);
+      setMsg(r.message);
+      if (r.ok) setText("");
+    } catch (e) {
+      setMsg(e instanceof Error ? e.message : "xatolik");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <section className="panel">
+      <div className="panel-title">📢 Tezkor xabar / e'lon</div>
+      <div style={{ display: "flex", gap: 6, marginBottom: 10 }}>
+        {(["linked", "all", "dormant"] as const).map((s) => (
+          <button key={s} className="btn sm" style={{ opacity: segment === s ? 1 : 0.45 }} onClick={() => setSegment(s)}>
+            {s === "all" ? "🌐 Hammaga" : s === "linked" ? "✅ Bog'langan" : "😴 Uxlagan"}
+          </button>
+        ))}
+      </div>
+      <textarea
+        className="search"
+        style={{ width: "100%", minHeight: 90, resize: "vertical", fontSize: 14 }}
+        placeholder={"📢 E'lon matni…\n<b>Qalin</b>, <i>kursiv</i>, <a href='...'>havola</a> qo'llanadi"}
+        value={text}
+        onChange={(e) => setText(e.target.value)}
+      />
+      <button className="btn" style={{ marginTop: 8 }} onClick={send} disabled={busy}>
+        {busy ? "⏳ Yuborilmoqda…" : "📤 Xabar yuborish"}
+      </button>
+      {msg && <div className="action-msg" style={{ marginTop: 8 }}>{msg}</div>}
+    </section>
+  );
+}
+
 function CampaignsView() {
   const [data, setData] = useState<{ campaigns: CampaignRow[]; conds: { cond: string; label: string; unit: string }[]; enabled: boolean } | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
