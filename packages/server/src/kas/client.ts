@@ -463,6 +463,32 @@ export class KasLiveSource implements KasDataSource {
       if (!base || base === "-" || /belgilangan/i.test(base)) base = near?.name || "Belgilangan joy";
       addressName = `${base} yaqinida`;
     }
+    // 🎯 CLIENT-APP path: for GPS orders, create a REAL client order (status «new» + EXACT pin + a «℗»
+    // place name) using the rider's OWN kas secretKey — resolved operator-side, so NO rider OTP. Gated
+    // DARK by «clientbooking»; any miss falls through to the operator throughWeb path below.
+    if (hasGps) {
+      try {
+        const { featureOn } = await import("../services/featureFlags");
+        if (await featureOn("clientbooking")) {
+          const key = await this.clientSecretFor(req.phoneNumber);
+          if (key) {
+            const cr = await this.clientCreateBooking({
+              secretKey: key,
+              phone: req.phoneNumber,
+              lat: req.addressLatitude!,
+              lng: req.addressLongitude!,
+              carModel: "Nexia",
+              additionalPayment: req.additionalPayment ?? 0,
+            });
+            if (cr.status >= 200 && cr.status < 300 && /"status"\s*:\s*"new"/.test(cr.body)) {
+              return { ok: true, message: cr.body.slice(0, 200) };
+            }
+          }
+        }
+      } catch {
+        /* client path unavailable → fall through to the operator throughWeb path */
+      }
+    }
     const body = { ...req, addressName, phoneNumber: kasPhone(req.phoneNumber) }; // addressId stays as sent (0 for GPS); kas-standard phone
     // A LIVE session returns the created booking JSON (always a numeric "id"). A DEAD session
     // (another login on the shared kas account killed ours) makes kas serve the LOGIN PAGE with
@@ -481,6 +507,91 @@ export class KasLiveSource implements KasDataSource {
       return { ok: false, message: res.body.slice(0, 200) || `kas status ${res.status}` };
     }
     return { ok: false, message: "createBooking: kas did not return a booking" };
+  }
+
+  // ── kas CLIENT endpoints (api/clientAppV1/*) — create REAL client orders («new» + EXACT pin +
+  // server-snapped name), unlike the operator throughWeb path. Auth = phoneNumber + secretKey IN THE
+  // BODY (no session/cookie), exactly like the decompiled client app. secretKey is issued once via
+  // clientLogin → clientConfirmSms (a 4-digit OTP texted to the rider). These DON'T use operator login. ──
+  private clientHeaders(): Record<string, string> {
+    return { "User-Agent": UA, "Content-Type": "application/json", Accept: "application/json, text/plain, */*", "Accept-Language": "ru,en;q=0.8" };
+  }
+  /** Step 1: send the rider phone → kas texts a 4-digit OTP. */
+  async clientLogin(phone: string): Promise<RawResponse> {
+    return rawRequest(this.url("api/clientAppV1/login/"), {
+      method: "POST", headers: this.clientHeaders(),
+      body: JSON.stringify({ appVersion: "4.8", language: "uz", phoneNumber: kasPhone(phone) }),
+    });
+  }
+  /** Step 2: confirm the OTP → response carries clientDto.secretKey (the long-lived session key). */
+  async clientConfirmSms(phone: string, smsCode: string): Promise<RawResponse> {
+    return rawRequest(this.url("api/clientAppV1/confirmSms/"), {
+      method: "POST", headers: this.clientHeaders(),
+      body: JSON.stringify({ language: "uz", phoneNumber: kasPhone(phone), smsCode }),
+    });
+  }
+  /** Step 3: create a «new» order at the EXACT pin (server snaps a nearby name). Needs the secretKey. */
+  async clientCreateBooking(p: { secretKey: string; phone: string; lat: number; lng: number; carModel: string; additionalPayment?: number }): Promise<RawResponse> {
+    return rawRequest(this.url("api/clientAppV1/createBooking/"), {
+      method: "POST", headers: this.clientHeaders(),
+      body: JSON.stringify({ language: "uz", phoneNumber: kasPhone(p.phone), secretKey: p.secretKey, addressLatitude: p.lat, addressLongitude: p.lng, additionalPayment: p.additionalPayment ?? 0, carModel: p.carModel }),
+    });
+  }
+  /** Validate a secretKey WITHOUT creating a booking (operator can read the key off the client record;
+   * checkClient confirms it's live). Returns 200 + client bootstrap when the key is valid. */
+  async clientCheckClient(phone: string, secretKey: string): Promise<RawResponse> {
+    return rawRequest(this.url("api/clientAppV1/checkClient/"), {
+      method: "POST", headers: this.clientHeaders(),
+      body: JSON.stringify({ appVersion: "4.8", language: "uz", phoneNumber: kasPhone(phone), secretKey }),
+    });
+  }
+  /** Read a client's kas secretKey + pending loginSmsCode straight off the operator clients API (the
+   * bot IS the operator, both are stored on the client record — so NO rider-entered OTP is needed). */
+  async readClientAuth(phone: string): Promise<{ secretKey: string | null; loginSmsCode: string | null }> {
+    const last9 = phone.replace(/\D/g, "").slice(-9);
+    try {
+      const r = await this.getText(`api/clients/byFilter?searchText=${encodeURIComponent(last9)}&sort=id&page=0&size=5`);
+      const data = JSON.parse(r.body) as Record<string, unknown>;
+      const list = (data.clientDtoList as Record<string, unknown>[]) ?? (data.content as Record<string, unknown>[]) ?? [];
+      const c = list.find((x) => String(x.phoneNumber ?? "").replace(/\D/g, "").slice(-9) === last9) ?? list[0];
+      return {
+        secretKey: c?.secretKey ? String(c.secretKey) : null,
+        loginSmsCode: c?.loginSmsCode ? String(c.loginSmsCode) : null,
+      };
+    } catch {
+      return { secretKey: null, loginSmsCode: null };
+    }
+  }
+
+  // in-process cache: a client's secretKey is stable, so we resolve it once per hour, not per booking
+  private clientKeyCache = new Map<string, { key: string; at: number }>();
+  /** Resolve a usable kas client secretKey FULLY AUTOMATICALLY (no rider OTP): read it off the client
+   * record; if absent, trigger login (kas writes a loginSmsCode the operator can read) and confirm it
+   * for them. Returns null only if the phone isn't a kas client at all. */
+  async clientSecretFor(phone: string): Promise<string | null> {
+    const last9 = phone.replace(/\D/g, "").slice(-9);
+    const hit = this.clientKeyCache.get(last9);
+    if (hit && Date.now() - hit.at < 3_600_000) return hit.key;
+    let { secretKey, loginSmsCode } = await this.readClientAuth(phone);
+    if (!secretKey) {
+      await this.clientLogin(phone).catch(() => undefined); // kas sets loginSmsCode on the record
+      ({ secretKey, loginSmsCode } = await this.readClientAuth(phone));
+      if (!secretKey && loginSmsCode) {
+        const r = await this.clientConfirmSms(phone, loginSmsCode).catch(() => null);
+        try { secretKey = String((JSON.parse(r?.body ?? "{}") as { clientDto?: { secretKey?: string } })?.clientDto?.secretKey ?? "") || null; } catch { /* re-read below */ }
+        if (!secretKey) ({ secretKey } = await this.readClientAuth(phone));
+      }
+    }
+    if (secretKey) this.clientKeyCache.set(last9, { key: secretKey, at: Date.now() });
+    return secretKey || null;
+  }
+
+  /** Cancel a client order (used to clean up a test booking so no real taxi is dispatched). */
+  async clientCancelBooking(phone: string, secretKey: string): Promise<RawResponse> {
+    return rawRequest(this.url("api/clientAppV1/cancelBooking/"), {
+      method: "POST", headers: this.clientHeaders(),
+      body: JSON.stringify({ language: "uz", phoneNumber: kasPhone(phone), secretKey }),
+    });
   }
 
   async getBookingAddons(): Promise<KasAddon[]> {
