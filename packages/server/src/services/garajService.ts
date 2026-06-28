@@ -301,6 +301,14 @@ export async function getGarajState(memberId: number): Promise<GarajStateRespons
   ]);
   const nowMs = Date.now();
   const ownedCodes = new Set(cars.map((c) => c.carCode));
+  // 🛡 KUNLIK CAP — remaining motor-earn room today (so the «Yig'ish +X» preview matches the
+  // capped grant). Per-member; one aggregate query. cap=0 → unlimited room.
+  const dailyCapView = Math.max(0, Math.floor(motorEcon.dailyEarnCap ?? 3000));
+  let capRoom = Infinity;
+  if (motorEnabled && dailyCapView > 0) {
+    const earnedAgg = await prisma.coinTxn.aggregate({ where: { memberId, kind: "motor_earn", createdAt: { gte: new Date(`${tashkentDate()}T00:00:00+05:00`) } }, _sum: { amount: true } });
+    capRoom = Math.max(0, dailyCapView - (earnedAgg._sum.amount ?? 0));
+  }
   const carViews: GarajCarView[] = cars.map((c) => {
     const cm = garajCarMeta(c.carCode);
     const view: GarajCarView = {
@@ -342,7 +350,7 @@ export async function getGarajState(memberId: number): Promise<GarajStateRespons
       view.fuelHoursLeft = Math.round(hoursLeft * 10) / 10;
       view.fuelDry = fueledUntilMs <= lastMs;
       view.fuelRefillCost = computeMotorRefillCost(c.carCode, tankHoursForView, eff.fuelMult);
-      view.earnPendingNet = hp <= 0 || view.fuelDry ? 0 : computeMotorEarnNoFuel(speed, hrs, 0).net;
+      view.earnPendingNet = hp <= 0 || view.fuelDry ? 0 : Math.min(computeMotorEarnNoFuel(speed, hrs, 0).net, capRoom);
       // 🏛 P1-A/F — surface motor history + Ofis bid + Clean History badge
       view.capitalRepairCount = c.capitalRepairCount ?? 0;
       view.hasHiddenDefect = !!c.hiddenDefect;
@@ -566,10 +574,21 @@ export async function motorCollect(memberId: number): Promise<GarajActionResult 
   const speederOn = isSpeederActive(car.speederUntilAt, now);
   const speederMult = speederOn ? Math.max(2, Math.min(6, Math.floor(econ.speederMult ?? 4))) : 1;
   const speed = Math.round(motorSpeed(car.carCode) * eff.speedMult * speederMult);
-  const { gross, wear, net } = computeMotorEarnNoFuel(speed, hours, 0); // taxi 2× = sweep ride-hooki (P0.4)
+  const { gross, wear, net: rawNet } = computeMotorEarnNoFuel(speed, hours, 0); // taxi 2× = sweep ride-hooki (P0.4)
+  // 🛡 KUNLIK CAP (anti-inflyatsiya) — clamp so this player's TOTAL motor_earn today ≤ dailyEarnCap.
+  // Per-MEMBER (not per-car) so multiple slots can't multiply emission past the ceiling. cap=0 → off.
+  const dailyCap = Math.max(0, Math.floor(econ.dailyEarnCap ?? 3000));
+  let net = rawNet;
+  if (dailyCap > 0 && rawNet > 0) {
+    const dayStartUtc = new Date(`${tashkentDate()}T00:00:00+05:00`);
+    const earnedAgg = await prisma.coinTxn.aggregate({ where: { memberId, kind: "motor_earn", createdAt: { gte: dayStartUtc } }, _sum: { amount: true } });
+    const earnedToday = earnedAgg._sum.amount ?? 0;
+    net = Math.max(0, Math.min(rawNet, dailyCap - earnedToday));
+  }
   const cappedHours = Math.min(hours, MOTOR_MAX_ACCRUE_HOURS);
   const newHp = Math.max(0, Math.round((car.engineHp ?? 100) - MOTOR_WEAR_PER_DAY * (cappedHours / 24)));
   if (net > 0) await grantCoins(memberId, net, "motor_earn", `🚗 Mashina daromadi (${car.carCode} #${car.serial})`, `mo:earn:${memberId}:${last}`);
+  // advance the accrual clock even when the cap zeroed the grant (the time is "spent" — no stockpiling past the daily cap)
   await prisma.garajCar.update({ where: { id: car.id }, data: { lastAccrualAt: new Date(runwayEnd), engineHp: newHp } });
   // back-compat: fuel field present but always 0 in new model (UI old assertions may read it)
   return { ok: true, gross, fuel: 0, wear, net, engineHp: newHp, dead: newHp <= 0, dry, coins: await getCoins(memberId) };

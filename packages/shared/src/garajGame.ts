@@ -526,6 +526,9 @@ export interface MotorEconKnob { key: string; label: string; def: number; min: n
 export const MOTOR_ECON_KNOBS: MotorEconKnob[] = [
   { key: "fuelMult", label: "⛽ Yoqilg'i narxi (×)", def: 1, min: MOTOR_FUELMULT_MIN, max: MOTOR_FUELMULT_MAX, step: 0.05, live: true },
   { key: "speedMult", label: "⚡ Daromad tezligi (×)", def: 1, min: 0.25, max: 2, step: 0.05, live: true },
+  // 🛡 KUNLIK CAP — har o'yinchi motordan kuniga shu summadan ko'p NET ishlay olmaydi (anti-inflyatsiya).
+  // 0 = cap o'chiq. motorCollect bugungi motor_earn yig'indisini cap'ga clamp qiladi.
+  { key: "dailyEarnCap", label: "🛡 Kunlik daromad cap (tanga)", def: 3000, min: 0, max: 50000, step: 250, live: true },
   // 🎁 BONUS HAFTASI — yangi o'yinchini ilashtirish ("birinchi N kun zo'r pul ishlasin"). bonusDays=0 → OFF.
   // Stamp acquireCar'da: motorBonusUntilAt = now + bonusDays. Vaqt o'tguncha bonus* multiplikator qo'llanadi.
   { key: "bonusDays", label: "🎁 Bonus kunlar (0=o'chiq)", def: 0, min: 0, max: 30, step: 1, live: true },

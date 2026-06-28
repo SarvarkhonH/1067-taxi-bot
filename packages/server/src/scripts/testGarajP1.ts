@@ -23,6 +23,7 @@ import {
   mergeCars,
   purchaseSpeeder,
   getSpeederState,
+  motorCollect,
 } from "../services/garajService";
 import { __resetFeatureCache, setFeature } from "../services/featureFlags";
 
@@ -256,6 +257,32 @@ async function main(): Promise<void> {
   if (spBuy2.ok && spBuy2.speederUntilAt) {
     const newUntilMs = new Date(spBuy2.speederUntilAt).getTime();
     ok(newUntilMs > firstUntilMs, `Speeder monotonic: untilAt extended from ${firstUntilMs} → ${newUntilMs}`);
+  }
+
+  // ── 11b) 🛡 Daily earn cap (anti-inflyatsiya) ────────────────────────────
+  // Fresh member + expensive car, fueled, lastAccrualAt 24h ago → rawNet would far exceed cap.
+  // Set cap=500, collect → net clamped to ≤500; collect again same day → net 0 (cap exhausted).
+  await setMotorEcon("dailyEarnCap", 500);
+  await setMotorEcon("bonusDays", 0); // isolate the cap test from the bonus-week multiplier
+  const capM = await prisma.member.create({ data: { type: "client", kasId: `${TAG}-cap`, fullName: "Cap Tester", phone: "+998900007003", trips: 5 } });
+  await grantCoins(capM.id, 5_000_000, "manual", "seed");
+  const capAcq = await acquireCar(capM.id, "gelik"); // 42000 base → ~16k/day uncapped
+  ok(capAcq.ok, `cap prep: acquire gelik`);
+  // fuel it + push the accrual clock back 24h so a full day is pending
+  await prisma.garajCar.update({ where: { id: capAcq.carId! }, data: { fueledUntilAt: new Date(Date.now() + 24 * 3600_000), lastAccrualAt: new Date(Date.now() - 24 * 3600_000), engineHp: 100 } });
+  const capC1 = await motorCollect(capM.id);
+  ok(capC1.ok && (capC1.net ?? 0) <= 500 && (capC1.net ?? 0) > 0, `daily cap: first collect clamped to ≤500 (got ${capC1.net})`);
+  // refuel + rewind again, collect again → cap already hit today → net 0
+  await prisma.garajCar.update({ where: { id: capAcq.carId! }, data: { fueledUntilAt: new Date(Date.now() + 24 * 3600_000), lastAccrualAt: new Date(Date.now() - 24 * 3600_000) } });
+  const capC2 = await motorCollect(capM.id);
+  ok(capC2.ok && (capC2.net ?? 0) === 0, `daily cap: second same-day collect = 0 (cap exhausted; got ${capC2.net})`);
+  const capEarned = (await prisma.coinTxn.aggregate({ where: { memberId: capM.id, kind: "motor_earn" }, _sum: { amount: true } }))._sum.amount ?? 0;
+  ok(capEarned <= 500, `daily cap: total motor_earn today ≤ 500 (got ${capEarned})`);
+  // ledger invariant for the cap member
+  {
+    const bal = (await prisma.member.findUnique({ where: { id: capM.id } }))!.coins;
+    const tot = (await prisma.coinTxn.aggregate({ where: { memberId: capM.id }, _sum: { amount: true } }))._sum.amount ?? 0;
+    ok(Math.abs(bal - tot) < 0.001, `cap member ledger invariant (bal ${bal} == ledger ${tot})`);
   }
 
   // ── 12) Ledger invariant AFTER P2 sequence ───────────────────────────────
