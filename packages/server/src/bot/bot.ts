@@ -159,6 +159,8 @@ function esc(s: string): string {
 const codeLink = new Map<string, { phone?: string }>();
 // telegramIds currently typing a new display name (✏️ from the account screen). Transient by design.
 const editName = new Set<string>();
+// telegramIds awaiting a preferred name right after first link (auto-ask on join).
+const pendingNameAfterLink = new Set<string>();
 
 export function createBot(): Bot {
   const bot = new Bot(env.BOT_TOKEN);
@@ -170,6 +172,7 @@ export function createBot(): Bot {
     codeLink.delete(id); // /start cancels any pending "link a different number" flow
     payDriver.delete(id); // …and the "pay a driver by car number" flow
     editName.delete(id); // …and a pending "edit my name" flow
+    pendingNameAfterLink.delete(id);
     await touchTelegramUser(id, profileOf(ctx.from!));
     // referral deep link: t.me/<bot>?start=ref_<code>
     const payload = (typeof ctx.match === "string" ? ctx.match : "").trim();
@@ -249,6 +252,9 @@ export function createBot(): Bot {
       const me = await getMe(id);
       const role = res.type === "driver" ? "Haydovchi" : "Mijoz";
       await ctx.reply(renderLinked(res.fullName ?? "Mijoz", role), { parse_mode: "HTML", reply_markup: mainMenu(res.type === "driver") });
+      // Ask for preferred display name right after linking so admin alerts + Mini App show a real name.
+      pendingNameAfterLink.add(id);
+      await ctx.reply("✏️ Sizga qanday murojat qilaylik? (Ism yoki laqabingizni yozing — bas)").catch(() => undefined);
       if (res.welcomeBonus) {
         await ctx.reply(`🎁 <b>Xush kelibsiz! Sovg'a: +${formatNumber(res.welcomeBonus)} tanga</b> hisobingizga tushdi 🚕\nIlovada ishlating yoki safar qiling.`, { parse_mode: "HTML" }).catch(() => undefined);
       }
@@ -547,6 +553,27 @@ export function createBot(): Bot {
     await setDisplayName(me.member.id, name).catch(() => undefined);
     await ctx.reply(`✅ Ismingiz o'zgartirildi: <b>${esc(name)}</b>`, { parse_mode: "HTML" });
     await showAccount(ctx);
+  });
+
+  // ✏️ Preferred name capture right after first link
+  bot.on("message:text", async (ctx, next) => {
+    const id = String(ctx.from!.id);
+    if (!pendingNameAfterLink.has(id)) return next();
+    const name = ctx.message.text.trim();
+    if (name.startsWith("/")) {
+      pendingNameAfterLink.delete(id);
+      return next();
+    }
+    if (name.length < 2 || name.length > 40) {
+      await ctx.reply("Ism 2–40 belgi bo'lsin. Qayta yozing:");
+      return;
+    }
+    pendingNameAfterLink.delete(id);
+    const me = await getMe(id);
+    if (!me) return;
+    const { setDisplayName } = await import("../services/memberService");
+    await setDisplayName(me.member.id, name).catch(() => undefined);
+    await ctx.reply(`👍 <b>${esc(name)}</b> — qabul qilindi!`, { parse_mode: "HTML" });
   });
 
   // 📱 change linked phone — SECURE paths only: the Telegram-verified «Raqamni ulashish» (your own
