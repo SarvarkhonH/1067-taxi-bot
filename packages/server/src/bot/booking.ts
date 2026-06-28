@@ -368,10 +368,10 @@ export function registerBooking(bot: Bot, mainMenu: (isDriver?: boolean) => Keyb
     const { latitude, longitude } = ctx.message.location;
     const near = nearestAddress(s.addresses, latitude, longitude);
     if (near) {
-      // Keep the EXACT shared coords (accuracy!) — borrow the nearby address's id+name ONLY for a
-      // friendly label + a real addressId («new» dispatch). The old code did `s.pickup = near`, which
-      // THREW AWAY the precise pin and sent the driver to an address up to 1.2 km away.
-      s.pickup = { id: near.id, name: near.name, lat: latitude, lng: longitude, surcharge: near.surcharge };
+      // Keep addressId 0 + the EXACT shared coords so the driver routes to the PRECISE pin. We borrow
+      // the nearby place's NAME only (display) — NOT its id. (Sending the saved address's id made kas
+      // navigate to that address, ~1 km off; «<place> yaqinida» + raw coords = friendly name + exact pin.)
+      s.pickup = { id: 0, name: near.name, lat: latitude, lng: longitude, surcharge: near.surcharge };
       await ctx.reply(`📍 Sizga eng yaqin: <b>${esc(near.name)}</b>`, { parse_mode: "HTML" });
     } else {
       s.pickup = { id: 0, name: "📍 Yuborilgan joylashuv", lat: latitude, lng: longitude };

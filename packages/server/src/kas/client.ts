@@ -451,22 +451,19 @@ export class KasLiveSource implements KasDataSource {
 
   async createBooking(req: BookingRequest): Promise<BookingResult> {
     let addressName = req.addressName;
-    let addressId = req.addressId;
     const hasGps = Number.isFinite(req.addressLatitude) && Number.isFinite(req.addressLongitude);
     if (hasGps) {
-      // Snap the GPS pin to the nearest catalog address — REPLICATES what the kas server itself does
-      // for the official client app (KAS1067_CLIENT_API.md:86: "server lat/lng → eng yaqin manzilga
-      // snap"). A real addressId makes the dispatcher file the order as «new» (dispatched) instead of
-      // «hamma uchun» — the broadcast pool that addressId 0 lands in via the operator/throughWeb path.
-      // The exact lat/lng are STILL sent (body spreads req), so the driver routes to the pin, not the
-      // snapped place. Only fill addressId when the caller didn't already pick a real saved address.
+      // GPS pin → KEEP addressId 0 so the rider's exact lat/lng route the driver to the PRECISE pin.
+      // (Earlier we snapped to the nearest catalog addressId to get «new» dispatch, but kas throughWeb
+      // prefers the addressId's STORED coords over the separate lat/lng → the driver was sent to the
+      // snapped place itself, e.g. «2-maktab», not the rider, ~50-100 m off. Owner: fix the location.)
+      // We still look up the nearest place for a friendly «<place> yaqinida» label only — no addressId.
       const near = await this.nearestCatalogAddress(req.addressLatitude!, req.addressLongitude!).catch(() => null);
-      let base = (addressName || "").replace(/\s*(yaqini|lokatsiyalik)\s*$/i, "").trim();
+      let base = (addressName || "").replace(/\s*(yaqini(da)?|lokatsiyalik)\s*$/i, "").trim();
       if (!base || base === "-" || /belgilangan/i.test(base)) base = near?.name || "Belgilangan joy";
-      addressName = `${base} lokatsiyalik`;
-      if ((!addressId || addressId === 0) && near) addressId = near.id; // → dispatcher shows «new», not «hamma uchun»
+      addressName = `${base} yaqinida`;
     }
-    const body = { ...req, addressId, addressName, phoneNumber: kasPhone(req.phoneNumber) }; // kas-standard phone (+998<last9>)
+    const body = { ...req, addressName, phoneNumber: kasPhone(req.phoneNumber) }; // addressId stays as sent (0 for GPS); kas-standard phone
     // A LIVE session returns the created booking JSON (always a numeric "id"). A DEAD session
     // (another login on the shared kas account killed ours) makes kas serve the LOGIN PAGE with
     // HTTP 200 — postJson's 302-check misses it, so the old code read that as success → a PHANTOM
