@@ -741,8 +741,10 @@ function Booking3Inner({ me, info, onClose }: { me: MeResponse; info: BookingInf
     setScreen("confirm");
   };
 
-  // 📍 "turgan joyim" — recenter the map on the device GPS; the center-pin then snaps to the
-  // nearest catalog place (the existing M7 reverse-lookup), so the rider doesn't have to pan.
+  // 📍 "turgan joyim" — recenter the map on the device GPS. The FIRST getCurrentPosition fix is
+  // often a coarse network position (~50 m off) because the GPS chip hasn't locked yet — that was the
+  // "50 metr uzoqroq" bug. So we WATCH for a few seconds and keep the most accurate reading (the fix
+  // refines from ~50 m to ~5 m), stopping early once it's tight. Then we recenter on that best fix.
   const locateMe = () => {
     if (!navigator.geolocation || !map.current) {
       setMsg("📍 Joylashuv mavjud emas — manzilni qo'lda belgilang");
@@ -751,15 +753,30 @@ function Booking3Inner({ me, info, onClose }: { me: MeResponse; info: BookingInf
     haptic();
     setLocating(true);
     setMsg("📍 Joylashuv aniqlanmoqda…");
-    navigator.geolocation.getCurrentPosition(
+    let best: GeolocationPosition | null = null;
+    let watchId = 0;
+    let done = false;
+    let timer: ReturnType<typeof setTimeout>;
+    const finish = () => {
+      if (done) return;
+      done = true;
+      navigator.geolocation.clearWatch(watchId);
+      clearTimeout(timer);
+      setLocating(false);
+      if (best && map.current) {
+        map.current.setView([best.coords.latitude, best.coords.longitude], 17, { animate: true });
+        setMsg(best.coords.accuracy <= 35 ? null : "📍 Aniqlik past — kerak bo'lsa pinni biroz suring");
+      } else {
+        setMsg("📍 Joylashuvni aniqlab bo'lmadi — ruxsat bering yoki qo'lda belgilang");
+      }
+    };
+    timer = setTimeout(finish, 7000); // cap: recenter on the best fix gathered within 7s
+    watchId = navigator.geolocation.watchPosition(
       (pos) => {
-        map.current?.setView([pos.coords.latitude, pos.coords.longitude], 16, { animate: true });
-        setMsg(null);
-        setLocating(false);
+        if (!best || pos.coords.accuracy < best.coords.accuracy) best = pos; // keep the tightest fix
+        if (pos.coords.accuracy <= 15) finish(); // good enough → stop early
       },
-      () => { setMsg("📍 Joylashuvni aniqlab bo'lmadi — ruxsat bering yoki qo'lda belgilang"); setLocating(false); },
-      // maximumAge:0 forces a FRESH high-accuracy fix (no stale/coarse network position); the longer
-      // timeout lets the GPS chip actually lock (a real cold fix often takes >8s on a phone).
+      () => { if (!best) finish(); },
       { enableHighAccuracy: true, timeout: 14000, maximumAge: 0 },
     );
   };
