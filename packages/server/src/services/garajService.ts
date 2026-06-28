@@ -892,6 +892,29 @@ export async function sweepMotorAging(): Promise<number> {
   return aged;
 }
 
+// ⚖️ P2-deep-3 — AVTO-STABILIZATOR. Global kunlik motor-emissiya targetdan oshsa, fuelMult'ni
+// avto-ko'taradi (yoqilg'i qimmatlashadi → odamlar kamroq quyadi → emissiya sovuydi); target'dan
+// ancha pastga tushsa, fuelMult'ni 1.0 sari pasaytiradi. emissionTargetDay=0 → o'chiq (default).
+// Sweep'da chaqiriladi (yangi poller yo'q). Faqat fuelMult dialini sozlaydi — grant yo'lи o'zgarmaydi.
+export async function sweepAutoStabilize(): Promise<{ adjusted: boolean; fuelMult: number; emittedToday: number } | null> {
+  if (!(await featureOn(MOTOR_FLAG))) return null;
+  const econ = await getMotorEcon();
+  const target = Math.max(0, Math.floor(econ.emissionTargetDay ?? 0));
+  if (target <= 0) return null; // disabled
+  const step = Math.max(0.01, Math.min(0.5, econ.autoStabStep ?? 0.05));
+  const dayStartUtc = new Date(`${tashkentDate()}T00:00:00+05:00`);
+  const agg = await prisma.coinTxn.aggregate({ where: { kind: "motor_earn", createdAt: { gte: dayStartUtc } }, _sum: { amount: true } });
+  const emittedToday = agg._sum.amount ?? 0;
+  const cur = econ.fuelMult ?? 1;
+  let next = cur;
+  if (emittedToday > target) next = cur + step; // too hot → pricier fuel
+  else if (emittedToday < target * 0.7) next = Math.max(1, cur - step); // cooled → relax toward neutral (floor 1.0)
+  next = Math.round(Math.max(1, Math.min(2, next)) * 100) / 100; // bound [1.0, 2.0]
+  if (next === cur) return { adjusted: false, fuelMult: cur, emittedToday };
+  await setMotorEcon("fuelMult", next); // setMotorEcon clamps to the knob's [min,max]
+  return { adjusted: true, fuelMult: next, emittedToday };
+}
+
 // ══ 🔍 P1-E — CarCheck (3 tier reveal) + seller reputation ════════════════════
 // Pay-for-truth: 50/500/5000 tanga to progressively reveal a car's IMMUTABLE history.
 // Tizim yozadi → soxtalashtirib bo'lmaydi. First Premium check per player = FREE

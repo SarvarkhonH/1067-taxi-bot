@@ -25,6 +25,7 @@ import {
   purchaseSpeeder,
   getSpeederState,
   motorCollect,
+  sweepAutoStabilize,
 } from "../services/garajService";
 import { __resetFeatureCache, setFeature } from "../services/featureFlags";
 
@@ -310,6 +311,19 @@ async function main(): Promise<void> {
     const tot = (await prisma.coinTxn.aggregate({ where: { memberId: capM.id }, _sum: { amount: true } }))._sum.amount ?? 0;
     ok(Math.abs(bal - tot) < 0.001, `cap member ledger invariant (bal ${bal} == ledger ${tot})`);
   }
+
+  // ── 11c) ⚖️ Auto-stabilizer (P2-deep-3) ──────────────────────────────────
+  // Today's motor_earn = 500 (from the cap test). target=100 → emission hot → fuelMult rises.
+  await setMotorEcon("fuelMult", 1);
+  await setMotorEcon("autoStabStep", 0.05);
+  await setMotorEcon("emissionTargetDay", 100);
+  const stab1 = await sweepAutoStabilize();
+  ok(stab1?.adjusted === true && Math.abs((stab1?.fuelMult ?? 0) - 1.05) < 0.001, `auto-stab: emission > target → fuelMult 1→1.05 (got ${stab1?.fuelMult})`);
+  // disabled when target=0
+  await setMotorEcon("emissionTargetDay", 0);
+  const stab2 = await sweepAutoStabilize();
+  ok(stab2 === null, `auto-stab: target=0 → disabled (null)`);
+  await setMotorEcon("fuelMult", 1); // restore
 
   // ── 12) Ledger invariant AFTER P2 sequence ───────────────────────────────
   for (const mm of [sellerM, buyerM]) {

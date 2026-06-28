@@ -529,6 +529,10 @@ export const MOTOR_ECON_KNOBS: MotorEconKnob[] = [
   // 🛡 KUNLIK CAP — har o'yinchi motordan kuniga shu summadan ko'p NET ishlay olmaydi (anti-inflyatsiya).
   // 0 = cap o'chiq. motorCollect bugungi motor_earn yig'indisini cap'ga clamp qiladi.
   { key: "dailyEarnCap", label: "🛡 Kunlik daromad cap (tanga)", def: 3000, min: 0, max: 50000, step: 250, live: true },
+  // ⚖️ AVTO-STABILIZATOR — global kunlik motor-emissiya targetdan oshsa, fuelMult avto-ko'tariladi (sovutadi).
+  // 0 = o'chiq (default). emissionTargetDay = butun tizim bo'yicha kunlik motor_earn chegarasi.
+  { key: "emissionTargetDay", label: "⚖️ Kunlik emissiya target (0=o'chiq)", def: 0, min: 0, max: 100_000_000, step: 50_000, live: true },
+  { key: "autoStabStep", label: "⚖️ Stabilizator qadami (fuelMult±)", def: 0.05, min: 0.01, max: 0.5, step: 0.01, live: true },
   // 🎁 BONUS HAFTASI — yangi o'yinchini ilashtirish ("birinchi N kun zo'r pul ishlasin"). bonusDays=0 → OFF.
   // Stamp acquireCar'da: motorBonusUntilAt = now + bonusDays. Vaqt o'tguncha bonus* multiplikator qo'llanadi.
   { key: "bonusDays", label: "🎁 Bonus kunlar (0=o'chiq)", def: 0, min: 0, max: 30, step: 1, live: true },

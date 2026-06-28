@@ -815,6 +815,13 @@ export async function pushBookingUpdates(
   } catch (e) {
     console.error("[garaj] motor aging failed:", e);
   }
+  // ⚖️ P2-deep-3: auto-stabilizer — nudges fuelMult if global daily emission strays from target (OFF by default)
+  try {
+    const { sweepAutoStabilize } = await import("./garajService");
+    await sweepAutoStabilize();
+  } catch (e) {
+    console.error("[garaj] auto-stabilize failed:", e);
+  }
 
   // 🧾 SMS-parity: deliver any ride fares kas finalized AFTER the finish card was sent. Piggybacks
   // this sweep (no new poller) — sends "Yo'l haqi: …" the moment kas posts the payment, then clears.
