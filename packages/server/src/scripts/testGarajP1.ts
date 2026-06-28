@@ -13,6 +13,7 @@ import {
   ofisSellToOfis,
   getOfisStats,
   purchaseSlot,
+  refundSlot,
   getSlotStatus,
   getCarCheck,
   rateSeller,
@@ -48,6 +49,7 @@ async function cleanup(): Promise<void> {
   await prisma.appState.deleteMany({ where: { key: { startsWith: "sellerrate:" } } });
   await prisma.appState.deleteMany({ where: { key: { startsWith: "ofis:" } } });
   await prisma.appState.deleteMany({ where: { key: { startsWith: "merge:" } } });
+  await prisma.appState.deleteMany({ where: { key: { startsWith: "slotgen:" } } });
   await prisma.appState.deleteMany({ where: { key: { in: ["mo:speeder:stock", "mo:speeder:day"] } } });
   await prisma.ofisLedger.deleteMany({}).catch(() => undefined); // test DB only
   __resetFeatureCache();
@@ -99,6 +101,21 @@ async function main(): Promise<void> {
   ok(slotBuyDup.ok || slotBuyDup.reason !== undefined, `slot purchase idempotency: second call returns deterministic result`);
   const acq2 = await acquireCar(sellerM.id, "damas");
   ok(acq2.ok, `acquire #2 (damas) into slot 2 (after purchase)`);
+
+  // ── 1b) 🪪 Slot trade-in / refund (P2-deep-2) ────────────────────────────
+  const slotM = await prisma.member.create({ data: { type: "client", kasId: `${TAG}-slot`, fullName: "Slot Tester", phone: "+998900007004", trips: 5 } });
+  await grantCoins(slotM.id, 5_000_000, "manual", "seed");
+  await purchaseSlot(slotM.id); // slot 2
+  const beforeRefund = await getCoins(slotM.id);
+  const ref1 = await refundSlot(slotM.id);
+  ok(ref1.ok && ref1.newSlotCount === 1 && (ref1.refund ?? 0) === Math.floor(SLOT_COSTS[1]! * 0.5), `slot refund: 50% back (${ref1.refund}), slotCount→1`);
+  ok((await getCoins(slotM.id)) === beforeRefund + (ref1.refund ?? 0), `slot refund credited to wallet`);
+  const rebuy = await purchaseSlot(slotM.id); // re-buy slot 2 after refund — gen-aware key must NOT dup-skip
+  ok(rebuy.ok && rebuy.newSlotCount === 2, `slot re-buy after refund works (gen-aware idempotency)`);
+  await acquireCar(slotM.id, "tiko");
+  await acquireCar(slotM.id, "damas"); // both slots now full (activeCount=2, slotCount=2)
+  const ref2 = await refundSlot(slotM.id);
+  ok(!ref2.ok && ref2.reason === "slot_full", `slot refund blocked with no spare (would orphan a car)`);
 
   // ── 2) CarCheck 3 tiers ───────────────────────────────────────────────────
   const carForCheck = acq1.carId!;

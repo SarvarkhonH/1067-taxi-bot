@@ -798,16 +798,52 @@ export async function purchaseSlot(memberId: number): Promise<GarajActionResult 
     // Per-slot admin knob override (slot2Cost/slot3Cost/slot4Cost), falls back to shared default.
     const knob = target === 2 ? econ.slot2Cost : target === 3 ? econ.slot3Cost : target === 4 ? econ.slot4Cost : null;
     const cost = Math.max(1, Math.floor(knob ?? slotCost(target)));
+    // 🪪 P2-deep-2 — generation-aware idempotency: a refunded+re-bought slot must NOT collide with the
+    // prior purchase's CoinTxn key. The gen counter (AppState slotgen:{member}) bumps on every refund.
+    const genRow = await prisma.appState.findUnique({ where: { key: `slotgen:${memberId}` } });
+    const gen = parseInt(genRow?.value ?? "0", 10) || 0;
     const result = await prisma.$transaction(async (tx) => {
       const m = await tx.member.findUnique({ where: { id: memberId }, select: { coins: true } });
       if ((m?.coins ?? 0) < cost) return { ok: false as const, reason: "insufficient" as const };
-      await tx.coinTxn.create({ data: { memberId, amount: -cost, kind: "garaj_slot", reason: `🪪 Slot ${target}`, idempotencyKey: `slot:${memberId}:${target}` } });
+      await tx.coinTxn.create({ data: { memberId, amount: -cost, kind: "garaj_slot", reason: `🪪 Slot ${target}`, idempotencyKey: `slot:${memberId}:${target}:g${gen}` } });
       await tx.member.update({ where: { id: memberId }, data: { coins: { decrement: cost } } });
       await tx.memberGarajMeta.upsert({ where: { memberId }, create: { memberId, slotCount: target }, update: { slotCount: target } });
       return { ok: true as const, target, cost };
     });
     if (!result.ok) return { ok: false, reason: result.reason, coins: await getCoins(memberId) };
     return { ok: true, newSlotCount: result.target, cost: result.cost, coins: await getCoins(memberId) };
+  });
+}
+
+/** 🪪 P2-deep-2 — Slot trade-in: refund the TOP slot for slotRefundPct% of its cost. Only when there
+ *  is spare capacity (slotCount > max(1, activeCount)) so no car is orphaned. Bumps the slot-gen so a
+ *  later re-purchase of that slot uses a fresh idempotency key. Money-safe: refund < cost → net sink. */
+export async function refundSlot(memberId: number): Promise<GarajActionResult & { newSlotCount?: number; refund?: number }> {
+  if (!(await motorEnabledFor(memberId))) return { ok: false, reason: "off" };
+  return withMemberLock(memberId, async () => {
+    const [meta, activeCount] = await Promise.all([
+      prisma.memberGarajMeta.findUnique({ where: { memberId }, select: { slotCount: true } }),
+      prisma.garajCar.count({ where: { memberId, soldAt: null } }),
+    ]);
+    const slotCount = Math.max(1, meta?.slotCount ?? 1);
+    if (slotCount <= 1) return { ok: false, reason: "min_slot", coins: await getCoins(memberId) };
+    if (slotCount <= activeCount) return { ok: false, reason: "slot_full", coins: await getCoins(memberId) }; // would orphan a car
+    const econ = await getMotorEcon();
+    const slotN = slotCount; // the slot being refunded (the current top)
+    const knob = slotN === 2 ? econ.slot2Cost : slotN === 3 ? econ.slot3Cost : slotN === 4 ? econ.slot4Cost : null;
+    const cost = Math.max(1, Math.floor(knob ?? slotCost(slotN)));
+    const pct = Math.max(0, Math.min(90, Math.floor(econ.slotRefundPct ?? 50)));
+    const refund = Math.max(0, Math.floor((cost * pct) / 100));
+    const gen = (parseInt((await prisma.appState.findUnique({ where: { key: `slotgen:${memberId}` } }))?.value ?? "0", 10) || 0) + 1;
+    await prisma.$transaction(async (tx) => {
+      await tx.memberGarajMeta.update({ where: { memberId }, data: { slotCount: slotN - 1 } });
+      await tx.appState.upsert({ where: { key: `slotgen:${memberId}` }, create: { key: `slotgen:${memberId}`, value: String(gen) }, update: { value: String(gen) } });
+      if (refund > 0) {
+        await tx.coinTxn.create({ data: { memberId, amount: refund, kind: "garaj_slot_refund", reason: `🪪 Slot ${slotN} qaytarildi (${pct}%)`, idempotencyKey: `slotrefund:${memberId}:${slotN}:g${gen}` } });
+        await tx.member.update({ where: { id: memberId }, data: { coins: { increment: refund } } });
+      }
+    });
+    return { ok: true, newSlotCount: slotN - 1, refund, coins: await getCoins(memberId) };
   });
 }
 

@@ -206,6 +206,7 @@ export function createApiServer(opts: ApiOptions = {}) {
   // 🪪 P1-D — slot system
   app.get("/api/garaj/slot/status", requireUser, withMember2(async (id) => (await import("../services/garajService")).getSlotStatus(id)));
   app.post("/api/garaj/slot/purchase", requireUser, rateLimit(5), withMember2(async (id) => (await import("../services/garajService")).purchaseSlot(id)));
+  app.post("/api/garaj/slot/refund", requireUser, rateLimit(5), withMember2(async (id) => (await import("../services/garajService")).refundSlot(id)));
   // 🔍 P1-E — CarCheck (pay-for-truth) + sotuvchi reputatsiyasi
   app.post("/api/garaj/carcheck", requireUser, rateLimit(15), withMember2(async (id, req) => (await import("../services/garajService")).getCarCheck(id, Number(req.body?.garajCarId), (req.body?.tier === "EKSPERT" ? "EKSPERT" : req.body?.tier === "PREMIUM" ? "PREMIUM" : "ODDIY"))));
   app.post("/api/garaj/rate-seller", requireUser, rateLimit(10), withMember2(async (id, req) => (await import("../services/garajService")).rateSeller(id, Number(req.body?.listingId), Number(req.body?.stars))));

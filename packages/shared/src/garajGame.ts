@@ -555,6 +555,7 @@ export const MOTOR_ECON_KNOBS: MotorEconKnob[] = [
   { key: "slot2Cost", label: "🪪 Slot 2 narxi", def: 50000, min: 10000, max: 200000, step: 1000, live: false },
   { key: "slot3Cost", label: "🪪 Slot 3 narxi", def: 250000, min: 50000, max: 500000, step: 5000, live: false },
   { key: "slot4Cost", label: "🪪 Slot 4 narxi", def: 1000000, min: 200000, max: 2000000, step: 10000, live: false },
+  { key: "slotRefundPct", label: "🪪 Slot qaytarish % (trade-in)", def: 50, min: 0, max: 90, step: 5, live: true },
   // 🔗 P2-A — Merge mechanic admin dastaklari (anti-inflyatsiya bounded)
   { key: "mergeBonusPct", label: "🔗 Merge bonus % (har bosqich)", def: 10, min: 0, max: 30, step: 1, live: false },
   { key: "mergeMaxCount", label: "🔗 Merge maksimum bosqich", def: 3, min: 1, max: 5, step: 1, live: false },

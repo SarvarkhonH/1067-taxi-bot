@@ -449,6 +449,9 @@ export function GarajShell({ onClose, initial }: { onClose: () => void; initial?
               {slot && slot.nextSlotCost != null && (
                 <Button variant="ghost" sm className="mt8" disabled={busy} onClick={() => void slotBuy()}>🪪 Yangi slot ochish · 🪙{slot.nextSlotCost.toLocaleString("ru-RU")}</Button>
               )}
+              {slot && slot.slotCount > 1 && slot.slotCount > slot.activeCount && (
+                <Button variant="ghost" sm disabled={busy} onClick={() => void slotRefund()}>🪪 Bo'sh slotni qaytarish (qisman tanga)</Button>
+              )}
 
               {/* 🔥 KUNLIK — streak + offline quti */}
               <div className="gz-sec-title">🔥 Kunlik</div>
@@ -745,6 +748,19 @@ export function GarajShell({ onClose, initial }: { onClose: () => void; initial?
       else if (r.reason === "insufficient") flash("Tanga yetarli emas");
       else if (r.reason === "max_slot") flash("Maksimal slot soni");
       else flash("Slot ololmadik");
+      void api.garajSlotStatus().then((s) => setSlot(s)).catch(() => undefined);
+      if (!initial) setSt(await api.garajState());
+    } finally { setBusy(false); }
+  }
+  // 🪪 P2-deep-2 — slot trade-in: refund a spare slot for partial tanga
+  async function slotRefund(): Promise<void> {
+    if (busy) return; setBusy(true); haptic();
+    try {
+      const r = await api.garajSlotRefund();
+      if (r.ok) { hapticSuccess(); flash(`🪪 Slot qaytarildi · +${(r.refund ?? 0).toLocaleString("ru-RU")}`); }
+      else if (r.reason === "slot_full") flash("Avval mashina soting — bo'sh slot kerak");
+      else if (r.reason === "min_slot") flash("Birinchi slot bepul — qaytarib bo'lmaydi");
+      else flash("Qaytarib bo'lmadi");
       void api.garajSlotStatus().then((s) => setSlot(s)).catch(() => undefined);
       if (!initial) setSt(await api.garajState());
     } finally { setBusy(false); }

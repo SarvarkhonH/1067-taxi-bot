@@ -196,6 +196,7 @@ export const api = {
   // 🪪 P1-D — slot system
   garajSlotStatus: () => get<{ slotCount: number; activeCount: number; nextSlotCost: number | null }>("/api/garaj/slot/status"),
   garajSlotPurchase: () => request<GarajActionResult & { newSlotCount?: number; cost?: number }>("POST", "/api/garaj/slot/purchase", {}, 1),
+  garajSlotRefund: () => request<GarajActionResult & { newSlotCount?: number; refund?: number }>("POST", "/api/garaj/slot/refund", {}, 1),
   // 🔍 P1-E — CarCheck
   garajCarCheck: (garajCarId: number, tier: "ODDIY" | "EKSPERT" | "PREMIUM") => request<GarajActionResult & { check?: CarCheckView }>("POST", "/api/garaj/carcheck", { garajCarId, tier }, 1),
   garajRateSeller: (listingId: number, stars: number) => request<GarajActionResult>("POST", "/api/garaj/rate-seller", { listingId, stars }, 1),
