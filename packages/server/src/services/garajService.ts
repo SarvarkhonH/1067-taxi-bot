@@ -551,48 +551,56 @@ export async function acquireCar(memberId: number, carCode: string): Promise<Gar
 // lock TASHQARISIDA chaqiramiz). Withdraw o'zgarmaydi (real safar + revenue byudjet).
 export async function motorCollect(memberId: number, garajCarId?: number): Promise<GarajActionResult & { gross?: number; fuel?: number; wear?: number; net?: number; engineHp?: number; dead?: boolean; dry?: boolean }> {
   if (!(await motorEnabledFor(memberId))) return { ok: false, reason: "off" };
-  // Per-car collect: when garajCarId given, collect THAT car; else the first motor car (back-compat).
-  const car = await prisma.garajCar.findFirst({ where: { ...(garajCarId ? { id: garajCarId } : {}), memberId, soldAt: null, serial: { not: null } } });
-  if (!car) return { ok: false, reason: "no_car", coins: await getCoins(memberId) };
-  const now = Date.now();
-  const last = car.lastAccrualAt?.getTime() ?? now;
-  if ((car.engineHp ?? 0) <= 0) {
-    await prisma.garajCar.update({ where: { id: car.id }, data: { lastAccrualAt: new Date() } });
-    return { ok: true, gross: 0, fuel: 0, wear: 0, net: 0, engineHp: 0, dead: true, coins: await getCoins(memberId) };
-  }
-  const econ = await getMotorEcon();
-  const bonus = await getMotorBonusFor(memberId, econ);
-  const eff = effectiveEcon(econ, bonus.active);
-  // 🔥 P-Fuel-A — dry tank guard: agar fueledUntilAt yo'q (yangi mashina) yoki o'tib ketgan,
-  // tank quruq. Old NET = gross−fuel−wear modeli o'rniga yangi: runway oxirigacha gross+wear only.
-  // Fuel auto-yechilmaydi — refill alohida spend qiladi (motorRefuel). Bonus-week SAQLANADI.
-  const fueledUntilMs = car.fueledUntilAt?.getTime() ?? 0;
-  const runwayEnd = Math.min(now, fueledUntilMs);
-  const hours = Math.max(0, (runwayEnd - last) / 3_600_000);
-  const dry = fueledUntilMs <= last; // tank tugagan / hech qachon quyilmagan
-  // 🚀 P2-C — Speeder booster: if active, the earn-side speed is multiplied. Capped to runway hours
-  // (no exploit: the booster only multiplies the SAME runway hours the tank already covers).
-  const speederOn = isSpeederActive(car.speederUntilAt, now);
-  const speederMult = speederOn ? Math.max(2, Math.min(6, Math.floor(econ.speederMult ?? 4))) : 1;
-  const speed = Math.round(motorSpeed(car.carCode) * eff.speedMult * speederMult);
-  const { gross, wear, net: rawNet } = computeMotorEarnNoFuel(speed, hours, 0); // taxi 2× = sweep ride-hooki (P0.4)
-  // 🛡 KUNLIK CAP (anti-inflyatsiya) — clamp so this player's TOTAL motor_earn today ≤ dailyEarnCap.
-  // Per-MEMBER (not per-car) so multiple slots can't multiply emission past the ceiling. cap=0 → off.
-  const dailyCap = Math.max(0, Math.floor(econ.dailyEarnCap ?? 3000));
-  let net = rawNet;
-  if (dailyCap > 0 && rawNet > 0) {
-    const dayStartUtc = new Date(`${tashkentDate()}T00:00:00+05:00`);
-    const earnedAgg = await prisma.coinTxn.aggregate({ where: { memberId, kind: "motor_earn", createdAt: { gte: dayStartUtc } }, _sum: { amount: true } });
-    const earnedToday = earnedAgg._sum.amount ?? 0;
-    net = Math.max(0, Math.min(rawNet, dailyCap - earnedToday));
-  }
-  const cappedHours = Math.min(hours, MOTOR_MAX_ACCRUE_HOURS);
-  const newHp = Math.max(0, Math.round((car.engineHp ?? 100) - MOTOR_WEAR_PER_DAY * (cappedHours / 24)));
-  if (net > 0) await grantCoins(memberId, net, "motor_earn", `🚗 Mashina daromadi (${car.carCode} #${car.serial})`, `mo:earn:${memberId}:${last}`);
-  // advance the accrual clock even when the cap zeroed the grant (the time is "spent" — no stockpiling past the daily cap)
-  await prisma.garajCar.update({ where: { id: car.id }, data: { lastAccrualAt: new Date(runwayEnd), engineHp: newHp } });
-  // back-compat: fuel field present but always 0 in new model (UI old assertions may read it)
-  return { ok: true, gross, fuel: 0, wear, net, engineHp: newHp, dead: newHp <= 0, dry, coins: await getCoins(memberId) };
+  // 🛡 RACE-SAFE: the cap aggregate read + grant + clock-update run inside ONE member lock so two
+  // concurrent collects (e.g. multiple cars) can't both read a stale earnedToday and bust the daily
+  // cap. grantCoins does its OWN tx (NO withMemberLock) → no re-entrant deadlock (verified, unlike the
+  // P2-C speeder bug). The whole earn computation is inside the lock for a consistent snapshot.
+  return withMemberLock(memberId, async () => {
+    // Per-car collect: when garajCarId given, collect THAT car; else the first motor car (back-compat).
+    const car = await prisma.garajCar.findFirst({ where: { ...(garajCarId ? { id: garajCarId } : {}), memberId, soldAt: null, serial: { not: null } } });
+    if (!car) return { ok: false, reason: "no_car", coins: await getCoins(memberId) };
+    const now = Date.now();
+    const last = car.lastAccrualAt?.getTime() ?? now;
+    if ((car.engineHp ?? 0) <= 0) {
+      await prisma.garajCar.update({ where: { id: car.id }, data: { lastAccrualAt: new Date() } });
+      return { ok: true, gross: 0, fuel: 0, wear: 0, net: 0, engineHp: 0, dead: true, coins: await getCoins(memberId) };
+    }
+    const econ = await getMotorEcon();
+    const bonus = await getMotorBonusFor(memberId, econ);
+    const eff = effectiveEcon(econ, bonus.active);
+    // 🔥 P-Fuel-A — dry tank guard: agar fueledUntilAt yo'q (yangi mashina) yoki o'tib ketgan,
+    // tank quruq. Old NET = gross−fuel−wear modeli o'rniga yangi: runway oxirigacha gross+wear only.
+    const fueledUntilMs = car.fueledUntilAt?.getTime() ?? 0;
+    const runwayEnd = Math.min(now, fueledUntilMs);
+    const hours = Math.max(0, (runwayEnd - last) / 3_600_000);
+    const dry = fueledUntilMs <= last; // tank tugagan / hech qachon quyilmagan
+    // 🚀 P2-C — Speeder booster: if active, the earn-side speed is multiplied. Capped to runway hours.
+    const speederOn = isSpeederActive(car.speederUntilAt, now);
+    const speederMult = speederOn ? Math.max(2, Math.min(6, Math.floor(econ.speederMult ?? 4))) : 1;
+    const speed = Math.round(motorSpeed(car.carCode) * eff.speedMult * speederMult);
+    const { gross, wear, net: rawNet } = computeMotorEarnNoFuel(speed, hours, 0); // taxi 2× = sweep ride-hooki (P0.4)
+    // 🛡 KUNLIK CAP (anti-inflyatsiya) — clamp so this player's TOTAL motor_earn today ≤ dailyEarnCap.
+    // Per-MEMBER (not per-car) so multiple slots can't multiply emission past the ceiling. cap=0 → off.
+    const dailyCap = Math.max(0, Math.floor(econ.dailyEarnCap ?? 3000));
+    let net = rawNet;
+    if (dailyCap > 0 && rawNet > 0) {
+      const dayStartUtc = new Date(`${tashkentDate()}T00:00:00+05:00`); // Tashkent (UTC+5) midnight as an instant
+      const earnedAgg = await prisma.coinTxn.aggregate({ where: { memberId, kind: "motor_earn", createdAt: { gte: dayStartUtc } }, _sum: { amount: true } });
+      const earnedToday = earnedAgg._sum.amount ?? 0;
+      net = Math.max(0, Math.min(rawNet, dailyCap - earnedToday));
+    }
+    // 🛡 FAIRNESS: if the cap zeroed an otherwise-positive earning (got NOTHING), PRESERVE the runway —
+    // do NOT advance the clock/wear. The pending earnings stay claimable tomorrow when the cap resets.
+    if (rawNet > 0 && net === 0) {
+      return { ok: true, gross, fuel: 0, wear, net: 0, engineHp: car.engineHp ?? 100, dead: false, dry, reason: "cap_reached", coins: await getCoins(memberId) };
+    }
+    const cappedHours = Math.min(hours, MOTOR_MAX_ACCRUE_HOURS);
+    const newHp = Math.max(0, Math.round((car.engineHp ?? 100) - MOTOR_WEAR_PER_DAY * (cappedHours / 24)));
+    if (net > 0) await grantCoins(memberId, net, "motor_earn", `🚗 Mashina daromadi (${car.carCode} #${car.serial})`, `mo:earn:${memberId}:${last}`);
+    await prisma.garajCar.update({ where: { id: car.id }, data: { lastAccrualAt: new Date(runwayEnd), engineHp: newHp } });
+    // back-compat: fuel field present but always 0 in new model (UI old assertions may read it)
+    return { ok: true, gross, fuel: 0, wear, net, engineHp: newHp, dead: newHp <= 0, dry, coins: await getCoins(memberId) };
+  });
 }
 
 // 🔥 P-Fuel-A — manual fuel-fill. Player pays the refill upfront, the tank extends by tankHours

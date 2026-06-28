@@ -272,10 +272,14 @@ async function main(): Promise<void> {
   await prisma.garajCar.update({ where: { id: capAcq.carId! }, data: { fueledUntilAt: new Date(Date.now() + 24 * 3600_000), lastAccrualAt: new Date(Date.now() - 24 * 3600_000), engineHp: 100 } });
   const capC1 = await motorCollect(capM.id);
   ok(capC1.ok && (capC1.net ?? 0) <= 500 && (capC1.net ?? 0) > 0, `daily cap: first collect clamped to ≤500 (got ${capC1.net})`);
-  // refuel + rewind again, collect again → cap already hit today → net 0
-  await prisma.garajCar.update({ where: { id: capAcq.carId! }, data: { fueledUntilAt: new Date(Date.now() + 24 * 3600_000), lastAccrualAt: new Date(Date.now() - 24 * 3600_000) } });
-  const capC2 = await motorCollect(capM.id);
-  ok(capC2.ok && (capC2.net ?? 0) === 0, `daily cap: second same-day collect = 0 (cap exhausted; got ${capC2.net})`);
+  // refuel + rewind again, collect again → cap already hit today → net 0 + reason cap_reached
+  const rewound = new Date(Date.now() - 24 * 3600_000);
+  await prisma.garajCar.update({ where: { id: capAcq.carId! }, data: { fueledUntilAt: new Date(Date.now() + 24 * 3600_000), lastAccrualAt: rewound } });
+  const capC2 = await motorCollect(capM.id, capAcq.carId!);
+  ok(capC2.ok && (capC2.net ?? 0) === 0 && capC2.reason === "cap_reached", `daily cap: 2nd collect = 0 + reason cap_reached (got net=${capC2.net} reason=${capC2.reason})`);
+  // 🛡 cap-zero PRESERVES runway: lastAccrualAt must NOT have advanced (stays ~24h ago)
+  const carAfterCapZero = await prisma.garajCar.findUnique({ where: { id: capAcq.carId! } });
+  ok(Math.abs((carAfterCapZero?.lastAccrualAt?.getTime() ?? 0) - rewound.getTime()) < 2000, `cap-zero preserves runway (lastAccrualAt unchanged, not advanced)`);
   const capEarned = (await prisma.coinTxn.aggregate({ where: { memberId: capM.id, kind: "motor_earn" }, _sum: { amount: true } }))._sum.amount ?? 0;
   ok(capEarned <= 500, `daily cap: total motor_earn today ≤ 500 (got ${capEarned})`);
   // ledger invariant for the cap member

@@ -479,7 +479,7 @@ export function GarajShell({ onClose, initial }: { onClose: () => void; initial?
                     <span className="gz-car-emoji">{s.emoji}</span>
                     <span className="gz-car-name">{s.name}</span>
                     <span className="gz-car-sub">🪙 {s.buyPrice.toLocaleString("ru-RU")}</span>
-                    <Button sm disabled={busy || coins < s.buyPrice} onClick={() => { void act(() => api.garajAcquire(s.carCode)); flash(`${s.name} olindi! 🏎`); }}>Sotib olish</Button>
+                    <Button sm disabled={busy || coins < s.buyPrice} onClick={() => acquireCar(s.carCode, s.name)}>Sotib olish</Button>
                   </Card>
                 ))}
               </div>
@@ -602,7 +602,7 @@ export function GarajShell({ onClose, initial }: { onClose: () => void; initial?
               <MotorScene
                 car={car}
                 busy={busy}
-                onCollect={() => motorCollect()}
+                onCollect={() => motorCollect(car.id)}
                 onRefuel={() => motorRefuel(car.id)}
                 onEskirdi={() => setEskirdiOpen(car.id)}
                 onCarCheck={() => setCheckOpen(car.id)}
@@ -827,10 +827,30 @@ export function GarajShell({ onClose, initial }: { onClose: () => void; initial?
         hapticSuccess();
         setBurst({ amount: r.net ?? 0, label: `🚗 ${(r.gross ?? 0).toLocaleString("ru-RU")} − ${(r.wear ?? 0).toLocaleString("ru-RU")} eyilish` });
         setTimeout(() => setBurst(null), 2200);
-      } else if (r.dead) flash("⚠️ Mashina eskirgan — soting yoki yangilang");
+      } else if (r.reason === "cap_reached") flash("🛡 Bugungi limit to'ldi — ertaga davom etadi");
+      else if (r.dead) flash("⚠️ Mashina eskirgan — soting yoki yangilang");
       else if (r.dry) flash("⛽ Yoqilg'i tugagan — quying");
       else flash("Hali daromad to'planmadi");
       if (!initial) setSt(await api.garajState());
+    } catch {
+      /* keep state */
+    } finally {
+      setBusy(false);
+    }
+  }
+  // 🛒 Bozor — yangi mashina (acquire). Toast FAQAT muvaffaqiyatda (no_slot/insufficient da xato xabar).
+  async function acquireCar(carCode: string, name: string): Promise<void> {
+    if (busy) return;
+    setBusy(true);
+    haptic();
+    try {
+      const r = await api.garajAcquire(carCode);
+      if (r.ok) { hapticSuccess(); flash(`${name} olindi! 🏎`); }
+      else if (r.reason === "no_slot") flash("🪪 Slot to'lgan — yangi slot oching yoki mashina soting");
+      else if (r.reason === "insufficient") flash("Tanga yetarli emas");
+      else if (r.reason === "owned") flash("Bu model sizda allaqachon bor");
+      else flash("Sotib bo'lmadi");
+      if (!initial) { setSt(await api.garajState()); void api.garajSlotStatus().then((s) => setSlot(s)).catch(() => undefined); }
     } catch {
       /* keep state */
     } finally {
