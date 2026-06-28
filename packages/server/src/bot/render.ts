@@ -34,9 +34,8 @@ export function renderWelcome(name: string, firstRideBonus = 0): string {
     `🚕 <b>1067 TAXI</b>\n` +
     `Salom, <b>${esc(name)}</b>! 👋\n\n` +
     hook +
-    `Bir tugmada taxi · har safardan <b>haqiqiy pul cashback</b> · kunlik sovg'alar, o'yin va bozor.\n\n` +
-    `👇 Pastdagi katta <b>«📱 Raqamni ulashish»</b> tugmasini bosing — 1 soniyada hammasi ochiladi.\n` +
-    `<i>Telegram raqamingiz 1067'dagidan boshqa bo'lsa — /boshqaraqam</i>`
+    `Bir tugmada taxi · har safardan <b>haqiqiy pul cashback</b> · kunlik sovg'alar va bonuslar.\n\n` +
+    `👇 Pastdagi <b>«📱 Raqamni ulashish»</b> tugmasini bosing — tayyor!`
   );
 }
 

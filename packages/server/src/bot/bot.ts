@@ -140,10 +140,6 @@ function contactKeyboard(): Keyboard {
 // on /start, so users reaching the prompt from a menu had no way to link a different number.
 async function promptLink(ctx: Context): Promise<void> {
   await ctx.reply(renderLinkPrompt(), { parse_mode: "HTML", reply_markup: contactKeyboard() });
-  await ctx.reply("1067 raqamingiz Telegram raqamingizdan <b>boshqa</b> bo'lsa 👇", {
-    parse_mode: "HTML",
-    reply_markup: new InlineKeyboard().text("📱 Boshqa raqam (1067 kodi bilan)", "clink:start"),
-  });
 }
 
 function profileOf(src: { username?: string; first_name?: string; last_name?: string; language_code?: string }) {
@@ -254,7 +250,7 @@ export function createBot(): Bot {
       await ctx.reply(renderLinked(res.fullName ?? "Mijoz", role), { parse_mode: "HTML", reply_markup: mainMenu(res.type === "driver") });
       // Ask for preferred display name right after linking so admin alerts + Mini App show a real name.
       pendingNameAfterLink.add(id);
-      await ctx.reply("✏️ Sizga qanday murojat qilaylik? (Ism yoki laqabingizni yozing — bas)").catch(() => undefined);
+      await ctx.reply("✏️ Sizga qanday murojat qilaylik? (Ism yoki laqabingizni yozing)").catch(() => undefined);
       if (res.welcomeBonus) {
         await ctx.reply(`🎁 <b>Xush kelibsiz! Sovg'a: +${formatNumber(res.welcomeBonus)} tanga</b> hisobingizga tushdi 🚕\nIlovada ishlating yoki safar qiling.`, { parse_mode: "HTML" }).catch(() => undefined);
       }
@@ -573,7 +569,14 @@ export function createBot(): Bot {
     if (!me) return;
     const { setDisplayName } = await import("../services/memberService");
     await setDisplayName(me.member.id, name).catch(() => undefined);
-    await ctx.reply(`👍 <b>${esc(name)}</b> — qabul qilindi!`, { parse_mode: "HTML" });
+    if (canWebApp) {
+      await ctx.reply(`👍 <b>${esc(name)}</b> — qabul qilindi!\n\n🚕 Endi ilovani oching:`, {
+        parse_mode: "HTML",
+        reply_markup: new InlineKeyboard().webApp("🚕 Ilovani ochish", webAppUrl()),
+      });
+    } else {
+      await ctx.reply(`👍 <b>${esc(name)}</b> — qabul qilindi!`, { parse_mode: "HTML" });
+    }
   });
 
   // 📱 change linked phone — SECURE paths only: the Telegram-verified «Raqamni ulashish» (your own
