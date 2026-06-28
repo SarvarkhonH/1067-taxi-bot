@@ -145,15 +145,17 @@ export function renderMahalla(b: {
 
 export function renderLeaderboard(lb: LeaderboardResponse, limit = 10): string {
   const heading = lb.type === "driver" ? "Haydovchilar reytingi" : "Mijozlar reytingi";
+  // Ranked by ORDER COUNT (trips), not money — show the count, not so'm. Unit = "buyurtma"/"safar".
+  const unit = esc(lb.metricLabel.toLowerCase());
   const lines = lb.entries.slice(0, limit).map((e) => {
     const tag = e.isMe ? " 👈" : "";
     const name = e.isMe ? `<b>${esc(e.fullName)}</b>` : esc(e.fullName);
-    return `${rankMedal(e.rank)} ${e.level.emoji} ${name} — <b>${formatNumber(e.points)} so'm</b>${tag}`;
+    return `${rankMedal(e.rank)} ${e.level.emoji} ${name} — <b>${formatNumber(e.trips)}</b> ${unit}${tag}`;
   });
 
   let footer = "";
   if (lb.me && lb.me.rank > limit) {
-    footer = `\n— — —\n👉 Siz: <b>${rankMedal(lb.me.rank)}</b> · ${formatNumber(lb.me.points)} ${esc(lb.metricLabel.toLowerCase())}`;
+    footer = `\n— — —\n👉 Siz: <b>${rankMedal(lb.me.rank)}</b> · ${formatNumber(lb.me.trips)} ${unit}`;
   }
   return `🏆 <b>${heading}</b> <i>(${esc(lb.metricLabel)})</i>\n\n${lines.join("\n")}${footer}`;
 }
