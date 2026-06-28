@@ -2,7 +2,7 @@
 // named, time-aware greeting and your usual ride one tap away. Reuses booking3's proven
 // bundled-Leaflet + Google tiles (works in UZ). Behind feature:livinghome (default OFF).
 import { useEffect, useRef, useState } from "react";
-import type { HomeResponse, MeResponse } from "@t1067/shared";
+import type { HomeResponse, MeResponse, ReferralResponse } from "@t1067/shared";
 import { api } from "./api";
 import { ensureLeaflet } from "./leaflet";
 import { carDivIcon, pinkTaxiDivIcon, ghostPersonDivIcon, GHOST_SHIRTS, GHOST_SKINS, GHOST_DRESSES, GHOST_HAIRS, type PersonKind } from "./mapDecor";
@@ -29,12 +29,23 @@ export function LivingHome(props: {
   const { me, onBook, onNav, onBanner, reload } = props;
   const [home, setHome] = useState<HomeResponse | null>(null);
   const [showWallet, setShowWallet] = useState(false);
+  const [refInfo, setRefInfo] = useState<ReferralResponse | null>(null);
   const mapRef = useRef<HTMLDivElement>(null);
   const map = useRef<unknown>(null);
 
   useEffect(() => {
     api.home().then(setHome).catch(() => undefined);
+    api.referral().then(setRefInfo).catch(() => undefined);
   }, []);
+
+  const shareInvite = () => {
+    haptic();
+    const info = refInfo;
+    if (!info) return;
+    const text = `🚖 1067 Taxi — Kosonda bir tap bilan taksi!\n🎁 Shu havola orqali qo'shilsang, birinchi safar BEPUL — ${info.rewardReferee.toLocaleString("ru-RU")} tanga sovg'a!\n💰 Har safardan cashback qaytadi.\n👇 Qo'shilish:`;
+    const url = `https://t.me/share/url?url=${encodeURIComponent(info.link)}&text=${encodeURIComponent(text)}`;
+    window.open(url, "_blank");
+  };
 
   useEffect(() => {
     if (showWallet || !home || !mapRef.current || map.current) return;
@@ -130,7 +141,7 @@ export function LivingHome(props: {
         <button className="lh-cta" onClick={() => { haptic(); onBook(); }}>🚖 Taxi chaqirish</button>
         <div className="lh-places">
           <button className="lh-place" onClick={() => { haptic(); onNav("play"); }}>🎮<span>O'yin</span></button>
-          <button className="lh-place" onClick={() => { haptic(); onNav("market"); }}>🏪<span>Bozor</span></button>
+          <button className="lh-place" onClick={shareInvite}>👥<span>Do'st taklif</span></button>
           <button className="lh-place" onClick={() => { haptic(); onNav("reyting"); }}>🏆<span>Reyting</span></button>
           <button className="lh-place" onClick={() => { haptic(); setShowWallet(true); }}>💰<span>Hamyon</span></button>
         </div>
