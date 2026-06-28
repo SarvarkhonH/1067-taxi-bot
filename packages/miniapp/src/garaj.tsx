@@ -1,44 +1,15 @@
-// 🏆 GARAJ v2 — the dedicated full-screen restoration game (opens when feature
-// "garajx" is ON). Core loop: ol (buy) → diagnoz → ta'mirla → sot (flip).
+// 🌍 GARAJ = Motor Olami — the dedicated full-screen earning game (opens when feature
+// "garajx" is ON). Core loop: ol (buy #serial car) → yoqilg'i quy → Yig'ish → savdo/merge.
 // Pure view layer — all money logic + idempotency live on the server.
 import { useCallback, useEffect, useRef, useState } from "react";
-import type { GarajStateResponse, GarajCarView, RepairQuality, PublicProfileView, OrzuBoardView, CarCheckView } from "@t1067/shared";
-import { KOZACHA_SHOP, reputationTier, REPUTATION_TIERS, REPAIR_ZONES, ZONE_NAMES, PART_TIERS, garajCarMeta, CRAFT_STATIONS, craftCost, MAKE_BASE, npcForBuyer, npcLine, getVariant, mergeMult, MERGE_MAX_COUNT, SPEEDER_DAYS } from "@t1067/shared";
+import type { GarajStateResponse, GarajCarView, PublicProfileView, OrzuBoardView, CarCheckView } from "@t1067/shared";
+import { reputationTier, REPUTATION_TIERS, ZONE_NAMES, MAKE_BASE, getVariant, mergeMult, MERGE_MAX_COUNT, SPEEDER_DAYS } from "@t1067/shared";
 import { api } from "./api";
-import { haptic, hapticSuccess, playTierFanfare, playRepairChirp, playTierUpRing, playRepairFail } from "./telegram";
+import { haptic, hapticSuccess, playTierFanfare } from "./telegram";
 import { Button, Card, Chip, CoinCounter, LoadSection, ProgressBar, Sheet } from "./design/components";
 import "./garaj.css";
 
-// buyer chips = named NPCs (#7) + their style preference hint — no hidden rules.
-const BUYERS = [
-  { code: "FAMILY_DRIVER", hint: "To'liq" },
-  { code: "YOUNG_TUNER", hint: "Tюнинг" },
-  { code: "NEWLYWED", hint: "To'liq/davr" },
-  { code: "COLLECTOR", hint: "Davr (retro)" },
-];
-// restoration styles; TUNING/PERIOD_CORRECT gate on garage tier (matches the plan).
-const STYLES = [
-  { code: "QUICK_FLIP", name: "Tezkor", minTier: 1 },
-  { code: "FULL_RESTORE", name: "To'liq", minTier: 1 },
-  { code: "TUNING", name: "Tюнинг", minTier: 2 },
-  { code: "PERIOD_CORRECT", name: "Davr asili", minTier: 3 },
-];
 const COND_LABEL: Record<string, string> = { WORN: "Eski", FAIR: "O'rtacha", GOOD: "Yaxshi", MINT: "A'lo" };
-const STYLE_SHORT: Record<string, string> = { QUICK_FLIP: "Tezkor", FULL_RESTORE: "To'liq", TUNING: "Tюнинг", PERIOD_CORRECT: "Davr asili" };
-
-// #5 craft-timer countdown — short Uzbek format, capped so a far-future demo job reads cleanly.
-function fmtCraftCountdown(finishesAtISO: string, now: number): string {
-  const ms = new Date(finishesAtISO).getTime() - now;
-  if (ms <= 0) return "tayyor";
-  const totalMin = Math.floor(ms / 60000);
-  const h = Math.floor(totalMin / 60);
-  const m = totalMin % 60;
-  const s = Math.floor((ms % 60000) / 1000);
-  if (h >= 100) return "99+ soat";
-  if (h > 0) return `${h} soat ${m} daq`;
-  if (m > 0) return `${m} daq ${s} s`;
-  return `${s} soniya`;
-}
 
 // 🎉 tier-unlock ceremony copy — what crossing into each garage tier grants you.
 // Keyed by the tier number (2..5); tier 1 is the start, no ceremony.
@@ -306,32 +277,16 @@ export function GarajShell({ onClose, initial }: { onClose: () => void; initial?
   const [openId, setOpenId] = useState<number | null>(null);
   const [busy, setBusy] = useState(false);
   const [burst, setBurst] = useState<{ amount: number; label: string } | null>(null);
-  const [repairing, setRepairing] = useState(false);
-  const [selectedStyle, setSelectedStyle] = useState<string>("QUICK_FLIP");
-  const [repairZoneSel, setRepairZoneSel] = useState<string | null>(null); // zone being repaired
-  const [partSel, setPartSel] = useState<string>("STD"); // chosen part tier
   const [bazaar, setBazaar] = useState<{ id: number; garajCarId: number; carCode: string; name: string; emoji: string; askPrice: number; mine: boolean }[]>([]);
   const [auctions, setAuctions] = useState<{ id: number; garajCarId: number; carCode: string; name: string; emoji: string; minBid: number; endsAt: string; mine: boolean }[]>([]);
-  const [league, setLeague] = useState<{ rank: number; name: string; score: number; memberCount: number }[]>([]);
   const [history, setHistory] = useState<{ kind: string; carCode: string; name: string; emoji: string; amount: number; profit: number | null; at: string }[]>(initial ? GARAJ_DEMO_HISTORY : []);
-  const [cipherInput, setCipherInput] = useState("");
-  const [joinCode, setJoinCode] = useState("");
   const [toast, setToast] = useState<string | null>(null);
   const [museumOpen, setMuseumOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false); // 🌍 ochiq profil
   const [ceremonyTier, setCeremonyTier] = useState<number | null>(null);
   const prevTierRef = useRef<number | null>(null);
-  const [nowTick, setNowTick] = useState(() => Date.now()); // #5 craft-timer ticker
   const [firstCarShown, setFirstCarShown] = useState(false); // 🌟 first-car ceremony one-shot
   const prevCarCountRef = useRef<number | null>(null);
-  // 🛠 P-Polish-Repair-1 — repair-moment fx
-  const [repairFx, setRepairFx] = useState<{ zone: string; before: number; after: number; ts: number } | null>(null);
-  const [tierUpZone, setTierUpZone] = useState<string | null>(null);
-  const [shakeZone, setShakeZone] = useState<string | null>(null);
-  // 🛠 P-Polish-Repair-2 — full-car MINT ceremony + marathon
-  const [mintCelebration, setMintCelebration] = useState<{ name: string } | null>(null);
-  const [marathonRunning, setMarathonRunning] = useState(false);
-  const marathonAbortRef = useRef(false);
   // 🛒 P-Polish-Listing-1 — bazaar list flow
   const [listingFor, setListingFor] = useState<number | null>(null); // carId being listed
   // 🛒 P-Polish-Listing-2 — post-list ceremony state
@@ -352,7 +307,6 @@ export function GarajShell({ onClose, initial }: { onClose: () => void; initial?
     setState("loading");
     void api.garajBazaar().then(setBazaar).catch(() => undefined);
     void api.garajAuctions().then(setAuctions).catch(() => undefined);
-    void api.garajMahallaLeague().then(setLeague).catch(() => undefined);
     void api.garajHistory().then(setHistory).catch(() => undefined);
     void api.garajSlotStatus().then((r) => setSlot(r)).catch(() => undefined); // 🪪 P1-D
     api
@@ -378,13 +332,6 @@ export function GarajShell({ onClose, initial }: { onClose: () => void; initial?
     }
     prevTierRef.current = t;
   }, [st?.garageTier]);
-
-  // #5 tick once a second while a craft is running, so the countdown updates live
-  useEffect(() => {
-    if (!st?.craftJob || st.craftJob.ready) return;
-    const t = setInterval(() => setNowTick(Date.now()), 1000);
-    return () => clearInterval(t);
-  }, [st?.craftJob?.id, st?.craftJob?.ready, st?.craftJob?.finishesAt]);
 
   // 🌟 P-Polish-Home-2 — first-car ceremony: 0 → 1 cars triggers a one-shot welcome
   // (reuses .gz-ceremony shell; copy adapted for "Birinchi mashinangiz"). Baseline-only on
@@ -485,11 +432,7 @@ export function GarajShell({ onClose, initial }: { onClose: () => void; initial?
                       <GarajCarArt carCode={projectCar.carCode} condition={projectCar.condition} level={projectCar.level} size={186} />
                     </div>
                     <div className="gz-stage-name">{projectCar.name}{projectCar.level > 1 ? ` ★${projectCar.level}` : ""}</div>
-                    <div className="gz-stage-cond">
-                      <span className={`gz-cond ${projectCar.condition.toLowerCase()}`}>{COND_LABEL[projectCar.condition] ?? projectCar.condition}</span>
-                      <div className="gz-stage-bar"><ProgressBar value={condPct(projectCar.condition)} max={100} /></div>
-                    </div>
-                    <span className="gz-stage-cta">{projectCar.condition === "MINT" ? "💰 Sotishga tayyor" : projectCar.diagnosed ? "🔧 Ta'mirlash" : "🔍 Diagnoz qilish"} ›</span>
+                    <span className="gz-stage-cta">⚙️ Boshqarish ›</span>
                   </button>
                 ) : (
                   <div className="gz-stage empty">
@@ -508,12 +451,6 @@ export function GarajShell({ onClose, initial }: { onClose: () => void; initial?
                   <span className="dim fs11">Maqom</span>
                   <b>{st.reputationName ?? reputationTier(rep)}</b>
                 </span>
-                {st.prestige.count > 0 && (
-                  <span className="gz-pill-chip gold" role="listitem">
-                    <span className="dim fs11">Prestij</span>
-                    <b>{"★".repeat(st.prestige.count)}</b>
-                  </span>
-                )}
                 <span className="gz-pill-chip" role="listitem">
                   <span className="dim fs11">Streak</span>
                   <b>🔥 {st.streak.current}</b>
@@ -576,26 +513,6 @@ export function GarajShell({ onClose, initial }: { onClose: () => void; initial?
                 )}
               </div>
 
-              {/* daily cipher — ALWAYS visible (pad / locked / no-code) */}
-              <Card className="gz-cipher">
-                {st.cipher.solvedToday ? (
-                  <div className="gz-cipher-done mt0">🔐 Bugungi shifr yechildi ✓ (+{st.cipher.reward})</div>
-                ) : !st.cipher.hasCode ? (
-                  <div className="fs13 dim">🔐 Kunlik shifr — bugun kod yo'q. Kanalni kuzating: har kuni yangi 3 harf chiqadi (+{st.cipher.reward}).</div>
-                ) : st.cipher.attemptsLeft <= 0 ? (
-                  <div className="fs13 dim">🔐 Bugungi urinishlar tugadi — ertaga qayta urining.</div>
-                ) : (
-                  <>
-                    <div className="gz-sec-title mt0">🔐 Kunlik shifr — kanaldagi 3 harf (+{st.cipher.reward})</div>
-                    <div className="row g8">
-                      <input className="gz-cipher-in" value={cipherInput} onChange={(e) => setCipherInput(e.target.value.toUpperCase().slice(0, 3))} placeholder="ABC" maxLength={3} aria-label="Shifr kodi" />
-                      <Button sm disabled={busy || cipherInput.length < 3} onClick={() => submitCipher()}>Tasdiqlash</Button>
-                    </div>
-                    <div className="fs12 dim mt4">{st.cipher.attemptsLeft} urinish qoldi</div>
-                  </>
-                )}
-              </Card>
-
               {/* 🚙 next dream — aspirational progress toward the next car */}
               {dream && (
                 <div className="gz-dream">
@@ -630,29 +547,6 @@ export function GarajShell({ onClose, initial }: { onClose: () => void; initial?
                 </>
               )}
 
-              {/* 📋 NPC buyurtmalar — bugungi 3 topshiriq (mos mashinani tiklab → soting → bonus) */}
-              {st.orders && st.orders.length > 0 && (
-                <>
-                  <div className="gz-sec-title">📋 Bugungi buyurtmalar</div>
-                  <div className="col g8">
-                    {st.orders.map((o) => {
-                      const cm = garajCarMeta(o.carCode);
-                      const npc = npcForBuyer(o.buyer, o.slot);
-                      return (
-                        <Card key={o.slot} className={`gz-order${o.done ? " done" : ""}`}>
-                          <div className="row between">
-                            <span className="gz-order-car">{npc.emoji} <b>{npc.name}</b> so'rayapti</span>
-                            <span className="gz-order-bonus">{o.done ? "✓" : `+${o.bonus}`}</span>
-                          </div>
-                          <span className="gz-order-line">"{npcLine(npc, o.slot)}"</span>
-                          <span className="fs11 dim">→ {cm?.emoji ?? "🚗"} {cm?.name ?? o.carCode} · {STYLE_SHORT[o.style] ?? o.style} uslubda tiklab soting</span>
-                        </Card>
-                      );
-                    })}
-                  </div>
-                </>
-              )}
-
               {/* 🚗 collection — owned + locked (replaces the shop grid; shop now lives in Bozor) */}
               <div className="gz-sec-title">🚗 Mening kolleksiyam ({ownedCount}/{st.shop.length})</div>
               <div className="gz-coll">
@@ -672,17 +566,6 @@ export function GarajShell({ onClose, initial }: { onClose: () => void; initial?
                     </div>
                   );
                 })}
-              </div>
-
-              <div className="gz-skill">
-                <div className="gz-skill-top">🔍 Usta-ko'z <b>{st.skill.ustaKozRank}</b>/100</div>
-                <ProgressBar value={st.skill.ustaKozRank} max={100} />
-                <div className="gz-skill-branches">
-                  <span>⚙ {st.skill.muhandis}</span>
-                  <span>🎨 {st.skill.kuzovchi}</span>
-                  <span>💰 {st.skill.savdogar}</span>
-                  <span>🏛 {st.skill.kollektsioner}</span>
-                </div>
               </div>
 
               {bazaar.filter((b) => b.mine).length > 0 && (
@@ -786,248 +669,41 @@ export function GarajShell({ onClose, initial }: { onClose: () => void; initial?
                 </>
               )}
 
-              {/* 🏘 Mahalla — clan + weekly league */}
-              <div className="gz-sec-title">🏘 Mahalla</div>
-              {st.mahalla ? (
-                <Card className="gz-mahalla">
-                  <div className="row between">
-                    <span className="gz-mahalla-name">{st.mahalla.name}</span>
-                    <span className="gz-pill">#{st.mahalla.rank}</span>
-                  </div>
-                  <div className="fs12 dim mt4">
-                    Kod <b>{st.mahalla.code}</b> · {st.mahalla.memberCount} a'zo · haftalik ball <b>{st.mahalla.weeklyScore.toLocaleString("ru-RU")}</b>
-                  </div>
-                  {league.length > 0 && (
-                    <div className="gz-league mt8">
-                      {league.slice(0, 5).map((g) => (
-                        <div key={g.rank} className={`gz-league-row${st.mahalla && g.name === st.mahalla.name ? " me" : ""}`}>
-                          <span className="gz-league-rank">{g.rank}</span>
-                          <span className="gz-league-name">{g.name}</span>
-                          <span className="gz-league-score">{g.score.toLocaleString("ru-RU")}</span>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                  <Button variant="ghost" sm className="mt8" disabled={busy} onClick={() => leaveMahalla()}>Chiqish</Button>
-                </Card>
-              ) : (
-                <Card className="gz-mahalla">
-                  <p className="fs13 dim mt0">Mahallaga qo'shiling — har safar mashinangiz sifati × vaqt haftalik ballga aylanadi.</p>
-                  <div className="row g8 mt8">
-                    <input className="gz-cipher-in wide" value={joinCode} onChange={(e) => setJoinCode(e.target.value.toUpperCase().slice(0, 6))} placeholder="KOD (6 harf)" maxLength={6} aria-label="Mahalla kodi" />
-                    <Button sm disabled={busy || joinCode.length < 6} onClick={() => joinMahalla()}>Qo'shilish</Button>
-                  </div>
-                  <Button variant="ghost" sm className="mt8" disabled={busy} onClick={() => createMahalla()}>+ Yangi mahalla ochish</Button>
-                </Card>
-              )}
-
-              {/* 🏆 Ko'rgazma — weekly car show: submit, vote, last week's winner */}
-              <div className="gz-sec-title">🏆 Haftalik ko'rgazma</div>
-              <Card className="gz-exhib">
-                {st.exhibition.lastWinner && (
-                  <div className="gz-exhib-winner">🏅 O'tgan hafta g'olibi: {st.exhibition.lastWinner.emoji} <b>{st.exhibition.lastWinner.carName}</b> · {st.exhibition.lastWinner.name} ({st.exhibition.lastWinner.votes} ovoz)</div>
-                )}
-                {projectCar && st.exhibition.myEntryId == null && (
-                  <Button sm className="mt4" disabled={busy} onClick={() => exhibitionSubmitAct(projectCar.id)}>📸 «{projectCar.name}»ni ko'rgazmaga qo'yish</Button>
-                )}
-                {st.exhibition.entries.length === 0 ? (
-                  <p className="fs12 dim mt4">Hali hech kim qo'ymadi — birinchi bo'ling!</p>
-                ) : (
-                  <div className="gz-exhib-list mt8">
-                    {st.exhibition.entries.map((e) => (
-                      <div key={e.id} className={`gz-exhib-row${e.mine ? " mine" : ""}`}>
-                        <span className="gz-exhib-car">{e.emoji} {e.name}{e.level > 1 ? ` ★${e.level}` : ""}{e.mine ? " · siz" : ""}</span>
-                        <span className="gz-exhib-votes">👍 {e.votes}</span>
-                        {!e.mine && st.exhibition.myVoteEntryId == null && (
-                          <Button sm variant="ghost" disabled={busy} onClick={() => exhibitionVoteAct(e.id)}>Ovoz</Button>
-                        )}
-                        {st.exhibition.myVoteEntryId === e.id && <span className="gz-exhib-voted">✓</span>}
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </Card>
-
-              {/* ♻️ Prestige — end-game reset for a permanent multiplier */}
-              {st.prestige.eligible && (
-                <Card className="gz-prestige">
-                  <div className="gz-sec-title mt0">♻️ Prestij {st.prestige.count + 1}</div>
-                  <p className="fs13 dim mt0">Garajni qaytadan boshlang — barcha mashinalar ketadi, lekin obro' saqlanadi va doimiy <b>×{((st.prestige.multiplier + 0.05).toFixed(2))}</b> bonus ochiladi.</p>
-                  <Button sm className="mt8" disabled={busy} onClick={() => doPrestige()}>Prestij qilish</Button>
-                </Card>
-              )}
             </>
           )}
         </LoadSection>
       </div>
 
+      {/* 🌍 Motor Olami — per-car detail (replaces the old repair/flip bench). MotorScene gives the
+          full motor action set: Yig'ish · Quyish · CarCheck · Speeder · Toplash · Eskirdi. Selling
+          goes through the P2P bozor/auksion (no NPC flip). */}
       <Sheet open={!!car} onClose={() => setOpenId(null)}>
         {car && (
           <div className="col g8">
-            <div className="row between">
-              <span className="gz-title">{car.emoji} {car.name}</span>
-              <span className={`gz-cond ${car.condition.toLowerCase()}`}>{COND_LABEL[car.condition] ?? car.condition}</span>
-            </div>
-
-            {/* diagnose — reveals which zones are bad (so you don't waste a Sport part) */}
-            <div className="gz-buyers">
-              <Chip onClick={() => diagnose(car.id, "VISUAL")}>👁 Ko'z (bepul)</Chip>
-              <Chip onClick={() => diagnose(car.id, "TOOL")}>🔧 Asbob (120)</Chip>
-              <Chip onClick={() => diagnose(car.id, "EXPERT")}>🔬 Ekspert (400)</Chip>
-            </div>
-
-            {!car.style ? (
-              <>
-                <div className="gz-sec-title">Uslubni tanlang (birinchi ta'mirda qulflanadi)</div>
-                <div className="gz-buyers">
-                  {STYLES.map((s) => {
-                    const locked = (st?.garageTier ?? 1) < s.minTier;
-                    return (
-                      <Chip key={s.code} on={selectedStyle === s.code} onClick={() => { if (!locked) { haptic(); setSelectedStyle(s.code); } }}>
-                        {locked ? `🔒 ${s.name}` : s.name}
-                      </Chip>
-                    );
-                  })}
-                </div>
-              </>
+            {car.serial != null ? (
+              <MotorScene
+                car={car}
+                busy={busy}
+                onCollect={() => motorCollect()}
+                onRefuel={() => motorRefuel(car.id)}
+                onEskirdi={() => setEskirdiOpen(car.id)}
+                onCarCheck={() => setCheckOpen(car.id)}
+                onSpeeder={() => setSpeederOpen(car.id)}
+                onMerge={() => setMergeOpen(car.id)}
+                canMerge={(st?.cars?.length ?? 0) >= 2}
+              />
             ) : (
-              <div className="fs12 dim">Uslub: {car.style}</div>
-            )}
-
-            {/* zones — fix each with a chosen part (Salvage→Sport): better part = +kondisiya + narx */}
-            <div className="gz-sec-title">Zonalar — har birini ta'mirlang</div>
-            {!(car.zones || car.diagnosis) ? (
-              <p className="gz-empty">Ichki holat noma'lum — avval diagnoz qiling (qaysi zona buzuq ko'rinadi).</p>
-            ) : (
-              REPAIR_ZONES.map((zone) => {
-                const known = (car.zones ?? car.diagnosis ?? {})[zone];
-                const sel = repairZoneSel === zone;
-                const fx = repairFx?.zone === zone ? repairFx : null;
-                const isTierUp = tierUpZone === zone;
-                const isShake = shakeZone === zone;
-                return (
-                  <div key={zone} className={`gz-zonecard${isTierUp ? " tier-up" : ""}${isShake ? " shake" : ""}`}>
-                    <div className="gz-zone">
-                      <span className="gz-zone-label">{ZONE_NAMES[zone] ?? zone}</span>
-                      <ProgressBar value={known ?? 0} max={100} />
-                      <span className="gz-zone-val">{known != null ? known : "?"}</span>
-                    </div>
-                    {fx && (
-                      <div className="gz-repair-fx" aria-hidden>
-                        <span className="gz-repair-tag">{fx.after > fx.before ? `+${fx.after - fx.before}` : `${fx.after - fx.before}`}</span>
-                        {fx.after > fx.before && (
-                          <>
-                            <span className="gz-spark s1" />
-                            <span className="gz-spark s2" />
-                            <span className="gz-spark s3" />
-                            <span className="gz-spark s4" />
-                            <span className="gz-spark s5" />
-                          </>
-                        )}
-                      </div>
-                    )}
-                    {known != null && known >= 96 ? (
-                      <span className="fs11 dim gz-zone-done">✓ A'lo holatda</span>
-                    ) : sel && repairing ? (
-                      <TimingBar onResult={(q) => { setRepairing(false); setRepairZoneSel(null); repairZoneAct(car.id, zone, partSel, q); }} onCancel={() => { setRepairing(false); setRepairZoneSel(null); }} />
-                    ) : sel ? (
-                      <div className="gz-parts">
-                        {PART_TIERS.map((p) => (
-                          <Chip key={p.code} disabled={busy || coins < p.cost} onClick={() => { haptic(); setPartSel(p.code); setRepairing(true); }}>
-                            {p.name} · 🪙{p.cost}
-                          </Chip>
-                        ))}
-                        <button className="gz-timing-cancel" onClick={() => setRepairZoneSel(null)}>Bekor</button>
-                      </div>
-                    ) : (
-                      <Button variant="ghost" sm disabled={busy} onClick={() => { haptic(); setRepairZoneSel(zone); }}>🔧 Detal qo'yish</Button>
-                    )}
-                  </div>
-                );
-              })
-            )}
-
-            {/* 🛠 P-Polish-Repair-2 — "Hammasini ta'mirlash" marathon: any zone <80 with STD parts, capped */}
-            {(() => {
-              const bad = car.zones || car.diagnosis ? REPAIR_ZONES.filter((z) => ((car.zones ?? car.diagnosis ?? {})[z] ?? 0) < 80) : [];
-              if (bad.length < 3) return null;
-              const stdCost = PART_TIERS.find((p) => p.code === "STD")?.cost ?? 80;
-              const totalCost = bad.length * stdCost;
-              return marathonRunning ? (
-                <Button variant="ghost" sm onClick={() => { marathonAbortRef.current = true; setMarathonRunning(false); }}>
-                  ⏸ Marafon to'xtatish ({bad.length} qoldi)
-                </Button>
-              ) : (
-                <Button sm disabled={busy || coins < totalCost} onClick={() => runMarathon(car.id, bad, "STD")}>
-                  🔧 Hammasini ta'mirlash ({bad.length} zona · 🪙{totalCost.toLocaleString("ru-RU")})
-                </Button>
-              );
-            })()}
-
-            <div className="gz-actions">
-              {/* 🏭 Ustaxona — ONE craftsman, timed jobs. A job anywhere busies the shared slot. */}
-              <div className="gz-sec-title">🏭 Ustaxona · Daraja {car.level}/5</div>
-              {st?.craftJob ? (
-                <div className="gz-craftjob">
-                  <div className="col">
-                    <span className="gz-craft-name">{st.craftJob.emoji} {st.craftJob.stationName}</span>
-                    <span className="fs11 dim">
-                      {st.craftJob.carName} · {st.craftJob.ready ? "✓ tayyor" : `⏳ ${fmtCraftCountdown(st.craftJob.finishesAt, nowTick)}`}
-                      {st.craftJob.garajCarId !== car.id ? " · usta band" : ""}
-                    </span>
-                  </div>
-                  <Button sm disabled={busy || coins < st.craftJob.speedupCost} onClick={() => craftSpeedup()}>
-                    {st.craftJob.ready ? "Qabul qilish" : `⚡ ${st.craftJob.speedupCost.toLocaleString("ru-RU")}`}
-                  </Button>
-                </div>
-              ) : (
-                <div className="col g8">
-                  {CRAFT_STATIONS.map((s) => {
-                    const cost = craftCost(s.code, MAKE_BASE[car.carCode] ?? 1000, car.level);
-                    const maxed = s.code === "TUNE" && car.level >= 5;
-                    return (
-                      <div key={s.code} className="gz-craft">
-                        <div className="col">
-                          <span className="gz-craft-name">{s.name}</span>
-                          <span className="fs11 dim">{s.desc}</span>
-                        </div>
-                        <Button sm variant="ghost" disabled={busy || maxed || coins < cost} onClick={() => craft(car.id, s.code)}>
-                          {maxed ? "Max" : `🪙 ${cost.toLocaleString("ru-RU")}`}
-                        </Button>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-
-              <div className="gz-sec-title">Sotish — xaridorni tanlang</div>
-              <div className="gz-buyers">
-                {BUYERS.map((b) => {
-                  const n = npcForBuyer(b.code as never, car.id);
-                  return (
-                    <Chip key={b.code} onClick={() => flip(car.id, b.code)}>
-                      {n.emoji} {n.name} · {b.hint}
-                    </Chip>
-                  );
-                })}
+              <div className="row between">
+                <span className="gz-title">{car.emoji} {car.name}</span>
+                <span className="fs12 dim">#raqam tez orada</span>
               </div>
-
-              <div className="gz-sec-title">🪙 Do'kon — sotuvni oshirish</div>
-              <div className="gz-buyers">
-                {KOZACHA_SHOP.map((it) => (
-                  <Chip key={it.code} onClick={() => kozBuy(it.code, car.id)}>
-                    {it.name} · 🪙{it.cost}
-                  </Chip>
-                ))}
-              </div>
-
-              <Button variant="ghost" sm onClick={() => { haptic(); setListingFor(car.id); }}>
-                🛒 Bozorga qo'yish
-              </Button>
-              <Button variant="ghost" sm onClick={() => aucCreate(car.id, Math.round(car.basePrice * 0.5))}>
-                🔨 Auksionga qo'yish (min {Math.round(car.basePrice * 0.5).toLocaleString("ru-RU")})
-              </Button>
-            </div>
+            )}
+            <Button variant="ghost" sm onClick={() => { haptic(); setListingFor(car.id); }}>
+              🛒 Bozorga qo'yish
+            </Button>
+            <Button variant="ghost" sm onClick={() => aucCreate(car.id, Math.round(car.basePrice * 0.5))}>
+              🔨 Auksionga qo'yish (min {Math.round(car.basePrice * 0.5).toLocaleString("ru-RU")})
+            </Button>
           </div>
         )}
       </Sheet>
@@ -1111,25 +787,6 @@ export function GarajShell({ onClose, initial }: { onClose: () => void; initial?
         </div>
       )}
 
-      {/* 🛠 P-Polish-Repair-2 — full-car MINT ceremony when all 5 zones cross ≥80 */}
-      {mintCelebration && (
-        <div className="gz-ceremony" onClick={() => setMintCelebration(null)}>
-          <div className="gz-cer-rays" aria-hidden />
-          <div className="gz-cer-card" onClick={(e) => e.stopPropagation()}>
-            <div className="gz-cer-badge">💎</div>
-            <div className="gz-cer-kicker">Mukammal holat</div>
-            <div className="gz-cer-tier">{mintCelebration.name}</div>
-            <div className="gz-cer-sub">A'lo · MINT</div>
-            <ul className="gz-cer-perks">
-              <li><span className="gz-cer-tick">✓</span> Barcha 5 zona ≥80 holatda</li>
-              <li><span className="gz-cer-tick">✓</span> Eng yuqori sotuv narxiga tayyor</li>
-              <li><span className="gz-cer-tick">✓</span> Premium xaridorlar uchun</li>
-            </ul>
-            <Button onClick={() => { haptic(); setMintCelebration(null); }}>Davom etish</Button>
-          </div>
-        </div>
-      )}
-
       {/* 🌟 P-Polish-Home-2 — first-car welcome (one-shot when player goes from 0 → 1 cars) */}
       {firstCarShown && (
         <div className="gz-ceremony" onClick={() => setFirstCarShown(false)}>
@@ -1164,148 +821,6 @@ export function GarajShell({ onClose, initial }: { onClose: () => void; initial?
   function declineTow(dropId: number): void {
     void act(() => api.garajDeclineTow(dropId));
   }
-  async function submitCipher(): Promise<void> {
-    if (busy) return;
-    setBusy(true);
-    haptic();
-    try {
-      const r = await api.garajCipher(cipherInput);
-      if (r.ok && (r.grant ?? 0) > 0) { hapticSuccess(); setBurst({ amount: r.grant!, label: "SHIFR YECHILDI 🔐" }); setTimeout(() => setBurst(null), 1900); }
-      else if (r.reason === "wrong") flash(`Noto'g'ri — ${r.attemptsLeft ?? 0} urinish qoldi`);
-      else if (r.reason === "locked") flash("Bugungi urinishlar tugadi");
-      else if (r.reason === "no_cipher") flash("Bugun shifr yo'q");
-      setCipherInput("");
-      if (!initial) setSt(await api.garajState());
-    } catch { /* retry */ } finally { setBusy(false); }
-  }
-  async function mahallaAct(fn: () => Promise<{ ok: boolean; reason?: string; code?: string }>, okMsg?: (r: { code?: string }) => string): Promise<void> {
-    if (busy) return;
-    setBusy(true);
-    haptic();
-    try {
-      const r = await fn();
-      if (r.ok && okMsg) flash(okMsg(r));
-      else if (!r.ok && r.reason === "full") flash("Mahalla to'la (20 a'zo)");
-      else if (!r.ok && r.reason === "not_found") flash("Bunday kod topilmadi");
-      else if (!r.ok && r.reason === "already_in_mahalla") flash("Siz allaqachon mahalladasiz");
-      if (!initial) { setSt(await api.garajState()); setLeague(await api.garajMahallaLeague()); }
-    } catch { /* retry */ } finally { setBusy(false); }
-  }
-  function createMahalla(): void {
-    void mahallaAct(() => api.garajMahallaCreate(mahallaNameDefault()), (r) => `Mahalla ochildi! Kod: ${r.code}`);
-  }
-  function joinMahalla(): void {
-    void mahallaAct(() => api.garajMahallaJoin(joinCode));
-    setJoinCode("");
-  }
-  function leaveMahalla(): void {
-    void mahallaAct(() => api.garajMahallaLeave());
-  }
-  function doPrestige(): void {
-    void act(() => api.garajPrestige(), () => { hapticSuccess(); flash("Prestij! Doimiy bonus ochildi ♻️"); });
-  }
-  function exhibitionSubmitAct(id: number): void {
-    void act(() => api.garajExhibitionSubmit(id));
-    flash("Ko'rgazmaga qo'yildi 🏆");
-  }
-  function exhibitionVoteAct(entryId: number): void {
-    void act(() => api.garajExhibitionVote(entryId));
-    flash("Ovoz berildi 👍");
-  }
-  function mahallaNameDefault(): string {
-    return `Garaj ${Math.floor(coins % 1000)}`; // simple auto-name; rename UI ships later
-  }
-  function diagnose(id: number, tier: "VISUAL" | "TOOL" | "EXPERT"): void {
-    void act(() => api.garajDiagnose(id, tier));
-  }
-  // 🛠 P-Polish-Repair-1 — repair moment with bay-open + spark burst + tier-up ring + audio
-  function repairZoneAct(id: number, zone: string, partTierCode: string, quality?: RepairQuality): void {
-    const target = st?.cars.find((c) => c.id === id);
-    const before = (target?.zones ?? target?.diagnosis ?? {})[zone];
-    const beforeVal = typeof before === "number" ? before : 0;
-    (async () => {
-      if (busy) return;
-      setBusy(true);
-      haptic();
-      try {
-        const r = await api.garajRepairZone(id, zone, partTierCode, car?.style ?? selectedStyle, quality);
-        if (r.ok) {
-          // Pull fresh state, then compare to compute the delta + detect tier crossings
-          const fresh = !initial ? await api.garajState() : st;
-          const after = (fresh?.cars.find((c) => c.id === id)?.zones ?? {})[zone];
-          const afterVal = typeof after === "number" ? after : beforeVal;
-          const delta = afterVal - beforeVal;
-          setRepairFx({ zone, before: beforeVal, after: afterVal, ts: Date.now() });
-          if (delta > 0) {
-            hapticSuccess();
-            playRepairChirp();
-            // Tier-up ring: zone crossed 80 (GOOD) or 96 (MINT-ready)
-            if ((beforeVal < 80 && afterVal >= 80) || (beforeVal < 96 && afterVal >= 96)) {
-              playTierUpRing();
-              setTierUpZone(zone);
-              setTimeout(() => setTierUpZone(null), 1400);
-            }
-            // 🛠 P-Polish-Repair-2 — full-car MINT crossing: was the car NOT-MINT before, IS-MINT-ready after?
-            const beforeMint = target ? REPAIR_ZONES.every((z) => ((target.zones ?? target.diagnosis ?? {})[z] ?? 0) >= 80) : false;
-            const freshCar = fresh?.cars.find((c) => c.id === id);
-            const afterMint = freshCar ? REPAIR_ZONES.every((z) => ((freshCar.zones ?? freshCar.diagnosis ?? {})[z] ?? 0) >= 80) : false;
-            if (!beforeMint && afterMint && freshCar) {
-              setMintCelebration({ name: freshCar.name });
-              playTierFanfare();
-            }
-          } else {
-            playRepairFail();
-            setShakeZone(zone);
-            setTimeout(() => setShakeZone(null), 260);
-          }
-          setSt(fresh);
-          void api.garajHistory().then(setHistory).catch(() => undefined);
-        }
-      } catch {
-        /* keep state */
-      } finally {
-        setBusy(false);
-        setTimeout(() => setRepairFx(null), 1000);
-      }
-    })();
-  }
-  // 🛠 P-Polish-Repair-2 — "Hammasini ta'mirlash" marathon: queue STD repairs, ~5s cap, abortable
-  async function runMarathon(carId: number, zones: string[], partTierCode: string): Promise<void> {
-    if (marathonRunning) return;
-    setMarathonRunning(true);
-    marathonAbortRef.current = false;
-    const start = Date.now();
-    haptic();
-    try {
-      for (const z of zones) {
-        if (marathonAbortRef.current || Date.now() - start > 5000) break;
-        try {
-          const r = await api.garajRepairZone(carId, z, partTierCode, car?.style ?? selectedStyle);
-          if (r.ok) playRepairChirp();
-        } catch { /* skip & continue */ }
-        // small stagger between zone hits so user sees them progressively
-        await new Promise((r) => setTimeout(r, 200));
-      }
-      if (!initial) {
-        setSt(await api.garajState());
-        void api.garajHistory().then(setHistory).catch(() => undefined);
-      }
-    } finally {
-      setMarathonRunning(false);
-    }
-  }
-  function kozBuy(itemCode: string, id: number): void {
-    void act(() => api.garajKozBuy(itemCode, id));
-  }
-  function craft(id: number, station: string): void {
-    void act(() => api.garajCraft(id, station));
-    flash("🏭 Ustaxonaga qo'yildi — usta ishlamoqda");
-  }
-  function craftSpeedup(): void {
-    void act(() => api.garajCraftSpeedup());
-    flash("✓ Ustaxona ishi tayyor!");
-  }
-  // 🔥 P-Fuel-A — Motor Olami yoqilg'i quyish (manual refill, Hay Day hook)
   // 🪪 P1-D — buy next slot
   async function slotBuy(): Promise<void> {
     if (busy) return; setBusy(true); haptic();
@@ -2129,40 +1644,3 @@ function GarajFtue({ onDone }: { onDone: (grant: number) => void }) {
 
 // Timing mini-game — a marker sweeps a bar; tap in the green zone for a better
 // repair (raises repairQualityBonus → higher flip price). Avtomatik = skip (a11y).
-function TimingBar({ onResult, onCancel }: { onResult: (q: RepairQuality) => void; onCancel: () => void }) {
-  const [pos, setPos] = useState(0);
-  const posRef = useRef(0);
-  const dirRef = useRef(1);
-  const rafRef = useRef(0);
-  useEffect(() => {
-    const tick = () => {
-      posRef.current += dirRef.current * 1.7;
-      if (posRef.current >= 100) { posRef.current = 100; dirRef.current = -1; }
-      else if (posRef.current <= 0) { posRef.current = 0; dirRef.current = 1; }
-      setPos(posRef.current);
-      rafRef.current = requestAnimationFrame(tick);
-    };
-    rafRef.current = requestAnimationFrame(tick);
-    return () => cancelAnimationFrame(rafRef.current);
-  }, []);
-  const stop = (auto: boolean) => {
-    cancelAnimationFrame(rafRef.current);
-    haptic();
-    if (auto) { onResult("AUTO"); return; }
-    const d = Math.abs(posRef.current - 50);
-    onResult(d <= 7 ? "EXCELLENT" : d <= 18 ? "GOOD" : d <= 30 ? "FAIR" : "DEFECT");
-  };
-  return (
-    <div className="gz-timing">
-      <div className="gz-timing-track">
-        <span className="gz-timing-green" />
-        <span className="gz-timing-marker" style={{ left: `${pos}%` }} />
-      </div>
-      <div className="row g8">
-        <Button onClick={() => stop(false)}>To'xtat! 🎯</Button>
-        <Button variant="ghost" sm onClick={() => stop(true)}>Avtomatik</Button>
-      </div>
-      <button className="gz-timing-cancel" onClick={() => { cancelAnimationFrame(rafRef.current); onCancel(); }}>Bekor</button>
-    </div>
-  );
-}
