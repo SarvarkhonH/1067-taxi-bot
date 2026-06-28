@@ -194,7 +194,7 @@ export function createApiServer(opts: ApiOptions = {}) {
   app.post("/api/garaj/exhibition/vote", requireUser, rateLimit(20), withMember2(async (id, req) => (await import("../services/garajService")).exhibitionVote(id, Number(req.body?.entryId))));
   app.get("/api/garaj/museum", requireUser, withMember2(async (id) => (await import("../services/garajService")).getMuseum(id)));
   // 🌍 MOTOR OLAMI (v3, gated by "motorolami") — passive «Yig'ish» + public profile
-  app.post("/api/garaj/motor/collect", requireUser, rateLimit(30), withMember2(async (id) => (await import("../services/garajService")).motorCollect(id)));
+  app.post("/api/garaj/motor/collect", requireUser, rateLimit(30), withMember2(async (id, req) => (await import("../services/garajService")).motorCollect(id, req.body?.garajCarId ? Number(req.body.garajCarId) : undefined)));
   app.post("/api/garaj/motor/refuel", requireUser, rateLimit(20), withMember2(async (id, req) => (await import("../services/garajService")).motorRefuel(id, Number(req.body?.garajCarId))));
   // 🏛 P1-B — 1067 Ofis market-maker endpoints (always-on buyer; daily budget; supply burn)
   app.get("/api/garaj/ofis/stats", requireUser, async (_req, res) => res.json(await (await import("../services/garajService")).getOfisStats()));

@@ -3,7 +3,7 @@
 // Pure view layer — all money logic + idempotency live on the server.
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { GarajStateResponse, GarajCarView, PublicProfileView, OrzuBoardView, CarCheckView } from "@t1067/shared";
-import { reputationTier, REPUTATION_TIERS, ZONE_NAMES, MAKE_BASE, getVariant, mergeMult, MERGE_MAX_COUNT, SPEEDER_DAYS } from "@t1067/shared";
+import { REPUTATION_TIERS, ZONE_NAMES, MAKE_BASE, getVariant, mergeMult, MERGE_MAX_COUNT, SPEEDER_DAYS } from "@t1067/shared";
 import { api } from "./api";
 import { haptic, hapticSuccess, playTierFanfare } from "./telegram";
 import { Button, Card, Chip, CoinCounter, LoadSection, ProgressBar, Sheet } from "./design/components";
@@ -389,27 +389,11 @@ export function GarajShell({ onClose, initial }: { onClose: () => void; initial?
 
   const coins = st?.coins ?? 0;
 
-  // 🏠 "my garage" hero: the active PROJECT car = the one still needing work (else newest)
-  const condRank: Record<string, number> = { WORN: 0, FAIR: 1, GOOD: 2, MINT: 3 };
-  const projectCar = st && st.cars.length ? [...st.cars].sort((a, b) => condRank[a.condition]! - condRank[b.condition]!)[0]! : null;
-  const condPct = (c: string): number => ({ WORN: 25, FAIR: 50, GOOD: 75, MINT: 100 })[c] ?? 25;
-  // "next dream" = cheapest car you don't own yet (aspirational progress bar)
-  const dream = st ? st.shop.filter((s) => !s.owned).sort((a, b) => a.buyPrice - b.buyPrice)[0] ?? null : null;
-  const ownedCount = st ? st.cars.length : 0;
-  // reputation → next-tier progress (drives the hero bar)
-  const tIdx = Math.max(0, (st?.garageTier ?? 1) - 1);
-  const floorRep = REPUTATION_TIERS[tIdx]?.min ?? 0;
-  const nextTier = REPUTATION_TIERS[tIdx + 1];
-  const rep = st?.reputationScore ?? 0;
-  const tierProg = nextTier
-    ? { cur: rep - floorRep, max: Math.max(1, nextTier.min - floorRep), toNext: Math.max(0, nextTier.min - rep), nextName: nextTier.name }
-    : { cur: 1, max: 1, toNext: 0, nextName: null as string | null };
-
   return (
     <div className="gz">
       <div className="gz-head">
         <button className="gz-back" onClick={() => { haptic(); onClose(); }} aria-label="Ortga">←</button>
-        <span className="gz-title">🏆 <b>GARAJ</b></span>
+        <span className="gz-title">🏎 <b>Motor Olami</b></span>
         <div className="gz-purse">
           {st?.motorEnabled && <button className="gz-back" onClick={() => { haptic(); setOrzuOpen(true); }} aria-label="ORZU board">✨</button>}
           {st?.motorEnabled && <button className="gz-back" onClick={() => { haptic(); setProfileOpen(true); }} aria-label="Ochiq profil">🌍</button>}
@@ -422,82 +406,56 @@ export function GarajShell({ onClose, initial }: { onClose: () => void; initial?
         <LoadSection state={state} onRetry={load}>
           {st && (
             <>
-              {/* 🌟 P-Polish-Home-1 — cinematic showroom: vignette + slow rays + dust + car breathe */}
-              <div className="gz-showroom" aria-hidden={false}>
-                <div className="gz-showroom-rays" aria-hidden />
-                <div className="gz-showroom-vignette" aria-hidden />
-                {projectCar ? (
-                  <button className="gz-stage" onClick={() => { haptic(); setOpenId(projectCar.id); }}>
-                    <div className="gz-stage-art">
-                      <GarajCarArt carCode={projectCar.carCode} condition={projectCar.condition} level={projectCar.level} size={186} />
-                    </div>
-                    <div className="gz-stage-name">{projectCar.name}{projectCar.level > 1 ? ` ★${projectCar.level}` : ""}</div>
-                    <span className="gz-stage-cta">⚙️ Boshqarish ›</span>
-                  </button>
-                ) : (
-                  <div className="gz-stage empty">
-                    <div className="gz-stage-art">
-                      <GarajCarArt carCode="tiko" condition="WORN" level={1} size={150} />
-                    </div>
-                    <div className="gz-stage-name">Garajingiz hozircha bo'sh</div>
-                    <p className="gz-empty mt0">Bozor tabidan birinchi loyiha mashinangizni oling — keyin shu yerda tiklaysiz.</p>
-                  </div>
-                )}
-              </div>
-
-              {/* 🌟 status pill-strip — 4 ta sochilgan badge → bitta horizontal scroll-snap qator */}
-              <div className="gz-pillstrip" role="list" data-reveal style={{ ["--reveal-delay" as never]: "0ms" }}>
-                <span className="gz-pill-chip" role="listitem">
-                  <span className="dim fs11">Maqom</span>
-                  <b>{st.reputationName ?? reputationTier(rep)}</b>
-                </span>
-                <span className="gz-pill-chip" role="listitem">
-                  <span className="dim fs11">Streak</span>
-                  <b>🔥 {st.streak.current}</b>
-                </span>
-                {st.seasonalEvent && (
-                  <span className="gz-pill-chip season" role="listitem">
-                    <span className="dim fs11">Mavsum</span>
-                    <b>🎉 {st.seasonalEvent}</b>
-                  </span>
-                )}
-                {st.weeklyEvent && (
-                  <span className="gz-pill-chip event" role="listitem">
-                    <span className="dim fs11">Hafta</span>
-                    <b>{st.weeklyEvent.label}</b>
-                  </span>
-                )}
-                {st.motorEnabled && slot && (
-                  <button type="button" className="gz-pill-chip" role="listitem" disabled={busy || slot.nextSlotCost == null} onClick={() => slot.nextSlotCost != null && void slotBuy()}>
-                    <span className="dim fs11">Slot</span>
-                    <b>{slot.activeCount}/{slot.slotCount}{slot.nextSlotCost != null ? ` · +🪙${slot.nextSlotCost.toLocaleString("ru-RU")}` : " · Max"}</b>
-                  </button>
-                )}
-              </div>
-
-
-              {/* 🎁 BONUS HAFTASI — new-player onboard hook (admin-tunable bonusDays/Mults) */}
+              {/* 🎁 Bonus hafta — yangi o'yinchi hook */}
               {st.motorEnabled && st.motorBonus?.active && (
                 <div className="gz-motor-bonus">
                   <span className="gz-motor-bonus-pill">🎁 Bonus hafta — <b>{st.motorBonus.daysLeft} kun qoldi</b></span>
                   <span className="fs11 dim">⚡ {st.motorBonus.speedMult.toFixed(1)}× daromad · ⛽ {Math.round(st.motorBonus.fuelMult * 100)}% yoqilg'i</span>
                 </div>
               )}
-              {/* 🌍 MOTOR OLAMI — the car earns; #serial identity + «Yig'ish» (Hay Day hook) */}
-              {st.motorEnabled && projectCar?.serial != null && (
-                <MotorScene car={projectCar} busy={busy} onCollect={() => motorCollect()} onRefuel={() => motorRefuel(projectCar.id)} onEskirdi={() => setEskirdiOpen(projectCar.id)} onCarCheck={() => setCheckOpen(projectCar.id)} onSpeeder={() => setSpeederOpen(projectCar.id)} onMerge={() => setMergeOpen(projectCar.id)} canMerge={(st?.cars?.length ?? 0) >= 2} />
+
+              {/* 🏎 MENING MASHINALARIM — har mashina alohida pul ishlaydi (Yig'ish per-car) */}
+              <div className="gz-sec-title mt0">🏎 Mening mashinalarim{slot ? ` (${slot.activeCount}/${slot.slotCount})` : ""}</div>
+              {st.cars.length === 0 ? (
+                <p className="gz-empty">Hali mashinangiz yo'q. Pastdagi <b>🛒 Bozor</b>dan birinchi mashinangizni oling — u darhol pul ishlay boshlaydi.</p>
+              ) : (
+                <div className="col g8" data-reveal style={{ ["--reveal-delay" as never]: "0ms" }}>
+                  {st.cars.map((c) => {
+                    const v = getVariant(c.variant);
+                    const dead = !!c.dead;
+                    const dry = !!c.fuelDry;
+                    return (
+                      <div key={c.id} className={`gz-mcard${dead ? " dead" : ""}`}>
+                        <button className="gz-mcard-main" onClick={() => { haptic(); setOpenId(c.id); }}>
+                          <GarajCarArt carCode={c.carCode} condition={c.condition} level={c.level} size={60} />
+                          <div className="col gz-mcard-info">
+                            <span className="gz-mcard-name">{c.emoji} {c.name} <span className="gz-motor-id">#{c.serial}</span>{v ? ` ${v.emoji}` : ""}{(c.mergeCount ?? 0) > 0 ? ` ★${c.mergeCount}` : ""}</span>
+                            <span className="fs11 dim">⚙️ {c.engineHp ?? 100}% · ⚡ {c.speed}/soat{c.speederActive ? ` · 🚀×${c.speederMult}` : ""}</span>
+                            <div className="gz-mcard-fuel" aria-label={`Yoqilg'i ${c.fuelPct ?? 0}%`}><span className="gz-mcard-fuel-fill" style={{ width: `${Math.max(0, Math.min(100, c.fuelPct ?? 0))}%` }} /></div>
+                          </div>
+                          <span className="gz-mcard-chev">›</span>
+                        </button>
+                        <div className="gz-mcard-cta">
+                          {dead ? (
+                            <Button sm onClick={() => { haptic(); setEskirdiOpen(c.id); }}>⚠️ Eskirdi</Button>
+                          ) : dry ? (
+                            <Button sm disabled={busy} onClick={() => motorRefuel(c.id)}>⛽ Quyish · {(c.fuelRefillCost ?? 0).toLocaleString("ru-RU")}</Button>
+                          ) : (
+                            <Button sm disabled={busy || (c.earnPendingNet ?? 0) <= 0} onClick={() => motorCollect(c.id)}>💰 Yig'ish +{(c.earnPendingNet ?? 0).toLocaleString("ru-RU")}</Button>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+              {slot && slot.nextSlotCost != null && (
+                <Button variant="ghost" sm className="mt8" disabled={busy} onClick={() => void slotBuy()}>🪪 Yangi slot ochish · 🪙{slot.nextSlotCost.toLocaleString("ru-RU")}</Button>
               )}
 
-              {/* tier / reputation progress (compact, under the stage) */}
-              {/* in demo/fixture mode (initial set, never prod) the tier line previews the ceremony */}
-              <div className="gz-tier" data-reveal style={{ ["--reveal-delay" as never]: "60ms" }} onClick={initial ? () => { const next = Math.min(5, (st.garageTier ?? 1) + 1); setCeremonyTier(next); hapticSuccess(); playTierFanfare(); } : undefined}>
-                <div className="gz-tier-line"><span className="dim fs12">Obro'</span> <b>{rep.toLocaleString("ru-RU")}</b> <span className="dim fs12">· Daraja {st.garageTier}/5</span></div>
-                <ProgressBar value={tierProg.cur} max={tierProg.max} />
-                <span className="gz-hero-next">{tierProg.nextName ? `${tierProg.toNext.toLocaleString("ru-RU")} obro' → ${tierProg.nextName}` : "Eng yuqori daraja 🏁"}</span>
-              </div>
-
-              {/* daily strip: streak + offline box (box ALWAYS visible) */}
-              <div className="gz-daily" data-reveal style={{ ["--reveal-delay" as never]: "120ms" }}>
+              {/* 🔥 KUNLIK — streak + offline quti */}
+              <div className="gz-sec-title">🔥 Kunlik</div>
+              <div className="gz-daily">
                 <div className="gz-streak">
                   <span className="gz-streak-fire">🔥</span>
                   <span className="gz-streak-n">{st.streak.current}</span>
@@ -513,20 +471,20 @@ export function GarajShell({ onClose, initial }: { onClose: () => void; initial?
                 )}
               </div>
 
-              {/* 🚙 next dream — aspirational progress toward the next car */}
-              {dream && (
-                <div className="gz-dream">
-                  <div className="gz-dream-art"><GarajCarArt carCode={dream.carCode} condition="GOOD" level={1} size={64} /></div>
-                  <div className="gz-dream-info">
-                    <span className="gz-dream-lbl">Keyingi orzu</span>
-                    <span className="gz-dream-name">{dream.name}</span>
-                    <ProgressBar value={Math.min(coins, dream.buyPrice)} max={dream.buyPrice} />
-                    <span className="fs11 dim">{coins.toLocaleString("ru-RU")} / {dream.buyPrice.toLocaleString("ru-RU")} · Bozorda oling</span>
-                  </div>
-                </div>
-              )}
+              {/* 🛒 BOZOR — yangi mashina katalogi (acquire) */}
+              <div className="gz-sec-title">🛒 Bozor — yangi mashina</div>
+              <div className="gz-grid">
+                {st.shop.filter((s) => !s.owned).map((s) => (
+                  <Card key={s.carCode} className="gz-car">
+                    <span className="gz-car-emoji">{s.emoji}</span>
+                    <span className="gz-car-name">{s.name}</span>
+                    <span className="gz-car-sub">🪙 {s.buyPrice.toLocaleString("ru-RU")}</span>
+                    <Button sm disabled={busy || coins < s.buyPrice} onClick={() => { void act(() => api.garajAcquire(s.carCode)); flash(`${s.name} olindi! 🏎`); }}>Sotib olish</Button>
+                  </Card>
+                ))}
+              </div>
 
-              {/* 📦 Yo'l sovg'alari — real safarlardan topilgan buzuq mashina takliflari */}
+              {/* 📦 Yo'l sovg'alari — real safarlardan arzon mashina takliflari */}
               {st.roadDrops && st.roadDrops.length > 0 && (
                 <>
                   <div className="gz-sec-title">📦 Yo'l sovg'alari</div>
@@ -546,27 +504,6 @@ export function GarajShell({ onClose, initial }: { onClose: () => void; initial?
                   </div>
                 </>
               )}
-
-              {/* 🚗 collection — owned + locked (replaces the shop grid; shop now lives in Bozor) */}
-              <div className="gz-sec-title">🚗 Mening kolleksiyam ({ownedCount}/{st.shop.length})</div>
-              <div className="gz-coll">
-                {st.shop.map((s) => {
-                  const owned = st.cars.find((c) => c.carCode === s.carCode);
-                  return owned ? (
-                    <button key={s.carCode} className="gz-coll-car" onClick={() => { haptic(); setOpenId(owned.id); }}>
-                      <GarajCarArt carCode={s.carCode} condition={owned.condition} level={owned.level} size={94} />
-                      <span className="gz-coll-name">{s.name}</span>
-                      <span className="gz-coll-tag own">✓{owned.level > 1 ? ` ★${owned.level}` : ""}</span>
-                    </button>
-                  ) : (
-                    <div key={s.carCode} className="gz-coll-car locked">
-                      <GarajCarArt carCode={s.carCode} condition="WORN" level={1} size={94} />
-                      <span className="gz-coll-name">{s.name}</span>
-                      <span className="gz-coll-tag">🔒</span>
-                    </div>
-                  );
-                })}
-              </div>
 
               {bazaar.filter((b) => b.mine).length > 0 && (
                 <>
@@ -588,9 +525,9 @@ export function GarajShell({ onClose, initial }: { onClose: () => void; initial?
                 </>
               )}
 
-              <div className="gz-sec-title">🛒 Bozor — boshqa ustalardan</div>
+              <div className="gz-sec-title">🤝 Boshqa o'yinchilardan</div>
               {bazaar.filter((b) => !b.mine).length === 0 ? (
-                <p className="gz-empty">Hozircha boshqa ustalar e'loni yo'q. Mashinangizni sotuvga qo'ying — boshqalar shu yerdan sotib oladi.</p>
+                <p className="gz-empty">Hozircha boshqa o'yinchilar e'loni yo'q. Mashinangizni sotuvga qo'ying — boshqalar shu yerdan sotib oladi.</p>
               ) : (
                 <div className="gz-grid">
                   {bazaar
@@ -646,25 +583,6 @@ export function GarajShell({ onClose, initial }: { onClose: () => void; initial?
                           </div>
                         </Card>
                       ))}
-                  </div>
-                </>
-              )}
-
-              {/* 📜 Sotuvlar tarixi — past flips + bazaar sales */}
-              {history.length > 0 && (
-                <>
-                  <div className="gz-sec-title">📜 Sotuvlar tarixi</div>
-                  <div className="gz-hist">
-                    {history.map((h, i) => (
-                      <div key={i} className="gz-hist-row">
-                        <span className="gz-hist-emoji">{h.emoji}</span>
-                        <span className="gz-hist-name">{h.name}<span className="gz-hist-kind">{h.kind === "bazaar" ? " · bozor" : ""}</span></span>
-                        <span className="gz-hist-amt">
-                          🪙 {h.amount.toLocaleString("ru-RU")}
-                          {h.profit != null && <span className={h.profit >= 0 ? "gz-hist-prof up" : "gz-hist-prof down"}>{h.profit >= 0 ? "+" : ""}{h.profit.toLocaleString("ru-RU")}</span>}
-                        </span>
-                      </div>
-                    ))}
                   </div>
                 </>
               )}
@@ -899,12 +817,12 @@ export function GarajShell({ onClose, initial }: { onClose: () => void; initial?
     }
   }
   // 🌍 Motor Olami «Yig'ish» — credit net (gross−wear in fuel model), dopamin burst
-  async function motorCollect(): Promise<void> {
+  async function motorCollect(garajCarId?: number): Promise<void> {
     if (busy) return;
     setBusy(true);
     haptic();
     try {
-      const r = await api.garajMotorCollect();
+      const r = await api.garajMotorCollect(garajCarId);
       if (r.ok && (r.net ?? 0) > 0) {
         hapticSuccess();
         setBurst({ amount: r.net ?? 0, label: `🚗 ${(r.gross ?? 0).toLocaleString("ru-RU")} − ${(r.wear ?? 0).toLocaleString("ru-RU")} eyilish` });

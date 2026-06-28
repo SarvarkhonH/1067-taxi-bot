@@ -490,6 +490,17 @@ button.gz-coll-car:hover { border-color: rgba(255, 179, 0, 0.4); }
 .gz-craft-name { font-size: 13px; font-weight: 700; }
 /* #5 active craft job (shared Workshop slot) — a highlighted "in progress" row */
 .gz-craftjob { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 10px 12px; border-radius: var(--r-card); background: linear-gradient(180deg, #1c1608, var(--surface)); border: 1px solid var(--brand); }
+/* 🏎 Motor Olami — per-car card in "Mening mashinalarim" (art + stats + per-car Yig'ish) */
+.gz-mcard { display: flex; align-items: center; gap: 8px; padding: 8px 10px; border-radius: var(--r-card); background: linear-gradient(180deg, #0e1a14, var(--surface)); border: 1px solid var(--win); }
+.gz-mcard.dead { background: linear-gradient(180deg, #1a0e0e, var(--surface)); border-color: var(--danger); }
+.gz-mcard.dead .gz-art { filter: grayscale(1) brightness(0.6); }
+.gz-mcard-main { flex: 1; display: flex; align-items: center; gap: 10px; background: none; border: none; padding: 0; cursor: pointer; text-align: left; color: inherit; font: inherit; min-width: 0; }
+.gz-mcard-info { gap: 3px; min-width: 0; flex: 1; }
+.gz-mcard-name { font-size: 13px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.gz-mcard-fuel { height: 5px; border-radius: 999px; background: var(--surface-2); overflow: hidden; margin-top: 2px; }
+.gz-mcard-fuel-fill { display: block; height: 100%; background: linear-gradient(90deg, #ffd784, var(--brand)); transition: width .3s ease; }
+.gz-mcard-chev { color: var(--text-dim); font-size: 18px; flex: none; }
+.gz-mcard-cta { flex: none; }
 /* 🌍 motor olami — the car earns; #serial identity + «Yig'ish» */
 .gz-motor { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 10px 12px; margin-top: 8px; border-radius: var(--r-card); background: linear-gradient(180deg, #0e1a14, var(--surface)); border: 1px solid var(--win); }
 /* 🎁 bonus hafta banneri (yangi o'yinchi hook) */

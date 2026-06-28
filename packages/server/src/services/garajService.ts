@@ -549,9 +549,10 @@ export async function acquireCar(memberId: number, carCode: string): Promise<Gar
 // net grantCoins bilan (idempotent, ride-clamp'dan tashqari faucet, ALOHIDA cap=24soat-vaqt).
 // withMemberLock + inline grant → re-entrant deadlock yo'q (grantCoins o'zi lock oladi → uni
 // lock TASHQARISIDA chaqiramiz). Withdraw o'zgarmaydi (real safar + revenue byudjet).
-export async function motorCollect(memberId: number): Promise<GarajActionResult & { gross?: number; fuel?: number; wear?: number; net?: number; engineHp?: number; dead?: boolean; dry?: boolean }> {
+export async function motorCollect(memberId: number, garajCarId?: number): Promise<GarajActionResult & { gross?: number; fuel?: number; wear?: number; net?: number; engineHp?: number; dead?: boolean; dry?: boolean }> {
   if (!(await motorEnabledFor(memberId))) return { ok: false, reason: "off" };
-  const car = await prisma.garajCar.findFirst({ where: { memberId, soldAt: null, serial: { not: null } } });
+  // Per-car collect: when garajCarId given, collect THAT car; else the first motor car (back-compat).
+  const car = await prisma.garajCar.findFirst({ where: { ...(garajCarId ? { id: garajCarId } : {}), memberId, soldAt: null, serial: { not: null } } });
   if (!car) return { ok: false, reason: "no_car", coins: await getCoins(memberId) };
   const now = Date.now();
   const last = car.lastAccrualAt?.getTime() ?? now;

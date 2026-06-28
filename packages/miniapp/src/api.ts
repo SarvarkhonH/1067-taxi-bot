@@ -187,7 +187,7 @@ export const api = {
   garajExhibitionVote: (entryId: number) => request<GarajActionResult>("POST", "/api/garaj/exhibition/vote", { entryId }, 1),
   garajMuseum: () => get<{ collection: { carCode: string; name: string; emoji: string; owned: boolean }[]; collectedCount: number; totalModels: number; totalFlips: number; bestProfit: number; hallOfFame: { name: string; prestigeCount: number; repAtEntry: number }[] }>("/api/garaj/museum"),
   // 🌍 MOTOR OLAMI (v3)
-  garajMotorCollect: () => request<GarajActionResult & { gross?: number; fuel?: number; wear?: number; net?: number; engineHp?: number; dead?: boolean; dry?: boolean }>("POST", "/api/garaj/motor/collect", {}, 1),
+  garajMotorCollect: (garajCarId?: number) => request<GarajActionResult & { gross?: number; fuel?: number; wear?: number; net?: number; engineHp?: number; dead?: boolean; dry?: boolean }>("POST", "/api/garaj/motor/collect", { garajCarId }, 1),
   garajMotorRefuel: (garajCarId: number) => request<GarajActionResult & { cost?: number; fueledUntilAt?: string; fuelPct?: number }>("POST", "/api/garaj/motor/refuel", { garajCarId }, 1),
   // 🏛 P1-B — 1067 Ofis market-maker (always-on buyer)
   garajOfisStats: () => get<{ budget: number; spent: number; left: number; heldCount: number; scrappedToday: number }>("/api/garaj/ofis/stats"),
