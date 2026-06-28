@@ -310,62 +310,12 @@ button.gz-car:hover { border-color: rgba(255, 179, 0, 0.4); }
   animation: gz-fade var(--dur-page) var(--ease-out);
 }
 
-/* 🏠 STAGE — the project-car hero (the heart of "my garage") */
-.gz-stage {
-  position: relative;
-  width: 100%;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 8px;
-  padding: 18px 16px 16px;
-  border-radius: var(--r-card);
-  color: var(--text);
-  text-align: center;
-  background: radial-gradient(120% 92% at 50% 0%, #20190a 0%, #100d07 56%, var(--surface) 100%);
-  border: 1px solid rgba(255, 179, 0, 0.2);
-  transition: transform 120ms var(--ease-out);
-}
-button.gz-stage:active { transform: scale(0.985); }
-.gz-stage.empty { background: linear-gradient(180deg, #161310, var(--surface)); border-color: var(--line); }
+/* car art (rendered by GarajCarArt) */
 .gz-art { display: block; }
 .gz-art.mint { filter: drop-shadow(0 7px 13px rgba(0, 0, 0, 0.45)); }
 .gz-art.gold { filter: drop-shadow(0 0 9px rgba(255, 206, 79, 0.55)); }
-.gz-stage-name { font-size: 18px; font-weight: 900; }
-.gz-stage-cond { display: flex; align-items: center; gap: 10px; width: 100%; max-width: 280px; }
-.gz-stage-cond .gz-cond { position: static; } /* not the absolute corner badge here */
-.gz-stage-bar { flex: 1; }
-.gz-stage-cta {
-  margin-top: 4px;
-  font-size: 14px;
-  font-weight: 800;
-  color: #1a1407;
-  background: linear-gradient(180deg, #ffd784, var(--brand));
-  padding: 9px 22px;
-  border-radius: 999px;
-  box-shadow: 0 3px 14px rgba(255, 179, 0, 0.4);
-}
 
-/* 🌟 P-Polish-Home-1 — cinematic showroom wrapper around the hero stage */
-.gz-showroom { position: relative; overflow: hidden; border-radius: var(--r-card); isolation: isolate; }
-.gz-showroom .gz-stage { position: relative; z-index: 2; background: radial-gradient(120% 92% at 50% 0%, rgba(32,25,10,0.85) 0%, rgba(16,13,7,0.92) 56%, var(--surface) 100%); }
-.gz-showroom-rays {
-  position: absolute; left: 50%; top: -40%; width: 220%; height: 220%;
-  transform: translate(-50%, 0);
-  background: conic-gradient(from 0deg, rgba(255,179,0,0.07) 0 6deg, transparent 6deg 18deg);
-  animation: gz-showroom-spin 60s linear infinite;
-  z-index: 1; pointer-events: none;
-}
-@keyframes gz-showroom-spin { to { transform: translate(-50%, 0) rotate(360deg); } }
-.gz-showroom-vignette {
-  position: absolute; inset: 0;
-  background: radial-gradient(70% 60% at 50% 35%, transparent 0%, rgba(0,0,0,0.45) 100%);
-  z-index: 3; pointer-events: none;
-}
-.gz-stage-art { position: relative; z-index: 4; animation: gz-stage-breathe 5.2s ease-in-out infinite; }
-@keyframes gz-stage-breathe { 0%, 100% { transform: translateY(0) scale(1); } 50% { transform: translateY(-3px) scale(1.012); } }
-
-/* 🌟 status pill-strip — horizontal scroll-snap row, 4 ribbons → 1 strip */
+/* 🌟 status pill-strip — horizontal scroll-snap row (ORZU + profile chips) */
 .gz-pillstrip {
   display: flex; gap: 8px; overflow-x: auto; padding: 4px 2px; margin-top: 10px;
   scroll-snap-type: x mandatory;
@@ -388,11 +338,6 @@ button.gz-stage:active { transform: scale(0.985); }
 .gz-pill-chip.event { background: linear-gradient(180deg, #0e1a14, #0a120e); border-color: var(--win); }
 .gz-pill-chip.event b { color: var(--win); }
 
-@media (prefers-reduced-motion: reduce) {
-  .gz-showroom-rays { animation: none; }
-  .gz-stage-art { animation: none; }
-}
-
 /* 🌟 P-Polish-Home-2 — scene-reveal: data-reveal elements fade+rise on first intersection */
 [data-reveal] { opacity: 0; transform: translateY(10px); transition: opacity 420ms var(--ease-out), transform 420ms var(--ease-out); transition-delay: var(--reveal-delay, 0ms); }
 [data-reveal].revealed { opacity: 1; transform: translateY(0); }
@@ -400,21 +345,9 @@ button.gz-stage:active { transform: scale(0.985); }
   [data-reveal] { opacity: 1; transform: none; transition: none; }
 }
 
-/* tier / reputation bar under the stage */
-.gz-tier { margin-top: 10px; padding: 11px 14px; border-radius: var(--r-card); background: var(--surface); border: 1px solid var(--line); display: flex; flex-direction: column; gap: 6px; }
-.gz-tier-line { font-size: 13px; }
-.gz-tier-line b { color: var(--brand); font-size: 15px; }
 .gz-box-idle { font-size: 12px; color: var(--text-dim); }
 
-/* 🚙 next dream */
-.gz-dream { display: flex; gap: 12px; align-items: center; margin-top: 12px; padding: 12px 14px; border-radius: var(--r-card); background: var(--surface); border: 1px dashed rgba(255, 179, 0, 0.35); }
-.gz-dream-art { flex-shrink: 0; }
-.gz-dream-info { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
-.gz-dream-info .d-progress { margin: 2px 0; }
-.gz-dream-lbl { font-size: 10px; color: var(--brand); font-weight: 800; text-transform: uppercase; letter-spacing: 0.5px; }
-.gz-dream-name { font-size: 15px; font-weight: 800; }
-
-/* 🚗 collection grid (owned + locked) */
+/* 🚗 collection grid (owned + locked) — used by GarajCollectionSheet (other player's garage) */
 .gz-coll { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
 .gz-coll-car {
   position: relative;

@@ -279,7 +279,6 @@ export function GarajShell({ onClose, initial }: { onClose: () => void; initial?
   const [burst, setBurst] = useState<{ amount: number; label: string } | null>(null);
   const [bazaar, setBazaar] = useState<{ id: number; garajCarId: number; carCode: string; name: string; emoji: string; askPrice: number; mine: boolean }[]>([]);
   const [auctions, setAuctions] = useState<{ id: number; garajCarId: number; carCode: string; name: string; emoji: string; minBid: number; endsAt: string; mine: boolean }[]>([]);
-  const [history, setHistory] = useState<{ kind: string; carCode: string; name: string; emoji: string; amount: number; profit: number | null; at: string }[]>(initial ? GARAJ_DEMO_HISTORY : []);
   const [toast, setToast] = useState<string | null>(null);
   const [museumOpen, setMuseumOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false); // 🌍 ochiq profil
@@ -307,7 +306,6 @@ export function GarajShell({ onClose, initial }: { onClose: () => void; initial?
     setState("loading");
     void api.garajBazaar().then(setBazaar).catch(() => undefined);
     void api.garajAuctions().then(setAuctions).catch(() => undefined);
-    void api.garajHistory().then(setHistory).catch(() => undefined);
     void api.garajSlotStatus().then((r) => setSlot(r)).catch(() => undefined); // 🪪 P1-D
     api
       .garajState()
@@ -379,7 +377,6 @@ export function GarajShell({ onClose, initial }: { onClose: () => void; initial?
       const r = await fn();
       if (r.ok && onWin && r.grant) onWin(r.grant);
       setSt(await api.garajState());
-      void api.garajHistory().then(setHistory).catch(() => undefined); // keep "Sotuvlar tarixi" fresh
     } catch {
       /* keep current state; user can retry */
     } finally {
@@ -867,7 +864,6 @@ export function GarajShell({ onClose, initial }: { onClose: () => void; initial?
         setSt(await api.garajState());
         setBazaar(await api.garajBazaar());
         setAuctions(await api.garajAuctions());
-        void api.garajHistory().then(setHistory).catch(() => undefined);
       }
     } catch {
       /* keep state */
@@ -914,10 +910,7 @@ export function GarajShell({ onClose, initial }: { onClose: () => void; initial?
         setOpenId(null);
         setTimeout(() => setBurst(null), 2100);
       } else if (r.reason === "daily_cap") flash("Bugungi sotuv chegarasi to'ldi");
-      if (!initial) {
-        setSt(await api.garajState());
-        void api.garajHistory().then(setHistory).catch(() => undefined);
-      }
+      if (!initial) setSt(await api.garajState());
     } catch {
       /* keep state */
     } finally {
@@ -925,13 +918,6 @@ export function GarajShell({ onClose, initial }: { onClose: () => void; initial?
     }
   }
 }
-
-// Sales-history fixture for the #garajdemo render-proof.
-export const GARAJ_DEMO_HISTORY: { kind: string; carCode: string; name: string; emoji: string; amount: number; profit: number | null; at: string }[] = [
-  { kind: "flip", carCode: "nexia", name: "Nexia", emoji: "🚙", amount: 3120, profit: 980, at: "2026-06-18T10:00:00Z" },
-  { kind: "flip", carCode: "tiko", name: "Tiko", emoji: "🚙", amount: 845, profit: 210, at: "2026-06-18T09:00:00Z" },
-  { kind: "bazaar", carCode: "matiz", name: "Matiz", emoji: "🚗", amount: 1700, profit: null, at: "2026-06-17T18:00:00Z" },
-];
 
 export const GARAJ_DEMO_MUSEUM = {
   collection: [
