@@ -537,6 +537,7 @@ export const MOTOR_ECON_KNOBS: MotorEconKnob[] = [
   { key: "speederPrice", label: "🚀 Speeder narxi (tanga)", def: 5000, min: 500, max: 50000, step: 100, live: true },
   { key: "speederStock", label: "🚀 Speeder zaxira (dona)", def: 500, min: 0, max: 100000, step: 50, live: true },
   { key: "speederMult", label: "🚀 Speeder kuchi (×)", def: 4, min: 2, max: 6, step: 1, live: true },
+  { key: "speederSurgePct", label: "🚀 Speeder narx oshishi % (zaxira kamaysa)", def: 50, min: 0, max: 200, step: 5, live: true },
   // 🔥 P-Fuel-A — bak o'lchami va push siyosati (push P-Fuel-C da jonlanadi)
   { key: "fuelTankHours", label: "⛽ Bak hajmi (soat)", def: 24, min: 6, max: 72, step: 1, live: true },
   { key: "pushFeatureOn", label: "🔔 Push kill-switch", def: 1, min: 0, max: 1, step: 1, live: false },
@@ -564,6 +565,14 @@ export const MOTOR_ECON_KNOBS: MotorEconKnob[] = [
 
 // 🚀 P2-C — Speeder booster (limited stock, 10-day duration, admin-tuned ×N to speedMult)
 export const SPEEDER_DAYS = 10;
+/** 🚀 P2-deep-1 — scarcity surge: price rises as the day's stock depletes. At full stock = base;
+ *  at empty = base × (1 + surgePct/100). surgePct=0 → flat price (off). Deterministic from stock. */
+export function speederSurgePrice(base: number, stockLeft: number, stockMax: number, surgePct: number): number {
+  const b = Math.max(1, Math.floor(base));
+  if (stockMax <= 0 || surgePct <= 0) return b;
+  const depletion = Math.max(0, Math.min(1, (stockMax - stockLeft) / stockMax)); // 0 full → 1 empty
+  return Math.max(1, Math.round(b * (1 + depletion * (surgePct / 100))));
+}
 /** True iff `speederUntilAt` is in the future. */
 export function isSpeederActive(speederUntilAt: Date | string | null | undefined, now: number = -1): boolean {
   if (!speederUntilAt) return false;

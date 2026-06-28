@@ -56,6 +56,7 @@ import {
   getVariant,
   SPEEDER_DAYS,
   isSpeederActive,
+  speederSurgePrice,
   type CarCheckTier,
   type CarCheckView,
   type HiddenDefect,
@@ -974,7 +975,8 @@ const SPEEDER_DAY_KEY = "mo:speeder:day"; // tracks the day the stock was last s
 export async function getSpeederState(memberId: number): Promise<{ ok: boolean; reason?: string; price?: number; mult?: number; stockLeft?: number; stockMax?: number; days?: number; activeCarId?: number | null; activeUntilAt?: string | null }> {
   if (!(await motorEnabledFor(memberId))) return { ok: false, reason: "off" };
   const econ = await getMotorEcon();
-  const price = Math.max(1, Math.floor(econ.speederPrice ?? 5000));
+  const basePrice = Math.max(1, Math.floor(econ.speederPrice ?? 5000));
+  const surgePct = Math.max(0, Math.min(200, Math.floor(econ.speederSurgePct ?? 50)));
   const mult = Math.max(2, Math.min(6, Math.floor(econ.speederMult ?? 4)));
   const stockMax = Math.max(0, Math.floor(econ.speederStock ?? 500));
   // Lazy-reseed: if today's seed day doesn't match, refill the live stock to stockMax
@@ -990,6 +992,8 @@ export async function getSpeederState(memberId: number): Promise<{ ok: boolean; 
     stockLeft = parseInt(r?.value ?? String(stockMax), 10);
     if (isNaN(stockLeft)) stockLeft = stockMax;
   }
+  // 🚀 P2-deep-1 — scarcity surge: current price rises as today's stock depletes
+  const price = speederSurgePrice(basePrice, Math.max(0, stockLeft), stockMax, surgePct);
   // Active car for the viewer
   const activeCar = await prisma.garajCar.findFirst({ where: { memberId, soldAt: null, speederUntilAt: { gt: new Date() } }, select: { id: true, speederUntilAt: true } });
   return { ok: true, price, mult, stockLeft: Math.max(0, stockLeft), stockMax, days: SPEEDER_DAYS, activeCarId: activeCar?.id ?? null, activeUntilAt: activeCar?.speederUntilAt?.toISOString() ?? null };
@@ -997,7 +1001,8 @@ export async function getSpeederState(memberId: number): Promise<{ ok: boolean; 
 export async function purchaseSpeeder(memberId: number, garajCarId: number): Promise<GarajActionResult & { speederUntilAt?: string; stockLeft?: number }> {
   if (!(await motorEnabledFor(memberId))) return { ok: false, reason: "off" };
   const econ = await getMotorEcon();
-  const price = Math.max(1, Math.floor(econ.speederPrice ?? 5000));
+  const basePrice = Math.max(1, Math.floor(econ.speederPrice ?? 5000));
+  const surgePct = Math.max(0, Math.min(200, Math.floor(econ.speederSurgePct ?? 50)));
   const stockMax = Math.max(0, Math.floor(econ.speederStock ?? 500));
   if (stockMax === 0) return { ok: false, reason: "out_of_stock" };
   // Refresh stock if day changed
@@ -1018,6 +1023,9 @@ export async function purchaseSpeeder(memberId: number, garajCarId: number): Pro
     if (isNaN(before) || before <= 0) return { ok: false, reason: "out_of_stock" };
     const upd = await prisma.appState.updateMany({ where: { key: SPEEDER_STOCK_KEY, value: String(before) }, data: { value: String(before - 1) } });
     if (upd.count === 0) return { ok: false, reason: "stock_race" };
+    // 🚀 P2-deep-1 — charge the SURGE price for the stock level at purchase (server-authoritative; the
+    // client-shown price can be stale, so we recompute from `before` and the buyer pays that).
+    const price = speederSurgePrice(basePrice, before, stockMax, surgePct);
     // Inline tanga spend (no re-lock): debit member + create txn in ONE prisma tx, then update car
     try {
       const newUntil = new Date(Math.max(car.speederUntilAt?.getTime() ?? 0, Date.now()) + SPEEDER_DAYS * 86_400_000);

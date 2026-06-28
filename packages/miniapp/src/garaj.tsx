@@ -1435,9 +1435,10 @@ export function GarajSpeederSheet({ car, onBuy, onClose }: { car: GarajCarView; 
             <div className="gz-list-break">
               <div className="row between"><span className="dim fs12">Daromad tezligi (×)</span><b style={{ color: "var(--brand)" }}>×{st.mult ?? 4}</b></div>
               <div className="row between"><span className="dim fs12">Davomiyligi</span><b>{st.days ?? SPEEDER_DAYS} kun</b></div>
-              <div className="row between"><span className="dim fs12">Narxi</span><b>🪙 {(st.price ?? 5000).toLocaleString("ru-RU")}</b></div>
+              <div className="row between"><span className="dim fs12">Narxi (hozir)</span><b>🪙 {(st.price ?? 5000).toLocaleString("ru-RU")}</b></div>
               <div className="row between"><span className="dim fs12">Zaxira</span><b>{st.stockLeft ?? 0}/{st.stockMax ?? 0}</b></div>
             </div>
+            <div className="fs11 dim">⚡ Zaxira kamaygan sari narx oshadi — erta olgan arzon oladi.</div>
             {car.speederActive && (car.speederHoursLeft ?? 0) > 0 ? (
               <div className="fs12" style={{ color: "var(--brand)" }}>🚀 Hozir aktiv · {Math.round((car.speederHoursLeft ?? 0) / 24)} kun qoldi. Sotib olsangiz vaqt UZAYADI.</div>
             ) : (

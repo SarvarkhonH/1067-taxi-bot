@@ -5,7 +5,7 @@
 // Run: pnpm --filter @t1067/server exec dotenv -e ../../.env -- tsx src/scripts/testGarajP1.ts
 import "./_testDb";
 import "../env";
-import { MAKE_BASE, SLOT_COSTS, CARCHECK_COSTS, OFIS_BID_FACTOR, ofisBidPrice, MERGE_MAX_COUNT, MERGE_BONUS_PCT, mergeMult, variantFor, getVariant, SPEEDER_DAYS, isSpeederActive } from "@t1067/shared";
+import { MAKE_BASE, SLOT_COSTS, CARCHECK_COSTS, OFIS_BID_FACTOR, ofisBidPrice, MERGE_MAX_COUNT, MERGE_BONUS_PCT, mergeMult, variantFor, getVariant, SPEEDER_DAYS, isSpeederActive, speederSurgePrice } from "@t1067/shared";
 import { prisma } from "../db";
 import { getCoins, grantCoins } from "../services/coinService";
 import {
@@ -237,6 +237,11 @@ async function main(): Promise<void> {
   ok(getVariant(null) === null, `getVariant(null) = null`);
 
   // ── 11) P2-C: Speeder booster ────────────────────────────────────────────
+  // 🚀 P2-deep-1 — scarcity surge price (pure helper)
+  ok(speederSurgePrice(5000, 500, 500, 50) === 5000, `surge: full stock → base price (5000)`);
+  ok(speederSurgePrice(5000, 0, 500, 50) === 7500, `surge: empty stock → base × 1.5 (7500)`);
+  ok(speederSurgePrice(5000, 250, 500, 50) === 6250, `surge: half stock → base × 1.25 (6250)`);
+  ok(speederSurgePrice(5000, 250, 500, 0) === 5000, `surge: surgePct=0 → flat (5000)`);
   const spState1 = await getSpeederState(sellerM.id);
   ok(spState1.ok && (spState1.stockLeft ?? 0) > 0 && spState1.days === SPEEDER_DAYS, `Speeder state: stock=${spState1.stockLeft}, days=${SPEEDER_DAYS}`);
   // sellerM's keep car (merged tiko) is alive, buy a speeder for it
