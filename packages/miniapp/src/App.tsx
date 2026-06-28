@@ -153,9 +153,16 @@ export function App() {
 
   const loadBoard = () => {
     setBoardErr(false);
-    api.leaderboard().then(setBoard).catch(() => setBoardErr(true)); // P1: no permanent spinner on Liga
+    api.leaderboard().then(setBoard).catch(() => setBoardErr(true));
   };
+  // track whether the leaderboard has been requested yet (defer until first Reyting visit)
+  const [boardRequested, setBoardRequested] = useState(() => {
+    const initial = GO_MAP[readGo()] ?? "uy";
+    return initial === "reyting";
+  });
+
   useEffect(() => {
+    if (boardRequested) loadBoard(); // deep-linked to reyting
     api
       .me()
       .then((r) => {
@@ -163,19 +170,21 @@ export function App() {
           clearMeCache();
           setLinked(false);
         } else {
-          setMe(r as MeResponse);
-          writeMeCache(r as MeResponse); // refresh the cache for the next instant open
+          const me = r as MeResponse;
+          setMe(me);
+          writeMeCache(me);
           setLinked(true);
+          // flags piggy-backed on /api/me — no separate bookingInfo call needed
+          if (me.flags) {
+            setLivinghome(!!me.flags.livinghome);
+            setTolqin(!!me.flags.tolqin);
+            setGarajx(!!me.flags.garajx);
+          }
         }
       })
       .catch((e) => {
-        // only surface the error if we have NOTHING to show (no cache) — otherwise the cached
-        // UI stays up and we silently retry, so a cold/slow server never blanks the screen.
         if (!cachedMe) setError(String(e));
       });
-    loadBoard();
-    // V1: learn whether the living home is enabled (same flag channel as booking3)
-    api.bookingInfo().then((r) => { if (!("error" in r)) { setLivinghome(!!r.livinghome); setTolqin(!!r.tolqin); setGarajx(!!r.garajx); } }).catch(() => undefined);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -203,6 +212,10 @@ export function App() {
     if (t === tab) return;
     haptic();
     setTab(t);
+    if (t === "reyting" && !boardRequested) {
+      setBoardRequested(true);
+      loadBoard();
+    }
   };
   // child components nav by string label (incl. old names) → map to the 5 tabs
   const nav = (t: string) => {

@@ -40,6 +40,12 @@ export interface MeResponse {
   jackpot: number; // current escalating wheel jackpot
   coins: number; // game-wallet balance (1 coin = 1 so'm)
   leagueTier: string; // Bronza | Kumush | Oltin | Platina | Olmos
+  flags?: {
+    booking3?: boolean;
+    garajx?: boolean;
+    tolqin?: boolean;
+    livinghome?: boolean;
+  };
 }
 
 export interface CheckInResponse {

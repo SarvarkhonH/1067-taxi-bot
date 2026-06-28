@@ -26,6 +26,7 @@ import { getFareConfig } from "../services/clientInfoService";
 import { callOneTapFor, cancelBookingFor, createBookingFor, estimateFare, getActiveBookingFor, getBookingInfo, nearestAddressFor, searchBookingAddress } from "../services/bookingService";
 import type { BookingCreateBody, BookingNowBody, GeoPt } from "@t1067/shared";
 import { validateInitData } from "./telegramAuth";
+import { featureOn } from "../services/featureFlags";
 
 export interface ApiOptions {
   afterSync?: () => Promise<void>;
@@ -218,8 +219,15 @@ export function createApiServer(opts: ApiOptions = {}) {
   app.get("/api/garaj/profile/:id", requireUser, withMember2(async (id, req) => (await import("../services/garajService")).getPublicProfile(id, req.params?.id === "me" ? id : Number(req.params?.id))));
 
   app.get("/api/me", requireUser, async (_req, res) => {
-    const me = await getMe(res.locals.telegramId as string);
-    res.json(me ?? { linked: false });
+    const [me, booking3, garajx, tolqin, livinghome] = await Promise.all([
+      getMe(res.locals.telegramId as string),
+      featureOn("booking3"),
+      featureOn("garajx"),
+      featureOn("tolqin"),
+      featureOn("livinghome"),
+    ]);
+    if (!me) { res.json({ linked: false }); return; }
+    res.json({ ...me, flags: { booking3, garajx, tolqin, livinghome } });
   });
 
   app.post("/api/checkin", requireUser, async (_req, res) => {
