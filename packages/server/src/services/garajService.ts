@@ -694,8 +694,8 @@ async function ofisSpentToday(): Promise<number> {
   return Math.abs(agg._sum.amount ?? 0);
 }
 
-/** Headroom remaining in today's Ofis budget; 0 means closed for the day. */
-export async function ofisBudgetLeftToday(): Promise<{ budget: number; spent: number; left: number }> {
+/** Headroom remaining in today's Ofis budget; 0 means closed for the day. (Internal — feeds getOfisStats.) */
+async function ofisBudgetLeftToday(): Promise<{ budget: number; spent: number; left: number }> {
   const econ = await getMotorEcon();
   const budget = Math.max(0, Math.floor(econ.ofisDailyBudget ?? 100000));
   const spent = await ofisSpentToday();

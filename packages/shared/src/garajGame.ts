@@ -41,25 +41,9 @@ export const MAKE_BASE: Record<string, number> = {
   gelik: 42000,
 };
 
-// era cars eligible for PERIOD_CORRECT style + COLLECTOR buyer
-export const ERA_CARS = ["tiko", "damas", "matiz", "nexia"] as const;
-
-// ── ride → game drop table (deterministic bucket 0..999, server seeds it) ─────
-export const DROP_BUCKETS: Record<string, readonly [number, number]> = {
-  PART_COMMON: [0, 399],
-  PART_RARE: [400, 599],
-  TOWED_CAR: [600, 699],
-  CUSTOMER_VISIT: [700, 799],
-  GUEST_CAR: [800, 879],
-  PARTS_CRATE: [880, 929],
-  BARN_FIND_HINT: [930, 969],
-  MECHANIC_TIP: [970, 989],
-  LEGENDARY_PART: [990, 999],
-};
 
 // ── costs / sinks ─────────────────────────────────────────────────────────────
 export const INSPECT_COSTS = { TOOL: 120, EXPERT: 400 } as const;
-export const PART_SHOP_PRICES: Record<string, number> = { SALVAGE: 40, STD: 80, OEM: 200, SPORT: 500 };
 
 // 🔧 Repair-depth: a car has 5 ZONES; you fix each with a chosen PART tier. Better
 // part = more condition gained + a higher repairQualityBonus (→ higher flip price),
@@ -98,20 +82,8 @@ export function branchTier(xp: number): number {
   return t;
 }
 
-// repair outcome thresholds on the 0..1 quality score
-export const REPAIR_OUTCOME = {
-  EXCELLENT: { min: 0.85, cond: [55, 70] as const, bonus: 1.05 },
-  GOOD: { min: 0.65, cond: [35, 50] as const, bonus: 1.0 },
-  FAIR: { min: 0.4, cond: [15, 25] as const, bonus: 1.0 },
-  DEFECT: { min: 0, cond: [-20, -10] as const, bonus: 1.0 },
-} as const;
-
 // ── emission guards (the new game's own caps; ride-coins still ≤350 via grantRideCoins) ─
 export const FLIP_DAILY_CAP = 8000; // tanga/member/day flip emission cap (audit B4)
-export const KOZACHA_PER_MIN = 1; // 🏺 kozacha per ride-minute
-export const KOZACHA_RIDE_CAP = 8; // max kozacha per ride
-export const NPC_FLOOR_RATE = 0.7; // NPC "Avtokomissiya" buys at 70% of resale
-export const NPC_DAILY_BUDGET = 5000; // tanga/day total NPC floor emission
 
 // timing mini-game → repairQualityBonus multiplier (product across tasks, clamped).
 // Better timing raises the flip price via computeFlipGrant's repairQualityBonus.
@@ -126,10 +98,6 @@ export const KOZACHA_SHOP: { code: string; name: string; cost: number; factor: n
   { code: "FLIP_BOOST_5", name: "Sotuv +5%", cost: 15, factor: 1.05 },
   { code: "FLIP_BOOST_10", name: "Sotuv +10%", cost: 30, factor: 1.1 },
 ];
-export function kozachaItem(code: string): { code: string; name: string; cost: number; factor: number } | undefined {
-  return KOZACHA_SHOP.find((i) => i.code === code);
-}
-
 export interface FlipParams {
   basePrice: number;
   level: number;
@@ -174,11 +142,6 @@ export function computeFlipGrant(p: FlipParams): number {
   // only pull `raw` UP toward the cap — never past it. The flip printer stays bounded.
   const cap = Math.min(p.basePrice * 2.5, (p.acquireCost + p.repairSpent) * 3.0 + p.basePrice * 0.5);
   return Math.max(0, Math.min(Math.round(raw), Math.round(cap)));
-}
-
-/** Resale value used by the NPC floor + as the flip basePrice anchor. */
-export function resaleValue(basePrice: number, condition: CarCondition, bestStyleMult = 1.0): number {
-  return Math.round(basePrice * bestStyleMult * CONDITION_MULT[condition]);
 }
 
 // ── display catalog for the new game (prices come from MAKE_BASE) ─────────────
@@ -301,11 +264,6 @@ export interface CarCheckView {
   sellerRating?: number | null; // PREMIUM — 1..5
   freeOfChargeUsed?: boolean; // true if this was the player's free Premium
 }
-
-// ── DTO additions for P1-A (P1-B+ services populate these) ──────────────────
-export interface OfisLedgerView { kind: "buy" | "release" | "scrap"; amount: number; carCode: string | null; status: "held" | "relisted" | "scrapped"; createdAt: string }
-export interface SellerRatingView { avg: number; count: number }
-
 
 // reputation arc — the master-mechanic identity ladder (W5).
 export const REPUTATION_TIERS: { name: string; min: number }[] = [

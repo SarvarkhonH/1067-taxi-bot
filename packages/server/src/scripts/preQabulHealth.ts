@@ -20,7 +20,7 @@ const OWNER_TG = "6506297119";
   console.log(`   Coins: 🪙 ${(m?.coins ?? 0).toLocaleString("ru-RU")}\n`);
 
   // 2. Flag posture (DARK vs LIVE)
-  const flags = ["garajx", "motorolami", "qarz", "booking3", "welcomebonus", "drvrecruit", "recruit"];
+  const flags = ["garajx", "motorolami", "qarz", "booking3", "welcomebonus", "drvrecruit", "recruit"] as const;
   console.log("─── Feature flags ───");
   for (const f of flags) {
     const on = await featureOn(f);

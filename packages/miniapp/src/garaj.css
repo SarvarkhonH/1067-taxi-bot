@@ -400,17 +400,6 @@ button.gz-stage:active { transform: scale(0.985); }
   [data-reveal] { opacity: 1; transform: none; transition: none; }
 }
 
-/* 🌟 P-Polish-Home-2 — typography scale tokens (3-step rhythm: display / body / meta) */
-:root {
-  --gz-fs-display: 18px;
-  --gz-fs-body: 14px;
-  --gz-fs-meta: 11px;
-  --gz-stack-xs: 4px;
-  --gz-stack-sm: 8px;
-  --gz-stack-md: 12px;
-  --gz-stack-lg: 18px;
-}
-
 /* tier / reputation bar under the stage */
 .gz-tier { margin-top: 10px; padding: 11px 14px; border-radius: var(--r-card); background: var(--surface); border: 1px solid var(--line); display: flex; flex-direction: column; gap: 6px; }
 .gz-tier-line { font-size: 13px; }
