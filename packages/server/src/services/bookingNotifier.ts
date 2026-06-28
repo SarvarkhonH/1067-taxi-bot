@@ -12,6 +12,7 @@ import { prisma } from "../db";
 import { getDataSource, type ActiveBookingLite, type BookingDriver, type KasDataSource, type RideHistoryItem } from "../kas";
 import { incrementMission } from "./missionService";
 import { kasMapSocket } from "./kasMapSocket";
+import { resolveDisplayName } from "./memberService";
 
 const CITY_KMH = 24;
 // kas lifecycle: new → take → in_place → delivered. "in_place" is normalized to "started" in the
@@ -367,7 +368,7 @@ export async function pushBookingUpdates(
 
       if (isNewRide) {
         const { alertAdmins } = await import("./economyService");
-        await alertAdmins(`🚖 Yangi buyurtma: <b>${m.fullName}</b> → ${b.addressName}${b.carNumber ? ` · ${b.carNumber}` : " · haydovchi qidirilyapti"}`).catch(() => undefined);
+        await alertAdmins(`🚖 Yangi buyurtma: <b>${resolveDisplayName(m.displayName || m.fullName, m.telegramUser)}</b> → ${b.addressName}${b.carNumber ? ` · ${b.carNumber}` : " · haydovchi qidirilyapti"}`).catch(() => undefined);
       }
 
       if (statusChanged || cardId !== m.rideCardMsgId || pinId !== m.liveLocMsgId || rideStartedAt !== m.rideStartedAt) {
@@ -746,7 +747,7 @@ export async function pushBookingUpdates(
           )
           .catch(() => undefined);
         const { alertAdmins } = await import("./economyService");
-        await alertAdmins(`🏁 Safar yakunlandi: <b>${m.fullName}</b>${rollLine ? ` ·${rollLine.replace(/<[^>]+>/g, "")}` : ""}`).catch(() => undefined);
+        await alertAdmins(`🏁 Safar yakunlandi: <b>${resolveDisplayName(m.displayName || m.fullName, m.telegramUser)}</b>${rollLine ? ` ·${rollLine.replace(/<[^>]+>/g, "")}` : ""}`).catch(() => undefined);
       }
       // P1 (QA fleet): keep lastBookingCar after a COMPLETED ride so the Mini App rating (which
       // arrives after this clear) can still attribute stars to the driver's car. lastBookingId is
