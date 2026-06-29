@@ -352,11 +352,30 @@ function Booking3Inner({ me, info, onClose }: { me: MeResponse; info: BookingInf
   const [active, setActive] = useState<ActiveBookingView | null>(info.active ?? null); // B: live status
   const [plateZoom, setPlateZoom] = useState(false); // mashina raqamini bosib haydovchi kartochkasini KATTA ko'rish
   const [plateClosing, setPlateClosing] = useState(false); // exit animatsiyasi davom etayotganini ushlab turadi
+  const autoShownForBooking = useRef<number | null>(null); // har bookingga bitta marta avtomatik ochish
   const closePlate = (): void => {
     haptic();
     setPlateClosing(true);
     setTimeout(() => { setPlateZoom(false); setPlateClosing(false); }, 260); // animatsiya yakuni
   };
+  // 🎉 Haydovchi QABUL qildi (driver maydoni paydo bo'ldi) — popup AVTOMATIK ochiladi, success haptik,
+  // 5 soniyadan keyin silliq pastga yopiladi. "Bosish kerakligini hamma bilmaydi" — to'g'ridan-to'g'ri
+  // ko'rsatamiz. Har buyurtma uchun bitta marta (booking id ref bilan), takrorlanmaydi.
+  useEffect(() => {
+    const bid = active?.id;
+    const car = active?.driver?.carNumber;
+    if (!bid || !car) return;
+    if (autoShownForBooking.current === bid) return;
+    autoShownForBooking.current = bid;
+    hapticSuccess();
+    setPlateZoom(true);
+    const t = setTimeout(() => {
+      setPlateClosing(true);
+      setTimeout(() => { setPlateZoom(false); setPlateClosing(false); }, 260);
+    }, 5000);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [active?.id, active?.driver?.carNumber]);
   const activeRef = useRef<ActiveBookingView | null>(info.active ?? null); // E7: detect active→null finish
   const [finishedBid, setFinishedBid] = useState<number | null>(null); // E7: the just-finished ride
   const [stars, setStars] = useState(0);
