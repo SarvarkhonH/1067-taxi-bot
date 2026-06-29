@@ -72,11 +72,14 @@ export const RIDE_EMISSION_CAP = 350;
 // funneling coins into a mule grants ZERO extra cash-out), small burn shrinks
 // supply on every hop, counterparty fan-out capped, fresh accounts locked out.
 export const TRANSFER_MIN = 500;
-export const TRANSFER_MAX_PER_TX = 20000;
-export const TRANSFER_DAILY_SENT = 30000;
-export const TRANSFER_DAILY_RECEIVED = 100000; // owner-raised 30k→100k 2026-06-27 (note: now == withdraw cap, weakens the received<withdraw anti-mule margin)
-export const TRANSFER_MAX_COUNTERPARTIES = 5; // distinct recipients per day (driver tips/fares exempt)
-export const TRANSFER_MIN_ACCOUNT_AGE_H = 48; // sender must be linked this long
+// 2026-06-29 owner opened P2P fully — no anti-mule walls (new accounts can send, caps lifted to 100k,
+// unlimited recipients, no account-age gate). Real-money-out is still bounded by the withdraw gate
+// (ride-gated + 100k/day cap), so opening internal coin movement is a soft risk.
+export const TRANSFER_MAX_PER_TX = 100000;
+export const TRANSFER_DAILY_SENT = 100000;
+export const TRANSFER_DAILY_RECEIVED = 100000;
+export const TRANSFER_MAX_COUNTERPARTIES = 1000; // effectively unlimited recipients per day
+export const TRANSFER_MIN_ACCOUNT_AGE_H = 0; // new accounts can transfer immediately
 // A real ride FARE can far exceed the P2P friend cap, and pays a VETTED kas driver — so the
 // fare kind gets its own high ceiling and bypasses the anti-mule walls (the driver recipient
 // is a kas identity, not a farm mule; the withdraw gate still bounds real money out).
