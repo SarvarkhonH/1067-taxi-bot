@@ -36,16 +36,29 @@ import type {
 } from "@t1067/shared";
 import { tg } from "./telegram";
 
-// Telegram provides initData via the SDK AND in the URL hash (tgWebAppData).
-// Read the hash as a fallback so it works even if telegram-web-app.js fails to load.
+// Telegram provides initData via the SDK AND in the URL hash (tgWebAppData). The signed initData
+// stays valid for the whole session — we CACHE it in sessionStorage on first read so subsequent
+// reads survive any hash-wiping navigation (e.g. ?go=… deeplinks, reload(), garaj close that does
+// location.hash=""). Without this cache, reloading after a hash change → empty initData → 401 →
+// "Telegram orqali oching" false-positive. Cache is sessionStorage-scoped so it dies with the tab.
+const ID_KEY = "tg:initData";
 export function getInitData(): string {
+  // 1) Live SDK (most reliable — Telegram sets it directly on window.Telegram.WebApp)
   const sdk = tg?.initData ?? "";
-  if (sdk) return sdk;
-  try {
-    return new URLSearchParams(location.hash.slice(1)).get("tgWebAppData") ?? "";
-  } catch {
-    return "";
+  if (sdk) {
+    try { sessionStorage.setItem(ID_KEY, sdk); } catch { /* private mode */ }
+    return sdk;
   }
+  // 2) URL hash — populated by Telegram on initial WebView open
+  try {
+    const fromHash = new URLSearchParams(location.hash.slice(1)).get("tgWebAppData");
+    if (fromHash) {
+      try { sessionStorage.setItem(ID_KEY, fromHash); } catch { /* ignore */ }
+      return fromHash;
+    }
+  } catch { /* ignore */ }
+  // 3) sessionStorage cache — survives reload + any code that wipes the hash
+  try { return sessionStorage.getItem(ID_KEY) ?? ""; } catch { return ""; }
 }
 
 // Some Telegram clients (Web Z, Desktop) populate initData a few hundred ms AFTER the WebView

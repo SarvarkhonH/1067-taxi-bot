@@ -1079,7 +1079,17 @@ export const GARAJ_DEMO: GarajStateResponse = {
 
 /** #garajdemo render-proof entry — the shell populated from the static fixture. */
 export function GarajDemo() {
-  return <GarajShell initial={GARAJ_DEMO} onClose={() => { window.location.hash = ""; }} />;
+  return <GarajShell initial={GARAJ_DEMO} onClose={() => {
+    // Clearing location.hash directly would also wipe Telegram's #tgWebAppData=… payload, which
+    // breaks auth on the next reload (→ "Telegram orqali oching" false-positive). Preserve it if
+    // present; only drop our route part (#garajdemo). sessionStorage cache covers any miss.
+    try {
+      const data = new URLSearchParams(location.hash.slice(1)).get("tgWebAppData");
+      history.replaceState({}, "", location.pathname + location.search + (data ? "#tgWebAppData=" + data : ""));
+    } catch {
+      window.location.hash = "";
+    }
+  }} />;
 }
 
 // 🏁 Garaj Bozori — the app-level "Bozor" tab market: every player's open listings
