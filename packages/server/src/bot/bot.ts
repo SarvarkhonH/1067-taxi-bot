@@ -98,26 +98,26 @@ function mainMenu(isDriver = false): Keyboard {
   // booking (?go=book), not the old bot text flow. Old cached keyboards still send the
   // text → bot.hears("🚕 Taxi chaqirish") falls back to startBooking (graceful).
   const kb = new Keyboard();
-  // Owner decision 2026-06-29 (hybrid): screens that have a Mini App view open the app on one tap
-  // (Hamyon/Bonuslar/Reyting/Hisobim/Haydovchiga to'lash + the general «🚀 Ilova»). Bot-only flows
-  // stay as plain TEXT — they answer in-chat through the bot.hears(…) handlers (lokatsiyali chaqirish
-  // = the map booking conversation, Buyurtmam = active-order card in chat, 👥 Do'st = referral card,
-  // 🚗 Haydovchi paneli = driver stats). Old cached keyboards still work via the same bot.hears aliases.
+  // Owner final layout 2026-06-29: two parallel booking entries — «🚕 Taxi chaqirish» = classic bot
+  // chat flow (kept for users who prefer typing), «📍 Lokatsiyali chaqirish» = NEW prominent full-width
+  // row that replaces the old «🚀 Ilova» CTA and opens the Mini App map booking directly (?go=book).
+  // Active-order card («📍 Buyurtmam») also lives in the Mini App now.
+  // Web_app on tap: 📍 Buyurtmam, 📍 Lokatsiyali chaqirish, 💰 Hamyon, 🎁 Bonuslar, 🏆 Reyting,
+  //                 👤 Hisobim, 🙏 Haydovchiga to'lash.
+  // Bot text (in-chat): 🚕 Taxi chaqirish (old flow), 👥 Do'st (referral card), 🚗 Haydovchi paneli.
   const txt = (label: string): void => { kb.text(label); };
   const app = (label: string, go: string): void => {
     if (canWebApp) kb.webApp(label, webAppUrl(go));
     else kb.text(label); // old client w/o web_app support → graceful text fallback
   };
-  // Row 1 — booking (bot flow, in-chat conversation)
-  txt("📍 Lokatsiyali chaqirish"); // renamed from «🚕 Taxi chaqirish»; booking.ts hears both
-  txt("📍 Buyurtmam");
+  // Row 1 — two booking entries side by side: classic bot | Mini App active-order
+  txt("🚕 Taxi chaqirish");
+  app("📍 Buyurtmam", "book");
   kb.row();
-  // Row 2 — Mini App general entry (prominent, full width)
-  if (canWebApp) {
-    kb.webApp("🚀 Ilova — O'yin, Bozor & ko'p", webAppUrl());
-    kb.row();
-  }
-  // Row 3-4 — Mini App direct screens (one-tap into the exact tab)
+  // Row 2 — NEW prominent CTA: full-width map booking in the Mini App (replaces the old 🚀 Ilova row)
+  app("📍 Lokatsiyali chaqirish", "book");
+  kb.row();
+  // Rows 3-4 — Mini App direct screens
   app("💰 Hamyon", "wallet");
   app("🎁 Bonuslar", "play");
   kb.row();
