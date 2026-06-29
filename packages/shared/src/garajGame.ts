@@ -571,9 +571,9 @@ export const MOTOR_ECON_KNOBS: MotorEconKnob[] = [
   { key: "speederMult", label: "🚀 Speeder kuchi (×)", def: 4, min: 2, max: 6, step: 1, live: true },
   { key: "speederSurgePct", label: "🚀 Speeder narx oshishi % (zaxira kamaysa)", def: 50, min: 0, max: 200, step: 5, live: true },
   // 🔥 P-Fuel-A — bak o'lchami va push siyosati (push P-Fuel-C da jonlanadi)
-  { key: "fuelTankHours", label: "⛽ Bak hajmi (soat)", def: 24, min: 6, max: 72, step: 1, live: true },
+  { key: "fuelTankHours", label: "⛽ Bak hajmi (soat)", def: 72, min: 6, max: 168, step: 1, live: true }, // FAZA7 — 24→72 (3 kun): kamroq chore, mashina uzoqroq ishlaydi
   { key: "pushFeatureOn", label: "🔔 Push kill-switch", def: 1, min: 0, max: 1, step: 1, live: false },
-  { key: "pushWarnPct", label: "🔔 Ogohlantirish % (yoqilg'i)", def: 30, min: 10, max: 50, step: 1, live: false },
+  { key: "pushWarnPct", label: "🔔 Ogohlantirish % (yoqilg'i)", def: 40, min: 10, max: 50, step: 1, live: false }, // FAZA7 — 30→40: ertaroq ogohlantirish
   { key: "pushQuietStartHour", label: "🌙 Sukut boshi (Toshkent)", def: 23, min: 18, max: 23, step: 1, live: false },
   { key: "pushQuietEndHour", label: "🌅 Sukut oxiri (Toshkent)", def: 7, min: 5, max: 10, step: 1, live: false },
   // 🏛 P1-A — Motor Olami P1 admin dastaklari (Ofis market-maker, slots, CarCheck, defects)
