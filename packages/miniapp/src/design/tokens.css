@@ -947,3 +947,108 @@ body {
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation: none !important; transition: none !important; }
 }
+
+/* ─── 🪟 LIQUID GLASS — xaritali buyurtma (booking3) ──────────────────────────────────
+   Faqat booking3 elementlari (sheet/pinbar/tugmalar/chiplar/status xabarlar) frosted-glass
+   bo'ladi — qolgan ekranlar (garaj, hamyon va h.k.) tegmaydi. Asl qoidalar yuqorida saqlanadi;
+   bu blok ularni override qiladi. backdrop-filter qo'llab-quvvatlanmasa — opaq fallback ishlaydi.
+   ─────────────────────────────────────────────────────────────────────────────────────── */
+:root {
+  --glass-bg: rgba(22, 28, 44, 0.62);
+  --glass-bg-strong: rgba(18, 24, 38, 0.78);
+  --glass-rim: rgba(255, 255, 255, 0.12);
+  --glass-rim-bright: rgba(255, 255, 255, 0.18);
+  --glass-inset: inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  --glass-shadow: 0 8px 32px rgba(0, 0, 0, 0.45);
+  --glass-shadow-up: 0 -12px 40px rgba(0, 0, 0, 0.5);
+  --glass-blur: blur(24px) saturate(140%);
+  --glass-blur-light: blur(16px) saturate(130%);
+}
+
+/* Pastdagi sheet + pin paneli — asosiy katta yuza */
+.b3-sheet, .b3-pinbar {
+  background: var(--glass-bg);
+  -webkit-backdrop-filter: var(--glass-blur);
+  backdrop-filter: var(--glass-blur);
+  border: 1px solid var(--glass-rim);
+  border-bottom: 0;
+  box-shadow: var(--glass-inset), var(--glass-shadow-up);
+}
+.b3-pinbar.dragging { box-shadow: var(--glass-inset), 0 -6px 20px rgba(0, 0, 0, 0.4); }
+.b3-grip { background: var(--glass-rim-bright); }
+
+/* Xaritadagi xabar lentasi (yuqori) */
+.b3-msg {
+  background: var(--glass-bg-strong);
+  -webkit-backdrop-filter: var(--glass-blur-light);
+  backdrop-filter: var(--glass-blur-light);
+  border: 1px solid var(--glass-rim);
+  box-shadow: var(--glass-inset), 0 6px 24px rgba(0, 0, 0, 0.4);
+}
+
+/* Holat xabari (Qidirilmoqda...) + topildi-kartochkasi */
+.b3-search-title { letter-spacing: 0.2px; text-shadow: 0 1px 8px rgba(255, 179, 0, 0.18); }
+.b3-found-card {
+  background: linear-gradient(135deg, rgba(255, 200, 64, 0.16), rgba(22, 28, 44, 0.78));
+  -webkit-backdrop-filter: var(--glass-blur);
+  backdrop-filter: var(--glass-blur);
+  border: 1px solid rgba(255, 200, 64, 0.32);
+  box-shadow: var(--glass-inset), 0 8px 32px rgba(255, 152, 0, 0.18), 0 6px 24px rgba(0, 0, 0, 0.45);
+}
+
+/* Tezkor manzil chiplari — yumshoq glass kapsulalar */
+.b3-chips .d-chip, .b3-pin-chips .d-chip {
+  background: var(--glass-bg);
+  -webkit-backdrop-filter: var(--glass-blur-light);
+  backdrop-filter: var(--glass-blur-light);
+  border: 1px solid var(--glass-rim);
+  box-shadow: var(--glass-inset);
+  transition: transform 90ms var(--ease-out), background 180ms var(--ease-out), border-color 180ms;
+}
+.b3-chips .d-chip:active, .b3-pin-chips .d-chip:active {
+  transform: scale(0.96);
+  background: var(--glass-bg-strong);
+  border-color: var(--glass-rim-bright);
+}
+
+/* Qo'shimcha tugmalar (⏰ Keyinroqqa / 👨‍👩‍👧 Oila uchun) */
+.b3-extra-btn {
+  background: var(--glass-bg);
+  -webkit-backdrop-filter: var(--glass-blur-light);
+  backdrop-filter: var(--glass-blur-light);
+  border: 1px solid var(--glass-rim);
+  box-shadow: var(--glass-inset);
+  transition: transform 90ms var(--ease-out), background 180ms;
+}
+.b3-extra-btn:active { transform: scale(0.97); background: var(--glass-bg-strong); opacity: 1; }
+
+/* Safar paytidagi tezkor amallar (Qo'ng'iroq / Ulashish / Bekor) */
+.b3-act {
+  background: var(--glass-bg);
+  -webkit-backdrop-filter: var(--glass-blur-light);
+  backdrop-filter: var(--glass-blur-light);
+  border: 1px solid var(--glass-rim);
+  box-shadow: var(--glass-inset);
+  transition: transform 90ms var(--ease-out), background 180ms, border-color 180ms;
+}
+.b3-act:active { transform: scale(0.97); background: var(--glass-bg-strong); border-color: var(--glass-rim-bright); }
+.b3-act-call {
+  background: linear-gradient(135deg, #ffc840, #ff9500);
+  border-color: rgba(255, 200, 64, 0.5);
+  box-shadow: var(--glass-inset), 0 6px 24px rgba(255, 152, 0, 0.35);
+  color: #1a1205;
+}
+.b3-act-call:active { background: linear-gradient(135deg, #ffb320, #ff8a00); }
+
+/* Asosiy "Buyurtma berish" tugmasi (b3-sheet ichidagi d-btn) — yorqinroq glow */
+.b3-sheet .d-btn { box-shadow: var(--glass-inset), 0 8px 28px rgba(255, 152, 0, 0.35); }
+
+/* Backdrop-filter yo'q brauzer (Telegram WebView eski versiyalari) — opaq fallback */
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .b3-sheet, .b3-pinbar, .b3-msg, .b3-extra-btn, .b3-act,
+  .b3-chips .d-chip, .b3-pin-chips .d-chip {
+    background: var(--surface-2);
+  }
+  .b3-found-card { background: var(--surface-2); }
+}
+
