@@ -350,6 +350,7 @@ function Booking3Inner({ me, info, onClose }: { me: MeResponse; info: BookingInf
   const [msg, setMsg] = useState<string | null>(null);
   const [locating, setLocating] = useState(false); // GPS in-flight → spin the locate icon
   const [active, setActive] = useState<ActiveBookingView | null>(info.active ?? null); // B: live status
+  const [plateZoom, setPlateZoom] = useState(false); // mashina raqamini bosib KATTA ko'rish (ko'cha sharoiti)
   const activeRef = useRef<ActiveBookingView | null>(info.active ?? null); // E7: detect active→null finish
   const [finishedBid, setFinishedBid] = useState<number | null>(null); // E7: the just-finished ride
   const [stars, setStars] = useState(0);
@@ -1144,7 +1145,7 @@ function Booking3Inner({ me, info, onClose }: { me: MeResponse; info: BookingInf
                     {active.driver.fullName || "Haydovchi"}
                     {active.driver.rating ? <span className="b3-driver-rate"> ⭐{active.driver.rating.toFixed(1)}</span> : null}
                   </div>
-                  <div className="dim fs13">🚘 {active.driver.carModel} · <span className="b3-driver-plate">{active.driver.carNumber}</span></div>
+                  <div className="dim fs13">🚘 {active.driver.carModel} · <span className="b3-driver-plate" role="button" tabIndex={0} onClick={() => { haptic(); setPlateZoom(true); }} title="Bosib kattalashtirish">{active.driver.carNumber}</span></div>
                 </div>
                 {active.etaMin ? <div className="b3-eta"><b>{active.etaMin}</b><span>daq</span></div> : null}
               </div>
@@ -1294,6 +1295,16 @@ function Booking3Inner({ me, info, onClose }: { me: MeResponse; info: BookingInf
             <input className="bk-input mb6" placeholder="Telefon: 901234567" value={famPhone} onChange={(e) => setFamPhone(e.target.value.replace(/\D/g, "").slice(0, 9))} inputMode="numeric" />
             <input className="bk-input mb6" placeholder="Ismi (Onam, Xotinim…)" value={famName} onChange={(e) => setFamName(e.target.value)} />
             <Button disabled={famPhone.length < 9 || famAdding} onClick={addFamily}>{famAdding ? "Qo'shilmoqda…" : "➕ Qo'shish"}</Button>
+          </div>
+        </div>
+      )}
+      {/* 🔍 Plate zoom — bosish bilan ekran bo'yi katta nomerli plitka. Hech bir joyga bosish → yopiladi. */}
+      {plateZoom && active?.driver?.carNumber && (
+        <div className="b3-plate-zoom" onClick={() => { haptic(); setPlateZoom(false); }} role="dialog" aria-label="Mashina raqami">
+          <div className="b3-plate-zoom-card" onClick={(e) => e.stopPropagation()}>
+            <div className="b3-plate-zoom-label">🚘 {active.driver.carModel || ""}</div>
+            <div className="b3-plate-zoom-num">{active.driver.carNumber}</div>
+            <button className="b3-plate-zoom-close" onClick={() => { haptic(); setPlateZoom(false); }}>Yopish</button>
           </div>
         </div>
       )}
