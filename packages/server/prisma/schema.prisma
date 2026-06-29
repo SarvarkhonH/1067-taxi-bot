@@ -754,6 +754,26 @@ model GarajAuctionBid {
   @@index([auctionId])
 }
 
+// 🔧 P2-deep-5 — Limited-event parts (detallar). HARD global mint-cap per partCode
+// (Steam-skin economy): once the cap is hit OR the mint event is closed, NO more can ever
+// be minted → existing parts only change hands on the P2P parts market → price climbs.
+// Installed on a car → +earnBonusPct to THAT car's earn. The serial is a per-partCode
+// global unique mint # (Twin Turbo #042 / 500). Counter lives in AppState mo:part:next:<code>.
+model GarajPart {
+  id             Int       @id @default(autoincrement())
+  partCode       String // twin_turbo | nitro | sport_ecu (MOTOR_PARTS config)
+  serial         Int // per-partCode global unique mint #
+  ownerId        Int // current owner member
+  installedCarId Int? // null = sitting in inventory; set = bolted onto this GarajCar
+  status         String    @default("owned") // owned | installed | listed
+  mintedAt       DateTime  @default(now())
+
+  @@unique([partCode, serial]) // race-safe: two concurrent mints can't share a serial
+  @@index([ownerId, status])
+  @@index([installedCarId])
+  @@index([partCode])
+}
+
 // 🔥 W5 Forgiving streak — daily ride streak with ONE "spare tire" freeze. Updated
 // in the ride-finish sweep (one increment per Tashkent day). Milestone rewards are
 // grantCoins (mission-style, OUTSIDE the 350/ride clamp) keyed by milestone+date.

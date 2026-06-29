@@ -57,8 +57,13 @@ import {
   SPEEDER_DAYS,
   isSpeederActive,
   speederSurgePrice,
+  MOTOR_PARTS,
+  getMotorPart,
+  partEarnMult,
   type CarCheckTier,
   type CarCheckView,
+  type GarajPartView,
+  type GarajPartCatalogView,
   type HiddenDefect,
   type PublicProfileView,
   type OrzuBoardView,
@@ -310,6 +315,17 @@ export async function getGarajState(memberId: number): Promise<GarajStateRespons
     const earnedAgg = await prisma.coinTxn.aggregate({ where: { memberId, kind: "motor_earn", createdAt: { gte: new Date(`${tashkentDate()}T00:00:00+05:00`) } }, _sum: { amount: true } });
     capRoom = Math.max(0, dailyCapView - (earnedAgg._sum.amount ?? 0));
   }
+  // 🔧 P2-deep-5 — installed parts per car (earn preview + speed display + UI chips). One query.
+  const installedPartRows = motorEnabled
+    ? await prisma.garajPart.findMany({ where: { ownerId: memberId, status: "installed" }, select: { id: true, partCode: true, serial: true, installedCarId: true }, orderBy: { id: "asc" } })
+    : [];
+  const partsByCar = new Map<number, typeof installedPartRows>();
+  for (const p of installedPartRows) {
+    if (p.installedCarId == null) continue;
+    const arr = partsByCar.get(p.installedCarId) ?? [];
+    arr.push(p);
+    partsByCar.set(p.installedCarId, arr);
+  }
   const carViews: GarajCarView[] = cars.map((c) => {
     const cm = garajCarMeta(c.carCode);
     const view: GarajCarView = {
@@ -332,7 +348,11 @@ export async function getGarajState(memberId: number): Promise<GarajStateRespons
       // 🌍 motorolami: surface serial, engine wear, age + the pending «Yig'ish» net (preview math)
       const hp = c.engineHp ?? 100;
       const eff = effectiveEcon(motorEcon, motorBonus.active); // 🎁 bonus-hafta multiplikator
-      const speed = Math.round(motorSpeed(c.carCode) * eff.speedMult);
+      // 🔧 P2-deep-5 — bolted-on parts boost earn (and displayed speed) the same way collect does
+      const carParts = partsByCar.get(c.id) ?? [];
+      const partMult = partEarnMult(carParts.map((p) => p.partCode));
+      const speed = Math.round(motorSpeed(c.carCode) * eff.speedMult * partMult);
+      view.installedParts = carParts.map((p) => { const d = getMotorPart(p.partCode); return { id: p.id, code: p.partCode, name: d?.name ?? p.partCode, emoji: d?.emoji ?? "🔧", earnBonusPct: d?.earnBonusPct ?? 0, serial: p.serial }; });
       view.serial = c.serial;
       view.engineHp = hp;
       view.dead = hp <= 0;
@@ -578,7 +598,11 @@ export async function motorCollect(memberId: number, garajCarId?: number): Promi
     // 🚀 P2-C — Speeder booster: if active, the earn-side speed is multiplied. Capped to runway hours.
     const speederOn = isSpeederActive(car.speederUntilAt, now);
     const speederMult = speederOn ? Math.max(2, Math.min(6, Math.floor(econ.speederMult ?? 4))) : 1;
-    const speed = Math.round(motorSpeed(car.carCode) * eff.speedMult * speederMult);
+    // 🔧 P2-deep-5 — bolted-on parts boost earn (additive %, TOTAL clamped in partEarnMult).
+    // The dailyEarnCap clamp below is the absolute backstop → parts can't bust the ≤cap/day invariant.
+    const carPartRows = await prisma.garajPart.findMany({ where: { installedCarId: car.id, status: "installed" }, select: { partCode: true } });
+    const partMult = partEarnMult(carPartRows.map((p) => p.partCode));
+    const speed = Math.round(motorSpeed(car.carCode) * eff.speedMult * speederMult * partMult);
     const { gross, wear, net: rawNet } = computeMotorEarnNoFuel(speed, hours, 0); // taxi 2× = sweep ride-hooki (P0.4)
     // 🛡 KUNLIK CAP (anti-inflyatsiya) — clamp so this player's TOTAL motor_earn today ≤ dailyEarnCap.
     // Per-MEMBER (not per-car) so multiple slots can't multiply emission past the ceiling. cap=0 → off.
@@ -811,6 +835,107 @@ export async function sweepOfisHeld(): Promise<number> {
     }
   }
   return scrapped;
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+// 🔧 P2-deep-5 — Limited-event parts (detallar): hard mint-cap, install, earn-boost
+// ════════════════════════════════════════════════════════════════════════════
+
+// Atomic per-partCode mint counter with the HARD cap baked into the SQL. Returns the new
+// serial (1..cap) or null when the cap is already reached. The WHERE on the DO UPDATE makes
+// the cap race-proof: concurrent mints serialize on the row; once value==cap the UPDATE is
+// skipped and RETURNING is empty. First mint (no row) inserts serial 1.
+async function nextPartSerial(tx: Prisma.TransactionClient, partCode: string, cap: number): Promise<number | null> {
+  if (cap < 1) return null;
+  const key = `mo:part:next:${partCode}`;
+  const rows = await tx.$queryRaw<{ value: string }[]>`
+    INSERT INTO "AppState" ("key","value","updatedAt") VALUES (${key}, '1', now())
+    ON CONFLICT ("key") DO UPDATE SET value = (CAST("AppState"."value" AS INTEGER) + 1)::text, "updatedAt" = now()
+      WHERE CAST("AppState"."value" AS INTEGER) < ${cap}
+    RETURNING "value"`;
+  if (!rows[0]) return null; // cap reached → no row updated/inserted
+  return parseInt(rows[0].value, 10);
+}
+
+// The mint event for a part is OPEN only while AppState mo:partmint:<code> = "1" (admin opens
+// a limited event; default closed → DARK-safe, no minting until the owner turns it on).
+async function isPartMintOpen(partCode: string): Promise<boolean> {
+  const row = await prisma.appState.findUnique({ where: { key: `mo:partmint:${partCode}` } });
+  return row?.value === "1";
+}
+/** Admin: open/close a part's limited mint event. Closing it freezes supply (P2P resale only). */
+export async function setPartMintEvent(partCode: string, open: boolean): Promise<void> {
+  const key = `mo:partmint:${partCode}`;
+  await prisma.appState.upsert({ where: { key }, create: { key, value: open ? "1" : "0" }, update: { value: open ? "1" : "0" } });
+}
+
+/** Mint one limited part. Gated by: motorolami flag + the part's event being OPEN + under the
+ *  hard mint-cap. Pure tanga SINK (def.cost). Money-safe: withMemberLock + inline tx (no
+ *  re-locking helper). Returns sold_out/event_closed/insufficient reasons. */
+export async function mintPart(memberId: number, partCode: string): Promise<GarajActionResult & { partId?: number; serial?: number; minted?: number; cap?: number }> {
+  if (!(await motorEnabledFor(memberId))) return { ok: false, reason: "off" };
+  const def = getMotorPart(partCode);
+  if (!def) return { ok: false, reason: "bad_part" };
+  if (!(await isPartMintOpen(def.code))) return { ok: false, reason: "event_closed", coins: await getCoins(memberId) };
+  return withMemberLock(memberId, async () => {
+    const coins = await getCoins(memberId);
+    if (coins < def.cost) return { ok: false, reason: "insufficient", coins };
+    const res = await prisma.$transaction(async (tx) => {
+      const serial = await nextPartSerial(tx, def.code, def.mintCap); // hard cap enforced here
+      if (serial === null) return { sold_out: true as const };
+      const part = await tx.garajPart.create({ data: { partCode: def.code, serial, ownerId: memberId, status: "owned" } });
+      // idempotent charge keyed on the fresh part.id (unique per mint) — mirrors purchaseSpeeder
+      await tx.coinTxn.create({ data: { memberId, amount: -def.cost, kind: "garaj_part_mint", reason: `🔧 ${def.name} #${serial} (mint)`, idempotencyKey: `partmint:${part.id}` } });
+      await tx.member.update({ where: { id: memberId }, data: { coins: { decrement: def.cost } } });
+      return { sold_out: false as const, partId: part.id, serial };
+    });
+    if (res.sold_out) return { ok: false, reason: "sold_out", coins: await getCoins(memberId) };
+    return { ok: true, partId: res.partId, serial: res.serial, minted: res.serial, cap: def.mintCap, coins: await getCoins(memberId) };
+  });
+}
+
+/** Bolt an owned part onto one of the member's live cars → +earnBonusPct to that car's earn. */
+export async function installPart(memberId: number, partId: number, garajCarId: number): Promise<GarajActionResult> {
+  if (!(await motorEnabledFor(memberId))) return { ok: false, reason: "off" };
+  return withMemberLock(memberId, async () => {
+    const part = await prisma.garajPart.findFirst({ where: { id: partId, ownerId: memberId } });
+    if (!part) return { ok: false, reason: "not_found", coins: await getCoins(memberId) };
+    if (part.status === "listed") return { ok: false, reason: "listed", coins: await getCoins(memberId) }; // can't install a part that's up for sale
+    if (part.installedCarId) return { ok: false, reason: "already_installed", coins: await getCoins(memberId) };
+    const car = await prisma.garajCar.findFirst({ where: { id: garajCarId, memberId, soldAt: null, serial: { not: null } } });
+    if (!car) return { ok: false, reason: "no_car", coins: await getCoins(memberId) };
+    await prisma.garajPart.update({ where: { id: part.id }, data: { installedCarId: car.id, status: "installed" } });
+    return { ok: true, coins: await getCoins(memberId) };
+  });
+}
+
+/** Unbolt an installed part back to inventory (so it can be moved or sold). */
+export async function uninstallPart(memberId: number, partId: number): Promise<GarajActionResult> {
+  if (!(await motorEnabledFor(memberId))) return { ok: false, reason: "off" };
+  return withMemberLock(memberId, async () => {
+    const part = await prisma.garajPart.findFirst({ where: { id: partId, ownerId: memberId } });
+    if (!part) return { ok: false, reason: "not_found", coins: await getCoins(memberId) };
+    if (part.status !== "installed") return { ok: false, reason: "not_installed", coins: await getCoins(memberId) };
+    await prisma.garajPart.update({ where: { id: part.id }, data: { installedCarId: null, status: "owned" } });
+    return { ok: true, coins: await getCoins(memberId) };
+  });
+}
+
+/** Parts screen state: the member's inventory + the live mint-catalog (minted/left/event-open). */
+export async function getPartsState(memberId: number): Promise<{ parts: GarajPartView[]; catalog: GarajPartCatalogView[] }> {
+  const owned = await prisma.garajPart.findMany({ where: { ownerId: memberId, status: { in: ["owned", "installed"] } }, orderBy: { id: "asc" } });
+  const parts: GarajPartView[] = owned.map((p) => {
+    const d = getMotorPart(p.partCode);
+    return { id: p.id, code: p.partCode, name: d?.name ?? p.partCode, emoji: d?.emoji ?? "🔧", serial: p.serial, earnBonusPct: d?.earnBonusPct ?? 0, installedCarId: p.installedCarId, status: p.status };
+  });
+  const counters = await prisma.appState.findMany({ where: { key: { in: MOTOR_PARTS.map((d) => `mo:part:next:${d.code}`) } } });
+  const mintedByKey = new Map(counters.map((r) => [r.key, parseInt(r.value, 10) || 0]));
+  const catalog: GarajPartCatalogView[] = [];
+  for (const d of MOTOR_PARTS) {
+    const minted = mintedByKey.get(`mo:part:next:${d.code}`) ?? 0;
+    catalog.push({ code: d.code, name: d.name, emoji: d.emoji, mintCap: d.mintCap, minted, left: Math.max(0, d.mintCap - minted), cost: d.cost, earnBonusPct: d.earnBonusPct, eventOpen: await isPartMintOpen(d.code) });
+  }
+  return { parts, catalog };
 }
 
 // 🪪 P1-D — purchase one extra slot. Default slot 1 = free; slot 2 = 50k, 3 = 250k, 4 = 1M

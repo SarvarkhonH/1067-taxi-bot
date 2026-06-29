@@ -5,7 +5,7 @@
 // Run: pnpm --filter @t1067/server exec dotenv -e ../../.env -- tsx src/scripts/testGarajP1.ts
 import "./_testDb";
 import "../env";
-import { MAKE_BASE, SLOT_COSTS, CARCHECK_COSTS, OFIS_BID_FACTOR, ofisBidPrice, MERGE_MAX_COUNT, MERGE_BONUS_PCT, mergeMult, variantFor, getVariant, SPEEDER_DAYS, isSpeederActive, speederSurgePrice } from "@t1067/shared";
+import { MAKE_BASE, SLOT_COSTS, CARCHECK_COSTS, OFIS_BID_FACTOR, ofisBidPrice, MERGE_MAX_COUNT, MERGE_BONUS_PCT, mergeMult, variantFor, getVariant, SPEEDER_DAYS, isSpeederActive, speederSurgePrice, getMotorPart } from "@t1067/shared";
 import { prisma } from "../db";
 import { getCoins, grantCoins } from "../services/coinService";
 import {
@@ -27,6 +27,11 @@ import {
   motorCollect,
   sweepAutoStabilize,
   sweepOfisHeld,
+  mintPart,
+  installPart,
+  uninstallPart,
+  getPartsState,
+  setPartMintEvent,
 } from "../services/garajService";
 import { __resetFeatureCache, setFeature } from "../services/featureFlags";
 
@@ -42,6 +47,7 @@ async function cleanup(): Promise<void> {
   const ids = ms.map((m) => m.id);
   if (ids.length) {
     await prisma.garajBazaarListing.deleteMany({ where: { OR: [{ sellerId: { in: ids } }, { buyerId: { in: ids } }] } });
+    await prisma.garajPart.deleteMany({ where: { ownerId: { in: ids } } }).catch(() => undefined);
     await prisma.garajCar.deleteMany({ where: { memberId: { in: ids } } });
     await prisma.memberGarajMeta.deleteMany({ where: { memberId: { in: ids } } });
     await prisma.coinTxn.deleteMany({ where: { memberId: { in: ids } } });
@@ -53,6 +59,8 @@ async function cleanup(): Promise<void> {
   await prisma.appState.deleteMany({ where: { key: { startsWith: "merge:" } } });
   await prisma.appState.deleteMany({ where: { key: { startsWith: "slotgen:" } } });
   await prisma.appState.deleteMany({ where: { key: { in: ["mo:speeder:stock", "mo:speeder:day"] } } });
+  await prisma.appState.deleteMany({ where: { key: { startsWith: "mo:part:next:" } } }); // 🔧 P2-deep-5 mint counters (global; test DB throwaway)
+  await prisma.appState.deleteMany({ where: { key: { startsWith: "mo:partmint:" } } }); // 🔧 P2-deep-5 event flags
   await prisma.ofisLedger.deleteMany({}).catch(() => undefined); // test DB only
   __resetFeatureCache();
 }
@@ -350,6 +358,85 @@ async function main(): Promise<void> {
   ok(scrapOff === 0, `Ofis scrap: flag OFF → no-op (returned ${scrapOff})`);
   await setFeature("motorolami", true);
   __resetFeatureCache();
+
+  // ── 11e) 🔧 Limited-event parts (P2-deep-5) ───────────────────────────────
+  const TT = "twin_turbo"; const ttDef = getMotorPart(TT)!;
+  const NI = "nitro"; const niDef = getMotorPart(NI)!;
+  // 4 fresh members for a true cross-member concurrency race (member-lock does NOT serialize them)
+  const pm: { id: number }[] = [];
+  for (let i = 0; i < 4; i++) pm.push(await prisma.member.create({ data: { type: "client", kasId: `${TAG}-part${i}`, fullName: `Part ${i}`, phone: `+99890000801${i}`, trips: 2 } }));
+  for (const m of pm) await grantCoins(m.id, ttDef.cost * 6, "manual", "seed-parts");
+  // A) event CLOSED → mint rejected (DARK-safe default)
+  await setPartMintEvent(TT, false);
+  const mClosed = await mintPart(pm[0]!.id, TT);
+  ok(!mClosed.ok && mClosed.reason === "event_closed", `parts: mint rejected when event closed (${mClosed.reason})`);
+  // B) open event → mint succeeds (tanga SINK) + serial assigned
+  await setPartMintEvent(TT, true);
+  const balBeforeMint = await getCoins(pm[0]!.id);
+  const m1 = await mintPart(pm[0]!.id, TT);
+  ok(m1.ok && (m1.serial ?? 0) >= 1 && m1.cap === ttDef.mintCap, `parts: mint ok, serial #${m1.serial}/${ttDef.mintCap}`);
+  ok(balBeforeMint - (await getCoins(pm[0]!.id)) === ttDef.cost, `parts: mint charged ${ttDef.cost} tanga (sink)`);
+  // C) HARD CAP under TRUE cross-member concurrency — seed counter to cap-1, fire 2 simultaneous
+  // mints from different members (member-lock does NOT serialize them) → exactly 1 ok + 1 sold_out.
+  // The atomicity is the conditional SQL in nextPartSerial (UPDATE ... WHERE value < cap).
+  await prisma.appState.upsert({ where: { key: `mo:part:next:${TT}` }, create: { key: `mo:part:next:${TT}`, value: String(ttDef.mintCap - 1) }, update: { value: String(ttDef.mintCap - 1) } });
+  const raceRes = await Promise.all([mintPart(pm[0]!.id, TT), mintPart(pm[3]!.id, TT)]);
+  const okCount = raceRes.filter((r) => r.ok).length;
+  const soldOut = raceRes.filter((r) => !r.ok && r.reason === "sold_out").length;
+  ok(okCount === 1 && soldOut === 1, `parts: HARD CAP race-proof — 2 concurrent mints at cap-1 → exactly 1 ok + 1 sold_out (got ${okCount}/${soldOut})`);
+  const counterNow = parseInt((await prisma.appState.findUnique({ where: { key: `mo:part:next:${TT}` } }))!.value, 10);
+  ok(counterNow === ttDef.mintCap, `parts: counter never exceeds cap (=${ttDef.mintCap}, got ${counterNow})`);
+  // D) cap reached → further mint sold_out
+  const mOver = await mintPart(pm[0]!.id, TT);
+  ok(!mOver.ok && mOver.reason === "sold_out", `parts: mint past cap → sold_out (${mOver.reason})`);
+  // E) INSTALL boost — two identical cars, only one gets a part → boosted car earns ~+10% gross
+  await setPartMintEvent(NI, true);
+  const boostM = pm[1]!; const ctrlM = pm[2]!;
+  const ba = await acquireCar(boostM.id, "nexia"); const ca = await acquireCar(ctrlM.id, "nexia");
+  ok(ba.ok && ca.ok, `parts: two control cars acquired`);
+  const rewound2 = new Date(Date.now() - 5 * 3600_000); const future2 = new Date(Date.now() + 24 * 3600_000);
+  await prisma.garajCar.update({ where: { id: ba.carId! }, data: { fueledUntilAt: future2, lastAccrualAt: rewound2 } });
+  await prisma.garajCar.update({ where: { id: ca.carId! }, data: { fueledUntilAt: future2, lastAccrualAt: rewound2 } });
+  const mn = await mintPart(boostM.id, NI);
+  ok(mn.ok, `parts: nitro minted (#${mn.serial})`);
+  const inst = await installPart(boostM.id, mn.partId!, ba.carId!);
+  ok(inst.ok, `parts: nitro installed on car`);
+  // foreign install rejected (can't bolt someone else's part)
+  const instBad = await installPart(ctrlM.id, mn.partId!, ca.carId!);
+  ok(!instBad.ok && instBad.reason === "not_found", `parts: cannot install another player's part (${instBad.reason})`);
+  const cb = await motorCollect(boostM.id, ba.carId!);
+  const cc = await motorCollect(ctrlM.id, ca.carId!);
+  ok((cb.gross ?? 0) > (cc.gross ?? 0), `parts: installed car earns more (gross ${cb.gross} > ${cc.gross})`);
+  const ratio = (cb.gross ?? 0) / Math.max(1, cc.gross ?? 0);
+  ok(Math.abs(ratio - (1 + niDef.earnBonusPct / 100)) < 0.06, `parts: boost ≈ +${niDef.earnBonusPct}% (ratio ${ratio.toFixed(3)})`);
+  // F) uninstall → back to inventory
+  const un = await uninstallPart(boostM.id, mn.partId!);
+  ok(un.ok, `parts: uninstall ok`);
+  const stAfter = await getPartsState(boostM.id);
+  const pAfter = stAfter.parts.find((x) => x.id === mn.partId);
+  ok(!!pAfter && pAfter.status === "owned" && pAfter.installedCarId === null, `parts: after uninstall → back to inventory`);
+  // G) insufficient funds → rejected
+  const poor = await prisma.member.create({ data: { type: "client", kasId: `${TAG}-poor`, fullName: "Poor", phone: "+998900008099", trips: 1 } });
+  const mPoor = await mintPart(poor.id, NI);
+  ok(!mPoor.ok && mPoor.reason === "insufficient", `parts: insufficient funds → rejected (${mPoor.reason})`);
+  // H) unknown part code → bad_part
+  const mBad = await mintPart(pm[0]!.id, "nonexistent_part");
+  ok(!mBad.ok && mBad.reason === "bad_part", `parts: unknown code → bad_part (${mBad.reason})`);
+  // I) OFF-safe — flag off → mint no-op
+  await setFeature("motorolami", false); __resetFeatureCache();
+  const mOff = await mintPart(pm[0]!.id, NI);
+  ok(!mOff.ok && mOff.reason === "off", `parts: flag OFF → mint no-op (${mOff.reason})`);
+  await setFeature("motorolami", true); __resetFeatureCache();
+  // J) catalog reflects mint state (twin_turbo sold out)
+  const stCat = await getPartsState(pm[0]!.id);
+  const ttCat = stCat.catalog.find((c) => c.code === TT)!;
+  ok(ttCat.left === 0 && ttCat.minted === ttDef.mintCap, `parts: catalog shows twin_turbo SOLD OUT (left ${ttCat.left})`);
+  // K) ledger invariant for every minting member (mint charge is atomic)
+  for (const m of [...pm, poor]) {
+    const bal = (await prisma.member.findUnique({ where: { id: m.id } }))!.coins;
+    const tot = (await prisma.coinTxn.aggregate({ where: { memberId: m.id }, _sum: { amount: true } }))._sum.amount ?? 0;
+    ok(Math.abs(bal - tot) < 0.001, `parts: member ${m.id} ledger invariant (bal ${bal} == ledger ${tot})`);
+  }
 
   // ── 12) Ledger invariant AFTER P2 sequence ───────────────────────────────
   for (const mm of [sellerM, buyerM]) {

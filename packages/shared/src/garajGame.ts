@@ -627,6 +627,31 @@ export function mergeMult(mergeCount: number, bonusPctOverride?: number): number
   const n = Math.max(0, Math.min(MERGE_MAX_COUNT, mergeCount));
   return 1 + n * pct;
 }
+// 🔧 P2-deep-5 — Limited-event parts (detallar). HARD mint-cap per code (Steam-skin scarcity):
+// once the cap is hit / the mint event closes → no more mint → P2P resale only → price climbs.
+// Installed on a car → +earnBonusPct to THAT car's earn (additive stack, TOTAL clamped for safety).
+export interface MotorPart { code: string; name: string; emoji: string; mintCap: number; earnBonusPct: number; cost: number }
+export const MOTOR_PARTS: MotorPart[] = [
+  { code: "twin_turbo", name: "Twin Turbo", emoji: "🌀", mintCap: 500, earnBonusPct: 15, cost: 50_000 },
+  { code: "nitro", name: "Nitro Tizim", emoji: "💨", mintCap: 1000, earnBonusPct: 10, cost: 25_000 },
+  { code: "sport_ecu", name: "Sport ECU", emoji: "🧠", mintCap: 300, earnBonusPct: 20, cost: 100_000 },
+];
+/** Look up part metadata by code (server reads GarajPart.partCode). */
+export function getMotorPart(code: string | null | undefined): MotorPart | null {
+  if (!code) return null;
+  return MOTOR_PARTS.find((p) => p.code === code) ?? null;
+}
+// Hard ceiling on stacked part earn-bonus — even bolting every part can't runaway-inflate earn.
+// (The dailyEarnCap clamp is the second, absolute backstop on emission regardless of parts.)
+export const PART_MAX_BONUS_PCT = 50;
+/** Combined earn multiplier from a list of installed part codes (e.g. ["twin_turbo","nitro"]).
+ *  Each adds earnBonusPct; the TOTAL is clamped to PART_MAX_BONUS_PCT. Unknown codes contribute 0. */
+export function partEarnMult(installedCodes: string[]): number {
+  let pct = 0;
+  for (const code of installedCodes) pct += getMotorPart(code)?.earnBonusPct ?? 0;
+  return 1 + Math.min(PART_MAX_BONUS_PCT, pct) / 100;
+}
+
 /** Bonus aktivmi va effektiv (fuel, speed) multiplikatorlar — bonus base econ ustiga ko'paytiriladi.
  *  Pol/tom himoyasi: bonus paytida ham fuel ≥0.1 (sink hech qachon o'lmasin), speed ≤6 (worst-case ceil). */
 export function effectiveEcon(base: Record<string, number>, bonusActive: boolean): { fuelMult: number; speedMult: number } {
@@ -737,7 +762,11 @@ export interface GarajCarView {
   speederActive?: boolean; // 🚀 P2-C — speeder shu mashinada aktivmi
   speederHoursLeft?: number; // 🚀 P2-C — qancha soat qoldi (countdown UCHUN)
   speederMult?: number; // 🚀 P2-C — aktiv bo'lsa: admin's speederMult; aks holda 1
+  installedParts?: { id: number; code: string; name: string; emoji: string; earnBonusPct: number; serial: number }[]; // 🔧 P2-deep-5 — bolted-on parts
 }
+// 🔧 P2-deep-5 — parts inventory + mint-catalog DTOs (Mini App parts screen)
+export interface GarajPartView { id: number; code: string; name: string; emoji: string; serial: number; earnBonusPct: number; installedCarId: number | null; status: string }
+export interface GarajPartCatalogView { code: string; name: string; emoji: string; mintCap: number; minted: number; left: number; cost: number; earnBonusPct: number; eventOpen: boolean }
 export interface GarajShopItem {
   carCode: string;
   name: string;

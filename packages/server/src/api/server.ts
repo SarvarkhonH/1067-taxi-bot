@@ -217,6 +217,11 @@ export function createApiServer(opts: ApiOptions = {}) {
   // 🚀 P2-C — Speeder booster (10-day, ×N admin-tunable, limited daily stock)
   app.get("/api/garaj/speeder/state", requireUser, withMember2(async (id) => (await import("../services/garajService")).getSpeederState(id)));
   app.post("/api/garaj/speeder/buy", requireUser, rateLimit(5), withMember2(async (id, req) => (await import("../services/garajService")).purchaseSpeeder(id, Number(req.body?.garajCarId))));
+  // 🔧 P2-deep-5 — Limited-event parts (detallar): mint (event-gated, hard cap) + install/uninstall
+  app.get("/api/garaj/parts", requireUser, withMember2(async (id) => (await import("../services/garajService")).getPartsState(id)));
+  app.post("/api/garaj/parts/mint", requireUser, rateLimit(10), withMember2(async (id, req) => (await import("../services/garajService")).mintPart(id, String(req.body?.partCode ?? ""))));
+  app.post("/api/garaj/parts/install", requireUser, rateLimit(15), withMember2(async (id, req) => (await import("../services/garajService")).installPart(id, Number(req.body?.partId), Number(req.body?.garajCarId))));
+  app.post("/api/garaj/parts/uninstall", requireUser, rateLimit(15), withMember2(async (id, req) => (await import("../services/garajService")).uninstallPart(id, Number(req.body?.partId))));
   app.get("/api/garaj/profile/:id", requireUser, withMember2(async (id, req) => (await import("../services/garajService")).getPublicProfile(id, req.params?.id === "me" ? id : Number(req.params?.id))));
 
   app.get("/api/me", requireUser, async (_req, res) => {
