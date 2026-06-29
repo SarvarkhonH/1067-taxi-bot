@@ -1,6 +1,21 @@
 import { Bot, Context, InlineKeyboard, Keyboard } from "grammy";
 import { formatNumber, haversineKm } from "@t1067/shared";
 import { env } from "../env";
+
+// Local helper — mirrors bot.ts webAppUrl(). Used to append inline web_app buttons to bot replies
+// so users have a reliable one-tap entry into the Mini App (inline web_app = same auth as the menu
+// button, never the reply-keyboard web_app flakiness). Trailing slash before the query is mandatory.
+const canWebApp = env.TELEGRAM_WEBAPP_URL.startsWith("https://");
+function webAppUrl(go?: string): string {
+  let u = env.TELEGRAM_WEBAPP_URL;
+  const noPath = !/^https?:\/\/[^/?#]+\/[^?]/.test(u);
+  if (noPath) {
+    const qi = u.indexOf("?");
+    if (qi === -1) u = u.replace(/\/?$/, "/");
+    else u = u.slice(0, qi).replace(/\/?$/, "/") + u.slice(qi);
+  }
+  return u + (u.includes("?") ? "&" : "?") + (go ? "go=" + go : "");
+}
 import { getDataSource, type ActiveBooking, type SavedAddress } from "../kas";
 import { getMe, getMemberId } from "../services/memberService";
 import { getFareConfig } from "../services/clientInfoService";
@@ -199,6 +214,7 @@ function trackingKb(b: ActiveBooking): InlineKeyboard {
   if (b.driver?.lat && b.driver?.lng) kb.text("🗺 Joylashuv", "bk:loc");
   const cancellable = ["in_place", "searching", "new", "called", "accepted", "on_the_way"].includes(b.status);
   if (cancellable) kb.row().text("✖ Buyurtmani bekor qilish", "bk:cancelride");
+  if (canWebApp) kb.row().webApp("🚀 Jonli xarita — Mini App", webAppUrl("book"));
   return kb;
 }
 
@@ -210,7 +226,8 @@ async function showTracking(ctx: Context): Promise<void> {
   }
   const b = await getDataSource().getActiveBooking(me.member.phone).catch(() => null);
   if (!b) {
-    await ctx.reply("Sizda hozircha faol buyurtma yo'q.\n«🚕 Taxi chaqirish» tugmasini bosing.");
+    const kb = canWebApp ? new InlineKeyboard().webApp("🗺 Xaritada chaqirish — Mini App", webAppUrl("book")) : undefined;
+    await ctx.reply("Sizda hozircha faol buyurtma yo'q.\n«🚕 Taxi chaqirish» tugmasini bosing.", { reply_markup: kb });
     return;
   }
   await ctx.reply(renderTracking(b), { parse_mode: "HTML", reply_markup: trackingKb(b) });
@@ -241,6 +258,7 @@ async function startBooking(ctx: Context, opts: { forceFull?: boolean } = {}): P
       .text(`🚕 Chaqirish — ${trunc(quick.name, 26)}`, "bk:now")
       .row()
       .text("📍 Boshqa manzil", "bk:other");
+    if (canWebApp) kb.row().webApp("🗺 Xaritada tanlash — Mini App", webAppUrl("book"));
     await ctx.reply(`🚕 <b>1067 tayyor!</b>\n\n📍 <b>${esc(quick.name)}</b> dan olib ketamizmi?`, { parse_mode: "HTML", reply_markup: kb });
     return;
   }
@@ -250,6 +268,11 @@ async function startBooking(ctx: Context, opts: { forceFull?: boolean } = {}): P
     parse_mode: "HTML",
     reply_markup: pickupKeyboard(),
   });
+  if (canWebApp) {
+    await ctx.reply("Yoki xaritadan tanlang 👇", {
+      reply_markup: new InlineKeyboard().webApp("🗺 Xaritali buyurtma — Mini App", webAppUrl("book")),
+    });
+  }
   if (addresses.length) {
     await ctx.reply("⭐ Tez tanlash:", { reply_markup: addressKb(addresses) });
   }
@@ -449,7 +472,8 @@ export function registerBooking(bot: Bot, mainMenu: (isDriver?: boolean) => Keyb
       return;
     }
     payDriver.set(String(ctx.from!.id), true);
-    await ctx.reply("🚖 <b>Haydovchiga to'lash</b>\n\nMashina raqamini yozing (masalan <code>01A123BC</code>):\n<i>Bekor — /start</i>", { parse_mode: "HTML" });
+    const kb = canWebApp ? new InlineKeyboard().webApp("🚀 Mini App'da to'lash", webAppUrl("tip")) : undefined;
+    await ctx.reply("🚖 <b>Haydovchiga to'lash</b>\n\nMashina raqamini yozing (masalan <code>01A123BC</code>):\n<i>Bekor — /start</i>", { parse_mode: "HTML", reply_markup: kb });
   };
   bot.command("haydovchi", (ctx) => startPayDriver(ctx));
   bot.hears("🙏 Haydovchiga to'lash", (ctx) => startPayDriver(ctx)); // main-menu one-tap alias (registered before message:text)

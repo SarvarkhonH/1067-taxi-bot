@@ -465,10 +465,9 @@ export function createBot(): Bot {
       await promptLink(ctx);
       return;
     }
-    await ctx.reply(renderProfile(me), {
-      parse_mode: "HTML",
-      reply_markup: new InlineKeyboard().text("⚙️ Hisobim / Sozlamalar", "acct:open"),
-    });
+    const kb = new InlineKeyboard().text("⚙️ Hisobim / Sozlamalar", "acct:open");
+    if (canWebApp) kb.row().webApp("🚀 Hamyon — Mini App", webAppUrl("wallet"));
+    await ctx.reply(renderProfile(me), { parse_mode: "HTML", reply_markup: kb });
   };
   // 🚀 Mini App opener. The reply-keyboard «🚀 Ilova» IS a web_app button, but Telegram caches
   // keyboards hard — an OLD cached keyboard sends this label as plain TEXT, so nothing opened
@@ -510,6 +509,7 @@ export function createBot(): Bot {
       .text("📱 Raqamni o'zgartirish", "acct:editphone")
       .row()
       .text(notifyOff ? "🔔 Bildirishnomani yoqish" : "🔕 Bildirishnomani o'chirish", "acct:notify");
+    if (canWebApp) kb.row().webApp("🚀 Hisobim — Mini App", webAppUrl("profile"));
     await ctx.reply(renderAccount(me, { joined: tu?.linkedAt ?? tu?.createdAt ?? null, notifyOff }), { parse_mode: "HTML", reply_markup: kb });
   };
   bot.hears("👤 Hisobim", showAccount);
@@ -799,7 +799,10 @@ export function createBot(): Bot {
       return;
     }
     const [lb, weekly] = await Promise.all([getLeaderboard(me.type, id), getWeeklyBoard(me.member.id)]);
-    await ctx.reply(renderLeaderboard(lb) + renderWeeklyBlock(weekly), { parse_mode: "HTML", reply_markup: mainMenu() });
+    const lbKb = canWebApp
+      ? new InlineKeyboard().webApp("🚀 Reyting — Mini App", webAppUrl("reyting"))
+      : undefined;
+    await ctx.reply(renderLeaderboard(lb) + renderWeeklyBlock(weekly), { parse_mode: "HTML", reply_markup: lbKb });
   };
   bot.hears("🏆 Reyting", showLeaderboard);
   bot.command("top", showLeaderboard);
@@ -971,7 +974,8 @@ export function createBot(): Bot {
       return;
     }
     const { text, kb } = await missionsView(memberId);
-    await ctx.reply(text, { parse_mode: "HTML", reply_markup: kb.inline_keyboard.length ? kb : mainMenu() });
+    if (canWebApp) kb.row().webApp("🚀 Bonuslar — Mini App", webAppUrl("play"));
+    await ctx.reply(text, { parse_mode: "HTML", reply_markup: kb });
   };
   bot.hears("🎁 Bonuslar", showMissions);
   bot.hears("🎯 Vazifalar", showMissions); // old cached keyboards
