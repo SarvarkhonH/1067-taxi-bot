@@ -384,6 +384,21 @@ body {
 .b3-tl-step:not(:last-child)::after { content: ""; position: absolute; top: 14px; left: 50%; width: 100%; height: 2px; background: var(--line); }
 .b3-tl-step.done:not(:last-child)::after { background: var(--brand); }
 .b3-driver { display: flex; align-items: center; gap: 12px; background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-card); padding: 12px; }
+/* haydovchi kartochkasidagi mashina raqami — nomerli plitka uslubi (atrof matnga ta'sir qilmaydi) */
+.b3-driver-plate {
+  display: inline-block;
+  font-size: 16px;
+  font-weight: 900;
+  letter-spacing: 1px;
+  color: var(--text);
+  background: rgba(255, 179, 0, 0.18);
+  border: 1px solid rgba(255, 179, 0, 0.45);
+  border-radius: 6px;
+  padding: 2px 9px;
+  margin-left: 4px;
+  font-family: ui-monospace, "Courier New", monospace;
+  vertical-align: -2px;
+}
 .b3-driver-av { width: 44px; height: 44px; border-radius: 50%; background: var(--surface-2); display: flex; align-items: center; justify-content: center; font-size: 24px; flex: none; }
 .b3-driver-meta { flex: 1; min-width: 0; }
 .b3-driver-name { font-weight: 800; font-size: 15px; }

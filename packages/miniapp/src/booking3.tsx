@@ -1144,7 +1144,7 @@ function Booking3Inner({ me, info, onClose }: { me: MeResponse; info: BookingInf
                     {active.driver.fullName || "Haydovchi"}
                     {active.driver.rating ? <span className="b3-driver-rate"> ⭐{active.driver.rating.toFixed(1)}</span> : null}
                   </div>
-                  <div className="dim fs13">🚘 {active.driver.carModel} · <b>{active.driver.carNumber}</b></div>
+                  <div className="dim fs13">🚘 {active.driver.carModel} · <span className="b3-driver-plate">{active.driver.carNumber}</span></div>
                 </div>
                 {active.etaMin ? <div className="b3-eta"><b>{active.etaMin}</b><span>daq</span></div> : null}
               </div>
