@@ -947,6 +947,23 @@ export function createApiServer(opts: ApiOptions = {}) {
     const { setMotorEcon } = await import("../services/garajService");
     res.json({ ok: true, values: await setMotorEcon(b.key as string, b.value) });
   });
+  // 🔧 P2-deep-5 — limited-event parts: read state (any admin) + open/close a mint event (owner-only).
+  // Opening a part's event = that part becomes mintable for ALL users → owner-gated go-live lever.
+  app.get("/api/admin/part-events", requireAdmin, async (_req, res) => {
+    const { getPartEvents } = await import("../services/garajService");
+    res.json({ events: await getPartEvents() });
+  });
+  app.post("/api/admin/part-event", requireAdmin, requireOwner, async (req, res) => {
+    const b = req.body as { code?: string; open?: boolean };
+    const { MOTOR_PARTS } = await import("@t1067/shared");
+    if (!MOTOR_PARTS.some((p) => p.code === b?.code) || typeof b?.open !== "boolean") {
+      res.status(400).json({ error: "unknown part or bad open flag" });
+      return;
+    }
+    const { setPartMintEvent, getPartEvents } = await import("../services/garajService");
+    await setPartMintEvent(b.code as string, b.open);
+    res.json({ ok: true, events: await getPartEvents() });
+  });
   // 🎁 Acquisition bonuses — owner sets first-ride / referral / recruit / driver→driver amounts live.
   app.get("/api/admin/bonus-economy", requireAdmin, async (_req, res) => {
     const { BONUS_ECON_KNOBS } = await import("@t1067/shared");

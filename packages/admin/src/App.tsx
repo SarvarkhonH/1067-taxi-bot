@@ -451,6 +451,7 @@ function ControlCards() {
   const [econ, setEcon] = useState<{ knobs: { key: string; label: string; def: number; min: number; max: number; step: number; live: boolean }[]; values: Record<string, number> } | null>(null);
   const [bonusEcon, setBonusEcon] = useState<{ knobs: { key: string; label: string; def: number; min: number; max: number; step: number; group: string }[]; values: Record<string, number> } | null>(null);
   const [txEcon, setTxEcon] = useState<{ knobs: { key: string; label: string; def: number; min: number; max: number; step: number }[]; values: Record<string, number>; enabled: boolean; earned: { total: number; today: number } } | null>(null);
+  const [partEvents, setPartEvents] = useState<import("./api").PartEvent[] | null>(null);
   const [corps, setCorps] = useState<{ id: number; name: string; balance: number; employees: number }[]>([]);
   const [cName, setCName] = useState("");
   const [empPhone, setEmpPhone] = useState("");
@@ -465,6 +466,7 @@ function ControlCards() {
     adminApi.features().then((r) => { setFlags(r.features); setFund(r.mashinaFund); }).catch(() => undefined);
     adminApi.bonusEconomy().then(setBonusEcon).catch(() => undefined);
     adminApi.motorEconomy().then(setEcon).catch(() => undefined);
+    adminApi.partEvents().then((r) => setPartEvents(r.events)).catch(() => undefined);
     adminApi.transferEconomy().then(setTxEcon).catch(() => undefined);
     adminApi.corps().then((r) => setCorps(r.corps)).catch(() => undefined);
     adminApi.optokens().then((r) => setOptokens(r.tokens)).catch(() => undefined);
@@ -482,6 +484,11 @@ function ControlCards() {
   const saveTxEcon = async (key: string, value: number) => {
     try { const r = await adminApi.setTransferEconomy(key, value); setTxEcon((e) => (e ? { ...e, values: r.values } : e)); }
     catch { alert(`'${key}' qiymatini saqlab bo'lmadi`); }
+  };
+  const togglePartEvent = async (code: string, open: boolean) => {
+    if (open && !confirm(`«${code}» detalini SOTUVGA chiqarasizmi? Hamma o'yinchi mint qila oladi (cheklangan son — qaytarib bo'lmaydi).`)) return;
+    try { const r = await adminApi.setPartEvent(code, open); setPartEvents(r.events); }
+    catch { alert(`'${code}' event'ini o'zgartirib bo'lmadi`); }
   };
 
   const toggle = async (name: string, on: boolean) => {
@@ -542,6 +549,22 @@ function ControlCards() {
               ))}
             </div>
             <p className="muted" style={{ marginTop: 6, fontSize: 11 }}>⛽ Yoqilg'i ×0.7 = arzon-promo (faollik↑). ⚡ Daromad ×0.5 = inflyatsiya tormozi. Har qiymat clamp'langan — buzib bo'lmaydi.</p>
+          </div>
+        )}
+        {partEvents && (
+          <div style={{ marginTop: 14, borderTop: "1px solid rgba(255,255,255,0.12)", paddingTop: 10 }}>
+            <h3 style={{ margin: "0 0 6px" }}>🔧 Cheklangan detallar — mint-event boshqaruvi</h3>
+            <p className="muted" style={{ margin: "0 0 8px", fontSize: 12 }}>Event OCHIQ = o'yinchilar shu detalni mint qila oladi (cheklangan son, narx oshadi). YOPIQ = faqat o'yinchilararo bozorda sotiladi. Mint-cap qattiq — tugagach qaytarib bo'lmaydi.</p>
+            <div style={{ display: "grid", gap: 8 }}>
+              {partEvents.map((p) => (
+                <div key={p.code} style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+                  <span style={{ flex: 1, minWidth: 200 }}>{p.emoji} <b>{p.name}</b> · +{p.earnBonusPct}% · 🪙{p.cost.toLocaleString("ru-RU")} <span className="muted" style={{ fontSize: 11 }}>({p.minted}/{p.mintCap} chiqarildi · {p.left} qoldi)</span></span>
+                  <button className={p.eventOpen ? "btn" : "btn danger"} onClick={() => void togglePartEvent(p.code, !p.eventOpen)}>
+                    {p.eventOpen ? "🟢 OCHIQ" : "⚫ yopiq"}
+                  </button>
+                </div>
+              ))}
+            </div>
           </div>
         )}
         {txEcon && (

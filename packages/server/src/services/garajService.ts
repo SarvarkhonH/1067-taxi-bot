@@ -874,6 +874,18 @@ export async function setPartMintEvent(partCode: string, open: boolean): Promise
   await prisma.appState.upsert({ where: { key }, create: { key, value: open ? "1" : "0" }, update: { value: open ? "1" : "0" } });
 }
 
+/** Admin panel: every part's mint-event state (open/closed) + minted/cap progress. No member needed. */
+export async function getPartEvents(): Promise<GarajPartCatalogView[]> {
+  const counters = await prisma.appState.findMany({ where: { key: { in: MOTOR_PARTS.map((d) => `mo:part:next:${d.code}`) } } });
+  const mintedByKey = new Map(counters.map((r) => [r.key, parseInt(r.value, 10) || 0]));
+  const out: GarajPartCatalogView[] = [];
+  for (const d of MOTOR_PARTS) {
+    const minted = mintedByKey.get(`mo:part:next:${d.code}`) ?? 0;
+    out.push({ code: d.code, name: d.name, emoji: d.emoji, mintCap: d.mintCap, minted, left: Math.max(0, d.mintCap - minted), cost: d.cost, earnBonusPct: d.earnBonusPct, eventOpen: await isPartMintOpen(d.code) });
+  }
+  return out;
+}
+
 /** Mint one limited part. Gated by: motorolami flag + the part's event being OPEN + under the
  *  hard mint-cap. Pure tanga SINK (def.cost). Money-safe: withMemberLock + inline tx (no
  *  re-locking helper). Returns sold_out/event_closed/insufficient reasons. */
