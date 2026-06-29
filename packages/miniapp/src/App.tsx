@@ -397,8 +397,12 @@ function ErrorScreen({ error }: { error: string }) {
         </p>
         <button className="btn-primary" onClick={() => location.reload()}>🔄 Qayta urinish</button>
         {notAuthed && (
-          <p className="muted fs11 mt12 o55">
-            Telegram: {tg ? "✓" : "✗"} · initData: {initData ? `✓ (${initData.length})` : "✗ yo'q"}
+          <p className="muted fs11 mt12 o55" style={{ textAlign: "left", whiteSpace: "pre-wrap", wordBreak: "break-all" }}>
+            {`Telegram: ${tg ? "✓" : "✗"} · initData: ${initData ? `✓ (${initData.length})` : "✗ yo'q"}\n` +
+              `tg.initData: ${tg?.initData ? `✓ (${tg.initData.length})` : "✗"}\n` +
+              `URL hash: ${location.hash ? `✓ (${location.hash.length})` : "✗"}\n` +
+              `sessionStorage tg:initData: ${(() => { try { return sessionStorage.getItem("tg:initData") ? "✓" : "✗"; } catch { return "blocked"; } })()}\n` +
+              `URL: ${location.href.length > 80 ? location.href.slice(0, 80) + "…" : location.href}`}
           </p>
         )}
       </div>

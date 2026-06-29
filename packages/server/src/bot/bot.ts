@@ -85,7 +85,17 @@ async function refreshWebAppVer(): Promise<void> {
   }
 }
 function webAppUrl(go?: string): string {
-  const u = env.TELEGRAM_WEBAPP_URL;
+  // Always emit a URL with an explicit `/` path before the query — some Telegram clients (older
+  // Android, Web Z) parse `https://host?…` differently from `https://host/?…` and can drop the
+  // hash they need to append (#tgWebAppData=…) → initData missing → "Telegram orqali oching".
+  let u = env.TELEGRAM_WEBAPP_URL;
+  // If no path yet (e.g. "https://example.com" or "https://example.com?x=1"), ensure a "/" before the query.
+  const noPath = !/^https?:\/\/[^/?#]+\/[^?]/.test(u);
+  if (noPath) {
+    const qi = u.indexOf("?");
+    if (qi === -1) u = u.replace(/\/?$/, "/");
+    else u = u.slice(0, qi).replace(/\/?$/, "/") + u.slice(qi);
+  }
   return u + (u.includes("?") ? "&" : "?") + "v=" + webAppVer + (go ? "&go=" + go : "");
 }
 
