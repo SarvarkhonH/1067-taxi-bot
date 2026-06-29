@@ -601,7 +601,9 @@ export async function motorCollect(memberId: number, garajCarId?: number): Promi
     const speederMult = speederOn ? Math.max(2, Math.min(6, Math.floor(econ.speederMult ?? 4))) : 1;
     // 🔧 P2-deep-5 — bolted-on parts boost earn (additive %, TOTAL clamped in partEarnMult).
     // The dailyEarnCap clamp below is the absolute backstop → parts can't bust the ≤cap/day invariant.
-    const carPartRows = await prisma.garajPart.findMany({ where: { installedCarId: car.id, status: "installed" }, select: { partCode: true } });
+    // ownerId scope (defense-in-depth): a part is only ever owned by the car's owner here (releasePartsForCar
+    // uninstalls on any transfer), but scoping to memberId guarantees a stray row can NEVER pay the wrong member.
+    const carPartRows = await prisma.garajPart.findMany({ where: { installedCarId: car.id, status: "installed", ownerId: memberId }, select: { partCode: true } });
     const partMult = partEarnMult(carPartRows.map((p) => p.partCode));
     const speed = Math.round(motorSpeed(car.carCode) * eff.speedMult * speederMult * partMult);
     const { gross, wear, net: rawNet } = computeMotorEarnNoFuel(speed, hours, 0); // taxi 2× = sweep ride-hooki (P0.4)
@@ -786,6 +788,7 @@ export async function ofisSellToOfis(memberId: number, garajCarId: number): Prom
     if (spentBefore + bid > dailyCap) return { ok: false, reason: "budget_exhausted", coins: await getCoins(memberId) };
     const result = await prisma.$transaction(async (tx) => {
       // Mark the car as Ofis-held (kept for history; ownership flag, not delete)
+      await releasePartsForCar(tx, car.id); // 🔧 parts return to the seller's inventory (not handed to the Ofis)
       await tx.garajCar.update({ where: { id: car.id }, data: { ofisHeld: true, soldAt: new Date() } });
       // Pay the seller (idempotent grant — key includes car.id + a stable counter via OfisLedger.id)
       // First create the ledger row to get a deterministic id, then grant against it
@@ -828,6 +831,7 @@ export async function sweepOfisHeld(): Promise<number> {
     try {
       await prisma.$transaction(async (tx) => {
         await tx.ofisLedger.create({ data: { kind: "scrap", amount: 0, carCode: c.carCode, refCarId: c.id, dayKey: today, status: "scrapped" } });
+        await releasePartsForCar(tx, c.id); // 🔧 free any installed parts back to their owner before destroying the car
         await tx.garajCar.delete({ where: { id: c.id } }); // permanent supply destruction (true scarcity)
       });
       scrapped++;
@@ -926,9 +930,14 @@ export async function uninstallPart(memberId: number, partId: number): Promise<G
  *  Includes "listed" parts so the seller still sees what's up for sale (with a cancel affordance). */
 export async function getPartsState(memberId: number): Promise<{ parts: GarajPartView[]; catalog: GarajPartCatalogView[] }> {
   const owned = await prisma.garajPart.findMany({ where: { ownerId: memberId, status: { in: ["owned", "installed", "listed"] } }, orderBy: { id: "asc" } });
+  // Map each LISTED part → its open listing id so the inventory cancel never depends on the
+  // capped parts-bazaar list (the UI-lockup fix: a listing outside the newest-60 is still cancellable).
+  const listedIds = owned.filter((p) => p.status === "listed").map((p) => p.id);
+  const openL = listedIds.length ? await prisma.garajPartListing.findMany({ where: { partId: { in: listedIds }, status: "open" }, select: { id: true, partId: true } }) : [];
+  const listingByPart = new Map(openL.map((l) => [l.partId, l.id]));
   const parts: GarajPartView[] = owned.map((p) => {
     const d = getMotorPart(p.partCode);
-    return { id: p.id, code: p.partCode, name: d?.name ?? p.partCode, emoji: d?.emoji ?? "🔧", serial: p.serial, earnBonusPct: d?.earnBonusPct ?? 0, installedCarId: p.installedCarId, status: p.status };
+    return { id: p.id, code: p.partCode, name: d?.name ?? p.partCode, emoji: d?.emoji ?? "🔧", serial: p.serial, earnBonusPct: d?.earnBonusPct ?? 0, installedCarId: p.installedCarId, status: p.status, listingId: p.status === "listed" ? (listingByPart.get(p.id) ?? null) : null };
   });
   const counters = await prisma.appState.findMany({ where: { key: { in: MOTOR_PARTS.map((d) => `mo:part:next:${d.code}`) } } });
   const mintedByKey = new Map(counters.map((r) => [r.key, parseInt(r.value, 10) || 0]));
@@ -938,6 +947,15 @@ export async function getPartsState(memberId: number): Promise<{ parts: GarajPar
     catalog.push({ code: d.code, name: d.name, emoji: d.emoji, mintCap: d.mintCap, minted, left: Math.max(0, d.mintCap - minted), cost: d.cost, earnBonusPct: d.earnBonusPct, eventOpen: await isPartMintOpen(d.code) });
   }
   return { parts, catalog };
+}
+
+// 🔧 P2-deep-5 — when a car LEAVES a player's hands (sold P2P, won at auction, sold to Ofis,
+// flipped, scrapped, merged-away, fleet-reset), any parts bolted to it return to their OWNER's
+// inventory (uninstalled). Parts are NOT transferred with the car — they're separate property
+// (sold via the parts bazaar). MUST be called inside the same tx as the car disposal so a sold
+// car can never carry a live earn-boost into the buyer's garage (the state-machine/earn-leak fix).
+async function releasePartsForCar(tx: Prisma.TransactionClient, carId: number): Promise<void> {
+  await tx.garajPart.updateMany({ where: { installedCarId: carId, status: "installed" }, data: { installedCarId: null, status: "owned" } });
 }
 
 // ════════════════════════════════════════════════════════════════════════════
@@ -987,6 +1005,29 @@ export async function listPart(memberId: number, partId: number, askPrice: numbe
  *  askPrice−3% (idempotent), 3% burned, part ownership transferred to the buyer. */
 export async function buyPart(buyerId: number, listingId: number): Promise<GarajActionResult> {
   if (!(await motorEnabledFor(buyerId))) return { ok: false, reason: "off" };
+  // Idempotent settlement: seller credit (guarded), part transfer + listing→sold. Safe to re-run.
+  const finalize = async (listing: { partId: number; sellerId: number; partCode: string; askPrice: number }): Promise<void> => {
+    const def = getMotorPart(listing.partCode);
+    const tax = Math.round(listing.askPrice * PART_BAZAAR_TAX); // burned (anti-wash)
+    await prisma.$transaction(async (tx) => {
+      const existing = await tx.coinTxn.findUnique({ where: { idempotencyKey: `partsell:${listingId}` } });
+      if (!existing) {
+        await tx.coinTxn.create({ data: { memberId: listing.sellerId, amount: listing.askPrice - tax, kind: "garaj_part_sell", reason: `🛠 Detal sotuv: ${def?.name ?? listing.partCode}`, idempotencyKey: `partsell:${listingId}` } });
+        await tx.member.update({ where: { id: listing.sellerId }, data: { coins: { increment: listing.askPrice - tax } } });
+      }
+      // transfer the part to the buyer; back to plain inventory (uninstalled)
+      await tx.garajPart.update({ where: { id: listing.partId }, data: { ownerId: buyerId, status: "owned", installedCarId: null } });
+      await tx.garajPartListing.update({ where: { id: listingId }, data: { status: "sold", soldAt: new Date() } });
+    });
+  };
+  // 🛡 recovery: a prior attempt charged the buyer (partbuy txn exists) but the settlement tx failed,
+  // leaving the listing stuck at pending_payment → finish it idempotently rather than stranding the buyer.
+  const pre = await prisma.garajPartListing.findUnique({ where: { id: listingId } });
+  if (pre && pre.status === "pending_payment" && pre.buyerId === buyerId) {
+    const paid = await prisma.coinTxn.findUnique({ where: { idempotencyKey: `partbuy:${listingId}` } });
+    if (paid) { await finalize(pre); return { ok: true }; }
+  }
+  // claim-before-pay: atomically flip open→pending_payment (exactly one buyer wins)
   const claim = await prisma.garajPartListing.updateMany({ where: { id: listingId, status: "open" }, data: { status: "pending_payment", buyerId } });
   if (claim.count === 0) return { ok: false, reason: "already_sold" };
   const listing = await prisma.garajPartListing.findUnique({ where: { id: listingId } });
@@ -996,31 +1037,26 @@ export async function buyPart(buyerId: number, listingId: number): Promise<Garaj
   const def = getMotorPart(listing.partCode);
   const spend = await spendCoinsIdempotent(buyerId, listing.askPrice, "garaj_part_buy", `🛠 Detal xarid: ${def?.name ?? listing.partCode}`, `partbuy:${listingId}`);
   if (!spend.ok && spend.skipped !== "duplicate") { await revert(); return { ok: false, reason: "insufficient", coins: spend.balance }; }
-  const tax = Math.round(listing.askPrice * PART_BAZAAR_TAX); // burned (anti-wash)
-  await prisma.$transaction(async (tx) => {
-    const existing = await tx.coinTxn.findUnique({ where: { idempotencyKey: `partsell:${listingId}` } });
-    if (!existing) {
-      await tx.coinTxn.create({ data: { memberId: listing.sellerId, amount: listing.askPrice - tax, kind: "garaj_part_sell", reason: `🛠 Detal sotuv: ${def?.name ?? listing.partCode}`, idempotencyKey: `partsell:${listingId}` } });
-      await tx.member.update({ where: { id: listing.sellerId }, data: { coins: { increment: listing.askPrice - tax } } });
-    }
-    // transfer the part to the buyer; back to plain inventory (uninstalled)
-    await tx.garajPart.update({ where: { id: listing.partId }, data: { ownerId: buyerId, status: "owned", installedCarId: null } });
-    await tx.garajPartListing.update({ where: { id: listingId }, data: { status: "sold", soldAt: new Date() } });
-  });
+  await finalize(listing);
   return { ok: true };
 }
 
-/** Cancel your own OPEN part listing → the part returns to plain inventory (status="owned"). */
+/** Cancel your own OPEN part listing → the part returns to plain inventory (status="owned").
+ *  ATOMIC CAS (mirrors garajBazaarUnlist): only the OPEN→cancelled flip wins, so a concurrent
+ *  buyPart claim (which flips OPEN→pending_payment) and a cancel can NEVER both succeed → the
+ *  part is never un-frozen mid-sale (the TOCTOU double-sale fix). */
 export async function cancelPartListing(memberId: number, listingId: number): Promise<GarajActionResult> {
   if (!(await motorEnabledFor(memberId))) return { ok: false, reason: "off" };
   return withMemberLock(memberId, async () => {
-    const listing = await prisma.garajPartListing.findFirst({ where: { id: listingId, sellerId: memberId, status: "open" } });
+    const listing = await prisma.garajPartListing.findFirst({ where: { id: listingId, sellerId: memberId } });
     if (!listing) return { ok: false, reason: "not_found", coins: await getCoins(memberId) };
-    await prisma.$transaction(async (tx) => {
-      await tx.garajPartListing.update({ where: { id: listingId }, data: { status: "cancelled" } });
-      await tx.garajPart.update({ where: { id: listing.partId }, data: { status: "owned" } });
+    const done = await prisma.$transaction(async (tx) => {
+      const upd = await tx.garajPartListing.updateMany({ where: { id: listingId, sellerId: memberId, status: "open" }, data: { status: "cancelled" } });
+      if (upd.count === 0) return false; // concurrent buyPart already claimed it (pending/sold) — leave it
+      await tx.garajPart.updateMany({ where: { id: listing.partId, ownerId: memberId, status: "listed" }, data: { status: "owned" } });
+      return true;
     });
-    return { ok: true, coins: await getCoins(memberId) };
+    return done ? { ok: true, coins: await getCoins(memberId) } : { ok: false, reason: "already_sold", coins: await getCoins(memberId) };
   });
 }
 
@@ -1368,6 +1404,7 @@ export async function mergeCars(memberId: number, keepCarId: number, sacrificeCa
       try { await tx.appState.create({ data: { key: dedupeKey, value: "1" } }); }
       catch { return { ok: false, reason: "already_merged" }; }
       // Hard-delete the sacrifice (supply drops by 1 → frees a slot)
+      await releasePartsForCar(tx, sac.id); // 🔧 free parts off the sacrificed car back to inventory
       await tx.garajCar.delete({ where: { id: sac.id } });
       // Promote the keeper: mergeCount++, engineHp refreshed to 100, level capped at +1 within CRAFT_MAX_LEVEL=5
       const econ = await getMotorEcon();
@@ -1758,6 +1795,7 @@ export async function flipCar(memberId: number, garajCarId: number, buyerArchety
           buyerArchetype,
         },
       });
+      await releasePartsForCar(tx, garajCarId); // 🔧 free installed parts back to inventory before the car leaves play
       await tx.garajCar.update({ where: { id: garajCarId }, data: { soldAt: new Date() } });
       return { ok: true as const, grant, profit: grant - car.acquireCost - car.repairSpent };
     });
@@ -1943,6 +1981,7 @@ export async function garajBazaarBuy(buyerId: number, listingId: number): Promis
       await tx.coinTxn.create({ data: { memberId: listing.sellerId, amount: listing.askPrice - tax, kind: "garaj_bazaar_sell", reason: `Bozor sotuv: ${listing.carCode}`, idempotencyKey: `bazaarsell:${listingId}` } });
       await tx.member.update({ where: { id: listing.sellerId }, data: { coins: { increment: listing.askPrice - tax } } });
     }
+    await releasePartsForCar(tx, listing.garajCarId); // 🔧 seller keeps their installed parts (uninstalled) — the buyer gets just the car
     await tx.garajCar.update({ where: { id: listing.garajCarId }, data: { memberId: buyerId } });
     await tx.garajBazaarListing.update({ where: { id: listingId }, data: { status: "sold", soldAt: new Date() } });
   });
@@ -2116,6 +2155,7 @@ export async function settleAuctions(): Promise<number> {
         const fee = Math.round(winner.amount * 0.05);
         await tx.coinTxn.create({ data: { memberId: a.sellerId, amount: winner.amount - fee, kind: "garaj_auction_sell", reason: `Auksion sotuv: ${a.carCode}`, idempotencyKey: `auctionsell:${a.id}` } });
         await tx.member.update({ where: { id: a.sellerId }, data: { coins: { increment: winner.amount - fee } } });
+        await releasePartsForCar(tx, a.garajCarId); // 🔧 seller keeps their parts (uninstalled); winner gets just the car
         await tx.garajCar.update({ where: { id: a.garajCarId }, data: { memberId: winner.bidderId } });
         for (const b of bids) {
           if (b.id === winner.id) continue;
@@ -2247,6 +2287,8 @@ export async function garajPrestige(memberId: number): Promise<GarajActionResult
     const newCount = meta.prestigeCount + 1;
     const newMult = prestigeMultiplier(newCount);
     await prisma.$transaction(async (tx) => {
+      // 🔧 free every installed part back to inventory before burning the fleet (parts survive prestige)
+      await tx.garajPart.updateMany({ where: { ownerId: memberId, status: "installed" }, data: { installedCarId: null, status: "owned" } });
       await tx.garajCar.updateMany({ where: { memberId, soldAt: null }, data: { soldAt: new Date() } }); // reset the fleet
       await tx.memberGarajMeta.update({
         where: { memberId },

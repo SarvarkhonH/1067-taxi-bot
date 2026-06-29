@@ -2,7 +2,7 @@
 // "garajx" is ON). Core loop: ol (buy #serial car) → yoqilg'i quy → Yig'ish → savdo/merge.
 // Pure view layer — all money logic + idempotency live on the server.
 import { useCallback, useEffect, useRef, useState } from "react";
-import type { GarajStateResponse, GarajCarView, PublicProfileView, OrzuBoardView, CarCheckView } from "@t1067/shared";
+import type { GarajStateResponse, GarajCarView, PublicProfileView, OrzuBoardView, CarCheckView, GarajPartView, GarajPartCatalogView, GarajPartBazaarView } from "@t1067/shared";
 import { REPUTATION_TIERS, ZONE_NAMES, MAKE_BASE, getVariant, mergeMult, MERGE_MAX_COUNT, SPEEDER_DAYS } from "@t1067/shared";
 import { api } from "./api";
 import { haptic, hapticSuccess, playTierFanfare } from "./telegram";
@@ -176,6 +176,12 @@ function MotorScene({ car, busy, onCollect, onRefuel, onEskirdi, onCarCheck, onS
         })()}
         <span className="fs11 dim">⚙️ {car.engineHp ?? 100}% · ⚡ {car.speed}/soat{car.speederActive ? ` · 🚀×${car.speederMult ?? 1}` : ""}</span>
         <span className="fs11 dim">🕐 {car.ageDays ?? 0} kun · 👥 {car.ownerCount ?? 1}{car.cleanHistory ? " · ✨ Toza" : ""}{car.capitalRepairCount ? ` · 🔧×${car.capitalRepairCount}` : ""}{(car.mergeCount ?? 0) > 0 ? ` · 🔗★${car.mergeCount}` : ""}</span>
+        {/* 🔧 P2-deep-5 — installed parts (each adds +earnBonusPct to this car's daromad) */}
+        {(car.installedParts?.length ?? 0) > 0 && (
+          <span className="fs11" style={{ color: "var(--brand)" }}>
+            {car.installedParts!.map((p) => `${p.emoji} ${p.name} +${p.earnBonusPct}%`).join(" · ")}
+          </span>
+        )}
         {car.speederActive && (car.speederHoursLeft ?? 0) > 0 && (
           <span className="fs11" style={{ color: "var(--brand)" }}>🚀 Speeder · {Math.round(car.speederHoursLeft! / 24)} kun qoldi</span>
         )}
@@ -300,6 +306,7 @@ export function GarajShell({ onClose, initial }: { onClose: () => void; initial?
   // 🚀 P2-C + 🔗 P2-A sheet state
   const [speederOpen, setSpeederOpen] = useState<number | null>(null); // carId
   const [mergeOpen, setMergeOpen] = useState<number | null>(null); // keep carId
+  const [partsOpen, setPartsOpen] = useState(false); // 🔧 P2-deep-5/6 — Detallar sheet
 
   const load = useCallback(() => {
     if (initial) return; // demo/fixture mode — no backend fetch
@@ -393,6 +400,7 @@ export function GarajShell({ onClose, initial }: { onClose: () => void; initial?
         <span className="gz-title">🏎 <b>Motor Olami</b></span>
         <div className="gz-purse">
           {st?.motorEnabled && <button className="gz-back" onClick={() => { haptic(); setOrzuOpen(true); }} aria-label="ORZU board">✨</button>}
+          {st?.motorEnabled && <button className="gz-back" onClick={() => { haptic(); setPartsOpen(true); }} aria-label="Detallar">🔧</button>}
           {st?.motorEnabled && <button className="gz-back" onClick={() => { haptic(); setProfileOpen(true); }} aria-label="Ochiq profil">🌍</button>}
           <button className="gz-back" onClick={() => { haptic(); setMuseumOpen(true); }} aria-label="Muzey">🏛</button>
           <span className="gz-pill">🪙 <CoinCounter value={coins} /></span>
@@ -670,6 +678,7 @@ export function GarajShell({ onClose, initial }: { onClose: () => void; initial?
         const others = st?.cars.filter((c) => c.id !== mergeOpen) ?? [];
         return kc ? <GarajMergeSheet keep={kc} others={others} onMerge={(sacId) => mergeConfirm(kc.id, sacId)} onClose={() => setMergeOpen(null)} /> : null;
       })()}
+      {partsOpen && <GarajPartsSheet cars={st?.cars ?? []} coins={coins} onChanged={() => { void api.garajState().then(setSt).catch(() => undefined); }} onToast={(m) => { setToast(m); setTimeout(() => setToast(null), 2200); }} onClose={() => setPartsOpen(false)} />}
       {listingFor != null && (() => {
         const lc = st?.cars.find((c) => c.id === listingFor);
         return lc ? <GarajListSheet car={lc} busy={busy} onConfirm={(price) => { bazaarList(lc.id, price); setListingFor(null); }} onClose={() => setListingFor(null)} /> : null;
@@ -1521,6 +1530,166 @@ export function GarajMergeSheet({ keep, others, onMerge, onClose }: { keep: Gara
     </Sheet>
   );
 }
+
+// 🔧 P2-deep-5/6 — Detallar sheet: inventory (install/uninstall + list/cancel), mint do'kon
+// (event-gated, hard cap), parts bozor (P2P buy). All money logic + caps live on the server.
+export function GarajPartsSheet({ cars, coins, onClose, onChanged, onToast }: { cars: GarajCarView[]; coins: number; onClose: () => void; onChanged: () => void; onToast: (m: string) => void }) {
+  const [tab, setTab] = useState<"mine" | "shop" | "bazaar">("mine");
+  const [parts, setParts] = useState<GarajPartView[] | null>(null);
+  const [catalog, setCatalog] = useState<GarajPartCatalogView[]>([]);
+  const [market, setMarket] = useState<GarajPartBazaarView[]>([]);
+  const [busy, setBusy] = useState(false);
+  const [installing, setInstalling] = useState<number | null>(null); // partId awaiting a car pick
+  const [selling, setSelling] = useState<number | null>(null); // partId awaiting a price
+  const [askPrice, setAskPrice] = useState(0);
+  const aliveCars = cars.filter((c) => c.serial != null && !c.dead);
+
+  const reload = useCallback(async () => {
+    try {
+      const [p, m] = await Promise.all([api.garajParts(), api.garajPartBazaar()]);
+      setParts(p.parts); setCatalog(p.catalog); setMarket(m);
+    } catch { setParts([]); }
+  }, []);
+  useEffect(() => { void reload(); }, [reload]);
+
+  async function act(fn: () => Promise<{ ok: boolean; reason?: string }>, okMsg: string): Promise<void> {
+    if (busy) return; setBusy(true);
+    try {
+      const r = await fn();
+      if (r.ok) { hapticSuccess(); onToast(okMsg); }
+      else { haptic(); onToast(PART_REASON[r.reason ?? ""] ?? "Bajarilmadi"); }
+      await reload(); onChanged();
+    } finally { setBusy(false); }
+  }
+
+  return (
+    <Sheet open onClose={onClose}>
+      <div className="col g8">
+        <div className="gz-title">🔧 Detallar</div>
+        <div className="row g8">
+          <Chip on={tab === "mine"} onClick={() => setTab("mine")}>🧰 Menikilar</Chip>
+          <Chip on={tab === "shop"} onClick={() => setTab("shop")}>🎁 Do'kon</Chip>
+          <Chip on={tab === "bazaar"} onClick={() => setTab("bazaar")}>🛠 Bozor</Chip>
+        </div>
+
+        {/* ── 🧰 INVENTORY ── */}
+        {tab === "mine" && (parts == null ? <p className="gz-empty">Yuklanmoqda…</p> : parts.length === 0 ? (
+          <p className="gz-empty">Hali detalingiz yo'q. <b>🎁 Do'kon</b>dan cheklangan detal oling — mashinaga o'rnatib daromadni oshiring.</p>
+        ) : (
+          <div className="col g8">
+            {parts.map((p) => {
+              const car = installing === p.id;
+              return (
+                <Card key={p.id} className="gz-tow">
+                  <div className="row between">
+                    <span className="gz-tow-car">{p.emoji} <b>{p.name}</b> <span className="gz-motor-id">#{p.serial}</span> · +{p.earnBonusPct}%</span>
+                    <span className="fs11 dim">{p.status === "installed" ? "🚗 o'rnatilgan" : p.status === "listed" ? "🏷 sotuvda" : "🧰 zaxirada"}</span>
+                  </div>
+                  {p.status === "owned" && !car && selling !== p.id && (
+                    <div className="row g8 mt8">
+                      <Button sm disabled={busy || aliveCars.length === 0} onClick={() => { haptic(); setInstalling(p.id); }}>🔧 O'rnatish</Button>
+                      <Button sm variant="ghost" disabled={busy} onClick={() => { haptic(); setAskPrice(Math.max(1, p.earnBonusPct * 1000)); setSelling(p.id); }}>🏷 Sotish</Button>
+                    </div>
+                  )}
+                  {p.status === "installed" && (
+                    <div className="row g8 mt8">
+                      <Button sm variant="ghost" disabled={busy} onClick={() => void act(() => api.garajPartUninstall(p.id), "Detal yechildi")}>🔧 Yechish</Button>
+                    </div>
+                  )}
+                  {p.status === "listed" && (
+                    <div className="row g8 mt8">
+                      <Button sm variant="ghost" disabled={busy || p.listingId == null} onClick={() => { if (p.listingId != null) void act(() => api.garajPartUnlist(p.listingId!), "Sotuvdan olindi"); }}>Bekor qilish</Button>
+                    </div>
+                  )}
+                  {/* car picker for install */}
+                  {car && (
+                    <div className="col g8 mt8">
+                      <span className="fs11 dim">Qaysi mashinaga?</span>
+                      {aliveCars.map((c) => (
+                        <button key={c.id} type="button" className="gz-craft" onClick={() => { setInstalling(null); void act(() => api.garajPartInstall(p.id, c.id), `${p.name} o'rnatildi`); }}>
+                          <span className="gz-craft-name">{c.emoji} {c.name} <span className="gz-motor-id">#{c.serial}</span></span>
+                        </button>
+                      ))}
+                      <Button sm variant="ghost" onClick={() => setInstalling(null)}>Bekor</Button>
+                    </div>
+                  )}
+                  {/* inline price input for listing */}
+                  {selling === p.id && (
+                    <div className="col g8 mt8">
+                      <span className="fs11 dim">Narx (🪙):</span>
+                      <input className="gz-price-input" type="number" min={1} value={askPrice} onChange={(e) => setAskPrice(Math.max(1, Number(e.target.value) || 0))} />
+                      <div className="row g8">
+                        <Button sm disabled={busy} onClick={() => { setSelling(null); void act(() => api.garajPartList(p.id, askPrice), "Bozorga qo'yildi"); }}>🏷 Qo'yish</Button>
+                        <Button sm variant="ghost" onClick={() => setSelling(null)}>Bekor</Button>
+                      </div>
+                    </div>
+                  )}
+                </Card>
+              );
+            })}
+          </div>
+        ))}
+
+        {/* ── 🎁 MINT DO'KON ── */}
+        {tab === "shop" && (
+          <div className="col g8">
+            <p className="fs11 dim mt0">Cheklangan detallar — event tugasa qaytmaydi. Erta olgan arzon oladi; keyin faqat bozordan.</p>
+            {catalog.map((d) => {
+              const soldOut = d.left <= 0;
+              const closed = !d.eventOpen;
+              return (
+                <Card key={d.code} className="gz-tow">
+                  <div className="row between">
+                    <span className="gz-tow-car">{d.emoji} <b>{d.name}</b> · +{d.earnBonusPct}%</span>
+                    <span className="gz-tow-price">🪙 {d.cost.toLocaleString("ru-RU")}</span>
+                  </div>
+                  <div className="row between mt8">
+                    <span className="fs11 dim">{d.minted}/{d.mintCap} chiqarildi · {d.left} qoldi</span>
+                    <Button sm disabled={busy || soldOut || closed || coins < d.cost} onClick={() => void act(() => api.garajPartMint(d.code), `${d.name} olindi!`)}>
+                      {soldOut ? "Tugadi" : closed ? "Yopiq" : "🎁 Olish"}
+                    </Button>
+                  </div>
+                </Card>
+              );
+            })}
+          </div>
+        )}
+
+        {/* ── 🛠 PARTS BOZOR ── */}
+        {tab === "bazaar" && (market.length === 0 ? (
+          <p className="gz-empty">Hozircha sotuvda detal yo'q. O'zingiznikini <b>🧰 Menikilar</b>dan sotuvga qo'ying.</p>
+        ) : (
+          <div className="col g8">
+            {market.map((m) => (
+              <Card key={m.id} className="gz-tow">
+                <div className="row between">
+                  <span className="gz-tow-car">{m.emoji} <b>{m.name}</b> <span className="gz-motor-id">#{m.serial}</span> · +{m.earnBonusPct}%</span>
+                  <span className="gz-tow-price">🪙 {m.askPrice.toLocaleString("ru-RU")}</span>
+                </div>
+                <div className="row g8 mt8">
+                  {m.mine ? (
+                    <Button sm variant="ghost" disabled={busy} onClick={() => void act(() => api.garajPartUnlist(m.id), "Sotuvdan olindi")}>Bekor qilish</Button>
+                  ) : (
+                    <Button sm disabled={busy || coins < m.askPrice} onClick={() => void act(() => api.garajPartBuy(m.id), "Detal sotib olindi!")}>Sotib olish</Button>
+                  )}
+                </div>
+              </Card>
+            ))}
+          </div>
+        ))}
+
+        <Button variant="ghost" onClick={onClose}>Yopish</Button>
+      </div>
+    </Sheet>
+  );
+}
+// reason → Uzbek toast for the parts flows
+const PART_REASON: Record<string, string> = {
+  off: "Hozir ochiq emas", event_closed: "Event yopiq", sold_out: "Tugadi", insufficient: "Tanga yetarli emas",
+  bad_part: "Noma'lum detal", not_found: "Topilmadi", already_installed: "Allaqachon o'rnatilgan",
+  not_installed: "O'rnatilmagan", listed: "Sotuvda — avval bekor qiling", installed: "O'rnatilgan — avval yeching",
+  already_listed: "Allaqachon sotuvda", self_trade: "O'zingiznikini sotib ololmaysiz", already_sold: "Allaqachon sotilgan",
+};
 
 // ⚠️ P1-B/C — Eskirdi action sheet (Ofis sotish · Kapital remont · Bekor)
 export function GarajEskirdiSheet({ car, busy, onSellOfis, onCapital, onClose }: { car: GarajCarView; busy: boolean; onSellOfis: () => void; onCapital: () => void; onClose: () => void }) {

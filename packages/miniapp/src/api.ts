@@ -15,6 +15,9 @@ import type {
   GarageResponse,
   GarajActionResult,
   GarajStateResponse,
+  GarajPartView,
+  GarajPartCatalogView,
+  GarajPartBazaarView,
   PublicProfileView,
   CarCheckView,
   OrzuBoardView,
@@ -207,6 +210,16 @@ export const api = {
   // 🚀 P2-C — Speeder
   garajSpeederState: () => get<{ ok: boolean; reason?: string; price?: number; mult?: number; stockLeft?: number; stockMax?: number; days?: number; activeCarId?: number | null; activeUntilAt?: string | null }>("/api/garaj/speeder/state"),
   garajSpeederBuy: (garajCarId: number) => request<GarajActionResult & { speederUntilAt?: string; stockLeft?: number }>("POST", "/api/garaj/speeder/buy", { garajCarId }, 1),
+  // 🔧 P2-deep-5 — Limited-event parts (detallar): mint + install/uninstall
+  garajParts: () => get<{ parts: GarajPartView[]; catalog: GarajPartCatalogView[] }>("/api/garaj/parts"),
+  garajPartMint: (partCode: string) => request<GarajActionResult & { partId?: number; serial?: number; cap?: number }>("POST", "/api/garaj/parts/mint", { partCode }, 1),
+  garajPartInstall: (partId: number, garajCarId: number) => request<GarajActionResult>("POST", "/api/garaj/parts/install", { partId, garajCarId }, 1),
+  garajPartUninstall: (partId: number) => request<GarajActionResult>("POST", "/api/garaj/parts/uninstall", { partId }, 1),
+  // 🛠 P2-deep-6 — Detal-bozori (parts P2P market)
+  garajPartBazaar: () => get<GarajPartBazaarView[]>("/api/garaj/parts/bazaar"),
+  garajPartList: (partId: number, askPrice: number) => request<GarajActionResult>("POST", "/api/garaj/parts/list", { partId, askPrice }, 1),
+  garajPartBuy: (listingId: number) => request<GarajActionResult>("POST", "/api/garaj/parts/buy", { listingId }, 1),
+  garajPartUnlist: (listingId: number) => request<GarajActionResult>("POST", "/api/garaj/parts/unlist", { listingId }, 1),
   garajProfile: (id: number | "me") => get<PublicProfileView | null>(`/api/garaj/profile/${id}`),
   garajAuctions: () => get<{ id: number; garajCarId: number; carCode: string; name: string; emoji: string; minBid: number; endsAt: string; mine: boolean }[]>("/api/garaj/auctions"),
   garajAuctionCreate: (garajCarId: number, minBid: number) => request<GarajActionResult>("POST", "/api/garaj/auction/create", { garajCarId, minBid }, 1),

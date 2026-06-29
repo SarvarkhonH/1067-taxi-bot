@@ -151,6 +151,8 @@ button.gz-car:hover { border-color: rgba(255, 179, 0, 0.4); }
 .gz-list-price { display: flex; flex-direction: column; gap: 8px; padding: 12px; border-radius: var(--r-card); background: var(--surface); border: 1px solid var(--line); }
 .gz-list-price-big { font-size: 20px; color: var(--brand); }
 .gz-list-slider { width: 100%; accent-color: var(--brand); }
+.gz-price-input { width: 100%; padding: 8px 12px; border-radius: var(--r-card); background: var(--surface); border: 1px solid var(--line); color: var(--text); font-size: 15px; }
+.gz-price-input:focus { outline: none; border-color: var(--brand); }
 .gz-list-suggest { background: transparent; border: 1px solid var(--brand); color: var(--brand); font-size: 11px; padding: 3px 9px; border-radius: 999px; cursor: pointer; }
 .gz-list-break { display: flex; flex-direction: column; gap: 4px; padding: 10px 12px; border-radius: var(--r-card); background: var(--surface); border: 1px dashed var(--line); }
 .gz-list-divider { height: 1px; background: var(--line); margin: 4px 0; }

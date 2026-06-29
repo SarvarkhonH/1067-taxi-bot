@@ -36,6 +36,8 @@ import {
   buyPart,
   cancelPartListing,
   getPartBazaar,
+  garajBazaarList,
+  garajBazaarBuy,
 } from "../services/garajService";
 import { __resetFeatureCache, setFeature } from "../services/featureFlags";
 
@@ -509,6 +511,56 @@ async function main(): Promise<void> {
     const bal = (await prisma.member.findUnique({ where: { id: m.id } }))!.coins;
     const tot = (await prisma.coinTxn.aggregate({ where: { memberId: m.id }, _sum: { amount: true } }))._sum.amount ?? 0;
     ok(Math.abs(bal - tot) < 0.001, `market: member ${m.id} ledger invariant (bal ${bal} == ledger ${tot})`);
+  }
+
+  // ── 11g) 🔧 P2-deep-5/6 hardening — adversarial-review fixes ───────────────
+  const cSeller = pm[3]!; // owns the nitro bought in the market test (status owned)
+  const cBuyer = await prisma.member.create({ data: { type: "client", kasId: `${TAG}-carbuyer`, fullName: "Car Buyer", phone: "+998900008055", trips: 2 } });
+  await grantCoins(cBuyer.id, 500_000, "manual", "seed"); await grantCoins(cSeller.id, 300_000, "manual", "seed");
+  await setPartMintEvent(NI, true);
+  // FIX#2 — selling a car with an installed part: the part uninstalls back to the SELLER (no earn leak to the buyer)
+  const ownedNitro = (await getPartsState(cSeller.id)).parts.find((p) => p.code === NI && p.status === "owned");
+  ok(!!ownedNitro, `fix2 prep: seller owns a nitro part`);
+  const sellCar = await acquireCar(cSeller.id, "nexia");
+  ok(sellCar.ok, `fix2 prep: seller acquired a car`);
+  await installPart(cSeller.id, ownedNitro!.id, sellCar.carId!);
+  const carListed = await garajBazaarList(cSeller.id, sellCar.carId!, 1000);
+  ok(carListed.ok, `fix2: car listed on the car-bazaar`);
+  const carListing = (await prisma.garajBazaarListing.findFirst({ where: { garajCarId: sellCar.carId!, status: "open" } }))!;
+  const carBought = await garajBazaarBuy(cBuyer.id, carListing.id);
+  ok(carBought.ok, `fix2: car bought by another player`);
+  const partAfterSale = await prisma.garajPart.findUnique({ where: { id: ownedNitro!.id } });
+  ok(partAfterSale?.ownerId === cSeller.id && partAfterSale?.status === "owned" && partAfterSale?.installedCarId === null, `fix2: part uninstalled back to SELLER (not transferred, not still boosting)`);
+  const partsOnSoldCar = await prisma.garajPart.count({ where: { installedCarId: sellCar.carId!, status: "installed" } });
+  ok(partsOnSoldCar === 0, `fix2: the sold car carries ZERO installed parts → buyer earn-leak closed`);
+  // FIX#1 — an atomic cancel cannot un-freeze a part a concurrent buyPart already claimed
+  const f1 = await mintPart(cSeller.id, NI);
+  await listPart(cSeller.id, f1.partId!, 5000);
+  const f1ListingId = (await prisma.garajPartListing.findFirst({ where: { partId: f1.partId, status: "open" } }))!.id;
+  await prisma.garajPartListing.update({ where: { id: f1ListingId }, data: { status: "pending_payment", buyerId: cBuyer.id } }); // simulate a concurrent buyPart claim
+  const f1Cancel = await cancelPartListing(cSeller.id, f1ListingId);
+  ok(!f1Cancel.ok && f1Cancel.reason === "already_sold", `fix1: cancel of a CLAIMED listing is refused by CAS (${f1Cancel.reason})`);
+  ok((await prisma.garajPart.findUnique({ where: { id: f1.partId! } }))?.status === "listed", `fix1: part NOT un-frozen by the refused cancel (still listed)`);
+  // FIX#4 — a stuck pending_payment with the buyer already charged → buyPart re-run finalizes idempotently
+  await prisma.coinTxn.create({ data: { memberId: cBuyer.id, amount: -5000, kind: "garaj_part_buy", reason: "recovery-test", idempotencyKey: `partbuy:${f1ListingId}` } });
+  await prisma.member.update({ where: { id: cBuyer.id }, data: { coins: { decrement: 5000 } } });
+  const f4 = await buyPart(cBuyer.id, f1ListingId);
+  ok(f4.ok, `fix4: buyPart recovers a stuck pending_payment (idempotent finalize)`);
+  const f4Part = await prisma.garajPart.findUnique({ where: { id: f1.partId! } });
+  ok(f4Part?.ownerId === cBuyer.id && f4Part?.status === "owned", `fix4: recovery → part transferred to buyer`);
+  ok((await prisma.garajPartListing.findUnique({ where: { id: f1ListingId } }))?.status === "sold", `fix4: recovery → listing marked sold`);
+  // FIX#3 — getPartsState exposes listingId for listed parts (UI cancel never depends on the capped bazaar list)
+  const f3 = await mintPart(cSeller.id, NI);
+  await listPart(cSeller.id, f3.partId!, 3000);
+  const f3Part = (await getPartsState(cSeller.id)).parts.find((p) => p.id === f3.partId);
+  ok(!!f3Part && f3Part.status === "listed" && typeof f3Part.listingId === "number", `fix3: listed part exposes listingId=${f3Part?.listingId}`);
+  const f3Cancel = await cancelPartListing(cSeller.id, f3Part!.listingId!);
+  ok(f3Cancel.ok, `fix3: cancel via the exposed listingId works`);
+  // ledger invariant for the hardening members
+  for (const m of [cSeller, cBuyer]) {
+    const bal = (await prisma.member.findUnique({ where: { id: m.id } }))!.coins;
+    const tot = (await prisma.coinTxn.aggregate({ where: { memberId: m.id }, _sum: { amount: true } }))._sum.amount ?? 0;
+    ok(Math.abs(bal - tot) < 0.001, `fix: member ${m.id} ledger invariant (bal ${bal} == ledger ${tot})`);
   }
 
   // ── 12) Ledger invariant AFTER P2 sequence ───────────────────────────────
