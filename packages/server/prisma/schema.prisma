@@ -61,6 +61,7 @@ model Member {
   weeklyScores  WeeklyScore[]
   coinTxns      CoinTxn[]
   withdrawals   Withdrawal[]
+  cashoutRequests CashoutRequest[] // 💵 real cash-out (tanga → card/home), owner-approved
   driverSession DriverSession? // Bosqich 2: kas /api/driverApp/* auth (drivers only)
   leagueTier   String              @default("Bronza") // promotion/relegation tier
   driverTier   String              @default("Bronza") // weekly driver tier (DiDi model): Bronza|Kumush|Oltin|Olmos
@@ -335,6 +336,26 @@ model Withdrawal {
   createdAt  DateTime @default(now())
 
   @@index([memberId, createdAt])
+}
+
+// 💵 Real CASH-OUT request (tanga → plastik card / cash-to-home), settled MANUALLY by the owner.
+// The full card number is NEVER persisted — only `mask` (•••• 1234) is stored; the real card goes
+// solely into the owner's Telegram message. Tangas are spent ONLY when the owner taps «✅ To'landi»
+// (spendCoinsIdempotent, key cashout:<id>) so a double-tap can't double-pay.
+model CashoutRequest {
+  id        Int       @id @default(autoincrement())
+  member    Member    @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  memberId  Int
+  amount    Int
+  method    String // "card" | "home"
+  mask      String // "•••• 1234" for a card, or the home address — safe to persist
+  contact   String // phone
+  status    String    @default("pending") // pending | paid | rejected
+  createdAt DateTime  @default(now())
+  decidedAt DateTime?
+
+  @@index([memberId, status])
+  @@index([status, createdAt])
 }
 
 // Weekly engagement league: score accrues from bot actions (check-in, spin,

@@ -1,0 +1,168 @@
+// 💵 Real cash-out flow (tanga → plastik card / cash-to-home). The bot only RECORDS a request and
+// forwards it to the OWNER's Telegram with [✅ To'landi] [❌ Rad]; the owner pays manually. Card
+// numbers are never persisted (only a •••• 1234 mask) and the card-bearing message is deleted.
+// Tangas are spent only on owner approval (idempotent). Gated DARK behind the `cashout` flag.
+import { Bot, Context, InlineKeyboard } from "grammy";
+import { formatNumber } from "@t1067/shared";
+import { prisma } from "../db";
+import { getMe } from "../services/memberService";
+import { featureOn } from "../services/featureFlags";
+import {
+  createCashout,
+  getCashout,
+  approveCashout,
+  rejectCashout,
+  cashoutBalance,
+  CASHOUT_CARD_MIN,
+  CASHOUT_HOME_MIN,
+  type CashoutMethod,
+} from "../services/cashoutService";
+
+const OWNER_TG = "6506297119";
+const sessions = new Map<string, { method: CashoutMethod }>(); // awaiting the rider's card/address
+
+function esc(s: string): string {
+  return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+}
+async function tgOf(memberId: number): Promise<string | null> {
+  const tu = await prisma.telegramUser.findFirst({ where: { memberId }, select: { id: true } });
+  return tu?.id ?? null;
+}
+
+export function registerCashout(bot: Bot): void {
+  const start = async (ctx: Context): Promise<void> => {
+    if (!(await featureOn("cashout"))) return;
+    const me = await getMe(String(ctx.from!.id));
+    if (!me?.member) return;
+    const bal = await cashoutBalance(me.member.id);
+    if (bal < CASHOUT_CARD_MIN) {
+      await ctx.reply(
+        `💵 <b>Naxt pul olish</b>\n\nBalansingiz: <b>${formatNumber(bal)} tanga</b>\nNaxt pul olish uchun kamida <b>${formatNumber(CASHOUT_CARD_MIN)} tanga</b> kerak.`,
+        { parse_mode: "HTML" },
+      );
+      return;
+    }
+    const kb = new InlineKeyboard().text(`💳 Plastik kartaga (${formatNumber(bal)})`, "cashout:card");
+    if (bal >= CASHOUT_HOME_MIN) kb.row().text(`🏠 Naxt uyga (${formatNumber(bal)})`, "cashout:home");
+    await ctx.reply(
+      `💵 <b>Naxt pul olish</b>\n\nBalansingiz: <b>${formatNumber(bal)} tanga</b> (≈${formatNumber(bal)} so'm)\n\nQanday olasiz? 👇`,
+      { parse_mode: "HTML", reply_markup: kb },
+    );
+  };
+  bot.command("naxt", start);
+  bot.hears("💵 Naxt pul", start);
+  bot.hears("💵 Naxt pul olish", start);
+
+  bot.callbackQuery("cashout:card", async (ctx) => {
+    await ctx.answerCallbackQuery().catch(() => undefined);
+    if (!(await featureOn("cashout"))) return;
+    sessions.set(String(ctx.from.id), { method: "card" });
+    await ctx.reply(
+      "💳 <b>Karta raqamingizni yuboring</b> (16 raqam):\n\n🔒 <i>Karta raqami saqlanmaydi — faqat to'lov uchun administratorga boradi.</i>",
+      { parse_mode: "HTML" },
+    );
+  });
+  bot.callbackQuery("cashout:home", async (ctx) => {
+    await ctx.answerCallbackQuery().catch(() => undefined);
+    if (!(await featureOn("cashout"))) return;
+    sessions.set(String(ctx.from.id), { method: "home" });
+    await ctx.reply("🏠 <b>Manzilingizni yozing</b> (ko'cha, uy — pulni qayerga yetkazamiz):", { parse_mode: "HTML" });
+  });
+
+  // capture the card / address — session-gated; everyone else passes through via next()
+  bot.on("message:text", async (ctx, next) => {
+    const tg = String(ctx.from.id);
+    const s = sessions.get(tg);
+    if (!s) return next();
+    sessions.delete(tg);
+    if (!(await featureOn("cashout"))) return;
+    const me = await getMe(tg);
+    if (!me?.member) return;
+    const bal = await cashoutBalance(me.member.id);
+    if (bal < CASHOUT_CARD_MIN) {
+      await ctx.reply("❌ Balansingiz yetarli emas.");
+      return;
+    }
+    const text = ctx.message.text.trim();
+    const phone = me.member.phone ?? "—";
+    const name = me.member.fullName ?? "Mijoz";
+
+    let mask: string;
+    let ownerDetail: string;
+    if (s.method === "card") {
+      const digits = text.replace(/\D/g, "");
+      if (digits.length < 16 || digits.length > 19) {
+        await ctx.reply("❌ Karta raqami noto'g'ri (16 raqam bo'lishi kerak). Qaytadan: /naxt");
+        return;
+      }
+      mask = "•••• " + digits.slice(-4);
+      ownerDetail = `💳 Karta: <b>${digits}</b>`;
+      await ctx.deleteMessage().catch(() => undefined); // privacy — drop the message carrying the full card
+    } else {
+      if (text.length < 5) {
+        await ctx.reply("❌ Manzil juda qisqa. Qaytadan: /naxt");
+        return;
+      }
+      mask = text.slice(0, 120);
+      ownerDetail = `🏠 Manzil: <b>${esc(text)}</b>`;
+    }
+
+    const { id } = await createCashout(me.member.id, bal, s.method, mask, phone);
+    const kb = new InlineKeyboard().text("✅ To'landi", `cashout:ok:${id}`).text("❌ Rad", `cashout:no:${id}`);
+    await bot.api
+      .sendMessage(
+        OWNER_TG,
+        `💸 <b>NAXT PUL SO'ROVI</b> #${id}\n\n👤 <b>${esc(name)}</b>\n💰 <b>${formatNumber(bal)}</b> tanga (≈${formatNumber(bal)} so'm)\n${ownerDetail}\n📞 ${esc(phone)}\n🚖 Safar: ${me.stats.trips}`,
+        { parse_mode: "HTML", reply_markup: kb },
+      )
+      .catch(() => undefined);
+    await ctx.reply(
+      `✅ <b>So'rovingiz yuborildi!</b>\n\n💰 ${formatNumber(bal)} tanga · ${s.method === "card" ? "💳 plastik kartaga" : "🏠 naxt uyga"}\nTez orada bog'lanamiz va pulingizni o'tkazamiz 💸`,
+      { parse_mode: "HTML" },
+    );
+  });
+
+  // owner decision — OWNER only
+  bot.callbackQuery(/^cashout:(ok|no):(\d+)$/, async (ctx) => {
+    if (String(ctx.from.id) !== OWNER_TG) {
+      await ctx.answerCallbackQuery({ text: "Faqat admin", show_alert: true });
+      return;
+    }
+    const m = ctx.match as RegExpMatchArray;
+    const action = m[1];
+    const id = Number(m[2]);
+    const r = await getCashout(id);
+    if (!r) {
+      await ctx.answerCallbackQuery({ text: "Topilmadi", show_alert: true });
+      return;
+    }
+    if (action === "ok") {
+      const res = await approveCashout(id);
+      if (!res.ok) {
+        await ctx.answerCallbackQuery({
+          text: res.reason === "insufficient" ? "Balans yetarli emas (mijoz sarflagan)" : `Holat: ${res.reason}`,
+          show_alert: true,
+        });
+        return;
+      }
+      await ctx.answerCallbackQuery({ text: "✅ To'landi" });
+      await ctx
+        .editMessageText(`✅ <b>TO'LANDI</b> #${id}\n👤 ${esc(r.member.fullName ?? "")} · 💰 ${formatNumber(r.amount)} tanga`, { parse_mode: "HTML" })
+        .catch(() => undefined);
+      const tu = await tgOf(r.memberId);
+      if (tu)
+        await bot.api
+          .sendMessage(tu, `✅ <b>Pulingiz o'tkazildi!</b>\n💰 ${formatNumber(r.amount)} tanga (≈${formatNumber(r.amount)} so'm)\nRahmat — yana xizmatingizdamiz 🚕`, { parse_mode: "HTML" })
+          .catch(() => undefined);
+    } else {
+      const res = await rejectCashout(id);
+      await ctx.answerCallbackQuery({ text: "❌ Rad etildi" });
+      await ctx.editMessageText(`❌ <b>RAD ETILDI</b> #${id}`, { parse_mode: "HTML" }).catch(() => undefined);
+      if (res.ok) {
+        const tu = await tgOf(r.memberId);
+        if (tu)
+          await bot.api.sendMessage(tu, "❌ Naxt pul so'rovingiz rad etildi. Savol bo'lsa — administrator bilan bog'laning.", { parse_mode: "HTML" }).catch(() => undefined);
+      }
+    }
+  });
+}

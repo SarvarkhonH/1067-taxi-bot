@@ -24,6 +24,7 @@ import type { CashbackDelta } from "../sync/sync";
 import { payDriver, registerBooking } from "./booking";
 import { registerDriverDebt } from "./driverDebt";
 import { registerDriverReports } from "./driverReports";
+import { registerCashout } from "./cashout";
 import type { DriverPanelExtras } from "../services/driverReportService";
 import {
   renderBadgeUnlocked,
@@ -1189,6 +1190,7 @@ export function createBot(): Bot {
     );
   });
 
+  registerCashout(bot); // 💵 /naxt — real cash-out (tanga → card/home) → owner approves. Gated DARK by `cashout`. Registered BEFORE booking so its session-gated text capture gets first crack.
   registerDriverDebt(bot); // /qarz — pay kas debt with tanga (gated behind `qarz` flag). No login: uses the member's already-linked plate.
   registerDriverReports(bot); // /safarlarim + /daromad (read-only driver reports)
   registerBooking(bot, mainMenu);
@@ -1377,6 +1379,7 @@ export async function setupBotCommands(bot: Bot): Promise<void> {
     { command: "baraban", description: "🎰 Safar barabani (yutuq)" },
     { command: "missions", description: "🎯 Vazifalar (mukofot)" },
     { command: "invite", description: "👥 Do'st taklif qilish" },
+    { command: "naxt", description: "💵 Naxt pul olish (tanga → karta/uy)" },
     { command: "narx", description: "🚖 Narx va cashback" },
     { command: "rahmat", description: "🙏 Haydovchiga choychaqa" },
     { command: "haydovchi", description: "🚖 Mashina raqami bo'yicha haydovchiga to'lash" },
