@@ -23,36 +23,37 @@ async function main(): Promise<void> {
   });
   const cards: string[] = [];
   for (const d of drivers) {
-    const qr = await QR.toDataURL(driverQrLink(d.id), { width: 360, margin: 1 });
+    const qr = await QR.toDataURL(driverQrLink(d.id), { width: 320, margin: 1 });
     cards.push(
       `<div class="card">` +
         `<div class="top"><b>1067</b> TAXI 🚖</div>` +
-        `<div class="hook">Birinchi safar <span>BEPUL</span></div>` +
-        `<div class="amt">🎁 ${clientReward} so'm sovg'a — sizga</div>` +
+        `<div class="amt">🎁 ${clientReward} so'm <b>SOVG'A</b> — sizga</div>` +
         `<div class="qrwrap"><img src="${qr}" alt="QR"/></div>` +
         `<div class="scan">📲 SKANERLANG — taksi chaqiring</div>` +
         (d.carNumber ? `<div class="car">🚕 ${d.carNumber}</div>` : "") +
-        `<div class="foot">🚖 Haydovchiga <b>+${driverBonus}</b> bonus · har safardan cashback 💸</div>` +
+        `<div class="foot">🚖 Haydovchiga <b>+${driverBonus}</b> bonus</div>` +
       `</div>`,
     );
   }
+  // 8 stickers per A4 page (2 columns × 4 rows) — chunk into pages with a hard break
+  const pages: string[] = [];
+  for (let i = 0; i < cards.length; i += 8) pages.push(`<div class="page">${cards.slice(i, i + 8).join("")}</div>`);
   const html =
     `<!doctype html><html><head><meta charset="utf-8"><title>1067 — haydovchi QR stikerlar</title><style>` +
-    `@page{margin:7mm}*{box-sizing:border-box}` +
+    `@page{margin:6mm}*{box-sizing:border-box}` +
     `body{font-family:Arial,Helvetica,sans-serif;margin:0;color:#1a1205;-webkit-print-color-adjust:exact;print-color-adjust:exact}` +
-    `.grid{display:grid;grid-template-columns:repeat(2,1fr);gap:6mm;padding:6mm}` +
-    `.card{border:2.5px solid #e3b81f;border-radius:16px;overflow:hidden;text-align:center;page-break-inside:avoid;background:#fff}` +
-    `.top{background:#1a1205;color:#ffce3a;font-weight:800;font-size:16px;letter-spacing:1.5px;padding:7px 0}` +
+    `.page{display:grid;grid-template-columns:repeat(2,1fr);gap:4mm;page-break-after:always}` +
+    `.page:last-child{page-break-after:auto}` +
+    `.card{border:2px solid #e3b81f;border-radius:12px;overflow:hidden;text-align:center;page-break-inside:avoid;background:#fff}` +
+    `.top{background:#1a1205;color:#ffce3a;font-weight:800;font-size:13px;letter-spacing:1px;padding:4px 0}` +
     `.top b{color:#ffd24d}` +
-    `.hook{font-size:19px;font-weight:800;margin:9px 6px 1px;line-height:1.1}` +
-    `.hook span{color:#c79200}` +
-    `.amt{font-size:12.5px;font-weight:700;color:#b8860b;margin-bottom:4px}` +
-    `.qrwrap{padding:2px}.card img{width:48mm;height:48mm}` +
-    `.scan{font-size:13px;font-weight:800;letter-spacing:.3px;margin:1px 0 7px}` +
-    `.car{display:inline-block;padding:3px 16px;border-radius:8px;background:#fff4cf;border:1px solid #e3c34d;font-weight:800;font-size:18px;letter-spacing:1px;color:#5a4300}` +
-    `.foot{margin-top:8px;background:#0a7d3c;color:#fff;font-size:11.5px;font-weight:700;padding:6px 4px;line-height:1.35}` +
+    `.amt{font-size:13px;font-weight:700;color:#b8860b;margin:5px 4px 2px}.amt b{font-size:15px;color:#1a1205}` +
+    `.qrwrap{padding:1px}.card img{width:35mm;height:35mm}` +
+    `.scan{font-size:11px;font-weight:800;letter-spacing:.2px;margin:1px 0 5px}` +
+    `.car{display:inline-block;padding:2px 12px;border-radius:7px;background:#fff4cf;border:1px solid #e3c34d;font-weight:800;font-size:15px;letter-spacing:.8px;color:#5a4300}` +
+    `.foot{margin-top:6px;background:#0a7d3c;color:#fff;font-size:11px;font-weight:700;padding:4px 4px;line-height:1.3}` +
     `.foot b{color:#ffe08a}` +
-    `</style></head><body><div class="grid">${cards.join("")}</div></body></html>`;
+    `</style></head><body>${pages.join("")}</body></html>`;
   const out = resolve(repoRoot, "1067_driver_qr_stickers.html");
   writeFileSync(out, html, "utf-8");
   console.log(`✅ ${drivers.length} ta stiker → ${out}\n   Mijoz 5000, haydovchi ${driverBonus} bonus. Print → PDF.`);
