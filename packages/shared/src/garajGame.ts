@@ -260,10 +260,14 @@ export interface CarCheckView {
   zones?: Record<string, number> | null; // EKSPERT+
   capitalRepairCount?: number; // EKSPERT+
   hiddenDefect?: HiddenDefect | null; // PREMIUM
-  referencePrice?: number | null; // PREMIUM — taxminiy bozor narxi
+  referencePrice?: number | null; // PREMIUM — taxminiy bozor narxi (clean-history premium bilan)
   sellerRating?: number | null; // PREMIUM — 1..5
-  freeOfChargeUsed?: boolean; // true if this was the player's free Premium
+  freeOfChargeUsed?: boolean; // true if this was the player's free first-check (ANY tier)
+  cleanHistory?: boolean; // 🔍 FAZA4 — 0 remont + 1 ega → narx premium (juda qimmat)
+  installedParts?: { code: string; name: string; emoji: string; serial: number; earnBonusPct: number }[]; // 🔍 FAZA4 — original/o'rnatilgan detal tarixi (PREMIUM)
 }
+// 🔍 FAZA4-4.3 — clean-history (0 remont, 1 ega) narx premiumi (status + ishonch → "juda qimmat")
+export const CLEAN_HISTORY_PREMIUM = 1.15;
 
 // reputation arc — the master-mechanic identity ladder (W5).
 export const REPUTATION_TIERS: { name: string; min: number }[] = [
@@ -922,7 +926,9 @@ export interface OrzuModelTop {
   champion: { memberId: number; name: string; serial: number; engineHp: number } | null;
 }
 export interface OrzuBoardView {
-  topGarages: OrzuTopOwner[]; // global Top 20 by garageValue
+  topGarages: OrzuTopOwner[]; // global Top 100 by garageValue (FAZA4-4.5)
   modelChampions: OrzuModelTop[]; // per-model #1 (oldest active serial wins — Muzey extend)
   myRank: number | null; // viewer's own rank (null if unranked)
+  myRankPct?: number | null; // 🔍 FAZA4 — "Top N%" foiz
+  totalRanked?: number; // 🔍 FAZA4 — jami reytingdagilar soni
 }

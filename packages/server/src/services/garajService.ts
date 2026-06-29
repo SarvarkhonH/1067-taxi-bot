@@ -66,6 +66,7 @@ import {
   mergeLifespanMult,
   MOTOR_DEATH_WARN_HP,
   MOTOR_DYING_EARN_MULT,
+  CLEAN_HISTORY_PREMIUM,
   type CarCheckTier,
   type CarCheckView,
   type GarajPartView,
@@ -1369,10 +1370,11 @@ export async function getCarCheck(viewerId: number, garajCarId: number, tier: Ca
     : tier === "EKSPERT" ? (econ.carCheckEkspert ?? CARCHECK_COSTS.EKSPERT)
     : (econ.carCheckPremium ?? CARCHECK_COSTS.PREMIUM);
   const cost = Math.max(1, Math.floor(baseCost));
-  // First-Premium-free for newbies (one-shot per player)
+  // 🔍 FAZA4-4.6 — newbie protection: the FIRST check of ANY tier is FREE (one-shot per player),
+  // not just the first Premium. A fresh player's first inspection (even cheap ODDIY) costs nothing.
   let freeUsed = false;
   let actualCost = cost;
-  if (tier === "PREMIUM") {
+  {
     const meta = await prisma.memberGarajMeta.findUnique({ where: { memberId: viewerId }, select: { carCheckFreeUsed: true } });
     if (!meta?.carCheckFreeUsed) {
       actualCost = 0;
@@ -1409,7 +1411,13 @@ export async function getCarCheck(viewerId: number, garajCarId: number, tier: Ca
     try { if (car.hiddenDefect) defect = JSON.parse(car.hiddenDefect) as HiddenDefect; } catch { /* tolerate corrupt JSON */ }
     baseView.hiddenDefect = defect;
     const basePrice = MAKE_BASE[car.carCode] ?? 0;
-    baseView.referencePrice = Math.max(1, Math.floor(basePrice * repairNarxFactor(car.capitalRepairCount ?? 0)));
+    // 🔍 FAZA4-4.3 — clean-history (0 remont + 1 ega) commands a price premium (status + ishonch).
+    const cleanHist = (car.capitalRepairCount ?? 0) === 0 && (car.ownerCount ?? 1) === 1;
+    baseView.cleanHistory = cleanHist;
+    baseView.referencePrice = Math.max(1, Math.floor(basePrice * repairNarxFactor(car.capitalRepairCount ?? 0) * (cleanHist ? CLEAN_HISTORY_PREMIUM : 1)));
+    // 🔍 FAZA4-4.4 — original/installed-parts history (a buyer pays Premium to see the full parts record).
+    const ccParts = await prisma.garajPart.findMany({ where: { installedCarId: car.id, status: "installed" }, select: { partCode: true, serial: true } });
+    baseView.installedParts = ccParts.map((p) => { const d = getMotorPart(p.partCode); return { code: p.partCode, name: d?.name ?? p.partCode, emoji: d?.emoji ?? "🔧", serial: p.serial, earnBonusPct: d?.earnBonusPct ?? 0 }; });
     const sellerMeta = await prisma.memberGarajMeta.findUnique({ where: { memberId: car.memberId }, select: { sellerRatingSum: true, sellerRatingCount: true } });
     const count = sellerMeta?.sellerRatingCount ?? 0;
     baseView.sellerRating = count > 0 ? Math.round(((sellerMeta?.sellerRatingSum ?? 0) / count) * 10) / 10 : null;
@@ -1439,6 +1447,12 @@ export async function rateSeller(buyerId: number, listingId: number, stars: numb
     create: { memberId: listing.sellerId, sellerRatingSum: score, sellerRatingCount: 1 },
     update: { sellerRatingSum: { increment: score }, sellerRatingCount: { increment: 1 } },
   });
+  // 🔍 FAZA4-4.1 — a BAD rating (≤2★) also drops the seller's reputationScore (the headline ladder),
+  // not just the star avg → "yomon mashina sotgan sotuvchidan qo'rqishadi". 5★ rewards a small +.
+  const repDelta = score <= 2 ? -25 : score >= 5 ? 5 : 0;
+  if (repDelta !== 0) {
+    await prisma.memberGarajMeta.update({ where: { memberId: listing.sellerId }, data: { reputationScore: { increment: repDelta } } }).catch(() => undefined);
+  }
   return { ok: true };
 }
 
@@ -1622,7 +1636,7 @@ export async function getOrzuBoard(viewerId: number): Promise<{ ok: boolean; rea
   const ranked = Array.from(byMember.entries())
     .map(([memberId, agg]) => ({ memberId, ...agg }))
     .sort((a, b) => b.value - a.value || a.memberId - b.memberId);
-  const topGarages: OrzuTopOwner[] = ranked.slice(0, 20).map((r, i) => ({
+  const topGarages: OrzuTopOwner[] = ranked.slice(0, 100).map((r, i) => ({ // 🔍 FAZA4-4.5 — Top-100 (was Top-20)
     rank: i + 1,
     memberId: r.memberId,
     name: nameById.get(r.memberId) ?? "O'yinchi",
@@ -1650,10 +1664,11 @@ export async function getOrzuBoard(viewerId: number): Promise<{ ok: boolean; rea
       champion: champ ? { memberId: champ.memberId, name: nameById.get(champ.memberId) ?? "O'yinchi", serial: champ.serial, engineHp: champ.engineHp } : null,
     };
   });
-  // Viewer's own rank (1-based; null if unranked)
+  // Viewer's own rank (1-based; null if unranked) + percentile ("Top N%") — FAZA4-4.5
   const myIdx = ranked.findIndex((r) => r.memberId === viewerId);
   const myRank = myIdx >= 0 ? myIdx + 1 : null;
-  return { ok: true, board: { topGarages, modelChampions, myRank } };
+  const myRankPct = myRank && ranked.length > 0 ? Math.max(1, Math.round((myRank / ranked.length) * 100)) : null;
+  return { ok: true, board: { topGarages, modelChampions, myRank, myRankPct, totalRanked: ranked.length } };
 }
 
 // Hidden per-zone STARTING condition (20..99) derived from the server-only seed.
@@ -2124,7 +2139,7 @@ export async function garajBazaarList(memberId: number, garajCarId: number, askP
   });
 }
 
-export async function garajBazaarBuy(buyerId: number, listingId: number): Promise<GarajActionResult> {
+export async function garajBazaarBuy(buyerId: number, listingId: number): Promise<GarajActionResult & { defectRevealed?: HiddenDefect | null }> {
   if (!(await garajEnabledFor(buyerId))) return { ok: false, reason: "off" };
   // claim-before-pay: atomically flip open→pending_payment (exactly one buyer wins)
   const claim = await prisma.garajBazaarListing.updateMany({ where: { id: listingId, status: "open" }, data: { status: "pending_payment", buyerId } });
@@ -2152,7 +2167,12 @@ export async function garajBazaarBuy(buyerId: number, listingId: number): Promis
     await tx.garajCar.update({ where: { id: listing.garajCarId }, data: { memberId: buyerId, ownerCount: { increment: 1 } } }); // 🚗 FAZA2-2.3 egalar soni oshadi (cleanHistory haqiqiy bo'ladi)
     await tx.garajBazaarListing.update({ where: { id: listingId }, data: { status: "sold", soldAt: new Date() } });
   });
-  return { ok: true };
+  // 🔍 FAZA4-4.2 — post-sale defect reveal: the new owner immediately learns of any hidden defect
+  // (no paid Premium check needed). "Nuqson xaridordan keyin yuzaga chiqadi" → buyer can then rate.
+  const boughtCar = await prisma.garajCar.findUnique({ where: { id: listing.garajCarId }, select: { hiddenDefect: true } });
+  let defectRevealed: HiddenDefect | null = null;
+  try { if (boughtCar?.hiddenDefect) defectRevealed = JSON.parse(boughtCar.hiddenDefect) as HiddenDefect; } catch { /* tolerate */ }
+  return { ok: true, defectRevealed };
 }
 
 // Cancel your own OPEN listing (the car returns to your garage — it was never moved).

@@ -317,6 +317,8 @@ export function GarajShell({ onClose, initial }: { onClose: () => void; initial?
   const [speederOpen, setSpeederOpen] = useState<number | null>(null); // carId
   const [mergeOpen, setMergeOpen] = useState<number | null>(null); // keep carId
   const [partsOpen, setPartsOpen] = useState(false); // 🔧 P2-deep-5/6 — Detallar sheet
+  const [rateFor, setRateFor] = useState<number | null>(null); // 🔍 FAZA4 — rate-seller prompt (listingId)
+  const [profileTarget, setProfileTarget] = useState<number | null>(null); // 🔍 FAZA4 — open another player's garaj
 
   const load = useCallback(() => {
     if (initial) return; // demo/fixture mode — no backend fetch
@@ -675,7 +677,24 @@ export function GarajShell({ onClose, initial }: { onClose: () => void; initial?
 
       {museumOpen && <GarajMuseumSheet demo={initial ? GARAJ_DEMO_MUSEUM : undefined} onClose={() => setMuseumOpen(false)} />}
       {profileOpen && <GarajProfileSheet demo={initial ? GARAJ_DEMO_PROFILE : undefined} onClose={() => setProfileOpen(false)} />}
-      {orzuOpen && <GarajOrzuSheet onClose={() => setOrzuOpen(false)} />}
+      {/* 🔍 FAZA4 — open ANOTHER player's garaj (tapped from ORZU ranking row) */}
+      {profileTarget != null && <GarajProfileSheet target={profileTarget} onClose={() => setProfileTarget(null)} />}
+      {/* 🔍 FAZA4 — rate the seller after a P2P purchase */}
+      {rateFor != null && (
+        <Sheet open onClose={() => setRateFor(null)}>
+          <div className="col g8">
+            <div className="gz-title">⭐ Sotuvchini baholang</div>
+            <p className="fs12 dim mt0">Mashina kutganingizdek bo'ldimi? Bahoyingiz sotuvchining reputatsiyasiga ta'sir qiladi.</p>
+            <div className="row g8" style={{ justifyContent: "center", fontSize: 30 }}>
+              {[1, 2, 3, 4, 5].map((s) => (
+                <button key={s} type="button" style={{ background: "none", border: "none", cursor: "pointer", fontSize: 30 }} onClick={() => void submitRating(rateFor, s)} aria-label={`${s} yulduz`}>⭐</button>
+              ))}
+            </div>
+            <Button variant="ghost" onClick={() => setRateFor(null)}>Keyinroq</Button>
+          </div>
+        </Sheet>
+      )}
+      {orzuOpen && <GarajOrzuSheet onClose={() => setOrzuOpen(false)} onOpenProfile={(mid) => { setOrzuOpen(false); setProfileTarget(mid); }} />}
       {checkOpen != null && (() => {
         const cc = st?.cars.find((c) => c.id === checkOpen);
         return cc ? <GarajCarCheckSheet car={cc} onClose={() => setCheckOpen(null)} /> : null;
@@ -940,8 +959,23 @@ export function GarajShell({ onClose, initial }: { onClose: () => void; initial?
       setTimeout(() => setListLift(null), 2400);
     })();
   }
-  function bazaarBuy(listingId: number): void {
-    void bazaarAct(() => api.garajBazaarBuy(listingId));
+  // 🔍 FAZA4 — P2P buy: reveal any hidden defect post-sale + prompt to rate the seller
+  async function bazaarBuy(listingId: number): Promise<void> {
+    if (busy) return; setBusy(true); haptic();
+    try {
+      const r = await api.garajBazaarBuy(listingId);
+      if (r.ok) {
+        hapticSuccess();
+        if (r.defectRevealed) { setToast(`⚠️ Sotuvdan keyin nuqson chiqdi: ${r.defectRevealed.zone} (${r.defectRevealed.severity === "major" ? "jiddiy" : "kichik"}). Sotuvchini baholang.`); setTimeout(() => setToast(null), 3500); }
+        setRateFor(listingId);
+      } else { haptic(); flash(r.reason === "already_sold" ? "Allaqachon sotilgan" : r.reason === "insufficient" ? "Tanga yetarli emas" : "Sotib bo'lmadi"); }
+      if (!initial) { setSt(await api.garajState()); setBazaar(await api.garajBazaar()); setAuctions(await api.garajAuctions()); }
+    } finally { setBusy(false); }
+  }
+  // 🔍 FAZA4 — submit a seller rating (1-5)
+  async function submitRating(listingId: number, stars: number): Promise<void> {
+    setRateFor(null);
+    try { const r = await api.garajRateSeller(listingId, stars); if (r.ok) { hapticSuccess(); setToast("Rahmat — baho qabul qilindi"); setTimeout(() => setToast(null), 1800); } } catch { /* ignore */ }
   }
   function bazaarUnlist(listingId: number): void {
     void bazaarAct(() => api.garajBazaarUnlist(listingId));
@@ -1338,7 +1372,7 @@ export function GarajMuseumSheet({ demo, onClose }: { demo?: typeof GARAJ_DEMO_M
 }
 
 // ✨ P1-F — ORZU board sheet (global ranking + per-model #1 podium + Muzey extend)
-export function GarajOrzuSheet({ onClose }: { onClose: () => void }) {
+export function GarajOrzuSheet({ onClose, onOpenProfile }: { onClose: () => void; onOpenProfile?: (memberId: number) => void }) {
   const [b, setB] = useState<OrzuBoardView | null>(null);
   const [loading, setLoading] = useState(true);
   useEffect(() => {
@@ -1357,20 +1391,20 @@ export function GarajOrzuSheet({ onClose }: { onClose: () => void }) {
           <div className="gz-title">✨ ORZU — eng zo'rlar</div>
           {b.myRank != null && (
             <div className="gz-pillstrip" role="list">
-              <span className="gz-pill-chip gold"><span className="dim fs11">Mening o'rnim</span><b>#{b.myRank}</b></span>
+              <span className="gz-pill-chip gold"><span className="dim fs11">Mening o'rnim</span><b>#{b.myRank}{b.myRankPct != null ? ` · Top ${b.myRankPct}%` : ""}</b></span>
             </div>
           )}
-          <div className="gz-sec-title">🏆 Top garajlar</div>
+          <div className="gz-sec-title">🏆 Top garajlar{b.totalRanked ? ` (${b.totalRanked})` : ""}</div>
           {b.topGarages.length === 0 ? (
             <p className="gz-empty">Hali hech kim garaj yig'magan.</p>
           ) : (
             <div className="gz-hist">
               {b.topGarages.map((t) => (
-                <div key={t.memberId} className="gz-hist-row">
+                <button key={t.memberId} type="button" className="gz-hist-row" style={{ cursor: "pointer", textAlign: "left", width: "100%", background: "none", border: "none" }} onClick={() => { haptic(); onOpenProfile?.(t.memberId); }}>
                   <span className="gz-hist-emoji">{t.rank <= 3 ? ["🥇","🥈","🥉"][t.rank - 1] : `#${t.rank}`}</span>
-                  <span className="gz-hist-name">{t.name}{t.cleanHistoryCount > 0 ? ` ✨${t.cleanHistoryCount}` : ""}</span>
+                  <span className="gz-hist-name">{t.name}{t.cleanHistoryCount > 0 ? ` ✨${t.cleanHistoryCount}` : ""} ›</span>
                   <span className="gz-hist-amt">🪙 {t.garageValue.toLocaleString("ru-RU")} · {t.carCount} 🚗</span>
-                </div>
+                </button>
               ))}
             </div>
           )}
@@ -1423,9 +1457,9 @@ export function GarajCarCheckSheet({ car, onClose }: { car: CarCheckTarget; onCl
               ))}
             </div>
             <div className="fs12 dim">
-              {tier === "ODDIY" && "Asosiy ma'lumot: #serial, yosh, eyilish."}
-              {tier === "EKSPERT" && "+ Zona kondisiyalari, kapital remont soni."}
-              {tier === "PREMIUM" && "+ Yashirin nuqson · ma'lumot narxi · sotuvchi reytingi (birinchi marta BEPUL)"}
+              {tier === "ODDIY" && "Asosiy ma'lumot: #serial, yosh, eyilish. (1-tekshiruv BEPUL)"}
+              {tier === "EKSPERT" && "+ Zona kondisiyalari, kapital remont soni. (1-tekshiruv BEPUL)"}
+              {tier === "PREMIUM" && "+ Yashirin nuqson · bozor narxi · sotuvchi reytingi · o'rnatilgan detallar. (1-tekshiruv BEPUL)"}
             </div>
             <Button disabled={busy} onClick={run}>🔍 Tekshirish · 🪙{cost.toLocaleString("ru-RU")}</Button>
             {err && <div className="fs12" style={{ color: "var(--err)" }}>{err}</div>}
@@ -1446,7 +1480,19 @@ export function GarajCarCheckSheet({ car, onClose }: { car: CarCheckTarget; onCl
                   ))}
                 </div>
               )}
-              {check.referencePrice != null && <div className="row between"><span className="dim">Bozor narxi (ko'rsatkich)</span><b>🪙 {check.referencePrice.toLocaleString("ru-RU")}</b></div>}
+              {check.referencePrice != null && <div className="row between"><span className="dim">Bozor narxi (ko'rsatkich)</span><b>🪙 {check.referencePrice.toLocaleString("ru-RU")}{check.cleanHistory ? " ✨" : ""}</b></div>}
+              {/* 🔍 FAZA4-4.3 — clean-history premium note */}
+              {check.cleanHistory && <div className="row between" style={{ color: "var(--win)" }}><span>✨ Toza tarix</span><b>0 remont · 1 ega → +premium</b></div>}
+              {/* 🔍 FAZA4-4.4 — installed/original parts history */}
+              {(check.installedParts?.length ?? 0) > 0 && (
+                <div className="col g2">
+                  <span className="dim fs11">O'rnatilgan detallar:</span>
+                  {check.installedParts!.map((p) => (
+                    <div key={p.serial} className="row between fs12"><span>{p.emoji} {p.name} #{p.serial}</span><b>+{p.earnBonusPct}%</b></div>
+                  ))}
+                </div>
+              )}
+              {check.tier === "PREMIUM" && (check.installedParts?.length ?? 0) === 0 && <div className="row between fs12 dim"><span>O'rnatilgan detallar</span><b>YO'Q (original)</b></div>}
               {check.sellerRating != null && <div className="row between"><span className="dim">Sotuvchi reytingi</span><b>⭐ {check.sellerRating}</b></div>}
               {check.hiddenDefect && (
                 <div className="row between" style={{ color: "var(--err)" }}>

@@ -138,25 +138,28 @@ async function main(): Promise<void> {
   const ref2 = await refundSlot(slotM.id);
   ok(!ref2.ok && ref2.reason === "slot_full", `slot refund blocked with no spare (would orphan a car)`);
 
-  // ── 2) CarCheck 3 tiers ───────────────────────────────────────────────────
+  // ── 2) CarCheck 3 tiers + FAZA4 (free any tier · clean premium · parts) ────
   const carForCheck = acq1.carId!;
+  // 🔍 FAZA4-4.6 — the FIRST check of ANY tier is FREE (was PREMIUM-only). c1 = ODDIY first → BEPUL.
   const balBeforeCheck = await getCoins(buyerM.id);
   const c1 = await getCarCheck(buyerM.id, carForCheck, "ODDIY");
   ok(c1.ok && c1.check?.tier === "ODDIY" && c1.check.serial != null, `CarCheck ODDIY: revealed serial=${c1.check?.serial}`);
+  ok((await getCoins(buyerM.id)) === balBeforeCheck, `CarCheck FAZA4: FIRST check (ODDIY) BEPUL — any tier, not just Premium`);
+  // c2 EKSPERT → charged (free already consumed by c1)
+  const balB2 = await getCoins(buyerM.id);
   const c2 = await getCarCheck(buyerM.id, carForCheck, "EKSPERT");
-  ok(c2.ok && c2.check?.capitalRepairCount === 0, `CarCheck EKSPERT: revealed capitalRepairCount=${c2.check?.capitalRepairCount} (zones null on fresh car OK)`);
-  // PREMIUM first call = FREE (newbie protection)
+  ok(c2.ok && c2.check?.capitalRepairCount === 0, `CarCheck EKSPERT: capitalRepairCount=${c2.check?.capitalRepairCount}`);
+  ok(balB2 - (await getCoins(buyerM.id)) === CARCHECK_COSTS.EKSPERT, `CarCheck EKSPERT charged ${CARCHECK_COSTS.EKSPERT} (free already used)`);
+  // c3 PREMIUM → charged + clean-history premium + parts surfaced
+  const balB3 = await getCoins(buyerM.id);
   const c3 = await getCarCheck(buyerM.id, carForCheck, "PREMIUM");
-  ok(c3.ok && c3.check?.freeOfChargeUsed === true && c3.check?.referencePrice != null, `CarCheck PREMIUM first-time: BEPUL + referencePrice=${c3.check?.referencePrice}`);
-  // Second PREMIUM call charges full 5000
-  const balBeforePaid = await getCoins(buyerM.id);
-  const c4 = await getCarCheck(buyerM.id, carForCheck, "PREMIUM");
-  ok(c4.ok && c4.check?.freeOfChargeUsed === false, `CarCheck PREMIUM second call: NOT bepul`);
-  const spentOnPaidPremium = balBeforePaid - (await getCoins(buyerM.id));
-  ok(spentOnPaidPremium === CARCHECK_COSTS.PREMIUM, `paid PREMIUM cost = ${CARCHECK_COSTS.PREMIUM} (actual ${spentOnPaidPremium})`);
-  // ODDIY + EKSPERT charged correctly
-  const totalCharged = balBeforeCheck - balBeforePaid;
-  ok(totalCharged === CARCHECK_COSTS.ODDIY + CARCHECK_COSTS.EKSPERT, `ODDIY+EKSPERT charged ${CARCHECK_COSTS.ODDIY + CARCHECK_COSTS.EKSPERT} (actual ${totalCharged})`);
+  ok(c3.ok && c3.check?.freeOfChargeUsed === false && c3.check?.referencePrice != null, `CarCheck PREMIUM charged + referencePrice=${c3.check?.referencePrice}`);
+  ok(balB3 - (await getCoins(buyerM.id)) === CARCHECK_COSTS.PREMIUM, `CarCheck PREMIUM charged ${CARCHECK_COSTS.PREMIUM}`);
+  // 4.3 — a clean car (0 remont, 1 owner) gets a price premium on referencePrice
+  ok(c3.check?.cleanHistory === true, `CarCheck FAZA4: clean-history detected on fresh car`);
+  ok((c3.check?.referencePrice ?? 0) === Math.floor((MAKE_BASE["tiko"] ?? 0) * 1.15), `CarCheck FAZA4: clean-history +15% premium in referencePrice (${c3.check?.referencePrice})`);
+  // 4.4 — installedParts surfaced (none on a fresh car → empty array, "original")
+  ok(Array.isArray(c3.check?.installedParts) && (c3.check?.installedParts?.length ?? -1) === 0, `CarCheck FAZA4: installedParts surfaced (original, 0 parts)`);
 
   // ── 3) Ofis sell ──────────────────────────────────────────────────────────
   // Force the damas car DEAD so Ofis sell makes sense
@@ -689,6 +692,31 @@ async function main(): Promise<void> {
   const hpE = (await prisma.garajCar.findUnique({ where: { id: lfE.carId } }))!.engineHp;
   const hpF = (await prisma.garajCar.findUnique({ where: { id: lfF.carId } }))!.engineHp;
   ok(hpE > hpF, `merge: +25% LIFESPAN → merged ages slower (merged engineHp ${hpE} > unmerged ${hpF})`);
+
+  // ── 11k) 🔍 FAZA4 — rateSeller reputation + defect reveal + ORZU Top-100/% ─
+  // 4.1 — a BAD rating (≤2★) drops the seller's reputationScore (not just star avg)
+  const repSeller = await prisma.member.create({ data: { type: "client", kasId: `${TAG}-repsel`, fullName: "Rep Seller", phone: "+998900009201", trips: 3 } });
+  const repBuyer = await prisma.member.create({ data: { type: "client", kasId: `${TAG}-repbuy`, fullName: "Rep Buyer", phone: "+998900009202", trips: 2 } });
+  await prisma.memberGarajMeta.upsert({ where: { memberId: repSeller.id }, create: { memberId: repSeller.id, reputationScore: 100 }, update: { reputationScore: 100 } });
+  const repListing = await prisma.garajBazaarListing.create({ data: { sellerId: repSeller.id, garajCarId: 999001, carCode: "tiko", askPrice: 500, status: "sold", buyerId: repBuyer.id, soldAt: new Date(), expiresAt: new Date(Date.now() + 86_400_000) } });
+  const repBefore = (await prisma.memberGarajMeta.findUnique({ where: { memberId: repSeller.id } }))!.reputationScore;
+  await rateSeller(repBuyer.id, repListing.id, 1); // 1★ → reputation drop
+  const repAfter = (await prisma.memberGarajMeta.findUnique({ where: { memberId: repSeller.id } }))!.reputationScore;
+  ok(repAfter < repBefore, `rateSeller: bad 1★ rating DROPS reputationScore (${repBefore}→${repAfter})`);
+  // 4.2 — post-sale hidden-defect reveal: buying a defective car returns the defect to the buyer
+  const dfSeller = await prisma.member.create({ data: { type: "client", kasId: `${TAG}-dfsel`, fullName: "Defect Seller", phone: "+998900009203", trips: 3 } });
+  const dfBuyer = await prisma.member.create({ data: { type: "client", kasId: `${TAG}-dfbuy`, fullName: "Defect Buyer", phone: "+998900009204", trips: 2 } });
+  await grantCoins(dfSeller.id, 1_000_000, "manual", "seed"); await grantCoins(dfBuyer.id, 1_000_000, "manual", "seed");
+  const dfAcq = await acquireCar(dfSeller.id, "matiz");
+  await prisma.garajCar.update({ where: { id: dfAcq.carId! }, data: { hiddenDefect: JSON.stringify({ zone: "engine", severity: "major" }) } });
+  await garajBazaarList(dfSeller.id, dfAcq.carId!, 800);
+  const dfListing = (await prisma.garajBazaarListing.findFirst({ where: { garajCarId: dfAcq.carId!, status: "open" } }))!;
+  const dfBuy = await garajBazaarBuy(dfBuyer.id, dfListing.id);
+  ok(dfBuy.ok && dfBuy.defectRevealed?.zone === "engine" && dfBuy.defectRevealed?.severity === "major", `defect: post-sale reveal returns hidden defect (${dfBuy.defectRevealed?.zone}/${dfBuy.defectRevealed?.severity})`);
+  // 4.5 — ORZU board: Top-100 (≤100) + myRankPct percentile + totalRanked
+  const orzu4 = await getOrzuBoard(dfBuyer.id);
+  ok(orzu4.ok && (orzu4.board?.topGarages.length ?? 0) <= 100 && typeof orzu4.board?.totalRanked === "number", `ORZU: Top-100 board + totalRanked=${orzu4.board?.totalRanked}`);
+  ok(orzu4.board?.myRank == null || (typeof orzu4.board?.myRankPct === "number" && orzu4.board.myRankPct >= 1 && orzu4.board.myRankPct <= 100), `ORZU: myRankPct percentile present (${orzu4.board?.myRankPct})`);
 
   // ── 12) Ledger invariant AFTER P2 sequence ───────────────────────────────
   for (const mm of [sellerM, buyerM]) {

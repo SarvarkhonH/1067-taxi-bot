@@ -198,7 +198,7 @@ export const api = {
   garajKozBuy: (itemCode: string, garajCarId: number) => request<GarajActionResult>("POST", "/api/garaj/kozshop/buy", { itemCode, garajCarId }, 1),
   garajBazaar: () => get<{ id: number; garajCarId: number; carCode: string; name: string; emoji: string; askPrice: number; mine: boolean; serial: number | null }[]>("/api/garaj/bazaar"),
   garajBazaarList: (garajCarId: number, askPrice: number) => request<GarajActionResult>("POST", "/api/garaj/bazaar/list", { garajCarId, askPrice }, 1),
-  garajBazaarBuy: (listingId: number) => request<GarajActionResult>("POST", "/api/garaj/bazaar/buy", { listingId }, 1),
+  garajBazaarBuy: (listingId: number) => request<GarajActionResult & { defectRevealed?: { zone: string; severity: "minor" | "major" } | null }>("POST", "/api/garaj/bazaar/buy", { listingId }, 1),
   garajBazaarUnlist: (listingId: number) => request<GarajActionResult>("POST", "/api/garaj/bazaar/unlist", { listingId }, 1),
   garajHistory: () => get<{ kind: string; carCode: string; name: string; emoji: string; amount: number; profit: number | null; at: string }[]>("/api/garaj/history"),
   garajCollection: (memberId: number) => get<{ memberId: number; name: string; reputationScore: number; reputationName: string; garageTier: number; prestige: number; flips: number; bestProfit: number; carsOwned: number; mahalla: string | null; cars: { name: string; emoji: string; condition: string; level: number }[] } | null>(`/api/garaj/collection?memberId=${memberId}`),
