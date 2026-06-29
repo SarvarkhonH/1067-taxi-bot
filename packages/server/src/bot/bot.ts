@@ -355,6 +355,48 @@ export function createBot(): Bot {
     await startCodeLink(ctx);
   });
 
+  // 📷 Admin uploads driver portrait via DM: send a photo with caption `/photo 70A111AA`.
+  // Telegram hosts the file — we only persist its file_id (~30 chars), so disk + bandwidth on our
+  // server = 0. Existing /api/driver-photo/:id proxy resolves the file_id to a fresh CDN URL.
+  bot.on(":photo", async (ctx) => {
+    const id = String(ctx.from!.id);
+    if (!isAdmin(id)) return; // silent for non-admins (regular users may send unrelated photos)
+    const caption = (ctx.message?.caption ?? "").trim();
+    const m = /^\/photo(?:\s+|@\S+\s+)([A-Za-z0-9]+)/i.exec(caption);
+    if (!m) return; // not a driver-photo command — leave for other handlers
+    const carNum = m[1]!.toUpperCase();
+    const photos = ctx.message?.photo ?? [];
+    if (!photos.length) { await ctx.reply("⚠️ Rasm topilmadi."); return; }
+    const biggest = photos[photos.length - 1]!; // largest size variant
+    const driver = await prisma.member.findFirst({
+      where: { type: "driver", carNumber: { equals: carNum, mode: "insensitive" } },
+      select: { id: true, fullName: true, carNumber: true },
+    });
+    if (!driver) {
+      await ctx.reply(`❌ <b>${esc(carNum)}</b> raqamli haydovchi topilmadi.`, { parse_mode: "HTML" });
+      return;
+    }
+    await prisma.member.update({ where: { id: driver.id }, data: { photoFileId: biggest.file_id, photoUrl: null } });
+    await ctx.reply(
+      `✅ <b>Rasm saqlandi</b>\n\n${esc(driver.fullName)} · <code>${esc(driver.carNumber ?? "")}</code>\n<i>Endi xaritali buyurtmada mijozlarga ko'rsatiladi.</i>`,
+      { parse_mode: "HTML" },
+    );
+  });
+  // 📷 Clear a saved driver photo (rolls back to initials avatar).
+  bot.command("photo_clear", async (ctx) => {
+    const id = String(ctx.from!.id);
+    if (!isAdmin(id)) return;
+    const carNum = (typeof ctx.match === "string" ? ctx.match : "").trim().toUpperCase();
+    if (!carNum) { await ctx.reply("Foydalanish: <code>/photo_clear 70A111AA</code>", { parse_mode: "HTML" }); return; }
+    const driver = await prisma.member.findFirst({
+      where: { type: "driver", carNumber: { equals: carNum, mode: "insensitive" } },
+      select: { id: true, fullName: true },
+    });
+    if (!driver) { await ctx.reply(`❌ ${esc(carNum)} topilmadi.`); return; }
+    await prisma.member.update({ where: { id: driver.id }, data: { photoFileId: null, photoUrl: null } });
+    await ctx.reply(`✅ Rasm o'chirildi: ${esc(driver.fullName)} · ${esc(carNum)}`);
+  });
+
   // admin issues the code (after verifying the caller by phone): /kod +998901234567
   bot.command("kod", async (ctx) => {
     const id = String(ctx.from!.id);
