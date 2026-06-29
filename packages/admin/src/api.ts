@@ -128,6 +128,12 @@ export const adminApi = {
   optokens: () => req<{ tokens: { token: string; role: string; createdAt: string }[] }>("/api/admin/optokens"),
   optokenRevoke: (token: string) => req<{ ok: boolean }>(`/api/admin/optokens/${encodeURIComponent(token)}`, { method: "DELETE" }),
   unflag: (memberId: number) => postJson<AdminActionResult>("/api/admin/unflag", { memberId }),
+  // 📷 driver portrait — upload a JPEG/PNG (≤5MB). base64 → server → Telegram CDN → file_id in DB.
+  uploadDriverPhoto: (driverId: number, mime: string, base64: string) =>
+    postJson<{ ok: boolean; fileId?: string; error?: string }>(`/api/admin/driver-photo/${driverId}`, { mime, base64 }),
+  clearDriverPhoto: (driverId: number) =>
+    req<{ ok: boolean }>(`/api/admin/driver-photo/${driverId}`, { method: "DELETE" }),
+  driverPhotoUrl: (driverId: number) => `${API_BASE}/api/driver-photo/${driverId}`,
   recruitQrUrl: (driverId: number) => `${API_BASE}/api/admin/recruitqr/${driverId}`,
   recruits: () => req<{ driverId: number; fullName: string; scanned: number; joined: number; rode: number; earned: number }[]>("/api/admin/recruits"),
   recruitDetail: (driverId: number) =>

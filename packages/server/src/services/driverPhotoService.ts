@@ -47,6 +47,36 @@ export async function resolveTelegramFileUrl(fileId: string): Promise<string | n
   }
 }
 
+/** Admin upload — receives raw image bytes (from the admin panel), pushes them to Telegram via
+ *  bot.sendPhoto, captures the durable file_id. Telegram becomes the storage; our DB stores ~30
+ *  chars. The bot sends the photo to the primary admin's DM (silent, no notification) — owner can
+ *  delete that copy at will; the file_id keeps working forever. Returns null on failure. */
+export async function uploadDriverPhotoFromBuffer(memberId: number, buf: Buffer, mime = "image/jpeg"): Promise<string | null> {
+  if (!env.BOT_TOKEN) return null;
+  if (!env.adminIds.length) return null;
+  const adminId = env.adminIds[0]!;
+  try {
+    const form = new FormData();
+    form.append("chat_id", adminId);
+    form.append("photo", new Blob([buf], { type: mime }), "driver.jpg");
+    form.append("caption", `📷 Driver portrait upload · member ${memberId}`);
+    form.append("disable_notification", "true");
+    const res = await fetch(`${TG_API}/bot${env.BOT_TOKEN}/sendPhoto`, { method: "POST", body: form });
+    const data = (await res.json()) as { ok: boolean; result?: { photo?: { file_id: string }[] } };
+    if (!data.ok || !data.result?.photo?.length) return null;
+    const biggest = data.result.photo[data.result.photo.length - 1]!;
+    await prisma.member.update({ where: { id: memberId }, data: { photoFileId: biggest.file_id, photoUrl: null } });
+    return biggest.file_id;
+  } catch {
+    return null;
+  }
+}
+
+/** Admin clear — wipe a stored portrait (both file_id and any override URL). */
+export async function clearDriverPhoto(memberId: number): Promise<void> {
+  await prisma.member.update({ where: { id: memberId }, data: { photoFileId: null, photoUrl: null } });
+}
+
 /** Top-level resolver — checks the override URL first (permanent), then Telegram file_id (live
  *  resolve). Used by the proxy endpoint. Returns null when no photo is configured for this member. */
 export async function resolveDriverPhoto(memberId: number): Promise<ResolvedPhoto | null> {

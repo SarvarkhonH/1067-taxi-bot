@@ -354,6 +354,25 @@ function X360View() {
   const [m, setM] = useState<Member360 | null>(null);
   const [dr, setDr] = useState<Driver360 | null>(null);
   const [err, setErr] = useState<string | null>(null);
+  // 📷 driver portrait: photoKey forces <img> to re-fetch after upload/clear; photoBusy disables UI during upload
+  const [photoKey, setPhotoKey] = useState(0);
+  const [photoBusy, setPhotoBusy] = useState(false);
+  const uploadPhoto = (file: File, driverId: number): void => {
+    if (file.size > 5 * 1024 * 1024) { alert("Rasm 5 MB dan katta — yana kichikroq oling"); return; }
+    setPhotoBusy(true);
+    const reader = new FileReader();
+    reader.onload = async () => {
+      const dataUrl = (reader.result as string) || "";
+      const b64 = dataUrl.split(",")[1] ?? "";
+      const mime = file.type || "image/jpeg";
+      const r = await adminApi.uploadDriverPhoto(driverId, mime, b64).catch(() => ({ ok: false, error: "tarmoq" }) as { ok: boolean; error?: string });
+      if (r.ok) { setPhotoKey((k) => k + 1); alert("✅ Rasm yuklandi"); }
+      else alert(`❌ Xato: ${r.error ?? "noma'lum"}`);
+      setPhotoBusy(false);
+    };
+    reader.onerror = () => { alert("Rasmni o'qib bo'lmadi"); setPhotoBusy(false); };
+    reader.readAsDataURL(file);
+  };
   // 🎁 grant TANGA to THIS exact account (by id — any type), straight from the 360 view
   const giveBonus = async (memberId: number, name: string) => {
     const a = window.prompt(`🎁 ${name}ga necha tanga? (− = ayirish)`);
@@ -416,6 +435,32 @@ function X360View() {
                 }
               }}>📥 Recruit QR yuklab olish</button>
               <button className="btn" style={{ marginLeft: 6 }} onClick={() => giveBonus(dr.driver!.id, dr.driver!.name ?? "Haydovchi")}>🎁 Bonus berish</button>
+              {/* 📷 Driver portrait — preview + upload + clear. Telegram CDN saqlaydi, biz file_id'ni saqlaymiz. */}
+              <div style={{ marginTop: 12, display: "flex", alignItems: "center", gap: 10, padding: 10, background: "#0d1322", borderRadius: 10 }}>
+                <img
+                  key={photoKey}
+                  src={`${adminApi.driverPhotoUrl(dr.driver.id)}?k=${photoKey}`}
+                  onError={(e) => { (e.currentTarget as HTMLImageElement).style.visibility = "hidden"; }}
+                  alt="Haydovchi rasmi"
+                  style={{ width: 56, height: 56, borderRadius: "50%", objectFit: "cover", border: "1px solid #232b3d", background: "#1a2236", flex: "none" }}
+                />
+                <div style={{ flex: 1, fontSize: 12 }} className="muted">
+                  📷 Telegram CDN saqlaydi · server disk 0 · jpg/png ≤5 MB
+                </div>
+                <label className="btn" style={{ cursor: photoBusy ? "wait" : "pointer", opacity: photoBusy ? 0.6 : 1 }}>
+                  {photoBusy ? "⏳ Yuklanmoqda…" : "📷 Rasm yuklash"}
+                  <input type="file" accept="image/*" hidden disabled={photoBusy} onChange={(e) => {
+                    const f = e.target.files?.[0];
+                    if (f && dr.driver) uploadPhoto(f, dr.driver.id);
+                    e.target.value = "";
+                  }} />
+                </label>
+                <button className="btn" disabled={photoBusy} onClick={async () => {
+                  if (!window.confirm("Rasmni o'chirasizmi?")) return;
+                  await adminApi.clearDriverPhoto(dr.driver!.id).catch(() => null);
+                  setPhotoKey((k) => k + 1);
+                }}>🗑</button>
+              </div>
               </>
             )}
           </div>

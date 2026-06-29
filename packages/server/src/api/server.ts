@@ -933,6 +933,27 @@ export function createApiServer(opts: ApiOptions = {}) {
     const { syncAllLinkedDriverPhotos } = await import("../services/driverPhotoService");
     res.json(await syncAllLinkedDriverPhotos());
   });
+  // 📷 Admin uploads a driver portrait directly from the admin panel — base64 JSON body, ≤5 MB
+  // (no multer dep). Server hands the bytes to Telegram via bot.sendPhoto; we keep only the file_id.
+  app.post("/api/admin/driver-photo/:driverId", express.json({ limit: "6mb" }), requireAdmin, requireOwner, async (req, res) => {
+    const driverId = Math.floor(Number(req.params.driverId));
+    const b = (req.body ?? {}) as { mime?: string; base64?: string };
+    if (!driverId || !b.base64) { res.status(400).json({ error: "bad request" }); return; }
+    const buf = Buffer.from(b.base64, "base64");
+    if (buf.length === 0) { res.status(400).json({ error: "empty image" }); return; }
+    if (buf.length > 5 * 1024 * 1024) { res.status(413).json({ error: "image too large" }); return; }
+    const { uploadDriverPhotoFromBuffer } = await import("../services/driverPhotoService");
+    const fileId = await uploadDriverPhotoFromBuffer(driverId, buf, b.mime || "image/jpeg");
+    if (!fileId) { res.status(500).json({ error: "telegram upload failed — check BOT_TOKEN + admin id" }); return; }
+    res.json({ ok: true, fileId });
+  });
+  app.delete("/api/admin/driver-photo/:driverId", requireAdmin, requireOwner, async (req, res) => {
+    const driverId = Math.floor(Number(req.params.driverId));
+    if (!driverId) { res.status(400).json({ error: "bad driverId" }); return; }
+    const { clearDriverPhoto } = await import("../services/driverPhotoService");
+    await clearDriverPhoto(driverId);
+    res.json({ ok: true });
+  });
   app.post("/api/booking/rate", requireUser, rateLimit(10), withMember2(async (id, req) => {
     const { rateRide, RATING_TAGS } = await import("../services/bookingPlus");
     const b = req.body as { bookingId?: number; stars?: number; tags?: string[] };
