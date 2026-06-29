@@ -63,12 +63,18 @@ export function Sheet({ open, onClose, children }: { open: boolean; onClose: () 
   const drag = useRef<{ y0: number; dy: number } | null>(null);
   if (!open) return null;
   const onTouchStart = (e: React.TouchEvent) => {
+    // Only arm the pull-to-close gesture when the sheet is scrolled to the TOP. Otherwise the touch is
+    // a normal scroll of the content — never hijack it (that was the "scrolling drags the app closed" bug).
+    if (ref.current && ref.current.scrollTop > 0) { drag.current = null; return; }
     drag.current = { y0: e.touches[0]!.clientY, dy: 0 };
   };
   const onTouchMove = (e: React.TouchEvent) => {
     if (!drag.current || !ref.current) return;
-    drag.current.dy = Math.max(0, e.touches[0]!.clientY - drag.current.y0);
-    ref.current.style.transform = `translateY(${drag.current.dy}px)`;
+    const dy = e.touches[0]!.clientY - drag.current.y0;
+    // Dragging UP, or the content has since scrolled → release: let native scroll take over.
+    if (dy <= 0 || ref.current.scrollTop > 0) { ref.current.style.transform = ""; drag.current.dy = 0; return; }
+    drag.current.dy = dy;
+    ref.current.style.transform = `translateY(${dy}px)`;
   };
   const onTouchEnd = () => {
     if (!drag.current || !ref.current) return;

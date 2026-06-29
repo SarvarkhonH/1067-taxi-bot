@@ -10,6 +10,8 @@ interface TelegramWebApp {
   setHeaderColor?: (color: string) => void;
   setBackgroundColor?: (color: string) => void;
   openTelegramLink?: (url: string) => void;
+  disableVerticalSwipes?: () => void; // Bot API 7.7+ — stop the swipe-to-close gesture from hijacking in-app scroll
+  isVerticalSwipesEnabled?: boolean;
   HapticFeedback?: { impactOccurred: (s: string) => void; selectionChanged: () => void; notificationOccurred?: (t: string) => void };
 }
 
@@ -25,6 +27,9 @@ export function initTelegram(): void {
   if (!tg) return;
   tg.ready();
   tg.expand();
+  // Stop Telegram's vertical swipe-to-close/minimize from hijacking in-app scrolling — without this,
+  // scrolling a long sheet (ORZU, Detallar, bozor) drags the whole Mini App closed ("pasga-tepaga ochib yopib").
+  tg.disableVerticalSwipes?.();
   tg.setHeaderColor?.("#0b0f1a");
   tg.setBackgroundColor?.("#0b0f1a");
 }

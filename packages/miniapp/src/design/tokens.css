@@ -106,7 +106,10 @@ body { font-variant-numeric: tabular-nums; }
 .d-sheet {
   width: 100%; background: var(--surface-2); border-radius: var(--r-card) var(--r-card) 0 0;
   padding: 10px 16px calc(18px + env(safe-area-inset-bottom)); box-shadow: var(--shadow-1);
-  animation: d-up var(--dur-card) var(--ease-out); touch-action: none;
+  animation: d-up var(--dur-card) var(--ease-out);
+  /* tall sheets (ORZU, Detallar, bozor) must SCROLL inside — not drag the whole app. pan-y allows
+     native vertical scroll; overscroll-contain stops the scroll from leaking to the Telegram webview. */
+  max-height: 88vh; overflow-y: auto; -webkit-overflow-scrolling: touch; overscroll-behavior: contain; touch-action: pan-y;
 }
 .d-sheet h3 { margin: 8px 0 6px; }
 .d-grip { width: 44px; height: 5px; border-radius: 99px; background: var(--line); margin: 2px auto 8px; }
