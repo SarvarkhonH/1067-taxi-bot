@@ -774,6 +774,27 @@ model GarajPart {
   @@index([partCode])
 }
 
+// 🛠 P2-deep-6 — Detal-bozori: player-to-player parts market. Money-safe mirror of the car
+// bazaar — claim-before-pay (atomic open→pending_payment), 3% tax burn (anti-wash), self-trade
+// blocked. Limited parts APPRECIATE (scarcity) so the price ceiling is generous; the tax + the
+// self-trade block are the real anti-wash, not a tight cap. A sale TRANSFERS the part's ownerId
+// (no tanga emission — pure redistribution + 3% burn → invariant-safe).
+model GarajPartListing {
+  id        Int       @id @default(autoincrement())
+  sellerId  Int
+  partId    Int
+  partCode  String
+  askPrice  Int
+  status    String    @default("open") // open | pending_payment | sold | cancelled
+  buyerId   Int?
+  soldAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  @@index([status, createdAt])
+  @@index([sellerId, status])
+  @@index([partId, status])
+}
+
 // 🔥 W5 Forgiving streak — daily ride streak with ONE "spare tire" freeze. Updated
 // in the ride-finish sweep (one increment per Tashkent day). Milestone rewards are
 // grantCoins (mission-style, OUTSIDE the 350/ride clamp) keyed by milestone+date.

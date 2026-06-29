@@ -64,6 +64,7 @@ import {
   type CarCheckView,
   type GarajPartView,
   type GarajPartCatalogView,
+  type GarajPartBazaarView,
   type HiddenDefect,
   type PublicProfileView,
   type OrzuBoardView,
@@ -921,9 +922,10 @@ export async function uninstallPart(memberId: number, partId: number): Promise<G
   });
 }
 
-/** Parts screen state: the member's inventory + the live mint-catalog (minted/left/event-open). */
+/** Parts screen state: the member's inventory + the live mint-catalog (minted/left/event-open).
+ *  Includes "listed" parts so the seller still sees what's up for sale (with a cancel affordance). */
 export async function getPartsState(memberId: number): Promise<{ parts: GarajPartView[]; catalog: GarajPartCatalogView[] }> {
-  const owned = await prisma.garajPart.findMany({ where: { ownerId: memberId, status: { in: ["owned", "installed"] } }, orderBy: { id: "asc" } });
+  const owned = await prisma.garajPart.findMany({ where: { ownerId: memberId, status: { in: ["owned", "installed", "listed"] } }, orderBy: { id: "asc" } });
   const parts: GarajPartView[] = owned.map((p) => {
     const d = getMotorPart(p.partCode);
     return { id: p.id, code: p.partCode, name: d?.name ?? p.partCode, emoji: d?.emoji ?? "🔧", serial: p.serial, earnBonusPct: d?.earnBonusPct ?? 0, installedCarId: p.installedCarId, status: p.status };
@@ -936,6 +938,90 @@ export async function getPartsState(memberId: number): Promise<{ parts: GarajPar
     catalog.push({ code: d.code, name: d.name, emoji: d.emoji, mintCap: d.mintCap, minted, left: Math.max(0, d.mintCap - minted), cost: d.cost, earnBonusPct: d.earnBonusPct, eventOpen: await isPartMintOpen(d.code) });
   }
   return { parts, catalog };
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+// 🛠 P2-deep-6 — Detal-bozori: player-to-player parts market (money-safe mirror of the
+// car bazaar). Sale TRANSFERS ownership (no tanga emission); 3% tax is BURNED (anti-wash).
+// ════════════════════════════════════════════════════════════════════════════
+const PART_BAZAAR_TAX = 0.03; // 3% burned on every sale (anti-wash; matches the car bazaar)
+const PART_PRICE_CEIL_MULT = 50; // generous ceiling — limited parts APPRECIATE (scarcity); tax + self-trade block are the real anti-wash
+
+/** Open parts listings (newest first). Each row carries the part meta + a `mine` flag. */
+export async function getPartBazaar(memberId: number): Promise<GarajPartBazaarView[]> {
+  if (!(await motorEnabledFor(memberId))) return [];
+  const rows = await prisma.garajPartListing.findMany({ where: { status: "open" }, orderBy: { createdAt: "desc" }, take: 60 });
+  const out: GarajPartBazaarView[] = [];
+  for (const r of rows) {
+    const part = await prisma.garajPart.findUnique({ where: { id: r.partId }, select: { serial: true } });
+    const d = getMotorPart(r.partCode);
+    out.push({ id: r.id, partId: r.partId, code: r.partCode, name: d?.name ?? r.partCode, emoji: d?.emoji ?? "🔧", serial: part?.serial ?? 0, earnBonusPct: d?.earnBonusPct ?? 0, askPrice: r.askPrice, mine: r.sellerId === memberId });
+  }
+  return out;
+}
+
+/** List an OWNED, uninstalled part for sale. One open listing per part. Price clamped to a
+ *  generous ceiling. Sets the part status="listed" so it can't be installed/relisted meanwhile. */
+export async function listPart(memberId: number, partId: number, askPrice: number): Promise<GarajActionResult> {
+  if (!(await motorEnabledFor(memberId))) return { ok: false, reason: "off" };
+  return withMemberLock(memberId, async () => {
+    const part = await prisma.garajPart.findFirst({ where: { id: partId, ownerId: memberId } });
+    if (!part) return { ok: false, reason: "not_found", coins: await getCoins(memberId) };
+    if (part.status === "installed") return { ok: false, reason: "installed", coins: await getCoins(memberId) }; // uninstall first
+    if (part.status === "listed") return { ok: false, reason: "already_listed", coins: await getCoins(memberId) };
+    const def = getMotorPart(part.partCode);
+    const ceil = Math.max(1, (def?.cost ?? 1000) * PART_PRICE_CEIL_MULT);
+    const price = Math.max(1, Math.min(Math.floor(askPrice), ceil));
+    await prisma.$transaction(async (tx) => {
+      // guard against a double-list race: only flip if still plain-owned
+      const claimed = await tx.garajPart.updateMany({ where: { id: part.id, ownerId: memberId, status: "owned" }, data: { status: "listed" } });
+      if (claimed.count === 0) throw new Error("part_not_owned");
+      await tx.garajPartListing.create({ data: { sellerId: memberId, partId: part.id, partCode: part.partCode, askPrice: price, status: "open" } });
+    });
+    return { ok: true, coins: await getCoins(memberId) };
+  }).catch(() => ({ ok: false, reason: "already_listed" as const }));
+}
+
+/** Buy a listed part. Claim-before-pay (atomic open→pending_payment), buyer pays via the
+ *  self-locking idempotent spend (OUTSIDE withMemberLock — re-entrant-safe), seller credited
+ *  askPrice−3% (idempotent), 3% burned, part ownership transferred to the buyer. */
+export async function buyPart(buyerId: number, listingId: number): Promise<GarajActionResult> {
+  if (!(await motorEnabledFor(buyerId))) return { ok: false, reason: "off" };
+  const claim = await prisma.garajPartListing.updateMany({ where: { id: listingId, status: "open" }, data: { status: "pending_payment", buyerId } });
+  if (claim.count === 0) return { ok: false, reason: "already_sold" };
+  const listing = await prisma.garajPartListing.findUnique({ where: { id: listingId } });
+  if (!listing) return { ok: false, reason: "not_found" };
+  const revert = () => prisma.garajPartListing.update({ where: { id: listingId }, data: { status: "open", buyerId: null } }).catch(() => undefined);
+  if (listing.sellerId === buyerId) { await revert(); return { ok: false, reason: "self_trade" }; }
+  const def = getMotorPart(listing.partCode);
+  const spend = await spendCoinsIdempotent(buyerId, listing.askPrice, "garaj_part_buy", `🛠 Detal xarid: ${def?.name ?? listing.partCode}`, `partbuy:${listingId}`);
+  if (!spend.ok && spend.skipped !== "duplicate") { await revert(); return { ok: false, reason: "insufficient", coins: spend.balance }; }
+  const tax = Math.round(listing.askPrice * PART_BAZAAR_TAX); // burned (anti-wash)
+  await prisma.$transaction(async (tx) => {
+    const existing = await tx.coinTxn.findUnique({ where: { idempotencyKey: `partsell:${listingId}` } });
+    if (!existing) {
+      await tx.coinTxn.create({ data: { memberId: listing.sellerId, amount: listing.askPrice - tax, kind: "garaj_part_sell", reason: `🛠 Detal sotuv: ${def?.name ?? listing.partCode}`, idempotencyKey: `partsell:${listingId}` } });
+      await tx.member.update({ where: { id: listing.sellerId }, data: { coins: { increment: listing.askPrice - tax } } });
+    }
+    // transfer the part to the buyer; back to plain inventory (uninstalled)
+    await tx.garajPart.update({ where: { id: listing.partId }, data: { ownerId: buyerId, status: "owned", installedCarId: null } });
+    await tx.garajPartListing.update({ where: { id: listingId }, data: { status: "sold", soldAt: new Date() } });
+  });
+  return { ok: true };
+}
+
+/** Cancel your own OPEN part listing → the part returns to plain inventory (status="owned"). */
+export async function cancelPartListing(memberId: number, listingId: number): Promise<GarajActionResult> {
+  if (!(await motorEnabledFor(memberId))) return { ok: false, reason: "off" };
+  return withMemberLock(memberId, async () => {
+    const listing = await prisma.garajPartListing.findFirst({ where: { id: listingId, sellerId: memberId, status: "open" } });
+    if (!listing) return { ok: false, reason: "not_found", coins: await getCoins(memberId) };
+    await prisma.$transaction(async (tx) => {
+      await tx.garajPartListing.update({ where: { id: listingId }, data: { status: "cancelled" } });
+      await tx.garajPart.update({ where: { id: listing.partId }, data: { status: "owned" } });
+    });
+    return { ok: true, coins: await getCoins(memberId) };
+  });
 }
 
 // 🪪 P1-D — purchase one extra slot. Default slot 1 = free; slot 2 = 50k, 3 = 250k, 4 = 1M

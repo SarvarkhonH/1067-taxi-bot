@@ -767,6 +767,8 @@ export interface GarajCarView {
 // 🔧 P2-deep-5 — parts inventory + mint-catalog DTOs (Mini App parts screen)
 export interface GarajPartView { id: number; code: string; name: string; emoji: string; serial: number; earnBonusPct: number; installedCarId: number | null; status: string }
 export interface GarajPartCatalogView { code: string; name: string; emoji: string; mintCap: number; minted: number; left: number; cost: number; earnBonusPct: number; eventOpen: boolean }
+// 🛠 P2-deep-6 — parts P2P market listing DTO (Detal-bozori)
+export interface GarajPartBazaarView { id: number; partId: number; code: string; name: string; emoji: string; serial: number; earnBonusPct: number; askPrice: number; mine: boolean }
 export interface GarajShopItem {
   carCode: string;
   name: string;

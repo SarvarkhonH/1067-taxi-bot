@@ -32,6 +32,10 @@ import {
   uninstallPart,
   getPartsState,
   setPartMintEvent,
+  listPart,
+  buyPart,
+  cancelPartListing,
+  getPartBazaar,
 } from "../services/garajService";
 import { __resetFeatureCache, setFeature } from "../services/featureFlags";
 
@@ -47,6 +51,7 @@ async function cleanup(): Promise<void> {
   const ids = ms.map((m) => m.id);
   if (ids.length) {
     await prisma.garajBazaarListing.deleteMany({ where: { OR: [{ sellerId: { in: ids } }, { buyerId: { in: ids } }] } });
+    await prisma.garajPartListing.deleteMany({ where: { OR: [{ sellerId: { in: ids } }, { buyerId: { in: ids } }] } }).catch(() => undefined);
     await prisma.garajPart.deleteMany({ where: { ownerId: { in: ids } } }).catch(() => undefined);
     await prisma.garajCar.deleteMany({ where: { memberId: { in: ids } } });
     await prisma.memberGarajMeta.deleteMany({ where: { memberId: { in: ids } } });
@@ -436,6 +441,74 @@ async function main(): Promise<void> {
     const bal = (await prisma.member.findUnique({ where: { id: m.id } }))!.coins;
     const tot = (await prisma.coinTxn.aggregate({ where: { memberId: m.id }, _sum: { amount: true } }))._sum.amount ?? 0;
     ok(Math.abs(bal - tot) < 0.001, `parts: member ${m.id} ledger invariant (bal ${bal} == ledger ${tot})`);
+  }
+
+  // ── 11f) 🛠 Detal-bozori — parts P2P market (P2-deep-6) ────────────────────
+  const seller = pm[0]!; const buyer = pm[3]!;
+  await grantCoins(seller.id, 500_000, "manual", "seed-market");
+  await grantCoins(buyer.id, 500_000, "manual", "seed-market");
+  await setPartMintEvent(NI, true);
+  const sMint = await mintPart(seller.id, NI); // fresh nitro to trade
+  ok(sMint.ok, `market: seller minted nitro to sell (#${sMint.serial})`);
+  // A) cannot list an INSTALLED part (must uninstall first)
+  const sCar = await acquireCar(seller.id, "tiko");
+  ok(sCar.ok, `market: seller car (install-guard)`);
+  await installPart(seller.id, sMint.partId!, sCar.carId!);
+  const listInstalled = await listPart(seller.id, sMint.partId!, 40_000);
+  ok(!listInstalled.ok && listInstalled.reason === "installed", `market: cannot list installed part (${listInstalled.reason})`);
+  await uninstallPart(seller.id, sMint.partId!);
+  // B) price ceiling clamp (cost × 50) — list absurd, verify clamp, then cancel to free the part
+  const ceil = niDef.cost * 50;
+  const lstHigh = await listPart(seller.id, sMint.partId!, ceil * 10);
+  ok(lstHigh.ok, `market: listed (high price)`);
+  const bazView = await getPartBazaar(buyer.id);
+  const clampedRow = bazView.find((b) => b.partId === sMint.partId);
+  ok(!!clampedRow && clampedRow.askPrice === ceil && clampedRow.mine === false, `market: price clamped to ceiling ${ceil} + buyer sees not-mine (got ${clampedRow?.askPrice})`);
+  // listed part cannot be installed
+  const instListed = await installPart(seller.id, sMint.partId!, sCar.carId!);
+  ok(!instListed.ok && instListed.reason === "listed", `market: listed part can't be installed (${instListed.reason})`);
+  const highListingId = (await prisma.garajPartListing.findFirst({ where: { partId: sMint.partId, status: "open" } }))!.id;
+  const cancelHigh = await cancelPartListing(seller.id, highListingId);
+  ok(cancelHigh.ok, `market: cancel listing → part back to inventory`);
+  const partAfterCancel = await prisma.garajPart.findUnique({ where: { id: sMint.partId! } });
+  ok(partAfterCancel?.status === "owned", `market: cancelled part status=owned (${partAfterCancel?.status})`);
+  // C) list at a real price → self-trade + insufficient both REVERT to open → real cross-member buy
+  const price = 40_000;
+  const lst = await listPart(seller.id, sMint.partId!, price);
+  ok(lst.ok, `market: re-listed at ${price}`);
+  const listingId = (await prisma.garajPartListing.findFirst({ where: { partId: sMint.partId, status: "open" } }))!.id;
+  const selfBuy = await buyPart(seller.id, listingId);
+  ok(!selfBuy.ok && selfBuy.reason === "self_trade", `market: self-trade blocked (${selfBuy.reason})`);
+  const poorBuy = await buyPart(poor.id, listingId); // poor has 0 coins
+  ok(!poorBuy.ok && poorBuy.reason === "insufficient", `market: insufficient buyer → rejected + revert (${poorBuy.reason})`);
+  const stillOpen = await prisma.garajPartListing.findUnique({ where: { id: listingId } });
+  ok(stillOpen?.status === "open", `market: listing reverted to open after failed buys (${stillOpen?.status})`);
+  // D) the real buy: ownership transfers, seller credited price−3%, 3% BURNED (no emission)
+  const sellerBefore = await getCoins(seller.id); const buyerBefore = await getCoins(buyer.id);
+  const buyRes = await buyPart(buyer.id, listingId);
+  ok(buyRes.ok, `market: buy ok`);
+  const tax = Math.round(price * 0.03);
+  const sellerAfter = await getCoins(seller.id); const buyerAfter = await getCoins(buyer.id);
+  ok(sellerAfter - sellerBefore === price - tax, `market: seller credited price−tax = ${price - tax} (got ${sellerAfter - sellerBefore})`);
+  ok(buyerBefore - buyerAfter === price, `market: buyer paid full ${price} (got ${buyerBefore - buyerAfter})`);
+  ok((buyerBefore + sellerBefore) - (buyerAfter + sellerAfter) === tax, `market: net system tanga burned = tax ${tax} (NO emission)`);
+  const boughtPart = await prisma.garajPart.findUnique({ where: { id: sMint.partId! } });
+  ok(boughtPart?.ownerId === buyer.id && boughtPart?.status === "owned" && boughtPart?.installedCarId === null, `market: part ownership → buyer, status owned, uninstalled`);
+  const soldListing = await prisma.garajPartListing.findUnique({ where: { id: listingId } });
+  ok(soldListing?.status === "sold", `market: listing marked sold`);
+  // E) double-buy → already_sold
+  const reBuy = await buyPart(buyer.id, listingId);
+  ok(!reBuy.ok && reBuy.reason === "already_sold", `market: double-buy → already_sold (${reBuy.reason})`);
+  // F) OFF-safe — flag off → list + buy no-op
+  await setFeature("motorolami", false); __resetFeatureCache();
+  const listOff = await listPart(buyer.id, sMint.partId!, 1000);
+  ok(!listOff.ok && listOff.reason === "off", `market: flag OFF → list no-op (${listOff.reason})`);
+  await setFeature("motorolami", true); __resetFeatureCache();
+  // G) ledger invariant for buyer + seller after the trade
+  for (const m of [seller, buyer]) {
+    const bal = (await prisma.member.findUnique({ where: { id: m.id } }))!.coins;
+    const tot = (await prisma.coinTxn.aggregate({ where: { memberId: m.id }, _sum: { amount: true } }))._sum.amount ?? 0;
+    ok(Math.abs(bal - tot) < 0.001, `market: member ${m.id} ledger invariant (bal ${bal} == ledger ${tot})`);
   }
 
   // ── 12) Ledger invariant AFTER P2 sequence ───────────────────────────────

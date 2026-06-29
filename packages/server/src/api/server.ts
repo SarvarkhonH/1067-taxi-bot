@@ -222,6 +222,11 @@ export function createApiServer(opts: ApiOptions = {}) {
   app.post("/api/garaj/parts/mint", requireUser, rateLimit(10), withMember2(async (id, req) => (await import("../services/garajService")).mintPart(id, String(req.body?.partCode ?? ""))));
   app.post("/api/garaj/parts/install", requireUser, rateLimit(15), withMember2(async (id, req) => (await import("../services/garajService")).installPart(id, Number(req.body?.partId), Number(req.body?.garajCarId))));
   app.post("/api/garaj/parts/uninstall", requireUser, rateLimit(15), withMember2(async (id, req) => (await import("../services/garajService")).uninstallPart(id, Number(req.body?.partId))));
+  // 🛠 P2-deep-6 — Detal-bozori (parts P2P market): browse + list + buy + cancel
+  app.get("/api/garaj/parts/bazaar", requireUser, withMember2(async (id) => (await import("../services/garajService")).getPartBazaar(id)));
+  app.post("/api/garaj/parts/list", requireUser, rateLimit(10), withMember2(async (id, req) => (await import("../services/garajService")).listPart(id, Number(req.body?.partId), Number(req.body?.askPrice))));
+  app.post("/api/garaj/parts/buy", requireUser, rateLimit(10), withMember2(async (id, req) => (await import("../services/garajService")).buyPart(id, Number(req.body?.listingId))));
+  app.post("/api/garaj/parts/unlist", requireUser, rateLimit(10), withMember2(async (id, req) => (await import("../services/garajService")).cancelPartListing(id, Number(req.body?.listingId))));
   app.get("/api/garaj/profile/:id", requireUser, withMember2(async (id, req) => (await import("../services/garajService")).getPublicProfile(id, req.params?.id === "me" ? id : Number(req.params?.id))));
 
   app.get("/api/me", requireUser, async (_req, res) => {
