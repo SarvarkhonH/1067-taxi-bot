@@ -822,6 +822,13 @@ export async function pushBookingUpdates(
   } catch (e) {
     console.error("[garaj] auto-stabilize failed:", e);
   }
+  // 🏛 P2-deep-4: Ofis demontaj — scrap cars the 1067 Ofis has held past the hold window (supply destruction)
+  try {
+    const { sweepOfisHeld } = await import("./garajService");
+    await sweepOfisHeld();
+  } catch (e) {
+    console.error("[ofis] held-scrap failed:", e);
+  }
 
   // 🧾 SMS-parity: deliver any ride fares kas finalized AFTER the finish card was sent. Piggybacks
   // this sweep (no new poller) — sends "Yo'l haqi: …" the moment kas posts the payment, then clears.

@@ -26,6 +26,7 @@ import {
   getSpeederState,
   motorCollect,
   sweepAutoStabilize,
+  sweepOfisHeld,
 } from "../services/garajService";
 import { __resetFeatureCache, setFeature } from "../services/featureFlags";
 
@@ -324,6 +325,31 @@ async function main(): Promise<void> {
   const stab2 = await sweepAutoStabilize();
   ok(stab2 === null, `auto-stab: target=0 → disabled (null)`);
   await setMotorEcon("fuelMult", 1); // restore
+
+  // ── 11d) 🏛 Ofis demontaj/scrap (P2-deep-4) ───────────────────────────────
+  // Hermetic: a FRESH Ofis-held car (own member) — the section-3 damas was recycled by the
+  // merge sacrifice, so we mint a dedicated held row here. Hold window = 12h default.
+  await setMotorEcon("ofisHoldHours", 12);
+  const scrapM = await prisma.member.create({ data: { type: "client", kasId: `${TAG}-scrap`, fullName: "Scrap Holder", phone: "+998900007009", trips: 1 } });
+  const heldFresh = await prisma.garajCar.create({ data: { memberId: scrapM.id, carCode: "nexia", serial: 990001, ofisHeld: true, soldAt: new Date() } });
+  // A) freshly-held car (soldAt≈now) is INSIDE the window → NOT scrapped
+  const scrapNone = await sweepOfisHeld();
+  const stillThere = await prisma.garajCar.findUnique({ where: { id: heldFresh.id } });
+  ok(stillThere !== null, `Ofis scrap: car held < window NOT scrapped (survives, scrapped=${scrapNone})`);
+  // B) push soldAt past the window → scrap destroys it permanently + audits to OfisLedger
+  await prisma.garajCar.update({ where: { id: heldFresh.id }, data: { soldAt: new Date(Date.now() - 100 * 3600_000) } });
+  const scrapDone = await sweepOfisHeld();
+  const heldGone = await prisma.garajCar.findUnique({ where: { id: heldFresh.id } });
+  ok(scrapDone >= 1 && heldGone === null, `Ofis scrap: car past window DELETED (scrapped=${scrapDone}, gone=${heldGone === null})`);
+  const scrapRow = await prisma.ofisLedger.findFirst({ where: { kind: "scrap", refCarId: heldFresh.id } });
+  ok(scrapRow !== null && scrapRow.status === "scrapped", `Ofis scrap: OfisLedger audit row written (kind=scrap, status=${scrapRow?.status})`);
+  // C) OFF-safe — flag off → sweep is a no-op (returns 0)
+  await setFeature("motorolami", false);
+  __resetFeatureCache();
+  const scrapOff = await sweepOfisHeld();
+  ok(scrapOff === 0, `Ofis scrap: flag OFF → no-op (returned ${scrapOff})`);
+  await setFeature("motorolami", true);
+  __resetFeatureCache();
 
   // ── 12) Ledger invariant AFTER P2 sequence ───────────────────────────────
   for (const mm of [sellerM, buyerM]) {

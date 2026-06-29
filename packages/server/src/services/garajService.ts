@@ -784,6 +784,35 @@ export async function getOfisStats(): Promise<{ budget: number; spent: number; l
   return { budget, spent, left, heldCount, scrappedToday };
 }
 
+// 🏛 P2-deep-4 — Ofis demontaj: cars the Ofis bought (ofisHeld) are SCRAPPED after a hold window →
+// permanent supply destruction (plan DoD "demontaj supply↓"). The 80% Ofis paid is already a sink;
+// scrapping makes the removal permanent (the car can never re-enter circulation). OfisLedger audits
+// each scrap. Bounded batch; sweep-driven (no new poller); OFF-safe. NOTE: relist intentionally NOT
+// built — re-injecting dead (engineHp=0) cars is economically counterproductive + adds sellerId=0
+// money-flow complexity; scrap is the clean anti-inflation play the DoD asks for.
+export async function sweepOfisHeld(): Promise<number> {
+  if (!(await featureOn(MOTOR_FLAG))) return 0;
+  const econ = await getMotorEcon();
+  const holdHours = Math.max(0, Math.floor(econ.ofisHoldHours ?? 12));
+  const cutoff = new Date(Date.now() - holdHours * 3_600_000);
+  const today = tashkentDate();
+  // soldAt = when the Ofis bought it; scrap once it has been held past the window.
+  const held = await prisma.garajCar.findMany({ where: { ofisHeld: true, soldAt: { lte: cutoff } }, select: { id: true, carCode: true }, take: 100 });
+  let scrapped = 0;
+  for (const c of held) {
+    try {
+      await prisma.$transaction(async (tx) => {
+        await tx.ofisLedger.create({ data: { kind: "scrap", amount: 0, carCode: c.carCode, refCarId: c.id, dayKey: today, status: "scrapped" } });
+        await tx.garajCar.delete({ where: { id: c.id } }); // permanent supply destruction (true scarcity)
+      });
+      scrapped++;
+    } catch (e) {
+      console.error("[ofis] scrap failed for car", c.id, e); // FK/dep issue → skip this car, continue
+    }
+  }
+  return scrapped;
+}
+
 // 🪪 P1-D — purchase one extra slot. Default slot 1 = free; slot 2 = 50k, 3 = 250k, 4 = 1M
 // (admin-tunable via slot2Cost/slot3Cost/slot4Cost knobs). Pure tanga sink (corp-ledger-safe).
 // Idempotency key uses the TARGET slot number (so retry of the same target is rejected as duplicate).

@@ -551,6 +551,7 @@ export const MOTOR_ECON_KNOBS: MotorEconKnob[] = [
   // 🏛 P1-A — Motor Olami P1 admin dastaklari (Ofis market-maker, slots, CarCheck, defects)
   { key: "ofisBidFactor", label: "🏛 Ofis bid foizi", def: 0.8, min: 0.5, max: 0.95, step: 0.05, live: false },
   { key: "ofisDailyBudget", label: "🏛 Ofis kunlik byudjet (tanga)", def: 100000, min: 10000, max: 1000000, step: 5000, live: false },
+  { key: "ofisHoldHours", label: "🏛 Ofis ushlash soati (keyin scrap)", def: 12, min: 0, max: 168, step: 1, live: true },
   { key: "lifespanDays", label: "⏳ Mashina umri (kun)", def: 14, min: 7, max: 30, step: 1, live: false },
   { key: "hiddenDefectPct", label: "🕵 Yashirin nuqson %", def: 3, min: 0, max: 10, step: 0.5, live: false },
   { key: "carCheckOddiy", label: "🔍 CarCheck Oddiy (tanga)", def: 50, min: 10, max: 200, step: 10, live: false },
