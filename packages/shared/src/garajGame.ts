@@ -509,6 +509,23 @@ export function demandFlipBonus(mult: number): number {
 // Earn = speed×soat; yoqilg'i (70%, dial bilan) + eyilish (10%, engineHp↓) SINK; net qoladi.
 // engineHp 100→0 (~14 kun) = umr → o'lim. Chore yo'q: kunlik avtomatik, «Yig'ish» tugmasi. ══
 export const MOTOR_FLAG = "motorolami";
+export const CARUPGRADE_FLAG = "carupgrade"; // FAZA2 — model-upgrade ladder + shop removal (default OFF)
+// 🚗 FAZA2 — model zinapoyasi: bitta mashina #serial'ini saqlab modeldan modelga ko'tariladi
+// (narx bo'yicha o'sish). "Yangi mashina sotib olish" o'rniga. Tiko #1042 → (to'lov) → Damas #1042.
+export const CAR_UPGRADE_CHAIN = ["tiko", "damas", "matiz", "spark", "nexia", "cobalt", "lacetti", "malibu", "tracker", "tahoe", "gelik"] as const;
+/** Keyingi model (zinapoyada) yoki null (eng yuqori). */
+export function nextModel(carCode: string): string | null {
+  const i = CAR_UPGRADE_CHAIN.indexOf(carCode as (typeof CAR_UPGRADE_CHAIN)[number]);
+  if (i < 0 || i >= CAR_UPGRADE_CHAIN.length - 1) return null;
+  return CAR_UPGRADE_CHAIN[i + 1]!;
+}
+/** Modelni ko'tarish narxi = (keyingi − hozirgi narx) × factor (pure tanga SINK). Floor 1. */
+export function upgradeCost(carCode: string, factor = 1.3): number {
+  const next = nextModel(carCode);
+  if (!next) return 0;
+  const diff = (MAKE_BASE[next] ?? 0) - (MAKE_BASE[carCode] ?? 0);
+  return Math.max(1, Math.round(Math.max(0, diff) * Math.max(1, Math.min(3, factor))));
+}
 export const MOTOR_SPEED_RATE = 0.018; // speed (t/soat) = basePrice × rate (sim-tuned)
 export const MOTOR_FUEL_PCT = 0.7; // yoqilg'i = gross×70% (SINK; ×fuelMult dial)
 export const MOTOR_WEAR_PCT = 0.1; // eyilish = gross×10% (SINK + engineHp↓)
@@ -532,6 +549,8 @@ export const MOTOR_ECON_KNOBS: MotorEconKnob[] = [
   // 🚕 FAZA1 — real taksi bonusi: haydovchining motor-mashinasi har real safarda QO'SHIMCHA (taxiMult−1)×
   // ishlaydi (safar vaqti passiv 1× ustiga). dailyEarnCap ICHIDA (jami ≤ cap). 1 = bonus o'chiq (faqat safar++).
   { key: "taxiMult", label: "🚕 Real taksi bonus (×)", def: 2, min: 1, max: 3, step: 0.5, live: true },
+  // 🚗 FAZA2 — model-upgrade narx ko'paytuvchisi: narx = (keyingi−hozirgi model narxi) × factor.
+  { key: "carUpgradeFactor", label: "🚗 Model ko'tarish narx (×)", def: 1.3, min: 1, max: 3, step: 0.1, live: true },
   // ⚖️ AVTO-STABILIZATOR — global kunlik motor-emissiya targetdan oshsa, fuelMult avto-ko'tariladi (sovutadi).
   // 0 = o'chiq (default). emissionTargetDay = butun tizim bo'yicha kunlik motor_earn chegarasi.
   { key: "emissionTargetDay", label: "⚖️ Kunlik emissiya target (0=o'chiq)", def: 0, min: 0, max: 100_000_000, step: 50_000, live: true },
@@ -769,6 +788,8 @@ export interface GarajCarView {
   speederHoursLeft?: number; // 🚀 P2-C — qancha soat qoldi (countdown UCHUN)
   speederMult?: number; // 🚀 P2-C — aktiv bo'lsa: admin's speederMult; aks holda 1
   installedParts?: { id: number; code: string; name: string; emoji: string; earnBonusPct: number; serial: number }[]; // 🔧 P2-deep-5 — bolted-on parts
+  upgradeTo?: string | null; // 🚗 FAZA2 — keyingi model (zinapoya) yoki null (eng yuqori). carupgrade ON bo'lsa to'ldiriladi.
+  upgradeCost?: number; // 🚗 FAZA2 — shu modelni keyingisiga ko'tarish narxi (tanga)
 }
 // 🔧 P2-deep-5 — parts inventory + mint-catalog DTOs (Mini App parts screen)
 export interface GarajPartView { id: number; code: string; name: string; emoji: string; serial: number; earnBonusPct: number; installedCarId: number | null; status: string; listingId: number | null }

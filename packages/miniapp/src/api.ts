@@ -178,7 +178,7 @@ export const api = {
   garajFlip: (garajCarId: number, buyerArchetype: string) => request<GarajActionResult>("POST", "/api/garaj/flip", { garajCarId, buyerArchetype }, 1),
   garajOnboardFinish: () => request<GarajActionResult>("POST", "/api/garaj/onboard/finish", {}, 1),
   garajKozBuy: (itemCode: string, garajCarId: number) => request<GarajActionResult>("POST", "/api/garaj/kozshop/buy", { itemCode, garajCarId }, 1),
-  garajBazaar: () => get<{ id: number; garajCarId: number; carCode: string; name: string; emoji: string; askPrice: number; mine: boolean }[]>("/api/garaj/bazaar"),
+  garajBazaar: () => get<{ id: number; garajCarId: number; carCode: string; name: string; emoji: string; askPrice: number; mine: boolean; serial: number | null }[]>("/api/garaj/bazaar"),
   garajBazaarList: (garajCarId: number, askPrice: number) => request<GarajActionResult>("POST", "/api/garaj/bazaar/list", { garajCarId, askPrice }, 1),
   garajBazaarBuy: (listingId: number) => request<GarajActionResult>("POST", "/api/garaj/bazaar/buy", { listingId }, 1),
   garajBazaarUnlist: (listingId: number) => request<GarajActionResult>("POST", "/api/garaj/bazaar/unlist", { listingId }, 1),
@@ -210,6 +210,8 @@ export const api = {
   // 🚀 P2-C — Speeder
   garajSpeederState: () => get<{ ok: boolean; reason?: string; price?: number; mult?: number; stockLeft?: number; stockMax?: number; days?: number; activeCarId?: number | null; activeUntilAt?: string | null }>("/api/garaj/speeder/state"),
   garajSpeederBuy: (garajCarId: number) => request<GarajActionResult & { speederUntilAt?: string; stockLeft?: number }>("POST", "/api/garaj/speeder/buy", { garajCarId }, 1),
+  // 🚗 FAZA2 — model-upgrade ladder (no client retry → a network retry can't double-upgrade past one step)
+  garajUpgradeModel: (garajCarId: number) => request<GarajActionResult & { newCode?: string; cost?: number }>("POST", "/api/garaj/upgrade-model", { garajCarId }, 0),
   // 🔧 P2-deep-5 — Limited-event parts (detallar): mint + install/uninstall
   garajParts: () => get<{ parts: GarajPartView[]; catalog: GarajPartCatalogView[] }>("/api/garaj/parts"),
   garajPartMint: (partCode: string) => request<GarajActionResult & { partId?: number; serial?: number; cap?: number }>("POST", "/api/garaj/parts/mint", { partCode }, 1),

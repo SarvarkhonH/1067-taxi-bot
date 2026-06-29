@@ -5,7 +5,7 @@
 // Run: pnpm --filter @t1067/server exec dotenv -e ../../.env -- tsx src/scripts/testGarajP1.ts
 import "./_testDb";
 import "../env";
-import { MAKE_BASE, SLOT_COSTS, CARCHECK_COSTS, OFIS_BID_FACTOR, ofisBidPrice, MERGE_MAX_COUNT, MERGE_BONUS_PCT, mergeMult, variantFor, getVariant, SPEEDER_DAYS, isSpeederActive, speederSurgePrice, getMotorPart, computeMotorRefillCost } from "@t1067/shared";
+import { MAKE_BASE, SLOT_COSTS, CARCHECK_COSTS, OFIS_BID_FACTOR, ofisBidPrice, MERGE_MAX_COUNT, MERGE_BONUS_PCT, mergeMult, variantFor, getVariant, SPEEDER_DAYS, isSpeederActive, speederSurgePrice, getMotorPart, computeMotorRefillCost, nextModel, upgradeCost } from "@t1067/shared";
 import { prisma } from "../db";
 import { getCoins, grantCoins } from "../services/coinService";
 import {
@@ -39,6 +39,8 @@ import {
   garajBazaarList,
   garajBazaarBuy,
   creditTaxiMotorBonus,
+  upgradeCarModel,
+  getBazaar,
 } from "../services/garajService";
 import { __resetFeatureCache, setFeature } from "../services/featureFlags";
 
@@ -61,7 +63,7 @@ async function cleanup(): Promise<void> {
     await prisma.coinTxn.deleteMany({ where: { memberId: { in: ids } } });
     await prisma.member.deleteMany({ where: { id: { in: ids } } });
   }
-  await prisma.appState.deleteMany({ where: { key: { in: ["feature:garajx", "feature:motorolami", "mo:econ"] } } });
+  await prisma.appState.deleteMany({ where: { key: { in: ["feature:garajx", "feature:motorolami", "feature:carupgrade", "mo:econ"] } } });
   await prisma.appState.deleteMany({ where: { key: { startsWith: "sellerrate:" } } });
   await prisma.appState.deleteMany({ where: { key: { startsWith: "ofis:" } } });
   await prisma.appState.deleteMany({ where: { key: { startsWith: "merge:" } } });
@@ -602,6 +604,51 @@ async function main(): Promise<void> {
     const tot = (await prisma.coinTxn.aggregate({ where: { memberId: drv.id }, _sum: { amount: true } }))._sum.amount ?? 0;
     ok(Math.abs(bal - tot) < 0.001, `taxi: driver ledger invariant (bal ${bal} == ledger ${tot})`);
   }
+
+  // ── 11i) 🚗 FAZA2 — model-upgrade ladder + ownerCount++ + bazaar #serial ───
+  await setFeature("carupgrade", true); __resetFeatureCache();
+  await setMotorEcon("carUpgradeFactor", 1.3);
+  const up = await prisma.member.create({ data: { type: "client", kasId: `${TAG}-up`, fullName: "Upgrader", phone: "+998900008088", trips: 3 } });
+  await grantCoins(up.id, 5_000_000, "manual", "seed");
+  const upAcq = await acquireCar(up.id, "tiko");
+  ok(upAcq.ok, `upgrade prep: acquired tiko`);
+  const tikoCar = (await prisma.garajCar.findUnique({ where: { id: upAcq.carId! } }))!;
+  const keptSerial = tikoCar.serial;
+  // A) tiko → damas: #serial + history KEPT, tanga charged, engineHp fresh
+  const balBeforeUp = await getCoins(up.id);
+  const u1 = await upgradeCarModel(up.id, upAcq.carId!);
+  ok(u1.ok && u1.newCode === "damas", `upgrade: tiko→damas ok (newCode=${u1.newCode})`);
+  const expectUpCost = upgradeCost("tiko", 1.3);
+  ok(balBeforeUp - (await getCoins(up.id)) === expectUpCost, `upgrade: charged ${expectUpCost} (sink)`);
+  const damasCar = (await prisma.garajCar.findUnique({ where: { id: upAcq.carId! } }))!;
+  ok(damasCar.carCode === "damas" && damasCar.serial === keptSerial, `upgrade: carCode→damas, #serial PRESERVED (#${damasCar.serial})`);
+  ok((damasCar.engineHp ?? 0) === 100, `upgrade: fresh engine (engineHp 100)`);
+  ok(nextModel("gelik") === null, `upgrade: gelik is top of the ladder (nextModel null)`);
+  // B) OFF-safe — flag off → reject
+  await setFeature("carupgrade", false); __resetFeatureCache();
+  const uOff = await upgradeCarModel(up.id, upAcq.carId!);
+  ok(!uOff.ok && uOff.reason === "off", `upgrade: flag OFF → rejected (${uOff.reason})`);
+  await setFeature("carupgrade", true); __resetFeatureCache();
+  // C) ledger invariant for the upgrader
+  {
+    const bal = (await prisma.member.findUnique({ where: { id: up.id } }))!.coins;
+    const tot = (await prisma.coinTxn.aggregate({ where: { memberId: up.id }, _sum: { amount: true } }))._sum.amount ?? 0;
+    ok(Math.abs(bal - tot) < 0.001, `upgrade: upgrader ledger invariant (bal ${bal} == ledger ${tot})`);
+  }
+  // D) ownerCount++ on P2P car sale (fixes cleanHistory) + bazaar exposes #serial
+  const ocSeller = up; // owns a damas now (#serial kept)
+  const ocBuyer = await prisma.member.create({ data: { type: "client", kasId: `${TAG}-ocbuyer`, fullName: "OC Buyer", phone: "+998900008089", trips: 2 } });
+  await grantCoins(ocBuyer.id, 500_000, "manual", "seed");
+  const ocList = await garajBazaarList(ocSeller.id, upAcq.carId!, 500);
+  ok(ocList.ok, `ownerCount: car listed on bazaar`);
+  const bazRows = await getBazaar(ocBuyer.id);
+  const ocRow = bazRows.find((b) => b.garajCarId === upAcq.carId);
+  ok(!!ocRow && ocRow.serial === keptSerial, `bazaar: listing exposes #serial (${ocRow?.serial})`);
+  const ocBuy = await garajBazaarBuy(ocBuyer.id, ocRow!.id);
+  ok(ocBuy.ok, `ownerCount: car bought`);
+  const ocCar = (await prisma.garajCar.findUnique({ where: { id: upAcq.carId! } }))!;
+  ok(ocCar.memberId === ocBuyer.id && (ocCar.ownerCount ?? 1) === 2, `ownerCount: → 2 after sale (was 1); cleanHistory now honest`);
+  await setFeature("carupgrade", false); __resetFeatureCache();
 
   // ── 12) Ledger invariant AFTER P2 sequence ───────────────────────────────
   for (const mm of [sellerM, buyerM]) {

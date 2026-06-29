@@ -60,6 +60,9 @@ import {
   MOTOR_PARTS,
   getMotorPart,
   partEarnMult,
+  CARUPGRADE_FLAG,
+  nextModel,
+  upgradeCost,
   type CarCheckTier,
   type CarCheckView,
   type GarajPartView,
@@ -307,6 +310,9 @@ export async function getGarajState(memberId: number): Promise<GarajStateRespons
     getMotorBonusFor(memberId), // 🎁 bonus-hafta o'yinchi-darajasidagi
   ]);
   const nowMs = Date.now();
+  // 🚗 FAZA2 — when the model-upgrade ladder is ON, the "buy a new car" shop is removed (one car,
+  // upgrade it). Players still get a free starter (FTUE) + P2P bozor + yo'l-sovg'alari.
+  const upgradeOn = await featureOn(CARUPGRADE_FLAG);
   const ownedCodes = new Set(cars.map((c) => c.carCode));
   // 🛡 KUNLIK CAP — remaining motor-earn room today (so the «Yig'ish +X» preview matches the
   // capped grant). Per-member; one aggregate query. cap=0 → unlimited room.
@@ -389,10 +395,16 @@ export async function getGarajState(memberId: number): Promise<GarajStateRespons
       view.speederMult = speederOn ? Math.max(2, Math.min(6, Math.floor(motorEcon.speederMult ?? 4))) : 1;
       // If speeder active, the displayed speed is the BOOSTED speed
       if (speederOn) view.speed = Math.round((view.speed ?? 0) * view.speederMult!);
+      // 🚗 FAZA2 — model-upgrade affordance (only when the ladder is ON)
+      if (upgradeOn) {
+        const nm = nextModel(c.carCode);
+        view.upgradeTo = nm;
+        view.upgradeCost = nm ? upgradeCost(c.carCode, motorEcon.carUpgradeFactor ?? 1.3) : 0;
+      }
     }
     return view;
   });
-  const shop = Object.keys(MAKE_BASE).map((code) => {
+  const shop = (upgradeOn ? [] : Object.keys(MAKE_BASE)).map((code) => {
     const cm = garajCarMeta(code);
     const dm = demand[code] ?? 1.0; // #3 live demand drives the buy price
     return {
@@ -564,6 +576,45 @@ export async function acquireCar(memberId: number, carCode: string): Promise<Gar
       return { ok: true as const, carId: car.id };
     });
     return result.ok ? { ok: true, carId: result.carId, coins: await getCoins(memberId) } : { ok: false, reason: result.reason, coins: await getCoins(memberId) };
+  });
+}
+
+// 🚗 FAZA2 — model zinapoyasi: bitta mashinani #serial + tarixini SAQLAB keyingi modelga ko'tarish
+// (do'kondan "yangi mashina" o'rniga). Pure tanga SINK (upgradeCost). carCode→keyingi, engineHp 100
+// (yangi model = yangi dvigatel), serial/bornAt/ownerCount/totalTrips/mergeCount/tarix KEYIN HAM o'zi.
+// variant yangi carCode uchun qayta hisoblanadi (serial bilan deterministik). Flag "carupgrade" (OFF).
+export async function upgradeCarModel(memberId: number, garajCarId: number): Promise<GarajActionResult & { newCode?: string; cost?: number }> {
+  if (!(await featureOn(CARUPGRADE_FLAG))) return { ok: false, reason: "off" };
+  return withMemberLock(memberId, async () => {
+    const car = await prisma.garajCar.findFirst({ where: { id: garajCarId, memberId, soldAt: null, serial: { not: null } } });
+    if (!car) return { ok: false, reason: "not_found", coins: await getCoins(memberId) };
+    if ((car.engineHp ?? 0) <= 0) return { ok: false, reason: "dead_car", coins: await getCoins(memberId) };
+    const next = nextModel(car.carCode);
+    if (!next) return { ok: false, reason: "max_model", coins: await getCoins(memberId) };
+    // already own the target model on another live slot → blocked (unique [memberId,carCode])
+    const activeConflict = await prisma.garajCar.findFirst({ where: { memberId, carCode: next, soldAt: null, NOT: { id: car.id } } });
+    if (activeConflict) return { ok: false, reason: "owned", coins: await getCoins(memberId) };
+    const econ = await getMotorEcon();
+    const cost = upgradeCost(car.carCode, econ.carUpgradeFactor ?? 1.3);
+    const result = await prisma.$transaction(async (tx) => {
+      const m = await tx.member.findUnique({ where: { id: memberId }, select: { coins: true } });
+      if ((m?.coins ?? 0) < cost) return { ok: false as const, reason: "insufficient" as const };
+      // free the target (memberId,carCode) unique slot if a SOLD/dead row holds it (re-buy-style)
+      await tx.garajCar.deleteMany({ where: { memberId, carCode: next, soldAt: { not: null } } });
+      // idempotent on (car, FROM-model): a network retry of the SAME step can't double-charge
+      await tx.coinTxn.create({ data: { memberId, amount: -cost, kind: "garaj_upgrade", reason: `⬆️ ${car.carCode}→${next} #${car.serial}`, idempotencyKey: `mo:upgrade:${car.id}:${car.carCode}` } });
+      await tx.member.update({ where: { id: memberId }, data: { coins: { decrement: cost } } });
+      const variantOverride: Record<string, number> = {
+        qora_nexia: Math.max(2, Math.floor(econ.variantQoraNexiaOneIn ?? 100)),
+        afsonaviy_tiko: Math.max(2, Math.floor(econ.variantAfsonaviyTikoOneIn ?? 2000)),
+      };
+      const newVariant = variantFor(next, car.serial!, variantOverride);
+      // carCode→next + fresh engine/clock; KEEP serial, bornAt, ownerCount, totalTrips, mergeCount, defect.
+      await tx.garajCar.update({ where: { id: car.id }, data: { carCode: next, engineHp: 100, lastAccrualAt: new Date(), acquireCost: MAKE_BASE[next] ?? car.acquireCost, variant: newVariant } });
+      return { ok: true as const, cost };
+    });
+    if (!result.ok) return { ok: false, reason: result.reason, coins: await getCoins(memberId) };
+    return { ok: true, newCode: next, cost: result.cost, coins: await getCoins(memberId) };
   });
 }
 
@@ -1997,13 +2048,17 @@ export async function processRideDrop(memberId: number, bookingId: number, _ride
 // ══ W4 Bazaar (player-to-player car market) ══════════════════════════════════
 // Money-safe: claim-before-pay (status open→pending_payment is an atomic single
 // winner), 3% tax burn (anti-wash), self-trade blocked, price ceiling 3× base.
-export async function getBazaar(memberId: number): Promise<{ id: number; garajCarId: number; carCode: string; name: string; emoji: string; askPrice: number; mine: boolean }[]> {
+export async function getBazaar(memberId: number): Promise<{ id: number; garajCarId: number; carCode: string; name: string; emoji: string; askPrice: number; mine: boolean; serial: number | null }[]> {
   if (!(await garajEnabledFor(memberId))) return [];
   const rows = await prisma.garajBazaarListing.findMany({ where: { status: "open" }, orderBy: { createdAt: "desc" }, take: 50 });
+  // 🚗 FAZA2-2.4 — surface the car's #serial on the listing (scarcity hook; P0 DoD "bozorda #serial ko'rinadi")
+  const carIds = rows.map((r) => r.garajCarId);
+  const cars = carIds.length ? await prisma.garajCar.findMany({ where: { id: { in: carIds } }, select: { id: true, serial: true } }) : [];
+  const serialById = new Map(cars.map((c) => [c.id, c.serial]));
   return rows.map((r) => {
     const cm = garajCarMeta(r.carCode);
     // garajCarId exposed so the BUYER can call /api/garaj/carcheck BEFORE purchase (DIAG-P1 pre-buy inspection)
-    return { id: r.id, garajCarId: r.garajCarId, carCode: r.carCode, name: cm?.name ?? r.carCode, emoji: cm?.emoji ?? "🚗", askPrice: r.askPrice, mine: r.sellerId === memberId };
+    return { id: r.id, garajCarId: r.garajCarId, carCode: r.carCode, name: cm?.name ?? r.carCode, emoji: cm?.emoji ?? "🚗", askPrice: r.askPrice, mine: r.sellerId === memberId, serial: serialById.get(r.garajCarId) ?? null };
   });
 }
 
@@ -2046,7 +2101,7 @@ export async function garajBazaarBuy(buyerId: number, listingId: number): Promis
       await tx.member.update({ where: { id: listing.sellerId }, data: { coins: { increment: listing.askPrice - tax } } });
     }
     await releasePartsForCar(tx, listing.garajCarId); // 🔧 seller keeps their installed parts (uninstalled) — the buyer gets just the car
-    await tx.garajCar.update({ where: { id: listing.garajCarId }, data: { memberId: buyerId } });
+    await tx.garajCar.update({ where: { id: listing.garajCarId }, data: { memberId: buyerId, ownerCount: { increment: 1 } } }); // 🚗 FAZA2-2.3 egalar soni oshadi (cleanHistory haqiqiy bo'ladi)
     await tx.garajBazaarListing.update({ where: { id: listingId }, data: { status: "sold", soldAt: new Date() } });
   });
   return { ok: true };
@@ -2220,7 +2275,7 @@ export async function settleAuctions(): Promise<number> {
         await tx.coinTxn.create({ data: { memberId: a.sellerId, amount: winner.amount - fee, kind: "garaj_auction_sell", reason: `Auksion sotuv: ${a.carCode}`, idempotencyKey: `auctionsell:${a.id}` } });
         await tx.member.update({ where: { id: a.sellerId }, data: { coins: { increment: winner.amount - fee } } });
         await releasePartsForCar(tx, a.garajCarId); // 🔧 seller keeps their parts (uninstalled); winner gets just the car
-        await tx.garajCar.update({ where: { id: a.garajCarId }, data: { memberId: winner.bidderId } });
+        await tx.garajCar.update({ where: { id: a.garajCarId }, data: { memberId: winner.bidderId, ownerCount: { increment: 1 } } }); // 🚗 FAZA2-2.3 egalar soni oshadi
         for (const b of bids) {
           if (b.id === winner.id) continue;
           await tx.coinTxn.create({ data: { memberId: b.bidderId, amount: b.amount, kind: "garaj_auction_refund", reason: `Auksion qaytdi: ${a.carCode}`, idempotencyKey: `auctionrefund:${b.id}` } });

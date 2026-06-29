@@ -222,6 +222,8 @@ export function createApiServer(opts: ApiOptions = {}) {
   app.post("/api/garaj/parts/mint", requireUser, rateLimit(10), withMember2(async (id, req) => (await import("../services/garajService")).mintPart(id, String(req.body?.partCode ?? ""))));
   app.post("/api/garaj/parts/install", requireUser, rateLimit(15), withMember2(async (id, req) => (await import("../services/garajService")).installPart(id, Number(req.body?.partId), Number(req.body?.garajCarId))));
   app.post("/api/garaj/parts/uninstall", requireUser, rateLimit(15), withMember2(async (id, req) => (await import("../services/garajService")).uninstallPart(id, Number(req.body?.partId))));
+  // 🚗 FAZA2 — model-upgrade ladder (Tiko→Damas→…, #serial saqlanadi). Pure tanga sink. Flag carupgrade.
+  app.post("/api/garaj/upgrade-model", requireUser, rateLimit(10), withMember2(async (id, req) => (await import("../services/garajService")).upgradeCarModel(id, Number(req.body?.garajCarId))));
   // 🛠 P2-deep-6 — Detal-bozori (parts P2P market): browse + list + buy + cancel
   app.get("/api/garaj/parts/bazaar", requireUser, withMember2(async (id) => (await import("../services/garajService")).getPartBazaar(id)));
   app.post("/api/garaj/parts/list", requireUser, rateLimit(10), withMember2(async (id, req) => (await import("../services/garajService")).listPart(id, Number(req.body?.partId), Number(req.body?.askPrice))));

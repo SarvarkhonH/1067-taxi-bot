@@ -3,7 +3,7 @@
 // Pure view layer — all money logic + idempotency live on the server.
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { GarajStateResponse, GarajCarView, PublicProfileView, OrzuBoardView, CarCheckView, GarajPartView, GarajPartCatalogView, GarajPartBazaarView } from "@t1067/shared";
-import { REPUTATION_TIERS, ZONE_NAMES, MAKE_BASE, getVariant, mergeMult, MERGE_MAX_COUNT, SPEEDER_DAYS } from "@t1067/shared";
+import { REPUTATION_TIERS, ZONE_NAMES, MAKE_BASE, getVariant, mergeMult, MERGE_MAX_COUNT, SPEEDER_DAYS, garajCarMeta } from "@t1067/shared";
 import { api } from "./api";
 import { haptic, hapticSuccess, playTierFanfare } from "./telegram";
 import { Button, Card, Chip, CoinCounter, LoadSection, ProgressBar, Sheet } from "./design/components";
@@ -123,7 +123,7 @@ export function GarajCarArt({ carCode, condition, level, size = 132 }: { carCode
 
 // 🔥 P-Fuel-B — MotorScene: vertikal yoqilg'i bar | mashina art | meta+CTA. Hay Day hook.
 // Reduced-motion safe (matchMedia + CSS @media), 60fps targeted (transform/opacity only).
-function MotorScene({ car, busy, onCollect, onRefuel, onEskirdi, onCarCheck, onSpeeder, onMerge, canMerge }: { car: GarajCarView; busy: boolean; onCollect: () => void; onRefuel: () => void; onEskirdi: () => void; onCarCheck: () => void; onSpeeder: () => void; onMerge: () => void; canMerge: boolean }) {
+function MotorScene({ car, busy, onCollect, onRefuel, onEskirdi, onCarCheck, onSpeeder, onMerge, onUpgrade, canMerge }: { car: GarajCarView; busy: boolean; onCollect: () => void; onRefuel: () => void; onEskirdi: () => void; onCarCheck: () => void; onSpeeder: () => void; onMerge: () => void; onUpgrade: () => void; canMerge: boolean }) {
   const pct = car.fuelPct ?? 0;
   const dry = !!car.fuelDry;
   const dead = !!car.dead;
@@ -215,6 +215,12 @@ function MotorScene({ car, busy, onCollect, onRefuel, onEskirdi, onCarCheck, onS
                 🔗 Toplash (★{car.mergeCount ?? 0}/{MERGE_MAX_COUNT})
               </Button>
             )}
+            {/* 🚗 FAZA2 — model-upgrade CTA (#serial saqlanadi). Faqat carupgrade ON + keyingi model bor bo'lsa */}
+            {car.upgradeTo && (
+              <Button sm variant="ghost" disabled={busy} onClick={() => { haptic(); onUpgrade(); }}>
+                ⬆️ {(garajCarMeta(car.upgradeTo)?.name ?? car.upgradeTo)}ga ko'tarish · 🪙{(car.upgradeCost ?? 0).toLocaleString("ru-RU")}
+              </Button>
+            )}
           </>
         )}
       </div>
@@ -283,7 +289,7 @@ export function GarajShell({ onClose, initial }: { onClose: () => void; initial?
   const [openId, setOpenId] = useState<number | null>(null);
   const [busy, setBusy] = useState(false);
   const [burst, setBurst] = useState<{ amount: number; label: string } | null>(null);
-  const [bazaar, setBazaar] = useState<{ id: number; garajCarId: number; carCode: string; name: string; emoji: string; askPrice: number; mine: boolean }[]>([]);
+  const [bazaar, setBazaar] = useState<{ id: number; garajCarId: number; carCode: string; name: string; emoji: string; askPrice: number; mine: boolean; serial: number | null }[]>([]);
   const [auctions, setAuctions] = useState<{ id: number; garajCarId: number; carCode: string; name: string; emoji: string; minBid: number; endsAt: string; mine: boolean }[]>([]);
   const [toast, setToast] = useState<string | null>(null);
   const [museumOpen, setMuseumOpen] = useState(false);
@@ -479,18 +485,23 @@ export function GarajShell({ onClose, initial }: { onClose: () => void; initial?
                 )}
               </div>
 
-              {/* 🛒 BOZOR — yangi mashina katalogi (acquire) */}
-              <div className="gz-sec-title">🛒 Bozor — yangi mashina</div>
-              <div className="gz-grid">
-                {st.shop.filter((s) => !s.owned).map((s) => (
-                  <Card key={s.carCode} className="gz-car">
-                    <span className="gz-car-emoji">{s.emoji}</span>
-                    <span className="gz-car-name">{s.name}</span>
-                    <span className="gz-car-sub">🪙 {s.buyPrice.toLocaleString("ru-RU")}</span>
-                    <Button sm disabled={busy || coins < s.buyPrice} onClick={() => acquireCar(s.carCode, s.name)}>Sotib olish</Button>
-                  </Card>
-                ))}
-              </div>
+              {/* 🛒 BOZOR — yangi mashina katalogi (acquire). 🚗 FAZA2: model-upgrade ladder ON bo'lsa
+                  do'kon bo'sh keladi (server shop=[]) → bu blok ko'rinmaydi (bitta mashina + upgrade). */}
+              {st.shop.filter((s) => !s.owned).length > 0 && (
+                <>
+                  <div className="gz-sec-title">🛒 Bozor — yangi mashina</div>
+                  <div className="gz-grid">
+                    {st.shop.filter((s) => !s.owned).map((s) => (
+                      <Card key={s.carCode} className="gz-car">
+                        <span className="gz-car-emoji">{s.emoji}</span>
+                        <span className="gz-car-name">{s.name}</span>
+                        <span className="gz-car-sub">🪙 {s.buyPrice.toLocaleString("ru-RU")}</span>
+                        <Button sm disabled={busy || coins < s.buyPrice} onClick={() => acquireCar(s.carCode, s.name)}>Sotib olish</Button>
+                      </Card>
+                    ))}
+                  </div>
+                </>
+              )}
 
               {/* 📦 Yo'l sovg'alari — real safarlardan arzon mashina takliflari */}
               {st.roadDrops && st.roadDrops.length > 0 && (
@@ -522,7 +533,7 @@ export function GarajShell({ onClose, initial }: { onClose: () => void; initial?
                       .map((b) => (
                         <Card key={b.id} className="gz-car">
                           <span className="gz-car-emoji">{b.emoji}</span>
-                          <span className="gz-car-name">{b.name}</span>
+                          <span className="gz-car-name">{b.name}{b.serial ? <span className="gz-motor-id"> #{b.serial}</span> : null}</span>
                           <span className="gz-car-sub">🪙 {b.askPrice.toLocaleString("ru-RU")} · sotuvda</span>
                           <Button variant="ghost" sm disabled={busy} onClick={() => bazaarUnlist(b.id)}>
                             Bekor qilish
@@ -543,7 +554,7 @@ export function GarajShell({ onClose, initial }: { onClose: () => void; initial?
                     .map((b) => (
                       <Card key={b.id} className="gz-car">
                         <span className="gz-car-emoji">{b.emoji}</span>
-                        <span className="gz-car-name">{b.name}</span>
+                        <span className="gz-car-name">{b.name}{b.serial ? <span className="gz-motor-id"> #{b.serial}</span> : null}</span>
                         <span className="gz-car-sub">🪙 {b.askPrice.toLocaleString("ru-RU")}</span>
                         {/* 🔍 DIAG-Bazaar — pre-buy CarCheck (tarix sotib olishdan oldin ko'rinadi) */}
                         {st?.motorEnabled && (
@@ -616,6 +627,7 @@ export function GarajShell({ onClose, initial }: { onClose: () => void; initial?
                 onCarCheck={() => setCheckOpen(car.id)}
                 onSpeeder={() => setSpeederOpen(car.id)}
                 onMerge={() => setMergeOpen(car.id)}
+                onUpgrade={() => upgradeModel(car.id)}
                 canMerge={(st?.cars?.length ?? 0) >= 2}
               />
             ) : (
@@ -800,6 +812,21 @@ export function GarajShell({ onClose, initial }: { onClose: () => void; initial?
       else if (r.reason === "dead_car") flash("Mashina eskirgan");
       else if (r.reason === "already") flash("Bugun allaqachon olingan");
       else flash("Sotib bo'lmadi");
+      if (!initial) setSt(await api.garajState());
+    } finally { setBusy(false); }
+  }
+  // 🚗 FAZA2 — model-upgrade (Tiko→Damas→…, #serial saqlanadi). Pure tanga sink.
+  async function upgradeModel(carId: number): Promise<void> {
+    if (busy) return; setBusy(true); haptic();
+    try {
+      const r = await api.garajUpgradeModel(carId);
+      if (r.ok) { hapticSuccess(); setOpenId(null); setBurst({ amount: 0, label: `⬆️ Mashina ko'tarildi · ${garajCarMeta(r.newCode ?? "")?.name ?? r.newCode}` }); setTimeout(() => setBurst(null), 2400); }
+      else if (r.reason === "insufficient") flash("Tanga yetarli emas");
+      else if (r.reason === "max_model") flash("Eng yuqori model — ko'tarib bo'lmaydi");
+      else if (r.reason === "owned") flash("Bu model sizda allaqachon bor");
+      else if (r.reason === "dead_car") flash("Mashina eskirgan — avval remont");
+      else if (r.reason === "off") flash("Hozir ochiq emas");
+      else flash("Ko'tarib bo'lmadi");
       if (!initial) setSt(await api.garajState());
     } finally { setBusy(false); }
   }
@@ -1020,7 +1047,7 @@ export function GarajDemo() {
 // 🏁 Garaj Bozori — the app-level "Bozor" tab market: every player's open listings
 // + live auctions, buyable here without entering the game. Money logic is server-side.
 export function GarajMarketView({ coins, onBanner }: { coins: number; onBanner?: (m: string) => void }) {
-  const [bazaar, setBazaar] = useState<{ id: number; garajCarId: number; carCode: string; name: string; emoji: string; askPrice: number; mine: boolean }[]>([]);
+  const [bazaar, setBazaar] = useState<{ id: number; garajCarId: number; carCode: string; name: string; emoji: string; askPrice: number; mine: boolean; serial: number | null }[]>([]);
   const [auctions, setAuctions] = useState<{ id: number; garajCarId: number; carCode: string; name: string; emoji: string; minBid: number; endsAt: string; mine: boolean }[]>([]);
   const [shop, setShop] = useState<{ carCode: string; name: string; emoji: string; buyPrice: number; owned: boolean; demandMult?: number }[]>([]);
   const [busy, setBusy] = useState(false);
