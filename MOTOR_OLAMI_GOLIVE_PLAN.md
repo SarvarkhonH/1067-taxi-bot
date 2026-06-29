@@ -1,5 +1,13 @@
 # MOTOR OLAMI — GO-LIVE PLAN (fix all 35 gaps + model-upgrade ladder → full live)
 
+> **HOLAT (2026-06-29): FAZA 1-4 BAJARILDI + JONLI.** FAZA 5 (ism/hikoya) = ixtiyoriy, o'tkazib yuborildi.
+> FAZA 6 gate O'TDI: simEconomy 0-violation · testGarajP1 ~115 tekshiruv **3× yashil** · mustaqil 6-agent
+> R4 audit = **42/45 da'vo HOLDS, 0 pul-invariant buzilishi** (2 risky tuzatildi: shop-strand gate +
+> CarCheck retry-dedup). Commitlar: `969e983`(F1) `2928ba4`(F2) `e12e411`(starter-fix) `5ca753f`(F3)
+> `5e92f80`(F4) `358fff1`(R4-fix). carupgrade ON. **Qolgan yagona narsa: ega real-telefon QABUL (R6).**
+
+
+
 **Maqsad:** auditda topilgan barcha farqlarni tuzatib + siz so'ragan **model-zinapoyasi**ni qo'shib,
 Motor Olami'ni rejadagidek TO'LIQ ishlaydigan holatga keltirish, keyin owner-QABUL bilan jonli yoqish.
 
