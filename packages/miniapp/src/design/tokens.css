@@ -954,15 +954,19 @@ body {
    bu blok ularni override qiladi. backdrop-filter qo'llab-quvvatlanmasa — opaq fallback ishlaydi.
    ─────────────────────────────────────────────────────────────────────────────────────── */
 :root {
-  --glass-bg: rgba(22, 28, 44, 0.62);
-  --glass-bg-strong: rgba(18, 24, 38, 0.78);
-  --glass-rim: rgba(255, 255, 255, 0.12);
-  --glass-rim-bright: rgba(255, 255, 255, 0.18);
-  --glass-inset: inset 0 1px 0 rgba(255, 255, 255, 0.08);
-  --glass-shadow: 0 8px 32px rgba(0, 0, 0, 0.45);
-  --glass-shadow-up: 0 -12px 40px rgba(0, 0, 0, 0.5);
-  --glass-blur: blur(24px) saturate(140%);
-  --glass-blur-light: blur(16px) saturate(130%);
+  /* Booking3 map: .b3-map (z-index:0 + position:absolute) + leaflet tile filter:invert(1) create
+     stacking contexts that backdrop-filter CANNOT see through → blur was invisible. Solution: lean
+     on rgba alpha (40-55%) so the map shows through even without the blur. Where blur works (most
+     modern WebViews) it adds polish; where it doesn't, real translucency still reads. */
+  --glass-bg: rgba(20, 26, 42, 0.40);
+  --glass-bg-strong: rgba(18, 24, 38, 0.55);
+  --glass-rim: rgba(255, 255, 255, 0.18);
+  --glass-rim-bright: rgba(255, 255, 255, 0.28);
+  --glass-inset: inset 0 1px 0 rgba(255, 255, 255, 0.14);
+  --glass-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+  --glass-shadow-up: 0 -12px 40px rgba(0, 0, 0, 0.55);
+  --glass-blur: blur(28px) saturate(150%);
+  --glass-blur-light: blur(20px) saturate(140%);
 }
 
 /* Pastdagi sheet + pin paneli — asosiy katta yuza */
