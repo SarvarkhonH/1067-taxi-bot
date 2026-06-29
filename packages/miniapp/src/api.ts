@@ -48,6 +48,24 @@ export function getInitData(): string {
   }
 }
 
+// Some Telegram clients (Web Z, Desktop) populate initData a few hundred ms AFTER the WebView
+// opens — if our first /api/me fires immediately it sees the empty value, sends the debug header,
+// gets a 401 in prod, and the user lands on "Telegram orqali oching" needlessly. This helper polls
+// until initData is set (up to ~2.5s in 100ms steps) and only gives up if Telegram itself never
+// fills it — at which point the user truly isn't in a Telegram WebApp.
+export async function waitForInitData(maxMs = 2500, stepMs = 100): Promise<string> {
+  let id = getInitData();
+  if (id) return id;
+  if (!tg) return ""; // not inside Telegram at all → don't wait
+  const deadline = Date.now() + maxMs;
+  while (Date.now() < deadline) {
+    await new Promise((r) => setTimeout(r, stepMs));
+    id = getInitData();
+    if (id) return id;
+  }
+  return "";
+}
+
 // In Telegram we authenticate with signed initData. Outside Telegram (local dev)
 // we fall back to a debug id that the server trusts only when no bot token is set.
 function authHeaders(): Record<string, string> {

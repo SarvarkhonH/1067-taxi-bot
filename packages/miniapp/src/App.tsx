@@ -2,7 +2,7 @@ import { Suspense, lazy, useEffect, useState } from "react";
 
 const DesignDemo = lazy(() => import("./design/demo")); // #demo dagina yuklanadi
 import type { LeaderboardResponse, MeResponse } from "@t1067/shared";
-import { api, getInitData } from "./api";
+import { api, getInitData, waitForInitData } from "./api";
 import { haptic, tg } from "./telegram";
 import { LeaderboardView, LoadError, MahallaSection, MissionsView, ReferralView, Spinner } from "./components";
 import { AccountCard, WalletView } from "./wallet"; // bosh tab — eager (birinchi paint)
@@ -159,8 +159,12 @@ export function App() {
 
   useEffect(() => {
     if (boardRequested) loadBoard(); // deep-linked to reyting
-    api
-      .me()
+    // Some Telegram clients (Web Z, Desktop) populate initData a few hundred ms AFTER the WebView
+    // opens — firing /api/me immediately would race into a 401 ("Telegram orqali oching"). Wait
+    // for initData first (up to ~2.5s); if Telegram never fills it, proceed anyway and let the
+    // server's normal auth response decide.
+    waitForInitData()
+      .then(() => api.me())
       .then((r) => {
         if ("linked" in r && r.linked === false) {
           clearMeCache();

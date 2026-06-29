@@ -110,6 +110,10 @@ function mainMenu(isDriver = false): Keyboard {
     if (canWebApp) kb.webApp(label, webAppUrl(go));
     else kb.text(label); // old client w/o web_app support → graceful text fallback
   };
+  // Row 0 — TOP CTA: invite a friend (refstaged total 500+500+1000 = 2000 tanga). Full-width,
+  // most prominent — owner request 2026-06-29 to drive viral growth from the moment user sees menu.
+  txt("👥 Do'st chaqirish — +2000 tanga sovg'a");
+  kb.row();
   // Row 1 — two booking entries side by side: classic bot | Mini App active-order
   txt("🚕 Taxi chaqirish");
   app("📍 Buyurtmam", "book");
@@ -126,13 +130,11 @@ function mainMenu(isDriver = false): Keyboard {
   kb.row();
   // Row 5 — pay-driver: opens Mini App on hamyon with the pay-driver sheet auto-expanded (?go=tip)
   app("🙏 Haydovchiga to'lash", "tip");
-  kb.row();
-  // Row 6 — referral (bot in-chat card with share link + stats)
-  txt("👥 Do'st");
   if (isDriver) {
     kb.row();
     txt("🚗 Haydovchi paneli");
   }
+  // 👥 Do'st moved to Row 0 (top CTA, see above). No duplicate here.
   // is_persistent → the menu stays pinned open (app-like nav); placeholder → modern input hint
   return kb.resized().persistent().placeholder("Menyudan tanlang yoki manzilni yozing…");
 }
@@ -1077,6 +1079,8 @@ export function createBot(): Bot {
   };
   bot.hears("👥 Do'st", showReferral);
   bot.hears("👥 Do'st taklif", showReferral); // old cached keyboards
+  bot.hears("👥 Do'st chaqirish — +2000 tanga sovg'a", showReferral); // new top CTA label (2026-06-29)
+  bot.hears(/^👥 Do'st chaqirish/, showReferral); // tolerant to bonus-text changes (e.g. "+2500 tanga")
   bot.command("invite", showReferral);
 
   // 📋 /menu — modern in-chat INLINE panel: every button deep-links straight into the Mini App on
