@@ -917,6 +917,22 @@ export function createApiServer(opts: ApiOptions = {}) {
     const np = await nearbyPins();
     res.json({ ...np, freeDrivers: inflateOnline(np.freeDrivers) }); // riders see ~2× free cars; pins stay real
   });
+  // 📷 Driver portrait proxy — resolves Telegram file_id (or override URL) to a live image. Public
+  // (no auth) so the Mini App can render it as a plain <img src>; the URL is unguessable in practice
+  // because the memberId is only emitted on bookings the rider is part of. Cached 1h on the rider.
+  app.get("/api/driver-photo/:memberId", async (req, res) => {
+    const id = Math.floor(Number(req.params.memberId));
+    if (!id) { res.status(400).end(); return; }
+    const { resolveDriverPhoto } = await import("../services/driverPhotoService");
+    const p = await resolveDriverPhoto(id);
+    if (!p) { res.status(404).end(); return; }
+    res.set("Cache-Control", "private, max-age=3600"); // ~1h, matches Telegram URL TTL
+    res.redirect(302, p.url);
+  });
+  app.post("/api/admin/driver-photos/sync", requireAdmin, requireOwner, async (_req, res) => {
+    const { syncAllLinkedDriverPhotos } = await import("../services/driverPhotoService");
+    res.json(await syncAllLinkedDriverPhotos());
+  });
   app.post("/api/booking/rate", requireUser, rateLimit(10), withMember2(async (id, req) => {
     const { rateRide, RATING_TAGS } = await import("../services/bookingPlus");
     const b = req.body as { bookingId?: number; stars?: number; tags?: string[] };

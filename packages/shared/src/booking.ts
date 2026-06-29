@@ -39,6 +39,9 @@ export interface BookingDriverView {
   lng: number;
   bearing?: number; // C: heading (deg) for the rotating car marker
   meterPayment?: number; // C: live taximeter running fare (so'm)
+  // 📷 driver portrait: server-proxy URL that resolves to the driver's Telegram avatar (or owner-set
+  // override). Empty/absent when no photo available — frontend should fall back to initials avatar.
+  photoUrl?: string;
 }
 
 export interface ActiveBookingView {

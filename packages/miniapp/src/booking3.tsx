@@ -1336,10 +1336,29 @@ function Booking3Inner({ me, info, onClose }: { me: MeResponse; info: BookingInf
           : r >= 4.0 ? { ico: "👍", t: "Yaxshi reyting" }
           : r > 0    ? { ico: "🆕", t: "Faollikni ko'paytirmoqda" }
           : { ico: "🆕", t: "Yangi haydovchi" };
+        // Initialli avatar fallback — agar Telegram rasm yo'q bo'lsa. Birinchi 1-2 harf, brand fonda.
+        const initials = (d.fullName || "?")
+          .split(/\s+/)
+          .filter(Boolean)
+          .slice(0, 2)
+          .map((w) => w[0]!.toUpperCase())
+          .join("");
+        // server bizning prod URL'imiz bo'ladi; nisbiy yo'l (/api/driver-photo/:id) ham ishlaydi
+        const photoSrc = d.photoUrl
+          ? (d.photoUrl.startsWith("http") ? d.photoUrl : (import.meta.env.VITE_API_URL as string || "") + d.photoUrl)
+          : null;
         return (
           <div className={`b3-plate-zoom${plateClosing ? " closing" : ""}`} onClick={closePlate} role="dialog" aria-label="Haydovchi ma'lumotlari">
             <div className="b3-driver-card" onClick={(e) => e.stopPropagation()}>
-              <div className="b3-dc-avatar">🧑‍✈️</div>
+              <div className="b3-dc-avatar">
+                {photoSrc ? (
+                  <img src={photoSrc} alt={d.fullName || "Haydovchi"} className="b3-dc-avatar-img" onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }} />
+                ) : initials ? (
+                  <span className="b3-dc-avatar-initials">{initials}</span>
+                ) : (
+                  "🧑‍✈️"
+                )}
+              </div>
               <div className="b3-dc-name">{d.fullName || "Haydovchi"}</div>
               <div className="b3-dc-rating">
                 <span className="b3-dc-stars">{stars}</span>

@@ -459,6 +459,12 @@ body {
   display: flex; align-items: center; justify-content: center;
   font-size: 42px;
   box-shadow: inset 0 0 0 1.5px rgba(255, 200, 64, 0.5), 0 6px 22px rgba(255, 152, 0, 0.25);
+  overflow: hidden;
+}
+.b3-dc-avatar-img { width: 100%; height: 100%; object-fit: cover; border-radius: 50%; display: block; }
+.b3-dc-avatar-initials {
+  font-size: 28px; font-weight: 900; letter-spacing: 1px;
+  color: #fff; text-shadow: 0 2px 8px rgba(255, 152, 0, 0.45);
 }
 .b3-dc-name { font-size: 19px; font-weight: 900; color: var(--text); margin-bottom: 4px; line-height: 1.2; }
 .b3-dc-rating { display: flex; align-items: center; justify-content: center; gap: 6px; margin-bottom: 12px; font-size: 14px; }

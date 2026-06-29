@@ -40,6 +40,12 @@ model Member {
   rideStartedAt      DateTime? // first sweep sighting of status "started" — ride meter (guess + garage)
   riskFlag           Boolean   @default(false) // freezes the withdraw door only; coins stay spendable
   riskNote           String?
+  // 📷 driver portrait — synced from this user's Telegram profile photo (file_id stays valid forever
+  // for the bot that fetched it). Resolved to a fresh URL on demand by /api/driver-photo/:memberId
+  // (Telegram file URLs themselves have short TTL — the file_id is the durable handle).
+  photoFileId        String?
+  // optional override — paste a permanent URL (Cloudinary etc.) if Telegram avatar isn't suitable.
+  photoUrl           String?
   // 1-tap booking: persisted pickup memory (in-memory Map died on every deploy)
   defaultPickupId    Int?
   defaultPickupName  String?

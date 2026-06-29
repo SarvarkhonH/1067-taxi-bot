@@ -25,13 +25,23 @@ async function phoneOf(memberId: number): Promise<{ phone: string; name: string;
   return m?.phone ? { phone: m.phone, name: m.fullName, bonus: m.points } : null;
 }
 
-function toView(
+async function toView(
   b: Awaited<ReturnType<ReturnType<typeof getDataSource>["getActiveBooking"]>>,
-): ActiveBookingView | null {
+): Promise<ActiveBookingView | null> {
   if (!b) return null;
   let etaMin: number | null = null;
   if (b.driver?.lat && b.driver?.lng && b.lat && b.lng) {
     etaMin = Math.max(1, Math.ceil((haversineKm({ lat: b.driver.lat, lng: b.driver.lng }, { lat: b.lat, lng: b.lng }) / CITY_KMH) * 60));
+  }
+  // 📷 driver portrait: look up the driver by carNumber, expose the proxy URL ONLY when a photo is
+  // configured — saves the rider a wasted 404 request when the driver isn't linked / has no avatar.
+  let photoUrl: string | undefined;
+  if (b.driver?.carNumber) {
+    const dm = await prisma.member.findFirst({
+      where: { type: "driver", carNumber: b.driver.carNumber },
+      select: { id: true, photoFileId: true, photoUrl: true },
+    }).catch(() => null);
+    if (dm && (dm.photoUrl || dm.photoFileId)) photoUrl = `/api/driver-photo/${dm.id}`;
   }
   return {
     id: b.id,
@@ -54,6 +64,7 @@ function toView(
           lng: b.driver.lng,
           bearing: b.driver.bearing,
           meterPayment: b.driver.meterPayment,
+          photoUrl,
         }
       : null,
   };
@@ -91,7 +102,7 @@ export async function getBookingInfo(memberId: number): Promise<BookingInfoRespo
     cashbackPerRide: fare?.cashback.perAppRide ?? 0,
     bonusBalance: who.bonus,
     bookingLive: env.bookingLive,
-    active: toView(active),
+    active: await toView(active),
     quickPickup: quick,
     tariff: fare ? { minimalPayment: fare.minimalPayment, minimalDistanceKm: fare.minimalDistanceKm, perKmCity: fare.perKmCity, perMinute: fare.perMinute } : null,
   };
@@ -221,7 +232,7 @@ export async function cancelBookingFor(memberId: number): Promise<BookingCancelR
 export async function getActiveBookingFor(memberId: number): Promise<ActiveBookingView | null> {
   const who = await phoneOf(memberId);
   if (!who) return null;
-  const view = toView(await getDataSource().getActiveBooking(who.phone).catch(() => null));
+  const view = await toView(await getDataSource().getActiveBooking(who.phone).catch(() => null));
   // T5-E6: once the ride has started, expose rideStartedAt (set by the sweep) so the
   // Mini App can show a live garage counter. Display-only — grants stay in the bot sweep.
   if (view && view.status === "started") {
