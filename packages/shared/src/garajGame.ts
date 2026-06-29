@@ -532,6 +532,8 @@ export const MOTOR_WEAR_PCT = 0.1; // eyilish = gross×10% (SINK + engineHp↓)
 export const MOTOR_MAX_ACCRUE_HOURS = 24; // bir «Yig'ish»da ≤24 soat (anti-hoard + emission bound)
 export const MOTOR_TAXI_MULT = 2; // real taksida 2×
 export const MOTOR_LIFESPAN_DAYS = 14; // umr (engineHp 0 ga tushishi)
+export const MOTOR_DEATH_WARN_HP = 20; // 💀 FAZA3 — engineHp < bu → "qariyapti": daromad yarmiga + ogohlantirish
+export const MOTOR_DYING_EARN_MULT = 0.5; // o'lim oldidan daromad ×0.5
 export const MOTOR_WEAR_PER_DAY = 100 / MOTOR_LIFESPAN_DAYS; // engineHp/kun (~7.14)
 export const MOTOR_FUELMULT_MIN = 0.5; // yoqilg'i-dial chegarasi (sink o'lmasin / absurd bo'lmasin)
 export const MOTOR_FUELMULT_MAX = 2.0;
@@ -648,6 +650,12 @@ export function mergeMult(mergeCount: number, bonusPctOverride?: number): number
   const pct = (bonusPctOverride ?? MERGE_BONUS_PCT * 100) / 100;
   const n = Math.max(0, Math.min(MERGE_MAX_COUNT, mergeCount));
   return 1 + n * pct;
+}
+// 💀 FAZA3 — merge also extends LIFESPAN +25%/step (plan §3 "+25% umr"): a merged car ages slower,
+// so its effective lifespanDays = base × this. Applied in motorCollect wear + sweepMotorAging.
+export const MERGE_LIFESPAN_PCT = 0.25;
+export function mergeLifespanMult(mergeCount: number): number {
+  return 1 + Math.max(0, Math.min(MERGE_MAX_COUNT, mergeCount)) * MERGE_LIFESPAN_PCT;
 }
 // 🔧 P2-deep-5 — Limited-event parts (detallar). HARD mint-cap per code (Steam-skin scarcity):
 // once the cap is hit / the mint event closes → no more mint → P2P resale only → price climbs.
@@ -790,6 +798,7 @@ export interface GarajCarView {
   installedParts?: { id: number; code: string; name: string; emoji: string; earnBonusPct: number; serial: number }[]; // 🔧 P2-deep-5 — bolted-on parts
   upgradeTo?: string | null; // 🚗 FAZA2 — keyingi model (zinapoya) yoki null (eng yuqori). carupgrade ON bo'lsa to'ldiriladi.
   upgradeCost?: number; // 🚗 FAZA2 — shu modelni keyingisiga ko'tarish narxi (tanga)
+  dying?: boolean; // 💀 FAZA3 — engineHp < MOTOR_DEATH_WARN_HP → "qariyapti" (daromad ×0.5, umr-bar qizil)
 }
 // 🔧 P2-deep-5 — parts inventory + mint-catalog DTOs (Mini App parts screen)
 export interface GarajPartView { id: number; code: string; name: string; emoji: string; serial: number; earnBonusPct: number; installedCarId: number | null; status: string; listingId: number | null }

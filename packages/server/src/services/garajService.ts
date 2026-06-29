@@ -63,6 +63,9 @@ import {
   CARUPGRADE_FLAG,
   nextModel,
   upgradeCost,
+  mergeLifespanMult,
+  MOTOR_DEATH_WARN_HP,
+  MOTOR_DYING_EARN_MULT,
   type CarCheckTier,
   type CarCheckView,
   type GarajPartView,
@@ -363,11 +366,15 @@ export async function getGarajState(memberId: number): Promise<GarajStateRespons
       // 🔧 P2-deep-5 — bolted-on parts boost earn (and displayed speed) the same way collect does
       const carParts = partsByCar.get(c.id) ?? [];
       const partMult = partEarnMult(carParts.map((p) => p.partCode));
-      const speed = Math.round(motorSpeed(c.carCode) * eff.speedMult * partMult);
+      // 🔗 FAZA3-3.1 merge earn + 💀 FAZA3-3.3 dying ×0.5 — preview matches collect
+      const mMultV = mergeMult(c.mergeCount ?? 0, motorEcon.mergeBonusPct);
+      const dyingV = hp > 0 && hp < MOTOR_DEATH_WARN_HP;
+      const speed = Math.round(motorSpeed(c.carCode) * eff.speedMult * partMult * mMultV * (dyingV ? MOTOR_DYING_EARN_MULT : 1));
       view.installedParts = carParts.map((p) => { const d = getMotorPart(p.partCode); return { id: p.id, code: p.partCode, name: d?.name ?? p.partCode, emoji: d?.emoji ?? "🔧", earnBonusPct: d?.earnBonusPct ?? 0, serial: p.serial }; });
       view.serial = c.serial;
       view.engineHp = hp;
       view.dead = hp <= 0;
+      view.dying = dyingV;
       view.speed = speed;
       view.ageDays = c.bornAt ? Math.floor((nowMs - c.bornAt.getTime()) / 86_400_000) : 0;
       view.ownerCount = c.ownerCount ?? 1;
@@ -692,7 +699,11 @@ export async function motorCollect(memberId: number, garajCarId?: number): Promi
     // uninstalls on any transfer), but scoping to memberId guarantees a stray row can NEVER pay the wrong member.
     const carPartRows = await prisma.garajPart.findMany({ where: { installedCarId: car.id, status: "installed", ownerId: memberId }, select: { partCode: true } });
     const partMult = partEarnMult(carPartRows.map((p) => p.partCode));
-    const speed = Math.round(motorSpeed(car.carCode) * eff.speedMult * speederMult * partMult);
+    // 🔗 FAZA3-3.1 — merge boosts EARN (+10%/step), not just resale. 💀 FAZA3-3.3 — a dying car (engineHp
+    // < MOTOR_DEATH_WARN_HP) earns ×0.5 ("qariyapti" — graceful decline before death).
+    const mMult = mergeMult(car.mergeCount ?? 0, econ.mergeBonusPct);
+    const dyingMult = (car.engineHp ?? 100) < MOTOR_DEATH_WARN_HP ? MOTOR_DYING_EARN_MULT : 1;
+    const speed = Math.round(motorSpeed(car.carCode) * eff.speedMult * speederMult * partMult * mMult * dyingMult);
     const { gross, wear, net: rawNet } = computeMotorEarnNoFuel(speed, hours, 0); // taxi 2× = sweep ride-hooki (P0.4)
     // 🛡 KUNLIK CAP (anti-inflyatsiya) — clamp so this player's TOTAL motor_earn today ≤ dailyEarnCap.
     // Per-MEMBER (not per-car) so multiple slots can't multiply emission past the ceiling. cap=0 → off.
@@ -710,7 +721,9 @@ export async function motorCollect(memberId: number, garajCarId?: number): Promi
       return { ok: true, gross, fuel: 0, wear, net: 0, engineHp: car.engineHp ?? 100, dead: false, dry, reason: "cap_reached", coins: await getCoins(memberId) };
     }
     const cappedHours = Math.min(hours, MOTOR_MAX_ACCRUE_HOURS);
-    const newHp = Math.max(0, Math.round((car.engineHp ?? 100) - MOTOR_WEAR_PER_DAY * (cappedHours / 24)));
+    // 🔗 FAZA3-3.2 — merge extends LIFESPAN +25%/step: a merged car ages slower (wear-per-day ÷ mergeLifespanMult).
+    const wearPerDay = MOTOR_WEAR_PER_DAY / mergeLifespanMult(car.mergeCount ?? 0);
+    const newHp = Math.max(0, Math.round((car.engineHp ?? 100) - wearPerDay * (cappedHours / 24)));
     if (net > 0) await grantCoins(memberId, net, "motor_earn", `🚗 Mashina daromadi (${car.carCode} #${car.serial})`, `mo:earn:${memberId}:${last}`);
     await prisma.garajCar.update({ where: { id: car.id }, data: { lastAccrualAt: new Date(runwayEnd), engineHp: newHp } });
     // back-compat: fuel field present but always 0 in new model (UI old assertions may read it)
@@ -1300,13 +1313,14 @@ export async function sweepMotorAging(): Promise<number> {
   const hpPerDay = 100 / lifespanDays;
   const now = Date.now();
   // Take a batch — keep memory bounded; each sweep handles up to 200 cars.
-  const cars = await prisma.garajCar.findMany({ where: { soldAt: null, serial: { not: null }, engineHp: { gt: 0 }, ofisHeld: false }, select: { id: true, engineHp: true, lastAccrualAt: true }, take: 200 });
+  const cars = await prisma.garajCar.findMany({ where: { soldAt: null, serial: { not: null }, engineHp: { gt: 0 }, ofisHeld: false }, select: { id: true, engineHp: true, lastAccrualAt: true, mergeCount: true }, take: 200 });
   let aged = 0;
   for (const c of cars) {
     const last = c.lastAccrualAt?.getTime() ?? now;
     const hours = Math.max(0, (now - last) / 3_600_000);
     if (hours < 1) continue; // skip if collected recently (motorCollect already aged it)
-    const decay = Math.max(0, Math.round(hpPerDay * (hours / 24)));
+    // 🔗 FAZA3-3.2 — merged cars age slower (+25%/step lifespan) → divide the daily decay by mergeLifespanMult.
+    const decay = Math.max(0, Math.round((hpPerDay / mergeLifespanMult(c.mergeCount ?? 0)) * (hours / 24)));
     if (decay <= 0) continue;
     const newHp = Math.max(0, (c.engineHp ?? 100) - decay);
     if (newHp === c.engineHp) continue;

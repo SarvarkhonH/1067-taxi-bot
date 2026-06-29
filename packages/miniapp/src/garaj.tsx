@@ -185,6 +185,10 @@ function MotorScene({ car, busy, onCollect, onRefuel, onEskirdi, onCarCheck, onS
         {car.speederActive && (car.speederHoursLeft ?? 0) > 0 && (
           <span className="fs11" style={{ color: "var(--brand)" }}>🚀 Speeder · {Math.round(car.speederHoursLeft! / 24)} kun qoldi</span>
         )}
+        {/* 💀 FAZA3 — "qariyapti": engine near death → daromad yarmiga (server view.dying) */}
+        {car.dying && !dead && (
+          <span className="fs11" style={{ color: "var(--err)" }}>⚠️ Mashina qariyapti — daromad yarmiga tushdi. Remont qiling.</span>
+        )}
         {car.ofisBidPrice != null && !dead && (
           <span className="fs11 dim">🏛 Ofis: 🪙 {car.ofisBidPrice.toLocaleString("ru-RU")}</span>
         )}
@@ -679,7 +683,7 @@ export function GarajShell({ onClose, initial }: { onClose: () => void; initial?
       {checkTarget != null && <GarajCarCheckSheet car={checkTarget} onClose={() => setCheckTarget(null)} />}
       {eskirdiOpen != null && (() => {
         const ec = st?.cars.find((c) => c.id === eskirdiOpen);
-        return ec ? <GarajEskirdiSheet car={ec} busy={busy} onSellOfis={() => void eskirdiSellOfis(ec.id)} onCapital={() => eskirdiCapital(ec.id)} onClose={() => setEskirdiOpen(null)} /> : null;
+        return ec ? <GarajEskirdiSheet car={ec} busy={busy} canMerge={(st?.cars?.length ?? 0) >= 2} onSellOfis={() => void eskirdiSellOfis(ec.id)} onCapital={() => eskirdiCapital(ec.id)} onMerge={() => { setEskirdiOpen(null); setMergeOpen(ec.id); }} onListBazaar={() => { setEskirdiOpen(null); setListingFor(ec.id); }} onClose={() => setEskirdiOpen(null)} /> : null;
       })()}
       {speederOpen != null && (() => {
         const sc = st?.cars.find((c) => c.id === speederOpen);
@@ -1529,7 +1533,7 @@ export function GarajMergeSheet({ keep, others, onMerge, onClose }: { keep: Gara
           <div className="row between"><span className="dim fs12">Hozirgi bosqich</span><b>★{cur}/{MERGE_MAX_COUNT} · ×{curMult.toFixed(2)}</b></div>
           <div className="row between"><span className="dim fs12">Toplashdan keyin</span><b style={{ color: "var(--brand)" }}>★{next}/{MERGE_MAX_COUNT} · ×{nextMult.toFixed(2)}</b></div>
         </div>
-        <p className="fs12 dim mt0">Boshqa mashinangizdan birini qurbon qiling. U abadiy yo'qoladi, lekin bu mashina KUCHAYADI: dvigatel 100% gacha tiklanadi, daraja oshadi, sotuv narxi +10% bo'ladi.</p>
+        <p className="fs12 dim mt0">Boshqa mashinangizdan birini qurbon qiling. U abadiy yo'qoladi, lekin bu mashina KUCHAYADI: <b>daromad +10%</b> · <b>umr +25% sekinroq qariydi</b> · dvigatel 100% tiklanadi · sotuv narxi +10%.</p>
         <div className="gz-sec-title">Qurbon mashinasi:</div>
         <div className="col g8">
           {others.length === 0 ? (
@@ -1719,17 +1723,22 @@ const PART_REASON: Record<string, string> = {
 };
 
 // ⚠️ P1-B/C — Eskirdi action sheet (Ofis sotish · Kapital remont · Bekor)
-export function GarajEskirdiSheet({ car, busy, onSellOfis, onCapital, onClose }: { car: GarajCarView; busy: boolean; onSellOfis: () => void; onCapital: () => void; onClose: () => void }) {
+export function GarajEskirdiSheet({ car, busy, canMerge, onSellOfis, onCapital, onMerge, onListBazaar, onClose }: { car: GarajCarView; busy: boolean; canMerge: boolean; onSellOfis: () => void; onCapital: () => void; onMerge: () => void; onListBazaar: () => void; onClose: () => void }) {
   const ofisBid = car.ofisBidPrice ?? Math.floor((MAKE_BASE[car.carCode] ?? 0) * 0.8);
   return (
     <Sheet open onClose={onClose}>
       <div className="col g8">
         <div className="gz-title">⚠️ Eskirdi · {car.emoji} {car.name} <span className="gz-motor-id">#{car.serial ?? "?"}</span></div>
-        <p className="fs12 dim mt0">Mashinangizning dvigateli tugadi. Tanlang:</p>
+        <p className="fs12 dim mt0">Mashinangizning dvigateli tugadi. 4 yo'l (#serial saqlanadi yoki mashina chiqadi):</p>
+        <Button variant="ghost" disabled={busy} onClick={onCapital}>🔧 Kapital remont — dvigatel 100%, #serial + tarix SAQLANADI</Button>
+        {/* 🔗 FAZA3-3.4 — Merge: boshqa mashinani qurbon qilib BU o'lik mashinani tiriltirish (dvigatel 100%) */}
+        {canMerge && (
+          <Button variant="ghost" disabled={busy} onClick={onMerge}>🔗 Toplash — boshqa mashinani qurbon qilib tiriltirish</Button>
+        )}
+        <Button variant="ghost" disabled={busy} onClick={onListBazaar}>🛒 Bozorga qo'yish (boshqa o'yinchiga sotish)</Button>
         <Button disabled={busy} onClick={onSellOfis}>🏛 1067 Ofisga sotish · 🪙 {ofisBid.toLocaleString("ru-RU")}</Button>
-        <Button variant="ghost" disabled={busy} onClick={onCapital}>🔧 Kapital remont (dvigatel almashtirish)</Button>
-        <Button variant="ghost" disabled={busy} onClick={onClose}>Hozir emas</Button>
-        <p className="fs11 dim mt0">💡 Ofis sotish — eng tezi · Kapital remont — eyilish 100% qayta tiklanadi.</p>
+        <Button variant="ghost" disabled={busy} onClick={onClose}>Hozir emas (garajda qoladi, 0 ishlaydi)</Button>
+        <p className="fs11 dim mt0">💡 Kapital remont / Toplash — mashinani saqlaydi · Ofis/Bozor — chiqaradi, slot bo'shaydi.</p>
       </div>
     </Sheet>
   );

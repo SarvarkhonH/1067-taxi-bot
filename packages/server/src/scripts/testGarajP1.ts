@@ -659,6 +659,37 @@ async function main(): Promise<void> {
   ok(!!starterMarker && starterMarker.amount === 0, `starter: 0-amount marker written (no tanga emission)`);
   await setFeature("carupgrade", false); __resetFeatureCache();
 
+  // ── 11j) 🔗💀 FAZA3 — merge earn (+10%) + merge lifespan (slower aging) + dying ×0.5 ──────
+  await setMotorEcon("speedMult", 1); await setMotorEcon("dailyEarnCap", 1_000_000); await setMotorEcon("mergeBonusPct", 10); await setMotorEcon("bonusDays", 0);
+  const future3 = new Date(Date.now() + 48 * 3600_000); const rw5 = new Date(Date.now() - 5 * 3600_000); const rw24 = new Date(Date.now() - 24 * 3600_000);
+  let phoneN = 9100;
+  const mkMotorCar = async (label: string, carCode: string, set: Record<string, unknown>, last: Date) => {
+    const m = await prisma.member.create({ data: { type: "client", kasId: `${TAG}-${label}`, fullName: label, phone: `+99890000${phoneN++}`, trips: 1 } });
+    await grantCoins(m.id, 1_000_000, "manual", "seed");
+    const acq = await acquireCar(m.id, carCode);
+    await prisma.garajCar.update({ where: { id: acq.carId! }, data: { fueledUntilAt: future3, lastAccrualAt: last, ...set } });
+    return { id: m.id, carId: acq.carId! };
+  };
+  // 3.1 — merge boosts EARN +10%: a mergeCount=1 car out-earns an identical mergeCount=0 car
+  const mgA = await mkMotorCar("mgA", "nexia", { mergeCount: 1, engineHp: 100 }, rw5);
+  const mgB = await mkMotorCar("mgB", "nexia", { mergeCount: 0, engineHp: 100 }, rw5);
+  const cA = await motorCollect(mgA.id, mgA.carId); const cB = await motorCollect(mgB.id, mgB.carId);
+  const mergeRatio = (cA.gross ?? 0) / Math.max(1, cB.gross ?? 0);
+  ok(Math.abs(mergeRatio - 1.10) < 0.04, `merge: +10% EARN (merged ${cA.gross} vs ${cB.gross}, ratio ${mergeRatio.toFixed(3)})`);
+  // 3.3 — dying car (engineHp < 20) earns ×0.5
+  const dyC = await mkMotorCar("dyC", "nexia", { mergeCount: 0, engineHp: 10 }, rw5);
+  const dyD = await mkMotorCar("dyD", "nexia", { mergeCount: 0, engineHp: 100 }, rw5);
+  const cC = await motorCollect(dyC.id, dyC.carId); const cD = await motorCollect(dyD.id, dyD.carId);
+  const dyingRatio = (cC.gross ?? 0) / Math.max(1, cD.gross ?? 0);
+  ok(Math.abs(dyingRatio - 0.5) < 0.05, `dying: engineHp<20 earns ×0.5 (dying ${cC.gross} vs healthy ${cD.gross}, ratio ${dyingRatio.toFixed(3)})`);
+  // 3.2 — merge extends LIFESPAN: a merged car ages SLOWER (less engineHp lost over 24h)
+  const lfE = await mkMotorCar("lfE", "nexia", { mergeCount: 1, engineHp: 100 }, rw24);
+  const lfF = await mkMotorCar("lfF", "nexia", { mergeCount: 0, engineHp: 100 }, rw24);
+  await motorCollect(lfE.id, lfE.carId); await motorCollect(lfF.id, lfF.carId);
+  const hpE = (await prisma.garajCar.findUnique({ where: { id: lfE.carId } }))!.engineHp;
+  const hpF = (await prisma.garajCar.findUnique({ where: { id: lfF.carId } }))!.engineHp;
+  ok(hpE > hpF, `merge: +25% LIFESPAN → merged ages slower (merged engineHp ${hpE} > unmerged ${hpF})`);
+
   // ── 12) Ledger invariant AFTER P2 sequence ───────────────────────────────
   for (const mm of [sellerM, buyerM]) {
     const bal = (await prisma.member.findUnique({ where: { id: mm.id } }))!.coins;
