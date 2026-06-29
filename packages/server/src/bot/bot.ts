@@ -98,16 +98,16 @@ function mainMenu(isDriver = false): Keyboard {
   // booking (?go=book), not the old bot text flow. Old cached keyboards still send the
   // text → bot.hears("🚕 Taxi chaqirish") falls back to startBooking (graceful).
   const kb = new Keyboard();
-  // Action-first: EVERY button deep-links straight into the Mini App on its exact
-  // screen (?go=…). Old cached keyboards send the label as text → the bot.hears(…)
-  // aliases below still answer in-chat (graceful fallback + the path when a client
-  // doesn't support web-app buttons).
-  // Eski usul (ega tilagi): menu tugmalari BOTNING O'ZIDA ishlaydi — mini-appsiz.
-  // Har tugma matn → bot.hears(...) ushlaydi (taxi→startBooking, Hamyon→profil,
-  // Bonuslar→vazifalar, Do'st→referral...). Mini App'ni xohlaganlar pastdagi "🚀 Ilova".
-  const btn = (label: string, _go: string): void => {
-    void _go;
-    kb.text(label);
+  // Action-first: EVERY screen button is a reply-keyboard WEB_APP button — one tap opens the Mini App
+  // directly on its target screen (?go=…). Owner request 2026-06-29: stop the "Telegram orqali oching"
+  // confusion (users were tapping text buttons that asked the bot for a link, then had to tap AGAIN to
+  // open the Mini App). Now: tap = app. Old cached keyboards still send the label as plain text → the
+  // bot.hears(…) aliases below still answer in-chat (graceful fallback for users on cached menus or
+  // clients that don't support web-app buttons). Bot-only flows (pay-driver requires typing a car
+  // number; driver panel = bot stats) stay as text buttons.
+  const btn = (label: string, go: string): void => {
+    if (canWebApp) kb.webApp(label, webAppUrl(go));
+    else kb.text(label);
   };
   btn("🚕 Taxi chaqirish", "book");
   btn("📍 Buyurtmam", "book"); // booking3 shows the live order if one is active
@@ -124,10 +124,11 @@ function mainMenu(isDriver = false): Keyboard {
   btn("🏆 Reyting", "reyting");
   btn("👤 Hisobim", "profile");
   kb.row();
-  btn("🙏 Haydovchiga to'lash", "tip"); // one-tap → booking.ts bot.hears → startPayDriver
+  // Bot-only flows (need to type / show chat stats) stay as plain text — Mini App can't handle these.
+  kb.text("🙏 Haydovchiga to'lash"); // one-tap → booking.ts bot.hears → startPayDriver (car-number prompt)
   if (isDriver) {
     kb.row();
-    btn("🚗 Haydovchi paneli", "driver");
+    kb.text("🚗 Haydovchi paneli");
   }
   // is_persistent → the menu stays pinned open (app-like nav); placeholder → modern input hint
   return kb.resized().persistent().placeholder("Menyudan tanlang yoki manzilni yozing…");
