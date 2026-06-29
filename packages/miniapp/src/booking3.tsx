@@ -350,7 +350,13 @@ function Booking3Inner({ me, info, onClose }: { me: MeResponse; info: BookingInf
   const [msg, setMsg] = useState<string | null>(null);
   const [locating, setLocating] = useState(false); // GPS in-flight → spin the locate icon
   const [active, setActive] = useState<ActiveBookingView | null>(info.active ?? null); // B: live status
-  const [plateZoom, setPlateZoom] = useState(false); // mashina raqamini bosib KATTA ko'rish (ko'cha sharoiti)
+  const [plateZoom, setPlateZoom] = useState(false); // mashina raqamini bosib haydovchi kartochkasini KATTA ko'rish
+  const [plateClosing, setPlateClosing] = useState(false); // exit animatsiyasi davom etayotganini ushlab turadi
+  const closePlate = (): void => {
+    haptic();
+    setPlateClosing(true);
+    setTimeout(() => { setPlateZoom(false); setPlateClosing(false); }, 260); // animatsiya yakuni
+  };
   const activeRef = useRef<ActiveBookingView | null>(info.active ?? null); // E7: detect active→null finish
   const [finishedBid, setFinishedBid] = useState<number | null>(null); // E7: the just-finished ride
   const [stars, setStars] = useState(0);
@@ -1298,16 +1304,51 @@ function Booking3Inner({ me, info, onClose }: { me: MeResponse; info: BookingInf
           </div>
         </div>
       )}
-      {/* 🔍 Plate zoom — bosish bilan ekran bo'yi katta nomerli plitka. Hech bir joyga bosish → yopiladi. */}
-      {plateZoom && active?.driver?.carNumber && (
-        <div className="b3-plate-zoom" onClick={() => { haptic(); setPlateZoom(false); }} role="dialog" aria-label="Mashina raqami">
-          <div className="b3-plate-zoom-card" onClick={(e) => e.stopPropagation()}>
-            <div className="b3-plate-zoom-label">🚘 {active.driver.carModel || ""}</div>
-            <div className="b3-plate-zoom-num">{active.driver.carNumber}</div>
-            <button className="b3-plate-zoom-close" onClick={() => { haptic(); setPlateZoom(false); }}>Yopish</button>
+      {/* 🔍 Haydovchi kartochkasi — plitkani bosib boy malumotli pop-up. Tashqariga bosish → silliq pastga qaytadi. */}
+      {plateZoom && active?.driver?.carNumber && (() => {
+        const d = active.driver!;
+        const r = d.rating ?? 0;
+        const full = Math.floor(r);
+        const half = r - full >= 0.5;
+        const stars = "★".repeat(full) + (half ? "⯨" : "") + "☆".repeat(Math.max(0, 5 - full - (half ? 1 : 0)));
+        // sintetik fikr tag — reyting asosida (haqiqiy oxirgi-fikr backend endpoint qo'shilsa, shu yerga keladi)
+        const verdict = r >= 4.8 ? { ico: "🏆", t: "Eng yaxshi haydovchilardan" }
+          : r >= 4.5 ? { ico: "✅", t: "Yuqori reyting · mijozlar tavsiya qiladi" }
+          : r >= 4.0 ? { ico: "👍", t: "Yaxshi reyting" }
+          : r > 0    ? { ico: "🆕", t: "Faollikni ko'paytirmoqda" }
+          : { ico: "🆕", t: "Yangi haydovchi" };
+        return (
+          <div className={`b3-plate-zoom${plateClosing ? " closing" : ""}`} onClick={closePlate} role="dialog" aria-label="Haydovchi ma'lumotlari">
+            <div className="b3-driver-card" onClick={(e) => e.stopPropagation()}>
+              <div className="b3-dc-avatar">🧑‍✈️</div>
+              <div className="b3-dc-name">{d.fullName || "Haydovchi"}</div>
+              <div className="b3-dc-rating">
+                <span className="b3-dc-stars">{stars}</span>
+                {r > 0 && <span className="b3-dc-rating-num">{r.toFixed(1)}</span>}
+              </div>
+              <div className="b3-dc-car">🚘 {d.carModel || "—"}</div>
+              <div className="b3-dc-plate-wrap">
+                <div className="b3-dc-plate-pin" />
+                <div className="b3-dc-plate-pin r" />
+                <div className="b3-dc-plate-num">{d.carNumber}</div>
+              </div>
+              <div className="b3-dc-verdict">
+                <span className="b3-dc-verdict-ico">{verdict.ico}</span>
+                <span>{verdict.t}</span>
+              </div>
+              {active.etaMin != null && active.etaMin > 0 && (
+                <div className="b3-dc-eta">⏱ Yetib keladi: <b>~{active.etaMin} daq</b></div>
+              )}
+              <div className="b3-dc-actions">
+                {d.phone && (
+                  <a className="b3-dc-call" href={`tel:${d.phone}`}>📞 Qo'ng'iroq</a>
+                )}
+                <button className="b3-dc-close" onClick={closePlate}>Yopish</button>
+              </div>
+            </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
     </div>
   );
 }
