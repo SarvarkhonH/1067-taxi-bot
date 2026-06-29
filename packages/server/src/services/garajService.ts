@@ -311,9 +311,14 @@ export async function getGarajState(memberId: number): Promise<GarajStateRespons
   ]);
   const nowMs = Date.now();
   // 🚗 FAZA2 — when the model-upgrade ladder is ON, the "buy a new car" shop is removed (one car,
-  // upgrade it). Players still get a free starter (FTUE) + P2P bozor + yo'l-sovg'alari.
+  // upgrade it). A brand-new player (0 cars) must still GET their first car → grant a FREE starter
+  // Tiko ONCE (marker-guarded; sell→regrant impossible). Then they upgrade it up the ladder / trade P2P.
   const upgradeOn = await featureOn(CARUPGRADE_FLAG);
-  const ownedCodes = new Set(cars.map((c) => c.carCode));
+  let carsEff = cars;
+  if (upgradeOn && motorEnabled && carsEff.length === 0) {
+    if (await ensureStarterCar(memberId)) carsEff = await prisma.garajCar.findMany({ where: { memberId, soldAt: null } });
+  }
+  const ownedCodes = new Set(carsEff.map((c) => c.carCode));
   // 🛡 KUNLIK CAP — remaining motor-earn room today (so the «Yig'ish +X» preview matches the
   // capped grant). Per-member; one aggregate query. cap=0 → unlimited room.
   const dailyCapView = Math.max(0, Math.floor(motorEcon.dailyEarnCap ?? 3000));
@@ -333,7 +338,7 @@ export async function getGarajState(memberId: number): Promise<GarajStateRespons
     arr.push(p);
     partsByCar.set(p.installedCarId, arr);
   }
-  const carViews: GarajCarView[] = cars.map((c) => {
+  const carViews: GarajCarView[] = carsEff.map((c) => {
     const cm = garajCarMeta(c.carCode);
     const view: GarajCarView = {
       id: c.id,
@@ -615,6 +620,35 @@ export async function upgradeCarModel(memberId: number, garajCarId: number): Pro
     });
     if (!result.ok) return { ok: false, reason: result.reason, coins: await getCoins(memberId) };
     return { ok: true, newCode: next, cost: result.cost, coins: await getCoins(memberId) };
+  });
+}
+
+// 🚗 FAZA2 — free starter car. When the shop is removed (carupgrade ON), a brand-new player must still
+// GET their first car. Grants a FREE Tiko (with #serial + free tank) exactly ONCE per player — a 0-amount
+// CoinTxn marker (garaj:starter:<id>) guards it so sell→regrant is impossible (no free-car farming).
+async function ensureStarterCar(memberId: number): Promise<boolean> {
+  const marker = `garaj:starter:${memberId}`;
+  if (await prisma.coinTxn.findUnique({ where: { idempotencyKey: marker } })) return false; // already got their one starter
+  if (await prisma.garajCar.findFirst({ where: { memberId, soldAt: null }, select: { id: true } })) return false; // already has a car
+  return withMemberLock(memberId, async () => {
+    if (await prisma.coinTxn.findUnique({ where: { idempotencyKey: marker } })) return false; // race re-check
+    await prisma.$transaction(async (tx) => {
+      const serial = await nextMotorSerial(tx);
+      const econ = await getMotorEcon();
+      const tankHours = Math.max(1, Math.min(72, econ.fuelTankHours ?? 24));
+      const freeTankUntil = new Date(Date.now() + tankHours * 3_600_000);
+      const defectPct = Math.max(0, Math.min(10, econ.hiddenDefectPct ?? 3)) / 100;
+      const defect = hiddenDefectFor(serial, defectPct);
+      const variant = variantFor("tiko", serial, { qora_nexia: Math.max(2, Math.floor(econ.variantQoraNexiaOneIn ?? 100)), afsonaviy_tiko: Math.max(2, Math.floor(econ.variantAfsonaviyTikoOneIn ?? 2000)) });
+      await tx.coinTxn.create({ data: { memberId, amount: 0, kind: "garaj_starter", reason: "🎁 Bepul starter mashina (Tiko)", idempotencyKey: marker } });
+      await tx.garajCar.upsert({
+        where: { memberId_carCode: { memberId, carCode: "tiko" } },
+        create: { memberId, carCode: "tiko", source: "starter", condition: "worn", acquireCost: 0, serial, bornAt: new Date(), engineHp: 100, lastAccrualAt: new Date(), ownerCount: 1, totalTrips: 0, fueledUntilAt: freeTankUntil, hiddenDefect: defect ? JSON.stringify(defect) : null, variant },
+        update: { source: "starter", condition: "worn", acquireCost: 0, soldAt: null, serial, bornAt: new Date(), engineHp: 100, lastAccrualAt: new Date(), ownerCount: 1, totalTrips: 0, fueledUntilAt: freeTankUntil, hiddenDefect: defect ? JSON.stringify(defect) : null, variant },
+      });
+      await tx.memberGarajMeta.upsert({ where: { memberId }, create: { memberId, carsOwnedCount: 1, sumCarLevels: 1, reputationScore: 5 }, update: { carsOwnedCount: { increment: 1 }, sumCarLevels: { increment: 1 } } });
+    });
+    return true;
   });
 }
 

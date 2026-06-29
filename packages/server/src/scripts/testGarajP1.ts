@@ -41,6 +41,7 @@ import {
   creditTaxiMotorBonus,
   upgradeCarModel,
   getBazaar,
+  getGarajState,
 } from "../services/garajService";
 import { __resetFeatureCache, setFeature } from "../services/featureFlags";
 
@@ -648,6 +649,14 @@ async function main(): Promise<void> {
   ok(ocBuy.ok, `ownerCount: car bought`);
   const ocCar = (await prisma.garajCar.findUnique({ where: { id: upAcq.carId! } }))!;
   ok(ocCar.memberId === ocBuyer.id && (ocCar.ownerCount ?? 1) === 2, `ownerCount: → 2 after sale (was 1); cleanHistory now honest`);
+  // E) FREE STARTER — with the shop removed, a brand-new player (0 cars, 0 coins) still GETS a Tiko
+  const newbie = await prisma.member.create({ data: { type: "client", kasId: `${TAG}-newbie`, fullName: "Newbie", phone: "+998900008090", trips: 0 } });
+  const ns1 = await getGarajState(newbie.id); // first open → grants the free starter
+  ok(ns1.cars.length === 1 && ns1.cars[0]!.carCode === "tiko" && (ns1.cars[0]!.serial ?? 0) > 0, `starter: new player GOT a free Tiko #${ns1.cars[0]?.serial} (not stranded by shop removal)`);
+  const ns2 = await getGarajState(newbie.id); // second open → no double-grant
+  ok(ns2.cars.length === 1, `starter: idempotent — second open does NOT grant another car`);
+  const starterMarker = await prisma.coinTxn.findUnique({ where: { idempotencyKey: `garaj:starter:${newbie.id}` } });
+  ok(!!starterMarker && starterMarker.amount === 0, `starter: 0-amount marker written (no tanga emission)`);
   await setFeature("carupgrade", false); __resetFeatureCache();
 
   // ── 12) Ledger invariant AFTER P2 sequence ───────────────────────────────
