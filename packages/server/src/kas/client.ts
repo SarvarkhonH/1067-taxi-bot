@@ -23,6 +23,7 @@ import type {
   SavedAddress,
 } from "./types";
 import type { MemberType } from "@t1067/shared";
+import { recordKas, classifyKasError } from "../services/kasHealth";
 
 // ─── kas booking status normalization ────────────────────────────────────────
 // kas booking lifecycle: new → take → in_place → delivered. There is NO "started"/"arrived".
@@ -185,14 +186,22 @@ export class KasLiveSource implements KasDataSource {
   }
 
   async getText(path: string, accept = "application/json, text/plain, */*"): Promise<RawResponse> {
-    if (!this.loggedIn) await this.login();
-    let res = await rawRequest(this.url(path), { headers: { ...this.baseHeaders(), Accept: accept } });
-    if (res.status >= 300 && res.status < 400 && /\/login/.test((res.headers.location as string) ?? "")) {
-      this.loggedIn = false;
-      await this.login();
-      res = await rawRequest(this.url(path), { headers: { ...this.baseHeaders(), Accept: accept } });
+    // Every kas HTTP read funnels through here — passively feed the early-warning health monitor so
+    // a 429/login/timeout spike alerts the owner in seconds (no synthetic ping, zero extra kas load).
+    try {
+      if (!this.loggedIn) await this.login();
+      let res = await rawRequest(this.url(path), { headers: { ...this.baseHeaders(), Accept: accept } });
+      if (res.status >= 300 && res.status < 400 && /\/login/.test((res.headers.location as string) ?? "")) {
+        this.loggedIn = false;
+        await this.login();
+        res = await rawRequest(this.url(path), { headers: { ...this.baseHeaders(), Accept: accept } });
+      }
+      recordKas(res.status < 400, res.status === 429 ? "429" : res.status >= 400 ? "other" : undefined);
+      return res;
+    } catch (e) {
+      recordKas(false, classifyKasError(e));
+      throw e;
     }
-    return res;
   }
 
   async getJson(path: string): Promise<Record<string, unknown>> {

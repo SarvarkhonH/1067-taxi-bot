@@ -230,6 +230,14 @@ async function main(): Promise<void> {
         bookingBusy = false;
       }
     }
+    // ⚠️ early-warning: ride the frequent booking tick (no new poller) to surface a kas 429/login
+    // spike to the owner in seconds — long before it cascades into failed bookings. Cheap: reads
+    // in-memory counters fed passively by the kas getText chokepoint.
+    if (bot) {
+      const { maybeAlertKasHealth } = await import("./services/kasHealth");
+      const { alertAdmins } = await import("./services/economyService");
+      await maybeAlertKasHealth(alertAdmins).catch(() => undefined);
+    }
     // 🚖 SMS-parity speed: while a rider is WAITING for a driver, poll every 5s so "Haydovchi
     // topildi" lands in seconds like the kas SMS. Assigned / in-trip → 15s (arrival is WS-instant).
     // Idle → 90s. One api/bookings call per tick regardless of ride count — cheap at any scale.
