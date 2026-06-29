@@ -53,23 +53,26 @@ export function registerBroadcast(bot: Bot): void {
       return;
     }
     draft.delete(OWNER_TG);
-    await ctx.answerCallbackQuery({ text: "Yuborilmoqda…" });
+    await ctx.answerCallbackQuery({ text: "Fonda yuborilmoqda…" });
     const users = await prisma.telegramUser.findMany({ where: { memberId: { not: null } }, select: { id: true } });
-    await ctx.editMessageText(`📤 Yuborilmoqda… (0/${users.length})`).catch(() => undefined);
-    let ok = 0;
-    let fail = 0;
-    for (let i = 0; i < users.length; i++) {
-      try {
-        await bot.api.sendMessage(users[i]!.id, text, { parse_mode: "HTML" });
-        ok++;
-      } catch {
-        fail++;
+    await ctx.editMessageText(`📤 <b>${users.length} kishiga yuborilmoqda…</b> (fonda — tugagach xabar beraman)`, { parse_mode: "HTML" }).catch(() => undefined);
+    // Run the send loop in the BACKGROUND. It takes ~users/22 seconds; doing it inside the handler
+    // blocked the grammY webhook (10s timeout → unhandledRejection). Detached, the handler returns now.
+    void (async () => {
+      let ok = 0;
+      let fail = 0;
+      for (let i = 0; i < users.length; i++) {
+        try {
+          await bot.api.sendMessage(users[i]!.id, text, { parse_mode: "HTML" });
+          ok++;
+        } catch {
+          fail++;
+        }
+        if (i % 22 === 21) await new Promise((r) => setTimeout(r, 1000)); // ~22 msg/s, under Telegram's flood limit
       }
-      // ~22 msg/s — Telegram bulk flood limit is ~30/s to different users; stay safely under it
-      if (i % 22 === 21) await new Promise((r) => setTimeout(r, 1000));
-    }
-    await ctx
-      .editMessageText(`✅ <b>E'lon yuborildi</b>\n📬 Yetkazildi: <b>${ok}</b>\n${fail ? `❌ Yetmadi: <b>${fail}</b> (bloklagan/o'chirgan)` : ""}`, { parse_mode: "HTML" })
-      .catch(() => undefined);
+      await bot.api
+        .sendMessage(OWNER_TG, `✅ <b>E'lon yuborildi</b>\n📬 Yetkazildi: <b>${ok}</b>\n${fail ? `❌ Yetmadi: <b>${fail}</b> (bloklagan/o'chirgan)` : ""}`, { parse_mode: "HTML" })
+        .catch(() => undefined);
+    })().catch((e) => console.error("[broadcast] failed", e));
   });
 }

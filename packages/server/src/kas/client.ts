@@ -574,16 +574,12 @@ export class KasLiveSource implements KasDataSource {
     const last9 = phone.replace(/\D/g, "").slice(-9);
     const hit = this.clientKeyCache.get(last9);
     if (hit && Date.now() - hit.at < 3_600_000) return hit.key;
-    let { secretKey, loginSmsCode } = await this.readClientAuth(phone);
-    if (!secretKey) {
-      await this.clientLogin(phone).catch(() => undefined); // kas sets loginSmsCode on the record
-      ({ secretKey, loginSmsCode } = await this.readClientAuth(phone));
-      if (!secretKey && loginSmsCode) {
-        const r = await this.clientConfirmSms(phone, loginSmsCode).catch(() => null);
-        try { secretKey = String((JSON.parse(r?.body ?? "{}") as { clientDto?: { secretKey?: string } })?.clientDto?.secretKey ?? "") || null; } catch { /* re-read below */ }
-        if (!secretKey) ({ secretKey } = await this.readClientAuth(phone));
-      }
-    }
+    // HOT PATH (runs per booking): ONE read off the operator clients API. We deliberately DON'T do the
+    // login+confirmSms auto-provision here — that's 3 extra kas calls + latency per booking and was
+    // contributing to kas 429s and >10s booking handlers (webhook timeouts). A client who has never
+    // used the kas app (no secretKey on record) simply falls through to the throughWeb path (still
+    // exact-pin, just «hamma uchun»). clientLogin/clientConfirmSms remain for a future background warm.
+    const { secretKey } = await this.readClientAuth(phone);
     if (secretKey) this.clientKeyCache.set(last9, { key: secretKey, at: Date.now() });
     return secretKey || null;
   }
