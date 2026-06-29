@@ -1163,14 +1163,14 @@ function Booking3Inner({ me, info, onClose }: { me: MeResponse; info: BookingInf
                 {active.status === "arrived" ? "🚕 Haydovchi yetib keldi — chiqing!" : "✅ Haydovchi qabul qildi"}
               </div>
               <RideTimeline status={active.status} />
-              <div className="b3-driver">
+              <div className="b3-driver b3-driver-tap" role="button" tabIndex={0} onClick={() => { haptic(); setPlateZoom(true); }} title="Bosib to'liq ko'rish">
                 <div className="b3-driver-av">🧑‍✈️</div>
                 <div className="b3-driver-meta">
                   <div className="b3-driver-name">
                     {active.driver.fullName || "Haydovchi"}
                     {active.driver.rating ? <span className="b3-driver-rate"> ⭐{active.driver.rating.toFixed(1)}</span> : null}
                   </div>
-                  <div className="dim fs13">🚘 {active.driver.carModel} · <span className="b3-driver-plate" role="button" tabIndex={0} onClick={() => { haptic(); setPlateZoom(true); }} title="Bosib kattalashtirish">{active.driver.carNumber}</span></div>
+                  <div className="dim fs13">🚘 {active.driver.carModel} · <span className="b3-driver-plate">{active.driver.carNumber}</span></div>
                 </div>
                 {active.etaMin ? <div className="b3-eta"><b>{active.etaMin}</b><span>daq</span></div> : null}
               </div>

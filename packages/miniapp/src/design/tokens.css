@@ -398,10 +398,10 @@ body {
   margin-left: 4px;
   font-family: ui-monospace, "Courier New", monospace;
   vertical-align: -2px;
-  cursor: pointer;
-  transition: transform 90ms var(--ease-out), background 180ms;
 }
-.b3-driver-plate:active { transform: scale(0.96); background: rgba(255, 179, 0, 0.28); }
+/* Butun haydovchi kartochkasi bosiladigan — qayerga bossa ham popup chiqadi (faqat plate emas). */
+.b3-driver-tap { cursor: pointer; transition: transform 110ms var(--ease-out), border-color 180ms; }
+.b3-driver-tap:active { transform: scale(0.985); border-color: rgba(255, 200, 64, 0.45); }
 
 /* 🔍 Plate zoom — plitkani bosib chiqadigan boy haydovchi kartochkasi. Pastdan kelib, pastga qaytadi. */
 .b3-plate-zoom {
