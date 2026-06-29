@@ -70,10 +70,11 @@ export class KasMockSource implements KasDataSource {
     }));
   }
 
-  async fetchByPhone(phone: string): Promise<KasMember[]> {
+  async fetchByPhone(phone: string, only?: KasMember["type"]): Promise<KasMember[]> {
     const norm = phone.replace(/\D/g, "").slice(-9);
     return [...DRIVERS, ...CLIENTS]
       .filter((m) => m.phone && m.phone.replace(/\D/g, "").slice(-9) === norm)
+      .filter((m) => !only || m.type === only)
       .map((m) => ({ ...m, points: jitter(m.points, 0.04) }));
   }
 

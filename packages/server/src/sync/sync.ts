@@ -70,12 +70,13 @@ export async function refreshLinkedMembers(): Promise<{ checked: number; deltas:
   const deltas: CashbackDelta[] = [];
   for (let idx = 0; idx < linked.length; idx++) {
     const m = linked[idx]!;
-    // THROTTLE: each member = 2 kas byFilter calls. Firing all of them in a tight loop (171 members →
-    // 342 calls) bursts kas and earns a 429 (which then breaks login → bookings). Space them ~180ms
-    // apart so a refresh stays gentle (~11 kas calls/s) and well within one sync interval.
-    if (idx > 0) await new Promise((r) => setTimeout(r, 180));
+    // THROTTLE: kas rate-limits its byFilter endpoint HARD — measured live, ~1 req/s is safe but ~7
+    // req/s gets ~70% of calls 429'd, which then breaks login → bookings. So pace one member per
+    // ~1.1s. Combined with the type-aware lookup below (1 kas call per member, not 2), a full refresh
+    // of ~170 members costs ~170 calls over ~3 min — gentle, and well inside the 15-min sync interval.
+    if (idx > 0) await new Promise((r) => setTimeout(r, 1100));
     try {
-      const matches = await source.fetchByPhone(m.phone!);
+      const matches = await source.fetchByPhone(m.phone!, m.type as MemberType);
       const fresh = matches.find((f) => f.type === m.type && f.kasId === m.kasId) ?? matches.find((f) => f.type === m.type);
       if (!fresh) continue;
       if (fresh.points !== m.points || fresh.trips !== m.trips || fresh.rating !== m.rating) {

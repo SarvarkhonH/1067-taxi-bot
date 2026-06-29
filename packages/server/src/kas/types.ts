@@ -191,8 +191,12 @@ export interface KasDataSource {
   readonly name: "mock" | "live";
   /** Full pull (mock seed / optional bulk import). */
   fetchMembers(): Promise<KasMember[]>;
-  /** On-demand: fetch the member(s) matching a phone (client and/or driver). Light, no bulk scan. */
-  fetchByPhone(phone: string): Promise<KasMember[]>;
+  /**
+   * On-demand: fetch the member(s) matching a phone (client and/or driver). Light, no bulk scan.
+   * Pass `only` to hit a single kas endpoint (the refresh loop knows each member's type, so it skips
+   * the irrelevant lookup — halving kas load and avoiding needless cross-type 429s).
+   */
+  fetchByPhone(phone: string, only?: MemberType): Promise<KasMember[]>;
 
   /** Booking: client name + saved addresses + any active booking, by phone. */
   checkClient(phone: string): Promise<ClientBookingInfo | null>;

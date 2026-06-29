@@ -22,6 +22,7 @@ import type {
   RideHistoryItem,
   SavedAddress,
 } from "./types";
+import type { MemberType } from "@t1067/shared";
 
 // ─── kas booking status normalization ────────────────────────────────────────
 // kas booking lifecycle: new → take → in_place → delivered. There is NO "started"/"arrived".
@@ -210,30 +211,36 @@ export class KasLiveSource implements KasDataSource {
   }
 
   /** On-demand lookup by phone — one light query per type, no bulk scan. */
-  async fetchByPhone(phone: string): Promise<KasMember[]> {
+  async fetchByPhone(phone: string, only?: MemberType): Promise<KasMember[]> {
     const norm = phone.replace(/\D/g, "").slice(-9);
     if (!norm) return [];
     const q = encodeURIComponent(norm);
     const out: KasMember[] = [];
     const exact = (m: KasMember) => m.phone && m.phone.replace(/\D/g, "").slice(-9) === norm;
 
-    try {
-      const data = await this.getJson(`api/clients/byFilter?searchText=${q}&sort=bonus&page=0&size=20`);
-      for (const c of (data.clientDtoList as Record<string, unknown>[]) ?? []) {
-        const m = mapClient(c);
-        if (exact(m)) out.push(m);
+    // `only` lets the periodic refresh skip the endpoint it doesn't need (a client member never needs
+    // the driver lookup and vice-versa). kas rate-limits hard (~1 req/s) so halving the calls matters.
+    if (only !== "driver") {
+      try {
+        const data = await this.getJson(`api/clients/byFilter?searchText=${q}&sort=bonus&page=0&size=20`);
+        for (const c of (data.clientDtoList as Record<string, unknown>[]) ?? []) {
+          const m = mapClient(c);
+          if (exact(m)) out.push(m);
+        }
+      } catch (e) {
+        console.error("[kas] client lookup failed:", e instanceof Error ? e.message : e);
       }
-    } catch (e) {
-      console.error("[kas] client lookup failed:", e instanceof Error ? e.message : e);
     }
-    try {
-      const data = await this.getJson(`api/drivers/byFilter?searchText=${q}&sort=id&page=0&size=20&date=01.01.2015`);
-      for (const d of (data.driverDtoList as Record<string, unknown>[]) ?? []) {
-        const m = mapDriver(d);
-        if (exact(m)) out.push(m);
+    if (only !== "client") {
+      try {
+        const data = await this.getJson(`api/drivers/byFilter?searchText=${q}&sort=id&page=0&size=20&date=01.01.2015`);
+        for (const d of (data.driverDtoList as Record<string, unknown>[]) ?? []) {
+          const m = mapDriver(d);
+          if (exact(m)) out.push(m);
+        }
+      } catch (e) {
+        console.error("[kas] driver lookup failed:", e instanceof Error ? e.message : e);
       }
-    } catch (e) {
-      console.error("[kas] driver lookup failed:", e instanceof Error ? e.message : e);
     }
     return out;
   }
