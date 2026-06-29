@@ -5,7 +5,7 @@
 // Run: pnpm --filter @t1067/server exec dotenv -e ../../.env -- tsx src/scripts/testGarajP1.ts
 import "./_testDb";
 import "../env";
-import { MAKE_BASE, SLOT_COSTS, CARCHECK_COSTS, OFIS_BID_FACTOR, ofisBidPrice, MERGE_MAX_COUNT, MERGE_BONUS_PCT, mergeMult, variantFor, getVariant, SPEEDER_DAYS, isSpeederActive, speederSurgePrice, getMotorPart } from "@t1067/shared";
+import { MAKE_BASE, SLOT_COSTS, CARCHECK_COSTS, OFIS_BID_FACTOR, ofisBidPrice, MERGE_MAX_COUNT, MERGE_BONUS_PCT, mergeMult, variantFor, getVariant, SPEEDER_DAYS, isSpeederActive, speederSurgePrice, getMotorPart, computeMotorRefillCost } from "@t1067/shared";
 import { prisma } from "../db";
 import { getCoins, grantCoins } from "../services/coinService";
 import {
@@ -38,6 +38,7 @@ import {
   getPartBazaar,
   garajBazaarList,
   garajBazaarBuy,
+  creditTaxiMotorBonus,
 } from "../services/garajService";
 import { __resetFeatureCache, setFeature } from "../services/featureFlags";
 
@@ -561,6 +562,45 @@ async function main(): Promise<void> {
     const bal = (await prisma.member.findUnique({ where: { id: m.id } }))!.coins;
     const tot = (await prisma.coinTxn.aggregate({ where: { memberId: m.id }, _sum: { amount: true } }))._sum.amount ?? 0;
     ok(Math.abs(bal - tot) < 0.001, `fix: member ${m.id} ledger invariant (bal ${bal} == ledger ${tot})`);
+  }
+
+  // ── 11h) 🚕 FAZA1 — real-taxi motor bonus + speeder-fuel proportional ──────
+  await setMotorEcon("taxiMult", 2); await setMotorEcon("dailyEarnCap", 10000); await setMotorEcon("speedMult", 1); await setMotorEcon("bonusDays", 0);
+  const drv = await prisma.member.create({ data: { type: "client", kasId: `${TAG}-drv`, fullName: "Driver", phone: "+998900008077", trips: 5 } });
+  await grantCoins(drv.id, 5_000_000, "manual", "seed");
+  const drvCar = await acquireCar(drv.id, "nexia");
+  ok(drvCar.ok, `taxi prep: driver acquired a motor car`);
+  // A) real ride → taxi bonus + totalTrips++ + motor_taxi ledger row
+  const t1 = await creditTaxiMotorBonus(drv.id, 900001, 60);
+  ok(t1.ok && (t1.bonus ?? 0) > 0, `taxi: real ride credits a bonus (${t1.bonus})`);
+  ok(((await prisma.garajCar.findUnique({ where: { id: drvCar.carId! } }))?.totalTrips ?? 0) === 1, `taxi: totalTrips → 1`);
+  const taxiTxn = await prisma.coinTxn.findUnique({ where: { idempotencyKey: `mo:taxi:${drv.id}:900001` } });
+  ok(!!taxiTxn && taxiTxn.kind === "motor_taxi", `taxi: motor_taxi ledger row written`);
+  // B) idempotent — same booking re-run → no double bonus / trips / balance
+  const balB = await getCoins(drv.id);
+  const t2 = await creditTaxiMotorBonus(drv.id, 900001, 60);
+  ok(t2.ok && (t2.bonus ?? 0) === 0, `taxi: re-run same ride → 0 bonus (idempotent)`);
+  ok((await getCoins(drv.id)) === balB, `taxi: re-run → balance unchanged`);
+  ok(((await prisma.garajCar.findUnique({ where: { id: drvCar.carId! } }))?.totalTrips ?? 0) === 1, `taxi: re-run → totalTrips still 1 (no double-count)`);
+  // C) shared cap — fill the cap, next ride's taxi bonus clamps to 0 (taxi+passive together ≤ cap)
+  await setMotorEcon("dailyEarnCap", 1); // already earned > 1 today from t1
+  const t3 = await creditTaxiMotorBonus(drv.id, 900002, 60);
+  ok(t3.ok && (t3.bonus ?? 0) === 0, `taxi: shared cap reached → taxi bonus 0 (got ${t3.bonus})`);
+  await setMotorEcon("dailyEarnCap", 10000);
+  // D) OFF-safe
+  await setFeature("motorolami", false); __resetFeatureCache();
+  const tOff = await creditTaxiMotorBonus(drv.id, 900003, 60);
+  ok(!tOff.ok, `taxi: flag OFF → no-op`);
+  await setFeature("motorolami", true); __resetFeatureCache();
+  // E) speeder-fuel proportional (pure helper) — a ×3-boosted car pays ~×3 fuel
+  const fuel1 = computeMotorRefillCost("nexia", 24, 1, 1);
+  const fuel3 = computeMotorRefillCost("nexia", 24, 1, 3);
+  ok(Math.abs(fuel3 / fuel1 - 3) < 0.02, `speeder-fuel: refill cost scales with speed-factor (×3 ≈ ${(fuel3 / fuel1).toFixed(2)})`);
+  // F) driver ledger invariant
+  {
+    const bal = (await prisma.member.findUnique({ where: { id: drv.id } }))!.coins;
+    const tot = (await prisma.coinTxn.aggregate({ where: { memberId: drv.id }, _sum: { amount: true } }))._sum.amount ?? 0;
+    ok(Math.abs(bal - tot) < 0.001, `taxi: driver ledger invariant (bal ${bal} == ledger ${tot})`);
   }
 
   // ── 12) Ledger invariant AFTER P2 sequence ───────────────────────────────

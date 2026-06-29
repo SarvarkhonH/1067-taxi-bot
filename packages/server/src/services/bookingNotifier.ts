@@ -585,6 +585,15 @@ export async function pushBookingUpdates(
             await resilient("drv_daily_5", () => incrementMission(driver.id, "drv_daily_5", 1, `qinc:${driver.id}:drv_daily_5:${m.lastBookingId}`));
             await resilient("drv_weekly_25", () => incrementMission(driver.id, "drv_weekly_25", 1, `qinc:${driver.id}:drv_weekly_25:${m.lastBookingId}`));
             await resilient("drv_weekly_40", () => incrementMission(driver.id, "drv_weekly_40", 1, `qinc:${driver.id}:drv_weekly_40:${m.lastBookingId}`));
+            // 🚕 FAZA1-1.1 — real-taxi motor bonus + totalTrips++ for the DRIVER's live motor car. Idempotent
+            // per (driver, booking); bounded by dailyEarnCap (shared with passive motor_earn). OFF-safe.
+            try {
+              const { creditTaxiMotorBonus } = await import("./garajService");
+              const rideMins = m.rideStartedAt ? (Date.now() - m.rideStartedAt.getTime()) / 60_000 : 0;
+              await resilient("motor_taxi", () => creditTaxiMotorBonus(driver.id, m.lastBookingId!, rideMins));
+            } catch (e) {
+              console.error("[motor taxi] bonus failed:", e);
+            }
             // 🔧 XIII-1: random car part for the driver's completed ride
             try {
               const { dropCarPart } = await import("./itemService");

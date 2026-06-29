@@ -527,8 +527,11 @@ export const MOTOR_ECON_KNOBS: MotorEconKnob[] = [
   { key: "fuelMult", label: "⛽ Yoqilg'i narxi (×)", def: 1, min: MOTOR_FUELMULT_MIN, max: MOTOR_FUELMULT_MAX, step: 0.05, live: true },
   { key: "speedMult", label: "⚡ Daromad tezligi (×)", def: 1, min: 0.25, max: 2, step: 0.05, live: true },
   // 🛡 KUNLIK CAP — har o'yinchi motordan kuniga shu summadan ko'p NET ishlay olmaydi (anti-inflyatsiya).
-  // 0 = cap o'chiq. motorCollect bugungi motor_earn yig'indisini cap'ga clamp qiladi.
-  { key: "dailyEarnCap", label: "🛡 Kunlik daromad cap (tanga)", def: 3000, min: 0, max: 50000, step: 250, live: true },
+  // 0 = cap o'chiq. motorCollect bugungi (motor_earn + motor_taxi) yig'indisini cap'ga clamp qiladi.
+  { key: "dailyEarnCap", label: "🛡 Kunlik daromad cap (tanga)", def: 1000, min: 0, max: 50000, step: 250, live: true },
+  // 🚕 FAZA1 — real taksi bonusi: haydovchining motor-mashinasi har real safarda QO'SHIMCHA (taxiMult−1)×
+  // ishlaydi (safar vaqti passiv 1× ustiga). dailyEarnCap ICHIDA (jami ≤ cap). 1 = bonus o'chiq (faqat safar++).
+  { key: "taxiMult", label: "🚕 Real taksi bonus (×)", def: 2, min: 1, max: 3, step: 0.5, live: true },
   // ⚖️ AVTO-STABILIZATOR — global kunlik motor-emissiya targetdan oshsa, fuelMult avto-ko'tariladi (sovutadi).
   // 0 = o'chiq (default). emissionTargetDay = butun tizim bo'yicha kunlik motor_earn chegarasi.
   { key: "emissionTargetDay", label: "⚖️ Kunlik emissiya target (0=o'chiq)", def: 0, min: 0, max: 100_000_000, step: 50_000, live: true },
@@ -700,12 +703,15 @@ export function computeMotorEarnNoFuel(speedPerHour: number, hours: number, taxi
 }
 /** Refill narxi. Har refill da QAYTA hisoblanadi (cache YO'Q) — admin fuelMult o'zgarsa darhol qo'llanadi.
  *  Tank lasts tankHours wall-clock. cost ≈ avvalgi auto-sink (gross × fuel_pct × fuelMult). */
-export function computeMotorRefillCost(carCode: string, tankHours: number, fuelMult: number): number {
+export function computeMotorRefillCost(carCode: string, tankHours: number, fuelMult: number, speedFactor = 1): number {
   const sp = motorSpeed(carCode);
   const h = Math.max(1, Math.min(72, tankHours));
   const fm = Math.max(MOTOR_FUELMULT_MIN, Math.min(MOTOR_FUELMULT_MAX, fuelMult));
+  // FAZA1-1.2: speedFactor = boosted earn multiplier (speeder × speedMult). When a car earns ×N (speeder),
+  // its fuel sink scales ×N too → net% stays ~constant (speeder is NOT a near-free ×N on the dominant sink).
+  const sf = Math.max(1, Math.min(8, speedFactor));
   // Math.ceil → refill always over-charges by ≤0.5 tanga, keeps sink ≥80% gross at all rounding edges
-  return Math.max(1, Math.ceil(sp * h * MOTOR_FUEL_PCT * fm));
+  return Math.max(1, Math.ceil(sp * h * MOTOR_FUEL_PCT * fm * sf));
 }
 
 // 🌍 ochiq profil — boshqa o'yinchining garajini ko'rish (status/maqtanish, P0 litmus).

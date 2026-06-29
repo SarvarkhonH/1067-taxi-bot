@@ -313,7 +313,7 @@ export async function getGarajState(memberId: number): Promise<GarajStateRespons
   const dailyCapView = Math.max(0, Math.floor(motorEcon.dailyEarnCap ?? 3000));
   let capRoom = Infinity;
   if (motorEnabled && dailyCapView > 0) {
-    const earnedAgg = await prisma.coinTxn.aggregate({ where: { memberId, kind: "motor_earn", createdAt: { gte: new Date(`${tashkentDate()}T00:00:00+05:00`) } }, _sum: { amount: true } });
+    const earnedAgg = await prisma.coinTxn.aggregate({ where: { memberId, kind: { in: ["motor_earn", "motor_taxi"] }, createdAt: { gte: new Date(`${tashkentDate()}T00:00:00+05:00`) } }, _sum: { amount: true } });
     capRoom = Math.max(0, dailyCapView - (earnedAgg._sum.amount ?? 0));
   }
   // 🔧 P2-deep-5 — installed parts per car (earn preview + speed display + UI chips). One query.
@@ -371,7 +371,9 @@ export async function getGarajState(memberId: number): Promise<GarajStateRespons
       view.fuelPct = Math.max(0, Math.min(100, Math.round((hoursLeft / tankHoursForView) * 100)));
       view.fuelHoursLeft = Math.round(hoursLeft * 10) / 10;
       view.fuelDry = fueledUntilMs <= lastMs;
-      view.fuelRefillCost = computeMotorRefillCost(c.carCode, tankHoursForView, eff.fuelMult);
+      // 🚕 FAZA1-1.2: preview refill cost includes the same speed-factor (speeder × speedMult × parts) as motorRefuel
+      const refillFactor = eff.speedMult * partMult * (isSpeederActive(c.speederUntilAt, nowMs) ? Math.max(2, Math.min(6, Math.floor(motorEcon.speederMult ?? 4))) : 1);
+      view.fuelRefillCost = computeMotorRefillCost(c.carCode, tankHoursForView, eff.fuelMult, refillFactor);
       view.earnPendingNet = hp <= 0 || view.fuelDry ? 0 : Math.min(computeMotorEarnNoFuel(speed, hrs, 0).net, capRoom);
       // 🏛 P1-A/F — surface motor history + Ofis bid + Clean History badge
       view.capitalRepairCount = c.capitalRepairCount ?? 0;
@@ -613,7 +615,7 @@ export async function motorCollect(memberId: number, garajCarId?: number): Promi
     let net = rawNet;
     if (dailyCap > 0 && rawNet > 0) {
       const dayStartUtc = new Date(`${tashkentDate()}T00:00:00+05:00`); // Tashkent (UTC+5) midnight as an instant
-      const earnedAgg = await prisma.coinTxn.aggregate({ where: { memberId, kind: "motor_earn", createdAt: { gte: dayStartUtc } }, _sum: { amount: true } });
+      const earnedAgg = await prisma.coinTxn.aggregate({ where: { memberId, kind: { in: ["motor_earn", "motor_taxi"] }, createdAt: { gte: dayStartUtc } }, _sum: { amount: true } });
       const earnedToday = earnedAgg._sum.amount ?? 0;
       net = Math.max(0, Math.min(rawNet, dailyCap - earnedToday));
     }
@@ -649,7 +651,13 @@ export async function motorRefuel(memberId: number, garajCarId: number): Promise
     const now = Date.now();
     const remainHours = Math.max(0, ((car.fueledUntilAt?.getTime() ?? 0) - now) / 3_600_000);
     if (remainHours > tankHours - 1) return { ok: false, reason: "already_full", coins: await getCoins(memberId) };
-    const cost = computeMotorRefillCost(car.carCode, tankHours, eff.fuelMult);
+    // 🚕 FAZA1-1.2: fuel scales with the car's full earn multiplier (speeder × speedMult × parts) so a
+    // ×N-boosted car pays ×N fuel → speeder/parts can't be a near-free earn bump on the dominant sink.
+    const speederOnR = isSpeederActive(car.speederUntilAt, now);
+    const speederMultR = speederOnR ? Math.max(2, Math.min(6, Math.floor(econ.speederMult ?? 4))) : 1;
+    const partRowsR = await prisma.garajPart.findMany({ where: { installedCarId: car.id, status: "installed", ownerId: memberId }, select: { partCode: true } });
+    const speedFactorR = eff.speedMult * speederMultR * partEarnMult(partRowsR.map((p) => p.partCode));
+    const cost = computeMotorRefillCost(car.carCode, tankHours, eff.fuelMult, speedFactorR);
     const result = await prisma.$transaction(async (tx) => {
       const m = await tx.member.findUnique({ where: { id: memberId }, select: { coins: true } });
       if ((m?.coins ?? 0) < cost) return { ok: false as const, reason: "insufficient" as const };
@@ -666,6 +674,50 @@ export async function motorRefuel(memberId: number, garajCarId: number): Promise
     });
     if (!result.ok) return { ok: false, reason: result.reason, coins: await getCoins(memberId) };
     return { ok: true, cost: result.cost, fueledUntilAt: result.until.toISOString(), fuelPct: 100, coins: await getCoins(memberId) };
+  });
+}
+
+// 🚕 FAZA1-1.1 — real-taxi motor bonus. Plan §1 "real taksida 2×": a driver's active motor car earns
+// EXTRA per completed ride. The ride's wall-clock already accrues 1× passively; this grants the extra
+// (taxiMult−1)× for the ride duration + bumps totalTrips. Bounded by dailyEarnCap (SHARED aggregate with
+// motor_earn) → total daily motor emission per member STILL ≤ cap (≤350/ride invariant untouched: this
+// is a motor faucet, separate from grantRideCoins). Idempotent per (driver, booking) via the marker
+// CoinTxn — written even when net=0 so re-runs across sweeps never double-count totalTrips.
+export async function creditTaxiMotorBonus(driverId: number, bookingId: number, rideMinutes: number): Promise<{ ok: boolean; bonus?: number }> {
+  if (!(await featureOn(MOTOR_FLAG))) return { ok: false };
+  return withMemberLock(driverId, async () => {
+    const key = `mo:taxi:${driverId}:${bookingId}`;
+    const dup = await prisma.coinTxn.findUnique({ where: { idempotencyKey: key } });
+    if (dup) return { ok: true, bonus: 0 }; // already processed this ride (idempotent)
+    const car = await prisma.garajCar.findFirst({ where: { memberId: driverId, soldAt: null, serial: { not: null }, engineHp: { gt: 0 } }, orderBy: { id: "asc" } });
+    if (!car) return { ok: false }; // no live motor car → nothing to credit
+    const econ = await getMotorEcon();
+    const bonusState = await getMotorBonusFor(driverId, econ);
+    const eff = effectiveEcon(econ, bonusState.active);
+    const taxiMult = Math.max(1, Math.min(3, econ.taxiMult ?? 2));
+    const speederOn = isSpeederActive(car.speederUntilAt);
+    const speederMult = speederOn ? Math.max(2, Math.min(6, Math.floor(econ.speederMult ?? 4))) : 1;
+    const partRows = await prisma.garajPart.findMany({ where: { installedCarId: car.id, status: "installed", ownerId: driverId }, select: { partCode: true } });
+    const speed = Math.round(motorSpeed(car.carCode) * eff.speedMult * speederMult * partEarnMult(partRows.map((p) => p.partCode)));
+    const hours = Math.max(0, Math.min(MOTOR_MAX_ACCRUE_HOURS, rideMinutes / 60));
+    const rideEarn = computeMotorEarnNoFuel(speed, hours, 0).net; // 1× ride-time earn
+    const extra = Math.max(0, Math.round(rideEarn * (taxiMult - 1))); // the EXTRA beyond the passive 1×
+    // cap clamp — shared daily ceiling with motor_earn (so taxi + passive together ≤ cap)
+    const dailyCap = Math.max(0, Math.floor(econ.dailyEarnCap ?? 1000));
+    let net = extra;
+    if (dailyCap > 0 && extra > 0) {
+      const dayStartUtc = new Date(`${tashkentDate()}T00:00:00+05:00`);
+      const earnedToday = (await prisma.coinTxn.aggregate({ where: { memberId: driverId, kind: { in: ["motor_earn", "motor_taxi"] }, createdAt: { gte: dayStartUtc } }, _sum: { amount: true } }))._sum.amount ?? 0;
+      net = Math.max(0, Math.min(extra, dailyCap - earnedToday));
+    }
+    // Marker ALWAYS written (even net=0) → idempotent totalTrips. Inline tx (grantCoins-free) to keep
+    // the marker + balance + trips atomic under the single member lock.
+    await prisma.$transaction(async (tx) => {
+      await tx.coinTxn.create({ data: { memberId: driverId, amount: net, kind: "motor_taxi", reason: net > 0 ? `🚕 Taksi bonusi (${car.carCode} #${car.serial})` : `🚕 Taksi safari (cap to'liq)`, idempotencyKey: key } });
+      if (net > 0) await tx.member.update({ where: { id: driverId }, data: { coins: { increment: net } } });
+      await tx.garajCar.update({ where: { id: car.id }, data: { totalTrips: { increment: 1 } } });
+    });
+    return { ok: true, bonus: net };
   });
 }
 
@@ -1191,7 +1243,7 @@ export async function sweepAutoStabilize(): Promise<{ adjusted: boolean; fuelMul
   if (target <= 0) return null; // disabled
   const step = Math.max(0.01, Math.min(0.5, econ.autoStabStep ?? 0.05));
   const dayStartUtc = new Date(`${tashkentDate()}T00:00:00+05:00`);
-  const agg = await prisma.coinTxn.aggregate({ where: { kind: "motor_earn", createdAt: { gte: dayStartUtc } }, _sum: { amount: true } });
+  const agg = await prisma.coinTxn.aggregate({ where: { kind: { in: ["motor_earn", "motor_taxi"] }, createdAt: { gte: dayStartUtc } }, _sum: { amount: true } });
   const emittedToday = agg._sum.amount ?? 0;
   const cur = econ.fuelMult ?? 1;
   let next = cur;
