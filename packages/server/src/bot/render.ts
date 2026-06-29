@@ -354,7 +354,7 @@ export function renderDriverPanel(
       `\n` +
       (recruit.pendingRecruits ? `⏳ Kutilmoqda: <b>${formatNumber(recruit.pendingRecruits)}</b> — skanladi, hali 1-safar qilmagan\n` : "") +
       `💰 QR-dan tushum: bu oy <b>${formatNumber(recruit.earnedThisMonth)}</b> · jami <b>${formatNumber(recruit.earnedTotal)}</b> tanga\n` +
-      `📅 Bu oy yana: <b>${formatNumber(recruit.revshareCapLeft)}</b> tanga · <b>${formatNumber(recruit.newRecruitCapLeft)}</b> yangi mijoz\n` +
+      `📅 Bu oy yana: <b>${formatNumber(recruit.revshareCapLeft)}</b> tanga · <b>${recruit.newRecruitCapLeft < 0 ? "cheksiz" : formatNumber(recruit.newRecruitCapLeft)}</b> yangi mijoz\n` +
       `<i>«📷 Mening QR kodim» — mijozga ko'rsating; skanerlab safar qilsa sizga tanga tushadi.</i>\n`
     : "";
   return (

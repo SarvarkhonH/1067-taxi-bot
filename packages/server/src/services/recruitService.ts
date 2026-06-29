@@ -7,7 +7,7 @@ import { grantCoins } from "./coinService";
 import { REFEREE_REWARD } from "./referralService";
 import { getBonusEcon } from "./bonusConfig";
 
-const RECRUIT_MONTHLY_CAP = 15; // new recruits per driver per month
+// (RECRUIT_MONTHLY_CAP removed 2026-06-29 — owner opened invites fully; no monthly count cap.)
 const REVSHARE_FRESH = 100; // coins/ride, first 6 months
 const REVSHARE_VETERAN = 25; // after 6 months, forever (activity-gated)
 const REVSHARE_MONTH_CAP = 30000; // per driver per month
@@ -17,7 +17,7 @@ const RECRUIT_WELCOME = REFEREE_REWARD; // the recruited CUSTOMER's first-ride w
 // recruited driver proves real+active by completing DRIVER_RECRUIT_RIDES rides AS A DRIVER.
 const DRIVER_RECRUIT_MILESTONE = 5000; // tanga to the recruiter
 const DRIVER_RECRUIT_RIDES = 10; // recruited driver's completed rides that unlock it
-const DRIVER_RECRUIT_MONTHLY_CAP = 10; // paid driver-recruits per recruiter per month (anti-abuse)
+// (DRIVER_RECRUIT_MONTHLY_CAP removed 2026-06-29 — owner opened invites fully; no monthly count cap.)
 
 function norm9(p: string): string {
   return p.replace(/\D/g, "").slice(-9);
@@ -116,10 +116,8 @@ export async function payRecruitRevshare(riderMemberId: number, bookingId: numbe
   const rideCount = await prisma.rideReward.count({ where: { memberId: riderMemberId } });
 
   if (!recruit) {
-    // monthly recruit cap (15 new riders / driver / month)
-    const monthAgo = new Date(Date.now() - 30 * 24 * 3600 * 1000);
-    const newThisMonth = await prisma.driverRecruit.count({ where: { driverId, createdAt: { gte: monthAgo } } });
-    if (newThisMonth >= RECRUIT_MONTHLY_CAP) return;
+    // 2026-06-29 owner opened invites fully — no monthly recruit cap. Anti-fraud still bounded by
+    // self/family phone de-dup above + the withdraw gate on real money out.
     // P0 (QA fleet): riderMemberId is @unique — two concurrent first-rides could both pass
     // the findUnique(null) above and double-create (→ double 500 grant on distinct ids).
     // Catch P2002 and re-read so exactly one recruit row exists; recruit1 grant is then
@@ -194,7 +192,7 @@ export async function driverRecruitStats(driverId: number): Promise<{
     earnedTotal: Math.round(earnedTotal._sum.amount ?? 0),
     earnedThisMonth: Math.round(earnedMonth._sum.amount ?? 0),
     revshareCapLeft: Math.max(0, REVSHARE_MONTH_CAP - (revMonth._sum.amount ?? 0)),
-    newRecruitCapLeft: Math.max(0, RECRUIT_MONTHLY_CAP - recruitsThisMonth),
+    newRecruitCapLeft: -1, // -1 = unlimited (owner removed the monthly recruit cap 2026-06-29); UI renders "cheksiz"
   };
 }
 
@@ -261,10 +259,9 @@ export async function payDriverRecruitMilestone(
   await prisma.appState.create({ data: { key: `drvdrvride:${newDriverId}:${bookingId}`, value: "1" } }).catch(() => undefined);
   const rides = await prisma.appState.count({ where: { key: { startsWith: `drvdrvride:${newDriverId}:` } } });
   if (rides < rideTarget) return { paid: false };
-  // monthly cap on PAID driver-recruits per recruiter
-  const monthAgo = new Date(Date.now() - 30 * 24 * 3600 * 1000);
-  const paidThisMonth = await prisma.coinTxn.count({ where: { memberId: recruiterId, kind: "drvrecruit", createdAt: { gte: monthAgo } } });
-  if (paidThisMonth >= DRIVER_RECRUIT_MONTHLY_CAP) return { paid: false };
+  // 2026-06-29 owner opened invites fully — no monthly cap on paid driver-recruits per recruiter.
+  // Self/family phone de-dup above + the unique idempotency key (drvdrv_milestone:<newDriverId>)
+  // still block self-invites and double-pay.
   const milestone = econ.drvMilestone ?? DRIVER_RECRUIT_MILESTONE;
   if (milestone <= 0) return { paid: false };
   const g = await grantCoins(recruiterId, milestone, "drvrecruit", `🚖 Olib kelgan haydovchingiz ${rideTarget} ta safar qildi!`, `drvdrv_milestone:${newDriverId}`);
