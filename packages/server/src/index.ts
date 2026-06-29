@@ -22,6 +22,12 @@ async function main(): Promise<void> {
   let lastCrashAlert = 0;
   const onFatal = (kind: string) => (err: unknown) => {
     console.error(`[${kind}]`, err);
+    const msg = err instanceof Error ? err.message : String(err);
+    // grammY webhook reply timeout: NON-fatal. When a bot handler runs >10s, grammY abandons the
+    // "answer via the webhook response" optimisation and falls back to a normal sendMessage. Telegram
+    // already got its 200, so there is no retry/duplicate and the handler finishes in the background.
+    // It surfaces here as an unhandledRejection — but alerting the owner on it is pure noise.
+    if (/(timed out after \d+ ms|webhook)/i.test(msg)) return;
     const now = Date.now();
     if (now - lastCrashAlert > 60_000) {
       lastCrashAlert = now;

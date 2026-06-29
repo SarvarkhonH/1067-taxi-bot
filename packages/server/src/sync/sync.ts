@@ -68,7 +68,12 @@ export async function refreshLinkedMembers(): Promise<{ checked: number; deltas:
   });
 
   const deltas: CashbackDelta[] = [];
-  for (const m of linked) {
+  for (let idx = 0; idx < linked.length; idx++) {
+    const m = linked[idx]!;
+    // THROTTLE: each member = 2 kas byFilter calls. Firing all of them in a tight loop (171 members →
+    // 342 calls) bursts kas and earns a 429 (which then breaks login → bookings). Space them ~180ms
+    // apart so a refresh stays gentle (~11 kas calls/s) and well within one sync interval.
+    if (idx > 0) await new Promise((r) => setTimeout(r, 180));
     try {
       const matches = await source.fetchByPhone(m.phone!);
       const fresh = matches.find((f) => f.type === m.type && f.kasId === m.kasId) ?? matches.find((f) => f.type === m.type);
