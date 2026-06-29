@@ -106,43 +106,36 @@ function mainMenu(isDriver = false): Keyboard {
   // booking (?go=book), not the old bot text flow. Old cached keyboards still send the
   // text → bot.hears("🚕 Taxi chaqirish") falls back to startBooking (graceful).
   const kb = new Keyboard();
-  // Owner final layout 2026-06-29: two parallel booking entries — «🚕 Taxi chaqirish» = classic bot
-  // chat flow (kept for users who prefer typing), «📍 Lokatsiyali chaqirish» = NEW prominent full-width
-  // row that replaces the old «🚀 Ilova» CTA and opens the Mini App map booking directly (?go=book).
-  // Active-order card («📍 Buyurtmam») also lives in the Mini App now.
-  // Web_app on tap: 📍 Buyurtmam, 📍 Lokatsiyali chaqirish, 💰 Hamyon, 🎁 Bonuslar, 🏆 Reyting,
-  //                 👤 Hisobim, 🙏 Haydovchiga to'lash.
-  // Bot text (in-chat): 🚕 Taxi chaqirish (old flow), 👥 Do'st (referral card), 🚗 Haydovchi paneli.
+  // Telegram rule (2026-06-29 lesson): reply-keyboard `web_app` buttons are FLAKY on some clients
+  // (older Android, Web Z) — they sometimes open the WebView without initData → user lands on
+  // "Telegram orqali oching". The MENU BUTTON (chat-input chip) and INLINE web_app buttons (under
+  // bot messages) are reliable on every client. So: reply keyboard stays ALL-TEXT, the bot.hears(…)
+  // handlers reply IN-CHAT and append an inline web_app button (renderProfile/missions/etc.) for
+  // users who want to jump into the Mini App. Menu button = single reliable one-tap path to the app.
   const txt = (label: string): void => { kb.text(label); };
-  const app = (label: string, go: string): void => {
-    if (canWebApp) kb.webApp(label, webAppUrl(go));
-    else kb.text(label); // old client w/o web_app support → graceful text fallback
-  };
-  // Row 0 — TOP CTA: invite a friend (refstaged total 500+500+1000 = 2000 tanga). Full-width,
-  // most prominent — owner request 2026-06-29 to drive viral growth from the moment user sees menu.
+  // Row 0 — TOP CTA: invite a friend (refstaged total 500+500+1000 = 2000 tanga).
   txt("👥 Do'st chaqirish — +2000 tanga sovg'a");
   kb.row();
-  // Row 1 — two booking entries side by side: classic bot | Mini App active-order
+  // Row 1 — booking entries
   txt("🚕 Taxi chaqirish");
-  app("📍 Buyurtmam", "book");
+  txt("📍 Buyurtmam");
   kb.row();
-  // Row 2 — NEW prominent CTA: full-width map booking in the Mini App (replaces the old 🚀 Ilova row)
-  app("📍 Lokatsiyali chaqirish", "book");
+  // Row 2 — map booking entry (bot.hears routes "📍 Lokatsiyali chaqirish" to startBooking too)
+  txt("📍 Lokatsiyali chaqirish");
   kb.row();
-  // Rows 3-4 — Mini App direct screens
-  app("💰 Hamyon", "wallet");
-  app("🎁 Bonuslar", "play");
+  // Rows 3-4 — screen shortcuts (text → bot in-chat reply with an inline web_app button)
+  txt("💰 Hamyon");
+  txt("🎁 Bonuslar");
   kb.row();
-  app("🏆 Reyting", "reyting");
-  app("👤 Hisobim", "profile");
+  txt("🏆 Reyting");
+  txt("👤 Hisobim");
   kb.row();
-  // Row 5 — pay-driver: opens Mini App on hamyon with the pay-driver sheet auto-expanded (?go=tip)
-  app("🙏 Haydovchiga to'lash", "tip");
+  // Row 5 — pay driver (in-chat flow that asks for the car number)
+  txt("🙏 Haydovchiga to'lash");
   if (isDriver) {
     kb.row();
     txt("🚗 Haydovchi paneli");
   }
-  // 👥 Do'st moved to Row 0 (top CTA, see above). No duplicate here.
   // is_persistent → the menu stays pinned open (app-like nav); placeholder → modern input hint
   return kb.resized().persistent().placeholder("Menyudan tanlang yoki manzilni yozing…");
 }
