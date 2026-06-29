@@ -33,6 +33,7 @@ import type {
   WeeklyBoardResponse,
   WheelSpinResponse,
   WithdrawResponse,
+  CashoutResponse,
 } from "@t1067/shared";
 import { tg } from "./telegram";
 
@@ -156,6 +157,9 @@ export const api = {
   weekly: () => get<WeeklyBoardResponse>("/api/weekly"),
   wallet: () => get<WalletResponse>("/api/wallet"),
   withdraw: (amount: number) => request<WithdrawResponse>("POST", "/api/wallet/withdraw", { amount }, 1),
+  // 💵 real cash-out (tanga → plastik karta / naxt uyga) — money op, no auto-retry
+  cashout: (p: { method: "card" | "home"; cardNumber?: string; cardHolder?: string; address?: string }) =>
+    request<CashoutResponse>("POST", "/api/wallet/cashout", p, 1),
   topup: (amount: number) => request<WithdrawResponse>("POST", "/api/wallet/topup", { amount }, 1),
   recipient: (phone: string) => request<RecipientLookup>("POST", "/api/wallet/recipient", { phone }, 1),
   transfer: (phone: string, amount: number, note?: string) => request<TransferResponse>("POST", "/api/wallet/transfer", { phone, amount, note }, 1),

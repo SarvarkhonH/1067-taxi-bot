@@ -3,6 +3,7 @@ import { env } from "./env";
 import { prisma } from "./db";
 import { createApiServer } from "./api/server";
 import { createBot, notifyCashback, notifyNewAchievements, setupBotCommands } from "./bot/bot";
+import { notifyOwnerCashout } from "./bot/cashout";
 import { refreshLinkedMembers, runSync } from "./sync/sync";
 import { pushBookingUpdates } from "./services/bookingNotifier";
 import { kasMapSocket } from "./services/kasMapSocket";
@@ -91,7 +92,15 @@ async function main(): Promise<void> {
   const sendTg = async (telegramId: string, html: string) => {
     if (bot) await bot.api.sendMessage(telegramId, html, { parse_mode: "HTML" });
   };
-  const app = createApiServer({ afterSync: notifyBadges, sendMessage: sendTg });
+  const app = createApiServer({
+    afterSync: notifyBadges,
+    sendMessage: sendTg,
+    // Mini-App cash-out → forward to the owner's Telegram (with approve/reject) via the bot.
+    // Read `bot` at CALL time (like sendTg) — it's assigned below, after createApiServer runs.
+    notifyCashoutOwner: async (notice) => {
+      if (bot) await notifyOwnerCashout(bot, notice);
+    },
+  });
   // economy alerts (withdraws, anomalies) → admins
   const { registerAdminNotifier } = await import("./services/economyService");
   registerAdminNotifier(sendTg);

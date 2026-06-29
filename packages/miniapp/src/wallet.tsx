@@ -409,6 +409,97 @@ function WithdrawSheet({
   );
 }
 
+// 💵 Real cash-out (tanga → plastik karta / naxt uyga). Unlike WithdrawSheet (tanga → kas balance),
+// this lodges a request to the OWNER who pays real money manually; tangas are spent only on approval.
+// Card number is sent over HTTPS and NEVER stored (only a •••• 1234 mask) — full number rides only
+// the owner's Telegram message. Thresholds KEEP IN SYNC with server cashoutService (50k / 100k).
+const CASHOUT_CARD_MIN = 50_000;
+const CASHOUT_HOME_MIN = 100_000;
+function CashoutSheet({ wallet, onClose, onDone }: { wallet: WalletResponse; onClose: () => void; onDone: (msg: string) => void }) {
+  const bal = Math.floor(wallet.coins);
+  const [method, setMethod] = useState<"card" | "home">("card");
+  const [card, setCard] = useState("");
+  const [holder, setHolder] = useState("");
+  const [addr, setAddr] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+
+  const min = method === "home" ? CASHOUT_HOME_MIN : CASHOUT_CARD_MIN;
+  const eligible = bal >= min;
+  const cardDigits = card.replace(/\D/g, "");
+  const canSubmit = eligible && !busy && (method === "card" ? cardDigits.length >= 16 && holder.trim().length >= 3 : addr.trim().length >= 5);
+
+  const submit = async () => {
+    if (!canSubmit) return;
+    setBusy(true);
+    setErr(null);
+    try {
+      const r = await api.cashout(method === "card" ? { method, cardNumber: cardDigits, cardHolder: holder.trim() } : { method, address: addr.trim() });
+      if (r.ok) {
+        confetti();
+        onDone(`✅ So'rov yuborildi! ${formatNumber(r.amount ?? bal)} tanga — tez orada bog'lanib pulingizni o'tkazamiz 💸`);
+        onClose();
+      } else {
+        const msgs: Record<string, string> = {
+          off: "Naxt pul hozircha mavjud emas",
+          not_linked: "Avval telefon raqamingizni ulang",
+          below_min: `Minimal: ${formatNumber(r.min ?? min)} tanga`,
+          pending_exists: "Sizda javob kutayotgan so'rov bor — avval u hal bo'lsin",
+          bad_card: "Karta raqami 16 xonali bo'lishi kerak",
+          no_holder: "Karta egasining ism-familiyasini yozing",
+          bad_address: "Manzilni to'liqroq yozing",
+        };
+        setErr(msgs[r.reason ?? ""] ?? "Xatolik yuz berdi");
+      }
+    } catch {
+      setErr("Tarmoq xatosi — qayta urinib ko'ring");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="sheet-back" onClick={onClose}>
+      <div className="sheet" onClick={(e) => e.stopPropagation()}>
+        <div className="sheet-grip" />
+        <h3>💵 Naxt pulga olish</h3>
+        <p className="muted sheet-sub">
+          Tangangizni <b>real pulga</b> aylantiramiz. So'rov adminga boradi — tekshirib pulingizni o'tkazamiz.
+          Karta raqamingiz <b>hech qayerda saqlanmaydi</b>. 🔒
+        </p>
+        <div className="chip-row">
+          <button className={"amt-chip" + (method === "card" ? " active" : "")} onClick={() => { haptic(); setMethod("card"); }}>💳 Plastik karta</button>
+          <button className={"amt-chip" + (method === "home" ? " active" : "")} onClick={() => { haptic(); setMethod("home"); }}>🏠 Naxt uyga</button>
+        </div>
+        {!eligible ? (
+          <div className="sheet-warn">
+            {method === "card" ? "Kartaga" : "Uyga"} olish uchun kamida {formatNumber(min)} tanga kerak.
+            <br />
+            <span className="muted">Sizda: {formatNumber(bal)} — safar qilib to'plang 🚕</span>
+          </div>
+        ) : (
+          <>
+            <div className="cashout-amt">💰 Yechiladi: <b>{formatNumber(bal)}</b> tanga (≈{formatNumber(bal)} so'm)</div>
+            {method === "card" ? (
+              <>
+                <input className="bk-input" inputMode="numeric" placeholder="💳 Karta raqami (16 raqam)" value={card} maxLength={23} onChange={(e) => setCard(e.target.value)} />
+                <input className="bk-input" placeholder="👤 Karta egasi: Ism Familiya" value={holder} maxLength={60} onChange={(e) => setHolder(e.target.value)} />
+              </>
+            ) : (
+              <input className="bk-input" placeholder="🏠 Manzil: ko'cha, uy raqami" value={addr} maxLength={120} onChange={(e) => setAddr(e.target.value)} />
+            )}
+            {err && <div className="sheet-err">{err}</div>}
+            <button className="btn-primary" disabled={!canSubmit} onClick={submit}>
+              {busy ? "Yuborilmoqda…" : "💵 So'rov yuborish"}
+            </button>
+          </>
+        )}
+        <button className="btn-ghost" onClick={onClose}>Yopish</button>
+      </div>
+    </div>
+  );
+}
+
 // Reverse direction: kas cashback bonus → game coins (two-way wallet).
 function TopupSheet({ wallet, onClose, onDone }: { wallet: WalletResponse; onClose: () => void; onDone: (msg: string) => void }) {
   const max = Math.floor(wallet.cashback);
@@ -510,6 +601,7 @@ export function WalletView({ me, onBanner, reload, onBook, onNav }: { me: MeResp
   const [wallet, setWallet] = useState<WalletResponse | null>(null);
   const [walletErr, setWalletErr] = useState(false);
   const [sheet, setSheet] = useState(false);
+  const [cash, setCash] = useState(false);
   const [topup, setTopup] = useState(false);
   const [send, setSend] = useState(false);
   const [payd, setPayd] = useState(() => {
@@ -593,6 +685,10 @@ export function WalletView({ me, onBanner, reload, onBook, onNav }: { me: MeResp
           {/* withdraw works for BOTH client + driver (tanga → kas1067 balance). Drivers see it as a deposit. */}
           <button className="btn-ghost wh-cta" onClick={() => { haptic(); setSheet(true); }}>{wallet?.isClient ? "💸 So'mga yechish" : "💳 kas1067 balansiga"}</button>
         </div>
+        {/* 💵 real cash-out (tanga → plastik karta / naxt uyga) — the owner pays out manually */}
+        <div className="wh-actions">
+          <button className="btn-primary wh-cta" onClick={() => { haptic(); setCash(true); }}>💵 Naxt pulga olish</button>
+        </div>
         <div className="wh-meta muted">
           {me.rank && <span>O'rin {rankMedal(me.rank)}</span>}
           <span>🚕 {formatNumber(me.stats.trips)} safar</span>
@@ -629,6 +725,7 @@ export function WalletView({ me, onBanner, reload, onBook, onNav }: { me: MeResp
       <AccountCard />
 
       {sheet && wallet && <WithdrawSheet wallet={wallet} onClose={() => setSheet(false)} onDone={onDone} />}
+      {cash && wallet && <CashoutSheet wallet={wallet} onClose={() => setCash(false)} onDone={onDone} />}
       {topup && wallet && <TopupSheet wallet={wallet} onClose={() => setTopup(false)} onDone={onDone} />}
       {send && wallet && <TransferSheet wallet={wallet} onClose={() => setSend(false)} onDone={onDone} />}
       {payd && wallet && <PayDriverSheet wallet={wallet} onClose={() => setPayd(false)} onDone={onDone} />}

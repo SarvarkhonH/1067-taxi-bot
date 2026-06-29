@@ -19,6 +19,15 @@ import { getBoxStatus, openBox } from "../services/boxService";
 import { getReferralInfo } from "../services/referralService";
 import { getWeeklyBoard } from "../services/weeklyService";
 import { getWallet, topUpFromBonus, withdraw } from "../services/coinService";
+import {
+  createCashout,
+  cashoutBalance,
+  hasPendingCashout,
+  CASHOUT_CARD_MIN,
+  CASHOUT_HOME_MIN,
+  type CashoutMethod,
+  type CashoutOwnerNotice,
+} from "../services/cashoutService";
 import { findDriverByCar, getDriverEarnings, lookupDriverForPay, lookupRecipient, transfer } from "../services/transferService";
 import { buyListing, listShops, myOrders, myShop, redeemVoucher } from "../services/marketService";
 import { prisma } from "../db";
@@ -31,6 +40,8 @@ import { featureOn } from "../services/featureFlags";
 export interface ApiOptions {
   afterSync?: () => Promise<void>;
   sendMessage?: (telegramId: string, html: string) => Promise<void>;
+  /** Forward a Mini-App cash-out request to the owner's Telegram (bot-bound; set in index.ts). */
+  notifyCashoutOwner?: (notice: CashoutOwnerNotice) => Promise<void>;
 }
 
 function memberType(req: Request, fallback: MemberType): MemberType {
@@ -294,6 +305,67 @@ export function createApiServer(opts: ApiOptions = {}) {
       return;
     }
     res.json(await withdraw(memberId, amount));
+  });
+
+  // 💵 Real cash-out (tanga → plastik karta / naxt uyga). Records a request + pings the owner's
+  // Telegram with [✅ To'landi]/[❌ Rad]; tangas are spent ONLY on owner approval (cashoutService).
+  // The card number is validated + masked HERE and NEVER persisted — the full number rides only the
+  // transient owner message. Withdraws the whole eligible balance (parity with the bot /naxt flow).
+  app.post("/api/wallet/cashout", requireUser, rateLimit(5), async (req, res) => {
+    if (!(await featureOn("cashout"))) {
+      res.status(403).json({ ok: false, reason: "off" });
+      return;
+    }
+    const me = await getMe(res.locals.telegramId as string);
+    if (!me) {
+      res.status(404).json({ ok: false, reason: "not_linked" });
+      return;
+    }
+    const b = (req.body ?? {}) as { method?: string; cardNumber?: string; cardHolder?: string; address?: string };
+    const method: CashoutMethod = b.method === "home" ? "home" : "card";
+    const bal = await cashoutBalance(me.member.id);
+    const min = method === "home" ? CASHOUT_HOME_MIN : CASHOUT_CARD_MIN;
+    if (bal < min) {
+      res.json({ ok: false, reason: "below_min", min });
+      return;
+    }
+    if (await hasPendingCashout(me.member.id)) {
+      res.json({ ok: false, reason: "pending_exists" });
+      return;
+    }
+
+    let mask: string;
+    let cardFull: string | undefined;
+    let cardHolder: string | undefined;
+    let address: string | undefined;
+    if (method === "card") {
+      const digits = String(b.cardNumber ?? "").replace(/\D/g, "");
+      if (digits.length < 16) {
+        res.json({ ok: false, reason: "bad_card" });
+        return;
+      }
+      const holder = String(b.cardHolder ?? "").trim().slice(0, 60);
+      if (holder.length < 3) {
+        res.json({ ok: false, reason: "no_holder" });
+        return;
+      }
+      mask = `•••• ${digits.slice(-4)} · ${holder}`;
+      cardFull = digits;
+      cardHolder = holder;
+    } else {
+      address = String(b.address ?? "").trim().slice(0, 120);
+      if (address.length < 5) {
+        res.json({ ok: false, reason: "bad_address" });
+        return;
+      }
+      mask = address;
+    }
+
+    const phone = me.member.phone ?? "—";
+    const { id } = await createCashout(me.member.id, bal, method, mask, phone);
+    const notice: CashoutOwnerNotice = { id, name: me.member.fullName ?? "Mijoz", amount: bal, method, contact: phone, trips: me.stats.trips, cardFull, cardHolder, address };
+    if (opts.notifyCashoutOwner) await opts.notifyCashoutOwner(notice).catch(() => undefined);
+    res.json({ ok: true, id, amount: bal, method });
   });
 
   app.post("/api/wallet/topup", requireUser, rateLimit(5), async (req, res) => {

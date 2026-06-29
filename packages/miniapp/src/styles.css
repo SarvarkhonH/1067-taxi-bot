@@ -136,6 +136,8 @@ body {
 .sheet-grip { width: 44px; height: 4px; border-radius: 999px; background: var(--line); margin: 0 auto; }
 .sheet h3 { margin: 4px 0 0; font-size: 18px; }
 .sheet-sub { font-size: 13px; margin: 0; }
+.cashout-amt { background: rgba(108, 99, 255, 0.1); border: 1px solid rgba(108, 99, 255, 0.28); border-radius: 14px; padding: 12px 14px; font-size: 15px; text-align: center; }
+.cashout-amt b { color: var(--gold); }
 .sheet-warn { background: rgba(255, 206, 79, 0.08); border: 1px solid rgba(255, 206, 79, 0.3); border-radius: 14px; padding: 14px; font-size: 14px; text-align: center; }
 .sheet-err { color: var(--red); font-size: 13px; font-weight: 700; text-align: center; }
 .sheet-ok { background: rgba(61, 220, 132, 0.08); border: 1px solid rgba(61, 220, 132, 0.3); border-radius: 14px; padding: 10px 14px; font-size: 14px; font-weight: 700; text-align: center; }

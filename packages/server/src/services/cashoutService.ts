@@ -9,6 +9,28 @@ export const CASHOUT_HOME_MIN = 100_000; // 🏠 naxt uyga: min balance
 
 export type CashoutMethod = "card" | "home";
 
+/**
+ * The data the owner sees + acts on for a cash-out request. Built by either entry point (bot flow OR
+ * the Mini App API) and handed to the bot's `notifyOwnerCashout` so the approve/reject buttons match.
+ * Raw card/address fields live ONLY in this transient owner message — never persisted (only the mask).
+ */
+export interface CashoutOwnerNotice {
+  id: number;
+  name: string;
+  amount: number;
+  method: CashoutMethod;
+  contact: string;
+  trips: number;
+  cardFull?: string; // card flow only — shown to owner, never stored
+  cardHolder?: string;
+  address?: string; // home flow only
+}
+
+/** A member may have at most one open request at a time — guards against double-submit spam. */
+export async function hasPendingCashout(memberId: number): Promise<boolean> {
+  return (await prisma.cashoutRequest.count({ where: { memberId, status: "pending" } })) > 0;
+}
+
 export async function createCashout(
   memberId: number,
   amount: number,

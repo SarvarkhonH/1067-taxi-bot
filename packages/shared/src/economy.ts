@@ -47,6 +47,17 @@ export interface WithdrawResponse {
   kasApplied: boolean;
 }
 
+// 💵 real cash-out (tanga → plastik karta / naxt uyga). Request is recorded + forwarded to the owner;
+// tangas are spent only on owner approval. The Mini App shows the result of LODGING the request.
+export interface CashoutResponse {
+  ok: boolean;
+  reason?: "off" | "not_linked" | "below_min" | "pending_exists" | "bad_card" | "no_holder" | "bad_address";
+  id?: number;
+  amount?: number;
+  method?: "card" | "home";
+  min?: number; // present on "below_min" — the threshold that wasn't met
+}
+
 // ── 🎲 variable ride-cashback (the book's 80/15/4/1 — Hooked variable reward) ─
 // Multiplier is applied to the ride's fare-derived base bonus and granted as
 // COINS (never direct kas money). Jackpot pays the whole shared pool.

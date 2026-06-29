@@ -16,6 +16,7 @@ import {
   CASHOUT_CARD_MIN,
   CASHOUT_HOME_MIN,
   type CashoutMethod,
+  type CashoutOwnerNotice,
 } from "../services/cashoutService";
 
 const OWNER_TG = "6506297119";
@@ -29,6 +30,28 @@ function esc(s: string): string {
 async function tgOf(memberId: number): Promise<string | null> {
   const tu = await prisma.telegramUser.findFirst({ where: { memberId }, select: { id: true } });
   return tu?.id ?? null;
+}
+
+/**
+ * Forward a cash-out request to the OWNER's Telegram with the [✅ To'landi] [❌ Rad] buttons.
+ * Single source for BOTH entry points — the bot's own /naxt flow AND the Mini App API call it, so
+ * the owner sees identical messages and the approve/reject callbacks work the same. Card number /
+ * address live ONLY in this message (never persisted). Exported so the API can trigger it via a
+ * bot-bound closure passed into createApiServer.
+ */
+export async function notifyOwnerCashout(bot: Bot, n: CashoutOwnerNotice): Promise<void> {
+  const detail =
+    n.method === "card"
+      ? `💳 Karta: <b>${esc(n.cardFull ?? "")}</b>\n👤 Karta egasi: <b>${esc(n.cardHolder ?? "")}</b>`
+      : `🏠 Manzil: <b>${esc(n.address ?? "")}</b>`;
+  const kb = new InlineKeyboard().text("✅ To'landi", `cashout:ok:${n.id}`).text("❌ Rad", `cashout:no:${n.id}`);
+  await bot.api
+    .sendMessage(
+      OWNER_TG,
+      `💸 <b>NAXT PUL SO'ROVI</b> #${n.id}\n\n👤 <b>${esc(n.name)}</b>\n💰 <b>${formatNumber(n.amount)}</b> tanga (≈${formatNumber(n.amount)} so'm)\n${detail}\n📞 ${esc(n.contact)}\n🚖 Safar: ${n.trips}`,
+      { parse_mode: "HTML", reply_markup: kb },
+    )
+    .catch(() => undefined);
 }
 
 export function registerCashout(bot: Bot): void {
@@ -110,29 +133,25 @@ export function registerCashout(bot: Bot): void {
     const name = me.member.fullName ?? "Mijoz";
 
     let mask: string;
-    let ownerDetail: string;
+    let cardFull: string | undefined;
+    let cardHolder: string | undefined;
+    let address: string | undefined;
     if (s.method === "card") {
       const holder = text.slice(0, 60);
       mask = `•••• ${s.cardDigits!.slice(-4)} · ${holder}`;
-      ownerDetail = `💳 Karta: <b>${s.cardDigits}</b>\n👤 Karta egasi: <b>${esc(holder)}</b>`;
+      cardFull = s.cardDigits;
+      cardHolder = holder;
     } else {
       if (text.length < 5) {
         await ctx.reply("❌ Manzil juda qisqa. Qaytadan: /naxt");
         return;
       }
       mask = text.slice(0, 120);
-      ownerDetail = `🏠 Manzil: <b>${esc(text)}</b>`;
+      address = text;
     }
 
     const { id } = await createCashout(me.member.id, bal, s.method, mask, phone);
-    const kb = new InlineKeyboard().text("✅ To'landi", `cashout:ok:${id}`).text("❌ Rad", `cashout:no:${id}`);
-    await bot.api
-      .sendMessage(
-        OWNER_TG,
-        `💸 <b>NAXT PUL SO'ROVI</b> #${id}\n\n👤 <b>${esc(name)}</b>\n💰 <b>${formatNumber(bal)}</b> tanga (≈${formatNumber(bal)} so'm)\n${ownerDetail}\n📞 ${esc(phone)}\n🚖 Safar: ${me.stats.trips}`,
-        { parse_mode: "HTML", reply_markup: kb },
-      )
-      .catch(() => undefined);
+    await notifyOwnerCashout(bot, { id, name, amount: bal, method: s.method, contact: phone, trips: me.stats.trips, cardFull, cardHolder, address });
     await ctx.reply(
       `✅ <b>So'rovingiz yuborildi!</b>\n\n💰 ${formatNumber(bal)} tanga · ${s.method === "card" ? "💳 plastik kartaga" : "🏠 naxt uyga"}\nTez orada bog'lanamiz va pulingizni o'tkazamiz 💸`,
       { parse_mode: "HTML" },

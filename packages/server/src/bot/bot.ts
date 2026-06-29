@@ -1394,7 +1394,8 @@ export async function setupBotCommands(bot: Bot): Promise<void> {
     { command: "baraban", description: "🎰 Safar barabani (yutuq)" },
     { command: "missions", description: "🎯 Vazifalar (mukofot)" },
     { command: "invite", description: "👥 Do'st taklif qilish" },
-    { command: "naxt", description: "💵 Naxt pul olish (tanga → karta/uy)" },
+    // /naxt (cash-out) lives in the Mini App now (Hamyon → 💵 Naxt pulga). The bot command still
+    // works as a hidden fallback, but it's off the slash menu so the app is the single visible path.
     { command: "narx", description: "🚖 Narx va cashback" },
     { command: "rahmat", description: "🙏 Haydovchiga choychaqa" },
     { command: "haydovchi", description: "🚖 Mashina raqami bo'yicha haydovchiga to'lash" },
