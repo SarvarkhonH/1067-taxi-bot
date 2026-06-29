@@ -62,30 +62,27 @@ export function Sheet({ open, onClose, children }: { open: boolean; onClose: () 
   const ref = useRef<HTMLDivElement | null>(null);
   const drag = useRef<{ y0: number; dy: number } | null>(null);
   if (!open) return null;
-  const onTouchStart = (e: React.TouchEvent) => {
-    // Only arm the pull-to-close gesture when the sheet is scrolled to the TOP. Otherwise the touch is
-    // a normal scroll of the content — never hijack it (that was the "scrolling drags the app closed" bug).
-    if (ref.current && ref.current.scrollTop > 0) { drag.current = null; return; }
-    drag.current = { y0: e.touches[0]!.clientY, dy: 0 };
-  };
-  const onTouchMove = (e: React.TouchEvent) => {
+  // Pull-to-close lives ONLY on the grip zone (the handle at the top), NEVER on the content. So the
+  // body always scrolls natively and can never drag the sheet/app closed. Close via grip-drag, the
+  // backdrop tap, or any in-sheet "Yopish" button.
+  const onGripStart = (e: React.TouchEvent) => { drag.current = { y0: e.touches[0]!.clientY, dy: 0 }; };
+  const onGripMove = (e: React.TouchEvent) => {
     if (!drag.current || !ref.current) return;
-    const dy = e.touches[0]!.clientY - drag.current.y0;
-    // Dragging UP, or the content has since scrolled → release: let native scroll take over.
-    if (dy <= 0 || ref.current.scrollTop > 0) { ref.current.style.transform = ""; drag.current.dy = 0; return; }
-    drag.current.dy = dy;
-    ref.current.style.transform = `translateY(${dy}px)`;
+    drag.current.dy = Math.max(0, e.touches[0]!.clientY - drag.current.y0);
+    ref.current.style.transform = `translateY(${drag.current.dy}px)`;
   };
-  const onTouchEnd = () => {
+  const onGripEnd = () => {
     if (!drag.current || !ref.current) return;
-    if (drag.current.dy > 80) onClose();
+    if (drag.current.dy > 70) onClose();
     else ref.current.style.transform = "";
     drag.current = null;
   };
   return (
     <div className="d-sheet-back" onClick={onClose}>
-      <div ref={ref} className="d-sheet" onClick={(e) => e.stopPropagation()} onTouchStart={onTouchStart} onTouchMove={onTouchMove} onTouchEnd={onTouchEnd}>
-        <div className="d-grip" />
+      <div ref={ref} className="d-sheet" onClick={(e) => e.stopPropagation()}>
+        <div className="d-grip-zone" onTouchStart={onGripStart} onTouchMove={onGripMove} onTouchEnd={onGripEnd}>
+          <div className="d-grip" />
+        </div>
         {children}
       </div>
     </div>

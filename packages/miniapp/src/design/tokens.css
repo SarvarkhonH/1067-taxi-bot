@@ -112,7 +112,10 @@ body { font-variant-numeric: tabular-nums; }
   max-height: 88vh; overflow-y: auto; -webkit-overflow-scrolling: touch; overscroll-behavior: contain; touch-action: pan-y;
 }
 .d-sheet h3 { margin: 8px 0 6px; }
-.d-grip { width: 44px; height: 5px; border-radius: 99px; background: var(--line); margin: 2px auto 8px; }
+/* the ONLY drag-to-close zone — touch-action:none so dragging the grip closes, while the rest of
+   the sheet (touch-action:pan-y) scrolls natively. Wide padding = easy to grab. */
+.d-grip-zone { padding: 6px 0 10px; margin-top: -4px; touch-action: none; cursor: grab; }
+.d-grip { width: 44px; height: 5px; border-radius: 99px; background: var(--line); margin: 0 auto; }
 @keyframes d-up { from { transform: translateY(40px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
 @keyframes d-fade { from { opacity: 0; } to { opacity: 1; } }
 
