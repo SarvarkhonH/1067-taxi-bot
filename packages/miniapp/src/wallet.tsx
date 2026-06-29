@@ -512,7 +512,12 @@ export function WalletView({ me, onBanner, reload, onBook, onNav }: { me: MeResp
   const [sheet, setSheet] = useState(false);
   const [topup, setTopup] = useState(false);
   const [send, setSend] = useState(false);
-  const [payd, setPayd] = useState(false);
+  const [payd, setPayd] = useState(() => {
+    // Bot menyusidan «🙏 Haydovchiga to'lash» — Mini App'ni hamyon ekranida ochib, pay-driver
+    // sheet'ni darhol chiqaradi (bir bosishda to'g'ridan-to'g'ri to'lov oynasi).
+    const go = new URLSearchParams(location.search).get("go") || "";
+    return go === "tip" || go === "paydriver" || go === "pay";
+  });
   const coins = useCountUp(wallet?.coins ?? me.coins);
   const cashback = useCountUp(wallet?.cashback ?? me.stats.points);
 

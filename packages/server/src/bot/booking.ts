@@ -275,7 +275,8 @@ async function showConfirm(ctx: Context, s: BookingSession): Promise<void> {
 }
 
 export function registerBooking(bot: Bot, mainMenu: (isDriver?: boolean) => Keyboard): void {
-  bot.hears("🚕 Taxi chaqirish", (ctx) => startBooking(ctx));
+  bot.hears("🚕 Taxi chaqirish", (ctx) => startBooking(ctx)); // old cached keyboard label
+  bot.hears("📍 Lokatsiyali chaqirish", (ctx) => startBooking(ctx)); // new label (2026-06-29)
   bot.command("book", (ctx) => startBooking(ctx));
   bot.hears("📍 Buyurtmam", (ctx) => showTracking(ctx));
   bot.command("status", (ctx) => showTracking(ctx));

@@ -98,32 +98,40 @@ function mainMenu(isDriver = false): Keyboard {
   // booking (?go=book), not the old bot text flow. Old cached keyboards still send the
   // text → bot.hears("🚕 Taxi chaqirish") falls back to startBooking (graceful).
   const kb = new Keyboard();
-  // Owner decision 2026-06-29: ONLY the «🚀 Ilova» button is a web_app — every other menu item is
-  // plain text, answered in-chat by the bot.hears(…) handlers below (taxi→startBooking, Hamyon→profil,
-  // Bonuslar→vazifalar, Do'st→referral, …). Single, obvious entry to the Mini App; no per-tap surprise.
-  const btn = (label: string, _go: string): void => {
-    void _go;
-    kb.text(label);
+  // Owner decision 2026-06-29 (hybrid): screens that have a Mini App view open the app on one tap
+  // (Hamyon/Bonuslar/Reyting/Hisobim/Haydovchiga to'lash + the general «🚀 Ilova»). Bot-only flows
+  // stay as plain TEXT — they answer in-chat through the bot.hears(…) handlers (lokatsiyali chaqirish
+  // = the map booking conversation, Buyurtmam = active-order card in chat, 👥 Do'st = referral card,
+  // 🚗 Haydovchi paneli = driver stats). Old cached keyboards still work via the same bot.hears aliases.
+  const txt = (label: string): void => { kb.text(label); };
+  const app = (label: string, go: string): void => {
+    if (canWebApp) kb.webApp(label, webAppUrl(go));
+    else kb.text(label); // old client w/o web_app support → graceful text fallback
   };
-  btn("🚕 Taxi chaqirish", "book");
-  btn("📍 Buyurtmam", "book");
+  // Row 1 — booking (bot flow, in-chat conversation)
+  txt("📍 Lokatsiyali chaqirish"); // renamed from «🚕 Taxi chaqirish»; booking.ts hears both
+  txt("📍 Buyurtmam");
   kb.row();
-  // 🚀 Mini App — the SINGLE web_app entry, promoted to a prominent full-width row under the taxi CTA.
+  // Row 2 — Mini App general entry (prominent, full width)
   if (canWebApp) {
     kb.webApp("🚀 Ilova — O'yin, Bozor & ko'p", webAppUrl());
     kb.row();
   }
-  btn("💰 Hamyon", "wallet");
-  btn("🎁 Bonuslar", "play");
-  btn("👥 Do'st", "friends");
+  // Row 3-4 — Mini App direct screens (one-tap into the exact tab)
+  app("💰 Hamyon", "wallet");
+  app("🎁 Bonuslar", "play");
   kb.row();
-  btn("🏆 Reyting", "reyting");
-  btn("👤 Hisobim", "profile");
+  app("🏆 Reyting", "reyting");
+  app("👤 Hisobim", "profile");
   kb.row();
-  btn("🙏 Haydovchiga to'lash", "tip"); // booking.ts bot.hears → startPayDriver (car-number prompt)
+  // Row 5 — pay-driver: opens Mini App on hamyon with the pay-driver sheet auto-expanded (?go=tip)
+  app("🙏 Haydovchiga to'lash", "tip");
+  kb.row();
+  // Row 6 — referral (bot in-chat card with share link + stats)
+  txt("👥 Do'st");
   if (isDriver) {
     kb.row();
-    btn("🚗 Haydovchi paneli", "driver");
+    txt("🚗 Haydovchi paneli");
   }
   // is_persistent → the menu stays pinned open (app-like nav); placeholder → modern input hint
   return kb.resized().persistent().placeholder("Menyudan tanlang yoki manzilni yozing…");

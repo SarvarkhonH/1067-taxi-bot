@@ -80,6 +80,7 @@ const DRIVER_TABS: { id: Tab; icon: string; label: string }[] = [
 // old deep-link / child-nav targets → new tabs (so cached bot menus + components still work)
 const GO_MAP: Record<string, Tab> = {
   home: "uy", uy: "uy", wallet: "wallet", hamyon: "wallet",
+  tip: "wallet", paydriver: "wallet", pay: "wallet", // 🙏 «Haydovchiga to'lash» → hamyon ekrani; wallet.tsx avto-ochadi pay-driver sheet'ni
   rewards: "play", missions: "play", play: "play", bonus: "play", vazifa: "play",
   market: "uy", bozor: "uy", // 🏎 Motor Olami opens via the `garaj` overlay (readGo handled separately), not a content tab
   league: "reyting", friends: "reyting", reyting: "reyting", liga: "reyting", dost: "reyting",
