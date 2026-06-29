@@ -417,7 +417,9 @@ export async function getGarajState(memberId: number): Promise<GarajStateRespons
     }
     return view;
   });
-  const shop = (upgradeOn ? [] : Object.keys(MAKE_BASE)).map((code) => {
+  // 🚗 FAZA2 (R4 fix): remove the shop ONLY when BOTH the ladder flag AND motorolami are on — same
+  // condition as the starter-grant (line above) → no "carupgrade ON / motorolami OFF" stranding footgun.
+  const shop = (upgradeOn && motorEnabled ? [] : Object.keys(MAKE_BASE)).map((code) => {
     const cm = garajCarMeta(code);
     const dm = demand[code] ?? 1.0; // #3 live demand drives the buy price
     return {
@@ -1383,7 +1385,10 @@ export async function getCarCheck(viewerId: number, garajCarId: number, tier: Ca
   }
   // Spend the tanga (skip if free)
   if (actualCost > 0) {
-    const spend = await spendCoinsIdempotent(viewerId, actualCost, "garaj_carcheck", `🔍 CarCheck ${tier}: ${car.carCode} #${car.serial ?? "?"}`, `carcheck:${viewerId}:${garajCarId}:${tier}:${Date.now()}`);
+    // 🔍 FAZA4 (R4 fix): 5s time-BUCKET (not raw Date.now()) → a network double-tap within 5s dedups
+    // to one debit, while an INTENTIONAL re-check after 5s still charges (CarCheck is repeatable).
+    const bucket = Math.floor(Date.now() / 5000);
+    const spend = await spendCoinsIdempotent(viewerId, actualCost, "garaj_carcheck", `🔍 CarCheck ${tier}: ${car.carCode} #${car.serial ?? "?"}`, `carcheck:${viewerId}:${garajCarId}:${tier}:${bucket}`);
     if (!spend.ok && spend.skipped !== "duplicate") return { ok: false, reason: "insufficient", coins: spend.balance };
   }
   // If freeUsed: mark it as consumed (only AFTER we know the read will succeed)

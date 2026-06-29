@@ -652,6 +652,13 @@ async function main(): Promise<void> {
   ok(ocBuy.ok, `ownerCount: car bought`);
   const ocCar = (await prisma.garajCar.findUnique({ where: { id: upAcq.carId! } }))!;
   ok(ocCar.memberId === ocBuyer.id && (ocCar.ownerCount ?? 1) === 2, `ownerCount: → 2 after sale (was 1); cleanHistory now honest`);
+  // R4 FIX — no stranding: carupgrade ON while motorolami OFF must NOT remove the shop (else a
+  // 0-car non-owner player gets no shop AND no starter). Shop is gated on upgradeOn && motorEnabled.
+  await setFeature("motorolami", false); __resetFeatureCache();
+  const strandM = await prisma.member.create({ data: { type: "client", kasId: `${TAG}-strand`, fullName: "Strand", phone: "+998900008091", trips: 0 } });
+  const strandState = await getGarajState(strandM.id);
+  ok(strandState.shop.length > 0, `R4 anti-strand: carupgrade ON + motorolami OFF → shop PRESENT (not stranded), shop=${strandState.shop.length}`);
+  await setFeature("motorolami", true); __resetFeatureCache();
   // E) FREE STARTER — with the shop removed, a brand-new player (0 cars, 0 coins) still GETS a Tiko
   const newbie = await prisma.member.create({ data: { type: "client", kasId: `${TAG}-newbie`, fullName: "Newbie", phone: "+998900008090", trips: 0 } });
   const ns1 = await getGarajState(newbie.id); // first open → grants the free starter
