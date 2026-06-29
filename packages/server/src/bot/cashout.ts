@@ -19,7 +19,9 @@ import {
 } from "../services/cashoutService";
 
 const OWNER_TG = "6506297119";
-const sessions = new Map<string, { method: CashoutMethod }>(); // awaiting the rider's card/address
+// awaiting the rider's input. card flow is 2-step: card number → cardholder name (so the payout can't
+// land on the wrong person). cardDigits is held between the two steps.
+const sessions = new Map<string, { method: CashoutMethod; cardDigits?: string }>();
 
 function esc(s: string): string {
   return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
@@ -69,13 +71,34 @@ export function registerCashout(bot: Bot): void {
     await ctx.reply("🏠 <b>Manzilingizni yozing</b> (ko'cha, uy — pulni qayerga yetkazamiz):", { parse_mode: "HTML" });
   });
 
-  // capture the card / address — session-gated; everyone else passes through via next()
+  // capture the card / name / address — session-gated; everyone else passes through via next()
   bot.on("message:text", async (ctx, next) => {
     const tg = String(ctx.from.id);
     const s = sessions.get(tg);
     if (!s) return next();
+    if (!(await featureOn("cashout"))) {
+      sessions.delete(tg);
+      return;
+    }
+    const text = ctx.message.text.trim();
+
+    // STEP A (card only): capture the card number → then ask for the cardholder's name
+    if (s.method === "card" && !s.cardDigits) {
+      const digits = text.replace(/\D/g, "");
+      if (digits.length < 16 || digits.length > 19) {
+        sessions.delete(tg);
+        await ctx.reply("❌ Karta raqami noto'g'ri (16 raqam bo'lishi kerak). Qaytadan: /naxt");
+        return;
+      }
+      s.cardDigits = digits;
+      sessions.set(tg, s);
+      await ctx.deleteMessage().catch(() => undefined); // privacy — drop the message carrying the full card
+      await ctx.reply("👤 <b>Karta egasining ism-familiyasini</b> yozing:\n<i>(pul boshqa odamga ketmasligi uchun)</i>", { parse_mode: "HTML" });
+      return;
+    }
+
+    // FINAL STEP: everything captured → create the request
     sessions.delete(tg);
-    if (!(await featureOn("cashout"))) return;
     const me = await getMe(tg);
     if (!me?.member) return;
     const bal = await cashoutBalance(me.member.id);
@@ -83,21 +106,15 @@ export function registerCashout(bot: Bot): void {
       await ctx.reply("❌ Balansingiz yetarli emas.");
       return;
     }
-    const text = ctx.message.text.trim();
     const phone = me.member.phone ?? "—";
     const name = me.member.fullName ?? "Mijoz";
 
     let mask: string;
     let ownerDetail: string;
     if (s.method === "card") {
-      const digits = text.replace(/\D/g, "");
-      if (digits.length < 16 || digits.length > 19) {
-        await ctx.reply("❌ Karta raqami noto'g'ri (16 raqam bo'lishi kerak). Qaytadan: /naxt");
-        return;
-      }
-      mask = "•••• " + digits.slice(-4);
-      ownerDetail = `💳 Karta: <b>${digits}</b>`;
-      await ctx.deleteMessage().catch(() => undefined); // privacy — drop the message carrying the full card
+      const holder = text.slice(0, 60);
+      mask = `•••• ${s.cardDigits!.slice(-4)} · ${holder}`;
+      ownerDetail = `💳 Karta: <b>${s.cardDigits}</b>\n👤 Karta egasi: <b>${esc(holder)}</b>`;
     } else {
       if (text.length < 5) {
         await ctx.reply("❌ Manzil juda qisqa. Qaytadan: /naxt");
