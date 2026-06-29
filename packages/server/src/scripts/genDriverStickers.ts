@@ -33,6 +33,7 @@ async function main(): Promise<void> {
             `<div class="amt">🎁 ${clientReward} so'm <b>SOVG'A</b></div>` +
             `<div class="scan">📲 SKANERLANG — chaqiring</div>` +
             (d.carNumber ? `<div class="car">🚕 ${d.carNumber}</div>` : "") +
+            (d.fullName ? `<div class="drv">👤 ${d.fullName}</div>` : "") +
           `</div>` +
         `</div>` +
         `<div class="foot">🚖 Haydovchiga <b>+${driverBonus}</b> bonus · har safardan cashback 💸</div>` +
@@ -56,6 +57,7 @@ async function main(): Promise<void> {
     `.amt{font-size:13px;font-weight:700;color:#b8860b;margin:3px 0}.amt b{font-size:15px;color:#1a1205}` +
     `.scan{font-size:11px;font-weight:800;margin-bottom:4px}` +
     `.car{display:inline-block;padding:2px 12px;border-radius:7px;background:#fff4cf;border:1px solid #e3c34d;font-weight:800;font-size:15px;letter-spacing:.8px;color:#5a4300}` +
+    `.drv{font-size:11px;font-weight:700;color:#333;margin-top:3px}` +
     `.foot{background:#0a7d3c;color:#fff;font-size:11px;font-weight:700;padding:4px;text-align:center;line-height:1.3}` +
     `.foot b{color:#ffe08a}` +
     `</style></head><body>${pages.join("")}</body></html>`;
