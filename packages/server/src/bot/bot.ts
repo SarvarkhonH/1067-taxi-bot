@@ -741,10 +741,31 @@ export function createBot(): Bot {
       if (kas.canPayDebt) kb.text("💸 Qarz", "drv:debt");
       kb.text("📜 Safarlar", "drv:hist").text("💰 Daromad", "drv:earn").row();
     }
-    kb.text("🎯 Topshiriqlar", "drvm:list").text("📷 QR kodim", "drv:qr");
+    kb.text("🎯 Topshiriqlar", "drvm:list").text("📷 QR kodim", "drv:qr").row();
+    kb.text("🖼 Mening rasmim", "drv:photo");
     await ctx.reply(renderDriverPanel(me.coins, e, recruit, kas), { parse_mode: "HTML", reply_markup: kb });
   };
   bot.hears("🚗 Haydovchi paneli", showDriverPanel);
+  // 🖼 Driver self-service photo: shows current status + tells them to just send a selfie to the chat.
+  bot.callbackQuery("drv:photo", async (ctx) => {
+    await ctx.answerCallbackQuery().catch(() => undefined);
+    const id = String(ctx.from!.id);
+    const tu = await prisma.telegramUser.findUnique({ where: { id }, select: { member: { select: { type: true, photoFileId: true, photoUrl: true, photoPendingFileId: true } } } });
+    const dm = tu?.member;
+    if (dm?.type !== "driver") { await ctx.reply("Bu bo'lim faqat 1067 haydovchilari uchun 🚗"); return; }
+    const has = !!(dm.photoFileId || dm.photoUrl);
+    const status = dm.photoPendingFileId
+      ? "⏳ <b>Holat:</b> rasm yuborildi — administrator tasdig'i kutilmoqda."
+      : has
+        ? "✅ <b>Holat:</b> rasmingiz tasdiqlangan, mijozlar safar paytida ko'radi."
+        : "📭 <b>Holat:</b> hali rasm yuklanmagan.";
+    await ctx.reply(
+      `🖼 <b>Mening rasmim</b>\n\n${status}\n\n` +
+        `Qo'yish yoki almashtirish — <b>shu chatga rasmingizni (selfie) tashlang</b> 👇\n` +
+        `<i>Yuzingiz aniq ko'rinsin. Administrator tasdiqlagach mijozlarga ko'rinadi. Mijoz sizni ko'rsa — ko'proq ishonadi va buyurtma beradi. 🚖</i>`,
+      { parse_mode: "HTML" },
+    );
+  });
   bot.command("driver", showDriverPanel);
 
   // 🎯 Driver missions — daily ride-count tasks (separate from client missions). Drivers see live
