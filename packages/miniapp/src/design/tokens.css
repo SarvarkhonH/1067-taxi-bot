@@ -781,7 +781,7 @@ body {
   color: var(--text, #e8edf4); background: var(--surface, #1a2130); border: 1px solid var(--line, #2a3242); border-radius: 999px; padding: 7px 14px; }
 
 /* ── V4 Yashil to'lqin game ────────────────────────────────────────────────── */
-.tolqin-fab { position: fixed; right: 14px; bottom: 78px; z-index: 40; width: 56px; height: 56px; border-radius: 50%;
+.tolqin-fab { position: fixed; right: 14px; bottom: 150px; z-index: 40; width: 56px; height: 56px; border-radius: 50%;
   font-size: 26px; border: none; color: #fff; background: linear-gradient(135deg, #00c853, #00a040);
   box-shadow: 0 6px 20px rgba(0,200,83,.45); animation: lh-bob 2.4s ease-in-out infinite; }
 .tolqin-overlay { position: fixed; inset: 0; z-index: 60; background: #0b1018; display: flex; flex-direction: column; align-items: center; }
