@@ -233,6 +233,30 @@ function Overview({ health }: { health: AdminHealth | null }) {
         </section>
       )}
 
+      {ball && (
+        <section className="panel">
+          <div className="panel-title">🏅 Daraja taqsimoti (mijozlar)</div>
+          <div className="cards" style={{ marginBottom: 12 }}>
+            <Card icon="👥" label="Mijozlar" value={formatNumber(ball.members)} />
+            <Card icon="🎯" label="Ball to'plagan" value={formatNumber(ball.withBall)} sub={`o'rtacha ${formatNumber(ball.avgBall)}`} accent />
+            <Card icon="🏅" label="Jami ball" value={formatNumber(ball.totalBall)} />
+            <Card icon="🔝" label="Eng ko'p ball" value={formatNumber(ball.maxBall)} />
+          </div>
+          <div className="chart">
+            {ball.tiers.map((t) => {
+              const max = Math.max(1, ...ball.tiers.map((x) => x.count));
+              return (
+                <div key={t.index} className="chart-row">
+                  <div className="chart-label">{t.emoji} {t.name} {t.ballSum > 0 && <span className="muted">· {formatNumber(t.ballSum)} ball</span>}</div>
+                  <div className="chart-bar"><span style={{ width: `${(t.count / max) * 100}%`, background: t.color }} /></div>
+                  <div className="chart-val">{formatNumber(t.count)}</div>
+                </div>
+              );
+            })}
+          </div>
+        </section>
+      )}
+
       {eco && (
         <section className="panel">
           <div className="panel-title">🛡 Revenue-linked withdraw budget (rides → real-money-out)</div>
@@ -262,30 +286,6 @@ function Overview({ health }: { health: AdminHealth | null }) {
                   <div className="chart-label">{k.kind} <span className="muted">×{k.count}</span></div>
                   <div className="chart-bar"><span style={{ width: `${(Math.abs(k.total) / max) * 100}%`, background: k.total >= 0 ? "var(--green)" : "var(--red)" }} /></div>
                   <div className="chart-val" style={{ color: k.total >= 0 ? "var(--green)" : "var(--red)" }}>{k.total >= 0 ? "+" : ""}{formatNumber(k.total)}</div>
-                </div>
-              );
-            })}
-          </div>
-        </section>
-      )}
-
-      {ball && (
-        <section className="panel">
-          <div className="panel-title">🏅 Daraja taqsimoti (mijozlar)</div>
-          <div className="cards" style={{ marginBottom: 12 }}>
-            <Card icon="👥" label="Mijozlar" value={formatNumber(ball.members)} />
-            <Card icon="🎯" label="Ball to'plagan" value={formatNumber(ball.withBall)} sub={`o'rtacha ${formatNumber(ball.avgBall)}`} accent />
-            <Card icon="🏅" label="Jami ball" value={formatNumber(ball.totalBall)} />
-            <Card icon="🔝" label="Eng ko'p ball" value={formatNumber(ball.maxBall)} />
-          </div>
-          <div className="chart">
-            {ball.tiers.map((t) => {
-              const max = Math.max(1, ...ball.tiers.map((x) => x.count));
-              return (
-                <div key={t.index} className="chart-row">
-                  <div className="chart-label">{t.emoji} {t.name} {t.ballSum > 0 && <span className="muted">· {formatNumber(t.ballSum)} ball</span>}</div>
-                  <div className="chart-bar"><span style={{ width: `${(t.count / max) * 100}%`, background: t.color }} /></div>
-                  <div className="chart-val">{formatNumber(t.count)}</div>
                 </div>
               );
             })}
