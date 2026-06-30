@@ -38,7 +38,7 @@ export function UyView({ me, onBook, onNav }: { me: MeResponse; onBook: () => vo
         <button className="uy-tile" onClick={() => { haptic(); onNav("play"); }}>🎮<span>O'yin</span></button>
         <button className="uy-tile" onClick={() => { haptic(); onNav("market"); }}>🏪<span>Bozor</span></button>
         <button className="uy-tile" onClick={() => { haptic(); onNav("reyting"); }}>🏆<span>Reyting</span></button>
-        <button className="uy-tile" onClick={() => { haptic(); onNav("wallet"); }}>💰<span>Hamyon</span></button>
+        <button className="uy-tile" onClick={() => { haptic(); onNav("history"); }}>📜<span>Tarix</span></button>
       </div>
     </div>
   );
