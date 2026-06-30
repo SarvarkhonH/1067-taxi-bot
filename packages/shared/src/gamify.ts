@@ -36,11 +36,12 @@ export interface MemberStats {
   trips: number; // bookingCount (client) | takeBookingCount (driver)
   rating: number; // driver rating 0..5; 0 for clients
   rank: number | null; // 1-based position on the (type-scoped) leaderboard
+  ballPoints?: number; // 🏅 game-only XP from daily-task completion (feature "tierloyalty"); decayable; additive to XP
 }
 
-// XP: points are the backbone, trips add a little flavour.
-export function computeXp(s: Pick<MemberStats, "points" | "trips">): number {
-  return Math.round(s.points + s.trips * 2);
+// XP: points are the backbone, trips add a little flavour. ballPoints (tierloyalty) adds on top.
+export function computeXp(s: Pick<MemberStats, "points" | "trips"> & { ballPoints?: number }): number {
+  return Math.round(s.points + s.trips * 2 + (s.ballPoints ?? 0));
 }
 
 export interface LevelProgress {

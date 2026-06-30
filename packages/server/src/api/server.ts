@@ -243,16 +243,24 @@ export function createApiServer(opts: ApiOptions = {}) {
   app.get("/api/garaj/profile/:id", requireUser, withMember2(async (id, req) => (await import("../services/garajService")).getPublicProfile(id, req.params?.id === "me" ? id : Number(req.params?.id))));
 
   app.get("/api/me", requireUser, async (_req, res) => {
-    const [me, booking3, garajx, tolqin, livinghome, intercity] = await Promise.all([
+    const [me, booking3, garajx, tolqin, livinghome, intercity, tierloyalty] = await Promise.all([
       getMe(res.locals.telegramId as string),
       featureOn("booking3"),
       featureOn("garajx"),
       featureOn("tolqin"),
       featureOn("livinghome"),
       featureOn("intercity"),
+      featureOn("tierloyalty"),
     ]);
     if (!me) { res.json({ linked: false }); return; }
-    res.json({ ...me, flags: { booking3, garajx, tolqin, livinghome, intercity } });
+    res.json({ ...me, flags: { booking3, garajx, tolqin, livinghome, intercity, tierloyalty } });
+  });
+
+  // 🏅 Tier ladder benefits — labels derived from LIVE knobs (single source of truth). 60s client cache.
+  app.get("/api/tier-benefits", requireUser, async (_req, res) => {
+    const { getTierBenefits } = await import("../services/tierLoyaltyService");
+    res.set("Cache-Control", "private, max-age=60");
+    res.json(await getTierBenefits());
   });
 
   app.post("/api/checkin", requireUser, async (_req, res) => {

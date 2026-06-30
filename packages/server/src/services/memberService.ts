@@ -17,6 +17,8 @@ import { env } from "../env";
 import { getDataSource } from "../kas";
 import { canSpinWheel, getStreak } from "./rewardService";
 import { getJackpot } from "./weeklyService";
+import { featureOn } from "./featureFlags";
+import { decayStatus } from "./tierLoyaltyService";
 
 export function isAdmin(telegramId: string): boolean {
   return env.adminIds.includes(telegramId);
@@ -93,8 +95,13 @@ async function buildMe(
   tg?: { firstName?: string | null; lastName?: string | null; username?: string | null } | null,
 ): Promise<MeResponse> {
   const type = member.type as MemberType;
-  const xp = computeXp({ points: member.points, trips: member.trips });
+  // 🏅 ballPoints (tierloyalty) adds to XP. It's 0 for everyone until the flag awards it, so this is
+  // a pure no-op while OFF; once earned it persists as real XP. Rank stays on `points` (kas), below.
+  const xp = computeXp({ points: member.points, trips: member.trips, ballPoints: member.ballPoints });
   const lp = levelForXp(xp);
+  // decay status only matters (and only computed) for clients under the flag
+  const tierOn = type === "client" && (await featureOn("tierloyalty"));
+  const decay = tierOn ? await decayStatus(member.lastActiveDay) : { idleDays: 0, decayWarning: false };
 
   // T2 (AUDIT 2.1 + 2.10): rank/total via indeksli COUNT (butun jadval emas),
   // streak/wheel/jackpot bilan birga PARALLEL — 5 ketma-ket so'rov → 1 to'lqin.
@@ -123,6 +130,9 @@ async function buildMe(
     metricLabel: metricLabel(type),
     member: { id: member.id, fullName: member.displayName || resolveDisplayName(member.fullName, tg), phone: member.phone, carNumber: member.carNumber },
     stats: { points: member.points, trips: member.trips, rating: member.rating },
+    ballPoints: member.ballPoints,
+    idleDays: decay.idleDays,
+    decayWarning: decay.decayWarning,
     level: { index: lp.level.index, name: lp.level.name, emoji: lp.level.emoji, color: lp.level.color },
     nextLevel: lp.next
       ? { index: lp.next.index, name: lp.next.name, emoji: lp.next.emoji, minXp: lp.next.minXp }

@@ -13,6 +13,7 @@ import { getDataSource, type ActiveBookingLite, type BookingDriver, type KasData
 import { incrementMission } from "./missionService";
 import { kasMapSocket } from "./kasMapSocket";
 import { resolveDisplayName } from "./memberService";
+import { markRideActive, runTierLoyaltyDaily } from "./tierLoyaltyService";
 
 const CITY_KMH = 24;
 // kas lifecycle: new → take → in_place → delivered. "in_place" is normalized to "started" in the
@@ -227,6 +228,10 @@ export async function pushBookingUpdates(
     const b = byPhone.get(norm);
     const chatId = m.telegramUser!.id;
 
+    // 🏅 Tier loyalty daily pass (award + decay + warning) — flag-gated, client-only, idempotent
+    // per UTC+5 day, never throws. No-op when "tierloyalty" is OFF. No new poller — rides this sweep.
+    await runTierLoyaltyDaily(bot, m);
+
     if (b) {
       const isNewRide = m.lastBookingId !== b.id;
       const statusChanged = isNewRide || m.lastBookingStatus !== b.status;
@@ -418,6 +423,8 @@ export async function pushBookingUpdates(
           const w = await import("./weeklyService");
           await w.addScore(m.id, "ride", `qscore:${m.id}:${bid}`);
         });
+        // 🏅 a real finished ride is a decay-grace reset (flag-gated, client-only)
+        await markRideActive(m.id, m.type);
       }
 
       // 🎰 BARABAN: grant a 5-minute spin token for THIS finished ride + fire an immediate

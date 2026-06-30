@@ -33,6 +33,11 @@ model Member {
   lastBookingSource  String? // "bot" | "miniapp" — E-gate channel share metric
   comboBoostDay      String? // tashkent day the daily combo earned a 2x roll for
   comebackOfferUntil DateTime?
+  // 🏅 Tier loyalty loop (feature "tierloyalty", DARK). ballPoints = GAME-only XP from
+  // daily-task completion; decayable; NEVER money (separate from points/coins).
+  ballPoints         Int       @default(0)
+  lastActiveDay      String? // tashkent YYYY-MM-DD of last qualifying activity (ride or claimed mission)
+  decayAppliedDay    String? // tashkent YYYY-MM-DD decay last applied (anti-yo-yo: once/day)
   plusUntil          DateTime? // win-back: guaranteed 3x roll window
   // live ride card (ONE message per ride, edited in place) + moving driver pin
   rideCardMsgId      Int?

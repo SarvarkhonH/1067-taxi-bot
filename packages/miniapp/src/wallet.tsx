@@ -11,6 +11,7 @@ import {
   type FareConfigResponse,
   type MeResponse,
   type RecipientLookup,
+  type TierBenefitsResponse,
   type WalletResponse,
 } from "@t1067/shared";
 import { api } from "./api";
@@ -759,45 +760,71 @@ const TIER_MEANING: Record<string, string> = {
 };
 
 export function TierLadder({ me }: { me: MeResponse }) {
+  const tierOn = !!me.flags?.tierloyalty;
+  const [ben, setBen] = useState<TierBenefitsResponse | null>(null);
+  const [filled, setFilled] = useState(false); // drives the "to'lib borishi" fill animation on open
+  useEffect(() => {
+    if (tierOn) api.tierBenefits().then(setBen).catch(() => undefined);
+    const t = setTimeout(() => setFilled(true), 60);
+    return () => clearTimeout(t);
+  }, [tierOn]);
+
   const cur = me.level.index;
   const pct = Math.round((me.progress || 0) * 100);
   const toNext = me.nextLevel ? Math.max(0, me.nextLevel.minXp - me.xp) : 0;
+  const benFor = (idx: number) => ben?.tiers.find((x) => x.levelIndex === idx);
+  const meanFor = (l: (typeof LEVELS)[number]) => {
+    if (tierOn) { const b = benFor(l.index); return b ? b.benefitLabel : ""; }
+    return TIER_MEANING[l.name] ?? "";
+  };
+  const ball = me.ballPoints ?? 0;
+  const fromRides = me.stats.trips * 2;
+  const fromCash = Math.max(0, Math.round(me.stats.points));
+
   return (
     <section className="glass pad tier-card">
       <div className="section-title">🏅 Sizning darajangiz</div>
+
+      {/* 📉 decay ogohlantirishi (faqat flag ON + faolsiz oyna) */}
+      {tierOn && me.decayWarning && (
+        <div className="tier-decay">⚠️ <b>{me.idleDays} kun</b> faol bo&apos;lmadingiz — ballingiz kamaymoqda. Bugun safar qiling yoki vazifa bajaring!</div>
+      )}
 
       {/* joriy daraja hero */}
       <div className="tier-hero" style={{ ["--lvl" as string]: me.level.color }}>
         <span className="tier-hero-emoji">{me.level.emoji}</span>
         <div className="tier-hero-info">
           <b className="tier-hero-name">{me.level.name}</b>
-          <span className="tier-hero-xp">{formatNumber(me.xp)} ball</span>
+          <span className="tier-hero-xp">{formatNumber(me.xp)} ball{tierOn && benFor(cur) && benFor(cur)!.multPct > 0 ? ` · +${benFor(cur)!.multPct}% safar tanga` : ""}</span>
         </div>
       </div>
 
-      {/* keyingi darajagacha progress */}
+      {/* keyingi darajagacha progress — 0'dan to'ladi */}
       {me.nextLevel ? (
         <div className="tier-next">
           <div className="tier-next-row">
             <span className="muted">Keyingi: {me.nextLevel.emoji} {me.nextLevel.name}</span>
             <span><b>{formatNumber(toNext)}</b> ball qoldi</span>
           </div>
-          <div className="tier-bar"><span style={{ width: `${pct}%`, background: me.level.color }} /></div>
+          <div className="tier-bar"><span style={{ width: `${filled ? pct : 0}%`, background: me.level.color }} /></div>
         </div>
       ) : (
         <div className="tier-next"><div className="tier-next-row tac"><b>👑 Eng yuqori darajadasiz!</b></div></div>
       )}
 
-      {/* butun narvon — har daraja nimaligi bilan */}
+      {/* butun narvon — har daraja foydasi + to'lgan segment */}
       <div className="tier-list">
         {LEVELS.map((l) => {
           const state = l.index < cur ? "done" : l.index === cur ? "now" : "lock";
+          const segPct = state === "done" ? 100 : state === "now" ? pct : 0;
+          const b = tierOn ? benFor(l.index) : undefined;
           return (
             <div key={l.index} className={"tier-step " + state} style={{ ["--lvl" as string]: l.color }}>
               <span className="tier-step-emoji">{l.emoji}</span>
               <div className="tier-step-mid">
-                <b className="tier-step-name">{l.name}</b>
-                <small className="tier-step-mean">{TIER_MEANING[l.name] ?? ""}</small>
+                <b className="tier-step-name">{l.name}{b && b.multPct > 0 && <span className="tier-mult">+{b.multPct}%</span>}</b>
+                <small className="tier-step-mean">{meanFor(l)}</small>
+                <div className="tier-seg"><span style={{ width: `${filled ? segPct : 0}%`, background: l.color }} /></div>
               </div>
               <div className="tier-step-right">
                 {state === "now" ? <span className="tier-pill-now">📍 Siz shu yerda</span>
@@ -809,8 +836,38 @@ export function TierLadder({ me }: { me: MeResponse }) {
         })}
       </div>
 
-      <p className="muted" style={{ fontSize: 12, marginTop: 10 }}>Har safar va faollik ball qo&apos;shadi. Ball ko&apos;paygani sayin darajangiz oshadi 🚀</p>
+      {/* ball breakdown — flag ON (shaffoflik) */}
+      {tierOn && (
+        <div className="tier-breakdown">Ball: <b>{formatNumber(ball)}</b> o&apos;yin + <b>{formatNumber(fromRides)}</b> safar + <b>{formatNumber(fromCash)}</b> cashback = <b>{formatNumber(me.xp)}</b> jami</div>
+      )}
+
+      {/* 📋 Shartlar — raqamlar jonli knoblardan (single source of truth) */}
+      {tierOn && ben && (
+        <div className="tier-rules">
+          <div className="tier-rules-title">📋 Daraja shartlari</div>
+          <div className="tier-rules-row">🎯 Har kuni <b>≥2 vazifa</b> → +{formatNumber(ben.rules.ballHalf)} ball · barchasi → +{formatNumber(ben.rules.ballFull)} ball</div>
+          <div className="tier-rules-row">🏅 Daraja oshsa → <b>har safar ko&apos;proq tanga</b></div>
+          <div className="tier-rules-row">📉 <b>{ben.rules.decayGraceDays} kun</b> faolsiz → kuniga {ben.rules.decayPct}% ball yechiladi · 1 safar/vazifa to&apos;xtatadi</div>
+        </div>
+      )}
+
+      {!tierOn && <p className="muted" style={{ fontSize: 12, marginTop: 10 }}>Har safar va faollik ball qo&apos;shadi. Ball ko&apos;paygani sayin darajangiz oshadi 🚀</p>}
     </section>
+  );
+}
+
+// Ixcham daraja-chizig'i — profil panelida; bosilsa O'yin tabidagi to'liq narvonga olib boradi.
+export function TierLadderCompact({ me, onOpen }: { me: MeResponse; onOpen: () => void }) {
+  const pct = Math.round((me.progress || 0) * 100);
+  return (
+    <button className="tier-compact" onClick={() => { haptic(); onOpen(); }} style={{ ["--lvl" as string]: me.level.color }}>
+      <span className="tier-compact-emoji">{me.level.emoji}</span>
+      <div className="tier-compact-mid">
+        <b className="tier-compact-name">{me.level.name}</b>
+        <div className="tier-bar sm"><span style={{ width: `${pct}%`, background: me.level.color }} /></div>
+      </div>
+      <span className="tier-compact-chev">›</span>
+    </button>
   );
 }
 

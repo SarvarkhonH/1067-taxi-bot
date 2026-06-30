@@ -5,9 +5,10 @@
 // ride's fare-derived base bonus and grants COINS via the idempotent ledger —
 // a re-polled finish grants nothing, no ride = no roll, and real money still
 // exits only through the budget-gated withdraw door.
-import { RIDE_JACKPOT_FEED, RIDE_REWARD_BASE, RIDE_REWARD_TIERS, formatNumber } from "@t1067/shared";
+import { RIDE_JACKPOT_FEED, RIDE_REWARD_BASE, RIDE_REWARD_TIERS, computeXp, formatNumber, levelForXp, tierMultFor } from "@t1067/shared";
 import { prisma } from "../db";
 import { grantCoins } from "./coinService";
+import { featureOn } from "./featureFlags";
 import { weekKey } from "./missionService";
 import { claimJackpot, growJackpot } from "./weeklyService";
 import { getBonusEcon } from "./bonusConfig";
@@ -59,7 +60,7 @@ export async function rollRideCashback(
   }
 
   // daily combo completed yesterday → today's roll doubles (the comeback hook)
-  const member = await prisma.member.findUnique({ where: { id: memberId }, select: { comboBoostDay: true, lastBookingSource: true, comebackOfferUntil: true, plusUntil: true } });
+  const member = await prisma.member.findUnique({ where: { id: memberId }, select: { comboBoostDay: true, lastBookingSource: true, comebackOfferUntil: true, plusUntil: true, points: true, trips: true, ballPoints: true } });
   const today = new Date(Date.now() + 5 * 3600 * 1000).toISOString().slice(0, 10);
   const combo = member?.comboBoostDay === today;
   // 🎁 comeback win-back: the first ride inside the offer window is a
@@ -73,7 +74,15 @@ export async function rollRideCashback(
   if (jackpot) {
     amount = 0; // pool claimed ONLY after the unique insert wins (T0.5 / AUDIT 3.1)
   } else {
-    amount = (econ.rideBase ?? RIDE_REWARD_BASE) * t.mult * (lucky ? 2 : 1) * (combo ? 2 : 1);
+    // 🏅 Tier loyalty multiplier (feature "tierloyalty", DARK): higher tier → bigger per-ride
+    // cashback. Applied to the roll BEFORE grantRideCoins, so the ≤350 clamp is NEVER bypassed.
+    // OFF (or no member) → levelMult = 1.0, identical to legacy behaviour.
+    let levelMult = 1.0;
+    if (member && (await featureOn("tierloyalty"))) {
+      const lvl = levelForXp(computeXp({ points: member.points, trips: member.trips, ballPoints: member.ballPoints })).level;
+      levelMult = tierMultFor(lvl.index, econ);
+    }
+    amount = (econ.rideBase ?? RIDE_REWARD_BASE) * t.mult * (lucky ? 2 : 1) * (combo ? 2 : 1) * levelMult;
     // 💎 Plus: ×1.5 on the roll, extra capped at +150 (ride clamp still rules)
     const plus = !!member?.plusUntil && member.plusUntil.getTime() > Date.now();
     if (plus) amount += Math.min(150, Math.floor(amount * 0.5));

@@ -218,7 +218,7 @@ function AllTimeBoard({ board, max, onRow }: { board: LeaderboardResponse; max: 
             <div className="row-rank">{rankMedal(e.rank)}</div>
             <div className="row-main">
               <div className="row-name">
-                <span className="row-emoji">{e.level.emoji}</span>
+                <span className="row-tier" style={{ ["--lvl" as string]: e.level.color }}>{e.level.emoji} {e.level.name}</span>
                 {e.fullName}
                 {e.isMe && <span className="you">Siz</span>}
               </div>

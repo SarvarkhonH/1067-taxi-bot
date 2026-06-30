@@ -5,7 +5,7 @@ import type { LeaderboardResponse, MeResponse } from "@t1067/shared";
 import { api, getInitData, waitForInitData } from "./api";
 import { haptic, tg } from "./telegram";
 import { LeaderboardView, LoadError, MahallaSection, MissionsView, ReferralView, RideHistoryView, Spinner } from "./components";
-import { AccountCard, TierLadder, WalletView } from "./wallet"; // bosh tab — eager (birinchi paint)
+import { AccountCard, TierLadder, TierLadderCompact, WalletView } from "./wallet"; // bosh tab — eager (birinchi paint)
 import { UyView } from "./uy"; // Uy tabi — yengil (leaflet-siz), eager
 // T2 (AUDIT 2.9): boshqa tablar lazy — har biri alohida chunk, asosiy bundle kichrayadi
 const RewardsView = lazy(() => import("./rewards").then((m) => ({ default: m.RewardsView })));
@@ -292,6 +292,7 @@ export function App() {
             {tab === "wallet" && <WalletView me={me} onBanner={flash} reload={reload} onBook={() => { haptic(); setBooking(true); }} onNav={nav} />}
             {tab === "play" && (
               <>
+                <TierLadder me={me} />
                 <RewardsView me={me} onReward={flash} hideGarage={garajx} />
                 <MissionsView onReward={flash} />
               </>
@@ -312,7 +313,7 @@ export function App() {
             {tab === "driver" && <DriverView me={me} />}
             {tab === "profile" && (
               <div className="view">
-                <TierLadder me={me} />
+                <TierLadderCompact me={me} onOpen={() => go("play")} />
                 <AccountCard />
                 <button className="rh-open-btn" onClick={() => { haptic(); setHistory(true); }}>
                   <span className="rh-open-ico">📜</span>

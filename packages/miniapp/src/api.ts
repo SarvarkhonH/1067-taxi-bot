@@ -34,6 +34,7 @@ import type {
   WheelSpinResponse,
   WithdrawResponse,
   CashoutResponse,
+  TierBenefitsResponse,
 } from "@t1067/shared";
 import { tg } from "./telegram";
 
@@ -320,6 +321,8 @@ export const api = {
   bookingEstimate: (pickup: GeoPt, dest: GeoPt, surcharge: number) => request<FareQuote>("POST", "/api/booking/estimate", { pickup, dest, surcharge }),
   bookingHistory: () =>
     get<RideHistoryResponse>("/api/booking/history"),
+  // 🏅 Tier ladder benefits (labels from live knobs)
+  tierBenefits: () => get<TierBenefitsResponse>("/api/tier-benefits"),
   // 🚐 Intercity (nationwide seat booking)
   icCities: (q?: string) => get<IntercityCity[]>(`/api/intercity/cities${q ? `?q=${encodeURIComponent(q)}` : ""}`),
   icTrips: (originId: number, destId: number, date: string) =>

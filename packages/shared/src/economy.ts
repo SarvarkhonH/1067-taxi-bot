@@ -164,7 +164,33 @@ export const BONUS_ECON_KNOBS: BonusEconKnob[] = [
   { key: "mDrvDaily5", label: "🚖 Haydovchi kunlik 5-safar", def: 800, min: 0, max: 20000, step: 50, group: "Missionlar" },
   { key: "mDrvWeekly25", label: "🚖 Haydovchi haftalik 25-safar", def: 5000, min: 0, max: 50000, step: 100, group: "Missionlar" },
   { key: "mDrvWeekly40", label: "🚖 Haydovchi haftalik 40-safar", def: 12000, min: 0, max: 50000, step: 100, group: "Missionlar" },
+  // ── 🏅 Daraja multiplikator (feature "tierloyalty") — har safar cashback'ni daraja bo'yicha ko'paytiradi (≤350 clamp baribir ustun) ──
+  { key: "tierMultBronza", label: "🥉 Bronza — har safar cashback ×", def: 1.05, min: 1, max: 2, step: 0.01, group: "Daraja multiplikator" },
+  { key: "tierMultKumush", label: "🥈 Kumush — har safar cashback ×", def: 1.1, min: 1, max: 2, step: 0.01, group: "Daraja multiplikator" },
+  { key: "tierMultOltin", label: "🥇 Oltin — har safar cashback ×", def: 1.15, min: 1, max: 2, step: 0.01, group: "Daraja multiplikator" },
+  { key: "tierMultPlatina", label: "💎 Platina — har safar cashback ×", def: 1.2, min: 1, max: 2, step: 0.01, group: "Daraja multiplikator" },
+  { key: "tierMultOlmos", label: "💠 Olmos — har safar cashback ×", def: 1.25, min: 1, max: 2, step: 0.01, group: "Daraja multiplikator" },
+  { key: "tierMultAfsona", label: "👑 Afsona — har safar cashback ×", def: 1.3, min: 1, max: 2, step: 0.01, group: "Daraja multiplikator" },
+  // ── 🏅 Daraja balli (feature "tierloyalty") — kunlik vazifa → ball; faolsizlik → decay ──
+  { key: "ballHalf", label: "🎯 Kunlik ≥50% vazifa → ball", def: 100, min: 0, max: 2000, step: 10, group: "Daraja balli" },
+  { key: "ballFull", label: "🎯 Kunlik 100% vazifa → ball", def: 250, min: 0, max: 5000, step: 10, group: "Daraja balli" },
+  { key: "decayGraceDays", label: "⏳ Faolsiz kun (ogohlantirishdan oldin)", def: 7, min: 1, max: 30, step: 1, group: "Daraja balli" },
+  { key: "decayPct", label: "📉 Kunlik ball yechilishi (%)", def: 5, min: 0, max: 30, step: 1, group: "Daraja balli" },
+  { key: "decayFloor", label: "📉 Ball minimumi (decay shu yerda to'xtaydi)", def: 0, min: 0, max: 10000, step: 100, group: "Daraja balli" },
 ];
+// 🏅 level index → cashback-multiplier knob key (null for Yangi = baseline ×1.0).
+const TIER_MULT_KNOB: Record<number, string> = {
+  1: "tierMultBronza", 2: "tierMultKumush", 3: "tierMultOltin",
+  4: "tierMultPlatina", 5: "tierMultOlmos", 6: "tierMultAfsona",
+};
+export function tierMultKnobKey(levelIndex: number): string | null {
+  return TIER_MULT_KNOB[levelIndex] ?? null;
+}
+/** Per-ride cashback multiplier for a level index from a knob blob (1.0 default = Yangi/unknown). */
+export function tierMultFor(levelIndex: number, econ: Record<string, number>): number {
+  const k = tierMultKnobKey(levelIndex);
+  return k && typeof econ[k] === "number" ? econ[k]! : 1.0;
+}
 export function bonusEconDefaults(): Record<string, number> {
   return Object.fromEntries(BONUS_ECON_KNOBS.map((k) => [k.key, k.def]));
 }

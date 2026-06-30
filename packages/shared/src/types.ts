@@ -40,13 +40,34 @@ export interface MeResponse {
   jackpot: number; // current escalating wheel jackpot
   coins: number; // game-wallet balance (1 coin = 1 so'm)
   leagueTier: string; // Bronza | Kumush | Oltin | Platina | Olmos
+  // 🏅 Tier loyalty loop (feature "tierloyalty") — present/meaningful only when the flag is ON.
+  ballPoints?: number; // game-only XP sub-component (daily-task ball), decayable
+  decayWarning?: boolean; // rider is past the grace window → ball is decaying / about to
+  idleDays?: number; // days since last qualifying activity (for display)
   flags?: {
     booking3?: boolean;
     garajx?: boolean;
     tolqin?: boolean;
     livinghome?: boolean;
     intercity?: boolean; // 🚐 nationwide intercity seat-booking tab
+    tierloyalty?: boolean; // 🏅 tier reward loop (multiplier + ball + decay) — UI reveals benefits only when ON
   };
+}
+
+// 🏅 One ladder row's concrete benefit, derived SERVER-SIDE from live knobs so the
+// displayed copy can never drift from the real cashback multiplier. (feature "tierloyalty")
+export interface TierBenefit {
+  levelIndex: number;
+  levelName: string;
+  emoji: string;
+  color: string;
+  minXp: number;
+  multPct: number; // e.g. 15 means ×1.15 per-ride cashback
+  benefitLabel: string; // e.g. "+15% har safar tanga"
+}
+export interface TierBenefitsResponse {
+  rules: { ballHalf: number; ballFull: number; decayGraceDays: number; decayPct: number };
+  tiers: TierBenefit[];
 }
 
 export interface CheckInResponse {
