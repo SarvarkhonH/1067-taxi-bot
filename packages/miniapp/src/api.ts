@@ -319,8 +319,23 @@ export const api = {
   bookingCancel: () => request<BookingCancelResponse>("POST", "/api/booking/cancel", undefined, 1),
   bookingEstimate: (pickup: GeoPt, dest: GeoPt, surcharge: number) => request<FareQuote>("POST", "/api/booking/estimate", { pickup, dest, surcharge }),
   bookingHistory: () =>
-    get<{ id: number; addressName: string; status: string; carModel: string; payment: number; cashback: number; at: string }[]>("/api/booking/history"),
+    get<RideHistoryRow[]>("/api/booking/history"),
 };
+
+// One row of the rider's ride history (kas bookingReports). distance is in METRES (÷1000 = km);
+// time follows kas's taximeter — guarded in the UI (seconds vs minutes) since kas units vary.
+export interface RideHistoryRow {
+  id: number;
+  addressName: string;
+  status: string;
+  carModel: string;
+  carNumber?: string;
+  payment: number; // total paid (so'm)
+  cashback: number; // cashback earned (so'm)
+  distance?: number; // metres
+  time?: number; // kas taximeter time
+  at: string; // ISO date
+}
 
 interface SavedAddr {
   id: number;

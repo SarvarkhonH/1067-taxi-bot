@@ -4,7 +4,7 @@ const DesignDemo = lazy(() => import("./design/demo")); // #demo dagina yuklanad
 import type { LeaderboardResponse, MeResponse } from "@t1067/shared";
 import { api, getInitData, waitForInitData } from "./api";
 import { haptic, tg } from "./telegram";
-import { LeaderboardView, LoadError, MahallaSection, MissionsView, ReferralView, Spinner } from "./components";
+import { LeaderboardView, LoadError, MahallaSection, MissionsView, ReferralView, RideHistoryView, Spinner } from "./components";
 import { AccountCard, WalletView } from "./wallet"; // bosh tab — eager (birinchi paint)
 import { UyView } from "./uy"; // Uy tabi — yengil (leaflet-siz), eager
 // T2 (AUDIT 2.9): boshqa tablar lazy — har biri alohida chunk, asosiy bundle kichrayadi
@@ -132,6 +132,7 @@ export function App() {
   const [toast, setToast] = useState<{ id: number; msg: string } | null>(null);
   const [booking, setBooking] = useState(() => readGo() === "book");
   const [invite, setInvite] = useState(() => readGo() === "invite"); // 🎁 invite overlay (one-tap from home / ?go=invite)
+  const [history, setHistory] = useState(() => readGo() === "history"); // 📜 ride-history overlay
   const coins = useCountUp(me?.coins ?? 0);
   // WOW-1: balans oshganda tanga ikonkasi sakraydi
   const [coinBounce, setCoinBounce] = useState(false);
@@ -205,6 +206,7 @@ export function App() {
   if (!me) return <BootSplash />;
   if (booking) return <Suspense fallback={<BootSplash />}><Booking3View me={me} onClose={() => setBooking(false)} /></Suspense>;
   if (invite) return <div className="app"><main className="content"><ReferralView onClose={() => setInvite(false)} /></main></div>;
+  if (history) return <div className="app"><main className="content"><RideHistoryView onClose={() => setHistory(false)} /></main></div>;
   if (garaj) return <Suspense fallback={<BootSplash />}><GarajShell onClose={() => { setGaraj(false); reload(); }} /></Suspense>;
 
   const go = (t: Tab) => {
@@ -219,6 +221,7 @@ export function App() {
   // child components nav by string label (incl. old names) → map to the 5 tabs
   const nav = (t: string) => {
     if (t === "invite") { haptic(); setInvite(true); return; } // 🎁 open invite overlay directly
+    if (t === "history") { haptic(); setHistory(true); return; } // 📜 open ride-history overlay
     go(GO_MAP[t] ?? "uy");
   };
 
@@ -288,7 +291,16 @@ export function App() {
                 <Spinner />
               ))}
             {tab === "driver" && <DriverView me={me} />}
-            {tab === "profile" && <div className="view"><AccountCard /></div>}
+            {tab === "profile" && (
+              <div className="view">
+                <AccountCard />
+                <button className="rh-open-btn" onClick={() => { haptic(); setHistory(true); }}>
+                  <span className="rh-open-ico">📜</span>
+                  <span className="rh-open-txt"><b>Safarlar tarixi</b><small>Har safar: km · daqiqa · narx · cashback</small></span>
+                  <span className="rh-open-chev">›</span>
+                </button>
+              </div>
+            )}
           </Suspense>
         </div>
       </main>

@@ -10,7 +10,7 @@ import {
   type ReferralResponse,
   type WeeklyBoardResponse,
 } from "@t1067/shared";
-import { api } from "./api";
+import { api, type RideHistoryRow } from "./api";
 import { copyText, haptic, shareLink, inviteText } from "./telegram";
 
 export function Spinner() {
@@ -464,5 +464,90 @@ export function MahallaSection() {
         </p>
       )}
     </section>
+  );
+}
+
+// ─── 📜 Safarlar tarixi — per-ride: manzil, sana+soat, km, daqiqa, narx, cashback + jami ──────────
+const DONE_STATUS = new Set(["delivered", "completed", "finished", "done"]);
+const CANCEL_STATUS = new Set(["cancel_by_operator", "cancel_by_server", "cancelled", "canceled"]);
+
+function rideMinutes(t?: number): number | null {
+  if (!t || t <= 0) return null;
+  // kas taximeter unit varies (seconds vs minutes). A city ride is < ~180 min; anything bigger is
+  // almost certainly seconds → ÷60. Robust for both: 15min→15, 900s→15.
+  return t >= 180 ? Math.round(t / 60) : Math.round(t);
+}
+
+function fmtWhen(iso: string): string {
+  if (!iso) return "";
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return iso;
+  return d.toLocaleString("ru-RU", { day: "2-digit", month: "2-digit", year: "2-digit", hour: "2-digit", minute: "2-digit" });
+}
+
+export function RideHistoryView({ onClose }: { onClose?: () => void } = {}) {
+  const [rows, setRows] = useState<RideHistoryRow[] | null>(null);
+  const [err, setErr] = useState(false);
+  const load = () => { setErr(false); setRows(null); api.bookingHistory().then(setRows).catch(() => setErr(true)); };
+  useEffect(load, []);
+
+  const totalSpent = rows ? rows.reduce((s, r) => s + (r.payment || 0), 0) : 0;
+  const totalCashback = rows ? rows.reduce((s, r) => s + (r.cashback || 0), 0) : 0;
+  const totalKm = rows ? rows.reduce((s, r) => s + (r.distance || 0), 0) / 1000 : 0;
+
+  return (
+    <div className="view">
+      {onClose && (
+        <div className="inv-overlay-head">
+          <button className="inv-back" onClick={() => { haptic(); onClose(); }}>← Orqaga</button>
+        </div>
+      )}
+      <div className="section-title">📜 Safarlar tarixi</div>
+
+      {/* Jami xulosa */}
+      <section className="rh-summary glass">
+        <div className="rh-sum-cell"><div className="rh-sum-val">{rows ? rows.length : "—"}</div><div className="rh-sum-lab">safar</div></div>
+        <div className="rh-sum-cell"><div className="rh-sum-val">{formatNumber(Math.round(totalSpent))}</div><div className="rh-sum-lab">jami so'm</div></div>
+        <div className="rh-sum-cell"><div className="rh-sum-val rh-cb">+{formatNumber(Math.round(totalCashback))}</div><div className="rh-sum-lab">cashback</div></div>
+      </section>
+
+      {err ? (
+        <LoadError onRetry={load} />
+      ) : !rows ? (
+        <Spinner />
+      ) : rows.length === 0 ? (
+        <p className="muted" style={{ textAlign: "center", padding: "32px 16px" }}>
+          🚕 Hali safar yo'q.<br />Birinchi safaringizdan keyin shu yerda ko'rinadi.
+        </p>
+      ) : (
+        <div className="rh-list">
+          {rows.map((r) => {
+            const km = r.distance ? (r.distance / 1000).toFixed(1) : null;
+            const mins = rideMinutes(r.time);
+            const icon = DONE_STATUS.has(r.status) ? "🏁" : CANCEL_STATUS.has(r.status) ? "✖" : "🚕";
+            const cancelled = CANCEL_STATUS.has(r.status);
+            return (
+              <div key={r.id} className={"rh-card glass" + (cancelled ? " rh-cancelled" : "")}>
+                <div className="rh-card-top">
+                  <span className="rh-ico">{icon}</span>
+                  <span className="rh-addr">{r.addressName || "Manzil"}</span>
+                  <span className="rh-when">{fmtWhen(r.at)}</span>
+                </div>
+                <div className="rh-card-meta">
+                  {km && <span className="rh-chip">📍 {km} km</span>}
+                  {mins != null && <span className="rh-chip">⏱ {mins} daq</span>}
+                  {r.carModel && <span className="rh-chip">🚘 {r.carModel}</span>}
+                </div>
+                <div className="rh-card-money">
+                  <span className="rh-fare">{cancelled ? "Bekor qilingan" : `${formatNumber(r.payment || 0)} so'm`}</span>
+                  {!cancelled && r.cashback > 0 && <span className="rh-cb-pill">💰 +{formatNumber(r.cashback)} cashback</span>}
+                </div>
+              </div>
+            );
+          })}
+          <p className="muted" style={{ textAlign: "center", fontSize: 12, marginTop: 4 }}>Oxirgi 10 ta safar ko'rsatildi.</p>
+        </div>
+      )}
+    </div>
   );
 }
