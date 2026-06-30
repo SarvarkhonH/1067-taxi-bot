@@ -235,9 +235,13 @@ export function App() {
     setTimeout(() => setToast((c) => (c && Date.now() - c.id >= 3500 ? null : c)), 3600);
   };
 
-  const baseTabs = me.type === "driver" ? DRIVER_TABS : BASE_TABS;
-  // 🚐 Yo'l tab appears only when the `intercity` flag is on (server gates via me.flags)
-  const TABS = me.flags?.intercity ? [...baseTabs, { id: "yol" as Tab, icon: "route", label: "Yo'l" }] : baseTabs;
+  // 🚐 Yo'l takes the Motor slot (rider) / O'yin slot (driver) when `intercity` is ON —
+  // NOT a 6th tab. Motor Olami stays reachable via the floating 🏎 FAB below.
+  const hasIntercity = !!me.flags?.intercity;
+  const YOL_TAB = { id: "yol" as Tab, icon: "route", label: "Yo'l" };
+  const swapForYol = (tabs: { id: Tab; icon: string; label: string }[], replaceId: Tab) =>
+    hasIntercity ? tabs.map((t) => (t.id === replaceId ? YOL_TAB : t)) : tabs;
+  const TABS = me.type === "driver" ? swapForYol(DRIVER_TABS, "play") : swapForYol(BASE_TABS, "garaj");
   const TAB_PCT = 100 / TABS.length;
   const activeIndex = TABS.findIndex((t) => t.id === tab);
 
@@ -324,8 +328,9 @@ export function App() {
           </button>
         ))}
       </nav>
-      {/* 🏎 floating shortcut → Motor Olami (second quick route alongside the Motor tab) */}
-      {garajx && !garaj && (
+      {/* 🏎 floating shortcut → Motor Olami. When Yo'l takes the Motor tab's slot (intercity ON),
+          this FAB becomes the primary Motor entry, so show it for intercity users too. */}
+      {(garajx || hasIntercity) && !garaj && (
         <button className="tolqin-fab" onClick={() => { haptic(); setGaraj(true); }} aria-label="Motor Olami">🏎</button>
       )}
       {collectionTarget && (
