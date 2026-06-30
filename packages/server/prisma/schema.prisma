@@ -46,6 +46,10 @@ model Member {
   photoFileId        String?
   // optional override — paste a permanent URL (Cloudinary etc.) if Telegram avatar isn't suitable.
   photoUrl           String?
+  // a DRIVER-submitted photo awaiting admin approval (anti-abuse: random/inappropriate photos never
+  // reach riders). On approve → moves to photoFileId; on reject → cleared. Drivers cannot delete the
+  // APPROVED photo (no driver-side delete path); only admins can replace/clear it.
+  photoPendingFileId String?
   // 1-tap booking: persisted pickup memory (in-memory Map died on every deploy)
   defaultPickupId    Int?
   defaultPickupName  String?

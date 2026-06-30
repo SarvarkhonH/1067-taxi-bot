@@ -355,32 +355,84 @@ export function createBot(): Bot {
     await startCodeLink(ctx);
   });
 
-  // 📷 Admin uploads driver portrait via DM: send a photo with caption `/photo 70A111AA`.
-  // Telegram hosts the file — we only persist its file_id (~30 chars), so disk + bandwidth on our
-  // server = 0. Existing /api/driver-photo/:id proxy resolves the file_id to a fresh CDN URL.
+  // 📷 Photo upload — two paths:
+  //  (A) ADMIN sends a photo with caption `/photo 70A111AA` → directly approved + set live.
+  //  (B) A linked DRIVER sends a plain photo → parked as PENDING (anti-abuse: random/inappropriate
+  //      photos never reach riders) + admins get the photo with ✅/❌ buttons. Drivers cannot delete
+  //      the approved photo — only admins replace/clear it.
+  // Telegram hosts the bytes; we persist only the ~30-char file_id → server disk + bandwidth = 0.
   bot.on(":photo", async (ctx) => {
     const id = String(ctx.from!.id);
-    if (!isAdmin(id)) return; // silent for non-admins (regular users may send unrelated photos)
-    const caption = (ctx.message?.caption ?? "").trim();
-    const m = /^\/photo(?:\s+|@\S+\s+)([A-Za-z0-9]+)/i.exec(caption);
-    if (!m) return; // not a driver-photo command — leave for other handlers
-    const carNum = m[1]!.toUpperCase();
     const photos = ctx.message?.photo ?? [];
-    if (!photos.length) { await ctx.reply("⚠️ Rasm topilmadi."); return; }
+    if (!photos.length) return;
     const biggest = photos[photos.length - 1]!; // largest size variant
-    const driver = await prisma.member.findFirst({
-      where: { type: "driver", carNumber: { equals: carNum, mode: "insensitive" } },
-      select: { id: true, fullName: true, carNumber: true },
-    });
-    if (!driver) {
-      await ctx.reply(`❌ <b>${esc(carNum)}</b> raqamli haydovchi topilmadi.`, { parse_mode: "HTML" });
+
+    // (A) admin direct-set via «/photo <car>» caption
+    if (isAdmin(id)) {
+      const m = /^\/photo(?:\s+|@\S+\s+)([A-Za-z0-9]+)/i.exec((ctx.message?.caption ?? "").trim());
+      if (!m) return; // admin sent an unrelated photo
+      const carNum = m[1]!.toUpperCase();
+      const driver = await prisma.member.findFirst({
+        where: { type: "driver", carNumber: { equals: carNum, mode: "insensitive" } },
+        select: { id: true, fullName: true, carNumber: true },
+      });
+      if (!driver) { await ctx.reply(`❌ <b>${esc(carNum)}</b> raqamli haydovchi topilmadi.`, { parse_mode: "HTML" }); return; }
+      await prisma.member.update({ where: { id: driver.id }, data: { photoFileId: biggest.file_id, photoUrl: null, photoPendingFileId: null } });
+      await ctx.reply(`✅ <b>Rasm saqlandi</b>\n\n${esc(driver.fullName)} · <code>${esc(driver.carNumber ?? "")}</code>\n<i>Endi xaritali buyurtmada mijozlarga ko'rsatiladi.</i>`, { parse_mode: "HTML" });
       return;
     }
-    await prisma.member.update({ where: { id: driver.id }, data: { photoFileId: biggest.file_id, photoUrl: null } });
-    await ctx.reply(
-      `✅ <b>Rasm saqlandi</b>\n\n${esc(driver.fullName)} · <code>${esc(driver.carNumber ?? "")}</code>\n<i>Endi xaritali buyurtmada mijozlarga ko'rsatiladi.</i>`,
-      { parse_mode: "HTML" },
-    );
+
+    // (B) driver self-submit → pending + notify admins. Light lookup (no kas hit).
+    const tu = await prisma.telegramUser.findUnique({ where: { id }, select: { member: { select: { id: true, type: true, fullName: true, carNumber: true } } } });
+    const dm = tu?.member;
+    if (dm?.type !== "driver") return; // not a driver → ignore (regular client photos)
+    const { submitPendingDriverPhoto } = await import("../services/driverPhotoService");
+    await submitPendingDriverPhoto(dm.id, biggest.file_id);
+    await ctx.reply("📷 <b>Rasmingiz qabul qilindi!</b>\n\n<i>Administrator tasdiqlagach mijozlarga ko'rsatiladi. Tez orada.</i>", { parse_mode: "HTML" });
+    const kb = new InlineKeyboard().text("✅ Tasdiqlash", `dphoto:ok:${dm.id}`).text("❌ Rad etish", `dphoto:no:${dm.id}`);
+    const cap = `📷 <b>Haydovchi rasm yubordi</b>\n${esc(dm.fullName)} · <code>${esc(dm.carNumber ?? "")}</code>`;
+    for (const adminId of env.adminIds) {
+      await bot.api.sendPhoto(adminId, biggest.file_id, { caption: cap, parse_mode: "HTML", reply_markup: kb }).catch(() => undefined);
+    }
+  });
+  // ✅/❌ admin moderation of a pending driver photo
+  bot.callbackQuery(/^dphoto:(ok|no):(\d+)$/, async (ctx) => {
+    await ctx.answerCallbackQuery().catch(() => undefined);
+    if (!isAdmin(String(ctx.from!.id))) return;
+    const action = ctx.match![1];
+    const memberId = Number(ctx.match![2]);
+    const { approveDriverPhoto, rejectDriverPhoto } = await import("../services/driverPhotoService");
+    if (action === "ok") {
+      const r = await approveDriverPhoto(memberId);
+      if (!r) { await ctx.editMessageCaption({ caption: "⚠️ Pending rasm yo'q (allaqachon ko'rib chiqilgan)." }).catch(() => undefined); return; }
+      await ctx.editMessageCaption({ caption: `✅ <b>TASDIQLANDI</b> — ${esc(r.fullName)}`, parse_mode: "HTML" }).catch(() => undefined);
+      if (r.telegramId) await bot.api.sendMessage(r.telegramId, "✅ <b>Rasmingiz tasdiqlandi!</b>\nEndi mijozlar safar paytida sizni ko'radi. Rahmat! 🚖", { parse_mode: "HTML" }).catch(() => undefined);
+    } else {
+      const r = await rejectDriverPhoto(memberId);
+      await ctx.editMessageCaption({ caption: `❌ <b>RAD ETILDI</b> — ${esc(r?.fullName ?? "")}`, parse_mode: "HTML" }).catch(() => undefined);
+      if (r?.telegramId) await bot.api.sendMessage(r.telegramId, "❌ <b>Rasmingiz qabul qilinmadi.</b>\nIltimos, yuzingiz aniq ko'rinadigan oddiy rasm yuboring (selfie). Qayta yuboring 🙏", { parse_mode: "HTML" }).catch(() => undefined);
+    }
+  });
+  // 📨 Broadcast «upload your photo» to every linked driver who has no approved photo yet.
+  bot.command("rasmsorov", async (ctx) => {
+    if (!isAdmin(String(ctx.from!.id))) return;
+    const { driversNeedingPhoto } = await import("../services/driverPhotoService");
+    const targets = await driversNeedingPhoto();
+    await ctx.reply(`📨 ${targets.length} ta rasmsiz haydovchiga so'rov yuborilmoqda…`);
+    let sent = 0;
+    for (const t of targets) {
+      const ok = await bot.api
+        .sendMessage(
+          t.telegramId,
+          "📸 <b>Rasmingizni yuklang!</b>\n\nHurmatli haydovchi, mijozlar safar paytida sizning rasmingizni ko'radi — bu ishonchni oshiradi va <b>ko'proq buyurtma</b> keltiradi.\n\nShu yerga <b>rasmingizni (selfie) yuboring</b> — administrator tasdiqlagach faollashadi. 🚖",
+          { parse_mode: "HTML" },
+        )
+        .then(() => true)
+        .catch(() => false);
+      if (ok) sent++;
+      await new Promise((r) => setTimeout(r, 60)); // gentle rate-limit
+    }
+    await ctx.reply(`✅ ${sent}/${targets.length} ta haydovchiga yuborildi.`);
   });
   // 📷 Clear a saved driver photo (rolls back to initials avatar).
   bot.command("photo_clear", async (ctx) => {

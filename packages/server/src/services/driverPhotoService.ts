@@ -72,9 +72,45 @@ export async function uploadDriverPhotoFromBuffer(memberId: number, buf: Buffer,
   }
 }
 
-/** Admin clear — wipe a stored portrait (both file_id and any override URL). */
+/** Admin clear — wipe a stored portrait (file_id, override URL, and any pending submission). */
 export async function clearDriverPhoto(memberId: number): Promise<void> {
-  await prisma.member.update({ where: { id: memberId }, data: { photoFileId: null, photoUrl: null } });
+  await prisma.member.update({ where: { id: memberId }, data: { photoFileId: null, photoUrl: null, photoPendingFileId: null } });
+}
+
+// ── 🧑‍✈️ Driver self-submit + admin moderation ────────────────────────────────────────────────
+/** A driver submitted a photo via the bot → park it as PENDING (not shown to riders yet). Replaces
+ *  any earlier pending submission. The currently-approved photo (if any) stays live until approved. */
+export async function submitPendingDriverPhoto(memberId: number, fileId: string): Promise<void> {
+  await prisma.member.update({ where: { id: memberId }, data: { photoPendingFileId: fileId } });
+}
+
+/** Admin approves the pending photo → it becomes the live portrait. Returns the driver (for notify). */
+export async function approveDriverPhoto(memberId: number): Promise<{ id: number; fullName: string; telegramId: string | null } | null> {
+  const m = await prisma.member.findUnique({ where: { id: memberId }, select: { photoPendingFileId: true, fullName: true } });
+  if (!m?.photoPendingFileId) return null;
+  await prisma.member.update({ where: { id: memberId }, data: { photoFileId: m.photoPendingFileId, photoUrl: null, photoPendingFileId: null } });
+  const tu = await prisma.telegramUser.findFirst({ where: { memberId }, select: { id: true } });
+  return { id: memberId, fullName: m.fullName, telegramId: tu?.id ?? null };
+}
+
+/** Admin rejects the pending photo → cleared, the approved one (if any) is untouched. */
+export async function rejectDriverPhoto(memberId: number): Promise<{ id: number; fullName: string; telegramId: string | null } | null> {
+  const m = await prisma.member.findUnique({ where: { id: memberId }, select: { fullName: true } });
+  if (!m) return null;
+  await prisma.member.update({ where: { id: memberId }, data: { photoPendingFileId: null } });
+  const tu = await prisma.telegramUser.findFirst({ where: { memberId }, select: { id: true } });
+  return { id: memberId, fullName: m.fullName, telegramId: tu?.id ?? null };
+}
+
+/** Linked drivers with NO approved photo yet — the broadcast target for "please upload a photo". */
+export async function driversNeedingPhoto(): Promise<{ memberId: number; telegramId: string; fullName: string }[]> {
+  const rows = await prisma.member.findMany({
+    where: { type: "driver", photoFileId: null, photoUrl: null, telegramUser: { isNot: null } },
+    select: { id: true, fullName: true, telegramUser: { select: { id: true } } },
+  });
+  return rows
+    .filter((r) => r.telegramUser?.id)
+    .map((r) => ({ memberId: r.id, telegramId: r.telegramUser!.id, fullName: r.fullName }));
 }
 
 /** Top-level resolver — checks the override URL first (permanent), then Telegram file_id (live
