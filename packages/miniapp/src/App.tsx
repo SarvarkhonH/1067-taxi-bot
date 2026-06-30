@@ -259,8 +259,17 @@ export function App() {
             <span className={"coin-dot" + (coinBounce ? " d-coin-bounce" : "")}>🪙</span>
             {Math.round(coins).toLocaleString("ru-RU")}
           </div>
-          <button className="profile-btn" onClick={() => { haptic(); setTab("profile"); }} aria-label="Hisobim & sozlamalar">
-            <Icon name="user" size={20} />
+          <button
+            className="profile-av"
+            onClick={() => { haptic(); setTab("profile"); }}
+            aria-label="Hisobim & sozlamalar"
+            style={{ ["--lvl" as string]: me.level?.color || "var(--brand)" }}
+          >
+            <span className="profile-av-ring" />
+            <span className="profile-av-core">
+              {(me.member.fullName || "").trim().charAt(0).toUpperCase() || "🙂"}
+            </span>
+            {me.level?.emoji && <span className="profile-av-lvl">{me.level.emoji}</span>}
           </button>
         </div>
       </header>

@@ -872,6 +872,28 @@ body {
 .profile-btn { width: 34px; height: 34px; border-radius: 50%; display: flex; align-items: center; justify-content: center;
   background: var(--surface, #1a2130); border: 1px solid var(--line, #2a3242); color: var(--text, #e8edf4); }
 .profile-btn:active { transform: scale(.94); }
+
+/* ✨ eye-catching profile avatar in the topbar: gradient core + level-colored glow ring + level badge */
+.profile-av { position: relative; width: 40px; height: 40px; border: 0; padding: 0; background: transparent;
+  display: flex; align-items: center; justify-content: center; cursor: pointer; flex: 0 0 auto;
+  transition: transform .15s cubic-bezier(.34,1.56,.64,1); }
+.profile-av:active { transform: scale(.9); }
+.profile-av-ring { position: absolute; inset: -2px; border-radius: 50%;
+  background: conic-gradient(from 210deg, var(--lvl), color-mix(in srgb, var(--lvl) 35%, #fff) 50%, var(--lvl));
+  filter: drop-shadow(0 0 7px color-mix(in srgb, var(--lvl) 60%, transparent));
+  animation: profileSpin 6s linear infinite; }
+.profile-av-core { position: relative; width: 34px; height: 34px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  font-weight: 800; font-size: 16px; line-height: 1; letter-spacing: .2px;
+  color: #fff; text-shadow: 0 1px 2px rgba(0,0,0,.35);
+  background: linear-gradient(145deg, color-mix(in srgb, var(--lvl) 78%, #fff 8%), color-mix(in srgb, var(--lvl) 92%, #000 22%));
+  box-shadow: inset 0 1px 1px rgba(255,255,255,.4), inset 0 -3px 6px rgba(0,0,0,.28); }
+.profile-av-core::after { content: ""; position: absolute; top: 3px; left: 6px; right: 9px; height: 38%;
+  border-radius: 50%; background: linear-gradient(180deg, rgba(255,255,255,.55), transparent); pointer-events: none; }
+.profile-av-lvl { position: absolute; right: -3px; bottom: -3px; font-size: 12px; line-height: 1;
+  filter: drop-shadow(0 1px 2px rgba(0,0,0,.45)); transform: rotate(0); }
+@keyframes profileSpin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .profile-av-ring { animation: none; } }
 .uy-view { display: flex; flex-direction: column; gap: 14px; }
 .uy-greet { font-size: 18px; font-weight: 800; }
 .uy-bal { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 6px; }
