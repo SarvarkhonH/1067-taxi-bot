@@ -10,7 +10,7 @@ import {
   type ReferralResponse,
   type WeeklyBoardResponse,
 } from "@t1067/shared";
-import { api, type RideHistoryRow } from "./api";
+import { api, type RideHistoryRow, type RideHistoryResponse } from "./api";
 import { copyText, haptic, shareLink, inviteText } from "./telegram";
 
 export function Spinner() {
@@ -485,15 +485,46 @@ function fmtWhen(iso: string): string {
   return d.toLocaleString("ru-RU", { day: "2-digit", month: "2-digit", year: "2-digit", hour: "2-digit", minute: "2-digit" });
 }
 
+function RideDetailModal({ r, onClose }: { r: RideHistoryRow; onClose: () => void }) {
+  const km = r.distance ? (r.distance / 1000).toFixed(1) : null;
+  const mins = rideMinutes(r.time);
+  const cancelled = CANCEL_STATUS.has(r.status);
+  const statusTxt = DONE_STATUS.has(r.status) ? "🏁 Yakunlandi" : cancelled ? "✖ Bekor qilingan" : "🚕 " + r.status;
+  return (
+    <div className="rh-modal" onClick={onClose} role="dialog" aria-label="Safar tafsiloti">
+      <div className="rh-modal-card" onClick={(e) => e.stopPropagation()}>
+        <div className="rh-modal-head">
+          <span>{statusTxt}</span>
+          <button className="rh-modal-x" onClick={onClose}>✕</button>
+        </div>
+        <div className="rh-modal-addr">📍 {r.addressName || "Manzil"}</div>
+        <div className="rh-modal-when">{fmtWhen(r.at)}</div>
+        <div className="rh-modal-grid">
+          <div className="rh-mg-cell"><div className="rh-mg-val">{km ?? "—"}</div><div className="rh-mg-lab">km</div></div>
+          <div className="rh-mg-cell"><div className="rh-mg-val">{mins ?? "—"}</div><div className="rh-mg-lab">daqiqa</div></div>
+          <div className="rh-mg-cell"><div className="rh-mg-val">{formatNumber(r.payment || 0)}</div><div className="rh-mg-lab">so'm</div></div>
+        </div>
+        {(r.carModel || r.carNumber) && (
+          <div className="rh-modal-row">🚘 <b>{r.carModel || "—"}</b>{r.carNumber ? <span className="rh-modal-plate">{r.carNumber}</span> : null}</div>
+        )}
+        {!cancelled && r.cashback > 0 && (
+          <div className="rh-modal-row rh-modal-cb">💰 Cashback: <b>+{formatNumber(r.cashback)} so'm</b></div>
+        )}
+        <button className="rh-modal-close" onClick={onClose}>Yopish</button>
+      </div>
+    </div>
+  );
+}
+
 export function RideHistoryView({ onClose }: { onClose?: () => void } = {}) {
-  const [rows, setRows] = useState<RideHistoryRow[] | null>(null);
+  const [data, setData] = useState<RideHistoryResponse | null>(null);
   const [err, setErr] = useState(false);
-  const load = () => { setErr(false); setRows(null); api.bookingHistory().then(setRows).catch(() => setErr(true)); };
+  const [detail, setDetail] = useState<RideHistoryRow | null>(null);
+  const load = () => { setErr(false); setData(null); api.bookingHistory().then(setData).catch(() => setErr(true)); };
   useEffect(load, []);
 
-  const totalSpent = rows ? rows.reduce((s, r) => s + (r.payment || 0), 0) : 0;
-  const totalCashback = rows ? rows.reduce((s, r) => s + (r.cashback || 0), 0) : 0;
-  const totalKm = rows ? rows.reduce((s, r) => s + (r.distance || 0), 0) / 1000 : 0;
+  const t = data?.totals;
+  const rows = data?.rides ?? [];
 
   return (
     <div className="view">
@@ -504,16 +535,24 @@ export function RideHistoryView({ onClose }: { onClose?: () => void } = {}) {
       )}
       <div className="section-title">📜 Safarlar tarixi</div>
 
-      {/* Jami xulosa */}
+      {/* 🎉 Tejash banneri */}
+      {t && t.savingsPct > 0 && (
+        <section className="rh-hero">
+          <div className="rh-hero-pct">{t.savingsPct}%</div>
+          <div className="rh-hero-txt">Siz <b>1067</b>'dan foydalanib<br /><b>{t.savingsPct}% tejadingiz</b> 🎉</div>
+        </section>
+      )}
+
+      {/* Umrbod jami */}
       <section className="rh-summary glass">
-        <div className="rh-sum-cell"><div className="rh-sum-val">{rows ? rows.length : "—"}</div><div className="rh-sum-lab">safar</div></div>
-        <div className="rh-sum-cell"><div className="rh-sum-val">{formatNumber(Math.round(totalSpent))}</div><div className="rh-sum-lab">jami so'm</div></div>
-        <div className="rh-sum-cell"><div className="rh-sum-val rh-cb">+{formatNumber(Math.round(totalCashback))}</div><div className="rh-sum-lab">cashback</div></div>
+        <div className="rh-sum-cell"><div className="rh-sum-val">{t ? t.count : "—"}</div><div className="rh-sum-lab">safar</div></div>
+        <div className="rh-sum-cell"><div className="rh-sum-val">{t ? formatNumber(Math.round(t.spent)) : "—"}</div><div className="rh-sum-lab">jami so'm</div></div>
+        <div className="rh-sum-cell"><div className="rh-sum-val rh-cb">+{t ? formatNumber(Math.round(t.cashback)) : "—"}</div><div className="rh-sum-lab">cashback</div></div>
       </section>
 
       {err ? (
         <LoadError onRetry={load} />
-      ) : !rows ? (
+      ) : !data ? (
         <Spinner />
       ) : rows.length === 0 ? (
         <p className="muted" style={{ textAlign: "center", padding: "32px 16px" }}>
@@ -527,7 +566,7 @@ export function RideHistoryView({ onClose }: { onClose?: () => void } = {}) {
             const icon = DONE_STATUS.has(r.status) ? "🏁" : CANCEL_STATUS.has(r.status) ? "✖" : "🚕";
             const cancelled = CANCEL_STATUS.has(r.status);
             return (
-              <div key={r.id} className={"rh-card glass" + (cancelled ? " rh-cancelled" : "")}>
+              <div key={r.id} className={"rh-card glass rh-tap" + (cancelled ? " rh-cancelled" : "")} role="button" tabIndex={0} onClick={() => { haptic(); setDetail(r); }}>
                 <div className="rh-card-top">
                   <span className="rh-ico">{icon}</span>
                   <span className="rh-addr">{r.addressName || "Manzil"}</span>
@@ -540,14 +579,15 @@ export function RideHistoryView({ onClose }: { onClose?: () => void } = {}) {
                 </div>
                 <div className="rh-card-money">
                   <span className="rh-fare">{cancelled ? "Bekor qilingan" : `${formatNumber(r.payment || 0)} so'm`}</span>
-                  {!cancelled && r.cashback > 0 && <span className="rh-cb-pill">💰 +{formatNumber(r.cashback)} cashback</span>}
+                  {!cancelled && r.cashback > 0 && <span className="rh-cb-pill">💰 +{formatNumber(r.cashback)}</span>}
+                  <span className="rh-chev">›</span>
                 </div>
               </div>
             );
           })}
-          <p className="muted" style={{ textAlign: "center", fontSize: 12, marginTop: 4 }}>Oxirgi 10 ta safar ko'rsatildi.</p>
         </div>
       )}
+      {detail && <RideDetailModal r={detail} onClose={() => { haptic(); setDetail(null); }} />}
     </div>
   );
 }

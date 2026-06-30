@@ -848,12 +848,25 @@ export function createApiServer(opts: ApiOptions = {}) {
   app.post("/api/booking/create", requireUser, rateLimit(3), withMember((id, req) => createBookingFor(id, req.body as BookingCreateBody)));
   // 1-tap "1067 Now": server resolves the pickup behind the button (rate-limited — real taxis dispatch here)
   app.post("/api/booking/now", requireUser, rateLimit(3), withMember((id, req) => callOneTapFor(id, (req.body ?? {}) as BookingNowBody, "miniapp")));
-  // ride history (kas bookingReports, newest first)
+  // ride history (kas bookingReports) — ALL rides (adaptive pagination: most riders fit one page, so
+  // it's a single call; heavy riders fetch more until a short page) + lifetime totals & savings %.
   app.get("/api/booking/history", requireUser, withMember(async (id) => {
     const m = await prisma.member.findUnique({ where: { id }, select: { phone: true } });
-    if (!m?.phone) return [];
+    if (!m?.phone) return { rides: [], totals: { count: 0, spent: 0, cashback: 0, savingsPct: 0 } };
     const { getDataSource } = await import("../kas");
-    return getDataSource().getRideHistory(m.phone, 10);
+    const ds = getDataSource();
+    const SIZE = 50;
+    const MAX_PAGES = 8; // cap at 400 rides — covers every Koson rider; safety bound on kas load
+    const rides: Awaited<ReturnType<typeof ds.getRideHistory>> = [];
+    for (let p = 0; p < MAX_PAGES; p++) {
+      const page = await ds.getRideHistory(m.phone, SIZE, p).catch(() => []);
+      rides.push(...page);
+      if (page.length < SIZE) break; // short page → no more rides
+    }
+    const spent = rides.reduce((s, r) => s + (r.payment || 0), 0);
+    const cashback = rides.reduce((s, r) => s + (r.cashback || 0), 0);
+    const savingsPct = spent > 0 ? Math.round((cashback / spent) * 100) : 0;
+    return { rides, totals: { count: rides.length, spent, cashback, savingsPct } };
   }));
   app.post("/api/booking/cancel", requireUser, withMember((id) => cancelBookingFor(id)));
 

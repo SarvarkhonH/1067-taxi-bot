@@ -817,10 +817,10 @@ export class KasLiveSource implements KasDataSource {
   }
 
   /** Ride history (bookingReports — needs the full param set or kas 405s). */
-  async getRideHistory(phone: string, size = 10): Promise<RideHistoryItem[]> {
+  async getRideHistory(phone: string, size = 10, page = 0): Promise<RideHistoryItem[]> {
     try {
       const last9 = phone.replace(/\D/g, "").slice(-9); // searchText matches like byFilter (9-digit)
-      const d = await this.getJson(`api/bookingReports?searchText=${encodeURIComponent(last9 || phone)}&sort=id&page=0&size=${size}`);
+      const d = await this.getJson(`api/bookingReports?searchText=${encodeURIComponent(last9 || phone)}&sort=id&page=${page}&size=${size}`);
       const list = (d.bookingReportDtoList as Record<string, unknown>[]) ?? [];
       return list.map((b) => ({
         id: Number(b.id ?? 0),

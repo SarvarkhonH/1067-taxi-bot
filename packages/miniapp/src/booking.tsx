@@ -65,7 +65,7 @@ function RideHistory() {
   const [open, setOpen] = useState(false);
   const [limit, setLimit] = useState(10); // T2 (AUDIT 2.13): avval 10 ta, keyin "yana"
   useEffect(() => {
-    api.bookingHistory().then(setRides).catch(() => setRides([]));
+    api.bookingHistory().then((d) => setRides(d.rides)).catch(() => setRides([]));
   }, []);
   if (!rides?.length) return null;
   return (
