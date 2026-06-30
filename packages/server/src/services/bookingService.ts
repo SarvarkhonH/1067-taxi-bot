@@ -25,7 +25,7 @@ export interface RideHistoryFull {
 
 /** Full rider history + lifetime totals, shared by the Mini App endpoint AND the bot /tarix.
  *  Pagination is adaptive (most riders fit one page → one call). savingsPct is a DETERMINISTIC
- *  per-rider vanity number in 7–22% (owner decision — a friendly "siz X% tejadingiz", same value
+ *  per-rider vanity number in 10–15% (owner decision — a friendly "siz X% tejadingiz", same value
  *  every time for a given rider so it never flickers; NOT the real cashback/spend ratio). */
 export async function getRideHistoryFull(memberId: number, phone: string): Promise<RideHistoryFull> {
   const ds = getDataSource();
@@ -39,7 +39,7 @@ export async function getRideHistoryFull(memberId: number, phone: string): Promi
   }
   const spent = rides.reduce((s, r) => s + (r.payment || 0), 0);
   const cashback = rides.reduce((s, r) => s + (r.cashback || 0), 0);
-  const savingsPct = 7 + ((memberId * 7 + 3) % 16); // 7..22, stable per rider
+  const savingsPct = 10 + ((memberId * 7 + 3) % 6); // 10..15, stable per rider
   return { rides, totals: { count: rides.length, spent, cashback, savingsPct } };
 }
 
