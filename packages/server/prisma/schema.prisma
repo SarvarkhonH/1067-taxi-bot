@@ -73,6 +73,13 @@ model Member {
   withdrawals   Withdrawal[]
   cashoutRequests CashoutRequest[] // 💵 real cash-out (tanga → card/home), owner-approved
   driverSession DriverSession? // Bosqich 2: kas /api/driverApp/* auth (drivers only)
+  // 🚐 Intercity (nationwide shared-taxi) — additive, gated behind feature "intercity"
+  intercityTrips       IntercityTrip[]            @relation("IntercityDriver")
+  intercityBookings    IntercityBooking[]
+  intercityEnrollments IntercityDriverEnrollment[]
+  intercityCommissions IntercityCommissionDebt[]
+  intercityPenalties   IntercityDriverPenalty[]
+  intercityWaitEntries IntercityWaitEntry[]
   leagueTier   String              @default("Bronza") // promotion/relegation tier
   driverTier   String              @default("Bronza") // weekly driver tier (DiDi model): Bronza|Kumush|Oltin|Olmos
 
@@ -1005,4 +1012,221 @@ model SupportMsg {
   createdAt  DateTime @default(now())
 
   @@index([telegramId, createdAt])
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+// 🚐 INTERCITY — nationwide shared-taxi (any province ↔ any province).
+// ALL real-money fares live in *Som Int fields here — NEVER in CoinTxn / tanga
+// wallet / grantRideCoins / the 350-per-ride clamp. Tanga only as a capped
+// discount (IntercityBooking.tangaDiscount). Gated behind feature "intercity".
+// ════════════════════════════════════════════════════════════════════════════
+
+// Static city catalog (seeded, not user-generated). lat/lng for display only.
+model IntercityCity {
+  id         Int      @id @default(autoincrement())
+  name       String   // Uzbek, e.g. "Qarshi"
+  nameRu     String?  // Russian display
+  regionCode String   // "qashqadarya" | "tashkent" | ...
+  lat        Float    @default(0)
+  lng        Float    @default(0)
+  active     Boolean  @default(true)
+  createdAt  DateTime @default(now())
+
+  originRoutes      IntercityRoute[]   @relation("RouteOrigin")
+  destRoutes        IntercityRoute[]   @relation("RouteDest")
+  originTrips       IntercityTrip[]    @relation("TripOrigin")
+  destTrips         IntercityTrip[]    @relation("TripDest")
+  stopEntries       IntercityRouteStop[]
+  boardingBookings  IntercityBooking[] @relation("BookingBoarding")
+  alightingBookings IntercityBooking[] @relation("BookingAlighting")
+
+  @@unique([name, regionCode])
+  @@index([regionCode])
+  @@index([active])
+}
+
+// A corridor between two cities. Stored normalized (originCityId < destCityId) so
+// A→B and B→A are ONE row; the actual direction lives on each IntercityTrip.
+model IntercityRoute {
+  id             Int      @id @default(autoincrement())
+  originCity     IntercityCity @relation("RouteOrigin", fields: [originCityId], references: [id])
+  originCityId   Int
+  destCity       IntercityCity @relation("RouteDest", fields: [destCityId], references: [id])
+  destCityId     Int
+  defaultFareSom Int      @default(0) // per seat, owner-set
+  commissionSom  Int      @default(0) // platform cut per booking, owner-set (0 in pilot)
+  distanceKm     Int      @default(0) // informational
+  durationMin    Int      @default(0) // informational
+  active         Boolean  @default(true)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  stops       IntercityRouteStop[]
+  trips       IntercityTrip[]
+  enrollments IntercityDriverEnrollment[]
+
+  @@unique([originCityId, destCityId])
+  @@index([active])
+}
+
+// Intermediate boarding/alighting points along a corridor (mid-route pickup).
+model IntercityRouteStop {
+  id                Int      @id @default(autoincrement())
+  route             IntercityRoute @relation(fields: [routeId], references: [id], onDelete: Cascade)
+  routeId           Int
+  city              IntercityCity @relation(fields: [cityId], references: [id])
+  cityId            Int
+  stopOrder         Int      // 0 = origin … N = destination
+  fareFromOriginSom Int      @default(0)
+
+  @@unique([routeId, cityId])
+  @@index([routeId, stopOrder])
+}
+
+// A driver declares which corridors they serve (preference, NOT a trip).
+model IntercityDriverEnrollment {
+  id                     Int      @id @default(autoincrement())
+  driver                 Member   @relation(fields: [driverId], references: [id], onDelete: Cascade)
+  driverId               Int
+  route                  IntercityRoute @relation(fields: [routeId], references: [id], onDelete: Cascade)
+  routeId                Int
+  carCapacity            Int      @default(4)
+  preferredDepartureTime String?  // "08:00" Tashkent local, informational
+  active                 Boolean  @default(true)
+  createdAt              DateTime @default(now())
+
+  @@unique([driverId, routeId])
+  @@index([driverId])
+  @@index([routeId])
+}
+
+// A single published trip for a specific date/time/direction.
+model IntercityTrip {
+  id            Int      @id @default(autoincrement())
+  driver        Member   @relation("IntercityDriver", fields: [driverId], references: [id], onDelete: Cascade)
+  driverId      Int
+  route         IntercityRoute @relation(fields: [routeId], references: [id])
+  routeId       Int
+  // actual direction for THIS trip (route is normalized; trip is directional)
+  originCity    IntercityCity @relation("TripOrigin", fields: [originCityId], references: [id])
+  originCityId  Int
+  destCity      IntercityCity @relation("TripDest", fields: [destCityId], references: [id])
+  destCityId    Int
+  scheduledAt   DateTime // planned departure (UTC; Tashkent local +5)
+  carCapacity   Int      @default(4)
+  bookedSeats   Int      @default(0) // ATOMIC: only via updateMany WHERE-guard (anti-overbooking)
+  fareSom       Int      @default(0) // per seat, frozen at publish time
+  commissionSom Int      @default(0) // per booking, frozen at publish time
+  status        String   @default("OPEN") // OPEN|BOARDING|DEPARTED|COMPLETED|CANCELLED|EXPIRED
+  note          String?  // driver note, e.g. "Konditsioner bor"
+  waitNotified  Boolean  @default(false) // wait-list riders already pinged for this trip
+  departedAt    DateTime? // server-stamped on → DEPARTED
+  completedAt   DateTime?
+  cancelledAt   DateTime?
+  cancelReason  String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  bookings       IntercityBooking[]
+  commissionDebt IntercityCommissionDebt?
+  penalties      IntercityDriverPenalty[]
+
+  @@index([status, scheduledAt])
+  @@index([driverId, status])
+  @@index([routeId, status, scheduledAt])
+  @@index([originCityId, destCityId, status, scheduledAt])
+}
+
+model IntercityBooking {
+  id              Int      @id @default(autoincrement())
+  trip            IntercityTrip @relation(fields: [tripId], references: [id], onDelete: Cascade)
+  tripId          Int
+  rider           Member   @relation(fields: [riderId], references: [id], onDelete: Cascade)
+  riderId         Int
+  seatsBooked     Int      @default(1)
+  paymentMethod   String   @default("CASH") // CASH | PREPAY
+  status          String   @default("CONFIRMED")
+  // CONFIRMED|PREPAY_PENDING|RIDER_CANCELLED|RIDER_CANCELLED_LATE|CANCELLED_BY_DRIVER|CANCELLED_NO_PAYMENT|COMPLETED|REFUND_PENDING|REFUNDED
+  agreedFareSom   Int      @default(0) // total fare at booking time (immutable)
+  tangaDiscount   Int      @default(0) // tanga spent as discount (≤5000)
+  prepaidSom      Int      @default(0) // 0 for CASH; set on owner prepay-confirm
+  commissionSom   Int      @default(0) // frozen from trip at booking time
+  boardingCity    IntercityCity? @relation("BookingBoarding", fields: [boardingCityId], references: [id])
+  boardingCityId  Int?     // null = trip origin
+  alightingCity   IntercityCity? @relation("BookingAlighting", fields: [alightingCityId], references: [id])
+  alightingCityId Int?     // null = trip destination
+  idempotencyKey  String   @unique // "ibooking:<riderId>:<tripId>"
+  confirmedAt     DateTime?
+  cancelledAt     DateTime?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  refund IntercityRefund?
+
+  @@unique([riderId, tripId]) // one booking per rider per trip
+  @@index([tripId, status])
+  @@index([riderId, status])
+  @@index([status, createdAt])
+}
+
+// Owner-approved refunds for prepaid bookings (mirrors CashoutRequest flow).
+model IntercityRefund {
+  id             Int      @id @default(autoincrement())
+  booking        IntercityBooking @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  bookingId      Int      @unique
+  refundSom      Int
+  reason         String   // driver_cancel | rider_cancel_full | rider_cancel_partial | auto_expire
+  status         String   @default("PENDING") // PENDING | SETTLED | WAIVED
+  idempotencyKey String   @unique // "irefund_settle:<id>"
+  settledAt      DateTime?
+  createdAt      DateTime @default(now())
+
+  @@index([status, createdAt])
+}
+
+// Commission owed by a driver, recognized at trip COMPLETED. Separate ledger from
+// the kas-company debt that /qarz writes — these two are NEVER conflated.
+model IntercityCommissionDebt {
+  id            Int      @id @default(autoincrement())
+  driver        Member   @relation(fields: [driverId], references: [id], onDelete: Cascade)
+  driverId      Int
+  trip          IntercityTrip @relation(fields: [tripId], references: [id], onDelete: Cascade)
+  tripId        Int      @unique // one debt per trip (idempotent)
+  commissionSom Int
+  status        String   @default("PENDING") // PENDING | PAID | WAIVED
+  paidAt        DateTime?
+  createdAt     DateTime @default(now())
+
+  @@index([driverId, status])
+  @@index([status, createdAt])
+}
+
+// Driver penalty for last-minute cancel / no-show. Accumulates; blocks new trips
+// once pending total exceeds the cap.
+model IntercityDriverPenalty {
+  id         Int      @id @default(autoincrement())
+  driver     Member   @relation(fields: [driverId], references: [id], onDelete: Cascade)
+  driverId   Int
+  trip       IntercityTrip? @relation(fields: [tripId], references: [id], onDelete: SetNull)
+  tripId     Int?
+  penaltySom Int
+  reason     String
+  status     String   @default("PENDING") // PENDING | WAIVED | SETTLED
+  createdAt  DateTime @default(now())
+
+  @@index([driverId, status])
+}
+
+// Rider wants a trip that doesn't exist yet (T6). Sweep matches new trips → push.
+model IntercityWaitEntry {
+  id          Int      @id @default(autoincrement())
+  rider       Member   @relation(fields: [riderId], references: [id], onDelete: Cascade)
+  riderId     Int
+  routeId     Int      // normalized route id
+  desiredDate String   // "YYYY-MM-DD"
+  notifiedAt  DateTime?
+  createdAt   DateTime @default(now())
+
+  @@unique([riderId, routeId, desiredDate])
+  @@index([routeId, desiredDate])
 }

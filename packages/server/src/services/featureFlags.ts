@@ -27,13 +27,14 @@ export const FEATURES = [
   "clientbooking", // 🎯 GPS orders via the kas CLIENT endpoint (rider's own secretKey, resolved operator-side) → «new» + EXACT pin + «℗» place name, exactly like the official app. OFF until owner pilot
   "cashout", // 💵 real cash-out (tanga → plastik card / cash-to-home): bot records a request + forwards to the owner, who pays manually + approves. No card storage. OFF until owner pilot
   "carupgrade", // 🚗 FAZA2 — model-upgrade ladder (Tiko→Damas→…, #serial saqlanadi) + "buy new car" shop removed. OFF until owner QABUL
+  "intercity", // 🚐 Nationwide shaharlararo shared-taxi (o'rindiq sotish, real-pul fare alohida ledger, tanga faqat ≤5000 chegirma). DARK until owner pilot
 ] as const;
 export type FeatureName = (typeof FEATURES)[number];
 
 // Off until explicitly enabled (go-live flip = setFeature(name, true) after owner QABUL).
 // booking3 = the new map/trip flow; owner still gets a preview via server.ts owner-branch,
 // but real users stay on the (fixed) classic flow until it's accepted. A missing row → OFF.
-const DEFAULT_OFF = new Set<FeatureName>(["booking3", "livinghome", "aibrain", "mahalla", "tolqin", "garajx", "kozacha", "baraban", "motorolami", "komissiya", "qarz", "welcomebonus", "refstaged", "drvstaged", "drvrecruit", "drvpush", "promo", "clientbooking", "cashout", "carupgrade"]);
+const DEFAULT_OFF = new Set<FeatureName>(["booking3", "livinghome", "aibrain", "mahalla", "tolqin", "garajx", "kozacha", "baraban", "motorolami", "komissiya", "qarz", "welcomebonus", "refstaged", "drvstaged", "drvrecruit", "drvpush", "promo", "clientbooking", "cashout", "carupgrade", "intercity"]);
 
 let cache: { at: number; map: Record<string, boolean> } = { at: 0, map: {} };
 

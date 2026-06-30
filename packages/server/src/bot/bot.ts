@@ -25,6 +25,7 @@ import { payDriver, registerBooking } from "./booking";
 import { registerDriverDebt } from "./driverDebt";
 import { registerDriverReports } from "./driverReports";
 import { registerCashout } from "./cashout";
+import { registerIntercity } from "./intercity";
 import { registerBroadcast } from "./broadcast";
 import type { DriverPanelExtras } from "../services/driverReportService";
 import {
@@ -1321,6 +1322,7 @@ export function createBot(): Bot {
 
   registerBroadcast(bot); // 📢 /elon — owner-only announcement to all linked users (preview + confirm). Owner+draft-gated text capture, registered first.
   registerCashout(bot); // 💵 /naxt — real cash-out (tanga → card/home) → owner approves. Gated DARK by `cashout`. Registered BEFORE booking so its session-gated text capture gets first crack.
+  registerIntercity(bot); // 🚐 /reys — nationwide intercity seat booking (publish/search/book). Gated DARK by `intercity`. Session-gated text capture → registered before booking.
   registerDriverDebt(bot); // /qarz — pay kas debt with tanga (gated behind `qarz` flag). No login: uses the member's already-linked plate.
   registerDriverReports(bot); // /safarlarim + /daromad (read-only driver reports)
   registerBooking(bot, mainMenu);

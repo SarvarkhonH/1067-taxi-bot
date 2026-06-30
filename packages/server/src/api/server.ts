@@ -858,6 +858,41 @@ export function createApiServer(opts: ApiOptions = {}) {
   }));
   app.post("/api/booking/cancel", requireUser, withMember((id) => cancelBookingFor(id)));
 
+  // ─── 🚐 Intercity (nationwide seat booking) — service no-ops when `intercity` OFF ───
+  app.get("/api/intercity/cities", requireUser, async (req, res) => res.json(await (await import("../services/intercityService")).listCities(String(req.query?.q ?? ""))));
+  app.get("/api/intercity/trips", requireUser, async (req, res) => {
+    const { searchTrips } = await import("../services/intercityService");
+    const day = req.query?.date ? new Date(String(req.query.date)) : new Date();
+    res.json(await searchTrips(Number(req.query?.originId), Number(req.query?.destId), isNaN(day.getTime()) ? new Date() : day));
+  });
+  app.post("/api/intercity/book", requireUser, rateLimit(5), withMember2(async (id, req) => (await import("../services/intercityService")).bookSeat(id, {
+    tripId: Number(req.body?.tripId), seatCount: Number(req.body?.seatCount ?? 1),
+    paymentMethod: req.body?.paymentMethod === "PREPAY" ? "PREPAY" : "CASH",
+    tangaDiscount: Number(req.body?.tangaDiscount ?? 0),
+    boardingCityId: req.body?.boardingCityId ? Number(req.body.boardingCityId) : undefined,
+    alightingCityId: req.body?.alightingCityId ? Number(req.body.alightingCityId) : undefined,
+  })));
+  app.post("/api/intercity/cancel", requireUser, rateLimit(10), withMember2(async (id, req) => (await import("../services/intercityService")).cancelBookingByRider(id, Number(req.body?.bookingId))));
+  app.get("/api/intercity/my-active", requireUser, withMember2(async (id) => (await import("../services/intercityService")).getRiderActiveBookings(id)));
+  app.get("/api/intercity/my-bookings", requireUser, withMember2(async (id) => (await import("../services/intercityService")).getRiderBookings(id)));
+  // driver
+  app.post("/api/intercity/trip", requireUser, rateLimit(10), withMember2(async (id, req) => (await import("../services/intercityService")).publishTrip(id, {
+    originCityId: Number(req.body?.originCityId), destCityId: Number(req.body?.destCityId),
+    scheduledAt: new Date(String(req.body?.scheduledAt)), carCapacity: Number(req.body?.carCapacity ?? 4),
+    fareSom: req.body?.fareSom != null ? Number(req.body.fareSom) : undefined, note: req.body?.note ? String(req.body.note) : undefined,
+  })));
+  app.post("/api/intercity/trip/depart", requireUser, rateLimit(20), withMember2(async (id, req) => (await import("../services/intercityService")).departTrip(id, Number(req.body?.tripId))));
+  app.post("/api/intercity/trip/arrive", requireUser, rateLimit(20), withMember2(async (id, req) => (await import("../services/intercityService")).arriveTrip(id, Number(req.body?.tripId))));
+  app.post("/api/intercity/trip/cancel", requireUser, rateLimit(20), withMember2(async (id, req) => (await import("../services/intercityService")).driverCancelTrip(id, Number(req.body?.tripId))));
+  app.get("/api/intercity/driver/trips", requireUser, withMember2(async (id) => (await import("../services/intercityService")).getDriverTrips(id)));
+  app.get("/api/intercity/driver/manifest", requireUser, withMember2(async (id, req) => (await import("../services/intercityService")).getTripManifest(id, Number(req.query?.tripId))));
+  app.get("/api/intercity/driver/enrollments", requireUser, withMember2(async (id) => (await import("../services/intercityService")).getDriverEnrollments(id)));
+  app.post("/api/intercity/driver/enroll", requireUser, rateLimit(10), withMember2(async (id, req) => (await import("../services/intercityService")).enrollDriver(id, Number(req.body?.cityA), Number(req.body?.cityB), Number(req.body?.carCapacity ?? 4))));
+  // admin
+  app.get("/api/intercity/admin/trips", requireAdmin, async (req, res) => res.json(await (await import("../services/intercityService")).adminListTrips({ status: req.query?.status ? String(req.query.status) : undefined })));
+  app.get("/api/intercity/admin/debts", requireAdmin, async (_req, res) => res.json(await (await import("../services/intercityService")).adminListDebts()));
+  app.post("/api/intercity/admin/trip/cancel", requireAdmin, async (req, res) => res.json(await (await import("../services/intercityService")).adminForceCancelTrip(Number(req.body?.tripId))));
+
   // ── 🚗 Garaj: ride-to-earn cars ──────────────────────────────────────────
   app.get("/api/garage", requireUser, withMember(async (id) => {
     const { getGarage } = await import("../services/garageService");

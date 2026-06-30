@@ -839,6 +839,17 @@ export async function pushBookingUpdates(
     console.error("[ofis] held-scrap failed:", e);
   }
 
+  // 🚐 Intercity trip transitions (OPEN→BOARDING→DEPARTED→COMPLETED / EXPIRED) + rider pushes.
+  // Piggybacks this sweep (no new poller); OFF-safe (no-ops when `intercity` flag is OFF).
+  try {
+    const { sweepIntercityTrips } = await import("./intercityService");
+    await sweepIntercityTrips(async (chatId, html) => {
+      await bot.api.sendMessage(chatId, html, { parse_mode: "HTML" }).catch(() => undefined);
+    });
+  } catch (e) {
+    console.error("[intercity] sweep failed:", e);
+  }
+
   // 🧾 SMS-parity: deliver any ride fares kas finalized AFTER the finish card was sent. Piggybacks
   // this sweep (no new poller) — sends "Yo'l haqi: …" the moment kas posts the payment, then clears.
   try {
