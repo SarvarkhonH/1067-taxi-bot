@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import {
   FARE_MAX_PER_TX,
+  LEVELS,
   TRANSFER_MAX_PER_TX,
   TRANSFER_MIN,
   estimateFare,
@@ -745,6 +746,74 @@ type AccountInfo = {
   trips: number;
   notifyOff: boolean;
 };
+// 🏅 Daraja narvoni — mijoz qaysi darajada turganini VA har daraja nimaligini ko'radi.
+// Ball = safar + faollik (computeXp). Halol: yuqori daraja = ko'proq safar = status.
+const TIER_MEANING: Record<string, string> = {
+  Yangi: "Boshlang'ich — birinchi safaringiz",
+  Bronza: "Doimiy mijoz bo'lyapsiz",
+  Kumush: "Faol mijoz — bizni tez-tez tanlaysiz",
+  Oltin: "Sodiq mijoz — eng yaxshilardan",
+  Platina: "Top mijoz — kam odam yetadi",
+  Olmos: "Elita — shahardagi eng faollar",
+  Afsona: "Afsona — 1067 ning yulduzi",
+};
+
+export function TierLadder({ me }: { me: MeResponse }) {
+  const cur = me.level.index;
+  const pct = Math.round((me.progress || 0) * 100);
+  const toNext = me.nextLevel ? Math.max(0, me.nextLevel.minXp - me.xp) : 0;
+  return (
+    <section className="glass pad tier-card">
+      <div className="section-title">🏅 Sizning darajangiz</div>
+
+      {/* joriy daraja hero */}
+      <div className="tier-hero" style={{ ["--lvl" as string]: me.level.color }}>
+        <span className="tier-hero-emoji">{me.level.emoji}</span>
+        <div className="tier-hero-info">
+          <b className="tier-hero-name">{me.level.name}</b>
+          <span className="tier-hero-xp">{formatNumber(me.xp)} ball</span>
+        </div>
+      </div>
+
+      {/* keyingi darajagacha progress */}
+      {me.nextLevel ? (
+        <div className="tier-next">
+          <div className="tier-next-row">
+            <span className="muted">Keyingi: {me.nextLevel.emoji} {me.nextLevel.name}</span>
+            <span><b>{formatNumber(toNext)}</b> ball qoldi</span>
+          </div>
+          <div className="tier-bar"><span style={{ width: `${pct}%`, background: me.level.color }} /></div>
+        </div>
+      ) : (
+        <div className="tier-next"><div className="tier-next-row tac"><b>👑 Eng yuqori darajadasiz!</b></div></div>
+      )}
+
+      {/* butun narvon — har daraja nimaligi bilan */}
+      <div className="tier-list">
+        {LEVELS.map((l) => {
+          const state = l.index < cur ? "done" : l.index === cur ? "now" : "lock";
+          return (
+            <div key={l.index} className={"tier-step " + state} style={{ ["--lvl" as string]: l.color }}>
+              <span className="tier-step-emoji">{l.emoji}</span>
+              <div className="tier-step-mid">
+                <b className="tier-step-name">{l.name}</b>
+                <small className="tier-step-mean">{TIER_MEANING[l.name] ?? ""}</small>
+              </div>
+              <div className="tier-step-right">
+                {state === "now" ? <span className="tier-pill-now">📍 Siz shu yerda</span>
+                  : state === "done" ? <span className="tier-pill-done">✅</span>
+                  : <span className="tier-step-xp">{formatNumber(l.minXp)} ball</span>}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      <p className="muted" style={{ fontSize: 12, marginTop: 10 }}>Har safar va faollik ball qo&apos;shadi. Ball ko&apos;paygani sayin darajangiz oshadi 🚀</p>
+    </section>
+  );
+}
+
 export function AccountCard() {
   const [a, setA] = useState<AccountInfo | null>(null);
   const [editing, setEditing] = useState(false);

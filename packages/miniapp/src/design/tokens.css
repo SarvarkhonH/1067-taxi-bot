@@ -894,6 +894,36 @@ body {
   filter: drop-shadow(0 1px 2px rgba(0,0,0,.45)); transform: rotate(0); }
 @keyframes profileSpin { to { transform: rotate(360deg); } }
 @media (prefers-reduced-motion: reduce) { .profile-av-ring { animation: none; } }
+
+/* 🏅 Daraja narvoni — profil panelidagi tier ladder */
+.tier-card { display: flex; flex-direction: column; }
+.tier-hero { display: flex; align-items: center; gap: 12px; margin: 4px 0 12px; padding: 12px 14px; border-radius: 14px;
+  background: linear-gradient(135deg, color-mix(in srgb, var(--lvl) 26%, transparent), color-mix(in srgb, var(--lvl) 8%, transparent));
+  border: 1px solid color-mix(in srgb, var(--lvl) 45%, transparent); }
+.tier-hero-emoji { font-size: 34px; line-height: 1; filter: drop-shadow(0 2px 5px color-mix(in srgb, var(--lvl) 55%, transparent)); }
+.tier-hero-info { display: flex; flex-direction: column; gap: 2px; }
+.tier-hero-name { font-size: 19px; font-weight: 800; color: var(--lvl); }
+.tier-hero-xp { font-size: 13px; color: var(--muted, #9aa6b8); font-weight: 700; }
+.tier-next { margin-bottom: 14px; }
+.tier-next-row { display: flex; justify-content: space-between; align-items: center; font-size: 13px; margin-bottom: 6px; }
+.tier-bar { height: 8px; border-radius: 999px; background: var(--line, #2a3242); overflow: hidden; }
+.tier-bar > span { display: block; height: 100%; border-radius: 999px; transition: width .6s cubic-bezier(.34,1.56,.64,1); }
+.tier-list { display: flex; flex-direction: column; gap: 6px; }
+.tier-step { display: flex; align-items: center; gap: 11px; padding: 9px 11px; border-radius: 12px;
+  background: var(--surface, #161d2b); border: 1px solid var(--line, #232c3d); transition: transform .15s ease; }
+.tier-step.now { border-color: var(--lvl); background: color-mix(in srgb, var(--lvl) 14%, transparent);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--lvl) 40%, transparent), 0 4px 14px color-mix(in srgb, var(--lvl) 22%, transparent); }
+.tier-step.lock { opacity: .62; }
+.tier-step-emoji { font-size: 22px; line-height: 1; width: 28px; text-align: center; flex: 0 0 auto; }
+.tier-step.lock .tier-step-emoji { filter: grayscale(.6); }
+.tier-step-mid { display: flex; flex-direction: column; gap: 1px; min-width: 0; flex: 1; }
+.tier-step-name { font-size: 14px; font-weight: 800; color: var(--text, #e8edf4); }
+.tier-step.now .tier-step-name { color: var(--lvl); }
+.tier-step-mean { font-size: 11px; color: var(--muted, #9aa6b8); line-height: 1.25; }
+.tier-step-right { flex: 0 0 auto; text-align: right; }
+.tier-step-xp { font-size: 12px; font-weight: 700; color: var(--muted, #9aa6b8); white-space: nowrap; }
+.tier-pill-now { font-size: 11px; font-weight: 800; color: var(--lvl); white-space: nowrap; }
+.tier-pill-done { font-size: 14px; }
 .uy-view { display: flex; flex-direction: column; gap: 14px; }
 .uy-greet { font-size: 18px; font-weight: 800; }
 .uy-bal { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 6px; }
