@@ -312,19 +312,28 @@ export function registerBooking(bot: Bot, mainMenu: (isDriver?: boolean) => Keyb
       await ctx.reply("Avval telefon raqamingizni ulang — /start.");
       return;
     }
-    const rides = await getDataSource().getRideHistory(me.member.phone, 8).catch(() => []);
+    const { getRideHistoryFull } = await import("../services/bookingService");
+    const { rides, totals } = await getRideHistoryFull(me.member.id, me.member.phone);
     if (!rides.length) {
       await ctx.reply("📜 Safar tarixi topilmadi.");
       return;
     }
-    const lines = rides.map((r) => {
-      const d = r.at ? new Date(r.at).toLocaleString("ru-RU", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" }) : "";
+    const header =
+      `📜 <b>Safarlar tarixi</b>\n` +
+      `🚕 <b>${totals.count}</b> safar · 🧾 <b>${formatNumber(Math.round(totals.spent))}</b> so'm` +
+      `${totals.cashback ? ` · 💰 +${formatNumber(Math.round(totals.cashback))}` : ""}\n` +
+      `🎉 Siz 1067'dan foydalanib <b>${totals.savingsPct}% tejadingiz</b>\n` +
+      `━━━━━━━━━━━━\n\n`;
+    const lines = rides.slice(0, 10).map((r) => {
+      const d = r.at ? new Date(r.at).toLocaleString("ru-RU", { day: "2-digit", month: "2-digit", year: "2-digit", hour: "2-digit", minute: "2-digit" }) : "";
       const done = ["delivered", "completed", "finished"].includes(r.status) ? "🏁" : ["cancel_by_operator", "cancel_by_server"].includes(r.status) ? "✖" : "🚖";
-      const fare = r.payment ? ` · 🧾${formatNumber(r.payment)} so'm` : "";
-      const km = r.distance ? ` · ${(r.distance / 1000).toFixed(1)}km` : "";
-      return `${done} <b>${esc(r.addressName)}</b> · ${d}${fare}${km}${r.cashback ? ` · 💰+${formatNumber(r.cashback)}` : ""}`;
+      const km = r.distance ? `📍${(r.distance / 1000).toFixed(1)}km` : "";
+      const mins = r.time ? `⏱${r.time >= 180 ? Math.round(r.time / 60) : Math.round(r.time)}daq` : "";
+      const meta = [km, mins, r.carModel ? `🚘${esc(r.carModel)}` : ""].filter(Boolean).join(" · ");
+      const money = ["delivered", "completed", "finished"].includes(r.status) ? `🧾 <b>${formatNumber(r.payment || 0)}</b> so'm${r.cashback ? ` · 💰+${formatNumber(r.cashback)}` : ""}` : "Bekor qilingan";
+      return `${done} <b>${esc(r.addressName)}</b>\n<i>${d}</i>${meta ? `\n${meta}` : ""}\n${money}`;
     });
-    await ctx.reply(`📜 <b>Oxirgi safarlaringiz</b>\n\n${lines.join("\n")}`, { parse_mode: "HTML" });
+    await ctx.reply(header + lines.join("\n\n"), { parse_mode: "HTML" });
   });
 
   // the 1-tap dispatch — pickup resolved server-side, real taxi sent

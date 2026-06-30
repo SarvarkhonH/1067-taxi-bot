@@ -15,8 +15,33 @@ import {
 } from "@t1067/shared";
 import { prisma } from "../db";
 import { env } from "../env";
-import { getDataSource } from "../kas";
+import { getDataSource, type RideHistoryItem } from "../kas";
 import { getFareConfig } from "./clientInfoService";
+
+export interface RideHistoryFull {
+  rides: RideHistoryItem[];
+  totals: { count: number; spent: number; cashback: number; savingsPct: number };
+}
+
+/** Full rider history + lifetime totals, shared by the Mini App endpoint AND the bot /tarix.
+ *  Pagination is adaptive (most riders fit one page → one call). savingsPct is a DETERMINISTIC
+ *  per-rider vanity number in 7–22% (owner decision — a friendly "siz X% tejadingiz", same value
+ *  every time for a given rider so it never flickers; NOT the real cashback/spend ratio). */
+export async function getRideHistoryFull(memberId: number, phone: string): Promise<RideHistoryFull> {
+  const ds = getDataSource();
+  const SIZE = 50;
+  const MAX_PAGES = 8; // cap 400 rides
+  const rides: RideHistoryItem[] = [];
+  for (let p = 0; p < MAX_PAGES; p++) {
+    const page = await ds.getRideHistory(phone, SIZE, p).catch(() => [] as RideHistoryItem[]);
+    rides.push(...page);
+    if (page.length < SIZE) break;
+  }
+  const spent = rides.reduce((s, r) => s + (r.payment || 0), 0);
+  const cashback = rides.reduce((s, r) => s + (r.cashback || 0), 0);
+  const savingsPct = 7 + ((memberId * 7 + 3) % 16); // 7..22, stable per rider
+  return { rides, totals: { count: rides.length, spent, cashback, savingsPct } };
+}
 
 const CITY_KMH = 24; // assumed city speed for ETA
 
