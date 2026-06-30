@@ -206,6 +206,12 @@ export const adminApi = {
   chatReply: (telegramId: string, text: string) => postJson<{ ok: boolean }>("/api/admin/chat/reply", { telegramId, text }),
   // 📱 message history
   msgHistory: (limit = 200) => req<AdminMsgHistoryRow[]>(`/api/admin/msg-history?limit=${limit}`),
+  // 🔥 peak hours
+  peakHours: () => req<PeakHourRow[]>("/api/admin/peak-hours"),
+  savePeakHour: (data: Omit<PeakHourRow, "createdAt" | "updatedAt"> & { id?: number }) =>
+    postJson<PeakHourRow>("/api/admin/peak-hours", data),
+  deletePeakHour: (id: number) =>
+    fetch(`${API_BASE}/api/admin/peak-hours/${id}`, { method: "DELETE", headers: authHeaders() }).then((r) => r.json() as Promise<{ ok: boolean }>),
 };
 
 export interface DriverMissionRow {
@@ -377,6 +383,17 @@ export interface AdminBannedRow {
   riskNote: string | null;
   trips: number;
   coins: number;
+}
+
+export interface PeakHourRow {
+  id: number;
+  label: string;
+  startTime: string;
+  endTime: string;
+  bonusTanga: number;
+  active: boolean;
+  createdAt: string;
+  updatedAt: string;
 }
 
 export interface Driver360 {

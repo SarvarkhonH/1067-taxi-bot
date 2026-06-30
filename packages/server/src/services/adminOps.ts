@@ -577,3 +577,54 @@ export async function getAdminMsgHistory(limit = 200): Promise<{ id: number; tel
   });
   return rows.map((r) => ({ id: r.id, telegramId: r.telegramId, direction: r.direction, text: r.text, at: r.createdAt.toISOString() }));
 }
+
+// ─── Peak Hours ───────────────────────────────────────────────────────────────
+
+export async function getPeakHours() {
+  return prisma.peakHour.findMany({ orderBy: { startTime: "asc" } });
+}
+
+export async function upsertPeakHour(
+  data: { id?: number; label: string; startTime: string; endTime: string; bonusTanga: number; active: boolean },
+  sendTg: (telegramId: string, text: string) => Promise<void>,
+) {
+  const row = data.id
+    ? await prisma.peakHour.update({ where: { id: data.id }, data: { label: data.label, startTime: data.startTime, endTime: data.endTime, bonusTanga: data.bonusTanga, active: data.active } })
+    : await prisma.peakHour.create({ data: { label: data.label, startTime: data.startTime, endTime: data.endTime, bonusTanga: data.bonusTanga, active: data.active } });
+
+  if (data.active) {
+    // notify all drivers
+    const drivers = await prisma.member.findMany({
+      where: { type: "driver", telegramUser: { isNot: null } },
+      include: { telegramUser: true },
+    });
+    const text =
+      `🚖 <b>Pik vaqt sozlandi!</b>\n\n` +
+      `⏰ ${data.label}: <b>${data.startTime} – ${data.endTime}</b>\n` +
+      `💰 Har buyurtma uchun: <b>+${data.bonusTanga.toLocaleString("ru-RU")} tanga bonus</b>\n\n` +
+      `🔥 Shu payt faqat <b>1067</b> orqali buyurtma oling — <b>50% chegirma</b> komissiyaga!\n` +
+      `👊 Pik vaqtda ishlang, ko'proq toping!`;
+    for (const d of drivers) {
+      if (d.telegramUser?.id) {
+        await sendTg(d.telegramUser.id, text).catch(() => undefined);
+      }
+    }
+  }
+  return row;
+}
+
+export async function deletePeakHour(id: number) {
+  await prisma.peakHour.delete({ where: { id } });
+}
+
+/** Check if the given UTC timestamp falls inside any active peak hour (Tashkent UTC+5). */
+export async function getActivePeakBonus(atMs: number): Promise<number> {
+  const peaks = await prisma.peakHour.findMany({ where: { active: true } });
+  if (!peaks.length) return 0;
+  const tashkentDate = new Date(atMs + 5 * 3600 * 1000);
+  const hhmm = `${String(tashkentDate.getUTCHours()).padStart(2, "0")}:${String(tashkentDate.getUTCMinutes()).padStart(2, "0")}`;
+  for (const p of peaks) {
+    if (hhmm >= p.startTime && hhmm < p.endTime) return p.bonusTanga;
+  }
+  return 0;
+}

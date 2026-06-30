@@ -1589,6 +1589,30 @@ export function createApiServer(opts: ApiOptions = {}) {
     res.json(await getAdminMsgHistory(limit));
   });
 
+  // ── Peak Hours ──────────────────────────────────────────────────────────────
+  app.get("/api/admin/peak-hours", requireAdmin, async (_req, res) => {
+    const { getPeakHours } = await import("../services/adminOps");
+    res.json(await getPeakHours());
+  });
+
+  app.post("/api/admin/peak-hours", requireAdmin, rateLimit(20), async (req, res) => {
+    const { upsertPeakHour } = await import("../services/adminOps");
+    const { id, label, startTime, endTime, bonusTanga, active } = req.body as {
+      id?: number; label: string; startTime: string; endTime: string; bonusTanga: number; active: boolean;
+    };
+    if (!label || !startTime || !endTime || !bonusTanga) return res.status(400).json({ error: "missing fields" });
+    if (!opts.sendMessage) return res.status(503).json({ error: "Bot ulanmagan" });
+    const sendTg = opts.sendMessage;
+    const row = await upsertPeakHour({ id, label, startTime, endTime, bonusTanga: Number(bonusTanga), active: !!active }, sendTg);
+    res.json(row);
+  });
+
+  app.delete("/api/admin/peak-hours/:id", requireAdmin, rateLimit(20), async (req, res) => {
+    const { deletePeakHour } = await import("../services/adminOps");
+    await deletePeakHour(Number(req.params.id));
+    res.json({ ok: true });
+  });
+
   app.post("/api/admin/sync", requireAdmin, async (_req, res) => {
     const { runSync } = await import("../sync/sync");
     try {

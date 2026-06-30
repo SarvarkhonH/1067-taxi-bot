@@ -581,6 +581,24 @@ export async function pushBookingUpdates(
                 await resilient("driver_bonus", () => grantCoins(driver.id, rebate, "driver_bonus", `Tier-bonus (${driver.driverTier})`, `driver_bonus:${m.id}:${m.lastBookingId}`)); // idempotent key
               }
             }
+            // 🔥 Peak-hour bonus: driver earns extra tanga if ride completes in an active window
+            try {
+              const { getActivePeakBonus } = await import("./adminOps");
+              const pkBonus = await getActivePeakBonus(Date.now());
+              if (pkBonus > 0) {
+                const { grantCoins } = await import("./coinService");
+                const pkKey = `peak_bonus:${driver.id}:${m.lastBookingId}`;
+                const existing = await prisma.coinTxn.findUnique({ where: { idempotencyKey: pkKey } }).catch(() => null);
+                if (!existing) {
+                  await grantCoins(driver.id, pkBonus, "peak_bonus", `🔥 Pik vaqt bonus`, pkKey);
+                  const dtg = await prisma.telegramUser.findFirst({ where: { memberId: driver.id } });
+                  if (dtg) await bot.api.sendMessage(dtg.id, `🔥 <b>Pik vaqt bonus!</b>\n💰 <b>+${pkBonus.toLocaleString("ru-RU")} tanga</b> — pik vaqtda buyurtma topshirdingiz!`, { parse_mode: "HTML" }).catch(() => undefined);
+                }
+              }
+            } catch (e) {
+              console.error("[peak bonus] failed:", e);
+            }
+
             // quest progress: completed-count only (idempotent per ride via rideKey)
             await resilient("drv_daily_5", () => incrementMission(driver.id, "drv_daily_5", 1, `qinc:${driver.id}:drv_daily_5:${m.lastBookingId}`));
             await resilient("drv_weekly_25", () => incrementMission(driver.id, "drv_weekly_25", 1, `qinc:${driver.id}:drv_weekly_25:${m.lastBookingId}`));

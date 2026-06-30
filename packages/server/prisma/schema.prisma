@@ -1230,3 +1230,15 @@ model IntercityWaitEntry {
   @@unique([riderId, routeId, desiredDate])
   @@index([routeId, desiredDate])
 }
+
+// Admin-configured peak hours: drivers earn bonusTanga per completed ride in this window.
+model PeakHour {
+  id         Int      @id @default(autoincrement())
+  label      String   // e.g. "Ertalab pik"
+  startTime  String   // "HH:MM" in Tashkent time (UTC+5)
+  endTime    String   // "HH:MM"
+  bonusTanga Int      // tanga per ride during this window
+  active     Boolean  @default(true)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+}

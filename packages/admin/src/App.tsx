@@ -11,9 +11,9 @@ import {
   type AdminMemberRow,
   type AdminStats,
 } from "@t1067/shared";
-import { adminApi, clearAdminToken, hasAdminToken, setAdminToken, type AdminBannedRow, type AdminChatConvo, type AdminChatMsg, type AdminDebtRow, type AdminMsgHistoryRow, type AdminRatingRow, type AdminReferralRow, type AdminRideRow, type AdminUserRow, type AdminWithdrawalRow, type AdminWithdrawalTabRow, type CampaignRow, type Driver360, type DriverMissionRow, type IntercityAdminTrip, type IntercityAdminDebt, type Member360 } from "./api";
+import { adminApi, clearAdminToken, hasAdminToken, setAdminToken, type AdminBannedRow, type AdminChatConvo, type AdminChatMsg, type AdminDebtRow, type AdminMsgHistoryRow, type AdminRatingRow, type AdminReferralRow, type AdminRideRow, type AdminUserRow, type AdminWithdrawalRow, type AdminWithdrawalTabRow, type CampaignRow, type Driver360, type DriverMissionRow, type IntercityAdminTrip, type IntercityAdminDebt, type Member360, type PeakHourRow } from "./api";
 
-type Tab = "overview" | "pulse" | "analytics" | "finance" | "live" | "x360" | "driver" | "client" | "botusers" | "boshqaruv" | "topshiriq" | "actions" | "integrity" | "audit" | "safarlar" | "qarzlar" | "referallar" | "banlist" | "yechishlar" | "baholar" | "xabar" | "chat" | "intercity";
+type Tab = "overview" | "pulse" | "analytics" | "finance" | "live" | "x360" | "driver" | "client" | "botusers" | "boshqaruv" | "topshiriq" | "actions" | "integrity" | "audit" | "safarlar" | "qarzlar" | "referallar" | "banlist" | "yechishlar" | "baholar" | "xabar" | "chat" | "intercity" | "pik";
 
 const NAV_GROUPS: { label: string; items: { id: Tab; icon: string; label: string }[] }[] = [
   {
@@ -62,6 +62,7 @@ const NAV_GROUPS: { label: string; items: { id: Tab; icon: string; label: string
   {
     label: "BOSHQARUV",
     items: [
+      { id: "pik", icon: "🔥", label: "Pik Vaqtlar" },
       { id: "actions", icon: "⚡", label: "Amallar" },
       { id: "topshiriq", icon: "🎯", label: "Topshiriqlar" },
       { id: "boshqaruv", icon: "👑", label: "Foydalanuvchilar" },
@@ -172,6 +173,7 @@ export function App() {
           {tab === "banlist" && <BanListView />}
           {tab === "chat" && <ChatView />}
           {tab === "xabar" && <XabarView />}
+          {tab === "pik" && <PeakHoursView />}
         </div>
       </div>
     </div>
@@ -2390,4 +2392,99 @@ function BanListView() {
 function fmtTime(iso: string | null): string {
   if (!iso) return "—";
   return new Date(iso).toLocaleString("ru-RU", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" });
+}
+
+// ─── 🔥 Pik Vaqtlar ──────────────────────────────────────────────────────────
+function PeakHoursView() {
+  const [rows, setRows] = useState<PeakHourRow[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [err, setErr] = useState("");
+  const [form, setForm] = useState<{ id?: number; label: string; startTime: string; endTime: string; bonusTanga: string; active: boolean }>({
+    label: "", startTime: "07:00", endTime: "09:00", bonusTanga: "1000", active: true,
+  });
+
+  const load = () => { setLoading(true); adminApi.peakHours().then((r) => { setRows(r); setLoading(false); }).catch(() => setLoading(false)); };
+  useEffect(load, []);
+
+  const reset = () => setForm({ label: "", startTime: "07:00", endTime: "09:00", bonusTanga: "1000", active: true });
+
+  const edit = (r: PeakHourRow) => setForm({ id: r.id, label: r.label, startTime: r.startTime, endTime: r.endTime, bonusTanga: String(r.bonusTanga), active: r.active });
+
+  const save = async () => {
+    if (!form.label || !form.startTime || !form.endTime || !form.bonusTanga) { setErr("Barcha maydonlarni to'ldiring"); return; }
+    setSaving(true); setErr("");
+    try {
+      await adminApi.savePeakHour({ id: form.id, label: form.label, startTime: form.startTime, endTime: form.endTime, bonusTanga: Number(form.bonusTanga), active: form.active } as Parameters<typeof adminApi.savePeakHour>[0]);
+      reset(); load();
+    } catch { setErr("Saqlashda xato"); }
+    setSaving(false);
+  };
+
+  const del = async (id: number) => {
+    if (!confirm("O'chirishni tasdiqlaysizmi?")) return;
+    await adminApi.deletePeakHour(id); load();
+  };
+
+  return (
+    <div className="panel">
+      <div className="panel-title">🔥 Pik Vaqtlar — Driver Bonus</div>
+      <p className="muted" style={{ marginBottom: 16 }}>
+        Sozlangan vaqt oralig'ida buyurtma yakunlagan haydovchilarga avtomatik tanga bonusi + bildirishnoma yuboriladi.
+      </p>
+
+      {/* form */}
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, maxWidth: 600, marginBottom: 20 }}>
+        <div style={{ gridColumn: "1/-1" }}>
+          <label className="muted" style={{ fontSize: 11 }}>Nom (masalan: Ertalab pik)</label>
+          <input className="inp" value={form.label} onChange={(e) => setForm((f) => ({ ...f, label: e.target.value }))} placeholder="Ertalab pik" />
+        </div>
+        <div>
+          <label className="muted" style={{ fontSize: 11 }}>Boshlanish (Toshkent)</label>
+          <input className="inp" type="time" value={form.startTime} onChange={(e) => setForm((f) => ({ ...f, startTime: e.target.value }))} />
+        </div>
+        <div>
+          <label className="muted" style={{ fontSize: 11 }}>Tugash (Toshkent)</label>
+          <input className="inp" type="time" value={form.endTime} onChange={(e) => setForm((f) => ({ ...f, endTime: e.target.value }))} />
+        </div>
+        <div>
+          <label className="muted" style={{ fontSize: 11 }}>Bonus (tanga / buyurtma)</label>
+          <input className="inp" type="number" min={0} value={form.bonusTanga} onChange={(e) => setForm((f) => ({ ...f, bonusTanga: e.target.value }))} placeholder="1000" />
+        </div>
+        <div style={{ display: "flex", alignItems: "flex-end", gap: 8 }}>
+          <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 13, cursor: "pointer" }}>
+            <input type="checkbox" checked={form.active} onChange={(e) => setForm((f) => ({ ...f, active: e.target.checked }))} />
+            Faol (haydovchilarga xabar yuboriladi)
+          </label>
+        </div>
+        {err && <p style={{ gridColumn: "1/-1", color: "var(--red)", fontSize: 12 }}>{err}</p>}
+        <div style={{ gridColumn: "1/-1", display: "flex", gap: 8 }}>
+          <button className="btn" onClick={save} disabled={saving}>{saving ? "Saqlanmoqda…" : form.id ? "💾 Yangilash" : "➕ Qo'shish"}</button>
+          {form.id && <button className="btn-outline" onClick={reset}>Bekor</button>}
+        </div>
+      </div>
+
+      {/* table */}
+      {loading ? <p className="muted">Yuklanmoqda…</p> : rows.length === 0 ? <p className="muted">Pik vaqtlar yo'q.</p> : (
+        <table className="tbl">
+          <thead><tr><th>Nom</th><th>Boshlanish</th><th>Tugash</th><th>Bonus</th><th>Holat</th><th></th></tr></thead>
+          <tbody>
+            {rows.map((r) => (
+              <tr key={r.id}>
+                <td>{r.label}</td>
+                <td>{r.startTime}</td>
+                <td>{r.endTime}</td>
+                <td>+{r.bonusTanga.toLocaleString("ru-RU")} tanga</td>
+                <td><span style={{ color: r.active ? "var(--green)" : "var(--muted)" }}>{r.active ? "✅ Faol" : "⏸ Nofaol"}</span></td>
+                <td style={{ display: "flex", gap: 6 }}>
+                  <button className="btn-sm" onClick={() => edit(r)}>✏️</button>
+                  <button className="btn-sm danger" onClick={() => del(r.id)}>🗑</button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+    </div>
+  );
 }
