@@ -5,7 +5,9 @@ import type {
   AdminGrowth,
   AdminHealth,
   AdminLiveBooking,
+  BallDistribution,
 } from "@t1067/shared";
+import { LEVELS, computeXp, levelForXp } from "@t1067/shared";
 import { prisma } from "../db";
 import { env } from "../env";
 import { getDataSource } from "../kas";
@@ -90,6 +92,31 @@ export async function getEconomy(): Promise<AdminEconomy> {
     jackpot,
     byKind,
     withdrawBudget: budget,
+  };
+}
+
+// 🏅 Tier loyalty monitoring: client tier distribution (computed XP → level) + ball stats.
+// Tier is derived (points + trips*2 + ballPoints), so this is a live read over all clients.
+export async function getBallDistribution(): Promise<BallDistribution> {
+  const clients = await prisma.member.findMany({ where: { type: "client" }, select: { points: true, trips: true, ballPoints: true } });
+  const tiers = LEVELS.map((l) => ({ index: l.index, name: l.name, emoji: l.emoji, color: l.color, count: 0, ballSum: 0 }));
+  let totalBall = 0, withBall = 0, maxBall = 0;
+  for (const c of clients) {
+    const lvl = levelForXp(computeXp({ points: c.points, trips: c.trips, ballPoints: c.ballPoints })).level;
+    const t = tiers[lvl.index]!;
+    t.count++;
+    t.ballSum += c.ballPoints;
+    totalBall += c.ballPoints;
+    if (c.ballPoints > 0) withBall++;
+    if (c.ballPoints > maxBall) maxBall = c.ballPoints;
+  }
+  return {
+    members: clients.length,
+    withBall,
+    totalBall,
+    avgBall: withBall > 0 ? Math.round(totalBall / withBall) : 0,
+    maxBall,
+    tiers,
   };
 }
 

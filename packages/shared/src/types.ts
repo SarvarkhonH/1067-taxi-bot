@@ -185,6 +185,16 @@ export interface AdminEconomy {
   withdrawBudget: { total: number; used: number; remaining: number; rides: number }; // revenue-linked
 }
 
+// 🏅 Tier loyalty monitoring — client tier distribution + ball stats (feature "tierloyalty").
+export interface BallDistribution {
+  members: number; // total clients
+  withBall: number; // clients with ballPoints > 0
+  totalBall: number; // sum of all ballPoints
+  avgBall: number; // mean ballPoints over clients with ball
+  maxBall: number;
+  tiers: { index: number; name: string; emoji: string; color: string; count: number; ballSum: number }[];
+}
+
 export interface AdminGrowth {
   botUsers: number;
   linked: number;

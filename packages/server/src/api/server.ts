@@ -1317,6 +1317,10 @@ export function createApiServer(opts: ApiOptions = {}) {
     const { getEconomy } = await import("../services/adminOps");
     res.json(await getEconomy());
   });
+  app.get("/api/admin/ball-distribution", requireAdmin, async (_req, res) => {
+    const { getBallDistribution } = await import("../services/adminOps");
+    res.json(await getBallDistribution());
+  });
   app.get("/api/admin/growth", requireAdmin, async (_req, res) => {
     const { getGrowth } = await import("../services/adminOps");
     res.json(await getGrowth());
