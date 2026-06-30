@@ -551,7 +551,7 @@ export const MOTOR_ECON_KNOBS: MotorEconKnob[] = [
   { key: "speedMult", label: "⚡ Daromad tezligi (×)", def: 1, min: 0.25, max: 2, step: 0.05, live: true },
   // 🛡 KUNLIK CAP — har o'yinchi motordan kuniga shu summadan ko'p NET ishlay olmaydi (anti-inflyatsiya).
   // 0 = cap o'chiq. motorCollect bugungi (motor_earn + motor_taxi) yig'indisini cap'ga clamp qiladi.
-  { key: "dailyEarnCap", label: "🛡 Kunlik daromad cap (tanga)", def: 1000, min: 0, max: 50000, step: 250, live: true },
+  { key: "dailyEarnCap", label: "🛡 Kunlik daromad cap (tanga)", def: 5000, min: 0, max: 50000, step: 250, live: true }, // FAZA7b — 1000 juda past (1 mashina ham to'ldirardi) → 5000: oddiy mashinalar erkin ishlaydi, faqat eng qimmati (gelik) cheklanadi
   // 🚕 FAZA1 — real taksi bonusi: haydovchining motor-mashinasi har real safarda QO'SHIMCHA (taxiMult−1)×
   // ishlaydi (safar vaqti passiv 1× ustiga). dailyEarnCap ICHIDA (jami ≤ cap). 1 = bonus o'chiq (faqat safar++).
   { key: "taxiMult", label: "🚕 Real taksi bonus (×)", def: 2, min: 1, max: 3, step: 0.5, live: true },
