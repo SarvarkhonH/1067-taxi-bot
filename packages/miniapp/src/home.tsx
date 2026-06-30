@@ -142,7 +142,7 @@ export function LivingHome(props: {
         <div className="lh-places">
           <button className="lh-place" onClick={() => { haptic(); onNav("play"); }}>🎮<span>O'yin</span></button>
           <button className="lh-place" onClick={shareInvite}>👥<span>Do'st taklif</span></button>
-          <button className="lh-place" onClick={() => { haptic(); window.open("https://1067taxi-miniapp.vercel.app/ravella/", "_blank"); }}>💍<span>Service</span></button>
+          <button className="lh-place" onClick={() => { haptic(); onNav("history"); }}>📜<span>Tarix</span></button>
           <button className="lh-place" onClick={() => { haptic(); setShowWallet(true); }}>💰<span>Hamyon</span></button>
         </div>
       </div>
