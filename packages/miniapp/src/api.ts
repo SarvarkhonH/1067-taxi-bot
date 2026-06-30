@@ -329,6 +329,14 @@ export const api = {
   icMyActive: () => get<IntercityBookingRow[]>("/api/intercity/my-active"),
   icMyBookings: () => get<IntercityBookingRow[]>("/api/intercity/my-bookings"),
   icCancel: (bookingId: number) => request<{ ok: boolean; outcome?: string; error?: string }>("POST", "/api/intercity/cancel", { bookingId }, 1),
+  // 🚐 driver side
+  icDriverTrips: () => get<IntercityDriverTrip[]>("/api/intercity/driver/trips"),
+  icPublish: (b: { originCityId: number; destCityId: number; scheduledAt: string; carCapacity: number; fareSom?: number; note?: string }) =>
+    request<{ ok: boolean; tripId?: number; error?: string }>("POST", "/api/intercity/trip", b, 1),
+  icDepart: (tripId: number) => request<{ ok: boolean; error?: string }>("POST", "/api/intercity/trip/depart", { tripId }, 1),
+  icArrive: (tripId: number) => request<{ ok: boolean; error?: string }>("POST", "/api/intercity/trip/arrive", { tripId }, 1),
+  icTripCancel: (tripId: number) => request<{ ok: boolean; error?: string }>("POST", "/api/intercity/trip/cancel", { tripId }, 1),
+  icManifest: (tripId: number) => get<IntercityManifest | null>(`/api/intercity/driver/manifest?tripId=${tripId}`),
 };
 
 // 🚐 Intercity client shapes (mirror intercityService includes)
@@ -341,6 +349,19 @@ export interface IntercityTripRow {
 export interface IntercityBookingRow {
   id: number; status: string; seatsBooked: number; agreedFareSom: number; paymentMethod: string; createdAt: string;
   trip: { scheduledAt: string; status: string; originCity: { name: string }; destCity: { name: string }; driver: IntercityDriverLite };
+}
+export interface IntercityDriverTrip {
+  id: number; scheduledAt: string; status: string; bookedSeats: number; carCapacity: number;
+  originCity: { name: string }; destCity: { name: string }; _count: { bookings: number };
+}
+export interface IntercityManifestRow {
+  id: number; seatsBooked: number; status: string; paymentMethod: string;
+  rider: { fullName: string | null; displayName: string | null; phone: string | null };
+  boardingCity: { name: string } | null; alightingCity: { name: string } | null;
+}
+export interface IntercityManifest {
+  id: number; status: string; scheduledAt: string; originCity: { name: string }; destCity: { name: string };
+  bookings: IntercityManifestRow[];
 }
 
 export interface RideHistoryResponse {

@@ -146,6 +146,10 @@ export const adminApi = {
   corpReport: (id: number) => req<{ corp: { name: string; balance: number }; rows: { phone: string; name: string | null; rides: number; overCap: boolean }[]; totalRides: number }>(`/api/admin/corps/${id}/report`),
   rides: (limit = 150) => req<AdminRideRow[]>(`/api/admin/rides?limit=${limit}`),
   driverDebts: () => req<AdminDebtRow[]>("/api/admin/driver-debts"),
+  // 🚐 intercity (shaharlararo)
+  intercityTrips: (status?: string) => req<IntercityAdminTrip[]>(`/api/intercity/admin/trips${status ? `?status=${encodeURIComponent(status)}` : ""}`),
+  intercityDebts: () => req<{ rows: IntercityAdminDebt[]; totalPending: number }>("/api/intercity/admin/debts"),
+  intercityForceCancel: (tripId: number) => postJson<{ ok: boolean }>("/api/intercity/admin/trip/cancel", { tripId }),
   referrals: () => req<AdminReferralRow[]>("/api/admin/referrals"),
   banned: () => req<AdminBannedRow[]>("/api/admin/banned"),
   ban: (memberId: number, reason: string) => postJson<{ ok: boolean; message: string }>("/api/admin/ban", { memberId, reason }),
@@ -329,6 +333,28 @@ export interface AdminDebtRow {
   kasBalance: number | null;
   errorNote: string | null;
   at: string;
+}
+
+export interface IntercityAdminTrip {
+  id: number;
+  status: string;
+  scheduledAt: string;
+  fareSom: number;
+  commissionSom: number;
+  bookedSeats: number;
+  carCapacity: number;
+  originCity: { name: string };
+  destCity: { name: string };
+  driver: { fullName: string | null; carNumber: string | null };
+  _count: { bookings: number };
+}
+export interface IntercityAdminDebt {
+  id: number;
+  commissionSom: number;
+  status: string;
+  createdAt: string;
+  driver: { fullName: string | null; carNumber: string | null };
+  trip: { id: number };
 }
 
 export interface AdminReferralRow {

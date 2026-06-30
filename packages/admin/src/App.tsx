@@ -11,9 +11,9 @@ import {
   type AdminMemberRow,
   type AdminStats,
 } from "@t1067/shared";
-import { adminApi, clearAdminToken, hasAdminToken, setAdminToken, type AdminBannedRow, type AdminChatConvo, type AdminChatMsg, type AdminDebtRow, type AdminMsgHistoryRow, type AdminRatingRow, type AdminReferralRow, type AdminRideRow, type AdminUserRow, type AdminWithdrawalRow, type AdminWithdrawalTabRow, type CampaignRow, type Driver360, type DriverMissionRow, type Member360 } from "./api";
+import { adminApi, clearAdminToken, hasAdminToken, setAdminToken, type AdminBannedRow, type AdminChatConvo, type AdminChatMsg, type AdminDebtRow, type AdminMsgHistoryRow, type AdminRatingRow, type AdminReferralRow, type AdminRideRow, type AdminUserRow, type AdminWithdrawalRow, type AdminWithdrawalTabRow, type CampaignRow, type Driver360, type DriverMissionRow, type IntercityAdminTrip, type IntercityAdminDebt, type Member360 } from "./api";
 
-type Tab = "overview" | "pulse" | "analytics" | "finance" | "live" | "x360" | "driver" | "client" | "botusers" | "boshqaruv" | "topshiriq" | "actions" | "integrity" | "audit" | "safarlar" | "qarzlar" | "referallar" | "banlist" | "yechishlar" | "baholar" | "xabar" | "chat";
+type Tab = "overview" | "pulse" | "analytics" | "finance" | "live" | "x360" | "driver" | "client" | "botusers" | "boshqaruv" | "topshiriq" | "actions" | "integrity" | "audit" | "safarlar" | "qarzlar" | "referallar" | "banlist" | "yechishlar" | "baholar" | "xabar" | "chat" | "intercity";
 
 const NAV_GROUPS: { label: string; items: { id: Tab; icon: string; label: string }[] }[] = [
   {
@@ -29,6 +29,7 @@ const NAV_GROUPS: { label: string; items: { id: Tab; icon: string; label: string
     items: [
       { id: "finance", icon: "💰", label: "Moliya" },
       { id: "analytics", icon: "📈", label: "Analitika" },
+      { id: "intercity", icon: "🚐", label: "Shaharlararo" },
     ],
   },
   {
@@ -166,6 +167,7 @@ export function App() {
           {tab === "yechishlar" && <YechishlarView />}
           {tab === "baholar" && <BaholarView />}
           {tab === "qarzlar" && <QarzlarView />}
+          {tab === "intercity" && <IntercityAdmin />}
           {tab === "referallar" && <ReferallarView />}
           {tab === "banlist" && <BanListView />}
           {tab === "chat" && <ChatView />}
@@ -2185,6 +2187,94 @@ function QarzlarView() {
             ))}
           </tbody>
         </table>
+      </div>
+    </section>
+  );
+}
+
+// ─── 🚐 shaharlararo (intercity) ─────────────────────────────────────────────
+const IC_STATUSES = ["", "OPEN", "BOARDING", "DEPARTED", "COMPLETED", "CANCELLED", "EXPIRED"];
+function IntercityAdmin() {
+  const [trips, setTrips] = useState<IntercityAdminTrip[] | null>(null);
+  const [debts, setDebts] = useState<{ rows: IntercityAdminDebt[]; totalPending: number } | null>(null);
+  const [status, setStatus] = useState("");
+  const [busy, setBusy] = useState<number | null>(null);
+
+  const loadTrips = (s: string) => { setTrips(null); adminApi.intercityTrips(s || undefined).then(setTrips).catch(() => setTrips([])); };
+  useEffect(() => { loadTrips(status); /* eslint-disable-next-line */ }, [status]);
+  useEffect(() => { adminApi.intercityDebts().then(setDebts).catch(() => setDebts({ rows: [], totalPending: 0 })); }, []);
+
+  const forceCancel = async (id: number) => {
+    if (!window.confirm(`Reys #${id} ni bekor qilasizmi? Yo'lovchilarga xabar boradi.`)) return;
+    setBusy(id);
+    try { await adminApi.intercityForceCancel(id); loadTrips(status); } finally { setBusy(null); }
+  };
+
+  const open = trips?.filter((t) => t.status === "OPEN" || t.status === "BOARDING").length ?? 0;
+  const completed = trips?.filter((t) => t.status === "COMPLETED").length ?? 0;
+  return (
+    <section className="panel">
+      <div className="panel-title">🚐 Shaharlararo reyslar — so'nggi 100 ta</div>
+      <div className="cards" style={{ marginBottom: 12 }}>
+        <Card icon="🚐" label="Ko'rsatilgan" value={formatNumber(trips?.length ?? 0)} accent />
+        <Card icon="🟢" label="Faol (open/boarding)" value={formatNumber(open)} />
+        <Card icon="✅" label="Yakunlangan" value={formatNumber(completed)} />
+        <Card icon="💸" label="Komissiya qarzi (kutilmoqda)" value={formatNumber(debts?.totalPending ?? 0) + " so'm"} />
+      </div>
+
+      <div className="chips" style={{ marginBottom: 12, display: "flex", gap: 8, flexWrap: "wrap" }}>
+        {IC_STATUSES.map((s) => (
+          <button key={s || "all"} className="btn btn-sm" style={{ opacity: status === s ? 1 : 0.5 }} onClick={() => setStatus(s)}>
+            {s || "Hammasi"}
+          </button>
+        ))}
+      </div>
+
+      <div className="table-wrap">
+        <table>
+          <thead><tr><th>#</th><th>Yo'nalish</th><th>Vaqt</th><th>Haydovchi</th><th className="num">O'rin</th><th className="num">Narx</th><th className="num">Bron</th><th>Holat</th><th>Amal</th></tr></thead>
+          <tbody>
+            {(trips ?? []).map((t) => (
+              <tr key={t.id}>
+                <td className="muted">#{t.id}</td>
+                <td><b>{t.originCity.name} → {t.destCity.name}</b></td>
+                <td className="muted">{fmtTime(t.scheduledAt)}</td>
+                <td>{t.driver.fullName ?? "—"}{t.driver.carNumber ? <span className="muted"> · {t.driver.carNumber}</span> : null}</td>
+                <td className="num">{t.bookedSeats}/{t.carCapacity}</td>
+                <td className="num strong">{formatNumber(t.fareSom)}</td>
+                <td className="num">{t._count.bookings}</td>
+                <td><span className="lvl">{t.status}</span></td>
+                <td>
+                  {(t.status === "OPEN" || t.status === "BOARDING") && (
+                    <button className="btn btn-sm" style={{ background: "#dc2626", color: "#fff" }} disabled={busy === t.id} onClick={() => forceCancel(t.id)}>{busy === t.id ? "…" : "Bekor"}</button>
+                  )}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+        {trips && trips.length === 0 && <div className="muted" style={{ padding: 16, textAlign: "center" }}>Reys yo'q</div>}
+        {!trips && <div className="screen center"><div className="spinner" /></div>}
+      </div>
+
+      <div className="panel-title" style={{ marginTop: 18 }}>💸 Komissiya qarzlari (kutilmoqda)</div>
+      <div className="table-wrap">
+        <table>
+          <thead><tr><th>#</th><th>Haydovchi</th><th>Mashina</th><th>Reys</th><th className="num">Komissiya</th><th>Vaqt</th></tr></thead>
+          <tbody>
+            {(debts?.rows ?? []).map((d) => (
+              <tr key={d.id}>
+                <td className="muted">#{d.id}</td>
+                <td>{d.driver.fullName ?? "—"}</td>
+                <td><b>{d.driver.carNumber ?? "—"}</b></td>
+                <td className="muted">#{d.trip.id}</td>
+                <td className="num strong">{formatNumber(d.commissionSom)}</td>
+                <td className="muted">{fmtTime(d.createdAt)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+        {debts && debts.rows.length === 0 && <div className="muted" style={{ padding: 16, textAlign: "center" }}>Qarz yo'q (pilotda komissiya = 0)</div>}
       </div>
     </section>
   );
