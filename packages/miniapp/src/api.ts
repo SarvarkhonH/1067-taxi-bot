@@ -320,7 +320,28 @@ export const api = {
   bookingEstimate: (pickup: GeoPt, dest: GeoPt, surcharge: number) => request<FareQuote>("POST", "/api/booking/estimate", { pickup, dest, surcharge }),
   bookingHistory: () =>
     get<RideHistoryResponse>("/api/booking/history"),
+  // 🚐 Intercity (nationwide seat booking)
+  icCities: (q?: string) => get<IntercityCity[]>(`/api/intercity/cities${q ? `?q=${encodeURIComponent(q)}` : ""}`),
+  icTrips: (originId: number, destId: number, date: string) =>
+    get<IntercityTripRow[]>(`/api/intercity/trips?originId=${originId}&destId=${destId}&date=${encodeURIComponent(date)}`),
+  icBook: (tripId: number, seatCount: number, paymentMethod: "CASH" | "PREPAY", tangaDiscount?: number) =>
+    request<{ ok: boolean; bookingId?: number; duplicate?: boolean; error?: string }>("POST", "/api/intercity/book", { tripId, seatCount, paymentMethod, tangaDiscount }, 1),
+  icMyActive: () => get<IntercityBookingRow[]>("/api/intercity/my-active"),
+  icMyBookings: () => get<IntercityBookingRow[]>("/api/intercity/my-bookings"),
+  icCancel: (bookingId: number) => request<{ ok: boolean; outcome?: string; error?: string }>("POST", "/api/intercity/cancel", { bookingId }, 1),
 };
+
+// 🚐 Intercity client shapes (mirror intercityService includes)
+export interface IntercityCity { id: number; name: string; nameRu: string | null; regionCode: string }
+export interface IntercityDriverLite { fullName: string | null; displayName: string | null; carNumber: string | null; rating?: number; phone: string | null }
+export interface IntercityTripRow {
+  id: number; scheduledAt: string; fareSom: number; bookedSeats: number; carCapacity: number; status: string; note: string | null;
+  originCity: { name: string }; destCity: { name: string }; driver: IntercityDriverLite;
+}
+export interface IntercityBookingRow {
+  id: number; status: string; seatsBooked: number; agreedFareSom: number; paymentMethod: string; createdAt: string;
+  trip: { scheduledAt: string; status: string; originCity: { name: string }; destCity: { name: string }; driver: IntercityDriverLite };
+}
 
 export interface RideHistoryResponse {
   rides: RideHistoryRow[];

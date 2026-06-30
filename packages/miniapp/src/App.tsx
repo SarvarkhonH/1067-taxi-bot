@@ -18,10 +18,12 @@ const LivingHome = lazy(() => import("./home").then((m) => ({ default: m.LivingH
 const GarajShell = lazy(() => import("./garaj").then((m) => ({ default: m.GarajShell })));
 const GarajDemo = lazy(() => import("./garaj").then((m) => ({ default: m.GarajDemo })));
 const GarajCollectionSheet = lazy(() => import("./garaj").then((m) => ({ default: m.GarajCollectionSheet })));
+// 🚐 Yo'l — nationwide intercity seat booking (gated by feature `intercity`)
+const IntercityView = lazy(() => import("./intercity").then((m) => ({ default: m.IntercityView })));
 import { Icon } from "./icons";
 import { useCountUp } from "./util";
 
-type Tab = "uy" | "wallet" | "play" | "garaj" | "market" | "reyting" | "driver" | "profile";
+type Tab = "uy" | "wallet" | "play" | "garaj" | "market" | "reyting" | "yol" | "driver" | "profile";
 
 // ── `me` stale-while-revalidate cache (instant repeat opens, hides cold-start) ──
 // Keyed by the Telegram user id so a shared device never shows one user another's cached data.
@@ -84,6 +86,7 @@ const GO_MAP: Record<string, Tab> = {
   rewards: "play", missions: "play", play: "play", bonus: "play", vazifa: "play",
   market: "uy", bozor: "uy", // 🏎 Motor Olami opens via the `garaj` overlay (readGo handled separately), not a content tab
   league: "reyting", friends: "reyting", reyting: "reyting", liga: "reyting", dost: "reyting",
+  yol: "yol", intercity: "yol", reys: "yol", // 🚐 shaharlararo
   driver: "driver", profile: "profile",
 };
 
@@ -232,7 +235,9 @@ export function App() {
     setTimeout(() => setToast((c) => (c && Date.now() - c.id >= 3500 ? null : c)), 3600);
   };
 
-  const TABS = me.type === "driver" ? DRIVER_TABS : BASE_TABS;
+  const baseTabs = me.type === "driver" ? DRIVER_TABS : BASE_TABS;
+  // 🚐 Yo'l tab appears only when the `intercity` flag is on (server gates via me.flags)
+  const TABS = me.flags?.intercity ? [...baseTabs, { id: "yol" as Tab, icon: "route", label: "Yo'l" }] : baseTabs;
   const TAB_PCT = 100 / TABS.length;
   const activeIndex = TABS.findIndex((t) => t.id === tab);
 
@@ -290,6 +295,7 @@ export function App() {
               ) : (
                 <Spinner />
               ))}
+            {tab === "yol" && <IntercityView />}
             {tab === "driver" && <DriverView me={me} />}
             {tab === "profile" && (
               <div className="view">

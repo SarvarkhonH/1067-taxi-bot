@@ -243,15 +243,16 @@ export function createApiServer(opts: ApiOptions = {}) {
   app.get("/api/garaj/profile/:id", requireUser, withMember2(async (id, req) => (await import("../services/garajService")).getPublicProfile(id, req.params?.id === "me" ? id : Number(req.params?.id))));
 
   app.get("/api/me", requireUser, async (_req, res) => {
-    const [me, booking3, garajx, tolqin, livinghome] = await Promise.all([
+    const [me, booking3, garajx, tolqin, livinghome, intercity] = await Promise.all([
       getMe(res.locals.telegramId as string),
       featureOn("booking3"),
       featureOn("garajx"),
       featureOn("tolqin"),
       featureOn("livinghome"),
+      featureOn("intercity"),
     ]);
     if (!me) { res.json({ linked: false }); return; }
-    res.json({ ...me, flags: { booking3, garajx, tolqin, livinghome } });
+    res.json({ ...me, flags: { booking3, garajx, tolqin, livinghome, intercity } });
   });
 
   app.post("/api/checkin", requireUser, async (_req, res) => {

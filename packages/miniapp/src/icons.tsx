@@ -76,6 +76,14 @@ export function Icon({ name, filled = false, size = 24 }: { name: string; filled
           <path d="M10 20v-5h4v5" />
         </svg>
       );
+    case "route":
+      // intercity road: two roadside edges + a dashed centre line (A→B corridor)
+      return (
+        <svg {...p}>
+          <path d="M8 3 6.5 21M16 3 17.5 21" />
+          <path d="M12 5v2.5M12 11v2.5M12 16.5V19" />
+        </svg>
+      );
     case "user":
       return (
         <svg {...p}>

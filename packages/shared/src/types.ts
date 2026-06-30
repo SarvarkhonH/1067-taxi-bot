@@ -45,6 +45,7 @@ export interface MeResponse {
     garajx?: boolean;
     tolqin?: boolean;
     livinghome?: boolean;
+    intercity?: boolean; // 🚐 nationwide intercity seat-booking tab
   };
 }
 
