@@ -253,7 +253,10 @@ export function createApiServer(opts: ApiOptions = {}) {
       featureOn("tierloyalty"),
     ]);
     if (!me) { res.json({ linked: false }); return; }
-    res.json({ ...me, flags: { booking3, garajx, tolqin, livinghome, intercity, tierloyalty } });
+    // 🏅 owner-preview: admins see the tier-loyalty UI even while the global flag is DARK, so the
+    // owner can QABUL the screens before go-live. (The real cashback multiplier stays globally gated.)
+    const tierPreview = tierloyalty || isAdmin(res.locals.telegramId as string);
+    res.json({ ...me, flags: { booking3, garajx, tolqin, livinghome, intercity, tierloyalty: tierPreview } });
   });
 
   // 🏅 Tier ladder benefits — labels derived from LIVE knobs (single source of truth). 60s client cache.
