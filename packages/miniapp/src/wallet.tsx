@@ -773,10 +773,8 @@ export function TierLadder({ me }: { me: MeResponse }) {
   const pct = Math.round((me.progress || 0) * 100);
   const toNext = me.nextLevel ? Math.max(0, me.nextLevel.minXp - me.xp) : 0;
   const benFor = (idx: number) => ben?.tiers.find((x) => x.levelIndex === idx);
-  const meanFor = (l: (typeof LEVELS)[number]) => {
-    if (tierOn) { const b = benFor(l.index); return b ? b.benefitLabel : ""; }
-    return TIER_MEANING[l.name] ?? "";
-  };
+  // chiroyli tavsif HAR DOIM (boyagi gaplar) — foyda alohida +X% badge'da ko'rsatiladi
+  const meanFor = (l: (typeof LEVELS)[number]) => TIER_MEANING[l.name] ?? "";
   const ball = me.ballPoints ?? 0;
   const fromRides = me.stats.trips * 2;
   const fromCash = Math.max(0, Math.round(me.stats.points));
