@@ -1,17 +1,41 @@
 // Minimal typings + bootstrap for the Telegram WebApp runtime.
 import { formatNumber } from "@t1067/shared";
 
+// Bot API 8.0+ native geolocation. In the Telegram in-app WebView navigator.geolocation is
+// unreliable (the OS permission prompt often never surfaces), so LocationManager is the correct
+// path — it drives Telegram's OWN permission flow and can deep-link to settings when denied.
+interface TgLocationData {
+  latitude: number;
+  longitude: number;
+  altitude?: number | null;
+  course?: number | null;
+  speed?: number | null;
+  horizontal_accuracy?: number | null;
+}
+interface TgLocationManager {
+  isInited: boolean;
+  isLocationAvailable: boolean;
+  isAccessRequested: boolean;
+  isAccessGranted: boolean;
+  init: (cb?: () => void) => void;
+  getLocation: (cb: (loc: TgLocationData | null) => void) => void;
+  openSettings?: () => void;
+}
+
 interface TelegramWebApp {
   initData: string;
+  version?: string;
   colorScheme: "light" | "dark";
   themeParams: Record<string, string>;
   ready: () => void;
   expand: () => void;
+  isVersionAtLeast?: (v: string) => boolean;
   setHeaderColor?: (color: string) => void;
   setBackgroundColor?: (color: string) => void;
   openTelegramLink?: (url: string) => void;
   disableVerticalSwipes?: () => void; // Bot API 7.7+ — stop the swipe-to-close gesture from hijacking in-app scroll
   isVerticalSwipesEnabled?: boolean;
+  LocationManager?: TgLocationManager;
   HapticFeedback?: { impactOccurred: (s: string) => void; selectionChanged: () => void; notificationOccurred?: (t: string) => void };
 }
 
@@ -36,6 +60,42 @@ export function initTelegram(): void {
 
 export function haptic(): void {
   tg?.HapticFeedback?.selectionChanged();
+}
+
+// ── native geolocation (Telegram Bot API 8.0+) ────────────────────────────────
+export type LocResult =
+  | { lat: number; lng: number; accuracy: number }
+  | { error: "denied" | "unavailable" | "none" }; // "none" = LocationManager not supported → caller falls back to navigator.geolocation
+
+/** True when the Telegram native LocationManager is usable (8.0+ client). */
+export function tgHasLocationManager(): boolean {
+  return !!(tg?.LocationManager && tg.isVersionAtLeast?.("8.0"));
+}
+
+/** One-shot native location via Telegram. Resolves with coords, or an error kind so the caller can
+ *  show the right message / offer settings. Never rejects. */
+export function tgGetLocation(): Promise<LocResult> {
+  return new Promise((resolve) => {
+    const lm = tg?.LocationManager;
+    if (!lm || !tg?.isVersionAtLeast?.("8.0")) { resolve({ error: "none" }); return; }
+    let settled = false;
+    const done = (r: LocResult) => { if (!settled) { settled = true; resolve(r); } };
+    const run = () => {
+      if (!lm.isLocationAvailable) { done({ error: "unavailable" }); return; }
+      lm.getLocation((loc) => {
+        if (loc) done({ lat: loc.latitude, lng: loc.longitude, accuracy: loc.horizontal_accuracy ?? 30 });
+        else done({ error: lm.isAccessRequested && !lm.isAccessGranted ? "denied" : "unavailable" });
+      });
+    };
+    if (lm.isInited) run();
+    else lm.init(run);
+    setTimeout(() => done({ error: "unavailable" }), 15000); // safety: never hang the spinner
+  });
+}
+
+/** Deep-link to Telegram's location settings so a denied user can re-grant. */
+export function tgOpenLocationSettings(): void {
+  tg?.LocationManager?.openSettings?.();
 }
 
 /** Stronger "you won" feedback — native success notification, falls back to a heavy tap. */

@@ -638,6 +638,10 @@ body {
 .b3-pin { font-size: 22px; filter: drop-shadow(0 2px 3px rgba(0,0,0,.6)); transition: transform .6s linear; }
 /* fleet cars (SVG) — wrapper rotates by bearing so they look like they're driving */
 .b3-carmark { display: block; transition: transform .8s linear; filter: drop-shadow(0 1px 2px rgba(0,0,0,.55)); }
+/* free-car pins: glide position between the 15s polls (added AFTER first paint so a new marker
+   doesn't fly in from the map origin). Sits on the Leaflet marker root, which holds the translate3d
+   position transform; the inner .b3-carmark keeps its own rotation transition. */
+.leaflet-marker-icon.b3-glide { transition: transform 1.2s linear; }
 /* C: assigned driver — glide position between polls; inner span rotates by bearing */
 .b3-carpin { font-size: 28px; transition: transform .9s linear; }
 .b3-carpin-i { display: inline-block; transition: transform .9s linear; filter: drop-shadow(0 0 6px rgba(255,179,0,.6)) drop-shadow(0 2px 3px rgba(0,0,0,.5)); }

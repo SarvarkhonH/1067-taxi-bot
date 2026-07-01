@@ -11,7 +11,7 @@ import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import { formatNumber, GARAGE_RIDE_CAP_MIN, haversineKm, type ActiveBookingView, type BookingDriverView, type BookingInfoResponse, type GarageResponse, type MeResponse, type SavedAddressView, type WheelSpinResponse } from "@t1067/shared";
 import { api } from "./api";
-import { haptic, hapticSuccess, tg } from "./telegram";
+import { haptic, hapticSuccess, tg, tgGetLocation, tgHasLocationManager, tgOpenLocationSettings } from "./telegram";
 import { confetti } from "./util";
 import { Button, Sheet, Skeleton } from "./design/components";
 
@@ -439,7 +439,7 @@ function Booking3Inner({ me, info, onClose }: { me: MeResponse; info: BookingInf
 
   const mapRef = useRef<HTMLDivElement | null>(null);
   const map = useRef<L.Map | null>(null);
-  const pinMarkers = useRef<L.Marker[]>([]);
+  const pinMarkers = useRef<Map<string, { mk: L.Marker; busy: boolean }>>(new Map()); // keyed by opaque car id → glide
   const fleetRef = useRef<{ lat: number; lng: number; busy: boolean }[]>([]); // raw nearby cars for the search beam
   const pickMarker = useRef<L.Marker | null>(null);
   const searchPulse = useRef<L.Marker | null>(null);
@@ -532,10 +532,40 @@ function Booking3Inner({ me, info, onClose }: { me: MeResponse; info: BookingInf
       // server already inflates the count ~2× (inflateOnline) — keep the ghost floor so it never reads "empty"
       setFreeDrivers(Math.max(r.freeDrivers, GHOST_FREE + GHOST_RIDES));
       fleetRef.current = r.pins; // raw coords for the search beam
-      for (const mk of pinMarkers.current) mk.remove();
-      pinMarkers.current = r.pins
-        .slice(0, 40)
-        .map((d) => L.marker([d.lat, d.lng], { icon: carIcon(d.busy ? "#9ca3af" : "#22c55e", d.bearing || 0, 26) }).addTo(map.current!));
+      // PERF + SMOOTHNESS: reconcile markers keyed by the car's OPAQUE id (from the WS fleet) instead
+      // of tearing down + re-creating up to 40 Leaflet divIcons every tick. The old churn (40 removes
+      // + 40 creates / 15s) janked low-end Telegram WebViews ("slow map"). Now a car keeps the SAME
+      // marker across ticks, so setLatLng GLIDES it (the .b3-glide CSS transition) between polls like
+      // the official app — instead of jumping. Bearing is updated on the inner element in place so it
+      // survives without a full setIcon; colour (busy) only setIcons on an actual free↔busy flip.
+      const pins = r.pins.slice(0, 40);
+      const markers = pinMarkers.current;
+      const seen = new Set<string>();
+      for (const d of pins) {
+        seen.add(d.id);
+        const color = d.busy ? "#9ca3af" : "#22c55e";
+        const entry = markers.get(d.id);
+        if (entry) {
+          entry.mk.setLatLng([d.lat, d.lng]); // glides
+          const inner = entry.mk.getElement()?.querySelector(".b3-carmark") as HTMLElement | null;
+          if (inner) inner.style.transform = `rotate(${d.bearing || 0}deg)`;
+          if (entry.busy !== d.busy) {
+            entry.mk.setIcon(carIcon(color, d.bearing || 0, 26)); // free↔busy → recolour (replaces element)
+            const mk = entry.mk;
+            requestAnimationFrame(() => mk.getElement()?.classList.add("b3-glide")); // re-arm glide on the new element
+            entry.busy = d.busy;
+          }
+        } else {
+          const mk = L.marker([d.lat, d.lng], { icon: carIcon(color, d.bearing || 0, 26) }).addTo(map.current!);
+          // add the glide transition AFTER the first paint so the initial placement doesn't animate
+          // from the map origin (a fresh marker with the transition already on would "fly in").
+          requestAnimationFrame(() => mk.getElement()?.classList.add("b3-glide"));
+          markers.set(d.id, { mk, busy: d.busy });
+        }
+      }
+      for (const [id, entry] of markers) {
+        if (!seen.has(id)) { entry.mk.remove(); markers.delete(id); } // car left the fleet → drop its marker
+      }
     };
     load();
     const t = setInterval(load, 15_000);
@@ -826,14 +856,46 @@ function Booking3Inner({ me, info, onClose }: { me: MeResponse; info: BookingInf
   // often a coarse network position (~50 m off) because the GPS chip hasn't locked yet — that was the
   // "50 metr uzoqroq" bug. So we WATCH for a few seconds and keep the most accurate reading (the fix
   // refines from ~50 m to ~5 m), stopping early once it's tight. Then we recenter on that best fix.
-  const locateMe = () => {
-    if (!navigator.geolocation || !map.current) {
-      setMsg("📍 Joylashuv mavjud emas — manzilni qo'lda belgilang");
-      return;
-    }
+  // transient location banner: auto-clears itself after `ms` UNLESS something else already replaced
+  // it (functional setState guard) — so a location hint never lingers as a stuck "alert", and it
+  // never wipes a booking-status message that arrived in the meantime.
+  const flashMsg = (text: string | null, ms = 4000) => {
+    setMsg(text);
+    if (text) window.setTimeout(() => setMsg((c) => (c === text ? null : c)), ms);
+  };
+  const locateMe = async () => {
+    if (!map.current) return;
     haptic();
     setLocating(true);
-    setMsg("📍 Joylashuv aniqlanmoqda…");
+    flashMsg("📍 Joylashuv aniqlanmoqda…", 16000);
+
+    // Telegram Mini App: navigator.geolocation is unreliable in the in-app WebView (the OS permission
+    // prompt often never appears → "allow" never lands). Prefer the NATIVE LocationManager (Bot API
+    // 8.0+), which drives Telegram's own permission flow and can deep-link to settings when denied.
+    // Fall back to the browser API for older clients / real browsers.
+    if (tgHasLocationManager()) {
+      const r = await tgGetLocation();
+      setLocating(false);
+      if ("lat" in r) {
+        map.current.setView([r.lat, r.lng], 17, { animate: true });
+        flashMsg(r.accuracy <= 35 ? null : "📍 Aniqlik past — kerak bo'lsa pinni biroz suring");
+      } else if (r.error === "denied") {
+        flashMsg("📍 Joylashuvga ruxsat berilmagan — sozlamalardan yoqing", 6000);
+        tgOpenLocationSettings(); // deep-link so the user can re-grant in one tap
+      } else {
+        flashMsg("📍 Joylashuvni aniqlab bo'lmadi — qo'lda belgilang", 6000);
+      }
+      return;
+    }
+
+    if (!navigator.geolocation) {
+      setLocating(false);
+      flashMsg("📍 Joylashuv mavjud emas — manzilni qo'lda belgilang", 6000);
+      return;
+    }
+    // browser fallback — WATCH for a few seconds and keep the most accurate reading. The FIRST fix is
+    // often a coarse network position (~50 m off) because the GPS chip hasn't locked yet; it refines
+    // from ~50 m to ~5 m, so we stop early once it's tight and recenter on the best fix.
     let best: GeolocationPosition | null = null;
     let watchId = 0;
     let done = false;
@@ -846,9 +908,9 @@ function Booking3Inner({ me, info, onClose }: { me: MeResponse; info: BookingInf
       setLocating(false);
       if (best && map.current) {
         map.current.setView([best.coords.latitude, best.coords.longitude], 17, { animate: true });
-        setMsg(best.coords.accuracy <= 35 ? null : "📍 Aniqlik past — kerak bo'lsa pinni biroz suring");
+        flashMsg(best.coords.accuracy <= 35 ? null : "📍 Aniqlik past — kerak bo'lsa pinni biroz suring");
       } else {
-        setMsg("📍 Joylashuvni aniqlab bo'lmadi — ruxsat bering yoki qo'lda belgilang");
+        flashMsg("📍 Joylashuvni aniqlab bo'lmadi — ruxsat bering yoki qo'lda belgilang", 6000);
       }
     };
     timer = setTimeout(finish, 7000); // cap: recenter on the best fix gathered within 7s

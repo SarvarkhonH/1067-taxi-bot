@@ -271,7 +271,7 @@ export const api = {
   garajMahallaCreate: (name: string) => request<GarajActionResult & { code?: string; mahallaId?: number }>("POST", "/api/garaj/mahalla/create", { name }, 1),
   garajMahallaJoin: (code: string) => request<GarajActionResult & { mahallaId?: number }>("POST", "/api/garaj/mahalla/join", { code }, 1),
   garajMahallaLeave: () => request<GarajActionResult>("POST", "/api/garaj/mahalla/leave", {}, 1),
-  bookingNearby: () => get<{ pins: { lat: number; lng: number; bearing: number; busy: boolean }[]; freeDrivers: number }>("/api/booking/nearby"),
+  bookingNearby: () => get<{ pins: { lat: number; lng: number; bearing: number; busy: boolean; id: string }[]; freeDrivers: number }>("/api/booking/nearby"),
   bookingPredict: (address?: string) => get<{ rides: number; avg: number; p50: number; byAddress?: { name: string; avg: number; rides: number } | null }>(`/api/booking/predict${address ? `?address=${encodeURIComponent(address)}` : ""}`),
   bookingRate: (bookingId: number, stars: number, tags: string[]) => request<{ ok: boolean; reason?: string }>("POST", "/api/booking/rate", { bookingId, stars, tags }, 1),
   bookingScheduled: () => get<{ scheduled: { id: number; addressName: string; runAt: string; phone: string }[]; family: { id: number; phone: string; name: string }[] }>("/api/booking/scheduled"),
