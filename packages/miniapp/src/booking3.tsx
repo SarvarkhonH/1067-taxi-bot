@@ -12,6 +12,7 @@ import "leaflet/dist/leaflet.css";
 import { formatNumber, GARAGE_RIDE_CAP_MIN, haversineKm, type ActiveBookingView, type BookingDriverView, type BookingInfoResponse, type GarageResponse, type MeResponse, type SavedAddressView, type WheelSpinResponse } from "@t1067/shared";
 import { api } from "./api";
 import { haptic, hapticSuccess, tg, tgGetLocation, tgHasLocationManager, tgOpenLocationSettings } from "./telegram";
+import { WaitGame } from "./waitGame";
 import { confetti } from "./util";
 import { Button, Sheet, Skeleton } from "./design/components";
 
@@ -1260,6 +1261,9 @@ function Booking3Inner({ me, info, onClose }: { me: MeResponse; info: BookingInf
                     ? `🚖 ${freeDrivers} bo'sh mashina yaqinda`
                     : "haydovchi javobini kutmoqda…"}
               </div>
+              {/* 🪙 ovunish o'yini — kutishni zerikarli bo'lmasligi uchun. Haydovchi topilishi bilan bu
+                  butun tarmoq (driver yo'q) o'rniga driver-karta render bo'ladi → o'yin o'zi yo'qoladi. */}
+              <WaitGame />
             </>
           )}
           <Button variant="danger" disabled={busy} onClick={cancel}>✖ Bekor qilish</Button>

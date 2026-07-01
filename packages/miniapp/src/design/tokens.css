@@ -642,6 +642,26 @@ body {
    doesn't fly in from the map origin). Sits on the Leaflet marker root, which holds the translate3d
    position transform; the inner .b3-carmark keeps its own rotation transition. */
 .leaflet-marker-icon.b3-glide { transition: transform 1.2s linear; }
+
+/* 🪙 "Tanga tutish" — the catch-the-coin wait game (shown only while searching for a driver) */
+.b3wg { margin: 8px 0 2px; border-radius: 14px; background: var(--surface-2); border: 1px solid var(--line); overflow: hidden; }
+.b3wg-hud { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 6px 10px; font-size: 12px; }
+.b3wg-score { font-weight: 800; color: var(--accent); min-width: 44px; }
+.b3wg-title { color: var(--text-dim); text-align: center; flex: 1; }
+.b3wg-best { color: var(--text-dim); min-width: 44px; text-align: right; }
+.b3wg-field { position: relative; height: 150px; touch-action: manipulation; }
+.b3wg-coin {
+  position: absolute; top: 0; width: 38px; height: 38px; padding: 0; border: 0; background: none;
+  font-size: 27px; line-height: 38px; text-align: center; cursor: pointer; -webkit-tap-highlight-color: transparent;
+  animation-name: b3wg-fall; animation-timing-function: linear; animation-fill-mode: forwards; will-change: transform;
+}
+.b3wg-coin:active { transform: scale(1.25); }
+.b3wg-gold { filter: drop-shadow(0 0 7px gold); }
+@keyframes b3wg-fall { from { transform: translateY(-24px); } to { transform: translateY(150px); } }
+/* reduced-motion: tap coins that gently fade in place instead of falling */
+.b3wg-calm .b3wg-coin { animation-name: b3wg-fade; }
+@keyframes b3wg-fade { from { opacity: 0; transform: translateY(48px); } 22% { opacity: 1; } to { opacity: 1; transform: translateY(72px); } }
+@media (prefers-reduced-motion: reduce) { .b3wg-coin { animation-name: b3wg-fade !important; } }
 /* C: assigned driver — glide position between polls; inner span rotates by bearing */
 .b3-carpin { font-size: 28px; transition: transform .9s linear; }
 .b3-carpin-i { display: inline-block; transition: transform .9s linear; filter: drop-shadow(0 0 6px rgba(255,179,0,.6)) drop-shadow(0 2px 3px rgba(0,0,0,.5)); }
