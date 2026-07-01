@@ -465,6 +465,7 @@ function X360View() {
                   alert("QR yuklab bo'lmadi — tarmoqni tekshiring");
                 }
               }}>📥 Recruit QR yuklab olish</button>
+              <button className="btn" style={{ marginLeft: 6 }} onClick={() => window.open(adminApi.driverStickerUrl(dr.driver!.id, localStorage.getItem("admin_token") ?? ""), "_blank")}>🖨 QR Stiker</button>
               <button className="btn" style={{ marginLeft: 6 }} onClick={() => giveBonus(dr.driver!.id, dr.driver!.name ?? "Haydovchi")}>🎁 Bonus berish</button>
               {/* 📷 Driver portrait — preview + upload + clear. Telegram CDN saqlaydi, biz file_id'ni saqlaymiz. */}
               <div style={{ marginTop: 12, display: "flex", alignItems: "center", gap: 10, padding: 10, background: "#0d1322", borderRadius: 10 }}>

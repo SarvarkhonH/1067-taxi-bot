@@ -137,6 +137,7 @@ export const adminApi = {
     req<{ ok: boolean }>(`/api/admin/driver-photo/${driverId}`, { method: "DELETE" }),
   driverPhotoUrl: (driverId: number) => `${API_BASE}/api/driver-photo/${driverId}`,
   recruitQrUrl: (driverId: number) => `${API_BASE}/api/admin/recruitqr/${driverId}`,
+  driverStickerUrl: (driverId: number, token: string) => `${API_BASE}/api/admin/driver-sticker/${driverId}?token=${encodeURIComponent(token)}`,
   recruits: () => req<{ driverId: number; fullName: string; scanned: number; joined: number; rode: number; earned: number }[]>("/api/admin/recruits"),
   recruitDetail: (driverId: number) =>
     req<{

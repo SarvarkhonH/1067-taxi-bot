@@ -1240,7 +1240,12 @@ export function createApiServer(opts: ApiOptions = {}) {
     res.send(png);
   });
   // Printable QR sticker sheet (6-up, A4) for a single driver — open in browser, Ctrl+P
-  app.get("/api/admin/driver-sticker/:driverId", requireAdmin, async (req, res) => {
+  // Accepts ?token= as fallback (browser window.open can't set headers)
+  app.get("/api/admin/driver-sticker/:driverId", (req, res, next) => {
+    const qToken = String(req.query.token ?? "");
+    if (env.ADMIN_PANEL_TOKEN && qToken === env.ADMIN_PANEL_TOKEN) { res.locals.telegramId = "panel"; res.locals.adminRole = "owner"; return next(); }
+    return requireAdmin(req, res, next);
+  }, async (req, res) => {
     const id = Math.floor(Number(req.params.driverId));
     const d = await prisma.member.findUnique({ where: { id } });
     if (!d || d.type !== "driver") { res.status(404).send("Driver topilmadi"); return; }
