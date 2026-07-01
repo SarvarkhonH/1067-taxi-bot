@@ -1239,6 +1239,58 @@ export function createApiServer(opts: ApiOptions = {}) {
     res.setHeader("Content-Type", "image/png");
     res.send(png);
   });
+  // Printable QR sticker sheet (6-up, A4) for a single driver — open in browser, Ctrl+P
+  app.get("/api/admin/driver-sticker/:driverId", requireAdmin, async (req, res) => {
+    const id = Math.floor(Number(req.params.driverId));
+    const d = await prisma.member.findUnique({ where: { id } });
+    if (!d || d.type !== "driver") { res.status(404).send("Driver topilmadi"); return; }
+    const QR = await import("qrcode");
+    const qrBase64 = (await QR.toBuffer(`https://t.me/koson1067bot?start=drv_${id}`, { width: 800, margin: 2 })).toString("base64");
+    const name = d.fullName?.toUpperCase() ?? "HAYDOVCHI";
+    const car = d.carNumber ?? "—";
+    const card = `
+      <div class="card">
+        <div class="top-bar"><span class="logo">1067</span><span class="taxi">TAXI 🚖</span></div>
+        <div class="body">
+          <img class="qr" src="data:image/png;base64,${qrBase64}" alt="QR"/>
+          <div class="side">
+            <div class="gift">🎁 <b>5 000 so'm</b><br><span>BIRINCHI SAFAR SOVG'ASI</span></div>
+            <div class="scan">📲 Shu QR ni skanerlang<br>va taxi chaqiring!</div>
+            <div class="car-plate">${car}</div>
+            <div class="drv-name">👤 ${name}</div>
+          </div>
+        </div>
+        <div class="foot">Haydovchiga <b>+2 000 tanga</b> bonus · har safardan cashback 💸</div>
+      </div>`;
+    const html = `<!doctype html><html><head><meta charset="utf-8">
+<title>1067 — ${d.fullName} QR Stiker</title>
+<style>
+@page{size:A4;margin:8mm}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:Arial,sans-serif;background:#eee;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+@media print{body{background:#fff}}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:6mm;padding:4mm}
+.card{background:#fff;border:2.5px solid #e3b81f;border-radius:14px;overflow:hidden;break-inside:avoid}
+.top-bar{background:#1a1205;color:#fff;display:flex;justify-content:space-between;align-items:center;padding:6px 14px}
+.logo{font-size:20px;font-weight:900;letter-spacing:2px;color:#f59e0b}
+.taxi{font-size:13px;font-weight:700}
+.body{display:flex;align-items:center;gap:10px;padding:10px 12px}
+.qr{width:52mm;height:52mm;flex-shrink:0;border-radius:6px}
+.side{flex:1;display:flex;flex-direction:column;gap:8px}
+.gift{background:#fff8e0;border:1.5px solid #e3c34d;border-radius:10px;padding:8px 10px;font-size:13px;color:#7a5500;line-height:1.4}
+.gift b{font-size:16px;color:#1a1205;display:block}
+.scan{font-size:12px;font-weight:700;color:#444;line-height:1.5}
+.car-plate{display:inline-block;background:#fff4cf;border:2px solid #e3c34d;border-radius:8px;padding:5px 16px;font-size:18px;font-weight:900;letter-spacing:1.5px;color:#5a4300;text-align:center}
+.drv-name{font-size:12px;font-weight:700;color:#333}
+.foot{background:#0a7d3c;color:#fff;font-size:11.5px;font-weight:700;padding:6px 12px;text-align:center}
+.foot b{color:#ffe08a}
+</style></head><body>
+<div class="grid">${card.repeat(6)}</div>
+</body></html>`;
+    res.setHeader("Content-Type", "text/html; charset=utf-8");
+    res.send(html);
+  });
+
   app.post("/api/admin/optoken", requireAdmin, requireOwner, async (_req, res) => {
     const token = Array.from({ length: 24 }, () => "abcdefghjkmnpqrstuvwxyz23456789"[Math.floor(Math.random() * 31)]).join("");
     await prisma.appState.create({ data: { key: `oprtoken:${token}`, value: "operator" } });
