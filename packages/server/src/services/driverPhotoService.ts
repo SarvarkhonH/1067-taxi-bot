@@ -53,23 +53,32 @@ export async function resolveTelegramFileUrl(fileId: string): Promise<string | n
  *  delete that copy at will; the file_id keeps working forever. Returns null on failure. */
 export async function uploadDriverPhotoFromBuffer(memberId: number, buf: Buffer, mime = "image/jpeg"): Promise<string | null> {
   if (!env.BOT_TOKEN) return null;
-  if (!env.adminIds.length) return null;
-  const adminId = env.adminIds[0]!;
-  try {
-    const form = new FormData();
-    form.append("chat_id", adminId);
-    form.append("photo", new Blob([buf], { type: mime }), "driver.jpg");
-    form.append("caption", `📷 Driver portrait upload · member ${memberId}`);
-    form.append("disable_notification", "true");
-    const res = await fetch(`${TG_API}/bot${env.BOT_TOKEN}/sendPhoto`, { method: "POST", body: form });
-    const data = (await res.json()) as { ok: boolean; result?: { photo?: { file_id: string }[] } };
-    if (!data.ok || !data.result?.photo?.length) return null;
-    const biggest = data.result.photo[data.result.photo.length - 1]!;
-    await prisma.member.update({ where: { id: memberId }, data: { photoFileId: biggest.file_id, photoUrl: null } });
-    return biggest.file_id;
-  } catch {
-    return null;
+
+  // Fast path: if ADMIN_TELEGRAM_IDS is set, use Telegram CDN (durable file_id)
+  const adminId = env.adminIds.find((id) => id.trim() !== "");
+  if (adminId) {
+    try {
+      const form = new FormData();
+      form.append("chat_id", adminId);
+      form.append("photo", new Blob([buf], { type: mime }), "driver.jpg");
+      form.append("caption", `📷 Driver portrait upload · member ${memberId}`);
+      form.append("disable_notification", "true");
+      const res = await fetch(`${TG_API}/bot${env.BOT_TOKEN}/sendPhoto`, { method: "POST", body: form });
+      const data = (await res.json()) as { ok: boolean; result?: { photo?: { file_id: string }[] } };
+      if (data.ok && data.result?.photo?.length) {
+        const biggest = data.result.photo[data.result.photo.length - 1]!;
+        await prisma.member.update({ where: { id: memberId }, data: { photoFileId: biggest.file_id, photoUrl: null } });
+        return biggest.file_id;
+      }
+    } catch {
+      // fall through to data-URL fallback
+    }
   }
+
+  // Fallback: store as base64 data-URL directly in photoUrl (no external storage needed)
+  const dataUrl = `data:${mime};base64,${buf.toString("base64")}`;
+  await prisma.member.update({ where: { id: memberId }, data: { photoUrl: dataUrl, photoFileId: null } });
+  return "data-url";
 }
 
 /** Admin clear — wipe a stored portrait (file_id, override URL, and any pending submission). */
