@@ -13,10 +13,24 @@ import { haversineKm } from "@t1067/shared";
 // Overridable via env in case kas moves the socket; falls back to the proven default.
 const SOCKET_URL = process.env.KAS_MAP_SOCKET || "ws://46.8.176.53:1115/websocket";
 const ARRIVE_KM = 0.09; // ~90 m geofence around the pickup = "driver has arrived"
-const POS_TTL_MS = 60_000; // a position older than this is stale (car stopped broadcasting)
+// a position older than this is stale (car stopped broadcasting). 90s (was 60s): kas drivers
+// broadcast irregularly — a 60s window dropped cars mid-gap, making the map read emptier than the
+// fleet really is. 90s keeps a briefly-silent car visible without showing genuinely-offline ones.
+// Only affects the map-pin view; arrival geofire still uses each fresh frame as it lands.
+const POS_TTL_MS = 90_000;
 const RECONNECT_MS = 5_000;
 
 const norm = (c: string): string => c.replace(/\s/g, "").toUpperCase();
+
+// Stable OPAQUE key per car for client-side marker reconciliation (glide). Deliberately NOT the
+// plate: broadcasting real car numbers of every free car on the map to every rider would let anyone
+// track a specific plate's live position. djb2 hash → base36 gives a stable-per-car token with no
+// reversible plate in it.
+const opaqueId = (car: string): string => {
+  let h = 5381;
+  for (let i = 0; i < car.length; i++) h = ((h << 5) + h + car.charCodeAt(i)) | 0;
+  return (h >>> 0).toString(36);
+};
 
 export interface CarPos {
   lat: number;
@@ -119,12 +133,12 @@ class KasMapSocket {
   /** All cars currently broadcasting (fresh within POS_TTL_MS) → live map pins, exactly what the
    *  official rider app shows. The REST drivers/byFilter snapshot carries lat/lng=0, so THIS socket
    *  cache is the only real source of the live fleet. busy = metered/occupied (status "busy"). */
-  livePins(): { lat: number; lng: number; bearing: number; busy: boolean }[] {
+  livePins(): { lat: number; lng: number; bearing: number; busy: boolean; id: string }[] {
     const now = Date.now();
-    const out: { lat: number; lng: number; bearing: number; busy: boolean }[] = [];
-    for (const pos of this.cars.values()) {
+    const out: { lat: number; lng: number; bearing: number; busy: boolean; id: string }[] = [];
+    for (const [car, pos] of this.cars.entries()) {
       if (now - pos.at > POS_TTL_MS) continue;
-      out.push({ lat: pos.lat, lng: pos.lng, bearing: pos.bearing, busy: pos.status.toLowerCase() === "busy" });
+      out.push({ lat: pos.lat, lng: pos.lng, bearing: pos.bearing, busy: pos.status.toLowerCase() === "busy", id: opaqueId(car) });
     }
     return out;
   }

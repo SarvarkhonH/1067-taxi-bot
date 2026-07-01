@@ -62,10 +62,34 @@ export interface CashbackDelta {
  */
 export async function refreshLinkedMembers(): Promise<{ checked: number; deltas: CashbackDelta[] }> {
   const source = getDataSource();
-  const linked = await prisma.member.findMany({
-    where: { telegramUser: { isNot: null }, phone: { not: null } },
+  // SCALE: at ~170 linked members a full scan (1.1s/member pace, see below) finishes in ~3min,
+  // comfortably inside the 15-min tick. At thousands of members it would NOT finish before the next
+  // tick fires (periodicBusy just skips it — no crash, but cashback mirroring + every other 15-min
+  // job queued after this one in the same tick drifts hours late). So we cap each run to a BATCH and
+  // rotate: never-synced members first (new links seen fast), then the stalest-synced fill the rest.
+  // A member who rode this tick gets a fresh lastSyncAt and drops to the back of the queue — active
+  // members naturally stay near the front. Nobody is skipped forever. Ride-finish cashback itself
+  // does NOT depend on this loop (that's the fast booking sweep, rollRideCashback) — this only feeds
+  // the backstop notifyCashback for kas-side point changes our sweep didn't see directly, so a queued
+  // member waiting a few extra ticks is a non-critical delay, not a lost notification.
+  const BATCH = Math.max(1, Number(process.env.REFRESH_BATCH_SIZE) || 300);
+  const where = { telegramUser: { isNot: null }, phone: { not: null } } as const;
+  const neverSynced = await prisma.member.findMany({
+    where: { ...where, lastSyncAt: null },
     include: { telegramUser: true },
+    take: BATCH,
   });
+  const linked =
+    neverSynced.length >= BATCH
+      ? neverSynced
+      : neverSynced.concat(
+          await prisma.member.findMany({
+            where: { ...where, lastSyncAt: { not: null } },
+            include: { telegramUser: true },
+            orderBy: { lastSyncAt: "asc" },
+            take: BATCH - neverSynced.length,
+          }),
+        );
 
   const deltas: CashbackDelta[] = [];
   for (let idx = 0; idx < linked.length; idx++) {

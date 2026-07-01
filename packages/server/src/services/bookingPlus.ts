@@ -39,7 +39,7 @@ export async function predictFare(addressName?: string): Promise<FarePrediction>
 
 let pinCache: { at: number; pins: { lat: number; lng: number; bearing: number; busy: boolean }[] } | null = null;
 
-export async function nearbyPins(): Promise<{ pins: { lat: number; lng: number; bearing: number; busy: boolean }[]; freeDrivers: number }> {
+export async function nearbyPins(): Promise<{ pins: { lat: number; lng: number; bearing: number; busy: boolean; id: string }[]; freeDrivers: number }> {
   // PRIMARY: the live WS fleet (kasMapSocket) — the SAME source the official rider app shows. The
   // REST drivers/byFilter snapshot carries lat/lng=0 (probed: 50 drivers, 0 with coords), so it was
   // returning ZERO pins — that's why the bot map had no cars. Use the socket; fall back to REST only
@@ -58,7 +58,9 @@ export async function nearbyPins(): Promise<{ pins: { lat: number; lng: number; 
   } catch {
     /* optional */
   }
-  return { pins: pinCache.pins, freeDrivers };
+  // REST-fallback pins carry no car key → synthesize a stable per-position id so the client can still
+  // reconcile markers by id. (index is stable within a 45s cache window; good enough for the glide.)
+  return { pins: pinCache.pins.map((p, i) => ({ ...p, id: `r${i}` })), freeDrivers };
 }
 
 export const RATING_TAGS = ["Toza mashina", "Xushmuomala", "Tez yetib keldi", "Sekin haydadi", "Mashina eski"];

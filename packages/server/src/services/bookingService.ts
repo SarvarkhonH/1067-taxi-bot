@@ -54,16 +54,23 @@ async function toView(
   b: Awaited<ReturnType<ReturnType<typeof getDataSource>["getActiveBooking"]>>,
 ): Promise<ActiveBookingView | null> {
   if (!b) return null;
+  // "new" = kas is still OFFERING the ride — it already carries a CANDIDATE carNumber (the car being
+  // offered), but no driver has ACCEPTED yet. Surfacing that candidate as `driver` made the Mini App
+  // flip to "Haydovchi QABUL qildi" (plate-zoom popup + success haptic + assigned-poll cadence) while
+  // the ride was really still searching. Mirror the bot sweep's guard (bookingNotifier: status !==
+  // "new") here: no driver until an actual acceptance ("take"+). Status label already reads
+  // "🔍 Haydovchi qidirilyapti" for "new", so the card stays honestly in the searching state.
+  const drv = b.status === "new" ? null : b.driver;
   let etaMin: number | null = null;
-  if (b.driver?.lat && b.driver?.lng && b.lat && b.lng) {
-    etaMin = Math.max(1, Math.ceil((haversineKm({ lat: b.driver.lat, lng: b.driver.lng }, { lat: b.lat, lng: b.lng }) / CITY_KMH) * 60));
+  if (drv?.lat && drv?.lng && b.lat && b.lng) {
+    etaMin = Math.max(1, Math.ceil((haversineKm({ lat: drv.lat, lng: drv.lng }, { lat: b.lat, lng: b.lng }) / CITY_KMH) * 60));
   }
   // 📷 driver portrait: look up the driver by carNumber, expose the proxy URL ONLY when a photo is
   // configured — saves the rider a wasted 404 request when the driver isn't linked / has no avatar.
   let photoUrl: string | undefined;
-  if (b.driver?.carNumber) {
+  if (drv?.carNumber) {
     const dm = await prisma.member.findFirst({
-      where: { type: "driver", carNumber: b.driver.carNumber },
+      where: { type: "driver", carNumber: drv.carNumber },
       select: { id: true, photoFileId: true, photoUrl: true },
     }).catch(() => null);
     if (dm && (dm.photoUrl || dm.photoFileId)) photoUrl = `/api/driver-photo/${dm.id}`;
@@ -78,17 +85,17 @@ async function toView(
     etaMin,
     canCancel: bookingCancellable(b.status),
     notifiedCount: b.notifiedCount,
-    driver: b.driver
+    driver: drv
       ? {
-          fullName: b.driver.fullName,
-          phone: b.driver.phone,
-          carModel: b.driver.carModel,
-          carNumber: b.driver.carNumber,
-          rating: b.driver.rating,
-          lat: b.driver.lat,
-          lng: b.driver.lng,
-          bearing: b.driver.bearing,
-          meterPayment: b.driver.meterPayment,
+          fullName: drv.fullName,
+          phone: drv.phone,
+          carModel: drv.carModel,
+          carNumber: drv.carNumber,
+          rating: drv.rating,
+          lat: drv.lat,
+          lng: drv.lng,
+          bearing: drv.bearing,
+          meterPayment: drv.meterPayment,
           photoUrl,
         }
       : null,
