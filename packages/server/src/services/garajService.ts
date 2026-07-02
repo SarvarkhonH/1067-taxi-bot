@@ -128,29 +128,15 @@ import { getCoins, grantCoins, spendCoinsIdempotent, withMemberLock } from "./co
 const MAHALLA_MAX = 20; // group size cap (plan §4.8)
 const SECRET = process.env.WORKSHOP_SECRET || process.env.KAS_BONUS_SECRET_KEY || "garaj-dev-secret";
 
-// 🔑 Owner-preview gate (R6): the owner plays the REAL game on their real phone to give
-// QABUL while the global "garajx" flag is still OFF — real users see nothing until the
-// owner accepts and the flag is flipped. featureOn() short-circuits first, so the owner
-// lookup only runs during the pre-launch preview window (and is cached for the process).
-const GARAJ_PREVIEW_TG = "6506297119";
-let _ownerMemberId: number | null | undefined;
-async function garajEnabledFor(memberId: number): Promise<boolean> {
-  if (await featureOn("garajx")) return true;
-  if (_ownerMemberId === undefined) {
-    const tu = await prisma.telegramUser.findUnique({ where: { id: GARAJ_PREVIEW_TG }, select: { memberId: true } }).catch(() => null);
-    _ownerMemberId = tu?.memberId ?? null;
-  }
-  return memberId === _ownerMemberId;
+// 2026-07-02: owner-preview bypass REMOVED — garaj/motor are being DELETED («chaqmoq-bot» program),
+// not dark-tested, so the flag is the ONLY gate now (owner included). Rollback = setFlag <name> on.
+async function garajEnabledFor(_memberId: number): Promise<boolean> {
+  return featureOn("garajx");
 }
 
-// 🌍 MOTOR OLAMI gate — same owner-preview pattern (flag "motorolami", DEFAULT_OFF → dark).
-async function motorEnabledFor(memberId: number): Promise<boolean> {
-  if (await featureOn(MOTOR_FLAG)) return true;
-  if (_ownerMemberId === undefined) {
-    const tu = await prisma.telegramUser.findUnique({ where: { id: GARAJ_PREVIEW_TG }, select: { memberId: true } }).catch(() => null);
-    _ownerMemberId = tu?.memberId ?? null;
-  }
-  return memberId === _ownerMemberId;
+// 🌍 MOTOR OLAMI gate — flag only (same removal program as garajx).
+async function motorEnabledFor(_memberId: number): Promise<boolean> {
+  return featureOn(MOTOR_FLAG);
 }
 // Global, race-safe #serial — one atomic SQL upsert (ON CONFLICT increments). Starts at 1001.
 async function nextMotorSerial(tx: Prisma.TransactionClient): Promise<number> {

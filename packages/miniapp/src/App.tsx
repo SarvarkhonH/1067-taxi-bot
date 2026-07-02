@@ -210,7 +210,9 @@ export function App() {
   if (booking) return <Suspense fallback={<BootSplash />}><Booking3View me={me} onClose={() => setBooking(false)} /></Suspense>;
   if (invite) return <div className="app"><main className="content"><ReferralView onClose={() => setInvite(false)} /></main></div>;
   if (history) return <div className="app"><main className="content"><RideHistoryView onClose={() => setHistory(false)} /></main></div>;
-  if (garaj) return <Suspense fallback={<BootSplash />}><GarajShell onClose={() => { setGaraj(false); reload(); }} /></Suspense>;
+  // garajx render-gate: catches EVERY entry (FAB, deep-link ?go=motor, stale tab state) — with the
+  // flag off the shell can never mount, so removed-game UI is unreachable even via old links.
+  if (garaj && garajx) return <Suspense fallback={<BootSplash />}><GarajShell onClose={() => { setGaraj(false); reload(); }} /></Suspense>;
 
   const go = (t: Tab) => {
     if (t === tab) return;
@@ -339,9 +341,9 @@ export function App() {
           </button>
         ))}
       </nav>
-      {/* 🏎 floating shortcut → Motor Olami. When Yo'l takes the Motor tab's slot (intercity ON),
-          this FAB becomes the primary Motor entry, so show it for intercity users too. */}
-      {(garajx || hasIntercity) && !garaj && (
+      {/* 🏎 floating shortcut → Motor Olami — ONLY while garajx is on (removal program: with the
+          flag off the game must be invisible for everyone, including intercity users). */}
+      {garajx && !garaj && (
         <button className="tolqin-fab" onClick={() => { haptic(); setGaraj(true); }} aria-label="Motor Olami">🏎</button>
       )}
       {collectionTarget && (
