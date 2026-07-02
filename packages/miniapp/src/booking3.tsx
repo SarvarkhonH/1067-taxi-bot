@@ -16,7 +16,7 @@ import { haptic, hapticSuccess, tg, tgGetLocation, tgHasLocationManager, tgOpenL
 // cashbackService.waitCompAmount) so the number shown never overstates what will actually be paid.
 // No interaction: the wait ITSELF earns (the tap-game was removed — owner: "bachkana"); the amount
 // banks at ride-finish, or becomes the next-ride voucher when the search fails.
-function WaitTicker({ waitComp, startAt }: { waitComp: BookingInfoResponse["waitComp"]; startAt: number | null }): JSX.Element | null {
+function WaitTicker({ waitComp, startAt, mini }: { waitComp: BookingInfoResponse["waitComp"]; startAt: number | null; mini?: boolean }): JSX.Element | null {
   const [, tick] = useState(0);
   useEffect(() => {
     const iv = window.setInterval(() => tick((n) => n + 1), 1000);
@@ -27,10 +27,11 @@ function WaitTicker({ waitComp, startAt }: { waitComp: BookingInfoResponse["wait
   const el = Math.floor((Date.now() - startAt) / 1000);
   const eff = Math.max(0, Math.min(el, fullSec) - graceSec);
   const som = Math.floor(ceiling * (eff / Math.max(1, fullSec - graceSec)));
+  if (mini) return <b className="b3-wchip-mini">🪙 +{formatNumber(som)}</b>;
   return (
-    <div className="b3-wticker">
-      <div className="b3-wticker-row"><span>🪙 Kutish kompensatsiyasi</span><b>+{formatNumber(som)} tanga</b></div>
-      <div className="b3-wticker-sub">Har soniya kutish — sizga qaytadi · safar yakunida hisobingizda</div>
+    <div className="b3-wchip">
+      🪙 <b>+{formatNumber(som)} tanga</b> kutish bonusi
+      <span className="b3-wchip-sub">safar tugagach hisobingizga qo'shiladi</span>
     </div>
   );
 }
@@ -380,6 +381,9 @@ function Booking3Inner({ me, info, onClose }: { me: MeResponse; info: BookingInf
   // payout via waitstart markers) + the frozen estimate shown on the "topilmadi" apology screen.
   const waitStartRef = useRef<number | null>(null);
   const [failedComp, setFailedComp] = useState(0);
+  // searching sheet collapse: the full sheet hid the map ("xaritani yopib qo'yapti") — tap the grip
+  // to shrink to a one-line mini bar so the rider watches the live map while waiting.
+  const [searchMin, setSearchMin] = useState(false);
   useEffect(() => {
     // app re-opened mid-search (reload/deep-link): start the ticker NOW — undercounts vs the
     // server's waitstart marker, which is the safe direction (display never overstates the payout)
@@ -1239,9 +1243,22 @@ function Booking3Inner({ me, info, onClose }: { me: MeResponse; info: BookingInf
 
       {/* ── E4: real-status (searching → accepted → arrived) ── */}
       {screen === "searching" && (
-        <div className="b3-sheet">
-          <div className="b3-grip" />
-          {active?.driver ? (
+        <div className={`b3-sheet${!active?.driver ? " b3-search-sheet" : ""}${!active?.driver && searchMin ? " b3-minisheet" : ""}`}>
+          {/* grip = collapse toggle while searching (full sheet hid the map); driver card ignores it */}
+          <div
+            className="b3-grip b3-grip-tap"
+            role="button"
+            aria-label={searchMin ? "Panelni ochish" : "Panelni yig'ish"}
+            onClick={() => { if (!active?.driver) { haptic(); setSearchMin((v) => !v); } }}
+          />
+          {!active?.driver && searchMin ? (
+            // mini bar: map stays visible; status + live bonus + cancel in ONE line
+            <div className="b3-mini-row" onClick={() => { haptic(); setSearchMin(false); }}>
+              <span className="b3-mini-status">🔍 Qidirilmoqda…</span>
+              <WaitTicker waitComp={info.waitComp} startAt={waitStartRef.current} mini />
+              <button className="b3-mini-x" disabled={busy} onClick={(e) => { e.stopPropagation(); void cancel(); }} aria-label="Bekor qilish">✖</button>
+            </div>
+          ) : active?.driver ? (
             // accepted — a driver actually took the order (carNumber present)
             <>
               <div className={`b3-search-title${active.status === "arrived" ? " b3-arrived" : ""}`}>
@@ -1272,25 +1289,24 @@ function Booking3Inner({ me, info, onClose }: { me: MeResponse; info: BookingInf
               </div>
             </>
           ) : (
-            // 🔍 Jonli qidiruv — honest status ladder (operational transparency beats distraction;
-            // 3-model consult 2026-07-02) + the passive compensation ticker. The driver-card branch
-            // above replaces ALL of this the instant a driver actually accepts.
+            // 🔍 Jonli qidiruv — the OLD compact look (radar + one honest line; owner preferred it)
+            // + a slim gold bonus chip. The driver-card branch replaces all of this on accept.
             <>
               <div className="b3-radar"><span /><span /><span />🚕</div>
               <div className="b3-search-title">🔍 Haydovchi qidirilyapti…</div>
-              <div className="b3-ladder">
-                <div className="b3-lstep done"><i>✓</i><span>Buyurtma yuborildi</span></div>
-                <div className={`b3-lstep ${active?.notifiedCount ? "done" : "now"}`}>
-                  <i>{active?.notifiedCount ? "✓" : "●"}</i>
-                  <span>{active?.notifiedCount ? `${active.notifiedCount} haydovchiga yetkazildi` : "Haydovchilarga yetkazilmoqda…"}</span>
-                </div>
-                <div className="b3-lstep now"><i>●</i><span>Javob kutilmoqda…</span></div>
+              <div className="dim tac fs13">
+                {active?.notifiedCount
+                  ? `📨 ${active.notifiedCount} haydovchiga yuborildi · javob kutilmoqda`
+                  : freeDrivers > 0
+                    ? `🚖 ${freeDrivers} bo'sh mashina yaqinda`
+                    : "haydovchi javobini kutmoqda…"}
               </div>
-              {freeDrivers > 0 && <div className="dim tac fs12">🚖 {freeDrivers} bo'sh mashina yaqinda</div>}
               <WaitTicker waitComp={info.waitComp} startAt={waitStartRef.current} />
             </>
           )}
-          <Button variant="danger" disabled={busy} onClick={cancel}>✖ Bekor qilish</Button>
+          {!(searchMin && !active?.driver) && (
+            <Button variant="danger" disabled={busy} onClick={cancel}>✖ Bekor qilish</Button>
+          )}
         </div>
       )}
 
