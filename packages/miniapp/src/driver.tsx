@@ -112,7 +112,15 @@ export function DriverView({ me }: { me: MeResponse }) {
           <span className="drv-blocked-ico">⛔</span>
           <div>
             <b>Hisobingiz bloklangan</b>
-            <span>Buyurtma olish vaqtincha to'xtatilgan. Dispetcherga murojaat qiling 👇</span>
+            <span>Buyurtma olish vaqtincha to'xtatilgan.</span>
+            {/* the standalone dispatcher list was removed (space); keep ONE call path for the rare
+                blocked case — this is the only moment a driver genuinely needs the hotline */}
+            {account.dispatcherPhones?.[0] && (
+              <a className="drv-call" style={{ marginTop: 8 }} href={`tel:${account.dispatcherPhones[0].replace(/[^\d+]/g, "")}`}>
+                <span className="drv-call-ico">📞</span>
+                <span className="drv-call-meta"><b>{account.dispatcherPhones[0]}</b><span>Dispetcherga qo'ng'iroq</span></span>
+              </a>
+            )}
           </div>
         </div>
       )}
@@ -215,52 +223,42 @@ export function DriverView({ me }: { me: MeResponse }) {
         </section>
       ) : null}
 
-      {/* ── DISPETCHER HOTLINE'LAR ─────────────────────────────────────── */}
-      {account?.dispatcherPhones && account.dispatcherPhones.length > 0 && (
-        <section className="glass pad">
-          <div className="section-title">📞 Dispetcher</div>
-          <p className="muted mk-sub">Yordam kerakmi? Bir bosishda qo'ng'iroq qiling.</p>
-          <div className="drv-calls">
-            {account.dispatcherPhones.map((phone, i) => (
-              <a key={phone} className="drv-call" href={`tel:${phone.replace(/[^\d+]/g, "")}`}>
-                <span className="drv-call-ico">📞</span>
-                <span className="drv-call-meta">
-                  <b>{phone}</b>
-                  <span>{i === 0 ? "Asosiy dispetcher" : `Dispetcher ${i + 1}`}</span>
-                </span>
-                <span className="drv-call-go">›</span>
-              </a>
-            ))}
-          </div>
-        </section>
-      )}
-
-      {/* ── TOPSHIRIQLAR ───────────────────────────────────────────────── */}
+      {/* ── TOPSHIRIQLAR — bar + katta OLISH tugmasi (bonus 1 bosishda; tayyor birinchi) ── */}
       <section className="glass pad">
-        <div className="section-title">🎯 Bugungi topshiriqlar{missions ? ` · 🚕 ${missions.ridesToday}` : ""}</div>
+        <div className="section-title">
+          🎯 Bugungi topshiriqlar{missions ? ` · 🚕 ${missions.ridesToday}` : ""}
+          {missions && missions.missions.some((m) => m.claimable && !m.claimed) && (
+            <span className="drv-mis-badge">{missions.missions.filter((m) => m.claimable && !m.claimed).length} tayyor 🎁</span>
+          )}
+        </div>
         {missions === null ? (
           <Spinner />
         ) : missions.missions.length === 0 ? (
           <div className="muted txn-empty">Hozircha topshiriq yo'q.</div>
         ) : (
-          <div className="txn-list">
-            {missions.missions.map((m) => (
-              <div key={m.id} className="txn">
-                <span className="txn-emoji">{m.emoji}</span>
-                <span className="txn-reason">
-                  <b>{m.title}</b>
-                  <br />
-                  <span className="muted" style={{ fontSize: 12 }}>{m.progress}/{m.target} safar · +{formatNumber(m.reward)} tanga</span>
-                </span>
-                {m.claimed ? (
-                  <span className="txn-amt">✅</span>
-                ) : m.claimable ? (
-                  <button className="amt-chip active" onClick={() => claim(m.id)}>🎁 Olish</button>
-                ) : (
-                  <span className="txn-amt">{m.progress}/{m.target}</span>
-                )}
-              </div>
-            ))}
+          <div className="drv-mis-list">
+            {[...missions.missions]
+              .sort((a, b) => Number(b.claimable && !b.claimed) - Number(a.claimable && !a.claimed) || Number(a.claimed) - Number(b.claimed))
+              .map((m) => {
+                const pct = Math.min(100, Math.round((m.progress / Math.max(1, m.target)) * 100));
+                return (
+                  <div key={m.id} className={`drv-mis${m.claimed ? " done" : m.claimable ? " ready" : ""}`}>
+                    <div className="drv-mis-top">
+                      <span className="drv-mis-emoji">{m.emoji}</span>
+                      <span className="drv-mis-title">{m.title}</span>
+                      <span className="drv-mis-reward">+{formatNumber(m.reward)}</span>
+                    </div>
+                    <div className="drv-mis-bar"><i style={{ width: `${pct}%` }} /></div>
+                    <div className="drv-mis-foot">
+                      <span className="muted">{m.progress}/{m.target} safar</span>
+                      {m.claimed ? <span className="drv-mis-done">✅ Olindi</span> : !m.claimable ? <span className="muted">{m.target - m.progress} ta qoldi</span> : null}
+                    </div>
+                    {m.claimable && !m.claimed && (
+                      <button className="drv-mis-claim" onClick={() => void claim(m.id)}>🎁 +{formatNumber(m.reward)} tanga — OLISH</button>
+                    )}
+                  </div>
+                );
+              })}
           </div>
         )}
       </section>

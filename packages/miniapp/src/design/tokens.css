@@ -1355,3 +1355,21 @@ body {
 .ic-bk-meta { flex: 1; min-width: 0; }
 .ic-bk-route { font-size: 15px; font-weight: 800; color: var(--text); }
 .ic-bk-status { font-size: 12px; color: var(--text-dim); margin-top: 2px; }
+
+/* 🎯 driver missions — progress bar + big one-tap claim (dispatcher list removed for space) */
+.drv-mis-list { display: flex; flex-direction: column; gap: 10px; }
+.drv-mis { border-radius: 14px; padding: 10px 12px; background: rgba(255, 255, 255, .03); border: 1px solid var(--line); }
+.drv-mis.ready { border-color: rgba(255, 179, 0, .45); background: rgba(255, 179, 0, .07); }
+.drv-mis.done { opacity: .55; }
+.drv-mis-top { display: flex; align-items: center; gap: 8px; }
+.drv-mis-emoji { font-size: 18px; }
+.drv-mis-title { flex: 1; font-weight: 700; font-size: 14px; }
+.drv-mis-reward { color: var(--accent); font-weight: 800; font-size: 14px; }
+.drv-mis-bar { height: 8px; border-radius: 6px; background: rgba(255, 255, 255, .08); overflow: hidden; margin: 8px 0 6px; }
+.drv-mis-bar i { display: block; height: 100%; border-radius: 6px; background: var(--accent); transition: width .5s ease; }
+.drv-mis.ready .drv-mis-bar i { background: #FFB300; }
+.drv-mis-foot { display: flex; justify-content: space-between; font-size: 12px; }
+.drv-mis-done { color: #22c55e; font-weight: 700; }
+.drv-mis-claim { width: 100%; margin-top: 9px; border: 0; border-radius: 12px; padding: 12px; background: #FFB300; color: #1a1200; font-weight: 800; font-size: 14px; cursor: pointer; }
+.drv-mis-claim:active { transform: scale(.98); }
+.drv-mis-badge { margin-left: 8px; background: rgba(255, 179, 0, .15); color: #FFB300; font-size: 11px; font-weight: 800; padding: 2px 8px; border-radius: 99px; vertical-align: 2px; }
