@@ -12,15 +12,6 @@ import type {
   FareQuote,
   GeoPt,
   FareConfigResponse,
-  GarageResponse,
-  GarajActionResult,
-  GarajStateResponse,
-  GarajPartView,
-  GarajPartCatalogView,
-  GarajPartBazaarView,
-  PublicProfileView,
-  CarCheckView,
-  OrzuBoardView,
   LeaderboardResponse,
   MeResponse,
   MissionClaimResponse,
@@ -40,7 +31,7 @@ import { tg } from "./telegram";
 
 // Telegram provides initData via the SDK AND in the URL hash (tgWebAppData). The signed initData
 // stays valid for the whole session — we CACHE it in sessionStorage on first read so subsequent
-// reads survive any hash-wiping navigation (e.g. ?go=… deeplinks, reload(), garaj close that does
+// reads survive any hash-wiping navigation (e.g. ?go=… deeplinks, reload(), overlay close that does
 // location.hash=""). Without this cache, reloading after a hash change → empty initData → 401 →
 // "Telegram orqali oching" false-positive. Cache is sessionStorage-scoped so it dies with the tab.
 const ID_KEY = "tg:initData";
@@ -199,78 +190,6 @@ export const api = {
     request<{ ok: boolean; message: string; paid?: number; kasBalance?: number | null }>("POST", "/api/driver/debt/pay", { amount, nonce }, 1),
   driverQr: () => get<{ ok: boolean; reason?: string; link?: string; png?: string; shareText?: string }>("/api/driver/qr"),
   fareConfig: () => get<FareConfigResponse>("/api/fare/config"),
-  garage: () => get<GarageResponse>("/api/garage"),
-  garageBuy: (car: string) => request<{ ok: boolean; reason?: string; coins: number }>("POST", "/api/garage/buy", { car }, 1),
-  garageEquip: (car: string) => request<{ ok: boolean }>("POST", "/api/garage/equip", { car }, 1),
-  garageService: (car: string) => request<{ ok: boolean; reason?: string; coins: number }>("POST", "/api/garage/service", { car }, 1),
-  garageUpgrade: (car: string) => request<{ ok: boolean; reason?: string; coins: number; level?: number }>("POST", "/api/garage/upgrade", { car }, 1),
-  // 🏆 GARAJ v2 — the new dedicated restoration game
-  garajState: () => get<GarajStateResponse>("/api/garaj/state"),
-  garajAcquire: (carCode: string) => request<GarajActionResult>("POST", "/api/garaj/acquire", { carCode }, 1),
-  garajDiagnose: (garajCarId: number, tier: "VISUAL" | "TOOL" | "EXPERT") => request<GarajActionResult>("POST", "/api/garaj/diagnose", { garajCarId, tier }, 1),
-  garajRepairZone: (garajCarId: number, zone: string, partTier: string, style?: string, quality?: string) => request<GarajActionResult & { zone?: string; zoneVal?: number; condition?: string }>("POST", "/api/garaj/repair-zone", { garajCarId, zone, partTier, style, quality }, 1),
-  garajCraft: (garajCarId: number, station: string) => request<GarajActionResult & { queued?: boolean; finishesAt?: string }>("POST", "/api/garaj/craft", { garajCarId, station }, 1),
-  garajCraftSpeedup: () => request<GarajActionResult & { level?: number; condition?: string }>("POST", "/api/garaj/craft/speedup", {}, 1),
-  garajFlip: (garajCarId: number, buyerArchetype: string) => request<GarajActionResult>("POST", "/api/garaj/flip", { garajCarId, buyerArchetype }, 1),
-  garajOnboardFinish: () => request<GarajActionResult>("POST", "/api/garaj/onboard/finish", {}, 1),
-  garajKozBuy: (itemCode: string, garajCarId: number) => request<GarajActionResult>("POST", "/api/garaj/kozshop/buy", { itemCode, garajCarId }, 1),
-  garajBazaar: () => get<{ id: number; garajCarId: number; carCode: string; name: string; emoji: string; askPrice: number; mine: boolean; serial: number | null }[]>("/api/garaj/bazaar"),
-  garajBazaarList: (garajCarId: number, askPrice: number) => request<GarajActionResult>("POST", "/api/garaj/bazaar/list", { garajCarId, askPrice }, 1),
-  garajBazaarBuy: (listingId: number) => request<GarajActionResult & { defectRevealed?: { zone: string; severity: "minor" | "major" } | null }>("POST", "/api/garaj/bazaar/buy", { listingId }, 1),
-  garajBazaarUnlist: (listingId: number) => request<GarajActionResult>("POST", "/api/garaj/bazaar/unlist", { listingId }, 1),
-  garajHistory: () => get<{ kind: string; carCode: string; name: string; emoji: string; amount: number; profit: number | null; at: string }[]>("/api/garaj/history"),
-  garajCollection: (memberId: number) => get<{ memberId: number; name: string; reputationScore: number; reputationName: string; garageTier: number; prestige: number; flips: number; bestProfit: number; carsOwned: number; mahalla: string | null; cars: { name: string; emoji: string; condition: string; level: number }[] } | null>(`/api/garaj/collection?memberId=${memberId}`),
-  garajClaimTow: (dropId: number) => request<GarajActionResult>("POST", "/api/garaj/tow/claim", { dropId }, 1),
-  garajDeclineTow: (dropId: number) => request<GarajActionResult>("POST", "/api/garaj/tow/decline", { dropId }, 1),
-  garajExhibitionSubmit: (garajCarId: number) => request<GarajActionResult>("POST", "/api/garaj/exhibition/submit", { garajCarId }, 1),
-  garajExhibitionVote: (entryId: number) => request<GarajActionResult>("POST", "/api/garaj/exhibition/vote", { entryId }, 1),
-  garajMuseum: () => get<{ collection: { carCode: string; name: string; emoji: string; owned: boolean }[]; collectedCount: number; totalModels: number; totalFlips: number; bestProfit: number; hallOfFame: { name: string; prestigeCount: number; repAtEntry: number }[] }>("/api/garaj/museum"),
-  // 🌍 MOTOR OLAMI (v3)
-  garajMotorCollect: (garajCarId?: number) => request<GarajActionResult & { gross?: number; fuel?: number; wear?: number; net?: number; engineHp?: number; dead?: boolean; dry?: boolean }>("POST", "/api/garaj/motor/collect", { garajCarId }, 1),
-  garajMotorRefuel: (garajCarId: number) => request<GarajActionResult & { cost?: number; fueledUntilAt?: string; fuelPct?: number }>("POST", "/api/garaj/motor/refuel", { garajCarId }, 1),
-  // 🏛 P1-B — 1067 Ofis market-maker (always-on buyer)
-  garajOfisStats: () => get<{ budget: number; spent: number; left: number; heldCount: number; scrappedToday: number }>("/api/garaj/ofis/stats"),
-  garajOfisBid: (garajCarId: number) => get<{ bid: number; basePrice: number; carCode: string } | { error: string }>(`/api/garaj/ofis/bid/${garajCarId}`),
-  garajOfisSell: (garajCarId: number) => request<GarajActionResult & { received?: number; bid?: number }>("POST", "/api/garaj/ofis/sell", { garajCarId }, 1),
-  // 🪪 P1-D — slot system
-  garajSlotStatus: () => get<{ slotCount: number; activeCount: number; nextSlotCost: number | null }>("/api/garaj/slot/status"),
-  garajSlotPurchase: () => request<GarajActionResult & { newSlotCount?: number; cost?: number }>("POST", "/api/garaj/slot/purchase", {}, 1),
-  garajSlotRefund: () => request<GarajActionResult & { newSlotCount?: number; refund?: number }>("POST", "/api/garaj/slot/refund", {}, 1),
-  // 🔍 P1-E — CarCheck
-  garajCarCheck: (garajCarId: number, tier: "ODDIY" | "EKSPERT" | "PREMIUM") => request<GarajActionResult & { check?: CarCheckView }>("POST", "/api/garaj/carcheck", { garajCarId, tier }, 1),
-  garajRateSeller: (listingId: number, stars: number) => request<GarajActionResult>("POST", "/api/garaj/rate-seller", { listingId, stars }, 1),
-  // ✨ P1-F — ORZU board
-  garajOrzu: () => get<{ ok: boolean; reason?: string; board?: OrzuBoardView }>("/api/garaj/orzu"),
-  // 🔗 P2-A — Merge (sacrifice → promote)
-  garajMerge: (keepCarId: number, sacrificeCarId: number) => request<GarajActionResult & { mergeCount?: number; newMult?: number }>("POST", "/api/garaj/merge", { keepCarId, sacrificeCarId }, 1),
-  // 🚀 P2-C — Speeder
-  garajSpeederState: () => get<{ ok: boolean; reason?: string; price?: number; mult?: number; stockLeft?: number; stockMax?: number; days?: number; activeCarId?: number | null; activeUntilAt?: string | null }>("/api/garaj/speeder/state"),
-  garajSpeederBuy: (garajCarId: number) => request<GarajActionResult & { speederUntilAt?: string; stockLeft?: number }>("POST", "/api/garaj/speeder/buy", { garajCarId }, 1),
-  // 🚗 FAZA2 — model-upgrade ladder (no client retry → a network retry can't double-upgrade past one step)
-  garajUpgradeModel: (garajCarId: number) => request<GarajActionResult & { newCode?: string; cost?: number }>("POST", "/api/garaj/upgrade-model", { garajCarId }, 0),
-  // 🔧 P2-deep-5 — Limited-event parts (detallar): mint + install/uninstall
-  garajParts: () => get<{ parts: GarajPartView[]; catalog: GarajPartCatalogView[] }>("/api/garaj/parts"),
-  garajPartMint: (partCode: string) => request<GarajActionResult & { partId?: number; serial?: number; cap?: number }>("POST", "/api/garaj/parts/mint", { partCode }, 1),
-  garajPartInstall: (partId: number, garajCarId: number) => request<GarajActionResult>("POST", "/api/garaj/parts/install", { partId, garajCarId }, 1),
-  garajPartUninstall: (partId: number) => request<GarajActionResult>("POST", "/api/garaj/parts/uninstall", { partId }, 1),
-  // 🛠 P2-deep-6 — Detal-bozori (parts P2P market)
-  garajPartBazaar: () => get<GarajPartBazaarView[]>("/api/garaj/parts/bazaar"),
-  garajPartList: (partId: number, askPrice: number) => request<GarajActionResult>("POST", "/api/garaj/parts/list", { partId, askPrice }, 1),
-  garajPartBuy: (listingId: number) => request<GarajActionResult>("POST", "/api/garaj/parts/buy", { listingId }, 1),
-  garajPartUnlist: (listingId: number) => request<GarajActionResult>("POST", "/api/garaj/parts/unlist", { listingId }, 1),
-  garajProfile: (id: number | "me") => get<PublicProfileView | null>(`/api/garaj/profile/${id}`),
-  garajAuctions: () => get<{ id: number; garajCarId: number; carCode: string; name: string; emoji: string; minBid: number; endsAt: string; mine: boolean }[]>("/api/garaj/auctions"),
-  garajAuctionCreate: (garajCarId: number, minBid: number) => request<GarajActionResult>("POST", "/api/garaj/auction/create", { garajCarId, minBid }, 1),
-  garajAuctionBid: (auctionId: number, amount: number) => request<GarajActionResult>("POST", "/api/garaj/auction/bid", { auctionId, amount }, 1),
-  garajCipher: (guess: string) => request<GarajActionResult & { attemptsLeft?: number }>("POST", "/api/garaj/cipher", { guess }, 1),
-  garajCollectBox: () => request<GarajActionResult>("POST", "/api/garaj/box/collect", {}, 1),
-  garajComeback: () => request<GarajActionResult>("POST", "/api/garaj/comeback", {}, 1),
-  garajPrestige: () => request<GarajActionResult & { prestigeCount?: number }>("POST", "/api/garaj/prestige", {}, 1),
-  garajHall: () => get<{ memberId: number; prestigeCount: number; repAtEntry: number }[]>("/api/garaj/hall"),
-  garajMahallaLeague: () => get<{ rank: number; name: string; score: number; memberCount: number }[]>("/api/garaj/mahalla/league"),
-  garajMahallaCreate: (name: string) => request<GarajActionResult & { code?: string; mahallaId?: number }>("POST", "/api/garaj/mahalla/create", { name }, 1),
-  garajMahallaJoin: (code: string) => request<GarajActionResult & { mahallaId?: number }>("POST", "/api/garaj/mahalla/join", { code }, 1),
-  garajMahallaLeave: () => request<GarajActionResult>("POST", "/api/garaj/mahalla/leave", {}, 1),
   bookingNearby: () => get<{ pins: { lat: number; lng: number; bearing: number; busy: boolean; id: string }[]; freeDrivers: number }>("/api/booking/nearby"),
   bookingPredict: (address?: string) => get<{ rides: number; avg: number; p50: number; byAddress?: { name: string; avg: number; rides: number } | null }>(`/api/booking/predict${address ? `?address=${encodeURIComponent(address)}` : ""}`),
   bookingRate: (bookingId: number, stars: number, tags: string[]) => request<{ ok: boolean; reason?: string }>("POST", "/api/booking/rate", { bookingId, stars, tags }, 1),
@@ -297,22 +216,12 @@ export const api = {
   itemBuy: (listingId: number) => request<{ ok: boolean; reason?: string; name?: string; coins: number }>("POST", "/api/items/buy", { listingId }, 1),
   bookingInfo: () => get<BookingInfoResponse | { error: string }>("/api/booking/info"),
   home: () => get<HomeResponse>("/api/home"),
-  mahalla: () =>
-    get<{
-      off: boolean;
-      week: string;
-      gaps: { gapId: number; name: string; members: number; score: number; rank: number }[];
-      me: { gapId: number; name: string; rank: number; score: number } | null;
-    }>("/api/mahalla"),
   account: () =>
     get<{ name: string; phone: string; joined: string | null; type: string; coins: number; cashback: number; streak: number; trips: number; notifyOff: boolean }>(
       "/api/account",
     ),
   accountNotify: (off: boolean) => request<{ ok: boolean; off: boolean }>("POST", "/api/account/notify", { off }, 1),
   accountName: (name: string) => request<{ ok: boolean; name?: string; reason?: string }>("POST", "/api/account/name", { name }, 1),
-  tolqinStart: () => request<{ off: boolean; token: string }>("POST", "/api/tolqin/start", {}, 1),
-  tolqinFinish: (token: string, score: number) =>
-    request<{ off?: boolean; ok: boolean; granted: number; dailyCap: number; roomLeft: number; reason?: string }>("POST", "/api/tolqin/finish", { token, score }, 1),
   bookingActive: () => get<ActiveBookingView | null>("/api/booking/active"),
   bookingSearch: (q: string) => request<SavedAddr[]>("POST", "/api/booking/search", { q }, 1),
   bookingNearestAddr: (lat: number, lng: number) => request<SavedAddr | null>("POST", "/api/booking/nearest", { lat, lng }, 1),

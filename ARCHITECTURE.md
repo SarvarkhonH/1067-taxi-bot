@@ -51,7 +51,7 @@ strongest part — preserve it.
 - `bot/bot.ts` (1.5k) — every Telegram command/callback.
 - `kas/client.ts` (1k) — the kas1067 REST/WS client (login, `getText` chokepoint, `getActiveBooking`,
   `listActiveBookings`, driver lookups). `kas/mock.ts` = offline stand-in (KAS_MODE=mock).
-- `services/` (53 files) — one file per domain. Money core: `coinService.ts` (grant/spend/clamp +
+- `services/` (49 files) — one file per domain. Money core: `coinService.ts` (grant/spend/clamp +
   `withMemberLock`), `cashbackService.ts` (ride roll + wait-comp), `transferService.ts` (P2P),
   `cashoutService.ts` (withdraw). Dispatch: `bookingService.ts` (Mini App views), `bookingNotifier.ts`
   (the sweep), `bookingPlus.ts` (map pins). Config: `featureFlags.ts` (kill switches),
@@ -67,8 +67,9 @@ strongest part — preserve it.
 - `waitGame.tsx` — tap-to-earn while searching (feature `waitcomp`).
 - `wallet.tsx` (Hamyon: balance, cash-out), `rewards.tsx` (missions/wheel), `home.tsx`, `driver.tsx`,
   `intercity.tsx` (kept), `TrackView.tsx` (public family-safety trip page).
-- **Removed-game screens still present**: `garaj.tsx`, `market.tsx`, `tolqin.tsx`, `uy.tsx`,
-  `service.tsx` — dead once flags are off; delete in the strip phase.
+- `uy.tsx` = the DEFAULT taxi-first home tab (kept; `home.tsx` is the flag-gated living-map
+  upgrade). `market.tsx` = user-shops feature (kept, currently unrouted), `service.tsx` = Ravella
+  wedding catalog (unrouted). `garaj.tsx`/`tolqin.tsx` were deleted in the Phase-2 strip.
 - `api.ts` — one flat object, ~180 endpoint methods. `telegram.ts` — WebApp bootstrap + helpers.
 - `design/tokens.css` (1.4k) — the single global stylesheet (class-prefix soup, NOT design tokens).
 
@@ -104,15 +105,19 @@ Every risky mechanic is a kill switch in `featureFlags.ts` (`feature:<name>` in 
 `recruit`/`refstaged`/`drvstaged`/`drvrecruit`, `plus`, `gap`, `promo`, `qarz`, `clientbooking`,
 `komissiya`(1%), `tierloyalty`, `intercity`.
 **Turned OFF 2026-07-02 (removal program):** `garajx`, `kozacha`, `motorolami`, `tolqin`, `mahalla`,
-`livinghome`, `aibrain`, `garage`(v1), `carupgrade`.
+`aibrain`, `garage`(v1), `carupgrade` — consumers stripped in Phase 2; flag names kept for setFlag.
+(`livinghome` was initially off but RESTORED — its code stays.)
 
 ## 7. Removal program ("chaqmoq-bot" — lightning-fast, unbreakable)
 
 Owner decision 2026-07-02: strip all heavy game systems; keep taxi + wallet + light hooks.
 - **Phase 1 (DONE)** — 9 flags off (above). Code still present; rollback = flag on.
-- **Phase 2 (next)** — code strip ~10k LOC: `garajService.ts`(2.8k), `garaj.tsx`(1.8k),
-  `garajGame.ts`(0.9k), `garaj.css`, motorolami/tolqin/mahalla/livinghome services + Mini App screens,
-  their sweep hooks in `pushBookingUpdates`, their admin panels, their tsx test scripts.
+- **Phase 2 (DONE 2026-07-02)** — code strip ~10k LOC: garajService/garageService/tolqinService/
+  mahallaService + ai/concierge deleted; garaj.tsx/garaj.css/tolqin.tsx deleted; all /api/garaj|garage|
+  tolqin|mahalla routes + motor-econ/part-event admin routes gone; sweep hooks removed from
+  `pushBookingUpdates`; garajGame.ts/garage.ts dropped from shared; garaj/motor test scripts deleted.
+  Flag NAMES stay in featureFlags.ts (DB rows exist; setFlag keeps working). `livinghome` was
+  RESTORED (kept), not stripped.
 - **Phase 3** — drop the orphaned Prisma models (30 days after Phase 1, so refunds can be computed
   from history). Refund policy: NO auto-refund; pay manually if a customer complains (68 GarajCar rows
   across 55 owners preserved until then).

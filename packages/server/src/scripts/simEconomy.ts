@@ -8,7 +8,7 @@
 // PURE: no DB, no kas — re-derives emission from the same constants the server
 // grants from, so a divergence here is a real economic regression.
 // Run: dotenv -e ../../.env -- tsx src/scripts/simEconomy.ts [customers] [days] [seed]
-import { RIDE_REWARD_BASE, RIDE_REWARD_TIERS, RIDE_EMISSION_CAP, WHEEL_PRIZES, computeFlipGrant, FLIP_DAILY_CAP, MAKE_BASE, offlineBoxPayout, OFFLINE_DAILY_CAP, prestigeMultiplier, motorSpeed, computeMotorEarn, computeMotorEarnNoFuel, computeMotorRefillCost, MOTOR_FUELMULT_MIN, effectiveEcon } from "@t1067/shared";
+import { RIDE_REWARD_BASE, RIDE_REWARD_TIERS, RIDE_EMISSION_CAP, WHEEL_PRIZES } from "@t1067/shared";
 import { JACKPOT_FLOOR, JACKPOT_INCREMENT } from "@t1067/shared";
 
 // ── seeded PRNG (LCG) so the proof is reproducible run-to-run ───────────────
@@ -26,11 +26,9 @@ const SEED = Math.floor(Number(process.argv[4] ?? 1067));
 const rnd = makeRng(SEED);
 
 // representative behaviour mix (CIS small-city taxi loyalty norms)
-const P_CAR_OWNER = 0.25; // owns a garage car (earns during rides)
 const P_PLUS = 0.15; // 💎 Plus subscriber (×1.5 roll, +150 cap)
 const P_COMBO = 0.2; // completed yesterday's daily kombo → today's roll ×2
 const P_GUESS_RIGHT = 0.25; // ETA-guess correct → +50
-const GARAGE_RATES = [1, 2, 3, 5, 8, 11, 16, 24]; // Damas..Gelandewagen tanga/min (20-min cap) — server catalog mirror
 const RIDES_PER_DAY = [0, 0, 0, 0, 1, 1, 1, 2, 2, 3]; // empirical-ish: mean ~0.9 rides/customer/day
 
 function pickWeighted<T extends { weight: number }>(arr: T[]): T {
@@ -45,7 +43,6 @@ function pickWeighted<T extends { weight: number }>(arr: T[]): T {
 const pick = <T,>(arr: T[]): T => arr[Math.floor(rnd() * arr.length)]!;
 
 interface Customer {
-  car: number; // ratePerMin, 0 = none
   plus: boolean;
 }
 
@@ -65,7 +62,6 @@ function rideEmission(c: Customer, lucky: boolean, pool: number): { emitted: num
     desired += cb;
   }
   desired += pickWeighted(WHEEL_PRIZES).amount; // in-ride wheel, 1 spin/ride
-  if (c.car) desired += c.car * Math.min(20, 5 + Math.floor(rnd() * 16)); // garage: rate × ride minutes (cap 20)
   if (rnd() < P_GUESS_RIGHT) desired += 50; // ETA guess correct
   const emitted = Math.min(desired, RIDE_EMISSION_CAP);
   return { emitted, clamped: Math.max(0, desired - RIDE_EMISSION_CAP), jackpotPayout };
@@ -78,7 +74,6 @@ function percentile(sorted: number[], p: number): number {
 
 function main(): void {
   const customers: Customer[] = Array.from({ length: N }, () => ({
-    car: rnd() < P_CAR_OWNER ? pick(GARAGE_RATES) : 0,
     plus: rnd() < P_PLUS,
   }));
 
@@ -150,111 +145,7 @@ function main(): void {
   // sanity: the clamp must actually bite under stacked boosts (else the model is wrong/too tame)
   ok(clampHits > 0, `clamp engages under stacked boosts (${clampHits} clamped rides — proves the cap is load-bearing)`);
 
-  // ── 🏆 GARAJ v2 flip economy proof: computeFlipGrant cap + cheap-car exploit + daily flip cap ──
-  const FSTYLES = ["QUICK_FLIP", "FULL_RESTORE", "TUNING", "PERIOD_CORRECT"] as const;
-  const FBUYERS = ["FAMILY_DRIVER", "YOUNG_TUNER", "NEWLYWED", "COLLECTOR"] as const;
-  const FCONDS = ["WORN", "FAIR", "GOOD", "MINT"] as const;
-  let flipCapViolations = 0;
-  let maxFlipGrant = 0;
-  let worstDamasGrant = 0;
-  for (const code of Object.keys(MAKE_BASE)) {
-    const basePrice = MAKE_BASE[code]!;
-    const acquireCost = Math.round(basePrice * 0.65);
-    const repairSpent = Math.round(basePrice * 2.0); // heavy tanga-funded spend (worst case)
-    const cap = Math.min(basePrice * 2.5, (acquireCost + repairSpent) * 3.0 + basePrice * 0.5);
-    for (const style of FSTYLES) {
-      for (const buyer of FBUYERS) {
-        for (const condition of FCONDS) {
-          const grant = computeFlipGrant({
-            basePrice, level: 5, style, buyerArchetype: buyer, condition,
-            repairQualityBonus: 1.25, savdogarTier5Bonus: 0.12, kuzovchiTier5Bonus: 0.08,
-            seasonalBonus: 0.22, prestigeMult: 1.25, acquireCost, repairSpent, // MAX stack: RQB 1.25 (paint) + seasonal 0.10 + demand 0.12 + prestige 1.25
-          });
-          if (grant > Math.round(cap) + 1) flipCapViolations++;
-          if (grant > maxFlipGrant) maxFlipGrant = grant;
-          if (code === "damas" && grant > worstDamasGrant) worstDamasGrant = grant;
-        }
-      }
-    }
-  }
-  // a grinder doing 20 cheap flips/day → the handler clamps total to FLIP_DAILY_CAP
-  const damasFlip = computeFlipGrant({ basePrice: MAKE_BASE["damas"]!, level: 1, style: "QUICK_FLIP", buyerArchetype: "FAMILY_DRIVER", condition: "GOOD", acquireCost: 585, repairSpent: 0 });
-  const dailyFlipCapped = Math.min(damasFlip * 20, FLIP_DAILY_CAP);
-  const damasCap = Math.round(MAKE_BASE["damas"]! * 2.5);
-
-  console.log("");
-  console.log(`🏆 FLIP ECONOMY — max flip grant ${maxFlipGrant} · worst DAMAS grant ${worstDamasGrant} (cap ${damasCap}) · daily flip ≤ ${dailyFlipCapped}`);
-  ok(flipCapViolations === 0, `flip grant ≤ MAX_SELL_PRICE across all car×style×buyer×condition + max prestige (0 violations)`);
-  ok(worstDamasGrant <= damasCap, `cheap-car exploit closed: heavy-spend DAMAS grant ${worstDamasGrant} ≤ 2.5× base ${damasCap} (audit M4 min-cap)`);
-  ok(dailyFlipCapped <= FLIP_DAILY_CAP, `daily flip emission ${dailyFlipCapped} ≤ FLIP_DAILY_CAP ${FLIP_DAILY_CAP}`);
-
-  // ── 🏆 W5 offline-box proof: passive payout NEVER exceeds the daily cap, even at
-  // absurd garage size, full 24h, AND max prestige stacked (audit BLOCKER-4 compound). ──
-  let boxViolations = 0;
-  let maxBox = 0;
-  for (const levels of [1, 10, 50, 200, 5000]) {
-    for (const hours of [1, 12, 24, 240]) {
-      const payout = offlineBoxPayout(levels, hours, prestigeMultiplier(5)); // prestige 5 = ×1.25
-      if (payout > OFFLINE_DAILY_CAP) boxViolations++;
-      if (payout > maxBox) maxBox = payout;
-    }
-  }
-  console.log(`📦 OFFLINE BOX — max payout ${maxBox} (cap ${OFFLINE_DAILY_CAP}) at prestige 5 / 5000 levels / 240h`);
-  ok(boxViolations === 0, `offline box payout ≤ ${OFFLINE_DAILY_CAP}/day across all garage sizes × hours × max prestige (0 violations)`);
-
-  // 🌍 MOTOR OLAMI — passive earn faucet is BOUNDED: only NET minted (fuel+wear sink ≥80% at
-  // normal fuel), gross capped at 24h/collect. Worst-case ceiling disclosed (full-taxi×cheap-fuel),
-  // and withdraw stays real-ride+revenue-gated so it can't threaten solvency.
-  let motorViol = 0;
-  let maxMotorDay = 0;
-  for (const code of Object.keys(MAKE_BASE)) {
-    const sp = motorSpeed(code);
-    const normal = computeMotorEarn(sp, 24, 1, 0); // offline, normal fuel
-    if (normal.net > Math.ceil(normal.gross * 0.2)) motorViol++; // sink must keep net ≤ 20% of gross
-    if (normal.gross > 0 && normal.fuel + normal.wear <= 0) motorViol++; // faucet must always have a sink
-    const worst = computeMotorEarn(sp, 24, MOTOR_FUELMULT_MIN, 24); // full-taxi + cheapest fuel = theoretical ceiling
-    if (worst.net > maxMotorDay) maxMotorDay = worst.net;
-  }
-  console.log(`🌍 MOTOR OLAMI — offline net ≤20% gross (sink ≥80%); worst-case ceiling ${maxMotorDay}/kun (full-taxi×cheap-fuel; withdraw safar+revenue-gated)`);
-  ok(motorViol === 0, `motor faucet bounded: only NET minted, sink ≥80% @ normal fuel, 24h time-cap (0 violations)`);
-
-  // 🎁 BONUS HAFTASI — admin bonus knoblari ham stacked'da sink-positive qoladimi? (worst-case
-  // bonus: speedMult=2 max, fuelMult=0.5 min, bonusSpeedMult=3 max, bonusFuelMult=0.1 min →
-  // effectiveEcon floor/ceiling bilan clamp'lanadi). Daromad ko'p, lekin gross hech qachon
-  // sinksiz emas (effective fuelMult floor=0.1 → fuel ≥ gross*0.07; wear yana 10%).
-  let bonusViol = 0;
-  let maxBonusDay = 0;
-  const worstBase = { fuelMult: MOTOR_FUELMULT_MIN, speedMult: 2, bonusFuelMult: 0.1, bonusSpeedMult: 3 };
-  const eff = effectiveEcon(worstBase, true);
-  for (const code of Object.keys(MAKE_BASE)) {
-    const sp = Math.round(motorSpeed(code) * eff.speedMult);
-    const r = computeMotorEarn(sp, 24, eff.fuelMult, 24); // 24h + full-taxi + max bonus
-    if (r.gross > 0 && r.fuel + r.wear <= 0) bonusViol++; // sink must always exist
-    if (r.net > maxBonusDay) maxBonusDay = r.net;
-  }
-  console.log(`🎁 BONUS HAFTASI — worst-case bonus net ceiling ${maxBonusDay}/kun (eng qimmat × 2×admin × 3×bonus × cheap-fuel; faqat o'zining bonus haftasida; per-player one-shot)`);
-  ok(bonusViol === 0, `bonus stacked-worst: sink hech qachon nolga tushmaydi (clamp floor 0.1 saqlaydi)`);
-
-  // 🔥 P-Fuel-A — manual fuel model: NET = (gross_no_fuel) − refill_cost. Sink ≥80% saqlanishi shart.
-  // refill cost ≈ avvalgi auto-fuel sink → net ekspektatsiyada bir xil, faqat timing o'zgaradi.
-  let fuelViol = 0;
-  let worstNetPct = 0;
-  for (const code of Object.keys(MAKE_BASE)) {
-    const sp = motorSpeed(code);
-    const noFuel = computeMotorEarnNoFuel(sp, 24, 0); // 24h offline
-    const refill = computeMotorRefillCost(code, 24, 1); // normal fuel × 1
-    const netAfterRefill = Math.max(0, noFuel.net - refill);
-    const pct = noFuel.gross > 0 ? netAfterRefill / noFuel.gross : 0;
-    // Math.ceil slack matches the existing motor-bound assertion shape: net ≤ ceil(gross × 0.20)
-    // absorbs ≤1-tanga rounding edge between gross/wear/refill (otherwise Damas 20.05% > 0.20 fails).
-    if (netAfterRefill > Math.ceil(noFuel.gross * 0.20)) fuelViol++;
-    if (refill <= 0) fuelViol++; // refill must always cost something
-    if (pct > worstNetPct) worstNetPct = pct;
-  }
-  console.log(`🔥 FUEL MANUAL — net_after_refill ≤ 20% gross across all cars (worst ${(worstNetPct*100).toFixed(1)}%, normal fuel)`);
-  ok(fuelViol === 0, `fuel manual-refill bound: sink ≥ 80% gross @ normal fuel (0 violations)`);
-
-  console.log(failed === 0 ? "\n🛡 ECONOMY SIM: BUZILMAS qoida isbotlandi (≤350/safar + flip-cap + offline-cap + motor-bound + bonus-bound + fuel-bound)" : `\n❌ ${failed} ta tekshiruv yiqildi`);
+  console.log(failed === 0 ? "\n🛡 ECONOMY SIM: BUZILMAS qoida isbotlandi (≤350/safar)" : `\n❌ ${failed} ta tekshiruv yiqildi`);
   process.exit(failed === 0 ? 0 : 1);
 }
 

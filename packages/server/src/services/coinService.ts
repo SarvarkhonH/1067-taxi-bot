@@ -118,7 +118,7 @@ export async function spendCoins(memberId: number, amount: number, kind: string,
 }
 
 /**
- * Spend coins IDEMPOTENTLY (sinks tied to a specific action: garaj inspect /
+ * Spend coins IDEMPOTENTLY (sinks tied to a specific action: market buy /
  * acquire / repair task). The unique idempotencyKey turns a double-tap or retry
  * into a no-op instead of a double-debit (plain spendCoins has no key → debits
  * twice). Atomic: the balance check + decrement + ledger insert run in ONE

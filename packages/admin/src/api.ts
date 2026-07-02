@@ -15,9 +15,6 @@ import type {
   OpsPulse,
 } from "@t1067/shared";
 
-// 🔧 P2-deep-5 — limited-event part mint state (admin panel)
-export type PartEvent = { code: string; name: string; emoji: string; mintCap: number; minted: number; left: number; cost: number; earnBonusPct: number; eventOpen: boolean };
-
 interface TgWindow {
   Telegram?: { WebApp?: { initData?: string } };
 }
@@ -110,10 +107,6 @@ export const adminApi = {
   integrity: () => req<AdminIntegrity>("/api/admin/integrity"),
   features: () => req<{ features: { name: string; on: boolean }[]; mashinaFund: number }>("/api/admin/features"),
   setFeature: (name: string, on: boolean) => postJson<{ ok: boolean; features: { name: string; on: boolean }[] }>("/api/admin/features", { name, on }),
-  motorEconomy: () => req<{ knobs: { key: string; label: string; def: number; min: number; max: number; step: number; live: boolean }[]; values: Record<string, number> }>("/api/admin/motor-economy"),
-  setMotorEconomy: (key: string, value: number) => postJson<{ ok: boolean; values: Record<string, number> }>("/api/admin/motor-economy", { key, value }),
-  partEvents: () => req<{ events: PartEvent[] }>("/api/admin/part-events"),
-  setPartEvent: (code: string, open: boolean) => postJson<{ ok: boolean; events: PartEvent[] }>("/api/admin/part-event", { code, open }),
   transferEconomy: () => req<{ knobs: { key: string; label: string; def: number; min: number; max: number; step: number }[]; values: Record<string, number>; enabled: boolean; earned: { total: number; today: number } }>("/api/admin/transfer-economy"),
   setTransferEconomy: (key: string, value: number) => postJson<{ ok: boolean; values: Record<string, number> }>("/api/admin/transfer-economy", { key, value }),
   bonusEconomy: () => req<{ knobs: { key: string; label: string; def: number; min: number; max: number; step: number; group: string }[]; values: Record<string, number> }>("/api/admin/bonus-economy"),

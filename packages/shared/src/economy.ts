@@ -16,7 +16,7 @@ export const TOPUP_MIN = 1000; // min bonus to move INTO coins (cashback → coi
 // NOTE: paid respins and the premium box were REMOVED deliberately —
 // paying coins for a chance outcome is the gambling pattern Uzbek authorities
 // flagged (Hamster Kombat precedent). Chance rewards are only ever EARNED by
-// riding; coin sinks are deterministic purchases (Garaj, Kolleksiya, Bozor).
+// riding; coin sinks are deterministic purchases (Kolleksiya, Bozor).
 
 export interface CoinTxnView {
   amount: number;
@@ -96,7 +96,7 @@ export const TRANSFER_MIN_ACCOUNT_AGE_H = 0; // new accounts can transfer immedi
 // is a kas identity, not a farm mule; the withdraw gate still bounds real money out).
 export const FARE_MAX_PER_TX = 200000;
 
-// ── 💸 dashboard-configurable transfer commission (owner-tunable, like MOTOR_ECON_KNOBS) ─────
+// ── 💸 dashboard-configurable transfer commission (owner-tunable knobs) ─────
 // commissionPct is a PERCENT (1 = 1%), charged ON TOP of the amount to the SENDER; the recipient
 // receives the full amount and the fee is booked to the PlatformLedger. Gated by the "komissiya"
 // feature flag (DEFAULT_OFF) so it ships dark until owner QABUL.
@@ -122,7 +122,7 @@ export function inflateOnline(real: number): number {
   return Math.round((real || 0) * ONLINE_DISPLAY_MULT);
 }
 
-// ── 🎁 dashboard-configurable acquisition bonuses (owner-tunable, like MOTOR_ECON_KNOBS) ──────
+// ── 🎁 dashboard-configurable acquisition bonuses (owner-tunable knobs) ──────
 // The growth levers the owner tunes WITHOUT a deploy. `firstRide` is the single first-ride bonus
 // (welcome + referee + recruit-welcome all read it); the rest are the per-flow sharer rewards.
 // Defaults match the shipped code constants (REFEREE_REWARD=5000, REFERRER_REWARD=1500, …).
@@ -158,7 +158,6 @@ export const BONUS_ECON_KNOBS: BonusEconKnob[] = [
   { key: "mDailyCheckin", label: "✅ Kunlik kirish", def: 50, min: 0, max: 5000, step: 10, group: "Missionlar" },
   { key: "mDailySpin", label: "🎡 Kunlik g'ildirak", def: 50, min: 0, max: 5000, step: 10, group: "Missionlar" },
   { key: "mDailyRide", label: "🚕 Kunlik 1-safar", def: 100, min: 0, max: 5000, step: 10, group: "Missionlar" },
-  { key: "mDailyGarage", label: "🚗 Kunlik garaj", def: 80, min: 0, max: 5000, step: 10, group: "Missionlar" },
   { key: "mWeeklyRides", label: "🚕 Haftalik 5-safar", def: 700, min: 0, max: 20000, step: 50, group: "Missionlar" },
   { key: "mWeeklyInvite", label: "👥 Haftalik taklif", def: 1000, min: 0, max: 20000, step: 50, group: "Missionlar" },
   { key: "mDrvDaily5", label: "🚖 Haydovchi kunlik 5-safar", def: 800, min: 0, max: 20000, step: 50, group: "Missionlar" },
@@ -222,7 +221,7 @@ export const CAMPAIGN_CONDS: { cond: CampaignCond; label: string; unit: string }
   { cond: "streak", label: "Ketma-ket kunlar (streak)", unit: "kun" },
   { cond: "comeback", label: "Tanaffusdan keyin qaytib safar", unit: "safar" },
   { cond: "first_ride", label: "Birinchi safarini qilsa", unit: "safar" },
-  { cond: "spend_tanga", label: "Tanga sarflasa (bozor/garaj)", unit: "tanga" },
+  { cond: "spend_tanga", label: "Tanga sarflasa (bozor)", unit: "tanga" },
   { cond: "earn_tanga", label: "Tanga ishlasa", unit: "tanga" },
   { cond: "pay_fare", label: "Yo'l haqini tanga bilan to'lasa", unit: "marta" },
   { cond: "weekend_rides", label: "Dam olish kunlari safar", unit: "safar" },

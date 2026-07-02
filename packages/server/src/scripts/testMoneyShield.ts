@@ -9,7 +9,6 @@ import { atomicIncrement, pendingCreate, pendingScan, pendingResolve } from "../
 import { retryPendingMoney } from "../services/coinService";
 import { mintItem, buyListedItem, listItem, seedItemTypes } from "../services/itemService";
 import { makeOffer, acceptOffer } from "../services/tradeService";
-import { buyCar, earnForRide } from "../services/garageService";
 import { fundAddRide, fundTotal } from "../services/featureFlags";
 import { incrementMission } from "../services/missionService";
 
@@ -36,7 +35,6 @@ async function cleanup(): Promise<void> {
   await prisma.appState.deleteMany({ where: { key: { startsWith: "pending:" } } });
   await prisma.appState.deleteMany({ where: { key: { in: ["shield_atomic", "fundride:888901", "fundride:950002"] } } });
   await prisma.appState.deleteMany({ where: { key: { endsWith: ":950004" } } }); // qinc test marker
-  await prisma.memberCar.deleteMany({ where: { memberId: { in: ids } } });
   await prisma.itemType.deleteMany({ where: { code: "shield_test_t" } });
   await prisma.telegramUser.deleteMany({ where: { id: { startsWith: `${TAG}-tg` } } });
   await prisma.member.deleteMany({ where: { id: { in: ids } } });
@@ -183,13 +181,6 @@ async function main(): Promise<void> {
   // resilient() transient'da retry qiladi — agar grant idempotent bo'lmasa,
   // retry double-to'laydi (T0.5 3.1 bug). Har o'ralgan grant 2x chaqirilib,
   // 1x to'langani tasdiqlanadi.
-  await grantCoins(a.id, 10000, "manual", "garage-test seed");
-  await buyCar(a.id, "damas");
-  const gB = await bal(a.id);
-  await earnForRide(a.id, 950001, 10); // garage:<a>:950001 kaliti
-  await earnForRide(a.id, 950001, 10); // RETRY simulyatsiya — bir xil ride
-  ok((await bal(a.id)) - gB === 10, `garage earn 2x → 1x to'landi (damas 10daq=+10, double bo'lsa 20 bo'lardi; got ${(await bal(a.id)) - gB})`);
-
   await prisma.appState.deleteMany({ where: { key: "fundride:950002" } }); // faqat marker (global fond TEGILMAYDI)
   const fB = await fundTotal();
   await fundAddRide(950002);
