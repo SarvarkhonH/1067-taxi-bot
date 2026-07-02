@@ -259,3 +259,13 @@ STATUS (Rule 7): `ready for verification`. Compliance-report 5 gap yopildi; kodn
   garajGame 934, garaj.css, admin panellar, sweep-ilgaklar, testlar); (4) jadval-drop 30 kundan keyin.
 - Parallel tezlik-ishi (boshlanmagan): kas 1req/s navbat + yagona login-promise; sweep N+1 diyeta;
   AppState TTL tozalov; driver-photo rate-limit + timing-safe admin token; vitest pul-testlari CI'da.
+
+## 2026-07-02 (kech) — 2-bosqich strip MERGE qilindi + keyingi-daraja reja
+- Phase-2 strip merge (84c2d3b): −9,737 qator (49 fayl) — garajService/garaj.tsx/garajGame/tolqin/
+  mahalla/aibrain-concierge/garage-v1/carupgrade kodi o'chirildi. Mustaqil tekshiruv: grep=0,
+  tsc yashil ×4 paket, vite build yashil, simEconomy 0 clamp-buzilish. Prisma modellari 3-bosqichgacha
+  turibdi (refund tarixi). diagOwner.ts WIP scratchpad'ga zaxiralandi (fayl o'chdi — motor-diagnostika).
+- NEXT_LEVEL_PLAN.md yozildi (Sonnet qoralama + Fable sintez): 0-poydevor → 1-taxi UX → 2-bonus
+  looplar → 3-virality → 4-admin. 2.1 = "Jonli qidiruv" kutish-redizayni (3-model konsili: o'yin EMAS,
+  shaffoflik + passiv kompensatsiya) — ega vizual kontseptni ko'rdi, QABUL kutilmoqda.
+- Admin "Nazorat" tab kontsepti ko'rsatildi (jonli oqim, salomatlik, emissiya, tinch-rejim, user-karta).
