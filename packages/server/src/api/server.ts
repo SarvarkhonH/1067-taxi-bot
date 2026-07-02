@@ -883,10 +883,6 @@ export function createApiServer(opts: ApiOptions = {}) {
     await clearDriverPhoto(driverId);
     res.json({ ok: true });
   });
-  app.post("/api/booking/waitscore", requireUser, rateLimit(20), withMember2(async (id, req) => {
-    const { submitWaitScore } = await import("../services/bookingService");
-    return submitWaitScore(id, Number((req.body as { score?: number })?.score ?? 0));
-  }));
   app.post("/api/booking/rate", requireUser, rateLimit(10), withMember2(async (id, req) => {
     const { rateRide, RATING_TAGS } = await import("../services/bookingPlus");
     const b = req.body as { bookingId?: number; stars?: number; tags?: string[] };

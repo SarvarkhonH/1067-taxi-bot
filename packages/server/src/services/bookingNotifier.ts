@@ -394,6 +394,34 @@ export async function pushBookingUpdates(
       // must not be a cancel. Otherwise clear the ride state but fire NO rewards / finish card.
       const CANCEL_STATUSES = ["cancel_by_operator", "cancel_by_server", "take_back", "cancel"];
       if (!m.rideStartedAt || CANCEL_STATUSES.includes(m.lastBookingStatus ?? "")) {
+        // 🎁 "topilmadi" vaucheri (feature "waitcomp"): the search DIED while still SEARCHING — no
+        // driver ever accepted (status never left new/searching). The wait must not be for nothing:
+        // record a next-ride voucher worth the same ramp amount + apologize honestly. NOT paid now —
+        // paying cash on a failed search would be an open farm (order→wait→cancel→collect); the
+        // voucher pays only on the next COMPLETED ride, which is also the come-back-next-time hook.
+        if (SEARCHING.has(m.lastBookingStatus ?? "") && bid) {
+          try {
+            const startRow = await prisma.appState.findUnique({ where: { key: `waitstart:${bid}` } });
+            const start = startRow ? Number(startRow.value) : NaN;
+            if (Number.isFinite(start)) {
+              const waitSeconds = Math.floor((Date.now() - start) / 1000);
+              const { noteWaitVoucher } = await import("./cashbackService");
+              const worth = (await resilient("waitvoucher", () => noteWaitVoucher(m.id, bid!, waitSeconds))) ?? 0;
+              if (worth > 0) {
+                await bot.api
+                  .sendMessage(
+                    chatId,
+                    `😔 <b>Uzr — bu safar mashina topib bera olmadik.</b>\n` +
+                      `Kutganingiz bekor ketmaydi: <b>+${formatNumber(worth)} tanga</b> keyingi safaringizda avtomatik qo'shiladi. 🚕`,
+                    { parse_mode: "HTML", reply_markup: new InlineKeyboard().text("🔁 Qayta chaqirish", "bk:now") },
+                  )
+                  .catch(() => undefined);
+              }
+            }
+          } catch (e) {
+            console.error("[waitvoucher] note failed:", e);
+          }
+        }
         if (m.rideCardMsgId) {
           await bot.api.editMessageText(chatId, m.rideCardMsgId, "❌ <b>Buyurtma bekor qilindi</b>", { parse_mode: "HTML" }).catch(() => undefined);
         }
@@ -475,26 +503,28 @@ export async function pushBookingUpdates(
         console.error("[cashback] roll failed:", e);
       }
 
-      // 🪙 wait compensation (feature "waitcomp"): tanga for the search time before a driver
-      // accepted, gated on having actually played the wait-game. Server-timed via the waitstart/
-      // waitfound markers captured above (never the client's score-derived duration). Idempotent
+      // 🪙 wait compensation (feature "waitcomp"): PASSIVE tanga for the search time before a
+      // driver accepted — the wait itself earns, no game (owner rejected the tap-game). Server-timed
+      // via the waitstart/waitfound markers captured above (never client-reported time). Idempotent
       // per ride (WaitCompReward unique) + its own daily company budget — see cashbackService.
+      // Also redeems a pending "topilmadi" voucher from a PREVIOUS failed search — this completed
+      // ride is exactly the come-back moment the voucher was minted for.
       let waitCompLine = "";
       try {
-        const [startRow, foundRow, scoreRow] = await Promise.all([
+        const [startRow, foundRow] = await Promise.all([
           prisma.appState.findUnique({ where: { key: `waitstart:${bid}` } }),
           prisma.appState.findUnique({ where: { key: `waitfound:${bid}` } }),
-          prisma.appState.findUnique({ where: { key: `waitscore:${bid}` } }),
         ]);
         const start = startRow ? Number(startRow.value) : NaN;
         const found = foundRow ? Number(foundRow.value) : NaN;
-        const score = scoreRow ? Number(scoreRow.value) || 0 : 0;
+        const { awardWaitComp, redeemWaitVoucher } = await import("./cashbackService");
         if (Number.isFinite(start) && Number.isFinite(found) && found > start) {
           const waitSeconds = Math.floor((found - start) / 1000);
-          const { awardWaitComp } = await import("./cashbackService");
-          const paid = (await resilient("waitcomp", () => awardWaitComp(m.id, bid!, waitSeconds, score))) ?? 0;
+          const paid = (await resilient("waitcomp", () => awardWaitComp(m.id, bid!, waitSeconds))) ?? 0;
           if (paid > 0) waitCompLine = `\n🪙 Kutish kompensatsiyasi: <b>+${formatNumber(paid)} tanga</b>`;
         }
+        const voucher = (await resilient("waitvoucher-redeem", () => redeemWaitVoucher(m.id))) ?? 0;
+        if (voucher > 0) waitCompLine += `\n🎁 O'tgan safargi uzrimiz: <b>+${formatNumber(voucher)} tanga</b> — qaytganingiz uchun rahmat!`;
       } catch (e) {
         console.error("[waitcomp] award failed:", e);
       }

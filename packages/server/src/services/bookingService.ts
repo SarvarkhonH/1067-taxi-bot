@@ -271,26 +271,6 @@ export async function cancelBookingFor(memberId: number): Promise<BookingCancelR
   return { ok: res.ok, reason: res.ok ? undefined : "failed", live: true };
 }
 
-// 🪙 wait-comp score reporting (feature "waitcomp"): the Mini App posts its running catch-the-coin
-// score while searching. NEVER trusted for money directly — awardWaitComp (cashbackService) clamps
-// the final payout to a SERVER-TIMED wait-duration ceiling regardless of what's stored here, so an
-// inflated score gains nothing. Resolves the caller's OWN active booking (never a client-supplied
-// bookingId) and only accepts increases, so a stale/out-of-order request can't erase progress.
-export async function submitWaitScore(memberId: number, score: number): Promise<{ ok: boolean }> {
-  const s = Math.floor(score);
-  if (!Number.isFinite(s) || s <= 0) return { ok: false };
-  const who = await phoneOf(memberId);
-  if (!who) return { ok: false };
-  const b = await getDataSource().getActiveBooking(who.phone).catch(() => null);
-  if (!b || (b.status !== "new" && b.status !== "searching")) return { ok: false }; // only while actually searching
-  const key = `waitscore:${b.id}`;
-  const cur = await prisma.appState.findUnique({ where: { key } }).catch(() => null);
-  const curVal = cur ? Number(cur.value) || 0 : 0;
-  if (s <= curVal) return { ok: true }; // no-op — already have an equal-or-higher score for this ride
-  await prisma.appState.upsert({ where: { key }, create: { key, value: String(s) }, update: { value: String(s) } });
-  return { ok: true };
-}
-
 export async function getActiveBookingFor(memberId: number): Promise<ActiveBookingView | null> {
   const who = await phoneOf(memberId);
   if (!who) return null;

@@ -12,7 +12,28 @@ import "leaflet/dist/leaflet.css";
 import { formatNumber, haversineKm, type ActiveBookingView, type BookingDriverView, type BookingInfoResponse, type MeResponse, type SavedAddressView, type WheelSpinResponse } from "@t1067/shared";
 import { api } from "./api";
 import { haptic, hapticSuccess, tg, tgGetLocation, tgHasLocationManager, tgOpenLocationSettings } from "./telegram";
-import { WaitGame } from "./waitGame";
+// 🪙 passive compensation ticker (Jonli qidiruv) — the ONE ramp formula (mirrors the server's
+// cashbackService.waitCompAmount) so the number shown never overstates what will actually be paid.
+// No interaction: the wait ITSELF earns (the tap-game was removed — owner: "bachkana"); the amount
+// banks at ride-finish, or becomes the next-ride voucher when the search fails.
+function WaitTicker({ waitComp, startAt }: { waitComp: BookingInfoResponse["waitComp"]; startAt: number | null }): JSX.Element | null {
+  const [, tick] = useState(0);
+  useEffect(() => {
+    const iv = window.setInterval(() => tick((n) => n + 1), 1000);
+    return () => window.clearInterval(iv);
+  }, []);
+  if (!waitComp || !startAt) return null;
+  const { graceSec, fullSec, ceiling } = waitComp;
+  const el = Math.floor((Date.now() - startAt) / 1000);
+  const eff = Math.max(0, Math.min(el, fullSec) - graceSec);
+  const som = Math.floor(ceiling * (eff / Math.max(1, fullSec - graceSec)));
+  return (
+    <div className="b3-wticker">
+      <div className="b3-wticker-row"><span>🪙 Kutish kompensatsiyasi</span><b>+{formatNumber(som)} tanga</b></div>
+      <div className="b3-wticker-sub">Har soniya kutish — sizga qaytadi · safar yakunida hisobingizda</div>
+    </div>
+  );
+}
 import { confetti } from "./util";
 import { Button, Sheet, Skeleton } from "./design/components";
 
@@ -156,7 +177,7 @@ function mapAllowed(): boolean {
   }
 }
 
-type Screen = "map" | "pinpick" | "confirm" | "searching" | "finished" | "schedule" | "family";
+type Screen = "map" | "pinpick" | "confirm" | "searching" | "finished" | "failed" | "schedule" | "family";
 // mirror of server RATING_TAGS (bookingPlus) — kept in sync manually (shared has no DTO for it)
 const RIDE_TAGS = ["Toza mashina", "Xushmuomala", "Tez yetib keldi", "Sekin haydadi", "Mashina eski"];
 
@@ -355,6 +376,15 @@ function Booking3Inner({ me, info, onClose }: { me: MeResponse; info: BookingInf
   }, [active?.id, active?.driver?.carNumber]);
   const activeRef = useRef<ActiveBookingView | null>(info.active ?? null); // E7: detect active→null finish
   const [finishedBid, setFinishedBid] = useState<number | null>(null); // E7: the just-finished ride
+  // 🪙 Jonli qidiruv: when THIS search began (client-side, display only — the server times the real
+  // payout via waitstart markers) + the frozen estimate shown on the "topilmadi" apology screen.
+  const waitStartRef = useRef<number | null>(null);
+  const [failedComp, setFailedComp] = useState(0);
+  useEffect(() => {
+    // app re-opened mid-search (reload/deep-link): start the ticker NOW — undercounts vs the
+    // server's waitstart marker, which is the safe direction (display never overstates the payout)
+    if (active && !active.driver && !waitStartRef.current) waitStartRef.current = Date.now();
+  }, [active]);
   const [stars, setStars] = useState(0);
   const [rateTags, setRateTags] = useState<string[]>([]);
   const [rated, setRated] = useState(false);
@@ -793,13 +823,26 @@ function Booking3Inner({ me, info, onClose }: { me: MeResponse; info: BookingInf
       ]);
       if (!alive) return;
       if (near) setFreeDrivers(Math.max(near.freeDrivers, GHOST_FREE + GHOST_RIDES)); // server-inflated; keep ghost floor
-      // E7: ride finished — had an active ride last poll, now gone → peak-end finish screen.
-      // DISPLAY only: rewards were granted by the bot sweep; the Mini App never grants.
+      // E7: ride finished — had an active ride last poll, now gone. TWO endings:
+      // driver existed → peak-end finish screen; NO driver ever accepted (search died on kas's
+      // side) → honest apology screen ("failed") with the next-ride voucher estimate. DISPLAY only:
+      // the voucher itself was recorded by the bot sweep; the Mini App never grants.
       if (!a && activeRef.current) {
-        setFinishedBid(activeRef.current.id);
-        setScreen("finished");
-        confetti();
-        haptic();
+        if (activeRef.current.driver) {
+          setFinishedBid(activeRef.current.id);
+          setScreen("finished");
+          confetti();
+          haptic();
+        } else {
+          if (info.waitComp && waitStartRef.current) {
+            const { graceSec, fullSec, ceiling } = info.waitComp;
+            const el = Math.floor((Date.now() - waitStartRef.current) / 1000);
+            const eff = Math.max(0, Math.min(el, fullSec) - graceSec);
+            setFailedComp(Math.floor(ceiling * (eff / Math.max(1, fullSec - graceSec))));
+          } else setFailedComp(0);
+          setScreen("failed");
+          haptic();
+        }
       }
       activeRef.current = a;
       setActive(a); // B: real status — searching → accepted (only when a driver actually takes it) → arrived
@@ -975,6 +1018,7 @@ function Booking3Inner({ me, info, onClose }: { me: MeResponse; info: BookingInf
       });
       if (r.ok) {
         confetti();
+        waitStartRef.current = Date.now(); // the compensation ticker starts with the search
         setScreen("searching");
         setMsg(r.live ? "🔍 Haydovchi qidirilyapti…" : "🧪 TEST rejimi — haqiqiy taxi chaqirilmadi");
       } else {
@@ -1016,6 +1060,8 @@ function Booking3Inner({ me, info, onClose }: { me: MeResponse; info: BookingInf
     setStars(0);
     setRateTags([]);
     setRated(false);
+    waitStartRef.current = null;
+    setFailedComp(0);
   };
 
   // M7: label the dragged pin with the nearest REAL catalog place (~111 places cover the city, so
@@ -1226,22 +1272,22 @@ function Booking3Inner({ me, info, onClose }: { me: MeResponse; info: BookingInf
               </div>
             </>
           ) : (
-            // searching — no driver yet; show the honest notified count, never "accepted"
+            // 🔍 Jonli qidiruv — honest status ladder (operational transparency beats distraction;
+            // 3-model consult 2026-07-02) + the passive compensation ticker. The driver-card branch
+            // above replaces ALL of this the instant a driver actually accepts.
             <>
               <div className="b3-radar"><span /><span /><span />🚕</div>
               <div className="b3-search-title">🔍 Haydovchi qidirilyapti…</div>
-              <div className="dim tac fs13">
-                {active?.notifiedCount
-                  ? `📨 ${active.notifiedCount} haydovchiga yuborildi · javob kutilmoqda`
-                  : freeDrivers > 0
-                    ? `🚖 ${freeDrivers} bo'sh mashina yaqinda`
-                    : "haydovchi javobini kutmoqda…"}
+              <div className="b3-ladder">
+                <div className="b3-lstep done"><i>✓</i><span>Buyurtma yuborildi</span></div>
+                <div className={`b3-lstep ${active?.notifiedCount ? "done" : "now"}`}>
+                  <i>{active?.notifiedCount ? "✓" : "●"}</i>
+                  <span>{active?.notifiedCount ? `${active.notifiedCount} haydovchiga yetkazildi` : "Haydovchilarga yetkazilmoqda…"}</span>
+                </div>
+                <div className="b3-lstep now"><i>●</i><span>Javob kutilmoqda…</span></div>
               </div>
-              {/* 🪙 ovunish o'yini — kutishni zerikarli bo'lmasligi uchun. Haydovchi topilishi bilan bu
-                  butun tarmoq (driver yo'q) o'rniga driver-karta render bo'ladi → o'yin o'zi yo'qoladi
-                  (unmount), shu bilan safar tugagach hisoblangan real to'lov hech qachon to'sqinlik
-                  qilmaydi. waitComp=null (flag OFF) bo'lsa — o'yin sof zavq, taxminiy summa ko'rsatilmaydi. */}
-              <WaitGame waitComp={info.waitComp} />
+              {freeDrivers > 0 && <div className="dim tac fs12">🚖 {freeDrivers} bo'sh mashina yaqinda</div>}
+              <WaitTicker waitComp={info.waitComp} startAt={waitStartRef.current} />
             </>
           )}
           <Button variant="danger" disabled={busy} onClick={cancel}>✖ Bekor qilish</Button>
@@ -1280,6 +1326,22 @@ function Booking3Inner({ me, info, onClose }: { me: MeResponse; info: BookingInf
             </>
           )}
           <Button variant="ghost" onClick={rebook}>🔁 Yana 1067</Button>
+        </div>
+      )}
+
+      {/* ── 😔 "topilmadi" — the search died with NO driver ever accepting. Honest apology +
+          the next-ride voucher (recorded server-side; the number here is the same-ramp estimate).
+          The retention moment: the rider's money is WAITING for them — reason to come back. ── */}
+      {screen === "failed" && (
+        <div className="b3-sheet b3-finish">
+          <div className="b3-grip" />
+          <div className="b3-finish-emoji">😔</div>
+          <div className="b3-sheet-title tac">Uzr — mashina topib bera olmadik</div>
+          <div className="dim tac fs13 mt6">Hozir bo'sh haydovchi chiqmadi. Bu bizning aybimiz.</div>
+          {failedComp > 0 && (
+            <div className="b3-voucher">🎁 <b>+{formatNumber(failedComp)} tanga</b> keyingi safaringizda sizni kutadi</div>
+          )}
+          <Button onClick={rebook}>🔁 Qayta urinib ko'rish</Button>
         </div>
       )}
 

@@ -95,10 +95,12 @@ export async function reconciliationWatch(): Promise<void> {
   });
   for (const m of rich) await flagMember(m.id, `safarısız ${Math.floor(m.coins)} tanga`);
 
-  // transfer fan-in: ≥5 distinct senders → one recipient in 24h (mule funnel)
+  // transfer fan-in: ≥5 distinct senders → one recipient in 24h (mule funnel).
+  // ONLY genuine P2P gifts (kind "transfer") count — `fare`/`tip` are riders paying a DRIVER, which
+  // is the normal business (many riders → one driver) and must never freeze a driver's withdraw.
   const inflows = await prisma.transfer.groupBy({
     by: ["toMemberId", "fromMemberId"],
-    where: { createdAt: { gte: since } },
+    where: { createdAt: { gte: since }, kind: "transfer" },
   });
   const fanIn = new Map<number, number>();
   for (const t of inflows) fanIn.set(t.toMemberId, (fanIn.get(t.toMemberId) ?? 0) + 1);

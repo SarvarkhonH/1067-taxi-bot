@@ -269,3 +269,13 @@ STATUS (Rule 7): `ready for verification`. Compliance-report 5 gap yopildi; kodn
   looplar → 3-virality → 4-admin. 2.1 = "Jonli qidiruv" kutish-redizayni (3-model konsili: o'yin EMAS,
   shaffoflik + passiv kompensatsiya) — ega vizual kontseptni ko'rdi, QABUL kutilmoqda.
 - Admin "Nazorat" tab kontsepti ko'rsatildi (jonli oqim, salomatlik, emissiya, tinch-rejim, user-karta).
+
+## 2026-07-02 (tun) — "Jonli qidiruv" QURILDI (o'yin o'chirildi) — ready for verification
+- Ega tap-o'yinni rad etdi ("bachkana") + spec berdi: ~500/daq, 3 daqiqagacha, topilmasa ham kutish
+  bekor ketmasin. 3-model konsili (Opus/Sonnet/Haiku) bir ovozdan: shaffoflik > chalg'itish.
+- Qurildi (flag "waitcomp" hali DARK): PASSIV kompensatsiya (score-gate olib tashlandi, waitGame.tsx
+  O'CHIRILDI); knob defaults 30s grace / 180s full / 1500 ceiling; "topilmadi" VAUCHERI — mashina
+  chiqmasa summa keyingi TUGALLANGAN safarda to'lanadi (farm-yopiq, retention-hook) + bot uzr-xabari
+  + Mini App uzr-ekrani; qidiruv-ekranda halol zinapoya + jonli ticker.
+- Isbot: testWaitComp 16/16 YASHIL ×3 (TEST DB), tsc yashil (server+miniapp), vite build yashil,
+  leftover-grep 0. Ega QABUL'i kutilmoqda: telefonda ko'rish → setFlag waitcomp on.

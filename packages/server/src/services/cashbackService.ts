@@ -135,31 +135,38 @@ function tashkentDay(d = new Date()): string {
   return new Date(d.getTime() + 5 * 3600 * 1000).toISOString().slice(0, 10);
 }
 
+/** Shared grace→ceiling ramp — the ONE formula for accrual, voucher amount, and the client preview. */
+async function waitCompAmount(waitSeconds: number): Promise<number> {
+  const econ = await getBonusEcon();
+  const grace = Math.max(0, econ.waitCompGraceSec ?? 30);
+  const full = Math.max(grace + 1, econ.waitCompFullSec ?? 180);
+  const ceiling = Math.max(0, econ.waitCompCeiling ?? 1500);
+  const effective = Math.max(0, Math.min(waitSeconds, full) - grace);
+  return Math.floor(ceiling * (effective / (full - grace)));
+}
+
 /**
  * 🪙 Wait compensation (feature "waitcomp"): tanga for search time before a driver accepted —
- * OUR failure to match fast, not a skill reward, so it's OUTSIDE the ≤350/ride clamp and instead
- * bounded by its own daily company-wide budget (waitCompDailyBudget). Grace period → linear ramp to
- * the ceiling; gated on `score > 0` (must have actually played, not just left the app open).
+ * OUR failure to match fast (apology model), so it's OUTSIDE the ≤350/ride clamp and instead
+ * bounded by its own daily company-wide budget (waitCompDailyBudget). PASSIVE: no game, no score —
+ * the wait itself earns (owner rejected the tap-game as "bachkana"). Farm-safe because it pays ONLY
+ * at ride-finish (a cancelled search pays nothing directly — see the voucher below).
  * Idempotent per (member, booking) via the WaitCompReward unique row — a re-polled finish-sweep
  * grants nothing on the second attempt. Called ONLY from the ride-finish branch of the booking sweep
  * (server-authoritative; the Mini App never grants), same place as rollRideCashback.
  */
-export async function awardWaitComp(memberId: number, bookingId: number, waitSeconds: number, score: number): Promise<number> {
-  if (!(await featureOn("waitcomp")) || score <= 0 || waitSeconds <= 0) return 0;
-  const econ = await getBonusEcon();
-  const grace = Math.max(0, econ.waitCompGraceSec ?? 20);
-  const full = Math.max(grace + 1, econ.waitCompFullSec ?? 300);
-  const ceiling = Math.max(0, econ.waitCompCeiling ?? 2000);
-  const effective = Math.max(0, Math.min(waitSeconds, full) - grace);
-  let amount = Math.floor(ceiling * (effective / (full - grace)));
+export async function awardWaitComp(memberId: number, bookingId: number, waitSeconds: number): Promise<number> {
+  if (!(await featureOn("waitcomp")) || waitSeconds <= 0) return 0;
+  let amount = await waitCompAmount(waitSeconds);
   if (amount <= 0) return 0;
+  const econ = await getBonusEcon();
 
   const dayKey = tashkentDay();
   // Idempotent insert-first, exactly like rollRideCashback's RideReward: the unique row wins the
   // race, so a duplicate sweep tick / retry can never double-pay this ride.
   let rewardId: number;
   try {
-    const row = await prisma.waitCompReward.create({ data: { memberId, bookingId, waitSeconds, score, amount, dayKey } });
+    const row = await prisma.waitCompReward.create({ data: { memberId, bookingId, waitSeconds, score: 0, amount, dayKey } }); // score column is legacy (game removed) — kept 0 until the Phase-3 schema pass
     rewardId = row.id;
   } catch {
     return 0; // already awarded for this ride
@@ -182,4 +189,68 @@ export async function awardWaitComp(memberId: number, bookingId: number, waitSec
 
   await grantCoins(memberId, amount, "waitcomp", "🪙 Kutish kompensatsiyasi — haydovchi kutilgan vaqt uchun", `waitcomp:${bookingId}:m${memberId}`);
   return amount;
+}
+
+// ── 🎁 "Topilmadi" vaucheri ───────────────────────────────────────────────────
+// Owner spec: mashina umuman TOPILMASA ham kutish bekor ketmasin — lekin naqd to'lash ochiq ferma
+// bo'lardi (buyurtma→kut→bekor→yig'ish sikli). Shuning uchun summa "KEYINGI safar" vaucheriga
+// aylanadi: faqat keyingi TUGALLANGAN safarda to'lanadi. Retention-mexanika ham o'zi: mijozning
+// puli bizda "kutib turadi" — qaytish sababi. To'lov redeemda awardWaitComp orqali o'tadi, ya'ni
+// WaitCompReward unique (bir marta) + kunlik byudjet nazorati meros qilib olinadi.
+
+interface WaitVoucher {
+  b: number; // source (failed) bookingId — the idempotency anchor at redeem time
+  w: number; // waitSeconds measured server-side when the search died
+  exp: number; // epoch ms
+}
+
+/** Record a next-ride voucher after a FAILED search (no driver ever accepted). Returns the amount
+ *  the voucher is worth right now (for the apology message), 0 if nothing to grant. Idempotent per
+ *  failed booking via the waitvfail:<bookingId> marker. One active voucher per member — a newer
+ *  failure only overwrites a SMALLER or expired one (never shrinks a waiting reward). */
+export async function noteWaitVoucher(memberId: number, srcBookingId: number, waitSeconds: number): Promise<number> {
+  if (!(await featureOn("waitcomp")) || waitSeconds <= 0) return 0;
+  const amount = await waitCompAmount(waitSeconds);
+  if (amount <= 0) return 0;
+  try {
+    await prisma.appState.create({ data: { key: `waitvfail:${srcBookingId}`, value: "1" } });
+  } catch {
+    return 0; // this failed search already produced a voucher (re-polled sweep)
+  }
+  const econ = await getBonusEcon();
+  const exp = Date.now() + Math.max(12, econ.waitVoucherExpiryH ?? 72) * 3600_000;
+  const key = `waitvoucher:${memberId}`;
+  const cur = await prisma.appState.findUnique({ where: { key } }).catch(() => null);
+  if (cur) {
+    try {
+      const v = JSON.parse(cur.value) as WaitVoucher;
+      const curAmount = v.exp > Date.now() ? await waitCompAmount(v.w) : 0;
+      if (curAmount >= amount) return 0; // an equal-or-better voucher is already waiting
+    } catch {
+      /* corrupt row → overwrite below */
+    }
+  }
+  const v: WaitVoucher = { b: srcBookingId, w: waitSeconds, exp };
+  await prisma.appState.upsert({ where: { key }, create: { key, value: JSON.stringify(v) }, update: { value: JSON.stringify(v) } });
+  return amount;
+}
+
+/** Redeem the member's pending voucher on a COMPLETED ride. Pays via awardWaitComp against the
+ *  FAILED booking's id — so the WaitCompReward unique row + daily budget guard both apply. Returns
+ *  the paid amount (0 = no/expired voucher). */
+export async function redeemWaitVoucher(memberId: number): Promise<number> {
+  if (!(await featureOn("waitcomp"))) return 0;
+  const key = `waitvoucher:${memberId}`;
+  const row = await prisma.appState.findUnique({ where: { key } }).catch(() => null);
+  if (!row) return 0;
+  let v: WaitVoucher;
+  try {
+    v = JSON.parse(row.value) as WaitVoucher;
+  } catch {
+    await prisma.appState.delete({ where: { key } }).catch(() => undefined);
+    return 0;
+  }
+  await prisma.appState.delete({ where: { key } }).catch(() => undefined); // consume first — a crash retry re-reads nothing, and the awardWaitComp unique row already guards double-pay
+  if (!v.exp || v.exp <= Date.now()) return 0; // expired quietly
+  return awardWaitComp(memberId, v.b, v.w);
 }
