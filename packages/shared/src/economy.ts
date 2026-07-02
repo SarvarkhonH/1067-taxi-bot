@@ -96,7 +96,7 @@ export const TRANSFER_MIN_ACCOUNT_AGE_H = 0; // new accounts can transfer immedi
 // is a kas identity, not a farm mule; the withdraw gate still bounds real money out).
 export const FARE_MAX_PER_TX = 200000;
 
-// ── 💸 dashboard-configurable transfer commission (owner-tunable, like MOTOR_ECON_KNOBS) ─────
+// ── 💸 dashboard-configurable transfer commission (owner-tunable knobs) ─────
 // commissionPct is a PERCENT (1 = 1%), charged ON TOP of the amount to the SENDER; the recipient
 // receives the full amount and the fee is booked to the PlatformLedger. Gated by the "komissiya"
 // feature flag (DEFAULT_OFF) so it ships dark until owner QABUL.
@@ -122,7 +122,7 @@ export function inflateOnline(real: number): number {
   return Math.round((real || 0) * ONLINE_DISPLAY_MULT);
 }
 
-// ── 🎁 dashboard-configurable acquisition bonuses (owner-tunable, like MOTOR_ECON_KNOBS) ──────
+// ── 🎁 dashboard-configurable acquisition bonuses (owner-tunable knobs) ──────
 // The growth levers the owner tunes WITHOUT a deploy. `firstRide` is the single first-ride bonus
 // (welcome + referee + recruit-welcome all read it); the rest are the per-flow sharer rewards.
 // Defaults match the shipped code constants (REFEREE_REWARD=5000, REFERRER_REWARD=1500, …).
