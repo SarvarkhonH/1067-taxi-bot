@@ -98,14 +98,7 @@ export async function pushEngineTick(bot: Bot): Promise<void> {
       if (sent) continue;
     }
 
-    // ④ garage service due (ownership nudge)
-    const dueCar = await prisma.memberCar.findFirst({ where: { memberId: m.id, isEquipped: true, ridesSinceService: { gte: 25 } } });
-    if (dueCar) {
-      const sent = await trySend(bot, chatId, m.id, "garage_service", `🔧 Mashinangizga moy almashtirish kerak — hozir u <b>yarim tezlikda</b> ishlayapti. «🎁 Bonuslar» → Garaj.`);
-      if (sent) continue;
-    }
-
-    // ⑤ big jackpot teaser
+    // ④ big jackpot teaser
     if (jackpot >= 20000) {
       await trySend(bot, chatId, m.id, "jackpot", `🎰 JACKPOT <b>${formatNumber(jackpot)} tanga</b>ga yetdi!\nHar safarda 1% imkon — butun jamg'arma sizniki bo'lishi mumkin. 🚕`);
     }

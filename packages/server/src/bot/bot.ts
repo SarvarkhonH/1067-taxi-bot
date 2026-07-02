@@ -36,7 +36,6 @@ import {
   renderDriverPanel,
   renderEarnPush,
   renderLeaderboard,
-  renderMahalla,
   renderLinkPrompt,
   renderMissions,
   renderNotFound,
@@ -699,24 +698,6 @@ export function createBot(): Bot {
     });
   });
 
-  // 🏘 V5 — mahalla (gap-vs-gap) league
-  const showMahalla = async (ctx: Context) => {
-    const me = await getMe(String(ctx.from!.id));
-    if (!me) {
-      await promptLink(ctx);
-      return;
-    }
-    const { featureOn } = await import("../services/featureFlags");
-    if (!(await featureOn("mahalla"))) {
-      await ctx.reply("🏘 Mahalla ligasi tez orada!");
-      return;
-    }
-    const { getMahallaBoard } = await import("../services/mahallaService");
-    await ctx.reply(renderMahalla(await getMahallaBoard(me.member.id)), { parse_mode: "HTML" });
-  };
-  bot.hears("🏘 Mahalla", showMahalla);
-  bot.command("mahalla", showMahalla);
-
   // 🚗 driver panel: earnings (tips + transfers in), recent ledger, cash-out hint
   const showDriverPanel = async (ctx: Context) => {
     const me = await getMe(String(ctx.from!.id));
@@ -1330,31 +1311,6 @@ export function createBot(): Bot {
   // 🤖 AI-1 rules-first free text: runs AFTER booking's own text handler
   // (which next()s when no session is waiting). Buttons stay the main UX —
   // this just catches "bozorga taksi kerak" style messages.
-  // V2 AI brain: a pending "schedule this ride?" offer per member (in-process, single-instance).
-  const pendingSchedule = new Map<number, { addrId: number; name: string; runMs: number }>();
-  bot.callbackQuery("bk:sched", async (ctx) => {
-    await ctx.answerCallbackQuery().catch(() => undefined);
-    const me = await getMe(String(ctx.from!.id));
-    if (!me) return;
-    const p = pendingSchedule.get(me.member.id);
-    if (!p) {
-      await ctx.reply("Reja muddati o'tdi — qaytadan yozing (masalan: «ertaga 8:00 ishxonaga»).");
-      return;
-    }
-    pendingSchedule.delete(me.member.id);
-    const { createScheduled } = await import("../services/scheduledService");
-    const { fmtRideTime } = await import("../services/ai/concierge");
-    const r = await createScheduled(me.member.id, p.addrId, p.name, new Date(p.runMs).toISOString());
-    if (r.ok) {
-      await ctx.reply(
-        `✅ <b>Rejalashtirildi!</b>\n📍 ${p.name}\n⏰ ${fmtRideTime(new Date(p.runMs))}\n\nVaqti kelganda mashina avtomatik chaqiriladi. Bekor qilish: «📍 Buyurtmam».`,
-        { parse_mode: "HTML" },
-      );
-    } else {
-      const why: Record<string, string> = { too_soon: "kamida 15 daqiqa oldin bo'lsin", too_far: "7 kun ichida bo'lsin", too_many: "3 tadan ortiq reja bo'lmaydi", no_phone: "telefon ulanmagan", bad_time: "vaqt noto'g'ri" };
-      await ctx.reply(`⚠️ Rejalashtirib bo'lmadi: ${why[r.reason ?? ""] ?? "xatolik"}.`);
-    }
-  });
   // Save incoming messages for admin support chat
   bot.on("message:text", async (ctx, next) => {
     const id = String(ctx.from!.id);
@@ -1367,7 +1323,6 @@ export function createBot(): Bot {
 
   bot.on("message:text", async (ctx) => {
     const { parseIntent, aiSupport, resolveAddress } = await import("../services/ai/intent");
-    const { featureOn } = await import("../services/featureFlags");
     const intent = parseIntent(ctx.message.text);
     if (intent.type === "faq") {
       await ctx.reply(intent.answer + "\n\n☎️ Operator: 1067", { reply_markup: undefined });
@@ -1375,28 +1330,11 @@ export function createBot(): Bot {
     }
     if (intent.type === "book") {
       const { InlineKeyboard } = await import("grammy");
-      const aibrain = await featureOn("aibrain");
       const found = intent.addressQuery ? await resolveAddress(intent.addressQuery) : [];
-      // V2: real conversational scheduling — "ertaga 8:00 ishxonaga" → confirm → createScheduled
-      if (aibrain && intent.when === "later") {
-        const { parseRideTime, fmtRideTime } = await import("../services/ai/concierge");
-        const when = parseRideTime(ctx.message.text);
-        const me = await getMe(String(ctx.from!.id));
-        if (when && found.length && me) {
-          pendingSchedule.set(me.member.id, { addrId: found[0]!.id, name: found[0]!.name, runMs: when.getTime() });
-          const kb = new InlineKeyboard().text("✅ Ha, rejalashtir", "bk:sched").row().text("🚕 Hozir chaqirish", "bk:now");
-          await ctx.reply(`🤖 <b>Rejali safar</b>\n📍 ${found[0]!.name}\n⏰ ${fmtRideTime(when)}\n\nShu vaqtga rejalashtiraymi?`, { parse_mode: "HTML", reply_markup: kb });
-          return;
-        }
-      }
       const kb = new InlineKeyboard();
       for (const a of found) kb.text(`📍 ${a.name}`, `bk:addr:${a.id}`).row();
       kb.text("🚕 1-bosishda chaqirish", "bk:now");
-      const later = intent.when === "later"
-        ? aibrain
-          ? `\n⏰ Vaqt va manzilni yozing — masalan: «ertaga 8:00 ishxonaga»`
-          : `\n⏰ ${intent.timeText ?? "Keyinroqqa"} — rejali safar tez orada!`
-        : "";
+      const later = intent.when === "later" ? `\n⏰ ${intent.timeText ?? "Keyinroqqa"} — rejali safar tez orada!` : "";
       await ctx.reply(`🚕 Taksi kerak shekilli!${later}\nQuyidan tanlang:`, { reply_markup: kb });
       return;
     }

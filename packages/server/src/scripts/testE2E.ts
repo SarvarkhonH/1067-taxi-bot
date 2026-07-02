@@ -24,8 +24,6 @@ const SUITES = [
   "testAuthGate.ts", // admin auth (owner vs operator) + operator-token revoke
   "testCorpGuard.ts", // corp balance guard: NaN/0/over-debit rejected, never negative
   "testMarket.ts", // market buy/redeem + per-user-cap race (concurrent buys → 1 voucher)
-  "testTolqin.ts", // V4 game: tanga-only daily cap holds, one-time token, idempotent
-  "testGaraj.ts", // 🏆 GARAJ v2: kill-switch · idempotent acquire/diagnose/repair · flip outside clamp · B4 daily cap · ledger
   "testRecruitFeedback.ts", // 🚖 QR recruit: fresh scan attaches (+driver notify), existing user ignored, pending count
   "testSelfRegister.ts", // 🆕 self-register (non-kas phone) + adopt-in-place reconciliation (no dup, tangas kept, withdraw gated)
   "testVerifyCode.ts", // 🔑 4-digit link code: single-use, rate-limit lock (no brute-force), TTL expiry

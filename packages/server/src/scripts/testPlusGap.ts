@@ -4,7 +4,6 @@ import "../env";
 import { prisma } from "../db";
 import { grantCoins } from "../services/coinService";
 import { subscribePlus, isPlus, PLUS_PRICE } from "../services/plusService";
-import { buyCar, earnForRide } from "../services/garageService";
 import { createGap, joinGap, getGapView, settleGapsWeekly, GAP_MAX } from "../services/gapService";
 import { fundAddRide, fundTotal, setFeature, featureOn } from "../services/featureFlags";
 import { createCorp, addCorpEmployee, adjustCorpBalance, corpReport } from "../services/corpService";
@@ -22,7 +21,6 @@ async function cleanup(): Promise<void> {
   const gaps = await prisma.gap.findMany({ where: { creatorId: { in: ids } } });
   await prisma.gapMember.deleteMany({ where: { OR: [{ memberId: { in: ids } }, { gapId: { in: gaps.map((g) => g.id) } }] } });
   await prisma.gap.deleteMany({ where: { id: { in: gaps.map((g) => g.id) } } });
-  await prisma.memberCar.deleteMany({ where: { memberId: { in: ids } } });
   await prisma.rideReward.deleteMany({ where: { memberId: { in: ids } } });
   await prisma.appState.deleteMany({ where: { key: { in: ["mashina_fund", "fundride:888001", "fundride:888002"] } } });
   await prisma.appState.deleteMany({ where: { key: { startsWith: "gap_settle:" } } });
@@ -59,12 +57,6 @@ async function main(): Promise<void> {
   const after = (await prisma.member.findUnique({ where: { id: a.id } }))!.coins;
   ok(t3.ok && !t3.free && before - after === PLUS_PRICE, `renewal burns ${PLUS_PRICE} (sink)`);
   ok(isPlus((await prisma.member.findUnique({ where: { id: a.id } }))!), `isPlus true after renewal`);
-
-  // 💎 Plus garage boost: damas 1/min ×1.2 → 10 min = floor(12) = 12 (vs 10)
-  await grantCoins(a.id, 5000, "manual", "seed2");
-  await buyCar(a.id, "damas");
-  const earn = await earnForRide(a.id, 888100, 10);
-  ok(earn?.amount === 12, `Plus garage +20% (10 min damas → 12, got ${earn?.amount})`);
 
   // 👬 Gap: create, join, dup-join, need_ride, full-at-5 creator bonus
   const g1 = await createGap(b.id, "Test Gap");

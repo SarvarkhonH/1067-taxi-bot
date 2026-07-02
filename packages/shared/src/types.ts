@@ -46,8 +46,6 @@ export interface MeResponse {
   idleDays?: number; // days since last qualifying activity (for display)
   flags?: {
     booking3?: boolean;
-    garajx?: boolean;
-    tolqin?: boolean;
     livinghome?: boolean;
     intercity?: boolean; // 🚐 nationwide intercity seat-booking tab
     tierloyalty?: boolean; // 🏅 tier reward loop (multiplier + ball + decay) — UI reveals benefits only when ON

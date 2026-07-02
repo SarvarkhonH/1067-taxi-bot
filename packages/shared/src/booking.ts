@@ -55,7 +55,7 @@ export interface ActiveBookingView {
   canCancel: boolean; // early status only
   driver: BookingDriverView | null;
   notifiedCount?: number; // T4-B: drivers notified (carNumberList) — honest "N haydovchiga yuborildi" while searching
-  rideStartedAt?: string | null; // T5-E6: ISO time the ride started (status=started) → live garage counter
+  rideStartedAt?: string | null; // T5-E6: ISO time the ride started (status=started)
 }
 
 export interface BookingInfoResponse {
@@ -75,8 +75,6 @@ export interface BookingInfoResponse {
   tariff: { minimalPayment: number; minimalDistanceKm: number; perKmCity: number; perMinute: number } | null;
   booking3?: boolean; // T4: feature flag — show the MapLibre flow vs the old Leaflet one
   livinghome?: boolean; // V1: feature flag — show the living AI home screen
-  tolqin?: boolean; // V4: feature flag — Yashil to'lqin skill game
-  garajx?: boolean; // 🏆 GARAJ v2: feature flag — the new full-screen restoration game
   // 🪙 wait compensation (feature "waitcomp"): null when OFF. Lets the Mini App render a LIVE, honest
   // running estimate while searching (the real payout is server-timed at ride-finish — this is a
   // client-side preview using the same knobs, not the source of truth).

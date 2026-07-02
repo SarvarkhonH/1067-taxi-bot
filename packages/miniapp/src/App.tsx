@@ -4,7 +4,7 @@ const DesignDemo = lazy(() => import("./design/demo")); // #demo dagina yuklanad
 import type { LeaderboardResponse, MeResponse } from "@t1067/shared";
 import { api, getInitData, waitForInitData } from "./api";
 import { haptic, tg } from "./telegram";
-import { LeaderboardView, LoadError, MahallaSection, MissionsView, ReferralView, RideHistoryView, Spinner } from "./components";
+import { LeaderboardView, LoadError, MissionsView, ReferralView, RideHistoryView, Spinner } from "./components";
 import { AccountCard, TierLadder, TierLadderCompact, WalletView } from "./wallet"; // bosh tab — eager (birinchi paint)
 import { UyView } from "./uy"; // Uy tabi — yengil (leaflet-siz), eager
 // T2 (AUDIT 2.9): boshqa tablar lazy — har biri alohida chunk, asosiy bundle kichrayadi
@@ -14,16 +14,12 @@ const DriverView = lazy(() => import("./driver").then((m) => ({ default: m.Drive
 const Booking3View = lazy(() => import("./booking3").then((m) => ({ default: m.Booking3View })));
 // V1: living AI home — lazy (loads Leaflet); shown on the home tab when feature:livinghome ON
 const LivingHome = lazy(() => import("./home").then((m) => ({ default: m.LivingHome })));
-// 🏎 Motor Olami — the full-screen earning game (was GARAJ); opens via the Motor tab + 🏎 FAB
-const GarajShell = lazy(() => import("./garaj").then((m) => ({ default: m.GarajShell })));
-const GarajDemo = lazy(() => import("./garaj").then((m) => ({ default: m.GarajDemo })));
-const GarajCollectionSheet = lazy(() => import("./garaj").then((m) => ({ default: m.GarajCollectionSheet })));
 // 🚐 Yo'l — nationwide intercity seat booking (gated by feature `intercity`)
 const IntercityView = lazy(() => import("./intercity").then((m) => ({ default: m.IntercityView })));
 import { Icon } from "./icons";
 import { useCountUp } from "./util";
 
-type Tab = "uy" | "wallet" | "play" | "garaj" | "market" | "reyting" | "yol" | "driver" | "profile";
+type Tab = "uy" | "wallet" | "play" | "reyting" | "yol" | "driver" | "profile";
 
 // ── `me` stale-while-revalidate cache (instant repeat opens, hides cold-start) ──
 // Keyed by the Telegram user id so a shared device never shows one user another's cached data.
@@ -62,13 +58,12 @@ function clearMeCache(): void {
   }
 }
 
-// 5 aniq tab: Uy (taxi-first) · Hamyon (pul) · O'yin (bonus+vazifa) · 🏎 Motor (Motor Olami — bozor
-// uning ICHIDA) · Reyting (liga+do'st). Motor tab to'liq ekran GarajShell'ni ochadi (overlay).
+// 4 aniq tab: Uy (taxi-first) · Hamyon (pul) · O'yin (bonus+vazifa) · Reyting (liga+do'st).
+// `intercity` ON bo'lsa Yo'l 5-tab sifatida qo'shiladi (pastda swapForYol).
 const BASE_TABS: { id: Tab; icon: string; label: string }[] = [
   { id: "uy", icon: "home", label: "Uy" },
   { id: "wallet", icon: "wallet", label: "Hamyon" },
   { id: "play", icon: "games", label: "O'yin" },
-  { id: "garaj", icon: "car", label: "Motor" },
   { id: "reyting", icon: "league", label: "Reyting" },
 ];
 // drivers swap Bozor for their earnings hub
@@ -84,7 +79,7 @@ const GO_MAP: Record<string, Tab> = {
   home: "uy", uy: "uy", wallet: "wallet", hamyon: "wallet",
   tip: "wallet", paydriver: "wallet", pay: "wallet", // 🙏 «Haydovchiga to'lash» → hamyon ekrani; wallet.tsx avto-ochadi pay-driver sheet'ni
   rewards: "play", missions: "play", play: "play", bonus: "play", vazifa: "play",
-  market: "uy", bozor: "uy", // 🏎 Motor Olami opens via the `garaj` overlay (readGo handled separately), not a content tab
+  market: "uy", bozor: "uy", // eski bozor deep-linklar → Uy
   league: "reyting", friends: "reyting", reyting: "reyting", liga: "reyting", dost: "reyting",
   yol: "yol", intercity: "yol", reys: "yol", // 🚐 shaharlararo
   driver: "driver", profile: "profile",
@@ -109,14 +104,6 @@ export function App() {
       </Suspense>
     );
   }
-  if (window.location.hash === "#garajdemo") {
-    return (
-      <Suspense fallback={<div className="boot"><div className="boot-logo">🏆</div></div>}>
-        <GarajDemo />
-      </Suspense>
-    );
-  }
-
   // Stale-while-revalidate: hydrate `me` from the last cached payload so a repeat open renders the
   // app INSTANTLY (no BootSplash, no cold-start wait) and the real data refreshes in the background.
   const cachedMe = readMeCache();
@@ -128,9 +115,6 @@ export function App() {
   const [board, setBoard] = useState<LeaderboardResponse | null>(null);
   const [boardErr, setBoardErr] = useState(false);
   const [livinghome, setLivinghome] = useState(false);
-  const [garajx, setGarajx] = useState(false); // 🏆 GARAJ v2 feature flag
-  const [garaj, setGaraj] = useState(() => { const g = readGo(); return g === "garaj" || g === "motor"; }); // 🏎 Motor Olami full-screen (tab + fab launcher + deep-link)
-  const [collectionTarget, setCollectionTarget] = useState<{ id: number; name: string } | null>(null); // Reyting → player garage
   const [error, setError] = useState<string | null>(null);
   const [toast, setToast] = useState<{ id: number; msg: string } | null>(null);
   const [booking, setBooking] = useState(() => readGo() === "book");
@@ -181,7 +165,6 @@ export function App() {
           // flags piggy-backed on /api/me — no separate bookingInfo call needed
           if (me.flags) {
             setLivinghome(!!me.flags.livinghome);
-            setGarajx(!!me.flags.garajx);
           }
         }
       })
@@ -210,9 +193,6 @@ export function App() {
   if (booking) return <Suspense fallback={<BootSplash />}><Booking3View me={me} onClose={() => setBooking(false)} /></Suspense>;
   if (invite) return <div className="app"><main className="content"><ReferralView onClose={() => setInvite(false)} /></main></div>;
   if (history) return <div className="app"><main className="content"><RideHistoryView onClose={() => setHistory(false)} /></main></div>;
-  // garajx render-gate: catches EVERY entry (FAB, deep-link ?go=motor, stale tab state) — with the
-  // flag off the shell can never mount, so removed-game UI is unreachable even via old links.
-  if (garaj && garajx) return <Suspense fallback={<BootSplash />}><GarajShell onClose={() => { setGaraj(false); reload(); }} /></Suspense>;
 
   const go = (t: Tab) => {
     if (t === tab) return;
@@ -237,13 +217,12 @@ export function App() {
     setTimeout(() => setToast((c) => (c && Date.now() - c.id >= 3500 ? null : c)), 3600);
   };
 
-  // 🚐 Yo'l takes the Motor slot (rider) / O'yin slot (driver) when `intercity` is ON —
-  // NOT a 6th tab. Motor Olami stays reachable via the floating 🏎 FAB below.
+  // 🚐 Yo'l: rider'da 5-tab sifatida QO'SHILADI, driver'da O'yin slotini almashtiradi (5 tab qoladi).
   const hasIntercity = !!me.flags?.intercity;
   const YOL_TAB = { id: "yol" as Tab, icon: "route", label: "Yo'l" };
-  const swapForYol = (tabs: { id: Tab; icon: string; label: string }[], replaceId: Tab) =>
-    hasIntercity ? tabs.map((t) => (t.id === replaceId ? YOL_TAB : t)) : tabs;
-  const TABS = me.type === "driver" ? swapForYol(DRIVER_TABS, "play") : swapForYol(BASE_TABS, "garaj");
+  const TABS = me.type === "driver"
+    ? (hasIntercity ? DRIVER_TABS.map((t) => (t.id === "play" ? YOL_TAB : t)) : DRIVER_TABS)
+    : (hasIntercity ? [...BASE_TABS.slice(0, 3), YOL_TAB, ...BASE_TABS.slice(3)] : BASE_TABS);
   const TAB_PCT = 100 / TABS.length;
   const activeIndex = TABS.findIndex((t) => t.id === tab);
 
@@ -295,15 +274,14 @@ export function App() {
             {tab === "play" && (
               <>
                 <TierLadder me={me} />
-                <RewardsView me={me} onReward={flash} hideGarage={garajx} />
+                <RewardsView me={me} onReward={flash} />
                 <MissionsView onReward={flash} />
               </>
             )}
             {tab === "reyting" &&
               (board ? (
                 <>
-                  <LeaderboardView board={board} onRow={garajx ? (id, name) => { setCollectionTarget({ id, name }); } : undefined} />
-                  <MahallaSection />
+                  <LeaderboardView board={board} />
                   <ReferralView />
                 </>
               ) : boardErr ? (
@@ -334,23 +312,13 @@ export function App() {
           <button
             key={t.id}
             className={tab === t.id ? "tab active" : "tab"}
-            onClick={() => (t.id === "garaj" ? (haptic(), setGaraj(true)) : go(t.id))}
+            onClick={() => go(t.id)}
           >
             <Icon name={t.icon} filled={tab === t.id} size={23} />
             <span className="tab-label">{t.label}</span>
           </button>
         ))}
       </nav>
-      {/* 🏎 floating shortcut → Motor Olami — ONLY while garajx is on (removal program: with the
-          flag off the game must be invisible for everyone, including intercity users). */}
-      {garajx && !garaj && (
-        <button className="tolqin-fab" onClick={() => { haptic(); setGaraj(true); }} aria-label="Motor Olami">🏎</button>
-      )}
-      {collectionTarget && (
-        <Suspense fallback={null}>
-          <GarajCollectionSheet memberId={collectionTarget.id} name={collectionTarget.name} onClose={() => setCollectionTarget(null)} />
-        </Suspense>
-      )}
     </div>
   );
 }

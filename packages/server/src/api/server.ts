@@ -168,86 +168,10 @@ export function createApiServer(opts: ApiOptions = {}) {
     res.json({ ok: true, mode: env.KAS_MODE, bot: env.hasBot });
   });
 
-  // 🏆 GARAJ v2 — the new dedicated restoration game. Service no-ops when feature
-  // "garajx" is OFF (DEFAULT_OFF), so these are safe to ship dark before QABUL.
-  app.get("/api/garaj/state", requireUser, withMember2(async (id) => (await import("../services/garajService")).getGarajState(id)));
-  app.post("/api/garaj/acquire", requireUser, rateLimit(20), withMember2(async (id, req) => (await import("../services/garajService")).acquireCar(id, String(req.body?.carCode ?? ""))));
-  app.post("/api/garaj/diagnose", requireUser, rateLimit(20), withMember2(async (id, req) => (await import("../services/garajService")).diagnoseCar(id, Number(req.body?.garajCarId), req.body?.tier === "EXPERT" ? "EXPERT" : req.body?.tier === "TOOL" ? "TOOL" : "VISUAL")));
-  app.post("/api/garaj/repair", requireUser, rateLimit(20), withMember2(async (id, req) => (await import("../services/garajService")).completeRepairTask(id, Number(req.body?.garajCarId), String(req.body?.taskCode ?? "oil_change"), req.body?.style, req.body?.quality)));
-  app.post("/api/garaj/repair-zone", requireUser, rateLimit(30), withMember2(async (id, req) => (await import("../services/garajService")).repairZone(id, Number(req.body?.garajCarId), String(req.body?.zone ?? ""), String(req.body?.partTier ?? "STD"), req.body?.style, req.body?.quality)));
-  app.post("/api/garaj/craft", requireUser, rateLimit(20), withMember2(async (id, req) => (await import("../services/garajService")).garajCraft(id, Number(req.body?.garajCarId), String(req.body?.station ?? ""))));
-  app.post("/api/garaj/craft/speedup", requireUser, rateLimit(20), withMember2(async (id) => (await import("../services/garajService")).garajCraftSpeedup(id)));
-  app.post("/api/garaj/flip", requireUser, rateLimit(10), withMember2(async (id, req) => (await import("../services/garajService")).flipCar(id, Number(req.body?.garajCarId), req.body?.buyerArchetype)));
-  app.post("/api/garaj/onboard/finish", requireUser, rateLimit(10), withMember2(async (id, _req, res) => (await import("../services/garajService")).garajOnboardFinish(id, String(res.locals.telegramId ?? ""))));
-  app.post("/api/garaj/kozshop/buy", requireUser, rateLimit(20), withMember2(async (id, req) => (await import("../services/garajService")).garajKozachaBuy(id, String(req.body?.itemCode ?? ""), Number(req.body?.garajCarId))));
-  app.get("/api/garaj/bazaar", requireUser, withMember2(async (id) => (await import("../services/garajService")).getBazaar(id)));
-  app.post("/api/garaj/bazaar/list", requireUser, rateLimit(10), withMember2(async (id, req) => (await import("../services/garajService")).garajBazaarList(id, Number(req.body?.garajCarId), Number(req.body?.askPrice))));
-  app.post("/api/garaj/bazaar/buy", requireUser, rateLimit(10), withMember2(async (id, req) => (await import("../services/garajService")).garajBazaarBuy(id, Number(req.body?.listingId))));
-  app.post("/api/garaj/bazaar/unlist", requireUser, rateLimit(10), withMember2(async (id, req) => (await import("../services/garajService")).garajBazaarUnlist(id, Number(req.body?.listingId))));
-  app.get("/api/garaj/history", requireUser, withMember2(async (id) => (await import("../services/garajService")).getGarajHistory(id)));
-  app.get("/api/garaj/collection", requireUser, withMember2(async (id, req) => (await import("../services/garajService")).getMemberCollection(id, Number(req.query?.memberId))));
-  app.post("/api/garaj/tow/claim", requireUser, rateLimit(10), withMember2(async (id, req) => (await import("../services/garajService")).claimTowedCar(id, Number(req.body?.dropId))));
-  app.post("/api/garaj/tow/decline", requireUser, rateLimit(20), withMember2(async (id, req) => (await import("../services/garajService")).declineTowedCar(id, Number(req.body?.dropId))));
-  app.get("/api/garaj/auctions", requireUser, withMember2(async (id) => (await import("../services/garajService")).getAuctions(id)));
-  app.post("/api/garaj/auction/create", requireUser, rateLimit(10), withMember2(async (id, req) => (await import("../services/garajService")).garajAuctionCreate(id, Number(req.body?.garajCarId), Number(req.body?.minBid))));
-  app.post("/api/garaj/auction/bid", requireUser, rateLimit(20), withMember2(async (id, req) => (await import("../services/garajService")).garajAuctionBid(id, Number(req.body?.auctionId), Number(req.body?.amount))));
-  // W5 meta + social
-  app.post("/api/garaj/cipher", requireUser, rateLimit(20), withMember2(async (id, req) => (await import("../services/garajService")).garajCipherGuess(id, String(req.body?.guess ?? ""))));
-  app.post("/api/garaj/box/collect", requireUser, rateLimit(10), withMember2(async (id) => (await import("../services/garajService")).collectOfflineBox(id)));
-  app.post("/api/garaj/comeback", requireUser, rateLimit(10), withMember2(async (id) => (await import("../services/garajService")).garajComebackBonus(id)));
-  app.post("/api/garaj/prestige", requireUser, rateLimit(5), withMember2(async (id) => (await import("../services/garajService")).garajPrestige(id)));
-  app.get("/api/garaj/hall", requireUser, withMember2(async () => (await import("../services/garajService")).getHallOfFame()));
-  app.get("/api/garaj/mahalla/league", requireUser, withMember2(async (id) => (await import("../services/garajService")).getMahallaLeague(id)));
-  app.post("/api/garaj/mahalla/create", requireUser, rateLimit(5), withMember2(async (id, req) => (await import("../services/garajService")).mahallaCreate(id, String(req.body?.name ?? ""))));
-  app.post("/api/garaj/mahalla/join", requireUser, rateLimit(10), withMember2(async (id, req) => (await import("../services/garajService")).mahallaJoin(id, String(req.body?.code ?? ""))));
-  app.post("/api/garaj/mahalla/leave", requireUser, rateLimit(10), withMember2(async (id) => (await import("../services/garajService")).mahallaLeave(id)));
-  app.post("/api/garaj/exhibition/submit", requireUser, rateLimit(10), withMember2(async (id, req) => (await import("../services/garajService")).exhibitionSubmit(id, Number(req.body?.garajCarId))));
-  app.post("/api/garaj/exhibition/vote", requireUser, rateLimit(20), withMember2(async (id, req) => (await import("../services/garajService")).exhibitionVote(id, Number(req.body?.entryId))));
-  app.get("/api/garaj/museum", requireUser, withMember2(async (id) => (await import("../services/garajService")).getMuseum(id)));
-  // 🌍 MOTOR OLAMI (v3, gated by "motorolami") — passive «Yig'ish» + public profile
-  app.post("/api/garaj/motor/collect", requireUser, rateLimit(30), withMember2(async (id, req) => (await import("../services/garajService")).motorCollect(id, req.body?.garajCarId ? Number(req.body.garajCarId) : undefined)));
-  app.post("/api/garaj/motor/refuel", requireUser, rateLimit(20), withMember2(async (id, req) => (await import("../services/garajService")).motorRefuel(id, Number(req.body?.garajCarId))));
-  // 🏛 P1-B — 1067 Ofis market-maker endpoints (always-on buyer; daily budget; supply burn)
-  app.get("/api/garaj/ofis/stats", requireUser, async (_req, res) => res.json(await (await import("../services/garajService")).getOfisStats()));
-  app.get("/api/garaj/ofis/bid/:carId", requireUser, async (req, res) => {
-    const r = await (await import("../services/garajService")).getOfisBid(Number(req.params?.carId));
-    res.json(r ?? { error: "not_found" });
-  });
-  app.post("/api/garaj/ofis/sell", requireUser, rateLimit(10), withMember2(async (id, req) => (await import("../services/garajService")).ofisSellToOfis(id, Number(req.body?.garajCarId))));
-  // 🪪 P1-D — slot system
-  app.get("/api/garaj/slot/status", requireUser, withMember2(async (id) => (await import("../services/garajService")).getSlotStatus(id)));
-  app.post("/api/garaj/slot/purchase", requireUser, rateLimit(5), withMember2(async (id) => (await import("../services/garajService")).purchaseSlot(id)));
-  app.post("/api/garaj/slot/refund", requireUser, rateLimit(5), withMember2(async (id) => (await import("../services/garajService")).refundSlot(id)));
-  // 🔍 P1-E — CarCheck (pay-for-truth) + sotuvchi reputatsiyasi
-  app.post("/api/garaj/carcheck", requireUser, rateLimit(15), withMember2(async (id, req) => (await import("../services/garajService")).getCarCheck(id, Number(req.body?.garajCarId), (req.body?.tier === "EKSPERT" ? "EKSPERT" : req.body?.tier === "PREMIUM" ? "PREMIUM" : "ODDIY"))));
-  app.post("/api/garaj/rate-seller", requireUser, rateLimit(10), withMember2(async (id, req) => (await import("../services/garajService")).rateSeller(id, Number(req.body?.listingId), Number(req.body?.stars))));
-  // ✨ P1-F — ORZU board (global Top + per-model #1)
-  app.get("/api/garaj/orzu", requireUser, rateLimit(20), withMember2(async (id) => (await import("../services/garajService")).getOrzuBoard(id)));
-  // 🔗 P2-A — Merge mechanic (sacrifice 1 active car to promote another; supply drops by 1)
-  app.post("/api/garaj/merge", requireUser, rateLimit(5), withMember2(async (id, req) => (await import("../services/garajService")).mergeCars(id, Number(req.body?.keepCarId), Number(req.body?.sacrificeCarId))));
-  // 🚀 P2-C — Speeder booster (10-day, ×N admin-tunable, limited daily stock)
-  app.get("/api/garaj/speeder/state", requireUser, withMember2(async (id) => (await import("../services/garajService")).getSpeederState(id)));
-  app.post("/api/garaj/speeder/buy", requireUser, rateLimit(5), withMember2(async (id, req) => (await import("../services/garajService")).purchaseSpeeder(id, Number(req.body?.garajCarId))));
-  // 🔧 P2-deep-5 — Limited-event parts (detallar): mint (event-gated, hard cap) + install/uninstall
-  app.get("/api/garaj/parts", requireUser, withMember2(async (id) => (await import("../services/garajService")).getPartsState(id)));
-  app.post("/api/garaj/parts/mint", requireUser, rateLimit(10), withMember2(async (id, req) => (await import("../services/garajService")).mintPart(id, String(req.body?.partCode ?? ""))));
-  app.post("/api/garaj/parts/install", requireUser, rateLimit(15), withMember2(async (id, req) => (await import("../services/garajService")).installPart(id, Number(req.body?.partId), Number(req.body?.garajCarId))));
-  app.post("/api/garaj/parts/uninstall", requireUser, rateLimit(15), withMember2(async (id, req) => (await import("../services/garajService")).uninstallPart(id, Number(req.body?.partId))));
-  // 🚗 FAZA2 — model-upgrade ladder (Tiko→Damas→…, #serial saqlanadi). Pure tanga sink. Flag carupgrade.
-  app.post("/api/garaj/upgrade-model", requireUser, rateLimit(10), withMember2(async (id, req) => (await import("../services/garajService")).upgradeCarModel(id, Number(req.body?.garajCarId))));
-  // 🛠 P2-deep-6 — Detal-bozori (parts P2P market): browse + list + buy + cancel
-  app.get("/api/garaj/parts/bazaar", requireUser, withMember2(async (id) => (await import("../services/garajService")).getPartBazaar(id)));
-  app.post("/api/garaj/parts/list", requireUser, rateLimit(10), withMember2(async (id, req) => (await import("../services/garajService")).listPart(id, Number(req.body?.partId), Number(req.body?.askPrice))));
-  app.post("/api/garaj/parts/buy", requireUser, rateLimit(10), withMember2(async (id, req) => (await import("../services/garajService")).buyPart(id, Number(req.body?.listingId))));
-  app.post("/api/garaj/parts/unlist", requireUser, rateLimit(10), withMember2(async (id, req) => (await import("../services/garajService")).cancelPartListing(id, Number(req.body?.listingId))));
-  app.get("/api/garaj/profile/:id", requireUser, withMember2(async (id, req) => (await import("../services/garajService")).getPublicProfile(id, req.params?.id === "me" ? id : Number(req.params?.id))));
-
   app.get("/api/me", requireUser, async (_req, res) => {
-    const [me, booking3, garajx, tolqin, livinghome, intercity, tierloyalty] = await Promise.all([
+    const [me, booking3, livinghome, intercity, tierloyalty] = await Promise.all([
       getMe(res.locals.telegramId as string),
       featureOn("booking3"),
-      featureOn("garajx"),
-      featureOn("tolqin"),
       featureOn("livinghome"),
       featureOn("intercity"),
       featureOn("tierloyalty"),
@@ -256,7 +180,7 @@ export function createApiServer(opts: ApiOptions = {}) {
     // 🏅 owner-preview: admins see the tier-loyalty UI even while the global flag is DARK, so the
     // owner can QABUL the screens before go-live. (The real cashback multiplier stays globally gated.)
     const tierPreview = tierloyalty || isAdmin(res.locals.telegramId as string);
-    res.json({ ...me, flags: { booking3, garajx, tolqin, livinghome, intercity, tierloyalty: tierPreview } });
+    res.json({ ...me, flags: { booking3, livinghome, intercity, tierloyalty: tierPreview } });
   });
 
   // 🏅 Tier ladder benefits — labels derived from LIVE knobs (single source of truth). 60s client cache.
@@ -750,13 +674,11 @@ export function createApiServer(opts: ApiOptions = {}) {
   // ─── Uber-level booking (map + live tracking) ───────────────────────────────
   app.get("/api/booking/info", requireUser, withMember(async (id, req) => {
     const { featureOn } = await import("../services/featureFlags");
-    const [info, flagOn, livinghome, tolqin, garajx] = await Promise.all([getBookingInfo(id), featureOn("booking3"), featureOn("livinghome"), featureOn("tolqin"), featureOn("garajx")]);
+    const [info, flagOn, livinghome] = await Promise.all([getBookingInfo(id), featureOn("booking3"), featureOn("livinghome")]);
     // Booking 3.0 ega-ko'z darvozasi: global flag OFF bo'lsa ham EGA yangi oqimni ko'radi
     // (ilovani oddiy ochib — tasdiqdan oldin preview). QABUL → flag global ON → bu ahamiyatsiz.
-    // 2026-07-02: livinghome/tolqin/garajx preview OLIB TASHLANDI — bular endi "QABUL kutayotgan
-    // dark" emas, o'chirilayotgan tizimlar («chaqmoq-bot» dasturi); ega ham ko'rmasligi kerak.
     const previewer = resolveTelegramId(req) === "6506297119";
-    return { ...info, booking3: flagOn || previewer, livinghome, tolqin, garajx };
+    return { ...info, booking3: flagOn || previewer, livinghome };
   }));
   // V1 living home aggregate: greeting name, usual ride, live cars, balances.
   app.get("/api/home", requireUser, withMember(async (id) => {
@@ -784,27 +706,6 @@ export function createApiServer(opts: ApiOptions = {}) {
       usualRide: q ? { id: q.id, name: q.name } : null,
       todayRides,
     };
-  }));
-  // V5 mahalla league (gap-vs-gap weekly) — gated behind feature:mahalla.
-  app.get("/api/mahalla", requireUser, withMember(async (id) => {
-    const { featureOn } = await import("../services/featureFlags");
-    if (!(await featureOn("mahalla"))) return { off: true, week: "", gaps: [], me: null };
-    const { getMahallaBoard } = await import("../services/mahallaService");
-    return { off: false, ...(await getMahallaBoard(id)) };
-  }));
-  // V4 Yashil to'lqin skill game (tanga-only, ride-scaled hard daily cap) — gated.
-  app.post("/api/tolqin/start", requireUser, withMember(async (id) => {
-    const { featureOn } = await import("../services/featureFlags");
-    if (!(await featureOn("tolqin"))) return { off: true, token: "" };
-    const { startTolqinRun } = await import("../services/tolqinService");
-    return { off: false, ...(await startTolqinRun(id)) };
-  }));
-  app.post("/api/tolqin/finish", requireUser, withMember(async (id, req) => {
-    const { featureOn } = await import("../services/featureFlags");
-    if (!(await featureOn("tolqin"))) return { off: true, ok: false, granted: 0 };
-    const { finishTolqinRun } = await import("../services/tolqinService");
-    const b = req.body as { token?: string; score?: number };
-    return finishTolqinRun(id, String(b?.token ?? ""), Number(b?.score ?? 0));
   }));
   // Account & settings IN the Mini App (mirrors the bot /account): info + notification toggle.
   app.get("/api/account", requireUser, withMember(async (id) => {
@@ -906,28 +807,6 @@ export function createApiServer(opts: ApiOptions = {}) {
   app.get("/api/intercity/admin/trips", requireAdmin, async (req, res) => res.json(await (await import("../services/intercityService")).adminListTrips({ status: req.query?.status ? String(req.query.status) : undefined })));
   app.get("/api/intercity/admin/debts", requireAdmin, async (_req, res) => res.json(await (await import("../services/intercityService")).adminListDebts()));
   app.post("/api/intercity/admin/trip/cancel", requireAdmin, async (req, res) => res.json(await (await import("../services/intercityService")).adminForceCancelTrip(Number(req.body?.tripId))));
-
-  // ── 🚗 Garaj: ride-to-earn cars ──────────────────────────────────────────
-  app.get("/api/garage", requireUser, withMember(async (id) => {
-    const { getGarage } = await import("../services/garageService");
-    return getGarage(id);
-  }));
-  app.post("/api/garage/buy", requireUser, rateLimit(10), withMember(async (id, req) => {
-    const { buyCar } = await import("../services/garageService");
-    return buyCar(id, String((req.body as { car?: string })?.car ?? ""));
-  }));
-  app.post("/api/garage/equip", requireUser, rateLimit(20), withMember(async (id, req) => {
-    const { equipCar } = await import("../services/garageService");
-    return { ok: await equipCar(id, String((req.body as { car?: string })?.car ?? "")) };
-  }));
-  app.post("/api/garage/service", requireUser, rateLimit(10), withMember(async (id, req) => {
-    const { serviceCar } = await import("../services/garageService");
-    return serviceCar(id, String((req.body as { car?: string })?.car ?? ""));
-  }));
-  app.post("/api/garage/upgrade", requireUser, rateLimit(10), withMember(async (id, req) => {
-    const { upgradeCar } = await import("../services/garageService");
-    return upgradeCar(id, String((req.body as { car?: string })?.car ?? ""));
-  }));
 
   app.post("/api/booking/estimate", requireUser, async (req, res) => {
     const b = req.body as { pickup?: GeoPt; dest?: GeoPt; surcharge?: number };
@@ -1095,39 +974,6 @@ export function createApiServer(opts: ApiOptions = {}) {
     }
     await setFeature(b.name as never, b.on !== false);
     res.json({ ok: true, features: await listFeatures() });
-  });
-  // 🎛 MOTOR OLAMI operator economy — owner controls fuel/earn/speeder prices live (clamped)
-  app.get("/api/admin/motor-economy", requireAdmin, async (_req, res) => {
-    const { MOTOR_ECON_KNOBS } = await import("@t1067/shared");
-    const { getMotorEcon } = await import("../services/garajService");
-    res.json({ knobs: MOTOR_ECON_KNOBS, values: await getMotorEcon() });
-  });
-  app.post("/api/admin/motor-economy", requireAdmin, requireOwner, async (req, res) => {
-    const b = req.body as { key?: string; value?: number };
-    const { MOTOR_ECON_KNOBS } = await import("@t1067/shared");
-    if (!MOTOR_ECON_KNOBS.some((k) => k.key === b?.key) || typeof b?.value !== "number") {
-      res.status(400).json({ error: "unknown knob or bad value" });
-      return;
-    }
-    const { setMotorEcon } = await import("../services/garajService");
-    res.json({ ok: true, values: await setMotorEcon(b.key as string, b.value) });
-  });
-  // 🔧 P2-deep-5 — limited-event parts: read state (any admin) + open/close a mint event (owner-only).
-  // Opening a part's event = that part becomes mintable for ALL users → owner-gated go-live lever.
-  app.get("/api/admin/part-events", requireAdmin, async (_req, res) => {
-    const { getPartEvents } = await import("../services/garajService");
-    res.json({ events: await getPartEvents() });
-  });
-  app.post("/api/admin/part-event", requireAdmin, requireOwner, async (req, res) => {
-    const b = req.body as { code?: string; open?: boolean };
-    const { MOTOR_PARTS } = await import("@t1067/shared");
-    if (!MOTOR_PARTS.some((p) => p.code === b?.code) || typeof b?.open !== "boolean") {
-      res.status(400).json({ error: "unknown part or bad open flag" });
-      return;
-    }
-    const { setPartMintEvent, getPartEvents } = await import("../services/garajService");
-    await setPartMintEvent(b.code as string, b.open);
-    res.json({ ok: true, events: await getPartEvents() });
   });
   // 🎁 Acquisition bonuses — owner sets first-ride / referral / recruit / driver→driver amounts live.
   app.get("/api/admin/bonus-economy", requireAdmin, async (_req, res) => {

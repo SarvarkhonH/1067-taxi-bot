@@ -154,7 +154,7 @@ export function MissionsView({ onReward }: { onReward: (msg: string) => void }) 
 }
 
 // ─── leaderboard (weekly league + all-time) ───────────────────
-function WeeklyBoard({ onRow }: { onRow?: (memberId: number, name: string) => void }) {
+function WeeklyBoard() {
   const [w, setW] = useState<WeeklyBoardResponse | null>(null);
   const [err, setErr] = useState(false);
   const load = () => {
@@ -183,7 +183,7 @@ function WeeklyBoard({ onRow }: { onRow?: (memberId: number, name: string) => vo
       {w.entries.length === 0 && <div className="weekly-empty muted">Hafta endi boshlandi — birinchi bo'ling! 🚀</div>}
       <div className="board">
         {w.entries.map((e) => (
-          <div key={e.memberId} className={"row glass" + (e.isMe ? " me me-row" : "") + (e.rank <= 3 ? " podium" : "") + (onRow ? " pointer" : "")} onClick={onRow ? () => { haptic(); onRow(e.memberId, e.fullName); } : undefined}>
+          <div key={e.memberId} className={"row glass" + (e.isMe ? " me me-row" : "") + (e.rank <= 3 ? " podium" : "")}>
             <div className="row-rank">{rankMedal(e.rank)}</div>
             <div className="row-main">
               <div className="row-name">
@@ -193,7 +193,7 @@ function WeeklyBoard({ onRow }: { onRow?: (memberId: number, name: string) => vo
               </div>
               <div className="row-bar brand-bar"><span ref={(el) => el?.style.setProperty("width", `${(e.score / max) * 100}%`)} /></div>
             </div>
-            <div className="row-val">🪙 {e.score.toLocaleString("ru-RU")}{onRow && <span className="row-chev">›</span>}</div>
+            <div className="row-val">🪙 {e.score.toLocaleString("ru-RU")}</div>
           </div>
         ))}
       </div>
@@ -208,13 +208,13 @@ function WeeklyBoard({ onRow }: { onRow?: (memberId: number, name: string) => vo
   );
 }
 
-function AllTimeBoard({ board, max, onRow }: { board: LeaderboardResponse; max: number; onRow?: (memberId: number, name: string) => void }) {
+function AllTimeBoard({ board, max }: { board: LeaderboardResponse; max: number }) {
   return (
     <>
       <div className="section-title">🏆 {board.type === "driver" ? "Haydovchilar" : "Mijozlar"} · {board.metricLabel}</div>
       <div className="board">
         {board.entries.map((e) => (
-          <div key={e.memberId} className={"row glass" + (e.isMe ? " me me-row" : "") + (e.rank <= 3 ? " podium" : "") + (onRow ? " pointer" : "")} onClick={onRow ? () => { haptic(); onRow(e.memberId, e.fullName); } : undefined}>
+          <div key={e.memberId} className={"row glass" + (e.isMe ? " me me-row" : "") + (e.rank <= 3 ? " podium" : "")}>
             <div className="row-rank">{rankMedal(e.rank)}</div>
             <div className="row-main">
               <div className="row-name">
@@ -224,7 +224,7 @@ function AllTimeBoard({ board, max, onRow }: { board: LeaderboardResponse; max: 
               </div>
               <div className="row-bar brand-bar"><span ref={(el) => el?.style.setProperty("width", `${(e.trips / max) * 100}%`)} /></div>
             </div>
-            <div className="row-val">{formatNumber(e.trips)}{onRow && <span className="row-chev">›</span>}</div>
+            <div className="row-val">{formatNumber(e.trips)}</div>
           </div>
         ))}
       </div>
@@ -239,7 +239,7 @@ function AllTimeBoard({ board, max, onRow }: { board: LeaderboardResponse; max: 
   );
 }
 
-export function LeaderboardView({ board, onRow }: { board: LeaderboardResponse; onRow?: (memberId: number, name: string) => void }) {
+export function LeaderboardView({ board }: { board: LeaderboardResponse }) {
   const [mode, setMode] = useState<"all" | "weekly">("all");
   const max = Math.max(1, ...board.entries.map((e) => e.trips));
   return (
@@ -252,9 +252,8 @@ export function LeaderboardView({ board, onRow }: { board: LeaderboardResponse; 
           🏆 Umumiy
         </button>
       </div>
-      {onRow && <div className="weekly-meta muted">👤 O'yinchiga bosing — uning garaj kolleksiyasini ko'ring</div>}
-      {mode === "weekly" && <WeeklyBoard onRow={onRow} />}
-      {mode === "all" && <AllTimeBoard board={board} max={max} onRow={onRow} />}
+      {mode === "weekly" && <WeeklyBoard />}
+      {mode === "all" && <AllTimeBoard board={board} max={max} />}
     </div>
   );
 }
@@ -401,69 +400,6 @@ export function ReferralView({ onClose }: { onClose?: () => void } = {}) {
         {copied ? "✅ Nusxa olindi" : "🔗 Havoladan nusxa olish"}
       </button>
     </div>
-  );
-}
-
-// 🏘 V5 — mahalla (gap-vs-gap) league section in the Liga tab. Hidden until feature:mahalla.
-type MahallaBoard = {
-  off: boolean;
-  week: string;
-  gaps: { gapId: number; name: string; members: number; score: number; rank: number }[];
-  me: { gapId: number; name: string; rank: number; score: number } | null;
-};
-export function MahallaSection() {
-  const [b, setB] = useState<MahallaBoard | null>(null);
-  useEffect(() => {
-    api.mahalla().then(setB).catch(() => undefined);
-  }, []);
-  if (!b || b.off || !b.gaps.length) return null;
-  const medal = (r: number): string => (r === 1 ? "🥇" : r === 2 ? "🥈" : r === 3 ? "🥉" : `#${r}`);
-  const leader = b.gaps[0];
-  const me = b.me;
-  return (
-    <section className="glass pad" style={{ marginTop: 12 }}>
-      <div className="section-title">🏘 Mahalla ligasi · {b.week}</div>
-
-      {/* "Mening mahallam" highlight — always shown if joined, even if out of top-10 */}
-      {me && (
-        <div className="mahalla-me-card">
-          <span className="mahalla-me-rank">{medal(me.rank)}</span>
-          <span className="mahalla-me-name">{me.name}</span>
-          <span className="mahalla-me-score">{me.score.toLocaleString("ru-RU")} ball</span>
-          {me.rank === 1 && <span className="mahalla-crown">👑</span>}
-        </div>
-      )}
-
-      {/* Leader banner (only when NOT the user's own mahalla) */}
-      {leader && (!me || leader.gapId !== me.gapId) && (
-        <div className="mahalla-leader">
-          🥇 Lider: <b>{leader.name}</b> — {leader.score.toLocaleString("ru-RU")} ball
-        </div>
-      )}
-
-      {/* Full board */}
-      <div className="mahalla-board">
-        {b.gaps.slice(0, 10).map((g) => {
-          const isMe = me?.gapId === g.gapId;
-          return (
-            <div key={g.gapId} className={"mahalla-row" + (isMe ? " me" : "")}>
-              <span className="mahalla-rank">{medal(g.rank)}</span>
-              <span className="mahalla-name">{g.name}</span>
-              <div className="mahalla-meta">
-                <span className="mahalla-score">{g.score.toLocaleString("ru-RU")}</span>
-                <span className="mahalla-members">{g.members}👤</span>
-              </div>
-            </div>
-          );
-        })}
-      </div>
-
-      {!me && (
-        <p className="muted" style={{ fontSize: 12, marginTop: 8, textAlign: "center" }}>
-          Davra (gap) qo'shiling — mahallangiz uchun ball to'plang
-        </p>
-      )}
-    </section>
   );
 }
 

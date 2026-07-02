@@ -128,21 +128,6 @@ export function renderAccount(me: MeResponse, opts: { joined: Date | null; notif
   ].join("\n");
 }
 
-/** 🏘 V5 — mahalla (gap-vs-gap) league card. */
-export function renderMahalla(b: {
-  week: string;
-  gaps: { name: string; members: number; score: number; rank: number }[];
-  me: { name: string; rank: number; score: number } | null;
-}): string {
-  if (!b.gaps.length) return "🏘 <b>Mahalla ligasi</b>\n\nHali davralar yo'q. «👥 Do'st» → Gap davra ochib, mahallangiz uchun tanga to'plang!";
-  const medal = (r: number): string => (r === 1 ? "🥇" : r === 2 ? "🥈" : r === 3 ? "🥉" : `${r}.`);
-  const rows = b.gaps.slice(0, 10).map((g) => `${medal(g.rank)} <b>${esc(g.name)}</b> — ${formatNumber(g.score)} tanga · ${g.members} kishi`).join("\n");
-  const mine = b.me
-    ? `\n\n📍 Sizning davrangiz: <b>${esc(b.me.name)}</b> — ${medal(b.me.rank)} o'rin (${formatNumber(b.me.score)} tanga)`
-    : `\n\n<i>Siz hali davrada emassiz — «👥 Do'st» → Gap orqali qo'shiling.</i>`;
-  return `🏘 <b>Mahalla ligasi</b> <i>(${b.week})</i>\nDavra-vs-davra haftalik tanga:\n\n${rows}${mine}`;
-}
-
 export function renderLeaderboard(lb: LeaderboardResponse, limit = 10): string {
   const heading = lb.type === "driver" ? "Haydovchilar reytingi" : "Mijozlar reytingi";
   // Ranked by ORDER COUNT (trips), not money — show the count, not so'm. Unit = "buyurtma"/"safar".

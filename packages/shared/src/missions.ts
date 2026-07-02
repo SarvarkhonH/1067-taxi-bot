@@ -34,7 +34,6 @@ const DAILY_CORE: MissionDef[] = [
 // Adding a new entry here never breaks existing progress: codes are stable, progress tracked by code.
 const DAILY_BONUS_POOL: MissionDef[] = [
   { code: "daily_spin",    title: "Safarda g'ildirak aylantiring", emoji: "🎡", period: "daily", target: 1, reward: 50,  core: false, rotatable: true },
-  { code: "daily_garage",  title: "Garaj mashinangiz pul ishlasin", emoji: "🏎", period: "daily", target: 1, reward: 80,  core: false, rotatable: true },
   { code: "daily_rate",    title: "Haydovchini baholang",           emoji: "⭐", period: "daily", target: 1, reward: 80,  core: false, rotatable: true },
   { code: "daily_2rides",  title: "Bugun 2 ta safar qiling",        emoji: "🚕", period: "daily", target: 2, reward: 180, core: false, rotatable: true },
   { code: "daily_morning", title: "Ertalab 7–10 da safar",          emoji: "🌅", period: "daily", target: 1, reward: 120, core: false, rotatable: true },

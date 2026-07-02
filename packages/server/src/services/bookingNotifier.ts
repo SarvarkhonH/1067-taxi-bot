@@ -4,7 +4,7 @@
 // peak-end summary: variable cashback roll BIG + driver tips + rebook.
 //
 // The 90s sweep is also the ride METER (rideStartedAt → minutes) powering the
-// ETA-guess game now and the Garaj earn in Wave B.
+// ETA-guess game.
 import { InlineKeyboard, type Bot } from "grammy";
 import type { Prisma } from "@prisma/client";
 import { formatNumber, haversineKm, inflateOnline } from "@t1067/shared";
@@ -55,7 +55,6 @@ interface CardCtx {
   driver?: BookingDriver | null;
   hasGuess?: boolean;
   spinUsed?: boolean;
-  garage?: { name: string; emoji: string; amount: number } | null; // live earn estimate
 }
 
 // B5: compact ride progress bar for the live card (mirrors the Mini App RideTimeline).
@@ -92,7 +91,6 @@ function renderRideCard(b: ActiveBookingLite, c: CardCtx): string {
       const r = roundUp100(d.meterPayment);
       lines.push(`🧾 Taksometr: <b>${formatNumber(r.shown)} so'm</b>${r.delta ? ` (+${r.delta})` : ""} · hisoblanyapti`);
     }
-    if (c.garage) lines.push(`${c.garage.emoji} ${esc(c.garage.name)} ishlayapti: <b>+${c.garage.amount}</b> tanga`);
   } else {
     let eta = "";
     if (d?.lat && d?.lng && b.lat && b.lng) {
@@ -207,18 +205,6 @@ export async function pushBookingUpdates(
     include: { telegramUser: true },
   });
 
-  // 🏘 GARAJ v2: mahalla weekly league reset/award runs BEFORE the member loop so
-  // the first sweep of a new ISO week snapshots + resets the just-closed week first,
-  // then this sweep's rides accrue into the fresh week (no self-wipe). Idempotent via
-  // MahallaWeeklyResult (presence = settled); later sweeps no-op. OFF-safe.
-  try {
-    const { closedWeekKey, settleMahallaWeek, settleExhibition } = await import("./garajService");
-    await settleMahallaWeek(closedWeekKey());
-    await settleExhibition(closedWeekKey()); // #8: award last week's top-voted car (idempotent)
-  } catch (e) {
-    console.error("[garaj] weekly settle failed:", e);
-  }
-
   for (const m of linked) {
     // T8 hardening: isolate each member — one member's transient (e.g. a Postgres blip on a
     // bare member.update) must NOT skip the rest of this 90s tick for everyone else. Next
@@ -266,10 +252,6 @@ export async function pushBookingUpdates(
         hasGuess: !!guessRow,
         spinUsed: !!spinRow,
       };
-      if (b.status === "started" && m.rideStartedAt) {
-        const { equippedEstimate } = await import("./garageService");
-        ctx.garage = await equippedEstimate(m.id, (Date.now() - m.rideStartedAt.getTime()) / 60_000).catch(() => null);
-      }
 
       // ride meter: first sighting of "started"
       const rideStartedAt = b.status === "started" && (isNewRide || !m.rideStartedAt) ? new Date() : m.rideStartedAt;
@@ -538,55 +520,6 @@ export async function pushBookingUpdates(
       // resolveGuess's grant is idempotent (grantRideCoins key) → retry-safe
       const guessLine = (await resilient("guess", () => resolveGuess(m.id, m.lastBookingId!, m.rideStartedAt))) ?? "";
 
-      // 🚗 Garaj earn — the equipped car worked while the ride ran
-      let garageLine = "";
-      if (m.rideStartedAt) {
-        try {
-          const { earnForRide } = await import("./garageService");
-          const e = await resilient("garage", () => earnForRide(m.id, m.lastBookingId!, (Date.now() - m.rideStartedAt!.getTime()) / 60_000)); // idempotent: garage:<m>:<b>
-          if (e) garageLine = `
-🚗 ${e.name} ishladi: <b>+${formatNumber(e.amount)}</b> tanga`;
-        } catch (err) {
-          console.error("[garage] earn failed:", err);
-        }
-      }
-
-      // 🏆 GARAJ v2: ride → game raw-material drop. Idempotent per ride via the
-      // GarajRideDrop unique; NO coin emission (the 350 clamp is untouched);
-      // gated by feature "garajx". No new poller — rides on this sweep.
-      try {
-        const { processRideDrop, updateStreakOnRide, addMahallaScore } = await import("./garajService");
-        const fresh = await resilient("garaj_drop", () => processRideDrop(m.id, m.lastBookingId!, m.rideStartedAt));
-        // once-per-ride W5 hooks — only on the FIRST processing of this ride (the
-        // finish block re-runs across sweeps, so these must not be re-counted).
-        if (fresh) {
-          const rideDate = new Date(Date.now() + 5 * 3600 * 1000).toISOString().slice(0, 10); // Tashkent day
-          await resilient("garaj_streak", () => updateStreakOnRide(m.id, rideDate));
-          if (m.rideStartedAt) {
-            const mins = (Date.now() - m.rideStartedAt.getTime()) / 60_000;
-            await resilient("garaj_mahalla", () => addMahallaScore(m.id, mins));
-          }
-        }
-      } catch (e) {
-        console.error("[garaj] ride-drop failed:", e);
-      }
-
-      // 🪙 Garaj tanga from REAL rides only (≤8/ride). ONE currency now: a game faucet
-      // OUTSIDE the 350/ride clamp (grantKozacha → grantCoins, which is NOT clamped).
-      // The key tail is NON-numeric (`g<m>r<b>`) so it can NEVER match the ride-clamp
-      // suffix `:<memberId>:<bookingId>` — this grant must stay outside that aggregate.
-      // Gated by feature "kozacha".
-      try {
-        const { featureOn } = await import("./featureFlags");
-        if (m.rideStartedAt && (await featureOn("kozacha"))) {
-          const { grantKozacha } = await import("./garajService");
-          const mins = Math.min(8, Math.floor((Date.now() - m.rideStartedAt.getTime()) / 60_000));
-          if (mins > 0) await resilient("garaj_tanga", () => grantKozacha(m.id, mins, "ride", `garajtanga:ride:g${m.id}r${m.lastBookingId}`));
-        }
-      } catch (e) {
-        console.error("[garaj tanga] earn failed:", e);
-      }
-
       // 🥇 tier-based driver rebate (replaces the flat bonus; weekly tier job
       // sets driverTier from measured percentiles) + quest progress
       let driverId: number | null = null;
@@ -642,15 +575,6 @@ export async function pushBookingUpdates(
             await resilient("drv_daily_5", () => incrementMission(driver.id, "drv_daily_5", 1, `qinc:${driver.id}:drv_daily_5:${m.lastBookingId}`));
             await resilient("drv_weekly_25", () => incrementMission(driver.id, "drv_weekly_25", 1, `qinc:${driver.id}:drv_weekly_25:${m.lastBookingId}`));
             await resilient("drv_weekly_40", () => incrementMission(driver.id, "drv_weekly_40", 1, `qinc:${driver.id}:drv_weekly_40:${m.lastBookingId}`));
-            // 🚕 FAZA1-1.1 — real-taxi motor bonus + totalTrips++ for the DRIVER's live motor car. Idempotent
-            // per (driver, booking); bounded by dailyEarnCap (shared with passive motor_earn). OFF-safe.
-            try {
-              const { creditTaxiMotorBonus } = await import("./garajService");
-              const rideMins = m.rideStartedAt ? (Date.now() - m.rideStartedAt.getTime()) / 60_000 : 0;
-              await resilient("motor_taxi", () => creditTaxiMotorBonus(driver.id, m.lastBookingId!, rideMins));
-            } catch (e) {
-              console.error("[motor taxi] bonus failed:", e);
-            }
             // 🔧 XIII-1: random car part for the driver's completed ride
             try {
               const { dropCarPart } = await import("./itemService");
@@ -805,7 +729,6 @@ export async function pushBookingUpdates(
               rollLine +
               waitCompLine +
               guessLine +
-              garageLine +
               streakLine +
               questLine +
               "\n🎯 Vazifalaringizni «🎁 Bonuslar»da tekshiring." +
@@ -834,67 +757,6 @@ export async function pushBookingUpdates(
     } catch (e) {
       console.error(`[sweep] member ${m.id} skipped this tick:`, e instanceof Error ? e.message.split("\n")[0] : e);
     }
-  }
-
-  // 🔨 GARAJ v2: settle due auctions once per sweep (no new poller; no-ops when "garajx" OFF).
-  try {
-    const { settleAuctions } = await import("./garajService");
-    await settleAuctions();
-  } catch (e) {
-    console.error("[garaj] auction settle failed:", e);
-  }
-
-  // 📈 GARAJ v2 #3: recompute demand waves (self-guarded to ≤ every 15 min via an
-  // AppState nextRecalcAt timestamp — cheap no-op on most sweeps; OFF-safe).
-  try {
-    const { recomputeDemand } = await import("./garajService");
-    await recomputeDemand();
-  } catch (e) {
-    console.error("[garaj] demand recompute failed:", e);
-  }
-
-  // 🏭 GARAJ v2 #5: apply finished Workshop craft jobs (idempotent; frees the slot). No new
-  // poller — piggybacks this sweep. OFF-safe (no-ops when "garajx" is off).
-  try {
-    const { settleCraftJobs } = await import("./garajService");
-    await settleCraftJobs();
-  } catch (e) {
-    console.error("[garaj] craft settle failed:", e);
-  }
-
-  // 🔥 P-Fuel-C: fuel-push sweep. Per-car 30% warn + 0% empty triggers, 1×/car/day, Tashkent
-  // quiet-hours (23:00–07:00) DEFER (not silent — sent at 07:00 next morning). No new poller.
-  // Hard cap: ≤2 fuel pushes/owner/day. OFF-safe (motorolami flag + pushFeatureOn knob).
-  try {
-    const { sweepFuelPushes } = await import("./garajService");
-    await sweepFuelPushes(async (chatId, html) => {
-      await bot.api.sendMessage(chatId, html, { parse_mode: "HTML" }).catch(() => undefined);
-    });
-  } catch (e) {
-    console.error("[garaj] fuel push failed:", e);
-  }
-
-  // 🏛 P1-C: motor lifespan aging — decay engineHp for parked cars too (collected cars are
-  // aged by motorCollect itself). Bounded batch 200/sweep; no new poller; OFF-safe.
-  try {
-    const { sweepMotorAging } = await import("./garajService");
-    await sweepMotorAging();
-  } catch (e) {
-    console.error("[garaj] motor aging failed:", e);
-  }
-  // ⚖️ P2-deep-3: auto-stabilizer — nudges fuelMult if global daily emission strays from target (OFF by default)
-  try {
-    const { sweepAutoStabilize } = await import("./garajService");
-    await sweepAutoStabilize();
-  } catch (e) {
-    console.error("[garaj] auto-stabilize failed:", e);
-  }
-  // 🏛 P2-deep-4: Ofis demontaj — scrap cars the 1067 Ofis has held past the hold window (supply destruction)
-  try {
-    const { sweepOfisHeld } = await import("./garajService");
-    await sweepOfisHeld();
-  } catch (e) {
-    console.error("[ofis] held-scrap failed:", e);
   }
 
   // 🚐 Intercity trip transitions (OPEN→BOARDING→DEPARTED→COMPLETED / EXPIRED) + rider pushes.

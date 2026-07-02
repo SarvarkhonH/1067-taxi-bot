@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { WHEEL_PRIZES, formatNumber, type BoxStatusResponse, type GarageResponse, type MeResponse, type MissionsResponse } from "@t1067/shared";
+import { WHEEL_PRIZES, formatNumber, type BoxStatusResponse, type MeResponse, type MissionsResponse } from "@t1067/shared";
 import { api } from "./api";
 import { haptic, hapticSuccess } from "./telegram";
 import { confetti } from "./util";
@@ -8,7 +8,7 @@ import { LoadSection, ProgressBar } from "./design/components";
 
 // ✨ Yutuq "juice" — har HAQIQIY tanga yutug'ida bitta katta bayram: konfetti + success-haptik
 // + 0→N count-up. O'yinlar buni celebrate(amount, emoji, label) bilan chaqiradi. FAQAT faucet
-// (g'ildirak/quti/streak-milestone) — spend/sink (garaj olish, Plus) emas.
+// (g'ildirak/quti/streak-milestone) — spend/sink (Plus obuna) emas.
 type Celebrate = (amount: number, emoji: string, label?: string) => void;
 
 function WinBurst({ amount, emoji, label, onDone }: { amount: number; emoji: string; label?: string; onDone: () => void }) {
@@ -42,110 +42,7 @@ function WinBurst({ amount, emoji, label, onDone }: { amount: number; emoji: str
   );
 }
 
-// 🚗 Garaj — ride-to-earn cars: buy (sink) → it earns ONLY during real rides.
-function GarageSection({ onReward }: { onReward: (msg: string) => void }) {
-  const [g, setG] = useState<GarageResponse | null>(null);
-  const [busy, setBusy] = useState<string | null>(null);
-  const [err, setErr] = useState(false);
-  const load = () => api.garage().then((r) => { setG(r); setErr(false); }).catch(() => setErr(true));
-  useEffect(() => {
-    load();
-  }, []);
-  if (err) {
-    return (
-      <section className="glass pad game-card">
-        <div className="section-title">🚗 Garaj</div>
-        <LoadSection state="error" onRetry={load}><span /></LoadSection>
-      </section>
-    );
-  }
-  if (!g) {
-    return (
-      <section className="glass pad game-card">
-        <div className="section-title">🚗 Garaj</div>
-        <LoadSection state="loading" onRetry={load}><span /></LoadSection>
-      </section>
-    );
-  }
-
-  const act = async (fn: () => Promise<unknown>, code: string, okMsg: (r: { ok: boolean; reason?: string }) => string) => {
-    if (busy) return;
-    setBusy(code);
-    haptic();
-    try {
-      const r = (await fn()) as { ok: boolean; reason?: string };
-      onReward(okMsg(r));
-      await load();
-    } finally {
-      setBusy(null);
-    }
-  };
-
-  const eq = g.cars.find((c) => c.equipped) ?? null;
-  return (
-    <section className="glass pad game-card garage-card">
-      <div className="section-title">🏎 GARAJ</div>
-      {eq ? (
-        <div className="garage-showroom" data-tier={eq.level}>
-          <div className="gs-glow" />
-          <div className="gs-stage">
-            <div className="gs-car">{eq.emoji}</div>
-            <div className="gs-shadow" />
-          </div>
-          <div className="gs-name">{eq.name} <span className="gs-tier">{eq.tier}</span></div>
-          <div className="gs-stats">
-            <div className="gs-stat"><b>{eq.ratePerMin}</b><span>🪙/daq</span></div>
-            <div className="gs-stat"><b>Lv{eq.level}</b><span>daraja</span></div>
-            <div className="gs-stat"><b>{formatNumber(g.totalEarned)}</b><span>jami 🪙</span></div>
-          </div>
-          {eq.upgradeCost !== null ? (
-            <button className="gs-tune" disabled={busy !== null} onClick={() => act(() => api.garageUpgrade(eq.code), eq.code, (r) => (r.ok ? "⬆️ TUNING — daraja oshdi!" : r.reason === "insufficient" ? "Tanga yetarli emas" : "Xatolik"))}>
-              {busy === eq.code ? "…" : `⬆️ TUNING → Lv${eq.level + 1} · ${formatNumber(eq.upgradeCost)} 🪙`}
-            </button>
-          ) : (
-            <div className="gs-maxed">💠 MAX DARAJA</div>
-          )}
-        </div>
-      ) : (
-        <div className="garage-empty">🏁 Garaj bo'sh — pastdan mashina oling, «Minish» bosing.</div>
-      )}
-      <div className="mk-listings">
-        {g.cars.map((c) => (
-          <div key={c.code} className="mk-item">
-            <span className="mk-item-emoji">{c.emoji}</span>
-            <span className="mk-item-title">
-              {c.name}
-              {c.owned && <span className="garage-tier"> · {c.tier} Lv{c.level}</span>} · {c.ratePerMin} 🪙/daq
-              {c.owned && c.serviceDue && <span className="muted"> · 🔧 servis (50%)</span>}
-              {c.equipped && <span> · 🟢 minilgan</span>}
-            </span>
-            {!c.owned ? (
-              <button className="btn-primary sm" disabled={busy !== null} onClick={() => act(() => api.garageBuy(c.code), c.code, (r) => (r.ok ? `🚗 ${c.name} sizniki!` : r.reason === "insufficient" ? "Tanga yetarli emas" : "Xatolik"))}>
-                {busy === c.code ? "…" : `🪙 ${formatNumber(c.price)}`}
-              </button>
-            ) : c.serviceDue ? (
-              <button className="btn-violet sm" disabled={busy !== null} onClick={() => act(() => api.garageService(c.code), c.code, (r) => (r.ok ? "🔧 Servis qilindi — to'liq tezlik!" : r.reason === "insufficient" ? "Tanga yetarli emas" : "Hali kerak emas"))}>
-                {busy === c.code ? "…" : `🔧 ${formatNumber(c.serviceCost)}`}
-              </button>
-            ) : !c.equipped ? (
-              <button className="btn-ghost sm" disabled={busy !== null} onClick={() => act(() => api.garageEquip(c.code), c.code, () => `🟢 ${c.name} minildi!`)}>
-                {busy === c.code ? "…" : "Minish"}
-              </button>
-            ) : c.upgradeCost !== null ? (
-              <button className="btn-primary sm" disabled={busy !== null} onClick={() => act(() => api.garageUpgrade(c.code), c.code, (r) => (r.ok ? `⬆️ ${c.name} — daraja oshdi!` : r.reason === "insufficient" ? "Tanga yetarli emas" : r.reason === "maxed" ? "Eng yuqori daraja" : "Xatolik"))}>
-                {busy === c.code ? "…" : `⬆️ ${formatNumber(c.upgradeCost)}`}
-              </button>
-            ) : (
-              <span className="mk-item-price">💠 MAX</span>
-            )}
-          </div>
-        ))}
-      </div>
-    </section>
-  );
-}
-
-// 1067 Plus — coin-paid sub: roll x1.5 (capped) + garage +20%; first month free.
+// 1067 Plus — coin-paid sub: roll x1.5 (capped); first month free.
 function PlusSection({ onReward }: { onReward: (msg: string) => void }) {
   const [p, setP] = useState<{ active: boolean; until: string | null; price: number; trialAvailable: boolean; canBuy: boolean } | null>(null);
   const [busy, setBusy] = useState(false);
@@ -177,10 +74,10 @@ function PlusSection({ onReward }: { onReward: (msg: string) => void }) {
     <section className="glass pad game-card">
       <div className="section-title">💎 1067 Plus</div>
       {p.active ? (
-        <p className="muted mk-sub">Faol{p.until ? ` · ${new Date(p.until).toLocaleDateString("ru-RU")} gacha` : ""} — cashback ×1.5 va Garaj +20% ishlayapti! 🎉</p>
+        <p className="muted mk-sub">Faol{p.until ? ` · ${new Date(p.until).toLocaleDateString("ru-RU")} gacha` : ""} — cashback ×1.5 ishlayapti! 🎉</p>
       ) : (
         <>
-          <p className="muted mk-sub">Cashback ruletkasi ×1.5 · Garaj +20% · {p.trialAvailable ? "Birinchi oy BEPUL!" : `${formatNumber(p.price)} tanga/oy`}</p>
+          <p className="muted mk-sub">Cashback ruletkasi ×1.5 · {p.trialAvailable ? "Birinchi oy BEPUL!" : `${formatNumber(p.price)} tanga/oy`}</p>
           <button className="btn-violet" disabled={busy || !p.canBuy} onClick={sub}>
             {busy ? "…" : p.trialAvailable ? "💎 BEPUL sinash (30 kun)" : `💎 Yoqish — ${formatNumber(p.price)} tanga`}
           </button>
@@ -438,9 +335,9 @@ function BonusCenter({ me, onReward, celebrate }: { me: MeResponse; onReward: (m
 
 /**
  * Bonus tab — T6 living center (streak + kombo + missions) on top, then the
- * ride-tied variable-reward layer: garaj, Plus, in-ride wheel, mystery box.
+ * ride-tied variable-reward layer: Plus, in-ride wheel, mystery box.
  */
-export function RewardsView({ me, onReward, hideGarage }: { me: MeResponse; onReward: (msg: string) => void; hideGarage?: boolean }) {
+export function RewardsView({ me, onReward }: { me: MeResponse; onReward: (msg: string) => void }) {
   const [win, setWin] = useState<{ amount: number; emoji: string; label?: string; key: number } | null>(null);
   const keyRef = useRef(0);
   const celebrate: Celebrate = (amount, emoji, label) => {
@@ -455,8 +352,6 @@ export function RewardsView({ me, onReward, hideGarage }: { me: MeResponse; onRe
     <div className="view">
       <div className="section-title">🎁 Bonuslar</div>
       <BonusCenter me={me} onReward={onReward} celebrate={celebrate} />
-      {/* 🏆 GARAJ v2 replaces the old idle garage — hidden when feature "garajx" is ON */}
-      {!hideGarage && <GarageSection onReward={onReward} />}
       <PlusSection onReward={onReward} />
       <SpinWheelGame me={me} onReward={onReward} celebrate={celebrate} />
       <BoxGame onReward={onReward} celebrate={celebrate} />
