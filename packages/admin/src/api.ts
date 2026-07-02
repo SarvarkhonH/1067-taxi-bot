@@ -158,6 +158,8 @@ export const adminApi = {
     req<{ newRiders7d: number; newRidersPrev7d: number; retentionPct: number; retentionCohort: number; acqEmission7d: number; cacTanga: number; viralPct: number }>(
       "/api/admin/analytics/funnel",
     ),
+  retentionCohorts: () =>
+    req<{ cohorts: { cohort: string; users: number; d1: number; d7: number; d30: number }[] }>("/api/admin/analytics/retention"),
   driverAnalytics: () =>
     req<{
       windowDays: number;

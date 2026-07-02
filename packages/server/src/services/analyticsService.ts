@@ -249,3 +249,40 @@ export async function getGrowthFunnel(): Promise<GrowthFunnel> {
 
   return { newRiders7d, newRidersPrev7d, retentionPct, retentionCohort: cohort, acqEmission7d, cacTanga, viralPct };
 }
+
+// ── 0.7 measurement baseline: weekly first-ride cohorts × D1/D7/D30 return ───────────────────────
+// CUMULATIVE definition (fits sparse small-city data): dN = % of the cohort with ANY repeat ride
+// within N days of their first. Phases 1-3 of NEXT_LEVEL_PLAN are judged against this baseline —
+// measure BEFORE building loops. One read-only SQL pass over RideReward; no new tables.
+export interface RetentionCohortRow {
+  cohort: string; // ISO Monday of the first-ride week
+  users: number;
+  d1: number; // riders with a repeat ride ≤1 day after their first
+  d7: number;
+  d30: number;
+}
+
+export async function getRetentionCohorts(weeks = 10): Promise<RetentionCohortRow[]> {
+  const rows = await prisma.$queryRaw<{ cohort: string; users: number; d1: number; d7: number; d30: number }[]>`
+    WITH firsts AS (
+      SELECT "memberId", MIN("createdAt") AS first_ride
+      FROM "RideReward"
+      GROUP BY "memberId"
+    )
+    SELECT to_char(date_trunc('week', f.first_ride), 'YYYY-MM-DD') AS cohort,
+           COUNT(*)::int AS users,
+           COUNT(*) FILTER (WHERE EXISTS (
+             SELECT 1 FROM "RideReward" r WHERE r."memberId" = f."memberId"
+               AND r."createdAt" > f.first_ride AND r."createdAt" <= f.first_ride + interval '1 day'))::int AS d1,
+           COUNT(*) FILTER (WHERE EXISTS (
+             SELECT 1 FROM "RideReward" r WHERE r."memberId" = f."memberId"
+               AND r."createdAt" > f.first_ride AND r."createdAt" <= f.first_ride + interval '7 day'))::int AS d7,
+           COUNT(*) FILTER (WHERE EXISTS (
+             SELECT 1 FROM "RideReward" r WHERE r."memberId" = f."memberId"
+               AND r."createdAt" > f.first_ride AND r."createdAt" <= f.first_ride + interval '30 day'))::int AS d30
+    FROM firsts f
+    WHERE f.first_ride >= NOW() - (${weeks} * interval '7 day')
+    GROUP BY 1
+    ORDER BY 1 DESC`;
+  return rows.map((r) => ({ cohort: r.cohort, users: Number(r.users), d1: Number(r.d1), d7: Number(r.d7), d30: Number(r.d30) }));
+}

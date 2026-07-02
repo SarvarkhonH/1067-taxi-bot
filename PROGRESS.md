@@ -289,3 +289,14 @@ STATUS (Rule 7): `ready for verification`. Compliance-report 5 gap yopildi; kodn
 - 0.4 AppState TTL DONE: kunlik marker-tozalov (12 prefiks, >30 kun) mavjud tick'da.
 - 0.5 xavfsizlik DONE: admin-token timingSafeEqual; /api/driver-photo per-IP 30/min (enumeratsiya yopildi).
 - Qolgan Phase-0: 0.3 sweep-diyeta, 0.6 vitest+CI (agent worktree'da), 0.7 retention-baza.
+
+## 2026-07-02 (tun-3) — Phase-0 0.3+0.7 BAJARILDI (ready for verification)
+- 0.3 sweep-diyeta: (a) tier-daily pass sweep'dan 15-daq tick'ka ko'chdi + in-memory kun-guard
+  (oldin: har client uchun har 5s'da kafolatlangan-xato INSERT + 2 o'qish = 4×N so'rov/tick);
+  (b) sweep findMany endi FAQAT tegishli a'zolarni oladi (faol booking telefoni yoki lastBookingId);
+  (c) waitstart/waitfound marker-INSERT'lar in-memory seen-set bilan (har tick P2002 yo'q).
+  Isbot: testRideCard 3× yashil, testPhantomRide yashil, testTierLoyalty 12/12, testWaitComp 16/16.
+- 0.7 retention-baza: getRetentionCohorts (haftalik ilk-safar kohortalari × D1/D7/D30 kumulyativ),
+  /api/admin/analytics/retention, admin Analitika'da jadval. Prod isboti: 4 kohorta
+  (29-iyun: 19 user, D1 42%, D7 53%). Phase 1-3 shu bazaga qarab baholanadi.
+- 0.6 vitest+CI: agent sessiya-limitga urildi — 19:20dan keyin qayta yuboriladi. Phase-0 qolgani shu.

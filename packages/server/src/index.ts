@@ -201,6 +201,10 @@ async function main(): Promise<void> {
           await dispatchLinkReminders(bot).catch((e) => console.error("[linkReminder] failed:", e));
           const { recomputeDriverTiers } = await import("./services/analyticsService");
           await recomputeDriverTiers().catch((e) => console.error("[tiers] failed:", e));
+          // 0.3 sweep-diet: tier-loyalty daily pass moved here from the 5-90s booking sweep — it's a
+          // per-DAY mechanic; the in-memory guard makes every tick after the day's first ~free.
+          const { runTierLoyaltyDailyAll } = await import("./services/tierLoyaltyService");
+          await runTierLoyaltyDailyAll(bot).catch((e) => console.error("[tierdaily] failed:", e));
           const { settleGapsWeekly } = await import("./services/gapService");
           if (new Date(Date.now() + 5 * 3600_000).getUTCDay() === 1) await settleGapsWeekly(bot).catch((e) => console.error("[gap] failed:", e));
         }

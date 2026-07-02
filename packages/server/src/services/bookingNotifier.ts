@@ -13,12 +13,14 @@ import { getDataSource, type ActiveBookingLite, type BookingDriver, type KasData
 import { incrementMission } from "./missionService";
 import { kasMapSocket } from "./kasMapSocket";
 import { resolveDisplayName } from "./memberService";
-import { markRideActive, runTierLoyaltyDaily } from "./tierLoyaltyService";
+import { markRideActive } from "./tierLoyaltyService";
 
 const CITY_KMH = 24;
 // kas lifecycle: new → take → in_place → delivered. "in_place" is normalized to "started" in the
 // kas client (driver at pickup + meter running = in-trip), so it is NOT searching and NOT cancellable.
 const SEARCHING = new Set(["new", "searching"]);
+// 0.3 sweep-diet: wait-comp markers already written this process-lifetime (see the create below)
+const waitMarkerSeen = new Set<string>();
 const CANCELLABLE = new Set(["searching", "new", "called", "accepted", "on_the_way", "take"]);
 
 function esc(s: string): string {
@@ -200,8 +202,19 @@ export async function pushBookingUpdates(
     return driverCache.get(car) ?? null;
   };
 
+  // 0.3 sweep-diet: fetch ONLY sweep-relevant members — someone with a live kas booking right now
+  // (phone matches the active list) or unfinished ride state to close out (lastBookingId set).
+  // Previously this pulled EVERY linked member (N rows + N loop bodies) every 5-90s tick; idle
+  // members have nothing to do here. (The tier-loyalty daily pass that used to ride this loop for
+  // all members moved to the 15-min tick — runTierLoyaltyDailyAll.)
+  const activeNorms = [...byPhone.keys()].filter(Boolean);
   const linked = await prisma.member.findMany({
-    where: { telegramUser: { isNot: null }, phone: { not: null }, ...(opts?.memberScope ?? {}) },
+    where: {
+      telegramUser: { isNot: null },
+      phone: { not: null },
+      ...(opts?.memberScope ?? {}),
+      OR: [{ lastBookingId: { not: null } }, ...activeNorms.map((p) => ({ phone: { endsWith: p } }))],
+    },
     include: { telegramUser: true },
   });
 
@@ -213,10 +226,6 @@ export async function pushBookingUpdates(
     const norm = m.phone!.replace(/\D/g, "").slice(-9);
     const b = byPhone.get(norm);
     const chatId = m.telegramUser!.id;
-
-    // 🏅 Tier loyalty daily pass (award + decay + warning) — flag-gated, client-only, idempotent
-    // per UTC+5 day, never throws. No-op when "tierloyalty" is OFF. No new poller — rides this sweep.
-    await runTierLoyaltyDaily(bot, m);
 
     if (b) {
       const isNewRide = m.lastBookingId !== b.id;
@@ -233,12 +242,20 @@ export async function pushBookingUpdates(
       }
 
       // 🪙 wait-comp timing markers (feature "waitcomp"): server-side, sweep-resolution timestamps —
-      // NEVER trust the client for money-relevant elapsed time. Idempotent create-with-catch, same
-      // pattern as wsarrived:<id> — first tick in each phase wins, later ticks in the same phase just
-      // throw P2002 and are swallowed. Read back at ride-finish to compute waitSeconds for awardWaitComp.
-      await prisma.appState
-        .create({ data: { key: `${SEARCHING.has(b.status) ? "waitstart" : "waitfound"}:${b.id}`, value: String(Date.now()) } })
-        .catch(() => undefined);
+      // NEVER trust the client for money-relevant elapsed time. First tick in each phase wins (unique
+      // key); the in-memory seen-set stops the sweep from re-attempting a guaranteed-P2002 INSERT on
+      // every later tick (0.3 sweep-diet — this was one failed write per active ride per 5s). A
+      // restart just costs one extra attempt per live ride; the unique key stays the real guard.
+      {
+        const wkey = `${SEARCHING.has(b.status) ? "waitstart" : "waitfound"}:${b.id}`;
+        if (!waitMarkerSeen.has(wkey)) {
+          if (waitMarkerSeen.size > 5000) waitMarkerSeen.clear(); // bound memory
+          await prisma.appState
+            .create({ data: { key: wkey, value: String(Date.now()) } })
+            .then(() => waitMarkerSeen.add(wkey))
+            .catch(() => waitMarkerSeen.add(wkey)); // P2002 = already there → equally "seen"
+        }
+      }
 
       // T2 (AUDIT 2.2): 2 ketma-ket so'rov → 1 parallel to'lqin (faol-safar a'zosiga)
       const [guessRow, spinRow] = await Promise.all([

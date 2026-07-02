@@ -1281,6 +1281,11 @@ body{font-family:Arial,sans-serif;background:#eee;-webkit-print-color-adjust:exa
     const { getGrowthFunnel } = await import("../services/analyticsService");
     res.json(await getGrowthFunnel());
   });
+  // 📊 0.7 measurement baseline: weekly first-ride cohorts × D1/D7/D30 cumulative return
+  app.get("/api/admin/analytics/retention", requireAdmin, async (_req, res) => {
+    const { getRetentionCohorts } = await import("../services/analyticsService");
+    res.json({ cohorts: await getRetentionCohorts() });
+  });
   app.get("/api/admin/analytics/drivers", requireAdmin, async (_req, res) => {
     const { getDriverAnalytics } = await import("../services/analyticsService");
     res.json(await getDriverAnalytics());

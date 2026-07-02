@@ -1658,10 +1658,12 @@ function AnalyticsView() {
   const [ns, setNs] = useState<Awaited<ReturnType<typeof adminApi.northstar>> | null>(null);
   const [da, setDa] = useState<Awaited<ReturnType<typeof adminApi.driverAnalytics>> | null>(null);
   const [fn, setFn] = useState<Awaited<ReturnType<typeof adminApi.growthFunnel>> | null>(null);
+  const [rc, setRc] = useState<Awaited<ReturnType<typeof adminApi.retentionCohorts>> | null>(null);
   useEffect(() => {
     adminApi.northstar().then(setNs).catch(() => undefined);
     adminApi.driverAnalytics().then(setDa).catch(() => undefined);
     adminApi.growthFunnel().then(setFn).catch(() => undefined);
+    adminApi.retentionCohorts().then(setRc).catch(() => undefined);
   }, []);
   const delta = ns ? ns.weekCompleted - ns.prevWeekCompleted : 0;
   const maxBar = da ? Math.max(1, ...da.histogram.map((h) => h.drivers)) : 1;
@@ -1695,6 +1697,34 @@ function AnalyticsView() {
             </div>
           </div>
           <p className="muted" style={{ marginTop: 6, fontSize: 12 }}>Yangi mijoz = botda ILK safar (eski 1067 mijozi ham). Qaytish past bo&apos;lsa — 2-safar tajribasi; CAC yuqori bo&apos;lsa — bonusni pasaytiring; viral past bo&apos;lsa — QR/referalni kuchaytiring.</p>
+        </div>
+      )}
+      {rc && rc.cohorts.length > 0 && (
+        <div className="panel" style={{ marginBottom: 12 }}>
+          <div className="card-title">📊 Qaytish kohortalari — D1 / D7 / D30 (haftalik, ilk safar bo&apos;yicha)</div>
+          <table style={{ width: "100%", fontSize: 13, borderCollapse: "collapse" }}>
+            <thead>
+              <tr className="muted" style={{ textAlign: "left" }}>
+                <th style={{ padding: "4px 6px" }}>Hafta</th>
+                <th style={{ padding: "4px 6px" }}>Yangi</th>
+                <th style={{ padding: "4px 6px" }}>D1</th>
+                <th style={{ padding: "4px 6px" }}>D7</th>
+                <th style={{ padding: "4px 6px" }}>D30</th>
+              </tr>
+            </thead>
+            <tbody>
+              {rc.cohorts.map((c) => (
+                <tr key={c.cohort} style={{ borderTop: "1px solid #26304a" }}>
+                  <td style={{ padding: "4px 6px" }}>{c.cohort}</td>
+                  <td style={{ padding: "4px 6px" }}>{c.users}</td>
+                  <td style={{ padding: "4px 6px" }}>{c.users ? Math.round((c.d1 / c.users) * 100) : 0}%</td>
+                  <td style={{ padding: "4px 6px" }}>{c.users ? Math.round((c.d7 / c.users) * 100) : 0}%</td>
+                  <td style={{ padding: "4px 6px" }}>{c.users ? Math.round((c.d30 / c.users) * 100) : 0}%</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          <p className="muted" style={{ marginTop: 6, fontSize: 12 }}>DN = ilk safardan keyin N kun ichida YANA safar qilganlar ulushi (kumulyativ). Phase 1-3 o&apos;zgarishlari shu jadvalga qarab baholanadi.</p>
         </div>
       )}
       <div className="grid">

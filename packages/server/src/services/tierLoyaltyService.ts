@@ -94,10 +94,27 @@ type SweepMember = {
   telegramUser?: { id: string } | null;
 };
 
-/** Run the per-member daily tier-loyalty pass (award + decay + warning). Called once per member in
- *  the sweep loop. Idempotent per UTC+5 day, OFF-safe, client-only. Never throws to the caller. */
+// 0.3 sweep-diet: this pass used to run per member per 5-90s SWEEP tick — the dailyball INSERT
+// (guaranteed P2002 after the first pass) + 2 claimedDailyCount reads for EVERY client EVERY tick
+// was the sweep's single biggest DB cost (~4 queries × N members). It is a DAILY mechanic, so:
+// (1) an in-memory day-guard makes repeat same-day calls free (single-instance app — a restart just
+// costs one extra pass per member, all DB ops are idempotent anyway), and (2) the call moved off
+// the fast sweep onto the 15-min tick (runTierLoyaltyDailyAll below).
+let guardDay = "";
+const dailyPassDone = new Map<number, string>();
+function passDone(memberId: number, today: string): boolean {
+  if (guardDay !== today) {
+    dailyPassDone.clear(); // day rollover — start fresh
+    guardDay = today;
+  }
+  return dailyPassDone.get(memberId) === today;
+}
+
+/** Run the per-member daily tier-loyalty pass (award + decay + warning).
+ *  Idempotent per UTC+5 day, OFF-safe, client-only. Never throws to the caller. */
 export async function runTierLoyaltyDaily(bot: Bot, m: SweepMember): Promise<void> {
   if (m.type !== "client") return;
+  if (passDone(m.id, tashkentDayKey())) return; // in-memory fast path — no DB touched
   if (!(await featureOn("tierloyalty"))) return;
   try {
     const econ = await getBonusEcon();
@@ -135,10 +152,14 @@ export async function runTierLoyaltyDaily(bot: Bot, m: SweepMember): Promise<voi
     }
 
     // ── 2) Decay (once per UTC+5 day, anti-yo-yo via decayAppliedDay) ──
-    if (m.decayAppliedDay === today) return; // already evaluated today
+    if (m.decayAppliedDay === today) {
+      dailyPassDone.set(m.id, today); // fully processed today → all later calls are in-memory no-ops
+      return;
+    }
     if (!m.lastActiveDay) {
       // first sighting under the flag → treat as active today, no decay (fair fresh start)
       await prisma.member.update({ where: { id: m.id }, data: { lastActiveDay: today } }).catch(() => undefined);
+      dailyPassDone.set(m.id, today);
       return;
     }
     const grace = Math.round(econ.decayGraceDays ?? 7);
@@ -156,6 +177,7 @@ export async function runTierLoyaltyDaily(bot: Bot, m: SweepMember): Promise<voi
       // stamp the day even when nothing decayed, so we don't re-evaluate every 90s tick
       await prisma.member.update({ where: { id: m.id }, data: { decayAppliedDay: today } }).catch(() => undefined);
     }
+    dailyPassDone.set(m.id, today);
   } catch (e) {
     console.error(`[tierloyalty] m${m.id} daily pass failed:`, e instanceof Error ? e.message.split("\n")[0] : e);
   }
@@ -173,4 +195,24 @@ async function sendDecayWarning(bot: Bot, m: SweepMember, idle: number, grace: n
     ? `⚠️ <b>Darajangiz xavf ostida!</b>\n\nSiz so'nggi ${grace} kun 1067'da faol bo'lmadingiz.\nErtadan boshlab ballingiz yechila boshlaydi.\n\nBugun bitta vazifa bajaring yoki safar qiling — darajangizni saqlang! 🚕`
     : `📉 <b>Ball yechilmoqda!</b>\n\nSiz ${idle} kun faol bo'lmadingiz.\nHozirgi ball: <b>${m.ballPoints.toLocaleString("ru-RU")}</b> ${lvl.emoji}\nBir safar yoki bitta vazifa — yetarli! 🚕`;
   await bot.api.sendMessage(chatId, html, { parse_mode: "HTML" }).catch(() => undefined);
+}
+
+/** 0.3 sweep-diet: the daily pass over ALL clients, moved OFF the fast booking sweep onto the
+ *  15-min periodic tick (a daily mechanic needs no 5s cadence). First tick of the day does the real
+ *  DB work; every later tick is an in-memory no-op per member (passDone guard). Paged so a large
+ *  member table never loads at once. */
+export async function runTierLoyaltyDailyAll(bot: Bot): Promise<void> {
+  if (!(await featureOn("tierloyalty"))) return;
+  let cursor = 0;
+  for (;;) {
+    const page = await prisma.member.findMany({
+      where: { id: { gt: cursor }, type: "client", telegramUser: { isNot: null } },
+      select: { id: true, type: true, ballPoints: true, lastActiveDay: true, decayAppliedDay: true, telegramUser: { select: { id: true } } },
+      orderBy: { id: "asc" },
+      take: 500,
+    });
+    if (page.length === 0) return;
+    cursor = page[page.length - 1]!.id;
+    for (const m of page) await runTierLoyaltyDaily(bot, m);
+  }
 }
