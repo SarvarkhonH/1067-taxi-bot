@@ -753,8 +753,10 @@ export function createApiServer(opts: ApiOptions = {}) {
     const [info, flagOn, livinghome, tolqin, garajx] = await Promise.all([getBookingInfo(id), featureOn("booking3"), featureOn("livinghome"), featureOn("tolqin"), featureOn("garajx")]);
     // Booking 3.0 ega-ko'z darvozasi: global flag OFF bo'lsa ham EGA yangi oqimni ko'radi
     // (ilovani oddiy ochib — tasdiqdan oldin preview). QABUL → flag global ON → bu ahamiyatsiz.
+    // 2026-07-02: livinghome/tolqin/garajx preview OLIB TASHLANDI — bular endi "QABUL kutayotgan
+    // dark" emas, o'chirilayotgan tizimlar («chaqmoq-bot» dasturi); ega ham ko'rmasligi kerak.
     const previewer = resolveTelegramId(req) === "6506297119";
-    return { ...info, booking3: flagOn || previewer, livinghome: livinghome || previewer, tolqin: tolqin || previewer, garajx: garajx || previewer };
+    return { ...info, booking3: flagOn || previewer, livinghome, tolqin, garajx };
   }));
   // V1 living home aggregate: greeting name, usual ride, live cars, balances.
   app.get("/api/home", requireUser, withMember(async (id) => {
@@ -1002,6 +1004,10 @@ export function createApiServer(opts: ApiOptions = {}) {
     await clearDriverPhoto(driverId);
     res.json({ ok: true });
   });
+  app.post("/api/booking/waitscore", requireUser, rateLimit(20), withMember2(async (id, req) => {
+    const { submitWaitScore } = await import("../services/bookingService");
+    return submitWaitScore(id, Number((req.body as { score?: number })?.score ?? 0));
+  }));
   app.post("/api/booking/rate", requireUser, rateLimit(10), withMember2(async (id, req) => {
     const { rateRide, RATING_TAGS } = await import("../services/bookingPlus");
     const b = req.body as { bookingId?: number; stars?: number; tags?: string[] };

@@ -274,6 +274,7 @@ export const api = {
   bookingNearby: () => get<{ pins: { lat: number; lng: number; bearing: number; busy: boolean; id: string }[]; freeDrivers: number }>("/api/booking/nearby"),
   bookingPredict: (address?: string) => get<{ rides: number; avg: number; p50: number; byAddress?: { name: string; avg: number; rides: number } | null }>(`/api/booking/predict${address ? `?address=${encodeURIComponent(address)}` : ""}`),
   bookingRate: (bookingId: number, stars: number, tags: string[]) => request<{ ok: boolean; reason?: string }>("POST", "/api/booking/rate", { bookingId, stars, tags }, 1),
+  bookingWaitScore: (score: number) => request<{ ok: boolean }>("POST", "/api/booking/waitscore", { score }, 1),
   bookingScheduled: () => get<{ scheduled: { id: number; addressName: string; runAt: string; phone: string }[]; family: { id: number; phone: string; name: string }[] }>("/api/booking/scheduled"),
   bookingSchedule: (pickupId: number, pickupName: string, runAt: string, forPhone?: string) => request<{ ok: boolean; reason?: string }>("POST", "/api/booking/schedule", { pickupId, pickupName, runAt, forPhone }, 1),
   bookingScheduleCancel: (id: number) => request<{ ok: boolean }>("POST", "/api/booking/schedule/cancel", { id }, 1),

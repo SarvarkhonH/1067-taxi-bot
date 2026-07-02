@@ -1262,8 +1262,10 @@ function Booking3Inner({ me, info, onClose }: { me: MeResponse; info: BookingInf
                     : "haydovchi javobini kutmoqda…"}
               </div>
               {/* 🪙 ovunish o'yini — kutishni zerikarli bo'lmasligi uchun. Haydovchi topilishi bilan bu
-                  butun tarmoq (driver yo'q) o'rniga driver-karta render bo'ladi → o'yin o'zi yo'qoladi. */}
-              <WaitGame />
+                  butun tarmoq (driver yo'q) o'rniga driver-karta render bo'ladi → o'yin o'zi yo'qoladi
+                  (unmount), shu bilan safar tugagach hisoblangan real to'lov hech qachon to'sqinlik
+                  qilmaydi. waitComp=null (flag OFF) bo'lsa — o'yin sof zavq, taxminiy summa ko'rsatilmaydi. */}
+              <WaitGame waitComp={info.waitComp} />
             </>
           )}
           <Button variant="danger" disabled={busy} onClick={cancel}>✖ Bekor qilish</Button>

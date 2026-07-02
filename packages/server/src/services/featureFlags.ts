@@ -29,13 +29,16 @@ export const FEATURES = [
   "carupgrade", // 🚗 FAZA2 — model-upgrade ladder (Tiko→Damas→…, #serial saqlanadi) + "buy new car" shop removed. OFF until owner QABUL
   "intercity", // 🚐 Nationwide shaharlararo shared-taxi (o'rindiq sotish, real-pul fare alohida ledger, tanga faqat ≤5000 chegirma). DARK until owner pilot
   "tierloyalty", // 🏅 Tier loyalty loop: tier→per-ride cashback multiplier + daily ≥50%-task ball + soft decay. ≤350 clamp untouched. DARK until owner QABUL
+  "waitcomp", // 🪙 Wait compensation: catch-the-coin game while searching for a driver pays REAL tanga
+              // scaled to search time (grace→ceiling ramp, freezes on driver-accept), OUTSIDE the
+              // 350/ride clamp (own daily company-wide budget instead). Ride-finish only. DARK until owner QABUL
 ] as const;
 export type FeatureName = (typeof FEATURES)[number];
 
 // Off until explicitly enabled (go-live flip = setFeature(name, true) after owner QABUL).
 // booking3 = the new map/trip flow; owner still gets a preview via server.ts owner-branch,
 // but real users stay on the (fixed) classic flow until it's accepted. A missing row → OFF.
-const DEFAULT_OFF = new Set<FeatureName>(["booking3", "livinghome", "aibrain", "mahalla", "tolqin", "garajx", "kozacha", "baraban", "motorolami", "komissiya", "qarz", "welcomebonus", "refstaged", "drvstaged", "drvrecruit", "drvpush", "promo", "clientbooking", "cashout", "carupgrade", "intercity", "tierloyalty"]);
+const DEFAULT_OFF = new Set<FeatureName>(["booking3", "livinghome", "aibrain", "mahalla", "tolqin", "garajx", "kozacha", "baraban", "motorolami", "komissiya", "qarz", "welcomebonus", "refstaged", "drvstaged", "drvrecruit", "drvpush", "promo", "clientbooking", "cashout", "carupgrade", "intercity", "tierloyalty", "waitcomp"]);
 
 let cache: { at: number; map: Record<string, boolean> } = { at: 0, map: {} };
 

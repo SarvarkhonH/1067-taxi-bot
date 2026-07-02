@@ -231,6 +231,26 @@ model RideReward {
   @@index([createdAt]) // T2: cross-member monthly counts — corp/gap (AUDIT 2.11)
 }
 
+// 🪙 Wait compensation (feature "waitcomp"): tanga paid for search time before a driver accepted,
+// scaled by a grace→ceiling ramp and gated on active play (score>0). OUTSIDE the 350/ride clamp
+// (rollRideCashback) — this is compensation for OUR failure to find a driver fast, not stacked
+// cashback, so it has its own daily company-wide budget instead (see waitCompDailyBudget knob).
+// Same idempotent-insert-first pattern as RideReward: unique row wins the race, a re-polled sweep
+// grants nothing on the second attempt.
+model WaitCompReward {
+  id          Int      @id @default(autoincrement())
+  memberId    Int
+  bookingId   Int
+  waitSeconds Int
+  score       Int
+  amount      Float
+  dayKey      String // Tashkent YYYY-MM-DD, mirrors OfisLedger — cheap daily-budget aggregate
+  createdAt   DateTime @default(now())
+
+  @@unique([memberId, bookingId])
+  @@index([dayKey])
+}
+
 // In-ride wheel: ONE spin per real ride (bookingId), only while the booking is
 // in "started". Paid respins were removed (UZ gambling posture).
 model WheelSpin {

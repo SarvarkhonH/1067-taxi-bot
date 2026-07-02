@@ -312,7 +312,7 @@ export function createBot(): Bot {
       // Ulangan zahoti ilovani BIR MARTA ko'zga tashlash — "odamlar web app borligini bilmaydi".
       if (canWebApp) {
         await ctx
-          .reply("🎮 <b>1067 ilovasi ham bor!</b>\nJonli xarita · o'yin · bozor · garaj — hammasi bitta joyda 👇", {
+          .reply("🎮 <b>1067 ilovasi ham bor!</b>\nJonli xarita · o'yin · bozor — hammasi bitta joyda 👇", {
             parse_mode: "HTML",
             reply_markup: new InlineKeyboard().webApp("🚕 Ilovani ochish", webAppUrl()),
           })
@@ -518,7 +518,7 @@ export function createBot(): Bot {
       // Ulangan zahoti ilovani BIR MARTA ko'zga tashlash — "odamlar web app borligini bilmaydi".
       if (canWebApp) {
         await ctx
-          .reply("🎮 <b>1067 ilovasi ham bor!</b>\nJonli xarita · o'yin · bozor · garaj — hammasi bitta joyda 👇", {
+          .reply("🎮 <b>1067 ilovasi ham bor!</b>\nJonli xarita · o'yin · bozor — hammasi bitta joyda 👇", {
             parse_mode: "HTML",
             reply_markup: new InlineKeyboard().webApp("🚕 Ilovani ochish", webAppUrl()),
           })

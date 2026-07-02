@@ -130,3 +130,56 @@ export function renderRideRoll(r: RideRollResult): string {
   const head = r.tier === "standard" ? "💰" : r.tier === "double" ? "✨ 2x DOUBLE!" : "🔥 3x TRIPLE!";
   return `${head} Safar cashback: <b>+${formatNumber(r.amount)} tanga</b>${r.lucky ? " · 🍀 OMAD KUNI (2x)" : ""}`;
 }
+
+function tashkentDay(d = new Date()): string {
+  return new Date(d.getTime() + 5 * 3600 * 1000).toISOString().slice(0, 10);
+}
+
+/**
+ * 🪙 Wait compensation (feature "waitcomp"): tanga for search time before a driver accepted —
+ * OUR failure to match fast, not a skill reward, so it's OUTSIDE the ≤350/ride clamp and instead
+ * bounded by its own daily company-wide budget (waitCompDailyBudget). Grace period → linear ramp to
+ * the ceiling; gated on `score > 0` (must have actually played, not just left the app open).
+ * Idempotent per (member, booking) via the WaitCompReward unique row — a re-polled finish-sweep
+ * grants nothing on the second attempt. Called ONLY from the ride-finish branch of the booking sweep
+ * (server-authoritative; the Mini App never grants), same place as rollRideCashback.
+ */
+export async function awardWaitComp(memberId: number, bookingId: number, waitSeconds: number, score: number): Promise<number> {
+  if (!(await featureOn("waitcomp")) || score <= 0 || waitSeconds <= 0) return 0;
+  const econ = await getBonusEcon();
+  const grace = Math.max(0, econ.waitCompGraceSec ?? 20);
+  const full = Math.max(grace + 1, econ.waitCompFullSec ?? 300);
+  const ceiling = Math.max(0, econ.waitCompCeiling ?? 2000);
+  const effective = Math.max(0, Math.min(waitSeconds, full) - grace);
+  let amount = Math.floor(ceiling * (effective / (full - grace)));
+  if (amount <= 0) return 0;
+
+  const dayKey = tashkentDay();
+  // Idempotent insert-first, exactly like rollRideCashback's RideReward: the unique row wins the
+  // race, so a duplicate sweep tick / retry can never double-pay this ride.
+  let rewardId: number;
+  try {
+    const row = await prisma.waitCompReward.create({ data: { memberId, bookingId, waitSeconds, score, amount, dayKey } });
+    rewardId = row.id;
+  } catch {
+    return 0; // already awarded for this ride
+  }
+
+  // Company-wide daily budget — this is compensation paid out of pocket, not a per-user cap, so a
+  // citywide driver-shortage day can't create unbounded exposure. Read AFTER the insert wins (so a
+  // race can't double-count itself) but the budget check itself is best-effort (not lock-serialized
+  // across members) — acceptable because a single ride's amount is small relative to the budget, so
+  // the worst case is a brief, bounded overshoot on the last grant(s) of the day, not runaway spend.
+  const dailyBudget = Math.max(0, econ.waitCompDailyBudget ?? 200_000);
+  const spentToday = await prisma.waitCompReward.aggregate({ where: { dayKey }, _sum: { amount: true } });
+  const spentBefore = (spentToday._sum.amount ?? 0) - amount; // exclude the row just inserted
+  const room = Math.max(0, dailyBudget - spentBefore);
+  if (amount > room) {
+    amount = Math.floor(room);
+    await prisma.waitCompReward.update({ where: { id: rewardId }, data: { amount } }).catch(() => undefined);
+  }
+  if (amount <= 0) return 0;
+
+  await grantCoins(memberId, amount, "waitcomp", "🪙 Kutish kompensatsiyasi — haydovchi kutilgan vaqt uchun", `waitcomp:${bookingId}:m${memberId}`);
+  return amount;
+}

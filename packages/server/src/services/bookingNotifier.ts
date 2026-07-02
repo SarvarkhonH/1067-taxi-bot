@@ -246,6 +246,14 @@ export async function pushBookingUpdates(
         );
       }
 
+      // 🪙 wait-comp timing markers (feature "waitcomp"): server-side, sweep-resolution timestamps —
+      // NEVER trust the client for money-relevant elapsed time. Idempotent create-with-catch, same
+      // pattern as wsarrived:<id> — first tick in each phase wins, later ticks in the same phase just
+      // throw P2002 and are swallowed. Read back at ride-finish to compute waitSeconds for awardWaitComp.
+      await prisma.appState
+        .create({ data: { key: `${SEARCHING.has(b.status) ? "waitstart" : "waitfound"}:${b.id}`, value: String(Date.now()) } })
+        .catch(() => undefined);
+
       // T2 (AUDIT 2.2): 2 ketma-ket so'rov → 1 parallel to'lqin (faol-safar a'zosiga)
       const [guessRow, spinRow] = await Promise.all([
         prisma.rideGuess.findUnique({ where: { memberId_bookingId: { memberId: m.id, bookingId: b.id } } }).catch(() => null),
@@ -483,6 +491,30 @@ export async function pushBookingUpdates(
         if (roll) rollLine = `\n${renderRideRoll(roll)}`;
       } catch (e) {
         console.error("[cashback] roll failed:", e);
+      }
+
+      // 🪙 wait compensation (feature "waitcomp"): tanga for the search time before a driver
+      // accepted, gated on having actually played the wait-game. Server-timed via the waitstart/
+      // waitfound markers captured above (never the client's score-derived duration). Idempotent
+      // per ride (WaitCompReward unique) + its own daily company budget — see cashbackService.
+      let waitCompLine = "";
+      try {
+        const [startRow, foundRow, scoreRow] = await Promise.all([
+          prisma.appState.findUnique({ where: { key: `waitstart:${bid}` } }),
+          prisma.appState.findUnique({ where: { key: `waitfound:${bid}` } }),
+          prisma.appState.findUnique({ where: { key: `waitscore:${bid}` } }),
+        ]);
+        const start = startRow ? Number(startRow.value) : NaN;
+        const found = foundRow ? Number(foundRow.value) : NaN;
+        const score = scoreRow ? Number(scoreRow.value) || 0 : 0;
+        if (Number.isFinite(start) && Number.isFinite(found) && found > start) {
+          const waitSeconds = Math.floor((found - start) / 1000);
+          const { awardWaitComp } = await import("./cashbackService");
+          const paid = (await resilient("waitcomp", () => awardWaitComp(m.id, bid!, waitSeconds, score))) ?? 0;
+          if (paid > 0) waitCompLine = `\n🪙 Kutish kompensatsiyasi: <b>+${formatNumber(paid)} tanga</b>`;
+        }
+      } catch (e) {
+        console.error("[waitcomp] award failed:", e);
       }
 
       // 💎 ride-drop collectibles: founder (first 100 riders) + district badge
@@ -771,6 +803,7 @@ export async function pushBookingUpdates(
             "🏁 <b>Safaringiz yakunlandi — rahmat!</b>" +
               fareLine +
               rollLine +
+              waitCompLine +
               guessLine +
               garageLine +
               streakLine +

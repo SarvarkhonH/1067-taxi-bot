@@ -28,7 +28,10 @@ async function main(): Promise<void> {
     // "answer via the webhook response" optimisation and falls back to a normal sendMessage. Telegram
     // already got its 200, so there is no retry/duplicate and the handler finishes in the background.
     // It surfaces here as an unhandledRejection — but alerting the owner on it is pure noise.
-    if (/(timed out after \d+ ms|webhook)/i.test(msg)) return;
+    // "query is too old": answerCallbackQuery on an expired/duplicate button tap (Telegram rejects
+    // answers after ~15s or a bot restart). The tap's real work already ran; only the ack failed —
+    // same noise category, so it must not page the owner either.
+    if (/(timed out after \d+ ms|webhook|query is too old|query ID is invalid)/i.test(msg)) return;
     const now = Date.now();
     if (now - lastCrashAlert > 60_000) {
       lastCrashAlert = now;

@@ -177,6 +177,13 @@ export const BONUS_ECON_KNOBS: BonusEconKnob[] = [
   { key: "decayGraceDays", label: "⏳ Faolsiz kun (ogohlantirishdan oldin)", def: 7, min: 1, max: 30, step: 1, group: "Daraja balli" },
   { key: "decayPct", label: "📉 Kunlik ball yechilishi (%)", def: 5, min: 0, max: 30, step: 1, group: "Daraja balli" },
   { key: "decayFloor", label: "📉 Ball minimumi (decay shu yerda to'xtaydi)", def: 0, min: 0, max: 10000, step: 100, group: "Daraja balli" },
+  // ── 🪙 Kutish kompensatsiyasi (feature "waitcomp") — haydovchi topa olmagan har soniya uchun
+  // o'ynab ishlanadigan tanga. 350/safar clamp'dan TASHQARI (kompensatsiya, oddiy cashback emas) —
+  // shuning uchun o'zining kunlik kompaniya-byudjeti bilan cheklanadi.
+  { key: "waitCompCeiling", label: "🪙 Kutish bonusi — maksimal (/safar)", def: 2000, min: 0, max: 3000, step: 100, group: "Kutish kompensatsiyasi" },
+  { key: "waitCompGraceSec", label: "⏳ Bepul boshlanish (soniya, hali 0)", def: 20, min: 0, max: 120, step: 5, group: "Kutish kompensatsiyasi" },
+  { key: "waitCompFullSec", label: "⏱ Maksimalgacha necha soniya", def: 300, min: 60, max: 900, step: 30, group: "Kutish kompensatsiyasi" },
+  { key: "waitCompDailyBudget", label: "🏦 Kunlik kompaniya byudjeti (tanga)", def: 200000, min: 0, max: 2000000, step: 10000, group: "Kutish kompensatsiyasi" },
 ];
 // 🏅 level index → cashback-multiplier knob key (null for Yangi = baseline ×1.0).
 const TIER_MULT_KNOB: Record<number, string> = {

@@ -5,7 +5,9 @@ Sen 1067 loyihasining bosh muhandisi VA mahsulot dizaynerisan. Har qaror ikkala 
 "kod to'g'rimi?" + "mijoz his qiladimi?". Sifat mezoning: Uber/Bolt darajasi, undan kam emas.
 
 ## ISHLASH PROTOKOLI (har sessiyada, har doim)
-1. Avval o'qi: CLAUDE.md → PROGRESS.md → AUDIT.md → V3_PLAN.md → V3_AUDIT.md → berilgan tiket.
+0. BIRINCHI O'QI: **ARCHITECTURE.md** — butun kodbazaning kam-token xaritasi (modul-jadval, 4 asosiy
+   oqim, buzilmas invariantlar, jump-table, V-NEXT backlog). Har agent shu bilan boshlaydi.
+1. Keyin: CLAUDE.md → PROGRESS.md → AUDIT.md → V3_PLAN.md → V3_AUDIT.md → berilgan tiket.
 2. REJA chiqar: o'zgaradigan fayllar ro'yxati + yondashuv + xavflar. TASDIQNI KUT.
 3. Kod yoz. Har fayl o'zgarishidan keyin typecheck.
 4. O'Z-O'ZINGNI TEKSHIR: tiketdagi har qabul mezonini birma-bir isbotla

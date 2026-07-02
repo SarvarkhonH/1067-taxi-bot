@@ -77,6 +77,10 @@ export interface BookingInfoResponse {
   livinghome?: boolean; // V1: feature flag — show the living AI home screen
   tolqin?: boolean; // V4: feature flag — Yashil to'lqin skill game
   garajx?: boolean; // 🏆 GARAJ v2: feature flag — the new full-screen restoration game
+  // 🪙 wait compensation (feature "waitcomp"): null when OFF. Lets the Mini App render a LIVE, honest
+  // running estimate while searching (the real payout is server-timed at ride-finish — this is a
+  // client-side preview using the same knobs, not the source of truth).
+  waitComp: { graceSec: number; fullSec: number; ceiling: number } | null;
 }
 
 // V1 living home aggregate — greeting, your usual ride, live cars, balances.
