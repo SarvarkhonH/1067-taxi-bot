@@ -119,10 +119,46 @@ export class KasLiveSource implements KasDataSource {
   private loggedIn = false;
   private pageSize: number;
   private maxPages: number;
+  // 🚦 kas rate-limit shield (V-NEXT #1). Measured live: ~1 req/s is safe, ~7 req/s → ~70% 429 →
+  // broken login → dead bookings. Before this queue, parallel callers (getBookingInfo fan-out × N
+  // simultaneous app-opens + the sweep + bot handlers) hit kas at once and 429-cascaded. Now EVERY
+  // kas request flows through ONE serial queue with a minimum start-to-start gap.
+  private queueTail: Promise<void> = Promise.resolve();
+  private lastReqAt = 0;
+  private static readonly MIN_GAP_MS = Math.max(0, Number(process.env.KAS_MIN_GAP_MS) || 600);
+  // 🔐 single-flight login: when the shared session dies under concurrent load, every in-flight
+  // request used to call login() in PARALLEL — each clears the shared cookie jar (corrupting the
+  // others) and kas rate-limits login itself. Now the first caller logs in; the rest await the SAME
+  // promise. A rejected login clears the slot so the next call retries fresh.
+  private loginInFlight: Promise<void> | null = null;
 
   constructor(private opts: KasClientOptions) {
     this.pageSize = opts.pageSize ?? 200;
     this.maxPages = opts.maxPages ?? 50;
+  }
+
+  private enqueue<T>(fn: () => Promise<T>): Promise<T> {
+    const run = this.queueTail.then(async () => {
+      const wait = this.lastReqAt + KasLiveSource.MIN_GAP_MS - Date.now();
+      if (wait > 0) await sleep(wait);
+      this.lastReqAt = Date.now(); // start-to-start spacing (long responses don't add extra delay)
+      return fn();
+    });
+    this.queueTail = run.then(
+      () => undefined,
+      () => undefined, // a failed request must never wedge the queue
+    );
+    return run;
+  }
+
+  private async ensureLogin(): Promise<void> {
+    if (this.loggedIn) return;
+    if (!this.loginInFlight) {
+      this.loginInFlight = this.login().finally(() => {
+        this.loginInFlight = null;
+      });
+    }
+    await this.loginInFlight;
   }
 
   private url(path: string): string {
@@ -189,12 +225,12 @@ export class KasLiveSource implements KasDataSource {
     // Every kas HTTP read funnels through here — passively feed the early-warning health monitor so
     // a 429/login/timeout spike alerts the owner in seconds (no synthetic ping, zero extra kas load).
     try {
-      if (!this.loggedIn) await this.login();
-      let res = await rawRequest(this.url(path), { headers: { ...this.baseHeaders(), Accept: accept } });
+      await this.ensureLogin();
+      let res = await this.enqueue(() => rawRequest(this.url(path), { headers: { ...this.baseHeaders(), Accept: accept } }));
       if (res.status >= 300 && res.status < 400 && /\/login/.test((res.headers.location as string) ?? "")) {
         this.loggedIn = false;
-        await this.login();
-        res = await rawRequest(this.url(path), { headers: { ...this.baseHeaders(), Accept: accept } });
+        await this.ensureLogin();
+        res = await this.enqueue(() => rawRequest(this.url(path), { headers: { ...this.baseHeaders(), Accept: accept } }));
       }
       recordKas(res.status < 400, res.status === 429 ? "429" : res.status >= 400 ? "other" : undefined);
       return res;
@@ -285,36 +321,40 @@ export class KasLiveSource implements KasDataSource {
   }
 
   private async postJson(path: string, body: unknown): Promise<RawResponse> {
-    if (!this.loggedIn) await this.login();
+    await this.ensureLogin();
     // Match the SPA: strings go raw, objects as JSON (both with application/json).
     const payload = typeof body === "string" ? body : JSON.stringify(body);
     const doReq = () =>
-      rawRequest(this.url(path), {
-        method: "POST",
-        headers: { ...this.baseHeaders(), "Content-Type": "application/json", Accept: "application/json, text/plain, */*" },
-        body: payload,
-      });
+      this.enqueue(() =>
+        rawRequest(this.url(path), {
+          method: "POST",
+          headers: { ...this.baseHeaders(), "Content-Type": "application/json", Accept: "application/json, text/plain, */*" },
+          body: payload,
+        }),
+      );
     let res = await doReq();
     if (res.status >= 300 && res.status < 400 && /\/login/.test((res.headers.location as string) ?? "")) {
       this.loggedIn = false;
-      await this.login();
+      await this.ensureLogin();
       res = await doReq();
     }
     return res;
   }
 
   private async putJson(path: string, body: unknown): Promise<RawResponse> {
-    if (!this.loggedIn) await this.login();
+    await this.ensureLogin();
     const doReq = () =>
-      rawRequest(this.url(path), {
-        method: "PUT",
-        headers: { ...this.baseHeaders(), "Content-Type": "application/json", Accept: "application/json, text/plain, */*" },
-        body: JSON.stringify(body),
-      });
+      this.enqueue(() =>
+        rawRequest(this.url(path), {
+          method: "PUT",
+          headers: { ...this.baseHeaders(), "Content-Type": "application/json", Accept: "application/json, text/plain, */*" },
+          body: JSON.stringify(body),
+        }),
+      );
     let res = await doReq();
     if (res.status >= 300 && res.status < 400 && /\/login/.test((res.headers.location as string) ?? "")) {
       this.loggedIn = false;
-      await this.login();
+      await this.ensureLogin();
       res = await doReq();
     }
     return res;
@@ -536,32 +576,32 @@ export class KasLiveSource implements KasDataSource {
   }
   /** Step 1: send the rider phone → kas texts a 4-digit OTP. */
   async clientLogin(phone: string): Promise<RawResponse> {
-    return rawRequest(this.url("api/clientAppV1/login/"), {
+    return this.enqueue(() => rawRequest(this.url("api/clientAppV1/login/"), {
       method: "POST", headers: this.clientHeaders(),
       body: JSON.stringify({ appVersion: "4.8", language: "uz", phoneNumber: kasPhone(phone) }),
-    });
+    }));
   }
   /** Step 2: confirm the OTP → response carries clientDto.secretKey (the long-lived session key). */
   async clientConfirmSms(phone: string, smsCode: string): Promise<RawResponse> {
-    return rawRequest(this.url("api/clientAppV1/confirmSms/"), {
+    return this.enqueue(() => rawRequest(this.url("api/clientAppV1/confirmSms/"), {
       method: "POST", headers: this.clientHeaders(),
       body: JSON.stringify({ language: "uz", phoneNumber: kasPhone(phone), smsCode }),
-    });
+    }));
   }
   /** Step 3: create a «new» order at the EXACT pin (server snaps a nearby name). Needs the secretKey. */
   async clientCreateBooking(p: { secretKey: string; phone: string; lat: number; lng: number; carModel: string; additionalPayment?: number }): Promise<RawResponse> {
-    return rawRequest(this.url("api/clientAppV1/createBooking/"), {
+    return this.enqueue(() => rawRequest(this.url("api/clientAppV1/createBooking/"), {
       method: "POST", headers: this.clientHeaders(),
       body: JSON.stringify({ language: "uz", phoneNumber: kasPhone(p.phone), secretKey: p.secretKey, addressLatitude: p.lat, addressLongitude: p.lng, additionalPayment: p.additionalPayment ?? 0, carModel: p.carModel }),
-    });
+    }));
   }
   /** Validate a secretKey WITHOUT creating a booking (operator can read the key off the client record;
    * checkClient confirms it's live). Returns 200 + client bootstrap when the key is valid. */
   async clientCheckClient(phone: string, secretKey: string): Promise<RawResponse> {
-    return rawRequest(this.url("api/clientAppV1/checkClient/"), {
+    return this.enqueue(() => rawRequest(this.url("api/clientAppV1/checkClient/"), {
       method: "POST", headers: this.clientHeaders(),
       body: JSON.stringify({ appVersion: "4.8", language: "uz", phoneNumber: kasPhone(phone), secretKey }),
-    });
+    }));
   }
   /** Read a client's kas secretKey + pending loginSmsCode straight off the operator clients API (the
    * bot IS the operator, both are stored on the client record — so NO rider-entered OTP is needed). */

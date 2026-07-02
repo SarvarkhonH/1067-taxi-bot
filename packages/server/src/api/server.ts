@@ -1,3 +1,4 @@
+import crypto from "node:crypto";
 import express, { type NextFunction, type Request, type Response } from "express";
 import cors from "cors";
 import compression from "compression";
@@ -113,10 +114,20 @@ function withMember2(handler: (memberId: number, req: Request, res: Response) =>
   };
 }
 
+// constant-time token compare (V-NEXT #4): a plain === leaks match-length via response timing,
+// letting an attacker recover the admin token byte-by-byte. Length check first is fine — length
+// itself is not secret enough to matter, and timingSafeEqual REQUIRES equal-length buffers.
+function tokenEquals(a: string, b: string): boolean {
+  const ab = Buffer.from(a);
+  const bb = Buffer.from(b);
+  if (ab.length !== bb.length) return false;
+  return crypto.timingSafeEqual(ab, bb);
+}
+
 function requireAdmin(req: Request, res: Response, next: NextFunction): void {
   // desktop dashboard (no Telegram): a strong shared token grants admin access
   const token = req.header("X-Admin-Token");
-  if (env.ADMIN_PANEL_TOKEN && token && token === env.ADMIN_PANEL_TOKEN) {
+  if (env.ADMIN_PANEL_TOKEN && token && tokenEquals(token, env.ADMIN_PANEL_TOKEN)) {
     res.locals.telegramId = "panel";
     res.locals.adminRole = "owner";
     next();
@@ -847,9 +858,18 @@ export function createApiServer(opts: ApiOptions = {}) {
     res.json({ ...np, freeDrivers: inflateOnline(np.freeDrivers) }); // riders see ~2× free cars; pins stay real
   });
   // 📷 Driver portrait proxy — resolves Telegram file_id (or override URL) to a live image. Public
-  // (no auth) so the Mini App can render it as a plain <img src>; the URL is unguessable in practice
-  // because the memberId is only emitted on bookings the rider is part of. Cached 1h on the rider.
+  // (no auth) so the Mini App can render it as a plain <img src>. V-NEXT #4: sequential memberIds
+  // made the whole driver-photo set enumerable by anyone — now per-IP rate-limited (the regular
+  // rateLimit keys on telegramId, which this authless route doesn't have). 30/min covers a real
+  // rider's screen (a handful of imgs, browser-cached 1h) while making a full-fleet scrape loud.
+  const photoHits = new Map<string, { n: number; resetAt: number }>();
   app.get("/api/driver-photo/:memberId", async (req, res) => {
+    const ipKey = String(req.headers["x-forwarded-for"] ?? req.socket.remoteAddress ?? "?").split(",")[0]!.trim();
+    if (photoHits.size > 10_000) photoHits.clear(); // bound memory
+    const now = Date.now();
+    let b = photoHits.get(ipKey);
+    if (!b || now > b.resetAt) { b = { n: 0, resetAt: now + 60_000 }; photoHits.set(ipKey, b); }
+    if (++b.n > 30) { res.status(429).end(); return; }
     const id = Math.floor(Number(req.params.memberId));
     if (!id) { res.status(400).end(); return; }
     const { resolveDriverPhoto } = await import("../services/driverPhotoService");

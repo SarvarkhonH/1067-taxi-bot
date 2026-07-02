@@ -279,3 +279,13 @@ STATUS (Rule 7): `ready for verification`. Compliance-report 5 gap yopildi; kodn
   + Mini App uzr-ekrani; qidiruv-ekranda halol zinapoya + jonli ticker.
 - Isbot: testWaitComp 16/16 YASHIL ×3 (TEST DB), tsc yashil (server+miniapp), vite build yashil,
   leftover-grep 0. Ega QABUL'i kutilmoqda: telefonda ko'rish → setFlag waitcomp on.
+
+## 2026-07-02 (tun-2) — waitcomp OWNER-ACCEPTED+LIVE; Phase-0 poydevor boshlandi
+- Ega QABUL berdi → setFlag waitcomp on (JONLI). NEXT_LEVEL_PLAN 2.1 = LIVE.
+- 0.2 kas-navbat DONE: yagona serial navbat (600ms gap, KAS_MIN_GAP_MS env) BARCHA kas-so'rovlarda
+  (getText/postJson/putJson/clientAppV1) + single-flight login (parallel login-stampede/jar-buzilish
+  yopildi). Isbot: sintetik test 4/4 (gap≥min, xato navbatni qotirmaydi, 5 parallel login→1, fail→retry).
+  Statik konfiglar allaqachon keshlangan (10min) — app-ochilish warm=2 dinamik so'rov.
+- 0.4 AppState TTL DONE: kunlik marker-tozalov (12 prefiks, >30 kun) mavjud tick'da.
+- 0.5 xavfsizlik DONE: admin-token timingSafeEqual; /api/driver-photo per-IP 30/min (enumeratsiya yopildi).
+- Qolgan Phase-0: 0.3 sweep-diyeta, 0.6 vitest+CI (agent worktree'da), 0.7 retention-baza.

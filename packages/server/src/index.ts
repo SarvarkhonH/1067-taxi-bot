@@ -205,6 +205,11 @@ async function main(): Promise<void> {
           if (new Date(Date.now() + 5 * 3600_000).getUTCDay() === 1) await settleGapsWeekly(bot).catch((e) => console.error("[gap] failed:", e));
         }
         await reapStaleSyncs(30 * 60_000).catch(() => undefined); // watchdog (>30min)
+        {
+          // V-NEXT #3: daily AppState marker TTL (per-ride idempotency rows >30d) — self-gated once/day
+          const { maybeDailyMarkerCleanup } = await import("./services/appStateUtil");
+          await maybeDailyMarkerCleanup().catch((e) => console.error("[cleanup] failed:", e));
+        }
         if (reconcileTick++ % 12 === 0) {
           // money-integrity sweep ~ every 12 ticks (3h at 15min interval)
           const { reconciliationWatch } = await import("./services/reconciliation");

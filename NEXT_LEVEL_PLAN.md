@@ -17,7 +17,7 @@ Without this, every growth feature amplifies load on a fragile core.
 
 | # | Work | Why | Effort |
 |---|---|---|---|
-| 0.1 | Finish Phase-2 code strip (garaj/motor/tolqin/mahalla/aibrain/garage-v1, ~10k LOC) | smaller bundle, faster agent work, fewer sweep hooks | in progress |
+| 0.1 | Finish Phase-2 code strip (garaj/motor/tolqin/mahalla/aibrain/garage-v1, ~10k LOC) | smaller bundle, faster agent work, fewer sweep hooks | ✅ DONE 2026-07-02 (−9,737 LOC, merged 84c2d3b) |
 | 0.2 | **kas queue**: 1 req/s serial queue + single shared in-flight login promise at `getText` | kills 429 cascades + login stampede — the #1 outage source | S |
 | 0.3 | **Sweep diet**: early-skip members with no active ride; replace throw-away INSERT markers with read-first | DB load drops ~10× at scale; removes guaranteed-error inserts per tick | S |
 | 0.4 | **AppState TTL cleanup** job on the existing 15-min tick (per-ride markers >30 days old) | stops unbounded row growth | S |
@@ -46,7 +46,7 @@ stored per driver for ≥2 weeks before badge ships.
 
 | # | Mechanic | Hook | Budget | Effort |
 |---|---|---|---|---|
-| 2.1 | **"Jonli qidiruv" wait redesign** (replaces the tap-game — owner: "bachkana"). 3-model consult (Opus/Sonnet/Haiku) converged: operational transparency on the REAL map (live WS cars + honest status ladder from notifiedCount) + PASSIVE compensation ticker ("kutish kompensatsiyasi: +N tanga", server-timed, no tapping — drop the score gate in awardWaitComp). Peak-end: accept → chip locks, banks at finish. waitGame.tsx deleted. | own daily pool (knob) | S-M |
+| 2.1 | **"Jonli qidiruv"** — ✅ BUILT + OWNER-ACCEPTED + LIVE 2026-07-02 (flag `waitcomp` ON, commit c4a8889). Passive ticker (~500/daq, 3 daqiqada 1500, knob-tunable) + honest status ladder + **"topilmadi" next-ride voucher** (failed search → amount waits on the NEXT completed ride, 72h — farm-safe retention hook) + bot apology message. Proof: testWaitComp 16/16 ×3. | own daily pool (knob) | ✅ LIVE |
 | 2.2 | **Streak freeze** | 1 free skip/hafta; broken streak buy-back ≤50 tanga | tiny, inside game econ | S |
 | 2.3 | **"Bugun mumkin" counter** | missions+spin+ride bonuses summed into one visible daily-potential number; partial completion nags | UI-only | S |
 | 2.4 | **Tier decay countdown** | "3 kun qoldi — Kumushdan tushasiz" (decay logic exists, invisible) | UI-only | S |

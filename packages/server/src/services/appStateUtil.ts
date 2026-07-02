@@ -85,3 +85,34 @@ export async function pendingScan(kind: string): Promise<{ retry: PendingRow[]; 
   }
   return { retry, stuck };
 }
+
+// ── V-NEXT #3: AppState marker TTL ────────────────────────────────────────────
+// Per-ride idempotency markers (~8-10 AppState rows per completed ride: qinc×3, qscore, wsarrived,
+// waitstart/waitfound, finishcard, faredone, fundride…) accumulated FOREVER — 1,000 rides ≈ 9k dead
+// rows degrading every startsWith scan. Their replay-protection window is MINUTES (sweep re-polls),
+// so 30 days is far beyond any legitimate retry. waitvoucher/barabantoken are excluded: they carry
+// their own expiry and are consumed in-flow. Runs daily off the existing 15-min tick (no new poller).
+const EXPIRABLE_MARKER_PREFIXES = [
+  "qinc:", "qscore:", "ridefin:", "wsarrived:", "waitstart:", "waitfound:", "waitvfail:",
+  "finishcard:", "faredone:", "fundride:", "farepending:", "cancels:",
+];
+
+export async function cleanupExpiredMarkers(maxAgeDays = 30): Promise<number> {
+  const cutoff = new Date(Date.now() - maxAgeDays * 86400_000);
+  let total = 0;
+  for (const prefix of EXPIRABLE_MARKER_PREFIXES) {
+    const r = await prisma.appState.deleteMany({ where: { key: { startsWith: prefix }, updatedAt: { lt: cutoff } } }).catch(() => ({ count: 0 }));
+    total += r.count;
+  }
+  return total;
+}
+
+/** Daily gate for the tick: run at most once per Tashkent day (marker itself is 1 AppState row). */
+export async function maybeDailyMarkerCleanup(): Promise<void> {
+  const today = new Date(Date.now() + 5 * 3600_000).toISOString().slice(0, 10);
+  const row = await prisma.appState.findUnique({ where: { key: "cleanup:markers" } }).catch(() => null);
+  if (row?.value === today) return;
+  await prisma.appState.upsert({ where: { key: "cleanup:markers" }, create: { key: "cleanup:markers", value: today }, update: { value: today } });
+  const n = await cleanupExpiredMarkers();
+  if (n > 0) console.log(`[cleanup] ${n} expired AppState markers removed (>30d)`);
+}
