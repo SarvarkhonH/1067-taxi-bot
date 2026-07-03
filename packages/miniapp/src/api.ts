@@ -117,6 +117,7 @@ const post = <T,>(path: string, body?: unknown) => request<T>("POST", path, body
 // 🛡 public read-only trip (family safety) — no PII, active-only
 export interface PublicTrip {
   active: boolean;
+  ended?: boolean; // trip finished (vs bad/expired token) → end screen still shows the viral CTA
   ctaLink?: string | null; // trackcta flag: sharer's referral deep-link ("birinchi safar bepul" banner)
   won?: boolean; // trackcta: rider won a mid-ride prize on THIS booking (badge only, amount never sent)
   status?: string;

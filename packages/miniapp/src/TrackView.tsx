@@ -78,7 +78,18 @@ export function TrackView({ token }: { token: string }) {
         {!trip ? (
           <div className="tv-dim">⏳ Yuklanmoqda…</div>
         ) : ended ? (
-          <div className="tv-ended">🏁 Safar yakunlandi — kuzatuv tugadi. Yaxshi yetib oldi! 🙌</div>
+          <>
+            <div className="tv-ended">🏁 Safar yakunlandi — kuzatuv tugadi. Yaxshi yetib oldi! 🙌</div>
+            {/* peak viral moment: the viewer is relieved the trip ended safely → the most receptive
+                instant to invite. No 7s delay here (the safety concern is already resolved). */}
+            {trip.ctaLink && !ctaGone && (
+              <div className="tv-cta">
+                <button className="tv-cta-x" aria-label="Yopish" onClick={() => { setCtaGone(true); sessionStorage.setItem("tv_cta_off", "1"); }}>✕</button>
+                <div className="tv-cta-t">1067 bilan har safar jonli kuzatiladi — haydovchi tasdiqlangan, narx oldindan.</div>
+                <a className="tv-cta-btn" href={trip.ctaLink}>🎁 Sizga ham 1067 — birinchi safar bepul</a>
+              </div>
+            )}
+          </>
         ) : (
           <>
             <div className="tv-status">

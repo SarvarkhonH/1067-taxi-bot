@@ -21,6 +21,7 @@ export async function createTrackToken(memberId: number): Promise<string> {
 
 export interface PublicTrip {
   active: boolean;
+  ended?: boolean; // trip finished (vs bad/expired token) → end screen still shows the viral CTA
   status?: string;
   statusLabel?: string;
   addressName?: string;
@@ -51,31 +52,36 @@ export async function resolveTrack(token: string): Promise<PublicTrip> {
     return { active: false };
   }
   if (!memberId || Date.now() - at > TTL_MS) return { active: false };
-  const b = await getActiveBookingFor(memberId).catch(() => null);
-  if (!b) return { active: false }; // finished / cancelled → stop revealing position
-  const d = b.driver;
-  // Viral CTA (trackcta flag): attach the sharer's referral deep-link so the viewing family
-  // member can join via the EXISTING referral pipeline (attach → first REAL ride → both paid,
-  // all idempotent). Best-effort — a lookup failure never breaks the safety page.
+
+  // Viral CTA (trackcta flag): the sharer's referral deep-link. Resolved from memberId ALONE (no
+  // booking needed) so it can also ride the TRIP-END screen — the peak viral moment: the family
+  // viewer is relieved ("yaxshi yetib oldi"), most receptive to "senga ham kerak". Best-effort;
+  // a lookup failure never breaks the safety page. Same 6-char public invite code — no PII.
   let ctaLink: string | null = null;
-  let won = false;
-  try {
-    const { featureOn } = await import("./featureFlags");
-    if (await featureOn("trackcta")) {
+  const trackCtaOn = await import("./featureFlags").then((f) => f.featureOn("trackcta")).catch(() => false);
+  if (trackCtaOn) {
+    try {
       const tu = await prisma.telegramUser.findFirst({ where: { memberId }, select: { id: true } });
       if (tu) {
         const { getOrCreateCode } = await import("./referralService");
         ctaLink = `https://t.me/${env.BOT_USERNAME}?start=reft_${await getOrCreateCode(tu.id)}`;
       }
-      // jackpot-badge fusion: a winning mid-ride spin on THIS booking → "sovg'a oldi" (amount never shown)
-      const spin = await prisma.wheelSpin
-        .findUnique({ where: { memberId_bookingId: { memberId, bookingId: b.id } } })
-        .catch(() => null);
-      won = !!spin && spin.amount > 0;
+    } catch {
+      ctaLink = null;
     }
-  } catch {
-    ctaLink = null;
-    won = false;
+  }
+
+  const b = await getActiveBookingFor(memberId).catch(() => null);
+  // finished / cancelled → stop revealing position, BUT keep the CTA so the end screen can invite.
+  if (!b) return { active: false, ended: true, ctaLink };
+  const d = b.driver;
+  // jackpot-badge fusion: a winning mid-ride spin on THIS booking → "sovg'a oldi" (amount never shown)
+  let won = false;
+  if (trackCtaOn) {
+    const spin = await prisma.wheelSpin
+      .findUnique({ where: { memberId_bookingId: { memberId, bookingId: b.id } } })
+      .catch(() => null);
+    won = !!spin && spin.amount > 0;
   }
   return {
     active: true,
