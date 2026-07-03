@@ -187,6 +187,26 @@ export interface GeoPoint {
   lng: number;
 }
 
+/** One driver row from the operator roster (api/drivers/byFilter) — the FULL record used by the
+ *  call/obzvon panel. Unlike KasMember (money-mirror shape) this keeps the recruiting-relevant
+ *  fields: last-ride date (taking-orders?), license term, address, active flag. */
+export interface DriverRosterRow {
+  kasId: number;
+  fullName: string;
+  phone: string | null;
+  carNumber: string | null;
+  carModel: string | null;
+  address: string | null;
+  balance: number;
+  debt: number;
+  trips: number; // takeBookingCount (lifetime)
+  cancels: number; // cancelBookingCount
+  rating: number; // bookingRating (fallback companyRating)
+  active: boolean;
+  lastRideAt: string | null; // lastTakeBookingDate (ISO) — recency = "buyurtma olyapti"
+  licenseTerm: string | null; // licenseTerm (ISO)
+}
+
 export interface KasDataSource {
   readonly name: "mock" | "live";
   /** Full pull (mock seed / optional bulk import). */
@@ -225,6 +245,8 @@ export interface KasDataSource {
   getDriverByCar(carNumber: string): Promise<BookingDriver | null>;
   /** Raw bookingReports page (analytics: per-driver distribution, north-star). */
   getReportsPage(page: number, size: number): Promise<RideHistoryItem[]>;
+  /** Obzvon: the FULL driver roster (all pages of api/drivers/byFilter) for the call panel. */
+  listDriverRoster(): Promise<DriverRosterRow[]>;
 
   /** Reward: set a client's cashback bonus (writes real money via kas1067, code 1303). */
   setClientBonus(phone: string, newBonus: number): Promise<{ ok: boolean; oldBonus: number; name?: string; status?: number }>;

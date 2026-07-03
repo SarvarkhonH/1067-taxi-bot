@@ -152,6 +152,15 @@ export class KasMockSource implements KasDataSource {
     ];
   }
 
+  async listDriverRoster() {
+    const now = Date.now();
+    return [
+      { kasId: 730, fullName: "Davlat Bo'riyev", phone: "+998901234567", carNumber: "70W838FB", carModel: "Cobalt", address: "koson", balance: 30000, debt: 0, trips: 412, cancels: 8, rating: 4.9, active: true, lastRideAt: new Date(now - 2 * 3600e3).toISOString(), licenseTerm: new Date(now + 90 * 86400e3).toISOString() },
+      { kasId: 812, fullName: "Sardor Aliyev", phone: "+998939998877", carNumber: "70A111AA", carModel: "Nexia", address: "koson", balance: 5000, debt: 12000, trips: 0, cancels: 1, rating: 0, active: true, lastRideAt: null, licenseTerm: null },
+      { kasId: 655, fullName: "Jasur Karimov", phone: "+998915554433", carNumber: "70Q053GA", carModel: "Spark", address: "koson", balance: 15000, debt: 0, trips: 88, cancels: 3, rating: 4.6, active: false, lastRideAt: new Date(now - 40 * 86400e3).toISOString(), licenseTerm: new Date(now - 5 * 86400e3).toISOString() },
+    ];
+  }
+
   async getDriverByCar(_carNumber: string): Promise<BookingDriver | null> {
     return { fullName: "Davlat Bo'riyev", phone: "+998901234567", carModel: "Cobalt", carNumber: _carNumber || "70A123BC", rating: 4.9, lat: 39.0468, lng: 65.564 };
   }

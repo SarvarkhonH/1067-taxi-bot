@@ -1267,3 +1267,37 @@ model PeakHour {
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
 }
+
+// 📞 Obzvon: one call-list row per kas1067 driver. A sync mirrors the kas roster (kas-derived
+// fields overwritten each sync) while PRESERVING the operator's call state (status/note/callback).
+// No money here — pure CRM. inBot = does this driver's car match a linked bot Member.
+model DriverCall {
+  id          Int       @id @default(autoincrement())
+  kasDriverId Int       @unique // external kas1067 driver id
+  fullName    String    @default("")
+  phone       String?
+  carNumber   String?
+  carModel    String?
+  address     String?
+  balance     Int       @default(0)
+  debt        Int       @default(0)
+  trips       Int       @default(0) // takeBookingCount (lifetime)
+  rating      Float     @default(0)
+  active      Boolean   @default(true) // kas active flag (blocked/disabled)
+  lastRideAt  DateTime? // lastTakeBookingDate — recency drives "buyurtma olyapti?"
+  licenseTerm DateTime?
+  inBot       Boolean   @default(false) // car matches a linked bot driver Member
+  // ── operator call state (survives every roster sync) ──
+  status      String    @default("new") // new|called|no_answer|callback|interested|joined|refused|invalid
+  note        String?
+  callbackAt  DateTime? // scheduled call-back time (status=callback)
+  calledAt    DateTime? // last time an operator logged a contact
+  calledBy    String? // operator role/token that logged it
+  callCount   Int       @default(0)
+  syncedAt    DateTime  @default(now())
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@index([status])
+  @@index([inBot, active])
+}

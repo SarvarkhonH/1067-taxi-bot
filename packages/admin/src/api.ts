@@ -210,6 +210,18 @@ export const adminApi = {
     postJson<PeakHourRow>("/api/admin/peak-hours", data),
   deletePeakHour: (id: number) =>
     fetch(`${API_BASE}/api/admin/peak-hours/${id}`, { method: "DELETE", headers: authHeaders() }).then((r) => r.json() as Promise<{ ok: boolean }>),
+  // 📞 obzvon — kas1067 driver call panel
+  callsSync: () => postJson<DriverCallSync>("/api/admin/calls/sync", {}),
+  calls: (opts: { status?: string; search?: string; segment?: string } = {}) => {
+    const p = new URLSearchParams();
+    if (opts.status) p.set("status", opts.status);
+    if (opts.search) p.set("search", opts.search);
+    if (opts.segment) p.set("segment", opts.segment);
+    const qs = p.toString();
+    return req<DriverCallList>(`/api/admin/calls${qs ? `?${qs}` : ""}`);
+  },
+  callUpdate: (id: number, patch: { status?: string; note?: string; callbackAt?: string | null }) =>
+    postJson<{ ok: boolean; row?: DriverCallRow; error?: string }>(`/api/admin/calls/${id}`, patch),
 };
 
 export interface DriverMissionRow {
@@ -220,6 +232,54 @@ export interface DriverMissionRow {
   reward: number;
   period: string;
   active: boolean;
+}
+
+// 📞 obzvon
+export interface DriverCallRow {
+  id: number;
+  kasDriverId: number;
+  fullName: string;
+  phone: string | null;
+  carNumber: string | null;
+  carModel: string | null;
+  address: string | null;
+  balance: number;
+  debt: number;
+  trips: number;
+  rating: number;
+  active: boolean;
+  lastRideAt: string | null;
+  licenseTerm: string | null;
+  inBot: boolean;
+  takingOrders: boolean;
+  status: string;
+  note: string | null;
+  callbackAt: string | null;
+  calledAt: string | null;
+  calledBy: string | null;
+  callCount: number;
+}
+export interface DriverCallStats {
+  total: number;
+  inBot: number;
+  notInBot: number;
+  taking: number;
+  called: number;
+  remaining: number;
+  joined: number;
+  byStatus: Record<string, number>;
+  lastSyncAt: string | null;
+}
+export interface DriverCallList {
+  rows: DriverCallRow[];
+  stats: DriverCallStats;
+}
+export interface DriverCallSync {
+  total: number;
+  created: number;
+  updated: number;
+  inBot: number;
+  taking: number;
 }
 
 export interface CampaignRow {

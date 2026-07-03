@@ -1223,6 +1223,29 @@ body{font-family:Arial,sans-serif;background:#eee;-webkit-print-color-adjust:exa
     res.json(await getBotUsers());
   });
 
+  // ─── 📞 Obzvon: kas1067 driver call panel (operator-accessible, no owner gate) ──────────────
+  app.post("/api/admin/calls/sync", requireAdmin, async (_req, res) => {
+    const { syncDriverCalls } = await import("../services/driverCallService");
+    res.json(await syncDriverCalls());
+  });
+  app.get("/api/admin/calls", requireAdmin, async (req, res) => {
+    const { listDriverCalls } = await import("../services/driverCallService");
+    const q = (req.query ?? {}) as Record<string, string | undefined>;
+    res.json(await listDriverCalls({ status: q.status, search: q.search, segment: q.segment }));
+  });
+  app.post("/api/admin/calls/:id", requireAdmin, async (req, res) => {
+    const { updateDriverCall } = await import("../services/driverCallService");
+    const body = (req.body ?? {}) as { status?: string; note?: string; callbackAt?: string | null };
+    res.json(
+      await updateDriverCall(Number(req.params.id), {
+        status: body.status,
+        note: body.note,
+        callbackAt: body.callbackAt,
+        operator: String(res.locals.adminRole ?? "operator"),
+      }),
+    );
+  });
+
   // Admin tool: manually link a telegram id to a member by phone (e.g. demo/test accounts).
   app.post("/api/admin/link", requireAdmin, async (req, res) => {
     const body = (req.body ?? {}) as { telegramId?: string; phone?: string };

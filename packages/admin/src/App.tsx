@@ -12,9 +12,9 @@ import {
   type AdminMemberRow,
   type AdminStats,
 } from "@t1067/shared";
-import { adminApi, clearAdminToken, hasAdminToken, setAdminToken, type AdminBannedRow, type AdminChatConvo, type AdminChatMsg, type AdminDebtRow, type AdminMsgHistoryRow, type AdminRatingRow, type AdminReferralRow, type AdminRideRow, type AdminUserRow, type AdminWithdrawalRow, type AdminWithdrawalTabRow, type CampaignRow, type Driver360, type DriverMissionRow, type IntercityAdminTrip, type IntercityAdminDebt, type Member360, type PeakHourRow } from "./api";
+import { adminApi, clearAdminToken, hasAdminToken, setAdminToken, type AdminBannedRow, type AdminChatConvo, type AdminChatMsg, type AdminDebtRow, type AdminMsgHistoryRow, type AdminRatingRow, type AdminReferralRow, type AdminRideRow, type AdminUserRow, type AdminWithdrawalRow, type AdminWithdrawalTabRow, type CampaignRow, type Driver360, type DriverCallRow, type DriverCallStats, type DriverMissionRow, type IntercityAdminTrip, type IntercityAdminDebt, type Member360, type PeakHourRow } from "./api";
 
-type Tab = "overview" | "pulse" | "analytics" | "finance" | "live" | "x360" | "driver" | "client" | "botusers" | "boshqaruv" | "topshiriq" | "actions" | "integrity" | "audit" | "safarlar" | "qarzlar" | "referallar" | "banlist" | "yechishlar" | "baholar" | "xabar" | "chat" | "intercity" | "pik";
+type Tab = "overview" | "pulse" | "analytics" | "finance" | "live" | "x360" | "driver" | "client" | "botusers" | "obzvon" | "boshqaruv" | "topshiriq" | "actions" | "integrity" | "audit" | "safarlar" | "qarzlar" | "referallar" | "banlist" | "yechishlar" | "baholar" | "xabar" | "chat" | "intercity" | "pik";
 
 const NAV_GROUPS: { label: string; items: { id: Tab; icon: string; label: string }[] }[] = [
   {
@@ -39,6 +39,7 @@ const NAV_GROUPS: { label: string; items: { id: Tab; icon: string; label: string
       { id: "driver", icon: "🚗", label: "Haydovchilar" },
       { id: "client", icon: "🏅", label: "Mijozlar" },
       { id: "botusers", icon: "👥", label: "Bot foydalanuvchilar" },
+      { id: "obzvon", icon: "📞", label: "Obzvon (Call)" },
       { id: "x360", icon: "🔎", label: "360 qidiruv" },
     ],
   },
@@ -160,6 +161,7 @@ export function App() {
           {tab === "x360" && <X360View />}
           {(tab === "driver" || tab === "client") && <MembersTab type={tab} />}
           {tab === "botusers" && <BotUsersTab />}
+          {tab === "obzvon" && <ObzvonView />}
           {tab === "boshqaruv" && <><BoshqaruvView /><RecruitsView /></>}
           {tab === "topshiriq" && <><QuickAnnounceView /><CampaignsView /><DriverMissionsView /></>}
           {tab === "actions" && <><ActionsView /><ControlCards /></>}
@@ -1191,6 +1193,195 @@ function DriverMissionsView() {
         )}
       </section>
     </>
+  );
+}
+
+// ─── 📞 Obzvon: kas1067 driver call panel ────────────────────────────────────
+const OBZVON_STATUS: { id: string; label: string }[] = [
+  { id: "new", label: "🆕 Yangi" },
+  { id: "called", label: "📞 Qo'ng'iroq qilindi" },
+  { id: "no_answer", label: "🔕 Javob yo'q" },
+  { id: "callback", label: "⏰ Qayta qo'ng'iroq" },
+  { id: "interested", label: "👍 Qiziqdi" },
+  { id: "joined", label: "✅ Qo'shildi" },
+  { id: "refused", label: "❌ Rad etdi" },
+  { id: "invalid", label: "🚫 Noto'g'ri raqam" },
+];
+const OBZVON_SEGMENTS: { id: string; label: string }[] = [
+  { id: "", label: "Hammasi" },
+  { id: "notinbot", label: "🎯 Botda yo'q" },
+  { id: "inbot", label: "✅ Botda bor" },
+  { id: "taking", label: "🟢 Buyurtma olyapti" },
+  { id: "idle", label: "⚪ Olmayapti" },
+];
+function obzvonStatusLabel(id: string): string {
+  return OBZVON_STATUS.find((s) => s.id === id)?.label ?? id;
+}
+function telHref(phone: string | null): string {
+  return "tel:" + (phone ?? "").replace(/[^\d+]/g, "");
+}
+
+function ObzvonView() {
+  const [rows, setRows] = useState<DriverCallRow[]>([]);
+  const [stats, setStats] = useState<DriverCallStats | null>(null);
+  const [segment, setSegment] = useState("notinbot");
+  const [status, setStatus] = useState("");
+  const [search, setSearch] = useState("");
+  const [loading, setLoading] = useState(true);
+  const [syncing, setSyncing] = useState(false);
+  const [syncMsg, setSyncMsg] = useState<string | null>(null);
+
+  const load = async (silent = false) => {
+    if (!silent) setLoading(true);
+    try {
+      const res = await adminApi.calls({ segment: segment || undefined, status: status || undefined, search: search || undefined });
+      setRows(res.rows);
+      setStats(res.stats);
+    } catch {
+      /* keep old */
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // reload when filters change (search is debounced)
+  useEffect(() => {
+    const t = setTimeout(() => { load(); }, search ? 300 : 0);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [segment, status, search]);
+
+  const doSync = async () => {
+    setSyncing(true);
+    setSyncMsg(null);
+    try {
+      const r = await adminApi.callsSync();
+      setSyncMsg(`✅ ${r.total} haydovchi (yangi: ${r.created}, botda: ${r.inBot}, faol: ${r.taking})`);
+      await load(true);
+    } catch {
+      setSyncMsg("❌ Yangilashda xato — kas bilan aloqa?");
+    } finally {
+      setSyncing(false);
+    }
+  };
+
+  const setRowStatus = async (row: DriverCallRow, newStatus: string) => {
+    setRows((rs) => rs.map((r) => (r.id === row.id ? { ...r, status: newStatus } : r)));
+    await adminApi.callUpdate(row.id, { status: newStatus });
+    load(true); // refresh stats + drop row if a status filter now excludes it (order is status-independent)
+  };
+  const saveNote = async (row: DriverCallRow, note: string) => {
+    if (note === (row.note ?? "")) return;
+    setRows((rs) => rs.map((r) => (r.id === row.id ? { ...r, note } : r)));
+    await adminApi.callUpdate(row.id, { note });
+  };
+
+  const pct = stats && stats.total ? Math.round((stats.called / stats.total) * 100) : 0;
+
+  return (
+    <section className="card">
+      <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+        <h3 style={{ margin: 0 }}>📞 Obzvon — kas1067 haydovchilar</h3>
+        <button className="btn" onClick={doSync} disabled={syncing}>{syncing ? "⏳ Yangilanmoqda…" : "🔄 Bazani yangilash"}</button>
+        {syncMsg && <span className="muted" style={{ fontSize: 12 }}>{syncMsg}</span>}
+      </div>
+      <p className="muted" style={{ margin: "6px 0 10px", fontSize: 12 }}>
+        Har haydovchini birma-bir qo'ng'iroq qiling. <b>Botda</b> — bizning botga ulanganmi; <b>🟢 olyapti</b> — kas'da faol (buyurtma oladi). Holat va izoh saqlanadi — sessiya yo'qolmaydi.
+      </p>
+
+      {stats && (
+        <div style={{ marginBottom: 10 }}>
+          <div style={{ display: "flex", gap: 14, flexWrap: "wrap", fontSize: 13, marginBottom: 6 }}>
+            <span>Jami: <b>{stats.total}</b></span>
+            <span>🎯 Botda yo'q: <b>{stats.notInBot}</b></span>
+            <span>✅ Botda: <b>{stats.inBot}</b></span>
+            <span>🟢 Faol: <b>{stats.taking}</b></span>
+            <span>📞 Qilindi: <b>{stats.called}</b></span>
+            <span>🆕 Qoldi: <b>{stats.remaining}</b></span>
+            <span>✅ Qo'shildi: <b>{stats.joined}</b></span>
+          </div>
+          <div style={{ height: 8, borderRadius: 4, background: "rgba(255,255,255,.08)", overflow: "hidden" }}>
+            <div style={{ width: `${pct}%`, height: "100%", background: "linear-gradient(90deg,#22c55e,#16a34a)" }} />
+          </div>
+          {stats.lastSyncAt && <div className="muted" style={{ fontSize: 11, marginTop: 4 }}>Oxirgi yangilash: {new Date(stats.lastSyncAt).toLocaleString("ru-RU")}</div>}
+        </div>
+      )}
+
+      <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 8 }}>
+        {OBZVON_SEGMENTS.map((s) => (
+          <button key={s.id || "all"} className={"btn" + (segment === s.id ? " btn-primary" : "")} onClick={() => setSegment(s.id)} style={{ fontSize: 12, padding: "4px 10px" }}>{s.label}</button>
+        ))}
+      </div>
+      <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 10 }}>
+        <input placeholder="🔎 Ism / mashina / telefon" value={search} onChange={(e) => setSearch(e.target.value)} style={{ flex: "1 1 200px", minWidth: 160 }} />
+        <select value={status} onChange={(e) => setStatus(e.target.value)}>
+          <option value="">Barcha holatlar</option>
+          {OBZVON_STATUS.map((s) => <option key={s.id} value={s.id}>{s.label}</option>)}
+        </select>
+      </div>
+
+      {loading ? (
+        <p className="muted">Yuklanmoqda…</p>
+      ) : rows.length === 0 ? (
+        <p className="muted">{stats && stats.total === 0 ? "Baza bo'sh — «Bazani yangilash» ni bosing." : "Bu filtrga mos haydovchi yo'q."}</p>
+      ) : (
+        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+          {rows.map((r) => <ObzvonCard key={r.id} row={r} onStatus={setRowStatus} onNote={saveNote} />)}
+        </div>
+      )}
+    </section>
+  );
+}
+
+function ObzvonCard({ row, onStatus, onNote }: { row: DriverCallRow; onStatus: (r: DriverCallRow, s: string) => void; onNote: (r: DriverCallRow, note: string) => void }) {
+  const [note, setNote] = useState(row.note ?? "");
+  useEffect(() => { setNote(row.note ?? ""); }, [row.id, row.note]);
+  return (
+    <div style={{ border: "1px solid rgba(255,255,255,.08)", borderRadius: 10, padding: 10 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", gap: 8, flexWrap: "wrap", alignItems: "baseline" }}>
+        <div>
+          <b>{row.fullName}</b> <span className="muted" style={{ fontSize: 12 }}>#{row.kasDriverId}</span>
+          {row.carNumber && <span style={{ marginLeft: 6 }}>· {row.carNumber}{row.carModel ? ` (${row.carModel})` : ""}</span>}
+        </div>
+        <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+          <Badge on={row.inBot} yes="✅ Botda" no="⛔ Botda yo'q" />
+          <Badge on={row.takingOrders} yes="🟢 Olyapti" no="⚪ Olmayapti" />
+          <span style={{ fontSize: 11, padding: "2px 8px", borderRadius: 20, background: "rgba(255,255,255,.08)" }}>{obzvonStatusLabel(row.status)}</span>
+        </div>
+      </div>
+      <div className="muted" style={{ fontSize: 12, margin: "4px 0 8px", display: "flex", gap: 12, flexWrap: "wrap" }}>
+        {row.phone && <span>📞 {row.phone}</span>}
+        <span>🚕 {row.trips} safar</span>
+        {row.rating > 0 && <span>⭐ {row.rating.toFixed(1)}</span>}
+        <span>💰 {formatNumber(row.balance)}{row.debt > 0 ? ` · qarz ${formatNumber(row.debt)}` : ""}</span>
+        {row.callCount > 0 && <span>☎️ {row.callCount}× {row.calledAt ? new Date(row.calledAt).toLocaleDateString("ru-RU") : ""}</span>}
+      </div>
+      <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
+        <a
+          className="btn btn-primary"
+          href={telHref(row.phone)}
+          style={{ pointerEvents: row.phone ? "auto" : "none", opacity: row.phone ? 1 : 0.5, textDecoration: "none" }}
+        >📞 Qo'ng'iroq</a>
+        <select value={row.status} onChange={(e) => onStatus(row, e.target.value)}>
+          {OBZVON_STATUS.map((s) => <option key={s.id} value={s.id}>{s.label}</option>)}
+        </select>
+        <input
+          placeholder="izoh…"
+          value={note}
+          onChange={(e) => setNote(e.target.value)}
+          onBlur={() => onNote(row, note)}
+          style={{ flex: "1 1 160px", minWidth: 120 }}
+        />
+      </div>
+    </div>
+  );
+}
+
+function Badge({ on, yes, no }: { on: boolean; yes: string; no: string }) {
+  return (
+    <span style={{ fontSize: 11, padding: "2px 8px", borderRadius: 20, background: on ? "rgba(34,197,94,.18)" : "rgba(148,163,184,.15)", color: on ? "#4ade80" : "#94a3b8" }}>
+      {on ? yes : no}
+    </span>
   );
 }
 

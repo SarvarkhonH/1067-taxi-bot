@@ -3,6 +3,7 @@ import https from "node:https";
 import { env } from "../env";
 import type {
   DriverPin,
+  DriverRosterRow,
   DriverAccount,
   ActiveBooking,
   ActiveBookingLite,
@@ -313,6 +314,24 @@ export class KasLiveSource implements KasDataSource {
       const list = (data.driverDtoList as Record<string, unknown>[]) ?? [];
       if (!list.length) break;
       for (const d of list) out.push(mapDriver(d));
+      const all = data.allDriversCount;
+      if (typeof all === "number" && out.length >= all) break;
+      if (list.length < this.pageSize) break;
+    }
+    return out;
+  }
+
+  /** Obzvon: full driver roster with the recruiting-relevant fields kept (last-ride date, license,
+   *  address, active). Same paginated byFilter as fetchDrivers, but returns the RAW-mapped row. */
+  async listDriverRoster(): Promise<DriverRosterRow[]> {
+    const out: DriverRosterRow[] = [];
+    for (let page = 0; page < this.maxPages; page++) {
+      const data = await this.getJson(
+        `api/drivers/byFilter?searchText=&sort=id&page=${page}&size=${this.pageSize}&date=01.01.2015`,
+      );
+      const list = (data.driverDtoList as Record<string, unknown>[]) ?? [];
+      if (!list.length) break;
+      for (const d of list) out.push(mapRosterRow(d));
       const all = data.allDriversCount;
       if (typeof all === "number" && out.length >= all) break;
       if (list.length < this.pageSize) break;
@@ -1075,5 +1094,32 @@ function mapDriver(d: Record<string, unknown>): KasMember {
     points: num(d.balance),
     trips: Math.round(num(d.takeBookingCount)),
     rating: num(d.bookingRating),
+  };
+}
+
+/** kas dates come as "2026-07-01T19:00:00.000+0000" strings (or null). Normalize to a plain ISO
+ *  string the DB/Date() accepts, or null when absent/unparseable. */
+function isoDate(v: unknown): string | null {
+  if (!v) return null;
+  const d = new Date(String(v));
+  return Number.isNaN(d.getTime()) ? null : d.toISOString();
+}
+
+function mapRosterRow(d: Record<string, unknown>): DriverRosterRow {
+  return {
+    kasId: Math.round(num(d.id)),
+    fullName: cleanName(d.fullName, d.id, "Haydovchi"),
+    phone: (d.phoneNumber as string) || null,
+    carNumber: (d.carNumber as string) || null,
+    carModel: (d.carModel as string) || null,
+    address: (d.address as string) || null,
+    balance: num(d.balance),
+    debt: num(d.debt),
+    trips: Math.round(num(d.takeBookingCount)),
+    cancels: Math.round(num(d.cancelBookingCount)),
+    rating: num(d.bookingRating) || num(d.companyRating),
+    active: d.active !== false,
+    lastRideAt: isoDate(d.lastTakeBookingDate),
+    licenseTerm: isoDate(d.licenseTerm),
   };
 }
