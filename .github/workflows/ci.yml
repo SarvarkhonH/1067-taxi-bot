@@ -1,9 +1,10 @@
 name: CI shield
 
-# T8 shield — the merge gate. Two checks that need NO secrets and NO live DB, so
+# T8 shield — the merge gate. Three checks that need NO secrets and NO live DB, so
 # they run safely on every push/PR and block on regression:
 #   1. typecheck every package (catches type/contract breaks)
-#   2. the Monte-Carlo economy sim (proves the ≤350/ride BUZILMAS rule still holds)
+#   2. vitest money-math unit suite (pure clamp/knob/booking helpers in @t1067/shared)
+#   3. the Monte-Carlo economy sim (proves the ≤350/ride BUZILMAS rule still holds)
 # The DB-integration E2E (testE2E.ts) hits live Neon + writes TAG'd rows, so it is
 # run locally / pre-release (see packages/server/src/scripts/testE2E.ts), NOT here.
 
@@ -35,6 +36,9 @@ jobs:
 
       - name: Typecheck (all packages)
         run: pnpm -r typecheck
+
+      - name: Money-math unit tests — vitest (pure functions, no DB)
+        run: pnpm --filter @t1067/shared test
 
       - name: Economy invariant — Monte-Carlo sim (≤350/ride, no DB)
         run: pnpm --filter @t1067/server exec tsx src/scripts/simEconomy.ts
