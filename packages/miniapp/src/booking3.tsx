@@ -1280,6 +1280,7 @@ function Booking3Inner({ me, info, onClose }: { me: MeResponse; info: BookingInf
             // collapsed accepted card — map stays visible; status + big fare + call, and a fill bar
             // that grows as the car approaches (tap anywhere to expand back).
             <div className="b3-ride-mini" onClick={() => { haptic(); setRideMin(false); }}>
+              <div className="b3-mini-expand">▲ Batafsil</div>
               <div className="b3-ride-mini-row">
                 <div className="b3-ride-mini-main">
                   <div className="b3-ride-mini-status">
