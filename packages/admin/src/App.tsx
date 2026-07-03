@@ -812,7 +812,7 @@ function ActionsView() {
         {grantMsg && <div className="action-msg">{grantMsg}</div>}
       </section>
 
-      <section className="panel">
+      <section className="panel bc-panel">
         <div className="panel-title">📣 Yangiliklar — xabar yuborish</div>
         {/* segment cards */}
         <div className="bc-segs">

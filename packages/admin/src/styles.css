@@ -267,7 +267,8 @@ textarea.search { font-family: inherit; resize: vertical; }
 }
 
 /* ─── 📣 Broadcast composer (news panel) ─────────────────────────────────────── */
-.bc-wrap { display: grid; grid-template-columns: 1fr 300px; gap: 20px; }
+.bc-panel { grid-column: 1 / -1; } /* full-width row so the composer+preview never gets crushed */
+.bc-wrap { display: grid; grid-template-columns: 1fr 320px; gap: 20px; }
 @media (max-width: 780px) { .bc-wrap { grid-template-columns: 1fr; } }
 
 .bc-segs { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin: 4px 0 14px; }
