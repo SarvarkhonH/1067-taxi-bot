@@ -329,3 +329,26 @@ textarea.search { font-family: inherit; resize: vertical; }
 .bc-result { margin-top: 14px; border-radius: 12px; padding: 12px 14px; background: var(--card-2); border: 1px solid var(--line); }
 .bc-result-bar { height: 8px; border-radius: 99px; background: #1e2d45; overflow: hidden; margin: 8px 0; }
 .bc-result-fill { height: 100%; background: linear-gradient(90deg,#34d399,#10b981); }
+
+/* ── 📢 Xabarlar tarixi — persistent broadcast delivery log ─────────────── */
+.bh-list { display: flex; flex-direction: column; gap: 10px; }
+.bh-card { background: var(--card-2); border: 1px solid var(--line); border-radius: 14px; overflow: hidden; transition: border-color .15s; }
+.bh-card.open { border-color: var(--accent); }
+.bh-head { display: block; width: 100%; text-align: left; background: none; border: none; color: inherit; font: inherit; padding: 12px 14px; cursor: pointer; }
+.bh-head:hover { background: rgba(255, 209, 102, .04); }
+.bh-head-top { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-bottom: 6px; }
+.bh-date { font-size: 12px; color: var(--muted); }
+.bh-seg { font-size: 11px; font-weight: 700; padding: 3px 10px; border-radius: 999px; background: rgba(255, 209, 102, .12); color: var(--accent); border: 1px solid rgba(255, 209, 102, .25); white-space: nowrap; }
+.bh-text { font-size: 13px; line-height: 1.4; margin-bottom: 8px; word-break: break-word; }
+.bh-counts { display: flex; align-items: center; gap: 12px; font-size: 12px; margin-top: 6px; }
+.bh-ok { color: #4ade80; font-weight: 600; }
+.bh-bad { color: #f87171; font-weight: 600; }
+.bh-chev { margin-left: auto; color: var(--muted); font-size: 10px; }
+.bh-detail { padding: 0 14px 14px; border-top: 1px solid var(--line); display: flex; flex-direction: column; gap: 8px; padding-top: 10px; }
+.bh-fulltext { font-size: 13px; white-space: pre-wrap; word-break: break-word; background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; }
+.bh-failed-list { display: flex; flex-direction: column; max-height: 260px; overflow-y: auto; }
+.bh-failed-row { display: flex; justify-content: space-between; gap: 8px; font-size: 12px; padding: 4px 0; border-bottom: 1px solid var(--line); }
+.bh-failed-row:last-child { border-bottom: none; }
+.bh-empty { text-align: center; padding: 28px 12px; color: var(--muted); font-size: 13px; display: flex; flex-direction: column; gap: 8px; align-items: center; }
+.bh-link { margin-top: 8px; background: none; border: none; padding: 0; cursor: pointer; color: var(--accent); font-size: 12px; font-weight: 600; text-decoration: underline; text-underline-offset: 3px; font-family: inherit; text-align: left; }
+.bh-link:hover { opacity: .8; }

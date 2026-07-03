@@ -7,6 +7,8 @@ import {
   type BallDistribution,
   type AdminGrowth,
   type AdminHealth,
+  type AdminBroadcastDetail,
+  type AdminBroadcastRow,
   type AdminIntegrity,
   type AdminLiveBooking,
   type AdminMemberRow,
@@ -14,7 +16,7 @@ import {
 } from "@t1067/shared";
 import { adminApi, clearAdminToken, hasAdminToken, setAdminToken, type AdminBannedRow, type AdminChatConvo, type AdminChatMsg, type AdminDebtRow, type AdminMsgHistoryRow, type AdminRatingRow, type AdminReferralRow, type AdminRideRow, type AdminUserRow, type AdminWithdrawalRow, type AdminWithdrawalTabRow, type CampaignRow, type Driver360, type DriverCallRow, type DriverCallStats, type DriverMissionRow, type IntercityAdminTrip, type IntercityAdminDebt, type Member360, type PeakHourRow } from "./api";
 
-type Tab = "overview" | "pulse" | "analytics" | "finance" | "live" | "x360" | "driver" | "client" | "botusers" | "obzvon" | "boshqaruv" | "topshiriq" | "actions" | "integrity" | "audit" | "safarlar" | "qarzlar" | "referallar" | "banlist" | "yechishlar" | "baholar" | "xabar" | "chat" | "intercity" | "pik";
+type Tab = "overview" | "pulse" | "analytics" | "finance" | "live" | "x360" | "driver" | "client" | "botusers" | "obzvon" | "boshqaruv" | "topshiriq" | "actions" | "integrity" | "audit" | "safarlar" | "qarzlar" | "referallar" | "banlist" | "yechishlar" | "baholar" | "xabar" | "chat" | "broadcasts" | "intercity" | "pik";
 
 const NAV_GROUPS: { label: string; items: { id: Tab; icon: string; label: string }[] }[] = [
   {
@@ -59,6 +61,7 @@ const NAV_GROUPS: { label: string; items: { id: Tab; icon: string; label: string
     items: [
       { id: "chat", icon: "💬", label: "Mijozlar chat" },
       { id: "xabar", icon: "📱", label: "Xabar tarixi" },
+      { id: "broadcasts", icon: "📢", label: "Xabarlar tarixi" },
     ],
   },
   {
@@ -164,7 +167,7 @@ export function App() {
           {tab === "obzvon" && <ObzvonView />}
           {tab === "boshqaruv" && <><BoshqaruvView /><RecruitsView /></>}
           {tab === "topshiriq" && <><QuickAnnounceView /><CampaignsView /><DriverMissionsView /></>}
-          {tab === "actions" && <><ActionsView /><ControlCards /></>}
+          {tab === "actions" && <><ActionsView onHistory={() => goTab("broadcasts")} /><ControlCards /></>}
           {tab === "integrity" && <IntegrityView />}
           {tab === "audit" && <AuditView />}
           {tab === "safarlar" && <SafarlarView />}
@@ -176,6 +179,7 @@ export function App() {
           {tab === "banlist" && <BanListView />}
           {tab === "chat" && <ChatView />}
           {tab === "xabar" && <XabarView />}
+          {tab === "broadcasts" && <BroadcastHistoryView />}
           {tab === "pik" && <PeakHoursView />}
         </div>
       </div>
@@ -675,7 +679,121 @@ function ControlCards() {
   );
 }
 
-function ActionsView() {
+// ─── 📢 Xabarlar tarixi — persistent broadcast delivery log ─────────────────
+// Every send is stored server-side (Broadcast + failed BroadcastRecipient rows),
+// so "kim oldi / kim olmadi" is visible ANYTIME, not just right after sending.
+function BroadcastHistoryView() {
+  const [rows, setRows] = useState<AdminBroadcastRow[] | null>(null);
+  const [err, setErr] = useState<string | null>(null);
+  const [openId, setOpenId] = useState<number | null>(null);
+  const [detail, setDetail] = useState<AdminBroadcastDetail | null>(null);
+  const [detailBusy, setDetailBusy] = useState(false);
+
+  useEffect(() => {
+    adminApi.broadcasts(50).then(setRows).catch((e) => setErr(e instanceof Error ? e.message : "xatolik"));
+  }, []);
+
+  const toggle = async (id: number) => {
+    if (openId === id) { setOpenId(null); setDetail(null); return; }
+    setOpenId(id);
+    setDetail(null);
+    setDetailBusy(true);
+    try {
+      setDetail(await adminApi.broadcastDetail(id));
+    } catch {
+      setDetail(null);
+    } finally {
+      setDetailBusy(false);
+    }
+  };
+
+  const segBadge = (s: string) =>
+    s === "all" ? { ico: "🌐", label: "Hammaga" } : s === "linked" ? { ico: "✅", label: "Bog'langan" } : { ico: "😴", label: "Uxlagan" };
+
+  const fmtDate = (iso: string) => {
+    const d = new Date(iso);
+    return d.toLocaleDateString("ru-RU") + " " + d.toLocaleTimeString("ru-RU", { hour: "2-digit", minute: "2-digit" });
+  };
+
+  const downloadCsv = (d: AdminBroadcastDetail) => {
+    const csv = "Ism,Telefon,TelegramID\n" + d.failed.map((f) => `"${f.name}",${f.phone ?? ""},${f.telegramId}`).join("\n");
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8" }));
+    a.download = `xabar-${d.id}-yetib-bormaganlar.csv`;
+    a.click();
+  };
+
+  return (
+    <section className="panel">
+      <div className="panel-title">📢 Xabarlar tarixi</div>
+      <p className="muted" style={{ fontSize: 13, margin: "2px 0 12px" }}>
+        Har yuborilgan ommaviy xabar shu yerda saqlanadi — kim oldi, kim olmadi. Yetib bormaganlar ro'yxati hech qachon yo'qolmaydi.
+      </p>
+      {err && <div className="action-msg">⚠️ {err}</div>}
+      {!rows && !err && <div className="muted">⏳ yuklanmoqda…</div>}
+      {rows && rows.length === 0 && (
+        <div className="bh-empty">
+          <div style={{ fontSize: 32 }}>📭</div>
+          <div>Hali xabar yuborilmagan. «Amallar» bo'limidagi 📣 Yangiliklar orqali yuboring — natija shu yerda saqlanadi.</div>
+        </div>
+      )}
+      <div className="bh-list">
+        {rows?.map((b) => {
+          const sb = segBadge(b.segment);
+          const pct = b.totalCount ? (b.sentCount / b.totalCount) * 100 : 0;
+          const open = openId === b.id;
+          return (
+            <div key={b.id} className={`bh-card${open ? " open" : ""}`}>
+              <button className="bh-head" onClick={() => toggle(b.id)}>
+                <div className="bh-head-top">
+                  <span className="bh-date">🗓 {fmtDate(b.createdAt)}</span>
+                  <span className="bh-seg">{sb.ico} {sb.label}</span>
+                </div>
+                <div className="bh-text">{b.text.length > 140 ? b.text.slice(0, 140) + "…" : b.text}</div>
+                <div className="bc-result-bar"><div className="bc-result-fill" style={{ width: `${pct}%` }} /></div>
+                <div className="bh-counts">
+                  <span className="bh-ok">✅ {b.sentCount} yetdi</span>
+                  <span className={b.failedCount > 0 ? "bh-bad" : "muted"}>📵 {b.failedCount} bormadi</span>
+                  <span className="muted">jami {b.totalCount}</span>
+                  <span className="bh-chev">{open ? "▲" : "▼"}</span>
+                </div>
+              </button>
+              {open && (
+                <div className="bh-detail">
+                  {detailBusy && <div className="muted" style={{ fontSize: 13 }}>⏳ yuklanmoqda…</div>}
+                  {!detailBusy && detail && detail.id === b.id && (
+                    <>
+                      <div className="bh-fulltext">{detail.text}</div>
+                      {detail.failed.length === 0 ? (
+                        <div className="bh-ok" style={{ fontSize: 13 }}>✅ Hammaga yetib borgan — yetib bormaganlar yo'q.</div>
+                      ) : (
+                        <>
+                          <div className="bh-bad" style={{ fontSize: 13, fontWeight: 700 }}>📵 Yetib bormaganlar ({detail.failed.length}) — botni bloklagan/o'chirgan:</div>
+                          <div className="bh-failed-list">
+                            {detail.failed.map((f) => (
+                              <div key={f.telegramId} className="bh-failed-row">
+                                <span>{f.name}</span>
+                                <span className="muted">{f.phone ?? "—"}</span>
+                              </div>
+                            ))}
+                          </div>
+                          <button className="btn sm" style={{ marginTop: 8 }} onClick={() => downloadCsv(detail)}>📥 CSV yuklab olish</button>
+                        </>
+                      )}
+                    </>
+                  )}
+                  {!detailBusy && (!detail || detail.id !== b.id) && <div className="action-msg">⚠️ Tafsilot yuklanmadi</div>}
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </section>
+  );
+}
+
+function ActionsView({ onHistory }: { onHistory?: () => void }) {
   const [phone, setPhone] = useState("");
   const [amount, setAmount] = useState("");
   const [reason, setReason] = useState("");
@@ -868,7 +986,14 @@ function ActionsView() {
               <div className="bc-result">
                 <div style={{ fontWeight: 700, fontSize: 14 }}>{annMsg}</div>
                 <div className="bc-result-bar"><div className="bc-result-fill" style={{ width: `${annStats.total ? (annStats.sent / annStats.total) * 100 : 0}%` }} /></div>
-                <div className="muted" style={{ fontSize: 12 }}>✅ {annStats.sent} yetdi · 📵 {annStats.total - annStats.sent} bormadi</div>
+                <div style={{ fontSize: 12 }}>
+                  <span className="bh-ok">✅ {annStats.sent} yetdi</span>
+                  <span className="muted"> · </span>
+                  <span className={annStats.total - annStats.sent > 0 ? "bh-bad" : "muted"}>📵 {annStats.total - annStats.sent} bormadi</span>
+                </div>
+                {onHistory && (
+                  <button className="bh-link" onClick={onHistory}>📢 To'liq tarixni ko'rish — «Xabarlar tarixi»</button>
+                )}
               </div>
             )}
             {!annStats && annMsg && <div className="action-msg">{annMsg}</div>}

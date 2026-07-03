@@ -1039,6 +1039,35 @@ model SupportMsg {
   @@index([telegramId, createdAt])
 }
 
+// 📢 Persistent broadcast delivery log — the owner can ALWAYS see who a mass
+// message did NOT reach (previously the failed list vanished on page refresh).
+// Storage choice: one Broadcast row per send (counts always persisted) +
+// BroadcastRecipient rows ONLY for the FAILED recipients (full list, forever).
+// "Sent" recipients are stored as a count only — keeps rows bounded
+// (broadcast to 5000 users with 30 blocks = 1 + 30 rows, not 5001).
+model Broadcast {
+  id          Int                  @id @default(autoincrement())
+  createdAt   DateTime             @default(now())
+  text        String
+  segment     String // "all" | "linked" | "dormant"
+  sentCount   Int
+  failedCount Int
+  totalCount  Int
+  recipients  BroadcastRecipient[]
+}
+
+model BroadcastRecipient {
+  id          Int       @id @default(autoincrement())
+  broadcast   Broadcast @relation(fields: [broadcastId], references: [id], onDelete: Cascade)
+  broadcastId Int
+  telegramId  String
+  name        String
+  phone       String?
+  status      String // "sent" | "failed"
+
+  @@index([broadcastId])
+}
+
 // ════════════════════════════════════════════════════════════════════════════
 // 🚐 INTERCITY — nationwide shared-taxi (any province ↔ any province).
 // ALL real-money fares live in *Som Int fields here — NEVER in CoinTxn / tanga

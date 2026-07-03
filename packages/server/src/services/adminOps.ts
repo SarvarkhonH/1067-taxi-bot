@@ -388,10 +388,47 @@ export async function adminAnnounce(
         phone: t.member?.phone ?? null,
       }))
     : [];
+  // 📢 PERSIST the delivery log so the owner can see who was NOT reached at any
+  // time (not just right after sending). Design: Broadcast row always (counts),
+  // BroadcastRecipient rows ONLY for FAILED recipients (full list, forever) —
+  // sent users are a count, which keeps rows bounded. Persist errors never
+  // break the announce result itself.
+  try {
+    await prisma.broadcast.create({
+      data: {
+        text: body,
+        segment,
+        sentCount: sent,
+        failedCount: failedIds.length,
+        totalCount: users.length,
+        recipients: failedList.length
+          ? { create: failedList.map((f) => ({ telegramId: f.telegramId, name: f.name, phone: f.phone, status: "failed" })) }
+          : undefined,
+      },
+    });
+  } catch (e) {
+    console.error("[admin] broadcast log persist failed", e);
+  }
   return {
     ok: true,
     message: `📤 ${sent}/${users.length} yuborildi${failedIds.length ? ` (${failedIds.length} yetib bormadi)` : ""}`,
     failedList,
+  };
+}
+
+// ─── 📢 persistent broadcast history ───────────────────────────────────────
+export async function getAdminBroadcasts(limit = 50): Promise<{ id: number; createdAt: string; text: string; segment: string; sentCount: number; failedCount: number; totalCount: number }[]> {
+  const rows = await prisma.broadcast.findMany({ orderBy: { createdAt: "desc" }, take: limit });
+  return rows.map((b) => ({ id: b.id, createdAt: b.createdAt.toISOString(), text: b.text, segment: b.segment, sentCount: b.sentCount, failedCount: b.failedCount, totalCount: b.totalCount }));
+}
+
+export async function getAdminBroadcastDetail(id: number): Promise<{ id: number; createdAt: string; text: string; segment: string; sentCount: number; failedCount: number; totalCount: number; failed: { telegramId: string; name: string; phone: string | null }[] } | null> {
+  const b = await prisma.broadcast.findUnique({ where: { id }, include: { recipients: { where: { status: "failed" }, orderBy: { id: "asc" } } } });
+  if (!b) return null;
+  return {
+    id: b.id, createdAt: b.createdAt.toISOString(), text: b.text, segment: b.segment,
+    sentCount: b.sentCount, failedCount: b.failedCount, totalCount: b.totalCount,
+    failed: b.recipients.map((r) => ({ telegramId: r.telegramId, name: r.name, phone: r.phone })),
   };
 }
 

@@ -275,6 +275,22 @@ export interface AdminActionResult {
   failedList?: { telegramId: string; name: string; phone: string | null }[];
 }
 
+/** 📢 One past broadcast (persistent delivery log — survives page refresh). */
+export interface AdminBroadcastRow {
+  id: number;
+  createdAt: string;
+  text: string;
+  segment: string; // "all" | "linked" | "dormant"
+  sentCount: number;
+  failedCount: number;
+  totalCount: number;
+}
+
+/** 📢 Broadcast + the full FAILED recipient list (stored forever). */
+export interface AdminBroadcastDetail extends AdminBroadcastRow {
+  failed: { telegramId: string; name: string; phone: string | null }[];
+}
+
 export interface AdminIntegrity {
   checked: number;
   driftCount: number;

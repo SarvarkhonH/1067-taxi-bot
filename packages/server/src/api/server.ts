@@ -1472,6 +1472,21 @@ body{font-family:Arial,sans-serif;background:#eee;-webkit-print-color-adjust:exa
     res.json(await adminAnnounce(String(b.text ?? ""), seg, opts.sendMessage, Math.max(1, Math.floor(Number(b.days ?? 14)))));
   });
 
+  // 📢 persistent broadcast history — who received / who did NOT (survives refresh)
+  app.get("/api/admin/broadcasts", requireAdmin, async (req, res) => {
+    const limit = Math.min(100, Number(req.query.limit) || 50);
+    const { getAdminBroadcasts } = await import("../services/adminOps");
+    res.json(await getAdminBroadcasts(limit));
+  });
+  app.get("/api/admin/broadcasts/:id", requireAdmin, async (req, res) => {
+    const id = Math.floor(Number(req.params.id));
+    if (!(id > 0)) { res.status(400).json({ ok: false, message: "id noto'g'ri" }); return; }
+    const { getAdminBroadcastDetail } = await import("../services/adminOps");
+    const d = await getAdminBroadcastDetail(id);
+    if (!d) { res.status(404).json({ ok: false, message: "topilmadi" }); return; }
+    res.json(d);
+  });
+
   // 🎁 bulk grant tanga to a whole segment (owner-gated; capped + idempotent per batch)
   app.post("/api/admin/grant-segment", requireAdmin, requireOwner, rateLimit(3), async (req, res) => {
     const b = (req.body ?? {}) as { segment?: string; amount?: number; reason?: string; days?: number };

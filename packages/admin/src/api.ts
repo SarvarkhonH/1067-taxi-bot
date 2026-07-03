@@ -2,6 +2,8 @@ import type {
   AdminActionResult,
   AdminAuditRow,
   AdminBotUsersResponse,
+  AdminBroadcastDetail,
+  AdminBroadcastRow,
   AdminEconomy,
   BallDistribution,
   AdminGrowth,
@@ -102,6 +104,9 @@ export const adminApi = {
   grantMemberCoins: (memberId: number, amount: number, reason: string) => postJson<AdminActionResult>("/api/admin/grant-coins", { memberId, amount, reason }),
   moveToBalance: (memberId: number, amount: number) => postJson<AdminActionResult>("/api/admin/move-to-balance", { memberId, amount }),
   announce: (text: string, segment: "all" | "linked" | "dormant", days?: number) => postJson<AdminActionResult>("/api/admin/announce", { text, segment, days }),
+  // 📢 persistent broadcast history (who received / who didn't — survives refresh)
+  broadcasts: (limit = 50) => req<AdminBroadcastRow[]>(`/api/admin/broadcasts?limit=${limit}`),
+  broadcastDetail: (id: number) => req<AdminBroadcastDetail>(`/api/admin/broadcasts/${id}`),
   grantSegment: (segment: "all" | "linked" | "dormant", amount: number, reason: string, days?: number) => postJson<AdminActionResult>("/api/admin/grant-segment", { segment, amount, reason, days }),
   wakeUp: (text: string, bonus: number, days: number) => postJson<AdminActionResult>("/api/admin/wake-up", { text, bonus, days }),
   integrity: () => req<AdminIntegrity>("/api/admin/integrity"),
