@@ -43,19 +43,32 @@ export async function getHealth(): Promise<AdminHealth> {
   }
   const dbMs = Date.now() - t1;
 
-  const lastSync = await prisma.syncRun.findFirst({ orderBy: { startedAt: "desc" } });
+  // In LIVE mode there is NO bulk runSync (SyncRun row) — members are refreshed per-user each
+  // tick (refreshLinkedMembers), which stamps member.lastSyncAt. So the true "sync is alive"
+  // signal in live mode is the freshest member.lastSyncAt, NOT the (permanently stale) SyncRun.
+  // Using SyncRun in live mode made the health card show a false RED "20 days ago".
+  let lastSyncInfo: AdminHealth["lastSync"] = null;
+  if (env.KAS_MODE === "live") {
+    const fresh = await prisma.member.findFirst({ where: { lastSyncAt: { not: null } }, orderBy: { lastSyncAt: "desc" }, select: { lastSyncAt: true } });
+    if (fresh?.lastSyncAt) {
+      lastSyncInfo = { at: fresh.lastSyncAt.toISOString(), status: "ok", ageMin: Math.round((Date.now() - fresh.lastSyncAt.getTime()) / 60000) };
+    }
+  } else {
+    const lastSync = await prisma.syncRun.findFirst({ orderBy: { startedAt: "desc" } });
+    if (lastSync) {
+      lastSyncInfo = {
+        at: (lastSync.finishedAt ?? lastSync.startedAt).toISOString(),
+        status: lastSync.status,
+        ageMin: Math.round((Date.now() - (lastSync.finishedAt ?? lastSync.startedAt).getTime()) / 60000),
+      };
+    }
+  }
   return {
     kas: { ok: kasOk, ms: kasMs, mode: env.KAS_MODE, message: kasMsg },
     db: { ok: dbOk, ms: dbMs },
     bot: env.hasBot,
     bookingLive: env.bookingLive,
-    lastSync: lastSync
-      ? {
-          at: (lastSync.finishedAt ?? lastSync.startedAt).toISOString(),
-          status: lastSync.status,
-          ageMin: Math.round((Date.now() - (lastSync.finishedAt ?? lastSync.startedAt).getTime()) / 60000),
-        }
-      : null,
+    lastSync: lastSyncInfo,
     serverTime: new Date().toISOString(),
   };
 }
