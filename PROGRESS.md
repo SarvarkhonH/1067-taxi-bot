@@ -308,3 +308,12 @@ STATUS (Rule 7): `ready for verification`. Compliance-report 5 gap yopildi; kodn
   /api/admin/analytics/retention, admin Analitika'da jadval. Prod isboti: 4 kohorta
   (29-iyun: 19 user, D1 42%, D7 53%). Phase 1-3 shu bazaga qarab baholanadi.
 - 0.6 vitest+CI: agent sessiya-limitga urildi — 19:20dan keyin qayta yuboriladi. Phase-0 qolgani shu.
+
+## 2026-07-03 — KOSON W1 QURILDI (ready for verification): jackpot-shou kanali + narx-matn
+- №2 jackpot-kanal (flag `jackpotpost` DARK + KOSON_CHANNEL_ID env — ikkala darvoza ham kerak):
+  channelService (sender-registratsiya, xato yutadi), yutuq-e'lon cashbackService jackpot-branch'da
+  (idempotent claim'dan KEYIN — 1 marta), dushanba-digest 15-daq tick'da (marker-gated).
+  Ism-maxfiylik: faqat birinchi ism. Isbot: tsc yashil, testWaitComp 16/16, vitest 42/42.
+- №6: bot pin-karta matniga narx-shaffoflik qatori.
+- EGA OPS KUTILMOQDA: kanal ochish → botni admin qilish → Render'ga KOSON_CHANNEL_ID → test-post
+  → setFlag jackpotpost on. 0.6 vitest-CI ham yopildi (42 test, agent-worktree'dan qutqarildi).

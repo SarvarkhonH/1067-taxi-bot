@@ -36,6 +36,10 @@ const schema = z.object({
   // When "true", the API trusts X-Debug-Telegram-Id even with a bot token (LOCAL admin/miniapp viewing only).
   ALLOW_DEBUG_AUTH: z.string().optional().default("false"),
 
+  // 📣 Koson public channel (W1 №2 jackpot-shou): "-100…" id yoki "@username". Bo'sh = post yo'q.
+  // Bot kanalga ADMIN qilib qo'shilishi shart (ega ops). Flag "jackpotpost" bilan ham gate'lanadi.
+  KOSON_CHANNEL_ID: z.string().optional().default(""),
+
   PORT: z.coerce.number().default(8080),
   PUBLIC_API_URL: z.string().default("http://localhost:8080"),
   // Production: set to the public HTTPS base (e.g. Render URL) to run the bot via webhook (no polling, survives free-tier sleep).

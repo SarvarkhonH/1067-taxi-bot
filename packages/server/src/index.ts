@@ -107,6 +107,10 @@ async function main(): Promise<void> {
   // economy alerts (withdraws, anomalies) → admins
   const { registerAdminNotifier } = await import("./services/economyService");
   registerAdminNotifier(sendTg);
+  // 📣 W1 №2: public-channel sender (jackpot wins + Monday digest). Same sendTg — a channel id is
+  // just a chat id. Double-gated inside (KOSON_CHANNEL_ID env + "jackpotpost" flag).
+  const { registerChannelSender } = await import("./services/channelService");
+  registerChannelSender(sendTg);
 
   // 3. Telegram bot — webhook in production, long polling locally
   const webhookPath = `/tg/${env.WEBHOOK_SECRET}`;
@@ -213,6 +217,11 @@ async function main(): Promise<void> {
           // V-NEXT #3: daily AppState marker TTL (per-ride idempotency rows >30d) — self-gated once/day
           const { maybeDailyMarkerCleanup } = await import("./services/appStateUtil");
           await maybeDailyMarkerCleanup().catch((e) => console.error("[cleanup] failed:", e));
+        }
+        {
+          // 📣 W1 №2: Monday channel digest (self-gated once/ISO-Monday; no-op while flag/env off)
+          const { maybeWeeklyChannelDigest } = await import("./services/channelService");
+          await maybeWeeklyChannelDigest().catch((e) => console.error("[channel] digest failed:", e));
         }
         if (reconcileTick++ % 12 === 0) {
           // money-integrity sweep ~ every 12 ticks (3h at 15min interval)

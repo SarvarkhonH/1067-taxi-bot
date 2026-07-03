@@ -118,8 +118,18 @@ export async function rollRideCashback(
 
   if (jackpot) {
     const { alertAdmins } = await import("./economyService");
-    const m = await prisma.member.findUnique({ where: { id: memberId }, select: { fullName: true } });
+    const m = await prisma.member.findUnique({ where: { id: memberId }, select: { fullName: true, displayName: true } });
     await alertAdmins(`🎰 RIDE-JACKPOT: <b>${m?.fullName ?? memberId}</b> yutdi — ${formatNumber(amount)} tanga!`).catch(() => undefined);
+    // 📣 W1 №2 jackpot-shou: publish the win to the public Koson channel (first name only). Sits
+    // AFTER the idempotent claim → fires at most once per win; postToChannel never throws and is a
+    // no-op while the "jackpotpost" flag / KOSON_CHANNEL_ID env are off — the money path above is
+    // untouched either way.
+    try {
+      const { announceJackpotWin, channelName } = await import("./channelService");
+      await announceJackpotWin(channelName(m?.displayName ?? null, m?.fullName ?? ""), amount);
+    } catch (e) {
+      console.error("[channel] jackpot announce failed:", e);
+    }
   }
   return { tier: t.tier, label: t.label, amount, lucky, jackpot };
 }

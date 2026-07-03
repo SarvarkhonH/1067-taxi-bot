@@ -278,7 +278,7 @@ export function createBot(): Bot {
       const firstPin = await prisma.appState.create({ data: { key: `apppinned:${id}`, value: "1" } }).then(() => true).catch(() => false);
       if (firstPin) {
         const card = await ctx
-          .reply("🚖 <b>1067 — bir bosishda taxi!</b>\nManzilni tanlang, jonli xaritada haydovchini kuzating, bonuslar yig'ing 👇", {
+          .reply("🚖 <b>1067 — bir bosishda taxi!</b>\nChiqishdan OLDIN narxni bilasiz + har safardan tanga qaytadi.\nManzilni tanlang, jonli xaritada haydovchini kuzating 👇", {
             parse_mode: "HTML",
             reply_markup: new InlineKeyboard().webApp("🚕 Ilovani ochish", webAppUrl()),
           })
