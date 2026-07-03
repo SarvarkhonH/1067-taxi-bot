@@ -68,8 +68,8 @@ strongest part — preserve it.
 - `wallet.tsx` (Hamyon: balance, cash-out), `rewards.tsx` (missions/wheel), `home.tsx`, `driver.tsx`,
   `intercity.tsx` (kept), `TrackView.tsx` (public family-safety trip page).
 - `uy.tsx` = the DEFAULT taxi-first home tab (kept; `home.tsx` is the flag-gated living-map
-  upgrade). `market.tsx` = user-shops feature (kept, currently unrouted), `service.tsx` = Ravella
-  wedding catalog (unrouted). `garaj.tsx`/`tolqin.tsx` were deleted in the Phase-2 strip.
+  upgrade). `service.tsx` = Ravella wedding catalog (unrouted, active WIP). `garaj.tsx`/`tolqin.tsx`
+  (Phase-2 strip) + `market.tsx` (2026-07-03 chaqmoq #2: never-used shop/trade UI) were deleted.
 - `api.ts` — one flat object, ~180 endpoint methods. `telegram.ts` — WebApp bootstrap + helpers.
 - `design/tokens.css` (1.4k) — the single global stylesheet (class-prefix soup, NOT design tokens).
 
