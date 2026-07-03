@@ -466,7 +466,9 @@ export async function getAdminMembers(type: MemberType): Promise<AdminMemberRow[
       id: m.id,
       kasId: m.kasId,
       type: m.type as MemberType,
-      fullName: m.fullName,
+      // prefer the user-owned displayName (kas sync never touches it); fall back to the
+      // kas fullName / Telegram name. Keeps the admin list free of stale menu-tap names.
+      fullName: m.displayName || resolveDisplayName(m.fullName, m.telegramUser),
       phone: m.phone,
       carNumber: m.carNumber,
       points: m.points,
