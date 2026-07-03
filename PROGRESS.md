@@ -317,3 +317,10 @@ STATUS (Rule 7): `ready for verification`. Compliance-report 5 gap yopildi; kodn
 - №6: bot pin-karta matniga narx-shaffoflik qatori.
 - EGA OPS KUTILMOQDA: kanal ochish → botni admin qilish → Render'ga KOSON_CHANNEL_ID → test-post
   → setFlag jackpotpost on. 0.6 vitest-CI ham yopildi (42 test, agent-worktree'dan qutqarildi).
+
+## 2026-07-03 — W1 №2 jackpot-kanal JONLI (owner-accepted)
+- Ega kanal ochdi (@koson1067 = "1067 KOSON TAXI", id -1001931992359), botni admin qildi.
+- KOSON_CHANNEL_ID Render env'ga qo'shildi (env-deploy live); jackpotpost flag ON.
+- Bot post-huquqi tasdiqlandi (intro test-post message_id 49). Endi har ride-jackpot + dushanba
+  digest avtomatik kanalga chiqadi. A (viral kanal) = DONE.
+- Qoldi: W2 №1 instant-status (probe kerak), W3 №4 inviter-top + №5 QR-report, W4 gap-surface+cleanup.
