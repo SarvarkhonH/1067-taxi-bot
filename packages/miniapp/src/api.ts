@@ -160,26 +160,6 @@ export const api = {
   transfer: (phone: string, amount: number, note?: string) => request<TransferResponse>("POST", "/api/wallet/transfer", { phone, amount, note }, 1),
   driverByCar: (car: string) => request<DriverPayLookup>("POST", "/api/wallet/driver-by-car", { car }, 1),
   payDriver: (car: string, amount: number) => request<TransferResponse>("POST", "/api/wallet/pay-driver", { car, amount }, 1),
-  // market (buy = money op → no auto-retry)
-  marketShops: () => get<MarketShop[]>("/api/market/shops"),
-  marketBuy: (listingId: number) =>
-    request<{ ok: boolean; reason?: string; voucherCode?: string; shopName?: string; title?: string; priceCoins?: number; coinsLeft: number }>(
-      "POST",
-      "/api/market/buy",
-      { listingId },
-      1,
-    ),
-  marketOrders: () =>
-    get<{ id: number; shopName: string; title: string; emoji: string; priceCoins: number; voucherCode: string; status: string; at: string }[]>(
-      "/api/market/orders",
-    ),
-  marketMyShop: () =>
-    get<{
-      shop: { id: number; name: string; emoji: string };
-      pending: { id: number; title: string; emoji: string; priceCoins: number; voucherCode: string; at: string }[];
-    } | null>("/api/market/myshop"),
-  marketRedeem: (code: string) =>
-    request<{ ok: boolean; reason?: string; title?: string; shopName?: string }>("POST", "/api/market/redeem", { code }, 1),
   driverEarnings: () =>
     get<{ todayIn: number; totalIn: number; txns: { amount: number; kind: string; reason: string; at: string }[] }>("/api/driver/earnings"),
   driverRides: () =>
@@ -201,21 +181,11 @@ export const api = {
   bookingScheduleCancel: (id: number) => request<{ ok: boolean }>("POST", "/api/booking/schedule/cancel", { id }, 1),
   familyAdd: (phone: string, name: string) => request<{ ok: boolean; reason?: string }>("POST", "/api/family/add", { phone, name }, 1),
   familyBook: (familyId: number, pickupId: number, pickupName: string) => request<{ ok: boolean; live: boolean; message?: string }>("POST", "/api/family/book", { familyId, pickupId, pickupName }, 1),
-  trades: () => get<TradesResponse>("/api/trade"),
-  tradeOffer: (itemId: number, coins: number, offerItemId?: number) => request<{ ok: boolean; reason?: string; offerId?: number }>("POST", "/api/trade/offer", { itemId, coins, offerItemId }, 1),
-  tradeAccept: (offerId: number) => request<{ ok: boolean; reason?: string }>("POST", "/api/trade/accept", { offerId }, 1),
-  tradeCancel: (offerId: number) => request<{ ok: boolean; reason?: string }>("POST", "/api/trade/cancel", { offerId }, 1),
-  tradeMessage: (offerId: number, text: string) => request<{ ok: boolean; reason?: string }>("POST", "/api/trade/message", { offerId, text }, 1),
   plus: () => get<{ active: boolean; until: string | null; price: number; trialAvailable: boolean; canBuy: boolean }>("/api/plus"),
   plusSubscribe: () => request<{ ok: boolean; reason?: string; until?: string; free?: boolean }>("POST", "/api/plus/subscribe", {}, 1),
   gap: () => get<{ inGap: boolean; name?: string; code?: string; goal?: number; progress?: number; members?: { name: string; rides: number; isCreator: boolean }[] }>("/api/gap"),
   gapCreate: (name: string) => request<{ ok: boolean; reason?: string; code?: string }>("POST", "/api/gap/create", { name }, 1),
   gapJoin: (code: string) => request<{ ok: boolean; reason?: string; name?: string }>("POST", "/api/gap/join", { code }, 1),
-  items: () => get<ItemsResponse>("/api/items"),
-  itemMint: (code: string) => request<{ ok: boolean; reason?: string; serial?: number; name?: string }>("POST", "/api/items/mint", { code }, 1),
-  itemList: (itemId: number, price: number) => request<{ ok: boolean; reason?: string }>("POST", "/api/items/list", { itemId, price }, 1),
-  itemUnlist: (itemId: number) => request<{ ok: boolean }>("POST", "/api/items/unlist", { itemId }, 1),
-  itemBuy: (listingId: number) => request<{ ok: boolean; reason?: string; name?: string; coins: number }>("POST", "/api/items/buy", { listingId }, 1),
   bookingInfo: () => get<BookingInfoResponse | { error: string }>("/api/booking/info"),
   home: () => get<HomeResponse>("/api/home"),
   account: () =>
@@ -307,23 +277,3 @@ interface SavedAddr {
   surcharge?: number;
 }
 
-export interface TradesResponse {
-  incoming: { id: number; item: string; offerCoins: number; offerItem: string | null; from: string; mine: boolean; chat: { me: boolean; text: string }[] }[];
-  outgoing: { id: number; item: string; offerCoins: number; offerItem: string | null; from: string; mine: boolean; chat: { me: boolean; text: string }[] }[];
-}
-
-export interface ItemsResponse {
-  catalog: { code: string; name: string; emoji: string; rarity: string; price: number; left: number | null }[];
-  mine: { id: number; code: string; name: string; emoji: string; serial: number; cap: number; sellable: boolean; listed: boolean }[];
-  partsProgress: { have: number; total: number };
-  market: { listingId: number; itemId: number; name: string; emoji: string; serial: number; price: number; mine: boolean }[];
-  coins: number;
-}
-
-interface MarketShop {
-  id: number;
-  name: string;
-  emoji: string;
-  category: string;
-  listings: { id: number; title: string; emoji: string; priceCoins: number }[];
-}

@@ -74,6 +74,32 @@ export async function getOpsPulse(): Promise<OpsPulse> {
   if (cancelPctToday >= 30 && doneToday + cancelToday >= 10) alerts.push({ level: "amber", text: `Bekor qilish yuqori: ${cancelPctToday}%` });
   if (reportsStale) alerts.push({ level: "amber", text: "kas hisobotlari yuklanmadi — puls qisman" });
 
+  // 🛡 trackcta funnel: share (track:* token) → join (trackjoin:*) → activated (referral credited).
+  // Best-effort — a failure here never breaks the pulse.
+  let trackcta: OpsPulse["trackcta"];
+  try {
+    const weekAgo = now - 7 * 24 * 3600 * 1000;
+    const [tokenRows, joinRows] = await Promise.all([
+      prisma.appState.findMany({ where: { key: { startsWith: "track:" } }, select: { value: true } }),
+      prisma.appState.findMany({ where: { key: { startsWith: "trackjoin:" } }, select: { key: true, value: true } }),
+    ]);
+    const shares7d = tokenRows.filter((r) => {
+      try {
+        return (JSON.parse(r.value) as { at?: number }).at! >= weekAgo;
+      } catch {
+        return false;
+      }
+    }).length;
+    const joins7d = joinRows.filter((r) => Date.parse(r.value) >= weekAgo).length;
+    const joinTgIds = joinRows.map((r) => r.key.slice("trackjoin:".length)).filter(Boolean);
+    const activatedTotal = joinTgIds.length
+      ? await prisma.telegramUser.count({ where: { id: { in: joinTgIds }, referralCreditedAt: { not: null } } })
+      : 0;
+    trackcta = { sharesTotal: tokenRows.length, shares7d, joinsTotal: joinRows.length, joins7d, activatedTotal };
+  } catch {
+    trackcta = undefined;
+  }
+
   return {
     weekday: UZ_WEEKDAYS[new Date().getDay()]!,
     metrics,
@@ -83,6 +109,7 @@ export async function getOpsPulse(): Promise<OpsPulse> {
     emissionCapDay: EMISSION_SOFT_CAP_DAY,
     alerts,
     reportsStale,
+    trackcta,
   };
 }
 

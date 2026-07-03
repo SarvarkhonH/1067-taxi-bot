@@ -30,7 +30,6 @@ import {
   type CashoutOwnerNotice,
 } from "../services/cashoutService";
 import { findDriverByCar, getDriverEarnings, lookupDriverForPay, lookupRecipient, transfer } from "../services/transferService";
-import { buyListing, listShops, myOrders, myShop, redeemVoucher } from "../services/marketService";
 import { prisma } from "../db";
 import { getFareConfig } from "../services/clientInfoService";
 import { callOneTapFor, cancelBookingFor, createBookingFor, estimateFare, getActiveBookingFor, getBookingInfo, nearestAddressFor, searchBookingAddress } from "../services/bookingService";
@@ -384,26 +383,6 @@ export function createApiServer(opts: ApiOptions = {}) {
     // FARE payment (not a tip) — high cap, driver gets the full fare, +commission charged to rider.
     res.json(await transfer(memberId, "", amount, { kind: "fare", toMemberId: driver.id }));
   });
-  // ── 💎 Kolleksiya ────────────────────────────────────────────────────────
-  app.get("/api/items", requireUser, withMember2(async (id) => {
-    const { getCollection } = await import("../services/itemService");
-    return getCollection(id);
-  }));
-  app.post("/api/items/mint", requireUser, rateLimit(10), withMember2(async (id, req) => {
-    const { featureOn } = await import("../services/featureFlags");
-    if (!(await featureOn("items"))) return { ok: false, reason: "disabled" };
-    const { mintItem } = await import("../services/itemService");
-    return mintItem(id, String((req.body as { code?: string })?.code ?? ""));
-  }));
-  app.post("/api/items/list", requireUser, rateLimit(10), withMember2(async (id, req) => {
-    const { listItem } = await import("../services/itemService");
-    const b = req.body as { itemId?: number; price?: number };
-    return listItem(id, Math.floor(Number(b?.itemId ?? 0)), Math.floor(Number(b?.price ?? 0)));
-  }));
-  app.post("/api/items/unlist", requireUser, rateLimit(10), withMember2(async (id, req) => {
-    const { unlistItem } = await import("../services/itemService");
-    return { ok: await unlistItem(id, Math.floor(Number((req.body as { itemId?: number })?.itemId ?? 0))) };
-  }));
   // 💎 1067 Plus (coin-paid subscription, pure sink)
   app.get("/api/plus", requireUser, withMember2(async (id) => {
     const { PLUS_PRICE } = await import("../services/plusService");
@@ -435,11 +414,6 @@ export function createApiServer(opts: ApiOptions = {}) {
     if (!(await featureOn("gap"))) return { ok: false, reason: "disabled" };
     const { joinGap } = await import("../services/gapService");
     return joinGap(id, String((req.body as { code?: string })?.code ?? ""));
-  }));
-
-  app.post("/api/items/buy", requireUser, rateLimit(10), withMember2(async (id, req) => {
-    const { buyListedItem } = await import("../services/itemService");
-    return buyListedItem(id, Math.floor(Number((req.body as { listingId?: number })?.listingId ?? 0)));
   }));
 
   app.get("/api/driver/earnings", requireUser, async (_req, res) => {
@@ -533,91 +507,6 @@ export function createApiServer(opts: ApiOptions = {}) {
     const png = await QR.toDataURL(link, { width: 600, margin: 2 }).catch(() => null);
     const shareText = "1067 Taxi — chaqiring, tejang, bonus yig'ing! 🚕 Mening havolam orqali qo'shiling:";
     res.json({ ok: true, link, png, shareText });
-  });
-
-  // ── 🏪 Bozor: spendable-cashback marketplace (ABSORB MVP — zero cash risk) ──
-  app.get("/api/market/shops", requireUser, async (_req, res) => {
-    res.json(await listShops());
-  });
-  app.post("/api/market/buy", requireUser, rateLimit(10), async (req, res) => {
-    const memberId = await getMemberId(res.locals.telegramId as string);
-    if (!memberId) {
-      res.status(404).json({ error: "not linked" });
-      return;
-    }
-    const listingId = Math.floor(Number((req.body as { listingId?: number })?.listingId ?? 0));
-    if (!listingId) {
-      res.status(400).json({ error: "listingId required" });
-      return;
-    }
-    res.json(await buyListing(memberId, listingId));
-  });
-  app.get("/api/market/orders", requireUser, async (_req, res) => {
-    const memberId = await getMemberId(res.locals.telegramId as string);
-    if (!memberId) {
-      res.status(404).json({ error: "not linked" });
-      return;
-    }
-    res.json(await myOrders(memberId));
-  });
-  // shop owner marks a voucher used (their linked phone is the gate)
-  app.post("/api/market/redeem", requireUser, rateLimit(10), async (req, res) => {
-    const memberId = await getMemberId(res.locals.telegramId as string);
-    if (!memberId) {
-      res.status(404).json({ error: "not linked" });
-      return;
-    }
-    const member = await prisma.member.findUnique({ where: { id: memberId }, select: { phone: true } });
-    const code = String((req.body as { code?: string })?.code ?? "");
-    res.json(await redeemVoucher(code, member?.phone ?? "none"));
-  });
-  // shop owner panel: pending vouchers for the shop matching my phone
-  app.get("/api/market/myshop", requireUser, async (_req, res) => {
-    const memberId = await getMemberId(res.locals.telegramId as string);
-    if (!memberId) {
-      res.status(404).json({ error: "not linked" });
-      return;
-    }
-    const member = await prisma.member.findUnique({ where: { id: memberId }, select: { phone: true } });
-    res.json(member?.phone ? await myShop(member.phone) : null);
-  });
-  // admin: manage shops/listings (manual KYC — owner knows Koson businesses)
-  // AUDIT 1.2 (ega qarori): admin UI'da formasi hali yo'q — T7 da qo'shiladi; endpoint qoladi.
-  app.post("/api/admin/market/shop", requireAdmin, requireOwner, async (req, res) => {
-    const b = req.body as { name?: string; emoji?: string; category?: string; ownerPhone?: string };
-    if (!b?.name) {
-      res.status(400).json({ error: "name required" });
-      return;
-    }
-    res.json(await prisma.shop.create({ data: { name: b.name, emoji: b.emoji ?? "🏪", category: b.category ?? "boshqa", ownerPhone: b.ownerPhone ?? null } }));
-  });
-  // admin: flip a shop's settlement mode (trust ladder: absorb → redeem)
-  app.post("/api/admin/market/shopmode", requireAdmin, requireOwner, async (req, res) => {
-    const b = req.body as { shopId?: number; settlementMode?: string; spread?: number; dailyCapCoins?: number };
-    if (!b?.shopId || !["absorb", "redeem"].includes(String(b.settlementMode))) {
-      res.status(400).json({ error: "shopId and settlementMode (absorb|redeem) required" });
-      return;
-    }
-    const spread = Math.min(0.3, Math.max(0.05, Number(b.spread ?? 0.12)));
-    res.json(
-      await prisma.shop.update({
-        where: { id: b.shopId },
-        data: { settlementMode: String(b.settlementMode), spread, ...(b.dailyCapCoins ? { dailyCapCoins: Math.floor(Number(b.dailyCapCoins)) } : {}) },
-      }),
-    );
-  });
-  app.post("/api/admin/market/listing", requireAdmin, requireOwner, async (req, res) => {
-    const b = req.body as { shopId?: number; title?: string; emoji?: string; priceCoins?: number; perUserLimit?: number };
-    const priceCoins = Math.floor(Number(b?.priceCoins ?? 0));
-    if (!b?.shopId || !b?.title || priceCoins <= 0) {
-      res.status(400).json({ error: "shopId, title, priceCoins required" });
-      return;
-    }
-    res.json(
-      await prisma.listing.create({
-        data: { shopId: b.shopId, title: b.title, emoji: b.emoji ?? "🎁", priceCoins, perUserLimit: Math.max(1, Math.floor(Number(b.perUserLimit ?? 3))) },
-      }),
-    );
   });
 
   app.get("/api/missions", requireUser, async (_req, res) => {
@@ -939,31 +828,6 @@ export function createApiServer(opts: ApiOptions = {}) {
     return bookForFamily(id, Math.floor(Number(b?.familyId ?? 0)), Math.floor(Number(b?.pickupId ?? 0)), String(b?.pickupName ?? ""));
   }));
 
-  // ── 🤝 Virtual bozor v2: escrowed offers/barter + per-deal chat ──────────
-  app.get("/api/trade", requireUser, withMember2(async (id) => {
-    const { myTrades } = await import("../services/tradeService");
-    return myTrades(id);
-  }));
-  app.post("/api/trade/offer", requireUser, rateLimit(10), withMember2(async (id, req) => {
-    const { featureOn } = await import("../services/featureFlags");
-    if (!(await featureOn("items"))) return { ok: false, reason: "disabled" };
-    const { makeOffer } = await import("../services/tradeService");
-    const b = req.body as { itemId?: number; coins?: number; offerItemId?: number };
-    return makeOffer(id, Math.floor(Number(b?.itemId ?? 0)), Math.floor(Number(b?.coins ?? 0)), b?.offerItemId ? Math.floor(Number(b.offerItemId)) : undefined);
-  }));
-  app.post("/api/trade/accept", requireUser, rateLimit(10), withMember2(async (id, req) => {
-    const { acceptOffer } = await import("../services/tradeService");
-    return acceptOffer(id, Math.floor(Number((req.body as { offerId?: number })?.offerId ?? 0)));
-  }));
-  app.post("/api/trade/cancel", requireUser, rateLimit(10), withMember2(async (id, req) => {
-    const { cancelOffer } = await import("../services/tradeService");
-    return cancelOffer(id, Math.floor(Number((req.body as { offerId?: number })?.offerId ?? 0)));
-  }));
-  app.post("/api/trade/message", requireUser, rateLimit(20), withMember2(async (id, req) => {
-    const { sendTradeMessage } = await import("../services/tradeService");
-    const b = req.body as { offerId?: number; text?: string };
-    return sendTradeMessage(id, Math.floor(Number(b?.offerId ?? 0)), String(b?.text ?? ""));
-  }));
 
   // ── 🤖 AI support (rules-first; LLM only when owner adds free keys) ──────
   app.post("/api/ai/ask", requireUser, rateLimit(10), withMember2(async (id, req) => {

@@ -13,6 +13,12 @@
 
 ## Jarayonda
 
+### ⚡ CHAQMOQ-TOZALASH #2 — o'lik market/trade tizimi olib tashlandi + Puls voronkasi (2026-07-03) — `ready for verification`
+Ega buyrug'i: «motor olami + umuman ishlatilmaydigan kodlarni yo'qot». Tekshiruv: Motor Olami kodi ALLAQACHON Phase-2'da to'liq o'chirilgan (grep: server+miniapp'da 0 kod-qoldiq, faqat komment/flag nomlari). Yangi topilma: **market/trade tizimi prod'da 0 marta ishlatilgan** (jonli DB: shops=0 listings=0 orders=0 offers=0 msgs=0) — to'liq amputatsiya:
+- **O'chirildi:** `marketService.ts` · `tradeService.ts` · `market.tsx` (unrouted UI) · /api/market/* (5) · /api/admin/market/* (3) · /api/trade/* (5) · /api/items/* (5, faqat o'lik UI chaqirardi) · bot `/vaucher` · tick `settleShopsWeekly` + boot `seedItemTypes` · `testMarket.ts`+`testTradeAI.ts` · miniapp api.ts market/trade/items metodlari+tiplari. **SAQLANDI:** itemService + sweep item-drop'lari (JONLI bot-mexanika: asoschi nishoni, tuman/SAYYOH +5000, haydovchi 20-qism va'dasi) · Prisma jadvallari (Phase-3 siyosati — refund tarixi 2026-08-01 gacha) · service.tsx (Ravella faol WIP boshqa sessiyada) · booking.tsx (booking3 rollback-yo'li).
+- **Qo'shildi:** admin Puls'ga «🛡 Oila kuzatuvi voronkasi» — ulashish(7k/jami) → kirish(7k/jami) → birinchi safar + K-faktor (OpsPulse.trackcta, best-effort).
+- **ISBOT:** typecheck 4/4 · `testMoneyShield` (trade bo'limi olib tashlangan, 3.7 item-market saqlangan) BARCHA yashil · `testAuthGate` BARCHA yashil · butun-repo grep: o'lik simvollardan 0 qoldiq.
+
 ### 🏆 DRVRANK — haydovchi QR-reyting + haftalik hisobot-push (2026-07-03) — ⚫ DARK (`ready for verification`, flag `drvrank` OFF; owner QABUL kutilmoqda)
 Supply-front №1 (Koson strategiyasi): haydovchilarni QR ko'rsatishga undaydigan oylik poyga + dushanba eslatmasi. **Pul mexanikasi TEGILMAGAN** — read-only ekran + push.
 - **Qurildi:** `drvrank` flag (DEFAULT_OFF) · `recruitLeaderboard()` (recruit+revshare+drvrecruit tanga, Toshkent kalendar-oyi, bitta groupBy, 0-daromadlilar ro'yxatga KIRMAYDI) · haydovchi panelida «🏆 Reyting» tugma (`drv:rank`, top-10 qisqa ismlar + «Siz: №R») · haftalik push `driverQrWeeklyTick` (dushanba 09–11 Toshkent, FAQAT 7-kunlik QR-faollarga, NotifyLog dedup = 1×/hafta, quiet-hours/notify-off/2-kunlik-cap hurmat, mavjud 15-min tick — YANGI poller yo'q).

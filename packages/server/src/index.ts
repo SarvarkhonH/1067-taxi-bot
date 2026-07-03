@@ -43,11 +43,6 @@ async function main(): Promise<void> {
   process.on("unhandledRejection", onFatal("unhandledRejection"));
   process.on("uncaughtException", onFatal("uncaughtException"));
 
-  // one-shot: make sure the Kolleksiya catalog exists (idempotent upserts)
-  {
-    const { seedItemTypes } = await import("./services/itemService");
-    await seedItemTypes().catch((e) => console.error("[items] seed failed:", e));
-  }
   // P0.2 boot guard: never honor impersonation auth in a deployed (webhook) env.
   if (env.WEBHOOK_URL && env.allowDebugAuth) {
     console.error("[FATAL] ALLOW_DEBUG_AUTH=true in a deployed environment — refusing to start (impersonation risk).");
@@ -176,12 +171,6 @@ async function main(): Promise<void> {
           await maybeDailyBackup(bot).catch((e) => console.error("[backup] failed:", e));
           const { maybeNightlySelfCheck } = await import("./services/selfCheck");
           await maybeNightlySelfCheck(bot).catch((e) => console.error("[selfcheck] failed:", e));
-          const { settleShopsWeekly } = await import("./services/marketService");
-          await settleShopsWeekly().catch(async (e) => {
-            console.error("[bozor settle] failed:", e);
-            const { alertAdmins } = await import("./services/economyService");
-            await alertAdmins(`🛑 PUL-JOB yiqildi: settleShopsWeekly — ${e instanceof Error ? e.message : String(e)}`).catch(() => undefined);
-          });
           {
             // T0.5 (AUDIT 3.3/3.8 + sellerpay): osilib qolgan pul-markerlarini qayta urish
             const { retryPendingMoney } = await import("./services/coinService");

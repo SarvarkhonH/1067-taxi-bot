@@ -2028,6 +2028,33 @@ function PulseView() {
         <Card icon="🚖" label="Hozir faol" value={String(p.activeNow)} sub={`${p.unassigned} haydovchisiz`} accent={p.unassigned > 0} />
         <Card icon="🪙" label="Bugun emissiya" value={formatNumber(p.emissionToday)} sub={`tavan ${formatNumber(p.emissionCapDay)}`} />
       </section>
+      {p.trackcta && (
+        <section className="panel">
+          <div className="panel-head">
+            <div className="panel-title">🛡 Oila kuzatuvi voronkasi</div>
+            <span className="muted" style={{ fontSize: 12 }}>ulashish → kirish → birinchi safar</span>
+          </div>
+          <div className="cards">
+            <div className="card">
+              <div className="card-value">{p.trackcta.shares7d}</div>
+              <div className="card-label muted">Ulashish (7 kun)</div>
+              <div className="delta muted">jami {p.trackcta.sharesTotal}</div>
+            </div>
+            <div className="card">
+              <div className="card-value">{p.trackcta.joins7d}</div>
+              <div className="card-label muted">Havoladan kirish (7 kun)</div>
+              <div className="delta muted">jami {p.trackcta.joinsTotal}</div>
+            </div>
+            <div className="card">
+              <div className="card-value">{p.trackcta.activatedTotal}</div>
+              <div className="card-label muted">Birinchi safar qildi</div>
+              <div className="delta muted">
+                {p.trackcta.sharesTotal > 0 ? `K ≈ ${(p.trackcta.activatedTotal / p.trackcta.sharesTotal).toFixed(2)}` : "hali ulashish yo'q"}
+              </div>
+            </div>
+          </div>
+        </section>
+      )}
     </>
   );
 }

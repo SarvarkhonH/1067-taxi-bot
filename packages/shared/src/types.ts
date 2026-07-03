@@ -235,6 +235,14 @@ export interface OpsPulse {
   emissionCapDay: number; // soft daily emission ceiling (drives the alert)
   alerts: OpsAlert[];
   reportsStale: boolean; // kas reports unavailable → pulse is partial
+  // 🛡 trackcta viral-loop funnel (absent when the read fails): share → join → first ride
+  trackcta?: {
+    sharesTotal: number; // live-track links ever minted (track:* tokens)
+    shares7d: number;
+    joinsTotal: number; // bot joins that came via a shared track page (trackjoin:*)
+    joins7d: number;
+    activatedTotal: number; // of those joins, how many completed the referral (credited)
+  };
 }
 
 // ── T7 / M2 — finance center (real money figures only; no speculative P&L) ──

@@ -8,7 +8,6 @@ import { rollRideCashback } from "../services/cashbackService";
 import { atomicIncrement, pendingCreate, pendingScan, pendingResolve } from "../services/appStateUtil";
 import { retryPendingMoney } from "../services/coinService";
 import { mintItem, buyListedItem, listItem, seedItemTypes } from "../services/itemService";
-import { makeOffer, acceptOffer } from "../services/tradeService";
 import { fundAddRide, fundTotal } from "../services/featureFlags";
 import { incrementMission } from "../services/missionService";
 
@@ -116,42 +115,22 @@ async function main(): Promise<void> {
   ok(!!stuckRow && JSON.parse(stuckRow.value).stuck === true, `3.3 5 urinishdan keyin STUCK (cheksiz aylanmaydi)`);
   await prisma.appState.deleteMany({ where: { key: "pending:wd:shield-stuck" } });
 
-  // ── 3.4/3.6 TRADE: fee yetmasa hech kimdan pul ketmaydi; parallel accept 1x ─
+  // (3.4/3.6 TRADE bo'limi olib tashlandi 2026-07-03 — tradeService o'chirildi, prod'da 0 marta
+  //  ishlatilgan edi. 3.7 fixture'i uchun item egaligi to'g'ridan-to'g'ri ko'chiriladi.)
   await prisma.itemType.create({ data: { code: "shield_test_t", name: "Sh T", emoji: "🛡", kind: "plate", mintCap: 9, mintPrice: 500 } });
   await mintItem(a.id, "shield_test_t");
   const tT = await prisma.itemType.findUnique({ where: { code: "shield_test_t" } });
   const itA = (await prisma.item.findFirst({ where: { ownerId: a.id, itemTypeId: tT!.id } }))!;
   await mintItem(b.id, "shield_test_t");
-  const itB = (await prisma.item.findFirst({ where: { ownerId: b.id, itemTypeId: tT!.id } }))!;
-  // barter: b ning balansini 0 ga tushiramiz → fee yetmaydi
   const poor = await prisma.member.create({ data: { type: "client", kasId: `${TAG}-P`, fullName: "Poor", phone: "+998900011003", trips: 5 } });
-  await grantCoins(poor.id, 600, "manual", "seed"); // mint 500 dan keyin 100 qoladi → fee 50 yetadi… 2 ta kerak emas, faqat o'ziniki
+  await grantCoins(poor.id, 600, "manual", "seed"); // mint 500 dan keyin 100 qoladi
   await mintItem(poor.id, "shield_test_t");
-  const itP = (await prisma.item.findFirst({ where: { ownerId: poor.id, itemTypeId: tT!.id } }))!;
-  await prisma.member.update({ where: { id: poor.id }, data: { coins: 20 } }); // fee 50 dan kam
+  await prisma.member.update({ where: { id: poor.id }, data: { coins: 20 } }); // insufficient-buyer fixture
   await prisma.coinTxn.create({ data: { memberId: poor.id, amount: -80, kind: "manual", reason: "test adjust" } });
-  const off = await makeOffer(poor.id, itA.id, 0, itP.id); // barter taklifi
-  ok(off.ok === true, `3.4 barter taklif yaratildi`);
-  const aB4 = await bal(a.id);
-  const pB4 = await bal(poor.id);
-  const acc = await acceptOffer(a.id, off.offerId!);
-  ok(!acc.ok && acc.reason === "offerer_cant_fee", `3.4 fee yetmadi → bitim YO'Q (${acc.reason})`);
-  ok((await bal(a.id)) === aB4 && (await bal(poor.id)) === pB4, `3.4 hech kimdan pul ketmadi (atomik rollback)`);
-  ok((await prisma.item.findUnique({ where: { id: itA.id } }))!.ownerId === a.id, `3.4 itemlar joyida`);
-  const offRow = await prisma.tradeOffer.findUnique({ where: { id: off.offerId! } });
-  ok(offRow?.status === "open", `3.6 guard tx ichida: yiqilgan acceptda status OPEN qoladi`);
-
-  // parallel double-accept: faqat 1 marta settle
-  const off2 = await makeOffer(b.id, itA.id, 1000);
-  const aB42 = await bal(a.id);
-  const [x, y] = await Promise.all([acceptOffer(a.id, off2.offerId!), acceptOffer(a.id, off2.offerId!)]);
-  const okCount = [x, y].filter((r) => r.ok).length;
-  const aSale = (await bal(a.id)) - aB42;
-  ok(okCount === 1 && aSale === 900, `3.6 parallel accept: 1x settle, sotuvchiga 900 (got ok=${okCount}, +${aSale})`);
-  ok((await prisma.appState.count({ where: { key: `pending:sellerpay:trade-${off2.offerId}` } })) === 0, `3.4 sellerpay marker resolve bo'ldi`);
+  await prisma.item.update({ where: { id: itA.id }, data: { ownerId: b.id } });
 
   // ── 3.7 buyListedItem: parallel xarid 1x; insufficient'da hech narsa ────
-  const itemBack = await prisma.item.findUnique({ where: { id: itA.id } }); // endi b da
+  const itemBack = await prisma.item.findUnique({ where: { id: itA.id } }); // fixture: b da
   ok(itemBack!.ownerId === b.id, `3.7 fixture: item b ga o'tgan`);
   const li = await listItem(b.id, itA.id, 1200); // koridor: 250..1500 (mint 500)
   ok(li.ok === true, `3.7 listing yaratildi (koridor ichida)`);
