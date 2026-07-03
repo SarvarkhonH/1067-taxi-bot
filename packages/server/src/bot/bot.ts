@@ -167,6 +167,14 @@ const editName = new Set<string>();
 // telegramIds awaiting a preferred name right after first link (auto-ask on join).
 const pendingNameAfterLink = new Set<string>();
 
+// A real name starts with a letter (Latin or Cyrillic). Menu buttons all start with an
+// emoji, and phone numbers with a digit/+ — so anything NOT starting with a letter is a
+// command the user tapped, NOT their name. This stops "🚕 Taxi chaqirish" / "💰 Hamyon"
+// etc. from being saved as the display name during the auto-ask-name flow.
+function looksLikeName(text: string): boolean {
+  return /^[\p{L}]/u.test(text.trim());
+}
+
 export function createBot(): Bot {
   const bot = new Bot(env.BOT_TOKEN);
 
@@ -632,8 +640,8 @@ export function createBot(): Bot {
     const id = String(ctx.from!.id);
     if (!editName.has(id)) return next();
     const name = ctx.message.text.trim();
-    if (name.startsWith("/")) {
-      editName.delete(id);
+    if (name.startsWith("/") || !looksLikeName(name)) {
+      editName.delete(id); // a menu-button tap / command — run it, don't save as name
       return next();
     }
     if (name.length < 2 || name.length > 40) {
@@ -659,8 +667,8 @@ export function createBot(): Bot {
     const id = String(ctx.from!.id);
     if (!pendingNameAfterLink.has(id)) return next();
     const name = ctx.message.text.trim();
-    if (name.startsWith("/")) {
-      pendingNameAfterLink.delete(id);
+    if (name.startsWith("/") || !looksLikeName(name)) {
+      pendingNameAfterLink.delete(id); // a menu-button tap / command — run it, don't save as name
       return next();
     }
     if (name.length < 2 || name.length > 40) {
