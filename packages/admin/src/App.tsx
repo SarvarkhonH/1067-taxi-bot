@@ -687,6 +687,7 @@ function ActionsView() {
   const [segment, setSegment] = useState<"all" | "linked" | "dormant">("all");
   const [days, setDays] = useState("14");
   const [annMsg, setAnnMsg] = useState<string | null>(null);
+  const [annFailed, setAnnFailed] = useState<{ telegramId: string; name: string; phone: string | null }[]>([]);
   const [annBusy, setAnnBusy] = useState(false);
   // 🎁 segment bonus + 😴 wake-up
   const [segAmount, setSegAmount] = useState("");
@@ -720,9 +721,11 @@ function ActionsView() {
     if (!confirm(`${segLabel} foydalanuvchilarga yuborilsinmi?`)) return;
     setAnnBusy(true);
     setAnnMsg(null);
+    setAnnFailed([]);
     try {
       const r = await adminApi.announce(text, segment, Number(days));
       setAnnMsg(r.message);
+      setAnnFailed(r.failedList ?? []);
       if (r.ok) setText("");
     } catch (e) {
       setAnnMsg(e instanceof Error ? e.message : "xatolik");
@@ -801,6 +804,34 @@ function ActionsView() {
         <textarea className="search" style={{ width: "100%", minHeight: 80, resize: "vertical", marginTop: 8 }} placeholder="📢 Xabar matni… (HTML qo'llanadi)" value={text} onChange={(e) => setText(e.target.value)} />
         <button className="btn" style={{ marginTop: 8 }} onClick={doAnnounce} disabled={annBusy}>{annBusy ? "⏳…" : "📤 Xabar yuborish"}</button>
         {annMsg && <div className="action-msg">{annMsg}</div>}
+        {annFailed.length > 0 && (
+          <details style={{ marginTop: 8, background: "#0d1322", borderRadius: 10, padding: "8px 12px" }}>
+            <summary style={{ cursor: "pointer", fontSize: 13, color: "var(--muted)" }}>
+              📵 Yetib bormaganlar ({annFailed.length}) — botni bloklagan/o'chirgan
+            </summary>
+            <div style={{ marginTop: 8, display: "flex", flexDirection: "column", gap: 4, maxHeight: 240, overflowY: "auto" }}>
+              {annFailed.map((f) => (
+                <div key={f.telegramId} style={{ display: "flex", justifyContent: "space-between", fontSize: 12, padding: "3px 0", borderBottom: "1px solid #1a2233" }}>
+                  <span>{f.name}</span>
+                  <span style={{ color: "var(--muted)" }}>{f.phone ?? "—"}</span>
+                </div>
+              ))}
+            </div>
+            <button
+              className="btn"
+              style={{ marginTop: 8, fontSize: 12 }}
+              onClick={() => {
+                const csv = "Ism,Telefon,TelegramID\n" + annFailed.map((f) => `"${f.name}",${f.phone ?? ""},${f.telegramId}`).join("\n");
+                const a = document.createElement("a");
+                a.href = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8" }));
+                a.download = "yetib-bormaganlar.csv";
+                a.click();
+              }}
+            >
+              📥 CSV yuklab olish
+            </button>
+          </details>
+        )}
         <div style={{ borderTop: "1px solid rgba(255,255,255,0.1)", margin: "12px 0 8px" }} />
         <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
           <input className="search" style={{ flex: "1 1 140px" }} type="number" placeholder="🎁 Bonus (tanga)" value={segAmount} onChange={(e) => setSegAmount(e.target.value)} />

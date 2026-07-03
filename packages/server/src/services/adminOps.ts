@@ -366,18 +366,33 @@ export async function adminAnnounce(
     ? (await dormantClientTgIds(days)).map((id) => ({ id }))
     : await prisma.telegramUser.findMany({ where: segment === "linked" ? { memberId: { not: null } } : {}, select: { id: true } });
   let sent = 0;
-  let failed = 0;
+  const failedIds: string[] = [];
   for (const u of users) {
     try {
       await send(u.id, `📣 <b>1067 Taxi</b>\n\n${esc}`);
       sent++;
     } catch {
-      failed++; // user blocked the bot (or transient) — skip
+      failedIds.push(u.id); // user blocked the bot (or transient) — record who
     }
-    if ((sent + failed) % 25 === 0) await new Promise((r) => setTimeout(r, 1000)); // gentle rate-limit
+    if ((sent + failedIds.length) % 25 === 0) await new Promise((r) => setTimeout(r, 1000)); // gentle rate-limit
   }
   console.log(`[admin] announce segment=${segment} sent=${sent}/${users.length} len=${body.length}`);
-  return { ok: true, message: `📤 ${sent}/${users.length} yuborildi${failed ? ` (${failed} yetib bormadi)` : ""}` };
+  // resolve names/phones for the un-reached so the admin can call/re-invite them
+  const failedList = failedIds.length
+    ? (await prisma.telegramUser.findMany({
+        where: { id: { in: failedIds } },
+        select: { id: true, firstName: true, lastName: true, username: true, member: { select: { fullName: true, displayName: true, phone: true } } },
+      })).map((t) => ({
+        telegramId: t.id,
+        name: t.member?.displayName || t.member?.fullName || [t.firstName, t.lastName].filter(Boolean).join(" ") || (t.username ? `@${t.username}` : t.id),
+        phone: t.member?.phone ?? null,
+      }))
+    : [];
+  return {
+    ok: true,
+    message: `📤 ${sent}/${users.length} yuborildi${failedIds.length ? ` (${failedIds.length} yetib bormadi)` : ""}`,
+    failedList,
+  };
 }
 
 /** 🎁 Bulk grant tanga to a whole segment (idempotent per batch, hard total-emission guard). */

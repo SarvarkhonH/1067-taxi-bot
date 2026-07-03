@@ -271,6 +271,8 @@ export interface AdminAuditRow {
 export interface AdminActionResult {
   ok: boolean;
   message: string;
+  /** Recipients a broadcast could NOT reach (blocked the bot / deactivated). */
+  failedList?: { telegramId: string; name: string; phone: string | null }[];
 }
 
 export interface AdminIntegrity {
