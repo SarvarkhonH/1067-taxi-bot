@@ -175,6 +175,29 @@ function looksLikeName(text: string): boolean {
   return /^[\p{L}]/u.test(text.trim());
 }
 
+// Best-effort friendly name from a Telegram user + phone, in priority order:
+//   1. first (+ last) name  2. @username  3. "Mijoz ••1234" (phone last 4)
+// Returns null if nothing usable (caller keeps the existing default).
+function deriveDisplayName(from: { first_name?: string; last_name?: string; username?: string }, phone: string): string | null {
+  const full = [from.first_name, from.last_name].filter(Boolean).join(" ").trim();
+  if (full.length >= 2) return full.slice(0, 40);
+  if (from.username && from.username.length >= 2) return from.username.slice(0, 40);
+  const digits = phone.replace(/\D/g, "");
+  if (digits.length >= 4) return `Mijoz ••${digits.slice(-4)}`;
+  return null;
+}
+
+// Auto-set a derived display name ONLY when the member has none yet — never clobber a name
+// the user (or a prior link) already chose. Clients only.
+async function autoSetDisplayName(memberId: number, from: { first_name?: string; last_name?: string; username?: string }, phone: string): Promise<void> {
+  const m = await prisma.member.findUnique({ where: { id: memberId }, select: { displayName: true } }).catch(() => null);
+  if (!m || (m.displayName && m.displayName.trim().length > 0)) return;
+  const derived = deriveDisplayName(from, phone);
+  if (!derived) return;
+  const { setDisplayName } = await import("../services/memberService");
+  await setDisplayName(memberId, derived).catch(() => undefined);
+}
+
 export function createBot(): Bot {
   const bot = new Bot(env.BOT_TOKEN);
 
@@ -265,9 +288,11 @@ export function createBot(): Bot {
       const me = await getMe(id);
       const role = res.type === "driver" ? "Haydovchi" : "Mijoz";
       await ctx.reply(renderLinked(res.fullName ?? "Mijoz", role), { parse_mode: "HTML", reply_markup: mainMenu(res.type === "driver") });
-      // Ask for preferred display name right after linking so admin alerts + Mini App show a real name.
-      pendingNameAfterLink.add(id);
-      await ctx.reply("✏️ Sizga qanday murojat qilaylik? (Ism yoki laqabingizni yozing)").catch(() => undefined);
+      // Auto-derive a friendly display name (no fragile "type your name" prompt that captured
+      // menu-button taps): Telegram first+last name → @username → phone's last 4 digits.
+      // Only for clients, and only if they don't already have a user-set name. Silent — they can
+      // change it anytime via Hisobim → ✏️ Ismni o'zgartirish.
+      if (res.type === "client" && res.memberId) await autoSetDisplayName(res.memberId, ctx.from!, phone);
       if (res.welcomeBonus) {
         await ctx.reply(`🎁 <b>Xush kelibsiz! Sovg'a: +${formatNumber(res.welcomeBonus)} tanga</b> hisobingizga tushdi 🚕\nIlovada ishlating yoki safar qiling.`, { parse_mode: "HTML" }).catch(() => undefined);
       }
@@ -517,6 +542,7 @@ export function createBot(): Bot {
     const res = await linkByPhone(id, sess.phone, profileOf(ctx.from!));
     if (res.status === "linked") {
       await ctx.reply(`✅ <b>Raqam tasdiqlandi va ulandi!</b> Xush kelibsiz, ${esc(res.fullName ?? "Mijoz")} 🎉`, { parse_mode: "HTML", reply_markup: mainMenu(res.type === "driver") });
+      if (res.type === "client" && res.memberId) await autoSetDisplayName(res.memberId, ctx.from!, sess.phone);
       if (res.welcomeBonus) {
         await ctx.reply(`🎁 <b>Sovg'a: +${formatNumber(res.welcomeBonus)} tanga</b> hisobingizga tushdi 🚕`, { parse_mode: "HTML" }).catch(() => undefined);
       }
