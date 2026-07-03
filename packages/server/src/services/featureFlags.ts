@@ -32,13 +32,17 @@ export const FEATURES = [
   "waitcomp", // 🪙 Wait compensation: catch-the-coin game while searching for a driver pays REAL tanga
               // scaled to search time (grace→ceiling ramp, freezes on driver-accept), OUTSIDE the
               // 350/ride clamp (own daily company-wide budget instead). Ride-finish only. DARK until owner QABUL
+  "trackcta", // 🛡→👥 TrackView viral loop: public trip page shows a delayed dismissible "birinchi
+              // safar bepul" banner linking t.me/<bot>?start=reft_<sharer code> (EXISTING referral
+              // pipeline pays both sides — no new money mechanic), + the live ride card's share
+              // button sends the real live-track link instead of plain text. DARK until owner QABUL
 ] as const;
 export type FeatureName = (typeof FEATURES)[number];
 
 // Off until explicitly enabled (go-live flip = setFeature(name, true) after owner QABUL).
 // booking3 = the new map/trip flow; owner still gets a preview via server.ts owner-branch,
 // but real users stay on the (fixed) classic flow until it's accepted. A missing row → OFF.
-const DEFAULT_OFF = new Set<FeatureName>(["booking3", "livinghome", "aibrain", "mahalla", "tolqin", "garajx", "kozacha", "baraban", "motorolami", "komissiya", "qarz", "welcomebonus", "refstaged", "drvstaged", "drvrecruit", "drvpush", "promo", "clientbooking", "cashout", "carupgrade", "intercity", "tierloyalty", "waitcomp"]);
+const DEFAULT_OFF = new Set<FeatureName>(["booking3", "livinghome", "aibrain", "mahalla", "tolqin", "garajx", "kozacha", "baraban", "motorolami", "komissiya", "qarz", "welcomebonus", "refstaged", "drvstaged", "drvrecruit", "drvpush", "promo", "clientbooking", "cashout", "carupgrade", "intercity", "tierloyalty", "waitcomp", "trackcta"]);
 
 let cache: { at: number; map: Record<string, boolean> } = { at: 0, map: {} };
 

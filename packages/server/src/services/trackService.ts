@@ -4,6 +4,7 @@
 // row (track:<token> = {memberId, at}); 6h TTL and the active-booking check both hide a finished trip.
 import crypto from "node:crypto";
 import { prisma } from "../db";
+import { env } from "../env";
 import { getActiveBookingFor } from "./bookingService";
 
 const TTL_MS = 6 * 60 * 60 * 1000;
@@ -27,6 +28,10 @@ export interface PublicTrip {
   fare?: number | null;
   etaMin?: number | null;
   driver?: { name: string; carModel: string; carNumber: string; rating?: number; lat?: number; lng?: number; bearing?: number } | null;
+  // 🛡→👥 trackcta flag: the sharer's referral deep-link ("birinchi safar bepul" banner target).
+  // Server-gated — absent means the public page renders exactly as before. Never carries PII:
+  // the code is the same 6-char invite code the sharer already hands out publicly.
+  ctaLink?: string | null;
 }
 
 export async function resolveTrack(token: string): Promise<PublicTrip> {
@@ -46,8 +51,25 @@ export async function resolveTrack(token: string): Promise<PublicTrip> {
   const b = await getActiveBookingFor(memberId).catch(() => null);
   if (!b) return { active: false }; // finished / cancelled → stop revealing position
   const d = b.driver;
+  // Viral CTA (trackcta flag): attach the sharer's referral deep-link so the viewing family
+  // member can join via the EXISTING referral pipeline (attach → first REAL ride → both paid,
+  // all idempotent). Best-effort — a lookup failure never breaks the safety page.
+  let ctaLink: string | null = null;
+  try {
+    const { featureOn } = await import("./featureFlags");
+    if (await featureOn("trackcta")) {
+      const tu = await prisma.telegramUser.findFirst({ where: { memberId }, select: { id: true } });
+      if (tu) {
+        const { getOrCreateCode } = await import("./referralService");
+        ctaLink = `https://t.me/${env.BOT_USERNAME}?start=reft_${await getOrCreateCode(tu.id)}`;
+      }
+    }
+  } catch {
+    ctaLink = null;
+  }
   return {
     active: true,
+    ctaLink,
     status: b.status,
     statusLabel: b.statusLabel,
     addressName: b.addressName,

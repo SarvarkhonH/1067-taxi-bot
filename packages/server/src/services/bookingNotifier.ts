@@ -57,6 +57,7 @@ interface CardCtx {
   driver?: BookingDriver | null;
   hasGuess?: boolean;
   spinUsed?: boolean;
+  trackCta?: boolean; // "trackcta" flag: share button mints the LIVE track link (bk:track)
 }
 
 // B5: compact ride progress bar for the live card (mirrors the Mini App RideTimeline).
@@ -126,12 +127,22 @@ function rideCardKb(b: ActiveBookingLite, c: CardCtx): InlineKeyboard | undefine
       kb.text("<6", "guess:lt6").text("6-9", "guess:6-9").text("10-14", "guess:10-14").text("15+", "guess:15p").row();
       any = true;
     }
+    if (c.trackCta) {
+      // mid-ride is when family wants to watch — mint the live link on tap (bk:track)
+      kb.text("🛡 Oilaga jonli kuzatuv yuborish", "bk:track").row();
+      any = true;
+    }
   } else if (c.driver) {
     // en-route (driver assigned, coming): 📞 call (callback → tap-to-call number;
     // tel: inline buttons are rejected by Telegram — proven) + 🛡 share trip. ✖ added below.
     kb.text("📞 Qo'ng'iroq", "bk:call");
-    const share = `🚕 Men 1067 taxida ketyapman${b.carNumber ? ` — mashina ${b.carNumber}` : ""}. Kuzating: @koson1067bot`;
-    kb.url("🛡 Ulashish", `https://t.me/share/url?url=${encodeURIComponent("https://t.me/koson1067bot")}&text=${encodeURIComponent(share)}`);
+    if (c.trackCta) {
+      // trackcta: share becomes a callback minting the REAL live-track link (viral loop)
+      kb.text("🛡 Jonli kuzatuv", "bk:track");
+    } else {
+      const share = `🚕 Men 1067 taxida ketyapman${b.carNumber ? ` — mashina ${b.carNumber}` : ""}. Kuzating: @koson1067bot`;
+      kb.url("🛡 Ulashish", `https://t.me/share/url?url=${encodeURIComponent("https://t.me/koson1067bot")}&text=${encodeURIComponent(share)}`);
+    }
     kb.row();
     any = true;
   }
@@ -208,6 +219,8 @@ export async function pushBookingUpdates(
   // members have nothing to do here. (The tier-loyalty daily pass that used to ride this loop for
   // all members moved to the 15-min tick — runTierLoyaltyDailyAll.)
   const activeNorms = [...byPhone.keys()].filter(Boolean);
+  // one flag read per tick (30s-cached anyway) — every card this tick renders the same share button
+  const trackCta = await import("./featureFlags").then((f) => f.featureOn("trackcta")).catch(() => false);
   const linked = await prisma.member.findMany({
     where: {
       telegramUser: { isNot: null },
@@ -268,6 +281,7 @@ export async function pushBookingUpdates(
         queuePos: SEARCHING.has(b.status) && !b.carNumber ? searchQueue.findIndex((x) => x.id === b.id) + 1 || undefined : undefined,
         hasGuess: !!guessRow,
         spinUsed: !!spinRow,
+        trackCta,
       };
 
       // ride meter: first sighting of "started"

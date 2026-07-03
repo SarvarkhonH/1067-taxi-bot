@@ -448,6 +448,38 @@ export function registerBooking(bot: Bot, mainMenu: (isDriver?: boolean) => Keyb
     }
   });
 
+  // 🛡 live family-tracking share (trackcta): mint the ACTIVE-ONLY public token and hand the rider
+  // a ready-to-forward message. The page itself carries the viral CTA (birinchi safar bepul) —
+  // this button is the loop's entry point. Token is unguessable + 6h TTL + active-only (trackService).
+  bot.callbackQuery("bk:track", async (ctx) => {
+    const me = await getMe(String(ctx.from.id));
+    const b = me?.member.phone ? await getDataSource().getActiveBooking(me.member.phone).catch(() => null) : null;
+    if (!me || !b) {
+      await ctx.answerCallbackQuery({ text: "Faol safar topilmadi", show_alert: true });
+      return;
+    }
+    const { createTrackToken } = await import("../services/trackService");
+    const token = await createTrackToken(me.member.id).catch(() => null);
+    if (!token) {
+      await ctx.answerCallbackQuery({ text: "Havola hozir tayyorlanmadi — qayta urinib ko'ring", show_alert: true });
+      return;
+    }
+    const url = `${env.TELEGRAM_WEBAPP_URL.replace(/\/+$/, "")}/?track=${token}`;
+    const car = b.driver?.carNumber;
+    const share = `🛡 Men 1067 taxida ketyapman${car ? ` — mashina ${car}` : ""}. Jonli kuzating: ${url}`;
+    await ctx.answerCallbackQuery();
+    await ctx.reply(
+      `🛡 <b>Jonli kuzatuv havolasi tayyor</b>\n\n${url}\n\n<i>Oilangizga yuboring — safar tugaguncha mashinani jonli xaritada ko'rib turishadi.</i>`,
+      {
+        parse_mode: "HTML",
+        reply_markup: new InlineKeyboard().url(
+          "📤 Oilaga yuborish",
+          `https://t.me/share/url?url=${encodeURIComponent(url)}&text=${encodeURIComponent(share)}`,
+        ),
+      },
+    );
+  });
+
   // ⏱ ETA-guess from the live ride card (one guess per ride, +50 if right)
   bot.callbackQuery("noop", (ctx) => ctx.answerCallbackQuery());
   bot.callbackQuery(/^guess:(lt6|6-9|10-14|15p)$/, async (ctx) => {

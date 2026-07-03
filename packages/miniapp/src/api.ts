@@ -117,6 +117,7 @@ const post = <T,>(path: string, body?: unknown) => request<T>("POST", path, body
 // 🛡 public read-only trip (family safety) — no PII, active-only
 export interface PublicTrip {
   active: boolean;
+  ctaLink?: string | null; // trackcta flag: sharer's referral deep-link ("birinchi safar bepul" banner)
   status?: string;
   statusLabel?: string;
   addressName?: string;

@@ -210,12 +210,20 @@ export function createBot(): Bot {
     editName.delete(id); // …and a pending "edit my name" flow
     pendingNameAfterLink.delete(id);
     await touchTelegramUser(id, profileOf(ctx.from!));
-    // referral deep link: t.me/<bot>?start=ref_<code>
+    // referral deep link: t.me/<bot>?start=ref_<code> ("reft_" = same code arriving via a shared
+    // TrackView live-trip page — identical attach/payout path, tagged for the viral-loop metrics)
     const payload = (typeof ctx.match === "string" ? ctx.match : "").trim();
     const joinerName = esc(ctx.from!.first_name ?? "Yangi mijoz"); // the person who clicked/scanned the invite
-    if (payload.startsWith("ref_")) {
+    const viaTrack = payload.startsWith("reft_");
+    if (payload.startsWith("ref_") || viaTrack) {
       // tell the inviter the moment their link is clicked — "you invited <name>" (the proof they asked for)
-      const r = await attachPendingReferral(id, payload.slice(4)).catch(() => ({ attached: false }) as { attached: boolean; referrerTelegramId?: string; startReward?: number });
+      const r = await attachPendingReferral(id, payload.slice(viaTrack ? 5 : 4)).catch(() => ({ attached: false }) as { attached: boolean; referrerTelegramId?: string; startReward?: number });
+      if (r.attached && viaTrack) {
+        // K-factor numerator: joins that came through a live-track page (count = trackjoin:* rows)
+        await prisma.appState
+          .upsert({ where: { key: `trackjoin:${id}` }, create: { key: `trackjoin:${id}`, value: new Date().toISOString() }, update: {} })
+          .catch(() => undefined);
+      }
       if (r.attached && r.referrerTelegramId) {
         const start = r.startReward ?? 0;
         const msg =

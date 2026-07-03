@@ -18,6 +18,15 @@ export function TrackView({ token }: { token: string }) {
   const pickMk = useRef<L.Marker | null>(null);
   const centered = useRef(false);
   const [trip, setTrip] = useState<PublicTrip | null>(null);
+  // Viral CTA (server-gated via trip.ctaLink): appears only after a delay so the safety moment
+  // ("is my kid ok?") is never interrupted; dismiss sticks for the session. Never covers the map.
+  const [ctaReady, setCtaReady] = useState(false);
+  const [ctaGone, setCtaGone] = useState(() => sessionStorage.getItem("tv_cta_off") === "1");
+
+  useEffect(() => {
+    const t = window.setTimeout(() => setCtaReady(true), 7000);
+    return () => clearTimeout(t);
+  }, []);
 
   useEffect(() => {
     if (!mapRef.current || map.current) return;
@@ -82,6 +91,24 @@ export function TrackView({ token }: { token: string }) {
             {trip.addressName && <div className="tv-addr">📍 {trip.addressName}</div>}
             {trip.fare ? <div className="tv-fare">🧮 <b>{formatNumber(trip.fare)} so'm</b> · hisoblanyapti</div> : null}
             <div className="tv-foot">🛡 Oila xavfsizligi · safar tugaguncha jonli yangilanadi</div>
+            {trip.ctaLink && ctaReady && !ctaGone && (
+              <div className="tv-cta">
+                <button
+                  className="tv-cta-x"
+                  aria-label="Yopish"
+                  onClick={() => {
+                    setCtaGone(true);
+                    sessionStorage.setItem("tv_cta_off", "1");
+                  }}
+                >
+                  ✕
+                </button>
+                <div className="tv-cta-t">Bu safar 1067 orqali kuzatilyapti — haydovchi tasdiqlangan, marshrut jonli.</div>
+                <a className="tv-cta-btn" href={trip.ctaLink}>
+                  🎁 Sizga ham 1067 — birinchi safar bepul
+                </a>
+              </div>
+            )}
           </>
         )}
       </div>
