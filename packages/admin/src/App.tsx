@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useMemo, useState, type FormEvent } from "react";
+import { Fragment, useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import {
   formatNumber,
   type AdminAuditRow,
@@ -688,6 +688,28 @@ function ActionsView() {
   const [days, setDays] = useState("14");
   const [annMsg, setAnnMsg] = useState<string | null>(null);
   const [annFailed, setAnnFailed] = useState<{ telegramId: string; name: string; phone: string | null }[]>([]);
+  const [annStats, setAnnStats] = useState<{ sent: number; total: number } | null>(null);
+  const taRef = useRef<HTMLTextAreaElement | null>(null);
+  const insertAtCursor = (before: string, after = "") => {
+    const ta = taRef.current;
+    if (!ta) { setText((t) => t + before + after); return; }
+    const s = ta.selectionStart, e = ta.selectionEnd;
+    const val = ta.value;
+    const sel = val.slice(s, e);
+    const next = val.slice(0, s) + before + sel + after + val.slice(e);
+    setText(next);
+    requestAnimationFrame(() => { ta.focus(); const pos = s + before.length + sel.length + after.length; ta.setSelectionRange(pos, pos); });
+  };
+  // minimal Telegram-HTML preview: allow b/i/u/s/a, escape everything else
+  const previewHtml = (raw: string): string => {
+    const esc = raw.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+    return esc
+      .replace(/&lt;(\/?)(b|i|u|s|strong|em)&gt;/gi, "<$1$2>")
+      .replace(/&lt;a href=&quot;([^&]*)&quot;&gt;/gi, '<a href="$1">')
+      .replace(/&lt;a href="([^"]*)"&gt;/gi, '<a href="$1">')
+      .replace(/&lt;\/a&gt;/gi, "</a>")
+      .replace(/\n/g, "<br>");
+  };
   const [annBusy, setAnnBusy] = useState(false);
   // 🎁 segment bonus + 😴 wake-up
   const [segAmount, setSegAmount] = useState("");
@@ -726,6 +748,8 @@ function ActionsView() {
       const r = await adminApi.announce(text, segment, Number(days));
       setAnnMsg(r.message);
       setAnnFailed(r.failedList ?? []);
+      const m = r.message.match(/(\d+)\/(\d+)/);
+      setAnnStats(m ? { sent: Number(m[1]), total: Number(m[2]) } : null);
       if (r.ok) setText("");
     } catch (e) {
       setAnnMsg(e instanceof Error ? e.message : "xatolik");
@@ -789,50 +813,124 @@ function ActionsView() {
       </section>
 
       <section className="panel">
-        <div className="panel-title">📣 Xabar / 🎁 Segmentga bonus</div>
-        <div className="seg" style={{ maxWidth: 440, marginTop: 4 }}>
-          <button className={segment === "all" ? "seg-btn active" : "seg-btn"} onClick={() => setSegment("all")}>Hammaga</button>
-          <button className={segment === "linked" ? "seg-btn active" : "seg-btn"} onClick={() => setSegment("linked")}>Bog'langan</button>
-          <button className={segment === "dormant" ? "seg-btn active" : "seg-btn"} onClick={() => setSegment("dormant")}>😴 Uxlagan</button>
+        <div className="panel-title">📣 Yangiliklar — xabar yuborish</div>
+        {/* segment cards */}
+        <div className="bc-segs">
+          <button className={`bc-seg${segment === "all" ? " active" : ""}`} onClick={() => setSegment("all")}>
+            <div className="bc-seg-ico">🌐</div>
+            <div className="bc-seg-name">Hammaga</div>
+            <div className="bc-seg-desc">Barcha foydalanuvchi</div>
+          </button>
+          <button className={`bc-seg${segment === "linked" ? " active" : ""}`} onClick={() => setSegment("linked")}>
+            <div className="bc-seg-ico">✅</div>
+            <div className="bc-seg-name">Bog'langan</div>
+            <div className="bc-seg-desc">Raqami ulangan</div>
+          </button>
+          <button className={`bc-seg${segment === "dormant" ? " active" : ""}`} onClick={() => setSegment("dormant")}>
+            <div className="bc-seg-ico">😴</div>
+            <div className="bc-seg-name">Uxlagan</div>
+            <div className="bc-seg-desc">{days} kun safarsiz</div>
+          </button>
         </div>
         {segment === "dormant" && (
-          <div style={{ display: "flex", gap: 8, alignItems: "center", marginTop: 8 }}>
+          <div style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 12 }}>
             <span className="muted" style={{ fontSize: 13 }}>Necha kundan beri safarsiz:</span>
             <input className="search" style={{ width: 80 }} type="number" value={days} onChange={(e) => setDays(e.target.value)} />
           </div>
         )}
-        <textarea className="search" style={{ width: "100%", minHeight: 80, resize: "vertical", marginTop: 8 }} placeholder="📢 Xabar matni… (HTML qo'llanadi)" value={text} onChange={(e) => setText(e.target.value)} />
-        <button className="btn" style={{ marginTop: 8 }} onClick={doAnnounce} disabled={annBusy}>{annBusy ? "⏳…" : "📤 Xabar yuborish"}</button>
-        {annMsg && <div className="action-msg">{annMsg}</div>}
-        {annFailed.length > 0 && (
-          <details style={{ marginTop: 8, background: "#0d1322", borderRadius: 10, padding: "8px 12px" }}>
-            <summary style={{ cursor: "pointer", fontSize: 13, color: "var(--muted)" }}>
-              📵 Yetib bormaganlar ({annFailed.length}) — botni bloklagan/o'chirgan
-            </summary>
-            <div style={{ marginTop: 8, display: "flex", flexDirection: "column", gap: 4, maxHeight: 240, overflowY: "auto" }}>
-              {annFailed.map((f) => (
-                <div key={f.telegramId} style={{ display: "flex", justifyContent: "space-between", fontSize: 12, padding: "3px 0", borderBottom: "1px solid #1a2233" }}>
-                  <span>{f.name}</span>
-                  <span style={{ color: "var(--muted)" }}>{f.phone ?? "—"}</span>
-                </div>
-              ))}
+
+        <div className="bc-wrap">
+          {/* composer */}
+          <div>
+            <div className="bc-toolbar">
+              <button className="bc-tool" title="Qalin" onClick={() => insertAtCursor("<b>", "</b>")}><b>B</b></button>
+              <button className="bc-tool" title="Kursiv" onClick={() => insertAtCursor("<i>", "</i>")}><i>I</i></button>
+              <button className="bc-tool" title="Havola" onClick={() => insertAtCursor('<a href="https://">', "</a>")}>🔗 Havola</button>
+              <button className="bc-tool" onClick={() => insertAtCursor("🎁 ")}>🎁</button>
+              <button className="bc-tool" onClick={() => insertAtCursor("🚕 ")}>🚕</button>
+              <button className="bc-tool" onClick={() => insertAtCursor("🔥 ")}>🔥</button>
+              <button className="bc-tool" onClick={() => insertAtCursor("💰 ")}>💰</button>
+              <button className="bc-tool" onClick={() => insertAtCursor("⚡ ")}>⚡</button>
             </div>
-            <button
-              className="btn"
-              style={{ marginTop: 8, fontSize: 12 }}
-              onClick={() => {
-                const csv = "Ism,Telefon,TelegramID\n" + annFailed.map((f) => `"${f.name}",${f.phone ?? ""},${f.telegramId}`).join("\n");
-                const a = document.createElement("a");
-                a.href = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8" }));
-                a.download = "yetib-bormaganlar.csv";
-                a.click();
-              }}
-            >
-              📥 CSV yuklab olish
+            <textarea
+              ref={taRef}
+              className="bc-textarea"
+              placeholder="📢 Yangilik matnini yozing…&#10;&#10;Qalin uchun B, havola uchun 🔗 tugmasini bosing."
+              value={text}
+              onChange={(e) => setText(e.target.value)}
+            />
+            <div className={`bc-count${text.length > 2000 ? " over" : ""}`}>{text.length} / 2000</div>
+            <button className="bc-send" onClick={doAnnounce} disabled={annBusy || text.trim().length < 3}>
+              {annBusy ? "⏳ Yuborilmoqda…" : `📤 ${segment === "all" ? "Hammaga" : segment === "linked" ? "Bog'langanga" : "Uxlaganga"} yuborish`}
             </button>
-          </details>
-        )}
-        <div style={{ borderTop: "1px solid rgba(255,255,255,0.1)", margin: "12px 0 8px" }} />
+
+            {annStats && (
+              <div className="bc-result">
+                <div style={{ fontWeight: 700, fontSize: 14 }}>{annMsg}</div>
+                <div className="bc-result-bar"><div className="bc-result-fill" style={{ width: `${annStats.total ? (annStats.sent / annStats.total) * 100 : 0}%` }} /></div>
+                <div className="muted" style={{ fontSize: 12 }}>✅ {annStats.sent} yetdi · 📵 {annStats.total - annStats.sent} bormadi</div>
+              </div>
+            )}
+            {!annStats && annMsg && <div className="action-msg">{annMsg}</div>}
+
+            {annFailed.length > 0 && (
+              <details style={{ marginTop: 10, background: "var(--card-2)", borderRadius: 12, padding: "10px 14px", border: "1px solid var(--line)" }}>
+                <summary style={{ cursor: "pointer", fontSize: 13, color: "var(--muted)" }}>
+                  📵 Yetib bormaganlar ({annFailed.length}) — botni bloklagan/o'chirgan
+                </summary>
+                <div style={{ marginTop: 8, display: "flex", flexDirection: "column", gap: 4, maxHeight: 240, overflowY: "auto" }}>
+                  {annFailed.map((f) => (
+                    <div key={f.telegramId} style={{ display: "flex", justifyContent: "space-between", fontSize: 12, padding: "3px 0", borderBottom: "1px solid var(--line)" }}>
+                      <span>{f.name}</span>
+                      <span style={{ color: "var(--muted)" }}>{f.phone ?? "—"}</span>
+                    </div>
+                  ))}
+                </div>
+                <button
+                  className="btn"
+                  style={{ marginTop: 8, fontSize: 12 }}
+                  onClick={() => {
+                    const csv = "Ism,Telefon,TelegramID\n" + annFailed.map((f) => `"${f.name}",${f.phone ?? ""},${f.telegramId}`).join("\n");
+                    const a = document.createElement("a");
+                    a.href = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8" }));
+                    a.download = "yetib-bormaganlar.csv";
+                    a.click();
+                  }}
+                >
+                  📥 CSV yuklab olish
+                </button>
+              </details>
+            )}
+          </div>
+
+          {/* live phone preview */}
+          <div className="bc-preview-wrap">
+            <div className="muted" style={{ fontSize: 11, fontWeight: 700, marginBottom: 6, textTransform: "uppercase", letterSpacing: ".5px" }}>Ko'rinishi</div>
+            <div className="bc-phone">
+              <div className="bc-phone-head">
+                <div className="bc-phone-av">🚕</div>
+                <div>
+                  <div className="bc-phone-title">1067 Taxi</div>
+                  <div className="bc-phone-sub">bot</div>
+                </div>
+              </div>
+              <div className="bc-phone-body">
+                <div className="bc-bubble">
+                  <b>📣 1067 Taxi</b><br /><br />
+                  {text.trim()
+                    ? <span dangerouslySetInnerHTML={{ __html: previewHtml(text) }} />
+                    : <span className="bc-bubble-empty">Xabar matni shu yerda ko'rinadi…</span>}
+                  <div className="bc-bubble-time">✓✓ hozir</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section className="panel">
+        <div className="panel-title">🎁 Segmentga bonus</div>
+        <p className="muted" style={{ fontSize: 13, margin: "2px 0 10px" }}>Yuqorida tanlangan segment: <b style={{ color: "var(--accent)" }}>{segment === "all" ? "Hammaga" : segment === "linked" ? "Bog'langan" : `Uxlagan (${days} kun)`}</b></p>
         <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
           <input className="search" style={{ flex: "1 1 140px" }} type="number" placeholder="🎁 Bonus (tanga)" value={segAmount} onChange={(e) => setSegAmount(e.target.value)} />
           <button className="btn" onClick={doSegGrant} disabled={segBusy}>{segBusy ? "⏳…" : `🎁 ${segment === "all" ? "Hammaga" : segment === "linked" ? "Bog'langanga" : "Uxlaganga"} bonus`}</button>
