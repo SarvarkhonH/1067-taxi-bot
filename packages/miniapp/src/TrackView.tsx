@@ -90,6 +90,7 @@ export function TrackView({ token }: { token: string }) {
             )}
             {trip.addressName && <div className="tv-addr">📍 {trip.addressName}</div>}
             {trip.fare ? <div className="tv-fare">🧮 <b>{formatNumber(trip.fare)} so'm</b> · hisoblanyapti</div> : null}
+            {trip.won && <div className="tv-win">🎁 Bu safarda 1067dan sovg'a oldi</div>}
             <div className="tv-foot">🛡 Oila xavfsizligi · safar tugaguncha jonli yangilanadi</div>
             {trip.ctaLink && ctaReady && !ctaGone && (
               <div className="tv-cta">

@@ -46,12 +46,18 @@ async function main(): Promise<void> {
   ok(trip.active === true, "mock active ride resolves through the token");
   ok(!trip.ctaLink, "flag OFF → no ctaLink in the public payload");
 
-  // 4) flag ON → ctaLink is the sharer's reft_ deep-link
+  // 4) flag ON → ctaLink is the sharer's reft_ deep-link; no spin yet → no badge
   await setFeature("trackcta", true);
   __resetFeatureCache();
   trip = await resolveTrack(token);
   const code = await getOrCreateCode(tgA);
   ok(!!trip.ctaLink && trip.ctaLink!.endsWith(`?start=reft_${code}`), "flag ON → ctaLink ends with ?start=reft_<sharer code>");
+  ok(trip.won === false, "no winning spin on this booking → no badge");
+
+  // 4b) jackpot-badge fusion: a winning mid-ride spin on the CURRENT booking (mock id 40400) → won:true
+  await prisma.wheelSpin.create({ data: { memberId: member.id, bookingId: 40400, dayKey: "2020-01-01", prize: "100 tanga", amount: 100 } });
+  trip = await resolveTrack(token);
+  ok(trip.won === true, "winning spin on this booking → won badge (amount never sent)");
 
   // 5) unknown token stays safe (no CTA leak, no crash)
   const none = await resolveTrack("zzzzzzzzzzzz");

@@ -32,6 +32,9 @@ export interface PublicTrip {
   // Server-gated — absent means the public page renders exactly as before. Never carries PII:
   // the code is the same 6-char invite code the sharer already hands out publicly.
   ctaLink?: string | null;
+  // Jackpot-badge fusion: the rider won a mid-ride wheel prize on THIS booking — the family viewer
+  // sees "sovg'a oldi" (never the amount — win-publicity stays halal-safe). trackcta-gated.
+  won?: boolean;
 }
 
 export async function resolveTrack(token: string): Promise<PublicTrip> {
@@ -55,6 +58,7 @@ export async function resolveTrack(token: string): Promise<PublicTrip> {
   // member can join via the EXISTING referral pipeline (attach → first REAL ride → both paid,
   // all idempotent). Best-effort — a lookup failure never breaks the safety page.
   let ctaLink: string | null = null;
+  let won = false;
   try {
     const { featureOn } = await import("./featureFlags");
     if (await featureOn("trackcta")) {
@@ -63,13 +67,20 @@ export async function resolveTrack(token: string): Promise<PublicTrip> {
         const { getOrCreateCode } = await import("./referralService");
         ctaLink = `https://t.me/${env.BOT_USERNAME}?start=reft_${await getOrCreateCode(tu.id)}`;
       }
+      // jackpot-badge fusion: a winning mid-ride spin on THIS booking → "sovg'a oldi" (amount never shown)
+      const spin = await prisma.wheelSpin
+        .findUnique({ where: { memberId_bookingId: { memberId, bookingId: b.id } } })
+        .catch(() => null);
+      won = !!spin && spin.amount > 0;
     }
   } catch {
     ctaLink = null;
+    won = false;
   }
   return {
     active: true,
     ctaLink,
+    won,
     status: b.status,
     statusLabel: b.statusLabel,
     addressName: b.addressName,

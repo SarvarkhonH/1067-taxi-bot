@@ -654,6 +654,15 @@ body {
 .b3-mini-status { font-size: 14px; font-weight: 600; flex: 1; }
 .b3-wchip-mini { color: var(--accent); font-size: 14px; white-space: nowrap; }
 .b3-mini-x { border: 0; background: rgba(240, 149, 149, .12); color: #F09595; border-radius: 10px; width: 34px; height: 34px; font-size: 14px; cursor: pointer; flex-shrink: 0; }
+/* collapsed ACCEPTED ride bar: map stays visible, fare shown BIG */
+.b3-ride-mini { display: flex; align-items: center; gap: 12px; padding: 2px 2px 4px; cursor: pointer; }
+.b3-ride-mini-main { flex: 1; min-width: 0; }
+.b3-ride-mini-status { font-size: 13px; font-weight: 600; color: var(--muted); }
+.b3-ride-mini-fare { font-size: 28px; font-weight: 800; line-height: 1.1; color: var(--text); }
+.b3-ride-mini-fare span { font-size: 15px; font-weight: 600; color: var(--muted); }
+.b3-ride-mini-call { flex-shrink: 0; display: flex; align-items: center; justify-content: center; width: 46px; height: 46px; border-radius: 14px; background: var(--gold, #f0b429); color: #1a1205; font-size: 20px; text-decoration: none; }
+/* expanded fare row: make the live meter fare bigger than other rows */
+.b3-fare-row.b3-fare-big b { font-size: 24px; }
 .b3-wchip {
   margin: 10px auto 6px; max-width: 320px; text-align: center; border-radius: 12px; font-size: 13px;
   background: rgba(255, 179, 0, .10); border: 1px solid rgba(255, 179, 0, .28); padding: 8px 12px;
@@ -680,6 +689,8 @@ body {
 .tv-fare b { color: #34d399; }
 .tv-foot { font-size: 12px; color: var(--muted, #9aa0a6); margin-top: 4px; }
 .tv-dim, .tv-ended { font-size: 15px; color: var(--text); text-align: center; padding: 10px; }
+/* tv-win: jackpot-badge fusion — the family viewer learns riding 1067 pays (no amount shown) */
+.tv-win { font-size: 13px; font-weight: 700; color: var(--brand); }
 /* tv-cta: viral "birinchi safar bepul" banner (trackcta flag) — sits INSIDE the bottom panel,
    never over the map; delayed + dismissible so the safety moment stays first */
 .tv-cta { position: relative; margin-top: 8px; padding: 10px 34px 10px 12px; background: var(--surface); border: 1px solid var(--line); border-radius: 12px; animation: tv-cta-in .35s var(--ease-out, ease-out) both; }
