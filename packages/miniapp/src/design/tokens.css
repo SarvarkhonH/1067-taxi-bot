@@ -698,7 +698,15 @@ body {
 .tv-map .leaflet-container { background: var(--surface); }
 .tv-map .leaflet-tile-pane { filter: invert(1) hue-rotate(180deg) brightness(.92) contrast(.9); }
 .tv-car svg { filter: drop-shadow(0 0 6px rgba(255,179,0,.6)) drop-shadow(0 2px 3px rgba(0,0,0,.5)); transition: transform .9s linear; }
-.tv-panel { padding: 16px 16px calc(18px + env(safe-area-inset-bottom)); background: var(--surface-2); border-top: 1px solid var(--line); border-radius: 20px 20px 0 0; box-shadow: 0 -10px 30px rgba(0,0,0,.5); display: flex; flex-direction: column; gap: 10px; }
+.tv-panel { position: relative; padding: 16px 16px calc(18px + env(safe-area-inset-bottom)); background: var(--surface-2); border-top: 1px solid var(--line); border-radius: 20px 20px 0 0; box-shadow: 0 -10px 30px rgba(0,0,0,.5); display: flex; flex-direction: column; gap: 10px; }
+.tv-panel-min { padding-top: 8px; gap: 4px; }
+/* grip = tap to collapse/expand the panel (bigger map for the route trail) */
+.tv-grip { width: 46px; height: 5px; border-radius: 99px; background: var(--line); margin: 0 auto 4px; cursor: pointer; }
+.tv-mini { cursor: pointer; }
+.tv-mini-hint { text-align: center; font-size: 11px; font-weight: 700; color: var(--brand, #f0b429); margin-bottom: 4px; }
+.tv-mini-row { display: flex; align-items: center; justify-content: space-between; font-size: 15px; font-weight: 800; color: var(--text); }
+.tv-mini-row b { color: var(--brand, #f0b429); }
+.tv-speed { color: #378ADD; }
 .tv-status { display: flex; align-items: center; gap: 9px; font-weight: 800; font-size: 17px; color: var(--text); }
 .tv-status-dot { width: 10px; height: 10px; border-radius: 50%; background: var(--brand, #f0b429); flex-shrink: 0; }
 .tv-s-arrived .tv-status-dot { background: #22c55e; }
