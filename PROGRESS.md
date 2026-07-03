@@ -19,11 +19,11 @@ Ega buyrug'i: «motor olami + umuman ishlatilmaydigan kodlarni yo'qot». Tekshir
 - **Qo'shildi:** admin Puls'ga «🛡 Oila kuzatuvi voronkasi» — ulashish(7k/jami) → kirish(7k/jami) → birinchi safar + K-faktor (OpsPulse.trackcta, best-effort).
 - **ISBOT:** typecheck 4/4 · `testMoneyShield` (trade bo'limi olib tashlangan, 3.7 item-market saqlangan) BARCHA yashil · `testAuthGate` BARCHA yashil · butun-repo grep: o'lik simvollardan 0 qoldiq.
 
-### 🏆 DRVRANK — haydovchi QR-reyting + haftalik hisobot-push (2026-07-03) — ⚫ DARK (`ready for verification`, flag `drvrank` OFF; owner QABUL kutilmoqda)
+### 🏆 DRVRANK — haydovchi QR-reyting + haftalik hisobot-push (2026-07-03) — 🟢 LIVE (`owner-accepted` 2026-07-03, flag `drvrank` ON)
 Supply-front №1 (Koson strategiyasi): haydovchilarni QR ko'rsatishga undaydigan oylik poyga + dushanba eslatmasi. **Pul mexanikasi TEGILMAGAN** — read-only ekran + push.
 - **Qurildi:** `drvrank` flag (DEFAULT_OFF) · `recruitLeaderboard()` (recruit+revshare+drvrecruit tanga, Toshkent kalendar-oyi, bitta groupBy, 0-daromadlilar ro'yxatga KIRMAYDI) · haydovchi panelida «🏆 Reyting» tugma (`drv:rank`, top-10 qisqa ismlar + «Siz: №R») · haftalik push `driverQrWeeklyTick` (dushanba 09–11 Toshkent, FAQAT 7-kunlik QR-faollarga, NotifyLog dedup = 1×/hafta, quiet-hours/notify-off/2-kunlik-cap hurmat, mavjud 15-min tick — YANGI poller yo'q).
 - **ISBOT:** typecheck 4/4 · `testDrvRank` 12/12 **3× yashil** (TEST DB: default-off · tartib/summa · o'tgan-oy chiqarilgan · myRank · picker oynasi · 0-faolga push YO'Q · dedup).
-- **QOLDI:** DARK deploy → owner telefonda «🏆 Reyting» (flag ON qilib) → QABUL. Rollback = `setFlag.ts drvrank off`.
+- **✅ OWNER-ACCEPTED (QABUL, 2026-07-03):** ega «🏆 Reyting»ni ko'rib QABUL berdi → flag `drvrank` ON qoladi. Rollback = `setFlag.ts drvrank off`. Birinchi haftalik push keyingi dushanba 09–11 (Toshkent).
 
 ### 🛡→👥 TRACKCTA — TrackView viral loop «oila kuzatuvi» (2026-07-03) — 🟢 LIVE (`owner-accepted` 2026-07-03, flag `trackcta` ON)
 Sonnet×2 + Fable 5 konsult sintezi: 3 viral nomzoddan B (TrackView family-share) g'olib — yagona to'liq yopiladigan loop, madaniy-xavfsiz (g'amxo'rlik ramkasi), kodning ~90% tayyor edi. **YANGI pul-mexanika YO'Q** — mavjud referral pipeline'iga (attach → birinchi REAL safar → sweep idempotent to'lov) yangi TARQATISH kanali qo'shildi, xolos.
