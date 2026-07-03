@@ -199,8 +199,9 @@ async function main(): Promise<void> {
           // 🎁 promo campaigns: grant completions + nudge near-finishers (self-throttled ~hourly, gated by "promo")
           const { campaignTick } = await import("./services/campaignService");
           await campaignTick(bot).catch((e) => console.error("[promo] failed:", e));
-          const { driverEngageTick } = await import("./services/driverEngageService");
+          const { driverEngageTick, driverQrWeeklyTick } = await import("./services/driverEngageService");
           await driverEngageTick(bot).catch((e) => console.error("[drvpush] failed:", e));
+          await driverQrWeeklyTick(bot).catch((e) => console.error("[drvrank] failed:", e));
           const { dispatchLinkReminders } = await import("./services/linkReminderService");
           await dispatchLinkReminders(bot).catch((e) => console.error("[linkReminder] failed:", e));
           const { recomputeDriverTiers } = await import("./services/analyticsService");

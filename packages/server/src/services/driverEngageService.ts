@@ -114,3 +114,66 @@ export async function driverEngageTick(bot: Bot): Promise<void> {
     if (nudge) await notifyOnce(bot, chatId, d.id, nudge.kind, nudge.html);
   }
 }
+
+// ─── 🏆 drvrank: weekly QR report (Monday 09–11) ────────────────────────────────────────────────
+
+/** PURE picker for the weekly QR report — Monday morning window only, and ONLY drivers with QR
+ *  activity in the last 7 days (zero-activity drivers get NOTHING — no push fatigue). */
+export interface QrWeekCtx {
+  weekday: number; // Tashkent day-of-week, 0=Sunday..6
+  hour: number; // Tashkent hour 0-23
+  joined7d: number; // clients who completed their first ride via this driver's QR, last 7d
+  earned7d: number; // recruit+revshare+drvrecruit tanga, last 7d
+  rank: number | null; // position in the monthly leaderboard (null = not on it)
+}
+export function pickQrWeekly(c: QrWeekCtx): string | null {
+  if (c.weekday !== 1 || c.hour < 9 || c.hour >= 11) return null;
+  if (c.joined7d <= 0 && c.earned7d <= 0) return null;
+  const joinedLine = c.joined7d > 0 ? `<b>${c.joined7d} mijoz</b> · ` : "";
+  const rankLine = c.rank ? `\n🏆 Oylik reytingda: <b>№${c.rank}</b> — «🚗 Haydovchi paneli» → «🏆 Reyting»` : "";
+  return (
+    `📊 <b>Haftalik QR-hisobot</b>\n` +
+    `Bu hafta QR'ingizdan: ${joinedLine}<b>+${formatNumber(c.earned7d)} tanga</b>${rankLine}\n\n` +
+    `QR'ni HAR mijozga ko'rsating — «📷 QR kodim» 🚖`
+  );
+}
+
+/** Weekly QR-report tick — rides the SAME periodic loop (NO new poller). Gated by `drvrank`.
+ *  notifyOnce dedups per (member, kind, day) and the Monday-window gate fires at most one day a
+ *  week → exactly one push per driver per week. Cheap: 3 grouped queries total, zero per-driver kas calls. */
+export async function driverQrWeeklyTick(bot: Bot): Promise<void> {
+  if (!(await featureOn("drvrank"))) return;
+  const t = tashkentNow();
+  const weekday = t.getUTCDay();
+  const hour = t.getUTCHours();
+  if (weekday !== 1 || hour < 9 || hour >= 11) return; // cheap gate before ANY DB work
+  const weekAgo = new Date(Date.now() - 7 * 24 * 3600 * 1000);
+  const [joinedRows, earnedRows, lb] = await Promise.all([
+    prisma.driverRecruit.groupBy({ by: ["driverId"], where: { createdAt: { gte: weekAgo } }, _count: { _all: true } }),
+    prisma.coinTxn.groupBy({
+      by: ["memberId"],
+      where: { kind: { in: ["recruit", "revshare", "drvrecruit"] }, amount: { gt: 0 }, createdAt: { gte: weekAgo } },
+      _sum: { amount: true },
+    }),
+    import("./recruitService").then((r) => r.recruitLeaderboard()),
+  ]);
+  const joined = new Map(joinedRows.map((r) => [r.driverId, r._count._all]));
+  const earned = new Map(earnedRows.map((r) => [r.memberId, Math.round(r._sum.amount ?? 0)]));
+  const active = [...new Set([...joined.keys(), ...earned.keys()])];
+  if (active.length === 0) return;
+  const rankOf = new Map(lb.ranked.map((r, i) => [r.driverId, i + 1]));
+  const drivers = await prisma.member.findMany({
+    where: { id: { in: active }, type: "driver", telegramUser: { isNot: null } },
+    include: { telegramUser: true },
+  });
+  for (const d of drivers) {
+    const html = pickQrWeekly({
+      weekday,
+      hour,
+      joined7d: joined.get(d.id) ?? 0,
+      earned7d: earned.get(d.id) ?? 0,
+      rank: rankOf.get(d.id) ?? null,
+    });
+    if (html) await notifyOnce(bot, d.telegramUser!.id, d.id, "drv_qr_weekly", html);
+  }
+}

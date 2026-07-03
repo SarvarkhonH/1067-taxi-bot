@@ -13,6 +13,12 @@
 
 ## Jarayonda
 
+### 🏆 DRVRANK — haydovchi QR-reyting + haftalik hisobot-push (2026-07-03) — ⚫ DARK (`ready for verification`, flag `drvrank` OFF; owner QABUL kutilmoqda)
+Supply-front №1 (Koson strategiyasi): haydovchilarni QR ko'rsatishga undaydigan oylik poyga + dushanba eslatmasi. **Pul mexanikasi TEGILMAGAN** — read-only ekran + push.
+- **Qurildi:** `drvrank` flag (DEFAULT_OFF) · `recruitLeaderboard()` (recruit+revshare+drvrecruit tanga, Toshkent kalendar-oyi, bitta groupBy, 0-daromadlilar ro'yxatga KIRMAYDI) · haydovchi panelida «🏆 Reyting» tugma (`drv:rank`, top-10 qisqa ismlar + «Siz: №R») · haftalik push `driverQrWeeklyTick` (dushanba 09–11 Toshkent, FAQAT 7-kunlik QR-faollarga, NotifyLog dedup = 1×/hafta, quiet-hours/notify-off/2-kunlik-cap hurmat, mavjud 15-min tick — YANGI poller yo'q).
+- **ISBOT:** typecheck 4/4 · `testDrvRank` 12/12 **3× yashil** (TEST DB: default-off · tartib/summa · o'tgan-oy chiqarilgan · myRank · picker oynasi · 0-faolga push YO'Q · dedup).
+- **QOLDI:** DARK deploy → owner telefonda «🏆 Reyting» (flag ON qilib) → QABUL. Rollback = `setFlag.ts drvrank off`.
+
 ### 🛡→👥 TRACKCTA — TrackView viral loop «oila kuzatuvi» (2026-07-03) — 🟢 LIVE (`owner-accepted` 2026-07-03, flag `trackcta` ON)
 Sonnet×2 + Fable 5 konsult sintezi: 3 viral nomzoddan B (TrackView family-share) g'olib — yagona to'liq yopiladigan loop, madaniy-xavfsiz (g'amxo'rlik ramkasi), kodning ~90% tayyor edi. **YANGI pul-mexanika YO'Q** — mavjud referral pipeline'iga (attach → birinchi REAL safar → sweep idempotent to'lov) yangi TARQATISH kanali qo'shildi, xolos.
 - **Qurildi:** `trackcta` flag (DEFAULT_OFF) · `resolveTrack` → `ctaLink` (`t.me/<bot>?start=reft_<code>`, server-gated, PII yo'q) · TrackView'da 7s-kechikkan yopiladigan banner («birinchi safar bepul»; xaritani hech qachon to'smaydi, dismiss sessiyada saqlanadi) · bot `start=reft_` → mavjud `attachPendingReferral` + `trackjoin:<tgid>` metrika-marker (K-faktor hisoblagichi) · jonli safar kartasi: started'da «🛡 Oilaga jonli kuzatuv yuborish», en-route'da «🛡 Ulashish»→«🛡 Jonli kuzatuv» (`bk:track` callback → token mint + tayyor share-xabar). Flag OFF = eski xatti-harakat piksel-piksel (banner yo'q, eski url-tugma qaytadi).

@@ -354,6 +354,37 @@ export function renderDriverPanel(
   );
 }
 
+/** 🏆 drvrank: monthly driver QR-income leaderboard. Short names ("Axmedov Y.") — drivers see each
+ *  other's hustle, that's the motivation engine; full amounts stay in each driver's own panel. */
+export function renderDriverRank(
+  lb: { top: { driverId: number; name: string; earned: number }[]; myRank: number | null; myEarned: number; total: number },
+  meId: number,
+): string {
+  const MONTHS = ["Yanvar", "Fevral", "Mart", "Aprel", "May", "Iyun", "Iyul", "Avgust", "Sentabr", "Oktabr", "Noyabr", "Dekabr"];
+  const month = MONTHS[new Date(Date.now() + 5 * 3600 * 1000).getUTCMonth()]!;
+  const cap = (x: string) => (x ? x.charAt(0).toUpperCase() + x.slice(1).toLowerCase() : x);
+  const shortName = (s: string) => {
+    const w = s.trim().split(/\s+/);
+    return w.length > 1 ? `${cap(w[0]!)} ${w[1]![0]!.toUpperCase()}.` : cap(w[0] ?? "?");
+  };
+  const medal = (i: number) => (i === 0 ? "🥇" : i === 1 ? "🥈" : i === 2 ? "🥉" : `${i + 1}.`);
+  const lines = lb.top.map((r, i) =>
+    `${medal(i)} ${r.driverId === meId ? "<b>SIZ</b>" : esc(shortName(r.name))} — <b>${formatNumber(r.earned)}</b> tanga`,
+  );
+  const myLine =
+    lb.myRank !== null
+      ? `\n\n📍 Siz: <b>№${lb.myRank}</b> (${lb.total} tadan) · bu oy <b>${formatNumber(lb.myEarned)}</b> tanga`
+      : `\n\n📍 Siz hali ro'yxatda emassiz — QR'ni mijozga ko'rsating, birinchi mijozdanoq reytingga kirasiz.`;
+  const body = lines.length ? lines.join("\n") : "Bu oy hali hech kim QR-daromad qilmadi — birinchi bo'ling! 🚀";
+  return (
+    `🏆 <b>QR-reyting — ${month}</b>\n` +
+    `<i>Mijoz taklifidan tushgan tanga bo'yicha</i>\n\n` +
+    body +
+    myLine +
+    `\n\n<i>Har oy yangi poyga. QR'ingiz: «📷 QR kodim».</i>`
+  );
+}
+
 /** Badges screen (text). */
 export function renderBadges(me: MeResponse): string {
   const lines = me.badges.map((b) => `${b.earned ? b.emoji : "🔒"} <b>${esc(b.name)}</b> — ${b.earned ? "olingan ✅" : esc(b.description)}`);

@@ -39,13 +39,16 @@ export const FEATURES = [
   "jackpotpost", // 📣 W1 №2 jackpot-shou: har ride-jackpot yutug'i + dushanba haftalik digest Koson
               // kanaliga post qilinadi (KOSON_CHANNEL_ID env ham shart). Pul mexanikasi EMAS —
               // faqat mavjud yutuqlarni ommaviy qilish. DARK until owner QABUL
+  "drvrank", // 🏆 driver QR-income leaderboard («Reyting» in the driver panel, monthly race) +
+              // Monday weekly «QR'ingizdan N mijoz, +X tanga» push to QR-active drivers only.
+              // Read-only (moves NO money). DARK until owner QABUL
 ] as const;
 export type FeatureName = (typeof FEATURES)[number];
 
 // Off until explicitly enabled (go-live flip = setFeature(name, true) after owner QABUL).
 // booking3 = the new map/trip flow; owner still gets a preview via server.ts owner-branch,
 // but real users stay on the (fixed) classic flow until it's accepted. A missing row → OFF.
-const DEFAULT_OFF = new Set<FeatureName>(["booking3", "livinghome", "aibrain", "mahalla", "tolqin", "garajx", "kozacha", "baraban", "motorolami", "komissiya", "qarz", "welcomebonus", "refstaged", "drvstaged", "drvrecruit", "drvpush", "promo", "clientbooking", "cashout", "carupgrade", "intercity", "tierloyalty", "waitcomp", "trackcta", "jackpotpost"]);
+const DEFAULT_OFF = new Set<FeatureName>(["booking3", "livinghome", "aibrain", "mahalla", "tolqin", "garajx", "kozacha", "baraban", "motorolami", "komissiya", "qarz", "welcomebonus", "refstaged", "drvstaged", "drvrecruit", "drvpush", "promo", "clientbooking", "cashout", "carupgrade", "intercity", "tierloyalty", "waitcomp", "trackcta", "jackpotpost", "drvrank"]);
 
 let cache: { at: number; map: Record<string, boolean> } = { at: 0, map: {} };
 

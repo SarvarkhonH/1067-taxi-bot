@@ -270,6 +270,41 @@ export async function payDriverRecruitMilestone(
   return { paid: true, recruiterTelegramId: rTu?.id, amount: milestone };
 }
 
+/** 🏆 drvrank: monthly QR-income leaderboard among drivers — recruit + revshare + drvrecruit tanga
+ *  earned this Tashkent calendar month (new month = new race). Zero-income drivers stay OFF the
+ *  board (motivation, not shame). Read-only — one groupBy, moves no money. `ranked` is the FULL
+ *  ordered list (the weekly push tick derives every driver's rank from it in one pass). */
+export async function recruitLeaderboard(driverId?: number): Promise<{
+  top: { driverId: number; name: string; earned: number }[];
+  ranked: { driverId: number; earned: number }[];
+  myRank: number | null;
+  myEarned: number;
+  total: number;
+}> {
+  const t = new Date(Date.now() + 5 * 3600 * 1000); // Tashkent clock
+  const monthStart = new Date(Date.UTC(t.getUTCFullYear(), t.getUTCMonth(), 1) - 5 * 3600 * 1000);
+  const rows = await prisma.coinTxn.groupBy({
+    by: ["memberId"],
+    where: { kind: { in: ["recruit", "revshare", "drvrecruit"] }, amount: { gt: 0 }, createdAt: { gte: monthStart } },
+    _sum: { amount: true },
+    orderBy: { _sum: { amount: "desc" } },
+  });
+  const ranked = rows
+    .map((r) => ({ driverId: r.memberId, earned: Math.round(r._sum.amount ?? 0) }))
+    .filter((r) => r.earned > 0);
+  const topIds = ranked.slice(0, 10).map((r) => r.driverId);
+  const names = await prisma.member.findMany({ where: { id: { in: topIds } }, select: { id: true, fullName: true, displayName: true } });
+  const nameOf = new Map(names.map((m) => [m.id, m.displayName || m.fullName || "?"]));
+  const idx = driverId ? ranked.findIndex((r) => r.driverId === driverId) : -1;
+  return {
+    top: ranked.slice(0, 10).map((r) => ({ ...r, name: nameOf.get(r.driverId) ?? "?" })),
+    ranked,
+    myRank: idx >= 0 ? idx + 1 : null,
+    myEarned: idx >= 0 ? ranked[idx]!.earned : 0,
+    total: ranked.length,
+  };
+}
+
 /** Admin: per-driver QR funnel — scanned (QR opened) → joined (linked phone) → rode (≥1 ride) + money.
  *  Scan-based (not driverRecruit-row based) so STAGED drivers who earned on scan/share BEFORE any ride
  *  still show up. drvdrv_ (driver→driver) is excluded — this is the client-QR funnel only. */

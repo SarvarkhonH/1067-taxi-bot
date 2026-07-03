@@ -34,6 +34,7 @@ import {
   renderBadges,
   renderCheckIn,
   renderDriverPanel,
+  renderDriverRank,
   renderEarnPush,
   renderLeaderboard,
   renderLinkPrompt,
@@ -767,9 +768,23 @@ export function createBot(): Bot {
     }
     kb.text("🎯 Topshiriqlar", "drvm:list").text("📷 QR kodim", "drv:qr").row();
     kb.text("🖼 Mening rasmim", "drv:photo");
+    if (await featureOn("drvrank")) kb.text("🏆 Reyting", "drv:rank");
     await ctx.reply(renderDriverPanel(me.coins, e, recruit, kas), { parse_mode: "HTML", reply_markup: kb });
   };
   bot.hears("🚗 Haydovchi paneli", showDriverPanel);
+  // 🏆 drvrank: monthly QR-income leaderboard (drivers only, flag-gated, read-only)
+  bot.callbackQuery("drv:rank", async (ctx) => {
+    await ctx.answerCallbackQuery().catch(() => undefined);
+    if (!(await featureOn("drvrank"))) return;
+    const me = await getMe(String(ctx.from.id));
+    if (!me || (me.type !== "driver" && String(ctx.from.id) !== "6506297119")) {
+      await ctx.reply("Bu bo'lim faqat 1067 haydovchilari uchun 🚗");
+      return;
+    }
+    const { recruitLeaderboard } = await import("../services/recruitService");
+    const lb = await recruitLeaderboard(me.member.id);
+    await ctx.reply(renderDriverRank(lb, me.member.id), { parse_mode: "HTML" });
+  });
   // 🖼 Driver self-service photo: shows current status + tells them to just send a selfie to the chat.
   bot.callbackQuery("drv:photo", async (ctx) => {
     await ctx.answerCallbackQuery().catch(() => undefined);
