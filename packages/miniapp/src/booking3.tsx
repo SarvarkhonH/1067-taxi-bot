@@ -385,11 +385,27 @@ function Booking3Inner({ me, info, onClose }: { me: MeResponse; info: BookingInf
   // to shrink to a one-line mini bar so the rider watches the live map while waiting.
   const [searchMin, setSearchMin] = useState(false);
   const [rideMin, setRideMin] = useState(false); // collapse the ACCEPTED driver card → mini bar (map + big fare)
+  // 🚖 "car approaching" fill: capture the LARGEST ETA seen since the driver was assigned, so the
+  // bottom-bar progress can fill from ~0 → 100% as ETA shrinks toward arrival. Reset between rides.
+  const etaMaxRef = useRef(0);
   useEffect(() => {
     // app re-opened mid-search (reload/deep-link): start the ticker NOW — undercounts vs the
     // server's waitstart marker, which is the safe direction (display never overstates the payout)
     if (active && !active.driver && !waitStartRef.current) waitStartRef.current = Date.now();
+    if (!active?.driver) etaMaxRef.current = 0;
+    else if (active.etaMin && active.status !== "arrived" && active.status !== "started") {
+      etaMaxRef.current = Math.max(etaMaxRef.current, active.etaMin);
+    }
   }, [active]);
+  // 0 (just accepted) → 100 (arrived/in-trip). While en route, fill grows as ETA shrinks; clamped
+  // 10..96 so the bar always shows motion but never falsely reads "arrived".
+  const approachPct = !active?.driver
+    ? 0
+    : active.status === "arrived" || active.status === "started"
+      ? 100
+      : active.etaMin && etaMaxRef.current > 0
+        ? Math.min(96, Math.max(10, Math.round((1 - active.etaMin / etaMaxRef.current) * 100)))
+        : 10;
   const [stars, setStars] = useState(0);
   const [rateTags, setRateTags] = useState<string[]>([]);
   const [rated, setRated] = useState(false);
@@ -1261,22 +1277,33 @@ function Booking3Inner({ me, info, onClose }: { me: MeResponse; info: BookingInf
               <button className="b3-mini-x" disabled={busy} onClick={(e) => { e.stopPropagation(); void cancel(); }} aria-label="Bekor qilish">✖</button>
             </div>
           ) : active?.driver && rideMin ? (
-            // collapsed accepted card — map stays visible; big fare + status + call in one bar
+            // collapsed accepted card — map stays visible; status + big fare + call, and a fill bar
+            // that grows as the car approaches (tap anywhere to expand back).
             <div className="b3-ride-mini" onClick={() => { haptic(); setRideMin(false); }}>
-              <div className="b3-ride-mini-main">
-                <div className="b3-ride-mini-status">
-                  {active.status === "arrived" ? "🚕 Yetib keldi — chiqing!" : active.status === "started" ? "🚗 Safarda" : "✅ Yo'lda"}
+              <div className="b3-ride-mini-row">
+                <div className="b3-ride-mini-main">
+                  <div className="b3-ride-mini-status">
+                    {active.status === "arrived" ? "🚕 Yetib keldi — chiqing!" : active.status === "started" ? "🚗 Safarda" : `🚖 Mashina yaqinlashmoqda${active.etaMin ? ` · ~${active.etaMin} daq` : ""}`}
+                  </div>
+                  <div className="b3-ride-mini-fare"><CountUp value={active.driver.meterPayment || info.tariff?.minimalPayment || 0} /> <span>so'm</span></div>
                 </div>
-                <div className="b3-ride-mini-fare"><CountUp value={active.driver.meterPayment || info.tariff?.minimalPayment || 0} /> <span>so'm</span></div>
+                {active.driver.phone ? <a className="b3-ride-mini-call" href={`tel:${active.driver.phone}`} onClick={(e) => e.stopPropagation()} aria-label="Qo'ng'iroq">📞</a> : null}
               </div>
-              {active.driver.phone ? <a className="b3-ride-mini-call" href={`tel:${active.driver.phone}`} onClick={(e) => e.stopPropagation()} aria-label="Qo'ng'iroq">📞</a> : null}
+              {active.status !== "started" && (
+                <div className={`b3-ride-progress${active.status === "arrived" ? " full" : ""}`}><i style={{ width: `${approachPct}%` }} /></div>
+              )}
             </div>
           ) : active?.driver ? (
             // accepted — a driver actually took the order (carNumber present)
             <>
+              {/* one obvious tap to lower the panel and watch the car on the map */}
+              <button className="b3-collapse-btn" onClick={() => { haptic(); setRideMin(true); }}>▾ Kichraytirish · xaritani ko'rish</button>
               <div className={`b3-search-title${active.status === "arrived" ? " b3-arrived" : ""}`}>
                 {active.status === "arrived" ? "🚕 Haydovchi yetib keldi — chiqing!" : "✅ Haydovchi qabul qildi"}
               </div>
+              {active.status !== "started" && (
+                <div className={`b3-ride-progress mt8${active.status === "arrived" ? " full" : ""}`}><i style={{ width: `${approachPct}%` }} /></div>
+              )}
               <RideTimeline status={active.status} />
               <div className="b3-driver b3-driver-tap" role="button" tabIndex={0} onClick={() => { haptic(); setPlateZoom(true); }} title="Bosib to'liq ko'rish">
                 <div className="b3-driver-av">🧑‍✈️</div>
