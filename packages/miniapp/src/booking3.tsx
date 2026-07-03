@@ -384,6 +384,7 @@ function Booking3Inner({ me, info, onClose }: { me: MeResponse; info: BookingInf
   // searching sheet collapse: the full sheet hid the map ("xaritani yopib qo'yapti") — tap the grip
   // to shrink to a one-line mini bar so the rider watches the live map while waiting.
   const [searchMin, setSearchMin] = useState(false);
+  const [rideMin, setRideMin] = useState(false); // collapse the ACCEPTED driver card → mini bar (map + big fare)
   useEffect(() => {
     // app re-opened mid-search (reload/deep-link): start the ticker NOW — undercounts vs the
     // server's waitstart marker, which is the safe direction (display never overstates the payout)
@@ -1243,13 +1244,14 @@ function Booking3Inner({ me, info, onClose }: { me: MeResponse; info: BookingInf
 
       {/* ── E4: real-status (searching → accepted → arrived) ── */}
       {screen === "searching" && (
-        <div className={`b3-sheet${!active?.driver ? " b3-search-sheet" : ""}${!active?.driver && searchMin ? " b3-minisheet" : ""}`}>
-          {/* grip = collapse toggle while searching (full sheet hid the map); driver card ignores it */}
+        <div className={`b3-sheet${!active?.driver ? " b3-search-sheet" : ""}${(!active?.driver && searchMin) || (active?.driver && rideMin) ? " b3-minisheet" : ""}`}>
+          {/* grip = collapse toggle. While searching → searchMin; after a driver accepts → rideMin
+              (map stays visible, fare shows big). */}
           <div
             className="b3-grip b3-grip-tap"
             role="button"
-            aria-label={searchMin ? "Panelni ochish" : "Panelni yig'ish"}
-            onClick={() => { if (!active?.driver) { haptic(); setSearchMin((v) => !v); } }}
+            aria-label={(active?.driver ? rideMin : searchMin) ? "Panelni ochish" : "Panelni yig'ish"}
+            onClick={() => { haptic(); if (active?.driver) setRideMin((v) => !v); else setSearchMin((v) => !v); }}
           />
           {!active?.driver && searchMin ? (
             // mini bar: map stays visible; status + live bonus + cancel in ONE line
@@ -1257,6 +1259,17 @@ function Booking3Inner({ me, info, onClose }: { me: MeResponse; info: BookingInf
               <span className="b3-mini-status">🔍 Qidirilmoqda…</span>
               <WaitTicker waitComp={info.waitComp} startAt={waitStartRef.current} mini />
               <button className="b3-mini-x" disabled={busy} onClick={(e) => { e.stopPropagation(); void cancel(); }} aria-label="Bekor qilish">✖</button>
+            </div>
+          ) : active?.driver && rideMin ? (
+            // collapsed accepted card — map stays visible; big fare + status + call in one bar
+            <div className="b3-ride-mini" onClick={() => { haptic(); setRideMin(false); }}>
+              <div className="b3-ride-mini-main">
+                <div className="b3-ride-mini-status">
+                  {active.status === "arrived" ? "🚕 Yetib keldi — chiqing!" : active.status === "started" ? "🚗 Safarda" : "✅ Yo'lda"}
+                </div>
+                <div className="b3-ride-mini-fare"><CountUp value={active.driver.meterPayment || info.tariff?.minimalPayment || 0} /> <span>so'm</span></div>
+              </div>
+              {active.driver.phone ? <a className="b3-ride-mini-call" href={`tel:${active.driver.phone}`} onClick={(e) => e.stopPropagation()} aria-label="Qo'ng'iroq">📞</a> : null}
             </div>
           ) : active?.driver ? (
             // accepted — a driver actually took the order (carNumber present)
@@ -1277,7 +1290,7 @@ function Booking3Inner({ me, info, onClose }: { me: MeResponse; info: BookingInf
                 {active.etaMin ? <div className="b3-eta"><b>{active.etaMin}</b><span>daq</span></div> : null}
               </div>
               {active.driver.meterPayment ? (
-                <div className="b3-fare-row mt8"><span>🧮 Hisoblagich (jonli)</span><b><CountUp value={active.driver.meterPayment} /> so'm</b></div>
+                <div className="b3-fare-row b3-fare-big mt8"><span>🧮 Hisoblagich (jonli)</span><b><CountUp value={active.driver.meterPayment} /> so'm</b></div>
               ) : null}
               {active.status === "started" && speedKmh > 0 ? (
                 <div className="b3-fare-row"><span>🚗 Tezlik</span><b>~{speedKmh} km/soat</b></div>
@@ -1304,7 +1317,7 @@ function Booking3Inner({ me, info, onClose }: { me: MeResponse; info: BookingInf
               <WaitTicker waitComp={info.waitComp} startAt={waitStartRef.current} />
             </>
           )}
-          {!(searchMin && !active?.driver) && (
+          {!(searchMin && !active?.driver) && !(rideMin && active?.driver) && (
             <Button variant="danger" disabled={busy} onClick={cancel}>✖ Bekor qilish</Button>
           )}
         </div>
