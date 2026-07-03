@@ -220,7 +220,7 @@ async function shareTrip(d: BookingDriverView): Promise<void> {
   } catch {
     /* keep the fallback */
   }
-  const text = `Men 1067 taksidaman 🚕 — jonli kuzating (mashina qayerda + narx). Mashina: ${d.carModel} ${d.carNumber}`;
+  const text = `🚕 Men 1067 taxidaman — jonli kuzatib boring!\n🚘 ${d.carModel} · ${d.carNumber}\n🛡 Mashina xaritada qayerda + narx — hammasi real vaqtda 👇`;
   const url = `https://t.me/share/url?url=${encodeURIComponent(link)}&text=${encodeURIComponent(text)}`;
   const w = tg as { openTelegramLink?: (u: string) => void } | undefined;
   if (w?.openTelegramLink) w.openTelegramLink(url);

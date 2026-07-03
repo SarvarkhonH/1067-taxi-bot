@@ -684,29 +684,54 @@ body {
 /* passenger aboard: a head shown on the car only in-trip (.b3-aboard) — "odamcha ichida" */
 .b3-carpax { position: absolute; left: 50%; top: 50%; width: 8px; height: 8px; margin: -4px 0 0 -4px; border-radius: 50%; background: #f4c89a; box-shadow: 0 0 3px rgba(0,0,0,.55); opacity: 0; transition: opacity .5s ease; }
 .b3-carpin.b3-aboard .b3-carpax { opacity: 1; }
-/* 🛡 TrackView — read-only family-safety live trip page (public ?track=<token>) */
+/* 🛡 TrackView — read-only family-safety live trip page (public ?track=<token>). Redesigned to
+   match the app: brand header + live dot, big status pill, driver card w/ plate chip, gold CTA. */
 .tv-wrap { position: fixed; inset: 0; display: flex; flex-direction: column; background: var(--bg); }
-.tv-top { padding: calc(10px + env(safe-area-inset-top)) 16px 10px; font-weight: 800; font-size: 16px; color: var(--text); background: var(--surface-2); border-bottom: 1px solid var(--line); text-align: center; }
+.tv-top { display: flex; align-items: center; justify-content: space-between; padding: calc(10px + env(safe-area-inset-top)) 18px 11px; background: var(--surface-2); border-bottom: 1px solid var(--line); }
+.tv-brand { font-weight: 800; font-size: 18px; color: var(--text); letter-spacing: .3px; }
+.tv-live { display: flex; align-items: center; gap: 6px; font-size: 12.5px; font-weight: 600; color: var(--muted, #9aa0a6); }
+.tv-live-dot { width: 8px; height: 8px; border-radius: 50%; background: #22c55e; animation: tv-pulse 1.5s ease-in-out infinite; }
+@keyframes tv-pulse { 0%,100% { box-shadow: 0 0 0 0 rgba(34,197,94,.5); } 50% { box-shadow: 0 0 0 6px rgba(34,197,94,0); } }
 .tv-map { flex: 1; min-height: 0; }
 .tv-map .leaflet-container { background: var(--surface); }
 .tv-map .leaflet-tile-pane { filter: invert(1) hue-rotate(180deg) brightness(.92) contrast(.9); }
 .tv-car svg { filter: drop-shadow(0 0 6px rgba(255,179,0,.6)) drop-shadow(0 2px 3px rgba(0,0,0,.5)); transition: transform .9s linear; }
-.tv-panel { padding: 14px 16px calc(16px + env(safe-area-inset-bottom)); background: var(--surface-2); border-top: 1px solid var(--line); box-shadow: 0 -8px 24px rgba(0,0,0,.4); display: flex; flex-direction: column; gap: 6px; }
-.tv-status { font-weight: 800; font-size: 16px; color: var(--text); }
-.tv-drv, .tv-addr, .tv-fare { font-size: 14px; color: var(--text); }
-.tv-fare b { color: #34d399; }
-.tv-foot { font-size: 12px; color: var(--muted, #9aa0a6); margin-top: 4px; }
-.tv-dim, .tv-ended { font-size: 15px; color: var(--text); text-align: center; padding: 10px; }
+.tv-panel { padding: 16px 16px calc(18px + env(safe-area-inset-bottom)); background: var(--surface-2); border-top: 1px solid var(--line); border-radius: 20px 20px 0 0; box-shadow: 0 -10px 30px rgba(0,0,0,.5); display: flex; flex-direction: column; gap: 10px; }
+.tv-status { display: flex; align-items: center; gap: 9px; font-weight: 800; font-size: 17px; color: var(--text); }
+.tv-status-dot { width: 10px; height: 10px; border-radius: 50%; background: var(--brand, #f0b429); flex-shrink: 0; }
+.tv-s-arrived .tv-status-dot { background: #22c55e; }
+.tv-s-trip .tv-status-dot { background: #378ADD; }
+.tv-eta { margin-left: auto; font-size: 14px; font-weight: 700; color: var(--muted, #9aa0a6); }
+/* driver card — mirrors the in-app b3-driver row */
+.tv-driver { display: flex; align-items: center; gap: 12px; padding: 11px 12px; background: var(--surface); border: 1px solid var(--line); border-radius: 14px; }
+.tv-driver-av { width: 42px; height: 42px; border-radius: 50%; background: rgba(255,255,255,.06); display: flex; align-items: center; justify-content: center; font-size: 22px; flex-shrink: 0; }
+.tv-driver-meta { flex: 1; min-width: 0; }
+.tv-driver-name { font-size: 15px; font-weight: 700; color: var(--text); }
+.tv-driver-rate { color: var(--brand, #f0b429); font-weight: 700; }
+.tv-driver-car { font-size: 13px; color: var(--muted, #9aa0a6); margin-top: 1px; }
+.tv-plate { flex-shrink: 0; font-weight: 800; font-size: 14px; letter-spacing: .5px; color: var(--text); background: rgba(255,255,255,.07); border: 1px solid var(--line); border-radius: 8px; padding: 6px 9px; }
+.tv-addr { font-size: 14px; color: var(--text); }
+.tv-fare { display: flex; align-items: center; justify-content: space-between; font-size: 14px; color: var(--text); }
+.tv-fare b { color: #34d399; font-size: 17px; }
+.tv-foot { font-size: 12px; color: var(--muted, #9aa0a6); }
+.tv-dim { font-size: 15px; color: var(--text); text-align: center; padding: 14px; }
+/* end screen — a clean finished-card */
+.tv-endcard { text-align: center; padding: 8px 0 4px; }
+.tv-end-emoji { font-size: 40px; }
+.tv-end-title { font-size: 18px; font-weight: 800; color: var(--text); margin-top: 4px; }
+.tv-end-sub { font-size: 14px; color: var(--muted, #9aa0a6); margin-top: 2px; }
 /* tv-win: jackpot-badge fusion — the family viewer learns riding 1067 pays (no amount shown) */
 .tv-win { font-size: 13px; font-weight: 700; color: var(--brand); }
-/* tv-cta: viral "birinchi safar bepul" banner (trackcta flag) — sits INSIDE the bottom panel,
-   never over the map; delayed + dismissible so the safety moment stays first */
-.tv-cta { position: relative; margin-top: 8px; padding: 10px 34px 10px 12px; background: var(--surface); border: 1px solid var(--line); border-radius: 12px; animation: tv-cta-in .35s var(--ease-out, ease-out) both; }
-.tv-cta-x { position: absolute; top: 4px; right: 4px; width: 26px; height: 26px; border: 0; background: transparent; color: var(--muted, #9aa0a6); font-size: 14px; line-height: 26px; text-align: center; border-radius: 50%; }
-.tv-cta-t { font-size: 12.5px; color: var(--muted, #9aa0a6); margin-bottom: 8px; }
-.tv-cta-btn { display: block; text-align: center; padding: 10px 12px; border-radius: 10px; background: var(--brand); color: #0b1f3a; font-weight: 800; font-size: 14px; text-decoration: none; }
+/* tv-cta: viral invite card ("Siz ham ulaning — 5000 bonus") — big gold button, dismissible */
+.tv-cta { position: relative; margin-top: 6px; padding: 16px 14px 14px; text-align: center; background: rgba(255,179,0,.10); border: 1px solid rgba(255,179,0,.32); border-radius: 16px; animation: tv-cta-in .35s var(--ease-out, ease-out) both; }
+.tv-cta-x { position: absolute; top: 6px; right: 6px; width: 28px; height: 28px; border: 0; background: transparent; color: var(--muted, #9aa0a6); font-size: 15px; line-height: 28px; text-align: center; border-radius: 50%; }
+.tv-cta-emoji { font-size: 30px; line-height: 1; }
+.tv-cta-t { font-size: 17px; font-weight: 800; color: var(--text); margin-top: 6px; }
+.tv-cta-sub { font-size: 12.5px; color: var(--muted, #9aa0a6); margin: 4px 0 12px; }
+.tv-cta-btn { display: block; text-align: center; padding: 13px 12px; border-radius: 13px; background: var(--brand, #f0b429); color: #0b1f3a; font-weight: 800; font-size: 15px; text-decoration: none; }
+.tv-cta-btn:active { transform: scale(.99); }
 @keyframes tv-cta-in { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
-@media (prefers-reduced-motion: reduce) { .tv-cta { animation: none; } }
+@media (prefers-reduced-motion: reduce) { .tv-cta, .tv-live-dot { animation: none; } }
 .b3-pin.busy { opacity: .55; }
 .b3-pickpin { font-size: 30px; filter: drop-shadow(0 2px 4px rgba(255,179,0,.8)); }
 

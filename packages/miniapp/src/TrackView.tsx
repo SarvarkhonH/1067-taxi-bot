@@ -70,57 +70,60 @@ export function TrackView({ token }: { token: string }) {
   }, [trip]);
 
   const ended = !!trip && !trip.active;
+  const dismissCta = () => { setCtaGone(true); try { sessionStorage.setItem("tv_cta_off", "1"); } catch { /* private mode */ } };
+  // ONE beautiful invite card, reused mid-trip (after a delay) + on the end screen. Not "first ride
+  // free" — the owner's copy: "join too, get 5000 tanga bonus".
+  const cta = trip?.ctaLink && !ctaGone ? (
+    <div className="tv-cta">
+      <button className="tv-cta-x" aria-label="Yopish" onClick={dismissCta}>✕</button>
+      <div className="tv-cta-emoji">🎁</div>
+      <div className="tv-cta-t">Siz ham 1067'ga ulaning</div>
+      <div className="tv-cta-sub">Haydovchi tasdiqlangan · narx oldindan · har safar jonli kuzatuv</div>
+      <a className="tv-cta-btn" href={trip.ctaLink}>5000 tanga bonus oling 🚕</a>
+    </div>
+  ) : null;
   return (
     <div className="tv-wrap">
-      <div className="tv-top">🛡 1067 — safarni kuzatish</div>
+      <div className="tv-top">
+        <span className="tv-brand">🚕 1067</span>
+        <span className="tv-live"><i className="tv-live-dot" /> Jonli kuzatuv</span>
+      </div>
       <div ref={mapRef} className="tv-map" />
       <div className="tv-panel">
         {!trip ? (
           <div className="tv-dim">⏳ Yuklanmoqda…</div>
         ) : ended ? (
           <>
-            <div className="tv-ended">🏁 Safar yakunlandi — kuzatuv tugadi. Yaxshi yetib oldi! 🙌</div>
-            {/* peak viral moment: the viewer is relieved the trip ended safely → the most receptive
-                instant to invite. No 7s delay here (the safety concern is already resolved). */}
-            {trip.ctaLink && !ctaGone && (
-              <div className="tv-cta">
-                <button className="tv-cta-x" aria-label="Yopish" onClick={() => { setCtaGone(true); sessionStorage.setItem("tv_cta_off", "1"); }}>✕</button>
-                <div className="tv-cta-t">1067 bilan har safar jonli kuzatiladi — haydovchi tasdiqlangan, narx oldindan.</div>
-                <a className="tv-cta-btn" href={trip.ctaLink}>🎁 Sizga ham 1067 — birinchi safar bepul</a>
-              </div>
-            )}
+            <div className="tv-endcard">
+              <div className="tv-end-emoji">🏁</div>
+              <div className="tv-end-title">Safar yakunlandi</div>
+              <div className="tv-end-sub">Manzilga yetib oldi 🙌</div>
+            </div>
+            {/* peak viral moment: relief that the trip ended safely → most receptive to invite. */}
+            {cta}
           </>
         ) : (
           <>
-            <div className="tv-status">
-              {trip.status === "started" ? "🚗 Safarda" : trip.status === "arrived" ? "✅ Haydovchi yetib keldi" : "🟢 Haydovchi yo'lda"}
-              {trip.etaMin ? ` · ~${trip.etaMin} daq` : ""}
+            <div className={`tv-status${trip.status === "arrived" ? " tv-s-arrived" : trip.status === "started" ? " tv-s-trip" : ""}`}>
+              <span className="tv-status-dot" />
+              <span>{trip.status === "started" ? "🚗 Safarda" : trip.status === "arrived" ? "✅ Haydovchi yetib keldi" : "🟢 Haydovchi yo'lda"}</span>
+              {trip.etaMin ? <b className="tv-eta">~{trip.etaMin} daq</b> : null}
             </div>
             {trip.driver && (
-              <div className="tv-drv">🚘 {trip.driver.name} · {trip.driver.carModel} · <b>{trip.driver.carNumber}</b>{trip.driver.rating ? ` ⭐${trip.driver.rating.toFixed(1)}` : ""}</div>
-            )}
-            {trip.addressName && <div className="tv-addr">📍 {trip.addressName}</div>}
-            {trip.fare ? <div className="tv-fare">🧮 <b>{formatNumber(trip.fare)} so'm</b> · hisoblanyapti</div> : null}
-            {trip.won && <div className="tv-win">🎁 Bu safarda 1067dan sovg'a oldi</div>}
-            <div className="tv-foot">🛡 Oila xavfsizligi · safar tugaguncha jonli yangilanadi</div>
-            {trip.ctaLink && ctaReady && !ctaGone && (
-              <div className="tv-cta">
-                <button
-                  className="tv-cta-x"
-                  aria-label="Yopish"
-                  onClick={() => {
-                    setCtaGone(true);
-                    sessionStorage.setItem("tv_cta_off", "1");
-                  }}
-                >
-                  ✕
-                </button>
-                <div className="tv-cta-t">Bu safar 1067 orqali kuzatilyapti — haydovchi tasdiqlangan, marshrut jonli.</div>
-                <a className="tv-cta-btn" href={trip.ctaLink}>
-                  🎁 Sizga ham 1067 — birinchi safar bepul
-                </a>
+              <div className="tv-driver">
+                <div className="tv-driver-av">🧑‍✈️</div>
+                <div className="tv-driver-meta">
+                  <div className="tv-driver-name">{trip.driver.name}{trip.driver.rating ? <span className="tv-driver-rate"> ⭐{trip.driver.rating.toFixed(1)}</span> : null}</div>
+                  <div className="tv-driver-car">🚘 {trip.driver.carModel}</div>
+                </div>
+                <div className="tv-plate">{trip.driver.carNumber}</div>
               </div>
             )}
+            {trip.addressName && <div className="tv-addr">📍 {trip.addressName}</div>}
+            {trip.fare ? <div className="tv-fare"><span>🧮 Hisoblagich</span><b>{formatNumber(trip.fare)} so'm</b></div> : null}
+            {trip.won && <div className="tv-win">🎁 Bu safarda 1067dan sovg'a oldi</div>}
+            <div className="tv-foot">🛡 Oila xavfsizligi · safar tugaguncha jonli yangilanadi</div>
+            {ctaReady && cta}
           </>
         )}
       </div>
