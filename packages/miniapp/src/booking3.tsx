@@ -881,7 +881,10 @@ function Booking3Inner({ me, info, onClose }: { me: MeResponse; info: BookingInf
       }
       activeRef.current = a;
       setActive(a); // B: real status — searching → accepted (only when a driver actually takes it) → arrived
-      if (alive) timer = setTimeout(tick, a?.driver ? 5_000 : 12_000); // faster once a driver is assigned
+      // Mini App poll cadence: while SEARCHING poll every 3s so "haydovchi topildi" appears in ~3s
+      // (was 12s — the bot card is socket-instant, but the app still polls, so it lagged). Once a
+      // driver is assigned, 5s is enough (the moving car is on the map socket).
+      if (alive) timer = setTimeout(tick, a?.driver ? 5_000 : 3_000);
     };
     tick();
     return () => {
