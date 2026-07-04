@@ -165,6 +165,11 @@ export const adminApi = {
     ),
   retentionCohorts: () =>
     req<{ cohorts: { cohort: string; users: number; d1: number; d7: number; d30: number }[] }>("/api/admin/analytics/retention"),
+  // 📊 Phase-4 Overview insights
+  anomalies: () =>
+    req<{ level: "ok" | "warn" | "alert"; items: { level: "warn" | "alert"; text: string }[]; emissionToday: number; cashoutToday: number }>("/api/admin/anomalies"),
+  inbox: () =>
+    req<{ pending: { id: number; amount: number; method: string; mask: string; name: string; phone: string; at: string }[]; count: number }>("/api/admin/inbox"),
   driverAnalytics: () =>
     req<{
       windowDays: number;

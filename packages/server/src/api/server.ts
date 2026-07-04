@@ -1291,6 +1291,16 @@ body{font-family:Arial,sans-serif;background:#eee;-webkit-print-color-adjust:exa
     res.json(await adminDeleteMission(String((req.body as { id?: string })?.id ?? "")));
   });
 
+  // 📊 Phase-4 insights — read-only Overview anomaly banner + approval inbox (isolated adminInsights.ts).
+  app.get("/api/admin/anomalies", requireAdmin, async (_req, res) => {
+    const { getAnomalies } = await import("../services/adminInsights");
+    res.json(await getAnomalies());
+  });
+  app.get("/api/admin/inbox", requireAdmin, async (_req, res) => {
+    const { getApprovalInbox } = await import("../services/adminInsights");
+    res.json(await getApprovalInbox());
+  });
+
   // 🎁 PROMO campaigns ("tasks with promises") — admin-configurable, gated by the "promo" flag.
   app.get("/api/admin/campaigns", requireAdmin, async (_req, res) => {
     const { adminListCampaigns } = await import("../services/campaignService");

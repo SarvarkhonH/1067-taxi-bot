@@ -208,12 +208,18 @@ function Overview({ health }: { health: AdminHealth | null }) {
   const [ball, setBall] = useState<BallDistribution | null>(null);
   const [growth, setGrowth] = useState<AdminGrowth | null>(null);
   const [bookings, setBookings] = useState<AdminLiveBooking[] | null>(null);
+  const [anom, setAnom] = useState<Awaited<ReturnType<typeof adminApi.anomalies>> | null>(null);
+  const [inbox, setInbox] = useState<Awaited<ReturnType<typeof adminApi.inbox>> | null>(null);
 
   useEffect(() => {
     adminApi.economy().then(setEco).catch(() => undefined);
     adminApi.ballDist().then(setBall).catch(() => undefined);
     adminApi.growth().then(setGrowth).catch(() => undefined);
-    const load = () => adminApi.bookings().then(setBookings).catch(() => undefined);
+    const load = () => {
+      adminApi.bookings().then(setBookings).catch(() => undefined);
+      adminApi.anomalies().then(setAnom).catch(() => undefined);
+      adminApi.inbox().then(setInbox).catch(() => undefined);
+    };
     load();
     const t = setInterval(load, 15000);
     return () => clearInterval(t);
@@ -221,6 +227,53 @@ function Overview({ health }: { health: AdminHealth | null }) {
 
   return (
     <>
+      {anom && anom.level !== "ok" && (
+        <section
+          className="panel"
+          style={{
+            borderLeft: `4px solid ${anom.level === "alert" ? "#e5484d" : "#f0b429"}`,
+            background: anom.level === "alert" ? "rgba(229,72,77,0.08)" : "rgba(240,180,41,0.08)",
+          }}
+        >
+          <div className="panel-title">{anom.level === "alert" ? "🚨 Diqqat — anomaliya" : "⚠️ Ogohlantirish"}</div>
+          <ul style={{ margin: "6px 0 0", paddingLeft: 20, lineHeight: 1.7 }}>
+            {anom.items.map((it, i) => (
+              <li key={i} style={{ color: it.level === "alert" ? "#e5484d" : "var(--fg)" }}>{it.text}</li>
+            ))}
+          </ul>
+          <div className="muted" style={{ marginTop: 8, fontSize: 13 }}>
+            Bugun emissiya: {formatNumber(anom.emissionToday)} tanga · naxt-to'lov: {formatNumber(anom.cashoutToday)} tanga
+          </div>
+        </section>
+      )}
+
+      {inbox && inbox.count > 0 && (
+        <section className="panel">
+          <div className="panel-title">📥 Tasdiqlash kutmoqda · {inbox.count}</div>
+          <div className="muted" style={{ marginBottom: 8, fontSize: 13 }}>
+            Naxt-pul so'rovlari — tasdiq/rad Telegram'da (egaga [✅/❌] xabar boradi). Bu ro'yxat kutayotgan navbatni ko'rsatadi.
+          </div>
+          <div className="table-wrap">
+            <table className="table">
+              <thead>
+                <tr><th>Kim</th><th>Miqdor</th><th>Usul</th><th>Karta/manzil</th><th>Vaqt</th></tr>
+              </thead>
+              <tbody>
+                {inbox.pending.map((p) => (
+                  <tr key={p.id}>
+                    <td>{p.name}<div className="muted" style={{ fontSize: 12 }}>{p.phone}</div></td>
+                    <td>{formatNumber(p.amount)} tanga</td>
+                    <td>{p.method === "card" ? "💳 Karta" : "🏠 Uyga"}</td>
+                    <td className="muted">{p.mask || "—"}</td>
+                    <td className="muted">{new Date(p.at).toLocaleString("ru-RU", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </section>
+      )}
+
       {health && (
         <section className="panel">
           <div className="panel-title">🚦 Tizim salomatligi</div>
