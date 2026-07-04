@@ -81,6 +81,23 @@ export async function setFeature(name: FeatureName, on: boolean): Promise<void> 
   cache = { at: 0, map: {} };
 }
 
+// A7 (audit P0): every flag lives ONLY as a DB row — a reseeded/reset DB silently reverts each
+// owner-accepted feature to OFF with no error. EXPECTED_ON is the owner-accepted record (update it
+// at every QABUL / intentional off); boot logs the effective state and ALERTS on any mismatch —
+// it never auto-flips (an intentional off must stay off until this list is edited).
+export const EXPECTED_ON: FeatureName[] = [
+  "wheel", "items", "transfers", "push", "gap", "plus", "recruit", "booking3", "livinghome",
+  "baraban", "komissiya", "promo", "qarz", "welcomebonus", "refstaged", "drvstaged", "drvrecruit",
+  "drvpush", "clientbooking", "cashout", "intercity", "tierloyalty", "waitcomp", "trackcta",
+  "jackpotpost", "instantstatus", "drvrank",
+];
+
+export async function reconcileFlags(): Promise<{ missing: string[]; effective: { name: string; on: boolean }[] }> {
+  const effective = await listFeatures();
+  const on = new Set(effective.filter((f) => f.on).map((f) => f.name));
+  return { missing: EXPECTED_ON.filter((n) => !on.has(n)), effective };
+}
+
 export async function listFeatures(): Promise<{ name: string; on: boolean }[]> {
   const rows = await prisma.appState.findMany({ where: { key: { startsWith: "feature:" } } }).catch(() => []);
   const map = new Map(rows.map((r) => [r.key.slice(8), r.value !== "off"]));

@@ -290,8 +290,12 @@ export async function pushBookingUpdates(
         trackCta,
       };
 
-      // ride meter: first sighting of "started"
-      const rideStartedAt = b.status === "started" && (isNewRide || !m.rideStartedAt) ? new Date() : m.rideStartedAt;
+      // ride meter: first sighting of "started". A2 (audit): on a NEW not-yet-started ride the
+      // PREVIOUS ride's stale rideStartedAt must be CLEARED — otherwise a back-to-back booking
+      // that dies while still searching passes the finish branch's "reached started" guard on
+      // the old timestamp and pays rewards on a ride that never carried a passenger.
+      const rideStartedAt =
+        b.status === "started" ? (isNewRide || !m.rideStartedAt ? new Date() : m.rideStartedAt) : isNewRide ? null : m.rideStartedAt;
 
       // ── the ONE live card ──
       // Adopt a PENDING bot-order card: an in-bot order stores its confirmation message id as
@@ -429,7 +433,10 @@ export async function pushBookingUpdates(
       // out cashback/garage/fund and send a "yakunlandi" card. Guard on a POSITIVE completion
       // signal: the ride must have reached "started" (passenger in the car) AND its last status
       // must not be a cancel. Otherwise clear the ride state but fire NO rewards / finish card.
-      const CANCEL_STATUSES = ["cancel_by_operator", "cancel_by_server", "take_back", "cancel"];
+      // A6 (audit): driver/client-initiated cancels were MISSING — a ride that reached "started"
+      // then got cancelled by the driver in the same poll gap kept lastBookingStatus="started",
+      // passed this guard, and paid cashback/fund/missions on a cancelled trip.
+      const CANCEL_STATUSES = ["cancel_by_operator", "cancel_by_server", "cancel_by_driver", "cancel_by_client", "take_back", "cancel"];
       if (!m.rideStartedAt || CANCEL_STATUSES.includes(m.lastBookingStatus ?? "")) {
         // 🎁 "topilmadi" vaucheri (feature "waitcomp"): the search DIED while still SEARCHING — no
         // driver ever accepted (status never left new/searching). The wait must not be for nothing:

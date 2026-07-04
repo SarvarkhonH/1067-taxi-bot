@@ -2,7 +2,7 @@
 // records a request and forwards it to the owner, who pays manually and approves. Tangas are spent
 // only on approval (idempotent), and card numbers are never persisted (only a •••• 1234 mask).
 import { prisma } from "../db";
-import { spendCoinsIdempotent, getCoins } from "./coinService";
+import { spendCoinsIdempotent, getCoins, withMemberLock } from "./coinService";
 
 export const CASHOUT_CARD_MIN = 50_000; // 💳 plastik kartaga: min balance
 export const CASHOUT_HOME_MIN = 100_000; // 🏠 naxt uyga: min balance
@@ -31,15 +31,22 @@ export async function hasPendingCashout(memberId: number): Promise<boolean> {
   return (await prisma.cashoutRequest.count({ where: { memberId, status: "pending" } })) > 0;
 }
 
+/** A2 (audit P1): the "at most one open request" invariant now lives HERE, atomically — the bot
+ *  /naxt flow used to skip the pre-check entirely and the API pre-check was read-then-act, so a
+ *  double submit produced TWO owner payout cards (the owner pays real cash by hand — the ledger
+ *  survives a double-approve, the cash doesn't). Re-checking INSIDE the member lock closes both. */
 export async function createCashout(
   memberId: number,
   amount: number,
   method: CashoutMethod,
   mask: string,
   contact: string,
-): Promise<{ id: number }> {
-  const r = await prisma.cashoutRequest.create({ data: { memberId, amount, method, mask, contact } });
-  return { id: r.id };
+): Promise<{ ok: true; id: number } | { ok: false; reason: "pending_exists" }> {
+  return withMemberLock(memberId, async () => {
+    if (await hasPendingCashout(memberId)) return { ok: false as const, reason: "pending_exists" as const };
+    const r = await prisma.cashoutRequest.create({ data: { memberId, amount, method, mask, contact } });
+    return { ok: true as const, id: r.id };
+  });
 }
 
 export async function getCashout(id: number) {

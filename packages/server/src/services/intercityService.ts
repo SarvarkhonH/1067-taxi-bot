@@ -71,8 +71,17 @@ export async function getOrCreateRoute(cityIdA: number, cityIdB: number): Promis
 
 // ── driver enrollment ────────────────────────────────────────────────────────
 
+/** A5 (audit P1): the Mini App hides driver UI from riders, but the ENDPOINT was open to any
+ *  linked member — a rider could enroll/publish phantom trips that real passengers then book
+ *  and get stranded by. Server-side role gate, mirroring the /api/driver/* routes. */
+async function requireDriverType(memberId: number): Promise<boolean> {
+  const m = await prisma.member.findUnique({ where: { id: memberId }, select: { type: true } });
+  return m?.type === "driver";
+}
+
 export async function enrollDriver(driverId: number, cityIdA: number, cityIdB: number, carCapacity: number): Promise<{ ok: boolean; routeId?: number; error?: string }> {
   if (!(await featureOn("intercity"))) return { ok: false, error: "feature_off" };
+  if (!(await requireDriverType(driverId))) return { ok: false, error: "not_driver" };
   const route = await getOrCreateRoute(cityIdA, cityIdB);
   if (!route) return { ok: false, error: "same_city" };
   const cap = Math.min(Math.max(Math.floor(carCapacity) || 4, 1), 8);
@@ -112,6 +121,7 @@ export interface PublishTripInput {
 
 export async function publishTrip(driverId: number, input: PublishTripInput): Promise<{ ok: boolean; tripId?: number; error?: string }> {
   if (!(await featureOn("intercity"))) return { ok: false, error: "feature_off" };
+  if (!(await requireDriverType(driverId))) return { ok: false, error: "not_driver" }; // A5: riders can't publish phantom trips
   if (input.originCityId === input.destCityId) return { ok: false, error: "same_city" };
   if (!(input.scheduledAt instanceof Date) || isNaN(input.scheduledAt.getTime())) return { ok: false, error: "bad_time" };
 

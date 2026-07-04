@@ -361,6 +361,7 @@ function WithdrawSheet({
           no_ride: "So'mga aylantirish uchun avval kamida 1 ta safar qiling 🚕",
           risk_hold: "Hisobingiz tekshiruvda — dispetcherga murojaat qiling",
           kas_failed: "Tizim xatosi — tanga qaytarildi, keyinroq urinib ko'ring",
+          pending_review: "Oldingi yechish holati aniqlanmoqda — admin tekshirmoqda, birozdan keyin urinib ko'ring",
         };
         setErr(msgs[r.reason ?? ""] ?? "Xatolik yuz berdi");
       }

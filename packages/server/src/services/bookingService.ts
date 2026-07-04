@@ -307,8 +307,9 @@ export async function claimDispatchSlot(memberId: number): Promise<{ ok: boolean
   });
   return { ok: claim.count > 0, prev: before?.lastBookingAt ?? null };
 }
-/** Release the slot after a FAILED dispatch so the user can retry immediately. */
-async function releaseDispatchSlot(memberId: number, prev: Date | null): Promise<void> {
+/** Release the slot after a FAILED dispatch so the user can retry immediately.
+ *  Exported: the classic bot confirm (bk:confirm) uses the same claim/release pair. */
+export async function releaseDispatchSlot(memberId: number, prev: Date | null): Promise<void> {
   await prisma.member.updateMany({ where: { id: memberId }, data: { lastBookingAt: prev } }).catch(() => undefined);
 }
 const CANCEL_FARM_LIMIT = 4; // self-cancels per day before 1-tap demands the full confirm flow

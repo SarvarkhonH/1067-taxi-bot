@@ -142,6 +142,32 @@ async function main(): Promise<void> {
   const notifyUser = async (telegramId: string, html: string) => {
     if (bot) await bot.api.sendMessage(telegramId, html, { parse_mode: "HTML" });
   };
+
+  // A7 (audit P0): flag ground-truth at boot. Flags exist only as DB rows — a reseeded DB silently
+  // reverts every owner-accepted feature to OFF. Log the effective state + alert on any expected-ON
+  // flag reading off. A3: also surface unresolved kas-write "sent" markers (crash mid real-money
+  // write) — those members' cash door is blocked until the owner resolves what kas actually did.
+  void (async () => {
+    try {
+      const { reconcileFlags } = await import("./services/featureFlags");
+      const { missing, effective } = await reconcileFlags();
+      console.log("[flags] " + effective.map((x) => `${x.on ? "+" : "-"}${x.name}`).join(" "));
+      const { alertAdmins } = await import("./services/economyService");
+      if (missing.length) {
+        await alertAdmins(`⚠️ <b>Flag-audit (boot):</b> kutilgan ON flaglar O'CHIQ: <b>${missing.join(", ")}</b>\nDB reset bo'lganmi? setFlag.ts bilan qaytaring yoki EXPECTED_ON ro'yxatini yangilang.`).catch(() => undefined);
+      }
+      const stuck = await prisma.appState.findMany({
+        where: { OR: [{ key: { startsWith: "pending:wdsent:" } }, { key: { startsWith: "pending:admmove:" } }] },
+        select: { key: true, value: true },
+      });
+      if (stuck.length) {
+        const lines = stuck.map((s) => `<code>${s.key}</code> ${s.value.slice(0, 60)}`).join("\n");
+        await alertAdmins(`⚠️ <b>NOANIQ kas-yozuvlar (boot):</b> ${stuck.length} ta — kas balansini tekshirib clearPending.ts bilan yeching:\n${lines}`).catch(() => undefined);
+      }
+    } catch (e) {
+      console.error("[flags] boot reconcile failed:", e);
+    }
+  })();
   const intervalMs = Math.max(1, env.SYNC_INTERVAL_MINUTES) * 60_000;
   let periodicBusy = false;
   let reconcileTick = 0;

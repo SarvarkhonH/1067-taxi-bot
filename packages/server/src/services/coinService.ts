@@ -231,11 +231,20 @@ export async function withdraw(memberId: number, amount: number): Promise<Withdr
   // must run atomically per member, else two concurrent withdrawals both read withdrawnToday=0
   // and both blow past the 50000/day cap (real money out 2x). Same in-process lock as grantRideCoins.
   return withMemberLock(memberId, async () => {
+    const { consumeWithdrawBudget, releaseWithdrawBudget, alertAdmins } = await import("./economyService");
+    const { pendingCreate, pendingResolve } = await import("./appStateUtil");
+
+    // A3 (audit P0): kas has NO idempotency key — if a previous withdraw crashed/timed out AFTER
+    // the kas write went out but BEFORE its outcome was recorded, re-running would pay real money
+    // TWICE. An unresolved "sent" marker therefore blocks this member's cash door until an admin
+    // confirms what kas actually did (boot alert lists the marker; clearPending.ts releases it).
+    const stale = await prisma.appState.findFirst({ where: { key: { startsWith: `pending:wdsent:m${memberId}-` } }, select: { key: true } });
+    if (stale) return fail("pending_review");
+
     const today = await withdrawnToday(memberId);
     if (today + amount > WITHDRAW_DAILY_CAP) return fail("daily_cap");
 
     // revenue-linked GLOBAL budget: real money out can't outrun real taxi revenue
-    const { consumeWithdrawBudget, releaseWithdrawBudget, alertAdmins } = await import("./economyService");
     if (!(await consumeWithdrawBudget(amount))) return fail("daily_cap"); // global budget exhausted (rides too low today)
 
     // optimistic deduct first — blocks double-spend races
@@ -245,7 +254,13 @@ export async function withdraw(memberId: number, amount: number): Promise<Withdr
       return fail("insufficient");
     }
 
+    // "sent" guard goes down BEFORE the kas write (driverDebtService pattern): a crash between
+    // here and the outcome leaves a durable marker instead of an invisible maybe-paid write.
+    const reqId = `m${memberId}-${Date.now()}`;
+    await pendingCreate("wdsent", reqId, { memberId, amount, note: member.type });
+
     let kasApplied = false;
+    let kasOutcomeKnown = false;
     let kasMessage = "";
     try {
       // per-phone lock: serialize our concurrent balance writes (kas has no CAS).
@@ -256,11 +271,24 @@ export async function withdraw(memberId: number, amount: number): Promise<Withdr
           ? getDataSource().addDriverPayment(Number(member.kasId), member.carNumber ?? "", amount, "1067 ilova: tanga → balans")
           : getDataSource().addClientBonus(member.phone!, amount),
       );
+      kasOutcomeKnown = true; // kas ANSWERED — ok or a clean reject, either way we know
       kasApplied = res.ok;
       kasMessage = !res.ok ? `failed (status ${res.status})` : res.balance != null ? `driver balance: ${res.balance}` : `${res.oldBonus} -> ${res.newBonus}`;
     } catch (e) {
       kasMessage = e instanceof Error ? e.message : String(e);
     }
+
+    if (!kasOutcomeKnown) {
+      // UNKNOWN outcome (timeout/socket death mid-write): kas MAY have applied it. The old code
+      // auto-refunded here — a double-pay if the write actually landed. Now: keep the coins held,
+      // keep the "sent" marker (blocks this member's next withdraw), and page the owner.
+      await alertAdmins(
+        `⚠️ <b>Withdraw NOANIQ:</b> ${member.fullName ?? memberId} — <b>${amount.toLocaleString("ru-RU")} so'm</b>, kas javob bermadi (${kasMessage.slice(0, 80)}).\n` +
+          `Kas balansini tekshirib: yetib borgan bo'lsa marker'ni yeching, bormagan bo'lsa refund qiling.\n<code>pending:wdsent:${reqId}</code>`,
+      ).catch(() => undefined);
+      return { ok: false, reason: "pending_review", amount, coinsLeft: await getCoins(memberId), kasApplied: false };
+    }
+    await pendingResolve("wdsent", reqId); // outcome is KNOWN → the crash-guard has done its job
 
     if (!kasApplied) {
       // T0.5 (AUDIT 3.3): refund is OWED — write the marker FIRST, so a crash or

@@ -312,6 +312,12 @@ export async function adminMoveToBalance(memberId: number, amount: number, admin
   }
   const last4 = adminId.slice(-4);
 
+  // A3 (audit P0): kas has no idempotency key — an unresolved "sent" marker means a previous
+  // move's kas outcome is UNKNOWN (crash/timeout mid-write). Block until it's manually resolved.
+  const { pendingCreate, pendingResolve } = await import("./appStateUtil");
+  const stale = await prisma.appState.findFirst({ where: { key: { startsWith: `pending:admmove:m${memberId}-` } }, select: { key: true } });
+  if (stale) return { ok: false, message: `⏳ Oldingi ko'chirish holati NOANIQ (${stale.key}) — kas balansini tekshirib clearPending.ts bilan yeching.` };
+
   // ── atomic deduct: never below 0 (the row-level guard is the whole safety) ──
   const dec = await prisma.member.updateMany({ where: { id: memberId, coins: { gte: amt } }, data: { coins: { decrement: amt } } });
   if (dec.count === 0) return { ok: false, message: "Tanga yetarli emas" };
@@ -322,11 +328,16 @@ export async function adminMoveToBalance(memberId: number, amount: number, admin
     await prisma.member.update({ where: { id: memberId }, data: { coins: { increment: amt } } });
     await prisma.coinTxn.create({ data: { memberId, amount: amt, kind: "admin_coin", reason: "balansga ko'chirish amalga oshmadi — qaytarildi" } });
   };
+  // "sent" guard BEFORE the kas write (driverDebtService pattern) — a crash mid-write leaves a
+  // durable marker + blocks the next attempt instead of silently double-paying on retry.
+  const reqId = `m${memberId}-${Date.now()}`;
+  await pendingCreate("admmove", reqId, { memberId, amount: amt, note: `by ${last4}` });
   try {
     const res =
       member.type === "driver"
         ? await getDataSource().addDriverPayment(Number(member.kasId), member.carNumber ?? "", amt, "Admin balans")
         : await getDataSource().addClientBonus(member.phone!, amt);
+    await pendingResolve("admmove", reqId); // kas ANSWERED — outcome known either way
     if (!res.ok) {
       await refund();
       return { ok: false, message: `kas xato: status ${"status" in res ? res.status : "?"}` };
@@ -334,8 +345,9 @@ export async function adminMoveToBalance(memberId: number, amount: number, admin
     const where = member.type === "driver" ? `balans: ${(res as { balance: number | null }).balance}` : `${(res as { oldBonus: number; newBonus: number }).oldBonus} → ${(res as { oldBonus: number; newBonus: number }).newBonus}`;
     return { ok: true, message: `✅ ${member.fullName}: ${amt} tanga → balans (${where})` };
   } catch (e) {
-    await refund().catch(() => undefined);
-    return { ok: false, message: `kas xato: ${e instanceof Error ? e.message.slice(0, 80) : "xatolik"}` };
+    // UNKNOWN outcome (throw = timeout/socket death): kas MAY have applied it. No auto-refund
+    // (that's the double-pay); coins stay held, marker stays, admin resolves manually.
+    return { ok: false, message: `⚠️ kas javob bermadi — holat NOANIQ, tanga ushlab turildi. Kas balansini tekshirib pending:admmove:${reqId} ni yeching. (${e instanceof Error ? e.message.slice(0, 60) : "xato"})` };
   }
 }
 

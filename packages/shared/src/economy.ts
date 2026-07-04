@@ -41,7 +41,9 @@ export interface WalletResponse {
 
 export interface WithdrawResponse {
   ok: boolean;
-  reason?: "below_min" | "daily_cap" | "insufficient" | "not_client" | "kas_failed" | "no_ride" | "risk_hold";
+  // pending_review: a previous kas write's outcome is UNKNOWN (crash/timeout mid-write) — the cash
+  // door stays closed for this member until an admin confirms what kas actually did (no double-pay).
+  reason?: "below_min" | "daily_cap" | "insufficient" | "not_client" | "kas_failed" | "no_ride" | "risk_hold" | "pending_review";
   amount: number;
   coinsLeft: number;
   kasApplied: boolean;

@@ -19,7 +19,7 @@ function webAppUrl(go?: string): string {
 import { getDataSource, type ActiveBooking, type SavedAddress } from "../kas";
 import { getMe, getMemberId } from "../services/memberService";
 import { getFareConfig } from "../services/clientInfoService";
-import { callOneTapFor, cancelBookingFor, getQuickPickup, rememberPickup } from "../services/bookingService";
+import { callOneTapFor, cancelBookingFor, claimDispatchSlot, getActiveBookingFor, getQuickPickup, releaseDispatchSlot, rememberPickup } from "../services/bookingService";
 
 interface BookingSession {
   awaitingText: boolean;
@@ -677,8 +677,29 @@ export function registerBooking(bot: Bot, mainMenu: (isDriver?: boolean) => Keyb
       await ctx.editMessageText(`✅ <b>Buyurtma ko'rsatildi</b>\n📍 ${esc(req.addressName)}\n\n<i>(Hozir test rejimi)</i>`, { parse_mode: "HTML" });
       return;
     }
+    // A1 (audit P0): this confirm used to call kas DIRECTLY — no active-ride guard, no atomic
+    // slot — so a fast double-tap (both callbacks in flight before sessions.delete) dispatched
+    // TWO real taxis, and a stale session could dispatch alongside an already-active ride.
+    // Same shields as the Mini App / 1-tap path now; the dispatch payload itself is unchanged.
+    if (!memberId) {
+      await ctx.editMessageText("⚠️ Avval raqamingizni ulang — /start dan «📱 Raqamni ulashish».");
+      return;
+    }
     await ctx.editMessageText("⏳ Buyurtma yuborilyapti…");
-    const res = await getDataSource().createBooking(req);
+    const already = await getActiveBookingFor(memberId).catch(() => null);
+    if (already) {
+      await ctx.editMessageText(`ℹ️ Sizda faol buyurtma bor:\n📍 ${esc(already.addressName ?? "")}\n\n«📍 Buyurtmam» — holatini ko'ring.`, { parse_mode: "HTML" });
+      return;
+    }
+    const slot = await claimDispatchSlot(memberId);
+    if (!slot.ok) {
+      await ctx.editMessageText("⏳ Hozirgina buyurtma yuborilgan — bir daqiqa kuting.");
+      return;
+    }
+    const res = await getDataSource()
+      .createBooking(req)
+      .catch((e) => ({ ok: false as const, message: e instanceof Error ? e.message : String(e) }));
+    if (!res.ok) await releaseDispatchSlot(memberId, slot.prev);
     if (res.ok) {
       await ctx.editMessageText(`✅ <b>Buyurtma qabul qilindi!</b>\n📍 ${esc(req.addressName)}\n\n🔍 Haydovchi qidirilyapti — holat shu yerda <b>jonli</b> yangilanadi 👇`, {
         parse_mode: "HTML",
@@ -686,6 +707,8 @@ export function registerBooking(bot: Bot, mainMenu: (isDriver?: boolean) => Keyb
       // hand this card to the live sweep: it EDITS this same message through every status
       // (driver, ETA, moving pin, finish + fare/bonus). No separate card, no manual refresh.
       await markBotOrderCard(memberId, ctx.callbackQuery.message?.message_id);
+      // parity with createBookingFor: arm the instant-status socket at CREATION (take lands ~1-2s)
+      void import("../services/kasClientSocket").then(({ armInstant }) => armInstant(memberId, req.phoneNumber)).catch(() => undefined);
     } else {
       await ctx.editMessageText(`⚠️ Yuborilmadi: ${esc(res.message ?? "xatolik")}`, { parse_mode: "HTML" });
     }

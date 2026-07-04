@@ -13,6 +13,18 @@
 
 ## Jarayonda
 
+### 🛡 AUDIT BOSQICH A — PUL-QALQON (2026-07-04) — READY FOR VERIFICATION (7 P0/P1 tuzatildi, DARK-safe)
+8-agent auditning pul-xavfli topilmalarini yopish. Har biri isbot bilan:
+- **A1** bot-chat `bk:confirm` endi `claimDispatchSlot` CAS + faol-safar guard + instant-socket arm (Mini App bilan bir xil qalqon) — double-tap 2 taksi chaqirmaydi (booking.ts). Isbot: CAS testi (2 parallel → 1 g'olib).
+- **A2** cashout «bitta ochiq so'rov» endi `createCashout` ichida ATOMIK (withMemberLock+recheck) — bot `/naxt` ham, API ham; ega ikki marta naqd to'lamaydi (cashoutService.ts). Isbot: 2-so'rov → `pending_exists`, 1 satr.
+- **A3** withdraw + adminMoveToBalance: kas-yozuvidan OLDIN `pending:wdsent/admmove` sent-marker; kas javob bermasa (NOANIQ) — avto-refund YO'Q (double-pay oldi), tanga ushlanadi + ega alert + `clearPending.ts` bilan qo'lda yechiladi; osilgan marker keyingi yechishni bloklaydi (`pending_review`). Isbot: marker bor → bloklandi, tanga tegilmadi.
+- **A4** wheel jackpot: bo'lingan `jackpotwin:` kalit AVVAL tekshiriladi — finish-roll allaqachon yutgan bo'lsa g'ildirak pool'ni RESET qilmaydi (oddiy sovg'aga tushadi) + micro-race backstop (regrow+alert). Isbot: kalit bor → pool o'zgarmaydi.
+- **A5** intercity `publishTrip`/`enrollDriver` endi `type==='driver'` talab qiladi — rider soxta reys e'lon qilmaydi (intercityService.ts). Isbot: client → `not_driver`, driver → o'tadi.
+- **A6** `CANCEL_STATUSES` ga `cancel_by_driver`+`cancel_by_client` qo'shildi + yangi safarda eski `rideStartedAt` tozalanadi — boshlanib bekor bo'lgan safar to'lamaydi (bookingNotifier.ts).
+- **A7** flag boot-reconciler: `EXPECTED_ON` ro'yxati + boot'da effektiv holat log + kutilgan-ON o'chiq bo'lsa ega-alert (DB reset = jim o'chishni ushlaydi) + osilgan kas-markerlar alert (index.ts, featureFlags.ts).
+- **ISBOT:** typecheck 4/4 · `testAuditFixesA` 15/15 **3× yashil** (TEST DB, KAS_MODE=mock) · A1 CAS testi · regressiya `testMoneyShield`/`testTrackCta`/`testDrvRank` yashil · yiqilgan mavjud testlar (adminMove/withdrawRace) PRE-EXISTING (mock-kas 400/500; stash-solishtiruv bilan isbotlandi — men buzmadim). Yangi: `clearPending.ts` (osilgan marker qo'lda yechish).
+- **QOLDI:** DARK deploy → jonli tekshiruv. Bosqich B (tezlik: CoinTxn.bookingId index, getActiveBooking kesh, phoneLast9) va C (o'sish-poliş) keyingi.
+
 ### ⚡ CHAQMOQ-TOZALASH #2 — o'lik market/trade tizimi olib tashlandi + Puls voronkasi (2026-07-03) — `ready for verification`
 Ega buyrug'i: «motor olami + umuman ishlatilmaydigan kodlarni yo'qot». Tekshiruv: Motor Olami kodi ALLAQACHON Phase-2'da to'liq o'chirilgan (grep: server+miniapp'da 0 kod-qoldiq, faqat komment/flag nomlari). Yangi topilma: **market/trade tizimi prod'da 0 marta ishlatilgan** (jonli DB: shops=0 listings=0 orders=0 offers=0 msgs=0) — to'liq amputatsiya:
 - **O'chirildi:** `marketService.ts` · `tradeService.ts` · `market.tsx` (unrouted UI) · /api/market/* (5) · /api/admin/market/* (3) · /api/trade/* (5) · /api/items/* (5, faqat o'lik UI chaqirardi) · bot `/vaucher` · tick `settleShopsWeekly` + boot `seedItemTypes` · `testMarket.ts`+`testTradeAI.ts` · miniapp api.ts market/trade/items metodlari+tiplari. **SAQLANDI:** itemService + sweep item-drop'lari (JONLI bot-mexanika: asoschi nishoni, tuman/SAYYOH +5000, haydovchi 20-qism va'dasi) · Prisma jadvallari (Phase-3 siyosati — refund tarixi 2026-08-01 gacha) · service.tsx (Ravella faol WIP boshqa sessiyada) · booking.tsx (booking3 rollback-yo'li).

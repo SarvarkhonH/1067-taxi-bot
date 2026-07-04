@@ -150,7 +150,14 @@ export function registerCashout(bot: Bot): void {
       address = text;
     }
 
-    const { id } = await createCashout(me.member.id, bal, s.method, mask, phone);
+    // A2 (audit P1): the bot flow used to skip the pending-guard entirely — two /naxt runs made
+    // two full-balance owner cards → the owner could pay real cash twice. Service is atomic now.
+    const created = await createCashout(me.member.id, bal, s.method, mask, phone);
+    if (!created.ok) {
+      await ctx.reply("ℹ️ Sizda allaqachon ochiq so'rov bor — ega ko'rib chiqmoqda. Javobini kuting.");
+      return;
+    }
+    const id = created.id;
     await notifyOwnerCashout(bot, { id, name, amount: bal, method: s.method, contact: phone, trips: me.stats.trips, cardFull, cardHolder, address });
     await ctx.reply(
       `✅ <b>So'rovingiz yuborildi!</b>\n\n💰 ${formatNumber(bal)} tanga · ${s.method === "card" ? "💳 plastik kartaga" : "🏠 naxt uyga"}\nTez orada bog'lanamiz va pulingizni o'tkazamiz 💸`,

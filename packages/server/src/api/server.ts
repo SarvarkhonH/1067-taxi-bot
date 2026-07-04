@@ -308,7 +308,12 @@ export function createApiServer(opts: ApiOptions = {}) {
     }
 
     const phone = me.member.phone ?? "—";
-    const { id } = await createCashout(me.member.id, bal, method, mask, phone);
+    const created = await createCashout(me.member.id, bal, method, mask, phone);
+    if (!created.ok) {
+      res.json({ ok: false, reason: created.reason }); // atomic re-check lost the race → same shape as the pre-check above
+      return;
+    }
+    const id = created.id;
     const notice: CashoutOwnerNotice = { id, name: me.member.fullName ?? "Mijoz", amount: bal, method, contact: phone, trips: me.stats.trips, cardFull, cardHolder, address };
     if (opts.notifyCashoutOwner) await opts.notifyCashoutOwner(notice).catch(() => undefined);
     res.json({ ok: true, id, amount: bal, method });
