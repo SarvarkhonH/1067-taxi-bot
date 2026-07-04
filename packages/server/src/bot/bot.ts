@@ -1500,9 +1500,9 @@ export async function setupBotCommands(bot: Bot): Promise<void> {
     try {
       // The bot Menu Button (chat-input chip) is the MOST reliable Mini App entry point — Telegram
       // ALWAYS injects initData for this tap (unlike reply-keyboard web_app buttons, which Web Z /
-      // Desktop sometimes start with a few-hundred-ms initData delay). Point it at the main CTA so
-      // one tap from anywhere in the chat → straight to the map booking screen.
-      await bot.api.setChatMenuButton({ menu_button: { type: "web_app", text: "🚕 Taxi", web_app: { url: webAppUrl("book") } } });
+      // Desktop sometimes start with a few-hundred-ms initData delay). Owner preference: land on the
+      // HOME screen (living map + one-tap CTA + shortcuts), NOT straight into the booking map.
+      await bot.api.setChatMenuButton({ menu_button: { type: "web_app", text: "🚕 1067", web_app: { url: webAppUrl() } } });
     } catch (e) {
       console.error("[bot] setChatMenuButton failed", e instanceof Error ? e.message : e);
     }
