@@ -529,6 +529,49 @@ function MashinaCard() {
   );
 }
 
+// 🚦 Phase-4: blast-radius labels for the kill-switch board. Each flag = what flipping it actually
+// affects, so a non-engineer owner sees "pul-riski" vs "kosmetik" BEFORE toggling. risk: money =
+// touches real tanga/emission, ux = user-visible flow, cosmetic = safe/reversible-nothing.
+type FlagRisk = "money" | "ux" | "cosmetic";
+const FLAG_INFO: Record<string, { risk: FlagRisk; desc: string }> = {
+  booking3: { risk: "ux", desc: "Xarita-first taxi oqimi (asosiy)" },
+  wheel: { risk: "money", desc: "Safar g'ildiragi — tanga yutuq" },
+  baraban: { risk: "money", desc: "Safar-oxiri baraban — tanga" },
+  cashout: { risk: "money", desc: "Naxt pulga chiqarish eshigi" },
+  welcomebonus: { risk: "money", desc: "Birinchi safar 5000 tanga bonus" },
+  recruit: { risk: "money", desc: "Taklif mukofoti" },
+  refstaged: { risk: "money", desc: "Bosqichli taklif to'lovi" },
+  drvstaged: { risk: "money", desc: "Bosqichli haydovchi-QR to'lovi" },
+  drvrecruit: { risk: "money", desc: "Haydovchi→haydovchi mukofot" },
+  plus: { risk: "money", desc: "Plus obuna (3x roll)" },
+  gap: { risk: "money", desc: "Gap-davra pot" },
+  promo: { risk: "money", desc: "Promo kampaniyalar" },
+  qarz: { risk: "money", desc: "Haydovchi qarz to'lash (kas yozuv!)" },
+  komissiya: { risk: "money", desc: "O'tkazma komissiyasi %" },
+  tierloyalty: { risk: "money", desc: "Daraja cashback ko'paytirgich" },
+  intercity: { risk: "money", desc: "Shaharlararo safar (real pul)" },
+  waitcomp: { risk: "money", desc: "Kutish kompensatsiyasi (o'z byudjeti)" },
+  clientbooking: { risk: "ux", desc: "GPS «new» aniq-pin buyurtma" },
+  instantstatus: { risk: "ux", desc: "Tez holat — kas soket (~1s)" },
+  livinghome: { risk: "ux", desc: "Jonli xarita bosh ekran" },
+  trackcta: { risk: "cosmetic", desc: "Kuzatuv-sahifa taklif CTA" },
+  jackpotpost: { risk: "cosmetic", desc: "Jackpot → Koson kanaliga post" },
+  drvrank: { risk: "cosmetic", desc: "Haydovchi QR reyting (o'chirilgan)" },
+  garajx: { risk: "cosmetic", desc: "GARAJ o'yin (olib tashlangan)" },
+  kozacha: { risk: "cosmetic", desc: "Garaj tanga (olib tashlangan)" },
+  motorolami: { risk: "cosmetic", desc: "Motor Olami (olib tashlangan)" },
+  tolqin: { risk: "cosmetic", desc: "Tolqin o'yin (olib tashlangan)" },
+  mahalla: { risk: "cosmetic", desc: "Mahalla reyting (olib tashlangan)" },
+  aibrain: { risk: "cosmetic", desc: "AI konsierj (olib tashlangan)" },
+  garage: { risk: "cosmetic", desc: "Eski garaj v1 (olib tashlangan)" },
+  carupgrade: { risk: "cosmetic", desc: "Model-upgrade (olib tashlangan)" },
+};
+const RISK_STYLE: Record<FlagRisk, { label: string; color: string; bg: string }> = {
+  money: { label: "💰 PUL", color: "#f0b429", bg: "rgba(240,180,41,.14)" },
+  ux: { label: "👁 UX", color: "#378ADD", bg: "rgba(55,138,221,.14)" },
+  cosmetic: { label: "◽ kosmetik", color: "#8b94a7", bg: "rgba(139,148,167,.12)" },
+};
+
 // kill-switch toggles + mashina fund + B2B corp registry
 function ControlCards() {
   const [flags, setFlags] = useState<{ name: string; on: boolean }[] | null>(null);
@@ -579,6 +622,16 @@ function ControlCards() {
         <section className="card">
           <h3>🎁 Bonus narxlari — jonli boshqaruv (deploy'siz)</h3>
           <p className="muted" style={{ margin: "0 0 8px", fontSize: 12 }}>Har bonus turi: taklif/recruit, safar mukofoti, haydovchi tier, missionlar (tanga). Har biri clamp'langan — buzib bo'lmaydi. O'zgartirish ~30s ichida kuchga kiradi.</p>
+          {(() => {
+            // 🔎 Phase-4 effect preview: what a real ride actually pays under the current rideBase.
+            const base = bonusEcon.values.rideBase ?? 100;
+            const first = bonusEcon.values.firstRide ?? 5000;
+            return (
+              <div style={{ background: "rgba(52,211,153,.10)", border: "1px solid rgba(52,211,153,.3)", borderRadius: 10, padding: "8px 12px", margin: "0 0 10px", fontSize: 12.5 }}>
+                🚕 <b>Hozirgi sozlamada:</b> oddiy safar ≈ <b>{formatNumber(base)}</b>, 2x ≈ <b>{formatNumber(base * 2)}</b>, 3x ≈ <b>{formatNumber(base * 3)}</b> tanga · 🍀 omad kuni ×2 · birinchi safar bonusi <b>{formatNumber(first)}</b> · <span className="muted">har safar jami ≤350 tanga (clamp)</span>
+              </div>
+            );
+          })()}
           <div style={{ display: "grid", gap: 4 }}>
             {[...new Set(bonusEcon.knobs.map((k) => k.group))].map((grp) => (
               <div key={grp}>
@@ -598,13 +651,26 @@ function ControlCards() {
       )}
       <section className="card">
         <h3>🔌 Mexanika kill-switch (deploy'siz o'chirish)</h3>
-        <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
-          {(flags ?? []).map((f) => (
-            <button key={f.name} className={f.on ? "btn" : "btn danger"} onClick={() => toggle(f.name, !f.on)}>
-              {f.on ? "🟢" : "🔴"} {f.name}
-            </button>
-          ))}
-        </div>
+        <p className="muted" style={{ margin: "0 0 8px", fontSize: 12 }}>Har flag yonida <b>ta'sir doirasi</b>: 💰 pul (real tanga/emissiya), 👁 UX (foydalanuvchi oqimi), ◽ kosmetik (xavfsiz). Yoqishdan oldin nimaga tegishini bilib turing.</p>
+        {(["money", "ux", "cosmetic"] as FlagRisk[]).map((risk) => {
+          const list = (flags ?? []).filter((f) => (FLAG_INFO[f.name]?.risk ?? "cosmetic") === risk);
+          if (list.length === 0) return null;
+          const rs = RISK_STYLE[risk];
+          return (
+            <div key={risk} style={{ marginBottom: 8 }}>
+              <div style={{ fontSize: 11, fontWeight: 800, color: rs.color, margin: "6px 0 3px", letterSpacing: 0.4 }}>{rs.label}</div>
+              <div style={{ display: "grid", gap: 4 }}>
+                {list.map((f) => (
+                  <div key={f.name} style={{ display: "flex", gap: 8, alignItems: "center", padding: "4px 8px", borderRadius: 8, background: rs.bg }}>
+                    <span style={{ fontWeight: 700, minWidth: 110 }}>{f.name}</span>
+                    <span className="muted" style={{ flex: 1, minWidth: 140, fontSize: 12 }}>{FLAG_INFO[f.name]?.desc ?? ""}</span>
+                    <button className={f.on ? "btn sm" : "btn sm danger"} onClick={() => toggle(f.name, !f.on)}>{f.on ? "🟢 YONIQ" : "🔴 o'chiq"}</button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          );
+        })}
         <p className="muted" style={{ marginTop: 8 }}>🏆 Mashina fondi: <b>{fund.toLocaleString("ru-RU")}</b> so'm (100 so'm/safar, withdraw-byudjetdan alohida)</p>
         {txEcon && (
           <div style={{ marginTop: 14, borderTop: "1px solid rgba(255,255,255,0.12)", paddingTop: 10 }}>
