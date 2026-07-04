@@ -215,7 +215,9 @@ function RideProgress({ pct, full, className }: { pct: number; full: boolean; cl
     <div className={`b3-ride-progress hascar${full ? " full" : ""}${className ? ` ${className}` : ""}`}>
       <i style={{ width: `${pct}%` }} />
       <span className="b3-ride-carwrap" style={{ transform: `translateX(${pct}%)` }} aria-hidden>
-        <span className="b3-ride-caremoji">{full ? "🏁" : "🚕"}</span>
+        <span className={`b3-ride-carbob${full ? "" : " driving"}`}>
+          <span className="b3-ride-caremoji">{full ? "🏁" : "🚕"}</span>
+        </span>
       </span>
     </div>
   );
