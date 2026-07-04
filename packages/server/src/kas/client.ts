@@ -33,7 +33,27 @@ import { recordKas, classifyKasError } from "../services/kasHealth";
 // is set and the ride is rewarded on finish (baraban / cashback / fare). Without this EVERY real
 // ride looked like a phantom (no rideStartedAt) and paid nothing. Other kas statuses already map:
 // new/searching → SEARCHING, take/on_the_way → en-route, cancel_*/take_back → cancel.
+// Canary (audit P1): the ENTIRE reward decision hinges on this exact vocabulary. If kas renames a
+// token (it renamed nothing yet, but "in_place" once broke ALL payouts before this map existed),
+// a completed ride would silently look like a phantom/cancel and pay nothing, fleet-wide, with NO
+// error. So any status token we've never seen is logged + alerted ONCE (throttled) — the earliest
+// possible signal of a kas breaking change, days before anyone notices missing tanga.
+const KNOWN_KAS_STATUSES = new Set([
+  "new", "searching", "take", "on_the_way", "called", "in_place", "started", "arrived",
+  "delivered", "completed", "finished", "cancel", "cancel_by_operator", "cancel_by_server",
+  "cancel_by_driver", "cancel_by_client", "take_back", "no_booking", "",
+]);
+const seenUnknownStatus = new Set<string>();
 export function normBookingStatus(s: string): string {
+  if (!KNOWN_KAS_STATUSES.has(s) && !seenUnknownStatus.has(s)) {
+    seenUnknownStatus.add(s);
+    if (seenUnknownStatus.size < 50) {
+      console.warn(`[kas-canary] UNKNOWN booking status "${s}" — kas may have changed its vocabulary (reward attribution at risk)`);
+      void import("../services/economyService")
+        .then(({ alertAdmins }) => alertAdmins(`⚠️ <b>kas-canary:</b> notanish safar-status «<code>${s}</code>» keldi. Kas so'zlarini o'zgartirgan bo'lishi mumkin — to'lov-atributsiyasi xavf ostida. Tekshiring.`))
+        .catch(() => undefined);
+    }
+  }
   return s === "in_place" ? "started" : s;
 }
 
@@ -558,6 +578,7 @@ export class KasLiveSource implements KasDataSource {
               additionalPayment: req.additionalPayment ?? 0,
             });
             if (cr.status >= 200 && cr.status < 300 && /"status"\s*:\s*"new"/.test(cr.body)) {
+              this.bustActiveCache(); // our own new booking must be visible to the next guard read immediately
               return { ok: true, message: cr.body.slice(0, 200) };
             }
           }
@@ -575,6 +596,7 @@ export class KasLiveSource implements KasDataSource {
     for (let attempt = 0; attempt < 2; attempt++) {
       const res = await this.postJson("api/bookings/throughWeb", body);
       if (res.status >= 200 && res.status < 300 && /"id"\s*:\s*\d/.test(res.body)) {
+        this.bustActiveCache(); // our own new booking must be visible to the next guard read immediately
         return { ok: true, message: res.body.slice(0, 200) };
       }
       if (attempt === 0) {
@@ -688,7 +710,9 @@ export class KasLiveSource implements KasDataSource {
       await this.login();
       res = await doReq();
     }
-    return { ok: res.status >= 200 && res.status < 300, message: res.body.slice(0, 200) };
+    const ok = res.status >= 200 && res.status < 300;
+    if (ok) this.bustActiveCache(); // cancelled ride must drop from the guard's view immediately
+    return { ok, message: res.body.slice(0, 200) };
   }
 
   async getDriverPins(): Promise<DriverPin[]> {
@@ -731,15 +755,53 @@ export class KasLiveSource implements KasDataSource {
     }
   }
 
+  // ─── shared active-booking list (perf audit P1-1/P1-2) ─────────────────────────
+  // The FULL active list (api/bookings) was fetched redundantly: the sweep's listActiveBookings,
+  // every rider's /booking/active 5s poll, and each Mini App open — all the SAME data, each a
+  // queued kas read competing on the 1.66 req/s lane. One short-TTL cache collapses them: within
+  // KAS_ACTIVE_TTL_MS (default 2.5s, well under the 5s sweep/poll cadence) they share ONE read.
+  private activeRaw: { at: number; list: Record<string, unknown>[] } | null = null;
+  private static readonly ACTIVE_TTL_MS = Math.max(0, Number(process.env.KAS_ACTIVE_TTL_MS) || 2500);
+  /** Bust the cache right after WE mutate the active list (create/cancel) so the guard sees it. */
+  bustActiveCache(): void {
+    this.activeRaw = null;
+  }
+  /** Hardened fetch of the raw active-booking array (dead-session re-login retry preserved),
+   *  memoized for ACTIVE_TTL_MS. THROWS on a persistent non-array so the sweep's catch skips the
+   *  tick and preserves ride state (never returns [] on a dead session). */
+  private async fetchActiveBookingsRaw(): Promise<Record<string, unknown>[]> {
+    const c = this.activeRaw;
+    if (c && Date.now() - c.at < KasLiveSource.ACTIVE_TTL_MS) return c.list;
+    for (let attempt = 0; attempt < 2; attempt++) {
+      const res = await this.getText("api/bookings");
+      let j: unknown = null;
+      try {
+        j = JSON.parse(res.body);
+      } catch {
+        /* non-JSON (login page) → handled below */
+      }
+      if (Array.isArray(j)) {
+        const list = j as Record<string, unknown>[];
+        this.activeRaw = { at: Date.now(), list };
+        return list;
+      }
+      if (attempt === 0) {
+        this.loggedIn = false; // dead session → drop it; getText re-logins fresh on retry
+        continue;
+      }
+      throw new Error(`kas1067 api/bookings: no booking array after re-login (status ${res.status})`);
+    }
+    throw new Error("kas1067 api/bookings failed");
+  }
+
   async getActiveBooking(phone: string): Promise<ActiveBooking | null> {
     const norm = phone.replace(/\D/g, "").slice(-9);
     if (!norm) return null;
     let list: Record<string, unknown>[] = [];
     try {
-      const j = JSON.parse((await this.getText("api/bookings")).body);
-      if (Array.isArray(j)) list = j;
+      list = await this.fetchActiveBookingsRaw();
     } catch {
-      return null;
+      return null; // per-rider view degrades to "no active" on a dead session (the sweep still throws+skips)
     }
     const b = list.find((x) => String(x.phoneNumber ?? "").replace(/\D/g, "").slice(-9) === norm);
     if (!b) return null;
@@ -783,42 +845,24 @@ export class KasLiveSource implements KasDataSource {
   }
 
   async listActiveBookings(): Promise<ActiveBookingLite[]> {
-    // A LIVE session returns a JSON array. A DEAD session (a concurrent login on the shared kas
-    // account evicted ours) serves the login PAGE at HTTP 200 — the old code JSON-parse-failed and
-    // returned [] → the sweep read "no active rides" and FINISHED every live ride, stopping the
-    // live-location pin ("xarita yo'qoldi") and flipping cards to cancelled. So on a non-array
-    // response we re-login fresh and retry once; only then throw (the sweep's catch then SKIPS this
-    // tick, PRESERVING every ride's state until the session recovers).
-    for (let attempt = 0; attempt < 2; attempt++) {
-      const res = await this.getText("api/bookings");
-      let j: unknown = null;
-      try {
-        j = JSON.parse(res.body);
-      } catch {
-        /* non-JSON (login page) → handled below */
-      }
-      if (Array.isArray(j)) {
-        return (j as Record<string, unknown>[]).map((b) => ({
-          id: Number(b.id ?? 0),
-          phoneNorm: String(b.phoneNumber ?? "").replace(/\D/g, "").slice(-9),
-          status: normBookingStatus(String(b.status ?? "")),
-          carNumber: String(b.carNumber ?? ""),
-          addressName: String(b.addressName ?? ""),
-          clientBonus: num(b.clientBonus),
-          lat: num(b.addressLatitude) || undefined,
-          lng: num(b.addressLongitude) || undefined,
-          additionalPaymentAddress: num(b.additionalPaymentAddress) || undefined,
-          additionalPaymentClient: num(b.additionalPaymentClient) || undefined,
-          additionalPaymentCompany: num(b.additionalPaymentCompany) || undefined,
-        }));
-      }
-      if (attempt === 0) {
-        this.loggedIn = false; // dead session → drop it; getText re-logins fresh on retry
-        continue;
-      }
-      throw new Error(`kas1067 api/bookings: no booking array after re-login (status ${res.status})`);
-    }
-    throw new Error("kas1067 api/bookings failed");
+    // Shares the ACTIVE_TTL_MS-cached raw list with getActiveBooking + the frontend poll (perf
+    // audit P1-1). The dead-session re-login retry now lives in fetchActiveBookingsRaw, which THROWS
+    // on a persistent non-array so the sweep's catch SKIPS the tick and preserves ride state (never
+    // reads "no active rides" off a login page → the old mass-false-finish / "xarita yo'qoldi" bug).
+    const list = await this.fetchActiveBookingsRaw();
+    return list.map((b) => ({
+      id: Number(b.id ?? 0),
+      phoneNorm: String(b.phoneNumber ?? "").replace(/\D/g, "").slice(-9),
+      status: normBookingStatus(String(b.status ?? "")),
+      carNumber: String(b.carNumber ?? ""),
+      addressName: String(b.addressName ?? ""),
+      clientBonus: num(b.clientBonus),
+      lat: num(b.addressLatitude) || undefined,
+      lng: num(b.addressLongitude) || undefined,
+      additionalPaymentAddress: num(b.additionalPaymentAddress) || undefined,
+      additionalPaymentClient: num(b.additionalPaymentClient) || undefined,
+      additionalPaymentCompany: num(b.additionalPaymentCompany) || undefined,
+    }));
   }
 
   async getReportsPage(page: number, size: number): Promise<RideHistoryItem[]> {

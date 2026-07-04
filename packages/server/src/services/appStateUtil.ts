@@ -92,19 +92,29 @@ export async function pendingScan(kind: string): Promise<{ retry: PendingRow[]; 
 // rows degrading every startsWith scan. Their replay-protection window is MINUTES (sweep re-polls),
 // so 30 days is far beyond any legitimate retry. waitvoucher/barabantoken are excluded: they carry
 // their own expiry and are consumed in-flow. Runs daily off the existing 15-min tick (no new poller).
-const EXPIRABLE_MARKER_PREFIXES = [
+// EPHEMERAL: pure per-ride coordination markers whose replay window is MINUTES (the sweep re-polls
+// the same booking within seconds). These accumulate ~10/ride and dominate the table; a 2-day TTL is
+// far beyond any legitimate retry. NONE of these gate money — the money idempotency keys live in
+// CoinTxn.idempotencyKey (a real unique index), never here. trackjoin: is kept LONGER (K-factor
+// metric, below). icbrd:/icdep: are intercity sweep once-markers (audit P2-D).
+const EPHEMERAL_MARKER_PREFIXES = [
   "qinc:", "qscore:", "ridefin:", "wsarrived:", "waitstart:", "waitfound:", "waitvfail:",
-  "finishcard:", "faredone:", "fundride:", "farepending:", "cancels:",
+  "finishcard:", "faredone:", "fundride:", "farepending:", "cancels:", "tracknudge:", "icbrd:", "icdep:",
 ];
+// LONGER: kept 30 days (metrics / analytics reads, not per-ride ephemera).
+const LONG_MARKER_PREFIXES = ["trackjoin:"];
 
-export async function cleanupExpiredMarkers(maxAgeDays = 30): Promise<number> {
-  const cutoff = new Date(Date.now() - maxAgeDays * 86400_000);
-  let total = 0;
-  for (const prefix of EXPIRABLE_MARKER_PREFIXES) {
-    const r = await prisma.appState.deleteMany({ where: { key: { startsWith: prefix }, updatedAt: { lt: cutoff } } }).catch(() => ({ count: 0 }));
-    total += r.count;
-  }
-  return total;
+export async function cleanupExpiredMarkers(ephemeralDays = 2, longDays = 30): Promise<number> {
+  const del = async (prefixes: string[], days: number): Promise<number> => {
+    const cutoff = new Date(Date.now() - days * 86400_000);
+    let n = 0;
+    for (const prefix of prefixes) {
+      const r = await prisma.appState.deleteMany({ where: { key: { startsWith: prefix }, updatedAt: { lt: cutoff } } }).catch(() => ({ count: 0 }));
+      n += r.count;
+    }
+    return n;
+  };
+  return (await del(EPHEMERAL_MARKER_PREFIXES, ephemeralDays)) + (await del(LONG_MARKER_PREFIXES, longDays));
 }
 
 /** Daily gate for the tick: run at most once per Tashkent day (marker itself is 1 AppState row). */
@@ -114,5 +124,5 @@ export async function maybeDailyMarkerCleanup(): Promise<void> {
   if (row?.value === today) return;
   await prisma.appState.upsert({ where: { key: "cleanup:markers" }, create: { key: "cleanup:markers", value: today }, update: { value: today } });
   const n = await cleanupExpiredMarkers();
-  if (n > 0) console.log(`[cleanup] ${n} expired AppState markers removed (>30d)`);
+  if (n > 0) console.log(`[cleanup] ${n} expired AppState markers removed (ephemeral >2d, metrics >30d)`);
 }

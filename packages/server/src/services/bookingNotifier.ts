@@ -12,6 +12,7 @@ import { prisma } from "../db";
 import { getDataSource, type ActiveBookingLite, type BookingDriver, type KasDataSource, type RideHistoryItem } from "../kas";
 import { incrementMission } from "./missionService";
 import { kasMapSocket } from "./kasMapSocket";
+import { kasClientSocket } from "./kasClientSocket";
 import { resolveDisplayName } from "./memberService";
 import { markRideActive } from "./tierLoyaltyService";
 
@@ -476,7 +477,7 @@ export async function pushBookingUpdates(
           where: { id: m.id },
           data: { lastBookingId: null, lastBookingStatus: null, lastBookingCar: null, lastBookingBonus: null, rideCardMsgId: null, liveLocMsgId: null, rideStartedAt: null },
         });
-        if (instantOn) await import("./kasClientSocket").then(({ kasClientSocket }) => kasClientSocket.unregister(m.id)).catch(() => undefined); // ⚡ ride gone → close socket
+        kasClientSocket.unregister(m.id); // ⚡ ride gone → close socket UNCONDITIONALLY (audit P1: never gate a close on the flag)
         continue;
       }
       {
@@ -828,7 +829,7 @@ export async function pushBookingUpdates(
           rideStartedAt: null,
         },
       });
-      if (instantOn) await import("./kasClientSocket").then(({ kasClientSocket }) => kasClientSocket.unregister(m.id)).catch(() => undefined); // ⚡ ride finished → close socket
+      kasClientSocket.unregister(m.id); // ⚡ ride finished → close socket UNCONDITIONALLY (audit P1)
     }
     } catch (e) {
       console.error(`[sweep] member ${m.id} skipped this tick:`, e instanceof Error ? e.message.split("\n")[0] : e);
@@ -862,6 +863,16 @@ export async function pushBookingUpdates(
     const b = byPhone.get(m.phone!.replace(/\D/g, "").slice(-9));
     return b ? !b.carNumber : false;
   }).length;
+  // ⚡ instant-socket reaper (audit P1): on a FULL sweep only (a scoped run sees one member), close
+  // any client socket whose member no longer has a live ride — a missed finish-branch unregister
+  // (flag toggle, crash, sweep skip) can't strand a socket + its 3s keepalive past this pass.
+  if (!opts?.memberScope) {
+    try {
+      kasClientSocket.reap(new Set(activeMembers.map((m) => m.id)));
+    } catch (e) {
+      console.error("[clientsocket] reap failed:", e instanceof Error ? e.message : e);
+    }
+  }
   return { active: activeMembers.length, awaitingDriver };
 }
 

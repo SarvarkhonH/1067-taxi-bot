@@ -22,7 +22,9 @@ import { env } from "../env";
 const HOST = process.env.KAS_CLIENT_SOCKET_HOST || "46.8.176.53";
 const PORT = Number(process.env.KAS_CLIENT_SOCKET_PORT) || 1114;
 const RECONNECT_MS = 5_000;
+const RECONNECT_MAX_MS = 5 * 60_000; // cap the exponential backoff
 const KEEPALIVE_MS = 3_000;
+const MAX_CONNS = Math.max(1, Number(process.env.KAS_CLIENT_SOCKET_MAX) || 400); // hard cap (city-scale backpressure)
 
 const BOOKING_STATUSES = new Set(["new_booking", "take_booking", "called_booking", "in_place_booking", "no_booking", "logout"]);
 
@@ -40,6 +42,8 @@ interface Conn {
   lastStatus: string;
   authed: boolean;
   keepAlive: ReturnType<typeof setInterval> | null;
+  attempt: number; // consecutive reconnects → exponential backoff (reset on auth_success)
+  armedAt: number; // for LRU eviction when the cap is hit
 }
 
 class KasClientSocket {
@@ -59,16 +63,40 @@ class KasClientSocket {
     const existing = this.conns.get(memberId);
     if (existing && existing.secretKey === secretKey && existing.sock) return; // already live
     if (existing) this.close(memberId); // stale/changed key → drop and reopen
-    const c: Conn = { phone, secretKey, sock: null, stopped: false, buf: "", lastStatus: "", authed: false, keepAlive: null };
+    // hard cap (backpressure): if full and this is a NEW member, evict the oldest-armed socket
+    // rather than opening an unbounded pool against kas's Netty server.
+    if (!existing && this.conns.size >= MAX_CONNS) {
+      let oldestId = -1;
+      let oldestAt = Infinity;
+      for (const [id, cc] of this.conns) if (cc.armedAt < oldestAt) { oldestAt = cc.armedAt; oldestId = id; }
+      if (oldestId >= 0) { console.log(`[clientsocket] cap ${MAX_CONNS} hit → evict m${oldestId}`); this.unregister(oldestId); }
+    }
+    const c: Conn = { phone, secretKey, sock: null, stopped: false, buf: "", lastStatus: "", authed: false, keepAlive: null, attempt: 0, armedAt: Date.now() };
     this.conns.set(memberId, c);
-    console.log(`[clientsocket] arm m${memberId} → ${HOST}:${PORT}`);
+    console.log(`[clientsocket] arm m${memberId} → ${HOST}:${PORT} (${this.conns.size}/${MAX_CONNS})`);
     this.connect(memberId);
   }
 
-  /** Ride ended / member no longer active → close their socket. */
+  /** Ride ended / member no longer active → close their socket. UNCONDITIONAL (audit P1): closing a
+   *  socket is always safe, so it must NOT be gated on the instantstatus flag — a flag flipped off
+   *  mid-ride used to strand the socket + its 3s keepalive forever. */
   unregister(memberId: number): void {
     this.close(memberId);
     this.conns.delete(memberId);
+  }
+
+  /** Reaper (audit P1): close any socket whose member is NOT in the live-ride set. A missed
+   *  finish-branch unregister (crash, flag toggle, sweep skip) can't strand a connection past one
+   *  reaper pass. Call from the periodic tick with the current active-ride member ids. */
+  reap(activeMemberIds: Set<number>): number {
+    let closed = 0;
+    for (const id of [...this.conns.keys()]) if (!activeMemberIds.has(id)) { this.unregister(id); closed++; }
+    if (closed) console.log(`[clientsocket] reaped ${closed} stale socket(s) → ${this.conns.size} live`);
+    return closed;
+  }
+
+  size(): number {
+    return this.conns.size;
   }
 
   isUp(memberId: number): boolean {
@@ -131,7 +159,13 @@ class KasClientSocket {
       c.sock = null;
       c.authed = false;
       if (c.keepAlive) { clearInterval(c.keepAlive); c.keepAlive = null; }
-      if (!c.stopped && !this.stopped && this.conns.get(memberId) === c) setTimeout(() => this.connect(memberId), RECONNECT_MS);
+      if (!c.stopped && !this.stopped && this.conns.get(memberId) === c) {
+        // exponential backoff + jitter (audit P1): a kas outage used to make EVERY socket reconnect
+        // in 5s lockstep — a synchronized storm against the already-sick Netty server. Spread them.
+        c.attempt = Math.min(c.attempt + 1, 6);
+        const delay = Math.min(RECONNECT_MS * 2 ** (c.attempt - 1), RECONNECT_MAX_MS) + Math.floor(Math.random() * 1000);
+        setTimeout(() => this.connect(memberId), delay);
+      }
     });
   }
 
@@ -148,6 +182,7 @@ class KasClientSocket {
       const status = raw.replace(/^#?</, "").replace(/>$/, "").split("|")[0] ?? "";
       if (status === "auth_success") {
         c.authed = true;
+        c.attempt = 0; // healthy connection → reset backoff
         console.log(`[clientsocket] m${memberId} authed ✅ (socket live)`);
         this.send(c, "start");
         if (c.keepAlive) clearInterval(c.keepAlive);
