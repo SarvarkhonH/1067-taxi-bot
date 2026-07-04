@@ -9,6 +9,18 @@
 Correction baked in: `ScheduledRide`, `FamilyMember`, `RideRating`, `PeakHour`, `Streak`, tier
 decay — **already built**. Most "new" product work is surfacing + wiring, not greenfield.
 
+### STATUS 2026-07-04
+**✅ DONE + LIVE:** Phase 0 (all 7); wait-comp "Jonli qidiruv" + topilmadi-voucher; driver UI
+(dispatcherless + mission cards); map/UX polish (glide, geo LocationManager, sheet collapse, ride
+progress bar); W1 №2 jackpot channel (owner-accepted); trackcta ended-CTA + TrackView redesign +
+"5000 bonus" CTA; **W2 №1 instant-status** (kasClientSocket, bot ~1s; Mini App poll 12s→3s);
+SSE deferred to Render Standard.
+**❌ NOT YET:** Phase 1 taxi UX (1-tap "Yana shu yo'l" chips, smart pickup, scheduled nudge, family
+tile, post-ride moment, ETA-honesty); Phase 2 loops 2.2–2.7 (streak-freeze, "bugun mumkin" counter,
+tier-decay countdown, rating-bonus, off-peak, streak-multiplier); Phase 3 virality 3.2–3.5 (family-
+invite→referral, jackpot share-card, city leaderboard, inline receipt); Phase 4 admin tools.
+**🗑 DROPPED (owner 2026-07-04):** driver QR-income report / monthly push — keep flag `drvrank` OFF.
+
 ---
 
 ## Phase 0 — Poydevor: fast & unbreakable (DO FIRST, ~1 week)
