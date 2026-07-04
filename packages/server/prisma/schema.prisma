@@ -491,6 +491,7 @@ model TelegramUser {
   referralCode       String?   @unique // this user's own invite code
   referredByCode     String? // pending invite code captured at /start
   referralCreditedAt DateTime? // set once the referral reward is paid (one-time)
+  blockedAt          DateTime? // set when a send returns 403 (user blocked the bot); cleared when they interact again
   createdAt          DateTime  @default(now())
   updatedAt          DateTime  @updatedAt
 }

@@ -88,7 +88,18 @@ async function main(): Promise<void> {
 
   // 2. HTTP API for the Mini App + admin dashboard
   const sendTg = async (telegramId: string, html: string) => {
-    if (bot) await bot.api.sendMessage(telegramId, html, { parse_mode: "HTML" });
+    if (!bot) return;
+    try {
+      await bot.api.sendMessage(telegramId, html, { parse_mode: "HTML" });
+    } catch (e) {
+      // 403 = user blocked/deactivated the bot → mark it so the admin can SEE who blocked
+      // (cleared automatically the moment they interact again — see touchTelegramUser).
+      const code = (e as { error_code?: number })?.error_code;
+      if (code === 403 || /blocked|deactivated|forbidden/i.test(String((e as Error)?.message))) {
+        await prisma.telegramUser.update({ where: { id: telegramId }, data: { blockedAt: new Date() } }).catch(() => undefined);
+      }
+      throw e; // keep existing callers' failure-counting behaviour intact
+    }
   };
   const app = createApiServer({
     afterSync: notifyBadges,

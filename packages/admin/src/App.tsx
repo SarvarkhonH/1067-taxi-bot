@@ -14,9 +14,9 @@ import {
   type AdminMemberRow,
   type AdminStats,
 } from "@t1067/shared";
-import { adminApi, clearAdminToken, hasAdminToken, setAdminToken, type AdminBannedRow, type AdminChatConvo, type AdminChatMsg, type AdminDebtRow, type AdminMsgHistoryRow, type AdminRatingRow, type AdminTxnRow, type AdminReferralRow, type AdminRideRow, type AdminUserRow, type AdminWithdrawalRow, type AdminWithdrawalTabRow, type CampaignRow, type Driver360, type DriverCallRow, type DriverCallStats, type DriverMissionRow, type IntercityAdminTrip, type IntercityAdminDebt, type Member360, type PeakHourRow } from "./api";
+import { adminApi, clearAdminToken, hasAdminToken, setAdminToken, type AdminBannedRow, type AdminChatConvo, type AdminChatMsg, type AdminDebtRow, type AdminMsgHistoryRow, type AdminRatingRow, type AdminTxnRow, type AdminBlockedRow, type AdminReferralRow, type AdminRideRow, type AdminUserRow, type AdminWithdrawalRow, type AdminWithdrawalTabRow, type CampaignRow, type Driver360, type DriverCallRow, type DriverCallStats, type DriverMissionRow, type IntercityAdminTrip, type IntercityAdminDebt, type Member360, type PeakHourRow } from "./api";
 
-type Tab = "overview" | "pulse" | "analytics" | "finance" | "live" | "x360" | "driver" | "client" | "botusers" | "obzvon" | "boshqaruv" | "topshiriq" | "actions" | "integrity" | "audit" | "safarlar" | "qarzlar" | "referallar" | "banlist" | "yechishlar" | "baholar" | "xabar" | "chat" | "broadcasts" | "intercity" | "pik" | "transactions";
+type Tab = "overview" | "pulse" | "analytics" | "finance" | "live" | "x360" | "driver" | "client" | "botusers" | "obzvon" | "boshqaruv" | "topshiriq" | "actions" | "integrity" | "audit" | "safarlar" | "qarzlar" | "referallar" | "banlist" | "yechishlar" | "baholar" | "xabar" | "chat" | "broadcasts" | "intercity" | "pik" | "transactions" | "blocked";
 
 const NAV_GROUPS: { label: string; items: { id: Tab; icon: string; label: string }[] }[] = [
   {
@@ -63,6 +63,7 @@ const NAV_GROUPS: { label: string; items: { id: Tab; icon: string; label: string
       { id: "chat", icon: "💬", label: "Mijozlar chat" },
       { id: "xabar", icon: "📱", label: "Xabar tarixi" },
       { id: "broadcasts", icon: "📢", label: "Xabarlar tarixi" },
+      { id: "blocked", icon: "📵", label: "Bloklaganlar" },
     ],
   },
   {
@@ -182,6 +183,7 @@ export function App() {
           {tab === "xabar" && <XabarView />}
           {tab === "broadcasts" && <BroadcastHistoryView />}
           {tab === "transactions" && <TransactionsView />}
+          {tab === "blocked" && <BlockedView />}
           {tab === "pik" && <PeakHoursView />}
         </div>
       </div>
@@ -3169,6 +3171,84 @@ function TransactionsView() {
         </div>
       )}
       <p className="muted" style={{ fontSize: 11, marginTop: 10 }}>🚗 = haydovchi · Summa = tanga. «Haydovchiga to'lov» va «Choychaqa» — mijoz botda haydovchiga tanga yuboradi. «Yechish» — tanga real pulga.</p>
+    </div>
+  );
+}
+
+// ─── 📵 Bloklaganlar — botni bloklagan foydalanuvchilar ───────────────────────
+function BlockedView() {
+  const [rows, setRows] = useState<AdminBlockedRow[]>([]);
+  const [q, setQ] = useState("");
+  const [loading, setLoading] = useState(true);
+  const [err, setErr] = useState("");
+
+  const load = () => {
+    setLoading(true);
+    adminApi.blocked(1000).then((r) => { setRows(r); setLoading(false); }).catch((e) => { setErr(e instanceof Error ? e.message : "xatolik"); setLoading(false); });
+  };
+  useEffect(load, []);
+
+  const filtered = rows.filter((r) => {
+    if (!q.trim()) return true;
+    const s = q.toLowerCase();
+    return [r.name, r.phone, r.telegramId].some((x) => x?.toLowerCase().includes(s));
+  });
+
+  const exportCsv = () => {
+    const csv = "Ism,Telefon,TelegramID,Bog'langan,BloklaganSana\n" +
+      filtered.map((r) => `"${r.name}",${r.phone ?? ""},${r.telegramId},${r.linked ? "ha" : "yo'q"},"${fmtTime(r.at)}"`).join("\n");
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8" }));
+    a.download = "bloklaganlar.csv";
+    a.click();
+  };
+
+  return (
+    <div className="panel">
+      <div className="panel-head">
+        <div className="panel-title">📵 Bloklaganlar — botni bloklagan foydalanuvchilar</div>
+        <div style={{ display: "flex", gap: 8 }}>
+          <button className="btn sm" onClick={load}>🔄 Yangilash</button>
+          <button className="btn sm" onClick={exportCsv} disabled={!filtered.length}>📥 CSV</button>
+        </div>
+      </div>
+
+      {!loading && (
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: 10, marginBottom: 14 }}>
+          <div className="card" style={{ padding: 14 }}>
+            <div className="card-label">📵 Jami bloklaganlar</div>
+            <div className="card-value" style={{ fontSize: 22, color: "#f87171" }}>{rows.length}</div>
+          </div>
+          <div className="card" style={{ padding: 14 }}>
+            <div className="card-label">🔗 Bog'langan (mijoz/haydovchi)</div>
+            <div className="card-value" style={{ fontSize: 22 }}>{rows.filter((r) => r.linked).length}</div>
+          </div>
+        </div>
+      )}
+
+      <input className="search" style={{ width: "100%", marginBottom: 12 }} placeholder="🔍 Ism / telefon bo'yicha qidirish" value={q} onChange={(e) => setQ(e.target.value)} />
+
+      {err && <div className="action-msg">{err}</div>}
+      {loading ? <p className="muted">Yuklanmoqda…</p> : filtered.length === 0 ? <p className="muted">Bloklagan foydalanuvchi yo'q. 🎉</p> : (
+        <div className="table-wrap">
+          <table>
+            <thead>
+              <tr><th>Ism</th><th>Telefon</th><th>Holat</th><th>Bloklagan sana</th></tr>
+            </thead>
+            <tbody>
+              {filtered.map((r) => (
+                <tr key={r.telegramId}>
+                  <td className="td-name">{r.name}</td>
+                  <td>{r.phone ?? <span className="muted">—</span>}</td>
+                  <td>{r.linked ? <span className="lvl">🔗 Bog'langan</span> : <span className="muted">ulanmagan</span>}</td>
+                  <td style={{ fontSize: 12, color: "var(--muted)", whiteSpace: "nowrap" }}>{fmtTime(r.at)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+      <p className="muted" style={{ fontSize: 11, marginTop: 10 }}>Botga xabar yuborilganda 403 qaytsa (bot bloklangan) shu ro'yxatga tushadi. Foydalanuvchi qaytib /start bossa yoki bot bilan ishlasa — avtomatik ro'yxatdan chiqadi.</p>
     </div>
   );
 }

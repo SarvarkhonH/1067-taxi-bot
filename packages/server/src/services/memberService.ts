@@ -387,7 +387,8 @@ export async function touchTelegramUser(
     languageCode: profile.languageCode ?? null,
     isAdmin: isAdmin(telegramId),
   };
-  await prisma.telegramUser.upsert({ where: { id: telegramId }, create: { id: telegramId, ...base }, update: base });
+  // any interaction proves they're reachable again → clear a stale "blocked" mark
+  await prisma.telegramUser.upsert({ where: { id: telegramId }, create: { id: telegramId, ...base }, update: { ...base, blockedAt: null } });
 }
 
 // ─── admin (scoped to a member type) ───────────────────────────────────────────

@@ -686,6 +686,23 @@ export async function getAdminTransactions(kind: "all" | "transfer" | "tip" | "f
   return rows.slice(0, limit);
 }
 
+// ─── 📵 users who blocked the bot ────────────────────────────────────────────
+export async function getAdminBlocked(limit = 500): Promise<{ telegramId: string; name: string; phone: string | null; linked: boolean; at: string }[]> {
+  const rows = await prisma.telegramUser.findMany({
+    where: { blockedAt: { not: null } },
+    orderBy: { blockedAt: "desc" },
+    take: limit,
+    select: { id: true, firstName: true, lastName: true, username: true, blockedAt: true, member: { select: { fullName: true, displayName: true, phone: true } } },
+  });
+  return rows.map((t) => ({
+    telegramId: t.id,
+    name: t.member?.displayName || t.member?.fullName || [t.firstName, t.lastName].filter(Boolean).join(" ") || (t.username ? `@${t.username}` : t.id),
+    phone: t.member?.phone ?? null,
+    linked: !!t.member,
+    at: (t.blockedAt ?? new Date()).toISOString(),
+  }));
+}
+
 // ─── ⭐ ride ratings ──────────────────────────────────────────────────────────
 export async function getAdminRatings(limit = 200): Promise<{ id: number; memberId: number; bookingId: number; carNumber: string; stars: number; tags: string; at: string }[]> {
   const rows = await prisma.rideRating.findMany({

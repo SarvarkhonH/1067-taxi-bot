@@ -1412,6 +1412,13 @@ body{font-family:Arial,sans-serif;background:#eee;-webkit-print-color-adjust:exa
     res.json(await getAdminWithdrawals(limit));
   });
 
+  // 📵 users who blocked the bot (send returned 403; auto-clears when they interact again)
+  app.get("/api/admin/blocked", requireAdmin, async (req, res) => {
+    const limit = Math.min(1000, Number(req.query.limit) || 500);
+    const { getAdminBlocked } = await import("../services/adminOps");
+    res.json(await getAdminBlocked(limit));
+  });
+
   // 💸 unified transaction ledger — transfers (who paid whom) + withdrawals (who cashed out)
   app.get("/api/admin/transactions", requireAdmin, async (req, res) => {
     const limit = Math.min(500, Number(req.query.limit) || 200);

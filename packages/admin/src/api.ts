@@ -204,6 +204,7 @@ export const adminApi = {
   // ⭐ ratings
   ratings: () => req<AdminRatingRow[]>("/api/admin/ratings"),
   transactions: (kind = "all", limit = 200) => req<AdminTxnRow[]>(`/api/admin/transactions?kind=${kind}&limit=${limit}`),
+  blocked: (limit = 500) => req<AdminBlockedRow[]>(`/api/admin/blocked?limit=${limit}`),
   // 💬 support chat
   chatConversations: () => req<AdminChatConvo[]>("/api/admin/chat/conversations"),
   chatMessages: (telegramId: string) => req<AdminChatMsg[]>(`/api/admin/chat/messages/${encodeURIComponent(telegramId)}`),
@@ -344,6 +345,14 @@ export interface AdminWithdrawalTabRow {
   memberName: string | null;
   phone: string | null;
   type: string | null;
+  at: string;
+}
+
+export interface AdminBlockedRow {
+  telegramId: string;
+  name: string;
+  phone: string | null;
+  linked: boolean;
   at: string;
 }
 
