@@ -43,6 +43,7 @@ export async function grantCoins(
   kind: string,
   reason: string,
   idempotencyKey?: string,
+  bookingId?: number, // perf audit B4: ride-bound grants stamp this so the clamp reads it via index
 ): Promise<CoinResult> {
   amount = Math.floor(amount); // money is whole-coin only
   if (amount <= 0) return { ok: false, balance: await getCoins(memberId) };
@@ -58,7 +59,7 @@ export async function grantCoins(
   // aborts the whole tx before any coins move (P2002 → reported as a clean duplicate-skip).
   try {
     const member = await prisma.$transaction(async (tx) => {
-      await tx.coinTxn.create({ data: { memberId, amount, kind, reason, idempotencyKey: idempotencyKey ?? null } });
+      await tx.coinTxn.create({ data: { memberId, amount, kind, reason, idempotencyKey: idempotencyKey ?? null, bookingId: bookingId ?? null } });
       return tx.member.update({ where: { id: memberId }, data: { coins: { increment: amount } } });
     });
     // v3 (reyting = tangalar): EARNED tanga feeds the weekly leaderboard (best-effort, off the hot path)
@@ -92,14 +93,19 @@ export async function grantRideCoins(
     const { RIDE_EMISSION_CAP } = await import("@t1067/shared");
     amount = Math.floor(amount);
     const suffix = `:${memberId}:${bookingId}`;
+    // perf audit B4: sum THIS ride's prior emission via the indexed bookingId column (was an
+    // unindexed endsWith suffix scan of the whole member ledger, run under the lock on every faucet).
+    // The grant still carries the `:memberId:bookingId` idempotency key AND stamps bookingId — so a
+    // backfilled/new row is found by the fast path; historical un-backfilled rows (bookingId=null)
+    // are covered by the OR fallback until the one-shot backfill lands.
     const paid = await prisma.coinTxn.aggregate({
-      where: { memberId, amount: { gt: 0 }, idempotencyKey: { endsWith: suffix } },
+      where: { memberId, amount: { gt: 0 }, OR: [{ bookingId }, { bookingId: null, idempotencyKey: { endsWith: suffix } }] },
       _sum: { amount: true },
     });
     const room = Math.max(0, RIDE_EMISSION_CAP - (paid._sum.amount ?? 0));
     const granted = Math.min(amount, room);
     if (granted <= 0) return { ok: false, balance: await getCoins(memberId), clamped: amount };
-    const res = await grantCoins(memberId, granted, kind, reason, `${keyPrefix}${suffix}`);
+    const res = await grantCoins(memberId, granted, kind, reason, `${keyPrefix}${suffix}`, bookingId);
     return granted < amount ? { ...res, clamped: amount - granted } : res;
   });
 }

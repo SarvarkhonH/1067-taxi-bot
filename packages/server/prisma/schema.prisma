@@ -362,9 +362,12 @@ model CoinTxn {
   kind           String // streak|wheel|mission|box|weekly|surprise|referral|respin|premium_box|withdraw (+ historical arcade kinds race|duel|park|quiz|crash — immutable audit rows, never delete)
   reason         String
   idempotencyKey String?  @unique
+  bookingId      Int? // perf audit B4: the ride this grant belongs to (ride-bound faucets set it) → the
+  // ≤350/ride clamp reads it via @@index instead of an unindexed endsWith suffix scan of the ledger.
   createdAt      DateTime @default(now())
 
   @@index([memberId, createdAt])
+  @@index([memberId, bookingId])
 }
 
 // Coin -> real so'm conversions (the ONLY place real money leaves the system).
