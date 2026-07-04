@@ -108,7 +108,10 @@ export function badgeByCode(code: string): BadgeDef | undefined {
 // Real cashback (so'm) paid when a daily-check-in streak reaches these days.
 // Rebalanced to unit economics: company nets ~2000 so'm/ride — every reward
 // number in the system is sized against that (industry norm: 0.6-3% of fare).
+// Day 2 pays a small hook (gamification audit: the 1→3 gap left day 2 with zero feedback, so a
+// 2-day habit never formed). The company nets ~2000 so'm/ride now, so a 50-so'm day-2 nudge is noise.
 export const STREAK_REWARDS: Record<number, number> = {
+  2: 50,
   3: 100,
   7: 300,
   14: 700,

@@ -43,6 +43,16 @@ function daysLeft(now = new Date()): number {
   return 7 - dow;
 }
 
+// C (audit): a PUBLIC full-name earnings board in a town where everyone knows everyone is an
+// envy/privacy risk — channelService + drvrank already show short names ("Axmedov Y."). Match them:
+// shorten everyone EXCEPT the viewer (who sees their own full name; they know themselves).
+function shortName(full: string | null | undefined): string {
+  const w = (full ?? "").trim().split(/\s+/).filter(Boolean);
+  if (w.length === 0) return "Foydalanuvchi";
+  const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1).toLowerCase();
+  return w.length > 1 ? `${cap(w[0]!)} ${w[1]![0]!.toUpperCase()}.` : cap(w[0]!);
+}
+
 export async function getWeeklyBoard(myMemberId: number | null, limit = 20): Promise<WeeklyBoardResponse> {
   const key = weekKey(new Date());
   const rows = await prisma.weeklyScore.findMany({
@@ -54,7 +64,7 @@ export async function getWeeklyBoard(myMemberId: number | null, limit = 20): Pro
   const entries: WeeklyEntry[] = rows.map((r, i) => ({
     rank: i + 1,
     memberId: r.memberId,
-    fullName: r.member.fullName,
+    fullName: r.memberId === myMemberId ? (r.member.displayName || r.member.fullName) : shortName(r.member.displayName || r.member.fullName),
     score: r.score,
     isMe: r.memberId === myMemberId,
     tier: r.member.leagueTier,
@@ -68,7 +78,7 @@ export async function getWeeklyBoard(myMemberId: number | null, limit = 20): Pro
     });
     if (mine) {
       const higher = await prisma.weeklyScore.count({ where: { weekKey: key, score: { gt: mine.score } } });
-      me = { rank: higher + 1, memberId: myMemberId, fullName: mine.member.fullName, score: mine.score, isMe: true, tier: mine.member.leagueTier };
+      me = { rank: higher + 1, memberId: myMemberId, fullName: mine.member.displayName || mine.member.fullName, score: mine.score, isMe: true, tier: mine.member.leagueTier };
     }
   }
 

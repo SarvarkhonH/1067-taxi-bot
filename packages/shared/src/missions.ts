@@ -39,6 +39,10 @@ const DAILY_BONUS_POOL: MissionDef[] = [
   { code: "daily_morning", title: "Ertalab 7–10 da safar",          emoji: "🌅", period: "daily", target: 1, reward: 120, core: false, rotatable: true },
   { code: "daily_share",   title: "Safar yo'lini do'stga ulashing", emoji: "🔗", period: "daily", target: 1, reward: 80,  core: false, rotatable: true },
   { code: "daily_streak",  title: "3 kun ketma-ket kiring",         emoji: "🔥", period: "daily", target: 3, reward: 200, core: false, rotatable: true },
+  // RIDE-INDEPENDENT (gamification audit): the only bonus quest a rider can finish WITHOUT booking —
+  // spin the free daily wheel. Pulls a non-riding user to open the app + engage every day, which is
+  // exactly the daily-habit hook the rest of the (ride-gated) catalog can't create.
+  { code: "daily_freespin", title: "Bepul g'ildirakni aylantiring", emoji: "🎡", period: "daily", target: 1, reward: 50, core: false, rotatable: true },
 ];
 
 // All missions flat (for missionByCode lookups and server incrementMission).

@@ -248,5 +248,8 @@ export async function freeSpin(memberId: number): Promise<{ ok: boolean; already
     }
   }
   await grantCoins(memberId, prize.amount, "freespin", `🎁 Bepul kunlik spin: ${prize.label}`, key);
+  // C: the ride-independent daily quest — spinning the free wheel progresses it (bumpMission is
+  // idempotent per period, so a second same-day spin is blocked upstream anyway by the freespin key).
+  await bumpMission(memberId, "daily_freespin").catch(() => undefined);
   return { ok: true, prize, jackpot: await getJackpot() };
 }

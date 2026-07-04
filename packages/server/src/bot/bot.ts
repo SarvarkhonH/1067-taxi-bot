@@ -353,7 +353,7 @@ export function createBot(): Bot {
       // Ulangan zahoti ilovani BIR MARTA ko'zga tashlash — "odamlar web app borligini bilmaydi".
       if (canWebApp) {
         await ctx
-          .reply("🎮 <b>1067 ilovasi ham bor!</b>\nJonli xarita · o'yin · bozor — hammasi bitta joyda 👇", {
+          .reply("🎮 <b>1067 ilovasi ham bor!</b>\nJonli xarita · taxi · hamyon — hammasi bitta joyda 👇", {
             parse_mode: "HTML",
             reply_markup: new InlineKeyboard().webApp("🚕 Ilovani ochish", webAppUrl()),
           })
@@ -560,7 +560,7 @@ export function createBot(): Bot {
       // Ulangan zahoti ilovani BIR MARTA ko'zga tashlash — "odamlar web app borligini bilmaydi".
       if (canWebApp) {
         await ctx
-          .reply("🎮 <b>1067 ilovasi ham bor!</b>\nJonli xarita · o'yin · bozor — hammasi bitta joyda 👇", {
+          .reply("🎮 <b>1067 ilovasi ham bor!</b>\nJonli xarita · taxi · hamyon — hammasi bitta joyda 👇", {
             parse_mode: "HTML",
             reply_markup: new InlineKeyboard().webApp("🚕 Ilovani ochish", webAppUrl()),
           })
@@ -615,7 +615,7 @@ export function createBot(): Bot {
       await ctx.reply("Ilova hozircha mavjud emas — /start bilan yangilang.");
       return;
     }
-    await ctx.reply("🚖 <b>Ilova</b> — buyurtma · o'yin · bozor · hamyon 👇", {
+    await ctx.reply("🚖 <b>Ilova</b> — buyurtma · xarita · hamyon · bonuslar 👇", {
       parse_mode: "HTML",
       reply_markup: new InlineKeyboard().webApp("🚕 Ochish", webAppUrl()),
     });
