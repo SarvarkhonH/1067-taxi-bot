@@ -203,6 +203,7 @@ export const adminApi = {
   withdrawalsTab: (limit = 100) => req<AdminWithdrawalTabRow[]>(`/api/admin/withdrawals-tab?limit=${limit}`),
   // ⭐ ratings
   ratings: () => req<AdminRatingRow[]>("/api/admin/ratings"),
+  transactions: (kind = "all", limit = 200) => req<AdminTxnRow[]>(`/api/admin/transactions?kind=${kind}&limit=${limit}`),
   // 💬 support chat
   chatConversations: () => req<AdminChatConvo[]>("/api/admin/chat/conversations"),
   chatMessages: (telegramId: string) => req<AdminChatMsg[]>(`/api/admin/chat/messages/${encodeURIComponent(telegramId)}`),
@@ -343,6 +344,21 @@ export interface AdminWithdrawalTabRow {
   memberName: string | null;
   phone: string | null;
   type: string | null;
+  at: string;
+}
+
+export interface AdminTxnRow {
+  id: string;
+  kind: string; // transfer | tip | fare | withdraw
+  amount: number;
+  commission: number;
+  fromName: string | null;
+  fromPhone: string | null;
+  fromType: string | null;
+  toName: string | null;
+  toPhone: string | null;
+  toType: string | null;
+  note: string | null;
   at: string;
 }
 

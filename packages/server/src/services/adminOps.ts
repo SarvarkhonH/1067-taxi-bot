@@ -601,6 +601,79 @@ export async function getAdminWithdrawals(limit = 100): Promise<{ id: number; am
   }));
 }
 
+// ─── 💸 unified transaction ledger (transfers + withdrawals) ─────────────────
+// Full control feed: WHO sent money to WHOM (tip / p2p transfer / pay-driver-by-plate)
+// and WHICH member cashed out (withdraw). Both resolved to real names+phones.
+export interface AdminTxnRow {
+  id: string; // prefixed so transfer/withdraw ids never collide ("t123" | "w45")
+  kind: string; // transfer | tip | fare | withdraw
+  amount: number;
+  commission: number; // sender-side fee (transfers only)
+  fromName: string | null;
+  fromPhone: string | null;
+  fromType: string | null; // client | driver
+  toName: string | null; // for withdraw: "Kartaga / naxt"
+  toPhone: string | null;
+  toType: string | null;
+  note: string | null;
+  at: string;
+}
+
+export async function getAdminTransactions(kind: "all" | "transfer" | "tip" | "fare" | "withdraw" = "all", limit = 200): Promise<AdminTxnRow[]> {
+  const rows: AdminTxnRow[] = [];
+
+  // Transfers (member → member): tip to driver, pay-by-plate, p2p transfer
+  if (kind !== "withdraw") {
+    const where = kind === "all" ? {} : { kind };
+    const transfers = await prisma.transfer.findMany({ where, orderBy: { createdAt: "desc" }, take: limit });
+    const ids = [...new Set(transfers.flatMap((t) => [t.fromMemberId, t.toMemberId]))];
+    const members = await prisma.member.findMany({ where: { id: { in: ids } }, select: { id: true, fullName: true, displayName: true, phone: true, type: true } });
+    const byId = new Map(members.map((m) => [m.id, m]));
+    for (const t of transfers) {
+      const f = byId.get(t.fromMemberId);
+      const to = byId.get(t.toMemberId);
+      rows.push({
+        id: `t${t.id}`,
+        kind: t.kind,
+        amount: t.amount,
+        commission: t.commission,
+        fromName: f?.displayName || f?.fullName || null,
+        fromPhone: f?.phone ?? null,
+        fromType: f?.type ?? null,
+        toName: to?.displayName || to?.fullName || null,
+        toPhone: to?.phone ?? null,
+        toType: to?.type ?? null,
+        note: t.note ?? null,
+        at: t.createdAt.toISOString(),
+      });
+    }
+  }
+
+  // Withdrawals (member → real money out)
+  if (kind === "all" || kind === "withdraw") {
+    const ws = await prisma.withdrawal.findMany({ orderBy: { createdAt: "desc" }, take: limit, include: { member: { select: { fullName: true, displayName: true, phone: true, type: true } } } });
+    for (const w of ws) {
+      rows.push({
+        id: `w${w.id}`,
+        kind: "withdraw",
+        amount: w.amount,
+        commission: 0,
+        fromName: w.member?.displayName || w.member?.fullName || null,
+        fromPhone: w.member?.phone ?? null,
+        fromType: w.member?.type ?? null,
+        toName: w.kasApplied ? "💳 Kartaga / naxt (bajarildi)" : "💳 Kartaga / naxt (kutilyapti)",
+        toPhone: null,
+        toType: null,
+        note: w.kasMessage ?? null,
+        at: w.createdAt.toISOString(),
+      });
+    }
+  }
+
+  rows.sort((a, b) => (a.at < b.at ? 1 : -1));
+  return rows.slice(0, limit);
+}
+
 // ─── ⭐ ride ratings ──────────────────────────────────────────────────────────
 export async function getAdminRatings(limit = 200): Promise<{ id: number; memberId: number; bookingId: number; carNumber: string; stars: number; tags: string; at: string }[]> {
   const rows = await prisma.rideRating.findMany({

@@ -1407,6 +1407,15 @@ body{font-family:Arial,sans-serif;background:#eee;-webkit-print-color-adjust:exa
     res.json(await getAdminWithdrawals(limit));
   });
 
+  // 💸 unified transaction ledger — transfers (who paid whom) + withdrawals (who cashed out)
+  app.get("/api/admin/transactions", requireAdmin, async (req, res) => {
+    const limit = Math.min(500, Number(req.query.limit) || 200);
+    const k = String(req.query.kind ?? "all");
+    const kind = (["all", "transfer", "tip", "fare", "withdraw"].includes(k) ? k : "all") as "all" | "transfer" | "tip" | "fare" | "withdraw";
+    const { getAdminTransactions } = await import("../services/adminOps");
+    res.json(await getAdminTransactions(kind, limit));
+  });
+
   app.get("/api/admin/ratings", requireAdmin, async (_req, res) => {
     const { getAdminRatings } = await import("../services/adminOps");
     res.json(await getAdminRatings());

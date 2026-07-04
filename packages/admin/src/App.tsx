@@ -14,9 +14,9 @@ import {
   type AdminMemberRow,
   type AdminStats,
 } from "@t1067/shared";
-import { adminApi, clearAdminToken, hasAdminToken, setAdminToken, type AdminBannedRow, type AdminChatConvo, type AdminChatMsg, type AdminDebtRow, type AdminMsgHistoryRow, type AdminRatingRow, type AdminReferralRow, type AdminRideRow, type AdminUserRow, type AdminWithdrawalRow, type AdminWithdrawalTabRow, type CampaignRow, type Driver360, type DriverCallRow, type DriverCallStats, type DriverMissionRow, type IntercityAdminTrip, type IntercityAdminDebt, type Member360, type PeakHourRow } from "./api";
+import { adminApi, clearAdminToken, hasAdminToken, setAdminToken, type AdminBannedRow, type AdminChatConvo, type AdminChatMsg, type AdminDebtRow, type AdminMsgHistoryRow, type AdminRatingRow, type AdminTxnRow, type AdminReferralRow, type AdminRideRow, type AdminUserRow, type AdminWithdrawalRow, type AdminWithdrawalTabRow, type CampaignRow, type Driver360, type DriverCallRow, type DriverCallStats, type DriverMissionRow, type IntercityAdminTrip, type IntercityAdminDebt, type Member360, type PeakHourRow } from "./api";
 
-type Tab = "overview" | "pulse" | "analytics" | "finance" | "live" | "x360" | "driver" | "client" | "botusers" | "obzvon" | "boshqaruv" | "topshiriq" | "actions" | "integrity" | "audit" | "safarlar" | "qarzlar" | "referallar" | "banlist" | "yechishlar" | "baholar" | "xabar" | "chat" | "broadcasts" | "intercity" | "pik";
+type Tab = "overview" | "pulse" | "analytics" | "finance" | "live" | "x360" | "driver" | "client" | "botusers" | "obzvon" | "boshqaruv" | "topshiriq" | "actions" | "integrity" | "audit" | "safarlar" | "qarzlar" | "referallar" | "banlist" | "yechishlar" | "baholar" | "xabar" | "chat" | "broadcasts" | "intercity" | "pik" | "transactions";
 
 const NAV_GROUPS: { label: string; items: { id: Tab; icon: string; label: string }[] }[] = [
   {
@@ -31,6 +31,7 @@ const NAV_GROUPS: { label: string; items: { id: Tab; icon: string; label: string
     label: "MOLIYA",
     items: [
       { id: "finance", icon: "💰", label: "Moliya" },
+      { id: "transactions", icon: "💸", label: "Tranzaksiyalar" },
       { id: "analytics", icon: "📈", label: "Analitika" },
       { id: "intercity", icon: "🚐", label: "Shaharlararo" },
     ],
@@ -180,6 +181,7 @@ export function App() {
           {tab === "chat" && <ChatView />}
           {tab === "xabar" && <XabarView />}
           {tab === "broadcasts" && <BroadcastHistoryView />}
+          {tab === "transactions" && <TransactionsView />}
           {tab === "pik" && <PeakHoursView />}
         </div>
       </div>
@@ -2969,6 +2971,105 @@ function PeakHoursView() {
           </tbody>
         </table>
       )}
+    </div>
+  );
+}
+
+// ─── 💸 Tranzaksiyalar — kim kimga pul tashladi + kim yechdi ─────────────────
+function TransactionsView() {
+  const [rows, setRows] = useState<AdminTxnRow[]>([]);
+  const [kind, setKind] = useState<"all" | "transfer" | "tip" | "fare" | "withdraw">("all");
+  const [q, setQ] = useState("");
+  const [loading, setLoading] = useState(true);
+  const [err, setErr] = useState("");
+
+  useEffect(() => {
+    setLoading(true);
+    adminApi.transactions(kind, 300).then((r) => { setRows(r); setLoading(false); }).catch((e) => { setErr(e instanceof Error ? e.message : "xatolik"); setLoading(false); });
+  }, [kind]);
+
+  const kindLabel = (k: string): { txt: string; color: string } => {
+    switch (k) {
+      case "tip": return { txt: "🙏 Choychaqa", color: "#ffce4f" };
+      case "fare": return { txt: "🚕 Haydovchiga to'lov", color: "#34d399" };
+      case "transfer": return { txt: "🔁 O'tkazma", color: "#8ab4ff" };
+      case "withdraw": return { txt: "💳 Yechish", color: "#f87171" };
+      default: return { txt: k, color: "var(--muted)" };
+    }
+  };
+
+  const filtered = rows.filter((r) => {
+    if (!q.trim()) return true;
+    const s = q.toLowerCase();
+    return [r.fromName, r.fromPhone, r.toName, r.toPhone, r.note].some((x) => x?.toLowerCase().includes(s));
+  });
+
+  const exportCsv = () => {
+    const csv = "Sana,Turi,Kimdan,Telefon,Kimga,Telefon,Summa,Komissiya,Izoh\n" +
+      filtered.map((r) => `"${fmtTime(r.at)}","${kindLabel(r.kind).txt}","${r.fromName ?? ""}","${r.fromPhone ?? ""}","${r.toName ?? ""}","${r.toPhone ?? ""}",${r.amount},${r.commission},"${(r.note ?? "").replace(/"/g, "'")}"`).join("\n");
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8" }));
+    a.download = "tranzaksiyalar.csv";
+    a.click();
+  };
+
+  const FILTERS: { id: typeof kind; label: string }[] = [
+    { id: "all", label: "🗂 Barchasi" },
+    { id: "fare", label: "🚕 Haydovchiga to'lov" },
+    { id: "tip", label: "🙏 Choychaqa" },
+    { id: "transfer", label: "🔁 O'tkazma" },
+    { id: "withdraw", label: "💳 Yechishlar" },
+  ];
+
+  return (
+    <div className="panel">
+      <div className="panel-head">
+        <div className="panel-title">💸 Tranzaksiyalar — kim kimga, kim yechdi</div>
+        <button className="btn sm" onClick={exportCsv} disabled={!filtered.length}>📥 CSV</button>
+      </div>
+
+      <div className="seg" style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 12 }}>
+        {FILTERS.map((f) => (
+          <button key={f.id} className={kind === f.id ? "seg-btn active" : "seg-btn"} onClick={() => setKind(f.id)}>{f.label}</button>
+        ))}
+      </div>
+
+      <input className="search" style={{ width: "100%", marginBottom: 12 }} placeholder="🔍 Ism / telefon / izoh bo'yicha qidirish" value={q} onChange={(e) => setQ(e.target.value)} />
+
+      {err && <div className="action-msg">{err}</div>}
+      {loading ? <p className="muted">Yuklanmoqda…</p> : filtered.length === 0 ? <p className="muted">Tranzaksiya topilmadi.</p> : (
+        <div className="table-wrap">
+          <table>
+            <thead>
+              <tr><th>Sana</th><th>Turi</th><th>Kimdan</th><th>Kimga</th><th className="num">Summa</th><th>Izoh</th></tr>
+            </thead>
+            <tbody>
+              {filtered.map((r) => {
+                const kl = kindLabel(r.kind);
+                return (
+                  <tr key={r.id}>
+                    <td style={{ whiteSpace: "nowrap", fontSize: 12 }}>{fmtTime(r.at)}</td>
+                    <td><span style={{ color: kl.color, fontWeight: 700, whiteSpace: "nowrap" }}>{kl.txt}</span></td>
+                    <td>
+                      <div className="td-name">{r.fromName ?? "—"}{r.fromType === "driver" ? " 🚗" : ""}</div>
+                      {r.fromPhone && <div className="td-sub">{r.fromPhone}</div>}
+                    </td>
+                    <td>
+                      <div className="td-name">{r.toName ?? "—"}{r.toType === "driver" ? " 🚗" : ""}</div>
+                      {r.toPhone && <div className="td-sub">{r.toPhone}</div>}
+                    </td>
+                    <td className="num strong" style={{ color: r.kind === "withdraw" ? "#f87171" : "#34d399", whiteSpace: "nowrap" }}>
+                      {formatNumber(r.amount)}{r.commission > 0 ? <span className="td-sub"> +{formatNumber(r.commission)} komis.</span> : null}
+                    </td>
+                    <td style={{ fontSize: 12, color: "var(--muted)", maxWidth: 220 }}>{r.note ?? "—"}</td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
+      <p className="muted" style={{ fontSize: 11, marginTop: 10 }}>🚗 = haydovchi · Summa = tanga. «Haydovchiga to'lov» va «Choychaqa» — mijoz botda haydovchiga tanga yuboradi. «Yechish» — tanga real pulga.</p>
     </div>
   );
 }
