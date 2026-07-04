@@ -251,8 +251,11 @@ export async function createBookingFor(memberId: number, body: BookingCreateBody
       ...(hasPin ? { addressLatitude: body.lat, addressLongitude: body.lng } : {}),
     })
     .catch((e) => ({ ok: false, message: e instanceof Error ? e.message : String(e) }));
-  if (res.ok) await rememberPickup(memberId, pinMem, source);
-  else await releaseDispatchSlot(memberId, slot.prev);
+  if (res.ok) {
+    await rememberPickup(memberId, pinMem, source);
+    // ⚡ arm the instant-status socket NOW (before the driver accepts) so take_booking lands in ~1-2s
+    void import("./kasClientSocket").then(({ armInstant }) => armInstant(memberId, who.phone)).catch(() => undefined);
+  } else await releaseDispatchSlot(memberId, slot.prev);
   return { ok: res.ok, live: true, message: res.message };
 }
 
@@ -464,5 +467,7 @@ export async function callOneTapFor(memberId: number, body: BookingNowBody, sour
   }
 
   await rememberPickup(memberId, pickup, source);
+  // ⚡ arm instant-status before the accept (1-tap dispatch path)
+  void import("./kasClientSocket").then(({ armInstant }) => armInstant(memberId, member.phone)).catch(() => undefined);
   return { state: "dispatched", pickupName: pickup.name };
 }

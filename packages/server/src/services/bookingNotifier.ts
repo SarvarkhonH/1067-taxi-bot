@@ -244,20 +244,9 @@ export async function pushBookingUpdates(
     const chatId = m.telegramUser!.id;
 
     if (b) {
-      // ⚡ arm the instant-status socket for THIS live ride (flag-gated, once per ride — skip if
-      // already up). Fire-and-forget: reading the secretKey + connecting must never block the sweep,
-      // and a socket frame only re-triggers a SCOPED sweep (the money/render path stays right here).
-      if (instantOn && m.phone) {
-        const { kasClientSocket } = await import("./kasClientSocket");
-        if (!kasClientSocket.isUp(m.id)) {
-          void (ds as unknown as { readClientAuth(p: string): Promise<{ secretKey: string | null }> })
-            .readClientAuth(m.phone)
-            .then((a) => {
-              if (a.secretKey) kasClientSocket.register(m.id, m.phone!, a.secretKey, () => void pushBookingUpdates(bot, undefined, { memberScope: { id: m.id } }));
-            })
-            .catch(() => undefined);
-        }
-      }
+      // ⚡ instant-status FALLBACK arm (the primary arm is at booking creation so the socket is live
+      // before the accept). Fire-and-forget + flag-gated + no-op if already up — never blocks the sweep.
+      if (instantOn && m.phone) void import("./kasClientSocket").then(({ armInstant }) => armInstant(m.id, m.phone)).catch(() => undefined);
       const isNewRide = m.lastBookingId !== b.id;
       const statusChanged = isNewRide || m.lastBookingStatus !== b.status;
       // "new" = the booking is being OFFERED (not accepted) — don't show kas's candidate car as the

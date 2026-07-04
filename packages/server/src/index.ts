@@ -269,6 +269,13 @@ async function main(): Promise<void> {
   // 📡 kas map WebSocket — real-time driver positions → INSTANT "arrived" pings (no 15s wait)
   kasMapSocket.start();
 
+  // ⚡ instant-status: give the client-socket the bot so a status-change frame can trigger a scoped
+  // sweep (armed per-ride at booking creation via armInstant; feature "instantstatus").
+  if (bot) {
+    const { kasClientSocket } = await import("./services/kasClientSocket");
+    kasClientSocket.setBot(bot);
+  }
+
   // keep the free-tier instance warm (self-ping) so the Mini App never hits a cold start. Render
   // free spins down after 15 min idle → ping every 5 min so even a single failed ping still beats
   // the threshold. NOTE: a self-ping can't WAKE a sleeping instance (its timers are suspended too);
