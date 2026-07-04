@@ -52,6 +52,34 @@ async function main(): Promise<void> {
   const g4 = await grantRideCoins(m.id, legacyBid, 200, "wheel", "spin", "wh");
   ok(g4.clamped === 150, "B4: legacy null-bookingId row (suffix key) still counted → new grant clamped to 50");
 
+  // ── B5: wait-comp daily budget is atomic — concurrent grants can't overshoot ────────────────
+  const { setFeature, __resetFeatureCache } = await import("../services/featureFlags");
+  const { setBonusEcon, getBonusEcon } = await import("../services/bonusConfig");
+  const { awardWaitComp } = await import("../services/cashbackService");
+  await setFeature("waitcomp", true);
+  __resetFeatureCache();
+  // isolate: clear the day's wait-comp rows (disposable TEST DB) so the budget seed starts at 0
+  await prisma.waitCompReward.deleteMany({});
+  await prisma.appState.deleteMany({ where: { key: { startsWith: "budget:waitcomp:" } } });
+  const prevBudget = (await getBonusEcon()).waitCompDailyBudget ?? 200000;
+  const BUDGET = 1000;
+  await setBonusEcon("waitCompDailyBudget", BUDGET); // tiny budget → force contention
+  // 10 concurrent grants for distinct members/rides — total DESIRED far exceeds the budget
+  const members = await Promise.all(
+    Array.from({ length: 10 }, (_, i) => prisma.member.create({ data: { type: "client", kasId: `${TAG}-W${i}`, fullName: `W${i}`, phone: null } })),
+  );
+  const grants = await Promise.all(members.map((mm, i) => awardWaitComp(mm.id, 70000 + i, 3600).catch(() => 0)));
+  const totalPaid = grants.reduce((s, x) => s + x, 0);
+  ok(totalPaid <= BUDGET, `B5: concurrent wait-comp grants never exceed the ${BUDGET} budget (paid ${totalPaid})`);
+  ok(totalPaid > 0, `B5: budget wasn't zero — some grants DID pay within budget (paid ${totalPaid})`);
+  const counter = Number((await prisma.appState.findFirst({ where: { key: { startsWith: "budget:waitcomp:" } } }))?.value ?? 0);
+  ok(counter <= BUDGET, `B5: atomic budget counter converges to ≤ total (counter=${counter})`);
+  ok(counter === totalPaid, `B5: counter matches actually-paid (no phantom reservation: ${counter} == ${totalPaid})`);
+  await setBonusEcon("waitCompDailyBudget", prevBudget || 200000);
+  await prisma.waitCompReward.deleteMany({});
+  await prisma.appState.deleteMany({ where: { key: { startsWith: "budget:waitcomp:" } } });
+  await prisma.appState.deleteMany({ where: { key: "feature:waitcomp" } });
+
   await cleanup();
   console.log(process.exitCode ? "\n❌ FAILED" : "\n✅ ALL GREEN");
   await prisma.$disconnect();

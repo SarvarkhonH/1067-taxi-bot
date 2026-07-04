@@ -7,7 +7,7 @@
 // exits only through the budget-gated withdraw door.
 import { RIDE_JACKPOT_FEED, RIDE_REWARD_BASE, RIDE_REWARD_TIERS, computeXp, formatNumber, levelForXp, tierMultFor } from "@t1067/shared";
 import { prisma } from "../db";
-import { grantCoins } from "./coinService";
+import { grantCoins, withMemberLock } from "./coinService";
 import { featureOn } from "./featureFlags";
 import { weekKey } from "./missionService";
 import { claimJackpot, growJackpot } from "./weeklyService";
@@ -172,33 +172,61 @@ export async function awardWaitComp(memberId: number, bookingId: number, waitSec
   const econ = await getBonusEcon();
 
   const dayKey = tashkentDay();
-  // Idempotent insert-first, exactly like rollRideCashback's RideReward: the unique row wins the
-  // race, so a duplicate sweep tick / retry can never double-pay this ride.
+  // Idempotent insert-first (the unique [member,booking] row wins the race so a duplicate sweep/retry
+  // can't double-pay). Audit P0-2: insert with amount=0 — the REAL amount is written only AFTER the
+  // budget reserve. The old code inserted the full amount here, so N concurrent grants inflated each
+  // other's budget seed (each saw the others' pending rows) → out-of-pocket overshoot on a shortage
+  // spike. With 0, concurrent in-flight rows contribute nothing to the seed.
   let rewardId: number;
   try {
-    const row = await prisma.waitCompReward.create({ data: { memberId, bookingId, waitSeconds, score: 0, amount, dayKey } }); // score column is legacy (game removed) — kept 0 until the Phase-3 schema pass
+    const row = await prisma.waitCompReward.create({ data: { memberId, bookingId, waitSeconds, score: 0, amount: 0, dayKey } }); // score legacy (game removed); amount set post-reserve
     rewardId = row.id;
   } catch {
     return 0; // already awarded for this ride
   }
 
-  // Company-wide daily budget — this is compensation paid out of pocket, not a per-user cap, so a
-  // citywide driver-shortage day can't create unbounded exposure. Read AFTER the insert wins (so a
-  // race can't double-count itself) but the budget check itself is best-effort (not lock-serialized
-  // across members) — acceptable because a single ride's amount is small relative to the budget, so
-  // the worst case is a brief, bounded overshoot on the last grant(s) of the day, not runaway spend.
+  // Company-wide daily budget via an ATOMIC AppState counter (mirrors consumeWithdrawBudget), seeded
+  // once/day from committed rows so the transition day doesn't double-count. Returns the actually-
+  // reserved amount (partial when the budget is tight); the unusable overshoot is rolled back so the
+  // counter converges to the budget under concurrency instead of blowing past it.
   const dailyBudget = Math.max(0, econ.waitCompDailyBudget ?? 200_000);
-  const spentToday = await prisma.waitCompReward.aggregate({ where: { dayKey }, _sum: { amount: true } });
-  const spentBefore = (spentToday._sum.amount ?? 0) - amount; // exclude the row just inserted
-  const room = Math.max(0, dailyBudget - spentBefore);
-  if (amount > room) {
-    amount = Math.floor(room);
-    await prisma.waitCompReward.update({ where: { id: rewardId }, data: { amount } }).catch(() => undefined);
-  }
+  amount = await reserveWaitCompBudget(amount, dailyBudget, dayKey);
+  await prisma.waitCompReward.update({ where: { id: rewardId }, data: { amount } }).catch(() => undefined);
   if (amount <= 0) return 0;
 
   await grantCoins(memberId, amount, "waitcomp", "🪙 Kutish kompensatsiyasi — haydovchi kutilgan vaqt uchun", `waitcomp:${bookingId}:m${memberId}`);
   return amount;
+}
+
+/** Atomically reserve up to `amount` from today's company-wide wait-comp budget via an AppState
+ *  counter (audit P0-2). Seeded once/day from the day's existing WaitCompReward rows EXCLUDING the
+ *  caller's own just-inserted row, so no double-count on the first grant after deploy. Returns the
+ *  amount actually reserved (0..amount); the unusable overshoot is rolled back so the counter
+ *  converges to the budget under concurrency instead of blowing past it. */
+const WAITCOMP_BUDGET_LOCK = -9_100_001; // sentinel memberId → a GLOBAL in-memory lock for the counter
+async function reserveWaitCompBudget(amount: number, total: number, dayKey: string): Promise<number> {
+  if (amount <= 0) return 0;
+  // Serialize the read→clamp→write behind one global lock (the app is single-instance). The earlier
+  // add-then-read-then-rollback SQL was theoretically atomic but the read saw OTHER concurrent adds'
+  // inflated intermediate value, so a legit grant could be denied even with budget free (safety held,
+  // fairness didn't → flaky). A serialized counter is exact: never overshoots AND never under-pays.
+  return withMemberLock(WAITCOMP_BUDGET_LOCK, async () => {
+    const key = `budget:waitcomp:${dayKey}`;
+    const row = await prisma.appState.findUnique({ where: { key } });
+    let used: number;
+    if (!row) {
+      // seed = today's already-COMMITTED spend (in-flight rows are amount=0, so they don't inflate it)
+      used = Math.floor((await prisma.waitCompReward.aggregate({ where: { dayKey }, _sum: { amount: true } }))._sum.amount ?? 0);
+      await prisma.appState.create({ data: { key, value: String(used) } }).catch(() => undefined);
+    } else {
+      used = Number(row.value) || 0;
+    }
+    const usable = Math.max(0, Math.min(Math.floor(amount), total - used));
+    if (usable > 0) {
+      await prisma.appState.upsert({ where: { key }, create: { key, value: String(used + usable) }, update: { value: String(used + usable) } });
+    }
+    return usable;
+  });
 }
 
 // ── 🎁 "Topilmadi" vaucheri ───────────────────────────────────────────────────
