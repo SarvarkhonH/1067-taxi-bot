@@ -208,6 +208,18 @@ function RideTimeline({ status }: { status: string }) {
     </div>
   );
 }
+// 🚕 approach bar with the car RIDING the fill edge — the wrapper spans the full bar, so
+// translateX(pct%) moves the car by pct% of the BAR width (transform-only, design rule).
+function RideProgress({ pct, full, className }: { pct: number; full: boolean; className?: string }) {
+  return (
+    <div className={`b3-ride-progress hascar${full ? " full" : ""}${className ? ` ${className}` : ""}`}>
+      <i style={{ width: `${pct}%` }} />
+      <span className="b3-ride-carwrap" style={{ transform: `translateX(${pct}%)` }} aria-hidden>
+        <span className="b3-ride-caremoji">{full ? "🏁" : "🚕"}</span>
+      </span>
+    </div>
+  );
+}
 // E5: share trip to a contact (safety) — Telegram share sheet, falls back to a new tab
 async function shareTrip(d: BookingDriverView): Promise<void> {
   haptic();
@@ -1291,7 +1303,7 @@ function Booking3Inner({ me, info, onClose }: { me: MeResponse; info: BookingInf
                 {active.driver.phone ? <a className="b3-ride-mini-call" href={`tel:${active.driver.phone}`} onClick={(e) => e.stopPropagation()} aria-label="Qo'ng'iroq">📞</a> : null}
               </div>
               {active.status !== "started" && (
-                <div className={`b3-ride-progress${active.status === "arrived" ? " full" : ""}`}><i style={{ width: `${approachPct}%` }} /></div>
+                <RideProgress pct={approachPct} full={active.status === "arrived"} />
               )}
             </div>
           ) : active?.driver ? (
@@ -1303,7 +1315,7 @@ function Booking3Inner({ me, info, onClose }: { me: MeResponse; info: BookingInf
                 {active.status === "arrived" ? "🚕 Haydovchi yetib keldi — chiqing!" : "✅ Haydovchi qabul qildi"}
               </div>
               {active.status !== "started" && (
-                <div className={`b3-ride-progress mt8${active.status === "arrived" ? " full" : ""}`}><i style={{ width: `${approachPct}%` }} /></div>
+                <RideProgress pct={approachPct} full={active.status === "arrived"} className="mt8" />
               )}
               <RideTimeline status={active.status} />
               <div className="b3-driver b3-driver-tap" role="button" tabIndex={0} onClick={() => { haptic(); setPlateZoom(true); }} title="Bosib to'liq ko'rish">

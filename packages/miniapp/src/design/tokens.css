@@ -662,6 +662,14 @@ body {
 .b3-ride-progress { height: 7px; border-radius: 6px; background: rgba(255, 255, 255, .08); overflow: hidden; }
 .b3-ride-progress i { display: block; height: 100%; border-radius: 6px; background: var(--gold, #f0b429); transition: width .8s ease; }
 .b3-ride-progress.full i { background: #22c55e; }
+/* 🚕 the car rides the fill edge ("mashinacha yurib to'ldirib keladi") — carwrap spans the FULL
+   bar, so translateX(pct%) = pct% of the bar width (transform-only animation, design rule).
+   hascar lifts overflow so the car can sit taller than the 7px track. */
+.b3-ride-progress.hascar { overflow: visible; position: relative; margin-top: 6px; }
+.b3-ride-carwrap { position: absolute; inset: 0; transition: transform .8s ease; pointer-events: none; }
+.b3-ride-caremoji { position: absolute; left: 0; top: 50%; transform: translate(-55%, -56%) scaleX(-1); font-size: 15px; line-height: 1; filter: drop-shadow(0 1px 2px rgba(0, 0, 0, .5)); }
+.b3-ride-progress.full .b3-ride-caremoji { transform: translate(-55%, -56%); } /* 🏁 flag reads left-to-right */
+@media (prefers-reduced-motion: reduce) { .b3-ride-carwrap { transition: none; } }
 /* one clear tap to collapse the accepted card and watch the map — styled as an obvious pill */
 .b3-collapse-btn { width: 100%; margin: -2px 0 8px; border: 1px solid rgba(255, 179, 0, .35); background: rgba(255, 179, 0, .1); color: var(--gold, #f0b429); font-size: 13px; font-weight: 700; padding: 9px; border-radius: 12px; cursor: pointer; }
 .b3-collapse-btn:active { transform: scale(.99); }
