@@ -124,17 +124,25 @@ Owner decision 2026-07-02: strip all heavy game systems; keep taxi + wallet + li
 
 ## 8. V-NEXT — "strongest architecture" backlog (do in this order, each is small + isolated)
 
-1. **kas queue** — a 1 req/s serial queue + single shared in-flight login promise at the `getText`
-   chokepoint. Biggest stability win; kills 429 cascades + login stampede.
-2. **Sweep diet** — skip members with no active ride early; replace the per-tick throw-away INSERT
-   markers with read-first; the refresh already batches.
-3. **AppState TTL cleanup** — one job on the existing tick deletes per-ride markers older than N days.
-4. **Security** — rate-limit `/api/driver-photo/:id`, `timingSafeEqual` the admin token, rotate
-   `KAS_BONUS_SECRET_KEY` (default "1303" is public — bonus writes are forgeable).
-5. **Split `pushBookingUpdates`** into phase functions (behavior-preserving).
-6. **vitest for money math** — 10–15 assertions in CI on every commit (clamp, grant idempotency,
+DONE (2026-07-03 audit — code shipped, this section was stale): **#1 kas queue** — serial `enqueue()`
+with `KAS_MIN_GAP_MS` start-to-start spacing + single-flight `ensureLogin()` (client.ts:127-163).
+**#2 sweep diet** — `pushBookingUpdates` fetches only sweep-relevant members + in-memory marker-seen
+set (bookingNotifier.ts:205-258). **#4 security** — admin token is `timingSafeEqual` (server.ts:123),
+`/api/driver-photo/:memberId` is IP-rate-limited (server.ts:755), and a boot warning flags the public
+`KAS_BONUS_SECRET_KEY` default (index.ts:64).
+
+Genuinely open:
+1. **KAS_BONUS_SECRET_KEY rotation** — the ONLY remaining #4 piece, and it's an OWNER/OPS task, not
+   code: coordinate a new secret with kas1067 ops, then set Render env `KAS_BONUS_SECRET_KEY=<new>`.
+   Until then bonus writes are forgeable (boot warning fires).
+2. **AppState TTL cleanup** — one tick job deletes EPHEMERAL per-ride markers older than N days
+   (`waitstart:`,`wsarrived:`,`finishcard:`,`tracknudge:`,`trackjoin:`…). DANGER: never touch money
+   idempotency keys (`ref_ride:`,`drvdrv_milestone:`,`fundride:`, any `*:bookingId` grant marker) —
+   deleting one re-opens a double-pay. Whitelist the ephemeral prefixes; never blanket-delete.
+3. **Split `pushBookingUpdates`** into phase functions (behavior-preserving).
+4. **vitest for money math** — 10–15 assertions in CI on every commit (clamp, grant idempotency,
    withdraw budget).
-7. Split admin `App.tsx` (2.5k) and `booking3.tsx` (1.5k) last — not urgent.
+5. Split admin `App.tsx` (2.5k) and `booking3.tsx` (1.5k) last — not urgent.
 
 ## 9. Rules of engagement (from CLAUDE.md — non-negotiable)
 
