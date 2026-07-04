@@ -28,7 +28,8 @@ Kompaniya kas1067'ni SOTIB OLDI, komissiya endi 2000 so'm/safar (1% emas), rent 
 - **C3** streak day-2 = 50 tanga (0 edi) — 1→3 «o'lik zona» yopildi.
 - **C4** haftalik reyting: boshqalar qisqa-ism («Axmedov Y.»), o'zi to'liq — kichik-shahar hasad/maxfiylik xavfi (kanal/drvrank naqshi).
 - «o'yin·bozor» eski matnlar tozalandi (3 bot-string).
-- **ISBOT:** typecheck 4/4 · `testAuditFixesC` 8/8 yashil · commit 2f38917 · Mini App Vercel + server Render deploy.
+- **C5 bepul-spin eslatma (3652305):** unutilgan baraban uchun MAQSADLI push — kunduzi (11–17) faqat bugun aylantirmagan real mijozga (bitta batched «spun-today» so'rov), mavjud push-dvigatelda (2/kun cap, tungi jim, opt-out). Blast EMAS. DARK flag `spinreminder` (ega pilot qilsin: `setFlag.ts spinreminder on`). Isbot: `testAuditFixesC` C5 3× (spun-detektsiya freeSpin kalit-formati bilan mos — `tashkentDayKey==dayKey`).
+- **ISBOT:** typecheck 4/4 · `testAuditFixesC` 11/11 yashil · commitlar 2f38917/3652305 · Mini App Vercel + server Render deploy.
 
 ### 🛡 AUDIT BOSQICH A — PUL-QALQON (2026-07-04) — READY FOR VERIFICATION (7 P0/P1 tuzatildi, DARK-safe)
 8-agent auditning pul-xavfli topilmalarini yopish. Har biri isbot bilan:
