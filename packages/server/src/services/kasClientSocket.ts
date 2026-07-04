@@ -39,6 +39,7 @@ interface Conn {
   stopped: boolean;
   buf: string;
   lastEventAt: number;
+  lastStatus: string; // kas echoes the current booking status on EVERY keepalive — only a CHANGE fires the sweep
   authed: boolean;
   keepAlive: ReturnType<typeof setInterval> | null;
 }
@@ -57,7 +58,7 @@ class KasClientSocket {
       return;
     }
     if (existing) this.close(memberId); // stale/changed key → drop and reopen
-    const c: Conn = { phone, secretKey, onEvent, sock: null, stopped: false, buf: "", lastEventAt: 0, authed: false, keepAlive: null };
+    const c: Conn = { phone, secretKey, onEvent, sock: null, stopped: false, buf: "", lastEventAt: 0, lastStatus: "", authed: false, keepAlive: null };
     this.conns.set(memberId, c);
     console.log(`[clientsocket] arm m${memberId} → ${HOST}:${PORT}`);
     this.connect(memberId);
@@ -149,8 +150,10 @@ class KasClientSocket {
         continue;
       }
       if (BOOKING_STATUSES.has(status)) {
+        if (status === c.lastStatus) continue; // keepalive echo of the SAME state — ignore (no storm)
+        c.lastStatus = status;
         const now = Date.now();
-        if (now - c.lastEventAt < EVENT_DEBOUNCE_MS) continue; // collapse bursts
+        if (now - c.lastEventAt < EVENT_DEBOUNCE_MS) continue; // collapse a rapid burst of real changes
         c.lastEventAt = now;
         console.log(`[clientsocket] m${memberId} ⚡ ${status} → scoped sweep`);
         try {
