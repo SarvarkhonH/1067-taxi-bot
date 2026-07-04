@@ -67,6 +67,19 @@ export async function pushEngineTick(bot: Bot): Promise<void> {
   const { getJackpot } = await import("./weeklyService");
   const jackpot = await getJackpot();
 
+  // 🎁 free-spin reminder (flag "spinreminder"): surface the forgotten free daily wheel. ONE batched
+  // query for who already spun today (freespin idempotency key) → the loop nudges only those who
+  // HAVEN'T, in a midday window, within the same 2/day cap + quiet hours. Read-only.
+  const spinReminderOn = await (await import("./featureFlags")).featureOn("spinreminder");
+  const spunToday = new Set<number>();
+  if (spinReminderOn) {
+    const rows = await prisma.coinTxn.findMany({
+      where: { kind: "freespin", idempotencyKey: { endsWith: `:${dk}` } },
+      select: { memberId: true },
+    });
+    for (const r of rows) spunToday.add(r.memberId);
+  }
+
   for (const m of linked) {
     const chatId = m.telegramUser!.id;
 
@@ -98,7 +111,14 @@ export async function pushEngineTick(bot: Bot): Promise<void> {
       if (sent) continue;
     }
 
-    // ④ big jackpot teaser
+    // ④ free-spin reminder (midday 11–17): a real rider who hasn't spun the free wheel today. Lower
+    // priority than streak/comeback/lucky above (they `continue` first) so it never crowds them out.
+    if (spinReminderOn && hour >= 11 && hour < 17 && m.phone && !spunToday.has(m.id)) {
+      const sent = await trySend(bot, chatId, m.id, "freespin_wait", `🎁 <b>Bugungi bepul aylantirishingiz kutmoqda!</b>\nSafarsiz ham — «🎁 Bonuslar» → 🎡 bosing, tanga yutib oling. 🍀`);
+      if (sent) continue;
+    }
+
+    // ⑤ big jackpot teaser
     if (jackpot >= 20000) {
       await trySend(bot, chatId, m.id, "jackpot", `🎰 JACKPOT <b>${formatNumber(jackpot)} tanga</b>ga yetdi!\nHar safarda 1% imkon — butun jamg'arma sizniki bo'lishi mumkin. 🚕`);
     }

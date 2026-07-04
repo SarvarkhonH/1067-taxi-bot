@@ -46,13 +46,16 @@ export const FEATURES = [
   "drvrank", // 🏆 driver QR-income leaderboard («Reyting» in the driver panel, monthly race) +
               // Monday weekly «QR'ingizdan N mijoz, +X tanga» push to QR-active drivers only.
               // Read-only (moves NO money). DARK until owner QABUL
+  "spinreminder", // 🎁 midday push «bepul aylantirishingiz kutmoqda» to riders who haven't used their
+              // free daily wheel — surfaces the forgotten baraban. Rides the SAME push engine (2/day
+              // cap, quiet hours, opt-out respected). Read-only. DARK until owner pilot.
 ] as const;
 export type FeatureName = (typeof FEATURES)[number];
 
 // Off until explicitly enabled (go-live flip = setFeature(name, true) after owner QABUL).
 // booking3 = the new map/trip flow; owner still gets a preview via server.ts owner-branch,
 // but real users stay on the (fixed) classic flow until it's accepted. A missing row → OFF.
-const DEFAULT_OFF = new Set<FeatureName>(["booking3", "livinghome", "aibrain", "mahalla", "tolqin", "garajx", "kozacha", "baraban", "motorolami", "komissiya", "qarz", "welcomebonus", "refstaged", "drvstaged", "drvrecruit", "drvpush", "promo", "clientbooking", "cashout", "carupgrade", "intercity", "tierloyalty", "waitcomp", "trackcta", "jackpotpost", "drvrank", "instantstatus"]);
+const DEFAULT_OFF = new Set<FeatureName>(["booking3", "livinghome", "aibrain", "mahalla", "tolqin", "garajx", "kozacha", "baraban", "motorolami", "komissiya", "qarz", "welcomebonus", "refstaged", "drvstaged", "drvrecruit", "drvpush", "promo", "clientbooking", "cashout", "carupgrade", "intercity", "tierloyalty", "waitcomp", "trackcta", "jackpotpost", "drvrank", "instantstatus", "spinreminder"]);
 
 let cache: { at: number; map: Record<string, boolean> } = { at: 0, map: {} };
 

@@ -59,6 +59,22 @@ async function main(): Promise<void> {
   ok(otherEntry?.fullName === "Axmedov Y.", `C4: OTHER shown short ("${otherEntry?.fullName}")`);
   ok(meEntry?.fullName === "SOBIROV ALISHER", `C4: SELF shown full ("${meEntry?.fullName}")`);
 
+  // ── C5: free-spin reminder eligibility — the "spun today" detection the push loop batches ──
+  const { featureOn, setFeature, __resetFeatureCache } = await import("../services/featureFlags");
+  __resetFeatureCache();
+  ok((await featureOn("spinreminder")) === false, "C5: spinreminder is DEFAULT_OFF (owner pilots it)");
+  const { dayKey: dkFn } = await import("../services/notifyService"); // matches what pushEngineTick uses
+  const dk = dkFn();
+  // `m` (from C2) already used its free spin above → must be detected as "spun today"
+  const spunRows = await prisma.coinTxn.findMany({ where: { kind: "freespin", idempotencyKey: { endsWith: `:${dk}` } }, select: { memberId: true } });
+  const spun = new Set(spunRows.map((r) => r.memberId));
+  ok(spun.has(m.id), "C5: a member who used the free spin IS detected as spun-today (won't be nudged)");
+  // a fresh member who hasn't spun → NOT in the set → eligible for the nudge (has a phone = real rider)
+  const fresh = await prisma.member.create({ data: { type: "client", kasId: `${TAG}-F`, fullName: "Fresh Rider", phone: "+998900000077" } });
+  ok(!spun.has(fresh.id), "C5: a member who hasn't spun is NOT in the set → eligible for the reminder");
+  await setFeature("spinreminder", false);
+  await prisma.appState.deleteMany({ where: { key: "feature:spinreminder" } });
+
   await cleanup();
   console.log(process.exitCode ? "\n❌ FAILED" : "\n✅ ALL GREEN");
   await prisma.$disconnect();
