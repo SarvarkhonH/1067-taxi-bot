@@ -59,6 +59,23 @@ Deferred: co-ride matching (needs kas dispatch signal we don't have), weather su
 **DoD per mechanic**: flag DARK → owner QABUL on real phone → flag on → 1 week of emission
 telemetry reviewed vs guardrails (below) before the next mechanic ships.
 
+### DEFERRED — Mini App SSE (bot-level ~1s status) — gated on Render Standard ($25/mo)
+
+Owner decision 2026-07-04: build ONLY after upgrading Render free → Standard ($25). Today the bot
+card is socket-instant (~1s); the Mini App polls every 3s (`booking3.tsx` searching tick, was 12s).
+SSE closes that 3s→~1s gap but adds a long-lived-connection subsystem the free tier can't safely hold
+(0.5 CPU / 512 MB) and a deploy-reconnect burst risk. When on Standard:
+- **SSE emits STATUS ONLY, from OUR DB** (member.lastBookingStatus, already updated by the sweep +
+  kasClientSocket trigger) — a status event tells the Mini App "refetch now"; it NEVER hits kas on
+  the SSE path, so a reconnect burst can't hammer kas's 1 req/s.
+- **Poll stays as fallback** (SSE down / old WebView) — just at a slower cadence when SSE is connected.
+- **Reconnect: jitter + heartbeat** (~20s `:ping`), initial state served from DB (not kas), so a
+  redeploy's synchronized reconnect is spread + cheap. (Mirror the kasClientSocket backoff+jitter.)
+- Endpoint: `GET /api/booking/stream` (SSE, requireUser) → pushes on the member's status change; the
+  server keeps an in-memory member→response map (deepens the single-instance lock — already true).
+Effort ~1 day. Risk without the above guards: connection-count + deploy reconnect storm (see the
+2026-07-04 SSE risk table in chat). Prereq: Render Standard live.
+
 ## Phase 3 — Virality (small-city saturation, ~1 week eng + ops)
 
 | # | Play | Logic | Effort |
