@@ -221,6 +221,9 @@ export async function pushBookingUpdates(
   const activeNorms = [...byPhone.keys()].filter(Boolean);
   // one flag read per tick (30s-cached anyway) — every card this tick renders the same share button
   const trackCta = await import("./featureFlags").then((f) => f.featureOn("trackcta")).catch(() => false);
+  // ⚡ instant-status: arm a per-member kas CLIENT socket for live rides so status changes trigger a
+  // scoped re-sweep in ~1-2s instead of waiting for the next poll. Trigger only — never grants money.
+  const instantOn = await import("./featureFlags").then((f) => f.featureOn("instantstatus")).catch(() => false);
   const linked = await prisma.member.findMany({
     where: {
       telegramUser: { isNot: null },
@@ -241,6 +244,20 @@ export async function pushBookingUpdates(
     const chatId = m.telegramUser!.id;
 
     if (b) {
+      // ⚡ arm the instant-status socket for THIS live ride (flag-gated, once per ride — skip if
+      // already up). Fire-and-forget: reading the secretKey + connecting must never block the sweep,
+      // and a socket frame only re-triggers a SCOPED sweep (the money/render path stays right here).
+      if (instantOn && m.phone) {
+        const { kasClientSocket } = await import("./kasClientSocket");
+        if (!kasClientSocket.isUp(m.id)) {
+          void (ds as unknown as { readClientAuth(p: string): Promise<{ secretKey: string | null }> })
+            .readClientAuth(m.phone)
+            .then((a) => {
+              if (a.secretKey) kasClientSocket.register(m.id, m.phone!, a.secretKey, () => void pushBookingUpdates(bot, undefined, { memberScope: { id: m.id } }));
+            })
+            .catch(() => undefined);
+        }
+      }
       const isNewRide = m.lastBookingId !== b.id;
       const statusChanged = isNewRide || m.lastBookingStatus !== b.status;
       // "new" = the booking is being OFFERED (not accepted) — don't show kas's candidate car as the
@@ -463,6 +480,7 @@ export async function pushBookingUpdates(
           where: { id: m.id },
           data: { lastBookingId: null, lastBookingStatus: null, lastBookingCar: null, lastBookingBonus: null, rideCardMsgId: null, liveLocMsgId: null, rideStartedAt: null },
         });
+        if (instantOn) await import("./kasClientSocket").then(({ kasClientSocket }) => kasClientSocket.unregister(m.id)).catch(() => undefined); // ⚡ ride gone → close socket
         continue;
       }
       {
@@ -814,6 +832,7 @@ export async function pushBookingUpdates(
           rideStartedAt: null,
         },
       });
+      if (instantOn) await import("./kasClientSocket").then(({ kasClientSocket }) => kasClientSocket.unregister(m.id)).catch(() => undefined); // ⚡ ride finished → close socket
     }
     } catch (e) {
       console.error(`[sweep] member ${m.id} skipped this tick:`, e instanceof Error ? e.message.split("\n")[0] : e);

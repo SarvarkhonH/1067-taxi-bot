@@ -65,10 +65,14 @@ async function main(): Promise<void> {
   sock.setEncoding("utf8");
   sock.setKeepAlive(true, 30_000);
 
+  // MUST match the phone format checkClient accepted (kasPhone → +998XXXXXXXXX), else the netty
+  // server silently ignores the auth frame (proven: raw 9-digit phone → zero response).
+  const last9 = phone.replace(/\D/g, "").slice(-9);
+  const phoneFmt = last9.length === 9 ? `+998${last9}` : phone;
   const send = (status: string) => {
-    const frame = `#<${status}|${phone}|${secretKey}|0.0|0.0>\r\n`;
+    const frame = `#<${status}|${phoneFmt}|${secretKey}|0.0|0.0>\r\n`;
     sock.write(frame);
-    console.log(`${ts()}  → SENT ${status}`);
+    console.log(`${ts()}  → SENT ${status} (phone ${phoneFmt})`);
   };
 
   let buf = "";
