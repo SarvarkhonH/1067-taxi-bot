@@ -3004,6 +3004,18 @@ function TransactionsView() {
     return [r.fromName, r.fromPhone, r.toName, r.toPhone, r.note].some((x) => x?.toLowerCase().includes(s));
   });
 
+  // jami: umumiy summa + komissiya + turlar bo'yicha
+  const totals = filtered.reduce(
+    (a, r) => {
+      a.sum += r.amount;
+      a.comm += r.commission;
+      if (r.kind === "withdraw") a.withdraw += r.amount;
+      else a.paid += r.amount;
+      return a;
+    },
+    { sum: 0, comm: 0, withdraw: 0, paid: 0 },
+  );
+
   const exportCsv = () => {
     const csv = "Sana,Turi,Kimdan,Telefon,Kimga,Telefon,Summa,Komissiya,Izoh\n" +
       filtered.map((r) => `"${fmtTime(r.at)}","${kindLabel(r.kind).txt}","${r.fromName ?? ""}","${r.fromPhone ?? ""}","${r.toName ?? ""}","${r.toPhone ?? ""}",${r.amount},${r.commission},"${(r.note ?? "").replace(/"/g, "'")}"`).join("\n");
@@ -3035,6 +3047,27 @@ function TransactionsView() {
       </div>
 
       <input className="search" style={{ width: "100%", marginBottom: 12 }} placeholder="🔍 Ism / telefon / izoh bo'yicha qidirish" value={q} onChange={(e) => setQ(e.target.value)} />
+
+      {!loading && filtered.length > 0 && (
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: 10, marginBottom: 14 }}>
+          <div className="card" style={{ padding: 14 }}>
+            <div className="card-label">📊 Jami harakat ({filtered.length} ta)</div>
+            <div className="card-value" style={{ fontSize: 22 }}>{formatNumber(totals.sum)} <span style={{ fontSize: 13, color: "var(--muted)" }}>tanga</span></div>
+          </div>
+          <div className="card" style={{ padding: 14 }}>
+            <div className="card-label">🚕 To'lov + choychaqa</div>
+            <div className="card-value" style={{ fontSize: 22, color: "#34d399" }}>{formatNumber(totals.paid)}</div>
+          </div>
+          <div className="card" style={{ padding: 14 }}>
+            <div className="card-label">💳 Yechilgan</div>
+            <div className="card-value" style={{ fontSize: 22, color: "#f87171" }}>{formatNumber(totals.withdraw)}</div>
+          </div>
+          <div className="card" style={{ padding: 14 }}>
+            <div className="card-label">💼 Komissiya (1067)</div>
+            <div className="card-value" style={{ fontSize: 22, color: "var(--accent)" }}>{formatNumber(totals.comm)}</div>
+          </div>
+        </div>
+      )}
 
       {err && <div className="action-msg">{err}</div>}
       {loading ? <p className="muted">Yuklanmoqda…</p> : filtered.length === 0 ? <p className="muted">Tranzaksiya topilmadi.</p> : (
