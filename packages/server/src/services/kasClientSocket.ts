@@ -26,6 +26,11 @@ function kasPhone(phone: string): string {
   return last9.length === 9 ? `+998${last9}` : phone;
 }
 
+const KEEPALIVE_MS = 3_000; // official app sends `location` every clientLocationTimer(=3000)ms; without
+// it kas closes the "idle" socket after the first frame → we'd miss later status changes (proven:
+// the socket re-armed every ~90s and only ever caught the on-connect state, so accepts came via the
+// slow poll). Sending the keepalive keeps it live so take_booking/in_place arrive in real time.
+
 interface Conn {
   phone: string;
   secretKey: string;
@@ -35,6 +40,7 @@ interface Conn {
   buf: string;
   lastEventAt: number;
   authed: boolean;
+  keepAlive: ReturnType<typeof setInterval> | null;
 }
 
 class KasClientSocket {
@@ -51,7 +57,7 @@ class KasClientSocket {
       return;
     }
     if (existing) this.close(memberId); // stale/changed key → drop and reopen
-    const c: Conn = { phone, secretKey, onEvent, sock: null, stopped: false, buf: "", lastEventAt: 0, authed: false };
+    const c: Conn = { phone, secretKey, onEvent, sock: null, stopped: false, buf: "", lastEventAt: 0, authed: false, keepAlive: null };
     this.conns.set(memberId, c);
     console.log(`[clientsocket] arm m${memberId} → ${HOST}:${PORT}`);
     this.connect(memberId);
@@ -71,6 +77,7 @@ class KasClientSocket {
     const c = this.conns.get(memberId);
     if (!c) return;
     c.stopped = true;
+    if (c.keepAlive) { clearInterval(c.keepAlive); c.keepAlive = null; }
     try {
       c.sock?.destroy();
     } catch {
@@ -112,6 +119,7 @@ class KasClientSocket {
     sock.on("close", () => {
       c.sock = null;
       c.authed = false;
+      if (c.keepAlive) { clearInterval(c.keepAlive); c.keepAlive = null; }
       if (!c.stopped && !this.stopped && this.conns.get(memberId) === c) setTimeout(() => this.connect(memberId), RECONNECT_MS);
     });
   }
@@ -132,6 +140,12 @@ class KasClientSocket {
         c.authed = true;
         console.log(`[clientsocket] m${memberId} authed ✅ (socket live)`);
         this.send(c, "start");
+        // keepalive: the official app streams `location` every 3s; without it kas closes the socket
+        // after the first frame (proven). Keeps the connection live so later status changes arrive.
+        if (c.keepAlive) clearInterval(c.keepAlive);
+        c.keepAlive = setInterval(() => {
+          if (c.sock && !c.sock.destroyed) this.send(c, "location");
+        }, KEEPALIVE_MS);
         continue;
       }
       if (BOOKING_STATUSES.has(status)) {
