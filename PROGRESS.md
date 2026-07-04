@@ -13,6 +13,23 @@
 
 ## Jarayonda
 
+### ⚡ AUDIT BOSQICH B — TEZLIK/SHAHAR-HAJM (2026-07-04) — 🟢 DEPLOYED (jonli)
+Kompaniya kas1067'ni SOTIB OLDI, komissiya endi 2000 so'm/safar (1% emas), rent 500k/oy → iqtisod ijobiy, o'sishga sarflash foydali. Shahar-hajmga tayyorlov:
+- **B1** `api/bookings` (butun faol ro'yxat) 3 marta ortiqcha o'qilardi (sweep+frontend+Mini App) → bitta 2.5s-TTL kesh (`KAS_ACTIVE_TTL_MS`), create/cancel'da bust. Bir 1.66 req/s lentadagi raqobat yo'qoldi.
+- **B2** kasClientSocket: eksponensial backoff+jitter (5s lockstep-storm o'rniga), qattiq cap+LRU, `reap()` backstop (sweep'da), **shartsiz unregister** (flag-off leak yopildi).
+- **B3** noma'lum kas-status → bir marta canary-alert (jim-nol-to'lov oldini oladi); AppState ephemeral markerlar 2 kunga (30d edi; pul-kalitlarga TEGILMAYDI).
+- **B4** ≤350 clamp: `CoinTxn.bookingId` ustuni + `@@index([memberId, bookingId])` — indekssiz endsWith-scan o'rniga (pul yo'lida, lock ostida edi). Legacy null-fallback + backfill (560 satr). Additiv, ikkala DB'ga push.
+- **B5** waitcomp kunlik byudjet: lock'siz aggregate → **serialized atomik hisoblagich** (konkurent tugashda ortiqcha to'lov yo'q, adolat ham saqlanadi).
+- **DEFER B6** phoneLast9 ustuni (eng xavfli, ko'p joyga tegadi; audit «hozir arzon» dedi — shahar o'sganda).
+- **ISBOT:** typecheck 4/4 · `testAuditFixesB` (B4 7 + B5 4) **5× yashil** (flaky-money yo'q) · testMoneyShield/testRideCard/testPhantomRide/testWaitComp/testRideWheel yashil · commitlar 150c699/8e7f085/261d3a2.
+
+### 🎮 AUDIT BOSQICH C — O'SISH-POLISH (2026-07-04) — 🟢 DEPLOYED (jonli)
+- **C2** `daily_freespin` — safar-siz yagona quest (bepul g'ildirak); gamify-auditning №1 kamchiligi «har quest safar-talab» yopildi → safar qilmaydigan kunda ham botni ochish sababi.
+- **C3** streak day-2 = 50 tanga (0 edi) — 1→3 «o'lik zona» yopildi.
+- **C4** haftalik reyting: boshqalar qisqa-ism («Axmedov Y.»), o'zi to'liq — kichik-shahar hasad/maxfiylik xavfi (kanal/drvrank naqshi).
+- «o'yin·bozor» eski matnlar tozalandi (3 bot-string).
+- **ISBOT:** typecheck 4/4 · `testAuditFixesC` 8/8 yashil · commit 2f38917 · Mini App Vercel + server Render deploy.
+
 ### 🛡 AUDIT BOSQICH A — PUL-QALQON (2026-07-04) — READY FOR VERIFICATION (7 P0/P1 tuzatildi, DARK-safe)
 8-agent auditning pul-xavfli topilmalarini yopish. Har biri isbot bilan:
 - **A1** bot-chat `bk:confirm` endi `claimDispatchSlot` CAS + faol-safar guard + instant-socket arm (Mini App bilan bir xil qalqon) — double-tap 2 taksi chaqirmaydi (booking.ts). Isbot: CAS testi (2 parallel → 1 g'olib).
