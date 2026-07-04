@@ -53,6 +53,7 @@ class KasClientSocket {
     if (existing) this.close(memberId); // stale/changed key → drop and reopen
     const c: Conn = { phone, secretKey, onEvent, sock: null, stopped: false, buf: "", lastEventAt: 0, authed: false };
     this.conns.set(memberId, c);
+    console.log(`[clientsocket] arm m${memberId} → ${HOST}:${PORT}`);
     this.connect(memberId);
   }
 
@@ -129,6 +130,7 @@ class KasClientSocket {
       const status = inner.split("|")[0] ?? "";
       if (status === "auth_success") {
         c.authed = true;
+        console.log(`[clientsocket] m${memberId} authed ✅ (socket live)`);
         this.send(c, "start");
         continue;
       }
@@ -136,6 +138,7 @@ class KasClientSocket {
         const now = Date.now();
         if (now - c.lastEventAt < EVENT_DEBOUNCE_MS) continue; // collapse bursts
         c.lastEventAt = now;
+        console.log(`[clientsocket] m${memberId} ⚡ ${status} → scoped sweep`);
         try {
           c.onEvent(status);
         } catch (e) {
