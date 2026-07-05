@@ -8,6 +8,12 @@
       "port": 5173
     },
     {
+      "name": "miniapp-alt",
+      "runtimeExecutable": "pnpm",
+      "runtimeArgs": ["--filter", "@t1067/miniapp", "exec", "vite", "--port", "5199", "--strictPort"],
+      "port": 5199
+    },
+    {
       "name": "miniapp-built",
       "runtimeExecutable": "pnpm",
       "runtimeArgs": ["--filter", "@t1067/miniapp", "exec", "vite", "preview", "--port", "4173", "--strictPort"],
@@ -54,6 +60,12 @@
       "runtimeExecutable": "pnpm",
       "runtimeArgs": ["--filter", "@t1067/server", "dev"],
       "port": 8080
+    },
+    {
+      "name": "ulugbek-qr",
+      "runtimeExecutable": "npx",
+      "runtimeArgs": ["serve", "C:\\Users\\sarva\\Desktop", "-l", "4321"],
+      "port": 4321
     }
   ]
 }

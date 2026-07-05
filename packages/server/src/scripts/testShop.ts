@@ -129,6 +129,13 @@ async function main(): Promise<void> {
   ok((await listActiveProducts()).length === 0, "12: flag off → rider list empty");
   ok((await buyProduct(a.id, pid, ADDR)).reason === "off", "12: flag off → buy blocked");
 
+  // 13) owner-preview: flag DARK + preview=true → owner browses AND buys (the QABUL flow —
+  // the original bug: preview only unlocked the TAB, so the owner saw an empty locked shop)
+  const pv = await listActiveProducts(true);
+  ok(pv.some((p) => p.id === pid), "13: owner-preview sees the catalog while flag is DARK");
+  const pvBuy = await buyProduct(a.id, pid, ADDR, true);
+  ok(pvBuy.ok === true, "13: owner-preview can BUY while flag is DARK");
+
   await cleanup();
   console.log(process.exitCode ? "\n❌ FAILED" : "\n✅ ALL GREEN");
   await prisma.$disconnect();

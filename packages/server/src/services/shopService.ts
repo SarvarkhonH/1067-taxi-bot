@@ -14,8 +14,10 @@ const PENDING_PER_MEMBER = 3; // anti-spam: at most 3 open orders per rider
 
 // ── rider surface ────────────────────────────────────────────────────────────────────────────────
 
-export async function listActiveProducts(): Promise<ShopProductView[]> {
-  if (!(await featureOn("shop"))) return [];
+/** preview=true (admin/owner) bypasses the DARK flag so the owner can QABUL the WHOLE flow —
+ *  browse+buy — while ordinary riders still see nothing. Route layer decides preview. */
+export async function listActiveProducts(preview = false): Promise<ShopProductView[]> {
+  if (!preview && !(await featureOn("shop"))) return [];
   const rows = await prisma.product.findMany({
     where: { active: true, stock: { gt: 0 } },
     orderBy: [{ sortOrder: "asc" }, { id: "desc" }],
@@ -67,8 +69,9 @@ export async function buyProduct(
   memberId: number,
   productId: number,
   address: string,
+  preview = false, // admin/owner QABUL-test while the flag is DARK
 ): Promise<ShopBuyResponse & { notice?: ShopOwnerNotice }> {
-  if (!(await featureOn("shop"))) return { ok: false, reason: "off" };
+  if (!preview && !(await featureOn("shop"))) return { ok: false, reason: "off" };
   const addr = (address ?? "").trim().slice(0, 200);
   if (addr.length < 5) return { ok: false, reason: "bad_address" };
 

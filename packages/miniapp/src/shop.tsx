@@ -10,6 +10,14 @@ import { Button, Chip, EmptyState, ProgressBar, Sheet, Skeleton } from "./design
 
 const AVG_EARN_PER_RIDE = 250; // rough tanga/ride (roll+wheel avg) — "N safar yetadi" hint only
 
+// Hamster-style colored frames — deterministic per category (real palette, NOT rarity/lootbox)
+const ACCENTS = ["#ffb300", "#f0426b", "#8b5cf6", "#22c55e", "#38bdf8"];
+function accentOf(category: string): string {
+  let h = 5381;
+  for (let i = 0; i < category.length; i++) h = (h * 33) ^ category.charCodeAt(i);
+  return ACCENTS[(h >>> 0) % ACCENTS.length]!;
+}
+
 function StatusPill({ s }: { s: ShopPurchaseView["status"] }) {
   const map: Record<ShopPurchaseView["status"], { t: string; c: string }> = {
     pending: { t: "⏳ Kutilmoqda", c: "pending" },
@@ -131,15 +139,17 @@ export function ShopView({ me, onBanner, reload, onBook }: { me: MeResponse; onB
       ) : (
         <div className="shop-grid">
           {shown.map((p) => (
-            <button key={p.id} className="shop-card glass" onClick={() => openProduct(p)}>
+            <button key={p.id} className="shop-card glass" style={{ ["--acc" as string]: accentOf(p.category) }} onClick={() => openProduct(p)}>
+              <div className="shop-card-cat">{p.category}</div>
               <div className="shop-card-photo-wrap">
                 {p.hasPhoto ? <img className="shop-card-photo" src={apiUrl(`/api/shop/photo/${p.id}`)} loading="lazy" alt="" /> : <div className="shop-card-photo shop-card-noimg">🛍</div>}
                 {p.isNew && <span className="shop-badge-new">YANGI</span>}
-                {p.stock <= SHOP_LOW_STOCK && <span className="shop-badge-stock low">Kam qoldi: {p.stock}</span>}
+                {p.stock <= SHOP_LOW_STOCK && <span className="shop-badge-stock low">⚡ {p.stock} dona</span>}
               </div>
               <div className="shop-card-body">
                 <div className="shop-card-name">{p.name}</div>
                 <div className="shop-price-chip">🪙 {formatNumber(p.priceTanga)}</div>
+                <div className="shop-buy-bar">Sotib olish</div>
               </div>
             </button>
           ))}

@@ -1454,18 +1454,28 @@ body {
 .shop-orders-btn { border: 1px solid var(--line); background: var(--surface-2); color: var(--text); font-size: 12.5px; font-weight: 700; padding: 8px 12px; border-radius: var(--r-chip); }
 .shop-orders-btn:active { transform: scale(.96); }
 .shop-cats { margin: 2px 0 4px; }
-.shop-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
-.shop-card { padding: 0; overflow: hidden; text-align: left; border: 1px solid var(--line); display: flex; flex-direction: column; }
-.shop-card:active { transform: scale(.97); }
+.shop-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+/* Hamster-style category-colored frame: --acc set inline per card; ribbon + glow from the SAME
+   accent so the grid reads colorful, not flat. Real category color — NOT a rarity/lootbox signal. */
+.shop-card { --acc: var(--brand); padding: 0; overflow: hidden; text-align: left; display: flex; flex-direction: column; position: relative;
+  border: 1px solid color-mix(in srgb, var(--acc) 45%, transparent);
+  box-shadow: 0 6px 24px -10px color-mix(in srgb, var(--acc) 55%, transparent), inset 0 1px 0 rgba(255,255,255,.08);
+  transition: transform .12s ease; }
+.shop-card:active { transform: scale(.96); }
+.shop-card-cat { font-size: 10px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; text-align: center; padding: 4px 6px;
+  background: linear-gradient(135deg, color-mix(in srgb, var(--acc) 85%, #fff 0%), color-mix(in srgb, var(--acc) 60%, #000 10%)); color: #fff; text-shadow: 0 1px 2px rgba(0,0,0,.35); }
 .shop-card-photo-wrap { position: relative; }
 .shop-card-photo { width: 100%; aspect-ratio: 1 / 1; object-fit: cover; display: block; background: var(--surface); }
-.shop-card-noimg { display: flex; align-items: center; justify-content: center; font-size: 42px; }
-.shop-badge-new { position: absolute; top: 6px; left: 6px; font-size: 10px; font-weight: 800; letter-spacing: .04em; padding: 3px 7px; border-radius: var(--r-chip); background: var(--brand-grad); color: #1a1205; }
-.shop-badge-stock { position: absolute; top: 6px; right: 6px; font-size: 10px; font-weight: 700; padding: 3px 7px; border-radius: var(--r-chip); background: rgba(0,0,0,.55); color: var(--text); backdrop-filter: blur(4px); }
-.shop-badge-stock.low { background: rgba(248,113,113,.22); color: #fca5a5; border: 1px solid rgba(248,113,113,.35); }
-.shop-card-body { padding: 8px 10px 10px; display: flex; flex-direction: column; gap: 6px; }
-.shop-card-name { font-size: 13px; font-weight: 700; color: var(--text); line-height: 1.25; min-height: 2.5em; }
-.shop-price-chip { align-self: flex-start; font-size: 13px; font-weight: 800; padding: 4px 10px; border-radius: var(--r-chip); background: rgba(255,179,0,.14); color: var(--brand); border: 1px solid rgba(255,179,0,.3); }
+.shop-card-noimg { display: flex; align-items: center; justify-content: center; font-size: 52px;
+  background: radial-gradient(circle at 50% 40%, color-mix(in srgb, var(--acc) 26%, transparent), var(--surface) 75%); }
+.shop-badge-new { position: absolute; top: 6px; left: 6px; font-size: 10px; font-weight: 800; letter-spacing: .04em; padding: 3px 8px; border-radius: var(--r-chip); background: var(--brand-grad); color: #1a1205; box-shadow: 0 2px 8px rgba(255,179,0,.45); }
+.shop-badge-stock { position: absolute; bottom: 6px; right: 6px; font-size: 10px; font-weight: 700; padding: 3px 8px; border-radius: var(--r-chip); background: rgba(0,0,0,.6); color: var(--text); backdrop-filter: blur(4px); }
+.shop-badge-stock.low { background: rgba(248,113,113,.25); color: #fecaca; border: 1px solid rgba(248,113,113,.4); }
+.shop-card-body { padding: 9px 10px 10px; display: flex; flex-direction: column; gap: 7px; }
+.shop-card-name { font-size: 13.5px; font-weight: 700; color: var(--text); line-height: 1.25; min-height: 2.5em; }
+.shop-price-chip { align-self: center; font-size: 14px; font-weight: 900; padding: 4px 12px; border-radius: var(--r-chip); background: rgba(255,179,0,.14); color: var(--brand); border: 1px solid rgba(255,179,0,.35); }
+.shop-buy-bar { text-align: center; font-size: 13px; font-weight: 800; padding: 9px 10px; border-radius: 12px; color: #1a1205;
+  background: linear-gradient(135deg, #ffc840, #ff9500); box-shadow: 0 4px 14px -4px rgba(255,150,0,.6); }
 .shop-detail-photo { width: 100%; aspect-ratio: 1 / 1; object-fit: cover; border-radius: var(--r-card); background: var(--surface); display: block; }
 .shop-detail-name { margin: 10px 0 2px; }
 .shop-confirm-total { font-size: 26px; font-weight: 900; color: var(--brand); margin: 8px 0; }

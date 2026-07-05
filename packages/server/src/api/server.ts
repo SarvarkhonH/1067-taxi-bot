@@ -173,7 +173,10 @@ export function createApiServer(opts: ApiOptions = {}) {
   const app = express();
   app.use(cors());
   app.use(compression()); // T2: gzip har javobga — WAN'da payload kichrayadi (telefon uchun)
-  app.use(express.json());
+  // 6mb: photo-upload routes (driver portrait, shop product) send base64 JSON — the GLOBAL parser
+  // runs FIRST, so its default 100kb limit was 413-ing every real photo before the per-route
+  // express.json({limit:"6mb"}) could apply (the per-route parser no-ops once req.body exists).
+  app.use(express.json({ limit: "6mb" }));
   app.set("etag", "strong"); // T2: shartli so'rovlar uchun ETag (304)
 
   app.get("/health", (_req, res) => {
@@ -328,11 +331,12 @@ export function createApiServer(opts: ApiOptions = {}) {
   app.get("/api/shop/products", requireUser, rateLimit(30), async (_req, res) => {
     const { listActiveProducts } = await import("../services/shopService");
     res.set("Cache-Control", "private, max-age=30");
-    res.json({ products: await listActiveProducts() }); // [] when the flag is dark — soft gate
+    // owner-preview: admins browse the REAL catalog while the flag is DARK (QABUL flow); riders get []
+    res.json({ products: await listActiveProducts(isAdmin(res.locals.telegramId as string)) });
   });
-  app.post("/api/shop/buy", requireUser, rateLimit(10), withMember2(async (id, req) => {
+  app.post("/api/shop/buy", requireUser, rateLimit(10), withMember2(async (id, req, res) => {
     const { buyProduct } = await import("../services/shopService");
-    const r = await buyProduct(id, Number(req.body?.productId), String(req.body?.address ?? ""));
+    const r = await buyProduct(id, Number(req.body?.productId), String(req.body?.address ?? ""), isAdmin(res.locals.telegramId as string));
     if (r.ok && r.notice && opts.notifyShopOwner) await opts.notifyShopOwner(r.notice).catch(() => undefined);
     const { notice: _n, ...pub } = r; // owner-notice (phone/address) never leaves the server response path
     return pub;
