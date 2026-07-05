@@ -12,6 +12,13 @@ export function Icon({ name, filled = false, size = 24 }: { name: string; filled
     strokeLinejoin: "round" as const,
   };
   switch (name) {
+    case "search":
+      return (
+        <svg {...p}>
+          <circle cx="11" cy="11" r="7" fill={filled ? "currentColor" : "none"} />
+          <path d="m20 20-3.5-3.5" />
+        </svg>
+      );
     case "wallet":
       return (
         <svg {...p}>

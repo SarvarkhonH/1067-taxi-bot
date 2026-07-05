@@ -113,6 +113,10 @@ async function main(): Promise<void> {
     notifyShopOwner: async (notice) => {
       if (bot) await (await import("./bot/shop")).notifyOwnerShop(bot, notice);
     },
+    // 🔎 self-submitted service listing → owner moderation card [✅ Tasdiqlash]/[❌ Rad]
+    notifyServiceOwner: async (notice) => {
+      if (bot) await (await import("./bot/xizmatlar")).notifyOwnerService(bot, notice);
+    },
   });
   // economy alerts (withdraws, anomalies) → admins
   const { registerAdminNotifier } = await import("./services/economyService");

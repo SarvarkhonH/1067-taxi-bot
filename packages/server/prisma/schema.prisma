@@ -1395,3 +1395,76 @@ model DriverCall {
   @@index([status])
   @@index([inBot, active])
 }
+
+// ── 🔎 XIZMATLAR (feature "xizmatlar", DARK) — Koson services directory ─────────────────────────
+// "Koson 2GIS'i": every local business with phone/photos/rating/reviews. NO money paths — the
+// coin ledger is untouched; the only writes are listings, counters and reviews.
+
+model ServiceCategory {
+  id        Int              @id @default(autoincrement())
+  name      String
+  emoji     String           @default("")
+  sortOrder Int              @default(0)
+  active    Boolean          @default(true)
+  listings  ServiceListing[]
+}
+
+model ServiceListing {
+  id          Int             @id @default(autoincrement())
+  category    ServiceCategory @relation(fields: [categoryId], references: [id])
+  categoryId  Int
+  name        String
+  phone       String
+  phone2      String?
+  desc        String          @default("")
+  tags        String          @default("") // "sement, g'isht, qurilish" — search field
+  address     String?
+  workHours   String? // "08:00-19:00" → UI computes Ochiq/Yopiq live
+  status      String          @default("pending") // pending | active | rejected | archived
+  isVip       Boolean         @default(false)
+  verified    Boolean         @default(false) // blue badge — admin-granted only
+  ownerTgId   BigInt? // who self-submitted (edit rights + spam cap)
+  viewCount   Int             @default(0)
+  callCount   Int             @default(0) // server-side only — "sizni N marta izlashdi" proof
+  avgRating   Float           @default(0) // cached aggregate, recomputed on each review write
+  reviewCount Int             @default(0) // cached aggregate
+  rankScore   Float           @default(0) // bayes ranking cache: (avg*n + 4.0*5)/(n+5)
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+  photos      ServicePhoto[]
+  reviews     ServiceReview[]
+
+  @@index([categoryId, status, rankScore])
+  @@index([status, isVip])
+  @@index([ownerTgId])
+}
+
+// Gallery — ProductPhoto pattern: Telegram file_id (durable, free) with data-URL fallback.
+model ServicePhoto {
+  id        Int            @id @default(autoincrement())
+  listing   ServiceListing @relation(fields: [listingId], references: [id], onDelete: Cascade)
+  listingId Int
+  fileId    String?
+  url       String?
+  sortOrder Int            @default(0)
+
+  @@index([listingId, sortOrder])
+}
+
+model ServiceReview {
+  id         Int            @id @default(autoincrement())
+  listing    ServiceListing @relation(fields: [listingId], references: [id], onDelete: Cascade)
+  listingId  Int
+  tgId       BigInt // Telegram-auth author — 1 user = 1 review per listing (upsert)
+  authorName String
+  stars      Int // 1..5
+  text       String         @default("")
+  status     String         @default("visible") // visible | hidden | reported
+  reports    Int            @default(0) // 3 reports → auto-hidden + moderation queue
+  createdAt  DateTime       @default(now())
+  updatedAt  DateTime       @updatedAt
+
+  @@unique([listingId, tgId])
+  @@index([listingId, status, createdAt])
+  @@index([status])
+}

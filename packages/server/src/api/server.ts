@@ -44,6 +44,8 @@ export interface ApiOptions {
   notifyCashoutOwner?: (notice: CashoutOwnerNotice) => Promise<void>;
   /** 🛍 Forward a shop purchase to the owner's Telegram [✅ Yetkazildi]/[❌ Rad] (bot-bound). */
   notifyShopOwner?: (notice: import("../services/shopService").ShopOwnerNotice) => Promise<void>;
+  /** 🔎 Forward a self-submitted service listing to the owner's Telegram [✅/❌] (bot-bound). */
+  notifyServiceOwner?: (notice: import("../services/serviceDirectory").ServiceOwnerNotice) => Promise<void>;
 }
 
 function memberType(req: Request, fallback: MemberType): MemberType {
@@ -184,13 +186,14 @@ export function createApiServer(opts: ApiOptions = {}) {
   });
 
   app.get("/api/me", requireUser, async (_req, res) => {
-    const [me, booking3, livinghome, intercity, tierloyalty, shopOn] = await Promise.all([
+    const [me, booking3, livinghome, intercity, tierloyalty, shopOn, xizmatlarOn] = await Promise.all([
       getMe(res.locals.telegramId as string),
       featureOn("booking3"),
       featureOn("livinghome"),
       featureOn("intercity"),
       featureOn("tierloyalty"),
       featureOn("shop"),
+      featureOn("xizmatlar"),
     ]);
     if (!me) { res.json({ linked: false }); return; }
     // 🏅 owner-preview: admins see the tier-loyalty UI even while the global flag is DARK, so the
@@ -198,7 +201,9 @@ export function createApiServer(opts: ApiOptions = {}) {
     const tierPreview = tierloyalty || isAdmin(res.locals.telegramId as string);
     // 🛍 shop owner-preview mirrors it — owner QABULs the shop tab while the flag is DARK
     const shopPreview = shopOn || isAdmin(res.locals.telegramId as string);
-    res.json({ ...me, flags: { booking3, livinghome, intercity, tierloyalty: tierPreview, shop: shopPreview } });
+    // 🔎 xizmatlar owner-preview mirrors it — owner QABULs the directory while DARK
+    const xizmatlarPreview = xizmatlarOn || isAdmin(res.locals.telegramId as string);
+    res.json({ ...me, flags: { booking3, livinghome, intercity, tierloyalty: tierPreview, shop: shopPreview, xizmatlar: xizmatlarPreview } });
   });
 
   // 🏅 Tier ladder benefits — labels derived from LIVE knobs (single source of truth). 60s client cache.
@@ -369,6 +374,91 @@ export function createApiServer(opts: ApiOptions = {}) {
   };
   app.get("/api/shop/photo/:productId", serveShopPhoto);
   app.get("/api/shop/photo/:productId/:n", serveShopPhoto);
+
+  // ── 🔎 XIZMATLAR (feature "xizmatlar", DARK until seed + QABUL) — moves NO money ──────────────
+  // owner-preview everywhere: admins browse/QABUL the real catalog while riders still see nothing.
+  const svcPreview = (res: Response) => isAdmin(res.locals.telegramId as string);
+  app.get("/api/services/categories", requireUser, rateLimit(30), async (_req, res) => {
+    const { listCategories } = await import("../services/serviceDirectory");
+    res.set("Cache-Control", "private, max-age=60");
+    res.json({ categories: await listCategories(svcPreview(res)) });
+  });
+  app.get("/api/services/list", requireUser, rateLimit(60), async (req, res) => {
+    const { listListings } = await import("../services/serviceDirectory");
+    res.json(await listListings({
+      categoryId: req.query.cat ? Number(req.query.cat) : undefined,
+      q: req.query.q ? String(req.query.q) : undefined,
+      limit: req.query.limit ? Number(req.query.limit) : undefined,
+      offset: req.query.offset ? Number(req.query.offset) : undefined,
+    }, svcPreview(res)));
+  });
+  app.get("/api/services/item/:id", requireUser, rateLimit(60), async (req, res) => {
+    const { getListing } = await import("../services/serviceDirectory");
+    const item = await getListing(Number(req.params.id), res.locals.telegramId as string, svcPreview(res));
+    if (!item) { res.status(404).json({ error: "not_found" }); return; }
+    res.json(item);
+  });
+  app.post("/api/services/call", requireUser, rateLimit(30), async (req, res) => {
+    const { trackCall } = await import("../services/serviceDirectory");
+    res.json(await trackCall(Number(req.body?.id), svcPreview(res)));
+  });
+  app.post("/api/services/submit", requireUser, rateLimit(5), withMember2(async (memberId, req, res) => {
+    const { submitListing } = await import("../services/serviceDirectory");
+    const m = await prisma.member.findUnique({ where: { id: memberId }, select: { displayName: true, fullName: true } });
+    const r = await submitListing(
+      res.locals.telegramId as string,
+      m?.displayName || m?.fullName || "Foydalanuvchi",
+      req.body as import("@t1067/shared").ServiceSubmitBody,
+      svcPreview(res),
+    );
+    if (r.ok && r.notice && opts.notifyServiceOwner) await opts.notifyServiceOwner(r.notice).catch(() => undefined);
+    const { notice: _n, ...pub } = r; // owner-notice never leaves the server response path
+    return pub;
+  }));
+  app.get("/api/services/mine", requireUser, rateLimit(30), async (_req, res) => {
+    const { myListings } = await import("../services/serviceDirectory");
+    res.json({ listings: await myListings(res.locals.telegramId as string) });
+  });
+  app.get("/api/services/reviews", requireUser, rateLimit(60), async (req, res) => {
+    const { listReviews } = await import("../services/serviceDirectory");
+    res.json({ reviews: await listReviews(Number(req.query.listingId), res.locals.telegramId as string, 20, req.query.offset ? Number(req.query.offset) : 0) });
+  });
+  app.post("/api/services/review", requireUser, rateLimit(10), withMember2(async (memberId, req, res) => {
+    const { upsertReview } = await import("../services/serviceDirectory");
+    const m = await prisma.member.findUnique({ where: { id: memberId }, select: { displayName: true, fullName: true } });
+    // privacy: reviews show "Dilshod A." — first name + surname initial, never the full name
+    const raw = (m?.displayName || m?.fullName || "Foydalanuvchi").trim().split(/\s+/);
+    const authorName = raw.length > 1 ? `${raw[0]} ${raw[1]!.charAt(0).toUpperCase()}.` : raw[0]!;
+    const b = req.body as { listingId?: number; stars?: number; text?: string };
+    return upsertReview(res.locals.telegramId as string, authorName, Number(b?.listingId), Number(b?.stars), String(b?.text ?? ""), svcPreview(res));
+  }));
+  app.post("/api/services/report", requireUser, rateLimit(10), async (req, res) => {
+    const { reportReview } = await import("../services/serviceDirectory");
+    res.json(await reportReview(Number(req.body?.reviewId), res.locals.telegramId as string));
+  });
+  // public listing photo proxy (img tag) — shop-photo clone: file_id → 302 to Telegram CDN
+  const svcPhotoHits = new Map<string, { n: number; at: number }>();
+  const serveServicePhoto = async (req: Request, res: Response): Promise<void> => {
+    const ipKey = String(req.headers["x-forwarded-for"] ?? req.socket.remoteAddress ?? "?").split(",")[0]!.trim();
+    if (svcPhotoHits.size > 10_000) svcPhotoHits.clear();
+    const now = Date.now();
+    const h = svcPhotoHits.get(ipKey);
+    if (h && now - h.at < 60_000 && h.n >= 120) { res.status(429).end(); return; }
+    svcPhotoHits.set(ipKey, h && now - h.at < 60_000 ? { n: h.n + 1, at: h.at } : { n: 1, at: now });
+    const { resolveServicePhoto } = await import("../services/serviceDirectory");
+    const idx = Math.max(0, Math.min(10, Number(req.params.n ?? 0) || 0));
+    const url = await resolveServicePhoto(Number(req.params.listingId), idx);
+    if (!url) { res.status(404).end(); return; }
+    if (url.startsWith("data:")) {
+      const m = /^data:([^;]+);base64,(.*)$/.exec(url);
+      if (!m) { res.status(404).end(); return; }
+      res.set("Content-Type", m[1]!).set("Cache-Control", "public, max-age=3600").send(Buffer.from(m[2]!, "base64"));
+      return;
+    }
+    res.set("Cache-Control", "private, max-age=3600").redirect(302, url);
+  };
+  app.get("/api/services/photo/:listingId", serveServicePhoto);
+  app.get("/api/services/photo/:listingId/:n", serveServicePhoto);
 
   app.post("/api/wallet/topup", requireUser, rateLimit(5), async (req, res) => {
     const memberId = await getMemberId(res.locals.telegramId as string);
@@ -961,6 +1051,47 @@ export function createApiServer(opts: ApiOptions = {}) {
   app.get("/api/admin/shop/orders", requireAdmin, async (req, res) => {
     const { adminListPurchases } = await import("../services/shopService");
     res.json({ orders: await adminListPurchases(req.query?.status ? String(req.query.status) : undefined) });
+  });
+
+  // ── 🔎 XIZMATLAR admin (owner-gated writes) ───────────────────────────────────────────────────
+  app.get("/api/admin/services", requireAdmin, async (req, res) => {
+    const { adminListListings } = await import("../services/serviceDirectory");
+    res.json(await adminListListings(req.query?.status ? String(req.query.status) : undefined));
+  });
+  app.post("/api/admin/services", requireAdmin, requireOwner, rateLimit(30), async (req, res) => {
+    const { adminCreateListing } = await import("../services/serviceDirectory");
+    res.json(await adminCreateListing(req.body));
+  });
+  app.post("/api/admin/services/:id", requireAdmin, requireOwner, rateLimit(30), async (req, res) => {
+    const { adminEditListing } = await import("../services/serviceDirectory");
+    res.json(await adminEditListing(Number(req.params.id), req.body));
+  });
+  app.get("/api/admin/service-categories", requireAdmin, async (_req, res) => {
+    const { adminListCategories } = await import("../services/serviceDirectory");
+    res.json({ categories: await adminListCategories() });
+  });
+  app.post("/api/admin/service-categories", requireAdmin, requireOwner, rateLimit(30), async (req, res) => {
+    const { adminUpsertCategory } = await import("../services/serviceDirectory");
+    res.json(await adminUpsertCategory(req.body));
+  });
+  app.get("/api/admin/service-reviews", requireAdmin, async (_req, res) => {
+    const { adminReviewQueue } = await import("../services/serviceDirectory");
+    res.json({ reviews: await adminReviewQueue() });
+  });
+  app.post("/api/admin/service-reviews/:id", requireAdmin, requireOwner, rateLimit(30), async (req, res) => {
+    const { adminModerateReview } = await import("../services/serviceDirectory");
+    const action = req.body?.action === "restore" ? "restore" as const : "delete" as const;
+    res.json(await adminModerateReview(Number(req.params.id), action));
+  });
+  app.post("/api/admin/services/:id/photo", express.json({ limit: "6mb" }), requireAdmin, requireOwner, async (req, res) => {
+    const b = req.body as { mime?: string; base64?: string };
+    if (!b?.base64) { res.status(400).json({ error: "no image" }); return; }
+    const { uploadServicePhoto } = await import("../services/serviceDirectory");
+    res.json(await uploadServicePhoto(Number(req.params.id), Buffer.from(b.base64, "base64"), b.mime || "image/jpeg"));
+  });
+  app.delete("/api/admin/services/:id/photo", requireAdmin, requireOwner, async (req, res) => {
+    const { clearServicePhotos } = await import("../services/serviceDirectory");
+    res.json(await clearServicePhotos(Number(req.params.id)));
   });
 
   // 💸 Transfer commission — owner sets the % charged on every transfer/tip/fare (gated by the

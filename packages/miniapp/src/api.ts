@@ -140,6 +140,24 @@ export const api = {
   shopProducts: () => get<{ products: import("@t1067/shared").ShopProductView[] }>("/api/shop/products"),
   shopBuy: (productId: number, address: string) => post<import("@t1067/shared").ShopBuyResponse>("/api/shop/buy", { productId, address }),
   shopOrders: () => get<{ orders: import("@t1067/shared").ShopPurchaseView[] }>("/api/shop/orders"),
+  // 🔎 xizmatlar (feature "xizmatlar") — Koson services directory
+  svcCategories: () => get<{ categories: import("@t1067/shared").ServiceCategoryView[] }>("/api/services/categories"),
+  svcList: (p: { cat?: number; q?: string; limit?: number; offset?: number } = {}) => {
+    const sp = new URLSearchParams();
+    if (p.cat) sp.set("cat", String(p.cat));
+    if (p.q) sp.set("q", p.q);
+    if (p.limit) sp.set("limit", String(p.limit));
+    if (p.offset) sp.set("offset", String(p.offset));
+    const qs = sp.toString();
+    return get<{ listings: import("@t1067/shared").ServiceListingCard[]; total: number }>(`/api/services/list${qs ? `?${qs}` : ""}`);
+  },
+  svcItem: (id: number) => get<import("@t1067/shared").ServiceListingDetail>(`/api/services/item/${id}`),
+  svcCall: (id: number) => post<{ ok: boolean }>("/api/services/call", { id }),
+  svcSubmit: (b: import("@t1067/shared").ServiceSubmitBody) => request<import("@t1067/shared").ServiceSubmitResponse>("POST", "/api/services/submit", b, 1),
+  svcMine: () => get<{ listings: { id: number; name: string; status: string; callCount: number; viewCount: number; avgRating: number; reviewCount: number }[] }>("/api/services/mine"),
+  svcReviews: (listingId: number, offset = 0) => get<{ reviews: import("@t1067/shared").ServiceReviewView[] }>(`/api/services/reviews?listingId=${listingId}${offset ? `&offset=${offset}` : ""}`),
+  svcReview: (listingId: number, stars: number, text: string) => request<import("@t1067/shared").ServiceReviewResponse>("POST", "/api/services/review", { listingId, stars, text }, 1),
+  svcReport: (reviewId: number) => request<{ ok: boolean; hidden?: boolean }>("POST", "/api/services/report", { reviewId }, 1),
   createTrack: () => post<{ token: string }>("/api/track"),
   trackTrip: (token: string) => get<PublicTrip>(`/api/track/${encodeURIComponent(token)}`),
   // server defaults the leaderboard to the caller's own member type

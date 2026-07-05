@@ -50,6 +50,7 @@ export interface MeResponse {
     intercity?: boolean; // 🚐 nationwide intercity seat-booking tab
     tierloyalty?: boolean; // 🏅 tier reward loop (multiplier + ball + decay) — UI reveals benefits only when ON
     shop?: boolean; // 🛍 tanga shop tab (owner-preview: admins see it while DARK)
+    xizmatlar?: boolean; // 🔎 services directory tab (owner-preview: admins see it while DARK)
   };
 }
 
@@ -366,3 +367,76 @@ export interface ShopBuyResponse {
 
 export const SHOP_MAX_PRICE = 5_000_000; // sanity ceiling for admin-entered prices
 export const SHOP_LOW_STOCK = 5; // "kam qoldi" badge threshold
+
+// ── 🔎 XIZMATLAR (feature "xizmatlar") — Koson services directory ────────────────────────────────
+// Read/search/call/review only — NO money shapes here by design.
+
+export interface ServiceCategoryView {
+  id: number;
+  name: string;
+  emoji: string;
+  count: number; // active listings inside — proves the catalog is alive
+}
+
+export interface ServiceListingCard {
+  id: number;
+  name: string;
+  categoryId: number;
+  categoryName: string;
+  categoryEmoji: string;
+  tags: string;
+  address?: string | null;
+  workHours?: string | null;
+  isVip: boolean;
+  verified: boolean;
+  avgRating: number; // 1 decimal, 0 = no reviews yet
+  reviewCount: number;
+  hasPhoto: boolean;
+  photoCount: number;
+}
+
+export interface ServiceListingDetail extends ServiceListingCard {
+  phone: string;
+  phone2?: string | null;
+  desc: string;
+  callCount: number;
+  viewCount: number;
+  createdAt: string;
+  myReview?: { stars: number; text: string } | null;
+}
+
+export interface ServiceReviewView {
+  id: number;
+  authorName: string;
+  stars: number;
+  text: string;
+  createdAt: string;
+  mine: boolean;
+}
+
+export interface ServiceSubmitBody {
+  categoryId: number;
+  name: string;
+  phone: string;
+  phone2?: string;
+  desc?: string;
+  tags?: string;
+  address?: string;
+  workHours?: string;
+}
+
+export interface ServiceSubmitResponse {
+  ok: boolean;
+  reason?: "off" | "bad_name" | "bad_phone" | "bad_category" | "daily_limit" | "duplicate";
+  id?: number;
+}
+
+export interface ServiceReviewResponse {
+  ok: boolean;
+  reason?: "off" | "bad_stars" | "not_found" | "too_long";
+  avgRating?: number;
+  reviewCount?: number;
+}
+
+export const SERVICE_SUBMITS_PER_DAY = 2; // self-submit spam cap per Telegram user
+export const SERVICE_MAX_PHOTOS = 6; // gallery cap (shop pattern is 5; profiles feel richer with 6)

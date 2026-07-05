@@ -1354,6 +1354,7 @@ export function createBot(): Bot {
   registerBroadcast(bot); // 📢 /elon — owner-only announcement to all linked users (preview + confirm). Owner+draft-gated text capture, registered first.
   registerCashout(bot); // 💵 /naxt — real cash-out (tanga → card/home) → owner approves. Gated DARK by `cashout`. Registered BEFORE booking so its session-gated text capture gets first crack.
   void import("./shop").then(({ registerShop }) => registerShop(bot)); // 🛍 shop owner ✅/❌ callbacks (callback-only, no text capture → lazy-register is order-safe)
+  void import("./xizmatlar").then(({ registerXizmatlar }) => registerXizmatlar(bot)); // 🔎 xizmatlar owner ✅/❌ moderation callbacks (callback-only → lazy-register is order-safe)
   registerIntercity(bot); // 🚐 /reys — nationwide intercity seat booking (publish/search/book). Gated DARK by `intercity`. Session-gated text capture → registered before booking.
   registerDriverDebt(bot); // /qarz — pay kas debt with tanga (gated behind `qarz` flag). No login: uses the member's already-linked plate.
   registerDriverReports(bot); // /safarlarim + /daromad (read-only driver reports)
