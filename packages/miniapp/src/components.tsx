@@ -368,7 +368,7 @@ export function ReferralView({ onClose }: { onClose?: () => void } = {}) {
       <GapSection />
 
       <section className="ref-hero glass">
-        <div className="ref-big">🎁</div>
+        <div className="ref-big">👥</div>
         <div className="ref-line">
           Har do'st uchun <b>ikkalangiz ham</b> tanga olasiz
         </div>

@@ -241,7 +241,7 @@ export function playRepairFail(): void {
 export function inviteText(bonus: number): string {
   const n = formatNumber(bonus); // KEEP IN SYNC with the bot's clientInviteText (server/src/bot/bot.ts)
   // Short + warm (owner: less "spammy"). The rich image card is carried by the landing URL's OG tags.
-  return `🚕 1067 Taxi — senga ${n} so'm sovg'a 🎁 Bir tap bilan taxi. Qo'shil 👇`;
+  return `🚕 1067 Taxi — senga ${n} so'm bonus. Bir tap bilan taxi. Qo'shil 👇`;
 }
 
 // Wrap the bot ref-link in our OG landing page (/j/?r=<code>) so Telegram renders a rich IMAGE

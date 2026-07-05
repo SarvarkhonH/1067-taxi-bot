@@ -64,7 +64,7 @@ const canWebApp = env.TELEGRAM_WEBAPP_URL.startsWith("https://");
 // the real-money feel for someone who's never heard of tanga.
 // Short + warm (owner: less spammy). The rich IMAGE card is carried by the landing URL's OG tags.
 const clientInviteText = (bonus: number): string =>
-  `🚕 1067 Taxi — senga ${formatNumber(bonus)} so'm sovg'a 🎁 Bir tap bilan taxi. Qo'shil 👇`;
+  `🚕 1067 Taxi — senga ${formatNumber(bonus)} so'm bonus. Bir tap bilan taxi. Qo'shil 👇`;
 
 // Wrap the bot ref-link in the OG landing page (/j/?r=<code>) so Telegram renders a rich poster
 // card (KEEP IN SYNC with miniapp/src/telegram.ts inviteLandingUrl). The page forwards ?r → the
@@ -247,7 +247,7 @@ export function createBot(): Bot {
         const msg =
           start > 0
             ? `🎉 <b>${joinerName} havolangiz orqali qo'shildi!</b>\n\n👥 Sizga darhol <b>+${formatNumber(start)} tanga</b> tushdi. Do'stingiz raqamini ulasa — yana sovg'a, birinchi safarini qilsa — yana! 🚕`
-            : `🎉 <b>Siz ${joinerName}ni taklif qildingiz!</b>\n\n<b>${joinerName}</b> havolangiz orqali botga kirdi. U telefon ulab birinchi safarini qilsa — sizga <b>${formatNumber(REFERRER_REWARD)} tanga</b> tushadi. 🎁`;
+            : `🎉 <b>Siz ${joinerName}ni taklif qildingiz!</b>\n\n<b>${joinerName}</b> havolangiz orqali botga kirdi. U telefon ulab birinchi safarini qilsa — sizga <b>${formatNumber(REFERRER_REWARD)} tanga</b> tushadi.`;
         await bot.api.sendMessage(r.referrerTelegramId, msg, { parse_mode: "HTML" }).catch(() => undefined);
       }
     }
@@ -331,7 +331,7 @@ export function createBot(): Bot {
           if (credit.refereeReward > 0) {
             await ctx
               .reply(
-                `🎁 Do'st taklifi qabul qilindi!\nBirinchi safaringizdan keyin <b>+${formatNumber(credit.refereeReward)} tanga</b> sovg'a olasiz 🚕`,
+                `✅ Do'st taklifi qabul qilindi!\nBirinchi safaringizdan keyin <b>+${formatNumber(credit.refereeReward)} tanga</b> olasiz 🚕`,
                 { parse_mode: "HTML" },
               )
               .catch(() => undefined);
@@ -909,7 +909,7 @@ export function createBot(): Bot {
     const png = await QR.toBuffer(driverQrLink(me.member.id), { width: 600, margin: 2 });
     await ctx.replyWithPhoto(new InputFile(png), {
       caption:
-        `🚖 <b>Mening QR kodim</b>\n\n📣 <b>Mijozga ayting:</b>\n«Bu QR'ni skanlang, botga ulaning — <b>birinchi safaringiz BEPUL</b> (${formatNumber(econ.firstRide ?? REFEREE_REWARD)} tanga sovg'a)! 🎁»\n\n✅ U birinchi safarini qilsa — sizga <b>${formatNumber(econ.recruitFirst ?? 500)} tanga</b>, so'ng har safaridan ulush.\n📅 Oyiga 15 ta yangi mijoz · 30 000 tangagacha.`,
+        `🚖 <b>Mening QR kodim</b>\n\n📣 <b>Mijozga ayting:</b>\n«Bu QR'ni skanlang, botga ulaning — <b>birinchi safaringiz BEPUL</b> (${formatNumber(econ.firstRide ?? REFEREE_REWARD)} tanga bonus)!»\n\n✅ U birinchi safarini qilsa — sizga <b>${formatNumber(econ.recruitFirst ?? 500)} tanga</b>, so'ng har safaridan ulush.\n📅 Oyiga 15 ta yangi mijoz · 30 000 tangagacha.`,
       parse_mode: "HTML",
     });
   });
@@ -1259,7 +1259,7 @@ export function createBot(): Bot {
     await ctx.replyWithPhoto(new InputFile(png), {
       caption:
         "👥 <b>Do'st taklif — havola + QR</b>\n\n" +
-        `Do'stingizga ulashing yoki QR'ni ko'rsating. U ulanib birinchi safarini qilsa — sizga <b>+${formatNumber(r.rewardReferrer)} tanga</b>, unga <b>+${formatNumber(r.rewardReferee)} tanga</b>! 🎁\n\n` +
+        `Do'stingizga ulashing yoki QR'ni ko'rsating. U ulanib birinchi safarini qilsa — sizga <b>+${formatNumber(r.rewardReferrer)} tanga</b>, unga <b>+${formatNumber(r.rewardReferee)} tanga</b>.\n\n` +
         `🔗 <code>${r.link}</code>`,
       parse_mode: "HTML",
       reply_markup: new InlineKeyboard().url("📤 Do'stga yuborish", shareUrl),

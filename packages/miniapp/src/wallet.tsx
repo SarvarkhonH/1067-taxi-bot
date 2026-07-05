@@ -952,7 +952,7 @@ export function AccountCard() {
       </div>
 
       {/* one-tap invite a friend */}
-      <button className="acct-invite" onClick={invite}>👥 Do&apos;stni taklif qilish — ikkalangizga tanga 🎁</button>
+      <button className="acct-invite" onClick={invite}>👥 Do&apos;stni taklif qilish — ikkalangizga tanga</button>
 
       <p className="muted" style={{ fontSize: 12, marginTop: 8 }}>Ismni o&apos;zingiz tahrirlaysiz. Telefon 1067 tizimida boshqariladi.</p>
     </section>
