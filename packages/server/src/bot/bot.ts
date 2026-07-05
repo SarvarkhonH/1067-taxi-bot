@@ -62,9 +62,18 @@ const canWebApp = env.TELEGRAM_WEBAPP_URL.startsWith("https://");
 // referee's reward (firstRide tanga); it pays out AFTER their first ride, so we say "BEPUL",
 // never "hozir oling". UI currency stays "tanga" (project rule), the free-ride hook carries
 // the real-money feel for someone who's never heard of tanga.
+// Short + warm (owner: less spammy). The rich IMAGE card is carried by the landing URL's OG tags.
 const clientInviteText = (bonus: number): string =>
-  `🚕 Men o'zim Kosonda 1067 taksidan foydalanaman, senga ham tavsiya qilaman.\n` +
-  `Shu havola orqali qo'shilsang — ${formatNumber(bonus)} tanga bonus, birinchi safaringga:`;
+  `🚕 1067 Taxi — senga ${formatNumber(bonus)} so'm sovg'a 🎁 Bir tap bilan taxi. Qo'shil 👇`;
+
+// Wrap the bot ref-link in the OG landing page (/j/?r=<code>) so Telegram renders a rich poster
+// card (KEEP IN SYNC with miniapp/src/telegram.ts inviteLandingUrl). The page forwards ?r → the
+// bot's ?start=ref_<code>, so referral capture is unchanged.
+const INVITE_LANDING = "https://1067taxi-miniapp.vercel.app/j/";
+function inviteLandingUrl(botLink: string): string {
+  const m = botLink.match(/(?:start|startapp)=ref_?([a-zA-Z0-9_-]+)/);
+  return m && m[1] ? `${INVITE_LANDING}?r=${encodeURIComponent(m[1])}` : botLink;
+}
 
 // Telegram caches the Mini App aggressively BY URL — the owner kept seeing stale builds
 // (worst: the persistent Menu Button, whose URL had NO version → permanently cached → the
@@ -915,7 +924,7 @@ export function createBot(): Bot {
     const QR = await import("qrcode");
     const png = await QR.toBuffer(link, { width: 600, margin: 2 });
     const shareUrl =
-      `https://t.me/share/url?url=${encodeURIComponent(link)}` +
+      `https://t.me/share/url?url=${encodeURIComponent(inviteLandingUrl(link))}` +
       `&text=${encodeURIComponent("🚖 1067 Taxi'da haydovchi bo'ling!\n💰 Yaxshi daromad, bonuslar va jonli buyurtmalar — bir tap bilan ish boshlang.\n👇 Shu havola orqali qo'shiling:")}`;
     await ctx.replyWithPhoto(new InputFile(png), {
       caption:
@@ -1190,7 +1199,7 @@ export function createBot(): Bot {
       const link = driverQrLink(me.member.id);
       const econ = await getBonusEcon();
       const shareUrl =
-        `https://t.me/share/url?url=${encodeURIComponent(link)}` +
+        `https://t.me/share/url?url=${encodeURIComponent(inviteLandingUrl(link))}` +
         `&text=${encodeURIComponent(clientInviteText(econ.firstRide ?? REFEREE_REWARD))}`;
       const kb = new InlineKeyboard()
         .url("📤 Havolani ulashish", shareUrl)
@@ -1213,7 +1222,7 @@ export function createBot(): Bot {
     }
     const r = await getReferralInfo(String(ctx.from!.id));
     const shareUrl =
-      `https://t.me/share/url?url=${encodeURIComponent(r.link)}` +
+      `https://t.me/share/url?url=${encodeURIComponent(inviteLandingUrl(r.link))}` +
       `&text=${encodeURIComponent(clientInviteText(r.rewardReferee))}`;
     const kb = new InlineKeyboard().url("📤 Do'stga yuborish", shareUrl).row().text("📷 QR kod", "ref:qr");
     await ctx.reply(renderReferral(r), { parse_mode: "HTML", reply_markup: kb });
@@ -1245,7 +1254,7 @@ export function createBot(): Bot {
     const QR = await import("qrcode");
     const png = await QR.toBuffer(r.link, { width: 600, margin: 2 });
     const shareUrl =
-      `https://t.me/share/url?url=${encodeURIComponent(r.link)}` +
+      `https://t.me/share/url?url=${encodeURIComponent(inviteLandingUrl(r.link))}` +
       `&text=${encodeURIComponent(clientInviteText(r.rewardReferee))}`;
     await ctx.replyWithPhoto(new InputFile(png), {
       caption:
