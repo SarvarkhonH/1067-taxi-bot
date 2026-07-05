@@ -1447,3 +1447,36 @@ body {
 .drv-mis-claim { width: 100%; margin-top: 9px; border: 0; border-radius: 12px; padding: 12px; background: #FFB300; color: #1a1200; font-weight: 800; font-size: 14px; cursor: pointer; }
 .drv-mis-claim:active { transform: scale(.98); }
 .drv-mis-badge { margin-left: 8px; background: rgba(255, 179, 0, .15); color: #FFB300; font-size: 11px; font-weight: 800; padding: 2px 8px; border-radius: 99px; vertical-align: 2px; }
+
+/* ── 🛍 TANGA DO'KONI (feature "shop") ─────────────────────────────────────────── */
+.shop-wrap { display: flex; flex-direction: column; gap: 10px; }
+.shop-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.shop-orders-btn { border: 1px solid var(--line); background: var(--surface-2); color: var(--text); font-size: 12.5px; font-weight: 700; padding: 8px 12px; border-radius: var(--r-chip); }
+.shop-orders-btn:active { transform: scale(.96); }
+.shop-cats { margin: 2px 0 4px; }
+.shop-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.shop-card { padding: 0; overflow: hidden; text-align: left; border: 1px solid var(--line); display: flex; flex-direction: column; }
+.shop-card:active { transform: scale(.97); }
+.shop-card-photo-wrap { position: relative; }
+.shop-card-photo { width: 100%; aspect-ratio: 1 / 1; object-fit: cover; display: block; background: var(--surface); }
+.shop-card-noimg { display: flex; align-items: center; justify-content: center; font-size: 42px; }
+.shop-badge-new { position: absolute; top: 6px; left: 6px; font-size: 10px; font-weight: 800; letter-spacing: .04em; padding: 3px 7px; border-radius: var(--r-chip); background: var(--brand-grad); color: #1a1205; }
+.shop-badge-stock { position: absolute; top: 6px; right: 6px; font-size: 10px; font-weight: 700; padding: 3px 7px; border-radius: var(--r-chip); background: rgba(0,0,0,.55); color: var(--text); backdrop-filter: blur(4px); }
+.shop-badge-stock.low { background: rgba(248,113,113,.22); color: #fca5a5; border: 1px solid rgba(248,113,113,.35); }
+.shop-card-body { padding: 8px 10px 10px; display: flex; flex-direction: column; gap: 6px; }
+.shop-card-name { font-size: 13px; font-weight: 700; color: var(--text); line-height: 1.25; min-height: 2.5em; }
+.shop-price-chip { align-self: flex-start; font-size: 13px; font-weight: 800; padding: 4px 10px; border-radius: var(--r-chip); background: rgba(255,179,0,.14); color: var(--brand); border: 1px solid rgba(255,179,0,.3); }
+.shop-detail-photo { width: 100%; aspect-ratio: 1 / 1; object-fit: cover; border-radius: var(--r-card); background: var(--surface); display: block; }
+.shop-detail-name { margin: 10px 0 2px; }
+.shop-confirm-total { font-size: 26px; font-weight: 900; color: var(--brand); margin: 8px 0; }
+.shop-low-line { font-size: 12.5px; color: #fca5a5; margin-bottom: 6px; }
+.shop-insufficient-bar { display: flex; flex-direction: column; gap: 8px; padding: 12px; border-radius: var(--r-card); background: var(--surface); border: 1px solid var(--line); }
+.shop-success-title { font-size: 18px; font-weight: 800; color: var(--text); margin-top: 6px; }
+.shop-success-promise { margin: 10px 0; padding: 10px; border-radius: 12px; font-size: 13px; background: rgba(52,211,153,.12); border: 1px solid rgba(52,211,153,.3); color: #6ee7b7; }
+.shop-order-row { display: flex; flex-direction: column; gap: 5px; margin-top: 8px; }
+.shop-order-top { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.order-status-pill { font-size: 11px; font-weight: 700; padding: 3px 8px; border-radius: var(--r-chip); white-space: nowrap; }
+.order-status-pill.pending { background: rgba(255,255,255,.08); color: var(--text-dim, #9aa0a6); }
+.order-status-pill.delivered { background: rgba(52,211,153,.15); color: var(--win); }
+.order-status-pill.rejected { background: rgba(248,113,113,.15); color: var(--danger); }
+.order-refund-banner { font-size: 12.5px; padding: 8px 10px; border-radius: 10px; background: rgba(52,211,153,.1); border: 1px solid rgba(52,211,153,.28); color: #a7f3d0; }

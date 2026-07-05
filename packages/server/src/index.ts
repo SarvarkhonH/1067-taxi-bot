@@ -109,6 +109,10 @@ async function main(): Promise<void> {
     notifyCashoutOwner: async (notice) => {
       if (bot) await notifyOwnerCashout(bot, notice);
     },
+    // 🛍 shop purchase → owner card with [✅ Yetkazildi]/[❌ Rad] (same bot-bound closure pattern)
+    notifyShopOwner: async (notice) => {
+      if (bot) await (await import("./bot/shop")).notifyOwnerShop(bot, notice);
+    },
   });
   // economy alerts (withdraws, anomalies) → admins
   const { registerAdminNotifier } = await import("./services/economyService");

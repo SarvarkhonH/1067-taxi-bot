@@ -204,6 +204,15 @@ export const adminApi = {
   toggleCampaign: (id: string, active: boolean) => postJson<{ ok: boolean; reason?: string }>("/api/admin/campaigns/toggle", { id, active }),
   editCampaign: (id: string, patch: Record<string, unknown>) => postJson<{ ok: boolean; reason?: string }>("/api/admin/campaigns/edit", { id, ...patch }),
   deleteCampaign: (id: string) => postJson<{ ok: boolean }>("/api/admin/campaigns/delete", { id }),
+  // 🛍 tanga shop
+  shopProducts: () => req<{ products: ShopAdminProductRow[]; enabled: boolean; pendingOrders: number }>("/api/admin/shop/products"),
+  shopCreate: (p: { name: string; priceTanga: number; stock: number; category?: string; description?: string }) =>
+    postJson<{ ok: boolean; id?: number; error?: string }>("/api/admin/shop/products", p),
+  shopEdit: (id: number, patch: Record<string, unknown>) => postJson<{ ok: boolean }>(`/api/admin/shop/products/${id}`, patch),
+  shopToggle: (id: number, active: boolean) => postJson<{ ok: boolean }>(`/api/admin/shop/products/${id}/toggle`, { active }),
+  shopDelete: (id: number) => req<{ ok: boolean }>(`/api/admin/shop/products/${id}`, { method: "DELETE" }),
+  shopPhotoUpload: (id: number, mime: string, base64: string) => postJson<{ ok: boolean }>(`/api/admin/shop/products/${id}/photo`, { mime, base64 }),
+  shopOrders: (status?: string) => req<{ orders: ShopAdminOrderRow[] }>(`/api/admin/shop/orders${status ? `?status=${status}` : ""}`),
   // 💸 withdrawals tab
   withdrawalsTab: (limit = 100) => req<AdminWithdrawalTabRow[]>(`/api/admin/withdrawals-tab?limit=${limit}`),
   // ⭐ ratings
@@ -494,4 +503,31 @@ export interface Driver360 {
   rating: { avg: number; count: number; tags: { tag: string; n: number }[] };
   recruits: number;
   mashinaTickets: number;
+}
+
+// 🛍 tanga shop admin rows
+export interface ShopAdminProductRow {
+  id: number;
+  name: string;
+  description: string | null;
+  category: string;
+  priceTanga: number;
+  stock: number;
+  active: boolean;
+  sortOrder: number;
+  hasPhoto: boolean;
+  soldCount: number;
+  createdAt: string;
+}
+export interface ShopAdminOrderRow {
+  id: number;
+  productName: string;
+  priceTanga: number;
+  status: string;
+  note?: string | null;
+  address: string;
+  createdAt: string;
+  decidedAt?: string | null;
+  buyerName: string;
+  contact: string;
 }

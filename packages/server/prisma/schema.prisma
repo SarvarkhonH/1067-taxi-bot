@@ -87,6 +87,7 @@ model Member {
   intercityWaitEntries IntercityWaitEntry[]
   leagueTier   String              @default("Bronza") // promotion/relegation tier
   driverTier   String              @default("Bronza") // weekly driver tier (DiDi model): Bronza|Kumush|Oltin|Olmos
+  shopPurchases ShopPurchase[] // 🛍 tanga shop purchases (feature "shop")
 
   @@unique([type, kasId])
   @@index([type, points])
@@ -368,6 +369,48 @@ model CoinTxn {
 
   @@index([memberId, createdAt])
   @@index([memberId, bookingId])
+}
+
+// 🛍 TANGA SHOP (feature "shop"): owner-listed real goods bought with tanga; owner-fulfilled by hand
+// (delivery by his own drivers). NO lootboxes — deterministic price/product only.
+model Product {
+  id          Int      @id @default(autoincrement())
+  name        String
+  description String?
+  category    String   @default("umumiy") // free bucket: "oziq-ovqat" | "elektronika" | …
+  priceTanga  Int // whole tanga only (1 tanga = 1 so'm)
+  stock       Int      @default(0) // remaining units — decrement is ATOMIC (updateMany stock>=1)
+  photoFileId String? // Telegram file_id (durable) — driver-photo pattern
+  photoUrl    String? // data-URL fallback / permanent override
+  active      Boolean  @default(false) // created OFF; owner flips ON to list
+  sortOrder   Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([active, sortOrder])
+}
+
+// One shop purchase. Tanga is HELD at creation (CoinTxn key shop:<id> in the SAME tx as the stock
+// decrement + order insert); rejected orders refund via grantCoins key shoprefund:<id> + restock.
+// (Named ShopPurchase — a LEGACY "ShopOrder" model from the removed user-shops system still holds
+// historical rows above and can't be renamed until the Phase-3 schema pass.)
+model ShopPurchase {
+  id          Int       @id @default(autoincrement())
+  member      Member    @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  memberId    Int
+  productId   Int
+  productName String // snapshot — survives product edit/delete
+  priceTanga  Int // snapshot — the price actually paid
+  qty         Int       @default(1) // MVP: always 1
+  address     String // delivery address
+  contact     String // phone snapshot
+  status      String    @default("pending") // pending | delivered | rejected | cancelled
+  note        String? // owner's rejection reason (rider sees it)
+  createdAt   DateTime  @default(now())
+  decidedAt   DateTime?
+
+  @@index([memberId, status])
+  @@index([status, createdAt])
 }
 
 // Coin -> real so'm conversions (the ONLY place real money leaves the system).

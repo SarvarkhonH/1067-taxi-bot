@@ -16,10 +16,12 @@ const Booking3View = lazy(() => import("./booking3").then((m) => ({ default: m.B
 const LivingHome = lazy(() => import("./home").then((m) => ({ default: m.LivingHome })));
 // 🚐 Yo'l — nationwide intercity seat booking (gated by feature `intercity`)
 const IntercityView = lazy(() => import("./intercity").then((m) => ({ default: m.IntercityView })));
+// 🛍 Do'kon — tanga shop (gated by feature `shop`; owner-preview while DARK)
+const ShopView = lazy(() => import("./shop").then((m) => ({ default: m.ShopView })));
 import { Icon } from "./icons";
 import { useCountUp } from "./util";
 
-type Tab = "uy" | "wallet" | "play" | "reyting" | "yol" | "driver" | "profile";
+type Tab = "uy" | "wallet" | "play" | "reyting" | "yol" | "dokon" | "driver" | "profile";
 
 // ── `me` stale-while-revalidate cache (instant repeat opens, hides cold-start) ──
 // Keyed by the Telegram user id so a shared device never shows one user another's cached data.
@@ -79,7 +81,7 @@ const GO_MAP: Record<string, Tab> = {
   home: "uy", uy: "uy", wallet: "wallet", hamyon: "wallet",
   tip: "wallet", paydriver: "wallet", pay: "wallet", // 🙏 «Haydovchiga to'lash» → hamyon ekrani; wallet.tsx avto-ochadi pay-driver sheet'ni
   rewards: "play", missions: "play", play: "play", bonus: "play", vazifa: "play",
-  market: "uy", bozor: "uy", // eski bozor deep-linklar → Uy
+  market: "dokon", bozor: "dokon", dokon: "dokon", shop: "dokon", // 🛍 do'kon (flag off bo'lsa App tab-guard Uy'ga tushiradi)
   league: "reyting", friends: "reyting", reyting: "reyting", liga: "reyting", dost: "reyting",
   yol: "yol", intercity: "yol", reys: "yol", // 🚐 shaharlararo
   driver: "driver", profile: "profile",
@@ -195,6 +197,7 @@ export function App() {
   if (history) return <div className="app"><main className="content"><RideHistoryView onClose={() => setHistory(false)} /></main></div>;
 
   const go = (t: Tab) => {
+    if (t === "dokon" && !me.flags?.shop) t = "uy"; // 🛍 deep-link guard: shop dark → land home
     if (t === tab) return;
     haptic();
     setTab(t);
@@ -219,10 +222,17 @@ export function App() {
 
   // 🚐 Yo'l: rider'da 5-tab sifatida QO'SHILADI, driver'da O'yin slotini almashtiradi (5 tab qoladi).
   const hasIntercity = !!me.flags?.intercity;
+  const hasShop = !!me.flags?.shop;
   const YOL_TAB = { id: "yol" as Tab, icon: "route", label: "Yo'l" };
-  const TABS = me.type === "driver"
+  const DOKON_TAB = { id: "dokon" as Tab, icon: "market", label: "Do'kon" };
+  let TABS = me.type === "driver"
     ? (hasIntercity ? DRIVER_TABS.map((t) => (t.id === "play" ? YOL_TAB : t)) : DRIVER_TABS)
     : (hasIntercity ? [...BASE_TABS.slice(0, 3), YOL_TAB, ...BASE_TABS.slice(3)] : BASE_TABS);
+  // 🛍 Do'kon (feature "shop"): HAR ikkala tip uchun Reyting'dan OLDIN qo'shiladi (max 6 tab).
+  if (hasShop) {
+    const ri = TABS.findIndex((t) => t.id === "reyting");
+    TABS = ri >= 0 ? [...TABS.slice(0, ri), DOKON_TAB, ...TABS.slice(ri)] : [...TABS, DOKON_TAB];
+  }
   const TAB_PCT = 100 / TABS.length;
   const activeIndex = TABS.findIndex((t) => t.id === tab);
 
@@ -290,6 +300,7 @@ export function App() {
                 <Spinner />
               ))}
             {tab === "yol" && <IntercityView me={me} />}
+            {tab === "dokon" && <ShopView me={me} onBanner={flash} reload={reload} onBook={() => { haptic(); setBooking(true); }} />}
             {tab === "driver" && <DriverView me={me} />}
             {tab === "profile" && (
               <div className="view">

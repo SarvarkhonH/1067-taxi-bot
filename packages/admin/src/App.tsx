@@ -14,9 +14,9 @@ import {
   type AdminMemberRow,
   type AdminStats,
 } from "@t1067/shared";
-import { adminApi, clearAdminToken, hasAdminToken, setAdminToken, type AdminBannedRow, type AdminChatConvo, type AdminChatMsg, type AdminDebtRow, type AdminMsgHistoryRow, type AdminRatingRow, type AdminTxnRow, type AdminBlockedRow, type AdminReferralRow, type AdminRideRow, type AdminUserRow, type AdminWithdrawalRow, type AdminWithdrawalTabRow, type CampaignRow, type Driver360, type DriverCallRow, type DriverCallStats, type DriverMissionRow, type IntercityAdminTrip, type IntercityAdminDebt, type Member360, type PeakHourRow } from "./api";
+import { adminApi, clearAdminToken, hasAdminToken, setAdminToken, type AdminBannedRow, type AdminChatConvo, type AdminChatMsg, type AdminDebtRow, type AdminMsgHistoryRow, type AdminRatingRow, type AdminTxnRow, type AdminBlockedRow, type AdminReferralRow, type AdminRideRow, type AdminUserRow, type AdminWithdrawalRow, type AdminWithdrawalTabRow, type CampaignRow, type Driver360, type DriverCallRow, type DriverCallStats, type DriverMissionRow, type IntercityAdminTrip, type IntercityAdminDebt, type Member360, type PeakHourRow, type ShopAdminProductRow, type ShopAdminOrderRow } from "./api";
 
-type Tab = "overview" | "pulse" | "analytics" | "finance" | "live" | "x360" | "driver" | "client" | "botusers" | "obzvon" | "boshqaruv" | "topshiriq" | "actions" | "integrity" | "audit" | "safarlar" | "qarzlar" | "referallar" | "banlist" | "yechishlar" | "baholar" | "xabar" | "chat" | "broadcasts" | "intercity" | "pik" | "transactions" | "blocked";
+type Tab = "overview" | "pulse" | "analytics" | "finance" | "live" | "x360" | "driver" | "client" | "botusers" | "obzvon" | "boshqaruv" | "topshiriq" | "actions" | "integrity" | "audit" | "safarlar" | "qarzlar" | "referallar" | "banlist" | "yechishlar" | "baholar" | "xabar" | "chat" | "broadcasts" | "intercity" | "pik" | "transactions" | "blocked" | "shop";
 
 const NAV_GROUPS: { label: string; items: { id: Tab; icon: string; label: string }[] }[] = [
   {
@@ -69,6 +69,7 @@ const NAV_GROUPS: { label: string; items: { id: Tab; icon: string; label: string
   {
     label: "BOSHQARUV",
     items: [
+      { id: "shop", icon: "🛍", label: "Do'kon" },
       { id: "pik", icon: "🔥", label: "Pik Vaqtlar" },
       { id: "actions", icon: "⚡", label: "Amallar" },
       { id: "topshiriq", icon: "🎯", label: "Topshiriqlar" },
@@ -168,6 +169,7 @@ export function App() {
           {tab === "botusers" && <BotUsersTab />}
           {tab === "obzvon" && <ObzvonView />}
           {tab === "boshqaruv" && <><BoshqaruvView /><RecruitsView /></>}
+          {tab === "shop" && <ShopAdminView />}
           {tab === "topshiriq" && <><QuickAnnounceView /><CampaignsView /><DriverMissionsView /></>}
           {tab === "actions" && <><ActionsView onHistory={() => goTab("broadcasts")} /><ControlCards /></>}
           {tab === "integrity" && <IntegrityView />}
@@ -1458,6 +1460,116 @@ function CampaignsView() {
           </div>
         ))}
         {data && data.campaigns.length === 0 && <p className="muted">Hali promo yo'q.</p>}
+      </section>
+    </>
+  );
+}
+
+// 🛍 TANGA DO'KONI — mahsulot CRUD + rasm yuklash + buyurtmalar ro'yxati (feature "shop").
+// Yetkazish-tasdiqlash Telegram'da (✅/❌ tugmalar egaga boradi) — bu panel katalog+monitoring.
+function ShopAdminView() {
+  const [data, setData] = useState<{ products: ShopAdminProductRow[]; enabled: boolean; pendingOrders: number } | null>(null);
+  const [orders, setOrders] = useState<ShopAdminOrderRow[] | null>(null);
+  const [name, setName] = useState("");
+  const [price, setPrice] = useState("");
+  const [stock, setStock] = useState("");
+  const [category, setCategory] = useState("umumiy");
+  const [desc, setDesc] = useState("");
+  const [msg, setMsg] = useState("");
+
+  const load = () => {
+    adminApi.shopProducts().then(setData).catch(() => undefined);
+    adminApi.shopOrders().then((r) => setOrders(r.orders)).catch(() => setOrders([]));
+  };
+  useEffect(() => { load(); }, []);
+
+  const create = async () => {
+    const p = Number(price), s = Number(stock);
+    if (!name.trim() || p <= 0) { setMsg("⚠️ Nom va narx to'g'ri bo'lsin"); return; }
+    const r = await adminApi.shopCreate({ name: name.trim(), priceTanga: p, stock: Math.max(0, s || 0), category: category.trim() || "umumiy", description: desc.trim() || undefined }).catch(() => ({ ok: false }));
+    setMsg(r.ok ? "✅ Qo'shildi (o'chiq holda — rasm yuklab, keyin yoqing)" : "❌ Xatolik");
+    if (r.ok) { setName(""); setPrice(""); setStock(""); setDesc(""); load(); }
+  };
+  const editNum = async (id: number, field: "priceTanga" | "stock", label: string, cur: number) => {
+    const v = window.prompt(`${label}:`, String(cur));
+    if (v === null) return;
+    await adminApi.shopEdit(id, { [field]: Number(v) }).catch(() => undefined);
+    load();
+  };
+  const uploadPhoto = (id: number) => {
+    const input = document.createElement("input");
+    input.type = "file";
+    input.accept = "image/*";
+    input.onchange = () => {
+      const f = input.files?.[0];
+      if (!f) return;
+      if (f.size > 5 * 1024 * 1024) { setMsg("❌ Rasm 5MB dan kichik bo'lsin"); return; }
+      const reader = new FileReader();
+      reader.onload = async () => {
+        const base64 = String(reader.result).split(",")[1] ?? "";
+        const r = await adminApi.shopPhotoUpload(id, f.type || "image/jpeg", base64).catch(() => ({ ok: false }));
+        setMsg(r.ok ? "✅ Rasm yuklandi" : "❌ Rasm yuklanmadi");
+        load();
+      };
+      reader.readAsDataURL(f);
+    };
+    input.click();
+  };
+  const del = async (p: ShopAdminProductRow) => {
+    if (!window.confirm(`"${p.name}" o'chirilsinmi?`)) return;
+    await adminApi.shopDelete(p.id).catch(() => undefined);
+    load();
+  };
+  const stLabel: Record<string, string> = { pending: "⏳ Kutilmoqda", delivered: "✅ Yetkazildi", rejected: "❌ Rad", cancelled: "✖ Bekor" };
+
+  return (
+    <>
+      <section className="panel">
+        <div className="panel-title">🛍 Yangi mahsulot</div>
+        <p className="muted" style={{ marginTop: 0 }}>
+          Narx = ulgurji × 1.2 tavsiya. Yangi mahsulot O&apos;CHIQ holda yaratiladi — rasm yuklab, «yoqish»ni bosing.{" "}
+          {data && !data.enabled && <b style={{ color: "#f59e0b" }}>«shop» flag o&apos;chiq — do&apos;kon mijozlarga ko&apos;rinmaydi (Features&apos;dan yoqiladi).</b>}
+          {data && data.pendingOrders > 0 && <b style={{ color: "#f59e0b" }}> ⏳ {data.pendingOrders} ta buyurtma Telegram&apos;da javob kutmoqda.</b>}
+        </p>
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
+          <input style={{ flex: "2 1 180px", padding: "8px 10px" }} value={name} onChange={(e) => setName(e.target.value)} placeholder="Nomi: Elektro choynak Vitek" />
+          <input style={{ flex: "1 1 90px", padding: 8 }} type="number" value={price} onChange={(e) => setPrice(e.target.value)} placeholder="Narx (tanga)" />
+          <input style={{ flex: "1 1 70px", padding: 8 }} type="number" value={stock} onChange={(e) => setStock(e.target.value)} placeholder="Soni" />
+          <input style={{ flex: "1 1 110px", padding: 8 }} value={category} onChange={(e) => setCategory(e.target.value)} placeholder="Kategoriya" />
+          <input style={{ flex: "3 1 220px", padding: 8 }} value={desc} onChange={(e) => setDesc(e.target.value)} placeholder="Qisqa tavsif (ixtiyoriy)" />
+          <button onClick={create}>➕ Qo&apos;shish</button>
+        </div>
+        {msg && <div className="muted" style={{ marginTop: 8 }}>{msg}</div>}
+      </section>
+      <section className="panel">
+        <div className="panel-title">📦 Mahsulotlar ({data?.products.length ?? 0})</div>
+        {(data?.products ?? []).map((p) => (
+          <div key={p.id} style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", padding: "8px 0", borderBottom: "1px solid rgba(255,255,255,0.08)" }}>
+            <span style={{ flex: "2 1 200px" }}>
+              {p.hasPhoto ? "🖼" : "⬜"} <b>{p.name}</b> <span className="muted">· {p.category} · sotildi: {p.soldCount}</span>
+            </span>
+            <button className="btn sm" onClick={() => editNum(p.id, "priceTanga", "Yangi narx (tanga)", p.priceTanga)}>🪙 {p.priceTanga.toLocaleString("ru-RU")}</button>
+            <button className="btn sm" onClick={() => editNum(p.id, "stock", "Yangi soni", p.stock)}>📦 {p.stock} dona</button>
+            <button className="btn sm" onClick={() => uploadPhoto(p.id)}>📷 Rasm</button>
+            <button className="btn sm" onClick={async () => { await adminApi.shopToggle(p.id, !p.active).catch(() => undefined); load(); }}>{p.active ? "🟢 Yoniq" : "🔴 O'chiq"}</button>
+            <button className="btn sm" onClick={() => del(p)}>🗑</button>
+          </div>
+        ))}
+        {data && data.products.length === 0 && <p className="muted">Hali mahsulot yo&apos;q — birinchisini qo&apos;shing.</p>}
+      </section>
+      <section className="panel">
+        <div className="panel-title">🧾 Buyurtmalar (oxirgi {orders?.length ?? 0})</div>
+        {(orders ?? []).map((o) => (
+          <div key={o.id} style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", padding: "8px 0", borderBottom: "1px solid rgba(255,255,255,0.08)" }}>
+            <span style={{ flex: "2 1 220px" }}>
+              #{o.id} <b>{o.productName}</b> <span className="muted">· {o.buyerName} · {o.contact}</span>
+            </span>
+            <span className="muted" style={{ flex: "2 1 180px", fontSize: 12 }}>📍 {o.address}</span>
+            <span style={{ fontSize: 12 }}>{stLabel[o.status] ?? o.status}</span>
+            <span className="muted" style={{ fontSize: 12 }}>🪙 {o.priceTanga.toLocaleString("ru-RU")}</span>
+          </div>
+        ))}
+        {orders && orders.length === 0 && <p className="muted">Hali buyurtma yo&apos;q.</p>}
       </section>
     </>
   );

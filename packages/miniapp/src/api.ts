@@ -129,8 +129,17 @@ export interface PublicTrip {
   driver?: { name: string; carModel: string; carNumber: string; rating?: number; lat?: number; lng?: number; bearing?: number } | null;
 }
 
+/** Absolute URL for <img src> endpoints (same-origin in dev, backend origin in prod). */
+export function apiUrl(path: string): string {
+  return `${API_BASE}${path}`;
+}
+
 export const api = {
   me: () => get<MeResponse | { linked: false }>("/api/me"),
+  // 🛍 tanga shop (feature "shop")
+  shopProducts: () => get<{ products: import("@t1067/shared").ShopProductView[] }>("/api/shop/products"),
+  shopBuy: (productId: number, address: string) => post<import("@t1067/shared").ShopBuyResponse>("/api/shop/buy", { productId, address }),
+  shopOrders: () => get<{ orders: import("@t1067/shared").ShopPurchaseView[] }>("/api/shop/orders"),
   createTrack: () => post<{ token: string }>("/api/track"),
   trackTrip: (token: string) => get<PublicTrip>(`/api/track/${encodeURIComponent(token)}`),
   // server defaults the leaderboard to the caller's own member type

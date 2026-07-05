@@ -49,13 +49,17 @@ export const FEATURES = [
   "spinreminder", // 🎁 midday push «bepul aylantirishingiz kutmoqda» to riders who haven't used their
               // free daily wheel — surfaces the forgotten baraban. Rides the SAME push engine (2/day
               // cap, quiet hours, opt-out respected). Read-only. DARK until owner pilot.
+  "shop", // 🛍 TANGA SHOP: owner-listed real goods bought with tanga (Product/ShopPurchase), owner
+              // approves delivery in Telegram (✅/❌, reject auto-refunds + restocks). NO lootboxes.
+              // Deliberately NOT in EXPECTED_ON until owner QABUL (add it there when flipping on).
+              // DARK until owner QABUL.
 ] as const;
 export type FeatureName = (typeof FEATURES)[number];
 
 // Off until explicitly enabled (go-live flip = setFeature(name, true) after owner QABUL).
 // booking3 = the new map/trip flow; owner still gets a preview via server.ts owner-branch,
 // but real users stay on the (fixed) classic flow until it's accepted. A missing row → OFF.
-const DEFAULT_OFF = new Set<FeatureName>(["booking3", "livinghome", "aibrain", "mahalla", "tolqin", "garajx", "kozacha", "baraban", "motorolami", "komissiya", "qarz", "welcomebonus", "refstaged", "drvstaged", "drvrecruit", "drvpush", "promo", "clientbooking", "cashout", "carupgrade", "intercity", "tierloyalty", "waitcomp", "trackcta", "jackpotpost", "drvrank", "instantstatus", "spinreminder"]);
+const DEFAULT_OFF = new Set<FeatureName>(["booking3", "livinghome", "aibrain", "mahalla", "tolqin", "garajx", "kozacha", "baraban", "motorolami", "komissiya", "qarz", "welcomebonus", "refstaged", "drvstaged", "drvrecruit", "drvpush", "promo", "clientbooking", "cashout", "carupgrade", "intercity", "tierloyalty", "waitcomp", "trackcta", "jackpotpost", "drvrank", "instantstatus", "spinreminder", "shop"]);
 
 let cache: { at: number; map: Record<string, boolean> } = { at: 0, map: {} };
 

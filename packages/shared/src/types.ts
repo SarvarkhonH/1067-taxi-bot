@@ -49,6 +49,7 @@ export interface MeResponse {
     livinghome?: boolean;
     intercity?: boolean; // 🚐 nationwide intercity seat-booking tab
     tierloyalty?: boolean; // 🏅 tier reward loop (multiplier + ball + decay) — UI reveals benefits only when ON
+    shop?: boolean; // 🛍 tanga shop tab (owner-preview: admins see it while DARK)
   };
 }
 
@@ -325,3 +326,39 @@ export interface AdminMemberRow {
   active: boolean;
   lastSyncAt: string | null;
 }
+
+// ── 🛍 TANGA SHOP (feature "shop") ────────────────────────────────────────────────────────────────
+// Owner-listed real goods bought with tanga (NO lootboxes). Rider views + buy/order shapes.
+export interface ShopProductView {
+  id: number;
+  name: string;
+  description?: string | null;
+  category: string;
+  priceTanga: number;
+  stock: number; // remaining units (UI shows "kam qoldi" when ≤5)
+  hasPhoto: boolean; // render /api/shop/photo/:id when true
+  isNew: boolean; // createdAt < 7d — gold NEW badge
+}
+
+export type ShopPurchaseStatus = "pending" | "delivered" | "rejected" | "cancelled";
+
+export interface ShopPurchaseView {
+  id: number;
+  productName: string;
+  priceTanga: number;
+  status: ShopPurchaseStatus;
+  note?: string | null; // owner's rejection reason
+  address: string;
+  createdAt: string;
+  decidedAt?: string | null;
+}
+
+export interface ShopBuyResponse {
+  ok: boolean;
+  reason?: "off" | "unavailable" | "sold_out" | "insufficient" | "bad_address" | "pending_limit";
+  orderId?: number;
+  balance?: number; // post-purchase tanga balance
+}
+
+export const SHOP_MAX_PRICE = 5_000_000; // sanity ceiling for admin-entered prices
+export const SHOP_LOW_STOCK = 5; // "kam qoldi" badge threshold

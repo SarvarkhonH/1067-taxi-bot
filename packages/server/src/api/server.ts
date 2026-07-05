@@ -42,6 +42,8 @@ export interface ApiOptions {
   sendMessage?: (telegramId: string, html: string) => Promise<void>;
   /** Forward a Mini-App cash-out request to the owner's Telegram (bot-bound; set in index.ts). */
   notifyCashoutOwner?: (notice: CashoutOwnerNotice) => Promise<void>;
+  /** 🛍 Forward a shop purchase to the owner's Telegram [✅ Yetkazildi]/[❌ Rad] (bot-bound). */
+  notifyShopOwner?: (notice: import("../services/shopService").ShopOwnerNotice) => Promise<void>;
 }
 
 function memberType(req: Request, fallback: MemberType): MemberType {
@@ -179,18 +181,21 @@ export function createApiServer(opts: ApiOptions = {}) {
   });
 
   app.get("/api/me", requireUser, async (_req, res) => {
-    const [me, booking3, livinghome, intercity, tierloyalty] = await Promise.all([
+    const [me, booking3, livinghome, intercity, tierloyalty, shopOn] = await Promise.all([
       getMe(res.locals.telegramId as string),
       featureOn("booking3"),
       featureOn("livinghome"),
       featureOn("intercity"),
       featureOn("tierloyalty"),
+      featureOn("shop"),
     ]);
     if (!me) { res.json({ linked: false }); return; }
     // 🏅 owner-preview: admins see the tier-loyalty UI even while the global flag is DARK, so the
     // owner can QABUL the screens before go-live. (The real cashback multiplier stays globally gated.)
     const tierPreview = tierloyalty || isAdmin(res.locals.telegramId as string);
-    res.json({ ...me, flags: { booking3, livinghome, intercity, tierloyalty: tierPreview } });
+    // 🛍 shop owner-preview mirrors it — owner QABULs the shop tab while the flag is DARK
+    const shopPreview = shopOn || isAdmin(res.locals.telegramId as string);
+    res.json({ ...me, flags: { booking3, livinghome, intercity, tierloyalty: tierPreview, shop: shopPreview } });
   });
 
   // 🏅 Tier ladder benefits — labels derived from LIVE knobs (single source of truth). 60s client cache.
@@ -317,6 +322,44 @@ export function createApiServer(opts: ApiOptions = {}) {
     const notice: CashoutOwnerNotice = { id, name: me.member.fullName ?? "Mijoz", amount: bal, method, contact: phone, trips: me.stats.trips, cardFull, cardHolder, address };
     if (opts.notifyCashoutOwner) await opts.notifyCashoutOwner(notice).catch(() => undefined);
     res.json({ ok: true, id, amount: bal, method });
+  });
+
+  // ── 🛍 TANGA SHOP (feature "shop", DARK until QABUL) ──────────────────────────────────────────
+  app.get("/api/shop/products", requireUser, rateLimit(30), async (_req, res) => {
+    const { listActiveProducts } = await import("../services/shopService");
+    res.set("Cache-Control", "private, max-age=30");
+    res.json({ products: await listActiveProducts() }); // [] when the flag is dark — soft gate
+  });
+  app.post("/api/shop/buy", requireUser, rateLimit(10), withMember2(async (id, req) => {
+    const { buyProduct } = await import("../services/shopService");
+    const r = await buyProduct(id, Number(req.body?.productId), String(req.body?.address ?? ""));
+    if (r.ok && r.notice && opts.notifyShopOwner) await opts.notifyShopOwner(r.notice).catch(() => undefined);
+    const { notice: _n, ...pub } = r; // owner-notice (phone/address) never leaves the server response path
+    return pub;
+  }));
+  app.get("/api/shop/orders", requireUser, rateLimit(30), withMember2(async (id) => {
+    const { myPurchases } = await import("../services/shopService");
+    return { orders: await myPurchases(id) };
+  }));
+  // public product photo proxy (img tag) — driver-photo clone: resolve file_id → 302 to Telegram CDN
+  const shopPhotoHits = new Map<string, { n: number; at: number }>();
+  app.get("/api/shop/photo/:productId", async (req, res) => {
+    const ipKey = String(req.headers["x-forwarded-for"] ?? req.socket.remoteAddress ?? "?").split(",")[0]!.trim();
+    if (shopPhotoHits.size > 10_000) shopPhotoHits.clear();
+    const now = Date.now();
+    const h = shopPhotoHits.get(ipKey);
+    if (h && now - h.at < 60_000 && h.n >= 60) { res.status(429).end(); return; }
+    shopPhotoHits.set(ipKey, h && now - h.at < 60_000 ? { n: h.n + 1, at: h.at } : { n: 1, at: now });
+    const { resolveProductPhoto } = await import("../services/shopService");
+    const url = await resolveProductPhoto(Number(req.params.productId));
+    if (!url) { res.status(404).end(); return; }
+    if (url.startsWith("data:")) {
+      const m = /^data:([^;]+);base64,(.*)$/.exec(url);
+      if (!m) { res.status(404).end(); return; }
+      res.set("Content-Type", m[1]!).set("Cache-Control", "public, max-age=3600").send(Buffer.from(m[2]!, "base64"));
+      return;
+    }
+    res.set("Cache-Control", "private, max-age=3600").redirect(302, url);
   });
 
   app.post("/api/wallet/topup", requireUser, rateLimit(5), async (req, res) => {
@@ -876,6 +919,38 @@ export function createApiServer(opts: ApiOptions = {}) {
     const { setBonusEcon } = await import("../services/bonusConfig");
     res.json({ ok: true, values: await setBonusEcon(b.key as string, b.value) });
   });
+  // ── 🛍 SHOP admin (owner-gated writes) ────────────────────────────────────────────────────────
+  app.get("/api/admin/shop/products", requireAdmin, async (_req, res) => {
+    const { adminListProducts } = await import("../services/shopService");
+    res.json(await adminListProducts());
+  });
+  app.post("/api/admin/shop/products", requireAdmin, requireOwner, rateLimit(20), async (req, res) => {
+    const { adminCreateProduct } = await import("../services/shopService");
+    res.json(await adminCreateProduct(req.body ?? {}));
+  });
+  app.post("/api/admin/shop/products/:id", requireAdmin, requireOwner, rateLimit(20), async (req, res) => {
+    const { adminEditProduct } = await import("../services/shopService");
+    res.json(await adminEditProduct(Number(req.params.id), req.body ?? {}));
+  });
+  app.post("/api/admin/shop/products/:id/toggle", requireAdmin, requireOwner, rateLimit(20), async (req, res) => {
+    const { adminToggleProduct } = await import("../services/shopService");
+    res.json(await adminToggleProduct(Number(req.params.id), !!req.body?.active));
+  });
+  app.delete("/api/admin/shop/products/:id", requireAdmin, requireOwner, rateLimit(20), async (req, res) => {
+    const { adminDeleteProduct } = await import("../services/shopService");
+    res.json(await adminDeleteProduct(Number(req.params.id)));
+  });
+  app.post("/api/admin/shop/products/:id/photo", express.json({ limit: "6mb" }), requireAdmin, requireOwner, async (req, res) => {
+    const b = req.body as { mime?: string; base64?: string };
+    if (!b?.base64) { res.status(400).json({ error: "no image" }); return; }
+    const { uploadProductPhoto } = await import("../services/shopService");
+    res.json(await uploadProductPhoto(Number(req.params.id), Buffer.from(b.base64, "base64"), b.mime || "image/jpeg"));
+  });
+  app.get("/api/admin/shop/orders", requireAdmin, async (req, res) => {
+    const { adminListPurchases } = await import("../services/shopService");
+    res.json({ orders: await adminListPurchases(req.query?.status ? String(req.query.status) : undefined) });
+  });
+
   // 💸 Transfer commission — owner sets the % charged on every transfer/tip/fare (gated by the
   // "komissiya" flag; the knob is live but only bites once that flag is ON).
   app.get("/api/admin/transfer-economy", requireAdmin, async (_req, res) => {
