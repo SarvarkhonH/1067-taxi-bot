@@ -1667,3 +1667,41 @@ body {
 /* v3.1.1: kam-qoldi badge oq rasm ustida o'qilmasdi (shaffof-pushti qora-fon merosxo'ri) →
    to'q qizil + oq matn, chegirma-badge bilan bir oila */
 .shop-badge-stock.low { background: linear-gradient(135deg, #ef4444, #dc2626); color: #fff; border: none; box-shadow: 0 2px 8px rgba(220,38,38,.45); }
+/* ── 🛍 shop v4: TO'LIQ YORUG' MARKET REJIMI (ega: "hali ham dark mode-ku") — Do'kon tab'iga
+   kirilganda BUTUN zona yorug'lanadi: fon, qidiruv, sheet'lar, tugmalar, progress — hammasi
+   oq-yashil olam. Ilova qolgan tablarda qora qoladi. ── */
+.shop-wrap { background: linear-gradient(180deg, #eef7f1, #f7faf8 26%, #f4f7f5); color: #1b2333; padding: 12px 10px 16px; box-shadow: inset 0 0 0 1px #dfeee5, 0 10px 30px -18px rgba(0,0,0,.5); }
+.shop-wrap .muted { color: #5f7066; }
+.shop-search { background: #ffffff; color: #1b2333; border-color: #cde9d6; }
+.shop-search::placeholder { color: #93a89b; }
+.shop-search-x { background: #e6f1ea; color: #5f7066; }
+.shop-orders-btn { background: linear-gradient(135deg, #22c55e, #15803d); border: none; color: #fff; box-shadow: 0 3px 12px -4px rgba(22,163,74,.55); }
+.shop-section-title { color: #14532d; }
+.shop-wrap .d-skel { background: #e3ede6; }
+.shop-wrap .d-empty { color: #5f7066; }
+/* shop ichidagi sheet'lar (detail/confirm/buyurtmalar) ham yorug' */
+.shop-wrap .d-sheet { background: #f7faf8; color: #1b2333; }
+.shop-wrap .d-sheet h3 { color: #14532d; }
+.shop-wrap .d-grip { background: #c3d5c9; }
+/* premium qatlam .d-btn:not(.ghost):not(.danger) (0,3,0) + !important bilan oltin beradi —
+   undan yuqori spetsifiklik + !important shart */
+.shop-wrap .d-btn:not(.ghost):not(.danger) {
+  background: linear-gradient(135deg, #22c55e, #15803d) !important;
+  color: #fff !important;
+  box-shadow: 0 14px 32px -12px rgba(34, 197, 94, 0.55), inset 0 1px 0 rgba(255, 255, 255, 0.3) !important;
+}
+.shop-wrap .d-btn.ghost { background: #ffffff; color: #14532d; border: 1px solid #cde9d6; box-shadow: none; }
+.shop-wrap .d-progress { background: #e3ede6; }
+.shop-wrap .d-progress > span { background: linear-gradient(90deg, #4ade80, #16a34a); }
+.shop-insufficient-bar { background: #ffffff; border-color: #dcefe2; }
+.shop-deliver-line { background: #e8f4fb; border-color: #bfe1f2; color: #1e5b7a; }
+.shop-detail-name { color: #14532d; }
+.shop-low-line { color: #dc2626; }
+.shop-wrap .sheet-err { color: #dc2626; }
+.shop-wrap .bk-input { background: #ffffff; color: #1b2333; border: 1px solid #cde9d6; }
+.shop-wrap .bk-input::placeholder { color: #93a89b; }
+.shop-wrap .pay-back { color: #15803d; background: transparent; border: none; }
+/* buyurtma-qatorlari: qora glass → oq karta */
+.shop-wrap .shop-order-row { background: #ffffff; box-shadow: 0 0 0 1px #e2eee6; border: none; color: #1b2333; }
+.order-status-pill.pending { background: #eef2ef; color: #5f7066; }
+.order-refund-banner { background: #e9f9ef; border-color: #bde8cc; color: #166534; }
