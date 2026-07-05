@@ -80,6 +80,21 @@ async function main(): Promise<void> {
   await prisma.appState.deleteMany({ where: { key: { startsWith: "budget:waitcomp:" } } });
   await prisma.appState.deleteMany({ where: { key: "feature:waitcomp" } });
 
+  // ── B7 (bug fix): exhausted GLOBAL fund returns fund_low (+fundLeft), NOT the misleading
+  // "daily_cap" — drivers with ~5k withdrawn were told «100 000/kun limit tugadi».
+  const { withdraw } = await import("../services/coinService");
+  const wdm = await prisma.member.create({ data: { type: "client", kasId: `${TAG}-WD`, fullName: "Fund Low", phone: "+998900000088", coins: 50_000, trips: 3 } });
+  const day = new Date(Date.now() + 5 * 3600e3).toISOString().slice(0, 10);
+  const usedKey = `wbudget_used:${day}`;
+  const prevUsed = (await prisma.appState.findUnique({ where: { key: usedKey } }))?.value ?? null;
+  await prisma.appState.upsert({ where: { key: usedKey }, create: { key: usedKey, value: "99999999" }, update: { value: "99999999" } });
+  const wres = await withdraw(wdm.id, 6000);
+  ok(wres.ok === false && wres.reason === "fund_low", `B7: exhausted global fund → reason fund_low (got ${wres.reason})`);
+  ok((wres.fundLeft ?? -1) === 0, `B7: fundLeft reported as 0 (got ${wres.fundLeft})`);
+  ok((await prisma.member.findUnique({ where: { id: wdm.id } }))!.coins === 50_000, "B7: coins untouched on fund_low (checked before spend)");
+  if (prevUsed === null) await prisma.appState.deleteMany({ where: { key: usedKey } });
+  else await prisma.appState.update({ where: { key: usedKey }, data: { value: prevUsed } });
+
   await cleanup();
   console.log(process.exitCode ? "\n❌ FAILED" : "\n✅ ALL GREEN");
   await prisma.$disconnect();

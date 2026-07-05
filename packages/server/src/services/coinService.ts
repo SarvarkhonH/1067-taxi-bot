@@ -250,8 +250,15 @@ export async function withdraw(memberId: number, amount: number): Promise<Withdr
     const today = await withdrawnToday(memberId);
     if (today + amount > WITHDRAW_DAILY_CAP) return fail("daily_cap");
 
-    // revenue-linked GLOBAL budget: real money out can't outrun real taxi revenue
-    if (!(await consumeWithdrawBudget(amount))) return fail("daily_cap"); // global budget exhausted (rides too low today)
+    // revenue-linked GLOBAL budget: real money out can't outrun real taxi revenue. Distinct reason
+    // (bug fix): this used to return "daily_cap", so a driver with ~5k withdrawn saw «100 000/kun
+    // limit tugadi» when actually the COMPANY fund for today was short. fundLeft lets the UI say
+    // exactly how much can still be withdrawn right now.
+    if (!(await consumeWithdrawBudget(amount))) {
+      const { getWithdrawBudget } = await import("./economyService");
+      const b = await getWithdrawBudget().catch(() => null);
+      return { ok: false, reason: "fund_low", amount, coinsLeft: member.coins, kasApplied: false, fundLeft: Math.max(0, Math.floor(b?.remaining ?? 0)) };
+    }
 
     // optimistic deduct first — blocks double-spend races
     const spent = await spendCoins(memberId, amount, "withdraw", `So'mga aylantirish: ${amount}`);

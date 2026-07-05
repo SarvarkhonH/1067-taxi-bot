@@ -355,7 +355,13 @@ function WithdrawSheet({
       } else {
         const msgs: Record<string, string> = {
           below_min: `Minimal: ${formatNumber(wallet.withdrawMin)} tanga`,
-          daily_cap: `Bugungi limit tugadi (${formatNumber(wallet.withdrawDailyCap)}/kun)`,
+          daily_cap: `Sizning kunlik limitingiz tugadi (${formatNumber(wallet.withdrawDailyCap)}/kun) — ertaga yana ochiladi`,
+          // fund_low ≠ daily_cap: the COMPANY's revenue-linked fund for today is short, the member's
+          // own limit is untouched (drivers with ~5k withdrawn used to see "100 000 limit tugadi")
+          fund_low:
+            (r.fundLeft ?? 0) > 0
+              ? `Bugungi umumiy fond kam qoldi — hozircha ${formatNumber(r.fundLeft ?? 0)} tangagacha yechish mumkin, qolganini ertaga`
+              : "Bugungi umumiy fond tugadi — ertaga safarlar bilan yana to'ladi 🚕",
           insufficient: "Tanga yetarli emas",
           not_client: "Faqat mijoz hisoblari uchun",
           no_ride: "So'mga aylantirish uchun avval kamida 1 ta safar qiling 🚕",
