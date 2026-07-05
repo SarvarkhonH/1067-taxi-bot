@@ -15,7 +15,7 @@ import {
   type WalletResponse,
 } from "@t1067/shared";
 import { api } from "./api";
-import { haptic, shareLink, inviteText } from "./telegram";
+import { haptic, shareLink, inviteText, inviteLandingUrl } from "./telegram";
 import { confetti, useCountUp } from "./util";
 import { Spinner, StreakCard } from "./components";
 
@@ -921,7 +921,7 @@ export function AccountCard() {
   const invite = async () => {
     haptic();
     const r = await api.referral().catch(() => null);
-    if (r?.link) shareLink(r.link, inviteText(r.rewardReferee));
+    if (r?.link) shareLink(inviteLandingUrl(r.link), inviteText(r.rewardReferee));
   };
   if (!a) return null;
   return (

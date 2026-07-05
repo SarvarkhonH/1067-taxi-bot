@@ -1,0 +1,94 @@
+<!doctype html>
+<html lang="uz">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>1067 Taxi — 5000 so'm sovg'a 🎁</title>
+
+  <!-- Open Graph: Telegram shows THIS card (image + title + text) when the link is shared -->
+  <meta property="og:type" content="website" />
+  <meta property="og:site_name" content="1067 Taxi" />
+  <meta property="og:title" content="🚕 1067 Taxi — sizga 5000 so'm sovg'a!" />
+  <meta property="og:description" content="Do'stingiz sizni taklif qildi 🎁 Birinchi buyurtma BONUS + har safardan cashback. Bir necha soniyada taxi — tez, qulay, ishonchli." />
+  <meta property="og:image" content="https://1067taxi-miniapp.vercel.app/invite-poster.jpg" />
+  <meta property="og:image:width" content="1080" />
+  <meta property="og:image:height" content="1620" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:image" content="https://1067taxi-miniapp.vercel.app/invite-poster.jpg" />
+
+  <style>
+    :root {
+      --green: #16a34a;
+      --green-d: #0f7a37;
+      --dark: #0c1f14;
+      --ink: #0a1a10;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, "Segoe UI", Roboto, sans-serif;
+      background: linear-gradient(160deg, #f0fdf4 0%, #dcfce7 45%, #ffffff 100%);
+      color: var(--ink);
+      min-height: 100vh;
+      display: flex; align-items: center; justify-content: center;
+      padding: 20px;
+    }
+    .card {
+      max-width: 400px; width: 100%; text-align: center;
+      background: #fff; border-radius: 28px; padding: 36px 26px 30px;
+      box-shadow: 0 20px 60px rgba(22,163,74,.18);
+      position: relative; overflow: hidden;
+    }
+    .card::before {
+      content: ""; position: absolute; top: -60px; right: -60px;
+      width: 180px; height: 180px; border-radius: 50%;
+      background: radial-gradient(circle, rgba(22,163,74,.15), transparent 70%);
+    }
+    .logo { display: inline-flex; align-items: center; gap: 8px; font-size: 26px; font-weight: 900; color: var(--green); letter-spacing: 1px; }
+    .logo .badge { background: var(--green); color: #fff; font-size: 13px; padding: 3px 9px; border-radius: 8px; font-weight: 800; letter-spacing: .5px; }
+    .car { font-size: 64px; margin: 18px 0 6px; animation: drive 2.5s ease-in-out infinite; }
+    @keyframes drive { 0%,100%{transform:translateX(-6px)} 50%{transform:translateX(6px)} }
+    h1 { font-size: 26px; font-weight: 900; line-height: 1.2; margin-bottom: 8px; }
+    .bonus { display: inline-block; background: var(--green); color: #fff; font-weight: 900; font-size: 30px; padding: 10px 22px; border-radius: 16px; margin: 8px 0 4px; box-shadow: 0 8px 20px rgba(22,163,74,.35); }
+    .bonus small { font-size: 15px; font-weight: 700; }
+    .sub { color: #4b6357; font-size: 14px; margin: 10px 0 22px; line-height: 1.55; }
+    .perks { display: flex; justify-content: center; gap: 18px; margin-bottom: 24px; }
+    .perk { font-size: 12px; color: #3f5a4b; font-weight: 600; }
+    .perk b { display: block; font-size: 17px; color: var(--green); font-weight: 900; }
+    .cta {
+      display: block; width: 100%; background: var(--green); color: #fff;
+      font-size: 18px; font-weight: 800; padding: 16px; border-radius: 16px;
+      text-decoration: none; border: 0; cursor: pointer; transition: transform .12s, background .15s;
+      box-shadow: 0 10px 24px rgba(22,163,74,.35);
+    }
+    .cta:active { transform: scale(.97); background: var(--green-d); }
+    .hint { font-size: 12px; color: #7a8f83; margin-top: 12px; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="logo">1067 <span class="badge">BOT</span> ✈️</div>
+    <div class="car">🚕</div>
+    <h1>Sizga sovg'a bor!</h1>
+    <div class="bonus">5000 <small>so'm</small></div>
+    <div class="sub">Do'stingiz sizni <b>1067 Taxi</b>ga taklif qildi.<br>Birinchi buyurtmaga bonus + har safardan cashback 🎁</div>
+    <div class="perks">
+      <div class="perk"><b>2 daq</b>yetib keladi</div>
+      <div class="perk"><b>1000</b>har safar cashback</div>
+      <div class="perk"><b>Tez</b>· qulay · ishonchli</div>
+    </div>
+    <a class="cta" id="go" href="https://t.me/koson1067bot">🚕 Botni ochish va sovg'ani olish</a>
+    <div class="hint">Telegram'da ochiladi · @koson1067bot</div>
+  </div>
+
+  <script>
+    // referral code arrives as ?r=<code>; forward it to the bot's /start deep link
+    var params = new URLSearchParams(location.search);
+    var code = (params.get("r") || "").replace(/[^a-zA-Z0-9_-]/g, "").slice(0, 40);
+    var target = "https://t.me/koson1067bot" + (code ? "?start=ref_" + code : "");
+    var go = document.getElementById("go");
+    go.href = target;
+    // auto-open the bot shortly after landing (gives the OG card / page a beat to render)
+    setTimeout(function () { location.href = target; }, 1200);
+  </script>
+</body>
+</html>

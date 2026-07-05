@@ -6,7 +6,7 @@ import type { HomeResponse, MeResponse, ReferralResponse } from "@t1067/shared";
 import { api } from "./api";
 import { ensureLeaflet } from "./leaflet";
 import { carDivIcon, pinkTaxiDivIcon, ghostPersonDivIcon, GHOST_SHIRTS, GHOST_SKINS, GHOST_DRESSES, GHOST_HAIRS, type PersonKind } from "./mapDecor";
-import { haptic, inviteText } from "./telegram";
+import { haptic, inviteText, inviteLandingUrl } from "./telegram";
 import { WalletView } from "./wallet";
 
 const TILE_URL = "https://mt{s}.google.com/vt/lyrs=m&hl=uz&x={x}&y={y}&z={z}";
@@ -43,7 +43,7 @@ export function LivingHome(props: {
     const info = refInfo;
     if (!info) return;
     const text = inviteText(info.rewardReferee);
-    const url = `https://t.me/share/url?url=${encodeURIComponent(info.link)}&text=${encodeURIComponent(text)}`;
+    const url = `https://t.me/share/url?url=${encodeURIComponent(inviteLandingUrl(info.link))}&text=${encodeURIComponent(text)}`;
     window.open(url, "_blank");
   };
 

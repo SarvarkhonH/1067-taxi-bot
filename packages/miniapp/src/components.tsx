@@ -11,7 +11,7 @@ import {
   type WeeklyBoardResponse,
 } from "@t1067/shared";
 import { api, type RideHistoryRow, type RideHistoryResponse } from "./api";
-import { copyText, haptic, shareLink, inviteText } from "./telegram";
+import { copyText, haptic, shareLink, inviteText, inviteLandingUrl } from "./telegram";
 
 export function Spinner() {
   return (
@@ -349,7 +349,7 @@ export function ReferralView({ onClose }: { onClose?: () => void } = {}) {
 
   if (err && !data) return <LoadError onRetry={load} />;
   if (!data) return <Spinner />;
-  const share = () => shareLink(data.link, inviteText(data.rewardReferee));
+  const share = () => shareLink(inviteLandingUrl(data.link), inviteText(data.rewardReferee));
   const copy = async () => {
     await copyText(data.link);
     setCopied(true);

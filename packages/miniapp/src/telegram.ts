@@ -240,10 +240,17 @@ export function playRepairFail(): void {
  */
 export function inviteText(bonus: number): string {
   const n = formatNumber(bonus); // KEEP IN SYNC with the bot's clientInviteText (server/src/bot/bot.ts)
-  return (
-    `🚕 Men o'zim Kosonda 1067 taksidan foydalanaman, senga ham tavsiya qilaman.\n` +
-    `Shu havola orqali qo'shilsang — ${n} tanga bonus, birinchi safaringga:`
-  );
+  // Short + warm (owner: less "spammy"). The rich image card is carried by the landing URL's OG tags.
+  return `🚕 1067 Taxi — senga ${n} so'm sovg'a 🎁 Bir tap bilan taxi. Qo'shil 👇`;
+}
+
+// Wrap the bot ref-link in our OG landing page (/j/?r=<code>) so Telegram renders a rich IMAGE
+// card (poster + text) instead of the plain bot preview — the "less spammy" ask. The page reads
+// ?r and forwards to t.me/koson1067bot?start=ref_<code>, so referral capture is unchanged.
+const INVITE_LANDING = "https://1067taxi-miniapp.vercel.app/j/";
+export function inviteLandingUrl(botLink: string): string {
+  const m = botLink.match(/(?:start|startapp)=ref_?([a-zA-Z0-9_-]+)/);
+  return m && m[1] ? `${INVITE_LANDING}?r=${encodeURIComponent(m[1])}` : botLink;
 }
 
 /** Open Telegram's native "share to a chat" dialog with an invite link. */
