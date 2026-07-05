@@ -1540,26 +1540,119 @@ body {
 .shop-mini-name { font-size: 11px; font-weight: 700; color: var(--text); padding: 5px 6px 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .shop-mini-price { font-size: 11.5px; font-weight: 800; color: var(--brand); }
 /* ── 🛍 shop v3 THEME: "haqiqiy do'kon" — OQ kartalar (mahsulot oq fonda "sotuvda" ko'rinadi,
-   barcha marketplace standarti) + Uzum-uslub binafsha aksent. Keyinroq kelgani uchun cascade'da
-   v2 va .glass ustidan yutadi. ── */
-.shop-wrap { background: radial-gradient(640px 240px at 50% -80px, rgba(124,58,237,.22), transparent); border-radius: 18px; }
-.shop-title { background: linear-gradient(135deg, #c4b5fd, #8b5cf6); -webkit-background-clip: text; background-clip: text; }
-.shop-search { border-color: rgba(139,92,246,.35); }
-.shop-search:focus { border-color: rgba(167,139,250,.7); box-shadow: 0 0 0 3px rgba(139,92,246,.15); }
-.shop-orders-btn { border-color: rgba(139,92,246,.4); background: rgba(139,92,246,.12); color: #c4b5fd; }
+   barcha marketplace standarti) + YASHIL aksent (ega tanlovi: yangi-toza market hissi, ilovaning
+   pul-yashili bilan uyg'un). Keyinroq kelgani uchun cascade'da v2 va .glass ustidan yutadi. ── */
+.shop-wrap { background: radial-gradient(640px 240px at 50% -80px, rgba(22,163,74,.22), transparent); border-radius: 18px; }
+.shop-title { background: linear-gradient(135deg, #6ee7b7, #16a34a); -webkit-background-clip: text; background-clip: text; }
+.shop-search { border-color: rgba(34,197,94,.35); }
+.shop-search:focus { border-color: rgba(74,222,128,.7); box-shadow: 0 0 0 3px rgba(34,197,94,.15); }
+.shop-orders-btn { border-color: rgba(34,197,94,.4); background: rgba(34,197,94,.12); color: #86efac; }
 /* OQ kartalar */
-.shop-card, .shop-card.glass { background: #ffffff; box-shadow: 0 8px 22px -10px rgba(10,14,30,.55), 0 0 0 1px color-mix(in srgb, var(--acc) 30%, #e6e6ef); border: none; }
+.shop-card, .shop-card.glass { background: #ffffff; box-shadow: 0 8px 22px -10px rgba(10,14,30,.55), 0 0 0 1px color-mix(in srgb, var(--acc) 30%, #e6efe8); border: none; }
 .shop-card-name { color: #1b2333; }
-.shop-card-photo, .shop-detail-photo, .shop-mini-img, .shop-gallery-img { background: #f4f5f9; }
-.shop-card-noimg { background: radial-gradient(circle at 50% 40%, color-mix(in srgb, var(--acc) 18%, #ffffff), #f2f3f8 78%); }
-.shop-price-chip { background: #f4f2ff; color: #5b21b6; border: 1px solid #e3dcfb; }
+.shop-card-photo, .shop-detail-photo, .shop-mini-img, .shop-gallery-img { background: #f4f7f5; }
+.shop-card-noimg { background: radial-gradient(circle at 50% 40%, color-mix(in srgb, var(--acc) 18%, #ffffff), #f2f6f3 78%); }
+.shop-price-chip { background: #eefaf1; color: #15803d; border: 1px solid #c9ecd4; }
 .shop-price-old { color: #9aa3b2; }
-.shop-buy-bar { background: linear-gradient(135deg, #8b5cf6, #6d28d9); color: #fff; box-shadow: 0 4px 14px -4px rgba(124,58,237,.65); }
+.shop-buy-bar { background: linear-gradient(135deg, #22c55e, #15803d); color: #fff; box-shadow: 0 4px 14px -4px rgba(22,163,74,.65); }
 /* mini (o'xshash) kartalar ham oq */
-.shop-mini { background: #ffffff; border: 1px solid #e8e8f0; }
+.shop-mini { background: #ffffff; border: 1px solid #e6efe8; }
 .shop-mini-name { color: #1b2333; }
-.shop-mini-price { color: #6d28d9; }
-/* kategoriya sarlavha + hero chekkasi binafsha-uyg'un qoladi (acc rang o'zicha) */
-.shop-section-title { color: #e7e3ff; }
+.shop-mini-price { color: #15803d; }
+/* kategoriya sarlavha yashil-uyg'un (acc rang o'zicha qoladi) */
+.shop-section-title { color: #d9f7e4; }
 /* skeleton oq kartada ko'rinsin */
-.shop-card .d-skel { background: #ececf4; }
+.shop-card .d-skel { background: #eaf2ec; }
+
+/* ══ 🔎 XIZMATLAR (feature "xizmatlar") — Koson services directory ══════════
+   2GIS-daraja kartalar: foto/emoji thumb + reyting + verified + ochiq/yopiq +
+   dumaloq qo'ng'iroq tugmasi. Hamma rang token'lardan, --acc kategoriya rangi. */
+.svc-wrap { display: flex; flex-direction: column; }
+.svc-title { font-size: 20px; font-weight: 800; }
+.svc-mine-btn { padding: 8px 12px; border-radius: var(--r-btn); border: 1px solid var(--line); background: var(--surface-2); color: var(--text); font-size: 12.5px; font-weight: 700; }
+
+/* kategoriya grid — rangli tile'lar, son bilan ("bo'sh emas" signali) */
+.svc-cat-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.svc-cat-tile { --acc: var(--brand); display: flex; flex-direction: column; align-items: flex-start; gap: 2px; padding: 12px;
+  border: 1px solid color-mix(in srgb, var(--acc) 35%, transparent); border-radius: var(--r-card);
+  background: linear-gradient(160deg, color-mix(in srgb, var(--acc) 16%, transparent), var(--card) 70%); text-align: left;
+  transition: transform var(--dur-press) var(--ease-out); }
+.svc-cat-tile:active { transform: scale(0.96); }
+.svc-cat-emoji { font-size: 22px; }
+.svc-cat-name { font-size: 13.5px; font-weight: 700; color: var(--text); }
+.svc-cat-count { font-size: 11.5px; color: var(--text-dim); }
+.svc-cat-head { display: flex; align-items: center; gap: 10px; margin: 10px 0; }
+.svc-cat-head-emoji { font-size: 26px; }
+
+/* listing karta — thumb + matn + qo'ng'iroq nuqtasi */
+.svc-list { display: flex; flex-direction: column; gap: 8px; }
+.svc-section { margin-top: 14px; }
+.svc-card { --acc: var(--brand); display: flex; align-items: center; gap: 10px; padding: 9px; text-align: left; position: relative;
+  border-radius: var(--r-card); transition: transform var(--dur-press) var(--ease-out); }
+.svc-card:active { transform: scale(0.98); }
+.svc-card-thumb { width: 52px; height: 52px; border-radius: 12px; flex-shrink: 0; overflow: hidden; display: flex; align-items: center; justify-content: center;
+  background: radial-gradient(circle at 50% 40%, color-mix(in srgb, var(--acc) 26%, transparent), var(--surface) 78%); }
+.svc-card-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.svc-card-emoji { font-size: 24px; }
+.svc-card-body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.svc-card-name { font-size: 13.5px; font-weight: 700; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.svc-card-tags { font-size: 11.5px; color: var(--text-dim); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.svc-card-meta { display: flex; align-items: center; gap: 6px; min-width: 0; }
+.svc-call-dot { width: 36px; height: 36px; border-radius: 50%; flex-shrink: 0; display: flex; align-items: center; justify-content: center;
+  background: color-mix(in srgb, var(--win) 20%, transparent); border: 1px solid color-mix(in srgb, var(--win) 45%, transparent); font-size: 15px; }
+
+/* reyting / belgilar */
+.svc-stars { color: var(--brand); font-size: 13px; letter-spacing: 1px; }
+.svc-stars span { opacity: 0.25; } .svc-stars span.on { opacity: 1; }
+.svc-stars.dim { font-size: 11.5px; }
+.svc-rating-line { display: flex; align-items: center; gap: 4px; }
+.svc-rating-num { color: var(--brand); font-weight: 800; font-size: 12.5px; }
+.svc-vip { background: var(--brand-grad); color: #201400; font-size: 9px; font-weight: 900; letter-spacing: 0.05em; padding: 2px 5px; border-radius: 6px; margin-right: 5px; vertical-align: 1px; }
+.svc-verified { color: #38bdf8; font-size: 12px; font-weight: 900; }
+.svc-verified.big { font-size: 15px; }
+.svc-open { font-size: 11.5px; color: var(--win); font-weight: 700; white-space: nowrap; }
+.svc-open.closed { color: var(--danger); }
+
+/* profil (detail sheet) */
+.svc-detail { display: flex; flex-direction: column; gap: 10px; }
+.svc-gallery-strip { display: flex; overflow-x: auto; scroll-snap-type: x mandatory; border-radius: var(--r-card); scrollbar-width: none; }
+.svc-gallery-strip::-webkit-scrollbar { display: none; }
+.svc-gallery-strip img { width: 100%; flex-shrink: 0; aspect-ratio: 16 / 10; object-fit: cover; scroll-snap-align: center; background: var(--surface); }
+.svc-gallery-dots { display: flex; justify-content: center; gap: 5px; margin-top: 6px; }
+.svc-gallery-dots span { width: 6px; height: 6px; border-radius: 50%; background: var(--line); transition: background var(--dur-press); }
+.svc-gallery-dots span.on { background: var(--brand); }
+.svc-detail-noimg { --acc: var(--brand); aspect-ratio: 16 / 7; border-radius: var(--r-card); display: flex; align-items: center; justify-content: center; font-size: 44px;
+  background: radial-gradient(circle at 50% 40%, color-mix(in srgb, var(--acc) 26%, transparent), var(--surface) 78%); }
+.svc-detail-name { margin: 0; font-size: 18px; }
+.svc-detail-social { font-size: 13px; display: flex; align-items: center; gap: 5px; flex-wrap: wrap; }
+.svc-actions { display: flex; gap: 7px; }
+.svc-act { flex: 1; padding: 11px 4px; border-radius: var(--r-btn); border: 1px solid var(--line); background: var(--surface-2); color: var(--text); font-size: 12.5px; font-weight: 700;
+  transition: transform var(--dur-press) var(--ease-out); }
+.svc-act:active { transform: scale(0.96); }
+.svc-act.primary { background: var(--brand-grad); border: none; color: #201400; }
+.svc-info { display: flex; flex-direction: column; gap: 7px; }
+.svc-info-row { display: flex; align-items: baseline; gap: 8px; font-size: 13px; }
+.svc-desc { margin: 0; color: var(--text); opacity: 0.9; }
+
+/* baho/sharh */
+.svc-rate-box { display: flex; flex-direction: column; gap: 8px; }
+.svc-rate-stars { display: flex; gap: 4px; }
+.svc-rate-stars button { font-size: 26px; background: none; border: none; color: var(--line); padding: 2px 4px; transition: transform var(--dur-press); }
+.svc-rate-stars button.on { color: var(--brand); }
+.svc-rate-stars button:active { transform: scale(1.2); }
+.svc-rate-text { width: 100%; border-radius: var(--r-btn); border: 1px solid var(--line); background: var(--surface-2); color: var(--text); font-size: 13px; padding: 9px 11px; resize: none; }
+.svc-rate-done { text-align: center; padding: 12px; color: var(--win); font-weight: 700; font-size: 13.5px; }
+.svc-rate-cta { background: none; border: none; color: var(--brand); font-size: 12.5px; font-weight: 800; }
+.svc-reviews { display: flex; flex-direction: column; gap: 8px; margin-top: 4px; }
+.svc-review { border-top: 1px solid var(--line); padding-top: 8px; }
+.svc-report { background: none; border: none; color: var(--text-dim); font-size: 11px; }
+
+/* qo'shish CTA + forma */
+.svc-add-cta { display: flex; align-items: center; gap: 10px; padding: 12px; margin-top: 14px; border-radius: var(--r-card); text-align: left;
+  border: 1px dashed color-mix(in srgb, var(--brand) 50%, transparent); }
+.svc-add-plus { font-size: 20px; }
+.svc-add-chev { color: var(--text-dim); font-size: 20px; }
+.svc-cat-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.svc-chip { padding: 7px 11px; border-radius: var(--r-chip); border: 1px solid var(--line); background: var(--surface-2); color: var(--text); font-size: 12.5px; }
+.svc-chip.on { background: var(--brand-grad); border-color: transparent; color: #201400; font-weight: 800; }
+.svc-mine-row { margin-top: 8px; }
