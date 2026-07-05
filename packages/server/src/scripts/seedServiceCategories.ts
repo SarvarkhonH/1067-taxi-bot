@@ -1,5 +1,6 @@
 // 🔎 XIZMATLAR: seed the 10 default categories (idempotent — creates only missing ones).
 // Usage: npx tsx src/scripts/seedServiceCategories.ts
+import "../env"; // loads repo-root .env → DATABASE_URL (app DB)
 import { seedDefaultCategories } from "../services/serviceDirectory";
 import { prisma } from "../db";
 
