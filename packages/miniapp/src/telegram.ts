@@ -250,7 +250,9 @@ export function inviteText(bonus: number): string {
 const INVITE_LANDING = "https://1067taxi-miniapp.vercel.app/j/";
 export function inviteLandingUrl(botLink: string): string {
   const m = botLink.match(/(?:start|startapp)=ref_?([a-zA-Z0-9_-]+)/);
-  return m && m[1] ? `${INVITE_LANDING}?r=${encodeURIComponent(m[1])}` : botLink;
+  // &v bumps the URL when the OG card content changes → Telegram fetches a FRESH preview
+  // instead of showing a stale cached card (v2 = gift-emoji removed).
+  return m && m[1] ? `${INVITE_LANDING}?r=${encodeURIComponent(m[1])}&v=2` : botLink;
 }
 
 /** Open Telegram's native "share to a chat" dialog with an invite link. */
