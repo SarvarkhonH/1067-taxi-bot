@@ -12,13 +12,6 @@ import { Button, EmptyState, ProgressBar, Sheet, Skeleton } from "./design/compo
 const AVG_EARN_PER_RIDE = 250; // rough tanga/ride — "N safar yetadi" hint only
 const LAST_ADDR_KEY = "shop_last_addr";
 
-// Hamster-style colored frames — deterministic per category (real palette, NOT rarity/lootbox)
-const ACCENTS = ["#ffb300", "#f0426b", "#8b5cf6", "#22c55e", "#38bdf8"];
-function accentOf(category: string): string {
-  let h = 5381;
-  for (let i = 0; i < category.length; i++) h = (h * 33) ^ category.charCodeAt(i);
-  return ACCENTS[(h >>> 0) % ACCENTS.length]!;
-}
 function discountPct(p: ShopProductView): number {
   return p.oldPriceTanga && p.oldPriceTanga > p.priceTanga ? Math.round((1 - p.priceTanga / p.oldPriceTanga) * 100) : 0;
 }
@@ -59,7 +52,7 @@ function PriceBlock({ p, big }: { p: ShopProductView; big?: boolean }) {
 // compact card used in horizontal rows + search grid
 function ProductCard({ p, onOpen, wide }: { p: ShopProductView; onOpen: (p: ShopProductView) => void; wide?: boolean }) {
   return (
-    <button className={"shop-card glass" + (wide ? "" : " shop-card-h")} style={{ ["--acc" as string]: accentOf(p.category) }} onClick={() => onOpen(p)}>
+    <button className={"shop-card glass" + (wide ? "" : " shop-card-h")} onClick={() => onOpen(p)}>
       <div className="shop-card-photo-wrap">
         {p.hasPhoto ? <img className="shop-card-photo" src={apiUrl(`/api/shop/photo/${p.id}`)} loading="lazy" alt="" /> : <div className="shop-card-photo shop-card-noimg">🛍</div>}
         <Badges p={p} />
@@ -199,7 +192,7 @@ export function ShopView({ me, onBanner, reload, onBook }: { me: MeResponse; onB
           {featured.length > 0 && (
             <div className="shop-hero-strip">
               {featured.map((p) => (
-                <button key={p.id} className="shop-hero" style={{ ["--acc" as string]: accentOf(p.category) }} onClick={() => openProduct(p)}>
+                <button key={p.id} className="shop-hero" onClick={() => openProduct(p)}>
                   {p.hasPhoto ? <img className="shop-hero-img" src={apiUrl(`/api/shop/photo/${p.id}`)} loading="lazy" alt="" /> : <div className="shop-hero-img shop-card-noimg">🛍</div>}
                   <div className="shop-hero-grad" />
                   <div className="shop-hero-info">
@@ -216,7 +209,7 @@ export function ShopView({ me, onBanner, reload, onBook }: { me: MeResponse; onB
           {byCategory.map(([cat, items]) => (
             <div key={cat} className="shop-section">
               <div className="shop-section-head">
-                <span className="shop-section-title" style={{ ["--acc" as string]: accentOf(cat) }}>{cat}</span>
+                <span className="shop-section-title">{cat}</span>
                 <span className="muted fs12">{items.length} ta</span>
               </div>
               <div className="shop-row-strip">
@@ -247,7 +240,7 @@ export function ShopView({ me, onBanner, reload, onBook }: { me: MeResponse; onB
             ) : sel.hasPhoto ? (
               <img className="shop-detail-photo" src={apiUrl(`/api/shop/photo/${sel.id}`)} alt="" />
             ) : (
-              <div className="shop-detail-photo shop-card-noimg" style={{ ["--acc" as string]: accentOf(sel.category) }}>🛍</div>
+              <div className="shop-detail-photo shop-card-noimg">🛍</div>
             )}
             <h3 className="shop-detail-name">{sel.name}</h3>
             {sel.description && <p className="muted fs13">{sel.description}</p>}
