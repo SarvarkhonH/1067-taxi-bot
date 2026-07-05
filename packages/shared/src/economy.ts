@@ -151,6 +151,13 @@ export const BONUS_ECON_KNOBS: BonusEconKnob[] = [
   { key: "revshareMonthCap", label: "🚖 Revshare — oylik cap (haydovchiga)", def: 30000, min: 0, max: 200000, step: 1000, group: "Taklif & Recruit" },
   { key: "drvMilestone", label: "🚖 Haydovchi→haydovchi mukofot", def: 5000, min: 0, max: 50000, step: 500, group: "Taklif & Recruit" },
   { key: "drvRides", label: "🚖 Haydovchi→haydovchi — necha safar", def: 10, min: 1, max: 50, step: 1, group: "Taklif & Recruit" },
+  // ── 💸 Naqd fond (withdraw) — endi admin-paneldan, env/kod shart emas ──
+  // Kunlik umumiy fond = wdBase + kechagi safarlar × wdPerRide. 2000 so'm/safar komissiya davrida
+  // xavfsiz yuqori chegara: perRide ≤ komissiya − bonuslar (~1500). Def'lar eski xatti-harakatga teng.
+  { key: "wdBase", label: "💸 Kunlik fond — baza (so'm)", def: 20000, min: 0, max: 2000000, step: 5000, group: "Naqd fond" },
+  { key: "wdPerRide", label: "💸 Kunlik fond — har safar uchun (so'm)", def: 300, min: 0, max: 2000, step: 50, group: "Naqd fond" },
+  { key: "wdDailyCapUser", label: "💸 Bir odam kunlik limiti (so'm)", def: 100000, min: 5000, max: 1000000, step: 5000, group: "Naqd fond" },
+  { key: "wdMin", label: "💸 Minimal yechish (tanga)", def: 5000, min: 1000, max: 50000, step: 500, group: "Naqd fond" },
   // ── Safar mukofoti ──
   { key: "rideBase", label: "🎲 Safar cashback bazasi (×1/×2/×3)", def: 100, min: 0, max: 2000, step: 10, group: "Safar mukofoti" },
   { key: "jackpotFeed", label: "🎰 Jackpot pul to'ldirish (/safar)", def: 50, min: 0, max: 1000, step: 10, group: "Safar mukofoti" },

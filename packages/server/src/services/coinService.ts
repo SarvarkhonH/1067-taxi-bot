@@ -168,6 +168,21 @@ export async function getCoins(memberId: number): Promise<number> {
   return m?.coins ?? 0;
 }
 
+/** Owner-tunable withdraw limits (admin panel «Naqd fond» knobs) with the shipped constants as
+ *  defaults — so the owner adjusts money policy WITHOUT code or env access. */
+async function withdrawLimits(): Promise<{ min: number; dailyCap: number }> {
+  try {
+    const { getBonusEcon } = await import("./bonusConfig");
+    const econ = await getBonusEcon();
+    return {
+      min: Number.isFinite(econ.wdMin) ? econ.wdMin! : WITHDRAW_MIN,
+      dailyCap: Number.isFinite(econ.wdDailyCapUser) ? econ.wdDailyCapUser! : WITHDRAW_DAILY_CAP,
+    };
+  } catch {
+    return { min: WITHDRAW_MIN, dailyCap: WITHDRAW_DAILY_CAP };
+  }
+}
+
 async function withdrawnToday(memberId: number): Promise<number> {
   const since = new Date(Date.now() - 24 * 3600 * 1000);
   const agg = await prisma.withdrawal.aggregate({
@@ -191,13 +206,14 @@ export async function getWallet(memberId: number): Promise<WalletResponse> {
     const { getTransferEcon } = await import("./transferService");
     commissionPct = (await getTransferEcon()).commissionPct ?? 0;
   }
+  const limits = await withdrawLimits();
   return {
     coins,
     cashback: member?.points ?? 0,
     withdrawnToday: today,
-    withdrawMin: WITHDRAW_MIN,
-    withdrawDailyCap: WITHDRAW_DAILY_CAP,
-    canWithdraw: (member?.type === "client" || member?.type === "driver") && coins >= WITHDRAW_MIN && today < WITHDRAW_DAILY_CAP,
+    withdrawMin: limits.min,
+    withdrawDailyCap: limits.dailyCap,
+    canWithdraw: (member?.type === "client" || member?.type === "driver") && coins >= limits.min && today < limits.dailyCap,
     isClient: member?.type === "client", // ONLY clients convert cashback→tanga (topup); BOTH can withdraw tanga→kas balance
     topupMin: TOPUP_MIN,
     canTopup: (member?.points ?? 0) >= TOPUP_MIN,
@@ -232,7 +248,8 @@ export async function withdraw(memberId: number, amount: number): Promise<Withdr
   // anomaly hold: freezes ONLY the cash door — coins stay spendable in-app,
   // so a falsely-flagged real user loses nothing while an admin reviews
   if (member.riskFlag) return fail("risk_hold");
-  if (amount < WITHDRAW_MIN) return fail("below_min");
+  const limits = await withdrawLimits(); // owner-tunable (admin «Naqd fond» knobs)
+  if (amount < limits.min) return fail("below_min");
   // P0 (QA fleet): serialize per member — the cap check + budget + spend + kas + row-create
   // must run atomically per member, else two concurrent withdrawals both read withdrawnToday=0
   // and both blow past the 50000/day cap (real money out 2x). Same in-process lock as grantRideCoins.
@@ -248,7 +265,7 @@ export async function withdraw(memberId: number, amount: number): Promise<Withdr
     if (stale) return fail("pending_review");
 
     const today = await withdrawnToday(memberId);
-    if (today + amount > WITHDRAW_DAILY_CAP) return fail("daily_cap");
+    if (today + amount > limits.dailyCap) return fail("daily_cap");
 
     // revenue-linked GLOBAL budget: real money out can't outrun real taxi revenue. Distinct reason
     // (bug fix): this used to return "daily_cap", so a driver with ~5k withdrawn saw «100 000/kun

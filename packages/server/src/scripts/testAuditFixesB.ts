@@ -95,6 +95,23 @@ async function main(): Promise<void> {
   if (prevUsed === null) await prisma.appState.deleteMany({ where: { key: usedKey } });
   else await prisma.appState.update({ where: { key: usedKey }, data: { value: prevUsed } });
 
+  // ── B8: fund size is OWNER-TUNABLE from the admin knobs (wdBase/wdPerRide), no env/code needed ──
+  const { getWithdrawBudget } = await import("../services/economyService");
+  const b0 = await getWithdrawBudget();
+  await setBonusEcon("wdBase", 50_000);
+  await setBonusEcon("wdPerRide", 1000);
+  const b1 = await getWithdrawBudget();
+  ok(b1.total === 50_000 + b1.rides * 1000, `B8: knob-sized fund (${b1.total} == 50000 + ${b1.rides}×1000)`);
+  ok(b1.total > b0.total, `B8: raising the knobs raised the fund (${b0.total} → ${b1.total})`);
+  // per-member limits are knob-driven too
+  await setBonusEcon("wdDailyCapUser", 200_000);
+  const wdm2 = await prisma.member.create({ data: { type: "client", kasId: `${TAG}-WD2`, fullName: "Cap Knob", phone: "+998900000089", coins: 500_000, trips: 3 } });
+  const capRes = await withdraw(wdm2.id, 150_000); // over the OLD 100k cap, under the new 200k knob
+  ok(capRes.reason !== "daily_cap", `B8: 150k withdraw passes the raised 200k per-member knob (reason=${capRes.reason ?? "ok/kas"})`);
+  await setBonusEcon("wdBase", 20_000);
+  await setBonusEcon("wdPerRide", 300);
+  await setBonusEcon("wdDailyCapUser", 100_000);
+
   await cleanup();
   console.log(process.exitCode ? "\n❌ FAILED" : "\n✅ ALL GREEN");
   await prisma.$disconnect();

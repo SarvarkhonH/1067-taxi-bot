@@ -23,7 +23,9 @@ export interface WithdrawBudget {
   rides: number; // the revenue signal driving it
 }
 
-/** Today's revenue-backed withdrawal budget (global, all users). */
+/** Today's revenue-backed withdrawal budget (global, all users). Sizing is OWNER-TUNABLE from the
+ *  admin panel (Naqd fond knobs: wdBase + wdPerRide); env vars remain a fallback for the knob
+ *  defaults so existing deployments keep their exact behavior until the owner touches the knobs. */
 export async function getWithdrawBudget(): Promise<WithdrawBudget> {
   let rides = 0;
   try {
@@ -31,7 +33,11 @@ export async function getWithdrawBudget(): Promise<WithdrawBudget> {
   } catch {
     /* kas unreachable → fall back to floor only (fail-safe: smaller budget) */
   }
-  const total = BASE_BUDGET + rides * PER_RIDE_BUDGET;
+  const { getBonusEcon } = await import("./bonusConfig");
+  const econ = await getBonusEcon().catch(() => ({}) as Record<string, number>);
+  const base = Number.isFinite(econ.wdBase) ? econ.wdBase! : BASE_BUDGET;
+  const perRide = Number.isFinite(econ.wdPerRide) ? econ.wdPerRide! : PER_RIDE_BUDGET;
+  const total = base + rides * perRide;
   const row = await prisma.appState.findUnique({ where: { key: usedKey(tashkentDay()) } });
   const used = row ? Number(row.value) || 0 : 0;
   return { total, used, remaining: Math.max(0, total - used), rides };
