@@ -1539,3 +1539,27 @@ body {
 .shop-mini-img { width: 100%; aspect-ratio: 1/1; object-fit: cover; display: block; background: var(--surface); font-size: 30px; }
 .shop-mini-name { font-size: 11px; font-weight: 700; color: var(--text); padding: 5px 6px 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .shop-mini-price { font-size: 11.5px; font-weight: 800; color: var(--brand); }
+/* ── 🛍 shop v3 THEME: "haqiqiy do'kon" — OQ kartalar (mahsulot oq fonda "sotuvda" ko'rinadi,
+   barcha marketplace standarti) + Uzum-uslub binafsha aksent. Keyinroq kelgani uchun cascade'da
+   v2 va .glass ustidan yutadi. ── */
+.shop-wrap { background: radial-gradient(640px 240px at 50% -80px, rgba(124,58,237,.22), transparent); border-radius: 18px; }
+.shop-title { background: linear-gradient(135deg, #c4b5fd, #8b5cf6); -webkit-background-clip: text; background-clip: text; }
+.shop-search { border-color: rgba(139,92,246,.35); }
+.shop-search:focus { border-color: rgba(167,139,250,.7); box-shadow: 0 0 0 3px rgba(139,92,246,.15); }
+.shop-orders-btn { border-color: rgba(139,92,246,.4); background: rgba(139,92,246,.12); color: #c4b5fd; }
+/* OQ kartalar */
+.shop-card, .shop-card.glass { background: #ffffff; box-shadow: 0 8px 22px -10px rgba(10,14,30,.55), 0 0 0 1px color-mix(in srgb, var(--acc) 30%, #e6e6ef); border: none; }
+.shop-card-name { color: #1b2333; }
+.shop-card-photo, .shop-detail-photo, .shop-mini-img, .shop-gallery-img { background: #f4f5f9; }
+.shop-card-noimg { background: radial-gradient(circle at 50% 40%, color-mix(in srgb, var(--acc) 18%, #ffffff), #f2f3f8 78%); }
+.shop-price-chip { background: #f4f2ff; color: #5b21b6; border: 1px solid #e3dcfb; }
+.shop-price-old { color: #9aa3b2; }
+.shop-buy-bar { background: linear-gradient(135deg, #8b5cf6, #6d28d9); color: #fff; box-shadow: 0 4px 14px -4px rgba(124,58,237,.65); }
+/* mini (o'xshash) kartalar ham oq */
+.shop-mini { background: #ffffff; border: 1px solid #e8e8f0; }
+.shop-mini-name { color: #1b2333; }
+.shop-mini-price { color: #6d28d9; }
+/* kategoriya sarlavha + hero chekkasi binafsha-uyg'un qoladi (acc rang o'zicha) */
+.shop-section-title { color: #e7e3ff; }
+/* skeleton oq kartada ko'rinsin */
+.shop-card .d-skel { background: #ececf4; }
