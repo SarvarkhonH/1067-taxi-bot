@@ -345,17 +345,19 @@ export function createApiServer(opts: ApiOptions = {}) {
     const { myPurchases } = await import("../services/shopService");
     return { orders: await myPurchases(id) };
   }));
-  // public product photo proxy (img tag) — driver-photo clone: resolve file_id → 302 to Telegram CDN
+  // public product photo proxy (img tag) — driver-photo clone: resolve file_id → 302 to Telegram CDN.
+  // /:n serves the Nth gallery photo (0 = cover) for the swipeable detail view.
   const shopPhotoHits = new Map<string, { n: number; at: number }>();
-  app.get("/api/shop/photo/:productId", async (req, res) => {
+  const serveShopPhoto = async (req: Request, res: Response): Promise<void> => {
     const ipKey = String(req.headers["x-forwarded-for"] ?? req.socket.remoteAddress ?? "?").split(",")[0]!.trim();
     if (shopPhotoHits.size > 10_000) shopPhotoHits.clear();
     const now = Date.now();
     const h = shopPhotoHits.get(ipKey);
-    if (h && now - h.at < 60_000 && h.n >= 60) { res.status(429).end(); return; }
+    if (h && now - h.at < 60_000 && h.n >= 120) { res.status(429).end(); return; }
     shopPhotoHits.set(ipKey, h && now - h.at < 60_000 ? { n: h.n + 1, at: h.at } : { n: 1, at: now });
     const { resolveProductPhoto } = await import("../services/shopService");
-    const url = await resolveProductPhoto(Number(req.params.productId));
+    const idx = Math.max(0, Math.min(10, Number(req.params.n ?? 0) || 0));
+    const url = await resolveProductPhoto(Number(req.params.productId), idx);
     if (!url) { res.status(404).end(); return; }
     if (url.startsWith("data:")) {
       const m = /^data:([^;]+);base64,(.*)$/.exec(url);
@@ -364,7 +366,9 @@ export function createApiServer(opts: ApiOptions = {}) {
       return;
     }
     res.set("Cache-Control", "private, max-age=3600").redirect(302, url);
-  });
+  };
+  app.get("/api/shop/photo/:productId", serveShopPhoto);
+  app.get("/api/shop/photo/:productId/:n", serveShopPhoto);
 
   app.post("/api/wallet/topup", requireUser, rateLimit(5), async (req, res) => {
     const memberId = await getMemberId(res.locals.telegramId as string);
@@ -949,6 +953,10 @@ export function createApiServer(opts: ApiOptions = {}) {
     if (!b?.base64) { res.status(400).json({ error: "no image" }); return; }
     const { uploadProductPhoto } = await import("../services/shopService");
     res.json(await uploadProductPhoto(Number(req.params.id), Buffer.from(b.base64, "base64"), b.mime || "image/jpeg"));
+  });
+  app.delete("/api/admin/shop/products/:id/photo", requireAdmin, requireOwner, async (req, res) => {
+    const { clearProductPhotos } = await import("../services/shopService");
+    res.json(await clearProductPhotos(Number(req.params.id)));
   });
   app.get("/api/admin/shop/orders", requireAdmin, async (req, res) => {
     const { adminListPurchases } = await import("../services/shopService");

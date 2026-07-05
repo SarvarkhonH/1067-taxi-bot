@@ -1490,3 +1490,11 @@ body {
 .order-status-pill.delivered { background: rgba(52,211,153,.15); color: var(--win); }
 .order-status-pill.rejected { background: rgba(248,113,113,.15); color: var(--danger); }
 .order-refund-banner { font-size: 12.5px; padding: 8px 10px; border-radius: 10px; background: rgba(52,211,153,.1); border: 1px solid rgba(52,211,153,.28); color: #a7f3d0; }
+/* 🖼 shop detail gallery — scroll-snap strip + dots (real-market feel) */
+.shop-gallery { position: relative; }
+.shop-gallery-strip { display: flex; overflow-x: auto; scroll-snap-type: x mandatory; border-radius: var(--r-card); -webkit-overflow-scrolling: touch; scrollbar-width: none; }
+.shop-gallery-strip::-webkit-scrollbar { display: none; }
+.shop-gallery-img { width: 100%; flex: 0 0 100%; aspect-ratio: 1 / 1; object-fit: cover; scroll-snap-align: center; background: var(--surface); }
+.shop-gallery-dots { position: absolute; bottom: 8px; left: 0; right: 0; display: flex; justify-content: center; gap: 6px; }
+.shop-gallery-dot { width: 7px; height: 7px; border-radius: 50%; background: rgba(255,255,255,.35); transition: transform .15s ease, background .15s ease; }
+.shop-gallery-dot.on { background: var(--brand); transform: scale(1.25); box-shadow: 0 0 6px rgba(255,179,0,.7); }

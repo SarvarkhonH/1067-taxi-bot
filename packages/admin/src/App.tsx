@@ -1486,8 +1486,10 @@ function ShopAdminView() {
   const create = async () => {
     const p = Number(price), s = Number(stock);
     if (!name.trim() || p <= 0) { setMsg("⚠️ Nom va narx to'g'ri bo'lsin"); return; }
-    const r = await adminApi.shopCreate({ name: name.trim(), priceTanga: p, stock: Math.max(0, s || 0), category: category.trim() || "umumiy", description: desc.trim() || undefined }).catch(() => ({ ok: false }));
-    setMsg(r.ok ? "✅ Qo'shildi (o'chiq holda — rasm yuklab, keyin yoqing)" : "❌ Xatolik");
+    // real error surfaced (was a blind "❌ Xatolik" — undiagnosable remotely)
+    const r = await adminApi.shopCreate({ name: name.trim(), priceTanga: p, stock: Math.max(0, s || 0), category: category.trim() || "umumiy", description: desc.trim() || undefined })
+      .catch((e: Error) => ({ ok: false as const, error: e.message }));
+    setMsg(r.ok ? "✅ Qo'shildi (o'chiq holda — rasm yuklab, keyin yoqing)" : `❌ Qo'shilmadi: ${("error" in r && r.error) || "server javob bermadi — 1 daqiqadan keyin urinib ko'ring"}`);
     if (r.ok) { setName(""); setPrice(""); setStock(""); setDesc(""); load(); }
   };
   const editNum = async (id: number, field: "priceTanga" | "stock", label: string, cur: number) => {
@@ -1507,8 +1509,8 @@ function ShopAdminView() {
       const reader = new FileReader();
       reader.onload = async () => {
         const base64 = String(reader.result).split(",")[1] ?? "";
-        const r = await adminApi.shopPhotoUpload(id, f.type || "image/jpeg", base64).catch(() => ({ ok: false }));
-        setMsg(r.ok ? "✅ Rasm yuklandi" : "❌ Rasm yuklanmadi");
+        const r = await adminApi.shopPhotoUpload(id, f.type || "image/jpeg", base64).catch((e: Error) => ({ ok: false as const, error: e.message }));
+        setMsg(r.ok ? `✅ Rasm yuklandi (${("photoCount" in r && r.photoCount) || "?"}/5) — yana qo'shishingiz mumkin` : `❌ Rasm yuklanmadi: ${("error" in r && r.error) === "max_photos" ? "5 ta rasm chegarasi — 🗑 bilan tozalab qayta yuklang" : ("error" in r && r.error) || "server xatosi"}`);
         load();
       };
       reader.readAsDataURL(f);
@@ -1550,7 +1552,10 @@ function ShopAdminView() {
             </span>
             <button className="btn sm" onClick={() => editNum(p.id, "priceTanga", "Yangi narx (tanga)", p.priceTanga)}>🪙 {p.priceTanga.toLocaleString("ru-RU")}</button>
             <button className="btn sm" onClick={() => editNum(p.id, "stock", "Yangi soni", p.stock)}>📦 {p.stock} dona</button>
-            <button className="btn sm" onClick={() => uploadPhoto(p.id)}>📷 Rasm</button>
+            <button className="btn sm" onClick={() => uploadPhoto(p.id)}>📷 {p.photoCount}/5</button>
+            {p.photoCount > 0 && (
+              <button className="btn sm" title="Rasmlarni tozalash" onClick={async () => { if (!window.confirm("Barcha rasmlar o'chirilsinmi?")) return; await adminApi.shopPhotoClear(p.id).catch(() => undefined); load(); }}>🗑🖼</button>
+            )}
             <button className="btn sm" onClick={async () => { await adminApi.shopToggle(p.id, !p.active).catch(() => undefined); load(); }}>{p.active ? "🟢 Yoniq" : "🔴 O'chiq"}</button>
             <button className="btn sm" onClick={() => del(p)}>🗑</button>
           </div>

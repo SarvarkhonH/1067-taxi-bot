@@ -41,6 +41,7 @@ export function ShopView({ me, onBanner, reload, onBook }: { me: MeResponse; onB
   const [ordersOpen, setOrdersOpen] = useState(false);
   const [orders, setOrders] = useState<ShopPurchaseView[] | null>(null);
   const [success, setSuccess] = useState<{ orderId: number; name: string } | null>(null);
+  const [galleryIdx, setGalleryIdx] = useState(0);
 
   const load = () => {
     setErr(false);
@@ -59,6 +60,7 @@ export function ShopView({ me, onBanner, reload, onBook }: { me: MeResponse; onB
     setSel(p);
     setStep("detail");
     setBuyErr(null);
+    setGalleryIdx(0);
   };
 
   const submit = async () => {
@@ -160,7 +162,24 @@ export function ShopView({ me, onBanner, reload, onBook }: { me: MeResponse; onB
       <Sheet open={!!sel} onClose={() => setSel(null)}>
         {sel && step === "detail" && (
           <>
-            {sel.hasPhoto ? <img className="shop-detail-photo" src={apiUrl(`/api/shop/photo/${sel.id}`)} alt="" /> : <div className="shop-detail-photo shop-card-noimg">🛍</div>}
+            {sel.photoCount > 1 ? (
+              <div className="shop-gallery">
+                <div className="shop-gallery-strip" onScroll={(e) => { const el = e.currentTarget; setGalleryIdx(Math.round(el.scrollLeft / el.clientWidth)); }}>
+                  {Array.from({ length: Math.min(5, sel.photoCount) }, (_, i) => (
+                    <img key={i} className="shop-gallery-img" src={apiUrl(`/api/shop/photo/${sel.id}/${i}`)} alt="" loading={i === 0 ? "eager" : "lazy"} />
+                  ))}
+                </div>
+                <div className="shop-gallery-dots">
+                  {Array.from({ length: Math.min(5, sel.photoCount) }, (_, i) => (
+                    <span key={i} className={"shop-gallery-dot" + (i === galleryIdx ? " on" : "")} />
+                  ))}
+                </div>
+              </div>
+            ) : sel.hasPhoto ? (
+              <img className="shop-detail-photo" src={apiUrl(`/api/shop/photo/${sel.id}`)} alt="" />
+            ) : (
+              <div className="shop-detail-photo shop-card-noimg">🛍</div>
+            )}
             <h3 className="shop-detail-name">{sel.name}</h3>
             {sel.description && <p className="muted fs13">{sel.description}</p>}
             <div className="shop-confirm-total">🪙 {formatNumber(sel.priceTanga)} <span className="muted fs13">tanga</span></div>

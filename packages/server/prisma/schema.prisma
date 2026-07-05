@@ -390,6 +390,19 @@ model Product {
   @@index([active, sortOrder])
 }
 
+// 🖼 Product gallery — up to 5 photos per product ("real market feel": swipeable detail gallery).
+// Same storage as the cover: Telegram file_id (durable) or data-URL fallback. Cover = first photo
+// (legacy Product.photoFileId/photoUrl still serves as photo #0 when no gallery rows exist).
+model ProductPhoto {
+  id        Int     @id @default(autoincrement())
+  productId Int
+  fileId    String?
+  url       String?
+  sortOrder Int     @default(0)
+
+  @@index([productId, sortOrder])
+}
+
 // One shop purchase. Tanga is HELD at creation (CoinTxn key shop:<id> in the SAME tx as the stock
 // decrement + order insert); rejected orders refund via grantCoins key shoprefund:<id> + restock.
 // (Named ShopPurchase — a LEGACY "ShopOrder" model from the removed user-shops system still holds

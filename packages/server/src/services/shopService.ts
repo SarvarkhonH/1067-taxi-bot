@@ -24,6 +24,9 @@ export async function listActiveProducts(preview = false): Promise<ShopProductVi
     take: 100,
   });
   const newCutoff = Date.now() - NEW_BADGE_DAYS * 86400_000;
+  // one grouped query → per-product gallery size (cover fallback counts as 1)
+  const counts = await prisma.productPhoto.groupBy({ by: ["productId"], where: { productId: { in: rows.map((r) => r.id) } }, _count: { _all: true } });
+  const countOf = new Map(counts.map((c) => [c.productId, c._count._all]));
   return rows.map((p) => ({
     id: p.id,
     name: p.name,
@@ -31,7 +34,8 @@ export async function listActiveProducts(preview = false): Promise<ShopProductVi
     category: p.category,
     priceTanga: p.priceTanga,
     stock: p.stock,
-    hasPhoto: !!(p.photoFileId || p.photoUrl),
+    hasPhoto: !!(p.photoFileId || p.photoUrl) || (countOf.get(p.id) ?? 0) > 0,
+    photoCount: countOf.get(p.id) ?? (p.photoFileId || p.photoUrl ? 1 : 0),
     isNew: p.createdAt.getTime() > newCutoff,
   }));
 }
@@ -184,18 +188,21 @@ export interface AdminProductRow {
   active: boolean;
   sortOrder: number;
   hasPhoto: boolean;
+  photoCount: number;
   soldCount: number;
   createdAt: string;
 }
 
 export async function adminListProducts(): Promise<{ products: AdminProductRow[]; enabled: boolean; pendingOrders: number }> {
-  const [rows, sold, enabled, pendingOrders] = await Promise.all([
+  const [rows, sold, enabled, pendingOrders, photoCounts] = await Promise.all([
     prisma.product.findMany({ orderBy: [{ sortOrder: "asc" }, { id: "desc" }] }),
     prisma.shopPurchase.groupBy({ by: ["productId"], where: { status: "delivered" }, _count: { _all: true } }),
     featureOn("shop"),
     prisma.shopPurchase.count({ where: { status: "pending" } }),
+    prisma.productPhoto.groupBy({ by: ["productId"], _count: { _all: true } }),
   ]);
   const soldOf = new Map(sold.map((s) => [s.productId, s._count._all]));
+  const photosOf = new Map(photoCounts.map((c) => [c.productId, c._count._all]));
   return {
     enabled,
     pendingOrders,
@@ -208,7 +215,8 @@ export async function adminListProducts(): Promise<{ products: AdminProductRow[]
       stock: p.stock,
       active: p.active,
       sortOrder: p.sortOrder,
-      hasPhoto: !!(p.photoFileId || p.photoUrl),
+      hasPhoto: !!(p.photoFileId || p.photoUrl) || (photosOf.get(p.id) ?? 0) > 0,
+      photoCount: photosOf.get(p.id) ?? (p.photoFileId || p.photoUrl ? 1 : 0),
       soldCount: soldOf.get(p.id) ?? 0,
       createdAt: p.createdAt.toISOString(),
     })),
@@ -280,10 +288,18 @@ export async function adminListPurchases(status?: string): Promise<(ShopPurchase
 
 // ── product photos (driver-photo pattern: Telegram file_id = free durable storage) ───────────────
 
-export async function uploadProductPhoto(productId: number, buf: Buffer, mime = "image/jpeg"): Promise<{ ok: boolean }> {
+export const PRODUCT_MAX_PHOTOS = 5;
+
+/** APPEND one photo to the product gallery (max 5 — "real market feel" swipeable detail). Storage
+ *  identical to the driver-photo pattern: Telegram file_id (durable) with data-URL fallback. */
+export async function uploadProductPhoto(productId: number, buf: Buffer, mime = "image/jpeg"): Promise<{ ok: boolean; error?: string; photoCount?: number }> {
+  const existing = await prisma.productPhoto.count({ where: { productId } });
+  if (existing >= PRODUCT_MAX_PHOTOS) return { ok: false, error: "max_photos" };
   const { env } = await import("../env");
   const TG_API = "https://api.telegram.org";
   const adminId = env.adminIds.find((id) => id.trim() !== "");
+  let fileId: string | null = null;
+  let url: string | null = null;
   if (env.BOT_TOKEN && adminId) {
     try {
       const form = new FormData();
@@ -293,27 +309,38 @@ export async function uploadProductPhoto(productId: number, buf: Buffer, mime = 
       form.append("disable_notification", "true");
       const res = await fetch(`${TG_API}/bot${env.BOT_TOKEN}/sendPhoto`, { method: "POST", body: form });
       const data = (await res.json()) as { ok: boolean; result?: { photo?: { file_id: string }[] } };
-      if (data.ok && data.result?.photo?.length) {
-        const biggest = data.result.photo[data.result.photo.length - 1]!;
-        await prisma.product.update({ where: { id: productId }, data: { photoFileId: biggest.file_id, photoUrl: null } });
-        return { ok: true };
-      }
+      if (data.ok && data.result?.photo?.length) fileId = data.result.photo[data.result.photo.length - 1]!.file_id;
     } catch {
       /* fall through to data-URL */
     }
   }
-  const dataUrl = `data:${mime};base64,${buf.toString("base64")}`;
-  await prisma.product.update({ where: { id: productId }, data: { photoUrl: dataUrl, photoFileId: null } });
+  if (!fileId) url = `data:${mime};base64,${buf.toString("base64")}`;
+  await prisma.productPhoto.create({ data: { productId, fileId, url, sortOrder: existing } });
+  return { ok: true, photoCount: existing + 1 };
+}
+
+/** Clear the whole gallery (owner starts over). Legacy cover fields cleared too. */
+export async function clearProductPhotos(productId: number): Promise<{ ok: boolean }> {
+  await prisma.productPhoto.deleteMany({ where: { productId } });
+  await prisma.product.update({ where: { id: productId }, data: { photoFileId: null, photoUrl: null } }).catch(() => undefined);
   return { ok: true };
 }
 
-export async function resolveProductPhoto(productId: number): Promise<string | null> {
+/** Resolve the Nth gallery photo (0 = cover). Falls back to the legacy single-photo fields when the
+ *  gallery is empty — pre-gallery products keep working untouched. */
+export async function resolveProductPhoto(productId: number, idx = 0): Promise<string | null> {
+  const photos = await prisma.productPhoto.findMany({ where: { productId }, orderBy: [{ sortOrder: "asc" }, { id: "asc" }] });
+  const pick = photos[idx];
+  const { resolveTelegramFileUrl } = await import("./driverPhotoService");
+  if (pick) {
+    if (pick.url) return pick.url;
+    if (pick.fileId) return resolveTelegramFileUrl(pick.fileId);
+    return null;
+  }
+  if (idx > 0) return null; // gallery miss beyond cover
   const p = await prisma.product.findUnique({ where: { id: productId }, select: { photoUrl: true, photoFileId: true } });
   if (!p) return null;
   if (p.photoUrl) return p.photoUrl;
-  if (p.photoFileId) {
-    const { resolveTelegramFileUrl } = await import("./driverPhotoService");
-    return resolveTelegramFileUrl(p.photoFileId);
-  }
+  if (p.photoFileId) return resolveTelegramFileUrl(p.photoFileId);
   return null;
 }

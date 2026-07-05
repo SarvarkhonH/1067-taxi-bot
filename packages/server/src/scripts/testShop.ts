@@ -21,6 +21,8 @@ async function main(): Promise<void> {
     const ids = members.map((m) => m.id);
     await prisma.shopPurchase.deleteMany({ where: { memberId: { in: ids } } });
     await prisma.coinTxn.deleteMany({ where: { memberId: { in: ids } } });
+    const prods = await prisma.product.findMany({ where: { category: TAG }, select: { id: true } });
+    await prisma.productPhoto.deleteMany({ where: { productId: { in: prods.map((p) => p.id) } } });
     await prisma.product.deleteMany({ where: { category: TAG } });
     await prisma.member.deleteMany({ where: { id: { in: ids } } });
     await prisma.appState.deleteMany({ where: { key: "feature:shop" } });
@@ -135,6 +137,23 @@ async function main(): Promise<void> {
   ok(pv.some((p) => p.id === pid), "13: owner-preview sees the catalog while flag is DARK");
   const pvBuy = await buyProduct(a.id, pid, ADDR, true);
   ok(pvBuy.ok === true, "13: owner-preview can BUY while flag is DARK");
+
+  // 14) gallery: photoCount + Nth-photo resolution order + clear (rows created directly — the
+  // Telegram upload leg is env-dependent and would DM the owner from a test)
+  const { resolveProductPhoto, clearProductPhotos } = await import("../services/shopService");
+  await prisma.productPhoto.createMany({
+    data: [
+      { productId: pid, url: "data:image/jpeg;base64,QQ==", sortOrder: 0 },
+      { productId: pid, url: "data:image/jpeg;base64,Qg==", sortOrder: 1 },
+      { productId: pid, url: "data:image/jpeg;base64,Qw==", sortOrder: 2 },
+    ],
+  });
+  const withPhotos = (await listActiveProducts(true)).find((p) => p.id === pid);
+  ok(withPhotos?.photoCount === 3 && withPhotos.hasPhoto === true, `14: photoCount=3 flows to the view (got ${withPhotos?.photoCount})`);
+  ok((await resolveProductPhoto(pid, 1)) === "data:image/jpeg;base64,Qg==", "14: Nth photo resolves in sortOrder");
+  ok((await resolveProductPhoto(pid, 9)) === null, "14: out-of-range gallery index → null (no legacy fallback beyond cover)");
+  await clearProductPhotos(pid);
+  ok((await prisma.productPhoto.count({ where: { productId: pid } })) === 0, "14: clearProductPhotos wipes the gallery");
 
   await cleanup();
   console.log(process.exitCode ? "\n❌ FAILED" : "\n✅ ALL GREEN");
