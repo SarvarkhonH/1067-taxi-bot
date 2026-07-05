@@ -19,6 +19,7 @@ import { canSpinWheel, getStreak } from "./rewardService";
 import { getJackpot } from "./weeklyService";
 import { featureOn } from "./featureFlags";
 import { decayStatus } from "./tierLoyaltyService";
+import { ONLINE_WINDOW_MS } from "./presence";
 
 export function isAdmin(telegramId: string): boolean {
   return env.adminIds.includes(telegramId);
@@ -424,12 +425,21 @@ export async function getAdminStats(type: MemberType): Promise<AdminStats> {
 
 /** Who joined / uses the bot — the gamification audience, from our own data. */
 export async function getBotUsers(): Promise<AdminBotUsersResponse> {
-  const tus = await prisma.telegramUser.findMany({ include: { member: true }, orderBy: { updatedAt: "desc" } });
+  // order by a genuine-activity signal: lastSeenAt (real interaction) first, updatedAt as fallback
+  // for rows not yet stamped by the presence middleware. Nulls sort last.
+  const tus = await prisma.telegramUser.findMany({
+    include: { member: true },
+    orderBy: [{ lastSeenAt: { sort: "desc", nulls: "last" } }, { updatedAt: "desc" }],
+  });
   const startToday = new Date();
   startToday.setHours(0, 0, 0, 0);
+  const now = Date.now();
 
   const users = tus.map((t) => {
     const tgName = [t.firstName, t.lastName].filter(Boolean).join(" ") || (t.username ? `@${t.username}` : "");
+    // lastSeenAt is the honest last-interaction stamp; fall back to updatedAt only until the user
+    // interacts once more (self-healing). "online" is ONLY ever true from a real lastSeenAt.
+    const seen = t.lastSeenAt;
     return {
       telegramId: t.id,
       name: tgName || "—",
@@ -441,7 +451,9 @@ export async function getBotUsers(): Promise<AdminBotUsersResponse> {
       memberName: t.member ? resolveDisplayName(t.member.fullName, t) : null,
       isAdmin: t.isAdmin,
       linkedAt: t.linkedAt?.toISOString() ?? null,
-      lastActive: t.updatedAt.toISOString(),
+      lastActive: (seen ?? t.updatedAt).toISOString(),
+      seenReliable: !!seen,
+      online: !!seen && now - seen.getTime() < ONLINE_WINDOW_MS,
       joinedAt: t.createdAt.toISOString(),
     };
   });

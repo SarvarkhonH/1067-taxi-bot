@@ -52,6 +52,7 @@ import {
   renderWheel,
 } from "./render";
 import { getFareConfig } from "../services/clientInfoService";
+import { markSeen } from "../services/presence";
 
 const canWebApp = env.TELEGRAM_WEBAPP_URL.startsWith("https://");
 
@@ -203,6 +204,13 @@ export function createBot(): Bot {
   const bot = new Bot(env.BOT_TOKEN);
 
   bot.catch((err) => console.error("[bot] error:", err.error));
+
+  // 🟢 presence: stamp a TRUE last-seen on every genuine inbound update (throttled, fire-and-forget).
+  // Runs before all handlers; the honest source for the admin "online" column.
+  bot.use(async (ctx, next) => {
+    if (ctx.from?.id) markSeen(String(ctx.from.id));
+    await next();
+  });
 
   bot.command("start", async (ctx) => {
     const id = String(ctx.from!.id);

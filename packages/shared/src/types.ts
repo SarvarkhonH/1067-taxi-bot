@@ -150,7 +150,9 @@ export interface AdminBotUser {
   memberName: string | null;
   isAdmin: boolean;
   linkedAt: string | null;
-  lastActive: string;
+  lastActive: string; // lastSeenAt when known, else updatedAt (progressively self-heals as users interact)
+  seenReliable: boolean; // true once lastSeenAt exists — otherwise lastActive is the approximate updatedAt proxy
+  online: boolean; // seen within ONLINE_WINDOW_MS (genuine, not a background write)
   joinedAt: string;
 }
 

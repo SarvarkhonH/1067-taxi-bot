@@ -2042,13 +2042,14 @@ function BotUsersView({ data, query, setQuery }: { data: AdminBotUsersResponse |
   }, [data, query, onlyUnlinked]);
   if (!data) return <div className="screen center"><div className="spinner" /></div>;
   const unlinkedCount = data.total - data.linked;
+  const onlineCount = data.users.filter((u) => u.online).length;
   return (
     <>
       <section className="cards">
         <Card icon="👥" label="Botga kirganlar" value={formatNumber(data.total)} accent />
+        <Card icon="🟢" label="Hozir online" value={formatNumber(onlineCount)} sub="5 daq ichida faol" />
         <Card icon="🔗" label="Bog'langan" value={formatNumber(data.linked)} sub="profil bilan" />
-        <Card icon="⏳" label="Bog'lanmagan" value={formatNumber(unlinkedCount)} sub="raqam ulamagan" />
-        <Card icon="🆕" label="Bugun yangi" value={formatNumber(data.newToday)} />
+        <Card icon="🆕" label="Bugun yangi" value={formatNumber(data.newToday)} sub={`${formatNumber(unlinkedCount)} bog'lanmagan`} />
       </section>
       <section className="panel">
         <div className="panel-head">
@@ -2076,7 +2077,10 @@ function BotUsersView({ data, query, setQuery }: { data: AdminBotUsersResponse |
                   <td>{u.linked ? <span className="td-name">{u.memberName}</span> : <span className="muted">— bog'lanmagan</span>}</td>
                   <td>{u.memberType ? <span className="lvl">{u.memberType === "driver" ? "🚗 Haydovchi" : "🏅 Mijoz"}</span> : "—"}</td>
                   <td className="muted">{fmtTime(u.joinedAt)}</td>
-                  <td className="muted">{fmtTime(u.lastActive)}</td>
+                  <td className="muted">
+                    {u.online && <span className="dot ok" style={{ marginRight: 6 }} title="Hozir online (5 daq ichida)" />}
+                    {u.seenReliable ? fmtTime(u.lastActive) : <span title="Aniq faollik hali yozilmagan — taxminiy (foydalanuvchi keyingi bosishida aniqlashadi)">~{fmtTime(u.lastActive)}</span>}
+                  </td>
                 </tr>
               ))}
             </tbody>

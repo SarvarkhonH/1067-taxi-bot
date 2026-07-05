@@ -492,8 +492,11 @@ model TelegramUser {
   referredByCode     String? // pending invite code captured at /start
   referralCreditedAt DateTime? // set once the referral reward is paid (one-time)
   blockedAt          DateTime? // set when a send returns 403 (user blocked the bot); cleared when they interact again
+  lastSeenAt         DateTime? // TRUE last inbound interaction (set only by the presence middleware, throttled) — unlike updatedAt it is never bumped by background writes, so the admin "online" column is honest
   createdAt          DateTime  @default(now())
   updatedAt          DateTime  @updatedAt
+
+  @@index([lastSeenAt])
 }
 
 model MemberAchievement {
