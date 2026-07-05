@@ -13,6 +13,13 @@
 
 ## Jarayonda
 
+### 🛍 TANGA DO'KONI (shop) — MVP (2026-07-05) — ⚫ DARK, READY FOR VERIFICATION (owner-preview ochiq; QABUL kutilmoqda)
+Sonnet×2+Opus konsult → ega tasdiqlagan reja. «Cashout-teskarisi»: buy'da tanga BITTA member-locked tranzaksiyada ushlanadi (balans-shartli decrement + atomik stock-claim `stock>=1` + order + CoinTxn `shop:<id>`); egaga Telegram-karta [✅ Yetkazildi]/[❌ Rad]; rad = `shoprefund:<id>` bilan aynan-bir-marta refund + restock; `shop_refund` reyting-excluded. Lootbox YO'Q. Rasm: driver-photo Telegram file_id naqshi (bepul doimiy xotira). Jadval: `Product` + `ShopPurchase` (legacy `ShopOrder` nomi band edi — o'chirilgan eski tizim satrlari saqlanadi).
+- **Rider (Mini App):** «Do'kon» tab (flag-gated + owner-preview) — 2-ustun Uzum-uslub grid, kategoriya-chiplar, YANGI/«kam qoldi» badge'lar, 2-bosqichli sotib-olish sheet, tanga-yetmasa → «N safar yetadi + 🚕 Hozir chaqirish» (do'kon safar sotadi), Buyurtmalarim (rad'da refund-banner).
+- **Admin:** BOSHQARUV → «🛍 Do'kon» — mahsulot CRUD, rasm yuklash (galereya→base64→Telegram CDN), narx/stock inline-edit, yoqish/o'chirish, buyurtmalar monitor. Knoblar serverdan — admin auto-render.
+- **ISBOT:** typecheck 4/4 · `testShop` **36 assertion 3× yashil** (TEST DB: oxirgi-dona 3-parallel → aynan 1 g'olib; double-tap 1 yechim; insufficient toza fail; reject refund aynan-1 + restock; deliver terminal, ✅→❌ race'da refund YO'Q; pending-cap 3; flag-off berk) · preview DOM (grid/badge/chip/banner) · jonli bundle-grep: miniapp `shop-j-ChRIwb.js` (Do'kon/shop-card/Buyurtmalarim), admin index (Yangi mahsulot/shopCreate) · app+test DB additiv push.
+- **QOLDI:** ega telefonda preview (tab admin sifatida ko'rinadi) → 3-5 tovar yuklash → QABUL → `setFlag.ts shop on` + `EXPECTED_ON`ga qo'shish (bitta commit). Rollback: `setFlag shop off`. V2 backlog: savat/ko'p-dona · istak-ro'yxat progress+push · haftalik aksiya · kuryer jonli xaritada · tanga+naqd aralash (100k+).
+
 ### ⚡ AUDIT BOSQICH B — TEZLIK/SHAHAR-HAJM (2026-07-04) — 🟢 DEPLOYED (jonli)
 Kompaniya kas1067'ni SOTIB OLDI, komissiya endi 2000 so'm/safar (1% emas), rent 500k/oy → iqtisod ijobiy, o'sishga sarflash foydali. Shahar-hajmga tayyorlov:
 - **B1** `api/bookings` (butun faol ro'yxat) 3 marta ortiqcha o'qilardi (sweep+frontend+Mini App) → bitta 2.5s-TTL kesh (`KAS_ACTIVE_TTL_MS`), create/cancel'da bust. Bir 1.66 req/s lentadagi raqobat yo'qoldi.
