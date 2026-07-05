@@ -1,14 +1,16 @@
-// 🛍 TANGA DO'KONI (feature "shop") — owner-listed real goods bought with tanga. Uzum-feel on the
-// existing design system: 2-col card grid + category chips + a two-step Sheet (detail → confirm) +
-// my-orders list. NO lootboxes. The insufficient-tanga state converts into a RIDE (the real loop).
+// 🛍 TANGA DO'KONI (feature "shop") — REAL marketplace layout on the existing design system:
+// search → featured hero-carousel → per-category horizontal rows (Uzum pattern) → rich detail
+// (gallery + discount + delivery promise + similar items) → two-step buy → my orders.
+// NO lootboxes; the insufficient-tanga state converts into a RIDE (the real business loop).
 import { useEffect, useMemo, useState } from "react";
 import { SHOP_LOW_STOCK, formatNumber, type MeResponse, type ShopProductView, type ShopPurchaseView } from "@t1067/shared";
 import { api, apiUrl } from "./api";
 import { haptic, hapticSuccess } from "./telegram";
 import { confetti } from "./util";
-import { Button, Chip, EmptyState, ProgressBar, Sheet, Skeleton } from "./design/components";
+import { Button, EmptyState, ProgressBar, Sheet, Skeleton } from "./design/components";
 
-const AVG_EARN_PER_RIDE = 250; // rough tanga/ride (roll+wheel avg) — "N safar yetadi" hint only
+const AVG_EARN_PER_RIDE = 250; // rough tanga/ride — "N safar yetadi" hint only
+const LAST_ADDR_KEY = "shop_last_addr";
 
 // Hamster-style colored frames — deterministic per category (real palette, NOT rarity/lootbox)
 const ACCENTS = ["#ffb300", "#f0426b", "#8b5cf6", "#22c55e", "#38bdf8"];
@@ -16,6 +18,9 @@ function accentOf(category: string): string {
   let h = 5381;
   for (let i = 0; i < category.length; i++) h = (h * 33) ^ category.charCodeAt(i);
   return ACCENTS[(h >>> 0) % ACCENTS.length]!;
+}
+function discountPct(p: ShopProductView): number {
+  return p.oldPriceTanga && p.oldPriceTanga > p.priceTanga ? Math.round((1 - p.priceTanga / p.oldPriceTanga) * 100) : 0;
 }
 
 function StatusPill({ s }: { s: ShopPurchaseView["status"] }) {
@@ -29,13 +34,52 @@ function StatusPill({ s }: { s: ShopPurchaseView["status"] }) {
   return <span className={`order-status-pill ${m.c}`}>{m.t}</span>;
 }
 
+function Badges({ p }: { p: ShopProductView }) {
+  const d = discountPct(p);
+  return (
+    <>
+      {d > 0 && <span className="shop-badge-disc">−{d}%</span>}
+      {p.isNew && d === 0 && <span className="shop-badge-new">YANGI</span>}
+      {p.topSeller && <span className="shop-badge-top">🔥 TOP</span>}
+      {p.stock <= SHOP_LOW_STOCK && <span className="shop-badge-stock low">⚡ {p.stock} dona</span>}
+    </>
+  );
+}
+
+function PriceBlock({ p, big }: { p: ShopProductView; big?: boolean }) {
+  const d = discountPct(p);
+  return (
+    <div className={big ? "shop-price-big" : "shop-price-line"}>
+      <span className={big ? "shop-confirm-total" : "shop-price-chip"}>🪙 {formatNumber(p.priceTanga)}</span>
+      {d > 0 && <span className="shop-price-old">{formatNumber(p.oldPriceTanga!)}</span>}
+    </div>
+  );
+}
+
+// compact card used in horizontal rows + search grid
+function ProductCard({ p, onOpen, wide }: { p: ShopProductView; onOpen: (p: ShopProductView) => void; wide?: boolean }) {
+  return (
+    <button className={"shop-card glass" + (wide ? "" : " shop-card-h")} style={{ ["--acc" as string]: accentOf(p.category) }} onClick={() => onOpen(p)}>
+      <div className="shop-card-photo-wrap">
+        {p.hasPhoto ? <img className="shop-card-photo" src={apiUrl(`/api/shop/photo/${p.id}`)} loading="lazy" alt="" /> : <div className="shop-card-photo shop-card-noimg">🛍</div>}
+        <Badges p={p} />
+      </div>
+      <div className="shop-card-body">
+        <div className="shop-card-name">{p.name}</div>
+        <PriceBlock p={p} />
+        <div className="shop-buy-bar">Sotib olish</div>
+      </div>
+    </button>
+  );
+}
+
 export function ShopView({ me, onBanner, reload, onBook }: { me: MeResponse; onBanner: (msg: string) => void; reload: () => void; onBook: () => void }) {
   const [products, setProducts] = useState<ShopProductView[] | null>(null);
   const [err, setErr] = useState(false);
-  const [cat, setCat] = useState("Hammasi");
+  const [q, setQ] = useState("");
   const [sel, setSel] = useState<ShopProductView | null>(null);
   const [step, setStep] = useState<"detail" | "confirm">("detail");
-  const [address, setAddress] = useState("");
+  const [address, setAddress] = useState(() => { try { return localStorage.getItem(LAST_ADDR_KEY) ?? ""; } catch { return ""; } });
   const [busy, setBusy] = useState(false);
   const [buyErr, setBuyErr] = useState<string | null>(null);
   const [ordersOpen, setOrdersOpen] = useState(false);
@@ -49,11 +93,21 @@ export function ShopView({ me, onBanner, reload, onBook }: { me: MeResponse; onB
   };
   useEffect(load, []);
 
-  const cats = useMemo(() => {
-    const set = new Set((products ?? []).map((p) => p.category));
-    return ["Hammasi", ...set];
+  const featured = useMemo(() => (products ?? []).filter((p) => p.featured).slice(0, 6), [products]);
+  const byCategory = useMemo(() => {
+    const m = new Map<string, ShopProductView[]>();
+    for (const p of products ?? []) {
+      if (!m.has(p.category)) m.set(p.category, []);
+      m.get(p.category)!.push(p);
+    }
+    return [...m.entries()];
   }, [products]);
-  const shown = (products ?? []).filter((p) => cat === "Hammasi" || p.category === cat);
+  const searched = useMemo(() => {
+    const t = q.trim().toLowerCase();
+    if (!t) return null;
+    return (products ?? []).filter((p) => p.name.toLowerCase().includes(t) || p.category.toLowerCase().includes(t));
+  }, [products, q]);
+  const similar = useMemo(() => (sel ? (products ?? []).filter((p) => p.category === sel.category && p.id !== sel.id).slice(0, 6) : []), [products, sel]);
 
   const openProduct = (p: ShopProductView) => {
     haptic();
@@ -71,7 +125,8 @@ export function ShopView({ me, onBanner, reload, onBook }: { me: MeResponse; onB
       const r = await api.shopBuy(sel.id, address);
       if (r.ok) {
         hapticSuccess();
-        confetti(18); // restrained — a purchase, not a jackpot
+        confetti(18);
+        try { localStorage.setItem(LAST_ADDR_KEY, address.trim()); } catch { /* private mode */ }
         setSuccess({ orderId: r.orderId!, name: sel.name });
         setSel(null);
         reload();
@@ -86,7 +141,7 @@ export function ShopView({ me, onBanner, reload, onBook }: { me: MeResponse; onB
           pending_limit: "Sizda 3 ta ochiq buyurtma bor — avval ular yetkazilsin",
         };
         setBuyErr(msgs[r.reason ?? ""] ?? "Xatolik — qayta urinib ko'ring");
-        load(); // stock may have changed under us
+        load();
       }
     } catch {
       setBuyErr("Tarmoq xatosi — qayta urinib ko'ring");
@@ -108,60 +163,74 @@ export function ShopView({ me, onBanner, reload, onBook }: { me: MeResponse; onB
     <div className="shop-wrap">
       <div className="shop-head">
         <div>
-          <div className="section-title">🛍 Do'kon</div>
-          <div className="muted fs12">Tangangizga real mahsulotlar — bir kunda yetkazamiz</div>
+          <div className="shop-title">🛍 Do'kon</div>
+          <div className="muted fs12">Tangangizga real mahsulotlar · 1 kunda yetkazamiz</div>
         </div>
         <button className="shop-orders-btn" onClick={openOrders}>📦 Buyurtmalarim</button>
       </div>
 
-      {cats.length > 2 && (
-        <div className="b3-chips shop-cats">
-          {cats.map((c) => (
-            <Chip key={c} on={c === cat} onClick={() => setCat(c)}>{c}</Chip>
-          ))}
-        </div>
-      )}
+      <div className="shop-search-wrap">
+        <input className="shop-search" placeholder="🔍 Mahsulot qidirish…" value={q} onChange={(e) => setQ(e.target.value)} />
+        {q && <button className="shop-search-x" onClick={() => setQ("")}>✕</button>}
+      </div>
 
       {err ? (
         <EmptyState icon="📡" text="Yuklanmadi — internetni tekshirib qayta urinib ko'ring" action="🔄 Qayta urinish" onAction={load} />
       ) : products === null ? (
-        <div className="shop-grid">
-          {[0, 1, 2, 3].map((i) => (
-            <div key={i} className="shop-card glass">
-              <Skeleton h={130} />
-              <div className="shop-card-body">
-                <Skeleton h={13} w="70%" />
-                <Skeleton h={18} w="45%" className="mt6" />
+        <>
+          <Skeleton h={160} />
+          <div className="shop-grid mt10">
+            {[0, 1].map((i) => (
+              <div key={i} className="shop-card glass"><Skeleton h={130} /><div className="shop-card-body"><Skeleton h={13} w="70%" /><Skeleton h={18} w="45%" className="mt6" /></div></div>
+            ))}
+          </div>
+        </>
+      ) : products.length === 0 ? (
+        <EmptyState icon="🛍" text="Hozircha do'konda mahsulot yo'q — tez orada!" />
+      ) : searched ? (
+        searched.length === 0 ? (
+          <EmptyState icon="🔍" text={`«${q}» topilmadi`} action="Tozalash" onAction={() => setQ("")} />
+        ) : (
+          <div className="shop-grid">{searched.map((p) => <ProductCard key={p.id} p={p} onOpen={openProduct} wide />)}</div>
+        )
+      ) : (
+        <>
+          {/* ── featured hero carousel ── */}
+          {featured.length > 0 && (
+            <div className="shop-hero-strip">
+              {featured.map((p) => (
+                <button key={p.id} className="shop-hero" style={{ ["--acc" as string]: accentOf(p.category) }} onClick={() => openProduct(p)}>
+                  {p.hasPhoto ? <img className="shop-hero-img" src={apiUrl(`/api/shop/photo/${p.id}`)} loading="lazy" alt="" /> : <div className="shop-hero-img shop-card-noimg">🛍</div>}
+                  <div className="shop-hero-grad" />
+                  <div className="shop-hero-info">
+                    <div className="shop-hero-name">{p.name}</div>
+                    <PriceBlock p={p} />
+                  </div>
+                  <div className="shop-hero-badges"><Badges p={p} /></div>
+                </button>
+              ))}
+            </div>
+          )}
+
+          {/* ── per-category horizontal rows (Uzum pattern) ── */}
+          {byCategory.map(([cat, items]) => (
+            <div key={cat} className="shop-section">
+              <div className="shop-section-head">
+                <span className="shop-section-title" style={{ ["--acc" as string]: accentOf(cat) }}>{cat}</span>
+                <span className="muted fs12">{items.length} ta</span>
+              </div>
+              <div className="shop-row-strip">
+                {items.map((p) => <ProductCard key={p.id} p={p} onOpen={openProduct} />)}
               </div>
             </div>
           ))}
-        </div>
-      ) : shown.length === 0 ? (
-        <EmptyState icon="🛍" text={cat === "Hammasi" ? "Hozircha do'konda mahsulot yo'q — tez orada!" : "Bu bo'limda hali mahsulot yo'q"} />
-      ) : (
-        <div className="shop-grid">
-          {shown.map((p) => (
-            <button key={p.id} className="shop-card glass" style={{ ["--acc" as string]: accentOf(p.category) }} onClick={() => openProduct(p)}>
-              <div className="shop-card-cat">{p.category}</div>
-              <div className="shop-card-photo-wrap">
-                {p.hasPhoto ? <img className="shop-card-photo" src={apiUrl(`/api/shop/photo/${p.id}`)} loading="lazy" alt="" /> : <div className="shop-card-photo shop-card-noimg">🛍</div>}
-                {p.isNew && <span className="shop-badge-new">YANGI</span>}
-                {p.stock <= SHOP_LOW_STOCK && <span className="shop-badge-stock low">⚡ {p.stock} dona</span>}
-              </div>
-              <div className="shop-card-body">
-                <div className="shop-card-name">{p.name}</div>
-                <div className="shop-price-chip">🪙 {formatNumber(p.priceTanga)}</div>
-                <div className="shop-buy-bar">Sotib olish</div>
-              </div>
-            </button>
-          ))}
-        </div>
+        </>
       )}
 
-      {/* ── product sheet: detail → confirm (two-step = fat-finger shield) ── */}
+      {/* ── product detail: gallery + discount + delivery + similar ── */}
       <Sheet open={!!sel} onClose={() => setSel(null)}>
         {sel && step === "detail" && (
-          <>
+          <div className="shop-detail">
             {sel.photoCount > 1 ? (
               <div className="shop-gallery">
                 <div className="shop-gallery-strip" onScroll={(e) => { const el = e.currentTarget; setGalleryIdx(Math.round(el.scrollLeft / el.clientWidth)); }}>
@@ -178,12 +247,13 @@ export function ShopView({ me, onBanner, reload, onBook }: { me: MeResponse; onB
             ) : sel.hasPhoto ? (
               <img className="shop-detail-photo" src={apiUrl(`/api/shop/photo/${sel.id}`)} alt="" />
             ) : (
-              <div className="shop-detail-photo shop-card-noimg">🛍</div>
+              <div className="shop-detail-photo shop-card-noimg" style={{ ["--acc" as string]: accentOf(sel.category) }}>🛍</div>
             )}
             <h3 className="shop-detail-name">{sel.name}</h3>
             {sel.description && <p className="muted fs13">{sel.description}</p>}
-            <div className="shop-confirm-total">🪙 {formatNumber(sel.priceTanga)} <span className="muted fs13">tanga</span></div>
+            <PriceBlock p={sel} big />
             {sel.stock <= SHOP_LOW_STOCK && <div className="shop-low-line">⚡ Kam qoldi: {sel.stock} dona</div>}
+            <div className="shop-deliver-line">🚚 Bugun buyurtma qilsangiz — <b>1 kun ichida yetkazamiz</b> · egamiz qo'ng'iroq qiladi</div>
             {deficit > 0 ? (
               <div className="shop-insufficient-bar">
                 <div className="fs13">🪙 Sizda: <b>{formatNumber(me.coins)}</b> / kerak: <b>{formatNumber(sel.priceTanga)}</b></div>
@@ -193,9 +263,23 @@ export function ShopView({ me, onBanner, reload, onBook }: { me: MeResponse; onB
                 <Button variant="ghost" onClick={() => setSel(null)}>Boshqa mahsulot ko'rish</Button>
               </div>
             ) : (
-              <Button variant="brand" onClick={() => { haptic(); setStep("confirm"); }}>Sotib olish</Button>
+              <Button variant="brand" onClick={() => { haptic(); setStep("confirm"); }}>Sotib olish — 🪙 {formatNumber(sel.priceTanga)}</Button>
             )}
-          </>
+            {similar.length > 0 && (
+              <div className="shop-section mt10">
+                <div className="shop-section-head"><span className="shop-section-title">O'xshash mahsulotlar</span></div>
+                <div className="shop-row-strip">
+                  {similar.map((p) => (
+                    <button key={p.id} className="shop-mini" onClick={() => openProduct(p)}>
+                      {p.hasPhoto ? <img className="shop-mini-img" src={apiUrl(`/api/shop/photo/${p.id}`)} loading="lazy" alt="" /> : <div className="shop-mini-img shop-card-noimg">🛍</div>}
+                      <div className="shop-mini-name">{p.name}</div>
+                      <div className="shop-mini-price">🪙 {formatNumber(p.priceTanga)}</div>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
         )}
         {sel && step === "confirm" && (
           <>
@@ -212,7 +296,7 @@ export function ShopView({ me, onBanner, reload, onBook }: { me: MeResponse; onB
         )}
       </Sheet>
 
-      {/* ── success overlay (trustworthy, restrained) ── */}
+      {/* ── success overlay ── */}
       {success && (
         <div className="winburst" onClick={() => { setSuccess(null); openOrders(); }}>
           <div className="wb-card">
@@ -249,7 +333,6 @@ export function ShopView({ me, onBanner, reload, onBook }: { me: MeResponse; onB
           ))
         )}
       </Sheet>
-      {/* onBanner reserved for future (wishlist etc.) */}
       {void onBanner}
     </div>
   );

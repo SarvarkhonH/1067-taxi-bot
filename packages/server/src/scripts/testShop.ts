@@ -155,6 +155,13 @@ async function main(): Promise<void> {
   await clearProductPhotos(pid);
   ok((await prisma.productPhoto.count({ where: { productId: pid } })) === 0, "14: clearProductPhotos wipes the gallery");
 
+  // 15) marketplace fields: discount (oldPrice) + featured flow to the rider view; 0 clears discount
+  await adminEditProduct(pid, { oldPriceTanga: 5000, featured: true });
+  const mk15 = (await listActiveProducts(true)).find((p) => p.id === pid);
+  ok(mk15?.oldPriceTanga === 5000 && mk15.featured === true, `15: oldPrice+featured flow to the view (${mk15?.oldPriceTanga}/${mk15?.featured})`);
+  await adminEditProduct(pid, { oldPriceTanga: 0 });
+  ok((await listActiveProducts(true)).find((p) => p.id === pid)?.oldPriceTanga === null, "15: oldPrice=0 clears the discount (null)");
+
   await cleanup();
   console.log(process.exitCode ? "\n❌ FAILED" : "\n✅ ALL GREEN");
   await prisma.$disconnect();

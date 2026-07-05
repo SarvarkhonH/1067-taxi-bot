@@ -379,6 +379,8 @@ model Product {
   description String?
   category    String   @default("umumiy") // free bucket: "oziq-ovqat" | "elektronika" | …
   priceTanga  Int // whole tanga only (1 tanga = 1 so'm)
+  oldPriceTanga Int? // marketplace discount display: strikethrough + −N% badge (null = no discount)
+  featured    Boolean  @default(false) // hero-carousel slot on the shop home
   stock       Int      @default(0) // remaining units — decrement is ATOMIC (updateMany stock>=1)
   photoFileId String? // Telegram file_id (durable) — driver-photo pattern
   photoUrl    String? // data-URL fallback / permanent override

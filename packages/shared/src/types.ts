@@ -335,10 +335,13 @@ export interface ShopProductView {
   description?: string | null;
   category: string;
   priceTanga: number;
+  oldPriceTanga?: number | null; // discount display: strikethrough + −N% badge
   stock: number; // remaining units (UI shows "kam qoldi" when ≤5)
   hasPhoto: boolean; // render /api/shop/photo/:id when true
   photoCount: number; // gallery size (detail renders /api/shop/photo/:id/:n for n < photoCount)
   isNew: boolean; // createdAt < 7d — gold NEW badge
+  featured: boolean; // hero-carousel slot
+  topSeller: boolean; // top-3 by delivered orders — 🔥 TOP badge
 }
 
 export type ShopPurchaseStatus = "pending" | "delivered" | "rejected" | "cancelled";

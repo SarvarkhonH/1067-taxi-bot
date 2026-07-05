@@ -1551,6 +1551,8 @@ function ShopAdminView() {
               {p.hasPhoto ? "🖼" : "⬜"} <b>{p.name}</b> <span className="muted">· {p.category} · sotildi: {p.soldCount}</span>
             </span>
             <button className="btn sm" onClick={() => editNum(p.id, "priceTanga", "Yangi narx (tanga)", p.priceTanga)}>🪙 {p.priceTanga.toLocaleString("ru-RU")}</button>
+            <button className="btn sm" title="Chegirma: ESKI narxni kiriting (0 = chegirma yo'q)" onClick={async () => { const v = window.prompt("Eski narx (chegirma ko'rsatish uchun; 0 = olib tashlash):", String(p.oldPriceTanga ?? 0)); if (v === null) return; await adminApi.shopEdit(p.id, { oldPriceTanga: Number(v) }).catch(() => undefined); load(); }}>{p.oldPriceTanga ? `💥 −${Math.round((1 - p.priceTanga / p.oldPriceTanga) * 100)}%` : "💥 Chegirma"}</button>
+            <button className="btn sm" title="Bosh sahifa kataloq-karuselida ko'rsatish" onClick={async () => { await adminApi.shopEdit(p.id, { featured: !p.featured }).catch(() => undefined); load(); }}>{p.featured ? "⭐ TOP'da" : "☆ TOP'ga"}</button>
             <button className="btn sm" onClick={() => editNum(p.id, "stock", "Yangi soni", p.stock)}>📦 {p.stock} dona</button>
             <button className="btn sm" onClick={() => uploadPhoto(p.id)}>📷 {p.photoCount}/5</button>
             {p.photoCount > 0 && (

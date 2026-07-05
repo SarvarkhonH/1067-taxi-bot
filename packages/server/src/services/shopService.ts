@@ -24,19 +24,26 @@ export async function listActiveProducts(preview = false): Promise<ShopProductVi
     take: 100,
   });
   const newCutoff = Date.now() - NEW_BADGE_DAYS * 86400_000;
-  // one grouped query → per-product gallery size (cover fallback counts as 1)
-  const counts = await prisma.productPhoto.groupBy({ by: ["productId"], where: { productId: { in: rows.map((r) => r.id) } }, _count: { _all: true } });
+  // grouped queries → per-product gallery size + top-3 sellers (delivered orders)
+  const [counts, sold] = await Promise.all([
+    prisma.productPhoto.groupBy({ by: ["productId"], where: { productId: { in: rows.map((r) => r.id) } }, _count: { _all: true } }),
+    prisma.shopPurchase.groupBy({ by: ["productId"], where: { status: "delivered" }, _count: { _all: true }, orderBy: { _count: { productId: "desc" } }, take: 3 }),
+  ]);
   const countOf = new Map(counts.map((c) => [c.productId, c._count._all]));
+  const topIds = new Set(sold.filter((s) => s._count._all > 0).map((s) => s.productId));
   return rows.map((p) => ({
     id: p.id,
     name: p.name,
     description: p.description,
     category: p.category,
     priceTanga: p.priceTanga,
+    oldPriceTanga: p.oldPriceTanga,
     stock: p.stock,
     hasPhoto: !!(p.photoFileId || p.photoUrl) || (countOf.get(p.id) ?? 0) > 0,
     photoCount: countOf.get(p.id) ?? (p.photoFileId || p.photoUrl ? 1 : 0),
     isNew: p.createdAt.getTime() > newCutoff,
+    featured: p.featured,
+    topSeller: topIds.has(p.id),
   }));
 }
 
@@ -184,6 +191,8 @@ export interface AdminProductRow {
   description: string | null;
   category: string;
   priceTanga: number;
+  oldPriceTanga: number | null;
+  featured: boolean;
   stock: number;
   active: boolean;
   sortOrder: number;
@@ -212,6 +221,8 @@ export async function adminListProducts(): Promise<{ products: AdminProductRow[]
       description: p.description,
       category: p.category,
       priceTanga: p.priceTanga,
+      oldPriceTanga: p.oldPriceTanga,
+      featured: p.featured,
       stock: p.stock,
       active: p.active,
       sortOrder: p.sortOrder,
@@ -228,6 +239,8 @@ export interface ProductPatch {
   description?: string | null;
   category?: string;
   priceTanga?: number;
+  oldPriceTanga?: number | null; // 0/null clears the discount
+  featured?: boolean;
   stock?: number;
   sortOrder?: number;
 }
@@ -238,6 +251,11 @@ function cleanPatch(b: ProductPatch): ProductPatch {
   if (typeof b.description === "string") out.description = b.description.trim().slice(0, 400) || null;
   if (typeof b.category === "string" && b.category.trim()) out.category = b.category.trim().slice(0, 40);
   if (typeof b.priceTanga === "number" && Number.isFinite(b.priceTanga)) out.priceTanga = Math.min(SHOP_MAX_PRICE, Math.max(1, Math.floor(b.priceTanga)));
+  if (b.oldPriceTanga !== undefined) {
+    const v = Number(b.oldPriceTanga);
+    out.oldPriceTanga = Number.isFinite(v) && v > 0 ? Math.min(SHOP_MAX_PRICE, Math.floor(v)) : null;
+  }
+  if (typeof b.featured === "boolean") out.featured = b.featured;
   if (typeof b.stock === "number" && Number.isFinite(b.stock)) out.stock = Math.min(100000, Math.max(0, Math.floor(b.stock)));
   if (typeof b.sortOrder === "number" && Number.isFinite(b.sortOrder)) out.sortOrder = Math.floor(b.sortOrder);
   return out;

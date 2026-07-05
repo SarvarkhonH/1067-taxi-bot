@@ -518,6 +518,8 @@ export interface ShopAdminProductRow {
   sortOrder: number;
   hasPhoto: boolean;
   photoCount: number;
+  oldPriceTanga: number | null;
+  featured: boolean;
   soldCount: number;
   createdAt: string;
 }
