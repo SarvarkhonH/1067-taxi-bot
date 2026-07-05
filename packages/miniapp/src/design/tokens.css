@@ -1664,3 +1664,6 @@ body {
 .shop-badge-top { background: linear-gradient(135deg, #f0426b, #dc2626); }
 .shop-section-title { border-left-color: #22c55e; }
 .shop-mini { box-shadow: 0 0 0 1px #dcefe2; }
+/* v3.1.1: kam-qoldi badge oq rasm ustida o'qilmasdi (shaffof-pushti qora-fon merosxo'ri) →
+   to'q qizil + oq matn, chegirma-badge bilan bir oila */
+.shop-badge-stock.low { background: linear-gradient(135deg, #ef4444, #dc2626); color: #fff; border: none; box-shadow: 0 2px 8px rgba(220,38,38,.45); }
