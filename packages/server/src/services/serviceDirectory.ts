@@ -322,6 +322,8 @@ export interface AdminServiceRow {
   id: number;
   name: string;
   phone: string;
+  phone2: string | null;
+  desc: string;
   categoryId: number;
   categoryName: string;
   tags: string;
@@ -359,6 +361,8 @@ export async function adminListListings(status?: string): Promise<{ rows: AdminS
       id: l.id,
       name: l.name,
       phone: l.phone,
+      phone2: l.phone2,
+      desc: l.desc,
       categoryId: l.categoryId,
       categoryName: l.category.name,
       tags: l.tags,

@@ -214,6 +214,16 @@ export const adminApi = {
   shopPhotoUpload: (id: number, mime: string, base64: string) => postJson<{ ok: boolean; error?: string; photoCount?: number }>(`/api/admin/shop/products/${id}/photo`, { mime, base64 }),
   shopPhotoClear: (id: number) => req<{ ok: boolean }>(`/api/admin/shop/products/${id}/photo`, { method: "DELETE" }),
   shopOrders: (status?: string) => req<{ orders: ShopAdminOrderRow[] }>(`/api/admin/shop/orders${status ? `?status=${status}` : ""}`),
+  // 🔎 xizmatlar directory
+  svcList: (status?: string) => req<{ rows: SvcAdminRow[]; enabled: boolean; pending: number; hiddenReviews: number }>(`/api/admin/services${status ? `?status=${status}` : ""}`),
+  svcCreate: (p: Record<string, unknown>) => postJson<{ ok: boolean; id?: number; error?: string }>("/api/admin/services", p),
+  svcEdit: (id: number, patch: Record<string, unknown>) => postJson<{ ok: boolean; error?: string }>(`/api/admin/services/${id}`, patch),
+  svcCats: () => req<{ categories: SvcAdminCat[] }>("/api/admin/service-categories"),
+  svcCatUpsert: (p: { id?: number; name: string; emoji?: string; sortOrder?: number; active?: boolean }) => postJson<{ ok: boolean; id?: number }>("/api/admin/service-categories", p),
+  svcReviewQueue: () => req<{ reviews: SvcAdminReview[] }>("/api/admin/service-reviews"),
+  svcReviewModerate: (id: number, action: "restore" | "delete") => postJson<{ ok: boolean }>(`/api/admin/service-reviews/${id}`, { action }),
+  svcPhotoUpload: (id: number, mime: string, base64: string) => postJson<{ ok: boolean; error?: string; photoCount?: number }>(`/api/admin/services/${id}/photo`, { mime, base64 }),
+  svcPhotoClear: (id: number) => req<{ ok: boolean }>(`/api/admin/services/${id}/photo`, { method: "DELETE" }),
   // 💸 withdrawals tab
   withdrawalsTab: (limit = 100) => req<AdminWithdrawalTabRow[]>(`/api/admin/withdrawals-tab?limit=${limit}`),
   // ⭐ ratings
@@ -534,4 +544,44 @@ export interface ShopAdminOrderRow {
   decidedAt?: string | null;
   buyerName: string;
   contact: string;
+}
+
+// 🔎 xizmatlar directory admin rows
+export interface SvcAdminRow {
+  id: number;
+  name: string;
+  phone: string;
+  phone2: string | null;
+  desc: string;
+  categoryId: number;
+  categoryName: string;
+  tags: string;
+  address: string | null;
+  workHours: string | null;
+  status: string;
+  isVip: boolean;
+  verified: boolean;
+  viewCount: number;
+  callCount: number;
+  avgRating: number;
+  reviewCount: number;
+  photoCount: number;
+  createdAt: string;
+}
+export interface SvcAdminCat {
+  id: number;
+  name: string;
+  emoji: string;
+  sortOrder: number;
+  active: boolean;
+}
+export interface SvcAdminReview {
+  id: number;
+  listingId: number;
+  listingName: string;
+  authorName: string;
+  stars: number;
+  text: string;
+  reports: number;
+  status: string;
 }

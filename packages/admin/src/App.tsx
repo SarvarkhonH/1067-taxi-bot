@@ -14,9 +14,9 @@ import {
   type AdminMemberRow,
   type AdminStats,
 } from "@t1067/shared";
-import { adminApi, clearAdminToken, hasAdminToken, setAdminToken, type AdminBannedRow, type AdminChatConvo, type AdminChatMsg, type AdminDebtRow, type AdminMsgHistoryRow, type AdminRatingRow, type AdminTxnRow, type AdminBlockedRow, type AdminReferralRow, type AdminRideRow, type AdminUserRow, type AdminWithdrawalRow, type AdminWithdrawalTabRow, type CampaignRow, type Driver360, type DriverCallRow, type DriverCallStats, type DriverMissionRow, type IntercityAdminTrip, type IntercityAdminDebt, type Member360, type PeakHourRow, type ShopAdminProductRow, type ShopAdminOrderRow } from "./api";
+import { adminApi, clearAdminToken, hasAdminToken, setAdminToken, type AdminBannedRow, type AdminChatConvo, type AdminChatMsg, type AdminDebtRow, type AdminMsgHistoryRow, type AdminRatingRow, type AdminTxnRow, type AdminBlockedRow, type AdminReferralRow, type AdminRideRow, type AdminUserRow, type AdminWithdrawalRow, type AdminWithdrawalTabRow, type CampaignRow, type Driver360, type DriverCallRow, type DriverCallStats, type DriverMissionRow, type IntercityAdminTrip, type IntercityAdminDebt, type Member360, type PeakHourRow, type ShopAdminProductRow, type ShopAdminOrderRow, type SvcAdminRow, type SvcAdminCat, type SvcAdminReview } from "./api";
 
-type Tab = "overview" | "pulse" | "analytics" | "finance" | "live" | "x360" | "driver" | "client" | "botusers" | "obzvon" | "boshqaruv" | "topshiriq" | "actions" | "integrity" | "audit" | "safarlar" | "qarzlar" | "referallar" | "banlist" | "yechishlar" | "baholar" | "xabar" | "chat" | "broadcasts" | "intercity" | "pik" | "transactions" | "blocked" | "shop";
+type Tab = "overview" | "pulse" | "analytics" | "finance" | "live" | "x360" | "driver" | "client" | "botusers" | "obzvon" | "boshqaruv" | "topshiriq" | "actions" | "integrity" | "audit" | "safarlar" | "qarzlar" | "referallar" | "banlist" | "yechishlar" | "baholar" | "xabar" | "chat" | "broadcasts" | "intercity" | "pik" | "transactions" | "blocked" | "shop" | "xizmatlar";
 
 const NAV_GROUPS: { label: string; items: { id: Tab; icon: string; label: string }[] }[] = [
   {
@@ -70,6 +70,7 @@ const NAV_GROUPS: { label: string; items: { id: Tab; icon: string; label: string
     label: "BOSHQARUV",
     items: [
       { id: "shop", icon: "🛍", label: "Do'kon" },
+      { id: "xizmatlar", icon: "🔎", label: "Xizmatlar" },
       { id: "pik", icon: "🔥", label: "Pik Vaqtlar" },
       { id: "actions", icon: "⚡", label: "Amallar" },
       { id: "topshiriq", icon: "🎯", label: "Topshiriqlar" },
@@ -170,6 +171,7 @@ export function App() {
           {tab === "obzvon" && <ObzvonView />}
           {tab === "boshqaruv" && <><BoshqaruvView /><RecruitsView /></>}
           {tab === "shop" && <ShopAdminView />}
+          {tab === "xizmatlar" && <XizmatlarAdminView />}
           {tab === "topshiriq" && <><QuickAnnounceView /><CampaignsView /><DriverMissionsView /></>}
           {tab === "actions" && <><ActionsView onHistory={() => goTab("broadcasts")} /><ControlCards /></>}
           {tab === "integrity" && <IntegrityView />}
@@ -1577,6 +1579,159 @@ function ShopAdminView() {
           </div>
         ))}
         {orders && orders.length === 0 && <p className="muted">Hali buyurtma yo&apos;q.</p>}
+      </section>
+    </>
+  );
+}
+
+// 🔎 XIZMATLAR — Koson katalogi boyitish markazi (feature "xizmatlar"). Import qilingan satrlarda
+// faqat nom+telefon+teg bor — bu panel desc/soat/manzil/foto/verified to'ldirish uchun. Moderatsiya
+// asosan Telegram'da (✅/❌ egaga boradi); bu yerda ham pending'ni hal qilish mumkin.
+function XizmatlarAdminView() {
+  const [data, setData] = useState<{ rows: SvcAdminRow[]; enabled: boolean; pending: number; hiddenReviews: number } | null>(null);
+  const [cats, setCats] = useState<SvcAdminCat[]>([]);
+  const [reviews, setReviews] = useState<SvcAdminReview[]>([]);
+  const [stFilter, setStFilter] = useState<string>("all");
+  const [catFilter, setCatFilter] = useState<number>(0);
+  const [q, setQ] = useState("");
+  const [name, setName] = useState("");
+  const [phone, setPhone] = useState("");
+  const [newCat, setNewCat] = useState<number>(0);
+  const [msg, setMsg] = useState("");
+
+  const load = () => {
+    adminApi.svcList().then(setData).catch(() => undefined);
+    adminApi.svcCats().then((r) => setCats(r.categories)).catch(() => undefined);
+    adminApi.svcReviewQueue().then((r) => setReviews(r.reviews)).catch(() => setReviews([]));
+  };
+  useEffect(() => { load(); }, []);
+
+  const edit = async (id: number, patch: Record<string, unknown>, okMsg = "✅ Saqlandi") => {
+    const r = await adminApi.svcEdit(id, patch).catch((e: Error) => ({ ok: false as const, error: e.message }));
+    setMsg(r.ok ? okMsg : `❌ ${("error" in r && r.error) || "xatolik"}`);
+    load();
+  };
+  const promptEdit = (id: number, field: string, label: string, cur: string | null) => {
+    const v = window.prompt(label, cur ?? "");
+    if (v === null) return;
+    void edit(id, { [field]: v });
+  };
+  const create = async () => {
+    if (!name.trim() || !phone.trim() || !newCat) { setMsg("⚠️ Nom, telefon va kategoriya shart"); return; }
+    const r = await adminApi.svcCreate({ name: name.trim(), phone: phone.trim(), categoryId: newCat }).catch((e: Error) => ({ ok: false as const, error: e.message }));
+    setMsg(r.ok ? "✅ Qo'shildi (darhol aktiv)" : `❌ ${("error" in r && r.error) || "xatolik"}`);
+    if (r.ok) { setName(""); setPhone(""); load(); }
+  };
+  const uploadPhoto = (id: number) => {
+    const input = document.createElement("input");
+    input.type = "file";
+    input.accept = "image/*";
+    input.onchange = () => {
+      const f = input.files?.[0];
+      if (!f) return;
+      if (f.size > 5 * 1024 * 1024) { setMsg("❌ Rasm 5MB dan kichik bo'lsin"); return; }
+      const reader = new FileReader();
+      reader.onload = async () => {
+        const base64 = String(reader.result).split(",")[1] ?? "";
+        const r = await adminApi.svcPhotoUpload(id, f.type || "image/jpeg", base64).catch((e: Error) => ({ ok: false as const, error: e.message }));
+        setMsg(r.ok ? `✅ Rasm yuklandi (${("photoCount" in r && r.photoCount) || "?"}/6)` : `❌ ${("error" in r && r.error) === "max_photos" ? "6 ta chegara — 🗑🖼 bilan tozalang" : ("error" in r && r.error) || "xatolik"}`);
+        load();
+      };
+      reader.readAsDataURL(f);
+    };
+    input.click();
+  };
+
+  const rows = (data?.rows ?? [])
+    .filter((r) => (stFilter === "all" ? true : r.status === stFilter))
+    .filter((r) => (catFilter ? r.categoryId === catFilter : true))
+    .filter((r) => {
+      const t = q.trim().toLowerCase();
+      return !t || r.name.toLowerCase().includes(t) || r.phone.includes(t) || r.tags.toLowerCase().includes(t);
+    });
+  const stLabel: Record<string, string> = { pending: "⏳", active: "🟢", rejected: "❌", archived: "🗄" };
+  const doneCount = (data?.rows ?? []).filter((r) => r.status === "active" && r.workHours && (r.desc || r.address)).length;
+
+  return (
+    <>
+      <section className="panel">
+        <div className="panel-title">🔎 Xizmatlar katalogi</div>
+        <p className="muted" style={{ marginTop: 0 }}>
+          {data && !data.enabled && <b style={{ color: "#f59e0b" }}>«xizmatlar» flag O&apos;CHIQ — mijozlar hali ko&apos;rmaydi (GO LIVE&apos;da yoqiladi). </b>}
+          {data && <>Jami {data.rows.length} ta · boyitilgan (soat + tavsif/manzil): <b>{doneCount}</b> ta{data.pending > 0 && <b style={{ color: "#f59e0b" }}> · ⏳ {data.pending} moderatsiya kutmoqda</b>}.</>}
+          {" "}Maslahat: har kuni 10 tasiga 🕒 soat + 📝 tavsif + 📷 foto qo&apos;shsangiz, bir haftada katalog to&apos;liq «2GIS ko&apos;rinish»ga keladi.
+        </p>
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
+          <input style={{ flex: "2 1 180px", padding: "8px 10px" }} value={name} onChange={(e) => setName(e.target.value)} placeholder="Yangi xizmat nomi" />
+          <input style={{ flex: "1 1 130px", padding: 8 }} value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="+998 90 123 45 67" />
+          <select style={{ flex: "1 1 120px", padding: 8 }} value={newCat} onChange={(e) => setNewCat(Number(e.target.value))}>
+            <option value={0}>Kategoriya…</option>
+            {cats.map((c) => <option key={c.id} value={c.id}>{c.emoji} {c.name}</option>)}
+          </select>
+          <button onClick={create}>➕ Qo&apos;shish</button>
+          <button className="btn sm" title="Yangi kategoriya" onClick={async () => {
+            const n = window.prompt("Yangi kategoriya nomi:"); if (!n?.trim()) return;
+            const e = window.prompt("Emoji:", "📌") ?? "📌";
+            await adminApi.svcCatUpsert({ name: n.trim(), emoji: e }).catch(() => undefined); load();
+          }}>📂+</button>
+        </div>
+        {msg && <div className="muted" style={{ marginTop: 8 }}>{msg}</div>}
+      </section>
+
+      <section className="panel">
+        <div className="panel-title">📋 Ro&apos;yxat ({rows.length})</div>
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 10 }}>
+          <input style={{ flex: "2 1 160px", padding: 8 }} value={q} onChange={(e) => setQ(e.target.value)} placeholder="🔍 Qidirish…" />
+          <select style={{ padding: 8 }} value={stFilter} onChange={(e) => setStFilter(e.target.value)}>
+            <option value="all">Hammasi</option><option value="pending">⏳ Kutilmoqda</option><option value="active">🟢 Aktiv</option><option value="rejected">❌ Rad</option><option value="archived">🗄 Arxiv</option>
+          </select>
+          <select style={{ padding: 8 }} value={catFilter} onChange={(e) => setCatFilter(Number(e.target.value))}>
+            <option value={0}>Barcha kategoriya</option>
+            {cats.map((c) => <option key={c.id} value={c.id}>{c.emoji} {c.name}</option>)}
+          </select>
+        </div>
+        {rows.map((r) => (
+          <div key={r.id} style={{ padding: "8px 0", borderBottom: "1px solid rgba(255,255,255,0.08)" }}>
+            <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+              <span style={{ flex: "2 1 220px" }}>
+                {stLabel[r.status] ?? "?"} <b>{r.name}</b>{r.verified && " ✔"}{r.isVip && " ⭐"}
+                <span className="muted"> · {r.categoryName} · 👁{r.viewCount} 📞{r.callCount}{r.reviewCount > 0 ? ` ★${r.avgRating} (${r.reviewCount})` : ""}</span>
+              </span>
+              <button className="btn sm" onClick={() => promptEdit(r.id, "name", "Nomi:", r.name)}>✏️</button>
+              <button className="btn sm" onClick={() => promptEdit(r.id, "phone", "Telefon:", r.phone)}>📞 {r.phone.replace("+998", "")}</button>
+              <button className="btn sm" title={r.desc || "Tavsif yo'q"} style={{ opacity: r.desc ? 1 : 0.5 }} onClick={() => promptEdit(r.id, "desc", "Tavsif (nima qiladi, nima sotadi):", r.desc)}>📝</button>
+              <button className="btn sm" style={{ opacity: r.workHours ? 1 : 0.5 }} onClick={() => promptEdit(r.id, "workHours", "Ish vaqti (08:00-19:00):", r.workHours)}>🕒{r.workHours ? ` ${r.workHours}` : ""}</button>
+              <button className="btn sm" title={r.address || "Manzil yo'q"} style={{ opacity: r.address ? 1 : 0.5 }} onClick={() => promptEdit(r.id, "address", "Manzil:", r.address)}>📍</button>
+              <button className="btn sm" title={r.tags} onClick={() => promptEdit(r.id, "tags", "Teglar (vergul bilan):", r.tags)}>🏷</button>
+              <button className="btn sm" onClick={() => uploadPhoto(r.id)}>📷 {r.photoCount}/6</button>
+              {r.photoCount > 0 && <button className="btn sm" onClick={async () => { if (!window.confirm("Rasmlar o'chirilsinmi?")) return; await adminApi.svcPhotoClear(r.id).catch(() => undefined); load(); }}>🗑🖼</button>}
+              <select style={{ padding: 6, fontSize: 12 }} value={r.categoryId} onChange={(e) => void edit(r.id, { categoryId: Number(e.target.value) }, "✅ Kategoriya o'zgardi")}>
+                {cats.map((c) => <option key={c.id} value={c.id}>{c.emoji} {c.name}</option>)}
+              </select>
+              <button className="btn sm" title="Tasdiqlangan biznes (ko'k belgi)" onClick={() => void edit(r.id, { verified: !r.verified })}>{r.verified ? "✔ Verified" : "☐ Verify"}</button>
+              <button className="btn sm" title="VIP — ro'yxatda birinchi (kelajakda pullik)" onClick={() => void edit(r.id, { isVip: !r.isVip })}>{r.isVip ? "⭐ VIP" : "☆ VIP"}</button>
+              {r.status === "pending" && <><button className="btn sm" onClick={() => void edit(r.id, { status: "active" }, "✅ Tasdiqlandi")}>✅</button><button className="btn sm" onClick={() => void edit(r.id, { status: "rejected" }, "❌ Rad etildi")}>❌</button></>}
+              {r.status === "active" && <button className="btn sm" title="Katalogdan yashirish" onClick={() => void edit(r.id, { status: "archived" }, "🗄 Arxivlandi")}>🗄</button>}
+              {(r.status === "rejected" || r.status === "archived") && <button className="btn sm" onClick={() => void edit(r.id, { status: "active" }, "♻️ Aktivlandi")}>♻️</button>}
+            </div>
+          </div>
+        ))}
+        {data && rows.length === 0 && <p className="muted">Mos yozuv yo&apos;q.</p>}
+      </section>
+
+      <section className="panel">
+        <div className="panel-title">⚑ Shikoyat qilingan sharhlar ({reviews.length})</div>
+        {reviews.map((rv) => (
+          <div key={rv.id} style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", padding: "8px 0", borderBottom: "1px solid rgba(255,255,255,0.08)" }}>
+            <span style={{ flex: "2 1 240px" }}>
+              <b>{rv.listingName}</b> <span className="muted">· {rv.authorName} · {"★".repeat(rv.stars)} · ⚑{rv.reports}</span>
+              <div className="muted" style={{ fontSize: 12 }}>{rv.text || "(matn yo'q)"}</div>
+            </span>
+            <button className="btn sm" onClick={async () => { await adminApi.svcReviewModerate(rv.id, "restore").catch(() => undefined); load(); }}>♻️ Qaytarish</button>
+            <button className="btn sm" onClick={async () => { if (!window.confirm("Sharh butunlay o'chirilsinmi?")) return; await adminApi.svcReviewModerate(rv.id, "delete").catch(() => undefined); load(); }}>🗑 O&apos;chirish</button>
+          </div>
+        ))}
+        {reviews.length === 0 && <p className="muted">Navbat bo&apos;sh — shikoyat qilingan sharh yo&apos;q.</p>}
       </section>
     </>
   );
