@@ -36,7 +36,12 @@ function stripEmoji(s: string): string {
 function decodeEntities(s: string): string {
   return s
     .replace(/&amp;/g, "&").replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&quot;/g, "\"").replace(/&#39;/g, "'")
-    .replace(/&#(\d+);/g, (_, n: string) => String.fromCodePoint(Number(n)));
+    // surrogat JUFTLIK entity'lari (emoji: &#55357;&#56618;) birga dekodlanadi — yakka fromCodePoint yaroqsiz UTF beradi
+    .replace(/&#(5[45][0-9]{3});&#(5[67][0-9]{3});/g, (_, hi: string, lo: string) => String.fromCharCode(Number(hi), Number(lo)))
+    .replace(/&#(\d+);/g, (_, n: string) => { const v = Number(n); return v >= 0xd800 && v <= 0xdfff ? " " : String.fromCodePoint(v); })
+    // qolgan yakka surrogatlar (buzuq juftlik) — Postgres/Prisma yiqilmasin
+    .replace(/[\uD800-\uDBFF](?![\uDC00-\uDFFF])/g, "")
+    .replace(/(^|[^\uD800-\uDBFF])[\uDC00-\uDFFF]/g, "$1");
 }
 
 const BOILER = /TELEGRAM\s*KANAL|GRUPPAMIZ|@KOSON|KUZATIB\s*BORISH|SAVOLLAR\s*B|BARCHA\s*MAXSULOTLARNI\s*SHU/i;
