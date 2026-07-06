@@ -251,6 +251,35 @@ Launch kuni katalogda kamida **80–100 real xizmat** bo'lishi SHART:
 ### P4 — Post-launch (go-live'dan keyin, tartibda)
 Claim flow «bu meniki» (OTP listed-raqamga) · haftalik kanal digest («hafta TOP xizmatlari») · mashhur-qidiruv chiplari · sevimlilar · taxi cross-promo (safar tugagach yaqin xizmatlar kartasi) · tanga-SINK (sharh-boost/badge — hech qanday yangi emissiya YO'Q, shop spend-patterni).
 
+## 11.6 v1.3 — Ijtimoiy tarmoq + «1067 tekshiruvi» (2026-07-06, BAJARILDI)
+
+Ega: «2GIS'da yana ko'p narsa bor (ijtimoiy tarmoq va h.k.), restoran/dorixona/do'kon ham qo'shishim
+kerak, va 1067 jamoasi jismoniy borib tekshirib alohida baho beradi — bu tasdiqlash EMAS, alohida
+tekshiruv». Ikki alohida qaror:
+
+**1. Ijtimoiy tarmoq** — `ServiceListing.instagram/telegramUrl/facebook/website` (faqat displey,
+profil sahifasida ikon-tugmalar qatori, bo'lsagina ko'rinadi). Kartada YO'Q (joy tejash) — faqat
+profilda.
+
+**2. «1067 tekshiruvi» — mustaqil audit signal, MIJOZ BAHOSI EMAS.** `inspStars` (1-5) + `inspNote`
++ `inspAt`. Muhim arxitektura qarori (ataylab qilingan, kelajakda o'zgartirilishi mumkin):
+- **`avgRating`/`reviewCount`ga HECH TEGMAYDI** — ikkala signal butunlay mustaqil ustunlarda.
+- **`rankScore` (bayes-saralash)ga QO'SHILMAYDI** — agar qo'shilsa, bir nechta 1067-audit ovozi
+  200-sharhli haqiqiy mashhur bizneslarni jimgina bosib ketishi mumkin edi; bu qaror ochiq aytilishi
+  kerak, sukut bo'yicha qilinmasligi kerak edi. Hozircha FAQAT displey — saralashga ta'sir yo'q.
+- Vizual ajratish: kartada teal «🏅 1067: N★» chip (mijoz-reytingi ★ orange bilan ARALASHMASLIGI
+  uchun rang ataylab farqli), profilda alohida ajratilgan blok + auditor xulosasi.
+- Admin: 🏅 tugma — "stars; note" formatida, 1-5 validatsiya, bo'sh=butunlay bekor qilish (sana ham).
+
+**Kategoriya kengaytirish** — restoran/dorixona/do'kon uchun ALOHIDA KOD KERAK EMAS EDI: admin
+"📂+" tugmasi orqali istalgan yangi kategoriya qo'shadi. Shunga qaramay qulaylik uchun
+`DEFAULT_CATEGORIES`ga Restoran/Kafe 🍽 va Dorixona 💊 qo'shildi (10→12, eski 10 tegilmagan;
+`Do'kon-savdo` allaqachon "do'kon"ni qamrab olgan edi).
+
+**ISBOT:** testServices **73 assertion 3× yashil** (ijtimoiy tarmoq round-trip, 1-5 validatsiya,
+null→to'liq bekor qilish, mijoz-reytingiga tegilmaganligi aniq tasdiqlangan) · jonli server
+`instagram`/`inspStars` maydonlarini qaytarmoqda · 12 kategoriya jonli DB'da.
+
 ## 11. V2+ ufq (hozir QURILMAYDI, faqat yo'nalish)
 
 - **VIP joylashuv** — oyiga to'lov (qo'lda, keyin avtomat) → birinchi daromad.
