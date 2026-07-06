@@ -106,9 +106,10 @@ async function buildMe(
 
   // T2 (AUDIT 2.1 + 2.10): rank/total via indeksli COUNT (butun jadval emas),
   // streak/wheel/jackpot bilan birga PARALLEL — 5 ketma-ket so'rov → 1 to'lqin.
-  const [ahead, totalMembers, streak, wheelAvailable, jackpot] = await Promise.all([
+  const [ahead, totalMembers, botMembers, streak, wheelAvailable, jackpot] = await Promise.all([
     prisma.member.count({ where: { type, points: { gt: member.points } } }),
     prisma.member.count({ where: { type } }),
+    prisma.telegramUser.count(), // 👥 REAL bot a'zolari (kas1067 bazasi EMAS) — social-proof chip uchun
     getStreak(member.id),
     canSpinWheel(member.id),
     getJackpot(),
@@ -144,6 +145,7 @@ async function buildMe(
     progress: lp.progress,
     rank,
     totalMembers,
+    botMembers,
     badges,
     streak,
     wheelAvailable,

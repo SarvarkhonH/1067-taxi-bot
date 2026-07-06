@@ -319,7 +319,7 @@ export function App() {
           <span className="brand-badge">🚕</span>
           <span className="brand-name">1067<b>TAXI</b></span>
           {/* 👥 social proof — 10 000 baza + real a'zolar (har yangi qo'shilganda o'sadi → tirik, viral) */}
-          <span className="member-chip">👥 {stableMemberCount(me.totalMembers ?? 0).toLocaleString("ru-RU")} a'zo</span>
+          <span className="member-chip">👥 {stableMemberCount(me.botMembers ?? 0).toLocaleString("ru-RU")} a'zo</span>
         </div>
         <div className="topbar-right">
           <div className="coin-pill">

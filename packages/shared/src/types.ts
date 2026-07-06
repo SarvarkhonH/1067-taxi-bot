@@ -33,7 +33,8 @@ export interface MeResponse {
   xpForNext: number | null;
   progress: number;
   rank: number | null;
-  totalMembers: number;
+  totalMembers: number; // members of the user's TYPE synced from kas1067 (rank denominator)
+  botMembers?: number; // 👥 REAL bot users (TelegramUser count) — social-proof, excludes kas base
   badges: BadgeView[];
   streak: { current: number; longest: number; checkedToday: boolean };
   wheelAvailable: boolean; // a spin is available RIGHT NOW (active started ride, not yet spun)
@@ -491,3 +492,102 @@ export interface ServiceReviewResponse {
 
 export const SERVICE_SUBMITS_PER_DAY = 2; // self-submit spam cap per Telegram user
 export const SERVICE_MAX_PHOTOS = 6; // gallery cap (shop pattern is 5; profiles feel richer with 6)
+
+// ── 📋 E'LONLAR (feature "elonlar") — mahalla e'lon taxtasi (OLX-uslub, ELONLAR_PLAN.md) ─────────
+// Narx REAL SO'M (tanga EMAS); joylash tanga bilan to'lanadi (knob elonPostPrice, §6).
+
+export type ClassifiedCategory = "oldi_sotdi" | "ish" | "yoqoldi" | "uyjoy" | "transport";
+
+export interface ClassifiedCategoryDef {
+  id: ClassifiedCategory;
+  label: string;
+  emoji: string;
+  accent: string; // §4.1 kategoriya aksenti (yoqoldi 2-holatli — UI o'zi qizil/yashil tanlaydi)
+  subtypes: [string, string]; // [A, B] segment-toggle jufti
+  subtypeLabels: [string, string];
+  priced: boolean; // false = yoqoldi — narx maydoni umuman yo'q, doim bepul
+}
+
+export const CLASSIFIED_CATEGORIES: ClassifiedCategoryDef[] = [
+  { id: "oldi_sotdi", label: "Oldi-sotdi", emoji: "🛒", accent: "#c2622f", subtypes: ["sotaman", "olaman"], subtypeLabels: ["Sotaman", "Olaman"], priced: true },
+  { id: "ish", label: "Ish", emoji: "💼", accent: "#5b6b7a", subtypes: ["beraman", "izlayman"], subtypeLabels: ["Ish beraman", "Ish izlayman"], priced: true },
+  { id: "yoqoldi", label: "Yo'qoldi–Topildi", emoji: "🔍", accent: "#c2622f", subtypes: ["yoqoldi", "topildi"], subtypeLabels: ["Yo'qoldi", "Topildi"], priced: false },
+  { id: "uyjoy", label: "Uy-joy", emoji: "🏠", accent: "#b08a3e", subtypes: ["ijara", "sotuv"], subtypeLabels: ["Ijara", "Sotuv"], priced: true },
+  { id: "transport", label: "Transport & chorva", emoji: "🚜", accent: "#6f7d4a", subtypes: ["mashina", "molhol"], subtypeLabels: ["Mashina", "Mol-hol"], priced: true },
+];
+export function classifiedCategoryDef(id: string): ClassifiedCategoryDef | null {
+  return CLASSIFIED_CATEGORIES.find((c) => c.id === id) ?? null;
+}
+
+export type ClassifiedStatus = "pending" | "active" | "sold" | "rejected" | "archived" | "expired";
+
+export interface ClassifiedCard {
+  id: number;
+  category: ClassifiedCategory;
+  subtype: string;
+  title: string;
+  priceSom: number | null; // null = "Kelishiladi"
+  isTop: boolean;
+  hasPhoto: boolean;
+  photoCount: number;
+  createdAt: string;
+  isNew: boolean; // <1 soat — "Yangi" pulse-nuqta (§4.1)
+}
+
+export interface ClassifiedDetail extends ClassifiedCard {
+  desc: string;
+  phone: string;
+  authorName: string;
+  viewCount: number;
+  callCount: number;
+  owner: ClassifiedOwnerProfile;
+}
+
+// 🤝 Ishonch badge'lari (§4.2) — xatti-harakat asosida, pul-mexanika YO'Q
+export interface ClassifiedOwnerProfile {
+  memberSince: string | null; // member.createdAt — "N oydan beri 1067'da"
+  rideCount: number; // 🚗 N marta safar qilgan
+  soldCount: number; // 🤝 N muvaffaqiyatli savdo
+  isNewMember: boolean; // ⚠️ <7 kun VA 0 safar — yumshoq ogohlantirish
+  activeAdsCount: number;
+  username: string | null; // ✍️ "Yozish" t.me deep-link uchun (yo'q bo'lsa tugma yashiriladi)
+}
+
+export interface ClassifiedSubmitBody {
+  category: ClassifiedCategory;
+  subtype: string;
+  title: string;
+  desc?: string;
+  priceSom?: number | null;
+  phone?: string; // bo'sh = member.phone (default)
+}
+
+export interface ClassifiedSubmitResponse {
+  ok: boolean;
+  reason?: "off" | "bad_category" | "bad_subtype" | "bad_title" | "bad_price" | "no_phone" | "insufficient" | "max_active" | "unavailable";
+  id?: number;
+  paidCoins?: number;
+  balance?: number;
+}
+
+export interface ClassifiedListResponse {
+  ads: ClassifiedCard[];
+  total: number;
+}
+
+export interface MyClassifiedRow {
+  id: number;
+  category: ClassifiedCategory;
+  subtype: string;
+  title: string;
+  priceSom: number | null;
+  status: ClassifiedStatus;
+  viewCount: number;
+  callCount: number;
+  paidCoins: number;
+  expiresAt: string;
+  createdAt: string;
+}
+
+export const CLASSIFIED_MAX_PHOTOS = 4; // §4 post wizard: foto 0-4
+export const CLASSIFIED_AD_DAYS = 30; // §7 expiresAt = createdAt + 30 kun
