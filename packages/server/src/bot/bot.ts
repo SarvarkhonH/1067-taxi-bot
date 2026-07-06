@@ -114,7 +114,7 @@ function webAppUrl(go?: string): string {
 
 // Clean 2-row menu: booking first, everything else folded into Bonuslar/Ilova.
 // Old button labels keep graceful hears-aliases (Telegram caches keyboards).
-function mainMenu(isDriver = false): Keyboard {
+async function mainMenu(isDriver = false, tgId?: string): Promise<Keyboard> {
   // Taxi ordering = the NEW Mini App flow. The button opens the Mini App straight to
   // booking (?go=book), not the old bot text flow. Old cached keyboards still send the
   // text → bot.hears("🚕 Taxi chaqirish") falls back to startBooking (graceful).
@@ -149,6 +149,12 @@ function mainMenu(isDriver = false): Keyboard {
     kb.row();
     txt("🚗 Haydovchi paneli");
   }
+  // 🔎 Xizmatlar: DARK until seed+QABUL — shown to everyone once the flag is ON, to admins
+  // meanwhile (owner-preview, same convention as /api/me's shopPreview/xizmatlarPreview).
+  if ((await featureOn("xizmatlar")) || (tgId && isAdmin(tgId))) {
+    kb.row();
+    txt("🔎 Xizmatlar");
+  }
   // is_persistent → the menu stays pinned open (app-like nav); placeholder → modern input hint
   return kb.resized().persistent().placeholder("Menyudan tanlang yoki manzilni yozing…");
 }
@@ -179,6 +185,10 @@ const codeLink = new Map<string, { phone?: string }>();
 const editName = new Set<string>();
 // telegramIds awaiting a preferred name right after first link (auto-ask on join).
 const pendingNameAfterLink = new Set<string>();
+// telegramIds who tapped "🔎 Xizmatlar" and are now expected to type a search query next.
+// Transient by design (same pattern as codeLink/editName) — avoids hijacking the global
+// free-text/AI-intent catcher for every message, only the ONE reply right after the tap.
+const svcSearchWait = new Set<string>();
 
 // A real name starts with a letter (Latin or Cyrillic). Menu buttons all start with an
 // emoji, and phone numbers with a digit/+ — so anything NOT starting with a letter is a
@@ -289,7 +299,7 @@ export function createBot(): Bot {
     }
     const me = await getMe(id);
     if (me) {
-      await ctx.reply(renderProfile(me), { parse_mode: "HTML", reply_markup: mainMenu(me.type === "driver") });
+      await ctx.reply(renderProfile(me), { parse_mode: "HTML", reply_markup: await mainMenu(me.type === "driver", String(ctx.from?.id ?? "")) });
     } else {
       // Birinchi kirish — BITTA chiroyli ekran: katta «📱 Raqamni ulashish» tugmasi (asosiy,
       // soda). «Boshqa raqam» yo'li endi welcome ichidagi /boshqaraqam ipi (avvalgi 3 ta stacked
@@ -322,7 +332,7 @@ export function createBot(): Bot {
     if (res.status === "linked") {
       const me = await getMe(id);
       const role = res.type === "driver" ? "Haydovchi" : "Mijoz";
-      await ctx.reply(renderLinked(res.fullName ?? "Mijoz", role), { parse_mode: "HTML", reply_markup: mainMenu(res.type === "driver") });
+      await ctx.reply(renderLinked(res.fullName ?? "Mijoz", role), { parse_mode: "HTML", reply_markup: await mainMenu(res.type === "driver", String(ctx.from?.id ?? "")) });
       // Auto-derive a friendly display name (no fragile "type your name" prompt that captured
       // menu-button taps): Telegram first+last name → @username → phone's last 4 digits.
       // Only for clients, and only if they don't already have a user-set name. Silent — they can
@@ -375,7 +385,7 @@ export function createBot(): Bot {
             .catch(() => undefined);
         }
       }
-      if (me) await ctx.reply(renderProfile(me), { parse_mode: "HTML", reply_markup: mainMenu(me.type === "driver") });
+      if (me) await ctx.reply(renderProfile(me), { parse_mode: "HTML", reply_markup: await mainMenu(me.type === "driver", String(ctx.from?.id ?? "")) });
       // Ulangan zahoti ilovani BIR MARTA ko'zga tashlash — "odamlar web app borligini bilmaydi".
       if (canWebApp) {
         await ctx
@@ -576,13 +586,13 @@ export function createBot(): Bot {
     await touchTelegramUser(id, profileOf(ctx.from!));
     const res = await linkByPhone(id, sess.phone, profileOf(ctx.from!));
     if (res.status === "linked") {
-      await ctx.reply(`✅ <b>Raqam tasdiqlandi va ulandi!</b> Xush kelibsiz, ${esc(res.fullName ?? "Mijoz")} 🎉`, { parse_mode: "HTML", reply_markup: mainMenu(res.type === "driver") });
+      await ctx.reply(`✅ <b>Raqam tasdiqlandi va ulandi!</b> Xush kelibsiz, ${esc(res.fullName ?? "Mijoz")} 🎉`, { parse_mode: "HTML", reply_markup: await mainMenu(res.type === "driver", String(ctx.from?.id ?? "")) });
       if (res.type === "client" && res.memberId) await autoSetDisplayName(res.memberId, ctx.from!, sess.phone);
       if (res.welcomeBonus) {
         await ctx.reply(`🎁 <b>Sovg'a: +${formatNumber(res.welcomeBonus)} tanga</b> hisobingizga tushdi 🚕`, { parse_mode: "HTML" }).catch(() => undefined);
       }
       const me = await getMe(id);
-      if (me) await ctx.reply(renderProfile(me), { parse_mode: "HTML", reply_markup: mainMenu(me.type === "driver") });
+      if (me) await ctx.reply(renderProfile(me), { parse_mode: "HTML", reply_markup: await mainMenu(me.type === "driver", String(ctx.from?.id ?? "")) });
       // Ulangan zahoti ilovani BIR MARTA ko'zga tashlash — "odamlar web app borligini bilmaydi".
       if (canWebApp) {
         await ctx
@@ -968,7 +978,7 @@ export function createBot(): Bot {
       return;
     }
     const r = await dailyCheckIn(me.member.id);
-    await ctx.reply(renderCheckIn(r), { parse_mode: "HTML", reply_markup: mainMenu() });
+    await ctx.reply(renderCheckIn(r), { parse_mode: "HTML", reply_markup: await mainMenu(false, String(ctx.from?.id ?? "")) });
   };
   bot.hears("🔥 Kunlik", checkIn);
   bot.command("daily", checkIn);
@@ -1011,16 +1021,16 @@ export function createBot(): Bot {
     const r = await spinRideWheel(memberId);
     if (!r.ok) {
       await ctx
-        .reply("Baraban tayyor emas — safardan keyin 5 daqiqa ichida aylantiring 🚕", { reply_markup: mainMenu() })
+        .reply("Baraban tayyor emas — safardan keyin 5 daqiqa ichida aylantiring 🚕", { reply_markup: await mainMenu(false, String(ctx.from?.id ?? "")) })
         .catch(() => undefined);
       return { replied: true };
     }
     if ((r.prize ?? 0) > 0) {
       await ctx
-        .reply(`🎉 Tabriklaymiz! <b>+${formatNumber(r.prize ?? 0)} tanga</b> yutdingiz! 🎰`, { parse_mode: "HTML", reply_markup: mainMenu() })
+        .reply(`🎉 Tabriklaymiz! <b>+${formatNumber(r.prize ?? 0)} tanga</b> yutdingiz! 🎰`, { parse_mode: "HTML", reply_markup: await mainMenu(false, String(ctx.from?.id ?? "")) })
         .catch(() => undefined);
     } else {
-      await ctx.reply("😢 Bu safar omad kulmadi — keyingi safar! 🎰", { reply_markup: mainMenu() }).catch(() => undefined);
+      await ctx.reply("😢 Bu safar omad kulmadi — keyingi safar! 🎰", { reply_markup: await mainMenu(false, String(ctx.from?.id ?? "")) }).catch(() => undefined);
     }
     return { replied: true };
   };
@@ -1096,7 +1106,7 @@ export function createBot(): Bot {
       await promptLink(ctx);
       return;
     }
-    await ctx.reply(renderBadges(me), { parse_mode: "HTML", reply_markup: mainMenu() });
+    await ctx.reply(renderBadges(me), { parse_mode: "HTML", reply_markup: await mainMenu(false, String(ctx.from?.id ?? "")) });
   });
 
   // ─── 🎁 Bonuslar: ONE combined screen (streak + missions + box) ──────────────
@@ -1279,16 +1289,16 @@ export function createBot(): Bot {
   const showFare = async (ctx: Context) => {
     try {
       const cfg = await getFareConfig();
-      await ctx.reply(renderFare(cfg), { parse_mode: "HTML", reply_markup: mainMenu() });
+      await ctx.reply(renderFare(cfg), { parse_mode: "HTML", reply_markup: await mainMenu(false, String(ctx.from?.id ?? "")) });
     } catch {
-      await ctx.reply("Narx ma'lumotini hozir olib bo'lmadi. Birozdan keyin urinib ko'ring.", { reply_markup: mainMenu() });
+      await ctx.reply("Narx ma'lumotini hozir olib bo'lmadi. Birozdan keyin urinib ko'ring.", { reply_markup: await mainMenu(false, String(ctx.from?.id ?? "")) });
     }
   };
   bot.hears("🚖 Narx & cashback", showFare);
   bot.command("narx", showFare);
 
   bot.command("help", async (ctx) => {
-    await ctx.reply(renderHelp(), { parse_mode: "HTML", reply_markup: mainMenu() });
+    await ctx.reply(renderHelp(), { parse_mode: "HTML", reply_markup: await mainMenu(false, String(ctx.from?.id ?? "")) });
   });
 
   bot.command("admin", async (ctx) => {
@@ -1358,6 +1368,49 @@ export function createBot(): Bot {
     );
   });
 
+  // 🔎 XIZMATLAR — tap → prompt → next text = search query → top-5 inline (phone tappable-to-call
+  // on mobile via Telegram's own auto-linkify, no unofficial tel: URI needed). DARK until the flag
+  // is ON; admins get an owner-preview (same convention as the Mini App tab / mainMenu row above).
+  bot.hears("🔎 Xizmatlar", async (ctx) => {
+    const id = String(ctx.from!.id);
+    if (!(await featureOn("xizmatlar")) && !isAdmin(id)) {
+      await ctx.reply("🔎 Xizmatlar bo'limi tez orada ochiladi!");
+      return;
+    }
+    svcSearchWait.add(id);
+    await ctx.reply(
+      "🔎 <b>Nima kerak?</b> Yozing — masalan: <i>santexnik</i>, <i>sartarosh</i>, <i>sement</i>…",
+      { parse_mode: "HTML", reply_markup: new InlineKeyboard().webApp("🚀 To'liq katalog — Mini App", webAppUrl("xizmat")) },
+    );
+  });
+  bot.on("message:text", async (ctx, next) => {
+    const id = String(ctx.from!.id);
+    if (!svcSearchWait.has(id)) return next();
+    svcSearchWait.delete(id);
+    const q = ctx.message.text.trim();
+    // a menu-button tap or command while "waiting" is NOT a search query — bail to next()
+    // (button labels all start with an emoji/symbol; real queries start with a letter/digit).
+    if (q.startsWith("/") || !/^[\p{L}\p{N}]/u.test(q)) return next();
+    const { listListings } = await import("../services/serviceDirectory");
+    const { listings } = await listListings({ q, limit: 5 }, isAdmin(id));
+    if (!listings.length) {
+      await ctx.reply(
+        `😔 <b>«${esc(q)}»</b> bo'yicha hech narsa topilmadi.\n\nBoshqacha yozib ko'ring yoki to'liq katalogni ko'ring:`,
+        { parse_mode: "HTML", reply_markup: new InlineKeyboard().webApp("🚀 Mini App", webAppUrl("xizmat")) },
+      );
+      return;
+    }
+    const rows = listings.map((l) => {
+      const stars = l.reviewCount > 0 ? `★ ${l.avgRating.toFixed(1)} (${l.reviewCount}) · ` : "";
+      const price = l.priceFrom != null ? ` · 💰 ${formatNumber(l.priceFrom)} so'mdan` : "";
+      return `${l.categoryEmoji || "🏪"} <b>${esc(l.name)}</b>${l.verified ? " ✅" : ""}\n${stars}${esc(l.categoryName)}${price}`;
+    });
+    await ctx.reply(`🔎 <b>«${esc(q)}»</b> bo'yicha topildi:\n\n${rows.join("\n\n")}\n\n<i>To'liq profil + qo'ng'iroq: Mini App'da.</i>`, {
+      parse_mode: "HTML",
+      reply_markup: new InlineKeyboard().webApp("🚀 To'liq ko'rish", webAppUrl("xizmat")),
+    });
+  });
+
   registerBroadcast(bot); // 📢 /elon — owner-only announcement to all linked users (preview + confirm). Owner+draft-gated text capture, registered first.
   registerCashout(bot); // 💵 /naxt — real cash-out (tanga → card/home) → owner approves. Gated DARK by `cashout`. Registered BEFORE booking so its session-gated text capture gets first crack.
   void import("./shop").then(({ registerShop }) => registerShop(bot)); // 🛍 shop owner ✅/❌ callbacks (callback-only, no text capture → lazy-register is order-safe)
@@ -1409,7 +1462,7 @@ export function createBot(): Bot {
     const meF = await getMe(String(ctx.from!.id)).catch(() => null);
     await ctx.reply(
       "🤔 <b>Tushunmadim.</b>\n📍 Manzilni yozing (masalan «Saripul bozorcha») yoki joylashuvingizni yubording — darrov taksi chaqiraman.\nYoki «🚕 Taxi chaqirish» tugmasi · /start · ☎️ 1067",
-      { parse_mode: "HTML", reply_markup: mainMenu(meF?.type === "driver") },
+      { parse_mode: "HTML", reply_markup: await mainMenu(meF?.type === "driver", String(ctx.from?.id ?? "")) },
     );
   });
 
@@ -1436,7 +1489,7 @@ export function createBot(): Bot {
     const chat = ctx.chat;
     // In private chat — same as /book
     if (chat.type === "private") {
-      await ctx.reply("🚕 Taxi chaqirish uchun quyidagi tugmani bosing:", { parse_mode: "HTML", reply_markup: mainMenu(false) });
+      await ctx.reply("🚕 Taxi chaqirish uchun quyidagi tugmani bosing:", { parse_mode: "HTML", reply_markup: await mainMenu(false, String(ctx.from?.id ?? "")) });
       return;
     }
     // In group — check whitelist

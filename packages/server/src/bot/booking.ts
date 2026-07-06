@@ -297,7 +297,7 @@ async function showConfirm(ctx: Context, s: BookingSession): Promise<void> {
   await ctx.reply(await confirmText(s), { parse_mode: "HTML", reply_markup: confirmKb() });
 }
 
-export function registerBooking(bot: Bot, mainMenu: (isDriver?: boolean) => Keyboard): void {
+export function registerBooking(bot: Bot, mainMenu: (isDriver?: boolean, tgId?: string) => Promise<Keyboard>): void {
   bot.hears("🚕 Taxi chaqirish", (ctx) => startBooking(ctx)); // old cached keyboard label
   bot.hears("📍 Lokatsiyali chaqirish", (ctx) => startBooking(ctx)); // new label (2026-06-29)
   bot.command("book", (ctx) => startBooking(ctx));
@@ -389,7 +389,7 @@ export function registerBooking(bot: Bot, mainMenu: (isDriver?: boolean) => Keyb
     // restore the MAIN menu — otherwise the pickup reply-keyboard (Joylashuv/Manzil/Bekor)
     // stays stuck and the user can't get back to the menu (the "loop").
     const me = await getMe(String(ctx.from!.id));
-    await ctx.reply("❌ Bekor qilindi.", { reply_markup: mainMenu(me?.type === "driver") });
+    await ctx.reply("❌ Bekor qilindi.", { reply_markup: await mainMenu(me?.type === "driver", String(ctx.from?.id ?? "")) });
   });
 
   // Uber pattern #1: GPS pickup. Works even WITHOUT first pressing «🚕 Taxi chaqirish» — a linked
@@ -648,7 +648,7 @@ export function registerBooking(bot: Bot, mainMenu: (isDriver?: boolean) => Keyb
     await ctx.editMessageText("❌ Buyurtma bekor qilindi.").catch(() => undefined);
     // bring the main menu back (the pickup reply-keyboard would otherwise stay stuck)
     const me = await getMe(String(ctx.from.id));
-    await ctx.reply("🏠 Asosiy menyu 👇", { reply_markup: mainMenu(me?.type === "driver") }).catch(() => undefined);
+    await ctx.reply("🏠 Asosiy menyu 👇", { reply_markup: await mainMenu(me?.type === "driver", String(ctx.from?.id ?? "")) }).catch(() => undefined);
   });
 
   bot.callbackQuery("bk:confirm", async (ctx) => {
