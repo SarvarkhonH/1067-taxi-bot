@@ -189,6 +189,9 @@ const pendingNameAfterLink = new Set<string>();
 // Transient by design (same pattern as codeLink/editName) — avoids hijacking the global
 // free-text/AI-intent catcher for every message, only the ONE reply right after the tap.
 const svcSearchWait = new Set<string>();
+// telegramIds who tapped "🏪 Bu meniki" on a listing and are now expected to share their contact
+// next → tgId maps to the LISTING ID they're claiming. Transient (same pattern as codeLink).
+const claimWait = new Map<string, number>();
 
 // A real name starts with a letter (Latin or Cyrillic). Menu buttons all start with an
 // emoji, and phone numbers with a digit/+ — so anything NOT starting with a letter is a
@@ -296,6 +299,25 @@ export function createBot(): Bot {
     if (payload.startsWith("svc_")) {
       const { sendListingCard } = await import("./xizmatlar");
       await sendListingCard(bot, id, Number(payload.slice(4))).catch(() => undefined);
+    }
+    // 🏪 XIZMATLAR P4: "Bu meniki" claim (Mini App → bot deep-link) — asks for the SAME
+    // Telegram-verified contact-share the whole app already trusts for identity; the
+    // message:contact handler below (registered BEFORE the account-link one) checks the match.
+    if (payload.startsWith("claim_")) {
+      const listingId = Number(payload.slice(6));
+      const l = await prisma.serviceListing.findUnique({ where: { id: listingId }, select: { status: true, ownerTgId: true, name: true } }).catch(() => null);
+      if (!l || l.status !== "active") {
+        await ctx.reply("😔 Bu xizmat topilmadi yoki endi faol emas.");
+      } else if (l.ownerTgId != null) {
+        await ctx.reply("Bu xizmat allaqachon boshqa foydalanuvchi tomonidan da'vo qilingan.");
+      } else {
+        claimWait.set(id, listingId);
+        await ctx.reply(
+          `🏪 <b>«${esc(l.name)}» — bu meniki?</b>\n\nTasdiqlash uchun ro'yxatdagi telefon raqamini ulashing — faqat mos kelsa xizmat sizga biriktiriladi.`,
+          { parse_mode: "HTML", reply_markup: contactKeyboard() },
+        );
+      }
+      return;
     }
     // 🛍 shared PRODUCT deep-link (t.me/<bot>?start=shop_<id>) — richer than svc_: sends the cover
     // photo + a button that opens the Mini App straight on that product. Bare "shop" = whole tab.
@@ -410,6 +432,41 @@ export function createBot(): Bot {
       await ctx.reply(renderNotFound(), { parse_mode: "HTML" });
     }
   };
+
+  // 🏪 XIZMATLAR P4 claim — checked FIRST (registered before the account-link contact handler
+  // below) so a listing-claim in progress doesn't get swallowed by the generic link flow.
+  // Falls through via next() for every ordinary contact-share (the overwhelming majority).
+  bot.on("message:contact", async (ctx, next) => {
+    const id = String(ctx.from!.id);
+    const listingId = claimWait.get(id);
+    if (listingId === undefined) return next();
+    claimWait.delete(id);
+    const contact = ctx.message.contact;
+    if (contact.user_id !== ctx.from!.id) {
+      await ctx.reply(
+        "⚠️ Faqat <b>o'z</b> raqamingizni ulashing — pastdagi «📱 Raqamni ulashish» tugmasi orqali.",
+        { parse_mode: "HTML" },
+      );
+      return;
+    }
+    const { claimListing } = await import("../services/serviceDirectory");
+    const r = await claimListing(listingId, id, contact.phone_number);
+    const kb = await mainMenu(false, id);
+    if (r.ok) {
+      await ctx.reply(
+        `✅ <b>Tabriklaymiz!</b> «${esc(r.name ?? "")}» endi sizga biriktirildi.\n\n«🚀 Ilova» → Xizmatlar → «Mening xizmatlarim»da ko'rasiz.`,
+        { parse_mode: "HTML", reply_markup: kb },
+      );
+    } else {
+      const msg =
+        r.reason === "phone_mismatch"
+          ? "❌ Bu raqam ro'yxatdagi telefon bilan mos kelmadi — faqat ro'yxatdagi raqam egasi da'vo qilishi mumkin."
+          : r.reason === "already_claimed"
+            ? "❌ Bu xizmat allaqachon boshqa foydalanuvchi tomonidan da'vo qilingan."
+            : "❌ Xizmat topilmadi.";
+      await ctx.reply(msg, { parse_mode: "HTML", reply_markup: kb });
+    }
+  });
 
   bot.on("message:contact", async (ctx) => {
     const contact = ctx.message.contact;
@@ -1050,6 +1107,15 @@ export function createBot(): Bot {
       return;
     }
     await spinBaraban(ctx);
+  });
+  // 🔎 XIZMATLAR P4 cross-promo: inline button from the ride-finish card (bookingNotifier.ts) —
+  // no state, no query, just opens the Mini App tab straight on Xizmatlar.
+  bot.callbackQuery("xizmatlar:promo", async (ctx) => {
+    await ctx.answerCallbackQuery().catch(() => undefined);
+    await ctx.reply(
+      "🔎 <b>Koson'dagi barcha xizmatlar</b> — usta, sartarosh, restoran, dorixona va h.k. bitta joyda.",
+      { parse_mode: "HTML", reply_markup: new InlineKeyboard().webApp("🚀 Xizmatlarni ko'rish", webAppUrl("xizmat")) },
+    ).catch(() => undefined);
   });
   // 🎰 inline button from the ride-finish notification
   bot.callbackQuery("baraban:spin", async (ctx) => {

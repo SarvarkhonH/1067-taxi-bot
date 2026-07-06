@@ -797,6 +797,15 @@ export async function pushBookingUpdates(
             .row();
         }
         tipKb.text("🔁 Yana 1067", "bk:now");
+        // 🔎 XIZMATLAR P4 cross-promo: ONE extra button, no new query, no new message text — the
+        // callback (registered in bot.ts) does all the work. Minimal-risk touch to this function
+        // per ARCHITECTURE.md's "add carefully" warning (known-fragile 900+ line sweep).
+        try {
+          const { featureOn: svcFlagOn } = await import("./featureFlags");
+          if (await svcFlagOn("xizmatlar")) tipKb.row().text("🔎 Yaqin xizmatlar", "xizmatlar:promo");
+        } catch (e) {
+          console.error("[xizmatlar-promo] flag check failed:", e);
+        }
         await bot.api
           .sendMessage(
             chatId,

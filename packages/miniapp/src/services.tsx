@@ -12,7 +12,7 @@ const BOT_LINK = "https://t.me/koson1067bot"; // share deep-link target (single 
 
 // ⚡ SWR modul-kesh (shop patterni): qayta ochish keshdagi payload bilan BIR ZUMDA render bo'ladi
 // (skeleton-flash yo'q), yangi data fonda kelib ustidan yozadi. App.tsx idle'da buni oldindan isitadi.
-interface SvcHome { cats: ServiceCategoryView[]; top: ServiceListingCard[]; fresh: ServiceListingCard[]; favs: ServiceListingCard[] }
+interface SvcHome { cats: ServiceCategoryView[]; top: ServiceListingCard[]; fresh: ServiceListingCard[]; favs: ServiceListingCard[]; popularTags: string[] }
 let HOME_CACHE: SvcHome | null = null;
 
 export function prefetchServiceData(): void {
@@ -20,7 +20,7 @@ export function prefetchServiceData(): void {
 }
 function fetchHome(): Promise<SvcHome> {
   return Promise.all([api.svcCategories(), api.svcList({ limit: 8 }), api.svcList({ limit: 6, sort: "new" }), api.svcFavs()])
-    .then(([c, t, f, fv]) => ({ cats: c.categories, top: t.listings, fresh: f.listings, favs: fv.listings }));
+    .then(([c, t, f, fv]) => ({ cats: c.categories, top: t.listings, fresh: f.listings, favs: fv.listings, popularTags: c.popularTags }));
 }
 
 const ACCENTS = ["#ffb300", "#f0426b", "#8b5cf6", "#22c55e", "#38bdf8", "#fb923c"];
@@ -230,6 +230,16 @@ function DetailSheet({ id, onClose, onBanner, onFavChange }: { id: number; onClo
     void api.svcPhoneReport(d.id).catch(() => undefined);
     onBanner("⚑ Rahmat — raqamni tekshiramiz");
   };
+  // 🏪 «Bu meniki» — Telegram'ning o'z kontakt-ulashishi identity-isbot bo'lgani uchun bot'da
+  // davom etadi (Mini App WebView'da bunday tasdiqlash yo'q); shu link bosilganda bot kontakt so'raydi.
+  const claim = () => {
+    if (!d) return;
+    haptic();
+    const link = `${BOT_LINK}?start=claim_${d.id}`;
+    const t = tg as unknown as { openTelegramLink?: (u: string) => void } | undefined;
+    if (t?.openTelegramLink) t.openTelegramLink(link);
+    else window.open(link, "_blank");
+  };
 
   return (
     <Sheet open onClose={onClose}>
@@ -298,6 +308,12 @@ function DetailSheet({ id, onClose, onBanner, onFavChange }: { id: number; onClo
               {d.website && <a className="svc-soc" href={d.website} target="_blank" rel="noreferrer" onClick={haptic}>🌐 Sayt</a>}
             </div>
           )}
+
+          {d.isMine ? (
+            <div className="svc-claimed">✔ Bu sizning biznesingiz</div>
+          ) : d.claimable ? (
+            <button className="svc-claim-btn" onClick={claim}>🏪 Bu mening biznesim</button>
+          ) : null}
 
           <div className="svc-info glass pad">
             <div className="svc-info-row">
@@ -526,6 +542,13 @@ export function XizmatlarView({ me, onBanner }: { me: MeResponse; onBanner: (msg
         <input className="shop-search" placeholder="🔍 Usta, sartarosh, sement…" value={q} onChange={(e) => setQ(e.target.value)} />
         {q && <button className="shop-search-x" onClick={() => setQ("")}>✕</button>}
       </div>
+      {!q.trim() && home && home.popularTags.length > 0 && (
+        <div className="svc-cat-chips mt8">
+          {home.popularTags.map((t) => (
+            <button key={t} className="svc-chip" onClick={() => { haptic(); setQ(t); }}>{t}</button>
+          ))}
+        </div>
+      )}
 
       {err ? (
         <EmptyState icon="📡" text="Yuklanmadi — internetni tekshirib qayta urinib ko'ring" action="🔄 Qayta urinish" onAction={load} />

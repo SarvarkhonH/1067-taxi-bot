@@ -455,6 +455,8 @@ export interface ServiceListingDetail extends ServiceListingCard {
   website?: string | null;
   inspNote?: string | null; // 🏅 auditor xulosasi (faqat inspStars bo'lsa mazmunli)
   inspAt?: string | null;
+  claimable: boolean; // 🏪 "Bu meniki" tugmasi ko'rsatilsinmi (hali hech kim da'vo qilmagan)
+  isMine: boolean; // shu foydalanuvchi allaqachon egasi
 }
 
 export interface ServiceReviewView {

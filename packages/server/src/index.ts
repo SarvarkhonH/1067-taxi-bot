@@ -261,8 +261,10 @@ async function main(): Promise<void> {
         }
         {
           // 📣 W1 №2: Monday channel digest (self-gated once/ISO-Monday; no-op while flag/env off)
-          const { maybeWeeklyChannelDigest } = await import("./services/channelService");
+          const { maybeWeeklyChannelDigest, maybeWeeklyServicesDigest } = await import("./services/channelService");
           await maybeWeeklyChannelDigest().catch((e) => console.error("[channel] digest failed:", e));
+          // 🔎 XIZMATLAR P4: same tick, own flag+marker — killing one never silences the other
+          await maybeWeeklyServicesDigest().catch((e) => console.error("[channel] services digest failed:", e));
         }
         if (reconcileTick++ % 12 === 0) {
           // money-integrity sweep ~ every 12 ticks (3h at 15min interval)

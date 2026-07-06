@@ -450,9 +450,11 @@ export function createApiServer(opts: ApiOptions = {}) {
   // owner-preview everywhere: admins browse/QABUL the real catalog while riders still see nothing.
   const svcPreview = (res: Response) => isAdmin(res.locals.telegramId as string);
   app.get("/api/services/categories", requireUser, rateLimit(30), async (_req, res) => {
-    const { listCategories } = await import("../services/serviceDirectory");
+    const { listCategories, popularSearchTags } = await import("../services/serviceDirectory");
     res.set("Cache-Control", "private, max-age=60");
-    res.json({ categories: await listCategories(svcPreview(res)) });
+    const preview = svcPreview(res);
+    const [categories, popularTags] = await Promise.all([listCategories(preview), popularSearchTags(preview)]);
+    res.json({ categories, popularTags });
   });
   app.get("/api/services/list", requireUser, rateLimit(60), async (req, res) => {
     const { listListings } = await import("../services/serviceDirectory");

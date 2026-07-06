@@ -1541,3 +1541,71 @@ model ServiceReview {
   @@index([listingId, status, createdAt])
   @@index([status])
 }
+
+// 📋 E'LONLAR (feature "elonlar", ELONLAR_PLAN.md) — mahalla e'lon taxtasi (OLX-uslub). Har e'lon
+// pending'da tug'iladi, faqat admin ✅'dan keyin xalqqa ko'rinadi (E3 moderatsiya). Joylash pullik
+// (tanga, knob elonPostPrice) — CoinTxn idempotencyKey `elon_post_<adId>` bilan; rad etilsa
+// `elon_refund_<adId>` bilan bir marta avto-qaytariladi (E2).
+model ClassifiedAd {
+  id         Int       @id @default(autoincrement())
+  tgId       BigInt // egasi (edit/delete huquqi + spam-cap) — payment uchun memberId submit vaqtida getMemberId orqali resolve qilinadi
+  authorName String
+  category   String // oldi_sotdi | ish | yoqoldi | uyjoy | transport
+  subtype    String // sotaman|olaman / beraman|izlayman / yoqoldi|topildi / ijara|sotuv / mashina|molhol
+  title      String
+  desc       String    @default("")
+  priceSom   Int? // null = "Kelishiladi"; yoqoldi'da doim null
+  phone      String
+  status     String    @default("pending") // pending | active | sold | rejected | archived | expired
+  isTop      Boolean   @default(false) // tanga-boost, 24 soat (E4)
+  topUntil   DateTime?
+  paidCoins  Int       @default(0) // joylash uchun to'langan tanga (0 = bepul davr yoki yoqoldi)
+  viewCount  Int       @default(0) // cache — haqiqiy manba AdView
+  callCount  Int       @default(0) // cache — haqiqiy manba AdContact
+  reports    Int       @default(0) // 3 ta → auto-hide + moderatsiya navbati (E3)
+  expiresAt  DateTime // createdAt + 30 kun
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+  photos     AdPhoto[]
+
+  @@index([category, status, isTop, createdAt])
+  @@index([tgId])
+  @@index([status, expiresAt])
+}
+
+// ServicePhoto pattern: Telegram file_id (durable, tekin) with data-URL fallback.
+model AdPhoto {
+  id        Int          @id @default(autoincrement())
+  ad        ClassifiedAd @relation(fields: [adId], references: [id], onDelete: Cascade)
+  adId      Int
+  fileId    String?
+  thumbFileId String?
+  url       String?
+  sortOrder Int          @default(0)
+
+  @@index([adId, sortOrder])
+}
+
+// KIM ko'rdi — admin nazorat uchun (Mini App Telegram-auth = har viewer tgId ma'lum). E3 jadvalida ro'yxat ko'rinadi.
+model AdView {
+  id         Int      @id @default(autoincrement())
+  adId       Int
+  tgId       BigInt
+  viewerName String   @default("")
+  at         DateTime @default(now())
+
+  @@unique([adId, tgId]) // 1 user = 1 view satri (qayta ochsa at yangilanadi)
+  @@index([adId, at])
+}
+
+// KIM tel qildi / yozdi — "📞" yoki "✍️" bosilganda log
+model AdContact {
+  id         Int      @id @default(autoincrement())
+  adId       Int
+  tgId       BigInt
+  viewerName String   @default("")
+  kind       String // call | message
+  at         DateTime @default(now())
+
+  @@index([adId, at])
+}

@@ -83,7 +83,7 @@ async function priceMins(ids: number[]): Promise<Map<number, number>> {
 let catCache: { at: number; data: ServiceCategoryView[] } | null = null;
 /** Any mutation that changes category rows or active-listing counts calls this — the 60s cache is
  *  a read-path optimisation only, mutations must be visible immediately. */
-function bustCatCache(): void { catCache = null; }
+function bustCatCache(): void { catCache = null; popularTagsCache = null; }
 
 export async function listCategories(preview = false): Promise<ServiceCategoryView[]> {
   if (!(await dirOn(preview))) return [];
@@ -95,6 +95,28 @@ export async function listCategories(preview = false): Promise<ServiceCategoryVi
   const countOf = new Map(counts.map((c) => [c.categoryId, c._count._all]));
   const data = cats.map((c) => ({ id: c.id, name: c.name, emoji: c.emoji, count: countOf.get(c.id) ?? 0 }));
   catCache = { at: Date.now(), data };
+  return data;
+}
+
+// 🔍 XIZMATLAR P4: mashhur qidiruv chiplari — arzon-teginish qidiruv o'rniga tayyor teglar
+// (cheap phones/low-typing UX win). Derived from EXISTING active listings' tags, no new tracking
+// table needed. Same 60s cache lifecycle as categories (busted together on catalog mutation).
+let popularTagsCache: { at: number; data: string[] } | null = null;
+
+export async function popularSearchTags(preview = false, limit = 8): Promise<string[]> {
+  if (!(await dirOn(preview))) return [];
+  if (popularTagsCache && Date.now() - popularTagsCache.at < 60_000) return popularTagsCache.data;
+  const rows = await prisma.serviceListing.findMany({ where: { status: "active", tags: { not: "" } }, select: { tags: true }, take: 500 });
+  const freq = new Map<string, number>();
+  for (const r of rows) {
+    for (const raw of r.tags.split(",")) {
+      const t = raw.trim().toLowerCase();
+      if (t.length < 2 || t.length > 24) continue;
+      freq.set(t, (freq.get(t) ?? 0) + 1);
+    }
+  }
+  const data = [...freq.entries()].sort((a, b) => b[1] - a[1]).slice(0, limit).map(([t]) => t);
+  popularTagsCache = { at: Date.now(), data };
   return data;
 }
 
@@ -171,6 +193,8 @@ export async function getListing(id: number, tgId: string | null, preview = fals
     telegramUrl: l.telegramUrl,
     facebook: l.facebook,
     website: l.website,
+    claimable: l.ownerTgId == null, // 🏪 "Bu meniki" ko'rsatilsinmi (owner endi hech kim emas)
+    isMine: tgId != null && l.ownerTgId != null && l.ownerTgId === BigInt(tgId),
     inspNote: l.inspNote,
     inspAt: l.inspAt?.toISOString() ?? null,
   };
@@ -693,6 +717,27 @@ export async function reportPhoneIssue(listingId: number, tgId: string, preview 
   }
   const r = await prisma.serviceListing.update({ where: { id: listingId }, data: { phoneReports: { increment: 1 } } }).catch(() => null);
   return { ok: !!r, flagged: (r?.phoneReports ?? 0) >= 2 };
+}
+
+export interface ClaimResult {
+  ok: boolean;
+  reason?: "not_found" | "already_claimed" | "phone_mismatch";
+  name?: string;
+}
+
+/** 🏪 «Bu meniki» — Telegram's OWN contact-share is the identity proof (same primitive the whole
+ *  app already trusts for account-linking): the claimant's phone must match the listing's phone
+ *  EXACTLY. First correct match wins; already-claimed listings can't be re-claimed (admin resets
+ *  ownerTgId to null manually if a mistake needs correcting). No money, no OTP/SMS needed. */
+export async function claimListing(listingId: number, tgId: string, phoneRaw: string): Promise<ClaimResult> {
+  const l = await prisma.serviceListing.findUnique({ where: { id: listingId }, select: { status: true, ownerTgId: true, phone: true, name: true } });
+  if (!l || l.status !== "active") return { ok: false, reason: "not_found" };
+  if (l.ownerTgId != null) return { ok: false, reason: "already_claimed" };
+  const claimant = normalizeUzPhone(phoneRaw);
+  if (!claimant || claimant !== l.phone) return { ok: false, reason: "phone_mismatch" };
+  const updated = await prisma.serviceListing.updateMany({ where: { id: listingId, ownerTgId: null }, data: { ownerTgId: BigInt(tgId) } });
+  if (updated.count === 0) return { ok: false, reason: "already_claimed" }; // race: someone else claimed it first
+  return { ok: true, name: l.name };
 }
 
 /** 🔖 Saqlash toggle — 1 user × 1 listing (unique), off = delete. Pul yo'q. */

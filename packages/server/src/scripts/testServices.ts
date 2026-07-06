@@ -227,6 +227,31 @@ async function main(): Promise<void> {
   const cardWithInsp = (await svc.listListings({ categoryId: cat.id, limit: 50 })).listings.find((l) => l.id === priced.id);
   ok(cardWithInsp?.inspStars === 4, "16: kartada ham inspStars ko'rinadi (badge manbai)");
 
+  // 17) 🏪 claim flow — Telegram contact-share'ning identity-isboti bilan
+  const claimable = await mk(`${TAG} Claimable Ustaxona`, "+998909000009");
+  const detailBefore = await svc.getListing(claimable.id!, null);
+  ok(detailBefore?.claimable === true && detailBefore?.isMine === false, "17: default — claimable=true, isMine=false");
+  const wrongPhone = await svc.claimListing(claimable.id!, "8001", "+998900000000");
+  ok(wrongPhone.ok === false && wrongPhone.reason === "phone_mismatch", "17: mos kelmagan telefon rad etiladi");
+  ok((await svc.getListing(claimable.id!, "8001"))?.claimable === true, "17: muvaffaqiyatsiz urinishdan keyin ham claimable qoladi");
+  const rightPhone = await svc.claimListing(claimable.id!, "8001", "+998909000009");
+  ok(rightPhone.ok === true, "17: mos telefon bilan claim muvaffaqiyatli");
+  const afterClaim = await svc.getListing(claimable.id!, "8001");
+  ok(afterClaim?.claimable === false && afterClaim?.isMine === true, "17: claim'dan keyin claimable=false, isMine=true (da'vogar uchun)");
+  ok((await svc.getListing(claimable.id!, "9999"))?.isMine === false, "17: boshqa foydalanuvchi uchun isMine=false");
+  const doubleClaim = await svc.claimListing(claimable.id!, "9999", "+998909000009");
+  ok(doubleClaim.ok === false && doubleClaim.reason === "already_claimed", "17: ikkinchi marta claim qilib bo'lmaydi");
+
+  // 18) 🔍 mashhur qidiruv teglari — mavjud tags'lardan hisoblanadi
+  const tagCat = await prisma.serviceCategory.create({ data: { name: `${TAG} TagCat`, emoji: "🏷", sortOrder: 98 } });
+  await mk(`${TAG} Tag Biz 1`, "+998910000001", { categoryId: tagCat.id, tags: "santexnik, kran" });
+  await mk(`${TAG} Tag Biz 2`, "+998910000002", { categoryId: tagCat.id, tags: "santexnik, isitish" });
+  await mk(`${TAG} Tag Biz 3`, "+998910000003", { categoryId: tagCat.id, tags: "santexnik" });
+  const tags = await svc.popularSearchTags(true, 5);
+  ok(tags.includes("santexnik"), "18: eng ko'p takrorlangan teg ro'yxatda");
+  const tagsAgain = await svc.popularSearchTags(true, 5);
+  ok(JSON.stringify(tags) === JSON.stringify(tagsAgain), "18: 60s kesh — qayta chaqirilganda bir xil natija");
+
   // 9) seed idempotency
   const c1 = await svc.seedDefaultCategories();
   const c2 = await svc.seedDefaultCategories();
@@ -235,6 +260,11 @@ async function main(): Promise<void> {
 
   await cleanup();
   console.log(process.exitCode === 1 ? "\n❌ XIZMATLAR SUITE FAILED" : "\n🎉 XIZMATLAR SUITE PASSED");
+  // getListing()'s fire-and-forget viewCount increment can still be in-flight after the last call
+  // (several sections call it back-to-back) — give it a moment to settle before tearing down the
+  // connection, so a stray write-after-disconnect never crashes the script (test-only hygiene;
+  // production never disconnects, so this has no real-world equivalent).
+  await new Promise((r) => setTimeout(r, 500));
   await prisma.$disconnect();
 }
 

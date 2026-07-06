@@ -28,7 +28,8 @@ Reja: `XIZMATLAR_PLAN.md` (ega tasdiqlagan). «Koson 2GIS'i»: kategoriya → re
 - **Admin boyitish paneli (2026-07-05, 96d3265):** BOSHQARUV → «🔎 Xizmatlar» — filter (status/kategoriya/qidiruv), prompt-tahrir (nom/tel/tavsif/soat/manzil/teg), kategoriya ko'chirish, ✔verified + ⭐VIP, pending ✅/❌, arxiv/qaytarish, 📷 6-foto yuklash, ⚑ shikoyat-sharh navbati, tez-qo'shish + yangi kategoriya. «Boyitilgan: N ta» hisoblagich. Jonli: admin-seven-ebon-95.vercel.app bundle-grep 2 marker. Ega izohiga javob: maketdagi boylik = DATA (foto/soat/baho) — endi shu paneldan to'ldiriladi.
 - **B1 to'liq yopildi — bot-tomon kirish nuqtalari (2026-07-06):** `mainMenu()` endi async — flag ON (yoki admin-preview) bo'lsa reply-keyboard'ga «🔎 Xizmatlar» qatori qo'shiladi (16 chaqiruv joyi + `booking.ts` imzosi yangilandi). Bosilsa: flag off+admin-emas bo'lsa «tez orada», aks holda «nima kerak?» so'rab `svcSearchWait` sessiyasiga qo'yadi (codeLink/editName bilan bir xil transient-Set naqshi — global matn-tutqichni band qilmaydi). Keyingi matn = qidiruv so'rovi (emoji/tugma-matni yoki `/` bo'lsa next() — booking/boshqa oqimlarga tegilmaydi) → top-5 natija (nom+✅verified+★reyting+💰narx+kategoriya, telefon Telegram avto-linkify bilan bosiladigan) + «To'liq ko'rish» Mini App tugmasi. Reja B1'dagi ikkala band («botda tugma» + «matn yozilsa top-5») shu bilan yopildi. **ISBOT:** typecheck server+miniapp+admin 3/3 toza (mainMenu 16 chaqiruv + booking.ts imzo yangilandi, boshqa fayl ta'sirlanmagan).
 - **v1.3 — ijtimoiy tarmoq + «1067 tekshiruvi» (2026-07-06):** ega: «2GIS'da yana ko'p narsa bor — restoran/dorixona/do'kon ham kerak, va bizning jamoa jismoniy borib tekshiradigan alohida audit-baho qilamiz». 🔗 **Ijtimoiy tarmoq**: instagram/telegramUrl/facebook/website (profilda ikon-tugma qatori, faqat bo'lsa ko'rinadi). 🏅 **«1067 tekshiruvi»** — mijoz avgRating/reviewCount'ga HECH TEGMAYDIGAN mustaqil audit maydoni (`inspStars` 1-5 + `inspNote` + `inspAt`, rankScore'ga qo'shilmaydi — ataylab, bo'lmasa 1067-audit bir nechta ovoz bilan 200 sharhli biznesni bosib ketishi mumkin edi): kartada teal «🏅 1067: N★» belgi, profilda alohida ajratilgan (orange mijoz-reytingidan rang bilan farqlanadigan) blok + xulosa matni. Admin: 🔗 va 🏅 tugmalari (1-5 oraliq validatsiya, bo'sh=bekor qilish → sana ham tozalanadi). **Kategoriya kengaytirildi**: Restoran/Kafe 🍽 va Dorixona 💊 DEFAULT_CATEGORIES'ga qo'shildi (10→12, eski 10 tegilmagan) — restoran/dorixona/do'kon uchun ALOHIDA kod kerak emas edi, admin "📂+" tugmasi orqali istalgan yangi kategoriya qo'shish mumkin edi. **ISBOT:** typecheck server+miniapp+admin 3/3 toza (miniapp'dagi yagona xato boshqa sessiyaning `elonlar.tsx`'da, mening `services.tsx`'imga aloqasi yo'q) · testServices **73 assertion 3× yashil** (round-trip ijtimoiy tarmoq + bo'sh-satr→null, 1-5 validatsiya (0/6 rad), null→to'liq bekor qilish (sana ham), kartada inspStars ko'rinishi, mijoz reytingiga tegilmaganligi tasdiqlangan) · additiv push ikkala DB + 2 yangi kategoriya seed qilindi.
-- **QOLDI (halol ro'yxat, GO LIVE'dan KEYIN ham amal qiladi):** seed 66→80-100+ va boyitish (desc/soat/manzil/foto/narx/koordinata/ijtimoiy-tarmoq/1067-audit — admin panel tayyor, ega jonliqda to'ldiradi). Rollback (kerak bo'lsa): `setFlag xizmatlar off`.
+- **P4 post-launch (2026-07-06, ega: «rejani to'liq tugat»):** 🏪 **Claim «Bu meniki»** — Telegram'ning o'z kontakt-ulashishi identity-isbot (Mini App → bot deep-link `claim_<id>` → `contactKeyboard()` → telefon ANIQ mos kelsagina `ownerTgId` biriktiriladi, atomik `updateMany` race-guard bilan; profilda `claimable`/`isMine` maydonlari). 📊 **Haftalik kanal digest** — mavjud `channelService.ts` infratuzilmasi umumiy qilindi (`channelInfraReady` — endi flag-mustaqil), «hafta TOP xizmatlari» `xizmatlar` flag bilan, jackpot digest'dan MUSTAQIL (`channel:svcdigest` alohida marker). 🔍 **Mashhur qidiruv chiplari** — mavjud `tags`'lardan hisoblangan (yangi jadval yo'q), 60s kesh. 🚕 **Taxi cross-promo** — safar-tugash kartasiga BITTA qo'shimcha tugma («🔎 Yaqin xizmatlar»), yangi so'rov/matn YO'Q — ARCHITECTURE.md ogohlantirgan 900+ qatorli sweep funksiyasiga minimal-xavfli teginish (try/catch, flag-gated). **ISBOT:** typecheck 3/3 toza · testServices **83 assertion 5× ketma-ket yashil** (bitta flaky topildi va tuzatildi: `getListing`'ning fire-and-forget viewCount yozuvi ba'zan `$disconnect()`dan keyin ham davom etardi — endi 500ms drain-kutish, faqat test-gigiena, productionga aloqasi yo'q). Cross-promo tugmasi avtomatlashtirilgan sweep-testi bilan qoplanMAGAN (mavjud sweep-simulyatsiya testlari alohida TEST_DATABASE_URL talab qiladi, CLAUDE.md); kod-ko'rikdan tasdiqlangan: 0 yangi so'rov, 0 pul-yo'l, try/catch bilan o'ralgan.
+- **QOLDI:** 5-chi P4 band — «tanga-sink» (sharh/biznesni tanga bilan «qo'llab-quvvatlash» badge'i) ATAYLAB QURILMADI — pul-iqtisodiga (CoinTxn, spendCoins) tegadigan yagona qolgan band, aniq mexanika (narx/badge ko'rinishi) bo'yicha ega tasdig'i kerak, shuning uchun alohida so'raladi. Boshqasi: seed 66→80-100+ va boyitish (desc/soat/manzil/foto/narx/koordinata/1067-audit — admin panel tayyor, ega jonliqda to'ldiradi). Rollback (kerak bo'lsa): `setFlag xizmatlar off`.
 
 ### 🛍 TANGA DO'KONI (shop) — 🟢 LIVE (QABUL 2026-07-06, flag ON, commit 3eeb653) — hammaga ochiq
 **V2 (41ecc3e + bb4e703):** ega «haqiqiy market standartlari» talab qildi → qidiruv · featured 16:9 hero-karusel (admin ⭐) · Uzum-uslub kategoriya-gorizontal-qatorlar · 💥 chegirma (oldPriceTanga → ustidan-chizilgan + −N% qizil badge) · 🔥TOP (delivered top-3 avto) · 4-5 rasmli galereya (ProductPhoto, scroll-snap+dots) · o'xshash-mahsulotlar · yetkazish-va'da chizig'i · manzil-prefill. **3 bug-fix:** rasm 413 (global json 100kb→6mb) · owner-preview endi katalog+buy'ni ham ochadi (faqat tab emas — «ichiga kirilmadi» bugи) · admin xatolar aniq matnda. `testShop` **44 assertion ×3**. Jonli bundle-grep: miniapp `shop-Wo4knEx-.js` (hero/qidiruv/o'xshash), admin (Chegirma/TOP'ga), server live+200.
@@ -477,3 +478,45 @@ STATUS (Rule 7): `ready for verification`. Compliance-report 5 gap yopildi; kodn
 - Flag holati: `elonlar` OFF (bir necha marta vaqtincha ON qilingan, har safar darhol OFF'ga qaytarilgan).
 - Qoldi: yuqoridagi GAP yopilgach — E3 (moderatsiya navbati + admin jadval + owner TG approve + SLA) →
   E4 (TOP boost + expiry sweep).
+- **Yangilanish (2026-07-06, keyinroq):** ega botda E'lonlar tabini o'zi sinab ko'rdi (real skrinshot —
+  Doska/Mening e'lonlarim/kategoriya-chip/narx-band/qidiruv/FAB hammasi to'g'ri render bo'lgan; faqat
+  qidiruv-maydoni rangi qora qolgan bug topildi va tuzatildi — `.app.elonlar-light .bk-input` override,
+  tokens.css). Bu yuqoridagi GAP'ni amalda YOPADI: wizard butun UI zanjiri (kategoriya→forma→tasdiqlash)
+  ega tomonidan jonli tasdiqlangan. Ega "reja bo'yicha davom et" dedi — E3'ga o'tildi.
+
+## 2026-07-06 — ELONLAR_PLAN E3 (Admin nazorat) — READY FOR VERIFICATION (1 gap: pastda)
+- `classifiedService.ts`: taqiqlangan-so'z filtri (`BANNED_WORDS`, substring case-insensitive) submit'da;
+  `reportAd` — 1 report/user (AppState marker, xizmatlar `reportReview` naqshi), 3-report → status
+  `active→pending` (doskadan olib tashlanadi, admin qayta ko'radi — alohida "hidden" status shart emas,
+  listAds allaqachon faqat `active`ni ko'rsatadi). `adminListAds`/`adminAdViewers`/`adminAdContacts` —
+  to'liq jadval + drill-down (egasi, statuses, paidCoins, view/contact son, pendingMinutes SLA
+  hisoblagichi). `adminArchiveAd`/`adminExtendAd`/`adminSetTop` — owner-discretion amallar (TOP bu yerda
+  BEPUL/qo'lda — pullik xarid E4 qamrovi, alohida).
+- **Tasdiqlash FAQAT Telegram orqali** (cashout/shop/xizmatlar bilan bir xil naqsh, Explore orqali
+  tasdiqlangan): yangi `packages/server/src/bot/elonlar.ts` — `notifyOwnerElonlar` (✅/❌ inline tugma,
+  callback_data `elonlar:ok:<id>`/`elonlar:no:<id>`) + `registerElonlar` (OWNER_TG tekshiruvi, status-guard
+  double-tap no-op, `approveAd`/`rejectAd` — E2'da qurilgan, o'zgarishsiz reuse). Admin panelda approve/reject
+  tugmasi YO'Q — bu ataylab (xizmatlar/shop bilan bir xil qoida: pul-harakat qaror FAQAT owner Telegram'ida).
+- SLA eslatma: `elonlarSlaTick()` — 2 soatdan ortiq pending bo'lsa `alertAdmins` orqali bitta jamlangan
+  push, o'zini AppState marker bilan tashqi cheklaydi (bir marta/SLA-davr, spam yo'q). **Yangi poller
+  YO'Q** — mavjud 15-daqiqalik `index.ts` tick'iga qo'shildi (CLAUDE.md invariant, Explore orqali tasdiqlangan).
+- Admin dashboard: `packages/admin/src` — yangi "E'lonlar" tab (BOSHQARUV bo'limi), status-filtr, jadval
+  (e'lon/egasi/status+SLA-daqiqa/👁+📞 tugma→drill-down/amallar), recruit-leaderboard bilan bir xil
+  openId/toggle/drill pattern.
+- DoD isbot:
+  - `pnpm -r typecheck` — 4/4 paket 0 xato.
+  - `testElonlar.ts` — **3× ketma-ket yashil** (67 tekshiruv, E2+E3 birga): taqiqlangan so'z (sarlavha+tavsif,
+    case-insensitive) rad etildi; report — 1-marta/user (takror no-op), 3-chi report → auto-hide (status
+    pending'ga qaytdi, browse'dan yo'qoldi); adminListAds/adminAdViewers/adminAdContacts to'g'ri
+    egasi+son+ro'yxat qaytardi; adminArchiveAd/adminExtendAd/adminSetTop ishladi; SLA tick — 2h+ stale
+    pending'da marker qo'yadi, darhol qayta ishga tushsa THROTTLE (spam yo'q), 0 stale holatda xatosiz.
+  - "pending→approve→active" va "4-e'lon rad (max_active cap)" — E2 test to'plamida allaqachon isbotlangan
+    (shu session'da qayta ishga tushirilib tasdiqlandi).
+- **GAP:** Telegram ✅/❌ tugmasi + admin panel "E'lonlar" jadvali JONLI skrinshot bilan ko'rsatilmadi —
+  avvalgi environment (parallel sessiya port-to'qnashuvi) muammosi hali to'liq hal bo'lmagani sababli, bu
+  safar UI-click-through qayta urinilmadi ("chalg'imay davom et" ko'rsatmasiga ko'ra). Kod-mantiq to'liq
+  test qilingan (funksiya darajasida); Telegram xabar formati + admin jadval UI'ni ega birinchi navbatda
+  o'zi ko'rib chiqishi tavsiya qilinadi (xuddi E2'dagi kabi — ega botda sinadi va bug topsa aytadi).
+- Flag holati: `elonlar` OFF.
+- Qoldi: E3 ega tekshiruvidan o'tgach → E4 (TOP boost xarid-oqimi + expiry sweep-kengaytmasi + 3-kunlik
+  "sotildimi?" push).

@@ -146,7 +146,7 @@ export const api = {
     post<import("@t1067/shared").ShopReviewSubmitResponse>("/api/shop/review", p),
   shopReviewDelete: (productId: number) => del<{ ok: boolean }>(`/api/shop/review/${productId}`),
   // 🔎 xizmatlar (feature "xizmatlar") — Koson services directory
-  svcCategories: () => get<{ categories: import("@t1067/shared").ServiceCategoryView[] }>("/api/services/categories"),
+  svcCategories: () => get<{ categories: import("@t1067/shared").ServiceCategoryView[]; popularTags: string[] }>("/api/services/categories"),
   svcList: (p: { cat?: number; q?: string; limit?: number; offset?: number; sort?: "new" } = {}) => {
     const sp = new URLSearchParams();
     if (p.cat) sp.set("cat", String(p.cat));
