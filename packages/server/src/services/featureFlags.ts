@@ -104,6 +104,7 @@ export const EXPECTED_ON: FeatureName[] = [
   "baraban", "komissiya", "promo", "qarz", "welcomebonus", "refstaged", "drvstaged", "drvrecruit",
   "drvpush", "clientbooking", "cashout", "intercity", "tierloyalty", "waitcomp", "trackcta",
   "jackpotpost", "instantstatus", "drvrank",
+  "shop", // 🛍 tanga do'kon — owner GO LIVE 2026-07-06 (100 ta KOSON_AKSIYA mahsuloti + naqd/tanga)
 ];
 
 export async function reconcileFlags(): Promise<{ missing: string[]; effective: { name: string; on: boolean }[] }> {
