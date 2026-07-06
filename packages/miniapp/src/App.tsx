@@ -5,7 +5,6 @@ import type { LeaderboardResponse, MeResponse } from "@t1067/shared";
 import { api, getInitData, waitForInitData } from "./api";
 import { haptic, tg } from "./telegram";
 import { LeaderboardView, LoadError, MissionsView, ReferralView, RideHistoryView, Spinner } from "./components";
-import { EmptyState } from "./design/components";
 import { AccountCard, TierLadder, TierLadderCompact, WalletView } from "./wallet"; // bosh tab — eager (birinchi paint)
 import { UyView } from "./uy"; // Uy tabi — yengil (leaflet-siz), eager
 // T2 (AUDIT 2.9): boshqa tablar lazy — har biri alohida chunk, asosiy bundle kichrayadi
@@ -21,6 +20,8 @@ const IntercityView = lazy(() => import("./intercity").then((m) => ({ default: m
 const ShopView = lazy(() => import("./shop").then((m) => ({ default: m.ShopView })));
 // 🔎 Xizmatlar — Koson services directory (gated by feature `xizmatlar`; owner-preview while DARK)
 const XizmatlarView = lazy(() => import("./services").then((m) => ({ default: m.XizmatlarView })));
+// 📋 E'lonlar — mahalla e'lon taxtasi (gated by feature `elonlar`; owner-preview while DARK)
+const ElonlarView = lazy(() => import("./elonlar").then((m) => ({ default: m.ElonlarView })));
 import { Icon } from "./icons";
 import { useCountUp } from "./util";
 
@@ -201,6 +202,15 @@ export function App() {
     idle(() => { import("./services").then((m) => m.prefetchServiceData()).catch(() => undefined); });
   }, [xizmatlarOn]);
 
+  // ⚡ E'lonlar issiq start (shop/xizmatlar bilan bir xil naqsh) — birinchi bosishda skeleton YO'Q.
+  const elonlarOn = !!me?.flags?.elonlar;
+  useEffect(() => {
+    if (!elonlarOn) return;
+    const w = window as unknown as { requestIdleCallback?: (cb: () => void, o?: { timeout: number }) => void };
+    const idle = (cb: () => void) => (w.requestIdleCallback ? w.requestIdleCallback(cb, { timeout: 3000 }) : setTimeout(cb, 1500));
+    idle(() => { import("./elonlar").then((m) => m.prefetchElonlarAds()).catch(() => undefined); });
+  }, [elonlarOn]);
+
   const reload = () => {
     api
       .me()
@@ -273,7 +283,7 @@ export function App() {
   const activeIndex = TABS.findIndex((t) => t.id === tab);
 
   return (
-    <div className={tab === "dokon" ? "app shop-light" : "app"}>
+    <div className={tab === "dokon" ? "app shop-light" : tab === "elonlar" ? "app elonlar-light" : "app"}>
       <div className="aurora" />
       <header className="topbar">
         <div className="brand">
@@ -338,11 +348,7 @@ export function App() {
             {tab === "yol" && <IntercityView me={me} />}
             {tab === "dokon" && <ShopView me={me} onBanner={flash} reload={reload} onBook={() => { haptic(); setBooking(true); }} />}
             {tab === "xizmat" && <XizmatlarView me={me} onBanner={flash} />}
-            {tab === "elonlar" && (
-              <div className="view">
-                <EmptyState icon="📋" text="Mahalla e'lon taxtasi tez orada — Koson aholisi o'z e'lonlarini shu yerda joylashtiradi!" />
-              </div>
-            )}
+            {tab === "elonlar" && <ElonlarView me={me} onBanner={flash} reload={reload} />}
             {tab === "driver" && <DriverView me={me} />}
             {tab === "profile" && (
               <div className="view">
