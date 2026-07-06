@@ -173,6 +173,19 @@ function requireOwner(_req: Request, res: Response, next: NextFunction): void {
   next();
 }
 
+// 🛍 shop-seller role (roles-lite, M6 pattern): a narrow token-based role that can list/create/edit/
+// toggle/upload photos for Products — everything EXCEPT delete-product and review-moderation, which
+// stay owner-only. Lets a real hamkor-do'kon seller (e.g. @Shekh_of) fix prices/stock without full
+// admin powers. Owner token still passes (adminRole "owner").
+function requireShopWrite(_req: Request, res: Response, next: NextFunction): void {
+  const role = res.locals.adminRole as string;
+  if (role !== "owner" && role !== "shopseller") {
+    res.status(403).json({ error: "owner_only" });
+    return;
+  }
+  next();
+}
+
 export function createApiServer(opts: ApiOptions = {}) {
   const app = express();
   app.use(cors());
@@ -1100,15 +1113,15 @@ export function createApiServer(opts: ApiOptions = {}) {
     const { adminListProducts } = await import("../services/shopService");
     res.json(await adminListProducts());
   });
-  app.post("/api/admin/shop/products", requireAdmin, requireOwner, rateLimit(20), async (req, res) => {
+  app.post("/api/admin/shop/products", requireAdmin, requireShopWrite, rateLimit(20), async (req, res) => {
     const { adminCreateProduct } = await import("../services/shopService");
     res.json(await adminCreateProduct(req.body ?? {}));
   });
-  app.post("/api/admin/shop/products/:id", requireAdmin, requireOwner, rateLimit(20), async (req, res) => {
+  app.post("/api/admin/shop/products/:id", requireAdmin, requireShopWrite, rateLimit(20), async (req, res) => {
     const { adminEditProduct } = await import("../services/shopService");
     res.json(await adminEditProduct(Number(req.params.id), req.body ?? {}));
   });
-  app.post("/api/admin/shop/products/:id/toggle", requireAdmin, requireOwner, rateLimit(20), async (req, res) => {
+  app.post("/api/admin/shop/products/:id/toggle", requireAdmin, requireShopWrite, rateLimit(20), async (req, res) => {
     const { adminToggleProduct } = await import("../services/shopService");
     res.json(await adminToggleProduct(Number(req.params.id), !!req.body?.active));
   });
@@ -1116,13 +1129,13 @@ export function createApiServer(opts: ApiOptions = {}) {
     const { adminDeleteProduct } = await import("../services/shopService");
     res.json(await adminDeleteProduct(Number(req.params.id)));
   });
-  app.post("/api/admin/shop/products/:id/photo", express.json({ limit: "6mb" }), requireAdmin, requireOwner, async (req, res) => {
+  app.post("/api/admin/shop/products/:id/photo", express.json({ limit: "6mb" }), requireAdmin, requireShopWrite, async (req, res) => {
     const b = req.body as { mime?: string; base64?: string };
     if (!b?.base64) { res.status(400).json({ error: "no image" }); return; }
     const { uploadProductPhoto } = await import("../services/shopService");
     res.json(await uploadProductPhoto(Number(req.params.id), Buffer.from(b.base64, "base64"), b.mime || "image/jpeg"));
   });
-  app.delete("/api/admin/shop/products/:id/photo", requireAdmin, requireOwner, async (req, res) => {
+  app.delete("/api/admin/shop/products/:id/photo", requireAdmin, requireShopWrite, async (req, res) => {
     const { clearProductPhotos } = await import("../services/shopService");
     res.json(await clearProductPhotos(Number(req.params.id)));
   });
@@ -1350,10 +1363,16 @@ body{font-family:Arial,sans-serif;background:#eee;-webkit-print-color-adjust:exa
     res.send(html);
   });
 
-  app.post("/api/admin/optoken", requireAdmin, requireOwner, async (_req, res) => {
+  // role defaults to "operator" (read + announce); "shopseller" unlocks Do'kon CRUD only (requireShopWrite)
+  app.post("/api/admin/optoken", requireAdmin, requireOwner, async (req, res) => {
+    const role = req.body?.role === "shopseller" ? "shopseller" : "operator";
     const token = Array.from({ length: 24 }, () => "abcdefghjkmnpqrstuvwxyz23456789"[Math.floor(Math.random() * 31)]).join("");
-    await prisma.appState.create({ data: { key: `oprtoken:${token}`, value: "operator" } });
-    res.json({ ok: true, token, role: "operator" });
+    await prisma.appState.create({ data: { key: `oprtoken:${token}`, value: role } });
+    res.json({ ok: true, token, role });
+  });
+  // frontend uses this to tailor the sidebar (e.g. shopseller sees ONLY Do'kon)
+  app.get("/api/admin/whoami", requireAdmin, (_req, res) => {
+    res.json({ role: res.locals.adminRole as string });
   });
   // List + revoke operator tokens (owner-only): a leaked/ex-employee token must be killable.
   app.get("/api/admin/optokens", requireAdmin, requireOwner, async (_req, res) => {

@@ -86,9 +86,11 @@ export function App() {
   const [health, setHealth] = useState<AdminHealth | null>(null);
   const [sideOpen, setSideOpen] = useState(false);
   const [authed, setAuthed] = useState<boolean>(hasAdminToken);
+  const [role, setRole] = useState<string | null>(null);
 
   useEffect(() => {
     if (!authed) return;
+    adminApi.whoami().then((r) => setRole(r.role)).catch(() => setRole(null));
     const load = () =>
       adminApi
         .health()
@@ -102,9 +104,34 @@ export function App() {
     return () => clearInterval(t);
   }, [authed]);
 
+  // 🛍 shopseller: faqat Do'kon paneli — narrower token, narrower UI. Owner tab'ini o'zgartirsa
+  // ham (masalan eski localStorage tab) darhol Do'kon'ga qaytariladi (defense-in-depth; server
+  // baribir yozuv-route'larni requireShopWrite bilan yopib qo'ygan).
+  useEffect(() => {
+    if (role === "shopseller" && tab !== "shop") setTab("shop");
+  }, [role, tab]);
+
   if (!authed) return <LoginScreen onAuthed={() => setAuthed(true)} />;
 
   function logout() { clearAdminToken(); setHealth(null); setAuthed(false); }
+
+  if (role === "shopseller") {
+    return (
+      <div className="dash">
+        <div className="content" style={{ marginLeft: 0 }}>
+          <div className="content-header">
+            <div className="content-title">🛍 Do'kon — sotuvchi paneli</div>
+            <div className="content-header-right">
+              <button className="logout-btn" onClick={logout}>🚪 Chiqish</button>
+            </div>
+          </div>
+          <div className="content-body">
+            <ShopAdminView />
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   const allItems = NAV_GROUPS.flatMap((g) => g.items);
   const current = allItems.find((i) => i.id === tab);
@@ -749,7 +776,8 @@ function ControlCards() {
         )}
         <MashinaCard />
         <div style={{ marginTop: 10 }}>
-          <button className="btn" onClick={async () => { const r = await adminApi.optoken(); setMsg2(`Operator token (faqat bir marta ko'rsatiladi): ${r.token}`); load(); }}>🔑 Operator-token yaratish</button>
+          <button className="btn" onClick={async () => { const r = await adminApi.optoken("operator"); setMsg2(`Operator token (faqat bir marta ko'rsatiladi): ${r.token}`); load(); }}>🔑 Operator-token yaratish</button>{" "}
+          <button className="btn" title="Faqat Do'kon: mahsulot qo'shish/narx/stock/rasm — boshqa hech narsa ko'rmaydi" onClick={async () => { const r = await adminApi.optoken("shopseller"); setMsg2(`🛍 Do'kon-sotuvchi token (faqat bir marta ko'rsatiladi) — link: ${window.location.origin}/?key=${r.token}`); load(); }}>🛍 Do'kon-sotuvchi token yaratish</button>
           {msg2 && <p className="muted" style={{ wordBreak: "break-all" }}>{msg2}</p>}
           {optokens.length > 0 && (
             <div style={{ marginTop: 8 }}>

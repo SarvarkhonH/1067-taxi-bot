@@ -124,8 +124,9 @@ export const adminApi = {
   member360: (phone: string) => req<Member360>(`/api/admin/member360?phone=${encodeURIComponent(phone)}`),
   driver360: (car: string) => req<Driver360>(`/api/admin/driver360?car=${encodeURIComponent(car)}`),
   mashina: () => req<{ fund: number; tickets: { name: string; car: string; tickets: number }[]; rule: string }>("/api/admin/mashina"),
-  optoken: () => postJson<{ ok: boolean; token: string; role: string }>("/api/admin/optoken", {}),
+  optoken: (role: "operator" | "shopseller" = "operator") => postJson<{ ok: boolean; token: string; role: string }>("/api/admin/optoken", { role }),
   optokens: () => req<{ tokens: { token: string; role: string; createdAt: string }[] }>("/api/admin/optokens"),
+  whoami: () => req<{ role: string }>("/api/admin/whoami"),
   optokenRevoke: (token: string) => req<{ ok: boolean }>(`/api/admin/optokens/${encodeURIComponent(token)}`, { method: "DELETE" }),
   unflag: (memberId: number) => postJson<AdminActionResult>("/api/admin/unflag", { memberId }),
   // 📷 driver portrait — upload a JPEG/PNG (≤5MB). base64 → server → Telegram CDN → file_id in DB.
