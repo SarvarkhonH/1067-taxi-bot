@@ -247,7 +247,7 @@ export function App() {
   const activeIndex = TABS.findIndex((t) => t.id === tab);
 
   return (
-    <div className="app">
+    <div className={tab === "dokon" ? "app shop-light" : "app"}>
       <div className="aurora" />
       <header className="topbar">
         <div className="brand">
