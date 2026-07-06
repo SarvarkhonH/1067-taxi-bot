@@ -105,6 +105,7 @@ export const EXPECTED_ON: FeatureName[] = [
   "drvpush", "clientbooking", "cashout", "intercity", "tierloyalty", "waitcomp", "trackcta",
   "jackpotpost", "instantstatus", "drvrank",
   "shop", // 🛍 tanga do'kon — owner GO LIVE 2026-07-06 (100 ta KOSON_AKSIYA mahsuloti + naqd/tanga)
+  "xizmatlar", // 🔎 Koson xizmatlar katalogi — owner GO LIVE 2026-07-06 (67 ta seed listing, soft-launch: foto/narx/1067-audit hali bo'sh — jonli boyitiladi)
 ];
 
 export async function reconcileFlags(): Promise<{ missing: string[]; effective: { name: string; on: boolean }[] }> {
