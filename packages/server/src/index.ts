@@ -31,7 +31,9 @@ async function main(): Promise<void> {
     // "query is too old": answerCallbackQuery on an expired/duplicate button tap (Telegram rejects
     // answers after ~15s or a bot restart). The tap's real work already ran; only the ack failed —
     // same noise category, so it must not page the owner either.
-    if (/(timed out after \d+ ms|webhook|query is too old|query ID is invalid)/i.test(msg)) return;
+    // grammY "Network request for 'X' failed!" = a transient Telegram API connectivity blip
+    // (common during a deploy/cold-start). Best-effort calls self-recover; paging the owner is noise.
+    if (/(timed out after \d+ ms|webhook|query is too old|query ID is invalid|network request for)/i.test(msg)) return;
     const now = Date.now();
     if (now - lastCrashAlert > 60_000) {
       lastCrashAlert = now;

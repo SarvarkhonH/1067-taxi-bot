@@ -1491,6 +1491,9 @@ export async function notifyCashback(bot: Bot, deltas: CashbackDelta[]): Promise
 }
 
 export async function setupBotCommands(bot: Bot): Promise<void> {
+  // ALL of this is best-effort boot cosmetics (command menu + menu button). A transient Telegram
+  // network blip during a deploy must NEVER become an unhandledRejection that alerts/crashes.
+  try {
   await bot.api.setMyCommands([
     { command: "start", description: "Botni boshlash / profil" },
     { command: "menu", description: "📋 Menyu (barcha bo'limlar)" },
@@ -1527,5 +1530,8 @@ export async function setupBotCommands(bot: Bot): Promise<void> {
     } catch (e) {
       console.error("[bot] setChatMenuButton failed", e instanceof Error ? e.message : e);
     }
+  }
+  } catch (e) {
+    console.error("[bot] setupBotCommands failed (transient TG API — non-fatal):", e instanceof Error ? e.message : e);
   }
 }
