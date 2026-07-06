@@ -226,6 +226,7 @@ export const adminApi = {
   svcCatUpsert: (p: { id?: number; name: string; emoji?: string; sortOrder?: number; active?: boolean }) => postJson<{ ok: boolean; id?: number }>("/api/admin/service-categories", p),
   svcReviewQueue: () => req<{ reviews: SvcAdminReview[] }>("/api/admin/service-reviews"),
   svcReviewModerate: (id: number, action: "restore" | "delete") => postJson<{ ok: boolean }>(`/api/admin/service-reviews/${id}`, { action }),
+  svcSetPrices: (id: number, items: { label: string; priceSom: number }[]) => postJson<{ ok: boolean; count: number }>(`/api/admin/services/${id}/prices`, { items }),
   svcPhotoUpload: (id: number, mime: string, base64: string) => postJson<{ ok: boolean; error?: string; photoCount?: number }>(`/api/admin/services/${id}/photo`, { mime, base64 }),
   svcPhotoClear: (id: number) => req<{ ok: boolean }>(`/api/admin/services/${id}/photo`, { method: "DELETE" }),
   // 💸 withdrawals tab
@@ -573,6 +574,9 @@ export interface SvcAdminRow {
   tags: string;
   address: string | null;
   workHours: string | null;
+  geoLat: number | null;
+  geoLng: number | null;
+  priceCount: number;
   status: string;
   isVip: boolean;
   verified: boolean;

@@ -426,6 +426,12 @@ export interface ServiceListingCard {
   reviewCount: number;
   hasPhoto: boolean;
   photoCount: number;
+  priceFrom?: number | null; // min preyskurant narxi — "25 000 so'mdan" (2GIS price-from)
+}
+
+export interface ServicePriceView {
+  label: string;
+  priceSom: number;
 }
 
 export interface ServiceListingDetail extends ServiceListingCard {
@@ -436,6 +442,10 @@ export interface ServiceListingDetail extends ServiceListingCard {
   viewCount: number;
   createdAt: string;
   myReview?: { stars: number; text: string } | null;
+  prices: ServicePriceView[]; // preyskurant (bo'sh = ko'rsatilmaydi)
+  isFav: boolean; // 🔖 saqlanganmi (shu foydalanuvchi uchun)
+  geoLat?: number | null; // «Borish» tugmasi uchun
+  geoLng?: number | null;
 }
 
 export interface ServiceReviewView {

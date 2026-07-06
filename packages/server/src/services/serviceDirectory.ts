@@ -4,7 +4,7 @@
 // rows, counters and reviews — the coin ledger is never imported. Rating aggregates are CACHED on
 // the listing row (avgRating/reviewCount/rankScore) so list renders never join reviews; rankScore
 // is a bayes blend ((avg·n + PRIOR·W)/(n+W)) so two fresh 5★ can't outrank a 200-review 4.8.
-import { SERVICE_SUBMITS_PER_DAY, type ServiceCategoryView, type ServiceListingCard, type ServiceListingDetail, type ServiceReviewResponse, type ServiceReviewView, type ServiceSubmitBody, type ServiceSubmitResponse } from "@t1067/shared";
+import { SERVICE_SUBMITS_PER_DAY, type ServiceCategoryView, type ServiceListingCard, type ServiceListingDetail, type ServicePriceView, type ServiceReviewResponse, type ServiceReviewView, type ServiceSubmitBody, type ServiceSubmitResponse } from "@t1067/shared";
 import { prisma } from "../db";
 import { featureOn } from "./featureFlags";
 
@@ -41,7 +41,7 @@ type ListingRow = {
   category: { name: string; emoji: string };
 };
 
-function toCard(l: ListingRow, photoCount: number): ServiceListingCard {
+function toCard(l: ListingRow, photoCount: number, priceFrom: number | null = null): ServiceListingCard {
   return {
     id: l.id,
     name: l.name,
@@ -57,6 +57,7 @@ function toCard(l: ListingRow, photoCount: number): ServiceListingCard {
     reviewCount: l.reviewCount,
     hasPhoto: photoCount > 0,
     photoCount,
+    priceFrom,
   };
 }
 
@@ -64,6 +65,13 @@ async function photoCounts(ids: number[]): Promise<Map<number, number>> {
   if (!ids.length) return new Map();
   const rows = await prisma.servicePhoto.groupBy({ by: ["listingId"], where: { listingId: { in: ids } }, _count: { _all: true } });
   return new Map(rows.map((r) => [r.listingId, r._count._all]));
+}
+
+/** Min preyskurant narxi per listing — kartadagi "N so'mdan" (2GIS price-from). */
+async function priceMins(ids: number[]): Promise<Map<number, number>> {
+  if (!ids.length) return new Map();
+  const rows = await prisma.servicePriceItem.groupBy({ by: ["listingId"], where: { listingId: { in: ids } }, _min: { priceSom: true } });
+  return new Map(rows.filter((r) => r._min.priceSom != null).map((r) => [r.listingId, r._min.priceSom!]));
 }
 
 // ── rider surface ────────────────────────────────────────────────────────────────────────────────
@@ -106,6 +114,7 @@ export async function listListings(
             { tags: { contains: q, mode: "insensitive" as const } },
             { phone: { contains: q.replace(/\s/g, "") } },
             { desc: { contains: q, mode: "insensitive" as const } },
+            { prices: { some: { label: { contains: q, mode: "insensitive" as const } } } }, // "soch olish" narx-satri ham topiladi
           ],
         }
       : {}),
@@ -122,11 +131,12 @@ export async function listListings(
   });
   // photoCounts overlaps nothing here (needs row ids) — but the client never reads `total`, so the
   // extra count() only runs when real pagination is happening (offset>0). Saves a Neon RTT per open.
-  const [photos, total] = await Promise.all([
+  const [photos, mins, total] = await Promise.all([
     photoCounts(rows.map((r) => r.id)),
+    priceMins(rows.map((r) => r.id)),
     skip > 0 ? prisma.serviceListing.count({ where }) : Promise.resolve(skip + rows.length),
   ]);
-  return { listings: rows.map((r) => toCard(r, photos.get(r.id) ?? 0)), total };
+  return { listings: rows.map((r) => toCard(r, photos.get(r.id) ?? 0, mins.get(r.id) ?? null)), total };
 }
 
 export async function getListing(id: number, tgId: string | null, preview = false): Promise<ServiceListingDetail | null> {
@@ -135,12 +145,15 @@ export async function getListing(id: number, tgId: string | null, preview = fals
   if (!l || l.status !== "active") return null;
   // view counter: fire-and-forget, never blocks the render
   void prisma.serviceListing.update({ where: { id }, data: { viewCount: { increment: 1 } } }).catch(() => undefined);
-  const [photos, mine] = await Promise.all([
+  const [photos, mine, priceRows, fav] = await Promise.all([
     prisma.servicePhoto.count({ where: { listingId: id } }),
     tgId ? prisma.serviceReview.findUnique({ where: { listingId_tgId: { listingId: id, tgId: BigInt(tgId) } } }) : null,
+    prisma.servicePriceItem.findMany({ where: { listingId: id }, orderBy: [{ sortOrder: "asc" }, { id: "asc" }], take: 30 }),
+    tgId ? prisma.serviceFavorite.findUnique({ where: { tgId_listingId: { tgId: BigInt(tgId), listingId: id } } }) : null,
   ]);
+  const prices: ServicePriceView[] = priceRows.map((pr) => ({ label: pr.label, priceSom: pr.priceSom }));
   return {
-    ...toCard(l, photos),
+    ...toCard(l, photos, prices.length ? Math.min(...prices.map((pr) => pr.priceSom)) : null),
     phone: l.phone,
     phone2: l.phone2,
     desc: l.desc,
@@ -148,6 +161,10 @@ export async function getListing(id: number, tgId: string | null, preview = fals
     viewCount: l.viewCount + 1,
     createdAt: l.createdAt.toISOString(),
     myReview: mine && mine.status !== "hidden" ? { stars: mine.stars, text: mine.text } : null,
+    prices,
+    isFav: !!fav,
+    geoLat: l.geoLat,
+    geoLng: l.geoLng,
   };
 }
 
@@ -346,6 +363,9 @@ export interface AdminServiceRow {
   tags: string;
   address: string | null;
   workHours: string | null;
+  geoLat: number | null;
+  geoLng: number | null;
+  priceCount: number;
   status: string;
   isVip: boolean;
   verified: boolean;
@@ -372,7 +392,11 @@ export async function adminListListings(status?: string): Promise<{ rows: AdminS
     prisma.serviceListing.count({ where: { phoneReports: { gte: 2 } } }),
     prisma.serviceRequest.count({ where: { status: "new" } }),
   ]);
-  const photos = await photoCounts(rows.map((r) => r.id));
+  const [photos, priceCounts] = await Promise.all([
+    photoCounts(rows.map((r) => r.id)),
+    prisma.servicePriceItem.groupBy({ by: ["listingId"], where: { listingId: { in: rows.map((r) => r.id) } }, _count: { _all: true } })
+      .then((pc) => new Map(pc.map((x) => [x.listingId, x._count._all]))),
+  ]);
   return {
     enabled,
     pending,
@@ -390,6 +414,9 @@ export async function adminListListings(status?: string): Promise<{ rows: AdminS
       tags: l.tags,
       address: l.address,
       workHours: l.workHours,
+      geoLat: l.geoLat,
+      geoLng: l.geoLng,
+      priceCount: priceCounts.get(l.id) ?? 0,
       status: l.status,
       isVip: l.isVip,
       verified: l.verified,
@@ -411,6 +438,8 @@ export interface ServicePatch {
   desc?: string;
   tags?: string;
   address?: string | null;
+  geoLat?: number | null;
+  geoLng?: number | null;
   workHours?: string | null;
   categoryId?: number;
   status?: string;
@@ -432,6 +461,12 @@ export async function adminEditListing(id: number, b: ServicePatch): Promise<{ o
   if (typeof b.desc === "string") data.desc = b.desc.trim().slice(0, 500);
   if (typeof b.tags === "string") data.tags = b.tags.trim().slice(0, 200);
   if (b.address !== undefined) data.address = (b.address ?? "").trim().slice(0, 160) || null;
+  if (b.geoLat !== undefined && b.geoLng !== undefined) {
+    const la = Number(b.geoLat), ln = Number(b.geoLng);
+    const okGeo = Number.isFinite(la) && Number.isFinite(ln) && Math.abs(la) <= 90 && Math.abs(ln) <= 180;
+    data.geoLat = okGeo ? la : null;
+    data.geoLng = okGeo ? ln : null;
+  }
   if (b.workHours !== undefined) data.workHours = (b.workHours ?? "").trim().slice(0, 20) || null;
   if (typeof b.categoryId === "number") data.categoryId = b.categoryId;
   if (typeof b.status === "string" && ["pending", "active", "rejected", "archived"].includes(b.status)) data.status = b.status;
@@ -615,6 +650,49 @@ export async function reportPhoneIssue(listingId: number, tgId: string, preview 
   }
   const r = await prisma.serviceListing.update({ where: { id: listingId }, data: { phoneReports: { increment: 1 } } }).catch(() => null);
   return { ok: !!r, flagged: (r?.phoneReports ?? 0) >= 2 };
+}
+
+/** 🔖 Saqlash toggle — 1 user × 1 listing (unique), off = delete. Pul yo'q. */
+export async function toggleFavorite(tgId: string, listingId: number, on: boolean, preview = false): Promise<{ ok: boolean; on: boolean }> {
+  if (!(await dirOn(preview))) return { ok: false, on: false };
+  if (on) {
+    await prisma.serviceFavorite.upsert({
+      where: { tgId_listingId: { tgId: BigInt(tgId), listingId } },
+      update: {},
+      create: { tgId: BigInt(tgId), listingId },
+    }).catch(() => undefined);
+  } else {
+    await prisma.serviceFavorite.deleteMany({ where: { tgId: BigInt(tgId), listingId } });
+  }
+  return { ok: true, on };
+}
+
+/** Saqlanganlar ro'yxati — karta ko'rinishida (faqat hali active bo'lganlar). */
+export async function listFavorites(tgId: string, preview = false): Promise<ServiceListingCard[]> {
+  if (!(await dirOn(preview))) return [];
+  const favs = await prisma.serviceFavorite.findMany({ where: { tgId: BigInt(tgId) }, orderBy: { createdAt: "desc" }, take: 50 });
+  if (!favs.length) return [];
+  const rows = await prisma.serviceListing.findMany({
+    where: { id: { in: favs.map((f) => f.listingId) }, status: "active" },
+    include: { category: { select: { name: true, emoji: true } } },
+  });
+  const order = new Map(favs.map((f, i) => [f.listingId, i]));
+  rows.sort((a, b) => (order.get(a.id) ?? 99) - (order.get(b.id) ?? 99));
+  const [photos, mins] = await Promise.all([photoCounts(rows.map((r) => r.id)), priceMins(rows.map((r) => r.id))]);
+  return rows.map((r) => toCard(r, photos.get(r.id) ?? 0, mins.get(r.id) ?? null));
+}
+
+/** 💰 Preyskurantni TO'LIQ almashtirish (admin/ega): items = [{label, priceSom}] tartibda. */
+export async function adminSetPrices(listingId: number, items: { label: string; priceSom: number }[]): Promise<{ ok: boolean; count: number }> {
+  const clean = (items ?? [])
+    .map((i) => ({ label: String(i.label ?? "").trim().slice(0, 60), priceSom: Math.max(0, Math.floor(Number(i.priceSom))) }))
+    .filter((i) => i.label.length >= 2 && Number.isFinite(i.priceSom) && i.priceSom > 0)
+    .slice(0, 30);
+  await prisma.$transaction([
+    prisma.servicePriceItem.deleteMany({ where: { listingId } }),
+    ...clean.map((i, idx) => prisma.servicePriceItem.create({ data: { listingId, label: i.label, priceSom: i.priceSom, sortOrder: idx } })),
+  ]);
+  return { ok: true, count: clean.length };
 }
 
 export async function adminListRequests(status = "new"): Promise<{ id: number; query: string; note: string; status: string; createdAt: string }[]> {

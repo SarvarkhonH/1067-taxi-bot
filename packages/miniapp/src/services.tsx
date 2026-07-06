@@ -12,15 +12,15 @@ const BOT_LINK = "https://t.me/koson1067bot"; // share deep-link target (single 
 
 // ⚡ SWR modul-kesh (shop patterni): qayta ochish keshdagi payload bilan BIR ZUMDA render bo'ladi
 // (skeleton-flash yo'q), yangi data fonda kelib ustidan yozadi. App.tsx idle'da buni oldindan isitadi.
-interface SvcHome { cats: ServiceCategoryView[]; top: ServiceListingCard[]; fresh: ServiceListingCard[] }
+interface SvcHome { cats: ServiceCategoryView[]; top: ServiceListingCard[]; fresh: ServiceListingCard[]; favs: ServiceListingCard[] }
 let HOME_CACHE: SvcHome | null = null;
 
 export function prefetchServiceData(): void {
   fetchHome().then((h) => { HOME_CACHE = h; }).catch(() => undefined);
 }
 function fetchHome(): Promise<SvcHome> {
-  return Promise.all([api.svcCategories(), api.svcList({ limit: 8 }), api.svcList({ limit: 6, sort: "new" })])
-    .then(([c, t, f]) => ({ cats: c.categories, top: t.listings, fresh: f.listings }));
+  return Promise.all([api.svcCategories(), api.svcList({ limit: 8 }), api.svcList({ limit: 6, sort: "new" }), api.svcFavs()])
+    .then(([c, t, f, fv]) => ({ cats: c.categories, top: t.listings, fresh: f.listings, favs: fv.listings }));
 }
 
 const ACCENTS = ["#ffb300", "#f0426b", "#8b5cf6", "#22c55e", "#38bdf8", "#fb923c"];
@@ -89,8 +89,9 @@ function SvcCard({ l, onOpen }: { l: ServiceListingCard; onOpen: (l: ServiceList
         <RatingLine l={l} />
         {l.tags && <div className="svc-card-tags">{l.tags}</div>}
         <div className="svc-card-meta">
+          {l.priceFrom != null && <span className="svc-price-from">{l.priceFrom.toLocaleString("ru-RU")} so'mdan</span>}
           <OpenBadge wh={l.workHours} />
-          {!l.workHours && l.address && <span className="muted fs12">{l.address}</span>}
+          {l.priceFrom == null && !l.workHours && l.address && <span className="muted fs12">{l.address}</span>}
         </div>
       </div>
       <span className="svc-call-dot">📞</span>
@@ -161,17 +162,39 @@ function ReviewRow({ r, onBanner }: { r: ServiceReviewView; onBanner: (m: string
 
 // ── detail sheet ────────────────────────────────────────────────────────────────────────────────
 
-function DetailSheet({ id, onClose, onBanner }: { id: number; onClose: () => void; onBanner: (m: string) => void }) {
+function DetailSheet({ id, onClose, onBanner, onFavChange }: { id: number; onClose: () => void; onBanner: (m: string) => void; onFavChange: () => void }) {
   const [d, setD] = useState<ServiceListingDetail | null>(null);
+  const [fav, setFav] = useState(false);
   const [err, setErr] = useState(false);
   const [reviews, setReviews] = useState<ServiceReviewView[] | null>(null);
   const [galleryIdx, setGalleryIdx] = useState(0);
   const [showRate, setShowRate] = useState(false);
 
   useEffect(() => {
-    api.svcItem(id).then(setD).catch(() => setErr(true));
+    api.svcItem(id).then((it) => { setD(it); setFav(it.isFav); }).catch(() => setErr(true));
     api.svcReviews(id).then((r) => setReviews(r.reviews)).catch(() => setReviews([]));
   }, [id]);
+  const toggleFav = () => {
+    if (!d) return;
+    haptic();
+    const next = !fav;
+    setFav(next); // optimistik — <100ms vizual javob
+    api.svcFav(d.id, next).then(() => onFavChange()).catch(() => setFav(!next));
+    if (next) onBanner("🔖 Saqlandi — bosh sahifada «Saqlanganlar»da");
+  };
+  // «Borish» — tashqi navigator (Yandex Maps): geo bo'lsa aniq nuqta, bo'lmasa manzil-qidiruv
+  const goUrl = d?.geoLat != null && d?.geoLng != null
+    ? `https://yandex.uz/maps/?rtext=~${d.geoLat},${d.geoLng}&rtt=auto`
+    : d?.address
+      ? `https://yandex.uz/maps/?text=${encodeURIComponent(`Koson ${d.address}`)}`
+      : null;
+  const goNav = () => {
+    if (!goUrl) return;
+    haptic();
+    const t = tg as unknown as { openLink?: (u: string) => void } | undefined;
+    if (t?.openLink) t.openLink(goUrl);
+    else window.open(goUrl, "_blank");
+  };
 
   const call = () => {
     if (!d) return;
@@ -232,9 +255,12 @@ function DetailSheet({ id, onClose, onBanner }: { id: number; onClose: () => voi
             <div className="svc-detail-noimg" style={{ ["--acc" as string]: accentOf(d.categoryName) }}>{d.categoryEmoji || "🏪"}</div>
           )}
 
-          <h3 className="svc-detail-name">
-            {d.name} {d.verified && <span className="svc-verified big">✔</span>}
-          </h3>
+          <div className="between">
+            <h3 className="svc-detail-name">
+              {d.name} {d.verified && <span className="svc-verified big">✔</span>}
+            </h3>
+            <button className={"svc-fav" + (fav ? " on" : "")} onClick={toggleFav} aria-label="Saqlash">{fav ? "🔖" : "🏷"}</button>
+          </div>
           <div className="svc-detail-social">
             {d.reviewCount > 0 ? (
               <><Stars v={d.avgRating} /> <b>{d.avgRating.toFixed(1)}</b> · {d.reviewCount} baho</>
@@ -246,14 +272,14 @@ function DetailSheet({ id, onClose, onBanner }: { id: number; onClose: () => voi
 
           <button className="svc-call-main" onClick={call}>📞 Qo'ng'iroq qilish</button>
           <div className="svc-actions">
-            <button className="svc-act" onClick={() => copy(d.phone)}>📋 Nusxa</button>
+            {goUrl && <button className="svc-act" onClick={goNav}>🗺 Borish</button>}
             <button className="svc-act" onClick={share}>↗️ Ulashish</button>
             <button className="svc-act" onClick={() => { haptic(); setShowRate(true); }}>★ Baho qo'ying</button>
           </div>
 
           <div className="svc-info glass pad">
             <div className="svc-info-row">
-              <span>📞</span><b>{d.phone}</b>
+              <span>📞</span><b onClick={() => copy(d.phone)}>{d.phone}</b><span className="muted fs11">(nusxa: bosing)</span>
               <button className="svc-phone-report" onClick={reportPhone}>{phoneReported ? "✓ yuborildi" : "⚑ ishlamadimi?"}</button>
             </div>
             {d.phone2 && <div className="svc-info-row"><span>📞</span><b>{d.phone2}</b></div>}
@@ -261,6 +287,18 @@ function DetailSheet({ id, onClose, onBanner }: { id: number; onClose: () => voi
             {d.address && <div className="svc-info-row"><span>📍</span>{d.address}</div>}
             {d.tags && <div className="svc-info-row"><span>🏷</span><span className="muted">{d.tags}</span></div>}
           </div>
+          {d.prices.length > 0 && (
+            <div className="svc-prices glass pad">
+              <b className="fs13">💰 Narxlar</b>
+              {d.prices.map((pr, i) => (
+                <div key={i} className="svc-price-row">
+                  <span>{pr.label}</span>
+                  <span className="svc-price-dots" />
+                  <b>{pr.priceSom.toLocaleString("ru-RU")} so'm</b>
+                </div>
+              ))}
+            </div>
+          )}
           {d.desc && <p className="fs13 svc-desc">{d.desc}</p>}
 
           {(showRate || d.myReview) && (
@@ -435,10 +473,12 @@ export function XizmatlarView({ me, onBanner }: { me: MeResponse; onBanner: (msg
     }, 300);
   }, [q]);
 
+  const [openOnly, setOpenOnly] = useState(false);
   const openCat = (c: ServiceCategoryView) => {
     haptic();
     setCat(c);
     setCatRows(null);
+    setOpenOnly(false);
     api.svcList({ cat: c.id, limit: 50 }).then((r) => setCatRows(r.listings)).catch(() => setCatRows([]));
   };
   const openMine = () => {
@@ -485,12 +525,17 @@ export function XizmatlarView({ me, onBanner }: { me: MeResponse; onBanner: (msg
               <div className="muted fs12">{cat.count} ta xizmat · reyting bo'yicha</div>
             </div>
           </div>
+          {catRows !== null && catRows.some((l) => l.workHours) && (
+            <div className="svc-cat-chips mb4">
+              <button className={"svc-chip" + (openOnly ? " on" : "")} onClick={() => { haptic(); setOpenOnly(!openOnly); }}>🟢 Ochiq hozir</button>
+            </div>
+          )}
           {catRows === null ? (
             <><Skeleton h={74} /><Skeleton h={74} className="mt8" /><Skeleton h={74} className="mt8" /></>
           ) : catRows.length === 0 ? (
             <EmptyState icon={cat.emoji || "🏪"} text="Bu kategoriyada hali xizmat yo'q — birinchi bo'lib qo'shiling!" action="➕ Xizmat qo'shish" onAction={() => setSubmitOpen(true)} />
           ) : (
-            <div className="svc-list">{catRows.map((l) => <SvcCard key={l.id} l={l} onOpen={(x) => { haptic(); setSelId(x.id); }} />)}</div>
+            <div className="svc-list">{(openOnly ? catRows.filter((l) => openNow(l.workHours) === true) : catRows).map((l) => <SvcCard key={l.id} l={l} onOpen={(x) => { haptic(); setSelId(x.id); }} />)}</div>
           )}
         </>
       ) : cats === null ? (
@@ -509,6 +554,13 @@ export function XizmatlarView({ me, onBanner }: { me: MeResponse; onBanner: (msg
               </button>
             ))}
           </div>
+
+          {home && home.favs.length > 0 && (
+            <div className="svc-section">
+              <div className="between"><b className="fs14">🔖 Saqlanganlar</b><span className="muted fs12">{home.favs.length} ta</span></div>
+              <div className="svc-list mt8">{home.favs.map((l) => <SvcCard key={l.id} l={l} onOpen={(x) => { haptic(); setSelId(x.id); }} />)}</div>
+            </div>
+          )}
 
           {top && top.length > 0 && (
             <div className="svc-section">
@@ -536,7 +588,7 @@ export function XizmatlarView({ me, onBanner }: { me: MeResponse; onBanner: (msg
         </>
       )}
 
-      {selId !== null && <DetailSheet id={selId} onClose={() => setSelId(null)} onBanner={onBanner} />}
+      {selId !== null && <DetailSheet id={selId} onClose={() => setSelId(null)} onBanner={onBanner} onFavChange={load} />}
       {submitOpen && cats && <SubmitSheet cats={cats} onClose={() => { setSubmitOpen(false); load(); }} onBanner={onBanner} />}
 
       <Sheet open={mineOpen} onClose={() => setMineOpen(false)}>

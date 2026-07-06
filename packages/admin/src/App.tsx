@@ -1722,6 +1722,20 @@ function XizmatlarAdminView() {
               <button className="btn sm" style={{ opacity: r.workHours ? 1 : 0.5 }} onClick={() => promptEdit(r.id, "workHours", "Ish vaqti (08:00-19:00):", r.workHours)}>🕒{r.workHours ? ` ${r.workHours}` : ""}</button>
               <button className="btn sm" title={r.address || "Manzil yo'q"} style={{ opacity: r.address ? 1 : 0.5 }} onClick={() => promptEdit(r.id, "address", "Manzil:", r.address)}>📍</button>
               <button className="btn sm" title={r.tags} onClick={() => promptEdit(r.id, "tags", "Teglar (vergul bilan):", r.tags)}>🏷</button>
+              <button className="btn sm" title="Preyskurant: Nom=narx; Nom=narx (masalan: Soch olish=25000; Soqol=15000)" style={{ opacity: r.priceCount ? 1 : 0.5 }} onClick={async () => {
+                const cur = r.priceCount ? undefined : "Soch olish=25000; Soqol=15000";
+                const v = window.prompt("Narxlar (Nom=narx; Nom=narx):", cur ?? "");
+                if (v === null) return;
+                const items = v.split(";").map((x) => x.split("=")).filter((a) => a.length === 2).map(([l2, pr]) => ({ label: l2!.trim(), priceSom: Number(String(pr).replace(/\D/g, "")) }));
+                const rr = await adminApi.svcSetPrices(r.id, items).catch(() => ({ ok: false as const, count: 0 }));
+                setMsg(rr.ok ? `✅ ${rr.count} ta narx saqlandi` : "❌ xatolik"); load();
+              }}>💰{r.priceCount ? ` ${r.priceCount}` : ""}</button>
+              <button className="btn sm" title="Koordinata: xaritadan nusxa qilib '39.037, 65.585' formatda qo'ying — Mini App'da «Borish» tugmasi chiqadi" style={{ opacity: r.geoLat != null ? 1 : 0.5 }} onClick={() => {
+                const v = window.prompt("Koordinata (lat, lng) — Yandex/Google xaritadan nusxa:", r.geoLat != null ? `${r.geoLat}, ${r.geoLng}` : "");
+                if (v === null) return;
+                const m2 = v.split(",").map((x) => Number(x.trim()));
+                void edit(r.id, { geoLat: m2[0] ?? null, geoLng: m2[1] ?? null }, "✅ Koordinata saqlandi");
+              }}>🗺</button>
               <button className="btn sm" onClick={() => uploadPhoto(r.id)}>📷 {r.photoCount}/6</button>
               {r.photoCount > 0 && <button className="btn sm" onClick={async () => { if (!window.confirm("Rasmlar o'chirilsinmi?")) return; await adminApi.svcPhotoClear(r.id).catch(() => undefined); load(); }}>🗑🖼</button>}
               <select style={{ padding: 6, fontSize: 12 }} value={r.categoryId} onChange={(e) => void edit(r.id, { categoryId: Number(e.target.value) }, "✅ Kategoriya o'zgardi")}>

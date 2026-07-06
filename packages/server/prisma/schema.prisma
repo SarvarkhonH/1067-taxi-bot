@@ -1438,6 +1438,8 @@ model ServiceListing {
   desc        String          @default("")
   tags        String          @default("") // "sement, g'isht, qurilish" — search field
   address     String?
+  geoLat      Float? // «Borish» tugmasi → tashqi navigator deep-link (app ichida xarita shart emas)
+  geoLng      Float?
   workHours   String? // "08:00-19:00" → UI computes Ochiq/Yopiq live
   status      String          @default("pending") // pending | active | rejected | archived
   isVip       Boolean         @default(false)
@@ -1453,10 +1455,35 @@ model ServiceListing {
   updatedAt   DateTime        @updatedAt
   photos      ServicePhoto[]
   reviews     ServiceReview[]
+  prices      ServicePriceItem[]
 
   @@index([categoryId, status, rankScore])
   @@index([status, isVip])
   @@index([ownerTgId])
+}
+
+// 💰 Preyskurant (2GIS parity): "Soch olish — 25 000". Admin/egasi kiritadi; karta "N so'mdan"
+// ko'rsatadi (min), profil to'liq ro'yxatni. Bu NARX KO'RSATISH xolos — hech qanday to'lov yo'li emas.
+model ServicePriceItem {
+  id        Int            @id @default(autoincrement())
+  listing   ServiceListing @relation(fields: [listingId], references: [id], onDelete: Cascade)
+  listingId Int
+  label     String // "Soch olish", "Sement (1 qop)"
+  priceSom  Int // so'mda — faqat displey
+  sortOrder Int            @default(0)
+
+  @@index([listingId, sortOrder])
+}
+
+// 🔖 Saqlanganlar — foydalanuvchining shaxsiy ro'yxati (qayta-qaytish sababi). Pul yo'q.
+model ServiceFavorite {
+  id        Int      @id @default(autoincrement())
+  tgId      BigInt
+  listingId Int
+  createdAt DateTime @default(now())
+
+  @@unique([tgId, listingId])
+  @@index([tgId, createdAt])
 }
 
 // Gallery — ProductPhoto pattern: Telegram file_id (durable, free) with data-URL fallback.

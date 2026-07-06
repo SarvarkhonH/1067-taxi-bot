@@ -159,6 +159,8 @@ export const api = {
   },
   svcRequest: (query: string, note: string) => request<{ ok: boolean; reason?: string }>("POST", "/api/services/request", { query, note }, 1),
   svcPhoneReport: (id: number) => request<{ ok: boolean }>("POST", "/api/services/phone-report", { id }, 1),
+  svcFav: (id: number, on: boolean) => request<{ ok: boolean; on: boolean }>("POST", "/api/services/fav", { id, on }, 1),
+  svcFavs: () => get<{ listings: import("@t1067/shared").ServiceListingCard[] }>("/api/services/favs"),
   svcItem: (id: number) => get<import("@t1067/shared").ServiceListingDetail>(`/api/services/item/${id}`),
   svcCall: (id: number) => post<{ ok: boolean }>("/api/services/call", { id }),
   svcSubmit: (b: import("@t1067/shared").ServiceSubmitBody) => request<import("@t1067/shared").ServiceSubmitResponse>("POST", "/api/services/submit", b, 1),

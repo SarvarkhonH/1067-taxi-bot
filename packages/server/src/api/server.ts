@@ -467,6 +467,15 @@ export function createApiServer(opts: ApiOptions = {}) {
     const { reportPhoneIssue } = await import("../services/serviceDirectory");
     res.json(await reportPhoneIssue(Number(req.body?.id), res.locals.telegramId as string, svcPreview(res)));
   });
+  // 🔖 saqlanganlar — toggle + ro'yxat
+  app.post("/api/services/fav", requireUser, rateLimit(30), async (req, res) => {
+    const { toggleFavorite } = await import("../services/serviceDirectory");
+    res.json(await toggleFavorite(res.locals.telegramId as string, Number(req.body?.id), !!req.body?.on, svcPreview(res)));
+  });
+  app.get("/api/services/favs", requireUser, rateLimit(30), async (_req, res) => {
+    const { listFavorites } = await import("../services/serviceDirectory");
+    res.json({ listings: await listFavorites(res.locals.telegramId as string, svcPreview(res)) });
+  });
   app.post("/api/services/call", requireUser, rateLimit(30), async (req, res) => {
     const { trackCall } = await import("../services/serviceDirectory");
     res.json(await trackCall(Number(req.body?.id), svcPreview(res)));
@@ -1168,6 +1177,10 @@ export function createApiServer(opts: ApiOptions = {}) {
     const { adminSetRequestStatus } = await import("../services/serviceDirectory");
     const st = ["new", "done", "dismissed"].includes(String(req.body?.status)) ? (req.body.status as "new" | "done" | "dismissed") : "done";
     res.json(await adminSetRequestStatus(Number(req.params.id), st));
+  });
+  app.post("/api/admin/services/:id/prices", requireAdmin, requireOwner, rateLimit(30), async (req, res) => {
+    const { adminSetPrices } = await import("../services/serviceDirectory");
+    res.json(await adminSetPrices(Number(req.params.id), Array.isArray(req.body?.items) ? req.body.items : []));
   });
   app.post("/api/admin/services/:id/photo", express.json({ limit: "6mb" }), requireAdmin, requireOwner, async (req, res) => {
     const b = req.body as { mime?: string; base64?: string };

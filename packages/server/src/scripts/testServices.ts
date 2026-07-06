@@ -23,6 +23,8 @@ async function main(): Promise<void> {
     const lids = listings.map((l) => l.id);
     await prisma.serviceReview.deleteMany({ where: { listingId: { in: lids } } });
     await prisma.servicePhoto.deleteMany({ where: { listingId: { in: lids } } });
+    await prisma.servicePriceItem.deleteMany({ where: { listingId: { in: lids } } });
+    await prisma.serviceFavorite.deleteMany({ where: { listingId: { in: lids } } });
     await prisma.serviceListing.deleteMany({ where: { id: { in: lids } } });
     await prisma.serviceCategory.deleteMany({ where: { id: { in: catIds } } });
     await prisma.appState.deleteMany({ where: { key: "feature:xizmatlar" } });
@@ -132,8 +134,12 @@ async function main(): Promise<void> {
   await svc.trackCall(rid);
   const det = await svc.getListing(rid, null);
   ok(!!det && det.phone === "+998901000001", "8: detail exposes phone");
-  await new Promise((r) => setTimeout(r, 300)); // fire-and-forget view increment lands
-  const afterC = (await prisma.serviceListing.findUnique({ where: { id: rid } }))!;
+  // view increment is fire-and-forget by design — poll up to 3s (test DB is cross-region Singapore)
+  let afterC = (await prisma.serviceListing.findUnique({ where: { id: rid } }))!;
+  for (let i = 0; i < 10 && afterC.viewCount !== before.viewCount + 1; i++) {
+    await new Promise((r) => setTimeout(r, 300));
+    afterC = (await prisma.serviceListing.findUnique({ where: { id: rid } }))!;
+  }
   ok(afterC.callCount === before.callCount + 2, "8: callCount +2");
   ok(afterC.viewCount === before.viewCount + 1, "8: viewCount +1 (detail open)");
 
@@ -163,6 +169,34 @@ async function main(): Promise<void> {
   ok(pr2.flagged === true, "12: 2-unikal flag → admin navbati (flagged)");
   await svc.adminEditListing(rid, { phone: "+998901000011" });
   ok((await prisma.serviceListing.findUnique({ where: { id: rid } }))!.phoneReports === 0, "12: telefon tuzatildi → hisoblagich 0");
+
+  // 13) 💰 preyskurant: set → kartada priceFrom (min), qidiruv narx-satr bo'yicha, replace-all
+  const priced = await mk(`${TAG} Salon Guzal`, "+998908000008");
+  await svc.adminSetPrices(priced.id!, [
+    { label: "Soch olish", priceSom: 25000 },
+    { label: "Soqol", priceSom: 15000 },
+    { label: "bo'sh", priceSom: 0 }, // yaroqsiz — tushib qolishi kerak
+  ]);
+  const pricedCard = (await svc.listListings({ categoryId: cat.id, limit: 50 })).listings.find((l) => l.id === priced.id);
+  ok(pricedCard?.priceFrom === 15000, "13: kartada priceFrom = min (15000)");
+  const pricedDetail = await svc.getListing(priced.id!, null);
+  ok(pricedDetail?.prices.length === 2 && pricedDetail.prices[0]!.label === "Soch olish", "13: detail'da 2 narx, tartib saqlangan");
+  ok((await svc.listListings({ q: "soqol" })).listings.some((l) => l.id === priced.id), "13: narx-satr bo'yicha qidiruv topadi");
+  await svc.adminSetPrices(priced.id!, [{ label: "Yangi xizmat", priceSom: 50000 }]);
+  ok((await svc.getListing(priced.id!, null))?.prices.length === 1, "13: replace-all (2→1)");
+
+  // 14) 🔖 saqlash + 🗺 geo
+  await svc.toggleFavorite("7001", priced.id!, true);
+  await svc.toggleFavorite("7001", priced.id!, true); // idempotent upsert
+  ok((await svc.listFavorites("7001")).some((l) => l.id === priced.id), "14: fav ro'yxatda");
+  ok((await svc.getListing(priced.id!, "7001"))?.isFav === true, "14: detail isFav=true");
+  await svc.toggleFavorite("7001", priced.id!, false);
+  ok((await svc.listFavorites("7001")).length === 0, "14: fav o'chirildi");
+  await svc.adminEditListing(priced.id!, { geoLat: 39.0374, geoLng: 65.585 });
+  const g = await svc.getListing(priced.id!, null);
+  ok(Math.abs((g?.geoLat ?? 0) - 39.0374) < 1e-6, "14: geo saqlandi (Borish tugmasi manbai)");
+  await svc.adminEditListing(priced.id!, { geoLat: 999, geoLng: 65 }); // yaroqsiz → null
+  ok((await svc.getListing(priced.id!, null))?.geoLat == null, "14: yaroqsiz koordinata null'ga tushdi");
 
   // 9) seed idempotency
   const c1 = await svc.seedDefaultCategories();
