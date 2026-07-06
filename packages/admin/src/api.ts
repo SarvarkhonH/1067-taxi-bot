@@ -578,6 +578,12 @@ export interface SvcAdminRow {
   geoLat: number | null;
   geoLng: number | null;
   priceCount: number;
+  instagram: string | null;
+  telegramUrl: string | null;
+  facebook: string | null;
+  website: string | null;
+  inspStars: number | null;
+  inspNote: string | null;
   status: string;
   isVip: boolean;
   verified: boolean;

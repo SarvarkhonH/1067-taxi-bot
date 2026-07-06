@@ -428,6 +428,7 @@ export interface ServiceListingCard {
   hasPhoto: boolean;
   photoCount: number;
   priceFrom?: number | null; // min preyskurant narxi — "25 000 so'mdan" (2GIS price-from)
+  inspStars?: number | null; // 🏅 «1067 tekshiruvi» rasmiy audit bahosi (1-5) — mijoz avgRating'dan MUSTAQIL
 }
 
 export interface ServicePriceView {
@@ -447,6 +448,12 @@ export interface ServiceListingDetail extends ServiceListingCard {
   isFav: boolean; // 🔖 saqlanganmi (shu foydalanuvchi uchun)
   geoLat?: number | null; // «Borish» tugmasi uchun
   geoLng?: number | null;
+  instagram?: string | null;
+  telegramUrl?: string | null;
+  facebook?: string | null;
+  website?: string | null;
+  inspNote?: string | null; // 🏅 auditor xulosasi (faqat inspStars bo'lsa mazmunli)
+  inspAt?: string | null;
 }
 
 export interface ServiceReviewView {

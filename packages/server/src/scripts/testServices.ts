@@ -198,6 +198,35 @@ async function main(): Promise<void> {
   await svc.adminEditListing(priced.id!, { geoLat: 999, geoLng: 65 }); // yaroqsiz → null
   ok((await svc.getListing(priced.id!, null))?.geoLat == null, "14: yaroqsiz koordinata null'ga tushdi");
 
+  // 15) 🔗 ijtimoiy tarmoq — round-trip
+  await svc.adminEditListing(priced.id!, { instagram: "https://instagram.com/salon_guzal", telegramUrl: "https://t.me/salonguzal", website: "https://guzal.uz" });
+  const soc = await svc.getListing(priced.id!, null);
+  ok(soc?.instagram === "https://instagram.com/salon_guzal" && soc?.telegramUrl === "https://t.me/salonguzal" && soc?.website === "https://guzal.uz", "15: ijtimoiy tarmoq saqlandi");
+  ok(soc?.facebook == null, "15: berilmagan maydon null qoladi");
+  await svc.adminEditListing(priced.id!, { instagram: "" });
+  ok((await svc.getListing(priced.id!, null))?.instagram == null, "15: bo'sh satr → null (tozalash)");
+
+  // 16) 🏅 «1067 tekshiruvi» — mijoz bahosidan MUSTAQIL rasmiy audit
+  const before15 = await svc.getListing(priced.id!, null);
+  ok(before15?.inspStars == null, "16: default holatda tekshirilmagan");
+  const setInsp = await svc.adminEditListing(priced.id!, { inspStars: 5, inspNote: "Toza, professional, narxlar mos" });
+  ok(setInsp.ok, "16: 5★ audit saqlandi");
+  const insp = await svc.getListing(priced.id!, null);
+  ok(insp?.inspStars === 5 && insp?.inspNote === "Toza, professional, narxlar mos" && !!insp?.inspAt, "16: detail'da stars+note+sana bor");
+  ok(insp!.avgRating === 0 && insp!.reviewCount === 0, "16: mijoz avgRating/reviewCount BUTUNLAY tegilmagan (mustaqil signal)");
+  const badLow = await svc.adminEditListing(priced.id!, { inspStars: 0 });
+  ok(badLow.ok === false && badLow.error === "bad_insp_stars", "16: 0★ rad etiladi");
+  const badHigh = await svc.adminEditListing(priced.id!, { inspStars: 6 });
+  ok(badHigh.ok === false && badHigh.error === "bad_insp_stars", "16: 6★ rad etiladi");
+  ok((await svc.getListing(priced.id!, null))?.inspStars === 5, "16: rad etilgan urinishdan keyin ham eski qiymat saqlanadi");
+  await svc.adminEditListing(priced.id!, { inspStars: null });
+  const cleared = await svc.getListing(priced.id!, null);
+  ok(cleared?.inspStars == null && cleared?.inspAt == null, "16: null → tekshiruv butunlay bekor qilindi (sana ham tozalandi)");
+  // karta darajasida ham ko'rinishi kerak (badge uchun)
+  await svc.adminEditListing(priced.id!, { inspStars: 4 });
+  const cardWithInsp = (await svc.listListings({ categoryId: cat.id, limit: 50 })).listings.find((l) => l.id === priced.id);
+  ok(cardWithInsp?.inspStars === 4, "16: kartada ham inspStars ko'rinadi (badge manbai)");
+
   // 9) seed idempotency
   const c1 = await svc.seedDefaultCategories();
   const c2 = await svc.seedDefaultCategories();

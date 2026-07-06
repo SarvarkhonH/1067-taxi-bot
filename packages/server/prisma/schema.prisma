@@ -1440,10 +1440,21 @@ model ServiceListing {
   address     String?
   geoLat      Float? // «Borish» tugmasi → tashqi navigator deep-link (app ichida xarita shart emas)
   geoLng      Float?
+  instagram   String? // ijtimoiy tarmoq havolalari — profilda ikon-tugma, faqat displey
+  telegramUrl String?
+  facebook    String?
+  website     String?
   workHours   String? // "08:00-19:00" → UI computes Ochiq/Yopiq live
   status      String          @default("pending") // pending | active | rejected | archived
   isVip       Boolean         @default(false)
-  verified    Boolean         @default(false) // blue badge — admin-granted only
+  verified    Boolean         @default(false) // blue badge — admin-granted only (identity/phone trust)
+  // 🏅 «1067 TEKSHIRUVI» — MIJOZ BAHOSIDAN BUTUNLAY ALOHIDA: 1067 jamoasi jismoniy borib
+  // tekshirgan rasmiy audit (toza joymi, xizmat sifati, narx-mos). `verified` shunchaki
+  // telefon/identity ishonchi; bu esa SIFAT auditi. avgRating/reviewCount'ga HECH tegmaydi,
+  // rankScore'ga ham qo'shilmaydi (mustaqil signal — ikkalasini aralashtirmaslik ataylab).
+  inspStars   Int? // 1067 auditorining bahosi (1-5), null = hali tekshirilmagan
+  inspNote    String? // qisqa xulosa: "Toza, professional, narxlar mos"
+  inspAt      DateTime? // tekshirilgan sana — inspStars o'zgarganda serverda avto-yangilanadi
   ownerTgId   BigInt? // who self-submitted (edit rights + spam cap)
   viewCount   Int             @default(0)
   callCount   Int             @default(0) // server-side only — "sizni N marta izlashdi" proof

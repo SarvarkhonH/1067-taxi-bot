@@ -86,6 +86,7 @@ function SvcCard({ l, onOpen }: { l: ServiceListingCard; onOpen: (l: ServiceList
           {l.isVip && <span className="svc-vip">TOP</span>}
           {l.name} {l.verified && <span className="svc-verified" title="Tasdiqlangan">✔</span>}
         </div>
+        {l.inspStars != null && <span className="svc-insp-badge" title="1067 jamoasi tekshirgan">🏅 1067: {l.inspStars}★</span>}
         <RatingLine l={l} />
         {l.tags && <div className="svc-card-tags">{l.tags}</div>}
         <div className="svc-card-meta">
@@ -270,12 +271,33 @@ function DetailSheet({ id, onClose, onBanner, onFavChange }: { id: number; onClo
             {d.callCount > 0 && <span className="muted"> · 📞 {d.callCount} marta</span>}
           </div>
 
+          {/* 🏅 1067 tekshiruvi — mijoz bahosidan ALOHIDA rasmiy audit (1067 jamoasi jismoniy tekshirgan).
+              Teal rang bilan ajratiladi — bu ★orange mijoz-reytingi bilan ARALASHMASLIGI kerak. */}
+          {d.inspStars != null && (
+            <div className="svc-insp glass pad">
+              <div className="between">
+                <b className="fs13">🏅 1067 tekshiruvi</b>
+                <Stars v={d.inspStars} />
+              </div>
+              {d.inspNote && <p className="fs12 muted mt4">{d.inspNote}</p>}
+            </div>
+          )}
+
           <button className="svc-call-main" onClick={call}>📞 Qo'ng'iroq qilish</button>
           <div className="svc-actions">
             {goUrl && <button className="svc-act" onClick={goNav}>🗺 Borish</button>}
             <button className="svc-act" onClick={share}>↗️ Ulashish</button>
             <button className="svc-act" onClick={() => { haptic(); setShowRate(true); }}>★ Baho qo'ying</button>
           </div>
+
+          {(d.instagram || d.telegramUrl || d.facebook || d.website) && (
+            <div className="svc-socials">
+              {d.instagram && <a className="svc-soc" href={d.instagram} target="_blank" rel="noreferrer" onClick={haptic}>📷 Instagram</a>}
+              {d.telegramUrl && <a className="svc-soc" href={d.telegramUrl} target="_blank" rel="noreferrer" onClick={haptic}>✈️ Telegram</a>}
+              {d.facebook && <a className="svc-soc" href={d.facebook} target="_blank" rel="noreferrer" onClick={haptic}>📘 Facebook</a>}
+              {d.website && <a className="svc-soc" href={d.website} target="_blank" rel="noreferrer" onClick={haptic}>🌐 Sayt</a>}
+            </div>
+          )}
 
           <div className="svc-info glass pad">
             <div className="svc-info-row">

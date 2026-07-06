@@ -1766,6 +1766,28 @@ function XizmatlarAdminView() {
               }}>🗺</button>
               <button className="btn sm" onClick={() => uploadPhoto(r.id)}>📷 {r.photoCount}/6</button>
               {r.photoCount > 0 && <button className="btn sm" onClick={async () => { if (!window.confirm("Rasmlar o'chirilsinmi?")) return; await adminApi.svcPhotoClear(r.id).catch(() => undefined); load(); }}>🗑🖼</button>}
+              <button className="btn sm" title="Ijtimoiy tarmoq: Instagram; Telegram; Facebook; Sayt (bo'sh qoldiring — yo'q bo'lsa)" style={{ opacity: (r.instagram || r.telegramUrl || r.facebook || r.website) ? 1 : 0.5 }} onClick={async () => {
+                const cur = [r.instagram ?? "", r.telegramUrl ?? "", r.facebook ?? "", r.website ?? ""].join("; ");
+                const v = window.prompt("Instagram; Telegram; Facebook; Sayt (havolalar, bo'sh=yo'q):", cur);
+                if (v === null) return;
+                const parts = v.split(";").map((x) => x.trim());
+                const rr = await adminApi.svcEdit(r.id, { instagram: parts[0] || null, telegramUrl: parts[1] || null, facebook: parts[2] || null, website: parts[3] || null }).catch(() => ({ ok: false as const }));
+                setMsg(rr.ok ? "✅ Ijtimoiy tarmoq saqlandi" : "❌ xatolik"); load();
+              }}>🔗</button>
+              <button className="btn sm" title="🏅 1067 TEKSHIRUVI — bu mijoz bahosi EMAS: jamoangiz jismoniy borib tekshirgan rasmiy audit. Format: '5; Toza, professional, narxlar mos' (bo'sh=tekshiruvni bekor qilish)" style={{ opacity: r.inspStars != null ? 1 : 0.5, borderColor: r.inspStars != null ? "#14b8a6" : undefined }} onClick={async () => {
+                const cur = r.inspStars != null ? `${r.inspStars}; ${r.inspNote ?? ""}` : "";
+                const v = window.prompt("🏅 1067 tekshiruvi — bahо (1-5); xulosa. Bo'sh=bekor qilish:", cur);
+                if (v === null) return;
+                if (!v.trim()) {
+                  const rr = await adminApi.svcEdit(r.id, { inspStars: null, inspNote: null }).catch(() => ({ ok: false as const }));
+                  setMsg(rr.ok ? "✅ Tekshiruv bekor qilindi" : "❌ xatolik"); load(); return;
+                }
+                const [starsRaw, ...rest] = v.split(";");
+                const stars = Number(String(starsRaw).trim());
+                if (!Number.isFinite(stars) || stars < 1 || stars > 5) { setMsg("❌ Baho 1-5 oralig'ida bo'lsin"); return; }
+                const rr = await adminApi.svcEdit(r.id, { inspStars: stars, inspNote: rest.join(";").trim() || null }).catch((e: Error) => ({ ok: false as const, error: e.message }));
+                setMsg(rr.ok ? "✅ 1067 tekshiruvi saqlandi" : `❌ ${("error" in rr && rr.error) || "xatolik"}`); load();
+              }}>🏅{r.inspStars != null ? ` ${r.inspStars}★` : ""}</button>
               <select style={{ padding: 6, fontSize: 12 }} value={r.categoryId} onChange={(e) => void edit(r.id, { categoryId: Number(e.target.value) }, "✅ Kategoriya o'zgardi")}>
                 {cats.map((c) => <option key={c.id} value={c.id}>{c.emoji} {c.name}</option>)}
               </select>

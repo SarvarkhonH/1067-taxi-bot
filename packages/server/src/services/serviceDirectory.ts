@@ -38,6 +38,7 @@ async function dirOn(preview: boolean): Promise<boolean> {
 type ListingRow = {
   id: number; name: string; categoryId: number; tags: string; address: string | null;
   workHours: string | null; isVip: boolean; verified: boolean; avgRating: number; reviewCount: number;
+  inspStars: number | null;
   category: { name: string; emoji: string };
 };
 
@@ -58,6 +59,7 @@ function toCard(l: ListingRow, photoCount: number, priceFrom: number | null = nu
     hasPhoto: photoCount > 0,
     photoCount,
     priceFrom,
+    inspStars: l.inspStars,
   };
 }
 
@@ -165,6 +167,12 @@ export async function getListing(id: number, tgId: string | null, preview = fals
     isFav: !!fav,
     geoLat: l.geoLat,
     geoLng: l.geoLng,
+    instagram: l.instagram,
+    telegramUrl: l.telegramUrl,
+    facebook: l.facebook,
+    website: l.website,
+    inspNote: l.inspNote,
+    inspAt: l.inspAt?.toISOString() ?? null,
   };
 }
 
@@ -366,6 +374,12 @@ export interface AdminServiceRow {
   geoLat: number | null;
   geoLng: number | null;
   priceCount: number;
+  instagram: string | null;
+  telegramUrl: string | null;
+  facebook: string | null;
+  website: string | null;
+  inspStars: number | null;
+  inspNote: string | null;
   status: string;
   isVip: boolean;
   verified: boolean;
@@ -417,6 +431,12 @@ export async function adminListListings(status?: string): Promise<{ rows: AdminS
       geoLat: l.geoLat,
       geoLng: l.geoLng,
       priceCount: priceCounts.get(l.id) ?? 0,
+      instagram: l.instagram,
+      telegramUrl: l.telegramUrl,
+      facebook: l.facebook,
+      website: l.website,
+      inspStars: l.inspStars,
+      inspNote: l.inspNote,
       status: l.status,
       isVip: l.isVip,
       verified: l.verified,
@@ -440,11 +460,17 @@ export interface ServicePatch {
   address?: string | null;
   geoLat?: number | null;
   geoLng?: number | null;
+  instagram?: string | null;
+  telegramUrl?: string | null;
+  facebook?: string | null;
+  website?: string | null;
   workHours?: string | null;
   categoryId?: number;
   status?: string;
   isVip?: boolean;
   verified?: boolean;
+  inspStars?: number | null; // 1-5 = tekshirildi, null = tozalash (hech qachon tekshirilmagan holatga qaytarish)
+  inspNote?: string | null;
 }
 
 export async function adminEditListing(id: number, b: ServicePatch): Promise<{ ok: boolean; error?: string }> {
@@ -468,10 +494,27 @@ export async function adminEditListing(id: number, b: ServicePatch): Promise<{ o
     data.geoLng = okGeo ? ln : null;
   }
   if (b.workHours !== undefined) data.workHours = (b.workHours ?? "").trim().slice(0, 20) || null;
+  if (b.instagram !== undefined) data.instagram = (b.instagram ?? "").trim().slice(0, 200) || null;
+  if (b.telegramUrl !== undefined) data.telegramUrl = (b.telegramUrl ?? "").trim().slice(0, 200) || null;
+  if (b.facebook !== undefined) data.facebook = (b.facebook ?? "").trim().slice(0, 200) || null;
+  if (b.website !== undefined) data.website = (b.website ?? "").trim().slice(0, 200) || null;
   if (typeof b.categoryId === "number") data.categoryId = b.categoryId;
   if (typeof b.status === "string" && ["pending", "active", "rejected", "archived"].includes(b.status)) data.status = b.status;
   if (typeof b.isVip === "boolean") data.isVip = b.isVip;
   if (typeof b.verified === "boolean") data.verified = b.verified;
+  // 🏅 1067 tekshiruvi — mijoz reytingiga UMUMAN tegmaydi, mustaqil audit maydoni
+  if (b.inspStars !== undefined) {
+    if (b.inspStars === null) {
+      data.inspStars = null;
+      data.inspAt = null;
+    } else {
+      const stars = Math.round(Number(b.inspStars));
+      if (!Number.isFinite(stars) || stars < 1 || stars > 5) return { ok: false, error: "bad_insp_stars" };
+      data.inspStars = stars;
+      data.inspAt = new Date();
+    }
+  }
+  if (b.inspNote !== undefined) data.inspNote = (b.inspNote ?? "").trim().slice(0, 300) || null;
   await prisma.serviceListing.update({ where: { id }, data }).catch(() => undefined);
   bustCatCache();
   return { ok: true };
@@ -712,7 +755,9 @@ export const DEFAULT_CATEGORIES: { name: string; emoji: string }[] = [
   { name: "Usta-servis", emoji: "🔧" },
   { name: "Go'zallik", emoji: "💇" },
   { name: "Oziq-ovqat", emoji: "🍞" },
+  { name: "Restoran/Kafe", emoji: "🍽" }, // 2GIS-parity: ovqatlanish joyi Oziq-ovqat (bozor/oshxona) dan ALOHIDA
   { name: "Tibbiyot", emoji: "🩺" },
+  { name: "Dorixona", emoji: "💊" }, // Tibbiyot (klinika/shifokor) dan ALOHIDA — qidiruv aniqroq bo'lishi uchun
   { name: "Ta'lim", emoji: "📚" },
   { name: "To'y-marosim", emoji: "🎉" },
   { name: "Transport", emoji: "🚚" },
