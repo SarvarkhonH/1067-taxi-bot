@@ -316,7 +316,6 @@ export function App() {
       <div className="aurora" />
       <header className="topbar">
         <div className="brand">
-          <span className="brand-badge">🚕</span>
           {/* tepadagi sarlavha kontekstli: faqat Uy'da «1067 TAXI», qolgan tablarda tab nomi */}
           <span className="brand-name">
             {tab === "uy" ? <>1067<b>TAXI</b></>
