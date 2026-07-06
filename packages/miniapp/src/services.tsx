@@ -23,14 +23,9 @@ function fetchHome(): Promise<SvcHome> {
     .then(([c, t, f, fv]) => ({ cats: c.categories, top: t.listings, fresh: f.listings, favs: fv.listings, popularTags: c.popularTags }));
 }
 
-const ACCENTS = ["#ffb300", "#f0426b", "#8b5cf6", "#22c55e", "#38bdf8", "#fb923c"];
-function accentOf(s: string): string {
-  let h = 5381;
-  for (let i = 0; i < s.length; i++) h = (h * 33) ^ s.charCodeAt(i);
-  return ACCENTS[(h >>> 0) % ACCENTS.length]!;
-}
-// karta accenti PER-ID: bitta kategoriyadagi 8 karta bir xil rang bo'lib "o'lik ro'yxat" ko'rinmasin
-const accentOfCard = (l: { id: number; categoryName: string }) => accentOf(`${l.categoryName}#${l.id % 7}`);
+// Bir vaqtlar kategoriya-bo'yicha kamalak-rang edi (shop'da ega "3 rang to'qnashdi" deb rad etgan
+// aynan shu naqsh) — endi BITTA brand-oltin palitra, CSS'dagi `--acc: var(--brand)` defaulti orqali
+// (svc-card/svc-cat-tile/svc-detail-noimg, tokens.css). Inline --acc override YO'Q — ataylab.
 
 /** "08:00-19:00" → open now? null = unknown/24h. Overnight ranges (22:00-06:00) supported. */
 function openNow(wh?: string | null): boolean | null {
@@ -73,7 +68,7 @@ function OpenBadge({ wh }: { wh?: string | null }) {
 
 function SvcCard({ l, onOpen }: { l: ServiceListingCard; onOpen: (l: ServiceListingCard) => void }) {
   return (
-    <button className="svc-card glass" onClick={() => onOpen(l)} style={{ ["--acc" as string]: accentOfCard(l) }}>
+    <button className="svc-card glass" onClick={() => onOpen(l)}>
       <div className="svc-card-thumb">
         {l.hasPhoto ? (
           <img src={apiUrl(`/api/services/photo/${l.id}?s=1`)} loading="lazy" decoding="async" alt="" />
@@ -263,7 +258,7 @@ function DetailSheet({ id, onClose, onBanner, onFavChange }: { id: number; onClo
               )}
             </div>
           ) : (
-            <div className="svc-detail-noimg" style={{ ["--acc" as string]: accentOf(d.categoryName) }}>{d.categoryEmoji || "🏪"}</div>
+            <div className="svc-detail-noimg">{d.categoryEmoji || "🏪"}</div>
           )}
 
           <div className="between">
@@ -592,7 +587,7 @@ export function XizmatlarView({ me, onBanner }: { me: MeResponse; onBanner: (msg
         <>
           <div className="svc-cat-grid mt10">
             {cats.map((c) => (
-              <button key={c.id} className={"svc-cat-tile glass" + (c.count < 3 ? " thin" : "")} style={{ ["--acc" as string]: accentOf(c.name) }} onClick={() => openCat(c)}>
+              <button key={c.id} className={"svc-cat-tile glass" + (c.count < 3 ? " thin" : "")} onClick={() => openCat(c)}>
                 <span className="svc-cat-emoji">{c.emoji}</span>
                 <span className="svc-cat-name">{c.name}</span>
                 <span className="svc-cat-count">{c.count} ta</span>
