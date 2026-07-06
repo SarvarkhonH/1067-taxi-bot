@@ -113,6 +113,7 @@ async function request<T>(method: string, path: string, body?: unknown, retries 
 
 const get = <T,>(path: string) => request<T>("GET", path);
 const post = <T,>(path: string, body?: unknown) => request<T>("POST", path, body);
+const del = <T,>(path: string) => request<T>("DELETE", path);
 
 // 🛡 public read-only trip (family safety) — no PII, active-only
 export interface PublicTrip {
@@ -140,6 +141,10 @@ export const api = {
   shopProducts: () => get<{ products: import("@t1067/shared").ShopProductView[] }>("/api/shop/products"),
   shopBuy: (productId: number, address: string) => post<import("@t1067/shared").ShopBuyResponse>("/api/shop/buy", { productId, address }),
   shopOrders: () => get<{ orders: import("@t1067/shared").ShopPurchaseView[] }>("/api/shop/orders"),
+  shopReviews: (productId: number) => get<import("@t1067/shared").ShopReviewsResponse>(`/api/shop/reviews/${productId}`),
+  shopReviewSubmit: (p: { productId: number; thumb: "up" | "down"; text?: string; photos?: string[] }) =>
+    post<import("@t1067/shared").ShopReviewSubmitResponse>("/api/shop/review", p),
+  shopReviewDelete: (productId: number) => del<{ ok: boolean }>(`/api/shop/review/${productId}`),
   // 🔎 xizmatlar (feature "xizmatlar") — Koson services directory
   svcCategories: () => get<{ categories: import("@t1067/shared").ServiceCategoryView[] }>("/api/services/categories"),
   svcList: (p: { cat?: number; q?: string; limit?: number; offset?: number } = {}) => {

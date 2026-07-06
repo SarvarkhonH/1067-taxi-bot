@@ -343,6 +343,8 @@ export interface ShopProductView {
   isNew: boolean; // createdAt < 7d — gold NEW badge
   featured: boolean; // hero-carousel slot
   topSeller: boolean; // top-3 by delivered orders — 🔥 TOP badge
+  likes: number; // 👍 review count
+  dislikes: number; // 👎 review count
 }
 
 export type ShopPurchaseStatus = "pending" | "delivered" | "rejected" | "cancelled";
@@ -367,6 +369,35 @@ export interface ShopBuyResponse {
 
 export const SHOP_MAX_PRICE = 5_000_000; // sanity ceiling for admin-entered prices
 export const SHOP_LOW_STOCK = 5; // "kam qoldi" badge threshold
+
+// ── 🛍 shop reviews: sharh + 👍/👎 + 2-3 rasm (Uzum pattern) ─────────────────────────────────────
+export type ShopReviewThumb = "up" | "down";
+
+export interface ShopReviewView {
+  id: number;
+  name: string; // first name only — small-town privacy
+  thumb: ShopReviewThumb;
+  text?: string | null;
+  photoCount: number; // render /api/shop/review-photo/:id/:n for n < photoCount
+  createdAt: string;
+  mine: boolean;
+  verified: boolean; // has a DELIVERED purchase of this product — "✅ Xarid qilgan"
+}
+
+export interface ShopReviewsResponse {
+  likes: number;
+  dislikes: number;
+  reviews: ShopReviewView[];
+  myThumb?: ShopReviewThumb | null;
+}
+
+export interface ShopReviewSubmitResponse {
+  ok: boolean;
+  reason?: "off" | "unavailable" | "bad_thumb" | "too_long" | "too_many_photos" | "bad_photo";
+}
+
+export const SHOP_REVIEW_MAX_PHOTOS = 3;
+export const SHOP_REVIEW_MAX_TEXT = 280;
 
 // ── 🔎 XIZMATLAR (feature "xizmatlar") — Koson services directory ────────────────────────────────
 // Read/search/call/review only — NO money shapes here by design.

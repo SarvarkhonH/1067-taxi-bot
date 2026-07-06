@@ -23,6 +23,7 @@ async function main(): Promise<void> {
     await prisma.coinTxn.deleteMany({ where: { memberId: { in: ids } } });
     const prods = await prisma.product.findMany({ where: { category: TAG }, select: { id: true } });
     await prisma.productPhoto.deleteMany({ where: { productId: { in: prods.map((p) => p.id) } } });
+    await prisma.productReview.deleteMany({ where: { OR: [{ productId: { in: prods.map((p) => p.id) } }, { memberId: { in: ids } }] } });
     await prisma.product.deleteMany({ where: { category: TAG } });
     await prisma.member.deleteMany({ where: { id: { in: ids } } });
     await prisma.appState.deleteMany({ where: { key: "feature:shop" } });
@@ -161,6 +162,50 @@ async function main(): Promise<void> {
   ok(mk15?.oldPriceTanga === 5000 && mk15.featured === true, `15: oldPrice+featured flow to the view (${mk15?.oldPriceTanga}/${mk15?.featured})`);
   await adminEditProduct(pid, { oldPriceTanga: 0 });
   ok((await listActiveProducts(true)).find((p) => p.id === pid)?.oldPriceTanga === null, "15: oldPrice=0 clears the discount (null)");
+
+  // 16) 🗣 reviews: upsert (one per member), 👍/👎 tallies, photosJson resolve, verified badge, moderation
+  const { listReviews, submitReview, deleteMyReview, resolveReviewPhoto, adminListReviews, adminDeleteReview } = await import("../services/shopService");
+  const rev1 = await submitReview(a.id, pid, "up", "Zo'r mahsulot!", undefined, true);
+  ok(rev1.ok === true, "16: review submit ok (preview while DARK)");
+  const rev2 = await submitReview(a.id, pid, "down", "Fikrim o'zgardi", undefined, true);
+  ok(rev2.ok === true, "16: re-submit ok");
+  const rlist1 = await listReviews(pid, a.id, true);
+  ok(rlist1.likes === 0 && rlist1.dislikes === 1 && rlist1.reviews.length === 1, `16: upsert EDITS not duplicates (likes=${rlist1.likes} dislikes=${rlist1.dislikes} n=${rlist1.reviews.length})`);
+  ok(rlist1.myThumb === "down" && rlist1.reviews[0]!.mine === true, "16: myThumb + mine flow back");
+  await submitReview(b.id, pid, "up", undefined, undefined, true);
+  const rlist2 = await listReviews(pid, a.id, true);
+  ok(rlist2.likes === 1 && rlist2.dislikes === 1, "16: second member adds an independent 👍");
+  // verified badge: member A has a DELIVERED purchase of pid (step 8/9 delivered one)
+  ok(rlist2.reviews.find((r) => r.mine)?.verified === true, "16: delivered buyer gets the ✅ verified badge");
+  // tallies flow to the product card view
+  const cardV = (await listActiveProducts(true)).find((p) => p.id === pid);
+  ok(cardV?.likes === 1 && cardV.dislikes === 1, `16: 👍/👎 tallies on the rider card (${cardV?.likes}/${cardV?.dislikes})`);
+  // photosJson roundtrip (direct row — the Telegram leg is env-dependent, same as step 14)
+  await prisma.productReview.update({
+    where: { productId_memberId: { productId: pid, memberId: a.id } },
+    data: { photosJson: JSON.stringify([{ u: "data:image/jpeg;base64,QQ==" }, { u: "data:image/jpeg;base64,Qg==" }]) },
+  });
+  const rlist3 = await listReviews(pid, a.id, true);
+  const myRevId = rlist3.reviews.find((r) => r.mine)!.id;
+  ok(rlist3.reviews.find((r) => r.mine)?.photoCount === 2, "16: photoCount=2 from photosJson");
+  ok((await resolveReviewPhoto(myRevId, 1)) === "data:image/jpeg;base64,Qg==", "16: Nth review photo resolves");
+  ok((await resolveReviewPhoto(myRevId, 4)) === null, "16: out-of-range review photo → null");
+  // text clamp + bad thumb rejected
+  ok((await submitReview(c.id, pid, "sideways", undefined, undefined, true)).reason === "bad_thumb", "16: bad thumb rejected");
+  await submitReview(c.id, pid, "up", "x".repeat(500), undefined, true);
+  const longTxt = (await listReviews(pid, c.id, true)).reviews.find((r) => r.mine)?.text ?? "";
+  ok(longTxt.length <= 280, `16: text clamped to 280 (got ${longTxt.length})`);
+  // delete own + admin moderation
+  await deleteMyReview(c.id, pid);
+  ok((await listReviews(pid, c.id, true)).reviews.every((r) => !r.mine), "16: own review deleted");
+  const admList = await adminListReviews();
+  ok(admList.some((r) => r.id === myRevId), "16: admin list carries the review");
+  await adminDeleteReview(myRevId);
+  ok((await listReviews(pid, a.id, true)).reviews.every((r) => r.id !== myRevId), "16: admin delete removes it");
+  // flag gating: DARK + no preview → empty + blocked
+  const gated = await listReviews(pid, a.id, false);
+  ok(gated.reviews.length === 0, "16: flag DARK → reviews hidden for riders");
+  ok((await submitReview(b.id, pid, "up", undefined, undefined, false)).reason === "off", "16: flag DARK → submit blocked for riders");
 
   await cleanup();
   console.log(process.exitCode ? "\n❌ FAILED" : "\n✅ ALL GREEN");

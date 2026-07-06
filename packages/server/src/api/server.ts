@@ -362,7 +362,8 @@ export function createApiServer(opts: ApiOptions = {}) {
     shopPhotoHits.set(ipKey, h && now - h.at < 60_000 ? { n: h.n + 1, at: h.at } : { n: 1, at: now });
     const { resolveProductPhoto } = await import("../services/shopService");
     const idx = Math.max(0, Math.min(10, Number(req.params.n ?? 0) || 0));
-    const url = await resolveProductPhoto(Number(req.params.productId), idx);
+    // ?s=1 → ~320px Telegram tier for card/row lists (perf: ~15KB vs ~200KB per image)
+    const url = await resolveProductPhoto(Number(req.params.productId), idx, req.query.s === "1");
     if (!url) { res.status(404).end(); return; }
     if (url.startsWith("data:")) {
       const m = /^data:([^;]+);base64,(.*)$/.exec(url);
@@ -374,6 +375,48 @@ export function createApiServer(opts: ApiOptions = {}) {
   };
   app.get("/api/shop/photo/:productId", serveShopPhoto);
   app.get("/api/shop/photo/:productId/:n", serveShopPhoto);
+
+  // ── 🗣 shop reviews: sharh + 👍/👎 + up to 3 rasm ────────────────────────────────────────────
+  app.get("/api/shop/reviews/:productId", requireUser, rateLimit(30), withMember2(async (id, req, res) => {
+    const { listReviews } = await import("../services/shopService");
+    return listReviews(Number(req.params.productId), id, isAdmin(res.locals.telegramId as string));
+  }));
+  app.post("/api/shop/review", express.json({ limit: "8mb" }), requireUser, rateLimit(6), withMember2(async (id, req, res) => {
+    const { submitReview } = await import("../services/shopService");
+    const photos = Array.isArray(req.body?.photos) ? (req.body.photos as unknown[]).filter((p): p is string => typeof p === "string") : undefined;
+    const r = await submitReview(id, Number(req.body?.productId), String(req.body?.thumb ?? ""), typeof req.body?.text === "string" ? req.body.text : undefined, photos, isAdmin(res.locals.telegramId as string));
+    if (r.ok) {
+      const { alertAdmins } = await import("../services/economyService");
+      const t = req.body?.thumb === "up" ? "👍" : "👎";
+      await alertAdmins(`🗣 Yangi sharh (#${Number(req.body?.productId)}): ${t} ${String(req.body?.text ?? "").slice(0, 120)}`).catch(() => undefined);
+    }
+    return r;
+  }));
+  app.delete("/api/shop/review/:productId", requireUser, rateLimit(10), withMember2(async (id, req) => {
+    const { deleteMyReview } = await import("../services/shopService");
+    return deleteMyReview(id, Number(req.params.productId));
+  }));
+  // review photos ride the same public proxy pattern + the same per-IP throttle map
+  const serveReviewPhoto = async (req: Request, res: Response): Promise<void> => {
+    const ipKey = String(req.headers["x-forwarded-for"] ?? req.socket.remoteAddress ?? "?").split(",")[0]!.trim();
+    const now = Date.now();
+    const h = shopPhotoHits.get(ipKey);
+    if (h && now - h.at < 60_000 && h.n >= 120) { res.status(429).end(); return; }
+    shopPhotoHits.set(ipKey, h && now - h.at < 60_000 ? { n: h.n + 1, at: h.at } : { n: 1, at: now });
+    const { resolveReviewPhoto } = await import("../services/shopService");
+    const idx = Math.max(0, Math.min(5, Number(req.params.n ?? 0) || 0));
+    const url = await resolveReviewPhoto(Number(req.params.reviewId), idx, req.query.s === "1");
+    if (!url) { res.status(404).end(); return; }
+    if (url.startsWith("data:")) {
+      const m = /^data:([^;]+);base64,(.*)$/.exec(url);
+      if (!m) { res.status(404).end(); return; }
+      res.set("Content-Type", m[1]!).set("Cache-Control", "public, max-age=3600").send(Buffer.from(m[2]!, "base64"));
+      return;
+    }
+    res.set("Cache-Control", "private, max-age=3600").redirect(302, url);
+  };
+  app.get("/api/shop/review-photo/:reviewId", serveReviewPhoto);
+  app.get("/api/shop/review-photo/:reviewId/:n", serveReviewPhoto);
 
   // ── 🔎 XIZMATLAR (feature "xizmatlar", DARK until seed + QABUL) — moves NO money ──────────────
   // owner-preview everywhere: admins browse/QABUL the real catalog while riders still see nothing.
@@ -1051,6 +1094,14 @@ export function createApiServer(opts: ApiOptions = {}) {
   app.get("/api/admin/shop/orders", requireAdmin, async (req, res) => {
     const { adminListPurchases } = await import("../services/shopService");
     res.json({ orders: await adminListPurchases(req.query?.status ? String(req.query.status) : undefined) });
+  });
+  app.get("/api/admin/shop/reviews", requireAdmin, async (_req, res) => {
+    const { adminListReviews } = await import("../services/shopService");
+    res.json({ reviews: await adminListReviews() });
+  });
+  app.delete("/api/admin/shop/reviews/:id", requireAdmin, requireOwner, rateLimit(30), async (req, res) => {
+    const { adminDeleteReview } = await import("../services/shopService");
+    res.json(await adminDeleteReview(Number(req.params.id)));
   });
 
   // ── 🔎 XIZMATLAR admin (owner-gated writes) ───────────────────────────────────────────────────

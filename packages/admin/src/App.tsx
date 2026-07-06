@@ -14,7 +14,7 @@ import {
   type AdminMemberRow,
   type AdminStats,
 } from "@t1067/shared";
-import { adminApi, clearAdminToken, hasAdminToken, setAdminToken, type AdminBannedRow, type AdminChatConvo, type AdminChatMsg, type AdminDebtRow, type AdminMsgHistoryRow, type AdminRatingRow, type AdminTxnRow, type AdminBlockedRow, type AdminReferralRow, type AdminRideRow, type AdminUserRow, type AdminWithdrawalRow, type AdminWithdrawalTabRow, type CampaignRow, type Driver360, type DriverCallRow, type DriverCallStats, type DriverMissionRow, type IntercityAdminTrip, type IntercityAdminDebt, type Member360, type PeakHourRow, type ShopAdminProductRow, type ShopAdminOrderRow, type SvcAdminRow, type SvcAdminCat, type SvcAdminReview } from "./api";
+import { adminApi, clearAdminToken, hasAdminToken, setAdminToken, type AdminBannedRow, type AdminChatConvo, type AdminChatMsg, type AdminDebtRow, type AdminMsgHistoryRow, type AdminRatingRow, type AdminTxnRow, type AdminBlockedRow, type AdminReferralRow, type AdminRideRow, type AdminUserRow, type AdminWithdrawalRow, type AdminWithdrawalTabRow, type CampaignRow, type Driver360, type DriverCallRow, type DriverCallStats, type DriverMissionRow, type IntercityAdminTrip, type IntercityAdminDebt, type Member360, type PeakHourRow, type ShopAdminProductRow, type ShopAdminOrderRow, type ShopAdminReviewRow, type SvcAdminRow, type SvcAdminCat, type SvcAdminReview } from "./api";
 
 type Tab = "overview" | "pulse" | "analytics" | "finance" | "live" | "x360" | "driver" | "client" | "botusers" | "obzvon" | "boshqaruv" | "topshiriq" | "actions" | "integrity" | "audit" | "safarlar" | "qarzlar" | "referallar" | "banlist" | "yechishlar" | "baholar" | "xabar" | "chat" | "broadcasts" | "intercity" | "pik" | "transactions" | "blocked" | "shop" | "xizmatlar";
 
@@ -1472,6 +1472,7 @@ function CampaignsView() {
 function ShopAdminView() {
   const [data, setData] = useState<{ products: ShopAdminProductRow[]; enabled: boolean; pendingOrders: number } | null>(null);
   const [orders, setOrders] = useState<ShopAdminOrderRow[] | null>(null);
+  const [reviews, setReviews] = useState<ShopAdminReviewRow[] | null>(null);
   const [name, setName] = useState("");
   const [price, setPrice] = useState("");
   const [stock, setStock] = useState("");
@@ -1482,6 +1483,7 @@ function ShopAdminView() {
   const load = () => {
     adminApi.shopProducts().then(setData).catch(() => undefined);
     adminApi.shopOrders().then((r) => setOrders(r.orders)).catch(() => setOrders([]));
+    adminApi.shopReviews().then((r) => setReviews(r.reviews)).catch(() => setReviews([]));
   };
   useEffect(() => { load(); }, []);
 
@@ -1579,6 +1581,20 @@ function ShopAdminView() {
           </div>
         ))}
         {orders && orders.length === 0 && <p className="muted">Hali buyurtma yo&apos;q.</p>}
+      </section>
+      <section className="panel">
+        <div className="panel-title">🗣 Sharhlar (oxirgi {reviews?.length ?? 0})</div>
+        {(reviews ?? []).map((r) => (
+          <div key={r.id} style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", padding: "8px 0", borderBottom: "1px solid rgba(255,255,255,0.08)" }}>
+            <span style={{ flex: "2 1 220px" }}>
+              {r.thumb === "up" ? "👍" : "👎"} <b>{r.productName}</b> <span className="muted">· {r.memberName}{r.photoCount > 0 ? ` · 📷${r.photoCount}` : ""}</span>
+            </span>
+            <span className="muted" style={{ flex: "3 1 220px", fontSize: 12 }}>{r.text ?? "—"}</span>
+            <span className="muted" style={{ fontSize: 11 }}>{new Date(r.createdAt).toLocaleDateString("ru-RU")}</span>
+            <button className="btn sm" title="Sharhni o'chirish (spam/haqorat)" onClick={async () => { if (!window.confirm("Sharh o'chirilsinmi?")) return; await adminApi.shopReviewDelete(r.id).catch(() => undefined); load(); }}>🗑</button>
+          </div>
+        ))}
+        {reviews && reviews.length === 0 && <p className="muted">Hali sharh yo&apos;q.</p>}
       </section>
     </>
   );

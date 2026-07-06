@@ -2,8 +2,17 @@
 // search → featured hero-carousel → per-category horizontal rows (Uzum pattern) → rich detail
 // (gallery + discount + delivery promise + similar items) → two-step buy → my orders.
 // NO lootboxes; the insufficient-tanga state converts into a RIDE (the real business loop).
-import { useEffect, useMemo, useState } from "react";
-import { SHOP_LOW_STOCK, formatNumber, type MeResponse, type ShopProductView, type ShopPurchaseView } from "@t1067/shared";
+import { useEffect, useMemo, useRef, useState } from "react";
+import {
+  SHOP_LOW_STOCK,
+  SHOP_REVIEW_MAX_PHOTOS,
+  SHOP_REVIEW_MAX_TEXT,
+  formatNumber,
+  type MeResponse,
+  type ShopProductView,
+  type ShopPurchaseView,
+  type ShopReviewsResponse,
+} from "@t1067/shared";
 import { api, apiUrl } from "./api";
 import { haptic, hapticSuccess } from "./telegram";
 import { confetti } from "./util";
@@ -14,6 +23,28 @@ const LAST_ADDR_KEY = "shop_last_addr";
 
 function discountPct(p: ShopProductView): number {
   return p.oldPriceTanga && p.oldPriceTanga > p.priceTanga ? Math.round((1 - p.priceTanga / p.oldPriceTanga) * 100) : 0;
+}
+
+/** Compress a picked photo to ≤900px JPEG data-URL — review uploads stay small on village internet. */
+async function compressImage(file: File, maxSide = 900, quality = 0.78): Promise<string | null> {
+  try {
+    const url = URL.createObjectURL(file);
+    const img = await new Promise<HTMLImageElement>((ok, no) => {
+      const i = new Image();
+      i.onload = () => ok(i);
+      i.onerror = no;
+      i.src = url;
+    });
+    const k = Math.min(1, maxSide / Math.max(img.width, img.height));
+    const canvas = document.createElement("canvas");
+    canvas.width = Math.round(img.width * k);
+    canvas.height = Math.round(img.height * k);
+    canvas.getContext("2d")!.drawImage(img, 0, 0, canvas.width, canvas.height);
+    URL.revokeObjectURL(url);
+    return canvas.toDataURL("image/jpeg", quality);
+  } catch {
+    return null;
+  }
 }
 
 function StatusPill({ s }: { s: ShopPurchaseView["status"] }) {
@@ -54,11 +85,12 @@ function ProductCard({ p, onOpen, wide }: { p: ShopProductView; onOpen: (p: Shop
   return (
     <button className={"shop-card glass" + (wide ? "" : " shop-card-h")} onClick={() => onOpen(p)}>
       <div className="shop-card-photo-wrap">
-        {p.hasPhoto ? <img className="shop-card-photo" src={apiUrl(`/api/shop/photo/${p.id}`)} loading="lazy" alt="" /> : <div className="shop-card-photo shop-card-noimg">🛍</div>}
+        {p.hasPhoto ? <img className="shop-card-photo" src={apiUrl(`/api/shop/photo/${p.id}?s=1`)} loading="lazy" decoding="async" alt="" /> : <div className="shop-card-photo shop-card-noimg">🛍</div>}
         <Badges p={p} />
       </div>
       <div className="shop-card-body">
         <div className="shop-card-name">{p.name}</div>
+        {p.likes > 0 && <div className="shop-card-likes">👍 {p.likes}{p.dislikes > 0 ? ` · 👎 ${p.dislikes}` : ""}</div>}
         <PriceBlock p={p} />
         <div className="shop-buy-bar">Sotib olish</div>
       </div>
@@ -71,7 +103,7 @@ export function ShopView({ me, onBanner, reload, onBook }: { me: MeResponse; onB
   const [err, setErr] = useState(false);
   const [q, setQ] = useState("");
   const [sel, setSel] = useState<ShopProductView | null>(null);
-  const [step, setStep] = useState<"detail" | "confirm">("detail");
+  const [step, setStep] = useState<"detail" | "confirm" | "reviews">("detail");
   const [address, setAddress] = useState(() => { try { return localStorage.getItem(LAST_ADDR_KEY) ?? ""; } catch { return ""; } });
   const [busy, setBusy] = useState(false);
   const [buyErr, setBuyErr] = useState<string | null>(null);
@@ -79,6 +111,62 @@ export function ShopView({ me, onBanner, reload, onBook }: { me: MeResponse; onB
   const [orders, setOrders] = useState<ShopPurchaseView[] | null>(null);
   const [success, setSuccess] = useState<{ orderId: number; name: string } | null>(null);
   const [galleryIdx, setGalleryIdx] = useState(0);
+  // 🗣 sharhlar
+  const [reviews, setReviews] = useState<ShopReviewsResponse | null>(null);
+  const [revThumb, setRevThumb] = useState<"up" | "down" | null>(null);
+  const [revText, setRevText] = useState("");
+  const [revPhotos, setRevPhotos] = useState<string[]>([]);
+  const [revBusy, setRevBusy] = useState(false);
+  const [revErr, setRevErr] = useState<string | null>(null);
+  const revFileRef = useRef<HTMLInputElement>(null);
+
+  const loadReviews = (productId: number) => {
+    setReviews(null);
+    api.shopReviews(productId).then((r) => {
+      setReviews(r);
+      const mine = r.reviews.find((v) => v.mine);
+      setRevThumb(r.myThumb ?? null);
+      setRevText(mine?.text ?? "");
+      setRevPhotos([]);
+    }).catch(() => setReviews({ likes: 0, dislikes: 0, reviews: [] }));
+  };
+
+  const addRevPhotos = async (files: FileList | null) => {
+    if (!files) return;
+    const room = SHOP_REVIEW_MAX_PHOTOS - revPhotos.length;
+    const picked = [...files].slice(0, room);
+    const out: string[] = [];
+    for (const f of picked) {
+      const d = await compressImage(f);
+      if (d) out.push(d);
+    }
+    if (out.length) setRevPhotos((p) => [...p, ...out].slice(0, SHOP_REVIEW_MAX_PHOTOS));
+  };
+
+  const submitReview = async () => {
+    if (!sel || !revThumb) return;
+    setRevBusy(true);
+    setRevErr(null);
+    try {
+      const r = await api.shopReviewSubmit({
+        productId: sel.id,
+        thumb: revThumb,
+        text: revText.trim() || undefined,
+        photos: revPhotos.length ? revPhotos : undefined,
+      });
+      if (r.ok) {
+        hapticSuccess();
+        loadReviews(sel.id);
+        load(); // 👍 tallies on cards
+      } else {
+        setRevErr(r.reason === "too_many_photos" ? "Ko'pi bilan 3 ta rasm" : "Xatolik — qayta urinib ko'ring");
+      }
+    } catch {
+      setRevErr("Tarmoq xatosi — qayta urinib ko'ring");
+    } finally {
+      setRevBusy(false);
+    }
+  };
 
   const load = () => {
     setErr(false);
@@ -193,7 +281,7 @@ export function ShopView({ me, onBanner, reload, onBook }: { me: MeResponse; onB
             <div className="shop-hero-strip">
               {featured.map((p) => (
                 <button key={p.id} className="shop-hero" onClick={() => openProduct(p)}>
-                  {p.hasPhoto ? <img className="shop-hero-img" src={apiUrl(`/api/shop/photo/${p.id}`)} loading="lazy" alt="" /> : <div className="shop-hero-img shop-card-noimg">🛍</div>}
+                  {p.hasPhoto ? <img className="shop-hero-img" src={apiUrl(`/api/shop/photo/${p.id}?s=1`)} loading="lazy" decoding="async" alt="" /> : <div className="shop-hero-img shop-card-noimg">🛍</div>}
                   <div className="shop-hero-grad" />
                   <div className="shop-hero-info">
                     <div className="shop-hero-name">{p.name}</div>
@@ -246,7 +334,14 @@ export function ShopView({ me, onBanner, reload, onBook }: { me: MeResponse; onB
             {sel.description && <p className="muted fs13">{sel.description}</p>}
             <PriceBlock p={sel} big />
             {sel.stock <= SHOP_LOW_STOCK && <div className="shop-low-line">⚡ Kam qoldi: {sel.stock} dona</div>}
-            <div className="shop-deliver-line">🚚 Bugun buyurtma qilsangiz — <b>1 kun ichida yetkazamiz</b> · egamiz qo'ng'iroq qiladi</div>
+            <div className="shop-deliver-line">🚚 Bugun buyurtma qilsangiz — <b>1 kun ichida yetkazamiz</b> · do'kon egasi qo'ng'iroq qiladi</div>
+            <button className="shop-reviews-entry" onClick={() => { haptic(); loadReviews(sel.id); setStep("reviews"); }}>
+              <span>🗣 Sharhlar</span>
+              <span className="shop-reviews-agg">
+                {sel.likes + sel.dislikes > 0 ? <>👍 {sel.likes}{sel.dislikes > 0 && <> · 👎 {sel.dislikes}</>}</> : "Birinchi bo'lib yozing"}
+              </span>
+              <span className="shop-reviews-chev">›</span>
+            </button>
             {deficit > 0 ? (
               <div className="shop-insufficient-bar">
                 <div className="fs13">🪙 Sizda: <b>{formatNumber(me.coins)}</b> / kerak: <b>{formatNumber(sel.priceTanga)}</b></div>
@@ -264,7 +359,7 @@ export function ShopView({ me, onBanner, reload, onBook }: { me: MeResponse; onB
                 <div className="shop-row-strip">
                   {similar.map((p) => (
                     <button key={p.id} className="shop-mini" onClick={() => openProduct(p)}>
-                      {p.hasPhoto ? <img className="shop-mini-img" src={apiUrl(`/api/shop/photo/${p.id}`)} loading="lazy" alt="" /> : <div className="shop-mini-img shop-card-noimg">🛍</div>}
+                      {p.hasPhoto ? <img className="shop-mini-img" src={apiUrl(`/api/shop/photo/${p.id}?s=1`)} loading="lazy" decoding="async" alt="" /> : <div className="shop-mini-img shop-card-noimg">🛍</div>}
                       <div className="shop-mini-name">{p.name}</div>
                       <div className="shop-mini-price">🪙 {formatNumber(p.priceTanga)}</div>
                     </button>
@@ -274,11 +369,89 @@ export function ShopView({ me, onBanner, reload, onBook }: { me: MeResponse; onB
             )}
           </div>
         )}
+        {sel && step === "reviews" && (
+          <div className="shop-reviews">
+            <button className="pay-back" onClick={() => setStep("detail")}>‹ Orqaga</button>
+            <h3>🗣 {sel.name} — sharhlar</h3>
+            {reviews === null ? (
+              <><Skeleton h={46} className="mt8" /><Skeleton h={46} className="mt8" /></>
+            ) : (
+              <>
+                <div className="shop-rev-agg">
+                  <span className="shop-rev-agg-up">👍 {reviews.likes}</span>
+                  <span className="shop-rev-agg-down">👎 {reviews.dislikes}</span>
+                  <span className="muted fs12">{reviews.reviews.length} sharh</span>
+                </div>
+
+                {/* write / edit my review */}
+                <div className="shop-rev-form">
+                  <div className="shop-rev-thumbs">
+                    <button className={"shop-rev-thumb" + (revThumb === "up" ? " on up" : "")} onClick={() => { haptic(); setRevThumb("up"); }}>👍 Yoqdi</button>
+                    <button className={"shop-rev-thumb" + (revThumb === "down" ? " on down" : "")} onClick={() => { haptic(); setRevThumb("down"); }}>👎 Yoqmadi</button>
+                  </div>
+                  <textarea
+                    className="bk-input shop-rev-text"
+                    placeholder="Fikringiz (ixtiyoriy)…"
+                    maxLength={SHOP_REVIEW_MAX_TEXT}
+                    value={revText}
+                    onChange={(e) => setRevText(e.target.value)}
+                    rows={2}
+                  />
+                  <div className="shop-rev-photo-row">
+                    {revPhotos.map((d, i) => (
+                      <span key={i} className="shop-rev-photo-prev">
+                        <img src={d} alt="" />
+                        <button onClick={() => setRevPhotos((p) => p.filter((_, j) => j !== i))}>✕</button>
+                      </span>
+                    ))}
+                    {revPhotos.length < SHOP_REVIEW_MAX_PHOTOS && (
+                      <button className="shop-rev-photo-add" onClick={() => revFileRef.current?.click()}>📷<small>+{SHOP_REVIEW_MAX_PHOTOS - revPhotos.length}</small></button>
+                    )}
+                    <input ref={revFileRef} type="file" accept="image/*" multiple hidden onChange={(e) => { void addRevPhotos(e.target.files); e.target.value = ""; }} />
+                  </div>
+                  {revErr && <div className="sheet-err">{revErr}</div>}
+                  <Button variant="brand" disabled={!revThumb || revBusy} onClick={submitReview}>
+                    {revBusy ? "Yuborilmoqda…" : reviews.reviews.some((r) => r.mine) ? "Sharhni yangilash" : "Sharh qoldirish"}
+                  </Button>
+                  {reviews.reviews.some((r) => r.mine) && (
+                    <button className="shop-rev-del" onClick={() => { haptic(); api.shopReviewDelete(sel.id).then(() => { setRevThumb(null); setRevText(""); setRevPhotos([]); loadReviews(sel.id); load(); }).catch(() => undefined); }}>
+                      Sharhimni o'chirish
+                    </button>
+                  )}
+                </div>
+
+                {/* list */}
+                {reviews.reviews.length === 0 ? (
+                  <EmptyState icon="🗣" text="Hali sharh yo'q — birinchi bo'lib yozing!" />
+                ) : (
+                  reviews.reviews.map((r) => (
+                    <div key={r.id} className="shop-rev-row">
+                      <div className="shop-rev-head">
+                        <b>{r.thumb === "up" ? "👍" : "👎"} {r.name}</b>
+                        {r.verified && <span className="shop-rev-verified">✅ Xarid qilgan</span>}
+                        {r.mine && <span className="shop-rev-mine">siz</span>}
+                        <span className="muted fs11">{new Date(r.createdAt).toLocaleDateString("uz-UZ")}</span>
+                      </div>
+                      {r.text && <div className="fs13">{r.text}</div>}
+                      {r.photoCount > 0 && (
+                        <div className="shop-rev-photo-row">
+                          {Array.from({ length: r.photoCount }, (_, i) => (
+                            <img key={i} className="shop-rev-photo" src={apiUrl(`/api/shop/review-photo/${r.id}/${i}?s=1`)} loading="lazy" decoding="async" alt="" />
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  ))
+                )}
+              </>
+            )}
+          </div>
+        )}
         {sel && step === "confirm" && (
           <>
             <button className="pay-back" onClick={() => setStep("detail")}>‹ Orqaga</button>
             <h3>📦 Yetkazish manzili</h3>
-            <p className="muted fs13">Egamiz {me.member.phone ?? "raqamingiz"} orqali siz bilan bog'lanadi.</p>
+            <p className="muted fs13">Do'kon egasi {me.member.phone ?? "raqamingiz"} orqali siz bilan bog'lanadi.</p>
             <input className="bk-input" placeholder="Masalan: Koson sh., Guliston ko'chasi 12-uy" value={address} onChange={(e) => setAddress(e.target.value)} />
             <div className="shop-confirm-total mt10">Jami: 🪙 {formatNumber(sel.priceTanga)}</div>
             {buyErr && <div className="sheet-err">{buyErr}</div>}
@@ -296,7 +469,7 @@ export function ShopView({ me, onBanner, reload, onBook }: { me: MeResponse; onB
             <div className="wb-emoji">📦</div>
             <div className="shop-success-title">Buyurtma #{success.orderId} qabul qilindi!</div>
             <div className="muted fs13 mt6">🛍 {success.name}</div>
-            <div className="shop-success-promise">🚚 Tez orada yetkazamiz — egamiz siz bilan bog'lanadi</div>
+            <div className="shop-success-promise">🚚 Tez orada yetkazamiz — do'kon egasi siz bilan bog'lanadi</div>
             <Button variant="brand" onClick={() => { setSuccess(null); openOrders(); }}>📦 Buyurtmalarim</Button>
           </div>
         </div>

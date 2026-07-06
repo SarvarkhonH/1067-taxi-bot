@@ -214,6 +214,8 @@ export const adminApi = {
   shopPhotoUpload: (id: number, mime: string, base64: string) => postJson<{ ok: boolean; error?: string; photoCount?: number }>(`/api/admin/shop/products/${id}/photo`, { mime, base64 }),
   shopPhotoClear: (id: number) => req<{ ok: boolean }>(`/api/admin/shop/products/${id}/photo`, { method: "DELETE" }),
   shopOrders: (status?: string) => req<{ orders: ShopAdminOrderRow[] }>(`/api/admin/shop/orders${status ? `?status=${status}` : ""}`),
+  shopReviews: () => req<{ reviews: ShopAdminReviewRow[] }>("/api/admin/shop/reviews"),
+  shopReviewDelete: (id: number) => req<{ ok: boolean }>(`/api/admin/shop/reviews/${id}`, { method: "DELETE" }),
   // 🔎 xizmatlar directory
   svcList: (status?: string) => req<{ rows: SvcAdminRow[]; enabled: boolean; pending: number; hiddenReviews: number }>(`/api/admin/services${status ? `?status=${status}` : ""}`),
   svcCreate: (p: Record<string, unknown>) => postJson<{ ok: boolean; id?: number; error?: string }>("/api/admin/services", p),
@@ -544,6 +546,16 @@ export interface ShopAdminOrderRow {
   decidedAt?: string | null;
   buyerName: string;
   contact: string;
+}
+export interface ShopAdminReviewRow {
+  id: number;
+  productId: number;
+  productName: string;
+  memberName: string;
+  thumb: string;
+  text: string | null;
+  photoCount: number;
+  createdAt: string;
 }
 
 // 🔎 xizmatlar directory admin rows

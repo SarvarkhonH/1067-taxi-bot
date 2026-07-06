@@ -4,7 +4,19 @@
 // CoinTxn key shop:<orderId>), so no oversell and no partial state is possible; a rejected order
 // refunds via grantCoins key shoprefund:<orderId> (exactly-once) + restocks. NO lootboxes — the
 // owner's hard rule: deterministic price ↔ product only. UI word is "tanga", never "coin".
-import { SHOP_LOW_STOCK, SHOP_MAX_PRICE, type ShopBuyResponse, type ShopProductView, type ShopPurchaseView } from "@t1067/shared";
+import {
+  SHOP_LOW_STOCK,
+  SHOP_MAX_PRICE,
+  SHOP_REVIEW_MAX_PHOTOS,
+  SHOP_REVIEW_MAX_TEXT,
+  type ShopBuyResponse,
+  type ShopProductView,
+  type ShopPurchaseView,
+  type ShopReviewSubmitResponse,
+  type ShopReviewThumb,
+  type ShopReviewView,
+  type ShopReviewsResponse,
+} from "@t1067/shared";
 import { prisma } from "../db";
 import { featureOn } from "./featureFlags";
 import { grantCoins, withMemberLock } from "./coinService";
@@ -24,13 +36,15 @@ export async function listActiveProducts(preview = false): Promise<ShopProductVi
     take: 100,
   });
   const newCutoff = Date.now() - NEW_BADGE_DAYS * 86400_000;
-  // grouped queries → per-product gallery size + top-3 sellers (delivered orders)
-  const [counts, sold] = await Promise.all([
+  // grouped queries → per-product gallery size + top-3 sellers (delivered orders) + 👍/👎 tallies
+  const [counts, sold, thumbs] = await Promise.all([
     prisma.productPhoto.groupBy({ by: ["productId"], where: { productId: { in: rows.map((r) => r.id) } }, _count: { _all: true } }),
     prisma.shopPurchase.groupBy({ by: ["productId"], where: { status: "delivered" }, _count: { _all: true }, orderBy: { _count: { productId: "desc" } }, take: 3 }),
+    prisma.productReview.groupBy({ by: ["productId", "thumb"], where: { productId: { in: rows.map((r) => r.id) } }, _count: { _all: true } }),
   ]);
   const countOf = new Map(counts.map((c) => [c.productId, c._count._all]));
   const topIds = new Set(sold.filter((s) => s._count._all > 0).map((s) => s.productId));
+  const thumbOf = new Map(thumbs.map((t) => [`${t.productId}:${t.thumb}`, t._count._all]));
   return rows.map((p) => ({
     id: p.id,
     name: p.name,
@@ -44,6 +58,8 @@ export async function listActiveProducts(preview = false): Promise<ShopProductVi
     isNew: p.createdAt.getTime() > newCutoff,
     featured: p.featured,
     topSeller: topIds.has(p.id),
+    likes: thumbOf.get(`${p.id}:up`) ?? 0,
+    dislikes: thumbOf.get(`${p.id}:down`) ?? 0,
   }));
 }
 
@@ -280,6 +296,7 @@ export async function adminToggleProduct(id: number, active: boolean): Promise<{
 
 export async function adminDeleteProduct(id: number): Promise<{ ok: boolean }> {
   await prisma.product.delete({ where: { id } }).catch(() => undefined); // orders snapshot name/price → safe
+  await prisma.productReview.deleteMany({ where: { productId: id } }).catch(() => undefined); // loose FK — clean by hand
   return { ok: true };
 }
 
@@ -310,30 +327,36 @@ export const PRODUCT_MAX_PHOTOS = 5;
 
 /** APPEND one photo to the product gallery (max 5 — "real market feel" swipeable detail). Storage
  *  identical to the driver-photo pattern: Telegram file_id (durable) with data-URL fallback. */
+/** Send a photo to the owner's DM and return Telegram's size ladder: full = largest, thumb = the
+ *  smallest size ≥280px wide (~320px tier) — list views load ~15KB instead of ~200KB. */
+async function tgUploadPhoto(buf: Buffer, mime: string, caption: string): Promise<{ fileId: string | null; thumbFileId: string | null }> {
+  const { env } = await import("../env");
+  const adminId = env.adminIds.find((id) => id.trim() !== "");
+  if (!env.BOT_TOKEN || !adminId) return { fileId: null, thumbFileId: null };
+  try {
+    const form = new FormData();
+    form.append("chat_id", adminId);
+    form.append("photo", new Blob([buf], { type: mime }), "photo.jpg");
+    form.append("caption", caption);
+    form.append("disable_notification", "true");
+    const res = await fetch(`https://api.telegram.org/bot${env.BOT_TOKEN}/sendPhoto`, { method: "POST", body: form });
+    const data = (await res.json()) as { ok: boolean; result?: { photo?: { file_id: string; width: number }[] } };
+    const sizes = data.ok ? (data.result?.photo ?? []) : [];
+    if (!sizes.length) return { fileId: null, thumbFileId: null };
+    const full = sizes[sizes.length - 1]!;
+    const thumb = sizes.find((s) => s.width >= 280) ?? full;
+    return { fileId: full.file_id, thumbFileId: thumb.file_id === full.file_id ? null : thumb.file_id };
+  } catch {
+    return { fileId: null, thumbFileId: null };
+  }
+}
+
 export async function uploadProductPhoto(productId: number, buf: Buffer, mime = "image/jpeg"): Promise<{ ok: boolean; error?: string; photoCount?: number }> {
   const existing = await prisma.productPhoto.count({ where: { productId } });
   if (existing >= PRODUCT_MAX_PHOTOS) return { ok: false, error: "max_photos" };
-  const { env } = await import("../env");
-  const TG_API = "https://api.telegram.org";
-  const adminId = env.adminIds.find((id) => id.trim() !== "");
-  let fileId: string | null = null;
-  let url: string | null = null;
-  if (env.BOT_TOKEN && adminId) {
-    try {
-      const form = new FormData();
-      form.append("chat_id", adminId);
-      form.append("photo", new Blob([buf], { type: mime }), "product.jpg");
-      form.append("caption", `🛍 Product photo · #${productId}`);
-      form.append("disable_notification", "true");
-      const res = await fetch(`${TG_API}/bot${env.BOT_TOKEN}/sendPhoto`, { method: "POST", body: form });
-      const data = (await res.json()) as { ok: boolean; result?: { photo?: { file_id: string }[] } };
-      if (data.ok && data.result?.photo?.length) fileId = data.result.photo[data.result.photo.length - 1]!.file_id;
-    } catch {
-      /* fall through to data-URL */
-    }
-  }
-  if (!fileId) url = `data:${mime};base64,${buf.toString("base64")}`;
-  await prisma.productPhoto.create({ data: { productId, fileId, url, sortOrder: existing } });
+  const { fileId, thumbFileId } = await tgUploadPhoto(buf, mime, `🛍 Product photo · #${productId}`);
+  const url = fileId ? null : `data:${mime};base64,${buf.toString("base64")}`;
+  await prisma.productPhoto.create({ data: { productId, fileId, url, thumbFileId, sortOrder: existing } });
   return { ok: true, photoCount: existing + 1 };
 }
 
@@ -346,13 +369,14 @@ export async function clearProductPhotos(productId: number): Promise<{ ok: boole
 
 /** Resolve the Nth gallery photo (0 = cover). Falls back to the legacy single-photo fields when the
  *  gallery is empty — pre-gallery products keep working untouched. */
-export async function resolveProductPhoto(productId: number, idx = 0): Promise<string | null> {
+export async function resolveProductPhoto(productId: number, idx = 0, small = false): Promise<string | null> {
   const photos = await prisma.productPhoto.findMany({ where: { productId }, orderBy: [{ sortOrder: "asc" }, { id: "asc" }] });
   const pick = photos[idx];
   const { resolveTelegramFileUrl } = await import("./driverPhotoService");
   if (pick) {
     if (pick.url) return pick.url;
-    if (pick.fileId) return resolveTelegramFileUrl(pick.fileId);
+    const fid = (small && pick.thumbFileId) || pick.fileId; // small → ~320px tier; legacy rows fall back to full
+    if (fid) return resolveTelegramFileUrl(fid);
     return null;
   }
   if (idx > 0) return null; // gallery miss beyond cover
@@ -361,4 +385,134 @@ export async function resolveProductPhoto(productId: number, idx = 0): Promise<s
   if (p.photoUrl) return p.photoUrl;
   if (p.photoFileId) return resolveTelegramFileUrl(p.photoFileId);
   return null;
+}
+
+// ── 🗣 reviews: sharh + 👍/👎 + up to 3 photos (one review per member per product) ───────────────
+
+interface ReviewPhotoRef { f?: string; t?: string; u?: string } // fileId / thumbFileId / dataUrl
+
+function parseReviewPhotos(json: string | null): ReviewPhotoRef[] {
+  if (!json) return [];
+  try {
+    const a = JSON.parse(json) as unknown;
+    return Array.isArray(a) ? (a as ReviewPhotoRef[]).slice(0, SHOP_REVIEW_MAX_PHOTOS) : [];
+  } catch {
+    return [];
+  }
+}
+
+export async function listReviews(productId: number, memberId: number, preview = false): Promise<ShopReviewsResponse> {
+  if (!preview && !(await featureOn("shop"))) return { likes: 0, dislikes: 0, reviews: [] };
+  const rows = await prisma.productReview.findMany({ where: { productId }, orderBy: { id: "desc" }, take: 30 });
+  const [likes, dislikes, buyers, members] = await Promise.all([
+    prisma.productReview.count({ where: { productId, thumb: "up" } }),
+    prisma.productReview.count({ where: { productId, thumb: "down" } }),
+    prisma.shopPurchase.findMany({ where: { productId, status: "delivered", memberId: { in: rows.map((r) => r.memberId) } }, select: { memberId: true }, distinct: ["memberId"] }),
+    prisma.member.findMany({ where: { id: { in: rows.map((r) => r.memberId) } }, select: { id: true, fullName: true, displayName: true } }),
+  ]);
+  const verified = new Set(buyers.map((b) => b.memberId));
+  const nameOf = new Map(members.map((m) => [m.id, (m.displayName || m.fullName || "Mijoz").trim().split(/\s+/)[0]!]));
+  const reviews: ShopReviewView[] = rows.map((r) => ({
+    id: r.id,
+    name: nameOf.get(r.memberId) ?? "Mijoz",
+    thumb: r.thumb as ShopReviewThumb,
+    text: r.text,
+    photoCount: parseReviewPhotos(r.photosJson).length,
+    createdAt: r.createdAt.toISOString(),
+    mine: r.memberId === memberId,
+    verified: verified.has(r.memberId),
+  }));
+  return { likes, dislikes, reviews, myThumb: (rows.find((r) => r.memberId === memberId)?.thumb as ShopReviewThumb) ?? null };
+}
+
+/** Upsert (unique productId+memberId): re-submitting EDITS the member's review. Photos sent as
+ *  data-URLs ride the product-photo Telegram pipeline; when photos are omitted the old set stays. */
+export async function submitReview(
+  memberId: number,
+  productId: number,
+  thumb: string,
+  text?: string,
+  photosBase64?: string[],
+  preview = false,
+): Promise<ShopReviewSubmitResponse> {
+  if (!preview && !(await featureOn("shop"))) return { ok: false, reason: "off" };
+  if (thumb !== "up" && thumb !== "down") return { ok: false, reason: "bad_thumb" };
+  const product = await prisma.product.findUnique({ where: { id: productId }, select: { id: true } });
+  if (!product) return { ok: false, reason: "unavailable" };
+  const cleanText = (text ?? "").trim().slice(0, SHOP_REVIEW_MAX_TEXT) || null;
+  if ((photosBase64?.length ?? 0) > SHOP_REVIEW_MAX_PHOTOS) return { ok: false, reason: "too_many_photos" };
+
+  let photosJson: string | undefined; // undefined = keep existing photos on edit
+  if (photosBase64) {
+    const refs: ReviewPhotoRef[] = [];
+    for (const dataUrl of photosBase64.slice(0, SHOP_REVIEW_MAX_PHOTOS)) {
+      const m = /^data:(image\/[a-z+]+);base64,(.+)$/i.exec(dataUrl);
+      if (!m) return { ok: false, reason: "bad_photo" };
+      const buf = Buffer.from(m[2]!, "base64");
+      if (buf.length < 100 || buf.length > 2_500_000) return { ok: false, reason: "bad_photo" };
+      const { fileId, thumbFileId } = await tgUploadPhoto(buf, m[1]!, `🗣 Review photo · product #${productId} · m${memberId}`);
+      refs.push(fileId ? { f: fileId, t: thumbFileId ?? undefined } : { u: dataUrl });
+    }
+    photosJson = JSON.stringify(refs);
+  }
+
+  await prisma.productReview.upsert({
+    where: { productId_memberId: { productId, memberId } },
+    create: { productId, memberId, thumb, text: cleanText, photosJson: photosJson ?? null },
+    update: { thumb, text: cleanText, ...(photosJson !== undefined ? { photosJson } : {}) },
+  });
+  return { ok: true };
+}
+
+export async function deleteMyReview(memberId: number, productId: number): Promise<{ ok: boolean }> {
+  await prisma.productReview.deleteMany({ where: { productId, memberId } });
+  return { ok: true };
+}
+
+export async function resolveReviewPhoto(reviewId: number, idx = 0, small = false): Promise<string | null> {
+  const r = await prisma.productReview.findUnique({ where: { id: reviewId }, select: { photosJson: true } });
+  const pick = parseReviewPhotos(r?.photosJson ?? null)[idx];
+  if (!pick) return null;
+  if (pick.u) return pick.u;
+  const fid = (small && pick.t) || pick.f;
+  if (!fid) return null;
+  const { resolveTelegramFileUrl } = await import("./driverPhotoService");
+  return resolveTelegramFileUrl(fid);
+}
+
+// admin moderation — the owner deletes spam/abuse whole
+export interface AdminReviewRow {
+  id: number;
+  productId: number;
+  productName: string;
+  memberName: string;
+  thumb: string;
+  text: string | null;
+  photoCount: number;
+  createdAt: string;
+}
+
+export async function adminListReviews(): Promise<AdminReviewRow[]> {
+  const rows = await prisma.productReview.findMany({ orderBy: { id: "desc" }, take: 50 });
+  const [products, members] = await Promise.all([
+    prisma.product.findMany({ where: { id: { in: rows.map((r) => r.productId) } }, select: { id: true, name: true } }),
+    prisma.member.findMany({ where: { id: { in: rows.map((r) => r.memberId) } }, select: { id: true, fullName: true, displayName: true } }),
+  ]);
+  const pName = new Map(products.map((p) => [p.id, p.name]));
+  const mName = new Map(members.map((m) => [m.id, m.displayName || m.fullName]));
+  return rows.map((r) => ({
+    id: r.id,
+    productId: r.productId,
+    productName: pName.get(r.productId) ?? `#${r.productId}`,
+    memberName: mName.get(r.memberId) ?? `m${r.memberId}`,
+    thumb: r.thumb,
+    text: r.text,
+    photoCount: parseReviewPhotos(r.photosJson).length,
+    createdAt: r.createdAt.toISOString(),
+  }));
+}
+
+export async function adminDeleteReview(id: number): Promise<{ ok: boolean }> {
+  await prisma.productReview.delete({ where: { id } }).catch(() => undefined);
+  return { ok: true };
 }
