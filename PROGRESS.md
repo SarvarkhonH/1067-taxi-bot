@@ -49,6 +49,11 @@ Sonnet×2+Opus konsult → ega tasdiqlagan reja. «Cashout-teskarisi»: buy'da t
   - **ISBOT:** `testShop` **75 assertion 3× yashil** (17-blok: cash coin-untouched/no-CoinTxn/no-refund/restock/terminal/payKind) · typecheck 4/4 · Render live · jonli bundle-grep: shop chunk'da «Naqdga buyurtma»/«yetkazganda to'laysiz» · DB: Aksiya=100 active, photos=274.
 - **🟢 GO LIVE (2026-07-06):** ega "hammaga chiqsin" — `setFlag.ts shop on` jonli DB'da ijro etildi + `EXPECTED_ON`ga qo'shildi (commit 3eeb653, Render deploy). Endi HAR bir rider Mini App'da «Do'kon» tabini ko'radi (owner-preview'ga bog'liq emas). Rollback kerak bo'lsa: `setFlag shop off` (30s flag-kesh ichida darhol o'chadi).
 - **Do'kon-sotuvchi roli (2026-07-06):** `@Shekh_of` uchun token-asosli scoped rol — faqat mahsulot CRUD (narx/stock/rasm/yoqish), o'chirish/sharh-moderatsiya/boshqa panel YO'Q; server path-scope choke-point'da bloklangan (`shop_only`), UI'da ham faqat Do'kon paneli ko'rinadi. Havola owner'ga yuborilgan.
+- **📤 Ulashish + 🔍 to'liq-ekran rasm (2026-07-06, b3b8135):** ega: "chiroyli qilib ulashish, rasmga bosa to'liq ochib bersin, orqaga qaytish ham bo'lsin".
+  - **Do'kon ulashish:** shop-head'da 📤 tugma → `t.me/koson1067bot?start=shop` (xizmatlar.ts svc_ naqshi bilan bir xil `shareLink`); bot payload="shop" ni ushlaydi → `sendShopCard` («🛍 Do'konni ochish» webApp tugma, ?go=dokon).
+  - **Mahsulot ulashish:** detail sheet sarlavhasi yonida 📤 → `?start=shop_<id>`; bot `sendProductCard` — mahsulot RASMI + nom/narx/chegirma bilan karta yuboradi, «🛍 Ochish» tugmasi Mini App'ni **aynan o'sha mahsulotga** ochadi (`?go=dokon&p=<id>` → App.tsx `readDeepProduct()` → ShopView bir marta avto-ochadi, `deepOpened` ref bilan qayta-ochilishning oldi olingan).
+  - **To'liq-ekran rasm:** galereya/yagona rasmga bosish → `ProductLightbox` (qora fon, scroll-snap barcha rasmlar bo'ylab, nuqta-indikator) — **‹ Orqaga** tugma + fon-bosish bilan yopiladi.
+  - **ISBOT:** typecheck server+miniapp toza · preview 10/10 CSS · jonli bundle-grep: shop chunk'da `start=shop` va `Orqaga`.
 - V2 backlog (keyingi bosqich): savat/ko'p-dona · istak-ro'yxat progress+push · haftalik aksiya · kuryer jonli xaritada · tanga+naqd aralash (100k+). Eski (import'dan avvalgi) mahsulot rasmlariga thumb yo'q — 📷 qayta yuklashda avto-thumb.
 
 ### ⚡ AUDIT BOSQICH B — TEZLIK/SHAHAR-HAJM (2026-07-04) — 🟢 DEPLOYED (jonli)
@@ -428,3 +433,47 @@ STATUS (Rule 7): `ready for verification`. Compliance-report 5 gap yopildi; kodn
 - Flag holati: `elonlar` OFF (DEFAULT_OFF, hech qanday real foydalanuvchiga ta'sir qilmadi).
 - Qoldi: E2 (Model+API+UI+«Mahalla taxtasi» dizayn+to'lov) → E3 (admin nazorat) → E4 (TOP boost+expiry).
 - **E1 owner-accepted (2026-07-06):** ega botda 🏆 Reyting tugmasini tasdiqladi. E2 boshlandi.
+
+## 2026-07-06 — ELONLAR_PLAN E2 (Model+API+UI+to'lov) — READY FOR VERIFICATION (1 gap: pastda)
+- Prisma: `ClassifiedAd`/`AdPhoto`/`AdView`/`AdContact` (rejadagi §3 sxemaga aynan mos) — TEST_DATABASE_URL'ga
+  `prisma db push` bilan qo'llandi; app DB'ga Render deploy vaqtida avto-push bo'ladi (CLAUDE.md invariant).
+- `classifiedService.ts`: submitAd — bitta $transaction'da ad-yaratish + shartli tanga-yechish + CoinTxn
+  (idempotencyKey `elon_post_<adId>`, aniq §11 formatida) — muvaffaqiyatsiz to'lov BUTUN tranzaksiyani
+  bekor qiladi (orphan ad qolmaydi). rejectAd — refund `grantCoins` bilan `elon_refund_<adId>` (bir marta,
+  shop.ts naqshidan nusxa). Yo'qoldi-Topildi DOIM bepul (knobdan qat'i nazar). Anti-spam: `elonMaxActive`
+  knob (default 3). AdView upsert + AdContact + callCount fire-and-forget. Owner ishonch-profil (§4.2):
+  rideCount/soldCount/isNewMember — 100% mavjud ma'lumotdan, YANGI pul-mexanika yo'q.
+- Narx-knoblar: `elonPostPrice`(def 0)/`elonTopPrice`(def 2000, E4 uchun)/`elonMaxActive`(def 3) —
+  mavjud BONUS_ECON_KNOBS registriga qo'shildi (admin dashboard'da avtomatik ko'rinadi, yangi admin-kod 0).
+  Narx hech qachon kodga yozilmagan (rule 3).
+  Approve/reject FAQAT service-funksiya darajasida (admin UI/Telegram-tugma — E3 qamrovi, ataylab qoldirilgan).
+- Miniapp: `elonlar.tsx` — chip-birinchi browse (kategoriya+subtype+narx-band+qidiruv), 3-teginish wizard
+  (kategoriya→foto/matn/narx→to'lov-tasdiq), detal sheet (galereya+ishonch-badge+📞/✍️), "Mening e'lonlarim".
+  Dizayn §4.1: `--classified-bg-grad`/`--classified-accent` — FAQAT 2 yangi token (economy.ts'dagi knoblar
+  bundan mustasno — pul-knob, dizayn-token emas); qolgan hammasi shop-light qolipidan REUSE (yangi
+  keyframe — 0). `compressImage` shop.tsx'dan util.ts'ga ko'chirildi (2 joy endi shundan foydalanadi).
+- DoD isbot:
+  - `pnpm -r typecheck` — 4/4 paket 0 xato (bir necha marta qayta tekshirildi, pastdagi gapdan keyin ham).
+  - `testElonlar.ts` (TEST_DATABASE_URL, TAG-tozalash) — **5× ketma-ket yashil** (talab 3×dan ortiq):
+    flag OFF/ON, validatsiya, knob=0 bepul, knob=500 to'lov+CoinTxn `elon_post_<adId>`, balans yetmasa
+    tranzaksiya to'liq bekor (orphan yo'q), Yo'qoldi-Topildi doim bepul, approve→ko'rinadi, reject→refund
+    bir martalik (`elon_refund_<adId>`, ikkinchi reject no-op, balans o'zgarmaydi), max_active cap,
+    AdView/AdContact log, ishonch-profil, markSold/reactivate, narx-band filtri.
+  - Real Mini App'da (miniapp-alt :5199, ?tg=6506297119, jonli Neon a'zo #26): browse bo'sh-holat skrinshot
+    to'g'ri (📌 "Hali e'lon yo'q"), 5 kategoriya-chip+narx-band+qidiruv render bo'ldi; wizard 3 bosqichning
+    HAMMASI qo'lda sinaldi (kategoriya→Sotaman tanlash→sarlavha/narx to'ldirish→"Tasdiqlash" ekrani real
+    matn bilan chiqdi) — screenshot tool bu muhitda ishlamaydi (T1'dagi bilan bir xil cheklov), snapshot
+    orqali struktura isbotlandi.
+- **GAP (owner tekshiruvidan oldin yopilishi kerak):** wizard'ning oxirgi qadami — "E'lon joylash" tugmasi
+  bosilib, jonli HTTP orqali submit→moderatsiya-pending→admin approve→browse'da ko'rinish zanjiri —
+  BU SESSIYADA to'liq oxirigacha sinalmadi. Sabab: shu vaqt oralig'ida BOSHQA sessiya xuddi shu papkada
+  parallel ishlayotgani aniqlandi (git log'da 66c3cb4'dan keyin 5+ begona commit, jumladan bittasi mening
+  App.tsx elonlar-light ulashimga deyarli bir xil edi) — bir nechta `tsx watch`/`vite dev` jarayoni bir xil
+  portlarda to'qnashib, /api/elonlar/* route'lari HTTP orqali osilib qoldi (health + boshqa /api/me kabi
+  route'lar normal ishlagan holda). Bu KOD XATOSI EMAS — xuddi shu submit/refund logikasi testElonlar.ts'da
+  to'g'ridan-to'g'ri funksiya-chaqiruvi orqali 5× yashil o'tdi. Server jarayonlari toza qayta ishga
+  tushirilgach, 1 marta to'liq qo'l bilan click-through (post→approve→browse'da ko'rinish) qilib, shundan
+  keyingina QABUL so'ralishi kerak.
+- Flag holati: `elonlar` OFF (bir necha marta vaqtincha ON qilingan, har safar darhol OFF'ga qaytarilgan).
+- Qoldi: yuqoridagi GAP yopilgach — E3 (moderatsiya navbati + admin jadval + owner TG approve + SLA) →
+  E4 (TOP boost + expiry sweep).
