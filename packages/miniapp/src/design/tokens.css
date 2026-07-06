@@ -356,6 +356,24 @@ body {
 .brand-name b { text-shadow: 0 0 14px rgba(255, 179, 0, 0.5); }
 /* build-versiya stamp — kesh tekshiruvi uchun (yangi bundle yuklanganini ko'rsatadi) */
 .build-ver { font-size: 9px; font-weight: 700; color: var(--brand); opacity: 0.7; margin-left: 6px; letter-spacing: 0.3px; }
+/* 👥 social-proof member chip (top, next to brand) — small gold pill, live count */
+.member-chip {
+  margin-left: 8px;
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 10.5px;
+  font-weight: 800;
+  color: var(--brand);
+  background: color-mix(in srgb, var(--brand) 14%, transparent);
+  border: 1px solid color-mix(in srgb, var(--brand) 28%, transparent);
+  padding: 2px 8px;
+  border-radius: 999px;
+  white-space: nowrap;
+  letter-spacing: 0.2px;
+}
+.app.shop-light .member-chip { color: #15803d; background: rgba(21,128,61,.1); border-color: rgba(21,128,61,.25); }
+.app.elonlar-light .member-chip { color: var(--classified-accent); background: color-mix(in srgb, var(--classified-accent) 12%, transparent); border-color: color-mix(in srgb, var(--classified-accent) 26%, transparent); }
 
 /* ═══ BOOKING 3.0 (E1-E4) — xarita-birinchi ═══ */
 .b3-screen { position: fixed; inset: 0; z-index: 50; background: var(--bg); }

@@ -302,7 +302,8 @@ export function App() {
         <div className="brand">
           <span className="brand-badge">🚕</span>
           <span className="brand-name">1067<b>TAXI</b></span>
-          <span className="build-ver">v15 ✨</span>
+          {/* 👥 social proof — 10 000 baza + real a'zolar (har yangi qo'shilganda o'sadi → tirik, viral) */}
+          <span className="member-chip">👥 {(10000 + (me.totalMembers ?? 0)).toLocaleString("ru-RU")} a'zo</span>
         </div>
         <div className="topbar-right">
           <div className="coin-pill">
