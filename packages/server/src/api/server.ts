@@ -210,7 +210,7 @@ export function createApiServer(opts: ApiOptions = {}) {
   });
 
   app.get("/api/me", requireUser, async (_req, res) => {
-    const [me, booking3, livinghome, intercity, tierloyalty, shopOn, xizmatlarOn] = await Promise.all([
+    const [me, booking3, livinghome, intercity, tierloyalty, shopOn, xizmatlarOn, elonlarOn] = await Promise.all([
       getMe(res.locals.telegramId as string),
       featureOn("booking3"),
       featureOn("livinghome"),
@@ -218,6 +218,7 @@ export function createApiServer(opts: ApiOptions = {}) {
       featureOn("tierloyalty"),
       featureOn("shop"),
       featureOn("xizmatlar"),
+      featureOn("elonlar"),
     ]);
     if (!me) { res.json({ linked: false }); return; }
     // 🏅 owner-preview: admins see the tier-loyalty UI even while the global flag is DARK, so the
@@ -227,7 +228,9 @@ export function createApiServer(opts: ApiOptions = {}) {
     const shopPreview = shopOn || isAdmin(res.locals.telegramId as string);
     // 🔎 xizmatlar owner-preview mirrors it — owner QABULs the directory while DARK
     const xizmatlarPreview = xizmatlarOn || isAdmin(res.locals.telegramId as string);
-    res.json({ ...me, flags: { booking3, livinghome, intercity, tierloyalty: tierPreview, shop: shopPreview, xizmatlar: xizmatlarPreview } });
+    // 📋 elonlar owner-preview mirrors it — owner QABULs the E1 tab-swap before it goes live
+    const elonlarPreview = elonlarOn || isAdmin(res.locals.telegramId as string);
+    res.json({ ...me, flags: { booking3, livinghome, intercity, tierloyalty: tierPreview, shop: shopPreview, xizmatlar: xizmatlarPreview, elonlar: elonlarPreview } });
   });
 
   // 🏅 Tier ladder benefits — labels derived from LIVE knobs (single source of truth). 60s client cache.

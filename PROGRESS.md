@@ -397,3 +397,27 @@ STATUS (Rule 7): `ready for verification`. Compliance-report 5 gap yopildi; kodn
 - Bot post-huquqi tasdiqlandi (intro test-post message_id 49). Endi har ride-jackpot + dushanba
   digest avtomatik kanalga chiqadi. A (viral kanal) = DONE.
 - Qoldi: W2 №1 instant-status (probe kerak), W3 №4 inviter-top + №5 QR-report, W4 gap-surface+cleanup.
+
+## 2026-07-06 — ELONLAR_PLAN E1 (UI ko'chirish) — READY FOR VERIFICATION (gaps yo'q)
+- home.tsx (LivingHome): dublikat 💰 Hamyon tugmasi 🏆 Reyting'ga almashtirildi (onNav("reyting"));
+  o'zi bilan birga showWallet inline-state/branch va endi ishlatilmaydigan WalletView importi olib
+  tashlandi (0 funksiya yo'qotish — Hamyon allaqachon tabbar'da).
+- App.tsx: yangi `elonlar` flag (featureFlags.ts, DEFAULT_OFF, owner-preview server.ts/api/me'da
+  shop/xizmatlar bilan bir xil naqsh) + shared/types.ts flags.elonlar. Flag ON bo'lsa TABS massivida
+  "reyting" tab-yozuvi "elonlar" (📋 E'lonlar, yangi icons.tsx "board" ikonkasi) bilan ALMASHTIRILADI
+  (bir xil pozitsiyada) — Reyting ekrani o'zi o'chmaydi, faqat `tab==="reyting"` case content
+  switch'da qoladi (O'yin precedenti bilan bir xil arxitektura) — uy tugmasi/GO_MAP orqali hali ham
+  ochiladi. Flag OFF bo'lsa tabbar eskicha (Reyting joyida) qoladi (deep-link guard: elonlar dark →
+  "reyting"ga tushadi, shop/xizmat kabi "uy"ga emas — o'sha eski slot mazmunliroq). E'lonlar tab hozircha
+  EmptyState placeholder ("tez orada") — to'liq model/API/UI E2'da.
+- DoD isbot: `pnpm -r typecheck` 4/4 paket 0 xato. Real autentifikatsiyalangan Mini App (ALLOW_DEBUG_AUTH
+  + ?tg=6506297119, real Neon a'zo #26) snapshot orqali: flag OFF → tabbar "Uy · Hamyon · Reyting"
+  (o'zgarishsiz) + uy-ekran tugmalari "O'yin · Do'st taklif · Tarix · 🏆 Reyting" (yangi, doim ko'rinadi).
+  Flag vaqtincha ON qilindi (setFlag elonlar on/off, jonli DB — darhol off'ga qaytarildi): tabbar
+  "Uy · Hamyon · E'lonlar", tab bosilganda placeholder render bo'ldi; "🏆 Reyting" uy-tugmasi bosilganda
+  to'liq leaderboard (real reyting ma'lumoti) muvaffaqiyatli ochildi — deep-link/kirish nuqtasi ishlaydi.
+  Pixel-skrinshot tool bu sandbox'da osiladi (T1 aniqlangan cheklov) — struktura/snapshot isbot ishlatildi.
+  Preview serverlar (miniapp+server) tekshiruvdan keyin to'xtatildi.
+- Flag holati: `elonlar` OFF (DEFAULT_OFF, hech qanday real foydalanuvchiga ta'sir qilmadi).
+- Qoldi: E2 (Model+API+UI+«Mahalla taxtasi» dizayn+to'lov) → E3 (admin nazorat) → E4 (TOP boost+expiry).
+  Ega QABUL kutilmoqda — owner-accepted EMAS.

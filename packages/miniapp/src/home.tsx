@@ -7,7 +7,6 @@ import { api } from "./api";
 import { ensureLeaflet } from "./leaflet";
 import { carDivIcon, pinkTaxiDivIcon, ghostPersonDivIcon, GHOST_SHIRTS, GHOST_SKINS, GHOST_DRESSES, GHOST_HAIRS, type PersonKind } from "./mapDecor";
 import { haptic, inviteText, inviteLandingUrl } from "./telegram";
-import { WalletView } from "./wallet";
 
 const TILE_URL = "https://mt{s}.google.com/vt/lyrs=m&hl=uz&x={x}&y={y}&z={z}";
 const TILE_SUBDOMAINS = ["0", "1", "2", "3"];
@@ -26,9 +25,8 @@ export function LivingHome(props: {
   onBanner: (m: string) => void;
   reload: () => void;
 }) {
-  const { me, onBook, onNav, onBanner, reload } = props;
+  const { me, onBook, onNav } = props;
   const [home, setHome] = useState<HomeResponse | null>(null);
-  const [showWallet, setShowWallet] = useState(false);
   const [refInfo, setRefInfo] = useState<ReferralResponse | null>(null);
   const mapRef = useRef<HTMLDivElement>(null);
   const map = useRef<unknown>(null);
@@ -48,7 +46,7 @@ export function LivingHome(props: {
   };
 
   useEffect(() => {
-    if (showWallet || !home || !mapRef.current || map.current) return;
+    if (!home || !mapRef.current || map.current) return;
     let alive = true;
     ensureLeaflet().then((L) => {
       if (!alive || !mapRef.current || map.current) return;
@@ -97,16 +95,7 @@ export function LivingHome(props: {
     return () => {
       alive = false;
     };
-  }, [home, showWallet]);
-
-  if (showWallet) {
-    return (
-      <div className="view">
-        <button className="lh-back" onClick={() => { haptic(); setShowWallet(false); }}>Uy</button>
-        <WalletView me={me} onBanner={onBanner} reload={reload} onBook={onBook} onNav={onNav} />
-      </div>
-    );
-  }
+  }, [home]);
 
   const g = greet(new Date().getHours());
   const name = home?.name ?? me.member.fullName.split(" ")[0] ?? "do'stim";
@@ -143,7 +132,7 @@ export function LivingHome(props: {
           <button className="lh-place" onClick={() => { haptic(); onNav("play"); }}>🎮<span>O'yin</span></button>
           <button className="lh-place" onClick={shareInvite}>👥<span>Do'st taklif</span></button>
           <button className="lh-place" onClick={() => { haptic(); onNav("history"); }}>📜<span>Tarix</span></button>
-          <button className="lh-place" onClick={() => { haptic(); setShowWallet(true); }}>💰<span>Hamyon</span></button>
+          <button className="lh-place" onClick={() => { haptic(); onNav("reyting"); }}>🏆<span>Reyting</span></button>
         </div>
       </div>
     </div>

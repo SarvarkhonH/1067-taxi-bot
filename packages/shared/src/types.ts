@@ -51,6 +51,7 @@ export interface MeResponse {
     tierloyalty?: boolean; // 🏅 tier reward loop (multiplier + ball + decay) — UI reveals benefits only when ON
     shop?: boolean; // 🛍 tanga shop tab (owner-preview: admins see it while DARK)
     xizmatlar?: boolean; // 🔎 services directory tab (owner-preview: admins see it while DARK)
+    elonlar?: boolean; // 📋 mahalla e'lon taxtasi tab, Reyting'ni tabbar'dan almashtiradi (owner-preview: admins see it while DARK)
   };
 }
 

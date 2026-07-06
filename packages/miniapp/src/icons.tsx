@@ -66,6 +66,14 @@ export function Icon({ name, filled = false, size = 24 }: { name: string; filled
           <path d="M9.5 13a2.5 2.5 0 0 0 5 0" />
         </svg>
       );
+    case "board":
+      return (
+        <svg {...p}>
+          <rect x="4" y="3" width="16" height="18" rx="2" />
+          <path d="M9 3v2a1 1 0 0 0 1 1h4a1 1 0 0 0 1-1V3" fill={filled ? "currentColor" : "none"} />
+          <path d="M8 11h8M8 15h5" />
+        </svg>
+      );
     case "car":
       return (
         <svg {...p}>

@@ -5,6 +5,7 @@ import type { LeaderboardResponse, MeResponse } from "@t1067/shared";
 import { api, getInitData, waitForInitData } from "./api";
 import { haptic, tg } from "./telegram";
 import { LeaderboardView, LoadError, MissionsView, ReferralView, RideHistoryView, Spinner } from "./components";
+import { EmptyState } from "./design/components";
 import { AccountCard, TierLadder, TierLadderCompact, WalletView } from "./wallet"; // bosh tab — eager (birinchi paint)
 import { UyView } from "./uy"; // Uy tabi — yengil (leaflet-siz), eager
 // T2 (AUDIT 2.9): boshqa tablar lazy — har biri alohida chunk, asosiy bundle kichrayadi
@@ -23,7 +24,7 @@ const XizmatlarView = lazy(() => import("./services").then((m) => ({ default: m.
 import { Icon } from "./icons";
 import { useCountUp } from "./util";
 
-type Tab = "uy" | "wallet" | "play" | "reyting" | "yol" | "dokon" | "xizmat" | "driver" | "profile";
+type Tab = "uy" | "wallet" | "play" | "reyting" | "yol" | "dokon" | "xizmat" | "elonlar" | "driver" | "profile";
 
 // ── `me` stale-while-revalidate cache (instant repeat opens, hides cold-start) ──
 // Keyed by the Telegram user id so a shared device never shows one user another's cached data.
@@ -87,6 +88,7 @@ const GO_MAP: Record<string, Tab> = {
   xizmat: "xizmat", xizmatlar: "xizmat", services: "xizmat", usta: "xizmat", // 🔎 xizmatlar katalogi
   league: "reyting", friends: "reyting", reyting: "reyting", liga: "reyting", dost: "reyting",
   yol: "yol", intercity: "yol", reys: "yol", // 🚐 shaharlararo
+  elonlar: "elonlar", elon: "elonlar", elonlash: "elonlar", // 📋 mahalla e'lon taxtasi
   driver: "driver", profile: "profile",
 };
 
@@ -222,6 +224,7 @@ export function App() {
   const go = (t: Tab) => {
     if (t === "dokon" && !me.flags?.shop) t = "uy"; // 🛍 deep-link guard: shop dark → land home
     if (t === "xizmat" && !me.flags?.xizmatlar) t = "uy"; // 🔎 deep-link guard: xizmatlar dark → land home
+    if (t === "elonlar" && !me.flags?.elonlar) t = "reyting"; // 📋 deep-link guard: elonlar dark → land on Reyting (its old slot)
     if (t === tab) return;
     haptic();
     setTab(t);
@@ -258,6 +261,13 @@ export function App() {
     const XIZMAT_TAB = { id: "xizmat" as Tab, icon: "search", label: "Xizmatlar" };
     const ri = TABS.findIndex((t) => t.id === "reyting");
     TABS = ri >= 0 ? [...TABS.slice(0, ri), XIZMAT_TAB, ...TABS.slice(ri)] : [...TABS, XIZMAT_TAB];
+  }
+  // 📋 E'lonlar (feature "elonlar", E1): flag ON bo'lsa Reyting'ning tabbar o'rnini egallaydi —
+  // Reyting ekrani o'zi o'chmaydi, faqat kirish nuqtasi uy tugmasiga ko'chadi (home.tsx/uy.tsx +
+  // GO_MAP orqali hali ham ochiladi). Flag OFF bo'lsa tabbar ESKIcha (Reyting joyida) qoladi.
+  if (me.flags?.elonlar) {
+    const ELONLAR_TAB = { id: "elonlar" as Tab, icon: "board", label: "E'lonlar" };
+    TABS = TABS.map((t) => (t.id === "reyting" ? ELONLAR_TAB : t));
   }
   const TAB_PCT = 100 / TABS.length;
   const activeIndex = TABS.findIndex((t) => t.id === tab);
@@ -328,6 +338,11 @@ export function App() {
             {tab === "yol" && <IntercityView me={me} />}
             {tab === "dokon" && <ShopView me={me} onBanner={flash} reload={reload} onBook={() => { haptic(); setBooking(true); }} />}
             {tab === "xizmat" && <XizmatlarView me={me} onBanner={flash} />}
+            {tab === "elonlar" && (
+              <div className="view">
+                <EmptyState icon="📋" text="Mahalla e'lon taxtasi tez orada — Koson aholisi o'z e'lonlarini shu yerda joylashtiradi!" />
+              </div>
+            )}
             {tab === "driver" && <DriverView me={me} />}
             {tab === "profile" && (
               <div className="view">

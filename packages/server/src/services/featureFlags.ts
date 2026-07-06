@@ -56,13 +56,17 @@ export const FEATURES = [
   "xizmatlar", // 🔎 XIZMATLAR: Koson services directory ("Koson 2GIS'i") — categories, search,
               // one-tap call, ratings/reviews, self-submit with owner ✅/❌ moderation. Moves NO
               // money (no coin paths at all). DARK until seed (80-100 listings) + owner QABUL.
+  "elonlar", // 📋 E'LONLAR: mahalla e'lon taxtasi (OLX-uslub) — Reyting tabbar o'rnini egallaydi,
+              // Reyting o'zi o'chmaydi (uy tugmasi/deep-link orqali ochiladi). E1 = UI ko'chirish
+              // only (bo'sh tab). E2 postlash+CoinTxn narxlash qo'shadi. DARK until owner QABUL
+              // (ELONLAR_PLAN.md).
 ] as const;
 export type FeatureName = (typeof FEATURES)[number];
 
 // Off until explicitly enabled (go-live flip = setFeature(name, true) after owner QABUL).
 // booking3 = the new map/trip flow; owner still gets a preview via server.ts owner-branch,
 // but real users stay on the (fixed) classic flow until it's accepted. A missing row → OFF.
-const DEFAULT_OFF = new Set<FeatureName>(["booking3", "livinghome", "aibrain", "mahalla", "tolqin", "garajx", "kozacha", "baraban", "motorolami", "komissiya", "qarz", "welcomebonus", "refstaged", "drvstaged", "drvrecruit", "drvpush", "promo", "clientbooking", "cashout", "carupgrade", "intercity", "tierloyalty", "waitcomp", "trackcta", "jackpotpost", "drvrank", "instantstatus", "spinreminder", "shop", "xizmatlar"]);
+const DEFAULT_OFF = new Set<FeatureName>(["booking3", "livinghome", "aibrain", "mahalla", "tolqin", "garajx", "kozacha", "baraban", "motorolami", "komissiya", "qarz", "welcomebonus", "refstaged", "drvstaged", "drvrecruit", "drvpush", "promo", "clientbooking", "cashout", "carupgrade", "intercity", "tierloyalty", "waitcomp", "trackcta", "jackpotpost", "drvrank", "instantstatus", "spinreminder", "shop", "xizmatlar", "elonlar"]);
 
 let cache: { at: number; map: Record<string, boolean> } = { at: 0, map: {} };
 
