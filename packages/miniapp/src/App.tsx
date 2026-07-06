@@ -312,12 +312,22 @@ export function App() {
   const activeIndex = TABS.findIndex((t) => t.id === tab);
 
   return (
-    <div className={tab === "dokon" ? "app shop-light" : tab === "elonlar" ? "app elonlar-light" : "app"}>
+    <div className={tab === "dokon" ? "app shop-light" : tab === "elonlar" ? "app elonlar-light" : tab === "xizmat" ? "app xizmat-light" : "app"}>
       <div className="aurora" />
       <header className="topbar">
         <div className="brand">
           <span className="brand-badge">🚕</span>
-          <span className="brand-name">1067<b>TAXI</b></span>
+          {/* tepadagi sarlavha kontekstli: faqat Uy'da «1067 TAXI», qolgan tablarda tab nomi */}
+          <span className="brand-name">
+            {tab === "uy" ? <>1067<b>TAXI</b></>
+              : tab === "wallet" ? "Hamyon"
+              : tab === "dokon" ? <b>Do'kon</b>
+              : tab === "xizmat" ? <b>Xizmatlar</b>
+              : tab === "elonlar" ? <b>E'lonlar</b>
+              : tab === "reyting" ? "Reyting"
+              : tab === "driver" ? "Daromad"
+              : <>1067<b>TAXI</b></>}
+          </span>
           {/* 👥 social proof — 10 000 baza + real a'zolar (har yangi qo'shilganda o'sadi → tirik, viral) */}
           <span className="member-chip">👥 {stableMemberCount(me.botMembers ?? 0).toLocaleString("ru-RU")} a'zo</span>
         </div>
