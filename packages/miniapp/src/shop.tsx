@@ -85,7 +85,9 @@ function ProductCard({ p, onOpen, wide }: { p: ShopProductView; onOpen: (p: Shop
   );
 }
 
-export function ShopView({ me, onBanner, reload, onBook }: { me: MeResponse; onBanner: (msg: string) => void; reload: () => void; onBook: () => void }) {
+const BOT_LINK = "https://t.me/koson1067bot"; // share deep-link target (same source as services.tsx)
+
+export function ShopView({ me, onBanner, reload, onBook, openProductId }: { me: MeResponse; onBanner: (msg: string) => void; reload: () => void; onBook: () => void; openProductId?: number | null }) {
   const [products, setProducts] = useState<ShopProductView[] | null>(PROD_CACHE);
   const [err, setErr] = useState(false);
   const [q, setQ] = useState("");
@@ -100,6 +102,8 @@ export function ShopView({ me, onBanner, reload, onBook }: { me: MeResponse; onB
   const [success, setSuccess] = useState<{ orderId: number; name: string; pay: "tanga" | "cash" } | null>(null);
   const [payMode, setPayMode] = useState<"tanga" | "cash">("tanga"); // 💵 naqd — yetkazganda to'lanadi
   const [galleryIdx, setGalleryIdx] = useState(0);
+  const [lightbox, setLightbox] = useState<number | null>(null); // 🔍 rasmga bosilganda TO'LIQ EKRAN — index yoki null
+  const deepOpened = useRef(false); // ulashilgan-mahsulot ?p=<id> faqat BIR marta avto-ochiladi
   const [refInfo, setRefInfo] = useState<ReferralResponse | null>(null);
   useEffect(() => { api.referral().then(setRefInfo).catch(() => undefined); }, []);
   // 🗣 sharhlar
@@ -190,6 +194,25 @@ export function ShopView({ me, onBanner, reload, onBook }: { me: MeResponse; onB
     setGalleryIdx(0);
   };
 
+  // 🛍 do'stdan ulashilgan mahsulot (?p=<id>, botning "🛍 Ochish" tugmasi) — ro'yxat kelgach BIR
+  // marta avto-ochiladi (haptic'siz — bosish emas, sahifa ochilishi).
+  useEffect(() => {
+    if (!openProductId || deepOpened.current || !products) return;
+    const p = products.find((x) => x.id === openProductId);
+    if (p) { deepOpened.current = true; setSel(p); setStep("detail"); setGalleryIdx(0); }
+  }, [openProductId, products]);
+
+  const shareShop = () => {
+    haptic();
+    shareLink(`${BOT_LINK}?start=shop`, "🛍 1067 Do'kon — tanga yoki naqd pulga real mahsulotlar, 1 kunda yetkazamiz!");
+  };
+  const shareProduct = (p: ShopProductView) => {
+    haptic();
+    const d = discountPct(p);
+    const text = `🛍 ${p.name} — 🪙 ${formatNumber(p.priceTanga)}${d > 0 ? ` (−${d}%)` : ""}`;
+    shareLink(`${BOT_LINK}?start=shop_${p.id}`, text);
+  };
+
   const submit = async () => {
     if (!sel) return;
     setBusy(true);
@@ -240,7 +263,10 @@ export function ShopView({ me, onBanner, reload, onBook }: { me: MeResponse; onB
           <div className="shop-title">🛍 Do'kon</div>
           <div className="muted fs12">Tangangizga real mahsulotlar · 1 kunda yetkazamiz</div>
         </div>
-        <button className="shop-orders-btn" onClick={openOrders}>📦 Buyurtmalarim</button>
+        <div className="shop-head-actions">
+          <button className="shop-share-btn" onClick={shareShop} aria-label="Do'konni ulashish">📤</button>
+          <button className="shop-orders-btn" onClick={openOrders}>📦 Buyurtmalarim</button>
+        </div>
       </div>
 
       <div className="shop-search-wrap">
@@ -331,7 +357,7 @@ export function ShopView({ me, onBanner, reload, onBook }: { me: MeResponse; onB
               <div className="shop-gallery">
                 <div className="shop-gallery-strip" onScroll={(e) => { const el = e.currentTarget; setGalleryIdx(Math.round(el.scrollLeft / el.clientWidth)); }}>
                   {Array.from({ length: Math.min(5, sel.photoCount) }, (_, i) => (
-                    <img key={i} className="shop-gallery-img" src={apiUrl(`/api/shop/photo/${sel.id}/${i}`)} alt="" loading={i === 0 ? "eager" : "lazy"} />
+                    <img key={i} className="shop-gallery-img" src={apiUrl(`/api/shop/photo/${sel.id}/${i}`)} alt="" loading={i === 0 ? "eager" : "lazy"} onClick={() => { haptic(); setLightbox(i); }} />
                   ))}
                 </div>
                 <div className="shop-gallery-dots">
@@ -341,11 +367,14 @@ export function ShopView({ me, onBanner, reload, onBook }: { me: MeResponse; onB
                 </div>
               </div>
             ) : sel.hasPhoto ? (
-              <img className="shop-detail-photo" src={apiUrl(`/api/shop/photo/${sel.id}`)} alt="" />
+              <img className="shop-detail-photo" src={apiUrl(`/api/shop/photo/${sel.id}`)} alt="" onClick={() => { haptic(); setLightbox(0); }} />
             ) : (
               <div className="shop-detail-photo shop-card-noimg">🛍</div>
             )}
-            <h3 className="shop-detail-name">{sel.name}</h3>
+            <div className="shop-detail-headline">
+              <h3 className="shop-detail-name">{sel.name}</h3>
+              <button className="shop-share-btn sm" onClick={() => shareProduct(sel)} aria-label="Ulashish">📤</button>
+            </div>
             {sel.description && <p className="muted fs13">{sel.description}</p>}
             <PriceBlock p={sel} big />
             {sel.stock <= SHOP_LOW_STOCK && <div className="shop-low-line">⚡ Kam qoldi: {sel.stock} dona</div>}
@@ -538,7 +567,47 @@ export function ShopView({ me, onBanner, reload, onBook }: { me: MeResponse; onB
           ))
         )}
       </Sheet>
+      {/* ── 🔍 to'liq-ekran rasm ko'ruvchi: rasmga bosilganda ochiladi, ‹ Orqaga bilan yopiladi ── */}
+      {sel && lightbox !== null && (
+        <ProductLightbox
+          productId={sel.id}
+          count={Math.max(1, sel.photoCount)}
+          start={lightbox}
+          onClose={() => setLightbox(null)}
+        />
+      )}
       {void onBanner}
+    </div>
+  );
+}
+
+/** To'liq-ekran rasm ko'ruvchi (Instagram/Uzum uslubi): gorizontal scroll-snap barcha rasmlar
+ *  bo'ylab, ‹ Orqaga tugma HAR DOIM ustida, fonni bosish ham yopadi. */
+function ProductLightbox({ productId, count, start, onClose }: { productId: number; count: number; start: number; onClose: () => void }) {
+  const stripRef = useRef<HTMLDivElement | null>(null);
+  const [idx, setIdx] = useState(start);
+  useEffect(() => {
+    stripRef.current?.scrollTo({ left: start * stripRef.current.clientWidth, behavior: "auto" });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  return (
+    <div className="shop-lightbox" onClick={onClose}>
+      <button className="shop-lightbox-back" onClick={(e) => { e.stopPropagation(); haptic(); onClose(); }}>‹ Orqaga</button>
+      <div
+        ref={stripRef}
+        className="shop-lightbox-strip"
+        onClick={(e) => e.stopPropagation()}
+        onScroll={(e) => { const el = e.currentTarget; setIdx(Math.round(el.scrollLeft / el.clientWidth)); }}
+      >
+        {Array.from({ length: count }, (_, i) => (
+          <img key={i} className="shop-lightbox-img" src={apiUrl(`/api/shop/photo/${productId}/${i}`)} alt="" loading={Math.abs(i - start) <= 1 ? "eager" : "lazy"} />
+        ))}
+      </div>
+      {count > 1 && (
+        <div className="shop-lightbox-dots">
+          {Array.from({ length: count }, (_, i) => <span key={i} className={"shop-gallery-dot" + (i === idx ? " on" : "")} />)}
+        </div>
+      )}
     </div>
   );
 }

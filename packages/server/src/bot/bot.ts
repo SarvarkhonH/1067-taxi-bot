@@ -97,7 +97,7 @@ async function refreshWebAppVer(): Promise<void> {
     console.error("[bot] webapp version probe failed → fallback", WEBAPP_BUILD, e instanceof Error ? e.message : e);
   }
 }
-function webAppUrl(go?: string): string {
+export function webAppUrl(go?: string): string {
   // Always emit a URL with an explicit `/` path before the query — some Telegram clients (older
   // Android, Web Z) parse `https://host?…` differently from `https://host/?…` and can drop the
   // hash they need to append (#tgWebAppData=…) → initData missing → "Telegram orqali oching".
@@ -296,6 +296,15 @@ export function createBot(): Bot {
     if (payload.startsWith("svc_")) {
       const { sendListingCard } = await import("./xizmatlar");
       await sendListingCard(bot, id, Number(payload.slice(4))).catch(() => undefined);
+    }
+    // 🛍 shared PRODUCT deep-link (t.me/<bot>?start=shop_<id>) — richer than svc_: sends the cover
+    // photo + a button that opens the Mini App straight on that product. Bare "shop" = whole tab.
+    if (payload.startsWith("shop_")) {
+      const { sendProductCard } = await import("./shop");
+      await sendProductCard(bot, id, Number(payload.slice(5))).catch(() => undefined);
+    } else if (payload === "shop") {
+      const { sendShopCard } = await import("./shop");
+      await sendShopCard(bot, id).catch(() => undefined);
     }
     const me = await getMe(id);
     if (me) {

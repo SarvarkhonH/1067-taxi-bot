@@ -104,6 +104,18 @@ function readGo(): string {
   }
 }
 
+// 🛍 shared-product deep-link: the bot's "🛍 Ochish" button opens the Mini App with ?go=dokon&p=<id>
+// (constructed server-side, not via start_param) — read once so ShopView can auto-open that item.
+function readDeepProduct(): number | null {
+  try {
+    const v = new URLSearchParams(location.search).get("p");
+    const n = v ? Number(v) : NaN;
+    return Number.isFinite(n) && n > 0 ? n : null;
+  } catch {
+    return null;
+  }
+}
+
 export function App() {
   if (window.location.hash === "#demo") {
     return (
@@ -128,6 +140,7 @@ export function App() {
   const [booking, setBooking] = useState(() => readGo() === "book");
   const [invite, setInvite] = useState(() => readGo() === "invite"); // 🎁 invite overlay (one-tap from home / ?go=invite)
   const [history, setHistory] = useState(() => readGo() === "history"); // 📜 ride-history overlay
+  const [deepProduct] = useState(() => readDeepProduct()); // 🛍 auto-open a shared product once
   const coins = useCountUp(me?.coins ?? 0);
   // WOW-1: balans oshganda tanga ikonkasi sakraydi
   const [coinBounce, setCoinBounce] = useState(false);
@@ -346,7 +359,7 @@ export function App() {
                 <Spinner />
               ))}
             {tab === "yol" && <IntercityView me={me} />}
-            {tab === "dokon" && <ShopView me={me} onBanner={flash} reload={reload} onBook={() => { haptic(); setBooking(true); }} />}
+            {tab === "dokon" && <ShopView me={me} onBanner={flash} reload={reload} onBook={() => { haptic(); setBooking(true); }} openProductId={deepProduct} />}
             {tab === "xizmat" && <XizmatlarView me={me} onBanner={flash} />}
             {tab === "elonlar" && <ElonlarView me={me} onBanner={flash} reload={reload} />}
             {tab === "driver" && <DriverView me={me} />}
