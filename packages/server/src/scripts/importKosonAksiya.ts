@@ -24,11 +24,33 @@ interface ParsedPost {
   photoUrls: string[];
 }
 
+/** "Matematik bold" harflarni (𝐀𝐘𝐎𝐋𝐋𝐀𝐑 → AYOLLAR) oddiy ASCII'ga o'giradi — bu belgilar
+ *  surrogat-juftlik, slice ularni o'rtadan kesib yaroqsiz UTF berardi (Prisma InvalidArg). */
+function unfancy(s: string): string {
+  let out = "";
+  for (const ch of s) {
+    const cp = ch.codePointAt(0)!;
+    if (cp >= 0x1d400 && cp <= 0x1d6a3) {
+      const i = (cp - 0x1d400) % 52;
+      out += String.fromCharCode(i < 26 ? 65 + i : 97 + i - 26);
+    } else if (cp >= 0x1d7ce && cp <= 0x1d7ff) {
+      out += String.fromCharCode(48 + ((cp - 0x1d7ce) % 10));
+    } else {
+      out += ch;
+    }
+  }
+  return out;
+}
+
+/** slice() o'rniga — surrogat-juftlikni kesmaydigan kod-nuqta bo'yicha qisqartirish. */
+function safeSlice(s: string, n: number): string {
+  return [...s].slice(0, n).join("");
+}
+
 function stripEmoji(s: string): string {
-  return s
+  return unfancy(s)
     .replace(/[‘’ʻʼ]/g, "'") // O‘ → O' (o'zbek apostrofi saqlanadi)
-    .replace(/[\u{1F000}-\u{1FAFF}\u{2600}-\u{27BF}\u{2190}-\u{21FF}\u{2B00}-\u{2BFF}\u{FE0F}\u{200B}-\u{200D}⁠]/gu, " ")
-    .replace(/[✅❌⭕️🔥‼️❗️]/g, " ")
+    .replace(/[\u{1F000}-\u{1FAFF}\u{2600}-\u{27BF}\u{2190}-\u{21FF}\u{2B00}-\u{2BFF}\u{FE0F}\u{200B}-\u{200D}\u{203C}\u{2049}⁠]/gu, " ")
     .replace(/\s+/g, " ")
     .trim();
 }
@@ -94,10 +116,10 @@ function parsePost(chunk: string): ParsedPost | null {
     if (!nxt || SLOGAN.test(nxt) || name.length + nxt.length > 60) break;
     name = `${name} ${nxt}`.trim();
   }
-  name = name.slice(0, 80).trim();
+  name = safeSlice(name, 80).trim();
   if (name.length < 3) return null;
 
-  const description = body.filter((_, i) => i !== nameIdx).join("\n").slice(0, 400).trim() || "";
+  const description = safeSlice(unfancy(body.filter((_, i) => i !== nameIdx).join("\n")), 400).trim() || "";
   return { postId, name, description, price, oldPrice, photoUrls: photoUrls.slice(0, MAX_PHOTOS) };
 }
 
@@ -146,21 +168,28 @@ async function main(): Promise<void> {
     return;
   }
 
-  let created = 0, skippedDup = 0, photoFails = 0;
+  let created = 0, skippedDup = 0, photoFails = 0, rowFails = 0;
   for (const p of posts) {
     const key = `kaimport:${p.postId}`;
     if (await prisma.appState.findUnique({ where: { key } })) { skippedDup++; continue; }
-    const product = await prisma.product.create({
-      data: {
-        name: p.name,
-        description: p.description || null,
-        category: CATEGORY,
-        priceTanga: p.price,
-        oldPriceTanga: p.oldPrice,
-        stock: DEFAULT_STOCK,
-        active: false, // rasm(lar) muvaffaqiyatli yuklansagina yoqiladi (pastda)
-      },
-    });
+    let product;
+    try {
+      product = await prisma.product.create({
+        data: {
+          name: p.name,
+          description: p.description || null,
+          category: CATEGORY,
+          priceTanga: p.price,
+          oldPriceTanga: p.oldPrice,
+          stock: DEFAULT_STOCK,
+          active: false, // rasm(lar) muvaffaqiyatli yuklansagina yoqiladi (pastda)
+        },
+      });
+    } catch (e) {
+      rowFails++;
+      console.error(`❌ #${p.postId} create yiqildi («${p.name.slice(0, 30)}»): ${e instanceof Error ? e.message.slice(0, 120) : e}`);
+      continue; // bitta buzuq post butun importni to'xtatmasin
+    }
     let uploaded = 0;
     for (const url of p.photoUrls) {
       try {
@@ -179,7 +208,7 @@ async function main(): Promise<void> {
     created++;
     console.log(`✅ #${p.postId} → product ${product.id} «${p.name.slice(0, 40)}» ${p.price} so'm, ${uploaded}/${p.photoUrls.length} rasm`);
   }
-  console.log(`\nDONE: ${created} yaratildi, ${skippedDup} allaqachon bor edi, rasm-xato ${photoFails}.`);
+  console.log(`\nDONE: ${created} yaratildi, ${skippedDup} allaqachon bor edi, rasm-xato ${photoFails}, satr-xato ${rowFails}.`);
   await prisma.$disconnect();
 }
 
