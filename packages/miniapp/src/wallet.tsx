@@ -106,7 +106,7 @@ function PayAmountStep({
   const valid = amount >= TRANSFER_MIN && amount <= maxTx && charged <= coins;
   return (
     <>
-      <button className="pay-back" onClick={onBack}>‹ Orqaga</button>
+      <button className="pay-back" onClick={onBack}>Orqaga</button>
       <div className="pay-confirm">{confirm}</div>
       <div className="pay-amt-wrap">
         <input className="pay-amt" inputMode="numeric" placeholder="0" value={val ? formatNumber(amount) : ""} onChange={(e) => setVal(e.target.value)} autoFocus />

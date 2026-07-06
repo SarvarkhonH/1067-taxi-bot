@@ -1199,7 +1199,7 @@ function Booking3Inner({ me, info, onClose }: { me: MeResponse; info: BookingInf
         <div className="b3-sheet">
           <div className="b3-grip" />
           <div className="b3-sheet-head">
-            <button className="b3-sheet-back" onClick={() => { haptic(); setScreen("pinpick"); }}>← Xaritaga</button>
+            <button className="b3-sheet-back" onClick={() => { haptic(); setScreen("pinpick"); }}>Xaritaga</button>
             <div className="b3-sheet-title">🔍 Manzilni yozing</div>
           </div>
           <input className="bk-input" placeholder="Manzil qidiring (xato yozsangiz ham topadi)" autoFocus value={q} onChange={(e) => search(e.target.value)} />
@@ -1424,7 +1424,7 @@ function Booking3Inner({ me, info, onClose }: { me: MeResponse; info: BookingInf
         <div className="b3-sheet b3-sched-sheet">
           <div className="b3-grip" />
           <div className="b3-sheet-head">
-            <button className="b3-sheet-back" onClick={() => { haptic(); setScreen("confirm"); }}>← Orqaga</button>
+            <button className="b3-sheet-back" onClick={() => { haptic(); setScreen("confirm"); }}>Orqaga</button>
             <div className="b3-sheet-title">⏰ Rejali safar</div>
           </div>
           <div className="b3-sched-addr">📍 <b>{pickup.name}</b></div>
@@ -1474,7 +1474,7 @@ function Booking3Inner({ me, info, onClose }: { me: MeResponse; info: BookingInf
         <div className="b3-sheet b3-fam-sheet">
           <div className="b3-grip" />
           <div className="b3-sheet-head">
-            <button className="b3-sheet-back" onClick={() => { haptic(); setScreen("confirm"); }}>← Orqaga</button>
+            <button className="b3-sheet-back" onClick={() => { haptic(); setScreen("confirm"); }}>Orqaga</button>
             <div className="b3-sheet-title">👨‍👩‍👧 Oila uchun</div>
           </div>
           {pickup && <div className="b3-sched-addr">📍 <b>{pickup.name}</b></div>}

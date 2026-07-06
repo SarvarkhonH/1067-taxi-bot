@@ -360,7 +360,7 @@ export function ReferralView({ onClose }: { onClose?: () => void } = {}) {
     <div className="view">
       {onClose && (
         <div className="inv-overlay-head">
-          <button className="inv-back" onClick={() => { haptic(); onClose(); }}>← Orqaga</button>
+          <button className="inv-back" onClick={() => { haptic(); onClose(); }}>Orqaga</button>
         </div>
       )}
       <div className="section-title">👥 Do'st taklif qiling</div>
@@ -466,7 +466,7 @@ export function RideHistoryView({ onClose }: { onClose?: () => void } = {}) {
     <div className="view">
       {onClose && (
         <div className="inv-overlay-head">
-          <button className="inv-back" onClick={() => { haptic(); onClose(); }}>← Orqaga</button>
+          <button className="inv-back" onClick={() => { haptic(); onClose(); }}>Orqaga</button>
         </div>
       )}
       <div className="section-title">📜 Safarlar tarixi</div>

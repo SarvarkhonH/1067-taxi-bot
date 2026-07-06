@@ -477,7 +477,7 @@ export function XizmatlarView({ me, onBanner }: { me: MeResponse; onBanner: (msg
         )
       ) : cat ? (
         <>
-          <button className="pay-back mt8" onClick={() => { haptic(); setCat(null); }}>‹ Barcha kategoriyalar</button>
+          <button className="pay-back mt8" onClick={() => { haptic(); setCat(null); }}>Barcha kategoriyalar</button>
           <div className="svc-cat-head">
             <span className="svc-cat-head-emoji">{cat.emoji}</span>
             <div>

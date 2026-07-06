@@ -392,7 +392,7 @@ export function ShopView({ me, onBanner, reload, onBook }: { me: MeResponse; onB
         )}
         {sel && step === "reviews" && (
           <div className="shop-reviews">
-            <button className="pay-back" onClick={() => setStep("detail")}>‹ Orqaga</button>
+            <button className="pay-back" onClick={() => setStep("detail")}>Orqaga</button>
             <h3>🗣 {sel.name} — sharhlar</h3>
             {reviews === null ? (
               <><Skeleton h={46} className="mt8" /><Skeleton h={46} className="mt8" /></>
@@ -470,7 +470,7 @@ export function ShopView({ me, onBanner, reload, onBook }: { me: MeResponse; onB
         )}
         {sel && step === "confirm" && (
           <>
-            <button className="pay-back" onClick={() => setStep("detail")}>‹ Orqaga</button>
+            <button className="pay-back" onClick={() => setStep("detail")}>Orqaga</button>
             <h3>📦 Yetkazish manzili</h3>
             <p className="muted fs13">Do'kon egasi {me.member.phone ?? "raqamingiz"} orqali siz bilan bog'lanadi.</p>
             <input className="bk-input" placeholder="Masalan: Koson sh., Guliston ko'chasi 12-uy" value={address} onChange={(e) => setAddress(e.target.value)} />

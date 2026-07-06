@@ -102,7 +102,7 @@ export function LivingHome(props: {
   if (showWallet) {
     return (
       <div className="view">
-        <button className="lh-back" onClick={() => { haptic(); setShowWallet(false); }}>← Uy</button>
+        <button className="lh-back" onClick={() => { haptic(); setShowWallet(false); }}>Uy</button>
         <WalletView me={me} onBanner={onBanner} reload={reload} onBook={onBook} onNav={onNav} />
       </div>
     );
