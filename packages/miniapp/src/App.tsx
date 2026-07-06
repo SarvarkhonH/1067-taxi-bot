@@ -179,6 +179,16 @@ export function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // ⚡ Do'kon issiq start: tab lazy chunk + mahsulot ro'yxati BO'SH VAQTDA oldindan yuklanadi —
+  // birinchi bosishda spinner+network kutish yo'q, tab bir zumda ochiladi (ega: "sekin chiqib tushadi").
+  const shopOn = !!me?.flags?.shop;
+  useEffect(() => {
+    if (!shopOn) return;
+    const w = window as unknown as { requestIdleCallback?: (cb: () => void, o?: { timeout: number }) => void };
+    const idle = (cb: () => void) => (w.requestIdleCallback ? w.requestIdleCallback(cb, { timeout: 3000 }) : setTimeout(cb, 1500));
+    idle(() => { import("./shop").then((m) => m.prefetchShopProducts()).catch(() => undefined); });
+  }, [shopOn]);
+
   const reload = () => {
     api
       .me()

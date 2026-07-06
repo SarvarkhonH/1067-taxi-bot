@@ -21,6 +21,15 @@ import { Button, EmptyState, ProgressBar, Sheet, Skeleton } from "./design/compo
 const AVG_EARN_PER_RIDE = 250; // rough tanga/ride — "N safar yetadi" hint only
 const LAST_ADDR_KEY = "shop_last_addr";
 
+// ── stale-while-revalidate product cache (module-level) ──────────────────────────────────────────
+// Re-entering the tab renders INSTANTLY from the last payload (no skeleton flash, no network wait);
+// the fresh list still loads in the background. App.tsx also warms this + the chunk on idle.
+let PROD_CACHE: ShopProductView[] | null = null;
+
+export function prefetchShopProducts(): void {
+  api.shopProducts().then((r) => { PROD_CACHE = r.products; }).catch(() => undefined);
+}
+
 function discountPct(p: ShopProductView): number {
   return p.oldPriceTanga && p.oldPriceTanga > p.priceTanga ? Math.round((1 - p.priceTanga / p.oldPriceTanga) * 100) : 0;
 }
@@ -99,7 +108,7 @@ function ProductCard({ p, onOpen, wide }: { p: ShopProductView; onOpen: (p: Shop
 }
 
 export function ShopView({ me, onBanner, reload, onBook }: { me: MeResponse; onBanner: (msg: string) => void; reload: () => void; onBook: () => void }) {
-  const [products, setProducts] = useState<ShopProductView[] | null>(null);
+  const [products, setProducts] = useState<ShopProductView[] | null>(PROD_CACHE);
   const [err, setErr] = useState(false);
   const [q, setQ] = useState("");
   const [sel, setSel] = useState<ShopProductView | null>(null);
@@ -170,7 +179,7 @@ export function ShopView({ me, onBanner, reload, onBook }: { me: MeResponse; onB
 
   const load = () => {
     setErr(false);
-    api.shopProducts().then((r) => setProducts(r.products)).catch(() => setErr(true));
+    api.shopProducts().then((r) => { PROD_CACHE = r.products; setProducts(r.products); }).catch(() => { if (!PROD_CACHE) setErr(true); });
   };
   useEffect(load, []);
 

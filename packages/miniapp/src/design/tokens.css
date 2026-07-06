@@ -1785,3 +1785,16 @@ body {
 .shop-rev-head .muted { margin-left: auto; }
 .shop-rev-verified { font-size: 10.5px; font-weight: 800; color: #15803d; background: #e9f9ef; border-radius: 999px; padding: 2px 8px; }
 .shop-rev-mine { font-size: 10.5px; font-weight: 800; color: #5f7066; background: #eef2ef; border-radius: 999px; padding: 2px 8px; }
+
+/* ── 🛍 shop v4.4: SILLIQ O'TISH + RESPONSIV-2 (ega: "tab sekin chiqib tushadi, responsivelik yo'q") ──
+   iOS: input font <16px = fokusda avto-zoom (butun sahifa kattalashib "buziladi") — 16px shart.
+   Gorizontal page-scroll hech qachon: tashqi wrap clip, ichki striplar o'z scroll'ida qoladi. */
+.shop-search { font-size: 16px; }
+.shop-wrap .bk-input { font-size: 16px; }
+.shop-wrap { overflow-x: clip; }
+.shop-head > div { min-width: 0; }
+.shop-title { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.shop-orders-btn { flex: none; white-space: nowrap; }
+.shop-card-name, .shop-detail-name, .shop-wrap .muted { overflow-wrap: anywhere; }
+/* tab-almashishda og'ir katta soyalar animatsiya paytida chizilmasin — kirish tez tuyuladi */
+.app.shop-light .page { animation-duration: 180ms; }
