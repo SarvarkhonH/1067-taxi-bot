@@ -64,18 +64,18 @@ function clearMeCache(): void {
 
 // 4 aniq tab: Uy (taxi-first) · Hamyon (pul) · O'yin (bonus+vazifa) · Reyting (liga+do'st).
 // `intercity` ON bo'lsa Yo'l 5-tab sifatida qo'shiladi (pastda swapForYol).
+// O'yin + Yo'l pastki bardan olindi — ularning o'rnini Do'kon + Xizmatlar egalladi. O'yin ekrani
+// uy tugmasidan / deep-link'dan hali ham ochiladi (faqat tabbar'dan yo'q).
 const BASE_TABS: { id: Tab; icon: string; label: string }[] = [
   { id: "uy", icon: "home", label: "Uy" },
   { id: "wallet", icon: "wallet", label: "Hamyon" },
-  { id: "play", icon: "games", label: "O'yin" },
   { id: "reyting", icon: "league", label: "Reyting" },
 ];
-// drivers swap Bozor for their earnings hub
+// drivers keep their earnings hub
 const DRIVER_TABS: { id: Tab; icon: string; label: string }[] = [
   { id: "uy", icon: "home", label: "Uy" },
   { id: "wallet", icon: "wallet", label: "Hamyon" },
   { id: "driver", icon: "car", label: "Daromad" },
-  { id: "play", icon: "games", label: "O'yin" },
   { id: "reyting", icon: "league", label: "Reyting" },
 ];
 // old deep-link / child-nav targets → new tabs (so cached bot menus + components still work)
@@ -224,14 +224,10 @@ export function App() {
     setTimeout(() => setToast((c) => (c && Date.now() - c.id >= 3500 ? null : c)), 3600);
   };
 
-  // 🚐 Yo'l: rider'da 5-tab sifatida QO'SHILADI, driver'da O'yin slotini almashtiradi (5 tab qoladi).
-  const hasIntercity = !!me.flags?.intercity;
+  // Pastki bar: Uy · Hamyon · (Daromad drayver) · Do'kon · Xizmatlar · Reyting.
   const hasShop = !!me.flags?.shop;
-  const YOL_TAB = { id: "yol" as Tab, icon: "route", label: "Yo'l" };
   const DOKON_TAB = { id: "dokon" as Tab, icon: "market", label: "Do'kon" };
-  let TABS = me.type === "driver"
-    ? (hasIntercity ? DRIVER_TABS.map((t) => (t.id === "play" ? YOL_TAB : t)) : DRIVER_TABS)
-    : (hasIntercity ? [...BASE_TABS.slice(0, 3), YOL_TAB, ...BASE_TABS.slice(3)] : BASE_TABS);
+  let TABS = me.type === "driver" ? DRIVER_TABS : BASE_TABS;
   // 🛍 Do'kon (feature "shop"): HAR ikkala tip uchun Reyting'dan OLDIN qo'shiladi (max 6 tab).
   if (hasShop) {
     const ri = TABS.findIndex((t) => t.id === "reyting");
