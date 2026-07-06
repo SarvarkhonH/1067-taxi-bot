@@ -541,6 +541,7 @@ export interface ShopAdminOrderRow {
   id: number;
   productName: string;
   priceTanga: number;
+  payKind: "tanga" | "cash";
   status: string;
   note?: string | null;
   address: string;

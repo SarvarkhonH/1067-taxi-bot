@@ -118,7 +118,8 @@ export function ShopView({ me, onBanner, reload, onBook }: { me: MeResponse; onB
   const [buyErr, setBuyErr] = useState<string | null>(null);
   const [ordersOpen, setOrdersOpen] = useState(false);
   const [orders, setOrders] = useState<ShopPurchaseView[] | null>(null);
-  const [success, setSuccess] = useState<{ orderId: number; name: string } | null>(null);
+  const [success, setSuccess] = useState<{ orderId: number; name: string; pay: "tanga" | "cash" } | null>(null);
+  const [payMode, setPayMode] = useState<"tanga" | "cash">("tanga"); // 💵 naqd — yetkazganda to'lanadi
   const [galleryIdx, setGalleryIdx] = useState(0);
   const [refInfo, setRefInfo] = useState<ReferralResponse | null>(null);
   useEffect(() => { api.referral().then(setRefInfo).catch(() => undefined); }, []);
@@ -214,12 +215,12 @@ export function ShopView({ me, onBanner, reload, onBook }: { me: MeResponse; onB
     setBusy(true);
     setBuyErr(null);
     try {
-      const r = await api.shopBuy(sel.id, address);
+      const r = await api.shopBuy(sel.id, address, payMode);
       if (r.ok) {
         hapticSuccess();
         confetti(18);
         try { localStorage.setItem(LAST_ADDR_KEY, address.trim()); } catch { /* private mode */ }
-        setSuccess({ orderId: r.orderId!, name: sel.name });
+        setSuccess({ orderId: r.orderId!, name: sel.name, pay: payMode });
         setSel(null);
         reload();
         load();
@@ -355,24 +356,32 @@ export function ShopView({ me, onBanner, reload, onBook }: { me: MeResponse; onB
               <span className="shop-reviews-chev">›</span>
             </button>
             {deficit > 0 ? (
-              <div className="shop-insufficient-bar">
-                <div className="fs13">🪙 Sizda: <b>{formatNumber(me.coins)}</b> / kerak: <b>{formatNumber(sel.priceTanga)}</b></div>
-                <ProgressBar value={me.coins} max={sel.priceTanga} />
-                <div className="muted fs12 mt6">Yana <b>{formatNumber(deficit)} tanga</b> kerak.</div>
-                {friendsNeeded && (
-                  <div className="fs13 mt6" style={{ lineHeight: 1.5 }}>
-                    👥 <b>{friendsNeeded} do'stingizga</b> ulashsangiz — yetadi!<br />
-                    <span className="muted fs12">Har do'st qo'shilib safar qilsa sizga <b>{formatNumber(refInfo!.rewardReferrer)} tanga</b> tushadi.</span>
-                  </div>
-                )}
-                <Button variant="brand" onClick={() => {
-                  haptic();
-                  if (refInfo) shareLink(inviteLandingUrl(refInfo.link), inviteText(refInfo.rewardReferee));
-                }}>👥 Do'stlarga ulashib tanga yig'ish</Button>
-                <Button variant="ghost" onClick={() => setSel(null)}>Boshqa mahsulot ko'rish</Button>
-              </div>
+              <>
+                {/* tanga yetmasa ham NAQD yo'li doim ochiq — hamkor-do'kon savdosi yo'qolmaydi */}
+                <Button variant="brand" onClick={() => { haptic(); setPayMode("cash"); setStep("confirm"); }}>
+                  💵 Naqdga buyurtma — {formatNumber(sel.priceTanga)} so'm
+                </Button>
+                <div className="shop-insufficient-bar">
+                  <div className="fs13">🪙 Tanga bilan: sizda <b>{formatNumber(me.coins)}</b> / kerak: <b>{formatNumber(sel.priceTanga)}</b></div>
+                  <ProgressBar value={me.coins} max={sel.priceTanga} />
+                  <div className="muted fs12 mt6">Yana <b>{formatNumber(deficit)} tanga</b> kerak.</div>
+                  {friendsNeeded && (
+                    <div className="fs13 mt6" style={{ lineHeight: 1.5 }}>
+                      👥 <b>{friendsNeeded} do'stingizga</b> ulashsangiz — yetadi!<br />
+                      <span className="muted fs12">Har do'st qo'shilib safar qilsa sizga <b>{formatNumber(refInfo!.rewardReferrer)} tanga</b> tushadi.</span>
+                    </div>
+                  )}
+                  <Button variant="ghost" onClick={() => {
+                    haptic();
+                    if (refInfo) shareLink(inviteLandingUrl(refInfo.link), inviteText(refInfo.rewardReferee));
+                  }}>👥 Do'stlarga ulashib tanga yig'ish</Button>
+                </div>
+              </>
             ) : (
-              <Button variant="brand" onClick={() => { haptic(); setStep("confirm"); }}>Sotib olish — 🪙 {formatNumber(sel.priceTanga)}</Button>
+              <>
+                <Button variant="brand" onClick={() => { haptic(); setPayMode("tanga"); setStep("confirm"); }}>🪙 Tanga bilan olish — {formatNumber(sel.priceTanga)}</Button>
+                <Button variant="ghost" onClick={() => { haptic(); setPayMode("cash"); setStep("confirm"); }}>💵 Naqdga buyurtma — {formatNumber(sel.priceTanga)} so'm</Button>
+              </>
             )}
             {similar.length > 0 && (
               <div className="shop-section mt10">
@@ -474,10 +483,13 @@ export function ShopView({ me, onBanner, reload, onBook }: { me: MeResponse; onB
             <h3>📦 Yetkazish manzili</h3>
             <p className="muted fs13">Do'kon egasi {me.member.phone ?? "raqamingiz"} orqali siz bilan bog'lanadi.</p>
             <input className="bk-input" placeholder="Masalan: Koson sh., Guliston ko'chasi 12-uy" value={address} onChange={(e) => setAddress(e.target.value)} />
-            <div className="shop-confirm-total mt10">Jami: 🪙 {formatNumber(sel.priceTanga)}</div>
+            <div className="shop-confirm-total mt10">
+              Jami: {payMode === "cash" ? `💵 ${formatNumber(sel.priceTanga)} so'm` : `🪙 ${formatNumber(sel.priceTanga)}`}
+            </div>
+            {payMode === "cash" && <div className="shop-deliver-line">💵 Naqd — <b>yetkazganda to'laysiz</b>, hozir hech narsa olinmaydi</div>}
             {buyErr && <div className="sheet-err">{buyErr}</div>}
             <Button variant="brand" disabled={busy || address.trim().length < 5} onClick={submit}>
-              {busy ? "Yuborilmoqda…" : `Tasdiqlash — 🪙 ${formatNumber(sel.priceTanga)}`}
+              {busy ? "Yuborilmoqda…" : payMode === "cash" ? `Tasdiqlash — 💵 ${formatNumber(sel.priceTanga)} so'm` : `Tasdiqlash — 🪙 ${formatNumber(sel.priceTanga)}`}
             </Button>
           </>
         )}
@@ -490,7 +502,9 @@ export function ShopView({ me, onBanner, reload, onBook }: { me: MeResponse; onB
             <div className="wb-emoji">📦</div>
             <div className="shop-success-title">Buyurtma #{success.orderId} qabul qilindi!</div>
             <div className="muted fs13 mt6">🛍 {success.name}</div>
-            <div className="shop-success-promise">🚚 Tez orada yetkazamiz — do'kon egasi siz bilan bog'lanadi</div>
+            <div className="shop-success-promise">
+              {success.pay === "cash" ? "🚚 Tez orada yetkazamiz — 💵 yetkazganda to'laysiz" : "🚚 Tez orada yetkazamiz — do'kon egasi siz bilan bog'lanadi"}
+            </div>
             <Button variant="brand" onClick={() => { setSuccess(null); openOrders(); }}>📦 Buyurtmalarim</Button>
           </div>
         </div>
@@ -510,10 +524,12 @@ export function ShopView({ me, onBanner, reload, onBook }: { me: MeResponse; onB
                 <b>{o.productName}</b>
                 <StatusPill s={o.status} />
               </div>
-              <div className="muted fs12">#{o.id} · 🪙 {formatNumber(o.priceTanga)} · {new Date(o.createdAt).toLocaleDateString("uz-UZ")}</div>
+              <div className="muted fs12">
+                #{o.id} · {o.payKind === "cash" ? `💵 ${formatNumber(o.priceTanga)} so'm (naqd)` : `🪙 ${formatNumber(o.priceTanga)}`} · {new Date(o.createdAt).toLocaleDateString("uz-UZ")}
+              </div>
               {o.status === "rejected" && (
                 <div className="order-refund-banner">
-                  {o.note ? `Sabab: ${o.note}. ` : ""}✅ <b>{formatNumber(o.priceTanga)} tanga hisobingizga qaytarildi</b>
+                  {o.note ? `Sabab: ${o.note}. ` : ""}{o.payKind === "cash" ? "Hech qanday pul olinmagan." : <>✅ <b>{formatNumber(o.priceTanga)} tanga hisobingizga qaytarildi</b></>}
                 </div>
               )}
             </div>

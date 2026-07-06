@@ -435,6 +435,7 @@ model ShopPurchase {
   productName String // snapshot — survives product edit/delete
   priceTanga  Int // snapshot — the price actually paid
   qty         Int       @default(1) // MVP: always 1
+  payKind     String    @default("tanga") // "tanga" (buy'da ushlanadi) | "cash" (naqd — yetkazganda to'lanadi, coin ops YO'Q)
   address     String // delivery address
   contact     String // phone snapshot
   status      String    @default("pending") // pending | delivered | rejected | cancelled

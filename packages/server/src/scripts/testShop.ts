@@ -207,6 +207,36 @@ async function main(): Promise<void> {
   ok(gated.reviews.length === 0, "16: flag DARK → reviews hidden for riders");
   ok((await submitReview(b.id, pid, "up", undefined, undefined, false)).reason === "off", "16: flag DARK → submit blocked for riders");
 
+  // 17) 💵 NAQD (cash) to'lov: coin tegilmaydi, stock atomik, reject'da refund YO'Q
+  await adminEditProduct(pid, { stock: 5, priceTanga: 3000 });
+  const poorCash = await prisma.member.create({ data: { type: "client", kasId: `${TAG}-P2`, fullName: "Shop P2", phone: null, coins: 100 } }); // 100 < 3000
+  const coinsBefore17 = await getCoins(poorCash.id);
+  const stockBefore17 = (await prisma.product.findUnique({ where: { id: pid } }))!.stock;
+  const cashBuy = await buyProduct(poorCash.id, pid, ADDR, true, "cash");
+  ok(cashBuy.ok === true, "17: cash buy ok even with insufficient tanga (balans tekshirilmaydi)");
+  ok((await getCoins(poorCash.id)) === coinsBefore17, "17: cash buy → coins UNTOUCHED");
+  ok((await prisma.product.findUnique({ where: { id: pid } }))!.stock === stockBefore17 - 1, "17: cash buy → stock decremented");
+  ok((await prisma.coinTxn.count({ where: { memberId: poorCash.id } })) === 0, "17: cash buy → NO CoinTxn row");
+  const cashOrder = await prisma.shopPurchase.findUnique({ where: { id: cashBuy.orderId! } });
+  ok(cashOrder?.payKind === "cash", "17: order row carries payKind=cash");
+  ok(cashBuy.notice?.payKind === "cash", "17: owner notice carries payKind=cash");
+  // reject → restock, REFUND YO'Q (hech narsa ushlanmagan — refund pul yaratgan bo'lardi)
+  const cashRej = await rejectPurchase(cashBuy.orderId!);
+  ok(cashRej.ok === true && cashRej.payKind === "cash", "17: cash reject ok + payKind flows");
+  ok((await getCoins(poorCash.id)) === coinsBefore17, "17: cash reject → NO refund (coins unchanged)");
+  ok((await prisma.coinTxn.count({ where: { memberId: poorCash.id, kind: "shop_refund" } })) === 0, "17: cash reject → no shop_refund txn");
+  ok((await prisma.product.findUnique({ where: { id: pid } }))!.stock === stockBefore17, "17: cash reject → restocked");
+  // cash deliver terminal
+  const cashBuy2 = await buyProduct(poorCash.id, pid, ADDR, true, "cash");
+  const cashDel = await deliverPurchase(cashBuy2.orderId!);
+  ok(cashDel.ok === true && cashDel.payKind === "cash", "17: cash deliver ok + terminal");
+  ok((await rejectPurchase(cashBuy2.orderId!)).ok === false, "17: reject-after-deliver refused (cash)");
+  // myPurchases carries payKind
+  const poorOrders = await myPurchases(poorCash.id);
+  ok(poorOrders.every((o) => o.payKind === "cash"), "17: myPurchases exposes payKind");
+  // tanga default unchanged: a's earlier orders are payKind=tanga
+  ok((await myPurchases(a.id)).every((o) => o.payKind === "tanga"), "17: legacy/default orders are payKind=tanga");
+
   await cleanup();
   console.log(process.exitCode ? "\n❌ FAILED" : "\n✅ ALL GREEN");
   await prisma.$disconnect();

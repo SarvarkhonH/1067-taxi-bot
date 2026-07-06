@@ -21,13 +21,19 @@ async function tgOf(memberId: number): Promise<string | null> {
 /** New purchase → owner card. Exported for the API layer (bot-bound closure, cashout pattern). */
 export async function notifyOwnerShop(bot: Bot, n: ShopOwnerNotice): Promise<void> {
   const kb = new InlineKeyboard().text("✅ Yetkazildi", `shop:ok:${n.orderId}`).text("❌ Rad", `shop:no:${n.orderId}`);
+  const payLine = n.payKind === "cash"
+    ? `📦 <b>${esc(n.productName)}</b> — <b>${formatNumber(n.priceTanga)}</b> so'm 💵 <b>NAQD (yetkazganda olinadi)</b>\n`
+    : `📦 <b>${esc(n.productName)}</b> — <b>${formatNumber(n.priceTanga)}</b> tanga (to'landi ✅)\n`;
+  const hint = n.payKind === "cash"
+    ? `<i>Yetkazib pulni olgach ✅ bosing. ❌ Rad — faqat ombor qaytadi (pul olinmagan).</i>`
+    : `<i>Yetkazib bo'lgach ✅ bosing. ❌ Rad — tanga avtomatik qaytadi.</i>`;
   await bot.api
     .sendMessage(
       OWNER_TG,
       `🛍 <b>DO'KON BUYURTMASI</b> #${n.orderId}\n\n` +
-        `📦 <b>${esc(n.productName)}</b> — <b>${formatNumber(n.priceTanga)}</b> tanga (to'landi ✅)\n` +
+        payLine +
         `👤 ${esc(n.buyerName)}\n📞 ${esc(n.phone)}\n📍 ${esc(n.address)}\n\n` +
-        `<i>Yetkazib bo'lgach ✅ bosing. ❌ Rad — tanga avtomatik qaytadi.</i>`,
+        hint,
       { parse_mode: "HTML", reply_markup: kb },
     )
     .catch(() => undefined);
@@ -66,14 +72,17 @@ export function registerShop(bot: Bot): void {
       await ctx.answerCallbackQuery({ text: r.reason === "not_found" ? "Topilmadi" : `Allaqachon: ${r.reason}`, show_alert: true });
       return;
     }
-    await ctx.answerCallbackQuery({ text: "❌ Rad — tanga qaytarildi" });
-    await ctx.editMessageText(`${(ctx.callbackQuery.message && "text" in ctx.callbackQuery.message ? ctx.callbackQuery.message.text : "") ?? ""}\n\n❌ RAD ETILDI (tanga qaytdi)`).catch(() => undefined);
+    const isCash = r.payKind === "cash";
+    await ctx.answerCallbackQuery({ text: isCash ? "❌ Rad etildi" : "❌ Rad — tanga qaytarildi" });
+    await ctx.editMessageText(`${(ctx.callbackQuery.message && "text" in ctx.callbackQuery.message ? ctx.callbackQuery.message.text : "") ?? ""}\n\n❌ RAD ETILDI${isCash ? "" : " (tanga qaytdi)"}`).catch(() => undefined);
     const tg = r.memberId ? await tgOf(r.memberId) : null;
     if (tg) {
       await bot.api
         .sendMessage(
           tg,
-          `😔 <b>Buyurtma rad etildi</b>\n🛍 ${esc(r.productName ?? "")}\n\n✅ <b>${formatNumber(r.amount ?? 0)} tanga hisobingizga qaytarildi</b> — «🚀 Ilova» → Do'kon'dan boshqa mahsulot tanlashingiz mumkin.`,
+          isCash
+            ? `😔 <b>Buyurtma rad etildi</b>\n🛍 ${esc(r.productName ?? "")}\n\nHech qanday pul olinmagan. «🚀 Ilova» → Do'kon'dan boshqa mahsulot tanlashingiz mumkin.`
+            : `😔 <b>Buyurtma rad etildi</b>\n🛍 ${esc(r.productName ?? "")}\n\n✅ <b>${formatNumber(r.amount ?? 0)} tanga hisobingizga qaytarildi</b> — «🚀 Ilova» → Do'kon'dan boshqa mahsulot tanlashingiz mumkin.`,
           { parse_mode: "HTML" },
         )
         .catch(() => undefined);

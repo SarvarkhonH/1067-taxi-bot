@@ -348,11 +348,13 @@ export interface ShopProductView {
 }
 
 export type ShopPurchaseStatus = "pending" | "delivered" | "rejected" | "cancelled";
+export type ShopPayKind = "tanga" | "cash"; // cash = naqd — yetkazganda to'lanadi, tanga tegilmaydi
 
 export interface ShopPurchaseView {
   id: number;
   productName: string;
   priceTanga: number;
+  payKind: ShopPayKind;
   status: ShopPurchaseStatus;
   note?: string | null; // owner's rejection reason
   address: string;
@@ -364,7 +366,7 @@ export interface ShopBuyResponse {
   ok: boolean;
   reason?: "off" | "unavailable" | "sold_out" | "insufficient" | "bad_address" | "pending_limit";
   orderId?: number;
-  balance?: number; // post-purchase tanga balance
+  balance?: number; // post-purchase tanga balance (cash'da o'zgarmaydi)
 }
 
 export const SHOP_MAX_PRICE = 5_000_000; // sanity ceiling for admin-entered prices

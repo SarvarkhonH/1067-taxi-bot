@@ -69,6 +69,7 @@ export async function myPurchases(memberId: number, take = 20): Promise<ShopPurc
     id: o.id,
     productName: o.productName,
     priceTanga: o.priceTanga,
+    payKind: o.payKind as ShopPurchaseView["payKind"],
     status: o.status as ShopPurchaseView["status"],
     note: o.note,
     address: o.address,
@@ -81,22 +82,25 @@ export interface ShopOwnerNotice {
   orderId: number;
   productName: string;
   priceTanga: number;
+  payKind: "tanga" | "cash";
   buyerName: string;
   phone: string;
   address: string;
 }
 
 /**
- * Buy ONE unit with tanga. All-or-nothing inside one member-locked transaction:
- *   balance-conditional coins decrement → CoinTxn(shop:<orderId>) → stock-conditional decrement →
- * a failed conditional throws → full rollback → typed clean reason. Mirrors spendCoinsIdempotent's
- * body inline (the idempotency key needs the orderId, which only exists inside the tx).
+ * Buy ONE unit. pay="tanga" (default): all-or-nothing inside one member-locked transaction —
+ *   balance-conditional coins decrement → CoinTxn(shop:<orderId>) → stock-conditional decrement;
+ * a failed conditional throws → full rollback → typed clean reason.
+ * pay="cash" (naqd — yetkazganda to'lanadi): SAME atomic stock claim + order row, coin ops YO'Q —
+ * balans tekshirilmaydi, hech narsa ushlanmaydi; reject'da refund ham YO'Q (faqat restock).
  */
 export async function buyProduct(
   memberId: number,
   productId: number,
   address: string,
   preview = false, // admin/owner QABUL-test while the flag is DARK
+  pay: "tanga" | "cash" = "tanga",
 ): Promise<ShopBuyResponse & { notice?: ShopOwnerNotice }> {
   if (!preview && !(await featureOn("shop"))) return { ok: false, reason: "off" };
   const addr = (address ?? "").trim().slice(0, 200);
@@ -108,8 +112,8 @@ export async function buyProduct(
     const product = await prisma.product.findUnique({ where: { id: productId } });
     if (!product || !product.active) return { ok: false as const, reason: "unavailable" as const };
     if (product.stock < 1) return { ok: false as const, reason: "sold_out" as const };
-    if (member.coins < product.priceTanga) return { ok: false as const, reason: "insufficient" as const };
-    // anti-spam: bound open orders per rider (each holds real tanga, so this also bounds exposure)
+    if (pay === "tanga" && member.coins < product.priceTanga) return { ok: false as const, reason: "insufficient" as const };
+    // anti-spam: bound open orders per rider (tanga'da real tanga ushlab turadi; cash'da spam-qalqon)
     const open = await prisma.shopPurchase.count({ where: { memberId, status: "pending" } });
     if (open >= PENDING_PER_MEMBER) return { ok: false as const, reason: "pending_limit" as const };
 
@@ -125,16 +129,19 @@ export async function buyProduct(
             productId,
             productName: product.name,
             priceTanga: product.priceTanga,
+            payKind: pay,
             address: addr,
             contact: member.phone ?? "—",
           },
         });
-        // 3) balance-conditional hold (never below 0) + ledger row, keyed to THIS order
-        const pay = await tx.member.updateMany({ where: { id: memberId, coins: { gte: product.priceTanga } }, data: { coins: { decrement: product.priceTanga } } });
-        if (pay.count === 0) throw new Error("INSUFFICIENT");
-        await tx.coinTxn.create({
-          data: { memberId, amount: -product.priceTanga, kind: "shop", reason: `🛍 ${product.name} (#${order.id})`, idempotencyKey: `shop:${order.id}` },
-        });
+        // 3) TANGA'dagina: balance-conditional hold (never below 0) + ledger row, keyed to THIS order
+        if (pay === "tanga") {
+          const paid = await tx.member.updateMany({ where: { id: memberId, coins: { gte: product.priceTanga } }, data: { coins: { decrement: product.priceTanga } } });
+          if (paid.count === 0) throw new Error("INSUFFICIENT");
+          await tx.coinTxn.create({
+            data: { memberId, amount: -product.priceTanga, kind: "shop", reason: `🛍 ${product.name} (#${order.id})`, idempotencyKey: `shop:${order.id}` },
+          });
+        }
         return order;
       });
       const balance = (await prisma.member.findUnique({ where: { id: memberId }, select: { coins: true } }))?.coins ?? 0;
@@ -146,6 +153,7 @@ export async function buyProduct(
           orderId: created.id,
           productName: product.name,
           priceTanga: product.priceTanga,
+          payKind: pay,
           buyerName: member.displayName || member.fullName,
           phone: member.phone ?? "—",
           address: addr,
@@ -168,6 +176,7 @@ export interface ShopDecision {
   memberId?: number;
   amount?: number;
   productName?: string;
+  payKind?: "tanga" | "cash";
 }
 
 /** ✅ Yetkazildi — terminal; tanga already held at buy, so NO coin op here. */
@@ -176,7 +185,7 @@ export async function deliverPurchase(orderId: number): Promise<ShopDecision> {
   if (!o) return { ok: false, reason: "not_found" };
   if (o.status !== "pending") return { ok: false, reason: o.status };
   await prisma.shopPurchase.update({ where: { id: orderId }, data: { status: "delivered", decidedAt: new Date() } });
-  return { ok: true, memberId: o.memberId, amount: o.priceTanga, productName: o.productName };
+  return { ok: true, memberId: o.memberId, amount: o.priceTanga, productName: o.productName, payKind: o.payKind as "tanga" | "cash" };
 }
 
 /** ❌ Rad — refund (exactly once via shoprefund:<id>) + restock. Status guard makes a double-tap
@@ -190,13 +199,16 @@ export async function rejectPurchase(orderId: number, note?: string): Promise<Sh
     data: { status: "rejected", decidedAt: new Date(), note: note?.slice(0, 200) ?? null },
   });
   await prisma.product.updateMany({ where: { id: o.productId }, data: { stock: { increment: 1 } } }).catch(() => undefined); // best-effort restock (product may be deleted)
-  const refund = await grantCoins(o.memberId, o.priceTanga, "shop_refund", `🛍 «${o.productName}» rad etildi — tanga qaytarildi`, `shoprefund:${orderId}`);
-  if (!refund.ok && refund.skipped !== "duplicate") {
-    // refund MUST land — surface loudly rather than silently losing the rider's tanga
-    const { alertAdmins } = await import("./economyService");
-    await alertAdmins(`⚠️ Shop refund FAILED: order #${orderId}, m${o.memberId}, ${o.priceTanga} tanga — qo'lda tekshiring.`).catch(() => undefined);
+  if (o.payKind !== "cash") {
+    // faqat TANGA order'lar refund oladi — cash'da hech narsa ushlanmagan, refund pul YARATGAN bo'lardi
+    const refund = await grantCoins(o.memberId, o.priceTanga, "shop_refund", `🛍 «${o.productName}» rad etildi — tanga qaytarildi`, `shoprefund:${orderId}`);
+    if (!refund.ok && refund.skipped !== "duplicate") {
+      // refund MUST land — surface loudly rather than silently losing the rider's tanga
+      const { alertAdmins } = await import("./economyService");
+      await alertAdmins(`⚠️ Shop refund FAILED: order #${orderId}, m${o.memberId}, ${o.priceTanga} tanga — qo'lda tekshiring.`).catch(() => undefined);
+    }
   }
-  return { ok: true, memberId: o.memberId, amount: o.priceTanga, productName: o.productName };
+  return { ok: true, memberId: o.memberId, amount: o.priceTanga, productName: o.productName, payKind: o.payKind as "tanga" | "cash" };
 }
 
 // ── admin CRUD (owner-gated at the route layer) ──────────────────────────────────────────────────
@@ -311,6 +323,7 @@ export async function adminListPurchases(status?: string): Promise<(ShopPurchase
     id: o.id,
     productName: o.productName,
     priceTanga: o.priceTanga,
+    payKind: o.payKind as ShopPurchaseView["payKind"],
     status: o.status as ShopPurchaseView["status"],
     note: o.note,
     address: o.address,

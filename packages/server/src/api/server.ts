@@ -343,7 +343,8 @@ export function createApiServer(opts: ApiOptions = {}) {
   });
   app.post("/api/shop/buy", requireUser, rateLimit(10), withMember2(async (id, req, res) => {
     const { buyProduct } = await import("../services/shopService");
-    const r = await buyProduct(id, Number(req.body?.productId), String(req.body?.address ?? ""), isAdmin(res.locals.telegramId as string));
+    const pay = req.body?.pay === "cash" ? ("cash" as const) : ("tanga" as const);
+    const r = await buyProduct(id, Number(req.body?.productId), String(req.body?.address ?? ""), isAdmin(res.locals.telegramId as string), pay);
     if (r.ok && r.notice && opts.notifyShopOwner) await opts.notifyShopOwner(r.notice).catch(() => undefined);
     const { notice: _n, ...pub } = r; // owner-notice (phone/address) never leaves the server response path
     return pub;

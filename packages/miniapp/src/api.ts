@@ -139,7 +139,7 @@ export const api = {
   me: () => get<MeResponse | { linked: false }>("/api/me"),
   // 🛍 tanga shop (feature "shop")
   shopProducts: () => get<{ products: import("@t1067/shared").ShopProductView[] }>("/api/shop/products"),
-  shopBuy: (productId: number, address: string) => post<import("@t1067/shared").ShopBuyResponse>("/api/shop/buy", { productId, address }),
+  shopBuy: (productId: number, address: string, pay: "tanga" | "cash" = "tanga") => post<import("@t1067/shared").ShopBuyResponse>("/api/shop/buy", { productId, address, pay }),
   shopOrders: () => get<{ orders: import("@t1067/shared").ShopPurchaseView[] }>("/api/shop/orders"),
   shopReviews: (productId: number) => get<import("@t1067/shared").ShopReviewsResponse>(`/api/shop/reviews/${productId}`),
   shopReviewSubmit: (p: { productId: number; thumb: "up" | "down"; text?: string; photos?: string[] }) =>

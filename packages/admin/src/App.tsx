@@ -1577,7 +1577,7 @@ function ShopAdminView() {
             </span>
             <span className="muted" style={{ flex: "2 1 180px", fontSize: 12 }}>📍 {o.address}</span>
             <span style={{ fontSize: 12 }}>{stLabel[o.status] ?? o.status}</span>
-            <span className="muted" style={{ fontSize: 12 }}>🪙 {o.priceTanga.toLocaleString("ru-RU")}</span>
+            <span className="muted" style={{ fontSize: 12 }}>{o.payKind === "cash" ? `💵 ${o.priceTanga.toLocaleString("ru-RU")} so'm NAQD` : `🪙 ${o.priceTanga.toLocaleString("ru-RU")}`}</span>
           </div>
         ))}
         {orders && orders.length === 0 && <p className="muted">Hali buyurtma yo&apos;q.</p>}
