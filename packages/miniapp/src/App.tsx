@@ -64,6 +64,22 @@ function clearMeCache(): void {
   }
 }
 
+// 👥 Social-proof a'zolar soni. me.totalMembers = jonli DB count (kas sync uni doim o'zgartiradi)
+// + stale-cache eski→yangi sakraydi → «har safar har xil» ko'rinardi. Buni BARQAROR qilamiz:
+// 10 000 baza + real, 10 gacha yaxlitlangan, va MONOTONIC (localStorage'da eng katta qiymat) —
+// hech qachon kamaymaydi, mayda jitter ko'rinmaydi, faqat o'sib boradi (tabiiy + viral).
+function stableMemberCount(realTotal: number): number {
+  const rounded = Math.floor((10000 + Math.max(0, realTotal)) / 10) * 10;
+  try {
+    const prev = Number(localStorage.getItem("mc_max") || 0);
+    const val = Math.max(prev, rounded);
+    if (val !== prev) localStorage.setItem("mc_max", String(val));
+    return val;
+  } catch {
+    return rounded;
+  }
+}
+
 // 4 aniq tab: Uy (taxi-first) · Hamyon (pul) · O'yin (bonus+vazifa) · Reyting (liga+do'st).
 // `intercity` ON bo'lsa Yo'l 5-tab sifatida qo'shiladi (pastda swapForYol).
 // O'yin + Yo'l pastki bardan olindi — ularning o'rnini Do'kon + Xizmatlar egalladi. O'yin ekrani
@@ -303,7 +319,7 @@ export function App() {
           <span className="brand-badge">🚕</span>
           <span className="brand-name">1067<b>TAXI</b></span>
           {/* 👥 social proof — 10 000 baza + real a'zolar (har yangi qo'shilganda o'sadi → tirik, viral) */}
-          <span className="member-chip">👥 {(10000 + (me.totalMembers ?? 0)).toLocaleString("ru-RU")} a'zo</span>
+          <span className="member-chip">👥 {stableMemberCount(me.totalMembers ?? 0).toLocaleString("ru-RU")} a'zo</span>
         </div>
         <div className="topbar-right">
           <div className="coin-pill">
