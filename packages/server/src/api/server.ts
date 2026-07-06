@@ -129,6 +129,13 @@ function tokenEquals(a: string, b: string): boolean {
   return crypto.timingSafeEqual(ab, bb);
 }
 
+// 🛍 shopseller is scoped at the CHOKE POINT, not just hidden in the UI: a leaked/misused token
+// must not read economy/members/finance even via direct API calls. Only /api/admin/shop/* +
+// whoami/health (used by the panel shell itself) pass.
+function pathAllowedForShopSeller(path: string): boolean {
+  return path.startsWith("/api/admin/shop/") || path === "/api/admin/whoami" || path === "/api/admin/health";
+}
+
 function requireAdmin(req: Request, res: Response, next: NextFunction): void {
   // desktop dashboard (no Telegram): a strong shared token grants admin access
   const token = req.header("X-Admin-Token");
@@ -143,13 +150,15 @@ function requireAdmin(req: Request, res: Response, next: NextFunction): void {
     void prisma.appState
       .findUnique({ where: { key: `oprtoken:${token}` } })
       .then((row) => {
-        if (row) {
-          res.locals.telegramId = "panel-operator";
-          res.locals.adminRole = row.value || "operator";
-          next();
-        } else {
-          res.status(403).json({ error: "forbidden" });
+        if (!row) { res.status(403).json({ error: "forbidden" }); return; }
+        const role = row.value || "operator";
+        if (role === "shopseller" && !pathAllowedForShopSeller(req.path)) {
+          res.status(403).json({ error: "shop_only" });
+          return;
         }
+        res.locals.telegramId = "panel-operator";
+        res.locals.adminRole = role;
+        next();
       })
       .catch(() => res.status(403).json({ error: "forbidden" }));
     return;
