@@ -5,7 +5,7 @@
 > Xizmatlar = BIZ yig'gan katalog. E'lonlar = XALQ o'zi yozadigan doska. Ikkalasi birga
 > super-app'ni "shahar hayoti markazi"ga aylantiradi.
 
-**Holat:** `E1 ready for verification (owner-accepted emas)` · Flag: `elonlar` (OFF) · Boost uchun alohida flag: `elontop` (OFF)
+**Holat:** `E1-E4 owner-accepted (2026-07-06) — dark-deploy qilinmoqda` · Flag: `elonlar` (OFF) · Boost uchun alohida flag: `elontop` (OFF)
 **Dizayn-konsept:** «Mahalla e'lon taxtasi» (§4.1) — 2026-07-06 Sonnet hamkorlik-brainstorm sintezi.
 
 ---

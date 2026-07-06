@@ -123,6 +123,10 @@ async function main(): Promise<void> {
     notifyServiceDemand: async (notice) => {
       if (bot) await (await import("./bot/xizmatlar")).notifyOwnerDemand(bot, notice);
     },
+    // 📋 new pending e'lon → owner moderation card [✅ Chiqarish]/[❌ Rad]
+    notifyElonlarOwner: async (notice) => {
+      if (bot) await (await import("./bot/elonlar")).notifyOwnerElonlar(bot, notice);
+    },
   });
   // economy alerts (withdraws, anomalies) → admins
   const { registerAdminNotifier } = await import("./services/economyService");
@@ -265,6 +269,13 @@ async function main(): Promise<void> {
           await maybeWeeklyChannelDigest().catch((e) => console.error("[channel] digest failed:", e));
           // 🔎 XIZMATLAR P4: same tick, own flag+marker — killing one never silences the other
           await maybeWeeklyServicesDigest().catch((e) => console.error("[channel] services digest failed:", e));
+        }
+        {
+          // 📋 E'LONLAR E3: 2-soatlik moderatsiya SLA eslatma — self-throttled marker, no new poller
+          const { elonlarSlaTick, elonlarLifecycleTick } = await import("./services/classifiedService");
+          await elonlarSlaTick().catch((e) => console.error("[elonlar] sla tick failed:", e));
+          // E4 §7: expiry batch + 2-kun-oldin ogohlantirish + 3-kunlik "sotildimi?" push (bot bo'lmasa ham DB-batch ishlaydi)
+          await elonlarLifecycleTick(bot ?? undefined).catch((e) => console.error("[elonlar] lifecycle tick failed:", e));
         }
         if (reconcileTick++ % 12 === 0) {
           // money-integrity sweep ~ every 12 ticks (3h at 15min interval)

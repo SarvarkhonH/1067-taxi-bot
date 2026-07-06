@@ -566,9 +566,71 @@ export interface ClassifiedSubmitBody {
 
 export interface ClassifiedSubmitResponse {
   ok: boolean;
-  reason?: "off" | "bad_category" | "bad_subtype" | "bad_title" | "bad_price" | "no_phone" | "insufficient" | "max_active" | "unavailable";
+  reason?: "off" | "bad_category" | "bad_subtype" | "bad_title" | "bad_price" | "no_phone" | "insufficient" | "max_active" | "banned_word" | "unavailable";
   id?: number;
   paidCoins?: number;
+  balance?: number;
+}
+
+// ── E3: admin moderatsiya + community report (§5) ────────────────────────────────────────────────
+
+export interface ClassifiedReportResponse {
+  ok: boolean;
+  hidden?: boolean; // 3-report chegarasiga yetdi → status pending'ga qaytdi (qayta moderatsiya)
+}
+
+export interface AdminClassifiedOwnerInfo {
+  tgId: string;
+  name: string;
+  phone: string | null;
+  activeAdsCount: number;
+}
+
+export interface AdminClassifiedRow {
+  id: number;
+  category: ClassifiedCategory;
+  subtype: string;
+  title: string;
+  priceSom: number | null;
+  status: ClassifiedStatus;
+  paidCoins: number;
+  hasPhoto: boolean;
+  photoCount: number;
+  viewCount: number; // AdView jami soni (cache)
+  contactCount: number; // AdContact jami soni (cache)
+  reports: number;
+  owner: AdminClassifiedOwnerInfo;
+  createdAt: string;
+  expiresAt: string;
+  pendingMinutes: number | null; // faqat status=pending — SLA hisoblagichi uchun
+}
+
+export interface AdminClassifiedListResponse {
+  rows: AdminClassifiedRow[];
+  pending: number;
+  active: number;
+  todayViews: number;
+  todayCoins: number; // bugungi joylashdan tushgan tanga
+}
+
+export interface AdminAdViewerRow {
+  tgId: string;
+  name: string;
+  at: string;
+}
+
+export interface AdminAdContactRow {
+  tgId: string;
+  name: string;
+  kind: "call" | "message";
+  at: string;
+}
+
+// ── E4: TOP boost (tanga-sink) — §6 ───────────────────────────────────────────────────────────────
+export interface ClassifiedTopBuyResponse {
+  ok: boolean;
+  reason?: "off" | "not_found" | "not_owner" | "not_active" | "insufficient" | "elontop_off";
+  topUntil?: string;
   balance?: number;
 }
 
@@ -587,6 +649,8 @@ export interface MyClassifiedRow {
   viewCount: number;
   callCount: number;
   paidCoins: number;
+  isTop: boolean; // §6 TOP boost — 24 soat faol
+  topUntil: string | null;
   expiresAt: string;
   createdAt: string;
 }

@@ -1,9 +1,12 @@
 import type {
   AdminActionResult,
+  AdminAdContactRow,
+  AdminAdViewerRow,
   AdminAuditRow,
   AdminBotUsersResponse,
   AdminBroadcastDetail,
   AdminBroadcastRow,
+  AdminClassifiedListResponse,
   AdminEconomy,
   BallDistribution,
   AdminGrowth,
@@ -230,6 +233,13 @@ export const adminApi = {
   svcSetPrices: (id: number, items: { label: string; priceSom: number }[]) => postJson<{ ok: boolean; count: number }>(`/api/admin/services/${id}/prices`, { items }),
   svcPhotoUpload: (id: number, mime: string, base64: string) => postJson<{ ok: boolean; error?: string; photoCount?: number }>(`/api/admin/services/${id}/photo`, { mime, base64 }),
   svcPhotoClear: (id: number) => req<{ ok: boolean }>(`/api/admin/services/${id}/photo`, { method: "DELETE" }),
+  // 📋 e'lonlar (E3) — approve/reject FAQAT Telegram orqali; panel = read + arxivla/uzayt/TOP
+  elonList: (status?: string) => req<AdminClassifiedListResponse>(`/api/admin/elonlar${status ? `?status=${status}` : ""}`),
+  elonViewers: (id: number) => req<{ viewers: AdminAdViewerRow[] }>(`/api/admin/elonlar/${id}/viewers`),
+  elonContacts: (id: number) => req<{ contacts: AdminAdContactRow[] }>(`/api/admin/elonlar/${id}/contacts`),
+  elonArchive: (id: number) => postJson<{ ok: boolean }>(`/api/admin/elonlar/${id}/archive`, {}),
+  elonExtend: (id: number, days?: number) => postJson<{ ok: boolean }>(`/api/admin/elonlar/${id}/extend`, { days }),
+  elonSetTop: (id: number, on: boolean) => postJson<{ ok: boolean }>(`/api/admin/elonlar/${id}/top`, { on }),
   // 💸 withdrawals tab
   withdrawalsTab: (limit = 100) => req<AdminWithdrawalTabRow[]>(`/api/admin/withdrawals-tab?limit=${limit}`),
   // ⭐ ratings

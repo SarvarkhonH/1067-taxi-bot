@@ -198,6 +198,12 @@ export const BONUS_ECON_KNOBS: BonusEconKnob[] = [
   { key: "waitCompFullSec", label: "⏱ Maksimalgacha necha soniya", def: 180, min: 60, max: 900, step: 30, group: "Kutish kompensatsiyasi" },
   { key: "waitCompDailyBudget", label: "🏦 Kunlik kompaniya byudjeti (tanga)", def: 200000, min: 0, max: 2000000, step: 10000, group: "Kutish kompensatsiyasi" },
   { key: "waitVoucherExpiryH", label: "🎁 Topilmadi-vaucheri amal muddati (soat)", def: 72, min: 12, max: 336, step: 12, group: "Kutish kompensatsiyasi" },
+  // ── 📋 E'lonlar (feature "elonlar") — joylash narxi zinapoyasi (ELONLAR_PLAN.md §6). 0 = bepul
+  // davr; Yo'qoldi-Topildi kategoriyasi bu knobdan qat'i nazar DOIM bepul (community-good, viral).
+  // TOP boost alohida knob, flag `elontop` (E4) — E2'da faqat qiymati mavjud, sotib olish yo'q.
+  { key: "elonPostPrice", label: "📋 E'lon joylash narxi (tanga)", def: 0, min: 0, max: 5000, step: 100, group: "E'lonlar" },
+  { key: "elonTopPrice", label: "📌 TOP e'lon — 24 soat (tanga, E4)", def: 2000, min: 0, max: 20000, step: 250, group: "E'lonlar" },
+  { key: "elonMaxActive", label: "📋 1 kishi — max aktiv e'lon", def: 3, min: 1, max: 20, step: 1, group: "E'lonlar" },
 ];
 // 🏅 level index → cashback-multiplier knob key (null for Yangi = baseline ×1.0).
 const TIER_MULT_KNOB: Record<number, string> = {

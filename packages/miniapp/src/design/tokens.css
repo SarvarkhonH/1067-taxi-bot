@@ -10,6 +10,11 @@
   --win: #34d399;
   --danger: #f87171;
   --premium-grad: linear-gradient(135deg, #8b5cf6, #6366f1);
+  /* 🔎 XIZMATLAR — o'z bo'limi, o'z rangi: taxi ekranlari (Uy/Hamyon) --brand oltinni ishlatadi,
+     Do'kon o'z yashilini ishlatadi (shop-buy-bar), Xizmatlar esa teal — uchalasi bir-biriga
+     o'xshamasligi kerak (ega: "har sahifaning o'z rangi bor edi"). */
+  --svc-brand: #14b8a6;
+  --svc-brand-grad: linear-gradient(135deg, #2dd4bf, #0d9488);
   --text: #f2f5fa;
   --text-dim: #8b94a7;
   --r-card: 18px;
@@ -1619,7 +1624,7 @@ body {
 
 /* kategoriya grid — rangli tile'lar, son bilan ("bo'sh emas" signali) */
 .svc-cat-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
-.svc-cat-tile { --acc: var(--brand); display: flex; flex-direction: column; align-items: flex-start; gap: 2px; padding: 12px;
+.svc-cat-tile { --acc: var(--svc-brand); display: flex; flex-direction: column; align-items: flex-start; gap: 2px; padding: 12px;
   border: 1px solid color-mix(in srgb, var(--acc) 35%, transparent); border-radius: var(--r-card);
   background: linear-gradient(160deg, color-mix(in srgb, var(--acc) 16%, transparent), var(--card) 70%); text-align: left;
   transition: transform var(--dur-press) var(--ease-out); }
@@ -1648,7 +1653,7 @@ body {
   background: color-mix(in srgb, var(--win) 20%, transparent); border: 1px solid color-mix(in srgb, var(--win) 45%, transparent); font-size: 15px; }
 
 /* reyting / belgilar */
-.svc-stars { color: var(--brand); font-size: 13px; letter-spacing: 1px; }
+.svc-stars { color: var(--svc-brand); font-size: 13px; letter-spacing: 1px; }
 .svc-stars span { opacity: 0.25; } .svc-stars span.on { opacity: 1; }
 .svc-stars.dim { font-size: 11.5px; }
 .svc-rating-line { display: flex; align-items: center; gap: 4px; }
@@ -1695,7 +1700,7 @@ body {
 
 /* qo'shish CTA + forma */
 .svc-add-cta { display: flex; align-items: center; gap: 10px; padding: 12px; margin-top: 14px; border-radius: var(--r-card); text-align: left;
-  border: 1px dashed color-mix(in srgb, var(--brand) 50%, transparent); }
+  border: 1px dashed color-mix(in srgb, var(--svc-brand) 50%, transparent); }
 .svc-add-plus { font-size: 20px; }
 .svc-add-chev { color: var(--text-dim); font-size: 20px; }
 .svc-cat-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }

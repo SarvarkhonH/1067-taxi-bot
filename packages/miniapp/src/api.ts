@@ -168,6 +168,28 @@ export const api = {
   svcReviews: (listingId: number, offset = 0) => get<{ reviews: import("@t1067/shared").ServiceReviewView[] }>(`/api/services/reviews?listingId=${listingId}${offset ? `&offset=${offset}` : ""}`),
   svcReview: (listingId: number, stars: number, text: string) => request<import("@t1067/shared").ServiceReviewResponse>("POST", "/api/services/review", { listingId, stars, text }, 1),
   svcReport: (reviewId: number) => request<{ ok: boolean; hidden?: boolean }>("POST", "/api/services/report", { reviewId }, 1),
+  // 📋 e'lonlar (feature "elonlar") — mahalla e'lon taxtasi
+  elonAds: (p: { category?: string; subtype?: string; priceBand?: "arzon" | "ortacha" | "qimmat"; q?: string; limit?: number; offset?: number } = {}) => {
+    const sp = new URLSearchParams();
+    if (p.category) sp.set("category", p.category);
+    if (p.subtype) sp.set("subtype", p.subtype);
+    if (p.priceBand) sp.set("price", p.priceBand);
+    if (p.q) sp.set("q", p.q);
+    if (p.limit) sp.set("limit", String(p.limit));
+    if (p.offset) sp.set("offset", String(p.offset));
+    const qs = sp.toString();
+    return get<import("@t1067/shared").ClassifiedListResponse>(`/api/elonlar/ads${qs ? `?${qs}` : ""}`);
+  },
+  elonAd: (id: number) => get<import("@t1067/shared").ClassifiedDetail>(`/api/elonlar/ads/${id}`),
+  elonSubmit: (b: import("@t1067/shared").ClassifiedSubmitBody) => request<import("@t1067/shared").ClassifiedSubmitResponse>("POST", "/api/elonlar/ads", b, 1),
+  elonContact: (id: number, kind: "call" | "message") => post<{ ok: boolean }>(`/api/elonlar/ads/${id}/contact`, { kind }),
+  elonMine: () => get<{ ads: import("@t1067/shared").MyClassifiedRow[] }>("/api/elonlar/mine"),
+  elonSold: (id: number) => post<{ ok: boolean }>(`/api/elonlar/ads/${id}/sold`),
+  elonReactivate: (id: number) => post<{ ok: boolean }>(`/api/elonlar/ads/${id}/reactivate`),
+  elonDelete: (id: number) => del<{ ok: boolean }>(`/api/elonlar/ads/${id}`),
+  elonPhoto: (id: number, base64: string, mime: string) => post<{ ok: boolean; error?: string; photoCount?: number }>(`/api/elonlar/ads/${id}/photo`, { base64, mime }),
+  elonReport: (id: number) => post<import("@t1067/shared").ClassifiedReportResponse>(`/api/elonlar/ads/${id}/report`),
+  elonTop: (id: number) => post<import("@t1067/shared").ClassifiedTopBuyResponse>(`/api/elonlar/ads/${id}/top`),
   createTrack: () => post<{ token: string }>("/api/track"),
   trackTrip: (token: string) => get<PublicTrip>(`/api/track/${encodeURIComponent(token)}`),
   // server defaults the leaderboard to the caller's own member type

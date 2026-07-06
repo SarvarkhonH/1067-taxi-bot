@@ -48,6 +48,8 @@ export interface ApiOptions {
   notifyServiceOwner?: (notice: import("../services/serviceDirectory").ServiceOwnerNotice) => Promise<void>;
   /** 🔎 Forward an unmet-demand request ("topilmadi → so'rov") to the owner's Telegram (info-only). */
   notifyServiceDemand?: (notice: import("../services/serviceDirectory").ServiceDemandNotice) => Promise<void>;
+  /** 📋 Forward a new pending e'lon to the owner's Telegram [✅ Chiqarish]/[❌ Rad] (bot-bound). */
+  notifyElonlarOwner?: (notice: import("../services/classifiedService").ClassifiedOwnerNotice) => Promise<void>;
 }
 
 function memberType(req: Request, fallback: MemberType): MemberType {
@@ -564,6 +566,106 @@ export function createApiServer(opts: ApiOptions = {}) {
   };
   app.get("/api/services/photo/:listingId", serveServicePhoto);
   app.get("/api/services/photo/:listingId/:n", serveServicePhoto);
+
+  // ── 📋 E'LONLAR (feature "elonlar", DARK — ELONLAR_PLAN.md E2) — owner-preview mirrors xizmatlar/shop ──
+  const elonPreview = (res: Response) => isAdmin(res.locals.telegramId as string);
+  app.get("/api/elonlar/ads", requireUser, rateLimit(60), async (req, res) => {
+    const { listAds } = await import("../services/classifiedService");
+    res.set("Cache-Control", "private, max-age=15");
+    res.json(await listAds({
+      category: req.query.category ? String(req.query.category) : undefined,
+      subtype: req.query.subtype ? String(req.query.subtype) : undefined,
+      priceBand: (["arzon", "ortacha", "qimmat"] as const).includes(req.query.price as "arzon") ? (req.query.price as "arzon" | "ortacha" | "qimmat") : undefined,
+      q: req.query.q ? String(req.query.q) : undefined,
+      limit: req.query.limit ? Number(req.query.limit) : undefined,
+      offset: req.query.offset ? Number(req.query.offset) : undefined,
+    }, elonPreview(res)));
+  });
+  app.get("/api/elonlar/ads/:id", requireUser, rateLimit(60), async (req, res) => {
+    const { getAd } = await import("../services/classifiedService");
+    const item = await getAd(Number(req.params.id), res.locals.telegramId as string, elonPreview(res));
+    if (!item) { res.status(404).json({ error: "not_found" }); return; }
+    res.json(item);
+  });
+  app.post("/api/elonlar/ads", requireUser, rateLimit(5), withMember2(async (memberId, req, res) => {
+    const { submitAd } = await import("../services/classifiedService");
+    const m = await prisma.member.findUnique({ where: { id: memberId }, select: { displayName: true, fullName: true, phone: true } });
+    const r = await submitAd(
+      res.locals.telegramId as string,
+      memberId,
+      m?.displayName || m?.fullName || "Foydalanuvchi",
+      m?.phone ?? null,
+      req.body as import("@t1067/shared").ClassifiedSubmitBody,
+      elonPreview(res),
+    );
+    if (r.ok && r.notice && opts.notifyElonlarOwner) await opts.notifyElonlarOwner(r.notice).catch(() => undefined);
+    const { notice: _n, ...pub } = r; // owner-notice never leaves the server response path
+    return pub;
+  }));
+  app.post("/api/elonlar/ads/:id/report", requireUser, rateLimit(10), async (req, res) => {
+    const { reportAd } = await import("../services/classifiedService");
+    res.json(await reportAd(Number(req.params.id), res.locals.telegramId as string, elonPreview(res)));
+  });
+  app.post("/api/elonlar/ads/:id/contact", requireUser, rateLimit(30), async (req, res) => {
+    const { logContact } = await import("../services/classifiedService");
+    const m = await prisma.telegramUser.findUnique({ where: { id: res.locals.telegramId as string }, select: { member: { select: { displayName: true, fullName: true } } } });
+    const name = m?.member?.displayName || m?.member?.fullName || "Foydalanuvchi";
+    const kind = req.body?.kind === "message" ? "message" as const : "call" as const;
+    res.json(await logContact(Number(req.params.id), res.locals.telegramId as string, name, kind, elonPreview(res)));
+  });
+  app.get("/api/elonlar/mine", requireUser, rateLimit(30), async (_req, res) => {
+    res.json({ ads: await (await import("../services/classifiedService")).myAds(res.locals.telegramId as string) });
+  });
+  app.post("/api/elonlar/ads/:id/sold", requireUser, rateLimit(10), async (req, res) => {
+    const { markSold } = await import("../services/classifiedService");
+    res.json(await markSold(res.locals.telegramId as string, Number(req.params.id)));
+  });
+  // ⭐ E4 TOP boost — rider o'z aktiv e'lonini 24 soatga TOP qiladi (knob elonTopPrice, flag elontop)
+  app.post("/api/elonlar/ads/:id/top", requireUser, rateLimit(10), withMember2(async (memberId, req, res) => {
+    const { buyTopBoost } = await import("../services/classifiedService");
+    return buyTopBoost(res.locals.telegramId as string, memberId, Number(req.params.id), elonPreview(res));
+  }));
+  app.post("/api/elonlar/ads/:id/reactivate", requireUser, rateLimit(10), async (req, res) => {
+    const { reactivateAd } = await import("../services/classifiedService");
+    res.json(await reactivateAd(res.locals.telegramId as string, Number(req.params.id)));
+  });
+  app.delete("/api/elonlar/ads/:id", requireUser, rateLimit(10), async (req, res) => {
+    const { deleteAd } = await import("../services/classifiedService");
+    res.json(await deleteAd(res.locals.telegramId as string, Number(req.params.id)));
+  });
+  // rider self-upload (post-wizard photo step) — ownership check (only the ad's own owner can add)
+  app.post("/api/elonlar/ads/:id/photo", express.json({ limit: "6mb" }), requireUser, rateLimit(10), async (req, res) => {
+    const adId = Number(req.params.id);
+    const ad = await prisma.classifiedAd.findUnique({ where: { id: adId }, select: { tgId: true } });
+    if (!ad || ad.tgId.toString() !== (res.locals.telegramId as string)) { res.status(404).json({ error: "not_found" }); return; }
+    const b = req.body as { base64?: string; mime?: string };
+    if (!b?.base64) { res.status(400).json({ error: "bad_photo" }); return; }
+    const { uploadAdPhoto } = await import("../services/classifiedService");
+    res.json(await uploadAdPhoto(adId, Buffer.from(b.base64, "base64"), b.mime || "image/jpeg"));
+  });
+  // public ad photo proxy (img tag) — shop/services-photo clone: file_id → 302 to Telegram CDN
+  const elonPhotoHits = new Map<string, { n: number; at: number }>();
+  const serveAdPhoto = async (req: Request, res: Response): Promise<void> => {
+    const ipKey = String(req.headers["x-forwarded-for"] ?? req.socket.remoteAddress ?? "?").split(",")[0]!.trim();
+    if (elonPhotoHits.size > 10_000) elonPhotoHits.clear();
+    const now = Date.now();
+    const h = elonPhotoHits.get(ipKey);
+    if (h && now - h.at < 60_000 && h.n >= 120) { res.status(429).end(); return; }
+    elonPhotoHits.set(ipKey, h && now - h.at < 60_000 ? { n: h.n + 1, at: h.at } : { n: 1, at: now });
+    const { resolveAdPhoto } = await import("../services/classifiedService");
+    const idx = Math.max(0, Math.min(10, Number(req.params.n ?? 0) || 0));
+    const url = await resolveAdPhoto(Number(req.params.adId), idx, req.query.s === "1");
+    if (!url) { res.status(404).end(); return; }
+    if (url.startsWith("data:")) {
+      const m = /^data:([^;]+);base64,(.*)$/.exec(url);
+      if (!m) { res.status(404).end(); return; }
+      res.set("Content-Type", m[1]!).set("Cache-Control", "public, max-age=3600").send(Buffer.from(m[2]!, "base64"));
+      return;
+    }
+    res.set("Cache-Control", "private, max-age=3600").redirect(302, url);
+  };
+  app.get("/api/elonlar/photo/:adId", serveAdPhoto);
+  app.get("/api/elonlar/photo/:adId/:n", serveAdPhoto);
 
   app.post("/api/wallet/topup", requireUser, rateLimit(5), async (req, res) => {
     const memberId = await getMemberId(res.locals.telegramId as string);
@@ -1218,6 +1320,33 @@ export function createApiServer(opts: ApiOptions = {}) {
   app.delete("/api/admin/services/:id/photo", requireAdmin, requireOwner, async (req, res) => {
     const { clearServicePhotos } = await import("../services/serviceDirectory");
     res.json(await clearServicePhotos(Number(req.params.id)));
+  });
+
+  // ── 📋 E'LONLAR admin (E3, owner-gated writes) — approve/reject FAQAT Telegram orqali (bot/elonlar.ts) ──
+  app.get("/api/admin/elonlar", requireAdmin, async (req, res) => {
+    const { adminListAds } = await import("../services/classifiedService");
+    res.json(await adminListAds(req.query?.status ? String(req.query.status) : undefined));
+  });
+  app.get("/api/admin/elonlar/:id/viewers", requireAdmin, async (req, res) => {
+    const { adminAdViewers } = await import("../services/classifiedService");
+    res.json({ viewers: await adminAdViewers(Number(req.params.id)) });
+  });
+  app.get("/api/admin/elonlar/:id/contacts", requireAdmin, async (req, res) => {
+    const { adminAdContacts } = await import("../services/classifiedService");
+    res.json({ contacts: await adminAdContacts(Number(req.params.id)) });
+  });
+  app.post("/api/admin/elonlar/:id/archive", requireAdmin, requireOwner, rateLimit(30), async (req, res) => {
+    const { adminArchiveAd } = await import("../services/classifiedService");
+    res.json(await adminArchiveAd(Number(req.params.id)));
+  });
+  app.post("/api/admin/elonlar/:id/extend", requireAdmin, requireOwner, rateLimit(30), async (req, res) => {
+    const { adminExtendAd } = await import("../services/classifiedService");
+    const days = Number(req.body?.days);
+    res.json(await adminExtendAd(Number(req.params.id), Number.isFinite(days) && days > 0 ? days : undefined));
+  });
+  app.post("/api/admin/elonlar/:id/top", requireAdmin, requireOwner, rateLimit(30), async (req, res) => {
+    const { adminSetTop } = await import("../services/classifiedService");
+    res.json(await adminSetTop(Number(req.params.id), !!req.body?.on));
   });
 
   // 💸 Transfer commission — owner sets the % charged on every transfer/tip/fare (gated by the

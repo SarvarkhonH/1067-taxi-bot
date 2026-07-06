@@ -520,3 +520,42 @@ STATUS (Rule 7): `ready for verification`. Compliance-report 5 gap yopildi; kodn
 - Flag holati: `elonlar` OFF.
 - Qoldi: E3 ega tekshiruvidan o'tgach → E4 (TOP boost xarid-oqimi + expiry sweep-kengaytmasi + 3-kunlik
   "sotildimi?" push).
+
+## 2026-07-06 — ELONLAR_PLAN E4 (TOP boost + expiry + tozalash) — READY FOR VERIFICATION (1 gap: pastda)
+- `classifiedService.ts`: yangi `elontop` flag (featureFlags.ts, DEFAULT_OFF — `elonlar`dan MUSTAQIL,
+  owner boost'ni alohida to'xtatishi mumkin). `buyTopBoost(tgId, memberId, adId)` — faqat egasi + faqat
+  `active` e'lon; shop.ts naqshi ($transaction: shartli tanga-yechish + CoinTxn + isTop/topUntil
+  yangilash). idempotencyKey **KUNGA bog'liq** (`elon_top_<adId>_<YYYY-MM-DD>`, §11 builder-eslatma
+  formatiga mos) — bir kunda takror bosish 0 qo'shimcha to'lov (topUntil yangilanadi), ERTASIGA qayta
+  xarid = yangi kun = yangi to'lov. `elonMaxActive`/`elonPostPrice` kabi bitta admin-knob `elonTopPrice`
+  (def 2000 tanga) — narx hech qachon kodga yozilmagan.
+- `elonlarLifecycleTick(bot?)` — §7 muddat tugashi, **yangi poller yo'q** (mavjud 15-daq `index.ts`
+  tick'iga `elonlarSlaTick` bilan bir qatorda qo'shildi): (a) `active→expired` batch-UPDATE
+  (`expiresAt<now`) — listAds'dagi E2 lazy-filter endi DB-yozuv bilan ham mos keladi; (b) muddatdan
+  2 kun oldin egaga "tugayapti" push (1 marta/e'lon, AppState marker `elonexpwarn:<id>`); (c) e'lon
+  chiqqandan 3 kun keyin "Hali sotilmadimi?" 1-tap push ([✅ Faol qolsin]/[❌ Sotildi], marker
+  `elonsoldcheck:<id>`). `bot` ixtiyoriy parametr — botsiz ham DB-batch ishlaydi (test uchun ham,
+  bot yo'q muhitda ham xavfsiz).
+- `bot/elonlar.ts`: yangi callback'lar `elonlar:keep:<id>`/`elonlar:sold:<id>` — 3-kunlik push'ga javob;
+  "Sotildi" tugmasi `markSold` (E2) ni chaqiradi, faqat HAQIQIY egasi (ctx.from.id === ad.tgId) bosa
+  ishlaydi (admin-only emas — bu ega o'ziga yozilgan xabar).
+- Miniapp: "Mening e'lonlarim"da 📌 "TOP qilish" tugmasi (faqat active + hali TOP bo'lmagan e'lonlarga);
+  TOP faol bo'lsa sarlavha oldida 📌 belgi, tugma yashiriladi (qayta-xarid signal aralashmaydi).
+  `MyClassifiedRow.isTop/topUntil` qo'shildi.
+- DoD isbot:
+  - `pnpm -r typecheck` — 4/4 paket 0 xato.
+  - `testElonlar.ts` — **3× ketma-ket yashil** (84 tekshiruv, E2+E3+E4 birga — 2 ta oraliq urinish
+    TEST_DATABASE_URL'ga tarmoq-kechikishi tufayli flaky (`Transaction already closed`/connectivity)
+    bo'ldi, KOD BILAN bog'liq emas — qayta ishga tushirilib 3 marta ketma-ket toza yashil olindi):
+    elontop flag OFF'da bloklaydi; knob=2000 to'g'ri yechadi + CoinTxn `elon_top_<adId>_<kun>`;
+    not_owner/not_active guard; **bir kunlik takror-xarid idempotent** (2-marta bossa ham 1-marta
+    to'laydi); insufficient balance rad etadi (ad TOP bo'lmay qoladi); lifecycle tick — o'tgan
+    e'lon `expired`ga o'tadi, 2-kun-oldin ogohlantirish marker qo'yadi, 3-kunlik so'rov marker qo'yadi,
+    darhol qayta-tick 0 dublikat yuboradi.
+- **GAP:** Telegram "sotildimi?"/"tugayapti" push'lari va miniapp TOP-xarid tugmasi jonli skrinshot
+  bilan ko'rsatilmadi (E2/E3'dagi bilan bir xil sabab — environment/parallel-sessiya). Kod-mantiq
+  to'liq avtomatik test qilingan; ega birinchi marta botda/mini-appda o'zi tekshirib chiqishi kerak.
+- Flag holati: `elonlar` OFF, `elontop` OFF.
+- **E1-E4 owner-accepted (2026-07-06):** ega "davom et qabul" berdi. Commit+push+deploy qilinmoqda
+  (dark — flag'lar OFF, ega botda/mini-appda keyinroq o'zi qo'lda ko'rib chiqadi).
+- Qoldi: E5 (P2, kanal cross-post + saqlangan qidiruv) — alohida reja, hozircha boshlanmagan.

@@ -1,5 +1,28 @@
 import { useEffect, useRef, useState } from "react";
 
+/** Compress a picked photo to ≤maxSide JPEG data-URL — uploads stay small on village internet.
+ *  Shared by any feature that lets a rider attach their own photos (shop reviews, e'lon post). */
+export async function compressImage(file: File, maxSide = 900, quality = 0.78): Promise<string | null> {
+  try {
+    const url = URL.createObjectURL(file);
+    const img = await new Promise<HTMLImageElement>((ok, no) => {
+      const i = new Image();
+      i.onload = () => ok(i);
+      i.onerror = no;
+      i.src = url;
+    });
+    const k = Math.min(1, maxSide / Math.max(img.width, img.height));
+    const canvas = document.createElement("canvas");
+    canvas.width = Math.round(img.width * k);
+    canvas.height = Math.round(img.height * k);
+    canvas.getContext("2d")!.drawImage(img, 0, 0, canvas.width, canvas.height);
+    URL.revokeObjectURL(url);
+    return canvas.toDataURL("image/jpeg", quality);
+  } catch {
+    return null;
+  }
+}
+
 /** Animates a number toward `target` (slot-machine count-up for balances). */
 export function useCountUp(target: number, ms = 700): number {
   const [value, setValue] = useState(target);

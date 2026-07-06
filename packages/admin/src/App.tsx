@@ -1,8 +1,11 @@
 import { Fragment, useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import {
   formatNumber,
+  type AdminAdContactRow,
+  type AdminAdViewerRow,
   type AdminAuditRow,
   type AdminBotUsersResponse,
+  type AdminClassifiedListResponse,
   type AdminEconomy,
   type BallDistribution,
   type AdminGrowth,
@@ -16,7 +19,7 @@ import {
 } from "@t1067/shared";
 import { adminApi, clearAdminToken, hasAdminToken, setAdminToken, type AdminBannedRow, type AdminChatConvo, type AdminChatMsg, type AdminDebtRow, type AdminMsgHistoryRow, type AdminRatingRow, type AdminTxnRow, type AdminBlockedRow, type AdminReferralRow, type AdminRideRow, type AdminUserRow, type AdminWithdrawalRow, type AdminWithdrawalTabRow, type CampaignRow, type Driver360, type DriverCallRow, type DriverCallStats, type DriverMissionRow, type IntercityAdminTrip, type IntercityAdminDebt, type Member360, type PeakHourRow, type ShopAdminProductRow, type ShopAdminOrderRow, type ShopAdminReviewRow, type SvcAdminRow, type SvcAdminCat, type SvcAdminReview } from "./api";
 
-type Tab = "overview" | "pulse" | "analytics" | "finance" | "live" | "x360" | "driver" | "client" | "botusers" | "obzvon" | "boshqaruv" | "topshiriq" | "actions" | "integrity" | "audit" | "safarlar" | "qarzlar" | "referallar" | "banlist" | "yechishlar" | "baholar" | "xabar" | "chat" | "broadcasts" | "intercity" | "pik" | "transactions" | "blocked" | "shop" | "xizmatlar";
+type Tab = "overview" | "pulse" | "analytics" | "finance" | "live" | "x360" | "driver" | "client" | "botusers" | "obzvon" | "boshqaruv" | "topshiriq" | "actions" | "integrity" | "audit" | "safarlar" | "qarzlar" | "referallar" | "banlist" | "yechishlar" | "baholar" | "xabar" | "chat" | "broadcasts" | "intercity" | "pik" | "transactions" | "blocked" | "shop" | "xizmatlar" | "elonlar";
 
 const NAV_GROUPS: { label: string; items: { id: Tab; icon: string; label: string }[] }[] = [
   {
@@ -71,6 +74,7 @@ const NAV_GROUPS: { label: string; items: { id: Tab; icon: string; label: string
     items: [
       { id: "shop", icon: "🛍", label: "Do'kon" },
       { id: "xizmatlar", icon: "🔎", label: "Xizmatlar" },
+      { id: "elonlar", icon: "📋", label: "E'lonlar" },
       { id: "pik", icon: "🔥", label: "Pik Vaqtlar" },
       { id: "actions", icon: "⚡", label: "Amallar" },
       { id: "topshiriq", icon: "🎯", label: "Topshiriqlar" },
@@ -199,6 +203,7 @@ export function App() {
           {tab === "boshqaruv" && <><BoshqaruvView /><RecruitsView /></>}
           {tab === "shop" && <ShopAdminView />}
           {tab === "xizmatlar" && <XizmatlarAdminView />}
+          {tab === "elonlar" && <ElonlarAdminView />}
           {tab === "topshiriq" && <><QuickAnnounceView /><CampaignsView /><DriverMissionsView /></>}
           {tab === "actions" && <><ActionsView onHistory={() => goTab("broadcasts")} /><ControlCards /></>}
           {tab === "integrity" && <IntegrityView />}
@@ -1834,6 +1839,105 @@ function XizmatlarAdminView() {
         {reviews.length === 0 && <p className="muted">Navbat bo&apos;sh — shikoyat qilingan sharh yo&apos;q.</p>}
       </section>
     </>
+  );
+}
+
+// 📋 E'LONLAR (E3) — moderatsiya navbati + jadval (egasi/AdView/AdContact) + amallar (arxivla/uzayt/TOP).
+// Approve/reject FAQAT Telegram'da (owner [✅/❌]) — bu yer faqat ko'rish + owner-discretion amallar.
+const ELON_STATUS_LABEL: Record<string, string> = { pending: "⏳ Moderatsiyada", active: "🟢 Faol", sold: "🤝 Sotildi", rejected: "❌ Rad", archived: "🗄 Arxiv", expired: "⌛ Muddati o'tgan" };
+
+function ElonlarAdminView() {
+  const [data, setData] = useState<AdminClassifiedListResponse | null>(null);
+  const [stFilter, setStFilter] = useState<string>("all");
+  const [openId, setOpenId] = useState<number | null>(null);
+  const [drill, setDrill] = useState<{ viewers: AdminAdViewerRow[]; contacts: AdminAdContactRow[] } | null>(null);
+  const [msg, setMsg] = useState("");
+
+  const load = () => { adminApi.elonList().then(setData).catch(() => undefined); };
+  useEffect(() => { load(); }, []);
+
+  const toggle = async (id: number) => {
+    if (openId === id) { setOpenId(null); setDrill(null); return; }
+    setOpenId(id); setDrill(null);
+    const [v, c] = await Promise.all([
+      adminApi.elonViewers(id).catch(() => ({ viewers: [] as AdminAdViewerRow[] })),
+      adminApi.elonContacts(id).catch(() => ({ contacts: [] as AdminAdContactRow[] })),
+    ]);
+    setDrill({ viewers: v.viewers, contacts: c.contacts });
+  };
+
+  const act = async (fn: () => Promise<{ ok: boolean }>, okMsg: string) => {
+    const r = await fn().catch(() => ({ ok: false }));
+    setMsg(r.ok ? okMsg : "❌ xatolik");
+    load();
+  };
+
+  const rows = (data?.rows ?? []).filter((r) => (stFilter === "all" ? true : r.status === stFilter));
+
+  return (
+    <section className="panel">
+      <div className="panel-title">📋 E&apos;lonlar (mahalla doskasi)</div>
+      <p className="muted" style={{ marginTop: 0 }}>
+        {data && <>Jami {data.rows.length} ta · 🟢 faol {data.active} · {data.pending > 0 && <b style={{ color: "#f59e0b" }}>⏳ {data.pending} moderatsiyada</b>}{data.pending === 0 && "⏳ 0 moderatsiyada"} · bugun 👁 {data.todayViews} ko&apos;rish · 🪙 {data.todayCoins} tanga tushum.</>}
+        {" "}Tasdiqlash/rad FAQAT Telegram&apos;da (owner [✅/❌]) — bu yerda faqat ko&apos;rish va arxivla/uzayt/TOP.
+      </p>
+      <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 10 }}>
+        {["all", "pending", "active", "sold", "rejected", "archived", "expired"].map((s) => (
+          <button key={s} className={"btn sm" + (stFilter === s ? " active" : "")} onClick={() => setStFilter(s)}>
+            {s === "all" ? "Barchasi" : ELON_STATUS_LABEL[s]}
+          </button>
+        ))}
+      </div>
+      {msg && <p className="muted">{msg}</p>}
+      <table className="tbl">
+        <thead>
+          <tr>
+            <th>E&apos;lon</th><th>Egasi</th><th>Status</th><th>👁/📞</th><th>Amallar</th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((r) => (
+            <Fragment key={r.id}>
+              <tr>
+                <td>
+                  {r.hasPhoto ? "📷 " : ""}<b>{r.title}</b>
+                  <div className="muted" style={{ fontSize: 12 }}>{r.category} · {r.priceSom ? `${r.priceSom.toLocaleString("ru-RU")} so'm` : "Kelishiladi"}{r.paidCoins > 0 ? ` · 🪙 ${r.paidCoins}` : ""}{r.reports > 0 && <b style={{ color: "#ef4444" }}> · ⚑{r.reports}</b>}</div>
+                </td>
+                <td>{r.owner.name}<div className="muted" style={{ fontSize: 12 }}>{r.owner.phone ?? "—"} · {r.owner.activeAdsCount} faol</div></td>
+                <td>{ELON_STATUS_LABEL[r.status] ?? r.status}{r.pendingMinutes != null && <div className="muted" style={{ fontSize: 12 }}>{r.pendingMinutes} daq kutmoqda</div>}</td>
+                <td><button className="btn sm" onClick={() => void toggle(r.id)}>👁 {r.viewCount} · 📞 {r.contactCount}</button></td>
+                <td style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
+                  <button className="btn sm" onClick={() => void act(() => adminApi.elonArchive(r.id), "🗄 Arxivlandi")}>🗄 Arxivla</button>
+                  <button className="btn sm" onClick={() => void act(() => adminApi.elonExtend(r.id), "⏳ Uzaytirildi")}>⏳ Uzayt</button>
+                  <button className="btn sm" onClick={() => void act(() => adminApi.elonSetTop(r.id, !r.hasPhoto ? true : true), "📌 TOP berildi")}>📌 TOP</button>
+                </td>
+              </tr>
+              {openId === r.id && (
+                <tr>
+                  <td colSpan={5}>
+                    {!drill ? "Yuklanmoqda…" : (
+                      <div style={{ display: "flex", gap: 16, flexWrap: "wrap" }}>
+                        <div>
+                          <b>👁 Kim ko&apos;rdi ({drill.viewers.length})</b>
+                          {drill.viewers.map((v) => <div key={v.tgId} className="muted" style={{ fontSize: 12 }}>{v.name} · {new Date(v.at).toLocaleString("ru-RU")}</div>)}
+                          {!drill.viewers.length && <div className="muted" style={{ fontSize: 12 }}>Hali hech kim ko&apos;rmagan</div>}
+                        </div>
+                        <div>
+                          <b>📞 Kim murojaat qildi ({drill.contacts.length})</b>
+                          {drill.contacts.map((c, i) => <div key={i} className="muted" style={{ fontSize: 12 }}>{c.kind === "call" ? "📞" : "✍️"} {c.name} · {new Date(c.at).toLocaleString("ru-RU")}</div>)}
+                          {!drill.contacts.length && <div className="muted" style={{ fontSize: 12 }}>Hali hech kim murojaat qilmagan</div>}
+                        </div>
+                      </div>
+                    )}
+                  </td>
+                </tr>
+              )}
+            </Fragment>
+          ))}
+        </tbody>
+      </table>
+      {rows.length === 0 && <p className="muted">Bo&apos;sh — hali e&apos;lon yo&apos;q.</p>}
+    </section>
   );
 }
 
