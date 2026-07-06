@@ -40,6 +40,11 @@
   --green: var(--win);
   --accent: var(--brand);
   --r: var(--r-card);
+
+  /* 📋 E'lonlar (feature "elonlar") — «Mahalla e'lon taxtasi» (ELONLAR_PLAN.md §4.1): app'ning
+     yagona iliq-neytral zonasi, faqat shu 2 token yangi — qolgan hammasi shop-light qolipidan REUSE. */
+  --classified-bg-grad: linear-gradient(180deg, #faf6ee, #f7f2e8 30%, #f5efe4);
+  --classified-accent: #c2622f;
 }
 
 body { font-variant-numeric: tabular-nums; }
@@ -1823,6 +1828,89 @@ body {
 /* tab-almashishda og'ir katta soyalar animatsiya paytida chizilmasin — kirish tez tuyuladi */
 .app.shop-light .page { animation-duration: 180ms; }
 
+/* ── 📋 E'LONLAR (feature "elonlar", E2, ELONLAR_PLAN.md §4.1) — «Mahalla e'lon taxtasi» ──────────
+   .shop-light qolipidan ko'chirilgan (mexanizm bir xil, App.tsx tab==="elonlar"da qo'yiladi):
+   iliq qog'oz fon + terrakota urg'u — app'ning yagona iliq-neytral zonasi. Faqat 2 yangi token
+   (--classified-bg-grad, --classified-accent); qolgan hamma klass/animatsiya YUQORIDAGI shop-light
+   bilan bir xil naqsh — 0 yangi keyframe. */
+.app.elonlar-light { background: var(--classified-bg-grad); color: #1b2333; }
+.app.elonlar-light::before { display: none; }
+.app.elonlar-light .aurora { display: none; }
+.app.elonlar-light .topbar {
+  background: linear-gradient(180deg, rgba(250, 246, 238, 0.97), rgba(250, 246, 238, 0.62));
+  border-bottom: 1px solid color-mix(in srgb, var(--classified-accent) 14%, transparent);
+  backdrop-filter: none; -webkit-backdrop-filter: none;
+}
+.app.elonlar-light .brand-name { color: #1b2333; }
+.app.elonlar-light .brand-name b { color: var(--classified-accent); text-shadow: none; }
+.app.elonlar-light .build-ver { color: var(--classified-accent); }
+.app.elonlar-light .coin-pill {
+  background: #ffffff; border: 1px solid #ecdfba; color: #b45309;
+  box-shadow: 0 3px 12px -5px rgba(180, 83, 9, 0.35), inset 0 1px 0 #fff;
+}
+.app.elonlar-light .coin-dot { filter: none; }
+.app.elonlar-light .toast { background: #ffffff; color: #1b2333; box-shadow: 0 10px 30px -12px rgba(0, 0, 0, 0.35); }
+.app.elonlar-light .tabbar {
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.94), rgba(250, 246, 238, 0.98));
+  border: 1px solid color-mix(in srgb, var(--classified-accent) 18%, #f0e6d4);
+  box-shadow: 0 18px 44px -20px rgba(60, 40, 20, 0.30);
+  backdrop-filter: none; -webkit-backdrop-filter: none;
+}
+.app.elonlar-light .tab { color: #a5896f; }
+.app.elonlar-light .tab.active { color: var(--classified-accent); }
+.app.elonlar-light .tab.active svg { filter: drop-shadow(0 0 8px color-mix(in srgb, var(--classified-accent) 50%, transparent)); }
+.app.elonlar-light .tab-ind {
+  background: radial-gradient(circle at 50% 40%, color-mix(in srgb, var(--classified-accent) 26%, transparent), color-mix(in srgb, var(--classified-accent) 6%, transparent) 70%, transparent);
+  box-shadow: 0 0 18px color-mix(in srgb, var(--classified-accent) 28%, transparent);
+}
+.app.elonlar-light .page { animation-duration: 180ms; }
+
+/* Karta = "qog'oz e'lon" (§4.1) — yuqori o'ng burchak clip-path "buklama", --acc = kategoriya rangi */
+.elon-card {
+  --acc: var(--classified-accent); position: relative; background: #ffffff;
+  border: 1px solid color-mix(in srgb, var(--acc) 30%, #efe6d6); border-radius: var(--r-card);
+  overflow: hidden; display: flex; flex-direction: column; box-shadow: 0 6px 18px -10px rgba(60, 40, 20, 0.18);
+  clip-path: polygon(0 0, calc(100% - 16px) 0, 100% 16px, 100% 100%, 0 100%);
+}
+.elon-card::after {
+  content: ""; position: absolute; top: 0; right: 0; width: 16px; height: 16px;
+  background: linear-gradient(135deg, transparent 50%, #f0e6d4 50%);
+}
+.elon-card-photo { aspect-ratio: 1; width: 100%; object-fit: cover; background: #f5efe4; display: flex; align-items: center; justify-content: center; font-size: 32px; }
+.elon-card-body { display: flex; flex-direction: column; gap: 4px; padding: 9px 10px; }
+.elon-card-title { font-size: 13.5px; font-weight: 700; color: #1b2333; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.elon-card-price { font-size: 13px; font-weight: 800; color: var(--acc); }
+.elon-card-price.deal { color: #a5896f; font-weight: 600; font-style: italic; }
+/* 📌 TOP e'lon — "doska tepasiga qadalgan" metafora (Do'kondagi 🔥 bilan adashmaydi) */
+.elon-card.top { box-shadow: 0 0 0 2px var(--classified-accent), 0 8px 20px -10px color-mix(in srgb, var(--classified-accent) 45%, transparent); }
+.elon-card-pin { position: absolute; top: 6px; left: 6px; font-size: 15px; filter: drop-shadow(0 1px 2px rgba(0,0,0,.25)); z-index: 1; }
+/* Yo'qoldi–Topildi — shtrix-hoshiya "yirtilgan flayer" + rangli tasma, narx qatori yo'q */
+.elon-card.lostfound { border-style: dashed; border-width: 1.5px; }
+.elon-card.lostfound.lost { border-color: #dc2626; }
+.elon-card.lostfound.found { border-color: #16a34a; }
+.elon-card-ribbon { font-size: 10px; font-weight: 800; letter-spacing: .03em; padding: 2px 8px; border-radius: var(--r-chip); align-self: flex-start; }
+.elon-card-ribbon.lost { background: #fdecec; color: #dc2626; }
+.elon-card-ribbon.found { background: #e9f9ef; color: #16a34a; }
+/* "Yangi" pulse-nuqta (<1 soat) — mavjud d-dot/keyframe reuse, rang bilan */
+.elon-new-dot { position: absolute; top: 6px; right: 6px; width: 8px; height: 8px; border-radius: 50%; background: var(--classified-accent); z-index: 1; }
+.elon-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.elon-chips { display: flex; gap: 6px; overflow-x: auto; padding: 2px 2px 6px; -webkit-overflow-scrolling: touch; }
+/* --acc = §4.1 kategoriya rangi (shop-card/svc-cat-tile bilan bir xil per-card pattern) */
+.elon-chip { --acc: var(--classified-accent); flex: none; padding: 8px 13px; border-radius: var(--r-chip);
+  background: #ffffff; border: 1px solid color-mix(in srgb, var(--acc) 35%, #efe6d6); color: #5f6f66;
+  font-weight: 700; font-size: 13px; white-space: nowrap; }
+.elon-chip:active { transform: scale(0.96); } /* d-chip:active bilan bir xil bosim qiymati (reuse) */
+.elon-chip.on { background: var(--acc); border-color: var(--acc); color: #fff; }
+.elon-seg { display: flex; gap: 6px; background: #f5efe4; border-radius: var(--r-btn); padding: 4px; }
+.elon-seg button { flex: 1; padding: 9px; border-radius: 10px; border: none; background: transparent; color: #5f6f66; font-weight: 700; font-size: 13.5px; }
+.elon-seg button.on { background: #ffffff; color: var(--classified-accent); box-shadow: 0 2px 8px -3px rgba(60,40,20,.25); }
+.elon-fab {
+  position: fixed; right: 16px; bottom: 84px; z-index: 5; padding: 13px 18px; border-radius: 999px;
+  background: var(--classified-accent); color: #fff; font-weight: 800; font-size: 14px; border: none;
+  box-shadow: 0 10px 24px -8px rgba(194, 98, 47, 0.55); transition: transform var(--dur-press) var(--ease-out);
+}
+.elon-fab:active { transform: scale(0.94); }
+
 /* ── XIZMATLAR polish v1.1 (P2) ─────────────────────────────────────────── */
 /* 📞 asosiy amal: 44px minimal teginish + glow — karta ichida DOMINANT */
 .svc-call-dot { width: 44px; height: 44px; font-size: 17px;
@@ -1924,3 +2012,38 @@ body {
   display: flex; align-items: center; justify-content: center; transition: transform var(--dur-press) var(--ease-out), border-color var(--dur-press); }
 .svc-fav:active { transform: scale(1.15); }
 .svc-fav.on { border-color: color-mix(in srgb, var(--brand) 60%, transparent); background: color-mix(in srgb, var(--brand) 14%, transparent); }
+
+/* ─── Do'kon: sotuvchi bo'lish CTA (merchant recruit) ─────────────────────────
+   Light shop theme (.shop-wrap is light). Warm invite for shop owners to sell. */
+.shop-seller-cta {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 22px 0 10px;
+  padding: 16px;
+  border-radius: 18px;
+  background: linear-gradient(135deg, #ecfdf5, #d1fae5);
+  border: 1px solid rgba(21, 128, 61, .18);
+  box-shadow: 0 6px 20px rgba(21, 128, 61, .1);
+}
+.shop-seller-ico {
+  font-size: 32px;
+  width: 52px; height: 52px; flex: none;
+  display: grid; place-items: center;
+  background: #fff; border-radius: 14px;
+  box-shadow: 0 2px 8px rgba(21, 128, 61, .12);
+}
+.shop-seller-body { flex: 1; min-width: 0; }
+.shop-seller-title { font-size: 15px; font-weight: 800; color: #14532d; }
+.shop-seller-sub { font-size: 12px; color: #3f6b52; margin-top: 3px; line-height: 1.45; }
+.shop-seller-call {
+  flex: none;
+  display: inline-flex; align-items: center; gap: 5px;
+  background: linear-gradient(135deg, #22c55e, #15803d);
+  color: #fff; font-weight: 800; font-size: 15px;
+  padding: 12px 16px; border-radius: 14px;
+  text-decoration: none;
+  box-shadow: 0 4px 14px rgba(21, 128, 61, .35);
+  transition: transform .12s;
+}
+.shop-seller-call:active { transform: scale(.94); }

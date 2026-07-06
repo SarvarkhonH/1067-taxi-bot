@@ -16,7 +16,7 @@ import {
 } from "@t1067/shared";
 import { api, apiUrl } from "./api";
 import { haptic, hapticSuccess, inviteText, inviteLandingUrl, shareLink } from "./telegram";
-import { confetti } from "./util";
+import { confetti, compressImage } from "./util";
 import { Button, EmptyState, ProgressBar, Sheet, Skeleton } from "./design/components";
 
 const LAST_ADDR_KEY = "shop_last_addr";
@@ -32,28 +32,6 @@ export function prefetchShopProducts(): void {
 
 function discountPct(p: ShopProductView): number {
   return p.oldPriceTanga && p.oldPriceTanga > p.priceTanga ? Math.round((1 - p.priceTanga / p.oldPriceTanga) * 100) : 0;
-}
-
-/** Compress a picked photo to ≤900px JPEG data-URL — review uploads stay small on village internet. */
-async function compressImage(file: File, maxSide = 900, quality = 0.78): Promise<string | null> {
-  try {
-    const url = URL.createObjectURL(file);
-    const img = await new Promise<HTMLImageElement>((ok, no) => {
-      const i = new Image();
-      i.onload = () => ok(i);
-      i.onerror = no;
-      i.src = url;
-    });
-    const k = Math.min(1, maxSide / Math.max(img.width, img.height));
-    const canvas = document.createElement("canvas");
-    canvas.width = Math.round(img.width * k);
-    canvas.height = Math.round(img.height * k);
-    canvas.getContext("2d")!.drawImage(img, 0, 0, canvas.width, canvas.height);
-    URL.revokeObjectURL(url);
-    return canvas.toDataURL("image/jpeg", quality);
-  } catch {
-    return null;
-  }
 }
 
 function StatusPill({ s }: { s: ShopPurchaseView["status"] }) {
@@ -331,6 +309,18 @@ export function ShopView({ me, onBanner, reload, onBook }: { me: MeResponse; onB
             {catalog.map((p) => <ProductCard key={p.id} p={p} onOpen={openProduct} wide />)}
           </div>
         </>
+      )}
+
+      {/* ── sotuvchi bo'lish CTA — do'kon egalarini jalb qilish ── */}
+      {!sel && !ordersOpen && (
+        <div className="shop-seller-cta">
+          <div className="shop-seller-ico">🏪</div>
+          <div className="shop-seller-body">
+            <div className="shop-seller-title">Biz bilan sotishni xohlaysizmi?</div>
+            <div className="shop-seller-sub">Mahsulotingizni shu do'konda soting — minglab mijozga yeting. Yordam beramiz.</div>
+          </div>
+          <a className="shop-seller-call" href="tel:1067" onClick={() => haptic()}>📞 1067</a>
+        </div>
       )}
 
       {/* ── product detail: gallery + discount + delivery + similar ── */}
