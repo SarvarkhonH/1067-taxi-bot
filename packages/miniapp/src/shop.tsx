@@ -317,7 +317,7 @@ export function ShopView({ me, onBanner, reload, onBook }: { me: MeResponse; onB
           <div className="shop-seller-ico">🏪</div>
           <div className="shop-seller-body">
             <div className="shop-seller-title">Biz bilan sotishni xohlaysizmi?</div>
-            <div className="shop-seller-sub">Mahsulotingizni shu do'konda soting — minglab mijozga yeting. Yordam beramiz.</div>
+            <div className="shop-seller-sub"><b>Minglab kosonlik mijozlar</b> bazasiga ega do'kon — <b>kafolatlangan savdo</b>. Mahsulotingizni qo'shamiz.</div>
           </div>
           <a className="shop-seller-call" href="tel:1067" onClick={() => haptic()}>📞 1067</a>
         </div>
