@@ -71,9 +71,9 @@ function clearMeCache(): void {
 function stableMemberCount(realTotal: number): number {
   const rounded = Math.floor((10000 + Math.max(0, realTotal)) / 10) * 10;
   try {
-    const prev = Number(localStorage.getItem("mc_max") || 0);
+    const prev = Number(localStorage.getItem("mc_bot_max") || 0);
     const val = Math.max(prev, rounded);
-    if (val !== prev) localStorage.setItem("mc_max", String(val));
+    if (val !== prev) localStorage.setItem("mc_bot_max", String(val));
     return val;
   } catch {
     return rounded;
