@@ -57,31 +57,67 @@ export function Chip({ children, on, onClick, className = "", disabled }: { chil
   );
 }
 
-/** Pastdan chiqadigan sheet — grip'dan sudrab yopiladi (touch follow). */
+/** Pastdan chiqadigan sheet — 4 usulda yopiladi: sticky bar'ni tortish (chuqur scroll'da ham),
+ *  kontentni tepasida turib pastga tortish, ✕ tugma, fon-bosish. */
 export function Sheet({ open, onClose, children }: { open: boolean; onClose: () => void; children: ReactNode }) {
   const ref = useRef<HTMLDivElement | null>(null);
-  const drag = useRef<{ y0: number; dy: number } | null>(null);
+  // Native non-passive listener shart: React'ning sintetik touchmove'i passive (preventDefault
+  // ishlamaydi) — preventDefault'siz tortish-gesture Telegram webview'ga o'tib BUTUN appni
+  // yopadi/minimallaydi (ega: "tushurish juda qiyin" shikoyatining ildizi).
+  useEffect(() => {
+    const el = ref.current;
+    if (!open || !el) return;
+    let y0 = 0, dy = 0, engaged = false, eligible = false, closing = false;
+    const start = (e: TouchEvent) => {
+      y0 = e.touches[0]!.clientY;
+      dy = 0;
+      engaged = false;
+      // sticky bar'dan tortish HAR DOIM yopadi; kontentdan — faqat ro'yxat tepasida turganda
+      eligible = (e.target instanceof Element && !!e.target.closest(".d-sheet-bar")) || el.scrollTop <= 0;
+    };
+    const move = (e: TouchEvent) => {
+      if (closing) return;
+      const d = e.touches[0]!.clientY - y0;
+      if (!engaged) {
+        if (!eligible || el.scrollTop > 0 || d < 10) return;
+        engaged = true;
+        el.style.transition = "none";
+      }
+      dy = Math.max(0, d - 10);
+      if (e.cancelable) e.preventDefault();
+      el.style.transform = `translateY(${dy}px)`;
+    };
+    const end = () => {
+      if (!engaged) return;
+      engaged = false;
+      el.style.transition = "transform 240ms cubic-bezier(.22, 1, .36, 1)";
+      if (dy > 96) {
+        closing = true;
+        el.style.transform = "translateY(110%)"; // sirg'alib tushadi, keyin unmount
+        setTimeout(onClose, 200);
+      } else {
+        el.style.transform = ""; // yumshoq qaytish
+      }
+      dy = 0;
+    };
+    el.addEventListener("touchstart", start, { passive: true });
+    el.addEventListener("touchmove", move, { passive: false });
+    el.addEventListener("touchend", end);
+    el.addEventListener("touchcancel", end);
+    return () => {
+      el.removeEventListener("touchstart", start);
+      el.removeEventListener("touchmove", move);
+      el.removeEventListener("touchend", end);
+      el.removeEventListener("touchcancel", end);
+    };
+  }, [open, onClose]);
   if (!open) return null;
-  // Pull-to-close lives ONLY on the grip zone (the handle at the top), NEVER on the content. So the
-  // body always scrolls natively and can never drag the sheet/app closed. Close via grip-drag, the
-  // backdrop tap, or any in-sheet "Yopish" button.
-  const onGripStart = (e: React.TouchEvent) => { drag.current = { y0: e.touches[0]!.clientY, dy: 0 }; };
-  const onGripMove = (e: React.TouchEvent) => {
-    if (!drag.current || !ref.current) return;
-    drag.current.dy = Math.max(0, e.touches[0]!.clientY - drag.current.y0);
-    ref.current.style.transform = `translateY(${drag.current.dy}px)`;
-  };
-  const onGripEnd = () => {
-    if (!drag.current || !ref.current) return;
-    if (drag.current.dy > 70) onClose();
-    else ref.current.style.transform = "";
-    drag.current = null;
-  };
   return (
     <div className="d-sheet-back" onClick={onClose}>
       <div ref={ref} className="d-sheet" onClick={(e) => e.stopPropagation()}>
-        <div className="d-grip-zone" onTouchStart={onGripStart} onTouchMove={onGripMove} onTouchEnd={onGripEnd}>
+        <div className="d-sheet-bar">
           <div className="d-grip" />
+          <button className="d-sheet-x" onClick={onClose} aria-label="Yopish">✕</button>
         </div>
         {children}
       </div>

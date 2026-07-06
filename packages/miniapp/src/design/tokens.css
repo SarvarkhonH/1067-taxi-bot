@@ -112,10 +112,23 @@ body { font-variant-numeric: tabular-nums; }
   max-height: 88vh; overflow-y: auto; -webkit-overflow-scrolling: touch; overscroll-behavior: contain; touch-action: pan-y;
 }
 .d-sheet h3 { margin: 8px 0 6px; }
-/* the ONLY drag-to-close zone — touch-action:none so dragging the grip closes, while the rest of
-   the sheet (touch-action:pan-y) scrolls natively. Wide padding = easy to grab. */
-.d-grip-zone { padding: 6px 0 10px; margin-top: -4px; touch-action: none; cursor: grab; }
+/* STICKY yopish-bar: grip + ✕ chuqur scroll'da ham ko'rinib turadi (uzun sheet'ni yopish oson).
+   Manfiy margin sheet padding'ini qoplaydi — kontent bar OSTIDAN o'tadi, tirqish ko'rinmaydi. */
+.d-sheet-bar {
+  position: sticky; top: -10px; z-index: 6;
+  margin: -10px -16px 2px; padding: 12px 16px 8px;
+  display: flex; align-items: center; justify-content: center;
+  background: var(--surface-2); border-radius: var(--r-card) var(--r-card) 0 0;
+  touch-action: none; cursor: grab;
+}
 .d-grip { width: 44px; height: 5px; border-radius: 99px; background: var(--line); margin: 0 auto; }
+.d-sheet-x {
+  position: absolute; right: 12px; top: 8px; width: 30px; height: 30px;
+  display: flex; align-items: center; justify-content: center;
+  border: none; border-radius: 50%; background: rgba(255, 255, 255, 0.08);
+  color: var(--text-dim); font-size: 13px; font-weight: 800; line-height: 1;
+}
+.d-sheet-x:active { transform: scale(.88); }
 @keyframes d-up { from { transform: translateY(40px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
 @keyframes d-fade { from { opacity: 0; } to { opacity: 1; } }
 
@@ -1683,6 +1696,8 @@ body {
 .shop-wrap .d-sheet { background: #f7faf8; color: #1b2333; }
 .shop-wrap .d-sheet h3 { color: #14532d; }
 .shop-wrap .d-grip { background: #c3d5c9; }
+.shop-wrap .d-sheet-bar { background: #f7faf8; }
+.shop-wrap .d-sheet-x { background: #e6f1ea; color: #5f7066; }
 /* premium qatlam .d-btn:not(.ghost):not(.danger) (0,3,0) + !important bilan oltin beradi —
    undan yuqori spetsifiklik + !important shart */
 .shop-wrap .d-btn:not(.ghost):not(.danger) {
