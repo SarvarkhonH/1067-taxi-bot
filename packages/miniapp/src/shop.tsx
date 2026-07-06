@@ -12,13 +12,13 @@ import {
   type ShopProductView,
   type ShopPurchaseView,
   type ShopReviewsResponse,
+  type ReferralResponse,
 } from "@t1067/shared";
 import { api, apiUrl } from "./api";
-import { haptic, hapticSuccess } from "./telegram";
+import { haptic, hapticSuccess, inviteText, inviteLandingUrl, shareLink } from "./telegram";
 import { confetti } from "./util";
 import { Button, EmptyState, ProgressBar, Sheet, Skeleton } from "./design/components";
 
-const AVG_EARN_PER_RIDE = 250; // rough tanga/ride — "N safar yetadi" hint only
 const LAST_ADDR_KEY = "shop_last_addr";
 
 // ── stale-while-revalidate product cache (module-level) ──────────────────────────────────────────
@@ -120,6 +120,8 @@ export function ShopView({ me, onBanner, reload, onBook }: { me: MeResponse; onB
   const [orders, setOrders] = useState<ShopPurchaseView[] | null>(null);
   const [success, setSuccess] = useState<{ orderId: number; name: string } | null>(null);
   const [galleryIdx, setGalleryIdx] = useState(0);
+  const [refInfo, setRefInfo] = useState<ReferralResponse | null>(null);
+  useEffect(() => { api.referral().then(setRefInfo).catch(() => undefined); }, []);
   // 🗣 sharhlar
   const [reviews, setReviews] = useState<ShopReviewsResponse | null>(null);
   const [revThumb, setRevThumb] = useState<"up" | "down" | null>(null);
@@ -247,7 +249,8 @@ export function ShopView({ me, onBanner, reload, onBook }: { me: MeResponse; onB
   };
 
   const deficit = sel ? Math.max(0, sel.priceTanga - me.coins) : 0;
-  const ridesNeeded = Math.max(1, Math.ceil(deficit / AVG_EARN_PER_RIDE));
+  // how many friends to invite to cover the shortfall (spread > rides right now)
+  const friendsNeeded = deficit > 0 && refInfo?.rewardReferrer ? Math.max(1, Math.ceil(deficit / refInfo.rewardReferrer)) : null;
 
   return (
     <div className="shop-wrap">
@@ -355,8 +358,17 @@ export function ShopView({ me, onBanner, reload, onBook }: { me: MeResponse; onB
               <div className="shop-insufficient-bar">
                 <div className="fs13">🪙 Sizda: <b>{formatNumber(me.coins)}</b> / kerak: <b>{formatNumber(sel.priceTanga)}</b></div>
                 <ProgressBar value={me.coins} max={sel.priceTanga} />
-                <div className="muted fs12 mt6">Yana {formatNumber(deficit)} tanga kerak — bu taxminan {ridesNeeded} ta safar.</div>
-                <Button variant="brand" onClick={() => { setSel(null); onBook(); }}>🚕 Hozir safar chaqirish</Button>
+                <div className="muted fs12 mt6">Yana <b>{formatNumber(deficit)} tanga</b> kerak.</div>
+                {friendsNeeded && (
+                  <div className="fs13 mt6" style={{ lineHeight: 1.5 }}>
+                    👥 <b>{friendsNeeded} do'stingizga</b> ulashsangiz — yetadi!<br />
+                    <span className="muted fs12">Har do'st qo'shilib safar qilsa sizga <b>{formatNumber(refInfo!.rewardReferrer)} tanga</b> tushadi.</span>
+                  </div>
+                )}
+                <Button variant="brand" onClick={() => {
+                  haptic();
+                  if (refInfo) shareLink(inviteLandingUrl(refInfo.link), inviteText(refInfo.rewardReferee));
+                }}>👥 Do'stlarga ulashib tanga yig'ish</Button>
                 <Button variant="ghost" onClick={() => setSel(null)}>Boshqa mahsulot ko'rish</Button>
               </div>
             ) : (
