@@ -111,6 +111,7 @@ export function ShopView({ me, onBanner, reload, onBook }: { me: MeResponse; onB
   const [products, setProducts] = useState<ShopProductView[] | null>(PROD_CACHE);
   const [err, setErr] = useState(false);
   const [q, setQ] = useState("");
+  const [cat, setCat] = useState<string | null>(null); // null = "Hammasi"
   const [sel, setSel] = useState<ShopProductView | null>(null);
   const [step, setStep] = useState<"detail" | "confirm" | "reviews">("detail");
   const [address, setAddress] = useState(() => { try { return localStorage.getItem(LAST_ADDR_KEY) ?? ""; } catch { return ""; } });
@@ -187,14 +188,15 @@ export function ShopView({ me, onBanner, reload, onBook }: { me: MeResponse; onB
   useEffect(load, []);
 
   const featured = useMemo(() => (products ?? []).filter((p) => p.featured).slice(0, 6), [products]);
-  const byCategory = useMemo(() => {
-    const m = new Map<string, ShopProductView[]>();
-    for (const p of products ?? []) {
-      if (!m.has(p.category)) m.set(p.category, []);
-      m.get(p.category)!.push(p);
-    }
+  // kategoriya chiplar — nechta va qaysi tartibda birinchi ko'rinishda paydo bo'lgan bo'lsa shu
+  const categories = useMemo(() => {
+    const m = new Map<string, number>();
+    for (const p of products ?? []) m.set(p.category, (m.get(p.category) ?? 0) + 1);
     return [...m.entries()];
   }, [products]);
+  // Amazon/Uzum standarti: bitta VERTIKAL 2-ustunli katalog-grid (gorizontal scroll faqat kichik
+  // "tavsiya" qatorlarida) — 100+ mahsulotli kategoriya endi cheksiz eniga tasmaga aylanmaydi.
+  const catalog = useMemo(() => (cat ? (products ?? []).filter((p) => p.category === cat) : (products ?? [])), [products, cat]);
   const searched = useMemo(() => {
     const t = q.trim().toLowerCase();
     if (!t) return null;
@@ -306,18 +308,28 @@ export function ShopView({ me, onBanner, reload, onBook }: { me: MeResponse; onB
             </div>
           )}
 
-          {/* ── per-category horizontal rows (Uzum pattern) ── */}
-          {byCategory.map(([cat, items]) => (
-            <div key={cat} className="shop-section">
-              <div className="shop-section-head">
-                <span className="shop-section-title">{cat}</span>
-                <span className="muted fs12">{items.length} ta</span>
-              </div>
-              <div className="shop-row-strip">
-                {items.map((p) => <ProductCard key={p.id} p={p} onOpen={openProduct} />)}
-              </div>
+          {/* ── kategoriya chiplar (bitta qator, kichik tugmalar — Amazon "departments" pattern) ── */}
+          {categories.length > 1 && (
+            <div className="shop-cat-chips">
+              <button className={"shop-cat-chip" + (cat === null ? " on" : "")} onClick={() => { haptic(); setCat(null); }}>
+                Hammasi <span className="shop-cat-chip-n">{products?.length ?? 0}</span>
+              </button>
+              {categories.map(([c, n]) => (
+                <button key={c} className={"shop-cat-chip" + (cat === c ? " on" : "")} onClick={() => { haptic(); setCat(c); }}>
+                  {c} <span className="shop-cat-chip-n">{n}</span>
+                </button>
+              ))}
             </div>
-          ))}
+          )}
+
+          {/* ── katalog: VERTIKAL 2-ustunli grid (Amazon/Uzum standarti) — gorizontal scroll yo'q ── */}
+          <div className="shop-section-head">
+            <span className="shop-section-title">{cat ?? "Hammasi"}</span>
+            <span className="muted fs12">{catalog.length} ta</span>
+          </div>
+          <div className="shop-grid">
+            {catalog.map((p) => <ProductCard key={p.id} p={p} onOpen={openProduct} wide />)}
+          </div>
         </>
       )}
 
