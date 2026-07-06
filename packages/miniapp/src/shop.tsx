@@ -18,6 +18,7 @@ import { api, apiUrl } from "./api";
 import { haptic, hapticSuccess, inviteText, inviteLandingUrl, shareLink } from "./telegram";
 import { confetti, compressImage } from "./util";
 import { Button, EmptyState, ProgressBar, Sheet, Skeleton } from "./design/components";
+import { Icon } from "./icons";
 
 const LAST_ADDR_KEY = "shop_last_addr";
 
@@ -264,7 +265,7 @@ export function ShopView({ me, onBanner, reload, onBook, openProductId }: { me: 
           <div className="muted fs12">Tangangizga real mahsulotlar · 1 kunda yetkazamiz</div>
         </div>
         <div className="shop-head-actions">
-          <button className="shop-share-btn" onClick={shareShop} aria-label="Do'konni ulashish">📤</button>
+          <button className="shop-share-btn" onClick={shareShop} aria-label="Do'konni ulashish"><Icon name="share" size={18} /></button>
           <button className="shop-orders-btn" onClick={openOrders}>📦 Buyurtmalarim</button>
         </div>
       </div>
@@ -373,7 +374,7 @@ export function ShopView({ me, onBanner, reload, onBook, openProductId }: { me: 
             )}
             <div className="shop-detail-headline">
               <h3 className="shop-detail-name">{sel.name}</h3>
-              <button className="shop-share-btn sm" onClick={() => shareProduct(sel)} aria-label="Ulashish">📤</button>
+              <button className="shop-share-btn sm" onClick={() => shareProduct(sel)} aria-label="Ulashish"><Icon name="share" size={15} /></button>
             </div>
             {sel.description && <p className="muted fs13">{sel.description}</p>}
             <PriceBlock p={sel} big />
