@@ -68,18 +68,28 @@ async function photoCounts(ids: number[]): Promise<Map<number, number>> {
 
 // ── rider surface ────────────────────────────────────────────────────────────────────────────────
 
+// category rows+counts change rarely → 60s in-memory cache (matches the route's max-age=60);
+// mutation paths (submit/approve/admin-edit) don't need instant counts, only fresh-ish ones.
+let catCache: { at: number; data: ServiceCategoryView[] } | null = null;
+/** Any mutation that changes category rows or active-listing counts calls this — the 60s cache is
+ *  a read-path optimisation only, mutations must be visible immediately. */
+function bustCatCache(): void { catCache = null; }
+
 export async function listCategories(preview = false): Promise<ServiceCategoryView[]> {
   if (!(await dirOn(preview))) return [];
+  if (catCache && Date.now() - catCache.at < 60_000) return catCache.data;
   const [cats, counts] = await Promise.all([
     prisma.serviceCategory.findMany({ where: { active: true }, orderBy: [{ sortOrder: "asc" }, { id: "asc" }] }),
     prisma.serviceListing.groupBy({ by: ["categoryId"], where: { status: "active" }, _count: { _all: true } }),
   ]);
   const countOf = new Map(counts.map((c) => [c.categoryId, c._count._all]));
-  return cats.map((c) => ({ id: c.id, name: c.name, emoji: c.emoji, count: countOf.get(c.id) ?? 0 }));
+  const data = cats.map((c) => ({ id: c.id, name: c.name, emoji: c.emoji, count: countOf.get(c.id) ?? 0 }));
+  catCache = { at: Date.now(), data };
+  return data;
 }
 
 export async function listListings(
-  opts: { categoryId?: number; q?: string; limit?: number; offset?: number },
+  opts: { categoryId?: number; q?: string; limit?: number; offset?: number; sort?: "rank" | "new" },
   preview = false,
 ): Promise<{ listings: ServiceListingCard[]; total: number }> {
   if (!(await dirOn(preview))) return { listings: [], total: 0 };
@@ -100,17 +110,22 @@ export async function listListings(
         }
       : {}),
   };
-  const [rows, total] = await Promise.all([
-    prisma.serviceListing.findMany({
-      where,
-      include: { category: { select: { name: true, emoji: true } } },
-      orderBy: [{ isVip: "desc" }, { rankScore: "desc" }, { reviewCount: "desc" }, { name: "asc" }],
-      take,
-      skip,
-    }),
-    prisma.serviceListing.count({ where }),
+  const rows = await prisma.serviceListing.findMany({
+    where,
+    include: { category: { select: { name: true, emoji: true } } },
+    orderBy:
+      opts.sort === "new"
+        ? [{ id: "desc" }] // "Yangi qo'shilganlar" strip
+        : [{ isVip: "desc" }, { rankScore: "desc" }, { reviewCount: "desc" }, { name: "asc" }],
+    take,
+    skip,
+  });
+  // photoCounts overlaps nothing here (needs row ids) — but the client never reads `total`, so the
+  // extra count() only runs when real pagination is happening (offset>0). Saves a Neon RTT per open.
+  const [photos, total] = await Promise.all([
+    photoCounts(rows.map((r) => r.id)),
+    skip > 0 ? prisma.serviceListing.count({ where }) : Promise.resolve(skip + rows.length),
   ]);
-  const photos = await photoCounts(rows.map((r) => r.id));
   return { listings: rows.map((r) => toCard(r, photos.get(r.id) ?? 0)), total };
 }
 
@@ -216,6 +231,7 @@ export async function approveListing(listingId: number): Promise<ServiceDecision
   if (!l) return { ok: false, reason: "not_found" };
   if (l.status !== "pending") return { ok: false, reason: l.status };
   await prisma.serviceListing.update({ where: { id: listingId }, data: { status: "active" } });
+  bustCatCache();
   return { ok: true, ownerTgId: l.ownerTgId?.toString() ?? null, name: l.name };
 }
 
@@ -225,6 +241,7 @@ export async function rejectListing(listingId: number): Promise<ServiceDecision>
   if (!l) return { ok: false, reason: "not_found" };
   if (l.status !== "pending") return { ok: false, reason: l.status };
   await prisma.serviceListing.update({ where: { id: listingId }, data: { status: "rejected" } });
+  bustCatCache();
   return { ok: true, ownerTgId: l.ownerTgId?.toString() ?? null, name: l.name };
 }
 
@@ -334,14 +351,15 @@ export interface AdminServiceRow {
   verified: boolean;
   viewCount: number;
   callCount: number;
+  phoneReports: number;
   avgRating: number;
   reviewCount: number;
   photoCount: number;
   createdAt: string;
 }
 
-export async function adminListListings(status?: string): Promise<{ rows: AdminServiceRow[]; enabled: boolean; pending: number; hiddenReviews: number }> {
-  const [rows, enabled, pending, hiddenReviews] = await Promise.all([
+export async function adminListListings(status?: string): Promise<{ rows: AdminServiceRow[]; enabled: boolean; pending: number; hiddenReviews: number; phoneFlagged: number; newRequests: number }> {
+  const [rows, enabled, pending, hiddenReviews, phoneFlagged, newRequests] = await Promise.all([
     prisma.serviceListing.findMany({
       where: status ? { status } : undefined,
       include: { category: { select: { name: true } } },
@@ -351,12 +369,16 @@ export async function adminListListings(status?: string): Promise<{ rows: AdminS
     featureOn("xizmatlar"),
     prisma.serviceListing.count({ where: { status: "pending" } }),
     prisma.serviceReview.count({ where: { status: "hidden" } }),
+    prisma.serviceListing.count({ where: { phoneReports: { gte: 2 } } }),
+    prisma.serviceRequest.count({ where: { status: "new" } }),
   ]);
   const photos = await photoCounts(rows.map((r) => r.id));
   return {
     enabled,
     pending,
     hiddenReviews,
+    phoneFlagged,
+    newRequests,
     rows: rows.map((l) => ({
       id: l.id,
       name: l.name,
@@ -373,6 +395,7 @@ export async function adminListListings(status?: string): Promise<{ rows: AdminS
       verified: l.verified,
       viewCount: l.viewCount,
       callCount: l.callCount,
+      phoneReports: l.phoneReports,
       avgRating: Math.round(l.avgRating * 10) / 10,
       reviewCount: l.reviewCount,
       photoCount: photos.get(l.id) ?? 0,
@@ -402,6 +425,8 @@ export async function adminEditListing(id: number, b: ServicePatch): Promise<{ o
     const p = normalizeUzPhone(b.phone);
     if (!p) return { ok: false, error: "bad_phone" };
     data.phone = p;
+    data.phoneReports = 0; // fixed number → clear the "raqam ishlamadi" flag + per-user markers
+    await prisma.appState.deleteMany({ where: { key: { startsWith: `svcphone:${id}:` } } }).catch(() => undefined);
   }
   if (b.phone2 !== undefined) data.phone2 = b.phone2 ? normalizeUzPhone(b.phone2) : null;
   if (typeof b.desc === "string") data.desc = b.desc.trim().slice(0, 500);
@@ -413,6 +438,7 @@ export async function adminEditListing(id: number, b: ServicePatch): Promise<{ o
   if (typeof b.isVip === "boolean") data.isVip = b.isVip;
   if (typeof b.verified === "boolean") data.verified = b.verified;
   await prisma.serviceListing.update({ where: { id }, data }).catch(() => undefined);
+  bustCatCache();
   return { ok: true };
 }
 
@@ -437,6 +463,7 @@ export async function adminCreateListing(b: ServicePatch & { name: string; phone
       rankScore: rankOf(0, 0),
     },
   });
+  bustCatCache();
   return { ok: true, id: row.id };
 }
 
@@ -446,6 +473,7 @@ export async function adminListCategories(): Promise<{ id: number; name: string;
 }
 
 export async function adminUpsertCategory(b: { id?: number; name: string; emoji?: string; sortOrder?: number; active?: boolean }): Promise<{ ok: boolean; id?: number }> {
+  bustCatCache();
   const name = (b.name ?? "").trim().slice(0, 40);
   if (!name) return { ok: false };
   if (b.id) {
@@ -499,6 +527,7 @@ export async function uploadServicePhoto(listingId: number, buf: Buffer, mime = 
   const { env } = await import("../env");
   const adminId = env.adminIds.find((id) => id.trim() !== "");
   let fileId: string | null = null;
+  let thumbFileId: string | null = null;
   let url: string | null = null;
   if (env.BOT_TOKEN && adminId) {
     try {
@@ -508,14 +537,21 @@ export async function uploadServicePhoto(listingId: number, buf: Buffer, mime = 
       form.append("caption", `🔎 Xizmat foto · #${listingId}`);
       form.append("disable_notification", "true");
       const res = await fetch(`https://api.telegram.org/bot${env.BOT_TOKEN}/sendPhoto`, { method: "POST", body: form });
-      const data = (await res.json()) as { ok: boolean; result?: { photo?: { file_id: string }[] } };
-      if (data.ok && data.result?.photo?.length) fileId = data.result.photo[data.result.photo.length - 1]!.file_id;
+      const data = (await res.json()) as { ok: boolean; result?: { photo?: { file_id: string; width: number }[] } };
+      const sizes = data.ok ? (data.result?.photo ?? []) : [];
+      if (sizes.length) {
+        // full for the gallery, ~320px tier for 52px card thumbs (~85-90% smaller payload)
+        const full = sizes[sizes.length - 1]!;
+        const thumb = sizes.find((s) => s.width >= 280) ?? full;
+        fileId = full.file_id;
+        thumbFileId = thumb.file_id === full.file_id ? null : thumb.file_id;
+      }
     } catch {
       /* fall through to data-URL */
     }
   }
   if (!fileId) url = `data:${mime};base64,${buf.toString("base64")}`;
-  await prisma.servicePhoto.create({ data: { listingId, fileId, url, sortOrder: existing } });
+  await prisma.servicePhoto.create({ data: { listingId, fileId, thumbFileId, url, sortOrder: existing } });
   return { ok: true, photoCount: existing + 1 };
 }
 
@@ -524,16 +560,71 @@ export async function clearServicePhotos(listingId: number): Promise<{ ok: boole
   return { ok: true };
 }
 
-export async function resolveServicePhoto(listingId: number, idx = 0): Promise<string | null> {
+export async function resolveServicePhoto(listingId: number, idx = 0, small = false): Promise<string | null> {
   const photos = await prisma.servicePhoto.findMany({ where: { listingId }, orderBy: [{ sortOrder: "asc" }, { id: "asc" }] });
   const pick = photos[idx];
   if (!pick) return null;
   if (pick.url) return pick.url;
-  if (pick.fileId) {
+  const fid = (small && pick.thumbFileId) || pick.fileId; // legacy rows (no thumb) fall back to full
+  if (fid) {
     const { resolveTelegramFileUrl } = await import("./driverPhotoService");
-    return resolveTelegramFileUrl(pick.fileId);
+    return resolveTelegramFileUrl(fid);
   }
   return null;
+}
+
+// ── P3: demand capture + phone-freshness (zero money) ───────────────────────────────────────────
+
+export interface ServiceDemandNotice {
+  requestId: number;
+  query: string;
+  note: string;
+  submitterName: string;
+}
+
+const REQUESTS_PER_DAY = 3;
+
+/** "Topilmadi" → so'rov: unmet demand is RECORDED so the catalog grows where real need is. */
+export async function submitRequest(
+  tgId: string,
+  submitterName: string,
+  query: string,
+  note: string,
+  preview = false,
+): Promise<{ ok: boolean; reason?: "off" | "bad_query" | "daily_limit"; notice?: ServiceDemandNotice }> {
+  if (!(await dirOn(preview))) return { ok: false, reason: "off" };
+  const cleanQ = (query ?? "").trim().slice(0, 80);
+  if (cleanQ.length < 2) return { ok: false, reason: "bad_query" };
+  const dayStart = new Date(Date.now() - 24 * 3600_000);
+  const todays = await prisma.serviceRequest.count({ where: { tgId: BigInt(tgId), createdAt: { gte: dayStart } } });
+  if (todays >= REQUESTS_PER_DAY) return { ok: false, reason: "daily_limit" };
+  const row = await prisma.serviceRequest.create({
+    data: { tgId: BigInt(tgId), query: cleanQ, note: (note ?? "").trim().slice(0, 200) },
+  });
+  return { ok: true, notice: { requestId: row.id, query: cleanQ, note: row.note, submitterName } };
+}
+
+/** "⚑ Raqam ishlamadi" — one flag per user per listing (AppState marker); counter lives on the
+ *  listing row so the admin queue is a simple indexed filter. Reset when the admin fixes the phone. */
+export async function reportPhoneIssue(listingId: number, tgId: string, preview = false): Promise<{ ok: boolean; flagged?: boolean }> {
+  if (!(await dirOn(preview))) return { ok: false };
+  try {
+    await prisma.appState.create({ data: { key: `svcphone:${listingId}:${tgId}`, value: "1" } });
+  } catch {
+    return { ok: true }; // already flagged by this user — silent no-op
+  }
+  const r = await prisma.serviceListing.update({ where: { id: listingId }, data: { phoneReports: { increment: 1 } } }).catch(() => null);
+  return { ok: !!r, flagged: (r?.phoneReports ?? 0) >= 2 };
+}
+
+export async function adminListRequests(status = "new"): Promise<{ id: number; query: string; note: string; status: string; createdAt: string }[]> {
+  const rows = await prisma.serviceRequest.findMany({ where: status === "all" ? undefined : { status }, orderBy: { id: "desc" }, take: 200 });
+  return rows.map((r) => ({ id: r.id, query: r.query, note: r.note, status: r.status, createdAt: r.createdAt.toISOString() }));
+}
+
+export async function adminSetRequestStatus(id: number, status: "new" | "done" | "dismissed"): Promise<{ ok: boolean }> {
+  await prisma.serviceRequest.update({ where: { id }, data: { status } }).catch(() => undefined);
+  return { ok: true };
 }
 
 // ── seed ─────────────────────────────────────────────────────────────────────────────────────────
@@ -550,6 +641,9 @@ export const DEFAULT_CATEGORIES: { name: string; emoji: string }[] = [
   { name: "Do'kon-savdo", emoji: "🛒" },
   { name: "Boshqa", emoji: "📌" },
 ];
+
+/** TEST-ONLY: reset in-memory caches (mirrors featureFlags.__resetFeatureCache). */
+export function __resetServiceCaches(): void { catCache = null; }
 
 /** Idempotent: creates only the categories that don't exist yet (matched by name). */
 export async function seedDefaultCategories(): Promise<number> {

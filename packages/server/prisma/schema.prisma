@@ -1444,6 +1444,7 @@ model ServiceListing {
   ownerTgId   BigInt? // who self-submitted (edit rights + spam cap)
   viewCount   Int             @default(0)
   callCount   Int             @default(0) // server-side only — "sizni N marta izlashdi" proof
+  phoneReports Int            @default(0) // "raqam ishlamadi" flags (1/user via AppState marker); ≥2 → admin recheck queue; reset on phone edit
   avgRating   Float           @default(0) // cached aggregate, recomputed on each review write
   reviewCount Int             @default(0) // cached aggregate
   rankScore   Float           @default(0) // bayes ranking cache: (avg*n + 4.0*5)/(n+5)
@@ -1458,15 +1459,30 @@ model ServiceListing {
 }
 
 // Gallery — ProductPhoto pattern: Telegram file_id (durable, free) with data-URL fallback.
+// thumbFileId = Telegram's ~320px tier for 52px card thumbs (~15-25KB vs 100-300KB full).
 model ServicePhoto {
-  id        Int            @id @default(autoincrement())
-  listing   ServiceListing @relation(fields: [listingId], references: [id], onDelete: Cascade)
-  listingId Int
-  fileId    String?
-  url       String?
-  sortOrder Int            @default(0)
+  id          Int            @id @default(autoincrement())
+  listing     ServiceListing @relation(fields: [listingId], references: [id], onDelete: Cascade)
+  listingId   Int
+  fileId      String?
+  thumbFileId String?
+  url         String?
+  sortOrder   Int            @default(0)
 
   @@index([listingId, sortOrder])
+}
+
+// 🔎 Demand capture: a search that found nothing (or a manual "menga X kerak") is RECORDED —
+// the admin sees aggregated unmet demand and recruits exactly those businesses. Zero money.
+model ServiceRequest {
+  id        Int      @id @default(autoincrement())
+  tgId      BigInt
+  query     String // what the user was looking for
+  note      String   @default("") // optional detail ("tungi ishlaydigan bo'lsin")
+  status    String   @default("new") // new | done | dismissed
+  createdAt DateTime @default(now())
+
+  @@index([status, createdAt])
 }
 
 model ServiceReview {

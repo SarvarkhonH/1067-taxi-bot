@@ -280,6 +280,13 @@ export function createBot(): Bot {
         await bot.api.sendMessage(r.driverTelegramId, msg, { parse_mode: "HTML" }).catch(() => undefined);
       }
     }
+    // 🔎 shared listing deep-link (t.me/<bot>?start=svc_<id>) — the person came for one specific
+    // business's phone: send that card FIRST, then fall through to the normal onboarding/profile
+    // (a brand-new user still needs the menu keyboard + link flow).
+    if (payload.startsWith("svc_")) {
+      const { sendListingCard } = await import("./xizmatlar");
+      await sendListingCard(bot, id, Number(payload.slice(4))).catch(() => undefined);
+    }
     const me = await getMe(id);
     if (me) {
       await ctx.reply(renderProfile(me), { parse_mode: "HTML", reply_markup: mainMenu(me.type === "driver") });

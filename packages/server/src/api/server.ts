@@ -46,6 +46,8 @@ export interface ApiOptions {
   notifyShopOwner?: (notice: import("../services/shopService").ShopOwnerNotice) => Promise<void>;
   /** 🔎 Forward a self-submitted service listing to the owner's Telegram [✅/❌] (bot-bound). */
   notifyServiceOwner?: (notice: import("../services/serviceDirectory").ServiceOwnerNotice) => Promise<void>;
+  /** 🔎 Forward an unmet-demand request ("topilmadi → so'rov") to the owner's Telegram (info-only). */
+  notifyServiceDemand?: (notice: import("../services/serviceDirectory").ServiceDemandNotice) => Promise<void>;
 }
 
 function memberType(req: Request, fallback: MemberType): MemberType {
@@ -428,18 +430,41 @@ export function createApiServer(opts: ApiOptions = {}) {
   });
   app.get("/api/services/list", requireUser, rateLimit(60), async (req, res) => {
     const { listListings } = await import("../services/serviceDirectory");
+    res.set("Cache-Control", "private, max-age=30"); // read-mostly: back/forward nav skips network
     res.json(await listListings({
       categoryId: req.query.cat ? Number(req.query.cat) : undefined,
       q: req.query.q ? String(req.query.q) : undefined,
       limit: req.query.limit ? Number(req.query.limit) : undefined,
       offset: req.query.offset ? Number(req.query.offset) : undefined,
+      sort: req.query.sort === "new" ? "new" : undefined,
     }, svcPreview(res)));
   });
   app.get("/api/services/item/:id", requireUser, rateLimit(60), async (req, res) => {
     const { getListing } = await import("../services/serviceDirectory");
     const item = await getListing(Number(req.params.id), res.locals.telegramId as string, svcPreview(res));
     if (!item) { res.status(404).json({ error: "not_found" }); return; }
+    res.set("Cache-Control", "private, max-age=30");
     res.json(item);
+  });
+  // "Topilmadi" → demand capture: unmet searches recorded for admin recruiting (3/day cap inside)
+  app.post("/api/services/request", requireUser, rateLimit(10), withMember2(async (memberId, req, res) => {
+    const { submitRequest } = await import("../services/serviceDirectory");
+    const m = await prisma.member.findUnique({ where: { id: memberId }, select: { displayName: true, fullName: true } });
+    const r = await submitRequest(
+      res.locals.telegramId as string,
+      m?.displayName || m?.fullName || "Foydalanuvchi",
+      String(req.body?.query ?? ""),
+      String(req.body?.note ?? ""),
+      svcPreview(res),
+    );
+    if (r.ok && r.notice && opts.notifyServiceDemand) await opts.notifyServiceDemand(r.notice).catch(() => undefined);
+    const { notice: _n, ...pub } = r;
+    return pub;
+  }));
+  // "⚑ Raqam ishlamadi" — 1 flag per user; ≥2 unique flags → admin recheck queue
+  app.post("/api/services/phone-report", requireUser, rateLimit(10), async (req, res) => {
+    const { reportPhoneIssue } = await import("../services/serviceDirectory");
+    res.json(await reportPhoneIssue(Number(req.body?.id), res.locals.telegramId as string, svcPreview(res)));
   });
   app.post("/api/services/call", requireUser, rateLimit(30), async (req, res) => {
     const { trackCall } = await import("../services/serviceDirectory");
@@ -490,7 +515,7 @@ export function createApiServer(opts: ApiOptions = {}) {
     svcPhotoHits.set(ipKey, h && now - h.at < 60_000 ? { n: h.n + 1, at: h.at } : { n: 1, at: now });
     const { resolveServicePhoto } = await import("../services/serviceDirectory");
     const idx = Math.max(0, Math.min(10, Number(req.params.n ?? 0) || 0));
-    const url = await resolveServicePhoto(Number(req.params.listingId), idx);
+    const url = await resolveServicePhoto(Number(req.params.listingId), idx, req.query.s === "1"); // ?s=1 → ~320px thumb tier
     if (!url) { res.status(404).end(); return; }
     if (url.startsWith("data:")) {
       const m = /^data:([^;]+);base64,(.*)$/.exec(url);
@@ -1133,6 +1158,15 @@ export function createApiServer(opts: ApiOptions = {}) {
     const { adminModerateReview } = await import("../services/serviceDirectory");
     const action = req.body?.action === "restore" ? "restore" as const : "delete" as const;
     res.json(await adminModerateReview(Number(req.params.id), action));
+  });
+  app.get("/api/admin/service-requests", requireAdmin, async (req, res) => {
+    const { adminListRequests } = await import("../services/serviceDirectory");
+    res.json({ requests: await adminListRequests(req.query?.status ? String(req.query.status) : "new") });
+  });
+  app.post("/api/admin/service-requests/:id", requireAdmin, requireOwner, rateLimit(30), async (req, res) => {
+    const { adminSetRequestStatus } = await import("../services/serviceDirectory");
+    const st = ["new", "done", "dismissed"].includes(String(req.body?.status)) ? (req.body.status as "new" | "done" | "dismissed") : "done";
+    res.json(await adminSetRequestStatus(Number(req.params.id), st));
   });
   app.post("/api/admin/services/:id/photo", express.json({ limit: "6mb" }), requireAdmin, requireOwner, async (req, res) => {
     const b = req.body as { mime?: string; base64?: string };

@@ -189,6 +189,16 @@ export function App() {
     idle(() => { import("./shop").then((m) => m.prefetchShopProducts()).catch(() => undefined); });
   }, [shopOn]);
 
+  // ⚡ Xizmatlar issiq start (shop bilan bir xil): chunk + katalog datasi idle'da isitiladi —
+  // birinchi bosishda skeleton YO'Q, tab bir zumda ochiladi.
+  const xizmatlarOn = !!me?.flags?.xizmatlar;
+  useEffect(() => {
+    if (!xizmatlarOn) return;
+    const w = window as unknown as { requestIdleCallback?: (cb: () => void, o?: { timeout: number }) => void };
+    const idle = (cb: () => void) => (w.requestIdleCallback ? w.requestIdleCallback(cb, { timeout: 3000 }) : setTimeout(cb, 1500));
+    idle(() => { import("./services").then((m) => m.prefetchServiceData()).catch(() => undefined); });
+  }, [xizmatlarOn]);
+
   const reload = () => {
     api
       .me()

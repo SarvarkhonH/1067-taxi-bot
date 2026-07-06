@@ -222,6 +222,35 @@ Launch kuni katalogda kamida **80–100 real xizmat** bo'lishi SHART:
 | Katalog taxi UX'ini og'irlashtirishi | Alohida tab, lazy-load, taxi oqimiga 0 teginish |
 | Ega moderatsiyaga ulgurmasligi | Kunlik digest + keyin ishonchli moderator qo'shish mumkin |
 
+## 11.5 POLISH v1.1 NAVBATI (3× Sonnet konsult, 2026-07-05) — ega tasdig'i kutilmoqda
+
+### P1 — Chaqmoq-tezlik (hammasi Small, eng katta his-farq)
+| # | Ish | Nega |
+|---|---|---|
+| 1 | Foto thumb-tier: `ServicePhoto.thumbFileId` + proxy `?s=1` (shop'dagi tayyor pattern) | Karta thumb hozir TO'LIQ Telegram CDN faylini tortadi (100-300KB → 15-25KB, ~85-90% kam) |
+| 2 | SWR modul-kesh (kategoriya+top) — shop patterni | Qayta ochishda skeleton YO'Q, bir zumda render |
+| 3 | Idle prefetch App.tsx'da (chunk+data, shop kabi) | Birinchi bosishda ham tayyor turadi |
+| 4 | Server: `photoCounts`ni Promise.all ichiga (hozir KETMA-KET — har listda +1 RTT); ishlatilmaydigan `count()`ni olib tashlash; kategoriya-sonlarni keshlash; `/list`+`/item`ga Cache-Control 30-60s | Har ochilishda Neon EU'ga 1-2 ortiqcha so'rov yo'qoladi |
+| 5 | `<img decoding="async">` kartalar+galereyada | Arzon Androidda scroll silliq |
+| Defer | `/api/services/home` birlashgan endpoint; pg_trgm GIN index | 500+ listing bo'lganda |
+
+### P2 — UX/dizayn (bo'sh-data reallikka moslash)
+1. **📞 tugma 44px + dominant glow** (hozir 36px ikon-nuqta — asosiy amal ko'zga tashlanmaydi, plan §5.5 buziladi).
+2. Baho yo'q kartada kulrang «Hali baho yo'q» o'rniga **«🆕 Yangi» chip** (brand rang); accent endi per-ID (bir kategoriyada 8 karta bir xil rang emas).
+3. **«Yangi qo'shilganlar» qatori** (§5.5da bor edi, kodda YO'Q) + «Eng yaxshilari» faqat haqiqiy baholar paydo bo'lgach shu nomda.
+4. Detail sheet: Qo'ng'iroq to'liq-keng birinchi qator, Nusxa+Baho kichik ostida; tugma matni **«★ Baho qo'ying»** (hozirgi «★ Baho» ikkimasnoli).
+5. Submit forma: telefon-format hint DOIM ko'rinadi (disabled-tugma sababsiz — drop-off nuqtasi).
+6. 1-2 talik kategoriya tile'lari xira (ko'z boy kategoriyalarga yo'naladi).
+7. Mikro-animatsiyalar (transform/opacity, mavjud keyframe'lar): karta stagger-in · birinchi-baho «d-stamp muhr» · sharh skeleton 2×44px (sakrash yo'q).
+
+### P3 — Yetishmayotgan qismlar (LAUNCH-CRITICAL, Sonnet + men qo'shilamiz)
+1. **«Topilmadi» → So'rov qoldirish** (demand capture): topilmagan qidiruv + ixtiyoriy izoh saqlanadi → admin «so'rovlar» ro'yxati → qaysi xizmat yetishmayotganini REAL talab ko'rsatadi, katalog talabdan o'sadi. Spam-cap submit kabi.
+2. **«⚑ Raqam ishlamadi»** profil tugmasi: 2-3 unikal shikoyat → admin tekshiruv navbati (report patterni tayyor). Eskirgan raqam = katalog o'limi (§10 xavfi).
+3. **Ulashish deep-link**: `t.me/<bot>?startapp=svc_<id>` → to'g'ri o'sha profil ochiladi; profil'da [Ulashish] Telegram share bilan wired. Mahalla-guruhlarga «mana ustaning raqami» forward = bepul viral.
+
+### P4 — Post-launch (go-live'dan keyin, tartibda)
+Claim flow «bu meniki» (OTP listed-raqamga) · haftalik kanal digest («hafta TOP xizmatlari») · mashhur-qidiruv chiplari · sevimlilar · taxi cross-promo (safar tugagach yaqin xizmatlar kartasi) · tanga-SINK (sharh-boost/badge — hech qanday yangi emissiya YO'Q, shop spend-patterni).
+
 ## 11. V2+ ufq (hozir QURILMAYDI, faqat yo'nalish)
 
 - **VIP joylashuv** — oyiga to'lov (qo'lda, keyin avtomat) → birinchi daromad.

@@ -2,7 +2,8 @@
 // [✅ Tasdiqlash] [❌ Rad]. serviceDirectory owns the status logic (status guard = double-tap /
 // ✅→❌ race no-ops). No bot-side session state → restart-proof. shop.ts clone, zero money.
 import { Bot, InlineKeyboard } from "grammy";
-import { approveListing, rejectListing, type ServiceOwnerNotice } from "../services/serviceDirectory";
+import { approveListing, rejectListing, type ServiceDemandNotice, type ServiceOwnerNotice } from "../services/serviceDirectory";
+import { prisma } from "../db";
 
 const OWNER_TG = "6506297119"; // same single source as cashout.ts / shop.ts
 
@@ -24,6 +25,44 @@ export async function notifyOwnerService(bot: Bot, n: ServiceOwnerNotice): Promi
       { parse_mode: "HTML", reply_markup: kb },
     )
     .catch(() => undefined);
+}
+
+/** "Topilmadi" demand request → owner info card (the recruiting signal — no buttons needed). */
+export async function notifyOwnerDemand(bot: Bot, n: ServiceDemandNotice): Promise<void> {
+  await bot.api
+    .sendMessage(
+      OWNER_TG,
+      `🔎 <b>TOPILMAGAN XIZMAT SO'ROVI</b> #${n.requestId}\n\n` +
+        `🔍 Qidiruv: <b>${esc(n.query)}</b>\n` +
+        (n.note ? `📝 Izoh: ${esc(n.note)}\n` : "") +
+        `👤 ${esc(n.submitterName)}\n\n` +
+        `<i>Shu xizmatni katalogga qo'shsangiz — talab tayyor. Admin panel → Xizmatlar → So'rovlar.</i>`,
+      { parse_mode: "HTML" },
+    )
+    .catch(() => undefined);
+}
+
+/** /start svc_<id> — a shared listing deep-link: reply with the listing card (name/rating/phone).
+ *  Returns false when the listing is missing/inactive so /start falls through to the normal flow. */
+export async function sendListingCard(bot: Bot, chatId: string, listingId: number): Promise<boolean> {
+  const l = await prisma.serviceListing.findUnique({ where: { id: listingId }, include: { category: { select: { name: true, emoji: true } } } }).catch(() => null);
+  if (!l || l.status !== "active") return false;
+  void prisma.serviceListing.update({ where: { id: listingId }, data: { viewCount: { increment: 1 } } }).catch(() => undefined);
+  const stars = l.reviewCount > 0 ? `⭐ ${Math.round(l.avgRating * 10) / 10} (${l.reviewCount} baho) · ` : "";
+  await bot.api
+    .sendMessage(
+      chatId,
+      `${l.category.emoji || "🏪"} <b>${esc(l.name)}</b>${l.verified ? " ✅" : ""}\n` +
+        `${stars}${esc(l.category.name)}\n\n` +
+        `📞 <b>${esc(l.phone)}</b>${l.phone2 ? `\n📞 ${esc(l.phone2)}` : ""}\n` +
+        (l.workHours ? `🕒 ${esc(l.workHours)}\n` : "") +
+        (l.address ? `📍 ${esc(l.address)}\n` : "") +
+        (l.desc ? `\n${esc(l.desc.slice(0, 200))}\n` : "") +
+        `\n<i>Barcha Koson xizmatlari: «🚀 Ilova» → Xizmatlar</i>`,
+      { parse_mode: "HTML" },
+    )
+    .catch(() => undefined);
+  return true;
 }
 
 export function registerXizmatlar(bot: Bot): void {

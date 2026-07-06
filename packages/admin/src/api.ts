@@ -217,7 +217,9 @@ export const adminApi = {
   shopReviews: () => req<{ reviews: ShopAdminReviewRow[] }>("/api/admin/shop/reviews"),
   shopReviewDelete: (id: number) => req<{ ok: boolean }>(`/api/admin/shop/reviews/${id}`, { method: "DELETE" }),
   // 🔎 xizmatlar directory
-  svcList: (status?: string) => req<{ rows: SvcAdminRow[]; enabled: boolean; pending: number; hiddenReviews: number }>(`/api/admin/services${status ? `?status=${status}` : ""}`),
+  svcList: (status?: string) => req<{ rows: SvcAdminRow[]; enabled: boolean; pending: number; hiddenReviews: number; phoneFlagged: number; newRequests: number }>(`/api/admin/services${status ? `?status=${status}` : ""}`),
+  svcRequests: (status = "new") => req<{ requests: { id: number; query: string; note: string; status: string; createdAt: string }[] }>(`/api/admin/service-requests?status=${status}`),
+  svcRequestSet: (id: number, status: "new" | "done" | "dismissed") => postJson<{ ok: boolean }>(`/api/admin/service-requests/${id}`, { status }),
   svcCreate: (p: Record<string, unknown>) => postJson<{ ok: boolean; id?: number; error?: string }>("/api/admin/services", p),
   svcEdit: (id: number, patch: Record<string, unknown>) => postJson<{ ok: boolean; error?: string }>(`/api/admin/services/${id}`, patch),
   svcCats: () => req<{ categories: SvcAdminCat[] }>("/api/admin/service-categories"),
@@ -575,6 +577,7 @@ export interface SvcAdminRow {
   verified: boolean;
   viewCount: number;
   callCount: number;
+  phoneReports: number;
   avgRating: number;
   reviewCount: number;
   photoCount: number;

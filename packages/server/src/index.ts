@@ -119,6 +119,10 @@ async function main(): Promise<void> {
     notifyServiceOwner: async (notice) => {
       if (bot) await (await import("./bot/xizmatlar")).notifyOwnerService(bot, notice);
     },
+    // 🔎 unmet-demand request ("topilmadi") → owner info card (recruiting signal, no buttons)
+    notifyServiceDemand: async (notice) => {
+      if (bot) await (await import("./bot/xizmatlar")).notifyOwnerDemand(bot, notice);
+    },
   });
   // economy alerts (withdraws, anomalies) → admins
   const { registerAdminNotifier } = await import("./services/economyService");

@@ -27,6 +27,8 @@ async function main(): Promise<void> {
     await prisma.serviceCategory.deleteMany({ where: { id: { in: catIds } } });
     await prisma.appState.deleteMany({ where: { key: "feature:xizmatlar" } });
     await prisma.appState.deleteMany({ where: { key: { startsWith: "svcrep:" } } });
+    await prisma.appState.deleteMany({ where: { key: { startsWith: "svcphone:" } } });
+    await prisma.serviceRequest.deleteMany({ where: { query: { startsWith: TAG } } });
   };
   await cleanup();
 
@@ -134,6 +136,33 @@ async function main(): Promise<void> {
   const afterC = (await prisma.serviceListing.findUnique({ where: { id: rid } }))!;
   ok(afterC.callCount === before.callCount + 2, "8: callCount +2");
   ok(afterC.viewCount === before.viewCount + 1, "8: viewCount +1 (detail open)");
+
+  // 10) sort=new — "Yangi qo'shilganlar" strip returns latest id first
+  const newest = await mk(`${TAG} Eng Oxirgi`, "+998907000007");
+  const freshList = await svc.listListings({ categoryId: cat.id, sort: "new", limit: 5 });
+  ok(freshList.listings[0]?.id === newest.id, "10: sort=new — eng oxirgi qo'shilgan birinchi");
+
+  // 11) demand capture: 3/day cap per user, short query rejected
+  const d1 = await svc.submitRequest("5001", "Ali", `${TAG} traktor ijara`, "tungi ishlasin");
+  ok(d1.ok && !!d1.notice && d1.notice.query.includes("traktor"), "11: so'rov yozildi + owner notice");
+  ok((await svc.submitRequest("5001", "Ali", "x", "")).reason === "bad_query", "11: 1-harfli so'rov rad");
+  await svc.submitRequest("5001", "Ali", `${TAG} q2`, "");
+  await svc.submitRequest("5001", "Ali", `${TAG} q3`, "");
+  const d4 = await svc.submitRequest("5001", "Ali", `${TAG} q4`, "");
+  ok(d4.ok === false && d4.reason === "daily_limit", "11: 4-chi kunlik so'rov blok");
+  ok((await svc.adminListRequests("new")).some((r) => r.query === `${TAG} traktor ijara`), "11: admin ro'yxatida ko'rinadi");
+  await svc.adminSetRequestStatus(d1.notice!.requestId, "done");
+  ok(!(await svc.adminListRequests("new")).some((r) => r.id === d1.notice!.requestId), "11: done → new ro'yxatidan chiqdi");
+
+  // 12) phone-report: 1 user = 1 flag; 2 unikal → flagged; telefon tahriri → reset
+  const pr1 = await svc.reportPhoneIssue(rid, "6001");
+  ok(pr1.ok && !pr1.flagged, "12: 1-flag — hali flagged emas");
+  await svc.reportPhoneIssue(rid, "6001"); // duplicate — sanalmaydi
+  ok((await prisma.serviceListing.findUnique({ where: { id: rid } }))!.phoneReports === 1, "12: duplicate flag sanalmadi");
+  const pr2 = await svc.reportPhoneIssue(rid, "6002");
+  ok(pr2.flagged === true, "12: 2-unikal flag → admin navbati (flagged)");
+  await svc.adminEditListing(rid, { phone: "+998901000011" });
+  ok((await prisma.serviceListing.findUnique({ where: { id: rid } }))!.phoneReports === 0, "12: telefon tuzatildi → hisoblagich 0");
 
   // 9) seed idempotency
   const c1 = await svc.seedDefaultCategories();

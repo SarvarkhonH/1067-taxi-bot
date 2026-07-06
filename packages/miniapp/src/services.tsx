@@ -5,8 +5,23 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { MeResponse, ServiceCategoryView, ServiceListingCard, ServiceListingDetail, ServiceReviewView, ServiceSubmitBody } from "@t1067/shared";
 import { api, apiUrl } from "./api";
-import { haptic, hapticSuccess } from "./telegram";
+import { haptic, hapticSuccess, tg } from "./telegram";
 import { Button, EmptyState, Sheet, Skeleton } from "./design/components";
+
+const BOT_LINK = "https://t.me/koson1067bot"; // share deep-link target (single source: server QR uses the same)
+
+// ⚡ SWR modul-kesh (shop patterni): qayta ochish keshdagi payload bilan BIR ZUMDA render bo'ladi
+// (skeleton-flash yo'q), yangi data fonda kelib ustidan yozadi. App.tsx idle'da buni oldindan isitadi.
+interface SvcHome { cats: ServiceCategoryView[]; top: ServiceListingCard[]; fresh: ServiceListingCard[] }
+let HOME_CACHE: SvcHome | null = null;
+
+export function prefetchServiceData(): void {
+  fetchHome().then((h) => { HOME_CACHE = h; }).catch(() => undefined);
+}
+function fetchHome(): Promise<SvcHome> {
+  return Promise.all([api.svcCategories(), api.svcList({ limit: 8 }), api.svcList({ limit: 6, sort: "new" })])
+    .then(([c, t, f]) => ({ cats: c.categories, top: t.listings, fresh: f.listings }));
+}
 
 const ACCENTS = ["#ffb300", "#f0426b", "#8b5cf6", "#22c55e", "#38bdf8", "#fb923c"];
 function accentOf(s: string): string {
@@ -14,6 +29,8 @@ function accentOf(s: string): string {
   for (let i = 0; i < s.length; i++) h = (h * 33) ^ s.charCodeAt(i);
   return ACCENTS[(h >>> 0) % ACCENTS.length]!;
 }
+// karta accenti PER-ID: bitta kategoriyadagi 8 karta bir xil rang bo'lib "o'lik ro'yxat" ko'rinmasin
+const accentOfCard = (l: { id: number; categoryName: string }) => accentOf(`${l.categoryName}#${l.id % 7}`);
 
 /** "08:00-19:00" → open now? null = unknown/24h. Overnight ranges (22:00-06:00) supported. */
 function openNow(wh?: string | null): boolean | null {
@@ -38,7 +55,8 @@ function Stars({ v, dim }: { v: number; dim?: boolean }) {
 }
 
 function RatingLine({ l }: { l: ServiceListingCard }) {
-  if (l.reviewCount === 0) return <span className="muted fs12">Hali baho yo'q — birinchi bo'ling</span>;
+  // baho yo'qligi "bo'shliq" emas — yorqin YANGI chip (kulrang absence-matn butun ro'yxatni o'ldiradi)
+  if (l.reviewCount === 0) return <span className="svc-new-chip">🆕 Yangi</span>;
   return (
     <span className="svc-rating-line">
       <span className="svc-rating-num">★ {l.avgRating.toFixed(1)}</span>
@@ -55,10 +73,10 @@ function OpenBadge({ wh }: { wh?: string | null }) {
 
 function SvcCard({ l, onOpen }: { l: ServiceListingCard; onOpen: (l: ServiceListingCard) => void }) {
   return (
-    <button className="svc-card glass" onClick={() => onOpen(l)} style={{ ["--acc" as string]: accentOf(l.categoryName) }}>
+    <button className="svc-card glass" onClick={() => onOpen(l)} style={{ ["--acc" as string]: accentOfCard(l) }}>
       <div className="svc-card-thumb">
         {l.hasPhoto ? (
-          <img src={apiUrl(`/api/services/photo/${l.id}`)} loading="lazy" alt="" />
+          <img src={apiUrl(`/api/services/photo/${l.id}?s=1`)} loading="lazy" decoding="async" alt="" />
         ) : (
           <span className="svc-card-emoji">{l.categoryEmoji || "🏪"}</span>
         )}
@@ -82,7 +100,7 @@ function SvcCard({ l, onOpen }: { l: ServiceListingCard; onOpen: (l: ServiceList
 
 // ── review widgets ──────────────────────────────────────────────────────────────────────────────
 
-function RateBox({ listingId, initial, onDone }: { listingId: number; initial: { stars: number; text: string } | null; onDone: (avg: number, n: number) => void }) {
+function RateBox({ listingId, initial, wasFirst, onDone }: { listingId: number; initial: { stars: number; text: string } | null; wasFirst: boolean; onDone: (avg: number, n: number) => void }) {
   const [stars, setStars] = useState(initial?.stars ?? 0);
   const [text, setText] = useState(initial?.text ?? "");
   const [busy, setBusy] = useState(false);
@@ -100,7 +118,8 @@ function RateBox({ listingId, initial, onDone }: { listingId: number; initial: {
     } catch { /* tarmoq — jim */ }
     setBusy(false);
   };
-  if (done) return <div className="svc-rate-done">✅ Bahoyingiz saqlandi — rahmat!</div>;
+  // birinchi baho = tarixiy lahza — d-stamp "muhr" animatsiyasi bilan nishonlanadi
+  if (done) return <div className={"svc-rate-done" + (wasFirst ? " d-stamp" : "")}>{wasFirst ? "🏆 Siz BIRINCHI baho berdingiz!" : "✅ Bahoyingiz saqlandi — rahmat!"}</div>;
   return (
     <div className="svc-rate-box glass pad">
       <div className="fs13"><b>{initial ? "Bahoni tahrirlash" : "Baho bering"}</b></div>
@@ -169,6 +188,24 @@ function DetailSheet({ id, onClose, onBanner }: { id: number; onClose: () => voi
       onBanner(p);
     }
   };
+  // Ulashish: mahalla-guruhga "mana ustaning raqami" forward = katalogning bepul reklamasi
+  const share = () => {
+    if (!d) return;
+    haptic();
+    const link = `${BOT_LINK}?start=svc_${d.id}`;
+    const text = `${d.categoryEmoji || "🏪"} ${d.name}${d.reviewCount > 0 ? ` · ★${d.avgRating.toFixed(1)}` : ""}\n📞 ${d.phone}`;
+    const shareUrl = `https://t.me/share/url?url=${encodeURIComponent(link)}&text=${encodeURIComponent(text)}`;
+    const t = tg as unknown as { openTelegramLink?: (u: string) => void } | undefined;
+    if (t?.openTelegramLink) t.openTelegramLink(shareUrl);
+    else window.open(shareUrl, "_blank");
+  };
+  const [phoneReported, setPhoneReported] = useState(false);
+  const reportPhone = () => {
+    if (!d || phoneReported) return;
+    setPhoneReported(true);
+    void api.svcPhoneReport(d.id).catch(() => undefined);
+    onBanner("⚑ Rahmat — raqamni tekshiramiz");
+  };
 
   return (
     <Sheet open onClose={onClose}>
@@ -182,7 +219,7 @@ function DetailSheet({ id, onClose, onBanner }: { id: number; onClose: () => voi
             <div className="svc-gallery">
               <div className="svc-gallery-strip" onScroll={(e) => { const el = e.currentTarget; setGalleryIdx(Math.round(el.scrollLeft / el.clientWidth)); }}>
                 {Array.from({ length: Math.min(6, d.photoCount) }, (_, i) => (
-                  <img key={i} src={apiUrl(`/api/services/photo/${d.id}/${i}`)} alt="" loading={i === 0 ? "eager" : "lazy"} />
+                  <img key={i} src={apiUrl(`/api/services/photo/${d.id}/${i}`)} alt="" loading={i === 0 ? "eager" : "lazy"} decoding="async" />
                 ))}
               </div>
               {d.photoCount > 1 && (
@@ -207,14 +244,18 @@ function DetailSheet({ id, onClose, onBanner }: { id: number; onClose: () => voi
             {d.callCount > 0 && <span className="muted"> · 📞 {d.callCount} marta</span>}
           </div>
 
+          <button className="svc-call-main" onClick={call}>📞 Qo'ng'iroq qilish</button>
           <div className="svc-actions">
-            <button className="svc-act primary" onClick={call}>📞 Qo'ng'iroq</button>
             <button className="svc-act" onClick={() => copy(d.phone)}>📋 Nusxa</button>
-            <button className="svc-act" onClick={() => { haptic(); setShowRate(true); }}>★ Baho</button>
+            <button className="svc-act" onClick={share}>↗️ Ulashish</button>
+            <button className="svc-act" onClick={() => { haptic(); setShowRate(true); }}>★ Baho qo'ying</button>
           </div>
 
           <div className="svc-info glass pad">
-            <div className="svc-info-row"><span>📞</span><b>{d.phone}</b></div>
+            <div className="svc-info-row">
+              <span>📞</span><b>{d.phone}</b>
+              <button className="svc-phone-report" onClick={reportPhone}>{phoneReported ? "✓ yuborildi" : "⚑ ishlamadimi?"}</button>
+            </div>
             {d.phone2 && <div className="svc-info-row"><span>📞</span><b>{d.phone2}</b></div>}
             {d.workHours && <div className="svc-info-row"><span>🕒</span><OpenBadge wh={d.workHours} /></div>}
             {d.address && <div className="svc-info-row"><span>📍</span>{d.address}</div>}
@@ -226,6 +267,7 @@ function DetailSheet({ id, onClose, onBanner }: { id: number; onClose: () => voi
             <RateBox
               listingId={d.id}
               initial={d.myReview ?? null}
+              wasFirst={d.reviewCount === 0}
               onDone={(avg, n) => {
                 setD({ ...d, avgRating: avg, reviewCount: n });
                 api.svcReviews(d.id).then((r) => setReviews(r.reviews)).catch(() => undefined);
@@ -241,7 +283,7 @@ function DetailSheet({ id, onClose, onBanner }: { id: number; onClose: () => voi
               )}
             </div>
             {reviews === null ? (
-              <Skeleton h={54} className="mt8" />
+              <><Skeleton h={44} className="mt8" /><Skeleton h={44} className="mt8" /></>
             ) : reviews.length === 0 ? (
               <div className="muted fs13 mt8">Hali sharh yo'q — birinchi fikrni siz yozing.</div>
             ) : (
@@ -306,6 +348,7 @@ function SubmitSheet({ cats, onClose, onBanner }: { cats: ServiceCategoryView[];
       </div>
       <input className="bk-input mt8" placeholder="Xizmat nomi (masalan: Usta Karim — santexnik)" value={b.name} maxLength={80} onChange={(e) => set("name", e.target.value)} />
       <input className="bk-input mt8" placeholder="Telefon: +998 90 123 45 67" inputMode="tel" value={b.phone} onChange={(e) => set("phone", e.target.value)} />
+      <div className="muted fs11 mt4">Format: +998 XX XXX XX XX — mijozlar shu raqamga qo'ng'iroq qiladi</div>
       <input className="bk-input mt8" placeholder="Qisqa tavsif (nima qilasiz?)" value={b.desc ?? ""} maxLength={500} onChange={(e) => set("desc", e.target.value)} />
       <input className="bk-input mt8" placeholder="Kalit so'zlar: santexnik, kran, isitish" value={b.tags ?? ""} maxLength={200} onChange={(e) => set("tags", e.target.value)} />
       <input className="bk-input mt8" placeholder="Manzil (ixtiyoriy)" value={b.address ?? ""} maxLength={160} onChange={(e) => set("address", e.target.value)} />
@@ -319,11 +362,48 @@ function SubmitSheet({ cats, onClose, onBanner }: { cats: ServiceCategoryView[];
   );
 }
 
+// ── demand capture: topilmagan qidiruv = yo'qolgan mijoz EMAS, yozib olinadigan talab ────────────
+
+function DemandBox({ q, onClear, onBanner }: { q: string; onClear: () => void; onBanner: (m: string) => void }) {
+  const [note, setNote] = useState("");
+  const [sent, setSent] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const send = async () => {
+    setBusy(true);
+    try {
+      const r = await api.svcRequest(q.trim(), note);
+      if (r.ok) { hapticSuccess(); setSent(true); }
+      else onBanner(r.reason === "daily_limit" ? "Bugungi so'rov limiti tugadi" : "Xatolik — qayta urinib ko'ring");
+    } catch { onBanner("Tarmoq xatosi"); }
+    setBusy(false);
+  };
+  if (sent) {
+    return (
+      <div className="svc-demand glass pad tac">
+        <div className="fs22">📬</div>
+        <b>So'rovingiz yozib olindi!</b>
+        <p className="muted fs13 mt4">«{q}» topilsa katalogga qo'shamiz — bot orqali xabar beramiz.</p>
+        <Button variant="ghost" onClick={onClear}>Boshqa qidirish</Button>
+      </div>
+    );
+  }
+  return (
+    <div className="svc-demand glass pad">
+      <div className="fs22 tac">🔍</div>
+      <b className="tac">«{q}» hozircha katalogda yo'q</b>
+      <p className="muted fs13 mt4">So'rov qoldiring — shu xizmatni topib katalogga qo'shamiz va sizga xabar beramiz.</p>
+      <input className="bk-input mt8" placeholder="Qo'shimcha izoh (ixtiyoriy): tungi ishlasin…" value={note} maxLength={200} onChange={(e) => setNote(e.target.value)} />
+      <Button variant="brand" disabled={busy} onClick={send}>{busy ? "Yuborilmoqda…" : "📬 So'rov qoldirish"}</Button>
+      <Button variant="ghost" onClick={onClear}>Tozalash</Button>
+    </div>
+  );
+}
+
 // ── main view ───────────────────────────────────────────────────────────────────────────────────
 
 export function XizmatlarView({ me, onBanner }: { me: MeResponse; onBanner: (msg: string) => void }) {
-  const [cats, setCats] = useState<ServiceCategoryView[] | null>(null);
-  const [top, setTop] = useState<ServiceListingCard[] | null>(null);
+  // SWR: keshdan darhol hydrate (skeleton-flash yo'q), fon-refresh baribir yuguradi
+  const [home, setHome] = useState<SvcHome | null>(HOME_CACHE);
   const [err, setErr] = useState(false);
   const [cat, setCat] = useState<ServiceCategoryView | null>(null);
   const [catRows, setCatRows] = useState<ServiceListingCard[] | null>(null);
@@ -334,12 +414,14 @@ export function XizmatlarView({ me, onBanner }: { me: MeResponse; onBanner: (msg
   const [mineOpen, setMineOpen] = useState(false);
   const [mine, setMine] = useState<{ id: number; name: string; status: string; callCount: number; viewCount: number; avgRating: number; reviewCount: number }[] | null>(null);
   const debounce = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const cats = home?.cats ?? null;
+  const top = home?.top ?? null;
 
   const load = () => {
     setErr(false);
-    Promise.all([api.svcCategories(), api.svcList({ limit: 8 })])
-      .then(([c, l]) => { setCats(c.categories); setTop(l.listings); })
-      .catch(() => setErr(true));
+    fetchHome()
+      .then((h) => { HOME_CACHE = h; setHome(h); })
+      .catch(() => { if (!HOME_CACHE) setErr(true); });
   };
   useEffect(load, []);
 
@@ -389,7 +471,7 @@ export function XizmatlarView({ me, onBanner }: { me: MeResponse; onBanner: (msg
         found === null ? (
           <div className="mt10"><Skeleton h={74} /><Skeleton h={74} className="mt8" /></div>
         ) : found.length === 0 ? (
-          <EmptyState icon="🔍" text={`«${q}» topilmadi — boshqacha yozib ko'ring`} action="Tozalash" onAction={() => setQ("")} />
+          <DemandBox q={q} onClear={() => setQ("")} onBanner={onBanner} />
         ) : (
           <div className="svc-list mt10">{found.map((l) => <SvcCard key={l.id} l={l} onOpen={(x) => { haptic(); setSelId(x.id); }} />)}</div>
         )
@@ -420,7 +502,7 @@ export function XizmatlarView({ me, onBanner }: { me: MeResponse; onBanner: (msg
         <>
           <div className="svc-cat-grid mt10">
             {cats.map((c) => (
-              <button key={c.id} className="svc-cat-tile glass" style={{ ["--acc" as string]: accentOf(c.name) }} onClick={() => openCat(c)}>
+              <button key={c.id} className={"svc-cat-tile glass" + (c.count < 3 ? " thin" : "")} style={{ ["--acc" as string]: accentOf(c.name) }} onClick={() => openCat(c)}>
                 <span className="svc-cat-emoji">{c.emoji}</span>
                 <span className="svc-cat-name">{c.name}</span>
                 <span className="svc-cat-count">{c.count} ta</span>
@@ -430,8 +512,16 @@ export function XizmatlarView({ me, onBanner }: { me: MeResponse; onBanner: (msg
 
           {top && top.length > 0 && (
             <div className="svc-section">
-              <div className="between"><b className="fs14">⭐ Eng yaxshilari</b></div>
+              {/* baholar hali 0 bo'lsa "eng yaxshilari" da'vosi ishonchni sindiradi — halol label */}
+              <div className="between"><b className="fs14">{top.some((l) => l.reviewCount > 0) ? "⭐ Eng yaxshilari" : "🔥 Tavsiya etamiz"}</b></div>
               <div className="svc-list mt8">{top.map((l) => <SvcCard key={l.id} l={l} onOpen={(x) => { haptic(); setSelId(x.id); }} />)}</div>
+            </div>
+          )}
+
+          {home && home.fresh.length > 0 && (
+            <div className="svc-section">
+              <div className="between"><b className="fs14">🆕 Yangi qo'shilganlar</b><span className="muted fs12">katalog o'sib boryapti</span></div>
+              <div className="svc-list mt8">{home.fresh.map((l) => <SvcCard key={l.id} l={l} onOpen={(x) => { haptic(); setSelId(x.id); }} />)}</div>
             </div>
           )}
 

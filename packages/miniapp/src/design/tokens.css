@@ -1813,3 +1813,33 @@ body {
 .shop-card-name, .shop-detail-name, .shop-wrap .muted { overflow-wrap: anywhere; }
 /* tab-almashishda og'ir katta soyalar animatsiya paytida chizilmasin — kirish tez tuyuladi */
 .app.shop-light .page { animation-duration: 180ms; }
+
+/* ── XIZMATLAR polish v1.1 (P2) ─────────────────────────────────────────── */
+/* 📞 asosiy amal: 44px minimal teginish + glow — karta ichida DOMINANT */
+.svc-call-dot { width: 44px; height: 44px; font-size: 17px;
+  box-shadow: 0 0 14px -2px color-mix(in srgb, var(--win) 55%, transparent); }
+/* baho yo'q ≠ bo'shliq: yorqin YANGI chip */
+.svc-new-chip { display: inline-block; font-size: 10.5px; font-weight: 800; letter-spacing: .03em;
+  color: #201400; background: var(--brand-grad); padding: 2px 7px; border-radius: var(--r-chip); }
+/* profil: to'liq-keng qo'ng'iroq tugmasi — bitta shubhasiz asosiy amal */
+.svc-call-main { width: 100%; padding: 14px; border-radius: var(--r-btn); border: none;
+  background: linear-gradient(135deg, #34d399, #10b981); color: #06281c; font-size: 15.5px; font-weight: 800;
+  box-shadow: 0 6px 20px -6px color-mix(in srgb, var(--win) 60%, transparent);
+  transition: transform var(--dur-press) var(--ease-out); }
+.svc-call-main:active { transform: scale(0.97); }
+/* "raqam ishlamadi" — kichik, lekin topiladigan */
+.svc-phone-report { margin-left: auto; background: none; border: none; color: var(--text-dim); font-size: 11px; }
+/* kam to'ldirilgan kategoriya xira — ko'z boy kategoriyalarga yo'naladi */
+.svc-cat-tile.thin { opacity: 0.62; }
+/* demand-capture qutisi */
+.svc-demand { display: flex; flex-direction: column; gap: 8px; margin-top: 12px; }
+/* karta stagger-in: kategoriya/qidiruv almashganda kaskad (transform/opacity, mavjud til) */
+.svc-list > * { animation: svcIn var(--dur-card) var(--ease-out) backwards; }
+.svc-list > *:nth-child(1) { animation-delay: 0ms; }
+.svc-list > *:nth-child(2) { animation-delay: 35ms; }
+.svc-list > *:nth-child(3) { animation-delay: 70ms; }
+.svc-list > *:nth-child(4) { animation-delay: 105ms; }
+.svc-list > *:nth-child(5) { animation-delay: 140ms; }
+.svc-list > *:nth-child(n+6) { animation-delay: 170ms; }
+@keyframes svcIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) { .svc-list > * { animation: none; } }

@@ -147,15 +147,18 @@ export const api = {
   shopReviewDelete: (productId: number) => del<{ ok: boolean }>(`/api/shop/review/${productId}`),
   // 🔎 xizmatlar (feature "xizmatlar") — Koson services directory
   svcCategories: () => get<{ categories: import("@t1067/shared").ServiceCategoryView[] }>("/api/services/categories"),
-  svcList: (p: { cat?: number; q?: string; limit?: number; offset?: number } = {}) => {
+  svcList: (p: { cat?: number; q?: string; limit?: number; offset?: number; sort?: "new" } = {}) => {
     const sp = new URLSearchParams();
     if (p.cat) sp.set("cat", String(p.cat));
     if (p.q) sp.set("q", p.q);
     if (p.limit) sp.set("limit", String(p.limit));
     if (p.offset) sp.set("offset", String(p.offset));
+    if (p.sort) sp.set("sort", p.sort);
     const qs = sp.toString();
     return get<{ listings: import("@t1067/shared").ServiceListingCard[]; total: number }>(`/api/services/list${qs ? `?${qs}` : ""}`);
   },
+  svcRequest: (query: string, note: string) => request<{ ok: boolean; reason?: string }>("POST", "/api/services/request", { query, note }, 1),
+  svcPhoneReport: (id: number) => request<{ ok: boolean }>("POST", "/api/services/phone-report", { id }, 1),
   svcItem: (id: number) => get<import("@t1067/shared").ServiceListingDetail>(`/api/services/item/${id}`),
   svcCall: (id: number) => post<{ ok: boolean }>("/api/services/call", { id }),
   svcSubmit: (b: import("@t1067/shared").ServiceSubmitBody) => request<import("@t1067/shared").ServiceSubmitResponse>("POST", "/api/services/submit", b, 1),

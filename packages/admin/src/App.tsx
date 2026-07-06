@@ -1604,9 +1604,10 @@ function ShopAdminView() {
 // faqat nom+telefon+teg bor — bu panel desc/soat/manzil/foto/verified to'ldirish uchun. Moderatsiya
 // asosan Telegram'da (✅/❌ egaga boradi); bu yerda ham pending'ni hal qilish mumkin.
 function XizmatlarAdminView() {
-  const [data, setData] = useState<{ rows: SvcAdminRow[]; enabled: boolean; pending: number; hiddenReviews: number } | null>(null);
+  const [data, setData] = useState<{ rows: SvcAdminRow[]; enabled: boolean; pending: number; hiddenReviews: number; phoneFlagged: number; newRequests: number } | null>(null);
   const [cats, setCats] = useState<SvcAdminCat[]>([]);
   const [reviews, setReviews] = useState<SvcAdminReview[]>([]);
+  const [requests, setRequests] = useState<{ id: number; query: string; note: string; status: string; createdAt: string }[]>([]);
   const [stFilter, setStFilter] = useState<string>("all");
   const [catFilter, setCatFilter] = useState<number>(0);
   const [q, setQ] = useState("");
@@ -1619,6 +1620,7 @@ function XizmatlarAdminView() {
     adminApi.svcList().then(setData).catch(() => undefined);
     adminApi.svcCats().then((r) => setCats(r.categories)).catch(() => undefined);
     adminApi.svcReviewQueue().then((r) => setReviews(r.reviews)).catch(() => setReviews([]));
+    adminApi.svcRequests("new").then((r) => setRequests(r.requests)).catch(() => setRequests([]));
   };
   useEffect(() => { load(); }, []);
 
@@ -1674,7 +1676,7 @@ function XizmatlarAdminView() {
         <div className="panel-title">🔎 Xizmatlar katalogi</div>
         <p className="muted" style={{ marginTop: 0 }}>
           {data && !data.enabled && <b style={{ color: "#f59e0b" }}>«xizmatlar» flag O&apos;CHIQ — mijozlar hali ko&apos;rmaydi (GO LIVE&apos;da yoqiladi). </b>}
-          {data && <>Jami {data.rows.length} ta · boyitilgan (soat + tavsif/manzil): <b>{doneCount}</b> ta{data.pending > 0 && <b style={{ color: "#f59e0b" }}> · ⏳ {data.pending} moderatsiya kutmoqda</b>}.</>}
+          {data && <>Jami {data.rows.length} ta · boyitilgan (soat + tavsif/manzil): <b>{doneCount}</b> ta{data.pending > 0 && <b style={{ color: "#f59e0b" }}> · ⏳ {data.pending} moderatsiya</b>}{data.phoneFlagged > 0 && <b style={{ color: "#ef4444" }}> · ⚑ {data.phoneFlagged} raqam shubhali</b>}{data.newRequests > 0 && <b style={{ color: "#38bdf8" }}> · 📬 {data.newRequests} so&apos;rov</b>}.</>}
           {" "}Maslahat: har kuni 10 tasiga 🕒 soat + 📝 tavsif + 📷 foto qo&apos;shsangiz, bir haftada katalog to&apos;liq «2GIS ko&apos;rinish»ga keladi.
         </p>
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
@@ -1711,6 +1713,7 @@ function XizmatlarAdminView() {
             <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
               <span style={{ flex: "2 1 220px" }}>
                 {stLabel[r.status] ?? "?"} <b>{r.name}</b>{r.verified && " ✔"}{r.isVip && " ⭐"}
+                {r.phoneReports >= 2 && <b style={{ color: "#ef4444" }}> ⚑{r.phoneReports} raqam!</b>}
                 <span className="muted"> · {r.categoryName} · 👁{r.viewCount} 📞{r.callCount}{r.reviewCount > 0 ? ` ★${r.avgRating} (${r.reviewCount})` : ""}</span>
               </span>
               <button className="btn sm" onClick={() => promptEdit(r.id, "name", "Nomi:", r.name)}>✏️</button>
@@ -1733,6 +1736,23 @@ function XizmatlarAdminView() {
           </div>
         ))}
         {data && rows.length === 0 && <p className="muted">Mos yozuv yo&apos;q.</p>}
+      </section>
+
+      <section className="panel">
+        <div className="panel-title">📬 Topilmagan xizmat so&apos;rovlari ({requests.length})</div>
+        <p className="muted" style={{ marginTop: 0 }}>Odamlar qidirib topa olmagan xizmatlar — REAL talab. Shu biznesni topib qo&apos;shsangiz, mijozi tayyor.</p>
+        {requests.map((rq) => (
+          <div key={rq.id} style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", padding: "8px 0", borderBottom: "1px solid rgba(255,255,255,0.08)" }}>
+            <span style={{ flex: "2 1 240px" }}>
+              🔍 <b>{rq.query}</b>
+              {rq.note && <span className="muted"> · {rq.note}</span>}
+              <span className="muted" style={{ fontSize: 12 }}> · {new Date(rq.createdAt).toLocaleDateString("uz-UZ")}</span>
+            </span>
+            <button className="btn sm" title="Xizmat topildi va katalogga qo'shildi" onClick={async () => { await adminApi.svcRequestSet(rq.id, "done").catch(() => undefined); load(); }}>✅ Qo&apos;shildi</button>
+            <button className="btn sm" onClick={async () => { await adminApi.svcRequestSet(rq.id, "dismissed").catch(() => undefined); load(); }}>✖</button>
+          </div>
+        ))}
+        {requests.length === 0 && <p className="muted">Yangi so&apos;rov yo&apos;q.</p>}
       </section>
 
       <section className="panel">
