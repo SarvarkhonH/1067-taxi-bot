@@ -86,6 +86,12 @@
       "port": 5175
     },
     {
+      "name": "admin-alt2",
+      "runtimeExecutable": "pnpm",
+      "runtimeArgs": ["--filter", "@t1067/admin", "exec", "vite", "--port", "5176", "--strictPort"],
+      "port": 5176
+    },
+    {
       "name": "ulugbek-qr",
       "runtimeExecutable": "npx",
       "runtimeArgs": ["serve", "C:\\Users\\sarva\\Desktop", "-l", "4321"],

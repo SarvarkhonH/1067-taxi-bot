@@ -3660,17 +3660,23 @@ function ReferallarView() {
 function BanListView() {
   const [rows, setRows] = useState<AdminBannedRow[] | null>(null);
   const [msg, setMsg] = useState<string | null>(null);
+  const [q, setQ] = useState("");
+  const [showBan, setShowBan] = useState(false);
+  const [banId, setBanId] = useState("");
+  const [banReason, setBanReason] = useState("");
+  const [banning, setBanning] = useState(false);
   const load = () => adminApi.banned().then(setRows).catch(() => setRows([]));
   useEffect(() => { load(); }, []);
 
   const ban = async () => {
-    const idStr = window.prompt("Bloklash uchun member ID:");
-    if (!idStr) return;
-    const id = Number(idStr);
-    if (!id) { setMsg("Noto'g'ri ID"); return; }
-    const reason = window.prompt("Blok sababi:") ?? "admin ban";
-    const r = await adminApi.ban(id, reason).catch(() => ({ ok: false, message: "xato" }));
+    const id = Number(banId);
+    if (!banId.trim() || !id) { setMsg("❌ Noto'g'ri member ID"); return; }
+    if (!window.confirm(`Member #${id} bloklansinmi?\nSabab: ${banReason.trim() || "admin ban"}`)) return;
+    setBanning(true);
+    const r = await adminApi.ban(id, banReason.trim() || "admin ban").catch(() => ({ ok: false, message: "xato" }));
     setMsg(r.message);
+    setBanning(false);
+    if (r.ok) { setBanId(""); setBanReason(""); setShowBan(false); }
     await load();
   };
 
@@ -3682,21 +3688,38 @@ function BanListView() {
   };
 
   if (!rows) return <div className="screen center"><div className="spinner" /></div>;
+  const filtered = rows.filter((r) => {
+    const t = q.trim().toLowerCase();
+    return !t || String(r.id).includes(t) || (r.fullName ?? "").toLowerCase().includes(t) || (r.phone ?? "").includes(t);
+  });
   return (
     <section className="panel">
       <div className="panel-head">
-        <div className="panel-title">🚫 Bloklangan a'zolar ({rows.length})</div>
-        <button className="btn" onClick={ban}>+ Bloklash</button>
+        <div className="panel-title">🚫 Bloklangan a&apos;zolar ({filtered.length})</div>
+        <button className="btn" onClick={() => setShowBan((v) => !v)}>{showBan ? "✖ Yopish" : "+ Bloklash"}</button>
       </div>
+      {showBan && (
+        <div className="adm-form-grid" style={{ marginBottom: 14, maxWidth: 500 }}>
+          <div className="adm-field"><span className="adm-field-label">Member ID</span><input type="number" value={banId} onChange={(e) => setBanId(e.target.value)} placeholder="12345" /></div>
+          <div className="adm-field"><span className="adm-field-label">Sabab</span><input value={banReason} onChange={(e) => setBanReason(e.target.value)} placeholder="masalan: firibgarlik shikoyati" /></div>
+          <div className="adm-field">
+            <span className="adm-field-label">&nbsp;</span>
+            <button className="btn" disabled={banning} onClick={() => void ban()}>{banning ? "Bloklanmoqda…" : "🚫 Bloklash"}</button>
+          </div>
+        </div>
+      )}
       {msg && <div className="action-msg" style={{ marginBottom: 8 }}>{msg}</div>}
+      {rows.length > 0 && (
+        <input className="search" style={{ marginBottom: 10 }} value={q} onChange={(e) => setQ(e.target.value)} placeholder="🔍 ID, ism yoki telefon…" />
+      )}
       {rows.length === 0 ? (
-        <div className="muted" style={{ padding: 12 }}>✅ Hozircha bloklangan a'zo yo'q.</div>
+        <div className="muted" style={{ padding: 12 }}>✅ Hozircha bloklangan a&apos;zo yo&apos;q.</div>
       ) : (
         <div className="table-wrap">
           <table>
             <thead><tr><th>ID</th><th>Ism</th><th>Telefon</th><th>Tur</th><th>Sabab</th><th className="num">Safar</th><th className="num">Tanga</th><th></th></tr></thead>
             <tbody>
-              {rows.map((r) => (
+              {filtered.map((r) => (
                 <tr key={r.id} className="row-warn">
                   <td className="muted">#{r.id}</td>
                   <td className="td-name">{r.fullName ?? "—"}</td>
@@ -3710,6 +3733,7 @@ function BanListView() {
               ))}
             </tbody>
           </table>
+          {filtered.length === 0 && <p className="muted" style={{ marginTop: 10 }}>Mos yozuv topilmadi.</p>}
         </div>
       )}
     </section>
