@@ -1633,6 +1633,15 @@ body {
 /* listing karta — thumb + matn + qo'ng'iroq nuqtasi */
 .svc-list { display: flex; flex-direction: column; gap: 8px; }
 .svc-section { margin-top: 14px; }
+/* "Haftaning eng yaxshilari" — reja §5.5 gorizontal karusel talab qilgan, avval vertikal ro'yxat
+   bilan bir xil edi; svyapib ko'radigan qatorga o'tkazildi (svc-card qatoridagi layout o'zgarmaydi,
+   faqat kenglik cheklanadi + snap-scroll). */
+.svc-carousel {
+  display: flex; gap: 8px; overflow-x: auto; scroll-snap-type: x mandatory;
+  -webkit-overflow-scrolling: touch; scrollbar-width: none; padding-bottom: 2px;
+}
+.svc-carousel::-webkit-scrollbar { display: none; }
+.svc-carousel > .svc-card { flex: 0 0 78%; max-width: 320px; scroll-snap-align: start; }
 .svc-card { --acc: var(--svc-accent); display: flex; align-items: center; gap: 10px; padding: 9px; text-align: left; position: relative;
   border-radius: var(--r-card); transition: transform var(--dur-press) var(--ease-out); }
 .svc-card:active { transform: scale(0.98); }

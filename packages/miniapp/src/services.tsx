@@ -158,16 +158,21 @@ function ReviewRow({ r, onBanner }: { r: ServiceReviewView; onBanner: (m: string
 
 // ── detail sheet ────────────────────────────────────────────────────────────────────────────────
 
-function DetailSheet({ id, onClose, onBanner, onFavChange }: { id: number; onClose: () => void; onBanner: (m: string) => void; onFavChange: () => void }) {
+function DetailSheet({ id, onClose, onBanner, onFavChange, onOpenOther }: { id: number; onClose: () => void; onBanner: (m: string) => void; onFavChange: () => void; onOpenOther: (id: number) => void }) {
   const [d, setD] = useState<ServiceListingDetail | null>(null);
   const [fav, setFav] = useState(false);
   const [err, setErr] = useState(false);
   const [reviews, setReviews] = useState<ServiceReviewView[] | null>(null);
+  const [similar, setSimilar] = useState<ServiceListingCard[] | null>(null);
   const [galleryIdx, setGalleryIdx] = useState(0);
   const [showRate, setShowRate] = useState(false);
 
   useEffect(() => {
-    api.svcItem(id).then((it) => { setD(it); setFav(it.isFav); }).catch(() => setErr(true));
+    setSimilar(null);
+    api.svcItem(id).then((it) => {
+      setD(it); setFav(it.isFav);
+      api.svcList({ cat: it.categoryId, limit: 6 }).then((r) => setSimilar(r.listings.filter((l) => l.id !== id).slice(0, 3))).catch(() => setSimilar([]));
+    }).catch(() => setErr(true));
     api.svcReviews(id).then((r) => setReviews(r.reviews)).catch(() => setReviews([]));
   }, [id]);
   const toggleFav = () => {
@@ -361,6 +366,13 @@ function DetailSheet({ id, onClose, onBanner, onFavChange }: { id: number; onClo
               reviews.map((r) => <ReviewRow key={r.id} r={r} onBanner={onBanner} />)
             )}
           </div>
+
+          {similar && similar.length > 0 && (
+            <div className="svc-section">
+              <div className="between"><b className="fs14">🔎 O'xshash xizmatlar</b></div>
+              <div className="svc-list mt8">{similar.map((l) => <SvcCard key={l.id} l={l} onOpen={(x) => { haptic(); onOpenOther(x.id); }} />)}</div>
+            </div>
+          )}
         </div>
       )}
     </Sheet>
@@ -545,11 +557,15 @@ export function XizmatlarView({ me, onBanner }: { me: MeResponse; onBanner: (msg
   }, [q]);
 
   const [openOnly, setOpenOnly] = useState(false);
+  const [verifiedOnly, setVerifiedOnly] = useState(false);
+  const [newOnly, setNewOnly] = useState(false);
   const openCat = (c: ServiceCategoryView) => {
     haptic();
     setCat(c);
     setCatRows(null);
     setOpenOnly(false);
+    setVerifiedOnly(false);
+    setNewOnly(false);
     api.svcList({ cat: c.id, limit: 50 }).then((r) => setCatRows(r.listings)).catch(() => setCatRows([]));
   };
   const openMine = () => {
@@ -603,9 +619,17 @@ export function XizmatlarView({ me, onBanner }: { me: MeResponse; onBanner: (msg
               <div className="muted fs12">{cat.count} ta xizmat · reyting bo'yicha</div>
             </div>
           </div>
-          {catRows !== null && catRows.some((l) => l.workHours) && (
+          {catRows !== null && catRows.length > 0 && (
             <div className="svc-cat-chips mb4">
-              <button className={"svc-chip" + (openOnly ? " on" : "")} onClick={() => { haptic(); setOpenOnly(!openOnly); }}>🟢 Ochiq hozir</button>
+              {catRows.some((l) => l.workHours) && (
+                <button className={"svc-chip" + (openOnly ? " on" : "")} onClick={() => { haptic(); setOpenOnly(!openOnly); }}>🟢 Ochiq hozir</button>
+              )}
+              {catRows.some((l) => l.verified) && (
+                <button className={"svc-chip" + (verifiedOnly ? " on" : "")} onClick={() => { haptic(); setVerifiedOnly(!verifiedOnly); }}>✔ Verified</button>
+              )}
+              {catRows.some((l) => l.reviewCount === 0) && (
+                <button className={"svc-chip" + (newOnly ? " on" : "")} onClick={() => { haptic(); setNewOnly(!newOnly); }}>🆕 Yangi</button>
+              )}
             </div>
           )}
           {catRows === null ? (
@@ -613,7 +637,13 @@ export function XizmatlarView({ me, onBanner }: { me: MeResponse; onBanner: (msg
           ) : catRows.length === 0 ? (
             <EmptyState icon={cat.emoji || "🏪"} text="Bu kategoriyada hali xizmat yo'q — birinchi bo'lib qo'shiling!" action="➕ Xizmat qo'shish" onAction={() => setSubmitOpen(true)} />
           ) : (
-            <div className="svc-list">{(openOnly ? catRows.filter((l) => openNow(l.workHours) === true) : catRows).map((l) => <SvcCard key={l.id} l={l} onOpen={(x) => { haptic(); setSelId(x.id); }} />)}</div>
+            <div className="svc-list">
+              {catRows
+                .filter((l) => !openOnly || openNow(l.workHours) === true)
+                .filter((l) => !verifiedOnly || l.verified)
+                .filter((l) => !newOnly || l.reviewCount === 0)
+                .map((l) => <SvcCard key={l.id} l={l} onOpen={(x) => { haptic(); setSelId(x.id); }} />)}
+            </div>
           )}
         </>
       ) : cats === null ? (
@@ -656,7 +686,7 @@ export function XizmatlarView({ me, onBanner }: { me: MeResponse; onBanner: (msg
             <div className="svc-section">
               {/* baholar hali 0 bo'lsa "eng yaxshilari" da'vosi ishonchni sindiradi — halol label */}
               <div className="between"><b className="fs14">{top.some((l) => l.reviewCount > 0) ? "⭐ Eng yaxshilari" : "🔥 Tavsiya etamiz"}</b></div>
-              <div className="svc-list mt8">{top.map((l) => <SvcCard key={l.id} l={l} onOpen={(x) => { haptic(); setSelId(x.id); }} />)}</div>
+              <div className="svc-carousel mt8">{top.map((l) => <SvcCard key={l.id} l={l} onOpen={(x) => { haptic(); setSelId(x.id); }} />)}</div>
             </div>
           )}
 
@@ -669,7 +699,7 @@ export function XizmatlarView({ me, onBanner }: { me: MeResponse; onBanner: (msg
         </>
       )}
 
-      {selId !== null && <DetailSheet id={selId} onClose={() => setSelId(null)} onBanner={onBanner} onFavChange={load} />}
+      {selId !== null && <DetailSheet id={selId} onClose={() => setSelId(null)} onBanner={onBanner} onFavChange={load} onOpenOther={(x) => setSelId(x)} />}
       {submitOpen && cats && <SubmitSheet cats={cats} onClose={() => { setSubmitOpen(false); load(); }} onBanner={onBanner} />}
 
       <Sheet open={mineOpen} onClose={() => setMineOpen(false)}>
