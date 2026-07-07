@@ -1500,16 +1500,34 @@ function CampaignsView() {
 
 // 🛍 TANGA DO'KONI — mahsulot CRUD + rasm yuklash + buyurtmalar ro'yxati (feature "shop").
 // Yetkazish-tasdiqlash Telegram'da (✅/❌ tugmalar egaga boradi) — bu panel katalog+monitoring.
+interface ShopDraft {
+  name: string; category: string; description: string;
+  priceTanga: string; oldPriceTanga: string; stock: string;
+}
+function shopDraftFromRow(p: ShopAdminProductRow): ShopDraft {
+  return {
+    name: p.name, category: p.category, description: p.description ?? "",
+    priceTanga: String(p.priceTanga), oldPriceTanga: p.oldPriceTanga != null ? String(p.oldPriceTanga) : "", stock: String(p.stock),
+  };
+}
+
 function ShopAdminView() {
   const [data, setData] = useState<{ products: ShopAdminProductRow[]; enabled: boolean; pendingOrders: number } | null>(null);
   const [orders, setOrders] = useState<ShopAdminOrderRow[] | null>(null);
   const [reviews, setReviews] = useState<ShopAdminReviewRow[] | null>(null);
+  const [showAdd, setShowAdd] = useState(false);
   const [name, setName] = useState("");
   const [price, setPrice] = useState("");
   const [stock, setStock] = useState("");
   const [category, setCategory] = useState("umumiy");
   const [desc, setDesc] = useState("");
   const [msg, setMsg] = useState("");
+  const [q, setQ] = useState("");
+  const [stFilter, setStFilter] = useState<string>("all");
+  const [catFilter, setCatFilter] = useState<string>("all");
+  const [expandedId, setExpandedId] = useState<number | null>(null);
+  const [draft, setDraft] = useState<ShopDraft | null>(null);
+  const [saving, setSaving] = useState(false);
 
   const load = () => {
     adminApi.shopProducts().then(setData).catch(() => undefined);
@@ -1518,6 +1536,12 @@ function ShopAdminView() {
   };
   useEffect(() => { load(); }, []);
 
+  const quickEdit = async (id: number, patch: Record<string, unknown>, okMsg = "✅ Saqlandi") => {
+    await adminApi.shopEdit(id, patch).catch(() => undefined);
+    setMsg(okMsg);
+    load();
+  };
+
   const create = async () => {
     const p = Number(price), s = Number(stock);
     if (!name.trim() || p <= 0) { setMsg("⚠️ Nom va narx to'g'ri bo'lsin"); return; }
@@ -1525,14 +1549,32 @@ function ShopAdminView() {
     const r = await adminApi.shopCreate({ name: name.trim(), priceTanga: p, stock: Math.max(0, s || 0), category: category.trim() || "umumiy", description: desc.trim() || undefined })
       .catch((e: Error) => ({ ok: false as const, error: e.message }));
     setMsg(r.ok ? "✅ Qo'shildi (o'chiq holda — rasm yuklab, keyin yoqing)" : `❌ Qo'shilmadi: ${("error" in r && r.error) || "server javob bermadi — 1 daqiqadan keyin urinib ko'ring"}`);
-    if (r.ok) { setName(""); setPrice(""); setStock(""); setDesc(""); load(); }
+    if (r.ok) { setName(""); setPrice(""); setStock(""); setDesc(""); setShowAdd(false); load(); }
   };
-  const editNum = async (id: number, field: "priceTanga" | "stock", label: string, cur: number) => {
-    const v = window.prompt(`${label}:`, String(cur));
-    if (v === null) return;
-    await adminApi.shopEdit(id, { [field]: Number(v) }).catch(() => undefined);
+
+  const toggleExpand = (p: ShopAdminProductRow) => {
+    if (expandedId === p.id) { setExpandedId(null); setDraft(null); return; }
+    setExpandedId(p.id);
+    setDraft(shopDraftFromRow(p));
+  };
+
+  const saveDraft = async (id: number) => {
+    if (!draft) return;
+    const priceTanga = Number(draft.priceTanga);
+    const stock = Number(draft.stock);
+    if (!draft.name.trim() || !Number.isFinite(priceTanga) || priceTanga <= 0) { setMsg("❌ Nom va narx to'g'ri bo'lsin"); return; }
+    setSaving(true);
+    const patch: Record<string, unknown> = {
+      name: draft.name, category: draft.category || "umumiy", description: draft.description,
+      priceTanga, stock: Number.isFinite(stock) ? stock : 0,
+      oldPriceTanga: draft.oldPriceTanga.trim() === "" ? 0 : Number(draft.oldPriceTanga),
+    };
+    const r = await adminApi.shopEdit(id, patch).catch((e: Error) => ({ ok: false as const, error: e.message }));
+    setMsg(r.ok ? "✅ Saqlandi" : "❌ Saqlanmadi");
+    setSaving(false);
     load();
   };
+
   const uploadPhoto = (id: number) => {
     const input = document.createElement("input");
     input.type = "file";
@@ -1545,7 +1587,7 @@ function ShopAdminView() {
       reader.onload = async () => {
         const base64 = String(reader.result).split(",")[1] ?? "";
         const r = await adminApi.shopPhotoUpload(id, f.type || "image/jpeg", base64).catch((e: Error) => ({ ok: false as const, error: e.message }));
-        setMsg(r.ok ? `✅ Rasm yuklandi (${("photoCount" in r && r.photoCount) || "?"}/5) — yana qo'shishingiz mumkin` : `❌ Rasm yuklanmadi: ${("error" in r && r.error) === "max_photos" ? "5 ta rasm chegarasi — 🗑 bilan tozalab qayta yuklang" : ("error" in r && r.error) || "server xatosi"}`);
+        setMsg(r.ok ? `✅ Rasm yuklandi (${("photoCount" in r && r.photoCount) || "?"}/5) — yana qo'shishingiz mumkin` : `❌ Rasm yuklanmadi: ${("error" in r && r.error) === "max_photos" ? "5 ta rasm chegarasi — rasmlarni tozalab qayta yuklang" : ("error" in r && r.error) || "server xatosi"}`);
         load();
       };
       reader.readAsDataURL(f);
@@ -1559,46 +1601,107 @@ function ShopAdminView() {
   };
   const stLabel: Record<string, string> = { pending: "⏳ Kutilmoqda", delivered: "✅ Yetkazildi", rejected: "❌ Rad", cancelled: "✖ Bekor" };
 
+  const cats = Array.from(new Set((data?.products ?? []).map((p) => p.category))).sort();
+  const products = (data?.products ?? [])
+    .filter((p) => (stFilter === "all" ? true : stFilter === "active" ? p.active : !p.active))
+    .filter((p) => (catFilter === "all" ? true : p.category === catFilter))
+    .filter((p) => {
+      const t = q.trim().toLowerCase();
+      return !t || p.name.toLowerCase().includes(t) || p.category.toLowerCase().includes(t);
+    });
+
   return (
     <>
       <section className="panel">
-        <div className="panel-title">🛍 Yangi mahsulot</div>
+        <div className="panel-title">🛍 Do&apos;kon</div>
         <p className="muted" style={{ marginTop: 0 }}>
-          Narx = ulgurji × 1.2 tavsiya. Yangi mahsulot O&apos;CHIQ holda yaratiladi — rasm yuklab, «yoqish»ni bosing.{" "}
-          {data && !data.enabled && <b style={{ color: "#f59e0b" }}>«shop» flag o&apos;chiq — do&apos;kon mijozlarga ko&apos;rinmaydi (Features&apos;dan yoqiladi).</b>}
-          {data && data.pendingOrders > 0 && <b style={{ color: "#f59e0b" }}> ⏳ {data.pendingOrders} ta buyurtma Telegram&apos;da javob kutmoqda.</b>}
+          {data && !data.enabled && <b style={{ color: "#f59e0b" }}>«shop» flag o&apos;chiq — do&apos;kon mijozlarga ko&apos;rinmaydi (Features&apos;dan yoqiladi). </b>}
+          Jami {data?.products.length ?? 0} ta mahsulot{data && data.pendingOrders > 0 && <b style={{ color: "#f59e0b" }}> · ⏳ {data.pendingOrders} ta buyurtma Telegram&apos;da javob kutmoqda</b>}.
         </p>
-        <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
-          <input style={{ flex: "2 1 180px", padding: "8px 10px" }} value={name} onChange={(e) => setName(e.target.value)} placeholder="Nomi: Elektro choynak Vitek" />
-          <input style={{ flex: "1 1 90px", padding: 8 }} type="number" value={price} onChange={(e) => setPrice(e.target.value)} placeholder="Narx (tanga)" />
-          <input style={{ flex: "1 1 70px", padding: 8 }} type="number" value={stock} onChange={(e) => setStock(e.target.value)} placeholder="Soni" />
-          <input style={{ flex: "1 1 110px", padding: 8 }} value={category} onChange={(e) => setCategory(e.target.value)} placeholder="Kategoriya" />
-          <input style={{ flex: "3 1 220px", padding: 8 }} value={desc} onChange={(e) => setDesc(e.target.value)} placeholder="Qisqa tavsif (ixtiyoriy)" />
-          <button onClick={create}>➕ Qo&apos;shish</button>
-        </div>
-        {msg && <div className="muted" style={{ marginTop: 8 }}>{msg}</div>}
+        <button className="btn sm" onClick={() => setShowAdd((v) => !v)}>{showAdd ? "✖ Yopish" : "➕ Yangi mahsulot qo'shish"}</button>
+        {showAdd && (
+          <div className="adm-form-grid" style={{ marginTop: 10 }}>
+            <div className="adm-field"><span className="adm-field-label">Nomi</span><input value={name} onChange={(e) => setName(e.target.value)} placeholder="Elektro choynak Vitek" /></div>
+            <div className="adm-field"><span className="adm-field-label">Narx (tanga)</span><input type="number" value={price} onChange={(e) => setPrice(e.target.value)} /></div>
+            <div className="adm-field"><span className="adm-field-label">Soni</span><input type="number" value={stock} onChange={(e) => setStock(e.target.value)} /></div>
+            <div className="adm-field"><span className="adm-field-label">Kategoriya</span><input value={category} onChange={(e) => setCategory(e.target.value)} /></div>
+            <div className="adm-field"><span className="adm-field-label">Tavsif (ixtiyoriy)</span><input value={desc} onChange={(e) => setDesc(e.target.value)} /></div>
+            <div className="adm-field">
+              <span className="adm-field-label">&nbsp;</span>
+              <button onClick={create}>➕ Qo&apos;shish</button>
+            </div>
+          </div>
+        )}
+        <p className="adm-field-hint" style={{ marginTop: 10 }}>Narx = ulgurji × 1.2 tavsiya. Yangi mahsulot O&apos;CHIQ holda yaratiladi — rasm yuklab, «yoqish»ni bosing.</p>
+        {msg && <div className="action-msg" style={{ marginTop: 10 }}>{msg}</div>}
       </section>
+
       <section className="panel">
-        <div className="panel-title">📦 Mahsulotlar ({data?.products.length ?? 0})</div>
-        {(data?.products ?? []).map((p) => (
-          <div key={p.id} style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", padding: "8px 0", borderBottom: "1px solid rgba(255,255,255,0.08)" }}>
-            <span style={{ flex: "2 1 200px" }}>
-              {p.hasPhoto ? "🖼" : "⬜"} <b>{p.name}</b> <span className="muted">· {p.category} · sotildi: {p.soldCount}</span>
-            </span>
-            <button className="btn sm" onClick={() => editNum(p.id, "priceTanga", "Yangi narx (tanga)", p.priceTanga)}>🪙 {p.priceTanga.toLocaleString("ru-RU")}</button>
-            <button className="btn sm" title="Chegirma: ESKI narxni kiriting (0 = chegirma yo'q)" onClick={async () => { const v = window.prompt("Eski narx (chegirma ko'rsatish uchun; 0 = olib tashlash):", String(p.oldPriceTanga ?? 0)); if (v === null) return; await adminApi.shopEdit(p.id, { oldPriceTanga: Number(v) }).catch(() => undefined); load(); }}>{p.oldPriceTanga ? `💥 −${Math.round((1 - p.priceTanga / p.oldPriceTanga) * 100)}%` : "💥 Chegirma"}</button>
-            <button className="btn sm" title="Bosh sahifa kataloq-karuselida ko'rsatish" onClick={async () => { await adminApi.shopEdit(p.id, { featured: !p.featured }).catch(() => undefined); load(); }}>{p.featured ? "⭐ TOP'da" : "☆ TOP'ga"}</button>
-            <button className="btn sm" onClick={() => editNum(p.id, "stock", "Yangi soni", p.stock)}>📦 {p.stock} dona</button>
-            <button className="btn sm" onClick={() => uploadPhoto(p.id)}>📷 {p.photoCount}/5</button>
-            {p.photoCount > 0 && (
-              <button className="btn sm" title="Rasmlarni tozalash" onClick={async () => { if (!window.confirm("Barcha rasmlar o'chirilsinmi?")) return; await adminApi.shopPhotoClear(p.id).catch(() => undefined); load(); }}>🗑🖼</button>
+        <div className="panel-title">📦 Mahsulotlar ({products.length})</div>
+        <div className="adm-toolbar">
+          <input className="search" value={q} onChange={(e) => setQ(e.target.value)} placeholder="🔍 Nom yoki kategoriya…" />
+          <select className="inp" value={stFilter} onChange={(e) => setStFilter(e.target.value)}>
+            <option value="all">Barcha holat</option><option value="active">🟢 Yoniq</option><option value="inactive">🔴 O&apos;chiq</option>
+          </select>
+          <select className="inp" value={catFilter} onChange={(e) => setCatFilter(e.target.value)}>
+            <option value="all">Barcha kategoriya</option>
+            {cats.map((c) => <option key={c} value={c}>{c}</option>)}
+          </select>
+        </div>
+        {products.map((p) => (
+          <div key={p.id} className={"adm-card" + (expandedId === p.id ? " open" : "")}>
+            <div className="adm-card-head" role="button" tabIndex={0} onClick={() => toggleExpand(p)} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); toggleExpand(p); } }}>
+              <div className="adm-card-main">
+                <div className="adm-card-title">
+                  {p.hasPhoto ? "🖼" : "⬜"} {p.name}
+                  <span className={"badge " + (p.active ? "badge-ok" : "badge-muted")}>{p.active ? "🟢 Yoniq" : "🔴 O'chiq"}</span>
+                  {p.featured && <span className="badge badge-warn">⭐ TOP&apos;da</span>}
+                  {p.oldPriceTanga ? <span className="badge badge-bad">💥 −{Math.round((1 - p.priceTanga / p.oldPriceTanga) * 100)}%</span> : null}
+                </div>
+                <div className="adm-card-sub">
+                  <span>{p.category}</span>
+                  <span>🪙 {p.priceTanga.toLocaleString("ru-RU")}</span>
+                  <span>📦 {p.stock} dona</span>
+                  <span>sotildi: {p.soldCount}</span>
+                  <span>📷 {p.photoCount}/5</span>
+                </div>
+              </div>
+              <div className="adm-card-actions" onClick={(e) => e.stopPropagation()}>
+                <button className="btn sm" onClick={() => void quickEdit(p.id, { featured: !p.featured }, p.featured ? "☆ TOP'dan olindi" : "⭐ TOP'ga qo'shildi")}>{p.featured ? "⭐ TOP'ni o'chirish" : "☆ TOP'ga qo'yish"}</button>
+                <button className="btn sm" onClick={async () => { await adminApi.shopToggle(p.id, !p.active).catch(() => undefined); load(); }}>{p.active ? "🔴 O'chirish" : "🟢 Yoqish"}</button>
+                <button className="btn sm" onClick={() => del(p)}>🗑 O&apos;chirish</button>
+              </div>
+              <span className="adm-card-chev">{expandedId === p.id ? "▾" : "▸"}</span>
+            </div>
+
+            {expandedId === p.id && draft && (
+              <div className="adm-card-body">
+                <div className="adm-form-grid wide">
+                  <div className="adm-field"><span className="adm-field-label">Nomi</span><input value={draft.name} onChange={(e) => setDraft({ ...draft, name: e.target.value })} /></div>
+                  <div className="adm-field"><span className="adm-field-label">Kategoriya</span><input value={draft.category} onChange={(e) => setDraft({ ...draft, category: e.target.value })} /></div>
+                  <div className="adm-field"><span className="adm-field-label">Narx (tanga)</span><input type="number" value={draft.priceTanga} onChange={(e) => setDraft({ ...draft, priceTanga: e.target.value })} /></div>
+                  <div className="adm-field">
+                    <span className="adm-field-label">Eski narx (chegirma uchun)</span>
+                    <input type="number" value={draft.oldPriceTanga} onChange={(e) => setDraft({ ...draft, oldPriceTanga: e.target.value })} placeholder="bo'sh = chegirma yo'q" />
+                  </div>
+                  <div className="adm-field"><span className="adm-field-label">Soni</span><input type="number" value={draft.stock} onChange={(e) => setDraft({ ...draft, stock: e.target.value })} /></div>
+                </div>
+                <div className="adm-field" style={{ marginTop: 10 }}>
+                  <span className="adm-field-label">Tavsif</span>
+                  <textarea value={draft.description} onChange={(e) => setDraft({ ...draft, description: e.target.value })} placeholder="Qisqa tavsif…" />
+                </div>
+                <div className="adm-card-body-foot">
+                  <button className="btn" disabled={saving} onClick={() => void saveDraft(p.id)}>{saving ? "Saqlanmoqda…" : "💾 Saqlash"}</button>
+                  <button className="btn sm" onClick={() => uploadPhoto(p.id)}>📷 Rasm yuklash ({p.photoCount}/5)</button>
+                  {p.photoCount > 0 && <button className="btn sm" onClick={async () => { if (!window.confirm("Barcha rasmlar o'chirilsinmi?")) return; await adminApi.shopPhotoClear(p.id).catch(() => undefined); load(); }}>🗑🖼 Rasmlarni tozalash</button>}
+                </div>
+              </div>
             )}
-            <button className="btn sm" onClick={async () => { await adminApi.shopToggle(p.id, !p.active).catch(() => undefined); load(); }}>{p.active ? "🟢 Yoniq" : "🔴 O'chiq"}</button>
-            <button className="btn sm" onClick={() => del(p)}>🗑</button>
           </div>
         ))}
-        {data && data.products.length === 0 && <p className="muted">Hali mahsulot yo&apos;q — birinchisini qo&apos;shing.</p>}
+        {data && products.length === 0 && <p className="muted">Mos mahsulot topilmadi.</p>}
       </section>
+
       <section className="panel">
         <div className="panel-title">🧾 Buyurtmalar (oxirgi {orders?.length ?? 0})</div>
         {(orders ?? []).map((o) => (
@@ -1607,7 +1710,7 @@ function ShopAdminView() {
               #{o.id} <b>{o.productName}</b> <span className="muted">· {o.buyerName} · {o.contact}</span>
             </span>
             <span className="muted" style={{ flex: "2 1 180px", fontSize: 12 }}>📍 {o.address}</span>
-            <span style={{ fontSize: 12 }}>{stLabel[o.status] ?? o.status}</span>
+            <span className={"badge " + (o.status === "delivered" ? "badge-ok" : o.status === "pending" ? "badge-warn" : "badge-bad")}>{stLabel[o.status] ?? o.status}</span>
             <span className="muted" style={{ fontSize: 12 }}>{o.payKind === "cash" ? `💵 ${o.priceTanga.toLocaleString("ru-RU")} so'm NAQD` : `🪙 ${o.priceTanga.toLocaleString("ru-RU")}`}</span>
           </div>
         ))}

@@ -80,6 +80,12 @@
       "port": 8080
     },
     {
+      "name": "admin-alt",
+      "runtimeExecutable": "pnpm",
+      "runtimeArgs": ["--filter", "@t1067/admin", "exec", "vite", "--port", "5175", "--strictPort"],
+      "port": 5175
+    },
+    {
       "name": "ulugbek-qr",
       "runtimeExecutable": "npx",
       "runtimeArgs": ["serve", "C:\\Users\\sarva\\Desktop", "-l", "4321"],
