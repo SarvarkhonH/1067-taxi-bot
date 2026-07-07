@@ -559,3 +559,23 @@ STATUS (Rule 7): `ready for verification`. Compliance-report 5 gap yopildi; kodn
 - **E1-E4 owner-accepted (2026-07-06):** ega "davom et qabul" berdi. Commit+push+deploy qilinmoqda
   (dark — flag'lar OFF, ega botda/mini-appda keyinroq o'zi qo'lda ko'rib chiqadi).
 - Qoldi: E5 (P2, kanal cross-post + saqlangan qidiruv) — alohida reja, hozircha boshlanmagan.
+
+## 2026-07-07 — Motor Olami + Garaj v2 kod-strip (ega so'rovi)
+- Ega: "Motor Olami, Garaj degan narsalarni to'liq yo'qot" + jadval/ma'lumot tegilmasin.
+- Butun repo skanerlandi (`garajx`/`kozacha`/`motorolami` literal qidiruv): faqat 3 fayl chiqdi —
+  `featureFlags.ts` (flag e'lonlari), `admin/App.tsx` (o'chirilgan-deb-belgilangan toggle yozuvlari),
+  `backup.ts` (kozachaTxn backup qatori — SCHEMA saqlanadi, shuning uchun tegilmadi).
+  **Muhim topilma:** aslida GARAJ v2/Motor Olami xizmat-kodi (servis fayllari, bot buyruqlari, sxema
+  CRUD'i) allaqachon oldinroq olib tashlangan edi — faqat "o'lik" flag e'lonlari qolgan edi.
+- **⚠️ Kritik ayirish: `baraban` (safar-oxiri g'ildirak) — bular Garaj/Motor emas, ALOHIDA JONLI
+  xususiyat** — jonli DB tekshiruvida flag ON, 44 ta real CoinTxn yutuq, oxirgisi BUGUN (2026-07-07
+  04:00). `rideWheelService.ts`/`testRideWheel.ts`/bot buyrug'i TEGILMADI.
+- Jonli DB tekshiruvi (o'chirishdan OLDIN, xavfsizlik uchun): GarajCar'da **84 qator, 57 xil a'zoda**,
+  oxirgi yangilanish 2026-07-02 — REAL ma'lumot. Ega qarori: **kod o'chadi, sxema/jadval/ma'lumot
+  TEGILMAYDI** (16 ta Garaj-modeli schema.prisma'da qoladi, bo'sh-faol emas holatda).
+  `MemberCar` modeli (9 qator, kodda HECH QAYERDA ishlatilmaydi) — alohida, tegilmadi (ega "keyinroq").
+- O'zgarish: `featureFlags.ts` — "garajx"/"kozacha"/"motorolami" FEATURES ro'yxati va DEFAULT_OFF'dan
+  olib tashlandi (3 flag butunlay yo'q endi). `admin/App.tsx` — 3 ta mos toggle-yozuv o'chirildi.
+  `pnpm -r typecheck` 4/4 paket 0 xato (admin flag-ro'yxati FeatureName'ga qattiq bog'lanmagan edi).
+- Flag holati: `garajx`/`kozacha`/`motorolami` — endi FeatureName sifatida umuman mavjud emas
+  (avval ham OFF edi, funksional o'zgarish yo'q — faqat o'lik kod tozalandi).
