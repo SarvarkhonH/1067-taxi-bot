@@ -792,3 +792,23 @@ STATUS (Rule 7): `ready for verification`. Compliance-report 5 gap yopildi; kodn
   panel > Restoran > "Bulk qo'shish"ga joylash (§6.1: <10 daqiqa/restoran), keyin faollashtirish.
 - Flag holati: `restoran` hamon OFF — endi kod HAM, real restoran RO'YXATI HAM tayyor; faqat
   menyu-yig'ish (telefon qo'ng'iroqlari) qoldi.
+
+## 2026-07-07 — Bahor Restaurant to'liq menyusi kiritildi (birinchi real menyu, R5)
+- Ega Bahor kanalidan real menyuni (kirillcha, 54 taom) to'g'ridan-to'g'ri yubordi. WebFetch orqali
+  individual taom-rasmlarini topishga yana urindim (aniq nom bilan qidiruv) — xuddi shu cheklov
+  (faqat kanal-avatar ko'rinadi, chuqur post-tarixiga kirilmadi) — rasmlarsiz davom etildi.
+- `seedBahorMenu.ts` (yangi, jonli DB'ga yozadi): kirillcha nomlar lotinchaga o'girildi, 3 bo'limga
+  ajratildi (Birinchi taomlar 9 ta, Ikkinchi taomlar 29 ta, Shashlik 16 ta) — jami **54/54 taom**
+  `adminBulkCreateMenuItems` orqali kiritildi va tekshirildi.
+- **3 ta narx/birlik ANIQLASHTIRISH TALAB QILADI** (desc maydonida belgilab qo'yildi, admin
+  panelda ko'rinadi):
+  - "Bahor assorti" — asl 500 000–600 000 oralig'i, pastki chegara kiritildi.
+  - "Zakaz osh" — "300 000 кг" (1 kg narxi) — miqdor-birlik aniq emas edi.
+  - "Shirvoz sh." — asl yozuvda "22 00" (raqam yetishmayotgandek, atrofdagi narxlar 19 000-30 000
+    oralig'ida bo'lgani uchun 22000 deb XULOSA QILINDI — **tasdiqlanmagan taxmin**, real narx emas.
+- Idempotent EMAS (qayta ishga tushirilsa duplikat yaratadi) — skript mavjud menyu bo'sh ekanini
+  tekshiradi, aks holda o'tkazib yuboradi.
+- **Kutilmagan holat**: Bahor Restaurant `active=true` bo'lib chiqdi (men `false` yaratgandim) —
+  ega admin panelda o'zi "Yoqish" bosgan bo'lishi kerak (R4 deploydan keyin sinab ko'rgan). Flag
+  `restoran` hamon OFF bo'lgani uchun oddiy foydalanuvchiga ta'siri yo'q, faqat eslatma sifatida.
+- Bu — 7 restorandan **birinchisi to'liq menyuga ega bo'ldi** — qolgan 6 tasi hali menyusiz.
