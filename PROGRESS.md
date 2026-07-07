@@ -560,6 +560,15 @@ STATUS (Rule 7): `ready for verification`. Compliance-report 5 gap yopildi; kodn
   (dark — flag'lar OFF, ega botda/mini-appda keyinroq o'zi qo'lda ko'rib chiqadi).
 - Qoldi: E5 (P2, kanal cross-post + saqlangan qidiruv) — alohida reja, hozircha boshlanmagan.
 
+## 2026-07-07 — ELONLAR GO LIVE
+- Ega: «e'lonlar sahifasini go live qil». E1-E4 allaqachon owner-accepted edi (2026-07-06, yuqorida);
+  `setFlag elonlar on` jonli app DB'da ishga tushirildi, `EXPECTED_ON`ga qo'shildi (audit yozuvi).
+- Jonli holat go-live vaqtida: katalogda 2 ta ega-test e'loni (1 pending, 1 archived), 0 real trafik —
+  yangi boshlangan doska uchun kutilgan (xizmatlar'ning soft-launch holatiga o'xshash).
+- `elontop` (pullik TOP-boost) ATAYLAB OFF qoldirildi — bu so'rov faqat asosiy doskaga tegishli edi;
+  pul-mexanika alohida so'rov/QABUL kutadi.
+- Isbot: `setFlag.ts` o'zi `featureOn()` orqali `true` qaytarganini tasdiqladi; Render deploy `live`.
+
 ## 2026-07-07 — Motor Olami + Garaj v2 kod-strip (ega so'rovi)
 - Ega: "Motor Olami, Garaj degan narsalarni to'liq yo'qot" + jadval/ma'lumot tegilmasin.
 - Butun repo skanerlandi (`garajx`/`kozacha`/`motorolami` literal qidiruv): faqat 3 fayl chiqdi —
