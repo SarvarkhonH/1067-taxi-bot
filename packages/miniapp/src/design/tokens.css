@@ -48,11 +48,12 @@
   /* 🔎 Xizmatlar teması — ko'k/indigo (professional, ishonch) */
   --svc-bg-grad: linear-gradient(180deg, #f4f8ff, #eef4ff 30%, #e9f1ff);
   --svc-accent: #2563eb;
-  /* 🍽 Restoran teması — malina-pushti (do'kon=yashil, xizmatlar=ko'k, e'lonlar=terrakota-jigarrang;
-     pomidor-qizil terrakotaga juda yaqin chiqib ketgan edi — pushti/magenta ohang endi 4-tasi ham
-     aniq bir-biridan ajraladi, umumiy issiq-neytral fonda ham chalkashmaydi) */
-  --rst-bg-grad: linear-gradient(180deg, #fff5f8, #fef0f5 30%, #fce6ee);
-  --rst-accent: #d6336c;
+  /* 🍽 Restoran teması — amber-qizil (do'kon=yashil, xizmatlar=ko'k, e'lonlar=terrakota-jigarrang).
+     Ega tanladi (nomzod C, taqqoslash skrinshotidan): e'lonlar terrakotasiga eng yaqin variant —
+     ataylab yuqori to'yinganlik (vivid) bilan ajratildi, lekin ikkalasi ham "sariq-qizil" oilasida
+     qolgani ma'lum va qabul qilingan tanlov. */
+  --rst-bg-grad: linear-gradient(180deg, #fff7ed, #fdead9 30%, #fbd9b8);
+  --rst-accent: #ea580c;
 }
 
 body { font-variant-numeric: tabular-nums; }
@@ -2338,32 +2339,32 @@ body {
   box-shadow: 0 3px 12px -8px rgba(20, 40, 90, 0.12);
 }
 
-/* ── 🍽 RESTORAN teması (malina-pushti) — shop-light/xizmat-light qolipidan; App.tsx tab==="restoran"da ── */
-.app.restoran-light { background: var(--rst-bg-grad); color: #2b1620; }
+/* ── 🍽 RESTORAN teması (amber-qizil) — shop-light/xizmat-light qolipidan; App.tsx tab==="restoran"da ── */
+.app.restoran-light { background: var(--rst-bg-grad); color: #2b1c12; }
 .app.restoran-light::before { display: none; }
 .app.restoran-light .aurora { display: none; }
 .app.restoran-light .topbar {
-  background: linear-gradient(180deg, rgba(255, 245, 248, 0.97), rgba(255, 245, 248, 0.62));
+  background: linear-gradient(180deg, rgba(255, 247, 237, 0.97), rgba(255, 247, 237, 0.62));
   border-bottom: 1px solid color-mix(in srgb, var(--rst-accent) 14%, transparent);
   backdrop-filter: none; -webkit-backdrop-filter: none;
 }
-.app.restoran-light .brand-name { color: #2b1620; }
+.app.restoran-light .brand-name { color: #2b1c12; }
 .app.restoran-light .brand-name b { color: var(--rst-accent); text-shadow: none; }
 .app.restoran-light .build-ver { color: var(--rst-accent); }
 .app.restoran-light .member-chip { color: var(--rst-accent); background: color-mix(in srgb, var(--rst-accent) 12%, transparent); border-color: color-mix(in srgb, var(--rst-accent) 26%, transparent); }
 .app.restoran-light .coin-pill {
-  background: #ffffff; border: 1px solid #f7cddc; color: #be185d;
-  box-shadow: 0 3px 12px -5px rgba(214, 51, 108, 0.35), inset 0 1px 0 #fff;
+  background: #ffffff; border: 1px solid #fbd9b8; color: #9a3412;
+  box-shadow: 0 3px 12px -5px rgba(234, 88, 12, 0.35), inset 0 1px 0 #fff;
 }
 .app.restoran-light .coin-dot { filter: none; }
-.app.restoran-light .toast { background: #ffffff; color: #2b1620; box-shadow: 0 10px 30px -12px rgba(0, 0, 0, 0.35); }
+.app.restoran-light .toast { background: #ffffff; color: #2b1c12; box-shadow: 0 10px 30px -12px rgba(0, 0, 0, 0.35); }
 .app.restoran-light .tabbar {
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.94), rgba(255, 245, 248, 0.98));
-  border: 1px solid color-mix(in srgb, var(--rst-accent) 18%, #f7cddc);
-  box-shadow: 0 18px 44px -20px rgba(120, 20, 60, 0.30);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.94), rgba(255, 247, 237, 0.98));
+  border: 1px solid color-mix(in srgb, var(--rst-accent) 18%, #fbd9b8);
+  box-shadow: 0 18px 44px -20px rgba(154, 52, 18, 0.30);
   backdrop-filter: none; -webkit-backdrop-filter: none;
 }
-.app.restoran-light .tab { color: #c98ba3; }
+.app.restoran-light .tab { color: #d1a68a; }
 .app.restoran-light .tab.active { color: var(--rst-accent); }
 .app.restoran-light .tab.active svg { filter: drop-shadow(0 0 8px color-mix(in srgb, var(--rst-accent) 50%, transparent)); }
 .app.restoran-light .tab-ind {
@@ -2371,14 +2372,14 @@ body {
   box-shadow: 0 0 18px color-mix(in srgb, var(--rst-accent) 28%, transparent);
 }
 .app.restoran-light .page { animation-duration: 180ms; }
-.app.restoran-light .muted { color: #96687a; }
+.app.restoran-light .muted { color: #a17858; }
 /* Restoran kartalari — och fonda: oq karta + quyuq matn (svc-card light override qolipidan) */
-.app.restoran-light .rst-card { --acc: var(--rst-accent); background: #fff; border: 1px solid #f7cddc; box-shadow: 0 3px 12px -8px rgba(120, 20, 60, 0.2); }
-.app.restoran-light .rst-card-name, .app.restoran-light .rst-hero-name, .app.restoran-light .rst-item-name { color: #2b1620; }
-.app.restoran-light .rst-card-fee, .app.restoran-light .rst-item-desc, .app.restoran-light .rst-section-title { color: #96687a; }
-.app.restoran-light .rst-card-photo, .app.restoran-light .rst-hero-photo, .app.restoran-light .rst-item-photo { background: #fdeef3; }
-.app.restoran-light .rst-item { border-bottom-color: #f7cddc; }
+.app.restoran-light .rst-card { --acc: var(--rst-accent); background: #fff; border: 1px solid #fbd9b8; box-shadow: 0 3px 12px -8px rgba(154, 52, 18, 0.2); }
+.app.restoran-light .rst-card-name, .app.restoran-light .rst-hero-name, .app.restoran-light .rst-item-name { color: #2b1c12; }
+.app.restoran-light .rst-card-fee, .app.restoran-light .rst-item-desc, .app.restoran-light .rst-section-title { color: #a17858; }
+.app.restoran-light .rst-card-photo, .app.restoran-light .rst-hero-photo, .app.restoran-light .rst-item-photo { background: #fdead9; }
+.app.restoran-light .rst-item { border-bottom-color: #fbd9b8; }
 .app.restoran-light .rst-item-price { color: var(--rst-accent); }
-.app.restoran-light .rst-back { color: #96687a; }
+.app.restoran-light .rst-back { color: #a17858; }
 .app.restoran-light .svc-open { color: #16a34a; }
 .app.restoran-light .svc-open.closed { color: #dc2626; }
