@@ -103,10 +103,12 @@ Every risky mechanic is a kill switch in `featureFlags.ts` (`feature:<name>` in 
 
 **Live ON (the real product):** `booking3`, `wheel`, `baraban`, `cashout`, `welcomebonus`,
 `recruit`/`refstaged`/`drvstaged`/`drvrecruit`, `plus`, `gap`, `promo`, `qarz`, `clientbooking`,
-`komissiya`(1%), `tierloyalty`, `intercity`.
-**Turned OFF 2026-07-02 (removal program):** `garajx`, `kozacha`, `motorolami`, `tolqin`, `mahalla`,
-`aibrain`, `garage`(v1), `carupgrade` — consumers stripped in Phase 2; flag names kept for setFlag.
-(`livinghome` was initially off but RESTORED — its code stays.)
+`komissiya`(1%), `tierloyalty`, `intercity`. `baraban` (post-ride spin wheel) is UNRELATED to the
+GARAJ/Motor Olami removal below — separate mechanic, stays live.
+**Turned OFF 2026-07-02, flag NAMES DELETED 2026-07-07:** `garajx`, `kozacha`, `motorolami` — see
+§7 Phase 2.5. `tolqin`, `mahalla`, `aibrain`, `garage`(v1), `carupgrade` are STILL off with flag
+names kept (not part of this later cleanup — Phase 2 only). (`livinghome` was initially off but
+RESTORED — its code stays.)
 
 ## 7. Removal program ("chaqmoq-bot" — lightning-fast, unbreakable)
 
@@ -118,9 +120,22 @@ Owner decision 2026-07-02: strip all heavy game systems; keep taxi + wallet + li
   `pushBookingUpdates`; garajGame.ts/garage.ts dropped from shared; garaj/motor test scripts deleted.
   Flag NAMES stay in featureFlags.ts (DB rows exist; setFlag keeps working). `livinghome` was
   RESTORED (kept), not stripped.
-- **Phase 3** — drop the orphaned Prisma models (30 days after Phase 1, so refunds can be computed
-  from history). Refund policy: NO auto-refund; pay manually if a customer complains (68 GarajCar rows
-  across 55 owners preserved until then).
+- **Phase 2.5 (DONE 2026-07-07)** — owner asked to fully remove Motor Olami/GARAJ v2 (a separate,
+  later deep-game track than the Phase-2 v1 strip — built after Phase 2, briefly went live per
+  MOTOR_OLAMI_GOLIVE_PLAN.md/GARAJ_PLAN.md, both **kept** — a parallel session reverted an attempt
+  to delete them, so treat those two as still-live reference docs, not stale). Repo-wide search found
+  the actual v2 service/route/bot code was ALREADY gone (stripped in some earlier, undocumented
+  commit) — only dead flag declarations remained: `garajx`/`kozacha`/`motorolami` DELETED from
+  `FEATURES`/`DEFAULT_OFF` in featureFlags.ts (not just turned off — the names no longer exist,
+  `setFlag.ts garajx on` now errors) + matching admin-dashboard toggle rows removed. Schema + data
+  deliberately UNTOUCHED (owner decision — see Phase 3 below, unchanged). Other now-stale untracked
+  root docs (GARAJ_POLISH_QUEUE.md/.pdf, MOTOR_FUEL_PLAN.md/.pdf, MOTOR_OLAMI_PLAN.md/.pdf,
+  GARAJ_PLAN.pdf) were deleted (never committed, so no history lost).
+- **Phase 3** — drop the orphaned Prisma models (16 Garaj\* models + KozachaTxn + OfisLedger +
+  MemberMechanicSkill; NOT `MemberCar`, a separate/older model, still unresolved — do not conflate).
+  Refund policy: NO auto-refund; pay manually if a customer complains. As of 2026-07-07: **84 GarajCar
+  rows across 57 owners**, most recently updated 2026-07-02 — still preserved, no date set for this
+  phase.
 
 ## 8. V-NEXT — "strongest architecture" backlog (do in this order, each is small + isolated)
 
