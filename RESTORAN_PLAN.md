@@ -166,32 +166,31 @@ Ko'p restoran/menyu kiritish og'riqli bo'lmasligi kerak — bu ish-tezlikni belg
 
 ## 7. Tiketlar + DoD
 
-### W1 — Tab-restruktura (kichik, mustaqil)
-Fayllar: `App.tsx` (BASE_TABS/DRIVER_TABS'dan wallet chiqadi, Tab tipi+render+deep-link QOLADI), `uy.tsx` (balans-qator bosiladigan + Hamyon tile).
+### W1 — Tab-restruktura (kichik, mustaqil) — ✅ KOD TAYYOR (2026-07-07), owner-QABUL kutmoqda
+Fayllar: `App.tsx` (BASE_TABS/DRIVER_TABS'dan wallet chiqadi, Tab tipi+render+deep-link QOLADI), `uy.tsx` (balans-qator bosiladigan + Hamyon tile), `home.tsx` (LivingHome — flag `livinghome` ON foydalanuvchilar uchun ham xuddi shu tile qo'shildi).
 DoD: (1) tabbarda Hamyon yo'q — skrinshot; (2) Uy balans/tile bosilsa wallet ochiladi — skrinshot; (3) bot "🙏 Haydovchiga to'lash" deep-link hali wallet+pay-sheet ochadi — real telefonda video; (4) `pnpm typecheck` toza, tabbar 4-5 tabda buzilmaydi (885b58c saboq).
 
-### R1 — Model + API + katalog o'qish (DARK, flag `restoran` off)
-Fayllar: `schema.prisma` (+3 model), `server.ts` (`/api/restoran/list|:id`), `restoranService.ts`, miniapp `restoran.tsx` (katalog+menyu, savat hali yo'q).
+### R1 — Model + API + katalog o'qish (DARK, flag `restoran` off) — ✅ KOD TAYYOR (2026-07-07)
+Fayllar: `schema.prisma` (+3 model), `server.ts` (`/api/restoran/list|:id`), `restoranService.ts`, miniapp `restoran.tsx` (katalog+menyu, savat hali yo'q). O'z temasi (amber-qizil, ega tanlagan).
 DoD: flag off'da tab ko'rinmaydi (prod skrinshot); flag on (owner-preview)da katalog+dizayn §5 darajasida ochiladi; typecheck; `prisma db push` LOKALDA avval.
 
-### R2 — Savat + checkout + FoodOrder yaratish
+### R2 — Savat + checkout + FoodOrder yaratish — ✅ KOD TAYYOR (2026-07-07)
 DoD: bitta-restoran-cheklov ishlaydi; minOrderSom ostida tugma o'chiq; ish-vaqti tashqarisida bloklanadi; FoodOrder to'g'ri snapshot bilan yoziladi — har biri skrinshot/skript bilan.
 
-### R3 — Admin sessiya-navbati + qo'lda holat-boshqaruv + SLA-belgi
+### R3 — Admin sessiya-navbati + qo'lda holat-boshqaruv + SLA-belgi — ✅ KOD TAYYOR (2026-07-07)
 DoD: yangi buyurtma admin panelda darhol ko'rinadi (real-vaqt yoki 5-10s poll); operator holat tugmalarini bossa mijoz Mini App'da jonli yangilanadi (video-isbot); 3 daq+ sessiya rang o'zgaradi; sweep operator-eslatma yuboradi (TEST_DATABASE_URL'da sinaladi, APP DB'da EMAS — qonga yozilgan saboq).
 
-### R4 — Restoran+menyu CRUD (admin, §6.1 tezlik talablari bilan)
-DoD: (1) ega admin orqali restoran+menyu+foto kiritadi — jonli skrinshot; (2) bulk-menyu-parse ishlaydi (matn joylab → jadval → saqlash) — skrinshot; (3) restoran-nusxalash shabloni ishlaydi; (4) inline-tahrirlash (modal-siz) ishlaydi; (5) **o'lchov**: yangi restoran+15 taom <10 daqiqada kiritildi — ega/operator o'zi sinaydi, vaqt yozib beradi.
+### R4 — Restoran+menyu CRUD (admin, §6.1 tezlik talablari bilan) — ✅ KOD TAYYOR (2026-07-07)
+DoD: (1) ega admin orqali restoran+menyu+foto kiritadi — jonli skrinshot; (2) bulk-menyu-parse ishlaydi (matn joylab → jadval → saqlash) — skrinshot; (3) restoran-nusxalash shabloni ishlaydi; (4) inline-tahrirlash (modal-siz) ishlaydi; (5) **o'lchov**: yangi restoran+15 taom <10 daqiqada kiritildi — ega/operator o'zi sinaydi, vaqt yozib beradi (BU YAGONA band — men simulyatsiya qila olmayman, real foydalanuvchi tajribasi kerak).
 
-### R5 — Seed + pilot + QABUL
+R1-R4: barchasi `testRestoran.ts` bilan tekshirilgan (42/42 ✅), `pnpm -r typecheck` 0 xato, server+admin panel jonli deploy qilingan (bundle-grep bilan isbotlangan). Ega Telegram orqali xabardor qilindi (2026-07-07).
+
+### R5 — Seed + pilot + QABUL — 🔴 BOSHLANMAGAN, BIZNES ISHI (kod bilan bajarilmaydi)
 - Koson'dan 5-8 real restoran/oshxona (telefon+rozilik) — KOD EMAS, egalik ish.
 - Pilot: 1 hafta, ega/operator 3-5 real test-buyurtma qiladi (o'zi mijoz, o'zi operator) — end-to-end tekshiruv.
 - QABUL mezoni: ≥10 muvaffaqiyatli real buyurtma, operatorning har buyurtmani 3 daq ichida "qabul qildi"ga o'tkaza olishi, mijoz-tomon UI 3-soniya testidan o'tishi (ega o'zi his qiladi). Shundan keyin flag hammaga ON.
 
 Tartib: W1 → R1 → R2 → R3 → R4 → R5. Har biri READY FOR VERIFICATION + mustaqil tekshiruv, keyingisi oldingi tasdiqsiz boshlanmaydi.
-
-### V2 (hozir QURILMAYDI, faqat reja sifatida qoladi)
-Hajm operator qo'lini og'irlashtirsa: restoran-tomonli Telegram-bot (`orderChatId`, inline ✅/❌/holat tugmalari — operator o'rniga restoran o'zi bossin), so'ng haydovchi-tarmoq orqali yetkazish, so'ng tanga-chegirma (byudjet-knob ichida).
 
 ## 8. Xavflar jadvali (concierge modelga moslashtirilgan)
 
@@ -204,7 +203,50 @@ Hajm operator qo'lini og'irlashtirsa: restoran-tomonli Telegram-bot (`orderChatI
 | Tabbar 5+ tab siqilishi | Past | 885b58c saboqdagi label-o'lchov tekshiruvi W1 DoD'da |
 | Ekonomika | NOL | Tanga/CoinTxn/kas API'ga umuman teginilmaydi |
 
-## 9. Egadan kutilayotgan qarorlar
+## 9. RESTORAN V2 — g'oyalar reja (hozir QURILMAYDI, R5 QABUL'dan KEYIN muhokama uchun)
+
+R1-R4 kod tomoni to'liq tayyor (2026-07-07, 42/42 test, jonli deploy). V1 concierge — qasddan
+minimal: naqd-only, operator qo'lda, restoran-bot yo'q. Quyidagilar — R5 pilot haqiqiy hajm/muammo
+ko'rsatgandan KEYIN ustuvorlik bo'yicha tanlab olinadigan g'oyalar, ahamiyat tartibida:
+
+**A-daraja — birinchi navbatda ko'rib chiqiladigan (past xavf, yuqori foyda):**
+1. **Sharh/reyting real ishga tushirish** — schema'da `avgRating`/`reviewCount` allaqachon bor, lekin
+   hech kim to'ldirmaydi. `delivered` bo'lgach mijozga 👍/👎+matn so'ralsin (do'kon review patterni
+   aynan) — ishonch, saralash, va kelajakda "top restoran" belgisi uchun asos.
+2. **Qayta-buyurtma (1-tap reorder)** — "Mening buyurtmalarim"da "Yana shu" tugmasi, eski savatni
+   qayta to'ldiradi (taxi'ning "yana shu yo'l" pattern'i). Ishtirok chastotasini oshiradi, deyarli
+   bepul (frontend-only, orqa mantiq mavjud).
+3. **Real Telegram push har holat o'zgarishida** — hozir mijoz FAQAT 8s-poll bilan ko'radi
+   (R3 DoD yetarli edi). Real push ("Buyurtmangiz tayyorlanmoqda!") — kas-SMS-mirror patterni,
+   premium tuyg'u beradi, R3'ning `notice` obyekti allaqachon tayyor (server.ts'da strip qilingan,
+   push-wiring qo'shish kifoya).
+4. **Rejalashtirilgan buyurtma** ("ertaga soat 12:00ga") — booking'ning `/api/booking/schedule`
+   patterni bor, tushlik-vaqti oldindan buyurtma qilish real ehtiyoj.
+
+**B-daraja — hajm ko'tarilgach (operator qo'lini bo'shatadi, lekin murakkabroq):**
+5. **Restoran-tomonli Telegram-bot** (asl D2/D3 V2 g'oyasi) — `orderChatId`, restoran o'zi
+   ✅/❌/holat tugmalarini bossin, operator faqat monitoring qiladi. Faqat ishonchli, Telegram
+   ishlatadigan restoranlar uchun — operator-yo'l parallel qoladi (ixtiyoriy, majburiy emas).
+6. **Haydovchi-tarmoq orqali yetkazish** — restoran o'z kuryeriga ega bo'lmaganda, taxi
+   dispatch'iga o'xshab yaqin bo'sh haydovchiga taklif. Bu taxi-bandlik bilan to'qnashishi mumkin —
+   alohida chuqur reja talab qiladi, ataylab B-darajaga qo'yildi.
+7. **Restoran-egasi uchun statistika** — "sizga N buyurtma, X so'm aylanma keltirdik" (sotuv-quroli,
+   `orderCount` allaqachon kuzatiladi) — kelajakda VIP-joylashuv/komissiya sotish uchun asos.
+
+**C-daraja — monetizatsiya (faqat ishonch+hajm isbotlangach, xizmatlar/do'kon saboqi: "pul keyin"):**
+8. **Tanga-chegirma** — buyurtmaning bir qismini tanga bilan qoplash, kunlik company-budget-knob
+   ichida (withdraw byudjet patterni). D1'ni buzmaydi — chegirma REAL pulni tanga bilan
+   ALMASHTIRMAYDI, faqat qisman qoplaydi, qolgani hamon naqd.
+9. **kas1067-uslub komissiya** — flat so'm/buyurtma (kas1067 2000 so'm/safar precedenti) yoki %
+   — restoranlar ishonch hosil qilgach, VIP-joylashuv bilan birga.
+
+**Ataylab RAD ETILGAN g'oyalar (nima uchun yozib qo'yilmoqda — kelajakda qayta so'ralmasin):**
+- Ko'p-restoran savat (D7) — Uber Eats standarti buzilmaydi, "bir savat = bir restoran" tuzilma
+  jihatidan to'g'ri qaror bo'lib qoladi.
+- Real-vaqt kuryer xaritasi — B6 (haydovchi-yetkazish) qurilmaguncha ma'nosiz (hozir "restoran
+  o'zi yetkazadi", GPS kuzatib bo'lmaydi).
+
+## 10. Egadan kutilayotgan qarorlar
 
 1. Concierge-V1 (§0) ma'qulmi — boshida to'liq qo'lda, avtomatika V2? (tavsiya: HA)
 2. ~~Ish-vaqti chegarasi~~ — HAL BO'LDI: operator 24/7, cheklov yo'q (faqat restoran o'z workHours'i bilan cheklaydi).
