@@ -165,6 +165,7 @@ export const api = {
   svcCall: (id: number) => post<{ ok: boolean }>("/api/services/call", { id }),
   svcSubmit: (b: import("@t1067/shared").ServiceSubmitBody) => request<import("@t1067/shared").ServiceSubmitResponse>("POST", "/api/services/submit", b, 1),
   svcMine: () => get<{ listings: { id: number; name: string; status: string; callCount: number; viewCount: number; avgRating: number; reviewCount: number }[] }>("/api/services/mine"),
+  svcMinePhoto: (id: number, mime: string, base64: string) => request<{ ok: boolean; error?: string; photoCount?: number }>("POST", `/api/services/mine/${id}/photo`, { mime, base64 }, 3),
   svcReviews: (listingId: number, offset = 0) => get<{ reviews: import("@t1067/shared").ServiceReviewView[] }>(`/api/services/reviews?listingId=${listingId}${offset ? `&offset=${offset}` : ""}`),
   svcReview: (listingId: number, stars: number, text: string) => request<import("@t1067/shared").ServiceReviewResponse>("POST", "/api/services/review", { listingId, stars, text }, 1),
   svcReport: (reviewId: number) => request<{ ok: boolean; hidden?: boolean }>("POST", "/api/services/report", { reviewId }, 1),

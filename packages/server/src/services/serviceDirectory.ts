@@ -256,6 +256,10 @@ export async function submitListing(
       tags: (body.tags ?? "").trim().slice(0, 200),
       address: (body.address ?? "").trim().slice(0, 160) || null,
       workHours: (body.workHours ?? "").trim().slice(0, 20) || null,
+      instagram: (body.instagram ?? "").trim().slice(0, 200) || null,
+      telegramUrl: (body.telegramUrl ?? "").trim().slice(0, 200) || null,
+      facebook: (body.facebook ?? "").trim().slice(0, 200) || null,
+      website: (body.website ?? "").trim().slice(0, 200) || null,
       ownerTgId: BigInt(tgId),
       rankScore: rankOf(0, 0),
     },
@@ -660,6 +664,17 @@ export async function uploadServicePhoto(listingId: number, buf: Buffer, mime = 
 export async function clearServicePhotos(listingId: number): Promise<{ ok: boolean }> {
   await prisma.servicePhoto.deleteMany({ where: { listingId } });
   return { ok: true };
+}
+
+/** Self-serve photo add — owner uploads to THEIR OWN listing (right after submitting, or any time
+ * after). Same storage as admin's uploadServicePhoto, just ownership-gated instead of admin-gated —
+ * this is the actual fix for the "0/67 photos" problem: business owners can enrich their own card
+ * without waiting on a single admin. */
+export async function uploadMyServicePhoto(listingId: number, tgId: string, buf: Buffer, mime = "image/jpeg"): Promise<{ ok: boolean; error?: string; photoCount?: number }> {
+  const l = await prisma.serviceListing.findUnique({ where: { id: listingId }, select: { ownerTgId: true, status: true } });
+  if (!l || l.ownerTgId == null || l.ownerTgId !== BigInt(tgId)) return { ok: false, error: "not_found" };
+  if (l.status === "rejected" || l.status === "archived") return { ok: false, error: "not_found" };
+  return uploadServicePhoto(listingId, buf, mime);
 }
 
 export async function resolveServicePhoto(listingId: number, idx = 0, small = false): Promise<string | null> {

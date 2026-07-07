@@ -526,6 +526,14 @@ export function createApiServer(opts: ApiOptions = {}) {
     const { myListings } = await import("../services/serviceDirectory");
     res.json({ listings: await myListings(res.locals.telegramId as string) });
   });
+  // 📷 self-serve photo add — owner enriches THEIR OWN listing (submit-time or any time after),
+  // no admin bottleneck. Ownership checked in uploadMyServicePhoto (ownerTgId match).
+  app.post("/api/services/mine/:id/photo", express.json({ limit: "6mb" }), requireUser, rateLimit(20), async (req, res) => {
+    const b = req.body as { mime?: string; base64?: string };
+    if (!b?.base64) { res.status(400).json({ ok: false, error: "no image" }); return; }
+    const { uploadMyServicePhoto } = await import("../services/serviceDirectory");
+    res.json(await uploadMyServicePhoto(Number(req.params.id), res.locals.telegramId as string, Buffer.from(b.base64, "base64"), b.mime || "image/jpeg"));
+  });
   app.get("/api/services/reviews", requireUser, rateLimit(60), async (req, res) => {
     const { listReviews } = await import("../services/serviceDirectory");
     res.json({ reviews: await listReviews(Number(req.query.listingId), res.locals.telegramId as string, 20, req.query.offset ? Number(req.query.offset) : 0) });

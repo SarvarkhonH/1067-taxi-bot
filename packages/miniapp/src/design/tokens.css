@@ -2234,3 +2234,15 @@ body {
   box-shadow: 0 2px 8px rgba(37, 99, 235, .35);
 }
 .app.xizmat-light .svc-insp b { color: #0d9488; }
+
+/* "Xizmatimni qo'shish" formasi — .bk-input/.d-btn umumiy (taxi-oltin) komponent, xizmat-light
+   uchun hech qachon o'zgartirilmagan edi (ega: "umumiy rang olgan"). elonlar-light .bk-input
+   qolipidan, .shop-wrap .d-btn qolipidan — o'z ko'k identifikatsiyasiga o'tkaziladi. */
+.app.xizmat-light .bk-input { background: #ffffff; color: #16233b; border: 1px solid #d7e3fb; }
+.app.xizmat-light .bk-input::placeholder { color: #8397b8; }
+.app.xizmat-light .d-btn:not(.ghost):not(.danger) {
+  background: var(--svc-accent) !important;
+  color: #fff !important;
+  box-shadow: 0 14px 32px -12px rgba(37, 99, 235, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.25) !important;
+}
+.app.xizmat-light .d-btn.ghost { background: #ffffff; color: #1d4ed8; border: 1px solid #cfe0ff; box-shadow: none; }

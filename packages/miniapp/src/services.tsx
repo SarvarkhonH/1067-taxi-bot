@@ -374,13 +374,36 @@ function SubmitSheet({ cats, onClose, onBanner }: { cats: ServiceCategoryView[];
   const [busy, setBusy] = useState(false);
   const [errMsg, setErrMsg] = useState<string | null>(null);
   const [sent, setSent] = useState(false);
+  const [showMore, setShowMore] = useState(false);
+  const [photo, setPhoto] = useState<File | null>(null);
   const set = (k: keyof ServiceSubmitBody, v: string | number) => setB((p) => ({ ...p, [k]: v }));
+  const pickPhoto = () => {
+    const input = document.createElement("input");
+    input.type = "file";
+    input.accept = "image/*";
+    input.onchange = () => {
+      const f = input.files?.[0];
+      if (!f) return;
+      if (f.size > 5 * 1024 * 1024) { onBanner("❌ Rasm 5MB dan kichik bo'lsin"); return; }
+      haptic();
+      setPhoto(f);
+    };
+    input.click();
+  };
   const submit = async () => {
     setBusy(true);
     setErrMsg(null);
     try {
       const r = await api.svcSubmit(b);
       if (r.ok) {
+        if (photo && r.id) {
+          const base64 = await new Promise<string>((resolve) => {
+            const reader = new FileReader();
+            reader.onload = () => resolve(String(reader.result).split(",")[1] ?? "");
+            reader.readAsDataURL(photo);
+          });
+          await api.svcMinePhoto(r.id, photo.type || "image/jpeg", base64).catch(() => undefined);
+        }
         hapticSuccess();
         setSent(true);
       } else {
@@ -424,6 +447,21 @@ function SubmitSheet({ cats, onClose, onBanner }: { cats: ServiceCategoryView[];
       <input className="bk-input mt8" placeholder="Kalit so'zlar: santexnik, kran, isitish" value={b.tags ?? ""} maxLength={200} onChange={(e) => set("tags", e.target.value)} />
       <input className="bk-input mt8" placeholder="Manzil (ixtiyoriy)" value={b.address ?? ""} maxLength={160} onChange={(e) => set("address", e.target.value)} />
       <input className="bk-input mt8" placeholder="Ish vaqti: 08:00-19:00 (ixtiyoriy)" value={b.workHours ?? ""} maxLength={20} onChange={(e) => set("workHours", e.target.value)} />
+      <button type="button" className="svc-claim-btn mt8" onClick={() => { haptic(); pickPhoto(); }}>
+        📷 {photo ? `Rasm tanlandi: ${photo.name}` : "Rasm qo'shish (ixtiyoriy) — mijozlar ko'proq ishonadi"}
+      </button>
+      <button type="button" className="svc-claim-btn mt8" onClick={() => { haptic(); setShowMore((s) => !s); }}>
+        {showMore ? "▲ Qo'shimcha maydonlarni yashirish" : "▼ Ko'proq: 2-telefon, Instagram, Telegram, sayt"}
+      </button>
+      {showMore && (
+        <>
+          <input className="bk-input mt8" placeholder="2-telefon (ixtiyoriy)" inputMode="tel" value={b.phone2 ?? ""} onChange={(e) => set("phone2", e.target.value)} />
+          <input className="bk-input mt8" placeholder="Instagram havolasi (ixtiyoriy)" value={b.instagram ?? ""} maxLength={200} onChange={(e) => set("instagram", e.target.value)} />
+          <input className="bk-input mt8" placeholder="Telegram havolasi (ixtiyoriy)" value={b.telegramUrl ?? ""} maxLength={200} onChange={(e) => set("telegramUrl", e.target.value)} />
+          <input className="bk-input mt8" placeholder="Facebook havolasi (ixtiyoriy)" value={b.facebook ?? ""} maxLength={200} onChange={(e) => set("facebook", e.target.value)} />
+          <input className="bk-input mt8" placeholder="Veb-sayt (ixtiyoriy)" value={b.website ?? ""} maxLength={200} onChange={(e) => set("website", e.target.value)} />
+        </>
+      )}
       {errMsg && <div className="sheet-err">{errMsg}</div>}
       <Button variant="brand" disabled={busy || !b.categoryId || b.name.trim().length < 3 || b.phone.trim().length < 7} onClick={submit}>
         {busy ? "Yuborilmoqda…" : "Yuborish"}
@@ -646,6 +684,32 @@ export function XizmatlarView({ me, onBanner }: { me: MeResponse; onBanner: (msg
               </div>
               {m.status === "active" && (
                 <div className="muted fs12 mt4">👁 {m.viewCount} ko'rildi · 📞 {m.callCount} qo'ng'iroq{m.reviewCount > 0 ? ` · ★ ${m.avgRating.toFixed(1)} (${m.reviewCount})` : ""}</div>
+              )}
+              {(m.status === "pending" || m.status === "active") && (
+                <button
+                  className="svc-claim-btn mt8"
+                  onClick={() => {
+                    haptic();
+                    const input = document.createElement("input");
+                    input.type = "file";
+                    input.accept = "image/*";
+                    input.onchange = () => {
+                      const f = input.files?.[0];
+                      if (!f) return;
+                      if (f.size > 5 * 1024 * 1024) { onBanner("❌ Rasm 5MB dan kichik bo'lsin"); return; }
+                      const reader = new FileReader();
+                      reader.onload = async () => {
+                        const base64 = String(reader.result).split(",")[1] ?? "";
+                        const r = await api.svcMinePhoto(m.id, f.type || "image/jpeg", base64).catch(() => ({ ok: false as const }));
+                        onBanner(r.ok ? "✅ Rasm qo'shildi" : "❌ Yuklashda xatolik");
+                      };
+                      reader.readAsDataURL(f);
+                    };
+                    input.click();
+                  }}
+                >
+                  📷 Rasm qo'shish
+                </button>
               )}
             </div>
           ))

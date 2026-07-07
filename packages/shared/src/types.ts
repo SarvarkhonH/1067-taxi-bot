@@ -477,6 +477,10 @@ export interface ServiceSubmitBody {
   tags?: string;
   address?: string;
   workHours?: string;
+  instagram?: string;
+  telegramUrl?: string;
+  facebook?: string;
+  website?: string;
 }
 
 export interface ServiceSubmitResponse {
