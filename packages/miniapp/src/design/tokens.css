@@ -2266,3 +2266,16 @@ body {
   box-shadow: 0 3px 12px -8px rgba(20, 40, 90, 0.15);
 }
 .app.xizmat-light .svc-add-plus { color: var(--svc-accent); }
+
+/* Qolgan .glass ishlatuvchilar (svc-add-cta bilan bir xil sabab — umumiy dark komponent, o'ziga xos
+   fon-override'i yo'q edi): telefon/soat/manzil bloki, narxlar, baho-berish qutisi, "topilmadi"
+   so'rov qutisi, "Meniki" ro'yxatidagi qatorlar. Bitta yengil oq-ko'k karta ko'rinishi — hammasi. */
+.app.xizmat-light .svc-info,
+.app.xizmat-light .svc-prices,
+.app.xizmat-light .svc-rate-box,
+.app.xizmat-light .svc-demand,
+.app.xizmat-light .svc-mine-row {
+  background: linear-gradient(160deg, color-mix(in srgb, var(--svc-accent) 6%, #fff), #ffffff 70%);
+  border: 1px solid #e2ebfb;
+  box-shadow: 0 3px 12px -8px rgba(20, 40, 90, 0.12);
+}
