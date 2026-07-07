@@ -395,6 +395,7 @@ export async function adminListAds(status?: string): Promise<AdminClassifiedList
       reports: a.reports, owner: { tgId: key, name: owner.name, phone: owner.phone, activeAdsCount: owner.activeAdsCount },
       createdAt: a.createdAt.toISOString(), expiresAt: a.expiresAt.toISOString(),
       pendingMinutes: a.status === "pending" ? Math.round((Date.now() - a.createdAt.getTime()) / 60_000) : null,
+      isTop: a.isTop && !!a.topUntil && a.topUntil > new Date(), topUntil: a.topUntil?.toISOString() ?? null,
     });
   }
   return { rows: out, pending, active, todayViews, todayCoins: todayPaid._sum.paidCoins ?? 0 };

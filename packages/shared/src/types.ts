@@ -607,6 +607,8 @@ export interface AdminClassifiedRow {
   createdAt: string;
   expiresAt: string;
   pendingMinutes: number | null; // faqat status=pending — SLA hisoblagichi uchun
+  isTop: boolean;
+  topUntil: string | null;
 }
 
 export interface AdminClassifiedListResponse {

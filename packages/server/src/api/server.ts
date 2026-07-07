@@ -1315,6 +1315,10 @@ export function createApiServer(opts: ApiOptions = {}) {
     const st = ["new", "done", "dismissed"].includes(String(req.body?.status)) ? (req.body.status as "new" | "done" | "dismissed") : "done";
     res.json(await adminSetRequestStatus(Number(req.params.id), st));
   });
+  app.get("/api/admin/services/:id/prices", requireAdmin, async (req, res) => {
+    const { adminGetPrices } = await import("../services/serviceDirectory");
+    res.json({ items: await adminGetPrices(Number(req.params.id)) });
+  });
   app.post("/api/admin/services/:id/prices", requireAdmin, requireOwner, rateLimit(30), async (req, res) => {
     const { adminSetPrices } = await import("../services/serviceDirectory");
     res.json(await adminSetPrices(Number(req.params.id), Array.isArray(req.body?.items) ? req.body.items : []));

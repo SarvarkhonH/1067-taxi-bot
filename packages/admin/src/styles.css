@@ -330,6 +330,42 @@ textarea.search { font-family: inherit; resize: vertical; }
 .bc-result-bar { height: 8px; border-radius: 99px; background: #1e2d45; overflow: hidden; margin: 8px 0; }
 .bc-result-fill { height: 100%; background: linear-gradient(90deg,#34d399,#10b981); }
 
+/* ── 🗂 admin card list (e'lonlar / xizmatlar) ─────────────────────────── */
+.adm-toolbar { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-bottom: 12px; }
+.adm-toolbar .search { min-width: 200px; }
+.adm-count { font-size: 12px; color: var(--muted); margin-left: auto; white-space: nowrap; }
+
+.adm-card { background: var(--card-2); border: 1px solid var(--line); border-radius: 14px; margin-bottom: 10px; overflow: hidden; }
+.adm-card.open { border-color: rgba(255,209,102,.4); }
+.adm-card.flagged { border-color: rgba(248,113,113,.4); }
+.adm-card-head { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; width: 100%; padding: 12px 14px; cursor: pointer; background: none; border: 0; color: inherit; text-align: left; font: inherit; }
+.adm-card-head:hover { background: rgba(255,255,255,.03); }
+.adm-card-main { flex: 2 1 220px; min-width: 0; }
+.adm-card-title { font-weight: 700; font-size: 14px; display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.adm-card-sub { font-size: 12px; color: var(--muted); margin-top: 3px; display: flex; flex-wrap: wrap; gap: 4px 8px; }
+.adm-card-actions { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
+.adm-card-chev { color: var(--muted); font-size: 11px; padding-left: 4px; }
+.adm-card-body { padding: 14px; border-top: 1px solid var(--line); background: var(--bg); }
+.adm-card-body-foot { display: flex; align-items: center; gap: 10px; margin-top: 12px; flex-wrap: wrap; }
+
+.adm-field { display: flex; flex-direction: column; gap: 4px; }
+.adm-field-label { font-size: 10.5px; font-weight: 800; color: var(--muted); text-transform: uppercase; letter-spacing: .5px; }
+.adm-field input, .adm-field textarea, .adm-field select {
+  background: var(--card); border: 1px solid var(--line); color: var(--text);
+  padding: 8px 10px; border-radius: 8px; font-size: 13px; font-family: inherit; outline: none; width: 100%;
+}
+.adm-field input:focus, .adm-field textarea:focus, .adm-field select:focus { border-color: rgba(255,209,102,.4); }
+.adm-field textarea { resize: vertical; min-height: 56px; }
+.adm-field-hint { font-size: 11px; color: var(--muted); }
+.adm-form-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 10px; }
+.adm-form-grid.wide { grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); }
+
+.badge { font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 999px; white-space: nowrap; }
+.badge-ok { background: rgba(52,211,153,.15); color: var(--ok); }
+.badge-warn { background: rgba(255,209,102,.15); color: var(--accent); }
+.badge-bad { background: rgba(248,113,113,.15); color: var(--bad); }
+.badge-muted { background: rgba(255,255,255,.08); color: var(--muted); }
+
 /* ── 📢 Xabarlar tarixi — persistent broadcast delivery log ─────────────── */
 .bh-list { display: flex; flex-direction: column; gap: 10px; }
 .bh-card { background: var(--card-2); border: 1px solid var(--line); border-radius: 14px; overflow: hidden; transition: border-color .15s; }

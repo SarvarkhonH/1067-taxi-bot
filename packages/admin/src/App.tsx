@@ -1,6 +1,7 @@
 import { Fragment, useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import {
   formatNumber,
+  CLASSIFIED_CATEGORIES,
   type AdminAdContactRow,
   type AdminAdViewerRow,
   type AdminAuditRow,
@@ -1633,6 +1634,31 @@ function ShopAdminView() {
 // 🔎 XIZMATLAR — Koson katalogi boyitish markazi (feature "xizmatlar"). Import qilingan satrlarda
 // faqat nom+telefon+teg bor — bu panel desc/soat/manzil/foto/verified to'ldirish uchun. Moderatsiya
 // asosan Telegram'da (✅/❌ egaga boradi); bu yerda ham pending'ni hal qilish mumkin.
+interface SvcDraft {
+  name: string; phone: string; phone2: string; desc: string; tags: string; address: string; workHours: string;
+  instagram: string; telegramUrl: string; facebook: string; website: string;
+  geoLat: string; geoLng: string; categoryId: number;
+  inspStars: string; inspNote: string; priceText: string;
+}
+function svcDraftFromRow(r: SvcAdminRow): SvcDraft {
+  return {
+    name: r.name, phone: r.phone, phone2: r.phone2 ?? "", desc: r.desc, tags: r.tags,
+    address: r.address ?? "", workHours: r.workHours ?? "",
+    instagram: r.instagram ?? "", telegramUrl: r.telegramUrl ?? "", facebook: r.facebook ?? "", website: r.website ?? "",
+    geoLat: r.geoLat != null ? String(r.geoLat) : "", geoLng: r.geoLng != null ? String(r.geoLng) : "",
+    categoryId: r.categoryId, inspStars: r.inspStars != null ? String(r.inspStars) : "", inspNote: r.inspNote ?? "",
+    priceText: "",
+  };
+}
+function svcPriceItemsToText(items: { label: string; priceSom: number }[]): string {
+  return items.map((i) => `${i.label}=${i.priceSom}`).join("; ");
+}
+function svcParsePriceText(v: string): { label: string; priceSom: number }[] {
+  return v.split(";").map((x) => x.split("=")).filter((a) => a.length === 2)
+    .map(([l, p]) => ({ label: (l ?? "").trim(), priceSom: Number(String(p).replace(/\D/g, "")) }))
+    .filter((i) => i.label.length >= 2 && i.priceSom > 0);
+}
+
 function XizmatlarAdminView() {
   const [data, setData] = useState<{ rows: SvcAdminRow[]; enabled: boolean; pending: number; hiddenReviews: number; phoneFlagged: number; newRequests: number } | null>(null);
   const [cats, setCats] = useState<SvcAdminCat[]>([]);
@@ -1641,10 +1667,14 @@ function XizmatlarAdminView() {
   const [stFilter, setStFilter] = useState<string>("all");
   const [catFilter, setCatFilter] = useState<number>(0);
   const [q, setQ] = useState("");
+  const [showAdd, setShowAdd] = useState(false);
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
   const [newCat, setNewCat] = useState<number>(0);
   const [msg, setMsg] = useState("");
+  const [expandedId, setExpandedId] = useState<number | null>(null);
+  const [draft, setDraft] = useState<SvcDraft | null>(null);
+  const [saving, setSaving] = useState(false);
 
   const load = () => {
     adminApi.svcList().then(setData).catch(() => undefined);
@@ -1654,21 +1684,48 @@ function XizmatlarAdminView() {
   };
   useEffect(() => { load(); }, []);
 
-  const edit = async (id: number, patch: Record<string, unknown>, okMsg = "✅ Saqlandi") => {
+  const quickEdit = async (id: number, patch: Record<string, unknown>, okMsg = "✅ Saqlandi") => {
     const r = await adminApi.svcEdit(id, patch).catch((e: Error) => ({ ok: false as const, error: e.message }));
     setMsg(r.ok ? okMsg : `❌ ${("error" in r && r.error) || "xatolik"}`);
     load();
   };
-  const promptEdit = (id: number, field: string, label: string, cur: string | null) => {
-    const v = window.prompt(label, cur ?? "");
-    if (v === null) return;
-    void edit(id, { [field]: v });
+
+  const toggleExpand = async (r: SvcAdminRow) => {
+    if (expandedId === r.id) { setExpandedId(null); setDraft(null); return; }
+    setExpandedId(r.id);
+    setDraft(svcDraftFromRow(r));
+    const pr = await adminApi.svcGetPrices(r.id).catch(() => ({ items: [] as { label: string; priceSom: number }[] }));
+    setDraft((prev) => (prev ? { ...prev, priceText: svcPriceItemsToText(pr.items) } : prev));
   };
+
+  const saveDraft = async (id: number) => {
+    if (!draft) return;
+    setSaving(true);
+    const la = draft.geoLat.trim() === "" ? null : Number(draft.geoLat);
+    const ln = draft.geoLng.trim() === "" ? null : Number(draft.geoLng);
+    if ((la != null && !Number.isFinite(la)) || (ln != null && !Number.isFinite(ln))) {
+      setMsg("❌ Koordinata noto'g'ri — raqam kiriting"); setSaving(false); return;
+    }
+    const stars = draft.inspStars.trim() === "" ? null : Number(draft.inspStars);
+    const patch: Record<string, unknown> = {
+      name: draft.name, phone: draft.phone, phone2: draft.phone2 || null, desc: draft.desc, tags: draft.tags,
+      address: draft.address || null, workHours: draft.workHours || null,
+      instagram: draft.instagram || null, telegramUrl: draft.telegramUrl || null, facebook: draft.facebook || null, website: draft.website || null,
+      geoLat: la, geoLng: ln, categoryId: draft.categoryId, inspStars: stars, inspNote: draft.inspNote || null,
+    };
+    const r = await adminApi.svcEdit(id, patch).catch((e: Error) => ({ ok: false as const, error: e.message }));
+    if (!r.ok) { setMsg(`❌ ${("error" in r && r.error) || "xatolik"}`); setSaving(false); return; }
+    const pr = await adminApi.svcSetPrices(id, svcParsePriceText(draft.priceText)).catch(() => ({ ok: false as const, count: 0 }));
+    setMsg(pr.ok ? "✅ Saqlandi" : "✅ Ma'lumot saqlandi · ❌ narxlarda xatolik");
+    setSaving(false);
+    load();
+  };
+
   const create = async () => {
     if (!name.trim() || !phone.trim() || !newCat) { setMsg("⚠️ Nom, telefon va kategoriya shart"); return; }
     const r = await adminApi.svcCreate({ name: name.trim(), phone: phone.trim(), categoryId: newCat }).catch((e: Error) => ({ ok: false as const, error: e.message }));
     setMsg(r.ok ? "✅ Qo'shildi (darhol aktiv)" : `❌ ${("error" in r && r.error) || "xatolik"}`);
-    if (r.ok) { setName(""); setPhone(""); load(); }
+    if (r.ok) { setName(""); setPhone(""); setNewCat(0); setShowAdd(false); load(); }
   };
   const uploadPhoto = (id: number) => {
     const input = document.createElement("input");
@@ -1682,7 +1739,7 @@ function XizmatlarAdminView() {
       reader.onload = async () => {
         const base64 = String(reader.result).split(",")[1] ?? "";
         const r = await adminApi.svcPhotoUpload(id, f.type || "image/jpeg", base64).catch((e: Error) => ({ ok: false as const, error: e.message }));
-        setMsg(r.ok ? `✅ Rasm yuklandi (${("photoCount" in r && r.photoCount) || "?"}/6)` : `❌ ${("error" in r && r.error) === "max_photos" ? "6 ta chegara — 🗑🖼 bilan tozalang" : ("error" in r && r.error) || "xatolik"}`);
+        setMsg(r.ok ? `✅ Rasm yuklandi (${("photoCount" in r && r.photoCount) || "?"}/6)` : `❌ ${("error" in r && r.error) === "max_photos" ? "6 ta chegara — rasmlarni tozalab qayta urinib ko'ring" : ("error" in r && r.error) || "xatolik"}`);
         load();
       };
       reader.readAsDataURL(f);
@@ -1697,7 +1754,8 @@ function XizmatlarAdminView() {
       const t = q.trim().toLowerCase();
       return !t || r.name.toLowerCase().includes(t) || r.phone.includes(t) || r.tags.toLowerCase().includes(t);
     });
-  const stLabel: Record<string, string> = { pending: "⏳", active: "🟢", rejected: "❌", archived: "🗄" };
+  const SVC_STATUS_LABEL: Record<string, string> = { pending: "⏳ Kutilmoqda", active: "🟢 Aktiv", rejected: "❌ Rad", archived: "🗄 Arxiv" };
+  const SVC_STATUS_BADGE: Record<string, string> = { pending: "badge-warn", active: "badge-ok", rejected: "badge-bad", archived: "badge-muted" };
   const doneCount = (data?.rows ?? []).filter((r) => r.status === "active" && r.workHours && (r.desc || r.address)).length;
 
   return (
@@ -1709,96 +1767,146 @@ function XizmatlarAdminView() {
           {data && <>Jami {data.rows.length} ta · boyitilgan (soat + tavsif/manzil): <b>{doneCount}</b> ta{data.pending > 0 && <b style={{ color: "#f59e0b" }}> · ⏳ {data.pending} moderatsiya</b>}{data.phoneFlagged > 0 && <b style={{ color: "#ef4444" }}> · ⚑ {data.phoneFlagged} raqam shubhali</b>}{data.newRequests > 0 && <b style={{ color: "#38bdf8" }}> · 📬 {data.newRequests} so&apos;rov</b>}.</>}
           {" "}Maslahat: har kuni 10 tasiga 🕒 soat + 📝 tavsif + 📷 foto qo&apos;shsangiz, bir haftada katalog to&apos;liq «2GIS ko&apos;rinish»ga keladi.
         </p>
-        <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
-          <input style={{ flex: "2 1 180px", padding: "8px 10px" }} value={name} onChange={(e) => setName(e.target.value)} placeholder="Yangi xizmat nomi" />
-          <input style={{ flex: "1 1 130px", padding: 8 }} value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="+998 90 123 45 67" />
-          <select style={{ flex: "1 1 120px", padding: 8 }} value={newCat} onChange={(e) => setNewCat(Number(e.target.value))}>
-            <option value={0}>Kategoriya…</option>
-            {cats.map((c) => <option key={c.id} value={c.id}>{c.emoji} {c.name}</option>)}
-          </select>
-          <button onClick={create}>➕ Qo&apos;shish</button>
-          <button className="btn sm" title="Yangi kategoriya" onClick={async () => {
-            const n = window.prompt("Yangi kategoriya nomi:"); if (!n?.trim()) return;
-            const e = window.prompt("Emoji:", "📌") ?? "📌";
-            await adminApi.svcCatUpsert({ name: n.trim(), emoji: e }).catch(() => undefined); load();
-          }}>📂+</button>
-        </div>
-        {msg && <div className="muted" style={{ marginTop: 8 }}>{msg}</div>}
+        <button className="btn sm" onClick={() => setShowAdd((v) => !v)}>{showAdd ? "✖ Yopish" : "➕ Yangi xizmat qo'shish"}</button>
+        {showAdd && (
+          <div className="adm-form-grid" style={{ marginTop: 10 }}>
+            <div className="adm-field"><span className="adm-field-label">Nomi</span><input value={name} onChange={(e) => setName(e.target.value)} placeholder="Masalan: Fotima non yopish" /></div>
+            <div className="adm-field"><span className="adm-field-label">Telefon</span><input value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="+998 90 123 45 67" /></div>
+            <div className="adm-field">
+              <span className="adm-field-label">Kategoriya</span>
+              <select value={newCat} onChange={(e) => setNewCat(Number(e.target.value))}>
+                <option value={0}>Tanlang…</option>
+                {cats.map((c) => <option key={c.id} value={c.id}>{c.emoji} {c.name}</option>)}
+              </select>
+            </div>
+            <div className="adm-field">
+              <span className="adm-field-label">&nbsp;</span>
+              <div style={{ display: "flex", gap: 8 }}>
+                <button onClick={create}>➕ Qo&apos;shish</button>
+                <button className="btn sm" title="Yangi kategoriya" onClick={async () => {
+                  const n = window.prompt("Yangi kategoriya nomi:"); if (!n?.trim()) return;
+                  const e = window.prompt("Emoji:", "📌") ?? "📌";
+                  await adminApi.svcCatUpsert({ name: n.trim(), emoji: e }).catch(() => undefined); load();
+                }}>📂+</button>
+              </div>
+            </div>
+          </div>
+        )}
+        {msg && <div className="action-msg" style={{ marginTop: 10 }}>{msg}</div>}
       </section>
 
       <section className="panel">
         <div className="panel-title">📋 Ro&apos;yxat ({rows.length})</div>
-        <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 10 }}>
-          <input style={{ flex: "2 1 160px", padding: 8 }} value={q} onChange={(e) => setQ(e.target.value)} placeholder="🔍 Qidirish…" />
-          <select style={{ padding: 8 }} value={stFilter} onChange={(e) => setStFilter(e.target.value)}>
-            <option value="all">Hammasi</option><option value="pending">⏳ Kutilmoqda</option><option value="active">🟢 Aktiv</option><option value="rejected">❌ Rad</option><option value="archived">🗄 Arxiv</option>
+        <div className="adm-toolbar">
+          <input className="search" value={q} onChange={(e) => setQ(e.target.value)} placeholder="🔍 Nom, telefon yoki teg…" />
+          <select className="inp" value={stFilter} onChange={(e) => setStFilter(e.target.value)}>
+            <option value="all">Barcha holat</option><option value="pending">⏳ Kutilmoqda</option><option value="active">🟢 Aktiv</option><option value="rejected">❌ Rad</option><option value="archived">🗄 Arxiv</option>
           </select>
-          <select style={{ padding: 8 }} value={catFilter} onChange={(e) => setCatFilter(Number(e.target.value))}>
+          <select className="inp" value={catFilter} onChange={(e) => setCatFilter(Number(e.target.value))}>
             <option value={0}>Barcha kategoriya</option>
             {cats.map((c) => <option key={c.id} value={c.id}>{c.emoji} {c.name}</option>)}
           </select>
         </div>
         {rows.map((r) => (
-          <div key={r.id} style={{ padding: "8px 0", borderBottom: "1px solid rgba(255,255,255,0.08)" }}>
-            <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
-              <span style={{ flex: "2 1 220px" }}>
-                {stLabel[r.status] ?? "?"} <b>{r.name}</b>{r.verified && " ✔"}{r.isVip && " ⭐"}
-                {r.phoneReports >= 2 && <b style={{ color: "#ef4444" }}> ⚑{r.phoneReports} raqam!</b>}
-                <span className="muted"> · {r.categoryName} · 👁{r.viewCount} 📞{r.callCount}{r.reviewCount > 0 ? ` ★${r.avgRating} (${r.reviewCount})` : ""}</span>
-              </span>
-              <button className="btn sm" onClick={() => promptEdit(r.id, "name", "Nomi:", r.name)}>✏️</button>
-              <button className="btn sm" onClick={() => promptEdit(r.id, "phone", "Telefon:", r.phone)}>📞 {r.phone.replace("+998", "")}</button>
-              <button className="btn sm" title={r.desc || "Tavsif yo'q"} style={{ opacity: r.desc ? 1 : 0.5 }} onClick={() => promptEdit(r.id, "desc", "Tavsif (nima qiladi, nima sotadi):", r.desc)}>📝</button>
-              <button className="btn sm" style={{ opacity: r.workHours ? 1 : 0.5 }} onClick={() => promptEdit(r.id, "workHours", "Ish vaqti (08:00-19:00):", r.workHours)}>🕒{r.workHours ? ` ${r.workHours}` : ""}</button>
-              <button className="btn sm" title={r.address || "Manzil yo'q"} style={{ opacity: r.address ? 1 : 0.5 }} onClick={() => promptEdit(r.id, "address", "Manzil:", r.address)}>📍</button>
-              <button className="btn sm" title={r.tags} onClick={() => promptEdit(r.id, "tags", "Teglar (vergul bilan):", r.tags)}>🏷</button>
-              <button className="btn sm" title="Preyskurant: Nom=narx; Nom=narx (masalan: Soch olish=25000; Soqol=15000)" style={{ opacity: r.priceCount ? 1 : 0.5 }} onClick={async () => {
-                const cur = r.priceCount ? undefined : "Soch olish=25000; Soqol=15000";
-                const v = window.prompt("Narxlar (Nom=narx; Nom=narx):", cur ?? "");
-                if (v === null) return;
-                const items = v.split(";").map((x) => x.split("=")).filter((a) => a.length === 2).map(([l2, pr]) => ({ label: l2!.trim(), priceSom: Number(String(pr).replace(/\D/g, "")) }));
-                const rr = await adminApi.svcSetPrices(r.id, items).catch(() => ({ ok: false as const, count: 0 }));
-                setMsg(rr.ok ? `✅ ${rr.count} ta narx saqlandi` : "❌ xatolik"); load();
-              }}>💰{r.priceCount ? ` ${r.priceCount}` : ""}</button>
-              <button className="btn sm" title="Koordinata: xaritadan nusxa qilib '39.037, 65.585' formatda qo'ying — Mini App'da «Borish» tugmasi chiqadi" style={{ opacity: r.geoLat != null ? 1 : 0.5 }} onClick={() => {
-                const v = window.prompt("Koordinata (lat, lng) — Yandex/Google xaritadan nusxa:", r.geoLat != null ? `${r.geoLat}, ${r.geoLng}` : "");
-                if (v === null) return;
-                const m2 = v.split(",").map((x) => Number(x.trim()));
-                void edit(r.id, { geoLat: m2[0] ?? null, geoLng: m2[1] ?? null }, "✅ Koordinata saqlandi");
-              }}>🗺</button>
-              <button className="btn sm" onClick={() => uploadPhoto(r.id)}>📷 {r.photoCount}/6</button>
-              {r.photoCount > 0 && <button className="btn sm" onClick={async () => { if (!window.confirm("Rasmlar o'chirilsinmi?")) return; await adminApi.svcPhotoClear(r.id).catch(() => undefined); load(); }}>🗑🖼</button>}
-              <button className="btn sm" title="Ijtimoiy tarmoq: Instagram; Telegram; Facebook; Sayt (bo'sh qoldiring — yo'q bo'lsa)" style={{ opacity: (r.instagram || r.telegramUrl || r.facebook || r.website) ? 1 : 0.5 }} onClick={async () => {
-                const cur = [r.instagram ?? "", r.telegramUrl ?? "", r.facebook ?? "", r.website ?? ""].join("; ");
-                const v = window.prompt("Instagram; Telegram; Facebook; Sayt (havolalar, bo'sh=yo'q):", cur);
-                if (v === null) return;
-                const parts = v.split(";").map((x) => x.trim());
-                const rr = await adminApi.svcEdit(r.id, { instagram: parts[0] || null, telegramUrl: parts[1] || null, facebook: parts[2] || null, website: parts[3] || null }).catch(() => ({ ok: false as const }));
-                setMsg(rr.ok ? "✅ Ijtimoiy tarmoq saqlandi" : "❌ xatolik"); load();
-              }}>🔗</button>
-              <button className="btn sm" title="🏅 1067 TEKSHIRUVI — bu mijoz bahosi EMAS: jamoangiz jismoniy borib tekshirgan rasmiy audit. Format: '5; Toza, professional, narxlar mos' (bo'sh=tekshiruvni bekor qilish)" style={{ opacity: r.inspStars != null ? 1 : 0.5, borderColor: r.inspStars != null ? "#14b8a6" : undefined }} onClick={async () => {
-                const cur = r.inspStars != null ? `${r.inspStars}; ${r.inspNote ?? ""}` : "";
-                const v = window.prompt("🏅 1067 tekshiruvi — bahо (1-5); xulosa. Bo'sh=bekor qilish:", cur);
-                if (v === null) return;
-                if (!v.trim()) {
-                  const rr = await adminApi.svcEdit(r.id, { inspStars: null, inspNote: null }).catch(() => ({ ok: false as const }));
-                  setMsg(rr.ok ? "✅ Tekshiruv bekor qilindi" : "❌ xatolik"); load(); return;
-                }
-                const [starsRaw, ...rest] = v.split(";");
-                const stars = Number(String(starsRaw).trim());
-                if (!Number.isFinite(stars) || stars < 1 || stars > 5) { setMsg("❌ Baho 1-5 oralig'ida bo'lsin"); return; }
-                const rr = await adminApi.svcEdit(r.id, { inspStars: stars, inspNote: rest.join(";").trim() || null }).catch((e: Error) => ({ ok: false as const, error: e.message }));
-                setMsg(rr.ok ? "✅ 1067 tekshiruvi saqlandi" : `❌ ${("error" in rr && rr.error) || "xatolik"}`); load();
-              }}>🏅{r.inspStars != null ? ` ${r.inspStars}★` : ""}</button>
-              <select style={{ padding: 6, fontSize: 12 }} value={r.categoryId} onChange={(e) => void edit(r.id, { categoryId: Number(e.target.value) }, "✅ Kategoriya o'zgardi")}>
-                {cats.map((c) => <option key={c.id} value={c.id}>{c.emoji} {c.name}</option>)}
-              </select>
-              <button className="btn sm" title="Tasdiqlangan biznes (ko'k belgi)" onClick={() => void edit(r.id, { verified: !r.verified })}>{r.verified ? "✔ Verified" : "☐ Verify"}</button>
-              <button className="btn sm" title="VIP — ro'yxatda birinchi (kelajakda pullik)" onClick={() => void edit(r.id, { isVip: !r.isVip })}>{r.isVip ? "⭐ VIP" : "☆ VIP"}</button>
-              {r.status === "pending" && <><button className="btn sm" onClick={() => void edit(r.id, { status: "active" }, "✅ Tasdiqlandi")}>✅</button><button className="btn sm" onClick={() => void edit(r.id, { status: "rejected" }, "❌ Rad etildi")}>❌</button></>}
-              {r.status === "active" && <button className="btn sm" title="Katalogdan yashirish" onClick={() => void edit(r.id, { status: "archived" }, "🗄 Arxivlandi")}>🗄</button>}
-              {(r.status === "rejected" || r.status === "archived") && <button className="btn sm" onClick={() => void edit(r.id, { status: "active" }, "♻️ Aktivlandi")}>♻️</button>}
+          <div key={r.id} className={"adm-card" + (expandedId === r.id ? " open" : "") + (r.phoneReports >= 2 ? " flagged" : "")}>
+            <div className="adm-card-head" role="button" tabIndex={0} onClick={() => void toggleExpand(r)} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); void toggleExpand(r); } }}>
+              <div className="adm-card-main">
+                <div className="adm-card-title">
+                  {r.name}
+                  <span className={"badge " + (SVC_STATUS_BADGE[r.status] ?? "badge-muted")}>{SVC_STATUS_LABEL[r.status] ?? r.status}</span>
+                  {r.verified && <span className="badge badge-ok">✔ Verified</span>}
+                  {r.isVip && <span className="badge badge-warn">⭐ VIP</span>}
+                  {r.phoneReports >= 2 && <span className="badge badge-bad">⚑ {r.phoneReports} raqam shubhali</span>}
+                </div>
+                <div className="adm-card-sub">
+                  <span>{r.categoryName}</span>
+                  <span>📞 {r.phone}</span>
+                  <span>👁 {r.viewCount} · 📞 {r.callCount}</span>
+                  {r.reviewCount > 0 && <span>★{r.avgRating} ({r.reviewCount})</span>}
+                  {r.priceCount > 0 && <span>💰 {r.priceCount} narx</span>}
+                  {r.photoCount > 0 && <span>📷 {r.photoCount}/6</span>}
+                  {!r.workHours && <span>🕒 soat yo&apos;q</span>}
+                  {!r.desc && <span>📝 tavsif yo&apos;q</span>}
+                </div>
+              </div>
+              <div className="adm-card-actions" onClick={(e) => e.stopPropagation()}>
+                <a className="btn sm" href={telHref(r.phone)}>📞 Qo&apos;ng&apos;iroq</a>
+                {r.status === "pending" && (
+                  <>
+                    <button className="btn sm" onClick={() => void quickEdit(r.id, { status: "active" }, "✅ Tasdiqlandi")}>✅ Tasdiqlash</button>
+                    <button className="btn sm" onClick={() => void quickEdit(r.id, { status: "rejected" }, "❌ Rad etildi")}>❌ Rad etish</button>
+                  </>
+                )}
+                {r.status === "active" && <button className="btn sm" onClick={() => void quickEdit(r.id, { status: "archived" }, "🗄 Arxivlandi")}>🗄 Arxivlash</button>}
+                {(r.status === "rejected" || r.status === "archived") && <button className="btn sm" onClick={() => void quickEdit(r.id, { status: "active" }, "♻️ Aktivlandi")}>♻️ Qayta faollashtir</button>}
+              </div>
+              <span className="adm-card-chev">{expandedId === r.id ? "▾" : "▸"}</span>
             </div>
+
+            {expandedId === r.id && draft && (
+              <div className="adm-card-body">
+                <div className="adm-form-grid wide">
+                  <div className="adm-field"><span className="adm-field-label">Nomi</span><input value={draft.name} onChange={(e) => setDraft({ ...draft, name: e.target.value })} /></div>
+                  <div className="adm-field"><span className="adm-field-label">Telefon</span><input value={draft.phone} onChange={(e) => setDraft({ ...draft, phone: e.target.value })} /></div>
+                  <div className="adm-field"><span className="adm-field-label">Qo&apos;shimcha telefon</span><input value={draft.phone2} onChange={(e) => setDraft({ ...draft, phone2: e.target.value })} placeholder="ixtiyoriy" /></div>
+                  <div className="adm-field">
+                    <span className="adm-field-label">Kategoriya</span>
+                    <select value={draft.categoryId} onChange={(e) => setDraft({ ...draft, categoryId: Number(e.target.value) })}>
+                      {cats.map((c) => <option key={c.id} value={c.id}>{c.emoji} {c.name}</option>)}
+                    </select>
+                  </div>
+                  <div className="adm-field"><span className="adm-field-label">Ish vaqti</span><input value={draft.workHours} onChange={(e) => setDraft({ ...draft, workHours: e.target.value })} placeholder="08:00-19:00" /></div>
+                  <div className="adm-field"><span className="adm-field-label">Manzil</span><input value={draft.address} onChange={(e) => setDraft({ ...draft, address: e.target.value })} /></div>
+                  <div className="adm-field"><span className="adm-field-label">Teglar (vergul bilan)</span><input value={draft.tags} onChange={(e) => setDraft({ ...draft, tags: e.target.value })} /></div>
+                  <div className="adm-field">
+                    <span className="adm-field-label">Koordinata (lat / lng)</span>
+                    <div style={{ display: "flex", gap: 6 }}>
+                      <input value={draft.geoLat} onChange={(e) => setDraft({ ...draft, geoLat: e.target.value })} placeholder="39.037" />
+                      <input value={draft.geoLng} onChange={(e) => setDraft({ ...draft, geoLng: e.target.value })} placeholder="65.585" />
+                    </div>
+                    <span className="adm-field-hint">Yandex/Google xaritadan nusxa — Mini App&apos;da &quot;Borish&quot; tugmasi chiqadi</span>
+                  </div>
+                </div>
+
+                <div className="adm-field" style={{ marginTop: 10 }}>
+                  <span className="adm-field-label">Tavsif</span>
+                  <textarea value={draft.desc} onChange={(e) => setDraft({ ...draft, desc: e.target.value })} placeholder="Nima qiladi, nima sotadi…" />
+                </div>
+
+                <div className="adm-form-grid wide" style={{ marginTop: 10 }}>
+                  <div className="adm-field"><span className="adm-field-label">Instagram</span><input value={draft.instagram} onChange={(e) => setDraft({ ...draft, instagram: e.target.value })} /></div>
+                  <div className="adm-field"><span className="adm-field-label">Telegram</span><input value={draft.telegramUrl} onChange={(e) => setDraft({ ...draft, telegramUrl: e.target.value })} /></div>
+                  <div className="adm-field"><span className="adm-field-label">Facebook</span><input value={draft.facebook} onChange={(e) => setDraft({ ...draft, facebook: e.target.value })} /></div>
+                  <div className="adm-field"><span className="adm-field-label">Sayt</span><input value={draft.website} onChange={(e) => setDraft({ ...draft, website: e.target.value })} /></div>
+                </div>
+
+                <div className="adm-field" style={{ marginTop: 10 }}>
+                  <span className="adm-field-label">Preyskurant</span>
+                  <textarea value={draft.priceText} onChange={(e) => setDraft({ ...draft, priceText: e.target.value })} placeholder="Soch olish=25000; Soqol=15000" />
+                  <span className="adm-field-hint">Format: Nom=narx; Nom=narx</span>
+                </div>
+
+                <div className="adm-form-grid" style={{ marginTop: 10, maxWidth: 440 }}>
+                  <div className="adm-field">
+                    <span className="adm-field-label">🏅 1067 tekshiruvi</span>
+                    <select value={draft.inspStars} onChange={(e) => setDraft({ ...draft, inspStars: e.target.value })}>
+                      <option value="">Tekshirilmagan</option>
+                      {[1, 2, 3, 4, 5].map((n) => <option key={n} value={n}>{"★".repeat(n)} ({n})</option>)}
+                    </select>
+                    <span className="adm-field-hint">Mijoz bahosi EMAS — jamoangiz jismoniy borib tekshirgan audit</span>
+                  </div>
+                  <div className="adm-field"><span className="adm-field-label">Tekshiruv xulosasi</span><input value={draft.inspNote} onChange={(e) => setDraft({ ...draft, inspNote: e.target.value })} placeholder="Toza, professional, narxlar mos" /></div>
+                </div>
+
+                <div className="adm-card-body-foot">
+                  <button className="btn" disabled={saving} onClick={() => void saveDraft(r.id)}>{saving ? "Saqlanmoqda…" : "💾 Saqlash"}</button>
+                  <button className="btn sm" onClick={() => void quickEdit(r.id, { verified: !r.verified })}>{r.verified ? "✔ Verified'ni o'chirish" : "☐ Verified qilish"}</button>
+                  <button className="btn sm" onClick={() => void quickEdit(r.id, { isVip: !r.isVip })}>{r.isVip ? "⭐ VIP'ni o'chirish" : "☆ VIP qilish"}</button>
+                  <button className="btn sm" onClick={() => uploadPhoto(r.id)}>📷 Rasm yuklash ({r.photoCount}/6)</button>
+                  {r.photoCount > 0 && <button className="btn sm" onClick={async () => { if (!window.confirm("Rasmlar o'chirilsinmi?")) return; await adminApi.svcPhotoClear(r.id).catch(() => undefined); load(); }}>🗑🖼 Rasmlarni tozalash</button>}
+                </div>
+              </div>
+            )}
           </div>
         ))}
         {data && rows.length === 0 && <p className="muted">Mos yozuv yo&apos;q.</p>}
@@ -1839,13 +1947,20 @@ function XizmatlarAdminView() {
   );
 }
 
-// 📋 E'LONLAR (E3) — moderatsiya navbati + jadval (egasi/AdView/AdContact) + amallar (arxivla/uzayt/TOP).
+// 📋 E'LONLAR (E3) — moderatsiya navbati + kartalar (egasi/AdView/AdContact) + amallar (arxivla/uzayt/TOP).
 // Approve/reject FAQAT Telegram'da (owner [✅/❌]) — bu yer faqat ko'rish + owner-discretion amallar.
 const ELON_STATUS_LABEL: Record<string, string> = { pending: "⏳ Moderatsiyada", active: "🟢 Faol", sold: "🤝 Sotildi", rejected: "❌ Rad", archived: "🗄 Arxiv", expired: "⌛ Muddati o'tgan" };
+const ELON_STATUS_BADGE: Record<string, string> = { pending: "badge-warn", active: "badge-ok", sold: "badge-ok", rejected: "badge-bad", archived: "badge-muted", expired: "badge-muted" };
+function elonCatLabel(id: string): string {
+  const c = CLASSIFIED_CATEGORIES.find((x) => x.id === id);
+  return c ? `${c.emoji} ${c.label}` : id;
+}
 
 function ElonlarAdminView() {
   const [data, setData] = useState<AdminClassifiedListResponse | null>(null);
   const [stFilter, setStFilter] = useState<string>("all");
+  const [catFilter, setCatFilter] = useState<string>("all");
+  const [q, setQ] = useState("");
   const [openId, setOpenId] = useState<number | null>(null);
   const [drill, setDrill] = useState<{ viewers: AdminAdViewerRow[]; contacts: AdminAdContactRow[] } | null>(null);
   const [msg, setMsg] = useState("");
@@ -1869,71 +1984,94 @@ function ElonlarAdminView() {
     load();
   };
 
-  const rows = (data?.rows ?? []).filter((r) => (stFilter === "all" ? true : r.status === stFilter));
+  const rows = (data?.rows ?? [])
+    .filter((r) => (stFilter === "all" ? true : r.status === stFilter))
+    .filter((r) => (catFilter === "all" ? true : r.category === catFilter))
+    .filter((r) => {
+      const t = q.trim().toLowerCase();
+      return !t || r.title.toLowerCase().includes(t) || r.owner.name.toLowerCase().includes(t) || (r.owner.phone ?? "").includes(t);
+    });
 
   return (
     <section className="panel">
       <div className="panel-title">📋 E&apos;lonlar (mahalla doskasi)</div>
       <p className="muted" style={{ marginTop: 0 }}>
-        {data && <>Jami {data.rows.length} ta · 🟢 faol {data.active} · {data.pending > 0 && <b style={{ color: "#f59e0b" }}>⏳ {data.pending} moderatsiyada</b>}{data.pending === 0 && "⏳ 0 moderatsiyada"} · bugun 👁 {data.todayViews} ko&apos;rish · 🪙 {data.todayCoins} tanga tushum.</>}
+        {data && <>Jami {data.rows.length} ta · 🟢 faol {data.active} · {data.pending > 0 ? <b style={{ color: "#f59e0b" }}>⏳ {data.pending} moderatsiyada</b> : "⏳ 0 moderatsiyada"} · bugun 👁 {data.todayViews} ko&apos;rish · 🪙 {data.todayCoins} tanga tushum.</>}
         {" "}Tasdiqlash/rad FAQAT Telegram&apos;da (owner [✅/❌]) — bu yerda faqat ko&apos;rish va arxivla/uzayt/TOP.
       </p>
-      <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 10 }}>
+      <div className="adm-toolbar">
+        <input className="search" value={q} onChange={(e) => setQ(e.target.value)} placeholder="🔍 Sarlavha, egasi yoki telefon…" />
+        <select className="inp" value={catFilter} onChange={(e) => setCatFilter(e.target.value)}>
+          <option value="all">Barcha toifa</option>
+          {CLASSIFIED_CATEGORIES.map((c) => <option key={c.id} value={c.id}>{c.emoji} {c.label}</option>)}
+        </select>
+        <span className="adm-count">{rows.length} ta topildi</span>
+      </div>
+      <div className="seg" style={{ marginBottom: 12 }}>
         {["all", "pending", "active", "sold", "rejected", "archived", "expired"].map((s) => (
-          <button key={s} className={"btn sm" + (stFilter === s ? " active" : "")} onClick={() => setStFilter(s)}>
+          <button key={s} className={"seg-btn" + (stFilter === s ? " active" : "")} onClick={() => setStFilter(s)}>
             {s === "all" ? "Barchasi" : ELON_STATUS_LABEL[s]}
           </button>
         ))}
       </div>
-      {msg && <p className="muted">{msg}</p>}
-      <table className="tbl">
-        <thead>
-          <tr>
-            <th>E&apos;lon</th><th>Egasi</th><th>Status</th><th>👁/📞</th><th>Amallar</th>
-          </tr>
-        </thead>
-        <tbody>
-          {rows.map((r) => (
-            <Fragment key={r.id}>
-              <tr>
-                <td>
-                  {r.hasPhoto ? "📷 " : ""}<b>{r.title}</b>
-                  <div className="muted" style={{ fontSize: 12 }}>{r.category} · {r.priceSom ? `${r.priceSom.toLocaleString("ru-RU")} so'm` : "Kelishiladi"}{r.paidCoins > 0 ? ` · 🪙 ${r.paidCoins}` : ""}{r.reports > 0 && <b style={{ color: "#ef4444" }}> · ⚑{r.reports}</b>}</div>
-                </td>
-                <td>{r.owner.name}<div className="muted" style={{ fontSize: 12 }}>{r.owner.phone ?? "—"} · {r.owner.activeAdsCount} faol</div></td>
-                <td>{ELON_STATUS_LABEL[r.status] ?? r.status}{r.pendingMinutes != null && <div className="muted" style={{ fontSize: 12 }}>{r.pendingMinutes} daq kutmoqda</div>}</td>
-                <td><button className="btn sm" onClick={() => void toggle(r.id)}>👁 {r.viewCount} · 📞 {r.contactCount}</button></td>
-                <td style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
+      {msg && <div className="action-msg">{msg}</div>}
+      {rows.map((r) => (
+        <div key={r.id} className={"adm-card" + (openId === r.id ? " open" : "") + (r.reports > 0 ? " flagged" : "")}>
+          <div className="adm-card-head" role="button" tabIndex={0} onClick={() => void toggle(r.id)} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); void toggle(r.id); } }}>
+            <div className="adm-card-main">
+              <div className="adm-card-title">
+                {r.hasPhoto ? "📷" : "🚫📷"} {r.title}
+                <span className={"badge " + (ELON_STATUS_BADGE[r.status] ?? "badge-muted")}>{ELON_STATUS_LABEL[r.status] ?? r.status}</span>
+                {r.isTop && <span className="badge badge-warn">📌 TOP</span>}
+                {r.reports > 0 && <span className="badge badge-bad">⚑ {r.reports} shikoyat</span>}
+              </div>
+              <div className="adm-card-sub">
+                <span>{elonCatLabel(r.category)}</span>
+                <span>{r.priceSom ? `${r.priceSom.toLocaleString("ru-RU")} so'm` : "Kelishiladi"}</span>
+                {r.paidCoins > 0 && <span>🪙 {r.paidCoins}</span>}
+                <span>👤 {r.owner.name} · {r.owner.phone ?? "telefon yo'q"} · {r.owner.activeAdsCount} faol e&apos;lon</span>
+                {r.pendingMinutes != null && <span>⏳ {r.pendingMinutes} daq kutmoqda</span>}
+              </div>
+            </div>
+            <span className="adm-card-stats">👁 {r.viewCount} · 📞 {r.contactCount}</span>
+            <div className="adm-card-actions" onClick={(e) => e.stopPropagation()}>
+              {r.owner.phone && <a className="btn sm" href={telHref(r.owner.phone)}>📞 Egasiga</a>}
+              {(r.status === "active" || r.status === "sold") && (
+                <>
+                  <button className="btn sm" title={r.isTop ? `TOP muddati: ${r.topUntil ? new Date(r.topUntil).toLocaleString("ru-RU") : "—"} — bosib o'chiring` : "24 soatga TOP qilib qo'yish (ro'yxat boshida)"} onClick={() => void act(() => adminApi.elonSetTop(r.id, !r.isTop), r.isTop ? "☆ TOP olib tashlandi" : "📌 TOP berildi")}>
+                    {r.isTop ? "📌 TOP (o'chirish)" : "☆ TOP berish"}
+                  </button>
+                  <button className="btn sm" onClick={() => void act(() => adminApi.elonExtend(r.id), "⏳ 30 kunga uzaytirildi")}>⏳ Uzayt</button>
                   <button className="btn sm" onClick={() => void act(() => adminApi.elonArchive(r.id), "🗄 Arxivlandi")}>🗄 Arxivla</button>
-                  <button className="btn sm" onClick={() => void act(() => adminApi.elonExtend(r.id), "⏳ Uzaytirildi")}>⏳ Uzayt</button>
-                  <button className="btn sm" onClick={() => void act(() => adminApi.elonSetTop(r.id, !r.hasPhoto ? true : true), "📌 TOP berildi")}>📌 TOP</button>
-                </td>
-              </tr>
-              {openId === r.id && (
-                <tr>
-                  <td colSpan={5}>
-                    {!drill ? "Yuklanmoqda…" : (
-                      <div style={{ display: "flex", gap: 16, flexWrap: "wrap" }}>
-                        <div>
-                          <b>👁 Kim ko&apos;rdi ({drill.viewers.length})</b>
-                          {drill.viewers.map((v) => <div key={v.tgId} className="muted" style={{ fontSize: 12 }}>{v.name} · {new Date(v.at).toLocaleString("ru-RU")}</div>)}
-                          {!drill.viewers.length && <div className="muted" style={{ fontSize: 12 }}>Hali hech kim ko&apos;rmagan</div>}
-                        </div>
-                        <div>
-                          <b>📞 Kim murojaat qildi ({drill.contacts.length})</b>
-                          {drill.contacts.map((c, i) => <div key={i} className="muted" style={{ fontSize: 12 }}>{c.kind === "call" ? "📞" : "✍️"} {c.name} · {new Date(c.at).toLocaleString("ru-RU")}</div>)}
-                          {!drill.contacts.length && <div className="muted" style={{ fontSize: 12 }}>Hali hech kim murojaat qilmagan</div>}
-                        </div>
-                      </div>
-                    )}
-                  </td>
-                </tr>
+                </>
               )}
-            </Fragment>
-          ))}
-        </tbody>
-      </table>
-      {rows.length === 0 && <p className="muted">Bo&apos;sh — hali e&apos;lon yo&apos;q.</p>}
+              {(r.status === "rejected" || r.status === "archived" || r.status === "expired") && (
+                <button className="btn sm" title="30 kunga uzaytirib qayta faollashtiradi" onClick={() => void act(() => adminApi.elonExtend(r.id), "♻️ Qayta faollashtirildi")}>♻️ Qayta faollashtir</button>
+              )}
+            </div>
+            <span className="adm-card-chev">{openId === r.id ? "▾" : "▸"}</span>
+          </div>
+          {openId === r.id && (
+            <div className="adm-card-body">
+              {!drill ? "Yuklanmoqda…" : (
+                <div style={{ display: "flex", gap: 20, flexWrap: "wrap" }}>
+                  <div>
+                    <b>👁 Kim ko&apos;rdi ({drill.viewers.length})</b>
+                    {drill.viewers.map((v) => <div key={v.tgId} className="muted" style={{ fontSize: 12, marginTop: 4 }}>{v.name} · {new Date(v.at).toLocaleString("ru-RU")}</div>)}
+                    {!drill.viewers.length && <div className="muted" style={{ fontSize: 12, marginTop: 4 }}>Hali hech kim ko&apos;rmagan</div>}
+                  </div>
+                  <div>
+                    <b>📞 Kim murojaat qildi ({drill.contacts.length})</b>
+                    {drill.contacts.map((c, i) => <div key={i} className="muted" style={{ fontSize: 12, marginTop: 4 }}>{c.kind === "call" ? "📞" : "✍️"} {c.name} · {new Date(c.at).toLocaleString("ru-RU")}</div>)}
+                    {!drill.contacts.length && <div className="muted" style={{ fontSize: 12, marginTop: 4 }}>Hali hech kim murojaat qilmagan</div>}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      ))}
+      {data && rows.length === 0 && <p className="muted">Mos e&apos;lon topilmadi.</p>}
     </section>
   );
 }

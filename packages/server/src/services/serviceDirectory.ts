@@ -786,6 +786,11 @@ export async function listFavorites(tgId: string, preview = false): Promise<Serv
 }
 
 /** 💰 Preyskurantni TO'LIQ almashtirish (admin/ega): items = [{label, priceSom}] tartibda. */
+export async function adminGetPrices(listingId: number): Promise<{ label: string; priceSom: number }[]> {
+  const rows = await prisma.servicePriceItem.findMany({ where: { listingId }, orderBy: { sortOrder: "asc" } });
+  return rows.map((r) => ({ label: r.label, priceSom: r.priceSom }));
+}
+
 export async function adminSetPrices(listingId: number, items: { label: string; priceSom: number }[]): Promise<{ ok: boolean; count: number }> {
   const clean = (items ?? [])
     .map((i) => ({ label: String(i.label ?? "").trim().slice(0, 60), priceSom: Math.max(0, Math.floor(Number(i.priceSom))) }))
