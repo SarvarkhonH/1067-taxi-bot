@@ -32,7 +32,7 @@ import {
 import { findDriverByCar, getDriverEarnings, lookupDriverForPay, lookupRecipient, transfer } from "../services/transferService";
 import { prisma } from "../db";
 import { getFareConfig } from "../services/clientInfoService";
-import { callOneTapFor, cancelBookingFor, createBookingFor, estimateFare, getActiveBookingFor, getBookingInfo, nearestAddressFor, searchBookingAddress } from "../services/bookingService";
+import { callOneTapFor, cancelBookingFor, createBookingFor, estimateFare, getActiveBookingFor, getBookingInfo, getRecentPickups, nearestAddressFor, searchBookingAddress } from "../services/bookingService";
 import type { BookingCreateBody, BookingNowBody, GeoPt } from "@t1067/shared";
 import { validateInitData } from "./telegramAuth";
 import { featureOn } from "../services/featureFlags";
@@ -212,7 +212,7 @@ export function createApiServer(opts: ApiOptions = {}) {
   });
 
   app.get("/api/me", requireUser, async (_req, res) => {
-    const [me, booking3, livinghome, intercity, tierloyalty, shopOn, xizmatlarOn, elonlarOn] = await Promise.all([
+    const [me, booking3, livinghome, intercity, tierloyalty, shopOn, xizmatlarOn, elonlarOn, restoranOn] = await Promise.all([
       getMe(res.locals.telegramId as string),
       featureOn("booking3"),
       featureOn("livinghome"),
@@ -221,6 +221,7 @@ export function createApiServer(opts: ApiOptions = {}) {
       featureOn("shop"),
       featureOn("xizmatlar"),
       featureOn("elonlar"),
+      featureOn("restoran"),
     ]);
     if (!me) { res.json({ linked: false }); return; }
     // 🏅 owner-preview: admins see the tier-loyalty UI even while the global flag is DARK, so the
@@ -232,7 +233,9 @@ export function createApiServer(opts: ApiOptions = {}) {
     const xizmatlarPreview = xizmatlarOn || isAdmin(res.locals.telegramId as string);
     // 📋 elonlar owner-preview mirrors it — owner QABULs the E1 tab-swap before it goes live
     const elonlarPreview = elonlarOn || isAdmin(res.locals.telegramId as string);
-    res.json({ ...me, flags: { booking3, livinghome, intercity, tierloyalty: tierPreview, shop: shopPreview, xizmatlar: xizmatlarPreview, elonlar: elonlarPreview } });
+    // 🍽 restoran owner-preview mirrors it — owner QABULs the catalog (R1) before it goes live
+    const restoranPreview = restoranOn || isAdmin(res.locals.telegramId as string);
+    res.json({ ...me, flags: { booking3, livinghome, intercity, tierloyalty: tierPreview, shop: shopPreview, xizmatlar: xizmatlarPreview, elonlar: elonlarPreview, restoran: restoranPreview } });
   });
 
   // 🏅 Tier ladder benefits — labels derived from LIVE knobs (single source of truth). 60s client cache.
@@ -447,6 +450,44 @@ export function createApiServer(opts: ApiOptions = {}) {
   };
   app.get("/api/shop/review-photo/:reviewId", serveReviewPhoto);
   app.get("/api/shop/review-photo/:reviewId/:n", serveReviewPhoto);
+
+  // ── 🍽 RESTORAN (feature "restoran", DARK until seed + QABUL) — R1: katalog o'qish only ───────
+  // owner-preview: admins browse the REAL catalog while riders see nothing (shop patterni).
+  app.get("/api/restoran/list", requireUser, rateLimit(30), async (_req, res) => {
+    const { listActiveRestaurants } = await import("../services/restoranService");
+    res.set("Cache-Control", "private, max-age=30");
+    res.json({ restaurants: await listActiveRestaurants(isAdmin(res.locals.telegramId as string)) });
+  });
+  app.get("/api/restoran/:id", requireUser, rateLimit(30), async (req, res) => {
+    const { getRestaurantDetail } = await import("../services/restoranService");
+    res.json(await getRestaurantDetail(Number(req.params.id), isAdmin(res.locals.telegramId as string)));
+  });
+  const serveRestoranPhoto = async (req: Request, res: Response): Promise<void> => {
+    const { resolveRestaurantPhoto } = await import("../services/restoranService");
+    const url = await resolveRestaurantPhoto(Number(req.params.id));
+    if (!url) { res.status(404).end(); return; }
+    if (url.startsWith("data:")) {
+      const m = /^data:([^;]+);base64,(.*)$/.exec(url);
+      if (!m) { res.status(404).end(); return; }
+      res.set("Content-Type", m[1]!).set("Cache-Control", "public, max-age=3600").send(Buffer.from(m[2]!, "base64"));
+      return;
+    }
+    res.set("Cache-Control", "private, max-age=3600").redirect(302, url);
+  };
+  app.get("/api/restoran/photo/:id", serveRestoranPhoto);
+  const serveMenuItemPhoto = async (req: Request, res: Response): Promise<void> => {
+    const { resolveMenuItemPhoto } = await import("../services/restoranService");
+    const url = await resolveMenuItemPhoto(Number(req.params.id));
+    if (!url) { res.status(404).end(); return; }
+    if (url.startsWith("data:")) {
+      const m = /^data:([^;]+);base64,(.*)$/.exec(url);
+      if (!m) { res.status(404).end(); return; }
+      res.set("Content-Type", m[1]!).set("Cache-Control", "public, max-age=3600").send(Buffer.from(m[2]!, "base64"));
+      return;
+    }
+    res.set("Cache-Control", "private, max-age=3600").redirect(302, url);
+  };
+  app.get("/api/restoran/menuphoto/:id", serveMenuItemPhoto);
 
   // ── 🔎 XIZMATLAR (feature "xizmatlar", DARK until seed + QABUL) — moves NO money ──────────────
   // owner-preview everywhere: admins browse/QABUL the real catalog while riders still see nothing.
@@ -1005,6 +1046,8 @@ export function createApiServer(opts: ApiOptions = {}) {
     return { ok: true, name };
   }));
   app.get("/api/booking/active", requireUser, withMember((id) => getActiveBookingFor(id)));
+  // "Yana shu yo'l" (NEXT_LEVEL_PLAN 1.1): home-screen 1-tap repeat-route chips
+  app.get("/api/booking/recent", requireUser, withMember((id) => getRecentPickups(id)));
   // 🛡 share-my-trip (family safety): POST mints a token (auth'd rider); GET is PUBLIC, read-only,
   // active-only — anyone with the link watches the car + live fare until the trip ends. No PII.
   app.post("/api/track", requireUser, rateLimit(20), withMember(async (id) => {

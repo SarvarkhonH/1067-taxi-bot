@@ -146,18 +146,19 @@ set (bookingNotifier.ts:205-258). **#4 security** — admin token is `timingSafe
 `/api/driver-photo/:memberId` is IP-rate-limited (server.ts:755), and a boot warning flags the public
 `KAS_BONUS_SECRET_KEY` default (index.ts:64).
 
+DONE (2026-07-07): **AppState TTL cleanup** — `cleanupExpiredMarkers`/`maybeDailyMarkerCleanup`
+(appStateUtil.ts:107-128), wired into the 15-min tick (index.ts:263-264); ephemeral prefixes 2 days,
+`trackjoin:` (metrics) 30 days; money idempotency keys (`CoinTxn.idempotencyKey`, any `*:bookingId`
+grant marker) are never in the deletable prefix list (commit 8ece78d). **vitest for money math** —
+`packages/shared/src/__tests__/{economy,booking}.test.ts`, 42 assertions, wired into CI shield
+(`.github/workflows/ci.yml`, commit ecee9c0) — runs on every push/PR, no live DB needed.
+
 Genuinely open:
 1. **KAS_BONUS_SECRET_KEY rotation** — the ONLY remaining #4 piece, and it's an OWNER/OPS task, not
    code: coordinate a new secret with kas1067 ops, then set Render env `KAS_BONUS_SECRET_KEY=<new>`.
    Until then bonus writes are forgeable (boot warning fires).
-2. **AppState TTL cleanup** — one tick job deletes EPHEMERAL per-ride markers older than N days
-   (`waitstart:`,`wsarrived:`,`finishcard:`,`tracknudge:`,`trackjoin:`…). DANGER: never touch money
-   idempotency keys (`ref_ride:`,`drvdrv_milestone:`,`fundride:`, any `*:bookingId` grant marker) —
-   deleting one re-opens a double-pay. Whitelist the ephemeral prefixes; never blanket-delete.
-3. **Split `pushBookingUpdates`** into phase functions (behavior-preserving).
-4. **vitest for money math** — 10–15 assertions in CI on every commit (clamp, grant idempotency,
-   withdraw budget).
-5. Split admin `App.tsx` (2.5k) and `booking3.tsx` (1.5k) last — not urgent.
+2. **Split `pushBookingUpdates`** into phase functions (behavior-preserving).
+3. Split admin `App.tsx` (2.5k) and `booking3.tsx` (1.5k) last — not urgent.
 
 ## 9. Rules of engagement (from CLAUDE.md — non-negotiable)
 

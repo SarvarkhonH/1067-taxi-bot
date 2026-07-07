@@ -1,5 +1,35 @@
 # PROGRESS
 
+## Jarayonda (yangi)
+
+### 🔁 "Yana shu yo'l" — 1-tap repeat-route chips (NEXT_LEVEL_PLAN 1.1) — `ready for verification`
+Home screen (LivingHome + uy.tsx fallback) endi safar tarixidan so'nggi 3 ta DISTINCT yo'nalishni chip
+sifatida ko'rsatadi — 1 bosishda aynan o'sha manzilga taksi chaqiradi.
+- **Server:** `Member.recentPickupsJson` (additiv, nullable String) — har `rememberPickup()` chaqiruvida
+  yangilanadi (`pushRecentPickup`, bookingService.ts): id bo'yicha dedup (real kas-katalog manzillar),
+  yoki nom bo'yicha dedup (id=0 xarita-pin'lari uchun — hammasi bir xil id=0 baham ko'radi); eng ko'p 3
+  ta, eng-yangi-birinchi. `getRecentPickups(memberId)` — yangi `GET /api/booking/recent` orqali ochiladi
+  (requireUser, boshqa booking GET route'lar bilan bir xil uslub, rate-limit yo'q — faqat o'qish).
+  `lastPickupId`/`defaultPickupId` (callOneTapFor kaskadi) TEGILMAGAN — bu butunlay alohida, faqat
+  ko'rsatish uchun ro'yxat.
+- **Mini App:** `home.tsx` (LivingHome — HAQIQIY default ekran, `livinghome` flag hozir global ON) va
+  `uy.tsx` (flag-off fallback) ikkalasida ham `🔁 Yana shu yo'l` chip qatori — CTA tugmasi ostida.
+  Bosilganda `api.bookingCreate({ pickupId, pickupName, lat, lng })` (createBookingFor — aniq shu
+  pin/manzilga, hech qanday taxmin/kaskad yo'q) → muvaffaqiyatli haqiqiy dispatch bo'lsa `onBook()` orqali
+  mavjud live-tracking overlay (Booking3View) ochiladi (yangi UI ixtiro qilinmadi); aks holda `flash()`
+  toast bilan sabab ko'rsatiladi. LivingHome'da `usualRide` bilan bir xil manzil chip'da QAYTA
+  ko'rsatilmaydi (filter).
+- **ISBOT:** typecheck 4/4 toza · `testRecentPickups.ts` **10/10 assertion** (TAG'li throwaway Member,
+  to'liq cleanup) — bo'sh holat, 3ta dedup+tartib, 4-chisi cap+eviction, mavjud id qayta-dispatch →
+  frontga ko'chadi (dublikat yo'q), id=0 pin'lar NOM bo'yicha dedup. `GET /api/booking/recent` jonli
+  serverda **401** (auth-guard ishlayapti, route ro'yxatga olingan — tsx watch hot-reload orqali
+  qayta ishga tushirmasdan tasdiqlangan). Mini App: TAG'li preview-test a'zo (recentPickupsJson qo'lda
+  to'ldirilgan) + `?tg=` debug-auth bilan preview'da 3 ta chip **to'g'ri render** (matn kesilishi,
+  joylashuv, uslub) tasdiqlandi — **chip HECH QACHON bosilmadi** (BOOKING_LIVE=true muhitida haqiqiy
+  taksi chaqirib yubormaslik uchun), keyin test a'zo o'chirildi. App DB (Neon) additiv push qilindi.
+- **QOLDI:** ega real telefonda QABUL (haqiqiy bosish orqali dispatch tekshiruvi — bu tomondan
+  bajarilmadi, chunki jonli muhitda haqiqiy taksi chaqirib yuborish xavfi bor edi).
+
 ## Bajarildi
 - A-to'lqin: iqtisod rebalans (clamp 350), jonli safar kartasi + harakatlanuvchi pin, safar-ichi g'ildirak/taxmin/kombo, Analitika tab.
 - B: Garaj (5 mashina, daqiqa-stavka faqat real safarda), haydovchi haftalik tierlari (percentildan) + kvestlar, aqlli push (2/kun cap, quiet hours).
@@ -588,3 +618,41 @@ STATUS (Rule 7): `ready for verification`. Compliance-report 5 gap yopildi; kodn
   `pnpm -r typecheck` 4/4 paket 0 xato (admin flag-ro'yxati FeatureName'ga qattiq bog'lanmagan edi).
 - Flag holati: `garajx`/`kozacha`/`motorolami` — endi FeatureName sifatida umuman mavjud emas
   (avval ham OFF edi, funksional o'zgarish yo'q — faqat o'lik kod tozalandi).
+
+## 2026-07-07 — RESTORAN W1+R1 (reja RESTORAN_PLAN.md)
+- Ega so'rovi: Hamyonni Uy tabidan ochiladigan qilib tabbardan olib tashlash, bo'shagan slotga
+  restoran/oshxona taom-buyurtma qo'shish. V1 = CONCIERGE (operator qo'lda boshqaradi, restoran-bot
+  integratsiyasi V2'ga qoldirilgan); to'lov FAQAT naqd/so'm — CoinTxn TEGILMAYDI.
+- **W1 (tab-restruktura) — ready for verification, mustaqil kod-tekshiruv bilan:** `App.tsx`
+  BASE_TABS/DRIVER_TABS'dan `wallet` olib tashlandi (Tab tipi/GO_MAP/render/deep-link O'ZGARMADI —
+  faqat doimiy tab-tugmasi yo'q). `uy.tsx`: balans-qator endi tugma (`onNav("wallet")`), yangi
+  "Hamyon" tile 5-tile gridda qo'shildi (`tokens.css` `.uy-tiles` 4→5 ustun). Tab-indikator
+  `activeIndex===-1`da yashiriladi (wallet endi tabbarda emas). Skrinshot-isbot: mock-fetch orqali
+  (main.tsx'ga vaqtinchalik qo'shilib, screenshotdan keyin TO'LIQ olib tashlandi — `git diff` toza).
+- **R1 (model+API+katalog, DARK flag `restoran` off) — ready for verification:**
+  - Prisma: `Restaurant`/`MenuItem`/`FoodOrder` (+`Member.foodOrders` back-relation) — narx REAL SO'M.
+    `prisma db push` ikkala DB'ga ham qilindi (app DB=Neon EU + TEST_DATABASE_URL=Render kas1067_db),
+    ikkalasi ham faqat QO'SHIMCHA (destruktiv emas).
+  - `featureFlags.ts`: `restoran` FEATURES+DEFAULT_OFF'ga qo'shildi, `EXPECTED_ON`ga QO'SHILMADI
+    (shop/xizmatlar/elonlar patterni — owner QABUL'gacha DARK).
+  - `restoranService.ts` (yangi): katalog o'qish (`listActiveRestaurants`/`getRestaurantDetail`,
+    owner-preview bypass) + admin CRUD (`adminCreateRestaurant`/`adminBulkCreateMenuItems` — §6.1
+    "nom — narx" bulk-parse + admin edit/toggle/delete, R4'gacha to'liq emas).
+  - `server.ts`: `/api/restoran/list`, `/api/restoran/:id`, foto-proxy route'lar; `/api/me` flags'ga
+    `restoran` qo'shildi (shop/xizmatlar bilan bir xil owner-preview mexanizmi).
+  - `restoran.tsx` (yangi, miniapp): katalog grid + detail (bo'lim bo'yicha guruhlangan menyu),
+    Ochiq/Yopiq badge (`.svc-open` qayta ishlatildi). Savat/checkout YO'Q — R2'da.
+  - Icon: `icons.tsx`ga yangi `"food"` SVG qo'shildi (likopcha+villa/pichoq, "market"dan farqli).
+  - **Isbot — `packages/server/src/scripts/testRestoran.ts`** (yangi, `_testDb` bilan
+    TEST_DATABASE_URL'da ishlaydi, testShop.ts patterni): 11/11 tekshiruv ✅ — flag DEFAULT_OFF,
+    inactive/active gate, bulk-parse (3/4 qator, 1 xato-formatli qator to'g'ri o'tkazib yuborildi),
+    admin list, katalog maydonlari, detail+section-guruhlash, DARK flag oddiy riderdan katalogni
+    yashiradi, va TO'LIQ cleanup (throwaway qator qolmadi).
+  - Miniapp UI mock-fetch orqali vizual tekshirildi (flag off → tabbarda Restoran yo'q; flag on →
+    tab+katalog+detail to'g'ri render) — vaqtinchalik mock keyin TO'LIQ olib tashlandi.
+  - `pnpm -r typecheck` (shared/server/miniapp) 0 xato.
+- **GAP:** real Telegram-auth orqali jonli render EGA TOMONIDAN hali ko'rilmagan (CLAUDE.md qoidasi —
+  bu mening kod-darajasidagi tekshiruvim, ega-QABUL emas). Savat/checkout (R2), admin sessiya-navbati
+  (R3), to'liq restoran+menyu CRUD UI (R4), seed+pilot (R5) — RESTORAN_PLAN.md bo'yicha hali
+  boshlanmagan.
+- Flag holati: `restoran` OFF (DARK, owner QABUL kutmoqda).

@@ -333,6 +333,34 @@ async function cancelsToday(memberId: number): Promise<number> {
 }
 
 /** Remember where this member booked from — the 1-tap memory (survives deploys). */
+const MAX_RECENT_PICKUPS = 3;
+
+/** "Yana shu yo'l" chip list: prepend, dedup (by id when non-zero, else by trimmed
+ *  lower-cased name for raw map pins), cap at 3. Best-effort — never blocks dispatch. */
+async function pushRecentPickup(memberId: number, a: SavedAddressView): Promise<void> {
+  const row = await prisma.member.findUnique({ where: { id: memberId }, select: { recentPickupsJson: true } }).catch(() => null);
+  let list: SavedAddressView[] = [];
+  try {
+    list = row?.recentPickupsJson ? (JSON.parse(row.recentPickupsJson) as SavedAddressView[]) : [];
+  } catch {
+    list = [];
+  }
+  const sameKey = (b: SavedAddressView) => (a.id ? b.id === a.id : b.name.trim().toLowerCase() === a.name.trim().toLowerCase());
+  list = [{ id: a.id, name: a.name, lat: a.lat, lng: a.lng }, ...list.filter((b) => !sameKey(b))].slice(0, MAX_RECENT_PICKUPS);
+  await prisma.member.update({ where: { id: memberId }, data: { recentPickupsJson: JSON.stringify(list) } }).catch(() => undefined);
+}
+
+/** Home-screen 1-tap "Yana shu yo'l" chips — up to 3 most recently dispatched DISTINCT pickups. */
+export async function getRecentPickups(memberId: number): Promise<SavedAddressView[]> {
+  const row = await prisma.member.findUnique({ where: { id: memberId }, select: { recentPickupsJson: true } }).catch(() => null);
+  if (!row?.recentPickupsJson) return [];
+  try {
+    return JSON.parse(row.recentPickupsJson) as SavedAddressView[];
+  } catch {
+    return [];
+  }
+}
+
 export async function rememberPickup(memberId: number, a: { id: number; name: string; lat?: number | null; lng?: number | null }, source = "bot"): Promise<void> {
   await prisma.member
     .update({
@@ -352,6 +380,7 @@ export async function rememberPickup(memberId: number, a: { id: number; name: st
     where: { id: memberId, defaultPickupId: null },
     data: { defaultPickupId: a.id, defaultPickupName: a.name },
   });
+  await pushRecentPickup(memberId, { id: a.id, name: a.name, lat: a.lat ?? undefined, lng: a.lng ?? undefined });
 }
 
 /** The pickup "call now" would use, without dispatching (for button labels). */

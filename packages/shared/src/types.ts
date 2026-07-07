@@ -53,6 +53,7 @@ export interface MeResponse {
     shop?: boolean; // 🛍 tanga shop tab (owner-preview: admins see it while DARK)
     xizmatlar?: boolean; // 🔎 services directory tab (owner-preview: admins see it while DARK)
     elonlar?: boolean; // 📋 mahalla e'lon taxtasi tab, Reyting'ni tabbar'dan almashtiradi (owner-preview: admins see it while DARK)
+    restoran?: boolean; // 🍽 restoran taom-buyurtma tab, "wallet" o'rnini egallaydi (owner-preview: admins see it while DARK)
   };
 }
 
@@ -402,6 +403,44 @@ export interface ShopReviewSubmitResponse {
 
 export const SHOP_REVIEW_MAX_PHOTOS = 3;
 export const SHOP_REVIEW_MAX_TEXT = 280;
+
+// ── 🍽 RESTORAN (feature "restoran") — R1: katalog o'qish only (savat/buyurtma R2'da) ─────────────
+// Narx REAL SO'M (tanga emas, RESTORAN_PLAN D1). V1 = concierge: bu turlar faqat KO'RISH uchun.
+
+export interface RestaurantView {
+  id: number;
+  name: string;
+  category: string;
+  address?: string | null;
+  workHours?: string | null; // "09:00-22:00" — Ochiq/Yopiq client-side hisoblanadi (xizmatlar patterni)
+  deliveryFeeSom: number;
+  minOrderSom: number;
+  pickupEnabled: boolean;
+  prepMinutes: number;
+  hasPhoto: boolean; // render /api/restoran/photo/:id when true
+  avgRating: number;
+  reviewCount: number;
+  orderCount: number; // sotuv-quroli: "N buyurtma qabul qilingan"
+}
+
+export interface MenuItemView {
+  id: number;
+  section: string;
+  name: string;
+  desc?: string;
+  priceSom: number;
+  hasPhoto: boolean; // render /api/restoran/menuphoto/:id when true
+  available: boolean;
+}
+
+export interface RestoranListResponse {
+  restaurants: RestaurantView[];
+}
+
+export interface RestoranDetailResponse {
+  restaurant: RestaurantView | null;
+  items: MenuItemView[]; // client groups by `section` for display
+}
 
 // ── 🔎 XIZMATLAR (feature "xizmatlar") — Koson services directory ────────────────────────────────
 // Read/search/call/review only — NO money shapes here by design.

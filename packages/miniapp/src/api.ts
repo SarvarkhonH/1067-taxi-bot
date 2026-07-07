@@ -8,6 +8,7 @@ import type {
   BookingCreateResponse,
   BookingInfoResponse,
   BookingNowResponse,
+  SavedAddressView,
   HomeResponse,
   FareQuote,
   GeoPt,
@@ -145,6 +146,9 @@ export const api = {
   shopReviewSubmit: (p: { productId: number; thumb: "up" | "down"; text?: string; photos?: string[] }) =>
     post<import("@t1067/shared").ShopReviewSubmitResponse>("/api/shop/review", p),
   shopReviewDelete: (productId: number) => del<{ ok: boolean }>(`/api/shop/review/${productId}`),
+  // 🍽 restoran (feature "restoran") — R1: katalog o'qish only
+  restoranList: () => get<import("@t1067/shared").RestoranListResponse>("/api/restoran/list"),
+  restoranDetail: (id: number) => get<import("@t1067/shared").RestoranDetailResponse>(`/api/restoran/${id}`),
   // 🔎 xizmatlar (feature "xizmatlar") — Koson services directory
   svcCategories: () => get<{ categories: import("@t1067/shared").ServiceCategoryView[]; popularTags: string[] }>("/api/services/categories"),
   svcList: (p: { cat?: number; q?: string; limit?: number; offset?: number; sort?: "new" } = {}) => {
@@ -259,6 +263,7 @@ export const api = {
   bookingNearestAddr: (lat: number, lng: number) => request<SavedAddr | null>("POST", "/api/booking/nearest", { lat, lng }, 1),
   bookingCreate: (body: BookingCreateBody) => request<BookingCreateResponse>("POST", "/api/booking/create", body, 1),
   bookingNow: (body: { lat?: number; lng?: number; addressId?: number } = {}) => request<BookingNowResponse>("POST", "/api/booking/now", body, 1),
+  recentPickups: () => request<SavedAddressView[]>("GET", "/api/booking/recent"),
   bookingCancel: () => request<BookingCancelResponse>("POST", "/api/booking/cancel", undefined, 1),
   bookingEstimate: (pickup: GeoPt, dest: GeoPt, surcharge: number) => request<FareQuote>("POST", "/api/booking/estimate", { pickup, dest, surcharge }),
   bookingHistory: () =>

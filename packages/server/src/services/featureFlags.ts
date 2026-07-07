@@ -59,13 +59,17 @@ export const FEATURES = [
   "elontop", // 📌 E'LONLAR TOP-boost (E4) — alohida flag §6: rider öz aktiv e'lonini 24 soatga TOP
               // qiladi (knob elonTopPrice, tanga sink). `elonlar` ON bo'lmasa ma'nosi yo'q, lekin
               // mustaqil o'chirilishi mumkin (owner boost'ni vaqtincha to'xtatishi uchun).
+  "restoran", // 🍽 RESTORAN: restoran/oshxona taom-buyurtma, "wallet" tabbar slotini egallaydi
+              // (RESTORAN_PLAN.md). V1 = CONCIERGE: naqd/so'm to'lov (CoinTxn YO'Q), operator
+              // telefon qiladi + admin panelda holatni qo'lda boshqaradi. R1 = katalog o'qish only
+              // (savat/buyurtma R2'da). DARK until seed + owner QABUL.
 ] as const;
 export type FeatureName = (typeof FEATURES)[number];
 
 // Off until explicitly enabled (go-live flip = setFeature(name, true) after owner QABUL).
 // booking3 = the new map/trip flow; owner still gets a preview via server.ts owner-branch,
 // but real users stay on the (fixed) classic flow until it's accepted. A missing row → OFF.
-const DEFAULT_OFF = new Set<FeatureName>(["booking3", "livinghome", "aibrain", "mahalla", "tolqin", "baraban", "komissiya", "qarz", "welcomebonus", "refstaged", "drvstaged", "drvrecruit", "drvpush", "promo", "clientbooking", "cashout", "carupgrade", "intercity", "tierloyalty", "waitcomp", "trackcta", "jackpotpost", "drvrank", "instantstatus", "spinreminder", "shop", "xizmatlar", "elonlar", "elontop"]);
+const DEFAULT_OFF = new Set<FeatureName>(["booking3", "livinghome", "aibrain", "mahalla", "tolqin", "baraban", "komissiya", "qarz", "welcomebonus", "refstaged", "drvstaged", "drvrecruit", "drvpush", "promo", "clientbooking", "cashout", "carupgrade", "intercity", "tierloyalty", "waitcomp", "trackcta", "jackpotpost", "drvrank", "instantstatus", "spinreminder", "shop", "xizmatlar", "elonlar", "elontop", "restoran"]);
 
 let cache: { at: number; map: Record<string, boolean> } = { at: 0, map: {} };
 

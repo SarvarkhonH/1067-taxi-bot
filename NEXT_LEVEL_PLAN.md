@@ -44,7 +44,7 @@ Without this, every growth feature amplifies load on a fragile core.
 
 | # | Feature | Mechanic | Effort |
 |---|---|---|---|
-| 1.1 | **"Yana shu yo'l"** one-tap chips | home shows last 3 pickup+time patterns from ride history → 1 tap = dispatched | S |
+| 1.1 | **"Yana shu yo'l"** one-tap chips — `ready for verification` (see PROGRESS.md) | home shows last 3 distinct dispatched pickups → 1 tap = dispatched | S |
 | 1.2 | **Smart pickup default** | rank saved addresses by hour+weekday frequency; pre-select the likely one | S |
 | 1.3 | **Scheduled-ride nudge** | habitual same-time riders get "Ertaga 8:00 ga yozib qo'yaymi?" card (ScheduledRide exists) | S |
 | 1.4 | **Family tile** | "Onam uchun chaqir" surfaced on home (flow exists, buried in submenu) | S |

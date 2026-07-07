@@ -63,6 +63,11 @@ model Member {
   lastPickupLat      Float?
   lastPickupLng      Float?
   lastBookingAt      DateTime?
+  // "Yana shu yo'l" (NEXT_LEVEL_PLAN 1.1): last 3 DISTINCT dispatched pickups, most-recent-first,
+  // JSON-encoded SavedAddressView[] — home-screen 1-tap repeat-route chips. Dedup by id (real kas
+  // catalog addresses) or by name (raw map pins, id=0). Separate from lastPickup* (single-slot,
+  // used by callOneTapFor's cascade) — this is purely a display list for the Mini App chip row.
+  recentPickupsJson  String?
   createdAt          DateTime  @default(now())
   updatedAt          DateTime  @updatedAt
 
@@ -88,6 +93,7 @@ model Member {
   leagueTier   String              @default("Bronza") // promotion/relegation tier
   driverTier   String              @default("Bronza") // weekly driver tier (DiDi model): Bronza|Kumush|Oltin|Olmos
   shopPurchases ShopPurchase[] // 🛍 tanga shop purchases (feature "shop")
+  foodOrders    FoodOrder[] // 🍽 restoran buyurtmalari (feature "restoran")
 
   @@unique([type, kasId])
   @@index([type, points])
@@ -444,6 +450,83 @@ model ShopPurchase {
   decidedAt   DateTime?
 
   @@index([memberId, status])
+  @@index([status, createdAt])
+}
+
+// 🍽 RESTORAN (feature "restoran", RESTORAN_PLAN.md) — V1 = CONCIERGE: naqd/so'm to'lov (CoinTxn
+// TEGILMAYDI, D1), operator restoranga telefon qiladi + holatni admin panelda qo'lda boshqaradi
+// (D2/D3, orderChatId/bot-avtomatika V2'ga qoldirilgan). Shop patterni bilan bir xil (Product-uslub
+// katalog + snapshot-order), yagona farq: ko'p-taomli savat (itemsJson).
+model Restaurant {
+  id             Int      @id @default(autoincrement())
+  name           String
+  category       String   @default("milliy") // milliy|fastfood|shirinlik|ichimlik|boshqa
+  phone          String // operator shu raqamga qo'ng'iroq qiladi (V1 yagona aloqa kanali)
+  address        String?
+  workHours      String? // "09:00-22:00" — xizmatlar bilan bir xil Ochiq/Yopiq hisob (client-side)
+  deliveryFeeSom Int      @default(0)
+  minOrderSom    Int      @default(0)
+  pickupEnabled  Boolean  @default(true)
+  prepMinutes    Int      @default(30) // "taxminan N daqiqa" — operator checkout paytida ko'radi
+  photoFileId    String? // Telegram file_id (durable) — shop/driver-photo patterni
+  photoUrl       String? // data-URL fallback / permanent override
+  active         Boolean  @default(false) // created OFF; admin flips ON to list (shop patterni)
+  paused         Boolean  @default(false) // avto (V2: 3× expired) yoki operator so'rovi bilan
+  sortOrder      Int      @default(0)
+  avgRating      Float    @default(0)
+  reviewCount    Int      @default(0)
+  orderCount     Int      @default(0) // kelajak sotuv-quroli: "sizga N buyurtma keltirdik"
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  menuItems      MenuItem[]
+
+  @@index([active, sortOrder])
+}
+
+// Menyu band — Product-uslub, lekin narx REAL SO'M (tanga emas, D1).
+model MenuItem {
+  id           Int        @id @default(autoincrement())
+  restaurantId Int
+  restaurant   Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  section      String     @default("Taomlar") // "Salatlar" | "Issiq taom" | "Ichimlik" — erkin matn, guruhlash uchun
+  name         String
+  desc         String     @default("")
+  priceSom     Int // REAL SO'M — tanga emas (D1)
+  photoFileId  String?
+  photoUrl     String?
+  available    Boolean    @default(true) // "tugadi" — admin qo'lda o'chiradi (V1'da restoran o'zi kira olmaydi)
+  sortOrder    Int        @default(0)
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+
+  @@index([restaurantId, section, sortOrder])
+}
+
+// Bitta buyurtma. Naqd to'lov (D1) — CoinTxn YO'Q, refund logikasi kerak emas. Holat operator
+// tomonidan admin panelda qo'lda boshqariladi (concierge V1, RESTORAN_PLAN §0/§2).
+model FoodOrder {
+  id             Int       @id @default(autoincrement())
+  member         Member    @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  memberId       Int
+  restaurantId   Int // loose (Product.productId patterni) — restoran o'chsa ham buyurtma tarixi qoladi
+  itemsJson      Json // [{menuItemId, name, qty, priceSom}] — narx SNAPSHOT
+  itemsTotalSom  Int
+  deliveryFeeSom Int       @default(0)
+  totalSom       Int
+  isPickup       Boolean   @default(false)
+  address        String
+  contact        String
+  note           String    @default("")
+  status         String    @default("pending") // pending|accepted|preparing|delivering|delivered|rejected|cancelled_by_user
+  rejectReason   String?
+  calledAt       DateTime? // operator "restoranga qo'ng'iroq qildim" belgisi
+  operatorId     Int? // qaysi admin/operator ishladi (javobgarlik izi)
+  acceptedAt     DateTime?
+  deliveredAt    DateTime?
+  createdAt      DateTime  @default(now())
+
+  @@index([restaurantId, status])
+  @@index([memberId, createdAt])
   @@index([status, createdAt])
 }
 

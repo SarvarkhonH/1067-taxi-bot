@@ -9,9 +9,9 @@ import { LoadSection, ProgressBar } from "./design/components";
 // ✨ Yutuq "juice" — har HAQIQIY tanga yutug'ida bitta katta bayram: konfetti + success-haptik
 // + 0→N count-up. O'yinlar buni celebrate(amount, emoji, label) bilan chaqiradi. FAQAT faucet
 // (g'ildirak/quti/streak-milestone) — spend/sink (Plus obuna) emas.
-type Celebrate = (amount: number, emoji: string, label?: string) => void;
+export type Celebrate = (amount: number, emoji: string, label?: string) => void;
 
-function WinBurst({ amount, emoji, label, onDone }: { amount: number; emoji: string; label?: string; onDone: () => void }) {
+export function WinBurst({ amount, emoji, label, onDone }: { amount: number; emoji: string; label?: string; onDone: () => void }) {
   const [n, setN] = useState(0);
   const doneRef = useRef(onDone);
   doneRef.current = onDone;
@@ -88,7 +88,7 @@ function PlusSection({ onReward }: { onReward: (msg: string) => void }) {
   );
 }
 
-function SpinWheelGame({ me, onReward, celebrate }: { me: MeResponse; onReward: (msg: string) => void; celebrate: Celebrate }) {
+export function SpinWheelGame({ me, onReward, celebrate }: { me: MeResponse; onReward: (msg: string) => void; celebrate: Celebrate }) {
   const [spinId, setSpinId] = useState(0);
   const [target, setTarget] = useState<number | null>(null);
   const [spinning, setSpinning] = useState(false);
@@ -304,7 +304,7 @@ export function BonusCenterView({
   );
 }
 
-function BonusCenter({ me, onReward, celebrate }: { me: MeResponse; onReward: (msg: string) => void; celebrate: Celebrate }) {
+export function BonusCenter({ me, onReward, celebrate }: { me: MeResponse; onReward: (msg: string) => void; celebrate: Celebrate }) {
   const [missions, setMissions] = useState<MissionsResponse | null>(null);
   const [err, setErr] = useState(false);
   const [checking, setChecking] = useState(false);

@@ -22,10 +22,12 @@ const ShopView = lazy(() => import("./shop").then((m) => ({ default: m.ShopView 
 const XizmatlarView = lazy(() => import("./services").then((m) => ({ default: m.XizmatlarView })));
 // 📋 E'lonlar — mahalla e'lon taxtasi (gated by feature `elonlar`; owner-preview while DARK)
 const ElonlarView = lazy(() => import("./elonlar").then((m) => ({ default: m.ElonlarView })));
+// 🍽 Restoran — taom-buyurtma, "wallet"ning bo'shagan tab-slotini egallaydi (gated by feature `restoran`; owner-preview while DARK)
+const RestoranView = lazy(() => import("./restoran").then((m) => ({ default: m.RestoranView })));
 import { Icon } from "./icons";
 import { useCountUp } from "./util";
 
-type Tab = "uy" | "wallet" | "play" | "reyting" | "yol" | "dokon" | "xizmat" | "elonlar" | "driver" | "profile";
+type Tab = "uy" | "wallet" | "play" | "reyting" | "yol" | "dokon" | "xizmat" | "elonlar" | "restoran" | "driver" | "profile";
 
 // ── `me` stale-while-revalidate cache (instant repeat opens, hides cold-start) ──
 // Keyed by the Telegram user id so a shared device never shows one user another's cached data.
@@ -84,15 +86,16 @@ function stableMemberCount(realTotal: number): number {
 // `intercity` ON bo'lsa Yo'l 5-tab sifatida qo'shiladi (pastda swapForYol).
 // O'yin + Yo'l pastki bardan olindi — ularning o'rnini Do'kon + Xizmatlar egalladi. O'yin ekrani
 // uy tugmasidan / deep-link'dan hali ham ochiladi (faqat tabbar'dan yo'q).
+// W1 (RESTORAN_PLAN §D6): "wallet" tabbardan chiqdi — Hamyon endi Uy tabidan (balans-qator +
+// "Hamyon" tile) ochiladi. Ekran/route/deep-link (GO_MAP, tab==="wallet" render) O'ZGARMAYDI —
+// faqat doimiy tab-tugmasi yo'q, shuning uchun bo'shagan slot keyingi tiketda "restoran" tabiga beriladi.
 const BASE_TABS: { id: Tab; icon: string; label: string }[] = [
   { id: "uy", icon: "home", label: "Uy" },
-  { id: "wallet", icon: "wallet", label: "Hamyon" },
   { id: "reyting", icon: "league", label: "Reyting" },
 ];
 // drivers keep their earnings hub
 const DRIVER_TABS: { id: Tab; icon: string; label: string }[] = [
   { id: "uy", icon: "home", label: "Uy" },
-  { id: "wallet", icon: "wallet", label: "Hamyon" },
   { id: "driver", icon: "car", label: "Daromad" },
   { id: "reyting", icon: "league", label: "Reyting" },
 ];
@@ -106,6 +109,7 @@ const GO_MAP: Record<string, Tab> = {
   league: "reyting", friends: "reyting", reyting: "reyting", liga: "reyting", dost: "reyting",
   yol: "yol", intercity: "yol", reys: "yol", // 🚐 shaharlararo
   elonlar: "elonlar", elon: "elonlar", elonlash: "elonlar", // 📋 mahalla e'lon taxtasi
+  restoran: "restoran", restaurant: "restoran", taom: "restoran", ovqat: "restoran", // 🍽 taom-buyurtma (flag off bo'lsa App tab-guard Uy'ga tushiradi)
   driver: "driver", profile: "profile",
 };
 
@@ -264,6 +268,7 @@ export function App() {
     if (t === "dokon" && !me.flags?.shop) t = "uy"; // 🛍 deep-link guard: shop dark → land home
     if (t === "xizmat" && !me.flags?.xizmatlar) t = "uy"; // 🔎 deep-link guard: xizmatlar dark → land home
     if (t === "elonlar" && !me.flags?.elonlar) t = "reyting"; // 📋 deep-link guard: elonlar dark → land on Reyting (its old slot)
+    if (t === "restoran" && !me.flags?.restoran) t = "uy"; // 🍽 deep-link guard: restoran dark → land home
     if (t === tab) return;
     haptic();
     setTab(t);
@@ -308,6 +313,13 @@ export function App() {
     const ELONLAR_TAB = { id: "elonlar" as Tab, icon: "board", label: "E'lonlar" };
     TABS = TABS.map((t) => (t.id === "reyting" ? ELONLAR_TAB : t));
   }
+  // 🍽 Restoran (feature "restoran", RESTORAN_PLAN W1/R1): "wallet"ning bo'shagan tab-slotini
+  // to'ldiradi — Do'kon/Xizmatlar bilan bir xil, Reyting'dan OLDIN qo'shiladi.
+  if (me.flags?.restoran) {
+    const RESTORAN_TAB = { id: "restoran" as Tab, icon: "food", label: "Restoran" };
+    const ri = TABS.findIndex((t) => t.id === "reyting" || t.id === "elonlar");
+    TABS = ri >= 0 ? [...TABS.slice(0, ri), RESTORAN_TAB, ...TABS.slice(ri)] : [...TABS, RESTORAN_TAB];
+  }
   const TAB_PCT = 100 / TABS.length;
   const activeIndex = TABS.findIndex((t) => t.id === tab);
 
@@ -323,6 +335,7 @@ export function App() {
               : tab === "dokon" ? <b>Do'kon</b>
               : tab === "xizmat" ? <b>Xizmatlar</b>
               : tab === "elonlar" ? <b>E'lonlar</b>
+              : tab === "restoran" ? <b>Restoran</b>
               : tab === "reyting" ? "Reyting"
               : tab === "driver" ? "Daromad"
               : <>1067<b>TAXI</b></>}
@@ -363,7 +376,7 @@ export function App() {
               (livinghome ? (
                 <LivingHome me={me} onBanner={flash} reload={reload} onBook={() => { haptic(); setBooking(true); }} onNav={nav} />
               ) : (
-                <UyView me={me} onBook={() => { haptic(); setBooking(true); }} onNav={nav} />
+                <UyView me={me} onBook={() => { haptic(); setBooking(true); }} onNav={nav} onBanner={flash} />
               ))}
             {tab === "wallet" && <WalletView me={me} onBanner={flash} reload={reload} onBook={() => { haptic(); setBooking(true); }} onNav={nav} />}
             {tab === "play" && (
@@ -388,6 +401,7 @@ export function App() {
             {tab === "dokon" && <ShopView me={me} onBanner={flash} reload={reload} onBook={() => { haptic(); setBooking(true); }} openProductId={deepProduct} />}
             {tab === "xizmat" && <XizmatlarView me={me} onBanner={flash} />}
             {tab === "elonlar" && <ElonlarView me={me} onBanner={flash} reload={reload} />}
+            {tab === "restoran" && <RestoranView me={me} onBanner={flash} />}
             {tab === "driver" && <DriverView me={me} />}
             {tab === "profile" && (
               <div className="view">
@@ -405,7 +419,11 @@ export function App() {
       </main>
 
       <nav className="tabbar">
-        <span className="tab-ind" ref={(el) => el?.style.setProperty("left", `calc(${activeIndex} * ${TAB_PCT}% + ${TAB_PCT / 2}%)`)} />
+        {/* activeIndex === -1 bo'ladi hozirgi ekran tabbarda YO'Q bo'lganda (masalan Hamyon — W1'dan keyin
+            tab tugmasi yo'q, Uy'dan ochiladi). Bunday paytda indikatorni yashiramiz, aks holda chapga sakraydi. */}
+        {activeIndex >= 0 && (
+          <span className="tab-ind" ref={(el) => el?.style.setProperty("left", `calc(${activeIndex} * ${TAB_PCT}% + ${TAB_PCT / 2}%)`)} />
+        )}
         {TABS.map((t) => (
           <button
             key={t.id}

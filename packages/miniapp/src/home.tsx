@@ -2,11 +2,12 @@
 // named, time-aware greeting and your usual ride one tap away. Reuses booking3's proven
 // bundled-Leaflet + Google tiles (works in UZ). Behind feature:livinghome (default OFF).
 import { useEffect, useRef, useState } from "react";
-import type { HomeResponse, MeResponse, ReferralResponse } from "@t1067/shared";
+import type { HomeResponse, MeResponse, ReferralResponse, SavedAddressView } from "@t1067/shared";
 import { api } from "./api";
 import { ensureLeaflet } from "./leaflet";
 import { carDivIcon, pinkTaxiDivIcon, ghostPersonDivIcon, GHOST_SHIRTS, GHOST_SKINS, GHOST_DRESSES, GHOST_HAIRS, type PersonKind } from "./mapDecor";
 import { haptic, inviteText, inviteLandingUrl } from "./telegram";
+import { HomeGames } from "./homeGames";
 
 const TILE_URL = "https://mt{s}.google.com/vt/lyrs=m&hl=uz&x={x}&y={y}&z={z}";
 const TILE_SUBDOMAINS = ["0", "1", "2", "3"];
@@ -25,16 +26,35 @@ export function LivingHome(props: {
   onBanner: (m: string) => void;
   reload: () => void;
 }) {
-  const { me, onBook, onNav } = props;
+  const { me, onBook, onNav, onBanner } = props;
   const [home, setHome] = useState<HomeResponse | null>(null);
   const [refInfo, setRefInfo] = useState<ReferralResponse | null>(null);
+  const [recent, setRecent] = useState<SavedAddressView[]>([]);
+  const [dispatching, setDispatching] = useState<number | null>(null);
   const mapRef = useRef<HTMLDivElement>(null);
   const map = useRef<unknown>(null);
 
   useEffect(() => {
     api.home().then(setHome).catch(() => undefined);
     api.referral().then(setRefInfo).catch(() => undefined);
+    api.recentPickups().then(setRecent).catch(() => undefined);
   }, []);
+
+  // "Yana shu yo'l" (NEXT_LEVEL_PLAN 1.1): 1-tap dispatch to one of the last 3 distinct pickups.
+  const repeatRoute = async (a: SavedAddressView) => {
+    if (dispatching != null) return;
+    haptic();
+    setDispatching(a.id);
+    try {
+      const r = await api.bookingCreate({ pickupId: a.id, pickupName: a.name, lat: a.lat, lng: a.lng });
+      if (r.ok && r.live) onBook(); // real dispatch — open the live tracking overlay
+      else onBanner(r.message ?? (r.ok ? `TEST — ${a.name}` : "Xatolik yuz berdi"));
+    } catch {
+      onBanner("Xatolik yuz berdi — qayta urinib ko'ring");
+    } finally {
+      setDispatching(null);
+    }
+  };
 
   const shareInvite = () => {
     haptic();
@@ -100,6 +120,7 @@ export function LivingHome(props: {
   const g = greet(new Date().getHours());
   const name = home?.name ?? me.member.fullName.split(" ")[0] ?? "do'stim";
   return (
+    <>
     <div className="living-home">
       {/* map is its own flexible block (flex:1) so it shrinks to leftover space — the
           controls below always fit above the tabbar, on any phone height */}
@@ -128,6 +149,15 @@ export function LivingHome(props: {
           </button>
         )}
         <button className="lh-cta" onClick={() => { haptic(); onBook(); }}>🚖 Taxi chaqirish</button>
+        {recent.filter((a) => a.id !== home?.usualRide?.id).length > 0 && (
+          <div className="lh-repeat-row">
+            {recent.filter((a) => a.id !== home?.usualRide?.id).map((a) => (
+              <button key={a.id + a.name} className="lh-repeat-chip" disabled={dispatching != null} onClick={() => repeatRoute(a)}>
+                🔁 {dispatching === a.id ? "..." : a.name}
+              </button>
+            ))}
+          </div>
+        )}
         <div className="lh-places">
           <button className="lh-place" onClick={() => { haptic(); onNav("play"); }}>🎮<span>O'yin</span></button>
           <button className="lh-place" onClick={shareInvite}>👥<span>Do'st taklif</span></button>
@@ -136,5 +166,11 @@ export function LivingHome(props: {
         </div>
       </div>
     </div>
+    {/* map bo'limi balandligi viewport'ga qadab qo'yilgan (yuqoridagi lh-mapwrap flex:1) — o'yinlar
+        shu joyning tashqarisida, pastga skrol qilib ochiladigan alohida bo'lim sifatida keladi */}
+    <div className="lh-games-section">
+      <HomeGames me={me} onBanner={onBanner} />
+    </div>
+    </>
   );
 }

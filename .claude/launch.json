@@ -32,6 +32,18 @@
       "port": 5344
     },
     {
+      "name": "miniapp-alt6",
+      "runtimeExecutable": "pnpm",
+      "runtimeArgs": ["--filter", "@t1067/miniapp", "exec", "vite", "--port", "5601", "--strictPort"],
+      "port": 5601
+    },
+    {
+      "name": "miniapp-alt8",
+      "runtimeExecutable": "pnpm",
+      "runtimeArgs": ["--filter", "@t1067/miniapp", "exec", "vite", "--port", "6011", "--strictPort"],
+      "port": 6011
+    },
+    {
       "name": "miniapp-built",
       "runtimeExecutable": "pnpm",
       "runtimeArgs": ["--filter", "@t1067/miniapp", "exec", "vite", "preview", "--port", "4173", "--strictPort"],
@@ -66,6 +78,12 @@
       "runtimeExecutable": "pnpm",
       "runtimeArgs": ["--filter", "@t1067/miniapp", "exec", "vite", "preview", "--port", "4537", "--strictPort"],
       "port": 4537
+    },
+    {
+      "name": "miniapp-alt7",
+      "runtimeExecutable": "pnpm",
+      "runtimeArgs": ["--filter", "@t1067/miniapp", "exec", "vite", "--port", "5822", "--strictPort"],
+      "port": 5822
     },
     {
       "name": "admin",

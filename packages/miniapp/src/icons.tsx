@@ -106,6 +106,14 @@ export function Icon({ name, filled = false, size = 24 }: { name: string; filled
           <path d="M5 20a7 7 0 0 1 14 0" />
         </svg>
       );
+    case "food":
+      // restoran (feature "restoran") — likopcha + villa/pichoq, do'kon "market" belgisidan farqli
+      return (
+        <svg {...p}>
+          <circle cx="9.5" cy="12" r="7" fill={filled ? "currentColor" : "none"} />
+          <path d="M16.5 5v6M18.5 5v3.5a2 2 0 0 1-2 2V5" />
+        </svg>
+      );
     case "share":
       // Telegram's own "forward/share" glyph (paper-plane) — some devices render 📤 as a blank
       // box (missing emoji font), an SVG never fails to draw.
