@@ -768,3 +768,27 @@ STATUS (Rule 7): `ready for verification`. Compliance-report 5 gap yopildi; kodn
   o'ylab topa olmayman/qila olmayman.
 - Flag holati: `restoran` hali OFF. Kod tomonidan hamma narsa tayyor (R1-R4 to'liq) — R5 FAQAT
   ega tomonidan bajarilishi mumkin bo'lgan yagona qoldiq.
+
+## 2026-07-07 — RESTORAN R5 boshlandi: 7 real Koson restorani seed qilindi (menyusiz)
+- Ega (Elbek orqali) 7 ta real restoran/choyxona Telegram+Instagram havolasini yubordi: Bahor,
+  Jazira, Orif Bar, Xonadon, Qazili Hot-Dog, Do'stlar Choyxonasi, Chinor Oilaviy Restorant —
+  aynan RESTORAN_PLAN R5'ning "5-8 restoran" mezoniga mos.
+- Har birining OCHIQ Telegram kanali (`t.me/s/<kanal>`) WebFetch bilan o'qildi: nom, telefon,
+  ba'zilarida manzil+ish-vaqti topildi (Xonadon/Qazi Hot-Dog'da to'liq manzil, Orif Bar/Xonadon'da
+  ish-vaqti). Instagram sahifalari (Dostlar, Chinor — faqat shu manba bor edi) login-devor tufayli
+  matn bermadi — bu ikkitasida faqat nom bor.
+- **5/7 tasida real logotip-rasm** (`cdn4.telesco.pe`) topilib, yuklab olindi va
+  `uploadRestaurantPhoto` orqali Telegram file_id sifatida saqlandi (Qazi Hot-Dog logotipida hatto
+  telefon raqami ko'rinib, boshqa manbadan topilgan raqam bilan mos tushib tasdiqladi).
+- **ATAYLAB MENYU KIRITILMADI** — hech qaysi kanalda matn-holidagi taom+narx topilmadi (real
+  menyular fotosurat sifatida joylashgan bo'lishi mumkin, OCR imkoniyati yo'q). Real pul-operatsiya
+  uchun narxni o'ylab topib yozish YO'L QO'YILMAYDI — bu mijozni chalg'itishi mumkin. Skript
+  (`packages/server/src/scripts/seedRestoranReal.ts`, idempotent, jonli DB'ga yozadi — test DB emas)
+  hammasini `active=false` (faqat admin ko'radi) qilib yaratdi, `menuCount=0`.
+- **Kutilmagan topilma**: jonli bazada allaqachon `#1 "koson miliy taomlari"` **AKTIV** holatda bor
+  edi (fake telefon `+989898989898`, 0 taom) — men yaratmaganman, ehtimol ega admin panelni R4
+  deploydan keyin o'zi sinab ko'rgan. Tegilmadi, ega e'tiboriga havola qilindi.
+- Keyingi qadam (faqat ega qila oladi): 7 restoranga telefon qilib menyu+narxlarni olish, admin
+  panel > Restoran > "Bulk qo'shish"ga joylash (§6.1: <10 daqiqa/restoran), keyin faollashtirish.
+- Flag holati: `restoran` hamon OFF — endi kod HAM, real restoran RO'YXATI HAM tayyor; faqat
+  menyu-yig'ish (telefon qo'ng'iroqlari) qoldi.
