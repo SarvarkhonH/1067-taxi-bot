@@ -105,6 +105,9 @@ export const EXPECTED_ON: FeatureName[] = [
   "jackpotpost", "instantstatus", "drvrank",
   "shop", // 🛍 tanga do'kon — owner GO LIVE 2026-07-06 (100 ta KOSON_AKSIYA mahsuloti + naqd/tanga)
   "xizmatlar", // 🔎 Koson xizmatlar katalogi — owner GO LIVE 2026-07-06 (67 ta seed listing, soft-launch: foto/narx/1067-audit hali bo'sh — jonli boyitiladi)
+  "elonlar", // 📋 E'lonlar (mahalla e'lon taxtasi) — owner GO LIVE 2026-07-07 (E1-E4 owner-accepted 2026-07-06,
+             // ELONLAR_PLAN.md; catalog bo'sh — 2 ta ega-test e'loni bor, real trafik yo'q; elontop TOP-boost
+             // ataylab OFF qoldirildi — alohida so'rov kutilmoqda, pul-mexanika keyinroq alohida yoqiladi)
 ];
 
 export async function reconcileFlags(): Promise<{ missing: string[]; effective: { name: string; on: boolean }[] }> {
