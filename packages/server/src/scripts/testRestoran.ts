@@ -28,6 +28,9 @@ async function main(): Promise<void> {
     rejectFoodOrder,
     adminListFoodOrders,
     checkRestoranSlaAndAlert,
+    adminGetRestaurantDetail,
+    uploadRestaurantPhoto,
+    uploadMenuItemPhoto,
   } = await import("../services/restoranService");
   const { __resetFeatureCache, featureOn } = await import("../services/featureFlags");
 
@@ -56,10 +59,30 @@ async function main(): Promise<void> {
   const listInactive = await listActiveRestaurants(true);
   ok(!listInactive.some((r) => r.id === restaurantId), "4: inactive restaurant hidden from preview catalog");
 
+  // R4: adminGetRestaurantDetail shows the restaurant EVEN WHILE inactive (unlike getRestaurantDetail
+  // above, which is rider-facing and correctly hides it) — the admin CRUD screen needs this to edit
+  // a brand-new restaurant before it's toggled on.
+  const adminDetailInactive = await adminGetRestaurantDetail(restaurantId);
+  ok(!!adminDetailInactive.restaurant && adminDetailInactive.restaurant.id === restaurantId, `R4a: adminGetRestaurantDetail sees inactive restaurant, got ${JSON.stringify(adminDetailInactive.restaurant)}`);
+
+  // R4: photo upload (no BOT_TOKEN in test env → falls back to data-URL, still succeeds)
+  const tinyPng = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=", "base64");
+  const photoUp = await uploadRestaurantPhoto(restaurantId, tinyPng, "image/png");
+  ok(photoUp.ok, "R4b: uploadRestaurantPhoto ok");
+  const photoRow = await prisma.restaurant.findUnique({ where: { id: restaurantId }, select: { photoFileId: true, photoUrl: true } });
+  ok(!!(photoRow?.photoFileId || photoRow?.photoUrl), `R4c: photo persisted (fileId or data-URL fallback), got ${JSON.stringify(photoRow)}`);
+
   // 5) bulk menu parse (§6.1) — 4 valid lines + 1 malformed (no price) → 4 created
   //    (Choy=5000 deliberately priced BELOW minOrderSom=20000 — needed by R2's below_min test)
   const bulk = await adminBulkCreateMenuItems(restaurantId, "Issiq taom", ["Osh — 35000", "Lag'mon — 30000", "Shurva - 25000", "Choy — 5000", "bad line no price"]);
   ok(bulk.ok && bulk.created === 4, `5: bulk menu parse created 4/5 (malformed line skipped), got ${bulk.created}`);
+
+  // R4d: menu item photo upload — same data-URL fallback path
+  const firstMenuRow = await prisma.menuItem.findFirst({ where: { restaurantId } });
+  const menuPhotoUp = await uploadMenuItemPhoto(firstMenuRow!.id, tinyPng, "image/png");
+  ok(menuPhotoUp.ok, "R4e: uploadMenuItemPhoto ok");
+  const menuPhotoRow = await prisma.menuItem.findUnique({ where: { id: firstMenuRow!.id }, select: { photoFileId: true, photoUrl: true } });
+  ok(!!(menuPhotoRow?.photoFileId || menuPhotoRow?.photoUrl), `R4f: menu item photo persisted, got ${JSON.stringify(menuPhotoRow)}`);
 
   // 6) activate → visible to admin preview, admin list reflects menuCount
   await adminToggleRestaurant(restaurantId, true);

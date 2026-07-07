@@ -729,3 +729,42 @@ STATUS (Rule 7): `ready for verification`. Compliance-report 5 gap yopildi; kodn
   kiritiladi, ega hali real restoran qo'sha olmaydi. Seed+pilot (R5) ham boshlanmagan.
 - Flag holati: `restoran` hali OFF — R4 (CRUD UI, §6.1 tezlik talablari) va R5 (seed+pilot)
   tugamaguncha owner QABUL bo'lishi mumkin emas (hozircha ega kirita oladigan real restoran yo'q).
+
+## 2026-07-07 — RESTORAN R4 (restoran+menyu to'liq CRUD UI)
+- Ega: "davom hamma rejani tugatib tekshirib ko'r" — RESTORAN_PLAN.md navbatdagi tiketi.
+- **R4 — ready for verification:**
+  - `restoranService.ts`: `adminGetRestaurantDetail` (yangi — `getRestaurantDetail`dan farqli,
+    active=false bo'lsa ham ko'rsatadi, chunki yangi yaratilgan restoran hali yoqilmagan bo'ladi;
+    faqat route-darajasida `requireAdmin` bilan qulflangan, flag/active tekshiruvi yo'q),
+    `uploadRestaurantPhoto`/`uploadMenuItemPhoto` (Telegram file_id, shop foto-patterni — galereya
+    yo'q, bitta qopqoq-foto yetarli V1 uchun). `AdminRestaurantRow` kengaytirildi: endi
+    address/workHours/deliveryFeeSom/minOrderSom/pickupEnabled/prepMinutes/hasPhoto ham qaytaradi
+    (bitta so'rovda — shop `ShopAdminProductRow` patterni, alohida detail-fetch shart emas).
+  - `server.ts`: `/api/admin/restoran/restaurants` (CRUD to'liq), `.../menu` (yaratish/tahrirlash/
+    o'chirish/bulk), `.../photo` (restoran+menyu), `.../restaurants/:id/menu` (nusxalash/tahrirlash
+    uchun mavjud menyuni qaytaradi) — barchasi `requireAdmin` (delete `requireOwner`).
+  - `admin/App.tsx`: yangi `RestoranCatalogAdminView` — do'kon admin kartalar+forma qolipidan
+    (commit e6d069d): restoran-kartasi kengayganda to'liq tahrirlash formasi (nomi/telefon/manzil/
+    ish-vaqti/yetkazish-haq/min-buyurtma/tayyorlash-vaqti/olib-ketish-toggle) + rasm yuklash +
+    ICHKI menyu-ro'yxati (inline nom/narx tahrirlash, bor/tugagan toggle, o'chirish) + **§6.1
+    bulk-qo'shish** (bo'lim-nomi + ko'p-qatorli "Nom — Narx" textarea, bitta tugma).
+  - **Isbot — `testRestoran.ts` yana kengaytirildi**: jami **42 tekshiruv ✅** (R1-R4), qo'shimcha
+    6 tasi R4: `adminGetRestaurantDetail` inactive restoranni ko'rsatadi (rider-facing
+    `getRestaurantDetail` esa yashiradi — ataylab farqli xatti-harakat), restoran+menyu foto-yuklash
+    (test muhitida BOT_TOKEN yo'q → data-URL fallback, baribir muvaffaqiyatli).
+  - Admin UI mock orqali tekshirildi: karta kengaytirildi → barcha maydonlar to'g'ri ko'rindi,
+    bulk-qo'shish 2 qator kiritildi → "✅ 2 ta taom qo'shildi" + menyu-soni 2→4 jonli yangilandi
+    (`preview_snapshot` bilan, screenshot bu muhitda beqaror — R3'dagi bilan bir xil sabab).
+  - `pnpm -r typecheck` 4/4 paket 0 xato.
+- **§6.1 muvaffaqiyat mezoni (jonli o'lchov kerak):** "yangi restoran+15 taom <10 daqiqada" — bulk-
+  qo'shish flow buni tuzilishi jihatidan qo'llab-quvvatlaydi (1 forma + 1 textarea + 1 tugma), lekin
+  ANIQ vaqt o'lchovi FAQAT ega o'zi real restoran kiritganda bo'ladi — bu mening tomonimdan
+  simulyatsiya qilinmagan (soat-o'lchov = haqiqiy foydalanuvchi tajribasi kerak).
+- **GAP — R5 (seed+pilot) MEN TOMONIMDAN "TUGATILISHI" MUMKIN EMAS:** bu tiket mohiyatan BIZNES
+  ishi — 5-8 ta real Koson restorani bilan telefon orqali gaplashish, rozilik olish, haqiqiy
+  menyu+narxlarni yig'ish, keyin real pilot-buyurtmalar bilan sinash. Kod-infrastruktura (R1-R4)
+  TO'LIQ tayyor — ega admin panelidan istalgan real restoranni <10 daqiqada kirita oladi. Lekin
+  "restoran" flag'ni yoqish uchun ANIQ real ma'lumot va real sinov kerak, buni men o'zim
+  o'ylab topa olmayman/qila olmayman.
+- Flag holati: `restoran` hali OFF. Kod tomonidan hamma narsa tayyor (R1-R4 to'liq) — R5 FAQAT
+  ega tomonidan bajarilishi mumkin bo'lgan yagona qoldiq.

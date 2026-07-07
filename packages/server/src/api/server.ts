@@ -1364,6 +1364,64 @@ export function createApiServer(opts: ApiOptions = {}) {
     res.json(pub);
   });
 
+  // ── 🍽 RESTORAN admin — R4: restoran+menyu CRUD (§6.1 tezlik: bulk-menyu, nusxalash, inline edit) ──
+  app.get("/api/admin/restoran/restaurants", requireAdmin, async (_req, res) => {
+    const { adminListRestaurants } = await import("../services/restoranService");
+    res.json(await adminListRestaurants());
+  });
+  app.post("/api/admin/restoran/restaurants", requireAdmin, rateLimit(20), async (req, res) => {
+    const { adminCreateRestaurant } = await import("../services/restoranService");
+    res.json(await adminCreateRestaurant(req.body ?? {}));
+  });
+  app.post("/api/admin/restoran/restaurants/:id", requireAdmin, rateLimit(20), async (req, res) => {
+    const { adminEditRestaurant } = await import("../services/restoranService");
+    res.json(await adminEditRestaurant(Number(req.params.id), req.body ?? {}));
+  });
+  app.post("/api/admin/restoran/restaurants/:id/toggle", requireAdmin, rateLimit(20), async (req, res) => {
+    const { adminToggleRestaurant } = await import("../services/restoranService");
+    res.json(await adminToggleRestaurant(Number(req.params.id), !!req.body?.active));
+  });
+  app.delete("/api/admin/restoran/restaurants/:id", requireAdmin, requireOwner, rateLimit(20), async (req, res) => {
+    const { adminDeleteRestaurant } = await import("../services/restoranService");
+    res.json(await adminDeleteRestaurant(Number(req.params.id)));
+  });
+  app.post("/api/admin/restoran/restaurants/:id/photo", express.json({ limit: "6mb" }), requireAdmin, async (req, res) => {
+    const b = req.body as { mime?: string; base64?: string };
+    if (!b?.base64) { res.status(400).json({ error: "no image" }); return; }
+    const { uploadRestaurantPhoto } = await import("../services/restoranService");
+    res.json(await uploadRestaurantPhoto(Number(req.params.id), Buffer.from(b.base64, "base64"), b.mime || "image/jpeg"));
+  });
+  app.post("/api/admin/restoran/menu", requireAdmin, rateLimit(20), async (req, res) => {
+    const { adminCreateMenuItem } = await import("../services/restoranService");
+    res.json(await adminCreateMenuItem(Number(req.body?.restaurantId), req.body ?? {}));
+  });
+  app.post("/api/admin/restoran/menu/bulk", requireAdmin, rateLimit(20), async (req, res) => {
+    const { adminBulkCreateMenuItems } = await import("../services/restoranService");
+    const lines = Array.isArray(req.body?.lines) ? (req.body.lines as unknown[]).filter((l): l is string => typeof l === "string") : [];
+    res.json(await adminBulkCreateMenuItems(Number(req.body?.restaurantId), String(req.body?.section ?? "Taomlar"), lines));
+  });
+  app.post("/api/admin/restoran/menu/:id", requireAdmin, rateLimit(20), async (req, res) => {
+    const { adminEditMenuItem } = await import("../services/restoranService");
+    res.json(await adminEditMenuItem(Number(req.params.id), req.body ?? {}));
+  });
+  app.delete("/api/admin/restoran/menu/:id", requireAdmin, rateLimit(20), async (req, res) => {
+    const { adminDeleteMenuItem } = await import("../services/restoranService");
+    res.json(await adminDeleteMenuItem(Number(req.params.id)));
+  });
+  app.post("/api/admin/restoran/menu/:id/photo", express.json({ limit: "6mb" }), requireAdmin, async (req, res) => {
+    const b = req.body as { mime?: string; base64?: string };
+    if (!b?.base64) { res.status(400).json({ error: "no image" }); return; }
+    const { uploadMenuItemPhoto } = await import("../services/restoranService");
+    res.json(await uploadMenuItemPhoto(Number(req.params.id), Buffer.from(b.base64, "base64"), b.mime || "image/jpeg"));
+  });
+  // restoran/menu CRUD kartalar+forma menyusi uchun mavjud menyularni ham qaytaradi (nusxalash +
+  // tahrirlash) — `adminGetRestaurantDetail` (active=false bo'lsa ham ko'rsatadi, getRestaurantDetail'dan farqli)
+  app.get("/api/admin/restoran/restaurants/:id/menu", requireAdmin, async (req, res) => {
+    const { adminGetRestaurantDetail } = await import("../services/restoranService");
+    const r = await adminGetRestaurantDetail(Number(req.params.id));
+    res.json({ items: r.items });
+  });
+
   // ── 🔎 XIZMATLAR admin (owner-gated writes) ───────────────────────────────────────────────────
   app.get("/api/admin/services", requireAdmin, async (req, res) => {
     const { adminListListings } = await import("../services/serviceDirectory");

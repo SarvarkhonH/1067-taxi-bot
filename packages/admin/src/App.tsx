@@ -19,7 +19,7 @@ import {
   type AdminMemberRow,
   type AdminStats,
 } from "@t1067/shared";
-import { adminApi, clearAdminToken, hasAdminToken, setAdminToken, type AdminBannedRow, type AdminChatConvo, type AdminChatMsg, type AdminDebtRow, type AdminMsgHistoryRow, type AdminRatingRow, type AdminTxnRow, type AdminBlockedRow, type AdminReferralRow, type AdminRideRow, type AdminUserRow, type AdminWithdrawalRow, type AdminWithdrawalTabRow, type CampaignRow, type Driver360, type DriverCallRow, type DriverCallStats, type DriverMissionRow, type IntercityAdminTrip, type IntercityAdminDebt, type Member360, type PeakHourRow, type ShopAdminProductRow, type ShopAdminOrderRow, type ShopAdminReviewRow, type SvcAdminRow, type SvcAdminCat, type SvcAdminReview } from "./api";
+import { adminApi, clearAdminToken, hasAdminToken, setAdminToken, type AdminBannedRow, type AdminChatConvo, type AdminChatMsg, type AdminDebtRow, type AdminMsgHistoryRow, type AdminRatingRow, type AdminTxnRow, type AdminBlockedRow, type AdminReferralRow, type AdminRideRow, type AdminUserRow, type AdminWithdrawalRow, type AdminWithdrawalTabRow, type CampaignRow, type Driver360, type DriverCallRow, type DriverCallStats, type DriverMissionRow, type IntercityAdminTrip, type IntercityAdminDebt, type Member360, type PeakHourRow, type ShopAdminProductRow, type ShopAdminOrderRow, type ShopAdminReviewRow, type SvcAdminRow, type SvcAdminCat, type SvcAdminReview, type RestoranAdminRow, type RestoranMenuItemRow } from "./api";
 
 type Tab = "overview" | "pulse" | "analytics" | "finance" | "live" | "x360" | "driver" | "client" | "botusers" | "obzvon" | "boshqaruv" | "topshiriq" | "actions" | "integrity" | "audit" | "safarlar" | "qarzlar" | "referallar" | "banlist" | "yechishlar" | "baholar" | "xabar" | "chat" | "broadcasts" | "intercity" | "pik" | "transactions" | "blocked" | "shop" | "xizmatlar" | "elonlar" | "restoran";
 
@@ -207,7 +207,7 @@ export function App() {
           {tab === "shop" && <ShopAdminView />}
           {tab === "xizmatlar" && <XizmatlarAdminView />}
           {tab === "elonlar" && <ElonlarAdminView />}
-          {tab === "restoran" && <RestoranAdminView />}
+          {tab === "restoran" && (<><RestoranAdminView /><RestoranCatalogAdminView /></>)}
           {tab === "topshiriq" && <><QuickAnnounceView /><CampaignsView /><DriverMissionsView /></>}
           {tab === "actions" && <><ActionsView onHistory={() => goTab("broadcasts")} /><ControlCards /></>}
           {tab === "integrity" && <IntegrityView />}
@@ -1878,6 +1878,219 @@ function RestoranAdminView() {
           </div>
         );
       })}
+    </section>
+  );
+}
+
+// 🍽 RESTORAN R4 — restoran+menyu CRUD (§6.1 tezlik: bulk-menyu matn-parse, shablon-nusxalash,
+// modal-siz inline tahrirlash). Do'kon admin kartalar+forma qolipidan (commit e6d069d).
+interface RestoranDraft {
+  name: string; category: string; phone: string; address: string; workHours: string;
+  deliveryFeeSom: string; minOrderSom: string; prepMinutes: string; pickupEnabled: boolean;
+}
+function restoranDraftFromRow(r: RestoranAdminRow): RestoranDraft {
+  return {
+    name: r.name, category: r.category, phone: r.phone, address: r.address ?? "", workHours: r.workHours ?? "",
+    deliveryFeeSom: String(r.deliveryFeeSom), minOrderSom: String(r.minOrderSom), prepMinutes: String(r.prepMinutes),
+    pickupEnabled: r.pickupEnabled,
+  };
+}
+
+function RestoranCatalogAdminView() {
+  const [data, setData] = useState<{ restaurants: RestoranAdminRow[]; enabled: boolean } | null>(null);
+  const [showAdd, setShowAdd] = useState(false);
+  const [name, setName] = useState("");
+  const [phone, setPhone] = useState("");
+  const [category, setCategory] = useState("milliy");
+  const [msg, setMsg] = useState("");
+  const [q, setQ] = useState("");
+  const [expandedId, setExpandedId] = useState<number | null>(null);
+  const [draft, setDraft] = useState<RestoranDraft | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [menu, setMenu] = useState<RestoranMenuItemRow[] | null>(null);
+  const [bulkSection, setBulkSection] = useState("Taomlar");
+  const [bulkText, setBulkText] = useState("");
+
+  const load = () => { adminApi.restoranList().then(setData).catch(() => undefined); };
+  useEffect(() => { load(); }, []);
+
+  const create = async () => {
+    if (!name.trim() || !phone.trim()) { setMsg("⚠️ Nom va telefon to'ldirilsin"); return; }
+    const r = await adminApi.restoranCreate({ name: name.trim(), phone: phone.trim(), category: category.trim() || "milliy" })
+      .catch((e: Error) => ({ ok: false as const, error: e.message }));
+    setMsg(r.ok ? "✅ Qo'shildi (o'chiq holda — menyu kiritib, yoqing)" : `❌ Qo'shilmadi: ${("error" in r && r.error) || "server javob bermadi"}`);
+    if (r.ok) { setName(""); setPhone(""); setShowAdd(false); load(); }
+  };
+
+  const toggleExpand = (r: RestoranAdminRow) => {
+    if (expandedId === r.id) { setExpandedId(null); setDraft(null); setMenu(null); return; }
+    setExpandedId(r.id);
+    setDraft(restoranDraftFromRow(r));
+    setMenu(null);
+    adminApi.restoranMenu(r.id).then((res) => setMenu(res.items)).catch(() => setMenu([]));
+  };
+
+  const saveDraft = async (id: number) => {
+    if (!draft) return;
+    if (!draft.name.trim() || !draft.phone.trim()) { setMsg("❌ Nom va telefon to'ldirilsin"); return; }
+    setSaving(true);
+    const r = await adminApi.restoranEdit(id, {
+      name: draft.name, category: draft.category || "milliy", phone: draft.phone,
+      address: draft.address || null, workHours: draft.workHours || null,
+      deliveryFeeSom: Number(draft.deliveryFeeSom) || 0, minOrderSom: Number(draft.minOrderSom) || 0,
+      prepMinutes: Number(draft.prepMinutes) || 30, pickupEnabled: draft.pickupEnabled,
+    }).catch((e: Error) => ({ ok: false as const, error: e.message }));
+    setMsg(r.ok ? "✅ Saqlandi" : "❌ Saqlanmadi");
+    setSaving(false);
+    load();
+  };
+
+  const uploadPhoto = (id: number) => {
+    const input = document.createElement("input");
+    input.type = "file"; input.accept = "image/*";
+    input.onchange = () => {
+      const f = input.files?.[0];
+      if (!f) return;
+      if (f.size > 5 * 1024 * 1024) { setMsg("❌ Rasm 5MB dan kichik bo'lsin"); return; }
+      const reader = new FileReader();
+      reader.onload = async () => {
+        const base64 = String(reader.result).split(",")[1] ?? "";
+        const r = await adminApi.restoranPhotoUpload(id, f.type || "image/jpeg", base64).catch((e: Error) => ({ ok: false as const, error: e.message }));
+        setMsg(r.ok ? "✅ Rasm yuklandi" : "❌ Rasm yuklanmadi");
+        load();
+      };
+      reader.readAsDataURL(f);
+    };
+    input.click();
+  };
+
+  const del = async (r: RestoranAdminRow) => {
+    if (!window.confirm(`"${r.name}" o'chirilsinmi? (buyurtma tarixi saqlanadi)`)) return;
+    await adminApi.restoranDelete(r.id).catch(() => undefined);
+    load();
+  };
+
+  const addBulkMenu = async (restaurantId: number) => {
+    const lines = bulkText.split("\n").map((l) => l.trim()).filter(Boolean);
+    if (!lines.length) { setMsg("⚠️ Kamida bitta qator kiriting: Nom — Narx"); return; }
+    const r = await adminApi.restoranMenuBulk(restaurantId, bulkSection || "Taomlar", lines).catch((e: Error) => ({ ok: false as const, created: 0, error: e.message }));
+    setMsg(r.ok ? `✅ ${r.created} ta taom qo'shildi` : "❌ Hech qaysi qator to'g'ri formatda emas (Nom — Narx)");
+    if (r.ok) {
+      setBulkText("");
+      adminApi.restoranMenu(restaurantId).then((res) => setMenu(res.items)).catch(() => undefined);
+      load();
+    }
+  };
+
+  const menuQuickEdit = async (item: RestoranMenuItemRow, patch: Record<string, unknown>) => {
+    await adminApi.restoranMenuEdit(item.id, patch).catch(() => undefined);
+    if (expandedId != null) adminApi.restoranMenu(expandedId).then((res) => setMenu(res.items)).catch(() => undefined);
+    load();
+  };
+  const menuDelete = async (item: RestoranMenuItemRow) => {
+    if (!window.confirm(`"${item.name}" menyudan o'chirilsinmi?`)) return;
+    await adminApi.restoranMenuDelete(item.id).catch(() => undefined);
+    if (expandedId != null) adminApi.restoranMenu(expandedId).then((res) => setMenu(res.items)).catch(() => undefined);
+    load();
+  };
+
+  const restaurants = (data?.restaurants ?? []).filter((r) => {
+    const t = q.trim().toLowerCase();
+    return !t || r.name.toLowerCase().includes(t) || r.category.toLowerCase().includes(t);
+  });
+
+  return (
+    <section className="panel">
+      <div className="panel-title">🍽 Restoranlar ({restaurants.length})</div>
+      <p className="muted" style={{ marginTop: 0 }}>
+        {data && !data.enabled && <b style={{ color: "#f59e0b" }}>«restoran» flag o&apos;chiq — mijozlarga ko&apos;rinmaydi (Features&apos;dan yoqiladi). </b>}
+        Yangi restoran O&apos;CHIQ holda yaratiladi — menyu kiritib, «yoqish»ni bosing.
+      </p>
+      <button className="btn sm" onClick={() => setShowAdd((v) => !v)}>{showAdd ? "✖ Yopish" : "➕ Yangi restoran qo'shish"}</button>
+      {showAdd && (
+        <div className="adm-form-grid" style={{ marginTop: 10 }}>
+          <div className="adm-field"><span className="adm-field-label">Nomi</span><input value={name} onChange={(e) => setName(e.target.value)} placeholder="Koson Milliy Taomlar" /></div>
+          <div className="adm-field"><span className="adm-field-label">Telefon</span><input value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="+998901234567" /></div>
+          <div className="adm-field"><span className="adm-field-label">Kategoriya</span><input value={category} onChange={(e) => setCategory(e.target.value)} /></div>
+          <div className="adm-field">
+            <span className="adm-field-label">&nbsp;</span>
+            <button onClick={create}>➕ Qo&apos;shish</button>
+          </div>
+        </div>
+      )}
+      {msg && <div className="action-msg" style={{ marginTop: 10 }}>{msg}</div>}
+      <div className="adm-toolbar" style={{ marginTop: 10 }}>
+        <input className="search" value={q} onChange={(e) => setQ(e.target.value)} placeholder="🔍 Nom yoki kategoriya…" />
+      </div>
+      {restaurants.map((r) => (
+        <div key={r.id} className={"adm-card" + (expandedId === r.id ? " open" : "")}>
+          <div className="adm-card-head" role="button" tabIndex={0} onClick={() => toggleExpand(r)} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); toggleExpand(r); } }}>
+            <div className="adm-card-main">
+              <div className="adm-card-title">
+                {r.name}
+                <span className={"badge " + (r.active ? "badge-ok" : "badge-warn")}>{r.active ? "🟢 Yoniq" : "🔴 O'chiq"}</span>
+                {r.paused && <span className="badge badge-bad">⏸ To'xtatilgan</span>}
+              </div>
+              <div className="adm-card-sub">
+                <span>☎ {r.phone}</span>
+                <span>📋 {r.menuCount} taom</span>
+                <span>🧾 {r.orderCount} buyurtma</span>
+              </div>
+            </div>
+            <div className="adm-card-actions" onClick={(e) => e.stopPropagation()}>
+              <button className="btn sm" onClick={() => void adminApi.restoranToggle(r.id, !r.active).then(load)}>{r.active ? "O'chirish" : "Yoqish"}</button>
+              <button className="btn sm" onClick={() => del(r)}>🗑</button>
+            </div>
+            <span className="adm-card-chev">{expandedId === r.id ? "▲" : "▼"}</span>
+          </div>
+          {expandedId === r.id && draft && (
+            <div className="adm-card-body">
+              <div className="adm-form-grid">
+                <div className="adm-field"><span className="adm-field-label">Nomi</span><input value={draft.name} onChange={(e) => setDraft({ ...draft, name: e.target.value })} /></div>
+                <div className="adm-field"><span className="adm-field-label">Telefon</span><input value={draft.phone} onChange={(e) => setDraft({ ...draft, phone: e.target.value })} /></div>
+                <div className="adm-field"><span className="adm-field-label">Kategoriya</span><input value={draft.category} onChange={(e) => setDraft({ ...draft, category: e.target.value })} /></div>
+                <div className="adm-field"><span className="adm-field-label">Manzil</span><input value={draft.address} onChange={(e) => setDraft({ ...draft, address: e.target.value })} /></div>
+                <div className="adm-field"><span className="adm-field-label">Ish vaqti (09:00-22:00)</span><input value={draft.workHours} onChange={(e) => setDraft({ ...draft, workHours: e.target.value })} placeholder="09:00-22:00" /></div>
+                <div className="adm-field"><span className="adm-field-label">Yetkazish (so'm)</span><input type="number" value={draft.deliveryFeeSom} onChange={(e) => setDraft({ ...draft, deliveryFeeSom: e.target.value })} /></div>
+                <div className="adm-field"><span className="adm-field-label">Min buyurtma (so'm)</span><input type="number" value={draft.minOrderSom} onChange={(e) => setDraft({ ...draft, minOrderSom: e.target.value })} /></div>
+                <div className="adm-field"><span className="adm-field-label">Tayyorlash (daq)</span><input type="number" value={draft.prepMinutes} onChange={(e) => setDraft({ ...draft, prepMinutes: e.target.value })} /></div>
+                <div className="adm-field">
+                  <span className="adm-field-label">Olib ketish</span>
+                  <button onClick={() => setDraft({ ...draft, pickupEnabled: !draft.pickupEnabled })}>{draft.pickupEnabled ? "✅ Yoqilgan" : "✖ O'chiq"}</button>
+                </div>
+              </div>
+              <div className="adm-card-body-foot">
+                <button className="btn" disabled={saving} onClick={() => saveDraft(r.id)}>{saving ? "Saqlanmoqda…" : "💾 Saqlash"}</button>
+                <button className="btn sm" onClick={() => uploadPhoto(r.id)}>{r.hasPhoto ? "🖼 Rasmni almashtirish" : "🖼 Rasm yuklash"}</button>
+              </div>
+
+              <hr style={{ margin: "14px 0", border: 0, borderTop: "1px solid var(--line)" }} />
+              <div className="panel-title" style={{ fontSize: 14 }}>📋 Menyu ({menu?.length ?? 0})</div>
+              {menu === null && <p className="muted">Yuklanmoqda…</p>}
+              {menu && menu.length === 0 && <p className="muted">Hali taom yo'q — pastdan bulk qo'shing.</p>}
+              {menu?.map((item) => (
+                <div key={item.id} style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", padding: "6px 0", borderBottom: "1px solid rgba(255,255,255,0.08)" }}>
+                  <span className="muted" style={{ fontSize: 11, minWidth: 70 }}>{item.section}</span>
+                  <input className="inp" style={{ flex: "2 1 160px" }} defaultValue={item.name} onBlur={(e) => e.target.value !== item.name && menuQuickEdit(item, { name: e.target.value })} />
+                  <input className="inp" type="number" style={{ flex: "0 1 100px" }} defaultValue={item.priceSom} onBlur={(e) => Number(e.target.value) !== item.priceSom && menuQuickEdit(item, { priceSom: Number(e.target.value) })} />
+                  <button className="btn sm" onClick={() => menuQuickEdit(item, { available: !item.available })}>{item.available ? "🟢 Bor" : "🔴 Tugagan"}</button>
+                  <button className="btn sm" onClick={() => menuDelete(item)}>🗑</button>
+                </div>
+              ))}
+              <div className="adm-field" style={{ marginTop: 10 }}>
+                <span className="adm-field-label">Bo'lim nomi</span>
+                <input value={bulkSection} onChange={(e) => setBulkSection(e.target.value)} placeholder="Issiq taom" />
+              </div>
+              <div className="adm-field" style={{ marginTop: 6 }}>
+                <span className="adm-field-label">Bulk qo'shish — har qatorda: Nom — Narx</span>
+                <textarea className="inp" rows={4} value={bulkText} onChange={(e) => setBulkText(e.target.value)} placeholder={"Osh — 35000\nLag'mon — 30000\nShurva — 25000"} />
+              </div>
+              <button className="btn sm" style={{ marginTop: 6 }} onClick={() => addBulkMenu(r.id)}>➕ Bulk qo&apos;shish</button>
+            </div>
+          )}
+        </div>
+      ))}
+      {data && restaurants.length === 0 && <p className="muted">Mos restoran topilmadi.</p>}
     </section>
   );
 }

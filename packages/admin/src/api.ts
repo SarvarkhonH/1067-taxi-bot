@@ -227,6 +227,22 @@ export const adminApi = {
   restoranAccept: (id: number) => postJson<{ ok: boolean; reason?: string }>(`/api/admin/restoran/orders/${id}/accept`, {}),
   restoranAdvance: (id: number) => postJson<{ ok: boolean; reason?: string; newStatus?: string }>(`/api/admin/restoran/orders/${id}/advance`, {}),
   restoranReject: (id: number, reason: string) => postJson<{ ok: boolean; reason?: string }>(`/api/admin/restoran/orders/${id}/reject`, { reason }),
+  // 🍽 restoran — R4 restoran+menyu CRUD
+  restoranList: () => req<{ restaurants: RestoranAdminRow[]; enabled: boolean }>("/api/admin/restoran/restaurants"),
+  restoranCreate: (p: { name: string; phone: string; category?: string; address?: string; workHours?: string; deliveryFeeSom?: number; minOrderSom?: number; pickupEnabled?: boolean; prepMinutes?: number }) =>
+    postJson<{ ok: boolean; id?: number; error?: string }>("/api/admin/restoran/restaurants", p),
+  restoranEdit: (id: number, patch: Record<string, unknown>) => postJson<{ ok: boolean }>(`/api/admin/restoran/restaurants/${id}`, patch),
+  restoranToggle: (id: number, active: boolean) => postJson<{ ok: boolean }>(`/api/admin/restoran/restaurants/${id}/toggle`, { active }),
+  restoranDelete: (id: number) => req<{ ok: boolean }>(`/api/admin/restoran/restaurants/${id}`, { method: "DELETE" }),
+  restoranPhotoUpload: (id: number, mime: string, base64: string) => postJson<{ ok: boolean }>(`/api/admin/restoran/restaurants/${id}/photo`, { mime, base64 }),
+  restoranMenu: (id: number) => req<{ items: RestoranMenuItemRow[] }>(`/api/admin/restoran/restaurants/${id}/menu`),
+  restoranMenuCreate: (restaurantId: number, p: { section?: string; name: string; desc?: string; priceSom: number }) =>
+    postJson<{ ok: boolean; id?: number; error?: string }>("/api/admin/restoran/menu", { restaurantId, ...p }),
+  restoranMenuBulk: (restaurantId: number, section: string, lines: string[]) =>
+    postJson<{ ok: boolean; created: number }>("/api/admin/restoran/menu/bulk", { restaurantId, section, lines }),
+  restoranMenuEdit: (id: number, patch: Record<string, unknown>) => postJson<{ ok: boolean }>(`/api/admin/restoran/menu/${id}`, patch),
+  restoranMenuDelete: (id: number) => req<{ ok: boolean }>(`/api/admin/restoran/menu/${id}`, { method: "DELETE" }),
+  restoranMenuPhotoUpload: (id: number, mime: string, base64: string) => postJson<{ ok: boolean }>(`/api/admin/restoran/menu/${id}/photo`, { mime, base64 }),
   // 🔎 xizmatlar directory
   svcList: (status?: string) => req<{ rows: SvcAdminRow[]; enabled: boolean; pending: number; hiddenReviews: number; phoneFlagged: number; newRequests: number }>(`/api/admin/services${status ? `?status=${status}` : ""}`),
   svcRequests: (status = "new") => req<{ requests: { id: number; query: string; note: string; status: string; createdAt: string }[] }>(`/api/admin/service-requests?status=${status}`),
@@ -538,6 +554,35 @@ export interface Driver360 {
   rating: { avg: number; count: number; tags: { tag: string; n: number }[] };
   recruits: number;
   mashinaTickets: number;
+}
+
+// 🍽 restoran admin rows (R4)
+export interface RestoranAdminRow {
+  id: number;
+  name: string;
+  category: string;
+  phone: string;
+  address: string | null;
+  workHours: string | null;
+  deliveryFeeSom: number;
+  minOrderSom: number;
+  pickupEnabled: boolean;
+  prepMinutes: number;
+  hasPhoto: boolean;
+  active: boolean;
+  paused: boolean;
+  menuCount: number;
+  orderCount: number;
+  createdAt: string;
+}
+export interface RestoranMenuItemRow {
+  id: number;
+  section: string;
+  name: string;
+  desc?: string;
+  priceSom: number;
+  hasPhoto: boolean;
+  available: boolean;
 }
 
 // 🛍 tanga shop admin rows

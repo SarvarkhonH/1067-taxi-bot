@@ -67,6 +67,30 @@ export async function getRestaurantDetail(id: number, preview = false): Promise<
   };
 }
 
+/** R4: admin CRUD ekrani uchun — `getRestaurantDetail`dan farqli, active=false (yangi yaratilgan,
+ *  hali yoqilmagan) restoranni ham ko'rsatadi. Flag/active tekshiruvi YO'Q — chunki bu allaqachon
+ *  route-darajasida `requireAdmin` bilan qulflangan (rider-facing yo'l emas). */
+export async function adminGetRestaurantDetail(id: number): Promise<{ restaurant: RestaurantView | null; items: MenuItemView[] }> {
+  const r = await prisma.restaurant.findUnique({ where: { id } });
+  if (!r) return { restaurant: null, items: [] };
+  const menuItems = await prisma.menuItem.findMany({
+    where: { restaurantId: id },
+    orderBy: [{ section: "asc" }, { sortOrder: "asc" }, { id: "asc" }],
+  });
+  return {
+    restaurant: {
+      id: r.id, name: r.name, category: r.category, address: r.address, workHours: r.workHours,
+      deliveryFeeSom: r.deliveryFeeSom, minOrderSom: r.minOrderSom, pickupEnabled: r.pickupEnabled,
+      prepMinutes: r.prepMinutes, hasPhoto: !!(r.photoFileId || r.photoUrl),
+      avgRating: r.avgRating, reviewCount: r.reviewCount, orderCount: r.orderCount,
+    },
+    items: menuItems.map((m) => ({
+      id: m.id, section: m.section, name: m.name, desc: m.desc || undefined,
+      priceSom: m.priceSom, hasPhoto: !!(m.photoFileId || m.photoUrl), available: m.available,
+    })),
+  };
+}
+
 // ── R2: savat + checkout + FoodOrder ────────────────────────────────────────────────────────────
 // V1 = CONCIERGE (D1/D2): naqd/so'm to'lov, CoinTxn TEGILMAYDI. Operator qo'lda holatni boshqaradi
 // (R3) — bu yerda faqat buyurtmani to'g'ri, atomik yaratish.
@@ -347,6 +371,41 @@ export async function resolveMenuItemPhoto(menuItemId: number): Promise<string |
   return null;
 }
 
+// ── R4: foto-yuklash (Telegram file_id — driver-photo/shop patterni) ─────────────────────────────
+// Restaurant/MenuItem'da GALEREYA yo'q (Product'dan farqli — bitta qopqoq-foto yetarli, V1 MVP).
+async function tgUploadPhoto(buf: Buffer, mime: string, caption: string): Promise<{ fileId: string | null }> {
+  const { env } = await import("../env");
+  const adminId = env.adminIds.find((id) => id.trim() !== "");
+  if (!env.BOT_TOKEN || !adminId) return { fileId: null };
+  try {
+    const form = new FormData();
+    form.append("chat_id", adminId);
+    form.append("photo", new Blob([buf], { type: mime }), "photo.jpg");
+    form.append("caption", caption);
+    form.append("disable_notification", "true");
+    const res = await fetch(`https://api.telegram.org/bot${env.BOT_TOKEN}/sendPhoto`, { method: "POST", body: form });
+    const data = (await res.json()) as { ok: boolean; result?: { photo?: { file_id: string }[] } };
+    const sizes = data.ok ? (data.result?.photo ?? []) : [];
+    return { fileId: sizes.length ? sizes[sizes.length - 1]!.file_id : null };
+  } catch {
+    return { fileId: null };
+  }
+}
+
+export async function uploadRestaurantPhoto(restaurantId: number, buf: Buffer, mime = "image/jpeg"): Promise<{ ok: boolean }> {
+  const { fileId } = await tgUploadPhoto(buf, mime, `🍽 Restaurant photo · #${restaurantId}`);
+  const url = fileId ? null : `data:${mime};base64,${buf.toString("base64")}`;
+  await prisma.restaurant.update({ where: { id: restaurantId }, data: { photoFileId: fileId, photoUrl: url } });
+  return { ok: true };
+}
+
+export async function uploadMenuItemPhoto(menuItemId: number, buf: Buffer, mime = "image/jpeg"): Promise<{ ok: boolean }> {
+  const { fileId } = await tgUploadPhoto(buf, mime, `🍲 Menu item photo · #${menuItemId}`);
+  const url = fileId ? null : `data:${mime};base64,${buf.toString("base64")}`;
+  await prisma.menuItem.update({ where: { id: menuItemId }, data: { photoFileId: fileId, photoUrl: url } });
+  return { ok: true };
+}
+
 // ── admin CRUD (owner-gated at the route layer; R1 = create/list, full edit/photo-upload lands with R4) ──
 
 export interface AdminRestaurantRow {
@@ -354,6 +413,13 @@ export interface AdminRestaurantRow {
   name: string;
   category: string;
   phone: string;
+  address: string | null;
+  workHours: string | null;
+  deliveryFeeSom: number;
+  minOrderSom: number;
+  pickupEnabled: boolean;
+  prepMinutes: number;
+  hasPhoto: boolean;
   active: boolean;
   paused: boolean;
   menuCount: number;
@@ -375,6 +441,13 @@ export async function adminListRestaurants(): Promise<{ restaurants: AdminRestau
       name: r.name,
       category: r.category,
       phone: r.phone,
+      address: r.address,
+      workHours: r.workHours,
+      deliveryFeeSom: r.deliveryFeeSom,
+      minOrderSom: r.minOrderSom,
+      pickupEnabled: r.pickupEnabled,
+      prepMinutes: r.prepMinutes,
+      hasPhoto: !!(r.photoFileId || r.photoUrl),
       active: r.active,
       paused: r.paused,
       menuCount: menuOf.get(r.id) ?? 0,
