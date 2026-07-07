@@ -616,7 +616,10 @@ body {
 .tab svg { transition: transform 0.25s var(--ease); }
 .tab.active { color: var(--gold); }
 .tab.active svg { transform: translateY(-1px) scale(1.08); filter: drop-shadow(0 0 8px rgba(255, 207, 90, 0.6)); }
-.tab-label { font-weight: 700; letter-spacing: 0.2px; }
+/* .tab .tab-label (not just .tab-label) so specificity beats the older ".tab span { font-size: 20px }"
+   emoji-icon rule above — 5 tabs (Uy/Hamyon/Do'kon/Xizmatlar/E'lonlar) at 20px overflowed + overlapped
+   on a 375px screen; labels are meant to be a small caption under the (actually-20px) SVG icon. */
+.tab .tab-label { font-size: 10px; font-weight: 700; letter-spacing: 0.2px; white-space: nowrap; }
 
 /* boot splash */
 .boot { min-height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 16px; }
