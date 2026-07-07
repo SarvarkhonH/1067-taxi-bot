@@ -8,6 +8,7 @@ import {
   type AdminBotUsersResponse,
   type AdminClassifiedListResponse,
   type AdminEconomy,
+  type AdminFoodOrderRow,
   type BallDistribution,
   type AdminGrowth,
   type AdminHealth,
@@ -20,7 +21,7 @@ import {
 } from "@t1067/shared";
 import { adminApi, clearAdminToken, hasAdminToken, setAdminToken, type AdminBannedRow, type AdminChatConvo, type AdminChatMsg, type AdminDebtRow, type AdminMsgHistoryRow, type AdminRatingRow, type AdminTxnRow, type AdminBlockedRow, type AdminReferralRow, type AdminRideRow, type AdminUserRow, type AdminWithdrawalRow, type AdminWithdrawalTabRow, type CampaignRow, type Driver360, type DriverCallRow, type DriverCallStats, type DriverMissionRow, type IntercityAdminTrip, type IntercityAdminDebt, type Member360, type PeakHourRow, type ShopAdminProductRow, type ShopAdminOrderRow, type ShopAdminReviewRow, type SvcAdminRow, type SvcAdminCat, type SvcAdminReview } from "./api";
 
-type Tab = "overview" | "pulse" | "analytics" | "finance" | "live" | "x360" | "driver" | "client" | "botusers" | "obzvon" | "boshqaruv" | "topshiriq" | "actions" | "integrity" | "audit" | "safarlar" | "qarzlar" | "referallar" | "banlist" | "yechishlar" | "baholar" | "xabar" | "chat" | "broadcasts" | "intercity" | "pik" | "transactions" | "blocked" | "shop" | "xizmatlar" | "elonlar";
+type Tab = "overview" | "pulse" | "analytics" | "finance" | "live" | "x360" | "driver" | "client" | "botusers" | "obzvon" | "boshqaruv" | "topshiriq" | "actions" | "integrity" | "audit" | "safarlar" | "qarzlar" | "referallar" | "banlist" | "yechishlar" | "baholar" | "xabar" | "chat" | "broadcasts" | "intercity" | "pik" | "transactions" | "blocked" | "shop" | "xizmatlar" | "elonlar" | "restoran";
 
 const NAV_GROUPS: { label: string; items: { id: Tab; icon: string; label: string }[] }[] = [
   {
@@ -76,6 +77,7 @@ const NAV_GROUPS: { label: string; items: { id: Tab; icon: string; label: string
       { id: "shop", icon: "🛍", label: "Do'kon" },
       { id: "xizmatlar", icon: "🔎", label: "Xizmatlar" },
       { id: "elonlar", icon: "📋", label: "E'lonlar" },
+      { id: "restoran", icon: "🍽", label: "Restoran" },
       { id: "pik", icon: "🔥", label: "Pik Vaqtlar" },
       { id: "actions", icon: "⚡", label: "Amallar" },
       { id: "topshiriq", icon: "🎯", label: "Topshiriqlar" },
@@ -205,6 +207,7 @@ export function App() {
           {tab === "shop" && <ShopAdminView />}
           {tab === "xizmatlar" && <XizmatlarAdminView />}
           {tab === "elonlar" && <ElonlarAdminView />}
+          {tab === "restoran" && <RestoranAdminView />}
           {tab === "topshiriq" && <><QuickAnnounceView /><CampaignsView /><DriverMissionsView /></>}
           {tab === "actions" && <><ActionsView onHistory={() => goTab("broadcasts")} /><ControlCards /></>}
           {tab === "integrity" && <IntegrityView />}
@@ -1760,6 +1763,123 @@ function svcParsePriceText(v: string): { label: string; priceSom: number }[] {
   return v.split(";").map((x) => x.split("=")).filter((a) => a.length === 2)
     .map(([l, p]) => ({ label: (l ?? "").trim(), priceSom: Number(String(p).replace(/\D/g, "")) }))
     .filter((i) => i.label.length >= 2 && i.priceSom > 0);
+}
+
+// 🍽 RESTORAN R3 — sessiya-navbati (RESTORAN_PLAN §0/§2/§3/§6). Concierge V1: operator ODAM, bu
+// panel operatorning "ish stoli" — Telegram-bot integratsiyasi yo'q (V2). 3+ daq pending → flagged
+// (adm-card.flagged, mavjud CSS qayta ishlatildi). 8s poll (DoD: real-vaqt/5-10s).
+const RST_STATUS_LABEL: Record<string, { t: string; badge: string }> = {
+  pending: { t: "⏳ Kutilmoqda", badge: "badge-warn" },
+  accepted: { t: "✅ Qabul qilindi", badge: "badge-ok" },
+  preparing: { t: "🍳 Tayyorlanmoqda", badge: "badge-ok" },
+  delivering: { t: "🛵 Yo'lda", badge: "badge-ok" },
+  delivered: { t: "✅ Yetkazildi", badge: "badge-ok" },
+  rejected: { t: "❌ Rad etildi", badge: "badge-bad" },
+  cancelled_by_user: { t: "✖ Bekor qilindi", badge: "badge-bad" },
+};
+const RST_NEXT_LABEL: Record<string, string> = { accepted: "🍳 Tayyorlanmoqda", preparing: "🛵 Yo'lda", delivering: "✅ Yetkazildi" };
+
+function RestoranAdminView() {
+  const [orders, setOrders] = useState<AdminFoodOrderRow[] | null>(null);
+  const [filter, setFilter] = useState<"all" | "pending" | "active" | "done">("pending");
+  const [msg, setMsg] = useState("");
+  const [busyId, setBusyId] = useState<number | null>(null);
+
+  const reload = () => adminApi.restoranOrders().then((r) => setOrders(r.orders)).catch(() => undefined);
+  useEffect(() => {
+    reload();
+    const iv = setInterval(reload, 8000); // DoD: real-vaqt/5-10s poll — operator boshqa qurilmada bosgan holat shu yerda 8s ichida ko'rinadi
+    return () => clearInterval(iv);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const withBusy = async (id: number, fn: () => Promise<{ ok: boolean; reason?: string }>) => {
+    setBusyId(id);
+    const r = await fn().catch((e: Error) => ({ ok: false as const, reason: e.message }));
+    setMsg(r.ok ? "✅ Saqlandi" : `❌ ${r.reason ?? "Xatolik"}`);
+    setBusyId(null);
+    reload();
+  };
+  const reject = (id: number) => {
+    const reason = window.prompt("Rad etish sababi (restoranga qo'ng'iroqdan keyin):");
+    if (reason == null) return;
+    void withBusy(id, () => adminApi.restoranReject(id, reason));
+  };
+
+  const filtered = (orders ?? []).filter((o) => {
+    if (filter === "all") return true;
+    if (filter === "pending") return o.status === "pending";
+    if (filter === "active") return o.status === "accepted" || o.status === "preparing" || o.status === "delivering";
+    return o.status === "delivered" || o.status === "rejected" || o.status === "cancelled_by_user";
+  });
+
+  return (
+    <section className="panel">
+      <div className="panel-title">🍽 Restoran — sessiyalar</div>
+      <p className="muted" style={{ marginTop: 0 }}>
+        Concierge V1: restoranga TELEFON qiling, keyin holatni shu yerda belgilang. 3+ daqiqa javobsiz buyurtma qizil chiziq bilan ajraladi.
+      </p>
+      <div className="adm-toolbar">
+        <select className="inp" value={filter} onChange={(e) => setFilter(e.target.value as typeof filter)}>
+          <option value="pending">⏳ Kutilmoqda</option>
+          <option value="active">🍳 Faol (qabul qilingan)</option>
+          <option value="done">✔ Tugagan</option>
+          <option value="all">Barchasi</option>
+        </select>
+      </div>
+      {msg && <div className="action-msg" style={{ marginTop: 10 }}>{msg}</div>}
+      {orders === null && <p className="muted">Yuklanmoqda…</p>}
+      {orders && filtered.length === 0 && <p className="muted">Mos buyurtma yo'q.</p>}
+      {filtered.map((o) => {
+        const s = RST_STATUS_LABEL[o.status] ?? { t: o.status, badge: "badge-warn" };
+        const sla = o.status === "pending" && o.ageMinutes >= 3;
+        const busy = busyId === o.id;
+        return (
+          <div key={o.id} className={"adm-card open" + (sla ? " flagged" : "")}>
+            <div className="adm-card-head" style={{ cursor: "default" }}>
+              <div className="adm-card-main">
+                <div className="adm-card-title">
+                  #{o.id} <b>{o.restaurantName}</b>
+                  <span className={"badge " + s.badge}>{s.t}</span>
+                  {sla && <span className="badge badge-bad">⚠ {o.ageMinutes} daq</span>}
+                  {!sla && o.status === "pending" && <span className="muted" style={{ fontSize: 11 }}>{o.ageMinutes} daq</span>}
+                </div>
+                <div className="adm-card-sub">
+                  <span>👤 {o.buyerName} · ☎ {o.contact}</span>
+                  <span>🏪 {o.restaurantPhone}</span>
+                  <span>{o.isPickup ? "🚶 Olib ketish" : `🛵 ${o.address}`}</span>
+                </div>
+              </div>
+            </div>
+            <div className="adm-card-body">
+              <div className="muted" style={{ fontSize: 13, marginBottom: 6 }}>
+                {o.itemsJson.map((i) => `${i.name} ×${i.qty}`).join(", ")}
+              </div>
+              {o.note && <div className="muted" style={{ fontSize: 12, marginBottom: 6 }}>💬 {o.note}</div>}
+              <div style={{ fontWeight: 700, marginBottom: 10 }}>Jami: {o.totalSom.toLocaleString("ru-RU")} so'm (naqd)</div>
+              {o.rejectReason && <div className="muted" style={{ fontSize: 12, marginBottom: 10 }}>Sabab: {o.rejectReason}</div>}
+              {o.status === "pending" && (
+                <div className="adm-card-body-foot">
+                  {!o.calledAt ? (
+                    <button className="btn sm" disabled={busy} onClick={() => void withBusy(o.id, () => adminApi.restoranCall(o.id))}>☎ Qo'ng'iroq qildim</button>
+                  ) : (
+                    <span className="muted" style={{ fontSize: 12 }}>☎ Qo'ng'iroq qilindi</span>
+                  )}
+                  <button className="btn sm" disabled={busy} onClick={() => void withBusy(o.id, () => adminApi.restoranAccept(o.id))}>✅ Qabul qildi</button>
+                  <button className="btn sm" disabled={busy} onClick={() => reject(o.id)}>❌ Rad</button>
+                </div>
+              )}
+              {(o.status === "accepted" || o.status === "preparing" || o.status === "delivering") && (
+                <div className="adm-card-body-foot">
+                  <button className="btn sm" disabled={busy} onClick={() => void withBusy(o.id, () => adminApi.restoranAdvance(o.id))}>{RST_NEXT_LABEL[o.status]}</button>
+                </div>
+              )}
+            </div>
+          </div>
+        );
+      })}
+    </section>
+  );
 }
 
 function XizmatlarAdminView() {

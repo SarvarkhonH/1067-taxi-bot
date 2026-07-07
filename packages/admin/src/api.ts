@@ -8,6 +8,7 @@ import type {
   AdminBroadcastRow,
   AdminClassifiedListResponse,
   AdminEconomy,
+  AdminFoodOrderRow,
   BallDistribution,
   AdminGrowth,
   AdminHealth,
@@ -220,6 +221,12 @@ export const adminApi = {
   shopOrders: (status?: string) => req<{ orders: ShopAdminOrderRow[] }>(`/api/admin/shop/orders${status ? `?status=${status}` : ""}`),
   shopReviews: () => req<{ reviews: ShopAdminReviewRow[] }>("/api/admin/shop/reviews"),
   shopReviewDelete: (id: number) => req<{ ok: boolean }>(`/api/admin/shop/reviews/${id}`, { method: "DELETE" }),
+  // 🍽 restoran — R3 sessiya-navbati
+  restoranOrders: (status?: string) => req<{ orders: AdminFoodOrderRow[] }>(`/api/admin/restoran/orders${status ? `?status=${status}` : ""}`),
+  restoranCall: (id: number) => postJson<{ ok: boolean }>(`/api/admin/restoran/orders/${id}/call`, {}),
+  restoranAccept: (id: number) => postJson<{ ok: boolean; reason?: string }>(`/api/admin/restoran/orders/${id}/accept`, {}),
+  restoranAdvance: (id: number) => postJson<{ ok: boolean; reason?: string; newStatus?: string }>(`/api/admin/restoran/orders/${id}/advance`, {}),
+  restoranReject: (id: number, reason: string) => postJson<{ ok: boolean; reason?: string }>(`/api/admin/restoran/orders/${id}/reject`, { reason }),
   // 🔎 xizmatlar directory
   svcList: (status?: string) => req<{ rows: SvcAdminRow[]; enabled: boolean; pending: number; hiddenReviews: number; phoneFlagged: number; newRequests: number }>(`/api/admin/services${status ? `?status=${status}` : ""}`),
   svcRequests: (status = "new") => req<{ requests: { id: number; query: string; note: string; status: string; createdAt: string }[] }>(`/api/admin/service-requests?status=${status}`),

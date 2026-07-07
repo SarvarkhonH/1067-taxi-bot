@@ -482,6 +482,29 @@ export interface FoodOrderView {
   createdAt: string;
 }
 
+// ── 🍽 RESTORAN R3 — admin sessiya-navbati + qo'lda holat-boshqaruv + SLA (RESTORAN_PLAN §2/§6) ──
+
+export interface AdminFoodOrderRow {
+  id: number;
+  restaurantId: number;
+  restaurantName: string;
+  restaurantPhone: string;
+  buyerName: string;
+  contact: string;
+  itemsJson: { menuItemId: number; name: string; qty: number; priceSom: number }[];
+  itemsTotalSom: number;
+  deliveryFeeSom: number;
+  totalSom: number;
+  isPickup: boolean;
+  address: string;
+  note: string;
+  status: FoodOrderStatus;
+  rejectReason: string | null;
+  calledAt: string | null;
+  ageMinutes: number; // "hozir necha daqiqadan beri" — admin panel SLA-rang shu bilan hisoblanadi
+  createdAt: string;
+}
+
 // ── 🔎 XIZMATLAR (feature "xizmatlar") — Koson services directory ────────────────────────────────
 // Read/search/call/review only — NO money shapes here by design.
 

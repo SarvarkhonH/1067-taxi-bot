@@ -1337,6 +1337,33 @@ export function createApiServer(opts: ApiOptions = {}) {
     res.json(await adminDeleteReview(Number(req.params.id)));
   });
 
+  // ── 🍽 RESTORAN admin (R3: sessiya-navbati + qo'lda holat-boshqaruv) — concierge V1, operator ODAM ──
+  app.get("/api/admin/restoran/orders", requireAdmin, async (req, res) => {
+    const { adminListFoodOrders } = await import("../services/restoranService");
+    res.json({ orders: await adminListFoodOrders(req.query?.status ? String(req.query.status) : undefined) });
+  });
+  app.post("/api/admin/restoran/orders/:id/call", requireAdmin, rateLimit(30), async (req, res) => {
+    const { markOrderCalled } = await import("../services/restoranService");
+    res.json(await markOrderCalled(Number(req.params.id)));
+  });
+  app.post("/api/admin/restoran/orders/:id/accept", requireAdmin, rateLimit(30), async (req, res) => {
+    const { acceptFoodOrder } = await import("../services/restoranService");
+    res.json(await acceptFoodOrder(Number(req.params.id)));
+  });
+  // notice (restaurantName/newStatus) is returned by the service for a future rider-push (out of
+  // R3 scope — riders see status live via the miniapp's poll, see MyOrdersView) — stripped here.
+  app.post("/api/admin/restoran/orders/:id/advance", requireAdmin, rateLimit(30), async (req, res) => {
+    const { advanceFoodOrderStatus } = await import("../services/restoranService");
+    const { notice: _n, ...pub } = await advanceFoodOrderStatus(Number(req.params.id));
+    res.json(pub);
+  });
+  app.post("/api/admin/restoran/orders/:id/reject", requireAdmin, rateLimit(30), async (req, res) => {
+    const { rejectFoodOrder } = await import("../services/restoranService");
+    const r = await rejectFoodOrder(Number(req.params.id), String(req.body?.reason ?? ""));
+    const { notice: _n, ...pub } = r;
+    res.json(pub);
+  });
+
   // ── 🔎 XIZMATLAR admin (owner-gated writes) ───────────────────────────────────────────────────
   app.get("/api/admin/services", requireAdmin, async (req, res) => {
     const { adminListListings } = await import("../services/serviceDirectory");

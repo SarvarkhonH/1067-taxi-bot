@@ -321,6 +321,10 @@ async function main(): Promise<void> {
       const { maybeAlertKasHealth } = await import("./services/kasHealth");
       const { alertAdmins } = await import("./services/economyService");
       await maybeAlertKasHealth(alertAdmins).catch(() => undefined);
+      // 🍽 RESTORAN R3 SLA-sweep (D4/D5: yangi poller YO'Q — mavjud booking tick'iga qo'shildi).
+      // kas'ga umuman bog'liq emas — faqat 3+ daq javobsiz FoodOrder'larni operatorlarga eslatadi.
+      const { checkRestoranSlaAndAlert } = await import("./services/restoranService");
+      await checkRestoranSlaAndAlert(alertAdmins).catch((e) => console.error("[restoran-sla] failed:", e));
     }
     // 🚖 SMS-parity speed: while a rider is WAITING for a driver, poll every 5s so "Haydovchi
     // topildi" lands in seconds like the kas SMS. Assigned / in-trip → 15s (arrival is WS-instant).

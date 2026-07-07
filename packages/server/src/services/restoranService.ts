@@ -1,7 +1,7 @@
 // 🍽 RESTORAN (feature "restoran", RESTORAN_PLAN.md) — R1: katalog o'qish only. V1 = CONCIERGE:
 // naqd/so'm to'lov (CoinTxn TEGILMAYDI, D1); savat/buyurtma R2'da qo'shiladi. Shop patterni bilan
 // bir xil admin-curated katalog, faqat narx real so'm.
-import type { MenuItemView, RestaurantView } from "@t1067/shared";
+import type { AdminFoodOrderRow, MenuItemView, RestaurantView } from "@t1067/shared";
 import { prisma } from "../db";
 import { featureOn } from "./featureFlags";
 
@@ -210,6 +210,118 @@ export async function myFoodOrders(memberId: number, take = 20): Promise<FoodOrd
     rejectReason: o.rejectReason,
     createdAt: o.createdAt.toISOString(),
   }));
+}
+
+// ── R3: admin sessiya-navbati + qo'lda holat-boshqaruv + SLA (RESTORAN_PLAN §2/§3/§6) ────────────
+// Operator ODAM — Telegram-bot integratsiyasi YO'Q (V2ga qoldirilgan, D3). Holat o'tishlari FAQAT
+// admin panel tugmalari orqali, atomik status-guard bilan (updateMany where status=<kutilgan>) —
+// holat-poyga (ikki operator bir vaqtda bossa) natijasida bittasi g'olib chiqadi, ikkinchisi no-op.
+
+const SLA_MINUTES = 3; // §3: shundan keyin admin panelda rang o'zgaradi + bir martalik operator-eslatma
+
+export async function adminListFoodOrders(status?: string): Promise<AdminFoodOrderRow[]> {
+  const rows = await prisma.foodOrder.findMany({
+    where: status ? { status } : undefined,
+    orderBy: { id: "desc" },
+    take: 200,
+  });
+  const [restaurants, members] = await Promise.all([
+    prisma.restaurant.findMany({ where: { id: { in: rows.map((r) => r.restaurantId) } }, select: { id: true, name: true, phone: true } }),
+    prisma.member.findMany({ where: { id: { in: rows.map((r) => r.memberId) } }, select: { id: true, fullName: true, displayName: true } }),
+  ]);
+  const restOf = new Map(restaurants.map((r) => [r.id, r]));
+  const memberOf = new Map(members.map((m) => [m.id, m]));
+  const now = Date.now();
+  return rows.map((o) => {
+    const r = restOf.get(o.restaurantId);
+    const m = memberOf.get(o.memberId);
+    return {
+      id: o.id,
+      restaurantId: o.restaurantId,
+      restaurantName: r?.name ?? "Restoran",
+      restaurantPhone: r?.phone ?? "—",
+      buyerName: m?.displayName || m?.fullName || "Mijoz",
+      contact: o.contact,
+      itemsJson: o.itemsJson as AdminFoodOrderRow["itemsJson"],
+      itemsTotalSom: o.itemsTotalSom,
+      deliveryFeeSom: o.deliveryFeeSom,
+      totalSom: o.totalSom,
+      isPickup: o.isPickup,
+      address: o.address,
+      note: o.note,
+      status: o.status as AdminFoodOrderRow["status"],
+      rejectReason: o.rejectReason,
+      calledAt: o.calledAt?.toISOString() ?? null,
+      ageMinutes: Math.floor((now - o.createdAt.getTime()) / 60_000),
+      createdAt: o.createdAt.toISOString(),
+    };
+  });
+}
+
+/** ☎ "Restoranga qo'ng'iroq qildim" belgisi — SLA soatini ko'rinishda to'xtatadi, holat hali pending. */
+export async function markOrderCalled(orderId: number): Promise<{ ok: boolean }> {
+  await prisma.foodOrder.updateMany({ where: { id: orderId, status: "pending" }, data: { calledAt: new Date() } });
+  return { ok: true };
+}
+
+/** ✅ Qabul qildi — pending→accepted. Atomik status-guard: ikki operator bir vaqtda bossa faqat biri o'tadi. */
+export async function acceptFoodOrder(orderId: number, operatorId?: number): Promise<{ ok: boolean; reason?: string }> {
+  const r = await prisma.foodOrder.updateMany({
+    where: { id: orderId, status: "pending" },
+    data: { status: "accepted", acceptedAt: new Date(), operatorId: operatorId ?? null },
+  });
+  return r.count > 0 ? { ok: true } : { ok: false, reason: "not_pending" };
+}
+
+/** ❌ Rad — FAQAT pending'dan (§2 state machine). Naqd-only (D1) — refund logikasi kerak emas. */
+export async function rejectFoodOrder(orderId: number, reason: string): Promise<{ ok: boolean; reason?: string; notice?: { memberId: number; restaurantName: string; reason: string } }> {
+  const order = await prisma.foodOrder.findUnique({ where: { id: orderId } });
+  if (!order) return { ok: false, reason: "not_found" };
+  const r = await prisma.foodOrder.updateMany({
+    where: { id: orderId, status: "pending" },
+    data: { status: "rejected", rejectReason: reason.trim().slice(0, 300) || "Sabab ko'rsatilmagan" },
+  });
+  if (r.count === 0) return { ok: false, reason: "not_pending" };
+  const restaurant = await prisma.restaurant.findUnique({ where: { id: order.restaurantId }, select: { name: true } });
+  return { ok: true, notice: { memberId: order.memberId, restaurantName: restaurant?.name ?? "Restoran", reason: reason.trim() || "Sabab ko'rsatilmagan" } };
+}
+
+const NEXT_STATUS: Record<string, string> = { accepted: "preparing", preparing: "delivering", delivering: "delivered" };
+
+/** 🍳→🛵→✅ — §2 state machine bo'yicha KEYINGI bosqichga o'tkazadi (qaysi holatdan qaysi holatga
+ *  o'tish mumkinligini admin so'ramaydi — tugma bosilganda joriy holat serverda tekshiriladi). */
+export async function advanceFoodOrderStatus(orderId: number): Promise<{ ok: boolean; reason?: string; newStatus?: string; notice?: { memberId: number; restaurantName: string; newStatus: string } }> {
+  const order = await prisma.foodOrder.findUnique({ where: { id: orderId } });
+  if (!order) return { ok: false, reason: "not_found" };
+  const next = NEXT_STATUS[order.status];
+  if (!next) return { ok: false, reason: "no_next" };
+  const data: { status: string; deliveredAt?: Date } = { status: next };
+  if (next === "delivered") data.deliveredAt = new Date();
+  const r = await prisma.foodOrder.updateMany({ where: { id: orderId, status: order.status }, data });
+  if (r.count === 0) return { ok: false, reason: "race" };
+  const restaurant = await prisma.restaurant.findUnique({ where: { id: order.restaurantId }, select: { name: true } });
+  return { ok: true, newStatus: next, notice: { memberId: order.memberId, restaurantName: restaurant?.name ?? "Restoran", newStatus: next } };
+}
+
+/** §3: SLA-sweep — bookingNotifier'ning MAVJUD tick'iga qo'shiladi (D4/D5: yangi poller YO'Q).
+ *  3+ daqiqa `pending` va hali ogohlantirilmagan buyurtmalarni BIR MARTA (idempotent, slaAlertedAt)
+ *  operatorlarga eslatadi. Mijozga HECH NARSA ko'rinmaydi — bu faqat ichki nazorat (§0). */
+export async function checkRestoranSlaAndAlert(alertAdmins: (html: string) => Promise<void>): Promise<void> {
+  const cutoff = new Date(Date.now() - SLA_MINUTES * 60_000);
+  const stale = await prisma.foodOrder.findMany({
+    where: { status: "pending", createdAt: { lt: cutoff }, slaAlertedAt: null },
+    select: { id: true, restaurantId: true, createdAt: true },
+    take: 50,
+  });
+  if (!stale.length) return;
+  const restaurants = await prisma.restaurant.findMany({ where: { id: { in: stale.map((s) => s.restaurantId) } }, select: { id: true, name: true } });
+  const nameOf = new Map(restaurants.map((r) => [r.id, r.name]));
+  const lines = stale.map((s) => {
+    const age = Math.floor((Date.now() - s.createdAt.getTime()) / 60_000);
+    return `#${s.id} · ${nameOf.get(s.restaurantId) ?? "Restoran"} · ${age} daq kutmoqda`;
+  });
+  await alertAdmins(`🍽 <b>Restoran: ${stale.length} ta buyurtma ${SLA_MINUTES}+ daq javobsiz</b>\n${lines.join("\n")}`).catch(() => undefined);
+  await prisma.foodOrder.updateMany({ where: { id: { in: stale.map((s) => s.id) } }, data: { slaAlertedAt: new Date() } });
 }
 
 /** Public photo proxy resolution — driver-photo/shop pattern (Telegram file_id → CDN redirect). */

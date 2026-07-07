@@ -521,6 +521,7 @@ model FoodOrder {
   rejectReason   String?
   calledAt       DateTime? // operator "restoranga qo'ng'iroq qildim" belgisi
   operatorId     Int? // qaysi admin/operator ishladi (javobgarlik izi)
+  slaAlertedAt   DateTime? // R3 SLA-sweep: 3+ daqiqa pending — operator-eslatma BIR MARTA yuborildi
   acceptedAt     DateTime?
   deliveredAt    DateTime?
   createdAt      DateTime  @default(now())

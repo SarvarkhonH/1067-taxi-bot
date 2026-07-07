@@ -22,6 +22,12 @@ async function main(): Promise<void> {
     listActiveRestaurants,
     createFoodOrder,
     myFoodOrders,
+    markOrderCalled,
+    acceptFoodOrder,
+    advanceFoodOrderStatus,
+    rejectFoodOrder,
+    adminListFoodOrders,
+    checkRestoranSlaAndAlert,
   } = await import("../services/restoranService");
   const { __resetFeatureCache, featureOn } = await import("../services/featureFlags");
 
@@ -105,7 +111,7 @@ async function main(): Promise<void> {
   ok(restAfter?.orderCount === 1, `18: restaurant.orderCount incremented to 1, got ${restAfter?.orderCount}`);
 
   // 19) pending_limit — 2 more pending orders (now 3 total) then a 4th must be rejected
-  await createFoodOrder(member.id, restaurantId, [{ menuItemId: osh!.id, qty: 1 }], "addr2", "", "", false, true);
+  const order2 = await createFoodOrder(member.id, restaurantId, [{ menuItemId: osh!.id, qty: 1 }], "addr2", "", "", false, true);
   await createFoodOrder(member.id, restaurantId, [{ menuItemId: osh!.id, qty: 1 }], "addr3", "", "", false, true);
   const fourthRes = await createFoodOrder(member.id, restaurantId, [{ menuItemId: osh!.id, qty: 1 }], "addr4", "", "", false, true);
   ok(!fourthRes.ok && fourthRes.reason === "pending_limit", `19: 4th pending order → pending_limit, got ${JSON.stringify(fourthRes)}`);
@@ -128,6 +134,58 @@ async function main(): Promise<void> {
   ok(!closedRes.ok && closedRes.reason === "closed", `21: order outside workHours → closed, got ${JSON.stringify(closedRes)}`);
   await adminDeleteRestaurant(closedCreated.id!);
 
+  // ── R3: admin sessiya-navbati + qo'lda holat-boshqaruv + SLA (§0/§2/§3/§6) ───────────────────────
+  // order #1 (okRes) — full state machine: pending → called → accepted → preparing → delivering → delivered
+  ok(!!okRes.orderId, "sanity: okRes.orderId present for R3 state-machine walk");
+  const called = await markOrderCalled(okRes.orderId!);
+  ok(called.ok, "25: markOrderCalled ok");
+  const calledRow = await prisma.foodOrder.findUnique({ where: { id: okRes.orderId! }, select: { calledAt: true, status: true } });
+  ok(!!calledRow?.calledAt && calledRow.status === "pending", `26: calledAt set, status still pending, got ${JSON.stringify(calledRow)}`);
+
+  const accepted = await acceptFoodOrder(okRes.orderId!);
+  ok(accepted.ok, `27: acceptFoodOrder pending→accepted, got ${JSON.stringify(accepted)}`);
+  const acceptAgain = await acceptFoodOrder(okRes.orderId!);
+  ok(!acceptAgain.ok && acceptAgain.reason === "not_pending", `28: double-accept guarded (not_pending), got ${JSON.stringify(acceptAgain)}`);
+
+  const toPreparing = await advanceFoodOrderStatus(okRes.orderId!);
+  ok(toPreparing.ok && toPreparing.newStatus === "preparing", `29: accepted→preparing, got ${JSON.stringify(toPreparing)}`);
+  const toDelivering = await advanceFoodOrderStatus(okRes.orderId!);
+  ok(toDelivering.ok && toDelivering.newStatus === "delivering", `30: preparing→delivering, got ${JSON.stringify(toDelivering)}`);
+  const toDelivered = await advanceFoodOrderStatus(okRes.orderId!);
+  ok(toDelivered.ok && toDelivered.newStatus === "delivered", `31: delivering→delivered, got ${JSON.stringify(toDelivered)}`);
+  const deliveredRow = await prisma.foodOrder.findUnique({ where: { id: okRes.orderId! }, select: { deliveredAt: true } });
+  ok(!!deliveredRow?.deliveredAt, "32: deliveredAt timestamp set on terminal transition");
+  const advancePastEnd = await advanceFoodOrderStatus(okRes.orderId!);
+  ok(!advancePastEnd.ok && advancePastEnd.reason === "no_next", `33: delivered is terminal (no_next), got ${JSON.stringify(advancePastEnd)}`);
+
+  // order #2 — reject flow: FAQAT pending'dan (§2), naqd-only → refund logikasi shart emas
+  ok(order2.ok && !!order2.orderId, "sanity: order2.orderId present for reject-flow test");
+  const rejected = await rejectFoodOrder(order2.orderId!, "Restoran bugun band");
+  ok(rejected.ok && !!rejected.notice, `34: rejectFoodOrder pending→rejected, got ${JSON.stringify({ ok: rejected.ok, reason: rejected.reason })}`);
+  const rejectedRow = await prisma.foodOrder.findUnique({ where: { id: order2.orderId! }, select: { status: true, rejectReason: true } });
+  ok(rejectedRow?.status === "rejected" && rejectedRow.rejectReason === "Restoran bugun band", `35: rejectReason stored, got ${JSON.stringify(rejectedRow)}`);
+  const acceptRejected = await acceptFoodOrder(order2.orderId!);
+  ok(!acceptRejected.ok && acceptRejected.reason === "not_pending", "36: cannot accept an already-rejected order");
+
+  // adminListFoodOrders — status filter + resolved names
+  const adminDelivered = await adminListFoodOrders("delivered");
+  ok(adminDelivered.some((o) => o.id === okRes.orderId && o.restaurantName === TAG && o.buyerName === "Test Mijoz"), `37: adminListFoodOrders(delivered) resolves restaurant+buyer names, got ${JSON.stringify(adminDelivered.find((o) => o.id === okRes.orderId))}`);
+
+  // SLA sweep — idempotent one-time alert for 3+ minute pending orders (§3, D4/D5: no new poller,
+  // this IS the function bookingNotifier's tick calls; here we call it directly like the sweep would)
+  const slaCandidate = await createFoodOrder(member.id, restaurantId, [{ menuItemId: osh!.id, qty: 1 }], "sla-addr", "", "", false, true);
+  ok(slaCandidate.ok, "sanity: sla candidate order created");
+  await prisma.foodOrder.update({ where: { id: slaCandidate.orderId! }, data: { createdAt: new Date(Date.now() - 5 * 60_000) } }); // backdate 5 min
+  let alertCount = 0;
+  let lastAlert = "";
+  const fakeAlert = async (html: string) => { alertCount++; lastAlert = html; };
+  await checkRestoranSlaAndAlert(fakeAlert);
+  ok(alertCount === 1 && lastAlert.includes(`#${slaCandidate.orderId}`), `38: SLA sweep alerts once for 5-min-old pending order, got count=${alertCount} msg=${lastAlert.slice(0, 80)}`);
+  await checkRestoranSlaAndAlert(fakeAlert);
+  ok(alertCount === 1, `39: SLA sweep is idempotent — re-run does NOT re-alert the same order, got count=${alertCount}`);
+  const slaRow = await prisma.foodOrder.findUnique({ where: { id: slaCandidate.orderId! }, select: { slaAlertedAt: true } });
+  ok(!!slaRow?.slaAlertedAt, "40: slaAlertedAt persisted after sweep");
+
   // 22) restaurant delete: menu gone, but order HISTORY intentionally SURVIVES (loose restaurantId FK —
   //     a rider's past orders must not vanish just because a restaurant later leaves the catalog)
   await adminDeleteRestaurant(restaurantId);
@@ -135,13 +193,15 @@ async function main(): Promise<void> {
   const menuGone = await prisma.menuItem.count({ where: { restaurantId } });
   const ordersSurvive = await prisma.foodOrder.count({ where: { restaurantId } });
   ok(gone === null && menuGone === 0, "22: restaurant + menu items deleted");
-  ok(ordersSurvive === 3, `23: FoodOrder history intentionally survives restaurant delete, got ${ordersSurvive}`);
+  // 4 orders total for this restaurant: #1 (delivered), #2 (rejected), #3/addr3 (still pending —
+  // 4th was blocked by pending_limit before any status changed it), + the SLA-sweep candidate
+  ok(ordersSurvive === 4, `23: FoodOrder history intentionally survives restaurant delete, got ${ordersSurvive}`);
 
   // 24) final cleanup — explicit foodOrder purge (test-data only; production never does this)
   await cleanup();
   const ordersPurged = await prisma.foodOrder.count({ where: { restaurantId } });
   ok(ordersPurged === 0, "24: cleanup() safety-net purged the test FoodOrder rows too");
-  console.log(process.exitCode ? "\n❌ SOME CHECKS FAILED" : "\n🎉 ALL R1+R2 CHECKS PASSED");
+  console.log(process.exitCode ? "\n❌ SOME CHECKS FAILED" : "\n🎉 ALL R1+R2+R3 CHECKS PASSED");
 }
 
 main()

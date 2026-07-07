@@ -1808,10 +1808,10 @@ body {
 .app.shop-light .brand-name { color: #1b2333; }
 .app.shop-light .brand-name b { color: #16a34a; text-shadow: none; }
 .app.shop-light .build-ver { color: #16a34a; }
-/* tanga-chip: oq karta + oltin matn (tanga o'z rangida qoladi, fon yorug') */
+/* tanga-chip: oq karta + shu bo'limning o'z aksent rangi (xizmat/restoran bilan bir xil qolip) */
 .app.shop-light .coin-pill {
-  background: #ffffff; border: 1px solid #ecdfba; color: #b45309;
-  box-shadow: 0 3px 12px -5px rgba(180, 83, 9, 0.35), inset 0 1px 0 #fff;
+  background: #ffffff; border: 1px solid #c9ecd4; color: #15803d;
+  box-shadow: 0 3px 12px -5px rgba(21, 128, 61, 0.35), inset 0 1px 0 #fff;
 }
 .app.shop-light .coin-dot { filter: none; }
 .app.shop-light .toast { background: #ffffff; color: #1b2333; box-shadow: 0 10px 30px -12px rgba(0, 0, 0, 0.35); }
@@ -1964,8 +1964,9 @@ body {
 .app.elonlar-light .brand-name b { color: var(--classified-accent); text-shadow: none; }
 .app.elonlar-light .build-ver { color: var(--classified-accent); }
 .app.elonlar-light .coin-pill {
-  background: #ffffff; border: 1px solid #ecdfba; color: #b45309;
-  box-shadow: 0 3px 12px -5px rgba(180, 83, 9, 0.35), inset 0 1px 0 #fff;
+  background: #ffffff; border: 1px solid color-mix(in srgb, var(--classified-accent) 30%, transparent);
+  color: color-mix(in srgb, var(--classified-accent) 78%, black);
+  box-shadow: 0 3px 12px -5px color-mix(in srgb, var(--classified-accent) 40%, transparent), inset 0 1px 0 #fff;
 }
 .app.elonlar-light .coin-dot { filter: none; }
 .app.elonlar-light .toast { background: #ffffff; color: #1b2333; box-shadow: 0 10px 30px -12px rgba(0, 0, 0, 0.35); }

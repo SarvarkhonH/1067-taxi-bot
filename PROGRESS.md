@@ -692,3 +692,40 @@ STATUS (Rule 7): `ready for verification`. Compliance-report 5 gap yopildi; kodn
   R3'gacha real buyurtma qilib bo'lmaydi (ko'radigan/bajaradigan hech kim yo'q). Restoran+menyu
   to'liq admin CRUD UI (R4) ham hali yo'q — hozircha faqat skript orqali kiritiladi.
 - Flag holati: `restoran` hali OFF (R3-R5 tugamaguncha owner QABUL bo'lishi mumkin emas).
+
+## 2026-07-07 — RESTORAN R3 (admin sessiya-navbati + qo'lda holat-boshqaruv + SLA)
+- Ega: "r3" — RESTORAN_PLAN.md navbatdagi tiketi.
+- **R3 — ready for verification:**
+  - `restoranService.ts`: `markOrderCalled` (☎ belgisi), `acceptFoodOrder` (pending→accepted,
+    atomik status-guard), `advanceFoodOrderStatus` (§2 state machine bo'yicha KEYINGI bosqich —
+    accepted→preparing→delivering→delivered, `NEXT_STATUS` xarita bilan, terminal holatda
+    `no_next`), `rejectFoodOrder` (FAQAT pending'dan, naqd-only — refund kerak emas),
+    `adminListFoodOrders` (restoran/xaridor nomi resolve qilingan + `ageMinutes`),
+    `checkRestoranSlaAndAlert` (3+ daq pending, `slaAlertedAt` bilan BIR MARTALIK, idempotent).
+  - Schema: `FoodOrder.slaAlertedAt` (+additive, ikkala DB'ga push qilindi).
+  - `server.ts`: `/api/admin/restoran/orders` (GET, status-filter), `.../:id/call`,
+    `.../:id/accept`, `.../:id/advance`, `.../:id/reject` — barchasi `requireAdmin` bilan
+    (shop patterni — yangi rol ixtiro qilinmadi, mavjud operator-token allaqachon ishlaydi).
+  - `index.ts`: SLA-sweep mavjud `tickBooking()` ichiga qo'shildi (D4/D5: **yangi poller YO'Q**).
+  - `admin/App.tsx`: yangi **"Restoran" tab** — `RestoranAdminView` operator ish stoli: filtr
+    (Kutilmoqda/Faol/Tugagan/Barchasi), 8s poll (DoD: real-vaqt/5-10s), 3+ daq buyurtmalar
+    `adm-card.flagged` (mavjud qizil-chiziq CSS qayta ishlatildi) + `⚠ N daq` badge, holat
+    tugmalari (☎/✅/❌ pending'da, keyingi-bosqich tugmasi accepted/preparing/delivering'da).
+  - `miniapp/restoran.tsx`: `MyOrdersView` endi 8s poll qiladi (DoD: "operator bossa mijoz jonli
+    ko'radi") — ochiq bo'lgan paytda, unmount'da tozalanadi.
+  - **Isbot — `testRestoran.ts` yana kengaytirildi**: jami **34 tekshiruv ✅** (R1+R2+R3), qo'shimcha
+    16 tasi R3: to'liq state-machine yurishi (pending→called→accepted→preparing→delivering→
+    delivered, har bosqich atomik-guard bilan), double-accept/delivered-dan-keyin-advance
+    to'g'ri rad etiladi, reject-oqimi (faqat pending'dan, sabab saqlanadi, rad etilgandan keyin
+    accept bo'lmaydi), `adminListFoodOrders` nom-resolve, **SLA sweep idempotentligi**
+    (backdated buyurtma — birinchi chaqiriqda 1 marta alert, ikkinchi chaqiriqda 0 marta).
+  - Admin UI mock orqali to'liq tekshirildi (accept→preparing→advance tugmalar zanjiri, filtr
+    almashishi, SLA-badge) — `preview_screenshot` bu muhitda beqaror chiqdi (allaqachon
+    productionda ishlab turgan boshqa `*-light` temalar bilan ham xuddi shu muammo takrorlandi,
+    ya'ni vositaning o'zidagi cheklov), shuning uchun `preview_snapshot` (DOM-daraxt) bilan
+    almashtirib to'liq isbotlandi — har bosqich matn/tugma darajasida tasdiqlandi.
+  - `pnpm -r typecheck` 4/4 paket 0 xato.
+- **GAP:** restoran+menyu to'liq admin CRUD UI (R4) hali yo'q — hozircha faqat test-skript orqali
+  kiritiladi, ega hali real restoran qo'sha olmaydi. Seed+pilot (R5) ham boshlanmagan.
+- Flag holati: `restoran` hali OFF — R4 (CRUD UI, §6.1 tezlik talablari) va R5 (seed+pilot)
+  tugamaguncha owner QABUL bo'lishi mumkin emas (hozircha ega kirita oladigan real restoran yo'q).

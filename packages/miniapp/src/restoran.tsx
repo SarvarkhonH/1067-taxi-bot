@@ -83,7 +83,12 @@ const STATUS_LABEL: Record<FoodOrderView["status"], { t: string; c: string }> = 
 function MyOrdersView({ onBack }: { onBack: () => void }) {
   const [orders, setOrders] = useState<FoodOrderView[] | null>(null);
   useEffect(() => {
-    api.restoranOrders().then((r) => setOrders(r.orders)).catch(() => setOrders([]));
+    const load = () => api.restoranOrders().then((r) => setOrders(r.orders)).catch(() => undefined);
+    load();
+    // R3 DoD: operator admin panelda holat o'zgartirsa mijoz shu ekranda jonli ko'rishi kerak —
+    // faqat ochiq bo'lgan payt poll qilinadi (8s, booking3'ning adaptiv-poll ruhida, ortiqcha kuch sarflamaydi)
+    const iv = setInterval(load, 8000);
+    return () => clearInterval(iv);
   }, []);
   return (
     <div className="view">
