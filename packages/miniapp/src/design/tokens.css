@@ -2246,3 +2246,14 @@ body {
   box-shadow: 0 14px 32px -12px rgba(37, 99, 235, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.25) !important;
 }
 .app.xizmat-light .d-btn.ghost { background: #ffffff; color: #1d4ed8; border: 1px solid #cfe0ff; box-shadow: none; }
+
+/* "Xizmatimni qo'shish" CTA — .glass umumiy komponent (var(--surface) qora asos), svc-card/svc-cat-tile
+   kabi o'z fon-override'i yo'q edi shu joyda, shu sabab hamon qora/binafsha ko'rinardi. Va .muted —
+   butun ilovada ishlatiladigan umumiy matn klassi (var(--text-dim), oq fonda ko'rinmaydi) — shop-wrap/
+   elonlar-light qolipidan xizmat-light uchun ham global qilib to'g'irlanadi. */
+.app.xizmat-light .muted { color: #6b7f9e; }
+.app.xizmat-light .svc-add-cta {
+  background: linear-gradient(160deg, color-mix(in srgb, var(--svc-accent) 8%, #fff), #ffffff 70%);
+  box-shadow: 0 3px 12px -8px rgba(20, 40, 90, 0.15);
+}
+.app.xizmat-light .svc-add-plus { color: var(--svc-accent); }
