@@ -131,7 +131,7 @@ export function LivingHome(props: {
           <div className="lh-hi">{g.hi}, {name} 👋</div>
           <div className="lh-sub">{g.sub}</div>
           <div className="lh-chips">
-            <span className="lh-chip">🪙 {(home?.coins ?? me.coins).toLocaleString("ru-RU")}</span>
+            <button className="lh-chip lh-chip-btn" onClick={() => { haptic(); onNav("wallet"); }} aria-label="Hamyonni ochish">🪙 {(home?.coins ?? me.coins).toLocaleString("ru-RU")}</button>
             {(home?.streak ?? 0) > 0 && <span className="lh-chip hot">🔥 {home!.streak}</span>}
             <span className="lh-chip">🚖 {home?.freeCars ?? 0} bo'sh</span>
           </div>
@@ -159,6 +159,7 @@ export function LivingHome(props: {
           </div>
         )}
         <div className="lh-places">
+          <button className="lh-place" onClick={() => { haptic(); onNav("wallet"); }}>👛<span>Hamyon</span></button>
           <button className="lh-place" onClick={() => { haptic(); onNav("play"); }}>🎮<span>O'yin</span></button>
           <button className="lh-place" onClick={shareInvite}>👥<span>Do'st taklif</span></button>
           <button className="lh-place" onClick={() => { haptic(); onNav("history"); }}>📜<span>Tarix</span></button>

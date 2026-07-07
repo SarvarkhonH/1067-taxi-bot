@@ -888,6 +888,8 @@ body {
 .lh-chip { font-size: 12px; font-weight: 700; color: #fff; background: rgba(20,26,38,.66);
   border: 1px solid rgba(255,255,255,.12); border-radius: 999px; padding: 5px 10px; backdrop-filter: blur(6px); }
 .lh-chip.hot { background: linear-gradient(135deg, #ffb300, #ff8f00); color: #1a1205; border-color: transparent; }
+.lh-chip-btn { cursor: pointer; }
+.lh-chip-btn:active { transform: scale(.96); }
 .lh-bottom { flex: 0 0 auto; display: flex; flex-direction: column; gap: 8px; }
 .lh-usual { display: flex; align-items: center; gap: 10px; width: 100%; text-align: left;
   background: rgba(20,26,38,.82); border: 1px solid rgba(255,255,255,.12); border-radius: 14px; padding: 8px 12px; backdrop-filter: blur(8px); }
@@ -916,7 +918,7 @@ body {
 .lh-cta:active { transform: scale(.97); }
 @keyframes ctaShine { 0%, 20% { left: -60%; } 42%, 100% { left: 130%; } }
 @media (prefers-reduced-motion: reduce) { .lh-cta::after { display: none; } }
-.lh-places { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+.lh-places { display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; }
 .lh-games-section { margin-top: 10px; display: flex; flex-direction: column; gap: 10px; }
 .lh-place { display: flex; flex-direction: column; align-items: center; gap: 3px; font-size: 20px;
   color: #fff; background: rgba(20,26,38,.7); border: 1px solid rgba(255,255,255,.1); border-radius: 13px; padding: 8px 0; backdrop-filter: blur(6px); }
