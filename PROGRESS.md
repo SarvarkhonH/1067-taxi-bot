@@ -656,3 +656,39 @@ STATUS (Rule 7): `ready for verification`. Compliance-report 5 gap yopildi; kodn
   (R3), to'liq restoran+menyu CRUD UI (R4), seed+pilot (R5) — RESTORAN_PLAN.md bo'yicha hali
   boshlanmagan.
 - Flag holati: `restoran` OFF (DARK, owner QABUL kutmoqda).
+- **Dizayn:** ega icon tushunarsiz deb topdi (villa/pichoq) → burger silueti bilan almashtirildi;
+  o'z temasi yo'q edi → 3 nomzod (pomidor-qizil/malina-pushti/amber-qizil) skrinshot-taqqoslashda
+  ko'rsatildi, ega **amber-qizil**ni (#ea580c) tanladi — E'lonlar terrakotasiga eng yaqin variant
+  ekani ochiq aytilgan, lekin ega qaroriga rioya qilindi. Har safar deploy: build+Vercel+Render
+  reboot (bundle-hash cache-bust) to'liq zanjiri bosib o'tildi, bundle-grep bilan isbotlandi.
+- **LivingHome fix:** W1 dastlab faqat `uy.tsx`ga tegdi; `livinghome` flag yoqilgan (ega uchun ham)
+  foydalanuvchilar aslida `home.tsx` (xarita-versiya)ni ko'radi — u yerda Hamyon umuman yo'q edi.
+  `home.tsx`ga ham bir xil Hamyon-tile + bosiladigan tanga-chip qo'shildi (commit `c5ef1e4`).
+
+## 2026-07-07 — RESTORAN R2 (savat + checkout + FoodOrder)
+- Ega: "davom etamiz" — RESTORAN_PLAN.md navbatdagi tiketi.
+- **R2 — ready for verification:**
+  - `restoranService.ts`: `createFoodOrder` — bitta restorandan (D7, struktura jihatidan mumkin
+    emas aralashtirish — savat holati `RestaurantDetail` komponentiga bog'langan) ko'p-taomli
+    buyurtma; narx checkout paytidagi jonli menyudan SNAPSHOT olinadi; `isOpenNow()` server-side
+    ish-vaqti tekshiruvi (mijoz eski cache bilan yopiq restoranga yubormasin); `minOrderSom`,
+    `pendingLimit=3` (shop bilan bir xil anti-spam), noma'lum `menuItemId` — barchasi tekshiriladi.
+    Naqd-only (D1) — CoinTxn YO'Q, refund logikasi kerak emas. `myFoodOrders` — buyurtmalar tarixi.
+  - `server.ts`: `POST /api/restoran/order`, `GET /api/restoran/orders`.
+  - `restoran.tsx`: savat (+/− stepper har menyu-bandda), sticky "Savat" bar, checkout Sheet
+    (yetkazish/olib-ketish toggle, manzil, izoh, jami-hisob), tasdiq ekrani, "📦 Mening
+    buyurtmalarim" ro'yxati (holat-pill bilan, shop StatusPill patterni).
+  - **Isbot — `testRestoran.ts` kengaytirildi**: 22/22 tekshiruv ✅ — bo'sh savat/below_min/bad_item
+    rad etiladi, real buyurtma to'g'ri snapshot bilan yoziladi (itemsTotal+deliveryFee=total aniq
+    hisoblangan), `orderCount` oshadi, pending-limit 4-buyurtmani rad etadi, `myFoodOrders` to'g'ri
+    qaytaradi, ish-vaqti tashqarisidagi restoran `closed` bilan rad etadi, restoran o'chirilganda
+    buyurtma TARIXI ATAYLAB saqlanib qoladi (loose FK — keyin cleanup() bilan test-data tozalandi).
+  - Miniapp UI mock-fetch orqali to'liq oqim tekshirildi: katalog → detail → +/− stepper → sticky
+    savat-bar → checkout sheet → buyurtma yuborish → tasdiq ekrani → "Mening buyurtmalarim"da
+    ko'rinishi — barchasi ishladi.
+  - `pnpm -r typecheck` 4/4 paket 0 xato.
+- **GAP:** operator-tomon (R3: admin sessiya-navbati + qo'lda holat-boshqaruv + SLA-belgi) hali yo'q
+  — hozircha buyurtma DB'ga yoziladi, lekin operatorga ko'rinadigan/harakatlanadigan panel yo'q.
+  R3'gacha real buyurtma qilib bo'lmaydi (ko'radigan/bajaradigan hech kim yo'q). Restoran+menyu
+  to'liq admin CRUD UI (R4) ham hali yo'q — hozircha faqat skript orqali kiritiladi.
+- Flag holati: `restoran` hali OFF (R3-R5 tugamaguncha owner QABUL bo'lishi mumkin emas).

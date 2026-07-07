@@ -74,6 +74,12 @@
       "port": 7899
     },
     {
+      "name": "miniapp-alt14",
+      "runtimeExecutable": "pnpm",
+      "runtimeArgs": ["--filter", "@t1067/miniapp", "exec", "vite", "--port", "8123", "--strictPort"],
+      "port": 8123
+    },
+    {
       "name": "miniapp-built",
       "runtimeExecutable": "pnpm",
       "runtimeArgs": ["--filter", "@t1067/miniapp", "exec", "vite", "preview", "--port", "4173", "--strictPort"],

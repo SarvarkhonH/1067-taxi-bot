@@ -67,6 +67,151 @@ export async function getRestaurantDetail(id: number, preview = false): Promise<
   };
 }
 
+// ── R2: savat + checkout + FoodOrder ────────────────────────────────────────────────────────────
+// V1 = CONCIERGE (D1/D2): naqd/so'm to'lov, CoinTxn TEGILMAYDI. Operator qo'lda holatni boshqaradi
+// (R3) — bu yerda faqat buyurtmani to'g'ri, atomik yaratish.
+
+const PENDING_PER_MEMBER = 3; // shop bilan bir xil anti-spam chegarasi
+
+/** "09:00-22:00" formatini o'qiydi — services.tsx/restoran.tsx client-side openNow() bilan bir xil
+ *  mantiq, lekin serverda: checkout paytida haqiqiy vaqt tekshiriladi (mijoz eski cache bilan
+ *  yopiq restoranga buyurtma yubormasin). */
+function isOpenNow(wh: string | null): boolean {
+  if (!wh) return true; // ish-vaqti kiritilmagan — cheklov yo'q
+  const m = /^(\d{1,2}):(\d{2})\s*[-–]\s*(\d{1,2}):(\d{2})$/.exec(wh.trim());
+  if (!m) return true;
+  const cur = new Date().getHours() * 60 + new Date().getMinutes();
+  const a = Number(m[1]) * 60 + Number(m[2]);
+  const b = Number(m[3]) * 60 + Number(m[4]);
+  return a <= b ? cur >= a && cur < b : cur >= a || cur < b;
+}
+
+export interface FoodOrderCartItemIn {
+  menuItemId: number;
+  qty: number;
+}
+
+export interface FoodOrderOwnerNotice {
+  orderId: number;
+  restaurantName: string;
+  restaurantPhone: string;
+  itemsText: string;
+  totalSom: number;
+  isPickup: boolean;
+  buyerName: string;
+  contact: string;
+  address: string;
+  note: string;
+}
+
+/**
+ * Bitta restorandan (D7: bir savat = bir restoran — cart har doim shu restoranga tegishli,
+ * aralashtirish struktura jihatidan mumkin emas) ko'p-taomli buyurtma. Narx SNAPSHOT — checkout
+ * paytidagi jonli menyu narxidan olinadi (admin keyin narxni o'zgartirsa ham eski buyurtma
+ * o'zgarmaydi). Atomik: restoran+itemlar bitta so'rovda tekshiriladi, keyin bitta insert.
+ */
+export async function createFoodOrder(
+  memberId: number,
+  restaurantId: number,
+  cartItems: FoodOrderCartItemIn[],
+  address: string,
+  contact: string,
+  note: string,
+  isPickup: boolean,
+  preview = false,
+): Promise<{ ok: boolean; reason?: string; orderId?: number; totalSom?: number; notice?: FoodOrderOwnerNotice }> {
+  if (!preview && !(await featureOn("restoran"))) return { ok: false, reason: "off" };
+  const addr = (address ?? "").trim().slice(0, 200);
+  if (!isPickup && addr.length < 5) return { ok: false, reason: "bad_address" };
+  const cleanItems = (cartItems ?? []).filter((c) => Number.isFinite(c.menuItemId) && Number.isFinite(c.qty) && c.qty > 0 && c.qty <= 20);
+  if (!cleanItems.length) return { ok: false, reason: "empty_cart" };
+
+  const restaurant = await prisma.restaurant.findUnique({ where: { id: restaurantId } });
+  if (!restaurant || !restaurant.active || restaurant.paused === true) return { ok: false, reason: restaurant?.paused ? "paused" : "unavailable" };
+  if (!isOpenNow(restaurant.workHours)) return { ok: false, reason: "closed" };
+  if (isPickup && !restaurant.pickupEnabled) return { ok: false, reason: "unavailable" };
+
+  const open = await prisma.foodOrder.count({ where: { memberId, status: "pending" } });
+  if (open >= PENDING_PER_MEMBER) return { ok: false, reason: "pending_limit" };
+
+  const menuItems = await prisma.menuItem.findMany({ where: { id: { in: cleanItems.map((c) => c.menuItemId) }, restaurantId, available: true } });
+  const menuOf = new Map(menuItems.map((m) => [m.id, m]));
+  if (menuItems.length !== new Set(cleanItems.map((c) => c.menuItemId)).size) return { ok: false, reason: "bad_item" };
+
+  const itemsJson = cleanItems.map((c) => {
+    const m = menuOf.get(c.menuItemId)!;
+    return { menuItemId: m.id, name: m.name, qty: c.qty, priceSom: m.priceSom };
+  });
+  const itemsTotalSom = itemsJson.reduce((sum, i) => sum + i.priceSom * i.qty, 0);
+  if (itemsTotalSom < restaurant.minOrderSom) return { ok: false, reason: "below_min" };
+  const deliveryFeeSom = isPickup ? 0 : restaurant.deliveryFeeSom;
+  const totalSom = itemsTotalSom + deliveryFeeSom;
+
+  const member = await prisma.member.findUnique({ where: { id: memberId }, select: { fullName: true, displayName: true, phone: true } });
+  const order = await prisma.foodOrder.create({
+    data: {
+      memberId, restaurantId, itemsJson, itemsTotalSom, deliveryFeeSom, totalSom,
+      isPickup, address: isPickup ? (restaurant.address ?? "Olib ketish") : addr,
+      contact: (contact ?? member?.phone ?? "").trim().slice(0, 30) || "—",
+      note: (note ?? "").trim().slice(0, 300),
+    },
+  });
+  await prisma.restaurant.update({ where: { id: restaurantId }, data: { orderCount: { increment: 1 } } }).catch(() => undefined);
+
+  return {
+    ok: true,
+    orderId: order.id,
+    totalSom,
+    notice: {
+      orderId: order.id,
+      restaurantName: restaurant.name,
+      restaurantPhone: restaurant.phone,
+      itemsText: itemsJson.map((i) => `${i.name} ×${i.qty}`).join(", "),
+      totalSom,
+      isPickup,
+      buyerName: member?.displayName || member?.fullName || "Mijoz",
+      contact: order.contact,
+      address: order.address,
+      note: order.note,
+    },
+  };
+}
+
+export interface FoodOrderRow {
+  id: number;
+  restaurantId: number;
+  restaurantName: string;
+  itemsJson: { menuItemId: number; name: string; qty: number; priceSom: number }[];
+  itemsTotalSom: number;
+  deliveryFeeSom: number;
+  totalSom: number;
+  isPickup: boolean;
+  address: string;
+  status: string;
+  rejectReason: string | null;
+  createdAt: string;
+}
+
+export async function myFoodOrders(memberId: number, take = 20): Promise<FoodOrderRow[]> {
+  const rows = await prisma.foodOrder.findMany({ where: { memberId }, orderBy: { id: "desc" }, take });
+  const restaurants = await prisma.restaurant.findMany({ where: { id: { in: rows.map((r) => r.restaurantId) } }, select: { id: true, name: true } });
+  const nameOf = new Map(restaurants.map((r) => [r.id, r.name]));
+  return rows.map((o) => ({
+    id: o.id,
+    restaurantId: o.restaurantId,
+    restaurantName: nameOf.get(o.restaurantId) ?? "Restoran",
+    itemsJson: o.itemsJson as FoodOrderRow["itemsJson"],
+    itemsTotalSom: o.itemsTotalSom,
+    deliveryFeeSom: o.deliveryFeeSom,
+    totalSom: o.totalSom,
+    isPickup: o.isPickup,
+    address: o.address,
+    status: o.status,
+    rejectReason: o.rejectReason,
+    createdAt: o.createdAt.toISOString(),
+  }));
+}
+
 /** Public photo proxy resolution — driver-photo/shop pattern (Telegram file_id → CDN redirect). */
 export async function resolveRestaurantPhoto(restaurantId: number): Promise<string | null> {
   const r = await prisma.restaurant.findUnique({ where: { id: restaurantId }, select: { photoUrl: true, photoFileId: true } });

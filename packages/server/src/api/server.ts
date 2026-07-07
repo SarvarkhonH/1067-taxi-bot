@@ -489,6 +489,24 @@ export function createApiServer(opts: ApiOptions = {}) {
   };
   app.get("/api/restoran/menuphoto/:id", serveMenuItemPhoto);
 
+  // ── R2: savat + checkout + FoodOrder — naqd/so'm to'lov (D1), CoinTxn TEGILMAYDI ───────────────
+  app.post("/api/restoran/order", requireUser, rateLimit(10), withMember2(async (id, req, res) => {
+    const { createFoodOrder } = await import("../services/restoranService");
+    const b = req.body ?? {};
+    const items = Array.isArray(b.items) ? (b.items as { menuItemId: unknown; qty: unknown }[]).map((i) => ({ menuItemId: Number(i.menuItemId), qty: Number(i.qty) })) : [];
+    const r = await createFoodOrder(
+      id, Number(b.restaurantId), items,
+      String(b.address ?? ""), String(b.contact ?? ""), String(b.note ?? ""),
+      !!b.isPickup, isAdmin(res.locals.telegramId as string),
+    );
+    const { notice: _n, ...pub } = r; // owner-notice (phone/address) never leaves the server response path
+    return pub;
+  }));
+  app.get("/api/restoran/orders", requireUser, rateLimit(30), withMember2(async (id) => {
+    const { myFoodOrders } = await import("../services/restoranService");
+    return { orders: await myFoodOrders(id) };
+  }));
+
   // ── 🔎 XIZMATLAR (feature "xizmatlar", DARK until seed + QABUL) — moves NO money ──────────────
   // owner-preview everywhere: admins browse/QABUL the real catalog while riders still see nothing.
   const svcPreview = (res: Response) => isAdmin(res.locals.telegramId as string);

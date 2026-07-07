@@ -442,6 +442,46 @@ export interface RestoranDetailResponse {
   items: MenuItemView[]; // client groups by `section` for display
 }
 
+// ── 🍽 RESTORAN R2 — savat + checkout + FoodOrder. Naqd/so'm to'lov (D1), CoinTxn YO'Q. ──────────
+
+export interface FoodOrderCartItem {
+  menuItemId: number;
+  qty: number;
+}
+
+export interface FoodOrderCreateBody {
+  restaurantId: number;
+  items: FoodOrderCartItem[];
+  address: string;
+  contact: string;
+  note?: string;
+  isPickup?: boolean;
+}
+
+export interface FoodOrderCreateResponse {
+  ok: boolean;
+  reason?: "off" | "unavailable" | "paused" | "closed" | "empty_cart" | "bad_item" | "below_min" | "bad_address" | "pending_limit";
+  orderId?: number;
+  totalSom?: number;
+}
+
+export type FoodOrderStatus = "pending" | "accepted" | "preparing" | "delivering" | "delivered" | "rejected" | "cancelled_by_user";
+
+export interface FoodOrderView {
+  id: number;
+  restaurantId: number;
+  restaurantName: string;
+  itemsJson: { menuItemId: number; name: string; qty: number; priceSom: number }[];
+  itemsTotalSom: number;
+  deliveryFeeSom: number;
+  totalSom: number;
+  isPickup: boolean;
+  address: string;
+  status: FoodOrderStatus;
+  rejectReason?: string | null;
+  createdAt: string;
+}
+
 // ── 🔎 XIZMATLAR (feature "xizmatlar") — Koson services directory ────────────────────────────────
 // Read/search/call/review only — NO money shapes here by design.
 

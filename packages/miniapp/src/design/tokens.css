@@ -1917,6 +1917,36 @@ body {
 .rst-item-desc { font-size: 11.5px; color: var(--muted, #9aa4b2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .rst-item-price { font-size: 12.5px; font-weight: 700; color: var(--brand); }
 
+/* R2: savat + checkout + mening-buyurtmalarim (rst-detail-view'da pastki bo'shliq — sticky bar bosmasin) */
+.rst-detail-view { padding-bottom: 76px; }
+.rst-item-add { flex: 0 0 auto; align-self: center; width: 30px; height: 30px; border-radius: 50%;
+  background: var(--brand); color: #1a1205; font-size: 18px; font-weight: 800; line-height: 1; }
+.rst-item-add:active { transform: scale(.92); }
+.rst-item-stepper { flex: 0 0 auto; align-self: center; display: flex; align-items: center; gap: 8px;
+  background: var(--surface-2, #232b3c); border-radius: 999px; padding: 4px 8px; }
+.rst-item-stepper button { width: 22px; height: 22px; border-radius: 50%; font-size: 15px; font-weight: 800; color: var(--text); background: transparent; }
+.rst-item-stepper span { font-size: 13px; font-weight: 800; min-width: 14px; text-align: center; }
+.rst-cart-bar { position: fixed; left: 16px; right: 16px; bottom: calc(72px + env(safe-area-inset-bottom, 0px));
+  display: flex; align-items: center; gap: 10px; padding: 13px 16px; border-radius: 16px;
+  background: var(--brand-grad); color: #1a1205; font-weight: 800; font-size: 14px; box-shadow: var(--shadow-1); z-index: 20; }
+.rst-cart-bar:active { transform: scale(.98); }
+.rst-cart-bar b { margin-left: auto; }
+.rst-cart-badge { background: #1a1205; color: #fff; border-radius: 999px; min-width: 20px; height: 20px; padding: 0 5px; font-size: 12px; display: flex; align-items: center; justify-content: center; }
+.rst-confirm-line { display: flex; justify-content: space-between; font-size: 13px; padding: 4px 0; color: var(--text); }
+.rst-confirm-total { display: flex; justify-content: space-between; font-size: 13px; color: var(--muted, #9aa4b2); padding: 6px 0; }
+.rst-confirm-grand { font-size: 15px; font-weight: 800; color: var(--text); border-top: 1px solid var(--line, #2a3242); margin-top: 4px; padding-top: 10px; }
+.rst-pickup-toggle { display: flex; gap: 8px; margin: 10px 0; }
+.rst-pickup-toggle button { flex: 1; padding: 10px; border-radius: 12px; border: 1px solid var(--line, #2a3242); background: var(--surface, #1a2130); color: var(--muted, #9aa4b2); font-weight: 700; font-size: 13px; }
+.rst-pickup-toggle button.on { background: var(--brand); color: #1a1205; border-color: transparent; }
+.rst-myorders-btn { display: block; width: 100%; text-align: left; padding: 12px 14px; border-radius: 14px;
+  background: var(--surface, #1a2130); border: 1px solid var(--line, #2a3242); color: var(--text); font-weight: 700; font-size: 13.5px; margin-bottom: 12px; }
+.rst-myorders-btn:active { transform: scale(.98); }
+.rst-order-card { background: var(--surface, #1a2130); border: 1px solid var(--line, #2a3242); border-radius: 14px; padding: 12px; margin-bottom: 10px; }
+.rst-order-top { display: flex; align-items: center; justify-content: space-between; gap: 8px; font-size: 14px; color: var(--text); margin-bottom: 4px; }
+.rst-order-items { margin-bottom: 6px; }
+.rst-order-bottom { display: flex; justify-content: space-between; align-items: center; font-size: 12.5px; color: var(--text); }
+.rst-order-reason { margin-top: 6px; font-size: 11.5px; color: var(--danger); }
+
 /* ── 📋 E'LONLAR (feature "elonlar", E2, ELONLAR_PLAN.md §4.1) — «Mahalla e'lon taxtasi» ──────────
    .shop-light qolipidan ko'chirilgan (mexanizm bir xil, App.tsx tab==="elonlar"da qo'yiladi):
    iliq qog'oz fon + terrakota urg'u — app'ning yagona iliq-neytral zonasi. Faqat 2 yangi token
@@ -2383,3 +2413,24 @@ body {
 .app.restoran-light .rst-back { color: #a17858; }
 .app.restoran-light .svc-open { color: #16a34a; }
 .app.restoran-light .svc-open.closed { color: #dc2626; }
+/* R2 — savat/checkout/buyurtmalarim och-fon override */
+.app.restoran-light .rst-item-stepper { background: #fdead9; }
+.app.restoran-light .rst-item-stepper button { color: #2b1c12; }
+.app.restoran-light .rst-cart-bar { color: #fff; background: linear-gradient(135deg, var(--rst-accent), #c2410c); }
+.app.restoran-light .rst-cart-badge { background: rgba(0,0,0,.28); }
+.app.restoran-light .rst-confirm-line, .app.restoran-light .rst-confirm-grand { color: #2b1c12; }
+.app.restoran-light .rst-confirm-total { color: #a17858; }
+.app.restoran-light .rst-confirm-grand { border-top-color: #fbd9b8; }
+.app.restoran-light .rst-pickup-toggle button { background: #fff; border-color: #fbd9b8; color: #a17858; }
+.app.restoran-light .rst-pickup-toggle button.on { background: var(--rst-accent); color: #fff; }
+.app.restoran-light .rst-myorders-btn { background: #fff; border-color: #fbd9b8; color: #2b1c12; }
+.app.restoran-light .rst-order-card { background: #fff; border-color: #fbd9b8; }
+.app.restoran-light .rst-order-top { color: #2b1c12; }
+.app.restoran-light .rst-order-bottom { color: #2b1c12; }
+.app.restoran-light .bk-input { background: #ffffff; color: #2b1c12; border: 1px solid #fbd9b8; }
+.app.restoran-light .bk-input::placeholder { color: #c99f80; }
+.app.restoran-light .d-sheet { background: #ffffff; color: #2b1c12; }
+.app.restoran-light .d-sheet h3 { color: #2b1c12; }
+.app.restoran-light .d-sheet-bar { background: #ffffff; }
+.app.restoran-light .d-grip { background: #fbd9b8; }
+.app.restoran-light .d-sheet-x { background: color-mix(in srgb, var(--rst-accent) 12%, transparent); color: var(--rst-accent); }
