@@ -107,11 +107,13 @@ export function Icon({ name, filled = false, size = 24 }: { name: string; filled
         </svg>
       );
     case "food":
-      // restoran (feature "restoran") — likopcha + villa/pichoq, do'kon "market" belgisidan farqli
+      // restoran (feature "restoran") — burger silueti: 23px'da ham darhol "taom" deb o'qiladi
+      // (fork+pichoq ingichka chiziqlari kichik o'lchamda noaniq bo'lib ketardi)
       return (
         <svg {...p}>
-          <circle cx="9.5" cy="12" r="7" fill={filled ? "currentColor" : "none"} />
-          <path d="M16.5 5v6M18.5 5v3.5a2 2 0 0 1-2 2V5" />
+          <path d="M4 10a8 6 0 0 1 16 0Z" fill={filled ? "currentColor" : "none"} />
+          <path d="M3 13h18M4 16h16" />
+          <path d="M3 19a1 1 0 0 1 1-1h16a1 1 0 0 1 1 1 2 2 0 0 1-2 2H5a2 2 0 0 1-2-2Z" fill={filled ? "currentColor" : "none"} />
         </svg>
       );
     case "share":

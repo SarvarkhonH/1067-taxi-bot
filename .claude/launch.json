@@ -50,6 +50,12 @@
       "port": 6234
     },
     {
+      "name": "miniapp-alt10",
+      "runtimeExecutable": "pnpm",
+      "runtimeArgs": ["--filter", "@t1067/miniapp", "exec", "vite", "--port", "6455", "--strictPort"],
+      "port": 6455
+    },
+    {
       "name": "miniapp-built",
       "runtimeExecutable": "pnpm",
       "runtimeArgs": ["--filter", "@t1067/miniapp", "exec", "vite", "preview", "--port", "4173", "--strictPort"],
