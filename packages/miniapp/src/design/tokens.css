@@ -1885,6 +1885,14 @@ body {
   box-shadow: 0 0 18px color-mix(in srgb, var(--classified-accent) 28%, transparent);
 }
 .app.elonlar-light .page { animation-duration: 180ms; }
+/* Sheet (post-wizard, detal) — dark glass shell shop-light/xizmat-light bilan bir xil naqshda oqartiriladi */
+.app.elonlar-light .d-sheet { background: var(--classified-bg-grad); color: #1b2333; }
+.app.elonlar-light .d-sheet h3 { color: #1b2333; }
+.app.elonlar-light .d-sheet-bar { background: #f7f2e8; }
+.app.elonlar-light .d-grip { background: #e2d3ba; }
+.app.elonlar-light .d-sheet-x { background: color-mix(in srgb, var(--classified-accent) 12%, transparent); color: var(--classified-accent); }
+.app.elonlar-light .d-empty { color: #5f6f66; }
+.app.elonlar-light .muted { color: #7a6a56; }
 
 /* Karta = "qog'oz e'lon" (§4.1) — yuqori o'ng burchak clip-path "buklama", --acc = kategoriya rangi */
 .elon-card {
@@ -2210,4 +2218,19 @@ body {
 .app.xizmat-light .svc-claim-btn { border: 1px dashed #a8c2f0; color: #4a6491; }
 .app.xizmat-light .svc-insp-badge { color: #ffffff; background: #0d9488; border-color: transparent; }
 .app.xizmat-light .svc-insp { background: color-mix(in srgb, #14b8a6 8%, #ffffff); border: 1px solid color-mix(in srgb, #14b8a6 35%, transparent); }
+
+/* "Barcha kategoriyalar"ga qaytish tugmasi (.pay-back reuse) — shop-wrap .pay-back qolipidan;
+   ega: "sariq rangdan back belgisi bilinmay qolgan" — asl oltin chevron ko'k fonda ko'zga
+   tashlanmagan/nomos edi, xizmat-light uchun o'z ko'k identifikatsiyasiga o'tkaziladi. */
+.app.xizmat-light .pay-back {
+  background: #fff !important;
+  border-color: #cfe0ff !important;
+  color: #1d4ed8 !important;
+  box-shadow: 0 2px 10px rgba(37, 99, 235, .12);
+}
+.app.xizmat-light .pay-back::before {
+  background: var(--svc-accent);
+  color: #fff;
+  box-shadow: 0 2px 8px rgba(37, 99, 235, .35);
+}
 .app.xizmat-light .svc-insp b { color: #0d9488; }
