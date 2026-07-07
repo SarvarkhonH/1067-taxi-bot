@@ -2177,15 +2177,16 @@ body {
 .app.xizmat-light .svc-cat-chip { background: #fff; border-color: #d7e3fb; color: #46597a; }
 .app.xizmat-light .svc-cat-chip.on { background: var(--svc-accent); border-color: var(--svc-accent); color: #fff; }
 
-/* Profil varag'i (DetailSheet) — .sheet umumiy komponent hamma bo'limda bir xil qora shishadek
-   qolar edi (ega: "yangi rang bilinmayapti, liquid yoki transparent qil"); shu yerda xizmat-light
-   uchun oq/ko'k "liquid glass" profilga o'tkaziladi — shop/elonlar sheet'iga tegilmaydi. */
-.app.xizmat-light .sheet {
-  background: linear-gradient(180deg, #ffffff, #f6f9ff);
-  border-top: 1px solid color-mix(in srgb, var(--svc-accent) 18%, transparent);
-  box-shadow: 0 -20px 60px -24px rgba(20, 40, 90, 0.35);
-}
-.app.xizmat-light .sheet-grip { background: #d7e3fb; }
+/* Profil varag'i (DetailSheet) — haqiqiy modal komponent .d-sheet (design/components.tsx Sheet()),
+   .sheet EMAS (shu xato birinchi urinishda tuzatilmagan qoldirdi — hech qanday effekt bermadi).
+   Hamma bo'limda bir xil qora shishadek qolar edi (ega: "yangi rang bilinmayapti, liquid qil");
+   shu yerda xizmat-light uchun oq/ko'k "liquid glass" profilga o'tkaziladi — shop .shop-wrap .d-sheet
+   qolipi bilan bir xil, elonlar/shop'ga tegilmaydi. */
+.app.xizmat-light .d-sheet { background: linear-gradient(180deg, #ffffff, #f6f9ff); color: #16233b; }
+.app.xizmat-light .d-sheet h3 { color: #16233b; }
+.app.xizmat-light .d-sheet-bar { background: #ffffff; }
+.app.xizmat-light .d-grip { background: #d7e3fb; }
+.app.xizmat-light .d-sheet-x { background: color-mix(in srgb, var(--svc-accent) 12%, transparent); color: #1d4ed8; }
 .app.xizmat-light .svc-detail-noimg {
   background:
     radial-gradient(circle at 28% 26%, color-mix(in srgb, #60a5fa 65%, transparent), transparent 55%),
