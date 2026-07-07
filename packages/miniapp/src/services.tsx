@@ -633,6 +633,18 @@ export function XizmatlarView({ me, onBanner }: { me: MeResponse; onBanner: (msg
             ))}
           </div>
 
+          {/* pastga — ro'yxatlar (Saqlanganlar/Top/Yangi) o'zgaruvchan uzunlikda, shu CTA'ni
+             pastga surib yuborardi (ega: "joylashuvi pasga ko'chgan"); kategoriyadan keyin, doim
+             birinchi ekranda ko'rinadigan joyga ko'chirildi. */}
+          <button className="svc-add-cta glass" onClick={() => { haptic(); setSubmitOpen(true); }}>
+            <span className="svc-add-plus">➕</span>
+            <span className="grow tal">
+              <b>Xizmatimni qo'shish</b>
+              <div className="muted fs12">Bepul e'lon — mijozlar sizni shu yerdan topadi</div>
+            </span>
+            <span className="svc-add-chev">›</span>
+          </button>
+
           {home && home.favs.length > 0 && (
             <div className="svc-section">
               <div className="between"><b className="fs14">🔖 Saqlanganlar</b><span className="muted fs12">{home.favs.length} ta</span></div>
@@ -654,15 +666,6 @@ export function XizmatlarView({ me, onBanner }: { me: MeResponse; onBanner: (msg
               <div className="svc-list mt8">{home.fresh.map((l) => <SvcCard key={l.id} l={l} onOpen={(x) => { haptic(); setSelId(x.id); }} />)}</div>
             </div>
           )}
-
-          <button className="svc-add-cta glass" onClick={() => { haptic(); setSubmitOpen(true); }}>
-            <span className="svc-add-plus">➕</span>
-            <span className="grow tal">
-              <b>Xizmatimni qo'shish</b>
-              <div className="muted fs12">Bepul e'lon — mijozlar sizni shu yerdan topadi</div>
-            </span>
-            <span className="svc-add-chev">›</span>
-          </button>
         </>
       )}
 
