@@ -812,3 +812,15 @@ STATUS (Rule 7): `ready for verification`. Compliance-report 5 gap yopildi; kodn
   ega admin panelda o'zi "Yoqish" bosgan bo'lishi kerak (R4 deploydan keyin sinab ko'rgan). Flag
   `restoran` hamon OFF bo'lgani uchun oddiy foydalanuvchiga ta'siri yo'q, faqat eslatma sifatida.
 - Bu — 7 restorandan **birinchisi to'liq menyuga ega bo'ldi** — qolgan 6 tasi hali menyusiz.
+
+## 2026-07-07 — Xonadon Milliy Taomlari to'liq menyusi kiritildi (2/7 menyuga ega)
+- Ega Xonadon kanalidan real menyuni (kirillcha, toza matn — narx muammosiz) to'g'ridan-to'g'ri
+  yubordi. `seedXonadonMenu.ts` (yangi, jonli DB'ga yozadi, idempotent-emas — mavjud menyu
+  tekshiriladi): 6 bo'lim, **59/59 taom** to'liq kiritildi, hech qanday narx-noaniqlik yo'q
+  (Bahor'dan farqli — bu safar barcha narxlar aniq matn holida edi).
+  Bo'limlar: 1-ovqatlar(4), 2-ovqatlar(6), Shashliklar(17), Somsalar(2), Tabiiy soklar(5),
+  Salatlar(25).
+- Individual taom-rasmlari bu safar so'ralmadi/qidirilmadi — matn to'liq va aniq bo'lgani uchun
+  ustuvorlik menyuni to'liq kiritishga berildi.
+- Holat: Bahor (54 taom) + Xonadon (59 taom) = 2/7 restoran to'liq menyuga ega. Qolgan 5 tasi
+  (Jazira, Orif Bar, Qazi Hot-Dog, Do'stlar, Chinor) hali menyusiz.
