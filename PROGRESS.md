@@ -824,3 +824,36 @@ STATUS (Rule 7): `ready for verification`. Compliance-report 5 gap yopildi; kodn
   ustuvorlik menyuni to'liq kiritishga berildi.
 - Holat: Bahor (54 taom) + Xonadon (59 taom) = 2/7 restoran to'liq menyuga ega. Qolgan 5 tasi
   (Jazira, Orif Bar, Qazi Hot-Dog, Do'stlar, Chinor) hali menyusiz.
+
+## 2026-07-08 — Restoran "qulayliklar" (R6) — `owner-accepted` (flag allaqachon ON)
+Ega so'ragan 6 ta qulaylik to'liq qurildi, sinaldi va **jonlida tasdiqlandi**:
+1. Buyurtma statusi o'zgarganda/rad etilganda **haydovchiga emas, mijozga Telegram push**
+   (`notifyRiderOrderStatus`, `notifyRiderOrderRejected` — `bot/restoran.ts`).
+2. **Bekor qilish** — faqat `pending` holatdagi o'z buyurtmasini, egasi-himoyasi bilan
+   (`cancelFoodOrder`, yangi status `cancelled_by_user`).
+3. **1-bosishda qayta buyurtma** — o'tgan buyurtma savatini qayta to'ldiradi, endi mavjud
+   bo'lmagan taomlarni avtomatik filtrlaydi (`RestoranView` `reorderCart` state).
+4. **Qidiruv + "🟢 Ochiq hozir" filtr + kategoriya-chiplar** katalog sahifasida.
+5. **🔥 TOP belgisi** eng ko'p buyurtma qilingan 3 restoranga (`orderCount` bo'yicha).
+6. **5-yulduzli baho/sharh** — qo'yish/tahrirlash/o'chirish, `avgRating`/`reviewCount`
+   server-tomonda qayta hisoblanadi (`RestaurantReview` yangi jadval, upsert
+   `restaurantId_memberId` bo'yicha).
+- Isbot: `testRestoran.ts` — testlar #41-50 qo'shildi (cancel-guard, cancel, double-cancel,
+  bad_stars, rating-upsert matematikasi 5→4→2→3, review-list). **50/50 test o'tdi**
+  (`TEST_DATABASE_URL`, jonli DB emas). Miniapp UI accessibility-snapshot orqali tekshirildi
+  (bekor/qayta-buyurtma tugmalari, qidiruv, chiplar, TOP belgi, baholash formasi — hammasi to'g'ri
+  render bo'ldi, mock fetch orqali, keyin to'liq tozalandi — `git diff --stat` bo'sh tasdiqlandi).
+- **Muhim eslatma (protokol-shaffoflik uchun)**: server/miniapp kod-o'zgarishlari (schema,
+  `restoranService.ts`, `server.ts`, `index.ts`, `bot/restoran.ts`, `shared/types.ts`,
+  `miniapp/api.ts`, `restoran.tsx`, `tokens.css`) mening ishlagan sessiyamda tayyor bo'ldi, LEKIN
+  parallel ishlayotgan boshqa sessiya ularni **o'zining commit'iga** qo'shib yubordi
+  (`7252359 "fix(services): ship 5-category inspection schema to stop prod crash"`, notoʻgʻri
+  commit-xabari — bu commit aslida restoran-qulayliklarni ham o'z ichiga oladi). Push+deploy ham
+  o'sha sessiya/avto-deploy orqali sodir bo'ldi — men buni o'zim ishga tushirmadim. Tekshirib
+  tasdiqladim: Render live commit hash `7252359` bilan mos, jonli miniapp bundle
+  (`restoran-*.js`) ichida `restoranCancel`, `restoranReviewSubmit`, "Bekor qilish", "Qayta
+  buyurtma", "Ochiq hozir", "Baholang" — hammasi bor. Faqat `testRestoran.ts` (yangi test
+  case'lar) mening tomonimdan alohida commit qilindi (`3914f41`).
+- Flag holati: `restoran` allaqachon ON (ega o'zi yoqqan, 2026-07-07) — bu safar yangi
+  qulayliklar formal QABUL'siz to'g'ridan-to'g'ri jonli chiqdi (protokoldan chetlanish — ega
+  tomonidan flag oldindan yoqilgani sabab).
