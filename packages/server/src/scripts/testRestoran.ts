@@ -46,6 +46,14 @@ async function main(): Promise<void> {
 
   __resetFeatureCache();
 
+  // 0) regression (2026-07-08 jonli crash): NaN/0/negative id must NOT throw — getRestaurantDetail
+  // used to hit prisma.restaurant.findUnique({where:{id: NaN}}) unguarded → unhandled "Argument id
+  // is missing" crash, repeatedly, whenever a malformed request reached /api/restoran/:id.
+  for (const bad of [NaN, 0, -1, 1.5]) {
+    const r = await getRestaurantDetail(bad, true).catch((e) => ({ crashed: true, e }));
+    ok(!("crashed" in r) && r.restaurant === null, `0: getRestaurantDetail(${bad}) doesn't crash, returns null — got ${JSON.stringify(r)}`);
+  }
+
   // 1) flag default OFF
   ok((await featureOn("restoran")) === false, "1: restoran is DEFAULT_OFF");
   ok((await listActiveRestaurants(false)).length === 0 || true, "2: rider (preview=false) sees [] while flag is off — checked precisely below with a scoped restaurant");

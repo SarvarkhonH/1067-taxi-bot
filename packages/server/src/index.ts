@@ -127,6 +127,10 @@ async function main(): Promise<void> {
     notifyElonlarOwner: async (notice) => {
       if (bot) await (await import("./bot/elonlar")).notifyOwnerElonlar(bot, notice);
     },
+    // 🍽 new restoran order → owner info card (R3: operator acts from admin panel, no buttons here)
+    notifyRestoranOwner: async (notice) => {
+      if (bot) await (await import("./bot/restoran")).notifyOwnerNewFoodOrder(bot, notice);
+    },
   });
   // economy alerts (withdraws, anomalies) → admins
   const { registerAdminNotifier } = await import("./services/economyService");

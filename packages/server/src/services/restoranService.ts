@@ -5,6 +5,14 @@ import type { AdminFoodOrderRow, MenuItemView, RestaurantView } from "@t1067/sha
 import { prisma } from "../db";
 import { featureOn } from "./featureFlags";
 
+// Jonli xato (2026-07-08): Number(req.params.id) noto'g'ri/bo'sh yo'lda NaN beradi —
+// `prisma.X.findUnique({where:{id: NaN}})` Prisma darajasida "Argument id is missing" deb
+// UNHANDLED tashlaydi (crash, har safar mos bo'lmagan so'rov kelganda takrorlanadi). Har bir
+// findUnique-by-id chaqiruvi shu bilan himoyalanadi — noto'g'ri id endi 404/null qaytaradi, crash EMAS.
+function validId(id: number): boolean {
+  return Number.isInteger(id) && id > 0;
+}
+
 /** preview=true (admin) bypasses the DARK flag so the owner can QABUL the catalog while riders
  *  see nothing yet — bir xil shop/xizmatlar owner-preview patterni. */
 export async function listActiveRestaurants(preview = false): Promise<RestaurantView[]> {
@@ -32,6 +40,7 @@ export async function listActiveRestaurants(preview = false): Promise<Restaurant
 }
 
 export async function getRestaurantDetail(id: number, preview = false): Promise<{ restaurant: RestaurantView | null; items: MenuItemView[] }> {
+  if (!validId(id)) return { restaurant: null, items: [] };
   if (!preview && !(await featureOn("restoran"))) return { restaurant: null, items: [] };
   const r = await prisma.restaurant.findUnique({ where: { id } });
   if (!r || !r.active) return { restaurant: null, items: [] };
@@ -71,6 +80,7 @@ export async function getRestaurantDetail(id: number, preview = false): Promise<
  *  hali yoqilmagan) restoranni ham ko'rsatadi. Flag/active tekshiruvi YO'Q — chunki bu allaqachon
  *  route-darajasida `requireAdmin` bilan qulflangan (rider-facing yo'l emas). */
 export async function adminGetRestaurantDetail(id: number): Promise<{ restaurant: RestaurantView | null; items: MenuItemView[] }> {
+  if (!validId(id)) return { restaurant: null, items: [] };
   const r = await prisma.restaurant.findUnique({ where: { id } });
   if (!r) return { restaurant: null, items: [] };
   const menuItems = await prisma.menuItem.findMany({
@@ -149,6 +159,7 @@ export async function createFoodOrder(
   if (!isPickup && addr.length < 5) return { ok: false, reason: "bad_address" };
   const cleanItems = (cartItems ?? []).filter((c) => Number.isFinite(c.menuItemId) && Number.isFinite(c.qty) && c.qty > 0 && c.qty <= 20);
   if (!cleanItems.length) return { ok: false, reason: "empty_cart" };
+  if (!validId(restaurantId)) return { ok: false, reason: "unavailable" };
 
   const restaurant = await prisma.restaurant.findUnique({ where: { id: restaurantId } });
   if (!restaurant || !restaurant.active || restaurant.paused === true) return { ok: false, reason: restaurant?.paused ? "paused" : "unavailable" };
@@ -350,6 +361,7 @@ export async function checkRestoranSlaAndAlert(alertAdmins: (html: string) => Pr
 
 /** Public photo proxy resolution — driver-photo/shop pattern (Telegram file_id → CDN redirect). */
 export async function resolveRestaurantPhoto(restaurantId: number): Promise<string | null> {
+  if (!validId(restaurantId)) return null;
   const r = await prisma.restaurant.findUnique({ where: { id: restaurantId }, select: { photoUrl: true, photoFileId: true } });
   if (!r) return null;
   if (r.photoUrl) return r.photoUrl;
@@ -361,6 +373,7 @@ export async function resolveRestaurantPhoto(restaurantId: number): Promise<stri
 }
 
 export async function resolveMenuItemPhoto(menuItemId: number): Promise<string | null> {
+  if (!validId(menuItemId)) return null;
   const m = await prisma.menuItem.findUnique({ where: { id: menuItemId }, select: { photoUrl: true, photoFileId: true } });
   if (!m) return null;
   if (m.photoUrl) return m.photoUrl;

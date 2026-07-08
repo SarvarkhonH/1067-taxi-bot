@@ -50,6 +50,8 @@ export interface ApiOptions {
   notifyServiceDemand?: (notice: import("../services/serviceDirectory").ServiceDemandNotice) => Promise<void>;
   /** 📋 Forward a new pending e'lon to the owner's Telegram [✅ Chiqarish]/[❌ Rad] (bot-bound). */
   notifyElonlarOwner?: (notice: import("../services/classifiedService").ClassifiedOwnerNotice) => Promise<void>;
+  /** 🍽 New restoran order → owner info card (no buttons — operator acts from admin panel, R3). */
+  notifyRestoranOwner?: (notice: import("../services/restoranService").FoodOrderOwnerNotice) => Promise<void>;
 }
 
 function memberType(req: Request, fallback: MemberType): MemberType {
@@ -470,6 +472,7 @@ export function createApiServer(opts: ApiOptions = {}) {
       String(b.address ?? ""), String(b.contact ?? ""), String(b.note ?? ""),
       !!b.isPickup, isAdmin(res.locals.telegramId as string),
     );
+    if (r.ok && r.notice && opts.notifyRestoranOwner) await opts.notifyRestoranOwner(r.notice).catch(() => undefined);
     const { notice: _n, ...pub } = r; // owner-notice (phone/address) never leaves the server response path
     return pub;
   }));
@@ -673,6 +676,12 @@ export function createApiServer(opts: ApiOptions = {}) {
   app.post("/api/elonlar/ads/:id/report", requireUser, rateLimit(10), async (req, res) => {
     const { reportAd } = await import("../services/classifiedService");
     res.json(await reportAd(Number(req.params.id), res.locals.telegramId as string, elonPreview(res)));
+  });
+  app.post("/api/elonlar/ads/:id/react", requireUser, rateLimit(30), async (req, res) => {
+    const { submitReaction } = await import("../services/classifiedService");
+    const m = await prisma.telegramUser.findUnique({ where: { id: res.locals.telegramId as string }, select: { member: { select: { displayName: true, fullName: true } } } });
+    const name = m?.member?.displayName || m?.member?.fullName || "Foydalanuvchi";
+    res.json(await submitReaction(res.locals.telegramId as string, name, Number(req.params.id), req.body as import("@t1067/shared").ClassifiedReactBody, elonPreview(res)));
   });
   app.post("/api/elonlar/ads/:id/contact", requireUser, rateLimit(30), async (req, res) => {
     const { logContact } = await import("../services/classifiedService");
@@ -1481,7 +1490,8 @@ export function createApiServer(opts: ApiOptions = {}) {
     res.json(await clearServicePhotos(Number(req.params.id)));
   });
 
-  // ── 📋 E'LONLAR admin (E3, owner-gated writes) — approve/reject FAQAT Telegram orqali (bot/elonlar.ts) ──
+  // ── 📋 E'LONLAR admin (E3, owner-gated writes) — approve/reject FAQAT Telegram orqali (bot/elonlar.ts),
+  // lekin panel'dan tarkibni to'g'irlash (edit/rasm/o'chirish) endi mumkin (raw DB skript o'rniga). ──
   app.get("/api/admin/elonlar", requireAdmin, async (req, res) => {
     const { adminListAds } = await import("../services/classifiedService");
     res.json(await adminListAds(req.query?.status ? String(req.query.status) : undefined));
@@ -1493,6 +1503,14 @@ export function createApiServer(opts: ApiOptions = {}) {
   app.get("/api/admin/elonlar/:id/contacts", requireAdmin, async (req, res) => {
     const { adminAdContacts } = await import("../services/classifiedService");
     res.json({ contacts: await adminAdContacts(Number(req.params.id)) });
+  });
+  app.get("/api/admin/elonlar/:id/reactions", requireAdmin, async (req, res) => {
+    const { adminAdReactions } = await import("../services/classifiedService");
+    res.json({ reactions: await adminAdReactions(Number(req.params.id)) });
+  });
+  app.post("/api/admin/elonlar", requireAdmin, requireOwner, rateLimit(30), async (req, res) => {
+    const { adminCreateAd } = await import("../services/classifiedService");
+    res.json(await adminCreateAd(req.body));
   });
   app.post("/api/admin/elonlar/:id/archive", requireAdmin, requireOwner, rateLimit(30), async (req, res) => {
     const { adminArchiveAd } = await import("../services/classifiedService");
@@ -1506,6 +1524,24 @@ export function createApiServer(opts: ApiOptions = {}) {
   app.post("/api/admin/elonlar/:id/top", requireAdmin, requireOwner, rateLimit(30), async (req, res) => {
     const { adminSetTop } = await import("../services/classifiedService");
     res.json(await adminSetTop(Number(req.params.id), !!req.body?.on));
+  });
+  app.post("/api/admin/elonlar/:id", requireAdmin, requireOwner, rateLimit(30), async (req, res) => {
+    const { adminEditAd } = await import("../services/classifiedService");
+    res.json(await adminEditAd(Number(req.params.id), req.body));
+  });
+  app.delete("/api/admin/elonlar/:id", requireAdmin, requireOwner, rateLimit(30), async (req, res) => {
+    const { adminDeleteAd } = await import("../services/classifiedService");
+    res.json(await adminDeleteAd(Number(req.params.id)));
+  });
+  app.post("/api/admin/elonlar/:id/photo", express.json({ limit: "6mb" }), requireAdmin, requireOwner, async (req, res) => {
+    const b = req.body as { mime?: string; base64?: string };
+    if (!b?.base64) { res.status(400).json({ error: "no image" }); return; }
+    const { uploadAdPhoto } = await import("../services/classifiedService");
+    res.json(await uploadAdPhoto(Number(req.params.id), Buffer.from(b.base64, "base64"), b.mime || "image/jpeg"));
+  });
+  app.delete("/api/admin/elonlar/:id/photo", requireAdmin, requireOwner, async (req, res) => {
+    const { adminClearAdPhotos } = await import("../services/classifiedService");
+    res.json(await adminClearAdPhotos(Number(req.params.id)));
   });
 
   // 💸 Transfer commission — owner sets the % charged on every transfer/tip/fare (gated by the
