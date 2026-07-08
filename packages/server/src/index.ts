@@ -131,6 +131,13 @@ async function main(): Promise<void> {
     notifyRestoranOwner: async (notice) => {
       if (bot) await (await import("./bot/restoran")).notifyOwnerNewFoodOrder(bot, notice);
     },
+    // 🍽 order status advanced → rider push (qulaylik #1, jonli-his)
+    notifyRiderOrderStatus: async (notice) => {
+      if (bot) await (await import("./bot/restoran")).notifyRiderOrderStatus(bot, notice);
+    },
+    notifyRiderOrderRejected: async (notice) => {
+      if (bot) await (await import("./bot/restoran")).notifyRiderOrderRejected(bot, notice);
+    },
   });
   // economy alerts (withdraws, anomalies) → admins
   const { registerAdminNotifier } = await import("./services/economyService");

@@ -4,7 +4,7 @@
 // rows, counters and reviews — the coin ledger is never imported. Rating aggregates are CACHED on
 // the listing row (avgRating/reviewCount/rankScore) so list renders never join reviews; rankScore
 // is a bayes blend ((avg·n + PRIOR·W)/(n+W)) so two fresh 5★ can't outrank a 200-review 4.8.
-import { SERVICE_SUBMITS_PER_DAY, type ServiceCategoryView, type ServiceListingCard, type ServiceListingDetail, type ServicePriceView, type ServiceReviewResponse, type ServiceReviewView, type ServiceSubmitBody, type ServiceSubmitResponse } from "@t1067/shared";
+import { INSP_CATEGORY_MAX, inspTier, inspTotal, SERVICE_SUBMITS_PER_DAY, type ServiceCategoryView, type ServiceListingCard, type ServiceListingDetail, type ServicePriceView, type ServiceReviewResponse, type ServiceReviewView, type ServiceSubmitBody, type ServiceSubmitResponse } from "@t1067/shared";
 import { prisma } from "../db";
 import { featureOn } from "./featureFlags";
 
@@ -37,12 +37,13 @@ async function dirOn(preview: boolean): Promise<boolean> {
 
 type ListingRow = {
   id: number; name: string; categoryId: number; tags: string; address: string | null;
-  workHours: string | null; isVip: boolean; verified: boolean; avgRating: number; reviewCount: number;
-  inspStars: number | null;
+  workHours: string | null; isVip: boolean; verified: boolean; avgRating: number; reviewCount: number; favCount: number;
+  inspClean: number | null; inspProf: number | null; inspPrice: number | null; inspTrust: number | null; inspQuality: number | null;
   category: { name: string; emoji: string };
 };
 
 function toCard(l: ListingRow, photoCount: number, priceFrom: number | null = null): ServiceListingCard {
+  const total = inspTotal({ clean: l.inspClean ?? undefined, prof: l.inspProf ?? undefined, price: l.inspPrice ?? undefined, trust: l.inspTrust ?? undefined, quality: l.inspQuality ?? undefined });
   return {
     id: l.id,
     name: l.name,
@@ -56,10 +57,12 @@ function toCard(l: ListingRow, photoCount: number, priceFrom: number | null = nu
     verified: l.verified,
     avgRating: Math.round(l.avgRating * 10) / 10,
     reviewCount: l.reviewCount,
+    favCount: l.favCount,
     hasPhoto: photoCount > 0,
     photoCount,
     priceFrom,
-    inspStars: l.inspStars,
+    inspTotal: total,
+    inspTier: inspTier(total),
   };
 }
 
@@ -163,6 +166,28 @@ export async function listListings(
   return { listings: rows.map((r) => toCard(r, photos.get(r.id) ?? 0, mins.get(r.id) ?? null)), total };
 }
 
+/** 🏆 «1067 tavsiya qiladi» — faqat to'liq audit qilingan VA {@link INSP_PASS_MIN}dan yuqori ball
+ *  olgan xizmatlar (ommaviy belgi ko'rsatiladiganlar bilan bir xil qoida). Umumiy ball 5 ustunning
+ *  yig'indisi — Postgresda ustunlar bo'yicha SUM filtri qulay emas, shuning uchun kandidatlarni
+ *  (audit to'liq bo'lganlar, odatda o'nlab yozuv) olib, ballni ilovada hisoblab saralaymiz. */
+export async function listInspected(limit = 8, preview = false): Promise<ServiceListingCard[]> {
+  if (!(await dirOn(preview))) return [];
+  const rows = await prisma.serviceListing.findMany({
+    where: {
+      status: "active",
+      inspClean: { not: null }, inspProf: { not: null }, inspPrice: { not: null }, inspTrust: { not: null }, inspQuality: { not: null },
+    },
+    include: { category: { select: { name: true, emoji: true } } },
+    take: 200, // kandidatlar — hozircha kichik katalog, xavfsiz yuqori chegara
+  });
+  const [photos, mins] = await Promise.all([photoCounts(rows.map((r) => r.id)), priceMins(rows.map((r) => r.id))]);
+  return rows
+    .map((r) => toCard(r, photos.get(r.id) ?? 0, mins.get(r.id) ?? null))
+    .filter((c) => c.inspTier != null)
+    .sort((a, b) => (b.inspTotal ?? 0) - (a.inspTotal ?? 0))
+    .slice(0, limit);
+}
+
 export async function getListing(id: number, tgId: string | null, preview = false): Promise<ServiceListingDetail | null> {
   if (!(await dirOn(preview))) return null;
   const l = await prisma.serviceListing.findUnique({ where: { id }, include: { category: { select: { name: true, emoji: true } } } });
@@ -197,6 +222,9 @@ export async function getListing(id: number, tgId: string | null, preview = fals
     isMine: tgId != null && l.ownerTgId != null && l.ownerTgId === BigInt(tgId),
     inspNote: l.inspNote,
     inspAt: l.inspAt?.toISOString() ?? null,
+    inspBreakdown: l.inspClean != null && l.inspProf != null && l.inspPrice != null && l.inspTrust != null && l.inspQuality != null
+      ? { clean: l.inspClean, prof: l.inspProf, price: l.inspPrice, trust: l.inspTrust, quality: l.inspQuality }
+      : null,
   };
 }
 
@@ -406,7 +434,11 @@ export interface AdminServiceRow {
   telegramUrl: string | null;
   facebook: string | null;
   website: string | null;
-  inspStars: number | null;
+  inspClean: number | null;
+  inspProf: number | null;
+  inspPrice: number | null;
+  inspTrust: number | null;
+  inspQuality: number | null;
   inspNote: string | null;
   status: string;
   isVip: boolean;
@@ -463,7 +495,11 @@ export async function adminListListings(status?: string): Promise<{ rows: AdminS
       telegramUrl: l.telegramUrl,
       facebook: l.facebook,
       website: l.website,
-      inspStars: l.inspStars,
+      inspClean: l.inspClean,
+      inspProf: l.inspProf,
+      inspPrice: l.inspPrice,
+      inspTrust: l.inspTrust,
+      inspQuality: l.inspQuality,
       inspNote: l.inspNote,
       status: l.status,
       isVip: l.isVip,
@@ -497,7 +533,15 @@ export interface ServicePatch {
   status?: string;
   isVip?: boolean;
   verified?: boolean;
-  inspStars?: number | null; // 1-5 = tekshirildi, null = tozalash (hech qachon tekshirilmagan holatga qaytarish)
+  // 🏅 100-ballik 5-mezon (0-20 har biri) — hammasi null = tozalash (tekshirilmagan holatga qaytarish).
+  // Qisman to'ldirish RUXSAT (masalan admin bosqichma-bosqich kiritishi mumkin) — faqat HAMMASI
+  // to'ldirilganda inspTotal/tier hisoblanadi (shared/inspection.ts), shuning uchun bu yerda
+  // har biri alohida validatsiya qilinadi.
+  inspClean?: number | null;
+  inspProf?: number | null;
+  inspPrice?: number | null;
+  inspTrust?: number | null;
+  inspQuality?: number | null;
   inspNote?: string | null;
 }
 
@@ -530,17 +574,24 @@ export async function adminEditListing(id: number, b: ServicePatch): Promise<{ o
   if (typeof b.status === "string" && ["pending", "active", "rejected", "archived"].includes(b.status)) data.status = b.status;
   if (typeof b.isVip === "boolean") data.isVip = b.isVip;
   if (typeof b.verified === "boolean") data.verified = b.verified;
-  // 🏅 1067 tekshiruvi — mijoz reytingiga UMUMAN tegmaydi, mustaqil audit maydoni
-  if (b.inspStars !== undefined) {
-    if (b.inspStars === null) {
-      data.inspStars = null;
-      data.inspAt = null;
-    } else {
-      const stars = Math.round(Number(b.inspStars));
-      if (!Number.isFinite(stars) || stars < 1 || stars > 5) return { ok: false, error: "bad_insp_stars" };
-      data.inspStars = stars;
-      data.inspAt = new Date();
-    }
+  // 🏅 1067 tekshiruvi — mijoz reytingiga UMUMAN tegmaydi, mustaqil audit maydoni. Har mezon 0-20.
+  let inspTouched = false;
+  for (const field of ["inspClean", "inspProf", "inspPrice", "inspTrust", "inspQuality"] as const) {
+    const v = b[field];
+    if (v === undefined) continue;
+    inspTouched = true;
+    if (v === null) { data[field] = null; continue; }
+    const n = Math.round(Number(v));
+    if (!Number.isFinite(n) || n < 0 || n > INSP_CATEGORY_MAX) return { ok: false, error: `bad_${field}` };
+    data[field] = n;
+  }
+  if (inspTouched) {
+    const current = await prisma.serviceListing.findUnique({ where: { id }, select: { inspClean: true, inspProf: true, inspPrice: true, inspTrust: true, inspQuality: true } });
+    const next = { ...current, ...data } as Record<string, number | null | undefined>;
+    const fields = ["inspClean", "inspProf", "inspPrice", "inspTrust", "inspQuality"] as const;
+    if (fields.every((f) => next[f] != null)) data.inspAt = new Date(); // to'liq audit — bosqich yakunlandi
+    else if (fields.every((f) => next[f] == null)) data.inspAt = null; // to'liq tozalandi
+    // aralash (qisman to'ldirilgan) holatda inspAt O'ZGARTIRILMAYDI — hali "tekshirilgan" hisoblanmaydi
   }
   if (b.inspNote !== undefined) data.inspNote = (b.inspNote ?? "").trim().slice(0, 300) || null;
   await prisma.serviceListing.update({ where: { id }, data }).catch(() => undefined);
@@ -755,19 +806,25 @@ export async function claimListing(listingId: number, tgId: string, phoneRaw: st
   return { ok: true, name: l.name };
 }
 
-/** 🔖 Saqlash toggle — 1 user × 1 listing (unique), off = delete. Pul yo'q. */
-export async function toggleFavorite(tgId: string, listingId: number, on: boolean, preview = false): Promise<{ ok: boolean; on: boolean }> {
+/** ❤️ Like (=Saqlash) toggle — 1 user × 1 listing (unique), off = delete. Pul yo'q. favCount —
+ *  OMMAVIY hisoblagich (viral signal: "N kishi like bosgan"), shuning uchun har amalda +1/-1
+ *  qilib boriladi (idempotent: allaqachon like bo'lsa qayta +1 qilinmaydi — upsert natijasidan bilinadi). */
+export async function toggleFavorite(tgId: string, listingId: number, on: boolean, preview = false): Promise<{ ok: boolean; on: boolean; favCount?: number }> {
   if (!(await dirOn(preview))) return { ok: false, on: false };
   if (on) {
-    await prisma.serviceFavorite.upsert({
-      where: { tgId_listingId: { tgId: BigInt(tgId), listingId } },
-      update: {},
-      create: { tgId: BigInt(tgId), listingId },
-    }).catch(() => undefined);
+    const existing = await prisma.serviceFavorite.findUnique({ where: { tgId_listingId: { tgId: BigInt(tgId), listingId } } });
+    if (!existing) {
+      await prisma.serviceFavorite.create({ data: { tgId: BigInt(tgId), listingId } }).catch(() => undefined);
+      await prisma.serviceListing.update({ where: { id: listingId }, data: { favCount: { increment: 1 } } }).catch(() => undefined);
+    }
   } else {
-    await prisma.serviceFavorite.deleteMany({ where: { tgId: BigInt(tgId), listingId } });
+    const deleted = await prisma.serviceFavorite.deleteMany({ where: { tgId: BigInt(tgId), listingId } });
+    if (deleted.count > 0) {
+      await prisma.serviceListing.updateMany({ where: { id: listingId, favCount: { gt: 0 } }, data: { favCount: { decrement: 1 } } }).catch(() => undefined);
+    }
   }
-  return { ok: true, on };
+  const l = await prisma.serviceListing.findUnique({ where: { id: listingId }, select: { favCount: true } });
+  return { ok: true, on, favCount: l?.favCount ?? 0 };
 }
 
 /** Saqlanganlar ro'yxati — karta ko'rinishida (faqat hali active bo'lganlar). */

@@ -2,6 +2,13 @@ import { Fragment, useEffect, useMemo, useRef, useState, type FormEvent } from "
 import {
   formatNumber,
   CLASSIFIED_CATEGORIES,
+  INSP_CATEGORIES,
+  INSP_CATEGORY_MAX,
+  INSP_PASS_MIN,
+  INSP_TIER_EMOJI,
+  INSP_TIER_LABEL,
+  inspTier,
+  inspTotal,
   type AdminAdContactRow,
   type AdminAdReactionRow,
   type AdminAdViewerRow,
@@ -1746,7 +1753,8 @@ interface SvcDraft {
   name: string; phone: string; phone2: string; desc: string; tags: string; address: string; workHours: string;
   instagram: string; telegramUrl: string; facebook: string; website: string;
   geoLat: string; geoLng: string; categoryId: number;
-  inspStars: string; inspNote: string; priceText: string;
+  inspClean: string; inspProf: string; inspPrice: string; inspTrust: string; inspQuality: string;
+  inspNote: string; priceText: string;
 }
 function svcDraftFromRow(r: SvcAdminRow): SvcDraft {
   return {
@@ -1754,12 +1762,68 @@ function svcDraftFromRow(r: SvcAdminRow): SvcDraft {
     address: r.address ?? "", workHours: r.workHours ?? "",
     instagram: r.instagram ?? "", telegramUrl: r.telegramUrl ?? "", facebook: r.facebook ?? "", website: r.website ?? "",
     geoLat: r.geoLat != null ? String(r.geoLat) : "", geoLng: r.geoLng != null ? String(r.geoLng) : "",
-    categoryId: r.categoryId, inspStars: r.inspStars != null ? String(r.inspStars) : "", inspNote: r.inspNote ?? "",
+    categoryId: r.categoryId,
+    inspClean: r.inspClean != null ? String(r.inspClean) : "", inspProf: r.inspProf != null ? String(r.inspProf) : "",
+    inspPrice: r.inspPrice != null ? String(r.inspPrice) : "", inspTrust: r.inspTrust != null ? String(r.inspTrust) : "",
+    inspQuality: r.inspQuality != null ? String(r.inspQuality) : "", inspNote: r.inspNote ?? "",
     priceText: "",
   };
 }
 function svcPriceItemsToText(items: { label: string; priceSom: number }[]): string {
   return items.map((i) => `${i.label}=${i.priceSom}`).join("; ");
+}
+
+const INSP_DRAFT_KEY: Record<typeof INSP_CATEGORIES[number]["key"], "inspClean" | "inspProf" | "inspPrice" | "inspTrust" | "inspQuality"> = {
+  clean: "inspClean", prof: "inspProf", price: "inspPrice", trust: "inspTrust", quality: "inspQuality",
+};
+
+function InspEditBox({ draft, setDraft }: { draft: SvcDraft; setDraft: (d: SvcDraft) => void }) {
+  const vals = {
+    clean: draft.inspClean.trim() === "" ? undefined : Number(draft.inspClean),
+    prof: draft.inspProf.trim() === "" ? undefined : Number(draft.inspProf),
+    price: draft.inspPrice.trim() === "" ? undefined : Number(draft.inspPrice),
+    trust: draft.inspTrust.trim() === "" ? undefined : Number(draft.inspTrust),
+    quality: draft.inspQuality.trim() === "" ? undefined : Number(draft.inspQuality),
+  };
+  const filledCount = Object.values(vals).filter((v) => v !== undefined).length;
+  const total = inspTotal(vals);
+  const tier = inspTier(total);
+
+  return (
+    <div className="adm-insp-box" style={{ maxWidth: 480 }}>
+      <div className="adm-insp-title">🏅 1067 tekshiruvi — rasmiy audit (100 ball, 5 mezon)</div>
+      <div className="adm-insp-hint">Mijoz bahosi EMAS — jamoangiz jismoniy borib tekshirgan natija. {INSP_PASS_MIN} balldan past bo&apos;lsa rider&apos;larga OMMAVIY belgi umuman chiqmaydi.</div>
+      <div className="adm-form-grid" style={{ marginTop: 8 }}>
+        {INSP_CATEGORIES.map((c) => {
+          const draftKey = INSP_DRAFT_KEY[c.key];
+          return (
+            <div className="adm-field" key={c.key}>
+              <span className="adm-field-label">{c.emoji} {c.label} (0-{INSP_CATEGORY_MAX})</span>
+              <input
+                type="number" min={0} max={INSP_CATEGORY_MAX}
+                value={draft[draftKey]}
+                onChange={(e) => setDraft({ ...draft, [draftKey]: e.target.value })}
+                placeholder="—"
+              />
+            </div>
+          );
+        })}
+        <div className="adm-field"><span className="adm-field-label">Tekshiruv xulosasi</span><input value={draft.inspNote} onChange={(e) => setDraft({ ...draft, inspNote: e.target.value })} placeholder="Toza, professional, narxlar mos" /></div>
+      </div>
+      <div className="adm-insp-total">
+        {filledCount === 0 ? (
+          <span className="muted">Hali baholanmagan</span>
+        ) : total == null ? (
+          <span className="muted">{filledCount}/5 mezon to&apos;ldirildi — hammasini kiriting, saqlaganda hisoblanadi</span>
+        ) : (
+          <>
+            <b>{total}/{100} ball</b>
+            {tier ? <span className={`badge insp-badge-${tier}`}>{INSP_TIER_EMOJI[tier]} {INSP_TIER_LABEL[tier]}</span> : <span className="badge badge-bad">Ommaviy belgi chiqmaydi ({INSP_PASS_MIN}dan past)</span>}
+          </>
+        )}
+      </div>
+    </div>
+  );
 }
 function svcParsePriceText(v: string): { label: string; priceSom: number }[] {
   return v.split(";").map((x) => x.split("=")).filter((a) => a.length === 2)
@@ -2171,12 +2235,14 @@ function XizmatlarAdminView() {
     if ((la != null && !Number.isFinite(la)) || (ln != null && !Number.isFinite(ln))) {
       setMsg("❌ Koordinata noto'g'ri — raqam kiriting"); setSaving(false); return;
     }
-    const stars = draft.inspStars.trim() === "" ? null : Number(draft.inspStars);
+    const toInsp = (s: string) => (s.trim() === "" ? null : Number(s));
     const patch: Record<string, unknown> = {
       name: draft.name, phone: draft.phone, phone2: draft.phone2 || null, desc: draft.desc, tags: draft.tags,
       address: draft.address || null, workHours: draft.workHours || null,
       instagram: draft.instagram || null, telegramUrl: draft.telegramUrl || null, facebook: draft.facebook || null, website: draft.website || null,
-      geoLat: la, geoLng: ln, categoryId: draft.categoryId, inspStars: stars, inspNote: draft.inspNote || null,
+      geoLat: la, geoLng: ln, categoryId: draft.categoryId,
+      inspClean: toInsp(draft.inspClean), inspProf: toInsp(draft.inspProf), inspPrice: toInsp(draft.inspPrice),
+      inspTrust: toInsp(draft.inspTrust), inspQuality: toInsp(draft.inspQuality), inspNote: draft.inspNote || null,
     };
     const r = await adminApi.svcEdit(id, patch).catch((e: Error) => ({ ok: false as const, error: e.message }));
     if (!r.ok) { setMsg(`❌ ${("error" in r && r.error) || "xatolik"}`); setSaving(false); return; }
@@ -2351,20 +2417,7 @@ function XizmatlarAdminView() {
                   <span className="adm-field-hint">Format: Nom=narx; Nom=narx</span>
                 </div>
 
-                <div className="adm-insp-box" style={{ maxWidth: 440 }}>
-                  <div className="adm-insp-title">🏅 1067 tekshiruvi — rasmiy audit</div>
-                  <div className="adm-insp-hint">Mijoz bahosi EMAS — jamoangiz jismoniy borib tekshirgan natija. Rider&apos;lar Xizmatlar bo&apos;limida shu rangda (teal) ko&apos;radi.</div>
-                  <div className="adm-form-grid" style={{ marginTop: 8 }}>
-                    <div className="adm-field">
-                      <span className="adm-field-label">Baho</span>
-                      <select value={draft.inspStars} onChange={(e) => setDraft({ ...draft, inspStars: e.target.value })}>
-                        <option value="">Tekshirilmagan</option>
-                        {[1, 2, 3, 4, 5].map((n) => <option key={n} value={n}>{"★".repeat(n)} ({n})</option>)}
-                      </select>
-                    </div>
-                    <div className="adm-field"><span className="adm-field-label">Tekshiruv xulosasi</span><input value={draft.inspNote} onChange={(e) => setDraft({ ...draft, inspNote: e.target.value })} placeholder="Toza, professional, narxlar mos" /></div>
-                  </div>
-                </div>
+                <InspEditBox draft={draft} setDraft={setDraft} />
 
                 <div className="adm-card-body-foot">
                   <button className="btn" disabled={saving} onClick={() => void saveDraft(r.id)}>{saving ? "Saqlanmoqda…" : "💾 Saqlash"}</button>

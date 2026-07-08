@@ -479,6 +479,7 @@ model Restaurant {
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
   menuItems      MenuItem[]
+  reviews        RestaurantReview[]
 
   @@index([active, sortOrder])
 }
@@ -529,6 +530,22 @@ model FoodOrder {
   @@index([restaurantId, status])
   @@index([memberId, createdAt])
   @@index([status, createdAt])
+}
+
+// 🗣 1 baho/sharh — 1 a'zo — 1 restoran (re-submit = tahrirlash, ServiceReview patterni). Restaurant
+// avgRating/reviewCount CACHE qilingan (har submit'da qayta hisoblanadi — ro'yxat render'ida JOIN yo'q).
+model RestaurantReview {
+  id           Int        @id @default(autoincrement())
+  restaurant   Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  restaurantId Int
+  memberId     Int
+  stars        Int // 1-5
+  text         String?
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+
+  @@unique([restaurantId, memberId])
+  @@index([restaurantId, id])
 }
 
 // Coin -> real so'm conversions (the ONLY place real money leaves the system).
@@ -1536,12 +1553,22 @@ model ServiceListing {
   // tekshirgan rasmiy audit (toza joymi, xizmat sifati, narx-mos). `verified` shunchaki
   // telefon/identity ishonchi; bu esa SIFAT auditi. avgRating/reviewCount'ga HECH tegmaydi,
   // rankScore'ga ham qo'shilmaydi (mustaqil signal — ikkalasini aralashtirmaslik ataylab).
-  inspStars   Int? // 1067 auditorining bahosi (1-5), null = hali tekshirilmagan
+  // 100-ballik 5-mezonli standart (1067_TEKSHIRUVI_STANDARTLARI.pdf) — har biri 0-20 ball,
+  // umumiy ball server-side hisoblanadi (shared/inspection.ts). 60dan past bo'lsa ommaviy
+  // belgi UMUMAN chiqmaydi (kredibillikni himoya qiladi) — kod tomonda, saqlashda emas.
+  inspClean   Int? // 🧼 Tozalik va sanitariya (0-20)
+  inspProf    Int? // 👔 Professionalizm va muomala (0-20)
+  inspPrice   Int? // 💰 Narx-sifat muvofiqligi (0-20)
+  inspTrust   Int? // 📜 Ishonchlilik — manzil/telefon/litsenziya haqiqiyligi (0-20)
+  inspQuality Int? // ⭐ Xizmat/mahsulot sifati (0-20)
   inspNote    String? // qisqa xulosa: "Toza, professional, narxlar mos"
-  inspAt      DateTime? // tekshirilgan sana — inspStars o'zgarganda serverda avto-yangilanadi
+  inspAt      DateTime? // tekshirilgan sana — audit natijasi o'zgarganda serverda avto-yangilanadi
   ownerTgId   BigInt? // who self-submitted (edit rights + spam cap)
   viewCount   Int             @default(0)
   callCount   Int             @default(0) // server-side only — "sizni N marta izlashdi" proof
+  favCount    Int             @default(0) // ❤️ Like (=ServiceFavorite toggle) — OMMAVIY hisoblagich,
+              // viral-ijtimoiy signal ("N kishi like bosgan, siz ham bosing") uchun. Bir xil
+              // mexanizm (saqlash=like), faqat endi hammaga ko'rinadigan son bilan.
   phoneReports Int            @default(0) // "raqam ishlamadi" flags (1/user via AppState marker); ≥2 → admin recheck queue; reset on phone edit
   avgRating   Float           @default(0) // cached aggregate, recomputed on each review write
   reviewCount Int             @default(0) // cached aggregate

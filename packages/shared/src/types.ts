@@ -505,6 +505,31 @@ export interface AdminFoodOrderRow {
   createdAt: string;
 }
 
+// ── 🍽 RESTORAN qulayliklar: bekor qilish, qayta buyurtma, qidiruv/filtr, sharh ──────────────────
+
+export interface RestaurantReviewView {
+  id: number;
+  memberName: string; // ism, faqat birinchi (xizmatlar/do'kon patterni)
+  stars: number;
+  text?: string | null;
+  createdAt: string;
+  mine: boolean;
+}
+
+export interface RestaurantReviewsResponse {
+  avgRating: number;
+  reviewCount: number;
+  reviews: RestaurantReviewView[];
+  myReview: RestaurantReviewView | null;
+}
+
+export interface RestaurantReviewSubmitResponse {
+  ok: boolean;
+  reason?: "off" | "unavailable" | "bad_stars" | "bad_text";
+  avgRating?: number;
+  reviewCount?: number;
+}
+
 // ── 🔎 XIZMATLAR (feature "xizmatlar") — Koson services directory ────────────────────────────────
 // Read/search/call/review only — NO money shapes here by design.
 
@@ -531,7 +556,9 @@ export interface ServiceListingCard {
   hasPhoto: boolean;
   photoCount: number;
   priceFrom?: number | null; // min preyskurant narxi — "25 000 so'mdan" (2GIS price-from)
-  inspStars?: number | null; // 🏅 «1067 tekshiruvi» rasmiy audit bahosi (1-5) — mijoz avgRating'dan MUSTAQIL
+  inspTotal?: number | null; // 🏅 «1067 tekshiruvi» 100-ballik audit natijasi — mijoz avgRating'dan MUSTAQIL
+  inspTier?: "gold" | "silver" | "bronze" | null; // 60dan past yoki tekshirilmagan = null (belgi chiqmaydi)
+  favCount: number; // ❤️ Like soni — OMMAVIY (viral: "N kishi like bosgan, siz ham bosing")
 }
 
 export interface ServicePriceView {
@@ -548,15 +575,16 @@ export interface ServiceListingDetail extends ServiceListingCard {
   createdAt: string;
   myReview?: { stars: number; text: string } | null;
   prices: ServicePriceView[]; // preyskurant (bo'sh = ko'rsatilmaydi)
-  isFav: boolean; // 🔖 saqlanganmi (shu foydalanuvchi uchun)
+  isFav: boolean; // ❤️ shu foydalanuvchi like bosganmi (=saqlangan)
   geoLat?: number | null; // «Borish» tugmasi uchun
   geoLng?: number | null;
   instagram?: string | null;
   telegramUrl?: string | null;
   facebook?: string | null;
   website?: string | null;
-  inspNote?: string | null; // 🏅 auditor xulosasi (faqat inspStars bo'lsa mazmunli)
+  inspNote?: string | null; // 🏅 auditor xulosasi (faqat inspTotal bo'lsa mazmunli)
   inspAt?: string | null;
+  inspBreakdown?: { clean: number; prof: number; price: number; trust: number; quality: number } | null; // to'liq 5-mezon taqsimoti
   claimable: boolean; // 🏪 "Bu meniki" tugmasi ko'rsatilsinmi (hali hech kim da'vo qilmagan)
   isMine: boolean; // shu foydalanuvchi allaqachon egasi
 }

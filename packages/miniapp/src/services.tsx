@@ -4,6 +4,7 @@
 // katalog. Har async holat skeleton bilan; barcha ranglar tokens.css klasslaridan.
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { MeResponse, ServiceCategoryView, ServiceListingCard, ServiceListingDetail, ServiceReviewView, ServiceSubmitBody } from "@t1067/shared";
+import { INSP_CATEGORIES, INSP_TIER_EMOJI, INSP_TIER_LABEL } from "@t1067/shared";
 import { api, apiUrl } from "./api";
 import { haptic, hapticSuccess, tg } from "./telegram";
 import { Button, EmptyState, Lightbox, Sheet, Skeleton } from "./design/components";
@@ -12,15 +13,15 @@ const BOT_LINK = "https://t.me/koson1067bot"; // share deep-link target (single 
 
 // ⚡ SWR modul-kesh (shop patterni): qayta ochish keshdagi payload bilan BIR ZUMDA render bo'ladi
 // (skeleton-flash yo'q), yangi data fonda kelib ustidan yozadi. App.tsx idle'da buni oldindan isitadi.
-interface SvcHome { cats: ServiceCategoryView[]; top: ServiceListingCard[]; fresh: ServiceListingCard[]; favs: ServiceListingCard[]; popularTags: string[] }
+interface SvcHome { cats: ServiceCategoryView[]; top: ServiceListingCard[]; fresh: ServiceListingCard[]; favs: ServiceListingCard[]; inspected: ServiceListingCard[]; popularTags: string[] }
 let HOME_CACHE: SvcHome | null = null;
 
 export function prefetchServiceData(): void {
   fetchHome().then((h) => { HOME_CACHE = h; }).catch(() => undefined);
 }
 function fetchHome(): Promise<SvcHome> {
-  return Promise.all([api.svcCategories(), api.svcList({ limit: 8 }), api.svcList({ limit: 6, sort: "new" }), api.svcFavs()])
-    .then(([c, t, f, fv]) => ({ cats: c.categories, top: t.listings, fresh: f.listings, favs: fv.listings, popularTags: c.popularTags }));
+  return Promise.all([api.svcCategories(), api.svcList({ limit: 8 }), api.svcList({ limit: 6, sort: "new" }), api.svcFavs(), api.svcInspected(8)])
+    .then(([c, t, f, fv, insp]) => ({ cats: c.categories, top: t.listings, fresh: f.listings, favs: fv.listings, inspected: insp.listings, popularTags: c.popularTags }));
 }
 
 // Bir vaqtlar kategoriya-bo'yicha kamalak-rang edi (shop'da ega "3 rang to'qnashdi" deb rad etgan
@@ -67,8 +68,14 @@ function OpenBadge({ wh }: { wh?: string | null }) {
 }
 
 function SvcCard({ l, onOpen }: { l: ServiceListingCard; onOpen: (l: ServiceListingCard) => void }) {
+  const tier = l.inspTier ?? null;
   return (
-    <button className="svc-card glass" onClick={() => onOpen(l)}>
+    <button className={"svc-card glass" + (tier ? ` insp-${tier}` : "")} onClick={() => onOpen(l)}>
+      {tier && (
+        <span className={`svc-insp-ribbon insp-${tier}`} title={`1067 tekshiruvi: ${l.inspTotal}/100 — ${INSP_TIER_LABEL[tier]}`}>
+          {INSP_TIER_EMOJI[tier]} {l.inspTotal}
+        </span>
+      )}
       <div className="svc-card-thumb">
         {l.hasPhoto ? (
           <img src={apiUrl(`/api/services/photo/${l.id}?s=1`)} loading="lazy" decoding="async" alt="" />
@@ -81,7 +88,6 @@ function SvcCard({ l, onOpen }: { l: ServiceListingCard; onOpen: (l: ServiceList
           {l.isVip && <span className="svc-vip">TOP</span>}
           {l.name} {l.verified && <span className="svc-verified" title="Tasdiqlangan">✔</span>}
         </div>
-        {l.inspStars != null && <span className="svc-insp-badge" title="1067 jamoasi tekshirgan">🏅 1067: {l.inspStars}★</span>}
         <RatingLine l={l} />
         {l.tags && <div className="svc-card-tags">{l.tags}</div>}
         <div className="svc-card-meta">
@@ -167,6 +173,7 @@ function DetailSheet({ id, onClose, onBanner, onFavChange, onOpenOther }: { id: 
   const [galleryIdx, setGalleryIdx] = useState(0);
   const [showRate, setShowRate] = useState(false);
   const [lightbox, setLightbox] = useState<number | null>(null); // 🔍 rasmga bosilganda TO'LIQ EKRAN — index yoki null
+  const [inspOpen, setInspOpen] = useState(false); // 🏅 to'liq 5-mezon hisoboti — bosib ochiladi
 
   useEffect(() => {
     setSimilar(null);
@@ -181,8 +188,14 @@ function DetailSheet({ id, onClose, onBanner, onFavChange, onOpenOther }: { id: 
     haptic();
     const next = !fav;
     setFav(next); // optimistik — <100ms vizual javob
-    api.svcFav(d.id, next).then(() => onFavChange()).catch(() => setFav(!next));
-    if (next) onBanner("🔖 Saqlandi — bosh sahifada «Saqlanganlar»da");
+    setD((prev) => (prev ? { ...prev, favCount: Math.max(0, prev.favCount + (next ? 1 : -1)) } : prev));
+    api.svcFav(d.id, next)
+      .then((r) => {
+        onFavChange();
+        if (r.favCount != null) setD((prev) => (prev ? { ...prev, favCount: r.favCount! } : prev));
+      })
+      .catch(() => { setFav(!next); setD((prev) => (prev ? { ...prev, favCount: Math.max(0, prev.favCount + (next ? -1 : 1)) } : prev)); });
+    if (next) onBanner("❤️ Layk bosdingiz — do'stlaringizga ham ulashing!");
   };
   // «Borish» — tashqi navigator (Yandex Maps): geo bo'lsa aniq nuqta, bo'lmasa manzil-qidiruv
   const goUrl = d?.geoLat != null && d?.geoLng != null
@@ -271,7 +284,10 @@ function DetailSheet({ id, onClose, onBanner, onFavChange, onOpenOther }: { id: 
             <h3 className="svc-detail-name">
               {d.name} {d.verified && <span className="svc-verified big">✔</span>}
             </h3>
-            <button className={"svc-fav" + (fav ? " on" : "")} onClick={toggleFav} aria-label="Saqlash">{fav ? "🔖" : "🏷"}</button>
+            <button className={"svc-fav" + (fav ? " on" : "")} onClick={toggleFav} aria-label="Layk bosish">
+              <span className="svc-fav-heart">{fav ? "❤️" : "🤍"}</span>
+              {d.favCount > 0 && <span className="svc-fav-count">{d.favCount}</span>}
+            </button>
           </div>
           <div className="svc-detail-social">
             {d.reviewCount > 0 ? (
@@ -283,17 +299,41 @@ function DetailSheet({ id, onClose, onBanner, onFavChange, onOpenOther }: { id: 
           </div>
 
           {/* 🏅 1067 tekshiruvi — mijoz bahosidan ALOHIDA rasmiy audit (1067 jamoasi jismoniy tekshirgan).
-              Teal rang bilan ajratiladi — bu ★orange mijoz-reytingi bilan ARALASHMASLIGI kerak. */}
-          {d.inspStars != null && (
-            <div className="svc-insp glass pad">
-              <div className="between">
-                <b className="fs13">🏅 1067 tekshiruvi</b>
-                <Stars v={d.inspStars} />
+              Sertifikat-uslub karta, daraja rangida (oltin/kumush/bronza) — ★orange mijoz-reytingi
+              bilan chalkashmasligi uchun ATAYLAB butunlay boshqa vizual til. */}
+          {d.inspTier && d.inspTotal != null && (
+            <div className={`svc-insp-cert insp-${d.inspTier}`}>
+              <div className="svc-insp-cert-head">
+                <span className="svc-insp-cert-emoji">{INSP_TIER_EMOJI[d.inspTier]}</span>
+                <div className="grow">
+                  <div className="svc-insp-cert-title">1067 TEKSHIRUVI — {INSP_TIER_LABEL[d.inspTier]}</div>
+                  <div className="svc-insp-cert-score">{d.inspTotal}/100 ball</div>
+                </div>
               </div>
-              <p className="svc-insp-hint">Mijoz bahosi emas — jamoamiz jismoniy borib tekshirgan natija</p>
-              {d.inspNote && <p className="fs12 muted mt4">{d.inspNote}</p>}
+              <p className="svc-insp-hint">1067 jamoasi ushbu joyga bevosita borib, o&apos;z ko&apos;zi bilan tekshiradi. Bu — mijoz bahosidan mustaqil, xolis audit. Xavotirsiz foydalanishingiz mumkin.</p>
+              {d.inspNote && <p className="fs12 mt4"><i>&quot;{d.inspNote}&quot;</i></p>}
+              {d.inspBreakdown && (
+                <>
+                  <button className="svc-insp-cert-toggle" onClick={() => { haptic(); setInspOpen((v) => !v); }}>
+                    {inspOpen ? "▾ Hisobotni yopish" : "▸ To'liq hisobotni ko'rish"}
+                  </button>
+                  {inspOpen && (
+                    <div className="svc-insp-breakdown">
+                      {INSP_CATEGORIES.map((c) => (
+                        <div key={c.key} className="svc-insp-row">
+                          <span className="svc-insp-row-label">{c.emoji} {c.label}</span>
+                          <div className="svc-insp-bar"><div className="svc-insp-bar-fill" style={{ width: `${(d.inspBreakdown![c.key] / 20) * 100}%` }} /></div>
+                          <span className="svc-insp-row-val">{d.inspBreakdown![c.key]}/20</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </>
+              )}
             </div>
           )}
+          {/* Ball 60dan past bo'lsa (yoki tekshirilmagan) ommaviy belgi umuman chiqmaydi — chegara
+              shu yerda emas, serverda hal qilinadi (inspTier=null bo'lsa card ham bo'sh keladi). */}
 
           <button className="svc-call-main" onClick={call}>📞 Qo'ng'iroq qilish</button>
           <div className="svc-actions">
@@ -569,6 +609,7 @@ export function XizmatlarView({ me, onBanner }: { me: MeResponse; onBanner: (msg
   const [openOnly, setOpenOnly] = useState(false);
   const [verifiedOnly, setVerifiedOnly] = useState(false);
   const [newOnly, setNewOnly] = useState(false);
+  const [inspOnlyFilter, setInspOnlyFilter] = useState(false);
   const openCat = (c: ServiceCategoryView) => {
     haptic();
     setCat(c);
@@ -576,6 +617,7 @@ export function XizmatlarView({ me, onBanner }: { me: MeResponse; onBanner: (msg
     setOpenOnly(false);
     setVerifiedOnly(false);
     setNewOnly(false);
+    setInspOnlyFilter(false);
     api.svcList({ cat: c.id, limit: 50 }).then((r) => setCatRows(r.listings)).catch(() => setCatRows([]));
   };
   const openMine = () => {
@@ -640,6 +682,9 @@ export function XizmatlarView({ me, onBanner }: { me: MeResponse; onBanner: (msg
               {catRows.some((l) => l.reviewCount === 0) && (
                 <button className={"svc-chip" + (newOnly ? " on" : "")} onClick={() => { haptic(); setNewOnly(!newOnly); }}>🆕 Yangi</button>
               )}
+              {catRows.some((l) => l.inspTier != null) && (
+                <button className={"svc-chip insp-only" + (inspOnlyFilter ? " on" : "")} onClick={() => { haptic(); setInspOnlyFilter(!inspOnlyFilter); }}>🏆 1067 tekshirgan</button>
+              )}
             </div>
           )}
           {catRows === null ? (
@@ -652,6 +697,7 @@ export function XizmatlarView({ me, onBanner }: { me: MeResponse; onBanner: (msg
                 .filter((l) => !openOnly || openNow(l.workHours) === true)
                 .filter((l) => !verifiedOnly || l.verified)
                 .filter((l) => !newOnly || l.reviewCount === 0)
+                .filter((l) => !inspOnlyFilter || l.inspTier != null)
                 .map((l) => <SvcCard key={l.id} l={l} onOpen={(x) => { haptic(); setSelId(x.id); }} />)}
             </div>
           )}
@@ -685,6 +731,19 @@ export function XizmatlarView({ me, onBanner }: { me: MeResponse; onBanner: (msg
             <span className="svc-add-chev">›</span>
           </button>
 
+          {/* 🏆 1067 tavsiya qiladi — eng yuqori ishonch signali, shuning uchun ro'yxatlar orasida
+             BIRINCHI (Saqlanganlar/Top/Yangi'dan oldin). Faqat to'liq audit + 60+ ball. */}
+          {home && home.inspected.length > 0 && (
+            <div className="svc-section svc-insp-section">
+              <div className="between">
+                <b className="fs14">🏆 1067 tavsiya qiladi</b>
+                <span className="muted fs12">jismoniy tekshirilgan</span>
+              </div>
+              <p className="svc-insp-section-hint">1067 jamoasi o&apos;zi borib tekshirgan, ishonch bilan foydalanishingiz mumkin bo&apos;lgan xizmatlar</p>
+              <div className="svc-carousel mt8">{home.inspected.map((l) => <SvcCard key={l.id} l={l} onOpen={(x) => { haptic(); setSelId(x.id); }} />)}</div>
+            </div>
+          )}
+
           {home && home.favs.length > 0 && (
             <div className="svc-section">
               <div className="between"><b className="fs14">🔖 Saqlanganlar</b><span className="muted fs12">{home.favs.length} ta</span></div>
@@ -706,6 +765,19 @@ export function XizmatlarView({ me, onBanner }: { me: MeResponse; onBanner: (msg
               <div className="svc-list mt8">{home.fresh.map((l) => <SvcCard key={l.id} l={l} onOpen={(x) => { haptic(); setSelId(x.id); }} />)}</div>
             </div>
           )}
+
+          <button
+            className="svc-standards-link"
+            onClick={() => {
+              haptic();
+              const url = `${window.location.origin}/1067-tekshiruvi-standartlari.pdf`;
+              const t = tg as unknown as { openLink?: (u: string) => void } | undefined;
+              if (t?.openLink) t.openLink(url);
+              else window.open(url, "_blank");
+            }}
+          >
+            📄 1067 Tekshiruvi Standartlari — to&apos;liq hujjat
+          </button>
         </>
       )}
 

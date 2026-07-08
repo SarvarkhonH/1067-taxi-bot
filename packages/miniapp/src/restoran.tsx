@@ -1,6 +1,7 @@
-// 🍽 RESTORAN (feature "restoran", RESTORAN_PLAN.md) — R1 katalog + R2 savat/checkout. V1 =
-// CONCIERGE: narx REAL SO'M (D1), buyurtma operator orqali telefon bilan tayyorlanadi (R3'da admin
-// panel ustidan boshqariladi — bu ekran faqat mijoz-tomon: ko'rish → savat → buyurtma).
+// 🍽 RESTORAN (feature "restoran", RESTORAN_PLAN.md) — R1 katalog + R2 savat/checkout + R3/R4
+// operator/admin (server-side) + qulayliklar (bekor qilish, qayta buyurtma, qidiruv/filtr, sharh,
+// mijozga push). V1 = CONCIERGE: narx REAL SO'M (D1), buyurtma operator orqali telefon bilan
+// tayyorlanadi (admin panel orqali boshqariladi) — bu ekran faqat mijoz-tomon.
 import { useEffect, useMemo, useState } from "react";
 import type { FoodOrderView, MeResponse, MenuItemView, RestaurantView } from "@t1067/shared";
 import { formatNumber } from "@t1067/shared";
@@ -28,7 +29,7 @@ function OpenBadge({ wh }: { wh?: string | null }) {
   return <span className={"svc-open" + (o ? "" : " closed")}>{o ? "Ochiq" : "Yopiq"}{wh ? ` · ${wh}` : ""}</span>;
 }
 
-function RestaurantCard({ r, onOpen }: { r: RestaurantView; onOpen: (r: RestaurantView) => void }) {
+function RestaurantCard({ r, top, onOpen }: { r: RestaurantView; top: boolean; onOpen: (r: RestaurantView) => void }) {
   return (
     <button className="rst-card glass" onClick={() => { haptic(); onOpen(r); }}>
       <div className="rst-card-photo-wrap">
@@ -37,6 +38,7 @@ function RestaurantCard({ r, onOpen }: { r: RestaurantView; onOpen: (r: Restaura
         ) : (
           <div className="rst-card-photo rst-card-noimg">🍽</div>
         )}
+        {top && <span className="rst-badge-top">🔥 TOP</span>}
       </div>
       <div className="rst-card-body">
         <div className="rst-card-name">{r.name}</div>
@@ -79,9 +81,11 @@ const STATUS_LABEL: Record<FoodOrderView["status"], { t: string; c: string }> = 
   rejected: { t: "❌ Rad etildi", c: "rejected" },
   cancelled_by_user: { t: "✖ Bekor qilindi", c: "rejected" },
 };
+const TERMINAL_STATUSES = new Set<FoodOrderView["status"]>(["delivered", "rejected", "cancelled_by_user"]);
 
-function MyOrdersView({ onBack }: { onBack: () => void }) {
+function MyOrdersView({ onBack, onReorder }: { onBack: () => void; onReorder: (o: FoodOrderView) => void }) {
   const [orders, setOrders] = useState<FoodOrderView[] | null>(null);
+  const [busyId, setBusyId] = useState<number | null>(null);
   useEffect(() => {
     const load = () => api.restoranOrders().then((r) => setOrders(r.orders)).catch(() => undefined);
     load();
@@ -90,6 +94,15 @@ function MyOrdersView({ onBack }: { onBack: () => void }) {
     const iv = setInterval(load, 8000);
     return () => clearInterval(iv);
   }, []);
+
+  const cancel = async (o: FoodOrderView) => {
+    haptic();
+    setBusyId(o.id);
+    const r = await api.restoranCancel(o.id).catch(() => ({ ok: false as const }));
+    setBusyId(null);
+    if (r.ok) { hapticSuccess(); api.restoranOrders().then((x) => setOrders(x.orders)).catch(() => undefined); }
+  };
+
   return (
     <div className="view">
       <button className="rst-back" onClick={onBack}>‹ Orqaga</button>
@@ -112,6 +125,12 @@ function MyOrdersView({ onBack }: { onBack: () => void }) {
                 <b>{formatNumber(o.totalSom)} so'm</b>
               </div>
               {o.status === "rejected" && o.rejectReason && <div className="rst-order-reason">Sabab: {o.rejectReason}</div>}
+              {o.status === "pending" && (
+                <button className="rst-order-cancel" disabled={busyId === o.id} onClick={() => cancel(o)}>✖ Bekor qilish</button>
+              )}
+              {TERMINAL_STATUSES.has(o.status) && (
+                <button className="rst-order-reorder" onClick={() => { haptic(); onReorder(o); }}>🔁 Qayta buyurtma</button>
+              )}
             </div>
           );
         })
@@ -120,7 +139,64 @@ function MyOrdersView({ onBack }: { onBack: () => void }) {
   );
 }
 
-function RestaurantDetail({ id, me, onBack, onBanner }: { id: number; me: MeResponse; onBack: () => void; onBanner?: (msg: string) => void }) {
+function Stars({ v }: { v: number }) {
+  const full = Math.round(v);
+  return <span className="svc-stars"><span aria-label={`${v} yulduz`}>{[1, 2, 3, 4, 5].map((i) => <span key={i} className={i <= full ? "on" : ""}>★</span>)}</span></span>;
+}
+
+function ReviewSection({ restaurantId, onBanner }: { restaurantId: number; onBanner?: (msg: string) => void }) {
+  const [data, setData] = useState<import("@t1067/shared").RestaurantReviewsResponse | null>(null);
+  const [stars, setStars] = useState(0);
+  const [text, setText] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  const load = () => api.restoranReviews(restaurantId).then((d) => {
+    setData(d);
+    setStars(d.myReview?.stars ?? 0);
+    setText(d.myReview?.text ?? "");
+  }).catch(() => undefined);
+  useEffect(() => { load(); }, [restaurantId]);
+
+  const submit = async () => {
+    if (stars < 1) return;
+    haptic();
+    setBusy(true);
+    const r = await api.restoranReviewSubmit(restaurantId, stars, text).catch(() => ({ ok: false as const }));
+    setBusy(false);
+    if (r.ok) { hapticSuccess(); load(); } else onBanner?.("Baho yuborilmadi — qayta urinib ko'ring");
+  };
+
+  if (!data) return null;
+  return (
+    <div className="rst-section">
+      <div className="rst-section-title">Baholang</div>
+      <div className="rst-stars-input">
+        {[1, 2, 3, 4, 5].map((n) => (
+          <button key={n} className={n <= stars ? "on" : ""} onClick={() => { haptic(); setStars(n); }}>★</button>
+        ))}
+      </div>
+      {stars > 0 && (
+        <>
+          <input className="bk-input mt8" placeholder="Sharh (ixtiyoriy)" value={text} onChange={(e) => setText(e.target.value)} maxLength={280} />
+          <Button variant="brand" sm disabled={busy} onClick={submit}>{data.myReview ? "Yangilash" : "Yuborish"}</Button>
+        </>
+      )}
+      {data.reviews.length > 0 && (
+        <div style={{ marginTop: 10 }}>
+          {data.reviews.map((rv) => (
+            <div key={rv.id} className="rst-review-row">
+              <Stars v={rv.stars} />
+              {rv.text && <span className="muted fs12"> {rv.text}</span>}
+              {rv.mine && <span className="muted fs11"> · siz</span>}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function RestaurantDetail({ id, me, initialCart, onBack, onBanner }: { id: number; me: MeResponse; initialCart?: Record<number, number> | null; onBack: () => void; onBanner?: (msg: string) => void }) {
   const [data, setData] = useState<{ restaurant: RestaurantView | null; items: MenuItemView[] } | null>(null);
   const [cart, setCart] = useState<Record<number, number>>({});
   const [checkoutOpen, setCheckoutOpen] = useState(false);
@@ -132,8 +208,18 @@ function RestaurantDetail({ id, me, onBack, onBanner }: { id: number; me: MeResp
 
   useEffect(() => {
     setData(null);
-    setCart({});
-    api.restoranDetail(id).then(setData).catch(() => setData({ restaurant: null, items: [] }));
+    api.restoranDetail(id).then((d) => {
+      setData(d);
+      if (initialCart) {
+        const validIds = new Set(d.items.filter((it) => it.available).map((it) => it.id));
+        const seeded = Object.fromEntries(Object.entries(initialCart).filter(([k]) => validIds.has(Number(k))));
+        setCart(seeded);
+        if (Object.keys(seeded).length < Object.keys(initialCart).length) onBanner?.("Ba'zi taomlar endi mavjud emas — savatga qo'shilmadi");
+      } else {
+        setCart({});
+      }
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+    }).catch(() => setData({ restaurant: null, items: [] }));
   }, [id]);
 
   const itemOf = useMemo(() => new Map((data?.items ?? []).map((it) => [it.id, it])), [data]);
@@ -282,6 +368,7 @@ function RestaurantDetail({ id, me, onBack, onBanner }: { id: number; me: MeResp
           </div>
         ))
       )}
+      <ReviewSection restaurantId={r.id} onBanner={onBanner} />
       {cartCount > 0 && (
         <button className="rst-cart-bar" onClick={() => { haptic(); setCheckoutOpen(true); }}>
           <span className="rst-cart-badge">{cartCount}</span>
@@ -328,13 +415,49 @@ export function RestoranView({ me, onBanner }: { me: MeResponse; onBanner?: (msg
   const [list, setList] = useState<RestaurantView[] | null>(null);
   const [openId, setOpenId] = useState<number | null>(null);
   const [ordersOpen, setOrdersOpen] = useState(false);
+  const [reorderCart, setReorderCart] = useState<Record<number, number> | null>(null);
+  const [q, setQ] = useState("");
+  const [openOnly, setOpenOnly] = useState(false);
+  const [catFilter, setCatFilter] = useState<string>("all");
 
   useEffect(() => {
     api.restoranList().then((r) => setList(r.restaurants)).catch(() => setList([]));
   }, []);
 
-  if (ordersOpen) return <MyOrdersView onBack={() => setOrdersOpen(false)} />;
-  if (openId != null) return <RestaurantDetail id={openId} me={me} onBack={() => setOpenId(null)} onBanner={onBanner} />;
+  const cats = useMemo(() => Array.from(new Set((list ?? []).map((r) => r.category))), [list]);
+  const topIds = useMemo(() => {
+    const withOrders = (list ?? []).filter((r) => r.orderCount > 0);
+    return new Set([...withOrders].sort((a, b) => b.orderCount - a.orderCount).slice(0, 3).map((r) => r.id));
+  }, [list]);
+  const filtered = (list ?? [])
+    .filter((r) => catFilter === "all" || r.category === catFilter)
+    .filter((r) => !openOnly || openNow(r.workHours) === true)
+    .filter((r) => { const t = q.trim().toLowerCase(); return !t || r.name.toLowerCase().includes(t); });
+
+  if (ordersOpen) {
+    return (
+      <MyOrdersView
+        onBack={() => setOrdersOpen(false)}
+        onReorder={(o) => {
+          const cart = Object.fromEntries(o.itemsJson.map((i) => [i.menuItemId, i.qty]));
+          setReorderCart(cart);
+          setOrdersOpen(false);
+          setOpenId(o.restaurantId);
+        }}
+      />
+    );
+  }
+  if (openId != null) {
+    return (
+      <RestaurantDetail
+        id={openId}
+        me={me}
+        initialCart={reorderCart}
+        onBack={() => { setOpenId(null); setReorderCart(null); }}
+        onBanner={onBanner}
+      />
+    );
+  }
 
   return (
     <div className="view">
@@ -344,11 +467,29 @@ export function RestoranView({ me, onBanner }: { me: MeResponse; onBanner?: (msg
       ) : list.length === 0 ? (
         <EmptyState icon="🍽" text="Hozircha restoran yo'q — tez orada qo'shiladi" />
       ) : (
-        <div className="rst-grid">
-          {list.map((r) => (
-            <RestaurantCard key={r.id} r={r} onOpen={(x) => setOpenId(x.id)} />
-          ))}
-        </div>
+        <>
+          <div className="rst-toolbar">
+            <input className="bk-input" value={q} onChange={(e) => setQ(e.target.value)} placeholder="🔍 Restoran qidirish…" />
+            <button className={"rst-chip" + (openOnly ? " on" : "")} onClick={() => { haptic(); setOpenOnly((v) => !v); }}>🟢 Ochiq hozir</button>
+          </div>
+          {cats.length > 1 && (
+            <div className="rst-cat-row">
+              <button className={"rst-chip" + (catFilter === "all" ? " on" : "")} onClick={() => setCatFilter("all")}>Barchasi</button>
+              {cats.map((c) => (
+                <button key={c} className={"rst-chip" + (catFilter === c ? " on" : "")} onClick={() => setCatFilter(c)}>{c}</button>
+              ))}
+            </div>
+          )}
+          {filtered.length === 0 ? (
+            <EmptyState icon="🔍" text="Mos restoran topilmadi" />
+          ) : (
+            <div className="rst-grid">
+              {filtered.map((r) => (
+                <RestaurantCard key={r.id} r={r} top={topIds.has(r.id)} onOpen={(x) => setOpenId(x.id)} />
+              ))}
+            </div>
+          )}
+        </>
       )}
     </div>
   );

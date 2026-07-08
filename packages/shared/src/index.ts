@@ -6,3 +6,4 @@ export * from "./clientinfo";
 export * from "./booking";
 export * from "./format";
 export * from "./types";
+export * from "./inspection";

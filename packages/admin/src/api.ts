@@ -654,7 +654,11 @@ export interface SvcAdminRow {
   telegramUrl: string | null;
   facebook: string | null;
   website: string | null;
-  inspStars: number | null;
+  inspClean: number | null;
+  inspProf: number | null;
+  inspPrice: number | null;
+  inspTrust: number | null;
+  inspQuality: number | null;
   inspNote: string | null;
   status: string;
   isVip: boolean;

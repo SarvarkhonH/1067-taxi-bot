@@ -151,6 +151,10 @@ export const api = {
   restoranDetail: (id: number) => get<import("@t1067/shared").RestoranDetailResponse>(`/api/restoran/${id}`),
   restoranOrder: (b: import("@t1067/shared").FoodOrderCreateBody) => post<import("@t1067/shared").FoodOrderCreateResponse>("/api/restoran/order", b),
   restoranOrders: () => get<{ orders: import("@t1067/shared").FoodOrderView[] }>("/api/restoran/orders"),
+  restoranCancel: (orderId: number) => post<{ ok: boolean; reason?: string }>(`/api/restoran/orders/${orderId}/cancel`),
+  restoranReviews: (id: number) => get<import("@t1067/shared").RestaurantReviewsResponse>(`/api/restoran/${id}/reviews`),
+  restoranReviewSubmit: (id: number, stars: number, text?: string) => post<import("@t1067/shared").RestaurantReviewSubmitResponse>(`/api/restoran/${id}/review`, { stars, text }),
+  restoranReviewDelete: (id: number) => del<{ ok: boolean }>(`/api/restoran/${id}/review`),
   // 🔎 xizmatlar (feature "xizmatlar") — Koson services directory
   svcCategories: () => get<{ categories: import("@t1067/shared").ServiceCategoryView[]; popularTags: string[] }>("/api/services/categories"),
   svcList: (p: { cat?: number; q?: string; limit?: number; offset?: number; sort?: "new" } = {}) => {
@@ -165,8 +169,9 @@ export const api = {
   },
   svcRequest: (query: string, note: string) => request<{ ok: boolean; reason?: string }>("POST", "/api/services/request", { query, note }, 1),
   svcPhoneReport: (id: number) => request<{ ok: boolean }>("POST", "/api/services/phone-report", { id }, 1),
-  svcFav: (id: number, on: boolean) => request<{ ok: boolean; on: boolean }>("POST", "/api/services/fav", { id, on }, 1),
+  svcFav: (id: number, on: boolean) => request<{ ok: boolean; on: boolean; favCount?: number }>("POST", "/api/services/fav", { id, on }, 1),
   svcFavs: () => get<{ listings: import("@t1067/shared").ServiceListingCard[] }>("/api/services/favs"),
+  svcInspected: (limit = 8) => get<{ listings: import("@t1067/shared").ServiceListingCard[] }>(`/api/services/inspected?limit=${limit}`),
   svcItem: (id: number) => get<import("@t1067/shared").ServiceListingDetail>(`/api/services/item/${id}`),
   svcCall: (id: number) => post<{ ok: boolean }>("/api/services/call", { id }),
   svcSubmit: (b: import("@t1067/shared").ServiceSubmitBody) => request<import("@t1067/shared").ServiceSubmitResponse>("POST", "/api/services/submit", b, 1),

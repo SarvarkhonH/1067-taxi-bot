@@ -247,6 +247,12 @@ export async function myFoodOrders(memberId: number, take = 20): Promise<FoodOrd
   }));
 }
 
+/** Mijoz bekor qiladi — FAQAT pending'da (§2 state machine). Naqd-only (D1) — refund kerak emas. */
+export async function cancelFoodOrder(memberId: number, orderId: number): Promise<{ ok: boolean; reason?: string }> {
+  const r = await prisma.foodOrder.updateMany({ where: { id: orderId, memberId, status: "pending" }, data: { status: "cancelled_by_user" } });
+  return r.count > 0 ? { ok: true } : { ok: false, reason: "not_pending" };
+}
+
 // ── R3: admin sessiya-navbati + qo'lda holat-boshqaruv + SLA (RESTORAN_PLAN §2/§3/§6) ────────────
 // Operator ODAM — Telegram-bot integratsiyasi YO'Q (V2ga qoldirilgan, D3). Holat o'tishlari FAQAT
 // admin panel tugmalari orqali, atomik status-guard bilan (updateMany where status=<kutilgan>) —
@@ -300,12 +306,16 @@ export async function markOrderCalled(orderId: number): Promise<{ ok: boolean }>
 }
 
 /** ✅ Qabul qildi — pending→accepted. Atomik status-guard: ikki operator bir vaqtda bossa faqat biri o'tadi. */
-export async function acceptFoodOrder(orderId: number, operatorId?: number): Promise<{ ok: boolean; reason?: string }> {
+export async function acceptFoodOrder(orderId: number, operatorId?: number): Promise<{ ok: boolean; reason?: string; notice?: { memberId: number; restaurantName: string; newStatus: string } }> {
+  const order = await prisma.foodOrder.findUnique({ where: { id: orderId } });
+  if (!order) return { ok: false, reason: "not_found" };
   const r = await prisma.foodOrder.updateMany({
     where: { id: orderId, status: "pending" },
     data: { status: "accepted", acceptedAt: new Date(), operatorId: operatorId ?? null },
   });
-  return r.count > 0 ? { ok: true } : { ok: false, reason: "not_pending" };
+  if (r.count === 0) return { ok: false, reason: "not_pending" };
+  const restaurant = await prisma.restaurant.findUnique({ where: { id: order.restaurantId }, select: { name: true } });
+  return { ok: true, notice: { memberId: order.memberId, restaurantName: restaurant?.name ?? "Restoran", newStatus: "accepted" } };
 }
 
 /** ❌ Rad — FAQAT pending'dan (§2 state machine). Naqd-only (D1) — refund logikasi kerak emas. */
@@ -576,5 +586,51 @@ export async function adminEditMenuItem(id: number, body: MenuItemPatch): Promis
 
 export async function adminDeleteMenuItem(id: number): Promise<{ ok: boolean }> {
   await prisma.menuItem.delete({ where: { id } }).catch(() => undefined);
+  return { ok: true };
+}
+
+// ── 🗣 sharh: 1 baho — 1 a'zo — 1 restoran (ServiceReview patterni) ───────────────────────────────
+
+async function recomputeRestaurantRating(restaurantId: number): Promise<{ avgRating: number; reviewCount: number }> {
+  const agg = await prisma.restaurantReview.aggregate({ where: { restaurantId }, _avg: { stars: true }, _count: { _all: true } });
+  const avgRating = Math.round((agg._avg.stars ?? 0) * 10) / 10;
+  const reviewCount = agg._count._all;
+  await prisma.restaurant.update({ where: { id: restaurantId }, data: { avgRating, reviewCount } }).catch(() => undefined);
+  return { avgRating, reviewCount };
+}
+
+export async function listRestaurantReviews(restaurantId: number, memberId: number, preview = false): Promise<{ avgRating: number; reviewCount: number; reviews: { id: number; memberId: number; stars: number; text: string | null; createdAt: string }[] }> {
+  if (!preview && !(await featureOn("restoran"))) return { avgRating: 0, reviewCount: 0, reviews: [] };
+  const [restaurant, rows] = await Promise.all([
+    prisma.restaurant.findUnique({ where: { id: restaurantId }, select: { avgRating: true, reviewCount: true } }),
+    prisma.restaurantReview.findMany({ where: { restaurantId }, orderBy: { id: "desc" }, take: 30 }),
+  ]);
+  return {
+    avgRating: restaurant?.avgRating ?? 0,
+    reviewCount: restaurant?.reviewCount ?? 0,
+    reviews: rows.map((r) => ({ id: r.id, memberId: r.memberId, stars: r.stars, text: r.text, createdAt: r.createdAt.toISOString() })),
+  };
+}
+
+/** Re-submit = tahrirlash (upsert, unique restaurantId+memberId). */
+export async function submitRestaurantReview(memberId: number, restaurantId: number, stars: number, text: string | undefined, preview = false): Promise<{ ok: boolean; reason?: string; avgRating?: number; reviewCount?: number }> {
+  if (!preview && !(await featureOn("restoran"))) return { ok: false, reason: "off" };
+  if (!Number.isInteger(stars) || stars < 1 || stars > 5) return { ok: false, reason: "bad_stars" };
+  const cleanText = (text ?? "").trim().slice(0, 280) || null;
+  if (!validId(restaurantId)) return { ok: false, reason: "unavailable" };
+  const restaurant = await prisma.restaurant.findUnique({ where: { id: restaurantId }, select: { id: true } });
+  if (!restaurant) return { ok: false, reason: "unavailable" };
+  await prisma.restaurantReview.upsert({
+    where: { restaurantId_memberId: { restaurantId, memberId } },
+    create: { restaurantId, memberId, stars, text: cleanText },
+    update: { stars, text: cleanText },
+  });
+  const { avgRating, reviewCount } = await recomputeRestaurantRating(restaurantId);
+  return { ok: true, avgRating, reviewCount };
+}
+
+export async function deleteMyRestaurantReview(memberId: number, restaurantId: number): Promise<{ ok: boolean }> {
+  await prisma.restaurantReview.deleteMany({ where: { restaurantId, memberId } });
+  await recomputeRestaurantRating(restaurantId);
   return { ok: true };
 }

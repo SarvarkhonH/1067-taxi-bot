@@ -1946,6 +1946,26 @@ body {
 .rst-order-items { margin-bottom: 6px; }
 .rst-order-bottom { display: flex; justify-content: space-between; align-items: center; font-size: 12.5px; color: var(--text); }
 .rst-order-reason { margin-top: 6px; font-size: 11.5px; color: var(--danger); }
+/* qulayliklar: bekor qilish/qayta buyurtma tugmalari, katalog qidiruv/filtr, TOP-belgi, sharh */
+.rst-order-cancel, .rst-order-reorder { margin-top: 8px; width: 100%; padding: 9px; border-radius: 10px; font-size: 12.5px; font-weight: 700; }
+.rst-order-cancel { background: rgba(248,113,113,.12); color: var(--danger); border: 1px solid rgba(248,113,113,.25); }
+.rst-order-cancel:active { transform: scale(.97); }
+.rst-order-reorder { background: var(--surface-2, #232b3c); color: var(--text); border: 1px solid var(--line, #2a3242); }
+.rst-order-reorder:active { transform: scale(.97); }
+.rst-badge-top { position: absolute; top: 8px; left: 8px; background: linear-gradient(135deg,#ff6b35,#e34234); color: #fff; font-size: 10.5px; font-weight: 800; padding: 3px 7px; border-radius: 999px; }
+.rst-toolbar { display: flex; gap: 8px; margin-bottom: 8px; align-items: center; }
+.rst-toolbar .bk-input { flex: 1; margin-top: 0; }
+.rst-cat-row { display: flex; gap: 6px; overflow-x: auto; scrollbar-width: none; margin-bottom: 10px; padding-bottom: 2px; }
+.rst-cat-row::-webkit-scrollbar { display: none; }
+.rst-chip { flex: 0 0 auto; white-space: nowrap; padding: 7px 12px; border-radius: 999px; font-size: 12.5px; font-weight: 700;
+  background: var(--surface, #1a2130); border: 1px solid var(--line, #2a3242); color: var(--muted, #9aa4b2); }
+.rst-chip.on { background: var(--brand); color: #1a1205; border-color: transparent; }
+.rst-stars-input { display: flex; gap: 4px; margin-bottom: 4px; }
+.rst-stars-input button { font-size: 26px; color: var(--line, #2a3242); line-height: 1; }
+.rst-stars-input button.on { color: #ffc233; }
+.rst-review-row .svc-stars { color: #ffc233; } /* restoran o'z rangida — xizmatlar-ko'k emas */
+.rst-review-row { padding: 6px 0; border-bottom: 1px solid var(--line, #2a3242); font-size: 12.5px; }
+.rst-review-row:last-child { border-bottom: none; }
 
 /* ── 📋 E'LONLAR (feature "elonlar", E2, ELONLAR_PLAN.md §4.1) — «Mahalla e'lon taxtasi» ──────────
    .shop-light qolipidan ko'chirilgan (mexanizm bir xil, App.tsx tab==="elonlar"da qo'yiladi):
@@ -2147,10 +2167,15 @@ body {
 .svc-price-row { display: flex; align-items: baseline; gap: 6px; font-size: 13px; }
 .svc-price-row > b { white-space: nowrap; }
 .svc-price-dots { flex: 1; border-bottom: 1px dotted var(--line); transform: translateY(-3px); }
-.svc-fav { background: none; border: 1px solid var(--line); border-radius: 12px; width: 40px; height: 40px; font-size: 18px; flex-shrink: 0;
-  display: flex; align-items: center; justify-content: center; transition: transform var(--dur-press) var(--ease-out), border-color var(--dur-press); }
-.svc-fav:active { transform: scale(1.15); }
-.svc-fav.on { border-color: color-mix(in srgb, var(--svc-accent) 60%, transparent); background: color-mix(in srgb, var(--svc-accent) 14%, transparent); }
+/* ❤️ Layk (=Saqlash) — OMMAVIY hisoblagich bilan, viral-ulashish uchun ("N kishi layk bosgan").
+   Pushti/qizil rang ataylab — brend-oltindan farqli, "layk" universal ranggi. */
+.svc-fav { background: none; border: 1px solid var(--line); border-radius: 999px; min-width: 40px; height: 36px;
+  padding: 0 10px; font-size: 16px; flex-shrink: 0; display: flex; align-items: center; justify-content: center; gap: 4px;
+  transition: transform var(--dur-press) var(--ease-out), border-color var(--dur-press); }
+.svc-fav:active { transform: scale(1.12); }
+.svc-fav.on { border-color: rgba(239,68,68,.5); background: rgba(239,68,68,.12); }
+.svc-fav-heart { font-size: 18px; line-height: 1; }
+.svc-fav-count { font-size: 12px; font-weight: 800; color: var(--text); }
 
 /* ─── Do'kon: sotuvchi bo'lish CTA (merchant recruit) ─────────────────────────
    Light shop theme (.shop-wrap is light). Warm invite for shop owners to sell. */
@@ -2213,14 +2238,51 @@ body {
 .shop-lightbox-img { width: 100%; flex: 0 0 100%; scroll-snap-align: center; object-fit: contain; height: 100%; }
 .shop-lightbox-dots { position: absolute; bottom: calc(18px + env(safe-area-inset-bottom)); left: 0; right: 0; display: flex; justify-content: center; gap: 6px; }
 
-/* ── XIZMATLAR v1.3: ijtimoiy tarmoq + «1067 tekshiruvi» (mijoz bahosidan ALOHIDA) ────────── */
-.svc-insp-badge { display: inline-block; font-size: 10.5px; font-weight: 800; color: #99f6e4;
-  background: color-mix(in srgb, #14b8a6 28%, transparent); border: 1px solid color-mix(in srgb, #14b8a6 50%, transparent);
-  padding: 2px 7px; border-radius: var(--r-chip); margin-bottom: 2px; }
-.svc-insp { border: 1px solid color-mix(in srgb, #14b8a6 40%, transparent); border-left: 3px solid #14b8a6;
-  background: color-mix(in srgb, #14b8a6 10%, var(--card)); }
-.svc-insp b { color: #5eead4; font-size: 13.5px; }
-.svc-insp-hint { font-size: 11px; color: color-mix(in srgb, #14b8a6 65%, var(--muted)); margin-top: 2px; }
+/* ── XIZMATLAR v1.4: ijtimoiy tarmoq + «1067 tekshiruvi» — 100-ballik 5-mezon sertifikat tizimi
+   (1067_TEKSHIRUVI_STANDARTLARI.pdf). Daraja rangi (oltin/kumush/bronza) — mijoz ★reytingidan
+   ATAYLAB butunlay boshqa vizual til, chalkashtirmaslik uchun. Ranglar admin panel bilan bir xil
+   (adm-insp-total / insp-badge-* — .claude/packages/admin/src/styles.css). ────────────────── */
+:root {
+  --insp-gold: #facc15; --insp-silver: #cbd5e1; --insp-bronze: #d97706;
+}
+.svc-insp-ribbon { position: absolute; top: 8px; right: 8px; z-index: 2; font-size: 11px; font-weight: 900;
+  padding: 3px 8px; border-radius: 999px; backdrop-filter: blur(4px); box-shadow: 0 2px 8px rgba(0,0,0,.35); }
+.svc-insp-ribbon.insp-gold { background: rgba(250,204,21,.94); color: #422006; }
+.svc-insp-ribbon.insp-silver { background: rgba(203,213,225,.94); color: #1e293b; }
+.svc-insp-ribbon.insp-bronze { background: rgba(217,119,6,.94); color: #fff; }
+.svc-card.insp-gold { border: 1px solid color-mix(in srgb, var(--insp-gold) 45%, transparent); box-shadow: 0 0 0 1px color-mix(in srgb, var(--insp-gold) 12%, transparent); }
+.svc-card.insp-silver { border: 1px solid color-mix(in srgb, var(--insp-silver) 45%, transparent); }
+.svc-card.insp-bronze { border: 1px solid color-mix(in srgb, var(--insp-bronze) 45%, transparent); }
+
+.svc-insp-cert { border-radius: 14px; padding: 14px; margin: 10px 0; }
+.svc-insp-cert.insp-gold { background: linear-gradient(135deg, color-mix(in srgb, var(--insp-gold) 16%, transparent), color-mix(in srgb, var(--insp-gold) 4%, transparent)); border: 1px solid color-mix(in srgb, var(--insp-gold) 40%, transparent); color: var(--insp-gold); }
+.svc-insp-cert.insp-silver { background: linear-gradient(135deg, color-mix(in srgb, var(--insp-silver) 16%, transparent), color-mix(in srgb, var(--insp-silver) 4%, transparent)); border: 1px solid color-mix(in srgb, var(--insp-silver) 40%, transparent); color: var(--insp-silver); }
+.svc-insp-cert.insp-bronze { background: linear-gradient(135deg, color-mix(in srgb, var(--insp-bronze) 16%, transparent), color-mix(in srgb, var(--insp-bronze) 4%, transparent)); border: 1px solid color-mix(in srgb, var(--insp-bronze) 40%, transparent); color: var(--insp-bronze); }
+.svc-insp-cert-head { display: flex; align-items: center; gap: 10px; }
+.svc-insp-cert-emoji { font-size: 30px; line-height: 1; }
+.svc-insp-cert-title { font-size: 12.5px; font-weight: 800; letter-spacing: .3px; color: currentColor; }
+.svc-insp-cert-score { font-size: 20px; font-weight: 900; margin-top: 2px; color: var(--text); }
+.svc-insp-hint { font-size: 11.5px; color: var(--muted); margin-top: 8px; line-height: 1.4; }
+.svc-insp-cert-toggle { margin-top: 8px; background: none; border: none; font-size: 12px; font-weight: 700; color: currentColor; padding: 0; cursor: pointer; }
+.svc-insp-breakdown { margin-top: 8px; display: flex; flex-direction: column; gap: 6px; }
+.svc-insp-row { display: flex; align-items: center; gap: 8px; font-size: 11.5px; }
+.svc-insp-row-label { flex: 0 0 132px; color: var(--muted); }
+.svc-insp-bar { flex: 1; height: 6px; border-radius: 3px; background: rgba(255,255,255,.1); overflow: hidden; }
+.svc-insp-bar-fill { height: 100%; border-radius: 3px; background: currentColor; }
+.svc-insp-row-val { flex: 0 0 32px; text-align: right; font-weight: 700; color: var(--text); }
+/* recommended-only filter/section chip — reuses .svc-chip base, tier-neutral gold accent */
+.svc-chip.insp-only.on { background: var(--insp-gold); border-color: var(--insp-gold); color: #422006; }
+/* 🏆 «1067 tavsiya qiladi» uy-bo'limi — butun blok boshqacha (oltin) rangda o'ralgan, ro'yxatlar
+   orasida ko'zga birinchi tashlanishi kerak (ega: "ro'yxatdan boshqacha rang bilan o'ralib tursa"). */
+.svc-insp-section { border-radius: 16px; padding: 12px; margin-top: 14px;
+  background: linear-gradient(160deg, color-mix(in srgb, var(--insp-gold) 14%, transparent), color-mix(in srgb, var(--insp-gold) 3%, transparent));
+  border: 1px solid color-mix(in srgb, var(--insp-gold) 35%, transparent); }
+.svc-insp-section-hint { font-size: 11.5px; color: var(--muted); margin-top: 2px; line-height: 1.4; }
+
+.svc-standards-link { display: block; width: 100%; margin-top: 18px; padding: 10px; text-align: center;
+  background: none; border: none; color: var(--muted); font-size: 11.5px; font-weight: 600;
+  text-decoration: underline; text-underline-offset: 2px; opacity: 0.8; }
+.svc-standards-link:active { opacity: 0.55; }
 .svc-socials { display: flex; gap: 8px; flex-wrap: wrap; }
 .svc-soc { padding: 8px 12px; border-radius: var(--r-chip); border: 1px solid var(--line); background: var(--surface-2); color: var(--text);
   font-size: 12.5px; font-weight: 600; text-decoration: none; transition: transform var(--dur-press) var(--ease-out); }
@@ -2313,13 +2375,27 @@ body {
 .app.xizmat-light .svc-chip { background: #f2f6ff; border: 1px solid #dce8ff; color: #46597a; }
 .app.xizmat-light .svc-soc { background: #f2f6ff; border: 1px solid #dce8ff; color: #1d4ed8; }
 .app.xizmat-light .svc-fav { border: 1px solid #dce8ff; }
+.app.xizmat-light .svc-fav-count { color: #16233b; }
+.app.xizmat-light .svc-fav.on { border-color: rgba(220,38,38,.4); background: rgba(220,38,38,.08); }
 .app.xizmat-light .svc-price-dots { border-bottom: 1px dotted #cfe0ff; }
 .app.xizmat-light .svc-gallery-dots span { background: #d7e3fb; }
 .app.xizmat-light .svc-gallery-strip img { background: #eef4ff; }
 .app.xizmat-light .svc-claim-btn { border: 1px dashed #a8c2f0; color: #4a6491; }
-.app.xizmat-light .svc-insp-badge { color: #ffffff; background: #0d9488; border-color: transparent; }
-.app.xizmat-light .svc-insp { background: color-mix(in srgb, #14b8a6 8%, #ffffff); border: 1px solid color-mix(in srgb, #14b8a6 35%, transparent); border-left: 3px solid #0d9488; }
-.app.xizmat-light .svc-insp-hint { color: #0f766e; }
+/* 🏅 1067 tekshiruvi — dark theme'dagi --insp-gold/silver/bronze CSS o'zgaruvchilarini shu doirada
+   qayta belgilaydi (barcha .svc-insp-cert/.svc-insp-ribbon/.svc-card.insp-* qoidalari avtomatik
+   moslashadi) — oq fonda o'qilishi uchun to'qroq soyalar. */
+.app.xizmat-light {
+  --insp-gold: #a16207; --insp-silver: #475569; --insp-bronze: #9a3412;
+}
+.app.xizmat-light .svc-insp-hint { color: #4b5563; }
+.app.xizmat-light .svc-insp-cert-score { color: #16233b; }
+.app.xizmat-light .svc-insp-row-label { color: #6b7788; }
+.app.xizmat-light .svc-insp-row-val { color: #16233b; }
+.app.xizmat-light .svc-insp-bar { background: rgba(0,0,0,.08); }
+.app.xizmat-light .svc-insp-cert { box-shadow: 0 4px 16px -8px rgba(20,30,50,.18); }
+.app.xizmat-light .svc-insp-section-hint { color: #6b7788; }
+.app.xizmat-light .svc-insp-section { box-shadow: 0 4px 16px -8px rgba(161,98,7,.18); }
+.app.xizmat-light .svc-standards-link { color: #6b7788; }
 
 /* "Barcha kategoriyalar"ga qaytish tugmasi (.pay-back reuse) — shop-wrap .pay-back qolipidan;
    ega: "sariq rangdan back belgisi bilinmay qolgan" — asl oltin chevron ko'k fonda ko'zga
@@ -2335,8 +2411,6 @@ body {
   color: #fff;
   box-shadow: 0 2px 8px rgba(37, 99, 235, .35);
 }
-.app.xizmat-light .svc-insp b { color: #0d9488; }
-
 /* "Xizmatimni qo'shish" formasi — .bk-input/.d-btn umumiy (taxi-oltin) komponent, xizmat-light
    uchun hech qachon o'zgartirilmagan edi (ega: "umumiy rang olgan"). elonlar-light .bk-input
    qolipidan, .shop-wrap .d-btn qolipidan — o'z ko'k identifikatsiyasiga o'tkaziladi. */
@@ -2438,3 +2512,8 @@ body {
 .app.restoran-light .d-sheet-bar { background: #ffffff; }
 .app.restoran-light .d-grip { background: #fbd9b8; }
 .app.restoran-light .d-sheet-x { background: color-mix(in srgb, var(--rst-accent) 12%, transparent); color: var(--rst-accent); }
+/* qulayliklar och-fon override */
+.app.restoran-light .rst-order-reorder { background: #fff; border-color: #fbd9b8; color: #2b1c12; }
+.app.restoran-light .rst-chip { background: #fff; border-color: #fbd9b8; color: #a17858; }
+.app.restoran-light .rst-chip.on { background: var(--rst-accent); color: #fff; }
+.app.restoran-light .rst-review-row { border-bottom-color: #fbd9b8; color: #2b1c12; }

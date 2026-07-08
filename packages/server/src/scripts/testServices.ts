@@ -206,26 +206,36 @@ async function main(): Promise<void> {
   await svc.adminEditListing(priced.id!, { instagram: "" });
   ok((await svc.getListing(priced.id!, null))?.instagram == null, "15: bo'sh satr → null (tozalash)");
 
-  // 16) 🏅 «1067 tekshiruvi» — mijoz bahosidan MUSTAQIL rasmiy audit
+  // 16) 🏅 «1067 tekshiruvi» — 100-ballik 5-mezon, mijoz bahosidan MUSTAQIL rasmiy audit
   const before15 = await svc.getListing(priced.id!, null);
-  ok(before15?.inspStars == null, "16: default holatda tekshirilmagan");
-  const setInsp = await svc.adminEditListing(priced.id!, { inspStars: 5, inspNote: "Toza, professional, narxlar mos" });
-  ok(setInsp.ok, "16: 5★ audit saqlandi");
+  ok(before15?.inspBreakdown == null, "16: default holatda tekshirilmagan");
+  // qisman to'ldirish — hali "tekshirilgan" hisoblanmaydi (inspAt yo'q)
+  const partial = await svc.adminEditListing(priced.id!, { inspClean: 18, inspProf: 17 });
+  ok(partial.ok, "16: qisman ball saqlandi");
+  ok((await svc.getListing(priced.id!, null))?.inspBreakdown == null, "16: qisman to'ldirilganda hali tekshirilgan hisoblanmaydi");
+  // qolganini to'ldirish — endi to'liq, inspAt qo'yiladi, tier=gold (90/100)
+  const setInsp = await svc.adminEditListing(priced.id!, { inspPrice: 19, inspTrust: 18, inspQuality: 18, inspNote: "Toza, professional, narxlar mos" });
+  ok(setInsp.ok, "16: to'liq 5-mezon audit saqlandi");
   const insp = await svc.getListing(priced.id!, null);
-  ok(insp?.inspStars === 5 && insp?.inspNote === "Toza, professional, narxlar mos" && !!insp?.inspAt, "16: detail'da stars+note+sana bor");
+  ok(insp?.inspBreakdown?.clean === 18 && insp?.inspNote === "Toza, professional, narxlar mos" && !!insp?.inspAt, "16: detail'da breakdown+note+sana bor");
+  ok(insp!.inspTotal === 90 && insp!.inspTier === "gold", "16: 18+17+19+18+18=90 → gold tier");
   ok(insp!.avgRating === 0 && insp!.reviewCount === 0, "16: mijoz avgRating/reviewCount BUTUNLAY tegilmagan (mustaqil signal)");
-  const badLow = await svc.adminEditListing(priced.id!, { inspStars: 0 });
-  ok(badLow.ok === false && badLow.error === "bad_insp_stars", "16: 0★ rad etiladi");
-  const badHigh = await svc.adminEditListing(priced.id!, { inspStars: 6 });
-  ok(badHigh.ok === false && badHigh.error === "bad_insp_stars", "16: 6★ rad etiladi");
-  ok((await svc.getListing(priced.id!, null))?.inspStars === 5, "16: rad etilgan urinishdan keyin ham eski qiymat saqlanadi");
-  await svc.adminEditListing(priced.id!, { inspStars: null });
+  const badLow = await svc.adminEditListing(priced.id!, { inspClean: -1 });
+  ok(badLow.ok === false && badLow.error === "bad_inspClean", "16: manfiy ball rad etiladi");
+  const badHigh = await svc.adminEditListing(priced.id!, { inspClean: 21 });
+  ok(badHigh.ok === false && badHigh.error === "bad_inspClean", "16: 20dan yuqori ball rad etiladi");
+  ok((await svc.getListing(priced.id!, null))?.inspBreakdown?.clean === 18, "16: rad etilgan urinishdan keyin ham eski qiymat saqlanadi");
+  // pastroq ball — bronze chegarasi (60-74) va 60dan past = belgi umuman chiqmasligi
+  await svc.adminEditListing(priced.id!, { inspClean: 10, inspProf: 10, inspPrice: 10, inspTrust: 10, inspQuality: 10 });
+  const low = await svc.getListing(priced.id!, null);
+  ok(low!.inspTotal === 50 && low!.inspTier == null, "16: 50/100 — 60dan past, tier=null (belgi chiqmaydi)");
+  await svc.adminEditListing(priced.id!, { inspClean: null, inspProf: null, inspPrice: null, inspTrust: null, inspQuality: null });
   const cleared = await svc.getListing(priced.id!, null);
-  ok(cleared?.inspStars == null && cleared?.inspAt == null, "16: null → tekshiruv butunlay bekor qilindi (sana ham tozalandi)");
+  ok(cleared?.inspBreakdown == null && cleared?.inspAt == null, "16: hammasi null → tekshiruv butunlay bekor qilindi (sana ham tozalandi)");
   // karta darajasida ham ko'rinishi kerak (badge uchun)
-  await svc.adminEditListing(priced.id!, { inspStars: 4 });
+  await svc.adminEditListing(priced.id!, { inspClean: 16, inspProf: 16, inspPrice: 16, inspTrust: 16, inspQuality: 16 });
   const cardWithInsp = (await svc.listListings({ categoryId: cat.id, limit: 50 })).listings.find((l) => l.id === priced.id);
-  ok(cardWithInsp?.inspStars === 4, "16: kartada ham inspStars ko'rinadi (badge manbai)");
+  ok(cardWithInsp?.inspTotal === 80 && cardWithInsp?.inspTier === "silver", "16: kartada ham inspTotal/tier ko'rinadi (badge manbai)");
 
   // 17) 🏪 claim flow — Telegram contact-share'ning identity-isboti bilan
   const claimable = await mk(`${TAG} Claimable Ustaxona`, "+998909000009");

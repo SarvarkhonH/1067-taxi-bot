@@ -52,6 +52,10 @@ export interface ApiOptions {
   notifyElonlarOwner?: (notice: import("../services/classifiedService").ClassifiedOwnerNotice) => Promise<void>;
   /** 🍽 New restoran order → owner info card (no buttons — operator acts from admin panel, R3). */
   notifyRestoranOwner?: (notice: import("../services/restoranService").FoodOrderOwnerNotice) => Promise<void>;
+  /** 🍽 Order status advanced (accepted/preparing/delivering/delivered) → rider push (qulaylik #1). */
+  notifyRiderOrderStatus?: (notice: { memberId: number; restaurantName: string; newStatus: string }) => Promise<void>;
+  /** 🍽 Order rejected → rider push with the reason. */
+  notifyRiderOrderRejected?: (notice: { memberId: number; restaurantName: string; reason: string }) => Promise<void>;
 }
 
 function memberType(req: Request, fallback: MemberType): MemberType {
@@ -480,10 +484,31 @@ export function createApiServer(opts: ApiOptions = {}) {
     const { myFoodOrders } = await import("../services/restoranService");
     return { orders: await myFoodOrders(id) };
   }));
+  // "orders/:id/cancel" has 3 segments after /restoran/ — never collides with the bare :id catch-all
+  // below regardless of registration order (Express matches on exact segment count), but kept near
+  // the other order routes for readability.
+  app.post("/api/restoran/orders/:id/cancel", requireUser, rateLimit(10), withMember2(async (id, req, res) => {
+    const { cancelFoodOrder } = await import("../services/restoranService");
+    return cancelFoodOrder(id, Number(req.params.id));
+  }));
   app.get("/api/restoran/:id", requireUser, rateLimit(30), async (req, res) => {
     const { getRestaurantDetail } = await import("../services/restoranService");
     res.json(await getRestaurantDetail(Number(req.params.id), isAdmin(res.locals.telegramId as string)));
   });
+  app.get("/api/restoran/:id/reviews", requireUser, rateLimit(30), withMember2(async (memberId, req, res) => {
+    const { listRestaurantReviews } = await import("../services/restoranService");
+    const r = await listRestaurantReviews(Number(req.params.id), memberId, isAdmin(res.locals.telegramId as string));
+    const reviews = r.reviews.map((x) => ({ id: x.id, stars: x.stars, text: x.text, createdAt: x.createdAt, mine: x.memberId === memberId, memberName: x.memberId === memberId ? "Siz" : "Mijoz" }));
+    return { avgRating: r.avgRating, reviewCount: r.reviewCount, reviews, myReview: reviews.find((x) => x.mine) ?? null };
+  }));
+  app.post("/api/restoran/:id/review", requireUser, rateLimit(10), withMember2(async (memberId, req, res) => {
+    const { submitRestaurantReview } = await import("../services/restoranService");
+    return submitRestaurantReview(memberId, Number(req.params.id), Number(req.body?.stars), typeof req.body?.text === "string" ? req.body.text : undefined, isAdmin(res.locals.telegramId as string));
+  }));
+  app.delete("/api/restoran/:id/review", requireUser, rateLimit(10), withMember2(async (memberId, req) => {
+    const { deleteMyRestaurantReview } = await import("../services/restoranService");
+    return deleteMyRestaurantReview(memberId, Number(req.params.id));
+  }));
   const serveRestoranPhoto = async (req: Request, res: Response): Promise<void> => {
     const { resolveRestaurantPhoto } = await import("../services/restoranService");
     const url = await resolveRestaurantPhoto(Number(req.params.id));
@@ -531,6 +556,11 @@ export function createApiServer(opts: ApiOptions = {}) {
       offset: req.query.offset ? Number(req.query.offset) : undefined,
       sort: req.query.sort === "new" ? "new" : undefined,
     }, svcPreview(res)));
+  });
+  app.get("/api/services/inspected", requireUser, rateLimit(60), async (req, res) => {
+    const { listInspected } = await import("../services/serviceDirectory");
+    res.set("Cache-Control", "private, max-age=60");
+    res.json({ listings: await listInspected(req.query.limit ? Number(req.query.limit) : undefined, svcPreview(res)) });
   });
   app.get("/api/services/item/:id", requireUser, rateLimit(60), async (req, res) => {
     const { getListing } = await import("../services/serviceDirectory");
@@ -1358,18 +1388,22 @@ export function createApiServer(opts: ApiOptions = {}) {
   });
   app.post("/api/admin/restoran/orders/:id/accept", requireAdmin, rateLimit(30), async (req, res) => {
     const { acceptFoodOrder } = await import("../services/restoranService");
-    res.json(await acceptFoodOrder(Number(req.params.id)));
+    const r = await acceptFoodOrder(Number(req.params.id));
+    if (r.ok && r.notice && opts.notifyRiderOrderStatus) await opts.notifyRiderOrderStatus(r.notice).catch(() => undefined);
+    const { notice: _n, ...pub } = r;
+    res.json(pub);
   });
-  // notice (restaurantName/newStatus) is returned by the service for a future rider-push (out of
-  // R3 scope — riders see status live via the miniapp's poll, see MyOrdersView) — stripped here.
   app.post("/api/admin/restoran/orders/:id/advance", requireAdmin, rateLimit(30), async (req, res) => {
     const { advanceFoodOrderStatus } = await import("../services/restoranService");
-    const { notice: _n, ...pub } = await advanceFoodOrderStatus(Number(req.params.id));
+    const r = await advanceFoodOrderStatus(Number(req.params.id));
+    if (r.ok && r.notice && opts.notifyRiderOrderStatus) await opts.notifyRiderOrderStatus(r.notice).catch(() => undefined);
+    const { notice: _n, ...pub } = r;
     res.json(pub);
   });
   app.post("/api/admin/restoran/orders/:id/reject", requireAdmin, rateLimit(30), async (req, res) => {
     const { rejectFoodOrder } = await import("../services/restoranService");
     const r = await rejectFoodOrder(Number(req.params.id), String(req.body?.reason ?? ""));
+    if (r.ok && r.notice && opts.notifyRiderOrderRejected) await opts.notifyRiderOrderRejected(r.notice).catch(() => undefined);
     const { notice: _n, ...pub } = r;
     res.json(pub);
   });
