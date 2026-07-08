@@ -649,6 +649,31 @@ export interface ClassifiedDetail extends ClassifiedCard {
   viewCount: number;
   callCount: number;
   owner: ClassifiedOwnerProfile;
+  likeCount: number;
+  dislikeCount: number;
+  myReaction: "like" | "dislike" | null;
+}
+
+export interface ClassifiedReactBody {
+  kind: "like" | "dislike";
+  comment?: string; // dislike uchun majburiy (>=3 belgi)
+}
+
+export interface ClassifiedReactResponse {
+  ok: boolean;
+  reason?: "off" | "bad_kind" | "need_comment" | "banned_word" | "not_found";
+  likeCount?: number;
+  dislikeCount?: number;
+  myReaction?: "like" | "dislike" | null;
+}
+
+export interface AdminAdReactionRow {
+  id: number;
+  tgId: string;
+  authorName: string;
+  kind: "like" | "dislike";
+  comment: string;
+  at: string;
 }
 
 // 🤝 Ishonch badge'lari (§4.2) — xatti-harakat asosida, pul-mexanika YO'Q
@@ -697,6 +722,8 @@ export interface AdminClassifiedRow {
   category: ClassifiedCategory;
   subtype: string;
   title: string;
+  desc: string;
+  phone: string; // ad's own contact number — may differ from owner.phone (member's registered phone)
   priceSom: number | null;
   status: ClassifiedStatus;
   paidCoins: number;
@@ -704,6 +731,8 @@ export interface AdminClassifiedRow {
   photoCount: number;
   viewCount: number; // AdView jami soni (cache)
   contactCount: number; // AdContact jami soni (cache)
+  likeCount: number;
+  dislikeCount: number;
   reports: number;
   owner: AdminClassifiedOwnerInfo;
   createdAt: string;

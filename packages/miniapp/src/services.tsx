@@ -6,7 +6,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import type { MeResponse, ServiceCategoryView, ServiceListingCard, ServiceListingDetail, ServiceReviewView, ServiceSubmitBody } from "@t1067/shared";
 import { api, apiUrl } from "./api";
 import { haptic, hapticSuccess, tg } from "./telegram";
-import { Button, EmptyState, Sheet, Skeleton } from "./design/components";
+import { Button, EmptyState, Lightbox, Sheet, Skeleton } from "./design/components";
 
 const BOT_LINK = "https://t.me/koson1067bot"; // share deep-link target (single source: server QR uses the same)
 
@@ -166,6 +166,7 @@ function DetailSheet({ id, onClose, onBanner, onFavChange, onOpenOther }: { id: 
   const [similar, setSimilar] = useState<ServiceListingCard[] | null>(null);
   const [galleryIdx, setGalleryIdx] = useState(0);
   const [showRate, setShowRate] = useState(false);
+  const [lightbox, setLightbox] = useState<number | null>(null); // 🔍 rasmga bosilganda TO'LIQ EKRAN — index yoki null
 
   useEffect(() => {
     setSimilar(null);
@@ -253,7 +254,7 @@ function DetailSheet({ id, onClose, onBanner, onFavChange, onOpenOther }: { id: 
             <div className="svc-gallery">
               <div className="svc-gallery-strip" onScroll={(e) => { const el = e.currentTarget; setGalleryIdx(Math.round(el.scrollLeft / el.clientWidth)); }}>
                 {Array.from({ length: Math.min(6, d.photoCount) }, (_, i) => (
-                  <img key={i} src={apiUrl(`/api/services/photo/${d.id}/${i}`)} alt="" loading={i === 0 ? "eager" : "lazy"} decoding="async" />
+                  <img key={i} src={apiUrl(`/api/services/photo/${d.id}/${i}`)} alt="" loading={i === 0 ? "eager" : "lazy"} decoding="async" onClick={() => { haptic(); setLightbox(i); }} />
                 ))}
               </div>
               {d.photoCount > 1 && (
@@ -289,6 +290,7 @@ function DetailSheet({ id, onClose, onBanner, onFavChange, onOpenOther }: { id: 
                 <b className="fs13">🏅 1067 tekshiruvi</b>
                 <Stars v={d.inspStars} />
               </div>
+              <p className="svc-insp-hint">Mijoz bahosi emas — jamoamiz jismoniy borib tekshirgan natija</p>
               {d.inspNote && <p className="fs12 muted mt4">{d.inspNote}</p>}
             </div>
           )}
@@ -374,6 +376,14 @@ function DetailSheet({ id, onClose, onBanner, onFavChange, onOpenOther }: { id: 
             </div>
           )}
         </div>
+      )}
+      {d && lightbox !== null && (
+        <Lightbox
+          count={Math.min(6, d.photoCount)}
+          start={lightbox}
+          photoUrl={(i) => apiUrl(`/api/services/photo/${d.id}/${i}`)}
+          onClose={() => setLightbox(null)}
+        />
       )}
     </Sheet>
   );

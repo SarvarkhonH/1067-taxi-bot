@@ -1,6 +1,7 @@
 import type {
   AdminActionResult,
   AdminAdContactRow,
+  AdminAdReactionRow,
   AdminAdViewerRow,
   AdminAuditRow,
   AdminBotUsersResponse,
@@ -139,6 +140,8 @@ export const adminApi = {
   clearDriverPhoto: (driverId: number) =>
     req<{ ok: boolean }>(`/api/admin/driver-photo/${driverId}`, { method: "DELETE" }),
   driverPhotoUrl: (driverId: number) => `${API_BASE}/api/driver-photo/${driverId}`,
+  restoranPhotoUrl: (restaurantId: number) => `${API_BASE}/api/restoran/photo/${restaurantId}`,
+  restoranMenuPhotoUrl: (menuItemId: number) => `${API_BASE}/api/restoran/menuphoto/${menuItemId}`,
   recruitQrUrl: (driverId: number) => `${API_BASE}/api/admin/recruitqr/${driverId}`,
   driverStickerUrl: (driverId: number, token: string) => `${API_BASE}/api/admin/driver-sticker/${driverId}?token=${encodeURIComponent(token)}`,
   recruits: () => req<{ driverId: number; fullName: string; scanned: number; joined: number; rode: number; earned: number }[]>("/api/admin/recruits"),
@@ -257,13 +260,19 @@ export const adminApi = {
   svcSetPrices: (id: number, items: { label: string; priceSom: number }[]) => postJson<{ ok: boolean; count: number }>(`/api/admin/services/${id}/prices`, { items }),
   svcPhotoUpload: (id: number, mime: string, base64: string) => postJson<{ ok: boolean; error?: string; photoCount?: number }>(`/api/admin/services/${id}/photo`, { mime, base64 }),
   svcPhotoClear: (id: number) => req<{ ok: boolean }>(`/api/admin/services/${id}/photo`, { method: "DELETE" }),
-  // 📋 e'lonlar (E3) — approve/reject FAQAT Telegram orqali; panel = read + arxivla/uzayt/TOP
+  // 📋 e'lonlar (E3) — approve/reject FAQAT Telegram orqali; panel = read + edit/rasm/o'chirish/arxivla/uzayt/TOP
   elonList: (status?: string) => req<AdminClassifiedListResponse>(`/api/admin/elonlar${status ? `?status=${status}` : ""}`),
   elonViewers: (id: number) => req<{ viewers: AdminAdViewerRow[] }>(`/api/admin/elonlar/${id}/viewers`),
   elonContacts: (id: number) => req<{ contacts: AdminAdContactRow[] }>(`/api/admin/elonlar/${id}/contacts`),
   elonArchive: (id: number) => postJson<{ ok: boolean }>(`/api/admin/elonlar/${id}/archive`, {}),
   elonExtend: (id: number, days?: number) => postJson<{ ok: boolean }>(`/api/admin/elonlar/${id}/extend`, { days }),
   elonSetTop: (id: number, on: boolean) => postJson<{ ok: boolean }>(`/api/admin/elonlar/${id}/top`, { on }),
+  elonEdit: (id: number, patch: Record<string, unknown>) => postJson<{ ok: boolean; error?: string }>(`/api/admin/elonlar/${id}`, patch),
+  elonDelete: (id: number) => req<{ ok: boolean }>(`/api/admin/elonlar/${id}`, { method: "DELETE" }),
+  elonPhotoUpload: (id: number, mime: string, base64: string) => postJson<{ ok: boolean; error?: string; photoCount?: number }>(`/api/admin/elonlar/${id}/photo`, { mime, base64 }),
+  elonReactions: (id: number) => req<{ reactions: AdminAdReactionRow[] }>(`/api/admin/elonlar/${id}/reactions`),
+  elonCreate: (p: Record<string, unknown>) => postJson<{ ok: boolean; id?: number; error?: string; ownerMatched?: boolean; ownerName?: string }>("/api/admin/elonlar", p),
+  elonPhotoClear: (id: number) => req<{ ok: boolean }>(`/api/admin/elonlar/${id}/photo`, { method: "DELETE" }),
   // 💸 withdrawals tab
   withdrawalsTab: (limit = 100) => req<AdminWithdrawalTabRow[]>(`/api/admin/withdrawals-tab?limit=${limit}`),
   // ⭐ ratings

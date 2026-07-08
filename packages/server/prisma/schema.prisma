@@ -1651,10 +1651,29 @@ model ClassifiedAd {
   createdAt  DateTime  @default(now())
   updatedAt  DateTime  @updatedAt
   photos     AdPhoto[]
+  reactions  AdReaction[]
 
   @@index([category, status, isTop, createdAt])
   @@index([tgId])
   @@index([status, expiresAt])
+}
+
+// 👍👎 E'lon reaksiyasi (ServiceReview naqshi): like = bitta tegish; dislike EGASIGA foydali bo'lishi
+// uchun sabab-izoh talab qiladi (bo'sh dislike qabul qilinmaydi). 1 user = 1 reaksiya/e'lon (upsert —
+// like<->dislike almashtirish yoki qayta bosib olib tashlash mumkin).
+model AdReaction {
+  id         Int          @id @default(autoincrement())
+  ad         ClassifiedAd @relation(fields: [adId], references: [id], onDelete: Cascade)
+  adId       Int
+  tgId       BigInt
+  authorName String
+  kind       String // like | dislike
+  comment    String       @default("") // dislike uchun majburiy (>=3 belgi, server tekshiradi)
+  createdAt  DateTime     @default(now())
+  updatedAt  DateTime     @updatedAt
+
+  @@unique([adId, tgId])
+  @@index([adId, kind])
 }
 
 // ServicePhoto pattern: Telegram file_id (durable, tekin) with data-URL fallback.

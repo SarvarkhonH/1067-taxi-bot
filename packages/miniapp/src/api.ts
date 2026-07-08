@@ -196,6 +196,7 @@ export const api = {
   elonDelete: (id: number) => del<{ ok: boolean }>(`/api/elonlar/ads/${id}`),
   elonPhoto: (id: number, base64: string, mime: string) => post<{ ok: boolean; error?: string; photoCount?: number }>(`/api/elonlar/ads/${id}/photo`, { base64, mime }),
   elonReport: (id: number) => post<import("@t1067/shared").ClassifiedReportResponse>(`/api/elonlar/ads/${id}/report`),
+  elonReact: (id: number, b: import("@t1067/shared").ClassifiedReactBody) => post<import("@t1067/shared").ClassifiedReactResponse>(`/api/elonlar/ads/${id}/react`, b),
   elonTop: (id: number) => post<import("@t1067/shared").ClassifiedTopBuyResponse>(`/api/elonlar/ads/${id}/top`),
   createTrack: () => post<{ token: string }>("/api/track"),
   trackTrip: (token: string) => get<PublicTrip>(`/api/track/${encodeURIComponent(token)}`),

@@ -360,6 +360,17 @@ textarea.search { font-family: inherit; resize: vertical; }
 .adm-form-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 10px; }
 .adm-form-grid.wide { grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); }
 
+/* 🏅 1067 tekshiruvi — rider tomonidagi teal identity bilan bir xil (services.tsx .svc-insp),
+   shu orqali admin ham "bu boshqacha, rasmiy audit" ekanini darhol ko'radi — boshqa oddiy
+   maydonlar orasida yo'qolib qolmasin. */
+.adm-insp-box {
+  border: 1px solid color-mix(in srgb, #14b8a6 40%, transparent);
+  background: color-mix(in srgb, #14b8a6 10%, var(--card));
+  border-radius: 10px; padding: 10px 12px; margin-top: 10px;
+}
+.adm-insp-title { font-size: 12.5px; font-weight: 800; color: #5eead4; display: flex; align-items: center; gap: 6px; }
+.adm-insp-hint { font-size: 11px; color: var(--muted); margin-top: 2px; }
+
 .badge { font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 999px; white-space: nowrap; }
 .badge-ok { background: rgba(52,211,153,.15); color: var(--ok); }
 .badge-warn { background: rgba(255,209,102,.15); color: var(--accent); }

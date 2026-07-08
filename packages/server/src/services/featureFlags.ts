@@ -112,6 +112,10 @@ export const EXPECTED_ON: FeatureName[] = [
   "elonlar", // 📋 E'lonlar (mahalla e'lon taxtasi) — owner GO LIVE 2026-07-07 (E1-E4 owner-accepted 2026-07-06,
              // ELONLAR_PLAN.md; catalog bo'sh — 2 ta ega-test e'loni bor, real trafik yo'q; elontop TOP-boost
              // ataylab OFF qoldirildi — alohida so'rov kutilmoqda, pul-mexanika keyinroq alohida yoqiladi)
+  "restoran", // 🍽 Restoran taom-buyurtma — owner GO LIVE 2026-07-07 (8 restoran seed, 3 tasida
+             // buzuq/placeholder telefon + 5 tasida bo'sh menyu — owner "hozir live qil, keyin tuzataman"
+             // deb aniq buyurdi; keyingi tozalash kerak: koson miliy taomlari, Do'stlar Choyxonasi,
+             // Chinor Oilaviy Restorant telefonlari + 5ta menyu to'ldirish)
 ];
 
 export async function reconcileFlags(): Promise<{ missing: string[]; effective: { name: string; on: boolean }[] }> {

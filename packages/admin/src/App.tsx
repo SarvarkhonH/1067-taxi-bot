@@ -3,8 +3,10 @@ import {
   formatNumber,
   CLASSIFIED_CATEGORIES,
   type AdminAdContactRow,
+  type AdminAdReactionRow,
   type AdminAdViewerRow,
   type AdminAuditRow,
+  type AdminClassifiedRow,
   type AdminBotUsersResponse,
   type AdminClassifiedListResponse,
   type AdminEconomy,
@@ -1910,6 +1912,7 @@ function RestoranCatalogAdminView() {
   const [menu, setMenu] = useState<RestoranMenuItemRow[] | null>(null);
   const [bulkSection, setBulkSection] = useState("Taomlar");
   const [bulkText, setBulkText] = useState("");
+  const [photoV, setPhotoV] = useState(0); // cache-bust: /api/restoran/photo redirect is cached 1h — bump on upload so admin sees the new image immediately
 
   const load = () => { adminApi.restoranList().then(setData).catch(() => undefined); };
   useEffect(() => { load(); }, []);
@@ -1957,6 +1960,7 @@ function RestoranCatalogAdminView() {
         const base64 = String(reader.result).split(",")[1] ?? "";
         const r = await adminApi.restoranPhotoUpload(id, f.type || "image/jpeg", base64).catch((e: Error) => ({ ok: false as const, error: e.message }));
         setMsg(r.ok ? "✅ Rasm yuklandi" : "❌ Rasm yuklanmadi");
+        if (r.ok) setPhotoV((v) => v + 1);
         load();
       };
       reader.readAsDataURL(f);
@@ -1992,6 +1996,26 @@ function RestoranCatalogAdminView() {
     await adminApi.restoranMenuDelete(item.id).catch(() => undefined);
     if (expandedId != null) adminApi.restoranMenu(expandedId).then((res) => setMenu(res.items)).catch(() => undefined);
     load();
+  };
+
+  const uploadMenuPhoto = (item: RestoranMenuItemRow) => {
+    const input = document.createElement("input");
+    input.type = "file"; input.accept = "image/*";
+    input.onchange = () => {
+      const f = input.files?.[0];
+      if (!f) return;
+      if (f.size > 5 * 1024 * 1024) { setMsg("❌ Rasm 5MB dan kichik bo'lsin"); return; }
+      const reader = new FileReader();
+      reader.onload = async () => {
+        const base64 = String(reader.result).split(",")[1] ?? "";
+        const r = await adminApi.restoranMenuPhotoUpload(item.id, f.type || "image/jpeg", base64).catch((e: Error) => ({ ok: false as const, error: e.message }));
+        setMsg(r.ok ? `✅ "${item.name}" rasmi yuklandi` : "❌ Rasm yuklanmadi");
+        if (r.ok) setPhotoV((v) => v + 1);
+        if (expandedId != null) adminApi.restoranMenu(expandedId).then((res) => setMenu(res.items)).catch(() => undefined);
+      };
+      reader.readAsDataURL(f);
+    };
+    input.click();
   };
 
   const restaurants = (data?.restaurants ?? []).filter((r) => {
@@ -2060,6 +2084,7 @@ function RestoranCatalogAdminView() {
                 </div>
               </div>
               <div className="adm-card-body-foot">
+                {r.hasPhoto && <img src={`${adminApi.restoranPhotoUrl(r.id)}?v=${photoV}`} alt="" style={{ width: 44, height: 44, borderRadius: 8, objectFit: "cover" }} />}
                 <button className="btn" disabled={saving} onClick={() => saveDraft(r.id)}>{saving ? "Saqlanmoqda…" : "💾 Saqlash"}</button>
                 <button className="btn sm" onClick={() => uploadPhoto(r.id)}>{r.hasPhoto ? "🖼 Rasmni almashtirish" : "🖼 Rasm yuklash"}</button>
               </div>
@@ -2070,10 +2095,14 @@ function RestoranCatalogAdminView() {
               {menu && menu.length === 0 && <p className="muted">Hali taom yo'q — pastdan bulk qo'shing.</p>}
               {menu?.map((item) => (
                 <div key={item.id} style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", padding: "6px 0", borderBottom: "1px solid rgba(255,255,255,0.08)" }}>
+                  {item.hasPhoto
+                    ? <img src={`${adminApi.restoranMenuPhotoUrl(item.id)}?v=${photoV}`} alt="" style={{ width: 32, height: 32, borderRadius: 6, objectFit: "cover", flexShrink: 0 }} />
+                    : <span style={{ width: 32, height: 32, borderRadius: 6, background: "var(--card)", flexShrink: 0 }} />}
                   <span className="muted" style={{ fontSize: 11, minWidth: 70 }}>{item.section}</span>
                   <input className="inp" style={{ flex: "2 1 160px" }} defaultValue={item.name} onBlur={(e) => e.target.value !== item.name && menuQuickEdit(item, { name: e.target.value })} />
                   <input className="inp" type="number" style={{ flex: "0 1 100px" }} defaultValue={item.priceSom} onBlur={(e) => Number(e.target.value) !== item.priceSom && menuQuickEdit(item, { priceSom: Number(e.target.value) })} />
                   <button className="btn sm" onClick={() => menuQuickEdit(item, { available: !item.available })}>{item.available ? "🟢 Bor" : "🔴 Tugagan"}</button>
+                  <button className="btn sm" onClick={() => uploadMenuPhoto(item)} title={item.hasPhoto ? "Rasmni almashtirish" : "Rasm yuklash"}>{item.hasPhoto ? "🖼✔" : "🖼"}</button>
                   <button className="btn sm" onClick={() => menuDelete(item)}>🗑</button>
                 </div>
               ))}
@@ -2322,16 +2351,19 @@ function XizmatlarAdminView() {
                   <span className="adm-field-hint">Format: Nom=narx; Nom=narx</span>
                 </div>
 
-                <div className="adm-form-grid" style={{ marginTop: 10, maxWidth: 440 }}>
-                  <div className="adm-field">
-                    <span className="adm-field-label">🏅 1067 tekshiruvi</span>
-                    <select value={draft.inspStars} onChange={(e) => setDraft({ ...draft, inspStars: e.target.value })}>
-                      <option value="">Tekshirilmagan</option>
-                      {[1, 2, 3, 4, 5].map((n) => <option key={n} value={n}>{"★".repeat(n)} ({n})</option>)}
-                    </select>
-                    <span className="adm-field-hint">Mijoz bahosi EMAS — jamoangiz jismoniy borib tekshirgan audit</span>
+                <div className="adm-insp-box" style={{ maxWidth: 440 }}>
+                  <div className="adm-insp-title">🏅 1067 tekshiruvi — rasmiy audit</div>
+                  <div className="adm-insp-hint">Mijoz bahosi EMAS — jamoangiz jismoniy borib tekshirgan natija. Rider&apos;lar Xizmatlar bo&apos;limida shu rangda (teal) ko&apos;radi.</div>
+                  <div className="adm-form-grid" style={{ marginTop: 8 }}>
+                    <div className="adm-field">
+                      <span className="adm-field-label">Baho</span>
+                      <select value={draft.inspStars} onChange={(e) => setDraft({ ...draft, inspStars: e.target.value })}>
+                        <option value="">Tekshirilmagan</option>
+                        {[1, 2, 3, 4, 5].map((n) => <option key={n} value={n}>{"★".repeat(n)} ({n})</option>)}
+                      </select>
+                    </div>
+                    <div className="adm-field"><span className="adm-field-label">Tekshiruv xulosasi</span><input value={draft.inspNote} onChange={(e) => setDraft({ ...draft, inspNote: e.target.value })} placeholder="Toza, professional, narxlar mos" /></div>
                   </div>
-                  <div className="adm-field"><span className="adm-field-label">Tekshiruv xulosasi</span><input value={draft.inspNote} onChange={(e) => setDraft({ ...draft, inspNote: e.target.value })} placeholder="Toza, professional, narxlar mos" /></div>
                 </div>
 
                 <div className="adm-card-body-foot">
@@ -2392,31 +2424,112 @@ function elonCatLabel(id: string): string {
   return c ? `${c.emoji} ${c.label}` : id;
 }
 
+interface ElonDraft { title: string; desc: string; phone: string; category: string; subtype: string; priceSom: string }
+
+function elonDraftFromRow(r: AdminClassifiedRow): ElonDraft {
+  return { title: r.title, desc: r.desc, phone: r.phone, category: r.category, subtype: r.subtype, priceSom: r.priceSom != null ? String(r.priceSom) : "" };
+}
+
 function ElonlarAdminView() {
   const [data, setData] = useState<AdminClassifiedListResponse | null>(null);
   const [stFilter, setStFilter] = useState<string>("all");
   const [catFilter, setCatFilter] = useState<string>("all");
   const [q, setQ] = useState("");
   const [openId, setOpenId] = useState<number | null>(null);
-  const [drill, setDrill] = useState<{ viewers: AdminAdViewerRow[]; contacts: AdminAdContactRow[] } | null>(null);
+  const [drill, setDrill] = useState<{ viewers: AdminAdViewerRow[]; contacts: AdminAdContactRow[]; reactions: AdminAdReactionRow[] } | null>(null);
   const [msg, setMsg] = useState("");
+  const [draft, setDraft] = useState<ElonDraft | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [showAdd, setShowAdd] = useState(false);
+  const [newAd, setNewAd] = useState<{ title: string; desc: string; phone: string; category: string; subtype: string; priceSom: string }>(
+    { title: "", desc: "", phone: "", category: CLASSIFIED_CATEGORIES[0]!.id, subtype: CLASSIFIED_CATEGORIES[0]!.subtypes[0], priceSom: "" },
+  );
 
   const load = () => { adminApi.elonList().then(setData).catch(() => undefined); };
   useEffect(() => { load(); }, []);
 
-  const toggle = async (id: number) => {
-    if (openId === id) { setOpenId(null); setDrill(null); return; }
-    setOpenId(id); setDrill(null);
-    const [v, c] = await Promise.all([
-      adminApi.elonViewers(id).catch(() => ({ viewers: [] as AdminAdViewerRow[] })),
-      adminApi.elonContacts(id).catch(() => ({ contacts: [] as AdminAdContactRow[] })),
+  const toggle = async (r: AdminClassifiedRow) => {
+    if (openId === r.id) { setOpenId(null); setDrill(null); setDraft(null); return; }
+    setOpenId(r.id); setDrill(null); setDraft(elonDraftFromRow(r));
+    const [v, c, rx] = await Promise.all([
+      adminApi.elonViewers(r.id).catch(() => ({ viewers: [] as AdminAdViewerRow[] })),
+      adminApi.elonContacts(r.id).catch(() => ({ contacts: [] as AdminAdContactRow[] })),
+      adminApi.elonReactions(r.id).catch(() => ({ reactions: [] as AdminAdReactionRow[] })),
     ]);
-    setDrill({ viewers: v.viewers, contacts: c.contacts });
+    setDrill({ viewers: v.viewers, contacts: c.contacts, reactions: rx.reactions });
+  };
+
+  const createAd = async () => {
+    if (newAd.title.trim().length < 3 || !newAd.phone.trim()) { setMsg("⚠️ Sarlavha va telefon shart"); return; }
+    const patch: Record<string, unknown> = {
+      title: newAd.title, desc: newAd.desc, phone: newAd.phone, category: newAd.category, subtype: newAd.subtype,
+      priceSom: newAd.priceSom.trim() === "" ? null : Number(newAd.priceSom),
+    };
+    const r = await adminApi.elonCreate(patch).catch((e: Error) => ({ ok: false as const, error: e.message }));
+    setMsg(
+      !r.ok ? `❌ ${("error" in r && r.error) || "xatolik"}`
+      : r.ownerMatched ? `✅ Qo'shildi — botda topildi, ${r.ownerName ?? "mijoz"} nomiga bog'landi (o'zi "Mening e'lonlarim"da ko'radi)`
+      : "✅ Qo'shildi (darhol aktiv) — bu raqam botda topilmadi, hozircha admin nomida",
+    );
+    if (r.ok) {
+      setNewAd({ title: "", desc: "", phone: "", category: CLASSIFIED_CATEGORIES[0]!.id, subtype: CLASSIFIED_CATEGORIES[0]!.subtypes[0], priceSom: "" });
+      setShowAdd(false);
+      load();
+    }
   };
 
   const act = async (fn: () => Promise<{ ok: boolean }>, okMsg: string) => {
     const r = await fn().catch(() => ({ ok: false }));
     setMsg(r.ok ? okMsg : "❌ xatolik");
+    load();
+  };
+
+  const saveDraft = async (id: number) => {
+    if (!draft) return;
+    if (draft.title.trim().length < 3) { setMsg("❌ Sarlavha kamida 3 ta belgi bo'lsin"); return; }
+    setSaving(true);
+    const patch: Record<string, unknown> = {
+      title: draft.title, desc: draft.desc, phone: draft.phone, category: draft.category, subtype: draft.subtype,
+      priceSom: draft.priceSom.trim() === "" ? null : Number(draft.priceSom),
+    };
+    const r = await adminApi.elonEdit(id, patch).catch((e: Error) => ({ ok: false as const, error: e.message }));
+    setMsg(r.ok ? "✅ Saqlandi" : `❌ ${("error" in r && r.error) || "xatolik"}`);
+    setSaving(false);
+    load();
+  };
+
+  const uploadPhoto = (id: number) => {
+    const input = document.createElement("input");
+    input.type = "file";
+    input.accept = "image/*";
+    input.onchange = () => {
+      const f = input.files?.[0];
+      if (!f) return;
+      if (f.size > 5 * 1024 * 1024) { setMsg("❌ Rasm 5MB dan kichik bo'lsin"); return; }
+      const reader = new FileReader();
+      reader.onload = async () => {
+        const base64 = String(reader.result).split(",")[1] ?? "";
+        const r = await adminApi.elonPhotoUpload(id, f.type || "image/jpeg", base64).catch((e: Error) => ({ ok: false as const, error: e.message }));
+        setMsg(r.ok ? `✅ Rasm yuklandi (${("photoCount" in r && r.photoCount) || "?"}/6)` : `❌ ${("error" in r && r.error) || "xatolik"}`);
+        load();
+      };
+      reader.readAsDataURL(f);
+    };
+    input.click();
+  };
+
+  const clearPhotos = async (id: number) => {
+    if (!window.confirm("Barcha rasmlar o'chirilsinmi? (qayta yuklash uchun avval tozalang)")) return;
+    await adminApi.elonPhotoClear(id).catch(() => undefined);
+    setMsg("🗑 Rasmlar tozalandi");
+    load();
+  };
+
+  const remove = async (r: AdminClassifiedRow) => {
+    if (!window.confirm(`"${r.title}" BUTUNLAY o'chirilsinmi? Bu qaytarib bo'lmaydi (arxivlash emas — to'liq o'chirish).`)) return;
+    await adminApi.elonDelete(r.id).catch(() => undefined);
+    if (openId === r.id) { setOpenId(null); setDraft(null); }
+    setMsg("🗑 O'chirildi");
     load();
   };
 
@@ -2433,8 +2546,34 @@ function ElonlarAdminView() {
       <div className="panel-title">📋 E&apos;lonlar (mahalla doskasi)</div>
       <p className="muted" style={{ marginTop: 0 }}>
         {data && <>Jami {data.rows.length} ta · 🟢 faol {data.active} · {data.pending > 0 ? <b style={{ color: "#f59e0b" }}>⏳ {data.pending} moderatsiyada</b> : "⏳ 0 moderatsiyada"} · bugun 👁 {data.todayViews} ko&apos;rish · 🪙 {data.todayCoins} tanga tushum.</>}
-        {" "}Tasdiqlash/rad FAQAT Telegram&apos;da (owner [✅/❌]) — bu yerda faqat ko&apos;rish va arxivla/uzayt/TOP.
+        {" "}Tasdiqlash/rad Telegram&apos;da (owner [✅/❌]) YOKI shu yerda ✅/❌ tugmasi bilan; tarkibni tahrirlash/rasm/o&apos;chirish/arxivla/uzayt/TOP ham shu yerda.
       </p>
+      <button className="btn sm" onClick={() => setShowAdd((v) => !v)}>{showAdd ? "✖ Yopish" : "➕ Yangi e'lon qo'shish"}</button>
+      {showAdd && (
+        <div className="adm-form-grid" style={{ marginTop: 10, marginBottom: 10 }}>
+          <div className="adm-field"><span className="adm-field-label">Sarlavha</span><input value={newAd.title} onChange={(e) => setNewAd({ ...newAd, title: e.target.value })} placeholder="Masalan: Velosiped sotiladi" /></div>
+          <div className="adm-field"><span className="adm-field-label">Telefon</span><input value={newAd.phone} onChange={(e) => setNewAd({ ...newAd, phone: e.target.value })} placeholder="+998 90 123 45 67" /></div>
+          <div className="adm-field">
+            <span className="adm-field-label">Toifa</span>
+            <select value={newAd.category} onChange={(e) => {
+              const cat = CLASSIFIED_CATEGORIES.find((c) => c.id === e.target.value);
+              setNewAd({ ...newAd, category: e.target.value, subtype: cat?.subtypes[0] ?? newAd.subtype });
+            }}>
+              {CLASSIFIED_CATEGORIES.map((c) => <option key={c.id} value={c.id}>{c.emoji} {c.label}</option>)}
+            </select>
+          </div>
+          <div className="adm-field">
+            <span className="adm-field-label">Kichik toifa</span>
+            <select value={newAd.subtype} onChange={(e) => setNewAd({ ...newAd, subtype: e.target.value })}>
+              {(CLASSIFIED_CATEGORIES.find((c) => c.id === newAd.category)?.subtypes ?? []).map((st, i) => (
+                <option key={st} value={st}>{CLASSIFIED_CATEGORIES.find((c) => c.id === newAd.category)?.subtypeLabels[i] ?? st}</option>
+              ))}
+            </select>
+          </div>
+          <div className="adm-field"><span className="adm-field-label">Narx (so&apos;m, bo&apos;sh = Kelishiladi)</span><input value={newAd.priceSom} onChange={(e) => setNewAd({ ...newAd, priceSom: e.target.value.replace(/\D/g, "") })} /></div>
+          <div className="adm-field"><span className="adm-field-label">&nbsp;</span><button onClick={createAd}>➕ Qo&apos;shish</button></div>
+        </div>
+      )}
       <div className="adm-toolbar">
         <input className="search" value={q} onChange={(e) => setQ(e.target.value)} placeholder="🔍 Sarlavha, egasi yoki telefon…" />
         <select className="inp" value={catFilter} onChange={(e) => setCatFilter(e.target.value)}>
@@ -2453,7 +2592,7 @@ function ElonlarAdminView() {
       {msg && <div className="action-msg">{msg}</div>}
       {rows.map((r) => (
         <div key={r.id} className={"adm-card" + (openId === r.id ? " open" : "") + (r.reports > 0 ? " flagged" : "")}>
-          <div className="adm-card-head" role="button" tabIndex={0} onClick={() => void toggle(r.id)} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); void toggle(r.id); } }}>
+          <div className="adm-card-head" role="button" tabIndex={0} onClick={() => void toggle(r)} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); void toggle(r); } }}>
             <div className="adm-card-main">
               <div className="adm-card-title">
                 {r.hasPhoto ? "📷" : "🚫📷"} {r.title}
@@ -2467,11 +2606,18 @@ function ElonlarAdminView() {
                 {r.paidCoins > 0 && <span>🪙 {r.paidCoins}</span>}
                 <span>👤 {r.owner.name} · {r.owner.phone ?? "telefon yo'q"} · {r.owner.activeAdsCount} faol e&apos;lon</span>
                 {r.pendingMinutes != null && <span>⏳ {r.pendingMinutes} daq kutmoqda</span>}
+                {(r.likeCount > 0 || r.dislikeCount > 0) && <span>👍 {r.likeCount} · 👎 {r.dislikeCount}</span>}
               </div>
             </div>
             <span className="adm-card-stats">👁 {r.viewCount} · 📞 {r.contactCount}</span>
             <div className="adm-card-actions" onClick={(e) => e.stopPropagation()}>
               {r.owner.phone && <a className="btn sm" href={telHref(r.owner.phone)}>📞 Egasiga</a>}
+              {r.status === "pending" && (
+                <>
+                  <button className="btn sm" onClick={() => void act(() => adminApi.elonEdit(r.id, { status: "active" }), "✅ Tasdiqlandi")}>✅ Tasdiqlash</button>
+                  <button className="btn sm" onClick={() => void act(() => adminApi.elonEdit(r.id, { status: "rejected" }), "❌ Rad etildi")}>❌ Rad etish</button>
+                </>
+              )}
               {(r.status === "active" || r.status === "sold") && (
                 <>
                   <button className="btn sm" title={r.isTop ? `TOP muddati: ${r.topUntil ? new Date(r.topUntil).toLocaleString("ru-RU") : "—"} — bosib o'chiring` : "24 soatga TOP qilib qo'yish (ro'yxat boshida)"} onClick={() => void act(() => adminApi.elonSetTop(r.id, !r.isTop), r.isTop ? "☆ TOP olib tashlandi" : "📌 TOP berildi")}>
@@ -2484,11 +2630,53 @@ function ElonlarAdminView() {
               {(r.status === "rejected" || r.status === "archived" || r.status === "expired") && (
                 <button className="btn sm" title="30 kunga uzaytirib qayta faollashtiradi" onClick={() => void act(() => adminApi.elonExtend(r.id), "♻️ Qayta faollashtirildi")}>♻️ Qayta faollashtir</button>
               )}
+              <button className="btn sm danger" title="Butunlay o'chirish (arxivlash emas)" onClick={() => void remove(r)}>🗑 O&apos;chirish</button>
             </div>
             <span className="adm-card-chev">{openId === r.id ? "▾" : "▸"}</span>
           </div>
           {openId === r.id && (
             <div className="adm-card-body">
+              {draft && (
+                <div style={{ marginBottom: 16 }}>
+                <div className="adm-form-grid wide">
+                  <div className="adm-field"><span className="adm-field-label">Sarlavha</span><input value={draft.title} onChange={(e) => setDraft({ ...draft, title: e.target.value })} /></div>
+                  <div className="adm-field"><span className="adm-field-label">Telefon</span><input value={draft.phone} onChange={(e) => setDraft({ ...draft, phone: e.target.value })} /></div>
+                  <div className="adm-field">
+                    <span className="adm-field-label">Toifa</span>
+                    <select value={draft.category} onChange={(e) => {
+                      const cat = CLASSIFIED_CATEGORIES.find((c) => c.id === e.target.value);
+                      setDraft({ ...draft, category: e.target.value, subtype: cat?.subtypes[0] ?? draft.subtype });
+                    }}>
+                      {CLASSIFIED_CATEGORIES.map((c) => <option key={c.id} value={c.id}>{c.emoji} {c.label}</option>)}
+                    </select>
+                  </div>
+                  <div className="adm-field">
+                    <span className="adm-field-label">Kichik toifa</span>
+                    <select value={draft.subtype} onChange={(e) => setDraft({ ...draft, subtype: e.target.value })}>
+                      {(CLASSIFIED_CATEGORIES.find((c) => c.id === draft.category)?.subtypes ?? []).map((st, i) => (
+                        <option key={st} value={st}>{CLASSIFIED_CATEGORIES.find((c) => c.id === draft.category)?.subtypeLabels[i] ?? st}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="adm-field"><span className="adm-field-label">Narx (so&apos;m, bo&apos;sh = Kelishiladi)</span><input value={draft.priceSom} onChange={(e) => setDraft({ ...draft, priceSom: e.target.value.replace(/\D/g, "") })} /></div>
+                  <div className="adm-field">
+                    <span className="adm-field-label">Rasm ({r.photoCount}/6)</span>
+                    <div style={{ display: "flex", gap: 8 }}>
+                      <button className="btn sm" onClick={() => uploadPhoto(r.id)}>📷 Yuklash</button>
+                      {r.photoCount > 0 && <button className="btn sm" onClick={() => void clearPhotos(r.id)}>🗑 Tozalash</button>}
+                    </div>
+                  </div>
+                  <div className="adm-field">
+                    <span className="adm-field-label">&nbsp;</span>
+                    <button disabled={saving} onClick={() => void saveDraft(r.id)}>{saving ? "Saqlanmoqda…" : "💾 Saqlash"}</button>
+                  </div>
+                </div>
+                <div className="adm-field" style={{ marginTop: 10 }}>
+                  <span className="adm-field-label">Tavsif</span>
+                  <textarea value={draft.desc} onChange={(e) => setDraft({ ...draft, desc: e.target.value })} rows={3} />
+                </div>
+                </div>
+              )}
               {!drill ? "Yuklanmoqda…" : (
                 <div style={{ display: "flex", gap: 20, flexWrap: "wrap" }}>
                   <div>
@@ -2500,6 +2688,16 @@ function ElonlarAdminView() {
                     <b>📞 Kim murojaat qildi ({drill.contacts.length})</b>
                     {drill.contacts.map((c, i) => <div key={i} className="muted" style={{ fontSize: 12, marginTop: 4 }}>{c.kind === "call" ? "📞" : "✍️"} {c.name} · {new Date(c.at).toLocaleString("ru-RU")}</div>)}
                     {!drill.contacts.length && <div className="muted" style={{ fontSize: 12, marginTop: 4 }}>Hali hech kim murojaat qilmagan</div>}
+                  </div>
+                  <div>
+                    <b>👍👎 Reaksiyalar ({drill.reactions.length})</b>
+                    {drill.reactions.map((rx) => (
+                      <div key={rx.id} className="muted" style={{ fontSize: 12, marginTop: 4 }}>
+                        {rx.kind === "like" ? "👍" : "👎"} {rx.authorName} · {new Date(rx.at).toLocaleString("ru-RU")}
+                        {rx.comment && <div style={{ marginLeft: 18, marginTop: 2 }}>&quot;{rx.comment}&quot;</div>}
+                      </div>
+                    ))}
+                    {!drill.reactions.length && <div className="muted" style={{ fontSize: 12, marginTop: 4 }}>Hali hech kim reaksiya bildirmagan</div>}
                   </div>
                 </div>
               )}

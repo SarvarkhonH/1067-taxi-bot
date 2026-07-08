@@ -179,6 +179,37 @@ export function EmptyState({ icon = "🗂", text, action, onAction }: { icon?: s
   );
 }
 
+/** To'liq-ekran rasm ko'ruvchi (shop bo'limidan ko'chirilgan, endi umumiy): gorizontal scroll-snap
+ *  barcha rasmlar bo'ylab, ‹ Orqaga tugma HAR DOIM ustida, fonni bosish ham yopadi. */
+export function Lightbox({ count, start, photoUrl, onClose }: { count: number; start: number; photoUrl: (i: number) => string; onClose: () => void }) {
+  const stripRef = useRef<HTMLDivElement | null>(null);
+  const [idx, setIdx] = useState(start);
+  useEffect(() => {
+    stripRef.current?.scrollTo({ left: start * stripRef.current.clientWidth, behavior: "auto" });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  return (
+    <div className="shop-lightbox" onClick={onClose}>
+      <button className="shop-lightbox-back" onClick={(e) => { e.stopPropagation(); haptic(); onClose(); }}>‹ Orqaga</button>
+      <div
+        ref={stripRef}
+        className="shop-lightbox-strip"
+        onClick={(e) => e.stopPropagation()}
+        onScroll={(e) => { const el = e.currentTarget; setIdx(Math.round(el.scrollLeft / el.clientWidth)); }}
+      >
+        {Array.from({ length: count }, (_, i) => (
+          <img key={i} className="shop-lightbox-img" src={photoUrl(i)} alt="" loading={Math.abs(i - start) <= 1 ? "eager" : "lazy"} />
+        ))}
+      </div>
+      {count > 1 && (
+        <div className="shop-lightbox-dots">
+          {Array.from({ length: count }, (_, i) => <span key={i} className={"shop-gallery-dot" + (i === idx ? " on" : "")} />)}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export function TierBadge({ tier }: { tier: string }) {
   const key = tier.toLowerCase();
   const cls = ["bronza", "kumush", "oltin", "olmos"].includes(key) ? key : "bronza";

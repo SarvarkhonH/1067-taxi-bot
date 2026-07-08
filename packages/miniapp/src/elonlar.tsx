@@ -16,7 +16,7 @@ import {
 import { api, apiUrl } from "./api";
 import { haptic, hapticSuccess, tg } from "./telegram";
 import { compressImage } from "./util";
-import { Button, EmptyState, Sheet, Skeleton } from "./design/components";
+import { Button, EmptyState, Lightbox, Sheet, Skeleton } from "./design/components";
 
 type PriceBand = "arzon" | "ortacha" | "qimmat";
 
@@ -214,7 +214,11 @@ function PostWizard({ me, onDone, onClose }: { me: MeResponse; onDone: () => voi
 function AdDetail({ id, onBanner }: { id: number; onBanner: (m: string) => void }) {
   const [d, setD] = useState<ClassifiedDetail | null>(null);
   const [photoIdx, setPhotoIdx] = useState(0);
+  const [lightbox, setLightbox] = useState(false); // 🔍 rasmga bosilganda TO'LIQ EKRAN (shop/xizmatlar bilan bir xil)
   const [reported, setReported] = useState(false);
+  const [dislikeOpen, setDislikeOpen] = useState(false);
+  const [dislikeText, setDislikeText] = useState("");
+  const [reacting, setReacting] = useState(false);
   useEffect(() => { api.elonAd(id).then(setD).catch(() => setD(null)); }, [id]);
   if (!d) return <div className="view"><Skeleton h={220} /><Skeleton h={20} w="60%" /><Skeleton h={60} /></div>;
   const cat = classifiedCategoryDef(d.category);
@@ -229,10 +233,50 @@ function AdDetail({ id, onBanner }: { id: number; onBanner: (m: string) => void 
     if (t?.openTelegramLink) t.openTelegramLink(url); else window.open(url, "_blank");
   };
 
+  const like = () => {
+    if (reacting) return;
+    setReacting(true);
+    void api.elonReact(id, { kind: "like" })
+      .then((r) => { if (r.ok) setD({ ...d, likeCount: r.likeCount ?? d.likeCount, dislikeCount: r.dislikeCount ?? d.dislikeCount, myReaction: r.myReaction ?? null }); })
+      .catch(() => undefined)
+      .finally(() => setReacting(false));
+  };
+  const dislikeTap = () => {
+    if (reacting) return;
+    if (d.myReaction === "dislike") {
+      // toggle off — no comment needed for removal
+      setReacting(true);
+      void api.elonReact(id, { kind: "dislike" })
+        .then((r) => { if (r.ok) setD({ ...d, likeCount: r.likeCount ?? d.likeCount, dislikeCount: r.dislikeCount ?? d.dislikeCount, myReaction: r.myReaction ?? null }); })
+        .catch(() => undefined)
+        .finally(() => setReacting(false));
+      return;
+    }
+    setDislikeOpen(true);
+  };
+  const submitDislike = () => {
+    if (dislikeText.trim().length < 3 || reacting) return;
+    setReacting(true);
+    void api.elonReact(id, { kind: "dislike", comment: dislikeText.trim() })
+      .then((r) => {
+        if (r.ok) { setD({ ...d, likeCount: r.likeCount ?? d.likeCount, dislikeCount: r.dislikeCount ?? d.dislikeCount, myReaction: r.myReaction ?? null }); setDislikeOpen(false); setDislikeText(""); }
+        else if (r.reason === "need_comment") onBanner("Sabab kamida 3 ta belgi bo'lsin");
+        else if (r.reason === "banned_word") onBanner("Bu so'zlarni yozib bo'lmaydi");
+      })
+      .catch(() => undefined)
+      .finally(() => setReacting(false));
+  };
+
   return (
     <div className="view">
       {d.hasPhoto ? (
-        <img className="elon-card-photo" style={{ borderRadius: 14, aspectRatio: "4/3" }} src={apiUrl(`/api/elonlar/photo/${id}/${photoIdx}`)} alt="" />
+        <img
+          className="elon-card-photo"
+          style={{ borderRadius: 14, aspectRatio: "4/3", cursor: "zoom-in" }}
+          src={apiUrl(`/api/elonlar/photo/${id}/${photoIdx}`)}
+          alt=""
+          onClick={() => { haptic(); setLightbox(true); }}
+        />
       ) : (
         <div className="elon-card-photo" style={{ borderRadius: 14, aspectRatio: "4/3", fontSize: 48 }}>{cat?.emoji ?? "📋"}</div>
       )}
@@ -257,6 +301,28 @@ function AdDetail({ id, onBanner }: { id: number; onBanner: (m: string) => void 
       </div>
       <p className="muted" style={{ fontSize: 12 }}>👁 {d.viewCount} ko'rgan · 📞 {d.callCount} murojaat</p>
 
+      <div className="elon-chips" style={{ marginTop: 4 }}>
+        <button className={`elon-chip${d.myReaction === "like" ? " on" : ""}`} style={{ ["--acc" as string]: "#22c55e" }} disabled={reacting} onClick={like}>👍 {d.likeCount}</button>
+        <button className={`elon-chip${d.myReaction === "dislike" ? " on" : ""}`} style={{ ["--acc" as string]: "#ef4444" }} disabled={reacting} onClick={dislikeTap}>👎 {d.dislikeCount}</button>
+      </div>
+      {dislikeOpen && (
+        <div style={{ marginTop: 8 }}>
+          <textarea
+            className="bk-input"
+            placeholder="Nega yoqmadi? Qisqacha yozing…"
+            value={dislikeText}
+            onChange={(e) => setDislikeText(e.target.value)}
+            rows={2}
+            maxLength={300}
+            style={{ minHeight: 50 }}
+          />
+          <div className="elon-btnrow" style={{ marginTop: 6 }}>
+            <Button sm disabled={dislikeText.trim().length < 3 || reacting} onClick={submitDislike}>👎 Yuborish</Button>
+            <Button sm variant="ghost" onClick={() => { setDislikeOpen(false); setDislikeText(""); }}>Bekor qilish</Button>
+          </div>
+        </div>
+      )}
+
       <div className="elon-btnrow">
         <Button className="elon-fab-inline" onClick={call}>📞 Qo'ng'iroq</Button>
         {d.owner.username && <Button variant="ghost" onClick={write}>✍️ Yozish</Button>}
@@ -268,6 +334,14 @@ function AdDetail({ id, onBanner }: { id: number; onBanner: (m: string) => void 
       >
         {reported ? "🚩 Shikoyat yuborildi" : "🚩 Shikoyat qilish"}
       </button>
+      {d.hasPhoto && lightbox && (
+        <Lightbox
+          count={d.photoCount}
+          start={photoIdx}
+          photoUrl={(i) => apiUrl(`/api/elonlar/photo/${id}/${i}`)}
+          onClose={() => setLightbox(false)}
+        />
+      )}
     </div>
   );
 }

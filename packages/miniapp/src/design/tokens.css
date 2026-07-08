@@ -1702,7 +1702,7 @@ body {
 .svc-detail { display: flex; flex-direction: column; gap: 10px; }
 .svc-gallery-strip { display: flex; overflow-x: auto; scroll-snap-type: x mandatory; border-radius: var(--r-card); scrollbar-width: none; }
 .svc-gallery-strip::-webkit-scrollbar { display: none; }
-.svc-gallery-strip img { width: 100%; flex-shrink: 0; aspect-ratio: 16 / 10; object-fit: cover; scroll-snap-align: center; background: var(--surface); }
+.svc-gallery-strip img { width: 100%; flex-shrink: 0; aspect-ratio: 16 / 10; object-fit: cover; scroll-snap-align: center; background: var(--surface); cursor: zoom-in; }
 .svc-gallery-dots { display: flex; justify-content: center; gap: 5px; margin-top: 6px; }
 .svc-gallery-dots span { width: 6px; height: 6px; border-radius: 50%; background: var(--line); transition: background var(--dur-press); }
 .svc-gallery-dots span.on { background: var(--svc-accent); }
@@ -2217,8 +2217,10 @@ body {
 .svc-insp-badge { display: inline-block; font-size: 10.5px; font-weight: 800; color: #99f6e4;
   background: color-mix(in srgb, #14b8a6 28%, transparent); border: 1px solid color-mix(in srgb, #14b8a6 50%, transparent);
   padding: 2px 7px; border-radius: var(--r-chip); margin-bottom: 2px; }
-.svc-insp { border: 1px solid color-mix(in srgb, #14b8a6 40%, transparent); background: color-mix(in srgb, #14b8a6 10%, var(--card)); }
-.svc-insp b { color: #5eead4; }
+.svc-insp { border: 1px solid color-mix(in srgb, #14b8a6 40%, transparent); border-left: 3px solid #14b8a6;
+  background: color-mix(in srgb, #14b8a6 10%, var(--card)); }
+.svc-insp b { color: #5eead4; font-size: 13.5px; }
+.svc-insp-hint { font-size: 11px; color: color-mix(in srgb, #14b8a6 65%, var(--muted)); margin-top: 2px; }
 .svc-socials { display: flex; gap: 8px; flex-wrap: wrap; }
 .svc-soc { padding: 8px 12px; border-radius: var(--r-chip); border: 1px solid var(--line); background: var(--surface-2); color: var(--text);
   font-size: 12.5px; font-weight: 600; text-decoration: none; transition: transform var(--dur-press) var(--ease-out); }
@@ -2316,7 +2318,8 @@ body {
 .app.xizmat-light .svc-gallery-strip img { background: #eef4ff; }
 .app.xizmat-light .svc-claim-btn { border: 1px dashed #a8c2f0; color: #4a6491; }
 .app.xizmat-light .svc-insp-badge { color: #ffffff; background: #0d9488; border-color: transparent; }
-.app.xizmat-light .svc-insp { background: color-mix(in srgb, #14b8a6 8%, #ffffff); border: 1px solid color-mix(in srgb, #14b8a6 35%, transparent); }
+.app.xizmat-light .svc-insp { background: color-mix(in srgb, #14b8a6 8%, #ffffff); border: 1px solid color-mix(in srgb, #14b8a6 35%, transparent); border-left: 3px solid #0d9488; }
+.app.xizmat-light .svc-insp-hint { color: #0f766e; }
 
 /* "Barcha kategoriyalar"ga qaytish tugmasi (.pay-back reuse) — shop-wrap .pay-back qolipidan;
    ega: "sariq rangdan back belgisi bilinmay qolgan" — asl oltin chevron ko'k fonda ko'zga

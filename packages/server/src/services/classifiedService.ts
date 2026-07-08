@@ -9,12 +9,15 @@ import {
   classifiedCategoryDef,
   formatNumber,
   type AdminAdContactRow,
+  type AdminAdReactionRow,
   type AdminAdViewerRow,
   type AdminClassifiedListResponse,
   type AdminClassifiedRow,
   type ClassifiedCard,
   type ClassifiedDetail,
   type ClassifiedOwnerProfile,
+  type ClassifiedReactBody,
+  type ClassifiedReactResponse,
   type ClassifiedReportResponse,
   type ClassifiedSubmitBody,
   type ClassifiedSubmitResponse,
@@ -133,7 +136,13 @@ export async function getAd(id: number, tgId: string | null, preview = false): P
     }).catch(() => undefined);
     void prisma.classifiedAd.update({ where: { id }, data: { viewCount: { increment: 1 } } }).catch(() => undefined);
   }
-  const owner = await ownerProfile(a.tgId);
+  const [owner, reactionGroups, mine] = await Promise.all([
+    ownerProfile(a.tgId),
+    prisma.adReaction.groupBy({ by: ["kind"], where: { adId: id }, _count: true }),
+    tgId ? prisma.adReaction.findUnique({ where: { adId_tgId: { adId: id, tgId: BigInt(tgId) } }, select: { kind: true } }) : Promise.resolve(null),
+  ]);
+  const likeCount = reactionGroups.find((g) => g.kind === "like")?._count ?? 0;
+  const dislikeCount = reactionGroups.find((g) => g.kind === "dislike")?._count ?? 0;
   return {
     ...toCard(a),
     desc: a.desc,
@@ -142,7 +151,50 @@ export async function getAd(id: number, tgId: string | null, preview = false): P
     viewCount: a.viewCount + (tgId ? 1 : 0),
     callCount: a.callCount,
     owner,
+    likeCount,
+    dislikeCount,
+    myReaction: (mine?.kind as "like" | "dislike" | undefined) ?? null,
   };
+}
+
+/** 👍👎 rider reaksiyasi — like bitta tegish, dislike izoh talab qiladi (egasiga foydali signal).
+ *  Bir xil kind qayta bosilsa reaksiya OLIB TASHLANADI (toggle-off); boshqa kind bosilsa almashadi. */
+export async function submitReaction(
+  tgId: string,
+  authorName: string,
+  adId: number,
+  body: ClassifiedReactBody,
+  preview = false,
+): Promise<ClassifiedReactResponse> {
+  if (!(await elonlarOn(preview))) return { ok: false, reason: "off" };
+  if (body.kind !== "like" && body.kind !== "dislike") return { ok: false, reason: "bad_kind" };
+  const a = await prisma.classifiedAd.findUnique({ where: { id: adId }, select: { id: true, status: true } });
+  if (!a || a.status !== "active") return { ok: false, reason: "not_found" };
+
+  const comment = (body.comment ?? "").trim().slice(0, 300);
+  const existing = await prisma.adReaction.findUnique({ where: { adId_tgId: { adId, tgId: BigInt(tgId) } } });
+  const willRemove = existing && existing.kind === body.kind;
+  // comment only required when a dislike is being CREATED/CHANGED-TO — not when toggling an
+  // existing dislike OFF (that's a plain removal, no new reason needed).
+  if (!willRemove && body.kind === "dislike") {
+    if (comment.length < 3) return { ok: false, reason: "need_comment" };
+    if (hasBannedWord(comment)) return { ok: false, reason: "banned_word" };
+  }
+
+  if (willRemove) {
+    await prisma.adReaction.delete({ where: { id: existing!.id } });
+  } else {
+    await prisma.adReaction.upsert({
+      where: { adId_tgId: { adId, tgId: BigInt(tgId) } },
+      update: { kind: body.kind, comment: body.kind === "dislike" ? comment : "", authorName: authorName.slice(0, 60) },
+      create: { adId, tgId: BigInt(tgId), authorName: authorName.slice(0, 60), kind: body.kind, comment: body.kind === "dislike" ? comment : "" },
+    });
+  }
+  const groups = await prisma.adReaction.groupBy({ by: ["kind"], where: { adId }, _count: true });
+  const likeCount = groups.find((g) => g.kind === "like")?._count ?? 0;
+  const dislikeCount = groups.find((g) => g.kind === "dislike")?._count ?? 0;
+  const mine = await prisma.adReaction.findUnique({ where: { adId_tgId: { adId, tgId: BigInt(tgId) } }, select: { kind: true } });
+  return { ok: true, likeCount, dislikeCount, myReaction: (mine?.kind as "like" | "dislike" | undefined) ?? null };
 }
 
 /** 📞/✍️ bosilganda log — fire-and-forget, soxtalab bo'lmaydi (server-side, §4). */
@@ -258,6 +310,140 @@ export async function reactivateAd(tgId: string, adId: number): Promise<{ ok: bo
 export async function deleteAd(tgId: string, adId: number): Promise<{ ok: boolean }> {
   const r = await prisma.classifiedAd.updateMany({ where: { id: adId, tgId: BigInt(tgId), status: { not: "sold" } }, data: { status: "archived" } });
   return { ok: r.count > 0 };
+}
+
+// ── Admin CRUD (panel-side edit/delete — approve/reject stays Telegram-first, but admin can now
+// fix a bad title/phone/category directly, or remove a listing outright, without a raw DB script). ──
+
+export interface AdminAdPatch {
+  title?: string;
+  desc?: string;
+  category?: string;
+  subtype?: string;
+  priceSom?: number | null;
+  phone?: string;
+  status?: string;
+}
+
+export async function adminEditAd(id: number, b: AdminAdPatch): Promise<{ ok: boolean; error?: string }> {
+  const data: Record<string, unknown> = {};
+  if (typeof b.title === "string") {
+    const t = b.title.trim().slice(0, 80);
+    if (t.length < 3) return { ok: false, error: "bad_title" };
+    data.title = t;
+  }
+  if (typeof b.desc === "string") data.desc = b.desc.trim().slice(0, 500);
+  if (b.category !== undefined || b.subtype !== undefined) {
+    const cur = await prisma.classifiedAd.findUnique({ where: { id }, select: { category: true, subtype: true } });
+    if (!cur) return { ok: false, error: "not_found" };
+    const cat = classifiedCategoryDef(b.category ?? cur.category);
+    if (!cat) return { ok: false, error: "bad_category" };
+    const subtype = b.subtype ?? cur.subtype;
+    if (!cat.subtypes.includes(subtype)) return { ok: false, error: "bad_subtype" };
+    data.category = cat.id;
+    data.subtype = subtype;
+  }
+  if (b.priceSom !== undefined) {
+    if (b.priceSom === null) data.priceSom = null;
+    else {
+      const p = Math.floor(Number(b.priceSom));
+      if (!Number.isFinite(p) || p < 0) return { ok: false, error: "bad_price" };
+      data.priceSom = p > 0 ? Math.min(p, 5_000_000_000) : null;
+    }
+  }
+  if (typeof b.phone === "string") {
+    const p = normalizeUzPhone(b.phone);
+    if (!p) return { ok: false, error: "bad_phone" };
+    data.phone = p;
+  }
+  if (typeof b.status === "string" && ["pending", "active", "sold", "rejected", "archived", "expired"].includes(b.status)) data.status = b.status;
+  if (Object.keys(data).length === 0) return { ok: true }; // nothing to change
+  await prisma.classifiedAd.update({ where: { id }, data }).catch(() => undefined);
+  return { ok: true };
+}
+
+/** Hard delete — for spam/test/mis-imported rows. Everything else in this file only soft-archives;
+ *  this is the one true removal, admin-only. AdPhoto cascades via FK; AdView/AdContact have no FK
+ *  (adId is a plain int) so they're cleared explicitly to avoid orphaned analytics rows. */
+export async function adminDeleteAd(id: number): Promise<{ ok: boolean }> {
+  await prisma.$transaction([
+    prisma.adView.deleteMany({ where: { adId: id } }),
+    prisma.adContact.deleteMany({ where: { adId: id } }),
+    prisma.classifiedAd.delete({ where: { id } }),
+  ]).catch(() => undefined);
+  return { ok: true };
+}
+
+export async function adminClearAdPhotos(adId: number): Promise<{ ok: boolean }> {
+  await prisma.adPhoto.deleteMany({ where: { adId } });
+  return { ok: true };
+}
+
+export interface AdminAdCreate {
+  title: string;
+  desc?: string;
+  category: string;
+  subtype: string;
+  priceSom?: number | null;
+  phone: string;
+  authorName?: string;
+  ownerTgId?: string; // bo'sh = 1-admin akkaunt (shop/xizmatlar "darhol aktiv" naqshi)
+}
+
+/** Admin/operator: panel'dan to'g'ridan-to'g'ri e'lon qo'shish (xizmatlar/do'kon naqshi) —
+ *  moderatsiyasiz, darhol "active". Mijoz telefon qilib/kelib e'lon berganda, lekin o'zi
+ *  bot/miniapp ishlatolmaganda operator shu yerdan kiritadi.
+ *
+ *  Egalik: agar `ownerTgId` berilmasa, kiritilgan TELEFON RAQAM orqali botda mavjud a'zo
+ *  qidiriladi (Member.phone → TelegramUser) — topilsa e'lon O'SHA mijozning akkountiga
+ *  bog'lanadi (keyin "Mening e'lonlarim"da o'zi ko'radi/boshqaradi). Topilmasa 1-admin
+ *  akkauntga bog'lanadi (raw DB skript o'rniga bo'lgan zaxira yo'l). */
+export async function adminCreateAd(b: AdminAdCreate): Promise<{ ok: boolean; id?: number; error?: string; ownerMatched?: boolean; ownerName?: string }> {
+  const cat = classifiedCategoryDef(b.category);
+  if (!cat) return { ok: false, error: "bad_category" };
+  if (!cat.subtypes.includes(b.subtype)) return { ok: false, error: "bad_subtype" };
+  const title = (b.title ?? "").trim().slice(0, 80);
+  if (title.length < 3) return { ok: false, error: "bad_title" };
+  const phone = normalizeUzPhone(b.phone ?? "");
+  if (!phone) return { ok: false, error: "bad_phone" };
+  let priceSom: number | null = null;
+  if (cat.priced && b.priceSom != null) {
+    const p = Math.floor(Number(b.priceSom));
+    if (!Number.isFinite(p) || p < 0) return { ok: false, error: "bad_price" };
+    priceSom = p > 0 ? Math.min(p, 5_000_000_000) : null;
+  }
+
+  let ownerTgId = b.ownerTgId?.trim() || "";
+  let ownerMatched = false;
+  let matchedName: string | undefined;
+  if (!ownerTgId) {
+    // Member.phone kas1067 sync'dan xom holda keladi ("+" siz) — ClassifiedAd.phone kabi hamma
+    // vaqt normalized emas, shuning uchun oxirgi 9 raqam bo'yicha moslashtiramiz (formatga bog'liq emas).
+    const last9 = phone.slice(-9);
+    const member = await prisma.member.findFirst({
+      where: { phone: { endsWith: last9 }, telegramUser: { isNot: null } },
+      select: { displayName: true, fullName: true, telegramUser: { select: { id: true } } },
+    });
+    if (member?.telegramUser?.id) {
+      ownerTgId = member.telegramUser.id;
+      ownerMatched = true;
+      matchedName = member.displayName || member.fullName;
+    }
+  }
+  if (!ownerTgId) {
+    const { env } = await import("../env");
+    ownerTgId = env.adminIds.find((id) => id.trim() !== "") || "";
+  }
+  if (!ownerTgId) return { ok: false, error: "no_owner" };
+
+  const ad = await prisma.classifiedAd.create({
+    data: {
+      tgId: BigInt(ownerTgId), authorName: (b.authorName ?? matchedName ?? "Admin").slice(0, 60), category: cat.id, subtype: b.subtype,
+      title, desc: (b.desc ?? "").trim().slice(0, 500), priceSom: cat.priced ? priceSom : null, phone,
+      status: "active", expiresAt: new Date(Date.now() + CLASSIFIED_AD_DAYS * 86400_000),
+    },
+  });
+  return { ok: true, id: ad.id, ownerMatched, ownerName: matchedName };
 }
 
 // ── E4: TOP boost (tanga-sink, §6) — rider o'z aktiv e'lonini 24 soatga TOP qiladi ────────────────
@@ -377,21 +563,32 @@ export async function adminListAds(status?: string): Promise<AdminClassifiedList
   });
   const ownerCache = new Map<string, { name: string; phone: string | null; activeAdsCount: number }>();
   const dayStart = new Date(); dayStart.setHours(0, 0, 0, 0);
-  const [pending, active, todayViews, todayPaid] = await Promise.all([
+  const [pending, active, todayViews, todayPaid, reactionGroups] = await Promise.all([
     prisma.classifiedAd.count({ where: { status: "pending" } }),
     prisma.classifiedAd.count({ where: { status: "active" } }),
     prisma.adView.count({ where: { at: { gte: dayStart } } }),
     prisma.classifiedAd.aggregate({ where: { createdAt: { gte: dayStart } }, _sum: { paidCoins: true } }),
+    prisma.adReaction.groupBy({ by: ["adId", "kind"], where: { adId: { in: rows.map((a) => a.id) } }, _count: true }),
   ]);
+  const reactionCounts = new Map<number, { like: number; dislike: number }>();
+  for (const g of reactionGroups) {
+    const cur = reactionCounts.get(g.adId) ?? { like: 0, dislike: 0 };
+    if (g.kind === "like") cur.like = g._count;
+    else if (g.kind === "dislike") cur.dislike = g._count;
+    reactionCounts.set(g.adId, cur);
+  }
   const out: AdminClassifiedRow[] = [];
   for (const a of rows) {
     const key = a.tgId.toString();
     if (!ownerCache.has(key)) ownerCache.set(key, await ownerInfo(a.tgId));
     const owner = ownerCache.get(key)!;
+    const rc = reactionCounts.get(a.id) ?? { like: 0, dislike: 0 };
     out.push({
       id: a.id, category: a.category as AdminClassifiedRow["category"], subtype: a.subtype, title: a.title,
+      desc: a.desc, phone: a.phone,
       priceSom: a.priceSom, status: a.status as AdminClassifiedRow["status"], paidCoins: a.paidCoins,
       hasPhoto: a.photos.length > 0, photoCount: a.photos.length, viewCount: a.viewCount, contactCount: a.callCount,
+      likeCount: rc.like, dislikeCount: rc.dislike,
       reports: a.reports, owner: { tgId: key, name: owner.name, phone: owner.phone, activeAdsCount: owner.activeAdsCount },
       createdAt: a.createdAt.toISOString(), expiresAt: a.expiresAt.toISOString(),
       pendingMinutes: a.status === "pending" ? Math.round((Date.now() - a.createdAt.getTime()) / 60_000) : null,
@@ -399,6 +596,11 @@ export async function adminListAds(status?: string): Promise<AdminClassifiedList
     });
   }
   return { rows: out, pending, active, todayViews, todayCoins: todayPaid._sum.paidCoins ?? 0 };
+}
+
+export async function adminAdReactions(adId: number): Promise<AdminAdReactionRow[]> {
+  const rows = await prisma.adReaction.findMany({ where: { adId }, orderBy: { createdAt: "desc" }, take: 100 });
+  return rows.map((r) => ({ id: r.id, tgId: r.tgId.toString(), authorName: r.authorName, kind: r.kind as "like" | "dislike", comment: r.comment, at: r.createdAt.toISOString() }));
 }
 
 export async function adminAdViewers(adId: number): Promise<AdminAdViewerRow[]> {
