@@ -31,6 +31,10 @@ async function main(): Promise<void> {
     adminGetRestaurantDetail,
     uploadRestaurantPhoto,
     uploadMenuItemPhoto,
+    cancelFoodOrder,
+    submitRestaurantReview,
+    listRestaurantReviews,
+    deleteMyRestaurantReview,
   } = await import("../services/restoranService");
   const { __resetFeatureCache, featureOn } = await import("../services/featureFlags");
 
@@ -38,6 +42,7 @@ async function main(): Promise<void> {
     const restaurants = await prisma.restaurant.findMany({ where: { name: { startsWith: TAG } }, select: { id: true } });
     const ids = restaurants.map((r) => r.id);
     await prisma.foodOrder.deleteMany({ where: { restaurantId: { in: ids } } });
+    await prisma.restaurantReview.deleteMany({ where: { restaurantId: { in: ids } } });
     await prisma.menuItem.deleteMany({ where: { restaurantId: { in: ids } } });
     await prisma.restaurant.deleteMany({ where: { id: { in: ids } } });
     await prisma.member.deleteMany({ where: { kasId: { startsWith: TAG } } });
@@ -217,6 +222,33 @@ async function main(): Promise<void> {
   const slaRow = await prisma.foodOrder.findUnique({ where: { id: slaCandidate.orderId! }, select: { slaAlertedAt: true } });
   ok(!!slaRow?.slaAlertedAt, "40: slaAlertedAt persisted after sweep");
 
+  // ── qulayliklar: bekor qilish, sharh (2026-07-08 "hammasini qurib chiqing" so'rovi) ──────────────
+  const member2 = await prisma.member.create({ data: { type: "client", kasId: `${TAG}-B`, fullName: "Ikkinchi Mijoz", phone: "+998901112233", coins: 0 } });
+  const cancelCandidate = await createFoodOrder(member2.id, restaurantId, [{ menuItemId: osh!.id, qty: 1 }], "cancel-addr", "", "", false, true);
+  ok(cancelCandidate.ok, "sanity: cancel-candidate order created");
+  const wrongMemberCancel = await cancelFoodOrder(member.id, cancelCandidate.orderId!); // member.id is NOT this order's owner
+  ok(!wrongMemberCancel.ok && wrongMemberCancel.reason === "not_pending", `41: cancelFoodOrder guards by owner (wrong member can't cancel), got ${JSON.stringify(wrongMemberCancel)}`);
+  const cancelled = await cancelFoodOrder(member2.id, cancelCandidate.orderId!);
+  ok(cancelled.ok, `42: cancelFoodOrder by the real owner succeeds, got ${JSON.stringify(cancelled)}`);
+  const cancelledRow = await prisma.foodOrder.findUnique({ where: { id: cancelCandidate.orderId! }, select: { status: true } });
+  ok(cancelledRow?.status === "cancelled_by_user", `43: status is cancelled_by_user, got ${cancelledRow?.status}`);
+  const doubleCancel = await cancelFoodOrder(member2.id, cancelCandidate.orderId!);
+  ok(!doubleCancel.ok && doubleCancel.reason === "not_pending", "44: double-cancel guarded (already cancelled)");
+
+  const badStars = await submitRestaurantReview(member.id, restaurantId, 0, "no", true);
+  ok(!badStars.ok && badStars.reason === "bad_stars", `45: submitRestaurantReview(0 stars) → bad_stars, got ${JSON.stringify(badStars)}`);
+  const review1 = await submitRestaurantReview(member.id, restaurantId, 5, "Juda mazali!", true);
+  ok(review1.ok && review1.avgRating === 5 && review1.reviewCount === 1, `46: first review sets avgRating=5, got ${JSON.stringify(review1)}`);
+  const review2 = await submitRestaurantReview(member2.id, restaurantId, 3, undefined, true);
+  ok(review2.ok && review2.avgRating === 4 && review2.reviewCount === 2, `47: second review (5+3)/2=4 avgRating, got ${JSON.stringify(review2)}`);
+  const reviewEdit = await submitRestaurantReview(member.id, restaurantId, 1, "Fikrim o'zgardi", true); // re-submit = edit, not a new row
+  ok(reviewEdit.ok && reviewEdit.reviewCount === 2 && reviewEdit.avgRating === 2, `48: re-submit EDITS (still 2 reviews), new avg (1+3)/2=2, got ${JSON.stringify(reviewEdit)}`);
+  const listed = await listRestaurantReviews(restaurantId, member.id, true);
+  ok(listed.reviews.length === 2 && listed.reviews.some((r) => r.memberId === member.id && r.stars === 1 && r.text === "Fikrim o'zgardi"), `49: listRestaurantReviews returns both, mine has edited text, got ${JSON.stringify(listed.reviews)}`);
+  await deleteMyRestaurantReview(member.id, restaurantId);
+  const afterDelete = await listRestaurantReviews(restaurantId, member.id, true);
+  ok(afterDelete.reviews.length === 1 && afterDelete.avgRating === 3, `50: delete removes review + recomputes avgRating to 3, got ${JSON.stringify({ count: afterDelete.reviews.length, avg: afterDelete.avgRating })}`);
+
   // 22) restaurant delete: menu gone, but order HISTORY intentionally SURVIVES (loose restaurantId FK —
   //     a rider's past orders must not vanish just because a restaurant later leaves the catalog)
   await adminDeleteRestaurant(restaurantId);
@@ -224,9 +256,10 @@ async function main(): Promise<void> {
   const menuGone = await prisma.menuItem.count({ where: { restaurantId } });
   const ordersSurvive = await prisma.foodOrder.count({ where: { restaurantId } });
   ok(gone === null && menuGone === 0, "22: restaurant + menu items deleted");
-  // 4 orders total for this restaurant: #1 (delivered), #2 (rejected), #3/addr3 (still pending —
-  // 4th was blocked by pending_limit before any status changed it), + the SLA-sweep candidate
-  ok(ordersSurvive === 4, `23: FoodOrder history intentionally survives restaurant delete, got ${ordersSurvive}`);
+  // 5 orders total for this restaurant: #1 (delivered), #2 (rejected), #3/addr3 (still pending —
+  // 4th was blocked by pending_limit before any status changed it), the SLA-sweep candidate, and
+  // the cancel-flow candidate (member2, now cancelled_by_user)
+  ok(ordersSurvive === 5, `23: FoodOrder history intentionally survives restaurant delete, got ${ordersSurvive}`);
 
   // 24) final cleanup — explicit foodOrder purge (test-data only; production never does this)
   await cleanup();
