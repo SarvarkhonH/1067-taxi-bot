@@ -1,6 +1,7 @@
 import crypto from "node:crypto";
 import express, { type NextFunction, type Request, type Response } from "express";
 import cors from "cors";
+import { installAsyncGuard } from "./asyncGuard";
 import compression from "compression";
 import type { MemberType } from "@t1067/shared";
 import { env } from "../env";
@@ -205,6 +206,7 @@ function requireShopWrite(_req: Request, res: Response, next: NextFunction): voi
 
 export function createApiServer(opts: ApiOptions = {}) {
   const app = express();
+  installAsyncGuard(app);
   app.use(cors());
   app.use(compression()); // T2: gzip har javobga — WAN'da payload kichrayadi (telefon uchun)
   // 6mb: photo-upload routes (driver portrait, shop product) send base64 JSON — the GLOBAL parser
@@ -1364,11 +1366,14 @@ export function createApiServer(opts: ApiOptions = {}) {
     const { clearProductPhotos } = await import("../services/shopService");
     res.json(await clearProductPhotos(Number(req.params.id)));
   });
-  app.get("/api/admin/shop/orders", requireAdmin, async (req, res) => {
+  // V0.1 (BirJoy audit): buyer PII (ism/telefon/manzil) — shopseller-token o'qimasin. Prefix-scope
+  // /api/admin/shop/* hammasini o'tkazadi, shuning uchun bu ikki GET owner-only. V1.2'da seller
+  // o'z do'konining buyurtmalarigagina scoped-kirish oladi.
+  app.get("/api/admin/shop/orders", requireAdmin, requireOwner, async (req, res) => {
     const { adminListPurchases } = await import("../services/shopService");
     res.json({ orders: await adminListPurchases(req.query?.status ? String(req.query.status) : undefined) });
   });
-  app.get("/api/admin/shop/reviews", requireAdmin, async (_req, res) => {
+  app.get("/api/admin/shop/reviews", requireAdmin, requireOwner, async (_req, res) => {
     const { adminListReviews } = await import("../services/shopService");
     res.json({ reviews: await adminListReviews() });
   });

@@ -857,3 +857,118 @@ Ega so'ragan 6 ta qulaylik to'liq qurildi, sinaldi va **jonlida tasdiqlandi**:
 - Flag holati: `restoran` allaqachon ON (ega o'zi yoqqan, 2026-07-07) — bu safar yangi
   qulayliklar formal QABUL'siz to'g'ridan-to'g'ri jonli chiqdi (protokoldan chetlanish — ega
   tomonidan flag oldindan yoqilgani sabab).
+
+## 2026-07-20 — Butun-repo xato-ovi → "crash-guard" tiketi — `ready for verification` (QISMAN isbotlangan)
+Ega so'rovi: "boshqa xususiyatlarni ham tekshir, xato bormi". Butun repo tekshirildi (typecheck,
+testlar, client↔server shartnoma, prisma-sxema muvofiqligi, servis-mantiq auditi).
+
+**TOZA chiqqan qismlar** (buyruq+natija bilan):
+- `pnpm -r typecheck` → 4/4 paket, 0 xato. `pnpm -r test` → 42/42 (shared vitest).
+- miniapp `api.ts` (178 metod) + admin `api.ts` (148) ↔ `server.ts` (246 route): **0 nomuvofiqlik**,
+  Express route-shadowing ham yo'q.
+- O'chirilgan servislarga (garaj/tolqin/mahalla) qolgan import YO'Q; o'chirilgan flag nomlari
+  (`garajx`/`kozacha`/`motorolami`) hech qaysi `packages/*/src` da ishlatilmaydi.
+- 96 ta `prisma.<model>` chaqiruvi sxemada bor; 8 raw-SQL ustunma-ustun to'g'ri; 19 `JSON.parse`
+  hammasi try/catch ichida; avgRating nolga-bo'linish ikkala yo'lda ham himoyalangan.
+
+**TUZATILGAN 6 ta xato:**
+1. **(A) Express 4 async-rejection** — `server.ts` da 273 route bor, `withMember2` va boshqa async
+   handler'lar try/catch'siz edi. Express 4 async throw'ni errorHandler'ga UZATMAYDI → javob
+   HECH QACHON yuborilmasdi (mijoz timeout'gacha osilardi) + `unhandledRejection` process
+   darajasiga chiqardi. Yangi `api/asyncGuard.ts`: verb-metodlar ro'yxatdan-o'tkazish nuqtasida
+   bir marta ushlanadi, har handler wrap qilinadi → rejection mavjud yagona errorHandler'ga boradi.
+   Express 5'ga o'tilsa bu fayl olib tashlanadi.
+2. **(B) restoran NaN-guard'ining qolgan teshiklari** — 2026-07-08 jonli crash'i `validId` bilan
+   tuzatilgan edi, LEKIN R6'da qo'shilgan yo'llar qamrab olinmagan: `listRestaurantReviews`,
+   `deleteMyRestaurantReview`, `cancelFoodOrder`, `acceptFoodOrder`, `rejectFoodOrder`,
+   `advanceFoodOrderStatus` — 6 tasiga ham `validId` qo'yildi.
+3. **(C) intercity id-guard** — `bookSeat`/`cancelBookingByRider`/`departTrip`/`arriveTrip`/
+   `driverCancelTrip`/`getTripManifest` mijoz-beradigan id'ni tekshirmasdan prisma'ga uzatardi.
+   Faylga `validId` qo'shildi, 6 kirish nuqtasiga qo'llandi.
+4. **(D) intercity: bekor qilingandan keyin QAYTA band qilib bo'lmasdi** — idempotency kaliti
+   `ibooking:<rider>:<trip>` bekor qilingan qatorda ham qolardi, natijada mijoz o'sha reysga qayta
+   yozilolmasdi va ustiga "✅ Band qilindi" degan YOLG'ON javob olardi (o'rinsiz yo'lga chiqardi).
+   Endi: ochiq booking bo'lsa → haqiqiy duplikat; faqat bekor qilinganlar bo'lsa → urinish-raqamli
+   yangi kalit. Chegirma kaliti ham (`idiscount:${idem}`) shu bilan yangilanadi → qayta bandda
+   chegirma TEKIN berilmaydi.
+5. **(D2) `driverCancelTrip` qisman bajarilishi** — reys "CANCELLED" qilingandan keyin yo'lovchilar
+   bittalab tsiklda yopilardi; tsikl o'rtasidagi xato qolgan yo'lovchilarni "CONFIRMED" holda
+   qoldirardi (reys bekor, ular xabarsiz+pulsiz, ro'yxatdan ham yo'qolgan). Endi hamma booking
+   BITTA `updateMany` bilan atomik yopiladi, kompensatsiya (tanga qaytarish/tg) alohida va
+   xato-bardosh (`grantCoins` idempotent, qayta urinish xavfsiz).
+6. **(E) bot `/naxt` noto'g'ri minimum** — yakuniy tekshiruv har ikki usul uchun karta-chegarasini
+   (50k) ishlatardi; 🏠 uyga naqd uchun chegara 100k. Mijoz uy-usulini tanlab, keyin tangasini
+   sarflab, 60k ga uy-yetkazish so'rovi qoldira olardi. Mini App yo'li (`server.ts:324`) to'g'ri edi.
+7. **(F) `backup.ts` UMUMAN ishlamas edi** — jadval ro'yxatida 57, sxemada 96 model; o'z parity
+   guard'i `process.exit(2)` qilib har safar dump'dan OLDIN to'xtardi. Ya'ni restoran/xizmatlar/
+   elonlar/intercity — hammasi **zaxirasiz** edi. Ro'yxat sxemadan qayta generatsiya qilindi (96/96).
+
+**ISBOT holati — R8 bo'yicha OCHIQ aytiladi:**
+- ✅ **(A) to'liq isbotlangan**: `npx tsx src/scripts/testAsyncGuard.ts` → **7/7 o'tdi**, DB talab
+  qilmaydi. NAZORAT guruhi bilan: guard'siz "JAVOB YO'Q (osildi)" + `unhandledRejection soni=1`;
+  guard bilan `HTTP 500 {"error":"internal"}`, yangi unhandledRejection YO'Q, normal route va
+  `app.get("etag")` buzilmagan.
+- ✅ **(F) isbotlangan**: `backup.ts` yetib bo'lmaydigan DB bilan yurgizildi — parity guard endi
+  FIRE QILMAYDI (`exit 2` yo'q), skript dump-tsikliga (`backup.ts:140`) yetdi va birinchi jadval
+  `adContact` ni so'radi — bu ilgari YETISHMAYOTGAN 39 modeldan biri.
+- ⚠️ **(B)(C)(D) test YOZILGAN, LEKIN YURGIZILMAGAN** — `src/scripts/testCrashGuards.ts` (typecheck
+  toza, 60+ tasdiq: NaN-nazorat, 4 xil buzuq id × 6 restoran + 6 intercity funksiya, D uchun
+  band→duplikat→bekor→qayta-band→chegirma-CoinTxn→driverCancel zanjiri). **Hech qanday DB'ga
+  ulanib bo'lmadi**: `TEST_DATABASE_URL` (Render bepul tarif, Singapur) **o'chgan** — bu HARDENING
+  hujjatidagi 2026-07-10 bepul-tarif muddati bilan mos; lokal Postgres yo'q, Docker daemon
+  ko'tarilmadi (WSL backend sozlanmagan). Ega DB bergach BIR BUYRUQ bilan yurgiziladi.
+- ⚠️ **(E) faqat kod-darajasida tekshirilgan** (jonli bot sinovi qilinmadi).
+- ⚠️ **`testRestoran.ts` (50 test) regressiya uchun YURGIZILMADI** — xuddi shu DB sababi.
+
+**Xulosa: bu tiket `ready for verification`, `done` EMAS.** Qabul uchun kerak: (1) ishlaydigan
+`TEST_DATABASE_URL`, (2) `testCrashGuards.ts` + `testRestoran.ts` yashil, (3) deploydan keyin
+jonli tekshiruv. Deploy QILINMADI, hech narsa push qilinmadi — ega qaroriga qoldirildi.
+
+## 2026-07-20 — 🛒 BirJoy MARKET REJASI TASDIQLANDI + V0 (audit-tuzatishlar) boshlandi
+- **Reja:** do'kon → «BirJoy local online market» (keyingi-avlod marketplace). Ega qarorlari:
+  naqd+tanga (Click/Payme YO'Q) · ko'p-do'kon marketplace (restoran modeli) · sotuvchilar o'zi
+  yetkazadi. Bosqichlar: V0 audit-fix → D1 dizayn-tili (zumrad #0d9668 + amber, Uzum-uslub
+  kategoriya-karusel) → V1 MarketShop+seller-wizard → V2 savat/MarketOrder → V3 tanga-iqtisod
+  (cashback+sharh-uchun-tanga) → V4 lifecycle-push → V5 next-gen (sovg'a/doimiy-buyurtma/narx-taklif/
+  team-buy) → V6 Juma+komissiya → V7 AI. To'liq reja: plan-fayl (sessiya) — repo'ga ko'chiriladi.
+- **Shu sessiyada 3-agent kod-audit + jonli-DB audit o'tkazildi.** Tasdiqlangan topilmalar:
+  P0-1 shopseller-token PII o'qiydi (server.ts:145+1369/1373) · P0-2 reject'da refund terminal-flip'dan
+  KEYIN, tx'siz (tanga yo'qolishi mumkin) · P0-3 deliver/reject TOCTOU (grammY ketma-ketligi yashiryapti) ·
+  P0-4 miniapp orders/reviews catch→[] (tarmoq-xato = «xarid yo'q» yolg'oni) · 151 yetim ProductPhoto ·
+  kategoriya-tartibsizlik (umumiy/umum/uy ro'zgo'or) · 275/319 thumb'siz · featured=0 (hero o'lik) ·
+  prod'da 16s-oralig'ida dublikat-buyurtma (#14/#15) · 4 pending buyurtma 1-2 kun javobsiz (EGA).
+  Buy-path pul-yadrosi TOZA chiqdi (lock+tx+idempotent kalitlar — double-spend yo'li topilmadi).
+
+### V0 DoD (mezonlar KOD'DAN OLDIN — har biri buyruq+natija bilan isbotlanadi)
+| # | Mezon | Tekshiruv-buyruq |
+|---|---|---|
+| 0.1a | shopseller-token GET /api/admin/shop/orders → 403 | curl X-Admin-Token bilan (test-server) |
+| 0.1b | shopseller-token GET /api/admin/shop/reviews → 403; owner-token ikkalasida ishlaydi; products CRUD seller uchun buzilmagan | curl ×3 |
+| 0.2a | parallel reject×2 → aynan 1 ok, 1 refund-CoinTxn, stock +1 bir marta | testShop yangi blok |
+| 0.2b | parallel deliver-vs-reject → aynan 1 g'olib; deliver yutsa refund-satr 0 | testShop yangi blok |
+| 0.2c | refund-xato holatda order pending'da QOLADI (rollback) — qayta-urinish mumkin | testShop (tx-throw simulyatsiya) |
+| 0.3 | offline'da Buyurtmalarim/Sharhlar → xato+retry ko'rinadi (bo'sh-holat EMAS) | preview DOM + kod-isbot |
+| 0.4 | ayni mahsulotga 60s ichida 2-buyurtma → duplicate; boshqa mahsulot → o'tadi | testShop yangi blok |
+| 0.5a | yetim-foto 0, kategoriya faqat kanonik ro'yxatdan | skript o'z-hisoboti (dry-run→apply) |
+| 0.5b | thumb'siz foto 0 (yoki qolganlar sabab bilan) | skript o'z-hisoboti |
+| ∀ | typecheck 4/4 · testShop TO'LIQ yashil 3× ket-ket (TEST_DATABASE_URL) · eski 75 assertion buzilmagan | pnpm -r typecheck; tsx testShop ×3 |
+
+Holat: **ready for verification** (2026-07-20). Har DoD-satr isbotlangan:
+- 0.1a/b: curl jonli test-server (port 8091, test-DB): seller-token orders→403 owner_only, reviews→403,
+  products→200, owner-token orders→200, economy→403 shop_only (eski scope buzilmagan).
+- 0.2a/b/c + 0.4: testShop 18-blok — parallel reject×2→1 g'olib/1 refund-satr/1 restock; deliver-vs-reject
+  poyga→1 g'olib, refund-satr holatga mos; in'ektsiya qilingan refund-xato→"retry"+order PENDING qoladi
+  (rollback isbotlangan), retry→aniq summa refund; dublikat 60s oyna. **94/94 ✅ 3× ket-ket**
+  (yangi Neon kas1067_test DB — eski Render test-DB 07-10 da o'lgan, TEST_DATABASE_URL yangilandi).
+- 0.3: shop.tsx orders/reviews catch→error-state+retry (kod-isbot R4'da file:line bilan).
+- 0.5a: JONLI apply — 151 yetim satr o'chirildi, kategoriya endi 4 kanonik (Aksiya=43·umumiy=35·
+  Uy anjomlari=13·Parfumeriya=10); qayta-dry-run: yetim=0, mapping-hit=0.
+- 0.5b: JONLI apply — 274 base64-rasm Telegram'ga yuklandi (124 amal — 151 tasi yetim bo'lib 0.5a'da
+  ketgan edi; birinchi urinish "chat not found": lokal .env ADMIN_TELEGRAM_IDS=12345 placeholder —
+  PHOTO_DUMP_CHAT_ID=6506297119 bilan qayta): **backfilled=124, fail=0, qolgan thumb'siz=0**.
+- typecheck 4/4 · **R4 MUSTAQIL TEKSHIRUV (kod yozmagan agent): PASS, har satr file:line isbot** —
+  2 minor kuzatuv: types.ts komment kodni oshirgan (tuzatildi), shopseller panel-tab 403 UX (V1.2'da
+  scoped-kirish bilan hal bo'ladi).
+- KUZATUV: bugun (07-20) do'konga 13 yangi mahsulot qo'shilgan (Parfumeriya×10) — ega faol ishlatyapti.
+QOLDI (V0 doirasida emas): deploy (Render push) + ega telefon-QABUL; ega-ishlari 0.6 (featured 4-6,
+4 pending buyurtma, 51 stock=10). Keyingi: D1 dizayn-poydevor + V1 marketplace.

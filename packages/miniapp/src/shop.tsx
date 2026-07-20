@@ -100,6 +100,7 @@ export function ShopView({ me, onBanner, reload, onBook, openProductId }: { me: 
   const [buyErr, setBuyErr] = useState<string | null>(null);
   const [ordersOpen, setOrdersOpen] = useState(false);
   const [orders, setOrders] = useState<ShopPurchaseView[] | null>(null);
+  const [ordersErr, setOrdersErr] = useState(false); // V0.3: tarmoq-xato ≠ «xarid yo'q»
   const [success, setSuccess] = useState<{ orderId: number; name: string; pay: "tanga" | "cash" } | null>(null);
   const [payMode, setPayMode] = useState<"tanga" | "cash">("tanga"); // 💵 naqd — yetkazganda to'lanadi
   const [galleryIdx, setGalleryIdx] = useState(0);
@@ -114,17 +115,19 @@ export function ShopView({ me, onBanner, reload, onBook, openProductId }: { me: 
   const [revPhotos, setRevPhotos] = useState<string[]>([]);
   const [revBusy, setRevBusy] = useState(false);
   const [revErr, setRevErr] = useState<string | null>(null);
+  const [revLoadErr, setRevLoadErr] = useState(false); // V0.3: sharh-yuklash xatosi ≠ «sharh yo'q»
   const revFileRef = useRef<HTMLInputElement>(null);
 
   const loadReviews = (productId: number) => {
     setReviews(null);
+    setRevLoadErr(false);
     api.shopReviews(productId).then((r) => {
       setReviews(r);
       const mine = r.reviews.find((v) => v.mine);
       setRevThumb(r.myThumb ?? null);
       setRevText(mine?.text ?? "");
       setRevPhotos([]);
-    }).catch(() => setReviews({ likes: 0, dislikes: 0, reviews: [] }));
+    }).catch(() => { setReviews(null); setRevLoadErr(true); });
   };
 
   const addRevPhotos = async (files: FileList | null) => {
@@ -236,6 +239,7 @@ export function ShopView({ me, onBanner, reload, onBook, openProductId }: { me: 
           insufficient: "Tanga yetarli emas",
           bad_address: "Manzilni to'liqroq yozing (kamida 5 belgi)",
           pending_limit: "Sizda 3 ta ochiq buyurtma bor — avval ular yetkazilsin",
+          duplicate: "Bu buyurtma allaqachon yuborilgan — «Buyurtmalarim»da ko'ring",
         };
         setBuyErr(msgs[r.reason ?? ""] ?? "Xatolik — qayta urinib ko'ring");
         load();
@@ -247,10 +251,17 @@ export function ShopView({ me, onBanner, reload, onBook, openProductId }: { me: 
     }
   };
 
+  const loadOrders = () => {
+    setOrdersErr(false);
+    setOrders(null);
+    // V0.3 (BirJoy audit): catch→[] tarmoq-xatoni «xarid yo'q» qilib ko'rsatardi (loyiha aynan shu
+    // bug-sinfdan kuygan) — endi xato-holat + retry.
+    api.shopOrders().then((r) => setOrders(r.orders)).catch(() => { setOrders(null); setOrdersErr(true); });
+  };
   const openOrders = () => {
     haptic();
     setOrdersOpen(true);
-    api.shopOrders().then((r) => setOrders(r.orders)).catch(() => setOrders([]));
+    loadOrders();
   };
 
   const deficit = sel ? Math.max(0, sel.priceTanga - me.coins) : 0;
@@ -435,7 +446,9 @@ export function ShopView({ me, onBanner, reload, onBook, openProductId }: { me: 
           <div className="shop-reviews">
             <button className="pay-back" onClick={() => setStep("detail")}>Orqaga</button>
             <h3>🗣 {sel.name} — sharhlar</h3>
-            {reviews === null ? (
+            {revLoadErr ? (
+              <EmptyState icon="📡" text="Sharhlar yuklanmadi — qayta urinib ko'ring" action="🔄 Qayta urinish" onAction={() => loadReviews(sel.id)} />
+            ) : reviews === null ? (
               <><Skeleton h={46} className="mt8" /><Skeleton h={46} className="mt8" /></>
             ) : (
               <>
@@ -545,7 +558,9 @@ export function ShopView({ me, onBanner, reload, onBook, openProductId }: { me: 
       {/* ── my orders ── */}
       <Sheet open={ordersOpen} onClose={() => setOrdersOpen(false)}>
         <h3>📦 Buyurtmalarim</h3>
-        {orders === null ? (
+        {ordersErr ? (
+          <EmptyState icon="📡" text="Yuklanmadi — internetni tekshirib qayta urinib ko'ring" action="🔄 Qayta urinish" onAction={loadOrders} />
+        ) : orders === null ? (
           <><Skeleton h={54} className="mt8" /><Skeleton h={54} className="mt8" /></>
         ) : orders.length === 0 ? (
           <EmptyState icon="🛍" text="Hali xarid yo'q — birinchi mahsulotingizni tanlang!" />

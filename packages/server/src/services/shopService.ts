@@ -2,7 +2,8 @@
 // hand (delivery by his own drivers). "Cashout-in-reverse": tanga is HELD at purchase time inside
 // ONE transaction (balance-conditional decrement + stock-conditional decrement + order insert +
 // CoinTxn key shop:<orderId>), so no oversell and no partial state is possible; a rejected order
-// refunds via grantCoins key shoprefund:<orderId> (exactly-once) + restocks. NO lootboxes — the
+// refunds IN the same tx as the status flip (key shoprefund:<orderId>, exactly-once) + restocks
+// (V0.2 BirJoy audit: flip+refund atomik — throw = rollback = order pending'da qoladi). NO lootboxes — the
 // owner's hard rule: deterministic price ↔ product only. UI word is "tanga", never "coin".
 import {
   SHOP_LOW_STOCK,
@@ -19,7 +20,7 @@ import {
 } from "@t1067/shared";
 import { prisma } from "../db";
 import { featureOn } from "./featureFlags";
-import { grantCoins, withMemberLock } from "./coinService";
+import { withMemberLock } from "./coinService";
 
 const NEW_BADGE_DAYS = 7;
 const PENDING_PER_MEMBER = 3; // anti-spam: at most 3 open orders per rider
@@ -116,6 +117,14 @@ export async function buyProduct(
     // anti-spam: bound open orders per rider (tanga'da real tanga ushlab turadi; cash'da spam-qalqon)
     const open = await prisma.shopPurchase.count({ where: { memberId, status: "pending" } });
     if (open >= PENDING_PER_MEMBER) return { ok: false as const, reason: "pending_limit" as const };
+    // V0.4 (BirJoy audit): dublikat-guard — prod'da ayni (member, product) 16s ichida 2 marta
+    // kuzatildi (double-tap / sekin-internet qayta-bosish). 60s oynada ayni mahsulotga pending
+    // buyurtma bo'lsa — ikkinchisi rad (lock ichidamiz, poyga yo'q).
+    const dup = await prisma.shopPurchase.findFirst({
+      where: { memberId, productId, status: "pending", createdAt: { gte: new Date(Date.now() - 60_000) } },
+      select: { id: true },
+    });
+    if (dup) return { ok: false as const, reason: "duplicate" as const };
 
     try {
       const created = await prisma.$transaction(async (tx) => {
@@ -179,34 +188,70 @@ export interface ShopDecision {
   payKind?: "tanga" | "cash";
 }
 
-/** ✅ Yetkazildi — terminal; tanga already held at buy, so NO coin op here. */
+/** ✅ Yetkazildi — terminal. V0.2 (BirJoy audit): read-check-write TOCTOU o'rniga ATOMIK shartli
+ *  o'tish (scheduledService naqshi) — `count===0` = boshqa qaror allaqachon yutgan (parallel
+ *  ✅/❌ poygada faqat bittasi o'tadi, grammY ketma-ketligiga tayanmaymiz). Tanga buy'da ushlangan,
+ *  bu yerda coin-op YO'Q. */
 export async function deliverPurchase(orderId: number): Promise<ShopDecision> {
   const o = await prisma.shopPurchase.findUnique({ where: { id: orderId } });
   if (!o) return { ok: false, reason: "not_found" };
-  if (o.status !== "pending") return { ok: false, reason: o.status };
-  await prisma.shopPurchase.update({ where: { id: orderId }, data: { status: "delivered", decidedAt: new Date() } });
+  const flip = await prisma.shopPurchase.updateMany({
+    where: { id: orderId, status: "pending" },
+    data: { status: "delivered", decidedAt: new Date() },
+  });
+  if (flip.count === 0) {
+    const now = await prisma.shopPurchase.findUnique({ where: { id: orderId }, select: { status: true } });
+    return { ok: false, reason: now?.status ?? "not_found" };
+  }
   return { ok: true, memberId: o.memberId, amount: o.priceTanga, productName: o.productName, payKind: o.payKind as "tanga" | "cash" };
 }
 
-/** ❌ Rad — refund (exactly once via shoprefund:<id>) + restock. Status guard makes a double-tap
- *  and a ✅→❌ race no-ops: the first decision wins, the refund key physically can't double-pay. */
+/** ❌ Rad — V0.2 (BirJoy audit): flip + restock + refund BITTA tranzaksiyada.
+ *  - Shartli flip (`status:"pending"`) tx ichida: parallel ❌×2 yoki ✅→❌ poygada faqat bittasi
+ *    o'tadi — restock ham, refund ham aynan bir marta.
+ *  - Refund tx ICHIDA (grantCoins EMAS): flip bilan birga commit/rollback — avvalgi kodda flip
+ *    alohida commit bo'lib, refund throw qilsa mijoz tangasi butunlay yo'qolardi (terminal status
+ *    qayta-urinishni berkitardi). Endi throw → hammasi rollback → order pending'da qoladi →
+ *    qayta-bosish ishlaydi. `shoprefund:<id>` unique-kalit saqlangan (P2002 → allaqachon refund
+ *    qilingan, dublikat imkonsiz).
+ *  - Cash'da coin-op YO'Q (refund pul YARATGAN bo'lardi). */
 export async function rejectPurchase(orderId: number, note?: string): Promise<ShopDecision> {
   const o = await prisma.shopPurchase.findUnique({ where: { id: orderId } });
   if (!o) return { ok: false, reason: "not_found" };
   if (o.status !== "pending") return { ok: false, reason: o.status };
-  await prisma.shopPurchase.update({
-    where: { id: orderId },
-    data: { status: "rejected", decidedAt: new Date(), note: note?.slice(0, 200) ?? null },
-  });
-  await prisma.product.updateMany({ where: { id: o.productId }, data: { stock: { increment: 1 } } }).catch(() => undefined); // best-effort restock (product may be deleted)
-  if (o.payKind !== "cash") {
-    // faqat TANGA order'lar refund oladi — cash'da hech narsa ushlanmagan, refund pul YARATGAN bo'lardi
-    const refund = await grantCoins(o.memberId, o.priceTanga, "shop_refund", `🛍 «${o.productName}» rad etildi — tanga qaytarildi`, `shoprefund:${orderId}`);
-    if (!refund.ok && refund.skipped !== "duplicate") {
-      // refund MUST land — surface loudly rather than silently losing the rider's tanga
-      const { alertAdmins } = await import("./economyService");
-      await alertAdmins(`⚠️ Shop refund FAILED: order #${orderId}, m${o.memberId}, ${o.priceTanga} tanga — qo'lda tekshiring.`).catch(() => undefined);
+  try {
+    await prisma.$transaction(async (tx) => {
+      const flip = await tx.shopPurchase.updateMany({
+        where: { id: orderId, status: "pending" },
+        data: { status: "rejected", decidedAt: new Date(), note: note?.slice(0, 200) ?? null },
+      });
+      if (flip.count === 0) throw new Error("ALREADY_DECIDED");
+      // restock tx ichida (mahsulot o'chirilgan bo'lsa updateMany 0 — jim o'tadi, xato emas)
+      await tx.product.updateMany({ where: { id: o.productId }, data: { stock: { increment: 1 } } });
+      if (o.payKind !== "cash") {
+        await tx.coinTxn.create({
+          data: {
+            memberId: o.memberId,
+            amount: o.priceTanga,
+            kind: "shop_refund",
+            reason: `🛍 «${o.productName}» rad etildi — tanga qaytarildi`,
+            idempotencyKey: `shoprefund:${orderId}`,
+          },
+        });
+        await tx.member.update({ where: { id: o.memberId }, data: { coins: { increment: o.priceTanga } } });
+      }
+    });
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : "";
+    if (msg === "ALREADY_DECIDED") {
+      const now = await prisma.shopPurchase.findUnique({ where: { id: orderId }, select: { status: true } });
+      return { ok: false, reason: now?.status ?? "not_found" };
     }
+    // P2002 on shoprefund:<id> — refund allaqachon boshqa yo'l bilan berilgan (nazariy): flip
+    // rollback bo'ldi, order pending'da — adminga signal berib qayta-urinishga qoldiramiz.
+    const { alertAdmins } = await import("./economyService");
+    await alertAdmins(`⚠️ Shop reject FAILED (order pending'da qoldi, qayta bosing): #${orderId}, m${o.memberId} — ${msg.slice(0, 120)}`).catch(() => undefined);
+    return { ok: false, reason: "retry" };
   }
   return { ok: true, memberId: o.memberId, amount: o.priceTanga, productName: o.productName, payKind: o.payKind as "tanga" | "cash" };
 }

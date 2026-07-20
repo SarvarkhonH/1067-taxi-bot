@@ -367,12 +367,17 @@ export interface ShopPurchaseView {
 
 export interface ShopBuyResponse {
   ok: boolean;
-  reason?: "off" | "unavailable" | "sold_out" | "insufficient" | "bad_address" | "pending_limit";
+  reason?: "off" | "unavailable" | "sold_out" | "insufficient" | "bad_address" | "pending_limit" | "duplicate";
   orderId?: number;
   balance?: number; // post-purchase tanga balance (cash'da o'zgarmaydi)
 }
 
 export const SHOP_MAX_PRICE = 5_000_000; // sanity ceiling for admin-entered prices
+// V0.5 (BirJoy): kanonik kategoriya-ro'yxat — erkin-string tartibsizligi (umumiy/umum/uy ro'zgo'or)
+// shu bilan tugaydi. Majburlash FAQAT admin-UI select darajasida (cleanPatch ataylab erkin qoldi —
+// test-TAG kategoriyalari va kelajak-migratsiyalar uchun); to'liq enforcement D1'da CategoryDef
+// jadvaliga ko'chganda (ikonka-rasm + tartib bilan).
+export const SHOP_CATEGORIES = ["Aksiya", "umumiy", "Uy anjomlari", "Parfumeriya", "Oziq-ovqat", "Elektronika", "Kiyim-kechak", "Bolalar uchun", "Go'zallik"] as const;
 export const SHOP_LOW_STOCK = 5; // "kam qoldi" badge threshold
 
 // ── 🛍 shop reviews: sharh + 👍/👎 + 2-3 rasm (Uzum pattern) ─────────────────────────────────────

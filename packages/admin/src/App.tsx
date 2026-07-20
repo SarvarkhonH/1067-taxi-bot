@@ -27,6 +27,7 @@ import {
   type AdminLiveBooking,
   type AdminMemberRow,
   type AdminStats,
+  SHOP_CATEGORIES,
 } from "@t1067/shared";
 import { adminApi, clearAdminToken, hasAdminToken, setAdminToken, type AdminBannedRow, type AdminChatConvo, type AdminChatMsg, type AdminDebtRow, type AdminMsgHistoryRow, type AdminRatingRow, type AdminTxnRow, type AdminBlockedRow, type AdminReferralRow, type AdminRideRow, type AdminUserRow, type AdminWithdrawalRow, type AdminWithdrawalTabRow, type CampaignRow, type Driver360, type DriverCallRow, type DriverCallStats, type DriverMissionRow, type IntercityAdminTrip, type IntercityAdminDebt, type Member360, type PeakHourRow, type ShopAdminProductRow, type ShopAdminOrderRow, type ShopAdminReviewRow, type SvcAdminRow, type SvcAdminCat, type SvcAdminReview, type RestoranAdminRow, type RestoranMenuItemRow } from "./api";
 
@@ -1636,7 +1637,7 @@ function ShopAdminView() {
             <div className="adm-field"><span className="adm-field-label">Nomi</span><input value={name} onChange={(e) => setName(e.target.value)} placeholder="Elektro choynak Vitek" /></div>
             <div className="adm-field"><span className="adm-field-label">Narx (tanga)</span><input type="number" value={price} onChange={(e) => setPrice(e.target.value)} /></div>
             <div className="adm-field"><span className="adm-field-label">Soni</span><input type="number" value={stock} onChange={(e) => setStock(e.target.value)} /></div>
-            <div className="adm-field"><span className="adm-field-label">Kategoriya</span><input value={category} onChange={(e) => setCategory(e.target.value)} /></div>
+            <div className="adm-field"><span className="adm-field-label">Kategoriya</span><select value={category} onChange={(e) => setCategory(e.target.value)}>{category && !SHOP_CATEGORIES.includes(category as (typeof SHOP_CATEGORIES)[number]) && <option value={category}>{category}</option>}{SHOP_CATEGORIES.map((c) => <option key={c} value={c}>{c}</option>)}</select></div>
             <div className="adm-field"><span className="adm-field-label">Tavsif (ixtiyoriy)</span><input value={desc} onChange={(e) => setDesc(e.target.value)} /></div>
             <div className="adm-field">
               <span className="adm-field-label">&nbsp;</span>
@@ -1690,7 +1691,7 @@ function ShopAdminView() {
               <div className="adm-card-body">
                 <div className="adm-form-grid wide">
                   <div className="adm-field"><span className="adm-field-label">Nomi</span><input value={draft.name} onChange={(e) => setDraft({ ...draft, name: e.target.value })} /></div>
-                  <div className="adm-field"><span className="adm-field-label">Kategoriya</span><input value={draft.category} onChange={(e) => setDraft({ ...draft, category: e.target.value })} /></div>
+                  <div className="adm-field"><span className="adm-field-label">Kategoriya</span><select value={draft.category} onChange={(e) => setDraft({ ...draft, category: e.target.value })}>{draft.category && !SHOP_CATEGORIES.includes(draft.category as (typeof SHOP_CATEGORIES)[number]) && <option value={draft.category}>{draft.category}</option>}{SHOP_CATEGORIES.map((c) => <option key={c} value={c}>{c}</option>)}</select></div>
                   <div className="adm-field"><span className="adm-field-label">Narx (tanga)</span><input type="number" value={draft.priceTanga} onChange={(e) => setDraft({ ...draft, priceTanga: e.target.value })} /></div>
                   <div className="adm-field">
                     <span className="adm-field-label">Eski narx (chegirma uchun)</span>

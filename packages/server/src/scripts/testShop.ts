@@ -65,6 +65,7 @@ async function main(): Promise<void> {
   const txn = await prisma.coinTxn.findUnique({ where: { idempotencyKey: `shop:${buy1.orderId}` } });
   ok(!!txn && txn.amount === -3500, "4: CoinTxn shop:<orderId> exists (−3500)");
   ok(!!buy1.notice && buy1.notice.address === ADDR, "4: owner notice carries the address");
+  await deliverPurchase(buy1.orderId!); // V0.4 dublikat-guard: keyingi bloklar ayni (a,pid) juftini qayta sotib oladi — pending qolmasin
 
   // 5) no oversell: stock=1, 3 CONCURRENT buyers → exactly one wins
   await adminEditProduct(pid, { stock: 1 });
@@ -73,6 +74,7 @@ async function main(): Promise<void> {
   ok(wins.length === 1, `5: concurrent last-unit → exactly ONE ok (got ${wins.length})`);
   ok((await prisma.product.findUnique({ where: { id: pid } }))!.stock === 0, "5: stock === 0 (no oversell)");
   ok([r1, r2, r3].filter((r) => !r.ok && r.reason === "sold_out").length === 2, "5: losers get sold_out");
+  await deliverPurchase(wins[0]!.orderId!); // V0.4: g'olibning pending'i keyingi bloklarni duplicate qilmasin
 
   // 6) same-member double-tap: stock=1, two concurrent buys by ONE member → exactly one debit
   await adminEditProduct(pid, { stock: 1 });
@@ -119,11 +121,16 @@ async function main(): Promise<void> {
   const orders = await myPurchases(a.id);
   ok(orders.some((o) => o.status === "delivered") && orders.some((o) => o.status === "pending" || o.status === "delivered"), "10: myPurchases returns rows with statuses");
 
-  // 11) pending cap: max 3 open orders per rider
+  // 11) pending cap: max 3 open orders per rider (V0.4: har buy ALOHIDA mahsulotga — ayni
+  // mahsulotni qayta olish endi duplicate bilan bloklanadi, cap-test unga bog'lanmasin)
   await adminEditProduct(pid, { stock: 10 });
   const rich = await prisma.member.create({ data: { type: "client", kasId: `${TAG}-R`, fullName: "Shop R", phone: null, coins: 100_000 } });
   const caps = [];
-  for (let i = 0; i < 4; i++) caps.push(await buyProduct(rich.id, pid, ADDR));
+  for (let i = 0; i < 4; i++) {
+    const cp = await adminCreateProduct({ name: `Cap mahsulot ${i}`, priceTanga: 1000, stock: 3, category: TAG });
+    await adminToggleProduct(cp.id!, true);
+    caps.push(await buyProduct(rich.id, cp.id!, ADDR));
+  }
   ok(caps.filter((r) => r.ok).length === 3 && caps[3]!.reason === "pending_limit", "11: 4th open order blocked (pending_limit)");
 
   // 12) flag off again → list empty, buy blocked
@@ -236,6 +243,62 @@ async function main(): Promise<void> {
   ok(poorOrders.every((o) => o.payKind === "cash"), "17: myPurchases exposes payKind");
   // tanga default unchanged: a's earlier orders are payKind=tanga
   ok((await myPurchases(a.id)).every((o) => o.payKind === "tanga"), "17: legacy/default orders are payKind=tanga");
+
+  // 18) 🛡 V0 (BirJoy audit): dublikat-guard + atomik deliver/reject poygalari + refund-durability
+  // setup: b'ning oldingi bloklardan qolgan pending'lari 18.1'ni duplicate qilmasin — to'g'ridan
+  // hal qilamiz (status-flip, pul allaqachon ushlangan holicha qoladi — deliver semantikasi)
+  await prisma.shopPurchase.updateMany({ where: { memberId: b.id, status: "pending" }, data: { status: "delivered", decidedAt: new Date() } });
+  await adminEditProduct(pid, { stock: 20, priceTanga: 3000 });
+  const prod2 = await adminCreateProduct({ name: "Test piyola", priceTanga: 2000, stock: 5, category: TAG });
+  await adminToggleProduct(prod2.id!, true);
+  await prisma.member.update({ where: { id: b.id }, data: { coins: 30_000 } });
+
+  // 18.1 dublikat: ayni (member, product) pending <60s → duplicate; boshqa mahsulot → o'tadi
+  const v0d1 = await buyProduct(b.id, pid, ADDR, true);
+  ok(v0d1.ok === true, "18: first buy ok");
+  const v0d2 = await buyProduct(b.id, pid, ADDR, true);
+  ok(v0d2.ok === false && v0d2.reason === "duplicate", "18: same product within 60s → duplicate");
+  const v0d3 = await buyProduct(b.id, prod2.id!, ADDR, true);
+  ok(v0d3.ok === true, "18: DIFFERENT product still allowed");
+  ok((await prisma.shopPurchase.count({ where: { memberId: b.id, productId: pid, status: "pending" } })) === 1, "18: exactly ONE pending order for (member,product)");
+  await deliverPurchase(v0d1.orderId!);
+  await deliverPurchase(v0d3.orderId!);
+
+  // 18.2 parallel reject×2 → aynan 1 ok, 1 refund-satr, stock +1 bir marta, balans bir marta qaytadi
+  const balBefore = await getCoins(b.id);
+  const v0r1 = await buyProduct(b.id, pid, ADDR, true);
+  ok(v0r1.ok === true, "18: race-setup buy ok");
+  const stockAfterBuy = (await prisma.product.findUnique({ where: { id: pid } }))!.stock;
+  const [rejA, rejB] = await Promise.all([rejectPurchase(v0r1.orderId!), rejectPurchase(v0r1.orderId!)]);
+  ok([rejA.ok, rejB.ok].filter(Boolean).length === 1, "18: parallel reject×2 → exactly ONE winner");
+  ok((await prisma.coinTxn.count({ where: { idempotencyKey: `shoprefund:${v0r1.orderId}` } })) === 1, "18: exactly ONE shoprefund row");
+  ok((await getCoins(b.id)) === balBefore, "18: balance restored exactly once (buy hold fully refunded)");
+  ok((await prisma.product.findUnique({ where: { id: pid } }))!.stock === stockAfterBuy + 1, "18: restocked exactly once");
+
+  // 18.3 parallel deliver-vs-reject → aynan 1 g'olib; refund-satr holatga MOS
+  const v0r2 = await buyProduct(b.id, pid, ADDR, true);
+  const [delW, rejW] = await Promise.all([deliverPurchase(v0r2.orderId!), rejectPurchase(v0r2.orderId!)]);
+  ok([delW.ok, rejW.ok].filter(Boolean).length === 1, "18: deliver-vs-reject race → exactly ONE winner");
+  const finalSt = (await prisma.shopPurchase.findUnique({ where: { id: v0r2.orderId! } }))!.status;
+  const refundRows = await prisma.coinTxn.count({ where: { idempotencyKey: `shoprefund:${v0r2.orderId}` } });
+  ok((finalSt === "delivered" && refundRows === 0) || (finalSt === "rejected" && refundRows === 1), `18: status(${finalSt}) consistent with refund rows(${refundRows})`);
+
+  // 18.4 refund-xato → BUTUN tx rollback → order PENDING'da qoladi (qayta-urinish mumkin) — pul yo'qolmaydi
+  const v0r3 = await buyProduct(b.id, prod2.id!, ADDR, true);
+  ok(v0r3.ok === true, "18: durability-setup buy ok");
+  // in'ektsiya: refund-kalitni oldindan band qilamiz → tx ichidagi coinTxn.create P2002 bilan yiqiladi
+  await prisma.coinTxn.create({ data: { memberId: b.id, amount: 0, kind: "test_blocker", reason: "V0 injection", idempotencyKey: `shoprefund:${v0r3.orderId}` } });
+  const rejFail = await rejectPurchase(v0r3.orderId!);
+  ok(rejFail.ok === false && rejFail.reason === "retry", "18: refund failure surfaces as retry (not silent)");
+  const stAfterFail = (await prisma.shopPurchase.findUnique({ where: { id: v0r3.orderId! } }))!.status;
+  ok(stAfterFail === "pending", "18: order REMAINS pending after failed reject (flip rolled back)");
+  // to'siqni olib tashlab qayta-urinish → endi to'liq muvaffaqiyat
+  await prisma.coinTxn.delete({ where: { idempotencyKey: `shoprefund:${v0r3.orderId}` } });
+  const balBeforeRetry = await getCoins(b.id);
+  const rejRetry = await rejectPurchase(v0r3.orderId!);
+  ok(rejRetry.ok === true, "18: retry after failure succeeds");
+  ok((await getCoins(b.id)) === balBeforeRetry + 2000, "18: retry refunds exactly the held amount");
+  ok((await prisma.shopPurchase.findUnique({ where: { id: v0r3.orderId! } }))!.status === "rejected", "18: retry lands terminal rejected");
 
   await cleanup();
   console.log(process.exitCode ? "\n❌ FAILED" : "\n✅ ALL GREEN");
