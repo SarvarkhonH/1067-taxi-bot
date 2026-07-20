@@ -160,13 +160,18 @@ function requireAdmin(req: Request, res: Response, next: NextFunction): void {
       .findUnique({ where: { key: `oprtoken:${token}` } })
       .then((row) => {
         if (!row) { res.status(403).json({ error: "forbidden" }); return; }
-        const role = row.value || "operator";
+        // V1.2 (BirJoy): token qiymati "shopseller" (legacy = do'kon #1) YOKI "shopseller:<shopId>"
+        // — multi-vendor'da har seller FAQAT o'z do'konining satrlariga scoped.
+        const raw = row.value || "operator";
+        const sellerMatch = /^shopseller(?::(\d+))?$/.exec(raw);
+        const role = sellerMatch ? "shopseller" : raw;
         if (role === "shopseller" && !pathAllowedForShopSeller(req.path)) {
           res.status(403).json({ error: "shop_only" });
           return;
         }
         res.locals.telegramId = "panel-operator";
         res.locals.adminRole = role;
+        if (sellerMatch) res.locals.sellerShopId = Number(sellerMatch[1] ?? 1); // legacy bare token = «BirJoy o'z do'koni»
         next();
       })
       .catch(() => res.status(403).json({ error: "forbidden" }));
@@ -220,7 +225,7 @@ export function createApiServer(opts: ApiOptions = {}) {
   });
 
   app.get("/api/me", requireUser, async (_req, res) => {
-    const [me, booking3, livinghome, intercity, tierloyalty, shopOn, xizmatlarOn, elonlarOn, restoranOn] = await Promise.all([
+    const [me, booking3, livinghome, intercity, tierloyalty, shopOn, xizmatlarOn, elonlarOn, restoranOn, bazarOn] = await Promise.all([
       getMe(res.locals.telegramId as string),
       featureOn("booking3"),
       featureOn("livinghome"),
@@ -230,6 +235,7 @@ export function createApiServer(opts: ApiOptions = {}) {
       featureOn("xizmatlar"),
       featureOn("elonlar"),
       featureOn("restoran"),
+      featureOn("bazar"),
     ]);
     if (!me) { res.json({ linked: false }); return; }
     // 🏅 owner-preview: admins see the tier-loyalty UI even while the global flag is DARK, so the
@@ -243,7 +249,9 @@ export function createApiServer(opts: ApiOptions = {}) {
     const elonlarPreview = elonlarOn || isAdmin(res.locals.telegramId as string);
     // 🍽 restoran owner-preview mirrors it — owner QABULs the catalog (R1) before it goes live
     const restoranPreview = restoranOn || isAdmin(res.locals.telegramId as string);
-    res.json({ ...me, flags: { booking3, livinghome, intercity, tierloyalty: tierPreview, shop: shopPreview, xizmatlar: xizmatlarPreview, elonlar: elonlarPreview, restoran: restoranPreview } });
+    // 🏪 bazar owner-preview mirrors it — owner QABULs the BirJoy marketplace layer while DARK
+    const bazarPreview = bazarOn || isAdmin(res.locals.telegramId as string);
+    res.json({ ...me, flags: { booking3, livinghome, intercity, tierloyalty: tierPreview, shop: shopPreview, xizmatlar: xizmatlarPreview, elonlar: elonlarPreview, restoran: restoranPreview, bazar: bazarPreview } });
   });
 
   // 🏅 Tier ladder benefits — labels derived from LIVE knobs (single source of truth). 60s client cache.
@@ -416,6 +424,39 @@ export function createApiServer(opts: ApiOptions = {}) {
   };
   app.get("/api/shop/photo/:productId", serveShopPhoto);
   app.get("/api/shop/photo/:productId/:n", serveShopPhoto);
+
+  // 🏪 V1.4 (BirJoy): Bozor-bosh payload — do'kon-rail + kategoriya-karusel + server-qidiruv
+  // (?q= nol-natijasi MarketDemand'ga yoziladi). bazar DARK + admin emas → bo'sh (UI eski holicha).
+  app.get("/api/shop/market", requireUser, rateLimit(30), withMember2(async (memberId, req, res) => {
+    const { getMarketHome } = await import("../services/shopService");
+    res.set("Cache-Control", "private, max-age=30");
+    return await getMarketHome(isAdmin(res.locals.telegramId as string), req.query?.q ? String(req.query.q) : undefined, memberId);
+  }));
+  // kategoriya-ikonka + do'kon-logo proxy (shop-photo naqshi, o'sha rate-limit xaritasi)
+  const serveMarketImage = (kind: "cat" | "shop") => async (req: Request, res: Response): Promise<void> => {
+    const id = Number(req.params.id);
+    if (!Number.isFinite(id)) { res.status(404).end(); return; }
+    const row = kind === "cat"
+      ? await prisma.categoryDef.findUnique({ where: { id }, select: { iconFileId: true, iconUrl: true } })
+      : await prisma.marketShop.findUnique({ where: { id }, select: { photoFileId: true, photoUrl: true } });
+    const fileId = kind === "cat" ? (row as { iconFileId: string | null } | null)?.iconFileId : (row as { photoFileId: string | null } | null)?.photoFileId;
+    const rawUrl = kind === "cat" ? (row as { iconUrl: string | null } | null)?.iconUrl : (row as { photoUrl: string | null } | null)?.photoUrl;
+    let url = rawUrl ?? null;
+    if (!url && fileId) {
+      const { resolveTelegramFileUrl } = await import("../services/driverPhotoService");
+      url = await resolveTelegramFileUrl(fileId);
+    }
+    if (!url) { res.status(404).end(); return; }
+    if (url.startsWith("data:")) {
+      const m = /^data:([^;]+);base64,(.*)$/.exec(url);
+      if (!m) { res.status(404).end(); return; }
+      res.set("Content-Type", m[1]!).set("Cache-Control", "public, max-age=3600").send(Buffer.from(m[2]!, "base64"));
+      return;
+    }
+    res.set("Cache-Control", "private, max-age=3600").redirect(302, url);
+  };
+  app.get("/api/shop/cat-icon/:id", serveMarketImage("cat"));
+  app.get("/api/shop/shop-photo/:id", serveMarketImage("shop"));
 
   // ── 🗣 shop reviews: sharh + 👍/👎 + up to 3 rasm ────────────────────────────────────────────
   app.get("/api/shop/reviews/:productId", requireUser, rateLimit(30), withMember2(async (id, req, res) => {
@@ -1338,17 +1379,28 @@ export function createApiServer(opts: ApiOptions = {}) {
   // ── 🛍 SHOP admin (owner-gated writes) ────────────────────────────────────────────────────────
   app.get("/api/admin/shop/products", requireAdmin, async (_req, res) => {
     const { adminListProducts } = await import("../services/shopService");
-    res.json(await adminListProducts());
+    res.json(await adminListProducts(res.locals.sellerShopId as number | undefined)); // V1.2: seller → faqat o'z katalogi
   });
   app.post("/api/admin/shop/products", requireAdmin, requireShopWrite, rateLimit(20), async (req, res) => {
     const { adminCreateProduct } = await import("../services/shopService");
-    res.json(await adminCreateProduct(req.body ?? {}));
+    res.json(await adminCreateProduct(req.body ?? {}, res.locals.sellerShopId as number | undefined)); // V1.2: seller yaratganini O'Z do'koniga majburlash
   });
+  // V1.2: seller o'zgartirmoqchi bo'lgan mahsulot O'Z do'koninikimi — choke-point tekshiruv
+  const sellerOwnsProduct = async (res: Response, productId: number): Promise<boolean> => {
+    const scope = res.locals.sellerShopId as number | undefined;
+    if (scope === undefined) return true; // owner/operator — cheklovsiz
+    const { productBelongsToShop } = await import("../services/shopService");
+    if (await productBelongsToShop(productId, scope)) return true;
+    res.status(403).json({ error: "not_your_shop" });
+    return false;
+  };
   app.post("/api/admin/shop/products/:id", requireAdmin, requireShopWrite, rateLimit(20), async (req, res) => {
+    if (!(await sellerOwnsProduct(res, Number(req.params.id)))) return;
     const { adminEditProduct } = await import("../services/shopService");
     res.json(await adminEditProduct(Number(req.params.id), req.body ?? {}));
   });
   app.post("/api/admin/shop/products/:id/toggle", requireAdmin, requireShopWrite, rateLimit(20), async (req, res) => {
+    if (!(await sellerOwnsProduct(res, Number(req.params.id)))) return;
     const { adminToggleProduct } = await import("../services/shopService");
     res.json(await adminToggleProduct(Number(req.params.id), !!req.body?.active));
   });
@@ -1357,29 +1409,55 @@ export function createApiServer(opts: ApiOptions = {}) {
     res.json(await adminDeleteProduct(Number(req.params.id)));
   });
   app.post("/api/admin/shop/products/:id/photo", express.json({ limit: "6mb" }), requireAdmin, requireShopWrite, async (req, res) => {
+    if (!(await sellerOwnsProduct(res, Number(req.params.id)))) return;
     const b = req.body as { mime?: string; base64?: string };
     if (!b?.base64) { res.status(400).json({ error: "no image" }); return; }
     const { uploadProductPhoto } = await import("../services/shopService");
     res.json(await uploadProductPhoto(Number(req.params.id), Buffer.from(b.base64, "base64"), b.mime || "image/jpeg"));
   });
   app.delete("/api/admin/shop/products/:id/photo", requireAdmin, requireShopWrite, async (req, res) => {
+    if (!(await sellerOwnsProduct(res, Number(req.params.id)))) return;
     const { clearProductPhotos } = await import("../services/shopService");
     res.json(await clearProductPhotos(Number(req.params.id)));
   });
-  // V0.1 (BirJoy audit): buyer PII (ism/telefon/manzil) — shopseller-token o'qimasin. Prefix-scope
-  // /api/admin/shop/* hammasini o'tkazadi, shuning uchun bu ikki GET owner-only. V1.2'da seller
-  // o'z do'konining buyurtmalarigagina scoped-kirish oladi.
-  app.get("/api/admin/shop/orders", requireAdmin, requireOwner, async (req, res) => {
+  // V0.1→V1.2 (BirJoy): buyer PII — owner HAMMASINI ko'radi; shopseller FAQAT o'z do'konining
+  // buyurtma/sharhlarini (scoped adminList* — service-qatlamda productId-filtr). Begona seller-token
+  // uchun bu ma'lumot 403 EMAS — bo'sh emas, O'Z subset'i: shu tarzda seller panel ham ishlayveradi.
+  app.get("/api/admin/shop/orders", requireAdmin, requireShopWrite, async (req, res) => {
     const { adminListPurchases } = await import("../services/shopService");
-    res.json({ orders: await adminListPurchases(req.query?.status ? String(req.query.status) : undefined) });
+    res.json({ orders: await adminListPurchases(req.query?.status ? String(req.query.status) : undefined, res.locals.sellerShopId as number | undefined) });
   });
-  app.get("/api/admin/shop/reviews", requireAdmin, requireOwner, async (_req, res) => {
+  app.get("/api/admin/shop/reviews", requireAdmin, requireShopWrite, async (_req, res) => {
     const { adminListReviews } = await import("../services/shopService");
-    res.json({ reviews: await adminListReviews() });
+    res.json({ reviews: await adminListReviews(res.locals.sellerShopId as number | undefined) });
   });
   app.delete("/api/admin/shop/reviews/:id", requireAdmin, requireOwner, rateLimit(30), async (req, res) => {
     const { adminDeleteReview } = await import("../services/shopService");
     res.json(await adminDeleteReview(Number(req.params.id)));
+  });
+  // 🎠 D1 (BirJoy): kategoriya-CRUD — karusel boshqaruvi. Owner-only (seller o'z katalogini
+  // boshqaradi, GLOBAL taksonomiyani emas).
+  app.get("/api/admin/shop/categories", requireAdmin, requireOwner, async (_req, res) => {
+    const { adminListCategories } = await import("../services/shopService");
+    res.json({ cats: await adminListCategories() });
+  });
+  app.post("/api/admin/shop/categories", requireAdmin, requireOwner, rateLimit(20), async (req, res) => {
+    const { adminCreateCategory } = await import("../services/shopService");
+    res.json(await adminCreateCategory(String(req.body?.name ?? ""), req.body?.emoji ? String(req.body.emoji) : undefined));
+  });
+  app.post("/api/admin/shop/categories/:id", requireAdmin, requireOwner, rateLimit(20), async (req, res) => {
+    const { adminEditCategory } = await import("../services/shopService");
+    res.json(await adminEditCategory(Number(req.params.id), req.body ?? {}));
+  });
+  app.delete("/api/admin/shop/categories/:id", requireAdmin, requireOwner, rateLimit(20), async (req, res) => {
+    const { adminDeleteCategory } = await import("../services/shopService");
+    res.json(await adminDeleteCategory(Number(req.params.id)));
+  });
+  app.post("/api/admin/shop/categories/:id/icon", express.json({ limit: "6mb" }), requireAdmin, requireOwner, async (req, res) => {
+    const b = req.body as { mime?: string; base64?: string };
+    if (!b?.base64) { res.status(400).json({ error: "no image" }); return; }
+    const { uploadCategoryIcon } = await import("../services/shopService");
+    res.json(await uploadCategoryIcon(Number(req.params.id), Buffer.from(b.base64, "base64"), b.mime || "image/jpeg"));
   });
 
   // ── 🍽 RESTORAN admin (R3: sessiya-navbati + qo'lda holat-boshqaruv) — concierge V1, operator ODAM ──

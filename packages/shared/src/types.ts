@@ -54,6 +54,7 @@ export interface MeResponse {
     xizmatlar?: boolean; // 🔎 services directory tab (owner-preview: admins see it while DARK)
     elonlar?: boolean; // 📋 mahalla e'lon taxtasi tab, Reyting'ni tabbar'dan almashtiradi (owner-preview: admins see it while DARK)
     restoran?: boolean; // 🍽 restoran taom-buyurtma tab, "wallet" o'rnini egallaydi (owner-preview: admins see it while DARK)
+    bazar?: boolean; // 🏪 BirJoy marketplace-qatlam do'kon ustida (owner-preview: admins see it while DARK)
   };
 }
 
@@ -348,6 +349,10 @@ export interface ShopProductView {
   topSeller: boolean; // top-3 by delivered orders — 🔥 TOP badge
   likes: number; // 👍 review count
   dislikes: number; // 👎 review count
+  // 🏪 V1.4 (BirJoy, additiv — eski UI o'qimaydi):
+  shopId?: number | null;
+  shopName?: string | null;
+  deliveryText?: string | null; // do'konning yetkazish-va'dasi (kartadagi 🚚 chip)
 }
 
 export type ShopPurchaseStatus = "pending" | "delivered" | "rejected" | "cancelled";
@@ -363,6 +368,28 @@ export interface ShopPurchaseView {
   address: string;
   createdAt: string;
   decidedAt?: string | null;
+}
+
+// 🏪 V1.4 (BirJoy): bazar-qatlam maydonlari — additiv (eski UI o'qimaydi)
+export interface MarketShopView {
+  id: number;
+  name: string;
+  open: boolean;
+  deliveryText: string | null;
+  rating: number;
+  hasPhoto: boolean;
+}
+export interface MarketCategoryView {
+  id: number;
+  slug: string;
+  name: string;
+  emoji: string;
+  hasIcon: boolean;
+}
+export interface MarketHomeResponse {
+  shops: MarketShopView[];
+  cats: MarketCategoryView[];
+  products: ShopProductView[];
 }
 
 export interface ShopBuyResponse {

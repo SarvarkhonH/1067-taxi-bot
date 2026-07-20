@@ -9,6 +9,7 @@ import {
   SHOP_REVIEW_MAX_TEXT,
   formatNumber,
   type MeResponse,
+  type MarketHomeResponse,
   type ShopProductView,
   type ShopPurchaseView,
   type ShopReviewsResponse,
@@ -18,6 +19,7 @@ import { api, apiUrl } from "./api";
 import { haptic, hapticSuccess, inviteText, inviteLandingUrl, shareLink } from "./telegram";
 import { confetti, compressImage } from "./util";
 import { Button, EmptyState, ProgressBar, Sheet, Skeleton } from "./design/components";
+import { BjCategoryCarousel, BjShopCard, BjSection } from "./design/birjoy"; // 🏪 V1.4 BirJoy-kit
 import { Icon } from "./icons";
 
 const LAST_ADDR_KEY = "shop_last_addr";
@@ -167,11 +169,34 @@ export function ShopView({ me, onBanner, reload, onBook, openProductId }: { me: 
     }
   };
 
+  // 🏪 V1.4 (BirJoy): bazar-qatlam — flag OFF'da market so'ralmaydi ham, UI ham eski holicha AYNAN
+  const bazar = !!me.flags?.bazar;
+  const [market, setMarket] = useState<MarketHomeResponse | null>(null);
+  const [shopFilter, setShopFilter] = useState<{ id: number; name: string } | null>(null); // 🏬 do'kon-sahifa (lite)
+  // server-qidiruv (bazar'dagina): debounce → /api/shop/market?q= — tavsif bo'yicha ham topadi,
+  // NOL natija server'da MarketDemand'ga tushadi («qidirildi-topilmadi» ro'yxati egaga)
+  const [srv, setSrv] = useState<{ q: string; products: ShopProductView[] } | null>(null);
+  useEffect(() => {
+    if (!bazar) return;
+    const t = q.trim();
+    if (t.length < 2) { setSrv(null); return; }
+    const id = setTimeout(() => {
+      api.shopMarket(t).then((r) => setSrv({ q: t, products: r.products })).catch(() => undefined);
+    }, 450);
+    return () => clearTimeout(id);
+  }, [q, bazar]);
+
   const load = () => {
     setErr(false);
     api.shopProducts().then((r) => { PROD_CACHE = r.products; setProducts(r.products); }).catch(() => { if (!PROD_CACHE) setErr(true); });
   };
   useEffect(load, []);
+  // market-payload ALOHIDA effektda va bazar'ga bog'langan: flag me-refetch bilan KEYIN kelsa ham
+  // rail'lar yuklanadi (load()'ning [] effekti stale-bazar'ni qotirib qo'ygan bug'i — preview'da topildi)
+  useEffect(() => {
+    if (!bazar) return;
+    api.shopMarket().then(setMarket).catch(() => undefined); // best-effort — katalog baribir ochiladi
+  }, [bazar]);
 
   const featured = useMemo(() => (products ?? []).filter((p) => p.featured).slice(0, 6), [products]);
   // kategoriya chiplar — nechta va qaysi tartibda birinchi ko'rinishda paydo bo'lgan bo'lsa shu
@@ -182,12 +207,18 @@ export function ShopView({ me, onBanner, reload, onBook, openProductId }: { me: 
   }, [products]);
   // Amazon/Uzum standarti: bitta VERTIKAL 2-ustunli katalog-grid (gorizontal scroll faqat kichik
   // "tavsiya" qatorlarida) — 100+ mahsulotli kategoriya endi cheksiz eniga tasmaga aylanmaydi.
-  const catalog = useMemo(() => (cat ? (products ?? []).filter((p) => p.category === cat) : (products ?? [])), [products, cat]);
+  const catalog = useMemo(() => {
+    let list = products ?? [];
+    if (shopFilter) list = list.filter((p) => p.shopId === shopFilter.id); // 🏬 do'kon-sahifa rejimi
+    return cat ? list.filter((p) => p.category === cat) : list;
+  }, [products, cat, shopFilter]);
   const searched = useMemo(() => {
     const t = q.trim().toLowerCase();
     if (!t) return null;
+    // bazar: server-natija ustuvor (tavsif-qidiruv + demand-capture); kelguncha client-filtr
+    if (bazar && srv && srv.q.toLowerCase() === t) return srv.products;
     return (products ?? []).filter((p) => p.name.toLowerCase().includes(t) || p.category.toLowerCase().includes(t));
-  }, [products, q]);
+  }, [products, q, bazar, srv]);
   const similar = useMemo(() => (sel ? (products ?? []).filter((p) => p.category === sel.category && p.id !== sel.id).slice(0, 6) : []), [products, sel]);
 
   const openProduct = (p: ShopProductView) => {
@@ -272,8 +303,8 @@ export function ShopView({ me, onBanner, reload, onBook, openProductId }: { me: 
     <div className="shop-wrap">
       <div className="shop-head">
         <div>
-          <div className="shop-title">🛍 Do'kon</div>
-          <div className="muted fs12">Tangangizga real mahsulotlar · 1 kunda yetkazamiz</div>
+          <div className="shop-title">{bazar ? "🏪 BirJoy bozori" : "🛍 Do'kon"}</div>
+          <div className="muted fs12">{bazar ? "Kosonda bor — BirJoy'da bor" : "Tangangizga real mahsulotlar · 1 kunda yetkazamiz"}</div>
         </div>
         <div className="shop-head-actions">
           <button className="shop-share-btn" onClick={shareShop} aria-label="Do'konni ulashish"><Icon name="share" size={18} /></button>
@@ -324,8 +355,33 @@ export function ShopView({ me, onBanner, reload, onBook, openProductId }: { me: 
             </div>
           )}
 
+          {/* ── 🏬 do'kon-sahifa (lite): tanlangan do'kon nomi + orqaga ── */}
+          {bazar && shopFilter && (
+            <div className="bj-sect">
+              <h3>🏬 {shopFilter.name}</h3>
+              <button className="bj-sect-all" onClick={() => { haptic(); setShopFilter(null); }}>← Bozorga qaytish</button>
+            </div>
+          )}
+          {/* ── 🏪 V1.4 BirJoy: kategoriya-KARUSEL (Uzum-referens) + do'kon-rail — flag ON'dagina ── */}
+          {bazar && !shopFilter && market && market.cats.length > 0 && (
+            <BjCategoryCarousel
+              cats={market.cats.map((c) => ({ slug: c.name, name: c.name, emoji: c.emoji, iconUrl: c.hasIcon ? apiUrl(`/api/shop/cat-icon/${c.id}`) : null }))}
+              active={cat}
+              onPick={(slug) => { haptic(); setCat(slug); }}
+            />
+          )}
+          {bazar && !shopFilter && market && market.shops.length > 1 && (
+            <BjSection title="🏬 Do'konlar">
+              <div className="bj-shops">
+                {market.shops.map((s) => (
+                  <BjShopCard key={s.id} name={s.name} open={s.open} promise={s.deliveryText} rating={s.rating} photoUrl={s.hasPhoto ? apiUrl(`/api/shop/shop-photo/${s.id}`) : null} onOpen={() => { haptic(); setShopFilter({ id: s.id, name: s.name }); setCat(null); }} />
+                ))}
+              </div>
+            </BjSection>
+          )}
+
           {/* ── kategoriya chiplar (bitta qator, kichik tugmalar — Amazon "departments" pattern) ── */}
-          {categories.length > 1 && (
+          {!bazar && categories.length > 1 && (
             <div className="shop-cat-chips">
               <button className={"shop-cat-chip" + (cat === null ? " on" : "")} onClick={() => { haptic(); setCat(null); }}>
                 Hammasi <span className="shop-cat-chip-n">{products?.length ?? 0}</span>

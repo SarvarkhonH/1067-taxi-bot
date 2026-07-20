@@ -336,6 +336,10 @@ async function main(): Promise<void> {
       // kas'ga umuman bog'liq emas — faqat 3+ daq javobsiz FoodOrder'larni operatorlarga eslatadi.
       const { checkRestoranSlaAndAlert } = await import("./services/restoranService");
       await checkRestoranSlaAndAlert(alertAdmins).catch((e) => console.error("[restoran-sla] failed:", e));
+      // 🏪 BirJoy V1.5 SLA-sweep — restoran naqshi (yangi poller YO'Q): 15+ daq javobsiz
+      // ShopPurchase'lar egaga BIR marta eslatiladi (slaAlertedAt idempotent-marker).
+      const { checkShopSlaAndAlert } = await import("./services/shopService");
+      await checkShopSlaAndAlert(alertAdmins).catch((e) => console.error("[shop-sla] failed:", e));
     }
     // 🚖 SMS-parity speed: while a rider is WAITING for a driver, poll every 5s so "Haydovchi
     // topildi" lands in seconds like the kas SMS. Assigned / in-trip → 15s (arrival is WS-instant).

@@ -224,6 +224,13 @@ export const adminApi = {
   shopOrders: (status?: string) => req<{ orders: ShopAdminOrderRow[] }>(`/api/admin/shop/orders${status ? `?status=${status}` : ""}`),
   shopReviews: () => req<{ reviews: ShopAdminReviewRow[] }>("/api/admin/shop/reviews"),
   shopReviewDelete: (id: number) => req<{ ok: boolean }>(`/api/admin/shop/reviews/${id}`, { method: "DELETE" }),
+  // 🎠 BirJoy kategoriya-karusel boshqaruvi (owner-only)
+  shopCats: () => req<{ cats: { id: number; slug: string; name: string; emoji: string; hasIcon: boolean; sortOrder: number; active: boolean; productCount: number }[] }>("/api/admin/shop/categories"),
+  shopCatCreate: (name: string, emoji?: string) => postJson<{ ok: boolean; id?: number; error?: string }>("/api/admin/shop/categories", { name, emoji }),
+  shopCatEdit: (id: number, patch: Record<string, unknown>) => postJson<{ ok: boolean }>(`/api/admin/shop/categories/${id}`, patch),
+  shopCatDelete: (id: number) => req<{ ok: boolean }>(`/api/admin/shop/categories/${id}`, { method: "DELETE" }),
+  shopCatIcon: (id: number, mime: string, base64: string) => postJson<{ ok: boolean; error?: string }>(`/api/admin/shop/categories/${id}/icon`, { mime, base64 }),
+  shopCatIconUrl: (id: number) => `${API_BASE}/api/shop/cat-icon/${id}`,
   // 🍽 restoran — R3 sessiya-navbati
   restoranOrders: (status?: string) => req<{ orders: AdminFoodOrderRow[] }>(`/api/admin/restoran/orders${status ? `?status=${status}` : ""}`),
   restoranCall: (id: number) => postJson<{ ok: boolean }>(`/api/admin/restoran/orders/${id}/call`, {}),

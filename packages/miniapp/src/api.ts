@@ -140,6 +140,8 @@ export const api = {
   me: () => get<MeResponse | { linked: false }>("/api/me"),
   // 🛍 tanga shop (feature "shop")
   shopProducts: () => get<{ products: import("@t1067/shared").ShopProductView[] }>("/api/shop/products"),
+  shopMarket: (q?: string) => get<import("@t1067/shared").MarketHomeResponse>(`/api/shop/market${q ? `?q=${encodeURIComponent(q)}` : ""}`), // 🏪 V1.4 BirJoy bozor-bosh
+
   shopBuy: (productId: number, address: string, pay: "tanga" | "cash" = "tanga") => post<import("@t1067/shared").ShopBuyResponse>("/api/shop/buy", { productId, address, pay }),
   shopOrders: () => get<{ orders: import("@t1067/shared").ShopPurchaseView[] }>("/api/shop/orders"),
   shopReviews: (productId: number) => get<import("@t1067/shared").ShopReviewsResponse>(`/api/shop/reviews/${productId}`),

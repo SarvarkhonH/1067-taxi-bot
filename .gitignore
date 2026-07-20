@@ -22,3 +22,7 @@ backups/
 .qa-bugs.json
 
 .qa-fixes.json
+
+# bir-martalik push-yordamchi (commit qilinmaydi)
+_pushHelper.mjs
+PUSH_QILISH.bat

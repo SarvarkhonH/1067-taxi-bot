@@ -972,3 +972,62 @@ Holat: **ready for verification** (2026-07-20). Har DoD-satr isbotlangan:
 - KUZATUV: bugun (07-20) do'konga 13 yangi mahsulot qo'shilgan (Parfumeriya×10) — ega faol ishlatyapti.
 QOLDI (V0 doirasida emas): deploy (Render push) + ega telefon-QABUL; ega-ishlari 0.6 (featured 4-6,
 4 pending buyurtma, 51 stock=10). Keyingi: D1 dizayn-poydevor + V1 marketplace.
+
+## 2026-07-20 — 🎨 D1+V1 (BirJoy dizayn-poydevori + marketplace) boshlandi
+Reja-hujjat: sessiya plan-fayli (V0 yozuvida xulosasi bor). Flag: `bazar` (DEFAULT_OFF, DARK).
+
+### D1+V1 DoD (KOD'DAN OLDIN)
+| # | Mezon | Tekshiruv |
+|---|---|---|
+| D1a | BirJoy token-palitras (--bj-*) tokens.css'da; AA-kontrast asosiy juftliklar | computed-style + kontrast-hisob |
+| D1b | BjCategoryCarousel (Uzum-uslub pill+ikonka-rasm karusel) + CategoryDef jadval + admin kategoriya-CRUD (rasm yuklash) | preview DOM + admin-API test |
+| D1c | Komponent-kit: BjProductCard/BjShopCard/BjPromiseChip/BjTangaRibbon/BjStickyCartBar/BjEmptyState — faqat token, inline-stil 0 | grep inline style + preview |
+| V1.1 | Schema additiv: MarketShop + Product.shopId + CategoryDef; migrateBirjoySeller (do'kon#1, hamma mahsulot shopId=1, idempotent ×2) | db push diff faqat ADD; skript 2× run |
+| V1.2 | oprtoken `shopseller:<shopId>` scope: seller faqat O'Z mahsulot/buyurtmasi; owner hammasi | testBazar auth-blok + curl |
+| V1.3 | `/sotuvchi` bot-wizard → DARK vitrina; ega aktivlashtiradi | bot-mock test + jonli owner-sinov |
+| V1.4 | `bazar` OFF = bugungi UI AYNAN (0 vizual farq); ON = Bozor-bosh (karusel+qidiruv+do'kon-rail+va'da-chip) | flag off/on preview + bundle-grep |
+| V1.5 | Buyurtma seller'ga + ega CC; 4-tugma oqim; rider status-push; SLA sweep'da (yangi poller 0) | testBazar + `rg setInterval` diff bo'sh |
+| ∀ | typecheck 4/4 · testShop regressiya 94/94 · testBazar yangi 3× yashil · R4 mustaqil · ega QABUL → EXPECTED_ON | buyruq+natija |
+
+Holat: **in progress (V1 kod-yadro qurildi, gaps quyida)** — 2026-07-20 kech:
+- ✅ V1.1: MarketShop+CategoryDef+Product.shopId (additiv push ikkala DB) · migrateBirjoySeller
+  JONLI apply: MarketShop=1 («BirJoy o'z do'koni»), 109 mahsulot shopId=1, CategoryDef=9, 2-run=no-op.
+- ✅ V1.2: oprtoken `shopseller:<shopId>` scope + sellerOwnsProduct choke-point + scoped
+  adminList{Products,Purchases,Reviews} — **testBazar 18/18 ×3 yashil** + testShop 94/94 regressiya.
+- ✅ V1.3: `/sotuvchi` wizard (bot/market.ts, cashout sessions-naqsh, DARK vitrina, ega ✅/❌
+  tasdiqlash-kartasi) — bot.ts'da booking'dan OLDIN registered. Jonli telefon-sinov QABUL'da.
+- ✅ V1.5 (MVP-qaror): 4-bosqichli status V2.1 MarketOrder'ga qoldirildi — hozir mavjud ✅/❌ oqimi
+  sellerga yo'naltirildi (shopChatsFor: seller ownerChatId + EGA HAR DOIM CC) + callback-guard
+  {seller,ega} + SLA-sweep booking-tick'da (yangi poller 0, grep-isbot) — testBazar 7-blok.
+- ✅ V1.4 (yadro): flag `bazar` (DEFAULT_OFF) + me.flags.bazar (owner-preview) + `/api/shop/market`
+  (do'kon-rail + kategoriya + ?q= server-qidiruv + nol-natija→MarketDemand) + cat-icon/shop-photo
+  proxy'lar + D1-kit bilan Bozor-bosh («BirJoy bozori» sarlavha, BjCategoryCarousel, do'kon-rail) —
+  OFF=eski UI aynan (bazar=false → market so'ralmaydi, chiplar qoladi). Bundle-grep: shop-chunk'da
+  «BirJoy bozori»+bj-cats, CSS'da bj-pcard. typecheck 4/4.
+- ✅ D1 (yadro): --bj-* palitra+harakat-til (tokens.css +86 qoida) + birjoy.tsx kit (7 komponent,
+  inline-stil 0 grep-isbot).
+**GAPS (nomma-nom, R7):** (1) admin CategoryDef-CRUD UI (ikonka-rasm yuklash) YO'Q — karusel hozircha
+emoji-fallback bilan ishlaydi; (2) miniapp qidiruv hali client-side — server ?q=/MarketDemand UI'dan
+ulanmagan; (3) do'kon-kartaga bosish hozircha banner (alohida do'kon-sahifa V2'da); (4) preview-DOM/
+computed-style isbotlar olinmagan; (5) R4 mustaqil tekshiruv V1 uchun O'TKAZILMAGAN; (6) ega QABUL yo'q
+→ flag DARK qoladi, EXPECTED_ON'ga kirmaydi; (7) SERVER DEPLOY BLOKLANGAN — GitHub credential o'lgan
+(commit 86a7e40 + V1 kodi lokalda), ega `git push origin main` qilishi kerak → keyin Render trigger
+(srv-d8mj9kkm0tmc73d72440); miniapp V0-deploy jonli, V1-build tayyor lekin deploy qilinmagan (server'siz
+ma'nosiz). Eslatma: boshqa sessiyaning 4 uncommitted fayli (cashout/backup/intercity/restoran) ataylab
+commit qilinmadi — aralashtirish yo'q.
+
+**2026-07-20 kech-2 — gap'lar yopildi (1-4):** (1) admin 🎠 kategoriya-CRUD (owner-only routelar +
+ShopCategoriesPanel: qo'shish/ikonka-rasm yuklash/faol-toggle/o'chirish, tgUploadPhoto pipeline);
+(2) bazar'da qidiruv endi server-side (?q= debounce 450ms → tavsif-qidiruv + nol-natija MarketDemand);
+(3) do'kon-sahifa lite (BjShopCard bosish → shu do'kon mahsulotlari + «← Bozorga qaytish»);
+(4) **PREVIEW-DOM ISBOT olindi** (lokal botsiz server 8080 + vite 5173, real Neon data, owner-preview
+tg=6506297119): title «🏪 BirJoy bozori» · subtitle · .bazar-light zumrad-fon computed-style ·
+karusel 9 pill (emoji-fallback) · Parfumeriya-tanlash 100→10 filtr + .on holat · eski chiplar
+yashirin · mobil-skrinshot olindi. Preview'da REAL BUG topilib tuzatildi: load()'ning [] effekti
+stale-bazar'ni qotirardi (flag me-refetch bilan kelganda market so'ralmasdi) → alohida [bazar]-dep
+effekt. testBazar+testShop yashil, typecheck 4/4, prod-build OK.
+KUZATUV (ega ma'lumot-kiritishi): bugungi yangi mahsulotlarda «PARFUMERIYA» (katta-harf) kategoriya
+paydo bo'lgan — admin endi select bo'lgani uchun yangi tartibsizlik to'xtaydi, mavjudlarini
+cleanShopData mapping'iga qo'shib keyingi apply'da birlashtiramiz.
+QOLGAN GAP: R4 mustaqil tekshiruv (V1) · ega telefon-QABUL · GitHub-push (PUSH_QILISH.bat kutmoqda,
+Monitor armed) → keyin Render+Vercel deploy.

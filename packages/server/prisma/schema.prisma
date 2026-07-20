@@ -379,11 +379,68 @@ model CoinTxn {
 
 // 🛍 TANGA SHOP (feature "shop"): owner-listed real goods bought with tanga; owner-fulfilled by hand
 // (delivery by his own drivers). NO lootboxes — deterministic price/product only.
+// 🏪 BirJoy V1 (BAZAR_PLAN): sotuvchi-do'kon — Restaurant shakli, food-maydonlarsiz. Legacy
+// Shop/Listing/ShopOrder (voucher-tizim qoldiqlari) ATAYLAB tegilmagan — bu YANGI, toza model.
+// Do'kon #1 = «BirJoy o'z do'koni» (ega, migrateBirjoySeller.ts); har lokal do'kon o'z vitrinasi.
+model MarketShop {
+  id             Int      @id @default(autoincrement())
+  name           String
+  category       String   @default("boshqa")
+  phone          String
+  address        String?
+  workHours      String? // "09:00-22:00" — restoran bilan bir xil Ochiq/Yopiq hisob
+  deliveryText   String? // Tier-1 yetkazish-va'dasi kartada: "Bugun 14:00-18:00" / "Ertaga"
+  deliveryFeeSom Int      @default(0)
+  minOrderTanga  Int      @default(0)
+  slaMinutes     Int      @default(15) // shu vaqt ichida javob bo'lmasa egaga alert (sweep)
+  ownerChatId    String? // sotuvchining Telegram chat_id'si — buyurtma-kartalar shu yerga (null → ega)
+  photoFileId    String? // do'kon-logo (tgUploadPhoto pipeline)
+  photoUrl       String?
+  active         Boolean  @default(false) // wizard DARK yaratadi; EGA yoqadi
+  paused         Boolean  @default(false)
+  sortOrder      Int      @default(0)
+  avgRating      Float    @default(0) // V3'da sotuvchi-reyting keshi
+  reviewCount    Int      @default(0)
+  orderCount     Int      @default(0)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@index([active, sortOrder])
+}
+
+// 🎠 D1: boshqariladigan kategoriya (Uzum-uslub ikonka-karusel) — erkin-string davri tugaydi.
+// Ikonka = admin yuklagan rasm (file_id pipeline); rasm yo'q bo'lsa emoji fallback.
+model CategoryDef {
+  id          Int      @id @default(autoincrement())
+  slug        String   @unique // deep-link ?go=dokon&c=<slug>
+  name        String
+  emoji       String   @default("🛍") // ikonka-rasm bo'lmaganda katta-emoji
+  iconFileId  String?
+  iconUrl     String?
+  sortOrder   Int      @default(0)
+  active      Boolean  @default(true)
+  createdAt   DateTime @default(now())
+
+  @@index([active, sortOrder])
+}
+
+// 🔎 V1.4: nol-natija qidiruvlar — «nima qidirildi-topilmadi» ro'yxati egaga qaysi sotuvchini
+// chaqirishni aytadi (xizmatlar ServiceRequest naqshi).
+model MarketDemand {
+  id        Int      @id @default(autoincrement())
+  memberId  Int?
+  query     String
+  createdAt DateTime @default(now())
+
+  @@index([createdAt])
+}
+
 model Product {
   id          Int      @id @default(autoincrement())
+  shopId      Int? // 🏪 V1: qaysi MarketShop'niki (loose FK, ProductPhoto precedenti); null = hali migratsiyadan o'tmagan
   name        String
   description String?
-  category    String   @default("umumiy") // free bucket: "oziq-ovqat" | "elektronika" | …
+  category    String   @default("umumiy") // free bucket: "oziq-ovqat" | "elektronika" | … (D1'da CategoryDef.slug'ga ko'chadi)
   priceTanga  Int // whole tanga only (1 tanga = 1 so'm)
   oldPriceTanga Int? // marketplace discount display: strikethrough + −N% badge (null = no discount)
   featured    Boolean  @default(false) // hero-carousel slot on the shop home
@@ -396,6 +453,7 @@ model Product {
   updatedAt   DateTime @updatedAt
 
   @@index([active, sortOrder])
+  @@index([shopId, active]) // 🏪 V1: seller-scoped katalog so'rovlari
 }
 
 // 🖼 Product gallery — up to 5 photos per product ("real market feel": swipeable detail gallery).
@@ -448,6 +506,7 @@ model ShopPurchase {
   note        String? // owner's rejection reason (rider sees it)
   createdAt   DateTime  @default(now())
   decidedAt   DateTime?
+  slaAlertedAt DateTime? // 🏪 V1.5: seller 15 daqiqada javob bermasa egaga BIR marta alert (sweep-marker)
 
   @@index([memberId, status])
   @@index([status, createdAt])

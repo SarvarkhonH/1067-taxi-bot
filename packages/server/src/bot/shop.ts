@@ -51,6 +51,22 @@ export async function sendShopCard(bot: Bot, chatId: string): Promise<void> {
     .catch(() => undefined);
 }
 
+/** V1.5 (BirJoy): buyurtma-karta MANZILI — mahsulot qaysi do'konniki bo'lsa, o'sha sellerning
+ *  Telegram'iga; EGA HAR DOIM CC oladi (pilot-davr nazorati + seller offline bo'lsa buyurtma
+ *  yo'qolmaydi). Seller yo'q/ownerChatId bo'sh → faqat ega (bugungi xatti-harakat). */
+async function shopChatsFor(orderId: number): Promise<string[]> {
+  const chats = new Set<string>([OWNER_TG]);
+  const order = await prisma.shopPurchase.findUnique({ where: { id: orderId }, select: { productId: true } });
+  if (order) {
+    const product = await prisma.product.findUnique({ where: { id: order.productId }, select: { shopId: true } });
+    if (product?.shopId) {
+      const shop = await prisma.marketShop.findUnique({ where: { id: product.shopId }, select: { ownerChatId: true, active: true } });
+      if (shop?.ownerChatId && shop.active) chats.add(shop.ownerChatId);
+    }
+  }
+  return [...chats];
+}
+
 /** New purchase → owner card. Exported for the API layer (bot-bound closure, cashout pattern). */
 export async function notifyOwnerShop(bot: Bot, n: ShopOwnerNotice): Promise<void> {
   const kb = new InlineKeyboard().text("✅ Yetkazildi", `shop:ok:${n.orderId}`).text("❌ Rad", `shop:no:${n.orderId}`);
@@ -60,27 +76,28 @@ export async function notifyOwnerShop(bot: Bot, n: ShopOwnerNotice): Promise<voi
   const hint = n.payKind === "cash"
     ? `<i>Yetkazib pulni olgach ✅ bosing. ❌ Rad — faqat ombor qaytadi (pul olinmagan).</i>`
     : `<i>Yetkazib bo'lgach ✅ bosing. ❌ Rad — tanga avtomatik qaytadi.</i>`;
-  await bot.api
-    .sendMessage(
-      OWNER_TG,
-      `🛍 <b>DO'KON BUYURTMASI</b> #${n.orderId}\n\n` +
-        payLine +
-        `👤 ${esc(n.buyerName)}\n📞 ${esc(n.phone)}\n📍 ${esc(n.address)}\n\n` +
-        hint,
-      { parse_mode: "HTML", reply_markup: kb },
-    )
-    .catch(() => undefined);
+  const text =
+    `🛍 <b>DO'KON BUYURTMASI</b> #${n.orderId}\n\n` +
+    payLine +
+    `👤 ${esc(n.buyerName)}\n📞 ${esc(n.phone)}\n📍 ${esc(n.address)}\n\n` +
+    hint;
+  for (const chat of await shopChatsFor(n.orderId)) {
+    await bot.api.sendMessage(chat, text, { parse_mode: "HTML", reply_markup: kb }).catch(() => undefined);
+  }
 }
 
 export function registerShop(bot: Bot): void {
   bot.callbackQuery(/^shop:(ok|no):(\d+)$/, async (ctx) => {
-    if (String(ctx.from.id) !== OWNER_TG) {
-      await ctx.answerCallbackQuery({ text: "Faqat admin", show_alert: true });
-      return;
-    }
     const m = ctx.match as RegExpMatchArray;
     const action = m[1];
     const orderId = Number(m[2]);
+    // V1.5: ega YOKI shu buyurtma-do'konining selleri bosadi (karta faqat shu ikkoviga boradi,
+    // lekin callback_data taxmin qilinishi mumkin — server-tomonda qatiy tekshiruv shart)
+    const allowed = await shopChatsFor(orderId);
+    if (!allowed.includes(String(ctx.from.id))) {
+      await ctx.answerCallbackQuery({ text: "Faqat admin", show_alert: true });
+      return;
+    }
 
     if (action === "ok") {
       const r = await deliverPurchase(orderId);

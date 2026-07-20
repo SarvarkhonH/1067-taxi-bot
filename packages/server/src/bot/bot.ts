@@ -25,6 +25,7 @@ import { payDriver, registerBooking } from "./booking";
 import { registerDriverDebt } from "./driverDebt";
 import { registerDriverReports } from "./driverReports";
 import { registerCashout } from "./cashout";
+import { registerMarket } from "./market";
 import { registerIntercity } from "./intercity";
 import { registerBroadcast } from "./broadcast";
 import type { DriverPanelExtras } from "../services/driverReportService";
@@ -1492,6 +1493,7 @@ export function createBot(): Bot {
   void import("./xizmatlar").then(({ registerXizmatlar }) => registerXizmatlar(bot)); // 🔎 xizmatlar owner ✅/❌ moderation callbacks (callback-only → lazy-register is order-safe)
   void import("./elonlar").then(({ registerElonlar }) => registerElonlar(bot)); // 📋 e'lonlar owner ✅/❌ moderation callbacks (callback-only → lazy-register is order-safe)
   registerIntercity(bot); // 🚐 /reys — nationwide intercity seat booking (publish/search/book). Gated DARK by `intercity`. Session-gated text capture → registered before booking.
+  registerMarket(bot); // 🏪 /sotuvchi — BirJoy seller-onboarding wizard (DARK vitrina → ega tasdiqlaydi). Session-gated text capture → registered before booking.
   registerDriverDebt(bot); // /qarz — pay kas debt with tanga (gated behind `qarz` flag). No login: uses the member's already-linked plate.
   registerDriverReports(bot); // /safarlarim + /daromad (read-only driver reports)
   registerBooking(bot, mainMenu);

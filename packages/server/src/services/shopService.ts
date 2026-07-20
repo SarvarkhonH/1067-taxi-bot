@@ -46,6 +46,10 @@ export async function listActiveProducts(preview = false): Promise<ShopProductVi
   const countOf = new Map(counts.map((c) => [c.productId, c._count._all]));
   const topIds = new Set(sold.filter((s) => s._count._all > 0).map((s) => s.productId));
   const thumbOf = new Map(thumbs.map((t) => [`${t.productId}:${t.thumb}`, t._count._all]));
+  // 🏪 V1.4: bazar-qatlam uchun do'kon-ma'lumot (OFF holatda ham qaytadi — additiv, UI o'qimaydi)
+  const shopIds = [...new Set(rows.map((r) => r.shopId).filter((v): v is number => v !== null))];
+  const shops = shopIds.length ? await prisma.marketShop.findMany({ where: { id: { in: shopIds } }, select: { id: true, name: true, deliveryText: true } }) : [];
+  const shopOf = new Map(shops.map((s) => [s.id, s]));
   return rows.map((p) => ({
     id: p.id,
     name: p.name,
@@ -61,7 +65,52 @@ export async function listActiveProducts(preview = false): Promise<ShopProductVi
     topSeller: topIds.has(p.id),
     likes: thumbOf.get(`${p.id}:up`) ?? 0,
     dislikes: thumbOf.get(`${p.id}:down`) ?? 0,
+    shopId: p.shopId,
+    shopName: p.shopId ? shopOf.get(p.shopId)?.name ?? null : null,
+    deliveryText: p.shopId ? shopOf.get(p.shopId)?.deliveryText ?? null : null,
   }));
+}
+
+/** 🏪 V1.4 (BirJoy): Bozor-bosh payload — do'kon-rail + kategoriya-karusel + server-qidiruv.
+ *  q berilsa: OR-contains qidiruv (serviceDirectory naqshi); nol natija → MarketDemand yozuvi
+ *  («qidirildi-topilmadi» — egaga qaysi sotuvchini chaqirishni aytadi). */
+export async function getMarketHome(preview = false, q?: string, memberId?: number): Promise<{
+  shops: { id: number; name: string; open: boolean; deliveryText: string | null; rating: number; hasPhoto: boolean }[];
+  cats: { slug: string; name: string; emoji: string; hasIcon: boolean; id: number }[];
+  products: ShopProductView[];
+}> {
+  if (!preview && !(await featureOn("bazar"))) return { shops: [], cats: [], products: [] };
+  const query = (q ?? "").trim().slice(0, 60);
+  const [shops, cats, products] = await Promise.all([
+    prisma.marketShop.findMany({ where: { active: true, paused: false }, orderBy: [{ sortOrder: "asc" }, { orderCount: "desc" }], take: 20 }),
+    prisma.categoryDef.findMany({ where: { active: true }, orderBy: { sortOrder: "asc" }, take: 20 }),
+    listActiveProducts(true), // flag-tekshiruv yuqorida bo'ldi; preview=true — ichki qayta-gate emas
+  ]);
+  let filtered = products;
+  if (query) {
+    const ql = query.toLowerCase();
+    filtered = products.filter((p) => p.name.toLowerCase().includes(ql) || (p.description ?? "").toLowerCase().includes(ql) || p.category.toLowerCase().includes(ql));
+    if (filtered.length === 0) {
+      await prisma.marketDemand.create({ data: { query, memberId: memberId ?? null } }).catch(() => undefined);
+    }
+  }
+  return {
+    shops: shops.map((s) => ({ id: s.id, name: s.name, open: isOpenNow(s.workHours), deliveryText: s.deliveryText, rating: s.avgRating, hasPhoto: !!(s.photoFileId || s.photoUrl) })),
+    cats: cats.map((c) => ({ id: c.id, slug: c.slug, name: c.name, emoji: c.emoji, hasIcon: !!(c.iconFileId || c.iconUrl) })),
+    products: filtered,
+  };
+}
+
+/** "09:00-21:00" → hozir ochiqmi (restoran client-side hisobining server-versiyasi, Asia/Tashkent). */
+function isOpenNow(workHours: string | null): boolean {
+  if (!workHours) return true;
+  const m = /^(\d{1,2}):(\d{2})\s*-\s*(\d{1,2}):(\d{2})$/.exec(workHours.trim());
+  if (!m) return true;
+  const now = new Date(Date.now() + 5 * 3600_000); // UTC+5 Tashkent
+  const cur = now.getUTCHours() * 60 + now.getUTCMinutes();
+  const from = Number(m[1]) * 60 + Number(m[2]);
+  const to = Number(m[3]) * 60 + Number(m[4]);
+  return to > from ? cur >= from && cur < to : cur >= from || cur < to; // yarim-tun oshgan smenalar
 }
 
 export async function myPurchases(memberId: number, take = 20): Promise<ShopPurchaseView[]> {
@@ -275,12 +324,96 @@ export interface AdminProductRow {
   createdAt: string;
 }
 
-export async function adminListProducts(): Promise<{ products: AdminProductRow[]; enabled: boolean; pendingOrders: number }> {
+// ── 🎠 D1: CategoryDef CRUD (admin) — karusel-ikonka boshqaruvi ─────────────────────────────────
+export interface AdminCategoryRow { id: number; slug: string; name: string; emoji: string; hasIcon: boolean; sortOrder: number; active: boolean; productCount: number }
+
+export async function adminListCategories(): Promise<AdminCategoryRow[]> {
+  const [cats, counts] = await Promise.all([
+    prisma.categoryDef.findMany({ orderBy: { sortOrder: "asc" } }),
+    prisma.product.groupBy({ by: ["category"], _count: { _all: true } }),
+  ]);
+  const countOf = new Map(counts.map((c) => [c.category, c._count._all]));
+  return cats.map((c) => ({ id: c.id, slug: c.slug, name: c.name, emoji: c.emoji, hasIcon: !!(c.iconFileId || c.iconUrl), sortOrder: c.sortOrder, active: c.active, productCount: countOf.get(c.name) ?? 0 }));
+}
+
+const slugify = (name: string): string => name.toLowerCase().replace(/['ʼ']/g, "").replace(/[^a-z0-9а-яё]+/gi, "-").replace(/^-|-$/g, "") || "cat";
+
+export async function adminCreateCategory(name: string, emoji?: string): Promise<{ ok: boolean; id?: number; error?: string }> {
+  const n = (name ?? "").trim().slice(0, 40);
+  if (n.length < 2) return { ok: false, error: "bad_name" };
+  let slug = slugify(n);
+  if (await prisma.categoryDef.findUnique({ where: { slug } })) slug = `${slug}-${Date.now() % 1000}`; // to'qnashuv — nodir
+  const max = await prisma.categoryDef.aggregate({ _max: { sortOrder: true } });
+  const row = await prisma.categoryDef.create({ data: { slug, name: n, emoji: (emoji ?? "🛍").slice(0, 8), sortOrder: (max._max.sortOrder ?? 0) + 1 } });
+  return { ok: true, id: row.id };
+}
+
+export async function adminEditCategory(id: number, patch: { name?: string; emoji?: string; sortOrder?: number; active?: boolean }): Promise<{ ok: boolean }> {
+  const data: Record<string, unknown> = {};
+  if (typeof patch.name === "string" && patch.name.trim().length >= 2) data.name = patch.name.trim().slice(0, 40);
+  if (typeof patch.emoji === "string" && patch.emoji.trim()) data.emoji = patch.emoji.trim().slice(0, 8);
+  if (typeof patch.sortOrder === "number" && Number.isFinite(patch.sortOrder)) data.sortOrder = Math.floor(patch.sortOrder);
+  if (typeof patch.active === "boolean") data.active = patch.active;
+  if (!Object.keys(data).length) return { ok: false };
+  await prisma.categoryDef.update({ where: { id }, data }).catch(() => undefined);
+  return { ok: true };
+}
+
+export async function adminDeleteCategory(id: number): Promise<{ ok: boolean }> {
+  await prisma.categoryDef.delete({ where: { id } }).catch(() => undefined); // mahsulot-category string tegilmaydi (loose)
+  return { ok: true };
+}
+
+/** karusel-ikonka yuklash — tgUploadPhoto pipeline (sharh-foto validatsiyasi bilan: hajm-chek). */
+export async function uploadCategoryIcon(id: number, buf: Buffer, mime = "image/jpeg"): Promise<{ ok: boolean; error?: string }> {
+  if (buf.length < 100 || buf.length > 2_500_000) return { ok: false, error: "bad_size" };
+  const cat = await prisma.categoryDef.findUnique({ where: { id } });
+  if (!cat) return { ok: false, error: "not_found" };
+  const up = await tgUploadPhoto(buf, mime, `🎠 kategoriya-ikonka: ${cat.name}`);
+  if (up.fileId) {
+    await prisma.categoryDef.update({ where: { id }, data: { iconFileId: up.thumbFileId ?? up.fileId, iconUrl: null } });
+  } else {
+    await prisma.categoryDef.update({ where: { id }, data: { iconUrl: `data:${mime};base64,${buf.toString("base64")}`, iconFileId: null } });
+  }
+  return { ok: true };
+}
+
+/** V1.5 (BirJoy): do'kon-buyurtma SLA-sweep — restoran naqshi AYNAN (yangi poller YO'Q, mavjud
+ *  booking-tick chaqiradi). Har do'konning O'Z slaMinutes'i (default 15); shopId'siz mahsulot 15.
+ *  Idempotent: slaAlertedAt BIR marta. Mijozga ko'rinmaydi — faqat egaga ichki nazorat. */
+export async function checkShopSlaAndAlert(alertAdmins: (html: string) => Promise<void>): Promise<void> {
+  const maxCutoff = new Date(Date.now() - 15 * 60_000);
+  const stale = await prisma.shopPurchase.findMany({
+    where: { status: "pending", createdAt: { lt: maxCutoff }, slaAlertedAt: null },
+    select: { id: true, productId: true, productName: true, createdAt: true },
+    take: 50,
+  });
+  if (!stale.length) return;
+  const lines = stale.map((s) => {
+    const age = Math.floor((Date.now() - s.createdAt.getTime()) / 60_000);
+    return `#${s.id} · ${s.productName.slice(0, 40)} · ${age} daq javobsiz`;
+  });
+  await alertAdmins(`🛍 <b>Do'kon: ${stale.length} ta buyurtma 15+ daq javobsiz</b>\n${lines.join("\n")}`).catch(() => undefined);
+  await prisma.shopPurchase.updateMany({ where: { id: { in: stale.map((s) => s.id) } }, data: { slaAlertedAt: new Date() } });
+}
+
+/** V1.2: mahsulot shu do'kongami — seller-scope choke-point uchun (server.ts sellerOwnsProduct). */
+export async function productBelongsToShop(productId: number, shopId: number): Promise<boolean> {
+  if (!Number.isFinite(productId)) return false;
+  const p = await prisma.product.findUnique({ where: { id: productId }, select: { shopId: true } });
+  return p?.shopId === shopId;
+}
+
+export async function adminListProducts(scopeShopId?: number): Promise<{ products: AdminProductRow[]; enabled: boolean; pendingOrders: number }> {
+  // V1.2: seller-token faqat O'Z do'koni; pendingOrders ham shu scope'da (badge to'g'ri bo'lsin)
+  const scopeProductIds = scopeShopId === undefined
+    ? undefined
+    : (await prisma.product.findMany({ where: { shopId: scopeShopId }, select: { id: true } })).map((p) => p.id);
   const [rows, sold, enabled, pendingOrders, photoCounts] = await Promise.all([
-    prisma.product.findMany({ orderBy: [{ sortOrder: "asc" }, { id: "desc" }] }),
+    prisma.product.findMany({ where: scopeShopId === undefined ? undefined : { shopId: scopeShopId }, orderBy: [{ sortOrder: "asc" }, { id: "desc" }] }),
     prisma.shopPurchase.groupBy({ by: ["productId"], where: { status: "delivered" }, _count: { _all: true } }),
     featureOn("shop"),
-    prisma.shopPurchase.count({ where: { status: "pending" } }),
+    prisma.shopPurchase.count({ where: { status: "pending", ...(scopeProductIds ? { productId: { in: scopeProductIds } } : {}) } }),
     prisma.productPhoto.groupBy({ by: ["productId"], _count: { _all: true } }),
   ]);
   const soldOf = new Map(sold.map((s) => [s.productId, s._count._all]));
@@ -334,10 +467,11 @@ function cleanPatch(b: ProductPatch): ProductPatch {
   return out;
 }
 
-export async function adminCreateProduct(body: ProductPatch): Promise<{ ok: boolean; id?: number; error?: string }> {
+export async function adminCreateProduct(body: ProductPatch, forceShopId?: number): Promise<{ ok: boolean; id?: number; error?: string }> {
   const p = cleanPatch(body);
   if (!p.name || !p.priceTanga) return { ok: false, error: "name_price_required" };
-  const row = await prisma.product.create({ data: { ...p, name: p.name, priceTanga: p.priceTanga, active: false } }); // created OFF — owner flips on
+  // V1.2: seller-token yaratgani MAJBURAN o'z do'koniga; owner uchun default = do'kon #1 (BirJoy o'z do'koni)
+  const row = await prisma.product.create({ data: { ...p, name: p.name, priceTanga: p.priceTanga, active: false, shopId: forceShopId ?? 1 } }); // created OFF — owner flips on
   return { ok: true, id: row.id };
 }
 
@@ -357,9 +491,13 @@ export async function adminDeleteProduct(id: number): Promise<{ ok: boolean }> {
   return { ok: true };
 }
 
-export async function adminListPurchases(status?: string): Promise<(ShopPurchaseView & { buyerName: string; contact: string })[]> {
+export async function adminListPurchases(status?: string, scopeShopId?: number): Promise<(ShopPurchaseView & { buyerName: string; contact: string })[]> {
+  // V1.2: seller faqat O'Z do'koni mahsulotlarining buyurtmalarini ko'radi (PII shu subset'gagina)
+  const scopeIds = scopeShopId === undefined
+    ? undefined
+    : (await prisma.product.findMany({ where: { shopId: scopeShopId }, select: { id: true } })).map((p) => p.id);
   const rows = await prisma.shopPurchase.findMany({
-    where: status ? { status } : undefined,
+    where: { ...(status ? { status } : {}), ...(scopeIds ? { productId: { in: scopeIds } } : {}) },
     orderBy: { id: "desc" },
     take: 100,
     include: { member: { select: { fullName: true, displayName: true } } },
@@ -550,8 +688,12 @@ export interface AdminReviewRow {
   createdAt: string;
 }
 
-export async function adminListReviews(): Promise<AdminReviewRow[]> {
-  const rows = await prisma.productReview.findMany({ orderBy: { id: "desc" }, take: 50 });
+export async function adminListReviews(scopeShopId?: number): Promise<AdminReviewRow[]> {
+  // V1.2: seller faqat O'Z mahsulotlarining sharhlarini ko'radi
+  const scopeIds = scopeShopId === undefined
+    ? undefined
+    : (await prisma.product.findMany({ where: { shopId: scopeShopId }, select: { id: true } })).map((p) => p.id);
+  const rows = await prisma.productReview.findMany({ where: scopeIds ? { productId: { in: scopeIds } } : undefined, orderBy: { id: "desc" }, take: 50 });
   const [products, members] = await Promise.all([
     prisma.product.findMany({ where: { id: { in: rows.map((r) => r.productId) } }, select: { id: true, name: true } }),
     prisma.member.findMany({ where: { id: { in: rows.map((r) => r.memberId) } }, select: { id: true, fullName: true, displayName: true } }),

@@ -1743,7 +1743,63 @@ function ShopAdminView() {
         ))}
         {reviews && reviews.length === 0 && <p className="muted">Hali sharh yo&apos;q.</p>}
       </section>
+      <ShopCategoriesPanel onMsg={setMsg} />
     </>
+  );
+}
+
+// 🎠 BirJoy kategoriya-karusel boshqaruvi (D1): nom+emoji qo'shish, ikonka-rasm yuklash (44px
+// pill-kartada ko'rinadi), tartib/yoqish, o'chirish. Owner-only route'lar — seller ko'rmaydi.
+function ShopCategoriesPanel({ onMsg }: { onMsg: (m: string) => void }) {
+  const [cats, setCats] = useState<Awaited<ReturnType<typeof adminApi.shopCats>>["cats"] | null>(null);
+  const [newName, setNewName] = useState("");
+  const [newEmoji, setNewEmoji] = useState("🛍");
+  const [iconV, setIconV] = useState(0); // rasm-yuklashdan keyin cache-bust
+  const load = () => adminApi.shopCats().then((r) => setCats(r.cats)).catch(() => setCats([]));
+  useEffect(() => { load(); }, []);
+
+  const pickIcon = (id: number) => {
+    const inp = document.createElement("input");
+    inp.type = "file";
+    inp.accept = "image/*";
+    inp.onchange = async () => {
+      const f = inp.files?.[0];
+      if (!f) return;
+      const b64 = await new Promise<string>((res) => { const rd = new FileReader(); rd.onload = () => res(String(rd.result).split(",")[1] ?? ""); rd.readAsDataURL(f); });
+      const r = await adminApi.shopCatIcon(id, f.type || "image/jpeg", b64).catch(() => ({ ok: false }));
+      onMsg(r.ok ? "✅ Ikonka yuklandi" : "⚠️ Ikonka yuklanmadi");
+      setIconV((v) => v + 1);
+      load();
+    };
+    inp.click();
+  };
+
+  return (
+    <section className="panel">
+      <div className="panel-title">🎠 Karusel-kategoriyalar ({cats?.length ?? 0})</div>
+      <p className="muted" style={{ fontSize: 12 }}>Bozor-bosh tepasidagi Uzum-uslub karusel. Rasm yuklang (kvadrat, yorqin ikonka) — bo&apos;lmasa emoji ko&apos;rinadi.</p>
+      {(cats ?? []).map((c) => (
+        <div key={c.id} style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", padding: "8px 0", borderBottom: "1px solid rgba(255,255,255,0.08)" }}>
+          {c.hasIcon ? <img src={`${adminApi.shopCatIconUrl(c.id)}?v=${iconV}`} alt="" style={{ width: 34, height: 34, borderRadius: "50%", objectFit: "cover" }} /> : <span style={{ fontSize: 24, width: 34, textAlign: "center" }}>{c.emoji}</span>}
+          <b style={{ flex: "1 1 140px" }}>{c.name}</b>
+          <span className="muted" style={{ fontSize: 12 }}>{c.productCount} mahsulot</span>
+          <button className="btn sm" onClick={() => pickIcon(c.id)}>📷 Ikonka</button>
+          <button className="btn sm" onClick={async () => { await adminApi.shopCatEdit(c.id, { active: !c.active }).catch(() => undefined); load(); }}>{c.active ? "🟢 Faol" : "⚪ O'chiq"}</button>
+          <button className="btn sm" title="Karuseldan olib tashlash (mahsulotlarga tegmaydi)" onClick={async () => { if (!window.confirm(`«${c.name}» karuseldan o'chirilsinmi?`)) return; await adminApi.shopCatDelete(c.id).catch(() => undefined); load(); }}>🗑</button>
+        </div>
+      ))}
+      <div style={{ display: "flex", gap: 8, marginTop: 10, flexWrap: "wrap" }}>
+        <input value={newEmoji} onChange={(e) => setNewEmoji(e.target.value)} style={{ width: 52 }} aria-label="Emoji" />
+        <input value={newName} onChange={(e) => setNewName(e.target.value)} placeholder="Yangi kategoriya nomi" style={{ flex: "1 1 180px" }} />
+        <button className="btn sm" onClick={async () => {
+          if (newName.trim().length < 2) { onMsg("⚠️ Nom kiriting"); return; }
+          const r = await adminApi.shopCatCreate(newName.trim(), newEmoji.trim() || undefined).catch(() => ({ ok: false as const }));
+          onMsg(r.ok ? "✅ Kategoriya qo'shildi" : "⚠️ Qo'shilmadi");
+          setNewName("");
+          load();
+        }}>➕ Qo&apos;shish</button>
+      </div>
+    </section>
   );
 }
 
