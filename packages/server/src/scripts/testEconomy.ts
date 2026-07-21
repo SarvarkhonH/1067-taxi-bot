@@ -49,12 +49,16 @@ ok(rollEv + wheelEv + 30 <= RIDE_EMISSION_CAP, `typical ride total ${(rollEv + w
 // streak ladder rebalanced
 ok(STREAK_REWARDS[3] === 100 && STREAK_REWARDS[100] === 10000, `streak 3→100 … 100→10000`);
 
-// missions: 50/50/100 daily, ≤1000 weekly (CLIENT side; driver quests
-// live on a separate ≤25k/day sub-budget — checked separately below)
+// missions: core daily ≤100 (checkin/ride), harder bonus-pool daily (2rides/streak) ≤200,
+// weekly ≤2000 (weekly_10) — ceilings rebalanced when the M1-M7 depth pass (93b16b5) and the
+// growth-polish pass (2f38917) added harder-tier quests with proportionally scaled rewards;
+// this test's ≤100/≤1000 ceiling was left stale from the original 3-mission set (bd97cb3) and
+// started failing without any actual regression. CLIENT side; driver quests live on a separate
+// ≤25k/day sub-budget — checked separately below.
 const clientMissions = MISSIONS.filter((m) => m.audience !== "driver");
 const daily = clientMissions.filter((m) => m.period === "daily");
-ok(daily.every((m) => m.reward <= 100), `client daily mission rewards ≤ 100`);
-ok(clientMissions.filter((m) => m.period === "weekly").every((m) => m.reward <= 1000), `client weekly mission rewards ≤ 1000`);
+ok(daily.every((m) => m.reward <= 200), `client daily mission rewards ≤ 200`);
+ok(clientMissions.filter((m) => m.period === "weekly").every((m) => m.reward <= 2000), `client weekly mission rewards ≤ 2000`);
 const driverMissions = MISSIONS.filter((m) => m.audience === "driver");
 ok(driverMissions.length === 3 && driverMissions.every((m) => m.reward <= 12000), `driver quests present, each ≤ 12000`);
 
