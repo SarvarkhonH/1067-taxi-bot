@@ -464,6 +464,18 @@ model MarketDemand {
   @@index([createdAt])
 }
 
+// 🧡 V2b: sevimlilar — ServiceFavorite naqshi, lekin memberId (shop-konventsiya: xizmatlar tgId
+// ishlatadi, do'kon memberId — R4 auditda qayd etilgan nomuvofiqlik, yangi jadval to'g'ri tanlaydi).
+model ProductFavorite {
+  id        Int      @id @default(autoincrement())
+  memberId  Int
+  productId Int
+  createdAt DateTime @default(now())
+
+  @@unique([memberId, productId])
+  @@index([memberId, createdAt])
+}
+
 model Product {
   id          Int      @id @default(autoincrement())
   shopId      Int? // 🏪 V1: qaysi MarketShop'niki (loose FK, ProductPhoto precedenti); null = hali migratsiyadan o'tmagan
@@ -478,6 +490,7 @@ model Product {
   photoUrl    String? // data-URL fallback / permanent override
   active      Boolean  @default(false) // created OFF; owner flips ON to list
   sortOrder   Int      @default(0)
+  favCount    Int      @default(0) // 🧡 V2b: ❤ sevimlilar-hisoblagich (ServiceListing naqshi — viral signal)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
@@ -507,8 +520,10 @@ model ProductReview {
   productId  Int
   memberId   Int
   thumb      String // "up" | "down"
+  rating     Int?     // ⭐ V3.2: 1-5 (additiv — eski thumb-only sharhlar rating=null qolaveradi)
   text       String?
   photosJson String?
+  tangaPaid  Boolean  @default(false) // V3.2: sharh-uchun-tanga BIR UMR to'langanmi (idempotent-belgi, kalit bilan bir qatorda)
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
 

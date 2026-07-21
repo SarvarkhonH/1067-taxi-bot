@@ -168,6 +168,11 @@ export async function advanceMarketOrder(orderId: number): Promise<MarketDecisio
     const now = await prisma.marketOrder.findUnique({ where: { id: orderId }, select: { status: true } });
     return { ok: false, reason: now?.status ?? "not_found" };
   }
+  // V3.1: xarid-cashback — FAQAT delivered-o'tish shu flip (count===1) muvaffaqiyatli bo'lgach
+  if (next === "delivered") {
+    const { grantShopCashback } = await import("./shopService");
+    await grantShopCashback(o.memberId, o.total, "mo", orderId).catch((e) => console.error("[shopcb] mo deliver failed:", e));
+  }
   return { ok: true, memberId: o.memberId, shopId: o.shopId, total: o.total, payKind: o.payKind as "tanga" | "cash", newStatus: next, shopName: o.shopName };
 }
 

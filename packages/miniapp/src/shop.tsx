@@ -87,12 +87,18 @@ function PriceBlock({ p, big }: { p: ShopProductView; big?: boolean }) {
 }
 
 // compact card used in horizontal rows + search grid
-function ProductCard({ p, onOpen, wide }: { p: ShopProductView; onOpen: (p: ShopProductView) => void; wide?: boolean }) {
+function ProductCard({ p, onOpen, wide, onFav }: { p: ShopProductView; onOpen: (p: ShopProductView) => void; wide?: boolean; onFav?: (p: ShopProductView) => void }) {
   return (
     <button className={"shop-card glass" + (wide ? "" : " shop-card-h")} onClick={() => onOpen(p)}>
       <div className="shop-card-photo-wrap">
         {p.hasPhoto ? <img className="shop-card-photo" src={apiUrl(`/api/shop/photo/${p.id}?s=1`)} loading="lazy" decoding="async" alt="" /> : <div className="shop-card-photo shop-card-noimg">🛍</div>}
         <Badges p={p} />
+        {/* 🧡 V2b: sevimlilar — optimistic toggle, xatoda rollback (services.tsx naqshi) */}
+        {onFav && (
+          <button className="bj-fav" aria-label={p.isFav ? "Sevimlidan olish" : "Sevimliga qo'shish"} onClick={(e) => { e.stopPropagation(); onFav(p); }}>
+            {p.isFav ? "❤️" : "🤍"}
+          </button>
+        )}
       </div>
       <div className="shop-card-body">
         <div className="shop-card-name">{p.name}</div>
@@ -129,6 +135,7 @@ export function ShopView({ me, onBanner, reload, onBook, openProductId }: { me: 
   // 🗣 sharhlar
   const [reviews, setReviews] = useState<ShopReviewsResponse | null>(null);
   const [revThumb, setRevThumb] = useState<"up" | "down" | null>(null);
+  const [revRating, setRevRating] = useState(0); // ⭐ V3.2: 1-5, 0 = tanlanmagan (additiv, thumb baribir shart)
   const [revText, setRevText] = useState("");
   const [revPhotos, setRevPhotos] = useState<string[]>([]);
   const [revBusy, setRevBusy] = useState(false);
@@ -143,6 +150,7 @@ export function ShopView({ me, onBanner, reload, onBook, openProductId }: { me: 
       setReviews(r);
       const mine = r.reviews.find((v) => v.mine);
       setRevThumb(r.myThumb ?? null);
+      setRevRating(r.myRating ?? 0);
       setRevText(mine?.text ?? "");
       setRevPhotos([]);
     }).catch(() => { setReviews(null); setRevLoadErr(true); });
@@ -168,11 +176,13 @@ export function ShopView({ me, onBanner, reload, onBook, openProductId }: { me: 
       const r = await api.shopReviewSubmit({
         productId: sel.id,
         thumb: revThumb,
+        rating: revRating > 0 ? revRating : undefined,
         text: revText.trim() || undefined,
         photos: revPhotos.length ? revPhotos : undefined,
       });
       if (r.ok) {
         hapticSuccess();
+        if (r.tangaGranted) { confetti(14); onBanner(`🗣 Sharh uchun +${r.tangaGranted} tanga!`); }
         loadReviews(sel.id);
         load(); // 👍 tallies on cards
       } else {
@@ -182,6 +192,25 @@ export function ShopView({ me, onBanner, reload, onBook, openProductId }: { me: 
       setRevErr("Tarmoq xatosi — qayta urinib ko'ring");
     } finally {
       setRevBusy(false);
+    }
+  };
+
+  // 🧡 V2b: sevimlilar — optimistic toggle + rollback xatoda (services.tsx svcFav naqshi)
+  const [favOnly, setFavOnly] = useState(false);
+  const patchFav = (id: number, on: boolean, favCount: number) => {
+    setProducts((list) => list?.map((p) => (p.id === id ? { ...p, isFav: on, favCount } : p)) ?? list);
+    if (sel?.id === id) setSel((s) => (s ? { ...s, isFav: on, favCount } : s));
+  };
+  const toggleFav = async (p: ShopProductView) => {
+    haptic();
+    const next = !p.isFav;
+    patchFav(p.id, next, (p.favCount ?? 0) + (next ? 1 : -1)); // optimistic
+    try {
+      const r = await api.shopFav(p.id, next);
+      if (r.ok) patchFav(p.id, r.on, r.favCount);
+      else patchFav(p.id, p.isFav ?? false, p.favCount ?? 0); // rollback
+    } catch {
+      patchFav(p.id, p.isFav ?? false, p.favCount ?? 0); // rollback — tarmoq xatosi
     }
   };
 
@@ -312,9 +341,10 @@ export function ShopView({ me, onBanner, reload, onBook, openProductId }: { me: 
   // "tavsiya" qatorlarida) — 100+ mahsulotli kategoriya endi cheksiz eniga tasmaga aylanmaydi.
   const catalog = useMemo(() => {
     let list = products ?? [];
+    if (favOnly) list = list.filter((p) => p.isFav); // 🧡 V2b: sevimlilar-filtr
     if (shopFilter) list = list.filter((p) => p.shopId === shopFilter.id); // 🏬 do'kon-sahifa rejimi
     return cat ? list.filter((p) => p.category === cat) : list;
-  }, [products, cat, shopFilter]);
+  }, [products, cat, shopFilter, favOnly]);
   const searched = useMemo(() => {
     const t = q.trim().toLowerCase();
     if (!t) return null;
@@ -418,6 +448,10 @@ export function ShopView({ me, onBanner, reload, onBook, openProductId }: { me: 
           <div className="muted fs12">{bazar ? "Kosonda bor — BirJoy'da bor" : "Tangangizga real mahsulotlar · 1 kunda yetkazamiz"}</div>
         </div>
         <div className="shop-head-actions">
+          {/* 🧡 V2b: sevimlilar-filtr — bosilganda katalog faqat ❤ mahsulotlarni ko'rsatadi */}
+          <button className={"shop-share-btn" + (favOnly ? " on" : "")} onClick={() => { haptic(); setFavOnly((v) => !v); }} aria-label={favOnly ? "Sevimlilar filtri o'chirish" : "Faqat sevimlilar"}>
+            {favOnly ? "❤️" : "🤍"}
+          </button>
           <button className="shop-share-btn" onClick={shareShop} aria-label="Do'konni ulashish"><Icon name="share" size={18} /></button>
           <button className="shop-orders-btn" onClick={openOrders}>📦 Buyurtmalarim</button>
         </div>
@@ -441,11 +475,13 @@ export function ShopView({ me, onBanner, reload, onBook, openProductId }: { me: 
         </>
       ) : products.length === 0 ? (
         <EmptyState icon="🛍" text="Hozircha do'konda mahsulot yo'q — tez orada!" />
+      ) : favOnly && catalog.length === 0 ? (
+        <EmptyState icon="🤍" text="Sevimlilar bo'sh — ❤ bosib mahsulot qo'shing!" action="Hammasini ko'rish" onAction={() => setFavOnly(false)} />
       ) : searched ? (
         searched.length === 0 ? (
           <EmptyState icon="🔍" text={`«${q}» topilmadi`} action="Tozalash" onAction={() => setQ("")} />
         ) : (
-          <div className="shop-grid">{searched.map((p) => <ProductCard key={p.id} p={p} onOpen={openProduct} wide />)}</div>
+          <div className="shop-grid">{searched.map((p) => <ProductCard key={p.id} p={p} onOpen={openProduct} onFav={toggleFav} wide />)}</div>
         )
       ) : (
         <>
@@ -511,7 +547,7 @@ export function ShopView({ me, onBanner, reload, onBook, openProductId }: { me: 
             <span className="muted fs12">{catalog.length} ta</span>
           </div>
           <div className="shop-grid">
-            {catalog.map((p) => <ProductCard key={p.id} p={p} onOpen={openProduct} wide />)}
+            {catalog.map((p) => <ProductCard key={p.id} p={p} onOpen={openProduct} onFav={toggleFav} wide />)}
           </div>
         </>
       )}
@@ -552,6 +588,7 @@ export function ShopView({ me, onBanner, reload, onBook, openProductId }: { me: 
             )}
             <div className="shop-detail-headline">
               <h3 className="shop-detail-name">{sel.name}</h3>
+              <button className="shop-share-btn sm" onClick={() => toggleFav(sel)} aria-label={sel.isFav ? "Sevimlidan olish" : "Sevimliga qo'shish"}>{sel.isFav ? "❤️" : "🤍"}</button>
               <button className="shop-share-btn sm" onClick={() => shareProduct(sel)} aria-label="Ulashish"><Icon name="share" size={15} /></button>
             </div>
             {sel.description && <p className="muted fs13">{sel.description}</p>}
@@ -648,11 +685,19 @@ export function ShopView({ me, onBanner, reload, onBook, openProductId }: { me: 
                 <div className="shop-rev-agg">
                   <span className="shop-rev-agg-up">👍 {reviews.likes}</span>
                   <span className="shop-rev-agg-down">👎 {reviews.dislikes}</span>
+                  {(reviews.avgRating ?? 0) > 0 && <span className="fs13">⭐ {reviews.avgRating!.toFixed(1)}</span>}
                   <span className="muted fs12">{reviews.reviews.length} sharh</span>
                 </div>
 
                 {/* write / edit my review */}
                 <div className="shop-rev-form">
+                  {/* ⭐ V3.2: yulduz-baho (additiv — thumb baribir majburiy, rating ixtiyoriy) */}
+                  <div className="shop-rev-stars" role="radiogroup" aria-label="Baho">
+                    {[1, 2, 3, 4, 5].map((n) => (
+                      <button key={n} className={"shop-rev-star" + (n <= revRating ? " on" : "")} onClick={() => { haptic(); setRevRating(n === revRating ? 0 : n); }} aria-label={`${n} yulduz`}>★</button>
+                    ))}
+                  </div>
+                  {me.flags?.revtanga && <div className="fs12 shop-rev-tanga-hint">🗣 Sharh (≥30 belgi) uchun tanga oling!</div>}
                   <div className="shop-rev-thumbs">
                     <button className={"shop-rev-thumb" + (revThumb === "up" ? " on up" : "")} onClick={() => { haptic(); setRevThumb("up"); }}>👍 Yoqdi</button>
                     <button className={"shop-rev-thumb" + (revThumb === "down" ? " on down" : "")} onClick={() => { haptic(); setRevThumb("down"); }}>👎 Yoqmadi</button>
@@ -696,6 +741,7 @@ export function ShopView({ me, onBanner, reload, onBook, openProductId }: { me: 
                     <div key={r.id} className="shop-rev-row">
                       <div className="shop-rev-head">
                         <b>{r.thumb === "up" ? "👍" : "👎"} {r.name}</b>
+                        {!!r.rating && <span className="fs12">{"★".repeat(r.rating)}{"☆".repeat(5 - r.rating)}</span>}
                         {r.verified && <span className="shop-rev-verified">✅ Xarid qilgan</span>}
                         {r.mine && <span className="shop-rev-mine">siz</span>}
                         <span className="muted fs11">{new Date(r.createdAt).toLocaleDateString("uz-UZ")}</span>

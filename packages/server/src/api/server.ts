@@ -226,7 +226,7 @@ export function createApiServer(opts: ApiOptions = {}) {
   });
 
   app.get("/api/me", requireUser, async (_req, res) => {
-    const [me, booking3, livinghome, intercity, tierloyalty, shopOn, xizmatlarOn, elonlarOn, restoranOn, bazarOn, bazarcartOn] = await Promise.all([
+    const [me, booking3, livinghome, intercity, tierloyalty, shopOn, xizmatlarOn, elonlarOn, restoranOn, bazarOn, bazarcartOn, revtangaOn] = await Promise.all([
       getMe(res.locals.telegramId as string),
       featureOn("booking3"),
       featureOn("livinghome"),
@@ -238,6 +238,7 @@ export function createApiServer(opts: ApiOptions = {}) {
       featureOn("restoran"),
       featureOn("bazar"),
       featureOn("bazarcart"),
+      featureOn("revtanga"),
     ]);
     if (!me) { res.json({ linked: false }); return; }
     // 🏅 owner-preview: admins see the tier-loyalty UI even while the global flag is DARK, so the
@@ -255,7 +256,9 @@ export function createApiServer(opts: ApiOptions = {}) {
     const bazarPreview = bazarOn || isAdmin(res.locals.telegramId as string);
     // 🧺 bazarcart owner-preview — savat-checkout QABUL while DARK
     const bazarcartPreview = bazarcartOn || isAdmin(res.locals.telegramId as string);
-    res.json({ ...me, flags: { booking3, livinghome, intercity, tierloyalty: tierPreview, shop: shopPreview, xizmatlar: xizmatlarPreview, elonlar: elonlarPreview, restoran: restoranPreview, bazar: bazarPreview, bazarcart: bazarcartPreview } });
+    // 🗣 revtanga owner-preview — sharh-uchun-tanga hint QABUL'gacha faqat ega ekranida
+    const revtangaPreview = revtangaOn || isAdmin(res.locals.telegramId as string);
+    res.json({ ...me, flags: { booking3, livinghome, intercity, tierloyalty: tierPreview, shop: shopPreview, xizmatlar: xizmatlarPreview, elonlar: elonlarPreview, restoran: restoranPreview, bazar: bazarPreview, bazarcart: bazarcartPreview, revtanga: revtangaPreview } });
   });
 
   // 🏅 Tier ladder benefits — labels derived from LIVE knobs (single source of truth). 60s client cache.
@@ -389,8 +392,20 @@ export function createApiServer(opts: ApiOptions = {}) {
     const { listActiveProducts } = await import("../services/shopService");
     res.set("Cache-Control", "private, max-age=30");
     // owner-preview: admins browse the REAL catalog while the flag is DARK (QABUL flow); riders get []
-    res.json({ products: await listActiveProducts(isAdmin(res.locals.telegramId as string)) });
+    // 🧡 V2b: memberId softly resolved (null-safe) — isFav faqat linked a'zolarga hisoblanadi
+    const memberId = (await getMemberId(res.locals.telegramId as string)) ?? undefined;
+    res.json({ products: await listActiveProducts(isAdmin(res.locals.telegramId as string), memberId) });
   });
+  // 🧡 V2b: sevimlilar toggle + ro'yxat
+  app.post("/api/shop/fav", requireUser, rateLimit(30), withMember2(async (memberId, req, res) => {
+    const { toggleProductFavorite } = await import("../services/shopService");
+    void res;
+    return await toggleProductFavorite(memberId, Number(req.body?.productId), !!req.body?.on);
+  }));
+  app.get("/api/shop/favs", requireUser, rateLimit(20), withMember2(async (memberId, _req, res) => {
+    const { listFavoriteProducts } = await import("../services/shopService");
+    return { products: await listFavoriteProducts(memberId, isAdmin(res.locals.telegramId as string)) };
+  }));
   app.post("/api/shop/buy", requireUser, rateLimit(10), withMember2(async (id, req, res) => {
     const { buyProduct } = await import("../services/shopService");
     const pay = req.body?.pay === "cash" ? ("cash" as const) : ("tanga" as const);
@@ -501,7 +516,8 @@ export function createApiServer(opts: ApiOptions = {}) {
   app.post("/api/shop/review", express.json({ limit: "8mb" }), requireUser, rateLimit(6), withMember2(async (id, req, res) => {
     const { submitReview } = await import("../services/shopService");
     const photos = Array.isArray(req.body?.photos) ? (req.body.photos as unknown[]).filter((p): p is string => typeof p === "string") : undefined;
-    const r = await submitReview(id, Number(req.body?.productId), String(req.body?.thumb ?? ""), typeof req.body?.text === "string" ? req.body.text : undefined, photos, isAdmin(res.locals.telegramId as string));
+    const rating = Number.isInteger(req.body?.rating) ? Number(req.body.rating) : undefined; // ⭐ V3.2, additiv-ixtiyoriy
+    const r = await submitReview(id, Number(req.body?.productId), String(req.body?.thumb ?? ""), typeof req.body?.text === "string" ? req.body.text : undefined, photos, isAdmin(res.locals.telegramId as string), rating);
     if (r.ok) {
       const { alertAdmins } = await import("../services/economyService");
       const t = req.body?.thumb === "up" ? "👍" : "👎";

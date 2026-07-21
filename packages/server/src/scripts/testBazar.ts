@@ -12,7 +12,7 @@ function ok(cond: boolean, label: string): void {
 
 async function main(): Promise<void> {
   const { prisma } = await import("../db");
-  const { adminListProducts, adminCreateProduct, adminListPurchases, adminListReviews, productBelongsToShop, buyProduct, adminToggleProduct } = await import("../services/shopService");
+  const { adminListProducts, adminCreateProduct, adminListPurchases, adminListReviews, productBelongsToShop, buyProduct, adminToggleProduct, listActiveProducts, deliverPurchase, rejectPurchase } = await import("../services/shopService");
   const { setFeature, __resetFeatureCache } = await import("../services/featureFlags");
 
   const cleanup = async (): Promise<void> => {
@@ -20,13 +20,14 @@ async function main(): Promise<void> {
     const ids = members.map((m) => m.id);
     await prisma.shopPurchase.deleteMany({ where: { memberId: { in: ids } } });
     await prisma.coinTxn.deleteMany({ where: { memberId: { in: ids } } });
+    await prisma.productFavorite.deleteMany({ where: { memberId: { in: ids } } });
     const prods = await prisma.product.findMany({ where: { category: TAG }, select: { id: true } });
     await prisma.productPhoto.deleteMany({ where: { productId: { in: prods.map((p) => p.id) } } });
     await prisma.productReview.deleteMany({ where: { productId: { in: prods.map((p) => p.id) } } });
     await prisma.product.deleteMany({ where: { category: TAG } });
     await prisma.marketShop.deleteMany({ where: { name: { startsWith: TAG } } });
     await prisma.member.deleteMany({ where: { id: { in: ids } } });
-    await prisma.appState.deleteMany({ where: { key: "feature:shop" } });
+    await prisma.appState.deleteMany({ where: { key: { in: ["feature:shop", "feature:shopcashback", "feature:revtanga"] } } });
   };
   await cleanup();
   await setFeature("shop", true);
@@ -191,6 +192,214 @@ async function main(): Promise<void> {
   ok(alerts2.length === 1 && alerts2[0]!.includes(`🧺 #${co4.orderId}`), "16: SLA sweep covers MarketOrder");
   await checkShopSlaAndAlert(async (h) => { alerts2.push(h); });
   ok(alerts2.length === 1, "16: MarketOrder SLA idempotent");
+
+  // ── 🧡 V2b: sevimlilar ────────────────────────────────────────────────────────────────────────
+  const { toggleProductFavorite, listFavoriteProducts } = await import("../services/shopService");
+  const favProd = await adminCreateProduct({ name: "Fav mahsulot", priceTanga: 5000, stock: 5, category: TAG }, shopC.id);
+  await adminToggleProduct(favProd.id!, true);
+
+  // 17) toggle on → favCount 0→1, idempotent (ikkinchi "on" qayta oshirmaydi)
+  const t1 = await toggleProductFavorite(m2.id, favProd.id!, true);
+  ok(t1.ok === true && t1.on === true && t1.favCount === 1, "17: fav ON → favCount 1");
+  const t2 = await toggleProductFavorite(m2.id, favProd.id!, true);
+  ok(t2.favCount === 1, "17: duplicate ON → favCount STAYS 1 (idempotent)");
+  const listed = await listActiveProducts(true, m2.id);
+  ok(listed.find((p) => p.id === favProd.id)?.isFav === true, "17: listActiveProducts marks isFav for this member");
+  ok(listed.find((p) => p.id === favProd.id)?.favCount === 1, "17: favCount flows to the view");
+
+  // 18) boshqa a'zo uchun isFav=false (shaxsiy, global emas)
+  const listedOther = await listActiveProducts(true, buyer.id);
+  ok(listedOther.find((p) => p.id === favProd.id)?.isFav === false, "18: OTHER member sees isFav=false (per-member)");
+  ok(listedOther.find((p) => p.id === favProd.id)?.favCount === 1, "18: favCount is still the shared/public count");
+
+  // 19) listFavoriteProducts — faqat shu a'zoning ro'yxati
+  const myFavs = await listFavoriteProducts(m2.id, true);
+  ok(myFavs.length === 1 && myFavs[0]!.id === favProd.id, "19: listFavoriteProducts returns exactly this product");
+  const otherFavs = await listFavoriteProducts(buyer.id, true);
+  ok(otherFavs.length === 0, "19: OTHER member's favorites list is empty");
+
+  // 20) toggle off → favCount 1→0, floor at 0 (double-off doesn't go negative)
+  const t3 = await toggleProductFavorite(m2.id, favProd.id!, false);
+  ok(t3.on === false && t3.favCount === 0, "20: fav OFF → favCount 0");
+  const t4 = await toggleProductFavorite(m2.id, favProd.id!, false);
+  ok(t4.favCount === 0, "20: duplicate OFF → favCount floors at 0 (no negative)");
+  ok((await listFavoriteProducts(m2.id, true)).length === 0, "20: favorites list empty after unfav");
+
+  // ── 🪙 V3.1: xarid-cashback (shopcashback flag) ──────────────────────────────────────────────
+  const { setBonusEcon } = await import("../services/bonusConfig");
+  const { retryPendingMoney } = await import("../services/coinService");
+  await setBonusEcon("shopCashbackPct", 2);
+  await setBonusEcon("shopCashbackPerOrder", 2000);
+  await setBonusEcon("shopCashbackDaily", 5000);
+  const m3 = await prisma.member.create({ data: { type: "client", kasId: `${TAG}-M3`, fullName: "Bazar M3", phone: "+998901112255", coins: 200_000 } });
+  const pCb = await adminCreateProduct({ name: "Cashback mahsulot", priceTanga: 10_000, stock: 20, category: TAG }, shopC.id);
+  await adminToggleProduct(pCb.id!, true);
+
+  // 21) flag DARK → deliver'da grant YO'Q
+  const buyCb1 = await buyProduct(m3.id, pCb.id!, "Koson, Test 9", true);
+  ok(buyCb1.ok === true, "21: setup buy ok");
+  const balBefore21 = (await prisma.member.findUnique({ where: { id: m3.id } }))!.coins;
+  await deliverPurchase(buyCb1.orderId!);
+  ok((await prisma.member.findUnique({ where: { id: m3.id } }))!.coins === balBefore21, "21: flag DARK → NO cashback on deliver");
+  await setFeature("shopcashback", true);
+  __resetFeatureCache();
+
+  // 22) flag ON: 10_000 narx × 2% = 200 tanga cashback aniq
+  const buyCb2 = await buyProduct(m3.id, pCb.id!, "Koson, Test 9", true);
+  ok(buyCb2.ok === true, "22: setup buy ok");
+  const balBefore22 = (await prisma.member.findUnique({ where: { id: m3.id } }))!.coins;
+  await deliverPurchase(buyCb2.orderId!);
+  ok((await prisma.member.findUnique({ where: { id: m3.id } }))!.coins === balBefore22 + 200, "22: cashback = 2% of 10000 = 200 tanga");
+  ok((await prisma.coinTxn.count({ where: { idempotencyKey: `shopcb:sp${buyCb2.orderId}` } })) === 1, "22: shopcb:sp<id> CoinTxn exists");
+  ok((await prisma.coinTxn.findUnique({ where: { idempotencyKey: `shopcb:sp${buyCb2.orderId}` } }))!.bookingId === null, "22: bookingId=null — ride ≤350 clamp CANNOT see this grant");
+
+  // 23) reject/cancel → HECH QACHON cashback (delivered'ga yetmagan)
+  const buyCb3 = await buyProduct(m3.id, pCb.id!, "Koson, Test 9", true);
+  const balBefore23 = (await prisma.member.findUnique({ where: { id: m3.id } }))!.coins;
+  await rejectPurchase(buyCb3.orderId!);
+  ok((await prisma.member.findUnique({ where: { id: m3.id } }))!.coins === balBefore23 + 10_000, "23: reject refunds the purchase price only");
+  ok((await prisma.coinTxn.count({ where: { memberId: m3.id, kind: "shop_cashback" } })) === 1, "23: rejected order → cashback count STILL 1 (no new grant from reject)");
+
+  // 24) perOrder cap: 200_000 narx × 2% = 4000, lekin perOrder=2000 → 2000 kesiladi
+  await prisma.member.update({ where: { id: m3.id }, data: { coins: 1_000_000 } }); // yetarlicha (4 × 200k xarid keladi)
+  const pCbBig = await adminCreateProduct({ name: "Big cashback", priceTanga: 200_000, stock: 5, category: TAG }, shopC.id);
+  await adminToggleProduct(pCbBig.id!, true);
+  const buyCb4 = await buyProduct(m3.id, pCbBig.id!, "Koson, Test 9", true);
+  const balBefore24 = (await prisma.member.findUnique({ where: { id: m3.id } }))!.coins;
+  await deliverPurchase(buyCb4.orderId!);
+  ok((await prisma.member.findUnique({ where: { id: m3.id } }))!.coins === balBefore24 + 2000, "24: perOrder cap kesadi (4000 → 2000)");
+
+  // 25) dailyMax: shu kunda jami cashback 200(22-test)+2000(24-test)=2200 berilgan; dailyMax=5000 →
+  // qolgan 2800; yana bitta 200_000'lik xarid (raw 4000, perOrder 2000) → min(2000, 2800)=2000
+  const buyCb5 = await buyProduct(m3.id, pCbBig.id!, "Koson, Test 9", true);
+  const balBefore25 = (await prisma.member.findUnique({ where: { id: m3.id } }))!.coins;
+  await deliverPurchase(buyCb5.orderId!);
+  ok((await prisma.member.findUnique({ where: { id: m3.id } }))!.coins === balBefore25 + 2000, "25: daily-remaining hali yetadi (2200+2000=4200≤5000)");
+  // navbatdagi xarid: qolgan 800 → min(2000,800)=800
+  const buyCb6 = await buyProduct(m3.id, pCbBig.id!, "Koson, Test 9", true);
+  const balBefore26 = (await prisma.member.findUnique({ where: { id: m3.id } }))!.coins;
+  await deliverPurchase(buyCb6.orderId!);
+  ok((await prisma.member.findUnique({ where: { id: m3.id } }))!.coins === balBefore26 + 800, "26: daily-cap kesadi aniq qolganga (800)");
+  // endi kunlik limit TO'LIQ tugagan (5000/5000) → keyingi xarid 0 cashback
+  const buyCb7 = await buyProduct(m3.id, pCbBig.id!, "Koson, Test 9", true);
+  const balBefore27 = (await prisma.member.findUnique({ where: { id: m3.id } }))!.coins;
+  await deliverPurchase(buyCb7.orderId!);
+  ok((await prisma.member.findUnique({ where: { id: m3.id } }))!.coins === balBefore27, "27: dailyMax to'liq tugagach → 0 qo'shimcha cashback");
+
+  // 28) durability: pending:shopcb markeri qo'lda qoldirilsa, retryPendingMoney tick uni to'ldiradi
+  const buyCb8 = await buyProduct(m3.id, pCb.id!, "Koson, Test 9", true);
+  await deliverPurchase(buyCb8.orderId!); // bu safar dailyMax tugagani uchun amount=0, marker yaratilmagan — yangi kun simulyatsiyasi kerak
+  await prisma.coinTxn.deleteMany({ where: { memberId: m3.id, kind: "shop_cashback" } }); // kunlik-hisobni "tozalab" yangi kun simulyatsiya qilamiz
+  const { pendingCreate } = await import("../services/appStateUtil");
+  await pendingCreate("shopcb", `durabilitytest${buyCb8.orderId}`, { memberId: m3.id, amount: 123 });
+  await prisma.appState.updateMany({ where: { key: `pending:shopcb:durabilitytest${buyCb8.orderId}` }, data: { updatedAt: new Date(Date.now() - 11 * 60_000) } }); // 10-daq PENDING_MIN_AGE'dan eski
+  const balBefore28 = (await prisma.member.findUnique({ where: { id: m3.id } }))!.coins;
+  await retryPendingMoney();
+  ok((await prisma.member.findUnique({ where: { id: m3.id } }))!.coins === balBefore28 + 123, "28: retryPendingMoney fills a stranded shopcb marker");
+  ok((await prisma.appState.findUnique({ where: { key: `pending:shopcb:durabilitytest${buyCb8.orderId}` } })) === null, "28: marker resolved (deleted) after successful retry");
+
+  // ── 🗣 V3.2: sharh-uchun-tanga (revtanga flag) ───────────────────────────────────────────────
+  const { submitReview, listReviews } = await import("../services/shopService");
+  await setBonusEcon("reviewTangaBase", 300);
+  await setBonusEcon("reviewTangaPhotoBonus", 200);
+  await setBonusEcon("reviewTangaDailyMax", 3);
+  const LONG_TEXT = "Juda ajoyib mahsulot, tavsiya qilaman! Sifat zo'r va yetkazish tez bo'ldi."; // ≥30 belgi
+
+  // 29) delivered-BO'LMAGAN xaridor sharh yozsa → flag ON bo'lsa ham 0 tanga (bought-check)
+  await setFeature("revtanga", true);
+  __resetFeatureCache();
+  const balBefore29 = (await prisma.member.findUnique({ where: { id: buyer.id } }))!.coins;
+  const rev29 = await submitReview(buyer.id, pCb.id!, "up", LONG_TEXT, undefined, true, 5);
+  ok(rev29.ok === true && !rev29.tangaGranted, "29: non-buyer review → 0 tanga (delivered-check)");
+  ok((await prisma.member.findUnique({ where: { id: buyer.id } }))!.coins === balBefore29, "29: non-buyer balance untouched");
+
+  // 30) delivered-xaridor + ≥30 belgi + flag ON → grant aniq (300, foto yo'q)
+  const buyRev1 = await buyProduct(m3.id, pCb.id!, "Koson, Test 9", true);
+  await deliverPurchase(buyRev1.orderId!);
+  await prisma.coinTxn.deleteMany({ where: { memberId: m3.id, kind: "shop_cashback" } }); // avvalgi bloklardan qolgan cashback'ni tozalab, shu blokni izolyatsiya qilamiz
+  const balBefore30 = (await prisma.member.findUnique({ where: { id: m3.id } }))!.coins;
+  const rev30 = await submitReview(m3.id, pCb.id!, "up", LONG_TEXT, undefined, true, 5);
+  ok(rev30.ok === true && rev30.tangaGranted === 300, "30: delivered-buyer + ≥30 chars → 300 tanga");
+  ok((await prisma.member.findUnique({ where: { id: m3.id } }))!.coins === balBefore30 + 300, "30: balance credited exactly 300");
+  ok((await prisma.coinTxn.count({ where: { idempotencyKey: `revtanga:${m3.id}:${pCb.id}` } })) === 1, "30: revtanga:<m>:<p> CoinTxn exists");
+  const rr30 = await listReviews(pCb.id!, m3.id, true);
+  ok(rr30.reviews.find((r) => r.mine)?.rating === 5, "30: rating=5 persisted and returned");
+  ok(rr30.avgRating === 5, "30: avgRating reflects the single 5-star review");
+
+  // 31) EDIT (re-submit) → BIR UMR — ikkinchi marta TO'LANMAYDI (kalit allaqachon bor)
+  const balBefore31 = (await prisma.member.findUnique({ where: { id: m3.id } }))!.coins;
+  const rev31 = await submitReview(m3.id, pCb.id!, "up", LONG_TEXT + " Yana!", undefined, true, 4);
+  ok(rev31.ok === true && !rev31.tangaGranted, "31: EDIT (re-submit) → 0 tanga (kalit bir umr)");
+  ok((await prisma.member.findUnique({ where: { id: m3.id } }))!.coins === balBefore31, "31: balance unchanged on edit");
+  ok((await prisma.coinTxn.count({ where: { idempotencyKey: `revtanga:${m3.id}:${pCb.id}` } })) === 1, "31: still exactly ONE revtanga CoinTxn (no duplicate)");
+
+  // 32) DELETE + qayta-yuborish (resubmit) → hali ham TO'LANMAYDI (kalit CoinTxn'da qoladi, review-qator o'chsa ham)
+  await prisma.productReview.deleteMany({ where: { productId: pCb.id!, memberId: m3.id } });
+  const balBefore32 = (await prisma.member.findUnique({ where: { id: m3.id } }))!.coins;
+  const rev32 = await submitReview(m3.id, pCb.id!, "up", LONG_TEXT, undefined, true, 5);
+  ok(rev32.ok === true && !rev32.tangaGranted, "32: delete+resubmit → STILL 0 tanga (CoinTxn-key survives row deletion)");
+  ok((await prisma.member.findUnique({ where: { id: m3.id } }))!.coins === balBefore32, "32: balance unchanged after delete+resubmit");
+
+  // 32b) MarketOrder (savat) orqali delivered-xarid — grantReviewTanga ikkinchi yo'lni (mo) ham tekshiradi
+  const { advanceMarketOrder: advMo } = await import("../services/marketOrderService");
+  const pMoRev = await adminCreateProduct({ name: "MO-review mahsulot", priceTanga: 6000, stock: 5, category: TAG }, shopC.id);
+  await adminToggleProduct(pMoRev.id!, true);
+  const moRev = await createMarketOrder(m3.id, shopC.id, [{ productId: pMoRev.id!, qty: 1 }], "Koson, Test 9", "tanga", undefined, true);
+  ok(moRev.ok === true, "32b: MarketOrder setup checkout ok");
+  await advMo(moRev.orderId!); // accepted
+  await advMo(moRev.orderId!); // delivering
+  await advMo(moRev.orderId!); // delivered
+  const rev32b = await submitReview(m3.id, pMoRev.id!, "up", LONG_TEXT, undefined, true, 5);
+  ok(rev32b.ok === true && rev32b.tangaGranted === 300, "32b: MarketOrder-delivered buyer ALSO qualifies (itemsJson-based bought-check)");
+
+  // 33) qisqa matn (<30 belgi) → grant YO'Q, lekin sharh o'zi saqlanadi
+  const buyRev2 = await buyProduct(m3.id, pCb.id!, "Koson, Test 9", true);
+  await deliverPurchase(buyRev2.orderId!);
+  const pShort = await adminCreateProduct({ name: "Short-text mahsulot", priceTanga: 5000, stock: 5, category: TAG }, shopC.id);
+  await adminToggleProduct(pShort.id!, true);
+  const buyRev3 = await buyProduct(m3.id, pShort.id!, "Koson, Test 9", true);
+  await deliverPurchase(buyRev3.orderId!);
+  const rev33 = await submitReview(m3.id, pShort.id!, "up", "zo'r", undefined, true);
+  ok(rev33.ok === true && !rev33.tangaGranted, "33: short text (<30 chars) → 0 tanga, review still saved");
+  ok((await listReviews(pShort.id!, m3.id, true)).reviews.some((r) => r.mine && r.text === "zo'r"), "33: short-text review persisted");
+
+  // 34) rating validatsiya: 0 va 6 rad, undefined (thumb-only) ruxsat
+  const rBad0 = await submitReview(m3.id, pShort.id!, "up", "matn", undefined, true, 0);
+  ok(rBad0.ok === false && rBad0.reason === "bad_rating", "34: rating=0 rejected");
+  const rBad6 = await submitReview(m3.id, pShort.id!, "up", "matn", undefined, true, 6);
+  ok(rBad6.ok === false && rBad6.reason === "bad_rating", "34: rating=6 rejected");
+  const rNone = await submitReview(m3.id, pShort.id!, "up", "matn yangilash", undefined, true);
+  ok(rNone.ok === true, "34: rating omitted (thumb-only) still accepted — backward compat");
+
+  // 35) daily cap: reviewTangaDailyMax=3 — testlar 30/32b'dan qolgan 2 ta shop_review grantni
+  // tozalab, "yangi kun" simulyatsiya qilamiz (aks holda ular ham kunlik-hisobga kirib ketadi)
+  await prisma.coinTxn.deleteMany({ where: { memberId: m3.id, kind: "shop_review" } });
+  await prisma.member.update({ where: { id: m3.id }, data: { coins: 1_000_000 } });
+  const pDaily = [1, 2, 3, 4].map(() => null);
+  let dailyGrants = 0;
+  for (let i = 0; i < pDaily.length; i++) {
+    const prod = await adminCreateProduct({ name: `Daily-cap ${i}`, priceTanga: 50_000, stock: 5, category: TAG }, shopC.id);
+    await adminToggleProduct(prod.id!, true);
+    const b = await buyProduct(m3.id, prod.id!, "Koson, Test 9", true);
+    await deliverPurchase(b.orderId!);
+    const rv = await submitReview(m3.id, prod.id!, "up", LONG_TEXT, undefined, true, 5);
+    if (rv.tangaGranted) dailyGrants++;
+  }
+  ok(dailyGrants === 3, `35: dailyMax=3 → exactly 3 of 4 reviews granted tanga (got ${dailyGrants})`);
+
+  // 36) flag DARK → hech qanday sharh-tanga (yangi mahsulot bilan, mavjud kalitlar bilan aralashmasin)
+  await setFeature("revtanga", false);
+  __resetFeatureCache();
+  const pDark = await adminCreateProduct({ name: "Revtanga dark mahsulot", priceTanga: 20_000, stock: 5, category: TAG }, shopC.id);
+  await adminToggleProduct(pDark.id!, true);
+  const buyDark = await buyProduct(m3.id, pDark.id!, "Koson, Test 9", true);
+  await deliverPurchase(buyDark.orderId!);
+  const revDark = await submitReview(m3.id, pDark.id!, "up", LONG_TEXT, undefined, true, 5);
+  ok(revDark.ok === true && !revDark.tangaGranted, "36: revtanga flag DARK → 0 tanga even for a valid delivered+long review");
+
+  await prisma.productReview.deleteMany({ where: { memberId: { in: [m3.id, buyer.id] } } });
+  await prisma.coinTxn.deleteMany({ where: { memberId: m3.id } });
+  await prisma.member.delete({ where: { id: m3.id } }).catch(() => undefined);
 
   await cleanupMkt();
   await cleanup();

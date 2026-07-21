@@ -1145,3 +1145,71 @@ naqd bilan yakunlangani uchun kam-tanga tarmog'iga ham qo'shildi. ISBOT (jonli p
 tg=6506297119, real Neon): savatga qo'shildi → localStorage {shopId:1,items:{170:1}} → Uy tabga
 o'tib qaytildi → savat-bar «🧺 1 ta mahsulot 50 000 → Savat» saqlanib qoldi. typecheck OK, build,
 Vercel jonli (shop-CkgTNFsf.js, bj_cart_v1 grep=1). Flag `bazarcart` hamon DARK (ega-preview'gina).
+
+## 2026-07-21 — 🎁 V2b (sevimlilar) + V3 (tanga-cashback + sharh-mukofot) boshlandi
+Ega "hammasini qil" dedi. Ko'lam-qaror (aniq belgilanadi, jim tashlab ketilmaydi):
+**shu sessiyada:** V2b = ProductFavorite (sevimlilar, xizmatlar-naqshi) · V3 = xarid-cashback +
+sharh-uchun-tanga (⭐ ProductReview'ga yulduz qo'shiladi). **KEYINGA QOLDIRILDI (ataylab, sabab
+bilan):** ProductVariant (2.2) — savat/checkout/bot-karta/admin barchasiga tegadi, alohida katta
+tiket bo'lishi kerak; sotuvchi-reyting (3.3) va tier-yetkazish-badge (3.4) — V1 sotuvchilari hali
+kam, ma'noli reyting uchun ma'lumot yo'q.
+
+### V2b+V3 DoD (KOD'DAN OLDIN)
+| # | Mezon | Tekshiruv |
+|---|---|---|
+| 2.5a | ProductFavorite additiv (memberId — shop-konventsiya, @@unique) + favCount Product'da | db push diff faqat ADD |
+| 2.5b | toggle-fav idempotent, favCount aniq hisoblanadi | testBazar/testShop yangi blok |
+| 2.5c | Miniapp: ❤ optimistic-toggle kartada+detail'da, «Sevimlilar» filtri | preview DOM |
+| 3.1a | Xarid-cashback YANGI emissiya-manba, O'Z byudjeti — safar ≤350 clamp'ga TEGMAYDI (bookingId=null) | kod-isbot + testEconomy regressiya |
+| 3.1b | Grant FAQAT delivered-o'tish `count===1`da (reject-ferma strukturaviy 0) | testBazar parallel-test |
+| 3.1c | Durability: pendingCreate→grantCoins→pendingResolve (crash-holatda pending qoladi, tick qayta-uradi) | testBazar in'ektsiya-test |
+| 3.1d | Knoblar clamp'langan (pct/perOrder/dailyMax), flag `shopcashback` DARK | kod-isbot |
+| 3.2a | ProductReview'ga rating(1-5) qo'shiladi (additiv, eski thumb-only ishlayveradi) | db push diff |
+| 3.2b | Sharh-uchun-tanga: FAQAT delivered-xaridor, ≥30 belgi, kuniga cap, kalit BIR UMR (edit/delete qayta to'lamaydi) | testBazar |
+| 3.2c | Flag `revtanga` DARK | kod-isbot |
+| ∀ | typecheck 4/4 · testShop+testBazar regressiya yashil 3× · yangi testlar yashil 3× · R4 · ega QABUL | buyruq+natija |
+
+Holat: **in progress**.
+
+## 2026-07-21/22 — V2b + V3.1 + V3.2 kod-yakun (READY FOR VERIFICATION)
+Ega "hammasini qil" dedi. Belgilangan ko'lam bo'yicha 3 tiket to'liq qurildi va isbotlandi
+(ProductVariant/sotuvchi-reyting/tier-badge ATAYLAB keyinga qoldirilgan — sabab yuqoridagi yozuvda).
+
+### ✅ V2b — Sevimlilar (ProductFavorite)
+Schema additiv (ProductFavorite + Product.favCount) · toggleProductFavorite (idempotent, floor-0) ·
+listFavoriteProducts (shaxsiy, memberId-scoped) · listActiveProducts endi isFav/favCount qaytaradi
+(memberId softly resolved — link qilinmagan userlar uchun ham ishlaydi) · miniapp: ❤ optimistic-
+toggle (kartada + PDP'da, xatoda rollback) + «Sevimlilar»-filtr tugma + bo'sh-holat.
+**Isbot:** testBazar 17-20-blok (favCount aniq, boshqa a'zoga ta'sir yo'q, ikki marta ON/OFF
+idempotent, floor-0) — 3× yashil.
+
+### ✅ V3.1 — Xarid-cashback (`shopcashback` flag, DARK)
+YANGI emissiya-manba — safar ≤350 clamp'ga TEGMAYDI (bookingId=null; kalit `shopcb:sp<id>`/
+`shopcb:mo<id>` clamp'ning `:memberId:bookingId` suffiks-shabloniga mos KELMAYDI — mustaqil
+tekshirildi). Grant FAQAT delivered-flip `count===1` muvaffaqiyatli bo'lgach (deliverPurchase +
+advanceMarketOrder ikkalasida ham) — reject-ferma strukturaviy nol. Knoblar admin-panelda avto-
+render («BirJoy bozor» guruh): pct=2%, perOrder=2000, dailyMax=5000 (hammasi clamp'langan).
+Durability: pendingCreate→grantCoins→pendingResolve (T0.5 naqshi) — `retryPendingMoney` (mavjud
+15-min tick, yangi poller YO'Q) endi "shopcb" markerini ham skanerlaydi.
+**Isbot:** testBazar 21-28-blok — flag DARK/ON, aniq-foiz hisob, perOrder-cap, dailyMax-cap
+(ketma-ket 3 xarid bilan chegara aniq kesilgani), reject→cashback YO'Q, **durability-in'ektsiya**
+(qo'lda pending-marker qoldirilib, `retryPendingMoney` uni to'ldirgani isbotlandi) — 3× yashil.
+
+### ✅ V3.2 — Sharh-uchun-tanga + ⭐ rating (`revtanga` flag, DARK)
+ProductReview.rating (1-5, additiv) + tangaPaid. Kalit `revtanga:<member>:<product>` **CoinTxn'da**
+tekshiriladi (ProductReview qatoridan MUSTAQIL) — shuning uchun edit ham, DELETE+qayta-yuborish ham
+ikkinchi marta to'lamaydi (isbot: qator o'chirilib qayta yaratildi, baribir 0 tanga). Shartlar:
+delivered-xaridor (ShopPurchase YOKI MarketOrder itemsJson — ikkalasi ham tekshirildi), ≥30 belgi,
+kuniga cap (dona-hisob). miniapp: 1-5 yulduz tanlash (thumb baribir majburiy — eski sharhlar
+buzilmaydi), «+300 tanga» hint (flag ON'da), grant-toast+confetti, ro'yxatda yulduz-render, avgRating.
+**Isbot:** testBazar 29-36-blok (non-buyer=0, delivered-buyer=aniq-summa, edit=0, delete-resubmit=0,
+MarketOrder-yo'li ham=aniq-summa, qisqa-matn=0-lekin-saqlanadi, rating-validatsiya 0/6 rad, dailyMax
+aniq kesilgan, flag-DARK=0) — 3× yashil.
+
+**Umumiy isbot:** testBazar **36+ blok, ~70 assertion, 3× ket-ket yashil** · testShop 94 regressiya
+yashil ×2 · typecheck 4/4 · prod-build + bundle-grep (shop-rev-star, «Sharh (≥30 belgi)»).
+**Out-of-scope topilma:** testEconomy.ts'da 2 ta BirJoy'ga aloqasi yo'q, oldindan mavjud xato
+(mission-reward cap) — spawn_task orqali alohida belgilandi, bu ishga aralashtirilmadi.
+
+**QOLDI (deploy'dan oldin):** commit+push+Render/Vercel deploy · R4 mustaqil tekshiruv · preview-DOM
+isbot · ega QABUL (3 flag DARK: shopcashback/revtanga darhol, bazarcart allaqachon DARK edi).

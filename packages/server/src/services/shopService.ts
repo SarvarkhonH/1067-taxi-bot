@@ -29,7 +29,7 @@ const PENDING_PER_MEMBER = 3; // anti-spam: at most 3 open orders per rider
 
 /** preview=true (admin/owner) bypasses the DARK flag so the owner can QABUL the WHOLE flow —
  *  browse+buy — while ordinary riders still see nothing. Route layer decides preview. */
-export async function listActiveProducts(preview = false): Promise<ShopProductView[]> {
+export async function listActiveProducts(preview = false, memberId?: number): Promise<ShopProductView[]> {
   if (!preview && !(await featureOn("shop"))) return [];
   const rows = await prisma.product.findMany({
     where: { active: true, stock: { gt: 0 } },
@@ -38,14 +38,16 @@ export async function listActiveProducts(preview = false): Promise<ShopProductVi
   });
   const newCutoff = Date.now() - NEW_BADGE_DAYS * 86400_000;
   // grouped queries → per-product gallery size + top-3 sellers (delivered orders) + 👍/👎 tallies
-  const [counts, sold, thumbs] = await Promise.all([
+  const [counts, sold, thumbs, myFavs] = await Promise.all([
     prisma.productPhoto.groupBy({ by: ["productId"], where: { productId: { in: rows.map((r) => r.id) } }, _count: { _all: true } }),
     prisma.shopPurchase.groupBy({ by: ["productId"], where: { status: "delivered" }, _count: { _all: true }, orderBy: { _count: { productId: "desc" } }, take: 3 }),
     prisma.productReview.groupBy({ by: ["productId", "thumb"], where: { productId: { in: rows.map((r) => r.id) } }, _count: { _all: true } }),
+    memberId ? prisma.productFavorite.findMany({ where: { memberId, productId: { in: rows.map((r) => r.id) } }, select: { productId: true } }) : Promise.resolve([]),
   ]);
   const countOf = new Map(counts.map((c) => [c.productId, c._count._all]));
   const topIds = new Set(sold.filter((s) => s._count._all > 0).map((s) => s.productId));
   const thumbOf = new Map(thumbs.map((t) => [`${t.productId}:${t.thumb}`, t._count._all]));
+  const favIds = new Set(myFavs.map((f) => f.productId));
   // 🏪 V1.4: bazar-qatlam uchun do'kon-ma'lumot (OFF holatda ham qaytadi — additiv, UI o'qimaydi)
   const shopIds = [...new Set(rows.map((r) => r.shopId).filter((v): v is number => v !== null))];
   const shops = shopIds.length ? await prisma.marketShop.findMany({ where: { id: { in: shopIds } }, select: { id: true, name: true, deliveryText: true } }) : [];
@@ -68,7 +70,35 @@ export async function listActiveProducts(preview = false): Promise<ShopProductVi
     shopId: p.shopId,
     shopName: p.shopId ? shopOf.get(p.shopId)?.name ?? null : null,
     deliveryText: p.shopId ? shopOf.get(p.shopId)?.deliveryText ?? null : null,
+    favCount: p.favCount,
+    isFav: favIds.has(p.id),
   }));
+}
+
+// ── 🧡 V2b: sevimlilar (ServiceFavorite naqshi, memberId-kalitli) ──────────────────────────────
+export async function toggleProductFavorite(memberId: number, productId: number, on: boolean): Promise<{ ok: boolean; on: boolean; favCount: number }> {
+  if (on) {
+    const existing = await prisma.productFavorite.findUnique({ where: { memberId_productId: { memberId, productId } } });
+    if (!existing) {
+      await prisma.productFavorite.create({ data: { memberId, productId } }).catch(() => undefined);
+      await prisma.product.update({ where: { id: productId }, data: { favCount: { increment: 1 } } }).catch(() => undefined);
+    }
+  } else {
+    const deleted = await prisma.productFavorite.deleteMany({ where: { memberId, productId } });
+    if (deleted.count > 0) {
+      await prisma.product.updateMany({ where: { id: productId, favCount: { gt: 0 } }, data: { favCount: { decrement: 1 } } }).catch(() => undefined);
+    }
+  }
+  const p = await prisma.product.findUnique({ where: { id: productId }, select: { favCount: true } });
+  return { ok: true, on, favCount: p?.favCount ?? 0 };
+}
+
+export async function listFavoriteProducts(memberId: number, preview = false): Promise<ShopProductView[]> {
+  const favs = await prisma.productFavorite.findMany({ where: { memberId }, orderBy: { createdAt: "desc" }, select: { productId: true } });
+  if (!favs.length) return [];
+  const ids = new Set(favs.map((f) => f.productId));
+  const all = await listActiveProducts(preview, memberId); // shu preview/flag-qoidasi — do'kon o'chsa sevimlilar ham ko'rinmaydi
+  return all.filter((p) => ids.has(p.id));
 }
 
 /** 🏪 V1.4 (BirJoy): Bozor-bosh payload — do'kon-rail + kategoriya-karusel + server-qidiruv.
@@ -252,7 +282,43 @@ export async function deliverPurchase(orderId: number): Promise<ShopDecision> {
     const now = await prisma.shopPurchase.findUnique({ where: { id: orderId }, select: { status: true } });
     return { ok: false, reason: now?.status ?? "not_found" };
   }
+  // V3.1: xarid-cashback — FAQAT shu flip (count===1) muvaffaqiyatli bo'lgach; grant xatosi
+  // yetkazishni bekor QILMAYDI (delivery allaqachon haqiqiy) — shuning uchun alohida try/catch.
+  await grantShopCashback(o.memberId, o.priceTanga, "sp", orderId).catch((e) => console.error("[shopcb] sp deliver failed:", e));
   return { ok: true, memberId: o.memberId, amount: o.priceTanga, productName: o.productName, payKind: o.payKind as "tanga" | "cash" };
+}
+
+/** V3.1 (BirJoy): xarid-cashback — Kaspi-Bonus modeli, YANGI emissiya-manba. Safar ≤350 clamp'ga
+ *  HECH QACHON tegmaydi — grantCoins bookingId param bermay chaqiriladi, shu bilan clamp-indeks
+ *  (`bookingId` bo'yicha) bu grantlarni umuman ko'rmaydi. Grant FAQAT chaqiruvchi (deliver-flip)
+ *  o'zi allaqachon bir martalik ekanini tasdiqlagach ishga tushadi — reject-ferma+soxta-buyurtma
+ *  strukturaviy nol to'laydi (delivered holatiga hech qachon yetmaydi). Durability: T0.5 naqshi
+ *  (pendingCreate→grantCoins→pendingResolve) — crash bo'lsa `retryPendingMoney` tick'i "shopcb"
+ *  markerini qayta uradi (yangi poller YO'Q). */
+export async function grantShopCashback(memberId: number, total: number, orderKind: "sp" | "mo", orderId: number): Promise<void> {
+  if (total <= 0) return;
+  if (!(await featureOn("shopcashback"))) return;
+  const { getBonusEcon } = await import("./bonusConfig");
+  const econ = await getBonusEcon();
+  const pct = econ.shopCashbackPct ?? 0;
+  if (pct <= 0) return;
+  const perOrder = econ.shopCashbackPerOrder ?? 0;
+  let amount = Math.min(Math.floor((total * pct) / 100), perOrder);
+  if (amount <= 0) return;
+  const dailyMax = econ.shopCashbackDaily ?? 0;
+  if (dailyMax > 0) {
+    const since = new Date();
+    since.setHours(0, 0, 0, 0);
+    const sum = await prisma.coinTxn.aggregate({ where: { memberId, kind: "shop_cashback", createdAt: { gte: since } }, _sum: { amount: true } });
+    amount = Math.max(0, Math.min(amount, dailyMax - (sum._sum.amount ?? 0)));
+  }
+  if (amount <= 0) return;
+  const id = `${orderKind}${orderId}`;
+  const { pendingCreate, pendingResolve } = await import("./appStateUtil");
+  const { grantCoins } = await import("./coinService");
+  await pendingCreate("shopcb", id, { memberId, amount });
+  const r = await grantCoins(memberId, amount, "shop_cashback", "🛍 Xarid uchun tanga qaytdi", `shopcb:${id}`);
+  if (r.ok || r.skipped === "duplicate") await pendingResolve("shopcb", id);
 }
 
 /** ❌ Rad — V0.2 (BirJoy audit): flip + restock + refund BITTA tranzaksiyada.
@@ -608,11 +674,12 @@ function parseReviewPhotos(json: string | null): ReviewPhotoRef[] {
 export async function listReviews(productId: number, memberId: number, preview = false): Promise<ShopReviewsResponse> {
   if (!preview && !(await featureOn("shop"))) return { likes: 0, dislikes: 0, reviews: [] };
   const rows = await prisma.productReview.findMany({ where: { productId }, orderBy: { id: "desc" }, take: 30 });
-  const [likes, dislikes, buyers, members] = await Promise.all([
+  const [likes, dislikes, buyers, members, ratingAgg] = await Promise.all([
     prisma.productReview.count({ where: { productId, thumb: "up" } }),
     prisma.productReview.count({ where: { productId, thumb: "down" } }),
     prisma.shopPurchase.findMany({ where: { productId, status: "delivered", memberId: { in: rows.map((r) => r.memberId) } }, select: { memberId: true }, distinct: ["memberId"] }),
     prisma.member.findMany({ where: { id: { in: rows.map((r) => r.memberId) } }, select: { id: true, fullName: true, displayName: true } }),
+    prisma.productReview.aggregate({ where: { productId, rating: { not: null } }, _avg: { rating: true } }), // ⭐ V3.2
   ]);
   const verified = new Set(buyers.map((b) => b.memberId));
   const nameOf = new Map(members.map((m) => [m.id, (m.displayName || m.fullName || "Mijoz").trim().split(/\s+/)[0]!]));
@@ -620,13 +687,56 @@ export async function listReviews(productId: number, memberId: number, preview =
     id: r.id,
     name: nameOf.get(r.memberId) ?? "Mijoz",
     thumb: r.thumb as ShopReviewThumb,
+    rating: r.rating,
     text: r.text,
     photoCount: parseReviewPhotos(r.photosJson).length,
     createdAt: r.createdAt.toISOString(),
     mine: r.memberId === memberId,
     verified: verified.has(r.memberId),
   }));
-  return { likes, dislikes, reviews, myThumb: (rows.find((r) => r.memberId === memberId)?.thumb as ShopReviewThumb) ?? null };
+  const mine = rows.find((r) => r.memberId === memberId);
+  return {
+    likes, dislikes, reviews,
+    myThumb: (mine?.thumb as ShopReviewThumb) ?? null,
+    myRating: mine?.rating ?? null,
+    avgRating: Math.round((ratingAgg._avg.rating ?? 0) * 10) / 10,
+  };
+}
+
+/** ⭐ V3.2 (BirJoy): sharh-uchun-tanga (Ozon mexanikasi). Kalit `revtanga:<memberId>:<productId>`
+ *  BIR UMR — CoinTxn'da tekshiriladi (ProductReview qatori o'chirilib qayta yaratilsa ham kalit
+ *  qoladi, shuning uchun edit/delete-resubmit hech qachon ikkinchi marta to'lamaydi). Durability
+ *  markeri kerak EMAS: bu foydalanuvchi-harakati bilan qayta tetiklanadi (sharh qayta yuborilsa
+ *  funksiya yana chaqiriladi, kalit hali yo'q bo'lsa qayta uriniladi) — cashback'dagi bir martalik
+ *  server-hodisadan farqli. Faqat DELIVERED xaridor (ShopPurchase YOKI MarketOrder ichida). */
+async function grantReviewTanga(memberId: number, productId: number, textLen: number, hasPhoto: boolean): Promise<number> {
+  if (!(await featureOn("revtanga"))) return 0;
+  if (textLen < 30) return 0;
+  const key = `revtanga:${memberId}:${productId}`;
+  if (await prisma.coinTxn.findUnique({ where: { idempotencyKey: key }, select: { id: true } })) return 0; // BIR UMR
+  const boughtSp = await prisma.shopPurchase.findFirst({ where: { memberId, productId, status: "delivered" }, select: { id: true } });
+  let bought = !!boughtSp;
+  if (!bought) {
+    const mos = await prisma.marketOrder.findMany({ where: { memberId, status: "delivered" }, select: { itemsJson: true } });
+    bought = mos.some((o) => (o.itemsJson as unknown as { productId: number }[]).some((l) => l.productId === productId));
+  }
+  if (!bought) return 0;
+  const { getBonusEcon } = await import("./bonusConfig");
+  const econ = await getBonusEcon();
+  const dailyMax = econ.reviewTangaDailyMax ?? 0;
+  if (dailyMax > 0) {
+    const since = new Date();
+    since.setHours(0, 0, 0, 0);
+    const count = await prisma.coinTxn.count({ where: { memberId, kind: "shop_review", createdAt: { gte: since } } });
+    if (count >= dailyMax) return 0;
+  }
+  const amount = (econ.reviewTangaBase ?? 0) + (hasPhoto ? (econ.reviewTangaPhotoBonus ?? 0) : 0);
+  if (amount <= 0) return 0;
+  const { grantCoins } = await import("./coinService");
+  const r = await grantCoins(memberId, amount, "shop_review", "🗣 Sharh uchun tanga", key);
+  if (!r.ok) return 0;
+  await prisma.productReview.updateMany({ where: { productId, memberId }, data: { tangaPaid: true } }).catch(() => undefined);
+  return amount;
 }
 
 /** Upsert (unique productId+memberId): re-submitting EDITS the member's review. Photos sent as
@@ -638,9 +748,11 @@ export async function submitReview(
   text?: string,
   photosBase64?: string[],
   preview = false,
+  rating?: number,
 ): Promise<ShopReviewSubmitResponse> {
   if (!preview && !(await featureOn("shop"))) return { ok: false, reason: "off" };
   if (thumb !== "up" && thumb !== "down") return { ok: false, reason: "bad_thumb" };
+  if (rating !== undefined && (!Number.isInteger(rating) || rating < 1 || rating > 5)) return { ok: false, reason: "bad_rating" };
   const product = await prisma.product.findUnique({ where: { id: productId }, select: { id: true } });
   if (!product) return { ok: false, reason: "unavailable" };
   const cleanText = (text ?? "").trim().slice(0, SHOP_REVIEW_MAX_TEXT) || null;
@@ -660,12 +772,16 @@ export async function submitReview(
     photosJson = JSON.stringify(refs);
   }
 
-  await prisma.productReview.upsert({
+  const saved = await prisma.productReview.upsert({
     where: { productId_memberId: { productId, memberId } },
-    create: { productId, memberId, thumb, text: cleanText, photosJson: photosJson ?? null },
-    update: { thumb, text: cleanText, ...(photosJson !== undefined ? { photosJson } : {}) },
+    create: { productId, memberId, thumb, rating: rating ?? null, text: cleanText, photosJson: photosJson ?? null },
+    update: { thumb, rating: rating ?? null, text: cleanText, ...(photosJson !== undefined ? { photosJson } : {}) },
   });
-  return { ok: true };
+  // 🗣 bonus-shart uchun HAQIQIY saqlangan holat (bu safar photosBase64 yuborilmagan bo'lsa ham,
+  // avvalgi submitdan rasm qolgan bo'lishi mumkin — shuning uchun bazadan qayta o'qiladi)
+  const hasPhoto = parseReviewPhotos(saved.photosJson).length > 0;
+  const tangaGranted = await grantReviewTanga(memberId, productId, cleanText?.length ?? 0, hasPhoto).catch((e) => { console.error("[revtanga] grant failed:", e); return 0; });
+  return { ok: true, ...(tangaGranted > 0 ? { tangaGranted } : {}) };
 }
 
 export async function deleteMyReview(memberId: number, productId: number): Promise<{ ok: boolean }> {

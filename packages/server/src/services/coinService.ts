@@ -391,7 +391,7 @@ export async function topUpFromBonus(memberId: number, amount: number): Promise<
 /** T0.5 (AUDIT 3.3/3.8): periodik tick — osilib qolgan refund/topup markerlari.
  *  Har marker idempotent kalit bilan qayta uriladi; 5 urinishdan keyin stuck →
  *  egaga TG alert ("qo'lda ko'rish kerak"). */
-export async function retryPendingMoney(): Promise<{ wd: number; tp: number; stuck: number }> {
+export async function retryPendingMoney(): Promise<{ wd: number; tp: number; shopcb: number; stuck: number }> {
   const { pendingScan, pendingResolve } = await import("./appStateUtil");
   const { alertAdmins } = await import("./economyService");
   let stuckN = 0;
@@ -427,9 +427,15 @@ export async function retryPendingMoney(): Promise<{ wd: number; tp: number; stu
     const g = await safeGrant(r.payload.memberId, r.payload.amount, r.payload.note === "trade" ? "trade_sale" : "item_sell", "Buyum sotildi (retry)", `sellerpay:${r.id}`);
     if (g.ok || g.skipped === "duplicate") await pendingResolve("sellerpay", r.id);
   }
-  for (const st of [...wd.stuck, ...tp.stuck, ...sp.stuck]) {
+  // V3.1 (BirJoy): xarid-cashback grantlari — crash grantCoins'dan OLDIN bo'lsa shu yerda qayta uriladi.
+  const cb = await pendingScan("shopcb");
+  for (const r of cb.retry) {
+    const g = await safeGrant(r.payload.memberId, r.payload.amount, "shop_cashback", "🛍 Xarid uchun tanga qaytdi (retry)", `shopcb:${r.id}`);
+    if (g.ok || g.skipped === "duplicate") await pendingResolve("shopcb", r.id);
+  }
+  for (const st of [...wd.stuck, ...tp.stuck, ...sp.stuck, ...cb.stuck]) {
     stuckN++;
     await alertAdmins(`🛑 Qo'lda ko'rish kerak: pending:${st.id} — member ${st.payload.memberId}, ${st.payload.amount} tanga, 5 urinish muvaffaqiyatsiz`).catch(() => undefined);
   }
-  return { wd: wd.retry.length, tp: tp.retry.length, stuck: stuckN };
+  return { wd: wd.retry.length, tp: tp.retry.length, shopcb: cb.retry.length, stuck: stuckN };
 }

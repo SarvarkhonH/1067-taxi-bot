@@ -204,6 +204,17 @@ export const BONUS_ECON_KNOBS: BonusEconKnob[] = [
   { key: "elonPostPrice", label: "📋 E'lon joylash narxi (tanga)", def: 0, min: 0, max: 5000, step: 100, group: "E'lonlar" },
   { key: "elonTopPrice", label: "📌 TOP e'lon — 24 soat (tanga, E4)", def: 2000, min: 0, max: 20000, step: 250, group: "E'lonlar" },
   { key: "elonMaxActive", label: "📋 1 kishi — max aktiv e'lon", def: 3, min: 1, max: 20, step: 1, group: "E'lonlar" },
+  // ── 🏪 BirJoy V3 (flag `shopcashback`) — xarid-cashback, Kaspi-Bonus modeli. YANGI emissiya-manba,
+  // safar ≤350 clamp'ga TEGMAYDI (bookingId=null → clamp-indeks tashqarisida). Grant faqat
+  // delivered-o'tishda (soxta-buyurtma+reject fermasi strukturaviy 0 to'laydi).
+  { key: "shopCashbackPct", label: "🪙 Xarid-cashback foizi (%)", def: 2, min: 0, max: 10, step: 1, group: "BirJoy bozor" },
+  { key: "shopCashbackPerOrder", label: "🪙 Cashback — max/buyurtma (tanga)", def: 2000, min: 0, max: 10000, step: 100, group: "BirJoy bozor" },
+  { key: "shopCashbackDaily", label: "🪙 Cashback — max/kun/a'zo (tanga)", def: 5000, min: 0, max: 20000, step: 500, group: "BirJoy bozor" },
+  // ── 🗣 BirJoy V3 (flag `revtanga`) — sharh-uchun-tanga (Ozon mexanikasi). FAQAT delivered-xaridor,
+  // BIR UMR bir marta (edit/delete-resubmit qayta to'lamaydi).
+  { key: "reviewTangaBase", label: "🗣 Sharh uchun tanga", def: 300, min: 0, max: 1000, step: 50, group: "BirJoy bozor" },
+  { key: "reviewTangaPhotoBonus", label: "🗣 Sharh + rasm — qo'shimcha", def: 200, min: 0, max: 1000, step: 50, group: "BirJoy bozor" },
+  { key: "reviewTangaDailyMax", label: "🗣 Sharh-tanga — max/kun/a'zo (dona)", def: 3, min: 0, max: 10, step: 1, group: "BirJoy bozor" },
 ];
 // 🏅 level index → cashback-multiplier knob key (null for Yangi = baseline ×1.0).
 const TIER_MULT_KNOB: Record<number, string> = {

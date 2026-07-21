@@ -56,6 +56,7 @@ export interface MeResponse {
     restoran?: boolean; // 🍽 restoran taom-buyurtma tab, "wallet" o'rnini egallaydi (owner-preview: admins see it while DARK)
     bazar?: boolean; // 🏪 BirJoy marketplace-qatlam do'kon ustida (owner-preview: admins see it while DARK)
     bazarcart?: boolean; // 🧺 BirJoy savat-checkout (MarketOrder) (owner-preview: admins see it while DARK)
+    revtanga?: boolean; // 🗣 BirJoy sharh-uchun-tanga (owner-preview: admins see it while DARK)
   };
 }
 
@@ -354,6 +355,9 @@ export interface ShopProductView {
   shopId?: number | null;
   shopName?: string | null;
   deliveryText?: string | null; // do'konning yetkazish-va'dasi (kartadagi 🚚 chip)
+  // 🧡 V2b (additiv): sevimlilar
+  favCount?: number;
+  isFav?: boolean; // shu a'zo uchun — faqat auth'langan so'rovda hisoblanadi
 }
 
 export type ShopPurchaseStatus = "pending" | "delivered" | "rejected" | "cancelled";
@@ -447,6 +451,7 @@ export interface ShopReviewView {
   id: number;
   name: string; // first name only — small-town privacy
   thumb: ShopReviewThumb;
+  rating?: number | null; // ⭐ V3.2: 1-5, additiv — eski thumb-only sharhlar null qoladi
   text?: string | null;
   photoCount: number; // render /api/shop/review-photo/:id/:n for n < photoCount
   createdAt: string;
@@ -459,11 +464,14 @@ export interface ShopReviewsResponse {
   dislikes: number;
   reviews: ShopReviewView[];
   myThumb?: ShopReviewThumb | null;
+  myRating?: number | null; // ⭐ V3.2
+  avgRating?: number; // ⭐ V3.2: rating qo'yilgan sharhlar o'rtachasi (0 = hech biri yo'q)
 }
 
 export interface ShopReviewSubmitResponse {
   ok: boolean;
-  reason?: "off" | "unavailable" | "bad_thumb" | "too_long" | "too_many_photos" | "bad_photo";
+  reason?: "off" | "unavailable" | "bad_thumb" | "too_long" | "too_many_photos" | "bad_photo" | "bad_rating";
+  tangaGranted?: number; // ⭐ V3.2: shu safar necha tanga berildi (0/undefined = berilmadi)
 }
 
 export const SHOP_REVIEW_MAX_PHOTOS = 3;

@@ -248,7 +248,7 @@ async function main(): Promise<void> {
               console.error("[pending] failed:", e);
               return null;
             });
-            if (r && (r.wd || r.tp || r.stuck)) console.log(`[pending] retried wd=${r.wd} tp=${r.tp} stuck=${r.stuck}`);
+            if (r && (r.wd || r.tp || r.shopcb || r.stuck)) console.log(`[pending] retried wd=${r.wd} tp=${r.tp} shopcb=${r.shopcb} stuck=${r.stuck}`);
           }
           const { dispatchScheduled } = await import("./services/scheduledService");
           await dispatchScheduled(bot).catch((e) => console.error("[sched] failed:", e));

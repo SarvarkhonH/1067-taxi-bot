@@ -2219,6 +2219,7 @@ body {
   background: var(--surface-2); border: 1px solid var(--line); color: var(--text); }
 .shop-share-btn:active { transform: scale(.9); }
 .shop-share-btn.sm { width: 30px; height: 30px; }
+.shop-share-btn.on { background: var(--bj-tanga-grad); border-color: transparent; }
 .shop-wrap .shop-share-btn { background: #ffffff; border-color: #dcefe2; color: #15803d; }
 .shop-detail-headline { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
 .shop-detail-headline .shop-detail-name { margin: 0; flex: 1; min-width: 0; }
@@ -2624,3 +2625,9 @@ body {
 .shop-mkt-dot.on { background: var(--bj-accent); }
 .shop-mkt-dot.now { animation: bjPulse 1.6s ease-in-out infinite; }
 .shop-mkt-timeline .shop-mkt-dot:not(:last-child)::after { content: ""; }
+/* ⭐ V3.2: sharh-yulduz + tanga-hint */
+.shop-rev-stars { display: flex; gap: 4px; margin-bottom: 6px; }
+.shop-rev-star { font-size: 24px; line-height: 1; color: var(--bj-line, #d8e6df); background: transparent; border: none; padding: 2px; transition: transform var(--dur-press) var(--ease-out); }
+.shop-rev-star.on { color: var(--bj-tanga, #f59e0b); }
+.shop-rev-star:active { transform: scale(0.85); }
+.shop-rev-tanga-hint { color: var(--bj-accent-deep, #065f46); font-weight: 700; margin-bottom: 6px; }

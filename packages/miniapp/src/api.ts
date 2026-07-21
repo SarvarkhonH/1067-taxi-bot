@@ -146,11 +146,14 @@ export const api = {
     post<import("@t1067/shared").MarketCheckoutResponse>("/api/shop/checkout", { shopId, items, address, pay, note }),
   shopMarketOrders: () => get<{ orders: import("@t1067/shared").MarketOrderView[] }>("/api/shop/market-orders"),
   shopMarketOrderCancel: (id: number) => post<{ ok: boolean; reason?: string }>(`/api/shop/market-orders/${id}/cancel`, {}),
+  // 🧡 V2b sevimlilar
+  shopFav: (productId: number, on: boolean) => post<{ ok: boolean; on: boolean; favCount: number }>("/api/shop/fav", { productId, on }),
+  shopFavs: () => get<{ products: import("@t1067/shared").ShopProductView[] }>("/api/shop/favs"),
 
   shopBuy: (productId: number, address: string, pay: "tanga" | "cash" = "tanga") => post<import("@t1067/shared").ShopBuyResponse>("/api/shop/buy", { productId, address, pay }),
   shopOrders: () => get<{ orders: import("@t1067/shared").ShopPurchaseView[] }>("/api/shop/orders"),
   shopReviews: (productId: number) => get<import("@t1067/shared").ShopReviewsResponse>(`/api/shop/reviews/${productId}`),
-  shopReviewSubmit: (p: { productId: number; thumb: "up" | "down"; text?: string; photos?: string[] }) =>
+  shopReviewSubmit: (p: { productId: number; thumb: "up" | "down"; rating?: number; text?: string; photos?: string[] }) =>
     post<import("@t1067/shared").ShopReviewSubmitResponse>("/api/shop/review", p),
   shopReviewDelete: (productId: number) => del<{ ok: boolean }>(`/api/shop/review/${productId}`),
   // 🍽 restoran (feature "restoran") — R1: katalog o'qish only
