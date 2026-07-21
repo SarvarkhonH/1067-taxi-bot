@@ -42,3 +42,33 @@ jobs:
 
       - name: Economy invariant — Monte-Carlo sim (≤350/ride, no DB)
         run: pnpm --filter @t1067/server exec tsx src/scripts/simEconomy.ts
+
+  # CI-gated deploy (2026-07-21 incident): Render autoDeploy is OFF — a red shield must
+  # block the release (previously a push with a missing file deployed anyway and the bot
+  # crash-looped). Only a green shield on main triggers the deploy, then we poll to
+  # completion so a failed deploy fails THIS job — visible in GitHub, not silent in Render.
+  deploy:
+    needs: shield
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger Render deploy and wait until live
+        env:
+          RENDER_API_KEY: ${{ secrets.RENDER_API_KEY }}
+          SERVICE_ID: srv-d8mj9kkm0tmc73d72440 # kas1067-taxi-fra
+        run: |
+          set -euo pipefail
+          dep=$(curl -sf -X POST -H "Authorization: Bearer $RENDER_API_KEY" -H "Content-Type: application/json" \
+            -d '{}' "https://api.render.com/v1/services/$SERVICE_ID/deploys" | jq -r .id)
+          echo "deploy: $dep"
+          for i in $(seq 1 45); do
+            st=$(curl -sf -H "Authorization: Bearer $RENDER_API_KEY" \
+              "https://api.render.com/v1/services/$SERVICE_ID/deploys/$dep" | jq -r .status)
+            echo "[$i] $st"
+            case "$st" in
+              live) exit 0 ;;
+              build_failed|update_failed|canceled|deactivated) echo "deploy failed: $st"; exit 1 ;;
+            esac
+            sleep 20
+          done
+          echo "timed out waiting for deploy"; exit 1

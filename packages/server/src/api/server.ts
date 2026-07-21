@@ -1358,6 +1358,11 @@ export function createApiServer(opts: ApiOptions = {}) {
       return;
     }
     await setFeature(b.name as never, b.on !== false);
+    // Flag-o'zgarish logi (2026-07-17 saboq: welcomebonus jimgina o'chirilgan, hech kim bilmagan).
+    // Faqat shu owner-endpoint va setFlag.ts alert beradi — setFeature ichiga qo'yilmaydi,
+    // aks holda test-skriptlar har flag-toggle'da adminni spamlaydi.
+    const { alertAdmins } = await import("../services/economyService");
+    await alertAdmins(`⚙️ <b>Flag o'zgardi (admin-panel):</b> <code>${b.name}</code> → ${b.on !== false ? "✅ ON" : "⛔ OFF"}`).catch(() => undefined);
     res.json({ ok: true, features: await listFeatures() });
   });
   // 🎁 Acquisition bonuses — owner sets first-ride / referral / recruit / driver→driver amounts live.

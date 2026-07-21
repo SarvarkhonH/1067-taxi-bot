@@ -1056,3 +1056,49 @@ kategoriya-karusel, server-qidiruv; do'kon-rail 2-do'kon kelganda ochiladi). Tik
 **owner-accepted**. Rollback: `setFlag bazar off` (30s).
 Keyingi: pilot-sellerlar (/sotuvchi — EGA: 3-5 do'kon topadi) · kategoriya-ikonkalar (admin 🎠
 panel — ega chiroyli PNG yuklaydi) · V2 (savat/MarketOrder) plan-fayl bo'yicha.
+
+## 2026-07-21 — 🧺 V2 (savat + MarketOrder) boshlandi — flag `bazarcart` (DARK)
+Reja-fayl V2-bo'lim. Savat-qarori (tahlil qilingan): 1 savat = 1 do'kon (restoran naqshi —
+sotuvchi o'zi yetkazadi, cross-seller savat N ta yetkazish/naqd/refund murakkabligi = rad).
+Bo'linish: V2a (shu sessiya) = pul-yadro+savat+checkout+bot-oqim; V2b = variantlar+sevimlilar+PDP-polish.
+
+### V2a DoD (KOD'DAN OLDIN)
+| # | Mezon | Tekshiruv |
+|---|---|---|
+| 2.1a | MarketOrder schema additiv (itemsJson snapshot, status-mashina, slaAlertedAt) | db push diff faqat ADD |
+| 2.1b | createMarketOrder: withMemberLock + BITTA tx (har-satr stock>=qty claim → SOLD_OUT rollback; tanga-hold `mkt:<id>`; minOrder; PENDING=3; dup-hash 60s) | testBazar yangi bloklar |
+| 2.1c | Status-mashina shartli-o'tishlar: pending→accepted→delivering→delivered; reject (p/a/d'dan) va rider-cancel (pending'dan) = flip+restock-hammasi+refund `mktrefund:<id>` BITTA tx (V0.2 saboqlari tug'ma) | testBazar: parallel-poyga + refund-in'ektsiya |
+| 2.1d | Cash-guard: cash'da coin-op YO'Q hech qaysi yo'lda | testBazar |
+| 2.1e | SLA-sweep MarketOrder'ni ham qamraydi (poller YO'Q) | testBazar + grep setInterval |
+| 2.2 | Bot: ko'p-satrli karta seller+ega'ga, [✅ Qabul][🚚 Yo'lda][✔ Yetkazdim][❌ Rad] guard'li; har o'tish rider-push | kod-isbot + mock-test |
+| 2.3 | Savat-UI: qty-stepper, BjStickyCartBar, boshqa-do'kon prompt, checkout (manzil, naqd/tanga, COD-matn), MainButton/haptic | preview DOM |
+| 2.4 | Buyurtmalarim: MarketOrder+ShopPurchase birlashgan ro'yxat, timeline-status, pending'da bekor | preview DOM + testBazar cancel |
+| 2.5 | `bazarcart` OFF = bugungi 1-dona oqim AYNAN | flag-off kod-yo'l isboti |
+| ∀ | typecheck 4/4 · testShop 94 regressiya · testBazar 3× yashil · R4 · ega QABUL → EXPECTED_ON | buyruq+natija |
+
+Holat: **in progress**.
+
+---
+
+## 2026-07-21 — PROD-AVARIYA + HARDENING-1 (CI-gate, monitoring, backup)
+
+**Avariya:** c677833 `server.ts` import qilgan `src/api/asyncGuard.ts` git-add qilinmagan →
+20-iyul ikkala deploy `update_failed` (bot 8-iyul buildida qolgan) → 21-iyul 09:24 UTC instans
+restart → eski sxemali `prisma db push` yangi DB'ga data-loss rad → crash-loop, bot ~26 daqiqa
+o'lik + webhook'da 77 update. Tuzatish: 943c5e9 (fayl commit) → deploy live, navbat 0.
+`welcomebonus` flag-audit signali: ega "o'chirganman" dedi → EXPECTED_ON'dan chiqarildi (6f9d0c9).
+
+**Hardening-1 (shu commit):**
+- CI-gated deploy: Render autoDeploy OFF + start'dan `db push` olib tashlandi (API orqali
+  qo'llangan); ci.yml'ga `deploy` jobi — faqat yashil shield'dan keyin Render'ga deploy + poll.
+- health.yml: har ~10 daq /health ping, 3 urinish yiqilsa admin-chatga Telegram alert
+  (mijozlarga EMAS); bonus — free-tier instansni uyg'oq tutadi.
+- backup.yml: har kecha 03:30 (Toshkent) to'liq logical dump → GH artifact (30 kun).
+  backup.ts sinxronlandi (100/100 model: +marketShop/categoryDef/marketDemand/marketOrder,
+  BigInt→string) — lokal isbot: 42 642 satr snapshot.
+- Flag-o'zgarish logi: admin-panel toggle + setFlag.ts endi alertAdmins beradi (17-iyul jim
+  welcomebonus-toggle saboqi). setFeature ichiga emas — testlar spam qilmasin.
+- GH secrets o'rnatildi: RENDER_API_KEY, BOT_TOKEN, DATABASE_URL, ALERT_CHAT_ID.
+
+Holat: **ready for verification** (CI yashil + deploy jobi live + health-run yashil = isbot).
+Keyingi: Contabo to'liq migratsiya (~23-iyul, ega VPS+domen beradi).

@@ -35,8 +35,14 @@ Sen 1067 loyihasining bosh muhandisi VA mahsulot dizaynerisan. Har qaror ikkala 
 - Vercel deploy: `VITE_API_URL=<render> vite build` → dist'ni .vercel/output/static'ga
   KO'CHIR → `vercel deploy --prebuilt --prod`. Keyin BUNDLE GREP bilan isbotla
   (`vercel build` eski outputni qoldirishi mumkin — bir marta aldagan).
-- Render: push avto-deploy qilmasligi mumkin — POST .../deploys bilan trigger;
-  start buyrug'i `prisma db push` qiladi — destruktiv schema lokalda avval.
+- Render deploy (2026-07-21'dan): autoDeploy O'CHIQ — deploy FAQAT GH Actions `deploy` jobi
+  orqali (CI shield yashil bo'lsa avtomatik; qo'lda kerak bo'lsa POST .../deploys). Start
+  buyrug'ida `prisma db push` YO'Q — sxema o'zgarishi ALOHIDA ONGLI qadam: avval
+  `prisma migrate diff` bilan diff ko'r, keyin lokaldan `pnpm db:push`, KEYIN kod push.
+  Jonli servis: kas1067-taxi-fra (srv-d8mj9kkm0tmc73d72440); eski kas1067-taxi-bot
+  suspend — HECH QACHON resume qilma. Health-monitor + tungi backup: GH Actions
+  (health.yml/backup.yml; secrets: RENDER_API_KEY, BOT_TOKEN, ALERT_CHAT_ID, DATABASE_URL).
+  Flag toggle HAR DOIM alert beradi (admin-panel/setFlag.ts) — jim toggle taqiq.
 - kas1067: sahifa ~50 cap; terminal status "delivered" (payment bilan).
 - SWEEP testlari (testPhantomRide/testRideCard global finish-sweep'ni yurgizadi) — APP DB'da
   HECH QACHON: jonli bot'ning 90s sweep'i test a'zolarini poygalaydi → flaky + prod'ni buzadi

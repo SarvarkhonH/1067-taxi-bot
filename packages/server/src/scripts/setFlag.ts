@@ -14,6 +14,9 @@ async function main(): Promise<void> {
   }
   await setFeature(name, on);
   const now = await featureOn(name);
+  // Flag-o'zgarish logi — jim toggle bo'lmasin (2026-07-17 welcomebonus saboqi).
+  const { alertAdmins } = await import("../services/economyService");
+  await alertAdmins(`⚙️ <b>Flag o'zgardi (setFlag.ts):</b> <code>${name}</code> → ${on ? "✅ ON" : "⛔ OFF"}`).catch(() => undefined);
   console.log(`feature:${name} set to ${on ? "ON" : "OFF"} → featureOn() now returns ${now}`);
   process.exit(now === on ? 0 : 1);
 }
