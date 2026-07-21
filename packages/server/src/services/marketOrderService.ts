@@ -35,7 +35,8 @@ function toView(o: {
     total: o.total,
     payKind: o.payKind as "tanga" | "cash",
     address: o.address,
-    note: o.note,
+    // R4-gap: ichki dublikat-hash markeri (`#<hash>`) hech qaysi client-yuzasiga chiqmasin
+    note: (o.note ?? "").replace(/^#[0-9a-f]{16}\s?/, "") || null,
     status: o.status as MarketOrderStatus,
     rejectReason: o.rejectReason,
     createdAt: o.createdAt.toISOString(),

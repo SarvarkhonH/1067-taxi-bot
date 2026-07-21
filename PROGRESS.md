@@ -1078,7 +1078,7 @@ Bo'linish: V2a (shu sessiya) = pul-yadro+savat+checkout+bot-oqim; V2b = variantl
 
 Holat: **ready for verification** (2026-07-21, V2a kod-yakun):
 - 2.1a: MarketOrder additiv ikkala DB'da (destruktiv-rad talab qilinmadi = isbot).
-- 2.1b-e: marketOrderService — **testBazar +36 assertion, jami 54, 3× ket-ket yashil**: happy-checkout
+- 2.1b-e: marketOrderService — **testBazar 55 assertion, 3× ket-ket yashil**: happy-checkout
   (snapshot/hold/stock/ledger) · dublikat-hash · minOrder · HAMMASI-YOKI-HECH-NIMA (2-satr yetmasa
   1-satr rollback) · status-mashina (p→a→d→delivered, delivered'dan reject rad) · parallel reject×2
   → 1 g'olib/1 refund/1 restock · refund-in'ektsiya → rollback+pending+retry · CASH: hold/refund 0,
@@ -1093,7 +1093,22 @@ Holat: **ready for verification** (2026-07-21, V2a kod-yakun):
   legacy ro'yxat pastda; /api/shop/market-orders + cancel endpointlar; seller-panel uchun scoped
   /api/admin/shop/market-orders.
 - typecheck 4/4 · testShop 94 regressiya yashil · prod-build + bundle-grep («Savatga qo'shish»,
-  «Buyurtma berish»). QOLDI: preview-DOM isbot + R4 + ega QABUL (flag DARK — xavfsiz).
+  «Buyurtma berish»). QOLDI: ega QABUL (flag DARK — xavfsiz).
+
+## 2026-07-21 — 🔎 R4 MUSTAQIL TEKSHIRUV (V2a): PASS + gap-fix; DEPLOY jonli (acc6367)
+Kod yozmagan agent (42 tool-chaqiruv) har DoD-satrni kod+jonli-deploy'ga qarshi tekshirdi:
+2.1a-2.1e (pul-yadro), 2.2 (bot-guardlar), 2.3 (flag-off tozaligi), 2.4 (endpoint-auth + PII-strip)
+— **hammasi CONFIRMED**. Jonli isbot: /api/shop/checkout→401, /api/shop/market-orders→401,
+/api/admin/shop/market-orders→403; jonli DB'da FAQAT feature:bazar=on (bazarcart satri YO'Q = OFF),
+marketOrder count=0 (haqiqatan DARK, 0 jonli foydalanish). testBazar 55✅ ×3, testShop 94✅,
+typecheck 4/4, buyProduct 0-satr o'zgardi (regressiya yo'q). Deploy: Render acc6367 LIVE + /health ok
++ miniapp Vercel yangi bundle.
+Topilgan 4 gap: (1) assertion-count drift PROGRESS'da — tuzatildi (55, ne 54); (2) rider-izoh hech
+qayerda ko'rinmaydi — V2b backlog; (3) note ichidagi #<hash> markeri /market-orders javobida xom
+qaytardi (hech qaysi yuzada render bo'lmaydi) — **tuzatildi: toView strip qildi**; (4) editMessageText
+parse_mode'siz (kosmetik, HTML-leak yo'q — ataylab qoldirildi, entity-stripped matnga HTML qайta
+qo'shish real parse-xato berishi mumkin). Hech biri pul-kritik EMAS.
+QOLDI: ega telefon-QABUL (R6) → shundagina `bazarcart` EXPECTED_ON.
 
 ---
 
