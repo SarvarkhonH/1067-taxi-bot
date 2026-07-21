@@ -11,7 +11,8 @@ qolganini Claude. Maqsad-vaqt: tayyorgarlik 1-2 soat, cutover (uzilish) 15-30 da
 
 ## 1. SERVER BAZASI
 - [ ] `ssh root@IP` — kirish ishlaydi
-- [ ] repo'dagi `deploy/setup.sh`ni serverga ko'chirish, `bash setup.sh <DOMEN>`
+- [ ] repo'dagi `deploy/setup.sh`ni serverga ko'chirish, keyin ALBATTA:
+      `sed -i 's/\r$//' setup.sh` (Windows CRLF bash'ni buzadi), so'ng `bash setup.sh <DOMEN>`
 - [ ] SSH-kalit o'rnatish (`ssh-copy-id`), keyin `/etc/ssh/sshd_config`da
       `PasswordAuthentication no` + `systemctl restart ssh`
 - [ ] Deploy-kalit: serverda `ssh-keygen` (bo'sh parol) → ochiq kalitni GitHub repo
