@@ -10,6 +10,7 @@ import {
   formatNumber,
   type MeResponse,
   type MarketHomeResponse,
+  type MarketOrderView,
   type ShopProductView,
   type ShopPurchaseView,
   type ShopReviewsResponse,
@@ -19,7 +20,7 @@ import { api, apiUrl } from "./api";
 import { haptic, hapticSuccess, inviteText, inviteLandingUrl, shareLink } from "./telegram";
 import { confetti, compressImage } from "./util";
 import { Button, EmptyState, ProgressBar, Sheet, Skeleton } from "./design/components";
-import { BjCategoryCarousel, BjShopCard, BjSection } from "./design/birjoy"; // 🏪 V1.4 BirJoy-kit
+import { BjCategoryCarousel, BjShopCard, BjSection, BjStickyCartBar } from "./design/birjoy"; // 🏪 V1.4+V2 BirJoy-kit
 import { Icon } from "./icons";
 
 const LAST_ADDR_KEY = "shop_last_addr";
@@ -41,6 +42,20 @@ function StatusPill({ s }: { s: ShopPurchaseView["status"] }) {
   const map: Record<ShopPurchaseView["status"], { t: string; c: string }> = {
     pending: { t: "⏳ Kutilmoqda", c: "pending" },
     delivered: { t: "✅ Yetkazildi", c: "delivered" },
+    rejected: { t: "❌ Rad etildi", c: "rejected" },
+    cancelled: { t: "✖ Bekor", c: "rejected" },
+  };
+  const m = map[s];
+  return <span className={`order-status-pill ${m.c}`}>{m.t}</span>;
+}
+
+// 🧺 V2: MarketOrder status-pill (accepted/delivering yangi holatlar)
+function MktStatusPill({ s }: { s: MarketOrderView["status"] }) {
+  const map: Record<MarketOrderView["status"], { t: string; c: string }> = {
+    pending: { t: "⏳ Kutilmoqda", c: "pending" },
+    accepted: { t: "✅ Qabul qilindi", c: "pending" },
+    delivering: { t: "🚚 Yo'lda", c: "pending" },
+    delivered: { t: "📦 Yetkazildi", c: "delivered" },
     rejected: { t: "❌ Rad etildi", c: "rejected" },
     cancelled: { t: "✖ Bekor", c: "rejected" },
   };
@@ -173,6 +188,83 @@ export function ShopView({ me, onBanner, reload, onBook, openProductId }: { me: 
   const bazar = !!me.flags?.bazar;
   const [market, setMarket] = useState<MarketHomeResponse | null>(null);
   const [shopFilter, setShopFilter] = useState<{ id: number; name: string } | null>(null); // 🏬 do'kon-sahifa (lite)
+  // 🧺 V2 (flag bazarcart): savat — 1 savat = 1 do'kon (restoran naqshi). Client-state faqat UI;
+  // narx/stock/total HAMMASI serverda qayta-hisoblanadi (checkout snapshot) — bu yerdagi raqamlar ko'rsatma.
+  const bazarcart = !!me.flags?.bazarcart;
+  const [cart, setCart] = useState<Record<number, number>>({});
+  const [cartShopId, setCartShopId] = useState<number | null>(null);
+  const [cartOpen, setCartOpen] = useState(false);
+  const [coBusy, setCoBusy] = useState(false);
+  const [coErr, setCoErr] = useState<string | null>(null);
+  const [coPay, setCoPay] = useState<"tanga" | "cash">("tanga");
+  const [coSuccess, setCoSuccess] = useState<number | null>(null); // orderId
+  const cartCount = useMemo(() => Object.values(cart).reduce((s, q) => s + q, 0), [cart]);
+  const cartLines = useMemo(() => {
+    const byId = new Map((products ?? []).map((p) => [p.id, p]));
+    return Object.entries(cart).map(([id, qty]) => ({ p: byId.get(Number(id)), qty })).filter((l): l is { p: ShopProductView; qty: number } => !!l.p && l.qty > 0);
+  }, [cart, products]);
+  const cartItemsTotal = useMemo(() => cartLines.reduce((s, l) => s + l.qty * l.p.priceTanga, 0), [cartLines]);
+  const cartShop = useMemo(() => market?.shops.find((s) => s.id === cartShopId) ?? null, [market, cartShopId]);
+  const cartDelivery = cartShop?.deliveryFeeSom ?? 0;
+
+  const addToCart = (p: ShopProductView, delta = 1) => {
+    const pShop = p.shopId ?? 1;
+    if (cartShopId !== null && cartShopId !== pShop && cartCount > 0) {
+      // boshqa do'kon — savat bitta do'konga (sotuvchi o'zi yetkazadi)
+      if (!window.confirm("Savatda boshqa do'kon mahsuloti bor. Savat tozalanib, yangi do'kondan boshlansinmi?")) return;
+      setCart({ [p.id]: Math.max(1, delta) });
+      setCartShopId(pShop);
+      haptic();
+      return;
+    }
+    setCartShopId(pShop);
+    setCart((c) => {
+      const next = Math.min(20, Math.max(0, (c[p.id] ?? 0) + delta));
+      const copy = { ...c };
+      if (next === 0) delete copy[p.id];
+      else copy[p.id] = next;
+      return copy;
+    });
+    haptic();
+  };
+
+  const checkout = async (address: string, note: string) => {
+    if (!cartShopId || cartLines.length === 0) return;
+    setCoBusy(true);
+    setCoErr(null);
+    try {
+      const r = await api.shopCheckout(cartShopId, cartLines.map((l) => ({ productId: l.p.id, qty: l.qty })), address, coPay, note || undefined);
+      if (r.ok) {
+        hapticSuccess();
+        confetti(18);
+        try { localStorage.setItem(LAST_ADDR_KEY, address.trim()); } catch { /* private mode */ }
+        setCoSuccess(r.orderId!);
+        setCart({});
+        setCartShopId(null);
+        reload();
+        load();
+      } else {
+        const msgs: Record<string, string> = {
+          off: "Savat-xarid hozircha yopiq",
+          bad_address: "Manzilni to'liqroq yozing (kamida 5 belgi)",
+          empty_cart: "Savat bo'sh",
+          unavailable: "Savatdagi mahsulotlardan biri endi mavjud emas",
+          shop_closed: "Bu do'kon hozir buyurtma qabul qilmayapti",
+          min_order: r.minOrder ? `Minimal buyurtma: ${formatNumber(r.minOrder)} so'm` : "Minimal buyurtmaga yetmadi",
+          insufficient: "Tanga yetarli emas — naqd usulini tanlang",
+          pending_limit: "Sizda 3 ta ochiq buyurtma bor — avval ular yetkazilsin",
+          duplicate: "Bu savat allaqachon yuborilgan — «Buyurtmalarim»da ko'ring",
+          sold_out: "Savatdagi mahsulotlardan biri hozirgina tugadi 😔",
+        };
+        setCoErr(msgs[r.reason ?? ""] ?? "Xatolik — qayta urinib ko'ring");
+        load();
+      }
+    } catch {
+      setCoErr("Tarmoq xatosi — qayta urinib ko'ring");
+    } finally {
+      setCoBusy(false);
+    }
+  };
   // server-qidiruv (bazar'dagina): debounce → /api/shop/market?q= — tavsif bo'yicha ham topadi,
   // NOL natija server'da MarketDemand'ga tushadi («qidirildi-topilmadi» ro'yxati egaga)
   const [srv, setSrv] = useState<{ q: string; products: ShopProductView[] } | null>(null);
@@ -282,12 +374,20 @@ export function ShopView({ me, onBanner, reload, onBook, openProductId }: { me: 
     }
   };
 
+  const [mktOrders, setMktOrders] = useState<MarketOrderView[] | null>(null); // 🧺 V2
   const loadOrders = () => {
     setOrdersErr(false);
     setOrders(null);
     // V0.3 (BirJoy audit): catch→[] tarmoq-xatoni «xarid yo'q» qilib ko'rsatardi (loyiha aynan shu
     // bug-sinfdan kuygan) — endi xato-holat + retry.
     api.shopOrders().then((r) => setOrders(r.orders)).catch(() => { setOrders(null); setOrdersErr(true); });
+    if (bazarcart) api.shopMarketOrders().then((r) => setMktOrders(r.orders)).catch(() => setMktOrders(null)); // best-effort — legacy ro'yxat baribir ochiladi
+  };
+  const cancelMkt = async (id: number) => {
+    if (!window.confirm("Buyurtma bekor qilinsinmi? (Tanga bo'lsa — darhol qaytadi)")) return;
+    const r = await api.shopMarketOrderCancel(id).catch(() => ({ ok: false }));
+    if (r.ok) { hapticSuccess(); reload(); }
+    loadOrders();
   };
   const openOrders = () => {
     haptic();
@@ -478,7 +578,20 @@ export function ShopView({ me, onBanner, reload, onBook, openProductId }: { me: 
               </>
             ) : (
               <>
-                <Button variant="brand" onClick={() => { haptic(); setPayMode("tanga"); setStep("confirm"); }}>🪙 Tanga bilan olish — {formatNumber(sel.priceTanga)}</Button>
+                {/* 🧺 V2: savatga qo'shish — bazarcart ON'dagina; 1-dona tezkor-oqim ham qoladi */}
+                {bazarcart && (
+                  (cart[sel.id] ?? 0) > 0 ? (
+                    <div className="shop-qty-row">
+                      <Button variant="ghost" onClick={() => addToCart(sel, -1)} aria-label="Kamaytirish">−</Button>
+                      <span className="shop-qty-n">🧺 {cart[sel.id]}</span>
+                      <Button variant="ghost" onClick={() => addToCart(sel, 1)} aria-label="Ko'paytirish">+</Button>
+                      <Button variant="brand" onClick={() => { setSel(null); setCartOpen(true); }}>Savatni ochish</Button>
+                    </div>
+                  ) : (
+                    <Button variant="brand" onClick={() => addToCart(sel, 1)}>🧺 Savatga qo'shish — {formatNumber(sel.priceTanga)}</Button>
+                  )
+                )}
+                <Button variant={bazarcart ? "ghost" : "brand"} onClick={() => { haptic(); setPayMode("tanga"); setStep("confirm"); }}>🪙 {bazarcart ? "Bittasini darhol olish" : `Tanga bilan olish — ${formatNumber(sel.priceTanga)}`}</Button>
                 <Button variant="ghost" onClick={() => { haptic(); setPayMode("cash"); setStep("confirm"); }}>💵 Naqdga buyurtma — {formatNumber(sel.priceTanga)} so'm</Button>
               </>
             )}
@@ -614,11 +727,36 @@ export function ShopView({ me, onBanner, reload, onBook, openProductId }: { me: 
       {/* ── my orders ── */}
       <Sheet open={ordersOpen} onClose={() => setOrdersOpen(false)}>
         <h3>📦 Buyurtmalarim</h3>
+        {/* 🧺 V2: savat-buyurtmalar (timeline + pending'da bekor) — legacy ro'yxat tepasida */}
+        {bazarcart && (mktOrders ?? []).map((o) => (
+          <div key={`m${o.id}`} className="glass pad shop-order-row">
+            <div className="shop-order-top">
+              <b>🧺 {o.shopName} · {o.items.length} mahsulot</b>
+              <MktStatusPill s={o.status} />
+            </div>
+            <div className="muted fs12">{o.items.map((i) => `${i.name.slice(0, 22)}×${i.qty}`).join(" · ")}</div>
+            <div className="muted fs12">#{o.id} · {o.payKind === "cash" ? `💵 ${formatNumber(o.total)} so'm (naqd)` : `🪙 ${formatNumber(o.total)}`} · {new Date(o.createdAt).toLocaleDateString("uz-UZ")}</div>
+            {(o.status === "pending" || o.status === "accepted" || o.status === "delivering") && (
+              <div className="shop-mkt-timeline" aria-label="Buyurtma holati">
+                {(["pending", "accepted", "delivering", "delivered"] as const).map((st, i) => {
+                  const idx = ["pending", "accepted", "delivering", "delivered"].indexOf(o.status);
+                  return <span key={st} className={`shop-mkt-dot${i <= idx ? " on" : ""}${i === idx ? " now" : ""}`} />;
+                })}
+              </div>
+            )}
+            {o.status === "rejected" && (
+              <div className="order-refund-banner">{o.rejectReason ? `Sabab: ${o.rejectReason.replace(/^#\w+\s?/, "")}. ` : ""}{o.payKind === "cash" ? "Hech qanday pul olinmagan." : <>✅ <b>{formatNumber(o.total)} tanga qaytarildi</b></>}</div>
+            )}
+            {o.status === "pending" && (
+              <Button variant="ghost" onClick={() => cancelMkt(o.id)}>✖ Bekor qilish</Button>
+            )}
+          </div>
+        ))}
         {ordersErr ? (
           <EmptyState icon="📡" text="Yuklanmadi — internetni tekshirib qayta urinib ko'ring" action="🔄 Qayta urinish" onAction={loadOrders} />
         ) : orders === null ? (
           <><Skeleton h={54} className="mt8" /><Skeleton h={54} className="mt8" /></>
-        ) : orders.length === 0 ? (
+        ) : orders.length === 0 && (mktOrders ?? []).length > 0 ? null : orders.length === 0 ? (
           <EmptyState icon="🛍" text="Hali xarid yo'q — birinchi mahsulotingizni tanlang!" />
         ) : (
           orders.map((o) => (
@@ -639,6 +777,42 @@ export function ShopView({ me, onBanner, reload, onBook, openProductId }: { me: 
           ))
         )}
       </Sheet>
+      {/* ── 🧺 V2: yopishqoq savat-bar + savat-sheet (flag bazarcart) ── */}
+      {bazarcart && !sel && !ordersOpen && !cartOpen && (
+        <BjStickyCartBar count={cartCount} totalTanga={cartItemsTotal} onOpen={() => { haptic(); setCartOpen(true); }} />
+      )}
+      {bazarcart && (
+        <Sheet open={cartOpen} onClose={() => { setCartOpen(false); setCoSuccess(null); setCoErr(null); }}>
+          {coSuccess !== null ? (
+            <div className="shop-success">
+              <div className="shop-success-emoji">🎉</div>
+              <h3>Buyurtma #{coSuccess} qabul qilindi!</h3>
+              <p className="muted fs13">{cartShop?.name ?? "Do'kon"} tez orada tasdiqlaydi — har bosqichda sizga xabar keladi. Holatni «📦 Buyurtmalarim»da kuzating.</p>
+              <Button variant="brand" onClick={() => { setCartOpen(false); setCoSuccess(null); }}>Yopish</Button>
+            </div>
+          ) : cartLines.length === 0 ? (
+            <>
+              <h3>🧺 Savat</h3>
+              <EmptyState icon="🧺" text="Savat bo'sh — bozor sizni kutyapti!" action="Bozorga qaytish" onAction={() => setCartOpen(false)} />
+            </>
+          ) : (
+            <CartCheckout
+              lines={cartLines}
+              shopName={cartShop?.name ?? "BirJoy o'z do'koni"}
+              itemsTotal={cartItemsTotal}
+              deliveryFee={cartDelivery}
+              minOrder={cartShop?.minOrderTanga ?? 0}
+              coins={me.coins}
+              pay={coPay}
+              setPay={setCoPay}
+              busy={coBusy}
+              err={coErr}
+              onQty={(p, d) => addToCart(p, d)}
+              onSubmit={checkout}
+            />
+          )}
+        </Sheet>
+      )}
       {/* ── 🔍 to'liq-ekran rasm ko'ruvchi: rasmga bosilganda ochiladi, ‹ Orqaga bilan yopiladi ── */}
       {sel && lightbox !== null && (
         <ProductLightbox
@@ -680,6 +854,63 @@ function ProductLightbox({ productId, count, start, onClose }: { productId: numb
           {Array.from({ length: count }, (_, i) => <span key={i} className={"shop-gallery-dot" + (i === idx ? " on" : "")} />)}
         </div>
       )}
+    </div>
+  );
+}
+
+/** 🧺 V2 savat-checkout paneli: satrlar (qty-stepper) → hisob-karta → manzil/to'lov → yuborish.
+ *  Narxlar KO'RSATMA — yakuniy hisob serverda snapshot bilan qayta-hisoblanadi. */
+function CartCheckout({ lines, shopName, itemsTotal, deliveryFee, minOrder, coins, pay, setPay, busy, err, onQty, onSubmit }: {
+  lines: { p: ShopProductView; qty: number }[];
+  shopName: string;
+  itemsTotal: number;
+  deliveryFee: number;
+  minOrder: number;
+  coins: number;
+  pay: "tanga" | "cash";
+  setPay: (p: "tanga" | "cash") => void;
+  busy: boolean;
+  err: string | null;
+  onQty: (p: ShopProductView, delta: number) => void;
+  onSubmit: (address: string, note: string) => void;
+}) {
+  const [address, setAddress] = useState(() => { try { return localStorage.getItem(LAST_ADDR_KEY) ?? ""; } catch { return ""; } });
+  const [note, setNote] = useState("");
+  const total = itemsTotal + deliveryFee;
+  const short = Math.max(0, minOrder - itemsTotal);
+  const insufficient = pay === "tanga" && coins < total;
+  return (
+    <div className="shop-cartco">
+      <h3>🧺 Savat — {shopName}</h3>
+      {lines.map((l) => (
+        <div key={l.p.id} className="shop-cart-row">
+          <span className="shop-cart-name">{l.p.name}</span>
+          <div className="shop-qty-row">
+            <button className="shop-qty-btn" onClick={() => onQty(l.p, -1)} aria-label="Kamaytirish">−</button>
+            <span className="shop-qty-n">{l.qty}</span>
+            <button className="shop-qty-btn" onClick={() => onQty(l.p, 1)} aria-label="Ko'paytirish">+</button>
+          </div>
+          <b className="shop-cart-sum">{formatNumber(l.qty * l.p.priceTanga)}</b>
+        </div>
+      ))}
+      <div className="shop-cart-totals glass pad">
+        <div className="shop-cart-trow"><span>Mahsulotlar</span><b>{formatNumber(itemsTotal)}</b></div>
+        {deliveryFee > 0 && <div className="shop-cart-trow"><span>🚚 Yetkazish</span><b>{formatNumber(deliveryFee)}</b></div>}
+        <div className="shop-cart-trow shop-cart-grand"><span>Jami</span><b>{formatNumber(total)} {pay === "cash" ? "so'm" : "tanga"}</b></div>
+      </div>
+      {short > 0 && <div className="order-refund-banner">Minimal buyurtma {formatNumber(minOrder)} — yana {formatNumber(short)} qo'shing</div>}
+      <div className="shop-pay-toggle">
+        <Button variant={pay === "tanga" ? "brand" : "ghost"} onClick={() => { haptic(); setPay("tanga"); }}>🪙 Tanga</Button>
+        <Button variant={pay === "cash" ? "brand" : "ghost"} onClick={() => { haptic(); setPay("cash"); }}>💵 Naqd</Button>
+      </div>
+      {insufficient && <div className="order-refund-banner">Tanga yetmaydi ({formatNumber(coins)} bor) — 💵 Naqd usulini tanlang</div>}
+      <input className="shop-search" placeholder="📍 Yetkazish manzili (kamida 5 belgi)" value={address} onChange={(e) => setAddress(e.target.value)} />
+      <input className="shop-search mt6" placeholder="✍️ Izoh (ixtiyoriy)" value={note} onChange={(e) => setNote(e.target.value)} />
+      <p className="muted fs12 mt6">📦 Eshik oldida tekshirib oling — yoqmasa olmang{pay === "cash" ? ", pul to'lamaysiz" : ""}.</p>
+      {err && <div className="order-refund-banner">{err}</div>}
+      <Button variant="brand" disabled={busy || short > 0 || insufficient || address.trim().length < 5} onClick={() => onSubmit(address, note)}>
+        {busy ? "Yuborilmoqda…" : `Buyurtma berish — ${formatNumber(total)}`}
+      </Button>
     </div>
   );
 }

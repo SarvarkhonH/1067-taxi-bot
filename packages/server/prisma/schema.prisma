@@ -424,6 +424,35 @@ model CategoryDef {
   @@index([active, sortOrder])
 }
 
+// 🧺 V2 (BAZAR_PLAN): ko'p-satrli savat-buyurtma — FoodOrder shakli + tanga. Narx-SNAPSHOT
+// itemsJson'da (keyingi narx-tahrir ta'sir qilmaydi); tanga BUY'da ushlanadi (CoinTxn `mkt:<id>`
+// bitta tx'da stock-claim bilan); reject/cancel = flip+restock+refund (`mktrefund:<id>`) BITTA tx
+// (V0.2 saboqlari tug'ma). Status: pending→accepted→delivering→delivered | rejected | cancelled.
+model MarketOrder {
+  id             Int       @id @default(autoincrement())
+  memberId       Int
+  shopId         Int
+  shopName       String // snapshot
+  itemsJson      Json // [{productId, name, qty, priceTanga}] — narx-snapshot
+  itemsTotal     Int // tanga (=so'm)
+  deliveryFee    Int       @default(0)
+  total          Int
+  payKind        String    @default("tanga") // "tanga" (buy'da ushlangan) | "cash" (yetkazganda)
+  address        String
+  contact        String
+  note           String?
+  status         String    @default("pending") // pending|accepted|delivering|delivered|rejected|cancelled
+  rejectReason   String?
+  slaAlertedAt   DateTime?
+  decidedAt      DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  @@index([memberId, createdAt])
+  @@index([shopId, status])
+  @@index([status, createdAt])
+}
+
 // 🔎 V1.4: nol-natija qidiruvlar — «nima qidirildi-topilmadi» ro'yxati egaga qaysi sotuvchini
 // chaqirishni aytadi (xizmatlar ServiceRequest naqshi).
 model MarketDemand {

@@ -66,13 +66,16 @@ export const FEATURES = [
   "bazar",    // 🏪 BirJoy V1 (BAZAR_PLAN): multi-vendor marketplace qatlami do'kon ustida —
               // OFF = bugungi flat do'kon AYNAN; ON = Bozor-bosh (kategoriya-karusel, do'kon-rail,
               // server-qidiruv) + buyurtma-routing sellerlarga. DARK until pilot sellers + QABUL.
+  "bazarcart", // 🧺 BirJoy V2: ko'p-satrli savat-checkout (MarketOrder) — OFF = 1-dona buyProduct
+              // oqimi AYNAN qoladi. Pul-yadro: tanga BUY'da tx-ichida ushlanadi; reject/cancel
+              // flip+restock+refund BITTA tx. DARK until owner QABUL.
 ] as const;
 export type FeatureName = (typeof FEATURES)[number];
 
 // Off until explicitly enabled (go-live flip = setFeature(name, true) after owner QABUL).
 // booking3 = the new map/trip flow; owner still gets a preview via server.ts owner-branch,
 // but real users stay on the (fixed) classic flow until it's accepted. A missing row → OFF.
-const DEFAULT_OFF = new Set<FeatureName>(["booking3", "livinghome", "aibrain", "mahalla", "tolqin", "baraban", "komissiya", "qarz", "welcomebonus", "refstaged", "drvstaged", "drvrecruit", "drvpush", "promo", "clientbooking", "cashout", "carupgrade", "intercity", "tierloyalty", "waitcomp", "trackcta", "jackpotpost", "drvrank", "instantstatus", "spinreminder", "shop", "xizmatlar", "elonlar", "elontop", "restoran", "bazar"]);
+const DEFAULT_OFF = new Set<FeatureName>(["booking3", "livinghome", "aibrain", "mahalla", "tolqin", "baraban", "komissiya", "qarz", "welcomebonus", "refstaged", "drvstaged", "drvrecruit", "drvpush", "promo", "clientbooking", "cashout", "carupgrade", "intercity", "tierloyalty", "waitcomp", "trackcta", "jackpotpost", "drvrank", "instantstatus", "spinreminder", "shop", "xizmatlar", "elonlar", "elontop", "restoran", "bazar", "bazarcart"]);
 
 let cache: { at: number; map: Record<string, boolean> } = { at: 0, map: {} };
 

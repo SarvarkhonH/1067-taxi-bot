@@ -1,11 +1,75 @@
-// 🏪 BirJoy V1.3 — sotuvchi-onboarding wizard (/sotuvchi). Lokal do'kon 5 daqiqada DARK vitrina
-// ochadi (active=false), EGA admin-panelda ko'rib yoqadi. Cashout sessions-Map naqshi (in-memory:
-// bot restart = wizard qayta boshlanadi — buyurtma emas, draft, yo'qotish arzon). Flag `bazar`
-// SHART EMAS wizard uchun (DARK vitrina baribir ko'rinmaydi) — lekin e'lon-matni flag'ga ishora qiladi.
+// 🏪 BirJoy V1.3 — sotuvchi-onboarding wizard (/sotuvchi) + 🧺 V2 savat-buyurtma kartasi.
+// Wizard: lokal do'kon 5 daqiqada DARK vitrina ochadi (active=false), EGA admin-panelda yoqadi.
+// Cashout sessions-Map naqshi (in-memory: bot restart = wizard qayta boshlanadi — draft, arzon).
+// V2-karta: seller ownerChatId + EGA CC, [✅ Qabul][🚚 Yo'lda][✔ Yetkazdim][❌ Rad] — pul-logika
+// marketOrderService'da (shartli-o'tishlar idempotent), bu yerda faqat UI+push.
 import { Bot, Context, InlineKeyboard } from "grammy";
+import { formatNumber } from "@t1067/shared";
 import { prisma } from "../db";
+import type { MarketOrderLine, MarketOrderStatus } from "@t1067/shared";
 
 const OWNER_TG = "6506297119";
+
+async function tgOf(memberId: number): Promise<string | null> {
+  const tu = await prisma.telegramUser.findFirst({ where: { memberId }, select: { id: true } });
+  return tu?.id ?? null;
+}
+
+// ── 🧺 V2: savat-buyurtma kartasi ────────────────────────────────────────────────────────────────
+export interface MarketOrderNotice {
+  orderId: number;
+  shopId: number;
+  shopName: string;
+  lines: MarketOrderLine[];
+  itemsTotal: number;
+  deliveryFee: number;
+  total: number;
+  payKind: "tanga" | "cash";
+  buyerName: string;
+  phone: string;
+  address: string;
+}
+
+async function marketChatsFor(shopId: number): Promise<string[]> {
+  const chats = new Set<string>([OWNER_TG]);
+  const shop = await prisma.marketShop.findUnique({ where: { id: shopId }, select: { ownerChatId: true, active: true } });
+  if (shop?.ownerChatId && shop.active) chats.add(shop.ownerChatId);
+  return [...chats];
+}
+
+const MO_KB = (orderId: number, status: MarketOrderStatus): InlineKeyboard => {
+  const kb = new InlineKeyboard();
+  if (status === "pending") kb.text("✅ Qabul", `mo:adv:${orderId}`).text("❌ Rad", `mo:rej:${orderId}`);
+  else if (status === "accepted") kb.text("🚚 Yo'lda", `mo:adv:${orderId}`).text("❌ Rad", `mo:rej:${orderId}`);
+  else if (status === "delivering") kb.text("✔ Yetkazdim", `mo:adv:${orderId}`).text("❌ Rad", `mo:rej:${orderId}`);
+  return kb;
+};
+
+export async function notifyMarketOrderCard(bot: Bot, n: MarketOrderNotice): Promise<void> {
+  const items = n.lines.map((l) => `  • ${escMkt(l.name.slice(0, 40))} ×${l.qty} — ${formatNumber(l.qty * l.priceTanga)}`).join("\n");
+  const payLine = n.payKind === "cash"
+    ? `💵 <b>NAQD ${formatNumber(n.total)}</b> so'm (yetkazganda olinadi)`
+    : `🪙 <b>${formatNumber(n.total)}</b> tanga (to'landi ✅)`;
+  const text =
+    `🧺 <b>SAVAT-BUYURTMA</b> #${n.orderId} — <b>${escMkt(n.shopName)}</b>\n\n` +
+    `${items}\n` +
+    (n.deliveryFee > 0 ? `  🚚 Yetkazish: ${formatNumber(n.deliveryFee)}\n` : "") +
+    `\n${payLine}\n👤 ${escMkt(n.buyerName)}\n📞 ${escMkt(n.phone)}\n📍 ${escMkt(n.address)}\n\n` +
+    `<i>Har bosqichda tugmani bosing — mijozga avtomatik xabar boradi.</i>`;
+  for (const chat of await marketChatsFor(n.shopId)) {
+    await bot.api.sendMessage(chat, text, { parse_mode: "HTML", reply_markup: MO_KB(n.orderId, "pending") }).catch(() => undefined);
+  }
+}
+
+const RIDER_STATUS_MSG: Record<string, (shopName: string) => string> = {
+  accepted: (s) => `✅ <b>Buyurtmangiz qabul qilindi!</b>\n🏬 ${escMkt(s)} tayyorlamoqda.`,
+  delivering: (s) => `🚚 <b>Buyurtmangiz yo'lda!</b>\n🏬 ${escMkt(s)} yetkazmoqda — tez orada eshigingizda.`,
+  delivered: (s) => `📦 <b>Buyurtmangiz yetkazildi!</b>\n🏬 ${escMkt(s)} — xaridingiz uchun rahmat! 🎉`,
+};
+
+function escMkt(s: string): string {
+  return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+}
 
 type Step = "name" | "phone" | "address" | "hours" | "promise" | "category";
 interface Draft {
@@ -122,6 +186,41 @@ export function registerMarket(bot: Bot): void {
     }
     sessions.set(tg, s);
     await ctx.reply(PROMPTS[s.step], { parse_mode: "HTML" });
+  });
+
+  // 🧺 V2: savat-buyurtma boshqaruvi — seller yoki ega bosadi (guard marketChatsFor bilan)
+  bot.callbackQuery(/^mo:(adv|rej):(\d+)$/, async (ctx) => {
+    const [, action, idStr] = ctx.match!;
+    const orderId = Number(idStr);
+    const order = await prisma.marketOrder.findUnique({ where: { id: orderId }, select: { shopId: true } });
+    if (!order) { await ctx.answerCallbackQuery({ text: "Topilmadi" }); return; }
+    const allowed = await marketChatsFor(order.shopId);
+    if (!allowed.includes(String(ctx.from.id))) { await ctx.answerCallbackQuery({ text: "Faqat admin", show_alert: true }); return; }
+
+    const svc = await import("../services/marketOrderService");
+    const r = action === "adv" ? await svc.advanceMarketOrder(orderId) : await svc.rejectMarketOrder(orderId);
+    if (!r.ok) {
+      await ctx.answerCallbackQuery({ text: r.reason === "retry" ? "Xato — qayta bosing" : `Holat: ${r.reason}`, show_alert: true });
+      return;
+    }
+    const st = r.newStatus!;
+    const LABEL: Record<string, string> = { accepted: "✅ QABUL QILINDI", delivering: "🚚 YO'LDA", delivered: "✔ YETKAZILDI", rejected: "❌ RAD ETILDI" };
+    await ctx.answerCallbackQuery({ text: LABEL[st] ?? st });
+    const orig = ctx.callbackQuery.message && "text" in ctx.callbackQuery.message ? ctx.callbackQuery.message.text ?? "" : "";
+    const base = orig.split("\n— — —")[0];
+    await ctx.editMessageText(`${base}\n— — —\n${LABEL[st] ?? st}${st === "rejected" && r.payKind !== "cash" ? " (tanga qaytdi)" : ""}`, {
+      reply_markup: st === "accepted" || st === "delivering" ? MO_KB(orderId, st) : undefined,
+    }).catch(() => undefined);
+    // riderga push (transactional — notifyOnce-cap'dan tashqari, restoran naqshi)
+    const tg = r.memberId ? await tgOf(r.memberId) : null;
+    if (tg) {
+      const msg = st === "rejected"
+        ? (r.payKind === "cash"
+          ? `😔 <b>Buyurtma rad etildi</b>\n🏬 ${escMkt(r.shopName ?? "")}\nHech qanday pul olinmagan.`
+          : `😔 <b>Buyurtma rad etildi</b>\n🏬 ${escMkt(r.shopName ?? "")}\n✅ <b>${formatNumber(r.total ?? 0)} tanga hisobingizga qaytarildi.</b>`)
+        : RIDER_STATUS_MSG[st]?.(r.shopName ?? "") ?? "";
+      if (msg) await ctx.api.sendMessage(tg, msg, { parse_mode: "HTML" }).catch(() => undefined);
+    }
   });
 
   // ega-tasdiqlash callback'lari — faqat ega bosadi

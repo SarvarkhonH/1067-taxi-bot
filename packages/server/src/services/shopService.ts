@@ -75,7 +75,7 @@ export async function listActiveProducts(preview = false): Promise<ShopProductVi
  *  q berilsa: OR-contains qidiruv (serviceDirectory naqshi); nol natija → MarketDemand yozuvi
  *  («qidirildi-topilmadi» — egaga qaysi sotuvchini chaqirishni aytadi). */
 export async function getMarketHome(preview = false, q?: string, memberId?: number): Promise<{
-  shops: { id: number; name: string; open: boolean; deliveryText: string | null; rating: number; hasPhoto: boolean }[];
+  shops: { id: number; name: string; open: boolean; deliveryText: string | null; rating: number; hasPhoto: boolean; deliveryFeeSom: number; minOrderTanga: number }[];
   cats: { slug: string; name: string; emoji: string; hasIcon: boolean; id: number }[];
   products: ShopProductView[];
 }> {
@@ -95,7 +95,7 @@ export async function getMarketHome(preview = false, q?: string, memberId?: numb
     }
   }
   return {
-    shops: shops.map((s) => ({ id: s.id, name: s.name, open: isOpenNow(s.workHours), deliveryText: s.deliveryText, rating: s.avgRating, hasPhoto: !!(s.photoFileId || s.photoUrl) })),
+    shops: shops.map((s) => ({ id: s.id, name: s.name, open: isOpenNow(s.workHours), deliveryText: s.deliveryText, rating: s.avgRating, hasPhoto: !!(s.photoFileId || s.photoUrl), deliveryFeeSom: s.deliveryFeeSom, minOrderTanga: s.minOrderTanga })),
     cats: cats.map((c) => ({ id: c.id, slug: c.slug, name: c.name, emoji: c.emoji, hasIcon: !!(c.iconFileId || c.iconUrl) })),
     products: filtered,
   };
@@ -388,13 +388,21 @@ export async function checkShopSlaAndAlert(alertAdmins: (html: string) => Promis
     select: { id: true, productId: true, productName: true, createdAt: true },
     take: 50,
   });
-  if (!stale.length) return;
-  const lines = stale.map((s) => {
-    const age = Math.floor((Date.now() - s.createdAt.getTime()) / 60_000);
-    return `#${s.id} · ${s.productName.slice(0, 40)} · ${age} daq javobsiz`;
+  // 🧺 V2: MarketOrder pending'lari ham shu supurgida (yangi poller YO'Q)
+  const staleMkt = await prisma.marketOrder.findMany({
+    where: { status: "pending", createdAt: { lt: maxCutoff }, slaAlertedAt: null },
+    select: { id: true, shopName: true, createdAt: true },
+    take: 50,
   });
-  await alertAdmins(`🛍 <b>Do'kon: ${stale.length} ta buyurtma 15+ daq javobsiz</b>\n${lines.join("\n")}`).catch(() => undefined);
-  await prisma.shopPurchase.updateMany({ where: { id: { in: stale.map((s) => s.id) } }, data: { slaAlertedAt: new Date() } });
+  if (!stale.length && !staleMkt.length) return;
+  const ageOf = (d: Date): number => Math.floor((Date.now() - d.getTime()) / 60_000);
+  const lines = [
+    ...stale.map((s) => `#${s.id} · ${s.productName.slice(0, 40)} · ${ageOf(s.createdAt)} daq javobsiz`),
+    ...staleMkt.map((s) => `🧺 #${s.id} · ${s.shopName.slice(0, 40)} · ${ageOf(s.createdAt)} daq javobsiz`),
+  ];
+  await alertAdmins(`🛍 <b>Do'kon: ${lines.length} ta buyurtma 15+ daq javobsiz</b>\n${lines.join("\n")}`).catch(() => undefined);
+  if (stale.length) await prisma.shopPurchase.updateMany({ where: { id: { in: stale.map((s) => s.id) } }, data: { slaAlertedAt: new Date() } });
+  if (staleMkt.length) await prisma.marketOrder.updateMany({ where: { id: { in: staleMkt.map((s) => s.id) } }, data: { slaAlertedAt: new Date() } });
 }
 
 /** V1.2: mahsulot shu do'kongami — seller-scope choke-point uchun (server.ts sellerOwnsProduct). */

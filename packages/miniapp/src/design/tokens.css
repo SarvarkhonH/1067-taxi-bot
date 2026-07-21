@@ -2603,3 +2603,24 @@ body {
 /* bo'sh-holat */
 .bj-empty { text-align: center; padding: 28px 20px; color: var(--bj-ink-dim); }
 .bj-empty svg { margin-bottom: 10px; }
+
+/* ── 🧺 V2 savat-checkout (flag bazarcart) ── */
+.shop-qty-row { display: flex; align-items: center; gap: 10px; }
+.shop-qty-btn { width: 44px; height: 44px; border-radius: var(--r-btn); border: 1px solid var(--bj-line); background: var(--bj-card); color: var(--bj-ink); font-size: 20px; font-weight: 700; transition: transform var(--dur-press) var(--ease-out); }
+.shop-qty-btn:active { transform: scale(0.93); }
+.shop-qty-n { min-width: 34px; text-align: center; font-weight: 800; font-size: 15px; }
+.shop-cartco { display: flex; flex-direction: column; gap: 10px; }
+.shop-cart-row { display: flex; align-items: center; gap: 10px; padding: 8px 0; border-bottom: 1px solid var(--bj-line); }
+.shop-cart-name { flex: 1; font-size: 13px; line-height: 1.3; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; overflow-wrap: anywhere; }
+.shop-cart-sum { min-width: 72px; text-align: right; font-size: 14px; }
+.shop-cart-totals { display: flex; flex-direction: column; gap: 6px; }
+.shop-cart-trow { display: flex; justify-content: space-between; font-size: 13.5px; }
+.shop-cart-grand { font-size: 16px; border-top: 1px solid var(--bj-line); padding-top: 6px; }
+.shop-pay-toggle { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.app.shop-light .shop-qty-btn { background: #fff; }
+/* 🧺 V2: buyurtma-timeline nuqtalari */
+.shop-mkt-timeline { display: flex; align-items: center; gap: 6px; margin: 6px 0 2px; }
+.shop-mkt-dot { width: 10px; height: 10px; border-radius: 50%; background: var(--bj-line); }
+.shop-mkt-dot.on { background: var(--bj-accent); }
+.shop-mkt-dot.now { animation: bjPulse 1.6s ease-in-out infinite; }
+.shop-mkt-timeline .shop-mkt-dot:not(:last-child)::after { content: ""; }

@@ -115,6 +115,10 @@ async function main(): Promise<void> {
     notifyShopOwner: async (notice) => {
       if (bot) await (await import("./bot/shop")).notifyOwnerShop(bot, notice);
     },
+    // 🧺 V2: savat-buyurtma → seller+ega karta [✅ Qabul][🚚][✔][❌] (bot-bound closure)
+    notifyMarketOrder: async (notice) => {
+      if (bot) await (await import("./bot/market")).notifyMarketOrderCard(bot, notice);
+    },
     // 🔎 self-submitted service listing → owner moderation card [✅ Tasdiqlash]/[❌ Rad]
     notifyServiceOwner: async (notice) => {
       if (bot) await (await import("./bot/xizmatlar")).notifyOwnerService(bot, notice);

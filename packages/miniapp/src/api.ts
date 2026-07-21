@@ -141,6 +141,11 @@ export const api = {
   // 🛍 tanga shop (feature "shop")
   shopProducts: () => get<{ products: import("@t1067/shared").ShopProductView[] }>("/api/shop/products"),
   shopMarket: (q?: string) => get<import("@t1067/shared").MarketHomeResponse>(`/api/shop/market${q ? `?q=${encodeURIComponent(q)}` : ""}`), // 🏪 V1.4 BirJoy bozor-bosh
+  // 🧺 V2 savat
+  shopCheckout: (shopId: number, items: import("@t1067/shared").MarketCartItemInput[], address: string, pay: "tanga" | "cash", note?: string) =>
+    post<import("@t1067/shared").MarketCheckoutResponse>("/api/shop/checkout", { shopId, items, address, pay, note }),
+  shopMarketOrders: () => get<{ orders: import("@t1067/shared").MarketOrderView[] }>("/api/shop/market-orders"),
+  shopMarketOrderCancel: (id: number) => post<{ ok: boolean; reason?: string }>(`/api/shop/market-orders/${id}/cancel`, {}),
 
   shopBuy: (productId: number, address: string, pay: "tanga" | "cash" = "tanga") => post<import("@t1067/shared").ShopBuyResponse>("/api/shop/buy", { productId, address, pay }),
   shopOrders: () => get<{ orders: import("@t1067/shared").ShopPurchaseView[] }>("/api/shop/orders"),

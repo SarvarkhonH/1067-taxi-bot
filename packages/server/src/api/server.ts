@@ -45,6 +45,7 @@ export interface ApiOptions {
   notifyCashoutOwner?: (notice: CashoutOwnerNotice) => Promise<void>;
   /** 🛍 Forward a shop purchase to the owner's Telegram [✅ Yetkazildi]/[❌ Rad] (bot-bound). */
   notifyShopOwner?: (notice: import("../services/shopService").ShopOwnerNotice) => Promise<void>;
+  notifyMarketOrder?: (notice: import("./../bot/market").MarketOrderNotice) => Promise<void>; // 🧺 V2
   /** 🔎 Forward a self-submitted service listing to the owner's Telegram [✅/❌] (bot-bound). */
   notifyServiceOwner?: (notice: import("../services/serviceDirectory").ServiceOwnerNotice) => Promise<void>;
   /** 🔎 Forward an unmet-demand request ("topilmadi → so'rov") to the owner's Telegram (info-only). */
@@ -225,7 +226,7 @@ export function createApiServer(opts: ApiOptions = {}) {
   });
 
   app.get("/api/me", requireUser, async (_req, res) => {
-    const [me, booking3, livinghome, intercity, tierloyalty, shopOn, xizmatlarOn, elonlarOn, restoranOn, bazarOn] = await Promise.all([
+    const [me, booking3, livinghome, intercity, tierloyalty, shopOn, xizmatlarOn, elonlarOn, restoranOn, bazarOn, bazarcartOn] = await Promise.all([
       getMe(res.locals.telegramId as string),
       featureOn("booking3"),
       featureOn("livinghome"),
@@ -236,6 +237,7 @@ export function createApiServer(opts: ApiOptions = {}) {
       featureOn("elonlar"),
       featureOn("restoran"),
       featureOn("bazar"),
+      featureOn("bazarcart"),
     ]);
     if (!me) { res.json({ linked: false }); return; }
     // 🏅 owner-preview: admins see the tier-loyalty UI even while the global flag is DARK, so the
@@ -251,7 +253,9 @@ export function createApiServer(opts: ApiOptions = {}) {
     const restoranPreview = restoranOn || isAdmin(res.locals.telegramId as string);
     // 🏪 bazar owner-preview mirrors it — owner QABULs the BirJoy marketplace layer while DARK
     const bazarPreview = bazarOn || isAdmin(res.locals.telegramId as string);
-    res.json({ ...me, flags: { booking3, livinghome, intercity, tierloyalty: tierPreview, shop: shopPreview, xizmatlar: xizmatlarPreview, elonlar: elonlarPreview, restoran: restoranPreview, bazar: bazarPreview } });
+    // 🧺 bazarcart owner-preview — savat-checkout QABUL while DARK
+    const bazarcartPreview = bazarcartOn || isAdmin(res.locals.telegramId as string);
+    res.json({ ...me, flags: { booking3, livinghome, intercity, tierloyalty: tierPreview, shop: shopPreview, xizmatlar: xizmatlarPreview, elonlar: elonlarPreview, restoran: restoranPreview, bazar: bazarPreview, bazarcart: bazarcartPreview } });
   });
 
   // 🏅 Tier ladder benefits — labels derived from LIVE knobs (single source of truth). 60s client cache.
@@ -457,6 +461,37 @@ export function createApiServer(opts: ApiOptions = {}) {
   };
   app.get("/api/shop/cat-icon/:id", serveMarketImage("cat"));
   app.get("/api/shop/shop-photo/:id", serveMarketImage("shop"));
+
+  // 🧺 V2 (flag `bazarcart`): savat-checkout + rider market-buyurtmalari + bekor
+  app.post("/api/shop/checkout", requireUser, rateLimit(10), withMember2(async (id, req, res) => {
+    const { createMarketOrder } = await import("../services/marketOrderService");
+    const b = req.body ?? {};
+    const r = await createMarketOrder(
+      id,
+      Number(b.shopId),
+      Array.isArray(b.items) ? b.items : [],
+      String(b.address ?? ""),
+      b.pay === "cash" ? "cash" : "tanga",
+      b.note ? String(b.note) : undefined,
+      isAdmin(res.locals.telegramId as string),
+    );
+    if (r.ok && r.notice && opts.notifyMarketOrder) await opts.notifyMarketOrder(r.notice as import("./../bot/market").MarketOrderNotice).catch(() => undefined);
+    const { notice: _n, ...pub } = r; // buyer PII (tel/manzil) server-ichida qoladi
+    return pub;
+  }));
+  app.get("/api/shop/market-orders", requireUser, rateLimit(30), withMember2(async (id) => {
+    const { myMarketOrders } = await import("../services/marketOrderService");
+    return { orders: await myMarketOrders(id) };
+  }));
+  app.post("/api/shop/market-orders/:id/cancel", requireUser, rateLimit(20), withMember2(async (id, req) => {
+    const { cancelMarketOrder } = await import("../services/marketOrderService");
+    return await cancelMarketOrder(Number(req.params.id), id); // egalik-guard service ichida
+  }));
+  // seller/ega paneli uchun (scoped): market-buyurtmalar ro'yxati
+  app.get("/api/admin/shop/market-orders", requireAdmin, requireShopWrite, async (req, res) => {
+    const { adminListMarketOrders } = await import("../services/marketOrderService");
+    res.json({ orders: await adminListMarketOrders(req.query?.status ? String(req.query.status) : undefined, res.locals.sellerShopId as number | undefined) });
+  });
 
   // ── 🗣 shop reviews: sharh + 👍/👎 + up to 3 rasm ────────────────────────────────────────────
   app.get("/api/shop/reviews/:productId", requireUser, rateLimit(30), withMember2(async (id, req, res) => {

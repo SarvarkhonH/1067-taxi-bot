@@ -55,6 +55,7 @@ export interface MeResponse {
     elonlar?: boolean; // 📋 mahalla e'lon taxtasi tab, Reyting'ni tabbar'dan almashtiradi (owner-preview: admins see it while DARK)
     restoran?: boolean; // 🍽 restoran taom-buyurtma tab, "wallet" o'rnini egallaydi (owner-preview: admins see it while DARK)
     bazar?: boolean; // 🏪 BirJoy marketplace-qatlam do'kon ustida (owner-preview: admins see it while DARK)
+    bazarcart?: boolean; // 🧺 BirJoy savat-checkout (MarketOrder) (owner-preview: admins see it while DARK)
   };
 }
 
@@ -378,6 +379,8 @@ export interface MarketShopView {
   deliveryText: string | null;
   rating: number;
   hasPhoto: boolean;
+  deliveryFeeSom: number; // 🧺 V2: savat-hisob uchun (1 tanga = 1 so'm)
+  minOrderTanga: number;
 }
 export interface MarketCategoryView {
   id: number;
@@ -390,6 +393,36 @@ export interface MarketHomeResponse {
   shops: MarketShopView[];
   cats: MarketCategoryView[];
   products: ShopProductView[];
+}
+
+// 🧺 V2 (BirJoy savat): MarketOrder — ko'p-satrli buyurtma
+export type MarketOrderStatus = "pending" | "accepted" | "delivering" | "delivered" | "rejected" | "cancelled";
+export interface MarketCartItemInput { productId: number; qty: number }
+export interface MarketOrderLine { productId: number; name: string; qty: number; priceTanga: number }
+export interface MarketOrderView {
+  id: number;
+  shopId: number;
+  shopName: string;
+  items: MarketOrderLine[];
+  itemsTotal: number;
+  deliveryFee: number;
+  total: number;
+  payKind: ShopPayKind;
+  address: string;
+  note: string | null;
+  status: MarketOrderStatus;
+  rejectReason: string | null;
+  createdAt: string;
+  decidedAt: string | null;
+}
+export interface MarketCheckoutResponse {
+  ok: boolean;
+  reason?: "off" | "bad_address" | "empty_cart" | "unavailable" | "shop_closed" | "min_order" | "insufficient" | "pending_limit" | "duplicate" | "sold_out";
+  orderId?: number;
+  balance?: number;
+  minOrder?: number;
+  soldOutProductId?: number;
+  notice?: unknown; // server-ichki (bot-karta) — API javobidan olib tashlanadi
 }
 
 export interface ShopBuyResponse {

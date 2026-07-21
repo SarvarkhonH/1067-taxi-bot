@@ -1076,7 +1076,24 @@ Bo'linish: V2a (shu sessiya) = pul-yadro+savat+checkout+bot-oqim; V2b = variantl
 | 2.5 | `bazarcart` OFF = bugungi 1-dona oqim AYNAN | flag-off kod-yo'l isboti |
 | ∀ | typecheck 4/4 · testShop 94 regressiya · testBazar 3× yashil · R4 · ega QABUL → EXPECTED_ON | buyruq+natija |
 
-Holat: **in progress**.
+Holat: **ready for verification** (2026-07-21, V2a kod-yakun):
+- 2.1a: MarketOrder additiv ikkala DB'da (destruktiv-rad talab qilinmadi = isbot).
+- 2.1b-e: marketOrderService — **testBazar +36 assertion, jami 54, 3× ket-ket yashil**: happy-checkout
+  (snapshot/hold/stock/ledger) · dublikat-hash · minOrder · HAMMASI-YOKI-HECH-NIMA (2-satr yetmasa
+  1-satr rollback) · status-mashina (p→a→d→delivered, delivered'dan reject rad) · parallel reject×2
+  → 1 g'olib/1 refund/1 restock · refund-in'ektsiya → rollback+pending+retry · CASH: hold/refund 0,
+  restock bor · rider-cancel faqat pending + egalik-guard · SLA MarketOrder-qamrov idempotent.
+- 2.2: bot/market.ts — ko'p-satrli karta seller+ega, [✅ Qabul][🚚][✔][❌] guard'li (marketChatsFor),
+  har o'tishda rider-push, karta-matn holat bilan yangilanadi. notifyMarketOrder closure index.ts'da.
+- 2.3: savat-UI (flag `bazarcart` DARK): detail'da «🧺 Savatga» + qty-stepper, BjStickyCartBar,
+  savat-sheet (satrlar/hisob/minOrder-banner/naqd-tanga/manzil/COD-matn), boshqa-do'kon prompt.
+  OFF = eski 1-dona oqim AYNAN (barcha bloklar bazarcart-guard'li). MainButton ATAYLAB emas —
+  butun ilova in-sheet tugma konventsiyasida (alohida dizayn-qaror sifatida backlog'da).
+- 2.4: Buyurtmalarim'da MarketOrder'lar (itemslar, timeline-nuqtalar, pending'da ✖ Bekor) +
+  legacy ro'yxat pastda; /api/shop/market-orders + cancel endpointlar; seller-panel uchun scoped
+  /api/admin/shop/market-orders.
+- typecheck 4/4 · testShop 94 regressiya yashil · prod-build + bundle-grep («Savatga qo'shish»,
+  «Buyurtma berish»). QOLDI: preview-DOM isbot + R4 + ega QABUL (flag DARK — xavfsiz).
 
 ---
 
