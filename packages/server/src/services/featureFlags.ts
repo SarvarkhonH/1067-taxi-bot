@@ -107,7 +107,9 @@ export async function setFeature(name: FeatureName, on: boolean): Promise<void> 
 // it never auto-flips (an intentional off must stay off until this list is edited).
 export const EXPECTED_ON: FeatureName[] = [
   "wheel", "items", "transfers", "push", "gap", "plus", "recruit", "booking3", "livinghome",
-  "baraban", "komissiya", "promo", "qarz", "welcomebonus", "refstaged", "drvstaged", "drvrecruit",
+  "baraban", "komissiya", "promo", "qarz", "refstaged", "drvstaged", "drvrecruit",
+  // "welcomebonus" — owner intentionally OFF 2026-07-17, confirmed 2026-07-21 ("o'chirganman");
+  // re-add here when owner re-enables it.
   "drvpush", "clientbooking", "cashout", "intercity", "tierloyalty", "waitcomp", "trackcta",
   "jackpotpost", "instantstatus", "drvrank",
   "shop", // 🛍 tanga do'kon — owner GO LIVE 2026-07-06 (100 ta KOSON_AKSIYA mahsuloti + naqd/tanga)
