@@ -1031,3 +1031,19 @@ paydo bo'lgan — admin endi select bo'lgani uchun yangi tartibsizlik to'xtaydi,
 cleanShopData mapping'iga qo'shib keyingi apply'da birlashtiramiz.
 QOLGAN GAP: R4 mustaqil tekshiruv (V1) · ega telefon-QABUL · GitHub-push (PUSH_QILISH.bat kutmoqda,
 Monitor armed) → keyin Render+Vercel deploy.
+
+## 2026-07-21 — 🔎 R4 MUSTAQIL TEKSHIRUV (D1+V1): PASS + gap-fix
+Kod yozmagan agent har DoD-satrni kod+jonli-deploy'ga qarshi tekshirdi (64 tool-chaqiruv):
+V1.1-V1.5 + D1 + testlar (testBazar 18✅, testShop 94✅, TEST-DB guard) + typecheck 4/4 +
+regressiya-ov (flag-OFF yo'l bayt-darajada o'zgarmagan, schema sof-additiv, buyProduct tegilmagan) —
+**hammasi CONFIRMED, jonlida /api/shop/market 401 (deployed+gated), /health ok**.
+TOPILGAN GAP (tuzatildi): importKosonAksiya.ts shopId qo'ymasdi → 07-20 importidagi 30 mahsulot
+shopId=null (bazar-OFF ta'sir 0; ON'da do'kon#1 sahifasida ko'rinmasdi). Fix: importer'ga shopId:1 +
+migrateBirjoySeller --apply qayta-yugurtirildi → «biriktirildi: 30 → do'kon #1, qolgan=0».
+Kuzatuvlar: SLA-sweep flag'dan mustaqil jonli ishlayapti (faqat egaga ko'rinadi, 4 marker prod'da) ·
+cat-icon/shop-photo proxy'lar auth'siz (mavjud /api/shop/photo naqshi, sezgir emas).
+DEPLOY-ZANJIR IZOHI: c677833 deploy'i server.ts'dagi BOSHQA sessiyaning commit-qilinmagan
+asyncGuard-importi tufayli yiqilgan (lokal diskda bor edi — shuning uchun lokal boot toza);
+943c5e9 (boshqa sessiya) modulni qo'shib jonlantirdi. Saboq: commit'dan oldin import-graf
+untracked-fayllarga ishora qilmasligini tekshirish.
+QOLDI: ega telefon-QABUL (R6) → shundagina `bazar` EXPECTED_ON.

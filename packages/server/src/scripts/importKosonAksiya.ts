@@ -183,6 +183,7 @@ async function main(): Promise<void> {
           oldPriceTanga: p.oldPrice,
           stock: DEFAULT_STOCK,
           active: false, // rasm(lar) muvaffaqiyatli yuklansagina yoqiladi (pastda)
+          shopId: 1, // 🏪 BirJoy V1 (R4-gap fix): import ham «BirJoy o'z do'koni»ga — adminCreateProduct bilan bir xil default
         },
       });
     } catch (e) {
