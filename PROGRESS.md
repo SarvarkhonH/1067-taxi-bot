@@ -1047,3 +1047,12 @@ asyncGuard-importi tufayli yiqilgan (lokal diskda bor edi — shuning uchun loka
 943c5e9 (boshqa sessiya) modulni qo'shib jonlantirdi. Saboq: commit'dan oldin import-graf
 untracked-fayllarga ishora qilmasligini tekshirish.
 QOLDI: ega telefon-QABUL (R6) → shundagina `bazar` EXPECTED_ON.
+
+## 2026-07-21 — 🟢 BAZAR GO-LIVE: owner-accepted (R6)
+Ega real telefonda ko'rib QABUL qildi («yaxshi chiqibdi») → `setFlag bazar on` jonli DB'da ijro
+etildi (isbot: AppState feature:bazar=on, /health ok, 30s kesh ichida hammaga ochiladi) + `bazar`
+EXPECTED_ON'ga qo'shildi. Endi HAR rider Do'kon tabida «🏪 BirJoy bozori»ni ko'radi (zumrad-tema,
+kategoriya-karusel, server-qidiruv; do'kon-rail 2-do'kon kelganda ochiladi). Tiket-holat: D1+V1
+**owner-accepted**. Rollback: `setFlag bazar off` (30s).
+Keyingi: pilot-sellerlar (/sotuvchi — EGA: 3-5 do'kon topadi) · kategoriya-ikonkalar (admin 🎠
+panel — ega chiroyli PNG yuklaydi) · V2 (savat/MarketOrder) plan-fayl bo'yicha.

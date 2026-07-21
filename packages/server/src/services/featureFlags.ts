@@ -121,6 +121,9 @@ export const EXPECTED_ON: FeatureName[] = [
              // buzuq/placeholder telefon + 5 tasida bo'sh menyu — owner "hozir live qil, keyin tuzataman"
              // deb aniq buyurdi; keyingi tozalash kerak: koson miliy taomlari, Do'stlar Choyxonasi,
              // Chinor Oilaviy Restorant telefonlari + 5ta menyu to'ldirish)
+  "bazar", // 🏪 BirJoy marketplace-qatlam — owner QABUL real telefonda 2026-07-21 («yaxshi chiqibdi»),
+           // R4 mustaqil tekshiruv PASS (PROGRESS 07-21). 1 do'kon (BirJoy o'z do'koni, 140 mahsulot);
+           // pilot-sellerlar /sotuvchi orqali keladi.
 ];
 
 export async function reconcileFlags(): Promise<{ missing: string[]; effective: { name: string; on: boolean }[] }> {
