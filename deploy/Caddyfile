@@ -1,0 +1,23 @@
+# 1067/BirJoy — Caddy konfiguratsiyasi. O'rni: /etc/caddy/Caddyfile
+# "DOMEN" so'zini real domenga almashtiring (setup.sh buni o'zi qiladi).
+# HTTPS sertifikatlar avtomatik (Let's Encrypt) — DNS A-yozuvlar to'g'ri bo'lsa bas.
+# Tekshirish: caddy validate --config /etc/caddy/Caddyfile ; systemctl reload caddy
+
+api.DOMEN {
+	reverse_proxy localhost:8080
+	encode gzip
+}
+
+app.DOMEN {
+	root * /var/www/miniapp
+	encode gzip
+	try_files {path} /index.html
+	file_server
+}
+
+admin.DOMEN {
+	root * /var/www/admin
+	encode gzip
+	try_files {path} /index.html
+	file_server
+}

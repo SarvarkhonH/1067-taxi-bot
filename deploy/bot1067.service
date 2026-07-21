@@ -1,0 +1,22 @@
+# 1067/BirJoy bot+API — systemd unit. O'rni: /etc/systemd/system/bot1067.service
+# Boshqarish: systemctl {status|restart|stop} bot1067 ; loglar: journalctl -u bot1067 -f
+[Unit]
+Description=1067 BirJoy Telegram bot + API
+After=network-online.target postgresql.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=/opt/app/packages/server
+# .env repo-root'dan o'qiladi (src/env.ts shunday qiladi) — EnvironmentFile shart emas
+ExecStart=/usr/bin/pnpm --filter @t1067/server exec tsx src/index.ts
+Restart=always
+RestartSec=3
+# OOM bo'lsa ham server yiqilmasin — bot jarayoniga 2G chegara (VPS'da 8G bor)
+MemoryMax=2G
+# Loglar journald'ga (journalctl -u bot1067)
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target
