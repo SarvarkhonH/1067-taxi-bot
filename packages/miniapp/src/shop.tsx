@@ -24,6 +24,7 @@ import { BjCategoryCarousel, BjShopCard, BjSection, BjStickyCartBar } from "./de
 import { Icon } from "./icons";
 
 const LAST_ADDR_KEY = "shop_last_addr";
+const CART_KEY = "bj_cart_v1"; // 🧺 V2: savat localStorage'da (tab-almashinuv/reopen'dan omon qoladi)
 
 // ── stale-while-revalidate product cache (module-level) ──────────────────────────────────────────
 // Re-entering the tab renders INSTANTLY from the last payload (no skeleton flash, no network wait);
@@ -191,9 +192,19 @@ export function ShopView({ me, onBanner, reload, onBook, openProductId }: { me: 
   // 🧺 V2 (flag bazarcart): savat — 1 savat = 1 do'kon (restoran naqshi). Client-state faqat UI;
   // narx/stock/total HAMMASI serverda qayta-hisoblanadi (checkout snapshot) — bu yerdagi raqamlar ko'rsatma.
   const bazarcart = !!me.flags?.bazarcart;
-  const [cart, setCart] = useState<Record<number, number>>({});
-  const [cartShopId, setCartShopId] = useState<number | null>(null);
+  // 🧺 savat localStorage'da saqlanadi — ShopView tab almashganda unmount bo'ladi (App.tsx
+  // `{tab==="dokon" && <ShopView/>}`), shuning uchun sof React-state savatni yo'qotardi. Endi
+  // savat ilova qayta-ochilishi/tab-almashinuvidan omon qoladi (1 savat = 1 do'kon).
+  const [cart, setCart] = useState<Record<number, number>>(() => { try { return JSON.parse(localStorage.getItem(CART_KEY) ?? "{}").items ?? {}; } catch { return {}; } });
+  const [cartShopId, setCartShopId] = useState<number | null>(() => { try { return JSON.parse(localStorage.getItem(CART_KEY) ?? "{}").shopId ?? null; } catch { return null; } });
   const [cartOpen, setCartOpen] = useState(false);
+  // savatni har o'zgarishda saqla; bo'sh bo'lsa — tozala (do'kon ham unutiladi)
+  useEffect(() => {
+    try {
+      if (Object.keys(cart).length === 0) localStorage.removeItem(CART_KEY);
+      else localStorage.setItem(CART_KEY, JSON.stringify({ shopId: cartShopId, items: cart }));
+    } catch { /* private mode */ }
+  }, [cart, cartShopId]);
   const [coBusy, setCoBusy] = useState(false);
   const [coErr, setCoErr] = useState<string | null>(null);
   const [coPay, setCoPay] = useState<"tanga" | "cash">("tanga");
@@ -556,9 +567,22 @@ export function ShopView({ me, onBanner, reload, onBook, openProductId }: { me: 
             </button>
             {deficit > 0 ? (
               <>
+                {/* 🧺 V2: tanga yetmasa ham savatga qo'shsa bo'ladi — savat NAQD bilan yakunlanadi */}
+                {bazarcart && (
+                  (cart[sel.id] ?? 0) > 0 ? (
+                    <div className="shop-qty-row">
+                      <Button variant="ghost" onClick={() => addToCart(sel, -1)} aria-label="Kamaytirish">−</Button>
+                      <span className="shop-qty-n">🧺 {cart[sel.id]}</span>
+                      <Button variant="ghost" onClick={() => addToCart(sel, 1)} aria-label="Ko'paytirish">+</Button>
+                      <Button variant="brand" onClick={() => { setSel(null); setCartOpen(true); }}>Savatni ochish</Button>
+                    </div>
+                  ) : (
+                    <Button variant="brand" onClick={() => addToCart(sel, 1)}>🧺 Savatga qo'shish (naqd)</Button>
+                  )
+                )}
                 {/* tanga yetmasa ham NAQD yo'li doim ochiq — hamkor-do'kon savdosi yo'qolmaydi */}
-                <Button variant="brand" onClick={() => { haptic(); setPayMode("cash"); setStep("confirm"); }}>
-                  💵 Naqdga buyurtma — {formatNumber(sel.priceTanga)} so'm
+                <Button variant={bazarcart ? "ghost" : "brand"} onClick={() => { haptic(); setPayMode("cash"); setStep("confirm"); }}>
+                  💵 Bittasini naqdga — {formatNumber(sel.priceTanga)} so'm
                 </Button>
                 <div className="shop-insufficient-bar">
                   <div className="fs13">🪙 Tanga bilan: sizda <b>{formatNumber(me.coins)}</b> / kerak: <b>{formatNumber(sel.priceTanga)}</b></div>

@@ -1134,3 +1134,14 @@ o'lik + webhook'da 77 update. Tuzatish: 943c5e9 (fayl commit) → deploy live, n
 
 Holat: **ready for verification** (CI yashil + deploy jobi live + health-run yashil = isbot).
 Keyingi: Contabo to'liq migratsiya (~23-iyul, ega VPS+domen beradi).
+
+## 2026-07-21 — 🐛 Savat-yo'qolish bug FIX (ega telefonda topdi)
+Ega: «savatcha yuqolib qoldi». Sabab: ShopView tab-almashinuvida unmount bo'ladi (App.tsx
+`{tab==="dokon" && <ShopView/>}`), savat esa sof React-state edi → tab almashib qaytganda yoki
+ilova qayta-ochilganda nol bo'lardi. FIX: savat localStorage'da (`bj_cart_v1`, lazy-init + har
+o'zgarishda saqlash, bo'sh bo'lsa tozalash; 1 savat = 1 do'kon). BONUS-topilma (preview'da): tanga
+yetmagan mahsulotda «Savatga qo'shish» tugmasi yo'q edi (faqat yetarli-balans tarmog'ida) — savat
+naqd bilan yakunlangani uchun kam-tanga tarmog'iga ham qo'shildi. ISBOT (jonli preview, ega-preview
+tg=6506297119, real Neon): savatga qo'shildi → localStorage {shopId:1,items:{170:1}} → Uy tabga
+o'tib qaytildi → savat-bar «🧺 1 ta mahsulot 50 000 → Savat» saqlanib qoldi. typecheck OK, build,
+Vercel jonli (shop-CkgTNFsf.js, bj_cart_v1 grep=1). Flag `bazarcart` hamon DARK (ega-preview'gina).
