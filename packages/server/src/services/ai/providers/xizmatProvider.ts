@@ -1,9 +1,10 @@
-// 🔎 Koson AI provider #2 — xizmatlar/ustalar (services directory: santexnik, basseyn,
-// servis, ...). Call-to-book: no order/execute — the card carries the phone number
-// (Telegram auto-links +998… so the user taps to call). Ranking mirrors the directory:
-// 1067-tekshiruvi ≥ verified ≥ rating. This is the fix for "basen kerak" → Chilla basseyn.
+// 🔎 Koson AI provider #2 — xizmatlar/ustalar (services directory). Now built on the generic
+// catalogFactory: only `fetch` (the module-specific query + card) is supplied here — term
+// expansion, synonyms and limits live in the factory. Call-to-book: the card carries the phone
+// (Telegram auto-links +998…). Ranking mirrors the directory: 1067-tekshiruvi ≥ verified ≥ rating.
 import { prisma } from "../../../db";
-import type { AiCard, AiProvider } from "./types";
+import { makeCatalogProvider } from "./catalogFactory";
+import type { AiCard } from "./types";
 
 const INSP_PASS_MIN = 60; // public badge threshold (same as serviceDirectory)
 
@@ -15,43 +16,12 @@ function inspTotal(r: { inspClean: number | null; inspProf: number | null; inspP
   return v.every((x) => x != null) ? (v as number[]).reduce((a, b) => a + b, 0) : null;
 }
 
-// Colloquial/misspelled → catalog forms. Kept small and high-frequency; each maps to the
-// word the directory actually stores. The raw query + its words are always included too.
-const SYN: Record<string, string> = {
-  basen: "basseyn",
-  bassein: "basseyn",
-  hovuz: "hovuz",
-  santehnik: "santexnik",
-  parikmaxer: "sartarosh",
-  massaj: "massaj",
-  stamatolog: "stomatolog",
-  tish: "tish",
-};
-function expandTerms(q: string): string[] {
-  const words = q
-    .toLowerCase()
-    .split(/[^\p{L}\d]+/u)
-    .filter((w) => w.length >= 3 && !["kerak", "uchun", "menga", "qayerda", "bormi", "topib", "top"].includes(w));
-  const set = new Set<string>();
-  if (q.length >= 3) set.add(q);
-  for (const w of words) {
-    set.add(w);
-    if (SYN[w]) set.add(SYN[w]);
-  }
-  return [...set].slice(0, 6);
-}
-
-export const xizmatProvider: AiProvider = {
+export const xizmatProvider = makeCatalogProvider({
   key: "xizmat",
   title: "xizmatlar va ustalar (santexnik, basseyn, avtoservis, go'zallik, qurilish va h.k.)",
   flags: ["xizmatlar"],
-
-  async search(query: string): Promise<AiCard[]> {
-    const q = query.trim().slice(0, 60);
-    if (q.length < 2) return [];
-    // expand into candidate terms: colloquial/misspelled forms + per-word, so «basen»
-    // finds «basseyn» and a two-word query still matches on either word
-    const terms = expandTerms(q);
+  synonyms: { basen: "basseyn", bassein: "basseyn", santehnik: "santexnik", parikmaxer: "sartarosh", stamatolog: "stomatolog" },
+  async fetch(terms: string[], limit: number): Promise<AiCard[]> {
     const OR = terms.flatMap((t) => [
       { name: { contains: t, mode: "insensitive" as const } },
       { tags: { contains: t, mode: "insensitive" as const } },
@@ -62,7 +32,7 @@ export const xizmatProvider: AiProvider = {
       where: { status: "active", OR },
       include: { category: { select: { name: true, emoji: true } } },
       orderBy: [{ isVip: "desc" }, { rankScore: "desc" }, { reviewCount: "desc" }, { name: "asc" }],
-      take: 6,
+      take: limit,
     });
     return rows.map((r) => {
       const insp = inspTotal(r);
@@ -74,4 +44,4 @@ export const xizmatProvider: AiProvider = {
       return { id: String(r.id), title: esc(r.name), subtitle: bits.join(" · ") } satisfies AiCard;
     });
   },
-};
+});

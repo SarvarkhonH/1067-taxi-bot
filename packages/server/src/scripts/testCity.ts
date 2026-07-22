@@ -54,6 +54,19 @@ async function main(): Promise<void> {
   const poolCards = await xizmatProvider.search("basseyn");
   check(xizmatOn ? "xizmatlardan «basseyn» topiladi (📞 bilan)" : "xizmatlar flag-off (skip)", xizmatOn ? poolCards.some((c) => /📞\s*\+?\d/.test(c.subtitle ?? "")) : true, poolCards[0]?.title ?? "");
 
+  // generic factory + new providers (bazar/elon/reys) — registered, and factory term-expansion works
+  const { expandTerms } = await import("../services/ai/providers/catalogFactory");
+  check("fabrika sinonim-kengaytma", expandTerms("basen kerak", { basen: "basseyn" }).includes("basseyn"));
+  for (const k of ["bazar", "elon", "reys"]) check(`${k}Provider registrda`, providerByKey(k)?.key === k);
+  const { bazarProvider } = await import("../services/ai/providers/bazarProvider");
+  const prod = await prisma.product.findFirst({ where: { active: true, stock: { gt: 0 } }, select: { name: true } });
+  if (prod) {
+    const term = prod.name.split(" ")[0]!;
+    check("bazar jonli katalogdan topadi", (await bazarProvider.search(term)).length > 0, term);
+  } else {
+    check("bazar (mahsulot yo'q — skip)", true);
+  }
+
   // stub round-trip: search → order(confirm) → execute
   check("stub search", (await stub.search("osh"))[0]!.title.includes("osh"));
   check("stub search bo'sh", (await stub.search("bo'sh")).length === 0);

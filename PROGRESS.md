@@ -1499,3 +1499,37 @@ Ega: proaktiv AI (ehtiyotkor) + halol kuchli psixologiya + Koson-shevasi + «nim
 - KOSON_AI_PLAN.md: to'liq roadmap (qurilgan + 11 qolgan ish, ustuvorlik bilan).
 QOLDI: commit/push/deploy · aineeds DARK qoladi — ega xabar-matnlarini ko'rib, o'zi yoqadi
 (real mijozga proaktiv — eng ehtiyot qadam). Needs Engine v1 (LLM-shaxsiy xabar) keyingi.
+
+## 2026-07-23 (5) — D2/C1/S1 reja QABUL qilindi: Do'kon-profil + Chat + Hikoya (story)
+Ega so'rovi: (1) har do'konga kuchli profil-sahifa (hozir bo'sh sarlavha), (2) mijoz do'konga
+to'g'ridan-to'g'ri yoza olsin, (3) do'konlar kunlik video/foto "hikoya" (Instagram/Snapchat-uslub)
+qo'ya olsin. Tadqiqot (Carrot Market/Etsy/Depop/OLX) + 2 mockup-iteratsiya (ega "premium emas"
+dedi → tuzatildi: emoji-siz chrome, foto-birinchi plitalar, jim info-qator, zumrad faqat aksent)
+orqali to'liq reja tuzildi va TASDIQLANDI. Reja: `.claude/plans/tingly-petting-lecun.md`
+(chat orqali saqlangan; nusxa ko'rish uchun git-tracked emas — kerak bo'lsa qayta yozib beraman).
+
+**D2.1/C1.1/S1.1 (schema, additiv) BAJARILDI:**
+- `MarketShop` + `story`/`announcement`/`announcementAt`/`neighborhood` (barchasi nullable).
+- `SupportMsg` + `shopId`/`relayMsgId` (nullable; null=bugungi AI/support-chat, o'zgarishsiz)
+  + indeks `[shopId, telegramId]`.
+- YANGI `ShopStory` + `ShopStoryView` jadvallari (24h expiry — o'qish-vaqtida filtr, poller YO'Q).
+**Isbot:** `prisma migrate diff --script` TEST_DATABASE_URL VA DATABASE_URL'ga qarshi tekshirildi
+— ikkalasida ham FAQAT ADD COLUMN/CREATE TABLE/CREATE INDEX (drop/alter yo'q). `db push` ikkalasiga
+ham qo'llandi (avval xatolik bilan live'ga tushib ketdi — sabab: bu loyihada `db push` `DIRECT_URL`
+ishlatadi, `DATABASE_URL` emas; men avval faqat `DATABASE_URL`ni override qilgandim. Zararsiz edi
+(faqat additiv), lekin tartib noto'g'ri edi — TUZATILDI, TEST_DATABASE_URL'ga ham to'g'ri push
+qilindi, ikkalasi endi mos). `tsc --noEmit` 0 xato (server paketi).
+QOLDI: D2.2-D2.5 (upload+admin-panel+miniapp profil-ekran), S1.2-S1.4 (video-upload+bot-oqim+
+miniapp tray/viewer), C1.2-C1.6 (relay-service+bot-handler+routes+miniapp chat+admin-inbox).
+Barcha yangi UI DARK flag ostida (`shopchat`/`shopstory`), ega QABUL'siz ON bo'lmaydi.
+
+## 2026-07-23 (5) — Generic katalog-fabrikasi + bazar/reys/e'lonlar (tasdiqlangan reja)
+Ega tasdiqi: generic fabrika → bazar/reys/e'lonlar shu tartibda.
+- `catalogFactory.ts`: makeCatalogProvider(config) + shared expandTerms. Yangi modul = faqat
+  `fetch` (~15 qator). xizmatProvider FABRIKAGA ko'chirildi (isbot: yadro tegilmadi, 14/14 saqlandi).
+- `bazarProvider` (do'kon mahsulot, ["shop"]) · `elonProvider` (e'lon taxtasi, ["elonlar"]) ·
+  `reysProvider` (shaharlararo — shahar-nom asosida, ["intercity"]). Uchalasi ~15-25 qator.
+- Isbot: typecheck 0 · testCity 19/19 ×3 · agent AVTOMATIK yo'naltiradi (agent.ts O'ZGARMADI):
+  «qoshiq»→bazar, «mashina sotaman»→elon, «Qarshiga reys»→reys. Bazar jonli 111 mahsulotда ishlaydi
+  (e'lon/reys bazasi hozir bo'sh — provayder to'g'ri, ma'lumot kelsa ishlaydi).
+Modul flaglari (shop/elonlar/intercity) JONLI ON → deploy'dan keyin AI qamrovi «butun Koson»ga kengayadi.
