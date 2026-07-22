@@ -156,6 +156,13 @@ function esc(s: string): string {
 // 🧠 /bilim — "AI'ga ma'lumot ber" one-shot capture: tgId → awaiting the next text as a fact.
 const bilimAwaiting = new Set<string>();
 
+// "uyimga taxi" / "hozirgi joyimga" — NOT a place to search: it means the rider's saved 1-tap
+// pickup. Route these to the 1-tap button instead of a dead-end address search.
+function isHomeRef(q: string): boolean {
+  const t = q.toLowerCase().replace(/[''`]/g, "'").trim();
+  return /\b(uyim|uyimga|uyga|uyimizga|uyimni|uyum|uyumga|manzilim|joyimga|joyim|hozirgi\s*joy\w*|shu\s*yer\w*|men\s*turgan|turadigan\s*joy)\b/.test(t) || t === "uy" || t === "uyi";
+}
+
 // 🔑 in-flight "link a different number via 1067 code" sessions. No phone yet → awaiting the
 // number; phone set → awaiting the 4-digit code. Transient (in-memory) by design.
 const codeLink = new Map<string, { phone?: string }>();
@@ -1649,8 +1656,9 @@ export function createBot(): Bot {
     const { tryAddressBooking } = await import("./booking");
     if (intent.type === "book") {
       // real pick-an-address flow (the old inline `bk:addr:<kasId>` buttons were DEAD —
-      // booking's handler reads that payload as a session INDEX and no session existed)
-      if (intent.addressQuery && (await tryAddressBooking(ctx, intent.addressQuery))) return;
+      // booking's handler reads that payload as a session INDEX and no session existed).
+      // "uyim/uyimga" is the saved pickup → skip the (doomed) place search, go straight to 1-tap.
+      if (intent.addressQuery && !isHomeRef(intent.addressQuery) && (await tryAddressBooking(ctx, intent.addressQuery))) return;
       const { InlineKeyboard } = await import("grammy");
       const later = intent.when === "later" ? `\n⏰ ${intent.timeText ?? "Keyinroqqa"} — rejali safar tez orada!` : "";
       await ctx.reply(`🚕 Taksi kerak shekilli!${later}\nQuyidan tanlang:`, {
@@ -1679,13 +1687,14 @@ export function createBot(): Bot {
         const { runAgent } = await import("../services/ai/agent");
         const r = await runAgent(tu.memberId, tgId, ctx.message.text).catch(() => null);
         if (r?.action?.type === "book") {
-          if (!r.action.query) {
-            // customer asked for a taxi without an address → same 1-tap flow as rules-intent
+          // "uyimga taxi" / no address → the saved 1-tap pickup, NOT a place search
+          if (!r.action.query || isHomeRef(r.action.query)) {
             const { InlineKeyboard } = await import("grammy");
-            await ctx.reply("🚕 Taksi chaqiramiz! Manzilni yozing yoki:", {
+            const home = isHomeRef(r.action.query ?? "");
+            await ctx.reply(home ? "🏠 Uyingizga taksi — 1 bosishda tayyor:" : "🚕 Taksi chaqiramiz! Manzilni yozing yoki:", {
               reply_markup: new InlineKeyboard().text("🚕 1-bosishda chaqirish", "bk:now"),
             });
-            saveOut("🚕 1-bosishda chaqirish tugmasi ko'rsatildi.");
+            saveOut(home ? "🏠 Uyга 1-bosishda chaqirish tugmasi ko'rsatildi." : "🚕 1-bosishda chaqirish tugmasi ko'rsatildi.");
             return;
           }
           if (await tryAddressBooking(ctx, r.action.query)) {

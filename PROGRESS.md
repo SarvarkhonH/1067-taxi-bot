@@ -1480,3 +1480,11 @@ AI bilimida tursin». Qurildi (Bible §17.2 Business Registry urug'i):
 **Isbot:** typecheck 0 · testBilim 10/10 ×3 · grounding E2E: yuborilgan fakt tasdiqlangach agent
 «Zilola oshxonasi ertalab 6:00 da ochiladi» deb JAVOB BERDI (faktdan). Barcha reja KOSON_AI_PLAN.md.
 QOLDI: commit/push/deploy · aibilim ON (pilot) · keyingi qadamlar (generic fabrika → bazar → ...).
+
+## 2026-07-23 (3) — «uyim» manzil-muammosi + niyat-taxmin (jonli pilot topdi)
+Jonli suhbatда «uyimga taxi yubor» → «uyimga topilmadi» (joy deb qidirdi). FIX:
+- `isHomeRef()` (bot.ts): uyim/uyimga/uyga/hozirgi joyim/shu yer → saqlangan 1-tap pickup,
+  joy-qidiruvi EMAS. Agent-book va rules-book yo'llari ham 🏠 1-bosishга yo'naltiradi.
+- System-prompt: uy-so'zlarni tushunish + NIYAT-TAXMIN qoidasi qo'shildi.
+**Isbot:** typecheck 0 · isHomeRef 8/8 (real joylar false) · agent-taxmin: «tez ketishim
+kerak»→taksi, «qornim ochdi»→ovqat, «uy jihozi buzildi»→usta, «uyimga»→book(uyimga)→1-tap.
