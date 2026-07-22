@@ -2087,6 +2087,7 @@ export async function setupBotCommands(bot: Bot): Promise<void> {
     // marketplace (BirJoy) — seller-facing.
     { command: "sotuvchi", description: "🏪 Do'kon ochish (sotuvchi bo'lish)" },
     { command: "dokonim", description: "🏪 Mening do'konim (panel havolasi)" },
+    { command: "hikoya", description: "📹 Do'kon-hikoya joylash (sotuvchi)" },
     { command: "help", description: "ℹ️ Yordam" },
   ]);
 

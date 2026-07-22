@@ -233,7 +233,7 @@ export function createApiServer(opts: ApiOptions = {}) {
   });
 
   app.get("/api/me", requireUser, async (_req, res) => {
-    const [me, booking3, livinghome, intercity, tierloyalty, shopOn, xizmatlarOn, elonlarOn, restoranOn, bazarOn, bazarcartOn, revtangaOn] = await Promise.all([
+    const [me, booking3, livinghome, intercity, tierloyalty, shopOn, xizmatlarOn, elonlarOn, restoranOn, bazarOn, bazarcartOn, revtangaOn, shopstoryOn] = await Promise.all([
       getMe(res.locals.telegramId as string),
       featureOn("booking3"),
       featureOn("livinghome"),
@@ -246,6 +246,7 @@ export function createApiServer(opts: ApiOptions = {}) {
       featureOn("bazar"),
       featureOn("bazarcart"),
       featureOn("revtanga"),
+      featureOn("shopstory"),
     ]);
     if (!me) { res.json({ linked: false }); return; }
     // 🏅 owner-preview: admins see the tier-loyalty UI even while the global flag is DARK, so the
@@ -265,7 +266,9 @@ export function createApiServer(opts: ApiOptions = {}) {
     const bazarcartPreview = bazarcartOn || isAdmin(res.locals.telegramId as string);
     // 🗣 revtanga owner-preview — sharh-uchun-tanga hint QABUL'gacha faqat ega ekranida
     const revtangaPreview = revtangaOn || isAdmin(res.locals.telegramId as string);
-    res.json({ ...me, flags: { booking3, livinghome, intercity, tierloyalty: tierPreview, shop: shopPreview, xizmatlar: xizmatlarPreview, elonlar: elonlarPreview, restoran: restoranPreview, bazar: bazarPreview, bazarcart: bazarcartPreview, revtanga: revtangaPreview } });
+    // 📹 shopstory owner-preview — do'kon-hikoya QABUL'gacha faqat ega ekranida
+    const shopstoryPreview = shopstoryOn || isAdmin(res.locals.telegramId as string);
+    res.json({ ...me, flags: { booking3, livinghome, intercity, tierloyalty: tierPreview, shop: shopPreview, xizmatlar: xizmatlarPreview, elonlar: elonlarPreview, restoran: restoranPreview, bazar: bazarPreview, bazarcart: bazarcartPreview, revtanga: revtangaPreview, shopstory: shopstoryPreview } });
   });
 
   // 🏅 Tier ladder benefits — labels derived from LIVE knobs (single source of truth). 60s client cache.
@@ -500,6 +503,38 @@ export function createApiServer(opts: ApiOptions = {}) {
     const reviews = await listShopReviews(shopId);
     return { profile, reviews };
   }));
+
+  // 📹 S1: do'kon-hikoya (story) — tray (Bozor-bosh) + bitta do'konning to'liq-ekran ko'ruvchisi.
+  app.get("/api/shop/stories", requireUser, rateLimit(30), withMember2(async (memberId, _req, res) => {
+    const { listStoryTray } = await import("../services/shopService");
+    return { shops: await listStoryTray(memberId, isAdmin(res.locals.telegramId as string)) };
+  }));
+  app.get("/api/shop/stories/:shopId", requireUser, rateLimit(30), withMember2(async (memberId, req, res) => {
+    const shopId = Number(req.params.shopId);
+    if (!Number.isFinite(shopId)) { res.status(404); return { error: "not_found" }; }
+    const { getShopStories } = await import("../services/shopService");
+    return { stories: await getShopStories(shopId, memberId, isAdmin(res.locals.telegramId as string)) };
+  }));
+  app.post("/api/shop/stories/:id/view", requireUser, rateLimit(60), withMember2(async (memberId, req) => {
+    const id = Number(req.params.id);
+    if (!Number.isFinite(id)) return { ok: false };
+    const { markStoryViewed } = await import("../services/shopService");
+    return markStoryViewed(id, memberId);
+  }));
+  // Telegram video/photo file_id → real CDN URL (serveMarketImage naqshiga o'xshash, lekin
+  // do'kon-hikoya `videoFileId`/`photoFileId`dan birini tanlaydi, muddati tugagan bo'lsa 404).
+  app.get("/api/shop/story-media/:id", async (req, res) => {
+    const id = Number(req.params.id);
+    if (!Number.isFinite(id)) { res.status(404).end(); return; }
+    const story = await prisma.shopStory.findUnique({ where: { id }, select: { videoFileId: true, photoFileId: true, expiresAt: true } });
+    if (!story || story.expiresAt < new Date()) { res.status(404).end(); return; }
+    const fileId = story.videoFileId ?? story.photoFileId;
+    if (!fileId) { res.status(404).end(); return; }
+    const { resolveTelegramFileUrl } = await import("../services/driverPhotoService");
+    const url = await resolveTelegramFileUrl(fileId);
+    if (!url) { res.status(404).end(); return; }
+    res.set("Cache-Control", "private, max-age=3600").redirect(302, url);
+  });
 
   // 🧺 V2 (flag `bazarcart`): savat-checkout + rider market-buyurtmalari + bekor
   app.post("/api/shop/checkout", requireUser, rateLimit(10), withMember2(async (id, req, res) => {

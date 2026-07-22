@@ -1656,3 +1656,68 @@ qayta tekshirildi (fix-ni tekshirish, faqat "tsc o'tdi" bilan cheklanmasdi):
 - Bug #3 (ega-tanlov paneli) — PASS: real ishlaydi, seller-scoped yo'lga regressiya yo'q.
 **Holat:** D2 — READY FOR VERIFICATION (mustaqil ikki bosqichli tekshiruv o'tdi). Hali
 commit/push/deploy qilinmagan, ega telefon-QABUL kutilmoqda.
+
+## 2026-07-23 (10) — D2 DEPLOY QILINDI (server+miniapp+admin), bundle-grep bilan isbotlandi
+Commit `de6e6c3` → push → CI shield yashil → Render avto-deploy **live** (kas1067-taxi-fra).
+Miniapp: `VITE_API_URL=<render>` build → `.vercel/output/static` → `vercel deploy --prebuilt
+--prod` → https://1067taxi-miniapp.vercel.app — bundle-grep: "Bozorga qaytish"/"Biz haqimizda"
+TOPILDI (eski-output xavfi yo'q). Admin: xuddi shu yo'l → https://admin-seven-ebon-95.vercel.app
+(bot/market.ts'dagi ADMIN_PANEL_URL bilan bir xil manba) — bundle-grep: "Do'kon-profil"/"Qaysi
+do'kon" TOPILDI.
+**Holat:** D2 — kod+deploy tomonidan to'liq tayyor. `bazar` flag holati o'zgarmadi (allaqachon
+pilot-ON). QOLGAN YAGONA qadam: ega real telefonda do'kon-profil ekranini ko'rib QABUL berishi
+(owner-accepted holatiga o'tish uchun shart — CLAUDE.md R6 qoidasi).
+Keyingi qadam: S1 (do'kon-hikoya) ustida ishlash boshlanadi.
+
+## 2026-07-23 (11) — S1.2 boshlandi: bot-orqali hikoya post-oqimi (VIDEO-only, foto keyinroq)
+- `shopService.ts`: `createShopStory(shopId, {videoFileId?, photoFileId?, caption?})` — expiresAt
+  =+24h, poller YO'Q (o'qish-vaqtida filtr).
+- `bot/market.ts`: `/hikoya` buyrug'i — sotuvchi-aniqlash §5 tuzatilgan naqsh (`ownerChatId`,
+  `findMany` ko'p-do'konli owner uchun) → 1 do'kon bo'lsa darhol kutish-holati, ko'p bo'lsa
+  inline tanlov (`story:pick:<id>`) → `bot.on(":video", ...)` video kelganda saqlaydi.
+- `bot.ts`: `/hikoya` komandalar-menyusiga qo'shildi.
+**MUHIM CHEKLOV (ataylab, bila turib):** hozircha FAQAT VIDEO ishlaydi. Foto-hikoya ATAYLAB
+qo'shilmadi — sabab: mavjud `bot.on(":photo", ...)` (haydovchi-rasm-qabul) handler ANCHA OLDINROQ
+ro'yxatdan o'tgan va driver bo'lmagan yuboruvchi uchun `next()` chaqirmasdi (AYNAN telefon-wizard
+bugi bilan bir xil sinf muammo) — buni tuzatish alohida, ehtiyot talab qiladigan qadam (S1.2b),
+shoshilib bu yerda aralashtirilmadi. Prompt-matn ham shunga mos — faqat "video yuboring" deydi.
+**Isbot:** typecheck 4/4 paket 0 xato. QOLDI: S1.3 (miniapp hikoya-tray+to'liq-ekran ko'ruvchi),
+S1.4 (profil-hero halqa), S1.2b (foto-qo'llab-quvvatlash — `:photo` handler tartibini tuzatish
+bilan birga), keyin butun S1 uchun test+R4+deploy+QABUL. Hali commit/deploy qilinmagan.
+
+## 2026-07-23 (12) — S1.3 tugadi: miniapp hikoya-tray + to'liq-ekran ko'ruvchi + backend o'qish-qatlami
+- `shopService.ts`: `listStoryTray`/`getShopStories`/`markStoryViewed` — `shopstory` flag ostida
+  (DARK), o'qish-vaqtida `expiresAt>now()` filtr (poller YO'Q), ko'rilgan-holat race-xavfsiz
+  (create+increment, P2002 bo'lsa jim — toggleProductFavorite naqshi).
+- `server.ts`: `GET /api/shop/stories` (tray) · `GET /api/shop/stories/:shopId` (bitta do'kon) ·
+  `POST /api/shop/stories/:id/view` · `GET /api/shop/story-media/:id` (Telegram file_id → CDN,
+  serveMarketImage naqshi, muddati tugagan bo'lsa 404).
+- `featureFlags.ts`: yangi flag `shopstory` (DEFAULT_OFF). `/api/me`: `shopstory` owner-preview.
+- `shop.tsx`: hikoya-tray (Bozor-bosh, halqa zumrad→amber gradient=ko'rilmagan/kulrang=ko'rilgan)
+  + `StoryViewer` to'liq-ekran (progress-segment, tap chap/o'ng, video-onEnded/foto-5s avto-o'tish,
+  ✕ yopish — barchasi `key={cur.id}` bilan stale-closure'siz).
+- Yangi `testShopStory.ts`: 19 tekshiruv (create/expiry-filtr/seen-holat per-member/viewCount
+  race-safety/DARK-flag/inactive-do'kon-ko'rinmasligi) — **3× ALL GREEN**. `testBazar` regressiya
+  ham 3× yashil (S1 qo'shimchalari mavjud pul-yo'lakchalarga tegmagan).
+**Isbot:** `tsc --noEmit` 4/4 paket 0 xato.
+**QOLDI:** S1.4 (profil-hero halqa — HOZIRGI hero dizayni to'liq-kenglik banner, doiraviy avatar
+EMAS, shuning uchun bu bandni ADAPTATSIYA qilish kerak, keyingi kichik qadam) · S1.2b (foto-hikoya
+qo'llab-quvvatlash, `:photo` handler-tartib tuzatish bilan birga) · R4 mustaqil tekshiruv ·
+commit/deploy · ega QABUL. Hozircha hech narsa commit qilinmagan.
+
+## 2026-07-23 (13) — S1 R4: 1 haqiqiy gap topildi va TUZATILDI, 3× qayta tasdiqlandi
+Mustaqil R4 (kod yozmagan agent): bot-registratsiya-tartibi xavfsiz (`:video` handler `:photo`
+bilan mutlaqo mos kelmaydi, strukturaviy immun — eski bug klassidan), flag-gating to'g'ri, sotuvchi-
+egalik tekshiruvi (`story:pick`) to'g'ri, muddat-filtr to'g'ri, regressiya yo'q, typecheck toza.
+**Topilgan haqiqiy gap**: `markStoryViewed`ning bare `catch{}`i o'zi da'vo qilgan
+`toggleProductFavorite` naqshidan ZAIFROQ edi — FAQAT P2002 emas, HAR QANDAY xatoni yutardi
+(masalan yo'q storyId'ga P2025) → orphan `ShopStoryView` qatori qoldirib, `{ok:true}` qaytarardi.
+**FIX**: endi FAQAT P2002 yutiladi, qolgani throw qilinadi (aynan toggleProductFavorite'ga mos).
+Yangi regressiya-test (13) qo'shildi: yo'q storyId'ga chaqiruv endi THROW qiladi. Shuningdek R4
+past-ustuvorlik topilmasi ham tuzatildi: `hasPhoto` maydoni tray'da ishlatilmayotgan edi — endi
+real do'kon-rasmi tray-halqada ko'rinadi (avval doim 🏬 emoji edi).
+**Isbot:** `testShopStory.ts` 3× ALL GREEN (20/20 → 20/20, yangi test bilan). `tsc --noEmit`
+4/4 paket 0 xato.
+**Holat:** S1 — READY FOR VERIFICATION. Hali commit/deploy qilinmagan (bu keyingi qadamda).
+S1.2b (foto-hikoya) va S1.4 (profil-hero halqa, adaptatsiya kerak) hamon ochiq — keyingi kichik
+qadamlar, S1'ning asosiy qismini bloklamaydi.

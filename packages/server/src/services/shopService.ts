@@ -18,6 +18,8 @@ import {
   type ShopProfileEditInput,
   type ShopProfileView,
   type ShopPurchaseView,
+  type ShopStoryPost,
+  type ShopStoryTrayItem,
   type ShopReviewSubmitResponse,
   type ShopReviewThumb,
   type ShopReviewView,
@@ -446,6 +448,86 @@ export interface AdminProductRow {
   photoCount: number;
   soldCount: number;
   createdAt: string;
+}
+
+// ── 📹 S1: do'kon-hikoya (Instagram/Snapchat-uslub, 24 soatda yo'qoladi) ──────────────────────────
+// Muddati tugashi — YANGI POLLER YO'Q: har o'qishda `expiresAt > now()` filtr, hech qanday
+// rejalashtirilgan job kerak emas (schema.prisma'dagi izohga mos).
+
+/** Botdan kelgan video/foto file_id'ni to'g'ridan-to'g'ri saqlaydi — bu ALLAQACHON Telegram
+ *  file_id (bot ustiga to'g'ridan-to'g'ri yuborilgan xabar), tgUploadPhoto-uslub relay KERAK EMAS
+ *  (u faqat mini-app'dan base64 kelganda, hali file_id yo'q holatda ishlatiladi). */
+export async function createShopStory(shopId: number, input: { videoFileId?: string; photoFileId?: string; caption?: string }): Promise<{ ok: boolean; id?: number }> {
+  if (!input.videoFileId && !input.photoFileId) return { ok: false };
+  const caption = input.caption?.trim().slice(0, 200) || null;
+  const row = await prisma.shopStory.create({
+    data: {
+      shopId,
+      videoFileId: input.videoFileId ?? null,
+      photoFileId: input.photoFileId ?? null,
+      caption,
+      expiresAt: new Date(Date.now() + 24 * 3600_000),
+    },
+  });
+  return { ok: true, id: row.id };
+}
+
+/** Bozor-bosh hikoya-tray: har DO'KON uchun bitta yozuv (bir nechta faol hikoyasi bo'lsa ham),
+ *  `seen` = shu do'konning BARCHA faol hikoyalari shu a'zo tomonidan ko'rilganmi (halqa-holat). */
+export async function listStoryTray(memberId?: number, preview = false): Promise<ShopStoryTrayItem[]> {
+  if (!preview && !(await featureOn("shopstory"))) return [];
+  const stories = await prisma.shopStory.findMany({ where: { expiresAt: { gt: new Date() } }, orderBy: { createdAt: "desc" } });
+  if (!stories.length) return [];
+  const shopIds = [...new Set(stories.map((s) => s.shopId))];
+  const shops = await prisma.marketShop.findMany({ where: { id: { in: shopIds }, active: true }, select: { id: true, name: true, photoFileId: true, photoUrl: true, sortOrder: true } });
+  const shopMap = new Map(shops.map((s) => [s.id, s]));
+  const viewedIds = memberId
+    ? new Set((await prisma.shopStoryView.findMany({ where: { memberId, storyId: { in: stories.map((s) => s.id) } }, select: { storyId: true } })).map((v) => v.storyId))
+    : new Set<number>();
+  const byShop = new Map<number, typeof stories>();
+  for (const s of stories) {
+    if (!shopMap.has(s.shopId)) continue; // do'kon nofaol bo'lib qolgan bo'lsa — hikoyasi ham ko'rinmaydi
+    const arr = byShop.get(s.shopId) ?? [];
+    arr.push(s);
+    byShop.set(s.shopId, arr);
+  }
+  return [...byShop.entries()]
+    .map(([shopId, list]) => {
+      const shop = shopMap.get(shopId)!;
+      return { shopId, shopName: shop.name, hasPhoto: !!(shop.photoFileId || shop.photoUrl), seen: list.every((s) => viewedIds.has(s.id)), sortOrder: shop.sortOrder };
+    })
+    .sort((a, b) => (a.seen === b.seen ? a.sortOrder - b.sortOrder : a.seen ? 1 : -1)) // ko'rilmagan — oldinda (IG/Snap naqshi)
+    .map(({ shopId, shopName, hasPhoto, seen }) => ({ shopId, shopName, hasPhoto, seen }));
+}
+
+/** Bitta do'konning to'liq-ekran ko'ruvchisi uchun barcha faol hikoyalari (eskidan-yangiga). */
+export async function getShopStories(shopId: number, memberId?: number, preview = false): Promise<ShopStoryPost[]> {
+  if (!preview && !(await featureOn("shopstory"))) return [];
+  const shop = await prisma.marketShop.findUnique({ where: { id: shopId }, select: { name: true, active: true } });
+  if (!shop || !shop.active) return [];
+  const stories = await prisma.shopStory.findMany({ where: { shopId, expiresAt: { gt: new Date() } }, orderBy: { createdAt: "asc" } });
+  const viewedIds = memberId
+    ? new Set((await prisma.shopStoryView.findMany({ where: { memberId, storyId: { in: stories.map((s) => s.id) } }, select: { storyId: true } })).map((v) => v.storyId))
+    : new Set<number>();
+  return stories.map((s) => ({
+    id: s.id, shopId: s.shopId, shopName: shop.name, videoFileId: s.videoFileId, photoFileId: s.photoFileId,
+    caption: s.caption, createdAt: s.createdAt.toISOString(), seen: viewedIds.has(s.id),
+  }));
+}
+
+/** Ko'rilgan-belgisi — race-xavfsiz (mavjud toggleProductFavorite naqshi: create+increment, P2002
+ *  bo'lsa allaqachon ko'rilgan, hisoblagichni ikki marta oshirmaydi).
+ *  R4-gap fix: avvalgi bare `catch {}` P2002'dan BOSHQA har qanday xatoni ham (masalan yo'q
+ *  storyId'ga `update` P2025'i) jimgina yutib, orphan `ShopStoryView` qatorini qoldirardi —
+ *  `toggleProductFavorite`ning O'ZI qilgani kabi (yuqorida), faqat P2002 yutiladi, qolgani throw. */
+export async function markStoryViewed(storyId: number, memberId: number): Promise<{ ok: boolean }> {
+  try {
+    await prisma.shopStoryView.create({ data: { storyId, memberId } });
+    await prisma.shopStory.update({ where: { id: storyId }, data: { viewCount: { increment: 1 } } });
+  } catch (e) {
+    if ((e as { code?: string } | null)?.code !== "P2002") throw e;
+  }
+  return { ok: true };
 }
 
 // ── 🔑 V1.6: sotuvchi o'zi-xizmat kirish — do'kon-scoped operator-token mint-yoki-qayta-ishlatish.

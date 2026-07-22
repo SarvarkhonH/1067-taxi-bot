@@ -90,13 +90,16 @@ export const FEATURES = [
               // (habit-safar / referral / hamyon). EHTIYOTKOR: mavjud push-guardrail (kunlik 2 cap,
               // opt-out, tun-soatlari, dedup) + haftalik 2 cap + [🔕 to'xtat]. Halol persuasion,
               // aldov YO'Q. Koson-shevasi shablonlar. Yangi poller YO'Q. DARK until owner QABUL.
+  "shopstory", // 📹 BirJoy S1: do'kon-hikoya (Instagram/Snapchat-uslub, 24h expiry, bot-orqali post).
+              // Pul YO'Q. Yangi poller YO'Q (o'qish-vaqtida expiresAt filtr). Hozircha VIDEO-only
+              // (foto — S1.2b'da, `:photo` handler-tartib tuzatilgach). DARK until owner QABUL.
 ] as const;
 export type FeatureName = (typeof FEATURES)[number];
 
 // Off until explicitly enabled (go-live flip = setFeature(name, true) after owner QABUL).
 // booking3 = the new map/trip flow; owner still gets a preview via server.ts owner-branch,
 // but real users stay on the (fixed) classic flow until it's accepted. A missing row → OFF.
-const DEFAULT_OFF = new Set<FeatureName>(["booking3", "livinghome", "aibrain", "mahalla", "tolqin", "baraban", "komissiya", "qarz", "welcomebonus", "refstaged", "drvstaged", "drvrecruit", "drvpush", "promo", "clientbooking", "cashout", "carupgrade", "intercity", "tierloyalty", "waitcomp", "trackcta", "jackpotpost", "drvrank", "instantstatus", "spinreminder", "shop", "xizmatlar", "elonlar", "elontop", "restoran", "bazar", "bazarcart", "shopcashback", "revtanga", "airemind", "aihisob", "aidost", "aicity", "aibilim", "aineeds"]);
+const DEFAULT_OFF = new Set<FeatureName>(["booking3", "livinghome", "aibrain", "mahalla", "tolqin", "baraban", "komissiya", "qarz", "welcomebonus", "refstaged", "drvstaged", "drvrecruit", "drvpush", "promo", "clientbooking", "cashout", "carupgrade", "intercity", "tierloyalty", "waitcomp", "trackcta", "jackpotpost", "drvrank", "instantstatus", "spinreminder", "shop", "xizmatlar", "elonlar", "elontop", "restoran", "bazar", "bazarcart", "shopcashback", "revtanga", "airemind", "aihisob", "aidost", "aicity", "aibilim", "aineeds", "shopstory"]);
 
 let cache: { at: number; map: Record<string, boolean> } = { at: 0, map: {} };
 

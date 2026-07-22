@@ -57,6 +57,7 @@ export interface MeResponse {
     bazar?: boolean; // 🏪 BirJoy marketplace-qatlam do'kon ustida (owner-preview: admins see it while DARK)
     bazarcart?: boolean; // 🧺 BirJoy savat-checkout (MarketOrder) (owner-preview: admins see it while DARK)
     revtanga?: boolean; // 🗣 BirJoy sharh-uchun-tanga (owner-preview: admins see it while DARK)
+    shopstory?: boolean; // 📹 BirJoy do'kon-hikoya (owner-preview: admins see it while DARK)
   };
 }
 
@@ -480,6 +481,30 @@ export const SHOP_REVIEW_MAX_TEXT = 280;
 // 🏪 D2 (BirJoy do'kon-profil)
 export const SHOP_STORY_MAX = 600;
 export const SHOP_ANNOUNCEMENT_MAX = 120;
+
+// 📹 S1 (BirJoy do'kon-hikoya/story) — MarketShop.story (yuqoridagi) bilan ADASHTIRMASLIK: bu
+// yerdagi "story" — kunlik video/foto post (Instagram/Snapchat-uslub), 24 soatda yo'qoladi.
+export const SHOP_STORY_HOURS = 24;
+export const SHOP_STORY_CAPTION_MAX = 200;
+// "ShopStoryPost" — ATAYLAB "ShopStoryView" EMAS nomlangan: Prisma modelida `ShopStoryView`
+// allaqachon ko'rish-tracking jadvali (memberId+storyId), bu esa mijozga ko'rsatiladigan
+// bitta hikoya-post shakli — ikkalasi bir xil nomda bo'lsa adashtiradi.
+export interface ShopStoryPost {
+  id: number;
+  shopId: number;
+  shopName: string;
+  videoFileId: string | null;
+  photoFileId: string | null;
+  caption: string | null;
+  createdAt: string;
+  seen: boolean;
+}
+export interface ShopStoryTrayItem {
+  shopId: number;
+  shopName: string;
+  hasPhoto: boolean;
+  seen: boolean; // shu do'konning FAQAT barcha faol hikoyalari ko'rilgan bo'lsa true
+}
 export const SHOP_NEIGHBORHOOD_MAX = 40;
 
 export interface ShopProfileView {

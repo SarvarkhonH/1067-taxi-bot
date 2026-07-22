@@ -96,6 +96,10 @@ interface Draft {
   deliveryText?: string;
 }
 const sessions = new Map<string, Draft>();
+// 📹 S1: "/hikoya" bosgandan keyin KEYINGI video/foto shu do'konning hikoyasi bo'ladi — bir martalik
+// kutish-holati (svcSearchWait/codeLink naqshi, bot.ts), 10 daqiqa TTL o'rniga oddiy Map (kichik
+// hajm, restart = bekor — arzon, mos).
+const storyAwait = new Map<string, number>(); // tgId -> shopId
 
 /** Bot-bug fix (ega telefonda topdi, 2026-07-22): bot.ts'dagi global «raqamni qo'lda yozib
  *  bo'lmaydi» xavfsizlik-ogohlantirish (`bot.hears(/^\+?\d.../)`) ANCHA OLDINROQ ro'yxatdan o'tgan
@@ -283,5 +287,41 @@ export function registerMarket(bot: Bot): void {
       }
     }
     await ctx.answerCallbackQuery();
+  });
+
+  // ── 📹 S1: do'kon-hikoya (bot-birinchi post-oqim, admin-panel EMAS — sotuvchi allaqachon
+  // shu yerda, yangi ekran/o'rganish yo'q). Sotuvchi-aniqlash — §5 tuzatilgan naqsh: oprtoken
+  // EMAS, `ownerChatId` orqali. `findMany` (ko'p-do'konli owner uchun, findFirst EMAS). ──
+  bot.command("hikoya", async (ctx) => {
+    const tg = String(ctx.from?.id ?? "");
+    if (!tg) return;
+    const shops = await prisma.marketShop.findMany({ where: { ownerChatId: tg, active: true } });
+    if (!shops.length) { await ctx.reply("Sizda faol do'kon topilmadi. Boshlash uchun: /sotuvchi"); return; }
+    if (shops.length === 1) {
+      storyAwait.set(tg, shops[0]!.id);
+      await ctx.reply(`📹 <b>${esc(shops[0]!.name)}</b> uchun hikoya\n\nVideo yuboring (24 soat mijozlarga ko'rinadi). Izoh qo'shmoqchi bo'lsangiz — videoga caption qilib yozing. (Hozircha faqat video — foto-hikoya keyinroq qo'shiladi.)`, { parse_mode: "HTML" });
+      return;
+    }
+    const kb = new InlineKeyboard();
+    for (const s of shops) kb.text(s.name, `story:pick:${s.id}`).row();
+    await ctx.reply("Qaysi do'kon uchun hikoya qo'shasiz?", { reply_markup: kb });
+  });
+  bot.callbackQuery(/^story:pick:(\d+)$/, async (ctx) => {
+    await ctx.answerCallbackQuery().catch(() => undefined);
+    const tg = String(ctx.from.id);
+    const shopId = Number(ctx.match![1]);
+    const shop = await prisma.marketShop.findFirst({ where: { id: shopId, ownerChatId: tg, active: true } });
+    if (!shop) return; // begona/eski tugma — jim
+    storyAwait.set(tg, shopId);
+    await ctx.reply(`📹 <b>${esc(shop.name)}</b> uchun hikoya\n\nVideo yuboring (24 soat mijozlarga ko'rinadi).`, { parse_mode: "HTML" });
+  });
+  bot.on(":video", async (ctx, next) => {
+    const tg = String(ctx.from?.id ?? "");
+    const shopId = storyAwait.get(tg);
+    if (shopId === undefined) { await next(); return; } // boshqa hech kim video'ga qiziqmaydi hozircha
+    storyAwait.delete(tg);
+    const { createShopStory } = await import("../services/shopService");
+    const r = await createShopStory(shopId, { videoFileId: ctx.message!.video!.file_id, caption: ctx.message?.caption });
+    await ctx.reply(r.ok ? "✅ Hikoyangiz joylandi — 24 soat ko'rinadi." : "❌ Hikoya saqlanmadi, qaytadan urinib ko'ring.");
   });
 }

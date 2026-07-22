@@ -13,6 +13,8 @@ import {
   type MarketOrderView,
   type ShopProductView,
   type ShopProfileView,
+  type ShopStoryPost,
+  type ShopStoryTrayItem,
   type ShopPurchaseView,
   type ShopReviewsResponse,
   type ReferralResponse,
@@ -217,6 +219,39 @@ export function ShopView({ me, onBanner, reload, onBook, openProductId }: { me: 
 
   // 🏪 V1.4 (BirJoy): bazar-qatlam — flag OFF'da market so'ralmaydi ham, UI ham eski holicha AYNAN
   const bazar = !!me.flags?.bazar;
+  // 📹 S1: do'kon-hikoya — tray Bozor-boshda, alohida flag (bazar ON bo'lsa ham story hali DARK
+  // bo'lishi mumkin, ega alohida QABUL qiladi).
+  const shopstory = !!me.flags?.shopstory;
+  const [storyTray, setStoryTray] = useState<ShopStoryTrayItem[] | null>(null);
+  const [storyViewer, setStoryViewer] = useState<{ shopId: number; stories: ShopStoryPost[]; idx: number } | null>(null);
+  useEffect(() => {
+    if (!bazar || !shopstory) return;
+    api.shopStories().then((r) => setStoryTray(r.shops)).catch(() => undefined);
+  }, [bazar, shopstory]);
+  const openStoryViewer = async (shopId: number) => {
+    haptic();
+    try {
+      const r = await api.shopStoriesFor(shopId);
+      if (!r.stories.length) return;
+      setStoryViewer({ shopId, stories: r.stories, idx: 0 });
+      const first = r.stories[0]!;
+      if (!first.seen) api.shopStoryView(first.id).catch(() => undefined);
+    } catch { /* jim — tray'dan qayta urinib ko'radi */ }
+  };
+  const advanceStory = (dir: 1 | -1) => {
+    setStoryViewer((v) => {
+      if (!v) return v;
+      const nextIdx = v.idx + dir;
+      if (nextIdx < 0) return v; // birinchi hikoyada orqaga — joyida qoladi
+      if (nextIdx >= v.stories.length) {
+        setStoryTray((tray) => tray?.map((t) => (t.shopId === v.shopId ? { ...t, seen: true } : t)) ?? tray);
+        return null; // oxirgi hikoyadan keyin — yopiladi
+      }
+      const s = v.stories[nextIdx]!;
+      if (!s.seen) api.shopStoryView(s.id).catch(() => undefined);
+      return { ...v, idx: nextIdx };
+    });
+  };
   const [market, setMarket] = useState<MarketHomeResponse | null>(null);
   const [shopFilter, setShopFilter] = useState<{ id: number; name: string } | null>(null); // 🏬 do'kon-sahifa (lite)
   // 🏪 D2: do'kon-profil (hero/info-qator/e'lon/hikoya/reyting) — shopFilter tanlanganda yuklanadi.
@@ -596,6 +631,23 @@ export function ShopView({ me, onBanner, reload, onBook, openProductId }: { me: 
               )}
             </>
           )}
+          {/* ── 📹 S1: do'kon-hikoya tray (Bozor-bosh, faqat uy-ko'rinishida — profil-ekranda emas) ── */}
+          {bazar && shopstory && !shopFilter && storyTray && storyTray.length > 0 && (
+            <div className="bj-story-tray">
+              {storyTray.map((s) => (
+                <button key={s.shopId} className="bj-story-item" onClick={() => openStoryViewer(s.shopId)}>
+                  <span className={"bj-story-ring" + (s.seen ? " seen" : "")}>
+                    {s.hasPhoto ? (
+                      <img className="bj-story-avatar-img" src={apiUrl(`/api/shop/shop-photo/${s.shopId}`)} alt="" />
+                    ) : (
+                      <span className="bj-story-avatar">🏬</span>
+                    )}
+                  </span>
+                  <span className="bj-story-name">{s.shopName}</span>
+                </button>
+              ))}
+            </div>
+          )}
           {/* ── 🏪 V1.4 BirJoy: kategoriya-KARUSEL (Uzum-referens) + do'kon-rail — flag ON'dagina ── */}
           {bazar && !shopFilter && market && market.cats.length > 0 && (
             <BjCategoryCarousel
@@ -881,6 +933,15 @@ export function ShopView({ me, onBanner, reload, onBook, openProductId }: { me: 
         </div>
       )}
 
+      {/* ── 📹 S1: do'kon-hikoya to'liq-ekran ko'ruvchi ── */}
+      {storyViewer && (
+        <StoryViewer
+          stories={storyViewer.stories}
+          idx={storyViewer.idx}
+          onAdvance={advanceStory}
+          onClose={() => { setStoryTray((tray) => tray?.map((t) => (t.shopId === storyViewer.shopId ? { ...t, seen: true } : t)) ?? tray); setStoryViewer(null); }}
+        />
+      )}
       {/* ── 🏪 D2: do'kon-darajali sharhlar (o'qish-uchun, submit-shakli yo'q — mahsulot-sharh alohida) ── */}
       <Sheet open={shopReviewsOpen} onClose={() => setShopReviewsOpen(false)}>
         <h3>🗣 {shopProfile?.name ?? "Do'kon"} — sharhlar</h3>
@@ -1037,6 +1098,42 @@ function ProductLightbox({ productId, count, start, onClose }: { productId: numb
           {Array.from({ length: count }, (_, i) => <span key={i} className={"shop-gallery-dot" + (i === idx ? " on" : "")} />)}
         </div>
       )}
+    </div>
+  );
+}
+
+/** 📹 S1: do'kon-hikoya to'liq-ekran ko'ruvchi (Instagram/Snapchat-uslub) — tepada progress-
+ *  segmentlar, video tugagach/foto ~5s'dan keyin avto-keyingisiga, chap/o'ng bosish orqaga/oldinga,
+ *  ✕ yopadi. `key={cur.id}` — hikoya almashganda video/img elementi TO'LIQ qayta-yaratiladi (eski
+ *  video'ning `onEnded`si keyingi hikoyaga o'tib ketmasin — stale-closure xavfini yo'q qiladi). */
+function StoryViewer({ stories, idx, onAdvance, onClose }: { stories: ShopStoryPost[]; idx: number; onAdvance: (dir: 1 | -1) => void; onClose: () => void }) {
+  const cur = stories[idx]!;
+  useEffect(() => {
+    if (cur.videoFileId) return; // video — o'zining onEnded'i bor
+    const t = setTimeout(() => onAdvance(1), 5000);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cur.id]);
+  return (
+    <div className="bj-story-viewer">
+      <div className="bj-story-progress">
+        {stories.map((s, i) => (
+          <span key={s.id} className={"bj-story-seg" + (i < idx ? " done" : i === idx ? " active" : "")} />
+        ))}
+      </div>
+      <div className="bj-story-head">
+        <span className="bj-story-avatar sm">🏬</span>
+        <span className="bj-story-headname">{cur.shopName}</span>
+        <button className="bj-story-close" onClick={() => { haptic(); onClose(); }} aria-label="Yopish">✕</button>
+      </div>
+      {cur.videoFileId ? (
+        <video key={cur.id} className="bj-story-media" src={apiUrl(`/api/shop/story-media/${cur.id}`)} autoPlay playsInline onEnded={() => onAdvance(1)} />
+      ) : cur.photoFileId ? (
+        <img key={cur.id} className="bj-story-media" src={apiUrl(`/api/shop/story-media/${cur.id}`)} alt="" />
+      ) : null}
+      {cur.caption && <div className="bj-story-caption">{cur.caption}</div>}
+      <button className="bj-story-tap left" aria-label="Oldingi" onClick={() => { haptic(); onAdvance(-1); }} />
+      <button className="bj-story-tap right" aria-label="Keyingi" onClick={() => { haptic(); onAdvance(1); }} />
     </div>
   );
 }

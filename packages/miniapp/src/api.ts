@@ -151,6 +151,10 @@ export const api = {
   shopFavs: () => get<{ products: import("@t1067/shared").ShopProductView[] }>("/api/shop/favs"),
   // 🏪 D2 do'kon-profil
   shopProfile: (shopId: number) => get<{ profile: import("@t1067/shared").ShopProfileView; reviews: import("@t1067/shared").ShopReviewsResponse }>(`/api/shop/profile/${shopId}`),
+  // 📹 S1 do'kon-hikoya
+  shopStories: () => get<{ shops: import("@t1067/shared").ShopStoryTrayItem[] }>("/api/shop/stories"),
+  shopStoriesFor: (shopId: number) => get<{ stories: import("@t1067/shared").ShopStoryPost[] }>(`/api/shop/stories/${shopId}`),
+  shopStoryView: (id: number) => post<{ ok: boolean }>(`/api/shop/stories/${id}/view`, {}),
 
   shopBuy: (productId: number, address: string, pay: "tanga" | "cash" = "tanga") => post<import("@t1067/shared").ShopBuyResponse>("/api/shop/buy", { productId, address, pay }),
   shopOrders: () => get<{ orders: import("@t1067/shared").ShopPurchaseView[] }>("/api/shop/orders"),

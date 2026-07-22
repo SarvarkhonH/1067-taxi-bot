@@ -2622,6 +2622,33 @@ body {
 .bj-profile-loading { padding: 16px; display: flex; flex-direction: column; gap: 10px; }
 .bj-profile-reviews-entry { margin: 0 16px 12px; }
 
+/* 📹 S1: do'kon-hikoya — tray (Bozor-bosh) + to'liq-ekran ko'ruvchi. Halqa = brend-aksent gradient
+   (ko'rilmagan) / kulrang (ko'rilgan) — §1bis premium-qoidaga mos, chrome'da emoji yo'q (faqat
+   real do'kon-rasmi bo'lganda <img>, hozircha fallback belgisi vaqtinchalik). */
+.bj-story-tray { display: flex; gap: 14px; overflow-x: auto; padding: 6px 16px 12px; scrollbar-width: none; }
+.bj-story-tray::-webkit-scrollbar { display: none; }
+.bj-story-item { flex: 0 0 auto; width: 60px; display: flex; flex-direction: column; align-items: center; gap: 4px; background: none; border: none; color: var(--bj-ink); }
+.bj-story-ring { width: 54px; height: 54px; border-radius: 50%; padding: 2px; background: var(--bj-hero-grad); display: flex; align-items: center; justify-content: center; transition: transform var(--dur-press) var(--ease-out); }
+.bj-story-item:active .bj-story-ring { transform: scale(0.94); }
+.bj-story-ring.seen { background: #d8d8d3; }
+.bj-story-avatar { width: 100%; height: 100%; border-radius: 50%; background: var(--bj-card); border: 2px solid var(--bj-card); display: flex; align-items: center; justify-content: center; font-size: 22px; }
+.bj-story-avatar-img { width: 100%; height: 100%; border-radius: 50%; object-fit: cover; border: 2px solid var(--bj-card); display: block; }
+.bj-story-avatar.sm { width: 28px; height: 28px; font-size: 14px; border-width: 0; background: rgba(255,255,255,.15); }
+.bj-story-name { font-size: 10.5px; line-height: 1.2; max-width: 60px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+.bj-story-viewer { position: fixed; inset: 0; z-index: 80; background: #000; display: flex; flex-direction: column; }
+.bj-story-progress { display: flex; gap: 4px; padding: 10px 10px 0; }
+.bj-story-seg { flex: 1; height: 2px; border-radius: 2px; background: rgba(255,255,255,.3); }
+.bj-story-seg.done, .bj-story-seg.active { background: rgba(255,255,255,.9); }
+.bj-story-head { display: flex; align-items: center; gap: 8px; padding: 8px 12px; color: #fff; z-index: 1; }
+.bj-story-headname { font-size: 12.5px; font-weight: 600; flex: 1; }
+.bj-story-close { width: 28px; height: 28px; border-radius: 50%; background: none; border: none; color: #fff; font-size: 16px; }
+.bj-story-media { flex: 1; width: 100%; object-fit: contain; background: #000; }
+.bj-story-caption { position: absolute; left: 14px; right: 14px; bottom: 18px; color: #fff; font-size: 13px; background: rgba(0,0,0,.35); border-radius: 8px; padding: 8px 10px; }
+.bj-story-tap { position: absolute; top: 40px; bottom: 0; width: 35%; background: none; border: none; }
+.bj-story-tap.left { left: 0; }
+.bj-story-tap.right { right: 0; }
+
 /* ── 🧺 V2 savat-checkout (flag bazarcart) ── */
 .shop-qty-row { display: flex; align-items: center; gap: 10px; }
 .shop-qty-btn { width: 44px; height: 44px; border-radius: var(--r-btn); border: 1px solid var(--bj-line); background: var(--bj-card); color: var(--bj-ink); font-size: 20px; font-weight: 700; transition: transform var(--dur-press) var(--ease-out); }
