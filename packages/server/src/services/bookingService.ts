@@ -211,10 +211,13 @@ export async function createBookingFor(memberId: number, body: BookingCreateBody
   // survive a reload / second tab / slow double-tap; phantom dispatches waste real drivers
   // (our moat). Mirrors the hardened 1-tap path (callOneTapFor). No coins are minted here.
   const active = await getActiveBookingFor(memberId);
-  if (active) return { ok: false, live: env.bookingLive, message: "Sizda faol buyurtma bor" };
-  const throttle = await prisma.member.findUnique({ where: { id: memberId }, select: { lastBookingAt: true } });
-  if (throttle?.lastBookingAt && Date.now() - throttle.lastBookingAt.getTime() < ONE_TAP_THROTTLE_MS) {
-    return { ok: false, live: env.bookingLive, message: "Hozirgina buyurtma yuborilgan — bir daqiqa kuting" };
+  if (active) { console.log(`[dispatch] m${memberId} src=${source} blocked=active-booking (b${active.id ?? "?"})`); return { ok: false, live: env.bookingLive, message: "Sizda faol buyurtma bor" }; }
+  // Throttle window shrinks when the last claim never became a tracked ride (see DEAD_REBOOK_MS).
+  const trow = await prisma.member.findUnique({ where: { id: memberId }, select: { lastBookingAt: true, lastBookingId: true } });
+  const throttleMs = trow?.lastBookingId == null ? DEAD_REBOOK_MS : ONE_TAP_THROTTLE_MS;
+  if (trow?.lastBookingAt && Date.now() - trow.lastBookingAt.getTime() < throttleMs) {
+    console.log(`[dispatch] m${memberId} src=${source} blocked=throttle (${Math.round((Date.now() - trow.lastBookingAt.getTime()) / 1000)}s<${throttleMs / 1000}s, dead=${trow.lastBookingId == null})`);
+    return { ok: false, live: env.bookingLive, message: "Hozirgina buyurtma yuborilgan — biroz kuting" };
   }
 
   // add-ons + per-address surcharge → additionalPayment
@@ -239,8 +242,8 @@ export async function createBookingFor(memberId: number, body: BookingCreateBody
     return { ok: true, live: false, message: "TEST rejimi — haqiqiy taxi chaqirilmadi" };
   }
   // atomic anti-double-dispatch claim (the early throttle check above is only a fast UX reject)
-  const slot = await claimDispatchSlot(memberId);
-  if (!slot.ok) return { ok: false, live: true, message: "Hozirgina buyurtma yuborilgan — bir daqiqa kuting" };
+  const slot = await claimDispatchSlot(memberId, throttleMs);
+  if (!slot.ok) return { ok: false, live: true, message: "Hozirgina buyurtma yuborilgan — biroz kuting" };
   const res = await getDataSource()
     .createBooking({
       clientName: who.name,
@@ -251,6 +254,9 @@ export async function createBookingFor(memberId: number, body: BookingCreateBody
       ...(hasPin ? { addressLatitude: body.lat, addressLongitude: body.lng } : {}),
     })
     .catch((e) => ({ ok: false, message: e instanceof Error ? e.message : String(e) }));
+  // dispatch outcome trace — proves whether kas ACCEPTED the order (ok=true then no driver = the
+  // "created but silently died" bug) vs REJECTED it (ok=false + reason). Read from Render logs.
+  console.log(`[dispatch] m${memberId} src=${source} pin=${hasPin ? "map" : body.pickupId} → ok=${res.ok}${res.ok ? "" : ` msg="${res.message ?? ""}"`}`);
   if (res.ok) {
     await rememberPickup(memberId, pinMem, source);
     // ⚡ arm the instant-status socket NOW (before the driver accepts) so take_booking lands in ~1-2s
@@ -292,15 +298,21 @@ export async function getActiveBookingFor(memberId: number): Promise<ActiveBooki
 const ONE_TAP_GPS_LAST_KM = 0.12; // GPS within 120m of last pickup → same spot
 const ONE_TAP_GPS_SAVED_KM = 0.25; // GPS within 250m of a saved address → snap
 const ONE_TAP_THROTTLE_MS = 30_000; // min gap between dispatches (double-tap guard; 60s felt too long — a real re-book after a quick cancel was blocked for a full minute)
+// A member whose LAST claim never became a tracked ride (lastBookingId still null) had their order
+// die with no driver / lost mid-flight. The active-booking guard above already dedups any LIVE order,
+// so keeping them under the full 30s throttle only traps them on a "Hozirgina buyurtma yuborilgan"
+// they can't escape. Let them re-book after a short anti-double-tap gap instead. (Concurrency safety
+// is the atomic claimDispatchSlot CAS, NOT this window — see that function.)
+const DEAD_REBOOK_MS = 8_000;
 
 /** Atomically claim the dispatch slot (CAS on lastBookingAt) RIGHT BEFORE a real kas
  *  dispatch — the early throttle check is read-then-act (TOCTOU), so two concurrent
  *  taps / a reload / a second tab can both pass it and dispatch two taxis (wasted
  *  driver — the supply moat). This updateMany only succeeds for ONE caller; the loser
  *  is throttled. Returns the prior value so a FAILED dispatch can release it (below). */
-export async function claimDispatchSlot(memberId: number): Promise<{ ok: boolean; prev: Date | null }> {
+export async function claimDispatchSlot(memberId: number, windowMs: number = ONE_TAP_THROTTLE_MS): Promise<{ ok: boolean; prev: Date | null }> {
   const before = await prisma.member.findUnique({ where: { id: memberId }, select: { lastBookingAt: true } });
-  const cutoff = new Date(Date.now() - ONE_TAP_THROTTLE_MS);
+  const cutoff = new Date(Date.now() - windowMs);
   const claim = await prisma.member.updateMany({
     where: { id: memberId, OR: [{ lastBookingAt: null }, { lastBookingAt: { lt: cutoff } }] },
     data: { lastBookingAt: new Date() },
@@ -414,6 +426,7 @@ export async function callOneTapFor(memberId: number, body: BookingNowBody, sour
       defaultPickupId: true,
       defaultPickupName: true,
       lastBookingAt: true,
+      lastBookingId: true,
     },
   });
   if (!member?.phone) return { state: "failed", message: "Telefon raqami ulanmagan" };
@@ -422,9 +435,12 @@ export async function callOneTapFor(memberId: number, body: BookingNowBody, sour
   const active = await getActiveBookingFor(memberId);
   if (active) return { state: "active", booking: active };
 
-  // double-tap / accidental-repeat guard (real taxis get dispatched here)
-  if (member.lastBookingAt && Date.now() - member.lastBookingAt.getTime() < ONE_TAP_THROTTLE_MS) {
-    return { state: "throttled", message: "Hozirgina buyurtma yuborilgan — bir daqiqa kuting" };
+  // double-tap / accidental-repeat guard (real taxis get dispatched here). Window shrinks when the
+  // last claim never became a tracked ride (lastBookingId null → it died) so a stuck user can re-book.
+  const throttleMs = member.lastBookingId == null ? DEAD_REBOOK_MS : ONE_TAP_THROTTLE_MS;
+  if (member.lastBookingAt && Date.now() - member.lastBookingAt.getTime() < throttleMs) {
+    console.log(`[dispatch] m${memberId} src=${source} blocked=throttle-1tap (dead=${member.lastBookingId == null})`);
+    return { state: "throttled", message: "Hozirgina buyurtma yuborilgan — biroz kuting" };
   }
 
   // cancel-farm: too many self-cancels today → no more instant dispatch,
@@ -486,11 +502,12 @@ export async function callOneTapFor(memberId: number, body: BookingNowBody, sour
   }
 
   // atomic anti-double-dispatch claim (the early throttle check above is only a fast UX reject)
-  const slot = await claimDispatchSlot(memberId);
-  if (!slot.ok) return { state: "throttled", message: "Hozirgina buyurtma yuborilgan — bir daqiqa kuting" };
+  const slot = await claimDispatchSlot(memberId, throttleMs);
+  if (!slot.ok) return { state: "throttled", message: "Hozirgina buyurtma yuborilgan — biroz kuting" };
   const res = await ds
     .createBooking({ clientName: member.fullName, addressName: pickup.name, addressId: pickup.id, phoneNumber: member.phone, additionalPayment: 0 })
     .catch((e) => ({ ok: false as const, message: e instanceof Error ? e.message : String(e) }));
+  console.log(`[dispatch] m${memberId} src=${source} 1tap=${pickup.id} → ok=${res.ok}${res.ok ? "" : ` msg="${res.message ?? ""}"`}`);
   if (!res.ok) {
     await releaseDispatchSlot(memberId, slot.prev);
     return { state: "failed", message: res.message };
