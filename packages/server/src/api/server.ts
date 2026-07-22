@@ -1874,8 +1874,19 @@ body{font-family:Arial,sans-serif;background:#eee;-webkit-print-color-adjust:exa
     res.send(html);
   });
 
-  // role defaults to "operator" (read + announce); "shopseller" unlocks Do'kon CRUD only (requireShopWrite)
+  // role defaults to "operator" (read + announce); "shopseller" unlocks Do'kon CRUD only (requireShopWrite).
+  // V1.6b: shopseller + shopId → do'kon-scoped token (multi-vendor); shopId'siz = legacy bare
+  // "shopseller" (=shop#1 «BirJoy o'z do'koni», backward-compat).
   app.post("/api/admin/optoken", requireAdmin, requireOwner, async (req, res) => {
+    if (req.body?.role === "shopseller" && req.body?.shopId !== undefined) {
+      const shopId = Number(req.body.shopId);
+      const shop = await prisma.marketShop.findUnique({ where: { id: shopId }, select: { id: true } });
+      if (!shop) { res.status(400).json({ ok: false, error: "shop_not_found" }); return; }
+      const { getOrCreateSellerToken } = await import("../services/shopService");
+      const token = await getOrCreateSellerToken(shopId);
+      res.json({ ok: true, token, role: "shopseller" });
+      return;
+    }
     const role = req.body?.role === "shopseller" ? "shopseller" : "operator";
     const token = Array.from({ length: 24 }, () => "abcdefghjkmnpqrstuvwxyz23456789"[Math.floor(Math.random() * 31)]).join("");
     await prisma.appState.create({ data: { key: `oprtoken:${token}`, value: role } });
@@ -1885,13 +1896,36 @@ body{font-family:Arial,sans-serif;background:#eee;-webkit-print-color-adjust:exa
   app.get("/api/admin/whoami", requireAdmin, (_req, res) => {
     res.json({ role: res.locals.adminRole as string });
   });
+  // V1.6e: shop-picker uchun qisqa ro'yxat (owner-only) — token-yaratish select'iga xizmat qiladi.
+  app.get("/api/admin/market-shops", requireAdmin, requireOwner, async (_req, res) => {
+    const shops = await prisma.marketShop.findMany({ orderBy: { id: "asc" }, select: { id: true, name: true, active: true } });
+    res.json({ shops });
+  });
   // List + revoke operator tokens (owner-only): a leaked/ex-employee token must be killable.
+  // V1.6b: shopseller:<shopId> qatorlarga do'kon-nomi qo'shiladi — owner ro'yxatda qaysi tokeni
+  // qaysi do'konga tegishli ekanini ko'ra oladi (aks holda barcha shopseller qatorlar bir xil ko'rinardi).
   app.get("/api/admin/optokens", requireAdmin, requireOwner, async (_req, res) => {
     const rows = await prisma.appState.findMany({ where: { key: { startsWith: "oprtoken:" } }, orderBy: { updatedAt: "desc" } });
-    res.json({ tokens: rows.map((r) => ({ token: r.key.slice("oprtoken:".length), role: r.value, createdAt: r.updatedAt.toISOString() })) });
+    const shopIds = rows.map((r) => Number(/^shopseller:(\d+)$/.exec(r.value)?.[1])).filter((n) => Number.isFinite(n));
+    const shops = shopIds.length ? await prisma.marketShop.findMany({ where: { id: { in: shopIds } }, select: { id: true, name: true } }) : [];
+    const shopNameOf = new Map(shops.map((s) => [s.id, s.name]));
+    res.json({
+      tokens: rows.map((r) => {
+        const m = /^shopseller:(\d+)$/.exec(r.value);
+        const shopId = m ? Number(m[1]) : undefined;
+        return { token: r.key.slice("oprtoken:".length), role: r.value, shopName: shopId ? shopNameOf.get(shopId) : undefined, createdAt: r.updatedAt.toISOString() };
+      }),
+    });
   });
   app.delete("/api/admin/optokens/:token", requireAdmin, requireOwner, async (req, res) => {
-    const del = await prisma.appState.deleteMany({ where: { key: `oprtoken:${String(req.params.token)}` } });
+    const key = `oprtoken:${String(req.params.token)}`;
+    const row = await prisma.appState.findUnique({ where: { key }, select: { value: true } });
+    // V1.6: shopseller:<shopId> tokenni revoke qilsak, getOrCreateSellerToken'ning deterministik
+    // pointer'ini (`sellertoken:<shopId>`) HAM o'chiramiz — aks holda keyingi so'rov o'lik tokenni
+    // abadiy qaytarardi (yangisini hech qachon yaratmasdi).
+    const m = row ? /^shopseller:(\d+)$/.exec(row.value) : null;
+    if (m) await prisma.appState.deleteMany({ where: { key: `sellertoken:${m[1]}` } });
+    const del = await prisma.appState.deleteMany({ where: { key } });
     res.json({ ok: del.count > 0 });
   });
 

@@ -1233,3 +1233,106 @@ yakuniy o'qish bilan, chaqiruvlarning o'z-javobi EMAS, chunki bu faqat ko'rsatki
 o'qish-sinxronligi kafolat qilinmaydi) + 27b (parallel 2 yetkazish dailyMax chegarasida → jami
 aynan headroom, kunlik-yig'indi aynan dailyMax) — **3× ket-ket yashil**.
 QOLDI: ega telefon-QABUL (flaglar hamon DARK).
+
+## 2026-07-22 — 🤖 AI-agent v1 (aibrain flag, DARK) — READY FOR VERIFICATION
+Groq jonli ishga tushdi (ega kalitni o'zi qo'ydi: lokal .env + Render env; servis restart
+07:13, birinchi jonli LLM chaqiruvlar tasdiqlandi ai_used=2). Keyin ega talabi: "haqiqiy
+chatlar, bot hamma amallarni qila olsin" → tool-calling agent qurildi.
+
+**Nima qurildi:**
+- `services/ai/agent.ts` (yangi): Groq llama-3.3 tool-calling router. Suhbat xotirasi =
+  oxirgi 30 daqiqa / 8 ta SupportMsg (in+out). Tool'lar: taksi_chaqir(manzil?),
+  buyurtma_holati, balans. AMALLAR LOKAL bajariladi — balans/telefon/holat LLM'ga
+  round-trip QILINMAYDI (balans javobi tarixga neytral marker bilan yoziladi).
+  Dispatch har doim mijoz tugma bosishi bilan (agent faqat manzil-tanlash oqimini ochadi).
+- `booking.ts`: `tryAddressBooking(ctx, query)` eksport (ichki (b)-yo'l dedup qilindi).
+- `bot.ts`: fallback endi aibrain-flag'li — ON=agent, OFF=eski aiSupport. AI/FAQ javoblari
+  SupportMsg'ga `direction:"out"` bilan yoziladi (xotira + ega auditi).
+- BUG-FIX (flag'siz ham): AI-1 book-intent'ning `bk:addr:<kasId>` inline tugmalari O'LIK edi
+  (booking handler payload'ni sessiya-INDEKS deb o'qiydi, sessiya yo'q → jim ignore).
+  Endi haqiqiy manzil-tanlash oqimi ochiladi.
+- `llmRouter.ts`: cap helper'lar eksport (aiCapOk/aiCapBump/aiDay), member-cap 10→30
+  (agent+askLlm BIR XIL hisoblagichlardan; global 1200 o'zgarmadi).
+- Yangi skriptlar: `checkAiUsage.ts` (kunlik cap hisoblagichlari), `checkAiConvo.ts`
+  (so'nggi suhbatlar auditi), `testAgent.ts` (jonli-Groq smoke, TAG'li satrlar+cleanup).
+
+**Isbot:** typecheck 0 xato (har qadam) · testAgent 4/4 scenariy **3× ket-ket yashil**
+(taksi-so'rov→book, "obronga" follow-up→book("obronga") [xotira isboti], balans-savol→balance,
+imkoniyat-savoli→to'g'ri matn-javob). Telegram'ga XABAR YUBORILMADI, real a'zo tegilmadi.
+
+**Buzilmas qoidalarga muvofiqlik:** aibrain kill-switch (hozir OFF/DARK) · pul-amallari
+agent'ga berilmagan (faqat read-only balans-ko'rsatish, yechish Mini App tugmalarida) ·
+tanga-emissiya yo'q · yangi poller yo'q · "coin" so'zi UI'da yo'q (prompt'da ham taqiq).
+
+**QOLDI:** commit+push+deploy · ega REAL telefonda sinovi (aibrain OFF holda deploy;
+setFlag aibrain ON — alert bilan) · ega QABUL'idan keyingina flag yoqiq qoladi.
+
+## 2026-07-22 — 🔔📊 AI v2 P1: Eslatma + Hisob-kitob (airemind/aihisob) — READY FOR VERIFICATION
+Reja: AI_V2_PLAN.md (Sonnet+Fable ikki mustaqil draft sintezi; ega "har qanday" — tavsiya
+variantlar qabul qilindi). P1 quruldi:
+
+**Yangi:** `Reminder` jadvali (db push OK, sof-additiv) · `timeParse.ts` (deterministik o'zbek
+vaqt-parser, LLM vaqt HISOBLAMAYDI — noaniqlik tugma bilan so'raladi) · `reminderService.ts`
+(create/list/cancel/deliver, guardrail: ≥5daq/≤30kun, 5 pending, 10/kun) · `aiStats.ts`
+(lokal agregatlar) · `calc.ts` (rules-first arifmetika, eval'siz, LLM'siz) · agent'ga 4 yangi
+tool (eslatma_qoy/eslatmalarim/eslatma_bekor/hisob_kitob) — flag bo'yicha DINAMIK roster
+(OFF feature tool'i Groq'ga umuman yuborilmaydi) · bot.ts tasdiqlash-kartalar (rem:opt/no/
+del/snooze) — AI hech qachon jim eslatma yaratmaydi · index.ts sweep'ga deliverDueReminders
+(yangi poller YO'Q, claim-first, kas'ga 0 so'rov, ≤90s aniqlik).
+
+**Maxfiylik:** hisobot/balans raqamlari LLM'ga round-trip qilinmaydi (SupportMsg'ga faqat
+neytral marker); eslatma matni DB'dan aynan qaytariladi (LLM qayta yozmaydi); yetkazish
+0 LLM-chaqiruv.
+
+**Isbot:** typecheck 0 xato · timeParse 27/27 · calc 16/16 · reminderService 13/13 ×3
+(stub-bot, Telegram'ga 0 xabar, TAG+cleanup) · agent E2E 8/8 ×2 (3-run 5/8 — faqat groq 429
+free-tier limiti, mantiq emas). Flaglar: airemind/aihisob ON (setFlag orqali, alert ketdi) —
+lekin aibrain OFF bo'lgani uchun mijozlarga MUTLAQO ko'rinmaydi (tool'lar faqat agent ichida).
+
+**Ma'lum cheklov:** Groq free-tier kunlik token-budjeti tor (~60-70 agent-chaqiruv/kun) —
+rules-first 80%ni ushlaydi, lekin o'sishda tool-calling'ga multi-provider fallback yoki
+pullik tarif kerak bo'ladi (V-NEXT).
+
+**QOLDI:** commit+push+deploy · ega REAL telefonda sinovi (aibrain ON qilib) · ega QABUL.
+
+## 2026-07-22 — 🔑 V1.6 (sotuvchi o'zi-xizmat kirish) boshlandi — real bo'shliq yopilmoqda
+Ega: «har bir do'kon akkaunt ochib o'z mahsulotlarini yuklashi kerak endi». Tekshiruv natijasi:
+V1.2 (seller-scope) va V1.3 (/sotuvchi wizard) qurilgan, LEKIN ular orasidagi ko'prik yo'q edi —
+`mkt:approve` faqat `active:true` qiladi, tokenni HECH KIM avtomatik bermaydi. Mavjud admin-panel
+tugmasi (`optoken("shopseller")`) faqat BARE "shopseller" (=shop#1, «BirJoy o'z do'koni») yaratadi —
+API'da shopId parametri UMUMAN yo'q, ya'ni yangi pilot-do'konlar (#2, #3...) uchun mutlaqo ishlamaydi.
+
+### V1.6 DoD (KOD'DAN OLDIN)
+| # | Mezon | Tekshiruv |
+|---|---|---|
+| 1.6a | `getOrCreateSellerToken(shopId)` — mavjud tokenni qayta ishlatadi (idempotent), yo'q bo'lsa yangi yaratadi | testBazar: 2× chaqiruv bir xil token qaytaradi |
+| 1.6b | `/api/admin/optoken` shopId qabul qiladi (shopseller'da); do'kon mavjudligini tekshiradi; `/optokens` ro'yxati do'kon-nomini ko'rsatadi | curl-isbot + admin preview |
+| 1.6c | `mkt:approve`da avto token-mint + seller'ga tayyor link+yo'riqnoma DM (xato bo'lsa jim, tasdiqlash xabari buzilmaydi) | bot-mock test |
+| 1.6d | Yangi `/dokonim` buyrug'i — seller istalgan vaqt o'z linkini qayta oladi (faqat o'z faol do'koni uchun) | bot-mock test |
+| 1.6e | Admin: qo'lda token-yaratishda >1 do'kon bo'lsa tanlov (select); bare "shopseller" = shop#1 sifatida saqlanadi (backward-compat) | preview DOM |
+| ∀ | typecheck 4/4 · testBazar regressiya + yangi bloklar 3× yashil · R4 · ega QABUL kerak emas (bu — mavjud LIVE V1.2/V1.3'ning bo'shlig'ini yopish, yangi flag emas) | buyruq+natija |
+
+Holat: **in progress**.
+
+## 2026-07-22 — 🔑 V1.6 (sotuvchi o'zi-xizmat kirish) READY FOR VERIFICATION
+Barcha 5 tiket qurildi, isbotlandi:
+- 1.6a `getOrCreateSellerToken(shopId)` — idempotent mint-yoki-qayta-ishlatish + **R4-uslub
+  o'z-o'zini-tekshiruv jarayonida topilgan parallel-mint race'ga qarshi qo'shimcha mustahkamlash**:
+  deterministik pointer-qator (`sellertoken:<shopId>`, key-unique) — ikki bir vaqtdagi so'rov endi
+  bitta xil tokenga tushadi (eski find-then-create ikkita TURLI tokenni yaratishi mumkin edi).
+  Revoke (`DELETE /optokens/:token`) endi pointer'ni ham tozalaydi (aks holda qayta so'rov o'lik
+  tokenni abadiy qaytarardi).
+- 1.6b `/api/admin/optoken` shopId qabul qiladi (do'kon-mavjudlik tekshiruvi bilan); `/optokens`
+  ro'yxati endi do'kon-nomini ko'rsatadi; yangi `/api/admin/market-shops` (owner-only, picker uchun).
+- 1.6c `mkt:approve`da AVTOMATIK token-mint + tayyor havola+yo'riqnoma DM — ega endi HECH QANDAY
+  qo'lda qadam qilmaydi (avval: CLI-skript yugurtirish yoki admin-panelda qo'lda tugma bosish kerak
+  edi, ikkalasi ham faqat shop#1 uchun ishlagan).
+- 1.6d yangi `/dokonim` buyrug'i — seller o'z linkini istalgan vaqt qayta oladi.
+- 1.6e admin UI: >1 do'kon bo'lsa token-yaratishda do'kon-tanlov select; ro'yxatda do'kon-nomi.
+**Isbot:** testBazar +4 blok (37-40: idempotent/scoped/parallel-race/revoke-pointer-tozalash) —
+3× ket-ket yashil (jami 40+ blok) · testShop 94 regressiya yashil · typecheck 4/4 · **jonli preview
+isbot** (owner-auth: market-shops ro'yxat, optoken mint+reuse+revoke+pointer-tozalash, scoped
+seller-token: /shop/products=200, /market-shops=403, /economy=403 — hammasi real serverda, real Neon
+ma'lumot bilan tekshirildi, test-tokenlar tozalab tashlandi).
+QOLDI: R4 mustaqil tekshiruv (xohlasa), keyin commit+deploy. Bu — mavjud V1.2/V1.3'ning ishlab
+turgan bo'shlig'ini yopish, yangi flag talab qilmaydi (bazar allaqachon LIVE).

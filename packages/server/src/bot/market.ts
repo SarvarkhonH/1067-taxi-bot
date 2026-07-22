@@ -9,6 +9,21 @@ import { prisma } from "../db";
 import type { MarketOrderLine, MarketOrderStatus } from "@t1067/shared";
 
 const OWNER_TG = "6506297119";
+const ADMIN_PANEL_URL = "https://admin-seven-ebon-95.vercel.app"; // grantShopSeller.ts bilan bir xil manba
+
+/** V1.6: sotuvchiga o'z do'koni-scoped admin-panel havolasini yuborish — mint-yoki-qayta-ishlatish
+ *  (idempotent), keyin bitta xabar. Xato bo'lsa jim — chaqiruvchi oqim (tasdiqlash) buzilmasin. */
+async function sendSellerPanelLink(bot: Bot, chatId: string, shopId: number, shopName: string): Promise<void> {
+  const { getOrCreateSellerToken } = await import("../services/shopService");
+  const token = await getOrCreateSellerToken(shopId);
+  await bot.api.sendMessage(
+    chatId,
+    `🔑 <b>Do'koningizni boshqarish havolasi:</b>\n${ADMIN_PANEL_URL}/?key=${token}\n\n` +
+      `Kirib «➕ Mahsulot qo'shish» tugmasini bosing, nomi/narxi/soni/rasmini kiriting. ` +
+      `Havolani yo'qotib qo'ysangiz — botga <code>/dokonim</code> yozing, qayta yuboriladi.`,
+    { parse_mode: "HTML" },
+  ).catch(() => undefined);
+}
 
 async function tgOf(memberId: number): Promise<string | null> {
   const tu = await prisma.telegramUser.findFirst({ where: { memberId }, select: { id: true } });
@@ -110,6 +125,17 @@ export function registerMarket(bot: Bot): void {
     }
     sessions.set(tg, { step: "name" });
     await ctx.reply(PROMPTS.name, { parse_mode: "HTML" });
+  });
+
+  // V1.6d: sotuvchi o'z boshqaruv-havolasini istalgan vaqt qayta oladi (chat tarixi
+  // yo'qolgan/yangi telefon bo'lsa ham) — faqat O'Z faol do'koni uchun.
+  bot.command("dokonim", async (ctx) => {
+    const tg = String(ctx.from?.id ?? "");
+    if (!tg) return;
+    const mine = await prisma.marketShop.findFirst({ where: { ownerChatId: tg } });
+    if (!mine) { await ctx.reply("Sizda ro'yxatdan o'tgan do'kon topilmadi. Boshlash uchun: /sotuvchi"); return; }
+    if (!mine.active) { await ctx.reply(`🏪 <b>${esc(mine.name)}</b> hali ega tasdig'ini kutmoqda — tasdiqlangach havola avtomatik keladi.`, { parse_mode: "HTML" }); return; }
+    await sendSellerPanelLink(bot, tg, mine.id, mine.name);
   });
 
   bot.command("bekor_sotuvchi", async (ctx) => {
@@ -234,7 +260,9 @@ export function registerMarket(bot: Bot): void {
       await prisma.marketShop.update({ where: { id }, data: { active: true } });
       await ctx.editMessageText(`✅ <b>${esc(shop.name)}</b> tasdiqlandi va faollashtirildi.`, { parse_mode: "HTML" });
       if (shop.ownerChatId) {
-        await ctx.api.sendMessage(shop.ownerChatId, `🎉 <b>${esc(shop.name)}</b> tasdiqlandi!\n\nEndi mahsulotlaringizni qo'shish uchun ega sizga admin-havola yuboradi. Buyurtmalar shu chatga tushadi.`, { parse_mode: "HTML" }).catch(() => undefined);
+        await ctx.api.sendMessage(shop.ownerChatId, `🎉 <b>${esc(shop.name)}</b> tasdiqlandi!\n\nBuyurtmalar shu chatga tushadi.`, { parse_mode: "HTML" }).catch(() => undefined);
+        // V1.6c: manual owner-step YO'Q — token avto-mint (yoki mavjudi qayta ishlatiladi) + darhol DM
+        await sendSellerPanelLink(bot, shop.ownerChatId, shop.id, shop.name);
       }
     } else {
       await prisma.marketShop.delete({ where: { id } }).catch(() => undefined);

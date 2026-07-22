@@ -432,6 +432,44 @@ async function main(): Promise<void> {
   await prisma.coinTxn.deleteMany({ where: { memberId: m3.id } });
   await prisma.member.delete({ where: { id: m3.id } }).catch(() => undefined);
 
+  // ── 🔑 V1.6: sotuvchi o'zi-xizmat token (getOrCreateSellerToken) ────────────────────────────
+  const { getOrCreateSellerToken } = await import("../services/shopService");
+  const shopD = await prisma.marketShop.create({ data: { name: `${TAG}-D`, phone: "+998900000004", active: true } });
+  const shopE = await prisma.marketShop.create({ data: { name: `${TAG}-E`, phone: "+998900000005", active: true } });
+
+  // 37) idempotent: bir do'konga ikki marta chaqiruv → BIR XIL token
+  const tokD1 = await getOrCreateSellerToken(shopD.id);
+  const tokD2 = await getOrCreateSellerToken(shopD.id);
+  ok(tokD1 === tokD2, "37: getOrCreateSellerToken idempotent — same shop → same token");
+  ok((await prisma.appState.count({ where: { value: `shopseller:${shopD.id}` } })) === 1, "37: exactly ONE AppState row for this shop (no duplicate mint)");
+
+  // 38) ikki xil do'kon → ikki XIL token, har biri o'z shopId'siga to'g'ri bog'langan
+  const tokE = await getOrCreateSellerToken(shopE.id);
+  ok(tokE !== tokD1, "38: different shop → different token");
+  const rowD = await prisma.appState.findUnique({ where: { key: `oprtoken:${tokD1}` } });
+  const rowE = await prisma.appState.findUnique({ where: { key: `oprtoken:${tokE}` } });
+  ok(rowD?.value === `shopseller:${shopD.id}` && rowE?.value === `shopseller:${shopE.id}`, "38: each token's AppState value correctly scoped to its own shopId");
+
+  // 39) PARALLEL chaqiruv (getOrCreateSellerToken 2× bir vaqtda, YANGI do'kon) → race-guard
+  // (`sellertoken:<shopId>` deterministik pointer, key-unique) — ikkalasi ham AYNAN BIR XIL
+  // tokenni qaytaradi, faqat BITTA haqiqiy oprtoken-qator yaratiladi (eski find-then-create'da
+  // ikkita TURLI token yaratilishi mumkin edi).
+  const shopF = await prisma.marketShop.create({ data: { name: `${TAG}-F`, phone: "+998900000006", active: true } });
+  const [tf1, tf2] = await Promise.all([getOrCreateSellerToken(shopF.id), getOrCreateSellerToken(shopF.id)]);
+  ok(tf1 === tf2, `39: parallel calls on a BRAND-NEW shop → SAME token (race-guard held), got ${tf1} vs ${tf2}`);
+  ok((await prisma.appState.count({ where: { value: `shopseller:${shopF.id}` } })) === 1, "39: exactly ONE real oprtoken row for the shop (no double-mint)");
+
+  // 40) revoke → deterministik pointer HAM tozalanadi (aks holda keyingi so'rov o'lik tokenni qaytarardi)
+  await prisma.appState.deleteMany({ where: { key: `oprtoken:${tokD1}` } });
+  // production DELETE-route pointer'ni ham o'chiradi — testda to'g'ridan-to'g'ri servis-darajada shu naqshni simulyatsiya qilamiz
+  await prisma.appState.deleteMany({ where: { key: `sellertoken:${shopD.id}` } });
+  const tokD3 = await getOrCreateSellerToken(shopD.id);
+  ok(tokD3 !== tokD1, "40: after simulated revoke (pointer+token both cleared) → a FRESH token is minted, not the dead one");
+
+  await prisma.appState.deleteMany({ where: { key: { startsWith: "oprtoken:" }, value: { in: [`shopseller:${shopD.id}`, `shopseller:${shopE.id}`, `shopseller:${shopF.id}`] } } });
+  await prisma.appState.deleteMany({ where: { key: { in: [`sellertoken:${shopD.id}`, `sellertoken:${shopE.id}`, `sellertoken:${shopF.id}`] } } });
+  await prisma.marketShop.deleteMany({ where: { name: { startsWith: TAG } } });
+
   await cleanupMkt();
   await cleanup();
   console.log(process.exitCode ? "\n❌ FAILED" : "\n✅ ALL GREEN");

@@ -686,7 +686,9 @@ function ControlCards() {
   const [empCorp, setEmpCorp] = useState<number | null>(null);
   const [balCorp, setBalCorp] = useState<number | null>(null);
   const [balAmt, setBalAmt] = useState("");
-  const [optokens, setOptokens] = useState<{ token: string; role: string; createdAt: string }[]>([]);
+  const [optokens, setOptokens] = useState<{ token: string; role: string; shopName?: string; createdAt: string }[]>([]);
+  const [marketShops, setMarketShops] = useState<{ id: number; name: string; active: boolean }[]>([]); // V1.6e
+  const [sellerShopPick, setSellerShopPick] = useState<number | "">("");
   const [msg, setMsg] = useState<string | null>(null);
   const [msg2, setMsg2] = useState<string | null>(null);
 
@@ -696,6 +698,7 @@ function ControlCards() {
     adminApi.transferEconomy().then(setTxEcon).catch(() => undefined);
     adminApi.corps().then((r) => setCorps(r.corps)).catch(() => undefined);
     adminApi.optokens().then((r) => setOptokens(r.tokens)).catch(() => undefined);
+    adminApi.marketShops().then((r) => setMarketShops(r.shops)).catch(() => undefined);
   };
   useEffect(() => { load(); }, []);
 
@@ -793,14 +796,33 @@ function ControlCards() {
         <MashinaCard />
         <div style={{ marginTop: 10 }}>
           <button className="btn" onClick={async () => { const r = await adminApi.optoken("operator"); setMsg2(`Operator token (faqat bir marta ko'rsatiladi): ${r.token}`); load(); }}>🔑 Operator-token yaratish</button>{" "}
-          <button className="btn" title="Faqat Do'kon: mahsulot qo'shish/narx/stock/rasm — boshqa hech narsa ko'rmaydi" onClick={async () => { const r = await adminApi.optoken("shopseller"); setMsg2(`🛍 Do'kon-sotuvchi token (faqat bir marta ko'rsatiladi) — link: ${window.location.origin}/?key=${r.token}`); load(); }}>🛍 Do'kon-sotuvchi token yaratish</button>
+          {/* V1.6e: >1 do'kon bo'lsa — QAYSI do'konga token yaratilayotgani aniq tanlanadi.
+              Odatda kerak emas (V1.6c avtomatik beradi QABUL'da) — bu qo'lda-qayta-berish/zaxira yo'li. */}
+          {marketShops.length > 1 && (
+            <select value={sellerShopPick} onChange={(e) => setSellerShopPick(e.target.value ? Number(e.target.value) : "")} style={{ marginRight: 6 }}>
+              <option value="">— do'kon tanlang —</option>
+              {marketShops.map((s) => <option key={s.id} value={s.id}>{s.name}{s.active ? "" : " (faol emas)"}</option>)}
+            </select>
+          )}
+          <button
+            className="btn"
+            title="Faqat Do'kon: mahsulot qo'shish/narx/stock/rasm — boshqa hech narsa ko'rmaydi"
+            disabled={marketShops.length > 1 && sellerShopPick === ""}
+            onClick={async () => {
+              const shopId = marketShops.length > 1 ? (sellerShopPick === "" ? undefined : sellerShopPick) : marketShops[0]?.id;
+              const r = await adminApi.optoken("shopseller", shopId);
+              if (!r.ok) { setMsg2(`⚠️ Xatolik: ${r.error ?? "noma'lum"}`); return; }
+              setMsg2(`🛍 Do'kon-sotuvchi token (faqat bir marta ko'rsatiladi) — link: ${window.location.origin}/?key=${r.token}`);
+              load();
+            }}
+          >🛍 Do'kon-sotuvchi token yaratish</button>
           {msg2 && <p className="muted" style={{ wordBreak: "break-all" }}>{msg2}</p>}
           {optokens.length > 0 && (
             <div style={{ marginTop: 8 }}>
               <p className="muted" style={{ marginBottom: 4 }}>Faol operator-tokenlar ({optokens.length}) — bekor qilsangiz egasi darhol kira olmaydi:</p>
               {optokens.map((t) => (
                 <div key={t.token} style={{ display: "flex", gap: 8, alignItems: "center", padding: "3px 0" }}>
-                  <code style={{ flex: 1, fontSize: 12, opacity: 0.8 }}>{t.token.slice(0, 8)}…{t.token.slice(-4)} · {t.role}</code>
+                  <code style={{ flex: 1, fontSize: 12, opacity: 0.8 }}>{t.token.slice(0, 8)}…{t.token.slice(-4)} · {t.role}{t.shopName ? ` (${t.shopName})` : ""}</code>
                   <button className="btn sm danger" onClick={async () => { await adminApi.optokenRevoke(t.token); load(); }}>🗑 Bekor</button>
                 </div>
               ))}

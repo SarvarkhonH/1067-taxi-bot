@@ -401,6 +401,33 @@ export interface AdminProductRow {
   createdAt: string;
 }
 
+// ── 🔑 V1.6: sotuvchi o'zi-xizmat kirish — do'kon-scoped operator-token mint-yoki-qayta-ishlatish.
+// V1.2 (seller-scope) + V1.3 (/sotuvchi wizard) orasidagi ko'prik: QABUL'dan keyin do'kon endi
+// scope'langan, lekin uni HECH KIM avtomatik bermasdi (owner qo'lda CLI-skript yugurtirishi kerak
+// edi, u ham faqat shop#1'ga). Endi shopId-token markazlashgan yagona joydan chiqadi. Idempotent:
+// bir do'konga har chaqiriqda YANGI token yaratmaydi — mavjudini topib qayta beradi.
+export async function getOrCreateSellerToken(shopId: number): Promise<string> {
+  const value = `shopseller:${shopId}`;
+  const existing = await prisma.appState.findFirst({ where: { key: { startsWith: "oprtoken:" }, value }, select: { key: true } });
+  if (existing) return existing.key.slice("oprtoken:".length);
+  // race-guard: `value` (=shopseller:<shopId>) has no unique constraint of its own (AppState.value
+  // is free-form across many unrelated features), so a naive find-then-create could let two
+  // concurrent callers both mint a DIFFERENT valid token for the same brand-new shop. A
+  // deterministic pointer row `sellertoken:<shopId>` (key IS unique) resolves the race: whichever
+  // caller's `create` wins keeps its token; the loser's create throws P2002, and it re-reads the
+  // winner's token instead of using its own (which it then simply discards, unpersisted).
+  const token = Array.from({ length: 24 }, () => "abcdefghjkmnpqrstuvwxyz23456789"[Math.floor(Math.random() * 31)]).join("");
+  try {
+    await prisma.appState.create({ data: { key: `sellertoken:${shopId}`, value: token } });
+  } catch (e) {
+    if ((e as { code?: string } | null)?.code !== "P2002") throw e;
+    const winner = await prisma.appState.findUnique({ where: { key: `sellertoken:${shopId}` }, select: { value: true } });
+    if (winner) return winner.value; // boshqa chaqiruv g'olib chiqdi — o'zining tokenini eslatmasdan qaytadi
+  }
+  await prisma.appState.create({ data: { key: `oprtoken:${token}`, value } }).catch(() => undefined); // g'olib bo'lsak — haqiqiy auth-qator
+  return token;
+}
+
 // ── 🎠 D1: CategoryDef CRUD (admin) — karusel-ikonka boshqaruvi ─────────────────────────────────
 export interface AdminCategoryRow { id: number; slug: string; name: string; emoji: string; hasIcon: boolean; sortOrder: number; active: boolean; productCount: number }
 
