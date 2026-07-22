@@ -41,6 +41,20 @@ const FAQ: { re: RegExp; a: string }[] = [
   { re: /operator|dispetcher|yordam|help|aloqa/i, a: "☎️ Taksi bo'yicha: 1067 dispetcheriga qo'ng'iroq qiling (24/7). Boshqa savollar — shu yerda yozing, yordam beraman." },
 ];
 
+// 🔀 Pivot detection: while the bot is WAITING for a specific input (a name, an address, a
+// knowledge fact), the user may change their mind and send a DIFFERENT clear request. This
+// spots an unambiguous ACTION intent (not a mere topic word — a fact ABOUT a plumber must NOT
+// pivot) so the wait can be cancelled and the message routed normally instead of mis-captured.
+export function looksLikePivot(text: string): boolean {
+  const t = text.toLowerCase().replace(/[''`]/g, "'").trim();
+  if (t.startsWith("/")) return true; // a command always cancels a capture
+  if (/\b(menga\s+taksi|taksi\s+(kerak|chaqir|yubor|top)|taxi\s+(kerak|chaqir)|mashina\s+(kerak|yubor)|taksi\s+chaqir)\b/.test(t)) return true;
+  if (/\beslat(ib)?\b|\besimdan\s+chiqmasin\b/.test(t)) return true; // reminder request
+  if (/\bbuyurtma\s+qil|ovqat\s+buyurtma|\bsotib\s+ol(moqchiman)?\b/.test(t)) return true;
+  if (/\bqancha\s+ishlat|\bhisobotim\b|\bbalansim\b|\bnaxt\b/.test(t)) return true;
+  return false;
+}
+
 /** Layer 1: pure rules. Never calls the LLM. */
 export function parseIntent(text: string): Intent {
   const t = text.trim();

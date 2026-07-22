@@ -1721,3 +1721,19 @@ real do'kon-rasmi tray-halqada ko'rinadi (avval doim 🏬 emoji edi).
 **Holat:** S1 — READY FOR VERIFICATION. Hali commit/deploy qilinmagan (bu keyingi qadamda).
 S1.2b (foto-hikoya) va S1.4 (profil-hero halqa, adaptatsiya kerak) hamon ochiq — keyingi kichik
 qadamlar, S1'ning asosiy qismini bloklamaydi.
+
+## 2026-07-23 (14) — S1 DEPLOY QILINDI (server+miniapp), bundle-grep bilan isbotlandi
+Commit `9109f2a` → push → CI shield yashil → Render avto-deploy **live**. Miniapp qayta build
++ `vercel deploy --prebuilt --prod` → bundle-grep: "bj-story-tray" YANGI chunkda TOPILDI. Admin
+panelga bu safar o'zgarish yo'q edi — qayta deploy qilinmadi.
+**Holat:** S1 — kod+deploy to'liq tayyor, `shopstory` flag hozircha DARK (owner QABUL kutmoqda).
+D2 ham, S1 ham endi «ready for verification» — ikkalasi ham real telefonda ega tekshiruvini kutadi.
+
+## 2026-07-23 (13) — Pivot-escape: kutish-holatда niyat-o'zgarishi (ega topdi)
+Zaif nuqta: bot biror narsa kutayotganда (/bilim fakt, manzil, ism) odam boshqa aniq so'rov
+yozsa — noto'g'ri ushlanardi (taksi→fakt deb saqlanardi, ism→«taksi kerak» bo'lardi).
+FIX: `looksLikePivot(text)` (intent.ts) — ANIQ amal-niyatni sezadi (taksi kerak/eslat/buyurtma/
+sotib ol/qancha ishlat/command), LEKIN mavzu-so'zni EMAS (fakt «santexnik yaxshi ishlaydi» pivot
+EMAS). 3 joyга qo'shildi: bilim-capture · editName · booking address-wait — pivot bo'lsa sessiyani
+bekor qilib, xabarni odatdagidek yo'naltiradi (next()→agent/booking).
+Isbot: typecheck 0 · pivot-test 8/8 haqiqiy pivot ushlandi, 5/5 fakt/manzil/ism saqlandi.

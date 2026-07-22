@@ -810,6 +810,13 @@ export function registerBooking(bot: Bot, mainMenu: (isDriver?: boolean, tgId?: 
     const s = sessions.get(id);
     const text = ctx.message.text.trim();
     if (s?.awaitingText) {
+      // 🔀 pivot-escape: a clear different request (eslat/buyurtma/hisobot…) while we wait for an
+      // address → drop the wizard and let it route normally instead of failing as "manzil topilmadi".
+      const { looksLikePivot } = await import("../services/ai/intent");
+      if (looksLikePivot(text)) {
+        sessions.delete(id);
+        return next();
+      }
       const results = await resolveAddresses(text);
       if (!results.length) {
         await ctx.reply("Topilmadi. Boshqacha yozib ko'ring:");

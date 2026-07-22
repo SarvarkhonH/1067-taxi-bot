@@ -797,8 +797,9 @@ export function createBot(): Bot {
     const id = String(ctx.from!.id);
     if (!editName.has(id)) return next();
     const name = ctx.message.text.trim();
-    if (name.startsWith("/") || !looksLikeName(name)) {
-      editName.delete(id); // a menu-button tap / command — run it, don't save as name
+    const { looksLikePivot } = await import("../services/ai/intent");
+    if (name.startsWith("/") || looksLikePivot(name) || !looksLikeName(name)) {
+      editName.delete(id); // a menu-button tap / command / clear other-intent — run it, don't save as name
       return next();
     }
     if (name.length < 2 || name.length > 40) {
@@ -1590,9 +1591,13 @@ export function createBot(): Bot {
     const id = String(ctx.from!.id);
     if (!bilimAwaiting.has(id)) return next();
     const text = ctx.message.text.trim();
-    if (text.startsWith("/")) {
+    // 🔀 pivot-escape: if the user changed their mind and sent a clear different request
+    // (taksi/eslat/buyurtma…), cancel the fact-capture and let it route normally.
+    const { looksLikePivot } = await import("../services/ai/intent");
+    if (looksLikePivot(text)) {
       bilimAwaiting.delete(id);
-      return next(); // a command cancels the capture
+      await ctx.reply("ℹ️ Ma'lumot berishni bekor qildim — so'rovingizni bajaraman.");
+      return next();
     }
     bilimAwaiting.delete(id);
     const { submitKnowledge } = await import("../services/ai/knowledgeService");
