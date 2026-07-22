@@ -1533,3 +1533,27 @@ Ega tasdiqi: generic fabrika → bazar/reys/e'lonlar shu tartibda.
   «qoshiq»→bazar, «mashina sotaman»→elon, «Qarshiga reys»→reys. Bazar jonli 111 mahsulotда ishlaydi
   (e'lon/reys bazasi hozir bo'sh — provayder to'g'ri, ma'lumot kelsa ishlaydi).
 Modul flaglari (shop/elonlar/intercity) JONLI ON → deploy'dan keyin AI qamrovi «butun Koson»ga kengayadi.
+
+## 2026-07-23 (6) — D2.2-D2.4 in progress: do'kon-profil backend+admin-panel
+- `shopService.ts`: `getShopProfile`/`updateShopProfile`/`uploadShopPhoto`/`listShopReviews`
+  (barchasi mavjud naqshlarni klonlagan — tgUploadPhoto/listReviews/getMarketHome).
+- `server.ts`: `GET/POST /api/admin/shop/profile` + `POST /api/admin/shop/profile/photo`
+  (requireAdmin+requireShopWrite, sellerShopId-scope avtomatik, owner `?shopId=` bilan) +
+  ommaviy `GET /api/shop/profile/:id` (requireUser, profile+reviews bitta chaqiruvda).
+- Admin: `ShopProfilePanel` (App.tsx) — `ShopAdminView` ichiga kiritildi, story/e'lon/mahalla/
+  muqova-rasm tahrirlaydi.
+**Isbot (qisman):** `tsc --noEmit` 0 xato — shared, server, admin paketlarining har biri alohida.
+QOLDI (D2 tugashi uchun): D2.5 miniapp «Do'kon-profil» ekrani (§2 blueprint) — hozircha `shop.tsx`
+hali eski bo'sh-sarlavha holatida, YANGI ekran ulanmagan. testBazar/testShop regressiya HALI
+YURGIZILMAGAN bu o'zgarishlar bilan. R4 yo'q. Ega QABUL yo'q. **READY FOR VERIFICATION emas —
+in progress.**
+
+## 2026-07-23 (6) — Fuzzy manzil-qidiruv (ega: «harf almashtirsin, qoqilmasin»)
+Jonli rasmda «uyim postgayi tarafga» → «postgayi topilmadi» (dead-end). Sabab: qidiruv faqat
+substring edi. FIX: resolveAddresses (booking.ts) ga fuzzy bosqich — fuzzyNorm (tire/bo'shliq
+olib tashlash) + Levenshtein edit-distance kas katalogi (~111) ustidan, so'z-vs-so'z. Threshold
+~1 harf/3 belgi. Substring/aniq mos har doim birinchi, fuzzy qolgan slotlarni to'ldiradi.
+**Isbot:** typecheck 0 · testAddr 5/5 ×3 jonli katalogda: «shabda»→SHABADA, «post-gai»/«postgayi»
+→POST-GAI (rasm holati), «shabada tarafga»→SHABADA, «obran»→OBRON.
+QOLDI (ega so'radi): discoverability (tugmalar+/bilim tugma+tanishuv), chala'larni to'liq
+(bazar/xizmat buyurtma, Needs v1, bilim admin UI), yangi (ovoz/rasm/guruh — internetdan).

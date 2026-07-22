@@ -73,6 +73,55 @@ function addressQuery(text: string): string {
 function normAddr(s: string): string {
   return s.toLowerCase().replace(/[''`]/g, "'").replace(/\s+/g, " ").trim();
 }
+// Aggressive normalize for FUZZY matching: strip everything but letters/digits so
+// "post-gai" == "postgai" and spacing/punctuation never blocks a match.
+function fuzzyNorm(s: string): string {
+  return s.toLowerCase().replace(/[''`]/g, "").replace(/[^\p{L}\p{N}]+/gu, "");
+}
+// Levenshtein edit distance (bounded; small strings — kas catalog is ~111 names). "shabda"↔
+// "shabada" = 1, "postgayi"↔"postgai" = 1 → a typo/letter-swap still finds the real place.
+function editDistance(a: string, b: string): number {
+  if (a === b) return 0;
+  if (!a.length) return b.length;
+  if (!b.length) return a.length;
+  let prev = Array.from({ length: b.length + 1 }, (_, i) => i);
+  for (let i = 1; i <= a.length; i++) {
+    const cur = [i];
+    for (let j = 1; j <= b.length; j++) {
+      const cost = a[i - 1] === b[j - 1] ? 0 : 1;
+      cur[j] = Math.min(prev[j]! + 1, cur[j - 1]! + 1, prev[j - 1]! + cost);
+    }
+    prev = cur;
+  }
+  return prev[b.length]!;
+}
+// Split a raw string into fuzzy-normalized words (≥2 chars). Keeps word boundaries (unlike
+// fuzzyNorm which strips them) so "shabda tarafga" compares word-vs-word against "Shabada".
+export function fuzzyWords(s: string): string[] {
+  return s
+    .toLowerCase()
+    .replace(/[''`]/g, "")
+    .split(/[^\p{L}\p{N}]+/u)
+    .map((w) => fuzzyNorm(w))
+    .filter((w) => w.length >= 2);
+}
+// Best fuzzy closeness of query words against a place name (0 = exact/substring; higher = farther).
+export function fuzzyDistance(queryWords: string[], name: string): number {
+  const nameNorm = fuzzyNorm(name);
+  const nameWords = fuzzyWords(name);
+  if (!nameNorm || !queryWords.length) return 99;
+  let best = 99;
+  for (const qw of queryWords) {
+    if (qw.length < 3) continue; // 1-2 char tokens ("ga", "da") aren't places
+    if (nameNorm.includes(qw)) return 0; // query word is inside the place name
+    best = Math.min(best, editDistance(qw, nameNorm));
+    for (const nw of nameWords) {
+      if (Math.abs(qw.length - nw.length) > 3) continue;
+      best = Math.min(best, editDistance(qw, nw));
+    }
+  }
+  return best;
+}
 
 // Resolve a typed address to bookable options. The bot used to call kas `byName` only — a curated,
 // narrow list that MISSES many real places ("shabada"). The official rider app also reverse-snaps to
@@ -101,6 +150,25 @@ async function resolveAddresses(query: string): Promise<SavedAddress[]> {
     seen.add(a.id);
     out.push(a);
     if (out.length >= 6) break;
+  }
+  // FUZZY pass — typo/letter-swap tolerant, so "shabda"→Shabada, "post-gai"→postgayi never
+  // dead-end. Only runs to fill remaining slots (exact/substring matches always rank first).
+  if (out.length < 6) {
+    const qWords = fuzzyWords(query);
+    const scored: { a: SavedAddress; d: number }[] = [];
+    for (const a of catalog) {
+      if (seen.has(a.id)) continue;
+      const d = fuzzyDistance(qWords, a.name);
+      const thr = Math.max(1, Math.min(3, Math.floor(fuzzyNorm(query).length * 0.34))); // ~1 per 3 chars
+      if (d <= thr) scored.push({ a, d });
+    }
+    scored.sort((x, y) => x.d - y.d);
+    for (const { a } of scored) {
+      if (seen.has(a.id)) continue;
+      seen.add(a.id);
+      out.push(a);
+      if (out.length >= 6) break;
+    }
   }
   return out;
 }
