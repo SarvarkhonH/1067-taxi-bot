@@ -164,6 +164,9 @@ export const adminApi = {
   banned: () => req<AdminBannedRow[]>("/api/admin/banned"),
   ban: (memberId: number, reason: string) => postJson<{ ok: boolean; message: string }>("/api/admin/ban", { memberId, reason }),
   unban: (memberId: number) => postJson<{ ok: boolean; message: string }>("/api/admin/unban", { memberId }),
+  // 🚫 hard ban — TOTAL bot lockout (bot + Mini App), a level above cash-freeze (ban/unban above)
+  hardBan: (memberId: number, reason: string) => postJson<{ ok: boolean; message: string }>("/api/admin/hardban", { memberId, reason }),
+  hardUnban: (memberId: number) => postJson<{ ok: boolean; message: string }>("/api/admin/hardunban", { memberId }),
   northstar: () =>
     req<{ weekCompleted: number; prevWeekCompleted: number; botShare: number; weeklyActiveRiders: number; coinLiability: number; weekDays: number }>(
       "/api/admin/analytics/northstar",
@@ -410,7 +413,7 @@ export interface AdminWithdrawalRow {
 }
 
 export interface Member360 {
-  member: { id: number; name: string; type: string; coins: number; trips: number; riskFlag: boolean; plusUntil: string | null; tier: string; createdAt: string };
+  member: { id: number; name: string; type: string; coins: number; trips: number; riskFlag: boolean; banned: boolean; plusUntil: string | null; tier: string; createdAt: string };
   rides30: number;
   items: number;
   gap: string | null;
@@ -553,6 +556,8 @@ export interface AdminBannedRow {
   riskNote: string | null;
   trips: number;
   coins: number;
+  hardBanned: boolean; // true = TOTAL bot lockout; false = cash freeze (riskFlag) only
+  banReason: string | null;
 }
 
 export interface PeakHourRow {

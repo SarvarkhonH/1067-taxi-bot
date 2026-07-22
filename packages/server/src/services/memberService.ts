@@ -205,7 +205,7 @@ function normPhone(s: string): string {
 }
 
 export interface LinkResult {
-  status: "linked" | "not_found" | "taken";
+  status: "linked" | "not_found" | "taken" | "banned";
   memberId?: number;
   type?: MemberType;
   fullName?: string;
@@ -328,6 +328,18 @@ export async function linkByPhone(
   }
   // a phone can be both a passenger and a driver — prefer the driver role
   const match = found.find((m) => m.type === "driver") ?? found[0];
+
+  // 🚫 hard-ban evasion guard: this phone belongs to a hard-banned member. Refuse the link (so a NEW
+  // Telegram account can't re-attach to a banned identity) AND add this fresh tgId to the in-memory
+  // ban set, so even the attempt is locked from here on. Checked BEFORE self-register so a banned
+  // person can't route around it via the synthetic-member branch either.
+  if (match) {
+    const { isMemberBanned, markTgBannedIfMemberBanned } = await import("./banService");
+    if (await isMemberBanned(match.id)) {
+      markTgBannedIfMemberBanned(telegramId, true);
+      return { status: "banned" };
+    }
+  }
 
   const base = {
     username: profile.username ?? null,

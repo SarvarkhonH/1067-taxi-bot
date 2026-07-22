@@ -535,7 +535,7 @@ function X360View() {
         </div>
         {m && (
           <div style={{ marginTop: 10 }}>
-            <p><b>{m.member.name}</b> ({m.member.type}) · 🪙 {m.member.coins.toLocaleString("ru-RU")} · {m.member.trips} safar (30 kunda {m.rides30}) {m.member.riskFlag && "· 🚩 RISK"} {m.member.plusUntil && "· 💎Plus"}</p>
+            <p><b>{m.member.name}</b> ({m.member.type}) · 🪙 {m.member.coins.toLocaleString("ru-RU")} · {m.member.trips} safar (30 kunda {m.rides30}) {m.member.banned && "· 🚫 BAN"} {m.member.riskFlag && "· 🚩 RISK"} {m.member.plusUntil && "· 💎Plus"}</p>
             <p className="muted">💎 buyumlar: {m.items} · 👬 gap: {m.gap ?? "—"} · recruit: {m.recruitedByDriver ? `drv#${m.recruitedByDriver}` : "—"} · baholar: {m.ratings}</p>
             <div style={{ maxHeight: 220, overflow: "auto" }}>
               {m.txns.map((t, i) => (
@@ -4327,6 +4327,7 @@ function BanListView() {
   const [showBan, setShowBan] = useState(false);
   const [banId, setBanId] = useState("");
   const [banReason, setBanReason] = useState("");
+  const [banHard, setBanHard] = useState(true); // default = to'liq ban (owner asked for total lockout)
   const [banning, setBanning] = useState(false);
   const load = () => adminApi.banned().then(setRows).catch(() => setRows([]));
   useEffect(() => { load(); }, []);
@@ -4334,18 +4335,21 @@ function BanListView() {
   const ban = async () => {
     const id = Number(banId);
     if (!banId.trim() || !id) { setMsg("❌ Noto'g'ri member ID"); return; }
-    if (!window.confirm(`Member #${id} bloklansinmi?\nSabab: ${banReason.trim() || "admin ban"}`)) return;
+    const kind = banHard ? "TO'LIQ BAN (butun botdan)" : "Naqd muzlatish (faqat pul chiqarish)";
+    if (!window.confirm(`Member #${id} — ${kind}?\nSabab: ${banReason.trim() || "admin ban"}`)) return;
     setBanning(true);
-    const r = await adminApi.ban(id, banReason.trim() || "admin ban").catch(() => ({ ok: false, message: "xato" }));
+    const reason = banReason.trim() || "admin ban";
+    const r = await (banHard ? adminApi.hardBan(id, reason) : adminApi.ban(id, reason)).catch(() => ({ ok: false, message: "xato" }));
     setMsg(r.message);
     setBanning(false);
     if (r.ok) { setBanId(""); setBanReason(""); setShowBan(false); }
     await load();
   };
 
-  const unban = async (id: number, name: string | null) => {
-    if (!window.confirm(`${name ?? `#${id}`} blokini ochishni tasdiqlaysizmi?`)) return;
-    const r = await adminApi.unban(id).catch(() => ({ ok: false, message: "xato" }));
+  const unban = async (id: number, name: string | null, hard: boolean) => {
+    const what = hard ? "to'liq banni" : "naqd muzlatishni";
+    if (!window.confirm(`${name ?? `#${id}`} — ${what} olib tashlaysizmi?`)) return;
+    const r = await (hard ? adminApi.hardUnban(id) : adminApi.unban(id)).catch(() => ({ ok: false, message: "xato" }));
     setMsg(r.message);
     await load();
   };
@@ -4362,12 +4366,21 @@ function BanListView() {
         <button className="btn" onClick={() => setShowBan((v) => !v)}>{showBan ? "✖ Yopish" : "+ Bloklash"}</button>
       </div>
       {showBan && (
-        <div className="adm-form-grid" style={{ marginBottom: 14, maxWidth: 500 }}>
+        <div className="adm-form-grid" style={{ marginBottom: 14, maxWidth: 620 }}>
           <div className="adm-field"><span className="adm-field-label">Member ID</span><input type="number" value={banId} onChange={(e) => setBanId(e.target.value)} placeholder="12345" /></div>
           <div className="adm-field"><span className="adm-field-label">Sabab</span><input value={banReason} onChange={(e) => setBanReason(e.target.value)} placeholder="masalan: firibgarlik shikoyati" /></div>
+          <div className="adm-field" style={{ gridColumn: "1 / -1" }}>
+            <span className="adm-field-label">Daraja</span>
+            <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer" }}>
+              <input type="checkbox" checked={banHard} onChange={(e) => setBanHard(e.target.checked)} />
+              <span>{banHard
+                ? "🚫 To'liq ban — botga umuman kira olmaydi (bot + ilova)"
+                : "🚩 Faqat naqd muzlatish — botdan foydalanadi, lekin pul chiqara olmaydi"}</span>
+            </label>
+          </div>
           <div className="adm-field">
             <span className="adm-field-label">&nbsp;</span>
-            <button className="btn" disabled={banning} onClick={() => void ban()}>{banning ? "Bloklanmoqda…" : "🚫 Bloklash"}</button>
+            <button className="btn" disabled={banning} onClick={() => void ban()}>{banning ? "Bloklanmoqda…" : banHard ? "🚫 To'liq bloklash" : "🚩 Naqd muzlatish"}</button>
           </div>
         </div>
       )}
@@ -4380,7 +4393,7 @@ function BanListView() {
       ) : (
         <div className="table-wrap">
           <table>
-            <thead><tr><th>ID</th><th>Ism</th><th>Telefon</th><th>Tur</th><th>Sabab</th><th className="num">Safar</th><th className="num">Tanga</th><th></th></tr></thead>
+            <thead><tr><th>ID</th><th>Ism</th><th>Telefon</th><th>Tur</th><th>Daraja</th><th>Sabab</th><th className="num">Safar</th><th className="num">Tanga</th><th></th></tr></thead>
             <tbody>
               {filtered.map((r) => (
                 <tr key={r.id} className="row-warn">
@@ -4388,10 +4401,11 @@ function BanListView() {
                   <td className="td-name">{r.fullName ?? "—"}</td>
                   <td className="muted">{r.phone ?? "—"}</td>
                   <td><span className="lvl">{r.type === "driver" ? "🚗" : "🏅"} {r.type}</span></td>
-                  <td className="muted" style={{ fontSize: 12 }}>{r.riskNote ?? "—"}</td>
+                  <td>{r.hardBanned ? <span className="lvl" style={{ background: "#7f1d1d", color: "#fff" }}>🚫 To&apos;liq</span> : <span className="lvl">🚩 Naqd</span>}</td>
+                  <td className="muted" style={{ fontSize: 12 }}>{r.hardBanned ? (r.banReason ?? "—") : (r.riskNote ?? "—")}</td>
                   <td className="num">{r.trips}</td>
                   <td className="num">{formatNumber(r.coins)}</td>
-                  <td><button className="btn sm" onClick={() => unban(r.id, r.fullName)}>Ochish</button></td>
+                  <td><button className="btn sm" onClick={() => unban(r.id, r.fullName, r.hardBanned)}>Ochish</button></td>
                 </tr>
               ))}
             </tbody>

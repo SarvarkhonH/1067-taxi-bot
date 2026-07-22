@@ -578,9 +578,10 @@ export async function adminUnban(memberId: number): Promise<{ ok: boolean; messa
   return { ok: true, message: `✅ #${memberId} blok olib tashlandi` };
 }
 
-export async function getAdminBanned(): Promise<{ id: number; fullName: string | null; phone: string | null; type: string; riskNote: string | null; trips: number; coins: number }[]> {
+export async function getAdminBanned(): Promise<{ id: number; fullName: string | null; phone: string | null; type: string; riskNote: string | null; trips: number; coins: number; hardBanned: boolean; banReason: string | null }[]> {
+  // both control levels in one list: 🚫 hard ban (banned = total lockout) and 🚩 cash freeze (riskFlag)
   const rows = await prisma.member.findMany({
-    where: { riskFlag: true },
+    where: { OR: [{ riskFlag: true }, { banned: true }] },
     orderBy: { updatedAt: "desc" },
   });
   return rows.map((m) => ({
@@ -591,6 +592,8 @@ export async function getAdminBanned(): Promise<{ id: number; fullName: string |
     riskNote: m.riskNote ?? null,
     trips: m.trips,
     coins: m.coins,
+    hardBanned: m.banned,
+    banReason: m.bannedReason ?? null,
   }));
 }
 

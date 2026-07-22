@@ -114,49 +114,22 @@ export function webAppUrl(go?: string): string {
   return u + (u.includes("?") ? "&" : "?") + "v=" + webAppVer + (go ? "&go=" + go : "");
 }
 
-// Clean 2-row menu: booking first, everything else folded into Bonuslar/Ilova.
-// Old button labels keep graceful hears-aliases (Telegram caches keyboards).
-async function mainMenu(isDriver = false, tgId?: string): Promise<Keyboard> {
-  // Taxi ordering = the NEW Mini App flow. The button opens the Mini App straight to
-  // booking (?go=book), not the old bot text flow. Old cached keyboards still send the
-  // text → bot.hears("🚕 Taxi chaqirish") falls back to startBooking (graceful).
+// Minimal 2-button menu (2026-07-23 cleanup — the reply keyboard had grown to 8+ rows across
+// sessions; owner asked to strip it down to the two things people tap constantly: invite-a-friend
+// and call-a-taxi). Everything else (Hamyon/Bonuslar/Reyting/Hisobim/Haydovchiga to'lash/Haydovchi
+// paneli/Xizmatlar) still works exactly as before — just reachable via the Telegram "/" commands
+// menu (setupBotCommands below) or the /menu inline panel, not as a permanent on-screen button.
+// Old cached reply-keyboards on users' phones still fire the old labels — every bot.hears(...) for
+// those labels is left in place on purpose (see the "old cached keyboard" comments below), so
+// nothing breaks for someone who hasn't reopened the keyboard since before this change.
+async function mainMenu(_isDriver = false, _tgId?: string): Promise<Keyboard> {
   const kb = new Keyboard();
-  // Telegram rule (2026-06-29 lesson): reply-keyboard `web_app` buttons are FLAKY on some clients
-  // (older Android, Web Z) — they sometimes open the WebView without initData → user lands on
-  // "Telegram orqali oching". The MENU BUTTON (chat-input chip) and INLINE web_app buttons (under
-  // bot messages) are reliable on every client. So: reply keyboard stays ALL-TEXT, the bot.hears(…)
-  // handlers reply IN-CHAT and append an inline web_app button (renderProfile/missions/etc.) for
-  // users who want to jump into the Mini App. Menu button = single reliable one-tap path to the app.
-  const txt = (label: string): void => { kb.text(label); };
   // Row 0 — TOP CTA: invite a friend (refstaged total 500+500+1000 = 2000 tanga).
-  txt("👥 Do'st chaqirish — +2000 tanga sovg'a");
+  kb.text("👥 Do'st chaqirish — +2000 tanga sovg'a");
   kb.row();
-  // Row 1 — booking entries
-  txt("🚕 Taxi chaqirish");
-  txt("📍 Buyurtmam");
-  kb.row();
-  // Row 2 — map booking entry (bot.hears routes "📍 Lokatsiyali chaqirish" to startBooking too)
-  txt("📍 Lokatsiyali chaqirish");
-  kb.row();
-  // Rows 3-4 — screen shortcuts (text → bot in-chat reply with an inline web_app button)
-  txt("💰 Hamyon");
-  txt("🎁 Bonuslar");
-  kb.row();
-  txt("🏆 Reyting");
-  txt("👤 Hisobim");
-  kb.row();
-  // Row 5 — pay driver (in-chat flow that asks for the car number)
-  txt("🙏 Haydovchiga to'lash");
-  if (isDriver) {
-    kb.row();
-    txt("🚗 Haydovchi paneli");
-  }
-  // 🔎 Xizmatlar: DARK until seed+QABUL — shown to everyone once the flag is ON, to admins
-  // meanwhile (owner-preview, same convention as /api/me's shopPreview/xizmatlarPreview).
-  if ((await featureOn("xizmatlar")) || (tgId && isAdmin(tgId))) {
-    kb.row();
-    txt("🔎 Xizmatlar");
-  }
+  // Row 1 — the one booking entry point. Same label as the historical primary button, so this is
+  // a no-op for anyone whose keyboard was already showing it.
+  kb.text("🚕 Taxi chaqirish");
   // is_persistent → the menu stays pinned open (app-like nav); placeholder → modern input hint
   return kb.resized().persistent().placeholder("Menyudan tanlang yoki manzilni yozing…");
 }
@@ -1497,7 +1470,7 @@ export function createBot(): Bot {
   // 🔎 XIZMATLAR — tap → prompt → next text = search query → top-5 inline (phone tappable-to-call
   // on mobile via Telegram's own auto-linkify, no unofficial tel: URI needed). DARK until the flag
   // is ON; admins get an owner-preview (same convention as the Mini App tab / mainMenu row above).
-  bot.hears("🔎 Xizmatlar", async (ctx) => {
+  const showXizmatlar = async (ctx: Context): Promise<void> => {
     const id = String(ctx.from!.id);
     if (!(await featureOn("xizmatlar")) && !isAdmin(id)) {
       await ctx.reply("🔎 Xizmatlar bo'limi tez orada ochiladi!");
@@ -1508,7 +1481,9 @@ export function createBot(): Bot {
       "🔎 <b>Nima kerak?</b> Yozing — masalan: <i>santexnik</i>, <i>sartarosh</i>, <i>sement</i>…",
       { parse_mode: "HTML", reply_markup: new InlineKeyboard().webApp("🚀 To'liq katalog — Mini App", webAppUrl("xizmat")) },
     );
-  });
+  };
+  bot.hears("🔎 Xizmatlar", showXizmatlar); // old cached keyboard (button removed from mainMenu 2026-07-23)
+  bot.command("xizmatlar", showXizmatlar);
   bot.on("message:text", async (ctx, next) => {
     const id = String(ctx.from!.id);
     if (!svcSearchWait.has(id)) return next();
@@ -1989,25 +1964,42 @@ export async function setupBotCommands(bot: Bot): Promise<void> {
   // ALL of this is best-effort boot cosmetics (command menu + menu button). A transient Telegram
   // network blip during a deploy must NEVER become an unhandledRejection that alerts/crashes.
   try {
+  // 2026-07-23: reply-keyboard was trimmed to 2 buttons (Do'st chaqirish + Taxi chaqirish — see
+  // mainMenu() above). Everything that used to live as a permanent on-screen button now lives
+  // here, in Telegram's native "/" commands list, so nothing lost reachability. Owner/admin-only
+  // commands (/kod, /admin, /dash, /orders, /elon, /bekor, /photo_clear, /rasmsorov) stay OUT of
+  // this public list on purpose — they still work when typed, just aren't advertised.
   await bot.api.setMyCommands([
     { command: "start", description: "Botni boshlash / profil" },
     { command: "menu", description: "📋 Menyu (barcha bo'limlar)" },
     { command: "book", description: "🚕 Taxi chaqirish" },
     { command: "status", description: "📍 Buyurtmam holati" },
+    { command: "tarix", description: "🧾 Safarlar tarixi" },
+    { command: "me", description: "💰 Hamyon / profil" },
+    { command: "account", description: "👤 Hisobim & sozlamalar" },
+    { command: "invite", description: "👥 Do'st taklif qilish" },
+    { command: "missions", description: "🎁 Bonuslar (vazifalar)" },
     { command: "daily", description: "🔥 Kunlik bonus" },
     { command: "wheel", description: "🎡 Omad g'ildiragi" },
     { command: "baraban", description: "🎰 Safar barabani (yutuq)" },
-    { command: "missions", description: "🎯 Vazifalar (mukofot)" },
-    { command: "invite", description: "👥 Do'st taklif qilish" },
-    // /naxt (cash-out) lives in the Mini App now (Hamyon → 💵 Naxt pulga). The bot command still
-    // works as a hidden fallback, but it's off the slash menu so the app is the single visible path.
-    { command: "narx", description: "🚖 Narx va cashback" },
+    { command: "top", description: "🏆 Reyting" },
+    { command: "xizmatlar", description: "🔎 Xizmatlar (usta, sartarosh va h.k.)" },
     { command: "rahmat", description: "🙏 Haydovchiga choychaqa" },
     { command: "haydovchi", description: "🚖 Mashina raqami bo'yicha haydovchiga to'lash" },
+    { command: "naxt", description: "💵 Tangani naqd pulga aylantirish" },
+    { command: "narx", description: "🚖 Narx va cashback" },
+    // driver-facing — visible to everyone (Telegram has no per-user command list here), but
+    // harmless to a non-driver: each handler just says "siz haydovchi emassiz" or similar.
+    { command: "driver", description: "🚗 Haydovchi paneli" },
+    { command: "safarlarim", description: "📜 Haydovchi: bugungi safarlar" },
+    { command: "daromad", description: "💰 Haydovchi: bugungi daromad" },
+    { command: "daraja", description: "🏅 Haydovchi: daraja / reyting" },
     { command: "topshiriq", description: "🎯 Haydovchi topshiriqlari" },
-    { command: "me", description: "💰 Hamyon / profil" },
-    { command: "account", description: "👤 Hisobim & sozlamalar" },
-    { command: "top", description: "Reyting" },
+    { command: "qarz", description: "💸 Kas qarzini tanga bilan to'lash" },
+    { command: "reys", description: "🚐 Shaharlararo reys" },
+    // marketplace (BirJoy) — seller-facing.
+    { command: "sotuvchi", description: "🏪 Do'kon ochish (sotuvchi bo'lish)" },
+    { command: "dokonim", description: "🏪 Mening do'konim (panel havolasi)" },
     { command: "help", description: "ℹ️ Yordam" },
   ]);
 

@@ -70,6 +70,16 @@ async function main(): Promise<void> {
     }
   }
   await reapStaleSyncs(60 * 60_000).catch(() => undefined); // boot cleanup (>1h)
+  // 🚫 arm the hard-ban gate BEFORE the server accepts traffic — the bot + API check an in-memory
+  // set that must be populated from the DB at boot (a restart would otherwise let banned users back
+  // in until the first toggle re-seeds it).
+  try {
+    const { loadBans } = await import("./services/banService");
+    const n = await loadBans();
+    console.log(`[ban] hard-ban gate armed — ${n} banned tg id(s)`);
+  } catch (e) {
+    console.error("[ban] loadBans failed:", e instanceof Error ? e.message : e);
+  }
 
   let bot: Bot | null = null;
   const notifyBadges = async () => {
