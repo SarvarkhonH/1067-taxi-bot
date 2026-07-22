@@ -1431,3 +1431,16 @@ commit/push/deploy → ega telefon-QABUL (aibrain+aicity pilot).
 - **E2E 14/14 yashil** (P1 4 + eslatma 3 + hisob 1 + do'st 3 + K1-shahar 3): city_search
   (restoran «osh»), city_order (2×osh + manzil parse), city_status — hammasi to'g'ri route.
 **QOLDI:** 3× ket-ket yashil (yugurmoqda) → commit/push/deploy → ega telefon-QABUL.
+
+## 2026-07-22 (yakun) — commit f835bdb push + FULL-DARK deploy posture
+- 3× ket-ket E2E 14/14 · butun unit-batareya yashil (timeParse 27, calc 16, memory 8,
+  reminder 13, city 12) · regressiya yo'q (featureFlags + testRestoran yashil) · typecheck 0.
+- Commit f835bdb push qilindi (faqat AI-fayllar; boshqa birovning ishlagan fayllari
+  cashout/backup/intercity/restoranService TEGILMADI). DB sxema (Reminder+MemberMemory)
+  allaqachon jonli (ongli db push qadami — deploy migratsiya talab qilmaydi).
+- **BARCHA yangi flaglar OFF** (airemind/aihisob/aidost/aicity + aibrain) → deploy 100% DARK,
+  mijozlarga hech narsa ko'rinmaydi. Gemini pullik kaliti Render'da to'g'ri nomda.
+**QOLGAN YAGONA ISH — EGA PILOTI:** deploy chiqqach, ega o'z telefonida yoqib sinaydi:
+  setFlag aibrain on + airemind on + aihisob on + aidost on + aicity on (har biri alert beradi).
+  Sinov: dardlashish · «ertaga 7 da bozorga taksi, eslat» · «bu oy qancha ishlatdim» ·
+  «osh buyurtma qil, manzil…». Yoqsa — QABUL, flaglar yoniq qoladi. Yoqmasa — bir buyruq OFF.
