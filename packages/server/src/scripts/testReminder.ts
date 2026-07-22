@@ -26,8 +26,8 @@ async function main(): Promise<void> {
   await cleanup();
   const in10 = new Date(Date.now() + 10 * 60_000);
 
-  // validation walls
-  check("<5 daqiqa rad", !(await createReminder(FAKE_MEMBER, TAG_TG, "test", new Date(Date.now() + 60_000))).ok);
+  // validation walls — 30s is safely BELOW the 1-min floor (60_000 was flaky exactly at the boundary)
+  check("<1 daqiqa rad", !(await createReminder(FAKE_MEMBER, TAG_TG, "test", new Date(Date.now() + 30_000))).ok);
   check(">30 kun rad", !(await createReminder(FAKE_MEMBER, TAG_TG, "test", new Date(Date.now() + 31 * 86400_000))).ok);
   check("bo'sh matn rad", !(await createReminder(FAKE_MEMBER, TAG_TG, "   ", in10)).ok);
 
