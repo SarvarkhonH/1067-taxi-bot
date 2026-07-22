@@ -173,6 +173,43 @@ K5.2 (to'liq Intent Engine + Life Graph) — Bible darvozasi ochilguncha (2027-2
 (keyword-retrieval; KB kichik bo'lsa hammasi, katta bo'lsa top-8) orqali agent system-prompt'iga.
 Maxfiylik: ommaviy shahar-bilimi, PII emas, pul yo'q. Kunlik limit 5/odam.
 
+## 💡 NEEDS ENGINE (aineeds) — proaktiv AI, EHTIYOTKOR v0 (qurildi, DARK)
+AI odam ODATLARINI sezib, o'zi birinchi yumshoq taklif yozadi. **Halol persuasion, aldov YO'Q**
+(Bible §12.3 «ishonch kompaniyasi» — kichik shaharда aldov = block). Qurilgan v0 triggerlar:
+- **T1 Habit-safar** (ertalab): oxirgi 4 haftaда bir kun ≥3× safar → o'sha kuni «Odatda [kun]
+  yo'lga chiqasiz — taksi tayyor turaymi?» — perfect timing + personalization.
+- **T2 Referral-urug'** (tushda): ≥3 safar qilgan, hech kim chaqirmagan → «Do'st chaqiring,
+  2000+ tanga» — halol value-framing.
+Guardrail (real mijozga xabar — eng ehtiyot): mavjud push (kunlik 2 + opt-out + tun 21-08 + dedup)
++ **haftalik 2 cap** + har xabarда **[🔕 Bunday yozma]** (bir bosishда butun proaktivni o'chiradi).
+Yangi poller YO'Q (mavjud tick). Isbot: testNeeds 6/6 ×3 (opt-out/dedup/kunlik-cap/haftalik-cap).
+
+### Persuasion texnikalari (halol, Hooked modeli — Bible §12)
+Trigger→amal→o'zgaruvchan mukofot→investitsiya · loss-aversion (halol: «bepul g'ildiragingiz
+yo'qolmasin») · social proof («qo'shnilaringiz ishlatyapti») · reciprocity · perfect timing ·
+individual personalization. **QILINMAYDI:** soxta shoshilinch, yolg'on, zaiflikdan foydalanish.
+
+## 🗺 TO'LIQ ROADMAP — nima qurildi, nima qoldi (2026-07-23)
+### ✅ Qurilgan (jonli/DARK, test bilan)
+Yadro (Gemini→Groq, Kimi ixtiyoriy) · rules-first · taksi-agent · eslatma · hisob/kalkulyator ·
+do'st+xotira · shahar-agent (restoran buyurtma + xizmat qidiruv) · jamoaviy bilim (/bilim→ega→AI) ·
+niyat-taxmin · «uyim» · maslahat-persona · Needs Engine v0 · BirJoy brend.
+
+### 🔜 Qolgan ish (ustuvorlik bilan)
+1. **Needs Engine v1** — AI-generatsiya shaxsiy xabar (LLM, Koson-shevasi), ko'proq trigger
+   (hamyon/do'kon, tashlab ketilgan savat, ob-havo «yomg'ir — taksi?», bayram), A/B: qaysi ishlaydi.
+2. **Generic katalog-fabrikasi** — yangi qidiriladigan modul = ~10 qator config (adapter shart emas).
+3. **Bazar + reys + e'lonlar** provayderlari (fabrika ustidan tez).
+4. **Xizmat-buyurtma** — ustani ilova ichida band (hozir faqat qo'ng'iroq).
+5. **To'liq tavsiya** — agent qidiruv natijasini KO'RIB, aniq bitta joyni nomi+sababi bilan tavsiya.
+6. **Ovoz** — odam yozmasdan gapiradi (Bible §17.6 «soatidan gapiradi»).
+7. **Admin panel UI** — bilim-moderatsiya (API tayyor, UI qoldi) + AI-analitika (nima konversiya
+   qiladi, xarajat).
+8. **Butun bot BirJoy rebrend** — /start, admin, haydovchi matnlari.
+9. **Kimi A/B baho** — kalit qo'yilgach sifat+narx solishtiruv.
+10. **K5.2 Intent Engine** (Bible darvozasi 2027-28) — «to'yim bor» → ko'p-xizmat yig'ish.
+11. **Life Graph** (Bible §17.5, gated) — sen→mashina→usta→benzin bog'langan tugunlar.
+
 ## Founder Bible bilan bog'lanish (BirJoy_Founder_Bible_v2, 19.07.2026)
 Bu reja Bible §17 (City OS) ning AI qatlamini amalga oshiradi: §17.3 Mahalliy Google = K1
 shahar_qidir · §17.4 Intent Engine = K5.2 (darvozali) · §17.5 Memory/Life Graph/Personal

@@ -360,6 +360,10 @@ async function main(): Promise<void> {
       // Postgres so'rov/iteratsiya, kas'ga 0 so'rov, claim-first (dispatchScheduled naqshi).
       const { deliverDueReminders } = await import("./services/ai/reminderService");
       await deliverDueReminders(bot).catch((e) => console.error("[reminder] deliver failed:", e));
+      // 💡 Needs Engine (aineeds, yangi poller YO'Q): proaktiv shaxsiy taklif — o'z guardrail'i
+      // (kunlik 2 + haftalik 2 + opt-out + tun-soatlari + tor oyna) ichida, flag OFF bo'lsa darrov qaytadi.
+      const { needsEngineTick } = await import("./services/ai/needsEngine");
+      await needsEngineTick(bot).catch((e) => console.error("[needs] tick failed:", e));
     }
     // 🚖 SMS-parity speed: while a rider is WAITING for a driver, poll every 5s so "Haydovchi
     // topildi" lands in seconds like the kas SMS. Assigned / in-trip → 15s (arrival is WS-instant).

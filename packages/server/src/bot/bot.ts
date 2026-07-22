@@ -1610,6 +1610,14 @@ export function createBot(): Bot {
     await ctx.answerCallbackQuery(runAt ? "😴 15 daqiqadan keyin yana eslataman" : "Eslatma topilmadi");
   });
 
+  // 💡 Needs Engine opt-out — one tap turns off ALL proactive push (reuses the notify-off setting)
+  bot.callbackQuery("needs:off", async (ctx) => {
+    const memberId = await getMemberId(String(ctx.from.id));
+    if (memberId) await (await import("../services/notifyService")).setNotifyOff(memberId, true);
+    await ctx.answerCallbackQuery("🔕 Bo'ldi — bunday xabarlarni to'xtatdim");
+    await ctx.editMessageReplyMarkup({ reply_markup: undefined }).catch(() => undefined);
+  });
+
   // 🏙 Koson AI shahar-buyurtma tasdiqlash (K1 yadro kafolati: provider execute() FAQAT
   // shu ✅ tap orqali chaqiriladi). Payload transient (restart = qayta so'rash, xolos).
   const pendingCity = new Map<string, { provider: string; payload: string }>();

@@ -86,13 +86,17 @@ export const FEATURES = [
   "aibilim",  // 🧠 Koson AI: jamoaviy bilim (Business Registry urug'i) — odamlar /bilim orqali Koson
               // haqida ma'lumot yozadi, EGA tasdiqlaydi (owner-card + admin API), tasdiqlangani AI
               // system-prompt kontekstiga (keyword-retrieval) kiradi. Pul YO'Q. DARK until QABUL.
+  "aineeds",  // 💡 Needs Engine (K5.1): AI odam ODATLARINI sezib, o'zi BIRINCHI yumshoq taklif yozadi
+              // (habit-safar / referral / hamyon). EHTIYOTKOR: mavjud push-guardrail (kunlik 2 cap,
+              // opt-out, tun-soatlari, dedup) + haftalik 2 cap + [🔕 to'xtat]. Halol persuasion,
+              // aldov YO'Q. Koson-shevasi shablonlar. Yangi poller YO'Q. DARK until owner QABUL.
 ] as const;
 export type FeatureName = (typeof FEATURES)[number];
 
 // Off until explicitly enabled (go-live flip = setFeature(name, true) after owner QABUL).
 // booking3 = the new map/trip flow; owner still gets a preview via server.ts owner-branch,
 // but real users stay on the (fixed) classic flow until it's accepted. A missing row → OFF.
-const DEFAULT_OFF = new Set<FeatureName>(["booking3", "livinghome", "aibrain", "mahalla", "tolqin", "baraban", "komissiya", "qarz", "welcomebonus", "refstaged", "drvstaged", "drvrecruit", "drvpush", "promo", "clientbooking", "cashout", "carupgrade", "intercity", "tierloyalty", "waitcomp", "trackcta", "jackpotpost", "drvrank", "instantstatus", "spinreminder", "shop", "xizmatlar", "elonlar", "elontop", "restoran", "bazar", "bazarcart", "shopcashback", "revtanga", "airemind", "aihisob", "aidost", "aicity", "aibilim"]);
+const DEFAULT_OFF = new Set<FeatureName>(["booking3", "livinghome", "aibrain", "mahalla", "tolqin", "baraban", "komissiya", "qarz", "welcomebonus", "refstaged", "drvstaged", "drvrecruit", "drvpush", "promo", "clientbooking", "cashout", "carupgrade", "intercity", "tierloyalty", "waitcomp", "trackcta", "jackpotpost", "drvrank", "instantstatus", "spinreminder", "shop", "xizmatlar", "elonlar", "elontop", "restoran", "bazar", "bazarcart", "shopcashback", "revtanga", "airemind", "aihisob", "aidost", "aicity", "aibilim", "aineeds"]);
 
 let cache: { at: number; map: Record<string, boolean> } = { at: 0, map: {} };
 

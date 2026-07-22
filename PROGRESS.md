@@ -1488,3 +1488,14 @@ Jonli suhbatда «uyimga taxi yubor» → «uyimga topilmadi» (joy deb qidirdi
 - System-prompt: uy-so'zlarni tushunish + NIYAT-TAXMIN qoidasi qo'shildi.
 **Isbot:** typecheck 0 · isHomeRef 8/8 (real joylar false) · agent-taxmin: «tez ketishim
 kerak»→taksi, «qornim ochdi»→ovqat, «uy jihozi buzildi»→usta, «uyimga»→book(uyimga)→1-tap.
+
+## 2026-07-23 (4) — 💡 Needs Engine v0 (aineeds, DARK) + to'liq roadmap
+Ega: proaktiv AI (ehtiyotkor) + halol kuchli psixologiya + Koson-shevasi + «nima qoldi» reja.
+- `needsEngine.ts`: T1 habit-safar (haftalik naqsh, perfect-timing) + T2 referral-urug' (halol
+  value). Guardrail: mavjud push (kunlik 2 + opt-out + tun 21-08 + dedup) + haftalik 2 cap +
+  [🔕 needs:off] bir-bosishда to'liq o'chirish. Mavjud tick'ga ulandi (yangi poller YO'Q).
+  Halol persuasion (Hooked/loss-aversion/social-proof/timing) — aldov EMAS (Bible §12.3).
+- Isbot: typecheck 0 · testNeeds 6/6 ×3 (opt-out/dedup/kunlik-cap/haftalik-cap/stop-tugma).
+- KOSON_AI_PLAN.md: to'liq roadmap (qurilgan + 11 qolgan ish, ustuvorlik bilan).
+QOLDI: commit/push/deploy · aineeds DARK qoladi — ega xabar-matnlarini ko'rib, o'zi yoqadi
+(real mijozga proaktiv — eng ehtiyot qadam). Needs Engine v1 (LLM-shaxsiy xabar) keyingi.
