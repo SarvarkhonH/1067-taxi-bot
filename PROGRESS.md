@@ -1572,3 +1572,12 @@ bir xil oqim). `voiceService.ts`: Telegram voice → Gemini audio-transkripsiya 
 → runAiText. aibrain-gated. Xato bo'lsa «yozib yuboring» deydi. GEMINI_API_KEY qayta ishlatiladi
 (alohida STT yo'q). Isbot: typecheck 0 (jonli ovoz-test — ega ovoz yuboradi).
 QOLDI: chala'larni to'liq (B) — bazar/xizmat buyurtma, Needs v1, bilim admin UI.
+
+## 2026-07-23 (9) — B boshlandi: bazar BUYURTMA to'liq (chala→to'liq) + FAQ-bug fix
+- FAQ «qayer» bug tuzatildi (book-niyati o'g'irlanmaydi) — parseIntent test bilan.
+- bazarProvider'ga order/execute qo'shildi (restoran naqshi): AI mahsulot TAVSIYA qiladi +
+  tanga bilan XARID qiladi (mavjud buyProduct oqimi), tasdiqlash-karta + human ✅ tap +
+  ega-xabar (notifyOwnerShop). Manzil talab. Pul-invariant: ✅ bosilmaguncha tanga ketmaydi.
+  Isbot: typecheck 0 · order-card (manzilsiz→so'raydi, manzil bilan→ConfirmCard) · agent yo'naltiradi.
+Eslatma: xizmat/e'lon/reys — qo'ng'iroq/band-qilish modeli (chala emas, shunday to'g'ri).
+QOLGAN B: Needs Engine v1 (AI-shaxsiy matn) · bilim admin-panel UI (frontend).
