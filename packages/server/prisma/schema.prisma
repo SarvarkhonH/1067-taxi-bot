@@ -45,6 +45,12 @@ model Member {
   rideStartedAt      DateTime? // first sweep sighting of status "started" — ride meter (guess + garage)
   riskFlag           Boolean   @default(false) // freezes the withdraw door only; coins stay spendable
   riskNote           String?
+  // 🚫 HARD ban — TOTAL lockout from the whole product (Telegram bot + Mini App API). Distinct from
+  // riskFlag (which only freezes the cash door): a banned member cannot open the bot, book, play,
+  // earn, spend or transfer at all. Enforced at both entry gates via an in-memory set (banService).
+  banned             Boolean   @default(false)
+  bannedAt           DateTime?
+  bannedReason       String?
   // 📷 driver portrait — synced from this user's Telegram profile photo (file_id stays valid forever
   // for the bot that fetched it). Resolved to a fresh URL on demand by /api/driver-photo/:memberId
   // (Telegram file URLs themselves have short TTL — the file_id is the durable handle).
@@ -931,6 +937,21 @@ model MemberMemory {
   createdAt DateTime @default(now())
 
   @@index([memberId, createdAt])
+}
+
+// 🧠 Koson AI jamoaviy bilim (feature "aibilim"). Odamlar Koson haqida fakt yozadi (/bilim),
+// EGA tasdiqlaydi; tasdiqlangan faktlar AI system-prompt kontekstiga keyword-retrieval bilan
+// kiradi. Bible §17.2 Business Registry urug'i. Pul YO'Q; PII emas — ommaviy shahar-bilimi.
+model AiKnowledge {
+  id          Int       @id @default(autoincrement())
+  text        String // fakt, ≤500 belgi
+  submittedBy String // telegramId (kim yubordi)
+  status      String    @default("pending") // pending | approved | rejected
+  moderatedBy String? // owner telegramId
+  createdAt   DateTime  @default(now())
+  moderatedAt DateTime?
+
+  @@index([status, createdAt])
 }
 
 // 👨‍👩‍👧 I.3: family booking targets (max 3, validated at create).

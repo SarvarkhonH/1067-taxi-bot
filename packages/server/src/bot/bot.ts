@@ -54,6 +54,7 @@ import {
 } from "./render";
 import { getFareConfig } from "../services/clientInfoService";
 import { markSeen } from "../services/presence";
+import { isTgBanned } from "../services/banService";
 
 const canWebApp = env.TELEGRAM_WEBAPP_URL.startsWith("https://");
 
@@ -179,9 +180,16 @@ function esc(s: string): string {
   return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 }
 
+// 🧠 /bilim — "AI'ga ma'lumot ber" one-shot capture: tgId → awaiting the next text as a fact.
+const bilimAwaiting = new Set<string>();
+
 // 🔑 in-flight "link a different number via 1067 code" sessions. No phone yet → awaiting the
 // number; phone set → awaiting the 4-digit code. Transient (in-memory) by design.
 const codeLink = new Map<string, { phone?: string }>();
+// 🚫 hard-ban notice throttle: last time we told a banned tgId they're blocked (so a flood of
+// messages yields at most one reply per window, not one per message).
+const banNoticeAt = new Map<string, number>();
+const BAN_NOTICE_THROTTLE_MS = 6 * 3600_000; // 6h
 // telegramIds currently typing a new display name (✏️ from the account screen). Transient by design.
 const editName = new Set<string>();
 // telegramIds awaiting a preferred name right after first link (auto-ask on join).
@@ -230,6 +238,24 @@ export function createBot(): Bot {
 
   bot.catch((err) => console.error("[bot] error:", err.error));
 
+  // 🚫 HARD-BAN gate — runs FIRST, before presence and every handler. A banned Telegram id gets a
+  // single terse notice (throttled so a message-flood can't spam them / us) and the update is
+  // dropped: next() is NOT called, so no command, callback or wizard step ever executes for them.
+  bot.use(async (ctx, next) => {
+    const fid = ctx.from?.id ? String(ctx.from.id) : null;
+    if (fid && isTgBanned(fid)) {
+      const now = Date.now();
+      const last = banNoticeAt.get(fid) ?? 0;
+      if (now - last > BAN_NOTICE_THROTTLE_MS) {
+        banNoticeAt.set(fid, now);
+        if (banNoticeAt.size > 10_000) banNoticeAt.clear(); // bound memory
+        await ctx.reply("🚫 Hisobingiz bloklangan. Bot xizmatlaridan foydalanolmaysiz.\nSavol bo'lsa: 1067").catch(() => undefined);
+      }
+      return; // update dropped — no handler runs
+    }
+    await next();
+  });
+
   // 🟢 presence: stamp a TRUE last-seen on every genuine inbound update (throttled, fire-and-forget).
   // Runs before all handlers; the honest source for the admin "online" column.
   bot.use(async (ctx, next) => {
@@ -242,6 +268,7 @@ export function createBot(): Bot {
     codeLink.delete(id); // /start cancels any pending "link a different number" flow
     payDriver.delete(id); // …and the "pay a driver by car number" flow
     editName.delete(id); // …and a pending "edit my name" flow
+    bilimAwaiting.delete(id); // …and a pending /bilim capture
     pendingNameAfterLink.delete(id);
     await touchTelegramUser(id, profileOf(ctx.from!));
     // referral deep link: t.me/<bot>?start=ref_<code> ("reft_" = same code arriving via a shared
@@ -427,6 +454,8 @@ export function createBot(): Bot {
           })
           .catch(() => undefined);
       }
+    } else if (res.status === "banned") {
+      await ctx.reply("🚫 Bu raqam bloklangan. Bot xizmatlaridan foydalanolmaysiz.\nSavol bo'lsa: 1067");
     } else if (res.status === "taken") {
       await ctx.reply(renderTaken(), { parse_mode: "HTML" });
     } else {
@@ -669,6 +698,8 @@ export function createBot(): Bot {
           })
           .catch(() => undefined);
       }
+    } else if (res.status === "banned") {
+      await ctx.reply("🚫 Bu raqam bloklangan. Bot xizmatlaridan foydalanolmaysiz.\nSavol bo'lsa: 1067");
     } else if (res.status === "taken") {
       await ctx.reply("⚠️ Bu raqam allaqachon boshqa akkauntga ulangan. 1067 support bilan bog'laning.");
     } else {
@@ -1382,6 +1413,20 @@ export function createBot(): Bot {
     await ctx.reply(renderHelp(), { parse_mode: "HTML", reply_markup: await mainMenu(false, String(ctx.from?.id ?? "")) });
   });
 
+  // 🧠 /bilim — jamoaviy bilim: odam Koson haqida ma'lumot yozadi → ega tasdiqlaydi → AI biladi
+  bot.command("bilim", async (ctx) => {
+    const id = String(ctx.from!.id);
+    if (!(await featureOn("aibilim"))) {
+      await ctx.reply("🧠 Bu imkoniyat tez orada ishga tushadi.");
+      return;
+    }
+    bilimAwaiting.add(id);
+    await ctx.reply(
+      "🧠 <b>Koson AI'ga ma'lumot bering</b>\n\nKoson haqida biror foydali fakt yozing — masalan «Chilla basseyn juma kuni yopiq», «Do'stlik ko'chasidagi 24 soatlik dorixona». Ega tasdiqlagach, AI shu ma'lumotni biladi.\n\n✍️ Endi ma'lumotingizni yozing (yoki /bekor):",
+      { parse_mode: "HTML" },
+    );
+  });
+
   bot.command("admin", async (ctx) => {
     const id = String(ctx.from!.id);
     if (!isAdmin(id)) {
@@ -1501,6 +1546,7 @@ export function createBot(): Bot {
   registerMarket(bot); // 🏪 /sotuvchi — BirJoy seller-onboarding wizard (DARK vitrina → ega tasdiqlaydi). Session-gated text capture → registered before booking.
   registerDriverDebt(bot); // /qarz — pay kas debt with tanga (gated behind `qarz` flag). No login: uses the member's already-linked plate.
   registerDriverReports(bot); // /safarlarim + /daromad (read-only driver reports)
+  void import("./aiKnowledge").then(({ registerAiKnowledge }) => registerAiKnowledge(bot)); // 🧠 AI-bilim owner ✅/❌ (callback-only → lazy-register order-safe)
   registerBooking(bot, mainMenu);
 
   // 🤖 AI-1 rules-first free text: runs AFTER booking's own text handler
@@ -1514,6 +1560,28 @@ export function createBot(): Bot {
       void prisma.supportMsg.create({ data: { telegramId: id, direction: "in", text: text.slice(0, 1000) } }).catch(() => undefined);
     }
     return next();
+  });
+
+  // 🧠 /bilim capture — consumes the NEXT free-text as a knowledge fact → owner moderation card.
+  // Registered before booking/AI so a submission isn't treated as an address or an AI query.
+  bot.on("message:text", async (ctx, next) => {
+    const id = String(ctx.from!.id);
+    if (!bilimAwaiting.has(id)) return next();
+    const text = ctx.message.text.trim();
+    if (text.startsWith("/")) {
+      bilimAwaiting.delete(id);
+      return next(); // a command cancels the capture
+    }
+    bilimAwaiting.delete(id);
+    const { submitKnowledge } = await import("../services/ai/knowledgeService");
+    const name = [ctx.from?.first_name, ctx.from?.last_name].filter(Boolean).join(" ") || "Anonim";
+    const r = await submitKnowledge(id, text, name);
+    if (!r.ok) {
+      await ctx.reply(`⚠️ ${r.reason ?? "Saqlanmadi"}`);
+      return;
+    }
+    await ctx.reply("✅ Rahmat! Ma'lumotingiz egaga yuborildi. Tasdiqlangach, Koson AI uni biladi. 🧠");
+    if (r.notice) await (await import("./aiKnowledge")).notifyOwnerKnowledge(bot, r.notice).catch(() => undefined);
   });
 
   // 🔔 AI reminder confirm-cards: the agent NEVER creates a reminder silently — it parks the

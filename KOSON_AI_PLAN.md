@@ -143,6 +143,36 @@ Flaglar: aidost (do'st-rejim) · aicity (yadro master-gate) · aigraf (K5.1 Life
 hammasi aibrain ostida + har provider o'z modul-flagi.
 K5.2 (to'liq Intent Engine + Life Graph) — Bible darvozasi ochilguncha (2027-2028) faqat rejada.
 
+## 📍 HOLAT va QADAMLAR — «to'liq kuchli Koson AI» (2026-07-23)
+
+### ✅ QURILGAN (jonli, test bilan)
+- **Yadro:** Gemini Flash (pullik) → Groq zaxira, tool-calling. Rules-first (80% LLM'siz).
+- **Taksi-agent:** chaqirish, holat, balans + suhbat-xotira.
+- **Eslatma:** «ertaga 7 da / 3 daqiqadan keyin» — deterministik parser, sweep-yetkazish.
+- **Hisob-kitob:** oylik hisobot + LLM'siz kalkulyator.
+- **Do'st-rejim + xotira:** dardlashish + «eslab qol/unut» (MemberMemory).
+- **Shahar-agent (K1):** provider-registry — restoran (buyurtma) + xizmat (139 usta, qidiruv).
+- **🧠 Jamoaviy bilim (aibilim):** /bilim → odam yozadi → EGA tasdiqlaydi (owner-card + admin API)
+  → AI grounding. Isbot: yuborilgan fakt tasdiqlangach AI «Zilola oshxonasi 6:00 da ochiladi»
+  deb javob berdi. testBilim 10/10 ×3.
+- Brend: BirJoy (Koson AI); 1067 faqat taksida.
+
+### 🔜 QADAMLAR (ustuvorlik tartibida)
+1. **Generic katalog-fabrikasi** — yangi qidiriladigan modul = ~10 qator config (adapter shart emas).
+   Kelajakni yengil qiladi: «ertaga funksiya qo'shilsa AI o'zidan biladi».
+2. **Bazar-provayderi** — do'kon/mahsulot qidiruv+xarid (mavjud buy-oqim).
+3. **Reys + e'lonlar provayderlari** — fabrika ustidan tez.
+4. **K5.1 Needs Engine** — odatlarni sezish + opt-in proaktiv taklif (Bible §17.5).
+5. **Xizmat-buyurtma** — ustani ilova ichida band qilish (hozir faqat qo'ng'iroq).
+6. **Butun bot BirJoy rebrend** — /start, admin, haydovchi matnlari.
+7. **K5.2 Intent Engine** (Bible darvozasi 2027-2028) — «to'yim bor» → ko'p-xizmat yig'ish.
+
+### Bilim-oqimi (aibilim) — qanday ishlaydi
+`/bilim` → odam Koson-fakt yozadi → `AiKnowledge(pending)` → egaga owner-card [✅]/[❌]
+(yoki admin panel: GET/POST /api/admin/knowledge) → tasdiqlangan fakt `relevantKnowledge`
+(keyword-retrieval; KB kichik bo'lsa hammasi, katta bo'lsa top-8) orqali agent system-prompt'iga.
+Maxfiylik: ommaviy shahar-bilimi, PII emas, pul yo'q. Kunlik limit 5/odam.
+
 ## Founder Bible bilan bog'lanish (BirJoy_Founder_Bible_v2, 19.07.2026)
 Bu reja Bible §17 (City OS) ning AI qatlamini amalga oshiradi: §17.3 Mahalliy Google = K1
 shahar_qidir · §17.4 Intent Engine = K5.2 (darvozali) · §17.5 Memory/Life Graph/Personal

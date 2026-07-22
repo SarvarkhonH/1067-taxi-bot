@@ -307,6 +307,12 @@ export async function runAgent(memberId: number, telegramId: string, text: strin
     const notes = await recallNotes(memberId).catch(() => null);
     if (notes) system += `\n\nMijoz haqida avvalgi suhbatlardan eslab qolganlaring:\n${notes}`;
   }
+  if (forceTools || (await featureOn("aibilim"))) {
+    // owner-vetted community knowledge about Koson (Business Registry) → grounds the answer
+    const { relevantKnowledge } = await import("./knowledgeService");
+    const facts = await relevantKnowledge(text).catch(() => null);
+    if (facts) system += `\n\nKoson haqida tasdiqlangan bilim (shu asosda javob ber, o'ylab TOPMA):\n${facts}`;
+  }
 
   try {
     // Provider chain: Gemini Flash (PAID tier — stable, no 429) → Groq 70b (free backup).

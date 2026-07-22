@@ -1467,3 +1467,16 @@ Ega hammani yoqib sinadi. Agent chindan ishladi (BirJoy ovozi, dardlashish, gree
    tushirildi (reminderService + timeParse). Yetkazish sweep bilan ±90s.
 Isbot: typecheck 0 · timeParse 28/28 · city 14/14 (xizmat basseyn qo'shildi) · reminder 13/13.
 Flaglar JONLI ON (ega pilot davom etyapti). Deploy: bu tuzatishlar push→live bo'ladi.
+
+## 2026-07-23 (2) — 🧠 Jamoaviy bilim (aibilim): odam yozadi → ega tasdiqlaydi → AI biladi
+Ega talabi: «botga AI uchun ma'lumot berish joyi — odamlar yozsin, admin paneldan qabul qilsam
+AI bilimida tursin». Qurildi (Bible §17.2 Business Registry urug'i):
+- `AiKnowledge` model (db push) · `knowledgeService.ts` (submit/moderate/list/delete +
+  relevantKnowledge keyword-retrieval: KB≤15 hammasi, katta bo'lsa top-8).
+- Bot: `/bilim` → bir martalik matn-capture → owner-card [✅/❌] (`aiKnowledge.ts`, xizmatlar
+  naqshi). Tasdiq/rad → yuboruvchiga xabar. Kunlik 5/odam limit.
+- Admin panel API: GET /api/admin/knowledge · POST /:id/moderate · DELETE /:id.
+- Agent: tasdiqlangan faktlar system-prompt'ga grounding (aibilim flag; test-seam bilan ham).
+**Isbot:** typecheck 0 · testBilim 10/10 ×3 · grounding E2E: yuborilgan fakt tasdiqlangach agent
+«Zilola oshxonasi ertalab 6:00 da ochiladi» deb JAVOB BERDI (faktdan). Barcha reja KOSON_AI_PLAN.md.
+QOLDI: commit/push/deploy · aibilim ON (pilot) · keyingi qadamlar (generic fabrika → bazar → ...).

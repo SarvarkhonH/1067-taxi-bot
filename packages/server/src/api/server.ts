@@ -36,6 +36,7 @@ import { getFareConfig } from "../services/clientInfoService";
 import { callOneTapFor, cancelBookingFor, createBookingFor, estimateFare, getActiveBookingFor, getBookingInfo, getRecentPickups, nearestAddressFor, searchBookingAddress } from "../services/bookingService";
 import type { BookingCreateBody, BookingNowBody, GeoPt } from "@t1067/shared";
 import { validateInitData } from "./telegramAuth";
+import { isTgBanned } from "../services/banService";
 import { featureOn } from "../services/featureFlags";
 
 export interface ApiOptions {
@@ -89,6 +90,12 @@ function requireUser(req: Request, res: Response, next: NextFunction): void {
   const id = resolveTelegramId(req);
   if (!id) {
     res.status(401).json({ error: "unauthorized" });
+    return;
+  }
+  // 🚫 hard-ban gate: a banned Telegram id is locked out of EVERY Mini App endpoint (O(1) in-memory
+  // set, no DB hit). Mirrors the bot-side gate — total product lockout, distinct from riskFlag.
+  if (isTgBanned(id)) {
+    res.status(403).json({ error: "banned" });
     return;
   }
   res.locals.telegramId = id;
@@ -1416,6 +1423,22 @@ export function createApiServer(opts: ApiOptions = {}) {
     await alertAdmins(`⚙️ <b>Flag o'zgardi (admin-panel):</b> <code>${b.name}</code> → ${b.on !== false ? "✅ ON" : "⛔ OFF"}`).catch(() => undefined);
     res.json({ ok: true, features: await listFeatures() });
   });
+  // 🧠 Koson AI jamoaviy bilim — moderatsiya (admin panel: pending ro'yxat, tasdiqlash/rad/o'chirish).
+  app.get("/api/admin/knowledge", requireAdmin, async (req, res) => {
+    const { listByStatus } = await import("../services/ai/knowledgeService");
+    const status = (["pending", "approved", "rejected"] as const).find((s) => s === req.query.status) ?? "pending";
+    res.json({ status, items: await listByStatus(status) });
+  });
+  app.post("/api/admin/knowledge/:id/moderate", requireAdmin, requireOwner, rateLimit(30), async (req, res) => {
+    const { moderate } = await import("../services/ai/knowledgeService");
+    const r = await moderate(Number(req.params.id), (req.body as { approve?: boolean })?.approve !== false, String(res.locals.telegramId));
+    res.json(r);
+  });
+  app.delete("/api/admin/knowledge/:id", requireAdmin, requireOwner, rateLimit(30), async (req, res) => {
+    const { deleteKnowledge } = await import("../services/ai/knowledgeService");
+    res.json(await deleteKnowledge(Number(req.params.id)));
+  });
+
   // 🎁 Acquisition bonuses — owner sets first-ride / referral / recruit / driver→driver amounts live.
   app.get("/api/admin/bonus-economy", requireAdmin, async (_req, res) => {
     const { BONUS_ECON_KNOBS } = await import("@t1067/shared");
@@ -1763,7 +1786,7 @@ export function createApiServer(opts: ApiOptions = {}) {
       prisma.rideRating.count({ where: { memberId: m.id } }),
     ]);
     res.json({
-      member: { id: m.id, name: m.fullName, type: m.type, coins: m.coins, trips: m.trips, riskFlag: m.riskFlag, plusUntil: m.plusUntil, tier: m.driverTier, createdAt: m.createdAt },
+      member: { id: m.id, name: m.fullName, type: m.type, coins: m.coins, trips: m.trips, riskFlag: m.riskFlag, banned: m.banned, plusUntil: m.plusUntil, tier: m.driverTier, createdAt: m.createdAt },
       rides30,
       items,
       gap: gap ? gap.gap.name : null,
@@ -2295,6 +2318,21 @@ body{font-family:Arial,sans-serif;background:#eee;-webkit-print-color-adjust:exa
     if (!memberId) { res.status(400).json({ ok: false, message: "memberId kerak" }); return; }
     const { adminUnban } = await import("../services/adminOps");
     res.json(await adminUnban(memberId));
+  });
+
+  // 🚫 HARD ban — TOTAL bot lockout (bot + Mini App), a level above /ban (which only freezes cash).
+  app.post("/api/admin/hardban", requireAdmin, requireOwner, rateLimit(20), async (req, res) => {
+    const { memberId, reason } = req.body as { memberId: number; reason?: string };
+    if (!memberId) { res.status(400).json({ ok: false, message: "memberId kerak" }); return; }
+    const { banMember } = await import("../services/banService");
+    res.json(await banMember(memberId, reason ?? "admin ban", "panel"));
+  });
+
+  app.post("/api/admin/hardunban", requireAdmin, requireOwner, rateLimit(20), async (req, res) => {
+    const { memberId } = req.body as { memberId: number };
+    if (!memberId) { res.status(400).json({ ok: false, message: "memberId kerak" }); return; }
+    const { unbanMember } = await import("../services/banService");
+    res.json(await unbanMember(memberId, "panel"));
   });
 
   app.get("/api/admin/withdrawals-tab", requireAdmin, async (req, res) => {

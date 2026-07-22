@@ -83,13 +83,16 @@ export const FEATURES = [
   "aicity",   // 🏙 Koson AI K1: universal shahar-agent yadrosi (shahar_qidir/buyurtma/holat +
               // provider-registry). Har provider O'Z modul-flagiga ham bog'liq (ikki qavatli gate);
               // buyurtma faqat tasdiqlash-karta + human-tap bilan. DARK until owner QABUL.
+  "aibilim",  // 🧠 Koson AI: jamoaviy bilim (Business Registry urug'i) — odamlar /bilim orqali Koson
+              // haqida ma'lumot yozadi, EGA tasdiqlaydi (owner-card + admin API), tasdiqlangani AI
+              // system-prompt kontekstiga (keyword-retrieval) kiradi. Pul YO'Q. DARK until QABUL.
 ] as const;
 export type FeatureName = (typeof FEATURES)[number];
 
 // Off until explicitly enabled (go-live flip = setFeature(name, true) after owner QABUL).
 // booking3 = the new map/trip flow; owner still gets a preview via server.ts owner-branch,
 // but real users stay on the (fixed) classic flow until it's accepted. A missing row → OFF.
-const DEFAULT_OFF = new Set<FeatureName>(["booking3", "livinghome", "aibrain", "mahalla", "tolqin", "baraban", "komissiya", "qarz", "welcomebonus", "refstaged", "drvstaged", "drvrecruit", "drvpush", "promo", "clientbooking", "cashout", "carupgrade", "intercity", "tierloyalty", "waitcomp", "trackcta", "jackpotpost", "drvrank", "instantstatus", "spinreminder", "shop", "xizmatlar", "elonlar", "elontop", "restoran", "bazar", "bazarcart", "shopcashback", "revtanga", "airemind", "aihisob", "aidost", "aicity"]);
+const DEFAULT_OFF = new Set<FeatureName>(["booking3", "livinghome", "aibrain", "mahalla", "tolqin", "baraban", "komissiya", "qarz", "welcomebonus", "refstaged", "drvstaged", "drvrecruit", "drvpush", "promo", "clientbooking", "cashout", "carupgrade", "intercity", "tierloyalty", "waitcomp", "trackcta", "jackpotpost", "drvrank", "instantstatus", "spinreminder", "shop", "xizmatlar", "elonlar", "elontop", "restoran", "bazar", "bazarcart", "shopcashback", "revtanga", "airemind", "aihisob", "aidost", "aicity", "aibilim"]);
 
 let cache: { at: number; map: Record<string, boolean> } = { at: 0, map: {} };
 
