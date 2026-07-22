@@ -1444,3 +1444,14 @@ commit/push/deploy → ega telefon-QABUL (aibrain+aicity pilot).
   setFlag aibrain on + airemind on + aihisob on + aidost on + aicity on (har biri alert beradi).
   Sinov: dardlashish · «ertaga 7 da bozorga taksi, eslat» · «bu oy qancha ishlatdim» ·
   «osh buyurtma qil, manzil…». Yoqsa — QABUL, flaglar yoniq qoladi. Yoqmasa — bir buyruq OFF.
+
+## 2026-07-22 (yakun-2) — Brend tuzatildi: AI = BirJoy (Koson AI), 1067 faqat taksida
+Ega tuzatishi: BirJoy — brend/mahsulot; 1067 — shunchaki taksi dispetcher raqami (bitta modul),
+identity EMAS. AI system-promptlar endi «BirJoy / Koson AI»; mexanik «☎️ Operator: 1067» footer
+barcha AI/FAQ javoblaridan olib tashlandi; 1067 faqat taksi savolida chiqadi. «1067 Plus» →
+«BirJoy Plus». AI_TEST_FORCE_TOOLS test-seam (jonli flagga tegmasdan routing tekshiriladi).
+Reja: K5 (Life Graph + Needs Engine) Founder Bible §17.4/17.5 asosida qo'shildi; K5.2 darvozali.
+Isbot: typecheck 0 · E2E 14/14 (BirJoy ovozi, routing butun) · barcha AI-flag jonli DB'da OFF.
+Commit aabe4f8 (lokal — push kutilyapti). Deploy hamon DARK bo'lib qoladi.
+NB: bot.ts'ning TAKSI/onboarding qismida hali «1067 taxi» matnlari bor (/start tanishuv, admin,
+haydovchi taklifi) — bu ALOHIDA, kattaroq «butun bot BirJoy rebrend» ishi (ega qaroriga).
