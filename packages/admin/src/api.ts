@@ -228,6 +228,15 @@ export const adminApi = {
   shopOrders: (status?: string) => req<{ orders: ShopAdminOrderRow[] }>(`/api/admin/shop/orders${status ? `?status=${status}` : ""}`),
   shopReviews: () => req<{ reviews: ShopAdminReviewRow[] }>("/api/admin/shop/reviews"),
   shopReviewDelete: (id: number) => req<{ ok: boolean }>(`/api/admin/shop/reviews/${id}`, { method: "DELETE" }),
+  // 🏪 D2: do'kon-profil (story/e'lon/mahalla/muqova-rasm) — owner ?shopId= bilan ko'rsatadi
+  shopProfile: (shopId?: number) =>
+    req<{ profile: { id: number; name: string; open: boolean; neighborhood: string | null; deliveryText: string | null; story: string | null; announcement: string | null; hasPhoto: boolean; avgRating: number; reviewCount: number } }>(
+      `/api/admin/shop/profile${shopId ? `?shopId=${shopId}` : ""}`,
+    ),
+  shopProfileSave: (patch: { story?: string; announcement?: string; neighborhood?: string }, shopId?: number) =>
+    postJson<{ ok: boolean }>("/api/admin/shop/profile", shopId ? { ...patch, shopId } : patch),
+  shopProfilePhotoUpload: (mime: string, base64: string, shopId?: number) =>
+    postJson<{ ok: boolean }>("/api/admin/shop/profile/photo", shopId ? { mime, base64, shopId } : { mime, base64 }),
   // 🎠 BirJoy kategoriya-karusel boshqaruvi (owner-only)
   shopCats: () => req<{ cats: { id: number; slug: string; name: string; emoji: string; hasIcon: boolean; sortOrder: number; active: boolean; productCount: number }[] }>("/api/admin/shop/categories"),
   shopCatCreate: (name: string, emoji?: string) => postJson<{ ok: boolean; id?: number; error?: string }>("/api/admin/shop/categories", { name, emoji }),
@@ -271,6 +280,10 @@ export const adminApi = {
   svcSetPrices: (id: number, items: { label: string; priceSom: number }[]) => postJson<{ ok: boolean; count: number }>(`/api/admin/services/${id}/prices`, { items }),
   svcPhotoUpload: (id: number, mime: string, base64: string) => postJson<{ ok: boolean; error?: string; photoCount?: number }>(`/api/admin/services/${id}/photo`, { mime, base64 }),
   svcPhotoClear: (id: number) => req<{ ok: boolean }>(`/api/admin/services/${id}/photo`, { method: "DELETE" }),
+  // 🧠 Koson AI jamoaviy bilim — moderatsiya (odam yozadi → ega tasdiqlaydi → AI biladi)
+  aiKnowledgeList: (status = "pending") => req<{ status: string; items: { id: number; text: string; submittedBy: string; createdAt: string }[] }>(`/api/admin/knowledge?status=${status}`),
+  aiKnowledgeModerate: (id: number, approve: boolean) => postJson<{ ok: boolean }>(`/api/admin/knowledge/${id}/moderate`, { approve }),
+  aiKnowledgeDelete: (id: number) => req<{ ok: boolean }>(`/api/admin/knowledge/${id}`, { method: "DELETE" }),
   // 📋 e'lonlar (E3) — approve/reject FAQAT Telegram orqali; panel = read + edit/rasm/o'chirish/arxivla/uzayt/TOP
   elonList: (status?: string) => req<AdminClassifiedListResponse>(`/api/admin/elonlar${status ? `?status=${status}` : ""}`),
   elonViewers: (id: number) => req<{ viewers: AdminAdViewerRow[] }>(`/api/admin/elonlar/${id}/viewers`),

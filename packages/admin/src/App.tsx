@@ -31,7 +31,7 @@ import {
 } from "@t1067/shared";
 import { adminApi, clearAdminToken, hasAdminToken, setAdminToken, type AdminBannedRow, type AdminChatConvo, type AdminChatMsg, type AdminDebtRow, type AdminMsgHistoryRow, type AdminRatingRow, type AdminTxnRow, type AdminBlockedRow, type AdminReferralRow, type AdminRideRow, type AdminUserRow, type AdminWithdrawalRow, type AdminWithdrawalTabRow, type CampaignRow, type Driver360, type DriverCallRow, type DriverCallStats, type DriverMissionRow, type IntercityAdminTrip, type IntercityAdminDebt, type Member360, type PeakHourRow, type ShopAdminProductRow, type ShopAdminOrderRow, type ShopAdminReviewRow, type SvcAdminRow, type SvcAdminCat, type SvcAdminReview, type RestoranAdminRow, type RestoranMenuItemRow } from "./api";
 
-type Tab = "overview" | "pulse" | "analytics" | "finance" | "live" | "x360" | "driver" | "client" | "botusers" | "obzvon" | "boshqaruv" | "topshiriq" | "actions" | "integrity" | "audit" | "safarlar" | "qarzlar" | "referallar" | "banlist" | "yechishlar" | "baholar" | "xabar" | "chat" | "broadcasts" | "intercity" | "pik" | "transactions" | "blocked" | "shop" | "xizmatlar" | "elonlar" | "restoran";
+type Tab = "overview" | "pulse" | "analytics" | "finance" | "live" | "x360" | "driver" | "client" | "botusers" | "obzvon" | "boshqaruv" | "topshiriq" | "actions" | "integrity" | "audit" | "safarlar" | "qarzlar" | "referallar" | "banlist" | "yechishlar" | "baholar" | "xabar" | "chat" | "broadcasts" | "intercity" | "pik" | "transactions" | "blocked" | "shop" | "xizmatlar" | "elonlar" | "restoran" | "bilim";
 
 const NAV_GROUPS: { label: string; items: { id: Tab; icon: string; label: string }[] }[] = [
   {
@@ -88,6 +88,7 @@ const NAV_GROUPS: { label: string; items: { id: Tab; icon: string; label: string
       { id: "xizmatlar", icon: "🔎", label: "Xizmatlar" },
       { id: "elonlar", icon: "📋", label: "E'lonlar" },
       { id: "restoran", icon: "🍽", label: "Restoran" },
+      { id: "bilim", icon: "🧠", label: "AI Bilim" },
       { id: "pik", icon: "🔥", label: "Pik Vaqtlar" },
       { id: "actions", icon: "⚡", label: "Amallar" },
       { id: "topshiriq", icon: "🎯", label: "Topshiriqlar" },
@@ -218,6 +219,7 @@ export function App() {
           {tab === "xizmatlar" && <XizmatlarAdminView />}
           {tab === "elonlar" && <ElonlarAdminView />}
           {tab === "restoran" && (<><RestoranAdminView /><RestoranCatalogAdminView /></>)}
+          {tab === "bilim" && <KnowledgeAdminView />}
           {tab === "topshiriq" && <><QuickAnnounceView /><CampaignsView /><DriverMissionsView /></>}
           {tab === "actions" && <><ActionsView onHistory={() => goTab("broadcasts")} /><ControlCards /></>}
           {tab === "integrity" && <IntegrityView />}
@@ -1397,6 +1399,62 @@ function AuditView() {
   );
 }
 
+// ─── 🧠 AI Bilim — jamoaviy bilim moderatsiya (odam yozadi → ega tasdiqlaydi → AI biladi) ──
+function KnowledgeAdminView() {
+  const [status, setStatus] = useState<"pending" | "approved" | "rejected">("pending");
+  const [items, setItems] = useState<{ id: number; text: string; submittedBy: string; createdAt: string }[] | null>(null);
+  const [busy, setBusy] = useState(false);
+  const load = (s: "pending" | "approved" | "rejected") => {
+    setItems(null);
+    adminApi.aiKnowledgeList(s).then((r) => setItems(r.items)).catch(() => setItems([]));
+  };
+  useEffect(() => { load(status); }, [status]);
+  const moderate = async (id: number, approve: boolean) => { setBusy(true); await adminApi.aiKnowledgeModerate(id, approve).catch(() => undefined); setBusy(false); load(status); };
+  const del = async (id: number) => { if (!confirm("Bu ma'lumot butunlay o'chirilsinmi?")) return; setBusy(true); await adminApi.aiKnowledgeDelete(id).catch(() => undefined); setBusy(false); load(status); };
+  return (
+    <section className="panel">
+      <div className="panel-title">🧠 AI Bilim — jamoaviy bilim moderatsiya</div>
+      <div style={{ display: "flex", gap: 8, marginBottom: 12, flexWrap: "wrap" }}>
+        {(["pending", "approved", "rejected"] as const).map((s) => (
+          <button key={s} className={"btn sm" + (status === s ? " active" : "")} onClick={() => setStatus(s)}>
+            {s === "pending" ? "⏳ Kutilmoqda" : s === "approved" ? "✅ Tasdiqlangan" : "❌ Rad etilgan"}
+          </button>
+        ))}
+      </div>
+      {!items ? (
+        <div className="screen center"><div className="spinner" /></div>
+      ) : items.length === 0 ? (
+        <div className="muted">Bo'sh.</div>
+      ) : (
+        <div className="table-wrap">
+          <table>
+            <thead><tr><th>Ma'lumot</th><th>Yubordi</th><th>Sana</th><th>Amal</th></tr></thead>
+            <tbody>
+              {items.map((it) => (
+                <tr key={it.id}>
+                  <td>{it.text}</td>
+                  <td className="muted">{it.submittedBy}</td>
+                  <td className="muted">{fmtTime(it.createdAt)}</td>
+                  <td style={{ whiteSpace: "nowrap" }}>
+                    {status === "pending" && (
+                      <>
+                        <button className="btn sm" disabled={busy} onClick={() => moderate(it.id, true)}>✅</button>{" "}
+                        <button className="btn sm" disabled={busy} onClick={() => moderate(it.id, false)}>❌</button>{" "}
+                      </>
+                    )}
+                    <button className="btn sm" disabled={busy} onClick={() => del(it.id)}>🗑</button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+      <div className="muted" style={{ marginTop: 10, fontSize: 12 }}>✅ Tasdiqlangan ma'lumotlarni Koson AI biladi va foydalanuvchilarga aytadi.</div>
+    </section>
+  );
+}
+
 // ─── members / bot users (existing, lightly wrapped) ────────────────────────
 function MembersTab({ type }: { type: "driver" | "client" }) {
   const [stats, setStats] = useState<AdminStats | null>(null);
@@ -1546,6 +1604,82 @@ function shopDraftFromRow(p: ShopAdminProductRow): ShopDraft {
   };
 }
 
+// 🏪 D2: do'kon-profil tahrirlash — story/e'lon/mahalla/muqova-rasm (ShopAdminView'ga kiritiladi).
+function ShopProfilePanel() {
+  const [profile, setProfile] = useState<{ id: number; name: string; neighborhood: string | null; story: string | null; announcement: string | null; hasPhoto: boolean; avgRating: number; reviewCount: number } | null>(null);
+  const [story, setStory] = useState("");
+  const [announcement, setAnnouncement] = useState("");
+  const [neighborhood, setNeighborhood] = useState("");
+  const [msg, setMsg] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  const load = () => {
+    adminApi.shopProfile().then((r) => {
+      setProfile(r.profile);
+      setStory(r.profile.story ?? "");
+      setAnnouncement(r.profile.announcement ?? "");
+      setNeighborhood(r.profile.neighborhood ?? "");
+    }).catch(() => undefined);
+  };
+  useEffect(() => { load(); }, []);
+
+  const save = async () => {
+    setSaving(true);
+    const r = await adminApi.shopProfileSave({ story, announcement, neighborhood }).catch((e: Error) => ({ ok: false as const, error: e.message }));
+    setMsg(r.ok ? "✅ Saqlandi" : "❌ Saqlanmadi");
+    setSaving(false);
+    load();
+  };
+
+  const uploadCover = () => {
+    const input = document.createElement("input");
+    input.type = "file";
+    input.accept = "image/*";
+    input.onchange = () => {
+      const f = input.files?.[0];
+      if (!f) return;
+      if (f.size > 5 * 1024 * 1024) { setMsg("❌ Rasm 5MB dan kichik bo'lsin"); return; }
+      const reader = new FileReader();
+      reader.onload = async () => {
+        const base64 = String(reader.result).split(",")[1] ?? "";
+        const r = await adminApi.shopProfilePhotoUpload(f.type || "image/jpeg", base64).catch((e: Error) => ({ ok: false as const, error: e.message }));
+        setMsg(r.ok ? "✅ Muqova-rasm yangilandi" : "❌ Rasm yuklanmadi");
+        load();
+      };
+      reader.readAsDataURL(f);
+    };
+    input.click();
+  };
+
+  if (!profile) return null;
+
+  return (
+    <section className="panel">
+      <div className="panel-title">🏪 Do&apos;kon-profil</div>
+      <p className="muted" style={{ marginTop: 0 }}>
+        Mijozlar «{profile.name}» sahifasida shu ma&apos;lumotlarni ko&apos;radi. ⭐ {profile.avgRating || "—"} ({profile.reviewCount} sharh){profile.hasPhoto ? "" : " · muqova-rasm hali yo'q"}
+      </p>
+      <div className="adm-form-grid">
+        <div className="adm-field"><span className="adm-field-label">&nbsp;</span><button onClick={uploadCover}>🖼 Muqova-rasm yuklash</button></div>
+        <div className="adm-field"><span className="adm-field-label">Mahalla</span><input value={neighborhood} onChange={(e) => setNeighborhood(e.target.value)} placeholder="Testón MFY" maxLength={40} /></div>
+        <div className="adm-field" style={{ gridColumn: "1 / -1" }}>
+          <span className="adm-field-label">Bugungi e&apos;lon (mijozlarga ko&apos;rinadi)</span>
+          <input value={announcement} onChange={(e) => setAnnouncement(e.target.value)} placeholder="Bugun yangi partiya keldi" maxLength={120} />
+        </div>
+        <div className="adm-field" style={{ gridColumn: "1 / -1" }}>
+          <span className="adm-field-label">Biz haqimizda</span>
+          <textarea value={story} onChange={(e) => setStory(e.target.value)} maxLength={600} rows={3} placeholder="Necha yildan beri, nima bilan shug'ullanasiz..." />
+        </div>
+        <div className="adm-field">
+          <span className="adm-field-label">&nbsp;</span>
+          <button onClick={save} disabled={saving}>{saving ? "Saqlanmoqda…" : "💾 Saqlash"}</button>
+        </div>
+      </div>
+      {msg && <p className="muted">{msg}</p>}
+    </section>
+  );
+}
+
 function ShopAdminView() {
   const [data, setData] = useState<{ products: ShopAdminProductRow[]; enabled: boolean; pendingOrders: number } | null>(null);
   const [orders, setOrders] = useState<ShopAdminOrderRow[] | null>(null);
@@ -1647,6 +1781,7 @@ function ShopAdminView() {
 
   return (
     <>
+      <ShopProfilePanel />
       <section className="panel">
         <div className="panel-title">🛍 Do&apos;kon</div>
         <p className="muted" style={{ marginTop: 0 }}>

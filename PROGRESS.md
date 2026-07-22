@@ -1589,3 +1589,11 @@ buzuq/ro'yxatsimon bo'lsa SHABLONGA qaytadi. maxOutputTokens 1024 (kam bo'lsa ke
 Namunalar: «Juma muborak... taksingizni taxt qilib berishga tayyorman», «...jo'rangizni taklif
 qilsangiz 2000 dan oshiq tanga barakasi, oshnangizga ham sovg'a» — tabiiy, sheva, halol.
 Isbot: typecheck 0 · testNeeds 6/6 ×3 · AI-namuna finishReason STOP (kesilmaydi). aineeds DARK.
+
+## 2026-07-23 (11) — Admin UI: AI Bilim moderatsiya tab (B tugadi)
+Admin-panelга «🧠 AI Bilim» tab: pending/approved/rejected ro'yxat + ✅ Tasdiqlash / ❌ Rad /
+🗑 O'chirish (mavjud /api/admin/knowledge endpointlari). api.ts + App.tsx (Tab-tur, NAV, view).
+Isbot: admin typecheck 0 · vite build muvaffaqiyatli. Server-API allaqachon jonli (aibilim commit).
+NB: admin FRONTEND alohida Vercel-deploy talab qiladi (kod tayyor+build). Telegram owner-card
+moderatsiya baribir ishlaydi (ega telefondan tasdiqlaydi) — admin-UI qo'shimcha surface.
+B YAKUNI: bazar-buyurtma ✅ · Needs v1 ✅ · admin-UI ✅ (Vercel-deploy qoldi).
