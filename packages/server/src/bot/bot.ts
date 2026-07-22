@@ -1694,6 +1694,9 @@ export function createBot(): Bot {
   // is the user's message (typed or spoken); everything downstream is identical.
   const runAiText = async (ctx: Context, rawText: string): Promise<void> => {
     const tgId = String(ctx.from!.id);
+    // 🤖 real-agent feel: show "typing…" immediately so the user sees BirJoy is working in the
+    // background (Telegram-native; expires ~5s which comfortably covers our LLM+DB round-trip).
+    void ctx.replyWithChatAction("typing").catch(() => undefined);
     // AI/FAQ replies mirror into SupportMsg (direction "out") — gives the agent its
     // conversation memory AND lets the owner audit answer quality from the DB.
     const saveOut = (t: string): void =>
@@ -1854,20 +1857,24 @@ export function createBot(): Bot {
           if (prov) {
             const { InlineKeyboard } = await import("grammy");
             if (r.action.type === "city_search") {
+              // 🤖 real-agent narration: "🔍 …qidiryapman…" → EDITED into the result (one message)
+              const busy: Record<string, string> = { restoran: "🍽 Ovqatlarni", xizmat: "🔎 Ustalarni", bazar: "🛒 Do'kondan", elon: "📋 E'lonlardan", reys: "🚐 Reyslarni" };
+              const work = await ctx.reply(`${busy[r.action.provider] ?? "🔍"} «${esc(r.action.query)}» bo'yicha qidiryapman…`, { parse_mode: "HTML" }).catch(() => null);
+              const editOrReply = async (text: string, kb?: InlineKeyboard): Promise<void> => {
+                if (work) await ctx.api.editMessageText(work.chat.id, work.message_id, text, { parse_mode: "HTML", reply_markup: kb }).catch(() => undefined);
+                else await ctx.reply(text, { parse_mode: "HTML", reply_markup: kb }).catch(() => undefined);
+              };
               const cards = await prov.search(r.action.query).catch(() => []);
               if (!cards.length) {
                 const t = `😕 «${r.action.query}» bo'yicha hech narsa topilmadi. Boshqacha yozib ko'ring.`;
-                await ctx.reply(t);
+                await editOrReply(t);
                 saveOut(t);
                 return;
               }
               const kb = new InlineKeyboard();
               for (const c of cards) for (const b of c.buttons ?? []) kb.text(b.text, b.data).row();
               const body = cards.map((c, i) => `${i + 1}) <b>${esc(c.title)}</b>${c.subtitle ? `\n    ${esc(c.subtitle)}` : ""}`).join("\n");
-              await ctx.reply(`🔎 Mana topilganlari:\n${body}\n\nBuyurtma uchun yozing: masalan «2 ta ${esc(cards[0]!.title.split(" — ")[0] ?? "")}, manzil: ...»`, {
-                parse_mode: "HTML",
-                reply_markup: kb.inline_keyboard.length ? kb : undefined,
-              });
+              await editOrReply(`🔎 Mana topilganlari:\n${body}\n\nBuyurtma uchun yozing: masalan «2 ta ${esc(cards[0]!.title.split(" — ")[0] ?? "")}, manzil: ...»`, kb.inline_keyboard.length ? kb : undefined);
               // PUBLIC catalog facts back into history — the agent's next turn sees real options
               saveOut(`🔎 Topildi (${r.action.provider}): ${cards.map((c) => `${c.title}${c.subtitle ? ` (${c.subtitle})` : ""}`).join("; ")}`);
               return;
@@ -1949,6 +1956,7 @@ export function createBot(): Bot {
     const tgId = String(ctx.from!.id);
     if (!(await featureOn("aibrain"))) return; // voice AI rides the master agent flag
     try {
+      void ctx.replyWithChatAction("typing").catch(() => undefined); // "🎤 tinglayapman…" feel
       const { transcribeVoice } = await import("../services/ai/voiceService");
       const file = await ctx.getFile();
       const text = await transcribeVoice(file.file_path ?? "");

@@ -1737,3 +1737,34 @@ sotib ol/qancha ishlat/command), LEKIN mavzu-so'zni EMAS (fakt «santexnik yaxsh
 EMAS). 3 joyга qo'shildi: bilim-capture · editName · booking address-wait — pivot bo'lsa sessiyani
 bekor qilib, xabarni odatdagidek yo'naltiradi (next()→agent/booking).
 Isbot: typecheck 0 · pivot-test 8/8 haqiqiy pivot ushlandi, 5/5 fakt/manzil/ism saqlandi.
+
+## 2026-07-23 (15) — C1 tugadi: mijoz↔do'kon chat (bot-relay) to'liq qurildi
+- `shopChatService.ts` (yangi): `sendBuyerMessage` (60s/5-xabar spam-guard, `shopchat` flag ostida,
+  HTML-injection'dan `esc()` bilan himoyalangan) · `getBuyerThread` · `handleSellerReply`
+  (reply_to_message → relayMsgId moslashtiruvi, fallback — 15 daq TTL "oxirgi faol suhbat" Map) ·
+  admin-panel uchun `listShopChatConversations`/`getShopChatMessages`/`sendSellerReplyFromPanel`.
+  Telegram-ga xom `fetch` orqali yuboriladi (tgUploadPhoto naqshi, `bot` obyekti kerak emas).
+- `bot/market.ts`: sotuvchi-javob ushlagichi — `bot.ts:1568`dagi `registerMarket()` chaqiruvi
+  ichida, AI/support-catchall'dan (line ~1578) OLDIN registratsiya qilingan — moslik topilmasa
+  `next()`, boshqa BARCHA handler uchun shaffof.
+- `server.ts`: `POST /api/shop/chat/send` · `GET /api/shop/chat/:shopId` (mijoz) +
+  `GET/POST /api/admin/shop/chat/*` (sotuvchi-inbox, mavjud `resolveProfileShopId` qayta ishlatildi).
+- `shop.tsx`: do'kon-profil ekraniga "💬 Do'konga yozish" CTA (D2'da ataylab qoldirilgan joy) +
+  chat-Sheet (pufakcha-thread, tizim-maxfiylik-jumlasi, tezkor-shablon chiplar).
+- `App.tsx`: `ShopChatInbox` — mavjud owner `ChatView` klonlangan, BITTA shopId'ga scoped
+  (bot-DM'ning zaxira yo'li — sotuvchi kompyuterdan ham javob beradi), owner-uchun do'kon-tanlov.
+- **Yon-tuzatish (regressiya oldini olish)**: `adminOps.ts`'dagi mavjud `getChatConversations`/
+  `getChatMessages` `shopId:null` filtr bilan cheklandi — aks holda yangi do'kon-chat xabarlari
+  ega'ning umumiy AI/support-inbox'iga sizib kirar edi (mustaqil topilgan, R4'dan oldin).
+**Isbot:** yangi `testShopChat.ts` — 19 tekshiruv (spam-guard chegara-holati, reply-routing ikkala
+yo'l bilan, kontaminatsiya-regressiya ikkala yo'nalishda) — **3× ALL GREEN**. `testBazar` va
+`testShopStory` regressiyalari ham yashil. `tsc --noEmit` 4/4 paket 0 xato.
+**QOLDI:** mustaqil R4 tekshiruvi · commit/deploy · ega QABUL. `shopchat` flag DARK.
+
+## 2026-07-23 (14) — «Real agent» narrativ: orqa fonда ishlayotganini ko'rsatish (ega so'radi)
+Ega: AI «hozir mashina qidiryapman / basen izlayapman / hisoblayapman» deb narrativ qilsin.
+- Universal «typing…» indikator (runAiText + ovoz-handler) — darrov «ishlayapti» hissi (native).
+- city_search narrativ: «🍽 Ovqatlarni «osh» bo'yicha qidiryapman…» → xuddi shu xabar NATIJAGA
+  aylanadi (editMessageText — bitta xabar, clutter yo'q). Provider bo'yicha label (ovqat/usta/
+  do'kon/e'lon/reys). Ovoz: transkripsiyaдан oldin typing.
+Isbot: typecheck 0. (UI — jonli, ega ko'radi.) book/status/stats — typing indikator qamrab oladi.
