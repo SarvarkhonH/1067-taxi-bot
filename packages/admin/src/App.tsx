@@ -1718,6 +1718,117 @@ function ShopProfilePanel() {
   );
 }
 
+// 💬 C1.6: sotuvchi-inbox — mavjud owner `ChatView`ning KLONI, lekin BITTA shopId'ga scoped
+// (bot-DM'ning zaxira/qo'shimcha yo'li — sotuvchi kompyuterdan ham javob berishi mumkin).
+// Shop-picker mantiqi ShopProfilePanel'dagi bilan bir xil, lekin ATAYLAB alohida-mustaqil
+// (kichik takrorlanish — ikkalasi ham mustaqil ishlayveradi, ShopProfilePanel'ni qayta yozish
+// xavfini oshirmaydi).
+function ShopChatInbox() {
+  const [needsPicker, setNeedsPicker] = useState(false);
+  const [shops, setShops] = useState<{ id: number; name: string; active: boolean }[] | null>(null);
+  const [pickedShopId, setPickedShopId] = useState<number | null>(null);
+  const [convos, setConvos] = useState<{ telegramId: string; name: string | null; username: string | null; lastMsg: string; lastAt: string; unread: number }[] | null>(null);
+  const [active, setActive] = useState<string | null>(null);
+  const [msgs, setMsgs] = useState<{ id: number; direction: string; text: string; at: string }[] | null>(null);
+  const [reply, setReply] = useState("");
+  const [sending, setSending] = useState(false);
+
+  const loadConvos = (shopId?: number) => {
+    adminApi.shopChatConversations(shopId).then((r) => { setConvos(r.convos); setNeedsPicker(false); }).catch(() => {
+      if (shopId === undefined) {
+        setNeedsPicker(true);
+        adminApi.marketShops().then((r) => setShops(r.shops)).catch(() => undefined);
+      }
+    });
+  };
+  useEffect(() => {
+    loadConvos();
+    const t = setInterval(() => loadConvos(pickedShopId ?? undefined), 15000);
+    return () => clearInterval(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pickedShopId]);
+
+  const openChat = async (tgId: string) => {
+    setActive(tgId); setMsgs(null);
+    const m = await adminApi.shopChatMessages(tgId, pickedShopId ?? undefined).catch(() => null);
+    setMsgs(m ?? []);
+    loadConvos(pickedShopId ?? undefined);
+  };
+  const send = async () => {
+    if (!active || !reply.trim() || sending) return;
+    setSending(true);
+    const r = await adminApi.shopChatReply(active, reply.trim(), pickedShopId ?? undefined).catch(() => ({ ok: false }));
+    if (r.ok) {
+      setReply("");
+      const m = await adminApi.shopChatMessages(active, pickedShopId ?? undefined).catch(() => null);
+      setMsgs(m ?? []);
+    }
+    setSending(false);
+  };
+
+  if (needsPicker) {
+    return (
+      <section className="panel">
+        <div className="panel-title">💬 Do&apos;kon-chat</div>
+        {!shops ? <p className="muted">Yuklanmoqda…</p> : (
+          <div className="adm-field">
+            <span className="adm-field-label">Qaysi do&apos;kon uchun?</span>
+            <select value={pickedShopId ?? ""} onChange={(e) => { const id = Number(e.target.value); if (id) { setPickedShopId(id); loadConvos(id); } }}>
+              <option value="">— tanlang —</option>
+              {shops.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
+            </select>
+          </div>
+        )}
+      </section>
+    );
+  }
+
+  const activeConvo = convos?.find((c) => c.telegramId === active);
+  return (
+    <section className="panel">
+      <div className="panel-title">💬 Do&apos;kon-chat</div>
+      <div style={{ display: "flex", gap: 12, minHeight: 300 }}>
+        <div style={{ width: 220, flexShrink: 0, background: "var(--card)", borderRadius: 12, overflow: "hidden", border: "1px solid var(--line)" }}>
+          {!convos && <div className="muted" style={{ padding: 14 }}>Yuklanmoqda…</div>}
+          {convos?.length === 0 && <div className="muted" style={{ padding: 14, fontSize: 12 }}>Hali xabar yo&apos;q.</div>}
+          {convos?.map((c) => (
+            <button key={c.telegramId} onClick={() => openChat(c.telegramId)} style={{ width: "100%", padding: "10px 14px", border: 0, background: active === c.telegramId ? "rgba(255,209,102,.12)" : "transparent", borderLeft: active === c.telegramId ? "3px solid var(--accent)" : "3px solid transparent", cursor: "pointer", textAlign: "left", color: "var(--text)" }}>
+              <div style={{ display: "flex", justifyContent: "space-between" }}>
+                <span style={{ fontWeight: 600, fontSize: 13 }}>{c.name ?? c.username ?? c.telegramId}</span>
+                {c.unread > 0 && <span style={{ background: "var(--red)", color: "#fff", fontSize: 11, padding: "1px 6px", borderRadius: 99 }}>{c.unread}</span>}
+              </div>
+              <div className="muted" style={{ fontSize: 12, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{c.lastMsg}</div>
+            </button>
+          ))}
+        </div>
+        <div style={{ flex: 1, background: "var(--card)", borderRadius: 12, display: "flex", flexDirection: "column", border: "1px solid var(--line)", overflow: "hidden" }}>
+          {!active ? (
+            <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center" }}>
+              <div className="muted">Chap tarafdan mijoz tanlang</div>
+            </div>
+          ) : (
+            <>
+              <div style={{ padding: "10px 14px", borderBottom: "1px solid var(--line)", fontWeight: 700 }}>{activeConvo?.name ?? activeConvo?.username ?? active}</div>
+              <div style={{ flex: 1, overflowY: "auto", padding: "10px 14px", display: "flex", flexDirection: "column", gap: 8 }}>
+                {!msgs && <div className="muted">Yuklanmoqda…</div>}
+                {msgs?.map((m) => (
+                  <div key={m.id} style={{ display: "flex", justifyContent: m.direction === "out" ? "flex-end" : "flex-start" }}>
+                    <div style={{ maxWidth: "75%", padding: "8px 12px", borderRadius: m.direction === "out" ? "14px 14px 2px 14px" : "14px 14px 14px 2px", background: m.direction === "out" ? "var(--accent)" : "var(--card-2)", color: m.direction === "out" ? "#000" : "var(--text)", fontSize: 13 }}>{m.text}</div>
+                  </div>
+                ))}
+              </div>
+              <div style={{ padding: "10px 14px", borderTop: "1px solid var(--line)", display: "flex", gap: 8 }}>
+                <input className="inp" style={{ flex: 1 }} placeholder="Javob yozing…" value={reply} onChange={(e) => setReply(e.target.value)} onKeyDown={(e) => e.key === "Enter" && !e.shiftKey && void send()} />
+                <button className="btn" onClick={send} disabled={sending || !reply.trim()}>{sending ? "…" : "Yuborish"}</button>
+              </div>
+            </>
+          )}
+        </div>
+      </div>
+    </section>
+  );
+}
+
 function ShopAdminView() {
   const [data, setData] = useState<{ products: ShopAdminProductRow[]; enabled: boolean; pendingOrders: number } | null>(null);
   const [orders, setOrders] = useState<ShopAdminOrderRow[] | null>(null);
@@ -1820,6 +1931,7 @@ function ShopAdminView() {
   return (
     <>
       <ShopProfilePanel />
+      <ShopChatInbox />
       <section className="panel">
         <div className="panel-title">🛍 Do&apos;kon</div>
         <p className="muted" style={{ marginTop: 0 }}>

@@ -2649,6 +2649,17 @@ body {
 .bj-story-tap.left { left: 0; }
 .bj-story-tap.right { right: 0; }
 
+/* 💬 C1: mijoz↔do'kon chat */
+.bj-profile-chat-cta { display: block; width: calc(100% - 32px); margin: 4px 16px 16px; background: var(--bj-accent); color: #fff; border: none; border-radius: var(--r-btn); padding: 12px; font-weight: 700; font-size: 14px; }
+.bj-chat-thread { display: flex; flex-direction: column; gap: 8px; min-height: 120px; padding: 4px 0 12px; }
+.bj-chat-privacy { align-self: center; background: #ecfdf3; color: var(--bj-accent-deep); border-radius: 8px; padding: 6px 10px; font-size: 11px; text-align: center; max-width: 85%; }
+.bj-chat-bubble { align-self: flex-start; background: var(--bj-card); border: 1px solid var(--bj-line); border-radius: 12px 12px 12px 3px; padding: 8px 12px; max-width: 78%; font-size: 13.5px; line-height: 1.4; }
+.bj-chat-bubble.mine { align-self: flex-end; background: var(--bj-accent); color: #fff; border: none; border-radius: 12px 12px 3px 12px; }
+.bj-chat-quick { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 4px; }
+.bj-chat-chip { background: var(--bj-card); border: 1px solid var(--bj-line); color: var(--bj-accent-deep); border-radius: var(--r-chip); padding: 6px 11px; font-size: 12.5px; font-weight: 600; }
+.bj-chat-input-row { display: flex; gap: 8px; padding-top: 8px; border-top: 1px solid var(--bj-line); }
+.bj-chat-input { flex: 1; border: 1px solid var(--bj-line); border-radius: var(--r-btn); padding: 10px 12px; font-size: 14px; background: var(--bj-card); color: var(--bj-ink); }
+
 /* ── 🧺 V2 savat-checkout (flag bazarcart) ── */
 .shop-qty-row { display: flex; align-items: center; gap: 10px; }
 .shop-qty-btn { width: 44px; height: 44px; border-radius: var(--r-btn); border: 1px solid var(--bj-line); background: var(--bj-card); color: var(--bj-ink); font-size: 20px; font-weight: 700; transition: transform var(--dur-press) var(--ease-out); }

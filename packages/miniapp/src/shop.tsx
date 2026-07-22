@@ -11,6 +11,7 @@ import {
   type MeResponse,
   type MarketHomeResponse,
   type MarketOrderView,
+  type ShopChatMessageView,
   type ShopProductView,
   type ShopProfileView,
   type ShopStoryPost,
@@ -251,6 +252,29 @@ export function ShopView({ me, onBanner, reload, onBook, openProductId }: { me: 
       if (!s.seen) api.shopStoryView(s.id).catch(() => undefined);
       return { ...v, idx: nextIdx };
     });
+  };
+  // 💬 C1: mijoz↔do'kon chat (bot-relay). Thread — do'kon-profil ekranidan ochiladi.
+  const [chatShop, setChatShop] = useState<{ id: number; name: string } | null>(null);
+  const [chatMsgs, setChatMsgs] = useState<ShopChatMessageView[] | null>(null);
+  const [chatText, setChatText] = useState("");
+  const [chatSending, setChatSending] = useState(false);
+  const [chatErr, setChatErr] = useState(false);
+  const openChat = (shopId: number, shopName: string) => {
+    haptic();
+    setChatShop({ id: shopId, name: shopName });
+    setChatMsgs(null);
+    setChatErr(false);
+    api.shopChatThread(shopId).then((r) => setChatMsgs(r.messages)).catch(() => setChatErr(true));
+  };
+  const sendChat = async (text: string) => {
+    if (!chatShop || !text.trim() || chatSending) return;
+    setChatSending(true);
+    const r = await api.shopChatSend(chatShop.id, text.trim()).catch(() => ({ ok: false as const }));
+    if (r.ok) {
+      setChatText("");
+      api.shopChatThread(chatShop.id).then((t) => setChatMsgs(t.messages)).catch(() => undefined);
+    }
+    setChatSending(false);
   };
   const [market, setMarket] = useState<MarketHomeResponse | null>(null);
   const [shopFilter, setShopFilter] = useState<{ id: number; name: string } | null>(null); // 🏬 do'kon-sahifa (lite)
@@ -629,6 +653,12 @@ export function ShopView({ me, onBanner, reload, onBook, openProductId }: { me: 
                   ))}
                 </div>
               )}
+              {/* ── 💬 C1: do'konga yozish — flag ON'dagina (D2 profil-ekranida CTA joyi bo'sh qoldirilgan edi) ── */}
+              {!!me.flags?.shopchat && (
+                <button className="bj-profile-chat-cta" onClick={() => openChat(shopProfile.id, shopProfile.name)}>
+                  💬 Do&apos;konga yozish
+                </button>
+              )}
             </>
           )}
           {/* ── 📹 S1: do'kon-hikoya tray (Bozor-bosh, faqat uy-ko'rinishida — profil-ekranda emas) ── */}
@@ -966,6 +996,36 @@ export function ShopView({ me, onBanner, reload, onBook, openProductId }: { me: 
             </div>
           ))
         )}
+      </Sheet>
+
+      {/* ── 💬 C1: mijoz↔do'kon chat (bot-relay) ── */}
+      <Sheet open={!!chatShop} onClose={() => setChatShop(null)}>
+        <h3>💬 {chatShop?.name ?? "Do'kon"}</h3>
+        <div className="bj-chat-thread">
+          {chatErr ? (
+            <EmptyState icon="📡" text="Suhbat yuklanmadi — qayta urinib ko'ring" action="🔄 Qayta urinish" onAction={() => chatShop && openChat(chatShop.id, chatShop.name)} />
+          ) : !chatMsgs ? (
+            <Skeleton h={60} />
+          ) : (
+            <>
+              <div className="bj-chat-privacy">Xabarlaringiz shu yerda saqlanadi — raqamingiz ko'rsatilmaydi.</div>
+              {chatMsgs.map((m) => (
+                <div key={m.id} className={"bj-chat-bubble" + (m.direction === "in" ? " mine" : "")}>{m.text}</div>
+              ))}
+              {chatMsgs.length === 0 && (
+                <div className="bj-chat-quick">
+                  {["Bu hali bormi?", "Yetkazish bormi?", "Narxi qancha?"].map((q) => (
+                    <button key={q} className="bj-chat-chip" onClick={() => { haptic(); setChatText(q); }}>{q}</button>
+                  ))}
+                </div>
+              )}
+            </>
+          )}
+        </div>
+        <div className="bj-chat-input-row">
+          <input className="bj-chat-input" value={chatText} onChange={(e) => setChatText(e.target.value)} placeholder="Yozing…" maxLength={500} />
+          <Button variant="brand" disabled={!chatText.trim() || chatSending} onClick={() => sendChat(chatText)}>Yuborish</Button>
+        </div>
       </Sheet>
 
       {/* ── my orders ── */}

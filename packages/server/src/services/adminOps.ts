@@ -725,7 +725,11 @@ export async function getAdminRatings(limit = 200): Promise<{ id: number; member
 
 // ─── 💬 support chat ─────────────────────────────────────────────────────────
 export async function getChatConversations(): Promise<{ telegramId: string; name: string | null; username: string | null; lastMsg: string; lastAt: string; unread: number }[]> {
+  // C1 (BirJoy): SupportMsg endi mijoz↔do'kon chat uchun ham qayta ishlatiladi (shopId != null).
+  // Bu bilan aralashib ketmasin — owner-ning umumiy AI/support-inbox'i FAQAT shopId=null qatorlarni
+  // ko'radi (do'kon-chat alohida — admin ShopChatInbox'da, sellerShopId-scope bilan).
   const msgs = await prisma.supportMsg.findMany({
+    where: { shopId: null },
     orderBy: { createdAt: "desc" },
     take: 500,
   });
@@ -752,11 +756,11 @@ export async function getChatConversations(): Promise<{ telegramId: string; name
 
 export async function getChatMessages(telegramId: string): Promise<{ id: number; direction: string; text: string; at: string }[]> {
   const rows = await prisma.supportMsg.findMany({
-    where: { telegramId },
+    where: { telegramId, shopId: null },
     orderBy: { createdAt: "asc" },
     take: 100,
   });
-  await prisma.supportMsg.updateMany({ where: { telegramId, direction: "in", read: false }, data: { read: true } });
+  await prisma.supportMsg.updateMany({ where: { telegramId, shopId: null, direction: "in", read: false }, data: { read: true } });
   return rows.map((r) => ({ id: r.id, direction: r.direction, text: r.text, at: r.createdAt.toISOString() }));
 }
 

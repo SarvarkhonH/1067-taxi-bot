@@ -58,6 +58,7 @@ export interface MeResponse {
     bazarcart?: boolean; // 🧺 BirJoy savat-checkout (MarketOrder) (owner-preview: admins see it while DARK)
     revtanga?: boolean; // 🗣 BirJoy sharh-uchun-tanga (owner-preview: admins see it while DARK)
     shopstory?: boolean; // 📹 BirJoy do'kon-hikoya (owner-preview: admins see it while DARK)
+    shopchat?: boolean; // 💬 BirJoy mijoz↔do'kon chat (owner-preview: admins see it while DARK)
   };
 }
 
@@ -533,6 +534,14 @@ export interface ShopChatMessageView {
   direction: "in" | "out";
   text: string;
   at: string;
+}
+export interface ShopChatSendResponse {
+  ok: boolean;
+  reason?: "too_fast" | "bad_text" | "shop_inactive" | "not_found";
+}
+export interface ShopChatThreadResponse {
+  shopName: string;
+  messages: ShopChatMessageView[];
 }
 
 // ── 🍽 RESTORAN (feature "restoran") — R1: katalog o'qish only (savat/buyurtma R2'da) ─────────────

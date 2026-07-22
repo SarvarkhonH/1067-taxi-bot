@@ -237,6 +237,13 @@ export const adminApi = {
     postJson<{ ok: boolean }>("/api/admin/shop/profile", shopId ? { ...patch, shopId } : patch),
   shopProfilePhotoUpload: (mime: string, base64: string, shopId?: number) =>
     postJson<{ ok: boolean }>("/api/admin/shop/profile/photo", shopId ? { mime, base64, shopId } : { mime, base64 }),
+  // 💬 C1.6: do'kon-chat inbox (bot-DM'ning zaxira/qo'shimcha yo'li)
+  shopChatConversations: (shopId?: number) =>
+    req<{ convos: { telegramId: string; name: string | null; username: string | null; lastMsg: string; lastAt: string; unread: number }[] }>(`/api/admin/shop/chat/conversations${shopId ? `?shopId=${shopId}` : ""}`),
+  shopChatMessages: (telegramId: string, shopId?: number) =>
+    req<{ id: number; direction: string; text: string; at: string }[]>(`/api/admin/shop/chat/messages/${encodeURIComponent(telegramId)}${shopId ? `?shopId=${shopId}` : ""}`),
+  shopChatReply: (telegramId: string, text: string, shopId?: number) =>
+    postJson<{ ok: boolean }>("/api/admin/shop/chat/reply", shopId ? { telegramId, text, shopId } : { telegramId, text }),
   // 🎠 BirJoy kategoriya-karusel boshqaruvi (owner-only)
   shopCats: () => req<{ cats: { id: number; slug: string; name: string; emoji: string; hasIcon: boolean; sortOrder: number; active: boolean; productCount: number }[] }>("/api/admin/shop/categories"),
   shopCatCreate: (name: string, emoji?: string) => postJson<{ ok: boolean; id?: number; error?: string }>("/api/admin/shop/categories", { name, emoji }),

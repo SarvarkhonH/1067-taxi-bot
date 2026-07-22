@@ -155,6 +155,9 @@ export const api = {
   shopStories: () => get<{ shops: import("@t1067/shared").ShopStoryTrayItem[] }>("/api/shop/stories"),
   shopStoriesFor: (shopId: number) => get<{ stories: import("@t1067/shared").ShopStoryPost[] }>(`/api/shop/stories/${shopId}`),
   shopStoryView: (id: number) => post<{ ok: boolean }>(`/api/shop/stories/${id}/view`, {}),
+  // 💬 C1 mijoz↔do'kon chat
+  shopChatSend: (shopId: number, text: string) => post<import("@t1067/shared").ShopChatSendResponse>("/api/shop/chat/send", { shopId, text }),
+  shopChatThread: (shopId: number) => get<import("@t1067/shared").ShopChatThreadResponse>(`/api/shop/chat/${shopId}`),
 
   shopBuy: (productId: number, address: string, pay: "tanga" | "cash" = "tanga") => post<import("@t1067/shared").ShopBuyResponse>("/api/shop/buy", { productId, address, pay }),
   shopOrders: () => get<{ orders: import("@t1067/shared").ShopPurchaseView[] }>("/api/shop/orders"),

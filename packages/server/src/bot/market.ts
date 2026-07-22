@@ -324,4 +324,17 @@ export function registerMarket(bot: Bot): void {
     const r = await createShopStory(shopId, { videoFileId: ctx.message!.video!.file_id, caption: ctx.message?.caption });
     await ctx.reply(r.ok ? "✅ Hikoyangiz joylandi — 24 soat ko'rinadi." : "❌ Hikoya saqlanmadi, qaytadan urinib ko'ring.");
   });
+
+  // ── 💬 C1: sotuvchi-javob ushlagichi — bot.ts'dagi AI/support-catchall'dan (line ~1578) OLDIN
+  // registratsiya qilingan (registerMarket bot.ts:1568da chaqiriladi, AI-catchall'dan oldinroq).
+  // reply_to_message → relayMsgId moslashtiradi; fallback — oxirgi-faol-suhbat. Moslik topilmasa
+  // next() — boshqa HAMMA handler (booking/AI) uchun mutlaqo shaffof, hech narsa o'zgarmaydi. ──
+  bot.on("message:text", async (ctx, next) => {
+    const tg = String(ctx.from?.id ?? "");
+    const text = ctx.message.text;
+    if (!tg || text.startsWith("/")) { await next(); return; }
+    const { handleSellerReply } = await import("../services/shopChatService");
+    const matched = await handleSellerReply(tg, ctx.message.reply_to_message?.message_id, text);
+    if (!matched) { await next(); return; }
+  });
 }

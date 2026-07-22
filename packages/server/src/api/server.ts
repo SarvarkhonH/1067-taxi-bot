@@ -233,7 +233,7 @@ export function createApiServer(opts: ApiOptions = {}) {
   });
 
   app.get("/api/me", requireUser, async (_req, res) => {
-    const [me, booking3, livinghome, intercity, tierloyalty, shopOn, xizmatlarOn, elonlarOn, restoranOn, bazarOn, bazarcartOn, revtangaOn, shopstoryOn] = await Promise.all([
+    const [me, booking3, livinghome, intercity, tierloyalty, shopOn, xizmatlarOn, elonlarOn, restoranOn, bazarOn, bazarcartOn, revtangaOn, shopstoryOn, shopchatOn] = await Promise.all([
       getMe(res.locals.telegramId as string),
       featureOn("booking3"),
       featureOn("livinghome"),
@@ -247,6 +247,7 @@ export function createApiServer(opts: ApiOptions = {}) {
       featureOn("bazarcart"),
       featureOn("revtanga"),
       featureOn("shopstory"),
+      featureOn("shopchat"),
     ]);
     if (!me) { res.json({ linked: false }); return; }
     // 🏅 owner-preview: admins see the tier-loyalty UI even while the global flag is DARK, so the
@@ -268,7 +269,9 @@ export function createApiServer(opts: ApiOptions = {}) {
     const revtangaPreview = revtangaOn || isAdmin(res.locals.telegramId as string);
     // 📹 shopstory owner-preview — do'kon-hikoya QABUL'gacha faqat ega ekranida
     const shopstoryPreview = shopstoryOn || isAdmin(res.locals.telegramId as string);
-    res.json({ ...me, flags: { booking3, livinghome, intercity, tierloyalty: tierPreview, shop: shopPreview, xizmatlar: xizmatlarPreview, elonlar: elonlarPreview, restoran: restoranPreview, bazar: bazarPreview, bazarcart: bazarcartPreview, revtanga: revtangaPreview, shopstory: shopstoryPreview } });
+    // 💬 shopchat owner-preview — mijoz↔do'kon chat QABUL'gacha faqat ega ekranida
+    const shopchatPreview = shopchatOn || isAdmin(res.locals.telegramId as string);
+    res.json({ ...me, flags: { booking3, livinghome, intercity, tierloyalty: tierPreview, shop: shopPreview, xizmatlar: xizmatlarPreview, elonlar: elonlarPreview, restoran: restoranPreview, bazar: bazarPreview, bazarcart: bazarcartPreview, revtanga: revtangaPreview, shopstory: shopstoryPreview, shopchat: shopchatPreview } });
   });
 
   // 🏅 Tier ladder benefits — labels derived from LIVE knobs (single source of truth). 60s client cache.
@@ -535,6 +538,23 @@ export function createApiServer(opts: ApiOptions = {}) {
     if (!url) { res.status(404).end(); return; }
     res.set("Cache-Control", "private, max-age=3600").redirect(302, url);
   });
+
+  // 💬 C1: mijoz↔do'kon chat (bot-relay — yangi chat-server yo'q, mavjud SupportMsg kengaytirilgan).
+  app.post("/api/shop/chat/send", requireUser, rateLimit(10), withMember2(async (memberId, req, res) => {
+    const { sendBuyerMessage } = await import("../services/shopChatService");
+    const shopId = Number((req.body as { shopId?: unknown })?.shopId);
+    const text = String((req.body as { text?: unknown })?.text ?? "");
+    if (!Number.isFinite(shopId)) return { ok: false, reason: "not_found" };
+    return sendBuyerMessage(memberId, shopId, text, isAdmin(res.locals.telegramId as string));
+  }));
+  app.get("/api/shop/chat/:shopId", requireUser, rateLimit(30), withMember2(async (memberId, req, res) => {
+    const shopId = Number(req.params.shopId);
+    if (!Number.isFinite(shopId)) { res.status(404); return { error: "not_found" }; }
+    const { getBuyerThread } = await import("../services/shopChatService");
+    const thread = await getBuyerThread(memberId, shopId, isAdmin(res.locals.telegramId as string));
+    if (!thread) { res.status(404); return { error: "not_found" }; }
+    return thread;
+  }));
 
   // 🧺 V2 (flag `bazarcart`): savat-checkout + rider market-buyurtmalari + bekor
   app.post("/api/shop/checkout", requireUser, rateLimit(10), withMember2(async (id, req, res) => {
@@ -1595,6 +1615,27 @@ export function createApiServer(opts: ApiOptions = {}) {
   app.delete("/api/admin/shop/reviews/:id", requireAdmin, requireOwner, rateLimit(30), async (req, res) => {
     const { adminDeleteReview } = await import("../services/shopService");
     res.json(await adminDeleteReview(Number(req.params.id)));
+  });
+  // 💬 C1.6: sotuvchi-inbox (bot-DM'ning zaxira/qo'shimcha yo'li — admin-paneldan ham javob berish).
+  app.get("/api/admin/shop/chat/conversations", requireAdmin, requireShopWrite, async (req, res) => {
+    const shopId = resolveProfileShopId(req, res);
+    if (!shopId) { res.status(400).json({ error: "no_shop" }); return; }
+    const { listShopChatConversations } = await import("../services/shopChatService");
+    res.json({ convos: await listShopChatConversations(shopId) });
+  });
+  app.get("/api/admin/shop/chat/messages/:telegramId", requireAdmin, requireShopWrite, async (req, res) => {
+    const shopId = resolveProfileShopId(req, res);
+    if (!shopId) { res.status(400).json({ error: "no_shop" }); return; }
+    const { getShopChatMessages } = await import("../services/shopChatService");
+    res.json(await getShopChatMessages(shopId, req.params.telegramId!));
+  });
+  app.post("/api/admin/shop/chat/reply", requireAdmin, requireShopWrite, rateLimit(30), async (req, res) => {
+    const shopId = resolveProfileShopId(req, res);
+    if (!shopId) { res.status(400).json({ error: "no_shop" }); return; }
+    const b = req.body as { telegramId?: string; text?: string; shopId?: unknown };
+    if (!b?.telegramId || !b.text?.trim()) { res.status(400).json({ ok: false }); return; }
+    const { sendSellerReplyFromPanel } = await import("../services/shopChatService");
+    res.json(await sendSellerReplyFromPanel(shopId, b.telegramId, b.text.trim()));
   });
   // 🎠 D1 (BirJoy): kategoriya-CRUD — karusel boshqaruvi. Owner-only (seller o'z katalogini
   // boshqaradi, GLOBAL taksonomiyani emas).

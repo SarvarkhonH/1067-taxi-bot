@@ -1768,3 +1768,26 @@ Ega: AI «hozir mashina qidiryapman / basen izlayapman / hisoblayapman» deb nar
   aylanadi (editMessageText — bitta xabar, clutter yo'q). Provider bo'yicha label (ovqat/usta/
   do'kon/e'lon/reys). Ovoz: transkripsiyaдан oldin typing.
 Isbot: typecheck 0. (UI — jonli, ega ko'radi.) book/status/stats — typing indikator qamrab oladi.
+
+## 2026-07-23 (16) — C1 R4: KRITIK bug topildi va TUZATILDI (do'kon-taqlid xavfi)
+Mustaqil R4 (kod yozmagan agent): kontaminatsiya-tuzatish to'g'ri, bot-registratsiya-tartibi
+xavfsiz, spam-guard chegarasi aniq, flag-gating to'g'ri, HTML-injection himoyalangan, regressiya
+yo'q — LEKIN **1 KRITIK gap topildi**:
+
+**`handleSellerReply`ning `relayMsgId` moslashtiruvi hech qanday EGALIK-tekshiruvisiz ishlar edi.**
+Telegram `message_id` faqat BITTA-CHAT ichida unikal — GLOBAL emas. Demak, istalgan Telegram
+foydalanuvchisi o'zining eski xabariga reply qilib, agar uning raqami boshqa BIRON-BIR do'konning
+`relayMsgId`siga TASODIFAN mos kelib qolsa — o'sha BEGONA do'kon nomidan mijozga xabar yubora
+olardi (taqlid/impersonation). Test-to'plam buni qamramagan edi (faqat bitta sotuvchi ikkala
+test-do'konga ega edi).
+
+**FIX**: `shopChatService.ts`'da relayMsgId moslashganidan keyin, ishlatishdan OLDIN
+`MarketShop.findFirst({id, ownerChatId: sellerTg})` bilan haqiqiy egalik tasdiqlanadi. Mos
+kelmasa — fallback (oxirgi-faol-suhbat) yoki `null`ga tushadi, hech qachon begona-do'kon
+sifatida ishlamaydi.
+
+Yangi regressiya-test (12): begona sotuvchi to'qnashgan relayMsgId bilan → rad etiladi, hech
+qanday taqlid-xabar yaratilmaydi; haqiqiy egasi esa hamon to'g'ri ishlaydi (musbat-nazorat).
+**Isbot:** `testShopChat.ts` (endi 22 tekshiruv, 12-blok yangi) — **3× ALL GREEN**. `tsc --noEmit`
+4/4 paket 0 xato.
+**Holat:** C1 — READY FOR VERIFICATION. Hali commit/deploy qilinmagan.
