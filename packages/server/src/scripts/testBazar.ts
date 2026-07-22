@@ -470,6 +470,11 @@ async function main(): Promise<void> {
   await prisma.appState.deleteMany({ where: { key: { in: [`sellertoken:${shopD.id}`, `sellertoken:${shopE.id}`, `sellertoken:${shopF.id}`] } } });
   await prisma.marketShop.deleteMany({ where: { name: { startsWith: TAG } } });
 
+  // 41) bug-fix sanity (ega telefonda topgan): isInMarketWizard eksport qilingan va tozaligicha
+  // ishlaydi (grammY Context mock — bu qatlamda bu kod-bazada yo'q, chuqurroq isbot LIVE telefonda)
+  const { isInMarketWizard } = await import("../bot/market");
+  ok(isInMarketWizard("no-such-tg-id-999999") === false, "41: isInMarketWizard false for unrelated id (no false-positive)");
+
   await cleanupMkt();
   await cleanup();
   console.log(process.exitCode ? "\n❌ FAILED" : "\n✅ ALL GREEN");

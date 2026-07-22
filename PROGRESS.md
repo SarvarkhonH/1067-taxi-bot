@@ -1336,3 +1336,48 @@ seller-token: /shop/products=200, /market-shops=403, /economy=403 — hammasi re
 ma'lumot bilan tekshirildi, test-tokenlar tozalab tashlandi).
 QOLDI: R4 mustaqil tekshiruv (xohlasa), keyin commit+deploy. Bu — mavjud V1.2/V1.3'ning ishlab
 turgan bo'shlig'ini yopish, yangi flag talab qilmaydi (bazar allaqachon LIVE).
+
+## 2026-07-22 — 💛 Koson AI K4: Do'st-rejim (aidost) — in progress (gaps: E2E to'liq emas)
+Reja: KOSON_AI_PLAN.md v2 (ega yo'nalishlari: universal provider-registry «har qanday xizmatga
+flexible» + emotsional AI + o'z-xotira). K4 kodi qurildi:
+- `MemberMemory` jadvali (db push, sof-additiv) · `memoryService.ts` (saqlash/recall/unut;
+  20-cap evict, ≤200 belgi, 6+ raqam-devor) — **8/8 unit-test yashil**.
+- agent.ts: do'st-persona (hamdard, nasihatsiz; psixolog EMAS — og'ir holatda 103/102/1050),
+  `eslab_qol`/`unut` tool'lari (aidost-gated), recall → faqat o'sha mijoz kontekstiga.
+- bot.ts: memory_save (jim saqlash + iliq javob), memory_forget («meni unut»), do'st-rejimda
+  «Operator» futeri olib tashlandi. Typecheck 0 xato. aidost ON (aibrain OFF — mijozga DARK).
+
+**MUHIM TOPILMA (429-fallback tajribasi):** llama-3.1-8b zaxira-model sifatida sinaldi va
+TOOL CHAQIRMASDAN «📝 Eslatma qo'yildi» deb YOLG'ON tasdiq + to'qilgan raqamlar («5 safar,
+cashback 10%») qaytardi — invariant-buzar. 8b OLIB TASHLANDI: 70b ishlamasa halol null
+(«tushunmadim») — yolg'onchi AI'dan yaxshi. Bu K3 (Gemini Flash function-calling, alohida
+bepul kvota) zarurligini isbotladi.
+
+**E2E holati (halol):** dardlashish-scenariy 70b'da 2× yashil («Ha, og'ir bo'libdi...»);
+LEKIN eslab_qol/unut tool-chaqiruvi 70b'da hali BIR MARTA ham isbotlanmadi — bugungi
+~100 test-chaqiruv Groq kunlik budjetini yedi (429). Ertaga kvota yangilanganda 3× yashil
+talab qilinadi YOKI GEMINI_API_KEY qo'shilib K3 zanjiri bilan bugun tekshiriladi.
+**QOLDI:** agent-E2E memory-scenariylar 3× yashil · K1/K2/K3 · commit/push/deploy · ega QABUL.
+
+## 2026-07-22 — 🐛 KRITIK BUG-FIX: /sotuvchi wizard telefon-qadami hech qachon ishlamagan
+Ega telefonda `/sotuvchi`ni sinab ko'rdi: do'kon-nomi kiritildi, keyin telefon-raqam so'ralganda
+raqam yozilgach bot «Raqamni qo'lda yozib bo'lmaydi — bu xavfsiz emas / 📱 Raqamni ulashish /
+Boshqa raqam» degan XATOLIK ko'rsatdi (haqiqiy hisob-bog'lash oqimi, wizard emas).
+**Ildiz-sabab:** `bot.ts`da global xavfsizlik-handler (`bot.hears(/^\+?\d[\d\s\-()]{8,}$/)`,
+"raqamni qo'lda kiritib bo'lmaydi" ogohlantirishi) `registerMarket(bot)`dan (1496-qator) ANCHA
+OLDINROQ (~686-qator) ro'yxatdan o'tgan va mos kelganda `next()` chaqirmaydi — shuning uchun
+har qanday telefon-shaklidagi matn shu yerda to'xtab qolardi, wizard'ning HECH BIR qadami
+(nafaqat telefon — sessiya davomida yozilgan HAR qanday raqam-shakldagi matn) hech qachon
+ko'rilmasdi. Bu **V1.3'dan buyon jonli bug** edi — `/sotuvchi` amalda hech qachon to'liq
+ishlamagan (2/6-qadamdan o'tib bo'lmasdi).
+**Fix (xavfsiz — boshqa handler'lar tartibiga tegilmadi):** market.ts'dan `isInMarketWizard(tg)`
+eksport qilindi (sessions-map'ni faqat o'qiydi); bot.ts'dagi global handler endi shu tekshiruvni
+birinchi qiladi — faol wizard-sessiyasi bo'lsa `next()` bilan o'tkazib yuboradi, aks holda
+(oddiy foydalanuvchilar uchun) xavfsizlik-xatti-harakati AYNAN saqlanadi.
+**KUZATUV (out-of-scope, bayroq qo'yildi):** aynan shu regex bir xil sabab bilan `cashout.ts`ning
+karta-raqam qabul qilish qadamini ham ushlab qolishi mumkin (kod-o'xshashlik bilan aniqlandi,
+chuqur tekshirilmadi — alohida ishga topshirildi).
+**Isbot:** typecheck 4/4 · testBazar 41-blok (isInMarketWizard eksport+false-holat) + eski
+40 blok 3× yashil regressiya. Chuqurroq (true-holat, grammY Context) isbot bu kod-bazada mavjud
+bo'lmagan bot-mock infratuzilmasini talab qiladi — ASOSIY isbot: ega hozir jonli telefonda qayta
+sinaydi.

@@ -97,6 +97,17 @@ interface Draft {
 }
 const sessions = new Map<string, Draft>();
 
+/** Bot-bug fix (ega telefonda topdi, 2026-07-22): bot.ts'dagi global «raqamni qo'lda yozib
+ *  bo'lmaydi» xavfsizlik-ogohlantirish (`bot.hears(/^\+?\d.../)`) ANCHA OLDINROQ ro'yxatdan o'tgan
+ *  va mos kelsa `next()` chaqirmaydi — shuning uchun wizard'ning 2/6-qadami (telefon-raqam so'rash)
+ *  hech qachon ishlamasdi: foydalanuvchi raqam yozganda bu global handler uni ushlab qolib, ORQAGA
+ *  hisoblanadigan «Boshqa raqam ulash» oqimini ko'rsatardi. Fix: bot.ts shu funksiyani chaqirib,
+ *  faol wizard-sessiyasi bo'lsa `next()` bilan o'tkazib yuboradi (ro'yxat-tartibi o'zgarmaydi —
+ *  boshqa o'nlab handler'larning nisbiy tartibiga tegilmaydi, faqat bitta aniq to'qnashuv yopiladi). */
+export function isInMarketWizard(tg: string): boolean {
+  return sessions.has(tg);
+}
+
 function esc(s: string): string {
   return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 }

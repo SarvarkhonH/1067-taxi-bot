@@ -25,7 +25,7 @@ import { payDriver, registerBooking } from "./booking";
 import { registerDriverDebt } from "./driverDebt";
 import { registerDriverReports } from "./driverReports";
 import { registerCashout } from "./cashout";
-import { registerMarket } from "./market";
+import { registerMarket, isInMarketWizard } from "./market";
 import { registerIntercity } from "./intercity";
 import { registerBroadcast } from "./broadcast";
 import type { DriverPanelExtras } from "../services/driverReportService";
@@ -683,7 +683,12 @@ export function createBot(): Bot {
   // raqam» + a 4-digit code that an admin generates in the panel (👑 Boshqaruv → «🔑 Kod
   // yaratish»). Admins manage other people's accounts from the panel (search → relink), never
   // by typing a number here. This closes the "anyone can enter anyone's account" hole.
-  bot.hears(/^\+?\d[\d\s\-()]{8,}$/, async (ctx) => {
+  bot.hears(/^\+?\d[\d\s\-()]{8,}$/, async (ctx, next) => {
+    // BirJoy bug-fix (2026-07-22, ega telefonda topdi): /sotuvchi wizard'ning 2/6-qadami
+    // (telefon-raqam so'rash) shu global handler tomonidan ushlab qolinardi — chunki bu handler
+    // registerMarket'dan OLDINROQ ro'yxatdan o'tgan va next() chaqirmasdi. Faol wizard-sessiyasi
+    // bo'lsa o'tkazib yuboramiz (market.ts o'zi bu matnni to'g'ri qabul qiladi).
+    if (isInMarketWizard(String(ctx.from?.id ?? ""))) { await next(); return; }
     await ctx.reply(
       "🔒 Raqamni <b>qo'lda yozib bo'lmaydi</b> — bu xavfsiz emas.\n\n" +
         "• <b>O'z</b> raqamingiz → pastdagi «📱 Raqamni ulashish» tugmasi (Telegram tasdiqlaydi)\n" +
