@@ -155,6 +155,8 @@ async function main(): Promise<void> {
   const webhookPath = `/tg/${env.WEBHOOK_SECRET}`;
   if (env.hasBot) {
     bot = createBot();
+    // AI providers (restoran owner-notice va h.k.) chuqur servislardan alert yuborishi uchun
+    (await import("./botInstance")).setBotInstance(bot);
     if (env.WEBHOOK_URL) {
       app.use(webhookPath, webhookCallback(bot, "express"));
     }
@@ -344,6 +346,10 @@ async function main(): Promise<void> {
       // ShopPurchase'lar egaga BIR marta eslatiladi (slaAlertedAt idempotent-marker).
       const { checkShopSlaAndAlert } = await import("./services/shopService");
       await checkShopSlaAndAlert(alertAdmins).catch((e) => console.error("[shop-sla] failed:", e));
+      // 🔔 AI eslatmalar (airemind, yangi poller YO'Q): ≤90s aniqlikda yetkazish — bitta indeksli
+      // Postgres so'rov/iteratsiya, kas'ga 0 so'rov, claim-first (dispatchScheduled naqshi).
+      const { deliverDueReminders } = await import("./services/ai/reminderService");
+      await deliverDueReminders(bot).catch((e) => console.error("[reminder] deliver failed:", e));
     }
     // 🚖 SMS-parity speed: while a rider is WAITING for a driver, poll every 5s so "Haydovchi
     // topildi" lands in seconds like the kas SMS. Assigned / in-trip → 15s (arrival is WS-instant).

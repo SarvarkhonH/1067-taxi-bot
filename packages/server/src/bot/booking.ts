@@ -105,6 +105,26 @@ async function resolveAddresses(query: string): Promise<SavedAddress[]> {
   return out;
 }
 
+/** Start the pick-an-address booking flow from a free-text query (shared by the direct
+ *  typed-address path below and the AI agent's taksi_chaqir action). Returns true when it
+ *  handled the message (options shown / active-ride notice) — false when the query resolved
+ *  to nothing or the rider isn't linked, so the caller can fall through to its own reply. */
+export async function tryAddressBooking(ctx: Context, query: string): Promise<boolean> {
+  const id = String(ctx.from!.id);
+  const me = await getMe(id);
+  if (!me?.member.phone) return false;
+  const results = await resolveAddresses(addressQuery(query));
+  if (!results.length) return false;
+  const info = await getDataSource().checkClient(me.member.phone).catch(() => null);
+  if (info?.activeBooking) {
+    await ctx.reply(`ℹ️ Sizda faol buyurtma bor:\n📍 ${esc(info.activeBooking.addressName)}\n\n«📍 Buyurtmam» — holatini ko'ring.`, { parse_mode: "HTML" });
+    return true;
+  }
+  sessions.set(id, { awaitingText: false, clientName: info?.clientName ?? me.member.fullName, phone: me.member.phone, addresses: results });
+  await ctx.reply("📍 Manzilni tanlang:", { reply_markup: addressKb(results) });
+  return true;
+}
+
 /** Get (or lazily create) the booking wizard session for a LINKED rider who started a booking by
  *  sending a location or typing an address directly — i.e. without first pressing «🚕 Taxi
  *  chaqirish». Returns null (and replies) if the rider isn't linked or already has an active ride. */
@@ -734,16 +754,6 @@ export function registerBooking(bot: Bot, mainMenu: (isDriver?: boolean, tgId?: 
     }
     if (s) return next(); // mid-wizard but not awaiting text → leave for other handlers
     if (!looksLikeAddress(text)) return next();
-    const me = await getMe(id);
-    if (!me?.member.phone) return next(); // unlinked → not a booking
-    const results = await resolveAddresses(addressQuery(text));
-    if (!results.length) return next(); // not a kas/catalog address → don't hijack the message
-    const info = await getDataSource().checkClient(me.member.phone).catch(() => null);
-    if (info?.activeBooking) {
-      await ctx.reply(`ℹ️ Sizda faol buyurtma bor:\n📍 ${esc(info.activeBooking.addressName)}\n\n«📍 Buyurtmam» — holatini ko'ring.`, { parse_mode: "HTML" });
-      return;
-    }
-    sessions.set(id, { awaitingText: false, clientName: info?.clientName ?? me.member.fullName, phone: me.member.phone, addresses: results });
-    await ctx.reply("📍 Manzilni tanlang:", { reply_markup: addressKb(results) });
+    if (!(await tryAddressBooking(ctx, text))) return next(); // unlinked / no kas match → don't hijack the message
   });
 }

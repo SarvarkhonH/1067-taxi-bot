@@ -73,13 +73,23 @@ export const FEATURES = [
               // ≤350 clamp'ga TEGMAYDI (bookingId=null). Grant faqat delivered-o'tishda. DARK.
   "revtanga", // 🗣 BirJoy V3: sharh-uchun-tanga (Ozon mexanikasi) — FAQAT delivered-xaridor,
               // BIR UMR bir marta. DARK until owner QABUL.
+  "airemind", // 🔔 AI v2 P1: eslatmalar (oddiy/taksi/qarz) — agent tool + sweep-yetkazish.
+              // Pul YO'Q, uchinchi shaxsga xabar YO'Q, dispatch faqat human-tap. DARK until QABUL.
+  "aihisob",  // 📊 AI v2 P1: hisob-kitob (lokal agregatlar CoinTxn/RideReward ustidan + rules-first
+              // arifmetika). Raqamlar LLM'ga round-trip QILINMAYDI. DARK until owner QABUL.
+  "aidost",   // 💛 Koson AI K4: do'st-rejim — emotsional suhbat-persona + MemberMemory o'z-xotira
+              // (eslab_qol/unut tool'lari). Mijozning O'Z so'zlari, faqat o'z kontekstiga qaytadi,
+              // «meni unut» bilan o'chadi. Pul YO'Q. DARK until owner QABUL.
+  "aicity",   // 🏙 Koson AI K1: universal shahar-agent yadrosi (shahar_qidir/buyurtma/holat +
+              // provider-registry). Har provider O'Z modul-flagiga ham bog'liq (ikki qavatli gate);
+              // buyurtma faqat tasdiqlash-karta + human-tap bilan. DARK until owner QABUL.
 ] as const;
 export type FeatureName = (typeof FEATURES)[number];
 
 // Off until explicitly enabled (go-live flip = setFeature(name, true) after owner QABUL).
 // booking3 = the new map/trip flow; owner still gets a preview via server.ts owner-branch,
 // but real users stay on the (fixed) classic flow until it's accepted. A missing row → OFF.
-const DEFAULT_OFF = new Set<FeatureName>(["booking3", "livinghome", "aibrain", "mahalla", "tolqin", "baraban", "komissiya", "qarz", "welcomebonus", "refstaged", "drvstaged", "drvrecruit", "drvpush", "promo", "clientbooking", "cashout", "carupgrade", "intercity", "tierloyalty", "waitcomp", "trackcta", "jackpotpost", "drvrank", "instantstatus", "spinreminder", "shop", "xizmatlar", "elonlar", "elontop", "restoran", "bazar", "bazarcart", "shopcashback", "revtanga"]);
+const DEFAULT_OFF = new Set<FeatureName>(["booking3", "livinghome", "aibrain", "mahalla", "tolqin", "baraban", "komissiya", "qarz", "welcomebonus", "refstaged", "drvstaged", "drvrecruit", "drvpush", "promo", "clientbooking", "cashout", "carupgrade", "intercity", "tierloyalty", "waitcomp", "trackcta", "jackpotpost", "drvrank", "instantstatus", "spinreminder", "shop", "xizmatlar", "elonlar", "elontop", "restoran", "bazar", "bazarcart", "shopcashback", "revtanga", "airemind", "aihisob", "aidost", "aicity"]);
 
 let cache: { at: number; map: Record<string, boolean> } = { at: 0, map: {} };
 

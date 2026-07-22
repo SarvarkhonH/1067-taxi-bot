@@ -1381,3 +1381,53 @@ chuqur tekshirilmadi — alohida ishga topshirildi).
 40 blok 3× yashil regressiya. Chuqurroq (true-holat, grammY Context) isbot bu kod-bazada mavjud
 bo'lmagan bot-mock infratuzilmasini talab qiladi — ASOSIY isbot: ega hozir jonli telefonda qayta
 sinaydi.
+
+## 2026-07-22 — ✅ Telefon-bug fix EGA TOMONIDAN JONLI TASDIQLANDI
+Ega: «qaytadan urinib ko'rdim, ishladi». `/sotuvchi` wizard endi telefon-qadamidan muvaffaqiyatli
+o'tadi (commit c90392a, Render live). R4 (V1.6): PASS. Ticket holati: **owner-accepted**.
+
+## 2026-07-22 (kech) — K3 fallback-zanjir qurildi; E2E holati halol qayd
+- K3: `callGroq` (70b) → `callGemini` (gemini-flash-latest, function-calling, javob bir xil
+  LlmMsg shaklga normalizatsiya — tool-handlerlar o'zgarmadi). 2.0-flash 2026 free-tier'da
+  kvota-0 → `gemini-flash-latest` probe bilan tanlandi. thinkingBudget:0 (matn-uzilish fix).
+  llmRouter'dagi eski gemini-provider ham yangi modelga ko'chirildi. GEMINI_API_KEY lokal+
+  Render'da (ega qo'ydi; Render'dagi GEMINE typo birga tuzatildi).
+- **E2E isbot-holati:** to'liq 11/11 yashil — 1× (butun oqim Gemini orqali; Groq TPD tugagan
+  edi = fallback jangovar sinovi). Oldinroq P1-subset 8/8 ×2 (Groq orqali). Yana 2 yugurish
+  0/11 — IKKALA provayder kunlik kvotasi bugungi ~150 test-chaqiruvdan tugadi (barcha xatolar
+  «all providers rate-limited», yolg'on javob YO'Q — 8b-saboq qoidasi ishladi).
+- **3× ket-ket to'liq-yashil hali YO'Q** — kvotalar ertaga yangilanadi, shunda 3× yugurib
+  isbot yopiladi. Bugun boshqa LLM-chaqiruv qilinmaydi (kvota real mijozlarga kerak emas —
+  aibrain OFF, lekin isrof ham qilmaymiz).
+**QOLDI:** ertaga E2E 3× yashil → commit/push/deploy → ega telefon-QABUL (aibrain ON pilot).
+
+## 2026-07-22 (kech-2) — 🏙 K1 yadro qurildi (aicity, DARK) — LLM-siz testlar 12/12 ×3
+Ega talabi «har qanday xizmatga flexible» bo'yicha provider-registry arxitektura:
+- `services/ai/providers/types.ts` — AiProvider interfeys (search/order/execute/status,
+  AiCard/ConfirmCard). Yangi shahar-xizmati = BITTA adapter-fayl + registry'da 1 import.
+- `providers/index.ts` — registry: activeProviders() har chaqiruvda flag-filtr (modul
+  flagi DARK → provider LLM ro'yxatidan avtomatik yo'qoladi); __registerForTest stub-yo'li.
+- `providers/restoranProvider.ts` — 1-adapter: qidiruv (so'z-chegarali reyting — «osh»
+  «kartOSHka»ni yengadi), order→ConfirmCard (manzil talab), execute→MAVJUD createFoodOrder
+  (naqd-concierge, operator-notice notifyOwnerNewFoodOrder orqali), status→myFoodOrders.
+- agent.ts: 3 universal tool (shahar_qidir/buyurtma/holat) — enum+tavsif RUNTIME'da
+  registry'dan; yangi provider'da agent.ts O'ZGARMAYDI. bot.ts: karta-render, tasdiqlash
+  [✅ ai:ok]/[✖️ ai:no] (yadro kafolati: execute FAQAT human-tap'dan keyin), pendingCity.
+- `botInstance.ts` (yangi, 14 qator): bot-singleton — chuqur servislardan owner-alert.
+- MUHIM FAKT: `restoran` flag jonli DB'da allaqachon ON (7 restoran, 113 taom) — AI-provider
+  real katalog ustida ishlaydi. `aicity` esa DARK (DEFAULT_OFF, satr yo'q).
+**Isbot:** typecheck 0 xato · testCity 12/12 **×3 yashil** (LLM'siz: registry, flag-gate,
+stub search→order→confirm→execute round-trip, jonli katalogda «osh» to'g'ri topiladi).
+**Ega qarori:** pullik LLM (~$10-20/oy) olinadi — free-tier-only qoidasi yumshaydi (memory'da).
+**QOLDI (ertaga, kvota yangilangach):** testAgent'ga city-scenariylar → to'liq E2E 3× yashil →
+commit/push/deploy → ega telefon-QABUL (aibrain+aicity pilot).
+
+## 2026-07-22 (kech-3) — Gemini pullik tarif + K1 E2E to'liq 14/14
+- Ega API billing to'ladi ($10) → CLAUDE.md free-tier qoidasi yumshadi (memory: koson-ai-paid-llm).
+- BUG-FIX (0/11'larning asl sababi topildi): gemini-flash-latest'da thinkingBudget:0 → 400
+  INVALID_ARGUMENT. Probe bilan aniqlandi: minimal 128 kerak. Tuzatildi (128 + 1024 chiqish).
+- Zanjir Gemini-ASOSIY qilib almashtirildi: callGemini (pullik, barqaror, 429 yo'q) → callGroq
+  (bepul zaxira). Pul asosiy yo'lda ishlaydi.
+- **E2E 14/14 yashil** (P1 4 + eslatma 3 + hisob 1 + do'st 3 + K1-shahar 3): city_search
+  (restoran «osh»), city_order (2×osh + manzil parse), city_status — hammasi to'g'ri route.
+**QOLDI:** 3× ket-ket yashil (yugurmoqda) → commit/push/deploy → ega telefon-QABUL.

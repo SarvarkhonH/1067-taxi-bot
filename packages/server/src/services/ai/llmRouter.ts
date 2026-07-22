@@ -8,7 +8,7 @@
 import { prisma } from "../../db";
 
 const DAILY_GLOBAL_CAP = 1200;
-const DAILY_MEMBER_CAP = 10;
+const DAILY_MEMBER_CAP = 30; // agent-suhbatlar uchun 10 kam edi (bir suhbat = bir nechta xabar)
 
 interface Provider {
   name: string;
@@ -33,7 +33,8 @@ const PROVIDERS: Provider[] = [
     key: process.env.GEMINI_API_KEY,
     call: async (key, prompt, system) => {
       const d = (await postJson(
-        `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${key}`,
+        // gemini-flash-latest: 2026 free-tier kalitlarda 2.0-flash kvotasi 0 (agent.ts'dagi probe)
+        `https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent?key=${key}`,
         {},
         { systemInstruction: { parts: [{ text: system }] }, contents: [{ parts: [{ text: prompt }] }] },
       )) as { candidates?: { content?: { parts?: { text?: string }[] } }[] };
@@ -98,19 +99,35 @@ async function bumpDay(key: string): Promise<void> {
   await atomicIncrement(key, 1);
 }
 
+/** Shared daily-cap gate (agent + askLlm draw from the SAME counters). */
+export async function aiCapOk(memberId: number): Promise<boolean> {
+  const day = aiDay();
+  if ((await dayCount(`ai_used:${day}`)) >= DAILY_GLOBAL_CAP) return false;
+  if ((await dayCount(`ai_member:${memberId}:${day}`)) >= DAILY_MEMBER_CAP) return false;
+  return true;
+}
+
+export async function aiCapBump(memberId: number): Promise<void> {
+  const day = aiDay();
+  await bumpDay(`ai_used:${day}`);
+  await bumpDay(`ai_member:${memberId}:${day}`);
+}
+
+/** Toshkent (UTC+5) sanasi — kunlik cap kalitlari uchun. */
+export function aiDay(): string {
+  return new Date(Date.now() + 5 * 3600_000).toISOString().slice(0, 10);
+}
+
 /** Ask the chain. Returns null when disabled, capped, or every provider fails. */
 export async function askLlm(memberId: number, prompt: string, system: string): Promise<string | null> {
-  const day = new Date(Date.now() + 5 * 3600_000).toISOString().slice(0, 10);
-  if ((await dayCount(`ai_used:${day}`)) >= DAILY_GLOBAL_CAP) return null;
-  if ((await dayCount(`ai_member:${memberId}:${day}`)) >= DAILY_MEMBER_CAP) return null;
+  if (!(await aiCapOk(memberId))) return null;
   const clean = sanitize(prompt);
   for (const p of PROVIDERS) {
     if (!p.key) continue;
     try {
       const out = await p.call(p.key, clean, system);
       if (out) {
-        await bumpDay(`ai_used:${day}`);
-        await bumpDay(`ai_member:${memberId}:${day}`);
+        await aiCapBump(memberId);
         return out.slice(0, 1500);
       }
     } catch {

@@ -1516,33 +1516,318 @@ export function createBot(): Bot {
     return next();
   });
 
+  // 🔔 AI reminder confirm-cards: the agent NEVER creates a reminder silently — it parks the
+  // parsed candidate here and the human tap decides. Transient by design (a lost restart just
+  // means re-asking); the durable rows live in Reminder.
+  const pendingReminders = new Map<string, { text: string; kind: "oddiy" | "taksi" | "qarz"; times: number[]; labels: string[] }>();
+
+  bot.callbackQuery(/^rem:opt:(\d)$/, async (ctx) => {
+    await ctx.answerCallbackQuery();
+    const tgId = String(ctx.from.id);
+    const p = pendingReminders.get(tgId);
+    const i = Number(ctx.match[1]);
+    if (!p || p.times[i] === undefined) return;
+    pendingReminders.delete(tgId);
+    const memberId = await getMemberId(tgId);
+    if (!memberId) return;
+    const { createReminder, tashkentLabel } = await import("../services/ai/reminderService");
+    const runAt = new Date(p.times[i]!);
+    const res = await createReminder(memberId, tgId, p.text, runAt, p.kind);
+    const t = res.ok ? `✅ Bo'ldi! <b>${tashkentLabel(runAt)}</b> da eslataman: «${esc(p.text)}»` : `⚠️ ${esc(res.reason ?? "Saqlanmadi")}`;
+    await ctx.editMessageText(t, { parse_mode: "HTML" }).catch(() => undefined);
+    void prisma.supportMsg.create({ data: { telegramId: tgId, direction: "out", text: res.ok ? `🔔 Eslatma saqlandi (${tashkentLabel(runAt)}).` : t.slice(0, 200) } }).catch(() => undefined);
+  });
+  bot.callbackQuery("rem:no", async (ctx) => {
+    await ctx.answerCallbackQuery("Bekor qilindi");
+    pendingReminders.delete(String(ctx.from.id));
+    await ctx.editMessageText("✖️ Eslatma saqlanmadi.").catch(() => undefined);
+  });
+  bot.callbackQuery(/^rem:del:(\d)$/, async (ctx) => {
+    const tgId = String(ctx.from.id);
+    const memberId = await getMemberId(tgId);
+    if (!memberId) {
+      await ctx.answerCallbackQuery();
+      return;
+    }
+    const { cancelByIndex } = await import("../services/ai/reminderService");
+    const r = await cancelByIndex(memberId, Number(ctx.match[1]));
+    await ctx.answerCallbackQuery(r.ok ? "Bekor qilindi" : "Topilmadi");
+    if (r.ok) await ctx.editMessageText(`✖️ Eslatma bekor qilindi: «${esc(r.text ?? "")}»`).catch(() => undefined);
+  });
+  bot.callbackQuery(/^rem:snooze:(\d+)$/, async (ctx) => {
+    const { snooze } = await import("../services/ai/reminderService");
+    const runAt = await snooze(Number(ctx.match[1]));
+    await ctx.answerCallbackQuery(runAt ? "😴 15 daqiqadan keyin yana eslataman" : "Eslatma topilmadi");
+  });
+
+  // 🏙 Koson AI shahar-buyurtma tasdiqlash (K1 yadro kafolati: provider execute() FAQAT
+  // shu ✅ tap orqali chaqiriladi). Payload transient (restart = qayta so'rash, xolos).
+  const pendingCity = new Map<string, { provider: string; payload: string }>();
+  bot.callbackQuery("ai:ok", async (ctx) => {
+    await ctx.answerCallbackQuery();
+    const tgId = String(ctx.from.id);
+    const p = pendingCity.get(tgId);
+    if (!p) {
+      await ctx.editMessageText("Bu buyurtma eskirgan — qaytadan yozing 😊").catch(() => undefined);
+      return;
+    }
+    pendingCity.delete(tgId);
+    const memberId = await getMemberId(tgId);
+    if (!memberId) return;
+    const { providerByKey } = await import("../services/ai/providers");
+    const prov = providerByKey(p.provider);
+    if (!prov?.execute) return;
+    const r = await prov.execute(memberId, tgId, p.payload).catch(() => ({ ok: false, message: "Xatolik — keyinroq urinib ko'ring." }));
+    await ctx.editMessageText(r.message, { parse_mode: "HTML" }).catch(() => undefined);
+    void prisma.supportMsg.create({ data: { telegramId: tgId, direction: "out", text: r.ok ? `🏙 Buyurtma rasmiylashtirildi (${p.provider}).` : r.message.slice(0, 200) } }).catch(() => undefined);
+  });
+  bot.callbackQuery("ai:no", async (ctx) => {
+    await ctx.answerCallbackQuery("Bekor qilindi");
+    pendingCity.delete(String(ctx.from.id));
+    await ctx.editMessageText("✖️ Buyurtma rasmiylashtirilmadi.").catch(() => undefined);
+  });
+
   bot.on("message:text", async (ctx) => {
-    const { parseIntent, aiSupport, resolveAddress } = await import("../services/ai/intent");
+    const tgId = String(ctx.from!.id);
+    // AI/FAQ replies mirror into SupportMsg (direction "out") — gives the agent its
+    // conversation memory AND lets the owner audit answer quality from the DB.
+    const saveOut = (t: string): void =>
+      void prisma.supportMsg.create({ data: { telegramId: tgId, direction: "out", text: t.slice(0, 1000) } }).catch(() => undefined);
+
+    const { parseIntent, aiSupport } = await import("../services/ai/intent");
     const intent = parseIntent(ctx.message.text);
     if (intent.type === "faq") {
-      await ctx.reply(intent.answer + "\n\n☎️ Operator: 1067", { reply_markup: undefined });
+      const answer = intent.answer + "\n\n☎️ Operator: 1067";
+      await ctx.reply(answer, { reply_markup: undefined });
+      saveOut(answer);
       return;
     }
+    const { tryAddressBooking } = await import("./booking");
     if (intent.type === "book") {
+      // real pick-an-address flow (the old inline `bk:addr:<kasId>` buttons were DEAD —
+      // booking's handler reads that payload as a session INDEX and no session existed)
+      if (intent.addressQuery && (await tryAddressBooking(ctx, intent.addressQuery))) return;
       const { InlineKeyboard } = await import("grammy");
-      const found = intent.addressQuery ? await resolveAddress(intent.addressQuery) : [];
-      const kb = new InlineKeyboard();
-      for (const a of found) kb.text(`📍 ${a.name}`, `bk:addr:${a.id}`).row();
-      kb.text("🚕 1-bosishda chaqirish", "bk:now");
       const later = intent.when === "later" ? `\n⏰ ${intent.timeText ?? "Keyinroqqa"} — rejali safar tez orada!` : "";
-      await ctx.reply(`🚕 Taksi kerak shekilli!${later}\nQuyidan tanlang:`, { reply_markup: kb });
+      await ctx.reply(`🚕 Taksi kerak shekilli!${later}\nQuyidan tanlang:`, {
+        reply_markup: new InlineKeyboard().text("🚕 1-bosishda chaqirish", "bk:now"),
+      });
       return;
     }
-    // not understood: try LLM support (disabled w/o keys), else gentle nudge
-    const tu = await (await import("../db")).prisma.telegramUser.findUnique({ where: { id: String(ctx.from!.id) } });
-    if (tu?.memberId) {
-      const ans = await aiSupport(tu.memberId, ctx.message.text).catch(() => null);
-      if (ans) {
-        await ctx.reply(ans + "\n\n☎️ Operator: 1067");
+
+    // 🧮 rules-first arithmetic (aihisob) — BEFORE the LLM: free, instant, and the only
+    // path where user-typed money numbers stay intact (sanitize would mangle them)
+    const { featureOn } = await import("../services/featureFlags");
+    if (await featureOn("aihisob")) {
+      const { tryCalc } = await import("../services/ai/calc");
+      const calc = tryCalc(ctx.message.text);
+      if (calc) {
+        await ctx.reply(calc, { parse_mode: "HTML" });
+        saveOut("🧮 Hisob-kitob javobi ko'rsatildi.");
         return;
       }
     }
-    const meF = await getMe(String(ctx.from!.id)).catch(() => null);
+
+    // not understood by rules → AI agent (aibrain flag) / plain LLM support / nudge
+    const tu = await prisma.telegramUser.findUnique({ where: { id: tgId } });
+    if (tu?.memberId) {
+      if (await featureOn("aibrain")) {
+        const { runAgent } = await import("../services/ai/agent");
+        const r = await runAgent(tu.memberId, tgId, ctx.message.text).catch(() => null);
+        if (r?.action?.type === "book") {
+          if (!r.action.query) {
+            // customer asked for a taxi without an address → same 1-tap flow as rules-intent
+            const { InlineKeyboard } = await import("grammy");
+            await ctx.reply("🚕 Taksi chaqiramiz! Manzilni yozing yoki:", {
+              reply_markup: new InlineKeyboard().text("🚕 1-bosishda chaqirish", "bk:now"),
+            });
+            saveOut("🚕 1-bosishda chaqirish tugmasi ko'rsatildi.");
+            return;
+          }
+          if (await tryAddressBooking(ctx, r.action.query)) {
+            // record the handled action — without this the agent's next-turn memory sees an
+            // unanswered taxi request and repeats the book tool on unrelated follow-ups
+            saveOut(`📍 Manzil variantlari ko'rsatildi: «${r.action.query}» — mijoz tugmadan tanlaydi.`);
+            return;
+          }
+          const miss = `😕 «${r.action.query}» topilmadi. Manzilni boshqacha yozib ko'ring yoki 📍 joylashuvingizni yuboring.`;
+          await ctx.reply(miss);
+          saveOut(miss);
+          return;
+        }
+        if (r?.action?.type === "status") {
+          const me = await getMe(tgId).catch(() => null);
+          const info = me?.member.phone ? await (await import("../kas")).getDataSource().checkClient(me.member.phone).catch(() => null) : null;
+          const t = info?.activeBooking
+            ? `📍 Faol buyurtmangiz: <b>${esc(info.activeBooking.addressName)}</b>\n«📍 Buyurtmam» tugmasi — jonli holat (mashina qayerda, qachon keladi).`
+            : "Hozir faol buyurtmangiz yo'q. Manzil yozing — darrov taksi chaqiramiz! 🚕";
+          await ctx.reply(t, { parse_mode: "HTML" });
+          saveOut(t);
+          return;
+        }
+        if (r?.action?.type === "balance") {
+          const m = await prisma.member.findUnique({ where: { id: tu.memberId }, select: { coins: true } });
+          const t = `🪙 Balansingiz: <b>${(m?.coins ?? 0).toLocaleString("ru-RU")} tanga</b> (1 tanga = 1 so'm).\nMini App → Hamyon'da to'liq tarix va so'mga yechish bor.`;
+          await ctx.reply(t, { parse_mode: "HTML" });
+          // PRIVACY: the marker (not the number) goes to history — SupportMsg feeds the
+          // agent's next-turn prompt, and balances must never round-trip through the LLM
+          saveOut("🪙 Balans ko'rsatildi (Mini App → Hamyon'ga yo'naltirildi).");
+          return;
+        }
+        if (r?.action?.type === "remind_create") {
+          const { parseTimeText } = await import("../services/ai/timeParse");
+          const { InlineKeyboard } = await import("grammy");
+          const p = parseTimeText(r.action.timeText);
+          if (!p) {
+            const t = `⏰ Vaqtni aniqroq ayting — masalan «ertaga 7:30 da» yoki «2 soatdan keyin».`;
+            await ctx.reply(t);
+            saveOut(t);
+            return;
+          }
+          const a = r.action;
+          if ("ambiguous" in p) {
+            pendingReminders.set(tgId, { text: a.text, kind: a.kind, times: p.options.map((o) => o.runAt.getTime()), labels: p.options.map((o) => o.label) });
+            const kb = new InlineKeyboard();
+            p.options.forEach((o, i) => kb.text(`🕐 ${o.label}`, `rem:opt:${i}`).row());
+            kb.text("✖️ Kerak emas", "rem:no");
+            await ctx.reply(`🔔 «${esc(a.text)}» — qaysi vaqtda eslatay?`, { parse_mode: "HTML", reply_markup: kb });
+            saveOut(`🔔 Eslatma vaqti so'raldi: «${a.text}» (${a.timeText}).`);
+            return;
+          }
+          pendingReminders.set(tgId, { text: a.text, kind: a.kind, times: [p.runAt.getTime()], labels: [p.label] });
+          await ctx.reply(`🔔 <b>${p.label}</b> — «${esc(a.text)}». Saqlaymi?`, {
+            parse_mode: "HTML",
+            reply_markup: new InlineKeyboard().text("✅ Saqlash", "rem:opt:0").text("✖️ Yo'q", "rem:no"),
+          });
+          saveOut(`🔔 Eslatma taklifi ko'rsatildi: «${a.text}» — ${p.label}.`);
+          return;
+        }
+        if (r?.action?.type === "remind_list" || r?.action?.type === "remind_cancel") {
+          const { listPending, cancelByIndex, tashkentLabel } = await import("../services/ai/reminderService");
+          if (r.action.type === "remind_cancel" && r.action.idx) {
+            const c = await cancelByIndex(tu.memberId, r.action.idx);
+            const t = c.ok ? `✖️ Eslatma bekor qilindi: «${esc(c.text ?? "")}»` : "Bunday eslatma topilmadi. «eslatmalarim» deb yozing — ro'yxatni ko'rasiz.";
+            await ctx.reply(t, { parse_mode: "HTML" });
+            saveOut(t);
+            return;
+          }
+          const rows = await listPending(tu.memberId);
+          if (!rows.length) {
+            const t = "🔔 Kutilayotgan eslatmangiz yo'q. «Ertaga 7 da bozorga taksi, eslat» deb yozib ko'ring 😊";
+            await ctx.reply(t);
+            saveOut(t);
+            return;
+          }
+          const { InlineKeyboard } = await import("grammy");
+          const kb = new InlineKeyboard();
+          rows.forEach((row, i) => kb.text(`${i + 1} ✖️`, `rem:del:${i + 1}`));
+          const t = `🔔 <b>Eslatmalaringiz:</b>\n${rows.map((row, i) => `${i + 1}) ${tashkentLabel(row.runAt)} — ${esc(row.text)}`).join("\n")}`;
+          await ctx.reply(t, { parse_mode: "HTML", reply_markup: kb });
+          saveOut(`🔔 Eslatmalar ro'yxati ko'rsatildi (${rows.length} ta).`);
+          return;
+        }
+        if (r?.action?.type === "stats") {
+          if (await featureOn("aihisob")) {
+            const { memberStats, renderStats } = await import("../services/ai/aiStats");
+            const t = renderStats(await memberStats(tu.memberId, r.action.period));
+            await ctx.reply(t, { parse_mode: "HTML" });
+            // PRIVACY: marker only — the numbers must not feed the agent's next-turn prompt
+            saveOut(`📊 Hisobot ko'rsatildi (${r.action.period}).`);
+            return;
+          }
+          const t = "📊 Hisobot funksiyasi tez orada! Hozircha Mini App → Hamyon'da tarixni ko'rishingiz mumkin.";
+          await ctx.reply(t);
+          saveOut(t);
+          return;
+        }
+        if (r?.action?.type === "city_search" || r?.action?.type === "city_order" || r?.action?.type === "city_status") {
+          const { providerByKey } = await import("../services/ai/providers");
+          const prov = providerByKey(r.action.provider);
+          if (prov) {
+            const { InlineKeyboard } = await import("grammy");
+            if (r.action.type === "city_search") {
+              const cards = await prov.search(r.action.query).catch(() => []);
+              if (!cards.length) {
+                const t = `😕 «${r.action.query}» bo'yicha hech narsa topilmadi. Boshqacha yozib ko'ring.`;
+                await ctx.reply(t);
+                saveOut(t);
+                return;
+              }
+              const kb = new InlineKeyboard();
+              for (const c of cards) for (const b of c.buttons ?? []) kb.text(b.text, b.data).row();
+              const body = cards.map((c, i) => `${i + 1}) <b>${esc(c.title)}</b>${c.subtitle ? `\n    ${esc(c.subtitle)}` : ""}`).join("\n");
+              await ctx.reply(`🔎 Mana topilganlari:\n${body}\n\nBuyurtma uchun yozing: masalan «2 ta ${esc(cards[0]!.title.split(" — ")[0] ?? "")}, manzil: ...»`, {
+                parse_mode: "HTML",
+                reply_markup: kb.inline_keyboard.length ? kb : undefined,
+              });
+              // PUBLIC catalog facts back into history — the agent's next turn sees real options
+              saveOut(`🔎 Topildi (${r.action.provider}): ${cards.map((c) => `${c.title}${c.subtitle ? ` (${c.subtitle})` : ""}`).join("; ")}`);
+              return;
+            }
+            if (r.action.type === "city_order" && prov.order) {
+              const card = await prov.order(tu.memberId, tgId, r.action.item, r.action.qty, r.action.extra).catch(() => ({ error: "Xatolik — keyinroq urinib ko'ring." }));
+              if ("error" in card) {
+                await ctx.reply(card.error);
+                saveOut(card.error);
+                return;
+              }
+              pendingCity.set(tgId, { provider: prov.key, payload: card.payload });
+              await ctx.reply(card.html, {
+                parse_mode: "HTML",
+                reply_markup: new InlineKeyboard().text("✅ Buyurtma berish", "ai:ok").text("✖️ Yo'q", "ai:no"),
+              });
+              saveOut(`🏙 Buyurtma tasdiqlash-kartasi ko'rsatildi (${prov.key}: ${r.action.item} ×${r.action.qty}).`);
+              return;
+            }
+            if (r.action.type === "city_status" && prov.status) {
+              const st = await prov.status(tu.memberId).catch(() => null);
+              const t = st ?? "Bu turdagi buyurtmangiz yo'q ekan.";
+              await ctx.reply(t, { parse_mode: "HTML" });
+              saveOut(st ? `🏙 Buyurtma holati ko'rsatildi (${prov.key}).` : t);
+              return;
+            }
+          }
+          const t = "Bu xizmat hozircha mavjud emas.";
+          await ctx.reply(t);
+          saveOut(t);
+          return;
+        }
+        if (r?.action?.type === "memory_save") {
+          const { saveNote } = await import("../services/ai/memoryService");
+          await saveNote(tu.memberId, r.action.note).catch(() => undefined);
+          // silent save — the customer just gets the warm reply (memory is a feeling, not a UI)
+          const t = r.text?.trim() ? r.text : "Yozib qo'ydim, esimda turadi 😊";
+          await ctx.reply(t);
+          saveOut(t);
+          return;
+        }
+        if (r?.action?.type === "memory_forget") {
+          const { forget } = await import("../services/ai/memoryService");
+          const f = await forget(tu.memberId, r.action.idx).catch(() => ({ ok: false, count: 0 }));
+          const t = f.ok && f.count > 0 ? "🧹 Bo'ldi — unutdim. Xotiramda siz haqingizda hech narsa qolmadi." : "Xotiramda siz haqingizda yozuv yo'q edi 😊";
+          await ctx.reply(t);
+          saveOut(t);
+          return;
+        }
+        if (r?.text) {
+          // do'st-rejim: no cold "Operator" footer on heart-to-heart replies — the persona
+          // itself gives the number when a question actually needs the dispatcher
+          const t = (await featureOn("aidost")) ? r.text : r.text + "\n\n☎️ Operator: 1067";
+          await ctx.reply(t);
+          saveOut(t);
+          return;
+        }
+      } else {
+        const ans = await aiSupport(tu.memberId, ctx.message.text).catch(() => null);
+        if (ans) {
+          const t = ans + "\n\n☎️ Operator: 1067";
+          await ctx.reply(t);
+          saveOut(t);
+          return;
+        }
+      }
+    }
+    const meF = await getMe(tgId).catch(() => null);
     await ctx.reply(
       "🤔 <b>Tushunmadim.</b>\n📍 Manzilni yozing (masalan «Saripul bozorcha») yoki joylashuvingizni yubording — darrov taksi chaqiraman.\nYoki «🚕 Taxi chaqirish» tugmasi · /start · ☎️ 1067",
       { parse_mode: "HTML", reply_markup: await mainMenu(meF?.type === "driver", String(ctx.from?.id ?? "")) },
