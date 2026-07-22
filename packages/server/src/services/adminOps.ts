@@ -394,7 +394,7 @@ export async function adminAnnounce(
   const failedIds: string[] = [];
   for (const u of users) {
     try {
-      await send(u.id, `📣 <b>1067 Taxi</b>\n\n${esc}`);
+      await send(u.id, `📣 <b>BirJoy</b>\n\n${esc}`);
       sent++;
     } catch {
       failedIds.push(u.id); // user blocked the bot (or transient) — record who

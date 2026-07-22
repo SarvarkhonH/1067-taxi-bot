@@ -66,7 +66,7 @@ const canWebApp = env.TELEGRAM_WEBAPP_URL.startsWith("https://");
 // the real-money feel for someone who's never heard of tanga.
 // Short + warm (owner: less spammy). The rich IMAGE card is carried by the landing URL's OG tags.
 const clientInviteText = (bonus: number): string =>
-  `🚕 1067 Taxi — senga ${formatNumber(bonus)} so'm bonus. Bir tap bilan taxi. Qo'shil 👇`;
+  `🚕 BirJoy — senga ${formatNumber(bonus)} so'm bonus. Bir tap bilan taxi. Qo'shil 👇`;
 
 // Wrap the bot ref-link in the OG landing page (/j/?r=<code>) so Telegram renders a rich poster
 // card (KEEP IN SYNC with miniapp/src/telegram.ts inviteLandingUrl). The page forwards ?r → the
@@ -357,7 +357,7 @@ export function createBot(): Bot {
       const firstPin = await prisma.appState.create({ data: { key: `apppinned:${id}`, value: "1" } }).then(() => true).catch(() => false);
       if (firstPin) {
         const card = await ctx
-          .reply("🚖 <b>1067 — bir bosishda taxi!</b>\nChiqishdan OLDIN narxni bilasiz + har safardan tanga qaytadi.\nManzilni tanlang, jonli xaritada haydovchini kuzating 👇", {
+          .reply("🚖 <b>BirJoy — bir bosishda taxi!</b>\nChiqishdan OLDIN narxni bilasiz + har safardan tanga qaytadi.\nManzilni tanlang, jonli xaritada haydovchini kuzating 👇", {
             parse_mode: "HTML",
             reply_markup: new InlineKeyboard().webApp("🚕 Ilovani ochish", webAppUrl()),
           })
@@ -431,7 +431,7 @@ export function createBot(): Bot {
       // Ulangan zahoti ilovani BIR MARTA ko'zga tashlash — "odamlar web app borligini bilmaydi".
       if (canWebApp) {
         await ctx
-          .reply("🎮 <b>1067 ilovasi ham bor!</b>\nJonli xarita · taxi · hamyon — hammasi bitta joyda 👇", {
+          .reply("🎮 <b>BirJoy ilovasi ham bor!</b>\nJonli xarita · taxi · hamyon — hammasi bitta joyda 👇", {
             parse_mode: "HTML",
             reply_markup: new InlineKeyboard().webApp("🚕 Ilovani ochish", webAppUrl()),
           })
@@ -502,7 +502,7 @@ export function createBot(): Bot {
   const startCodeLink = async (ctx: Context): Promise<void> => {
     codeLink.set(String(ctx.from!.id), {});
     await ctx.reply(
-      "📱 <b>Boshqa raqam ulash</b>\n\n1067'da ishlatadigan raqamingizni yozing (masalan <code>+998901234567</code>):\n<i>Bekor qilish — /start</i>",
+      "📱 <b>Boshqa raqam ulash</b>\n\nTaksida ro'yxatdan o'tgan raqamingizni yozing (masalan <code>+998901234567</code>):\n<i>Bekor qilish — /start</i>",
       { parse_mode: "HTML" },
     );
   };
@@ -675,7 +675,7 @@ export function createBot(): Bot {
       // Ulangan zahoti ilovani BIR MARTA ko'zga tashlash — "odamlar web app borligini bilmaydi".
       if (canWebApp) {
         await ctx
-          .reply("🎮 <b>1067 ilovasi ham bor!</b>\nJonli xarita · taxi · hamyon — hammasi bitta joyda 👇", {
+          .reply("🎮 <b>BirJoy ilovasi ham bor!</b>\nJonli xarita · taxi · hamyon — hammasi bitta joyda 👇", {
             parse_mode: "HTML",
             reply_markup: new InlineKeyboard().webApp("🚕 Ilovani ochish", webAppUrl()),
           })
@@ -706,13 +706,13 @@ export function createBot(): Bot {
     await ctx.reply(
       "🔒 Raqamni <b>qo'lda yozib bo'lmaydi</b> — bu xavfsiz emas.\n\n" +
         "• <b>O'z</b> raqamingiz → pastdagi «📱 Raqamni ulashish» tugmasi (Telegram tasdiqlaydi)\n" +
-        "• <b>Boshqa</b> raqam (1067 raqamingiz Telegramnikidan farq qilsa) → pastdagi «📱 Boshqa raqam» tugmasi 👇",
+        "• <b>Boshqa</b> raqam (taksi raqamingiz Telegramnikidan farq qilsa) → pastdagi «📱 Boshqa raqam» tugmasi 👇",
       { parse_mode: "HTML", reply_markup: contactKeyboard() },
     );
     // The «📱 Boshqa raqam» button referenced above was only ever sent on /start — a user who
     // typed a number saw the instruction with NO button to tap. Re-offer it right here (one
     // message can't carry both a reply + inline keyboard, so it's a second message, like /start).
-    await ctx.reply("1067 raqamingiz Telegram raqamingizdan <b>boshqa</b> bo'lsa 👇", {
+    await ctx.reply("Taksi raqamingiz Telegram raqamingizdan <b>boshqa</b> bo'lsa 👇", {
       parse_mode: "HTML",
       reply_markup: new InlineKeyboard().text("📱 Boshqa raqam (1067 kodi bilan)", "clink:start"),
     });
@@ -857,7 +857,7 @@ export function createBot(): Bot {
       "📱 <b>Raqamni o'zgartirish</b>\n\nYangi raqamni pastdagi <b>«📱 Raqamni ulashish»</b> tugmasi bilan ulang — Telegram tasdiqlaydi (xavfsiz).",
       { parse_mode: "HTML", reply_markup: contactKeyboard() },
     );
-    await ctx.reply("1067 raqamingiz Telegram raqamingizdan <b>boshqa</b> bo'lsa 👇", {
+    await ctx.reply("Taksi raqamingiz Telegram raqamingizdan <b>boshqa</b> bo'lsa 👇", {
       parse_mode: "HTML",
       reply_markup: new InlineKeyboard().text("📱 Boshqa raqam (1067 kodi bilan)", "clink:start"),
     });
@@ -1030,7 +1030,7 @@ export function createBot(): Bot {
     const png = await QR.toBuffer(link, { width: 600, margin: 2 });
     const shareUrl =
       `https://t.me/share/url?url=${encodeURIComponent(inviteLandingUrl(link))}` +
-      `&text=${encodeURIComponent("🚖 1067 Taxi'da haydovchi bo'ling!\n💰 Yaxshi daromad, bonuslar va jonli buyurtmalar — bir tap bilan ish boshlang.\n👇 Shu havola orqali qo'shiling:")}`;
+      `&text=${encodeURIComponent("🚖 BirJoy'da haydovchi bo'ling!\n💰 Yaxshi daromad, bonuslar va jonli buyurtmalar — bir tap bilan ish boshlang.\n👇 Shu havola orqali qo'shiling:")}`;
     await ctx.replyWithPhoto(new InputFile(png), {
       caption:
         "🚖 <b>Haydovchi chaqirish — havola + QR</b>\n\n" +
@@ -1459,7 +1459,7 @@ export function createBot(): Bot {
       `  👥 ${s.totalMembers} ta (bog'langan ${s.linkedMembers})\n` +
       `  💰 Jami ${s.metricLabel.toLowerCase()}: <b>${formatNumber(s.pointsSum)}</b>`;
     await ctx.reply(
-      `🛠 <b>Admin · 1067 Taxi</b>\n\n` +
+      `🛠 <b>Admin · BirJoy</b>\n\n` +
         `${block(drivers, "🚗 <b>Haydovchilar</b>")}\n\n` +
         `${block(clients, "🏅 <b>Mijozlar</b>")}\n\n` +
         `🔄 Oxirgi sync: ${drivers.lastSync ? `${drivers.lastSync.status} · ${drivers.lastSync.membersSeen} ta` : "—"}`,
@@ -1477,7 +1477,7 @@ export function createBot(): Bot {
     const dot = (ok: boolean) => (ok ? "🟢" : "🔴");
     const b = e.withdrawBudget;
     await ctx.reply(
-      `🛡 <b>1067 — Operatsion holat</b>\n\n` +
+      `🛡 <b>BirJoy — Operatsion holat</b>\n\n` +
         `🚦 <b>Salomatlik</b>\n` +
         `  kas1067 ${dot(h.kas.ok)} ${h.kas.ms}ms · baza ${dot(h.db.ok)} · bot ${dot(h.bot)}\n` +
         `  Sync: ${h.lastSync ? `${h.lastSync.status} (${h.lastSync.ageMin} daq)` : "—"} · Booking: ${h.bookingLive ? "JONLI" : "test"}\n\n` +
@@ -1972,7 +1972,8 @@ export function createBot(): Bot {
     if (newStatus === "member" || newStatus === "administrator") {
       await ctx.api.sendMessage(
         chat.id,
-        `👋 Assalomu alaykum! Men <b>1067 taxi</b> botiman.\n\n` +
+        `👋 Assalomu alaykum! Men <b>BirJoy</b> botiman.
+🤖 Koson AI — taksi, ovqat, usta, e'lon — hammasi bir joyda.\n\n` +
         `Bu guruhda /taksi yozing — men sizni bot'ga yo'naltirib taksi chaqirishga yordam beraman. 🚕`,
         { parse_mode: "HTML" },
       ).catch(() => undefined);
@@ -2001,7 +2002,7 @@ export function createBot(): Bot {
       {
         reply_markup: {
           inline_keyboard: [[{
-            text: "🚕 1067 Taxi chaqirish",
+            text: "🚕 Taxi chaqirish",
             url: `https://t.me/${ctx.me.username}?start=book`,
           }]],
         },
@@ -2099,7 +2100,7 @@ export async function setupBotCommands(bot: Bot): Promise<void> {
       // ALWAYS injects initData for this tap (unlike reply-keyboard web_app buttons, which Web Z /
       // Desktop sometimes start with a few-hundred-ms initData delay). Owner preference: land on the
       // HOME screen (living map + one-tap CTA + shortcuts), NOT straight into the booking map.
-      await bot.api.setChatMenuButton({ menu_button: { type: "web_app", text: "🚕 1067", web_app: { url: webAppUrl() } } });
+      await bot.api.setChatMenuButton({ menu_button: { type: "web_app", text: "🚕 BirJoy", web_app: { url: webAppUrl() } } });
     } catch (e) {
       console.error("[bot] setChatMenuButton failed", e instanceof Error ? e.message : e);
     }

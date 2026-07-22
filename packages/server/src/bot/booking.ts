@@ -554,7 +554,7 @@ export function registerBooking(bot: Bot, mainMenu: (isDriver?: boolean, tgId?: 
     }
     const url = `${env.TELEGRAM_WEBAPP_URL.replace(/\/+$/, "")}/?track=${token}`;
     const car = b.driver?.carNumber;
-    const share = `🛡 Men 1067 taxida ketyapman${car ? ` — mashina ${car}` : ""}. Jonli kuzating: ${url}`;
+    const share = `🛡 Men BirJoy taksida ketyapman${car ? ` — mashina ${car}` : ""}. Jonli kuzating: ${url}`;
     await ctx.answerCallbackQuery();
     await ctx.reply(
       `🛡 <b>Jonli kuzatuv havolasi tayyor</b>\n\n${url}\n\n<i>Oilangizga yuboring — safar tugaguncha mashinani jonli xaritada ko'rib turishadi.</i>`,

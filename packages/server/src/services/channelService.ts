@@ -47,7 +47,7 @@ export function channelName(displayName: string | null, fullName: string): strin
 export async function announceJackpotWin(name: string, amount: number): Promise<void> {
   if (!(await featureOn("jackpotpost"))) return;
   await postToChannel(
-    `🎰🎰🎰 <b>JACKPOT!</b>\n\n<b>${name}</b> bugun 1067 taxidan <b>${formatNumber(amount)} tanga</b> yutib oldi — safari BEPUL chiqdi! 🎉\n\n` +
+    `🎰🎰🎰 <b>JACKPOT!</b>\n\n<b>${name}</b> bugun BirJoy'da <b>${formatNumber(amount)} tanga</b> yutib oldi — safari BEPUL chiqdi! 🎉\n\n` +
       `Har safar jamg'armani o'stiradi — keyingisi sizniki bo'lishi mumkin. 🚕 @koson1067bot`,
   );
 }

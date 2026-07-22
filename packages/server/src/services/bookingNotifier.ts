@@ -141,7 +141,7 @@ function rideCardKb(b: ActiveBookingLite, c: CardCtx): InlineKeyboard | undefine
       // trackcta: share becomes a callback minting the REAL live-track link (viral loop)
       kb.text("🛡 Jonli kuzatuv", "bk:track");
     } else {
-      const share = `🚕 Men 1067 taxida ketyapman${b.carNumber ? ` — mashina ${b.carNumber}` : ""}. Kuzating: @koson1067bot`;
+      const share = `🚕 Men BirJoy taksida ketyapman${b.carNumber ? ` — mashina ${b.carNumber}` : ""}. Kuzating: @koson1067bot`;
       kb.url("🛡 Ulashish", `https://t.me/share/url?url=${encodeURIComponent("https://t.me/koson1067bot")}&text=${encodeURIComponent(share)}`);
     }
     kb.row();

@@ -31,10 +31,10 @@ export function renderWelcome(name: string, firstRideBonus = 0): string {
       ? `🎁 <b>Birinchi safaringiz BEPUL!</b> ${formatNumber(firstRideBonus)} tanga sovg'a — boshlanish narxini to'liq qoplaydi 🚕\n\n`
       : "";
   return (
-    `🚕 <b>1067 TAXI</b>\n` +
+    `✨ <b>BirJoy</b> — Kosonда bir joy\n` +
     `Salom, <b>${esc(name)}</b>! 👋\n\n` +
     hook +
-    `Bir tugmada taxi · har safardan <b>haqiqiy pul cashback</b> · kunlik sovg'alar va bonuslar.\n\n` +
+    `🚕 Bir tugmada taxi · 🤖 aqlli yordamchi · har safardan <b>haqiqiy pul cashback</b> · kunlik sovg'alar.\n\n` +
     `👇 Pastdagi <b>«📱 Raqamni ulashish»</b> tugmasini bosing — tayyor!`
   );
 }
@@ -50,8 +50,8 @@ export function renderLinkPrompt(): string {
 export function renderNotFound(): string {
   return (
     `😕 <b>Bu raqam topilmadi</b>\n\n` +
-    `1067 Taxi tizimida ro'yxatdan o'tgan raqamni yuboring.\n` +
-    `📲 1067'dagi raqamingiz Telegram raqamingizdan boshqa bo'lsa — /boshqaraqam bilan ulang.\n` +
+    `Taksida ro'yxatdan o'tgan raqamni yuboring.\n` +
+    `📲 Taksidagi raqamingiz Telegram raqamingizdan boshqa bo'lsa — /boshqaraqam bilan ulang.\n` +
     `Hali mijoz emasmisiz? Bir marta <b>«🚖 Taxi chaqirish»</b> bilan safar qiling — keyin shu raqam ishlaydi. 🙌`
   );
 }

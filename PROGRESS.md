@@ -1597,3 +1597,29 @@ Isbot: admin typecheck 0 · vite build muvaffaqiyatli. Server-API allaqachon jon
 NB: admin FRONTEND alohida Vercel-deploy talab qiladi (kod tayyor+build). Telegram owner-card
 moderatsiya baribir ishlaydi (ega telefondan tasdiqlaydi) — admin-UI qo'shimcha surface.
 B YAKUNI: bazar-buyurtma ✅ · Needs v1 ✅ · admin-UI ✅ (Vercel-deploy qoldi).
+
+## 2026-07-23 (7) — D2.5 miniapp do'kon-profil ekrani + 3× regressiya tasdiqlandi
+- `shop.tsx`: eski bo'sh `shopFilter` sarlavha o'rniga to'liq **Do'kon-profil** ekrani (§2
+  blueprint): hero (rasm/gradient-fallback) + reyting-badge + yopishqoq info-qator (mahalla/
+  ochiq-yopiq/javob-tezlik/yetkazish) + e'lon-banner + "Biz haqimizda" (collapse) + do'kon-darajali
+  sharhlar-sheet (`listShopReviews` orqali, o'qish-uchun, submit-shakli yo'q) + do'kon-ichi
+  kategoriya-sub-filtr (`shopCategories`, mavjud `shop-cat-chip` uslubi).
+- `tokens.css`: yangi `.bj-profile-*` blok — §1bis premium-qoidaga mos (emoji faqat matn-kontent
+  darajasida, jim info-qator, zumrad faqat aksent, rasm-tonli hero).
+- `api.ts` (miniapp): `shopProfile(shopId)` — `GET /api/shop/profile/:id` (D2.2/D2.4'da qurilgan).
+**Isbot:** `tsc --noEmit` 4/4 paket (shared/server/admin/miniapp) 0 xato · `testBazar.ts`
+TEST_DATABASE_URL'da **3× ketma-ket ALL GREEN** (114/114 har safar) — schema/service
+qo'shimchalaridan hech qanday regressiya yo'q.
+**QOLDI D2 "ready for verification" bo'lishi uchun:** mustaqil R4 tekshiruvi (kod yozmagan
+sub-agent) + ega telefonda REAL ko'rish (bazar flag hozircha ON bo'lgan pilot muhitda). Flag
+holati o'zgarmadi — bu safar hech narsa yangi ON qilinmadi, faqat mavjud `bazar` flag ostidagi
+ekran boyitildi.
+
+## 2026-07-23 (12) — Butun bot BirJoy rebrend (#6)
+Foydalanuvchiga ko'rinadigan «1067 Taxi/1067 taxi» brend-satrlari → BirJoy:
+- render.ts: welcome header «✨ BirJoy — Kosonда bir joy» + aqlli-yordamchi satri; link-prompt «taksi».
+- bot.ts: /start intro «Men BirJoy botiman + Koson AI...», invite, «BirJoy ilovasi ham bor» ×2,
+  haydovchi-taklif, admin-title, ops-holat, menu-button «🚕 BirJoy», taxi-tugma, telefon-ulash matnlar.
+- booking.ts/bookingNotifier.ts share «BirJoy taksida», adminOps broadcast header, channelService jackpot.
+- «1067» FAQAT qoldi: taksi-dispetcher raqami (kontekstда), kas-payment memo (ichki), @koson1067bot
+  (real username), URL'lar, webhook/deploy nomlari. Isbot: typecheck 0 · brand-grep bo'sh.
