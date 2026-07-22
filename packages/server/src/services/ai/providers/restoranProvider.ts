@@ -105,7 +105,7 @@ export const restoranProvider: AiProvider = {
         pending_limit: "Sizda kutilayotgan buyurtmalar ko'p — avval ularini yakunlang.",
         bad_address: "Manzil juda qisqa — aniqroq yozing.",
       };
-      return { ok: false, message: reasons[r.reason ?? ""] ?? "Buyurtma o'tmadi — keyinroq urinib ko'ring yoki ☎️ 1067." };
+      return { ok: false, message: reasons[r.reason ?? ""] ?? "Buyurtma o'tmadi — keyinroq urinib ko'ring." };
     }
     // owner/operator alert — the same path the Mini App checkout uses
     if (r.notice) {

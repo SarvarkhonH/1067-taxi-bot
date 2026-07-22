@@ -1597,9 +1597,10 @@ export function createBot(): Bot {
     const { parseIntent, aiSupport } = await import("../services/ai/intent");
     const intent = parseIntent(ctx.message.text);
     if (intent.type === "faq") {
-      const answer = intent.answer + "\n\n☎️ Operator: 1067";
-      await ctx.reply(answer, { reply_markup: undefined });
-      saveOut(answer);
+      // no mechanical "1067" footer — BirJoy is the brand; the taxi FAQ answers that need
+      // the dispatcher number already carry it in their own text (intent.ts)
+      await ctx.reply(intent.answer, { reply_markup: undefined });
+      saveOut(intent.answer);
       return;
     }
     const { tryAddressBooking } = await import("./booking");
@@ -1810,26 +1811,24 @@ export function createBot(): Bot {
           return;
         }
         if (r?.text) {
-          // do'st-rejim: no cold "Operator" footer on heart-to-heart replies — the persona
-          // itself gives the number when a question actually needs the dispatcher
-          const t = (await featureOn("aidost")) ? r.text : r.text + "\n\n☎️ Operator: 1067";
-          await ctx.reply(t);
-          saveOut(t);
+          // no mechanical "1067" footer — the BirJoy persona itself surfaces the taxi
+          // dispatcher number only when a taxi question actually needs it (system prompt)
+          await ctx.reply(r.text);
+          saveOut(r.text);
           return;
         }
       } else {
         const ans = await aiSupport(tu.memberId, ctx.message.text).catch(() => null);
         if (ans) {
-          const t = ans + "\n\n☎️ Operator: 1067";
-          await ctx.reply(t);
-          saveOut(t);
+          await ctx.reply(ans);
+          saveOut(ans);
           return;
         }
       }
     }
     const meF = await getMe(tgId).catch(() => null);
     await ctx.reply(
-      "🤔 <b>Tushunmadim.</b>\n📍 Manzilni yozing (masalan «Saripul bozorcha») yoki joylashuvingizni yubording — darrov taksi chaqiraman.\nYoki «🚕 Taxi chaqirish» tugmasi · /start · ☎️ 1067",
+      "🤔 <b>Tushunmadim.</b>\n📍 Manzilni yozing (masalan «Saripul bozorcha») yoki joylashuvingizni yubording — darrov taksi chaqiraman.\nYoki «🚕 Taxi chaqirish» tugmasi · /start",
       { parse_mode: "HTML", reply_markup: await mainMenu(meF?.type === "driver", String(ctx.from?.id ?? "")) },
     );
   });

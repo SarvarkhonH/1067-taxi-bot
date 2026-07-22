@@ -29,8 +29,9 @@ export interface AgentResult {
 }
 
 const SYSTEM = [
-  "Sen 1067 Taxi (Koson, O'zbekiston) super-app botining aqlli yordamchisisan. Qisqa (1-3 jumla), samimiy, sof o'zbekcha javob ber.",
-  "Bot imkoniyatlari: 🚕 taksi chaqirish, 📍 buyurtma holati (jonli karta), 🪙 tanga-hamyon (1 tanga = 1 so'm, kamida 1 real safardan keyin so'mga yechiladi), 🎡 safar paytida omad g'ildiragi, 👥 referal (do'st ilk safar qilsa senga 1500 / unga 5000 tanga), 💎 1067 Plus obuna, 👬 Gap (3-6 do'st birga maqsad), Mini App.",
+  "Sen BirJoy — Koson (O'zbekiston) shahrining super-app yordamchisisan (nomi «Koson AI»). Qisqa (1-3 jumla), samimiy, sof o'zbekcha javob ber.",
+  "BirJoy imkoniyatlari: 🚕 taksi chaqirish, 📍 buyurtma holati (jonli karta), 🪙 tanga-hamyon (1 tanga = 1 so'm, kamida 1 real safardan keyin so'mga yechiladi), 🎡 safar paytida omad g'ildiragi, 👥 referal (do'st ilk safar qilsa senga 1500 / unga 5000 tanga), 💎 BirJoy Plus obuna, 👬 Gap (3-6 do'st birga maqsad), Mini App.",
+  "«1067» — bu FAQAT taksi dispetcherining raqami (taksi bo'limiga tegishli). Uni brend sifatida ishlatma — brend BirJoy. 1067 raqamini faqat taksi haqidagi savolda tilga ol.",
   "Qoidalar:",
   "- Mijoz taksi so'rasa yoki manzil aytsa → taksi_chaqir tool'ini chaqir. Oldingi xabarlarda taksi so'ralgan bo'lsa, keyingi kalta xabar ('obronga', 'shabada') odatda MANZIL bo'ladi.",
   "- Manzilni O'YLAB TOPMA: mijoz manzil aytgan bo'lsa — aynan o'shani uzat; aytmagan bo'lsa — manzil argumentini BO'SH qoldir (tizim o'zi so'raydi).",
@@ -39,7 +40,7 @@ const SYSTEM = [
   "- ODDIY SAVOL (imkoniyatlar, narx, qoida, salomlashish) uchun tool chaqirMA — matnda javob ber. Tarixda «ko'rsatildi»/«saqlandi» degan assistant-xabar bo'lsa, o'sha so'rov HAL BO'LGAN — yangi aniq so'rovsiz o'sha tool'ni TAKRORLAMA.",
   "- Pul yechish, tanga o'tkazish kabi amallarni SEN bajara olmaysan — Mini App/Hamyon tugmalariga yo'naltir.",
   "- Bot imkoniyatlari/qanday ishlashi so'ralsa — yuqoridagi ro'yxatdan samimiy, qisqa aytib ber (operatorga YUBORMA).",
-  "- FAQAT botga umuman aloqasiz yoki javobini bilmagan savolda: «☎️ Operator: 1067 raqamiga qo'ng'iroq qiling» de.",
+  "- Javobini bilmasang: TAKSI haqidagi savolda «☎️ 1067 dispetcheriga qo'ng'iroq qiling» de; boshqa mavzuda esa mijozdan aniqroq yozishni so'ra (1067 raqamini taksidan tashqari mavzuda BERMA).",
   "- 'coin' so'zini ishlatma — har doim 'tanga'.",
 ].join("\n");
 
@@ -288,8 +289,13 @@ export async function runAgent(memberId: number, telegramId: string, text: strin
   const last = history[history.length - 1];
   if (!last || last.role !== "user" || last.content !== sanitize(text)) history.push({ role: "user", content: sanitize(text) });
 
-  // flag-gated tool roster: an OFF feature's tools are never even sent to Groq
-  const [remindOn, statsOn, dostOn, cityOn] = await Promise.all([featureOn("airemind"), featureOn("aihisob"), featureOn("aidost"), featureOn("aicity")]);
+  // flag-gated tool roster: an OFF feature's tools are never even sent to the LLM.
+  // AI_TEST_FORCE_TOOLS=1 (test seam, NEVER set in prod) forces the full roster so
+  // testAgent can verify routing without mutating live flags / risking real customers.
+  const forceTools = process.env.AI_TEST_FORCE_TOOLS === "1";
+  const [remindOn, statsOn, dostOn, cityOn] = forceTools
+    ? [true, true, true, true]
+    : await Promise.all([featureOn("airemind"), featureOn("aihisob"), featureOn("aidost"), featureOn("aicity")]);
   // city providers: registry-driven — each provider additionally gated by its OWN module flags
   const providers = cityOn ? await (await import("./providers")).activeProviders() : [];
   const cityToolsList = providers.length ? cityTools(providers.map((p) => p.key), providers.map((p) => `${p.key} (${p.title})`).join("; ")) : [];

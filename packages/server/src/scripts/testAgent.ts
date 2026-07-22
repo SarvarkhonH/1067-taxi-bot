@@ -5,6 +5,7 @@
 // 999999 (harmless — capped namespace, never a real member's budget).
 // Run: pnpm exec dotenv -e ../../.env -- tsx src/scripts/testAgent.ts
 import "../env";
+process.env.AI_TEST_FORCE_TOOLS = "1"; // force the full tool roster — verify routing without touching live flags
 import { prisma } from "../db";
 import { runAgent } from "../services/ai/agent";
 

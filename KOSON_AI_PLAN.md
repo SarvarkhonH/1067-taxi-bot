@@ -67,6 +67,42 @@ Keyin: intercity, e'lonlar, taxi-paket... — har biri faqat bitta yangi fayl.
   (bugungi testlarda ko'ringan limit yechimi).
 - System-prompt: «Sen Koson AI'san — Koson shahrining universal yordamchisi».
 
+## K5 — 🧠 Life Graph + Needs Engine (Founder Bible §17.5 + §17.4 urug'i) — flag: `aigraf`
+Ega yo'nalishi + Bible §17.5: «BirJoy eslab qoladi — har juma qayerga borasan, har oy qayerdan
+xarid qilasan — va oldindan tayyorlaydi». Suhbatlar orqali odamga NIMA KERAKLIGINI aniqlaydi.
+K4 do'st-xotira (MemberMemory) — shuning URUG'I; K5 uni strukturaviy + proaktiv qiladi.
+
+**TEMIR SHART (Bible §12.3 — buzilmaydi):** hammasi FAQAT ochiq rozilik + to'liq halollik bilan.
+«Ishonch kompaniyasi ma'lumotni qurolga aylantirmaydi — aks holda poydevor qulaydi.» «Meni unut»
+har doim g'olib. Balans/telefon hech qachon graf'ga yozilmaydi. Admin-panelda ko'rinmaydi.
+
+### K5.1 — QURILADI (arzon urug', hozir): strukturaviy xotira + ehtiyoj-sezgi
+- `MemberMemory`ga `kind` (fakt | odat | ehtiyoj | voqea) + `expiresAt?` (voqea o'tsa tozalanadi;
+  odat/fakt qoladi). Migratsiya additiv.
+- **Ehtiyoj-sezgi passi** (yangi poller YO'Q — mavjud pushEngineTick + NotifyLog dedup):
+  faol a'zoga N kunda BIR marta, 1 ta LLM-chaqiruv oxirgi SupportMsg+notes ustidan →
+  0-2 «ehtiyoj» chiqaradi (masalan «har juma bozorga boradi», «to'yga tayyorlanyapti»,
+  «onasi kasal — tashvishda»). Saqlanadi. BITTASI yumshoq proaktiv taklif bo'ladi
+  (opt-in, quiet-hours, kunlik proaktiv-limit — K4-P3 naqshi): «Har juma bozorga chiqasiz —
+  doimiy eslatma qo'yaymi? 😊» yoki «To'y tashvishi bormi? Fotograf/zal/osh — birga topamiz».
+- Har taklifda [👍 Ha] [🔕 Bunday yozma] — «🔕» o'sha turdagi proaktivlikni butunlay o'chiradi.
+- «Bu oy taksiga ko'p sarfladingiz» (Personal Economy urug'i) — aiStats ustiga quriladi
+  (lokal, LLM raqam ko'rmaydi).
+
+### K5.2 — DARVOZA oladi (Bible §17.10, hozir QURILMAYDI): to'liq Intent Engine + Life Graph
+- **Intent Engine (§17.4):** «Ertaga to'yim bor» → AI fotograf+zal+osh+gul+taksi+video'ni bitta
+  jarayonga yig'adi. «150 mingga tug'ilgan kun joyi top» → restoran+tort+gul+taksi bitta buyurtma.
+  Darvoza: kamida 3-4 modul barqaror + Registry boyligi + AI-xarajatni ko'taradigan tushum
+  (Bible mo'ljali 2027-2028). Provider-registry (K1) buning texnik poydevori — Intent Engine
+  bir necha provider'ni ketma-ket bog'laydi.
+- **Life Graph (§17.5):** sen→mashina→usta→sug'urta→benzin — bog'langan tugunlar. Darvoza:
+  ma'lumot yetarli + maxfiylik/adolat qoidalari tayyor.
+- Bu ikkisi rejada YOZILADI, lekin bugun kod YO'Q — «katta g'oya rad etilmaydi, darvoza oladi».
+
+### Strategik filtr (Bible §17.2): har K5-xususiyat «City Graph'ni boyitadimi?»
+Ehtiyoj-sezgi → HA (talab ma'lumoti). Personal Economy → HA (sarf naqshi). Shuning uchun
+strategik — quriladi. Sof-chat o'yin-kulgi → City Graph'ni boyitmaydi → qurilmaydi.
+
 ## K4 — 💛 «Do'st-rejim»: emotsional AI + o'z-xotira (flag: `aidost`)
 Ega talabi: «bot emotional AI bo'lishi, odamlar bilan dardlashishi, o'zi yozib eslab turishi».
 
@@ -101,8 +137,18 @@ DB'da, faqat o'z suhbatida ishlatiladi, so'rovda o'chadi. Admin-panelda ko'rsati
 3. **K2 — xizmatProvider + bazarProvider** (adapter ≤100 qator ekanini isbotlash = flexibility
    DoD'i: "yangi provider qo'shish uchun yadroga tegilmadi" — diff bilan ko'rsatiladi) → QABUL.
 4. **K3 — LLM-fallback zanjiri + Koson-bilim kontekst** → 3× yashil testAgent.
-Flaglar: aidost (do'st-rejim) · aicity (yadro master-gate) — ikkalasi aibrain ostida +
-har provider o'z modul-flagi.
+5. **K5.1 — Life Graph urug'i** (strukturaviy xotira + ehtiyoj-sezgi passi; opt-in proaktiv,
+   Bible §12.3 rozilik-shart bilan) → testAgent: ehtiyoj-ekstraksiya + proaktiv opt-out → QABUL.
+Flaglar: aidost (do'st-rejim) · aicity (yadro master-gate) · aigraf (K5.1 Life Graph) —
+hammasi aibrain ostida + har provider o'z modul-flagi.
+K5.2 (to'liq Intent Engine + Life Graph) — Bible darvozasi ochilguncha (2027-2028) faqat rejada.
+
+## Founder Bible bilan bog'lanish (BirJoy_Founder_Bible_v2, 19.07.2026)
+Bu reja Bible §17 (City OS) ning AI qatlamini amalga oshiradi: §17.3 Mahalliy Google = K1
+shahar_qidir · §17.4 Intent Engine = K5.2 (darvozali) · §17.5 Memory/Life Graph/Personal
+Economy = K4+K5 · §17.6 Invisible App (Telegram birinchi eshik) = butun bot-agent yondashuvi.
+Bible intizomi hurmat qilinadi: 90-kunlik fokus «SEVILISH» — AI mijozni sevishga xizmat qiladi,
+ko'paytirishga emas; har katta g'oya darvoza oladi, bugungi fokusni buzmaydi.
 
 ## QURILMAYDI / O'ZGARMAS
 - Tasdiqlash-kartasiz buyurtma YO'Q (yadro kafolati). AI to'lov o'tkazmaydi.

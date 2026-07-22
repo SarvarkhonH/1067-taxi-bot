@@ -30,13 +30,13 @@ const FAQ: { re: RegExp; a: string }[] = [
   { re: /cashback|kesh|кешбек|bonus\s+qancha/i, a: "💰 Har bot orqali chaqirilgan safardan cashback tushadi (ruletka 1x-10x!). Mini App → Hamyon'da ko'rinadi." },
   { re: /tanga|coin|pul\s+yech|so'mga|yechib\s+ol/i, a: "🪙 1 tanga = 1 so'm. Hamyon → «So'mga yechish» — kamida 1 ta real safar qilgan bo'lishingiz kerak." },
   { re: /g'ildirak|gildirak|ruletka|spin/i, a: "🎡 Omad g'ildiragi SAFAR PAYTIDA aylanadi — har safar 1 spin, har spin yutadi!" },
-  { re: /plus|obuna/i, a: "💎 1067 Plus: 9 990 tanga/oy — cashback ×1.5. Birinchi oy BEPUL. Mini App → Bonus." },
+  { re: /plus|obuna/i, a: "💎 BirJoy Plus: 9 990 tanga/oy — cashback ×1.5. Birinchi oy BEPUL. Mini App → Bonus." },
   { re: /gap\b|davra/i, a: "👬 Gap: 3-6 do'st birga safar maqsadini bajarsa hammaga +500, bir kishiga POT +2000. Mini App → Do'st." },
   { re: /haydovchi\s+bo'l|ishga\s+kir|driver/i, a: "🚖 Haydovchi bo'lishni xohlaysizmi? 1067 dispetcheriga qo'ng'iroq qiling: 1067." },
   { re: /bekor|cancel|отмен/i, a: "✖️ Faol buyurtmani «📍 Buyurtmam» tugmasi orqali bekor qilishingiz mumkin." },
   { re: /qayer|qachon\s+kel|мошина\s+қаер|mashina\s+qayer/i, a: "📍 «Buyurtmam» tugmasini bosing — jonli kartada mashina qayerdaligini ko'rasiz." },
   { re: /referal|do'st\s+taklif|taklif\s+qil/i, a: "👥 Do'st taklif qiling: u ilk safarini qilsa SIZGA 1500, UNGA 5000 tanga (birinchi safar BEPUL)! Mini App → Do'st." },
-  { re: /operator|dispetcher|yordam|help|aloqa/i, a: "☎️ Operator: 1067 raqamiga qo'ng'iroq qiling — dispetcherlar 24/7." },
+  { re: /operator|dispetcher|yordam|help|aloqa/i, a: "☎️ Taksi bo'yicha: 1067 dispetcheriga qo'ng'iroq qiling (24/7). Boshqa savollar — shu yerda yozing, yordam beraman." },
 ];
 
 /** Layer 1: pure rules. Never calls the LLM. */
@@ -61,9 +61,9 @@ export function parseIntent(text: string): Intent {
 export async function aiSupport(memberId: number, text: string): Promise<string | null> {
   if (!llmAvailable()) return null;
   const system =
-    "Sen 1067 Taxi (Koson, O'zbekiston) yordamchisisan. Qisqa, samimiy o'zbekcha javob ber (2-3 jumla). " +
+    "Sen BirJoy — Koson (O'zbekiston) shahrining yordamchisisan (Koson AI). Qisqa, samimiy o'zbekcha javob ber (2-3 jumla). " +
     "Pul o'tkazmalari yoki tanga operatsiyalarini O'ZING bajara olmaysan — foydalanuvchini bot tugmalariga yo'naltir. " +
-    "Bilmagan narsangga 'operatorga murojaat qiling (1067)' deb javob ber.";
+    "«1067» faqat taksi dispetcherining raqami — uni faqat taksi haqidagi savolda tilga ol, brend sifatida emas (brend BirJoy).";
   return askLlm(memberId, text, system);
 }
 
