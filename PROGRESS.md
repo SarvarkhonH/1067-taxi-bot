@@ -1623,3 +1623,36 @@ Foydalanuvchiga ko'rinadigan «1067 Taxi/1067 taxi» brend-satrlari → BirJoy:
 - booking.ts/bookingNotifier.ts share «BirJoy taksida», adminOps broadcast header, channelService jackpot.
 - «1067» FAQAT qoldi: taksi-dispetcher raqami (kontekstда), kas-payment memo (ichki), @koson1067bot
   (real username), URL'lar, webhook/deploy nomlari. Isbot: typecheck 0 · brand-grep bo'sh.
+
+## 2026-07-23 (8) — R4 (D2): 3 real bug topildi va TUZATILDI, 1 da'vo tekshirilib RAD ETILDI
+Mustaqil R4 agent (kod yozmagan) D2 seriyasini tekshirdi. Natija:
+- **HIGH — jim cheksiz-skeleton**: `/api/shop/profile/:id` `{error}`ni HTTP 200 bilan qaytargan,
+  miniapp'ning umumiy `request()` yordamchisi faqat non-2xx'da rad etadi → `shopProfile` hech
+  qachon o'rnatilmagan, `profileErr` ham hech qachon `true` bo'lmagan → ekran ABADIY skeleton'da
+  qotib qolardi (`bazar` kill-switch flag o'chirilgan payt HAM shu holatga tushardi — o'chirgich
+  o'zi UI'ni qotirib qo'yishi TAQIQ qoidasiga zid). FIX: `server.ts` — `res.status(404)` (json()
+  o'zi emas, `withMember2` allaqachon `res.json(...)` chaqiradi) + `return { error }`.
+- **MEDIUM — orqaga-tugma yo'q loading/error holatida**: orqaga-tugma faqat yuklangan hero ichida
+  edi. FIX: `shop.tsx` — «← Bozorga qaytish» endi HAR uch holatda (loading/error/loaded) ko'rinadi.
+- **MEDIUM — ega-yo'li ishlamas edi**: `ShopProfilePanel` shopId'siz chaqirardi — faqat
+  shopseller-token uchun ishlaydi, ega (owner, `tab==="shop"` orqali HAM shu komponentni ko'radi)
+  uchun jimgina `null` qaytarardi. FIX: shopId'siz chaqiruv 400 qaytarsa — V1.6e'dagi AYNAN shu
+  do'kon-tanlov naqshi (`marketShops()`) bilan owner qaysi do'konni tahrirlashini tanlaydi.
+- **LOW — inline-stil**: `shop.tsx`dagi bitta `style={{margin:...}}` → CSS klassga ko'chirildi.
+- **Tekshirilib RAD ETILGAN da'vo**: R4 "admin D2 o'zgarishlari commit 340b69d'ga noto'g'ri
+  yozilgan" dedi — `git log`/`git status` bilan tekshirdim: 340b69d BOSHQA (eski, aibilim)
+  commit, mening D2 o'zgarishlarim HALI COMMIT QILINMAGAN — ishchi katalogda turibdi. R4'ning bu
+  bandi noto'g'ri (git-tarix xato o'qilgan) — PROGRESS'ga yolg'on kiritmaslik uchun bu yerda aniq
+  yozib qo'ydim.
+**Isbot:** `tsc --noEmit` 4/4 paket 0 xato (fix'lardan keyin qayta tekshirildi).
+**Holat:** D2 ticket'i endi **READY FOR VERIFICATION** — R4'ning barcha haqiqiy topilmalari
+tuzatildi. Hali commit/push/deploy qilinmagan, ega telefon-QABUL'i ham hali yo'q.
+
+## 2026-07-23 (9) — D2 R4-tuzatishlar mustaqil qayta tekshirildi: 3/3 PASS
+Alohida (kod tuzatmagan) agent orqali R4'ning 3 ta haqiqiy topilmasiga qilingan tuzatishlar
+qayta tekshirildi (fix-ni tekshirish, faqat "tsc o'tdi" bilan cheklanmasdi):
+- Bug #1 (404 status) — PASS: double-send xavfi yo'q, client `.catch()` chindan ham ishga tushadi.
+- Bug #2 (orqaga-tugma) — PASS: uch holatda ham (loading/error/loaded) shartsiz ko'rinadi.
+- Bug #3 (ega-tanlov paneli) — PASS: real ishlaydi, seller-scoped yo'lga regressiya yo'q.
+**Holat:** D2 — READY FOR VERIFICATION (mustaqil ikki bosqichli tekshiruv o'tdi). Hali
+commit/push/deploy qilinmagan, ega telefon-QABUL kutilmoqda.

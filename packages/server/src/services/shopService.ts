@@ -6,12 +6,17 @@
 // (V0.2 BirJoy audit: flip+refund atomik — throw = rollback = order pending'da qoladi). NO lootboxes — the
 // owner's hard rule: deterministic price ↔ product only. UI word is "tanga", never "coin".
 import {
+  SHOP_ANNOUNCEMENT_MAX,
   SHOP_LOW_STOCK,
   SHOP_MAX_PRICE,
+  SHOP_NEIGHBORHOOD_MAX,
   SHOP_REVIEW_MAX_PHOTOS,
   SHOP_REVIEW_MAX_TEXT,
+  SHOP_STORY_MAX,
   type ShopBuyResponse,
   type ShopProductView,
+  type ShopProfileEditInput,
+  type ShopProfileView,
   type ShopPurchaseView,
   type ShopReviewSubmitResponse,
   type ShopReviewThumb,
@@ -134,6 +139,48 @@ export async function getMarketHome(preview = false, q?: string, memberId?: numb
     cats: cats.map((c) => ({ id: c.id, slug: c.slug, name: c.name, emoji: c.emoji, hasIcon: !!(c.iconFileId || c.iconUrl) })),
     products: filtered,
   };
+}
+
+/** 🏪 D2: bitta do'konning profil-sahifasi (hero/info-qator/e'lon/hikoya/reyting). Owner-preview
+ *  (`preview`) — bazar OFF bo'lsa ham egaga/adminlarga ko'rinadi, xuddi getMarketHome kabi. */
+export async function getShopProfile(shopId: number, preview = false): Promise<ShopProfileView | null> {
+  if (!preview && !(await featureOn("bazar"))) return null;
+  const shop = await prisma.marketShop.findUnique({ where: { id: shopId } });
+  if (!shop || (!shop.active && !preview)) return null;
+  const productIds = (await prisma.product.findMany({ where: { shopId }, select: { id: true } })).map((p) => p.id);
+  const ratingAgg = productIds.length
+    ? await prisma.productReview.aggregate({
+        where: { productId: { in: productIds }, rating: { not: null } },
+        _avg: { rating: true },
+        _count: { rating: true },
+      })
+    : null;
+  return {
+    id: shop.id,
+    name: shop.name,
+    open: isOpenNow(shop.workHours),
+    neighborhood: shop.neighborhood,
+    deliveryText: shop.deliveryText,
+    story: shop.story,
+    announcement: shop.announcement,
+    hasPhoto: !!(shop.photoFileId || shop.photoUrl),
+    avgRating: Math.round(((ratingAgg?._avg.rating ?? 0)) * 10) / 10,
+    reviewCount: ratingAgg?._count.rating ?? 0,
+  };
+}
+
+/** 🏪 D2: sotuvchi o'z do'kon-profilini tahrirlaydi (admin-panel `ShopProfilePanel`).
+ *  `scopeShopId` berilsa (shopseller token) — faqat SHU shopId'ga ruxsat, choke-point server.ts'da. */
+export async function updateShopProfile(shopId: number, input: ShopProfileEditInput): Promise<{ ok: boolean }> {
+  const data: { story?: string | null; announcement?: string | null; announcementAt?: Date; neighborhood?: string | null } = {};
+  if (input.story !== undefined) data.story = input.story.trim().slice(0, SHOP_STORY_MAX) || null;
+  if (input.announcement !== undefined) {
+    data.announcement = input.announcement.trim().slice(0, SHOP_ANNOUNCEMENT_MAX) || null;
+    data.announcementAt = new Date();
+  }
+  if (input.neighborhood !== undefined) data.neighborhood = input.neighborhood.trim().slice(0, SHOP_NEIGHBORHOOD_MAX) || null;
+  await prisma.marketShop.update({ where: { id: shopId }, data });
+  return { ok: true };
 }
 
 /** "09:00-21:00" → hozir ochiqmi (restoran client-side hisobining server-versiyasi, Asia/Tashkent). */
@@ -668,6 +715,14 @@ export async function uploadProductPhoto(productId: number, buf: Buffer, mime = 
   return { ok: true, photoCount: existing + 1 };
 }
 
+/** 🏪 D2: do'kon-hero muqova-rasmi (product-photo pipeline bilan bir xil tgUploadPhoto). */
+export async function uploadShopPhoto(shopId: number, buf: Buffer, mime = "image/jpeg"): Promise<{ ok: boolean }> {
+  const { fileId } = await tgUploadPhoto(buf, mime, `🏪 Shop cover · #${shopId}`);
+  const url = fileId ? null : `data:${mime};base64,${buf.toString("base64")}`;
+  await prisma.marketShop.update({ where: { id: shopId }, data: { photoFileId: fileId, photoUrl: url } });
+  return { ok: true };
+}
+
 /** Clear the whole gallery (owner starts over). Legacy cover fields cleared too. */
 export async function clearProductPhotos(productId: number): Promise<{ ok: boolean }> {
   await prisma.productPhoto.deleteMany({ where: { productId } });
@@ -737,6 +792,42 @@ export async function listReviews(productId: number, memberId: number, preview =
     likes, dislikes, reviews,
     myThumb: (mine?.thumb as ShopReviewThumb) ?? null,
     myRating: mine?.rating ?? null,
+    avgRating: Math.round((ratingAgg._avg.rating ?? 0) * 10) / 10,
+  };
+}
+
+/** 🏪 D2: do'kon-darajali sharhlar — `Product.shopId` orqali agregatsiya, jonli hisoblanadi
+ *  (MarketShop.avgRating/reviewCount ustunlariga yozilmaydi — ular hech qachon yozilmagan, o'lik). */
+export async function listShopReviews(shopId: number, take = 30): Promise<ShopReviewsResponse> {
+  const productIds = (await prisma.product.findMany({ where: { shopId }, select: { id: true } })).map((p) => p.id);
+  if (!productIds.length) return { likes: 0, dislikes: 0, reviews: [], myThumb: null, myRating: null, avgRating: 0 };
+  const rows = await prisma.productReview.findMany({
+    where: { productId: { in: productIds } },
+    orderBy: { id: "desc" },
+    take,
+  });
+  const [members, ratingAgg] = await Promise.all([
+    prisma.member.findMany({ where: { id: { in: rows.map((r) => r.memberId) } }, select: { id: true, fullName: true, displayName: true } }),
+    prisma.productReview.aggregate({ where: { productId: { in: productIds }, rating: { not: null } }, _avg: { rating: true } }),
+  ]);
+  const nameOf = new Map(members.map((m) => [m.id, (m.displayName || m.fullName || "Mijoz").trim().split(/\s+/)[0]!]));
+  const reviews: ShopReviewView[] = rows.map((r) => ({
+    id: r.id,
+    name: nameOf.get(r.memberId) ?? "Mijoz",
+    thumb: r.thumb as ShopReviewThumb,
+    rating: r.rating,
+    text: r.text,
+    photoCount: parseReviewPhotos(r.photosJson).length,
+    createdAt: r.createdAt.toISOString(),
+    mine: false,
+    verified: true, // shop-darajali ro'yxatda "verified" mahsulot-darajali xarid-tekshiruvi shart emas
+  }));
+  return {
+    likes: rows.filter((r) => r.thumb === "up").length,
+    dislikes: rows.filter((r) => r.thumb === "down").length,
+    reviews,
+    myThumb: null,
+    myRating: null,
     avgRating: Math.round((ratingAgg._avg.rating ?? 0) * 10) / 10,
   };
 }

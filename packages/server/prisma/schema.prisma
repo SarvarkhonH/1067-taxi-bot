@@ -408,6 +408,10 @@ model MarketShop {
   avgRating      Float    @default(0) // V3'da sotuvchi-reyting keshi
   reviewCount    Int      @default(0)
   orderCount     Int      @default(0)
+  story          String? // D2: "Biz haqimizda" — seller-tahrirlanadigan hikoya/tavsif matni
+  announcement   String? // D2: Etsy-uslub bitta-qatorli e'lon (masalan "Bugun yangi partiya keldi")
+  announcementAt DateTime? // e'lon oxirgi yangilangan vaqti
+  neighborhood   String? // D2: mahalla-teg — Carrot Market-uslub yaqinlik-ishonch signali
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 
@@ -1379,8 +1383,35 @@ model SupportMsg {
   text       String
   read       Boolean  @default(false)
   createdAt  DateTime @default(now())
+  shopId     Int? // C1: null = umumiy AI/support-chat (o'zgarishsiz); non-null = mijoz↔do'kon chat
+  relayMsgId Int? // C1: sotuvchiga yuborilgan relay-DM'ning Telegram message_id'si (reply-routing uchun)
 
   @@index([telegramId, createdAt])
+  @@index([shopId, telegramId])
+}
+
+// 📹 D2/S1: do'kon-hikoya (Instagram/Snapchat-uslub, 24 soatda yo'qoladi). Muddati tugashi —
+// YANGI POLLER YO'Q, o'qish-vaqtida `expiresAt > now()` filtr (rejalashtirilgan job emas).
+model ShopStory {
+  id          Int      @id @default(autoincrement())
+  shopId      Int
+  videoFileId String?
+  photoFileId String?
+  caption     String?
+  createdAt   DateTime @default(now())
+  expiresAt   DateTime
+  viewCount   Int      @default(0)
+
+  @@index([shopId, expiresAt])
+}
+
+model ShopStoryView {
+  id       Int      @id @default(autoincrement())
+  storyId  Int
+  memberId Int
+  viewedAt DateTime @default(now())
+
+  @@unique([storyId, memberId])
 }
 
 // 📢 Persistent broadcast delivery log — the owner can ALWAYS see who a mass

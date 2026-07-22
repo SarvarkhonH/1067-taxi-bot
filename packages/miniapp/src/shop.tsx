@@ -12,6 +12,7 @@ import {
   type MarketHomeResponse,
   type MarketOrderView,
   type ShopProductView,
+  type ShopProfileView,
   type ShopPurchaseView,
   type ShopReviewsResponse,
   type ReferralResponse,
@@ -218,6 +219,25 @@ export function ShopView({ me, onBanner, reload, onBook, openProductId }: { me: 
   const bazar = !!me.flags?.bazar;
   const [market, setMarket] = useState<MarketHomeResponse | null>(null);
   const [shopFilter, setShopFilter] = useState<{ id: number; name: string } | null>(null); // 🏬 do'kon-sahifa (lite)
+  // 🏪 D2: do'kon-profil (hero/info-qator/e'lon/hikoya/reyting) — shopFilter tanlanganda yuklanadi.
+  const [shopProfile, setShopProfile] = useState<ShopProfileView | null>(null);
+  const [shopProfileReviews, setShopProfileReviews] = useState<ShopReviewsResponse | null>(null);
+  const [profileErr, setProfileErr] = useState(false);
+  const [aboutOpen, setAboutOpen] = useState(false);
+  const [shopReviewsOpen, setShopReviewsOpen] = useState(false);
+  useEffect(() => {
+    setShopProfile(null);
+    setShopProfileReviews(null);
+    setProfileErr(false);
+    setAboutOpen(false);
+    if (!shopFilter) return;
+    let stale = false; // R4: guard against an out-of-order response (shop A's fetch resolving
+    // AFTER the user already switched to shop B) overwriting B's state with A's stale data.
+    api.shopProfile(shopFilter.id)
+      .then((r) => { if (!stale) { setShopProfile(r.profile); setShopProfileReviews(r.reviews); } })
+      .catch(() => { if (!stale) setProfileErr(true); });
+    return () => { stale = true; };
+  }, [shopFilter]);
   // 🧺 V2 (flag bazarcart): savat — 1 savat = 1 do'kon (restoran naqshi). Client-state faqat UI;
   // narx/stock/total HAMMASI serverda qayta-hisoblanadi (checkout snapshot) — bu yerdagi raqamlar ko'rsatma.
   const bazarcart = !!me.flags?.bazarcart;
@@ -337,6 +357,13 @@ export function ShopView({ me, onBanner, reload, onBook, openProductId }: { me: 
     for (const p of products ?? []) m.set(p.category, (m.get(p.category) ?? 0) + 1);
     return [...m.entries()];
   }, [products]);
+  // 🏪 D2: do'kon-profil ichidagi kategoriya-sub-filtr — faqat shu do'konning mahsulotlaridan
+  const shopCategories = useMemo(() => {
+    if (!shopFilter) return [];
+    const m = new Map<string, number>();
+    for (const p of products ?? []) if (p.shopId === shopFilter.id) m.set(p.category, (m.get(p.category) ?? 0) + 1);
+    return [...m.entries()];
+  }, [products, shopFilter]);
   // Amazon/Uzum standarti: bitta VERTIKAL 2-ustunli katalog-grid (gorizontal scroll faqat kichik
   // "tavsiya" qatorlarida) — 100+ mahsulotli kategoriya endi cheksiz eniga tasmaga aylanmaydi.
   const catalog = useMemo(() => {
@@ -502,12 +529,72 @@ export function ShopView({ me, onBanner, reload, onBook, openProductId }: { me: 
             </div>
           )}
 
-          {/* ── 🏬 do'kon-sahifa (lite): tanlangan do'kon nomi + orqaga ── */}
+          {/* ── 🏪 D2: do'kon-profil (storefront) — hero/info-qator/e'lon/hikoya/reyting ──
+              R4: back-control now renders UNCONDITIONALLY (loading/error/loaded alike) — the old
+              version only put "←" inside the loaded hero, so a stuck loading-skeleton or an
+              error state (e.g. shop went inactive, or the `bazar` kill-switch flipped off
+              mid-session) had NO way back to the bazar list. */}
           {bazar && shopFilter && (
             <div className="bj-sect">
-              <h3>🏬 {shopFilter.name}</h3>
+              <h3>{shopProfile?.name ?? shopFilter.name}</h3>
               <button className="bj-sect-all" onClick={() => { haptic(); setShopFilter(null); }}>← Bozorga qaytish</button>
             </div>
+          )}
+          {bazar && shopFilter && profileErr && (
+            <EmptyState icon="📡" text="Do'kon-profil yuklanmadi — qayta urinib ko'ring" action="🔄 Qayta urinish" onAction={() => { setProfileErr(false); api.shopProfile(shopFilter.id).then((r) => { setShopProfile(r.profile); setShopProfileReviews(r.reviews); }).catch(() => setProfileErr(true)); }} />
+          )}
+          {bazar && shopFilter && !profileErr && !shopProfile && (
+            <div className="bj-profile-loading">
+              <Skeleton h={148} />
+              <Skeleton h={16} w="60%" />
+              <Skeleton h={40} />
+            </div>
+          )}
+          {bazar && shopFilter && shopProfile && (
+            <>
+              <div className="bj-profile-hero">
+                {shopProfile.hasPhoto ? (
+                  <img src={apiUrl(`/api/shop/shop-photo/${shopProfile.id}`)} alt="" />
+                ) : null}
+                <div className="bj-profile-rating">⭐ {shopProfile.avgRating || "—"} ({shopProfile.reviewCount})</div>
+                <div className="bj-profile-hero-name">{shopProfile.name}</div>
+              </div>
+              <div className="bj-profile-info">
+                {shopProfile.neighborhood && <span>🏘 {shopProfile.neighborhood}</span>}
+                <span className={shopProfile.open ? "on" : ""}>{shopProfile.open ? "🟢 Ochiq" : "🔴 Yopiq"}</span>
+                <span>⚡ Tez javob beradi</span>
+                {shopProfile.deliveryText && <span>🚚 {shopProfile.deliveryText}</span>}
+              </div>
+              {shopProfile.announcement && <div className="bj-profile-announce">📣 {shopProfile.announcement}</div>}
+              {shopProfile.story && (
+                <div className="bj-profile-about">
+                  <b>Biz haqimizda. </b>
+                  {aboutOpen || shopProfile.story.length <= 140 ? shopProfile.story : `${shopProfile.story.slice(0, 140)}…`}
+                  {shopProfile.story.length > 140 && (
+                    <> <button onClick={() => setAboutOpen((v) => !v)}>{aboutOpen ? "Kamroq" : "Ko'proq"}</button></>
+                  )}
+                </div>
+              )}
+              {shopProfileReviews && (
+                <button className="shop-reviews-entry bj-profile-reviews-entry" onClick={() => { haptic(); setShopReviewsOpen(true); }}>
+                  <span>🗣 Sharhlar</span>
+                  <span className="shop-reviews-agg">{shopProfileReviews.reviews.length > 0 ? `${shopProfileReviews.reviews.length} ta` : "Hali yo'q"}</span>
+                  <span className="shop-reviews-chev">›</span>
+                </button>
+              )}
+              {shopCategories.length > 1 && (
+                <div className="shop-cat-chips">
+                  <button className={"shop-cat-chip" + (cat === null ? " on" : "")} onClick={() => { haptic(); setCat(null); }}>
+                    Hammasi <span className="shop-cat-chip-n">{catalog.length}</span>
+                  </button>
+                  {shopCategories.map(([c, n]) => (
+                    <button key={c} className={"shop-cat-chip" + (cat === c ? " on" : "")} onClick={() => { haptic(); setCat(c); }}>
+                      {c} <span className="shop-cat-chip-n">{n}</span>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </>
           )}
           {/* ── 🏪 V1.4 BirJoy: kategoriya-KARUSEL (Uzum-referens) + do'kon-rail — flag ON'dagina ── */}
           {bazar && !shopFilter && market && market.cats.length > 0 && (
@@ -793,6 +880,32 @@ export function ShopView({ me, onBanner, reload, onBook, openProductId }: { me: 
           </div>
         </div>
       )}
+
+      {/* ── 🏪 D2: do'kon-darajali sharhlar (o'qish-uchun, submit-shakli yo'q — mahsulot-sharh alohida) ── */}
+      <Sheet open={shopReviewsOpen} onClose={() => setShopReviewsOpen(false)}>
+        <h3>🗣 {shopProfile?.name ?? "Do'kon"} — sharhlar</h3>
+        {!shopProfileReviews || shopProfileReviews.reviews.length === 0 ? (
+          <EmptyState icon="🗣" text="Hali sharh yo'q" />
+        ) : (
+          shopProfileReviews.reviews.map((r) => (
+            <div key={r.id} className="shop-rev-row">
+              <div className="shop-rev-head">
+                <b>{r.thumb === "up" ? "👍" : "👎"} {r.name}</b>
+                {!!r.rating && <span className="fs12">{"★".repeat(r.rating)}{"☆".repeat(5 - r.rating)}</span>}
+                <span className="muted fs11">{new Date(r.createdAt).toLocaleDateString("uz-UZ")}</span>
+              </div>
+              {r.text && <div className="fs13">{r.text}</div>}
+              {r.photoCount > 0 && (
+                <div className="shop-rev-photo-row">
+                  {Array.from({ length: r.photoCount }, (_, i) => (
+                    <img key={i} className="shop-rev-photo" src={apiUrl(`/api/shop/review-photo/${r.id}/${i}?s=1`)} loading="lazy" decoding="async" alt="" />
+                  ))}
+                </div>
+              )}
+            </div>
+          ))
+        )}
+      </Sheet>
 
       {/* ── my orders ── */}
       <Sheet open={ordersOpen} onClose={() => setOrdersOpen(false)}>

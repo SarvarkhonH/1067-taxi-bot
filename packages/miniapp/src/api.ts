@@ -149,6 +149,8 @@ export const api = {
   // 🧡 V2b sevimlilar
   shopFav: (productId: number, on: boolean) => post<{ ok: boolean; on: boolean; favCount: number }>("/api/shop/fav", { productId, on }),
   shopFavs: () => get<{ products: import("@t1067/shared").ShopProductView[] }>("/api/shop/favs"),
+  // 🏪 D2 do'kon-profil
+  shopProfile: (shopId: number) => get<{ profile: import("@t1067/shared").ShopProfileView; reviews: import("@t1067/shared").ShopReviewsResponse }>(`/api/shop/profile/${shopId}`),
 
   shopBuy: (productId: number, address: string, pay: "tanga" | "cash" = "tanga") => post<import("@t1067/shared").ShopBuyResponse>("/api/shop/buy", { productId, address, pay }),
   shopOrders: () => get<{ orders: import("@t1067/shared").ShopPurchaseView[] }>("/api/shop/orders"),

@@ -1605,30 +1605,44 @@ function shopDraftFromRow(p: ShopAdminProductRow): ShopDraft {
 }
 
 // 🏪 D2: do'kon-profil tahrirlash — story/e'lon/mahalla/muqova-rasm (ShopAdminView'ga kiritiladi).
+// R4 (Bug #3): `shopProfile()` shopId'siz FAQAT shopseller-scoped tokenda ishlaydi (server o'zi
+// scope'ni topadi). Owner esa scope'ga ega emas — shu tokenda birinchi chaqiruv 400 `no_shop`
+// bilan qaytadi; shunda V1.6e'dagi AYNAN shu do'kon-tanlov naqshini (`adminApi.marketShops()`)
+// ishlatib, owner qaysi do'konni tahrirlashini tanlaydi.
 function ShopProfilePanel() {
+  const [shops, setShops] = useState<{ id: number; name: string; active: boolean }[] | null>(null);
+  const [pickedShopId, setPickedShopId] = useState<number | null>(null);
   const [profile, setProfile] = useState<{ id: number; name: string; neighborhood: string | null; story: string | null; announcement: string | null; hasPhoto: boolean; avgRating: number; reviewCount: number } | null>(null);
   const [story, setStory] = useState("");
   const [announcement, setAnnouncement] = useState("");
   const [neighborhood, setNeighborhood] = useState("");
   const [msg, setMsg] = useState("");
   const [saving, setSaving] = useState(false);
+  const [needsPicker, setNeedsPicker] = useState(false);
 
-  const load = () => {
-    adminApi.shopProfile().then((r) => {
+  const load = (shopId?: number) => {
+    adminApi.shopProfile(shopId).then((r) => {
       setProfile(r.profile);
       setStory(r.profile.story ?? "");
       setAnnouncement(r.profile.announcement ?? "");
       setNeighborhood(r.profile.neighborhood ?? "");
-    }).catch(() => undefined);
+      setNeedsPicker(false);
+    }).catch(() => {
+      // seller-scoped bo'lmasa (owner, shopId ko'rsatilmagan) — do'kon-tanlov kerak
+      if (shopId === undefined) {
+        setNeedsPicker(true);
+        adminApi.marketShops().then((r) => setShops(r.shops)).catch(() => undefined);
+      }
+    });
   };
   useEffect(() => { load(); }, []);
 
   const save = async () => {
     setSaving(true);
-    const r = await adminApi.shopProfileSave({ story, announcement, neighborhood }).catch((e: Error) => ({ ok: false as const, error: e.message }));
+    const r = await adminApi.shopProfileSave({ story, announcement, neighborhood }, pickedShopId ?? undefined).catch((e: Error) => ({ ok: false as const, error: e.message }));
     setMsg(r.ok ? "✅ Saqlandi" : "❌ Saqlanmadi");
     setSaving(false);
-    load();
+    load(pickedShopId ?? undefined);
   };
 
   const uploadCover = () => {
@@ -1642,20 +1656,38 @@ function ShopProfilePanel() {
       const reader = new FileReader();
       reader.onload = async () => {
         const base64 = String(reader.result).split(",")[1] ?? "";
-        const r = await adminApi.shopProfilePhotoUpload(f.type || "image/jpeg", base64).catch((e: Error) => ({ ok: false as const, error: e.message }));
+        const r = await adminApi.shopProfilePhotoUpload(f.type || "image/jpeg", base64, pickedShopId ?? undefined).catch((e: Error) => ({ ok: false as const, error: e.message }));
         setMsg(r.ok ? "✅ Muqova-rasm yangilandi" : "❌ Rasm yuklanmadi");
-        load();
+        load(pickedShopId ?? undefined);
       };
       reader.readAsDataURL(f);
     };
     input.click();
   };
 
+  if (needsPicker && !profile) {
+    return (
+      <section className="panel">
+        <div className="panel-title">🏪 Do&apos;kon-profil</div>
+        {!shops ? (
+          <p className="muted">Yuklanmoqda…</p>
+        ) : (
+          <div className="adm-field">
+            <span className="adm-field-label">Qaysi do&apos;kon profilini tahrirlaysiz?</span>
+            <select value={pickedShopId ?? ""} onChange={(e) => { const id = Number(e.target.value); if (id) { setPickedShopId(id); load(id); } }}>
+              <option value="">— tanlang —</option>
+              {shops.map((s) => <option key={s.id} value={s.id}>{s.name}{s.active ? "" : " (nofaol)"}</option>)}
+            </select>
+          </div>
+        )}
+      </section>
+    );
+  }
   if (!profile) return null;
 
   return (
     <section className="panel">
-      <div className="panel-title">🏪 Do&apos;kon-profil</div>
+      <div className="panel-title">🏪 Do&apos;kon-profil{pickedShopId ? ` — ${profile.name}` : ""}</div>
       <p className="muted" style={{ marginTop: 0 }}>
         Mijozlar «{profile.name}» sahifasida shu ma&apos;lumotlarni ko&apos;radi. ⭐ {profile.avgRating || "—"} ({profile.reviewCount} sharh){profile.hasPhoto ? "" : " · muqova-rasm hali yo'q"}
       </p>
@@ -1674,6 +1706,12 @@ function ShopProfilePanel() {
           <span className="adm-field-label">&nbsp;</span>
           <button onClick={save} disabled={saving}>{saving ? "Saqlanmoqda…" : "💾 Saqlash"}</button>
         </div>
+        {pickedShopId && (
+          <div className="adm-field">
+            <span className="adm-field-label">&nbsp;</span>
+            <button onClick={() => { setPickedShopId(null); setProfile(null); setNeedsPicker(true); }}>← Boshqa do&apos;kon</button>
+          </div>
+        )}
       </div>
       {msg && <p className="muted">{msg}</p>}
     </section>

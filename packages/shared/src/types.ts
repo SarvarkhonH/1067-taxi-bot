@@ -477,6 +477,39 @@ export interface ShopReviewSubmitResponse {
 export const SHOP_REVIEW_MAX_PHOTOS = 3;
 export const SHOP_REVIEW_MAX_TEXT = 280;
 
+// 🏪 D2 (BirJoy do'kon-profil)
+export const SHOP_STORY_MAX = 600;
+export const SHOP_ANNOUNCEMENT_MAX = 120;
+export const SHOP_NEIGHBORHOOD_MAX = 40;
+
+export interface ShopProfileView {
+  id: number;
+  name: string;
+  open: boolean;
+  neighborhood: string | null;
+  deliveryText: string | null;
+  story: string | null;
+  announcement: string | null;
+  hasPhoto: boolean;
+  avgRating: number;
+  reviewCount: number;
+}
+
+export interface ShopProfileEditInput {
+  story?: string;
+  announcement?: string;
+  neighborhood?: string;
+}
+
+// 💬 C1 (BirJoy mijoz↔do'kon chat)
+export const SHOP_CHAT_MAX_TEXT = 500;
+export interface ShopChatMessageView {
+  id: number;
+  direction: "in" | "out";
+  text: string;
+  at: string;
+}
+
 // ── 🍽 RESTORAN (feature "restoran") — R1: katalog o'qish only (savat/buyurtma R2'da) ─────────────
 // Narx REAL SO'M (tanga emas, RESTORAN_PLAN D1). V1 = concierge: bu turlar faqat KO'RISH uchun.
 

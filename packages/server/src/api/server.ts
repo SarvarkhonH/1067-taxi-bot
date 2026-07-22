@@ -484,6 +484,23 @@ export function createApiServer(opts: ApiOptions = {}) {
   app.get("/api/shop/cat-icon/:id", serveMarketImage("cat"));
   app.get("/api/shop/shop-photo/:id", serveMarketImage("shop"));
 
+  // 🏪 D2: do'kon-profil ekrani — info-qator/e'lon/hikoya + do'kon-darajali sharhlar bir chaqiruvda.
+  app.get("/api/shop/profile/:id", requireUser, rateLimit(30), withMember2(async (_memberId, req, res) => {
+    const shopId = Number(req.params.id);
+    // R4 (D2): a 200-with-{error} body was silently swallowed by the client's generic request()
+    // helper (only rejects on non-2xx) — froze the miniapp on an infinite skeleton (e.g. right
+    // after the `bazar` kill-switch flips off mid-session). withMember2 always sends the returned
+    // value via res.json(...) itself — so set the status (no .json/.end here) and just return the
+    // body, exactly like withMember2's own "not linked" 404 branch does.
+    if (!Number.isFinite(shopId)) { res.status(404); return { error: "not_found" }; }
+    const { getShopProfile, listShopReviews } = await import("../services/shopService");
+    const preview = isAdmin(res.locals.telegramId as string);
+    const profile = await getShopProfile(shopId, preview);
+    if (!profile) { res.status(404); return { error: "not_found" }; }
+    const reviews = await listShopReviews(shopId);
+    return { profile, reviews };
+  }));
+
   // 🧺 V2 (flag `bazarcart`): savat-checkout + rider market-buyurtmalari + bekor
   app.post("/api/shop/checkout", requireUser, rateLimit(10), withMember2(async (id, req, res) => {
     const { createMarketOrder } = await import("../services/marketOrderService");
@@ -1509,6 +1526,36 @@ export function createApiServer(opts: ApiOptions = {}) {
   app.get("/api/admin/shop/reviews", requireAdmin, requireShopWrite, async (_req, res) => {
     const { adminListReviews } = await import("../services/shopService");
     res.json({ reviews: await adminListReviews(res.locals.sellerShopId as number | undefined) });
+  });
+  // 🏪 D2: do'kon-profil (story/e'lon/mahalla/muqova-rasm) — shopseller FAQAT o'z do'koni,
+  // owner esa `?shopId=` bilan istalgan do'konni tahrirlaydi (bir nechta do'kon boshqaradigan panel).
+  const resolveProfileShopId = (req: Request, res: Response): number | null => {
+    const scope = res.locals.sellerShopId as number | undefined;
+    if (scope !== undefined) return scope;
+    const q = Number((req.query.shopId as string | undefined) ?? (req.body as { shopId?: unknown } | undefined)?.shopId);
+    return Number.isFinite(q) && q > 0 ? q : null;
+  };
+  app.get("/api/admin/shop/profile", requireAdmin, requireShopWrite, async (req, res) => {
+    const shopId = resolveProfileShopId(req, res);
+    if (!shopId) { res.status(400).json({ error: "no_shop" }); return; }
+    const { getShopProfile } = await import("../services/shopService");
+    const profile = await getShopProfile(shopId, true);
+    if (!profile) { res.status(404).json({ error: "not_found" }); return; }
+    res.json({ profile });
+  });
+  app.post("/api/admin/shop/profile", requireAdmin, requireShopWrite, rateLimit(20), async (req, res) => {
+    const shopId = resolveProfileShopId(req, res);
+    if (!shopId) { res.status(400).json({ error: "no_shop" }); return; }
+    const { updateShopProfile } = await import("../services/shopService");
+    res.json(await updateShopProfile(shopId, (req.body ?? {}) as { story?: string; announcement?: string; neighborhood?: string }));
+  });
+  app.post("/api/admin/shop/profile/photo", express.json({ limit: "6mb" }), requireAdmin, requireShopWrite, async (req, res) => {
+    const shopId = resolveProfileShopId(req, res);
+    if (!shopId) { res.status(400).json({ error: "no_shop" }); return; }
+    const b = req.body as { mime?: string; base64?: string };
+    if (!b?.base64) { res.status(400).json({ error: "no image" }); return; }
+    const { uploadShopPhoto } = await import("../services/shopService");
+    res.json(await uploadShopPhoto(shopId, Buffer.from(b.base64, "base64"), b.mime || "image/jpeg"));
   });
   app.delete("/api/admin/shop/reviews/:id", requireAdmin, requireOwner, rateLimit(30), async (req, res) => {
     const { adminDeleteReview } = await import("../services/shopService");
