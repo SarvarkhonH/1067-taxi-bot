@@ -1213,3 +1213,23 @@ yashil ×2 · typecheck 4/4 · prod-build + bundle-grep (shop-rev-star, «Sharh 
 
 **QOLDI (deploy'dan oldin):** commit+push+Render/Vercel deploy · R4 mustaqil tekshiruv · preview-DOM
 isbot · ega QABUL (3 flag DARK: shopcashback/revtanga darhol, bazarcart allaqachon DARK edi).
+
+## 2026-07-22 — 🔎 R4 (V2b+V3.1+V3.2) qayta o'tkazildi: PASS + 2 gap-fix
+Birinchi R4 urinishi sessiya-uzilishidan yo'qolgan edi — qaytadan ishga tushirildi (20-punktli
+qattiq tekshiruv, 54 tool-chaqiruv). **Verdikt: PASS.** Eng muhim da'vo — safar ≤350 clamp'dan
+izolyatsiya — matematik isbot bilan tasdiqlandi (kalit-shakl clamp'ning `:memberId:bookingId`
+suffiks-shabloniga hech qachon mos kela olmaydi). Jonli DB'da ikkala flag ham chinakam DARK
+(0 satr). 102+94 assertion 3× yashil, typecheck 4/4, jonli-endpoint 401'lar tasdiqlandi.
+
+**Topilgan 2 race-condition gap (pul yo'qolmagan, lekin tuzatildi):**
+1. `toggleProductFavorite` ON-yo'li: parallel ikki chaqiruv ikkalasi ham favCount'ni oshirishi
+   mumkin edi (findUnique-keyin-unconditional-increment). Fix: increment endi FAQAT shu chaqiruv
+   o'zining `create()`i g'olib chiqqanda (P2002 = mag'lub — increment YO'Q).
+2. `grantShopCashback` kunlik-limit o'qishi `withMemberLock`siz edi — bir a'zoning ikki buyurtmasi
+   deyarli bir vaqtda yetkazilsa, ikkalasi ham eski "qolgan-limit"ni o'qib, jamda dailyMax'ni
+   buzishi mumkin edi. Fix: butun funksiya `withMemberLock`ga o'raldi (buyProduct/withdraw naqshi).
+**Isbot:** yangi testBazar 20b (parallel ON×2 → aynan 1 satr+1 increment — DB'dan alohida
+yakuniy o'qish bilan, chaqiruvlarning o'z-javobi EMAS, chunki bu faqat ko'rsatkich va cross-call
+o'qish-sinxronligi kafolat qilinmaydi) + 27b (parallel 2 yetkazish dailyMax chegarasida → jami
+aynan headroom, kunlik-yig'indi aynan dailyMax) — **3× ket-ket yashil**.
+QOLDI: ega telefon-QABUL (flaglar hamon DARK).

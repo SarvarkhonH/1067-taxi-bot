@@ -78,10 +78,15 @@ export async function listActiveProducts(preview = false, memberId?: number): Pr
 // ── 🧡 V2b: sevimlilar (ServiceFavorite naqshi, memberId-kalitli) ──────────────────────────────
 export async function toggleProductFavorite(memberId: number, productId: number, on: boolean): Promise<{ ok: boolean; on: boolean; favCount: number }> {
   if (on) {
-    const existing = await prisma.productFavorite.findUnique({ where: { memberId_productId: { memberId, productId } } });
-    if (!existing) {
-      await prisma.productFavorite.create({ data: { memberId, productId } }).catch(() => undefined);
+    // R4-gap fix: increment tied STRICTLY to this call's own create winning the unique-constraint
+    // race (P2002 = someone else already favorited it concurrently — skip the increment; the old
+    // findUnique-then-unconditional-increment let two concurrent ON calls both increment even
+    // though only one ProductFavorite row could ever exist).
+    try {
+      await prisma.productFavorite.create({ data: { memberId, productId } });
       await prisma.product.update({ where: { id: productId }, data: { favCount: { increment: 1 } } }).catch(() => undefined);
+    } catch (e) {
+      if ((e as { code?: string } | null)?.code !== "P2002") throw e;
     }
   } else {
     const deleted = await prisma.productFavorite.deleteMany({ where: { memberId, productId } });
@@ -303,22 +308,28 @@ export async function grantShopCashback(memberId: number, total: number, orderKi
   const pct = econ.shopCashbackPct ?? 0;
   if (pct <= 0) return;
   const perOrder = econ.shopCashbackPerOrder ?? 0;
-  let amount = Math.min(Math.floor((total * pct) / 100), perOrder);
-  if (amount <= 0) return;
+  const base = Math.min(Math.floor((total * pct) / 100), perOrder);
+  if (base <= 0) return;
   const dailyMax = econ.shopCashbackDaily ?? 0;
-  if (dailyMax > 0) {
-    const since = new Date();
-    since.setHours(0, 0, 0, 0);
-    const sum = await prisma.coinTxn.aggregate({ where: { memberId, kind: "shop_cashback", createdAt: { gte: since } }, _sum: { amount: true } });
-    amount = Math.max(0, Math.min(amount, dailyMax - (sum._sum.amount ?? 0)));
-  }
-  if (amount <= 0) return;
-  const id = `${orderKind}${orderId}`;
-  const { pendingCreate, pendingResolve } = await import("./appStateUtil");
-  const { grantCoins } = await import("./coinService");
-  await pendingCreate("shopcb", id, { memberId, amount });
-  const r = await grantCoins(memberId, amount, "shop_cashback", "🛍 Xarid uchun tanga qaytdi", `shopcb:${id}`);
-  if (r.ok || r.skipped === "duplicate") await pendingResolve("shopcb", id);
+  // R4-gap fix: daily-remaining read + grant serialized per member (withMemberLock — same
+  // pattern buyProduct/withdraw use) — two deliveries for the same member completing near-
+  // simultaneously can no longer both read the same daily-sum and jointly exceed dailyMax.
+  await withMemberLock(memberId, async () => {
+    let amount = base;
+    if (dailyMax > 0) {
+      const since = new Date();
+      since.setHours(0, 0, 0, 0);
+      const sum = await prisma.coinTxn.aggregate({ where: { memberId, kind: "shop_cashback", createdAt: { gte: since } }, _sum: { amount: true } });
+      amount = Math.max(0, Math.min(amount, dailyMax - (sum._sum.amount ?? 0)));
+    }
+    if (amount <= 0) return;
+    const id = `${orderKind}${orderId}`;
+    const { pendingCreate, pendingResolve } = await import("./appStateUtil");
+    const { grantCoins } = await import("./coinService");
+    await pendingCreate("shopcb", id, { memberId, amount });
+    const r = await grantCoins(memberId, amount, "shop_cashback", "🛍 Xarid uchun tanga qaytdi", `shopcb:${id}`);
+    if (r.ok || r.skipped === "duplicate") await pendingResolve("shopcb", id);
+  });
 }
 
 /** ❌ Rad — V0.2 (BirJoy audit): flip + restock + refund BITTA tranzaksiyada.

@@ -225,6 +225,17 @@ async function main(): Promise<void> {
   ok(t4.favCount === 0, "20: duplicate OFF → favCount floors at 0 (no negative)");
   ok((await listFavoriteProducts(m2.id, true)).length === 0, "20: favorites list empty after unfav");
 
+  // 20b) R4-gap regression: PARALLEL double-ON → favCount increments EXACTLY once (P2002-guarded).
+  // NOTE: har chaqiruvning O'Z qaytargan favCount'i emas — bu faqat ko'rsatkich (pul-yo'li EMAS),
+  // g'olib create'dan keyin increment tugashi bilan mag'lub o'z o'qishini boshlashi mumkin (real
+  // race, kutilgan) — shuning uchun FINAL holatni Promise.all TUGAGACH alohida o'qiymiz.
+  await Promise.all([toggleProductFavorite(m2.id, favProd.id!, true), toggleProductFavorite(m2.id, favProd.id!, true)]);
+  const favRowCount = await prisma.productFavorite.count({ where: { memberId: m2.id, productId: favProd.id! } });
+  const favCountFinal = (await prisma.product.findUnique({ where: { id: favProd.id! }, select: { favCount: true } }))!.favCount;
+  ok(favRowCount === 1, "20b: parallel ON×2 → exactly ONE ProductFavorite row (unique constraint held)");
+  ok(favCountFinal === 1, `20b: parallel ON×2 → final favCount EXACTLY 1 (no double-increment), got ${favCountFinal}`);
+  await toggleProductFavorite(m2.id, favProd.id!, false); // cleanup for symmetry
+
   // ── 🪙 V3.1: xarid-cashback (shopcashback flag) ──────────────────────────────────────────────
   const { setBonusEcon } = await import("../services/bonusConfig");
   const { retryPendingMoney } = await import("../services/coinService");
@@ -285,6 +296,26 @@ async function main(): Promise<void> {
   const balBefore27 = (await prisma.member.findUnique({ where: { id: m3.id } }))!.coins;
   await deliverPurchase(buyCb7.orderId!);
   ok((await prisma.member.findUnique({ where: { id: m3.id } }))!.coins === balBefore27, "27: dailyMax to'liq tugagach → 0 qo'shimcha cashback");
+
+  // 27b) R4-gap regression: PARALLEL deliveries near the daily-cap boundary — withMemberLock
+  // (grantShopCashback ichida) daily-sum o'qish+grantni serializatsiya qiladi, shuning uchun
+  // ikkala buyurtma birga jamlanganda dailyMax'dan OSHMAYDI (eski kodda ikkalasi ham eski
+  // "remaining"ni o'qib, jamda dailyMax'ni buzishi mumkin edi).
+  await prisma.coinTxn.deleteMany({ where: { memberId: m3.id, kind: "shop_cashback" } }); // yangi kun
+  await prisma.coinTxn.create({ data: { memberId: m3.id, amount: 4000, kind: "shop_cashback", reason: "27b precondition", idempotencyKey: "shopcb:precondition27b" } });
+  await prisma.member.update({ where: { id: m3.id }, data: { coins: 1_000_000 } });
+  // V0.4 dublikat-guard (ayni member+product 60s ichida) ikkinchi xaridni bloklaydi — shuning
+  // uchun ikkinchi buyurtma ALOHIDA mahsulotga (bir xil narx, bir xil cashback-matematika)
+  const pCbBig2 = await adminCreateProduct({ name: "Big cashback #2", priceTanga: 200_000, stock: 5, category: TAG }, shopC.id);
+  await adminToggleProduct(pCbBig2.id!, true);
+  const buyCbP1 = await buyProduct(m3.id, pCbBig.id!, "Koson, Test 9", true); // 200_000 → raw 4000, perOrder-cap 2000
+  const buyCbP2 = await buyProduct(m3.id, pCbBig2.id!, "Koson, Test 9", true);
+  const balBefore27b = (await prisma.member.findUnique({ where: { id: m3.id } }))!.coins;
+  await Promise.all([deliverPurchase(buyCbP1.orderId!), deliverPurchase(buyCbP2.orderId!)]);
+  const gained27b = (await prisma.member.findUnique({ where: { id: m3.id } }))!.coins - balBefore27b;
+  ok(gained27b === 1000, `27b: parallel deliveries near dailyMax → combined cashback EXACTLY 1000 (headroom), got ${gained27b}`);
+  const sumToday27b = (await prisma.coinTxn.aggregate({ where: { memberId: m3.id, kind: "shop_cashback", createdAt: { gte: new Date(new Date().setHours(0, 0, 0, 0)) } }, _sum: { amount: true } }))._sum.amount ?? 0;
+  ok(sumToday27b === 5000, `27b: today's total shop_cashback sum === dailyMax exactly (5000), got ${sumToday27b}`);
 
   // 28) durability: pending:shopcb markeri qo'lda qoldirilsa, retryPendingMoney tick uni to'ldiradi
   const buyCb8 = await buyProduct(m3.id, pCb.id!, "Koson, Test 9", true);
