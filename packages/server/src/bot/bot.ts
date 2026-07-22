@@ -1685,7 +1685,9 @@ export function createBot(): Bot {
     await ctx.editMessageText("✖️ Buyurtma rasmiylashtirilmadi.").catch(() => undefined);
   });
 
-  bot.on("message:text", async (ctx) => {
+  // Shared AI text pipeline — used by both typed text AND transcribed voice (🎤). `rawText`
+  // is the user's message (typed or spoken); everything downstream is identical.
+  const runAiText = async (ctx: Context, rawText: string): Promise<void> => {
     const tgId = String(ctx.from!.id);
     // AI/FAQ replies mirror into SupportMsg (direction "out") — gives the agent its
     // conversation memory AND lets the owner audit answer quality from the DB.
@@ -1693,7 +1695,7 @@ export function createBot(): Bot {
       void prisma.supportMsg.create({ data: { telegramId: tgId, direction: "out", text: t.slice(0, 1000) } }).catch(() => undefined);
 
     const { parseIntent, aiSupport } = await import("../services/ai/intent");
-    const intent = parseIntent(ctx.message.text);
+    const intent = parseIntent(rawText);
     if (intent.type === "faq") {
       // no mechanical "1067" footer — BirJoy is the brand; the taxi FAQ answers that need
       // the dispatcher number already carry it in their own text (intent.ts)
@@ -1720,7 +1722,7 @@ export function createBot(): Bot {
     const { featureOn } = await import("../services/featureFlags");
     if (await featureOn("aihisob")) {
       const { tryCalc } = await import("../services/ai/calc");
-      const calc = tryCalc(ctx.message.text);
+      const calc = tryCalc(rawText);
       if (calc) {
         await ctx.reply(calc, { parse_mode: "HTML" });
         saveOut("🧮 Hisob-kitob javobi ko'rsatildi.");
@@ -1733,7 +1735,7 @@ export function createBot(): Bot {
     if (tu?.memberId) {
       if (await featureOn("aibrain")) {
         const { runAgent } = await import("../services/ai/agent");
-        const r = await runAgent(tu.memberId, tgId, ctx.message.text).catch(() => null);
+        const r = await runAgent(tu.memberId, tgId, rawText).catch(() => null);
         if (r?.action?.type === "book") {
           // "uyimga taxi" / no address → the saved 1-tap pickup, NOT a place search
           if (!r.action.query || isHomeRef(r.action.query)) {
@@ -1918,7 +1920,7 @@ export function createBot(): Bot {
           return;
         }
       } else {
-        const ans = await aiSupport(tu.memberId, ctx.message.text).catch(() => null);
+        const ans = await aiSupport(tu.memberId, rawText).catch(() => null);
         if (ans) {
           await ctx.reply(ans);
           saveOut(ans);
@@ -1934,6 +1936,28 @@ export function createBot(): Bot {
         "Manzil yozing yoki 📍 joylashuvингizni yuboring — yoki «🤖 Koson AI» tugmasi.",
       { parse_mode: "HTML", reply_markup: await mainMenu(meF?.type === "driver", String(ctx.from?.id ?? "")) },
     );
+  };
+  bot.on("message:text", (ctx) => runAiText(ctx, ctx.message.text));
+
+  // 🎤 Voice → transcribe (Gemini) → same AI pipeline. People SPEAK instead of typing (2026 trend).
+  bot.on("message:voice", async (ctx) => {
+    const tgId = String(ctx.from!.id);
+    if (!(await featureOn("aibrain"))) return; // voice AI rides the master agent flag
+    try {
+      const { transcribeVoice } = await import("../services/ai/voiceService");
+      const file = await ctx.getFile();
+      const text = await transcribeVoice(file.file_path ?? "");
+      if (!text) {
+        await ctx.reply("🎤 Ovozingizni tushunolmadim — qaytadan urinib ko'ring yoki yozib yuboring.");
+        return;
+      }
+      void prisma.supportMsg.create({ data: { telegramId: tgId, direction: "in", text: `🎤 ${text.slice(0, 990)}` } }).catch(() => undefined);
+      await ctx.reply(`🎤 <i>«${esc(text)}»</i>`, { parse_mode: "HTML" });
+      await runAiText(ctx, text);
+    } catch (e) {
+      console.error("[voice] failed:", e instanceof Error ? e.message : e);
+      await ctx.reply("🎤 Ovozni qayta ishлашда xatolik — yozib yuboring, iltimos.");
+    }
   });
 
   // ── 👥 Group chat support (/taksi in a group → DM flow) ──

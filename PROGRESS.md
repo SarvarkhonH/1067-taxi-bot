@@ -1565,3 +1565,10 @@ Muammo: AI imkoniyatlari ko'rinmasди. FIX:
 - bilim:start callback → /bilim oqimini boshlaydi (buyruq yozish shart emas — ega so'ragan).
 - «Tushunmadim» nudge endi imkoniyatlarни ko'rsatadi. renderHelp: BirJoy + Koson AI + /bilim.
 Isbot: typecheck 0. (UI — jonli tugma, ega sinaydi.) QOLDI: ovoz (C) → chala'lar (B).
+
+## 2026-07-23 (8) — 🎤 Ovoz (C — 2026 trend): gapirib buyurtma
+Odam yozmasdan GAPIRADI. Matn-handler `runAiText(ctx, rawText)` funksiyaga ajratildi (matn+ovoz
+bir xil oqim). `voiceService.ts`: Telegram voice → Gemini audio-transkripsiya (o'zbekcha, temp 0)
+→ runAiText. aibrain-gated. Xato bo'lsa «yozib yuboring» deydi. GEMINI_API_KEY qayta ishlatiladi
+(alohida STT yo'q). Isbot: typecheck 0 (jonli ovoz-test — ega ovoz yuboradi).
+QOLDI: chala'larni to'liq (B) — bazar/xizmat buyurtma, Needs v1, bilim admin UI.
