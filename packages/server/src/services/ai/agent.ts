@@ -245,28 +245,6 @@ async function callGroq(key: string, system: string, history: ChatMsg[], tools: 
   return data.choices?.[0]?.message ?? "rate";
 }
 
-// Optional PRIMARY: Kimi (Moonshot) — OpenAI-compatible, strong agentic tool-calling. Model
-// via KIMI_MODEL (default kimi-k2.6). ANY non-ok → "rate" so a Kimi misconfig gracefully
-// falls through to Gemini/Groq (never blocks the agent). Enabled only when KIMI_API_KEY is set.
-async function callKimi(key: string, system: string, history: ChatMsg[], tools: ToolDef[]): Promise<LlmMsg | "rate"> {
-  const res = await fetch("https://api.moonshot.ai/v1/chat/completions", {
-    method: "POST",
-    headers: { "Content-Type": "application/json", Authorization: `Bearer ${key}` },
-    body: JSON.stringify({
-      model: process.env.KIMI_MODEL || "kimi-k2.6",
-      messages: [{ role: "system", content: system }, ...history],
-      tools,
-      tool_choice: "auto",
-      max_tokens: 400,
-      temperature: 0.3,
-    }),
-    signal: AbortSignal.timeout(15_000),
-  });
-  if (!res.ok) return "rate"; // eksperimental primary — har qanday xato → keyingi provayder
-  const data = (await res.json()) as { choices?: GroqChoice[] };
-  return data.choices?.[0]?.message ?? "rate";
-}
-
 // K3 chain, provider 2: Gemini 2.0 Flash function-calling (separate free quota). The
 // response is normalized to the same LlmMsg shape so every tool-handler stays unchanged.
 async function callGemini(key: string, system: string, history: ChatMsg[], tools: ToolDef[]): Promise<LlmMsg | "rate"> {
@@ -305,8 +283,7 @@ async function callGemini(key: string, system: string, history: ChatMsg[], tools
 export async function runAgent(memberId: number, telegramId: string, text: string): Promise<AgentResult | null> {
   const groqKey = process.env.GROQ_API_KEY;
   const geminiKey = process.env.GEMINI_API_KEY;
-  const kimiKey = process.env.KIMI_API_KEY;
-  if (!groqKey && !geminiKey && !kimiKey) return null;
+  if (!groqKey && !geminiKey) return null;
   if (!(await aiCapOk(memberId))) return null;
 
   const history = await recentHistory(telegramId);
@@ -340,12 +317,10 @@ export async function runAgent(memberId: number, telegramId: string, text: strin
   }
 
   try {
-    // Provider chain: Kimi K2 (optional PRIMARY — strongest tool-use, set KIMI_API_KEY) →
-    // Gemini Flash (paid, stable) → Groq 70b (free backup). A provider is skipped only on
-    // capacity/any-error ("rate"); if all fall through → honest null.
+    // Provider chain: Gemini Flash (PAID tier — stable, no 429) → Groq 70b (free backup).
+    // A provider is only skipped on capacity errors ("rate"); other errors bubble → honest null.
     let msg: LlmMsg | "rate" = "rate";
-    if (kimiKey) msg = await callKimi(kimiKey, system, history, tools).catch(() => "rate" as const);
-    if (msg === "rate" && geminiKey) msg = await callGemini(geminiKey, system, history, tools).catch(() => "rate" as const);
+    if (geminiKey) msg = await callGemini(geminiKey, system, history, tools).catch(() => "rate" as const);
     if (msg === "rate" && groqKey) msg = await callGroq(groqKey, system, history, tools).catch(() => "rate" as const);
     if (msg === "rate") throw new Error("all providers rate-limited/failed");
     await aiCapBump(memberId);
