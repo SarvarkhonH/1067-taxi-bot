@@ -5,6 +5,7 @@
 import { featureOn } from "../../featureFlags";
 import type { AiProvider } from "./types";
 import { restoranProvider } from "./restoranProvider";
+import { xizmatProvider } from "./xizmatProvider";
 
 const REGISTRY: AiProvider[] = [];
 
@@ -34,3 +35,4 @@ export function providerByKey(key: string): AiProvider | undefined {
 }
 
 register(restoranProvider);
+register(xizmatProvider);

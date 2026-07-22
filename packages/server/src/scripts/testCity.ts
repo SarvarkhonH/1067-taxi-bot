@@ -47,6 +47,13 @@ async function main(): Promise<void> {
   const oshCards = await restoranProvider.search("osh");
   check(restoranOn ? "jonli katalogda «osh» topiladi" : "flag-off search=[]", restoranOn ? oshCards.length > 0 : oshCards.length === 0, oshCards[0]?.title ?? "");
 
+  // xizmatProvider — "basen kerak" bug fixi: xizmatlar bazasidan basseyn topilishi kerak
+  const { xizmatProvider } = await import("../services/ai/providers/xizmatProvider");
+  const xizmatOn = await featureOn("xizmatlar");
+  check("xizmatProvider registrda", providerByKey("xizmat")?.key === "xizmat");
+  const poolCards = await xizmatProvider.search("basseyn");
+  check(xizmatOn ? "xizmatlardan «basseyn» topiladi (📞 bilan)" : "xizmatlar flag-off (skip)", xizmatOn ? poolCards.some((c) => /📞\s*\+?\d/.test(c.subtitle ?? "")) : true, poolCards[0]?.title ?? "");
+
   // stub round-trip: search → order(confirm) → execute
   check("stub search", (await stub.search("osh"))[0]!.title.includes("osh"));
   check("stub search bo'sh", (await stub.search("bo'sh")).length === 0);

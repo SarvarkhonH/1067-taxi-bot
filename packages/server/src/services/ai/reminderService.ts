@@ -10,7 +10,8 @@ import { featureOn } from "../featureFlags";
 const MAX_PENDING = 5;
 const MAX_PER_DAY = 10;
 const MAX_TEXT = 120;
-const MIN_AHEAD_MS = 5 * 60_000;
+const MIN_AHEAD_MS = 60_000; // 1 daqiqa (edi 5) — «3 daqiqadan keyin eslat» rad etilardi. Yetkazish
+// sweep bilan (bo'sh paytda ~90s) — ya'ni juda qisqa eslatma ±90s aniqlikda keladi.
 const MAX_AHEAD_MS = 30 * 86400_000;
 
 export interface CreateResult {
@@ -30,7 +31,7 @@ export async function createReminder(
   const clean = text.replace(/\s+/g, " ").trim().slice(0, MAX_TEXT);
   if (!clean) return { ok: false, reason: "Eslatma matni bo'sh." };
   const ahead = runAt.getTime() - Date.now();
-  if (ahead < MIN_AHEAD_MS) return { ok: false, reason: "Vaqt juda yaqin — kamida 5 daqiqa oldin bo'lsin." };
+  if (ahead < MIN_AHEAD_MS) return { ok: false, reason: "Vaqt juda yaqin — kamida 1 daqiqa keyin bo'lsin." };
   if (ahead > MAX_AHEAD_MS) return { ok: false, reason: "30 kundan uzoqqa eslatma qo'yib bo'lmaydi." };
   const pending = await prisma.reminder.count({ where: { memberId, status: "pending" } });
   if (pending >= MAX_PENDING) return { ok: false, reason: `Sizda allaqachon ${MAX_PENDING} ta kutilayotgan eslatma bor — avval birini bekor qiling («eslatmalarim»).` };

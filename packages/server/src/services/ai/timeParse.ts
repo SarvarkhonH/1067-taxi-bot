@@ -49,7 +49,7 @@ export function parseTimeText(text: string, nowUtc = new Date()): TimeParseResul
   if (rel && /keyin|o'tib|dan\b/.test(t.slice(rel.index))) {
     const n = Number(rel[1]);
     const ms = rel[2]!.startsWith("soat") ? n * 3600_000 : n * 60_000;
-    if (ms >= 5 * 60_000 && ms <= 30 * 86400_000) return mk(new Date(now.getTime() + ms));
+    if (ms >= 60_000 && ms <= 30 * 86400_000) return mk(new Date(now.getTime() + ms)); // ≥1 daqiqa
     return null;
   }
 
@@ -109,6 +109,6 @@ export function parseTimeText(text: string, nowUtc = new Date()): TimeParseResul
   }
 
   const wall = dayAt(offset, hour ?? 9, minute); // no clock at all ("ertaga") → 09:00 default
-  if (wall.getTime() <= now.getTime() + 4 * 60_000) return null;
+  if (wall.getTime() <= now.getTime() + 60_000) return null; // ≥1 daqiqa (reminderService floori bilan bir xil)
   return mk(wall);
 }

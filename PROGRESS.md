@@ -1455,3 +1455,15 @@ Isbot: typecheck 0 · E2E 14/14 (BirJoy ovozi, routing butun) · barcha AI-flag 
 Commit aabe4f8 (lokal — push kutilyapti). Deploy hamon DARK bo'lib qoladi.
 NB: bot.ts'ning TAKSI/onboarding qismida hali «1067 taxi» matnlari bor (/start tanishuv, admin,
 haydovchi taklifi) — bu ALOHIDA, kattaroq «butun bot BirJoy rebrend» ishi (ega qaroriga).
+
+## 2026-07-23 — Jonli pilot topgan 2 bug tuzatildi (ega real telefonda sinadi)
+Ega hammani yoqib sinadi. Agent chindan ishladi (BirJoy ovozi, dardlashish, greeting) — LEKIN:
+1. «basen kerak» → topilmadi. Sabab: shahar_qidir FAQAT restorandan qidirardi (xizmatProvider
+   hali yo'q edi). FIX: `xizmatProvider.ts` (K2) qurildi — 139 ta xizmat/usta bazasidan qidiradi,
+   1067-tekshiruvi>verified>reyting saralash, 📞 raqam kartada (Telegram auto-link). Sinonim-
+   kengaytma («basen»→«basseyn», «santehnik»→«santexnik») + per-word. Isbot: «basen/chilla basen/
+   hovuz/santexnik» hammasi topiladi; agent «basen»→city_search(xizmat,"basseyn").
+2. «3 daqiqadan keyin eslat» rad etildi. Sabab: eslatma min-vaqti 5 daqiqa edi. FIX: 1 daqiqaga
+   tushirildi (reminderService + timeParse). Yetkazish sweep bilan ±90s.
+Isbot: typecheck 0 · timeParse 28/28 · city 14/14 (xizmat basseyn qo'shildi) · reminder 13/13.
+Flaglar JONLI ON (ega pilot davom etyapti). Deploy: bu tuzatishlar push→live bo'ladi.

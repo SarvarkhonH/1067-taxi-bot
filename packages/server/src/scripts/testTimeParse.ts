@@ -33,7 +33,8 @@ function expectNull(input: string): void {
 expectAt("30 daqiqadan keyin", "2026-07-22T10:30");
 expectAt("2 soatdan keyin", "2026-07-22T12:00");
 expectAt("yarim soatdan keyin", "2026-07-22T10:30");
-expectNull("2 daqiqadan keyin"); // < 5 min floor
+expectAt("3 daqiqadan keyin", "2026-07-22T10:03"); // 1-daqiqa floordan yuqori — endi qabul qilinadi
+expectNull("30 soniyadan keyin"); // < 1 min → rad
 
 // explicit clock — unambiguous
 expectAt("ertaga 7:30 da", "2026-07-23T07:30");
