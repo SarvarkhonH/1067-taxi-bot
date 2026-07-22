@@ -33,6 +33,48 @@ async function bumpWeekly(memberId: number): Promise<void> {
 
 const stopKb = (): InlineKeyboard => new InlineKeyboard().text("🔕 Bunday yozma", "needs:off");
 
+// v1 — AI-personalized message (Koson dialect) via Gemini. NO PII (no name/phone/balance) in the
+// prompt — only the trigger brief. Falls back to the caller's template on any failure. Ethical:
+// warm + honest, never manipulative (Bible §12.3). Returns null → caller uses its template.
+async function aiNudge(brief: string): Promise<string | null> {
+  const key = process.env.GEMINI_API_KEY;
+  if (!key) return null;
+  try {
+    const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent?key=${key}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        systemInstruction: {
+          parts: [
+            {
+              text: "Sen BirJoy — Koson (O'zbekiston) shahrining yordamchisisan. Mijozga QISQA (1-2 jumla), iliq, samimiy, KOSON SHEVASIGA yaqin sof o'zbekcha proaktiv taklif yoz. HALOL bo'l — soxta shoshilinch, yolg'on yoki bosim YO'Q. Faqat xabar matnini ber (izohsiz, tirnoqsiz). 1-2 emoji bo'lsa bo'ldi.",
+            },
+          ],
+        },
+        contents: [{ role: "user", parts: [{ text: brief }] }],
+        // 1024: thinkingBudget consumes output tokens; smaller caps truncated the message mid-word
+        // (same value the agent uses successfully). The scrubber trims length back to ≤400.
+        generationConfig: { temperature: 0.7, maxOutputTokens: 1024, thinkingConfig: { thinkingBudget: 128 } },
+      }),
+      signal: AbortSignal.timeout(12_000),
+    });
+    if (!res.ok) return null;
+    const data = (await res.json()) as { candidates?: { content?: { parts?: { text?: string }[] } }[] };
+    let text = (data.candidates?.[0]?.content?.parts ?? []).map((p) => p.text ?? "").join("").trim();
+    // scrub chat-model artifacts (a model sometimes returns "Option 2:*", markdown, quotes)
+    text = text
+      .replace(/^\s*(option|variant|tanlov)\s*\d+\s*[:.)\-*]*/gi, "")
+      .replace(/\*+/g, "")
+      .replace(/^["'«»\s]+|["'«»\s]+$/g, "")
+      .trim();
+    // reject anything that still looks like a list / multiple options → caller uses the template
+    if (/\b(option|variant|tanlov)\s*\d/i.test(text) || (text.match(/\n/g)?.length ?? 0) >= 2) return null;
+    return text.length >= 8 && text.length <= 400 ? text : null;
+  } catch {
+    return null;
+  }
+}
+
 /** One personalized nudge for one member (all guardrails inline, ONE message + stop button).
  *  Mirrors notifyService.trySend (opt-out + 2/day cap + once-per-kind dedup) so the Needs Engine
  *  never exceeds the smart-push budget, plus our own weekly cap. Returns true if actually sent. */
@@ -86,13 +128,9 @@ export async function needsEngineTick(bot: Bot): Promise<void> {
           dowCount.set(d, (dowCount.get(d) ?? 0) + 1);
         }
         if ((dowCount.get(todayDow) ?? 0) >= 3) {
-          const sent = await sendNudge(
-            bot,
-            chatId,
-            m.id,
-            "needs_habit",
-            `Assalomu alaykum! 🌅 Odatda <b>${WEEKDAY_UZ[todayDow]}</b> kunlari yo'lga chiqasiz — bugun ham taksi kerak bo'lsa, bir bosishда tayyor turaman. Yaxshi kun bo'lsin! 🚕`,
-          );
+          const ai = await aiNudge(`Mijoz odatda ${WEEKDAY_UZ[todayDow]} kunlari taksida yo'lga chiqadi. Bugun ham ${WEEKDAY_UZ[todayDow]}. Iliq ertalabki eslatma yoz: bugun taksi kerak bo'lsa tayyorman, bir bosishda chaqiradi.`);
+          const html = ai ?? `Assalomu alaykum! 🌅 Odatda <b>${WEEKDAY_UZ[todayDow]}</b> kunlari yo'lga chiqasiz — bugun ham taksi kerak bo'lsa, bir bosishда tayyor turaman. Yaxshi kun bo'lsin! 🚕`;
+          const sent = await sendNudge(bot, chatId, m.id, "needs_habit", html);
           if (sent) continue;
         }
       }
@@ -105,13 +143,9 @@ export async function needsEngineTick(bot: Bot): Promise<void> {
       if (trips >= 3) {
         const referred = await prisma.referral.count({ where: { referrerId: chatId } }); // telegram-id based
         if (referred === 0) {
-          const sent = await sendNudge(
-            bot,
-            chatId,
-            m.id,
-            "needs_referral",
-            `🎁 <b>Bilasizmi?</b> Bitta do'stingizni chaqirsangiz — u ilk safarini qilishi bilan <b>sizga 2000+ tanga</b> tushadi (unga ham sovg'a bor). Koson kichkina — kimdir albatta kerak qiladi 😊 «👥 Do'st» tugmasi orqali havolangizni ulashing.`,
-          );
+          const ai = await aiNudge("Mijoz botdan faol foydalanadi, lekin hali biror do'stini chaqirmagan. Halol, bosimsiz taklif yoz: bitta do'st chaqirsa, u ilk safar qilishi bilan mijozga 2000+ tanga tushadi, do'stiga ham sovg'a. «Do'st» tugmasi orqali ulashadi.");
+          const html = ai ?? `🎁 <b>Bilasizmi?</b> Bitta do'stingizni chaqirsangiz — u ilk safarini qilishi bilan <b>sizga 2000+ tanga</b> tushadi (unga ham sovg'a bor). Koson kichkina — kimdir albatta kerak qiladi 😊 «👥 Do'st» tugmasi orqali havolangizni ulashing.`;
+          const sent = await sendNudge(bot, chatId, m.id, "needs_referral", html);
           if (sent) continue;
         }
       }

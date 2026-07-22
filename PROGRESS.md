@@ -1581,3 +1581,11 @@ QOLDI: chala'larni to'liq (B) — bazar/xizmat buyurtma, Needs v1, bilim admin U
   Isbot: typecheck 0 · order-card (manzilsiz→so'raydi, manzil bilan→ConfirmCard) · agent yo'naltiradi.
 Eslatma: xizmat/e'lon/reys — qo'ng'iroq/band-qilish modeli (chala emas, shunday to'g'ri).
 QOLGAN B: Needs Engine v1 (AI-shaxsiy matn) · bilim admin-panel UI (frontend).
+
+## 2026-07-23 (10) — Needs Engine v1: AI-shaxsiy Koson-shevasida matn (DARK)
+Shablon o'rniga `aiNudge(brief)` — Gemini Koson-shevasида iliq, halol proaktiv matn yozadi
+(PII YO'Q promptда, faqat trigger-brief). Chiqish tozalanadi (Option/*/tirnoq olib tashlanadi),
+buzuq/ro'yxatsimon bo'lsa SHABLONGA qaytadi. maxOutputTokens 1024 (kam bo'lsa kesilardi).
+Namunalar: «Juma muborak... taksingizni taxt qilib berishga tayyorman», «...jo'rangizni taklif
+qilsangiz 2000 dan oshiq tanga barakasi, oshnangizga ham sovg'a» — tabiiy, sheva, halol.
+Isbot: typecheck 0 · testNeeds 6/6 ×3 · AI-namuna finishReason STOP (kesilmaydi). aineeds DARK.
