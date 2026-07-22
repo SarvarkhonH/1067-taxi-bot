@@ -1557,3 +1557,11 @@ olib tashlash) + Levenshtein edit-distance kas katalogi (~111) ustidan, so'z-vs-
 →POST-GAI (rasm holati), «shabada tarafga»→SHABADA, «obran»→OBRON.
 QOLDI (ega so'radi): discoverability (tugmalar+/bilim tugma+tanishuv), chala'larni to'liq
 (bazar/xizmat buyurtma, Needs v1, bilim admin UI), yangi (ovoz/rasm/guruh — internetdan).
+
+## 2026-07-23 (7) — Discoverability (ega: «bular bilinmagan» + /bilim tugma)
+Muammo: AI imkoniyatlari ko'rinmasди. FIX:
+- mainMenu'ga «🤖 Koson AI» tugmasi · /ai buyrug'i · Telegram komanda-menyusiga /ai + /bilim.
+- showAiIntro — nima qila olishini ko'rsatadi + inline «🧠 ma'lumot berish» (bilim:start) tugma.
+- bilim:start callback → /bilim oqimini boshlaydi (buyruq yozish shart emas — ega so'ragan).
+- «Tushunmadim» nudge endi imkoniyatlarни ko'rsatadi. renderHelp: BirJoy + Koson AI + /bilim.
+Isbot: typecheck 0. (UI — jonli tugma, ega sinaydi.) QOLDI: ovoz (C) → chala'lar (B).

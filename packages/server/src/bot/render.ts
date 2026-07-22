@@ -181,16 +181,16 @@ export function renderFare(cfg: FareConfigResponse): string {
 
 export function renderHelp(): string {
   return (
-    `ℹ️ <b>1067 Taxi — yordam</b>\n\n` +
+    `ℹ️ <b>BirJoy — yordam</b>\n\n` +
+    `🤖 <b>Koson AI</b> — shunchaki tabiiy tilда yozing, men tushunaman: «uyimga taksi», «osh buyurtma qil», «santexnik kerak», «ertaga 7 da eslat», «bu oy qancha ishlatdim». Dardlashsangiz ham — tinglayman. /ai\n` +
+    `🧠 <b>Ma'lumot berish</b> — Koson haqida bilganingizni yozing, AI o'rgansin. /bilim\n\n` +
     `🚖 <b>Taxi</b> — «🚀 Ilova»da xaritadan chaqiring, jonli kuzating, bekor qiling.\n` +
     `💰 <b>Ikki hamyon</b> — 🚕 cashback (safardan) + 🪙 tanga (bonuslardan). Ilovada bir-biriga o'tkaziladi, so'mga aylantiriladi.\n\n` +
     `<b>Tanga topish:</b>\n` +
     `• 🔥 Kunlik streak · 🎯 vazifalar · 🎡 g'ildirak · 🎁 quti\n` +
-    `• 🚕 Har safar — vazifa va liga ochkolari\n` +
     `• 👥 Do'st taklif: ikkalangizga +tanga\n\n` +
     `<b>Buyruqlar:</b>\n` +
-    `/start · /narx · /daily · /wheel · /missions · /invite · /me · /top\n\n` +
-    `Savol? Dispetcher: «🚖 Narx & cashback»da raqamlar bor.`
+    `/ai · /bilim · /start · /narx · /daily · /wheel · /invite · /me · /top`
   );
 }
 

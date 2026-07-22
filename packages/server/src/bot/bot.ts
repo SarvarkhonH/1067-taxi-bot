@@ -130,8 +130,11 @@ async function mainMenu(_isDriver = false, _tgId?: string): Promise<Keyboard> {
   // Row 1 — the one booking entry point. Same label as the historical primary button, so this is
   // a no-op for anyone whose keyboard was already showing it.
   kb.text("🚕 Taxi chaqirish");
+  kb.row();
+  // Row 2 — discoverability: surface the AI assistant so people know it exists (was invisible).
+  kb.text("🤖 Koson AI");
   // is_persistent → the menu stays pinned open (app-like nav); placeholder → modern input hint
-  return kb.resized().persistent().placeholder("Menyudan tanlang yoki manzilni yozing…");
+  return kb.resized().persistent().placeholder("Menyudan tanlang yoki shunchaki yozing — men tushunaman…");
 }
 
 function contactKeyboard(): Keyboard {
@@ -1344,6 +1347,43 @@ export function createBot(): Bot {
   bot.hears(/^👥 Do'st chaqirish/, showReferral); // tolerant to bonus-text changes (e.g. "+2500 tanga")
   bot.command("invite", showReferral);
 
+  // 🤖 Koson AI intro — discoverability: shows what the assistant can do + a one-tap «ma'lumot ber».
+  const showAiIntro = async (ctx: Context): Promise<void> => {
+    const { InlineKeyboard } = await import("grammy");
+    const kb = new InlineKeyboard();
+    if (await featureOn("aibilim")) kb.text("🧠 Koson haqida ma'lumot berish", "bilim:start").row();
+    kb.text("🚕 Taxi chaqirish", "bk:now");
+    await ctx.reply(
+      "🤖 <b>Koson AI</b> — shahringizning aqlli yordamchisi.\n\n" +
+        "Shunchaki <b>tabiiy tilда yozing</b>, men tushunaman:\n" +
+        "🚕 «uyimga taksi» · «shabadaga chiqaman»\n" +
+        "🍽 «osh buyurtma qil» · «qornim ochdi»\n" +
+        "🔎 «santexnik kerak» · «basen qayerda»\n" +
+        "🛒 «sovg'a olmoqchiman» · e'lon/reys\n" +
+        "⏰ «ertaga 7 da bozorga eslat» · 📊 «bu oy qancha ishlatdim»\n" +
+        "💛 shunchaki dardlashsangiz ham — tinglayman.\n\n" +
+        "<i>Yozib ko'ring — javob beraman 👇</i>",
+      { parse_mode: "HTML", reply_markup: kb },
+    );
+  };
+  bot.hears("🤖 Koson AI", showAiIntro);
+  bot.command("ai", showAiIntro);
+
+  // 🧠 «ma'lumot ber» tugmasi → /bilim oqimini boshlaydi (buyruqni yozish shart emas — discoverability)
+  bot.callbackQuery("bilim:start", async (ctx) => {
+    await ctx.answerCallbackQuery();
+    const id = String(ctx.from.id);
+    if (!(await featureOn("aibilim"))) {
+      await ctx.reply("🧠 Bu imkoniyat tez orada ishga tushadi.");
+      return;
+    }
+    bilimAwaiting.add(id);
+    await ctx.reply(
+      "🧠 <b>Koson AI'ga ma'lumot bering</b>\n\nKoson haqida foydali fakt yozing — masalan «Chilla basseyn dushanba yopiq», «Do'stlik ko'chasida 24 soatlik dorixona bor». Ega tasdiqlagach, AI shu ma'lumotni biladi va boshqalarga aytadi.\n\n✍️ Endi yozing (yoki /bekor):",
+      { parse_mode: "HTML" },
+    );
+  });
+
   // 📋 /menu — modern in-chat INLINE panel: every button deep-links straight into the Mini App on
   // its screen (web_app buttons). Complements the persistent reply keyboard (sleek tappable cards).
   const showInlineMenu = async (ctx: Context): Promise<void> => {
@@ -1888,7 +1928,10 @@ export function createBot(): Bot {
     }
     const meF = await getMe(tgId).catch(() => null);
     await ctx.reply(
-      "🤔 <b>Tushunmadim.</b>\n📍 Manzilni yozing (masalan «Saripul bozorcha») yoki joylashuvingizni yubording — darrov taksi chaqiraman.\nYoki «🚕 Taxi chaqirish» tugmasi · /start",
+      "🤔 <b>Tushunmadim.</b> Lekin men ko'p narsani bilaman 👇\n" +
+        "🚕 «uyimga taksi» · 🍽 «osh buyurtma qil» · 🔎 «santexnik kerak»\n" +
+        "🛒 «sovg'a olmoqchiman» · ⏰ «ertaga 7 da eslat» · 📊 «bu oy qancha ishlatdim»\n\n" +
+        "Manzil yozing yoki 📍 joylashuvингizni yuboring — yoki «🤖 Koson AI» tugmasi.",
       { parse_mode: "HTML", reply_markup: await mainMenu(meF?.type === "driver", String(ctx.from?.id ?? "")) },
     );
   });
@@ -1988,6 +2031,8 @@ export async function setupBotCommands(bot: Bot): Promise<void> {
   // this public list on purpose — they still work when typed, just aren't advertised.
   await bot.api.setMyCommands([
     { command: "start", description: "Botni boshlash / profil" },
+    { command: "ai", description: "🤖 Koson AI — aqlli yordamchi" },
+    { command: "bilim", description: "🧠 Koson haqida ma'lumot berish" },
     { command: "menu", description: "📋 Menyu (barcha bo'limlar)" },
     { command: "book", description: "🚕 Taxi chaqirish" },
     { command: "status", description: "📍 Buyurtmam holati" },
