@@ -1791,3 +1791,23 @@ qanday taqlid-xabar yaratilmaydi; haqiqiy egasi esa hamon to'g'ri ishlaydi (musb
 **Isbot:** `testShopChat.ts` (endi 22 tekshiruv, 12-blok yangi) — **3× ALL GREEN**. `tsc --noEmit`
 4/4 paket 0 xato.
 **Holat:** C1 — READY FOR VERIFICATION. Hali commit/deploy qilinmagan.
+
+## 2026-07-23 (17) — C1 DEPLOY QILINDI (server+miniapp+admin), bundle-grep bilan isbotlandi
+Commit `0f3eeb3` → push → CI shield yashil → Render avto-deploy **live**. Miniapp qayta build +
+Vercel deploy → bundle-grep: "bj-chat-thread" topildi. Admin panel qayta build + Vercel deploy →
+bundle-grep: "Do'kon-chat" topildi.
+**Holat:** D2, S1, C1 — UCHALASI HAM kod+deploy jihatidan to'liq tayyor, uchalasi ham 2 bosqichli
+mustaqil tekshiruvdan (R4 + fix-qayta-tekshiruv) o'tgan. Barcha flaglar (`bazar` allaqachon ON
+pilotda; `shopstory`, `shopchat` DARK) — real telefon-QABUL kutmoqda.
+
+## 2026-07-23 (18) — §10.3 eng-yuqori-ustuvor: 1-bosishda qayta-buyurtma (MarketOrder)
+Tadqiqot asosida (Zepto/Blinkit'da buyurtmalarning ~70% qayta-buyurtma) — D2/S1/C1'dan keyingi
+birinchi §10-backlog qadami. `shop.tsx`: "Buyurtmalarim"dagi har yakunlangan/rad etilgan/bekor
+qilingan buyurtmaga "🔁 Yana buyurtma qil" — savatni O'SHA mahsulotlar bilan to'ldiradi (narx/stock
+JONLI qayta-tekshiriladi, endi mavjud-bo'lmagan/tugagan mahsulotlar o'tkazib yuboriladi, aniq
+ogohlantirish bilan), checkout-sheet ochiladi — foydalanuvchi ko'rib tasdiqlaydi (haqiqiy
+"ko'r-ko'rona qayta to'lov" EMAS; server baribir `createMarketOrder`da qaytadan hisoblaydi).
+**Ko'lam:** faqat client-side (savat-to'ldirish) — server-tomon logikaga tegilmagan, mavjud
+`createMarketOrder` pul-yo'lagi o'zgarishsiz qoladi. Shuning uchun R4/3× DB-test siklisiz —
+og'irlik xavf-mutanosib (pul-mantiq emas, UI-qulaylik).
+**Isbot:** `tsc --noEmit` miniapp 0 xato.

@@ -1554,6 +1554,7 @@ body {
 .shop-success-promise { margin: 10px 0; padding: 10px; border-radius: 12px; font-size: 13px; background: rgba(52,211,153,.12); border: 1px solid rgba(52,211,153,.3); color: #6ee7b7; }
 .shop-order-row { display: flex; flex-direction: column; gap: 5px; margin-top: 8px; }
 .shop-order-top { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.shop-order-actions { display: flex; gap: 8px; margin-top: 2px; }
 .order-status-pill { font-size: 11px; font-weight: 700; padding: 3px 8px; border-radius: var(--r-chip); white-space: nowrap; }
 .order-status-pill.pending { background: rgba(255,255,255,.08); color: var(--text-dim, #9aa0a6); }
 .order-status-pill.delivered { background: rgba(52,211,153,.15); color: var(--win); }

@@ -521,6 +521,30 @@ export function ShopView({ me, onBanner, reload, onBook, openProductId }: { me: 
     setOrdersOpen(true);
     loadOrders();
   };
+  // 🔁 §10.3 (D2/S1/C1'dan keyingi eng yuqori-ustuvor qadam — tadqiqot: o'xshash ilovalarda
+  // buyurtmalarning ~70% qayta-buyurtma). Savatni shu buyurtma bilan to'ldiradi — narx/stock
+  // JONLI qayta-tekshiriladi (snapshot ko'r-ko'rona nusxalanmaydi); endi mavjud-bo'lmagan
+  // mahsulotlar o'tkazib yuboriladi, foydalanuvchi checkout'da hammasini ko'rib tasdiqlaydi
+  // (haqiqiy "1-bosishda blind-charge" emas — buyProduct/checkout baribir serverda qayta-hisoblaydi).
+  const reorderMkt = (o: MarketOrderView) => {
+    haptic();
+    if (cartShopId !== null && cartShopId !== o.shopId && cartCount > 0) {
+      if (!window.confirm("Savatda boshqa do'kon mahsuloti bor. Savat tozalanib, shu buyurtma qayta tiklansinmi?")) return;
+    }
+    const nextCart: Record<number, number> = {};
+    let skipped = 0;
+    for (const it of o.items) {
+      const p = (products ?? []).find((pp) => pp.id === it.productId);
+      if (!p || p.stock <= 0) { skipped++; continue; }
+      nextCart[it.productId] = Math.min(it.qty, p.stock);
+    }
+    if (Object.keys(nextCart).length === 0) { alert("Afsuski, bu buyurtmadagi mahsulotlar endi mavjud emas."); return; }
+    setCart(nextCart);
+    setCartShopId(o.shopId);
+    setOrdersOpen(false);
+    setCartOpen(true);
+    if (skipped > 0) setTimeout(() => alert(`${skipped} ta mahsulot endi mavjud emas — o'tkazib yuborildi.`), 250);
+  };
 
   const deficit = sel ? Math.max(0, sel.priceTanga - me.coins) : 0;
   // how many friends to invite to cover the shortfall (spread > rides right now)
@@ -1051,9 +1075,14 @@ export function ShopView({ me, onBanner, reload, onBook, openProductId }: { me: 
             {o.status === "rejected" && (
               <div className="order-refund-banner">{o.rejectReason ? `Sabab: ${o.rejectReason.replace(/^#\w+\s?/, "")}. ` : ""}{o.payKind === "cash" ? "Hech qanday pul olinmagan." : <>✅ <b>{formatNumber(o.total)} tanga qaytarildi</b></>}</div>
             )}
-            {o.status === "pending" && (
-              <Button variant="ghost" onClick={() => cancelMkt(o.id)}>✖ Bekor qilish</Button>
-            )}
+            <div className="shop-order-actions">
+              {o.status === "pending" && (
+                <Button variant="ghost" onClick={() => cancelMkt(o.id)}>✖ Bekor qilish</Button>
+              )}
+              {bazarcart && (o.status === "delivered" || o.status === "rejected" || o.status === "cancelled") && (
+                <Button variant="ghost" onClick={() => reorderMkt(o)}>🔁 Yana buyurtma qil</Button>
+              )}
+            </div>
           </div>
         ))}
         {ordersErr ? (
