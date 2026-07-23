@@ -469,6 +469,27 @@ export function createApiServer(opts: ApiOptions = {}) {
     res.set("Cache-Control", "private, max-age=30");
     return await getMarketHome(isAdmin(res.locals.telegramId as string), req.query?.q ? String(req.query.q) : undefined, memberId);
   }));
+  // 🏠 V1.5 (Mahalla bozori): mahalla ro'yxati (picker uchun) + GPS-eng-yaqin taxmin + tanlov saqlash.
+  app.get("/api/mahalla", requireUser, rateLimit(30), async (_req, res) => {
+    const { listMahallas } = await import("../services/mahallaService");
+    res.set("Cache-Control", "private, max-age=300");
+    res.json({ mahallas: await listMahallas() });
+  });
+  app.post("/api/mahalla/nearest", requireUser, rateLimit(30), async (req, res) => {
+    const { nearestMahalla } = await import("../services/mahallaService");
+    const lat = Number(req.body?.lat);
+    const lng = Number(req.body?.lng);
+    if (!Number.isFinite(lat) || !Number.isFinite(lng)) { res.status(400).json({ error: "bad_coords" }); return; }
+    res.json({ mahalla: await nearestMahalla(lat, lng) });
+  });
+  app.post("/api/member/mahalla", requireUser, rateLimit(20), withMember2(async (memberId, req) => {
+    const { setMemberMahalla } = await import("../services/mahallaService");
+    const mahallaId = Number(req.body?.mahallaId);
+    const mode = req.body?.mode === "travel" ? "travel" as const : "home" as const;
+    if (!Number.isFinite(mahallaId)) return { ok: false };
+    return await setMemberMahalla(memberId, mahallaId, mode);
+  }));
+
   // kategoriya-ikonka + do'kon-logo proxy (shop-photo naqshi, o'sha rate-limit xaritasi)
   const serveMarketImage = (kind: "cat" | "shop") => async (req: Request, res: Response): Promise<void> => {
     const id = Number(req.params.id);

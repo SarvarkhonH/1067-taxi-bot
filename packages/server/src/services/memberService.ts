@@ -130,7 +130,7 @@ async function buildMe(
     linked: true,
     type,
     metricLabel: metricLabel(type),
-    member: { id: member.id, fullName: member.displayName || resolveDisplayName(member.fullName, tg), phone: member.phone, carNumber: member.carNumber },
+    member: { id: member.id, fullName: member.displayName || resolveDisplayName(member.fullName, tg), phone: member.phone, carNumber: member.carNumber, mahallaId: member.mahallaId, travelMahallaId: member.travelMahallaId },
     stats: { points: member.points, trips: member.trips, rating: member.rating },
     ballPoints: member.ballPoints,
     idleDays: decay.idleDays,

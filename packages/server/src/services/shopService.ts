@@ -117,7 +117,7 @@ export async function listFavoriteProducts(memberId: number, preview = false): P
  *  q berilsa: OR-contains qidiruv (serviceDirectory naqshi); nol natija → MarketDemand yozuvi
  *  («qidirildi-topilmadi» — egaga qaysi sotuvchini chaqirishni aytadi). */
 export async function getMarketHome(preview = false, q?: string, memberId?: number): Promise<{
-  shops: { id: number; name: string; open: boolean; deliveryText: string | null; rating: number; hasPhoto: boolean; deliveryFeeSom: number; minOrderTanga: number }[];
+  shops: { id: number; name: string; open: boolean; deliveryText: string | null; rating: number; hasPhoto: boolean; deliveryFeeSom: number; minOrderTanga: number; shopKind: string; mahallaId: number | null }[];
   cats: { slug: string; name: string; emoji: string; hasIcon: boolean; id: number }[];
   products: ShopProductView[];
 }> {
@@ -137,7 +137,7 @@ export async function getMarketHome(preview = false, q?: string, memberId?: numb
     }
   }
   return {
-    shops: shops.map((s) => ({ id: s.id, name: s.name, open: isOpenNow(s.workHours), deliveryText: s.deliveryText, rating: s.avgRating, hasPhoto: !!(s.photoFileId || s.photoUrl), deliveryFeeSom: s.deliveryFeeSom, minOrderTanga: s.minOrderTanga })),
+    shops: shops.map((s) => ({ id: s.id, name: s.name, open: isOpenNow(s.workHours), deliveryText: s.deliveryText, rating: s.avgRating, hasPhoto: !!(s.photoFileId || s.photoUrl), deliveryFeeSom: s.deliveryFeeSom, minOrderTanga: s.minOrderTanga, shopKind: s.shopKind, mahallaId: s.mahallaId })),
     cats: cats.map((c) => ({ id: c.id, slug: c.slug, name: c.name, emoji: c.emoji, hasIcon: !!(c.iconFileId || c.iconUrl) })),
     products: filtered,
   };
@@ -149,6 +149,8 @@ export async function getShopProfile(shopId: number, preview = false): Promise<S
   if (!preview && !(await featureOn("bazar"))) return null;
   const shop = await prisma.marketShop.findUnique({ where: { id: shopId } });
   if (!shop || (!shop.active && !preview)) return null;
+  // V1.5: mahallaId bo'lsa Mahalla.name ustun keladi, aks holda eski erkin-matn neighborhood'ga fallback.
+  const mahallaName = shop.mahallaId ? (await prisma.mahalla.findUnique({ where: { id: shop.mahallaId }, select: { name: true } }))?.name ?? null : null;
   const productIds = (await prisma.product.findMany({ where: { shopId }, select: { id: true } })).map((p) => p.id);
   const ratingAgg = productIds.length
     ? await prisma.productReview.aggregate({
@@ -161,7 +163,7 @@ export async function getShopProfile(shopId: number, preview = false): Promise<S
     id: shop.id,
     name: shop.name,
     open: isOpenNow(shop.workHours),
-    neighborhood: shop.neighborhood,
+    neighborhood: mahallaName ?? shop.neighborhood,
     deliveryText: shop.deliveryText,
     story: shop.story,
     announcement: shop.announcement,

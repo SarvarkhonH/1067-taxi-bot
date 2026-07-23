@@ -78,6 +78,11 @@ model Member {
   // catalog addresses) or by name (raw map pins, id=0). Separate from lastPickup* (single-slot,
   // used by callOneTapFor's cascade) — this is purely a display list for the Mini App chip row.
   recentPickupsJson  String?
+  // 🏠 Mahalla bozori (V1.5): "uy" mahalla (doimiy) + safar-rejimi vaqtinchalik override. Loose FK
+  // to Mahalla.id (Product.shopId naqshi) — no @relation, joined manually in mahallaService.
+  mahallaId          Int?
+  travelMahallaId    Int?
+  travelMahallaSetAt DateTime?
   createdAt          DateTime  @default(now())
   updatedAt          DateTime  @updatedAt
 
@@ -415,9 +420,26 @@ model MarketShop {
   story          String? // D2: "Biz haqimizda" — seller-tahrirlanadigan hikoya/tavsif matni
   announcement   String? // D2: Etsy-uslub bitta-qatorli e'lon (masalan "Bugun yangi partiya keldi")
   announcementAt DateTime? // e'lon oxirgi yangilangan vaqti
-  neighborhood   String? // D2: mahalla-teg — Carrot Market-uslub yaqinlik-ishonch signali
+  neighborhood   String? // D2: erkin-matn mahalla-teg (legacy) — mahallaId bo'lsa Mahalla.name unga ustun keladi, aks holda shu matnga fallback
+  shopKind       String   @default("bozor") // V1.5: "bozor" (butun shahar) | "mahalla" (faqat o'z mahallasiga tez yetkazish)
+  mahallaId      Int? // V1.5: faqat shopKind="mahalla" bo'lganda to'ldiriladi — loose FK (Mahalla.id)
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
+
+  @@index([active, sortOrder])
+  @@index([shopKind, mahallaId, active])
+}
+
+// 🏠 V1.5: mahalla bozori — kas1067 manzil-katalogidan (api/addresses/) tanlab olingan, ega
+// tasdiqlagan 39 ta haqiqiy mahalla (seedMahalla.ts). lat/lng — GPS-eng-yaqin-mahalla taxmini uchun.
+model Mahalla {
+  id        Int      @id @default(autoincrement())
+  name      String   @unique
+  lat       Float
+  lng       Float
+  sortOrder Int      @default(0)
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
 
   @@index([active, sortOrder])
 }

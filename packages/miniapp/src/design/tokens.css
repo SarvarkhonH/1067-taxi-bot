@@ -2617,6 +2617,35 @@ body {
 .bj-sect h3 { font-size: 15.5px; font-weight: 800; color: var(--bj-ink); margin: 0; }
 .bj-sect-all { font-size: 12.5px; font-weight: 700; color: var(--bj-accent); }
 
+/* 🏠 V1.5 (Mahalla bozori): mahalla-chip + safar-rejimi banner + picker-sheet ro'yxati */
+.bj-mahalla-chip {
+  display: inline-flex; align-items: center; gap: 4px; margin: 4px 16px 6px;
+  padding: 8px 14px; border-radius: var(--r-chip); border: 1px solid var(--bj-line);
+  background: var(--bj-card); color: var(--bj-ink); font-weight: 700; font-size: 13px;
+  box-shadow: var(--bj-shadow); cursor: pointer;
+}
+.bj-mahalla-chip:active { transform: scale(0.97); }
+.bj-mahalla-chip-caret { font-size: 11px; color: var(--bj-ink-dim); }
+.bj-travel-banner {
+  margin: 6px 16px 10px; padding: 12px 14px; border-radius: var(--r-card);
+  border: 1px solid var(--bj-line); background: var(--bj-card); color: var(--bj-ink);
+  box-shadow: var(--bj-shadow); display: flex; flex-direction: column; gap: 8px; font-size: 13px;
+}
+.bj-travel-actions { display: flex; gap: 8px; }
+.bj-travel-yes, .bj-travel-no { flex: 1; padding: 8px; border-radius: var(--r-btn); font-weight: 700; font-size: 13px; cursor: pointer; }
+.bj-travel-yes { border: 0; background: var(--bj-hero-grad); color: #fff; }
+.bj-travel-no { border: 1px solid var(--bj-line); background: transparent; color: var(--bj-ink-dim); }
+.bj-mahalla-empty { text-align: center; padding: 20px; margin: 4px 16px; color: var(--bj-ink-dim); font-size: 13px; }
+.bj-mahalla-gps {
+  width: 100%; margin: 8px 0 4px; padding: 12px; border-radius: var(--r-btn); border: 0;
+  background: var(--bj-hero-grad); color: #fff; font-weight: 700; font-size: 14px; cursor: pointer;
+}
+.bj-mahalla-gps:disabled { opacity: 0.6; }
+.bj-mahalla-list { max-height: 320px; overflow-y: auto; margin-top: 8px; display: flex; flex-direction: column; gap: 2px; }
+.bj-mahalla-item { text-align: left; padding: 12px 10px; border-radius: 10px; border: 0; background: none; color: var(--bj-ink); font-size: 14px; font-weight: 600; cursor: pointer; }
+.bj-mahalla-item:active { background: rgba(13, 150, 104, 0.08); }
+.bj-mahalla-item.on { color: var(--bj-accent); font-weight: 800; }
+
 /* bo'sh-holat */
 .bj-empty { text-align: center; padding: 28px 20px; color: var(--bj-ink-dim); }
 .bj-empty svg { margin-bottom: 10px; }

@@ -19,9 +19,10 @@ import {
   type ShopPurchaseView,
   type ShopReviewsResponse,
   type ReferralResponse,
+  type MahallaView,
 } from "@t1067/shared";
 import { api, apiUrl } from "./api";
-import { haptic, hapticSuccess, inviteText, inviteLandingUrl, shareLink } from "./telegram";
+import { haptic, hapticSuccess, inviteText, inviteLandingUrl, shareLink, tgGetLocation, tgHasLocationManager } from "./telegram";
 import { confetti, compressImage } from "./util";
 import { Button, EmptyState, ProgressBar, Sheet, Skeleton } from "./design/components";
 import { BjCategoryCarousel, BjShopCard, BjSection, BjStickyCartBar } from "./design/birjoy"; // 🏪 V1.4+V2 BirJoy-kit
@@ -277,7 +278,63 @@ export function ShopView({ me, onBanner, reload, onBook, openProductId }: { me: 
     setChatSending(false);
   };
   const [market, setMarket] = useState<MarketHomeResponse | null>(null);
+  // 🏠 V1.5 (Mahalla bozori): "uy" mahalla + safar-rejimi vaqtinchalik override — ikkalasi hech
+  // qachon aralashtirilmaydi, joriy mahalla = travelMahallaId ?? mahallaId ?? null.
+  const activeMahallaId = me.member.travelMahallaId ?? me.member.mahallaId ?? null;
+  // ikki bo'lim — o'z mahallasi (shopKind="mahalla" + mos mahallaId) vs butun shahar (qolgani)
+  const mahallaShops = useMemo(() => (market?.shops ?? []).filter((s) => s.shopKind === "mahalla" && s.mahallaId === activeMahallaId), [market, activeMahallaId]);
+  const cityShops = useMemo(() => (market?.shops ?? []).filter((s) => s.shopKind !== "mahalla"), [market]);
   const [shopFilter, setShopFilter] = useState<{ id: number; name: string } | null>(null); // 🏬 do'kon-sahifa (lite)
+  const [mahallaList, setMahallaList] = useState<MahallaView[] | null>(null);
+  const [mahallaPickerOpen, setMahallaPickerOpen] = useState(false);
+  const [mahallaQuery, setMahallaQuery] = useState("");
+  const [mahallaLocating, setMahallaLocating] = useState(false);
+  const [travelSuggest, setTravelSuggest] = useState<{ id: number; name: string } | null>(null);
+  const [travelDismissed, setTravelDismissed] = useState(false);
+  const activeMahalla = useMemo(() => mahallaList?.find((m) => m.id === activeMahallaId) ?? null, [mahallaList, activeMahallaId]);
+  useEffect(() => {
+    if (!bazar) return;
+    api.mahallaList().then((r) => setMahallaList(r.mahallas)).catch(() => undefined);
+  }, [bazar]);
+  // GPS-eng-yaqin taxmin: birinchi marta bo'lsa jim "uy" sifatida saqlaydi (owner qarori — avtomatik
+  // taxmin + qo'lda o'zgartirish), aks holda farq qilsa bir martalik safar-rejimi banner ko'rsatadi.
+  useEffect(() => {
+    if (!bazar || shopFilter || !tgHasLocationManager()) return;
+    let stale = false;
+    tgGetLocation().then((loc) => {
+      if (stale || "error" in loc) return;
+      api.mahallaNearest(loc.lat, loc.lng).then((r) => {
+        if (stale || !r.mahalla) return;
+        if (activeMahallaId === null) api.setMahalla(r.mahalla!.id, "home").then(reload).catch(() => undefined);
+        else if (r.mahalla!.id !== activeMahallaId && !travelDismissed) setTravelSuggest({ id: r.mahalla!.id, name: r.mahalla!.name });
+      }).catch(() => undefined);
+    });
+    return () => { stale = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [bazar, shopFilter]);
+  const pickMahalla = async (id: number) => {
+    haptic();
+    setMahallaPickerOpen(false);
+    const r = await api.setMahalla(id, "home").catch(() => ({ ok: false }));
+    if (r.ok) { onBanner("📍 Mahalla tanlandi"); reload(); }
+  };
+  const detectMahalla = async () => {
+    setMahallaLocating(true);
+    const loc = await tgGetLocation();
+    setMahallaLocating(false);
+    if ("error" in loc) { onBanner("📍 Joylashuvni aniqlab bo'lmadi"); return; }
+    const r = await api.mahallaNearest(loc.lat, loc.lng).catch(() => ({ mahalla: null }));
+    if (r.mahalla) await pickMahalla(r.mahalla.id);
+    else onBanner("📍 Yaqin mahalla topilmadi");
+  };
+  const acceptTravel = async () => {
+    if (!travelSuggest) return;
+    haptic();
+    await api.setMahalla(travelSuggest.id, "travel").catch(() => undefined);
+    setTravelSuggest(null);
+    reload();
+  };
+  const dismissTravel = () => { haptic(); setTravelDismissed(true); setTravelSuggest(null); };
   // 🏪 D2: do'kon-profil (hero/info-qator/e'lon/hikoya/reyting) — shopFilter tanlanganda yuklanadi.
   const [shopProfile, setShopProfile] = useState<ShopProfileView | null>(null);
   const [shopProfileReviews, setShopProfileReviews] = useState<ShopReviewsResponse | null>(null);
@@ -710,6 +767,21 @@ export function ShopView({ me, onBanner, reload, onBook, openProductId }: { me: 
               ))}
             </div>
           )}
+          {/* ── 🏠 V1.5: mahalla-chip + safar-rejimi banner — bazar-bosh, faqat uy-ko'rinishida ── */}
+          {bazar && !shopFilter && mahallaList && (
+            <button className="bj-mahalla-chip" onClick={() => { haptic(); setMahallaPickerOpen(true); }}>
+              📍 {activeMahalla?.name ?? "Mahallani tanlang"} <span className="bj-mahalla-chip-caret">▾</span>
+            </button>
+          )}
+          {bazar && !shopFilter && travelSuggest && (
+            <div className="bj-travel-banner">
+              <span>Hozir <b>{travelSuggest.name}</b> mahalladasiz — shu yerdagi do&apos;konlarni ko&apos;rsataymi?</span>
+              <div className="bj-travel-actions">
+                <button className="bj-travel-yes" onClick={acceptTravel}>Ha</button>
+                <button className="bj-travel-no" onClick={dismissTravel}>Yo&apos;q</button>
+              </div>
+            </div>
+          )}
           {/* ── 🏪 V1.4 BirJoy: kategoriya-KARUSEL (Uzum-referens) + do'kon-rail — flag ON'dagina ── */}
           {bazar && !shopFilter && market && market.cats.length > 0 && (
             <BjCategoryCarousel
@@ -718,10 +790,24 @@ export function ShopView({ me, onBanner, reload, onBook, openProductId }: { me: 
               onPick={(slug) => { haptic(); setCat(slug); }}
             />
           )}
-          {bazar && !shopFilter && market && market.shops.length > 1 && (
-            <BjSection title="🏬 Do'konlar">
+          {/* 🏠 V1.5: mahalla do'konlari — faqat joriy mahallaga scoped shopKind="mahalla" do'konlar */}
+          {bazar && !shopFilter && market && activeMahallaId !== null && mahallaShops.length > 0 && (
+            <BjSection title="🏠 Mahalla do'konlari">
               <div className="bj-shops">
-                {market.shops.map((s) => (
+                {mahallaShops.map((s) => (
+                  <BjShopCard key={s.id} name={s.name} open={s.open} promise={s.deliveryText} rating={s.rating} photoUrl={s.hasPhoto ? apiUrl(`/api/shop/shop-photo/${s.id}`) : null} onOpen={() => { haptic(); setShopFilter({ id: s.id, name: s.name }); setCat(null); }} />
+                ))}
+              </div>
+            </BjSection>
+          )}
+          {bazar && !shopFilter && market && activeMahallaId !== null && mahallaShops.length === 0 && (
+            <div className="bj-mahalla-empty">🔔 Bu yerda hali do&apos;kon yo&apos;q — tez orada!</div>
+          )}
+          {/* 🏪 butun-shahar do'konlar — hozirgi (mahalla-oldi) ro'yxat, o'zgarishsiz */}
+          {bazar && !shopFilter && market && cityShops.length > 1 && (
+            <BjSection title="🏪 Butun shahar">
+              <div className="bj-shops">
+                {cityShops.map((s) => (
                   <BjShopCard key={s.id} name={s.name} open={s.open} promise={s.deliveryText} rating={s.rating} photoUrl={s.hasPhoto ? apiUrl(`/api/shop/shop-photo/${s.id}`) : null} onOpen={() => { haptic(); setShopFilter({ id: s.id, name: s.name }); setCat(null); }} />
                 ))}
               </div>
@@ -1057,6 +1143,27 @@ export function ShopView({ me, onBanner, reload, onBook, openProductId }: { me: 
         <div className="bj-chat-input-row">
           <input className="bj-chat-input" value={chatText} onChange={(e) => setChatText(e.target.value)} placeholder="Yozing…" maxLength={500} />
           <Button variant="brand" disabled={!chatText.trim() || chatSending} onClick={() => sendChat(chatText)}>Yuborish</Button>
+        </div>
+      </Sheet>
+
+      {/* ── 🏠 V1.5: mahalla-tanlov bottom-sheet ── */}
+      <Sheet open={mahallaPickerOpen} onClose={() => setMahallaPickerOpen(false)}>
+        <h3>📍 Mahallangizni tanlang</h3>
+        <button className="bj-mahalla-gps" onClick={detectMahalla} disabled={mahallaLocating}>
+          {mahallaLocating ? "Aniqlanmoqda…" : "📍 GPS bilan aniqlash"}
+        </button>
+        <div className="shop-search-wrap mt10">
+          <input className="shop-search" placeholder="🔍 Mahalla qidirish…" value={mahallaQuery} onChange={(e) => setMahallaQuery(e.target.value)} />
+          {mahallaQuery && <button className="shop-search-x" onClick={() => setMahallaQuery("")}>✕</button>}
+        </div>
+        <div className="bj-mahalla-list">
+          {(mahallaList ?? [])
+            .filter((m) => m.name.toLowerCase().includes(mahallaQuery.toLowerCase()))
+            .map((m) => (
+              <button key={m.id} className={"bj-mahalla-item" + (m.id === activeMahallaId ? " on" : "")} onClick={() => pickMahalla(m.id)}>
+                {m.name}{m.id === activeMahallaId && " ✓"}
+              </button>
+            ))}
         </div>
       </Sheet>
 

@@ -86,7 +86,7 @@ function escMkt(s: string): string {
   return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 }
 
-type Step = "name" | "phone" | "address" | "hours" | "promise" | "category";
+type Step = "name" | "phone" | "address" | "hours" | "promise" | "category" | "kind" | "mahalla";
 interface Draft {
   step: Step;
   name?: string;
@@ -94,6 +94,7 @@ interface Draft {
   address?: string;
   workHours?: string;
   deliveryText?: string;
+  category?: string;
 }
 const sessions = new Map<string, Draft>();
 // 📹 S1: "/hikoya" bosgandan keyin KEYINGI video/foto shu do'konning hikoyasi bo'ladi — bir martalik
@@ -117,13 +118,59 @@ function esc(s: string): string {
 }
 
 const PROMPTS: Record<Step, string> = {
-  name: "🏪 <b>BirJoy'da do'kon ochamiz!</b>\n\n1/6 — Do'kon nomini yozing (masalan: <i>Barakat market</i>):",
-  phone: "2/6 — Aloqa telefon raqamingiz (masalan: <i>+99890 123 45 67</i>):",
-  address: "3/6 — Do'kon manzili (masalan: <i>Koson sh., Bozor ko'chasi 12</i>):",
-  hours: "4/6 — Ish vaqti (masalan: <i>09:00-21:00</i>):",
-  promise: "5/6 — Yetkazish-va'dangiz — mijoz kartada shuni ko'radi (masalan: <i>Bugun 2 soatda</i> yoki <i>Ertaga 10:00-14:00</i>):",
-  category: "6/6 — Asosiy yo'nalish (masalan: <i>Oziq-ovqat</i>, <i>Elektronika</i>, <i>Kiyim-kechak</i>):",
+  name: "🏪 <b>BirJoy'da do'kon ochamiz!</b>\n\n1/7 — Do'kon nomini yozing (masalan: <i>Barakat market</i>):",
+  phone: "2/7 — Aloqa telefon raqamingiz (masalan: <i>+99890 123 45 67</i>):",
+  address: "3/7 — Do'kon manzili (masalan: <i>Koson sh., Bozor ko'chasi 12</i>):",
+  hours: "4/7 — Ish vaqti (masalan: <i>09:00-21:00</i>):",
+  promise: "5/7 — Yetkazish-va'dangiz — mijoz kartada shuni ko'radi (masalan: <i>Bugun 2 soatda</i> yoki <i>Ertaga 10:00-14:00</i>):",
+  category: "6/7 — Asosiy yo'nalish (masalan: <i>Oziq-ovqat</i>, <i>Elektronika</i>, <i>Kiyim-kechak</i>):",
+  kind: "7/7 — Qanday sotasiz?",
+  mahalla: "Qaysi mahalladasiz?",
 };
+
+// 🏠 V1.5: mahalla-tanlov inline keyboard, sahifalab (8/sahifa — 39 nomga qulay).
+const MAH_PAGE_SIZE = 8;
+function mahallaKeyboard(list: { id: number; name: string }[], page: number): InlineKeyboard {
+  const start = page * MAH_PAGE_SIZE;
+  const slice = list.slice(start, start + MAH_PAGE_SIZE);
+  const kb = new InlineKeyboard();
+  for (const m of slice) kb.text(m.name, `mkt:mah:${m.id}`).row();
+  const nav: InlineKeyboard = new InlineKeyboard();
+  if (page > 0) nav.text("◀️", `mkt:mahpage:${page - 1}`);
+  if (start + MAH_PAGE_SIZE < list.length) nav.text("▶️", `mkt:mahpage:${page + 1}`);
+  if (nav.inline_keyboard.length) kb.row(...nav.inline_keyboard[0]!);
+  return kb;
+}
+
+/** Draft to'liq bo'lgach MarketShop yaratadi (DARK — ega tasdiqlagach faollashadi) + egaga
+ *  tasdiqlash-karta yuboradi. Ikkala tarmoq ham (bozor va mahalla) shuni chaqiradi — dublikat yo'q. */
+async function finalizeShopDraft(ctx: Context, tg: string, s: Draft, extra: { shopKind: string; mahallaId: number | null }): Promise<void> {
+  sessions.delete(tg);
+  const shop = await prisma.marketShop.create({
+    data: {
+      name: s.name!,
+      phone: s.phone!,
+      address: s.address ?? null,
+      workHours: s.workHours ?? null,
+      deliveryText: s.deliveryText ?? null,
+      category: s.category ?? "boshqa",
+      ownerChatId: tg,
+      active: false, // DARK — ega yoqadi
+      shopKind: extra.shopKind,
+      mahallaId: extra.mahallaId,
+    },
+  });
+  await ctx.reply(
+    `🎉 <b>${esc(shop.name)}</b> ro'yxatga olindi!\n\n⏳ Ega tasdig'idan keyin do'koningiz BirJoy bozorida ochiladi va sizga xabar keladi.\n📦 Buyurtmalar shu chatga tushadi — ✅/🚚/❌ tugmalari bilan boshqarasiz.`,
+    { parse_mode: "HTML" },
+  );
+  const kb = new InlineKeyboard().text("✅ Tasdiqlash", `mkt:approve:${shop.id}`).text("❌ Rad", `mkt:deny:${shop.id}`);
+  await ctx.api.sendMessage(
+    OWNER_TG,
+    `🏪 <b>Yangi sotuvchi-ariza</b> #${shop.id}\n\n<b>${esc(shop.name)}</b>\n📞 ${esc(shop.phone)}\n📍 ${esc(shop.address ?? "—")}\n🕐 ${esc(shop.workHours ?? "—")}\n🚚 ${esc(shop.deliveryText ?? "—")}\n📂 ${esc(shop.category ?? "boshqa")}\n🏷 ${extra.shopKind === "mahalla" ? "Mahalla do'koni" : "Butun shahar"}\nTG: <code>${tg}</code>`,
+    { parse_mode: "HTML", reply_markup: kb },
+  ).catch(() => undefined);
+}
 
 export function registerMarket(bot: Bot): void {
   bot.command("sotuvchi", async (ctx) => {
@@ -197,31 +244,27 @@ export function registerMarket(bot: Bot): void {
         break;
       }
       case "category": {
-        const category = text.slice(0, 40) || "boshqa";
-        sessions.delete(tg);
-        const shop = await prisma.marketShop.create({
-          data: {
-            name: s.name!,
-            phone: s.phone!,
-            address: s.address ?? null,
-            workHours: s.workHours ?? null,
-            deliveryText: s.deliveryText ?? null,
-            category,
-            ownerChatId: tg,
-            active: false, // DARK — ega yoqadi
-          },
-        });
-        await ctx.reply(
-          `🎉 <b>${esc(shop.name)}</b> ro'yxatga olindi!\n\n⏳ Ega tasdig'idan keyin do'koningiz BirJoy bozorida ochiladi va sizga xabar keladi.\n📦 Buyurtmalar shu chatga tushadi — ✅/🚚/❌ tugmalari bilan boshqarasiz.`,
-          { parse_mode: "HTML" },
-        );
-        // egaga karta: [✅ Tasdiqlash] — 1 bosishda aktivlashtirish
-        const kb = new InlineKeyboard().text("✅ Tasdiqlash", `mkt:approve:${shop.id}`).text("❌ Rad", `mkt:deny:${shop.id}`);
-        await ctx.api.sendMessage(
-          OWNER_TG,
-          `🏪 <b>Yangi sotuvchi-ariza</b> #${shop.id}\n\n<b>${esc(shop.name)}</b>\n📞 ${esc(shop.phone)}\n📍 ${esc(shop.address ?? "—")}\n🕐 ${esc(shop.workHours ?? "—")}\n🚚 ${esc(shop.deliveryText ?? "—")}\n📂 ${esc(category)}\nTG: <code>${tg}</code>`,
-          { parse_mode: "HTML", reply_markup: kb },
-        ).catch(() => undefined);
+        s.category = text.slice(0, 40) || "boshqa";
+        s.step = "kind";
+        sessions.set(tg, s);
+        const kb = new InlineKeyboard()
+          .text("🏪 Butun shahar bo'ylab", "mkt:kind:bozor").row()
+          .text("🏠 Mahallamda tez yetkazish", "mkt:kind:mahalla");
+        await ctx.reply(PROMPTS.kind, { parse_mode: "HTML", reply_markup: kb });
+        return;
+      }
+      case "kind": {
+        // matn yozdi, tugma bosmadi — eslatib, tugmalarni qayta ko'rsatamiz
+        const kb = new InlineKeyboard()
+          .text("🏪 Butun shahar bo'ylab", "mkt:kind:bozor").row()
+          .text("🏠 Mahallamda tez yetkazish", "mkt:kind:mahalla");
+        await ctx.reply("Iltimos, tugmalardan birini tanlang:", { reply_markup: kb });
+        return;
+      }
+      case "mahalla": {
+        const { listMahallas } = await import("../services/mahallaService");
+        const list = await listMahallas();
+        await ctx.reply("Iltimos, ro'yxatdan mahallangizni tanlang:", { reply_markup: mahallaKeyboard(list, 0) });
         return;
       }
     }
@@ -262,6 +305,42 @@ export function registerMarket(bot: Bot): void {
         : RIDER_STATUS_MSG[st]?.(r.shopName ?? "") ?? "";
       if (msg) await ctx.api.sendMessage(tg, msg, { parse_mode: "HTML" }).catch(() => undefined);
     }
+  });
+
+  // 🏠 V1.5: wizard 7/7 — bozor (darhol yakunlaydi) yoki mahalla (qo'shimcha tanlov-qadam)
+  bot.callbackQuery(/^mkt:kind:(bozor|mahalla)$/, async (ctx) => {
+    const tg = String(ctx.from.id);
+    const s = sessions.get(tg);
+    if (!s || s.step !== "kind") { await ctx.answerCallbackQuery({ text: "Sessiya tugagan — /sotuvchi bilan qayta boshlang" }); return; }
+    const [, kind] = ctx.match!;
+    await ctx.answerCallbackQuery();
+    if (kind === "bozor") {
+      await finalizeShopDraft(ctx, tg, s, { shopKind: "bozor", mahallaId: null });
+      return;
+    }
+    s.step = "mahalla";
+    sessions.set(tg, s);
+    const { listMahallas } = await import("../services/mahallaService");
+    const list = await listMahallas();
+    await ctx.editMessageText(PROMPTS.mahalla, { reply_markup: mahallaKeyboard(list, 0) }).catch(() => ctx.reply(PROMPTS.mahalla, { reply_markup: mahallaKeyboard(list, 0) }));
+  });
+  bot.callbackQuery(/^mkt:mahpage:(\d+)$/, async (ctx) => {
+    const tg = String(ctx.from.id);
+    const s = sessions.get(tg);
+    if (!s || s.step !== "mahalla") { await ctx.answerCallbackQuery({ text: "Sessiya tugagan" }); return; }
+    await ctx.answerCallbackQuery();
+    const page = Number(ctx.match![1]);
+    const { listMahallas } = await import("../services/mahallaService");
+    const list = await listMahallas();
+    await ctx.editMessageReplyMarkup({ reply_markup: mahallaKeyboard(list, page) }).catch(() => undefined);
+  });
+  bot.callbackQuery(/^mkt:mah:(\d+)$/, async (ctx) => {
+    const tg = String(ctx.from.id);
+    const s = sessions.get(tg);
+    if (!s || s.step !== "mahalla") { await ctx.answerCallbackQuery({ text: "Sessiya tugagan — /sotuvchi bilan qayta boshlang" }); return; }
+    await ctx.answerCallbackQuery();
+    const mahallaId = Number(ctx.match![1]);
+    await finalizeShopDraft(ctx, tg, s, { shopKind: "mahalla", mahallaId });
   });
 
   // ega-tasdiqlash callback'lari — faqat ega bosadi

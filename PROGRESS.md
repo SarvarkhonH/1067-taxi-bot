@@ -2,6 +2,37 @@
 
 ## Jarayonda (yangi)
 
+### 🍽 RESTORAN — Dasturxon (eski loyiha) menyularini import qilish (2026-07-23) — `ready for verification`
+**Nima qilindi:** `restoran` flag LIVE edi, lekin 7 restorandan 5 tasining menyusi bo'sh edi (flag izohida
+qayd qilingan qarz). Owner o'zining eski loyihasi `koson-dasturxon.uz` (Kasan Food Delivery Admin, real
+POS-boshqaruv paneli, admin/parol bilan kirilgan) dagi haqiqiy taom-narx-rasm ma'lumotlarini shu BirJoy'ga
+import qilishni so'radi. Ikkita qadam bo'ldi:
+1. Dasturxon'dagi "CHINOR" restoranining menyusi (avval bo'sh edi, 42 ta eski test-yozuv bor edi) to'liq
+   Alipos POS manbasiga (`qr.alipos.uz/chinor-koson` orqali topilgan haqiqiy API) moslashtirildi: 210 ta
+   taom, 168 tasida rasm (Alipos CDN + Dasturxon local upload).
+2. Shu Dasturxon ma'lumotlari BirJoy'ning o'z production bazasiga import qilindi:
+   `packages/server/src/scripts/seedDasturxonRestorans.ts` (+ `data/dasturxon/*.json` fixture'lar,
+   `listRestoranStatus.ts` tekshiruv skripti).
+   - **Chinor Oilaviy Restorant** (#8, allaqachon active, bo'sh menyu edi) → 208 taom qo'shildi, telefon
+     `+998889511814`ga tuzatildi (flag izohida "tozalash kerak" deb yozilgan edi).
+   - **Qazili Hot-Dog** (#6, allaqachon active, bo'sh menyu edi) → 17 taom qo'shildi.
+   - **4 ta yangi restoran** yaratildi (`active=false` — owner ko'rib chiqib yoqishi kerak): Uchqirra
+     Baliq (#9, 11 taom), Umar Ota (#10, 176 taom — 1 tasi narxsiz bo'lgani uchun o'tkazib yuborildi),
+     Dehqon Bar (#11, 42 taom), Uzoq Bobo (#12, 58 taom).
+   - **Tegilmadi**: Xonadon Milliy Taomlari (#5, 59 taom) va Bahor Restaurant (#2, 54 taom) — allaqachon
+     boshqa manbadan (owner Telegram orqali yuborgan) real menyu bilan to'ldirilgan; `koson miliy
+     taomlari` (#1), Orif Bar (#4), Do'stlar Choyxonasi (#7) — Dasturxon'da nomga mos restoran topilmadi,
+     soxta/composite menyu to'qib chiqarilmadi.
+   - Idempotentlik ikki marta ketma-ket ishga tushirib tasdiqlangan (2-marta hammasi "o'tkazib yuborildi").
+**Qoldi (owner-review kerak):**
+- 4 ta yangi restoran hozircha `active=false` — mijozlar ko'rmaydi. Owner admin panelda (yoki botda)
+  telefon/manzil/rasm/kategoriyalarni ko'rib chiqib, to'g'ri bo'lsa yoqishi kerak.
+- Rasm linklarining ~292 tasi Dasturxon'ning eski domeniga (`api.dev.koson-dasturxon.uz`) ishora qiladi —
+  agar owner o'sha loyihani keyinchalik o'chirsa, shu rasm linklari buziladi (skript qayta ishga
+  tushirilib, rasmlar mahalliy `/uploads/`ga ko'chirilishi kerak bo'ladi o'sha vaqtda).
+- `koson miliy taomlari` (#1, telefon `+989898989898` — yaroqsiz) va Do'stlar Choyxonasi (#7, telefon
+  noma'lum) hali ham buzuq/bo'sh — bu ikkitasiga mos Dasturxon yozuvi yo'q edi, alohida hal qilish kerak.
+
 ### 🏠 Mahalla bozori (V1.5 — BirJoy bozori ustiga qatlam) — `ready for verification`
 **G'oya (owner, 2026-07-23):** BirJoy bozoridagi do'konlarni ikkiga ajratish — hozirgi "butun shahar"
 sotuvchisi (V1, o'zgarishsiz) vs YANGI "mahalla do'koni" (oziq-ovqat/tez-kerak, faqat o'z

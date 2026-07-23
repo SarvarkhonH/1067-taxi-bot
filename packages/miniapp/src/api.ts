@@ -141,6 +141,10 @@ export const api = {
   // 🛍 tanga shop (feature "shop")
   shopProducts: () => get<{ products: import("@t1067/shared").ShopProductView[] }>("/api/shop/products"),
   shopMarket: (q?: string) => get<import("@t1067/shared").MarketHomeResponse>(`/api/shop/market${q ? `?q=${encodeURIComponent(q)}` : ""}`), // 🏪 V1.4 BirJoy bozor-bosh
+  // 🏠 V1.5 Mahalla bozori
+  mahallaList: () => get<{ mahallas: import("@t1067/shared").MahallaView[] }>("/api/mahalla"),
+  mahallaNearest: (lat: number, lng: number) => post<{ mahalla: import("@t1067/shared").MahallaView | null }>("/api/mahalla/nearest", { lat, lng }),
+  setMahalla: (mahallaId: number, mode: "home" | "travel") => post<{ ok: boolean }>("/api/member/mahalla", { mahallaId, mode }),
   // 🧺 V2 savat
   shopCheckout: (shopId: number, items: import("@t1067/shared").MarketCartItemInput[], address: string, pay: "tanga" | "cash", note?: string) =>
     post<import("@t1067/shared").MarketCheckoutResponse>("/api/shop/checkout", { shopId, items, address, pay, note }),
