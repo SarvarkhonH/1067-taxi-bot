@@ -2333,3 +2333,20 @@ admin — build+deploy → bundle-grep live (`index-CrQTzKQU.js`): "Kuzatilmoqda
 topildi.
 **§10.2 holati: 4/5 tayyor** (javobsiz-chat, hozir-ochiq filtr, narx-shaffofligi, kuzatilmoqda-
 signal). **QOLDI**: sodiqlik-progress-bar ("yana N xariddan keyin bepul yetkazish").
+
+## 2026-07-23 (37) — §10.2 YAKUNLANDI: sodiqlik-progress-bar (ko'rsatkich-only)
+Ega so'rovi bilan aniqlashtirildi (AskUserQuestion): mukofot HALI YO'Q, faqat ko'rsatkich —
+CLAUDE.md'ning "pul-to'lab-omad mexanikasi TAQIQ" qoidasiga mos, yangi tanga-mexanika o'ylab
+topilmadi. Do'kon-profil ekranida: "N marta xarid qildingiz" + progress-bar + "yana M tadan keyin
+N-xaridingiz" — faqat kamida 1 marta xarid qilgan mijozga ko'rinadi (yangi mijozga bosim
+qilinmaydi). Milestone har 5 tadan (5→10→15...).
+**Isbot**: `tsc --noEmit` server+miniapp 0 xato. Jonli DB'ga qarshi 3 ta haqiqiy a'zo bilan sinaldi:
+member 12 (5 xarid, shop 1'dan) → milestone 10 to'g'ri ko'tarilgan; member 26 (4 ta umumiy, faqat 1
+tasi shop 1'dan) → to'g'ri ajratilgan; member 6420 (1 xarid) → to'g'ri. Deploy: server commit
+`77306b4` → push (Render CI-shield, deploy jarayonda) · miniapp — build+deploy → bundle-grep live
+(`shop-CsVAH38X.js`, `1067taxi-miniapp.vercel.app`): "bj-loyalty" topildi.
+
+**§10.2 TO'LIQ TAYYOR (5/5)**: javobsiz-chat ogohlantirish · hozir-ochiq filtr · narx-shaffofligi ·
+kuzatilmoqda-signal · sodiqlik-progress-bar.
+**Keyingi (ega so'ramaguncha boshlanmaydi)**: §10.3'ning qolgani (yordam-tugma buyurtma-kartada,
+chat-ichidan savatga, jonli ETA, swipe-up-shop va h.k. — to'liq ro'yxat reja §10.3'da).
