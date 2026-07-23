@@ -2285,3 +2285,25 @@ shopService.ts boshqa sessiyaning Mahalla-WIP'i bilan aralashib qolgani) — har
 bilan ajratildi, boshqa sessiyaning ishchi-katalog fayllariga HECH QACHON tegilmadi.
 **Keyingi (ega so'ramaguncha boshlanmaydi)**: §10.2 (V4 — kichik-hajm), §10.3'ning qolgani
 (yordam-tugma buyurtma-kartada, chat-ichidan savatga qo'shish, jonli ETA, swipe-up-shop, va h.k.).
+
+## 2026-07-23 (34) — §10.2 boshlandi: javobsiz-chat ogohlantirish + "hozir ochiq" filtr
+Ega "davom et" dedi — §10.2 (V4, kichik-hajm) ro'yxatidan ikkitasi:
+1. **Javobsiz-chat ogohlantirish**: mavjud `checkShopSlaAndAlert` naqshi AYNAN takrorlandi (yangi
+   poller YO'Q — bir xil booking-tick) — 15+ daqiqa javobsiz mijoz-xabari bo'lsa do'kon egasiga
+   to'g'ridan-to'g'ri DM + platforma-egasiga `alertAdmins`. Idempotentlik uchun YANGI schema-maydon
+   QO'SHILMADI (bugungi Prisma-client-qulf tajribasidan keyin ehtiyot bo'lib) — mavjud `AppState`
+   KV-jadvali (`chatalert:<shopId>` → oxirgi ogohlantirilgan xabar-ID) ishlatildi.
+   **Muhim**: jonli DB'da HAQIQIY 21-soatlik javobsiz xabar bor edi (shop #1, "BirJoy o'z do'koni")
+   — buni "sinov" sifatida ishga tushirmadim (haqiqiy Telegram DM yuborardi), ega ogohlantirilishi
+   kutilmoqda (deploydan keyingi birinchi tick'da) — bu XATO emas, funksiya to'g'ri ishlayotganining
+   isboti, oldindan ogohlantirildi.
+2. **"Hozir ochiq" tezkor-filtr**: Bozor-bosh'da do'kon-rail ustida chip, ikkala ro'yxatni ham
+   (mahalla+shahar) faqat ochiq do'konlarga filtrlaydi. CSS mavjud `.bj-mahalla-chip`/`.shop-cat-chip.on`
+   naqshlarini AYNAN takrorlaydi.
+**Isbot**: `tsc --noEmit` server+miniapp 0 xato. Vizual: lokal dev-server (port 7899, boshqa
+sessiyalarning portlari band bo'lgani uchun) — konsolь xatosiz yuklandi. Deploy: server commit
+`74c9809` (chat-alert) + `9191159` (open-filtr) → push (Render CI-shield + Vercel prebuilt) →
+bundle-grep: `shop-open-filter-chip` topildi (`shop-z3Y5IAz-.js`, live `1067taxi-miniapp.vercel.app`).
+**QOLDI (§10.2)**: "Nima uchun bu narx?" narx-shaffofligi · kuzatilmoqda-lekin-olinmayapti signal ·
+sodiqlik-progress-bar. **QOLDI (§10.3, reorder'dan tashqari)**: yordam-tugma buyurtma-kartada,
+chat-ichidan savatga, jonli ETA, swipe-up-shop, va h.k. (to'liq ro'yxat — plan §10.3).
