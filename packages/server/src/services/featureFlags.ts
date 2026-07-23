@@ -145,7 +145,10 @@ export const EXPECTED_ON: FeatureName[] = [
   "baraban", "komissiya", "promo", "qarz", "refstaged", "drvstaged", "drvrecruit",
   // "welcomebonus" — owner intentionally OFF 2026-07-17, confirmed 2026-07-21 ("o'chirganman");
   // re-add here when owner re-enables it.
-  "drvpush", "clientbooking", "cashout", "intercity", "tierloyalty", "waitcomp", "trackcta",
+  // "intercity" — owner intentionally OFF 2026-07-23 ("shaharlararo bu keyinchalik qilinadigan
+  // loyiha") — keyingi bosqich sifatida rejalashtiriladi, hozircha diqqat markazida emas.
+  // Flag setFlag.ts orqali off qilindi (alertAdmins jo'natildi). Qayta yoqilganda shu yerga qaytariladi.
+  "drvpush", "clientbooking", "cashout", "tierloyalty", "waitcomp", "trackcta",
   "jackpotpost", "instantstatus", "drvrank",
   "shop", // 🛍 tanga do'kon — owner GO LIVE 2026-07-06 (100 ta KOSON_AKSIYA mahsuloti + naqd/tanga)
   "xizmatlar", // 🔎 Koson xizmatlar katalogi — owner GO LIVE 2026-07-06 (67 ta seed listing, soft-launch: foto/narx/1067-audit hali bo'sh — jonli boyitiladi)
