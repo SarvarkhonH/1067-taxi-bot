@@ -368,17 +368,21 @@ async function callGemini(key: string, system: string, history: ChatMsg[], tools
   };
 }
 
-/** One agent turn. Returns null when disabled (no key), capped, or the call failed. */
+/** One agent turn. Returns null when disabled (no key) or the call failed; a specific honest
+ *  `text` (not null) when the daily cap is hit — see the cap-check below for why. */
 export async function runAgent(memberId: number, telegramId: string, text: string): Promise<AgentResult | null> {
   const groqKey = process.env.GROQ_API_KEY;
   const geminiKey = process.env.GEMINI_API_KEY;
   if (!groqKey && !geminiKey) return null;
   if (!(await aiCapOk(memberId))) {
-    // 🔍 diagnostic: this silent null (member/global daily cap hit) looks IDENTICAL to a real
-    // LLM failure from the user's side ("tushunmadim" every time) but never touches Gemini/Groq —
-    // the two provider-level logs above never fire for this path, so it needs its own line.
+    // 🔍 diagnostic: until now this silent null (member/global daily cap hit) looked IDENTICAL
+    // to a real LLM failure from the user's side — the exact "tushunmadim" confusion the owner
+    // hit today, caused by their OWN heavy testing maxing out the per-member cap. An honest
+    // specific message (not the generic "I didn't understand") makes the real state clear
+    // instead of implying the AI is broken — native features (booking/wallet/etc via bot.hears)
+    // are unaffected, so the Mini App pointer here is a genuine working fallback, not a dead end.
     console.error(`[ai-agent] daily cap hit for member ${memberId} — skipping LLM entirely`);
-    return null;
+    return { text: "😊 Bugungi suhbat-limitimga yetdik — ertaga yana davom etamiz! Hozircha 🚀 ilovada hammasi ochiq (taksi, hamyon, do'kon va h.k.)." };
   }
 
   const history = await recentHistory(telegramId);

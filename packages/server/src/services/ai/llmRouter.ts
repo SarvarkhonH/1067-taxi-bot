@@ -7,8 +7,13 @@
 // balances; sanitize() strips long digit runs as a second line of defense.
 import { prisma } from "../../db";
 
-const DAILY_GLOBAL_CAP = 1200;
-const DAILY_MEMBER_CAP = 30; // agent-suhbatlar uchun 10 kam edi (bir suhbat = bir nechta xabar)
+// 2026-07-23: raised after the real per-call cost was measured from actual Gemini billing
+// (~$0.0025/call, Tier 1 paid) — 30/day per member was hit by ONE active real user in a single
+// day now that the AI is the ONLY interface (no buttons), and the cost at these caps is still
+// small (worst case ~100×$0.0025≈$0.25/member/day, ~3000×$0.0025≈$7.5/day company-wide). Revisit
+// again as real DAU grows toward the owner's 10k-user target — these are NOT sized for that scale.
+const DAILY_GLOBAL_CAP = 3000;
+const DAILY_MEMBER_CAP = 100;
 
 interface Provider {
   name: string;
