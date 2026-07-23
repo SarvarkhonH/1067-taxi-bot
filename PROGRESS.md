@@ -2,6 +2,31 @@
 
 ## Jarayonda (yangi)
 
+### 🎁 Welcome-funnel guard — sovg'ani P2P-transferdan qulflash — `ready for verification`
+**Exploit:** bola odamlarni ulab (har biriga 5000 welcome tushadi), ularning sovg'asini o'ziga
+transfer qilib olib, keyin naqdga chiqargan. Ildiz: 2026-06-29'da P2P to'liq ochilган
+(`TRANSFER_MIN_ACCOUNT_AGE_H=0`, caps 100k) + welcome oddiy transfer qilinadigan tanga edi. Withdraw
+`no_ride` gate faqat safarsiz akkauntni to'xtatgan, lekin welcome safarli mule'ga funnel qilinganda
+gate mule'da o'tib ketgan.
+- **Fix (Variant A):** welcome tanga OWNER o'zi 1 real safar qilmaguncha NON-TRANSFERABLE.
+  - `Member.welcomeLockTrips Int?` (additiv, jonli DB'ga push qilingan) — grant paytidagi trips snapshot
+    ([memberService.ts](packages/server/src/services/memberService.ts) `grantJoinWelcome`).
+  - `transferService.transfer()` — `sender.welcomeLockTrips != null && trips <= snapshot` bo'lsa,
+    welcome miqdori (`welcome_join:*` CoinTxn) transferable balansdan chiqariladi → `charged >
+    coins - locked` ⇒ `fail("locked")`. **Barcha kind'ga** (transfer/tip/fare — driver bo'lib
+    tip/fare orqali yig'ishni ham yopadi). `trips > snapshot` (bir real safar) → butunlay ochiladi.
+  - UI: wallet.tsx + bot.ts + booking.ts'ga `locked` xabari.
+- **Isbot:** `scripts/testWelcomeLock.ts` — 12/12 yashil, **3× ket-ket** (pul-test barqarorligi). Bloklar:
+  full/partial welcome, tip, fare; earned qism o'tadi; safardan keyin ochiladi; lock-siz a'zo tegilmaydi.
+- **Detektor (read-only):** `scripts/findWelcomeFunnel.ts` — jonli DB'da **20 shubhali mule** topdi
+  (masalan #6904 Муртазаeв: 10 ta trips=0 qalbaki yuboruvchi ×~5000; #6550 Ataqulov: 9 ta). Egangiz
+  ko'rib chiqishi kerak (heuristic — ba'zi yuboruvchilar haqiqiy sovg'a bo'lishi mumkin).
+- **Clawback helper:** `scripts/banFunnelMule.ts <id>` — default dry-run; `--confirm` riskFlag (naqd
+  eshigini muzlatadi, qaytariladi); `--ban` to'liq ban. Pulni AVTOMATIK qaytarmaydi (har mule egangiz qarori).
+- **Qamralmagan (owner qadami):** shubhali mule'larni ko'rib chiqib freeze/ban; kerak bo'lsa pulni qo'lda qaytarish.
+- **Eslatma:** `testTransfer.ts` eskirgan (48h/30k/burn=20 kutadi — 2026-06-29 bo'shatishdan keyin sinxronsiz).
+  `bot.ts:1579` typecheck xatosi ALOHIDA — parallel `booking.ts` (webAppUrl) tahriridan, bu ishga aloqasiz.
+
 ### 🔁 "Yana shu yo'l" — 1-tap repeat-route chips (NEXT_LEVEL_PLAN 1.1) — `ready for verification`
 Home screen (LivingHome + uy.tsx fallback) endi safar tarixidan so'nggi 3 ta DISTINCT yo'nalishni chip
 sifatida ko'rsatadi — 1 bosishda aynan o'sha manzilga taksi chaqiradi.
@@ -1871,3 +1896,43 @@ uchun ANCHORED (^…$) tolerant bot.hears qo'shildi (hamyon/balans/reyting/g'ild
 yengil suffiks) → to'g'ridan-to'g'ri kalit rich-ekranga, suhbatli gap («bu oy qancha ishlatdim»,
 «osh buyurtma qil») AI'ga. Registratsiya AI-handler'dan OLDIN (birinchi mos g'olib).
 Isbot: typecheck 0 · routing-test: 8 kalit→native, 5 suhbatli→AI (aniq ajraldi).
+
+## 2026-07-23 (21) — Real telefon-skrinshot bilan 3 haqiqiy muammo tuzatildi + o'z-xatoni tuzatish
+Ega real skrinshot yubordi. Bu bilan avvalgi da'voimni ANIQLASHTIRISH kerak bo'ldi: mening
+"tugma OLTIN edi" degan birinchi topilmam noto'g'ri-o'lchangan edi (`.shop-wrap` ota-elementisiz
+test qilgandim — haqiqiy ilova hamma joyda `.shop-wrap` ichida, u allaqachon eski umumiy-yashil
+rangga o'tkazgan edi). Mening tuzatishim aslida eski-yashil→BirJoy-zumrad+amber degan REAL, lekin
+kichikroq tozalash edi — "singan tugmani tuzatdim" degan da'vom haddan ortiq edi. Buni ochiq
+tan oldim va tuzatib qo'ydim.
+
+Skrinshotdan KEYIN esa 3 ta HAQIQIY, ko'rinadigan muammo topildi va tuzatildi:
+1. "★ –(0)" — sharh yo'q holatda singan-ko'rinishli edi → reviewCount=0 bo'lsa reyting-belgi
+   umuman ko'rsatilmaydi.
+2. Rasm-yo'q hero — butunlay bo'sh to'q to'rtburchak edi (plan blueprintida "katta bosh-harf"
+   deb yozilgan, hech qachon qurilmagan edi) → endi do'kon-nomining birinchi harfi katta,
+   shaffof monogram sifatida ko'rinadi.
+3. Kategoriya-chiplar aralash registrda ("PARFUMERIYA" vs "umumiy") → faqat ko'rsatish-darajasida
+   `text-transform: capitalize` (saqlangan/filtrlash qiymatiga tegilmaydi).
+
+**Git-gigiena eslatmasi**: shu payt `tokens.css`da BOSHQA sessiyaning tugallanmagan ishi
+(`nh-*` — "UY_REDESIGN" premium home) aralashib qolgan edi (145 qatorlik diff, mening niyatim
+3 qator edi). Git-plumbing bilan ajratildi (HEAD'dan toza nusxa + faqat mening 2 ta o'zgarishim
++ blob to'g'ridan-to'g'ri index'ga stage qilindi) — ishchi-katalogdagi fayl (boshqa sessiyaning
+WIP'i bilan) HECH TEGILMADI. Build ham ATAYLAB vaqtincha toza-commit nusxasidan qilindi (keyin
+ishchi-fayl asl holiga qaytarildi) — shunday qilib production'ga faqat MENING ko'rib chiqqan
+o'zgarishlarim ketdi, boshqa sessiyaning tekshirilmagan ishi emas.
+**Isbot:** `tsc --noEmit` 0 xato · production build + bundle-grep: ikkala fix ham live'da
+topildi, boshqa sessiyaning `nh-*` kodi bundle'da YO'QLIGI ham tasdiqlandi.
+
+## 2026-07-23 (19) — AI-FIRST: doimiy menyu olib tashlandi, AI to'liq control (ega qarori: faqat AI)
+Ega: faqat AI, zaxira tugma yo'q, birdan hammasi. Mini App — tugma/vizual uchun qoladi. AI Kosonни
+bilishga chanqoq — ayyorona so'rab bilim yig'sin. Qildim:
+- `mainMenu()` → { remove_keyboard: true } — pastki doimiy tugma-menyu HAMMA joyда olib tashlandi.
+- `ilova_och(bolim)` tool — AI vizual bo'limни Mini App'да ochadi (g'ildirak/vazifa/reyting/dost/
+  hamyon). Isbot: «g'ildirak aylantiray»→gildirak, «reytingда qandayman»→reyting, «bonuslarим»→vazifa.
+- `bilim_saqla(fakt)` tool (aibilim) — AI suhbatдан foydali OMMAVIY Koson-faktни o'zi yig'adi →
+  submitKnowledge (ega tasdiqlaydi). Persona: «Kosonni bilishga CHANQOQ, ayyorona so'ra».
+- /start + nudge AI-first: «tugma qidirmang — yozing yoki gapiring» + 🚀 Mini App zaxira.
+- Xavfsizlik (ega vizionига mos): AI tushunmasa → Mini App tugmasi (zaxira). Salomlashuv rules-first.
+- Native de-confliction bot.hears (reyting/hamyon/g'ildirak yozilsa) HALI turadi — tez fast-path.
+Isbot: typecheck 0 · agent-test 4/4 (ilova_och routing). QOLDI: deploy · ega jonli sinov.

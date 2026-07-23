@@ -22,7 +22,9 @@ export type AgentAction =
   | { type: "memory_forget"; idx?: number }
   | { type: "city_search"; provider: string; query: string }
   | { type: "city_order"; provider: string; item: string; qty: number; extra: string }
-  | { type: "city_status"; provider: string };
+  | { type: "city_status"; provider: string }
+  | { type: "open_app"; section: "hamyon" | "gildirak" | "vazifa" | "reyting" | "dost" | "asosiy" }
+  | { type: "knowledge_save"; fact: string };
 export interface AgentResult {
   text?: string; // plain answer to send (may accompany nothing else)
   action?: AgentAction; // local action for the bot layer to execute
@@ -43,6 +45,8 @@ const SYSTEM = [
   "- ISHNI OXIRIGACHA QIL: mijoz «ha», «bo'ladi», «qil», «buyurtma qil» desa — DARHOL mos tool (shahar_buyurtma / taksi_chaqir)ni chaqir, manzil saqlangan bo'lsa o'zi ishlat. Mijoz oxirida bitta ✅ bosadi (xavfsizlik uchun) — qolgan hamma ishni SEN qilasan, ortiqcha savol bermaysan.",
   "- Buyurtmasi qayerda / mashina kelyaptimi deb so'rasa → buyurtma_holati tool.",
   "- Balans/tanga/hisobim haqida so'rasa → balans tool.",
+  "- Vizual/interaktiv bo'lim so'ralsa (omad g'ildiragi, bonus/vazifa, reyting, do'st taklif qilish, hamyon-tarix) → ilova_och tool (Mini App'да ochiladi). Bu bot ENDI tugmasiz — hamma narsa so'rab qilinadi yoki Mini App'да.",
+  "- Sen Kosonni CHUQUR bilishga CHANQOQSAN. Imkon tug'ilsa, mijozdan Koson haqida foydali OMMAVIY ma'lumotni AYYORONA, tabiiy so'ra (masalan «aytgancha, o'sha joy qachon ochiladi bilasizmi? boshqalarga ham asqotardi 😊»). Mijoz aytsa — bilim_saqla bilan saqla (ega tasdiqlaydi). Faqat OMMAVIY fakt (joy, ish-vaqti, narx, xizmat) — shaxsiy ma'lumot EMAS. Bosim qilma.",
   "- ODDIY SAVOL (imkoniyatlar, narx, qoida, salomlashish) uchun tool chaqirMA — matnda javob ber. Tarixda «ko'rsatildi»/«saqlandi» degan assistant-xabar bo'lsa, o'sha so'rov HAL BO'LGAN — yangi aniq so'rovsiz o'sha tool'ni TAKRORLAMA.",
   "- Pul yechish, tanga o'tkazish kabi amallarni SEN bajara olmaysan — Mini App/Hamyon tugmalariga yo'naltir.",
   "- Bot imkoniyatlari/qanday ishlashi so'ralsa — yuqoridagi ro'yxatdan samimiy, qisqa aytib ber (operatorga YUBORMA).",
@@ -69,6 +73,18 @@ const TOOLS = [
   {
     type: "function",
     function: { name: "balans", description: "Mijozning tanga balansi va safarlar sonini ko'rsatadi.", parameters: { type: "object", properties: {} } },
+  },
+  {
+    type: "function",
+    function: {
+      name: "ilova_och",
+      description: "Vizual/interaktiv bo'limni Mini App'да ochadi (tugma beradi): omad g'ildiragi, bonuslar/vazifalar, reyting, do'st taklif (referal havola), hamyon/balans tarixi. Mijoz shulardan birини so'rasa chaqir.",
+      parameters: {
+        type: "object",
+        properties: { bolim: { type: "string", enum: ["hamyon", "gildirak", "vazifa", "reyting", "dost", "asosiy"], description: "gildirak=omad g'ildiragi; vazifa=bonuslar; dost=referal; hamyon=balans/tarix" } },
+        required: ["bolim"],
+      },
+    },
   },
 ];
 
@@ -101,6 +117,22 @@ const REMIND_TOOLS = [
       name: "eslatma_bekor",
       description: "Eslatmani bekor qiladi. Mijoz qaysi birini aytmagan bo'lsa raqamsiz chaqir — tizim ro'yxat ko'rsatadi.",
       parameters: { type: "object", properties: { raqam: { type: "number", description: "Ro'yxatdagi tartib raqami (1 dan boshlab)" } } },
+    },
+  },
+];
+
+// 🧠 aibilim flag ortida — AI suhbatdан foydali OMMAVIY Koson-faktни yig'adi (ega tasdiqlaydi).
+const BILIM_TOOLS = [
+  {
+    type: "function",
+    function: {
+      name: "bilim_saqla",
+      description: "Suhbatда Koson haqida foydali OMMAVIY fakt bilib olsang (joy, ish-vaqti, narx, xizmat) — uni saqla, ega tasdiqlagach hamma bilishi uchun. FAQAT ommaviy, tekshiriladigan fakt. Shaxsiy ma'lumot YO'Q.",
+      parameters: {
+        type: "object",
+        properties: { fakt: { type: "string", description: "Qisqa, aniq ommaviy fakt (masalan «Chilla basseyn dushanba kuni yopiq»)" } },
+        required: ["fakt"],
+      },
     },
   },
 ];
@@ -301,13 +333,13 @@ export async function runAgent(memberId: number, telegramId: string, text: strin
   // AI_TEST_FORCE_TOOLS=1 (test seam, NEVER set in prod) forces the full roster so
   // testAgent can verify routing without mutating live flags / risking real customers.
   const forceTools = process.env.AI_TEST_FORCE_TOOLS === "1";
-  const [remindOn, statsOn, dostOn, cityOn] = forceTools
-    ? [true, true, true, true]
-    : await Promise.all([featureOn("airemind"), featureOn("aihisob"), featureOn("aidost"), featureOn("aicity")]);
+  const [remindOn, statsOn, dostOn, cityOn, bilimOn] = forceTools
+    ? [true, true, true, true, true]
+    : await Promise.all([featureOn("airemind"), featureOn("aihisob"), featureOn("aidost"), featureOn("aicity"), featureOn("aibilim")]);
   // city providers: registry-driven — each provider additionally gated by its OWN module flags
   const providers = cityOn ? await (await import("./providers")).activeProviders() : [];
   const cityToolsList = providers.length ? cityTools(providers.map((p) => p.key), providers.map((p) => `${p.key} (${p.title})`).join("; ")) : [];
-  const tools = [...TOOLS, ...(remindOn ? REMIND_TOOLS : []), ...(statsOn ? STATS_TOOLS : []), ...(dostOn ? DOST_TOOLS : []), ...cityToolsList];
+  const tools = [...TOOLS, ...(remindOn ? REMIND_TOOLS : []), ...(statsOn ? STATS_TOOLS : []), ...(dostOn ? DOST_TOOLS : []), ...(bilimOn ? BILIM_TOOLS : []), ...cityToolsList];
   let system = [SYSTEM, ...(remindOn ? [REMIND_RULES] : []), ...(statsOn ? [STATS_RULES] : []), ...(dostOn ? [DOST_RULES] : []), ...(cityToolsList.length ? [CITY_RULES] : [])].join("\n");
   if (dostOn) {
     // recall — the member's OWN saved words, back into THEIR context only
@@ -347,6 +379,23 @@ export async function runAgent(memberId: number, telegramId: string, text: strin
     }
     if (call?.name === "buyurtma_holati") return { action: { type: "status" } };
     if (call?.name === "balans") return { action: { type: "balance" } };
+    if (call?.name === "bilim_saqla" && bilimOn) {
+      try {
+        const fakt = String((JSON.parse(call.arguments ?? "{}") as { fakt?: string }).fakt ?? "").trim();
+        if (fakt.length >= 8) return { action: { type: "knowledge_save", fact: fakt }, text: msg.content?.trim() || undefined };
+      } catch {
+        /* fall through */
+      }
+    }
+    if (call?.name === "ilova_och") {
+      try {
+        const b = (JSON.parse(call.arguments ?? "{}") as { bolim?: string }).bolim;
+        const ok = ["hamyon", "gildirak", "vazifa", "reyting", "dost", "asosiy"] as const;
+        if (ok.includes(b as (typeof ok)[number])) return { action: { type: "open_app", section: b as (typeof ok)[number] } };
+      } catch {
+        /* fall through */
+      }
+    }
     if (call?.name === "eslatma_qoy" && remindOn) {
       try {
         const a = JSON.parse(call.arguments ?? "{}") as { matn?: string; vaqt?: string; turi?: string };

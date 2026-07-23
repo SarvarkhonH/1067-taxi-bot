@@ -31,11 +31,13 @@ export function renderWelcome(name: string, firstRideBonus = 0): string {
       ? `🎁 <b>Birinchi safaringiz BEPUL!</b> ${formatNumber(firstRideBonus)} tanga sovg'a — boshlanish narxini to'liq qoplaydi 🚕\n\n`
       : "";
   return (
-    `✨ <b>BirJoy</b> — Kosonда bir joy\n` +
+    `✨ <b>BirJoy — Koson AI</b> 🤖\n` +
     `Salom, <b>${esc(name)}</b>! 👋\n\n` +
     hook +
-    `🚕 Bir tugmada taxi · 🤖 aqlli yordamchi · har safardan <b>haqiqiy pul cashback</b> · kunlik sovg'alar.\n\n` +
-    `👇 Pastdagi <b>«📱 Raqamni ulashish»</b> tugmasini bosing — tayyor!`
+    `Men — sizning aqlli yordamchingizman. <b>Tugma qidirmang</b> — shunchaki <b>yozing yoki gapiring</b>, men tushunaman:\n` +
+    `🚕 «uyimga taksi» · 🍽 «osh buyurtma qil» · 🔎 «santexnik kerak»\n` +
+    `⏰ «ertaga 7 da eslat» · 📊 «bu oy qancha ishlatdim» · 🎡 «g'ildirak aylantiray»\n\n` +
+    `👇 Boshlash uchun <b>«📱 Raqamni ulashish»</b>ni bosing — keyin hammasini men qilaman. (Tugmali ko'rinish — 🚀 ilovada.)`
   );
 }
 

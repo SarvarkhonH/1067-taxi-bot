@@ -385,7 +385,7 @@ async function showConfirm(ctx: Context, s: BookingSession): Promise<void> {
   await ctx.reply(await confirmText(s), { parse_mode: "HTML", reply_markup: confirmKb() });
 }
 
-export function registerBooking(bot: Bot, mainMenu: (isDriver?: boolean, tgId?: string) => Promise<Keyboard>): void {
+export function registerBooking(bot: Bot, mainMenu: (isDriver?: boolean, tgId?: string) => Promise<Keyboard | { remove_keyboard: true }>): void {
   bot.hears("🚕 Taxi chaqirish", (ctx) => startBooking(ctx)); // old cached keyboard label
   bot.hears("📍 Lokatsiyali chaqirish", (ctx) => startBooking(ctx)); // new label (2026-06-29)
   bot.command("book", (ctx) => startBooking(ctx));
@@ -691,6 +691,7 @@ export function registerBooking(bot: Bot, mainMenu: (isDriver?: boolean, tgId?: 
       const msgs: Record<string, string> = {
         insufficient: "Tanga yetarli emas",
         account_too_new: "Hisobingiz hali juda yangi (48 soat kutiladi)",
+        locked: "🎁 Sovg'a tangani birinchi safaringizdan keyin ishlatasiz",
         daily_sent_cap: "Bugungi o'tkazma limiti tugadi",
         daily_received_cap: "Haydovchining bugungi limiti to'ldi",
         ring: "Bu amal hozircha bloklangan",

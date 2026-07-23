@@ -122,19 +122,12 @@ export function webAppUrl(go?: string): string {
 // Old cached reply-keyboards on users' phones still fire the old labels — every bot.hears(...) for
 // those labels is left in place on purpose (see the "old cached keyboard" comments below), so
 // nothing breaks for someone who hasn't reopened the keyboard since before this change.
-async function mainMenu(_isDriver = false, _tgId?: string): Promise<Keyboard> {
-  const kb = new Keyboard();
-  // Row 0 — TOP CTA: invite a friend (refstaged total 500+500+1000 = 2000 tanga).
-  kb.text("👥 Do'st chaqirish — +2000 tanga sovg'a");
-  kb.row();
-  // Row 1 — the one booking entry point. Same label as the historical primary button, so this is
-  // a no-op for anyone whose keyboard was already showing it.
-  kb.text("🚕 Taxi chaqirish");
-  kb.row();
-  // Row 2 — discoverability: surface the AI assistant so people know it exists (was invisible).
-  kb.text("🤖 Koson AI");
-  // is_persistent → the menu stays pinned open (app-like nav); placeholder → modern input hint
-  return kb.resized().persistent().placeholder("Menyudan tanlang yoki shunchaki yozing — men tushunaman…");
+// 🤖 AI-FIRST (owner decision 2026-07-23): the bot chat has NO persistent button-menu — people
+// just ASK (type or speak) and the AI does it, surfacing the right inline/Mini-App button
+// contextually. The Mini App remains the button/visual surface for anyone who prefers it.
+// mainMenu now REMOVES the bottom keyboard everywhere it's used.
+async function mainMenu(_isDriver = false, _tgId?: string): Promise<{ remove_keyboard: true }> {
+  return { remove_keyboard: true };
 }
 
 function contactKeyboard(): Keyboard {
@@ -1805,6 +1798,39 @@ export function createBot(): Bot {
           saveOut("🪙 Balans ko'rsatildi (Mini App → Hamyon'ga yo'naltirildi).");
           return;
         }
+        if (r?.action?.type === "knowledge_save") {
+          // 🧠 AI collected a public Koson fact in conversation → owner-moderated (pending)
+          const { submitKnowledge } = await import("../services/ai/knowledgeService");
+          const kr = await submitKnowledge(tgId, r.action.fact, "Koson AI (suhbatdan)").catch(() => ({ ok: false as const }));
+          if ("ok" in kr && kr.ok && "notice" in kr && kr.notice) {
+            await (await import("./aiKnowledge")).notifyOwnerKnowledge(bot, kr.notice).catch(() => undefined);
+          }
+          const t = r.text?.trim() ? r.text : "Rahmat, esimda tutdim! 😊";
+          await ctx.reply(t);
+          saveOut("🧠 AI suhbatdan fakt yig'di (ega tasdig'iga yuborildi).");
+          return;
+        }
+        if (r?.action?.type === "open_app") {
+          // 🤖 AI-first: the AI opens a visual/interactive Mini App section on request (wheel,
+          // bonuses, leaderboard, referral, wallet) — the buttons live in the Mini App now.
+          const map: Record<string, { go: string; label: string; msg: string }> = {
+            gildirak: { go: "play", label: "🎡 G'ildirakni aylantirish", msg: "🎡 Omad g'ildiragi tayyor — bosing va yutib oling!" },
+            vazifa: { go: "play", label: "🎁 Bonuslar & vazifalar", msg: "🎁 Bugungi vazifa va bonuslaringiz shu yerda:" },
+            reyting: { go: "reyting", label: "🏆 Reyting", msg: "🏆 Koson reytingida qayerda turibsiz — ko'ring:" },
+            dost: { go: "invite", label: "👥 Do'st taklif qilish", msg: "👥 Do'st chaqiring — u ilk safar qilsa sizga 2000+ tanga! Havolangiz:" },
+            hamyon: { go: "wallet", label: "💰 Hamyon", msg: "💰 Hamyoningiz — balans, tarix, so'mga yechish:" },
+            asosiy: { go: "", label: "🚀 BirJoy ilovasi", msg: "🚀 BirJoy ilovasi — hammasi bir joyda:" },
+          };
+          const s = map[r.action.section] ?? map.asosiy!;
+          if (canWebApp) {
+            const { InlineKeyboard } = await import("grammy");
+            await ctx.reply(s.msg, { reply_markup: new InlineKeyboard().webApp(s.label, webAppUrl(s.go)) });
+          } else {
+            await ctx.reply(s.msg + "\n(Mini App'ni oching)");
+          }
+          saveOut(`🚀 Mini App ochildi: ${r.action.section}`);
+          return;
+        }
         if (r?.action?.type === "remind_create") {
           const { parseTimeText } = await import("../services/ai/timeParse");
           const { InlineKeyboard } = await import("grammy");
@@ -1970,11 +1996,13 @@ export function createBot(): Bot {
       saveOut(t);
       return;
     }
+    const { InlineKeyboard } = await import("grammy");
     const t =
       "🤔 Buni to'liq anglamadim — birozdan keyin yoki boshqacharoq yozib ko'ring 🙏\n" +
       "Masalan: «uyimga taksi» · «osh buyurtma qil» · «santexnik kerak» · «ertaga 7 da eslat» · «bu oy qancha ishlatdim».\n" +
-      "🎤 Xohlasangiz shunchaki gapirib yuboring — tushunaman.";
-    await ctx.reply(t, { reply_markup: await mainMenu(meF?.type === "driver", tgId) });
+      "🎤 Shunchaki gapirib yuborsangiz ham tushunaman. Yoki 👇 ilovadan to'g'ridan-to'g'ri qiling.";
+    const kb = canWebApp ? new InlineKeyboard().webApp("🚀 BirJoy ilovasi", webAppUrl("")) : undefined;
+    await ctx.reply(t, { reply_markup: kb });
     saveOut(t);
   };
   bot.on("message:text", (ctx) => runAiText(ctx, ctx.message.text));
