@@ -195,6 +195,40 @@ export async function toggleShopPause(shopId: number, paused: boolean): Promise<
   return { ok: true };
 }
 
+// §10.1: do'kon "sog'lik-skori" — javob-tezlik (SLA-buzilish darajasi) + rad% + hikoya-faollik
+// BITTA raqamda (0-100). NOTE: MarketShop.orderCount ustuni hech qachon increment qilinmagan (dead
+// field, faqat getMarketHome sort'ida ishlatiladi) — shuning uchun bu yerda ShopPurchase/MarketOrder
+// jadvallaridan TO'G'RIDAN-TO'G'RI hisoblanadi, o'sha eskirgan ustunga tayanmaydi.
+export interface ShopHealthScore {
+  score: number; // 0-100, yuqori = sog'lom
+  totalOrders: number;
+  rejectionRate: number; // 0-1
+  slaBreachRate: number; // 0-1 — buyurtmalarning necha foizi 15+ daq javobsiz qolib alert bo'lgan
+  activeRecently: boolean; // so'nggi 7 kunda hikoya qo'yganmi
+}
+
+export async function getShopHealthScore(shopId: number): Promise<ShopHealthScore | null> {
+  const shop = await prisma.marketShop.findUnique({ where: { id: shopId }, select: { id: true } });
+  if (!shop) return null;
+  const productIds = (await prisma.product.findMany({ where: { shopId }, select: { id: true } })).map((p) => p.id);
+  const weekAgo = new Date(Date.now() - 7 * 86_400_000);
+  const [purchaseTotal, purchaseRejected, purchaseSla, orderTotal, orderRejected, orderSla, recentStory] = await Promise.all([
+    productIds.length ? prisma.shopPurchase.count({ where: { productId: { in: productIds } } }) : 0,
+    productIds.length ? prisma.shopPurchase.count({ where: { productId: { in: productIds }, status: "rejected" } }) : 0,
+    productIds.length ? prisma.shopPurchase.count({ where: { productId: { in: productIds }, slaAlertedAt: { not: null } } }) : 0,
+    prisma.marketOrder.count({ where: { shopId } }),
+    prisma.marketOrder.count({ where: { shopId, status: "rejected" } }),
+    prisma.marketOrder.count({ where: { shopId, slaAlertedAt: { not: null } } }),
+    prisma.shopStory.count({ where: { shopId, createdAt: { gte: weekAgo } } }),
+  ]);
+  const totalOrders = purchaseTotal + orderTotal;
+  const rejectionRate = totalOrders ? (purchaseRejected + orderRejected) / totalOrders : 0;
+  const slaBreachRate = totalOrders ? (purchaseSla + orderSla) / totalOrders : 0;
+  const activeRecently = recentStory > 0;
+  const score = Math.max(0, Math.min(100, Math.round(100 - rejectionRate * 40 - slaBreachRate * 40 - (activeRecently ? 0 : 20))));
+  return { score, totalOrders, rejectionRate, slaBreachRate, activeRecently };
+}
+
 /** 🏪 D2: sotuvchi o'z do'kon-profilini tahrirlaydi (admin-panel `ShopProfilePanel`).
  *  `scopeShopId` berilsa (shopseller token) — faqat SHU shopId'ga ruxsat, choke-point server.ts'da. */
 export async function updateShopProfile(shopId: number, input: ShopProfileEditInput): Promise<{ ok: boolean }> {

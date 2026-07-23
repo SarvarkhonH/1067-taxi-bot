@@ -1661,6 +1661,15 @@ export function createApiServer(opts: ApiOptions = {}) {
     if (!status) { res.status(404).json({ error: "not_found" }); return; }
     res.json(status);
   });
+  // §10.1: do'kon sog'lik-skori (javob-tezlik+rad%+hikoya-faollik bitta raqamda)
+  app.get("/api/admin/shop/health", requireAdmin, requireShopWrite, async (req, res) => {
+    const shopId = resolveProfileShopId(req, res);
+    if (!shopId) { res.status(400).json({ error: "no_shop" }); return; }
+    const { getShopHealthScore } = await import("../services/shopService");
+    const health = await getShopHealthScore(shopId);
+    if (!health) { res.status(404).json({ error: "not_found" }); return; }
+    res.json(health);
+  });
   app.post("/api/admin/shop/toggle-pause", requireAdmin, requireShopWrite, rateLimit(20), async (req, res) => {
     const shopId = resolveProfileShopId(req, res);
     if (!shopId) { res.status(400).json({ error: "no_shop" }); return; }

@@ -1623,6 +1623,8 @@ function ShopProfilePanel() {
   const [needsPicker, setNeedsPicker] = useState(false);
   // §10.1: "muammoni tuzat" — pauza + SLA-buzilish soni (profil bilan bir vaqtda yuklanadi)
   const [ops, setOps] = useState<{ paused: boolean; slaBreaches: number } | null>(null);
+  // §10.1: do'kon sog'lik-skori (javob-tezlik+rad%+hikoya-faollik bitta raqamda)
+  const [health, setHealth] = useState<{ score: number; totalOrders: number; rejectionRate: number; slaBreachRate: number; activeRecently: boolean } | null>(null);
 
   const load = (shopId?: number) => {
     adminApi.shopProfile(shopId).then((r) => {
@@ -1639,6 +1641,7 @@ function ShopProfilePanel() {
       }
     });
     adminApi.shopOpsStatus(shopId).then(setOps).catch(() => setOps(null));
+    adminApi.shopHealth(shopId).then(setHealth).catch(() => setHealth(null));
   };
   useEffect(() => { load(); }, []);
 
@@ -1709,6 +1712,13 @@ function ShopProfilePanel() {
           {ops.paused && <span className="badge badge-bad">⏸ To&apos;xtatilgan — yangi buyurtma qabul qilinmaydi</span>}
           {ops.slaBreaches > 0 && <span className="badge badge-warn">🚨 {ops.slaBreaches} ta buyurtma SLA&apos;dan o&apos;tib ketgan</span>}
           <button className="btn sm" onClick={togglePause}>{ops.paused ? "▶️ Qayta faollashtirish" : "⏸ Do'konni to'xtatish"}</button>
+        </p>
+      )}
+      {health && (
+        <p className="muted" style={{ fontSize: 12 }}>
+          🩺 Sog&apos;lik-skori: <b style={{ color: health.score >= 70 ? "#22c55e" : health.score >= 40 ? "#f59e0b" : "#ef4444" }}>{health.score}/100</b>
+          {health.totalOrders > 0 ? ` · rad ${Math.round(health.rejectionRate * 100)}% · SLA-buzilish ${Math.round(health.slaBreachRate * 100)}% · ${health.totalOrders} buyurtma asosida` : " · hali buyurtma yo'q"}
+          {!health.activeRecently && " · so'nggi 7 kunda hikoya yo'q"}
         </p>
       )}
       <div className="adm-form-grid">
