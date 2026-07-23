@@ -1933,6 +1933,14 @@ function ShopAdminView() {
   // §10.1: "Bugungi holat" — owner-only (seller-token 403 → jim ko'rinmaydi, sellerga foydasiz ma'lumot)
   const [dailyStatus, setDailyStatus] = useState<{ pendingOrders: number; unansweredChats: number; todayStories: number; activeShops: number } | null>(null);
   useEffect(() => { adminApi.shopDailyStatus().then(setDailyStatus).catch(() => setDailyStatus(null)); }, []);
+  // §10.1: ommaviy e'lon — bitta matn, BARCHA faol do'konga bir yo'la (owner-only)
+  const [bulkText, setBulkText] = useState("");
+  const [bulkMsg, setBulkMsg] = useState("");
+  const sendBulkAnnouncement = async () => {
+    const r = await adminApi.shopBulkAnnouncement(bulkText).catch(() => null);
+    setBulkMsg(r ? `✅ ${r.count} ta do'konga yuborildi` : "❌ Yuborilmadi");
+    if (r) { setBulkText(""); load(); }
+  };
 
   const load = (sid = shopId) => {
     adminApi.shopProducts(sid ?? undefined).then(setData).catch(() => undefined);
@@ -2040,6 +2048,12 @@ function ShopAdminView() {
               {myShops.map((s) => <option key={s.id} value={s.id}>{s.name}{s.active ? "" : " (nofaol)"}</option>)}
             </select>
           </div>
+          <div className="adm-field" style={{ marginTop: 10 }}>
+            <span className="adm-field-label">📣 Ommaviy e&apos;lon — BARCHA faol do&apos;konga bir yo&apos;la</span>
+            <input value={bulkText} onChange={(e) => setBulkText(e.target.value)} placeholder="Masalan: Ertaga bayram tufayli yetkazish kechikadi" maxLength={120} />
+          </div>
+          <button className="btn sm" onClick={sendBulkAnnouncement}>📣 Barchasiga yuborish</button>
+          {bulkMsg && <p className="muted">{bulkMsg}</p>}
         </section>
       )}
       <ShopProfilePanel />

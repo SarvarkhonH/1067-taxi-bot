@@ -1676,6 +1676,11 @@ export function createApiServer(opts: ApiOptions = {}) {
     const { adminListMarketDemand } = await import("../services/shopService");
     res.json({ demand: await adminListMarketDemand() });
   });
+  // §10.1: ommaviy e'lon-shablon — BARCHA faol do'konga bir yo'la (owner-only, ko'p-do'kon qulaylik).
+  app.post("/api/admin/shop/bulk-announcement", requireAdmin, requireOwner, rateLimit(10), async (req, res) => {
+    const { bulkSetAnnouncement } = await import("../services/shopService");
+    res.json(await bulkSetAnnouncement(String((req.body as { text?: unknown })?.text ?? "")));
+  });
   // 💬 C1.6: sotuvchi-inbox (bot-DM'ning zaxira/qo'shimcha yo'li — admin-paneldan ham javob berish).
   app.get("/api/admin/shop/chat/conversations", requireAdmin, requireShopWrite, async (req, res) => {
     const shopId = resolveProfileShopId(req, res);

@@ -209,6 +209,14 @@ export async function updateShopProfile(shopId: number, input: ShopProfileEditIn
   return { ok: true };
 }
 
+// §10.1: "Ommaviy e'lon-shablon ko'p-do'konga" — owner-only, BARCHA faol do'konga bir yo'la
+// (masalan «Ertaga bayram tufayli yetkazish kechikadi»). Bo'sh matn = e'lonni tozalash (hammasida).
+export async function bulkSetAnnouncement(text: string): Promise<{ count: number }> {
+  const announcement = text.trim().slice(0, SHOP_ANNOUNCEMENT_MAX) || null;
+  const r = await prisma.marketShop.updateMany({ where: { active: true }, data: { announcement, announcementAt: new Date() } });
+  return { count: r.count };
+}
+
 /** "09:00-21:00" → hozir ochiqmi (restoran client-side hisobining server-versiyasi, Asia/Tashkent). */
 function isOpenNow(workHours: string | null): boolean {
   if (!workHours) return true;
