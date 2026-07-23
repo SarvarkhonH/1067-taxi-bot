@@ -245,6 +245,8 @@ export const adminApi = {
   // §10.1: "muammoni tuzat" — do'kon pauza + SLA-buzilish soni
   shopOpsStatus: (shopId?: number) => req<{ paused: boolean; slaBreaches: number }>(`/api/admin/shop/ops-status${shopId ? `?shopId=${shopId}` : ""}`),
   shopTogglePause: (paused: boolean, shopId?: number) => postJson<{ ok: boolean }>("/api/admin/shop/toggle-pause", shopId ? { paused, shopId } : { paused }),
+  // §10.1: mijozlar qidirgan-lekin-topilmagan so'rovlar (unmet demand)
+  shopDemand: () => req<{ demand: { query: string; count: number; lastAt: string }[] }>("/api/admin/shop/demand"),
   // 💬 C1.6: do'kon-chat inbox (bot-DM'ning zaxira/qo'shimcha yo'li)
   shopChatConversations: (shopId?: number) =>
     req<{ convos: { telegramId: string; name: string | null; username: string | null; lastMsg: string; lastAt: string; unread: number }[] }>(`/api/admin/shop/chat/conversations${shopId ? `?shopId=${shopId}` : ""}`),

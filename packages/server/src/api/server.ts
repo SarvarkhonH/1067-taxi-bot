@@ -1671,6 +1671,11 @@ export function createApiServer(opts: ApiOptions = {}) {
     const { adminDeleteReview } = await import("../services/shopService");
     res.json(await adminDeleteReview(Number(req.params.id)));
   });
+  // §10.1: mijozlar qidirgan-lekin-topilmagan so'rovlar — owner-wide (aniq do'konga bog'liq emas).
+  app.get("/api/admin/shop/demand", requireAdmin, requireOwner, async (_req, res) => {
+    const { adminListMarketDemand } = await import("../services/shopService");
+    res.json({ demand: await adminListMarketDemand() });
+  });
   // 💬 C1.6: sotuvchi-inbox (bot-DM'ning zaxira/qo'shimcha yo'li — admin-paneldan ham javob berish).
   app.get("/api/admin/shop/chat/conversations", requireAdmin, requireShopWrite, async (req, res) => {
     const shopId = resolveProfileShopId(req, res);

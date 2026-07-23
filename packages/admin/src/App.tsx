@@ -2169,7 +2169,30 @@ function ShopAdminView() {
         {reviews && reviews.length === 0 && <p className="muted">Hali sharh yo&apos;q.</p>}
       </section>
       <ShopCategoriesPanel onMsg={setMsg} />
+      <MarketDemandPanel />
     </>
+  );
+}
+
+// §10.1: mijozlar qidirgan-lekin-topilmagan so'rovlar — egaga "qaysi sotuvchini chaqirish kerak"
+// signali (owner-only, `requireOwner`-gated route — seller-token uchun 403, jim ko'rinmaydi).
+function MarketDemandPanel() {
+  const [demand, setDemand] = useState<{ query: string; count: number; lastAt: string }[] | null>(null);
+  useEffect(() => { adminApi.shopDemand().then((r) => setDemand(r.demand)).catch(() => setDemand(null)); }, []);
+  if (!demand) return null;
+  return (
+    <section className="panel">
+      <div className="panel-title">🔎 Qidirilgan-lekin-topilmagan ({demand.length})</div>
+      <p className="muted" style={{ marginTop: 0, fontSize: 12 }}>Mijozlar Bozorda qidirgan, lekin natija topilmagan so&apos;rovlar — qaysi sotuvchini taklif qilish kerakligini ko&apos;rsatadi.</p>
+      {demand.map((d) => (
+        <div key={d.query} style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", padding: "6px 0", borderBottom: "1px solid rgba(255,255,255,0.08)" }}>
+          <b style={{ flex: "1 1 200px" }}>{d.query}</b>
+          <span className="badge badge-warn">×{d.count}</span>
+          <span className="muted" style={{ fontSize: 11 }}>oxirgi: {new Date(d.lastAt).toLocaleDateString("ru-RU")}</span>
+        </div>
+      ))}
+      {demand.length === 0 && <p className="muted">Hali yo&apos;q.</p>}
+    </section>
   );
 }
 

@@ -1107,3 +1107,52 @@ export async function adminDeleteReview(id: number): Promise<{ ok: boolean }> {
   await prisma.productReview.delete({ where: { id } }).catch(() => undefined);
   return { ok: true };
 }
+
+// §10.1: "MarketDemand'dan bitta-bosishda taklif" poydevori — mijozlar qidirgan-lekin-topilmagan
+// so'rovlarni egaga ko'rsatish (qaysi sotuvchini chaqirish kerakligini ayt). Owner-wide (aniq
+// do'konga bog'liq emas — unmet-demand butun bozor bo'ylab).
+export interface MarketDemandRow {
+  query: string;
+  count: number;
+  lastAt: string;
+}
+
+// Har bosishda (keystroke) so'rov yuboriladi — bitta odam "koptok" deb yozganda "k","ko","kop",...
+// har biri ALOHIDA MarketDemand qatori bo'lib qoladi. Xom log shu tarixiy fragmentlarga to'lib
+// ketadi (haqiqiy so'z emas). Shuning uchun avval BIR ODAMNING tez ketma-ket (≤45s) so'rovlarini
+// bitta "burst"ga yig'amiz — burstning OXIRGI (eng to'liq) so'zi haqiqiy qidiruv-niyat hisoblanadi.
+const DEMAND_BURST_GAP_MS = 45_000;
+
+export async function adminListMarketDemand(): Promise<MarketDemandRow[]> {
+  const rows = await prisma.marketDemand.findMany({
+    orderBy: [{ memberId: "asc" }, { createdAt: "asc" }],
+    take: 2000,
+    select: { query: true, createdAt: true, memberId: true },
+  });
+  const finals: { query: string; at: Date }[] = [];
+  let burstMember: number | null = null;
+  let burstLast: Date | null = null;
+  let burstQuery = "";
+  const flush = () => { if (burstQuery.trim()) finals.push({ query: burstQuery.trim(), at: burstLast! }); };
+  for (const r of rows) {
+    const sameBurst = r.memberId === burstMember && burstLast && r.createdAt.getTime() - burstLast.getTime() <= DEMAND_BURST_GAP_MS;
+    if (!sameBurst) flush();
+    burstMember = r.memberId;
+    burstLast = r.createdAt;
+    burstQuery = r.query; // burst ichida har doim ENG OXIRGI (to'liqroq) matn yutadi
+  }
+  flush();
+
+  const byKey = new Map<string, { query: string; count: number; lastAt: Date }>();
+  for (const f of finals) {
+    const key = f.query.trim().toLowerCase();
+    if (!key) continue;
+    const existing = byKey.get(key);
+    if (existing) { existing.count++; if (f.at > existing.lastAt) existing.lastAt = f.at; }
+    else byKey.set(key, { query: f.query.trim(), count: 1, lastAt: f.at });
+  }
+  return Array.from(byKey.values())
+    .sort((a, b) => b.count - a.count || b.lastAt.getTime() - a.lastAt.getTime())
+    .slice(0, 50)
+    .map((v) => ({ query: v.query, count: v.count, lastAt: v.lastAt.toISOString() }));
+}
