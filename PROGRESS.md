@@ -2307,3 +2307,15 @@ bundle-grep: `shop-open-filter-chip` topildi (`shop-z3Y5IAz-.js`, live `1067taxi
 **QOLDI (§10.2)**: "Nima uchun bu narx?" narx-shaffofligi · kuzatilmoqda-lekin-olinmayapti signal ·
 sodiqlik-progress-bar. **QOLDI (§10.3, reorder'dan tashqari)**: yordam-tugma buyurtma-kartada,
 chat-ichidan savatga, jonli ETA, swipe-up-shop, va h.k. (to'liq ro'yxat — plan §10.3).
+
+## 2026-07-23 (35) — §10.2: "Nima uchun bu narx?" narx-shaffofligi
+Mahsulot-detail sahifasida narx ostiga kengaytiriladigan izoh: chegirma bo'lsa asl narx+foiz
+tushuntiriladi, bo'lmasa "sotuvchi belgilagan narx, chegirmasiz" deyiladi — va har doim "yetkazish
+narxga kiritilmagan, sotuvchi qo'ng'iroq qiladi" aniqlashtirilishi (savat-checkout'da item+yetkazish
++jami qatorlari ALLAQACHON bor edi — bu yagona-mahsulot ko'rinishidagi bo'shliqni to'ldiradi).
+**Isbot**: `tsc --noEmit` 0 xato. Vizual: real sahifa Telegram-autentifikatsiya talab qilgani uchun
+(bu muhitda yo'q), aynan shu class'lar bilan in-page DOM-in'ektsiya + computed-style tekshiruvi —
+flex-wrap to'g'ri ishladi (izoh-box to'liq-kenglikda alohida qatorga tushdi, matn to'g'ri chiqdi,
+`read_page` bilan tasdiqlandi). Deploy: commit `2c851fb` → Vercel prebuilt → bundle-grep live
+(`shop-Djouu_ok.js`, `1067taxi-miniapp.vercel.app`): "shop-price-why" topildi.
+**QOLDI (§10.2)**: kuzatilmoqda-lekin-olinmayapti signal · sodiqlik-progress-bar.
