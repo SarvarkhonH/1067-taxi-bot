@@ -108,6 +108,43 @@ export function BjShopCard({ name, open, promise, rating, photoUrl, onOpen }: Bj
   );
 }
 
+/* ── 🏠 V1.5 (Mahalla bozori): to'liq-kenglikdagi "qo'shni" karta — generic BjShopCard'dan ataylab
+   farqli (kattaroq, hikoya-parcha + haqiqiy ijtimoiy-signal bilan — "shunchaki yana bir online
+   do'kon" emas, balki mahalla-do'koni ekanini his qildirish uchun). ── */
+export interface BjMahallaShopCardProps {
+  name: string;
+  open: boolean;
+  promise?: string | null;
+  rating?: number;
+  photoUrl?: string | null;
+  story?: string | null;
+  weeklyOrders?: number;
+  onOpen: () => void;
+}
+
+export function BjMahallaShopCard({ name, open, promise, rating, photoUrl, story, weeklyOrders, onOpen }: BjMahallaShopCardProps) {
+  return (
+    <button className="bj-mshop" onClick={onOpen}>
+      <div className="bj-mshop-img">
+        {photoUrl ? <img src={photoUrl} alt="" loading="lazy" decoding="async" onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }} /> : "🏠"}
+      </div>
+      <div className="bj-mshop-body">
+        <div className="bj-mshop-top">
+          <span className="bj-mshop-tag">🏠 Qo'shningiz</span>
+          <span className={`bj-open-dot${open ? "" : " closed"}`} />
+          <span className="bj-mshop-status">{open ? "Ochiq" : "Yopiq"}</span>
+        </div>
+        <div className="bj-mshop-name">{name}{rating && rating > 0 ? ` · ⭐ ${rating.toFixed(1)}` : ""}</div>
+        {story && <div className="bj-mshop-story">{story}</div>}
+        <div className="bj-mshop-foot">
+          {promise && <span className="bj-mshop-promise">🚚 {promise}</span>}
+          {!!weeklyOrders && weeklyOrders > 0 && <span className="bj-mshop-social">👥 {weeklyOrders} mahalladosh bu hafta xarid qildi</span>}
+        </div>
+      </div>
+    </button>
+  );
+}
+
 /* ── 🧺 yopishqoq savat-bar ───────────────────────────────────────────────────────────────────── */
 export function BjStickyCartBar({ count, totalTanga, onOpen }: { count: number; totalTanga: number; onOpen: () => void }) {
   return (

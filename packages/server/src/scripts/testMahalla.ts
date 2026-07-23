@@ -18,6 +18,7 @@ async function main(): Promise<void> {
   const cleanup = async (): Promise<void> => {
     const shops = await prisma.marketShop.findMany({ where: { name: { startsWith: TAG } }, select: { id: true } });
     const shopIds = shops.map((s) => s.id);
+    await prisma.marketOrder.deleteMany({ where: { shopId: { in: shopIds } } });
     await prisma.product.deleteMany({ where: { shopId: { in: shopIds } } });
     await prisma.marketShop.deleteMany({ where: { id: { in: shopIds } } });
     await prisma.member.deleteMany({ where: { kasId: { startsWith: TAG } } });
@@ -63,8 +64,9 @@ async function main(): Promise<void> {
   ok(rBad.ok === false, "3: mavjud bo'lmagan mahallaId rad etiladi");
 
   // 4) MarketShop scoping — mahalla-tur va bozor-tur do'konlar getMarketHome javobida to'g'ri belgilanadi
+  const longStory = "A".repeat(150); // slice(0,90) qirqilishini tekshirish uchun ataylab uzun
   const mahallaShop = await prisma.marketShop.create({
-    data: { name: `${TAG} Mahalla Do'kon`, phone: "+998900000001", category: "oziq-ovqat", ownerChatId: `${TAG}_owner1`, active: true, shopKind: "mahalla", mahallaId: mA.id },
+    data: { name: `${TAG} Mahalla Do'kon`, phone: "+998900000001", category: "oziq-ovqat", ownerChatId: `${TAG}_owner1`, active: true, shopKind: "mahalla", mahallaId: mA.id, story: longStory },
   });
   const cityShop = await prisma.marketShop.create({
     data: { name: `${TAG} Shahar Do'kon`, phone: "+998900000002", category: "umumiy", ownerChatId: `${TAG}_owner2`, active: true, shopKind: "bozor" },
@@ -74,6 +76,17 @@ async function main(): Promise<void> {
   const hCity = home.shops.find((s) => s.id === cityShop.id);
   ok(hMahalla?.shopKind === "mahalla" && hMahalla?.mahallaId === mA.id, "4: mahalla-tur do'kon shopKind+mahallaId to'g'ri qaytadi");
   ok(hCity?.shopKind === "bozor" && hCity?.mahallaId === null, "4: bozor-tur do'kon shopKind='bozor', mahallaId=null");
+  ok(hMahalla?.story === longStory.slice(0, 90), `4b: mahalla-tur do'kon story 90 belgigacha qirqiladi (uzunlik=${hMahalla?.story?.length})`);
+  ok(hCity?.story === undefined, "4b: bozor-tur do'konda story maydoni umuman yo'q (ortiqcha payload emas)");
+  ok(hMahalla?.weeklyOrders === 0, "4b: yangi mahalla-do'konda weeklyOrders=0");
+
+  // 4c) haqiqiy haftalik buyurtma-hisob — 1 ta 'delivered' order weeklyOrders'ni 1'ga oshiradi
+  await prisma.marketOrder.create({
+    data: { memberId: member.id, shopId: mahallaShop.id, shopName: mahallaShop.name, itemsJson: [{ productId: 0, name: "test", qty: 1, priceTanga: 1000 }], itemsTotal: 1000, total: 1000, address: "test", contact: "test", status: "delivered" },
+  });
+  const home2 = await shopSvc.getMarketHome(true);
+  const hMahalla2 = home2.shops.find((s) => s.id === mahallaShop.id);
+  ok(hMahalla2?.weeklyOrders === 1, `4c: 'delivered' order weeklyOrders'ga qo'shildi (oldi: ${hMahalla2?.weeklyOrders})`);
   const bucketA = home.shops.filter((s) => s.shopKind === "mahalla" && s.mahallaId === mA.id);
   const bucketOther = home.shops.filter((s) => s.shopKind === "mahalla" && s.mahallaId === mB.id);
   ok(bucketA.some((s) => s.id === mahallaShop.id), "4: A-mahalla filtri mahalla-do'konni topadi");

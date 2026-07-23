@@ -25,7 +25,7 @@ import { api, apiUrl } from "./api";
 import { haptic, hapticSuccess, inviteText, inviteLandingUrl, shareLink, tgGetLocation, tgHasLocationManager } from "./telegram";
 import { confetti, compressImage } from "./util";
 import { Button, EmptyState, ProgressBar, Sheet, Skeleton } from "./design/components";
-import { BjCategoryCarousel, BjShopCard, BjSection, BjStickyCartBar } from "./design/birjoy"; // 🏪 V1.4+V2 BirJoy-kit
+import { BjCategoryCarousel, BjShopCard, BjMahallaShopCard, BjSection, BjStickyCartBar } from "./design/birjoy"; // 🏪 V1.4+V2 BirJoy-kit
 import { Icon } from "./icons";
 
 const LAST_ADDR_KEY = "shop_last_addr";
@@ -790,18 +790,31 @@ export function ShopView({ me, onBanner, reload, onBook, openProductId }: { me: 
               onPick={(slug) => { haptic(); setCat(slug); }}
             />
           )}
-          {/* 🏠 V1.5: mahalla do'konlari — faqat joriy mahallaga scoped shopKind="mahalla" do'konlar */}
+          {/* 🏠 V1.5: mahalla do'konlari — kattaroq "qo'shni" karta + hikoya-parcha + haqiqiy
+              ijtimoiy-signal (ega: "oddiy online do'kondan farq qilmayapti" fikriga javob) */}
           {bazar && !shopFilter && market && activeMahallaId !== null && mahallaShops.length > 0 && (
             <BjSection title="🏠 Mahalla do'konlari">
-              <div className="bj-shops">
+              <div className="bj-mshops">
                 {mahallaShops.map((s) => (
-                  <BjShopCard key={s.id} name={s.name} open={s.open} promise={s.deliveryText} rating={s.rating} photoUrl={s.hasPhoto ? apiUrl(`/api/shop/shop-photo/${s.id}`) : null} onOpen={() => { haptic(); setShopFilter({ id: s.id, name: s.name }); setCat(null); }} />
+                  <BjMahallaShopCard key={s.id} name={s.name} open={s.open} promise={s.deliveryText} rating={s.rating} photoUrl={s.hasPhoto ? apiUrl(`/api/shop/shop-photo/${s.id}`) : null} story={s.story} weeklyOrders={s.weeklyOrders} onOpen={() => { haptic(); setShopFilter({ id: s.id, name: s.name }); setCat(null); }} />
                 ))}
               </div>
             </BjSection>
           )}
           {bazar && !shopFilter && market && activeMahallaId !== null && mahallaShops.length === 0 && (
-            <div className="bj-mahalla-empty">🔔 Bu yerda hali do&apos;kon yo&apos;q — tez orada!</div>
+            <div className="bj-mahalla-cta">
+              <div className="bj-mahalla-cta-icon">🔔</div>
+              <div className="bj-mahalla-cta-text">{activeMahalla?.name ?? "Bu mahalla"}da hali do&apos;kon yo&apos;q — birinchi bo&apos;ling!</div>
+              <button
+                className="bj-mahalla-cta-btn"
+                onClick={() => {
+                  haptic();
+                  shareLink(BOT_LINK, `🏠 ${activeMahalla?.name ?? "Mahallangiz"}da BirJoy do'kon oching — mahallangizga tez yetkazing! Botga o'ting, /sotuvchi deb yozing.`);
+                }}
+              >
+                📣 Sotuvchi taklif qiling
+              </button>
+            </div>
           )}
           {/* 🏪 butun-shahar do'konlar — hozirgi (mahalla-oldi) ro'yxat, o'zgarishsiz */}
           {bazar && !shopFilter && market && cityShops.length > 1 && (

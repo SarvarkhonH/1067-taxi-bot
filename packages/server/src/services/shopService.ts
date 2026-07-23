@@ -117,14 +117,17 @@ export async function listFavoriteProducts(memberId: number, preview = false): P
  *  q berilsa: OR-contains qidiruv (serviceDirectory naqshi); nol natija → MarketDemand yozuvi
  *  («qidirildi-topilmadi» — egaga qaysi sotuvchini chaqirishni aytadi). */
 export async function getMarketHome(preview = false, q?: string, memberId?: number): Promise<{
-  shops: { id: number; name: string; open: boolean; deliveryText: string | null; rating: number; hasPhoto: boolean; deliveryFeeSom: number; minOrderTanga: number; shopKind: string; mahallaId: number | null }[];
+  shops: { id: number; name: string; open: boolean; deliveryText: string | null; rating: number; hasPhoto: boolean; deliveryFeeSom: number; minOrderTanga: number; shopKind: string; mahallaId: number | null; story?: string | null; weeklyOrders?: number }[];
   cats: { slug: string; name: string; emoji: string; hasIcon: boolean; id: number }[];
   products: ShopProductView[];
 }> {
   if (!preview && !(await featureOn("bazar"))) return { shops: [], cats: [], products: [] };
   const query = (q ?? "").trim().slice(0, 60);
-  const [shops, cats, products] = await Promise.all([
-    prisma.marketShop.findMany({ where: { active: true, paused: false }, orderBy: [{ sortOrder: "asc" }, { orderCount: "desc" }], take: 20 }),
+  // V1.5: mahalla-tur do'konlar bozor-tur bilan bitta take:20'ga sig'ishmasin (shahar ulg'aygach
+  // mahalla-do'konlar top-20'dan siqib chiqarilib ko'rinmay qolardi) — ikkisi ALOHIDA so'raladi.
+  const [bozorShops, mahallaShops, cats, products] = await Promise.all([
+    prisma.marketShop.findMany({ where: { active: true, paused: false, shopKind: "bozor" }, orderBy: [{ sortOrder: "asc" }, { orderCount: "desc" }], take: 20 }),
+    prisma.marketShop.findMany({ where: { active: true, paused: false, shopKind: "mahalla" }, orderBy: [{ sortOrder: "asc" }, { orderCount: "desc" }], take: 200 }),
     prisma.categoryDef.findMany({ where: { active: true }, orderBy: { sortOrder: "asc" }, take: 20 }),
     listActiveProducts(true), // flag-tekshiruv yuqorida bo'ldi; preview=true — ichki qayta-gate emas
   ]);
@@ -136,8 +139,25 @@ export async function getMarketHome(preview = false, q?: string, memberId?: numb
       await prisma.marketDemand.create({ data: { query, memberId: memberId ?? null } }).catch(() => undefined);
     }
   }
+  // V1.5: "N mahalladosh bu hafta xarid qildi" — HAQIQIY hisob (soxta ijtimoiy-signal emas), faqat
+  // mahalla-tur do'konlar uchun (bozor-tur ro'yxati bu maydonsiz, o'zgarishsiz qoladi).
+  const weekAgo = new Date(Date.now() - 7 * 24 * 3600 * 1000);
+  const weeklyCounts = mahallaShops.length
+    ? await prisma.marketOrder.groupBy({
+        by: ["shopId"],
+        where: { shopId: { in: mahallaShops.map((s) => s.id) }, createdAt: { gte: weekAgo }, status: { notIn: ["rejected", "cancelled"] } },
+        _count: { _all: true },
+      })
+    : [];
+  const weeklyMap = new Map(weeklyCounts.map((w) => [w.shopId, w._count._all]));
+  const shopView = (s: (typeof bozorShops)[number]) => ({
+    id: s.id, name: s.name, open: isOpenNow(s.workHours), deliveryText: s.deliveryText, rating: s.avgRating,
+    hasPhoto: !!(s.photoFileId || s.photoUrl), deliveryFeeSom: s.deliveryFeeSom, minOrderTanga: s.minOrderTanga,
+    shopKind: s.shopKind, mahallaId: s.mahallaId,
+    ...(s.shopKind === "mahalla" ? { story: s.story ? s.story.slice(0, 90) : null, weeklyOrders: weeklyMap.get(s.id) ?? 0 } : {}),
+  });
   return {
-    shops: shops.map((s) => ({ id: s.id, name: s.name, open: isOpenNow(s.workHours), deliveryText: s.deliveryText, rating: s.avgRating, hasPhoto: !!(s.photoFileId || s.photoUrl), deliveryFeeSom: s.deliveryFeeSom, minOrderTanga: s.minOrderTanga, shopKind: s.shopKind, mahallaId: s.mahallaId })),
+    shops: [...bozorShops, ...mahallaShops].map(shopView),
     cats: cats.map((c) => ({ id: c.id, slug: c.slug, name: c.name, emoji: c.emoji, hasIcon: !!(c.iconFileId || c.iconUrl) })),
     products: filtered,
   };
@@ -190,6 +210,29 @@ export async function getShopOpsStatus(shopId: number): Promise<ShopOpsStatus | 
     prisma.marketOrder.count({ where: { shopId, status: "pending", slaAlertedAt: { not: null } } }),
   ]);
   return { paused: shop.paused, slaBreaches: purchaseBreaches + orderBreaches };
+}
+
+// §10.1: rol-darajali audit-jurnal — do'kon-boshqaruv mutatsiyalari uchun (kim/qachon/nima
+// o'zgartirdi). ATAYLAB route-darajasida chaqiriladi (bu yerda emas) — mavjud service-funksiyalar
+// imzosini o'zgartirmaslik uchun (kam xavfli qo'shimcha, kam call-site). Best-effort, jim xato.
+export interface AdminAuditLogRow {
+  id: number;
+  actorRole: string;
+  actorTgId: string | null;
+  action: string;
+  targetType: string;
+  targetId: number | null;
+  detail: string | null;
+  createdAt: string;
+}
+
+export async function logAudit(actorRole: string, actorTgId: string | null, action: string, targetType: string, targetId: number | null, detail?: string): Promise<void> {
+  await prisma.adminAuditLog.create({ data: { actorRole, actorTgId, action, targetType, targetId, detail: detail?.slice(0, 200) } }).catch(() => undefined);
+}
+
+export async function listAuditLog(limit = 100): Promise<AdminAuditLogRow[]> {
+  const rows = await prisma.adminAuditLog.findMany({ orderBy: { id: "desc" }, take: Math.min(limit, 200) });
+  return rows.map((r) => ({ id: r.id, actorRole: r.actorRole, actorTgId: r.actorTgId, action: r.action, targetType: r.targetType, targetId: r.targetId, detail: r.detail, createdAt: r.createdAt.toISOString() }));
 }
 
 export async function toggleShopPause(shopId: number, paused: boolean): Promise<{ ok: boolean }> {

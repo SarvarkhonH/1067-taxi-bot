@@ -393,6 +393,8 @@ export interface MarketShopView {
   minOrderTanga: number;
   shopKind: string; // V1.5: "bozor" (butun shahar) | "mahalla" (faqat o'z mahallasiga tez yetkazish)
   mahallaId: number | null;
+  story?: string | null; // V1.5: faqat shopKind="mahalla" uchun to'ldiriladi — "Biz haqimizda" qisqa parcha
+  weeklyOrders?: number; // V1.5: shu haftadagi haqiqiy buyurtma soni (mahalla-tur ijtimoiy-signal)
 }
 // 🏠 V1.5 (Mahalla bozori)
 export interface MahallaView {
