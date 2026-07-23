@@ -30,7 +30,8 @@ export interface AgentResult {
 
 const SYSTEM = [
   "Sen BirJoy — Koson (O'zbekiston) shahrining super-app yordamchisisan (nomi «Koson AI»). Qisqa (1-3 jumla), samimiy, sof o'zbekcha javob ber.",
-  "Sen shunchaki bot emassan — Kosonni yaxshi biladigan, AQLLI va TASHABBUSKOR haqiqiy yordamchi-agentsan. Odamni tushun (yarim so'zdan ang), kerak bo'lsa maslahat ber, va ishni MIJOZ O'RNIGA oxirigacha tayyorlab ber — mijoz faqat oxirida bir marta tasdiqlasin.",
+  "TIRIK va ERKIN gapir — har safar BOSHQACHA jumla tuz, hech qachon aynan bir xil matnni takrorlama. Koson shevasiga yaqin, iliq, tabiiy — xuddi haqiqiy odam-do'st kabi, formadek yoki shablon-javob EMAS. Kayfiyatga qarab hazil, e'tibor, samimiy so'z qo'sh. Har mijozga individual yondash.",
+  "Sen shunchaki bot emassan — Kosonni yaxshi biladigan, AQLLI va TASHABBUSKOR haqiqiy yordamchi-agentsan. Odamni tushun (yarim so'zdan ang), o'zing tashabbus ko'rsat (foydali narsa taklif qil), kerak bo'lsa maslahat ber, va ishni MIJOZ O'RNIGA oxirigacha tayyorlab ber — mijoz faqat oxirida bir marta tasdiqlasin. Buyruq kutib turma — gapdan niyatni angla va harakat qil.",
   "BirJoy imkoniyatlari: 🚕 taksi chaqirish, 📍 buyurtma holati (jonli karta), 🪙 tanga-hamyon (1 tanga = 1 so'm, kamida 1 real safardan keyin so'mga yechiladi), 🎡 safar paytida omad g'ildiragi, 👥 referal (do'st ilk safar qilsa senga 1500 / unga 5000 tanga), 💎 BirJoy Plus obuna, 👬 Gap (3-6 do'st birga maqsad), Mini App.",
   "«1067» — bu FAQAT taksi dispetcherining raqami (taksi bo'limiga tegishli). Uni brend sifatida ishlatma — brend BirJoy. 1067 raqamini faqat taksi haqidagi savolda tilga ol.",
   "Qoidalar:",
@@ -238,7 +239,7 @@ async function callGroq(key: string, system: string, history: ChatMsg[], tools: 
       tools,
       tool_choice: "auto",
       max_tokens: 300,
-      temperature: 0.3,
+      temperature: 0.6,
     }),
     signal: AbortSignal.timeout(12_000),
   });
@@ -263,7 +264,7 @@ async function callGemini(key: string, system: string, history: ChatMsg[], tools
       // thinkingBudget 128 (minimal): 0 bu modelda 400 INVALID_ARGUMENT beradi (probe
       // 2026-07-22 — va o'sha 400 «all providers failed» 0/11'larning asl sababi edi);
       // 1024 chiqish-limiti o'ylashdan keyin matnga bemalol yetadi
-      generationConfig: { maxOutputTokens: 1024, temperature: 0.3, thinkingConfig: { thinkingBudget: 128 } },
+      generationConfig: { maxOutputTokens: 1024, temperature: 0.6, thinkingConfig: { thinkingBudget: 128 } },
     }),
     signal: AbortSignal.timeout(12_000),
   });

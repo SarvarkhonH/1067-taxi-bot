@@ -1826,3 +1826,33 @@ FIX (boshqa tomondan):
    yozing + 🎤 gapiring». Quruq «Tushunmadim» o'rniga. Ikkalasi ham saveOut (audit).
 3. Agent chain 1× retry (500ms) — vaqtinchalik blip'ni tiklaydi (null kamayadi).
 Isbot: typecheck 0 · smallTalk test (salom→iliq, real so'rov→agentga).
+
+## 2026-07-23 (20) — Ega haqli edi: dizayn premium emas edi — SABAB topildi va tuzatildi
+Ega: "nega dizayn sen ko'rsaytganday emas juda oddiy va axlat". TO'G'RI edi — men bu vaqtgacha
+faqat `tsc`+bundle-grep bilan tekshirgan edim, HAQIQATDA brauzerda hech qachon ko'rmagandim.
+Bu safar `vite` dev-server + real `tokens.css`ni yuklab, haqiqiy komputed-stillarni tekshirdim
+(Telegram auth kerak emas — faqat CSS-inspektsiya).
+
+**Topilgan haqiqiy sabab (KATTA):** umumiy `.d-btn` ("brand" tugma — checkout/buy/chat-yuborish,
+BARCHA asosiy CTA) global `!important` qoida bilan taksi-ilovaning OLTIN rangida qolib kelgan —
+D1 yangi Bj-komponentlar qurgan, lekin bu ESKI umumiy tugmani `bazar-light` zonasi uchun HECH
+QACHON qayta bo'yamagan (holbuki `shop-light`/`xizmat-light` zonalari buni to'g'ri qilgan, xuddi
+shu `!important` naqsh bilan). Natijada: mening yangi zumrad-hero'im ostida BARCHA asosiy tugmalar
+(checkout, "Do'konga yozish" va h.k.) hamon OLTIN rangda chiqardi — to'g'ridan-to'g'ri to'qnashuv.
++ 2 kichikroq: kategoriya-chip "faol" holati va mahsulot-rasm-yo'q placeholder ham xuddi shu
+eski oltin rangda qolgan edi.
+**FIX:** `.app.bazar-light .d-btn:not(.ghost):not(.danger)` + chip/no-img — `!important` bilan
+zumrad-hero-gradientga qayta bo'yaldi (mavjud zona-qayta-bo'yash naqshiga mos).
+**Isbot:** brauzerda haqiqiy computed-style bilan tasdiqlandi (oldin oltin, tuzatishdan keyin
+zumrad→amber). Production build + bundle-grep bilan live'da ham tasdiqlandi.
+**Saboq (o'zim uchun yozib qo'yaman):** UI-tiketlarda `tsc`+bundle-grep YETARLI EMAS — kamida
+bitta marta HAQIQIY computed-style/vizual tekshiruv shart, ayniqsa umumiy/eski `!important`
+qoidalar bo'lishi mumkin bo'lgan joylarda.
+
+## 2026-07-23 (16) — «Bir xil / qotib qolgan» → erkin, tirik (ega: fine-tuning kerakmi?)
+Javob: fine-tuning KERAK EMAS (qimmat, noto'g'ri vosita). «Qotib qolgan» tuyg'usi modeldan emas,
+biz uni ishlatishдан: past temperatura + quruq persona. FIX:
+- temperatura 0.3 → 0.6 (groq+gemini) — har safar boshqacha, tabiiy.
+- SYSTEM persona: «TIRIK va ERKIN gapir, har safar BOSHQACHA jumla, shablon EMAS, individual
+  yondash, buyruq kutmay gapdan niyatni angla, tashabbus ko'rsat».
+Isbot: typecheck 0 · «nima qila olasan» 3× → 3 xil javob (avval bir xil bo'lardi).
