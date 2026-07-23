@@ -278,7 +278,12 @@ async function callGroq(key: string, system: string, history: ChatMsg[], tools: 
     }),
     signal: AbortSignal.timeout(12_000),
   });
-  if (res.status === 429 || res.status >= 500) return "rate";
+  // 🔍 diagnostic: these "rate" returns used to be totally silent (no throw = no log anywhere),
+  // so a systemic issue (quota, or the empty-response case below) was invisible in Render logs.
+  if (res.status === 429 || res.status >= 500) {
+    console.error(`[ai-agent] groq rate/5xx: HTTP ${res.status}`);
+    return "rate";
+  }
   if (!res.ok) throw new Error(`groq ${res.status}`);
   const data = (await res.json()) as { choices?: GroqChoice[] };
   const m = data.choices?.[0]?.message;
@@ -287,7 +292,10 @@ async function callGroq(key: string, system: string, history: ChatMsg[], tools: 
   // missing this exact same guard, so a functionally-empty-but-technically-200 Groq reply was
   // accepted as "success" and the whole agent turn went to the "tushunmadim" fallback with ZERO
   // error anywhere. Mirror Gemini's guard here so both providers get the same retry safety net.
-  if (!m || (!m.tool_calls?.length && !m.content?.trim())) return "rate";
+  if (!m || (!m.tool_calls?.length && !m.content?.trim())) {
+    console.error(`[ai-agent] groq empty 200: hasMessage=${!!m} tool_calls=${m?.tool_calls?.length ?? 0} contentLen=${m?.content?.length ?? 0}`);
+    return "rate";
+  }
   return m;
 }
 
@@ -310,15 +318,23 @@ async function callGemini(key: string, system: string, history: ChatMsg[], tools
     }),
     signal: AbortSignal.timeout(12_000),
   });
-  if (res.status === 429 || res.status >= 500) return "rate";
+  // 🔍 diagnostic — see the groq comment above for why these were silent until now.
+  if (res.status === 429 || res.status >= 500) {
+    console.error(`[ai-agent] gemini rate/5xx: HTTP ${res.status}`);
+    return "rate";
+  }
   if (!res.ok) throw new Error(`gemini ${res.status}`);
   const data = (await res.json()) as {
     candidates?: { content?: { parts?: { text?: string; functionCall?: { name?: string; args?: unknown } }[] } }[];
+    promptFeedback?: { blockReason?: string };
   };
   const parts = data.candidates?.[0]?.content?.parts ?? [];
   const fc = parts.find((p) => p.functionCall)?.functionCall;
   const textOut = parts.map((p) => p.text ?? "").join("").trim();
-  if (!fc && !textOut) return "rate";
+  if (!fc && !textOut) {
+    console.error(`[ai-agent] gemini empty 200: candidates=${data.candidates?.length ?? 0} blockReason=${data.promptFeedback?.blockReason ?? "none"}`);
+    return "rate";
+  }
   return {
     content: textOut || null,
     tool_calls: fc?.name ? [{ function: { name: fc.name, arguments: JSON.stringify(fc.args ?? {}) } }] : undefined,
