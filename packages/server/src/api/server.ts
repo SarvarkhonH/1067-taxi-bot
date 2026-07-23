@@ -1699,6 +1699,13 @@ export function createApiServer(opts: ApiOptions = {}) {
     if (!health) { res.status(404).json({ error: "not_found" }); return; }
     res.json(health);
   });
+  // §10.2: kuzatilmoqda-lekin-olinmayapti — sevimliga qo'shilgan, sotib olinmagan mahsulotlar
+  app.get("/api/admin/shop/watched-not-bought", requireAdmin, requireShopWrite, async (req, res) => {
+    const shopId = resolveProfileShopId(req, res);
+    if (!shopId) { res.status(400).json({ error: "no_shop" }); return; }
+    const { listWatchedNotBought } = await import("../services/shopService");
+    res.json({ items: await listWatchedNotBought(shopId) });
+  });
   app.post("/api/admin/shop/toggle-pause", requireAdmin, requireShopWrite, rateLimit(20), async (req, res) => {
     const shopId = resolveProfileShopId(req, res);
     if (!shopId) { res.status(400).json({ error: "no_shop" }); return; }

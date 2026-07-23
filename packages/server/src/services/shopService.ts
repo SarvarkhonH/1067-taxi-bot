@@ -274,6 +274,28 @@ export async function getShopHealthScore(shopId: number): Promise<ShopHealthScor
   return { score, totalOrders, rejectionRate, slaBreachRate, activeRecently };
 }
 
+// §10.2: "kuzatilmoqda-lekin-olinmayapti" signal — mijozlar ❤️-belgilagan (Product.favCount, V2b
+// keshlangan hisoblagich), lekin hech kim SOTIB OLMAGAN mahsulotlar. Sotuvchiga "bu mahsulotga
+// qiziqish bor, lekin sotilmayapti" signali beradi (narx/rasm/tavsifni ko'rib chiqish kerak bo'lishi
+// mumkin). Faqat ShopPurchase (jonli, yagona-buyurtma yo'l) hisoblanadi — MarketOrder hali DARK
+// (bazarcart) va itemsJson ichida, per-mahsulot hisoblash uchun alohida, kattaroq ish talab qiladi.
+export interface WatchedNotBoughtItem {
+  productId: number;
+  name: string;
+  favCount: number;
+}
+
+export async function listWatchedNotBought(shopId: number): Promise<WatchedNotBoughtItem[]> {
+  const products = await prisma.product.findMany({ where: { shopId, favCount: { gt: 0 } }, select: { id: true, name: true, favCount: true } });
+  if (!products.length) return [];
+  const sold = await prisma.shopPurchase.groupBy({ by: ["productId"], where: { productId: { in: products.map((p) => p.id) }, status: { not: "rejected" } }, _count: { _all: true } });
+  const soldMap = new Map(sold.map((s) => [s.productId, s._count._all]));
+  return products
+    .filter((p) => (soldMap.get(p.id) ?? 0) === 0)
+    .map((p) => ({ productId: p.id, name: p.name, favCount: p.favCount }))
+    .sort((a, b) => b.favCount - a.favCount);
+}
+
 // §10.1: shop-darajasidagi anomaliya-detektor — "g'ayrioddiy rad-etish naqshi" / sekin-javob shop'lar
 // (kamida 3 buyurtma — kam-namunali yangi do'konni bekorga "muammo" deb belgilamaslik uchun).
 export interface ShopAttentionItem {

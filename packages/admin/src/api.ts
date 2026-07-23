@@ -253,6 +253,8 @@ export const adminApi = {
   // §10.1: "muammoni tuzat" — do'kon pauza + SLA-buzilish soni
   shopOpsStatus: (shopId?: number) => req<{ paused: boolean; slaBreaches: number }>(`/api/admin/shop/ops-status${shopId ? `?shopId=${shopId}` : ""}`),
   shopHealth: (shopId?: number) => req<{ score: number; totalOrders: number; rejectionRate: number; slaBreachRate: number; activeRecently: boolean }>(`/api/admin/shop/health${shopId ? `?shopId=${shopId}` : ""}`),
+  // §10.2: kuzatilmoqda-lekin-olinmayapti
+  shopWatchedNotBought: (shopId?: number) => req<{ items: { productId: number; name: string; favCount: number }[] }>(`/api/admin/shop/watched-not-bought${shopId ? `?shopId=${shopId}` : ""}`),
   shopTogglePause: (paused: boolean, shopId?: number) => postJson<{ ok: boolean }>("/api/admin/shop/toggle-pause", shopId ? { paused, shopId } : { paused }),
   // §10.1: mijozlar qidirgan-lekin-topilmagan so'rovlar (unmet demand)
   shopDemand: () => req<{ demand: { query: string; count: number; lastAt: string }[] }>("/api/admin/shop/demand"),

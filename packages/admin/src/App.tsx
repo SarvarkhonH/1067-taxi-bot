@@ -1971,10 +1971,15 @@ function ShopAdminView() {
     if (r) { setBulkText(""); load(); }
   };
 
+  // §10.2: kuzatilmoqda-lekin-olinmayapti — real seller uchun `shopId` tanlanmagan bo'lsa ham
+  // ularning O'Z scope'i bilan ishlaydi (resolveProfileShopId server-tarafda hal qiladi)
+  const [watched, setWatched] = useState<{ productId: number; name: string; favCount: number }[] | null>(null);
+
   const load = (sid = shopId) => {
     adminApi.shopProducts(sid ?? undefined).then(setData).catch(() => undefined);
     adminApi.shopOrders(undefined, sid ?? undefined).then((r) => setOrders(r.orders)).catch(() => setOrders([]));
     adminApi.shopReviews(sid ?? undefined).then((r) => setReviews(r.reviews)).catch(() => setReviews([]));
+    adminApi.shopWatchedNotBought(sid ?? undefined).then((r) => setWatched(r.items)).catch(() => setWatched(null));
   };
   useEffect(() => { load(); }, [shopId]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -2214,6 +2219,19 @@ function ShopAdminView() {
         ))}
         {data && products.length === 0 && <p className="muted">Mos mahsulot topilmadi.</p>}
       </section>
+
+      {watched && watched.length > 0 && (
+        <section className="panel">
+          <div className="panel-title">👀 Kuzatilmoqda, lekin olinmayapti ({watched.length})</div>
+          <p className="muted" style={{ marginTop: 0, fontSize: 12 }}>Mijozlar ❤️ belgilagan, lekin hech kim sotib olmagan mahsulotlar — narx/rasm/tavsifni ko&apos;rib chiqish foydali bo&apos;lishi mumkin.</p>
+          {watched.map((w) => (
+            <div key={w.productId} style={{ display: "flex", gap: 8, alignItems: "center", padding: "6px 0", borderBottom: "1px solid rgba(255,255,255,0.08)" }}>
+              <b style={{ flex: "1 1 auto" }}>{w.name}</b>
+              <span className="badge badge-warn">❤️ {w.favCount}</span>
+            </div>
+          ))}
+        </section>
+      )}
 
       <section className="panel">
         <div className="panel-title">🧾 Buyurtmalar ({filteredOrders.length}{orders && orders.length !== filteredOrders.length ? ` / ${orders.length}` : ""})</div>
