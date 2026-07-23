@@ -162,6 +162,11 @@ export const EXPECTED_ON: FeatureName[] = [
   "bazar", // 🏪 BirJoy marketplace-qatlam — owner QABUL real telefonda 2026-07-21 («yaxshi chiqibdi»),
            // R4 mustaqil tekshiruv PASS (PROGRESS 07-21). 1 do'kon (BirJoy o'z do'koni, 140 mahsulot);
            // pilot-sellerlar /sotuvchi orqali keladi.
+  // 🤖 Koson AI (2026-07-23): owner-driven AI-FIRST — real tugmalar olib tashlandi, AI endi
+  // ASOSIY interfeys. Avval bu ro'yxatda YO'Q edi — DB reset/migratsiya xatosi butun AI'ni
+  // hech qanday alertsiz o'chirib qo'yishi mumkin edi (reconcileFlags "missing" faqat shu
+  // ro'yxatdagilarni tekshiradi). Endi boshqa har bir owner-accepted feature kabi himoyalangan.
+  "aibrain", "airemind", "aihisob", "aidost", "aicity", "aibilim",
 ];
 
 export async function reconcileFlags(): Promise<{ missing: string[]; effective: { name: string; on: boolean }[] }> {

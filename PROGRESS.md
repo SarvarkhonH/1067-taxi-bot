@@ -1966,3 +1966,41 @@ muammosi (juda tez-tez push). + 2 haqiqiy kod-xatosi ham topilib tuzatilди:
      (user aslida javob olgan, faqat audit-logда yo'q edi). Endi loglanади.
 Isbot: typecheck 0, deploy live 8e08d38. MASLAHAT: bir kechада 31 deploy — ishlab chiqarишдан keyin
 COMMIT'larни to'plab, kamроq marta deploy qilish kerak (ayniqsa faol foydalanish soatlaridа).
+
+## 2026-07-23 (22) — intercity (Shaharlararo/"yo'l") kechiktirildi — ega qarori
+Ega: "shaharlararo bu keyinchalik qilinadigan proyekt" — hozircha diqqat markazida emas.
+`setFlag.ts intercity off` orqali jonli DB'da DARHOL o'chirildi (alertAdmins jo'natildi — jim
+toggle yo'q). `featureFlags.ts`dagi `EXPECTED_ON`dan olib tashlandi (kod endi haqiqatga mos —
+boot-tekshiruv endi "kutilgan ON lekin haqiqiy OFF" nomuvofiqligini xato deb ko'rsatmaydi).
+**Holat:** funksional ta'sir DARHOL — Shaharlararo hozir barcha foydalanuvchilar uchun yashiringan.
+Kod-commit deploy fon rejimida tasdiqlanmoqda (faqat kelajakdagi boot-alert mosligi uchun).
+
+## 2026-07-23 (23) — To'liq AI-reja audit + 2 gap tuzatildi (rebrend + xavfsizlik-tarmog'i)
+Ega so'roви: "jonli monitoring rejaga moсми, hamma narsani ko'r". KOSON_AI_PLAN.md + Founder Bible
+bilan solishtirilди. YADRO (K1-K4, aibilim, provider-registry, generic-fabrika) — reja bilan TO'LIQ
+MOS, jonli, flaglar ON. Admin «AI Bilim» UI — bundle-grep bilan JONLI ekani tasdiqlandi (eski
+xotira-yozuv "deploy qilinmagan" degan edi — ESKIRGAN, memory'da tuzatildi).
+2 GAP topildi va tuzatildi (ega tasdiqi bilan: "1067 taxi o'zни xizmати uchun qolsin, umumiy
+narsalar BirJoy bo'lsin" — farqlandi):
+  1. **Rebrend to'liq emas edi** — Telegram-bot matnlari (bot.ts) rebrend qilingan, lekin Mini
+     App'ning O'ZI (rider har safar ko'radigan asosiy ekran) tekshirilmagan qolgan edi:
+     - miniapp/App.tsx Uy-tab sarlavhasi «1067TAXI» → **«BirJoy»** (umumiy ilova-brendi, taxi-
+       modul emas — «uy» barcha bo'lim uchun default landing).
+     - miniapp/telegram.ts inviteText — bot.ts'даги clientInviteText bilan "KEEP IN SYNC" izohli
+       edi, lekin sync emas edi → **BirJoy**ga tenglashtirildi.
+     - admin/App.tsx: sidebar sarlavhasi, login sahifasi (title+footer), broadcast-preview
+       (telefon-mokap: chat-sarlavha + bubble-header) — hammasi **BirJoy**ga.
+     - ATAYLAB O'ZGARTIRILMADI (haqiqatан taksi-o'zi xizmati): server.ts driverQrLink shareText,
+       miniapp/driver.tsx QR-fallback (haydovchi-taksi mijoz-jalb dasturi), booking3.tsx «1067
+       taxidaman» jonli-kuzatuv matni (aynan taksida ekanlikni aytади), kas/client.ts+mock.ts
+       companyName (kas1067 tashqi API'нинг o'z nomi, brend emas — ma'lumot).
+     Isbot: miniapp bundle-grep (1067taxi-miniapp.vercel.app) — 3× "BirJoy" (yangi), 1× "TAXI"
+     qoldi (faqat booking3 jonli-kuzatuv, ataylab); admin bundle-grep (admin-seven-ebon-95.vercel.app)
+     — 5× "BirJoy", 0× "1067 TAXI/Taxi".
+  2. **AI flaglar xavfsizlik-tarmog'ida yo'q edi** — `EXPECTED_ON` (DB-reset alert-ro'yxati) da
+     aibrain/airemind/aihisob/aidost/aicity/aibilim YO'Q edi — bu ENDI ASOSIY INTERFEYS (tugmalar
+     yo'q!), lekin DB reset bo'lsa hech qanday alert kelmасди (boshqa har bir owner-accepted
+     feature himoyalangan, AI esa yo'q edi). Endi qo'shildi (aineeds hali qo'shilmади — u hali
+     owner tomonидан yoqilmagan, to'g'ri holat).
+Isbot: server+miniapp+admin tsc --noEmit = 0 (barchasi). Deploy: server (Render, GH Actions) +
+miniapp (Vercel prod, prebuilt) + admin (Vercel prod, prebuilt) — hammasi bundle-grep bilan tasdiqlanди.

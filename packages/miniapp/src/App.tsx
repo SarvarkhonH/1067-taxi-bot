@@ -312,7 +312,11 @@ export function App() {
   // 📋 E'lonlar (feature "elonlar", E1): flag ON bo'lsa Reyting'ning tabbar o'rnini egallaydi —
   // Reyting ekrani o'zi o'chmaydi, faqat kirish nuqtasi uy tugmasiga ko'chadi (home.tsx/uy.tsx +
   // GO_MAP orqali hali ham ochiladi). Flag OFF bo'lsa tabbar ESKIcha (Reyting joyida) qoladi.
-  if (me.flags?.elonlar) {
+  // 2026-07-23: owner — pastki tabbardan HOZIRCHA olib qo'yildi (Reyting joyida qoladi). E'lonlar
+  // xizmatining o'zi O'CHMAGAN — nh-rail/hub "E'lon" tugmasi + go=elonlar deep-link orqali hali
+  // ham ochiladi. Qayta yoqish: shu shartni `me.flags?.elonlar` ga qaytaring.
+  const ELONLAR_IN_TABBAR = false;
+  if (ELONLAR_IN_TABBAR && me.flags?.elonlar) {
     const ELONLAR_TAB = { id: "elonlar" as Tab, icon: "board", label: "E'lonlar" };
     TABS = TABS.map((t) => (t.id === "reyting" ? ELONLAR_TAB : t));
   }
@@ -335,9 +339,10 @@ export function App() {
       <div className="aurora" />
       <header className="topbar">
         <div className="brand">
-          {/* tepadagi sarlavha kontekstli: faqat Uy'da «1067 TAXI», qolgan tablarda tab nomi */}
+          {/* tepadagi sarlavha kontekstli: Uy'da (butun ilova brendi) «BirJoy», qolgan tablarda tab nomi.
+              «1067» faqat taksi-dispetcher raqami — brend sifatida ishlatilMAYDI (CLAUDE.md qoidasi). */}
           <span className="brand-name">
-            {tab === "uy" ? <>1067<b>TAXI</b></>
+            {tab === "uy" ? <b>BirJoy</b>
               : tab === "wallet" ? "Hamyon"
               : tab === "dokon" ? <b>Do'kon</b>
               : tab === "xizmat" ? <b>Xizmatlar</b>
@@ -345,7 +350,7 @@ export function App() {
               : tab === "restoran" ? <b>Restoran</b>
               : tab === "reyting" ? "Reyting"
               : tab === "driver" ? "Daromad"
-              : <>1067<b>TAXI</b></>}
+              : <b>BirJoy</b>}
           </span>
           {/* 👥 social proof — 10 000 baza + real a'zolar (har yangi qo'shilganda o'sadi → tirik, viral) */}
           <span className="member-chip">👥 {stableMemberCount(me.botMembers ?? 0).toLocaleString("ru-RU")} a'zo</span>

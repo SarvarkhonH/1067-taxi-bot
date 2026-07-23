@@ -164,7 +164,7 @@ export function App() {
         <div className="sb-brand">
           <span className="sb-logo">🚕</span>
           <div>
-            <div className="sb-title">1067 TAXI</div>
+            <div className="sb-title">BirJoy</div>
             <div className="sb-sub">Command Center</div>
           </div>
         </div>
@@ -1232,13 +1232,13 @@ function ActionsView({ onHistory }: { onHistory?: () => void }) {
               <div className="bc-phone-head">
                 <div className="bc-phone-av">🚕</div>
                 <div>
-                  <div className="bc-phone-title">1067 Taxi</div>
+                  <div className="bc-phone-title">BirJoy</div>
                   <div className="bc-phone-sub">bot</div>
                 </div>
               </div>
               <div className="bc-phone-body">
                 <div className="bc-bubble">
-                  <b>📣 1067 Taxi</b><br /><br />
+                  <b>📣 BirJoy</b><br /><br />
                   {text.trim()
                     ? <span dangerouslySetInnerHTML={{ __html: previewHtml(text) }} />
                     : <span className="bc-bubble-empty">Xabar matni shu yerda ko'rinadi…</span>}
@@ -4142,7 +4142,7 @@ function LoginScreen({ onAuthed }: { onAuthed: () => void }) {
     <div className="login-wrap">
       <form className="login-card" onSubmit={submit}>
         <div className="login-logo">🚕</div>
-        <h1 className="login-title">1067 TAXI · Command</h1>
+        <h1 className="login-title">BirJoy · Command</h1>
         <p className="login-sub muted">Boshqaruv markaziga kirish</p>
 
         <label className="login-label">Parol</label>
@@ -4167,7 +4167,7 @@ function LoginScreen({ onAuthed }: { onAuthed: () => void }) {
           {busy ? "Tekshirilmoqda…" : "Kirish →"}
         </button>
 
-        <p className="login-foot muted">Faqat administratorlar uchun · 1067 Taxi</p>
+        <p className="login-foot muted">Faqat administratorlar uchun · BirJoy</p>
       </form>
     </div>
   );
