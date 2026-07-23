@@ -83,10 +83,27 @@ function Badges({ p }: { p: ShopProductView }) {
 
 function PriceBlock({ p, big }: { p: ShopProductView; big?: boolean }) {
   const d = discountPct(p);
+  const [why, setWhy] = useState(false);
   return (
     <div className={big ? "shop-price-big" : "shop-price-line"}>
       <span className={big ? "shop-confirm-total" : "shop-price-chip"}>🪙 {formatNumber(p.priceTanga)}</span>
       {d > 0 && <span className="shop-price-old">{formatNumber(p.oldPriceTanga!)}</span>}
+      {/* §10.2: "Nima uchun bu narx?" — narx-tarkibi shaffofligi, faqat detail-sahifada (big) */}
+      {big && (
+        <button className="shop-price-why" onClick={() => setWhy((v) => !v)} aria-label="Nima uchun bu narx?">
+          ⓘ Nima uchun bu narx?
+        </button>
+      )}
+      {big && why && (
+        <div className="shop-price-why-box">
+          {d > 0 ? (
+            <p>Asl narx <b>{formatNumber(p.oldPriceTanga!)}</b> edi — hozir <b>−{d}%</b> chegirma bilan <b>{formatNumber(p.priceTanga)}</b>.</p>
+          ) : (
+            <p>Bu — sotuvchi belgilagan mahsulot narxi, chegirmasiz.</p>
+          )}
+          <p className="muted">🚚 Yetkazish narxga kiritilmagan — sotuvchi qo&apos;ng&apos;iroq qilib manzil/yetkazishni kelishadi.</p>
+        </div>
+      )}
     </div>
   );
 }

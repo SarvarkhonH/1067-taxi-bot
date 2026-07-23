@@ -1605,11 +1605,16 @@ body {
 .shop-badge-top { position: absolute; top: 6px; right: 6px; font-size: 10px; font-weight: 800; padding: 3px 8px; border-radius: var(--r-chip); background: linear-gradient(135deg, #ff9500, #f0426b); color: #fff; }
 .shop-badge-top ~ .shop-badge-stock { top: auto; bottom: 6px; }
 .shop-price-line { display: flex; align-items: center; gap: 8px; justify-content: center; }
-.shop-price-big { display: flex; align-items: baseline; gap: 10px; }
+.shop-price-big { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
 .shop-price-old { font-size: 12px; color: var(--text-dim, #9aa0a6); text-decoration: line-through; }
 /* detail extras */
 .shop-detail { display: flex; flex-direction: column; gap: 6px; }
 .shop-deliver-line { font-size: 12.5px; padding: 9px 11px; border-radius: 10px; background: rgba(56,189,248,.1); border: 1px solid rgba(56,189,248,.25); color: #bae6fd; margin: 4px 0 8px; }
+/* §10.2: "Nima uchun bu narx?" — narx-tarkibi shaffofligi (faqat detail-sahifa, PriceBlock big) */
+.shop-price-why { font-size: 12px; font-weight: 700; color: var(--text-dim, #9aa0a6); background: none; border: none; padding: 0; text-decoration: underline; cursor: pointer; }
+.shop-price-why-box { flex-basis: 100%; font-size: 12.5px; color: var(--text-dim, #9aa0a6); background: var(--surface-2); border: 1px solid var(--line); border-radius: 10px; padding: 9px 11px; margin-top: 6px; display: flex; flex-direction: column; gap: 4px; }
+.shop-price-why-box p { margin: 0; }
+.shop-price-why-box b { color: var(--text); }
 /* similar mini-cards */
 .shop-mini { flex: 0 0 108px; border: 1px solid var(--line); border-radius: 14px; overflow: hidden; background: var(--surface-2); padding: 0 0 8px; text-align: center; }
 .shop-mini:active { transform: scale(.96); }
