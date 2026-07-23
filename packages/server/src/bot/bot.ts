@@ -1181,7 +1181,7 @@ export function createBot(): Bot {
         insufficient: "Tanga yetarli emas",
         self: "O'zingizga to'lab bo'lmaydi",
         account_too_new: "Hisobingiz hali juda yangi (48 soat kutiladi)",
-        locked: "🎁 Sovg'a tangani birinchi safaringizdan keyin ishlatasiz",
+        locked: "🚕 Avval taksidan kamida 3 marta foydalaning",
         daily_sent_cap: "Bugungi o'tkazma limiti tugadi",
         daily_received_cap: "Haydovchining bugungi limiti to'ldi",
         ring: "Bu amal hozircha bloklangan",
@@ -1382,7 +1382,7 @@ export function createBot(): Bot {
   // 📋 /menu — modern in-chat INLINE panel: every button deep-links straight into the Mini App on
   // its screen (web_app buttons). Complements the persistent reply keyboard (sleek tappable cards).
   const showInlineMenu = async (ctx: Context): Promise<void> => {
-    if (!canWebApp) { await ctx.reply("📋 Menyu pastdagi tugmalarda 👇"); return; }
+    if (!canWebApp) { await ctx.reply("💬 Shunchaki yozing yoki gapiring — men tushunaman: «taksi», «osh buyurtma qil», «santexnik kerak», «balansim»..."); return; }
     const kb = new InlineKeyboard()
       .webApp("🚕 Taxi chaqirish", webAppUrl("book")).row()
       .webApp("🚀 Ilovani ochish", webAppUrl()).row()
@@ -2053,7 +2053,10 @@ export function createBot(): Bot {
     const chat = ctx.chat;
     // In private chat — same as /book
     if (chat.type === "private") {
-      await ctx.reply("🚕 Taxi chaqirish uchun quyidagi tugmani bosing:", { parse_mode: "HTML", reply_markup: await mainMenu(false, String(ctx.from?.id ?? "")) });
+      const { InlineKeyboard } = await import("grammy");
+      await ctx.reply("🚕 Taksi chaqiramiz! Manzilingizni yozing yoki 📍 joylashuvingizni yuboring — yoki bir bosishda:", {
+        reply_markup: new InlineKeyboard().text("🚕 1-bosishda chaqirish", "bk:now"),
+      });
       return;
     }
     // In group — check whitelist

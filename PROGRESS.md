@@ -2,30 +2,26 @@
 
 ## Jarayonda (yangi)
 
-### 🎁 Welcome-funnel guard — sovg'ani P2P-transferdan qulflash — `ready for verification`
+### 🚕 Paid-out ride-gate (welcome-funnel fix) — `ready for verification`
 **Exploit:** bola odamlarni ulab (har biriga 5000 welcome tushadi), ularning sovg'asini o'ziga
-transfer qilib olib, keyin naqdga chiqargan. Ildiz: 2026-06-29'da P2P to'liq ochilган
-(`TRANSFER_MIN_ACCOUNT_AGE_H=0`, caps 100k) + welcome oddiy transfer qilinadigan tanga edi. Withdraw
-`no_ride` gate faqat safarsiz akkauntni to'xtatgan, lekin welcome safarli mule'ga funnel qilinganda
-gate mule'da o'tib ketgan.
-- **Fix (Variant A):** welcome tanga OWNER o'zi 1 real safar qilmaguncha NON-TRANSFERABLE.
-  - `Member.welcomeLockTrips Int?` (additiv, jonli DB'ga push qilingan) — grant paytidagi trips snapshot
-    ([memberService.ts](packages/server/src/services/memberService.ts) `grantJoinWelcome`).
-  - `transferService.transfer()` — `sender.welcomeLockTrips != null && trips <= snapshot` bo'lsa,
-    welcome miqdori (`welcome_join:*` CoinTxn) transferable balansdan chiqariladi → `charged >
-    coins - locked` ⇒ `fail("locked")`. **Barcha kind'ga** (transfer/tip/fare — driver bo'lib
-    tip/fare orqali yig'ishni ham yopadi). `trips > snapshot` (bir real safar) → butunlay ochiladi.
-  - UI: wallet.tsx + bot.ts + booking.ts'ga `locked` xabari.
-- **Isbot:** `scripts/testWelcomeLock.ts` — 12/12 yashil, **3× ket-ket** (pul-test barqarorligi). Bloklar:
-  full/partial welcome, tip, fare; earned qism o'tadi; safardan keyin ochiladi; lock-siz a'zo tegilmaydi.
+transfer qilib olib, keyin naqdga chiqargan. Ildiz: 2026-06-29'da P2P to'liq ochilgan
+(`TRANSFER_MIN_ACCOUNT_AGE_H=0`, caps 100k) + welcome oddiy transfer qilinadigan tanga edi; withdraw
+`no_ride` gate faqat safarsiz akkauntni to'xtatgan, welcome safarli mule'ga funnel qilinganda o'tib ketgan.
+- **Fix (owner qaror, 2026-07-23):** welcome BERILADI (o'chirilmaydi) + ilova ichida DARHOL sarflanadi
+  (shop/market/e'lon ochiq), lekin **client `trips < 3` bo'lsa hech qanday tanga akkauntdan CHIQMAYDI**:
+  - `MIN_RIDES_FOR_PAID = 3` ([shared/economy.ts](packages/shared/src/economy.ts)).
+  - Withdraw: `trips < 3` → `no_ride` (edi `< 1`) — [coinService.ts:247](packages/server/src/services/coinService.ts:247).
+  - Transfer/tip/fare: `sender.type==="client" && trips < 3` → `fail("locked")` — [transferService.ts](packages/server/src/services/transferService.ts).
+  - 3 real safardan keyin hammasi (welcome ham) normal ishlaydi. Drivers exempt (vetted kas).
+  - UI: `no_ride`+`locked` xabarlari → "🚕 Avval taksidan kamida 3 marta foydalaning" (wallet.tsx, bot.ts, booking.ts).
+  - `Member.welcomeLockTrips` ustuni endi UNUSED (avvalgi 1-safar snapshot yondashuvi bekor qilindi; ustun DB'da qoldi, drop keyingi push'da).
+- **Isbot:** `scripts/testPaidRideGate.ts` — 11/11 yashil, **3× ket-ket**. Bloklar: trips 0/2 → transfer/tip/fare/withdraw;
+  in-app spend ochiq; trips 3 → transfer OK; driver trips 0 exempt; ledger invariant.
 - **Detektor (read-only):** `scripts/findWelcomeFunnel.ts` — jonli DB'da **20 shubhali mule** topdi
-  (masalan #6904 Муртазаeв: 10 ta trips=0 qalbaki yuboruvchi ×~5000; #6550 Ataqulov: 9 ta). Egangiz
-  ko'rib chiqishi kerak (heuristic — ba'zi yuboruvchilar haqiqiy sovg'a bo'lishi mumkin).
-- **Clawback helper:** `scripts/banFunnelMule.ts <id>` — default dry-run; `--confirm` riskFlag (naqd
-  eshigini muzlatadi, qaytariladi); `--ban` to'liq ban. Pulni AVTOMATIK qaytarmaydi (har mule egangiz qarori).
-- **Qamralmagan (owner qadami):** shubhali mule'larni ko'rib chiqib freeze/ban; kerak bo'lsa pulni qo'lda qaytarish.
-- **Eslatma:** `testTransfer.ts` eskirgan (48h/30k/burn=20 kutadi — 2026-06-29 bo'shatishdan keyin sinxronsiz).
-  `bot.ts:1579` typecheck xatosi ALOHIDA — parallel `booking.ts` (webAppUrl) tahriridan, bu ishga aloqasiz.
+  (#6904 Муртазаeв: 10 ta trips=0 ×~5000; #6550 Ataqulov: 9 ta). Heuristic — egangiz ko'rib chiqishi kerak.
+- **Clawback helper:** `scripts/banFunnelMule.ts <id>` — default dry-run; `--confirm` riskFlag (naqd muzlatish, qaytariladi); `--ban` to'liq ban. Pulni AVTOMATIK qaytarmaydi.
+- **Qamralmagan (owner qadami):** shubhali mule'larni ko'rib chiqib freeze/ban; kerak bo'lsa pulni qo'lda qaytarish; deploy.
+- **Eslatma:** `testTransfer.ts` eskirgan (48h/30k/burn=20 — 2026-06-29'dan sinxronsiz); mkMember trips 5'ga ko'tarildi, lekin to'liq rewrite kerak.
 
 ### 🔁 "Yana shu yo'l" — 1-tap repeat-route chips (NEXT_LEVEL_PLAN 1.1) — `ready for verification`
 Home screen (LivingHome + uy.tsx fallback) endi safar tarixidan so'nggi 3 ta DISTINCT yo'nalishni chip
@@ -1943,3 +1939,11 @@ mos): taksi/tanga/g'ildirak/cashback/referal(2000+5000)/Plus(9990,×1.5)/Gap/str
 ovqat/xizmat/do'kon/e'lon/reys/eslatma/hisob + yo'l-yo'riq+undash ko'rsatmasi. SYSTEM-promptga
 doim ulanadi. Isbot: typecheck 0 · AI-test: «tangani qanday yechaman»/«Plus nima»/«do'st chaqirsam»/
 «cashback qanday» → aniq, to'g'ri, tushuntirib javob berdi (raqamlar mos).
+
+## 2026-07-23 (21) — AI-first edge-case audit + buzuq matnlar tuzatildi (ega so'radi)
+Menyu olib tashlangач «tugmani bosing 👇» degan buzuq matnlar tuzatildi: /taksi(private)→1-tap inline
+tugma; booking «Asosiy menyu 👇»→iliq AI-first matn; «Taxi chaqirish tugmasini bosing»→«taksi deb
+yozing»; !canWebApp menyu matni. Edge-test (6 case): imkoniyatlar✓ · bema'ni-xabar iliq✓(crash yo'q)
+· SHAXSIY «maxfiy manzil»→bilim_saqla QILMADI (maxfiylik)✓ · OMMAVIY fakt→saqladi✓ · rahmat→iliq✓ ·
+ko'p-native so'rov→bittasini tanlaydi (single-action cheklovi). showProfile ulanmaganда promptLink✓.
+Isbot: typecheck 0. QOLGAN maslahat: jonli monitoring + eski userlarga «yangilandi» xabari (ixtiyoriy).

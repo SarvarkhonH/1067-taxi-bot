@@ -315,7 +315,7 @@ async function showTracking(ctx: Context): Promise<void> {
   const b = await getDataSource().getActiveBooking(me.member.phone).catch(() => null);
   if (!b) {
     const kb = canWebApp ? new InlineKeyboard().webApp("🗺 Xaritada chaqirish — Mini App", webAppUrl("book")) : undefined;
-    await ctx.reply("Sizda hozircha faol buyurtma yo'q.\n«🚕 Taxi chaqirish» tugmasini bosing.", { reply_markup: kb });
+    await ctx.reply("Sizda hozircha faol buyurtma yo'q.\n«taksi» deb yozing yoki manzilingizni yuboring 🚕", { reply_markup: kb });
     return;
   }
   await ctx.reply(renderTracking(b), { parse_mode: "HTML", reply_markup: trackingKb(b) });
@@ -691,7 +691,7 @@ export function registerBooking(bot: Bot, mainMenu: (isDriver?: boolean, tgId?: 
       const msgs: Record<string, string> = {
         insufficient: "Tanga yetarli emas",
         account_too_new: "Hisobingiz hali juda yangi (48 soat kutiladi)",
-        locked: "🎁 Sovg'a tangani birinchi safaringizdan keyin ishlatasiz",
+        locked: "🚕 Avval taksidan kamida 3 marta foydalaning",
         daily_sent_cap: "Bugungi o'tkazma limiti tugadi",
         daily_received_cap: "Haydovchining bugungi limiti to'ldi",
         ring: "Bu amal hozircha bloklangan",
@@ -737,7 +737,7 @@ export function registerBooking(bot: Bot, mainMenu: (isDriver?: boolean, tgId?: 
     await ctx.editMessageText("❌ Buyurtma bekor qilindi.").catch(() => undefined);
     // bring the main menu back (the pickup reply-keyboard would otherwise stay stuck)
     const me = await getMe(String(ctx.from.id));
-    await ctx.reply("🏠 Asosiy menyu 👇", { reply_markup: await mainMenu(me?.type === "driver", String(ctx.from?.id ?? "")) }).catch(() => undefined);
+    await ctx.reply("✅ Bekor qilindi. Yana biror narsa kerak bo'lsa — shunchaki yozing yoki gapiring 😊", { reply_markup: { remove_keyboard: true } }).catch(() => undefined);
   });
 
   bot.callbackQuery("bk:confirm", async (ctx) => {
