@@ -299,6 +299,27 @@ async function callGroq(key: string, system: string, history: ChatMsg[], tools: 
   return m;
 }
 
+// Gemini's generateContent REQUIRES contents[] to (a) start on a "user" turn and (b) strictly
+// alternate user/model — two consecutive same-role turns (or leading straight into "model") get
+// a 400 INVALID_ARGUMENT. Our SupportMsg-derived history has neither guarantee: several bot
+// replies routinely land back-to-back (an action-result line + a follow-up nudge), and the
+// 14-message/3h window can easily start mid-exchange on an assistant line. This is the exact
+// shape live Gemini-console errors (400 BadRequest, 2026-07-23) match — Groq's OpenAI-style API
+// has no such constraint so it never surfaced there. Trim to the first user turn, then merge
+// consecutive same-role turns (joined by newline) so the payload is always valid.
+function geminiContents(history: ChatMsg[]): { role: "user" | "model"; parts: { text: string }[] }[] {
+  const firstUser = history.findIndex((m) => m.role === "user");
+  const trimmed = firstUser >= 0 ? history.slice(firstUser) : history; // current turn is always role:"user", so firstUser >= 0 in practice
+  const out: { role: "user" | "model"; parts: { text: string }[] }[] = [];
+  for (const m of trimmed) {
+    const role = m.role === "assistant" ? "model" : "user";
+    const last = out[out.length - 1];
+    if (last && last.role === role) last.parts[0]!.text += `\n${m.content}`;
+    else out.push({ role, parts: [{ text: m.content }] });
+  }
+  return out;
+}
+
 // K3 chain, provider 2: Gemini 2.0 Flash function-calling (separate free quota). The
 // response is normalized to the same LlmMsg shape so every tool-handler stays unchanged.
 async function callGemini(key: string, system: string, history: ChatMsg[], tools: ToolDef[]): Promise<LlmMsg | "rate"> {
@@ -309,7 +330,7 @@ async function callGemini(key: string, system: string, history: ChatMsg[], tools
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
       systemInstruction: { parts: [{ text: system }] },
-      contents: history.map((m) => ({ role: m.role === "assistant" ? "model" : "user", parts: [{ text: m.content }] })),
+      contents: geminiContents(history),
       tools: [{ functionDeclarations: tools.map((t) => t.function) }],
       // thinkingBudget 128 (minimal): 0 bu modelda 400 INVALID_ARGUMENT beradi (probe
       // 2026-07-22 — va o'sha 400 «all providers failed» 0/11'larning asl sababi edi);
@@ -323,7 +344,13 @@ async function callGemini(key: string, system: string, history: ChatMsg[], tools
     console.error(`[ai-agent] gemini rate/5xx: HTTP ${res.status}`);
     return "rate";
   }
-  if (!res.ok) throw new Error(`gemini ${res.status}`);
+  if (!res.ok) {
+    // 400s were previously a bare "gemini 400" with no clue why — capture the body (error
+    // messages only, e.g. "* GenerateContentRequest.contents: contents must alternate..."; never
+    // contains user text since Gemini's error body only echoes back its own validation message).
+    const body = await res.text().catch(() => "");
+    throw new Error(`gemini ${res.status}: ${body.slice(0, 300)}`);
+  }
   const data = (await res.json()) as {
     candidates?: { content?: { parts?: { text?: string; functionCall?: { name?: string; args?: unknown } }[] } }[];
     promptFeedback?: { blockReason?: string };
