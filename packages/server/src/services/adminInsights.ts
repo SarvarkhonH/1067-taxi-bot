@@ -80,3 +80,24 @@ export async function getApprovalInbox(): Promise<{ pending: InboxItem[]; count:
   }));
   return { pending, count: pending.length };
 }
+
+// 🏪 V1.7/§10.1: "Bugungi holat" — do'kon-tomonning kunlik nabzi, BARCHA do'konlar bo'yicha bir
+// qarashda (owner ko'p-do'kon boshqarganda har birini alohida ochib tekshirmasin).
+export interface ShopDailyStatus {
+  pendingOrders: number; // ShopPurchase (legacy 1-dona buy) — hali javob kutayotgan
+  unansweredChats: number; // C1: mijozdan kelgan, hali o'qilmagan/javobsiz xabarlar (barcha do'kon)
+  todayStories: number; // S1: bugun joylangan hikoyalar soni (barcha do'kon)
+  activeShops: number;
+}
+
+export async function getShopDailyStatus(): Promise<ShopDailyStatus> {
+  const todayStart = tashkentMidnightUtc(0);
+  const [pendingOrders, unansweredChats, todayStories, activeShops] = await Promise.all([
+    prisma.shopPurchase.count({ where: { status: "pending" } }),
+    // "unread" bilan bir xil semantika — shopChatService.listShopChatConversations
+    prisma.supportMsg.count({ where: { shopId: { not: null }, direction: "in", read: false } }),
+    prisma.shopStory.count({ where: { createdAt: { gte: todayStart } } }),
+    prisma.marketShop.count({ where: { active: true } }),
+  ]);
+  return { pendingOrders, unansweredChats, todayStories, activeShops };
+}

@@ -586,10 +586,11 @@ export function createApiServer(opts: ApiOptions = {}) {
     const { cancelMarketOrder } = await import("../services/marketOrderService");
     return await cancelMarketOrder(Number(req.params.id), id); // egalik-guard service ichida
   }));
-  // seller/ega paneli uchun (scoped): market-buyurtmalar ro'yxati
+  // seller/ega paneli uchun (scoped): market-buyurtmalar ro'yxati. V1.7: owner ham `?shopId=`
+  // bilan tanlaydi (hali UI'ga ulanmagan — bazarcart hali DARK — lekin flag yoqilganda tayyor turadi).
   app.get("/api/admin/shop/market-orders", requireAdmin, requireShopWrite, async (req, res) => {
     const { adminListMarketOrders } = await import("../services/marketOrderService");
-    res.json({ orders: await adminListMarketOrders(req.query?.status ? String(req.query.status) : undefined, res.locals.sellerShopId as number | undefined) });
+    res.json({ orders: await adminListMarketOrders(req.query?.status ? String(req.query.status) : undefined, resolveProfileShopId(req, res) ?? undefined) });
   });
 
   // ── 🗣 shop reviews: sharh + 👍/👎 + up to 3 rasm ────────────────────────────────────────────
@@ -2360,6 +2361,12 @@ body{font-family:Arial,sans-serif;background:#eee;-webkit-print-color-adjust:exa
   app.get("/api/admin/anomalies", requireAdmin, async (_req, res) => {
     const { getAnomalies } = await import("../services/adminInsights");
     res.json(await getAnomalies());
+  });
+  // 🏪 §10.1: "Bugungi holat" — owner-only (barcha do'konlar bo'yicha aralash hisob, seller-token
+  // uchun ma'nosiz — o'z do'konidan tashqarisini ko'rmaydi).
+  app.get("/api/admin/shop/daily-status", requireAdmin, requireOwner, async (_req, res) => {
+    const { getShopDailyStatus } = await import("../services/adminInsights");
+    res.json(await getShopDailyStatus());
   });
   app.get("/api/admin/inbox", requireAdmin, async (_req, res) => {
     const { getApprovalInbox } = await import("../services/adminInsights");

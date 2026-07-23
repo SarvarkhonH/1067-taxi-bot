@@ -1912,6 +1912,9 @@ function ShopAdminView() {
   const [myShops, setMyShops] = useState<{ id: number; name: string; active: boolean }[] | null>(null);
   const [shopId, setShopId] = useState<number | null>(null);
   useEffect(() => { adminApi.marketShops().then((r) => setMyShops(r.shops)).catch(() => setMyShops(null)); }, []);
+  // §10.1: "Bugungi holat" — owner-only (seller-token 403 → jim ko'rinmaydi, sellerga foydasiz ma'lumot)
+  const [dailyStatus, setDailyStatus] = useState<{ pendingOrders: number; unansweredChats: number; todayStories: number; activeShops: number } | null>(null);
+  useEffect(() => { adminApi.shopDailyStatus().then(setDailyStatus).catch(() => setDailyStatus(null)); }, []);
 
   const load = (sid = shopId) => {
     adminApi.shopProducts(sid ?? undefined).then(setData).catch(() => undefined);
@@ -1998,6 +2001,17 @@ function ShopAdminView() {
 
   return (
     <>
+      {dailyStatus && (
+        <section className="panel">
+          <div className="panel-title">📊 Bugungi holat</div>
+          <div style={{ display: "flex", gap: 16, flexWrap: "wrap" }}>
+            <span>⏳ <b>{dailyStatus.pendingOrders}</b> buyurtma javob kutmoqda</span>
+            <span>💬 <b>{dailyStatus.unansweredChats}</b> javobsiz mijoz-xabari</span>
+            <span>📹 <b>{dailyStatus.todayStories}</b> bugungi hikoya</span>
+            <span>🏪 <b>{dailyStatus.activeShops}</b> faol do&apos;kon</span>
+          </div>
+        </section>
+      )}
       {myShops && myShops.length > 1 && (
         <section className="panel">
           <div className="panel-title">🏪 Do&apos;konlar ({myShops.length})</div>
