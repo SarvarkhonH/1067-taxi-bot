@@ -1907,13 +1907,18 @@ function ShopAdminView() {
   const [expandedId, setExpandedId] = useState<number | null>(null);
   const [draft, setDraft] = useState<ShopDraft | null>(null);
   const [saving, setSaving] = useState(false);
+  // V1.7: ega ko'p-do'kon boshqaruvi — real seller-token uchun bu ro'yxat 403 qaytaradi (requireOwner),
+  // shuning uchun tanlagich JIM ko'rinmaydi (seller o'zgarishsiz, faqat O'Z do'koni ko'radi).
+  const [myShops, setMyShops] = useState<{ id: number; name: string; active: boolean }[] | null>(null);
+  const [shopId, setShopId] = useState<number | null>(null);
+  useEffect(() => { adminApi.marketShops().then((r) => setMyShops(r.shops)).catch(() => setMyShops(null)); }, []);
 
-  const load = () => {
-    adminApi.shopProducts().then(setData).catch(() => undefined);
-    adminApi.shopOrders().then((r) => setOrders(r.orders)).catch(() => setOrders([]));
-    adminApi.shopReviews().then((r) => setReviews(r.reviews)).catch(() => setReviews([]));
+  const load = (sid = shopId) => {
+    adminApi.shopProducts(sid ?? undefined).then(setData).catch(() => undefined);
+    adminApi.shopOrders(undefined, sid ?? undefined).then((r) => setOrders(r.orders)).catch(() => setOrders([]));
+    adminApi.shopReviews(sid ?? undefined).then((r) => setReviews(r.reviews)).catch(() => setReviews([]));
   };
-  useEffect(() => { load(); }, []);
+  useEffect(() => { load(); }, [shopId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const quickEdit = async (id: number, patch: Record<string, unknown>, okMsg = "✅ Saqlandi") => {
     await adminApi.shopEdit(id, patch).catch(() => undefined);
@@ -1924,8 +1929,10 @@ function ShopAdminView() {
   const create = async () => {
     const p = Number(price), s = Number(stock);
     if (!name.trim() || p <= 0) { setMsg("⚠️ Nom va narx to'g'ri bo'lsin"); return; }
+    // ko'p-do'kon: aniq tanlanmagan bo'lsa qaysi do'konga tushishini owner bilmaydi — talab qilamiz
+    if (myShops && myShops.length > 1 && !shopId) { setMsg("⚠️ Avval yuqorida do'kon tanlang"); return; }
     // real error surfaced (was a blind "❌ Xatolik" — undiagnosable remotely)
-    const r = await adminApi.shopCreate({ name: name.trim(), priceTanga: p, stock: Math.max(0, s || 0), category: category.trim() || "umumiy", description: desc.trim() || undefined })
+    const r = await adminApi.shopCreate({ name: name.trim(), priceTanga: p, stock: Math.max(0, s || 0), category: category.trim() || "umumiy", description: desc.trim() || undefined }, shopId ?? undefined)
       .catch((e: Error) => ({ ok: false as const, error: e.message }));
     setMsg(r.ok ? "✅ Qo'shildi (o'chiq holda — rasm yuklab, keyin yoqing)" : `❌ Qo'shilmadi: ${("error" in r && r.error) || "server javob bermadi — 1 daqiqadan keyin urinib ko'ring"}`);
     if (r.ok) { setName(""); setPrice(""); setStock(""); setDesc(""); setShowAdd(false); load(); }
@@ -1991,6 +1998,18 @@ function ShopAdminView() {
 
   return (
     <>
+      {myShops && myShops.length > 1 && (
+        <section className="panel">
+          <div className="panel-title">🏪 Do&apos;konlar ({myShops.length})</div>
+          <div className="adm-field">
+            <span className="adm-field-label">Mahsulot/buyurtma/sharh — qaysi do&apos;kon?</span>
+            <select value={shopId ?? ""} onChange={(e) => setShopId(e.target.value ? Number(e.target.value) : null)}>
+              <option value="">— Barcha do&apos;konlar (aralash) —</option>
+              {myShops.map((s) => <option key={s.id} value={s.id}>{s.name}{s.active ? "" : " (nofaol)"}</option>)}
+            </select>
+          </div>
+        </section>
+      )}
       <ShopProfilePanel />
       <ShopChatInbox />
       <section className="panel">
@@ -2000,6 +2019,11 @@ function ShopAdminView() {
           Jami {data?.products.length ?? 0} ta mahsulot{data && data.pendingOrders > 0 && <b style={{ color: "#f59e0b" }}> · ⏳ {data.pendingOrders} ta buyurtma Telegram&apos;da javob kutmoqda</b>}.
         </p>
         <button className="btn sm" onClick={() => setShowAdd((v) => !v)}>{showAdd ? "✖ Yopish" : "➕ Yangi mahsulot qo'shish"}</button>
+        {showAdd && myShops && myShops.length > 1 && (
+          <p className="adm-field-hint" style={{ marginTop: 10 }}>
+            {shopId ? <>Yangi mahsulot «<b>{myShops.find((s) => s.id === shopId)?.name}</b>» do&apos;koniga qo&apos;shiladi (yuqoridagi tanlov).</> : <b style={{ color: "#f59e0b" }}>⚠️ Avval yuqorida qaysi do&apos;kon ekanini tanlang.</b>}
+          </p>
+        )}
         {showAdd && (
           <div className="adm-form-grid" style={{ marginTop: 10 }}>
             <div className="adm-field"><span className="adm-field-label">Nomi</span><input value={name} onChange={(e) => setName(e.target.value)} placeholder="Elektro choynak Vitek" /></div>
@@ -2040,6 +2064,7 @@ function ShopAdminView() {
                   {p.oldPriceTanga ? <span className="badge badge-bad">💥 −{Math.round((1 - p.priceTanga / p.oldPriceTanga) * 100)}%</span> : null}
                 </div>
                 <div className="adm-card-sub">
+                  {!shopId && p.shopName && <span>🏪 {p.shopName}</span>}
                   <span>{p.category}</span>
                   <span>🪙 {p.priceTanga.toLocaleString("ru-RU")}</span>
                   <span>📦 {p.stock} dona</span>
@@ -2088,7 +2113,7 @@ function ShopAdminView() {
         {(orders ?? []).map((o) => (
           <div key={o.id} style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", padding: "8px 0", borderBottom: "1px solid rgba(255,255,255,0.08)" }}>
             <span style={{ flex: "2 1 220px" }}>
-              #{o.id} <b>{o.productName}</b> <span className="muted">· {o.buyerName} · {o.contact}</span>
+              #{o.id} <b>{o.productName}</b> <span className="muted">· {o.buyerName} · {o.contact}{!shopId && o.shopName ? ` · 🏪 ${o.shopName}` : ""}</span>
             </span>
             <span className="muted" style={{ flex: "2 1 180px", fontSize: 12 }}>📍 {o.address}</span>
             <span className={"badge " + (o.status === "delivered" ? "badge-ok" : o.status === "pending" ? "badge-warn" : "badge-bad")}>{stLabel[o.status] ?? o.status}</span>
@@ -2102,7 +2127,7 @@ function ShopAdminView() {
         {(reviews ?? []).map((r) => (
           <div key={r.id} style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", padding: "8px 0", borderBottom: "1px solid rgba(255,255,255,0.08)" }}>
             <span style={{ flex: "2 1 220px" }}>
-              {r.thumb === "up" ? "👍" : "👎"} <b>{r.productName}</b> <span className="muted">· {r.memberName}{r.photoCount > 0 ? ` · 📷${r.photoCount}` : ""}</span>
+              {r.thumb === "up" ? "👍" : "👎"} <b>{r.productName}</b> <span className="muted">· {r.memberName}{r.photoCount > 0 ? ` · 📷${r.photoCount}` : ""}{!shopId && r.shopName ? ` · 🏪 ${r.shopName}` : ""}</span>
             </span>
             <span className="muted" style={{ flex: "3 1 220px", fontSize: 12 }}>{r.text ?? "—"}</span>
             <span className="muted" style={{ fontSize: 11 }}>{new Date(r.createdAt).toLocaleDateString("ru-RU")}</span>

@@ -217,16 +217,19 @@ export const adminApi = {
   editCampaign: (id: string, patch: Record<string, unknown>) => postJson<{ ok: boolean; reason?: string }>("/api/admin/campaigns/edit", { id, ...patch }),
   deleteCampaign: (id: string) => postJson<{ ok: boolean }>("/api/admin/campaigns/delete", { id }),
   // 🛍 tanga shop
-  shopProducts: () => req<{ products: ShopAdminProductRow[]; enabled: boolean; pendingOrders: number }>("/api/admin/shop/products"),
-  shopCreate: (p: { name: string; priceTanga: number; stock: number; category?: string; description?: string }) =>
-    postJson<{ ok: boolean; id?: number; error?: string }>("/api/admin/shop/products", p),
+  shopProducts: (shopId?: number) => req<{ products: ShopAdminProductRow[]; enabled: boolean; pendingOrders: number }>(`/api/admin/shop/products${shopId ? `?shopId=${shopId}` : ""}`),
+  shopCreate: (p: { name: string; priceTanga: number; stock: number; category?: string; description?: string }, shopId?: number) =>
+    postJson<{ ok: boolean; id?: number; error?: string }>("/api/admin/shop/products", shopId ? { ...p, shopId } : p),
   shopEdit: (id: number, patch: Record<string, unknown>) => postJson<{ ok: boolean }>(`/api/admin/shop/products/${id}`, patch),
   shopToggle: (id: number, active: boolean) => postJson<{ ok: boolean }>(`/api/admin/shop/products/${id}/toggle`, { active }),
   shopDelete: (id: number) => req<{ ok: boolean }>(`/api/admin/shop/products/${id}`, { method: "DELETE" }),
   shopPhotoUpload: (id: number, mime: string, base64: string) => postJson<{ ok: boolean; error?: string; photoCount?: number }>(`/api/admin/shop/products/${id}/photo`, { mime, base64 }),
   shopPhotoClear: (id: number) => req<{ ok: boolean }>(`/api/admin/shop/products/${id}/photo`, { method: "DELETE" }),
-  shopOrders: (status?: string) => req<{ orders: ShopAdminOrderRow[] }>(`/api/admin/shop/orders${status ? `?status=${status}` : ""}`),
-  shopReviews: () => req<{ reviews: ShopAdminReviewRow[] }>("/api/admin/shop/reviews"),
+  shopOrders: (status?: string, shopId?: number) => {
+    const qs = [status ? `status=${status}` : "", shopId ? `shopId=${shopId}` : ""].filter(Boolean).join("&");
+    return req<{ orders: ShopAdminOrderRow[] }>(`/api/admin/shop/orders${qs ? `?${qs}` : ""}`);
+  },
+  shopReviews: (shopId?: number) => req<{ reviews: ShopAdminReviewRow[] }>(`/api/admin/shop/reviews${shopId ? `?shopId=${shopId}` : ""}`),
   shopReviewDelete: (id: number) => req<{ ok: boolean }>(`/api/admin/shop/reviews/${id}`, { method: "DELETE" }),
   // 🏪 D2: do'kon-profil (story/e'lon/mahalla/muqova-rasm) — owner ?shopId= bilan ko'rsatadi
   shopProfile: (shopId?: number) =>
@@ -635,6 +638,8 @@ export interface RestoranMenuItemRow {
 // 🛍 tanga shop admin rows
 export interface ShopAdminProductRow {
   id: number;
+  shopId: number | null; // V1.7: ega ko'p-do'kon aralash ko'rinishida
+  shopName: string | null;
   name: string;
   description: string | null;
   category: string;
@@ -651,6 +656,8 @@ export interface ShopAdminProductRow {
 }
 export interface ShopAdminOrderRow {
   id: number;
+  shopId: number | null;
+  shopName: string | null;
   productName: string;
   priceTanga: number;
   payKind: "tanga" | "cash";
@@ -665,6 +672,8 @@ export interface ShopAdminOrderRow {
 export interface ShopAdminReviewRow {
   id: number;
   productId: number;
+  shopId: number | null;
+  shopName: string | null;
   productName: string;
   memberName: string;
   thumb: string;

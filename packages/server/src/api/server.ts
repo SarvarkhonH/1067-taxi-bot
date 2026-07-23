@@ -1563,13 +1563,22 @@ export function createApiServer(opts: ApiOptions = {}) {
     res.json({ ok: true, values: await setBonusEcon(b.key as string, b.value) });
   });
   // ── 🛍 SHOP admin (owner-gated writes) ────────────────────────────────────────────────────────
-  app.get("/api/admin/shop/products", requireAdmin, async (_req, res) => {
+  // V1.7: seller-token FAQAT o'z scope'i (sellerShopId majburiy); owner (scope yo'q) `?shopId=`/body
+  // `shopId` bilan istalgan do'konni tanlaydi — D2/C1'dagi resolveProfileShopId bilan bir xil naqsh
+  // (allaqachon R4'dan o'tgan xavfsizlik-chegara: query faqat scope===undefined bo'lganda ishoniladi).
+  const resolveProfileShopId = (req: Request, res: Response): number | null => {
+    const scope = res.locals.sellerShopId as number | undefined;
+    if (scope !== undefined) return scope;
+    const q = Number((req.query.shopId as string | undefined) ?? (req.body as { shopId?: unknown } | undefined)?.shopId);
+    return Number.isFinite(q) && q > 0 ? q : null;
+  };
+  app.get("/api/admin/shop/products", requireAdmin, async (req, res) => {
     const { adminListProducts } = await import("../services/shopService");
-    res.json(await adminListProducts(res.locals.sellerShopId as number | undefined)); // V1.2: seller → faqat o'z katalogi
+    res.json(await adminListProducts(resolveProfileShopId(req, res) ?? undefined)); // owner shopId bo'lmasa = barcha do'konlar
   });
   app.post("/api/admin/shop/products", requireAdmin, requireShopWrite, rateLimit(20), async (req, res) => {
     const { adminCreateProduct } = await import("../services/shopService");
-    res.json(await adminCreateProduct(req.body ?? {}, res.locals.sellerShopId as number | undefined)); // V1.2: seller yaratganini O'Z do'koniga majburlash
+    res.json(await adminCreateProduct(req.body ?? {}, resolveProfileShopId(req, res) ?? undefined)); // seller → O'Z do'koni; owner → tanlagan do'koni
   });
   // V1.2: seller o'zgartirmoqchi bo'lgan mahsulot O'Z do'koninikimi — choke-point tekshiruv
   const sellerOwnsProduct = async (res: Response, productId: number): Promise<boolean> => {
@@ -1611,20 +1620,14 @@ export function createApiServer(opts: ApiOptions = {}) {
   // uchun bu ma'lumot 403 EMAS — bo'sh emas, O'Z subset'i: shu tarzda seller panel ham ishlayveradi.
   app.get("/api/admin/shop/orders", requireAdmin, requireShopWrite, async (req, res) => {
     const { adminListPurchases } = await import("../services/shopService");
-    res.json({ orders: await adminListPurchases(req.query?.status ? String(req.query.status) : undefined, res.locals.sellerShopId as number | undefined) });
+    res.json({ orders: await adminListPurchases(req.query?.status ? String(req.query.status) : undefined, resolveProfileShopId(req, res) ?? undefined) });
   });
-  app.get("/api/admin/shop/reviews", requireAdmin, requireShopWrite, async (_req, res) => {
+  app.get("/api/admin/shop/reviews", requireAdmin, requireShopWrite, async (req, res) => {
     const { adminListReviews } = await import("../services/shopService");
-    res.json({ reviews: await adminListReviews(res.locals.sellerShopId as number | undefined) });
+    res.json({ reviews: await adminListReviews(resolveProfileShopId(req, res) ?? undefined) });
   });
   // 🏪 D2: do'kon-profil (story/e'lon/mahalla/muqova-rasm) — shopseller FAQAT o'z do'koni,
   // owner esa `?shopId=` bilan istalgan do'konni tahrirlaydi (bir nechta do'kon boshqaradigan panel).
-  const resolveProfileShopId = (req: Request, res: Response): number | null => {
-    const scope = res.locals.sellerShopId as number | undefined;
-    if (scope !== undefined) return scope;
-    const q = Number((req.query.shopId as string | undefined) ?? (req.body as { shopId?: unknown } | undefined)?.shopId);
-    return Number.isFinite(q) && q > 0 ? q : null;
-  };
   app.get("/api/admin/shop/profile", requireAdmin, requireShopWrite, async (req, res) => {
     const shopId = resolveProfileShopId(req, res);
     if (!shopId) { res.status(400).json({ error: "no_shop" }); return; }

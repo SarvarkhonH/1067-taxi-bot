@@ -435,6 +435,8 @@ export async function rejectPurchase(orderId: number, note?: string): Promise<Sh
 
 export interface AdminProductRow {
   id: number;
+  shopId: number | null; // V1.7: ega ko'p-do'kon aralash ko'rinishida qaysi do'konga tegishli
+  shopName: string | null;
   name: string;
   description: string | null;
   category: string;
@@ -659,11 +661,18 @@ export async function adminListProducts(scopeShopId?: number): Promise<{ product
   ]);
   const soldOf = new Map(sold.map((s) => [s.productId, s._count._all]));
   const photosOf = new Map(photoCounts.map((c) => [c.productId, c._count._all]));
+  // V1.7: aralash (barcha-do'kon) ko'rinishida har qatorga do'kon-nomini bog'lash uchun
+  const shopIds = Array.from(new Set(rows.map((p) => p.shopId).filter((id): id is number => id != null)));
+  const shopNames = shopIds.length
+    ? new Map((await prisma.marketShop.findMany({ where: { id: { in: shopIds } }, select: { id: true, name: true } })).map((s) => [s.id, s.name]))
+    : new Map<number, string>();
   return {
     enabled,
     pendingOrders,
     products: rows.map((p) => ({
       id: p.id,
+      shopId: p.shopId,
+      shopName: p.shopId != null ? shopNames.get(p.shopId) ?? null : null,
       name: p.name,
       description: p.description,
       category: p.category,
@@ -732,7 +741,7 @@ export async function adminDeleteProduct(id: number): Promise<{ ok: boolean }> {
   return { ok: true };
 }
 
-export async function adminListPurchases(status?: string, scopeShopId?: number): Promise<(ShopPurchaseView & { buyerName: string; contact: string })[]> {
+export async function adminListPurchases(status?: string, scopeShopId?: number): Promise<(ShopPurchaseView & { buyerName: string; contact: string; shopId: number | null; shopName: string | null })[]> {
   // V1.2: seller faqat O'Z do'koni mahsulotlarining buyurtmalarini ko'radi (PII shu subset'gagina)
   const scopeIds = scopeShopId === undefined
     ? undefined
@@ -743,8 +752,18 @@ export async function adminListPurchases(status?: string, scopeShopId?: number):
     take: 100,
     include: { member: { select: { fullName: true, displayName: true } } },
   });
+  // V1.7: aralash (barcha-do'kon) ko'rinishida har buyurtmaga do'kon-nomini bog'lash uchun
+  const prodShopOf = new Map(
+    (await prisma.product.findMany({ where: { id: { in: Array.from(new Set(rows.map((o) => o.productId))) } }, select: { id: true, shopId: true } })).map((p) => [p.id, p.shopId]),
+  );
+  const shopIds = Array.from(new Set(Array.from(prodShopOf.values()).filter((id): id is number => id != null)));
+  const shopNames = shopIds.length
+    ? new Map((await prisma.marketShop.findMany({ where: { id: { in: shopIds } }, select: { id: true, name: true } })).map((s) => [s.id, s.name]))
+    : new Map<number, string>();
   return rows.map((o) => ({
     id: o.id,
+    shopId: prodShopOf.get(o.productId) ?? null,
+    shopName: (() => { const sid = prodShopOf.get(o.productId); return sid != null ? shopNames.get(sid) ?? null : null; })(),
     productName: o.productName,
     priceTanga: o.priceTanga,
     payKind: o.payKind as ShopPurchaseView["payKind"],
@@ -1015,6 +1034,8 @@ export async function resolveReviewPhoto(reviewId: number, idx = 0, small = fals
 export interface AdminReviewRow {
   id: number;
   productId: number;
+  shopId: number | null;
+  shopName: string | null;
   productName: string;
   memberName: string;
   thumb: string;
@@ -1030,21 +1051,32 @@ export async function adminListReviews(scopeShopId?: number): Promise<AdminRevie
     : (await prisma.product.findMany({ where: { shopId: scopeShopId }, select: { id: true } })).map((p) => p.id);
   const rows = await prisma.productReview.findMany({ where: scopeIds ? { productId: { in: scopeIds } } : undefined, orderBy: { id: "desc" }, take: 50 });
   const [products, members] = await Promise.all([
-    prisma.product.findMany({ where: { id: { in: rows.map((r) => r.productId) } }, select: { id: true, name: true } }),
+    prisma.product.findMany({ where: { id: { in: rows.map((r) => r.productId) } }, select: { id: true, name: true, shopId: true } }),
     prisma.member.findMany({ where: { id: { in: rows.map((r) => r.memberId) } }, select: { id: true, fullName: true, displayName: true } }),
   ]);
   const pName = new Map(products.map((p) => [p.id, p.name]));
+  const pShop = new Map(products.map((p) => [p.id, p.shopId]));
   const mName = new Map(members.map((m) => [m.id, m.displayName || m.fullName]));
-  return rows.map((r) => ({
-    id: r.id,
-    productId: r.productId,
-    productName: pName.get(r.productId) ?? `#${r.productId}`,
-    memberName: mName.get(r.memberId) ?? `m${r.memberId}`,
-    thumb: r.thumb,
-    text: r.text,
-    photoCount: parseReviewPhotos(r.photosJson).length,
-    createdAt: r.createdAt.toISOString(),
-  }));
+  // V1.7: aralash (barcha-do'kon) ko'rinishida har sharhga do'kon-nomini bog'lash uchun
+  const shopIds = Array.from(new Set(Array.from(pShop.values()).filter((id): id is number => id != null)));
+  const shopNames = shopIds.length
+    ? new Map((await prisma.marketShop.findMany({ where: { id: { in: shopIds } }, select: { id: true, name: true } })).map((s) => [s.id, s.name]))
+    : new Map<number, string>();
+  return rows.map((r) => {
+    const sid = pShop.get(r.productId) ?? null;
+    return {
+      id: r.id,
+      productId: r.productId,
+      shopId: sid,
+      shopName: sid != null ? shopNames.get(sid) ?? null : null,
+      productName: pName.get(r.productId) ?? `#${r.productId}`,
+      memberName: mName.get(r.memberId) ?? `m${r.memberId}`,
+      thumb: r.thumb,
+      text: r.text,
+      photoCount: parseReviewPhotos(r.photosJson).length,
+      createdAt: r.createdAt.toISOString(),
+    };
+  });
 }
 
 export async function adminDeleteReview(id: number): Promise<{ ok: boolean }> {
