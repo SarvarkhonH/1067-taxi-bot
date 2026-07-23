@@ -156,3 +156,22 @@ export async function getWeeklyOrderTrend(weeks = 6): Promise<WeeklyTrendPoint[]
   }
   return points;
 }
+
+// §10.1: "Birlashtirilgan moderatsiya-navbat" — do'kon+e'lon+AI-bilim har biri ALLAQACHON o'z
+// to'liq moderatsiya-bo'limiga ega (tasdiqlash/rad/o'chirish tugmalari bilan); bu yerda ULARNI
+// QAYTA QURMAYMIZ (harakat-tugmalarini ikkita joyda saqlash — nomuvofiqlik xavfi). Buning o'rniga
+// bitta "hammasi qayerda kutmoqda" son-xulosasi — owner bitta joyda ko'rib, kerakli bo'limga o'tadi.
+export interface ModerationQueueSummary {
+  aiKnowledgePending: number;
+  classifiedAdsPending: number; // mahalla e'lon-taxtasi — self-submit, owner ✅/❌
+  shopsAwaitingActivation: number; // /sotuvchi wizard DARK yaratadi — ega hali yoqmagan
+}
+
+export async function getModerationQueueSummary(): Promise<ModerationQueueSummary> {
+  const [aiKnowledgePending, classifiedAdsPending, shopsAwaitingActivation] = await Promise.all([
+    prisma.aiKnowledge.count({ where: { status: "pending" } }).catch(() => 0),
+    prisma.classifiedAd.count({ where: { status: "pending" } }).catch(() => 0),
+    prisma.marketShop.count({ where: { active: false } }).catch(() => 0),
+  ]);
+  return { aiKnowledgePending, classifiedAdsPending, shopsAwaitingActivation };
+}

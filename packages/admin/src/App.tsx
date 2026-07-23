@@ -264,11 +264,15 @@ function Overview({ health }: { health: AdminHealth | null }) {
   const [bookings, setBookings] = useState<AdminLiveBooking[] | null>(null);
   const [anom, setAnom] = useState<Awaited<ReturnType<typeof adminApi.anomalies>> | null>(null);
   const [inbox, setInbox] = useState<Awaited<ReturnType<typeof adminApi.inbox>> | null>(null);
+  // §10.1: birlashtirilgan moderatsiya-navbat — do'kon+e'lon+AI-bilim BITTA son-xulosada
+  // (harakat-tugmalari o'z bo'limida qoladi — bu faqat "qayerda nima kutmoqda" ko'rsatkichi)
+  const [modSummary, setModSummary] = useState<Awaited<ReturnType<typeof adminApi.moderationSummary>> | null>(null);
 
   useEffect(() => {
     adminApi.economy().then(setEco).catch(() => undefined);
     adminApi.ballDist().then(setBall).catch(() => undefined);
     adminApi.growth().then(setGrowth).catch(() => undefined);
+    adminApi.moderationSummary().then(setModSummary).catch(() => undefined);
     const load = () => {
       adminApi.bookings().then(setBookings).catch(() => undefined);
       adminApi.anomalies().then(setAnom).catch(() => undefined);
@@ -301,6 +305,16 @@ function Overview({ health }: { health: AdminHealth | null }) {
         </section>
       )}
 
+      {modSummary && (modSummary.aiKnowledgePending + modSummary.classifiedAdsPending + modSummary.shopsAwaitingActivation > 0) && (
+        <section className="panel">
+          <div className="panel-title">🗂 Moderatsiya kutmoqda</div>
+          <div style={{ display: "flex", gap: 16, flexWrap: "wrap" }}>
+            {modSummary.aiKnowledgePending > 0 && <span>🧠 <b>{modSummary.aiKnowledgePending}</b> AI-bilim (<i>AI Bilim</i> bo&apos;limi)</span>}
+            {modSummary.classifiedAdsPending > 0 && <span>📋 <b>{modSummary.classifiedAdsPending}</b> e&apos;lon (<i>E&apos;lonlar</i> bo&apos;limi)</span>}
+            {modSummary.shopsAwaitingActivation > 0 && <span>🏪 <b>{modSummary.shopsAwaitingActivation}</b> do&apos;kon faollashtirilishini kutmoqda (<i>Do&apos;kon</i> bo&apos;limi)</span>}
+          </div>
+        </section>
+      )}
       {inbox && inbox.count > 0 && (
         <section className="panel">
           <div className="panel-title">📥 Tasdiqlash kutmoqda · {inbox.count}</div>

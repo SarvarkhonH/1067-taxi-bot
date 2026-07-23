@@ -186,6 +186,8 @@ export const adminApi = {
   shopDailyDiff: () => req<{ today: { newOrders: number; rejected: number; newReviews: number }; yesterday: { newOrders: number; rejected: number; newReviews: number } }>("/api/admin/shop/daily-diff"),
   // §10.1: "Prognoz-chiziq" — haftalik xarid-hajmi trendi
   shopWeeklyTrend: () => req<{ points: { weekStart: string; orders: number }[] }>("/api/admin/shop/weekly-trend"),
+  // §10.1: birlashtirilgan moderatsiya-navbat — son-xulosa
+  moderationSummary: () => req<{ aiKnowledgePending: number; classifiedAdsPending: number; shopsAwaitingActivation: number }>("/api/admin/moderation-summary"),
   inbox: () =>
     req<{ pending: { id: number; amount: number; method: string; mask: string; name: string; phone: string; at: string }[]; count: number }>("/api/admin/inbox"),
   driverAnalytics: () =>

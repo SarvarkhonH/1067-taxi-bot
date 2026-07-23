@@ -2439,6 +2439,11 @@ body{font-family:Arial,sans-serif;background:#eee;-webkit-print-color-adjust:exa
     const { getWeeklyOrderTrend } = await import("../services/adminInsights");
     res.json({ points: await getWeeklyOrderTrend() });
   });
+  // §10.1: birlashtirilgan moderatsiya-navbat — son-xulosa (harakatlar o'z bo'limlarida qoladi)
+  app.get("/api/admin/moderation-summary", requireAdmin, requireOwner, async (_req, res) => {
+    const { getModerationQueueSummary } = await import("../services/adminInsights");
+    res.json(await getModerationQueueSummary());
+  });
   app.get("/api/admin/inbox", requireAdmin, async (_req, res) => {
     const { getApprovalInbox } = await import("../services/adminInsights");
     res.json(await getApprovalInbox());
