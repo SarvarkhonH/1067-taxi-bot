@@ -346,7 +346,13 @@ export async function runAgent(memberId: number, telegramId: string, text: strin
   const groqKey = process.env.GROQ_API_KEY;
   const geminiKey = process.env.GEMINI_API_KEY;
   if (!groqKey && !geminiKey) return null;
-  if (!(await aiCapOk(memberId))) return null;
+  if (!(await aiCapOk(memberId))) {
+    // 🔍 diagnostic: this silent null (member/global daily cap hit) looks IDENTICAL to a real
+    // LLM failure from the user's side ("tushunmadim" every time) but never touches Gemini/Groq —
+    // the two provider-level logs above never fire for this path, so it needs its own line.
+    console.error(`[ai-agent] daily cap hit for member ${memberId} — skipping LLM entirely`);
+    return null;
+  }
 
   const history = await recentHistory(telegramId);
   // the incoming message is already saved to SupportMsg before this runs — don't double it
