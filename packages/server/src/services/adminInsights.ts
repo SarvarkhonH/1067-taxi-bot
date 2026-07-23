@@ -101,3 +101,35 @@ export async function getShopDailyStatus(): Promise<ShopDailyStatus> {
   ]);
   return { pendingOrders, unansweredChats, todayStories, activeShops };
 }
+
+// §10.1: "Nima o'zgardi" — bugun vs kecha (yangi audit-jadval kerak emas, mavjud createdAt
+// timestamplaridan hisoblanadi). Yangi buyurtma/rad/sharh sonlarini solishtiradi.
+export interface ShopDailyDiff {
+  today: { newOrders: number; rejected: number; newReviews: number };
+  yesterday: { newOrders: number; rejected: number; newReviews: number };
+}
+
+export async function getShopDailyDiff(): Promise<ShopDailyDiff> {
+  const todayStart = tashkentMidnightUtc(0);
+  const yestStart = tashkentMidnightUtc(1);
+  const dayWindow = (from: Date, to: Date) => ({ gte: from, lt: to });
+  const [
+    tOrdersA, tOrdersB, tRejA, tRejB, tRev,
+    yOrdersA, yOrdersB, yRejA, yRejB, yRev,
+  ] = await Promise.all([
+    prisma.shopPurchase.count({ where: { createdAt: dayWindow(todayStart, new Date()) } }),
+    prisma.marketOrder.count({ where: { createdAt: dayWindow(todayStart, new Date()) } }),
+    prisma.shopPurchase.count({ where: { status: "rejected", decidedAt: dayWindow(todayStart, new Date()) } }),
+    prisma.marketOrder.count({ where: { status: "rejected", decidedAt: dayWindow(todayStart, new Date()) } }),
+    prisma.productReview.count({ where: { createdAt: dayWindow(todayStart, new Date()) } }),
+    prisma.shopPurchase.count({ where: { createdAt: dayWindow(yestStart, todayStart) } }),
+    prisma.marketOrder.count({ where: { createdAt: dayWindow(yestStart, todayStart) } }),
+    prisma.shopPurchase.count({ where: { status: "rejected", decidedAt: dayWindow(yestStart, todayStart) } }),
+    prisma.marketOrder.count({ where: { status: "rejected", decidedAt: dayWindow(yestStart, todayStart) } }),
+    prisma.productReview.count({ where: { createdAt: dayWindow(yestStart, todayStart) } }),
+  ]);
+  return {
+    today: { newOrders: tOrdersA + tOrdersB, rejected: tRejA + tRejB, newReviews: tRev },
+    yesterday: { newOrders: yOrdersA + yOrdersB, rejected: yRejA + yRejB, newReviews: yRev },
+  };
+}

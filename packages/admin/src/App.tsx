@@ -1945,6 +1945,9 @@ function ShopAdminView() {
   // §10.1: "Bugungi holat" — owner-only (seller-token 403 → jim ko'rinmaydi, sellerga foydasiz ma'lumot)
   const [dailyStatus, setDailyStatus] = useState<{ pendingOrders: number; unansweredChats: number; todayStories: number; activeShops: number } | null>(null);
   useEffect(() => { adminApi.shopDailyStatus().then(setDailyStatus).catch(() => setDailyStatus(null)); }, []);
+  // §10.1: "Nima o'zgardi" — bugun vs kecha
+  const [dailyDiff, setDailyDiff] = useState<{ today: { newOrders: number; rejected: number; newReviews: number }; yesterday: { newOrders: number; rejected: number; newReviews: number } } | null>(null);
+  useEffect(() => { adminApi.shopDailyDiff().then(setDailyDiff).catch(() => setDailyDiff(null)); }, []);
   // §10.1: ommaviy e'lon — bitta matn, BARCHA faol do'konga bir yo'la (owner-only)
   const [bulkText, setBulkText] = useState("");
   const [bulkMsg, setBulkMsg] = useState("");
@@ -2070,6 +2073,16 @@ function ShopAdminView() {
             <span>📹 <b>{dailyStatus.todayStories}</b> bugungi hikoya</span>
             <span>🏪 <b>{dailyStatus.activeShops}</b> faol do&apos;kon</span>
           </div>
+          {dailyDiff && (() => {
+            const delta = (t: number, y: number) => (t === y ? "±0" : t > y ? `+${t - y}` : `${t - y}`);
+            return (
+              <p className="muted" style={{ fontSize: 12, marginTop: 8, marginBottom: 0 }}>
+                📅 Nima o&apos;zgardi (bugun vs kecha): buyurtma {dailyDiff.today.newOrders} ({delta(dailyDiff.today.newOrders, dailyDiff.yesterday.newOrders)}) ·
+                {" "}rad {dailyDiff.today.rejected} ({delta(dailyDiff.today.rejected, dailyDiff.yesterday.rejected)}) ·
+                {" "}sharh {dailyDiff.today.newReviews} ({delta(dailyDiff.today.newReviews, dailyDiff.yesterday.newReviews)})
+              </p>
+            );
+          })()}
         </section>
       )}
       {myShops && myShops.length > 1 && (

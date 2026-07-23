@@ -182,6 +182,8 @@ export const adminApi = {
     req<{ level: "ok" | "warn" | "alert"; items: { level: "warn" | "alert"; text: string }[]; emissionToday: number; cashoutToday: number }>("/api/admin/anomalies"),
   // 🏪 §10.1: "Bugungi holat" — barcha do'kon bo'yicha kunlik nabz
   shopDailyStatus: () => req<{ pendingOrders: number; unansweredChats: number; todayStories: number; activeShops: number }>("/api/admin/shop/daily-status"),
+  // §10.1: "Nima o'zgardi" — bugun vs kecha
+  shopDailyDiff: () => req<{ today: { newOrders: number; rejected: number; newReviews: number }; yesterday: { newOrders: number; rejected: number; newReviews: number } }>("/api/admin/shop/daily-diff"),
   inbox: () =>
     req<{ pending: { id: number; amount: number; method: string; mask: string; name: string; phone: string; at: string }[]; count: number }>("/api/admin/inbox"),
   driverAnalytics: () =>

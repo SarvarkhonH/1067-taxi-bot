@@ -2429,6 +2429,11 @@ body{font-family:Arial,sans-serif;background:#eee;-webkit-print-color-adjust:exa
     const { getShopDailyStatus } = await import("../services/adminInsights");
     res.json(await getShopDailyStatus());
   });
+  // §10.1: "Nima o'zgardi" — bugun vs kecha
+  app.get("/api/admin/shop/daily-diff", requireAdmin, requireOwner, async (_req, res) => {
+    const { getShopDailyDiff } = await import("../services/adminInsights");
+    res.json(await getShopDailyDiff());
+  });
   app.get("/api/admin/inbox", requireAdmin, async (_req, res) => {
     const { getApprovalInbox } = await import("../services/adminInsights");
     res.json(await getApprovalInbox());
