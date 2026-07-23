@@ -2,7 +2,7 @@
 
 ## Jarayonda (yangi)
 
-### 🍽 RESTORAN — Dasturxon (eski loyiha) menyularini import qilish (2026-07-23) — `ready for verification`
+### 🍽 RESTORAN — Dasturxon (eski loyiha) menyularini import qilish (2026-07-23) — `owner-accepted`
 **Nima qilindi:** `restoran` flag LIVE edi, lekin 7 restorandan 5 tasining menyusi bo'sh edi (flag izohida
 qayd qilingan qarz). Owner o'zining eski loyihasi `koson-dasturxon.uz` (Kasan Food Delivery Admin, real
 POS-boshqaruv paneli, admin/parol bilan kirilgan) dagi haqiqiy taom-narx-rasm ma'lumotlarini shu BirJoy'ga
@@ -24,9 +24,17 @@ import qilishni so'radi. Ikkita qadam bo'ldi:
      taomlari` (#1), Orif Bar (#4), Do'stlar Choyxonasi (#7) — Dasturxon'da nomga mos restoran topilmadi,
      soxta/composite menyu to'qib chiqarilmadi.
    - Idempotentlik ikki marta ketma-ket ishga tushirib tasdiqlangan (2-marta hammasi "o'tkazib yuborildi").
-**Qoldi (owner-review kerak):**
-- 4 ta yangi restoran hozircha `active=false` — mijozlar ko'rmaydi. Owner admin panelda (yoki botda)
-  telefon/manzil/rasm/kategoriyalarni ko'rib chiqib, to'g'ri bo'lsa yoqishi kerak.
+3. Owner yana bir narsani to'g'ri payqadi: yangi restoranlarda restoran-kover-rasm (Restaurant.photoUrl —
+   taom-rasmidan alohida) yo'q edi — Dasturxon'da ham bu maydon bo'sh (na Alipos, na admin panelda
+   restoran-logo saqlanmagan). `backfillRestoranCoverPhoto.ts` yaratildi: har restoranning o'z birinchi
+   rasmli taomini kover sifatida qo'ydi. Chinor/Dehqon Bar/Uzoq Bobo'da mos taom chiqdi (masalan Chinor —
+   "Tanakura" sho'rva rasmi); Uchqirra Baliq va Umar Ota'da esa noto'g'ri chiqdi (baliq/asosiy taomlarida
+   rasm yo'q edi, shuning uchun ichimlik — "Coca Cola"/"Kola" — rasmi tanlandi). Owner ko'rsatmasi bilan
+   shu ikkitasining photoUrl'i bo'shatildi (rasmsiz qoldirish, noto'g'ri rasmdan yaxshiroq).
+4. Owner "live qil" deb 4 ta yangi restoranni ko'rib chiqmasdan darhol yoqishga buyurdi (2026-07-23) —
+   hammasi `active=true` qilindi (Uchqirra Baliq #9, Umar Ota #10, Dehqon Bar #11, Uzoq Bobo #12).
+   Endi mijozlarga ko'rinadi.
+**Qoldi:**
 - Rasm linklarining ~292 tasi Dasturxon'ning eski domeniga (`api.dev.koson-dasturxon.uz`) ishora qiladi —
   agar owner o'sha loyihani keyinchalik o'chirsa, shu rasm linklari buziladi (skript qayta ishga
   tushirilib, rasmlar mahalliy `/uploads/`ga ko'chirilishi kerak bo'ladi o'sha vaqtda).
@@ -2234,3 +2242,46 @@ to'g'ri shu umumiy repo'ga push qildi — bu normal, tasdiqlangan commit, hech q
 shop-darajasidagi anomaliya-detektor, "nima o'zgardi" kunlik hisobot, kritik-hodisa push,
 prognoz-chiziq. §10.1 asosiy/eng-muhim qismi (ko'p-do'kon skoping, pauza, kunlik-holat, unmet-demand,
 ommaviy e'lon) endi tayyor — qolganlari kichikroq/qo'shimcha qulayliklar.
+
+## 2026-07-23 (32) — §10.1: rol-darajali audit-jurnal (do'kon-boshqaruv mutatsiyalari)
+Yangi `AdminAuditLog` jadvali (additiv, `migrate diff` bilan pure-ADD tasdiqlangan, jonli DB'ga
+push qilindi) + `logAudit()` chaqiruvlari do'kon-admin mutatsiya-yo'laklariga ulandi: pauza/
+faollashtirish, profil-tahrirlash, ommaviy-e'lon, mahsulot yaratish/tahrirlash/o'chirish. Ko'lam
+ATAYLAB shu sessiyaning §10.1 ishi qamragan do'kon-boshqaruv sirtiga cheklangan — butun admin-
+panelni (buyurtma/kampaniya/haydovchi-missiya) qamrab olish alohida, kattaroq tiket bo'lardi.
+
+**Muhim voqea — git-gigiena, teskari yo'nalishda**: shu ishni yozayotganimda BOSHQA sessiya
+`d9beb14` commitini push qildi — u mening ishchi-katalogdagi tugallanmagan `logAudit`/`listAuditLog`
+kodimni (hali committed EMAS edi) TASODIFAN o'z commitiga qo'shib yuborgan (ular shopService.ts'ni
+umumiy fayl sifatida saqlashgan). Natija: jonli `main`da `prisma.adminAuditLog`ga murojaat qiluvchi
+kod bor edi, lekin mos schema-model YO'Q edi — Render deploy tarixi buni tasdiqladi: `d9beb14`ning
+deploy urinishi "deactivated" (muvaffaqiyatsiz) holatda qoldi, jonli server oldingi yaxshi commit
+(`c05638e`)da qolib ketgan edi. Mening shu commitim (`93a2fbc`, schema-model+yo'lak-ulash) buni
+TUZATDI — deploy tarixi endi `93a2fbc` "live" ekanini tasdiqlaydi.
+
+**Tekshiruv-cheklovi (ochiq aytilgan)**: `prisma generate`ni lokal ishga tushira olmadim — Windows'da
+bir nechta BOSHQA sessiyaning uzoq-ishlaydigan dev-serverlari (`tsx src/index.ts`, ~10+ jarayon)
+eski Prisma-client DLL'ni xotirada ushlab turgan (EPERM fayl-qulf), ularni o'chirish boshqa
+sessiyalarning ishini buzishi mumkin edi — shuning uchun buzmadim. Bu safar tekshiruv CI/deploy
+orqali amalga oshirildi: `d9beb14` (schema'siz) deploy MUVAFFAQIYATSIZ bo'lgani, `93a2fbc` (schema
+bilan) esa jonli bo'lgani — bu aynan tsc-xatoni ANIQLAYDIGAN signal (CI-shield shu maqsadda bor).
+**Isbot**: `migrate diff` — pure ADD (bitta yangi jadval, 2 indeks, mavjud jadvallarga tegilmagan).
+Render deploy tarixi: `dep-d9h1i8mpbkes73cfd91g live 93a2fbc` (avvalgi `d9beb14` urinishi
+"deactivated" — muvaffaqiyatsiz edi, buni ham qayd etaman, yashirmayman). `/health` — jonli, `ok:true`.
+Admin panel — build+deploy → bundle-grep live: "Audit-jurnal" topildi.
+**QOLDI**: audit-jurnal faqat shu sessiyada qurilgan do'kon-yo'laklarni qamraydi — booking/kampaniya/
+haydovchi-missiya va boshqa admin-mutatsiyalar hali audit qilinmagan (alohida, kattaroq tiket).
+
+## 2026-07-23 (33) — §10.1 YAKUNLANDI (asosiy + qolgan barcha kichik bandlar)
+Ega "xo'p davom et tugat" dedi — §10.1'ning to'liq ro'yxati bajarildi:
+ko'p-do'kon skoping (V1.7) · 1-bosishda pauza+SLA-son · "Bugungi holat" dashboard · unmet-demand
+panel · ommaviy e'lon · global qidiruv+CSV-eksport · do'kon sog'lik-skori · shop-darajasidagi
+anomaliya-detektor · "Nima o'zgardi" kunlik farq-hisobot · haftalik xarid-trendi (prognoz-chiziq) ·
+birlashtirilgan moderatsiya-navbat (son-xulosa) · rol-darajali audit-jurnal.
+Har biri: DoD-mezon → kod → (schema bo'lsa) additiv push+migrate-diff-tasdiq → typecheck (yoki
+tenglashtirilgan CI-tasdiq) → jonli DB'ga qarshi to'g'ridan-to'g'ri sinov → deploy → bundle-grep-
+isbot → PROGRESS.md yozuvi. Sessiya davomida git-gigiena kamida 6 marta talab qilindi (server.ts/
+shopService.ts boshqa sessiyaning Mahalla-WIP'i bilan aralashib qolgani) — har safar git-plumbing
+bilan ajratildi, boshqa sessiyaning ishchi-katalog fayllariga HECH QACHON tegilmadi.
+**Keyingi (ega so'ramaguncha boshlanmaydi)**: §10.2 (V4 — kichik-hajm), §10.3'ning qolgani
+(yordam-tugma buyurtma-kartada, chat-ichidan savatga qo'shish, jonli ETA, swipe-up-shop, va h.k.).
