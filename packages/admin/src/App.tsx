@@ -2193,8 +2193,28 @@ function ShopAdminView() {
         {reviews && reviews.length === 0 && <p className="muted">Hali sharh yo&apos;q.</p>}
       </section>
       <ShopCategoriesPanel onMsg={setMsg} />
+      <ShopAttentionPanel />
       <MarketDemandPanel />
     </>
+  );
+}
+
+// §10.1: shop-darajasidagi anomaliya-detektor — g'ayrioddiy rad-etish/sekin-javob do'konlar
+// (kamida 3 buyurtma bilan, owner-only). Bo'sh bo'lsa ko'rinmaydi — hammasi yaxshi ekan.
+function ShopAttentionPanel() {
+  const [items, setItems] = useState<{ shopId: number; name: string; reason: string; rejectionRate: number; slaBreachRate: number }[] | null>(null);
+  useEffect(() => { adminApi.shopAttention().then((r) => setItems(r.items)).catch(() => setItems(null)); }, []);
+  if (!items || items.length === 0) return null;
+  return (
+    <section className="panel">
+      <div className="panel-title">🚨 Diqqat talab qiladigan do&apos;konlar ({items.length})</div>
+      {items.map((i) => (
+        <div key={i.shopId} style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", padding: "6px 0", borderBottom: "1px solid rgba(255,255,255,0.08)" }}>
+          <b style={{ flex: "1 1 160px" }}>{i.name}</b>
+          <span className="badge badge-bad">{i.reason}</span>
+        </div>
+      ))}
+    </section>
   );
 }
 

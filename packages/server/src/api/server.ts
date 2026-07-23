@@ -1685,6 +1685,11 @@ export function createApiServer(opts: ApiOptions = {}) {
     const { adminListMarketDemand } = await import("../services/shopService");
     res.json({ demand: await adminListMarketDemand() });
   });
+  // §10.1: shop-darajasidagi anomaliya-detektor — g'ayrioddiy rad-etish/sekin-javob do'konlar
+  app.get("/api/admin/shop/attention", requireAdmin, requireOwner, async (_req, res) => {
+    const { listShopsNeedingAttention } = await import("../services/shopService");
+    res.json({ items: await listShopsNeedingAttention() });
+  });
   // §10.1: ommaviy e'lon-shablon — BARCHA faol do'konga bir yo'la (owner-only, ko'p-do'kon qulaylik).
   app.post("/api/admin/shop/bulk-announcement", requireAdmin, requireOwner, rateLimit(10), async (req, res) => {
     const { bulkSetAnnouncement } = await import("../services/shopService");

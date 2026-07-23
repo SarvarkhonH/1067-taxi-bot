@@ -248,6 +248,8 @@ export const adminApi = {
   shopTogglePause: (paused: boolean, shopId?: number) => postJson<{ ok: boolean }>("/api/admin/shop/toggle-pause", shopId ? { paused, shopId } : { paused }),
   // §10.1: mijozlar qidirgan-lekin-topilmagan so'rovlar (unmet demand)
   shopDemand: () => req<{ demand: { query: string; count: number; lastAt: string }[] }>("/api/admin/shop/demand"),
+  // §10.1: shop-darajasidagi anomaliya-detektor
+  shopAttention: () => req<{ items: { shopId: number; name: string; reason: string; rejectionRate: number; slaBreachRate: number }[] }>("/api/admin/shop/attention"),
   // §10.1: ommaviy e'lon-shablon — barcha faol do'konga bir yo'la
   shopBulkAnnouncement: (text: string) => postJson<{ count: number }>("/api/admin/shop/bulk-announcement", { text }),
   // 💬 C1.6: do'kon-chat inbox (bot-DM'ning zaxira/qo'shimcha yo'li)

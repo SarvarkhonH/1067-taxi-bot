@@ -229,6 +229,33 @@ export async function getShopHealthScore(shopId: number): Promise<ShopHealthScor
   return { score, totalOrders, rejectionRate, slaBreachRate, activeRecently };
 }
 
+// §10.1: shop-darajasidagi anomaliya-detektor — "g'ayrioddiy rad-etish naqshi" / sekin-javob shop'lar
+// (kamida 3 buyurtma — kam-namunali yangi do'konni bekorga "muammo" deb belgilamaslik uchun).
+export interface ShopAttentionItem {
+  shopId: number;
+  name: string;
+  reason: string;
+  rejectionRate: number;
+  slaBreachRate: number;
+}
+
+const ATTENTION_MIN_ORDERS = 3;
+const ATTENTION_RATE_THRESHOLD = 0.3;
+
+export async function listShopsNeedingAttention(): Promise<ShopAttentionItem[]> {
+  const shops = await prisma.marketShop.findMany({ where: { active: true }, select: { id: true, name: true } });
+  const items: ShopAttentionItem[] = [];
+  for (const s of shops) {
+    const h = await getShopHealthScore(s.id);
+    if (!h || h.totalOrders < ATTENTION_MIN_ORDERS) continue;
+    const reasons: string[] = [];
+    if (h.rejectionRate > ATTENTION_RATE_THRESHOLD) reasons.push(`rad-etish ${Math.round(h.rejectionRate * 100)}%`);
+    if (h.slaBreachRate > ATTENTION_RATE_THRESHOLD) reasons.push(`sekin-javob ${Math.round(h.slaBreachRate * 100)}%`);
+    if (reasons.length) items.push({ shopId: s.id, name: s.name, reason: reasons.join(" · "), rejectionRate: h.rejectionRate, slaBreachRate: h.slaBreachRate });
+  }
+  return items.sort((a, b) => b.rejectionRate + b.slaBreachRate - (a.rejectionRate + a.slaBreachRate));
+}
+
 /** 🏪 D2: sotuvchi o'z do'kon-profilini tahrirlaydi (admin-panel `ShopProfilePanel`).
  *  `scopeShopId` berilsa (shopseller token) — faqat SHU shopId'ga ruxsat, choke-point server.ts'da. */
 export async function updateShopProfile(shopId: number, input: ShopProfileEditInput): Promise<{ ok: boolean }> {
