@@ -2004,3 +2004,24 @@ narsalar BirJoy bo'lsin" — farqlandi):
      owner tomonидан yoqilmagan, to'g'ri holat).
 Isbot: server+miniapp+admin tsc --noEmit = 0 (barchasi). Deploy: server (Render, GH Actions) +
 miniapp (Vercel prod, prebuilt) + admin (Vercel prod, prebuilt) — hammasi bundle-grep bilan tasdiqlanди.
+
+## 2026-07-23 (24) — AI "tushunmadim" ildizлари: 3 haqiqiy bug + cap-siyosat yangilandi
+Ega jonli sinaб "savol-javob qila olmayapti" deb topди — ketма-ket bir necha ildiz aniqlandi va tuzatildi:
+1. **Groq bo'sh-javob himoyasi yo'q edi** — Gemini o'zиnикидek "200 OK lekin tool ham, matn ham yo'q"
+   holатини "rate" deb ushлаб zaxira-provайdergа o'тказmасди, Groq'da bu tekшируv yo'q edi → jimgина
+   "tushunmadim"ga aylanардi. Tuzatildi (Gemini bilan bir xil himоя) + har ikkалаsiga diagnostika-log.
+2. **Gemini 400 BadRequest (ega Google konsолда ko'rsатди, Tier 1 = pulik billing tasdiqlandi)** —
+   Gemini tarixни QAT'IY user-bilan-boshlanишi + user/model ketма-ket almашиниши kerak, bizнинг
+   SupportMsg-tarixи buни kafolатламасди (ketма-ket bot-xабarлар, tezkор ovozли fragmentлар).
+   `geminiContents()` qo'shildi — trim + bir xil rolларни birlashtiradi, 4 holатда sinaldi (PASS).
+3. **Kunlik AI-cap (30/foydalanuvchi) — ega o'зи test qilib to'ldiргани** — bu Gemini/Groqга
+   umuман yetib bormaсдан jimgина "tushunmadim" qайtaрарди (LLM chaqirilмаgan, shu sабаbли diagnostika
+   loglar ham bo'sh chiqди). Google billing bilan haqiqiy narх o'lchandi: ~$0.0025/xabar (297 chaqiruv
+   / $0.75). Cap oshirilди: 30→100/foydalanuvchi, 1200→3000/kun umумий (worst-case ~$7.5/kun — hozirgi
+   miqёсда xavfsиз, LEKIN 10k-user maqsадга hali mos EMAS, o'sish bilan qайта ko'риб chiqiladi).
+   Cap-tugaшi endi «tushunmadim» emas — aniq: «Bugungi limitiga yetdik, ertaga davom etamiz, ilova ochiq».
+Doimiy «N xabar qoldi» sanоqчисидан voz kechildi (ega bilan kelишilди) — faqat chegaraга yetganда
+aniq xabar, do'st-yordamchi tuyg'усини saqлаш uchun.
+Isbot: tsc --noEmit=0 (har bir commit), geminiContents 4/4 sanity-test PASS. Deploy: server (Render)
+har bosqichda bundle/commit-hash bilan tasdiqlandi (live: 8e08d38→ce9ba6a→bd3ca5a→7296647→c4647db→
+248b960→23db388→ca5966c→ed4f670→70cf4a2).
