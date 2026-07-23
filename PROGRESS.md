@@ -2,6 +2,51 @@
 
 ## Jarayonda (yangi)
 
+### 🏠 Mahalla bozori (V1.5 — BirJoy bozori ustiga qatlam) — `ready for verification`
+**G'oya (owner, 2026-07-23):** BirJoy bozoridagi do'konlarni ikkiga ajratish — hozirgi "butun shahar"
+sotuvchisi (V1, o'zgarishsiz) vs YANGI "mahalla do'koni" (oziq-ovqat/tez-kerak, faqat o'z
+mahallasidagi xaridorga tez yetkazadi). Mahalla ro'yxati kas1067'ning haqiqiy manzil-katalogidan
+(`api/addresses/`, 111 nom) tortib olindi, ega qo'lda 39 tasini "haqiqiy mahalla" deb tasdiqladi
+(qolgani maktab/bozor/bar/muassasa — chiqarib tashlandi, `mahalla_review.tsv` repo root'da).
+- **Schema (additiv):** yangi `Mahalla{id,name,lat,lng,sortOrder,active}` model. `MarketShop.shopKind`
+  ("bozor"|"mahalla", default "bozor") + `mahallaId Int?`. `Member.mahallaId` ("uy") +
+  `travelMahallaId`+`travelMahallaSetAt` (safar-rejimi vaqtinchalik override — ikkalasi hech qachon
+  aralashtirilmaydi, joriy = travelMahallaId ?? mahallaId). Mavjud `MarketShop.neighborhood` (eski
+  erkin-matn D2 maydoni) TEGILMAGAN — `mahallaId` bo'lsa profilida `Mahalla.name` ustun keladi, aks
+  holda eski matnga fallback (additiv, hech narsa buzilmaydi).
+- **Seed:** `scripts/seedMahalla.ts` (migrateBirjoySeller.ts naqshi — DRY-RUN default, `--apply`,
+  idempotent) — **jonli app DB'da ishga tushirildi: 39/39 yaratildi, qayta-yugurtirish 0 yangi.**
+  TEST_DATABASE_URL'ga ham schema push qilindi (testMahalla.ts uchun).
+- **Server:** `mahallaService.ts` (yangi) — `listMahallas()` (60s kesh, serviceDirectory naqshi),
+  `nearestMahalla(lat,lng)` (kas/client.ts `nearestCatalogAddress` bilan bir xil haversine-approx),
+  `setMemberMahalla(memberId,mahallaId,mode)`. 3 yangi route: `GET /api/mahalla`,
+  `POST /api/mahalla/nearest`, `POST /api/member/mahalla`. `getMarketHome`/`getShopProfile`
+  (shopService.ts) `shopKind`/`mahallaId` maydonlarini qaytaradi.
+- **Bot wizard (`/sotuvchi`, market.ts):** 6-qadamdan keyin yangi 7/7 — "Qanday sotasiz?" (🏪 Butun
+  shahar / 🏠 Mahallamda tez yetkazish, inline keyboard). Mahalla tanlansa — 39 nomlik sahifalangan
+  ro'yxat (8/sahifa, ◀️▶️). `finalizeShopDraft()` helper ikkala tarmoq uchun ham shop yaratadi
+  (dublikat yo'q).
+- **Mini App (shop.tsx):** sticky "📍 {mahalla} ▾" chip (bazar-bosh, category-karusel ustida) →
+  bottom-sheet picker (qidiruv + "📍 GPS bilan aniqlash", `tgGetLocation()` — booking.tsx bilan bir
+  xil chaqiruv). Safar-rejimi banner (GPS joriy mahalladan farq qilsa, session-dismiss). Ikki bo'lim:
+  "🏠 Mahalla do'konlari" (scoped, bo'sh bo'lsa "hali do'kon yo'q" CTA) + "🏪 Butun shahar" (hozirgi
+  ro'yxat, o'zgarishsiz). Dizayn — mavjud `--bj-*` tokenlar (D1 emerald/amber), yangi rang yo'q.
+- **ISBOT:** typecheck 4/4 toza (server/shared/miniapp/admin) · `prisma migrate diff` toza additiv
+  diff (jadval+ustun+indeks, hech narsa o'chirilmagan/o'zgartirilmagan) · **jonli DB'ga db:push
+  qilindi** (Neon EU, additiv) · `testMahalla.ts` **17 assertion 3× ket-ket yashil** (TEST DB,
+  TAG'li throwaway Mahalla/MarketShop/Member + to'liq cleanup — nearestMahalla aniqligi,
+  MarketShop scoping, setMemberMahalla home/travel almashinuvi, neighborhood-fallback) ·
+  **Mini App real render tekshirildi** (lokal server BOT_TOKEN'siz — jonli botga tegilmadi —
+  + throwaway debug-member, keyin o'chirildi): chip/picker/GPS-tugma/bo'sh-holat/ikki-bo'lim —
+  barchasi jonli production DB'dagi haqiqiy do'konlar bilan to'g'ri ishladi (screenshot o'rniga
+  matn-render bilan tasdiqlandi, browser pane ko'rinmagani sabab).
+- **QOLDI (egangiz qadami):** `/sotuvchi` to'liq oqim (kind→mahalla tanlov) real Telegram'da — real
+  xabar yuborilmadi (qoida). Owner-preview'da real telefonda QABUL berilmaguncha "owner-accepted" emas.
+- **Eslatma (ehtiyot bo'lish kerak):** `featureFlags.ts`da ALLAQACHON boshqa **"mahalla"** nomli flag
+  bor ("V5 mahalla-scoped leaderboard" — DARK, hech qachon yoqilmagan). Bu V1.5 YANGI flag
+  QO'SHMAGAN (bazar flag'iga mingan) — to'qnashuv yo'q, lekin kelajakda o'sha V5 leaderboard qurilsa,
+  shu yerdagi `Mahalla` jadvalidan foydalanish tavsiya etiladi (ikkinchi mahalla-ro'yxat yaratmaslik).
+
 ### 🚕 Paid-out ride-gate (welcome-funnel fix) — `ready for verification`
 **Exploit:** bola odamlarni ulab (har biriga 5000 welcome tushadi), ularning sovg'asini o'ziga
 transfer qilib olib, keyin naqdga chiqargan. Ildiz: 2026-06-29'da P2P to'liq ochilgan
@@ -2141,3 +2186,20 @@ live (`index-BOT73z2s.js`): "Qidirilgan-lekin-topilmagan" topildi.
 **QOLDI**: §10.1'ning qolgani (moderatsiya-navbat, audit-jurnal, global qidiruv, sog'lik-skori,
 shop-darajasidagi anomaliya-detektor, "nima o'zgardi" kunlik hisobot, kritik-hodisa push, ommaviy
 e'lon-shablon, prognoz-chiziq).
+
+## 2026-07-23 (31) — §10.1: ommaviy e'lon-shablon ko'p-do'konga bir yo'la
+Owner endi bitta matn yozib BARCHA faol do'konning e'lon-bannerini bir yo'la yangilaydi (masalan
+"Ertaga bayram tufayli yetkazish kechikadi") — har do'konni alohida ochib yozish o'rniga.
+Owner-only. Jonli DB'da round-trip sinaldi: ikkala do'kon ham `announcement: null` holatida edi —
+test-matn yozildi, tasdiqlandi, keyin bo'sh matn bilan asl `null` holatiga qaytarildi (haqiqiy
+kontent xavf ostida bo'lmadi).
+**Git-gigiena (uchinchi marta)**: yana Mahalla-WIP bilan aralashib qoldi — yana git-plumbing bilan
+ajratildi. Bu oraliqda BOSHQA sessiya `b15fe32` commitini ("real dish photos" — uy-feed) to'g'ridan-
+to'g'ri shu umumiy repo'ga push qildi — bu normal, tasdiqlangan commit, hech qanday ziddiyat yo'q.
+**Isbot**: izolyatsiya qilingan versiya alohida `tsc --noEmit` — 0 xato. Deploy: server commit
+`87bbf24` → push (Render CI-shield) · admin — build+deploy → bundle-grep live (`index-C5cKlEbv.js`):
+"Ommaviy e'lon" topildi.
+**QOLDI**: §10.1'ning qolgani — moderatsiya-navbat, audit-jurnal, global qidiruv, sog'lik-skori,
+shop-darajasidagi anomaliya-detektor, "nima o'zgardi" kunlik hisobot, kritik-hodisa push,
+prognoz-chiziq. §10.1 asosiy/eng-muhim qismi (ko'p-do'kon skoping, pauza, kunlik-holat, unmet-demand,
+ommaviy e'lon) endi tayyor — qolganlari kichikroq/qo'shimcha qulayliklar.
