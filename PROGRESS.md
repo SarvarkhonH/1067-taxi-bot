@@ -1856,3 +1856,10 @@ biz uni ishlatishдан: past temperatura + quruq persona. FIX:
 - SYSTEM persona: «TIRIK va ERKIN gapir, har safar BOSHQACHA jumla, shablon EMAS, individual
   yondash, buyruq kutmay gapdan niyatni angla, tashabbus ko'rsat».
 Isbot: typecheck 0 · «nima qila olasan» 3× → 3 xil javob (avval bir xil bo'lardi).
+
+## 2026-07-23 (17) — Raqobat-tahlil (ega: boshqa AI'lardan aqliroq bo'lsin) + xotira kuchaytirildi
+Internetда o'rgandim (AI-agent 2026 + super-app Grab/Gojek/WeChat). Xulosa: 2026'ning №1 farqi —
+XOTIRA (persistent, temporal, personalizatsiya). FIX: recentHistory oynasi 8-xabar/30daq →
+14-xabar/3soat (ko'proq davomiylik, real suhbatni kuzatadi). Solishtiruv KOSON_AI_PLAN'da.
+Bizniki allaqachon ustun bo'lgan joylar: jamoaviy bilim (/bilim — Grab/Gojek'да yo'q), hiper-lokal
+Koson+sheva, halol proaktiv (Needs), Telegram-native+ovoz. Isbot: typecheck 0.

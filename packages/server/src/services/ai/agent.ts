@@ -208,12 +208,14 @@ const REMIND_RULES = [
 ].join("\n");
 const STATS_RULES = "- 'qancha ishlatdim', 'necha safar qildim', 'hisobot' kabi savollar → hisob_kitob tool (davr bilan).";
 
-/** Last few support messages (both directions) → chat history for context. */
+/** Recent support messages → chat history for context. Memory is the #1 differentiator of a
+ *  smart 2026 agent, so we keep a WIDER window (14 msgs / 3h) than the old 8/30min — enough
+ *  continuity to follow a real conversation without bloating the prompt. */
 async function recentHistory(telegramId: string): Promise<{ role: "user" | "assistant"; content: string }[]> {
   const rows = await prisma.supportMsg.findMany({
-    where: { telegramId, createdAt: { gte: new Date(Date.now() - 30 * 60_000) } },
+    where: { telegramId, createdAt: { gte: new Date(Date.now() - 3 * 3600_000) } },
     orderBy: { createdAt: "desc" },
-    take: 8,
+    take: 14,
   });
   return rows
     .reverse()
