@@ -2025,3 +2025,100 @@ aniq xabar, do'st-yordamchi tuyg'усини saqлаш uchun.
 Isbot: tsc --noEmit=0 (har bir commit), geminiContents 4/4 sanity-test PASS. Deploy: server (Render)
 har bosqichda bundle/commit-hash bilan tasdiqlandi (live: 8e08d38→ce9ba6a→bd3ca5a→7296647→c4647db→
 248b960→23db388→ca5966c→ed4f670→70cf4a2).
+
+## 2026-07-23 (25) — kas dispatch: GPS-mijoz-buyurtmada manzil o'rniga chiziqcha (ega topdi) — TUZATILDI
+Ega: "xaritadan yozsa chiziqcha bo'lib tushopti, haydovchiga tushmayapti". Ildiz: `kas/client.ts`
+`createBooking()`da IKKI dispatch-yo'l bor — eski `throughWeb` yo'lda allaqachon himoya bor (kas
+manzil-nomini topolmasa eng yaqin katalog-manziga yoki "Belgilangan joy"ga almashtiradi, hech qachon
+chiziqcha emas). Yangiroq CLIENT-buyurtma yo'li (`clientbooking` flag) esa manzil-nomini UMUMAN
+yubormaydi — kas o'zi lat/lng'dan topishga harakat qiladi, topolmasa haydovchi chiziqcha ko'radi,
+bizning tarafda zaxira yo'q edi. **Tuzatish**: eski yo'lda allaqachon hisoblangan, kafolatli
+`addressName`ni yangi yo'lning `carModel` maydoniga ham qo'shdik (kas mijoz-buyurtmalarni
+«℗ <carModel>, <joy>» shaklida ko'rsatadi) — endi haydovchi doim haqiqiy joy nomini ko'radi.
+Bitta qatorlik o'zgarish, yangi maydon/yo'l yo'q. **Isbot**: `tsc --noEmit` server 0 xato. Deploy:
+commit `5612dd0` → push → Render CI-shield-gated deploy.
+
+## 2026-07-23 (26) — V1.7: ega ko'p-do'kon boshqaruvi — Mahsulotlar/Buyurtmalar/Sharhlar (§10.1)
+Ega: "do'koni qurishda davom etamiz to'liq qilamiz barchasini" — §10.1 (eng yuqori ustuvor,
+ko'p-do'kon boshqaruvi) bilan boshlandi. Gap: admin-panelning Mahsulotlar/Buyurtmalar/Sharhlar
+bo'limlari HAMISHA barcha do'konlarni aralashtirib ko'rsatardi (qaysi mahsulot qaysi do'konga
+tegishli — ko'rinmasdi) va yangi mahsulot HAR DOIM shopId=1'ga (BirJoy o'z do'koni) qattiq
+yozilgan edi — ega boshqa do'konga mahsulot qo'sha OLMASdi.
+**Tuzatish**: D2/C1'da allaqachon R4'dan o'tgan `resolveProfileShopId` naqshini (owner `?shopId=`
+bilan tanlaydi, real seller-token har doim O'Z scope'iga majburlangan — xavfsizlik chegarasi
+o'zgarishsiz) 4 ta yo'lakka kengaytirdik: GET/POST `/api/admin/shop/products`, GET
+`/api/admin/shop/orders`, GET `/api/admin/shop/reviews`. Har qatorga `shopId`+`shopName` qo'shildi
+(aralash ko'rinishda qaysi do'konga tegishli ekani ko'rinadi). `ShopAdminView`ga do'kon-tanlagich
+qo'shildi (faqat ega uchun ko'rinadi — real seller uchun `marketShops()` 403 qaytaradi, tanlagich
+sodda ravishda ko'rinmaydi) — tanlov 3 ro'yxatni ham filtrlaydi VA yangi mahsulot qaysi do'konga
+tushishini belgilaydi (bir nechta do'kon bo'lsa, tanlanmagunча yaratish bloklanadi).
+**R4 (mustaqil agent)**: xavfsizlik-chegarasi (seller `?shopId=` bilan boshqa do'konni ko'ra
+olmasligi) kod-satr bilan tasdiqlandi, N+1/key-mismatch yo'q, real-seller filtrlash buzilmagan,
+mavjud test skriptlar (`testBazar.ts`) hali mos. 0 ta CRITICAL/HIGH/MEDIUM/LOW topilma.
+**Isbot**: `tsc --noEmit` 4/4 paket (server/admin/miniapp/shared) — 0 xato. Deploy: server commit
+`a1bd658` → push (Render CI-shield) · admin — `VITE_API_URL=<render> vite build` → `.vercel/output/
+static` → `vercel deploy --prebuilt --prod` → bundle-grep live (`admin-seven-ebon-95.vercel.app`,
+`index-C7VJiFLb.js`): "Barcha do'kon" + "shopId=" topildi.
+**QOLDI**: §10.1'ning qolgan kichik-imkoniyatlari (bugungi-holat dashboard, birlashtirilgan
+moderatsiya-navbat va h.k. — reja §10.1 jadvalida), keyin §10.2 (V4) → §10.3'ning qolgani.
+
+## 2026-07-23 (27) — §10.1: "Bugungi holat" owner-dashboard + market-orders shop-scoping tuzatildi
+Ega "next" dedi — §10.1 davomi. Ikki kichik qadam:
+1. `/api/admin/shop/market-orders` (yangi savat-checkout `MarketOrder` ro'yxati, hali UI'ga ulanmagan
+   — `bazarcart` hali DARK) HAM eski `res.locals.sellerShopId` to'g'ridan-to'g'ri ishlatardi — V1.7'dagi
+   `resolveProfileShopId` bilan bir xilga keltirdik (funksional o'zgarish yo'q, hali hech kim
+   chaqirmaydi, lekin flag yoqilganda tayyor turadi).
+2. Yangi "📊 Bugungi holat" karta (adminInsights.ts — mavjud anomaliya-banner bilan bir xil izolyatsiya
+   naqshi, `tashkentMidnightUtc` qayta ishlatildi): javob kutayotgan buyurtmalar (ShopPurchase pending),
+   javobsiz mijoz-xabarlari (SupportMsg — `listShopChatConversations`dagi "unread" bilan AYNAN bir xil
+   semantika), bugungi hikoyalar soni (ShopStory), faol do'konlar soni. Owner-only (`requireOwner` —
+   seller-token uchun 403, panelda jim ko'rinmaydi).
+**Isbot**: `tsc --noEmit` server+admin 0 xato · jonli DB'ga qarshi to'g'ridan-to'g'ri ishga tushirildi
+(`getShopDailyStatus()`) — natija: `{pendingOrders:0, unansweredChats:1, todayStories:0, activeShops:2}`
+(mantiqan to'g'ri — S1/C1 hali dark/kam-foydalanish). Deploy: server commit `dbed5a8` → push (Render
+CI-shield) · admin — build+prebuilt deploy → bundle-grep live (`index-fafK0I0s.js`): "Bugungi holat"
+topildi.
+**QOLDI**: §10.1'ning qolgani (moderatsiya-navbat, audit-jurnal, global qidiruv, sog'lik-skori,
+anomaliya-detektor shop-darajasida — platforma-darajasidagi anomaliya-banner ALLAQACHON bor, lekin
+"reyting to'satdan tushishi"/"g'ayrioddiy rad-etish" shop-o'ziga xos versiyasi hali yo'q).
+
+## 2026-07-23 (28) — kas: manzil-fallback tuzatishim NOTO'G'RI edi — orqaga qaytarildi (ega skrinshot yubordi)
+Ega kas operator-panelidan skrinshot yubordi: bitta buyurtma UCHUN ikki qator — biri "Отказ от
+оператора" (mashinasiz), biri "Новый" (haqiqiy mashina bilan), va manzil matni TAKRORLANGAN:
+«℗ LOKATSIYALIK, FARANGIZ YAQINIDA, FARANGIZ».
+**Tekshiruv (Render loglar, aynan shu daqiqa)**: bizning tarafda FAQAT bitta dispatch-chaqiruv
+(`[dispatch] m6693 ... ok=true`) va FAQAT bitta haqiqiy kas-buyurtma (`b62506`, mashina 70B213CB —
+skrinshotdagi "Новый" qatoriga mos) yaratilgan. Ya'ni bizning kod ikki marta buyurtma YARATMAGAN —
+mijozning haqiqiy sayohati to'g'ri ketgan. Qizil "Отказ" qatori kasning o'z tizimidagi CLIENT-yo'l
+buyurtmalari uchun operator-ko'rinishi bo'lishi mumkin (bizning nazoratimizdan tashqarida).
+**Lekin**: (25)-yozuvda qilingan tuzatish (kasning o'z manzil-nomi ustiga bizning zaxira-nomimizni
+`carModel`ga ham qo'shish) NOTO'G'RI YO'NALISH edi — bu real holatda kasning o'zi manzilni ("FARANGIZ")
+TO'G'RI topgan, va bizning qo'shimchamiz shunchaki TAKRORLANGAN, chalkash matn hosil qildi — bu
+operatorni chalg'itib, yaxshi buyurtmani rad etishga turtki bergan bo'lishi mumkin.
+**Tuzatish**: `carModel`ni asl holiga ("Lokatsiyalik", zaxira-manzilsiz) qaytardik — chunki kasning
+o'z manzil-topish tizimi ODATDA ishlab turibdi (bugungi jonli misol buni isbotladi), asl "chiziqcha"
+muammosi hali bir marta ham HAQIQIY jonli misolda qayta ko'rilmagan.
+**Saboq**: booking-dispatch kodiga tuzatish kiritganda — nazariy tahlil YETARLI EMAS, jonli natijani
+KUZATISH kerak (bu safar ega o'zi darhol skrinshot yuborib topdi — aks holda men payqamas edim).
+**Isbot**: `tsc --noEmit` server 0 xato. Deploy: commit `114cafe` → push (Render CI-shield).
+
+## 2026-07-23 (29) — §10.1: "muammoni tuzat" — do'kon pauza (1-bosishda) + SLA-buzilish soni
+`MarketShop.paused` maydoni allaqachon bor edi va checkout'da tekshirilardi (`shop.paused` bo'lsa
+buyurtma rad etiladi), lekin uni O'RNATISH uchun hech qanday yo'l yo'q edi — admin-panelda faqat
+o'qish-uchun belgi ko'rinardi. Endi: `ShopProfilePanel`ga pauza/faollashtirish tugmasi + hozirgi SLA
+(15+ daqiqa javobsiz, allaqachon 1 marta alert bo'lgan) buzilishlar soni qo'shildi.
+**Muhim arxitektura-qaror**: bu maydonlar `ShopProfileView` (mijoz-tomon, `getShopProfile` ikkalasiga
+ham xizmat qiladi) ga QO'SHILMADI — alohida `ShopOpsStatus`/`getShopOpsStatus` (admin-only) yaratildi,
+mijozga SLA-buzilish sonini ko'rsatish shart emas.
+**Git-gigiena**: `server.ts` va `shopService.ts`da BOSHQA sessiyaning tugallanmagan Mahalla-ishi
+(`mahallaId`/`shopKind` — untracked `mahallaService.ts`/`seedMahalla.ts` fayllari bilan) aralashib
+qolgan edi. Git-plumbing bilan ajratildi (HEAD'dan toza nusxa + faqat mening aniq matn-almashtirishim
++ blob to'g'ridan-to'g'ri index'ga stage) — ishchi-katalogdagi fayllar (boshqa sessiyaning WIP'i bilan)
+HECH TEGILMADI, tekshirildi (`mahallaId`/`shopKind` hali working tree'da bor).
+**Isbot**: izolyatsiya qilingan (faqat mening o'zgarishlarim, mahalla-siz) versiya alohida `tsc --noEmit`
+o'tkazildi — 0 xato. Jonli DB'ga qarshi to'g'ridan-to'g'ri sinov: ikkala do'kon uchun
+`{"paused":false,"slaBreaches":0}` — mantiqan to'g'ri. Deploy: server commit `67bfe2e` → push
+(Render CI-shield) · admin — build+deploy → bundle-grep live (`index-QVIqoD10.js`): "Do'konni
+to'xtatish" topildi.
+**QOLDI**: §10.1'ning qolgani (moderatsiya-navbat, audit-jurnal, global qidiruv, sog'lik-skori,
+shop-darajasidagi anomaliya-detektor, "nima o'zgardi" kunlik hisobot, kritik-hodisa push, va h.k.).
