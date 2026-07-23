@@ -2122,3 +2122,22 @@ o'tkazildi — 0 xato. Jonli DB'ga qarshi to'g'ridan-to'g'ri sinov: ikkala do'ko
 to'xtatish" topildi.
 **QOLDI**: §10.1'ning qolgani (moderatsiya-navbat, audit-jurnal, global qidiruv, sog'lik-skori,
 shop-darajasidagi anomaliya-detektor, "nima o'zgardi" kunlik hisobot, kritik-hodisa push, va h.k.).
+
+## 2026-07-23 (30) — §10.1: qidirilgan-lekin-topilmagan (MarketDemand) admin-panelga chiqarildi
+`MarketDemand` jadvali allaqachon yozilardi (Bozor qidiruvida nol-natija) — lekin HECH QAYERDA
+o'qilmasdi, faqat-yozish ma'lumot edi. `adminListMarketDemand()` + kichik panel qo'shildi.
+**Muhim topilma**: xom log deyarli faqat KLAVIATURA-BOSISHI shovqinidan iborat ekan — har harf
+alohida MarketDemand qatori (masalan "koptok" yozilganda "k","ko","kop"...16 ta alohida qator).
+Jonli DB'da tekshirib ko'rdim: 46 ta xom qator → aslida atigi 6 ta haqiqiy qidiruv-niyat. Shuning
+uchun bitta odamning tez ketma-ket (≤45s) so'rovlarini bitta "burst"ga yig'ib, burstning OXIRGI
+matnini haqiqiy niyat sifatida hisobladim — bu logikasiz panel foydasiz shovqin bo'lib qolardi.
+**Git-gigiena (yana)**: `server.ts`/`shopService.ts`da yana boshqa sessiyaning Mahalla-WIP'i bilan
+aralashib qoldi — git-plumbing bilan ikkinchi marta ajratildi, ishchi-katalog fayllari tegilmadi.
+**Isbot**: izolyatsiya qilingan versiya alohida `tsc --noEmit` — 0 xato. Jonli DB'ga qarshi
+to'g'ridan-to'g'ri sinov: 46 xom qator → 6 ta toza natija (burst-yig'ish to'g'ri ishladi, masalan
+«www» va «Finjon» to'g'ri ajratildi, 3+ daqiqa tanaffusdan keyingi so'rovlar aralashmadi).
+Deploy: server commit `556df61` → push (Render CI-shield) · admin — build+deploy → bundle-grep
+live (`index-BOT73z2s.js`): "Qidirilgan-lekin-topilmagan" topildi.
+**QOLDI**: §10.1'ning qolgani (moderatsiya-navbat, audit-jurnal, global qidiruv, sog'lik-skori,
+shop-darajasidagi anomaliya-detektor, "nima o'zgardi" kunlik hisobot, kritik-hodisa push, ommaviy
+e'lon-shablon, prognoz-chiziq).
