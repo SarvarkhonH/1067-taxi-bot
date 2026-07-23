@@ -356,6 +356,9 @@ async function main(): Promise<void> {
       // ShopPurchase'lar egaga BIR marta eslatiladi (slaAlertedAt idempotent-marker).
       const { checkShopSlaAndAlert } = await import("./services/shopService");
       await checkShopSlaAndAlert(alertAdmins).catch((e) => console.error("[shop-sla] failed:", e));
+      // §10.2: javobsiz-chat ogohlantirish — xuddi shu tick, yangi poller YO'Q
+      const { checkUnansweredChatsAndAlert } = await import("./services/shopChatService");
+      await checkUnansweredChatsAndAlert(alertAdmins).catch((e) => console.error("[chat-sla] failed:", e));
       // 🔔 AI eslatmalar (airemind, yangi poller YO'Q): ≤90s aniqlikda yetkazish — bitta indeksli
       // Postgres so'rov/iteratsiya, kas'ga 0 so'rov, claim-first (dispatchScheduled naqshi).
       const { deliverDueReminders } = await import("./services/ai/reminderService");

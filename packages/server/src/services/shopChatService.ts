@@ -156,3 +156,32 @@ export async function sendSellerReplyFromPanel(shopId: number, telegramId: strin
   await tgSendMessage(telegramId, `🏪 <b>${esc(shop?.name ?? "Do'kon")}</b> sizga yozdi:\n«${esc(clean)}»`);
   return { ok: true };
 }
+
+// §10.2: javobsiz-chat ogohlantirish — restoran/shop-SLA naqshi AYNAN (yangi poller YO'Q, mavjud
+// booking-tick chaqiradi). Idempotentlik uchun YANGI schema-maydon QO'SHILMAYDI (bugungi Prisma-
+// client-qulf muammosidan keyin ehtiyot bo'lib) — mavjud AppState KV-jadvali "oxirgi ogohlantirilgan
+// xabar-ID"ni do'kon boshiga saqlaydi (oprtoken:/pending: prefikslari bilan bir xil naqsh).
+export async function checkUnansweredChatsAndAlert(alertAdmins: (html: string) => Promise<void>): Promise<void> {
+  const cutoff = new Date(Date.now() - 15 * 60_000);
+  const stale = await prisma.supportMsg.findMany({
+    where: { shopId: { not: null }, direction: "in", read: false, createdAt: { lt: cutoff } },
+    orderBy: { createdAt: "asc" },
+    take: 200,
+    select: { id: true, shopId: true, createdAt: true },
+  });
+  if (!stale.length) return;
+  const oldestByShop = new Map<number, { id: number; createdAt: Date }>();
+  for (const m of stale) { if (!oldestByShop.has(m.shopId!)) oldestByShop.set(m.shopId!, m); }
+  for (const [shopId, msg] of oldestByShop) {
+    const markerKey = `chatalert:${shopId}`;
+    const marker = await prisma.appState.findUnique({ where: { key: markerKey } });
+    if (marker && Number(marker.value) >= msg.id) continue; // shu yoki keyinroq xabar uchun allaqachon ogohlantirilgan
+    const shop = await prisma.marketShop.findUnique({ where: { id: shopId }, select: { name: true, ownerChatId: true } });
+    if (!shop) continue;
+    const ageMin = Math.floor((Date.now() - msg.createdAt.getTime()) / 60_000);
+    const text = `💬 <b>${esc(shop.name)}</b>: mijoz-xabari ${ageMin} daq javobsiz`;
+    if (shop.ownerChatId) await tgSendMessage(shop.ownerChatId, text).catch(() => undefined);
+    await alertAdmins(`🛍 ${text}`).catch(() => undefined);
+    await prisma.appState.upsert({ where: { key: markerKey }, create: { key: markerKey, value: String(msg.id) }, update: { value: String(msg.id) } });
+  }
+}
