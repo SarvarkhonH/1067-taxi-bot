@@ -2626,6 +2626,16 @@ body {
 }
 .bj-mahalla-chip:active { transform: scale(0.97); }
 .bj-mahalla-chip-caret { font-size: 11px; color: var(--bj-ink-dim); }
+
+/* §10.2: "hozir ochiq" tezkor-filtr chipi — bj-mahalla-chip bilan bir xil qobiq, faqat "on" holati */
+.shop-open-filter-chip {
+  display: inline-flex; align-items: center; gap: 4px; margin: 4px 16px 6px;
+  padding: 8px 14px; border-radius: var(--r-chip); border: 1px solid var(--bj-line);
+  background: var(--bj-card); color: var(--bj-ink); font-weight: 700; font-size: 13px;
+  box-shadow: var(--bj-shadow); cursor: pointer;
+}
+.shop-open-filter-chip:active { transform: scale(0.97); }
+.app.bazar-light .shop-open-filter-chip.on { background: var(--bj-hero-grad); color: #fff; border-color: transparent; }
 .bj-travel-banner {
   margin: 6px 16px 10px; padding: 12px 14px; border-radius: var(--r-card);
   border: 1px solid var(--bj-line); background: var(--bj-card); color: var(--bj-ink);

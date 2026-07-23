@@ -282,8 +282,10 @@ export function ShopView({ me, onBanner, reload, onBook, openProductId }: { me: 
   // qachon aralashtirilmaydi, joriy mahalla = travelMahallaId ?? mahallaId ?? null.
   const activeMahallaId = me.member.travelMahallaId ?? me.member.mahallaId ?? null;
   // ikki bo'lim — o'z mahallasi (shopKind="mahalla" + mos mahallaId) vs butun shahar (qolgani)
-  const mahallaShops = useMemo(() => (market?.shops ?? []).filter((s) => s.shopKind === "mahalla" && s.mahallaId === activeMahallaId), [market, activeMahallaId]);
-  const cityShops = useMemo(() => (market?.shops ?? []).filter((s) => s.shopKind !== "mahalla"), [market]);
+  // §10.2: "hozir ochiq" tezkor-filtr — ikkala ro'yxatga ham qo'llaniladi
+  const [openOnly, setOpenOnly] = useState(false);
+  const mahallaShops = useMemo(() => (market?.shops ?? []).filter((s) => s.shopKind === "mahalla" && s.mahallaId === activeMahallaId && (!openOnly || s.open)), [market, activeMahallaId, openOnly]);
+  const cityShops = useMemo(() => (market?.shops ?? []).filter((s) => s.shopKind !== "mahalla" && (!openOnly || s.open)), [market, openOnly]);
   const [shopFilter, setShopFilter] = useState<{ id: number; name: string } | null>(null); // 🏬 do'kon-sahifa (lite)
   const [mahallaList, setMahallaList] = useState<MahallaView[] | null>(null);
   const [mahallaPickerOpen, setMahallaPickerOpen] = useState(false);
@@ -789,6 +791,12 @@ export function ShopView({ me, onBanner, reload, onBook, openProductId }: { me: 
               active={cat}
               onPick={(slug) => { haptic(); setCat(slug); }}
             />
+          )}
+          {/* §10.2: "hozir ochiq" tezkor-filtr — do'kon-rail ustida, kategoriya-karuseldan keyin */}
+          {bazar && !shopFilter && market && (mahallaShops.length > 0 || cityShops.length > 0 || openOnly) && (
+            <button className={"shop-open-filter-chip" + (openOnly ? " on" : "")} onClick={() => { haptic(); setOpenOnly((v) => !v); }}>
+              🟢 Hozir ochiq
+            </button>
           )}
           {/* 🏠 V1.5: mahalla do'konlari — kattaroq "qo'shni" karta + hikoya-parcha + haqiqiy
               ijtimoiy-signal (ega: "oddiy online do'kondan farq qilmayapti" fikriga javob) */}
