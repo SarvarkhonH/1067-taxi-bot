@@ -638,8 +638,16 @@ export function ShopView({ me, onBanner, reload, onBook, openProductId }: { me: 
               <div className="bj-profile-hero">
                 {shopProfile.hasPhoto ? (
                   <img src={apiUrl(`/api/shop/shop-photo/${shopProfile.id}`)} alt="" />
-                ) : null}
-                <div className="bj-profile-rating">⭐ {shopProfile.avgRating || "—"} ({shopProfile.reviewCount})</div>
+                ) : (
+                  // Ega skrinshotda topdi: rasm-yo'q holat butunlay bo'sh/singan ko'rinardi — plan
+                  // blueprintida aytilgan "katta bosh-harf" fallback hech qachon qurilmagan edi.
+                  <div className="bj-profile-hero-monogram" aria-hidden="true">{shopProfile.name.trim().charAt(0).toUpperCase()}</div>
+                )}
+                {/* Ega skrinshotda topdi: sharh 0 ta bo'lsa "★ –(0)" singan-ko'rinishli edi — sharh
+                    bo'lmasa reyting-belgi umuman ko'rsatilmaydi (bo'lmagan narsani ko'rsatishdan yaxshi). */}
+                {shopProfile.reviewCount > 0 && (
+                  <div className="bj-profile-rating">⭐ {shopProfile.avgRating} ({shopProfile.reviewCount})</div>
+                )}
                 <div className="bj-profile-hero-name">{shopProfile.name}</div>
               </div>
               <div className="bj-profile-info">

@@ -2547,6 +2547,8 @@ body {
 /* Ega topgan real bug (2026-07-23): quyidagi 2 klass shared/legacy (V1.4'dan oldingi taksi-mukofot
    OLTIN rangida) — BirJoy zumrad-brendiga zid, "arzon" his qildirardi. Endi shu zonada qayta bo'yaldi. */
 .app.bazar-light .shop-cat-chip.on { background: var(--bj-hero-grad); color: #fff; }
+/* Ega skrinshotda topdi: sotuvchi kiritgan kategoriya-nomlar aralash registrda ("PARFUMERIYA" vs "umumiy") — bir qatorda ikki xil registr sifatsiz korinardi. Saqlangan qiymatga tegilmaydi (faqat KORSATISH normallashadi). */
+.app.bazar-light .shop-cat-chip { text-transform: capitalize; }
 .app.bazar-light .shop-card-noimg { background: linear-gradient(155deg, #eef2ee, #dbe6df); font-size: 32px; color: var(--bj-ink-dim); }
 /* THE big one: shared .d-btn ("brand" variant — every primary CTA: checkout, buy, chat-send)
    has ALWAYS rendered the generic taxi-app gold, because the GLOBAL base rule (`.btn-primary,
@@ -2623,6 +2625,7 @@ body {
 .bj-profile-hero img { width: 100%; height: 100%; object-fit: cover; display: block; }
 .bj-profile-hero::after { content: ""; position: absolute; inset: 0; background: linear-gradient(0deg, rgba(0,0,0,.55), transparent 60%); }
 .bj-profile-hero-name { position: absolute; left: 16px; bottom: 12px; color: #fff; font-size: 17px; font-weight: 700; z-index: 1; }
+.bj-profile-hero-monogram { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-size: 64px; font-weight: 700; color: rgba(255,255,255,.14); user-select: none; }
 .bj-profile-rating { position: absolute; right: 12px; top: 12px; background: rgba(255,255,255,.16); backdrop-filter: blur(2px); border-radius: 8px; padding: 4px 9px; color: #fff; font-size: 11px; display: flex; align-items: center; gap: 4px; z-index: 1; }
 .bj-profile-info { display: flex; gap: 16px; padding: 0 16px 12px; color: var(--bj-ink-dim); font-size: 12px; flex-wrap: wrap; position: sticky; top: 0; background: var(--bj-card); z-index: 5; border-bottom: 1px solid var(--bj-line); }
 .bj-profile-info span { display: flex; align-items: center; gap: 4px; }
