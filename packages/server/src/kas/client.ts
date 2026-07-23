@@ -572,9 +572,13 @@ export class KasLiveSource implements KasDataSource {
               phone: req.phoneNumber,
               lat: req.addressLatitude!,
               lng: req.addressLongitude!,
-              carModel: "Lokatsiyalik", // kas names client orders «℗ <carModel>, <place>» — we inject the
-              // human-readable «LOKATSIYALIK» label here (kas ignores a sent addressName) → driver sees
-              // «℗ LOKATSIYALIK, ARABXONA»: the ℗ marker + the word + the place, no car. Standard fare.
+              // kas names client orders «℗ <carModel>, <place>» and resolves <place> itself server-side
+              // from lat/lng — that resolution can fail and show a bare "-" (this DTO has no addressName
+              // field of its own, unlike throughWeb below). So we bake OUR already-guarded `addressName`
+              // (computed above, never a dash — falls back to the nearest catalog place or "Belgilangan
+              // joy") directly into carModel too → driver always sees a real place, e.g.
+              // «℗ Lokatsiyalik, Arabxona yaqinida».
+              carModel: `Lokatsiyalik, ${addressName}`,
               additionalPayment: req.additionalPayment ?? 0,
             });
             if (cr.status >= 200 && cr.status < 300 && /"status"\s*:\s*"new"/.test(cr.body)) {
