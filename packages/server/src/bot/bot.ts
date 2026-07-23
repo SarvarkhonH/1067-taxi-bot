@@ -1729,12 +1729,19 @@ export function createBot(): Bot {
       // real pick-an-address flow (the old inline `bk:addr:<kasId>` buttons were DEAD —
       // booking's handler reads that payload as a session INDEX and no session existed).
       // "uyim/uyimga" is the saved pickup → skip the (doomed) place search, go straight to 1-tap.
-      if (intent.addressQuery && !isHomeRef(intent.addressQuery) && (await tryAddressBooking(ctx, intent.addressQuery))) return;
+      if (intent.addressQuery && !isHomeRef(intent.addressQuery) && (await tryAddressBooking(ctx, intent.addressQuery))) {
+        // tryAddressBooking replies for itself (address picker / "already have an active ride") —
+        // just leave a monitoring trail so live-convo audits aren't blind to this rules-first path.
+        saveOut(`📍 Manzil-tanlash (rules-first): «${intent.addressQuery}».`);
+        return;
+      }
       const { InlineKeyboard } = await import("grammy");
       const later = intent.when === "later" ? `\n⏰ ${intent.timeText ?? "Keyinroqqa"} — rejali safar tez orada!` : "";
-      await ctx.reply(`🚕 Taksi kerak shekilli!${later}\nQuyidan tanlang:`, {
+      const bookReply = `🚕 Taksi kerak shekilli!${later}\nQuyidan tanlang:`;
+      await ctx.reply(bookReply, {
         reply_markup: new InlineKeyboard().text("🚕 1-bosishda chaqirish", "bk:now"),
       });
+      saveOut(bookReply);
       return;
     }
 
@@ -2005,7 +2012,20 @@ export function createBot(): Bot {
     await ctx.reply(t, { reply_markup: kb });
     saveOut(t);
   };
-  bot.on("message:text", (ctx) => runAiText(ctx, ctx.message.text));
+  // 🛡 NEVER leave a text message with no reply. If runAiText throws (agent/DB/Gemini blip, a
+  // mid-pipeline ctx.reply rejection, an import failure), the global bot.catch only LOGS it —
+  // the user sees total silence ("javob bermay qoldi"). Mirror the voice handler: catch → warm
+  // fallback so every message gets *something*. (Root cause of live "Osh buyurtma qil" → silence.)
+  bot.on("message:text", async (ctx) => {
+    try {
+      await runAiText(ctx, ctx.message.text);
+    } catch (e) {
+      console.error("[text] runAiText failed:", e instanceof Error ? e.message : e);
+      await ctx
+        .reply("🙏 Bir zumга uzildim — iltimos yana bir marta yozing yoki gapiring, darrov qilaman 😊")
+        .catch(() => undefined);
+    }
+  });
 
   // 🎤 Voice → transcribe (Gemini) → same AI pipeline. People SPEAK instead of typing (2026 trend).
   bot.on("message:voice", async (ctx) => {

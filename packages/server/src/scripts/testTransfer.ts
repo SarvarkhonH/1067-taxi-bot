@@ -17,8 +17,11 @@ function ok(cond: boolean, label: string): void {
 async function mkMember(suffix: string, phone: string, opts: { type?: string; coins?: number; agedTg?: boolean; fresh?: boolean } = {}): Promise<number> {
   const m = await prisma.member.create({
     // the anti-sybil gate reads ACCOUNT age (member.createdAt) — backdate so normal senders are
-    // "established"; opts.fresh keeps createdAt=now to exercise the gate.
-    data: { type: opts.type ?? "client", kasId: `${TAG}-${suffix}`, fullName: `Xfer ${suffix}`, phone, trips: 1, createdAt: opts.fresh ? new Date() : new Date(Date.now() - 72 * 3600 * 1000) },
+    // "established"; opts.fresh keeps createdAt=now to exercise the gate. trips:5 clears the paid-out
+    // ride-gate (MIN_RIDES_FOR_PAID=3) so these senders can transfer at all (see testPaidRideGate.ts
+    // for the gate itself). NOTE: this suite is otherwise STALE since the 2026-06-29 P2P loosening
+    // (asserts the removed 48h age gate / 30k caps / burn=20) — it needs a separate rewrite.
+    data: { type: opts.type ?? "client", kasId: `${TAG}-${suffix}`, fullName: `Xfer ${suffix}`, phone, trips: 5, createdAt: opts.fresh ? new Date() : new Date(Date.now() - 72 * 3600 * 1000) },
   });
   if (opts.coins) await grantCoins(m.id, opts.coins, "manual", "test seed");
   if (opts.agedTg !== false) {

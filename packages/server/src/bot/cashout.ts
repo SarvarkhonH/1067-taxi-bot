@@ -125,8 +125,13 @@ export function registerCashout(bot: Bot): void {
     const me = await getMe(tg);
     if (!me?.member) return;
     const bal = await cashoutBalance(me.member.id);
-    if (bal < CASHOUT_CARD_MIN) {
-      await ctx.reply("❌ Balansingiz yetarli emas.");
+    // Chegara USULGA qarab: 🏠 uyga naqd qimmatroq (egadan alohida yo'l talab qiladi) — shuning
+    // uchun min 100k. Ilgari bu yakuniy tekshiruv HAR IKKALA usul uchun ham karta-chegarasini
+    // (50k) ishlatardi, ya'ni mijoz uy-usulini tanlab, keyin Mini App'da tangasini sarflab,
+    // 60k ga uy-yetkazish so'rovi qoldira olardi. Mini App yo'li (server.ts) to'g'ri edi.
+    const min = s.method === "home" ? CASHOUT_HOME_MIN : CASHOUT_CARD_MIN;
+    if (bal < min) {
+      await ctx.reply(`❌ Balansingiz yetarli emas (kamida ${formatNumber(min)} tanga kerak).`);
       return;
     }
     const phone = me.member.phone ?? "—";

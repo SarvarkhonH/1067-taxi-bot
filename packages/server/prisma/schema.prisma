@@ -45,6 +45,10 @@ model Member {
   rideStartedAt      DateTime? // first sweep sighting of status "started" — ride meter (guess + garage)
   riskFlag           Boolean   @default(false) // freezes the withdraw door only; coins stay spendable
   riskNote           String?
+  // 🎁 RESERVED (currently unused). Was a per-welcome trips snapshot; superseded on 2026-07-23 by the
+  // simpler flat paid-out gate (MIN_RIDES_FOR_PAID on member.trips, enforced in withdraw + transfer).
+  // Kept (nullable, all-NULL in prod) to avoid a live-DB column drop; safe to remove in a later push.
+  welcomeLockTrips   Int?
   // 🚫 HARD ban — TOTAL lockout from the whole product (Telegram bot + Mini App API). Distinct from
   // riskFlag (which only freezes the cash door): a banned member cannot open the bot, book, play,
   // earn, spend or transfer at all. Enforced at both entry gates via an in-memory set (banService).
@@ -1928,4 +1932,26 @@ model AdContact {
   at         DateTime @default(now())
 
   @@index([adId, at])
+}
+
+// 🏠 HOME FEED curation (feature "newhome"/"homeadmin", UY_REDESIGN Bosqich 3). Owner-curated promo
+// banner + pinned dish/product for the premium home. EMPTY = the auto feed (top-seller/rating) runs —
+// this only overrides/pins on top. Additive table (safe db:push).
+model HomeFeatured {
+  id        Int       @id @default(autoincrement())
+  kind      String // "banner" | "product" | "restaurant"
+  refId     Int? // pinned product/restaurant id (null for a pure banner)
+  imageKey  String? // banner image path override (else the ref's own photo)
+  title     String
+  subtitle  String?
+  target    String? // deep-link tab: dokon | restoran | ...
+  badge     String?
+  sortOrder Int       @default(0)
+  startsAt  DateTime?
+  endsAt    DateTime?
+  region    String?
+  active    Boolean   @default(true)
+  createdAt DateTime  @default(now())
+
+  @@index([active, sortOrder])
 }

@@ -38,7 +38,10 @@ const FAQ: { re: RegExp; a: string }[] = [
   // this. Require car/taxi/driver context (or "qayerga yetdi/keldi") so a booking isn't hijacked.
   { re: /mashina\w*\s*qayer|taksi\w*\s*qayer|haydovchi\s*qayer|мошина\s+қаер|qayer(da|ga)?\s+(yetdi|keldi|qoldi|bo'ldi)|qachon\s+kel/i, a: "📍 «Buyurtmam» tugmasini bosing — jonli kartada mashina qayerdaligini ko'rasiz." },
   { re: /referal|do'st\s+taklif|taklif\s+qil/i, a: "👥 Do'st taklif qiling: u ilk safarini qilsa SIZGA 1500, UNGA 5000 tanga (birinchi safar BEPUL)! Mini App → Do'st." },
-  { re: /operator|dispetcher|yordam|help|aloqa/i, a: "☎️ Taksi bo'yicha: 1067 dispetcheriga qo'ng'iroq qiling (24/7). Boshqa savollar — shu yerda yozing, yordam beraman." },
+  // NOTE: bare "yordam"/"help" was too greedy — "NIMA YORDAM BERA OLASAN" / "menga yordam kerak"
+  // (asking what the AI can do) wrongly got deflected to "call the operator" instead of the AI
+  // explaining itself. Require an explicit operator/dispatcher ask, not generic "help".
+  { re: /operator|dispetcher|dispecher|qo'ng'iroq\s+qil.{0,15}(operator|dispetcher|1067)/i, a: "☎️ Taksi bo'yicha: 1067 dispetcheriga qo'ng'iroq qiling (24/7). Boshqa savollar — shu yerda yozing, yordam beraman." },
 ];
 
 // 🔀 Pivot detection: while the bot is WAITING for a specific input (a name, an address, a

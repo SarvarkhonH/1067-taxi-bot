@@ -304,6 +304,11 @@ export const adminApi = {
   elonReactions: (id: number) => req<{ reactions: AdminAdReactionRow[] }>(`/api/admin/elonlar/${id}/reactions`),
   elonCreate: (p: Record<string, unknown>) => postJson<{ ok: boolean; id?: number; error?: string; ownerMatched?: boolean; ownerName?: string }>("/api/admin/elonlar", p),
   elonPhotoClear: (id: number) => req<{ ok: boolean }>(`/api/admin/elonlar/${id}/photo`, { method: "DELETE" }),
+  // 🏠 home feed curation (Bosqich 3, feature "homeadmin")
+  homeFeaturedList: () => req<{ items: { id: number; kind: string; refId: number | null; title: string; subtitle: string | null; badge: string | null; target: string | null; sortOrder: number; active: boolean; createdAt: string }[] }>("/api/admin/home-featured"),
+  homeFeaturedCreate: (b: { kind: string; title: string; refId?: number; subtitle?: string; target?: string; badge?: string; sortOrder?: number }) => postJson<{ id: number }>("/api/admin/home-featured", b),
+  homeFeaturedActive: (id: number, active: boolean) => postJson<{ ok: boolean }>(`/api/admin/home-featured/${id}/active`, { active }),
+  homeFeaturedDelete: (id: number) => req<{ ok: boolean }>(`/api/admin/home-featured/${id}`, { method: "DELETE" }),
   // 💸 withdrawals tab
   withdrawalsTab: (limit = 100) => req<AdminWithdrawalTabRow[]>(`/api/admin/withdrawals-tab?limit=${limit}`),
   // ⭐ ratings

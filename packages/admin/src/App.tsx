@@ -31,7 +31,7 @@ import {
 } from "@t1067/shared";
 import { adminApi, clearAdminToken, hasAdminToken, setAdminToken, type AdminBannedRow, type AdminChatConvo, type AdminChatMsg, type AdminDebtRow, type AdminMsgHistoryRow, type AdminRatingRow, type AdminTxnRow, type AdminBlockedRow, type AdminReferralRow, type AdminRideRow, type AdminUserRow, type AdminWithdrawalRow, type AdminWithdrawalTabRow, type CampaignRow, type Driver360, type DriverCallRow, type DriverCallStats, type DriverMissionRow, type IntercityAdminTrip, type IntercityAdminDebt, type Member360, type PeakHourRow, type ShopAdminProductRow, type ShopAdminOrderRow, type ShopAdminReviewRow, type SvcAdminRow, type SvcAdminCat, type SvcAdminReview, type RestoranAdminRow, type RestoranMenuItemRow } from "./api";
 
-type Tab = "overview" | "pulse" | "analytics" | "finance" | "live" | "x360" | "driver" | "client" | "botusers" | "obzvon" | "boshqaruv" | "topshiriq" | "actions" | "integrity" | "audit" | "safarlar" | "qarzlar" | "referallar" | "banlist" | "yechishlar" | "baholar" | "xabar" | "chat" | "broadcasts" | "intercity" | "pik" | "transactions" | "blocked" | "shop" | "xizmatlar" | "elonlar" | "restoran" | "bilim";
+type Tab = "overview" | "pulse" | "analytics" | "finance" | "live" | "x360" | "driver" | "client" | "botusers" | "obzvon" | "boshqaruv" | "topshiriq" | "actions" | "integrity" | "audit" | "safarlar" | "qarzlar" | "referallar" | "banlist" | "yechishlar" | "baholar" | "xabar" | "chat" | "broadcasts" | "intercity" | "pik" | "transactions" | "blocked" | "shop" | "xizmatlar" | "elonlar" | "restoran" | "bilim" | "bosh";
 
 const NAV_GROUPS: { label: string; items: { id: Tab; icon: string; label: string }[] }[] = [
   {
@@ -84,6 +84,7 @@ const NAV_GROUPS: { label: string; items: { id: Tab; icon: string; label: string
   {
     label: "BOSHQARUV",
     items: [
+      { id: "bosh", icon: "🏠", label: "Bosh sahifa" },
       { id: "shop", icon: "🛍", label: "Do'kon" },
       { id: "xizmatlar", icon: "🔎", label: "Xizmatlar" },
       { id: "elonlar", icon: "📋", label: "E'lonlar" },
@@ -215,6 +216,7 @@ export function App() {
           {tab === "botusers" && <BotUsersTab />}
           {tab === "obzvon" && <ObzvonView />}
           {tab === "boshqaruv" && <><BoshqaruvView /><RecruitsView /></>}
+          {tab === "bosh" && <HomeFeaturedAdminView />}
           {tab === "shop" && <ShopAdminView />}
           {tab === "xizmatlar" && <XizmatlarAdminView />}
           {tab === "elonlar" && <ElonlarAdminView />}
@@ -1826,6 +1828,65 @@ function ShopChatInbox() {
         </div>
       </div>
     </section>
+  );
+}
+
+// 🏠 Bosh sahifa curation (Bosqich 3): owner-set banner + pinned items. EMPTY = auto feed runs.
+function HomeFeaturedAdminView() {
+  const [items, setItems] = useState<Awaited<ReturnType<typeof adminApi.homeFeaturedList>>["items"] | null>(null);
+  const [kind, setKind] = useState("product");
+  const [refId, setRefId] = useState("");
+  const [title, setTitle] = useState("");
+  const [subtitle, setSubtitle] = useState("");
+  const [badge, setBadge] = useState("");
+  const [msg, setMsg] = useState("");
+  const load = () => adminApi.homeFeaturedList().then((r) => setItems(r.items)).catch(() => setItems([]));
+  useEffect(() => { load(); }, []);
+  const create = async () => {
+    if (!title.trim()) { setMsg("Sarlavha kerak"); return; }
+    if ((kind === "product" || kind === "restaurant") && !refId.trim()) { setMsg("Mahsulot/restoran ID kerak"); return; }
+    await adminApi.homeFeaturedCreate({ kind, title: title.trim(), refId: refId ? Number(refId) : undefined, subtitle: subtitle || undefined, badge: badge || undefined, target: kind === "restaurant" ? "restoran" : "dokon" }).catch(() => null);
+    setTitle(""); setRefId(""); setSubtitle(""); setBadge(""); setMsg("✅ Qo'shildi"); load();
+  };
+  return (
+    <div>
+      <h2>🏠 Bosh sahifa — tavsiya boshqaruvi</h2>
+      <p className="muted">Bo'sh qoldirsangiz — avtomatik feed (top-sotuvchi/reyting) ishlaydi. Bu yerda banner yoki mahsulot/restoranni majburan yuqoriga pin qilasiz.</p>
+      <div className="card">
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
+          <select value={kind} onChange={(e) => setKind(e.target.value)}>
+            <option value="product">Mahsulot (pin)</option>
+            <option value="restaurant">Restoran (pin)</option>
+            <option value="banner">Banner</option>
+          </select>
+          {(kind === "product" || kind === "restaurant") && <input placeholder="ID" value={refId} onChange={(e) => setRefId(e.target.value)} style={{ width: 80 }} />}
+          <input placeholder="Sarlavha" value={title} onChange={(e) => setTitle(e.target.value)} />
+          <input placeholder="Izoh (ixtiyoriy)" value={subtitle} onChange={(e) => setSubtitle(e.target.value)} />
+          <input placeholder="Badge" value={badge} onChange={(e) => setBadge(e.target.value)} style={{ width: 110 }} />
+          <button className="btn" onClick={create}>➕ Qo'shish</button>
+        </div>
+        {msg && <div className="muted" style={{ marginTop: 6 }}>{msg}</div>}
+      </div>
+      <div className="card" style={{ marginTop: 12 }}>
+        {items === null ? <div className="muted">Yuklanmoqda…</div> : items.length === 0 ? <div className="muted">Hozircha bo'sh — avtomatik feed ishlayapti.</div> : (
+          <table style={{ width: "100%" }}>
+            <thead><tr><th>Tur</th><th>Sarlavha</th><th>Ref</th><th>Holat</th><th></th></tr></thead>
+            <tbody>
+              {items.map((it) => (
+                <tr key={it.id}>
+                  <td>{it.kind}</td><td>{it.title}</td><td>{it.refId ?? "—"}</td>
+                  <td>{it.active ? "✅ Faol" : "⏸ O'chiq"}</td>
+                  <td style={{ whiteSpace: "nowrap" }}>
+                    <button className="btn" onClick={async () => { await adminApi.homeFeaturedActive(it.id, !it.active); load(); }}>{it.active ? "O'chir" : "Yoq"}</button>
+                    <button className="btn" style={{ marginLeft: 6 }} onClick={async () => { await adminApi.homeFeaturedDelete(it.id); load(); }}>🗑</button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </div>
+    </div>
   );
 }
 

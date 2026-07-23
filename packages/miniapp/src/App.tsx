@@ -1,4 +1,4 @@
-import { Suspense, lazy, useEffect, useState } from "react";
+import { Fragment, Suspense, lazy, useEffect, useState } from "react";
 
 const DesignDemo = lazy(() => import("./design/demo")); // #demo dagina yuklanadi
 import type { LeaderboardResponse, MeResponse } from "@t1067/shared";
@@ -6,7 +6,7 @@ import { api, getInitData, waitForInitData } from "./api";
 import { haptic, tg } from "./telegram";
 import { LeaderboardView, LoadError, MissionsView, ReferralView, RideHistoryView, Spinner } from "./components";
 import { AccountCard, TierLadder, TierLadderCompact, WalletView } from "./wallet"; // bosh tab — eager (birinchi paint)
-import { UyView } from "./uy"; // Uy tabi — yengil (leaflet-siz), eager
+import { UyView, NewUyView } from "./uy"; // Uy tabi — yengil (leaflet-siz), eager. NewUyView = feature "newhome" redizayn
 // T2 (AUDIT 2.9): boshqa tablar lazy — har biri alohida chunk, asosiy bundle kichrayadi
 const RewardsView = lazy(() => import("./rewards").then((m) => ({ default: m.RewardsView })));
 const DriverView = lazy(() => import("./driver").then((m) => ({ default: m.DriverView })));
@@ -26,6 +26,9 @@ const ElonlarView = lazy(() => import("./elonlar").then((m) => ({ default: m.Elo
 const RestoranView = lazy(() => import("./restoran").then((m) => ({ default: m.RestoranView })));
 import { Icon } from "./icons";
 import { useCountUp } from "./util";
+import { NewProfileView, ThemePicker, initTheme } from "./profile"; // 👤 newprofile + shared theme picker
+
+initTheme(); // 🎨 apply saved / Telegram theme on <html> before first paint (features newhome/newprofile)
 
 type Tab = "uy" | "wallet" | "play" | "reyting" | "yol" | "dokon" | "xizmat" | "elonlar" | "restoran" | "driver" | "profile";
 
@@ -322,9 +325,13 @@ export function App() {
   }
   const TAB_PCT = 100 / TABS.length;
   const activeIndex = TABS.findIndex((t) => t.id === tab);
+  // 🏠 newhome: Liquid-Glass tabbar + center Taxi FAB (shell gets .nh-app; FAB injected mid-row).
+  const newhomeUi = !!me.flags?.newhome;
+  const fabAt = Math.floor(TABS.length / 2);
+  const shellCls = tab === "dokon" ? (me?.flags?.bazar ? "app shop-light bazar-light" : "app shop-light") : tab === "elonlar" ? "app elonlar-light" : tab === "xizmat" ? "app xizmat-light" : tab === "restoran" ? "app restoran-light" : "app";
 
   return (
-    <div className={tab === "dokon" ? (me?.flags?.bazar ? "app shop-light bazar-light" : "app shop-light") : tab === "elonlar" ? "app elonlar-light" : tab === "xizmat" ? "app xizmat-light" : tab === "restoran" ? "app restoran-light" : "app"}>
+    <div className={newhomeUi ? shellCls + " nh-app" : shellCls}>
       <div className="aurora" />
       <header className="topbar">
         <div className="brand">
@@ -373,7 +380,9 @@ export function App() {
         <div className="page" key={tab}>
           <Suspense fallback={<Spinner />}>
             {tab === "uy" &&
-              (livinghome ? (
+              (me.flags?.newhome ? (
+                <NewUyView me={me} onBook={() => { haptic(); setBooking(true); }} onNav={nav} onBanner={flash} />
+              ) : livinghome ? (
                 <LivingHome me={me} onBanner={flash} reload={reload} onBook={() => { haptic(); setBooking(true); }} onNav={nav} />
               ) : (
                 <UyView me={me} onBook={() => { haptic(); setBooking(true); }} onNav={nav} onBanner={flash} />
@@ -404,15 +413,20 @@ export function App() {
             {tab === "restoran" && <RestoranView me={me} onBanner={flash} />}
             {tab === "driver" && <DriverView me={me} />}
             {tab === "profile" && (
-              <div className="view">
-                <TierLadderCompact me={me} onOpen={() => go("play")} />
-                <AccountCard />
-                <button className="rh-open-btn" onClick={() => { haptic(); setHistory(true); }}>
-                  <span className="rh-open-ico">📜</span>
-                  <span className="rh-open-txt"><b>Safarlar tarixi</b><small>Har safar: km · daqiqa · narx · cashback</small></span>
-                  <span className="rh-open-chev">›</span>
-                </button>
-              </div>
+              me.flags?.newprofile ? (
+                <NewProfileView me={me} onNav={nav} onBanner={flash} />
+              ) : (
+                <div className="view">
+                  <TierLadderCompact me={me} onOpen={() => go("play")} />
+                  {me.flags?.newhome && <ThemePicker />}
+                  <AccountCard />
+                  <button className="rh-open-btn" onClick={() => { haptic(); setHistory(true); }}>
+                    <span className="rh-open-ico">📜</span>
+                    <span className="rh-open-txt"><b>Safarlar tarixi</b><small>Har safar: km · daqiqa · narx · cashback</small></span>
+                    <span className="rh-open-chev">›</span>
+                  </button>
+                </div>
+              )
             )}
           </Suspense>
         </div>
@@ -421,18 +435,22 @@ export function App() {
       <nav className="tabbar">
         {/* activeIndex === -1 bo'ladi hozirgi ekran tabbarda YO'Q bo'lganda (masalan Hamyon — W1'dan keyin
             tab tugmasi yo'q, Uy'dan ochiladi). Bunday paytda indikatorni yashiramiz, aks holda chapga sakraydi. */}
-        {activeIndex >= 0 && (
+        {!newhomeUi && activeIndex >= 0 && (
           <span className="tab-ind" ref={(el) => el?.style.setProperty("left", `calc(${activeIndex} * ${TAB_PCT}% + ${TAB_PCT / 2}%)`)} />
         )}
-        {TABS.map((t) => (
-          <button
-            key={t.id}
-            className={tab === t.id ? "tab active" : "tab"}
-            onClick={() => go(t.id)}
-          >
-            <Icon name={t.icon} filled={tab === t.id} size={23} />
-            <span className="tab-label">{t.label}</span>
-          </button>
+        {TABS.map((t, i) => (
+          <Fragment key={t.id}>
+            {newhomeUi && i === fabAt && (
+              <button className="nh-fab" onClick={() => { haptic(); setBooking(true); }} aria-label="Taxi chaqirish">🚖</button>
+            )}
+            <button
+              className={tab === t.id ? "tab active" : "tab"}
+              onClick={() => go(t.id)}
+            >
+              <Icon name={t.icon} filled={tab === t.id} size={23} />
+              <span className="tab-label">{t.label}</span>
+            </button>
+          </Fragment>
         ))}
       </nav>
     </div>

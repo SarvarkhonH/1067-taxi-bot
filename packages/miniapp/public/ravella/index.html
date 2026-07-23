@@ -1,0 +1,301 @@
+<!doctype html>
+<html lang="uz">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0" />
+  <title>Ravella — To'y xizmatlari</title>
+  <meta name="description" content="Koson shahrida professional to'y xizmatlari. Avtomobil, gullar, foto/video, DJ va boshqa xizmatlar." />
+  <style>
+    :root {
+      --bg: #0d0a14;
+      --card: #1a1425;
+      --line: #2a2040;
+      --text: #f0ecff;
+      --muted: #8b7fa8;
+      --accent: #c084fc;
+      --gold: #f59e0b;
+      --green: #25D366;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: -apple-system, "Segoe UI", Roboto, sans-serif;
+      font-size: 15px;
+      min-height: 100vh;
+      padding-bottom: 90px;
+    }
+
+    /* ── hero ── */
+    .hero {
+      background: linear-gradient(160deg, #1a0533 0%, #3d0f6b 60%, #0d0a14 100%);
+      padding: 48px 20px 40px;
+      text-align: center;
+      position: relative;
+      overflow: hidden;
+    }
+    .hero::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      background: radial-gradient(ellipse at 50% 0%, rgba(192,132,252,.25) 0%, transparent 70%);
+    }
+    .hero-ring {
+      font-size: 64px;
+      display: block;
+      margin-bottom: 12px;
+      position: relative;
+      animation: float 3s ease-in-out infinite;
+    }
+    @keyframes float { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-8px)} }
+    .hero-title {
+      font-size: 34px;
+      font-weight: 900;
+      letter-spacing: 2px;
+      color: var(--accent);
+      text-shadow: 0 0 40px rgba(192,132,252,.5);
+      position: relative;
+    }
+    .hero-sub {
+      font-size: 14px;
+      color: var(--muted);
+      margin-top: 6px;
+      position: relative;
+    }
+    .hero-ctas {
+      display: flex;
+      gap: 10px;
+      justify-content: center;
+      margin-top: 24px;
+      position: relative;
+    }
+    .btn-call {
+      background: var(--accent);
+      color: #000;
+      border: none;
+      border-radius: 28px;
+      padding: 12px 24px;
+      font-weight: 800;
+      font-size: 15px;
+      cursor: pointer;
+      text-decoration: none;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      transition: opacity .15s;
+    }
+    .btn-call:active { opacity: .75; }
+    .btn-wa {
+      background: var(--green);
+      color: #fff;
+      border: none;
+      border-radius: 28px;
+      padding: 12px 24px;
+      font-weight: 800;
+      font-size: 15px;
+      cursor: pointer;
+      text-decoration: none;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      transition: opacity .15s;
+    }
+    .btn-wa:active { opacity: .75; }
+
+    /* ── section title ── */
+    .sec {
+      padding: 28px 16px 0;
+    }
+    .sec-label {
+      font-size: 11px;
+      font-weight: 800;
+      letter-spacing: 1.5px;
+      text-transform: uppercase;
+      color: var(--muted);
+      margin-bottom: 14px;
+    }
+
+    /* ── service cards ── */
+    .cards {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    .scard {
+      background: var(--card);
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      padding: 16px;
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      transition: border-color .15s;
+    }
+    .scard:active { border-color: var(--accent); }
+    .scard-emoji { font-size: 34px; flex-shrink: 0; }
+    .scard-body { flex: 1 }
+    .scard-name { font-weight: 700; font-size: 15px; }
+    .scard-desc { font-size: 12px; color: var(--muted); margin-top: 3px; line-height: 1.4; }
+    .scard-price {
+      font-weight: 900;
+      font-size: 13px;
+      color: var(--gold);
+      text-align: right;
+      flex-shrink: 0;
+      white-space: nowrap;
+    }
+
+    /* ── gallery placeholder ── */
+    .gallery {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 6px;
+      margin-top: 4px;
+    }
+    .gitem {
+      aspect-ratio: 1;
+      background: var(--card);
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 28px;
+    }
+
+    /* ── note ── */
+    .note {
+      margin: 20px 16px 0;
+      background: var(--card);
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      padding: 14px;
+      font-size: 12px;
+      color: var(--muted);
+      line-height: 1.7;
+    }
+
+    /* ── sticky footer ── */
+    .sticky-cta {
+      position: fixed;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      background: rgba(13,10,20,.95);
+      backdrop-filter: blur(10px);
+      border-top: 1px solid var(--line);
+      padding: 12px 16px;
+      display: flex;
+      gap: 10px;
+    }
+    .sticky-cta a {
+      flex: 1;
+      text-align: center;
+      border-radius: 14px;
+      padding: 15px;
+      font-weight: 800;
+      font-size: 15px;
+      text-decoration: none;
+      display: block;
+      transition: opacity .15s;
+    }
+    .sticky-cta a:active { opacity: .75; }
+    .cta-call { background: var(--accent); color: #000; }
+    .cta-wa   { background: var(--green);  color: #fff; }
+  </style>
+</head>
+<body>
+
+  <!-- hero -->
+  <div class="hero">
+    <span class="hero-ring">💍</span>
+    <div class="hero-title">RAVELLA</div>
+    <div class="hero-sub">Koson · Professional to'y xizmatlari</div>
+    <div class="hero-ctas">
+      <a href="tel:+998901234567" class="btn-call">📞 Qo'ng'iroq</a>
+      <a href="https://wa.me/998901234567?text=Salom%2C%20Ravella%20xizmatlari%20haqida%20so%27ramoqchi%20edim" class="btn-wa">💬 WhatsApp</a>
+    </div>
+  </div>
+
+  <!-- gallery -->
+  <div class="sec">
+    <div class="sec-label">📸 Galereya</div>
+    <div class="gallery">
+      <div class="gitem">💒</div>
+      <div class="gitem">💐</div>
+      <div class="gitem">🚗</div>
+      <div class="gitem">🎂</div>
+      <div class="gitem">📸</div>
+      <div class="gitem">🎵</div>
+    </div>
+  </div>
+
+  <!-- services -->
+  <div class="sec">
+    <div class="sec-label">✨ Xizmatlar va narxlar</div>
+    <div class="cards">
+      <div class="scard">
+        <div class="scard-emoji">🚗</div>
+        <div class="scard-body">
+          <div class="scard-name">To'y avtomobili</div>
+          <div class="scard-desc">Mercedes S-klass, lentalar, gul bezaklari bilan</div>
+        </div>
+        <div class="scard-price">500 000<br>so'm</div>
+      </div>
+      <div class="scard">
+        <div class="scard-emoji">💐</div>
+        <div class="scard-body">
+          <div class="scard-name">Gullar bezak</div>
+          <div class="scard-desc">Zal, stol, avtomobil uchun professional bezak</div>
+        </div>
+        <div class="scard-price">800 000<br>so'm</div>
+      </div>
+      <div class="scard">
+        <div class="scard-emoji">📸</div>
+        <div class="scard-body">
+          <div class="scard-name">Foto / Video</div>
+          <div class="scard-desc">2 kameraman, drone, xotira kitobi</div>
+        </div>
+        <div class="scard-price">1 200 000<br>so'm</div>
+      </div>
+      <div class="scard">
+        <div class="scard-emoji">🎵</div>
+        <div class="scard-body">
+          <div class="scard-name">Musiqa / DJ</div>
+          <div class="scard-desc">Professional tovush tizimi va DJ xizmati</div>
+        </div>
+        <div class="scard-price">600 000<br>so'm</div>
+      </div>
+      <div class="scard">
+        <div class="scard-emoji">🎂</div>
+        <div class="scard-body">
+          <div class="scard-name">To'y torti</div>
+          <div class="scard-desc">Buyurtmaga ko'ra 3–5 qavatli tort</div>
+        </div>
+        <div class="scard-price">350 000<br>so'm</div>
+      </div>
+      <div class="scard">
+        <div class="scard-emoji">🏛</div>
+        <div class="scard-body">
+          <div class="scard-name">Zal ijarasi</div>
+          <div class="scard-desc">100–300 kishi sig'adigan zamonaviy zal</div>
+        </div>
+        <div class="scard-price">2 000 000<br>so'm</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- note -->
+  <div class="note">
+    💡 Narxlar taxminiy. Aniq narx uchun qo'ng'iroq qiling yoki WhatsApp'ga yozing.<br>
+    Barcha xizmatlar buyurtmaga ko'ra va <b>paket</b> shaklida ham mavjud. Chegirmalar mavjud!
+  </div>
+
+  <!-- sticky footer -->
+  <div class="sticky-cta">
+    <a href="tel:+998901234567" class="cta-call">📞 Qo'ng'iroq qilish</a>
+    <a href="https://wa.me/998901234567?text=Salom%2C%20Ravella%20xizmatlari%20haqida%20so%27ramoqchi%20edim" class="cta-wa">💬 WhatsApp</a>
+  </div>
+
+</body>
+</html>

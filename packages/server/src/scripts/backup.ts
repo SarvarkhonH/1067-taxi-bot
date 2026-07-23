@@ -72,6 +72,7 @@ async function main(): Promise<void> {
     mahallaGroupMember: () => prisma.mahallaGroupMember.findMany(),
     mahallaWeeklyResult: () => prisma.mahallaWeeklyResult.findMany(),
     marketDemand: () => prisma.marketDemand.findMany(),
+    marketOrder: () => prisma.marketOrder.findMany(), // V2a — schema-commiti bilan birga commit qilinadi
     marketShop: () => prisma.marketShop.findMany(),
     member: () => prisma.member.findMany(),
     memberAchievement: () => prisma.memberAchievement.findMany(),

@@ -167,6 +167,8 @@ export const api = {
   shopReviewDelete: (productId: number) => del<{ ok: boolean }>(`/api/shop/review/${productId}`),
   // 🍽 restoran (feature "restoran") — R1: katalog o'qish only
   restoranList: () => get<import("@t1067/shared").RestoranListResponse>("/api/restoran/list"),
+  // 🏠 home feed aggregate (feature "newhome", Bosqich 2) — one call for the premium home
+  homeFeed: () => get<import("@t1067/shared").HomeFeedResponse>("/api/home/feed"),
   restoranDetail: (id: number) => get<import("@t1067/shared").RestoranDetailResponse>(`/api/restoran/${id}`),
   restoranOrder: (b: import("@t1067/shared").FoodOrderCreateBody) => post<import("@t1067/shared").FoodOrderCreateResponse>("/api/restoran/order", b),
   restoranOrders: () => get<{ orders: import("@t1067/shared").FoodOrderView[] }>("/api/restoran/orders"),

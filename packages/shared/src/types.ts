@@ -59,6 +59,8 @@ export interface MeResponse {
     revtanga?: boolean; // 🗣 BirJoy sharh-uchun-tanga (owner-preview: admins see it while DARK)
     shopstory?: boolean; // 📹 BirJoy do'kon-hikoya (owner-preview: admins see it while DARK)
     shopchat?: boolean; // 💬 BirJoy mijoz↔do'kon chat (owner-preview: admins see it while DARK)
+    newhome?: boolean; // 🏠 premium super-app home redesign (owner-preview: admins see it while DARK)
+    newprofile?: boolean; // 👤 enriched Profil redesign (owner-preview: admins see it while DARK)
   };
 }
 
@@ -962,3 +964,33 @@ export interface MyClassifiedRow {
 
 export const CLASSIFIED_MAX_PHOTOS = 4; // §4 post wizard: foto 0-4
 export const CLASSIFIED_AD_DAYS = 30; // §7 expiresAt = createdAt + 30 kun
+
+// ── 🏠 HOME FEED (feature "newhome", UY_REDESIGN Bosqich 2) — one aggregate for the premium home ──
+// Server computes the promo banner + image-forward feed from local DB (shop + restoran views), so the
+// client makes ONE call instead of fanning out. photoUrl/imageUrl are RELATIVE API paths — the client
+// wraps them with apiUrl(). No kas calls, no new poller; cached ~30s server-side.
+export interface HomeFeedItem {
+  kind: "product" | "restaurant";
+  id: number;
+  name: string;
+  photoUrl: string | null; // e.g. "/api/shop/photo/12?s=1" — client wraps with apiUrl()
+  sub: string; // "🏪 shopName" | "🍽 category"
+  priceLabel?: string; // products only (tanga, ru-RU formatted)
+  oldPriceLabel?: string; // strikethrough when discounted
+  rating?: number;
+  badge?: "top" | "new" | "disc";
+  target: string; // deep-link tab: "dokon" | "restoran"
+}
+export interface HomeBanner {
+  id: number;
+  imageUrl: string; // relative API path — client wraps with apiUrl()
+  title: string;
+  subtitle?: string;
+  target: string;
+  badge?: string;
+}
+export interface HomeFeedResponse {
+  banner: HomeBanner | null;
+  items: HomeFeedItem[];
+  services: { key: string; on: boolean }[]; // rail flag-state mirror (client may also read me.flags)
+}

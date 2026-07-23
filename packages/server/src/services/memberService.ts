@@ -240,6 +240,9 @@ async function grantJoinWelcome(memberId: number, telegramId: string): Promise<n
     if (amt <= 0) return 0;
     const { grantCoins } = await import("./coinService");
     const g = await grantCoins(memberId, amt, "referral", "🎁 Botga xush kelibsiz — sovg'a!", `welcome_join:${memberId}`);
+    // The sovg'a is spendable in-app immediately but can't be cashed or transferred until the owner has
+    // ridden ≥MIN_RIDES_FOR_PAID times — enforced centrally by the withdraw + transfer ride-gates
+    // (coinService.withdraw / transferService.transfer), so nothing extra is stamped here.
     return g.ok ? amt : 0;
   } catch {
     return 0;

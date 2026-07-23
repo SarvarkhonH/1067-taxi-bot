@@ -13,6 +13,22 @@ export const DRIVER_DEBT_CAP_SOM = 50000; // pending commission ceiling → bloc
 
 const BOOKABLE = ["OPEN", "BOARDING"];
 
+/** Bekor qilingan booking holatlari — bular "band" HISOBLANMAYDI, ya'ni mijoz o'sha reysga
+ *  QAYTA yozila oladi (idempotency kaliti urinish-raqami bilan yangilanadi, pastga qarang). */
+const CANCELLED_BOOKING_STATUSES = [
+  "RIDER_CANCELLED",
+  "RIDER_CANCELLED_LATE",
+  "CANCELLED_BY_DRIVER",
+  "CANCELLED_NO_PAYMENT",
+];
+
+// Jonli xato-sinfi (restoran 2026-07-08 bilan bir xil): `Number(req.body?.tripId)` noto'g'ri yoki
+// yo'q bo'lsa NaN beradi va `prisma.X.findUnique({where:{id: NaN}})` UNHANDLED tashlaydi.
+// Har mijoz-beradigan id shu bilan tekshiriladi → toza xato-javob, crash EMAS.
+function validId(id: number): boolean {
+  return Number.isInteger(id) && id > 0;
+}
+
 export type PaymentMethod = "CASH" | "PREPAY";
 
 // ── small helpers ────────────────────────────────────────────────────────────
@@ -182,11 +198,24 @@ export interface BookInput {
 
 export async function bookSeat(riderId: number, input: BookInput): Promise<{ ok: boolean; bookingId?: number; duplicate?: boolean; error?: string }> {
   if (!(await featureOn("intercity"))) return { ok: false, error: "feature_off" };
+  if (!validId(input.tripId)) return { ok: false, error: "trip_not_found" };
   const seatCount = Math.min(Math.max(Math.floor(input.seatCount ?? 1) || 1, 1), 8);
-  const idem = `ibooking:${riderId}:${input.tripId}`;
 
-  const existing = await prisma.intercityBooking.findUnique({ where: { idempotencyKey: idem } });
-  if (existing) return { ok: true, bookingId: existing.id, duplicate: true };
+  // Idempotentlik + QAYTA band qilish. Ilgari kalit `ibooking:<rider>:<trip>` edi va bekor
+  // qilingan qatorning kaliti bazada QOLAR edi — mijoz bekor qilgandan keyin o'sha reysga qayta
+  // yozilolmasdi, ustiga "✅ Band qilindi" javobini olardi (o'rinsiz yo'lga chiqardi). Endi:
+  // ochiq (bekor qilinmagan) booking bo'lsa → haqiqiy duplikat; faqat bekor qilinganlar bo'lsa →
+  // urinish-raqamli YANGI kalit. Chegirma kaliti ham (`idiscount:${idem}`) shu bilan yangilanadi,
+  // ya'ni qayta band qilishda chegirma tekin berilmaydi — har urinish o'z tangasini to'laydi.
+  const prior = await prisma.intercityBooking.findMany({
+    where: { riderId, tripId: input.tripId },
+    select: { id: true, status: true },
+  });
+  const live = prior.find((b) => !CANCELLED_BOOKING_STATUSES.includes(b.status));
+  if (live) return { ok: true, bookingId: live.id, duplicate: true };
+  const idem = prior.length === 0
+    ? `ibooking:${riderId}:${input.tripId}`
+    : `ibooking:${riderId}:${input.tripId}:${prior.length + 1}`;
 
   const trip = await prisma.intercityTrip.findUnique({ where: { id: input.tripId } });
   if (!trip) return { ok: false, error: "trip_not_found" };
@@ -268,6 +297,7 @@ function cancelOutcome(hoursToDepart: number, status: string): "full" | "partial
  *  seat is released and any tanga discount is restored per the timing window. */
 export async function cancelBookingByRider(riderId: number, bookingId: number): Promise<{ ok: boolean; outcome?: string; error?: string }> {
   if (!(await featureOn("intercity"))) return { ok: false, error: "feature_off" };
+  if (!validId(bookingId)) return { ok: false, error: "not_found" };
   const b = await prisma.intercityBooking.findUnique({ where: { id: bookingId }, include: { trip: true } });
   if (!b || b.riderId !== riderId) return { ok: false, error: "not_found" };
   if (!["CONFIRMED", "PREPAY_PENDING"].includes(b.status)) return { ok: false, error: "not_cancellable" };
@@ -292,25 +322,41 @@ export async function cancelBookingByRider(riderId: number, bookingId: number): 
  *  refunds are created in T2.) */
 export async function driverCancelTrip(driverId: number, tripId: number): Promise<{ ok: boolean; riderTgs?: string[]; error?: string }> {
   if (!(await featureOn("intercity"))) return { ok: false, error: "feature_off" };
+  if (!validId(tripId)) return { ok: false, error: "not_found" };
   const trip = await prisma.intercityTrip.findUnique({ where: { id: tripId }, include: { bookings: true } });
   if (!trip || trip.driverId !== driverId) return { ok: false, error: "not_found" };
   if (!["OPEN", "BOARDING"].includes(trip.status)) return { ok: false, error: "not_cancellable" };
 
+  // Tartib MUHIM. Ilgari reys "CANCELLED" qilinardi, keyin har yo'lovchi BITTALAB tsiklda
+  // yangilanardi — tsikl o'rtasida bitta xato (grantCoins/tgOf) chiqsa qolgan yo'lovchilar
+  // "CONFIRMED" bo'lib qolardi: reys bekor, ular esa xabarsiz va pulsiz, ro'yxatdan ham
+  // yo'qolgan (getRiderActiveBookings faqat OPEN/BOARDING/DEPARTED reyslarni ko'rsatadi).
+  // Endi: (1) hamma booking BITTA updateMany bilan atomik yopiladi, (2) keyin reys yopiladi,
+  // (3) tanga qaytarish/tg-qidirish alohida — bittasi yiqilsa qolganlari davom etadi
+  // (grantCoins `idiscountrestore:<id>` kaliti bilan idempotent, qayta urinish xavfsiz).
+  const affected = trip.bookings.filter((b) => ["CONFIRMED", "PREPAY_PENDING"].includes(b.status));
+  await prisma.intercityBooking.updateMany({
+    where: { id: { in: affected.map((b) => b.id) } },
+    data: { status: "CANCELLED_BY_DRIVER", cancelledAt: new Date() },
+  });
   await prisma.intercityTrip.update({ where: { id: tripId }, data: { status: "CANCELLED", cancelledAt: new Date(), cancelReason: "driver_cancel" } });
 
   const riderTgs: string[] = [];
-  for (const b of trip.bookings) {
-    if (!["CONFIRMED", "PREPAY_PENDING"].includes(b.status)) continue;
-    await prisma.intercityBooking.update({ where: { id: b.id }, data: { status: "CANCELLED_BY_DRIVER", cancelledAt: new Date() } });
-    if (b.tangaDiscount > 0) await grantCoins(b.riderId, b.tangaDiscount, "intercity_discount_restore", `Haydovchi bekor #${b.id}`, `idiscountrestore:${b.id}`);
-    const tg = await tgOf(b.riderId);
-    if (tg) riderTgs.push(tg);
+  for (const b of affected) {
+    try {
+      if (b.tangaDiscount > 0) await grantCoins(b.riderId, b.tangaDiscount, "intercity_discount_restore", `Haydovchi bekor #${b.id}`, `idiscountrestore:${b.id}`);
+      const tg = await tgOf(b.riderId);
+      if (tg) riderTgs.push(tg);
+    } catch (e) {
+      console.error(`[intercity] driverCancelTrip: booking #${b.id} kompensatsiyasi yiqildi`, e);
+    }
   }
   return { ok: true, riderTgs };
 }
 
 export async function departTrip(driverId: number, tripId: number): Promise<{ ok: boolean; riderTgs?: string[]; error?: string }> {
   if (!(await featureOn("intercity"))) return { ok: false, error: "feature_off" };
+  if (!validId(tripId)) return { ok: false, error: "not_found" };
   const trip = await prisma.intercityTrip.findUnique({ where: { id: tripId }, include: { bookings: true } });
   if (!trip || trip.driverId !== driverId) return { ok: false, error: "not_found" };
   if (!["OPEN", "BOARDING"].includes(trip.status)) return { ok: false, error: "bad_state" };
@@ -337,6 +383,7 @@ async function recognizeCommission(tripId: number, driverId: number): Promise<vo
 
 export async function arriveTrip(driverId: number, tripId: number): Promise<{ ok: boolean; riderTgs?: string[]; error?: string }> {
   if (!(await featureOn("intercity"))) return { ok: false, error: "feature_off" };
+  if (!validId(tripId)) return { ok: false, error: "not_found" };
   const trip = await prisma.intercityTrip.findUnique({ where: { id: tripId }, include: { bookings: true } });
   if (!trip || trip.driverId !== driverId) return { ok: false, error: "not_found" };
   if (trip.status !== "DEPARTED") return { ok: false, error: "bad_state" };
@@ -379,6 +426,7 @@ export async function getDriverTrips(driverId: number): Promise<unknown[]> {
 
 export async function getTripManifest(driverId: number, tripId: number): Promise<unknown> {
   if (!(await featureOn("intercity"))) return null;
+  if (!validId(tripId)) return null;
   const trip = await prisma.intercityTrip.findUnique({
     where: { id: tripId },
     include: { originCity: true, destCity: true, bookings: { where: { status: { in: ["CONFIRMED", "COMPLETED", "PREPAY_PENDING"] } }, include: { rider: { select: { fullName: true, displayName: true, phone: true } }, boardingCity: true, alightingCity: true } } },

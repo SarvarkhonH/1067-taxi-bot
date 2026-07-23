@@ -1,4 +1,4 @@
-import { TOPUP_MIN, WITHDRAW_DAILY_CAP, WITHDRAW_MIN, type WalletResponse, type WithdrawResponse } from "@t1067/shared";
+import { MIN_RIDES_FOR_PAID, TOPUP_MIN, WITHDRAW_DAILY_CAP, WITHDRAW_MIN, type WalletResponse, type WithdrawResponse } from "@t1067/shared";
 import { prisma } from "../db";
 import { getDataSource } from "../kas";
 
@@ -238,13 +238,14 @@ export async function withdraw(memberId: number, amount: number): Promise<Withdr
     kasApplied: false,
   });
   if (!member || !member.phone || (member.type !== "client" && member.type !== "driver")) return fail("not_client");
-  // RIDE-GATE (load-bearing): real money can only leave an account that has
-  // generated real revenue. Without this, a fresh fake account farms coins
-  // (referral/box/wheel/streak) and cashes out 1:1 — a farm of fakes drains the
-  // whole daily budget. trips is synced from kas1067. Drivers are exempt: a
-  // driver Member exists only if kas1067 has the driver (vetted identity), and
-  // their kas write below still requires a client record for their phone (A1).
-  if (member.type === "client" && (member.trips ?? 0) < 1) return fail("no_ride");
+  // RIDE-GATE (load-bearing): real money can only leave an account that has generated real revenue.
+  // Without this, a fresh fake account farms coins (referral/box/wheel/streak) and cashes out 1:1 — a
+  // farm of fakes drains the whole daily budget. Owner-raised to MIN_RIDES_FOR_PAID (3) on 2026-07-23:
+  // the welcome sovg'a is a hook to drive REAL taxi use — you must ride ≥3× before cashing anything out
+  // (spending in-app stays open). trips is synced from kas1067. Drivers are exempt: a driver Member
+  // exists only if kas1067 has the driver (vetted identity), and the kas write still requires a client
+  // record for their phone (A1).
+  if (member.type === "client" && (member.trips ?? 0) < MIN_RIDES_FOR_PAID) return fail("no_ride");
   // anomaly hold: freezes ONLY the cash door — coins stay spendable in-app,
   // so a falsely-flagged real user loses nothing while an admin reviews
   if (member.riskFlag) return fail("risk_hold");

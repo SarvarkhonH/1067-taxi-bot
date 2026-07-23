@@ -249,6 +249,7 @@ export async function myFoodOrders(memberId: number, take = 20): Promise<FoodOrd
 
 /** Mijoz bekor qiladi — FAQAT pending'da (§2 state machine). Naqd-only (D1) — refund kerak emas. */
 export async function cancelFoodOrder(memberId: number, orderId: number): Promise<{ ok: boolean; reason?: string }> {
+  if (!validId(orderId)) return { ok: false, reason: "not_pending" };
   const r = await prisma.foodOrder.updateMany({ where: { id: orderId, memberId, status: "pending" }, data: { status: "cancelled_by_user" } });
   return r.count > 0 ? { ok: true } : { ok: false, reason: "not_pending" };
 }
@@ -307,6 +308,7 @@ export async function markOrderCalled(orderId: number): Promise<{ ok: boolean }>
 
 /** ✅ Qabul qildi — pending→accepted. Atomik status-guard: ikki operator bir vaqtda bossa faqat biri o'tadi. */
 export async function acceptFoodOrder(orderId: number, operatorId?: number): Promise<{ ok: boolean; reason?: string; notice?: { memberId: number; restaurantName: string; newStatus: string } }> {
+  if (!validId(orderId)) return { ok: false, reason: "not_found" };
   const order = await prisma.foodOrder.findUnique({ where: { id: orderId } });
   if (!order) return { ok: false, reason: "not_found" };
   const r = await prisma.foodOrder.updateMany({
@@ -320,6 +322,7 @@ export async function acceptFoodOrder(orderId: number, operatorId?: number): Pro
 
 /** ❌ Rad — FAQAT pending'dan (§2 state machine). Naqd-only (D1) — refund logikasi kerak emas. */
 export async function rejectFoodOrder(orderId: number, reason: string): Promise<{ ok: boolean; reason?: string; notice?: { memberId: number; restaurantName: string; reason: string } }> {
+  if (!validId(orderId)) return { ok: false, reason: "not_found" };
   const order = await prisma.foodOrder.findUnique({ where: { id: orderId } });
   if (!order) return { ok: false, reason: "not_found" };
   const r = await prisma.foodOrder.updateMany({
@@ -336,6 +339,7 @@ const NEXT_STATUS: Record<string, string> = { accepted: "preparing", preparing: 
 /** 🍳→🛵→✅ — §2 state machine bo'yicha KEYINGI bosqichga o'tkazadi (qaysi holatdan qaysi holatga
  *  o'tish mumkinligini admin so'ramaydi — tugma bosilganda joriy holat serverda tekshiriladi). */
 export async function advanceFoodOrderStatus(orderId: number): Promise<{ ok: boolean; reason?: string; newStatus?: string; notice?: { memberId: number; restaurantName: string; newStatus: string } }> {
+  if (!validId(orderId)) return { ok: false, reason: "not_found" };
   const order = await prisma.foodOrder.findUnique({ where: { id: orderId } });
   if (!order) return { ok: false, reason: "not_found" };
   const next = NEXT_STATUS[order.status];
@@ -601,6 +605,7 @@ async function recomputeRestaurantRating(restaurantId: number): Promise<{ avgRat
 
 export async function listRestaurantReviews(restaurantId: number, memberId: number, preview = false): Promise<{ avgRating: number; reviewCount: number; reviews: { id: number; memberId: number; stars: number; text: string | null; createdAt: string }[] }> {
   if (!preview && !(await featureOn("restoran"))) return { avgRating: 0, reviewCount: 0, reviews: [] };
+  if (!validId(restaurantId)) return { avgRating: 0, reviewCount: 0, reviews: [] };
   const [restaurant, rows] = await Promise.all([
     prisma.restaurant.findUnique({ where: { id: restaurantId }, select: { avgRating: true, reviewCount: true } }),
     prisma.restaurantReview.findMany({ where: { restaurantId }, orderBy: { id: "desc" }, take: 30 }),
@@ -630,6 +635,7 @@ export async function submitRestaurantReview(memberId: number, restaurantId: num
 }
 
 export async function deleteMyRestaurantReview(memberId: number, restaurantId: number): Promise<{ ok: boolean }> {
+  if (!validId(restaurantId)) return { ok: false };
   await prisma.restaurantReview.deleteMany({ where: { restaurantId, memberId } });
   await recomputeRestaurantRating(restaurantId);
   return { ok: true };

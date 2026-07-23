@@ -349,6 +349,20 @@ function Booking3Inner({ me, info, onClose }: { me: MeResponse; info: BookingInf
   const [pinBusy, setPinBusy] = useState(false);
   const [mapReady, setMapReady] = useState(false); // map-is-picker: the pinpick drag effect waits for the Leaflet map to exist (pinpick is now the ENTRY, so it can mount before the map)
   const [walking, setWalking] = useState(false); // center-pin character walks while the map is dragged
+  // 🗺 one-time coach-mark: people didn't realise the center pin marks pickup + you drag→confirm.
+  const [coach, setCoach] = useState(false);
+  const dismissCoach = () => { setCoach(false); try { localStorage.setItem("b3coach1", "1"); } catch { /* private mode */ } };
+  useEffect(() => {
+    if (screen !== "pinpick") return;
+    try { if (localStorage.getItem("b3coach1")) return; } catch { return; }
+    setCoach(true);
+    const t = setTimeout(dismissCoach, 6000); // auto-dismiss so it never lingers
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [screen]);
+  useEffect(() => { if (walking && coach) dismissCoach(); // first drag = they got it
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [walking]);
   const [justFound, setJustFound] = useState(false); // "✅ Topildi!" celebration on driver-accept
   const wasDriver = useRef(false);
   const wasArrived = useRef(false);
@@ -1166,6 +1180,7 @@ function Booking3Inner({ me, info, onClose }: { me: MeResponse; info: BookingInf
               </g>
             </svg>
           </div>
+          <div className={`b3-pin-callout${walking ? " hide" : ""}`} aria-hidden="true">📍 Mashina shu yerga keladi</div>
           <button className={`b3-myloc${locating ? " locating" : ""}`} onClick={locateMe} aria-label="Joylashuvni yuborish" title="Joylashuvim">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true">
               <circle cx="12" cy="12" r="6.5" />
@@ -1176,6 +1191,14 @@ function Booking3Inner({ me, info, onClose }: { me: MeResponse; info: BookingInf
               <line x1="19.4" y1="12" x2="22.2" y2="12" />
             </svg>
           </button>
+          {!walking && <div className="b3-myloc-lb" aria-hidden="true">Joylashuvim</div>}
+          {coach && (
+            <div className="b3-coach" aria-hidden="true">
+              <div className="b3-coach-arrow">👇</div>
+              <div className="b3-coach-txt">Xaritani suring — kerakli joyni belgilang</div>
+              <div className="b3-coach-sub">Keyin «✅ Shu yerdan» tugmasini bosing</div>
+            </div>
+          )}
         </>
       )}
 
@@ -1244,7 +1267,7 @@ function Booking3Inner({ me, info, onClose }: { me: MeResponse; info: BookingInf
               ))}
             </div>
           )}
-          <Button disabled={!pinPt || pinBusy} onClick={confirmPin}>✅ Shu yerdan</Button>
+          <Button className={pinPt && !pinBusy ? "b3-confirm-pulse" : undefined} disabled={!pinPt || pinBusy} onClick={confirmPin}>✅ Shu yerdan</Button>
         </div>
       )}
 

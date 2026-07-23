@@ -14,6 +14,7 @@
 //   • A→B→A ring reject (24h window) + admin alert on big moves
 import {
   FARE_MAX_PER_TX,
+  MIN_RIDES_FOR_PAID,
   TRANSFER_DAILY_RECEIVED,
   TRANSFER_DAILY_SENT,
   TRANSFER_MAX_COUNTERPARTIES,
@@ -167,7 +168,7 @@ export async function transfer(
 
   const sender = await prisma.member.findUnique({
     where: { id: fromMemberId },
-    select: { id: true, coins: true, fullName: true, phone: true, trips: true, createdAt: true },
+    select: { id: true, coins: true, fullName: true, phone: true, trips: true, createdAt: true, type: true },
   });
   const fail = (reason: TransferResponse["reason"]): TransferResponse => ({
     ok: false,
@@ -192,6 +193,14 @@ export async function transfer(
   if (tooNew && !(driverPay && sender.trips > 0)) {
     return fail("account_too_new");
   }
+
+  // 🚕 PAID-OUT GATE (the exploit this closes): a CLIENT must be a real taxi user (≥MIN_RIDES_FOR_PAID
+  // rides) before ANY tanga leaves their account — P2P transfer, tip, OR fare. Kills the welcome-funnel
+  // at the root: a freshly-linked victim has trips 0, so an onboarder holding their phone can move
+  // nothing out. The sovg'a stays SPENDABLE in-app (shop/market/e'lon) — only value LEAVING the account
+  // is gated. Once they've genuinely ridden ≥3×, everything (welcome included) transfers normally.
+  // Drivers are vetted kas identities → exempt, same as the withdraw ride-gate.
+  if (sender.type === "client" && sender.trips < MIN_RIDES_FOR_PAID) return fail("locked");
 
   const recipient = opts.toMemberId
     ? await prisma.member.findUnique({ where: { id: opts.toMemberId }, select: { id: true, fullName: true, type: true, phone: true } })

@@ -83,6 +83,14 @@ export const DRIVER_TIER_REBATE: Record<string, number> = { Bronza: 0, Kumush: 5
 // COMBINE over budget — the clamp cuts the excess at grant time.
 export const RIDE_EMISSION_CAP = 350;
 
+// 🚕 PAID-OUT GATE: a CLIENT must be a real taxi user before any tanga can LEAVE their account —
+// i.e. withdraw (cash-out) AND P2P value-out (transfer / tip / fare). The welcome sovg'a is theirs
+// to SPEND in-app immediately (shop/market/e'lon stay open), but it can't be cashed or handed to
+// anyone until they've actually ridden ≥ this many times. Kills the "onboard people, sweep their
+// 5000 to a mule" funnel at the root: a freshly-linked victim (trips 0) can move nothing out.
+// Owner-set (2026-07-23). trips is synced from kas1067.
+export const MIN_RIDES_FOR_PAID = 3;
+
 // ── P2P transfer (closed-loop: coins MOVE, never mint) ───────────────────────
 // Anti-funnel walls: two-sided daily caps (received-cap < withdraw-cap so
 // funneling coins into a mule grants ZERO extra cash-out), small burn shrinks
@@ -317,6 +325,7 @@ export interface TransferResponse {
     | "daily_received_cap"
     | "too_many_recipients"
     | "account_too_new"
+    | "locked" // 🎁 sender's welcome sovg'a is still ride-locked (non-transferable until their own first ride)
     | "self"
     | "ring"
     | "not_found"

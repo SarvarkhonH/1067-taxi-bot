@@ -233,7 +233,7 @@ export function createApiServer(opts: ApiOptions = {}) {
   });
 
   app.get("/api/me", requireUser, async (_req, res) => {
-    const [me, booking3, livinghome, intercity, tierloyalty, shopOn, xizmatlarOn, elonlarOn, restoranOn, bazarOn, bazarcartOn, revtangaOn, shopstoryOn, shopchatOn] = await Promise.all([
+    const [me, booking3, livinghome, intercity, tierloyalty, shopOn, xizmatlarOn, elonlarOn, restoranOn, bazarOn, bazarcartOn, revtangaOn, shopstoryOn, shopchatOn, newhomeOn, newprofileOn] = await Promise.all([
       getMe(res.locals.telegramId as string),
       featureOn("booking3"),
       featureOn("livinghome"),
@@ -248,6 +248,8 @@ export function createApiServer(opts: ApiOptions = {}) {
       featureOn("revtanga"),
       featureOn("shopstory"),
       featureOn("shopchat"),
+      featureOn("newhome"),
+      featureOn("newprofile"),
     ]);
     if (!me) { res.json({ linked: false }); return; }
     // 🏅 owner-preview: admins see the tier-loyalty UI even while the global flag is DARK, so the
@@ -271,7 +273,10 @@ export function createApiServer(opts: ApiOptions = {}) {
     const shopstoryPreview = shopstoryOn || isAdmin(res.locals.telegramId as string);
     // 💬 shopchat owner-preview — mijoz↔do'kon chat QABUL'gacha faqat ega ekranida
     const shopchatPreview = shopchatOn || isAdmin(res.locals.telegramId as string);
-    res.json({ ...me, flags: { booking3, livinghome, intercity, tierloyalty: tierPreview, shop: shopPreview, xizmatlar: xizmatlarPreview, elonlar: elonlarPreview, restoran: restoranPreview, bazar: bazarPreview, bazarcart: bazarcartPreview, revtanga: revtangaPreview, shopstory: shopstoryPreview, shopchat: shopchatPreview } });
+    // 🏠 newhome / 👤 newprofile owner-preview — owner QABULs the redesign while the flag is DARK
+    const newhomePreview = newhomeOn || isAdmin(res.locals.telegramId as string);
+    const newprofilePreview = newprofileOn || isAdmin(res.locals.telegramId as string);
+    res.json({ ...me, flags: { booking3, livinghome, intercity, tierloyalty: tierPreview, shop: shopPreview, xizmatlar: xizmatlarPreview, elonlar: elonlarPreview, restoran: restoranPreview, bazar: bazarPreview, bazarcart: bazarcartPreview, revtanga: revtangaPreview, shopstory: shopstoryPreview, shopchat: shopchatPreview, newhome: newhomePreview, newprofile: newprofilePreview } });
   });
 
   // 🏅 Tier ladder benefits — labels derived from LIVE knobs (single source of truth). 60s client cache.
@@ -636,6 +641,36 @@ export function createApiServer(opts: ApiOptions = {}) {
     const { listActiveRestaurants } = await import("../services/restoranService");
     res.set("Cache-Control", "private, max-age=30");
     res.json({ restaurants: await listActiveRestaurants(isAdmin(res.locals.telegramId as string)) });
+  });
+
+  // 🏠 HOME FEED aggregate (feature "newhome", Bosqich 2) — one call: promo banner + image feed +
+  // rail flag-state. Reads local DB (shop+restoran views), cached ~30s server-side; no kas, no poller.
+  app.get("/api/home/feed", requireUser, rateLimit(30), async (_req, res) => {
+    const { getHomeFeed } = await import("../services/homeFeedService");
+    res.set("Cache-Control", "private, max-age=30");
+    res.json(await getHomeFeed(isAdmin(res.locals.telegramId as string)));
+  });
+
+  // 🏠 admin curation (Bosqich 3, feature "homeadmin"): owner-set banner + pinned items. EMPTY = auto.
+  app.get("/api/admin/home-featured", requireAdmin, async (_req, res) => {
+    const { adminListFeatured } = await import("../services/homeFeedService");
+    res.json({ items: await adminListFeatured() });
+  });
+  app.post("/api/admin/home-featured", requireAdmin, rateLimit(20), async (req, res) => {
+    const b = (req.body ?? {}) as { kind?: string; title?: string };
+    if (!b.kind || !b.title) { res.status(400).json({ error: "kind + title required" }); return; }
+    const { adminCreateFeatured } = await import("../services/homeFeedService");
+    res.json(await adminCreateFeatured(b as Parameters<typeof adminCreateFeatured>[0]));
+  });
+  app.post("/api/admin/home-featured/:id/active", requireAdmin, async (req, res) => {
+    const { adminSetFeaturedActive } = await import("../services/homeFeedService");
+    await adminSetFeaturedActive(Number(req.params.id), (req.body?.active ?? true) === true);
+    res.json({ ok: true });
+  });
+  app.delete("/api/admin/home-featured/:id", requireAdmin, async (req, res) => {
+    const { adminDeleteFeatured } = await import("../services/homeFeedService");
+    await adminDeleteFeatured(Number(req.params.id));
+    res.json({ ok: true });
   });
   // R2: savat + checkout + FoodOrder — naqd/so'm to'lov (D1), CoinTxn TEGILMAYDI. Bu ikkalasi
   // /api/restoran/:id'DAN OLDIN turishi SHART — aks holda Express "orders"/"order"ni :id sifatida
