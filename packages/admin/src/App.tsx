@@ -1621,6 +1621,8 @@ function ShopProfilePanel() {
   const [msg, setMsg] = useState("");
   const [saving, setSaving] = useState(false);
   const [needsPicker, setNeedsPicker] = useState(false);
+  // §10.1: "muammoni tuzat" — pauza + SLA-buzilish soni (profil bilan bir vaqtda yuklanadi)
+  const [ops, setOps] = useState<{ paused: boolean; slaBreaches: number } | null>(null);
 
   const load = (shopId?: number) => {
     adminApi.shopProfile(shopId).then((r) => {
@@ -1636,8 +1638,17 @@ function ShopProfilePanel() {
         adminApi.marketShops().then((r) => setShops(r.shops)).catch(() => undefined);
       }
     });
+    adminApi.shopOpsStatus(shopId).then(setOps).catch(() => setOps(null));
   };
   useEffect(() => { load(); }, []);
+
+  const togglePause = async () => {
+    if (!ops) return;
+    const next = !ops.paused;
+    await adminApi.shopTogglePause(next, pickedShopId ?? undefined).catch(() => undefined);
+    setMsg(next ? "⏸ Do'kon to'xtatildi — yangi buyurtma qabul qilinmaydi" : "▶️ Do'kon qayta faollashtirildi");
+    load(pickedShopId ?? undefined);
+  };
 
   const save = async () => {
     setSaving(true);
@@ -1693,6 +1704,13 @@ function ShopProfilePanel() {
       <p className="muted" style={{ marginTop: 0 }}>
         Mijozlar «{profile.name}» sahifasida shu ma&apos;lumotlarni ko&apos;radi. ⭐ {profile.avgRating || "—"} ({profile.reviewCount} sharh){profile.hasPhoto ? "" : " · muqova-rasm hali yo'q"}
       </p>
+      {ops && (
+        <p style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
+          {ops.paused && <span className="badge badge-bad">⏸ To&apos;xtatilgan — yangi buyurtma qabul qilinmaydi</span>}
+          {ops.slaBreaches > 0 && <span className="badge badge-warn">🚨 {ops.slaBreaches} ta buyurtma SLA&apos;dan o&apos;tib ketgan</span>}
+          <button className="btn sm" onClick={togglePause}>{ops.paused ? "▶️ Qayta faollashtirish" : "⏸ Do'konni to'xtatish"}</button>
+        </p>
+      )}
       <div className="adm-form-grid">
         <div className="adm-field"><span className="adm-field-label">&nbsp;</span><button onClick={uploadCover}>🖼 Muqova-rasm yuklash</button></div>
         <div className="adm-field"><span className="adm-field-label">Mahalla</span><input value={neighborhood} onChange={(e) => setNeighborhood(e.target.value)} placeholder="Testón MFY" maxLength={40} /></div>

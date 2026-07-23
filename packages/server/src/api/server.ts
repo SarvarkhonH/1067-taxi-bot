@@ -1651,6 +1651,22 @@ export function createApiServer(opts: ApiOptions = {}) {
     const { uploadShopPhoto } = await import("../services/shopService");
     res.json(await uploadShopPhoto(shopId, Buffer.from(b.base64, "base64"), b.mime || "image/jpeg"));
   });
+  // §10.1: "muammoni tuzat" — 1-bosishda pauza + hozirgi SLA-buzilish soni (owner istalgan do'kon,
+  // seller FAQAT o'zinikini — resolveProfileShopId bilan bir xil xavfsizlik-chegara).
+  app.get("/api/admin/shop/ops-status", requireAdmin, requireShopWrite, async (req, res) => {
+    const shopId = resolveProfileShopId(req, res);
+    if (!shopId) { res.status(400).json({ error: "no_shop" }); return; }
+    const { getShopOpsStatus } = await import("../services/shopService");
+    const status = await getShopOpsStatus(shopId);
+    if (!status) { res.status(404).json({ error: "not_found" }); return; }
+    res.json(status);
+  });
+  app.post("/api/admin/shop/toggle-pause", requireAdmin, requireShopWrite, rateLimit(20), async (req, res) => {
+    const shopId = resolveProfileShopId(req, res);
+    if (!shopId) { res.status(400).json({ error: "no_shop" }); return; }
+    const { toggleShopPause } = await import("../services/shopService");
+    res.json(await toggleShopPause(shopId, !!(req.body as { paused?: unknown })?.paused));
+  });
   app.delete("/api/admin/shop/reviews/:id", requireAdmin, requireOwner, rateLimit(30), async (req, res) => {
     const { adminDeleteReview } = await import("../services/shopService");
     res.json(await adminDeleteReview(Number(req.params.id)));

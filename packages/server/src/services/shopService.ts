@@ -171,6 +171,30 @@ export async function getShopProfile(shopId: number, preview = false): Promise<S
   };
 }
 
+// §10.1: do'kon-operatsion holati — ADMIN-ONLY (customer-facing ShopProfileView'ga QO'SHILMAYDI,
+// getShopProfile ikkalasiga ham xizmat qiladi — mijozga SLA-buzilish/pauza sonini ko'rsatish shart
+// emas). Alohida, kichik funksiya: "muammoni tuzat" 1-bosishli pauza + hozirgi SLA-buzilish soni.
+export interface ShopOpsStatus {
+  paused: boolean;
+  slaBreaches: number; // hozir pending + allaqachon 1 marta SLA-alert bo'lgan buyurtmalar soni
+}
+
+export async function getShopOpsStatus(shopId: number): Promise<ShopOpsStatus | null> {
+  const shop = await prisma.marketShop.findUnique({ where: { id: shopId }, select: { paused: true } });
+  if (!shop) return null;
+  const productIds = (await prisma.product.findMany({ where: { shopId }, select: { id: true } })).map((p) => p.id);
+  const [purchaseBreaches, orderBreaches] = await Promise.all([
+    productIds.length ? prisma.shopPurchase.count({ where: { status: "pending", slaAlertedAt: { not: null }, productId: { in: productIds } } }) : 0,
+    prisma.marketOrder.count({ where: { shopId, status: "pending", slaAlertedAt: { not: null } } }),
+  ]);
+  return { paused: shop.paused, slaBreaches: purchaseBreaches + orderBreaches };
+}
+
+export async function toggleShopPause(shopId: number, paused: boolean): Promise<{ ok: boolean }> {
+  await prisma.marketShop.update({ where: { id: shopId }, data: { paused } }).catch(() => undefined);
+  return { ok: true };
+}
+
 /** 🏪 D2: sotuvchi o'z do'kon-profilini tahrirlaydi (admin-panel `ShopProfilePanel`).
  *  `scopeShopId` berilsa (shopseller token) — faqat SHU shopId'ga ruxsat, choke-point server.ts'da. */
 export async function updateShopProfile(shopId: number, input: ShopProfileEditInput): Promise<{ ok: boolean }> {
