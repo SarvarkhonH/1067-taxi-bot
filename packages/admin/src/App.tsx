@@ -1933,6 +1933,8 @@ function ShopAdminView() {
   const [stFilter, setStFilter] = useState<string>("all");
   const [catFilter, setCatFilter] = useState<string>("all");
   const [expandedId, setExpandedId] = useState<number | null>(null);
+  // §10.1: global qidiruv (mijoz-nom/telefon/buyurtma-ID) + CSV-eksport — buyurtmalar ustida
+  const [orderQ, setOrderQ] = useState("");
   const [draft, setDraft] = useState<ShopDraft | null>(null);
   const [saving, setSaving] = useState(false);
   // V1.7: ega ko'p-do'kon boshqaruvi — real seller-token uchun bu ro'yxat 403 qaytaradi (requireOwner),
@@ -2034,6 +2036,28 @@ function ShopAdminView() {
       const t = q.trim().toLowerCase();
       return !t || p.name.toLowerCase().includes(t) || p.category.toLowerCase().includes(t);
     });
+
+  // §10.1: global qidiruv — mijoz-nom, telefon, yoki buyurtma-ID
+  const filteredOrders = (orders ?? []).filter((o) => {
+    const t = orderQ.trim().toLowerCase();
+    if (!t) return true;
+    return String(o.id).includes(t) || o.buyerName.toLowerCase().includes(t) || o.contact.toLowerCase().includes(t) || o.productName.toLowerCase().includes(t);
+  });
+  const exportOrdersCsv = () => {
+    const header = ["ID", "Mahsulot", "Mijoz", "Telefon", "Manzil", "Narx", "To'lov", "Holat", "Do'kon", "Sana"];
+    const rows = filteredOrders.map((o) => [
+      o.id, o.productName, o.buyerName, o.contact, o.address, o.priceTanga, o.payKind, stLabel[o.status] ?? o.status, o.shopName ?? "", new Date(o.createdAt).toLocaleString("ru-RU"),
+    ]);
+    const esc = (v: unknown) => `"${String(v).replace(/"/g, '""')}"`;
+    const csv = [header, ...rows].map((r) => r.map(esc).join(",")).join("\n");
+    const blob = new Blob([`﻿${csv}`], { type: "text/csv;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `buyurtmalar-${new Date().toISOString().slice(0, 10)}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
 
   return (
     <>
@@ -2165,8 +2189,12 @@ function ShopAdminView() {
       </section>
 
       <section className="panel">
-        <div className="panel-title">🧾 Buyurtmalar (oxirgi {orders?.length ?? 0})</div>
-        {(orders ?? []).map((o) => (
+        <div className="panel-title">🧾 Buyurtmalar ({filteredOrders.length}{orders && orders.length !== filteredOrders.length ? ` / ${orders.length}` : ""})</div>
+        <div className="adm-toolbar">
+          <input className="search" value={orderQ} onChange={(e) => setOrderQ(e.target.value)} placeholder="🔍 Mijoz, telefon yoki buyurtma-ID…" />
+          <button className="btn sm" onClick={exportOrdersCsv} disabled={filteredOrders.length === 0}>⬇️ CSV eksport</button>
+        </div>
+        {filteredOrders.map((o) => (
           <div key={o.id} style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", padding: "8px 0", borderBottom: "1px solid rgba(255,255,255,0.08)" }}>
             <span style={{ flex: "2 1 220px" }}>
               #{o.id} <b>{o.productName}</b> <span className="muted">· {o.buyerName} · {o.contact}{!shopId && o.shopName ? ` · 🏪 ${o.shopName}` : ""}</span>
@@ -2176,7 +2204,7 @@ function ShopAdminView() {
             <span className="muted" style={{ fontSize: 12 }}>{o.payKind === "cash" ? `💵 ${o.priceTanga.toLocaleString("ru-RU")} so'm NAQD` : `🪙 ${o.priceTanga.toLocaleString("ru-RU")}`}</span>
           </div>
         ))}
-        {orders && orders.length === 0 && <p className="muted">Hali buyurtma yo&apos;q.</p>}
+        {orders && filteredOrders.length === 0 && <p className="muted">{orders.length === 0 ? "Hali buyurtma yo'q." : "Mos buyurtma topilmadi."}</p>}
       </section>
       <section className="panel">
         <div className="panel-title">🗣 Sharhlar (oxirgi {reviews?.length ?? 0})</div>
