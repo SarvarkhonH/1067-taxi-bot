@@ -533,6 +533,14 @@ export function createApiServer(opts: ApiOptions = {}) {
     return { profile, reviews };
   }));
 
+  // §10.2: sodiqlik-progress-bar — ko'rsatkich-ONLY (mukofotsiz, ega qarori 2026-07-23)
+  app.get("/api/shop/loyalty/:id", requireUser, rateLimit(30), withMember2(async (memberId, req, res) => {
+    const shopId = Number(req.params.id);
+    if (!Number.isFinite(shopId)) { res.status(404); return { error: "not_found" }; }
+    const { getShopLoyaltyProgress } = await import("../services/shopService");
+    return await getShopLoyaltyProgress(memberId, shopId);
+  }));
+
   // 📹 S1: do'kon-hikoya (story) — tray (Bozor-bosh) + bitta do'konning to'liq-ekran ko'ruvchisi.
   app.get("/api/shop/stories", requireUser, rateLimit(30), withMember2(async (memberId, _req, res) => {
     const { listStoryTray } = await import("../services/shopService");

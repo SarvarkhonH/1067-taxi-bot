@@ -155,6 +155,8 @@ export const api = {
   shopFavs: () => get<{ products: import("@t1067/shared").ShopProductView[] }>("/api/shop/favs"),
   // 🏪 D2 do'kon-profil
   shopProfile: (shopId: number) => get<{ profile: import("@t1067/shared").ShopProfileView; reviews: import("@t1067/shared").ShopReviewsResponse }>(`/api/shop/profile/${shopId}`),
+  // §10.2: sodiqlik-progress-bar — ko'rsatkich-only
+  shopLoyalty: (shopId: number) => get<{ purchaseCount: number; milestone: number; remaining: number }>(`/api/shop/loyalty/${shopId}`),
   // 📹 S1 do'kon-hikoya
   shopStories: () => get<{ shops: import("@t1067/shared").ShopStoryTrayItem[] }>("/api/shop/stories"),
   shopStoriesFor: (shopId: number) => get<{ stories: import("@t1067/shared").ShopStoryPost[] }>(`/api/shop/stories/${shopId}`),

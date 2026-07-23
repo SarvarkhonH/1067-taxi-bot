@@ -360,17 +360,21 @@ export function ShopView({ me, onBanner, reload, onBook, openProductId }: { me: 
   const [profileErr, setProfileErr] = useState(false);
   const [aboutOpen, setAboutOpen] = useState(false);
   const [shopReviewsOpen, setShopReviewsOpen] = useState(false);
+  // §10.2: sodiqlik-progress-bar — ko'rsatkich-only (mukofotsiz)
+  const [loyalty, setLoyalty] = useState<{ purchaseCount: number; milestone: number; remaining: number } | null>(null);
   useEffect(() => {
     setShopProfile(null);
     setShopProfileReviews(null);
     setProfileErr(false);
     setAboutOpen(false);
+    setLoyalty(null);
     if (!shopFilter) return;
     let stale = false; // R4: guard against an out-of-order response (shop A's fetch resolving
     // AFTER the user already switched to shop B) overwriting B's state with A's stale data.
     api.shopProfile(shopFilter.id)
       .then((r) => { if (!stale) { setShopProfile(r.profile); setShopProfileReviews(r.reviews); } })
       .catch(() => { if (!stale) setProfileErr(true); });
+    api.shopLoyalty(shopFilter.id).then((r) => { if (!stale) setLoyalty(r); }).catch(() => undefined);
     return () => { stale = true; };
   }, [shopFilter]);
   // 🧺 V2 (flag bazarcart): savat — 1 savat = 1 do'kon (restoran naqshi). Client-state faqat UI;
@@ -748,6 +752,14 @@ export function ShopView({ me, onBanner, reload, onBook, openProductId }: { me: 
                   <span className="shop-reviews-agg">{shopProfileReviews.reviews.length > 0 ? `${shopProfileReviews.reviews.length} ta` : "Hali yo'q"}</span>
                   <span className="shop-reviews-chev">›</span>
                 </button>
+              )}
+              {/* §10.2: sodiqlik-progress-bar — faqat kamida 1 xarid qilgan mijozga ko'rsatiladi */}
+              {loyalty && loyalty.purchaseCount > 0 && (
+                <div className="bj-loyalty">
+                  <div className="bj-loyalty-label">🧡 {shopProfile.name}dan {loyalty.purchaseCount} marta xarid qildingiz</div>
+                  <ProgressBar value={loyalty.purchaseCount} max={loyalty.milestone} />
+                  <div className="muted fs12">Yana {loyalty.remaining} tadan keyin {loyalty.milestone}-xaridingiz bo&apos;ladi</div>
+                </div>
               )}
               {shopCategories.length > 1 && (
                 <div className="shop-cat-chips">

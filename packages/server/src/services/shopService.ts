@@ -296,6 +296,26 @@ export async function listWatchedNotBought(shopId: number): Promise<WatchedNotBo
     .sort((a, b) => b.favCount - a.favCount);
 }
 
+// §10.2: sodiqlik-progress-bar — FAQAT KO'RSATKICH (ega qarori: mukofotsiz, hozircha). Haqiqiy
+// yakunlangan xaridlar soni shu do'kondan, keyingi "davra"gacha (har 5 tadan) necha qoldi. Yangi
+// pul-mexanika YO'Q — CLAUDE.md qoidasi ("pul-to'lab-omad mexanikasi TAQIQ") shu tarzda hurmat
+// qilinadi: bu sof-informatsion, hech qanday tanga/mukofot berilmaydi.
+const LOYALTY_MILESTONE = 5;
+export interface ShopLoyaltyProgress {
+  purchaseCount: number;
+  milestone: number;
+  remaining: number;
+}
+
+export async function getShopLoyaltyProgress(memberId: number, shopId: number): Promise<ShopLoyaltyProgress> {
+  const productIds = (await prisma.product.findMany({ where: { shopId }, select: { id: true } })).map((p) => p.id);
+  const purchaseCount = productIds.length
+    ? await prisma.shopPurchase.count({ where: { memberId, productId: { in: productIds }, status: "delivered" } })
+    : 0;
+  const milestone = (Math.floor(purchaseCount / LOYALTY_MILESTONE) + 1) * LOYALTY_MILESTONE;
+  return { purchaseCount, milestone, remaining: milestone - purchaseCount };
+}
+
 // §10.1: shop-darajasidagi anomaliya-detektor — "g'ayrioddiy rad-etish naqshi" / sekin-javob shop'lar
 // (kamida 3 buyurtma — kam-namunali yangi do'konni bekorga "muammo" deb belgilamaslik uchun).
 export interface ShopAttentionItem {

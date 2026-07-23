@@ -2712,6 +2712,9 @@ body {
 .bj-profile-about button { color: var(--bj-accent); background: none; border: none; padding: 0; font-size: 13px; font-weight: 600; }
 .bj-profile-loading { padding: 16px; display: flex; flex-direction: column; gap: 10px; }
 .bj-profile-reviews-entry { margin: 0 16px 12px; }
+/* §10.2: sodiqlik-progress-bar — ko'rsatkich-only (mukofotsiz) */
+.bj-loyalty { margin: 0 16px 12px; padding: 10px 12px; border: 1px solid var(--bj-line); border-radius: 10px; background: var(--bj-card); display: flex; flex-direction: column; gap: 6px; }
+.bj-loyalty-label { font-size: 13px; font-weight: 700; color: var(--bj-ink); }
 
 /* 📹 S1: do'kon-hikoya — tray (Bozor-bosh) + to'liq-ekran ko'ruvchi. Halqa = brend-aksent gradient
    (ko'rilmagan) / kulrang (ko'rilgan) — §1bis premium-qoidaga mos, chrome'da emoji yo'q (faqat
