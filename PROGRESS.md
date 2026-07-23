@@ -1947,3 +1947,22 @@ yozing»; !canWebApp menyu matni. Edge-test (6 case): imkoniyatlar✓ · bema'ni
 · SHAXSIY «maxfiy manzil»→bilim_saqla QILMADI (maxfiylik)✓ · OMMAVIY fakt→saqladi✓ · rahmat→iliq✓ ·
 ko'p-native so'rov→bittasini tanlaydi (single-action cheklovi). showProfile ulanmaganда promptLink✓.
 Isbot: typecheck 0. QOLGAN maslahat: jonli monitoring + eski userlarga «yangilandi» xabari (ixtiyoriy).
+
+## 2026-07-23 (22) — Jonli monitoring: "javob bermay qolgan" ildizi topildi + 3 tuzatish
+Ega 906391026 ID'ни tekshirди — bu ID jonli bazада UMUMAN yo'q (TelegramUser/Member/SupportMsg 0).
+Ega asl akkaunti 6506297119 (Sarvarxon @Sarvarxonh) — o'sha chatда haqiqiy muammo topildi:
+00:22→06:03 (~5.5 soat) hattoki oddiy «Salom» ham javobsiz qoldi. Render loglarни tekshirib ILDIZ
+aniqlandi: soat 18:00 (07-22) dan buyon **31 marta deploy** — har 10-15 daqiqada bittадан (session
+davomидаgi tinimsiz commit+push). Har deploy = 1-2 daqiqa server qayta ishga tushiши → shu daqiqaларда
+kelgan Telegram webhook xabarlar YO'QOLADI (qayta urinilмайди). Bu KOD XATOSI emas — DEPLOY SIYOSATI
+muammosi (juda tez-tez push). + 2 haqiqiy kod-xatosi ham topilib tuzatilди:
+  1. bot.ts message:text handler'да try/catch YO'Q edi — agent/DB/Gemini throw qilса (masalan
+     "Request timed out after 10000ms" unhandledRejection, kunига 2 marta ro'y bergan) user HECH
+     QANDAY javob olMASди (bot.catch faqat server-log qiladi). Endi: catch → iliq fallback javob.
+  2. intent.ts FAQ "yordam|help" juda keng edi — «NIMA YORDAM BERA OLASAN»/«menga yordam kerak»
+     (imkoniyat so'rov) botga «1067'ga qo'ng'iroq qiling» deб qaytartirарди AI tushuntirиш o'rniga.
+     Endi faqat aniq operator/dispetcher so'rovда ishlaydi, umumiy savol AI'ga o'tади (APP_GUIDE).
+  3. Rules-first "book" yo'li (BOOK_WORDS regex) saveOut chaqirмасди → monitoring'da ko'rinмасди
+     (user aslida javob olgan, faqat audit-logда yo'q edi). Endi loglanади.
+Isbot: typecheck 0, deploy live 8e08d38. MASLAHAT: bir kechада 31 deploy — ishlab chiqarишдан keyin
+COMMIT'larни to'plab, kamроq marta deploy qilish kerak (ayniqsa faol foydalanish soatlaridа).
