@@ -2255,7 +2255,7 @@ function InspEditBox({ draft, setDraft }: { draft: SvcDraft; setDraft: (d: SvcDr
 
   return (
     <div className="adm-insp-box" style={{ maxWidth: 480 }}>
-      <div className="adm-insp-title">🏅 1067 tekshiruvi — rasmiy audit (100 ball, 5 mezon)</div>
+      <div className="adm-insp-title">🏅 BirJoy tekshiruvi — rasmiy audit (100 ball, 5 mezon)</div>
       <div className="adm-insp-hint">Mijoz bahosi EMAS — jamoangiz jismoniy borib tekshirgan natija. {INSP_PASS_MIN} balldan past bo&apos;lsa rider&apos;larga OMMAVIY belgi umuman chiqmaydi.</div>
       <div className="adm-form-grid" style={{ marginTop: 8 }}>
         {INSP_CATEGORIES.map((c) => {

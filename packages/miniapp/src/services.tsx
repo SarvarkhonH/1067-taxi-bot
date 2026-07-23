@@ -72,7 +72,7 @@ function SvcCard({ l, onOpen }: { l: ServiceListingCard; onOpen: (l: ServiceList
   return (
     <button className={"svc-card glass" + (tier ? ` insp-${tier}` : "")} onClick={() => onOpen(l)}>
       {tier && (
-        <span className={`svc-insp-ribbon insp-${tier}`} title={`1067 tekshiruvi: ${l.inspTotal}/100 — ${INSP_TIER_LABEL[tier]}`}>
+        <span className={`svc-insp-ribbon insp-${tier}`} title={`BirJoy tekshiruvi: ${l.inspTotal}/100 — ${INSP_TIER_LABEL[tier]}`}>
           {INSP_TIER_EMOJI[tier]} {l.inspTotal}
         </span>
       )}
@@ -306,11 +306,11 @@ function DetailSheet({ id, onClose, onBanner, onFavChange, onOpenOther }: { id: 
               <div className="svc-insp-cert-head">
                 <span className="svc-insp-cert-emoji">{INSP_TIER_EMOJI[d.inspTier]}</span>
                 <div className="grow">
-                  <div className="svc-insp-cert-title">1067 TEKSHIRUVI — {INSP_TIER_LABEL[d.inspTier]}</div>
+                  <div className="svc-insp-cert-title">BirJoy TEKSHIRUVI — {INSP_TIER_LABEL[d.inspTier]}</div>
                   <div className="svc-insp-cert-score">{d.inspTotal}/100 ball</div>
                 </div>
               </div>
-              <p className="svc-insp-hint">1067 jamoasi ushbu joyga bevosita borib, o&apos;z ko&apos;zi bilan tekshiradi. Bu — mijoz bahosidan mustaqil, xolis audit. Xavotirsiz foydalanishingiz mumkin.</p>
+              <p className="svc-insp-hint">BirJoy jamoasi ushbu joyga bevosita borib, o&apos;z ko&apos;zi bilan tekshiradi. Bu — mijoz bahosidan mustaqil, xolis audit. Xavotirsiz foydalanishingiz mumkin.</p>
               {d.inspNote && <p className="fs12 mt4"><i>&quot;{d.inspNote}&quot;</i></p>}
               {d.inspBreakdown && (
                 <>
@@ -683,7 +683,7 @@ export function XizmatlarView({ me, onBanner }: { me: MeResponse; onBanner: (msg
                 <button className={"svc-chip" + (newOnly ? " on" : "")} onClick={() => { haptic(); setNewOnly(!newOnly); }}>🆕 Yangi</button>
               )}
               {catRows.some((l) => l.inspTier != null) && (
-                <button className={"svc-chip insp-only" + (inspOnlyFilter ? " on" : "")} onClick={() => { haptic(); setInspOnlyFilter(!inspOnlyFilter); }}>🏆 1067 tekshirgan</button>
+                <button className={"svc-chip insp-only" + (inspOnlyFilter ? " on" : "")} onClick={() => { haptic(); setInspOnlyFilter(!inspOnlyFilter); }}>🏆 BirJoy tekshirgan</button>
               )}
             </div>
           )}
@@ -736,10 +736,10 @@ export function XizmatlarView({ me, onBanner }: { me: MeResponse; onBanner: (msg
           {home && home.inspected.length > 0 && (
             <div className="svc-section svc-insp-section">
               <div className="between">
-                <b className="fs14">🏆 1067 tavsiya qiladi</b>
+                <b className="fs14">🏆 BirJoy tavsiya qiladi</b>
                 <span className="muted fs12">jismoniy tekshirilgan</span>
               </div>
-              <p className="svc-insp-section-hint">1067 jamoasi o&apos;zi borib tekshirgan, ishonch bilan foydalanishingiz mumkin bo&apos;lgan xizmatlar</p>
+              <p className="svc-insp-section-hint">BirJoy jamoasi o&apos;zi borib tekshirgan, ishonch bilan foydalanishingiz mumkin bo&apos;lgan xizmatlar</p>
               <div className="svc-carousel mt8">{home.inspected.map((l) => <SvcCard key={l.id} l={l} onOpen={(x) => { haptic(); setSelId(x.id); }} />)}</div>
             </div>
           )}
@@ -776,7 +776,7 @@ export function XizmatlarView({ me, onBanner }: { me: MeResponse; onBanner: (msg
               else window.open(url, "_blank");
             }}
           >
-            📄 1067 Tekshiruvi Standartlari — to&apos;liq hujjat
+            📄 BirJoy Tekshiruvi Standartlari — to&apos;liq hujjat
           </button>
         </>
       )}

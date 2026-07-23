@@ -164,6 +164,10 @@ export function App() {
   const [invite, setInvite] = useState(() => readGo() === "invite"); // 🎁 invite overlay (one-tap from home / ?go=invite)
   const [history, setHistory] = useState(() => readGo() === "history"); // 📜 ride-history overlay
   const [deepProduct] = useState(() => readDeepProduct()); // 🛍 auto-open a shared product once
+  // 🏠 UY feed cards (bento) carry their real id via nav("dokon:<id>"/"restoran:<id>") so tapping one
+  // opens THAT product/restaurant's detail, not just the bare tab list — parsed in nav() below.
+  const [openProductFromFeed, setOpenProductFromFeed] = useState<number | null>(null);
+  const [openRestoranFromFeed, setOpenRestoranFromFeed] = useState<number | null>(null);
   const coins = useCountUp(me?.coins ?? 0);
   // WOW-1: balans oshganda tanga ikonkasi sakraydi
   const [coinBounce, setCoinBounce] = useState(false);
@@ -284,6 +288,14 @@ export function App() {
   const nav = (t: string) => {
     if (t === "invite") { haptic(); setInvite(true); return; } // 🎁 open invite overlay directly
     if (t === "history") { haptic(); setHistory(true); return; } // 📜 open ride-history overlay
+    // 🏠 UY feed card target, e.g. "dokon:35" / "restoran:5" — open that exact item, not just the tab.
+    const feedItem = /^(dokon|restoran):(\d+)$/.exec(t);
+    if (feedItem) {
+      const id = Number(feedItem[2]);
+      if (feedItem[1] === "dokon") setOpenProductFromFeed(id); else setOpenRestoranFromFeed(id);
+      go(feedItem[1] as Tab);
+      return;
+    }
     go(GO_MAP[t] ?? "uy");
   };
 
@@ -327,11 +339,23 @@ export function App() {
     const ri = TABS.findIndex((t) => t.id === "reyting" || t.id === "elonlar");
     TABS = ri >= 0 ? [...TABS.slice(0, ri), RESTORAN_TAB, ...TABS.slice(ri)] : [...TABS, RESTORAN_TAB];
   }
+  // 🏠 newhome: Liquid-Glass tabbar — FIXED 4-tab set (owner-confirmed 2026-07-23): Uy · Do'kon ·
+  // Restoran · Profil, taxi reached via the center FAB. Xizmatlar/E'lonlar/Yo'l/Bonus/Reyting live
+  // ONLY in the home rail + "Barchasi" hub — they no longer clutter the bar (previously the dynamic
+  // flag-accumulation above grew the classic bar to 5-6 tabs, which is what we're replacing here).
+  // Drivers keep the classic dynamic bar (Uy/Daromad/Reyting) — driver economy wasn't in this redesign's scope.
+  const newhomeUi = !!me.flags?.newhome && me.type !== "driver";
+  if (newhomeUi) {
+    TABS = [
+      { id: "uy" as Tab, icon: "home", label: "Uy" },
+      { id: "dokon" as Tab, icon: "market", label: "Do'kon" },
+      { id: "restoran" as Tab, icon: "food", label: "Restoran" },
+      { id: "profile" as Tab, icon: "user", label: "Profil" },
+    ];
+  }
   const TAB_PCT = 100 / TABS.length;
   const activeIndex = TABS.findIndex((t) => t.id === tab);
-  // 🏠 newhome: Liquid-Glass tabbar + center Taxi FAB (shell gets .nh-app; FAB injected mid-row).
-  const newhomeUi = !!me.flags?.newhome;
-  const fabAt = Math.floor(TABS.length / 2);
+  const fabAt = Math.floor(TABS.length / 2); // 4 tabs → index 2 → renders between Do'kon and Restoran
   const shellCls = tab === "dokon" ? (me?.flags?.bazar ? "app shop-light bazar-light" : "app shop-light") : tab === "elonlar" ? "app elonlar-light" : tab === "xizmat" ? "app xizmat-light" : tab === "restoran" ? "app restoran-light" : "app";
 
   return (
@@ -350,6 +374,7 @@ export function App() {
               : tab === "restoran" ? <b>Restoran</b>
               : tab === "reyting" ? "Reyting"
               : tab === "driver" ? "Daromad"
+              : tab === "profile" ? "Profil"
               : <b>BirJoy</b>}
           </span>
           {/* 👥 social proof — 10 000 baza + real a'zolar (har yangi qo'shilganda o'sadi → tirik, viral) */}
@@ -412,10 +437,10 @@ export function App() {
                 <Spinner />
               ))}
             {tab === "yol" && <IntercityView me={me} />}
-            {tab === "dokon" && <ShopView me={me} onBanner={flash} reload={reload} onBook={() => { haptic(); setBooking(true); }} openProductId={deepProduct} />}
+            {tab === "dokon" && <ShopView me={me} onBanner={flash} reload={reload} onBook={() => { haptic(); setBooking(true); }} openProductId={openProductFromFeed ?? deepProduct} />}
             {tab === "xizmat" && <XizmatlarView me={me} onBanner={flash} />}
             {tab === "elonlar" && <ElonlarView me={me} onBanner={flash} reload={reload} />}
-            {tab === "restoran" && <RestoranView me={me} onBanner={flash} />}
+            {tab === "restoran" && <RestoranView me={me} onBanner={flash} openRestaurantId={openRestoranFromFeed} />}
             {tab === "driver" && <DriverView me={me} />}
             {tab === "profile" && (
               me.flags?.newprofile ? (

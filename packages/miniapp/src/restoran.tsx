@@ -2,7 +2,7 @@
 // operator/admin (server-side) + qulayliklar (bekor qilish, qayta buyurtma, qidiruv/filtr, sharh,
 // mijozga push). V1 = CONCIERGE: narx REAL SO'M (D1), buyurtma operator orqali telefon bilan
 // tayyorlanadi (admin panel orqali boshqariladi) — bu ekran faqat mijoz-tomon.
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { FoodOrderView, MeResponse, MenuItemView, RestaurantView } from "@t1067/shared";
 import { formatNumber } from "@t1067/shared";
 import { api, apiUrl } from "./api";
@@ -411,7 +411,7 @@ function RestaurantDetail({ id, me, initialCart, onBack, onBanner }: { id: numbe
   );
 }
 
-export function RestoranView({ me, onBanner }: { me: MeResponse; onBanner?: (msg: string) => void }) {
+export function RestoranView({ me, onBanner, openRestaurantId }: { me: MeResponse; onBanner?: (msg: string) => void; openRestaurantId?: number | null }) {
   const [list, setList] = useState<RestaurantView[] | null>(null);
   const [openId, setOpenId] = useState<number | null>(null);
   const [ordersOpen, setOrdersOpen] = useState(false);
@@ -419,10 +419,18 @@ export function RestoranView({ me, onBanner }: { me: MeResponse; onBanner?: (msg
   const [q, setQ] = useState("");
   const [openOnly, setOpenOnly] = useState(false);
   const [catFilter, setCatFilter] = useState<string>("all");
+  const deepOpened = useRef(false);
 
   useEffect(() => {
     api.restoranList().then((r) => setList(r.restaurants)).catch(() => setList([]));
   }, []);
+
+  // 🏠 UY feed'dan bosilgan restoran (?openRestaurantId) — ro'yxat kelgach BIR marta avto-ochiladi.
+  useEffect(() => {
+    if (!openRestaurantId || deepOpened.current || !list) return;
+    const r = list.find((x) => x.id === openRestaurantId);
+    if (r) { deepOpened.current = true; setOpenId(r.id); }
+  }, [openRestaurantId, list]);
 
   const cats = useMemo(() => Array.from(new Set((list ?? []).map((r) => r.category))), [list]);
   const topIds = useMemo(() => {

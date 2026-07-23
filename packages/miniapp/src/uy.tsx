@@ -2,7 +2,8 @@
 // version is the flag-gated upgrade. Greeting + balance + taxi CTA + Bugun + quick tiles.
 // NewUyView (feature "newhome", UY_REDESIGN Bosqich 1) = the premium super-app home below.
 import { useEffect, useState } from "react";
-import type { HomeBanner, HomeFeedItem, MeResponse, SavedAddressView } from "@t1067/shared";
+import type { ClassifiedCard, HomeBanner, HomeFeedItem, MeResponse, SavedAddressView, ServiceListingCard } from "@t1067/shared";
+import { INSP_TIER_EMOJI, INSP_TIER_LABEL } from "@t1067/shared";
 import { api, apiUrl } from "./api";
 import { haptic } from "./telegram";
 import { BugunStripView } from "./wallet";
@@ -89,11 +90,20 @@ export function UyView({ me, onBook, onNav, onBanner }: { me: MeResponse; onBook
 // local DB (shop + restoran views), so the client makes a single call. Themes via data-theme.
 // ═══════════════════════════════════════════════════════════════════════════
 const num = (n: number) => n.toLocaleString("ru-RU");
+function timeAgo(iso: string): string {
+  const s = (Date.now() - Date.parse(iso)) / 1000;
+  if (!Number.isFinite(s) || s < 0) return "";
+  if (s < 3600) return `${Math.max(1, Math.round(s / 60))} daq oldin`;
+  if (s < 86400) return `${Math.round(s / 3600)} soat oldin`;
+  return `${Math.round(s / 86400)} kun oldin`;
+}
 
 export function NewUyView({ me, onBook, onNav }: { me: MeResponse; onBook: () => void; onNav: (t: string) => void; onBanner?: (msg: string) => void }) {
   const [feed, setFeed] = useState<HomeFeedItem[] | null>(null);
   const [banner, setBanner] = useState<HomeBanner | null>(null);
   const [hub, setHub] = useState(false);
+  const [ustas, setUstas] = useState<ServiceListingCard[] | null>(null);
+  const [elons, setElons] = useState<ClassifiedCard[] | null>(null);
   const f = me.flags ?? {};
 
   useEffect(() => {
@@ -102,6 +112,16 @@ export function NewUyView({ me, onBook, onNav }: { me: MeResponse; onBook: () =>
       .then((r) => { if (alive) { setFeed(r.items); setBanner(r.banner); } })
       .catch(() => { if (alive) setFeed([]); });
     return () => { alive = false; };
+  }, []);
+
+  // 🔧 Xizmatlar (yaqin ustalar) + 📋 E'lonlar content-bloklari — home'da REAL kontent bilan,
+  // faqat rail-ikonka emas (UY_REDESIGN_DOD §3.1 7b/7c). Faqat mos flag ON bo'lsa so'raladi.
+  useEffect(() => {
+    let alive = true;
+    if (f.xizmatlar) api.svcList({ limit: 5, sort: "new" }).then((r) => { if (alive) setUstas(r.listings); }).catch(() => { if (alive) setUstas([]); });
+    if (f.elonlar) api.elonAds({ limit: 5 }).then((r) => { if (alive) setElons(r.ads); }).catch(() => { if (alive) setElons([]); });
+    return () => { alive = false; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const rail = [
@@ -180,7 +200,7 @@ export function NewUyView({ me, onBook, onNav }: { me: MeResponse; onBook: () =>
           <div className="nh-sh"><div className="t">Sizga tavsiya<small>🍽 Eng yaxshilari</small></div><button className="all" onClick={() => setHub(true)}>Barchasi</button></div>
           <div className="nh-bento">
             {feed.map((it, i) => (
-              <button key={it.kind + it.id} className={`nh-bc${i === 0 ? " tall" : ""}`} onClick={() => go(it.target)}>
+              <button key={it.kind + it.id} className={`nh-bc${i === 0 ? " tall" : ""}`} onClick={() => go(`${it.target}:${it.id}`)}>
                 <div className="im">
                   {it.photoUrl ? <img src={apiUrl(it.photoUrl)} alt="" loading="lazy" decoding="async" onError={(e) => ((e.target as HTMLImageElement).style.opacity = "0")} /> : <span style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 40 }}>{it.kind === "restaurant" ? "🍽" : "🛍"}</span>}
                   {it.badge && <span className={`nh-tg${it.badge === "top" ? " hot" : it.badge === "disc" ? " dc" : ""}`}>{badgeLabel(it.badge)}</span>}
@@ -198,6 +218,46 @@ export function NewUyView({ me, onBook, onNav }: { me: MeResponse; onBook: () =>
           </div>
         </>
       ) : null}
+
+      {f.xizmatlar && ustas !== null && ustas.length > 0 && (
+        <>
+          <div className="nh-sh"><div className="t">🔧 Xizmatlar<small>Yaqin atrofdagi ustalar</small></div><button className="all" onClick={() => go("xizmat")}>Barchasi</button></div>
+          <div className="nh-urow">
+            {ustas.map((u) => (
+              <button key={u.id} className="nh-ust" onClick={() => go("xizmat")}>
+                <div className="nh-ust-im">
+                  {u.hasPhoto ? (
+                    <img src={apiUrl(`/api/services/photo/${u.id}?s=1`)} alt="" loading="lazy" decoding="async" onError={(e) => ((e.target as HTMLImageElement).style.opacity = "0")} />
+                  ) : (
+                    <span className="nh-ust-em">{u.categoryEmoji || "🔧"}</span>
+                  )}
+                  {u.inspTier && <span className="nh-ust-insp" title={`BirJoy tekshiruvi: ${INSP_TIER_LABEL[u.inspTier]}`}>{INSP_TIER_EMOJI[u.inspTier]}</span>}
+                </div>
+                <div className="nh-ust-b">
+                  <div className="un">{u.name}</div>
+                  <div className="um">{u.categoryName}</div>
+                  {u.reviewCount > 0 ? <div className="ur">⭐ {u.avgRating.toFixed(1)} ({u.reviewCount})</div> : <div className="ur new">🆕 Yangi</div>}
+                </div>
+              </button>
+            ))}
+          </div>
+        </>
+      )}
+
+      {f.elonlar && elons !== null && elons.length > 0 && (
+        <>
+          <div className="nh-sh"><div className="t">📋 E'lonlar<small>Mahalladagi so'nggilari</small></div><button className="all" onClick={() => go("elonlar")}>Barchasi</button></div>
+          <div className="nh-elist">
+            {elons.map((a) => (
+              <button key={a.id} className="nh-erow" onClick={() => go("elonlar")}>
+                <div className="nh-eic">📋</div>
+                <div className="nh-et"><div className="a">{a.title}</div><div className="b">{a.subtype} · {timeAgo(a.createdAt)}</div></div>
+                <div className="nh-ep">{a.priceSom ? `${num(a.priceSom)} so'm` : "Kelishiladi"}</div>
+              </button>
+            ))}
+          </div>
+        </>
+      )}
 
       <button className="nh-invite" onClick={() => go("invite")}>
         <span className="ii">👥</span>
