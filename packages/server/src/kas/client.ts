@@ -573,12 +573,14 @@ export class KasLiveSource implements KasDataSource {
               lat: req.addressLatitude!,
               lng: req.addressLongitude!,
               // kas names client orders «℗ <carModel>, <place>» and resolves <place> itself server-side
-              // from lat/lng — that resolution can fail and show a bare "-" (this DTO has no addressName
-              // field of its own, unlike throughWeb below). So we bake OUR already-guarded `addressName`
-              // (computed above, never a dash — falls back to the nearest catalog place or "Belgilangan
-              // joy") directly into carModel too → driver always sees a real place, e.g.
-              // «℗ Lokatsiyalik, Arabxona yaqinida».
-              carModel: `Lokatsiyalik, ${addressName}`,
+              // from lat/lng (this DTO has no addressName field of its own, unlike throughWeb below).
+              // 2026-07-23: tried baking our own guarded `addressName` into carModel too as a fallback —
+              // REVERTED same day: kas's own resolution normally succeeds (confirmed live: order b62506
+              // got a real place name), so the extra text just produced a confusing DOUBLED label
+              // («Farangiz yaqinida, Farangiz») that likely caused an operator to reject a fine order.
+              // Leave carModel plain; revisit with a real reproduction of kas's resolution failing
+              // before adding any fallback text here again.
+              carModel: "Lokatsiyalik",
               additionalPayment: req.additionalPayment ?? 0,
             });
             if (cr.status >= 200 && cr.status < 300 && /"status"\s*:\s*"new"/.test(cr.body)) {
