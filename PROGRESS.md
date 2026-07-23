@@ -2319,3 +2319,17 @@ flex-wrap to'g'ri ishladi (izoh-box to'liq-kenglikda alohida qatorga tushdi, mat
 `read_page` bilan tasdiqlandi). Deploy: commit `2c851fb` → Vercel prebuilt → bundle-grep live
 (`shop-Djouu_ok.js`, `1067taxi-miniapp.vercel.app`): "shop-price-why" topildi.
 **QOLDI (§10.2)**: kuzatilmoqda-lekin-olinmayapti signal · sodiqlik-progress-bar.
+
+## 2026-07-23 (36) — §10.2: "kuzatilmoqda-lekin-olinmayapti" sotuvchi-signali
+Ega asl rejasida "ProductWatch" jadvali eslatilgan edi — bunday jadval HECH QACHON qurilmagan
+ekan (tekshirib ko'rdim). O'rniga ALLAQACHON mavjud `Product.favCount` (V2b sevimlilar-hisoblagich)
+ishlatildi: ❤️-belgilangan, lekin hech kim sotib olmagan mahsulotlar admin-panelda ko'rsatiladi.
+**Ko'lam**: faqat `ShopPurchase` (jonli yagona-buyurtma yo'l) hisoblanadi — `MarketOrder` hali DARK
+(`bazarcart`) va uning `itemsJson`idan per-mahsulot hisoblash alohida, kattaroq ish talab qiladi.
+**Isbot**: `tsc --noEmit` server+admin 0 xato. Jonli DB'ga qarshi to'g'ridan-to'g'ri sinov: shop
+#1'da 2 ta haqiqiy mahsulot topildi (SPA HAIR MASK, SKIN CARE — ikkalasi ham 2 ❤️, 0 sotilgan),
+shop #2'da yo'q (mantiqan to'g'ri). Deploy: server commit `f5859ae` → push (Render CI-shield) ·
+admin — build+deploy → bundle-grep live (`index-CrQTzKQU.js`): "Kuzatilmoqda, lekin olinmayapti"
+topildi.
+**§10.2 holati: 4/5 tayyor** (javobsiz-chat, hozir-ochiq filtr, narx-shaffofligi, kuzatilmoqda-
+signal). **QOLDI**: sodiqlik-progress-bar ("yana N xariddan keyin bepul yetkazish").
