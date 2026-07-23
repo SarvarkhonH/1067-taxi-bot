@@ -20,6 +20,8 @@ export interface MeResponse {
     fullName: string;
     phone?: string | null;
     carNumber?: string | null;
+    mahallaId?: number | null; // 🏠 V1.5: "uy" mahalla
+    travelMahallaId?: number | null; // 🏠 V1.5: safar-rejimi vaqtinchalik override
   };
   stats: {
     points: number;
@@ -389,6 +391,15 @@ export interface MarketShopView {
   hasPhoto: boolean;
   deliveryFeeSom: number; // 🧺 V2: savat-hisob uchun (1 tanga = 1 so'm)
   minOrderTanga: number;
+  shopKind: string; // V1.5: "bozor" (butun shahar) | "mahalla" (faqat o'z mahallasiga tez yetkazish)
+  mahallaId: number | null;
+}
+// 🏠 V1.5 (Mahalla bozori)
+export interface MahallaView {
+  id: number;
+  name: string;
+  lat: number;
+  lng: number;
 }
 export interface MarketCategoryView {
   id: number;
@@ -970,16 +981,16 @@ export const CLASSIFIED_AD_DAYS = 30; // §7 expiresAt = createdAt + 30 kun
 // client makes ONE call instead of fanning out. photoUrl/imageUrl are RELATIVE API paths — the client
 // wraps them with apiUrl(). No kas calls, no new poller; cached ~30s server-side.
 export interface HomeFeedItem {
-  kind: "product" | "restaurant";
+  kind: "product" | "restaurant" | "dish";
   id: number;
   name: string;
   photoUrl: string | null; // e.g. "/api/shop/photo/12?s=1" — client wraps with apiUrl()
-  sub: string; // "🏪 shopName" | "🍽 category"
-  priceLabel?: string; // products only (tanga, ru-RU formatted)
-  oldPriceLabel?: string; // strikethrough when discounted
+  sub: string; // "🏪 shopName" | "🍽 restaurantName"
+  priceLabel?: string; // FULLY formatted incl. unit — "45 000 so'm" (dish) or "89 000 🪙" (product);
+  oldPriceLabel?: string; // strikethrough when discounted — same formatting rule as priceLabel
   rating?: number;
   badge?: "top" | "new" | "disc";
-  target: string; // deep-link tab: "dokon" | "restoran"
+  target: string; // deep-link, e.g. "dokon:35" / "restoran:5" — App.tsx opens that exact item
 }
 export interface HomeBanner {
   id: number;

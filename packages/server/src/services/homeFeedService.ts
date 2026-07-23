@@ -2,11 +2,11 @@
 // promo banner + image-forward feed, computed from LOCAL DB (shop + restoran views — no kas, no new
 // poller). Cached ~30s per audience (public vs owner-preview). The shop/restoran views already compute
 // topSeller / avgRating / orderCount, so "auto top-seller + top-rated" is reuse, not re-implementation.
-import type { HomeFeedResponse, HomeFeedItem, HomeBanner, ShopProductView, RestaurantView } from "@t1067/shared";
+import type { HomeFeedResponse, HomeFeedItem, HomeBanner, ShopProductView, RestaurantView, MenuItemView } from "@t1067/shared";
 import { prisma } from "../db";
 import { featureOn } from "./featureFlags";
 import { listActiveProducts } from "./shopService";
-import { listActiveRestaurants } from "./restoranService";
+import { listActiveRestaurants, getRestaurantDetail } from "./restoranService";
 
 const TTL_MS = 30_000;
 const cache = new Map<string, { at: number; data: HomeFeedResponse }>();
@@ -35,27 +35,41 @@ export async function getHomeFeed(preview: boolean): Promise<HomeFeedResponse> {
 
   const pItems: HomeFeedItem[] = topP.map((p) => ({
     kind: "product", id: p.id, name: p.name, photoUrl: `/api/shop/photo/${p.id}?s=1`,
-    sub: `🏪 ${p.shopName ?? "Do'kon"}`, priceLabel: fmt(p.priceTanga),
-    oldPriceLabel: p.oldPriceTanga ? fmt(p.oldPriceTanga) : undefined,
-    badge: p.topSeller ? "top" : p.oldPriceTanga ? "disc" : p.isNew ? "new" : undefined, target: "dokon",
-  }));
-  const rItems: HomeFeedItem[] = topR.map((r) => ({
-    kind: "restaurant", id: r.id, name: r.name, photoUrl: `/api/restoran/photo/${r.id}`,
-    sub: `🍽 ${r.category}`, rating: r.avgRating, badge: r.orderCount > 0 ? "top" : undefined, target: "restoran",
+    sub: `🏪 ${p.shopName ?? "Do'kon"}`, priceLabel: `${fmt(p.priceTanga)} 🪙`,
+    oldPriceLabel: p.oldPriceTanga ? `${fmt(p.oldPriceTanga)} 🪙` : undefined,
+    badge: p.topSeller ? "top" : p.oldPriceTanga ? "disc" : p.isNew ? "new" : undefined, target: `dokon:${p.id}`,
   }));
 
-  // interleave restaurant/product for visual variety; client renders the first card tall
+  // 🍽 a real DISH photo sells food far better than the restaurant's own logo/exterior shot (owner
+  // request, matches the Wolt/Yandex Eats pattern) — pull a couple of photographed, available dishes
+  // per top restaurant. A restaurant with no photographed dish yet falls back to its own card.
+  const dishSets = await Promise.all(topR.map((r) => getRestaurantDetail(r.id, preview).catch(() => ({ restaurant: r, items: [] as MenuItemView[] }))));
+  const dItems: HomeFeedItem[] = [];
+  topR.forEach((r, i) => {
+    const dishes = (dishSets[i]?.items ?? []).filter((m) => m.hasPhoto && m.available).slice(0, 2);
+    if (dishes.length === 0) {
+      dItems.push({ kind: "restaurant", id: r.id, name: r.name, photoUrl: `/api/restoran/photo/${r.id}`, sub: `🍽 ${r.category}`, rating: r.avgRating, badge: r.orderCount > 0 ? "top" : undefined, target: `restoran:${r.id}` });
+      return;
+    }
+    for (const m of dishes) {
+      dItems.push({ kind: "dish", id: m.id, name: m.name, photoUrl: `/api/restoran/menuphoto/${m.id}`, sub: `🍽 ${r.name}`, priceLabel: `${fmt(m.priceSom)} so'm`, badge: r.orderCount > 0 ? "top" : undefined, target: `restoran:${r.id}` });
+    }
+  });
+
+  // interleave dish/product for visual variety; client renders the first card tall
   let items: HomeFeedItem[] = [];
-  for (let i = 0; i < Math.max(rItems.length, pItems.length); i++) {
-    const r = rItems[i]; if (r) items.push(r);
+  for (let i = 0; i < Math.max(dItems.length, pItems.length); i++) {
+    const d = dItems[i]; if (d) items.push(d);
     const p = pItems[i]; if (p) items.push(p);
   }
 
-  // promo banner: prefer a discounted product, else the top restaurant
+  // promo banner: prefer a discounted product, else a photographed dish, else the top restaurant
   let banner: HomeBanner | null = null;
   const disc = topP.find((p) => p.oldPriceTanga);
-  if (disc) banner = { id: disc.id, imageUrl: `/api/shop/photo/${disc.id}`, title: disc.name, subtitle: `🏪 ${disc.shopName ?? "Do'kon"} · chegirma`, target: "dokon", badge: "Chegirma" };
-  else if (topR[0]) banner = { id: topR[0].id, imageUrl: `/api/restoran/photo/${topR[0].id}`, title: topR[0].name, subtitle: `🍽 ${topR[0].category} · ⭐ ${topR[0].avgRating.toFixed(1)}`, target: "restoran", badge: "Tavsiya" };
+  const bannerDish = dItems.find((x) => x.kind === "dish");
+  if (disc) banner = { id: disc.id, imageUrl: `/api/shop/photo/${disc.id}`, title: disc.name, subtitle: `🏪 ${disc.shopName ?? "Do'kon"} · chegirma`, target: `dokon:${disc.id}`, badge: "Chegirma" };
+  else if (bannerDish) banner = { id: bannerDish.id, imageUrl: bannerDish.photoUrl!, title: bannerDish.name, subtitle: bannerDish.sub, target: bannerDish.target, badge: "Tavsiya" };
+  else if (topR[0]) banner = { id: topR[0].id, imageUrl: `/api/restoran/photo/${topR[0].id}`, title: topR[0].name, subtitle: `🍽 ${topR[0].category} · ⭐ ${topR[0].avgRating.toFixed(1)}`, target: `restoran:${topR[0].id}`, badge: "Tavsiya" };
 
   // 🏠 admin curation (Bosqich 3): owner-set banner override + pinned items float to top. EMPTY →
   // auto feed above stands. try/catch so a not-yet-migrated table just leaves the auto feed intact.
@@ -73,11 +87,12 @@ export async function getHomeFeed(preview: boolean): Promise<HomeFeedResponse> {
       const r = feat.refId ? restById.get(feat.refId) : undefined;
       if (feat.kind === "banner") {
         const img = feat.imageKey || (p ? `/api/shop/photo/${p.id}` : r ? `/api/restoran/photo/${r.id}` : banner?.imageUrl ?? "");
-        banner = { id: feat.id, imageUrl: img, title: feat.title, subtitle: feat.subtitle ?? undefined, target: feat.target ?? (r ? "restoran" : "dokon"), badge: feat.badge ?? "Aksiya" };
+        const fallbackTarget = r ? `restoran:${r.id}` : p ? `dokon:${p.id}` : "uy";
+        banner = { id: feat.id, imageUrl: img, title: feat.title, subtitle: feat.subtitle ?? undefined, target: feat.target ?? fallbackTarget, badge: feat.badge ?? "Aksiya" };
       } else if (feat.kind === "product" && p) {
-        pinned.push({ kind: "product", id: p.id, name: feat.title || p.name, photoUrl: `/api/shop/photo/${p.id}?s=1`, sub: feat.subtitle || `🏪 ${p.shopName ?? "Do'kon"}`, priceLabel: fmt(p.priceTanga), oldPriceLabel: p.oldPriceTanga ? fmt(p.oldPriceTanga) : undefined, badge: "top", target: "dokon" });
+        pinned.push({ kind: "product", id: p.id, name: feat.title || p.name, photoUrl: `/api/shop/photo/${p.id}?s=1`, sub: feat.subtitle || `🏪 ${p.shopName ?? "Do'kon"}`, priceLabel: `${fmt(p.priceTanga)} 🪙`, oldPriceLabel: p.oldPriceTanga ? `${fmt(p.oldPriceTanga)} 🪙` : undefined, badge: "top", target: `dokon:${p.id}` });
       } else if (feat.kind === "restaurant" && r) {
-        pinned.push({ kind: "restaurant", id: r.id, name: feat.title || r.name, photoUrl: `/api/restoran/photo/${r.id}`, sub: feat.subtitle || `🍽 ${r.category}`, rating: r.avgRating, badge: "top", target: "restoran" });
+        pinned.push({ kind: "restaurant", id: r.id, name: feat.title || r.name, photoUrl: `/api/restoran/photo/${r.id}`, sub: feat.subtitle || `🍽 ${r.category}`, rating: r.avgRating, badge: "top", target: `restoran:${r.id}` });
       }
     }
     if (pinned.length) {
