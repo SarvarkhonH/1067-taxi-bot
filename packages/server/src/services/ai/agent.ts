@@ -320,11 +320,15 @@ export async function runAgent(memberId: number, telegramId: string, text: strin
   }
 
   try {
-    // Provider chain: Gemini Flash (PAID tier — stable, no 429) → Groq 70b (free backup).
-    // A provider is only skipped on capacity errors ("rate"); other errors bubble → honest null.
+    // Provider chain: Kimi → Gemini Flash (paid) → Groq 70b (free backup). Retried ONCE after a
+    // short pause: a transient blip / per-minute spike (rapid-fire messages) was silently dropping
+    // real users to the "Tushunmadim" nudge. A single retry recovers most of those.
     let msg: LlmMsg | "rate" = "rate";
-    if (geminiKey) msg = await callGemini(geminiKey, system, history, tools).catch(() => "rate" as const);
-    if (msg === "rate" && groqKey) msg = await callGroq(groqKey, system, history, tools).catch(() => "rate" as const);
+    for (let attempt = 0; attempt < 2 && msg === "rate"; attempt++) {
+      if (attempt > 0) await new Promise((r) => setTimeout(r, 500));
+      if (geminiKey) msg = await callGemini(geminiKey, system, history, tools).catch(() => "rate" as const);
+      if (msg === "rate" && groqKey) msg = await callGroq(groqKey, system, history, tools).catch(() => "rate" as const);
+    }
     if (msg === "rate") throw new Error("all providers rate-limited/failed");
     await aiCapBump(memberId);
 

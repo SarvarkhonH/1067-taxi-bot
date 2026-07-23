@@ -1702,7 +1702,14 @@ export function createBot(): Bot {
     const saveOut = (t: string): void =>
       void prisma.supportMsg.create({ data: { telegramId: tgId, direction: "out", text: t.slice(0, 1000) } }).catch(() => undefined);
 
-    const { parseIntent, aiSupport } = await import("../services/ai/intent");
+    const { parseIntent, aiSupport, smallTalk } = await import("../services/ai/intent");
+    // 💬 greetings/thanks → instant warm reply, NO LLM (always works even if the model is down)
+    const st = smallTalk(rawText);
+    if (st) {
+      await ctx.reply(st);
+      saveOut(st);
+      return;
+    }
     const intent = parseIntent(rawText);
     if (intent.type === "faq") {
       // no mechanical "1067" footer — BirJoy is the brand; the taxi FAQ answers that need
@@ -1941,13 +1948,21 @@ export function createBot(): Bot {
       }
     }
     const meF = await getMe(tgId).catch(() => null);
-    await ctx.reply(
-      "🤔 <b>Tushunmadim.</b> Lekin men ko'p narsani bilaman 👇\n" +
-        "🚕 «uyimga taksi» · 🍽 «osh buyurtma qil» · 🔎 «santexnik kerak»\n" +
-        "🛒 «sovg'a olmoqchiman» · ⏰ «ertaga 7 da eslat» · 📊 «bu oy qancha ishlatdim»\n\n" +
-        "Manzil yozing yoki 📍 joylashuvингizni yuboring — yoki «🤖 Koson AI» tugmasi.",
-      { parse_mode: "HTML", reply_markup: await mainMenu(meF?.type === "driver", String(ctx.from?.id ?? "")) },
-    );
+    // Unlinked → warm invite to link (their AI unlocks after). Linked → warm "rephrase" nudge
+    // that mentions voice. Both are logged (saveOut) + far less robotic than the old "Tushunmadim".
+    if (!tu?.memberId) {
+      const t =
+        "😊 Sizga yordam berishни juda xohlayman! Buning uchun avval telefon raqamingizni ulang — pastdagi <b>«📱 Raqamni ulashish»</b> tugmasi yoki /start (bir soniya).\n\nKeyin: 🚕 taksi · 🍽 ovqat · 🔎 usta · ⏰ eslatma — hammasini men qilaman.";
+      await ctx.reply(t, { parse_mode: "HTML", reply_markup: await mainMenu(false, tgId) });
+      saveOut(t);
+      return;
+    }
+    const t =
+      "🤔 Buni to'liq anglamadim — birozdan keyin yoki boshqacharoq yozib ko'ring 🙏\n" +
+      "Masalan: «uyimga taksi» · «osh buyurtma qil» · «santexnik kerak» · «ertaga 7 da eslat» · «bu oy qancha ishlatdim».\n" +
+      "🎤 Xohlasangiz shunchaki gapirib yuboring — tushunaman.";
+    await ctx.reply(t, { reply_markup: await mainMenu(meF?.type === "driver", tgId) });
+    saveOut(t);
   };
   bot.on("message:text", (ctx) => runAiText(ctx, ctx.message.text));
 

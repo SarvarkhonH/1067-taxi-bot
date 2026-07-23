@@ -1811,3 +1811,18 @@ ogohlantirish bilan), checkout-sheet ochiladi — foydalanuvchi ko'rib tasdiqlay
 `createMarketOrder` pul-yo'lagi o'zgarishsiz qoladi. Shuning uchun R4/3× DB-test siklisiz —
 og'irlik xavf-mutanosib (pul-mantiq emas, UI-qulaylik).
 **Isbot:** `tsc --noEmit` miniapp 0 xato.
+
+## 2026-07-23 (19) — 1-bosishda qayta-buyurtma DEPLOY QILINDI
+Commit `7e0abc3` → push → miniapp qayta build+deploy → bundle-grep: "Yana buyurtma qil" topildi.
+Server-tomonga o'zgarish yo'q edi (client-only), Render'ni alohida kuzatish shart emas edi.
+
+## 2026-07-23 (15) — «Javob bermay qolgan + robotdek» (ega chatlardан topdi) — 3 tuzatish
+Chat-audit: ulangan 7119 «Salom»/«Alo»/«Osh buyurtma qil» → JAVOB YO'Q → «Ai emasku san».
+Sabab: agent ba'zan null (tez ketma-ket / vaqtinchalik xato) → quruq «Tushunmadim».
+FIX (boshqa tomondan):
+1. `smallTalk()` (intent.ts) — salom/rahmat/qalay → LLM'siz, iliq, o'zgaruvchan javob. HAR DOIM
+   ishlaydi (model o'lsa ham). Salomlashuvга javobsizlik #1 sabab edi.
+2. Iliq kontekstli nudge: ulanmagan → «raqamingizni ulang» taklifi; ulangan → iliq «boshqacha
+   yozing + 🎤 gapiring». Quruq «Tushunmadim» o'rniga. Ikkalasi ham saveOut (audit).
+3. Agent chain 1× retry (500ms) — vaqtinchalik blip'ni tiklaydi (null kamayadi).
+Isbot: typecheck 0 · smallTalk test (salom→iliq, real so'rov→agentga).

@@ -55,6 +55,29 @@ export function looksLikePivot(text: string): boolean {
   return false;
 }
 
+// 💬 Rules-first small-talk — greetings/thanks/how-are-you get an INSTANT warm, varied reply with
+// NO LLM call, so they ALWAYS work (even when the LLM is rate-limited or down — the #1 cause of a
+// linked user's "Salom" getting no response). Returns null when it's not small-talk.
+function pick(a: string[]): string {
+  return a[Math.floor(Math.random() * a.length)]!;
+}
+export function smallTalk(text: string): string | null {
+  const t = text.trim().toLowerCase().replace(/[''`!.,?]+/g, " ").replace(/\s+/g, " ").trim();
+  if (t.length > 40) return null; // long messages are real requests, not small-talk
+  if (/^(assalomu?\s*alaykum|assalom|salom|salomlar|alo|ale|hi+|hello|namas)/.test(t))
+    return pick([
+      "Assalomu alaykum! 😊 Men Koson AI. Taksi, ovqat, usta, xarid — nima kerak bo'lsa, shunchaki yozing yoki gapiring.",
+      "Va alaykum assalom! 👋 Bugun sizga qanday yordam beray — taksimi, biror joydan buyurtmami?",
+      "Salom-salom! 🌿 Xush kelibsiz. Koson bo'yicha nima kerak — ayting, darrov qilaman.",
+    ]);
+  if (/^(rahmat|raxmat|tashakkur|rahmatlar|katta rahmat)/.test(t))
+    return pick(["Arzimaydi, sizga yordam berish menga rohat 😊", "Doim tayyorman! Yana biror narsa kerak bo'lsa — ayting 🙌", "Sog' bo'ling! 🌸 Yana chaqiring."]);
+  if (/^(qalay|qale|yaxshimisiz|yaxshimsan|ishlar qalay|yaxshimi)/.test(t))
+    return pick(["Rahmat, men zo'r! 😄 O'zingiz qalaysiz? Sizga qanday yordam beray?", "Yaxshi, ishlayapman! 💪 Sizga nima kerak — taksi, ovqat yoki boshqa narsa?"]);
+  if (/^(ha|yo'q|yoq|ok|okay|xo'p|xop|mayli|bo'ldi|zo'r|super)$/.test(t)) return null; // let context handle these
+  return null;
+}
+
 /** Layer 1: pure rules. Never calls the LLM. */
 export function parseIntent(text: string): Intent {
   const t = text.trim();
