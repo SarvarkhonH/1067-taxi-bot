@@ -1188,6 +1188,7 @@ export function createBot(): Bot {
         insufficient: "Tanga yetarli emas",
         self: "O'zingizga to'lab bo'lmaydi",
         account_too_new: "Hisobingiz hali juda yangi (48 soat kutiladi)",
+        locked: "🎁 Sovg'a tangani birinchi safaringizdan keyin ishlatasiz",
         daily_sent_cap: "Bugungi o'tkazma limiti tugadi",
         daily_received_cap: "Haydovchining bugungi limiti to'ldi",
         ring: "Bu amal hozircha bloklangan",
@@ -1398,6 +1399,18 @@ export function createBot(): Bot {
   };
   bot.command("menu", showInlineMenu);
   bot.hears("📋 Menyu", showInlineMenu);
+
+  // 🔀 NATIVE vs AI de-confliction: a bare keyword for a NATIVE feature (wallet/menu/leaderboard/
+  // wheel/missions) routes to that rich native screen, NOT the AI — so the same request never
+  // flip-flops between the AI's thin answer and the real screen. Anchored (^…$) so only the direct
+  // keyword (± a light suffix) matches; a conversational sentence ("bu oy qancha ishlatdim") still
+  // falls through to the AI. Registered before the AI text handler (order = first match wins).
+  bot.hears(/^(hamyon\w*|balans\w*|hisobim|pulim|tangalarim|tangam)(\s+(qancha|qani|nechada|ko'rsat|bormi))?[?.!]*$/i, showProfile);
+  bot.hears(/^(reyting|liga|top|reytingim)[?.!]*$/i, showLeaderboard);
+  bot.hears(/^(g'ildirak\w*|gildirak\w*|ruletka|spin|baraban|omad)[?.!]*$/i, spin);
+  bot.hears(/^(vazifa\w*|bonus\w*|topshiriq\w*|missiya\w*)[?.!]*$/i, showMissions);
+  bot.hears(/^(menyu|menu|bo'limlar|bolimlar)[?.!]*$/i, showInlineMenu);
+
   // 👥 client referral as a scannable QR (parity with the driver QR flows) — show your phone, a
   // friend scans, joins, rides → you +REFERRER_REWARD, they +REFEREE_REWARD.
   bot.callbackQuery("ref:qr", async (ctx) => {

@@ -1863,3 +1863,11 @@ XOTIRA (persistent, temporal, personalizatsiya). FIX: recentHistory oynasi 8-xab
 14-xabar/3soat (ko'proq davomiylik, real suhbatni kuzatadi). Solishtiruv KOSON_AI_PLAN'da.
 Bizniki allaqachon ustun bo'lgan joylar: jamoaviy bilim (/bilim — Grab/Gojek'да yo'q), hiper-lokal
 Koson+sheva, halol proaktiv (Needs), Telegram-native+ovoz. Isbot: typecheck 0.
+
+## 2026-07-23 (18) — Bot-buyruqlari ↔ AI chalkashligi tuzatildi (ega topdi)
+Muammo: «Hamyonim»/«balansim» kabi native-funksiya so'rovlari AI'ga ketardi (yupqa javob),
+tugmadagi rich-ekran o'rniga — bir xil so'rov ba'zan AI ba'zan tugma. FIX: native-funksiyalar
+uchun ANCHORED (^…$) tolerant bot.hears qo'shildi (hamyon/balans/reyting/g'ildirak/vazifa/menyu +
+yengil suffiks) → to'g'ridan-to'g'ri kalit rich-ekranga, suhbatli gap («bu oy qancha ishlatdim»,
+«osh buyurtma qil») AI'ga. Registratsiya AI-handler'dan OLDIN (birinchi mos g'olib).
+Isbot: typecheck 0 · routing-test: 8 kalit→native, 5 suhbatli→AI (aniq ajraldi).
