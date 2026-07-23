@@ -430,6 +430,10 @@ export function createBot(): Bot {
           })
           .catch(() => undefined);
       }
+      // 🤖 renderWelcome promised "ulagach darrov so'rayman" — deliver on it: the AI's own direct
+      // question, the actual first turn of the conversation (not just a wall of examples).
+      // Static (no LLM) so it always fires, same reliability guarantee as smallTalk().
+      await ctx.reply("😊 Xo'sh, sizga bugun qanday yordam beray — taksimi, ovqatmi, yoki boshqa narsa?").catch(() => undefined);
     } else if (res.status === "banned") {
       await ctx.reply("🚫 Bu raqam bloklangan. Bot xizmatlaridan foydalanolmaysiz.\nSavol bo'lsa: 1067");
     } else if (res.status === "taken") {
@@ -674,6 +678,10 @@ export function createBot(): Bot {
           })
           .catch(() => undefined);
       }
+      // 🤖 renderWelcome promised "ulagach darrov so'rayman" — deliver on it: the AI's own direct
+      // question, the actual first turn of the conversation (not just a wall of examples).
+      // Static (no LLM) so it always fires, same reliability guarantee as smallTalk().
+      await ctx.reply("😊 Xo'sh, sizga bugun qanday yordam beray — taksimi, ovqatmi, yoki boshqa narsa?").catch(() => undefined);
     } else if (res.status === "banned") {
       await ctx.reply("🚫 Bu raqam bloklangan. Bot xizmatlaridan foydalanolmaysiz.\nSavol bo'lsa: 1067");
     } else if (res.status === "taken") {

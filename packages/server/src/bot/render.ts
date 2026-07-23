@@ -30,14 +30,16 @@ export function renderWelcome(name: string, firstRideBonus = 0): string {
     firstRideBonus > 0
       ? `🎁 <b>Birinchi safaringiz BEPUL!</b> ${formatNumber(firstRideBonus)} tanga sovg'a — boshlanish narxini to'liq qoplaydi 🚕\n\n`
       : "";
+  // Single clear next step (share phone) — a free-text example-list here would tempt a brand-new
+  // user to type before linking, when the only thing that actually works yet is the contact
+  // button. The "men so'rayman" promise defers the AI's open question to right after linking
+  // (handleLink's post-link nudge), where a real answer is possible.
   return (
     `✨ <b>BirJoy — Koson AI</b> 🤖\n` +
     `Salom, <b>${esc(name)}</b>! 👋\n\n` +
     hook +
-    `Men — sizning aqlli yordamchingizman. <b>Tugma qidirmang</b> — shunchaki <b>yozing yoki gapiring</b>, men tushunaman:\n` +
-    `🚕 «uyimga taksi» · 🍽 «osh buyurtma qil» · 🔎 «santexnik kerak»\n` +
-    `⏰ «ertaga 7 da eslat» · 📊 «bu oy qancha ishlatdim» · 🎡 «g'ildirak aylantiray»\n\n` +
-    `👇 Boshlash uchun <b>«📱 Raqamni ulashish»</b>ni bosing — keyin hammasini men qilaman. (Tugmali ko'rinish — 🚀 ilovada.)`
+    `Men — sizning aqlli yordamchingizman. <b>Tugma qidirmang</b> — shunchaki <b>yozing yoki gapiring</b>, men tushunaman: taksi, ovqat, usta, eslatma — nima kerak bo'lsa.\n\n` +
+    `👇 Boshlash uchun <b>«📱 Raqamni ulashish»</b>ni bosing — ulagach darrov so'rayman, sizga nima kerak. (Tugmali ko'rinish — 🚀 ilovada.)`
   );
 }
 
