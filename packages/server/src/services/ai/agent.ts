@@ -8,6 +8,7 @@
 // human button tap (the agent can only OPEN the pick-an-address flow).
 import { prisma } from "../../db";
 import { featureOn } from "../featureFlags";
+import { APP_GUIDE } from "./appGuide";
 import { aiCapBump, aiCapOk, sanitize } from "./llmRouter";
 
 export type AgentAction =
@@ -340,7 +341,7 @@ export async function runAgent(memberId: number, telegramId: string, text: strin
   const providers = cityOn ? await (await import("./providers")).activeProviders() : [];
   const cityToolsList = providers.length ? cityTools(providers.map((p) => p.key), providers.map((p) => `${p.key} (${p.title})`).join("; ")) : [];
   const tools = [...TOOLS, ...(remindOn ? REMIND_TOOLS : []), ...(statsOn ? STATS_TOOLS : []), ...(dostOn ? DOST_TOOLS : []), ...(bilimOn ? BILIM_TOOLS : []), ...cityToolsList];
-  let system = [SYSTEM, ...(remindOn ? [REMIND_RULES] : []), ...(statsOn ? [STATS_RULES] : []), ...(dostOn ? [DOST_RULES] : []), ...(cityToolsList.length ? [CITY_RULES] : [])].join("\n");
+  let system = [SYSTEM, ...(remindOn ? [REMIND_RULES] : []), ...(statsOn ? [STATS_RULES] : []), ...(dostOn ? [DOST_RULES] : []), ...(cityToolsList.length ? [CITY_RULES] : []), APP_GUIDE].join("\n");
   if (dostOn) {
     // recall — the member's OWN saved words, back into THEIR context only
     const { recallNotes } = await import("./memoryService");

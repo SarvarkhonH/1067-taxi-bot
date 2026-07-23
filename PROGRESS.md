@@ -1936,3 +1936,10 @@ bilishga chanqoq — ayyorona so'rab bilim yig'sin. Qildim:
 - Xavfsizlik (ega vizionига mos): AI tushunmasa → Mini App tugmasi (zaxira). Salomlashuv rules-first.
 - Native de-confliction bot.hears (reyting/hamyon/g'ildirak yozilsa) HALI turadi — tez fast-path.
 Isbot: typecheck 0 · agent-test 4/4 (ilova_och routing). QOLDI: deploy · ega jonli sinov.
+
+## 2026-07-23 (20) — AI = to'liq BirJoy yo'lboshchisi (ega: dasturni o'rgansin, qoida o'rgatsin, undasin)
+`appGuide.ts` — butun BirJoy dastur-bilimi (imkoniyatlar + qoidalar + raqamlar, shared/economy bilan
+mos): taksi/tanga/g'ildirak/cashback/referal(2000+5000)/Plus(9990,×1.5)/Gap/streak/vazifa/yechish/
+ovqat/xizmat/do'kon/e'lon/reys/eslatma/hisob + yo'l-yo'riq+undash ko'rsatmasi. SYSTEM-promptga
+doim ulanadi. Isbot: typecheck 0 · AI-test: «tangani qanday yechaman»/«Plus nima»/«do'st chaqirsam»/
+«cashback qanday» → aniq, to'g'ri, tushuntirib javob berdi (raqamlar mos).
