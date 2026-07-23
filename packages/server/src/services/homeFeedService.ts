@@ -31,7 +31,25 @@ export async function getHomeFeed(preview: boolean): Promise<HomeFeedResponse> {
 
   const rank = (p: ShopProductView) => (p.topSeller ? 0 : p.featured ? 1 : p.oldPriceTanga ? 2 : p.isNew ? 3 : 4);
   const topP = products.filter((p) => p.hasPhoto).sort((a, b) => rank(a) - rank(b)).slice(0, 4);
-  const topR = restaurants.filter((r) => r.hasPhoto).sort((a, b) => b.orderCount - a.orderCount || b.avgRating - a.avgRating).slice(0, 3);
+
+  // 🍽 a brand-new restaurant with a rich photographed menu (e.g. the Dasturxon import) had ZERO
+  // orders/reviews, so pure orderCount/avgRating ranking buried it behind older photo-less
+  // restaurants — defeating the whole point of showing appetizing dish photos. Rank by photo
+  // QUALITY first (has a photographed dish > has only its own cover photo > no photo at all),
+  // orderCount/avgRating only break ties within the same photo tier.
+  const dishPhotoCounts = restaurants.length
+    ? await prisma.menuItem.groupBy({
+        by: ["restaurantId"],
+        where: { restaurantId: { in: restaurants.map((r) => r.id) }, available: true, OR: [{ photoFileId: { not: null } }, { photoUrl: { not: null } }] },
+        _count: true,
+      }).catch(() => [] as { restaurantId: number; _count: number }[])
+    : [];
+  const dishPhotoCountById = new Map(dishPhotoCounts.map((d) => [d.restaurantId, d._count]));
+  const photoTier = (r: RestaurantView) => ((dishPhotoCountById.get(r.id) ?? 0) > 0 ? 2 : r.hasPhoto ? 1 : 0);
+  const topR = restaurants
+    .filter((r) => photoTier(r) > 0)
+    .sort((a, b) => photoTier(b) - photoTier(a) || b.orderCount - a.orderCount || b.avgRating - a.avgRating)
+    .slice(0, 3);
 
   const pItems: HomeFeedItem[] = topP.map((p) => ({
     kind: "product", id: p.id, name: p.name, photoUrl: `/api/shop/photo/${p.id}?s=1`,
