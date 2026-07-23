@@ -2544,6 +2544,17 @@ body {
 .app.bazar-light .aurora { display: none; }
 .app.bazar-light .topbar { background: rgba(255, 255, 255, 0.85); border-bottom: 1px solid var(--bj-line); }
 .app.bazar-light .brand-name { color: var(--bj-accent-deep); }
+/* Ega topgan real bug (2026-07-23): quyidagi 2 klass shared/legacy (V1.4'dan oldingi taksi-mukofot
+   OLTIN rangida) — BirJoy zumrad-brendiga zid, "arzon" his qildirardi. Endi shu zonada qayta bo'yaldi. */
+.app.bazar-light .shop-cat-chip.on { background: var(--bj-hero-grad); color: #fff; }
+.app.bazar-light .shop-card-noimg { background: linear-gradient(155deg, #eef2ee, #dbe6df); font-size: 32px; color: var(--bj-ink-dim); }
+/* THE big one: shared .d-btn ("brand" variant — every primary CTA: checkout, buy, chat-send)
+   has ALWAYS rendered the generic taxi-app gold, because the GLOBAL base rule (`.btn-primary,
+   .d-btn:not(.ghost):not(.danger)`) is itself `!important` — a non-!important override (what I
+   first wrote) can never win regardless of specificity/order. `!important` here MATCHES the
+   established per-zone convention already used by `.shop-wrap .d-btn` (green) and
+   `.app.xizmat-light .d-btn` (blue) — this is how every other zone already overrides it. */
+.app.bazar-light .d-btn:not(.ghost):not(.danger) { background: var(--bj-hero-grad) !important; color: #fff !important; box-shadow: 0 14px 32px -12px rgba(13,150,104,.5), inset 0 1px 0 rgba(255,255,255,.25) !important; }
 
 /* 🎠 kategoriya-karusel (Uzum-referens): pill-kartalar, chapda 44px ikonka-rasm */
 .bj-cats { display: flex; gap: 10px; overflow-x: auto; padding: 4px 16px 10px; scroll-snap-type: x proximity; -webkit-overflow-scrolling: touch; scrollbar-width: none; }
