@@ -2235,6 +2235,7 @@ function ShopAdminView() {
       </section>
       <ShopCategoriesPanel onMsg={setMsg} />
       <ShopAttentionPanel />
+      <WeeklyTrendPanel />
       <MarketDemandPanel />
     </>
   );
@@ -2255,6 +2256,29 @@ function ShopAttentionPanel() {
           <span className="badge badge-bad">{i.reason}</span>
         </div>
       ))}
+    </section>
+  );
+}
+
+// §10.1: "Prognoz-chiziq" — so'nggi 6 haftaning xarid-hajmi, oddiy CSS-ustunlar (yangi kutubxona
+// kerak emas — ichki admin-qulaylik uchun bitta raqamlar-qatori yetarli).
+function WeeklyTrendPanel() {
+  const [points, setPoints] = useState<{ weekStart: string; orders: number }[] | null>(null);
+  useEffect(() => { adminApi.shopWeeklyTrend().then((r) => setPoints(r.points)).catch(() => setPoints(null)); }, []);
+  if (!points) return null;
+  const max = Math.max(1, ...points.map((p) => p.orders));
+  return (
+    <section className="panel">
+      <div className="panel-title">📈 Haftalik xarid-trendi (so&apos;nggi {points.length} hafta)</div>
+      <div style={{ display: "flex", gap: 8, alignItems: "flex-end", height: 80, marginTop: 8 }}>
+        {points.map((p) => (
+          <div key={p.weekStart} style={{ flex: "1 1 0", display: "flex", flexDirection: "column", alignItems: "center", gap: 4 }}>
+            <div style={{ width: "100%", maxWidth: 32, height: Math.max(4, (p.orders / max) * 60), background: "var(--accent, #22c55e)", borderRadius: 3 }} title={`${p.orders} ta buyurtma`} />
+            <span className="muted" style={{ fontSize: 10 }}>{p.orders}</span>
+          </div>
+        ))}
+      </div>
+      <p className="muted" style={{ fontSize: 11, marginTop: 4 }}>{points[0]?.weekStart} dan hozirgacha, har ustun 7 kunlik oyna.</p>
     </section>
   );
 }

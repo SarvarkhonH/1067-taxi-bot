@@ -133,3 +133,26 @@ export async function getShopDailyDiff(): Promise<ShopDailyDiff> {
     yesterday: { newOrders: yOrdersA + yOrdersB, rejected: yRejA + yRejB, newReviews: yRev },
   };
 }
+
+// §10.1: "Prognoz-chiziq" — so'nggi 6 haftaning xarid-hajmi (Tashkent-hafta, dushanbadan boshlab
+// emas — oddiy 7-kunlik oynalar bugungi kundan orqaga, kalendar-haftaga bog'lanmaydi).
+export interface WeeklyTrendPoint {
+  weekStart: string; // ISO sana — oynaning boshi
+  orders: number;
+}
+
+export async function getWeeklyOrderTrend(weeks = 6): Promise<WeeklyTrendPoint[]> {
+  // boundaries[0] = hozir, boundaries[k] = k*7 kun oldingi Tashkent-yarim-tun
+  const boundaries = [new Date(), ...Array.from({ length: weeks }, (_, k) => tashkentMidnightUtc((k + 1) * 7))];
+  const points: WeeklyTrendPoint[] = [];
+  for (let week = weeks - 1; week >= 0; week--) {
+    const to = boundaries[week]!; // yaqinroq chegara
+    const from = boundaries[week + 1]!; // uzoqroq chegara
+    const [a, b] = await Promise.all([
+      prisma.shopPurchase.count({ where: { createdAt: { gte: from, lt: to } } }),
+      prisma.marketOrder.count({ where: { createdAt: { gte: from, lt: to } } }),
+    ]);
+    points.push({ weekStart: from.toISOString().slice(0, 10), orders: a + b });
+  }
+  return points;
+}

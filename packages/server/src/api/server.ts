@@ -2434,6 +2434,11 @@ body{font-family:Arial,sans-serif;background:#eee;-webkit-print-color-adjust:exa
     const { getShopDailyDiff } = await import("../services/adminInsights");
     res.json(await getShopDailyDiff());
   });
+  // §10.1: "Prognoz-chiziq" — so'nggi 6 haftaning xarid-hajmi
+  app.get("/api/admin/shop/weekly-trend", requireAdmin, requireOwner, async (_req, res) => {
+    const { getWeeklyOrderTrend } = await import("../services/adminInsights");
+    res.json({ points: await getWeeklyOrderTrend() });
+  });
   app.get("/api/admin/inbox", requireAdmin, async (_req, res) => {
     const { getApprovalInbox } = await import("../services/adminInsights");
     res.json(await getApprovalInbox());
