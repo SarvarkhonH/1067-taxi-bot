@@ -281,7 +281,14 @@ async function callGroq(key: string, system: string, history: ChatMsg[], tools: 
   if (res.status === 429 || res.status >= 500) return "rate";
   if (!res.ok) throw new Error(`groq ${res.status}`);
   const data = (await res.json()) as { choices?: GroqChoice[] };
-  return data.choices?.[0]?.message ?? "rate";
+  const m = data.choices?.[0]?.message;
+  // 🔍 Gemini's own callGemini already treats "200 OK but neither a tool call NOR any text" as
+  // "rate" (so the chain retries the OTHER provider instead of silently giving up) — Groq was
+  // missing this exact same guard, so a functionally-empty-but-technically-200 Groq reply was
+  // accepted as "success" and the whole agent turn went to the "tushunmadim" fallback with ZERO
+  // error anywhere. Mirror Gemini's guard here so both providers get the same retry safety net.
+  if (!m || (!m.tool_calls?.length && !m.content?.trim())) return "rate";
+  return m;
 }
 
 // K3 chain, provider 2: Gemini 2.0 Flash function-calling (separate free quota). The
@@ -360,15 +367,34 @@ export async function runAgent(memberId: number, telegramId: string, text: strin
     // short pause: a transient blip / per-minute spike (rapid-fire messages) was silently dropping
     // real users to the "Tushunmadim" nudge. A single retry recovers most of those.
     let msg: LlmMsg | "rate" = "rate";
+    let usedProvider = "";
     for (let attempt = 0; attempt < 2 && msg === "rate"; attempt++) {
       if (attempt > 0) await new Promise((r) => setTimeout(r, 500));
-      if (geminiKey) msg = await callGemini(geminiKey, system, history, tools).catch(() => "rate" as const);
-      if (msg === "rate" && groqKey) msg = await callGroq(groqKey, system, history, tools).catch(() => "rate" as const);
+      if (geminiKey) {
+        msg = await callGemini(geminiKey, system, history, tools).catch((e) => {
+          console.error(`[ai-agent] gemini call failed (attempt ${attempt}):`, e instanceof Error ? e.message : e);
+          return "rate" as const;
+        });
+        if (msg !== "rate") usedProvider = "gemini";
+      }
+      if (msg === "rate" && groqKey) {
+        msg = await callGroq(groqKey, system, history, tools).catch((e) => {
+          console.error(`[ai-agent] groq call failed (attempt ${attempt}):`, e instanceof Error ? e.message : e);
+          return "rate" as const;
+        });
+        if (msg !== "rate") usedProvider = "groq";
+      }
     }
     if (msg === "rate") throw new Error("all providers rate-limited/failed");
     await aiCapBump(memberId);
 
     const call = msg.tool_calls?.[0]?.function;
+    // 🔍 diagnostic (no user text/PII — just shape): a provider that answers 200 OK with NEITHER
+    // a tool call NOR any text was, until now, a perfectly SILENT fallback to "tushunmadim" —
+    // zero server-side trace. This log is what makes the next occurrence debuggable.
+    if (!call && !msg.content?.trim()) {
+      console.error(`[ai-agent] empty response from ${usedProvider || "?"} — no tool_call, no text (content=${JSON.stringify(msg.content)})`);
+    }
     if (call?.name === "taksi_chaqir") {
       let query = "";
       try {
