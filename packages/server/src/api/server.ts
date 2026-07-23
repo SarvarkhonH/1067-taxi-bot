@@ -1599,8 +1599,10 @@ export function createApiServer(opts: ApiOptions = {}) {
     res.json(await adminListProducts(resolveProfileShopId(req, res) ?? undefined)); // owner shopId bo'lmasa = barcha do'konlar
   });
   app.post("/api/admin/shop/products", requireAdmin, requireShopWrite, rateLimit(20), async (req, res) => {
-    const { adminCreateProduct } = await import("../services/shopService");
-    res.json(await adminCreateProduct(req.body ?? {}, resolveProfileShopId(req, res) ?? undefined)); // seller → O'Z do'koni; owner → tanlagan do'koni
+    const { adminCreateProduct, logAudit } = await import("../services/shopService");
+    const r = await adminCreateProduct(req.body ?? {}, resolveProfileShopId(req, res) ?? undefined); // seller → O'Z do'koni; owner → tanlagan do'koni
+    if (r.ok) void logAudit(String(res.locals.adminRole ?? ""), (res.locals.telegramId as string) ?? null, "create_product", "product", r.id ?? null, (req.body as { name?: string })?.name);
+    res.json(r);
   });
   // V1.2: seller o'zgartirmoqchi bo'lgan mahsulot O'Z do'koninikimi — choke-point tekshiruv
   const sellerOwnsProduct = async (res: Response, productId: number): Promise<boolean> => {
@@ -1613,8 +1615,10 @@ export function createApiServer(opts: ApiOptions = {}) {
   };
   app.post("/api/admin/shop/products/:id", requireAdmin, requireShopWrite, rateLimit(20), async (req, res) => {
     if (!(await sellerOwnsProduct(res, Number(req.params.id)))) return;
-    const { adminEditProduct } = await import("../services/shopService");
-    res.json(await adminEditProduct(Number(req.params.id), req.body ?? {}));
+    const { adminEditProduct, logAudit } = await import("../services/shopService");
+    const r = await adminEditProduct(Number(req.params.id), req.body ?? {});
+    void logAudit(String(res.locals.adminRole ?? ""), (res.locals.telegramId as string) ?? null, "edit_product", "product", Number(req.params.id));
+    res.json(r);
   });
   app.post("/api/admin/shop/products/:id/toggle", requireAdmin, requireShopWrite, rateLimit(20), async (req, res) => {
     if (!(await sellerOwnsProduct(res, Number(req.params.id)))) return;
@@ -1622,8 +1626,10 @@ export function createApiServer(opts: ApiOptions = {}) {
     res.json(await adminToggleProduct(Number(req.params.id), !!req.body?.active));
   });
   app.delete("/api/admin/shop/products/:id", requireAdmin, requireOwner, rateLimit(20), async (req, res) => {
-    const { adminDeleteProduct } = await import("../services/shopService");
-    res.json(await adminDeleteProduct(Number(req.params.id)));
+    const { adminDeleteProduct, logAudit } = await import("../services/shopService");
+    const r = await adminDeleteProduct(Number(req.params.id));
+    void logAudit(String(res.locals.adminRole ?? ""), (res.locals.telegramId as string) ?? null, "delete_product", "product", Number(req.params.id));
+    res.json(r);
   });
   app.post("/api/admin/shop/products/:id/photo", express.json({ limit: "6mb" }), requireAdmin, requireShopWrite, async (req, res) => {
     if (!(await sellerOwnsProduct(res, Number(req.params.id)))) return;
@@ -1661,8 +1667,10 @@ export function createApiServer(opts: ApiOptions = {}) {
   app.post("/api/admin/shop/profile", requireAdmin, requireShopWrite, rateLimit(20), async (req, res) => {
     const shopId = resolveProfileShopId(req, res);
     if (!shopId) { res.status(400).json({ error: "no_shop" }); return; }
-    const { updateShopProfile } = await import("../services/shopService");
-    res.json(await updateShopProfile(shopId, (req.body ?? {}) as { story?: string; announcement?: string; neighborhood?: string }));
+    const { updateShopProfile, logAudit } = await import("../services/shopService");
+    const r = await updateShopProfile(shopId, (req.body ?? {}) as { story?: string; announcement?: string; neighborhood?: string });
+    void logAudit(String(res.locals.adminRole ?? ""), (res.locals.telegramId as string) ?? null, "update_profile", "shop", shopId);
+    res.json(r);
   });
   app.post("/api/admin/shop/profile/photo", express.json({ limit: "6mb" }), requireAdmin, requireShopWrite, async (req, res) => {
     const shopId = resolveProfileShopId(req, res);
@@ -1694,8 +1702,11 @@ export function createApiServer(opts: ApiOptions = {}) {
   app.post("/api/admin/shop/toggle-pause", requireAdmin, requireShopWrite, rateLimit(20), async (req, res) => {
     const shopId = resolveProfileShopId(req, res);
     if (!shopId) { res.status(400).json({ error: "no_shop" }); return; }
-    const { toggleShopPause } = await import("../services/shopService");
-    res.json(await toggleShopPause(shopId, !!(req.body as { paused?: unknown })?.paused));
+    const paused = !!(req.body as { paused?: unknown })?.paused;
+    const { toggleShopPause, logAudit } = await import("../services/shopService");
+    const r = await toggleShopPause(shopId, paused);
+    void logAudit(String(res.locals.adminRole ?? ""), (res.locals.telegramId as string) ?? null, "toggle_pause", "shop", shopId, paused ? "paused" : "unpaused");
+    res.json(r);
   });
   app.delete("/api/admin/shop/reviews/:id", requireAdmin, requireOwner, rateLimit(30), async (req, res) => {
     const { adminDeleteReview } = await import("../services/shopService");
@@ -1713,8 +1724,11 @@ export function createApiServer(opts: ApiOptions = {}) {
   });
   // §10.1: ommaviy e'lon-shablon — BARCHA faol do'konga bir yo'la (owner-only, ko'p-do'kon qulaylik).
   app.post("/api/admin/shop/bulk-announcement", requireAdmin, requireOwner, rateLimit(10), async (req, res) => {
-    const { bulkSetAnnouncement } = await import("../services/shopService");
-    res.json(await bulkSetAnnouncement(String((req.body as { text?: unknown })?.text ?? "")));
+    const text = String((req.body as { text?: unknown })?.text ?? "");
+    const { bulkSetAnnouncement, logAudit } = await import("../services/shopService");
+    const r = await bulkSetAnnouncement(text);
+    void logAudit(String(res.locals.adminRole ?? ""), (res.locals.telegramId as string) ?? null, "bulk_announcement", "shop", null, text.slice(0, 100));
+    res.json(r);
   });
   // 💬 C1.6: sotuvchi-inbox (bot-DM'ning zaxira/qo'shimcha yo'li — admin-paneldan ham javob berish).
   app.get("/api/admin/shop/chat/conversations", requireAdmin, requireShopWrite, async (req, res) => {
@@ -2443,6 +2457,11 @@ body{font-family:Arial,sans-serif;background:#eee;-webkit-print-color-adjust:exa
   app.get("/api/admin/moderation-summary", requireAdmin, requireOwner, async (_req, res) => {
     const { getModerationQueueSummary } = await import("../services/adminInsights");
     res.json(await getModerationQueueSummary());
+  });
+  // §10.1: do'kon-boshqaruv audit-jurnali (owner-only — kim/qachon/nima o'zgartirdi)
+  app.get("/api/admin/shop/audit-log", requireAdmin, requireOwner, async (_req, res) => {
+    const { listAuditLog } = await import("../services/shopService");
+    res.json({ items: await listAuditLog() });
   });
   app.get("/api/admin/inbox", requireAdmin, async (_req, res) => {
     const { getApprovalInbox } = await import("../services/adminInsights");

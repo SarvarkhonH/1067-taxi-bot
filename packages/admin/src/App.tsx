@@ -2251,6 +2251,7 @@ function ShopAdminView() {
       <ShopAttentionPanel />
       <WeeklyTrendPanel />
       <MarketDemandPanel />
+      <AuditLogPanel />
     </>
   );
 }
@@ -2293,6 +2294,39 @@ function WeeklyTrendPanel() {
         ))}
       </div>
       <p className="muted" style={{ fontSize: 11, marginTop: 4 }}>{points[0]?.weekStart} dan hozirgacha, har ustun 7 kunlik oyna.</p>
+    </section>
+  );
+}
+
+// §10.1: rol-darajali audit-jurnal — do'kon-boshqaruv mutatsiyalari (kim/qachon/nima o'zgartirdi).
+// Ko'lam ATAYLAB do'kon-admin sirtiga cheklangan (V1.7/§10.1 davomida qo'shilgan yo'laklar) —
+// izoh uchun schema.prisma'dagi AdminAuditLog izohiga qara.
+const AUDIT_ACTION_LABEL: Record<string, string> = {
+  toggle_pause: "pauza/faollashtirish",
+  update_profile: "profil tahrirlash",
+  bulk_announcement: "ommaviy e'lon",
+  create_product: "mahsulot qo'shish",
+  edit_product: "mahsulot tahrirlash",
+  delete_product: "mahsulot o'chirish",
+};
+function AuditLogPanel() {
+  const [items, setItems] = useState<{ id: number; actorRole: string; actorTgId: string | null; action: string; targetType: string; targetId: number | null; detail: string | null; createdAt: string }[] | null>(null);
+  useEffect(() => { adminApi.shopAuditLog().then((r) => setItems(r.items)).catch(() => setItems(null)); }, []);
+  if (!items) return null;
+  return (
+    <section className="panel">
+      <div className="panel-title">📜 Audit-jurnal (so&apos;nggi {items.length})</div>
+      <p className="muted" style={{ marginTop: 0, fontSize: 12 }}>Do&apos;kon-boshqaruvidagi o&apos;zgarishlar — kim, qachon, nima. (Faqat shu bo&apos;lim qamrab olingan.)</p>
+      {items.map((it) => (
+        <div key={it.id} style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", padding: "6px 0", borderBottom: "1px solid rgba(255,255,255,0.08)", fontSize: 13 }}>
+          <span className="muted" style={{ fontSize: 11, flex: "0 0 130px" }}>{new Date(it.createdAt).toLocaleString("ru-RU", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })}</span>
+          <b>{it.actorRole || "?"}</b>
+          <span>{AUDIT_ACTION_LABEL[it.action] ?? it.action}</span>
+          {it.targetId != null && <span className="muted">#{it.targetId}</span>}
+          {it.detail && <span className="muted" style={{ fontSize: 12 }}>« {it.detail} »</span>}
+        </div>
+      ))}
+      {items.length === 0 && <p className="muted">Hali yozuv yo&apos;q.</p>}
     </section>
   );
 }

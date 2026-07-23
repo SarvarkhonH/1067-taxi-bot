@@ -188,6 +188,8 @@ export const adminApi = {
   shopWeeklyTrend: () => req<{ points: { weekStart: string; orders: number }[] }>("/api/admin/shop/weekly-trend"),
   // §10.1: birlashtirilgan moderatsiya-navbat — son-xulosa
   moderationSummary: () => req<{ aiKnowledgePending: number; classifiedAdsPending: number; shopsAwaitingActivation: number }>("/api/admin/moderation-summary"),
+  // §10.1: rol-darajali audit-jurnal
+  shopAuditLog: () => req<{ items: { id: number; actorRole: string; actorTgId: string | null; action: string; targetType: string; targetId: number | null; detail: string | null; createdAt: string }[] }>("/api/admin/shop/audit-log"),
   inbox: () =>
     req<{ pending: { id: number; amount: number; method: string; mask: string; name: string; phone: string; at: string }[]; count: number }>("/api/admin/inbox"),
   driverAnalytics: () =>

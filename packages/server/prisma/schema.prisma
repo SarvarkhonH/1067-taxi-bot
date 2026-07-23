@@ -430,6 +430,24 @@ model MarketShop {
   @@index([shopKind, mahallaId, active])
 }
 
+// §10.1: rol-darajali audit-jurnal — do'kon-boshqaruv mutatsiyalari (kim/qachon/nima o'zgartirdi).
+// Ko'lam ATAYLAB do'kon-admin sirtiga cheklangan (mahsulot/buyurtma/profil/pauza/ommaviy-e'lon) —
+// butun admin-panelni (buyurtma/kampaniya/haydovchi-missiya va h.k.) qamrab olish alohida, kattaroq
+// tiket bo'lardi; bu yerda §10.1'ning o'zi so'ragan ko'p-do'kon boshqaruv sirtiga mos.
+model AdminAuditLog {
+  id          Int      @id @default(autoincrement())
+  actorRole   String // "owner" | "shopseller:<shopId>" | "operator"
+  actorTgId   String? // res.locals.telegramId (bo'lsa)
+  action      String // "toggle_pause" | "edit_product" | "create_product" | "delete_product" | "update_profile" | "bulk_announcement"
+  targetType  String // "shop" | "product"
+  targetId    Int?
+  detail      String? // qisqa inson-o'qiy oladigan tafsilot (masalan "narx 5000→6000")
+  createdAt   DateTime @default(now())
+
+  @@index([targetType, targetId, createdAt])
+  @@index([createdAt])
+}
+
 // 🏠 V1.5: mahalla bozori — kas1067 manzil-katalogidan (api/addresses/) tanlab olingan, ega
 // tasdiqlagan 39 ta haqiqiy mahalla (seedMahalla.ts). lat/lng — GPS-eng-yaqin-mahalla taxmini uchun.
 model Mahalla {
