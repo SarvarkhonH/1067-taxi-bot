@@ -116,6 +116,39 @@ export function Icon({ name, filled = false, size = 24 }: { name: string; filled
           <path d="M3 19a1 1 0 0 1 1-1h16a1 1 0 0 1 1 1 2 2 0 0 1-2 2H5a2 2 0 0 1-2-2Z" fill={filled ? "currentColor" : "none"} />
         </svg>
       );
+    case "heart":
+      // shopv2: sevimlilar — emoji-siz chrome (❤️/🤍 o'rniga), ba'zi qurilmalarda emoji-shrift
+      // yo'qligi muammosidan xoli (share ikonkasi bilan bir xil sabab).
+      return (
+        <svg {...p}>
+          <path d="M12 20.2s-7.1-4.35-9.6-9.05A5.4 5.4 0 0 1 12 6.6a5.4 5.4 0 0 1 9.6 4.55C19.1 15.85 12 20.2 12 20.2Z" fill={filled ? "currentColor" : "none"} />
+        </svg>
+      );
+    case "pin":
+      // shopv2: mahalla-tanlov chipi (📍 o'rniga)
+      return (
+        <svg {...p}>
+          <path d="M12 21s7-6.3 7-11.6A7 7 0 0 0 5 9.4C5 14.7 12 21 12 21Z" fill={filled ? "currentColor" : "none"} />
+          <circle cx="12" cy="9.4" r="2.2" fill={filled ? "none" : "currentColor"} stroke={filled ? "currentColor" : "none"} strokeWidth={filled ? 1.9 : 0} />
+        </svg>
+      );
+    case "cart":
+      // shopv2: yopishqoq savat-bar (🧺 o'rniga)
+      return (
+        <svg {...p}>
+          <path d="M3 4h2l2.4 12.2A2 2 0 0 0 9.36 18H18a2 2 0 0 0 1.94-1.51L21.5 9H6" />
+          <circle cx="9.5" cy="20.3" r="1.3" fill="currentColor" stroke="none" />
+          <circle cx="17.5" cy="20.3" r="1.3" fill="currentColor" stroke="none" />
+        </svg>
+      );
+    case "chat":
+      // shopv2: "do'konga yozish" CTA — 💬 ba'zi qurilmalarda bo'sh to'rtburchak bo'lib chiqadi
+      // (real skrinshotda topildi: "🤍 Do'konga yozish" ko'rinishida chiqqan edi).
+      return (
+        <svg {...p}>
+          <path d="M4 5h16a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H9l-4.5 4V17H4a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1Z" fill={filled ? "currentColor" : "none"} />
+        </svg>
+      );
     case "share":
       // Telegram's own "forward/share" glyph (paper-plane) — some devices render 📤 as a blank
       // box (missing emoji font), an SVG never fails to draw.

@@ -2,6 +2,7 @@
 // tokens.css'dagi --bj-* dan (inline-stil TAQIQ, dinamik qiymatlargina istisno). Animatsiya faqat
 // transform/opacity; global reduced-motion kill-switch avtomatik qamrab oladi.
 import type { ReactNode } from "react";
+import { Icon } from "../icons";
 
 /* ── 🎠 kategoriya-karusel (Uzum-referens: pill + 44px ikonka-rasm) ───────────────────────────── */
 export interface BjCategory {
@@ -146,10 +147,10 @@ export function BjMahallaShopCard({ name, open, promise, rating, photoUrl, story
 }
 
 /* ── 🧺 yopishqoq savat-bar ───────────────────────────────────────────────────────────────────── */
-export function BjStickyCartBar({ count, totalTanga, onOpen }: { count: number; totalTanga: number; onOpen: () => void }) {
+export function BjStickyCartBar({ count, totalTanga, onOpen, bump }: { count: number; totalTanga: number; onOpen: () => void; bump?: boolean }) {
   return (
-    <button className={`bj-cartbar${count > 0 ? "" : " hidden"}`} onClick={onOpen} aria-hidden={count === 0}>
-      <span>🧺 {count} ta mahsulot</span>
+    <button className={`bj-cartbar${count > 0 ? "" : " hidden"}${bump ? " bump" : ""}`} onClick={onOpen} aria-hidden={count === 0}>
+      <span className="bj-cartbar-count"><Icon name="cart" size={16} /> {count} ta mahsulot</span>
       <span>{totalTanga.toLocaleString("uz-UZ")} → Savat</span>
     </button>
   );

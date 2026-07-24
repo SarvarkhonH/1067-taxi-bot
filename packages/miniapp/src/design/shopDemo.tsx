@@ -101,7 +101,12 @@ function installShopMockFetch(): void {
     if (path.startsWith("/api/shop/profile/")) return json({ profile: MOCK_PROFILE, reviews: MOCK_REVIEWS });
     if (path.startsWith("/api/shop/loyalty/")) return json({ purchaseCount: 6, milestone: 10, remaining: 4 });
     if (path === "/api/shop/stories") return json({ shops: MOCK_STORY_TRAY });
-    if (path.startsWith("/api/shop/stories/")) return json({ stories: [] });
+    if (path.startsWith("/api/shop/stories/")) return json({
+      stories: [
+        { id: 1, shopId: 1, shopName: "Guliston bozorchasi", videoFileId: null, photoFileId: null, caption: "Bugun yangi uzum keldi — kelib ko'ring!", createdAt: new Date().toISOString(), seen: false },
+        { id: 2, shopId: 1, shopName: "Guliston bozorchasi", videoFileId: null, photoFileId: null, caption: null, createdAt: new Date().toISOString(), seen: false },
+      ],
+    });
     if (path.startsWith("/api/shop/chat/")) return json({ shopName: "Guliston bozorchasi", messages: [] });
     if (path === "/api/shop/orders") return json({ orders: [] });
     if (path.startsWith("/api/shop/reviews/")) return json(MOCK_REVIEWS);

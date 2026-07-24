@@ -2221,11 +2221,12 @@ body {
 /* ── 🛍 shop v4.5: ULASHISH + TO'LIQ-EKRAN RASM (ega: "chiroyli qilib ulashish, rasmga bosa
    to'liq ochib bersin, orqaga qaytish ham bo'lsin") ───────────────────────────────────────── */
 .shop-head-actions { display: flex; align-items: center; gap: 8px; flex: none; }
+.shop-head-actions.full { margin-left: auto; }
 .shop-share-btn { flex: none; width: 38px; height: 38px; border-radius: 50%; display: flex; align-items: center; justify-content: center;
   background: var(--surface-2); border: 1px solid var(--line); color: var(--text); }
 .shop-share-btn:active { transform: scale(.9); }
 .shop-share-btn.sm { width: 30px; height: 30px; }
-.shop-share-btn.on { background: var(--bj-tanga-grad); border-color: transparent; }
+.shop-share-btn.on { background: var(--bj-tanga-grad); border-color: transparent; color: #fff; }
 .shop-wrap .shop-share-btn { background: #ffffff; border-color: #dcefe2; color: #15803d; }
 .shop-detail-headline { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
 .shop-detail-headline .shop-detail-name { margin: 0; flex: 1; min-width: 0; }
@@ -2595,7 +2596,8 @@ body {
 .bj-sale-badge { display: inline-flex; font-size: 11px; font-weight: 800; color: #fff; background: var(--bj-sale); border-radius: 7px; padding: 2px 7px; }
 .bj-shopchip { display: inline-flex; align-items: center; gap: 5px; font-size: 11px; color: var(--bj-ink-dim); }
 .bj-shopchip img { width: 16px; height: 16px; border-radius: 50%; object-fit: cover; }
-.bj-fav { position: absolute; top: 8px; right: 8px; width: 32px; height: 32px; border-radius: 50%; background: rgba(255, 255, 255, 0.9); display: flex; align-items: center; justify-content: center; font-size: 16px; border: 1px solid var(--bj-line); transition: transform var(--dur-press) var(--ease-out); }
+.bj-fav { position: absolute; top: 8px; right: 8px; width: 32px; height: 32px; border-radius: 50%; background: rgba(255, 255, 255, 0.9); display: flex; align-items: center; justify-content: center; font-size: 16px; border: 1px solid var(--bj-line); transition: transform var(--dur-press) var(--ease-out); cursor: pointer; color: #6b7c73; }
+.bj-fav.on { color: #ef4444; }
 .bj-fav:active { transform: scale(0.9); }
 .bj-pcard-imgwrap { position: relative; }
 
@@ -2615,6 +2617,7 @@ body {
 
 /* 🧺 yopishqoq savat-bar */
 .bj-cartbar { position: fixed; left: 12px; right: 12px; bottom: calc(64px + env(safe-area-inset-bottom, 0px)); z-index: 40; display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 12px 16px; border-radius: var(--r-card); background: var(--bj-hero-grad); color: #fff; font-weight: 700; box-shadow: 0 10px 30px rgba(6, 95, 70, 0.35); transition: transform var(--dur-card) var(--ease-out), opacity var(--dur-card) var(--ease-out); }
+.bj-cartbar-count { display: inline-flex; align-items: center; gap: 6px; }
 .bj-cartbar.hidden { transform: translateY(120%); opacity: 0; pointer-events: none; }
 
 /* seksiya-sarlavha */
@@ -2744,7 +2747,7 @@ body {
 .bj-story-tap.right { right: 0; }
 
 /* 💬 C1: mijoz↔do'kon chat */
-.bj-profile-chat-cta { display: block; width: calc(100% - 32px); margin: 4px 16px 16px; background: var(--bj-accent); color: #fff; border: none; border-radius: var(--r-btn); padding: 12px; font-weight: 700; font-size: 14px; }
+.bj-profile-chat-cta { display: flex; align-items: center; justify-content: center; gap: 6px; width: calc(100% - 32px); margin: 4px 16px 16px; background: var(--bj-accent); color: #fff; border: none; border-radius: var(--r-btn); padding: 12px; font-weight: 700; font-size: 14px; }
 .bj-chat-thread { display: flex; flex-direction: column; gap: 8px; min-height: 120px; padding: 4px 0 12px; }
 .bj-chat-privacy { align-self: center; background: #ecfdf3; color: var(--bj-accent-deep); border-radius: 8px; padding: 6px 10px; font-size: 11px; text-align: center; max-width: 85%; }
 .bj-chat-bubble { align-self: flex-start; background: var(--bj-card); border: 1px solid var(--bj-line); border-radius: 12px 12px 12px 3px; padding: 8px 12px; max-width: 78%; font-size: 13.5px; line-height: 1.4; }
@@ -2848,6 +2851,8 @@ body {
 .app.bjm .bk-input::placeholder { color: var(--bj-ink-dim); }
 .app.bjm .shop-open-filter-chip.on { background: var(--bj-hero-grad); color: #06231a; border-color: transparent; }
 .app.bjm .bj-cartbar { animation: bjmScreenIn .28s var(--ease-out); }
+.app.bjm .bj-cartbar.bump { animation: bjmBump .42s var(--ease-out); }
+@keyframes bjmBump { 0% { transform: scale(1); } 35% { transform: scale(1.05); } 100% { transform: scale(1); } }
 
 /* ── XATO TOPILDI (ega: "hali juda chalaku hamma narsa"): `.shop-wrap X` (`.shop-light`'dan
    OLDIN, .app prefiks'siz yozilgan) BUTUN modul uchun UNCONDITIONAL — .app.bjm ham shu ostida

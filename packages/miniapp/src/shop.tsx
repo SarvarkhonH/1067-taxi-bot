@@ -115,11 +115,20 @@ function ProductCard({ p, onOpen, wide, onFav }: { p: ShopProductView; onOpen: (
       <div className="shop-card-photo-wrap">
         {p.hasPhoto ? <img className="shop-card-photo" src={apiUrl(`/api/shop/photo/${p.id}?s=1`)} loading="lazy" decoding="async" alt="" /> : <div className="shop-card-photo shop-card-noimg">🛍</div>}
         <Badges p={p} />
-        {/* 🧡 V2b: sevimlilar — optimistic toggle, xatoda rollback (services.tsx naqshi) */}
+        {/* 🧡 V2b: sevimlilar — optimistic toggle, xatoda rollback (services.tsx naqshi).
+            <span role="button"> — <button> ichida <button> INVALID HTML edi (DOM-nesting
+            ogohlantirishi shopv2 QA'sida topildi); tashqi karta o'zi asosiy interaktiv element. */}
         {onFav && (
-          <button className="bj-fav" aria-label={p.isFav ? "Sevimlidan olish" : "Sevimliga qo'shish"} onClick={(e) => { e.stopPropagation(); onFav(p); }}>
-            {p.isFav ? "❤️" : "🤍"}
-          </button>
+          <span
+            className={"bj-fav" + (p.isFav ? " on" : "")}
+            role="button"
+            tabIndex={0}
+            aria-label={p.isFav ? "Sevimlidan olish" : "Sevimliga qo'shish"}
+            onClick={(e) => { e.stopPropagation(); onFav(p); }}
+            onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); e.stopPropagation(); onFav(p); } }}
+          >
+            <Icon name="heart" size={16} filled={p.isFav} />
+          </span>
         )}
       </div>
       <div className="shop-card-body">
@@ -411,6 +420,19 @@ export function ShopView({ me, onBanner, reload, onBook, openProductId }: { me: 
   const [coPay, setCoPay] = useState<"tanga" | "cash">("tanga");
   const [coSuccess, setCoSuccess] = useState<number | null>(null); // orderId
   const cartCount = useMemo(() => Object.values(cart).reduce((s, q) => s + q, 0), [cart]);
+  // shopv2: yopishqoq savat-barning qisqa "bump" mikro-animatsiyasi — faqat SON KO'PAYGANDA
+  // (kamayganda/ochilganda emas), CLAUDE.md'ning "har bosishda <100ms vizual javob" qoidasiga mos.
+  const [cartBump, setCartBump] = useState(false);
+  const prevCartCount = useRef(cartCount);
+  useEffect(() => {
+    if (cartCount > prevCartCount.current) {
+      setCartBump(true);
+      const t = setTimeout(() => setCartBump(false), 420);
+      prevCartCount.current = cartCount;
+      return () => clearTimeout(t);
+    }
+    prevCartCount.current = cartCount;
+  }, [cartCount]);
   const cartLines = useMemo(() => {
     const byId = new Map((products ?? []).map((p) => [p.id, p]));
     return Object.entries(cart).map(([id, qty]) => ({ p: byId.get(Number(id)), qty })).filter((l): l is { p: ShopProductView; qty: number } => !!l.p && l.qty > 0);
@@ -422,8 +444,11 @@ export function ShopView({ me, onBanner, reload, onBook, openProductId }: { me: 
   const addToCart = (p: ShopProductView, delta = 1) => {
     const pShop = p.shopId ?? 1;
     if (cartShopId !== null && cartShopId !== pShop && cartCount > 0) {
-      // boshqa do'kon — savat bitta do'konga (sotuvchi o'zi yetkazadi)
-      if (!window.confirm("Savat bitta do'kon bilan cheklangan — yangi do'kon uchun tozalaymi?")) return;
+      // boshqa do'kon — savat bitta do'konga (sotuvchi o'zi yetkazadi). Tasdiqlangan v2 dizaynda:
+      // window.confirm (bloklovchi) o'rniga avtomatik tozalash + tushuntiruvchi toast (onBanner) —
+      // xarid-oqimini to'xtatib qo'ymaydi, faqat nima bo'lganini tushuntiradi.
+      if (shopv2) onBanner("🧺 Savat bitta do'kon bilan cheklangan — yangi do'kon uchun tozalandi");
+      else if (!window.confirm("Savat bitta do'kon bilan cheklangan — yangi do'kon uchun tozalaymi?")) return;
       setCart({ [p.id]: Math.max(1, delta) });
       setCartShopId(pShop);
       haptic();
@@ -648,16 +673,23 @@ export function ShopView({ me, onBanner, reload, onBook, openProductId }: { me: 
     // shop-wrap'ga qo'shimcha klass shart emas.
     <div className="shop-wrap">
       <div className="shop-head">
-        <div>
-          <div className="shop-title">{bazar ? "🏪 BirJoy bozori" : "🛍 Do'kon"}</div>
-          <div className="muted fs12">{bazar ? "Kosonda bor — BirJoy'da bor" : "Tangangizga real mahsulotlar · 1 kunda yetkazamiz"}</div>
-        </div>
-        <div className="shop-head-actions">
+        {/* shopv2: bu sarlavha real qurilmada "Bir..." bo'lib qisqarib ketardi (3 ta amal-tugma
+            bilan bir qatorda joy yetmasdi) — VA mazmuni ALLAQACHON boshqa joyda bor: bosh-sahifada
+            tashqi App topbar "Do'kon" deb ko'rsatadi, do'kon-profilda pastdagi bj-sect+hero-name
+            nomi TAKRORLAYDI. Shuning uchun shopv2'da bu ichki sarlavha butunlay OLIB TASHLANADI —
+            amal-tugmalarga har doim joy yetadi, mazmun ikki-uch marta takrorlanmaydi. */}
+        {!shopv2 && (
+          <div>
+            <div className="shop-title">{bazar ? "🏪 BirJoy bozori" : "🛍 Do'kon"}</div>
+            <div className="muted fs12">{bazar ? "Kosonda bor — BirJoy'da bor" : "Tangangizga real mahsulotlar · 1 kunda yetkazamiz"}</div>
+          </div>
+        )}
+        <div className={"shop-head-actions" + (shopv2 ? " full" : "")}>
           {/* 🧡 V2b: sevimlilar-filtr — flat-katalogni filtrlaydi; shopv2 bazar-bosh'da flat-katalog
               o'zi yashirin (yuqoridagi homeFlatCatalog) — shu holatda tugma o'lik bo'lardi, yashirilgan */}
           {homeFlatCatalog && (
             <button className={"shop-share-btn" + (favOnly ? " on" : "")} onClick={() => { haptic(); setFavOnly((v) => !v); }} aria-label={favOnly ? "Sevimlilar filtri o'chirish" : "Faqat sevimlilar"}>
-              {favOnly ? "❤️" : "🤍"}
+              <Icon name="heart" size={17} filled={favOnly} />
             </button>
           )}
           <button className="shop-share-btn" onClick={shareShop} aria-label="Do'konni ulashish"><Icon name="share" size={18} /></button>
@@ -718,7 +750,10 @@ export function ShopView({ me, onBanner, reload, onBook, openProductId }: { me: 
               mid-session) had NO way back to the bazar list. */}
           {bazar && shopFilter && (
             <div className="bj-sect">
-              <h3>{shopProfile?.name ?? shopFilter.name}</h3>
+              {/* shopv2: nom pastda bj-profile-hero-name'da AYNAN takrorlanardi (real qurilmada
+                  skrinshotda topildi — "BirJoy o'z do'koni" ikki marta) — shu yerda faqat orqaga
+                  tugmasi qoladi, R4'da qo'shilgan "har doim ko'rinadigan orqaga yo'li" saqlanadi. */}
+              {!shopv2 && <h3>{shopProfile?.name ?? shopFilter.name}</h3>}
               <button className="bj-sect-all" onClick={() => { haptic(); setShopFilter(null); }}>← Bozorga qaytish</button>
             </div>
           )}
@@ -796,7 +831,7 @@ export function ShopView({ me, onBanner, reload, onBook, openProductId }: { me: 
               {/* ── 💬 C1: do'konga yozish — flag ON'dagina (D2 profil-ekranida CTA joyi bo'sh qoldirilgan edi) ── */}
               {!!me.flags?.shopchat && (
                 <button className="bj-profile-chat-cta" onClick={() => openChat(shopProfile.id, shopProfile.name)}>
-                  💬 Do&apos;konga yozish
+                  <Icon name="chat" size={16} /> Do&apos;konga yozish
                 </button>
               )}
             </>
@@ -821,7 +856,7 @@ export function ShopView({ me, onBanner, reload, onBook, openProductId }: { me: 
           {/* ── 🏠 V1.5: mahalla-chip + safar-rejimi banner — bazar-bosh, faqat uy-ko'rinishida ── */}
           {bazar && !shopFilter && mahallaList && (
             <button className="bj-mahalla-chip" onClick={() => { haptic(); setMahallaPickerOpen(true); }}>
-              📍 {activeMahalla?.name ?? "Mahallani tanlang"} <span className="bj-mahalla-chip-caret">▾</span>
+              <Icon name="pin" size={14} /> {activeMahalla?.name ?? "Mahallani tanlang"} <span className="bj-mahalla-chip-caret">▾</span>
             </button>
           )}
           {bazar && !shopFilter && travelSuggest && (
@@ -1302,7 +1337,7 @@ export function ShopView({ me, onBanner, reload, onBook, openProductId }: { me: 
       </Sheet>
       {/* ── 🧺 V2: yopishqoq savat-bar + savat-sheet (flag bazarcart) ── */}
       {bazarcart && !sel && !ordersOpen && !cartOpen && (
-        <BjStickyCartBar count={cartCount} totalTanga={cartItemsTotal} onOpen={() => { haptic(); setCartOpen(true); }} />
+        <BjStickyCartBar count={cartCount} totalTanga={cartItemsTotal} onOpen={() => { haptic(); setCartOpen(true); }} bump={shopv2 && cartBump} />
       )}
       {bazarcart && (
         <Sheet open={cartOpen} onClose={() => { setCartOpen(false); setCoSuccess(null); setCoErr(null); }}>
