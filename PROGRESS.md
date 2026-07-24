@@ -2600,3 +2600,22 @@ push → build → bundle-grep live (`1067taxi-miniapp.vercel.app`): `shop-city-
 chuqur/to'liq bosqich shu sessiyada. Qolgan ikkita ATAYLAB-qilinmagan farq yuqorida aniq sabab bilan
 yozilgan (soat-jadval — ma'lumot yo'q; Sheet-vs-full-screen — arxitektura-xavfi past-foyda). Boshqa
 hech qanday bilingan strukturaviy farq qolmadi. Ega o'z telefonida ko'rib, yakuniy fikr bersin.
+
+## 2026-07-24 (42) — BirJoy Market v2: yakuniy mayda sayqal (shahar-belgi + qidiruv-ikonkasi)
+Ega yana "davom et" dedi (yangi skrinshot/shikoyatsiz) — qolgan eng kichik ikki farqni ham yopdim:
+bosh-sahifada mockup'dagi kichik "📍 Koson" shahar-belgisi (qidiruvdan oldin) va qidiruv-satridagi
+emoji-placeholder o'rniga real SVG lupa-ikonkasi (input ichida, chapda). Ikkalasi ham shopv2-only,
+xatti-harakatga tegmaydi.
+
+**Ataylab TEGILMADI**: mockup'da sodiqlik-karta har doim ko'rinadi (0 xariddan boshlab ham), lekin
+bu — §10.2'da (2026-07-23, (37)) ega bilan AskUserQuestion orqali aniqlashtirilgan qaror
+("mukofot yo'q, faqat ko'rsatkich, yangi mijozga bosim qilinmasin — shuning uchun 0 xaridda
+ko'rinmaydi"). Mockup-parity uchun bu HAQIQIY, oldin tasdiqlangan mahsulot-qarorni bekor qilish
+noto'g'ri bo'lardi — tegilmadi, PROGRESS'da aniq sababi bilan qayd etildi.
+
+**Isbot**: `tsc --noEmit` 0 xato. `#shopdemo`'da computed-style bilan tasdiqlandi (shahar-belgi
+matni, qidiruv `padding-left:38px`, SVG ikonka mavjud). Konsolь — xato yo'q. Deploy: commit
+`8f69051` → push → build → bundle-grep live: `shop-city-label` topildi.
+
+**HOLAT: ready for (re-)verification.** Bilingan strukturaviy/vizual farq qolmadi. Keyingi qadam —
+ega o'z telefonida QABUL qilib, `shopv2`ni global yoqish (yoki yana aniq fikr-mulohaza).
