@@ -116,6 +116,13 @@ export function Icon({ name, filled = false, size = 24 }: { name: string; filled
           <path d="M3 19a1 1 0 0 1 1-1h16a1 1 0 0 1 1 1 2 2 0 0 1-2 2H5a2 2 0 0 1-2-2Z" fill={filled ? "currentColor" : "none"} />
         </svg>
       );
+    case "back":
+      // shopv2: do'kon-profildan bozorga qaytish (top-strip) — "←" matn-belgisi o'rniga
+      return (
+        <svg {...p}>
+          <path d="M15 5l-7 7 7 7" />
+        </svg>
+      );
     case "heart":
       // shopv2: sevimlilar — emoji-siz chrome (❤️/🤍 o'rniga), ba'zi qurilmalarda emoji-shrift
       // yo'qligi muammosidan xoli (share ikonkasi bilan bir xil sabab).

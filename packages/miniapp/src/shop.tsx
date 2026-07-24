@@ -144,6 +144,41 @@ function ProductCard({ p, onOpen, wide, onFav }: { p: ShopProductView; onOpen: (
   );
 }
 
+// shopv2: do'kon-profil ichidagi mahsulot-panjara — tasdiqlangan dizaynda "Instagram-uslub"
+// kvadrat kafel (rasm/gradient fon, rasm bo'lmasa katta bosh-harf, pastda qorong'i-gradient
+// ustida nom+narx). Faqat do'kon-profilda ishlatiladi — ProductCard qidiruv/o'xshash-mahsulot
+// natijalarida (ko'proq ma'lumot kerak bo'lgan joylarda) o'zgarishsiz qoladi.
+function StoreTile({ p, onOpen, onFav }: { p: ShopProductView; onOpen: (p: ShopProductView) => void; onFav?: (p: ShopProductView) => void }) {
+  const d = discountPct(p);
+  return (
+    <button className="shop-tile" onClick={() => onOpen(p)}>
+      {p.hasPhoto ? (
+        <img className="shop-tile-img" src={apiUrl(`/api/shop/photo/${p.id}?s=1`)} loading="lazy" decoding="async" alt="" />
+      ) : (
+        <span className="shop-tile-initial" aria-hidden="true">{p.name.trim().charAt(0).toUpperCase()}</span>
+      )}
+      <div className="shop-tile-grad" />
+      {d > 0 && <span className="shop-tile-disc">−{d}%</span>}
+      {onFav && (
+        <span
+          className={"shop-tile-fav" + (p.isFav ? " on" : "")}
+          role="button"
+          tabIndex={0}
+          aria-label={p.isFav ? "Sevimlidan olish" : "Sevimliga qo'shish"}
+          onClick={(e) => { e.stopPropagation(); onFav(p); }}
+          onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); e.stopPropagation(); onFav(p); } }}
+        >
+          <Icon name="heart" size={13} filled={p.isFav} />
+        </span>
+      )}
+      <div className="shop-tile-body">
+        <div className="shop-tile-name">{p.name}</div>
+        <div className="shop-tile-price">{formatNumber(p.priceTanga)} so&apos;m</div>
+      </div>
+    </button>
+  );
+}
+
 const BOT_LINK = "https://t.me/koson1067bot"; // share deep-link target (same source as services.tsx)
 
 export function ShopView({ me, onBanner, reload, onBook, openProductId }: { me: MeResponse; onBanner: (msg: string) => void; reload: () => void; onBook: () => void; openProductId?: number | null }) {
@@ -316,8 +351,14 @@ export function ShopView({ me, onBanner, reload, onBook, openProductId }: { me: 
   // ikki bo'lim — o'z mahallasi (shopKind="mahalla" + mos mahallaId) vs butun shahar (qolgani)
   // §10.2: "hozir ochiq" tezkor-filtr — ikkala ro'yxatga ham qo'llaniladi
   const [openOnly, setOpenOnly] = useState(false);
+  // shopv2: tasdiqlangan dizaynda "Barchasi / Mahallamga yetkazadi / Butun shahar" kind-filtri
+  // bor edi — mening avvalgi implementatsiyam ikkala bo'limni HAR DOIM ko'rsatardi (filtr yo'q
+  // edi). Legacy (shopv2 OFF) o'zgarishsiz qoladi — "all" bilan xatti-harakat bir xil.
+  const [shopKindFilter, setShopKindFilter] = useState<"all" | "mahalla" | "bozor">("all");
   const mahallaShops = useMemo(() => (market?.shops ?? []).filter((s) => s.shopKind === "mahalla" && s.mahallaId === activeMahallaId && (!openOnly || s.open)), [market, activeMahallaId, openOnly]);
   const cityShops = useMemo(() => (market?.shops ?? []).filter((s) => s.shopKind !== "mahalla" && (!openOnly || s.open)), [market, openOnly]);
+  const showMahallaKind = !shopv2 || shopKindFilter !== "bozor";
+  const showBozorKind = !shopv2 || shopKindFilter !== "mahalla";
   const [shopFilter, setShopFilter] = useState<{ id: number; name: string } | null>(null); // 🏬 do'kon-sahifa (lite)
   // shopv2 + bazar-bosh (store-discovery ekrani, hali shopFilter tanlanmagan): yondashilgan reja
   // "Bozor-bosh (qidiruv+kind-chip+ochiq-filtr+ikki bo'lim)" edi — eski hero-karusel+flat-katalog
@@ -560,6 +601,12 @@ export function ShopView({ me, onBanner, reload, onBook, openProductId }: { me: 
     return (products ?? []).filter((p) => p.name.toLowerCase().includes(t) || p.category.toLowerCase().includes(t));
   }, [products, q, bazar, srv]);
   const similar = useMemo(() => (sel ? (products ?? []).filter((p) => p.category === sel.category && p.id !== sel.id).slice(0, 6) : []), [products, sel]);
+  // shopv2: "O'xshash do'konlar" — do'kon-profil ekranining pastida, tasdiqlangan dizaynda bor
+  // (avvalgi implementatsiyada butunlay yo'q edi). Real market.shops'dan, joriy do'kondan boshqa.
+  const similarStores = useMemo(() => (shopFilter ? (market?.shops ?? []).filter((s) => s.id !== shopFilter.id).slice(0, 6) : []), [market, shopFilter]);
+  // shopv2: hikoya-ko'ruvchidagi "yuqoriga surish" kartasi — shu do'konning eng ko'p sotilgan
+  // mahsuloti (mavjud `topSeller` maydonidan, yangi backend-maydon shart emas).
+  const storyFeaturedProduct = useMemo(() => (storyViewer ? (products ?? []).find((p) => p.shopId === storyViewer.shopId && p.topSeller) ?? null : null), [storyViewer, products]);
 
   const openProduct = (p: ShopProductView) => {
     haptic();
@@ -676,18 +723,27 @@ export function ShopView({ me, onBanner, reload, onBook, openProductId }: { me: 
     // shop-wrap'ga qo'shimcha klass shart emas.
     <div className="shop-wrap">
       <div className="shop-head">
-        {/* shopv2: bu sarlavha real qurilmada "Bir..." bo'lib qisqarib ketardi (3 ta amal-tugma
-            bilan bir qatorda joy yetmasdi) — VA mazmuni ALLAQACHON boshqa joyda bor: bosh-sahifada
-            tashqi App topbar "Do'kon" deb ko'rsatadi, do'kon-profilda pastdagi bj-sect+hero-name
-            nomi TAKRORLAYDI. Shuning uchun shopv2'da bu ichki sarlavha butunlay OLIB TASHLANADI —
-            amal-tugmalarga har doim joy yetadi, mazmun ikki-uch marta takrorlanmaydi. */}
+        {/* shopv2: eski 2-qatorli sarlavha ("Bir..." bo'lib qisqarardi) o'rniga tasdiqlangan
+            dizayndagi kabi ixcham top-strip — orqaga-tugma (do'kon-profilda) + kontekstli nom
+            (bosh-sahifada "BirJoy", profilda do'kon-nomi — endi FAQAT shu yerda, pastdagi
+            bj-sect/hero-name bilan takrorlanmaydi). */}
         {!shopv2 && (
           <div>
             <div className="shop-title">{bazar ? "🏪 BirJoy bozori" : "🛍 Do'kon"}</div>
             <div className="muted fs12">{bazar ? "Kosonda bor — BirJoy'da bor" : "Tangangizga real mahsulotlar · 1 kunda yetkazamiz"}</div>
           </div>
         )}
-        <div className={"shop-head-actions" + (shopv2 ? " full" : "")}>
+        {shopv2 && (
+          <div className="shop-head-v2-title">
+            {shopFilter && (
+              <button className="shop-head-back" onClick={() => { haptic(); setShopFilter(null); }} aria-label="Bozorga qaytish">
+                <Icon name="back" size={17} />
+              </button>
+            )}
+            <span className="shop-head-v2-title-text">{shopFilter ? (shopProfile?.name ?? shopFilter.name) : "BirJoy"}</span>
+          </div>
+        )}
+        <div className="shop-head-actions">
           {/* 🧡 V2b: sevimlilar-filtr — flat-katalogni filtrlaydi; shopv2 bazar-bosh'da flat-katalog
               o'zi yashirin (yuqoridagi homeFlatCatalog) — shu holatda tugma o'lik bo'lardi, yashirilgan */}
           {homeFlatCatalog && (
@@ -751,12 +807,12 @@ export function ShopView({ me, onBanner, reload, onBook, openProductId }: { me: 
               version only put "←" inside the loaded hero, so a stuck loading-skeleton or an
               error state (e.g. shop went inactive, or the `bazar` kill-switch flipped off
               mid-session) had NO way back to the bazar list. */}
-          {bazar && shopFilter && (
+          {/* shopv2: orqaga-tugma+nom endi doim ko'rinadigan top-strip'da (.shop-head-v2-title,
+              R4'ning "har doim ko'rinadigan orqaga yo'li" talabi shu yerda ham saqlanadi — shopv2
+              bo'lsa bu blok butunlay ortiqcha, nom ikki marta chiqmasligi uchun olib tashlanadi. */}
+          {bazar && shopFilter && !shopv2 && (
             <div className="bj-sect">
-              {/* shopv2: nom pastda bj-profile-hero-name'da AYNAN takrorlanardi (real qurilmada
-                  skrinshotda topildi — "BirJoy o'z do'koni" ikki marta) — shu yerda faqat orqaga
-                  tugmasi qoladi, R4'da qo'shilgan "har doim ko'rinadigan orqaga yo'li" saqlanadi. */}
-              {!shopv2 && <h3>{shopProfile?.name ?? shopFilter.name}</h3>}
+              <h3>{shopProfile?.name ?? shopFilter.name}</h3>
               <button className="bj-sect-all" onClick={() => { haptic(); setShopFilter(null); }}>← Bozorga qaytish</button>
             </div>
           )}
@@ -880,15 +936,30 @@ export function ShopView({ me, onBanner, reload, onBook, openProductId }: { me: 
               onPick={(slug) => { haptic(); setCat(slug); }}
             />
           )}
+          {/* shopv2: tasdiqlangan dizayndagi "Barchasi / Mahallamga yetkazadi / Butun shahar"
+              kind-filtri — bitta gorizontal-scroll qatorda "Hozir ochiq" bilan birga (mockup'da
+              ham aynan shu tartibda). Legacy (shopv2 OFF)'da eski yagona "Hozir ochiq" chip qoladi. */}
+          {bazar && !shopFilter && shopv2 && market && (mahallaShops.length > 0 || cityShops.length > 0 || openOnly) && (
+            <div className="shop-kind-row">
+              {([["all", "Barchasi"], ["mahalla", "Mahallamga yetkazadi"], ["bozor", "Butun shahar"]] as const).map(([key, label]) => (
+                <button key={key} className={"shop-kind-chip" + (shopKindFilter === key ? " on" : "")} onClick={() => { haptic(); setShopKindFilter(key); }}>
+                  {label}
+                </button>
+              ))}
+              <button className={"shop-kind-chip" + (openOnly ? " on" : "")} onClick={() => { haptic(); setOpenOnly((v) => !v); }}>
+                🟢 Hozir ochiq
+              </button>
+            </div>
+          )}
           {/* §10.2: "hozir ochiq" tezkor-filtr — do'kon-rail ustida, kategoriya-karuseldan keyin */}
-          {bazar && !shopFilter && market && (mahallaShops.length > 0 || cityShops.length > 0 || openOnly) && (
+          {bazar && !shopFilter && !shopv2 && market && (mahallaShops.length > 0 || cityShops.length > 0 || openOnly) && (
             <button className={"shop-open-filter-chip" + (openOnly ? " on" : "")} onClick={() => { haptic(); setOpenOnly((v) => !v); }}>
               🟢 Hozir ochiq
             </button>
           )}
           {/* 🏠 V1.5: mahalla do'konlari — kattaroq "qo'shni" karta + hikoya-parcha + haqiqiy
               ijtimoiy-signal (ega: "oddiy online do'kondan farq qilmayapti" fikriga javob) */}
-          {bazar && !shopFilter && market && activeMahallaId !== null && mahallaShops.length > 0 && (
+          {bazar && !shopFilter && showMahallaKind && market && activeMahallaId !== null && mahallaShops.length > 0 && (
             <BjSection title="🏠 Mahalla do'konlari">
               <div className="bj-mshops">
                 {mahallaShops.map((s) => (
@@ -897,7 +968,7 @@ export function ShopView({ me, onBanner, reload, onBook, openProductId }: { me: 
               </div>
             </BjSection>
           )}
-          {bazar && !shopFilter && market && activeMahallaId !== null && mahallaShops.length === 0 && (
+          {bazar && !shopFilter && showMahallaKind && market && activeMahallaId !== null && mahallaShops.length === 0 && (
             <div className="bj-mahalla-cta">
               <div className="bj-mahalla-cta-icon">🔔</div>
               <div className="bj-mahalla-cta-text">{activeMahalla?.name ?? "Bu mahalla"}da hali do&apos;kon yo&apos;q — birinchi bo&apos;ling!</div>
@@ -912,8 +983,32 @@ export function ShopView({ me, onBanner, reload, onBook, openProductId }: { me: 
               </button>
             </div>
           )}
-          {/* 🏪 butun-shahar do'konlar — hozirgi (mahalla-oldi) ro'yxat, o'zgarishsiz */}
-          {bazar && !shopFilter && market && cityShops.length > 1 && (
+          {/* shopv2: tasdiqlangan dizaynda "Butun shahar" 2-ustunli GRID (rasm-qopqoq+katta bosh-
+              harf+reyting+holat-nuqta) — gorizontal-scroll AVATAR-karta (legacy BjShopCard) emas. */}
+          {bazar && !shopFilter && shopv2 && showBozorKind && market && cityShops.length > 1 && (
+            <div className="shop-city-grid-wrap">
+              <div className="shop-section-title2">Butun shahar bo'ylab</div>
+              <div className="shop-city-grid">
+                {cityShops.map((s) => (
+                  <button key={s.id} className="shop-city-tile" onClick={() => { haptic(); setShopFilter({ id: s.id, name: s.name }); setCat(null); }}>
+                    <div className="shop-city-tile-cover">
+                      {s.hasPhoto ? <img src={apiUrl(`/api/shop/shop-photo/${s.id}`)} alt="" loading="lazy" /> : <span className="shop-city-tile-initial">{s.name.trim().charAt(0).toUpperCase()}</span>}
+                    </div>
+                    <div className="shop-city-tile-body">
+                      <div className="shop-city-tile-name">{s.name}</div>
+                      {s.rating > 0 && <div className="shop-city-tile-rating">★ {s.rating.toFixed(1)}</div>}
+                      <div className="shop-city-tile-status">
+                        <span className={"bj-open-dot" + (s.open ? "" : " closed")} />
+                        {s.open ? "Ochiq" : "Yopiq"}
+                      </div>
+                    </div>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+          {/* 🏪 butun-shahar do'konlar — hozirgi (mahalla-oldi) ro'yxat, o'zgarishsiz (shopv2 OFF) */}
+          {bazar && !shopFilter && !shopv2 && market && cityShops.length > 1 && (
             <BjSection title="🏪 Butun shahar">
               <div className="bj-shops">
                 {cityShops.map((s) => (
@@ -937,8 +1032,16 @@ export function ShopView({ me, onBanner, reload, onBook, openProductId }: { me: 
             </div>
           )}
 
-          {/* ── katalog: VERTIKAL 2-ustunli grid (Amazon/Uzum standarti) — gorizontal scroll yo'q ── */}
-          {homeFlatCatalog && (
+          {/* ── katalog: VERTIKAL grid — shopv2'da tasdiqlangan dizayndagi 3-ustunli "Instagram-
+              uslub" StoreTile (bu blok shopv2'da FAQAT do'kon-profil ichida ko'rinadi, chunki
+              homeFlatCatalog shopv2-bosh'da yashirin — shuning uchun bu doim "shu do'konning
+              mahsulotlari" konteksti). Legacy — eski 2-ustunli ProductCard grid, o'zgarishsiz. ── */}
+          {homeFlatCatalog && shopv2 && (
+            <div className="shop-tile-grid">
+              {catalog.map((p) => <StoreTile key={p.id} p={p} onOpen={openProduct} onFav={toggleFav} />)}
+            </div>
+          )}
+          {homeFlatCatalog && !shopv2 && (
             <>
               <div className="shop-section-head">
                 <span className="shop-section-title">{cat ?? "Hammasi"}</span>
@@ -948,6 +1051,24 @@ export function ShopView({ me, onBanner, reload, onBook, openProductId }: { me: 
                 {catalog.map((p) => <ProductCard key={p.id} p={p} onOpen={openProduct} onFav={toggleFav} wide />)}
               </div>
             </>
+          )}
+
+          {/* shopv2: "O'xshash do'konlar" — do'kon-profil sahifasining oxiri, tasdiqlangan
+              dizaynda bor edi, avvalgi implementatsiyada butunlay qurilmagan. */}
+          {shopv2 && shopFilter && similarStores.length > 0 && (
+            <div className="shop-similar-stores">
+              <div className="shop-section-title2">O&apos;xshash do&apos;konlar</div>
+              <div className="shop-similar-stores-row">
+                {similarStores.map((s) => (
+                  <button key={s.id} className="shop-similar-store" onClick={() => { haptic(); setShopFilter({ id: s.id, name: s.name }); setCat(null); }}>
+                    <div className="shop-similar-store-av">
+                      {s.hasPhoto ? <img src={apiUrl(`/api/shop/shop-photo/${s.id}`)} alt="" loading="lazy" /> : s.name.trim().charAt(0).toUpperCase()}
+                    </div>
+                    <span className="shop-similar-store-name">{s.name}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
           )}
         </>
       )}
@@ -1208,6 +1329,8 @@ export function ShopView({ me, onBanner, reload, onBook, openProductId }: { me: 
           idx={storyViewer.idx}
           onAdvance={advanceStory}
           onClose={() => { setStoryTray((tray) => tray?.map((t) => (t.shopId === storyViewer.shopId ? { ...t, seen: true } : t)) ?? tray); setStoryViewer(null); }}
+          featuredProduct={shopv2 ? storyFeaturedProduct : null}
+          onGoToProduct={() => { if (!storyFeaturedProduct) return; setStoryTray((tray) => tray?.map((t) => (t.shopId === storyViewer.shopId ? { ...t, seen: true } : t)) ?? tray); setStoryViewer(null); openProduct(storyFeaturedProduct); }}
         />
       )}
       {/* ── 🏪 D2: do'kon-darajali sharhlar (o'qish-uchun, submit-shakli yo'q — mahsulot-sharh alohida) ── */}
@@ -1430,8 +1553,15 @@ function ProductLightbox({ productId, count, start, onClose }: { productId: numb
  *  segmentlar, video tugagach/foto ~5s'dan keyin avto-keyingisiga, chap/o'ng bosish orqaga/oldinga,
  *  ✕ yopadi. `key={cur.id}` — hikoya almashganda video/img elementi TO'LIQ qayta-yaratiladi (eski
  *  video'ning `onEnded`si keyingi hikoyaga o'tib ketmasin — stale-closure xavfini yo'q qiladi). */
-function StoryViewer({ stories, idx, onAdvance, onClose }: { stories: ShopStoryPost[]; idx: number; onAdvance: (dir: 1 | -1) => void; onClose: () => void }) {
+function StoryViewer({ stories, idx, onAdvance, onClose, featuredProduct, onGoToProduct }: { stories: ShopStoryPost[]; idx: number; onAdvance: (dir: 1 | -1) => void; onClose: () => void; featuredProduct?: ShopProductView | null; onGoToProduct?: () => void }) {
   const cur = stories[idx]!;
+  // shopv2: "yuqoriga surish" bilan ochiladigan "ko'p sotiladigan mahsulot" kartasi (tasdiqlangan
+  // dizaynda bor edi, avvalgi implementatsiyada butunlay yo'q edi). Haqiqiy swipe-gesture o'rniga
+  // (Sheet'dagi kabi murakkab touch-tracking qo'shish xavfi/foyda nisbati past) — bosib ochiladigan
+  // pastki-taklif, xuddi shu VIZUAL natija bilan (real `topSeller` mahsulotdan, yangi backend shart
+  // emas). Har yangi hikoyada qayta yopiladi.
+  const [revealed, setRevealed] = useState(false);
+  useEffect(() => { setRevealed(false); }, [cur.id]);
   useEffect(() => {
     if (cur.videoFileId) return; // video — o'zining onEnded'i bor
     const t = setTimeout(() => onAdvance(1), 5000);
@@ -1458,6 +1588,27 @@ function StoryViewer({ stories, idx, onAdvance, onClose }: { stories: ShopStoryP
       {cur.caption && <div className="bj-story-caption">{cur.caption}</div>}
       <button className="bj-story-tap left" aria-label="Oldingi" onClick={() => { haptic(); onAdvance(-1); }} />
       <button className="bj-story-tap right" aria-label="Keyingi" onClick={() => { haptic(); onAdvance(1); }} />
+      {featuredProduct && !revealed && (
+        <button className="bj-story-hint" onClick={(e) => { e.stopPropagation(); haptic(); setRevealed(true); }}>
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.4} strokeLinecap="round" strokeLinejoin="round"><path d="M5 15l7-7 7 7" /></svg>
+          <span>Ko&apos;p sotiladigan mahsulot</span>
+        </button>
+      )}
+      {featuredProduct && revealed && (
+        <div className="bj-story-product" onClick={(e) => e.stopPropagation()}>
+          {featuredProduct.hasPhoto ? (
+            <img className="bj-story-product-img" src={apiUrl(`/api/shop/photo/${featuredProduct.id}?s=1`)} alt="" />
+          ) : (
+            <span className="bj-story-product-img bj-story-product-ph">{featuredProduct.name.trim().charAt(0).toUpperCase()}</span>
+          )}
+          <div className="bj-story-product-body">
+            <div className="bj-story-product-tag">Ko&apos;p sotiladi</div>
+            <div className="bj-story-product-name">{featuredProduct.name}</div>
+            <div className="bj-story-product-price">{formatNumber(featuredProduct.priceTanga)} so&apos;m</div>
+          </div>
+          <button className="bj-story-product-cta" onClick={() => { haptic(); onGoToProduct?.(); }}>Xarid qilish</button>
+        </div>
+      )}
     </div>
   );
 }

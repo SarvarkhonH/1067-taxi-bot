@@ -2221,7 +2221,11 @@ body {
 /* ── 🛍 shop v4.5: ULASHISH + TO'LIQ-EKRAN RASM (ega: "chiroyli qilib ulashish, rasmga bosa
    to'liq ochib bersin, orqaga qaytish ham bo'lsin") ───────────────────────────────────────── */
 .shop-head-actions { display: flex; align-items: center; gap: 8px; flex: none; }
-.shop-head-actions.full { margin-left: auto; }
+/* shopv2 top-strip: orqaga-tugma + kontekstli sarlavha (mockup'dagi persistent top-bar) */
+.shop-head-v2-title { display: flex; align-items: center; gap: 8px; flex: 1; min-width: 0; }
+.shop-head-back { flex: none; width: 32px; height: 32px; border-radius: 16px; display: flex; align-items: center; justify-content: center; background: rgba(255, 255, 255, 0.08); border: none; color: inherit; cursor: pointer; transition: transform var(--dur-press) var(--ease-out); }
+.shop-head-back:active { transform: scale(0.9); }
+.shop-head-v2-title-text { flex: 1; min-width: 0; font-size: 14.5px; font-weight: 800; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .shop-share-btn { flex: none; width: 38px; height: 38px; border-radius: 50%; display: flex; align-items: center; justify-content: center;
   background: var(--surface-2); border: 1px solid var(--line); color: var(--text); }
 .shop-share-btn:active { transform: scale(.9); }
@@ -2746,6 +2750,18 @@ body {
 .bj-story-tap.left { left: 0; }
 .bj-story-tap.right { right: 0; }
 
+/* shopv2: "yuqoriga surish" — ko'p sotiladigan mahsulot taklifi */
+.bj-story-hint { position: absolute; left: 0; right: 0; bottom: calc(env(safe-area-inset-bottom, 8px) + 14px); z-index: 5; display: flex; flex-direction: column; align-items: center; gap: 2px; background: none; border: none; color: #fff; font-size: 12.5px; font-weight: 600; cursor: pointer; animation: bjHint 1.6s ease-in-out infinite; }
+@keyframes bjHint { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-4px); } }
+.bj-story-product { position: absolute; left: 0; right: 0; bottom: 0; z-index: 6; background: rgba(255, 255, 255, .92); backdrop-filter: blur(20px) saturate(180%); -webkit-backdrop-filter: blur(20px) saturate(180%); border-radius: 20px 20px 0 0; padding: 16px 16px calc(16px + env(safe-area-inset-bottom, 8px)); display: flex; align-items: center; gap: 12px; animation: bjmScreenIn .2s var(--ease-out); }
+.bj-story-product-img { width: 48px; height: 48px; border-radius: 10px; flex: none; object-fit: cover; background: linear-gradient(160deg, #34d399, #0d9668); display: flex; align-items: center; justify-content: center; }
+.bj-story-product-ph { color: rgba(255, 255, 255, .8); font-weight: 800; font-size: 18px; }
+.bj-story-product-body { flex: 1; min-width: 0; }
+.bj-story-product-tag { font-size: 10px; font-weight: 700; color: #0d9668; text-transform: uppercase; letter-spacing: .03em; }
+.bj-story-product-name { font-size: 13px; font-weight: 700; color: #142016; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.bj-story-product-price { font-size: 13px; font-weight: 800; color: #b45309; }
+.bj-story-product-cta { flex: none; background: linear-gradient(135deg, #0d9668, #34d399); color: #fff; font-size: 12.5px; font-weight: 700; padding: 10px 14px; border-radius: 12px; border: none; cursor: pointer; white-space: nowrap; }
+
 /* 💬 C1: mijoz↔do'kon chat */
 .bj-profile-chat-cta { display: flex; align-items: center; justify-content: center; gap: 6px; width: calc(100% - 32px); margin: 4px 16px 16px; background: var(--bj-accent); color: #fff; border: none; border-radius: var(--r-btn); padding: 12px; font-weight: 700; font-size: 14px; }
 .bj-chat-thread { display: flex; flex-direction: column; gap: 8px; min-height: 120px; padding: 4px 0 12px; }
@@ -2850,6 +2866,51 @@ body {
 }
 .app.bjm .bk-input::placeholder { color: var(--bj-ink-dim); }
 .app.bjm .shop-open-filter-chip.on { background: var(--bj-hero-grad); color: #06231a; border-color: transparent; }
+
+/* shopv2: "Barchasi / Mahallamga yetkazadi / Butun shahar" kind-filtr qatori — tasdiqlangan
+   dizaynga mos (bitta gorizontal-scroll qator, "Hozir ochiq" bilan birga). */
+.shop-kind-row { display: flex; gap: 8px; overflow-x: auto; padding: 4px 16px 10px; scrollbar-width: none; }
+.shop-kind-row::-webkit-scrollbar { display: none; }
+.shop-kind-chip { flex: none; padding: 8px 14px; border-radius: 20px; font-size: 13px; font-weight: 600; white-space: nowrap; cursor: pointer; background: var(--bj-card); color: var(--bj-ink); border: 1px solid var(--bj-line); backdrop-filter: blur(14px) saturate(180%); -webkit-backdrop-filter: blur(14px) saturate(180%); }
+.shop-kind-chip.on { background: var(--bj-hero-grad); color: #06231a; border-color: transparent; }
+.shop-kind-chip:active { transform: scale(0.96); }
+
+/* shopv2: "Butun shahar" 2-ustunli grid (mockup: rasm-qopqoq+katta bosh-harf+reyting+holat) */
+.shop-city-grid-wrap { padding: 18px 16px 24px; }
+.shop-section-title2 { font-size: 15px; font-weight: 800; color: var(--bj-ink); margin-bottom: 10px; letter-spacing: -0.2px; }
+.shop-city-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.shop-city-tile { background: var(--bj-card); backdrop-filter: blur(16px) saturate(180%); -webkit-backdrop-filter: blur(16px) saturate(180%); border: 1px solid var(--bj-line); border-radius: 16px; overflow: hidden; cursor: pointer; box-shadow: var(--bj-shadow); text-align: left; padding: 0; transition: transform var(--dur-press) var(--ease-out); }
+.shop-city-tile:active { transform: scale(0.96); }
+.shop-city-tile-cover { height: 88px; background: linear-gradient(160deg, rgba(52, 211, 153, .22), rgba(13, 150, 104, .12)); display: flex; align-items: center; justify-content: center; }
+.shop-city-tile-cover img { width: 100%; height: 100%; object-fit: cover; }
+.shop-city-tile-initial { font-size: 30px; font-weight: 800; color: rgba(255, 255, 255, .28); letter-spacing: -1px; }
+.shop-city-tile-body { padding: 10px 11px 12px; }
+.shop-city-tile-name { font-size: 13px; font-weight: 700; color: var(--bj-ink); }
+.shop-city-tile-rating { font-size: 11px; color: var(--bj-ink); margin-top: 2px; }
+.shop-city-tile-status { display: flex; align-items: center; gap: 5px; margin-top: 5px; font-size: 11px; color: var(--bj-ink-dim); }
+
+/* shopv2: "O'xshash do'konlar" — do'kon-profil pastida, doiraviy avatar-qator */
+.shop-similar-stores { padding: 20px 16px 24px; }
+.shop-similar-stores-row { display: flex; gap: 16px; overflow-x: auto; scrollbar-width: none; }
+.shop-similar-stores-row::-webkit-scrollbar { display: none; }
+.shop-similar-store { flex: none; display: flex; flex-direction: column; align-items: center; gap: 5px; width: 64px; background: none; border: none; cursor: pointer; color: inherit; }
+.shop-similar-store-av { width: 56px; height: 56px; border-radius: 28px; background: var(--bj-hero-grad); display: flex; align-items: center; justify-content: center; color: #fff; font-weight: 800; font-size: 16px; border: 2px solid rgba(255, 255, 255, .15); box-shadow: 0 6px 14px rgba(0, 0, 0, .35); overflow: hidden; }
+.shop-similar-store-av img { width: 100%; height: 100%; object-fit: cover; }
+.shop-similar-store-name { font-size: 10px; color: var(--bj-ink-dim); text-align: center; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 64px; }
+
+/* shopv2: do'kon-profil mahsulot-panjarasi — "Instagram-uslub" kvadrat kafel (StoreTile) */
+.shop-tile-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 2px; border-radius: 14px; overflow: hidden; margin: 4px 0; }
+.shop-tile { position: relative; aspect-ratio: 1 / 1; background: linear-gradient(160deg, rgba(52, 211, 153, .22), rgba(13, 150, 104, .14)); border: none; padding: 0; cursor: pointer; display: flex; align-items: center; justify-content: center; overflow: hidden; transition: transform var(--dur-press) var(--ease-out); }
+.shop-tile:active { transform: scale(0.95); }
+.shop-tile-img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+.shop-tile-initial { position: relative; font-size: 34px; font-weight: 800; color: rgba(255, 255, 255, .22); letter-spacing: -1px; }
+.shop-tile-grad { position: absolute; inset: 0; background: linear-gradient(to top, rgba(0, 0, 0, .6), transparent 55%); }
+.shop-tile-disc { position: absolute; top: 6px; left: 6px; font-size: 10px; font-weight: 900; padding: 2px 6px; border-radius: 999px; background: linear-gradient(135deg, #f0426b, #dc2626); color: #fff; z-index: 1; }
+.shop-tile-fav { position: absolute; top: 6px; right: 6px; width: 24px; height: 24px; border-radius: 50%; background: rgba(0, 0, 0, .35); backdrop-filter: blur(6px); display: flex; align-items: center; justify-content: center; color: rgba(255, 255, 255, .85); z-index: 1; cursor: pointer; }
+.shop-tile-fav.on { color: #ef4444; }
+.shop-tile-body { position: relative; align-self: flex-end; width: 100%; box-sizing: border-box; padding: 8px; color: #fff; z-index: 1; }
+.shop-tile-name { font-size: 10.5px; font-weight: 700; line-height: 1.2; overflow: hidden; text-overflow: ellipsis; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+.shop-tile-price { font-size: 10.5px; font-weight: 800; color: #f59e0b; margin-top: 2px; }
 .app.bjm .bj-cartbar { animation: bjmScreenIn .28s var(--ease-out); }
 .app.bjm .bj-cartbar.bump { animation: bjmBump .42s var(--ease-out); }
 @keyframes bjmBump { 0% { transform: scale(1); } 35% { transform: scale(1.05); } 100% { transform: scale(1); } }
