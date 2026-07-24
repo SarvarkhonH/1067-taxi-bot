@@ -165,6 +165,26 @@ export async function getMarketHome(preview = false, q?: string, memberId?: numb
 
 /** 🏪 D2: bitta do'konning profil-sahifasi (hero/info-qator/e'lon/hikoya/reyting). Owner-preview
  *  (`preview`) — bazar OFF bo'lsa ham egaga/adminlarga ko'rinadi, xuddi getMarketHome kabi. */
+/** Tashkent (UTC+5) bugungi kun boshlanishi, haqiqiy UTC'da — adminInsights.ts'dagi bir xil
+ *  yordamchining kichik nusxasi (mijozga-ochiq ordersToday hisobida ishlatiladi). */
+function tashkentTodayStart(): Date {
+  const shifted = new Date(Date.now() + 5 * 3600_000);
+  shifted.setUTCHours(0, 0, 0, 0);
+  return new Date(shifted.getTime() - 5 * 3600_000);
+}
+
+// BirJoy Market v2: mijozga ko'rinadigan "Bugun N marta buyurtma qabul qilgan" — real, soxta-
+// bo'lmaydigan signal ("tez javob beradi" belgisi o'rniga, dizaynerga aytilgan real cheklovga mos).
+export async function getShopOrdersToday(shopId: number): Promise<number> {
+  const todayStart = tashkentTodayStart();
+  const productIds = (await prisma.product.findMany({ where: { shopId }, select: { id: true } })).map((p) => p.id);
+  const [purchaseCount, orderCount] = await Promise.all([
+    productIds.length ? prisma.shopPurchase.count({ where: { productId: { in: productIds }, createdAt: { gte: todayStart } } }) : 0,
+    prisma.marketOrder.count({ where: { shopId, createdAt: { gte: todayStart } } }),
+  ]);
+  return purchaseCount + orderCount;
+}
+
 export async function getShopProfile(shopId: number, preview = false): Promise<ShopProfileView | null> {
   if (!preview && !(await featureOn("bazar"))) return null;
   const shop = await prisma.marketShop.findUnique({ where: { id: shopId } });
@@ -172,13 +192,16 @@ export async function getShopProfile(shopId: number, preview = false): Promise<S
   // V1.5: mahallaId bo'lsa Mahalla.name ustun keladi, aks holda eski erkin-matn neighborhood'ga fallback.
   const mahallaName = shop.mahallaId ? (await prisma.mahalla.findUnique({ where: { id: shop.mahallaId }, select: { name: true } }))?.name ?? null : null;
   const productIds = (await prisma.product.findMany({ where: { shopId }, select: { id: true } })).map((p) => p.id);
-  const ratingAgg = productIds.length
-    ? await prisma.productReview.aggregate({
-        where: { productId: { in: productIds }, rating: { not: null } },
-        _avg: { rating: true },
-        _count: { rating: true },
-      })
-    : null;
+  const [ratingAgg, ordersToday] = await Promise.all([
+    productIds.length
+      ? prisma.productReview.aggregate({
+          where: { productId: { in: productIds }, rating: { not: null } },
+          _avg: { rating: true },
+          _count: { rating: true },
+        })
+      : null,
+    getShopOrdersToday(shopId),
+  ]);
   return {
     id: shop.id,
     name: shop.name,
@@ -190,6 +213,7 @@ export async function getShopProfile(shopId: number, preview = false): Promise<S
     hasPhoto: !!(shop.photoFileId || shop.photoUrl),
     avgRating: Math.round(((ratingAgg?._avg.rating ?? 0)) * 10) / 10,
     reviewCount: ratingAgg?._count.rating ?? 0,
+    ordersToday,
   };
 }
 

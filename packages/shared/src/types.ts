@@ -63,6 +63,7 @@ export interface MeResponse {
     shopchat?: boolean; // 💬 BirJoy mijoz↔do'kon chat (owner-preview: admins see it while DARK)
     newhome?: boolean; // 🏠 premium super-app home redesign (owner-preview: admins see it while DARK)
     newprofile?: boolean; // 👤 enriched Profil redesign (owner-preview: admins see it while DARK)
+    shopv2?: boolean; // 🏪 BirJoy Market qorong'i-qayta-dizayni (owner-preview: admins see it while DARK)
   };
 }
 
@@ -534,6 +535,7 @@ export interface ShopProfileView {
   hasPhoto: boolean;
   avgRating: number;
   reviewCount: number;
+  ordersToday: number; // BirJoy Market v2: "Bugun N marta buyurtma qabul qilgan" — real, mijozga ko'rinadigan signal
 }
 
 export interface ShopProfileEditInput {

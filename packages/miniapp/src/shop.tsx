@@ -238,6 +238,9 @@ export function ShopView({ me, onBanner, reload, onBook, openProductId }: { me: 
 
   // 🏪 V1.4 (BirJoy): bazar-qatlam — flag OFF'da market so'ralmaydi ham, UI ham eski holicha AYNAN
   const bazar = !!me.flags?.bazar;
+  // 🌘 BirJoy Market v2: qorong'i-oynasimon qayta-dizayn (Claude Design'da tasdiqlangan) — faqat
+  // vizual qatlam (className toggle + tokens.css'dagi .app.bjm override'lari), mantiq o'zgarmaydi.
+  const shopv2 = !!me.flags?.shopv2;
   // 📹 S1: do'kon-hikoya — tray Bozor-boshda, alohida flag (bazar ON bo'lsa ham story hali DARK
   // bo'lishi mumkin, ega alohida QABUL qiladi).
   const shopstory = !!me.flags?.shopstory;
@@ -410,7 +413,7 @@ export function ShopView({ me, onBanner, reload, onBook, openProductId }: { me: 
     const pShop = p.shopId ?? 1;
     if (cartShopId !== null && cartShopId !== pShop && cartCount > 0) {
       // boshqa do'kon — savat bitta do'konga (sotuvchi o'zi yetkazadi)
-      if (!window.confirm("Savatda boshqa do'kon mahsuloti bor. Savat tozalanib, yangi do'kondan boshlansinmi?")) return;
+      if (!window.confirm("Savat bitta do'kon bilan cheklangan — yangi do'kon uchun tozalaymi?")) return;
       setCart({ [p.id]: Math.max(1, delta) });
       setCartShopId(pShop);
       haptic();
@@ -631,6 +634,8 @@ export function ShopView({ me, onBanner, reload, onBook, openProductId }: { me: 
   const friendsNeeded = deficit > 0 && refInfo?.rewardReferrer ? Math.max(1, Math.ceil(deficit / refInfo.rewardReferrer)) : null;
 
   return (
+    // 🌘 shopv2: dark-glass tema `.app.bjm` orqali App.tsx shell-klassidan keladi (tokens.css) —
+    // shop-wrap'ga qo'shimcha klass shart emas.
     <div className="shop-wrap">
       <div className="shop-head">
         <div>
@@ -733,7 +738,8 @@ export function ShopView({ me, onBanner, reload, onBook, openProductId }: { me: 
               <div className="bj-profile-info">
                 {shopProfile.neighborhood && <span>🏘 {shopProfile.neighborhood}</span>}
                 <span className={shopProfile.open ? "on" : ""}>{shopProfile.open ? "🟢 Ochiq" : "🔴 Yopiq"}</span>
-                <span>⚡ Tez javob beradi</span>
+                {/* haqiqiy signal (soxta "tez javob beradi" o'rniga) — getShopOrdersToday */}
+                {shopProfile.ordersToday > 0 && <span>📦 Bugun {shopProfile.ordersToday} marta buyurtma qabul qilgan</span>}
                 {shopProfile.deliveryText && <span>🚚 {shopProfile.deliveryText}</span>}
               </div>
               {shopProfile.announcement && <div className="bj-profile-announce">📣 {shopProfile.announcement}</div>}

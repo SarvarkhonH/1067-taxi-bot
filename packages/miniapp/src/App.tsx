@@ -356,7 +356,10 @@ export function App() {
   const TAB_PCT = 100 / TABS.length;
   const activeIndex = TABS.findIndex((t) => t.id === tab);
   const fabAt = Math.floor(TABS.length / 2); // 4 tabs → index 2 → renders between Do'kon and Restoran
-  const shellCls = tab === "dokon" ? (me?.flags?.bazar ? "app shop-light bazar-light" : "app shop-light") : tab === "elonlar" ? "app elonlar-light" : tab === "xizmat" ? "app xizmat-light" : tab === "restoran" ? "app restoran-light" : "app";
+  // 🏪 BirJoy Market v2: yangi qorong'i-oynasimon dizayn — flag ON'da shop-light/bazar-light
+  // OVERRIDE qo'llanmaydi (ilovaning tabiiy qorong'i bazaviy temasi ko'rinadi), o'rniga `bjm`
+  // klassi shop.tsx'dagi yangi dark-glass elementlarga aksent-uslub beradi.
+  const shellCls = tab === "dokon" ? (me?.flags?.shopv2 ? "app bjm" : me?.flags?.bazar ? "app shop-light bazar-light" : "app shop-light") : tab === "elonlar" ? "app elonlar-light" : tab === "xizmat" ? "app xizmat-light" : tab === "restoran" ? "app restoran-light" : "app";
 
   return (
     <div className={newhomeUi ? shellCls + " nh-app" : shellCls}>

@@ -2781,6 +2781,76 @@ body {
 .shop-rev-star:active { transform: scale(0.85); }
 .shop-rev-tanga-hint { color: var(--bj-accent-deep, #065f46); font-weight: 700; margin-bottom: 6px; }
 
+/* 📹 xavfsiz-zona tuzatish (v2-dizayn asosida topilgan bug, flag'dan qat'i nazar to'g'ri):
+   hikoya-ko'ruvchi tepa paneli status-bar/notch bilan aralashib ketardi. */
+.bj-story-head { padding-top: calc(env(safe-area-inset-top, 20px) + 16px); }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   🏪 BirJoy Market v2 (flag "shopv2") — Claude Design'da 2 marta iteratsiya
+   qilingan qorong'i-oynasimon (dark-glass) qayta-dizayn. `.app.bjm` root'ga
+   App.tsx'da qo'yiladi — shop-light/bazar-light O'RNIGA (ilovaning tabiiy
+   qorong'i bazaviy temasi ko'rinadi, endi bozor-bo'lim qolgan ilova bilan
+   BIR XIL asosga quriladi). Mavjud --bj-* tokenlarni butun D2/S1/mahalla/
+   loyalty/chat UI ALLAQACHON iste'mol qiladi — shu yerda FAQAT shu
+   tokenlarni qorong'i-shisha qiymatlarga almashtiramiz (bulk-JSX kerak emas).
+   Qolgani (shop-card/hero/search/CTA) — yuqoridagi unconditional "OQ karta"
+   v3-temani `.app.bjm` bilan (yuqoriroq specificity) override qilamiz.
+   ═══════════════════════════════════════════════════════════════════════════ */
+.app.bjm {
+  --bj-accent: #34d399;
+  --bj-accent-deep: #6ee7b7;
+  --bj-tanga: #f59e0b;
+  --bj-tanga-grad: linear-gradient(135deg, #fbbf24, #f59e0b);
+  --bj-hero-grad: linear-gradient(120deg, #0d9668, #10b981 55%, #34d399 130%);
+  --bj-bg-grad: radial-gradient(140% 55% at 15% -10%, rgba(13, 150, 104, .32), transparent 62%), radial-gradient(100% 40% at 100% 100%, rgba(245, 158, 11, .09), transparent 55%), linear-gradient(180deg, #0d1712, #070a08);
+  --bj-card: rgba(255, 255, 255, 0.055);
+  --bj-line: rgba(255, 255, 255, 0.10);
+  --bj-sale: #fb7185;
+  --bj-ink: #eef6f1;
+  --bj-ink-dim: #93a89b;
+  --bj-shadow: 0 10px 30px -14px rgba(0, 0, 0, .55);
+}
+
+.app.bjm .shop-wrap { background: var(--bj-bg-grad); border-radius: 0; animation: bjmScreenIn .32s var(--ease-out); }
+.app.bjm .shop-title { background: linear-gradient(135deg, #6ee7b7, #34d399); -webkit-background-clip: text; background-clip: text; }
+.app.bjm .shop-search { background: rgba(255, 255, 255, .05); border: 1px solid var(--bj-line); color: var(--bj-ink); backdrop-filter: blur(14px) saturate(160%); -webkit-backdrop-filter: blur(14px) saturate(160%); }
+.app.bjm .shop-search::placeholder { color: var(--bj-ink-dim); }
+.app.bjm .shop-orders-btn, .app.bjm .shop-share-btn { background: rgba(255, 255, 255, .06); border: 1px solid var(--bj-line); color: var(--bj-ink); backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px); }
+.app.bjm .shop-cat-chip { background: rgba(255, 255, 255, .05); border: 1px solid var(--bj-line); color: var(--bj-ink-dim); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); }
+.app.bjm .shop-cat-chip.on { background: var(--bj-hero-grad); color: #06231a; border-color: transparent; }
+
+/* mahsulot-kartalar — dark-glass (yuqoridagi unconditional "OQ" v3-temani almashtiradi) */
+.app.bjm .shop-card, .app.bjm .shop-hero { --acc: #34d399; }
+.app.bjm .shop-card, .app.bjm .shop-card.glass {
+  background: rgba(255, 255, 255, .045); border: 1px solid var(--bj-line);
+  box-shadow: var(--bj-shadow); backdrop-filter: blur(16px) saturate(170%); -webkit-backdrop-filter: blur(16px) saturate(170%);
+}
+.app.bjm .shop-card-name { color: var(--bj-ink); }
+.app.bjm .shop-card-photo, .app.bjm .shop-detail-photo, .app.bjm .shop-mini-img, .app.bjm .shop-gallery-img { background: rgba(255, 255, 255, .04); }
+.app.bjm .shop-card-noimg { background: radial-gradient(circle at 50% 40%, rgba(52, 211, 153, .18), rgba(255, 255, 255, .03) 78%); color: var(--bj-ink-dim); }
+/* brend-qoida: amber FAQAT tanga-narx, zumrad FAQAT CTA/aksent */
+.app.bjm .shop-price-chip { background: rgba(245, 158, 11, .14); color: #fbbf24; border: 1px solid rgba(245, 158, 11, .28); }
+.app.bjm .shop-price-old { color: var(--bj-ink-dim); }
+.app.bjm .shop-buy-bar { background: var(--bj-hero-grad); color: #06231a; box-shadow: 0 4px 14px -4px rgba(13, 150, 104, .55); }
+.app.bjm .shop-mini { background: rgba(255, 255, 255, .045); border: 1px solid var(--bj-line); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); }
+.app.bjm .shop-mini-name { color: var(--bj-ink); }
+.app.bjm .shop-mini-price { color: #34d399; }
+.app.bjm .shop-section-title { color: var(--bj-ink); }
+
+/* CTA-tugmalar — zumrad (ilova-keng amber-brand o'rniga, FAQAT shop-wrap ichida) */
+.app.bjm .d-btn:not(.ghost):not(.danger) { background: var(--bj-hero-grad); color: #06231a; box-shadow: 0 8px 22px -10px rgba(13, 150, 104, .55); }
+.app.bjm .d-btn.ghost { background: rgba(255, 255, 255, .05); color: var(--bj-ink); border: 1px solid var(--bj-line); }
+
+/* savat/checkout/manzil-input — shisha-karta */
+.app.bjm .shop-cart-totals, .app.bjm .shop-qty-btn, .app.bjm .bk-input, .app.bjm .shop-order-row {
+  background: rgba(255, 255, 255, .05); border: 1px solid var(--bj-line); color: var(--bj-ink); backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px);
+}
+.app.bjm .bk-input::placeholder { color: var(--bj-ink-dim); }
+.app.bjm .shop-open-filter-chip.on { background: var(--bj-hero-grad); color: #06231a; border-color: transparent; }
+.app.bjm .bj-cartbar { animation: bjmScreenIn .28s var(--ease-out); }
+
+@keyframes bjmScreenIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+
 /* ═══════════════════════════════════════════════════════════════════════════
    🏠 UY_REDESIGN — premium super-app home (feature "newhome"). Namespaced --nh-*
    theme tokens (dark / light / vibrant) so selecting a theme restyles ONLY the
