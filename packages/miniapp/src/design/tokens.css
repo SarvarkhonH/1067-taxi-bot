@@ -2843,9 +2843,12 @@ body {
 .nh-svc .ic { width:54px; height:54px; border-radius:18px; display:flex; align-items:center; justify-content:center; font-size:24px; border:1px solid var(--nh-ln); position:relative; }
 .nh-svc .lb { font-size:11px; font-weight:600; color:var(--nh-dim); }
 .nh-svc .bd { position:absolute; top:-5px; right:-5px; background:#ef4444; color:#fff; font-size:8.5px; font-weight:800; padding:2px 5px; border-radius:99px; border:2px solid var(--nh-bg); }
-.nh-svc.locked { opacity:.55; }
-.nh-svc.locked .ic { background:var(--nh-gl); color:var(--nh-dim); font-size:18px; }
+.nh-svc.locked { opacity:.78; }
+.nh-svc.locked .ic { filter:grayscale(.6); }
 .nh-svc.locked .lb { font-style:italic; }
+.soon-bd { position:absolute; bottom:-3px; right:-3px; width:18px; height:18px; border-radius:50%;
+  background:var(--nh-bgrad); display:flex; align-items:center; justify-content:center; font-size:10px;
+  border:2px solid var(--nh-bg); }
 .nh-i-b { background:rgba(59,130,246,.16); color:var(--nh-blue); } .nh-i-o { background:rgba(251,146,60,.18); color:var(--nh-org); }
 .nh-i-t { background:rgba(45,212,191,.16); color:var(--nh-teal); } .nh-i-v { background:rgba(167,139,250,.18); color:var(--nh-vio); }
 .nh-i-p { background:rgba(244,114,182,.16); color:var(--nh-pink); } .nh-i-g { background:rgba(52,211,153,.16); color:var(--nh-grn); }
@@ -2919,11 +2922,11 @@ body {
 .nh-hub-h { font-size:18px; font-weight:800; color:var(--nh-tx); margin-bottom:12px; }
 .nh-hub-grid { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
 .nh-hc { background:var(--nh-sf); border:1px solid var(--nh-ln); border-radius:18px; padding:15px; text-align:left; position:relative; }
-.nh-hc .hi { width:48px; height:48px; border-radius:15px; display:flex; align-items:center; justify-content:center; font-size:24px; }
+.nh-hc .hi { width:48px; height:48px; border-radius:15px; display:flex; align-items:center; justify-content:center; font-size:24px; position:relative; }
 .nh-hc .hn { font-size:14.5px; font-weight:800; margin-top:10px; color:var(--nh-tx); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 .nh-hc .hs { font-size:11.5px; color:var(--nh-dim); margin-top:3px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-.nh-hc.locked { opacity:.55; }
-.nh-hc.locked .hi { background:var(--nh-gl); color:var(--nh-dim); font-size:18px; }
+.nh-hc.locked { opacity:.82; }
+.nh-hc.locked .hi { filter:grayscale(.6); }
 
 /* skeletons */
 .nh-skel { position:relative; overflow:hidden; background:var(--nh-sf2); border-radius:12px; }

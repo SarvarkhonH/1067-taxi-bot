@@ -134,8 +134,8 @@ export function NewUyView({ me, onBook, onNav, onBanner }: { me: MeResponse; onB
     { on: !!f.shop, ic: "nh-i-b", em: "🏪", lb: "Do'kon", nav: "dokon", locked: false },
     { on: !!f.restoran, ic: "nh-i-o", em: "🍽", lb: "Restoran", nav: "restoran", locked: false },
     { on: !!f.intercity, ic: "nh-i-t", em: "🚐", lb: "Yo'l", nav: "yol", locked: false },
-    { on: !!f.xizmatlar, ic: "nh-i-v", em: "🔧", lb: FOCUS_MODE ? "Tez orada" : "Xizmat", nav: "xizmat", locked: FOCUS_MODE },
-    { on: !!f.elonlar, ic: "nh-i-p", em: "📋", lb: FOCUS_MODE ? "Tez orada" : "E'lon", nav: "elonlar", locked: FOCUS_MODE },
+    { on: !!f.xizmatlar, ic: "nh-i-v", em: "🔧", lb: "Xizmat", nav: "xizmat", locked: FOCUS_MODE },
+    { on: !!f.elonlar, ic: "nh-i-p", em: "📋", lb: "E'lon", nav: "elonlar", locked: FOCUS_MODE },
     { on: true, ic: "nh-i-g", em: "🎁", lb: "Bonus", nav: "play", locked: false },
   ].filter((r) => r.on);
 
@@ -175,7 +175,8 @@ export function NewUyView({ me, onBook, onNav, onBanner }: { me: MeResponse; onB
         <div className="nh-rail">
           {rail.map((r) => (
             <button key={r.nav} className={`nh-svc${r.locked ? " locked" : ""}`} onClick={() => tapRail(r)}>
-              <span className={`ic ${r.ic}`}>{r.locked ? "🔒" : r.em}</span><span className="lb">{r.lb}</span>
+              <span className={`ic ${r.ic}`}>{r.em}{r.locked && <span className="soon-bd" aria-hidden="true">🔒</span>}</span>
+              <span className="lb">{r.lb}</span>
             </button>
           ))}
           <button className="nh-svc" onClick={() => { haptic(); setHub(true); }}>
@@ -303,7 +304,7 @@ function ServicesHub({ me, onNav, onClose, onBanner }: { me: MeResponse; onNav: 
         <div className="nh-hub-grid">
           {items.map((i) => (
             <button key={i.n} className={`nh-hc${i.locked ? " locked" : ""}`} onClick={() => tap(i)}>
-              <span className={`hi ${i.ic}`}>{i.locked ? "🔒" : i.em}</span>
+              <span className={`hi ${i.ic}`}>{i.em}{i.locked && <span className="soon-bd" aria-hidden="true">🔒</span>}</span>
               <div className="hn">{i.n}</div><div className="hs">{i.s}</div>
             </button>
           ))}
