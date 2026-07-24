@@ -2484,3 +2484,63 @@ ochiladi, real API'ga tegmaydi).
 **HOLAT: ready for (re-)verification.** Ega yana o'z telefonida ko'rishi kerak — bu safar
 "chalaku"ning ILDIZ sababi (oq-sheet + o'lik-CTA-rang + ikki-IA-ustma-ust) tuzatildi, lekin
 DOM-nesting bug va hikoya-ko'ruvchi hali chuqur tekshirilmagan.
+
+## 2026-07-24 (40) — BirJoy Market v2: real skrinshot-topilmalar + "to'liq qil" bosqichi
+Ega #39'dan keyin REAL qurilma-skrinshotlarini yubordi ("farqi juda katta... nega bunaqa qila
+olmayapsan") — bu birinchi marta shu sessiyada HAQIQIY (Telegram-ichida, mock emas) render ko'rindi.
+3 ta skrinshotdan aniq, isbotlanadigan muammolar topildi (taxminiy emas):
+
+1. **Sarlavha "Bir..." bo'lib qisqarib ketardi** — `.shop-head`dagi ichki sarlavha ("🏪 BirJoy
+   bozori" / do'kon-nomi) 2-3 ta amal-tugma bilan bir qatorda joy yetmay ellipsis bilan kesilardi.
+   Bundan tashqari bu sarlavha MAZMUNAN ORTIQCHA edi: bosh-sahifada tashqi App-topbar allaqachon
+   "Do'kon" deydi, do'kon-profilda esa nom yana ikki joyda (bj-sect heading + hero-rasmning pastki
+   qatlamida) takrorlanardi — profilda nom UCH MARTA chiqardi. shopv2'da bu ichki sarlavha butunlay
+   olib tashlandi (bj-sect'dagi ikkinchi nusxasi ham) — endi nom BIR marta (hero-name'da) chiqadi,
+   amal-tugmalarga har doim joy yetadi.
+2. **"🤍 Do'konga yozish"** — skrinshotda 💬 emoji bo'sh/generic belgi bo'lib chiqqan (font-
+   yo'qligi, `share` ikonkasi bilan bir xil sabab bu loyihada allaqachon bilingan muammo). SVG
+   `chat`/`heart`/`pin`/`cart` ikonkalar qo'shildi (`icons.tsx`) va barcha shop-chrome emoji-
+   tugmalar (fav-yurak x3 joy, mahalla-pin, savat-bar) SVG'ga almashtirildi — legacy (shopv2 OFF)
+   holatga ham TEGADI (xavfsiz, chunki currentColor mavjud rang-tokendan meros oladi, funksional
+   o'zgarish yo'q).
+3. Yon-topilmalar (ilgari "ataylab qoldirilgan" deb yozilgan bandlar, bu safar bajarildi):
+   savat-almashtirish endi `window.confirm` o'rniga (shopv2'da) avtomatik-tozalash+toast; savat-
+   barda son ko'payganda qisqa "bump" animatsiya; `ProductCard`dagi `<button>` ichidagi `<button>`
+   (HAQIQIY, shopv2'dan OLDIN ham bor edi) `<span role="button">`ga almashtirildi.
+**Isbot**: `#shopdemo`'ga mock-hikoya-data qo'shildi (avval `stories:[]` edi, hikoya-ko'ruvchi hech
+qachon ochilmasdi) — endi hikoya-ko'ruvchi va mahalla-tanlov sheet HAM to'liq qorong'i-shisha ekani
+tasdiqlandi (oldingi tekshiruvda "hali tekshirilmagan" deb qayd etilgan ikkala bo'shliq yopildi).
+Konsolь — xato/ogohlantirish YO'Q (DOM-nesting ogohlantirishi ham yo'qoldi). `tsc --noEmit` 0 xato.
+Deploy: commit `1b3cd1f` → push → Vercel prebuilt → bundle-grep live: CSS'da `#11201a` va JS'da
+`homeFlatCatalog`/`showHeroStrip` (minifikatsiyada o'zgaruvchi-nomlar yo'qolgani uchun BEVOSITA
+tekshirilmadi — buning o'rniga `#11201a`/`bj-chat-privacy` kabi CSS-klass-satrlar bilan tasdiqlandi,
+chunki CSS-klass-nomlari JS-minifikatordan xoli qoladi).
+
+Shu bilan bir vaqtda ega ikkita qo'shimcha savol/topilma yubordi:
+- **"hamma joyga tanga emas so'm ishlatish kerakmi?"** — AskUserQuestion bilan aniqlashtirildi:
+  FAQAT do'kon-narxlarda (safar-bonus/sovg'a-tanga/referral — "tanga" so'zida qoladi, chunki bu
+  haqiqatan o'yin-mukofot). Barcha AMBIENT narx-ko'rsatkichlar (mahsulot-karta/hero/detail/savat-
+  qator/jami/buyurtma-tarix/ulashish-matni) `🪙 X` dan `X so'm`ga almashtirildi. "Tanga" so'zi FAQAT
+  haqiqiy tanga-HAMYON bilan bog'liq joylarda qoldi: "Tanga bilan olish" to'lov-usuli tugmasi,
+  yetarli-emas-balans taqqoslash/defitsit, hamyon-qaytarish tasdiqlari (bular narx emas — hamyon
+  holati). Bu o'zgarish shopv2'ga BOG'LIQ EMAS — legacy UI'ga ham tegadi (ega umumiy qaror sifatida
+  tasdiqladi).
+- **"o'xshash mahsulotlar nega bosa o'tib ketmayapti?"** — HAQIQIY bug topildi va tuzatildi:
+  `openProduct(p)` `sel`ni almashtiradi, lekin Sheet komponenti QAYTA OCHILMAYDI (bir xil DOM,
+  faqat kontent yangilanadi) — sheet scroll-pozitsiyasi ESKI joyida qolib ketardi. "O'xshash
+  mahsulotlar" qatori har doim mahsulot-detail sahifaning ENG PASTIDA — demak foydalanuvchi
+  albatta pastga skroll qilgan holda bosadi; bosgach yangi mahsulot HAQIQATDA yuklanardi, lekin
+  foydalanuvchi hamon pastda turgani uchun HECH NARSA O'ZGARMAGANDEK ko'rinardi (aslida ekranning
+  tepasida — ko'rinmas joyda — nom/rasm/narx allaqachon almashgan edi). Endi bosilganda
+  `e.currentTarget.closest(".d-sheet")?.scrollTo({top:0})` bilan sheet avtomatik tepaga qaytadi.
+  Skriptlangan sinov (scrollTop=400 qo'yib bosish) bilan tasdiqlandi: bosishdan keyin scrollTop=0
+  VA yangi mahsulot nomi to'g'ri ko'rsatildi.
+**Isbot**: `tsc --noEmit` 0 xato. `#shopdemo`'da qo'lda+skriptlangan sinov (yuqorida). Deploy:
+commit `283b260` → push → Vercel prebuilt (Windows fayl-qulfi sababli `dist/` ikki marta
+tozalanmadi — `--outDir dist2` bilan chetlab o'tildi, keyin tozalandi) → bundle-grep live:
+`so'm` va `closest(".d-sheet")` shop-bundle'da, `bj-cartbar-count`/`bj-fav.on` CSS'da topildi.
+
+**HOLAT: ready for (re-)verification.** Bu safar real-qurilma skrinshotlaridan kelib chiqqan aniq
+bug'lar tuzatildi (sarlavha-kesilishi, ikonka-emoji-yo'qligi, narx-so'zi, o'xshash-mahsulot-
+navigatsiya) — lekin bularning HAMMASI hali ega tomonidan REAL qurilmada tasdiqlanmagan.
+Keyingi qadam: ega yana ko'rib, yangi skrinshot/fikr bersin.
