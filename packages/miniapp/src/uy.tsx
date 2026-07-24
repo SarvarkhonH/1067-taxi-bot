@@ -98,7 +98,13 @@ function timeAgo(iso: string): string {
   return `${Math.round(s / 86400)} kun oldin`;
 }
 
-export function NewUyView({ me, onBook, onNav }: { me: MeResponse; onBook: () => void; onNav: (t: string) => void; onBanner?: (msg: string) => void }) {
+// 2026-07-23 owner: hozircha Do'kon + Restoran + Taxi'ga fokus — Xizmatlar/E'lonlar kirish yo'llari
+// (rail, hub, home content-bloklari) vaqtincha qulflangan, "Tez orada" bilan. Qayta ochish uchun
+// shu bitta bayroqni false qiling — boshqa hech narsa o'zgarmaydi (kod/ma'lumot saqlanib qoladi).
+const FOCUS_MODE = true;
+const COMING_SOON_MSG = "🔒 Tez orada! Hozircha Do'kon, Restoran va Taxi'ga fokuslanyapmiz.";
+
+export function NewUyView({ me, onBook, onNav, onBanner }: { me: MeResponse; onBook: () => void; onNav: (t: string) => void; onBanner?: (msg: string) => void }) {
   const [feed, setFeed] = useState<HomeFeedItem[] | null>(null);
   const [banner, setBanner] = useState<HomeBanner | null>(null);
   const [hub, setHub] = useState(false);
@@ -115,25 +121,26 @@ export function NewUyView({ me, onBook, onNav }: { me: MeResponse; onBook: () =>
   }, []);
 
   // 🔧 Xizmatlar (yaqin ustalar) + 📋 E'lonlar content-bloklari — home'da REAL kontent bilan,
-  // faqat rail-ikonka emas (UY_REDESIGN_DOD §3.1 7b/7c). Faqat mos flag ON bo'lsa so'raladi.
+  // faqat rail-ikonka emas (UY_REDESIGN_DOD §3.1 7b/7c). Faqat mos flag ON va FOCUS_MODE off bo'lsa so'raladi.
   useEffect(() => {
     let alive = true;
-    if (f.xizmatlar) api.svcList({ limit: 5, sort: "new" }).then((r) => { if (alive) setUstas(r.listings); }).catch(() => { if (alive) setUstas([]); });
-    if (f.elonlar) api.elonAds({ limit: 5 }).then((r) => { if (alive) setElons(r.ads); }).catch(() => { if (alive) setElons([]); });
+    if (!FOCUS_MODE && f.xizmatlar) api.svcList({ limit: 5, sort: "new" }).then((r) => { if (alive) setUstas(r.listings); }).catch(() => { if (alive) setUstas([]); });
+    if (!FOCUS_MODE && f.elonlar) api.elonAds({ limit: 5 }).then((r) => { if (alive) setElons(r.ads); }).catch(() => { if (alive) setElons([]); });
     return () => { alive = false; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const rail = [
-    { on: !!f.shop, ic: "nh-i-b", em: "🏪", lb: "Do'kon", nav: "dokon" },
-    { on: !!f.restoran, ic: "nh-i-o", em: "🍽", lb: "Restoran", nav: "restoran" },
-    { on: !!f.intercity, ic: "nh-i-t", em: "🚐", lb: "Yo'l", nav: "yol" },
-    { on: !!f.xizmatlar, ic: "nh-i-v", em: "🔧", lb: "Xizmat", nav: "xizmat" },
-    { on: !!f.elonlar, ic: "nh-i-p", em: "📋", lb: "E'lon", nav: "elonlar" },
-    { on: true, ic: "nh-i-g", em: "🎁", lb: "Bonus", nav: "play" },
+    { on: !!f.shop, ic: "nh-i-b", em: "🏪", lb: "Do'kon", nav: "dokon", locked: false },
+    { on: !!f.restoran, ic: "nh-i-o", em: "🍽", lb: "Restoran", nav: "restoran", locked: false },
+    { on: !!f.intercity, ic: "nh-i-t", em: "🚐", lb: "Yo'l", nav: "yol", locked: false },
+    { on: !!f.xizmatlar, ic: "nh-i-v", em: "🔧", lb: FOCUS_MODE ? "Tez orada" : "Xizmat", nav: "xizmat", locked: FOCUS_MODE },
+    { on: !!f.elonlar, ic: "nh-i-p", em: "📋", lb: FOCUS_MODE ? "Tez orada" : "E'lon", nav: "elonlar", locked: FOCUS_MODE },
+    { on: true, ic: "nh-i-g", em: "🎁", lb: "Bonus", nav: "play", locked: false },
   ].filter((r) => r.on);
 
   const go = (t: string) => { haptic(); onNav(t); };
+  const tapRail = (r: (typeof rail)[number]) => (r.locked ? onBanner?.(COMING_SOON_MSG) : go(r.nav));
   const badgeLabel = (b?: string) => (b === "top" ? "🔥 TOP" : b === "new" ? "Yangi" : b === "disc" ? "Chegirma" : "");
 
   return (
@@ -167,8 +174,8 @@ export function NewUyView({ me, onBook, onNav }: { me: MeResponse; onBook: () =>
       {(rail.length > 0) && (
         <div className="nh-rail">
           {rail.map((r) => (
-            <button key={r.nav} className="nh-svc" onClick={() => go(r.nav)}>
-              <span className={`ic ${r.ic}`}>{r.em}</span><span className="lb">{r.lb}</span>
+            <button key={r.nav} className={`nh-svc${r.locked ? " locked" : ""}`} onClick={() => tapRail(r)}>
+              <span className={`ic ${r.ic}`}>{r.locked ? "🔒" : r.em}</span><span className="lb">{r.lb}</span>
             </button>
           ))}
           <button className="nh-svc" onClick={() => { haptic(); setHub(true); }}>
@@ -219,7 +226,7 @@ export function NewUyView({ me, onBook, onNav }: { me: MeResponse; onBook: () =>
         </>
       ) : null}
 
-      {f.xizmatlar && ustas !== null && ustas.length > 0 && (
+      {!FOCUS_MODE && f.xizmatlar && ustas !== null && ustas.length > 0 && (
         <>
           <div className="nh-sh"><div className="t">🔧 Xizmatlar<small>Yaqin atrofdagi ustalar</small></div><button className="all" onClick={() => go("xizmat")}>Barchasi</button></div>
           <div className="nh-urow">
@@ -244,7 +251,7 @@ export function NewUyView({ me, onBook, onNav }: { me: MeResponse; onBook: () =>
         </>
       )}
 
-      {f.elonlar && elons !== null && elons.length > 0 && (
+      {!FOCUS_MODE && f.elonlar && elons !== null && elons.length > 0 && (
         <>
           <div className="nh-sh"><div className="t">📋 E'lonlar<small>Mahalladagi so'nggilari</small></div><button className="all" onClick={() => go("elonlar")}>Barchasi</button></div>
           <div className="nh-elist">
@@ -265,26 +272,29 @@ export function NewUyView({ me, onBook, onNav }: { me: MeResponse; onBook: () =>
         <span className="ar">→</span>
       </button>
 
-      {hub && <ServicesHub me={me} onNav={onNav} onClose={() => setHub(false)} />}
+      {hub && <ServicesHub me={me} onNav={onNav} onClose={() => setHub(false)} onBanner={onBanner} />}
     </div>
   );
 }
 
 // "Barchasi xizmatlar" bottom-sheet hub — every vertical in one grid (flag-gated).
-function ServicesHub({ me, onNav, onClose }: { me: MeResponse; onNav: (t: string) => void; onClose: () => void }) {
+function ServicesHub({ me, onNav, onClose, onBanner }: { me: MeResponse; onNav: (t: string) => void; onClose: () => void; onBanner?: (msg: string) => void }) {
   const f = me.flags ?? {};
   const items = [
-    { on: true, ic: "nh-i-o", em: "🚖", n: "Taxi", s: "Chaqirish", nav: "uy" },
-    { on: !!f.shop, ic: "nh-i-b", em: "🏪", n: "Do'kon", s: "Mahsulot xarid", nav: "dokon" },
-    { on: !!f.restoran, ic: "nh-i-o", em: "🍽", n: "Restoran", s: "Taom yetkazish", nav: "restoran" },
-    { on: !!f.xizmatlar, ic: "nh-i-v", em: "🔧", n: "Xizmatlar", s: "Usta · master", nav: "xizmat" },
-    { on: !!f.elonlar, ic: "nh-i-p", em: "📋", n: "E'lonlar", s: "Mahalla taxtasi", nav: "elonlar" },
-    { on: !!f.intercity, ic: "nh-i-t", em: "🚐", n: "Yo'l", s: "Shaharlararo", nav: "yol" },
-    { on: true, ic: "nh-i-g", em: "🎁", n: "Bonus", s: "O'yin · vazifa", nav: "play" },
-    { on: true, ic: "nh-i-g", em: "🏆", n: "Reyting", s: "Liga · do'stlar", nav: "reyting" },
-    { on: true, ic: "nh-i-t", em: "👛", n: "Hamyon", s: "Tanga · cashback", nav: "wallet" },
+    { on: true, ic: "nh-i-o", em: "🚖", n: "Taxi", s: "Chaqirish", nav: "uy", locked: false },
+    { on: !!f.shop, ic: "nh-i-b", em: "🏪", n: "Do'kon", s: "Mahsulot xarid", nav: "dokon", locked: false },
+    { on: !!f.restoran, ic: "nh-i-o", em: "🍽", n: "Restoran", s: "Taom yetkazish", nav: "restoran", locked: false },
+    { on: !!f.xizmatlar, ic: "nh-i-v", em: "🔧", n: "Xizmatlar", s: FOCUS_MODE ? "🔒 Tez orada" : "Usta · master", nav: "xizmat", locked: FOCUS_MODE },
+    { on: !!f.elonlar, ic: "nh-i-p", em: "📋", n: "E'lonlar", s: FOCUS_MODE ? "🔒 Tez orada" : "Mahalla taxtasi", nav: "elonlar", locked: FOCUS_MODE },
+    { on: !!f.intercity, ic: "nh-i-t", em: "🚐", n: "Yo'l", s: "Shaharlararo", nav: "yol", locked: false },
+    { on: true, ic: "nh-i-g", em: "🎁", n: "Bonus", s: "O'yin · vazifa", nav: "play", locked: false },
+    { on: true, ic: "nh-i-g", em: "🏆", n: "Reyting", s: "Liga · do'stlar", nav: "reyting", locked: false },
+    { on: true, ic: "nh-i-t", em: "👛", n: "Hamyon", s: "Tanga · cashback", nav: "wallet", locked: false },
   ].filter((i) => i.on);
-  const go = (t: string) => { haptic(); onClose(); onNav(t); };
+  const tap = (i: (typeof items)[number]) => {
+    if (i.locked) { haptic(); onBanner?.(COMING_SOON_MSG); return; }
+    haptic(); onClose(); onNav(i.nav);
+  };
   return (
     <div className="nh-hub-scrim" onClick={onClose}>
       <div className="nh-hub" onClick={(e) => e.stopPropagation()}>
@@ -292,8 +302,8 @@ function ServicesHub({ me, onNav, onClose }: { me: MeResponse; onNav: (t: string
         <div className="nh-hub-h">Barchasi xizmatlar</div>
         <div className="nh-hub-grid">
           {items.map((i) => (
-            <button key={i.n} className="nh-hc" onClick={() => go(i.nav)}>
-              <span className={`hi ${i.ic}`}>{i.em}</span>
+            <button key={i.n} className={`nh-hc${i.locked ? " locked" : ""}`} onClick={() => tap(i)}>
+              <span className={`hi ${i.ic}`}>{i.locked ? "🔒" : i.em}</span>
               <div className="hn">{i.n}</div><div className="hs">{i.s}</div>
             </button>
           ))}
