@@ -2350,3 +2350,80 @@ tasi shop 1'dan) → to'g'ri ajratilgan; member 6420 (1 xarid) → to'g'ri. Depl
 kuzatilmoqda-signal · sodiqlik-progress-bar.
 **Keyingi (ega so'ramaguncha boshlanmaydi)**: §10.3'ning qolgani (yordam-tugma buyurtma-kartada,
 chat-ichidan savatga, jonli ETA, swipe-up-shop va h.k. — to'liq ro'yxat reja §10.3'da).
+
+## 2026-07-24 (38) — BirJoy Market v2: qorong'i-oynasimon qayta-dizayn — READY FOR VERIFICATION
+Ega Claude Design'da ikki marta iteratsiya qildi (v1'da haqiqiy ma'lumot-modelga mos kelmaydigan
+maydonlar bor edi — sektor/GPS-masofa/soxta "tez javob"; kuchaytirilgan promt bilan qayta so'ralgach
+v2 deyarli har bir muammoni to'g'ri hal qildi). Bu commit — o'sha v2'ning HAQIQIY kodga aylantirilgan
+qismi, `shopv2` flag ortida (DARK, owner-preview: `flagPreview = flagOn || isAdmin(tgId)` — ega
+allaqachon o'z ekranida ko'radi, oddiy mijozlar eski UI'ni ko'rishda davom etadi).
+
+**Yondashuv — MUHIM aniqlashtirish**: reja to'liq 5-ekran JSX-qayta-qurish edi. Amalda kodni
+o'rganganimda D2 (do'kon-profil)/S1 (hikoya)/mahalla-kartalar/sodiqlik/chat allaqachon `--bj-*`
+CSS-tokenlaridan foydalanar edi — shu sabab **CSS-token-retint yondashuvi** tanlandi: `.app.bjm`
+scope tokenlarni (`--bj-card`, `--bj-ink`, `--bj-line`, `--bj-hero-grad` va h.k.) qorong'i-shisha
+qiymatlarga almashtiradi, bu bir zarba bilan D2/S1/mahalla/loyalty/chat'ni JSX'ga tegmasdan
+retheme qiladi. Bundan tashqari `shop-card`/`shop-hero`/`shop-search`/`d-btn` kabi tokenlashtirilmagan
+klasslar uchun `.app.bjm` ostida aniq override qo'shildi (yuqori specificity bilan eski "OQ karta"
+v3-temani yutadi). **Bu — Claude Design mockup'ining PIXEL-PARITY qayta yaratilishi EMAS** — bu
+mavjud komponentlarni dizaynning rang/shisha/harakat tilida qayta-bo'yash. Vizual natija bir xil
+yo'nalishda (qorong'i-shisha, zumrad-CTA, amber-narx, pulslash, screen-in animatsiya), lekin
+mockup'dagi aniq JSX-tuzilma (masalan alohida `IOSDevice` frame, mockup'ning o'ziga xos spacing'i)
+TAKRORLANMAGAN.
+
+**Nima qilindi**:
+- `getShopOrdersToday(shopId)` + `ShopProfileView.ordersToday` — soxta "⚡ Tez javob beradi"
+  da'vosi HAQIQIY hisoblangan "📦 Bugun N marta buyurtma qabul qilgan" bilan almashtirildi
+  (0 bo'lsa umuman ko'rsatilmaydi — yo'q narsani ko'rsatishdan yaxshi).
+- `.app.bjm` CSS-scope (`tokens.css`): --bj-* tokenlarni qorong'i-shisha qiymatlarga o'zgartiradi +
+  shop-card/hero/search/cat-chip/d-btn/cart-checkout uchun aniq dark-glass override + backdrop-
+  filter blur + `bjmScreenIn` ekran-kirish animatsiyasi (mavjud global `prefers-reduced-motion`
+  guard — `* { animation:none !important }` — avtomatik qamrab oladi, alohida qoida kerak emas).
+- App.tsx: `shopv2` flag ON bo'lsa shell-klass `shop-light`/`bazar-light` O'RNIGA `app bjm` —
+  bozor-bo'lim endi ilovaning tabiiy qorong'i bazaviy temasiga MOS (avval yagona YORUG' istisno edi).
+- Hikoya-ko'ruvchi tepa-paneli xavfsiz-zona tuzatildi (`calc(env(safe-area-inset-top,20px)+16px)`)
+  — flag'dan qat'i nazar, sof bug-fix.
+- Savat-almashtirish `window.confirm` matni yumshatildi ("Savat bitta do'kon bilan cheklangan —
+  yangi do'kon uchun tozalaymi?") — funksional mantiq O'ZGARMADI (hali `window.confirm`, mockup'dagi
+  custom-toast EMAS — bu keyingi bosqichga qoldirildi, quyida).
+
+**Ataylab QOLDIRILGAN (kelgusi sayqal, hozir kerak emas deb topildi)**:
+- Savat bitta-do'kon-almashtirishda custom in-app toast (mockup'da bor) — hozir `window.confirm`
+  bilan qoladi; funksional jihatdan to'g'ri ishlaydi, faqat vizual jilo yo'q.
+- Savatga-qo'shish "bump" mikro-animatsiyasi (ikonka scale-pulse) — CSS keyframe yozilmadi, JSX'da
+  trigger yo'q (holat-boshqaruvi kerak bo'lardi, real xarid-oqimiga tegmasdan qo'shish uchun
+  qo'shimcha vaqt kerak).
+- Chrome-elementlarning to'liq emoji→SVG almashtirilishi (mockup'da qidiruv/joylashuv/bildirishnoma
+  ikonkalari SVG edi) — ilova butunlay emoji-negizli dizayn tili ustida qurilgan (CLAUDE.md qoidasi
+  faqat "coin" so'zini taqiqlaydi, emoji'ni emas), shu sabab bu ALOHIDA, kattaroq qaror (butun-ilova
+  ikon-tizimi) — shopv2'ning ko'lamidan tashqarida qoldirildi.
+
+**Isbot**:
+- `tsc --noEmit` — shared+server+miniapp, barchasi 0 xato (alohida, ketma-ket tekshirildi).
+- `git diff` — barcha 7 fayl (App.tsx/shop.tsx/tokens.css/types.ts/shopService.ts/featureFlags.ts/
+  server.ts) boshqa parallel sessiyaning WIP'i bilan ARALASHMAGANI tasdiqlandi (diff faqat mening
+  o'zgarishlarimni ko'rsatdi; `restoran.tsx`/`kas/client.ts` — boshqa sessiyalarning ochiq WIP'i —
+  ATAYLAB stage'ga qo'shilmadi).
+- Jonli DB'ga to'g'ridan-to'g'ri sinov (disposable skript, keyin o'chirildi): shop 1/2/3'da
+  `getShopOrdersToday` va `getShopProfile().ordersToday` bir xil natija qaytardi (barchasida 0 —
+  bugun hali buyurtma yo'qligi bilan mos, avvalgi kunlik-diff tekshiruviga zid emas).
+- Deploy: server commit `a13fc02` → push → Render CI-shield yashil → deploy job avtomatik →
+  keyingi commit (`c0591b6`, boshqa sessiyadan) bilan birga "live" (`a13fc02` uning ajdodi ekani
+  `git merge-base --is-ancestor` bilan tasdiqlandi). Miniapp: `VITE_API_URL=<render>` bilan build →
+  `.vercel/output/static` → `vercel deploy --prebuilt --prod` → bundle-grep live
+  (`1067taxi-miniapp.vercel.app`): CSS'da `app.bjm` (3 marta), JS'da (`shop-ZGc38DfW.js`) `shopv2`
+  va `ordersToday` ikkalasi ham topildi.
+- **Vizual real-render tekshiruvi HALI YO'Q** — Mini App Telegram initData-autentifikatsiyasini
+  talab qiladi, lokal dev-bypass yo'q (repo'da qidirildi, topilmadi) — shuning uchun ekran-skrinshot
+  bu sessiyada OLINMADI. Buning o'rniga: CSS-selektor specificity qo'lda tasdiqlandi (`.app.bjm
+  .shop-card` = (0,2,0) > unconditional `.shop-card` = (0,1,0), cascade-tartibidan qat'i nazar
+  g'olib chiqadi) + har bir yangi CSS-klass nomi haqiqiy JSX-classNames bilan grep orqali
+  moslashtirildi (masalan `.bj-cartbar` — `design/birjoy.tsx:151`'dagi haqiqiy nomi bilan).
+
+**HOLAT: ready for verification, OWNER-ACCEPTED EMAS.** Ega o'zi admin bo'lgani uchun (`isAdmin`)
+Do'kon-tabni ochganda YANGI qorong'i-tema AVTOMATIK ko'rinadi (flag hali global DARK, oddiy
+mijozlar eski UI'ni ko'radi). Ega o'z telefonida ko'rib QABUL qilmaguncha `shopv2` global
+yoqilmaydi. QABUL bosqichida e'tibor berilishi kerak nuqtalar: (1) savat bitta-do'kon-cheklovi
+buzilmaganini sinash, (2) hikoya-ko'ruvchi xavfsiz-zonasi haqiqiy qurilmada notch bilan
+to'qnashmasligi, (3) ega mockup bilan solishtirganda vizual farqni (yuqoridagi "ataylab
+qoldirilgan" ro'yxati) qabul qiladimi yoki keyingi bosqich sifatida davom ettirish so'raydimi.
