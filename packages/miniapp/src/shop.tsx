@@ -756,8 +756,13 @@ export function ShopView({ me, onBanner, reload, onBook, openProductId }: { me: 
         </div>
       </div>
 
-      <div className="shop-search-wrap">
-        <input className="shop-search" placeholder="🔍 Mahsulot qidirish…" value={q} onChange={(e) => setQ(e.target.value)} />
+      {/* shopv2: mockup'da bosh-sahifada kichik "📍 Koson" shahar-belgisi bor edi (yuqorida,
+          qidiruvdan oldin) — pastda haqiqiy mahalla-tanlov chipi bilan ADASHTIRMASLIK: bu FAQAT
+          shahar-konteksti, funksional emas. */}
+      {shopv2 && bazar && !shopFilter && <div className="shop-city-label"><Icon name="pin" size={12} /> Koson</div>}
+      <div className={"shop-search-wrap" + (shopv2 ? " v2" : "")}>
+        {shopv2 && <Icon name="search" size={15} />}
+        <input className="shop-search" placeholder={shopv2 ? "Do'kon yoki mahsulot qidiring…" : "🔍 Mahsulot qidirish…"} value={q} onChange={(e) => setQ(e.target.value)} />
         {q && <button className="shop-search-x" onClick={() => setQ("")}>✕</button>}
       </div>
 

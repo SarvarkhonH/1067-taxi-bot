@@ -2966,6 +2966,13 @@ body {
 .app.bjm .bj-promise { background: rgba(52, 211, 153, .12); color: #6ee7b7; border: 1px solid rgba(52, 211, 153, .25); }
 .app.bjm .bj-promise.today { background: var(--bj-hero-grad); color: #06231a; }
 .app.bjm .bj-chat-privacy { background: rgba(52, 211, 153, .12); color: #6ee7b7; }
+
+/* shopv2: bosh-sahifadagi kichik "📍 Koson" shahar-belgisi + qidiruv-ichidagi SVG lupa (mockup'da
+   ham aynan shu joylashuv — placeholder-matndagi emoji o'rniga real ikonka). */
+.shop-city-label { display: flex; align-items: center; gap: 5px; padding: 6px 16px 2px; color: var(--bj-ink-dim); font-size: 12.5px; }
+.shop-search-wrap.v2 { display: flex; align-items: center; }
+.shop-search-wrap.v2 svg { position: absolute; left: 14px; pointer-events: none; color: var(--bj-ink-dim); z-index: 1; }
+.shop-search-wrap.v2 .shop-search { padding-left: 38px; }
 /* "sotuvchi bo'lish" CTA — sahifadagi YAGONA oq-karta bo'lib qolgan edi */
 .app.bjm .shop-seller-cta { background: rgba(52, 211, 153, .08); border: 1px solid rgba(52, 211, 153, .22); box-shadow: none; }
 .app.bjm .shop-seller-ico { background: rgba(255, 255, 255, .06); box-shadow: none; }
