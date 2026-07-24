@@ -1,6 +1,7 @@
 import { Fragment, Suspense, lazy, useEffect, useState } from "react";
 
 const DesignDemo = lazy(() => import("./design/demo")); // #demo dagina yuklanadi
+const ShopDemo = lazy(() => import("./design/shopDemo").then((m) => ({ default: m.ShopDemoPage }))); // #shopdemo dagina — shopv2 vizual-QA (mock-fetch, real Telegram auth kerak emas)
 import type { LeaderboardResponse, MeResponse } from "@t1067/shared";
 import { api, getInitData, waitForInitData } from "./api";
 import { haptic, tg } from "./telegram";
@@ -144,6 +145,13 @@ export function App() {
     return (
       <Suspense fallback={<div className="boot"><div className="boot-logo">🎨</div></div>}>
         <DesignDemo />
+      </Suspense>
+    );
+  }
+  if (window.location.hash === "#shopdemo") {
+    return (
+      <Suspense fallback={<div className="boot"><div className="boot-logo">🛍</div></div>}>
+        <ShopDemo />
       </Suspense>
     );
   }

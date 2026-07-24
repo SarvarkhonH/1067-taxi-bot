@@ -2849,6 +2849,63 @@ body {
 .app.bjm .shop-open-filter-chip.on { background: var(--bj-hero-grad); color: #06231a; border-color: transparent; }
 .app.bjm .bj-cartbar { animation: bjmScreenIn .28s var(--ease-out); }
 
+/* ── XATO TOPILDI (ega: "hali juda chalaku hamma narsa"): `.shop-wrap X` (`.shop-light`'dan
+   OLDIN, .app prefiks'siz yozilgan) BUTUN modul uchun UNCONDITIONAL — .app.bjm ham shu ostida
+   qoladi. Demo-harness orqali (#shopdemo) HAQIQIY DOM'da tekshirilganda .d-sheet HALI OQ edi
+   (rgb(247,250,248)) — ya'ni HAR safar Sheet ochilganda (mahsulot/buyurtmalar/sharh/savat/chat/
+   mahalla-tanlov) qorong'i fon ustiga OQ modal chiqardi. Bundan tashqari eski
+   `.shop-wrap .d-btn:not(.ghost):not(.danger) { ... !important }` mening emerald-CTA
+   override'imni ("app.bjm .d-btn...", !important'siz) butunlay yutib yuborgan edi — tugmalar
+   hali eski #22c55e/oq-matn edi, mening #0d9668/qorong'i-matn hech qachon ko'rinmagan.
+   Quyidagi qoidalar shu BARCHA bo'shliqlarni to'ldiradi (`.app.bjm .shop-wrap X` — (0,3,0) —
+   `.shop-wrap X`ning (0,2,0)'sidan yuqori specificity bilan yutadi). ── */
+.app.bjm .shop-wrap .muted { color: var(--bj-ink-dim); }
+.app.bjm .shop-wrap .d-skel { background: rgba(255, 255, 255, .06); }
+.app.bjm .shop-wrap .d-empty { color: var(--bj-ink-dim); }
+.app.bjm .shop-wrap .d-sheet { background: #11201a; color: var(--bj-ink); box-shadow: 0 -10px 40px -12px rgba(0, 0, 0, .6); }
+.app.bjm .shop-wrap .d-sheet h3 { color: var(--bj-ink); }
+.app.bjm .shop-wrap .d-grip { background: rgba(255, 255, 255, .18); }
+.app.bjm .shop-wrap .d-sheet-bar { background: #11201a; }
+.app.bjm .shop-wrap .d-sheet-x { background: rgba(255, 255, 255, .08); color: var(--bj-ink-dim); }
+.app.bjm .shop-wrap .d-btn:not(.ghost):not(.danger) {
+  background: var(--bj-hero-grad) !important;
+  color: #06231a !important;
+  box-shadow: 0 14px 32px -12px rgba(13, 150, 104, .55), inset 0 1px 0 rgba(255, 255, 255, .2) !important;
+}
+.app.bjm .shop-wrap .d-progress { background: rgba(255, 255, 255, .08); }
+.app.bjm .shop-wrap .d-progress > span { background: var(--bj-hero-grad); }
+.app.bjm .shop-wrap .sheet-err { color: #fca5a5; }
+.app.bjm .shop-wrap .pay-back { color: var(--bj-accent-deep); }
+/* mahsulot-detail/sharh/buyurtma yordamchi-bloklar (barchasi eski oq-karta) */
+.app.bjm .shop-insufficient-bar { background: rgba(255, 255, 255, .05); border-color: var(--bj-line); color: var(--bj-ink); }
+.app.bjm .shop-deliver-line { background: rgba(56, 189, 248, .1); border-color: rgba(56, 189, 248, .25); color: #bae6fd; }
+.app.bjm .shop-detail-name { color: var(--bj-ink); }
+.app.bjm .shop-low-line { color: #fca5a5; }
+.app.bjm .order-status-pill.pending { background: rgba(255, 255, 255, .08); color: var(--bj-ink-dim); }
+.app.bjm .order-refund-banner { background: rgba(16, 185, 129, .1); border-color: rgba(16, 185, 129, .25); color: #6ee7b7; }
+.app.bjm .shop-search-x { background: rgba(255, 255, 255, .08); color: var(--bj-ink-dim); }
+.app.bjm .shop-card-likes { color: var(--bj-ink-dim); }
+/* sharhlar — kirish-tugma, forma, ro'yxat */
+.app.bjm .shop-reviews-entry { background: rgba(255, 255, 255, .05); border: 1px solid var(--bj-line); color: var(--bj-ink); }
+.app.bjm .shop-reviews-agg { color: var(--bj-ink-dim); }
+.app.bjm .shop-rev-form { background: rgba(255, 255, 255, .05); border: 1px solid var(--bj-line); }
+.app.bjm .shop-rev-thumb { background: rgba(255, 255, 255, .05); border: 1px solid var(--bj-line); color: var(--bj-ink-dim); }
+.app.bjm .shop-rev-thumb.on.up { background: rgba(34, 197, 94, .14); border-color: #22c55e; color: #86efac; }
+.app.bjm .shop-rev-thumb.on.down { background: rgba(239, 68, 68, .14); border-color: #ef4444; color: #fca5a5; }
+.app.bjm .shop-rev-photo-add { background: rgba(255, 255, 255, .04); border-color: var(--bj-line); color: var(--bj-ink-dim); }
+.app.bjm .shop-rev-row { background: rgba(255, 255, 255, .045); border: 1px solid var(--bj-line); color: var(--bj-ink); }
+.app.bjm .shop-rev-verified { color: #86efac; background: rgba(34, 197, 94, .14); }
+.app.bjm .shop-rev-mine { color: var(--bj-ink-dim); background: rgba(255, 255, 255, .08); }
+/* mahalla-do'kon karta ichidagi "🚚 yetkazish-va'da" chip — mint-oq juftlik o'qilmas edi */
+.app.bjm .bj-promise { background: rgba(52, 211, 153, .12); color: #6ee7b7; border: 1px solid rgba(52, 211, 153, .25); }
+.app.bjm .bj-promise.today { background: var(--bj-hero-grad); color: #06231a; }
+.app.bjm .bj-chat-privacy { background: rgba(52, 211, 153, .12); color: #6ee7b7; }
+/* "sotuvchi bo'lish" CTA — sahifadagi YAGONA oq-karta bo'lib qolgan edi */
+.app.bjm .shop-seller-cta { background: rgba(52, 211, 153, .08); border: 1px solid rgba(52, 211, 153, .22); box-shadow: none; }
+.app.bjm .shop-seller-ico { background: rgba(255, 255, 255, .06); box-shadow: none; }
+.app.bjm .shop-seller-title { color: var(--bj-ink); }
+.app.bjm .shop-seller-sub { color: var(--bj-ink-dim); }
+
 @keyframes bjmScreenIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
 
 /* ═══════════════════════════════════════════════════════════════════════════

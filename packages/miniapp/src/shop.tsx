@@ -307,6 +307,16 @@ export function ShopView({ me, onBanner, reload, onBook, openProductId }: { me: 
   const mahallaShops = useMemo(() => (market?.shops ?? []).filter((s) => s.shopKind === "mahalla" && s.mahallaId === activeMahallaId && (!openOnly || s.open)), [market, activeMahallaId, openOnly]);
   const cityShops = useMemo(() => (market?.shops ?? []).filter((s) => s.shopKind !== "mahalla" && (!openOnly || s.open)), [market, openOnly]);
   const [shopFilter, setShopFilter] = useState<{ id: number; name: string } | null>(null); // 🏬 do'kon-sahifa (lite)
+  // shopv2 + bazar-bosh (store-discovery ekrani, hali shopFilter tanlanmagan): yondashilgan reja
+  // "Bozor-bosh (qidiruv+kind-chip+ochiq-filtr+ikki bo'lim)" edi — eski hero-karusel+flat-katalog
+  // (pre-BirJoy, yagona-do'kon davridan qolgan) shu ekranda O'RNATILMAGAN edi. Ega "hali chalaku"
+  // deb topdi — sabab shu: ikki xil IA (do'kon-bo'yicha ko'rish VA flat-mahsulot-katalog) bir
+  // sahifada ustma-ust chiqardi. shopv2'da bazar-bosh endi FAQAT do'kon-kashfiyoti.
+  const homeFlatCatalog = !(bazar && shopv2 && !shopFilter);
+  // Hero-karusel ("barcha do'konlar bo'ylab ajratilgan") hech qachon do'kon-birinchi oqimga mos
+  // kelmaydi — na bazar-bosh'da (do'kon-kashfiyoti), na do'kon-profilda (o'sha DO'KONning o'zi
+  // ko'rsatilishi kerak). homeFlatCatalog'dan farqli — shopFilter tanlangan bo'lsa ham yashirin.
+  const showHeroStrip = !(bazar && shopv2);
   const [mahallaList, setMahallaList] = useState<MahallaView[] | null>(null);
   const [mahallaPickerOpen, setMahallaPickerOpen] = useState(false);
   const [mahallaQuery, setMahallaQuery] = useState("");
@@ -643,10 +653,13 @@ export function ShopView({ me, onBanner, reload, onBook, openProductId }: { me: 
           <div className="muted fs12">{bazar ? "Kosonda bor — BirJoy'da bor" : "Tangangizga real mahsulotlar · 1 kunda yetkazamiz"}</div>
         </div>
         <div className="shop-head-actions">
-          {/* 🧡 V2b: sevimlilar-filtr — bosilganda katalog faqat ❤ mahsulotlarni ko'rsatadi */}
-          <button className={"shop-share-btn" + (favOnly ? " on" : "")} onClick={() => { haptic(); setFavOnly((v) => !v); }} aria-label={favOnly ? "Sevimlilar filtri o'chirish" : "Faqat sevimlilar"}>
-            {favOnly ? "❤️" : "🤍"}
-          </button>
+          {/* 🧡 V2b: sevimlilar-filtr — flat-katalogni filtrlaydi; shopv2 bazar-bosh'da flat-katalog
+              o'zi yashirin (yuqoridagi homeFlatCatalog) — shu holatda tugma o'lik bo'lardi, yashirilgan */}
+          {homeFlatCatalog && (
+            <button className={"shop-share-btn" + (favOnly ? " on" : "")} onClick={() => { haptic(); setFavOnly((v) => !v); }} aria-label={favOnly ? "Sevimlilar filtri o'chirish" : "Faqat sevimlilar"}>
+              {favOnly ? "❤️" : "🤍"}
+            </button>
+          )}
           <button className="shop-share-btn" onClick={shareShop} aria-label="Do'konni ulashish"><Icon name="share" size={18} /></button>
           <button className="shop-orders-btn" onClick={openOrders}>📦 Buyurtmalarim</button>
         </div>
@@ -680,8 +693,9 @@ export function ShopView({ me, onBanner, reload, onBook, openProductId }: { me: 
         )
       ) : (
         <>
-          {/* ── featured hero carousel ── */}
-          {featured.length > 0 && (
+          {/* ── featured hero carousel — legacy yagona-do'kon oqimi, bazar+shopv2'da (bosh HAM
+              profil HAM) yashirilgan, do'kon-birinchi oqimga mos kelmaydi ── */}
+          {showHeroStrip && featured.length > 0 && (
             <div className="shop-hero-strip">
               {featured.map((p) => (
                 <button key={p.id} className="shop-hero" onClick={() => openProduct(p)}>
@@ -819,8 +833,9 @@ export function ShopView({ me, onBanner, reload, onBook, openProductId }: { me: 
               </div>
             </div>
           )}
-          {/* ── 🏪 V1.4 BirJoy: kategoriya-KARUSEL (Uzum-referens) + do'kon-rail — flag ON'dagina ── */}
-          {bazar && !shopFilter && market && market.cats.length > 0 && (
+          {/* ── 🏪 V1.4 BirJoy: kategoriya-KARUSEL (Uzum-referens) — pastdagi flat-katalogni filtrlaydi,
+              shopv2 bazar-bosh'da flat-katalog o'zi yashirin bo'lgani uchun bu ham yashirin ── */}
+          {bazar && !shopFilter && !shopv2 && market && market.cats.length > 0 && (
             <BjCategoryCarousel
               cats={market.cats.map((c) => ({ slug: c.name, name: c.name, emoji: c.emoji, iconUrl: c.hasIcon ? apiUrl(`/api/shop/cat-icon/${c.id}`) : null }))}
               active={cat}
@@ -885,13 +900,17 @@ export function ShopView({ me, onBanner, reload, onBook, openProductId }: { me: 
           )}
 
           {/* ── katalog: VERTIKAL 2-ustunli grid (Amazon/Uzum standarti) — gorizontal scroll yo'q ── */}
-          <div className="shop-section-head">
-            <span className="shop-section-title">{cat ?? "Hammasi"}</span>
-            <span className="muted fs12">{catalog.length} ta</span>
-          </div>
-          <div className="shop-grid">
-            {catalog.map((p) => <ProductCard key={p.id} p={p} onOpen={openProduct} onFav={toggleFav} wide />)}
-          </div>
+          {homeFlatCatalog && (
+            <>
+              <div className="shop-section-head">
+                <span className="shop-section-title">{cat ?? "Hammasi"}</span>
+                <span className="muted fs12">{catalog.length} ta</span>
+              </div>
+              <div className="shop-grid">
+                {catalog.map((p) => <ProductCard key={p.id} p={p} onOpen={openProduct} onFav={toggleFav} wide />)}
+              </div>
+            </>
+          )}
         </>
       )}
 
