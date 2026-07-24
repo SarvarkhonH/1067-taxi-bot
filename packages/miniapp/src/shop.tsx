@@ -86,8 +86,11 @@ function PriceBlock({ p, big }: { p: ShopProductView; big?: boolean }) {
   const [why, setWhy] = useState(false);
   return (
     <div className={big ? "shop-price-big" : "shop-price-line"}>
-      <span className={big ? "shop-confirm-total" : "shop-price-chip"}>🪙 {formatNumber(p.priceTanga)}</span>
-      {d > 0 && <span className="shop-price-old">{formatNumber(p.oldPriceTanga!)}</span>}
+      {/* Ega qarori: do'kon-narxlar HAQIQIY pul (1 tanga=1 so'm) — shu sabab shu yerda "so'm"
+          ko'rsatiladi, "tanga" so'zi FAQAT haqiqiy tanga-hamyon (wallet) bilan bog'liq joylarda
+          qoladi (masalan "Tanga bilan olish" to'lov-usuli, yetarli-emas-hamyon balansi). */}
+      <span className={big ? "shop-confirm-total" : "shop-price-chip"}>{formatNumber(p.priceTanga)} so&apos;m</span>
+      {d > 0 && <span className="shop-price-old">{formatNumber(p.oldPriceTanga!)} so&apos;m</span>}
       {/* §10.2: "Nima uchun bu narx?" — narx-tarkibi shaffofligi, faqat detail-sahifada (big) */}
       {big && (
         <button className="shop-price-why" onClick={() => setWhy((v) => !v)} aria-label="Nima uchun bu narx?">
@@ -97,7 +100,7 @@ function PriceBlock({ p, big }: { p: ShopProductView; big?: boolean }) {
       {big && why && (
         <div className="shop-price-why-box">
           {d > 0 ? (
-            <p>Asl narx <b>{formatNumber(p.oldPriceTanga!)}</b> edi — hozir <b>−{d}%</b> chegirma bilan <b>{formatNumber(p.priceTanga)}</b>.</p>
+            <p>Asl narx <b>{formatNumber(p.oldPriceTanga!)} so&apos;m</b> edi — hozir <b>−{d}%</b> chegirma bilan <b>{formatNumber(p.priceTanga)} so&apos;m</b>.</p>
           ) : (
             <p>Bu — sotuvchi belgilagan mahsulot narxi, chegirmasiz.</p>
           )}
@@ -581,7 +584,7 @@ export function ShopView({ me, onBanner, reload, onBook, openProductId }: { me: 
   const shareProduct = (p: ShopProductView) => {
     haptic();
     const d = discountPct(p);
-    const text = `🛍 ${p.name} — 🪙 ${formatNumber(p.priceTanga)}${d > 0 ? ` (−${d}%)` : ""}`;
+    const text = `🛍 ${p.name} — ${formatNumber(p.priceTanga)} so'm${d > 0 ? ` (−${d}%)` : ""}`;
     shareLink(`${BOT_LINK}?start=shop_${p.id}`, text);
   };
 
@@ -1046,22 +1049,29 @@ export function ShopView({ me, onBanner, reload, onBook, openProductId }: { me: 
                       <Button variant="brand" onClick={() => { setSel(null); setCartOpen(true); }}>Savatni ochish</Button>
                     </div>
                   ) : (
-                    <Button variant="brand" onClick={() => addToCart(sel, 1)}>🧺 Savatga qo'shish — {formatNumber(sel.priceTanga)}</Button>
+                    <Button variant="brand" onClick={() => addToCart(sel, 1)}>🧺 Savatga qo'shish — {formatNumber(sel.priceTanga)} so'm</Button>
                   )
                 )}
-                <Button variant={bazarcart ? "ghost" : "brand"} onClick={() => { haptic(); setPayMode("tanga"); setStep("confirm"); }}>🪙 {bazarcart ? "Bittasini darhol olish" : `Tanga bilan olish — ${formatNumber(sel.priceTanga)}`}</Button>
+                <Button variant={bazarcart ? "ghost" : "brand"} onClick={() => { haptic(); setPayMode("tanga"); setStep("confirm"); }}>🪙 {bazarcart ? "Bittasini darhol olish" : `Tanga bilan olish — ${formatNumber(sel.priceTanga)} so'm`}</Button>
                 <Button variant="ghost" onClick={() => { haptic(); setPayMode("cash"); setStep("confirm"); }}>💵 Naqdga buyurtma — {formatNumber(sel.priceTanga)} so'm</Button>
               </>
             )}
             {similar.length > 0 && (
               <div className="shop-section mt10">
                 <div className="shop-section-head"><span className="shop-section-title">O'xshash mahsulotlar</span></div>
+                {/* Ega: "o'xshash mahsulotlar bosa o'tib ketmayapti" — asl sabab: openProduct
+                    `sel`ni almashtiradi, lekin Sheet O'ZI qayta ochilmaydi (bir xil DOM, faqat
+                    kontent yangilanadi) — sheet scroll-pozitsiyasi ESKI joyida qoladi. "O'xshash
+                    mahsulotlar" har doim pastda bo'lgani uchun (foydalanuvchi pastga skroll qilgan
+                    holda bosadi) — yangi mahsulot YUKLANADI, lekin foydalanuvchi hamon pastda
+                    turgani uchun HECH NARSA O'ZGARMAGANDEK ko'rinardi. Endi bosilganda sheet
+                    avtomatik tepaga qaytadi. */}
                 <div className="shop-row-strip">
                   {similar.map((p) => (
-                    <button key={p.id} className="shop-mini" onClick={() => openProduct(p)}>
+                    <button key={p.id} className="shop-mini" onClick={(e) => { openProduct(p); e.currentTarget.closest(".d-sheet")?.scrollTo({ top: 0, behavior: "instant" }); }}>
                       {p.hasPhoto ? <img className="shop-mini-img" src={apiUrl(`/api/shop/photo/${p.id}?s=1`)} loading="lazy" decoding="async" alt="" /> : <div className="shop-mini-img shop-card-noimg">🛍</div>}
                       <div className="shop-mini-name">{p.name}</div>
-                      <div className="shop-mini-price">🪙 {formatNumber(p.priceTanga)}</div>
+                      <div className="shop-mini-price">{formatNumber(p.priceTanga)} so'm</div>
                     </button>
                   ))}
                 </div>
@@ -1165,12 +1175,12 @@ export function ShopView({ me, onBanner, reload, onBook, openProductId }: { me: 
             <p className="muted fs13">Do'kon egasi {me.member.phone ?? "raqamingiz"} orqali siz bilan bog'lanadi.</p>
             <input className="bk-input" placeholder="Masalan: Koson sh., Guliston ko'chasi 12-uy" value={address} onChange={(e) => setAddress(e.target.value)} />
             <div className="shop-confirm-total mt10">
-              Jami: {payMode === "cash" ? `💵 ${formatNumber(sel.priceTanga)} so'm` : `🪙 ${formatNumber(sel.priceTanga)}`}
+              Jami: {payMode === "cash" ? `💵 ${formatNumber(sel.priceTanga)} so'm` : `🪙 ${formatNumber(sel.priceTanga)} so'm`}
             </div>
             {payMode === "cash" && <div className="shop-deliver-line">💵 Naqd — <b>yetkazganda to'laysiz</b>, hozir hech narsa olinmaydi</div>}
             {buyErr && <div className="sheet-err">{buyErr}</div>}
             <Button variant="brand" disabled={busy || address.trim().length < 5} onClick={submit}>
-              {busy ? "Yuborilmoqda…" : payMode === "cash" ? `Tasdiqlash — 💵 ${formatNumber(sel.priceTanga)} so'm` : `Tasdiqlash — 🪙 ${formatNumber(sel.priceTanga)}`}
+              {busy ? "Yuborilmoqda…" : payMode === "cash" ? `Tasdiqlash — 💵 ${formatNumber(sel.priceTanga)} so'm` : `Tasdiqlash — 🪙 ${formatNumber(sel.priceTanga)} so'm`}
             </Button>
           </>
         )}
@@ -1288,7 +1298,7 @@ export function ShopView({ me, onBanner, reload, onBook, openProductId }: { me: 
               <MktStatusPill s={o.status} />
             </div>
             <div className="muted fs12">{o.items.map((i) => `${i.name.slice(0, 22)}×${i.qty}`).join(" · ")}</div>
-            <div className="muted fs12">#{o.id} · {o.payKind === "cash" ? `💵 ${formatNumber(o.total)} so'm (naqd)` : `🪙 ${formatNumber(o.total)}`} · {new Date(o.createdAt).toLocaleDateString("uz-UZ")}</div>
+            <div className="muted fs12">#{o.id} · {o.payKind === "cash" ? `💵 ${formatNumber(o.total)} so'm (naqd)` : `🪙 ${formatNumber(o.total)} so'm`} · {new Date(o.createdAt).toLocaleDateString("uz-UZ")}</div>
             {(o.status === "pending" || o.status === "accepted" || o.status === "delivering") && (
               <div className="shop-mkt-timeline" aria-label="Buyurtma holati">
                 {(["pending", "accepted", "delivering", "delivered"] as const).map((st, i) => {
@@ -1324,7 +1334,7 @@ export function ShopView({ me, onBanner, reload, onBook, openProductId }: { me: 
                 <StatusPill s={o.status} />
               </div>
               <div className="muted fs12">
-                #{o.id} · {o.payKind === "cash" ? `💵 ${formatNumber(o.priceTanga)} so'm (naqd)` : `🪙 ${formatNumber(o.priceTanga)}`} · {new Date(o.createdAt).toLocaleDateString("uz-UZ")}
+                #{o.id} · {o.payKind === "cash" ? `💵 ${formatNumber(o.priceTanga)} so'm (naqd)` : `🪙 ${formatNumber(o.priceTanga)} so'm`} · {new Date(o.createdAt).toLocaleDateString("uz-UZ")}
               </div>
               {o.status === "rejected" && (
                 <div className="order-refund-banner">
@@ -1490,7 +1500,7 @@ function CartCheckout({ lines, shopName, itemsTotal, deliveryFee, minOrder, coin
       <div className="shop-cart-totals glass pad">
         <div className="shop-cart-trow"><span>Mahsulotlar</span><b>{formatNumber(itemsTotal)}</b></div>
         {deliveryFee > 0 && <div className="shop-cart-trow"><span>🚚 Yetkazish</span><b>{formatNumber(deliveryFee)}</b></div>}
-        <div className="shop-cart-trow shop-cart-grand"><span>Jami</span><b>{formatNumber(total)} {pay === "cash" ? "so'm" : "tanga"}</b></div>
+        <div className="shop-cart-trow shop-cart-grand"><span>Jami</span><b>{formatNumber(total)} so'm</b></div>
       </div>
       {short > 0 && <div className="order-refund-banner">Minimal buyurtma {formatNumber(minOrder)} — yana {formatNumber(short)} qo'shing</div>}
       <div className="shop-pay-toggle">

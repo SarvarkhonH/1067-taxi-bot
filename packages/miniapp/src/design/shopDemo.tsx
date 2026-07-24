@@ -25,6 +25,9 @@ const MOCK_PRODUCTS: ShopProductView[] = [
   { id: 4, name: "Kir yuvish kukuni 3kg", description: "Import, konsentrat.", category: "Maishiy kimyo", priceTanga: 42000, oldPriceTanga: 49000, stock: 3, hasPhoto: false, photoCount: 0, isNew: false, featured: false, topSeller: true, likes: 8, dislikes: 2, shopId: 2, shopName: "Kamol Market", deliveryText: "1 kun ichida", favCount: 2, isFav: false },
   { id: 5, name: "Bolalar futbolkasi", description: "100% paxta, 4-6 yosh.", category: "Kiyim", priceTanga: 38000, oldPriceTanga: null, stock: 11, hasPhoto: false, photoCount: 0, isNew: true, featured: false, topSeller: false, likes: 3, dislikes: 0, shopId: 2, shopName: "Kamol Market", deliveryText: "1 kun ichida", favCount: 1, isFav: false },
   { id: 6, name: "Choy to'plami (qora, 100g)", description: null, category: "Ichimlik", priceTanga: 15000, oldPriceTanga: null, stock: 0, hasPhoto: false, photoCount: 0, isNew: false, featured: false, topSeller: false, likes: 0, dislikes: 0, shopId: 2, shopName: "Kamol Market", deliveryText: "1 kun ichida", favCount: 0, isFav: false },
+  // "O'xshash mahsulotlar" (product-detail'dagi kategoriya-bo'yicha row) sinash uchun — uzum
+  // bilan bir xil kategoriya (Meva-sabzavot).
+  { id: 7, name: "Qulupnay (0.5 kg)", description: "Mavsumiy.", category: "Meva-sabzavot", priceTanga: 22000, oldPriceTanga: null, stock: 15, hasPhoto: false, photoCount: 0, isNew: false, featured: false, topSeller: false, likes: 2, dislikes: 0, shopId: 1, shopName: "Guliston bozorchasi", deliveryText: "30 daqiqada", favCount: 0, isFav: false },
 ];
 
 const MOCK_MARKET: MarketHomeResponse = {
