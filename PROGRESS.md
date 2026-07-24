@@ -2427,3 +2427,60 @@ yoqilmaydi. QABUL bosqichida e'tibor berilishi kerak nuqtalar: (1) savat bitta-d
 buzilmaganini sinash, (2) hikoya-ko'ruvchi xavfsiz-zonasi haqiqiy qurilmada notch bilan
 to'qnashmasligi, (3) ega mockup bilan solishtirganda vizual farqni (yuqoridagi "ataylab
 qoldirilgan" ro'yxati) qabul qiladimi yoki keyingi bosqich sifatida davom ettirish so'raydimi.
+
+## 2026-07-24 (39) — BirJoy Market v2: "chalaku" fikr-mulohaza bo'yicha ikki HAQIQIY bug topildi+tuzatildi
+Ega #38'ni real telefonda ko'rib "hali juda chalaku hamma narsa" dedi. Muammo: #38'da men CSS'ni
+FAQAT computed-style tekshiruvi bilan (real DOM'ga qarshi, lekin real Telegram-auth yo'qligi sababli
+FAQAT bosh-sahifa, hech qanday sheet/modal/chuqurroq ekran) tekshirgan edim — bu YETARLI emas ekan.
+
+**Ildiz sabab — vosita**: `#shopdemo` (yangi, faqat dev, `App.tsx`+`design/shopDemo.tsx`) — real
+`ShopView`ni HAQIQIY Telegram autentifikatsiyasisiz ko'rish uchun `window.fetch`ni faqat
+`/api/shop/*`+`/api/mahalla`+`/api/referral` yo'llari uchun mock-javoblar bilan intercept qiladi
+(qolgan hammasi haqiqiy `fetch`ga o'tadi). Bu orqali BIRINCHI marta shu sessiyada real komponent-
+daraxtini (mock-lar emas, aslida ProductCard/Sheet/CartCheckout/StoryViewer) brauzerda ko'rish va
+bosish mumkin bo'ldi.
+
+**Topilgan bug #1 (eng katta, "hamma narsa chalaku"ning asosiy sababi)**: `tokens.css`'da
+`.shop-wrap .d-sheet { background:#f7faf8; ... }` — `.app.` prefiksisiz, UNCONDITIONAL qoida —
+demak `.app.bjm` HAM shu ostida qolar edi. Natija: HAR safar Sheet ochilganda (mahsulot-detail,
+buyurtmalarim, sharhlar, savat-checkout, chat, mahalla-tanlov) — qorong'i-shisha fon ustiga OQ
+modal chiqar edi. Xuddi shu naqsh `.d-skel`/`.d-empty`/`.d-progress`/`.sheet-err`/`.pay-back`/
+`.muted`/`.shop-reviews-entry`/`.shop-rev-form`/`.shop-rev-row`/`.shop-insufficient-bar`/
+`.shop-deliver-line`/`.order-refund-banner`/`.bj-promise`/`.bj-chat-privacy`/`.shop-seller-cta`
+uchun ham takrorlangan edi — 38'dagi CSS-token-retint pass FAQAT o'zim o'ylab topgan klasslarni
+qamragan, BUTUN `.shop-wrap X` oilasini emas. Qo'shimcha: `.shop-wrap .d-btn:not(.ghost):not(.danger)`
+`!important` bilan yozilgan edi — mening #38'dagi emerald-CTA override'im (`!important`siz) hech
+qachon ishlamagan, tugmalar hamon eski yashil/oq edi. Barchasi `.app.bjm .shop-wrap X` (yuqori
+specificity, kerak joyda mos `!important`) bilan tuzatildi.
+
+**Topilgan bug #2 (strukturaviy)**: bazar-bosh (uy-ekran) HAM do'kon-kashfiyoti qatorlarini
+(V1.4, mahalla/shahar bo'limlari) HAM eski flat-mahsulot-katalogni (hero-karusel + kategoriya-
+karusel + BARCHA do'konlar mahsulotlari bitta panjarada, pre-BirJoy yagona-do'kon davridan qolgan)
+BIR SAHIFADA ko'rsatardi — ikki xil IA ustma-ust. Tasdiqlangan reja matni buni asossiz qilgan
+("Bozor-bosh: qidiruv+kind-chip+ochiq-filtr+ikki bo'lim" — flat-katalog haqida gap yo'q).
+`homeFlatCatalog`/`showHeroStrip` bilan `bazar && shopv2`da yashirilgan (do'kon-profilda katalog-
+panjara qoladi — bu endi O'SHA DO'KONning haqiqiy mahsulot-ro'yxati; hero-karusel esa profilda
+ham yashirin, chunki "barcha-do'konlar-bo'ylab-ajratilgan" tushunchasi do'kon-birinchi oqimga
+mos kelmaydi). `shopv2` OFF holatda ESKI xatti-harakat 100% saqlanadi (tekshirildi: toggle orqali
+ikkala holatni yonma-yon solishtirdim).
+
+**Isbot**: `#shopdemo` orqali brauzerda REAL DOM+computed-style: Sheet (buyurtmalar/mahsulot-
+detail/savat-checkout/sharh) barchasi endi `#11201a` qorong'i fon bilan; CTA-tugmalar zumrad
+gradient+qorong'i-matn (avvalgi yashil/oq EMAS); "sotuvchi bo'lish" CTA endi yagona-oq-karta EMAS;
+bazar-bosh endi bitta izchil oqim (qidiruv→hikoya-tray→mahalla-chip→ochiq-filtr→do'kon-bo'limlar→
+sotuvchi-CTA, flat-katalog/hero/kategoriya-karusel YO'Q); do'kon-profilda ham hero-karusel yo'q.
+`tsc --noEmit` miniapp — 0 xato. Deploy: commit `d447b53` → push → build (`VITE_API_URL`) →
+`.vercel/output/static` → `vercel deploy --prebuilt --prod` → bundle-grep live
+(`1067taxi-miniapp.vercel.app`): CSS'da `#11201a`/`bj-chat-privacy` topildi.
+
+**Qolgan bilingan bo'shliq (hali tekshirilmagan)**: hikoya-ko'ruvchi (mock-da `stories:[]` bo'lgani
+uchun to'liq ochib ko'rilmadi — faqat CSS safe-area-qoidasi qo'lda tekshirildi), mahalla-tanlov
+picker (token-based klasslar, kod-o'qish orqali tasdiqlandi, DOM'da bosilmadi), DOM-nesting ogohlantirishi
+(`<button>` ichida `<button>` — `ProductCard`da fav-yurak, PRE-EXISTING, shopv2'dan oldin ham bor,
+bu safar tuzatilmadi — alohida, kichik, mustaqil tiket bo'lishi kerak). `#shopdemo` — yangi dev-only
+vosita, `#demo` bilan bir xil naqshda (production'da hech qanday xavf yo'q, faqat aniq hash bilan
+ochiladi, real API'ga tegmaydi).
+
+**HOLAT: ready for (re-)verification.** Ega yana o'z telefonida ko'rishi kerak — bu safar
+"chalaku"ning ILDIZ sababi (oq-sheet + o'lik-CTA-rang + ikki-IA-ustma-ust) tuzatildi, lekin
+DOM-nesting bug va hikoya-ko'ruvchi hali chuqur tekshirilmagan.
