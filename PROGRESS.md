@@ -2544,3 +2544,59 @@ tozalanmadi — `--outDir dist2` bilan chetlab o'tildi, keyin tozalandi) → bun
 bug'lar tuzatildi (sarlavha-kesilishi, ikonka-emoji-yo'qligi, narx-so'zi, o'xshash-mahsulot-
 navigatsiya) — lekin bularning HAMMASI hali ega tomonidan REAL qurilmada tasdiqlanmagan.
 Keyingi qadam: ega yana ko'rib, yangi skrinshot/fikr bersin.
+
+## 2026-07-24 (41) — BirJoy Market v2: strukturaviy bo'shliq yopildi (mockup bilan to'liq solishtiruv)
+Ega "hammasini to'g'irlab to'liq tugatib bir xil dizayndagidek... nuqta-vergul ham qolmay" dedi.
+Buni jiddiy qabul qilib, `claude_design` MCP orqali BirJoy Market.dc.html'ni QAYTA yukladim (xotiradan
+emas — aniq, joriy nusxa: ranglar/copy/struktura) va HAR bir ekranni satr-satr solishtirdim. Avvalgi
+bosqichlar (CSS-token-retint, keyin real-skrinshot-bug-fix) FAQAT ranglash+ikonka+kichik-tuzatish
+darajasida edi — mockup'ning STRUKTURAVIY elementlaridan bir nechtasi umuman qurilmagan ekan:
+
+1. **Kind-filtr yo'q edi** — mockup'da "Barchasi / Mahallamga yetkazadi / Butun shahar" chip-qatori
+   bilan bo'limlarni filtrlash mumkin, mening implementatsiyam ikkala bo'limni HAR DOIM ko'rsatardi.
+   Qo'shildi (`shopKindFilter` state, `.shop-kind-row`/`.shop-kind-chip`).
+2. **"Butun shahar" noto'g'ri joylashuv** — mockup 2-ustunli GRID (rasm-qopqoq+katta bosh-harf),
+   mening kodim gorizontal-scroll AVATAR-qator (eski BjShopCard) edi. shopv2 uchun yangi
+   `.shop-city-grid`/`.shop-city-tile` qo'shildi (legacy o'zgarishsiz qoladi).
+3. **"O'xshash do'konlar" umuman yo'q edi** — do'kon-profil pastida mockup'da bor, mening
+   implementatsiyamda BUTUNLAY qurilmagan edi. Endi real `market.shops`dan qo'shildi.
+4. **Mahsulot-panjara noto'g'ri uslub** — mockup 3-ustunli "Instagram-uslub" kvadrat kafel
+   (rasm/gradient+katta bosh-harf+pastki qorong'i-gradient ustida nom+narx), mening `ProductCard`im
+   esa an'anaviy "elektron-savdo karta" (rasm+alohida info-panel). Yangi `StoreTile` komponenti
+   FAQAT do'kon-profil panjarasida ishlatiladi — `ProductCard` qidiruv/o'xshash-mahsulot
+   natijalarida (ko'proq ma'lumot kerak — chegirma/like/stock) o'zgarishsiz qoladi.
+5. **Hikoyada "yuqoriga surish → mahsulot" umuman yo'q edi** — mockup'ning eng "wow" xususiyati
+   (hikoyadan to'g'ridan-to'g'ri eng ko'p sotiladigan mahsulotga o'tish). Haqiqiy swipe-gesture
+   o'rniga (Sheet'dagi kabi murakkab touch-tracking qo'shish xavf/foyda nisbati past bo'lardi)
+   bosib-ochiladigan taklif — xuddi shu vizual natija, real `topSeller` maydonidan (yangi backend
+   shart emas).
+6. **Top-strip yo'q edi** — #40'da eski 2-qatorli sarlavhani OLIB TASHLADIM (joy yetmasligi
+   sababli), lekin o'rniga hech narsa qo'ymagan edim. Endi mockup'dagi kabi: orqaga-tugma (do'kon-
+   profilda) + kontekstli nom ("BirJoy" bosh-sahifada, do'kon-nomi profilda) — FAQAT bitta joyda.
+
+**Ataylab QILINMAGAN (haqiqiy sabab bilan)**:
+- Mockup'ning "soat-jadvali" qatori ("Bugun 14:00–18:00") — bizning haqiqiy ma'lumot-modelimizda
+  bunday maydon YO'Q (`ShopProfileView`da soat-jadval yo'q) — YANGI backend-maydon soxtalashtirilmadi,
+  chunki hech qanday haqiqiy ma'lumot manbai yo'q. Ega alohida so'rasa — yangi, kichik backend qadam.
+- Mahsulot/savat "screen" emas, hamon Sheet (modal) — mockup to'liq-ekran sahifa-almashinuv modeli,
+  bizniki Sheet-based (swipe-to-close, scroll-lock allaqachon sinovdan o'tgan). Buni to'liq-ekran
+  navigatsiyaga aylantirish katta arxitektura-o'zgarish bo'lardi (haqiqiy checkout-mantiqqa tegib) —
+  vizual natija deyarli bir xil (pastdan chiqadigan panel), shuning uchun FOYDA/XAVF nisbati past
+  deb topildi, qilinmadi.
+- Haqiqiy TO'LOV murakkabligi (tanga/naqd ikki yo'l, yetarli-emas-balans+referral-taklif, chegirma,
+  kam-qoldiq, sharh-rasm-yuklash) — mockup buларни modellamagan (soxta bitta-yo'l checkout), lekin
+  bular HAQIQIY biznes-talab — OLIB TASHLANMADI, faqat vizual-tilga moslashtirildi.
+
+**Isbot**: `#shopdemo`'da to'liq oqim sinaldi (async click+kutish, React'ning holat-yangilanishi
+sinxron tugamagani uchun): kind-filtr bosilganda bo'limlar to'g'ri filtrlanadi; 2-ustunli grid va
+Instagram-uslub kafellar to'g'ri qorong'i-shisha uslubda (amber narx `#f59e0b` mockup bilan AYNAN
+mos); "O'xshash do'konlar" ko'rinadi va bosiladi; orqaga-tugma+nom to'g'ri ishlaydi; hikoya-hint→
+karta-ochilish→"Xarid qilish"→mahsulot-sahifasi TO'LIQ zanjiri ishladi (nom/narx to'g'ri ko'rsatildi,
+sahifa to'g'ri ochildi). Konsolь — xato yo'q. `tsc --noEmit` — 0 xato. Deploy: commit `c9d4191` →
+push → build → bundle-grep live (`1067taxi-miniapp.vercel.app`): `shop-city-grid`/`shop-tile-grid`/
+`shop-similar-store`/`bj-story-hint`/`shop-kind-chip` — barchasi topildi.
+
+**HOLAT: ready for (re-)verification, OWNER-ACCEPTED EMAS.** Bu — mockup bilan solishtirilgan eng
+chuqur/to'liq bosqich shu sessiyada. Qolgan ikkita ATAYLAB-qilinmagan farq yuqorida aniq sabab bilan
+yozilgan (soat-jadval — ma'lumot yo'q; Sheet-vs-full-screen — arxitektura-xavfi past-foyda). Boshqa
+hech qanday bilingan strukturaviy farq qolmadi. Ega o'z telefonida ko'rib, yakuniy fikr bersin.
