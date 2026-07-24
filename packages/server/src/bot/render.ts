@@ -64,9 +64,18 @@ export function renderTaken(): string {
   return `⚠️ <b>Bu profil band</b>\n\nUshbu raqam allaqachon boshqa Telegram akkauntga bog'langan. O'zingizniki bo'lsa — administrator bilan bog'laning.`;
 }
 
-/** Warm celebration the moment an account links. */
+/** Warm celebration the moment an account links. Post AI-first menu removal (2026-07-23) there is
+ *  no "pastdagi menyu" anymore — this is the single best moment to seed 2-3 concrete example
+ *  phrases (bonus/g'ildirak + do'st taklif were the two things people struggled to find) plus the
+ *  /menu escape hatch, instead of pointing at a keyboard that no longer exists. */
 export function renderLinked(name: string, role: string): string {
-  return `✅ <b>Tayyor!</b> ${esc(name)} (${role})\n\n🎉 Hamyon ochildi. Endi o'yna, yut, yech! Pastdagi menyudan boshlang 👇`;
+  return (
+    `✅ <b>Tayyor!</b> ${esc(name)} (${role})\n\n` +
+    `🎉 Hamyon ochildi. Sinab ko'ring:\n` +
+    `🎡 «g'ildirak» yoki «bonus» — sovg'a yutib oling\n` +
+    `👥 «do'st chaqir» — do'stingiz bilan pul ishlang\n\n` +
+    `📋 Yoki shunchaki «menyu» deb yozing — tugmali panel chiqadi 👇`
+  );
 }
 
 /** The hero card — the "beautiful bonuses" view, adapts to client vs driver. */

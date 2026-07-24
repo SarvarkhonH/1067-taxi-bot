@@ -1363,8 +1363,10 @@ export function createBot(): Bot {
         "🍽 «osh buyurtma qil» · «qornim ochdi»\n" +
         "🔎 «santexnik kerak» · «basen qayerda»\n" +
         "🛒 «sovg'a olmoqchiman» · e'lon/reys\n" +
+        "🎡 «g'ildirak» — bonus yutib oling · 👥 «do'st chaqir» — pul ishlang\n" +
         "⏰ «ertaga 7 da bozorga eslat» · 📊 «bu oy qancha ishlatdim»\n" +
         "💛 shunchaki dardlashsangiz ham — tinglayman.\n\n" +
+        "📋 Tugmali panel kerak bo'lsa — «menyu» deb yozing.\n\n" +
         "<i>Yozib ko'ring — javob beraman 👇</i>",
       { parse_mode: "HTML", reply_markup: kb },
     );
@@ -2014,8 +2016,8 @@ export function createBot(): Bot {
     const { InlineKeyboard } = await import("grammy");
     const t =
       "🤔 Buni to'liq anglamadim — birozdan keyin yoki boshqacharoq yozib ko'ring 🙏\n" +
-      "Masalan: «uyimga taksi» · «osh buyurtma qil» · «santexnik kerak» · «ertaga 7 da eslat» · «bu oy qancha ishlatdim».\n" +
-      "🎤 Shunchaki gapirib yuborsangiz ham tushunaman. Yoki 👇 ilovadan to'g'ridan-to'g'ri qiling.";
+      "Masalan: «uyimga taksi» · «osh buyurtma qil» · «santexnik kerak» · «g'ildirak» · «do'st chaqir» · «ertaga 7 da eslat».\n" +
+      "🎤 Shunchaki gapirib yuborsangiz ham tushunaman. 📋 «menyu» deb yozsangiz — tugmali panel chiqadi. Yoki 👇 ilovadan to'g'ridan-to'g'ri qiling.";
     const kb = canWebApp ? new InlineKeyboard().webApp("🚀 BirJoy ilovasi", webAppUrl("")) : undefined;
     await ctx.reply(t, { reply_markup: kb });
     saveOut(t);
