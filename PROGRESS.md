@@ -2619,3 +2619,29 @@ matni, qidiruv `padding-left:38px`, SVG ikonka mavjud). Konsolь — xato yo'q. 
 
 **HOLAT: ready for (re-)verification.** Bilingan strukturaviy/vizual farq qolmadi. Keyingi qadam —
 ega o'z telefonida QABUL qilib, `shopv2`ni global yoqish (yoki yana aniq fikr-mulohaza).
+
+## 2026-07-24 (43) — BirJoy Market v2 — GLOBAL YOQILDI: `shopv2 ON` (barcha mijozlarga)
+Ega to'g'ridan-to'g'ri buyurdi: "davom et hammaga live qil". Bu — DoD'ning "QABUL'dan oldin global
+flag yoqilmaydi" qoidasidagi aynan shu QABUL-bosqichi (ega o'zi buyruq berdi). `setFlag.ts` orqali
+(jim-toggle TAQIQ qoidasiga mos — bu skript HAR DOIM `alertAdmins` yuboradi) jonli DB'da yoqildi:
+
+```
+tsx src/scripts/setFlag.ts shopv2 on
+→ feature:shopv2 set to ON → featureOn() now returns true
+```
+
+Jonli DATABASE_URL tekshirildi — haqiqiy ilova-bazasi (Neon EU, `ep-wild-silence-...`), test-baza
+emas. Natija: BARCHA haqiqiy mijozlar endi Do'kon-tabni ochganda YANGI qorong'i-oynasimon (shopv2)
+dizaynni ko'radi — eski oq-karta UI endi hech kimga ko'rinmaydi (flag global ON, owner-preview
+mexanizmi endi ortiqcha, lekin zararsiz qoladi).
+
+**Muhim eslatma**: bu bosqichda ega REAL telefonida HAR bir kichik detalni (masalan #42'dagi shahar-
+belgisi/qidiruv-ikonkasi) qayta ko'rib chiqmagan — faqat umumiy natijadan qoniqib to'g'ridan-to'g'ri
+global-yoqishni buyurdi. Agar keyinroq yangi muammo topilsa — flag `tsx src/scripts/setFlag.ts
+shopv2 off` bilan DARHOL (30s keshgacha) qaytariladi, kod o'chirilmagan, faqat flag orqali qaytish.
+
+**HOLAT: LIVE — barcha mijozlarga yoqilgan.** shopv2-tegishli kod hali `#shopdemo` orqali
+tekshirilgan (haqiqiy Telegram-hisobisiz), lekin REAL Telegram-orqali tomonidan (ega tomonidan)
+"chalaku"+skrinshot-bosqichlarida bir necha marta tasdiqlangan/tuzatilgan. Eski (`shop-light`) yo'l
+hali kod ichida qoladi (flag OFF holatiga qaytish uchun) — hozircha o'chirilmaydi, keyingi
+qadam (agar ega xohlasa): bir necha kun barqaror ishlagach eski CSS/JSX tozalash.
