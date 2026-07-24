@@ -2155,17 +2155,23 @@ export async function setupBotCommands(bot: Bot): Promise<void> {
   // mainMenu() above). Everything that used to live as a permanent on-screen button now lives
   // here, in Telegram's native "/" commands list, so nothing lost reachability. Owner/admin-only
   // commands (/kod, /admin, /dash, /orders, /elon, /bekor, /photo_clear, /rasmsorov) stay OUT of
-  // this public list on purpose — they still work when typed, just aren't advertised.
+  // this public list on purpose — they still work when typed, just aren't advertised. Same for two
+  // niche self-service ones: /bekor_sotuvchi (cancels an in-progress /sotuvchi wizard — only
+  // relevant mid-flow, same reasoning as /bekor) and /taksi (an exact synonym of /book — listing
+  // both would just look like a duplicate in the menu).
   await bot.api.setMyCommands([
     { command: "start", description: "Botni boshlash / profil" },
     { command: "ai", description: "🤖 Koson AI — aqlli yordamchi" },
     { command: "bilim", description: "🧠 Koson haqida ma'lumot berish" },
     { command: "menu", description: "📋 Menyu (barcha bo'limlar)" },
+    { command: "app", description: "🚀 Ilovani ochish" },
     { command: "book", description: "🚕 Taxi chaqirish" },
+    { command: "qayta", description: "🔁 Yana shu yo'ldan chaqirish" },
     { command: "status", description: "📍 Buyurtmam holati" },
     { command: "tarix", description: "🧾 Safarlar tarixi" },
     { command: "me", description: "💰 Hamyon / profil" },
     { command: "account", description: "👤 Hisobim & sozlamalar" },
+    { command: "boshqaraqam", description: "📲 Boshqa raqamni ulash" },
     { command: "invite", description: "👥 Do'st taklif qilish" },
     { command: "missions", description: "🎁 Bonuslar (vazifalar)" },
     { command: "daily", description: "🔥 Kunlik bonus" },
