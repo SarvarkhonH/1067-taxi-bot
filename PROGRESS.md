@@ -2763,3 +2763,55 @@ iOS'da fokusda BUTUN sahifani avto-zoom qilib buzadi (ega avval shundan shikoyat
 **Isbot**: `tsc --noEmit` 0 xato, konsolь toza. Deploy: `69bc2a9` + `0762e31` → build → Vercel prod →
 bundle-grep live: `shop-sp-avatar`/`shop-sp-loyalty`/`shop-head-icon`/`shop-detail-sub` topildi.
 **HOLAT: LIVE (shopv2 global ON), 4 ekran ham mockup bilan o'lchamma-o'lcham solishtirilgan.**
+
+## 2026-07-24 (47) — Chuqur dizayn-audit (87 agent) + topilmalarni tuzatish
+Ega: "kuchli jamoa va dizaynerlarni chaqir, to'liq audit, chuqur darajada". 6 mustaqil lens
+(kontrast/tipografika/matn-tushunarliligi/joylashuv/holatlar/mockup-fidelity) parallel ishladi,
+har topilmani INKOR qilishga urinuvchi alohida agent tekshirdi: **80 topilma → 26 tasdiqlandi**.
+
+**Auditning eng muhim topilmasi — MENING xatoim edi.** Oq temaga o'tkazganda fonlarni almashtirdim,
+matn ranglarini emas. Mening tekshiruv-skriptim ham FAQAT `backgroundColor`ni skanerlagan, shuning
+uchun "0 qorong'i qoldiq" deb XATO hisobot bergan. Aslida jonli holatda:
+- `.shop-head-icon` — `#f0f5ef` oq panelda = **1.02:1**: savat va buyurtma tugmalari KO'RINMASDI
+- `.sheet-err` — `#fca5a5` = **1.94:1**: har bir to'lov/sharh xato-xabari o'qib bo'lmasdi
+- kafel narxi — `--bj-tanga` (#b45309) rasm-soyasi ustida ~1.2:1
+- rasmsiz do'kon bosh-harflari — oq, och-yalpiz qopqoqda ~1.05:1
+Saboq: **kontrast tekshiruvi matn VA fon juftligini o'lchashi kerak, faqat fonni emas.**
+
+**Tuzatildi (1-tur)**: 11 ta oqib qolgan qorong'i-matn rangi; `--bj-tanga-on-media` (#fcd34d) +
+kuchliroq soya-gradient + text-shadow kafellar uchun; bosh-harflar to'q-yashil (6.39:1);
+BirJoy nomidan berilayotgan soxta "1 kun ichida yetkazamiz" va'dasi → sotuvchining O'Z va'dasi;
+savatda yetkazish qatori hech qachon ko'rinmasligi (barcha do'konda fee=0) → "Sotuvchi bilan
+kelishiladi" ("Bepul" EMAS — 0 = hisobga olinmagan); savat-tozalash ogohlantirishi sheet ORQASIDA
+qolishi (z-index 40 vs 60) → 90 + do'kon nomi va mahsulot soni; mahsulotsiz do'kon bo'sh ekran
+(jonli bazada 6 dan 3 tasi!) → tushuntirish; `cityShops.length > 1` bitta do'kon qolganda butun
+bo'limni yashirishi → `> 0` + "hamma do'kon yopiq" holati.
+
+**Tuzatildi (2-tur)**: sharh-formasi o'lik tugma (yulduz birinchi turardi, lekin yuborish thumb'ga
+bog'liq, sabab hech qayerda yozilmagan) → majburiy tanlov birinchi + nomlangan + sabab-matni
+(yulduzdan thumb AVTOMATIK chiqarilmadi — u do'kon ustiga jimgina ommaviy 👎 qo'yardi);
+savat "bo'sh" deyishi (belgi 10 ko'rsatib turganda, `products===null` bo'lsa) → `cartCount` haqiqat
+manbai + skelet + xato-holati; qo'ng'iroq ikonkasi aslida buyurtmalar ekani → `bag`; bo'sh
+yulduz/timeline-nuqtalari ko'rinmasligi (`--bj-line` chegara-tokeni siyoh sifatida) → `--bj-ink-faint`.
+
+**Audit "TUZATMANG" degan 14 band** — ular eski QORONG'I temaga qarab o'lchangan; oq temada
+qo'llasam regressiya bo'lardi (masalan CTA'dagi oq matnni to'q qilish: hozir 5.48–7.68:1, taklif
+qilingan o'zgarish 2.99:1 qilardi). Tegilmadi.
+
+**HALI QOLGAN (audit ro'yxatidan, keyingi bosqich)**: checkout qisman-tugagan mahsulotda cheksiz
+takrorlanishi (P0-5); bozor-yuklanish skeleti/xato-holati (P1-1, sekin tarmoqda bo'sh ekran);
+mahalla-boshqaruvi bosiladigan ko'rinmasligi (P1-3, uchta lens mustaqil belgiladi); qidiruv
+"Do'kon yoki mahsulot" deb va'da berib do'kon qidirmasligi (P1-6); savat qty-tugmalari 26px
+(P1-8); P2 bandlar. Server-tiket: `shopService.ts` global `take:100` — 133 faol mahsulotdan
+do'kon 1 ning 116 tasidan faqat 83 tasi yetib boradi (vitrinasi jimgina kesilgan).
+
+**Isbot**: har tuzatishdan keyin brauzerda o'lchandi (header ikonka 1.02→18.5:1, qopqoq bosh-harfi
+6.39:1, toast z-index 90, sharh-formasi tartibi). `tsc` 0 xato, konsolь toza. Deploy: `cf234f1`
+va `ec2ba70` → Vercel prod → bundle-grep live: `--bj-tanga-on-media`, `z-index:90`, "Sotuvchi
+bilan kelishiladi", "hamma do'kon yopiq", "Mahsulot yoqdimi", "Savat yuklanmoqda" topildi.
+
+**LIQUID GLASS HAQIDA (ega savoli)**: rejadagi/mockup'dagi "suyuq shisha" QORONG'I tema edi
+(blur + yarim-shaffof kartalar) — u qurilgan edi. Keyin ega "ranglar bo'g'adi" deb OQ temani
+tanladi; oq kartada oq fon ustida shisha effekti ko'rinmaydi, shuning uchun `backdrop-filter`
+kodda qolgan-u, vizual ta'siri yo'q. Ya'ni liquid-glass ega qarori bilan almashtirilgan, yo'qolgan
+emas — xohlansa YORUG' liquid glass (rangli fon ustida shaffof oq kartalar) alohida bosqich.
