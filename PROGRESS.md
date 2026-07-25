@@ -2718,3 +2718,48 @@ Deploy: commit `13ecb44` → build → Vercel prod → bundle-grep live (`shop-C
 - Hikoya-tray bosh-sahifada (mockup'da do'kon-profilda), mahalla-tanlov chipi, "sotuvchi bo'ling"
   CTA, yopishqoq savat-bar — mockup'da yo'q, LEKIN bular haqiqiy, ishlaydigan funksiyalar. Statik
   mockup'ga o'xshatish uchun ularni o'chirish = funksiyani o'chirish. Qoldirildi.
+
+## 2026-07-24 (46) — shopv2 = mockup bilan 1:1 (ega qarori men bilan ROZI EMASLIGIDAN keyin)
+Ega: "ramkaga olingan chiziqlar ranglar bo'rtirilgani umuman bo'lmaydi" → keyin "dizayn bilan 100%
+bir xil bo'lsin, ortiqcha hech nima bo'lmasin kam ham" → keyin "har bir chiziq naqshlarni solishtir,
+1px ham adashma". §45'da men bir necha blokni "haqiqiy funksiya" deb ATAYLAB qoldirgandim — ega buni
+IKKI MARTA bekor qildi. Ega qarori qabul qilindi, hammasi mockup'ga keltirildi.
+
+**"Ramka/bo'rtiq" muammosining ILDIZ sababi (eng muhim topilma)**: eski `.shop-wrap` qoidasi
+(`tokens.css:1764`) `box-shadow: inset 0 0 0 1px #dfeee5, 0 10px 30px -18px rgba(0,0,0,.5)` beradi
+— ya'ni OCH-YASHIL 1px ICHKI RAMKA + ko'tarilgan-karta soyasi. Men `.app.bjm .shop-wrap`da faqat
+`background`ni override qilgandim, shuning uchun qorong'i temada ham ramka VA "bo'rtiq" soya
+qolib ketgan edi. Xuddi shu qoidadagi `color:#1b2333` (qorong'i matn), `padding`, `gap` ham oqib
+o'tardi. Hammasi bekor qilindi (`box-shadow:none`, full-bleed, har bo'lim o'z 16px padding'i bilan).
+
+**Olib tashlandi (mockup'da yo'q)**: bosh-sahifadagi hikoya-tray (do'kon-profilga KO'CHIRILDI —
+mockup'da aynan o'sha yerda), mahalla-chip ("Koson" qatoriga birlashtirildi — ko'rinish mockup
+bilan aynan, tanlagich baribir ochiladi), sotuvchi-CTA, yopishqoq savat-bar (savat endi top-strip
+ikonkasi+son-belgisi), ulashish/sevimlilar tugmalari, do'kon-sahifasidagi qidiruv-qutisi,
+mahsulot-ekranidagi ulashish tugmasi. **Buyurtmalar yo'qolmadi** — Profil tabi allaqachon
+yuklaydi (`profile.tsx:64`), shu sabab do'kon-sarlavhasidan olib tashlash xavfsiz.
+
+**Qo'shildi/qayta qurildi (mockup'da bor edi, menda yo'q edi)**: do'kon-profil TO'LIQ mockup
+tartibida — 100px qopqoq (44px bosh-harf) → −24px ustiga chiqqan 76px avatar (4px halqa) → 19px
+nom → "★ x · N sharh" → info-qator → soat-qatori → hikoya-tray → 3px yashil chap-chegarali e'lon →
+about → "Sodiqlik dasturi" progress-karta → sharh-qatori → chat-CTA → kategoriya-chiplar →
+kafel-panjara → "O'xshash do'konlar". Mahalla-bo'limi gorizontal 148px kartalarga o'tkazildi.
+
+**O'lchangan (brauzerda, mockup CSS'iga qarshi — taxmin EMAS)**: qopqoq 100px · bosh-harf 44px/800 ·
+avatar 76px/radius 20px/−24px/4px · nom 19px/800 · reyting 12px/700 · info 12.5px gap 10px ·
+e'lon radius 10px padding 11px 13px + `border-left:3px solid rgb(52,211,153)` · about 13.5px/1.5 ·
+sodiqlik-chizig'i 6px/radius 3px · CTA radius 16px 14.5px/700 padding 13px · mahalla-karta 148px,
+qopqoq 148×100, nom 13.5px/700 mt7px, meta 11.5px, belgi 9.5px/radius 8px · chiplar 8px 14px/radius
+20px/13px/600 · mahsulot: rasm 1/1.05 + radius 16px, nom 18px/800, narx 22px/800 `rgb(245,158,11)`
+chipsiz · savat: nom 13px/700, summa 12.5px/700 amber, jami 14.5px/800, qty-tugma 26px/radius 8px —
+**HAR BIRI mockup qiymatiga TENG**. (Chegara-kengliklari brauzerda DPR-2 sababli 0.8× ko'rinadi;
+CSS qoidasining o'zi 3px ekani alohida tekshirildi.)
+
+**Yagona ataylab farq qoldi**: qidiruv-input shrifti 16px (mockup 13.5px) — 16px'dan kichik input
+iOS'da fokusda BUTUN sahifani avto-zoom qilib buzadi (ega avval shundan shikoyat qilgan,
+`tokens.css` v4.4 izohi). Va to'lov-boshqaruvlari (tanga/naqd, yetarli-emas-balans, referral-taklif)
+— mockup bitta "savatga qo'shish" tugmasini modellagan, bizda bular JONLI pul-funksiyalari.
+
+**Isbot**: `tsc --noEmit` 0 xato, konsolь toza. Deploy: `69bc2a9` + `0762e31` → build → Vercel prod →
+bundle-grep live: `shop-sp-avatar`/`shop-sp-loyalty`/`shop-head-icon`/`shop-detail-sub` topildi.
+**HOLAT: LIVE (shopv2 global ON), 4 ekran ham mockup bilan o'lchamma-o'lcham solishtirilgan.**
