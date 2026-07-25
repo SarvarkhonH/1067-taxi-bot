@@ -1138,7 +1138,13 @@ export function ShopView({ me, onBanner, reload, onBook, openProductId }: { me: 
               </div>
             </BjSection>
           )}
-          {bazar && !shopFilter && showMahallaKind && market && activeMahallaId !== null && mahallaShops.length === 0 && (
+          {/* shopv2: mockup'da bo'sh mahalla-bo'limi UMUMAN ko'rsatilmaydi (showMahallaSection =
+              mahallaStores.length > 0). Ega skrinshotda ko'rsatdi: katta "birinchi bo'ling!" bloki
+              butun ekranni egallab, haqiqiy do'konlarni pastga surib yuborardi. Endi u FAQAT
+              foydalanuvchi ataylab "Mahallamga yetkazadi" filtrini tanlaganda chiqadi — aks holda
+              ekran bo'sh qolardi (R4 topgan bug). "Barchasi"/"Butun shahar"da — yashirin. */}
+          {bazar && !shopFilter && market && activeMahallaId !== null && mahallaShops.length === 0
+            && (shopv2 ? shopKindFilter === "mahalla" : showMahallaKind) && (
             <div className="bj-mahalla-cta">
               <div className="bj-mahalla-cta-icon">🔔</div>
               <div className="bj-mahalla-cta-text">{activeMahalla?.name ?? "Bu mahalla"}da hali do&apos;kon yo&apos;q — birinchi bo&apos;ling!</div>
@@ -1237,6 +1243,21 @@ export function ShopView({ me, onBanner, reload, onBook, openProductId }: { me: 
                 {catalog.map((p) => <ProductCard key={p.id} p={p} onOpen={openProduct} onFav={toggleFav} wide />)}
               </div>
             </>
+          )}
+
+          {/* EGA QAROLI (AskUserQuestion: "Ikkalasi: do'kon-qatori + mahsulot-panjarasi"):
+              bosh-sahifada do'konlardan KEYIN barcha do'konlarning mahsulotlari ham ko'rsatiladi.
+              Mockup faqat do'konlarni chizgan edi — ega ikkala oqim ham ochiq bo'lishini tanladi
+              ("nima olishni biladigan" mijoz do'kon tanlamasdan to'g'ridan-to'g'ri topa olsin). */}
+          {shopv2 && bazar && !shopFilter && !searched && (products ?? []).length > 0 && (
+            <div className="shop-home-products">
+              <div className="shop-section-title2">Mahsulotlar</div>
+              <div className="shop-tile-grid home">
+                {(products ?? []).slice(0, 24).map((p) => (
+                  <StoreTile key={p.id} p={p} onOpen={openProduct} onFav={toggleFav} />
+                ))}
+              </div>
+            </div>
           )}
 
           {/* shopv2: "O'xshash do'konlar" — do'kon-profil sahifasining oxiri, tasdiqlangan
