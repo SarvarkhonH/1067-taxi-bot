@@ -2645,3 +2645,44 @@ tekshirilgan (haqiqiy Telegram-hisobisiz), lekin REAL Telegram-orqali tomonidan 
 "chalaku"+skrinshot-bosqichlarida bir necha marta tasdiqlangan/tuzatilgan. Eski (`shop-light`) yo'l
 hali kod ichida qoladi (flag OFF holatiga qaytish uchun) — hozircha o'chirilmaydi, keyingi
 qadam (agar ega xohlasa): bir necha kun barqaror ishlagach eski CSS/JSX tozalash.
+
+## 2026-07-24 (44) — R4 mustaqil tekshiruv (shopv2 LIVE bo'lgandan keyin) + 2 bug tuzatildi
+Ega "davom et hammasini to'g'ri tartibli reja bo'yicha qil" dedi — reja (`tingly-petting-lecun.md`)
+ning 5-bosqichi ("R4 mustaqil tekshiruv... alohida agent orqali") shu paytgacha QILINMAGAN edi
+(o'zim yozgan kodni o'zim tekshirganman, HAQIQIY mustaqil ko'z bilan emas). shopv2 endi barcha
+mijozlarga LIVE bo'lgani uchun bu — eng muhim keyingi qadam edi. Kodni yozMAGAN alohida agent
+(worktree-izolyatsiyada, faqat CLAUDE.md+haqiqiy kod bilan) yubordi.
+
+**Topilgan 3 narsa**:
+1. **LIVE bug (real mijozlarga ta'sir qilardi)**: bosh-sahifada "Mahallamga yetkazadi" filtr-chipi
+   bosilganda, agar foydalanuvchining uy-mahallasi hali tanlanmagan bo'lsa (`activeMahallaId===null`
+   — masalan Telegram joylashuv-ruxsati yo'q/rad etilgan) — HECH NARSA ko'rsatilmasdi: na do'kon-
+   ro'yxati, na "hali yo'q" bo'sh-holat xabari (ikkalasi ham noto'g'ri `activeMahallaId !== null`
+   shartiga bog'langan edi). Tuzatildi: yangi bo'sh-holat qo'shildi ("Mahallangizni tanlang..." +
+   mahalla-tanlov sheet'ni ochuvchi tugma).
+2. **Yashirin (hozircha yetib bo'lmaydigan, lekin haqiqiy) bug**: do'kon-profil mahsulot-panjarasi
+   (StoreTile) faqat `shopv2`ni tekshirardi, `bazar`ni EMAS. Agar kelajakda `bazar` mustaqil o'chirib
+   qo'yilsa (favqulodda kill-switch) va `shopv2` yoqilgan qolsa — filtrlanmagan BUTUN katalog
+   "bitta do'kon" ko'rinishida chiqib qolardi. `&& bazar` sharti qo'shildi.
+3. **Past-ahamiyat, ma'lumot uchun**: ba'zi `.app.bjm` CSS-qoidalari (`.d-btn`, `.order-status-
+   pill`) `.shop-wrap` bilan scope qilinmagan, faqat tab-asosli mount'ga tayanadi. Hozircha
+   xavfsiz (agent o'zi tasdiqladi), lekin kelajakda boshqa modul shu klass-nomlarni ishlatsa
+   ziddiyat chiqishi mumkin — kuzatib boriladigan qarz sifatida qayd etildi, HOZIR tuzatilmadi.
+
+**Tasdiqlangan (agent, mustaqil)**: `pnpm -w typecheck` — barcha 4 paket 0 xato; bugungi barcha
+shopv2 commit'lar (`a13fc02`...`bbbfa43`)ning `git log -p` bilan tekshiruvi — tanga/so'm+o'xshash-
+mahsulot-scroll o'zgarishlari ATAYLAB global (ega qarori, commit-xabarida tasdiqlangan); har bir
+`!shopv2` shoxobcha legacy xatti-harakatni AYNAN saqlaydi (flag OFF orqali qaytarish ishonchli);
+pul-harakat kodi (`buyProduct`/`deliverPurchase`/`rejectPurchase`/cashback) bugungi commit'larda
+TEGILMAGAN (faqat qo'shimcha `getShopOrdersToday` qo'shilgan); 35 ta `.map()` chaqiruvida key/stale-
+closure xatosi topilmadi.
+
+**Isbot**: #1-bug `#shopdemo`'da mahallaId=null a'zo bilan sinaldi (aynan real-repro sharti) —
+bo'sh-holat to'g'ri chiqdi. `tsc --noEmit` — 0 xato. Deploy: commit `8b8aee8` → push → build →
+Vercel prebuilt → bundle-grep live (`1067taxi-miniapp.vercel.app`, `shop-CrMqb-g5.js`):
+"Mahallangizni tanlang" topildi.
+
+**HOLAT: LIVE, R4 mustaqil tekshiruvdan o'tdi, 2 haqiqiy bug (1tasi live-ta'sirli) tuzatilib
+deploy qilindi.** Qolgan yagona narsa — past-ahamiyatli CSS-scoping qarzi (#3), tuzatish talab
+qilinmaydi hozircha. Reja bo'yicha oxirgi qadam (agar ega xohlasa): bir necha kunlik barqaror
+ishlashdan keyin eski `shop-light`/`!shopv2` yo'lini kod-bazadan butunlay tozalash.
