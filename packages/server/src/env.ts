@@ -16,7 +16,7 @@ const schema = z.object({
   // this unset, the bot must still open the live Mini App — a localhost default makes
   // canWebApp=false → the menu shows NO web-app buttons → the whole Mini App is unreachable.
   // Local dev overrides it via .env (TELEGRAM_WEBAPP_URL=http://localhost:5173).
-  TELEGRAM_WEBAPP_URL: z.string().default("https://1067taxi-miniapp.vercel.app"),
+  TELEGRAM_WEBAPP_URL: z.string().default("https://app.birjoy.online"),
   ADMIN_TELEGRAM_IDS: z.string().optional().default(""),
   ADMIN_PANEL_TOKEN: z.string().optional().default(""), // desktop admin dashboard auth (no Telegram initData)
 

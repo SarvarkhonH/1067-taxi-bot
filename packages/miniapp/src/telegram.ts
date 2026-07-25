@@ -247,7 +247,7 @@ export function inviteText(bonus: number): string {
 // Wrap the bot ref-link in our OG landing page (/j/?r=<code>) so Telegram renders a rich IMAGE
 // card (poster + text) instead of the plain bot preview — the "less spammy" ask. The page reads
 // ?r and forwards to t.me/koson1067bot?start=ref_<code>, so referral capture is unchanged.
-const INVITE_LANDING = "https://1067taxi-miniapp.vercel.app/j/";
+const INVITE_LANDING = "https://app.birjoy.online/j/";
 export function inviteLandingUrl(botLink: string): string {
   const m = botLink.match(/(?:start|startapp)=ref_?([a-zA-Z0-9_-]+)/);
   // &v bumps the URL when the OG card content changes → Telegram fetches a FRESH preview

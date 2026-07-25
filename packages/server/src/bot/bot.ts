@@ -71,7 +71,7 @@ const clientInviteText = (bonus: number): string =>
 // Wrap the bot ref-link in the OG landing page (/j/?r=<code>) so Telegram renders a rich poster
 // card (KEEP IN SYNC with miniapp/src/telegram.ts inviteLandingUrl). The page forwards ?r → the
 // bot's ?start=ref_<code>, so referral capture is unchanged.
-const INVITE_LANDING = "https://1067taxi-miniapp.vercel.app/j/";
+const INVITE_LANDING = "https://app.birjoy.online/j/";
 function inviteLandingUrl(botLink: string): string {
   const m = botLink.match(/(?:start|startapp)=ref_?([a-zA-Z0-9_-]+)/);
   // &v bumps the URL when the OG card content changes → Telegram fetches a FRESH preview
