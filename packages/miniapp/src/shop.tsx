@@ -988,6 +988,19 @@ export function ShopView({ me, onBanner, reload, onBook, openProductId }: { me: 
               </button>
             </div>
           )}
+          {/* R4 topdi (live bug): "Mahallamga yetkazadi" filtri tanlangan, lekin foydalanuvchining
+              uy-mahallasi HALI tanlanmagan bo'lsa (activeMahallaId===null — masalan Telegram
+              joylashuv-ruxsati berilmagan/yo'q) — yuqoridagi ikkala blok ham `activeMahallaId !==
+              null` bilan gated, demak HECH NARSA ko'rsatmasdi: bo'sh, tushuntirishsiz ekran. */}
+          {bazar && !shopFilter && shopv2 && shopKindFilter === "mahalla" && activeMahallaId === null && (
+            <div className="bj-mahalla-cta">
+              <div className="bj-mahalla-cta-icon">📍</div>
+              <div className="bj-mahalla-cta-text">Mahallangizni tanlang — shunda yaqin do&apos;konlarni ko&apos;rsatamiz.</div>
+              <button className="bj-mahalla-cta-btn" onClick={() => { haptic(); setMahallaPickerOpen(true); }}>
+                📍 Mahallani tanlash
+              </button>
+            </div>
+          )}
           {/* shopv2: tasdiqlangan dizaynda "Butun shahar" 2-ustunli GRID (rasm-qopqoq+katta bosh-
               harf+reyting+holat-nuqta) — gorizontal-scroll AVATAR-karta (legacy BjShopCard) emas. */}
           {bazar && !shopFilter && shopv2 && showBozorKind && market && cityShops.length > 1 && (
@@ -1040,13 +1053,16 @@ export function ShopView({ me, onBanner, reload, onBook, openProductId }: { me: 
           {/* ── katalog: VERTIKAL grid — shopv2'da tasdiqlangan dizayndagi 3-ustunli "Instagram-
               uslub" StoreTile (bu blok shopv2'da FAQAT do'kon-profil ichida ko'rinadi, chunki
               homeFlatCatalog shopv2-bosh'da yashirin — shuning uchun bu doim "shu do'konning
-              mahsulotlari" konteksti). Legacy — eski 2-ustunli ProductCard grid, o'zgarishsiz. ── */}
-          {homeFlatCatalog && shopv2 && (
+              mahsulotlari" konteksti). Legacy — eski 2-ustunli ProductCard grid, o'zgarishsiz.
+              R4 topdi: `&& bazar` shart — `bazar` OFF bo'lib `shopv2` ON qolgan holatda (mustaqil
+              kill-switch'lar) StoreTile FILTRLANMAGAN butun-katalogni "bitta do'kon" ko'rinishida
+              ko'rsatib qo'yardi; bazar OFF'da har doim legacy ProductCard-grid ishlatiladi. ── */}
+          {homeFlatCatalog && shopv2 && bazar && (
             <div className="shop-tile-grid">
               {catalog.map((p) => <StoreTile key={p.id} p={p} onOpen={openProduct} onFav={toggleFav} />)}
             </div>
           )}
-          {homeFlatCatalog && !shopv2 && (
+          {homeFlatCatalog && (!shopv2 || !bazar) && (
             <>
               <div className="shop-section-head">
                 <span className="shop-section-title">{cat ?? "Hammasi"}</span>
