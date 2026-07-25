@@ -1266,9 +1266,14 @@ export function ShopView({ me, onBanner, reload, onBook, openProductId }: { me: 
             )}
             <div className="shop-detail-headline">
               <h3 className="shop-detail-name">{sel.name}</h3>
-              <button className="shop-share-btn sm" onClick={() => toggleFav(sel)} aria-label={sel.isFav ? "Sevimlidan olish" : "Sevimliga qo'shish"}>{sel.isFav ? "❤️" : "🤍"}</button>
-              <button className="shop-share-btn sm" onClick={() => shareProduct(sel)} aria-label="Ulashish"><Icon name="share" size={15} /></button>
+              {/* shopv2: mockup'da mahsulot-ekranida FAQAT yurak-tugma bor (ulashish yo'q) */}
+              <button className="shop-share-btn sm" onClick={() => toggleFav(sel)} aria-label={sel.isFav ? "Sevimlidan olish" : "Sevimliga qo'shish"}>
+                <Icon name="heart" size={15} filled={sel.isFav} />
+              </button>
+              {!shopv2 && <button className="shop-share-btn sm" onClick={() => shareProduct(sel)} aria-label="Ulashish"><Icon name="share" size={15} /></button>}
             </div>
+            {/* mockup: nom ostida "{birlik} · {do'kon nomi}" 12px xira qatori */}
+            {shopv2 && sel.shopName && <div className="shop-detail-sub">{sel.shopName}</div>}
             {sel.description && <p className="muted fs13">{sel.description}</p>}
             <PriceBlock p={sel} big />
             {sel.stock <= SHOP_LOW_STOCK && <div className="shop-low-line">⚡ Kam qoldi: {sel.stock} dona</div>}
