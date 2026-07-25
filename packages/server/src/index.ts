@@ -178,18 +178,53 @@ async function main(): Promise<void> {
     console.log(`[api] listening on http://localhost:${env.PORT}`);
     if (bot) {
       await setupBotCommands(bot);
+      // 2026-07-25 migration lesson: a restart while the previous process's long-poll is
+      // still open Telegram-side answers 409 ("terminated by other getUpdates"). Both
+      // branches used to give up after ONE failure — the service stayed `active`, /health
+      // still said ok, and the bot silently received nothing until someone noticed. Both
+      // now retry with backoff, and the LAST failure is alerted so silence can't hide it.
+      const RETRIES = 6;
+      const backoff = (n: number): Promise<void> => new Promise((r) => setTimeout(r, Math.min(30_000, 5_000 * 2 ** n)));
+      const alertFatal = async (what: string, msg: string): Promise<void> => {
+        console.error(`[bot] ${what} gave up: ${msg}`);
+        const { alertAdmins } = await import("./services/economyService");
+        await alertAdmins(`🛑 <b>Bot ${what} ${RETRIES} urinishdan keyin ham ishlamadi:</b> ${msg}\nBot xabar QABUL QILMAYAPTI — server restart kerak.`).catch(() => undefined);
+      };
+
       if (env.WEBHOOK_URL) {
-        try {
-          await bot.api.setWebhook(`${env.WEBHOOK_URL.replace(/\/$/, "")}${webhookPath}`, {
-            drop_pending_updates: true,
-            allowed_updates: ["message", "callback_query", "my_chat_member", "chat_member"],
-          });
-          console.log(`[bot] webhook set → ${env.WEBHOOK_URL}${webhookPath}`);
-        } catch (e) {
-          console.error("[bot] setWebhook failed:", e instanceof Error ? e.message : e);
-        }
+        const url = `${env.WEBHOOK_URL.replace(/\/$/, "")}${webhookPath}`;
+        void (async () => {
+          for (let i = 0; i < RETRIES; i++) {
+            try {
+              await bot.api.setWebhook(url, {
+                drop_pending_updates: true,
+                allowed_updates: ["message", "callback_query", "my_chat_member", "chat_member"],
+              });
+              console.log(`[bot] webhook set → ${url}`);
+              return;
+            } catch (e) {
+              const msg = e instanceof Error ? e.message : String(e);
+              console.error(`[bot] setWebhook failed (${i + 1}/${RETRIES}): ${msg}`);
+              if (i === RETRIES - 1) { await alertFatal("webhook o'rnatishi", msg); return; }
+              await backoff(i);
+            }
+          }
+        })();
       } else {
-        void bot.start({ onStart: (i) => console.log(`[bot] @${i.username} polling`) });
+        void (async () => {
+          for (let i = 0; i < RETRIES; i++) {
+            try {
+              // Resolves only when polling stops; a 409 rejects and we retry after backoff.
+              await bot.start({ onStart: (info) => console.log(`[bot] @${info.username} polling`) });
+              return;
+            } catch (e) {
+              const msg = e instanceof Error ? e.message : String(e);
+              console.error(`[bot] polling failed (${i + 1}/${RETRIES}): ${msg}`);
+              if (i === RETRIES - 1) { await alertFatal("polling", msg); return; }
+              await backoff(i);
+            }
+          }
+        })();
       }
     }
   });
