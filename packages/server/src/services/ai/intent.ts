@@ -44,6 +44,16 @@ const FAQ: { re: RegExp; a: string }[] = [
   { re: /operator|dispetcher|dispecher|qo'ng'iroq\s+qil.{0,15}(operator|dispetcher|1067)/i, a: "☎️ Taksi bo'yicha: 1067 dispetcheriga qo'ng'iroq qiling (24/7). Boshqa savollar — shu yerda yozing, yordam beraman." },
 ];
 
+// 🆘 Explicit "connect me to a human" request — checked BEFORE everything else in runAiText
+// (see bot.ts) so it always works, even mid a confused rules-first loop. Deliberately NARROWER
+// than the old operator/dispetcher FAQ above (which still just gives the 1067 phone number for
+// bare "operator"-as-in-dispatcher-mentions elsewhere) — this needs an unambiguous "get me a
+// person" phrasing, not a stray "yordam" (help) which shows up in lots of harmless messages.
+export function looksLikeOperatorRequest(text: string): boolean {
+  const t = text.toLowerCase().replace(/[''`]/g, "'").trim();
+  return /\boperator(ga)?\b|\bodam(ga)?\s*(bilan|ulang|chiqar|gaplashtir)|\binson\s*bilan\b|\bmenejer(ga)?\b|\byordam\s*kerak\b|\bshikoyat\b/.test(t);
+}
+
 // 🔀 Pivot detection: while the bot is WAITING for a specific input (a name, an address, a
 // knowledge fact), the user may change their mind and send a DIFFERENT clear request. This
 // spots an unambiguous ACTION intent (not a mere topic word — a fact ABOUT a plumber must NOT

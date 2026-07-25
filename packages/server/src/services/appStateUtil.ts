@@ -100,6 +100,7 @@ export async function pendingScan(kind: string): Promise<{ retry: PendingRow[]; 
 const EPHEMERAL_MARKER_PREFIXES = [
   "qinc:", "qscore:", "ridefin:", "wsarrived:", "waitstart:", "waitfound:", "waitvfail:",
   "finishcard:", "faredone:", "fundride:", "farepending:", "cancels:", "tracknudge:", "icbrd:", "icdep:",
+  "oprpause:", // 🆘 operator-escalation AI-pause marker (operatorPause.ts) — logically expires in 1h, this is just table hygiene
 ];
 // LONGER: kept 30 days (metrics / analytics reads, not per-ride ephemera).
 const LONG_MARKER_PREFIXES = ["trackjoin:"];

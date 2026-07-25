@@ -1682,6 +1682,16 @@ export function createBot(): Bot {
   // 🏙 Koson AI shahar-buyurtma tasdiqlash (K1 yadro kafolati: provider execute() FAQAT
   // shu ✅ tap orqali chaqiriladi). Payload transient (restart = qayta so'rash, xolos).
   const pendingCity = new Map<string, { provider: string; payload: string }>();
+  // 🔢 Last city_search result list per user (real AiCard.id, not guessable text) — a bare
+  // "2" reply to a NUMBERED list (the search render already shows "1) … 2) … 3) …") used to go
+  // to the LLM, which has no reliable way to map a bare digit back to a specific item and would
+  // re-guess a broad search term instead — this was a REAL live bug tonight: a customer replying
+  // "2", "7", "8", "9", "10" to a hot-dog search got the SAME "which one?" disambiguation forever
+  // and never got to order. Cache the shown candidates here so a bare-number reply resolves
+  // DETERMINISTICALLY via the real id, no LLM guess involved. 10-min TTL, no new poller (checked
+  // lazily on next message).
+  const lastCitySearch = new Map<string, { provider: string; candidates: { id: string; title: string }[]; at: number }>();
+  const CITY_SEARCH_TTL_MS = 10 * 60_000;
   bot.callbackQuery("ai:ok", async (ctx) => {
     await ctx.answerCallbackQuery();
     const tgId = String(ctx.from.id);
@@ -1717,6 +1727,30 @@ export function createBot(): Bot {
     // conversation memory AND lets the owner audit answer quality from the DB.
     const saveOut = (t: string): void =>
       void prisma.supportMsg.create({ data: { telegramId: tgId, direction: "out", text: t.slice(0, 1000) } }).catch(() => undefined);
+
+    // 🆘 AI paused for this conversation (operator escalation active) — the incoming message is
+    // already saved by the earlier catch-all handler; go completely silent so the owner's manual
+    // reply (admin panel → "Mijozlar chat") is the only thing the customer sees, no AI/AI-vs-human
+    // double-answer race.
+    const { isAiPausedForOperator } = await import("../services/ai/operatorPause");
+    if (await isAiPausedForOperator(tgId)) return;
+
+    // 🆘 explicit "get me a human" request — checked BEFORE smallTalk/intent/agent so it always
+    // works even mid rules-first flow (e.g. stuck in a confused loop). Rules-first, no LLM.
+    const { looksLikeOperatorRequest } = await import("../services/ai/intent");
+    if (looksLikeOperatorRequest(rawText)) {
+      const { pauseAiForOperator } = await import("../services/ai/operatorPause");
+      await pauseAiForOperator(tgId);
+      const t = "🆘 Sizni operatorga ulandim — tez orada javob beradi. Iltimos, biroz kuting 🙏";
+      await ctx.reply(t);
+      saveOut(t);
+      const bot2 = (await import("../botInstance")).getBotInstance();
+      if (bot2) {
+        const name = [ctx.from?.first_name, ctx.from?.last_name].filter(Boolean).join(" ") || ctx.from?.username || tgId;
+        await (await import("./operatorEscalation")).notifyOwnerOperatorRequest(bot2, name, tgId, rawText).catch(() => undefined);
+      }
+      return;
+    }
 
     const { parseIntent, aiSupport, smallTalk } = await import("../services/ai/intent");
     // 💬 greetings/thanks → instant warm reply, NO LLM (always works even if the model is down)
@@ -1771,6 +1805,36 @@ export function createBot(): Bot {
     // not understood by rules → AI agent (aibrain flag) / plain LLM support / nudge
     const tu = await prisma.telegramUser.findUnique({ where: { id: tgId } });
     if (tu?.memberId) {
+      // 🔢 bare "2"/"7" reply to the numbered list a city_search just showed — resolve
+      // DETERMINISTICALLY via the cached real id, never through the LLM (see lastCitySearch
+      // comment above for why: this was tonight's actual infinite-loop bug).
+      const numMatch = /^(\d{1,2})$/.exec(rawText.trim());
+      const lastSearch = lastCitySearch.get(tgId);
+      if (numMatch && lastSearch && Date.now() - lastSearch.at < CITY_SEARCH_TTL_MS) {
+        const idx = Number(numMatch[1]) - 1;
+        const picked = lastSearch.candidates[idx];
+        if (picked) {
+          lastCitySearch.delete(tgId); // one-shot — avoid a stale re-pick on the NEXT bare number
+          const { providerByKey } = await import("../services/ai/providers");
+          const prov = providerByKey(lastSearch.provider);
+          if (prov?.order) {
+            const card = await prov.order(tu.memberId, tgId, picked.id, 1, "").catch(() => ({ error: "Xatolik — keyinroq urinib ko'ring." }));
+            const { InlineKeyboard } = await import("grammy");
+            if ("error" in card) {
+              await ctx.reply(card.error);
+              saveOut(card.error);
+              return;
+            }
+            pendingCity.set(tgId, { provider: prov.key, payload: card.payload });
+            await ctx.reply(card.html, {
+              parse_mode: "HTML",
+              reply_markup: new InlineKeyboard().text("✅ Buyurtma berish", "ai:ok").text("✖️ Yo'q", "ai:no"),
+            });
+            saveOut(`🏙 Buyurtma tasdiqlash-kartasi ko'rsatildi (${prov.key}: ${picked.title} — ro'yxatdan ${numMatch[1]}-tanlov).`);
+            return;
+          }
+        }
+      }
       if (await featureOn("aibrain")) {
         const { runAgent } = await import("../services/ai/agent");
         const r = await runAgent(tu.memberId, tgId, rawText).catch(() => null);
@@ -1919,6 +1983,16 @@ export function createBot(): Bot {
           const prov = providerByKey(r.action.provider);
           if (prov) {
             const { InlineKeyboard } = await import("grammy");
+            // 🚀 escape-hatch: a Mini App link to the SAME section, so a chat getting stuck
+            // (disambiguation loop, LLM confusion) never fully dead-ends — "kirib buyurtma
+            // qiling" the owner asked for tonight, after watching a real customer get stuck
+            // in a text-only loop and never reach an order. Shared by search AND order-error.
+            const goMap: Record<string, string> = { restoran: "restoran", xizmat: "xizmat", bazar: "dokon", elon: "elonlar", reys: "yol" };
+            const providerKey = r.action.provider; // captured plainly — narrowing doesn't survive into the closure below
+            const appLinkKb = (kb2: InlineKeyboard): InlineKeyboard | undefined => {
+              const withLink = canWebApp && goMap[providerKey] ? kb2.row().webApp("🚀 Ilovada ko'rish", webAppUrl(goMap[providerKey])) : kb2;
+              return withLink.inline_keyboard.length ? withLink : undefined;
+            };
             if (r.action.type === "city_search") {
               // 🤖 real-agent narration: "🔍 …qidiryapman…" → EDITED into the result (one message)
               const busy: Record<string, string> = { restoran: "🍽 Ovqatlarni", xizmat: "🔎 Ustalarni", bazar: "🛒 Do'kondan", elon: "📋 E'lonlardan", reys: "🚐 Reyslarni" };
@@ -1929,15 +2003,17 @@ export function createBot(): Bot {
               };
               const cards = await prov.search(r.action.query).catch(() => []);
               if (!cards.length) {
-                const t = `😕 «${r.action.query}» bo'yicha hech narsa topilmadi. Boshqacha yozib ko'ring.`;
-                await editOrReply(t);
+                const t = `😕 «${r.action.query}» bo'yicha hech narsa topilmadi. Boshqacha yozib ko'ring — yoki ilovada to'g'ridan-to'g'ri ko'ring.`;
+                await editOrReply(t, appLinkKb(new InlineKeyboard()));
                 saveOut(t);
                 return;
               }
               const kb = new InlineKeyboard();
               for (const c of cards) for (const b of c.buttons ?? []) kb.text(b.text, b.data).row();
               const body = cards.map((c, i) => `${i + 1}) <b>${esc(c.title)}</b>${c.subtitle ? `\n    ${esc(c.subtitle)}` : ""}`).join("\n");
-              await editOrReply(`🔎 Mana topilganlari:\n${body}\n\nBuyurtma uchun yozing: masalan «2 ta ${esc(cards[0]!.title.split(" — ")[0] ?? "")}, manzil: ...»`, kb.inline_keyboard.length ? kb : undefined);
+              await editOrReply(`🔎 Mana topilganlari:\n${body}\n\n👉 Raqamini yozing (masalan «${cards.length > 1 ? 2 : 1}») — o'shani buyurtma qilaman. Yoki ilovada o'zingiz ko'rib tanlang 👇`, appLinkKb(kb));
+              // cache real ids so a bare-number reply resolves deterministically (see lastCitySearch comment)
+              lastCitySearch.set(tgId, { provider: r.action.provider, candidates: cards.map((c) => ({ id: c.id, title: c.title })), at: Date.now() });
               // PUBLIC catalog facts back into history — the agent's next turn sees real options
               saveOut(`🔎 Topildi (${r.action.provider}): ${cards.map((c) => `${c.title}${c.subtitle ? ` (${c.subtitle})` : ""}`).join("; ")}`);
               return;
@@ -1945,7 +2021,10 @@ export function createBot(): Bot {
             if (r.action.type === "city_order" && prov.order) {
               const card = await prov.order(tu.memberId, tgId, r.action.item, r.action.qty, r.action.extra).catch(() => ({ error: "Xatolik — keyinroq urinib ko'ring." }));
               if ("error" in card) {
-                await ctx.reply(card.error);
+                // 🚀 same escape-hatch as search: a disambiguation error ("qaysi biri?") is
+                // exactly where a customer can get stuck re-guessing text forever — the link
+                // lets them just tap through and pick instead.
+                await ctx.reply(card.error, { reply_markup: appLinkKb(new InlineKeyboard()) });
                 saveOut(card.error);
                 return;
               }
