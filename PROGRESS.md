@@ -2,6 +2,42 @@
 
 ## Jarayonda (yangi)
 
+### 📞 SOTUV_PLAN — Koson biznesini platformaga ko'chirish + 3 vosita — `ready for verification`
+**Ega so'radi:** "hammani BirJoyga jalb qilish, yagona shahar platformasi — qanday sotay?"
+Avval 3 ta pul-mexanika qoralamasi (offline cashback-hamkor · QR+GPS-geofence · "Chaqa" naqd
+hisob-kitob) tayyorlandi va **ega hammasini rad etdi** — to'g'ri qildi: uchalasi ham bitta hal
+qilib bo'lmaydigan muammoga urinardi (POS-siz naqd xaridni tashqaridan tekshirish), va "Chaqa"
+varianti kassa taqchil paytda haftalik haydovchi-qarz majburiyatini qo'shardi.
+- **Jonli DB o'qildi (read-only) — strategiya shundan keyin o'zgardi:** 1035 bot foydalanuvchisi
+  (10 940 emas — u kas mijoz bazasi) · 139 faol xizmat, lekin **137 tasida foto yoki soat yo'q** ·
+  45 qo'ng'iroq, faqat **10 ta e'lon** olgan · do'kon 24 + restoran 15 xarid (30 kun) ·
+  60 demand-yozuvdan atigi ~20 tasi haqiqiy. **Xulosa: to'siq — biznes yetishmasligi EMAS, mavjud
+  kartalarning bo'shligi.** Yana biznes qo'shish bo'sh kartalar sonini oshiradi, xolos.
+- **`SOTUV_PLAN.md` (yangi, ega tasdiqlagan):** dalil-mijozlar (Cambridge 20, Abdiraxim 10, Divan
+  usta 8 qo'ng'iroq — ular bilishmaydi, iqtibos so'raladi) · 3 xil 60-soniyalik pitch · 6 e'tirozga
+  javob · yopuvchi demo · narvon (pul eng oxirida) · kunlik ritm · 4 nazorat raqami · "nima
+  qilmaslik" ro'yxati · birinchi hafta kalendari. **Halol-raqam qoidasi:** hech qachon "10 000
+  foydalanuvchi" deyilmaydi (yolg'on — obro'ni o'ldiradi).
+- **`scripts/salesLeads.ts` (yangi, READ-ONLY):** kunlik ish ro'yxati — (1) dalil-mijozlar,
+  (2) to'ldirish navbati (foto/soat yo'q, ko'rish bo'yicha saralangan), (3) topilmagan so'rovlar
+  (prefiks+imlo shovqini tozalangan), + 4 nazorat raqami. Jonli DB'da yugurtirildi, natija yuqorida.
+- **`scripts/genBizStickers.ts` (yangi):** biznes eshigiga QR stiker → mavjud `svc_<id>` deep-link
+  (bot.ts:303). `--proof` (faqat qo'ng'iroq olganlar) / `--ids=` filtrlari. genDriverStickers.ts
+  naqshi. **Isbot:** 10 ta stiker HTML hosil bo'ldi, 10 ta QR data-URL joyida, brauzerda render
+  tekshirildi.
+- **Demand-log tozaligi (`shopService.ts` `logMarketDemand`):** Mini App har bosishda qidirgani
+  uchun "sabzavot" bitta so'rov 8 ta yozuv qoldirardi (jonli DB'da 60 yozuvdan ~8 tasi haqiqiy edi).
+  Endi: <3 belgi umuman yozilmaydi · bir foydalanuvchining 1 soatlik yozuv-zanjiri BITTA satrga
+  yig'iladi (satr eng to'liq shaklni saqlaydi) · anonim uchun aynan-takror yozilmaydi.
+- **ISBOT:** `testDemandLog.ts` (yangi) **6 assertion 3× ket-ket yashil** (TEST DB, TAG'li member +
+  to'liq cleanup; global `bazar` flagiga TEGILMADI — preview=true bilan) · `testBazar.ts` **ALL
+  GREEN** (regressiya yo'q) · `testMahalla.ts` yashil · mening fayllarim typecheck toza.
+- **QOLDI:** deploy qilinmagan (demand-log tuzatishi jonlida ishlashi uchun push kerak) · sotuv
+  ishining o'zi — ega bajaradi.
+- **DIQQAT (boshqa sessiya):** `bot.ts` + `ai/intent.ts` da hozir BOSHQA sessiyaning tugallanmagan
+  ishi bor va server typecheck o'sha fayllarda QIZIL (`r.action.provider` xatolari). Menikiga
+  aloqasi yo'q, tegilmadi.
+
 ### 🍽 RESTORAN — Dasturxon (eski loyiha) menyularini import qilish (2026-07-23) — `owner-accepted`
 **Nima qilindi:** `restoran` flag LIVE edi, lekin 7 restorandan 5 tasining menyusi bo'sh edi (flag izohida
 qayd qilingan qarz). Owner o'zining eski loyihasi `koson-dasturxon.uz` (Kasan Food Delivery Admin, real
