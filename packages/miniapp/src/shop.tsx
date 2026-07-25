@@ -770,8 +770,11 @@ export function ShopView({ me, onBanner, reload, onBook, openProductId }: { me: 
           {!shopv2 && <button className="shop-orders-btn" onClick={openOrders}>📦 Buyurtmalarim</button>}
           {shopv2 && (
             <>
+              {/* AUDIT TOPDI: bu tugma buyurtmalarni ochadi, lekin QO'NG'IROQ ikonkasi bilan
+                  turardi (mockup'da qo'ng'iroq bezak, bosilmaydi). `icons.tsx`da `bag` ikonkasi
+                  ALLAQACHON aynan shu tugma uchun yozilgan ekan — ishlatilmay qolgan. */}
               <button className="shop-head-icon" onClick={openOrders} aria-label="Buyurtmalarim">
-                <Icon name="bell" size={15} />
+                <Icon name="bag" size={15} />
               </button>
               {bazarcart && (
                 <button className={"shop-head-icon" + (cartBump ? " bump" : "")} onClick={() => { haptic(); setCartOpen(true); }} aria-label="Savat">
@@ -1467,17 +1470,25 @@ export function ShopView({ me, onBanner, reload, onBook, openProductId }: { me: 
 
                 {/* write / edit my review */}
                 <div className="shop-rev-form">
-                  {/* ⭐ V3.2: yulduz-baho (additiv — thumb baribir majburiy, rating ixtiyoriy) */}
+                  {/* AUDIT TOPDI: yulduzlar BIRINCHI turardi va "baho" bo'lib o'qilardi, lekin
+                      yuborish FAQAT 👍/👎 ga bog'liq. Mijoz 5 yulduz qo'yib, izoh yozib, rasm
+                      biriktirib — tugmani o'lik holda ko'rardi va SABABINI hech qayerdan bilmasdi
+                      (revErr faqat submitReview ICHIDA o'rnatiladi, u esa umuman ishga tushmaydi).
+                      Yechim: majburiy nazorat birinchi, ikkalasi ham nomlangan, va sabab yozilgan.
+                      Yulduzdan thumb'ni AVTOMATIK chiqarmaymiz — u do'kon ustiga jimgina ommaviy
+                      👎 qo'yib yuborishi mumkin edi. */}
+                  <div className="shop-rev-qlabel">Mahsulot yoqdimi?</div>
+                  <div className="shop-rev-thumbs">
+                    <button className={"shop-rev-thumb" + (revThumb === "up" ? " on up" : "")} onClick={() => { haptic(); setRevThumb("up"); }}>👍 Yoqdi</button>
+                    <button className={"shop-rev-thumb" + (revThumb === "down" ? " on down" : "")} onClick={() => { haptic(); setRevThumb("down"); }}>👎 Yoqmadi</button>
+                  </div>
+                  <div className="shop-rev-qlabel">Baho (ixtiyoriy)</div>
                   <div className="shop-rev-stars" role="radiogroup" aria-label="Baho">
                     {[1, 2, 3, 4, 5].map((n) => (
                       <button key={n} className={"shop-rev-star" + (n <= revRating ? " on" : "")} onClick={() => { haptic(); setRevRating(n === revRating ? 0 : n); }} aria-label={`${n} yulduz`}>★</button>
                     ))}
                   </div>
                   {me.flags?.revtanga && <div className="fs12 shop-rev-tanga-hint">🗣 Sharh (≥30 belgi) uchun tanga oling!</div>}
-                  <div className="shop-rev-thumbs">
-                    <button className={"shop-rev-thumb" + (revThumb === "up" ? " on up" : "")} onClick={() => { haptic(); setRevThumb("up"); }}>👍 Yoqdi</button>
-                    <button className={"shop-rev-thumb" + (revThumb === "down" ? " on down" : "")} onClick={() => { haptic(); setRevThumb("down"); }}>👎 Yoqmadi</button>
-                  </div>
                   <textarea
                     className="bk-input shop-rev-text"
                     placeholder="Fikringiz (ixtiyoriy)…"
@@ -1499,6 +1510,7 @@ export function ShopView({ me, onBanner, reload, onBook, openProductId }: { me: 
                     <input ref={revFileRef} type="file" accept="image/*" multiple hidden onChange={(e) => { void addRevPhotos(e.target.files); e.target.value = ""; }} />
                   </div>
                   {revErr && <div className="sheet-err">{revErr}</div>}
+                  {!revThumb && <div className="fs12 muted shop-rev-why">Yuborish uchun avval 👍 «Yoqdi» yoki 👎 «Yoqmadi» ni tanlang</div>}
                   <Button variant="brand" disabled={!revThumb || revBusy} onClick={submitReview}>
                     {revBusy ? "Yuborilmoqda…" : reviews.reviews.some((r) => r.mine) ? "Sharhni yangilash" : "Sharh qoldirish"}
                   </Button>
@@ -1730,6 +1742,21 @@ export function ShopView({ me, onBanner, reload, onBook, openProductId }: { me: 
               <p className="muted fs13">{cartShop?.name ?? "Do'kon"} tez orada tasdiqlaydi — har bosqichda sizga xabar keladi. Holatni «📦 Buyurtmalarim»da kuzating.</p>
               <Button variant="brand" onClick={() => { setCartOpen(false); setCoSuccess(null); }}>Yopish</Button>
             </div>
+          ) : /* AUDIT TOPDI: `cartLines` — savat-id'larini XOTIRADAGI `products` bilan bog'laydi.
+                 Sovuq ishga tushishda (yoki sekin tarmoqda) `products` hali `null` — savat-belgisi
+                 10 deb tursa ham sheet "Savat bo'sh" derdi. Bo'shlik uchun HAQIQAT — `cartCount`
+                 (localStorage'dan), `cartLines` esa faqat chizish manbai. */
+          cartCount > 0 && products === null && !err ? (
+            <>
+              <h3>🧺 Savat</h3>
+              <Skeleton h={60} />
+              <div className="muted fs13 mt10">Savat yuklanmoqda…</div>
+            </>
+          ) : cartCount > 0 && err ? (
+            <>
+              <h3>🧺 Savat</h3>
+              <EmptyState icon="📡" text="Savat yuklanmadi — internetni tekshirib qayta urinib ko'ring" action="🔄 Qayta urinish" onAction={load} />
+            </>
           ) : cartLines.length === 0 ? (
             <>
               <h3>🧺 Savat</h3>
