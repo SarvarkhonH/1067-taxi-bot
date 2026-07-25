@@ -116,6 +116,22 @@ export function Icon({ name, filled = false, size = 24 }: { name: string; filled
           <path d="M3 19a1 1 0 0 1 1-1h16a1 1 0 0 1 1 1 2 2 0 0 1-2 2H5a2 2 0 0 1-2-2Z" fill={filled ? "currentColor" : "none"} />
         </svg>
       );
+    case "clock":
+      // shopv2: do'kon-profildagi ish-vaqti / yetkazish-va'dasi qatori
+      return (
+        <svg {...p}>
+          <circle cx="12" cy="12" r="9" />
+          <path d="M12 7v5l3 3" />
+        </svg>
+      );
+    case "bell":
+      // shopv2: mockup top-strip'dagi bildirishnoma-qo'ng'irog'i
+      return (
+        <svg {...p}>
+          <path d="M18 8a6 6 0 10-12 0c0 7-3 9-3 9h18s-3-2-3-9" />
+          <path d="M13.7 21a2 2 0 01-3.4 0" />
+        </svg>
+      );
     case "bolt":
       // shopv2: "Hozir ochiq" tezkor-filtr chipi (mockup'da aynan chaqmoq-belgisi, 🟢 emoji emas)
       return (

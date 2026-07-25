@@ -2830,7 +2830,24 @@ body {
   --bj-shadow: 0 10px 30px -14px rgba(0, 0, 0, .55);
 }
 
-.app.bjm .shop-wrap { background: var(--bj-bg-grad); border-radius: 0; animation: bjmScreenIn .32s var(--ease-out); }
+/* EGA TOPDI ("ramkaga olingan chiziqlar / bo'rtirilgani bo'lmaydi"): eski `.shop-wrap` (1764-satr)
+   `box-shadow: inset 0 0 0 1px #dfeee5, 0 10px 30px -18px rgba(0,0,0,.5)` beradi — ya'ni OCH-YASHIL
+   1px ICHKI RAMKA + ko'tarilgan-karta soyasi. Men avval faqat `background`ni override qilgandim,
+   shu sababli qorong'i temada ham och-yashil ramka va "bo'rtiq" soya QOLIB KETGAN edi. Xuddi shu
+   qoidadagi `color:#1b2333` (qorong'i matn) va `padding`+`gap` ham oqib o'tardi — mockup esa
+   chetdan-chetga (full-bleed), har bo'lim O'Z 16px padding'i bilan. Hammasi bekor qilinadi. */
+.app.bjm .shop-wrap {
+  background: var(--bj-bg-grad); border-radius: 0; animation: bjmScreenIn .32s var(--ease-out);
+  box-shadow: none; color: var(--bj-ink); padding: 0 0 16px; gap: 0;
+}
+/* wrap padding olib tashlangani uchun — o'z padding'i yo'q bo'lgan bloklarga qaytariladi */
+.app.bjm .shop-head { padding: 8px 16px 10px; }
+.app.bjm .shop-search-wrap { padding: 4px 16px; }
+.app.bjm .shop-search-wrap.v2 svg { left: 30px; }
+.app.bjm .shop-grid { padding: 0 16px; }
+.app.bjm .shop-tile-grid { margin: 4px 16px; }
+.app.bjm .shop-seller-cta { margin: 22px 16px 10px; }
+.app.bjm .d-empty, .app.bjm .bj-profile-loading { padding-left: 16px; padding-right: 16px; }
 .app.bjm .shop-title { background: linear-gradient(135deg, #6ee7b7, #34d399); -webkit-background-clip: text; background-clip: text; }
 .app.bjm .shop-search { background: rgba(255, 255, 255, .05); border: 1px solid var(--bj-line); color: var(--bj-ink); backdrop-filter: blur(14px) saturate(160%); -webkit-backdrop-filter: blur(14px) saturate(160%); }
 .app.bjm .shop-search::placeholder { color: var(--bj-ink-dim); }
@@ -2889,6 +2906,41 @@ body {
 .shop-city-tile-name { font-size: 13px; font-weight: 700; color: var(--bj-ink); }
 .shop-city-tile-rating { font-size: 11px; color: var(--bj-ink); margin-top: 2px; }
 .shop-city-tile-status { display: flex; align-items: center; gap: 5px; margin-top: 5px; font-size: 11px; color: var(--bj-ink-dim); }
+
+/* shopv2 top-strip ikonkalari — mockup: 32x32, radius 16px, bg rgba(255,255,255,0.08) */
+.shop-head-icon { position: relative; flex: none; width: 32px; height: 32px; border-radius: 16px; display: flex; align-items: center; justify-content: center; background: rgba(255, 255, 255, .08); border: none; color: #f0f5ef; cursor: pointer; transition: transform var(--dur-press) var(--ease-out); }
+.shop-head-icon:active { transform: scale(0.9); }
+.shop-head-icon.bump { animation: bjmBump .4s var(--ease-out); }
+.shop-head-icon-badge { position: absolute; top: -3px; right: -3px; background: #34d399; color: #0a1a12; font-size: 9px; font-weight: 800; min-width: 15px; height: 15px; border-radius: 8px; display: flex; align-items: center; justify-content: center; padding: 0 3px; }
+
+/* shopv2 do'kon-profil — mockup tuzilishi/o'lchamlari AYNAN */
+.app.bjm .shop-sp-cover { height: 100px; position: relative; overflow: hidden; display: flex; align-items: center; justify-content: center; background: linear-gradient(135deg, #123e26, #1f6b41); }
+.app.bjm .shop-sp-cover img { width: 100%; height: 100%; object-fit: cover; }
+.app.bjm .shop-sp-cover-initial { position: relative; font-size: 44px; font-weight: 800; color: rgba(255, 255, 255, .22); letter-spacing: -1px; }
+.app.bjm .shop-sp-body { padding: 0 16px 24px; }
+.app.bjm .shop-sp-avatar { margin-top: -24px; width: 76px; height: 76px; border-radius: 20px; background: var(--bj-hero-grad); border: 4px solid #0d1712; box-shadow: 0 8px 20px rgba(0, 0, 0, .4); display: flex; align-items: center; justify-content: center; color: #fff; font-size: 22px; font-weight: 800; box-sizing: border-box; }
+.app.bjm .shop-sp-head { margin-top: 10px; }
+.app.bjm .shop-sp-name { font-size: 19px; font-weight: 800; color: var(--bj-ink); }
+.app.bjm .shop-sp-rating { font-size: 12px; font-weight: 700; color: var(--bj-ink); margin-top: 2px; }
+.app.bjm .shop-sp-info { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 10px; font-size: 12.5px; color: rgba(232, 240, 232, .68); }
+.app.bjm .shop-sp-info > span { display: flex; align-items: center; gap: 4px; white-space: nowrap; }
+.app.bjm .shop-sp-hours { display: flex; align-items: center; gap: 4px; font-size: 12.5px; color: rgba(232, 240, 232, .68); margin-top: 6px; white-space: nowrap; }
+.app.bjm .shop-sp-stories { display: flex; gap: 16px; overflow-x: auto; padding: 16px 0 4px; scrollbar-width: none; }
+.app.bjm .shop-sp-stories::-webkit-scrollbar { display: none; }
+.app.bjm .shop-sp-announce { background: var(--bj-card); backdrop-filter: blur(18px) saturate(180%); -webkit-backdrop-filter: blur(18px) saturate(180%); border: 1px solid var(--bj-line); border-left: 3px solid #34d399; border-radius: 10px; padding: 11px 13px; font-size: 13px; color: var(--bj-ink); margin-top: 6px; }
+.app.bjm .shop-sp-about { font-size: 13.5px; line-height: 1.5; color: var(--bj-ink); margin-top: 14px; }
+.app.bjm .shop-sp-about-more { color: var(--bj-accent); background: none; border: none; padding: 0; font-size: 13.5px; font-weight: 600; cursor: pointer; }
+.app.bjm .shop-sp-loyalty { background: var(--bj-card); backdrop-filter: blur(18px) saturate(180%); -webkit-backdrop-filter: blur(18px) saturate(180%); border: 1px solid var(--bj-line); border-radius: 12px; padding: 12px 14px; margin-top: 14px; }
+.app.bjm .shop-sp-loyalty-row { display: flex; justify-content: space-between; font-size: 12.5px; font-weight: 700; color: var(--bj-ink); }
+.app.bjm .shop-sp-loyalty-bar { height: 6px; background: rgba(255, 255, 255, .1); border-radius: 3px; margin-top: 8px; overflow: hidden; }
+.app.bjm .shop-sp-loyalty-bar > div { height: 100%; background: linear-gradient(90deg, #10b981, #a3e635); border-radius: 3px; }
+.app.bjm .shop-sp-reviews { display: flex; align-items: center; justify-content: space-between; width: 100%; background: var(--bj-card); backdrop-filter: blur(18px) saturate(180%); -webkit-backdrop-filter: blur(18px) saturate(180%); border: 1px solid var(--bj-line); border-radius: 12px; padding: 12px 14px; margin-top: 10px; cursor: pointer; }
+.app.bjm .shop-sp-reviews-l { display: flex; align-items: center; gap: 7px; font-size: 13px; font-weight: 700; color: var(--bj-ink); }
+.app.bjm .shop-sp-reviews-c { color: rgba(232, 240, 232, .45); font-size: 13px; }
+.app.bjm .shop-sp-cta { display: flex; align-items: center; justify-content: center; gap: 8px; width: 100%; background: linear-gradient(135deg, #0d9668, #34d399); color: #fff; font-size: 14.5px; font-weight: 700; padding: 13px; border-radius: 16px; margin-top: 16px; cursor: pointer; box-shadow: 0 6px 16px rgba(13, 150, 104, .3), inset 1.5px 1.5px 1px rgba(255, 255, 255, .4); border: 1px solid rgba(255, 255, 255, .3); }
+.app.bjm .shop-sp-cta:active { transform: scale(0.97); }
+.app.bjm .shop-sp-chips { display: flex; gap: 8px; overflow-x: auto; padding: 16px 0 10px; scrollbar-width: none; }
+.app.bjm .shop-sp-chips::-webkit-scrollbar { display: none; }
 
 /* shopv2: "Mahallamga yetkazadi" — gorizontal 148px kartalar (mockup'dagi AYNAN o'lchamlar:
    148x100 qopqoq, 36px bosh-harf, 13.5px nom, 11.5px holat, 9.5px "Mahallangiz" belgisi). */

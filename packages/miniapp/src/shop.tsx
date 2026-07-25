@@ -743,35 +743,52 @@ export function ShopView({ me, onBanner, reload, onBook, openProductId }: { me: 
             <span className="shop-head-v2-title-text">{shopFilter ? (shopProfile?.name ?? shopFilter.name) : "BirJoy"}</span>
           </div>
         )}
+        {/* shopv2: ega talabi — "dizayn bilan 100% bir xil, ortiqcha hech nima bo'lmasin".
+            Mockup'ning top-strip'ida AYNAN ikkita amal bor: bildirishnoma-qo'ng'iroq va savat
+            (sonli belgi bilan). Ulashish/sevimlilar/buyurtmalar tugmalari mockup'da YO'Q —
+            olib tashlandi. Buyurtmalar Profil tabidan ochilaveradi (profile.tsx:64), savat esa
+            endi shu yerdagi ikonkadan (avvalgi yopishqoq savat-bar ham mockup'da yo'q edi). */}
         <div className="shop-head-actions">
-          {/* 🧡 V2b: sevimlilar-filtr — flat-katalogni filtrlaydi; shopv2 bazar-bosh'da flat-katalog
-              o'zi yashirin (yuqoridagi homeFlatCatalog) — shu holatda tugma o'lik bo'lardi, yashirilgan */}
-          {homeFlatCatalog && (
+          {!shopv2 && homeFlatCatalog && (
             <button className={"shop-share-btn" + (favOnly ? " on" : "")} onClick={() => { haptic(); setFavOnly((v) => !v); }} aria-label={favOnly ? "Sevimlilar filtri o'chirish" : "Faqat sevimlilar"}>
               <Icon name="heart" size={17} filled={favOnly} />
             </button>
           )}
-          <button className="shop-share-btn" onClick={shareShop} aria-label="Do'konni ulashish"><Icon name="share" size={18} /></button>
-          {/* shopv2: mockup'da top-strip'dagi barcha amallar bir xil dumaloq IKONKA-tugma —
-              keng yashil "📦 Buyurtmalarim" matn-tugmasi joylashuvni buzardi (sarlavhaga joy
-              qolmasdi, shu sababli #40'da sarlavhani butunlay olib tashlashga majbur bo'lgandim). */}
-          {shopv2 ? (
-            <button className="shop-share-btn" onClick={openOrders} aria-label="Buyurtmalarim"><Icon name="bag" size={17} /></button>
-          ) : (
-            <button className="shop-orders-btn" onClick={openOrders}>📦 Buyurtmalarim</button>
+          {!shopv2 && <button className="shop-share-btn" onClick={shareShop} aria-label="Do'konni ulashish"><Icon name="share" size={18} /></button>}
+          {!shopv2 && <button className="shop-orders-btn" onClick={openOrders}>📦 Buyurtmalarim</button>}
+          {shopv2 && (
+            <>
+              <button className="shop-head-icon" onClick={openOrders} aria-label="Buyurtmalarim">
+                <Icon name="bell" size={15} />
+              </button>
+              {bazarcart && (
+                <button className={"shop-head-icon" + (cartBump ? " bump" : "")} onClick={() => { haptic(); setCartOpen(true); }} aria-label="Savat">
+                  <Icon name="cart" size={15} />
+                  {cartCount > 0 && <span className="shop-head-icon-badge">{cartCount}</span>}
+                </button>
+              )}
+            </>
           )}
         </div>
       </div>
 
-      {/* shopv2: mockup'da bosh-sahifada kichik "📍 Koson" shahar-belgisi bor edi (yuqorida,
-          qidiruvdan oldin) — pastda haqiqiy mahalla-tanlov chipi bilan ADASHTIRMASLIK: bu FAQAT
-          shahar-konteksti, funksional emas. */}
-      {shopv2 && bazar && !shopFilter && <div className="shop-city-label"><Icon name="pin" size={12} /> Koson</div>}
-      <div className={"shop-search-wrap" + (shopv2 ? " v2" : "")}>
-        {shopv2 && <Icon name="search" size={15} />}
-        <input className="shop-search" placeholder={shopv2 ? "Do'kon yoki mahsulot qidiring…" : "🔍 Mahsulot qidirish…"} value={q} onChange={(e) => setQ(e.target.value)} />
-        {q && <button className="shop-search-x" onClick={() => setQ("")}>✕</button>}
-      </div>
+      {/* shopv2: mockup'dagi "📍 Koson" shahar-qatori. Mockup'da bu statik matn, lekin bizda
+          mahalla-tanlash HAQIQIY funksiya — shuning uchun ko'rinishi mockup bilan AYNAN bir xil
+          qoladi (o'sha o'lcham/rang/joylashuv), faqat bosilganda mahalla-tanlagich ochiladi.
+          Shu bilan alohida "mahalla-chip" (mockup'da yo'q) butunlay olib tashlandi. */}
+      {shopv2 && bazar && !shopFilter && (
+        <button className="shop-city-label" onClick={() => { haptic(); setMahallaPickerOpen(true); }}>
+          <Icon name="pin" size={12} /> {activeMahalla?.name ?? "Koson"}
+        </button>
+      )}
+      {/* shopv2: qidiruv FAQAT bosh-sahifada — mockup'ning do'kon-sahifasida qidiruv-qutisi yo'q */}
+      {(!shopv2 || !shopFilter) && (
+        <div className={"shop-search-wrap" + (shopv2 ? " v2" : "")}>
+          {shopv2 && <Icon name="search" size={15} />}
+          <input className="shop-search" placeholder={shopv2 ? "Do'kon yoki mahsulot qidiring…" : "🔍 Mahsulot qidirish…"} value={q} onChange={(e) => setQ(e.target.value)} />
+          {q && <button className="shop-search-x" onClick={() => setQ("")}>✕</button>}
+        </div>
+      )}
 
       {err ? (
         <EmptyState icon="📡" text="Yuklanmadi — internetni tekshirib qayta urinib ko'ring" action="🔄 Qayta urinish" onAction={load} />
@@ -838,7 +855,91 @@ export function ShopView({ me, onBanner, reload, onBook, openProductId }: { me: 
               <Skeleton h={40} />
             </div>
           )}
-          {bazar && shopFilter && shopProfile && (
+          {/* ── shopv2: do'kon-profil AYNAN mockup tartibida: qopqoq → (ustiga chiqqan) avatar →
+              nom+reyting → info-qator → hikoya-tray → e'lon → about → sodiqlik → sharh → CTA ── */}
+          {bazar && shopFilter && shopProfile && shopv2 && (
+            <>
+              <div className="shop-sp-cover">
+                {shopProfile.hasPhoto
+                  ? <img src={apiUrl(`/api/shop/shop-photo/${shopProfile.id}`)} alt="" />
+                  : <span className="shop-sp-cover-initial" aria-hidden="true">{shopProfile.name.trim().charAt(0).toUpperCase()}</span>}
+              </div>
+              <div className="shop-sp-body">
+                <div className="shop-sp-avatar" aria-hidden="true">{shopProfile.name.trim().slice(0, 2).toUpperCase()}</div>
+                <div className="shop-sp-head">
+                  <div className="shop-sp-name">{shopProfile.name}</div>
+                  {shopProfile.reviewCount > 0 && (
+                    <div className="shop-sp-rating">★ {shopProfile.avgRating} · {shopProfile.reviewCount} sharh</div>
+                  )}
+                </div>
+                <div className="shop-sp-info">
+                  {shopProfile.neighborhood && <span><Icon name="pin" size={12} /> {shopProfile.neighborhood}</span>}
+                  <span><span className={"bj-open-dot" + (shopProfile.open ? "" : " closed")} />{shopProfile.open ? "Ochiq" : "Yopiq"}</span>
+                  {/* haqiqiy signal (soxta "tez javob beradi" o'rniga) — getShopOrdersToday */}
+                  {shopProfile.ordersToday > 0 && <span>· Bugun {shopProfile.ordersToday} marta buyurtma qabul qilgan</span>}
+                </div>
+                {shopProfile.deliveryText && (
+                  <div className="shop-sp-hours"><Icon name="clock" size={12} /> {shopProfile.deliveryText}</div>
+                )}
+                {/* mockup'da hikoya-tray AYNAN shu yerda (bosh-sahifada emas) */}
+                {shopstory && storyTray && storyTray.some((t) => t.shopId === shopProfile.id) && (
+                  <div className="shop-sp-stories">
+                    {storyTray.filter((t) => t.shopId === shopProfile.id).map((t) => (
+                      <button key={t.shopId} className="bj-story-item" onClick={() => openStoryViewer(t.shopId)}>
+                        <span className={"bj-story-ring" + (t.seen ? " seen" : "")}>
+                          {t.hasPhoto
+                            ? <img className="bj-story-avatar-img" src={apiUrl(`/api/shop/shop-photo/${t.shopId}`)} alt="" />
+                            : <span className="bj-story-avatar">{t.shopName.trim().charAt(0).toUpperCase()}</span>}
+                        </span>
+                        <span className="bj-story-name">Hikoya</span>
+                      </button>
+                    ))}
+                  </div>
+                )}
+                {shopProfile.announcement && <div className="shop-sp-announce">{shopProfile.announcement}</div>}
+                {shopProfile.story && (
+                  <div className="shop-sp-about">
+                    <b>Biz haqimizda.</b>{" "}
+                    {aboutOpen || shopProfile.story.length <= 140 ? shopProfile.story : `${shopProfile.story.slice(0, 140)}…`}
+                    {shopProfile.story.length > 140 && (
+                      <> <button className="shop-sp-about-more" onClick={() => setAboutOpen((v) => !v)}>{aboutOpen ? "Kamroq" : "Ko'proq"}</button></>
+                    )}
+                  </div>
+                )}
+                {loyalty && (
+                  <div className="shop-sp-loyalty">
+                    <div className="shop-sp-loyalty-row">
+                      <span>Sodiqlik dasturi</span><span>{loyalty.purchaseCount}/{loyalty.milestone} xarid</span>
+                    </div>
+                    <div className="shop-sp-loyalty-bar">
+                      <div style={{ width: `${Math.round((loyalty.purchaseCount / Math.max(1, loyalty.milestone)) * 100)}%` }} />
+                    </div>
+                  </div>
+                )}
+                {shopProfileReviews && (
+                  <button className="shop-sp-reviews" onClick={() => { haptic(); setShopReviewsOpen(true); }}>
+                    <span className="shop-sp-reviews-l"><Icon name="chat" size={15} /> Sharhlar {shopProfileReviews.reviews.length} ta</span>
+                    <span className="shop-sp-reviews-c">›</span>
+                  </button>
+                )}
+                {!!me.flags?.shopchat && (
+                  <button className="shop-sp-cta" onClick={() => openChat(shopProfile.id, shopProfile.name)}>
+                    <Icon name="chat" size={16} /> <span>Do&apos;konga yozish</span>
+                  </button>
+                )}
+                {/* mockup: CTA'dan keyin kategoriya-chiplar, keyin mahsulot-panjara */}
+                {shopCategories.length > 1 && (
+                  <div className="shop-sp-chips">
+                    <button className={"shop-kind-chip" + (cat === null ? " on" : "")} onClick={() => { haptic(); setCat(null); }}>Hammasi</button>
+                    {shopCategories.map(([c]) => (
+                      <button key={c} className={"shop-kind-chip" + (cat === c ? " on" : "")} onClick={() => { haptic(); setCat(c); }}>{c}</button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </>
+          )}
+          {bazar && shopFilter && shopProfile && !shopv2 && (
             <>
               <div className="bj-profile-hero">
                 {shopProfile.hasPhoto ? (
@@ -907,8 +1008,9 @@ export function ShopView({ me, onBanner, reload, onBook, openProductId }: { me: 
               )}
             </>
           )}
-          {/* ── 📹 S1: do'kon-hikoya tray (Bozor-bosh, faqat uy-ko'rinishida — profil-ekranda emas) ── */}
-          {bazar && shopstory && !shopFilter && storyTray && storyTray.length > 0 && (
+          {/* ── 📹 S1: do'kon-hikoya tray. shopv2'da bu bosh-sahifada YO'Q — mockup'da hikoyalar
+              DO'KON-PROFILIDA (yuqoridagi .shop-sp-stories), shu sababli bu blok legacy'ga qoldi. ── */}
+          {bazar && shopstory && !shopv2 && !shopFilter && storyTray && storyTray.length > 0 && (
             <div className="bj-story-tray">
               {storyTray.map((s) => (
                 <button key={s.shopId} className="bj-story-item" onClick={() => openStoryViewer(s.shopId)}>
@@ -924,8 +1026,9 @@ export function ShopView({ me, onBanner, reload, onBook, openProductId }: { me: 
               ))}
             </div>
           )}
-          {/* ── 🏠 V1.5: mahalla-chip + safar-rejimi banner — bazar-bosh, faqat uy-ko'rinishida ── */}
-          {bazar && !shopFilter && mahallaList && (
+          {/* ── 🏠 V1.5: mahalla-chip. shopv2'da YO'Q — mockup'da alohida chip yo'q, mahalla-tanlash
+              yuqoridagi "📍 Koson" qatoriga ko'chirildi (aynan mockup ko'rinishi). ── */}
+          {bazar && !shopv2 && !shopFilter && mahallaList && (
             <button className="bj-mahalla-chip" onClick={() => { haptic(); setMahallaPickerOpen(true); }}>
               <Icon name="pin" size={14} /> {activeMahalla?.name ?? "Mahallani tanlang"} <span className="bj-mahalla-chip-caret">▾</span>
             </button>
@@ -1126,8 +1229,9 @@ export function ShopView({ me, onBanner, reload, onBook, openProductId }: { me: 
         </>
       )}
 
-      {/* ── sotuvchi bo'lish CTA — do'kon egalarini jalb qilish ── */}
-      {!sel && !ordersOpen && (
+      {/* ── sotuvchi bo'lish CTA — do'kon egalarini jalb qilish. shopv2'da YO'Q (mockup'da
+          bunday blok yo'q; ega "ortiqcha hech nima bo'lmasin" dedi). ── */}
+      {!shopv2 && !sel && !ordersOpen && (
         <div className="shop-seller-cta">
           <div className="shop-seller-ico">🏪</div>
           <div className="shop-seller-body">
@@ -1522,8 +1626,9 @@ export function ShopView({ me, onBanner, reload, onBook, openProductId }: { me: 
         )}
       </Sheet>
       {/* ── 🧺 V2: yopishqoq savat-bar + savat-sheet (flag bazarcart) ── */}
-      {bazarcart && !sel && !ordersOpen && !cartOpen && (
-        <BjStickyCartBar count={cartCount} totalTanga={cartItemsTotal} onOpen={() => { haptic(); setCartOpen(true); }} bump={shopv2 && cartBump} />
+      {/* shopv2'da yopishqoq savat-bar YO'Q — mockup'da savat top-strip ikonkasi+son-belgisi orqali. */}
+      {!shopv2 && bazarcart && !sel && !ordersOpen && !cartOpen && (
+        <BjStickyCartBar count={cartCount} totalTanga={cartItemsTotal} onOpen={() => { haptic(); setCartOpen(true); }} />
       )}
       {bazarcart && (
         <Sheet open={cartOpen} onClose={() => { setCartOpen(false); setCoSuccess(null); setCoErr(null); }}>
