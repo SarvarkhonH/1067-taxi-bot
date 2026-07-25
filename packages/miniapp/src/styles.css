@@ -582,7 +582,10 @@ body {
 /* premium toast */
 .toast {
   position: fixed; top: 64px; left: 50%; transform: translateX(-50%);
-  z-index: 40; max-width: 88%;
+  /* AUDIT TOPDI: z-index 40 edi, `.d-sheet-back` esa 60 — savat tozalanganda chiqadigan
+     ogohlantirish sheet ORQASIDA qolib ketardi (u faqat mahsulot-sheet ichidan chaqiriladi).
+     90 = sheet(60) va hikoya-ko'ruvchi(80) ustida, lekin rasm-ko'ruvchi(200) ostida. */
+  z-index: 90; max-width: 88%;
   background: linear-gradient(180deg, rgba(28, 34, 52, 0.96), rgba(18, 22, 36, 0.96));
   border: 1px solid var(--line); border-radius: 16px;
   padding: 13px 18px; font-size: 14px; font-weight: 700; text-align: center;

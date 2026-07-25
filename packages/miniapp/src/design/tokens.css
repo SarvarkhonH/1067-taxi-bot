@@ -2833,8 +2833,11 @@ body {
   --bj-ink: #101418;
   --bj-ink-dim: #6b7280;
   --bj-shadow: 0 1px 2px rgba(16, 20, 24, .06), 0 8px 24px -18px rgba(16, 20, 24, .45);
-  /* rasm ustidagi matn uchun (kafel/qopqoq) — bular OQ qoladi, chunki fon rasm/gradient */
+  /* rasm ustidagi matn uchun (kafel/qopqoq) — bular OQ qoladi, chunki fon rasm/gradient.
+     AUDIT TOPDI: narx uchun `--bj-tanga` (#b45309) ishlatilardi — u OQ KARTA uchun tanlangan,
+     qora-soyali rasm ustida esa ~1.2:1 bo'lib KO'RINMASDI. Rasm ustidagi narx alohida, och-amber. */
   --bj-on-media: #ffffff;
+  --bj-tanga-on-media: #fcd34d;
   color: var(--bj-ink);
   background: #ffffff;
 }
@@ -2922,7 +2925,7 @@ body {
 .shop-city-tile:active { transform: scale(0.96); }
 .shop-city-tile-cover { height: 88px; background: linear-gradient(160deg, rgba(52, 211, 153, .22), rgba(13, 150, 104, .12)); display: flex; align-items: center; justify-content: center; }
 .shop-city-tile-cover img { width: 100%; height: 100%; object-fit: cover; }
-.shop-city-tile-initial { font-size: 30px; font-weight: 800; color: rgba(255, 255, 255, .28); letter-spacing: -1px; }
+.shop-city-tile-initial { font-size: 30px; font-weight: 800; color: rgba(6, 95, 70, .55); letter-spacing: -1px; }
 .shop-city-tile-body { padding: 10px 11px 12px; }
 .shop-city-tile-name { font-size: 13px; font-weight: 700; color: var(--bj-ink); }
 .shop-city-tile-rating { font-size: 11px; color: var(--bj-ink); margin-top: 2px; }
@@ -2965,7 +2968,7 @@ body {
 .app.bjm .shop-qty-n { font-size: 14px; font-weight: 700; }
 
 /* shopv2 top-strip ikonkalari — mockup: 32x32, radius 16px, bg rgba(255,255,255,0.08) */
-.shop-head-icon { position: relative; flex: none; width: 32px; height: 32px; border-radius: 16px; display: flex; align-items: center; justify-content: center; background: rgba(16, 20, 24, .06); border: none; color: #f0f5ef; cursor: pointer; transition: transform var(--dur-press) var(--ease-out); }
+.shop-head-icon { position: relative; flex: none; width: 32px; height: 32px; border-radius: 16px; display: flex; align-items: center; justify-content: center; background: rgba(16, 20, 24, .06); border: none; color: var(--bj-ink); cursor: pointer; transition: transform var(--dur-press) var(--ease-out); }
 .shop-head-icon:active { transform: scale(0.9); }
 .shop-head-icon.bump { animation: bjmBump .4s var(--ease-out); }
 .shop-head-icon-badge { position: absolute; top: -3px; right: -3px; background: #34d399; color: #0a1a12; font-size: 9px; font-weight: 800; min-width: 15px; height: 15px; border-radius: 8px; display: flex; align-items: center; justify-content: center; padding: 0 3px; }
@@ -2973,7 +2976,7 @@ body {
 /* shopv2 do'kon-profil — mockup tuzilishi/o'lchamlari AYNAN */
 .app.bjm .shop-sp-cover { height: 100px; position: relative; overflow: hidden; display: flex; align-items: center; justify-content: center; background: linear-gradient(135deg, #d7f0e4, #a9e0c7); }
 .app.bjm .shop-sp-cover img { width: 100%; height: 100%; object-fit: cover; }
-.app.bjm .shop-sp-cover-initial { position: relative; font-size: 44px; font-weight: 800; color: rgba(255, 255, 255, .22); letter-spacing: -1px; }
+.app.bjm .shop-sp-cover-initial { position: relative; font-size: 44px; font-weight: 800; color: rgba(6, 95, 70, .55); letter-spacing: -1px; }
 .app.bjm .shop-sp-body { padding: 0 16px 24px; }
 .app.bjm .shop-sp-avatar { margin-top: -24px; width: 76px; height: 76px; border-radius: 20px; background: var(--bj-hero-grad); border: 4px solid #ffffff; box-shadow: 0 8px 20px rgba(0, 0, 0, .4); display: flex; align-items: center; justify-content: center; color: #fff; font-size: 22px; font-weight: 800; box-sizing: border-box; }
 .app.bjm .shop-sp-head { margin-top: 10px; }
@@ -3014,7 +3017,7 @@ body {
 .shop-mah-card:active { transform: scale(0.96); }
 .shop-mah-cover { position: relative; width: 148px; height: 100px; border-radius: 16px; overflow: hidden; display: flex; align-items: center; justify-content: center; background: linear-gradient(160deg, rgba(52, 211, 153, .22), rgba(13, 150, 104, .14)); box-shadow: 0 10px 24px rgba(0, 0, 0, .45); border: 1px solid var(--bj-line); }
 .shop-mah-cover img { width: 100%; height: 100%; object-fit: cover; }
-.shop-mah-initial { font-size: 36px; font-weight: 800; color: rgba(255, 255, 255, .28); letter-spacing: -1px; }
+.shop-mah-initial { font-size: 36px; font-weight: 800; color: rgba(6, 95, 70, .55); letter-spacing: -1px; }
 .shop-mah-badge { position: absolute; left: 8px; bottom: 8px; background: rgba(13, 150, 104, .85); backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); color: #fff; font-size: 9.5px; font-weight: 700; padding: 3px 7px; border-radius: 8px; }
 .shop-mah-name { font-size: 13.5px; font-weight: 700; color: var(--bj-ink); margin-top: 7px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .shop-mah-meta { display: flex; align-items: center; gap: 5px; margin-top: 2px; font-size: 11.5px; color: var(--bj-ink-dim); }
@@ -3038,15 +3041,15 @@ body {
 .shop-tile { position: relative; aspect-ratio: 1 / 1; background: linear-gradient(160deg, rgba(52, 211, 153, .22), rgba(13, 150, 104, .14)); border: none; padding: 0; cursor: pointer; display: flex; align-items: center; justify-content: center; overflow: hidden; transition: transform var(--dur-press) var(--ease-out); }
 .shop-tile:active { transform: scale(0.95); }
 .shop-tile-img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
-.shop-tile-initial { position: relative; font-size: 44px; font-weight: 800; color: rgba(255, 255, 255, .22); letter-spacing: -1px; }
-.shop-tile-grad { position: absolute; inset: 0; background: linear-gradient(to top, rgba(0, 0, 0, .6), transparent 55%); }
+.shop-tile-initial { position: relative; font-size: 44px; font-weight: 800; color: rgba(6, 95, 70, .32); letter-spacing: -1px; }
+.shop-tile-grad { position: absolute; inset: 0; background: linear-gradient(to top, rgba(0,0,0,.85) 0%, rgba(0,0,0,.70) 22%, rgba(0,0,0,.34) 45%, transparent 72%); }
 .shop-tile-disc { position: absolute; top: 6px; left: 6px; font-size: 10px; font-weight: 900; padding: 2px 6px; border-radius: 999px; background: linear-gradient(135deg, #f0426b, #dc2626); color: #fff; z-index: 1; }
 .shop-tile-fav { position: absolute; top: 6px; right: 6px; width: 24px; height: 24px; border-radius: 50%; background: rgba(0, 0, 0, .35); backdrop-filter: blur(6px); display: flex; align-items: center; justify-content: center; color: rgba(255, 255, 255, .85); z-index: 1; cursor: pointer; }
 .shop-tile-fav.on { color: #ef4444; }
 /* 2 ustunda kafel kengroq — nom to'liq o'qiladigan bo'ldi (3 ustunda 10.5px'da kesilardi) */
 .shop-tile-body { position: relative; align-self: flex-end; width: 100%; box-sizing: border-box; padding: 10px; color: #fff; z-index: 1; }
-.shop-tile-name { font-size: 12.5px; font-weight: 700; line-height: 1.25; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
-.shop-tile-price { font-size: 13px; font-weight: 800; color: var(--bj-tanga); margin-top: 3px; }
+.shop-tile-name { font-size: 12.5px; font-weight: 700; line-height: 1.25; text-shadow: 0 1px 3px rgba(0,0,0,.7); overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+.shop-tile-price { font-size: 13px; font-weight: 800; color: var(--bj-tanga-on-media); text-shadow: 0 1px 3px rgba(0,0,0,.7); margin-top: 3px; }
 .app.bjm .bj-cartbar { animation: bjmScreenIn .28s var(--ease-out); }
 .app.bjm .bj-cartbar.bump { animation: bjmBump .42s var(--ease-out); }
 @keyframes bjmBump { 0% { transform: scale(1); } 35% { transform: scale(1.05); } 100% { transform: scale(1); } }
@@ -3066,7 +3069,7 @@ body {
 .app.bjm .shop-wrap .d-empty { color: var(--bj-ink-dim); }
 .app.bjm .shop-wrap .d-sheet { background: #ffffff; color: var(--bj-ink); box-shadow: 0 -10px 40px -12px rgba(0, 0, 0, .6); }
 .app.bjm .shop-wrap .d-sheet h3 { color: var(--bj-ink); }
-.app.bjm .shop-wrap .d-grip { background: rgba(255, 255, 255, .18); }
+.app.bjm .shop-wrap .d-grip { background: rgba(16, 20, 24, .18); }
 .app.bjm .shop-wrap .d-sheet-bar { background: #ffffff; }
 .app.bjm .shop-wrap .d-sheet-x { background: rgba(16, 20, 24, .06); color: var(--bj-ink-dim); }
 .app.bjm .shop-wrap .d-btn:not(.ghost):not(.danger) {
@@ -3076,15 +3079,15 @@ body {
 }
 .app.bjm .shop-wrap .d-progress { background: rgba(16, 20, 24, .06); }
 .app.bjm .shop-wrap .d-progress > span { background: var(--bj-hero-grad); }
-.app.bjm .shop-wrap .sheet-err { color: #fca5a5; }
+.app.bjm .shop-wrap .sheet-err { color: #b91c1c; }
 .app.bjm .shop-wrap .pay-back { color: var(--bj-accent-deep); }
 /* mahsulot-detail/sharh/buyurtma yordamchi-bloklar (barchasi eski oq-karta) */
 .app.bjm .shop-insufficient-bar { background: var(--bj-card); border-color: var(--bj-line); color: var(--bj-ink); }
-.app.bjm .shop-deliver-line { background: rgba(56, 189, 248, .1); border-color: rgba(56, 189, 248, .25); color: #bae6fd; }
+.app.bjm .shop-deliver-line { background: rgba(56, 189, 248, .1); border-color: rgba(56, 189, 248, .25); color: #075985; }
 .app.bjm .shop-detail-name { color: var(--bj-ink); }
-.app.bjm .shop-low-line { color: #fca5a5; }
+.app.bjm .shop-low-line { color: #b91c1c; }
 .app.bjm .order-status-pill.pending { background: rgba(16, 20, 24, .06); color: var(--bj-ink-dim); }
-.app.bjm .order-refund-banner { background: rgba(16, 185, 129, .1); border-color: rgba(16, 185, 129, .25); color: #6ee7b7; }
+.app.bjm .order-refund-banner { background: rgba(16, 185, 129, .1); border-color: rgba(16, 185, 129, .25); color: #065f46; }
 .app.bjm .shop-search-x { background: rgba(16, 20, 24, .06); color: var(--bj-ink-dim); }
 .app.bjm .shop-card-likes { color: var(--bj-ink-dim); }
 /* sharhlar — kirish-tugma, forma, ro'yxat */
@@ -3092,16 +3095,16 @@ body {
 .app.bjm .shop-reviews-agg { color: var(--bj-ink-dim); }
 .app.bjm .shop-rev-form { background: var(--bj-card); border: 1px solid var(--bj-line); }
 .app.bjm .shop-rev-thumb { background: var(--bj-card); border: 1px solid var(--bj-line); color: var(--bj-ink-dim); }
-.app.bjm .shop-rev-thumb.on.up { background: rgba(34, 197, 94, .14); border-color: #22c55e; color: #86efac; }
-.app.bjm .shop-rev-thumb.on.down { background: rgba(239, 68, 68, .14); border-color: #ef4444; color: #fca5a5; }
+.app.bjm .shop-rev-thumb.on.up { background: rgba(34, 197, 94, .14); border-color: #22c55e; color: #15803d; }
+.app.bjm .shop-rev-thumb.on.down { background: rgba(239, 68, 68, .14); border-color: #ef4444; color: #b91c1c; }
 .app.bjm .shop-rev-photo-add { background: var(--bj-card); border-color: var(--bj-line); color: var(--bj-ink-dim); }
 .app.bjm .shop-rev-row { background: var(--bj-card); border: 1px solid var(--bj-line); color: var(--bj-ink); }
-.app.bjm .shop-rev-verified { color: #86efac; background: rgba(34, 197, 94, .14); }
+.app.bjm .shop-rev-verified { color: #15803d; background: rgba(34, 197, 94, .14); }
 .app.bjm .shop-rev-mine { color: var(--bj-ink-dim); background: rgba(16, 20, 24, .06); }
 /* mahalla-do'kon karta ichidagi "🚚 yetkazish-va'da" chip — mint-oq juftlik o'qilmas edi */
-.app.bjm .bj-promise { background: rgba(52, 211, 153, .12); color: #6ee7b7; border: 1px solid rgba(52, 211, 153, .25); }
+.app.bjm .bj-promise { background: rgba(52, 211, 153, .12); color: #065f46; border: 1px solid rgba(52, 211, 153, .25); }
 .app.bjm .bj-promise.today { background: var(--bj-hero-grad); color: #ffffff; }
-.app.bjm .bj-chat-privacy { background: rgba(52, 211, 153, .12); color: #6ee7b7; }
+.app.bjm .bj-chat-privacy { background: rgba(52, 211, 153, .12); color: #065f46; }
 
 /* shopv2: bosh-sahifadagi kichik "📍 Koson" shahar-belgisi + qidiruv-ichidagi SVG lupa (mockup'da
    ham aynan shu joylashuv — placeholder-matndagi emoji o'rniga real ikonka). */

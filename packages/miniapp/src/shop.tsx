@@ -501,7 +501,9 @@ export function ShopView({ me, onBanner, reload, onBook, openProductId }: { me: 
       // boshqa do'kon — savat bitta do'konga (sotuvchi o'zi yetkazadi). Tasdiqlangan v2 dizaynda:
       // window.confirm (bloklovchi) o'rniga avtomatik tozalash + tushuntiruvchi toast (onBanner) —
       // xarid-oqimini to'xtatib qo'ymaydi, faqat nima bo'lganini tushuntiradi.
-      if (shopv2) onBanner("🧺 Savat bitta do'kon bilan cheklangan — yangi do'kon uchun tozalandi");
+      // AUDIT TOPDI: eski xabar NIMA yo'qolganini aytmasdi — mijoz to'ldirgan savati jimgina
+      // o'chib ketardi. Endi do'kon nomi va nechta mahsulot yo'qolgani aniq aytiladi.
+      if (shopv2) onBanner(`🧺 «${cartShop?.name ?? "oldingi do'kon"}» savatingizdagi ${cartCount} ta mahsulot o'chirildi — bir savatga faqat bitta do'kon mahsuloti sig'adi`);
       else if (!window.confirm("Savat bitta do'kon bilan cheklangan — yangi do'kon uchun tozalaymi?")) return;
       setCart({ [p.id]: Math.max(1, delta) });
       setCartShopId(pShop);
@@ -1174,7 +1176,10 @@ export function ShopView({ me, onBanner, reload, onBook, openProductId }: { me: 
           )}
           {/* shopv2: tasdiqlangan dizaynda "Butun shahar" 2-ustunli GRID (rasm-qopqoq+katta bosh-
               harf+reyting+holat-nuqta) — gorizontal-scroll AVATAR-karta (legacy BjShopCard) emas. */}
-          {bazar && !shopFilter && shopv2 && showBozorKind && market && cityShops.length > 1 && (
+          {/* AUDIT TOPDI: `> 1` sharti — agar shaharda FAQAT BITTA do'kon qolsa (yoki "Hozir
+              ochiq" filtri bittasini qoldirsa) bo'lim butunlay yo'qolib, ekran bo'sh qolardi.
+              shopv2'da `> 0` (legacy `> 1`da qoladi — u yerda pastda flat-katalog ham bor). */}
+          {bazar && !shopFilter && shopv2 && showBozorKind && market && cityShops.length > 0 && (
             <div className="shop-city-grid-wrap">
               <div className="shop-section-title2">Butun shahar bo'ylab</div>
               <div className="shop-city-grid">
@@ -1195,6 +1200,16 @@ export function ShopView({ me, onBanner, reload, onBook, openProductId }: { me: 
                 ))}
               </div>
             </div>
+          )}
+          {/* AUDIT TOPDI: kechqurun "🟢 Hozir ochiq" filtri BARCHA do'konni chiqarib tashlaydi
+              (hammasi yopiq) — ekran butunlay bo'sh qolardi, tushuntirishsiz. */}
+          {bazar && !shopFilter && shopv2 && market && cityShops.length === 0 && mahallaShops.length === 0 && openOnly && (
+            <EmptyState
+              icon="🌙"
+              text="Hozir hamma do'kon yopiq — ertalab qayta kiring"
+              action="Hammasini ko'rsatish"
+              onAction={() => { haptic(); setOpenOnly(false); }}
+            />
           )}
           {/* 🏪 butun-shahar do'konlar — hozirgi (mahalla-oldi) ro'yxat, o'zgarishsiz (shopv2 OFF) */}
           {bazar && !shopFilter && !shopv2 && market && cityShops.length > 1 && (
@@ -1228,10 +1243,22 @@ export function ShopView({ me, onBanner, reload, onBook, openProductId }: { me: 
               R4 topdi: `&& bazar` shart — `bazar` OFF bo'lib `shopv2` ON qolgan holatda (mustaqil
               kill-switch'lar) StoreTile FILTRLANMAGAN butun-katalogni "bitta do'kon" ko'rinishida
               ko'rsatib qo'yardi; bazar OFF'da har doim legacy ProductCard-grid ishlatiladi. ── */}
+          {/* AUDIT TOPDI: jonli bazada 6 faol do'kondan 3 tasida MAHSULOT YO'Q, va hammasi
+              bosiladi — mijoz do'konni ochsa, panjara joyida shunchaki bo'shliq qolardi
+              (hech qanday matn yo'q → "ilova buzuq" degan taassurot). */}
           {homeFlatCatalog && shopv2 && bazar && (
-            <div className="shop-tile-grid">
-              {catalog.map((p) => <StoreTile key={p.id} p={p} onOpen={openProduct} onFav={toggleFav} />)}
-            </div>
+            catalog.length === 0 ? (
+              <EmptyState
+                icon="📦"
+                text={cat ? `«${cat}» bo'yicha mahsulot yo'q` : "Bu do'konda hozircha mahsulot yo'q"}
+                action={cat ? "Hammasini ko'rish" : undefined}
+                onAction={cat ? () => { haptic(); setCat(null); } : undefined}
+              />
+            ) : (
+              <div className="shop-tile-grid">
+                {catalog.map((p) => <StoreTile key={p.id} p={p} onOpen={openProduct} onFav={toggleFav} />)}
+              </div>
+            )
           )}
           {homeFlatCatalog && (!shopv2 || !bazar) && (
             <>
@@ -1328,7 +1355,15 @@ export function ShopView({ me, onBanner, reload, onBook, openProductId }: { me: 
             {sel.description && <p className="muted fs13">{sel.description}</p>}
             <PriceBlock p={sel} big />
             {sel.stock <= SHOP_LOW_STOCK && <div className="shop-low-line">⚡ Kam qoldi: {sel.stock} dona</div>}
-            <div className="shop-deliver-line">🚚 Bugun buyurtma qilsangiz — <b>1 kun ichida yetkazamiz</b> · do'kon egasi qo'ng'iroq qiladi</div>
+            {/* AUDIT TOPDI: bu yerda BirJoy O'Z NOMIDAN "1 kun ichida yetkazamiz" deb va'da
+                berardi — har bir uchinchi-tomon mahsulotiga, kafolatsiz. Yetkazishni SOTUVCHI
+                qiladi; har mahsulotda sotuvchining o'z va'dasi (`deliveryText`) bor. Endi
+                sotuvchining o'z so'zi ko'rsatiladi, bo'lmasa — hech narsa va'da qilinmaydi. */}
+            <div className="shop-deliver-line">
+              {sel.deliveryText
+                ? <>🚚 <b>{sel.deliveryText}</b> · do&apos;kon egasi qo&apos;ng&apos;iroq qiladi</>
+                : <>🚚 Yetkazish vaqtini do&apos;kon egasi qo&apos;ng&apos;iroq qilib aytadi</>}
+            </div>
             <button className="shop-reviews-entry" onClick={() => { haptic(); loadReviews(sel.id); setStep("reviews"); }}>
               <span>🗣 Sharhlar</span>
               <span className="shop-reviews-agg">
@@ -1864,7 +1899,13 @@ function CartCheckout({ lines, shopName, itemsTotal, deliveryFee, minOrder, coin
       ))}
       <div className="shop-cart-totals glass pad">
         <div className="shop-cart-trow"><span>Mahsulotlar</span><b>{formatNumber(itemsTotal)}</b></div>
-        {deliveryFee > 0 && <div className="shop-cart-trow"><span>🚚 Yetkazish</span><b>{formatNumber(deliveryFee)}</b></div>}
+        {/* AUDIT TOPDI: `deliveryFee > 0` sharti — jonli bazadagi BARCHA do'konda `deliveryFeeSom=0`,
+            demak yetkazish qatori HECH QACHON ko'rinmasdi va mijoz jami nimadan iboratligini
+            bilmasdi. 0 = "bepul" EMAS, "hisobga olinmagan" (sotuvchi telefonda kelishadi). */}
+        <div className="shop-cart-trow">
+          <span>🚚 Yetkazish</span>
+          <b>{deliveryFee > 0 ? formatNumber(deliveryFee) : "Sotuvchi bilan kelishiladi"}</b>
+        </div>
         <div className="shop-cart-trow shop-cart-grand"><span>Jami</span><b>{formatNumber(total)} so'm</b></div>
       </div>
       {short > 0 && <div className="order-refund-banner">Minimal buyurtma {formatNumber(minOrder)} — yana {formatNumber(short)} qo'shing</div>}
