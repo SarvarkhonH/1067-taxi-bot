@@ -40,6 +40,16 @@ export function prefetchShopProducts(): void {
   api.shopProducts().then((r) => { PROD_CACHE = r.products; }).catch(() => undefined);
 }
 
+/** Mockup'dagi "N kun oldin" qatori — API `createdAt`ni ISO qaytaradi, nisbiy vaqt yo'q. */
+function daysAgo(iso: string): string {
+  const d = Math.floor((Date.now() - new Date(iso).getTime()) / 86_400_000);
+  if (d <= 0) return "Bugun";
+  if (d === 1) return "Kecha";
+  if (d < 7) return `${d} kun oldin`;
+  const w = Math.floor(d / 7);
+  return w === 1 ? "1 hafta oldin" : `${w} hafta oldin`;
+}
+
 function discountPct(p: ShopProductView): number {
   return p.oldPriceTanga && p.oldPriceTanga > p.priceTanga ? Math.round((1 - p.priceTanga / p.oldPriceTanga) * 100) : 0;
 }
@@ -916,11 +926,31 @@ export function ShopView({ me, onBanner, reload, onBook, openProductId }: { me: 
                     </div>
                   </div>
                 )}
+                {/* mockup `toggleReviews`: sharhlar ALOHIDA oynada emas, shu yerda ICHKI ochiladi
+                    (▼/▲ akkordeon) — ega "review missing" deb aynan shuni ko'rsatdi. */}
                 {shopProfileReviews && (
-                  <button className="shop-sp-reviews" onClick={() => { haptic(); setShopReviewsOpen(true); }}>
-                    <span className="shop-sp-reviews-l"><Icon name="chat" size={15} /> Sharhlar {shopProfileReviews.reviews.length} ta</span>
-                    <span className="shop-sp-reviews-c">›</span>
-                  </button>
+                  <>
+                    <button className="shop-sp-reviews" onClick={() => { haptic(); setShopReviewsOpen((v) => !v); }}>
+                      <span className="shop-sp-reviews-l"><Icon name="chat" size={15} /> Sharhlar {shopProfileReviews.reviews.length} ta</span>
+                      <span className="shop-sp-reviews-c">{shopReviewsOpen ? "▲" : "▼"}</span>
+                    </button>
+                    {shopReviewsOpen && (
+                      <div className="shop-sp-revlist">
+                        {shopProfileReviews.reviews.length === 0 ? (
+                          <div className="shop-sp-rev"><div className="shop-sp-rev-text">Hali sharh yo&apos;q</div></div>
+                        ) : shopProfileReviews.reviews.map((r) => (
+                          <div key={r.id} className="shop-sp-rev">
+                            <div className="shop-sp-rev-top">
+                              <span>{r.name}</span>
+                              <span>{r.rating ? "★".repeat(r.rating) : r.thumb === "up" ? "👍" : "👎"}</span>
+                            </div>
+                            {r.text && <div className="shop-sp-rev-text">{r.text}</div>}
+                            <div className="shop-sp-rev-days">{daysAgo(r.createdAt)}</div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </>
                 )}
                 {!!me.flags?.shopchat && (
                   <button className="shop-sp-cta" onClick={() => openChat(shopProfile.id, shopProfile.name)}>

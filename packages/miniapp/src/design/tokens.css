@@ -2841,7 +2841,7 @@ body {
   box-shadow: none; color: var(--bj-ink); padding: 0 0 16px; gap: 0;
 }
 /* wrap padding olib tashlangani uchun — o'z padding'i yo'q bo'lgan bloklarga qaytariladi */
-.app.bjm .shop-head { padding: 8px 16px 10px; }
+/* (shop-head padding'i pastdagi yopishqoq top-strip blokida beriladi — bu yerda takror yo'q) */
 .app.bjm .shop-search-wrap { padding: 4px 16px; }
 .app.bjm .shop-search-wrap.v2 svg { left: 30px; }
 .app.bjm .shop-grid { padding: 0 16px; }
@@ -2907,6 +2907,23 @@ body {
 .shop-city-tile-rating { font-size: 11px; color: var(--bj-ink); margin-top: 2px; }
 .shop-city-tile-status { display: flex; align-items: center; gap: 5px; margin-top: 5px; font-size: 11px; color: var(--bj-ink-dim); }
 
+/* EGA TOPDI ("ekran kichik... to'liq ekran qil, tepa barni yo'qot"): ikkita sabab bor edi —
+   (1) ilova-qobig'ining `.content { padding: 10px 16px 96px }` qoidasi HAR bo'limga qo'shimcha
+   16px yon-padding berardi (mening 16px'im ustiga → 32px, ekran ichkariga siqilgan ko'rinardi);
+   (2) tashqi `.topbar` (BirJoy nomi + a'zo-chip + tanga + avatar) mockup'da UMUMAN yo'q — mockup'da
+   yagona tepa-panel bu do'konning o'z strip'i (orqaga/nom/qo'ng'iroq/savat).
+   shopv2'da: topbar yashiriladi, content chetdan-chetga, shop-head esa mockup'dagi kabi yopishqoq
+   blur-panelga aylanadi (xavfsiz-zona bilan). */
+.app.bjm .topbar { display: none; }
+.app.bjm .content { padding: 0 0 96px; }
+.app.bjm .shop-head {
+  position: sticky; top: 0; z-index: 20;
+  padding: calc(env(safe-area-inset-top, 20px) + 8px) 14px 10px;
+  background: rgba(9, 14, 11, .75);
+  backdrop-filter: blur(20px) saturate(180%); -webkit-backdrop-filter: blur(20px) saturate(180%);
+  border-bottom: 1px solid rgba(255, 255, 255, .08);
+}
+
 /* shopv2 mahsulot-ekrani — mockup tipografiyasi/o'lchamlari AYNAN:
    rasm aspect 1/1.05 + radius 16px, nuqtalar 6px, nom 18px/800, narx 22px/800 amber #f59e0b. */
 .app.bjm .shop-detail-photo, .app.bjm .shop-gallery-img { aspect-ratio: 1 / 1.05; border-radius: 16px; object-fit: cover; }
@@ -2956,6 +2973,12 @@ body {
 .app.bjm .shop-sp-reviews { display: flex; align-items: center; justify-content: space-between; width: 100%; background: var(--bj-card); backdrop-filter: blur(18px) saturate(180%); -webkit-backdrop-filter: blur(18px) saturate(180%); border: 1px solid var(--bj-line); border-radius: 12px; padding: 12px 14px; margin-top: 10px; cursor: pointer; }
 .app.bjm .shop-sp-reviews-l { display: flex; align-items: center; gap: 7px; font-size: 13px; font-weight: 700; color: var(--bj-ink); }
 .app.bjm .shop-sp-reviews-c { color: rgba(232, 240, 232, .45); font-size: 13px; }
+/* mockup: ichki ochiladigan sharh-ro'yxati — karta radius 12px, padding 11px 13px, gap 8px */
+.app.bjm .shop-sp-revlist { display: flex; flex-direction: column; gap: 8px; margin-top: 8px; }
+.app.bjm .shop-sp-rev { background: var(--bj-card); backdrop-filter: blur(18px) saturate(180%); -webkit-backdrop-filter: blur(18px) saturate(180%); border: 1px solid var(--bj-line); border-radius: 12px; padding: 11px 13px; }
+.app.bjm .shop-sp-rev-top { display: flex; justify-content: space-between; font-size: 12.5px; font-weight: 700; color: var(--bj-ink); }
+.app.bjm .shop-sp-rev-text { font-size: 12.5px; color: rgba(232, 240, 232, .75); margin-top: 4px; }
+.app.bjm .shop-sp-rev-days { font-size: 10.5px; color: rgba(232, 240, 232, .45); margin-top: 5px; }
 .app.bjm .shop-sp-cta { display: flex; align-items: center; justify-content: center; gap: 8px; width: 100%; background: linear-gradient(135deg, #0d9668, #34d399); color: #fff; font-size: 14.5px; font-weight: 700; padding: 13px; border-radius: 16px; margin-top: 16px; cursor: pointer; box-shadow: 0 6px 16px rgba(13, 150, 104, .3), inset 1.5px 1.5px 1px rgba(255, 255, 255, .4); border: 1px solid rgba(255, 255, 255, .3); }
 .app.bjm .shop-sp-cta:active { transform: scale(0.97); }
 .app.bjm .shop-sp-chips { display: flex; gap: 8px; overflow-x: auto; padding: 16px 0 10px; scrollbar-width: none; }
