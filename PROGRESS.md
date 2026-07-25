@@ -2686,3 +2686,35 @@ Vercel prebuilt → bundle-grep live (`1067taxi-miniapp.vercel.app`, `shop-CrMqb
 deploy qilindi.** Qolgan yagona narsa — past-ahamiyatli CSS-scoping qarzi (#3), tuzatish talab
 qilinmaydi hozircha. Reja bo'yicha oxirgi qadam (agar ega xohlasa): bir necha kunlik barqaror
 ishlashdan keyin eski `shop-light`/`!shopv2` yo'lini kod-bazadan butunlay tozalash.
+
+## 2026-07-24 (45) — Mahalla-bo'lim joylashuvi mockup bilan moslashtirildi (o'lchov-bo'yicha tekshiruv)
+Ega: "hammasi mos emaku ranglar kattaliklar do'konlar solish hammasini" + "o'zing tekshir".
+Skrinshot so'rash o'rniga O'ZIM tekshirdim — mockup HTML'ining o'z CSS-qiymatlarini chiqarib,
+brauzerdagi computed-style bilan RAQAMMA-RAQAM solishtirdim. Natijada eng katta joylashuv-farqi
+topildi (avvalgi bosqichlarda ko'zimdan qochgan):
+
+**Topilgan asosiy farq**: "Mahallamga yetkazadi" bo'limi hali ham legacy V1.5 joylashuvda edi —
+VERTIKAL to'liq-kenglikdagi "qo'shni" kartalar, 72px kichik rasm. Mockup esa: GORIZONTAL scroll,
+148px kartalar, 148×100 rasm-qopqoq, 36px katta bosh-harf, "Mahallangiz" belgisi. (#41'da men
+faqat "Butun shahar" bo'limini grid'ga o'tkazgan edim, mahalla-bo'limga TEGMAGANMAN.) Qayta
+qurildi; legacy karta `!shopv2` yo'lida saqlanadi.
+
+**Kichikroq ikkitasi**: "Hozir ochiq" chipi 🟢 emoji o'rniga mockup'dagi chaqmoq-SVG; "Buyurtmalarim"
+keng yashil matn-tugma o'rniga dumaloq ikonka-tugma (aynan shu keng tugma sarlavhaga joy
+qoldirmagani uchun #40'da sarlavhani butunlay o'chirishga majbur bo'lgandim — endi sarlavha ham,
+tugmalar ham sig'adi).
+
+**Isbot (o'lchangan, taxmin emas)**: brauzerda computed-style — karta 148px, qopqoq 148×100,
+radius 16px, bosh-harf 36px/800, nom 13.5px/700 + margin-top 7px, meta 11.5px, belgi 9.5px/radius
+8px, gorizontal-scroll `auto` — HAR BIRI mockup qiymatiga TENG. Chiplar: padding 8px 14px, radius
+20px, 13px/600 — teng. Shahar-belgisi 12.5px — teng. `tsc` 0 xato, konsolь toza.
+Deploy: commit `13ecb44` → build → Vercel prod → bundle-grep live (`shop-C7uNcbli.js`):
+`shop-mah-card` va "Mahallamga yetkazadi" topildi.
+
+**ATAYLAB mockup'dan farqli qoldirilgan (sabab bilan)**:
+- Qidiruv-input shrifti 16px (mockup 13.5px) — iOS'da 16px'dan kichik input fokusda BUTUN sahifani
+  avto-zoom qilib buzadi; ega bundan avval shikoyat qilgan (`tokens.css` v4.4 izohi). Mockup-
+  paritetidan ko'ra real qurilma-xatti-harakati ustun.
+- Hikoya-tray bosh-sahifada (mockup'da do'kon-profilda), mahalla-tanlov chipi, "sotuvchi bo'ling"
+  CTA, yopishqoq savat-bar — mockup'da yo'q, LEKIN bular haqiqiy, ishlaydigan funksiyalar. Statik
+  mockup'ga o'xshatish uchun ularni o'chirish = funksiyani o'chirish. Qoldirildi.
