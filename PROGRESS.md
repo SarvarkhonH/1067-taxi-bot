@@ -2851,3 +2851,48 @@ bilan kelishiladi", "hamma do'kon yopiq", "Mahsulot yoqdimi", "Savat yuklanmoqda
 tanladi; oq kartada oq fon ustida shisha effekti ko'rinmaydi, shuning uchun `backdrop-filter`
 kodda qolgan-u, vizual ta'siri yo'q. Ya'ni liquid-glass ega qarori bilan almashtirilgan, yo'qolgan
 emas — xohlansa YORUG' liquid glass (rangli fon ustida shaffof oq kartalar) alohida bosqich.
+
+## 2026-07-24 (48) — Audit ro'yxati YAKUNLANDI (3-tur) + server tuzatishi
+Ega: "ha davom et, hammasini tugat". Auditning qolgan barcha tasdiqlangan bandlari bajarildi.
+
+**Pul/boshi-berk-ko'cha**: checkout QISMAN tugagan mahsulotda cheksiz takrorlanardi — server
+`soldOutProductId` qaytaradi, mijoz uni TASHLAB YUBORARDI; savatda 3, omborda 1 bo'lsa mahsulot
+savatda qolib, har urinishda AYNAN o'sha xato chiqaverardi (savat localStorage'da, o'zi tuzalmasdi).
+Endi qatordagi son haqiqiy zaxiraga qisqartiriladi (0 bo'lsa olib tashlanadi) va xabar mahsulot
+nomini aytadi; qo'shishda ham zaxiradan oshirib bo'lmaydi.
+
+**Bo'sh ekranlar**: bozor-so'rovi xatosi JIM yutilardi (`catch(()=>undefined)`), bosh-sahifaning
+har bo'limi `market`ga bog'langan — sekin/uzilgan tarmoqda mijoz sarlavha+qidiruvdan boshqa hech
+narsa ko'rmasdi. Skelet + xato-holati + qayta-urinish qo'shildi.
+
+**SERVER — jimgina kesilgan vitrina**: `listActiveProducts` global `take: 100` edi, jonli bazada
+133 faol mahsulot bor — do'kon 1 ning 116 tasidan ~83 tasi yetib borardi. Global limitni
+OSHIRMADIM (har ilova-ochilishida yuk ortardi); o'rniga `?shopId=` bilan do'kon-ko'lamli so'rov
+(`take: 300`) qo'shildi, global ro'yxat tegilmadi.
+
+**Qidiruv**: "Do'kon yoki mahsulot qidiring" deb va'da berardi, lekin FAQAT mahsulot qidirardi —
+ekranda turgan do'kon nomini yozsa «topilmadi» chiqardi, ustiga server o'sha do'kon nomini eganing
+"yo'q mahsulotlar" hisobotiga yozardi. Endi mos do'konlar "Do'konlar" bo'limida ko'rsatiladi va
+do'kon-nomi mos kelsa talab sifatida yozilmaydi.
+
+**Mahalla boshqaruvi** (auditda UCHTA lens mustaqil belgilagan — eng kuchli signal): GPS taxmini
+xato bo'lsa uni tuzatishning yagona yo'li edi, lekin oddiy xira matnga o'xshardi (~27px). Endi
+44px chip + karet + "Mahallani tanlang" yozuvi.
+
+**Yakuniy jilo**: savat qty-tugmalari ko'rinishi 26px qoldi, bosish maydoni ::after bilan ~44×40ga
+kengaytirildi (audit taklif qilgan −9px EMAS — qo'shni satrlar maydoni ustma-ust tushib, noto'g'ri
+mahsulot o'chishi mumkin edi); sodiqlik kartasi yangi mijozga "0/5" ko'rsatmaydigan bo'ldi;
+mahsulot-kartadagi "Sotib olish" → "Ko'rish" (bosilganda hech narsa sotib olinmasdi); savat
+summalari `so'm` birligi bilan; e'lon bloki oralig'i (hikoya-tray yo'q bo'lganda yopishib qolardi).
+
+**Isbot**: har turdan keyin brauzerda o'lchandi (qty-tugma bosish-maydoni −7/−9px, satr 55px,
+"42 000 so'm", mahalla-chip 54px/999px radius, "Kamol" qidiruvida "Do'konlar" bo'limi chiqdi).
+`tsc` — shared+miniapp+server 0 xato. Deploy: `fcdb7e2` (Render **live** deb tasdiqlandi) va
+`e4cc207` → Vercel prod → bundle-grep live: `shopId=`, "dona qoldi, savatda", "Do'konlar
+yuklanmadi", "Mahallani tanlang", "Ko'rish", "so'm" topildi.
+
+**MUHIM — git izolyatsiyasi**: `shopService.ts` ishchi-nusxasida BOSHQA sessiyaning tugallanmagan
+ishi bor edi (`logMarketDemand` debounce/zanjir-yig'ish, HEAD'da YO'Q). Uni commit'ga qo'shib
+yubormaslik uchun HEAD nusxasi olinib, faqat mening 2 o'zgarishim qo'llanib, git-plumbing
+(`hash-object` + `update-index`) bilan staging qilindi — ishchi-fayl diskda TEGILMADI, boshqa
+sessiya ishi saqlanib qoldi (commitdan keyin tekshirildi: `logMarketDemand` hali ishchi-nusxada).
