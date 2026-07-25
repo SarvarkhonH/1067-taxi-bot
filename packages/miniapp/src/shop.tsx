@@ -148,7 +148,9 @@ function ProductCard({ p, onOpen, wide, onFav }: { p: ShopProductView; onOpen: (
         <div className="shop-card-name">{p.name}</div>
         {p.likes > 0 && <div className="shop-card-likes">👍 {p.likes}{p.dislikes > 0 ? ` · 👎 ${p.dislikes}` : ""}</div>}
         <PriceBlock p={p} />
-        <div className="shop-buy-bar">Sotib olish</div>
+        {/* AUDIT: "Sotib olish" deb yozilgan-u, bosilganda faqat mahsulot OCHILADI — hech narsa
+            sotib olinmaydi. Xarid tugmalari detail-ekranda. Yolg'on va'da o'rniga rost fe'l. */}
+        <div className="shop-buy-bar">Ko&apos;rish</div>
       </div>
     </button>
   );
@@ -994,7 +996,11 @@ export function ShopView({ me, onBanner, reload, onBook, openProductId }: { me: 
                     )}
                   </div>
                 )}
-                {loyalty && (
+                {/* AUDIT: server har doim `{purchaseCount:0, milestone:5}` qaytaradi, ya'ni
+                    YANGI bozorda HAR BIR birinchi tashrifda bo'sh "Sodiqlik dasturi 0/5"
+                    chizig'i chiqardi — yangi mijozga bosim, ma'nosiz. Ega qarori ham shu edi
+                    (2026-07-23): ko'rsatkich-only, mukofot NOMLANMAYDI. */}
+                {loyalty && loyalty.purchaseCount > 0 && (
                   <div className="shop-sp-loyalty">
                     <div className="shop-sp-loyalty-row">
                       <span>Sodiqlik dasturi</span><span>{loyalty.purchaseCount}/{loyalty.milestone} xarid</span>
@@ -2013,11 +2019,11 @@ function CartCheckout({ lines, shopName, itemsTotal, deliveryFee, minOrder, coin
             <span className="shop-qty-n">{l.qty}</span>
             <button className="shop-qty-btn" onClick={() => onQty(l.p, 1)} aria-label="Ko'paytirish">+</button>
           </div>
-          <b className="shop-cart-sum">{formatNumber(l.qty * l.p.priceTanga)}</b>
+          <b className="shop-cart-sum">{formatNumber(l.qty * l.p.priceTanga)} so&apos;m</b>
         </div>
       ))}
       <div className="shop-cart-totals glass pad">
-        <div className="shop-cart-trow"><span>Mahsulotlar</span><b>{formatNumber(itemsTotal)}</b></div>
+        <div className="shop-cart-trow"><span>Mahsulotlar</span><b>{formatNumber(itemsTotal)} so&apos;m</b></div>
         {/* AUDIT TOPDI: `deliveryFee > 0` sharti — jonli bazadagi BARCHA do'konda `deliveryFeeSom=0`,
             demak yetkazish qatori HECH QACHON ko'rinmasdi va mijoz jami nimadan iboratligini
             bilmasdi. 0 = "bepul" EMAS, "hisobga olinmagan" (sotuvchi telefonda kelishadi). */}
@@ -2038,7 +2044,7 @@ function CartCheckout({ lines, shopName, itemsTotal, deliveryFee, minOrder, coin
       <p className="muted fs12 mt6">📦 Eshik oldida tekshirib oling — yoqmasa olmang{pay === "cash" ? ", pul to'lamaysiz" : ""}.</p>
       {err && <div className="order-refund-banner">{err}</div>}
       <Button variant="brand" disabled={busy || short > 0 || insufficient || address.trim().length < 5} onClick={() => onSubmit(address, note)}>
-        {busy ? "Yuborilmoqda…" : `Buyurtma berish — ${formatNumber(total)}`}
+        {busy ? "Yuborilmoqda…" : `Buyurtma berish — ${formatNumber(total)} so'm`}
       </Button>
     </div>
   );
