@@ -117,6 +117,45 @@ export async function listFavoriteProducts(memberId: number, preview = false): P
   return all.filter((p) => ids.has(p.id));
 }
 
+// 📞 SOTUV-SIGNALI: «qidirildi-topilmadi» yozuvi egaga qaysi sotuvchini chaqirishni aytadi —
+// shuning uchun ma'lumot TOZA bo'lishi shart. Mini App har bosishda (300ms debounce) qidiradi,
+// ya'ni "sabzavot" bitta so'rov uchun 8 ta yozuv qoldirardi ("s","sa","sab",…) va ro'yxat
+// o'qib bo'lmas holga kelardi (jonli DB'da 60 yozuvdan atigi ~8 tasi haqiqiy edi).
+// Tuzatish: (1) 3 belgidan qisqasi umuman yozilmaydi, (2) bir foydalanuvchining bir soatlik
+// yozuv-zanjiri BITTA satrga yig'iladi — satr har doim eng TO'LIQ yozilgan shaklni saqlaydi.
+const DEMAND_MIN_LEN = 3;
+const DEMAND_WINDOW_MS = 60 * 60_000;
+
+async function logMarketDemand(query: string, memberId?: number): Promise<void> {
+  if (query.length < DEMAND_MIN_LEN) return;
+  const since = new Date(Date.now() - DEMAND_WINDOW_MS);
+  // memberId yo'q bo'lsa (anonim) — zanjir-yig'ish XAVFLI (turli odamlar aralashib ketadi),
+  // shuning uchun faqat aynan bir xil so'rov takrorlanmasin.
+  if (memberId == null) {
+    const dup = await prisma.marketDemand.findFirst({ where: { memberId: null, query, createdAt: { gte: since } }, select: { id: true } });
+    if (!dup) await prisma.marketDemand.create({ data: { query, memberId: null } }).catch(() => undefined);
+    return;
+  }
+  const last = await prisma.marketDemand.findFirst({
+    where: { memberId, createdAt: { gte: since } },
+    orderBy: { createdAt: "desc" },
+    select: { id: true, query: true },
+  });
+  if (last) {
+    const a = query.toLowerCase();
+    const b = last.query.toLowerCase();
+    if (a.startsWith(b) || b.startsWith(a)) {
+      // o'sha so'zni yozib turibdi (yoki o'chirib orqaga qaytdi) — yangi satr YO'Q,
+      // mavjud satr eng to'liq shaklga yangilanadi
+      if (query.length > last.query.length) {
+        await prisma.marketDemand.update({ where: { id: last.id }, data: { query } }).catch(() => undefined);
+      }
+      return;
+    }
+  }
+  await prisma.marketDemand.create({ data: { query, memberId } }).catch(() => undefined);
+}
+
 /** 🏪 V1.4 (BirJoy): Bozor-bosh payload — do'kon-rail + kategoriya-karusel + server-qidiruv.
  *  q berilsa: OR-contains qidiruv (serviceDirectory naqshi); nol natija → MarketDemand yozuvi
  *  («qidirildi-topilmadi» — egaga qaysi sotuvchini chaqirishni aytadi). */
@@ -143,9 +182,7 @@ export async function getMarketHome(preview = false, q?: string, memberId?: numb
     // MAVJUD DO'KON nomini yozgan bo'lsa ham. Natijada eganing "yo'q mahsulotlar" hisoboti
     // allaqachon bor do'kon nomlari bilan to'lardi. Endi do'kon-nomi mos kelsa — bu talab emas.
     const shopNameHit = [...bozorShops, ...mahallaShops].some((s) => s.name.toLowerCase().includes(ql));
-    if (filtered.length === 0 && !shopNameHit) {
-      await prisma.marketDemand.create({ data: { query, memberId: memberId ?? null } }).catch(() => undefined);
-    }
+    if (filtered.length === 0 && !shopNameHit) await logMarketDemand(query, memberId);
   }
   // V1.5: "N mahalladosh bu hafta xarid qildi" — HAQIQIY hisob (soxta ijtimoiy-signal emas), faqat
   // mahalla-tur do'konlar uchun (bozor-tur ro'yxati bu maydonsiz, o'zgarishsiz qoladi).
