@@ -752,7 +752,14 @@ export function ShopView({ me, onBanner, reload, onBook, openProductId }: { me: 
             </button>
           )}
           <button className="shop-share-btn" onClick={shareShop} aria-label="Do'konni ulashish"><Icon name="share" size={18} /></button>
-          <button className="shop-orders-btn" onClick={openOrders}>📦 Buyurtmalarim</button>
+          {/* shopv2: mockup'da top-strip'dagi barcha amallar bir xil dumaloq IKONKA-tugma —
+              keng yashil "📦 Buyurtmalarim" matn-tugmasi joylashuvni buzardi (sarlavhaga joy
+              qolmasdi, shu sababli #40'da sarlavhani butunlay olib tashlashga majbur bo'lgandim). */}
+          {shopv2 ? (
+            <button className="shop-share-btn" onClick={openOrders} aria-label="Buyurtmalarim"><Icon name="bag" size={17} /></button>
+          ) : (
+            <button className="shop-orders-btn" onClick={openOrders}>📦 Buyurtmalarim</button>
+          )}
         </div>
       </div>
 
@@ -951,8 +958,8 @@ export function ShopView({ me, onBanner, reload, onBook, openProductId }: { me: 
                   {label}
                 </button>
               ))}
-              <button className={"shop-kind-chip" + (openOnly ? " on" : "")} onClick={() => { haptic(); setOpenOnly((v) => !v); }}>
-                🟢 Hozir ochiq
+              <button className={"shop-kind-chip icon" + (openOnly ? " on" : "")} onClick={() => { haptic(); setOpenOnly((v) => !v); }}>
+                <Icon name="bolt" size={11} /> Hozir ochiq
               </button>
             </div>
           )}
@@ -962,9 +969,34 @@ export function ShopView({ me, onBanner, reload, onBook, openProductId }: { me: 
               🟢 Hozir ochiq
             </button>
           )}
-          {/* 🏠 V1.5: mahalla do'konlari — kattaroq "qo'shni" karta + hikoya-parcha + haqiqiy
+          {/* shopv2: tasdiqlangan dizaynda mahalla-bo'lim = GORIZONTAL 148px kartalar (rasm-qopqoq
+              +katta bosh-harf+"Mahallangiz" belgisi), sarlavha emoji-siz "Mahallamga yetkazadi".
+              Mening avvalgi implementatsiyam legacy V1.5 VERTIKAL to'liq-kenglikdagi "qo'shni"
+              kartani ishlatardi — bu mockup bilan eng katta joylashuv-farqi edi. */}
+          {bazar && !shopFilter && shopv2 && showMahallaKind && market && activeMahallaId !== null && mahallaShops.length > 0 && (
+            <div className="shop-mah-wrap">
+              <div className="shop-section-title2">Mahallamga yetkazadi</div>
+              <div className="shop-mah-row">
+                {mahallaShops.map((s) => (
+                  <button key={s.id} className="shop-mah-card" onClick={() => { haptic(); setShopFilter({ id: s.id, name: s.name }); setCat(null); }}>
+                    <div className="shop-mah-cover">
+                      {s.hasPhoto ? <img src={apiUrl(`/api/shop/shop-photo/${s.id}`)} alt="" loading="lazy" /> : <span className="shop-mah-initial">{s.name.trim().charAt(0).toUpperCase()}</span>}
+                      <span className="shop-mah-badge">Mahallangiz</span>
+                    </div>
+                    <div className="shop-mah-name">{s.name}</div>
+                    <div className="shop-mah-meta">
+                      <span className={"bj-open-dot" + (s.open ? "" : " closed")} />
+                      <span>{s.open ? "Ochiq" : "Yopiq"}</span>
+                      {s.rating > 0 && <span className="shop-mah-rating">· ★{s.rating.toFixed(1)}</span>}
+                    </div>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+          {/* 🏠 V1.5 (legacy, shopv2 OFF): kattaroq "qo'shni" karta + hikoya-parcha + haqiqiy
               ijtimoiy-signal (ega: "oddiy online do'kondan farq qilmayapti" fikriga javob) */}
-          {bazar && !shopFilter && showMahallaKind && market && activeMahallaId !== null && mahallaShops.length > 0 && (
+          {bazar && !shopFilter && !shopv2 && showMahallaKind && market && activeMahallaId !== null && mahallaShops.length > 0 && (
             <BjSection title="🏠 Mahalla do'konlari">
               <div className="bj-mshops">
                 {mahallaShops.map((s) => (

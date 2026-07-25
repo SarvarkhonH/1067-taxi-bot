@@ -116,6 +116,21 @@ export function Icon({ name, filled = false, size = 24 }: { name: string; filled
           <path d="M3 19a1 1 0 0 1 1-1h16a1 1 0 0 1 1 1 2 2 0 0 1-2 2H5a2 2 0 0 1-2-2Z" fill={filled ? "currentColor" : "none"} />
         </svg>
       );
+    case "bolt":
+      // shopv2: "Hozir ochiq" tezkor-filtr chipi (mockup'da aynan chaqmoq-belgisi, 🟢 emoji emas)
+      return (
+        <svg {...p} fill="currentColor" stroke="none">
+          <path d="M13 2L3 14h6l-2 8 12-14h-7l1-6z" />
+        </svg>
+      );
+    case "bag":
+      // shopv2: "Buyurtmalarim" — top-strip'da ixcham ikonka-tugma (mockup naqshi)
+      return (
+        <svg {...p}>
+          <path d="M6 8h12l-1 12H7L6 8z" />
+          <path d="M9 8V6a3 3 0 016 0v2" />
+        </svg>
+      );
     case "back":
       // shopv2: do'kon-profildan bozorga qaytish (top-strip) — "←" matn-belgisi o'rniga
       return (

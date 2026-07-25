@@ -2874,6 +2874,7 @@ body {
 .shop-kind-chip { flex: none; padding: 8px 14px; border-radius: 20px; font-size: 13px; font-weight: 600; white-space: nowrap; cursor: pointer; background: var(--bj-card); color: var(--bj-ink); border: 1px solid var(--bj-line); backdrop-filter: blur(14px) saturate(180%); -webkit-backdrop-filter: blur(14px) saturate(180%); }
 .shop-kind-chip.on { background: var(--bj-hero-grad); color: #06231a; border-color: transparent; }
 .shop-kind-chip:active { transform: scale(0.96); }
+.shop-kind-chip.icon { display: inline-flex; align-items: center; gap: 6px; }
 
 /* shopv2: "Butun shahar" 2-ustunli grid (mockup: rasm-qopqoq+katta bosh-harf+reyting+holat) */
 .shop-city-grid-wrap { padding: 18px 16px 24px; }
@@ -2888,6 +2889,21 @@ body {
 .shop-city-tile-name { font-size: 13px; font-weight: 700; color: var(--bj-ink); }
 .shop-city-tile-rating { font-size: 11px; color: var(--bj-ink); margin-top: 2px; }
 .shop-city-tile-status { display: flex; align-items: center; gap: 5px; margin-top: 5px; font-size: 11px; color: var(--bj-ink-dim); }
+
+/* shopv2: "Mahallamga yetkazadi" — gorizontal 148px kartalar (mockup'dagi AYNAN o'lchamlar:
+   148x100 qopqoq, 36px bosh-harf, 13.5px nom, 11.5px holat, 9.5px "Mahallangiz" belgisi). */
+.shop-mah-wrap { padding: 16px 16px 4px; }
+.shop-mah-row { display: flex; gap: 12px; overflow-x: auto; padding-bottom: 4px; scrollbar-width: none; }
+.shop-mah-row::-webkit-scrollbar { display: none; }
+.shop-mah-card { flex: none; width: 148px; background: none; border: none; padding: 0; text-align: left; cursor: pointer; color: inherit; transition: transform var(--dur-press) var(--ease-out); }
+.shop-mah-card:active { transform: scale(0.96); }
+.shop-mah-cover { position: relative; width: 148px; height: 100px; border-radius: 16px; overflow: hidden; display: flex; align-items: center; justify-content: center; background: linear-gradient(160deg, rgba(52, 211, 153, .22), rgba(13, 150, 104, .14)); box-shadow: 0 10px 24px rgba(0, 0, 0, .45); border: 1px solid rgba(255, 255, 255, .1); }
+.shop-mah-cover img { width: 100%; height: 100%; object-fit: cover; }
+.shop-mah-initial { font-size: 36px; font-weight: 800; color: rgba(255, 255, 255, .28); letter-spacing: -1px; }
+.shop-mah-badge { position: absolute; left: 8px; bottom: 8px; background: rgba(13, 150, 104, .85); backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); color: #fff; font-size: 9.5px; font-weight: 700; padding: 3px 7px; border-radius: 8px; }
+.shop-mah-name { font-size: 13.5px; font-weight: 700; color: var(--bj-ink); margin-top: 7px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.shop-mah-meta { display: flex; align-items: center; gap: 5px; margin-top: 2px; font-size: 11.5px; color: var(--bj-ink-dim); }
+.shop-mah-rating { color: var(--bj-ink); }
 
 /* shopv2: "O'xshash do'konlar" — do'kon-profil pastida, doiraviy avatar-qator */
 .shop-similar-stores { padding: 20px 16px 24px; }

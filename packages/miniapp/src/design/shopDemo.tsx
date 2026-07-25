@@ -123,7 +123,9 @@ function mockMe(shopv2: boolean): MeResponse {
     linked: true,
     type: "client",
     metricLabel: "Bonus",
-    member: { id: 999999, fullName: "Demo Foydalanuvchi" },
+    // mahallaId — mahalla-bo'limi (gorizontal 148px kartalar) render bo'lishi uchun shart;
+    // mahallasiz holatni sinash uchun buni vaqtincha `undefined` qilib qo'ying.
+    member: { id: 999999, fullName: "Demo Foydalanuvchi", mahallaId: 1 },
     stats: { points: 0, trips: 12, rating: 4.9 },
     level: { index: 2, name: "Kumush", emoji: "🥈", color: "#c0c0c0" },
     nextLevel: null,
