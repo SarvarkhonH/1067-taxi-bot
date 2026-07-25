@@ -43,32 +43,25 @@ jobs:
       - name: Economy invariant — Monte-Carlo sim (≤350/ride, no DB)
         run: pnpm --filter @t1067/server exec tsx src/scripts/simEconomy.ts
 
-  # CI-gated deploy (2026-07-21 incident): Render autoDeploy is OFF — a red shield must
-  # block the release (previously a push with a missing file deployed anyway and the bot
-  # crash-looped). Only a green shield on main triggers the deploy, then we poll to
-  # completion so a failed deploy fails THIS job — visible in GitHub, not silent in Render.
+  # CI-gated deploy (2026-07-21 incident): a red shield must block the release —
+  # previously a push with a missing file deployed anyway and the bot crash-looped.
+  # 2026-07-25: target moved from Render to the Contabo VPS. deploy.sh pulls, builds
+  # the frontends, restarts bot1067 and health-checks; it exits non-zero on failure,
+  # so a bad release fails THIS job — visible in GitHub, not silent on the server.
   deploy:
     needs: shield
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
     runs-on: ubuntu-latest
     steps:
-      - name: Trigger Render deploy and wait until live
+      - name: Deploy to VPS over SSH
         env:
-          RENDER_API_KEY: ${{ secrets.RENDER_API_KEY }}
-          SERVICE_ID: srv-d8mj9kkm0tmc73d72440 # kas1067-taxi-fra
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+          VPS_SSH_KEY: ${{ secrets.VPS_SSH_KEY }}
         run: |
           set -euo pipefail
-          dep=$(curl -sf -X POST -H "Authorization: Bearer $RENDER_API_KEY" -H "Content-Type: application/json" \
-            -d '{}' "https://api.render.com/v1/services/$SERVICE_ID/deploys" | jq -r .id)
-          echo "deploy: $dep"
-          for i in $(seq 1 45); do
-            st=$(curl -sf -H "Authorization: Bearer $RENDER_API_KEY" \
-              "https://api.render.com/v1/services/$SERVICE_ID/deploys/$dep" | jq -r .status)
-            echo "[$i] $st"
-            case "$st" in
-              live) exit 0 ;;
-              build_failed|update_failed|canceled|deactivated) echo "deploy failed: $st"; exit 1 ;;
-            esac
-            sleep 20
-          done
-          echo "timed out waiting for deploy"; exit 1
+          mkdir -p ~/.ssh && chmod 700 ~/.ssh
+          printf '%s\n' "$VPS_SSH_KEY" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -t ed25519 "$VPS_HOST" >> ~/.ssh/known_hosts 2>/dev/null
+          ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=yes "root@$VPS_HOST" \
+            'bash /opt/app/deploy/deploy.sh'

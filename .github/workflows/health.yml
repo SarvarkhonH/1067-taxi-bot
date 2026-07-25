@@ -3,8 +3,8 @@ name: Health monitor
 # 2026-07-21 incident: the bot crash-looped for ~14 hours and nobody knew. This cron
 # pings /health every ~10 minutes (GitHub cron is best-effort, real cadence 10-20 min);
 # after 3 straight in-run failures it alerts the admin chat via Telegram — admins only,
-# NEVER customers. Side benefit: regular pings keep the Render free instance awake.
-# Retire/repoint URL after the Contabo migration.
+# NEVER customers.
+# 2026-07-25: repointed at the Contabo VPS (api.birjoy.online) after cutover.
 
 on:
   schedule:
@@ -19,7 +19,7 @@ jobs:
         env:
           BOT_TOKEN: ${{ secrets.BOT_TOKEN }}
           ALERT_CHAT_ID: ${{ secrets.ALERT_CHAT_ID }}
-          HEALTH_URL: https://kas1067-taxi-fra.onrender.com/health
+          HEALTH_URL: https://api.birjoy.online/health
         run: |
           set -uo pipefail
           for i in 1 2 3; do
@@ -30,7 +30,7 @@ jobs:
             fi
             sleep 30
           done
-          text="🚨 1067 bot HEALTH FAIL: $HEALTH_URL 3 urinishda ham javob bermadi (oxirgi HTTP $code). Render logs: dashboard.render.com"
+          text="🚨 1067 bot HEALTH FAIL: $HEALTH_URL 3 urinishda ham javob bermadi (oxirgi HTTP $code). VPS: ssh root@169.58.55.249, journalctl -u bot1067 -n 50"
           curl -s -X POST "https://api.telegram.org/bot$BOT_TOKEN/sendMessage" \
             -d chat_id="$ALERT_CHAT_ID" --data-urlencode text="$text" >/dev/null
           exit 1
