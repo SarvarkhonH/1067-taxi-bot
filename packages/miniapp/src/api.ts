@@ -139,7 +139,8 @@ export function apiUrl(path: string): string {
 export const api = {
   me: () => get<MeResponse | { linked: false }>("/api/me"),
   // 🛍 tanga shop (feature "shop")
-  shopProducts: () => get<{ products: import("@t1067/shared").ShopProductView[] }>("/api/shop/products"),
+  // shopId berilsa — O'SHA do'konning to'liq vitrinasi (global 100-limit katta do'konni kesardi)
+  shopProducts: (shopId?: number) => get<{ products: import("@t1067/shared").ShopProductView[] }>(`/api/shop/products${shopId ? `?shopId=${shopId}` : ""}`),
   shopMarket: (q?: string) => get<import("@t1067/shared").MarketHomeResponse>(`/api/shop/market${q ? `?q=${encodeURIComponent(q)}` : ""}`), // 🏪 V1.4 BirJoy bozor-bosh
   // 🏠 V1.5 Mahalla bozori
   mahallaList: () => get<{ mahallas: import("@t1067/shared").MahallaView[] }>("/api/mahalla"),

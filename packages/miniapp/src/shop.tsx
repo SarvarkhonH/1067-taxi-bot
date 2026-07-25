@@ -355,6 +355,7 @@ export function ShopView({ me, onBanner, reload, onBook, openProductId }: { me: 
     setChatSending(false);
   };
   const [market, setMarket] = useState<MarketHomeResponse | null>(null);
+  const [marketErr, setMarketErr] = useState(false); // AUDIT: bozor-yuklanish xatosi ko'rsatiladi
   // 🏠 V1.5 (Mahalla bozori): "uy" mahalla + safar-rejimi vaqtinchalik override — ikkalasi hech
   // qachon aralashtirilmaydi, joriy mahalla = travelMahallaId ?? mahallaId ?? null.
   const activeMahallaId = me.member.travelMahallaId ?? me.member.mahallaId ?? null;
@@ -438,12 +439,16 @@ export function ShopView({ me, onBanner, reload, onBook, openProductId }: { me: 
   const [shopReviewsOpen, setShopReviewsOpen] = useState(false);
   // §10.2: sodiqlik-progress-bar — ko'rsatkich-only (mukofotsiz)
   const [loyalty, setLoyalty] = useState<{ purchaseCount: number; milestone: number; remaining: number } | null>(null);
+  // AUDIT: shu do'konning TO'LIQ vitrinasi (global ro'yxat 100 ta bilan cheklangan — do'kon 1 ning
+  // 116 mahsulotidan ~83 tasi yetib borardi). Global `products` tegilmaydi.
+  const [shopCatalog, setShopCatalog] = useState<ShopProductView[] | null>(null);
   useEffect(() => {
     setShopProfile(null);
     setShopProfileReviews(null);
     setProfileErr(false);
     setAboutOpen(false);
     setLoyalty(null);
+    setShopCatalog(null);
     if (!shopFilter) return;
     let stale = false; // R4: guard against an out-of-order response (shop A's fetch resolving
     // AFTER the user already switched to shop B) overwriting B's state with A's stale data.
@@ -451,6 +456,7 @@ export function ShopView({ me, onBanner, reload, onBook, openProductId }: { me: 
       .then((r) => { if (!stale) { setShopProfile(r.profile); setShopProfileReviews(r.reviews); } })
       .catch(() => { if (!stale) setProfileErr(true); });
     api.shopLoyalty(shopFilter.id).then((r) => { if (!stale) setLoyalty(r); }).catch(() => undefined);
+    api.shopProducts(shopFilter.id).then((r) => { if (!stale) setShopCatalog(r.products); }).catch(() => undefined);
     return () => { stale = true; };
   }, [shopFilter]);
   // 🧺 V2 (flag bazarcart): savat — 1 savat = 1 do'kon (restoran naqshi). Client-state faqat UI;
@@ -512,7 +518,9 @@ export function ShopView({ me, onBanner, reload, onBook, openProductId }: { me: 
     }
     setCartShopId(pShop);
     setCart((c) => {
-      const next = Math.min(20, Math.max(0, (c[p.id] ?? 0) + delta));
+      // AUDIT: zaxiradan ortiq qo'shishga yo'l qo'ymaymiz — aks holda checkout'da server rad
+      // etadi va mijoz sababini bilmay qoladi. Server baribir yakuniy hakam, bu faqat oldini olish.
+      const next = Math.min(20, Math.max(0, p.stock), Math.max(0, (c[p.id] ?? 0) + delta));
       const copy = { ...c };
       if (next === 0) delete copy[p.id];
       else copy[p.id] = next;
@@ -549,6 +557,24 @@ export function ShopView({ me, onBanner, reload, onBook, openProductId }: { me: 
           duplicate: "Bu savat allaqachon yuborilgan — «Buyurtmalarim»da ko'ring",
           sold_out: "Savatdagi mahsulotlardan biri hozirgina tugadi 😔",
         };
+        // AUDIT TOPDI: server `soldOutProductId` qaytaradi, mijoz esa uni TASHLAB YUBORARDI.
+        // Agar zaxira QISMAN yetmasa (savatda 3, omborda 1), mahsulot savatda o'z holicha
+        // qolardi — har "Buyurtma berish" bosilganda AYNAN o'sha xato qaytaverardi, cheksiz.
+        // Savat localStorage'da saqlanadi, ya'ni o'zi hech qachon tuzalmasdi.
+        if (r.reason === "sold_out" && r.soldOutProductId) {
+          const p = (products ?? []).find((x) => x.id === r.soldOutProductId);
+          if (p) {
+            if (p.stock > 0) {
+              setCart((c) => ({ ...c, [p.id]: Math.min(c[p.id] ?? 1, p.stock) }));
+              setCoErr(`«${p.name}» — faqat ${p.stock} dona qoldi, savatda shuncha qoldirdik`);
+            } else {
+              setCart((c) => { const copy = { ...c }; delete copy[p.id]; return copy; });
+              setCoErr(`«${p.name}» tugadi — savatdan olib tashladik`);
+            }
+            load();
+            return;
+          }
+        }
         setCoErr(msgs[r.reason ?? ""] ?? "Xatolik — qayta urinib ko'ring");
         load();
       }
@@ -578,9 +604,17 @@ export function ShopView({ me, onBanner, reload, onBook, openProductId }: { me: 
   useEffect(load, []);
   // market-payload ALOHIDA effektda va bazar'ga bog'langan: flag me-refetch bilan KEYIN kelsa ham
   // rail'lar yuklanadi (load()'ning [] effekti stale-bazar'ni qotirib qo'ygan bug'i — preview'da topildi)
+  // AUDIT TOPDI: xato JIM yutilardi (`catch(() => undefined)`) va bozor-boshning HAR bo'limi
+  // `market`ga bog'langan — sekin/uzilgan tarmoqda mijoz sarlavha+qidiruvdan boshqa HECH NARSA
+  // ko'rmasdi, na skelet, na xato, na "qayta urinish". Koson'da tarmoq tez-tez uziladi.
+  const loadMarket = () => {
+    setMarketErr(false);
+    api.shopMarket().then(setMarket).catch(() => setMarketErr(true));
+  };
   useEffect(() => {
     if (!bazar) return;
-    api.shopMarket().then(setMarket).catch(() => undefined); // best-effort — katalog baribir ochiladi
+    loadMarket();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [bazar]);
 
   const featured = useMemo(() => (products ?? []).filter((p) => p.featured).slice(0, 6), [products]);
@@ -600,11 +634,13 @@ export function ShopView({ me, onBanner, reload, onBook, openProductId }: { me: 
   // Amazon/Uzum standarti: bitta VERTIKAL 2-ustunli katalog-grid (gorizontal scroll faqat kichik
   // "tavsiya" qatorlarida) — 100+ mahsulotli kategoriya endi cheksiz eniga tasmaga aylanmaydi.
   const catalog = useMemo(() => {
-    let list = products ?? [];
+    // AUDIT: do'kon ochilganda global 100-limit vitrinani kesardi — endi shu do'kon uchun
+    // alohida to'liq ro'yxat yuklanadi (`shopCatalog`), kelmaguncha global ro'yxatdan filtrlanadi.
+    let list = shopFilter && shopCatalog ? shopCatalog : (products ?? []);
     if (favOnly) list = list.filter((p) => p.isFav); // 🧡 V2b: sevimlilar-filtr
     if (shopFilter) list = list.filter((p) => p.shopId === shopFilter.id); // 🏬 do'kon-sahifa rejimi
     return cat ? list.filter((p) => p.category === cat) : list;
-  }, [products, cat, shopFilter, favOnly]);
+  }, [products, shopCatalog, cat, shopFilter, favOnly]);
   const searched = useMemo(() => {
     const t = q.trim().toLowerCase();
     if (!t) return null;
@@ -612,6 +648,12 @@ export function ShopView({ me, onBanner, reload, onBook, openProductId }: { me: 
     if (bazar && srv && srv.q.toLowerCase() === t) return srv.products;
     return (products ?? []).filter((p) => p.name.toLowerCase().includes(t) || p.category.toLowerCase().includes(t));
   }, [products, q, bazar, srv]);
+  // AUDIT: qidiruvda mos DO'KONLAR (nom bo'yicha) — placeholder buni allaqachon va'da qilgan edi
+  const searchedShops = useMemo(() => {
+    const t = q.trim().toLowerCase();
+    if (!t || !shopv2) return [];
+    return (market?.shops ?? []).filter((s) => s.name.toLowerCase().includes(t)).slice(0, 6);
+  }, [q, market, shopv2]);
   const similar = useMemo(() => (sel ? (products ?? []).filter((p) => p.category === sel.category && p.id !== sel.id).slice(0, 6) : []), [products, sel]);
   // shopv2: "O'xshash do'konlar" — do'kon-profil ekranining pastida, tasdiqlangan dizaynda bor
   // (avvalgi implementatsiyada butunlay yo'q edi). Real market.shops'dan, joriy do'kondan boshqa.
@@ -791,9 +833,12 @@ export function ShopView({ me, onBanner, reload, onBook, openProductId }: { me: 
           mahalla-tanlash HAQIQIY funksiya — shuning uchun ko'rinishi mockup bilan AYNAN bir xil
           qoladi (o'sha o'lcham/rang/joylashuv), faqat bosilganda mahalla-tanlagich ochiladi.
           Shu bilan alohida "mahalla-chip" (mockup'da yo'q) butunlay olib tashlandi. */}
+      {/* AUDIT: "Koson" — shahar nomi, sozlama emas edi; mahallasi yo'q mijoz nima bosishini
+          bilmasdi. Endi nomlangan CTA + karet, ya'ni bosiladigan boshqaruvga o'xshaydi. */}
       {shopv2 && bazar && !shopFilter && (
-        <button className="shop-city-label" onClick={() => { haptic(); setMahallaPickerOpen(true); }}>
-          <Icon name="pin" size={12} /> {activeMahalla?.name ?? "Koson"}
+        <button className="shop-city-label" onClick={() => { haptic(); setMahallaPickerOpen(true); }} aria-label="Mahallani o'zgartirish">
+          <Icon name="pin" size={12} /> {activeMahalla?.name ?? "Mahallani tanlang"}
+          <span className="shop-city-label-caret">▾</span>
         </button>
       )}
       {/* shopv2: qidiruv FAQAT bosh-sahifada — mockup'ning do'kon-sahifasida qidiruv-qutisi yo'q */}
@@ -821,10 +866,38 @@ export function ShopView({ me, onBanner, reload, onBook, openProductId }: { me: 
       ) : favOnly && catalog.length === 0 ? (
         <EmptyState icon="🤍" text="Sevimlilar bo'sh — ❤ bosib mahsulot qo'shing!" action="Hammasini ko'rish" onAction={() => setFavOnly(false)} />
       ) : searched ? (
-        searched.length === 0 ? (
+        /* AUDIT TOPDI: qidiruv "Do'kon yoki mahsulot qidiring" deb va'da berardi, lekin FAQAT
+           mahsulot qidirardi. Mijoz ekranda turgan do'kon nomini yozsa — butun sahifa
+           «topilmadi»ga almashardi. Endi mos do'konlar ham ko'rsatiladi. */
+        searched.length === 0 && searchedShops.length === 0 ? (
           <EmptyState icon="🔍" text={`«${q}» topilmadi`} action="Tozalash" onAction={() => setQ("")} />
         ) : (
-          <div className="shop-grid">{searched.map((p) => <ProductCard key={p.id} p={p} onOpen={openProduct} onFav={toggleFav} wide />)}</div>
+          <>
+            {searchedShops.length > 0 && (
+              <div className="shop-city-grid-wrap">
+                <div className="shop-section-title2">Do&apos;konlar</div>
+                <div className="shop-city-grid">
+                  {searchedShops.map((s) => (
+                    <button key={s.id} className="shop-city-tile" onClick={() => { haptic(); setQ(""); setShopFilter({ id: s.id, name: s.name }); setCat(null); }}>
+                      <div className="shop-city-tile-cover">
+                        {s.hasPhoto ? <img src={apiUrl(`/api/shop/shop-photo/${s.id}`)} alt="" loading="lazy" /> : <span className="shop-city-tile-initial">{s.name.trim().charAt(0).toUpperCase()}</span>}
+                      </div>
+                      <div className="shop-city-tile-body">
+                        <div className="shop-city-tile-name">{s.name}</div>
+                        <div className="shop-city-tile-status">
+                          <span className={"bj-open-dot" + (s.open ? "" : " closed")} />
+                          {s.open ? "Ochiq" : "Yopiq"}
+                        </div>
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+            {searched.length > 0 && (
+              <div className="shop-grid">{searched.map((p) => <ProductCard key={p.id} p={p} onOpen={openProduct} onFav={toggleFav} wide />)}</div>
+            )}
+          </>
         )
       ) : (
         <>
@@ -1084,6 +1157,25 @@ export function ShopView({ me, onBanner, reload, onBook, openProductId }: { me: 
               cats={market.cats.map((c) => ({ slug: c.name, name: c.name, emoji: c.emoji, iconUrl: c.hasIcon ? apiUrl(`/api/shop/cat-icon/${c.id}`) : null }))}
               active={cat}
               onPick={(slug) => { haptic(); setCat(slug); }}
+            />
+          )}
+          {/* AUDIT: bozor yuklanayotganda skelet, xato bo'lsa — tushuntirish + qayta urinish.
+              Avval bu holatlarda ekran butunlay bo'sh qolardi (`PROD_CACHE` iliq bo'lgani uchun
+              pastdagi mahsulot-skeleti ham chiqmasdi). */}
+          {bazar && !shopFilter && shopv2 && !market && !marketErr && (
+            <div className="shop-market-skel">
+              <Skeleton h={20} w="55%" />
+              <div className="shop-market-skel-row"><Skeleton h={100} w="148px" /><Skeleton h={100} w="148px" /></div>
+              <Skeleton h={20} w="45%" />
+              <div className="shop-market-skel-grid"><Skeleton h={140} /><Skeleton h={140} /></div>
+            </div>
+          )}
+          {bazar && !shopFilter && shopv2 && marketErr && (
+            <EmptyState
+              icon="📡"
+              text="Do'konlar yuklanmadi — internetni tekshirib qayta urinib ko'ring"
+              action="🔄 Qayta urinish"
+              onAction={() => { haptic(); loadMarket(); }}
             />
           )}
           {/* shopv2: tasdiqlangan dizayndagi "Barchasi / Mahallamga yetkazadi / Butun shahar"

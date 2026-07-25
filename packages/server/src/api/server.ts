@@ -409,13 +409,16 @@ export function createApiServer(opts: ApiOptions = {}) {
   });
 
   // ── 🛍 TANGA SHOP (feature "shop", DARK until QABUL) ──────────────────────────────────────────
-  app.get("/api/shop/products", requireUser, rateLimit(30), async (_req, res) => {
+  app.get("/api/shop/products", requireUser, rateLimit(30), async (req, res) => {
     const { listActiveProducts } = await import("../services/shopService");
     res.set("Cache-Control", "private, max-age=30");
     // owner-preview: admins browse the REAL catalog while the flag is DARK (QABUL flow); riders get []
     // 🧡 V2b: memberId softly resolved (null-safe) — isFav faqat linked a'zolarga hisoblanadi
     const memberId = (await getMemberId(res.locals.telegramId as string)) ?? undefined;
-    res.json({ products: await listActiveProducts(isAdmin(res.locals.telegramId as string), memberId) });
+    // AUDIT: `?shopId=` — do'kon ochilganda O'SHA do'konning to'liq vitrinasi (global 100-limit
+    // katta do'konni kesib qo'yardi). Yo'q bo'lsa — avvalgidek global ro'yxat.
+    const shopId = Number(req.query.shopId) || undefined;
+    res.json({ products: await listActiveProducts(isAdmin(res.locals.telegramId as string), memberId, shopId) });
   });
   // 🧡 V2b: sevimlilar toggle + ro'yxat
   app.post("/api/shop/fav", requireUser, rateLimit(30), withMember2(async (memberId, req, res) => {

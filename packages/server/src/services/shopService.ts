@@ -36,12 +36,16 @@ const PENDING_PER_MEMBER = 3; // anti-spam: at most 3 open orders per rider
 
 /** preview=true (admin/owner) bypasses the DARK flag so the owner can QABUL the WHOLE flow —
  *  browse+buy — while ordinary riders still see nothing. Route layer decides preview. */
-export async function listActiveProducts(preview = false, memberId?: number): Promise<ShopProductView[]> {
+/** AUDIT TOPDI: `take: 100` GLOBAL edi — jonli bazada 133 faol mahsulot bor, do'kon 1 ning
+ *  116 tasidan faqat ~83 tasi mijozga yetib borardi, ya'ni vitrinasi JIMGINA kesilgan edi.
+ *  Global limitni oshirish har ilova-ochilishida yukni oshiradi; o'rniga do'kon ochilganda
+ *  `shopId` bo'yicha alohida, chegaralangan so'rov qilinadi. */
+export async function listActiveProducts(preview = false, memberId?: number, shopId?: number): Promise<ShopProductView[]> {
   if (!preview && !(await featureOn("shop"))) return [];
   const rows = await prisma.product.findMany({
-    where: { active: true, stock: { gt: 0 } },
+    where: { active: true, stock: { gt: 0 }, ...(shopId ? { shopId } : {}) },
     orderBy: [{ sortOrder: "asc" }, { id: "desc" }],
-    take: 100,
+    take: shopId ? 300 : 100, // do'kon-ko'lamli so'rov cheklangan, shuning uchun kattaroq
   });
   const newCutoff = Date.now() - NEW_BADGE_DAYS * 86400_000;
   // grouped queries → per-product gallery size + top-3 sellers (delivered orders) + 👍/👎 tallies
@@ -135,7 +139,11 @@ export async function getMarketHome(preview = false, q?: string, memberId?: numb
   if (query) {
     const ql = query.toLowerCase();
     filtered = products.filter((p) => p.name.toLowerCase().includes(ql) || (p.description ?? "").toLowerCase().includes(ql) || p.category.toLowerCase().includes(ql));
-    if (filtered.length === 0) {
+    // AUDIT TOPDI: mahsulot topilmasa "qidirildi-topilmadi" ro'yxatiga yozilardi — hatto mijoz
+    // MAVJUD DO'KON nomini yozgan bo'lsa ham. Natijada eganing "yo'q mahsulotlar" hisoboti
+    // allaqachon bor do'kon nomlari bilan to'lardi. Endi do'kon-nomi mos kelsa — bu talab emas.
+    const shopNameHit = [...bozorShops, ...mahallaShops].some((s) => s.name.toLowerCase().includes(ql));
+    if (filtered.length === 0 && !shopNameHit) {
       await prisma.marketDemand.create({ data: { query, memberId: memberId ?? null } }).catch(() => undefined);
     }
   }
