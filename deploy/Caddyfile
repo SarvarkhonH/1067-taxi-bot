@@ -12,7 +12,13 @@
 #      HAR DOIM qayta tekshiriladi (aks holda yangi deploy ko'rinmay qoladi).
 
 api.birjoy.online {
-	reverse_proxy localhost:8080
+	# Deploy paytida bot ~2-3s ga qayta ishga tushadi. lb_try_duration'siz Caddy o'sha
+	# oynada 502 qaytarardi — mijoz uchun "server o'chdi" ko'rinardi. Endi so'rov 15s gacha
+	# kutadi va bot ko'tarilishi bilan bajariladi: deploy mijozga sezilmaydi.
+	reverse_proxy localhost:8080 {
+		lb_try_duration 15s
+		lb_try_interval 300ms
+	}
 	encode zstd gzip
 }
 

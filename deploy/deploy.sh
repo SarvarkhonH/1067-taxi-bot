@@ -19,8 +19,13 @@ echo "══ frontend build (miniapp + admin) → /var/www"
 API_URL="$(grep '^PUBLIC_API_URL' .env | cut -d= -f2- | tr -d '"')"
 VITE_API_URL="$API_URL" pnpm --filter @t1067/miniapp build
 VITE_API_URL="$API_URL" pnpm --filter @t1067/admin build
-rsync -a --delete packages/miniapp/dist/ /var/www/miniapp/
-rsync -a --delete packages/admin/dist/ /var/www/admin/
+# --delete YO'Q (ataylab): Vite har build'da fayl nomiga yangi hash beradi va ilovasi OCHIQ
+# turgan mijozning sahifasi hali ESKI nomlarni so'raydi (lazy-chunk: Do'kon, Restoran...).
+# --delete ularni o'chirib yuborardi → mijoz deploy paytida "ilova sindi" holatiga tushardi.
+# Endi eski fayllar joyida qoladi; 7 kundan oshganlari quyida tozalanadi (disk to'lmasin).
+rsync -a packages/miniapp/dist/ /var/www/miniapp/
+rsync -a packages/admin/dist/ /var/www/admin/
+find /var/www/miniapp/assets /var/www/admin/assets -type f -mtime +7 -delete 2>/dev/null || true
 
 echo "══ bot restart"
 systemctl restart bot1067
