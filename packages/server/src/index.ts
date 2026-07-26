@@ -96,6 +96,24 @@ async function main(): Promise<void> {
     }
   } else {
     console.log("[sync] live mode — on-demand per-user lookup, no bulk scan on kas1067.");
+    // Warm the kas config caches OFF the request path. cached() is stale-while-revalidate, so it
+    // only ever blocks on a COLD entry — and every deploy restarts with an empty cache, which used
+    // to hand the first rider of each release a multi-second open (6-call fan-out × 600ms queue).
+    // Fire-and-forget: failures are irrelevant, the normal read path refetches.
+    void (async () => {
+      try {
+        const { getDataSource } = await import("./kas");
+        const ds = getDataSource();
+        await Promise.all([
+          ds.getCompanyInfo().catch(() => undefined),
+          ds.getServiceArea().catch(() => undefined),
+          ds.getBookingAddons().catch(() => undefined),
+        ]);
+        console.log("[kas] config cache warmed");
+      } catch {
+        /* kas unreachable at boot — first real request will fill it */
+      }
+    })();
   }
 
   // 2. HTTP API for the Mini App + admin dashboard

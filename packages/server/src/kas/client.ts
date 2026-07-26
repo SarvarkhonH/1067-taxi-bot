@@ -425,6 +425,15 @@ export class KasLiveSource implements KasDataSource {
     return { ok: res.status >= 200 && res.status < 300, status: res.status };
   }
 
+  /** Extend kas1067's own system-rental license end date (owner admin action, e.g. after a lapsed
+   *  renewal). Same proven read-full-object → PUT-back mechanism as setClientBonus. */
+  async setSystemRentalEndDate(isoDate: string): Promise<{ ok: boolean; status?: number; previous?: string }> {
+    const current = await this.getJson("api/companyInformation");
+    const previous = String(current.systemRentalEndDate ?? "");
+    const res = await this.putJson("api/companyInformation", { ...current, systemRentalEndDate: isoDate });
+    return { ok: res.status >= 200 && res.status < 300, status: res.status, previous };
+  }
+
   /** Add a delta to a client's cashback bonus (read current + set new total). */
   async addClientBonus(phone: string, delta: number): Promise<{ ok: boolean; oldBonus: number; newBonus: number; status?: number }> {
     const cur = (await this.fetchByPhone(phone)).find((m) => m.type === "client")?.points ?? null;
@@ -952,10 +961,27 @@ export class KasLiveSource implements KasDataSource {
   }
 
   // ─── client reference data (cached ~10 min — these change rarely) ─────────────
+  // STALE-WHILE-REVALIDATE (2026-07-26): this used to block on expiry, so whichever rider opened
+  // the app when the TTL lapsed paid the refresh. getBookingInfo fans out over 6 kas calls and the
+  // rate-limit queue spaces every call 600ms apart, so that unlucky open stalled 4-8s — measured
+  // live: /api/booking/history 8.8s, /api/booking/info 6.5s, /api/booking/active 4.2s.
+  // Now an expired entry is served immediately and refreshed in the background, so a rider never
+  // waits on config data. Only a cold cache (first call after boot) still blocks.
+  // Bonus: while kas is down, the last known config keeps serving instead of failing.
   private cache = new Map<string, { at: number; val: unknown }>();
+  private refreshing = new Set<string>();
   private async cached<T>(key: string, ttlMs: number, fetcher: () => Promise<T>): Promise<T> {
     const hit = this.cache.get(key);
-    if (hit && Date.now() - hit.at < ttlMs) return hit.val as T;
+    if (hit) {
+      if (Date.now() - hit.at >= ttlMs && !this.refreshing.has(key)) {
+        this.refreshing.add(key);
+        void fetcher()
+          .then((val) => this.cache.set(key, { at: Date.now(), val }))
+          .catch(() => undefined) // kas down → keep serving the last good value
+          .finally(() => this.refreshing.delete(key));
+      }
+      return hit.val as T;
+    }
     const val = await fetcher();
     this.cache.set(key, { at: Date.now(), val });
     return val;
