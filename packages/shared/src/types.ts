@@ -436,6 +436,10 @@ export interface MarketOrderView {
   rejectReason: string | null;
   createdAt: string;
   decidedAt: string | null;
+  // ⏱ §10.3 jonli ETA — sotuvchining HAQIQIY va'dasi (qabul qilgach botda tanlaydi). Va'da
+  // berilmasa ikkalasi ham null va mijozga hech qanday vaqt ko'rsatilmaydi (taxmin qilinmaydi).
+  etaMinutes?: number | null;
+  etaSetAt?: string | null;
 }
 export interface MarketCheckoutResponse {
   ok: boolean;

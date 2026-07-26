@@ -498,6 +498,11 @@ model MarketOrder {
   status         String    @default("pending") // pending|accepted|delivering|delivered|rejected|cancelled
   rejectReason   String?
   slaAlertedAt   DateTime?
+  // ⏱ §10.3 jonli ETA: sotuvchi buyurtmani qabul qilgach BERGAN va'dasi (daqiqa) + va'da berilgan
+  // payt. Mijoz kartasidagi sanoq shu ikkisidan hisoblanadi. Ikkalasi ham NULL bo'lishi mumkin —
+  // sotuvchi va'da bermasa hech qanday ETA ko'rsatilmaydi (soxta raqam TAQIQ, faqat haqiqiy va'da).
+  etaMinutes     Int?
+  etaSetAt       DateTime?
   decidedAt      DateTime?
   createdAt      DateTime  @default(now())
   updatedAt      DateTime  @updatedAt

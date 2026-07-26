@@ -340,12 +340,27 @@ export function ShopView({ me, onBanner, reload, onBook, openProductId }: { me: 
   const [chatText, setChatText] = useState("");
   const [chatSending, setChatSending] = useState(false);
   const [chatErr, setChatErr] = useState(false);
+  // §10.3 «chat-ichidan savatga»: suhbat davomida mijoz «bu bormi?» deb so'raydi, sotuvchi «ha»
+  // deydi — va shu yerdayoq qo'sha olishi kerak, chatni yopib do'konni qayta topmasdan. Shu do'kon
+  // mahsulotlari chat ochilganda yuklanadi (do'kon-ko'lamli `shopProducts(shopId)`).
+  const [chatProducts, setChatProducts] = useState<ShopProductView[] | null>(null);
   const openChat = (shopId: number, shopName: string) => {
     haptic();
     setChatShop({ id: shopId, name: shopName });
     setChatMsgs(null);
     setChatErr(false);
+    setChatProducts(null);
     api.shopChatThread(shopId).then((r) => setChatMsgs(r.messages)).catch(() => setChatErr(true));
+    // xatoda jim qolamiz — mahsulot-tasmasi qo'shimcha qulaylik, suhbatning o'zi asosiy.
+    api.shopProducts(shopId).then((r) => setChatProducts(r.products.filter((p) => p.stock > 0))).catch(() => setChatProducts([]));
+  };
+  // §10.3 «yordam-tugma buyurtma-kartada»: buyurtma bilan nimadir noto'g'ri bo'lsa mijoz kimga
+  // yozishni bilmay qolardi (do'konni qaytadan topib, profilidan chat ochish kerak edi). Endi
+  // kartaning o'zida — chat ochiladi va matn buyurtma-raqami bilan oldindan to'ldiriladi.
+  // AVTOMATIK YUBORILMAYDI: mijoz o'z savolini yozib, o'zi yuboradi.
+  const openOrderHelp = (o: MarketOrderView) => {
+    openChat(o.shopId, o.shopName);
+    setChatText(`#${o.id} buyurtmam bo'yicha savolim bor: `);
   };
   const sendChat = async (text: string) => {
     if (!chatShop || !text.trim() || chatSending) return;
@@ -727,6 +742,26 @@ export function ShopView({ me, onBanner, reload, onBook, openProductId }: { me: 
   };
 
   const [mktOrders, setMktOrders] = useState<MarketOrderView[] | null>(null); // 🧺 V2
+  // ⏱ §10.3 JONLI ETA. Sanoq faqat kerak bo'lganda ishlaydi: buyurtmalar varag'i ochiq VA hech
+  // bo'lmasa bitta buyurtmada sotuvchining haqiqiy va'dasi bor. Aks holda taymer umuman
+  // yaratilmaydi (fon-ishi yo'q — batareya bejiz sarflanmasin).
+  const [nowTick, setNowTick] = useState(() => Date.now());
+  const hasLiveEta = (mktOrders ?? []).some((o) => !!o.etaSetAt && (o.status === "accepted" || o.status === "delivering"));
+  useEffect(() => {
+    if (!ordersOpen || !hasLiveEta) return;
+    setNowTick(Date.now()); // ochilgan zahoti to'g'ri qiymat (birinchi tick'ni kutmasdan)
+    const t = window.setInterval(() => setNowTick(Date.now()), 30_000);
+    return () => window.clearInterval(t);
+  }, [ordersOpen, hasLiveEta]);
+  /** Sotuvchi va'da bermagan bo'lsa — null (hech narsa ko'rsatilmaydi, taxmin qilinmaydi). */
+  const etaLine = (o: MarketOrderView): string | null => {
+    if (!o.etaSetAt || !o.etaMinutes) return null;
+    if (o.status !== "accepted" && o.status !== "delivering") return null;
+    const left = Math.round((new Date(o.etaSetAt).getTime() + o.etaMinutes * 60_000 - nowTick) / 60_000);
+    if (left > 1) return `⏱ ≈ ${left} daqiqada yetkaziladi`;
+    if (left >= 0) return "⏱ Yaqin daqiqalarda yetkaziladi";
+    return `⏱ Va'da qilingan vaqtdan ${Math.abs(left)} daqiqa o'tdi`;
+  };
   const loadOrders = () => {
     setOrdersErr(false);
     setOrders(null);
@@ -1742,6 +1777,28 @@ export function ShopView({ me, onBanner, reload, onBook, openProductId }: { me: 
             </>
           )}
         </div>
+        {/* 🧺 §10.3: «chat-ichidan savatga» — sotuvchi «ha, bor» degan zahoti mijoz shu yerdayoq
+            qo'shadi. Savat bitta-do'kon qoidasi o'zgarmaydi: addToCart o'sha yagona yo'l. */}
+        {!!chatProducts?.length && (
+          <div className="bj-chat-shelf" aria-label="Do'kon mahsulotlari">
+            {chatProducts.slice(0, 12).map((p) => (
+              <div key={p.id} className="bj-chat-item">
+                {p.hasPhoto
+                  ? <img className="bj-chat-item-img" src={apiUrl(`/api/shop/photo/${p.id}?s=1`)} loading="lazy" decoding="async" alt="" />
+                  : <div className="bj-chat-item-img bj-chat-item-noimg">{p.name.slice(0, 1).toUpperCase()}</div>}
+                <div className="bj-chat-item-name">{p.name}</div>
+                <div className="bj-chat-item-price">{formatNumber(p.priceTanga)} so'm</div>
+                <button
+                  className="bj-chat-item-add"
+                  aria-label={`${p.name} — savatga qo'shish`}
+                  onClick={() => { addToCart(p); onBanner(`🧺 «${p.name}» savatga qo'shildi`); }}
+                >
+                  {cart[p.id] ? `${cart[p.id]} ta ✓` : "+ Savatga"}
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
         <div className="bj-chat-input-row">
           <input className="bj-chat-input" value={chatText} onChange={(e) => setChatText(e.target.value)} placeholder="Yozing…" maxLength={500} />
           <Button variant="brand" disabled={!chatText.trim() || chatSending} onClick={() => sendChat(chatText)}>Yuborish</Button>
@@ -1781,6 +1838,9 @@ export function ShopView({ me, onBanner, reload, onBook, openProductId }: { me: 
             </div>
             <div className="muted fs12">{o.items.map((i) => `${i.name.slice(0, 22)}×${i.qty}`).join(" · ")}</div>
             <div className="muted fs12">#{o.id} · {o.payKind === "cash" ? `💵 ${formatNumber(o.total)} so'm (naqd)` : `🪙 ${formatNumber(o.total)} so'm`} · {new Date(o.createdAt).toLocaleDateString("uz-UZ")}</div>
+            {etaLine(o) && (
+              <div className={"shop-mkt-eta" + (etaLine(o)!.startsWith("⏱ Va'da") ? " late" : "")} aria-live="polite">{etaLine(o)}</div>
+            )}
             {(o.status === "pending" || o.status === "accepted" || o.status === "delivering") && (
               <div className="shop-mkt-timeline" aria-label="Buyurtma holati">
                 {(["pending", "accepted", "delivering", "delivered"] as const).map((st, i) => {
@@ -1798,6 +1858,11 @@ export function ShopView({ me, onBanner, reload, onBook, openProductId }: { me: 
               )}
               {bazarcart && (o.status === "delivered" || o.status === "rejected" || o.status === "cancelled") && (
                 <Button variant="ghost" onClick={() => reorderMkt(o)}>🔁 Yana buyurtma qil</Button>
+              )}
+              {/* ❓ §10.3: yordam — bekor qilingan buyurtmadan tashqari hamma holatda (kutilmoqda,
+                  yetkazilmoqda, yetkazilgan — hammasida savol tug'ilishi mumkin). */}
+              {!!me.flags?.shopchat && o.status !== "cancelled" && (
+                <Button variant="ghost" onClick={() => openOrderHelp(o)}>❓ Yordam</Button>
               )}
             </div>
           </div>

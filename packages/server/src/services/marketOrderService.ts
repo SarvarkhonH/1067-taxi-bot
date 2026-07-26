@@ -23,7 +23,7 @@ const parseLines = (j: unknown): Line[] => (Array.isArray(j) ? (j as Line[]) : [
 function toView(o: {
   id: number; shopId: number; shopName: string; itemsJson: unknown; itemsTotal: number; deliveryFee: number;
   total: number; payKind: string; address: string; note: string | null; status: string; rejectReason: string | null;
-  createdAt: Date; decidedAt: Date | null;
+  createdAt: Date; decidedAt: Date | null; etaMinutes?: number | null; etaSetAt?: Date | null;
 }): MarketOrderView {
   return {
     id: o.id,
@@ -41,7 +41,20 @@ function toView(o: {
     rejectReason: o.rejectReason,
     createdAt: o.createdAt.toISOString(),
     decidedAt: o.decidedAt?.toISOString() ?? null,
+    etaMinutes: o.etaMinutes ?? null,
+    etaSetAt: o.etaSetAt?.toISOString() ?? null,
   };
+}
+
+/** ⏱ §10.3: sotuvchi qabul qilgandan keyin bergan yetkazish-va'dasi. Faqat JONLI buyurtmada
+ *  (accepted/delivering) — yetkazilgan/rad etilgan buyurtmaning vaqtini o'zgartirish mantiqsiz.
+ *  Qayta bosilsa va'da yangilanadi (sotuvchi kechikayotganini halol aytishi mumkin). */
+export async function setMarketOrderEta(orderId: number, minutes: number): Promise<{ ok: boolean; memberId?: number; shopName?: string }> {
+  if (!Number.isInteger(minutes) || minutes < 5 || minutes > 240) return { ok: false };
+  const o = await prisma.marketOrder.findUnique({ where: { id: orderId }, select: { status: true, memberId: true, shopName: true } });
+  if (!o || (o.status !== "accepted" && o.status !== "delivering")) return { ok: false };
+  await prisma.marketOrder.update({ where: { id: orderId }, data: { etaMinutes: minutes, etaSetAt: new Date() } });
+  return { ok: true, memberId: o.memberId, shopName: o.shopName };
 }
 
 /** Savat-checkout. Hammasi-yoki-hech-nima: birorta satr stock'i yetmasa BUTUN buyurtma rad. */

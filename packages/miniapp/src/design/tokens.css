@@ -2772,6 +2772,17 @@ body {
 .bj-chat-chip { background: var(--bj-card); border: 1px solid var(--bj-line); color: var(--bj-accent-deep); border-radius: var(--r-chip); padding: 6px 11px; font-size: 12.5px; font-weight: 600; }
 .bj-chat-input-row { display: flex; gap: 8px; padding-top: 8px; border-top: 1px solid var(--bj-line); }
 .bj-chat-input { flex: 1; border: 1px solid var(--bj-line); border-radius: var(--r-btn); padding: 10px 12px; font-size: 14px; background: var(--bj-card); color: var(--bj-ink); }
+/* 🧺 §10.3 chat-ichidan savatga: kirish-qatori ustidagi gorizontal mahsulot-javoni. Kartochka
+   kengligi bilaqasdan 118px — ekranda ~2.5 tasi ko'rinadi, ya'ni "surish mumkin"ligi o'z-o'zidan
+   ayon bo'ladi (yarim ko'ringan uchinchi karta — affordance). */
+.bj-chat-shelf { display: flex; gap: 8px; overflow-x: auto; padding: 8px 0 2px; scroll-snap-type: x proximity; -webkit-overflow-scrolling: touch; }
+.bj-chat-shelf::-webkit-scrollbar { display: none; }
+.bj-chat-item { flex: none; width: 118px; scroll-snap-align: start; background: var(--bj-card); border: 1px solid var(--bj-line); border-radius: 12px; padding: 6px; display: flex; flex-direction: column; gap: 3px; }
+.bj-chat-item-img { width: 100%; height: 74px; object-fit: cover; border-radius: 8px; display: block; }
+.bj-chat-item-noimg { display: flex; align-items: center; justify-content: center; font-size: 26px; font-weight: 800; color: var(--bj-ink-dim); background: rgba(16, 20, 24, .05); }
+.bj-chat-item-name { font-size: 11.5px; font-weight: 600; line-height: 1.25; color: var(--bj-ink); overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; min-height: 29px; }
+.bj-chat-item-price { font-size: 12px; font-weight: 800; color: var(--bj-tanga); }
+.bj-chat-item-add { margin-top: 2px; width: 100%; background: var(--bj-accent); color: #fff; border: none; border-radius: 8px; padding: 7px 4px; font-size: 11.5px; font-weight: 700; cursor: pointer; }
 
 /* ── 🧺 V2 savat-checkout (flag bazarcart) ── */
 .shop-qty-row { display: flex; align-items: center; gap: 10px; }
@@ -2788,6 +2799,10 @@ body {
 .shop-pay-toggle { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
 .app.shop-light .shop-qty-btn { background: #fff; }
 /* 🧺 V2: buyurtma-timeline nuqtalari */
+/* ⏱ §10.3 jonli ETA — sotuvchining haqiqiy va'dasi. Kechikkanda ogohlantiruvchi rangga o'tadi,
+   lekin qizil-panika emas: mijozga «bu ma'lumot, tashvish emas» degan ohang. */
+.shop-mkt-eta { display: inline-flex; align-items: center; align-self: flex-start; gap: 4px; margin: 6px 0 0; padding: 5px 10px; border-radius: 999px; font-size: 12.5px; font-weight: 700; background: rgba(13, 150, 104, .10); color: var(--bj-accent-deep); }
+.shop-mkt-eta.late { background: rgba(180, 83, 9, .12); color: var(--bj-tanga); }
 .shop-mkt-timeline { display: flex; align-items: center; gap: 6px; margin: 6px 0 2px; }
 .shop-mkt-dot { width: 10px; height: 10px; border-radius: 50%; background: var(--bj-ink-faint, #c7d5cd); }
 .shop-mkt-dot.on { background: var(--bj-accent); }

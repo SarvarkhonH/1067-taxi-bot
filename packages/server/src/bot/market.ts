@@ -314,6 +314,40 @@ export function registerMarket(bot: Bot): void {
         : RIDER_STATUS_MSG[st]?.(r.shopName ?? "") ?? "";
       if (msg) await ctx.api.sendMessage(tg, msg, { parse_mode: "HTML" }).catch(() => undefined);
     }
+    // ⏱ §10.3 jonli ETA — QABUL QILINGANDAN KEYIN alohida savol. Ataylab qabul-tugmasining
+    // ichiga qo'shilmadi: qabul bir bosishda qolsin (sotuvchi odati buzilmasin, SLA hisobi
+    // o'zgarmasin). Javob bermasa — ETA yo'q, mijoz eski jadvalni ko'raveradi.
+    if (st === "accepted") {
+      const etaKb = new InlineKeyboard();
+      for (const m of [15, 30, 45]) etaKb.text(`${m} daq`, `mo:eta:${orderId}:${m}`);
+      etaKb.row();
+      for (const m of [60, 90, 120]) etaKb.text(`${m} daq`, `mo:eta:${orderId}:${m}`);
+      await ctx.api.sendMessage(
+        ctx.chat!.id,
+        `⏱ <b>#${orderId}</b> — qancha vaqtda yetkazasiz?\n<i>Tanlasangiz mijoz sanoqni real vaqtda ko'radi. Tanlamasangiz — hech narsa ko'rsatilmaydi.</i>`,
+        { parse_mode: "HTML", reply_markup: etaKb },
+      ).catch(() => undefined);
+    }
+  });
+
+  // ⏱ §10.3: sotuvchi yetkazish-va'dasini tanladi (yoki kechikkanda qaytadan bosdi — yangilanadi).
+  bot.callbackQuery(/^mo:eta:(\d+):(\d+)$/, async (ctx) => {
+    const [, idStr, minStr] = ctx.match!;
+    const orderId = Number(idStr);
+    const minutes = Number(minStr);
+    const order = await prisma.marketOrder.findUnique({ where: { id: orderId }, select: { shopId: true } });
+    if (!order) { await ctx.answerCallbackQuery({ text: "Topilmadi" }); return; }
+    const allowed = await marketChatsFor(order.shopId);
+    if (!allowed.includes(String(ctx.from.id))) { await ctx.answerCallbackQuery({ text: "Faqat admin", show_alert: true }); return; }
+    const { setMarketOrderEta } = await import("../services/marketOrderService");
+    const r = await setMarketOrderEta(orderId, minutes);
+    if (!r.ok) { await ctx.answerCallbackQuery({ text: "Bu buyurtma uchun vaqt belgilab bo'lmaydi", show_alert: true }); return; }
+    await ctx.answerCallbackQuery({ text: `⏱ ${minutes} daqiqa — mijozga yuborildi` });
+    await ctx.editMessageText(`⏱ <b>#${orderId}</b> — va'da: <b>${minutes} daqiqa</b>\n<i>Kechiksangiz shu yerda qaytadan tanlashingiz mumkin edi — yangi karta uchun buyurtmani qayta oching.</i>`, { parse_mode: "HTML" }).catch(() => undefined);
+    const tg = r.memberId ? await tgOf(r.memberId) : null;
+    if (tg) {
+      await ctx.api.sendMessage(tg, `⏱ <b>Yetkazish vaqti belgilandi</b>\n🏬 ${escMkt(r.shopName ?? "")}\n<b>≈ ${minutes} daqiqa</b> ichida yetkaziladi.`, { parse_mode: "HTML" }).catch(() => undefined);
+    }
   });
 
   // 🏠 V1.5: wizard 7/7 — bozor (darhol yakunlaydi) yoki mahalla (qo'shimcha tanlov-qadam)
