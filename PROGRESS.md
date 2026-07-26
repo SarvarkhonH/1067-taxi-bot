@@ -2896,3 +2896,57 @@ ishi bor edi (`logMarketDemand` debounce/zanjir-yig'ish, HEAD'da YO'Q). Uni comm
 yubormaslik uchun HEAD nusxasi olinib, faqat mening 2 o'zgarishim qo'llanib, git-plumbing
 (`hash-object` + `update-index`) bilan staging qilindi — ishchi-fayl diskda TEGILMADI, boshqa
 sessiya ishi saqlanib qoldi (commitdan keyin tekshirildi: `logMarketDemand` hali ishchi-nusxada).
+
+## 2026-07-26 (49) — Foto-hikoya + §10.3'ning qolgan 3 bandi (READY FOR VERIFICATION)
+
+### A. Foto-hikoya (S1'dagi haqiqiy bo'shliq) — commit `f92ce89`
+Sxema (`ShopStory.photoFileId`), servis (`createShopStory`) va mijoz-ko'ruvchi (`StoryViewer`ning
+`photoFileId` shoxobchasi) buni ALLAQACHON qo'llab-quvvatlardi — faqat botda qabul qiluvchi
+yo'q edi. Botning o'z matni ham buni tan olardi: «Hozircha faqat video».
+- `market.ts`: `bot.on(":photo")` — video-handler bilan bir xil naqsh (eng katta o'lcham,
+  `storyAwait` bilan gated, mos kelmasa `next()`). Ikkala taklif-matni «Video yoki rasm yuboring».
+- **`bot.ts` — asosiy sabab**: haydovchi-rasm handler'i (`bot.on(":photo")`, 525-satr)
+  `registerMarket`dan (1592-satr) ~1000 satr OLDIN ro'yxatdan o'tgan va `next()` chaqirmasdi —
+  ya'ni sotuvchining hikoya-rasmi O'SHA YERDA yutilib ketardi, market.ts'gacha yetib bormasdi.
+  (Video ishlardi, chunki `:video` faqat market.ts'da bor.) 2026-07-22'dagi `isInMarketWizard`
+  bug'i bilan AYNAN bir xil sinf — o'sha yechim naqshi: `isAwaitingStory(tg)` eksport qilindi,
+  bot.ts hikoya kutilayotganda chetga oladi.
+**Isbot**: `tsc --noEmit` server 0 xato · botdagi yagona ikki `:photo` handler shular ekani
+grep bilan · ikkala global `bot.use` ham `next()` chaqirishi tekshirildi · VPS'da jonli manba
+grep: `bot.ts:531 isAwaitingStory`, `market.ts:420 bot.on(":photo")`, «Video yoki rasm» ×2.
+**TEKSHIRILMAGAN**: real Telegram oqimi — «foydalanuvchilarga sinov-xabar yubormaslik» qoidasi
+bo'yicha bot bilan yozishmadim. Ega o'z telefonida `/hikoya` → rasm yuborib tasdiqlashi kerak.
+
+### B. §10.3 — qolgan 3 band — commit `33af2f5`
+1. **❓ Yordam buyurtma-kartada** — muammoli mijoz avval Buyurtmalarim'dan chiqib, do'konni
+   qayta topib, profilidan chat ochishi kerak edi. Endi kartada: chat ochiladi va matn
+   `#<id> buyurtmam bo'yicha savolim bor: ` bilan oldindan to'ldiriladi. AVTOMATIK YUBORILMAYDI.
+   `shopchat` flagi ostida, `cancelled`dan tashqari barcha holatlarda.
+2. **🧺 Chat-ichidan savatga** — sotuvchi «ha, bor» degan zahoti mijoz shu yerdayoq qo'shadi.
+   Kirish-qatori ustida shu do'konning zaxirasi bor mahsulotlari gorizontal javonda (118px
+   kartochka → yarim ko'ringan uchinchisi «surish mumkin»ligini bildiradi). Qo'shish baribir
+   `addToCart` orqali — **bitta-do'kon-savat qoidasi o'zgarmadi**.
+3. **⏱ Jonli ETA** — sxemaga `MarketOrder.etaMinutes` + `etaSetAt` (ikkalasi NULL bo'lishi
+   mumkin). Sotuvchi qabul qilgandan KEYIN bot alohida so'raydi (15/30/45/60/90/120 daq).
+   Qabul-tugmasining o'zi bir bosishda qoldi — sotuvchi odati va SLA hisobi TEGILMADI.
+   Mijoz kartasida sanoq jonli yangilanadi (30s, faqat varaq ochiq VA haqiqiy ETA bor bo'lsa).
+   Va'da berilmasa — hech narsa ko'rsatilmaydi; **taxminiy raqam O'YLAB TOPILMAYDI**.
+**Sxema-qadami (ONGLI, CLAUDE.md talabicha)**: avval jonli DB'ga `prisma migrate diff` —
+`-- This is an empty migration.` (drift YO'Q). Keyin HEAD-sxema vs yangi sxema diff → aynan
+2 ta additiv ustun. Ustunlar jonli DB'ga **commit'dan OLDIN** qo'llandi, shunda deploy-restart
+hech qachon sxemadan oldinda ketgan kodni ko'rmaydi.
+**Isbot**: `tsc --noEmit` shared+server+miniapp 0 xato · VPS `git rev-parse HEAD` = `33af2f5`,
+`bot1067` active, restartdan keyin jurnal xatolari **0** · jonli CSS (`index-DcO015J8.css`,
+`app.birjoy.online` orqali ommaviy): `.bj-chat-shelf`, `.bj-chat-item-add`, `.shop-mkt-eta`,
+`.shop-mkt-eta.late` — hammasi PRESENT · jonli JS `shop-Bhb1c3O-.js`: «buyurtmam bo'yicha»
+topildi · **jonli DB o'qish-yo'li sinaldi** (faqat o'qish): `myMarketOrders` haqiqiy buyurtma
+#2 ni qaytardi, `etaMinutes: null` / `etaSetAt: null` — to'g'ri (hali hech kim va'da bermagan).
+
+**MUHIM (haqiqat)**: jonli miniapp = `app.birjoy.online` (Contabo VPS, `/var/www/miniapp`,
+`deploy.sh` build qiladi) — Vercel EMAS. Ushbu sessiyaning oldingi qismlarida Vercel'ga ham
+deploy qilingan edi; u yon-kanal, mijozlar ko'radigan nusxa emas. Tekshirdim: shopv2 CSS'ining
+BARCHASI (`--bj-tanga-on-media`, `.app.bjm .shop-wrap`, `shop-tile-grid`, `.app.bjm .topbar`,
+`shop-similar-store`, `shop-sp-*`, `shop-mah-*`, `shop-city-label`) jonli VPS bundle'ida BOR.
+
+**Holat**: `ready for verification` — ega telefonida QABUL kutilmoqda (R6). Uchala band ham
+foydalanuvchiga ko'rinadi, demak «done» faqat ega tasdiqlagandan keyin yoziladi.
