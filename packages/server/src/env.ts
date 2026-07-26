@@ -19,6 +19,11 @@ const schema = z.object({
   TELEGRAM_WEBAPP_URL: z.string().default("https://app.birjoy.online"),
   ADMIN_TELEGRAM_IDS: z.string().optional().default(""),
   ADMIN_PANEL_TOKEN: z.string().optional().default(""), // desktop admin dashboard auth (no Telegram initData)
+  // Seller-facing dashboard origin. Sellers get `${ADMIN_PANEL_URL}/?key=<token>` in Telegram
+  // (market.ts, grantShopSeller.ts) — it was hardcoded to the Vercel host and survived the
+  // 2026-07-25 migration pointing at the dead API, so every seller link handed out was broken.
+  // Env-driven now: one place to change if the domain ever moves again.
+  ADMIN_PANEL_URL: z.string().default("https://admin.birjoy.online"),
 
   KAS_BASE_URL: z.string().default("http://46.8.176.53/kas1067"),
   KAS_MODE: z.enum(["mock", "live"]).default("mock"),

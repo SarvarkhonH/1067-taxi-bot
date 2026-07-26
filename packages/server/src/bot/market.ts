@@ -6,10 +6,11 @@
 import { Bot, Context, InlineKeyboard } from "grammy";
 import { formatNumber } from "@t1067/shared";
 import { prisma } from "../db";
+import { env } from "../env";
 import type { MarketOrderLine, MarketOrderStatus } from "@t1067/shared";
 
 const OWNER_TG = "6506297119";
-const ADMIN_PANEL_URL = "https://admin-seven-ebon-95.vercel.app"; // grantShopSeller.ts bilan bir xil manba
+const ADMIN_PANEL_URL = env.ADMIN_PANEL_URL; // env.ts — grantShopSeller.ts bilan bir xil manba
 
 /** V1.6: sotuvchiga o'z do'koni-scoped admin-panel havolasini yuborish — mint-yoki-qayta-ishlatish
  *  (idempotent), keyin bitta xabar. Xato bo'lsa jim — chaqiruvchi oqim (tasdiqlash) buzilmasin. */

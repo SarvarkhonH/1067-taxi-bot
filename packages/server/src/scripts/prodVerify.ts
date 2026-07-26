@@ -5,7 +5,7 @@ import crypto from "node:crypto";
 import { env } from "../env";
 
 const ownerId = process.argv[2] ?? "6506297119";
-const base = "https://kas1067-taxi-bot.onrender.com";
+const base = "https://api.birjoy.online";
 
 function sign(): string {
   const user = JSON.stringify({ id: Number(ownerId), first_name: "Sarvarxon", username: "Sarvarxonh" });

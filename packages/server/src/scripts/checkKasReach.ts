@@ -4,7 +4,7 @@ import "../env";
 import crypto from "node:crypto";
 import { env } from "../env";
 
-const base = "https://kas1067-taxi-bot.onrender.com";
+const base = "https://api.birjoy.online";
 const ownerId = "6506297119";
 
 function sign(): string {

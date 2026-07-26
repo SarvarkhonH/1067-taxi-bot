@@ -4,7 +4,7 @@ import "../env";
 import crypto from "node:crypto";
 import { env } from "../env";
 
-const base = "https://kas1067-taxi-fra.onrender.com";
+const base = "https://api.birjoy.online";
 
 function sign(id: string): string {
   const user = JSON.stringify({ id: Number(id), first_name: "Test", username: "t" });

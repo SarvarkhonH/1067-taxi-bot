@@ -4,7 +4,7 @@ import "../env";
 import crypto from "node:crypto";
 import { env } from "../env";
 
-const target = process.argv[2] ?? "https://kas1067-taxi-bot.onrender.com";
+const target = process.argv[2] ?? "https://api.birjoy.online";
 const userId = Number(process.argv[3] ?? 7777777);
 const path = process.argv[4] ?? "/api/me";
 const user = JSON.stringify({ id: userId, first_name: "Test", username: "tester" });
