@@ -25,7 +25,7 @@ import { payDriver, registerBooking } from "./booking";
 import { registerDriverDebt } from "./driverDebt";
 import { registerDriverReports } from "./driverReports";
 import { registerCashout } from "./cashout";
-import { registerMarket, isInMarketWizard } from "./market";
+import { registerMarket, isInMarketWizard, isAwaitingStory } from "./market";
 import { registerIntercity } from "./intercity";
 import { registerBroadcast } from "./broadcast";
 import type { DriverPanelExtras } from "../services/driverReportService";
@@ -522,8 +522,13 @@ export function createBot(): Bot {
   //      photos never reach riders) + admins get the photo with ✅/❌ buttons. Drivers cannot delete
   //      the approved photo — only admins replace/clear it.
   // Telegram hosts the bytes; we persist only the ~30-char file_id → server disk + bandwidth = 0.
-  bot.on(":photo", async (ctx) => {
+  bot.on(":photo", async (ctx, next) => {
     const id = String(ctx.from!.id);
+    // S1 foto-hikoya (2026-07-26): bu handler registerMarket'dan OLDIN ro'yxatdan o'tgan va
+    // next() chaqirmasdi — /hikoya bosgan sotuvchining RASMI shu yerda yutilib ketardi (video
+    // ishlardi, chunki :video faqat market.ts'da). isInMarketWizard naqshi bilan bir xil:
+    // hikoya kutilayotgan bo'lsa chetga olamiz — market.ts o'zi rasmni qabul qiladi.
+    if (isAwaitingStory(id)) { await next(); return; }
     const photos = ctx.message?.photo ?? [];
     if (!photos.length) return;
     const biggest = photos[photos.length - 1]!; // largest size variant

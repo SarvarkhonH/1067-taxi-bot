@@ -114,6 +114,14 @@ export function isInMarketWizard(tg: string): boolean {
   return sessions.has(tg);
 }
 
+/** S1-bug fix (2026-07-26): bot.ts'dagi haydovchi-rasm handler'i (`bot.on(":photo")`) registerMarket'dan
+ *  ANCHA OLDINROQ ro'yxatdan o'tgan va next() chaqirmaydi — ya'ni /hikoya bosgan sotuvchining rasmi bu
+ *  yerga YETIB KELMAYDI. isInMarketWizard naqshi bilan bir xil: hikoya kutilayotgan bo'lsa, bot.ts
+ *  o'zini chetga oladi (market.ts o'zi rasmni to'g'ri qabul qiladi). */
+export function isAwaitingStory(tg: string): boolean {
+  return storyAwait.has(tg);
+}
+
 function esc(s: string): string {
   return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 }
@@ -379,7 +387,7 @@ export function registerMarket(bot: Bot): void {
     if (!shops.length) { await ctx.reply("Sizda faol do'kon topilmadi. Boshlash uchun: /sotuvchi"); return; }
     if (shops.length === 1) {
       storyAwait.set(tg, shops[0]!.id);
-      await ctx.reply(`📹 <b>${esc(shops[0]!.name)}</b> uchun hikoya\n\nVideo yuboring (24 soat mijozlarga ko'rinadi). Izoh qo'shmoqchi bo'lsangiz — videoga caption qilib yozing. (Hozircha faqat video — foto-hikoya keyinroq qo'shiladi.)`, { parse_mode: "HTML" });
+      await ctx.reply(`📹 <b>${esc(shops[0]!.name)}</b> uchun hikoya\n\nVideo yoki rasm yuboring (24 soat mijozlarga ko'rinadi). Izoh qo'shmoqchi bo'lsangiz — yuborayotganda caption qilib yozing.`, { parse_mode: "HTML" });
       return;
     }
     const kb = new InlineKeyboard();
@@ -393,7 +401,7 @@ export function registerMarket(bot: Bot): void {
     const shop = await prisma.marketShop.findFirst({ where: { id: shopId, ownerChatId: tg, active: true } });
     if (!shop) return; // begona/eski tugma — jim
     storyAwait.set(tg, shopId);
-    await ctx.reply(`📹 <b>${esc(shop.name)}</b> uchun hikoya\n\nVideo yuboring (24 soat mijozlarga ko'rinadi).`, { parse_mode: "HTML" });
+    await ctx.reply(`📹 <b>${esc(shop.name)}</b> uchun hikoya\n\nVideo yoki rasm yuboring (24 soat mijozlarga ko'rinadi).`, { parse_mode: "HTML" });
   });
   bot.on(":video", async (ctx, next) => {
     const tg = String(ctx.from?.id ?? "");
@@ -402,6 +410,24 @@ export function registerMarket(bot: Bot): void {
     storyAwait.delete(tg);
     const { createShopStory } = await import("../services/shopService");
     const r = await createShopStory(shopId, { videoFileId: ctx.message!.video!.file_id, caption: ctx.message?.caption });
+    await ctx.reply(r.ok ? "✅ Hikoyangiz joylandi — 24 soat ko'rinadi." : "❌ Hikoya saqlanmadi, qaytadan urinib ko'ring.");
+  });
+  // 📷 FOTO-hikoya: schema (`ShopStory.photoFileId`), servis (`createShopStory`) va mijoz-ko'ruvchi
+  // (`StoryViewer` → `photoFileId` shoxobchasi) buni ALLAQACHON qo'llab-quvvatlardi — faqat botda
+  // qabul qiluvchi yozilmagan edi, shu sababli sotuvchi faqat video yubora olardi. Video-handler
+  // bilan bir xil naqsh: `storyAwait` kutmayotgan bo'lsa — `next()`, ya'ni boshqa foto-oqimlarga
+  // (mahsulot-rasm, sharh-rasm) mutlaqo shaffof.
+  bot.on(":photo", async (ctx, next) => {
+    const tg = String(ctx.from?.id ?? "");
+    const shopId = storyAwait.get(tg);
+    if (shopId === undefined) { await next(); return; }
+    storyAwait.delete(tg);
+    // Telegram bir nechta o'lchamni yuboradi — oxirgisi eng katta (sifat uchun).
+    const photos = ctx.message?.photo ?? [];
+    const best = photos[photos.length - 1];
+    if (!best) { await ctx.reply("❌ Rasm o'qilmadi, qaytadan yuboring."); return; }
+    const { createShopStory } = await import("../services/shopService");
+    const r = await createShopStory(shopId, { photoFileId: best.file_id, caption: ctx.message?.caption });
     await ctx.reply(r.ok ? "✅ Hikoyangiz joylandi — 24 soat ko'rinadi." : "❌ Hikoya saqlanmadi, qaytadan urinib ko'ring.");
   });
 
