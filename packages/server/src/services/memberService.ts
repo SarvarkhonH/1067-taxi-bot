@@ -25,7 +25,10 @@ export function isAdmin(telegramId: string): boolean {
   return env.adminIds.includes(telegramId);
 }
 
-export async function getMemberId(telegramId: string): Promise<number | null> {
+export async function getMemberId(telegramId: string | null | undefined): Promise<number | null> {
+  // 🚪 Mehmon: identifikator yo'q → a'zo ham yo'q. Guard MANBADA turadi, chunki `findUnique({id:null})`
+  // Prisma'da validatsiya xatosi (500) beradi — allowGuest marshrutlari aynan shunga qulagan edi.
+  if (!telegramId) return null;
   const tu = await prisma.telegramUser.findUnique({ where: { id: telegramId } });
   return tu?.memberId ?? null;
 }
@@ -48,7 +51,8 @@ export function resolveDisplayName(
 }
 
 // ─── member self view ─────────────────────────────────────────────────────────
-export async function getMe(telegramId: string): Promise<MeResponse | null> {
+export async function getMe(telegramId: string | null | undefined): Promise<MeResponse | null> {
+  if (!telegramId) return null; // 🚪 mehmon — yuqoridagi bilan bir xil sabab
   const tu = await prisma.telegramUser.findUnique({
     where: { id: telegramId },
     include: { member: { include: { achievements: true } } },
