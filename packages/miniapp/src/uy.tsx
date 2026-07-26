@@ -159,8 +159,13 @@ export function NewUyView({ me, onBook, onNav, onBanner }: { me: MeResponse; onB
         </div>
       </div>
 
-      {/* Taxi-kartasi olib tashlandi (ega qarori 2026-07-26) — chaqirish pastki paneldagi
-          markaziy 🚕 tugmasi orqali, u har ekranda ko'rinib turadi. Ikkinchi nusxa shart emas. */}
+      {/* Taxi-kartasi (ega tuzatishi 2026-07-26): pastki bardagi FAB olib tashlangach bu YAGONA
+          chaqirish nuqtasi — minimalizm bosqichida xato o'chirilgan edi, qaytarildi. */}
+      <button className="nh-taxi" onClick={() => { haptic(); onBook(); }}>
+        <span className="i">🚖</span>
+        <span><b>Taxi chaqirish</b><small>Bir tap bilan — yaqin mashina</small></span>
+        <span className="go">→</span>
+      </button>
 
       {(rail.length > 0) && (
         <div className="nh-rail">
