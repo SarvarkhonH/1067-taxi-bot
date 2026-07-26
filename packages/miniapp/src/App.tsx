@@ -348,7 +348,6 @@ export function App() {
   }
   const TAB_PCT = 100 / TABS.length;
   const activeIndex = TABS.findIndex((t) => t.id === tab);
-  const fabAt = Math.floor(TABS.length / 2); // 4 tabs → index 2 → renders between Do'kon and Restoran
   // 🏪 BirJoy Market v2: yangi qorong'i-oynasimon dizayn — flag ON'da shop-light/bazar-light
   // OVERRIDE qo'llanmaydi (ilovaning tabiiy qorong'i bazaviy temasi ko'rinadi), o'rniga `bjm`
   // klassi shop.tsx'dagi yangi dark-glass elementlarga aksent-uslub beradi.
@@ -446,11 +445,11 @@ export function App() {
         {!newhomeUi && activeIndex >= 0 && (
           <span className="tab-ind" ref={(el) => el?.style.setProperty("left", `calc(${activeIndex} * ${TAB_PCT}% + ${TAB_PCT / 2}%)`)} />
         )}
-        {TABS.map((t, i) => (
+        {/* Markazdagi 🚖 FAB olib tashlandi (ega qarori 2026-07-26, minimalizm). Taksi chaqirish
+            yo'llari saqlanib qoldi: bot menyusi, deep-link (?go=book) va boshqa ekranlardagi
+            «Taxi chaqirish» tugmalari — ular setBooking(true) ni o'zgarishsiz chaqiradi. */}
+        {TABS.map((t) => (
           <Fragment key={t.id}>
-            {newhomeUi && i === fabAt && (
-              <button className="nh-fab" onClick={() => { haptic(); setBooking(true); }} aria-label="Taxi chaqirish">🚖</button>
-            )}
             <button
               className={tab === t.id ? "tab active" : "tab"}
               onClick={() => go(t.id)}
