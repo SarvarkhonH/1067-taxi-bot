@@ -343,10 +343,11 @@ export function createBot(): Bot {
       const wb = (await featureOn("welcomebonus")) ? ((await getBonusEcon()).firstRide ?? REFEREE_REWARD) : 0;
       await ctx.reply(renderWelcome(ctx.from!.first_name ?? "do'st", wb), { parse_mode: "HTML", reply_markup: contactKeyboard() });
     }
-    // 📌 always-visible entry: a one-tap «Ochish» web-app card, PINNED to the top of the chat the
-    // FIRST time only (silent). The ☰ Menu button is always there too; this pin makes the app the
-    // first thing a user sees and keeps it at the top. Re-/start never re-pins (apppinned:<id>).
-    if (canWebApp) {
+    // 📌 «Ochish» web-app kartasi — FAQAT ro'yxatdan o'tganlarga (me bor). Yangi foydalanuvchi
+    // /start bosganda BITTA xabar ko'radi: raqam ulash. Ilova havolasi keyin, handleLink'da
+    // ulangandan so'ng keladi (ega qarori 2026-07-26: bitta qadam — bitta xabar).
+    // Bir marta qadaladi (apppinned:<id>), qayta /start qadamaydi.
+    if (canWebApp && me) {
       const firstPin = await prisma.appState.create({ data: { key: `apppinned:${id}`, value: "1" } }).then(() => true).catch(() => false);
       if (firstPin) {
         const card = await ctx
@@ -366,8 +367,14 @@ export function createBot(): Bot {
     const res = await linkByPhone(id, phone, profileOf(ctx.from!));
     if (res.status === "linked") {
       const me = await getMe(id);
-      const role = res.type === "driver" ? "Haydovchi" : "Mijoz";
-      await ctx.reply(renderLinked(res.fullName ?? "Mijoz", role), { parse_mode: "HTML", reply_markup: await mainMenu(res.type === "driver", String(ctx.from?.id ?? "")) });
+      // Ro'yxatdan o'tish tugadi → ilovaga BITTA kirish tugmasi (ega qarori 2026-07-26).
+      // Web-app tugmasi faqat HTTPS'da ishlaydi; bo'lmasa oddiy menyu-klaviatura qoladi.
+      await ctx.reply(renderLinked(res.fullName ?? "Mijoz"), {
+        parse_mode: "HTML",
+        reply_markup: canWebApp
+          ? new InlineKeyboard().webApp("🚀 Ilovani ochish", webAppUrl())
+          : await mainMenu(res.type === "driver", String(ctx.from?.id ?? "")),
+      });
       // Auto-derive a friendly display name (no fragile "type your name" prompt that captured
       // menu-button taps): Telegram first+last name → @username → phone's last 4 digits.
       // Only for clients, and only if they don't already have a user-set name. Silent — they can

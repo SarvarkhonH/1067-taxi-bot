@@ -25,21 +25,19 @@ const DIV = "━━━━━━━━━━━━━━";
 
 // firstRideBonus > 0 → show the "first ride = N tanga" hook (gated by the welcomebonus flag
 // in the caller, so the copy NEVER promises a bonus the mechanic won't pay).
+// Minimalizm (ega qarori 2026-07-26): /start — BITTA qisqa xabar, bitta harakat.
+// Ilgari bu yerda AI-tanishtiruvi + «yozing yoki gapiring» ko'rsatmasi bor edi va ustiga
+// alohida qadalgan ilova-kartasi ham yuborilardi — yangi foydalanuvchi bir vaqtda ikkita
+// xabar va uchta taklif ko'rardi. Endi: raqam ulash → (ulangach) ilova havolasi. Tamom.
 export function renderWelcome(name: string, firstRideBonus = 0): string {
   const hook =
     firstRideBonus > 0
-      ? `🎁 <b>Birinchi safaringiz BEPUL!</b> ${formatNumber(firstRideBonus)} tanga sovg'a — boshlanish narxini to'liq qoplaydi 🚕\n\n`
+      ? `\n🎁 Birinchi safaringiz uchun <b>${formatNumber(firstRideBonus)} tanga</b> sovg'a.\n`
       : "";
-  // Single clear next step (share phone) — a free-text example-list here would tempt a brand-new
-  // user to type before linking, when the only thing that actually works yet is the contact
-  // button. The "men so'rayman" promise defers the AI's open question to right after linking
-  // (handleLink's post-link nudge), where a real answer is possible.
   return (
-    `✨ <b>BirJoy — Koson AI</b> 🤖\n` +
-    `Salom, <b>${esc(name)}</b>! 👋\n\n` +
+    `Salom, <b>${esc(name)}</b>! 👋\n` +
     hook +
-    `Men — sizning aqlli yordamchingizman. <b>Tugma qidirmang</b> — shunchaki <b>yozing yoki gapiring</b>, men tushunaman: taksi, ovqat, usta, eslatma — nima kerak bo'lsa.\n\n` +
-    `👇 Boshlash uchun <b>«📱 Raqamni ulashish»</b>ni bosing — ulagach darrov so'rayman, sizga nima kerak. (Tugmali ko'rinish — 🚀 ilovada.)`
+    `\nBoshlash uchun raqamingizni ulang 👇`
   );
 }
 
@@ -68,14 +66,9 @@ export function renderTaken(): string {
  *  no "pastdagi menyu" anymore — this is the single best moment to seed 2-3 concrete example
  *  phrases (bonus/g'ildirak + do'st taklif were the two things people struggled to find) plus the
  *  /menu escape hatch, instead of pointing at a keyboard that no longer exists. */
-export function renderLinked(name: string, role: string): string {
-  return (
-    `✅ <b>Tayyor!</b> ${esc(name)} (${role})\n\n` +
-    `🎉 Hamyon ochildi. Sinab ko'ring:\n` +
-    `🎡 «g'ildirak» yoki «bonus» — sovg'a yutib oling\n` +
-    `👥 «do'st chaqir» — do'stingiz bilan pul ishlang\n\n` +
-    `📋 Yoki shunchaki «menyu» deb yozing — tugmali panel chiqadi 👇`
-  );
+// Ro'yxatdan o'tgach — bitta qisqa tasdiq + ilovaga kirish (chaqiruvchi web-app tugmasini qo'yadi).
+export function renderLinked(name: string): string {
+  return `✅ <b>Tayyor</b>, ${esc(name)}!\n\nIlovani oching 👇`;
 }
 
 /** The hero card — the "beautiful bonuses" view, adapts to client vs driver. */
