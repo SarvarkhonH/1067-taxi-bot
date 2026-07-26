@@ -686,3 +686,17 @@ body {
   0%, 100% { box-shadow: 0 10px 30px -10px rgba(255, 209, 102, 0.45); }
   50% { box-shadow: 0 10px 38px -8px rgba(255, 209, 102, 0.7); }
 }
+
+/* ── Minimal topbar (ega qarori 2026-07-26) ─────────────────────────────────
+   Tepada endi FAQAT bo'lim nomi. Brend/a'zolar/tanga/avatar olib tashlandi —
+   markazda bitta balans kartasi qoldi. Uy tabida topbar umuman render bo'lmaydi. */
+.topbar-min {
+  justify-content: flex-start;
+  padding: 14px 18px 8px;
+}
+.topbar-min .brand-name {
+  font-size: 20px;
+  font-weight: 800;
+  letter-spacing: 0.2px;
+  color: var(--text, #fff);
+}

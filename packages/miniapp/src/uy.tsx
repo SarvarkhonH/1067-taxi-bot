@@ -145,15 +145,9 @@ export function NewUyView({ me, onBook, onNav, onBanner }: { me: MeResponse; onB
 
   return (
     <div className="nh-view">
-      <div className="nh-topbar">
-        <div className="nh-brand">Bir<b>Joy</b></div>
-        <button className="nh-coin" onClick={() => go("wallet")} aria-label="Hamyon">🪙 {num(me.coins)}</button>
-      </div>
-
-      <button className="nh-search" onClick={() => (f.shop ? go("dokon") : setHub(true))}>
-        <span>🔍</span><span className="ph">Taom, mahsulot yoki xizmat qidiring…</span>
-      </button>
-
+      {/* Minimalizm (ega qarori 2026-07-26): bosh sahifadan brend-satri, tanga-tugmasi va
+          qidiruv olib tashlandi. Brend global topbar'da ham yo'q — balans faqat quyidagi
+          hamyon kartasida (bitta joyda), qidiruvga do'kon/restoran tablari orqali boriladi. */}
       <div className="nh-wallet">
         <div className="wrow">
           <div>
@@ -165,11 +159,8 @@ export function NewUyView({ me, onBook, onNav, onBanner }: { me: MeResponse; onB
         </div>
       </div>
 
-      <button className="nh-taxi" onClick={() => { haptic(); onBook(); }}>
-        <span className="i">🚖</span>
-        <span><b>Taxi chaqirish</b><small>Bir tap bilan — yaqin mashina</small></span>
-        <span className="go">→</span>
-      </button>
+      {/* Taxi-kartasi olib tashlandi (ega qarori 2026-07-26) — chaqirish pastki paneldagi
+          markaziy 🚕 tugmasi orqali, u har ekranda ko'rinib turadi. Ikkinchi nusxa shart emas. */}
 
       {(rail.length > 0) && (
         <div className="nh-rail">

@@ -70,21 +70,6 @@ function clearMeCache(): void {
   }
 }
 
-// 👥 Social-proof a'zolar soni. me.totalMembers = jonli DB count (kas sync uni doim o'zgartiradi)
-// + stale-cache eski→yangi sakraydi → «har safar har xil» ko'rinardi. Buni BARQAROR qilamiz:
-// 10 000 baza + real, 10 gacha yaxlitlangan, va MONOTONIC (localStorage'da eng katta qiymat) —
-// hech qachon kamaymaydi, mayda jitter ko'rinmaydi, faqat o'sib boradi (tabiiy + viral).
-function stableMemberCount(realTotal: number): number {
-  const rounded = Math.floor((10000 + Math.max(0, realTotal)) / 10) * 10;
-  try {
-    const prev = Number(localStorage.getItem("mc_bot_max") || 0);
-    const val = Math.max(prev, rounded);
-    if (val !== prev) localStorage.setItem("mc_bot_max", String(val));
-    return val;
-  } catch {
-    return rounded;
-  }
-}
 
 // 4 aniq tab: Uy (taxi-first) · Hamyon (pul) · O'yin (bonus+vazifa) · Reyting (liga+do'st).
 // `intercity` ON bo'lsa Yo'l 5-tab sifatida qo'shiladi (pastda swapForYol).
@@ -372,44 +357,26 @@ export function App() {
   return (
     <div className={newhomeUi ? shellCls + " nh-app" : shellCls}>
       <div className="aurora" />
-      <header className="topbar">
-        <div className="brand">
-          {/* tepadagi sarlavha kontekstli: Uy'da (butun ilova brendi) «BirJoy», qolgan tablarda tab nomi.
-              «1067» faqat taksi-dispetcher raqami — brend sifatida ishlatilMAYDI (CLAUDE.md qoidasi). */}
+      {/* Minimalizm (ega qarori 2026-07-26): tepada FAQAT joriy bo'lim nomi qoladi.
+          Olib tashlandi — brend nomi (har ekranda takrorlanardi), a'zolar-chipi, tanga-pill
+          (balans endi FAQAT bosh sahifadagi hamyon kartasida — bitta joyda) va avatar
+          (profilga pastki tab orqali kiriladi, ikkinchi yo'l shart emas).
+          Uy tabida sarlavha umuman ko'rsatilmaydi — bo'sh panel joy egallamasin. */}
+      {tab !== "uy" && (
+        <header className="topbar topbar-min">
           <span className="brand-name">
-            {tab === "uy" ? <b>BirJoy</b>
-              : tab === "wallet" ? "Hamyon"
-              : tab === "dokon" ? <b>Do'kon</b>
-              : tab === "xizmat" ? <b>Xizmatlar</b>
-              : tab === "elonlar" ? <b>E'lonlar</b>
-              : tab === "restoran" ? <b>Restoran</b>
+            {tab === "wallet" ? "Hamyon"
+              : tab === "dokon" ? "Do'kon"
+              : tab === "xizmat" ? "Xizmatlar"
+              : tab === "elonlar" ? "E'lonlar"
+              : tab === "restoran" ? "Restoran"
               : tab === "reyting" ? "Reyting"
               : tab === "driver" ? "Daromad"
               : tab === "profile" ? "Profil"
-              : <b>BirJoy</b>}
+              : ""}
           </span>
-          {/* 👥 social proof — 10 000 baza + real a'zolar (har yangi qo'shilganda o'sadi → tirik, viral) */}
-          <span className="member-chip">👥 {stableMemberCount(me.botMembers ?? 0).toLocaleString("ru-RU")} a'zo</span>
-        </div>
-        <div className="topbar-right">
-          <div className="coin-pill">
-            <span className={"coin-dot" + (coinBounce ? " d-coin-bounce" : "")}>🪙</span>
-            {Math.round(coins).toLocaleString("ru-RU")}
-          </div>
-          <button
-            className="profile-av"
-            onClick={() => { haptic(); setTab("profile"); }}
-            aria-label="Hisobim & sozlamalar"
-            style={{ ["--lvl" as string]: me.level?.color || "var(--brand)" }}
-          >
-            <span className="profile-av-ring" />
-            <span className="profile-av-core">
-              {(me.member.fullName || "").trim().charAt(0).toUpperCase() || "🙂"}
-            </span>
-            {me.level?.emoji && <span className="profile-av-lvl">{me.level.emoji}</span>}
-          </button>
-        </div>
-      </header>
+        </header>
+      )}
 
       {toast && (
         <div className="toast" key={toast.id} onClick={() => setToast(null)}>
