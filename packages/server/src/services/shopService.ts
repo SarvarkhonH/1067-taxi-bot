@@ -174,6 +174,23 @@ export async function getMarketHome(preview = false, q?: string, memberId?: numb
     prisma.categoryDef.findMany({ where: { active: true }, orderBy: { sortOrder: "asc" }, take: 20 }),
     listActiveProducts(true), // flag-tekshiruv yuqorida bo'ldi; preview=true — ichki qayta-gate emas
   ]);
+  // AUDIT (2026-07-26, bazar hammaga yoqilgan kuni): sotiladigan mahsuloti YO'Q do'kon ham
+  // mijoz-qatorida turardi — mijoz bosadi, bo'sh javon ko'radi va bozorga ishonchi qaytmaydi.
+  // Endi mijozga faqat kamida 1 ta faol+zaxirali mahsuloti bor do'kon ko'rsatiladi. `preview`da
+  // (ega/admin) HAMMASI qoladi — sotuvchi o'z bo'sh do'konini ko'rib, mahsulot qo'sha olishi kerak.
+  // `products` ro'yxatidan hisoblanmaydi: u 100 ta bilan cheklangan, ya'ni katta katalogda
+  // do'konlar noto'g'ri yashirinib qolardi — shuning uchun alohida groupBy.
+  let bozor = bozorShops;
+  let mahalla = mahallaShops;
+  if (!preview) {
+    const stocked = new Set(
+      (await prisma.product.groupBy({ by: ["shopId"], where: { active: true, stock: { gt: 0 }, shopId: { not: null } }, _count: true }))
+        .map((g) => g.shopId)
+        .filter((id): id is number => id !== null),
+    );
+    bozor = bozorShops.filter((s) => stocked.has(s.id));
+    mahalla = mahallaShops.filter((s) => stocked.has(s.id));
+  }
   let filtered = products;
   if (query) {
     const ql = query.toLowerCase();
@@ -187,10 +204,10 @@ export async function getMarketHome(preview = false, q?: string, memberId?: numb
   // V1.5: "N mahalladosh bu hafta xarid qildi" — HAQIQIY hisob (soxta ijtimoiy-signal emas), faqat
   // mahalla-tur do'konlar uchun (bozor-tur ro'yxati bu maydonsiz, o'zgarishsiz qoladi).
   const weekAgo = new Date(Date.now() - 7 * 24 * 3600 * 1000);
-  const weeklyCounts = mahallaShops.length
+  const weeklyCounts = mahalla.length
     ? await prisma.marketOrder.groupBy({
         by: ["shopId"],
-        where: { shopId: { in: mahallaShops.map((s) => s.id) }, createdAt: { gte: weekAgo }, status: { notIn: ["rejected", "cancelled"] } },
+        where: { shopId: { in: mahalla.map((s) => s.id) }, createdAt: { gte: weekAgo }, status: { notIn: ["rejected", "cancelled"] } },
         _count: { _all: true },
       })
     : [];
@@ -202,7 +219,7 @@ export async function getMarketHome(preview = false, q?: string, memberId?: numb
     ...(s.shopKind === "mahalla" ? { story: s.story ? s.story.slice(0, 90) : null, weeklyOrders: weeklyMap.get(s.id) ?? 0 } : {}),
   });
   return {
-    shops: [...bozorShops, ...mahallaShops].map(shopView),
+    shops: [...bozor, ...mahalla].map(shopView),
     cats: cats.map((c) => ({ id: c.id, slug: c.slug, name: c.name, emoji: c.emoji, hasIcon: !!(c.iconFileId || c.iconUrl) })),
     products: filtered,
   };
