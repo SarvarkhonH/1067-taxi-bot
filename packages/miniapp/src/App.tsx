@@ -152,6 +152,8 @@ export function App() {
   const [board, setBoard] = useState<LeaderboardResponse | null>(null);
   const [boardErr, setBoardErr] = useState(false);
   const [livinghome, setLivinghome] = useState(false);
+  // 🚪 mehmon rejimi: /api/me ulanmaganlarga ham bayroqlarni beradi — qaysi tab ochiqligi shundan.
+  const [guestFlags, setGuestFlags] = useState<MeResponse["flags"]>(undefined);
   const [error, setError] = useState<string | null>(null);
   const [toast, setToast] = useState<{ id: number; msg: string } | null>(null);
   const [booking, setBooking] = useState(() => readGo() === "book");
@@ -198,6 +200,7 @@ export function App() {
       .then((r) => {
         if ("linked" in r && r.linked === false) {
           clearMeCache();
+          setGuestFlags((r as { flags?: MeResponse["flags"] }).flags);
           setLinked(false);
         } else {
           const me = r as MeResponse;
@@ -259,7 +262,7 @@ export function App() {
 
   if (error) return <ErrorScreen error={error} />;
   if (linked === null) return <BootSplash />;
-  if (linked === false) return <NotLinked />;
+  if (linked === false) return <GuestApp flags={guestFlags} />;
   if (!me) return <BootSplash />;
   if (booking) return <Suspense fallback={<BootSplash />}><Booking3View me={me} onClose={() => setBooking(false)} /></Suspense>;
   if (invite) return <div className="app"><main className="content"><ReferralView onClose={() => setInvite(false)} /></main></div>;
@@ -556,28 +559,94 @@ function ErrorScreen({ error }: { error: string }) {
   );
 }
 
-// 🔗 Ulanmagan foydalanuvchi. Avval bu ekran BOSHI BERK KO'CHA edi — bironta tugmasiz karta, «botga
-// kiring» degan maslahat bilan. DB (2026-07-26): /start bosgan 1 060 odamdan 289 tasi ulanmagan,
-// shundan 286 tasi raqam tugmasini umuman bosmagan. Endi shu yerdan bitta bosishda botga qaytadi.
-function NotLinked() {
-  const openBot = () => {
-    haptic();
-    const url = "https://t.me/koson1067bot?start=link";
-    if (tg?.openTelegramLink) tg.openTelegramLink(url);
-    else window.open(url, "_blank");
+function openLinkBot(): void {
+  haptic();
+  const url = "https://t.me/koson1067bot?start=link";
+  if (tg?.openTelegramLink) tg.openTelegramLink(url);
+  else window.open(url, "_blank");
+}
+
+/** 🚪 MEHMON REJIMI. Bu ekran avval `NotLinked` — bironta tugmasiz boshi berk ko'cha edi: «botga
+ *  kiring va raqamingizni ulang». DB (2026-07-26): /start bosgan 1 060 odamdan 289 tasi ulanmagan,
+ *  shundan 286 tasi tugmani umuman bosmagan. Ular hech narsa ko'rmasdan turib raqam so'ralgani
+ *  uchun qaytgan. Endi katalog OCHIQ — do'kon, restoran, xizmatlar bemalol ko'riladi; raqam faqat
+ *  harakat (buyurtma / taksi / hamyon) paytida so'raladi. Server tomonida bu marshrutlar
+ *  `allowGuest` bilan ochilgan, pul va shaxsiy ma'lumot tegadigan hammasi `requireUser`da qoladi. */
+function guestMe(flags: MeResponse["flags"]): MeResponse {
+  return {
+    linked: false,
+    type: "client",
+    metricLabel: "Bonus",
+    member: { id: 0, fullName: "Mehmon", phone: null, carNumber: null, mahallaId: null, travelMahallaId: null },
+    stats: { points: 0, trips: 0, rating: 0 },
+    level: { index: 0, name: "Mehmon", emoji: "👋", color: "#64748b" },
+    nextLevel: null,
+    xp: 0,
+    xpIntoLevel: 0,
+    xpForNext: null,
+    progress: 0,
+    rank: null,
+    totalMembers: 0,
+    badges: [],
+    streak: { current: 0, longest: 0, checkedToday: false },
+    wheelAvailable: false,
+    jackpot: 0,
+    coins: 0,
+    leagueTier: "Bronza",
+    flags,
   };
-  return (
-    <div className="screen center">
-      <div className="aurora" />
-      <div className="nl-card glass pad tac">
-        <div className="nl-emoji">🔗</div>
-        <h2>Bir qadam qoldi</h2>
-        <p className="muted">
-          Raqamingizni ulasangiz — taksi chaqirasiz, tanga va cashback yig'asiz, buyurtma berasiz.
-          Bir bosishda, bir soniyada.
-        </p>
-        <button className="btn-primary" onClick={openBot}>📱 Raqamni ulash</button>
+}
+
+function GuestApp({ flags }: { flags: MeResponse["flags"] }) {
+  const me = guestMe(flags);
+  const tabs = [
+    flags?.shop ? { id: "dokon" as const, icon: "market", label: "Do'kon" } : null,
+    flags?.restoran ? { id: "restoran" as const, icon: "food", label: "Restoran" } : null,
+    flags?.xizmatlar ? { id: "xizmat" as const, icon: "search", label: "Xizmatlar" } : null,
+  ].filter(Boolean) as { id: "dokon" | "restoran" | "xizmat"; icon: string; label: string }[];
+  const [tab, setTab] = useState<"dokon" | "restoran" | "xizmat">(tabs[0]?.id ?? "dokon");
+  const [msg, setMsg] = useState<string | null>(null);
+  const flash = (m: string) => {
+    setMsg(m);
+    setTimeout(() => setMsg(null), 3200);
+  };
+  // Ko'rish uchun ochiq tab bo'lmasa — eski (tugmali) taklif ekrani.
+  if (!tabs.length) {
+    return (
+      <div className="screen center">
+        <div className="aurora" />
+        <div className="nl-card glass pad tac">
+          <div className="nl-emoji">🔗</div>
+          <h2>Bir qadam qoldi</h2>
+          <p className="muted">Raqamingizni ulasangiz — taksi chaqirasiz, tanga va cashback yig'asiz, buyurtma berasiz.</p>
+          <button className="btn-primary" onClick={openLinkBot}>📱 Raqamni ulash</button>
+        </div>
       </div>
+    );
+  }
+  return (
+    <div className="app nh-app">
+      {msg && <div className="toast">{msg}</div>}
+      <div className="view">
+        <Suspense fallback={<Spinner />}>
+          {tab === "dokon" && <ShopView me={me} onBanner={flash} reload={() => undefined} onBook={openLinkBot} />}
+          {tab === "restoran" && <RestoranView me={me} onBanner={flash} />}
+          {tab === "xizmat" && <XizmatlarView me={me} onBanner={flash} />}
+        </Suspense>
+      </div>
+      {/* Doimiy taklif — bosim emas, taklif: nima ochilishini aytadi va bir bosishda ulaydi. */}
+      <button className="guest-bar" onClick={openLinkBot}>
+        <span className="gb-txt"><b>Raqamni ulang</b><small>Buyurtma berish, taksi va tanga uchun</small></span>
+        <span className="gb-cta">Ulash</span>
+      </button>
+      <nav className="tabbar">
+        {tabs.map((t) => (
+          <button key={t.id} className={tab === t.id ? "tab active" : "tab"} onClick={() => { haptic(); setTab(t.id); }}>
+            <Icon name={t.icon} />
+            <span>{t.label}</span>
+          </button>
+        ))}
+      </nav>
     </div>
   );
 }

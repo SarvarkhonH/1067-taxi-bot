@@ -89,6 +89,14 @@ const API_BASE = ((import.meta.env.VITE_API_URL as string) || "").replace(/\/$/,
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
+/** 🚪 Ulanmagan javob. `guest:true` = Telegram identifikatori umuman yo'q; guest:false = Telegram
+ *  bor, lekin raqam ulanmagan. Ikkalasida ham katalog ochiq — flags qaysi tab borligini aytadi. */
+export interface GuestMe {
+  linked: false;
+  guest?: boolean;
+  flags?: MeResponse["flags"];
+}
+
 async function request<T>(method: string, path: string, body?: unknown, retries = 5): Promise<T> {
   let lastErr: unknown;
   // ⏳ EVERY call waits for initData, not just /api/me. Telegram Desktop/Web Z fill initData a few
@@ -156,7 +164,7 @@ export function apiUrl(path: string): string {
 }
 
 export const api = {
-  me: () => get<MeResponse | { linked: false }>("/api/me"),
+  me: () => get<MeResponse | GuestMe>("/api/me"),
   // 🛍 tanga shop (feature "shop")
   // shopId berilsa — O'SHA do'konning to'liq vitrinasi (global 100-limit katta do'konni kesardi)
   shopProducts: (shopId?: number) => get<{ products: import("@t1067/shared").ShopProductView[] }>(`/api/shop/products${shopId ? `?shopId=${shopId}` : ""}`),

@@ -519,7 +519,15 @@ export function ShopView({ me, onBanner, reload, onBook, openProductId }: { me: 
   const cartShop = useMemo(() => market?.shops.find((s) => s.id === cartShopId) ?? null, [market, cartShopId]);
   const cartDelivery = cartShop?.deliveryFeeSom ?? 0;
 
+  // 🚪 Mehmon (raqam ulanmagan) — server baribir 401 qaytaradi; bu yerda uni tushunarli taklifga
+  // aylantiramiz, xato ekrani o'rniga. Ko'rish ochiq, xarid uchun raqam kerak.
+  const guest = me.member.id === 0;
+  const askLink = () => {
+    onBanner("📱 Buyurtma berish uchun raqamingizni ulang — pastdagi «Ulash» tugmasi");
+    return true;
+  };
   const addToCart = (p: ShopProductView, delta = 1) => {
+    if (guest) { askLink(); return; }
     const pShop = p.shopId ?? 1;
     if (cartShopId !== null && cartShopId !== pShop && cartCount > 0) {
       // boshqa do'kon — savat bitta do'konga (sotuvchi o'zi yetkazadi). Tasdiqlangan v2 dizaynda:
@@ -548,6 +556,7 @@ export function ShopView({ me, onBanner, reload, onBook, openProductId }: { me: 
   };
 
   const checkout = async (address: string, note: string) => {
+    if (guest) { askLink(); return; }
     if (!cartShopId || cartLines.length === 0) return;
     setCoBusy(true);
     setCoErr(null);
@@ -708,6 +717,7 @@ export function ShopView({ me, onBanner, reload, onBook, openProductId }: { me: 
   };
 
   const submit = async () => {
+    if (guest) { askLink(); return; }
     if (!sel) return;
     setBusy(true);
     setBuyErr(null);

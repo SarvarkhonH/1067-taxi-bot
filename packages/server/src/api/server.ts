@@ -102,13 +102,32 @@ function requireUser(req: Request, res: Response, next: NextFunction): void {
   next();
 }
 
+// 🚪 GUEST read-only. Same identity resolution as requireUser, but a MISSING identity is not an
+// error — the handler just serves public data. Only ever mounted on read-only catalogue GETs
+// (do'kon, restoran, xizmatlar, mahalla); everything that touches money, orders or personal data
+// keeps requireUser. Why: of 1060 people who pressed /start, 289 never linked and 286 never even
+// tapped the button (DB, 2026-07-26) — they were asked to hand over a phone number before being
+// shown anything. Now they can look first. A banned id is still locked out.
+function allowGuest(req: Request, res: Response, next: NextFunction): void {
+  const id = resolveTelegramId(req);
+  if (id && isTgBanned(id)) {
+    res.status(403).json({ error: "banned" });
+    return;
+  }
+  res.locals.telegramId = id; // may be null → guest
+  next();
+}
+
 // P0.8: lightweight in-memory rate limiter (no dep). Keyed on the resolved
 // telegram id (set by requireUser/requireAdmin, which run first).
 const rlBuckets = new Map<string, { n: number; resetAt: number }>();
 function rateLimit(maxPerMin: number) {
-  return (_req: Request, res: Response, next: NextFunction): void => {
+  return (req: Request, res: Response, next: NextFunction): void => {
     if (rlBuckets.size > 50_000) rlBuckets.clear(); // bound memory
-    const key = `${(res.locals.telegramId as string) || "anon"}:${maxPerMin}`;
+    // Guests have no telegram id — bucket them per IP instead, otherwise every unlinked visitor in
+    // the country would share one "anon" bucket and rate-limit each other out of the catalogue.
+    const who = (res.locals.telegramId as string) || `ip:${req.ip ?? "?"}`;
+    const key = `${who}:${maxPerMin}`;
     const now = Date.now();
     let b = rlBuckets.get(key);
     if (!b || now > b.resetAt) {
@@ -232,7 +251,7 @@ export function createApiServer(opts: ApiOptions = {}) {
     res.json({ ok: true, mode: env.KAS_MODE, bot: env.hasBot });
   });
 
-  app.get("/api/me", requireUser, async (_req, res) => {
+  app.get("/api/me", allowGuest, async (_req, res) => {
     const [me, booking3, livinghome, intercity, tierloyalty, shopOn, xizmatlarOn, elonlarOn, restoranOn, bazarOn, bazarcartOn, revtangaOn, shopstoryOn, shopchatOn, newhomeOn, newprofileOn, shopv2On] = await Promise.all([
       getMe(res.locals.telegramId as string),
       featureOn("booking3"),
@@ -252,7 +271,18 @@ export function createApiServer(opts: ApiOptions = {}) {
       featureOn("newprofile"),
       featureOn("shopv2"),
     ]);
-    if (!me) { res.json({ linked: false }); return; }
+    // 🚪 Mehmon (yoki ulanmagan) — 401 EMAS. Bayroqlar baribir yuboriladi: mijoz ilovaga kiradi,
+    // katalogni ko'radi, raqam faqat harakat paytida so'raladi. `guest` = Telegram identifikatori
+    // umuman yo'q; `linked:false` + guest:false = Telegram bor, lekin raqam ulanmagan.
+    if (!me) {
+      const guest = !res.locals.telegramId;
+      res.json({
+        linked: false,
+        guest,
+        flags: { shop: shopOn, xizmatlar: xizmatlarOn, restoran: restoranOn, bazar: bazarOn, bazarcart: bazarcartOn, shopv2: shopv2On, newhome: newhomeOn },
+      });
+      return;
+    }
     // 🏅 owner-preview: admins see the tier-loyalty UI even while the global flag is DARK, so the
     // owner can QABUL the screens before go-live. (The real cashback multiplier stays globally gated.)
     const tierPreview = tierloyalty || isAdmin(res.locals.telegramId as string);
@@ -409,7 +439,7 @@ export function createApiServer(opts: ApiOptions = {}) {
   });
 
   // ── 🛍 TANGA SHOP (feature "shop", DARK until QABUL) ──────────────────────────────────────────
-  app.get("/api/shop/products", requireUser, rateLimit(30), async (req, res) => {
+  app.get("/api/shop/products", allowGuest, rateLimit(30), async (req, res) => {
     const { listActiveProducts } = await import("../services/shopService");
     res.set("Cache-Control", "private, max-age=30");
     // owner-preview: admins browse the REAL catalog while the flag is DARK (QABUL flow); riders get []
@@ -470,13 +500,16 @@ export function createApiServer(opts: ApiOptions = {}) {
 
   // 🏪 V1.4 (BirJoy): Bozor-bosh payload — do'kon-rail + kategoriya-karusel + server-qidiruv
   // (?q= nol-natijasi MarketDemand'ga yoziladi). bazar DARK + admin emas → bo'sh (UI eski holicha).
-  app.get("/api/shop/market", requireUser, rateLimit(30), withMember2(async (memberId, req, res) => {
+  app.get("/api/shop/market", allowGuest, rateLimit(30), async (req, res) => {
     const { getMarketHome } = await import("../services/shopService");
     res.set("Cache-Control", "private, max-age=30");
-    return await getMarketHome(isAdmin(res.locals.telegramId as string), req.query?.q ? String(req.query.q) : undefined, memberId);
-  }));
+    // memberId endi IXTIYORIY (avval withMember2 mehmonga 404 qaytarardi) — mehmon bozorni ko'radi,
+    // faqat shaxsiy bezaklar (sevimli, sodiqlik) bo'sh keladi.
+    const memberId = (await getMemberId(res.locals.telegramId as string)) ?? undefined;
+    res.json(await getMarketHome(isAdmin((res.locals.telegramId as string) ?? ""), req.query?.q ? String(req.query.q) : undefined, memberId));
+  });
   // 🏠 V1.5 (Mahalla bozori): mahalla ro'yxati (picker uchun) + GPS-eng-yaqin taxmin + tanlov saqlash.
-  app.get("/api/mahalla", requireUser, rateLimit(30), async (_req, res) => {
+  app.get("/api/mahalla", allowGuest, rateLimit(30), async (_req, res) => {
     const { listMahallas } = await import("../services/mahallaService");
     res.set("Cache-Control", "private, max-age=300");
     res.json({ mahallas: await listMahallas() });
@@ -673,7 +706,7 @@ export function createApiServer(opts: ApiOptions = {}) {
 
   // ── 🍽 RESTORAN (feature "restoran", DARK until seed + QABUL) — R1: katalog o'qish only ───────
   // owner-preview: admins browse the REAL catalog while riders see nothing (shop patterni).
-  app.get("/api/restoran/list", requireUser, rateLimit(30), async (_req, res) => {
+  app.get("/api/restoran/list", allowGuest, rateLimit(30), async (_req, res) => {
     const { listActiveRestaurants } = await import("../services/restoranService");
     res.set("Cache-Control", "private, max-age=30");
     res.json({ restaurants: await listActiveRestaurants(isAdmin(res.locals.telegramId as string)) });
@@ -735,7 +768,7 @@ export function createApiServer(opts: ApiOptions = {}) {
     const { cancelFoodOrder } = await import("../services/restoranService");
     return cancelFoodOrder(id, Number(req.params.id));
   }));
-  app.get("/api/restoran/:id", requireUser, rateLimit(30), async (req, res) => {
+  app.get("/api/restoran/:id", allowGuest, rateLimit(30), async (req, res) => {
     const { getRestaurantDetail } = await import("../services/restoranService");
     res.json(await getRestaurantDetail(Number(req.params.id), isAdmin(res.locals.telegramId as string)));
   });
@@ -783,14 +816,14 @@ export function createApiServer(opts: ApiOptions = {}) {
   // ── 🔎 XIZMATLAR (feature "xizmatlar", DARK until seed + QABUL) — moves NO money ──────────────
   // owner-preview everywhere: admins browse/QABUL the real catalog while riders still see nothing.
   const svcPreview = (res: Response) => isAdmin(res.locals.telegramId as string);
-  app.get("/api/services/categories", requireUser, rateLimit(30), async (_req, res) => {
+  app.get("/api/services/categories", allowGuest, rateLimit(30), async (_req, res) => {
     const { listCategories, popularSearchTags } = await import("../services/serviceDirectory");
     res.set("Cache-Control", "private, max-age=60");
     const preview = svcPreview(res);
     const [categories, popularTags] = await Promise.all([listCategories(preview), popularSearchTags(preview)]);
     res.json({ categories, popularTags });
   });
-  app.get("/api/services/list", requireUser, rateLimit(60), async (req, res) => {
+  app.get("/api/services/list", allowGuest, rateLimit(60), async (req, res) => {
     const { listListings } = await import("../services/serviceDirectory");
     res.set("Cache-Control", "private, max-age=30"); // read-mostly: back/forward nav skips network
     res.json(await listListings({
@@ -801,12 +834,12 @@ export function createApiServer(opts: ApiOptions = {}) {
       sort: req.query.sort === "new" ? "new" : undefined,
     }, svcPreview(res)));
   });
-  app.get("/api/services/inspected", requireUser, rateLimit(60), async (req, res) => {
+  app.get("/api/services/inspected", allowGuest, rateLimit(60), async (req, res) => {
     const { listInspected } = await import("../services/serviceDirectory");
     res.set("Cache-Control", "private, max-age=60");
     res.json({ listings: await listInspected(req.query.limit ? Number(req.query.limit) : undefined, svcPreview(res)) });
   });
-  app.get("/api/services/item/:id", requireUser, rateLimit(60), async (req, res) => {
+  app.get("/api/services/item/:id", allowGuest, rateLimit(60), async (req, res) => {
     const { getListing } = await import("../services/serviceDirectory");
     const item = await getListing(Number(req.params.id), res.locals.telegramId as string, svcPreview(res));
     if (!item) { res.status(404).json({ error: "not_found" }); return; }
