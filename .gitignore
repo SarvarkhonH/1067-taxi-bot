@@ -26,3 +26,5 @@ backups/
 # bir-martalik push-yordamchi (commit qilinmaydi)
 _pushHelper.mjs
 PUSH_QILISH.bat
+zaxira-*/
+packages/server/src/scripts/renewSystemRental.ts
