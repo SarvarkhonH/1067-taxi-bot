@@ -77,6 +77,20 @@ export async function notifyMarketOrderCard(bot: Bot, n: MarketOrderNotice): Pro
   }
 }
 
+/** ⏰ Javobsiz buyurtma eslatmasi. SLA-supurgisi 15 daqiqadan keyin ADMINLARGA xabar berardi,
+ *  lekin javob bermagan SOTUVCHINING o'ziga hech narsa bormasdi — ya'ni eslatma nishonni chetlab
+ *  o'tardi. Endi ayni o'sha do'kon chatiga tugmalari bilan qayta boradi (mijozning tangasi
+ *  ushlab turibdi — shuning uchun ohang shoshilinch, lekin ayblovsiz). */
+export async function remindMarketOrderPending(bot: Bot, n: { orderId: number; shopId: number; shopName: string; ageMin: number }): Promise<void> {
+  const text =
+    `⏰ <b>JAVOBSIZ BUYURTMA</b> #${n.orderId} — <b>${escMkt(n.shopName)}</b>\n\n` +
+    `${n.ageMin} daqiqadan beri javob kutmoqda.\n` +
+    `<i>Mijozning tangasi ushlab turibdi. Iltimos qabul qiling yoki rad eting — ikkalasi ham mijozga darhol xabar beradi.</i>`;
+  for (const chat of await marketChatsFor(n.shopId)) {
+    await bot.api.sendMessage(chat, text, { parse_mode: "HTML", reply_markup: MO_KB(n.orderId, "pending") }).catch(() => undefined);
+  }
+}
+
 const RIDER_STATUS_MSG: Record<string, (shopName: string) => string> = {
   accepted: (s) => `✅ <b>Buyurtmangiz qabul qilindi!</b>\n🏬 ${escMkt(s)} tayyorlamoqda.`,
   delivering: (s) => `🚚 <b>Buyurtmangiz yo'lda!</b>\n🏬 ${escMkt(s)} yetkazmoqda — tez orada eshigingizda.`,

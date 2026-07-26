@@ -882,7 +882,13 @@ export async function uploadCategoryIcon(id: number, buf: Buffer, mime = "image/
 /** V1.5 (BirJoy): do'kon-buyurtma SLA-sweep — restoran naqshi AYNAN (yangi poller YO'Q, mavjud
  *  booking-tick chaqiradi). Har do'konning O'Z slaMinutes'i (default 15); shopId'siz mahsulot 15.
  *  Idempotent: slaAlertedAt BIR marta. Mijozga ko'rinmaydi — faqat egaga ichki nazorat. */
-export async function checkShopSlaAndAlert(alertAdmins: (html: string) => Promise<void>): Promise<void> {
+export async function checkShopSlaAndAlert(
+  alertAdmins: (html: string) => Promise<void>,
+  // AUDIT (bazar hammaga yoqilgan kun): eslatma faqat ADMINLARGA borardi — javob bermagan
+  // sotuvchining o'ziga emas, ya'ni nishonni chetlab o'tardi. Ixtiyoriy callback (index.ts
+  // `notifyMarketOrder` naqshi) — berilmasa xatti-harakat eski holicha qoladi.
+  remindSeller?: (n: { orderId: number; shopId: number; shopName: string; ageMin: number }) => Promise<void>,
+): Promise<void> {
   const maxCutoff = new Date(Date.now() - 15 * 60_000);
   const stale = await prisma.shopPurchase.findMany({
     where: { status: "pending", createdAt: { lt: maxCutoff }, slaAlertedAt: null },
@@ -892,7 +898,7 @@ export async function checkShopSlaAndAlert(alertAdmins: (html: string) => Promis
   // 🧺 V2: MarketOrder pending'lari ham shu supurgida (yangi poller YO'Q)
   const staleMkt = await prisma.marketOrder.findMany({
     where: { status: "pending", createdAt: { lt: maxCutoff }, slaAlertedAt: null },
-    select: { id: true, shopName: true, createdAt: true },
+    select: { id: true, shopId: true, shopName: true, createdAt: true },
     take: 50,
   });
   if (!stale.length && !staleMkt.length) return;
@@ -902,6 +908,13 @@ export async function checkShopSlaAndAlert(alertAdmins: (html: string) => Promis
     ...staleMkt.map((s) => `🧺 #${s.id} · ${s.shopName.slice(0, 40)} · ${ageOf(s.createdAt)} daq javobsiz`),
   ];
   await alertAdmins(`🛍 <b>Do'kon: ${lines.length} ta buyurtma 15+ daq javobsiz</b>\n${lines.join("\n")}`).catch(() => undefined);
+  // Sotuvchiga eslatma — marker qo'yishdan OLDIN (marker qo'yilgach bu satrlar boshqa
+  // tanlanmaydi, ya'ni har buyurtma uchun aynan bitta eslatma ketadi — spam yo'q).
+  if (remindSeller) {
+    for (const s of staleMkt) {
+      await remindSeller({ orderId: s.id, shopId: s.shopId, shopName: s.shopName, ageMin: ageOf(s.createdAt) }).catch(() => undefined);
+    }
+  }
   if (stale.length) await prisma.shopPurchase.updateMany({ where: { id: { in: stale.map((s) => s.id) } }, data: { slaAlertedAt: new Date() } });
   if (staleMkt.length) await prisma.marketOrder.updateMany({ where: { id: { in: staleMkt.map((s) => s.id) } }, data: { slaAlertedAt: new Date() } });
 }

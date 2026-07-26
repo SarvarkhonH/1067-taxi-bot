@@ -8,6 +8,7 @@ import { refreshLinkedMembers, runSync } from "./sync/sync";
 import { pushBookingUpdates } from "./services/bookingNotifier";
 import { kasMapSocket } from "./services/kasMapSocket";
 import { maybeSurpriseDrop, payWeeklyPrizes } from "./services/weeklyService";
+import { formatNumber } from "@t1067/shared";
 
 // P0.4: orphaned SyncRun stuck in "running" (crash mid-sync) → mark error.
 async function reapStaleSyncs(maxAgeMs: number): Promise<void> {
@@ -408,7 +409,23 @@ async function main(): Promise<void> {
       // 🏪 BirJoy V1.5 SLA-sweep — restoran naqshi (yangi poller YO'Q): 15+ daq javobsiz
       // ShopPurchase'lar egaga BIR marta eslatiladi (slaAlertedAt idempotent-marker).
       const { checkShopSlaAndAlert } = await import("./services/shopService");
-      await checkShopSlaAndAlert(alertAdmins).catch((e) => console.error("[shop-sla] failed:", e));
+      // Eslatma endi javob bermagan SOTUVCHIGA ham boradi (avval faqat adminlar bilardi) —
+      // `slaAlertedAt` markeri tufayli har buyurtmaga aynan bitta, spam yo'q.
+      await checkShopSlaAndAlert(alertAdmins, async (n) => {
+        await (await import("./bot/market")).remindMarketOrderPending(bot, n);
+      }).catch((e) => console.error("[shop-sla] failed:", e));
+      // ⏳ Javobsiz savat-buyurtmani avtomatik yopish + tanga qaytarish (flag `mktexpire`, OFF
+      // bo'lsa darrov [] qaytadi). Mijozga har doim sabab bilan xabar boradi — jim qaytarish yo'q.
+      const { expireStaleMarketOrders } = await import("./services/marketOrderService");
+      const expired = await expireStaleMarketOrders().catch((e) => { console.error("[mkt-expire] failed:", e); return []; });
+      for (const x of expired) {
+        const tgu = await prisma.telegramUser.findFirst({ where: { memberId: x.memberId }, select: { id: true } }).catch(() => null);
+        if (tgu) {
+          const money = x.payKind === "cash" ? "Hech qanday pul olinmagan." : `✅ <b>${formatNumber(x.total)} tanga hisobingizga qaytarildi.</b>`;
+          await bot.api.sendMessage(tgu.id, `⏳ <b>Buyurtma bekor qilindi</b>\n🏬 ${x.shopName}\nDo'kon vaqtida javob bermadi.\n${money}`, { parse_mode: "HTML" }).catch(() => undefined);
+        }
+        await alertAdmins(`⏳ <b>Avto-bekor</b> (javobsiz): 🧺 #${x.orderId} · ${x.shopName}`).catch(() => undefined);
+      }
       // §10.2: javobsiz-chat ogohlantirish — xuddi shu tick, yangi poller YO'Q
       const { checkUnansweredChatsAndAlert } = await import("./services/shopChatService");
       await checkUnansweredChatsAndAlert(alertAdmins).catch((e) => console.error("[chat-sla] failed:", e));

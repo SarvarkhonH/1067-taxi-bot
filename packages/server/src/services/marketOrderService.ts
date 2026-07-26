@@ -229,6 +229,33 @@ async function terminateWithRefund(orderId: number, toStatus: "rejected" | "canc
 export const rejectMarketOrder = (orderId: number, reason?: string): Promise<MarketDecision> =>
   terminateWithRefund(orderId, "rejected", ["pending", "accepted", "delivering"], reason);
 
+/** ⏳ Javobsiz buyurtmalarni avtomatik bekor qilish + tangani qaytarish (flag `mktexpire`).
+ *
+ *  Nima uchun kerak: sotuvchi kartani e'tiborsiz qoldirsa buyurtma `pending`da MANGU qolardi va
+ *  mijozning tangasi ushlab turaverardi. Mijoz o'zi bekor qila olardi — lekin ko'pchilik shunchaki
+ *  aldangandek his qiladi va qaytib kelmaydi. Endi belgilangan muddatdan keyin tizim o'zi yopadi.
+ *
+ *  Xavfsizlik: yangi pul-mantiq YOZILMADI — ayni `terminateWithRefund` yo'li (shartli flip +
+ *  restock + idempotent `mktrefund:<id>` kaliti). Faqat `pending` tegiladi: sotuvchi allaqachon
+ *  qabul qilgan buyurtma HECH QACHON avtomatik bekor qilinmaydi (u telefon orqali kelishilgan
+ *  bo'lishi mumkin). Bir tick'da ko'pi bilan 20 ta — supurgi tishlab qolmasin. */
+export async function expireStaleMarketOrders(hours = 6): Promise<{ orderId: number; memberId: number; shopName: string; total: number; payKind: string }[]> {
+  const { featureOn } = await import("./featureFlags");
+  if (!(await featureOn("mktexpire"))) return [];
+  const cutoff = new Date(Date.now() - hours * 3600_000);
+  const stale = await prisma.marketOrder.findMany({
+    where: { status: "pending", createdAt: { lt: cutoff } },
+    select: { id: true },
+    take: 20,
+  });
+  const done: { orderId: number; memberId: number; shopName: string; total: number; payKind: string }[] = [];
+  for (const s of stale) {
+    const r = await terminateWithRefund(s.id, "cancelled", ["pending"], `${hours} soat javobsiz — tizim bekor qildi`).catch(() => ({ ok: false }) as MarketDecision);
+    if (r.ok) done.push({ orderId: s.id, memberId: r.memberId!, shopName: r.shopName ?? "", total: r.total ?? 0, payKind: r.payKind ?? "tanga" });
+  }
+  return done;
+}
+
 /** Rider o'zi bekor qiladi — FAQAT pending'da (seller qabul qilgach — telefon orqali kelishiladi). */
 export const cancelMarketOrder = async (orderId: number, memberId: number): Promise<MarketDecision> => {
   const o = await prisma.marketOrder.findUnique({ where: { id: orderId }, select: { memberId: true } });
