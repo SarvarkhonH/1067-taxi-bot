@@ -2951,3 +2951,49 @@ BARCHASI (`--bj-tanga-on-media`, `.app.bjm .shop-wrap`, `shop-tile-grid`, `.app.
 **Holat**: `owner-accepted` — ega 2026-07-26'da o'z telefonida tekshirdi: «tekshirdim ishladi».
 Foto-hikoya ham, §10.3'ning uchala bandi ham qabul qilindi. Shu bilan §10.3 YOPILDI (reorder
 avvalroq, qolgan uchtasi bugun).
+
+## 2026-07-26 (50) — ASOSIY TOPILMA: butun BirJoy Market QORONG'I turgan ekan (hammaga yoqildi)
+
+**Ega qabul qildi** (§49): «tekshirdim ishladi» — foto-hikoya + §10.3'ning uchala bandi
+`owner-accepted`. Shundan keyin sharh-sanoqlarini tuzatayotib jonli DB'da 0 ta sharh
+ko'rdim — va sabab qidirib, ancha kattaroq narsani topdim.
+
+### Sabab
+Jonli `AppState` flaglari: `shop`=on, `shopv2`=on — LEKIN `feature:bazar`, `feature:bazarcart`,
+`feature:shopchat`, `feature:shopstory` qatorlari **UMUMAN YO'Q EDI**, va bu to'rttasi
+`DEFAULT_OFF` ro'yxatida (aniq "on" qatorisiz OFF). Ya'ni:
+- ega/admin `flagPreview` (`flagOn || isAdmin`) orqali HAMMASINI ko'rardi → «menda ishlayapti»;
+- 3356 oddiy mijoz uchun: do'kon-qatori va do'kon-profillari YO'Q (`bazar`), savat/checkout YO'Q
+  (`bazarcart`), chat va yangi ❓ Yordam tugmasi YO'Q (`shopchat`), hikoyalar YO'Q (`shopstory`).
+Bu «do'kon bo'limi ishlamayapti»ning to'liq javobi. Butun v2 qayta-dizayn mijozlarga ko'rinmagan.
+
+### Isbot (raqamlar bilan)
+3356 a'zo · 6 do'kon (hammasi active, hammasida ownerChatId bor) · 175 mahsulot (133 sotiladigan)
+— shunga qaramay: **2 ta MarketOrder** (1 delivered, 1 rejected — ikkalasi ham admin sinovi),
+**0 hikoya**, **0 sharh**, 6 sevimli. 25 ta xarid esa ESKI `shop` oqimidan (u yoqilgan edi).
+
+### Qilingan ish
+1. **Ega qarori: «hammasini to'g'irla»** → to'rttala flag `setFlag.ts` orqali yoqildi (jim toggle
+   YO'Q — skript har safar `alertAdmins` yuboradi). DB'da tasdiqlandi: bazar/bazarcart/shopchat/
+   shopstory = on. **Mijoz yo'li isbotlandi** (preview=false): `getShopProfile(1,false)` endi
+   NULL emas, `listActiveProducts(false)` = 100, `getMarketHome` do'konlarni qaytaradi.
+2. **Bo'sh do'konlar filtri** (`00e5db8`) — flag yoqilgan zahoti 6 do'kondan 3 tasida sotiladigan
+   mahsulot 0 ta ekani ko'rindi (2 Kamol Market, 3 «jadlkfj» sinov-do'koni, 5 Afruza shop).
+   Mijoz bosib bo'sh javon ko'rishi bozorga ishonchni yo'qotadi. Endi mijozga faqat kamida 1 ta
+   faol+zaxirali mahsuloti bor do'kon ko'rsatiladi; `preview`da (ega/sotuvchi) HAMMASI qoladi —
+   bo'sh do'kon egasi uni ochib mahsulot qo'sha olishi shart. Hisob alohida `groupBy` bilan
+   (mahsulot ro'yxati 100 ta bilan cheklangan — undan hisoblansa katta katalogda do'konlar
+   jimgina yashirinib qolardi). **Isbot**: mijoz `1, 4, 6` ni ko'radi; ega `1..6` ni ko'radi.
+   Yon-foyda: «jadlkfj» sinov-do'koni eganing ma'lumotiga TEGMASDAN mijozdan yashirindi.
+3. **Sharh-sanoqlari** (`62fdcc4`, `66415a3`) — `listShopReviews` 👍/👎 va jamini 30 ta bilan
+   CHEKLANGAN sahifadan hisoblardi (40 sharhli do'konda raqam jimgina noto'g'ri), sarlavha esa
+   faqat BAHOLANGAN sharhlarni sanardi → bitta ekranda ikki xil raqam. Endi uchalasi ham butun
+   to'plamdan `count()`; sarlavha halol «N baho» deb ataladi; ro'yxat kesilgan bo'lsa buni ochiq
+   aytadi. Mahsulotsiz do'kon uchun erta-qaytishda `totalCount` yo'q edi — u ham to'ldirildi.
+
+**Isbot (umumiy)**: `tsc --noEmit` — bot.ts'dan tashqari 0 xato (bot.ts'da boshqa sessiyaning
+tugallanmagan /start ishi bor, 6 xato, meniki emas — tekshirildi) · VPS HEAD `00e5db8` ·
+`bot1067` active · flag yoqilgandan keyin 25 daqiqada jurnal xatolari **0** · `/health` 200.
+
+**Holat**: `ready for verification` — ega endi ODDIY mijoz sifatida (yoki boshqa telefonda)
+do'kon bo'limini ko'rib tasdiqlashi kerak. Bugungi flag-yoqish real 3356 mijozga ta'sir qiladi.
