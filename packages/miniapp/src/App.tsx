@@ -25,6 +25,7 @@ const XizmatlarView = lazy(() => import("./services").then((m) => ({ default: m.
 const ElonlarView = lazy(() => import("./elonlar").then((m) => ({ default: m.ElonlarView })));
 // 🍽 Restoran — taom-buyurtma, "wallet"ning bo'shagan tab-slotini egallaydi (gated by feature `restoran`; owner-preview while DARK)
 const RestoranView = lazy(() => import("./restoran").then((m) => ({ default: m.RestoranView })));
+import { BirJoyMark } from "./design/birjoy";
 import { Icon } from "./icons";
 import { useCountUp } from "./util";
 import { NewProfileView, ThemePicker, initTheme } from "./profile"; // 👤 newprofile + shared theme picker
@@ -470,10 +471,10 @@ function BootSplash() {
       <div className="aurora" />
       <div className="boot-stage">
         <div className="boot-rings"><span /><span /><span /></div>
-        <div className="boot-badge">🚕</div>
+        <div className="boot-badge"><BirJoyMark size={62} /></div>
       </div>
-      <div className="boot-name">1067 <b>TAXI</b></div>
-      <div className="boot-tag">Chaqiring · Tejang · Bonus yig'ing</div>
+      <div className="boot-name">Bir<b>Joy</b></div>
+      <div className="boot-tag">Bir shahar. Ko'plab xizmatlar.</div>
       <div className="boot-bar"><span /></div>
     </div>
   );
@@ -518,9 +519,9 @@ function ErrorScreen({ error }: { error: string }) {
         <div className="nl-card glass pad tac">
           <div className="boot-stage" style={{ margin: "4px auto 18px" }}>
             <div className="boot-rings"><span /><span /><span /></div>
-            <div className="boot-badge">🚕</div>
+            <div className="boot-badge"><BirJoyMark size={62} /></div>
           </div>
-          <h2>1067 uyg'onmoqda…</h2>
+          <h2>BirJoy uyg'onmoqda…</h2>
           <p className="muted">Server bir necha soniyada tayyor bo'ladi — avtomatik qayta ulanamiz.</p>
           <div className="boot-bar" style={{ margin: "18px auto 0" }}><span /></div>
           <button className="d-btn ghost mt12" onClick={() => location.reload()}>Hozir urinish</button>
@@ -555,14 +556,27 @@ function ErrorScreen({ error }: { error: string }) {
   );
 }
 
+// 🔗 Ulanmagan foydalanuvchi. Avval bu ekran BOSHI BERK KO'CHA edi — bironta tugmasiz karta, «botga
+// kiring» degan maslahat bilan. DB (2026-07-26): /start bosgan 1 060 odamdan 289 tasi ulanmagan,
+// shundan 286 tasi raqam tugmasini umuman bosmagan. Endi shu yerdan bitta bosishda botga qaytadi.
 function NotLinked() {
+  const openBot = () => {
+    haptic();
+    const url = "https://t.me/koson1067bot?start=link";
+    if (tg?.openTelegramLink) tg.openTelegramLink(url);
+    else window.open(url, "_blank");
+  };
   return (
     <div className="screen center">
       <div className="aurora" />
-      <div className="nl-card glass pad">
+      <div className="nl-card glass pad tac">
         <div className="nl-emoji">🔗</div>
-        <h2>Akkaunt bog'lanmagan</h2>
-        <p className="muted">Ma'lumotlaringizni ko'rish uchun Telegram botga kiring va telefon raqamingizni ulashing.</p>
+        <h2>Bir qadam qoldi</h2>
+        <p className="muted">
+          Raqamingizni ulasangiz — taksi chaqirasiz, tanga va cashback yig'asiz, buyurtma berasiz.
+          Bir bosishda, bir soniyada.
+        </p>
+        <button className="btn-primary" onClick={openBot}>📱 Raqamni ulash</button>
       </div>
     </div>
   );

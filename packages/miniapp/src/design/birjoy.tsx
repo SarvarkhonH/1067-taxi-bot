@@ -188,3 +188,29 @@ export function BjEmptyState({ text, action, onAction }: { text: string; action?
     </div>
   );
 }
+
+/* ── ∞ BirJoy belgisi — kirish ekrani uchun inline SVG ────────────────────────────────────────
+   Rasm EMAS: ~1 KB, 0 ta tarmoq so'rovi, har o'lchamda tiniq, ikkala temada ishlaydi. Bernulli
+   lemniskatasi — brend logosidagi aynan shu shakl, ko'kdan yashilga o'tuvchi lenta bilan.        */
+export function BirJoyMark({ size = 94 }: { size?: number }) {
+  return (
+    <svg width={size} height={size * 0.62} viewBox="0 0 120 74" role="img" aria-label="BirJoy" className="bj-mark">
+      <defs>
+        <linearGradient id="bjMarkGrad" x1="0" y1="0" x2="1" y2="0">
+          <stop offset="0" stopColor="var(--bj-logo-blue)" />
+          <stop offset="0.40" stopColor="var(--bj-logo-blue-deep)" />
+          <stop offset="0.60" stopColor="var(--bj-logo-green-deep)" />
+          <stop offset="1" stopColor="var(--bj-logo-green)" />
+        </linearGradient>
+      </defs>
+      <path
+        d="M60 37 C48 19, 26 21, 26 37 C26 53, 48 55, 60 37 C72 19, 94 21, 94 37 C94 53, 72 55, 60 37 Z"
+        fill="none"
+        stroke="url(#bjMarkGrad)"
+        strokeWidth="13"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
