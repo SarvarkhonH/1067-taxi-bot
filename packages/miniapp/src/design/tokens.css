@@ -3052,8 +3052,11 @@ body {
    ("Go'shtli somsa"). HAQIQIY nomlar ("MVH TOVALARIMIZ...", "SKIN CARE DLYA DUSH...") 3 ustunda
    kesilib, barcha kafel bir xil ko'rinib qolardi — ega: "noaniq bo'lib qolibti, ikkitadan kattaroq
    va orasiga kamroq joy bilan, haqiqiy do'konlardek". 2 ustun + zich oraliq. */
-.shop-tile-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 2px; border-radius: 14px; overflow: hidden; margin: 4px 0; }
-.shop-tile { position: relative; aspect-ratio: 1 / 1; background: linear-gradient(160deg, rgba(52, 211, 153, .22), rgba(13, 150, 104, .14)); border: none; padding: 0; cursor: pointer; display: flex; align-items: center; justify-content: center; overflow: hidden; transition: transform var(--dur-press) var(--ease-out); }
+/* Ega topdi: plitkalar 2px oraliq bilan, o'z radiusi/soyasisiz yopishib turardi — bitta yaxlit
+   mozaika bo'lib ko'rinib, qayerda bir mahsulot tugab ikkinchisi boshlangani BILINMASDI. Endi har
+   plitka o'z kartasi: radius + nafas + do'kon kartasi (.shop-city-tile) bilan AYNI chegara/soya. */
+.shop-tile-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin: 4px 0; }
+.shop-tile { position: relative; aspect-ratio: 1 / 1; background: linear-gradient(160deg, rgba(52, 211, 153, .22), rgba(13, 150, 104, .14)); border: 1px solid var(--bj-line); border-radius: 14px; box-shadow: var(--bj-shadow); padding: 0; cursor: pointer; display: flex; align-items: center; justify-content: center; overflow: hidden; transition: transform var(--dur-press) var(--ease-out); }
 .shop-tile:active { transform: scale(0.95); }
 .shop-tile-img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
 .shop-tile-initial { position: relative; font-size: 44px; font-weight: 800; color: rgba(6, 95, 70, .32); letter-spacing: -1px; }
