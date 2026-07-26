@@ -1150,7 +1150,7 @@ export async function listReviews(productId: number, memberId: number, preview =
  *  (MarketShop.avgRating/reviewCount ustunlariga yozilmaydi — ular hech qachon yozilmagan, o'lik). */
 export async function listShopReviews(shopId: number, take = 30): Promise<ShopReviewsResponse> {
   const productIds = (await prisma.product.findMany({ where: { shopId }, select: { id: true } })).map((p) => p.id);
-  if (!productIds.length) return { likes: 0, dislikes: 0, reviews: [], myThumb: null, myRating: null, avgRating: 0 };
+  if (!productIds.length) return { likes: 0, dislikes: 0, reviews: [], totalCount: 0, myThumb: null, myRating: null, avgRating: 0 };
   const rows = await prisma.productReview.findMany({
     where: { productId: { in: productIds } },
     orderBy: { id: "desc" },
