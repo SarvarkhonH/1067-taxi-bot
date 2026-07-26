@@ -2948,5 +2948,6 @@ deploy qilingan edi; u yon-kanal, mijozlar ko'radigan nusxa emas. Tekshirdim: sh
 BARCHASI (`--bj-tanga-on-media`, `.app.bjm .shop-wrap`, `shop-tile-grid`, `.app.bjm .topbar`,
 `shop-similar-store`, `shop-sp-*`, `shop-mah-*`, `shop-city-label`) jonli VPS bundle'ida BOR.
 
-**Holat**: `ready for verification` — ega telefonida QABUL kutilmoqda (R6). Uchala band ham
-foydalanuvchiga ko'rinadi, demak «done» faqat ega tasdiqlagandan keyin yoziladi.
+**Holat**: `owner-accepted` — ega 2026-07-26'da o'z telefonida tekshirdi: «tekshirdim ishladi».
+Foto-hikoya ham, §10.3'ning uchala bandi ham qabul qilindi. Shu bilan §10.3 YOPILDI (reorder
+avvalroq, qolgan uchtasi bugun).

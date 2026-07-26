@@ -485,6 +485,9 @@ export interface ShopReviewsResponse {
   likes: number;
   dislikes: number;
   reviews: ShopReviewView[];
+  // Jami sharhlar soni — `reviews` 30 ta bilan cheklangan, shuning uchun uzunlikdan hisoblash
+  // jimgina noto'g'ri raqam berardi. UI shu maydonni ko'rsatadi, kesilganini esa aytadi.
+  totalCount?: number;
   myThumb?: ShopReviewThumb | null;
   myRating?: number | null; // ⭐ V3.2
   avgRating?: number; // ⭐ V3.2: rating qo'yilgan sharhlar o'rtachasi (0 = hech biri yo'q)

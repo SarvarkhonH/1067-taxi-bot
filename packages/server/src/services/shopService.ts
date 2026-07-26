@@ -1156,9 +1156,15 @@ export async function listShopReviews(shopId: number, take = 30): Promise<ShopRe
     orderBy: { id: "desc" },
     take,
   });
-  const [members, ratingAgg] = await Promise.all([
+  // AUDIT: likes/dislikes/jami — `rows` CHEKLANGAN (take=30) bo'lgani uchun undan hisoblanmaydi.
+  // 40 ta sharhli do'konda 👍 faqat oxirgi 30 tasidan sanalardi, ya'ni raqam jimgina noto'g'ri
+  // edi. Endi uchalasi ham butun to'plamdan `count` bilan olinadi (ro'yxat baribir 30 ta qoladi).
+  const [members, ratingAgg, totalCount, upCount, downCount] = await Promise.all([
     prisma.member.findMany({ where: { id: { in: rows.map((r) => r.memberId) } }, select: { id: true, fullName: true, displayName: true } }),
     prisma.productReview.aggregate({ where: { productId: { in: productIds }, rating: { not: null } }, _avg: { rating: true } }),
+    prisma.productReview.count({ where: { productId: { in: productIds } } }),
+    prisma.productReview.count({ where: { productId: { in: productIds }, thumb: "up" } }),
+    prisma.productReview.count({ where: { productId: { in: productIds }, thumb: "down" } }),
   ]);
   const nameOf = new Map(members.map((m) => [m.id, (m.displayName || m.fullName || "Mijoz").trim().split(/\s+/)[0]!]));
   const reviews: ShopReviewView[] = rows.map((r) => ({
@@ -1173,9 +1179,10 @@ export async function listShopReviews(shopId: number, take = 30): Promise<ShopRe
     verified: true, // shop-darajali ro'yxatda "verified" mahsulot-darajali xarid-tekshiruvi shart emas
   }));
   return {
-    likes: rows.filter((r) => r.thumb === "up").length,
-    dislikes: rows.filter((r) => r.thumb === "down").length,
+    likes: upCount,
+    dislikes: downCount,
     reviews,
+    totalCount,
     myThumb: null,
     myRating: null,
     avgRating: Math.round((ratingAgg._avg.rating ?? 0) * 10) / 10,

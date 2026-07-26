@@ -995,7 +995,7 @@ export function ShopView({ me, onBanner, reload, onBook, openProductId }: { me: 
                 <div className="shop-sp-head">
                   <div className="shop-sp-name">{shopProfile.name}</div>
                   {shopProfile.reviewCount > 0 && (
-                    <div className="shop-sp-rating">★ {shopProfile.avgRating} · {shopProfile.reviewCount} sharh</div>
+                    <div className="shop-sp-rating">★ {shopProfile.avgRating} · {shopProfile.reviewCount} baho</div>
                   )}
                 </div>
                 <div className="shop-sp-info">
@@ -1051,7 +1051,10 @@ export function ShopView({ me, onBanner, reload, onBook, openProductId }: { me: 
                 {shopProfileReviews && (
                   <>
                     <button className="shop-sp-reviews" onClick={() => { haptic(); setShopReviewsOpen((v) => !v); }}>
-                      <span className="shop-sp-reviews-l"><Icon name="chat" size={15} /> Sharhlar {shopProfileReviews.reviews.length} ta</span>
+                      {/* AUDIT: bu yerda `reviews.length` (30 ta cap) turardi, sarlavhada esa
+                          faqat BAHOLANGAN sharhlar soni — bitta ekranda ikki xil raqam. Endi
+                          jami (kesilmagan) son ko'rsatiladi, sarlavha esa «baho» deb ataladi. */}
+                      <span className="shop-sp-reviews-l"><Icon name="chat" size={15} /> Sharhlar {shopProfileReviews.totalCount ?? shopProfileReviews.reviews.length} ta</span>
                       <span className="shop-sp-reviews-c">{shopReviewsOpen ? "▲" : "▼"}</span>
                     </button>
                     {shopReviewsOpen && (
@@ -1068,6 +1071,10 @@ export function ShopView({ me, onBanner, reload, onBook, openProductId }: { me: 
                             <div className="shop-sp-rev-days">{daysAgo(r.createdAt)}</div>
                           </div>
                         ))}
+                        {/* Jim kesish yo'q: ro'yxat cheklangan bo'lsa buni ochiq aytamiz. */}
+                        {(shopProfileReviews.totalCount ?? 0) > shopProfileReviews.reviews.length && (
+                          <div className="shop-sp-rev-more">Oxirgi {shopProfileReviews.reviews.length} tasi ko&apos;rsatilgan</div>
+                        )}
                       </div>
                     )}
                   </>
