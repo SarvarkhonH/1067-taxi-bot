@@ -49,7 +49,8 @@ import {
   renderReferralWin,
   renderTaken,
   renderWeeklyBlock,
-  renderWelcome,
+  renderStartLinked,
+  renderStartWelcome,
   renderWheel,
 } from "./render";
 import { getFareConfig } from "../services/clientInfoService";
@@ -132,6 +133,63 @@ async function mainMenu(_isDriver = false, _tgId?: string): Promise<{ remove_key
 
 function contactKeyboard(): Keyboard {
   return new Keyboard().requestContact("📱 Raqamni ulashish").resized().oneTime();
+}
+
+// 👋 /start klaviaturasi — ILOVA birinchi, raqam ikkinchi, IKKALASI BITTA xabarda. `request_contact`
+// faqat reply-klaviaturada ishlaydi, `web_app` esa ikkalasida ham — shuning uchun ular shu yerda
+// birlashtirildi. `oneTime` YO'Q: odam ulanmaguncha tugmalar ko'rinib tursin.
+function startKeyboard(): Keyboard {
+  const k = new Keyboard();
+  if (canWebApp) k.webApp("🚀 Ilovani ochish", webAppUrl()).row();
+  return k.requestContact("📱 Raqamni ulash").resized();
+}
+
+// 🖼 Brend posteri. Telegram birinchi yuklashdan keyin `file_id` beradi — uni saqlab, keyingi har
+// bir /start'da qayta ishlatamiz (har safar 25 KB yuklamaslik uchun).
+const START_PHOTO = new URL("../../assets/start.png", import.meta.url);
+const START_PHOTO_KEY = "startphoto:fileid";
+
+/** /start ning YAGONA javobi: poster + qisqa matn + bitta klaviatura. Avval bu yerda 2-3 ta xabar
+ *  ketma-ket ketardi (profil to'kilishi + qadalgan karta) — ega qarori 2026-07-26: bitta qadam,
+ *  bitta xabar. Poster yuborilmasa (tarmoq/fayl) matnning o'zi baribir tugmalari bilan boradi. */
+async function sendStartCard(ctx: Context, linked: boolean, name: string, firstRideBonus: number): Promise<void> {
+  const caption = linked ? renderStartLinked(name) : renderStartWelcome(name, firstRideBonus);
+  const reply_markup = linked
+    ? canWebApp
+      ? new InlineKeyboard().webApp("🚀 Ilovani ochish", webAppUrl())
+      : undefined
+    : startKeyboard();
+  const cached = await prisma.appState.findUnique({ where: { key: START_PHOTO_KEY } }).catch(() => null);
+  const msg = await ctx
+    .replyWithPhoto(cached?.value ?? new InputFile(START_PHOTO), { caption, parse_mode: "HTML", reply_markup })
+    .catch(() => null);
+  if (!msg) {
+    await ctx.reply(caption, { parse_mode: "HTML", reply_markup }).catch(() => undefined);
+    return;
+  }
+  const biggest = msg.photo?.[msg.photo.length - 1];
+  if (!cached && biggest) {
+    const fileId = biggest.file_id;
+    await prisma.appState
+      .upsert({ where: { key: START_PHOTO_KEY }, create: { key: START_PHOTO_KEY, value: fileId }, update: { value: fileId } })
+      .catch(() => undefined);
+  }
+}
+
+/** Ulanish tugagach — BITTA tasdiq kartasi. `extras` = sovg'a / referal kabi qatorlar; ular avval
+ *  alohida-alohida xabar bo'lib kelardi (jami 5 tagacha), endi shu kartaning ichida. Reply-klaviatura
+ *  ham olib tashlanadi: «Raqamni ulash» tugmasi endi keraksiz. */
+async function sendLinkedCard(ctx: Context, name: string, extras: string[]): Promise<void> {
+  await ctx.api.sendMessage(ctx.chat!.id, "✅", { reply_markup: { remove_keyboard: true } })
+    .then((m) => ctx.api.deleteMessage(ctx.chat!.id, m.message_id))
+    .catch(() => undefined);
+  const caption = renderLinked(name) + (extras.length ? `\n\n${extras.join("\n")}` : "");
+  const reply_markup = canWebApp ? new InlineKeyboard().webApp("🚀 Ilovani ochish", webAppUrl()) : undefined;
+  const cached = await prisma.appState.findUnique({ where: { key: START_PHOTO_KEY } }).catch(() => null);
+  const sent = await ctx
+    .replyWithPhoto(cached?.value ?? new InputFile(START_PHOTO), { caption, parse_mode: "HTML", reply_markup })
+    .catch(() => null);
+  if (!sent) await ctx.reply(caption, { parse_mode: "HTML", reply_markup }).catch(() => undefined);
 }
 
 // Unlinked prompt — ALWAYS offers BOTH paths: the verified «Raqamni ulashish» (reply keyboard)
@@ -332,56 +390,32 @@ export function createBot(): Bot {
       const { sendShopCard } = await import("./shop");
       await sendShopCard(bot, id).catch(() => undefined);
     }
+    // /start = BITTA xabar, ikkalasi uchun ham: poster + qisqa matn + tugmalar.
+    // Oldin bu yerda 2-3 ta xabar ketardi (renderProfile'ning 20 qatorlik statistikasi + alohida
+    // qadalgan «Ochish» kartasi). Statistika ilovada va /me'da bor; ulanmagan odam esa endi
+    // raqam devoriga emas, ochiq ilovaga duch keladi.
     const me = await getMe(id);
-    if (me) {
-      await ctx.reply(renderProfile(me), { parse_mode: "HTML", reply_markup: await mainMenu(me.type === "driver", String(ctx.from?.id ?? "")) });
-    } else {
-      // Birinchi kirish — BITTA chiroyli ekran: katta «📱 Raqamni ulashish» tugmasi (asosiy,
-      // soda). «Boshqa raqam» yo'li endi welcome ichidagi /boshqaraqam ipi (avvalgi 3 ta stacked
-      // xabar o'rniga). Ega tilagi: «birinchi marta kirganda chiroyli + juda soda».
-      // Hook FAQAT welcomebonus flag yonganda ko'rinadi — to'lanmaydigan va'da bermaymiz.
-      const wb = (await featureOn("welcomebonus")) ? ((await getBonusEcon()).firstRide ?? REFEREE_REWARD) : 0;
-      await ctx.reply(renderWelcome(ctx.from!.first_name ?? "do'st", wb), { parse_mode: "HTML", reply_markup: contactKeyboard() });
-    }
-    // 📌 «Ochish» web-app kartasi — FAQAT ro'yxatdan o'tganlarga (me bor). Yangi foydalanuvchi
-    // /start bosganda BITTA xabar ko'radi: raqam ulash. Ilova havolasi keyin, handleLink'da
-    // ulangandan so'ng keladi (ega qarori 2026-07-26: bitta qadam — bitta xabar).
-    // Bir marta qadaladi (apppinned:<id>), qayta /start qadamaydi.
-    if (canWebApp && me) {
-      const firstPin = await prisma.appState.create({ data: { key: `apppinned:${id}`, value: "1" } }).then(() => true).catch(() => false);
-      if (firstPin) {
-        const card = await ctx
-          .reply("🚖 <b>BirJoy — bir bosishda taxi!</b>\nChiqishdan OLDIN narxni bilasiz + har safardan tanga qaytadi.\nManzilni tanlang, jonli xaritada haydovchini kuzating 👇", {
-            parse_mode: "HTML",
-            reply_markup: new InlineKeyboard().webApp("🚕 Ilovani ochish", webAppUrl()),
-          })
-          .catch(() => null);
-        if (card) await ctx.api.pinChatMessage(ctx.chat!.id, card.message_id, { disable_notification: true }).catch(() => undefined);
-      }
-    }
+    const wb = !me && (await featureOn("welcomebonus")) ? ((await getBonusEcon()).firstRide ?? REFEREE_REWARD) : 0;
+    await sendStartCard(ctx, !!me, me?.member.fullName ?? ctx.from!.first_name ?? "do'st", wb);
   });
 
   const handleLink = async (ctx: Context, phone: string) => {
     const id = String(ctx.from!.id);
-    await ctx.reply("🔎 Tekshiryapman…");
+    // «🔎 Tekshiryapman…» xabari o'rniga typing-indikatori — u xabar sanog'iga qo'shilmaydi.
+    await ctx.replyWithChatAction("typing").catch(() => undefined);
     const res = await linkByPhone(id, phone, profileOf(ctx.from!));
     if (res.status === "linked") {
-      const me = await getMe(id);
-      // Ro'yxatdan o'tish tugadi → ilovaga BITTA kirish tugmasi (ega qarori 2026-07-26).
-      // Web-app tugmasi faqat HTTPS'da ishlaydi; bo'lmasa oddiy menyu-klaviatura qoladi.
-      await ctx.reply(renderLinked(res.fullName ?? "Mijoz"), {
-        parse_mode: "HTML",
-        reply_markup: canWebApp
-          ? new InlineKeyboard().webApp("🚀 Ilovani ochish", webAppUrl())
-          : await mainMenu(res.type === "driver", String(ctx.from?.id ?? "")),
-      });
+      // Ulanish tasdig'i BITTA xabar (ega qarori 2026-07-26). Avval bu yerda 5 tagacha xabar
+      // ketma-ket kelardi: tasdiq → sovg'a → referal → profil-statistika → «ilova ham bor» →
+      // AI salomi. Sovg'a va referal qatorlari endi shu yagona kartaning ichida.
+      const extras: string[] = [];
       // Auto-derive a friendly display name (no fragile "type your name" prompt that captured
       // menu-button taps): Telegram first+last name → @username → phone's last 4 digits.
       // Only for clients, and only if they don't already have a user-set name. Silent — they can
       // change it anytime via Hisobim → ✏️ Ismni o'zgartirish.
       if (res.type === "client" && res.memberId) await autoSetDisplayName(res.memberId, ctx.from!, phone);
       if (res.welcomeBonus) {
-        await ctx.reply(`🎁 <b>Xush kelibsiz! Sovg'a: +${formatNumber(res.welcomeBonus)} tanga</b> hisobingizga tushdi 🚕\nIlovada ishlating yoki safar qiling.`, { parse_mode: "HTML" }).catch(() => undefined);
+        extras.push(`🎁 Sovg'a: <b>+${formatNumber(res.welcomeBonus)} tanga</b> hisobingizga tushdi.`);
       }
       // pay out a pending referral (this user joined via someone's invite)
       if (res.memberId) {
@@ -390,12 +424,7 @@ export function createBot(): Bot {
           // friend: only promise an on-ride bonus when there IS one (legacy, or staged w/o join-welcome).
           // In STAGED with the join-welcome ON, the friend already saw their +5000 message above.
           if (credit.refereeReward > 0) {
-            await ctx
-              .reply(
-                `✅ Do'st taklifi qabul qilindi!\nBirinchi safaringizdan keyin <b>+${formatNumber(credit.refereeReward)} tanga</b> olasiz 🚕`,
-                { parse_mode: "HTML" },
-              )
-              .catch(() => undefined);
+            extras.push(`✅ Do'st taklifi qabul qilindi — birinchi safaringizdan keyin <b>+${formatNumber(credit.refereeReward)} tanga</b>.`);
           }
           // inviter: STAGED → "raqam ulandi, +refShare now, +refRide on ride"; LEGACY → the win card.
           if (credit.staged && credit.shareReward > 0) {
@@ -427,20 +456,8 @@ export function createBot(): Bot {
             .catch(() => undefined);
         }
       }
-      if (me) await ctx.reply(renderProfile(me), { parse_mode: "HTML", reply_markup: await mainMenu(me.type === "driver", String(ctx.from?.id ?? "")) });
-      // Ulangan zahoti ilovani BIR MARTA ko'zga tashlash — "odamlar web app borligini bilmaydi".
-      if (canWebApp) {
-        await ctx
-          .reply("🎮 <b>BirJoy ilovasi ham bor!</b>\nJonli xarita · taxi · hamyon — hammasi bitta joyda 👇", {
-            parse_mode: "HTML",
-            reply_markup: new InlineKeyboard().webApp("🚕 Ilovani ochish", webAppUrl()),
-          })
-          .catch(() => undefined);
-      }
-      // 🤖 renderWelcome promised "ulagach darrov so'rayman" — deliver on it: the AI's own direct
-      // question, the actual first turn of the conversation (not just a wall of examples).
-      // Static (no LLM) so it always fires, same reliability guarantee as smallTalk().
-      await ctx.reply("😊 Xo'sh, sizga bugun qanday yordam beray — taksimi, ovqatmi, yoki boshqa narsa?").catch(() => undefined);
+      // …va mana o'sha YAGONA xabar: poster + tasdiq (+ sovg'a/referal qatorlari) + ilova tugmasi.
+      await sendLinkedCard(ctx, res.fullName ?? "Mijoz", extras);
     } else if (res.status === "banned") {
       await ctx.reply("🚫 Bu raqam bloklangan. Bot xizmatlaridan foydalanolmaysiz.\nSavol bo'lsa: 1067");
     } else if (res.status === "taken") {
@@ -674,26 +691,12 @@ export function createBot(): Bot {
     await touchTelegramUser(id, profileOf(ctx.from!));
     const res = await linkByPhone(id, sess.phone, profileOf(ctx.from!));
     if (res.status === "linked") {
-      await ctx.reply(`✅ <b>Raqam tasdiqlandi va ulandi!</b> Xush kelibsiz, ${esc(res.fullName ?? "Mijoz")} 🎉`, { parse_mode: "HTML", reply_markup: await mainMenu(res.type === "driver", String(ctx.from?.id ?? "")) });
+      // 1067-kod yo'li ham telefon-ulashish yo'li bilan bir xil: BITTA karta.
       if (res.type === "client" && res.memberId) await autoSetDisplayName(res.memberId, ctx.from!, sess.phone);
-      if (res.welcomeBonus) {
-        await ctx.reply(`🎁 <b>Sovg'a: +${formatNumber(res.welcomeBonus)} tanga</b> hisobingizga tushdi 🚕`, { parse_mode: "HTML" }).catch(() => undefined);
-      }
-      const me = await getMe(id);
-      if (me) await ctx.reply(renderProfile(me), { parse_mode: "HTML", reply_markup: await mainMenu(me.type === "driver", String(ctx.from?.id ?? "")) });
-      // Ulangan zahoti ilovani BIR MARTA ko'zga tashlash — "odamlar web app borligini bilmaydi".
-      if (canWebApp) {
-        await ctx
-          .reply("🎮 <b>BirJoy ilovasi ham bor!</b>\nJonli xarita · taxi · hamyon — hammasi bitta joyda 👇", {
-            parse_mode: "HTML",
-            reply_markup: new InlineKeyboard().webApp("🚕 Ilovani ochish", webAppUrl()),
-          })
-          .catch(() => undefined);
-      }
-      // 🤖 renderWelcome promised "ulagach darrov so'rayman" — deliver on it: the AI's own direct
-      // question, the actual first turn of the conversation (not just a wall of examples).
-      // Static (no LLM) so it always fires, same reliability guarantee as smallTalk().
-      await ctx.reply("😊 Xo'sh, sizga bugun qanday yordam beray — taksimi, ovqatmi, yoki boshqa narsa?").catch(() => undefined);
+      const extras: string[] = [];
+      if (res.welcomeBonus) extras.push(`🎁 Sovg'a: <b>+${formatNumber(res.welcomeBonus)} tanga</b> hisobingizga tushdi.`);
+      // …va mana o'sha YAGONA xabar: poster + tasdiq (+ sovg'a/referal qatorlari) + ilova tugmasi.
+      await sendLinkedCard(ctx, res.fullName ?? "Mijoz", extras);
     } else if (res.status === "banned") {
       await ctx.reply("🚫 Bu raqam bloklangan. Bot xizmatlaridan foydalanolmaysiz.\nSavol bo'lsa: 1067");
     } else if (res.status === "taken") {

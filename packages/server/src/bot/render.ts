@@ -41,6 +41,31 @@ export function renderWelcome(name: string, firstRideBonus = 0): string {
   );
 }
 
+/** /start — ALREADY LINKED. One short line under the brand poster; no stats dump. The ladder,
+ *  wallet, streak and rank all live in the app (and /me) — repeating them here was 20 lines of
+ *  noise before the one button that actually matters. */
+export function renderStartLinked(name: string): string {
+  return (
+    `Salom, <b>${esc(name)}</b>! 👋\n\n` +
+    `Taksi · do'kon · restoran · hamyon — hammasi ilovada.\n\n` +
+    `<i>Statistikangiz: /me</i>`
+  );
+}
+
+/** /start — NOT LINKED YET. The old flow demanded a phone number before showing anything, and
+ *  286 of 289 unlinked people never even tapped the button (DB, 2026-07-26). So the app comes
+ *  FIRST and the number is offered second — both in this one message's keyboard. */
+export function renderStartWelcome(name: string, firstRideBonus = 0): string {
+  const hook = firstRideBonus > 0 ? `\n🎁 Birinchi safaringizga <b>${formatNumber(firstRideBonus)} tanga</b> sovg'a.\n` : "";
+  return (
+    `Salom, <b>${esc(name)}</b>! 👋\n\n` +
+    `<b>BirJoy</b> — bir shahar, ko'plab xizmatlar: taksi, do'kon, restoran, xizmatlar.\n` +
+    hook +
+    `\n👇 <b>Ilovani oching</b> — ko'rib chiqing, hamma narsa ochiq.\n` +
+    `📱 Taksi chaqirish va tangalar uchun raqamingizni ulang — bir bosishda.`
+  );
+}
+
 export function renderLinkPrompt(): string {
   return (
     `🔗 <b>Bir qadam qoldi</b>\n\n` +
