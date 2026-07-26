@@ -22,6 +22,7 @@ import {
   type MahallaView,
 } from "@t1067/shared";
 import { api, apiUrl } from "./api";
+import { loadErrorText } from "./util";
 import { haptic, hapticSuccess, inviteText, inviteLandingUrl, shareLink, tgGetLocation, tgHasLocationManager } from "./telegram";
 import { confetti, compressImage } from "./util";
 import { Button, EmptyState, ProgressBar, Sheet, Skeleton } from "./design/components";
@@ -853,7 +854,7 @@ export function ShopView({ me, onBanner, reload, onBook, openProductId }: { me: 
       )}
 
       {err ? (
-        <EmptyState icon="📡" text="Yuklanmadi — internetni tekshirib qayta urinib ko'ring" action="🔄 Qayta urinish" onAction={load} />
+        <EmptyState icon="📡" text={loadErrorText()} action="🔄 Qayta urinish" onAction={load} />
       ) : products === null ? (
         <>
           <Skeleton h={160} />
@@ -1179,7 +1180,7 @@ export function ShopView({ me, onBanner, reload, onBook, openProductId }: { me: 
           {bazar && !shopFilter && shopv2 && marketErr && (
             <EmptyState
               icon="📡"
-              text="Do'konlar yuklanmadi — internetni tekshirib qayta urinib ko'ring"
+              text={loadErrorText()}
               action="🔄 Qayta urinish"
               onAction={() => { haptic(); loadMarket(); }}
             />
@@ -1802,7 +1803,7 @@ export function ShopView({ me, onBanner, reload, onBook, openProductId }: { me: 
           </div>
         ))}
         {ordersErr ? (
-          <EmptyState icon="📡" text="Yuklanmadi — internetni tekshirib qayta urinib ko'ring" action="🔄 Qayta urinish" onAction={loadOrders} />
+          <EmptyState icon="📡" text={loadErrorText()} action="🔄 Qayta urinish" onAction={loadOrders} />
         ) : orders === null ? (
           <><Skeleton h={54} className="mt8" /><Skeleton h={54} className="mt8" /></>
         ) : orders.length === 0 && (mktOrders ?? []).length > 0 ? null : orders.length === 0 ? (
@@ -1853,7 +1854,7 @@ export function ShopView({ me, onBanner, reload, onBook, openProductId }: { me: 
           ) : cartCount > 0 && err ? (
             <>
               <h3>🧺 Savat</h3>
-              <EmptyState icon="📡" text="Savat yuklanmadi — internetni tekshirib qayta urinib ko'ring" action="🔄 Qayta urinish" onAction={load} />
+              <EmptyState icon="📡" text={loadErrorText()} action="🔄 Qayta urinish" onAction={load} />
             </>
           ) : cartLines.length === 0 ? (
             <>

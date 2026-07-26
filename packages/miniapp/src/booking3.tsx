@@ -11,6 +11,7 @@ import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import { formatNumber, haversineKm, type ActiveBookingView, type BookingDriverView, type BookingInfoResponse, type MeResponse, type SavedAddressView, type WheelSpinResponse } from "@t1067/shared";
 import { api } from "./api";
+import { loadErrorText } from "./util";
 import { haptic, hapticSuccess, tg, tgGetLocation, tgHasLocationManager, tgOpenLocationSettings } from "./telegram";
 // 🪙 passive compensation ticker (Jonli qidiruv) — the ONE ramp formula (mirrors the server's
 // cashbackService.waitCompAmount) so the number shown never overstates what will actually be paid.
@@ -316,7 +317,7 @@ export function Booking3View({ me, onClose }: { me: MeResponse; onClose: () => v
     return (
       <div className="bk-screen">
         <div className="bk-bar"><button className="btn-ghost bk-back" onClick={onClose}>←</button><div className="bk-title">🚖 Taxi</div></div>
-        <div className="d-empty"><div className="d-empty-ico">📡</div><p>Yuklanmadi — internetni tekshirib qayta urinib ko'ring</p><Button variant="ghost" onClick={() => location.reload()}>🔄 Qayta urinish</Button></div>
+        <div className="d-empty"><div className="d-empty-ico">📡</div><p>{loadErrorText()}</p><Button variant="ghost" onClick={() => location.reload()}>🔄 Qayta urinish</Button></div>
       </div>
     );
   }

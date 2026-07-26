@@ -63,3 +63,11 @@ export function confetti(count = 26): void {
   document.body.appendChild(host);
   setTimeout(() => host.remove(), 2200);
 }
+
+/** Honest load-failure copy. The old text blamed the user's internet for EVERY failure — including
+ *  the Telegram-initData auth race (fixed in api.ts, 2026-07-26), where the connection was fine and
+ *  the advice was simply wrong. Only claim a network problem when the browser actually reports one. */
+export function loadErrorText(): string {
+  const offline = typeof navigator !== "undefined" && navigator.onLine === false;
+  return offline ? "Internet aloqasi yo'q — ulanib qayta urining" : "Yuklanmadi — qayta urinib ko'ring";
+}

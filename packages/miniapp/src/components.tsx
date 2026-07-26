@@ -12,6 +12,7 @@ import {
 } from "@t1067/shared";
 import { api, type RideHistoryRow, type RideHistoryResponse } from "./api";
 import { copyText, haptic, shareLink, inviteText, inviteLandingUrl } from "./telegram";
+import { loadErrorText } from "./util";
 
 export function Spinner() {
   return (
@@ -99,7 +100,7 @@ export function LoadError({ onRetry }: { onRetry: () => void }) {
   return (
     <div className="d-empty">
       <div className="d-empty-ico">📡</div>
-      <p>Yuklanmadi — internetni tekshirib qayta urinib ko'ring</p>
+      <p>{loadErrorText()}</p>
       <button className="d-btn ghost" onClick={onRetry}>🔄 Qayta urinish</button>
     </div>
   );

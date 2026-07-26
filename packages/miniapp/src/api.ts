@@ -91,15 +91,34 @@ const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 async function request<T>(method: string, path: string, body?: unknown, retries = 5): Promise<T> {
   let lastErr: unknown;
+  // ⏳ EVERY call waits for initData, not just /api/me. Telegram Desktop/Web Z fill initData a few
+  // hundred ms after the WebView opens; any request that raced ahead of it went out unauthenticated,
+  // came back 401, and — because 401 throws below without a retry — surfaced as «Yuklanmadi —
+  // internetni tekshiring» on a perfectly good connection (owner report + `auth-header: NONE` 401s
+  // for /api/shop/products in the access log, 2026-07-26). Resolves instantly once initData is set.
+  if (tg && !getInitData()) await waitForInitData();
+  let retried401 = false;
   // Retry network-level failures (Render free-tier cold start can take ~30s to wake).
   for (let attempt = 0; attempt < retries; attempt++) {
+    // did THIS attempt carry a signed initData? a 401 despite one is a real auth failure, not a race.
+    const sentInitData = !!getInitData();
     try {
       const res = await fetch(`${API_BASE}${path}`, {
         method,
         headers: { ...authHeaders(), ...(body !== undefined ? { "Content-Type": "application/json" } : {}) },
         body: body !== undefined ? JSON.stringify(body) : undefined,
       });
-      if (res.status === 401) throw new Error("unauthorized");
+      if (res.status === 401) {
+        // Second net under the wait above: if initData landed LATER than the wait window (backgrounded
+        // tab, slow client), one 401 would otherwise be permanent for that screen. Retry exactly once,
+        // and only when initData actually appeared since — a genuinely unauthenticated user still
+        // falls through to the real «Telegram orqali oching» / NotLinked screens.
+        if (tg && !sentInitData && !retried401) {
+          retried401 = true;
+          if (await waitForInitData(1500, 50)) continue;
+        }
+        throw new Error("unauthorized");
+      }
       if (!res.ok) throw new Error(`${path} -> ${res.status}`);
       return (await res.json()) as T;
     } catch (e) {

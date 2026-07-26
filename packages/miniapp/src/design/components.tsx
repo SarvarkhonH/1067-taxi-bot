@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState, type ReactNode, type CSSProperties } from "react";
 import { haptic } from "../telegram";
 import { useCountUp } from "../util";
+import { loadErrorText } from "../util";
 
 export function Button({
   children,
@@ -222,7 +223,7 @@ export function LoadSection({
   onRetry,
   children,
   skeletonLines = 3,
-  errorText = "Yuklanmadi — internetni tekshirib qayta urinib ko'ring",
+  errorText = loadErrorText(),
 }: {
   state: "loading" | "error" | "ready";
   onRetry: () => void;

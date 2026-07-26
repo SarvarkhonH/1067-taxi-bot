@@ -6,6 +6,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import type { MeResponse, ServiceCategoryView, ServiceListingCard, ServiceListingDetail, ServiceReviewView, ServiceSubmitBody } from "@t1067/shared";
 import { INSP_CATEGORIES, INSP_TIER_EMOJI, INSP_TIER_LABEL } from "@t1067/shared";
 import { api, apiUrl } from "./api";
+import { loadErrorText } from "./util";
 import { haptic, hapticSuccess, tg } from "./telegram";
 import { Button, EmptyState, Lightbox, Sheet, Skeleton } from "./design/components";
 
@@ -652,7 +653,7 @@ export function XizmatlarView({ me, onBanner }: { me: MeResponse; onBanner: (msg
       )}
 
       {err ? (
-        <EmptyState icon="📡" text="Yuklanmadi — internetni tekshirib qayta urinib ko'ring" action="🔄 Qayta urinish" onAction={load} />
+        <EmptyState icon="📡" text={loadErrorText()} action="🔄 Qayta urinish" onAction={load} />
       ) : q.trim() ? (
         found === null ? (
           <div className="mt10"><Skeleton h={74} /><Skeleton h={74} className="mt8" /></div>
