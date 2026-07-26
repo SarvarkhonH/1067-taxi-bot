@@ -2997,3 +2997,43 @@ tugallanmagan /start ishi bor, 6 xato, meniki emas — tekshirildi) · VPS HEAD 
 
 **Holat**: `ready for verification` — ega endi ODDIY mijoz sifatida (yoki boshqa telefonda)
 do'kon bo'limini ko'rib tasdiqlashi kerak. Bugungi flag-yoqish real 3356 mijozga ta'sir qiladi.
+
+## 2026-07-26 (51) — Ega QABUL qildi; jonli buyurtma xavfsizlik-to'ri + topilgan 500
+
+**§50 owner-accepted**: ega oddiy mijoz sifatida tekshirdi — «tekshirdim ishlayapti».
+Ya'ni `bazar`/`bazarcart`/`shopchat`/`shopstory` hammaga yoqilgani QABUL qilindi.
+
+### A. Javobsiz buyurtma endi jimgina tanga ushlab turmaydi (`9d82993`)
+Savat hammaga yoqilgach, birinchi HAQIQIY buyurtma e'tiborsiz qolishi mumkin bo'lib qoldi.
+Ikki bo'shliq yopildi:
+1. **Sotuvchi-eslatmasi** — 15 daqiqalik SLA-supurgisi ALLAQACHON `MarketOrder`ni qamrardi,
+   lekin faqat ADMINLARGA xabar berardi; javob bermagan sotuvchining o'ziga hech narsa
+   bormasdi (eslatma nishonni chetlab o'tardi). Endi do'konning o'z chatiga ham boradi —
+   o'sha qabul/rad tugmalari bilan va «mijozning tangasi ushlab turibdi» deb ochiq aytib.
+   `slaAlertedAt` markeri QO'YILISHDAN OLDIN yuboriladi → har buyurtmaga AYNAN bitta, spam yo'q.
+2. **`expireStaleMarketOrders()`** — N soat (default 6) javobsiz `pending` buyurtma avtomatik
+   bekor qilinadi, tanga qaytariladi, mijozga SABABI bilan xabar boradi, adminlarga satr.
+   **Yangi pul-mantiq YOZILMADI**: mavjud `terminateWithRefund` yo'li (shartli flip + restock +
+   idempotent `mktrefund:<id>`). FAQAT `pending` tegiladi — qabul qilingan buyurtma telefon
+   orqali kelishilgan bo'lishi mumkin, u HECH QACHON avtomatik bekor qilinmaydi.
+   **Yangi kill-switch flag `mktexpire`, DEFAULT_OFF — QORONG'I chiqarildi.**
+   Ikkalasi ham mavjud booking-tick'ga ulandi (yangi poller YO'Q — CLAUDE.md qoidasi).
+**Isbot**: `tsc` — bot.ts'dan tashqari 0 xato · jonlida `featureOn("mktexpire")=false`,
+`expireStaleMarketOrders()` = `[]` (qorong'i va harakatsiz), pending buyurtma 0.
+**TEKSHIRILMAGAN (ochiq aytaman)**: avto-bekor yo'li HAQIQIY ma'lumotga qarshi sinalmadi —
+bekor qilinadigan pending buyurtma yo'q, va pul-testlari CLAUDE.md bo'yicha app DB'da emas,
+TEST_DATABASE_URL'da yurishi shart. Aynan shu sababdan flag OFF chiqarildi.
+
+### B. Yo'l-yo'lakay topilgan JONLI 500 (meniki emas, lekin muhim)
+Deploydan keyin jurnalni tekshirayotib `[api] error GET /api/shop/market:
+PrismaClientValidationError … Argument \`id\` must not be null` ko'rindi — mehmon (initData'siz)
+so'rovda `getMemberId(null)` → `findUnique({id:null})` → **500**. Ya'ni do'kon-bosh sahifasi
+autentifikatsiya yetib kelmagan mijozda umuman ochilmasdi — «do'kon ishlamayapti»ning yana bir
+qismi. Tekshirdim: tuzatish boshqa sessiya tomonidan aynan shu payt commit qilingan (`18b286c`,
+`getMemberId`/`getMe` manbada null-guard), men uni takrorlamadim — deploy tushishini kutdim.
+**Isbot (deploydan keyin)**: `https://api.birjoy.online/api/shop/market` MEHMON so'rovi →
+**200**, `shops=3` (bo'sh-do'kon filtri ishlayapti: 1, 4, 6), `products=100`. Restartdan keyingi
+jurnalda `/api/shop/market` 500 soni = **0**, umumiy xato = **0**, servis active.
+
+**Holat**: A `ready for verification` (flag OFF — yoqish egaga havola); B — tuzatilgan va
+jonlida isbotlangan.
