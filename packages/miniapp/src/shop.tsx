@@ -856,7 +856,7 @@ export function ShopView({ me, onBanner, reload, onBook, openProductId }: { me: 
               <Icon name="heart" size={17} filled={favOnly} />
             </button>
           )}
-          {!shopv2 && <button className="shop-share-btn" onClick={shareShop} aria-label="Do'konni ulashish"><Icon name="share" size={18} /></button>}
+          {<button className="shop-share-btn" onClick={shareShop} aria-label="Do'konni ulashish"><Icon name="share" size={18} /></button>}
           {!shopv2 && <button className="shop-orders-btn" onClick={openOrders}>📦 Buyurtmalarim</button>}
           {shopv2 && (
             <>
@@ -1215,7 +1215,7 @@ export function ShopView({ me, onBanner, reload, onBook, openProductId }: { me: 
           )}
           {/* ── 🏪 V1.4 BirJoy: kategoriya-KARUSEL (Uzum-referens) — pastdagi flat-katalogni filtrlaydi,
               shopv2 bazar-bosh'da flat-katalog o'zi yashirin bo'lgani uchun bu ham yashirin ── */}
-          {bazar && !shopFilter && !shopv2 && market && market.cats.length > 0 && (
+          {bazar && !shopFilter && market && market.cats.length > 0 && (
             <BjCategoryCarousel
               cats={market.cats.map((c) => ({ slug: c.name, name: c.name, emoji: c.emoji, iconUrl: c.hasIcon ? apiUrl(`/api/shop/cat-icon/${c.id}`) : null }))}
               active={cat}
@@ -1434,11 +1434,14 @@ export function ShopView({ me, onBanner, reload, onBook, openProductId }: { me: 
               bosh-sahifada do'konlardan KEYIN barcha do'konlarning mahsulotlari ham ko'rsatiladi.
               Mockup faqat do'konlarni chizgan edi — ega ikkala oqim ham ochiq bo'lishini tanladi
               ("nima olishni biladigan" mijoz do'kon tanlamasdan to'g'ridan-to'g'ri topa olsin). */}
-          {shopv2 && bazar && !shopFilter && !searched && (products ?? []).length > 0 && (
+          {/* Kategoriya tanlansa panjara SHU kategoriyaga qisqaradi - avval `products` (filtrsiz xom
+              ro'yxat) ishlatilgani uchun karusel bosilsa ham hech narsa o'zgarmasdi. `catalog` esa
+              cat/fav/do'kon filtrlarini hisobga oladi. */}
+          {shopv2 && bazar && !shopFilter && !searched && catalog.length > 0 && (
             <div className="shop-home-products">
-              <div className="shop-section-title2">Mahsulotlar</div>
+              <div className="shop-section-title2">{cat ?? "Mahsulotlar"}</div>
               <div className="shop-tile-grid home">
-                {(products ?? []).slice(0, 24).map((p) => (
+                {catalog.slice(0, 24).map((p) => (
                   <StoreTile key={p.id} p={p} onOpen={openProduct} onFav={toggleFav} />
                 ))}
               </div>
@@ -1467,7 +1470,7 @@ export function ShopView({ me, onBanner, reload, onBook, openProductId }: { me: 
 
       {/* ── sotuvchi bo'lish CTA — do'kon egalarini jalb qilish. shopv2'da YO'Q (mockup'da
           bunday blok yo'q; ega "ortiqcha hech nima bo'lmasin" dedi). ── */}
-      {!shopv2 && !sel && !ordersOpen && (
+      {!sel && !ordersOpen && (
         <div className="shop-seller-cta">
           <div className="shop-seller-ico">🏪</div>
           <div className="shop-seller-body">
@@ -1506,7 +1509,7 @@ export function ShopView({ me, onBanner, reload, onBook, openProductId }: { me: 
               <button className="shop-share-btn sm" onClick={() => toggleFav(sel)} aria-label={sel.isFav ? "Sevimlidan olish" : "Sevimliga qo'shish"}>
                 <Icon name="heart" size={15} filled={sel.isFav} />
               </button>
-              {!shopv2 && <button className="shop-share-btn sm" onClick={() => shareProduct(sel)} aria-label="Ulashish"><Icon name="share" size={15} /></button>}
+              {<button className="shop-share-btn sm" onClick={() => shareProduct(sel)} aria-label="Ulashish"><Icon name="share" size={15} /></button>}
             </div>
             {/* mockup: nom ostida "{birlik} · {do'kon nomi}" 12px xira qatori */}
             {shopv2 && sel.shopName && <div className="shop-detail-sub">{sel.shopName}</div>}
@@ -1915,7 +1918,7 @@ export function ShopView({ me, onBanner, reload, onBook, openProductId }: { me: 
       </Sheet>
       {/* ── 🧺 V2: yopishqoq savat-bar + savat-sheet (flag bazarcart) ── */}
       {/* shopv2'da yopishqoq savat-bar YO'Q — mockup'da savat top-strip ikonkasi+son-belgisi orqali. */}
-      {!shopv2 && bazarcart && !sel && !ordersOpen && !cartOpen && (
+      {bazarcart && !sel && !ordersOpen && !cartOpen && (
         <BjStickyCartBar count={cartCount} totalTanga={cartItemsTotal} onOpen={() => { haptic(); setCartOpen(true); }} />
       )}
       {bazarcart && (

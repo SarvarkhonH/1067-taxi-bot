@@ -21,7 +21,13 @@ async function sendSellerPanelLink(bot: Bot, chatId: string, shopId: number, sho
     chatId,
     `🔑 <b>Do'koningizni boshqarish havolasi:</b>\n${ADMIN_PANEL_URL}/?key=${token}\n\n` +
       `Kirib «➕ Mahsulot qo'shish» tugmasini bosing, nomi/narxi/soni/rasmini kiriting. ` +
-      `Havolani yo'qotib qo'ysangiz — botga <code>/dokonim</code> yozing, qayta yuboriladi.`,
+      `Havolani yo'qotib qo'ysangiz — botga <code>/dokonim</code> yozing, qayta yuboriladi.\n\n` +
+      // 📹 /hikoya to'liq qurilgan (foto+video, 24 soat) edi, lekin HECH QAYERDA aytilmagan —
+      // shuning uchun butun bozorda 1 ta hikoya bor edi. Sotuvchi panelini olgan har kishi endi
+      // buni ko'radi, chunki bu xabar tasdiqlanganda ham, /dokonim da ham yuboriladi.
+      `📹 <b>Hikoya joylang:</b> <code>/hikoya</code> yozing va rasm yoki video yuboring — ` +
+      `24 soat mijozlarning Do'kon sahifasida, eng tepada ko'rinadi. Yangi tovar, chegirma, ` +
+      `ish jarayoni — har kuni bittasi do'koningizni jonli ushlab turadi.`,
     { parse_mode: "HTML" },
   ).catch(() => undefined);
 }
