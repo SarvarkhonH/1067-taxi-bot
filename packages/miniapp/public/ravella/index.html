@@ -52,13 +52,18 @@
   }
   .wrap { max-width:600px; margin:0 auto; padding:0 20px; }
   .hero { text-align:center; padding:42px 20px 22px; }
+  /* ⚠️ overflow:hidden BO'LMASLIGI kerak — halqa doiradan tashqarida chiziladi va kesilib
+     ketardi (jonli xato 2026-07-28). Kesish o'rniga rasm o'zi dumaloq. */
   .badge {
-    width:96px; height:96px; margin:0 auto 16px; border-radius:50%; overflow:hidden;
+    position:relative;
+    width:96px; height:96px; margin:0 auto 18px; border-radius:50%;
     background:rgba(255,255,255,.62);
     -webkit-backdrop-filter:var(--glass-blur); backdrop-filter:var(--glass-blur);
     box-shadow:var(--glass-rim), 0 20px 44px -24px rgba(31,30,26,.75);
   }
-  .badge img { width:100%; height:100%; object-fit:contain; display:block; padding:9px; }
+  .badge img { width:100%; height:100%; border-radius:50%; object-fit:contain; display:block; padding:9px; }
+  /* Halqa va rasm orasida oq oraliq — Instagram'dagidek */
+  .badge.ring { box-shadow:var(--glass-rim), 0 0 0 3px #fff, 0 20px 44px -24px rgba(31,30,26,.75); }
   h1 { font-size:36px; line-height:1.06; font-weight:700; letter-spacing:-.026em; }
   .hero p { margin-top:7px; font-size:16.5px; color:var(--t2); }
   .promo, .list {
@@ -172,11 +177,11 @@
      halqa har doim rangli. Bu to'g'ri: hikoya ommaviy kontent, ko'rildi esa shaxsiy holat. */
   .badge.ring { position:relative; cursor:pointer; }
   .badge.ring::after {
-    content:""; position:absolute; inset:-6px; border-radius:50%; pointer-events:none;
+    content:""; position:absolute; inset:-7px; border-radius:50%; pointer-events:none;
     /* Instagram palitrasi — odam bu rangni "hikoya bor" deb o'qishga o'rgangan */
     background:conic-gradient(from 200deg,#f9ce34,#ee2a7b,#6228d7,#ee2a7b,#f9ce34);
-    -webkit-mask:radial-gradient(farthest-side, transparent calc(100% - 3px), #000 calc(100% - 3px));
-    mask:radial-gradient(farthest-side, transparent calc(100% - 3px), #000 calc(100% - 3px));
+    -webkit-mask:radial-gradient(farthest-side, transparent calc(100% - 3.5px), #000 calc(100% - 3.5px));
+    mask:radial-gradient(farthest-side, transparent calc(100% - 3.5px), #000 calc(100% - 3.5px));
   }
   .sv { position:fixed; inset:0; z-index:3000; background:#000; display:flex; align-items:center; justify-content:center; }
   .sv-media { width:100%; height:100%; object-fit:contain; display:block; }
@@ -247,17 +252,24 @@
   .sv-snd { position:absolute; right:12px; bottom:calc(28px + env(safe-area-inset-bottom)); z-index:3;
             width:42px; height:42px; border-radius:21px; border:none; color:#fff; font-size:17px; cursor:pointer;
             background:rgba(255,255,255,.18); -webkit-backdrop-filter:blur(12px); backdrop-filter:blur(12px); }
-  /* Doim ko'rinadigan ulashish tugmasi — pastki panel ustida suzadi va to'liq ekran/hikoya
-     ko'ruvchisidan ham baland turadi (ega: "hamma joyda, rasmlar ichida ham"). */
+  /* Ulashish — kapsula: ikonka + qisqa yozuv. Yolg'iz doira "bu nima?" degan savol tug'diradi.
+     Pastki panel ustida suzadi, to'liq ekran va hikoyadan ham baland turadi. */
   .fab {
-    position:fixed; right:16px; bottom:96px; z-index:3200;
-    width:54px; height:54px; border-radius:27px; border:none; cursor:pointer;
-    background:linear-gradient(180deg,#ffd36b,#f2a71b); color:#2a1f00;
-    box-shadow:inset 0 1px 0 rgba(255,255,255,.75), 0 14px 28px -12px rgba(242,167,27,.95);
-    transition:transform .22s cubic-bezier(.2,.9,.3,1.2);
+    position:fixed; right:14px; bottom:92px; z-index:3200;
+    display:inline-flex; align-items:center; gap:8px;
+    height:50px; padding:0 18px 0 15px; border:none; border-radius:25px; cursor:pointer;
+    background:linear-gradient(180deg,#ffd873,#f2a71b);
+    color:#2a1f00; font:650 15.5px/1 -apple-system,BlinkMacSystemFont,"SF Pro Text","Segoe UI",Roboto,sans-serif;
+    letter-spacing:-.01em;
+    box-shadow:
+      inset 0 1px 0 rgba(255,255,255,.85),
+      inset 0 -1px 0 rgba(140,90,0,.18),
+      0 10px 24px -10px rgba(242,167,27,.95),
+      0 2px 6px -3px rgba(31,30,26,.4);
+    transition:transform .22s cubic-bezier(.2,.9,.3,1.2), box-shadow .22s ease;
   }
-  .fab:active { transform:scale(.9); }
-  .fab svg { width:22px; height:22px; display:block; margin:0 auto; }
+  .fab:active { transform:scale(.94); box-shadow:inset 0 1px 0 rgba(255,255,255,.85), 0 4px 10px -6px rgba(242,167,27,.9); }
+  .fab svg { width:19px; height:19px; display:block; }
   .skl { background:rgba(255,255,255,.5); border-radius:22px; height:220px; animation:sh 1.4s ease-in-out infinite; }
   @keyframes sh { 0%,100%{opacity:.5} 50%{opacity:.9} }
 
@@ -275,7 +287,8 @@
   <p>Orzudagi bezaklar — Ravella bilan</p>
 </div>
 <button class="fab" id="fab" aria-label="Ulashish">
-  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v13M12 3 8 7M12 3l4 4"/><path d="M5 13v6a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-6"/></svg>
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v13M12 3 8 7M12 3l4 4"/><path d="M5 13v6a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-6"/></svg>
+  <span>Ulashish</span>
 </button>
 <div class="wrap"><div id="app"><div class="skl"></div></div></div>
 
@@ -451,7 +464,7 @@ function catalogue() {
           ? '<span class="hl-v">▶</span>'
           : '<img src="' + API + "/api/ravella/story-media/" + st.id + '" alt="" loading="lazy">';
         h += '<button class="hl-i" data-st="' + i + '"><span class="hl-r' + (st.seen ? " seen" : "") + '">' + inner + "</span>" +
-             '<span class="hl-n">' + esc((st.caption || "Hikoya").slice(0, 12)) + "</span></button>";
+             (st.caption ? '<span class="hl-n">' + esc(st.caption.slice(0, 10)) + "</span>" : "") + "</button>";
       });
       h += "</div>";
     }
@@ -588,7 +601,11 @@ function bar(sub, picked) {
 // Ulashish: botga olib boradi va bot TUGMALI kartochkani yuboradi — havolani oddiy ulashishda
 // tugma qo'shib bo'lmaydi (Telegram cheklovi), shuning uchun oqim bot orqali o'tadi.
 document.getElementById("fab").onclick = function () {
-  window.open("https://t.me/koson1067bot?start=rvcard", "_blank");
+  // Sayt havolasi ulashiladi — Telegram'da katalog posteri bilan kartochka bo'lib chiqadi.
+  var url = "https://app.birjoy.online/ravella?v=2";
+  var text = "🎀 Ravella — to'y bezaklari, sharlar, yozuvlar";
+  if (navigator.share) { navigator.share({ title: "Ravella", text: text, url: url }).catch(function () {}); return; }
+  window.open("https://t.me/share/url?url=" + encodeURIComponent(url) + "&text=" + encodeURIComponent(text), "_blank");
 };
 
 catalogue();

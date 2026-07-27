@@ -218,17 +218,16 @@ function Highlights({ stories, onOpen }: { stories: RavellaStoryView[] | null; o
               <img src={apiUrl(`/api/ravella/story-media/${st.id}`)} alt="" loading="lazy" />
             )}
           </span>
-          <span className="rv-hl-name">{st.caption?.slice(0, 12) || "Hikoya"}</span>
+          {/* Yozuv faqat izoh BO'LSA chiqadi va qisqa: takrorlanadigan "Hikoya" so'zi shovqin edi */}
+          {st.caption ? <span className="rv-hl-name">{st.caption.slice(0, 10)}</span> : null}
         </button>
       ))}
     </div>
   );
 }
 
-/** Doim ko'rinadigan ulashish tugmasi (ega: "topchidek tursin, sticky, hamma joyda").
- *  Mini app'da `switchInlineQuery` — chat tanlanadi va BOT tugmali kartochkani joylaydi.
- *  Oddiy havola ulashishda tugma qo'shib bo'lmaydi (Telegram cheklovi), shuning uchun shu yo'l;
- *  eski mijozlarda `switchInlineQuery` bo'lmasa — oddiy havola-ulashishga tushadi. */
+/** Doim ko'rinadigan ulashish tugmasi. Sayt havolasini ulashadi — havola Telegram'da katalog
+ *  posteri bilan chiqadi (og:image). Yozuv qisqa va ikonka yonida: "Ulashish". */
 function ShareFab() {
   return (
     <button
@@ -236,15 +235,13 @@ function ShareFab() {
       aria-label="Ulashish"
       onClick={() => {
         haptic();
-        const w = window as unknown as { Telegram?: { WebApp?: { switchInlineQuery?: (q: string, t?: string[]) => void } } };
-        const sw = w.Telegram?.WebApp?.switchInlineQuery;
-        if (sw) { try { sw("ravella", ["users", "groups", "channels"]); return; } catch { /* pastdagi zaxira */ } }
         shareLink("https://app.birjoy.online/ravella?v=2", "🎀 Ravella — to'y bezaklari, sharlar, yozuvlar");
       }}
     >
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.9} strokeLinecap="round" strokeLinejoin="round">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
         <path d="M12 3v13M12 3 8 7M12 3l4 4" /><path d="M5 13v6a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-6" />
       </svg>
+      <span>Ulashish</span>
     </button>
   );
 }

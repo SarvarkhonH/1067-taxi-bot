@@ -56,15 +56,19 @@
 
 /* ── Hero ── */
 .rv-hero { padding: 14px 0 20px; text-align: center; }
+/* ⚠️ `overflow: hidden` BO'LMASLIGI kerak: halqa doiradan TASHQARIDA (inset:-7px) chiziladi va
+   overflow uni kesib tashlaydi — halqa umuman ko'rinmasdi (jonli xato, 2026-07-28). Kesish
+   o'rniga rasm o'zi dumaloq qilinadi. */
 .rv-hero-badge {
-  width: 92px; height: 92px; margin: 0 auto 14px;
-  border-radius: 50%; overflow: hidden;
+  position: relative;
+  width: 92px; height: 92px; margin: 0 auto 16px;
+  border-radius: 50%;
   background: rgba(255, 255, 255, .62);
   backdrop-filter: var(--glass-blur);
   -webkit-backdrop-filter: var(--glass-blur);
   box-shadow: var(--glass-rim), 0 18px 40px -22px rgba(31, 30, 26, .7);
 }
-.rv-hero-badge img { width: 100%; height: 100%; object-fit: contain; display: block; padding: 9px; }
+.rv-hero-badge img { width: 100%; height: 100%; border-radius: 50%; object-fit: contain; display: block; padding: 9px; }
 .rv-hero-title { font-size: 34px; line-height: 1.08; font-weight: 700; letter-spacing: -.026em; }
 .rv-hero-sub { margin-top: 6px; font-size: 15.5px; color: var(--rv-2); }
 
@@ -283,13 +287,15 @@
    qoidasi, odam uni o'rgangan). Halqa faqat hikoya BOR bo'lganda chiziladi. */
 .rv-hero-badge.ring { position: relative; cursor: pointer; }
 .rv-hero-badge.ring::after {
-  content: ""; position: absolute; inset: -6px; border-radius: 50%; pointer-events: none;
+  content: ""; position: absolute; inset: -7px; border-radius: 50%; pointer-events: none;
   /* Instagram palitrasi (ega so'radi): sariq→pushti→binafsha. Odam bu rangni "hikoya bor"
      deb o'qishga o'rgangan — brend amberi bilan almashtirsak, signal yo'qoladi. */
   background: conic-gradient(from 200deg, #f9ce34, #ee2a7b, #6228d7, #ee2a7b, #f9ce34);
-  -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 3px), #000 calc(100% - 3px));
-  mask: radial-gradient(farthest-side, transparent calc(100% - 3px), #000 calc(100% - 3px));
+  -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 3.5px), #000 calc(100% - 3.5px));
+  mask: radial-gradient(farthest-side, transparent calc(100% - 3.5px), #000 calc(100% - 3.5px));
 }
+/* Halqa va rasm orasidagi oq oraliq — Instagram'dagidek "nafas" beradi */
+.rv-hero-badge.ring { box-shadow: var(--glass-rim), 0 0 0 3px #fff, 0 18px 40px -22px rgba(31, 30, 26, .7); }
 .rv-hero-badge.ring.seen::after { background: rgba(120, 120, 128, .35); }
 
 .rv-story-viewer {
@@ -398,15 +404,27 @@
   -webkit-backdrop-filter: blur(12px); backdrop-filter: blur(12px);
 }
 
-/* ══ Doim ko'rinadigan ulashish tugmasi (ega: "topchidek, sticky, hamma joyda") ══════════════
-   Pastki panel USTIDA suzadi; to'liq ekran va hikoya ko'ruvchisidan ham baland (z-index) —
-   ega "rasmlar ichida ham" dedi. Amber to'ldirish: bu yagona doimiy harakat-tugmasi. */
+/* ══ Ulashish tugmasi — kapsula: ikonka + qisqa yozuv ═══════════════════════════════════════
+   Yolg'iz doira "bu nima?" degan savol tug'diradi; yozuv bilan birinchi qarashda tushunarli.
+   Pastki panel USTIDA suzadi va to'liq ekran/hikoya ko'ruvchisidan ham baland (z-index 3200) —
+   ega "hamma joyda, rasmlar ichida ham" dedi. Amber to'ldirish: yagona doimiy harakat. */
 .rv-fab {
-  position: fixed; right: 16px; bottom: calc(var(--tabbar-h, 64px) + 84px); z-index: 3200;
-  width: 54px; height: 54px; border-radius: 27px; border: none;
-  background: linear-gradient(180deg, #ffd36b, #f2a71b); color: #2a1f00;
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .75), 0 14px 28px -12px rgba(242, 167, 27, .95);
-  transition: transform .22s cubic-bezier(.2, .9, .3, 1.2);
+  position: fixed; right: 14px; bottom: calc(var(--tabbar-h, 64px) + 82px); z-index: 3200;
+  display: inline-flex; align-items: center; gap: 8px;
+  height: 50px; padding: 0 18px 0 15px; border: none; border-radius: 25px;
+  background: linear-gradient(180deg, #ffd873, #f2a71b);
+  color: #2a1f00; font-size: 15.5px; font-weight: 650; letter-spacing: -.01em;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, .85),
+    inset 0 -1px 0 rgba(140, 90, 0, .18),
+    0 10px 24px -10px rgba(242, 167, 27, .95),
+    0 2px 6px -3px rgba(31, 30, 26, .4);
+  transition: transform .22s cubic-bezier(.2, .9, .3, 1.2), box-shadow .22s ease;
 }
-.rv-fab:active { transform: scale(.9); }
-.rv-fab svg { width: 22px; height: 22px; display: block; margin: 0 auto; }
+.rv-fab:active {
+  transform: scale(.94);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .85), 0 4px 10px -6px rgba(242, 167, 27, .9);
+}
+.rv-fab svg { width: 19px; height: 19px; display: block; }
+
+@media (prefers-reduced-motion: reduce) { .rv-fab { transition: none; } }
