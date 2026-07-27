@@ -169,8 +169,13 @@ export async function setFeature(name: FeatureName, on: boolean): Promise<void> 
 export const EXPECTED_ON: FeatureName[] = [
   "wheel", "items", "transfers", "push", "gap", "plus", "recruit", "booking3", "livinghome",
   "baraban", "komissiya", "promo", "qarz", "refstaged", "drvstaged", "drvrecruit",
-  // "welcomebonus" — owner intentionally OFF 2026-07-17, confirmed 2026-07-21 ("o'chirganman");
-  // re-add here when owner re-enables it.
+  "welcomebonus", // 🎁 2026-07-17 da ega o'chirgan edi ("o'chirganman"), LEKIN 2026-07-22 13:44 da
+             // QAYTA YOQILGAN (jonli AppState qatorining updatedAt'i) va shundan beri ishlayapti —
+             // 2026-07-26 dagi "welcome 5000 ko'chmaydigan" himoyasi ham aynan shu yoqiq bo'lgani
+             // uchun yozilgan. Ro'yxatdagi eski "intentionally OFF" izohi jonli holatga ZID edi;
+             // shu sababli qayta kiritildi (2026-07-27 audit) — DB reset bo'lsa jimgina o'chmasin.
+  // "garage" (+ mahalla, tolqin, carupgrade) — 2026-07-02 10:15 da BITTA to'plamda ataylab
+  // o'chirilgan (minimalizm-strip). Ro'yxatga ATAYLAB qo'shilmadi: ular off qolishi kerak.
   // "intercity" — owner intentionally OFF 2026-07-23 ("shaharlararo bu keyinchalik qilinadigan
   // loyiha") — keyingi bosqich sifatida rejalashtiriladi, hozircha diqqat markazida emas.
   // Flag setFlag.ts orqali off qilindi (alertAdmins jo'natildi). Qayta yoqilganda shu yerga qaytariladi.
@@ -193,6 +198,19 @@ export const EXPECTED_ON: FeatureName[] = [
   // hech qanday alertsiz o'chirib qo'yishi mumkin edi (reconcileFlags "missing" faqat shu
   // ro'yxatdagilarni tekshiradi). Endi boshqa har bir owner-accepted feature kabi himoyalangan.
   "aibrain", "airemind", "aihisob", "aidost", "aicity", "aibilim",
+  // 🔎 2026-07-27 AUDIT — quyidagi 9 bayroq JONLIDA yoqiq edi, lekin bu ro'yxatda YO'Q edi, ya'ni
+  // reconcileFlags ularni umuman tekshirmasdi: DB reset/migratsiya ularni HECH QANDAY alertsiz
+  // o'chirib qo'yardi (aynan yuqoridagi A7 xavfi — AI bayroqlari bilan bir marta sodir bo'lgan).
+  // Har birining sanasi jonli AppState qatorining updatedAt'idan olingan, taxmin emas.
+  "spinreminder", // 🎁 2026-07-22 13:44 (welcomebonus bilan bitta to'plamda) — unutilgan baraban pushi
+  "newhome",      // 🏠 2026-07-23 11:36 — premium super-app bosh ekran
+  "newprofile",   // 👤 2026-07-23 11:37 — boyitilgan Profil
+  "shopv2",       // 🏪 2026-07-24 18:46 — Market qorong'i-oynasimon qayta-dizayni
+  "bazarcart",    // 🧺 2026-07-26 18:25 — savat/checkout (bazar bilan bitta to'plamda)
+  "shopchat",     // 💬 2026-07-26 18:25 — mijoz↔do'kon chat
+  "shopstory",    // 📹 2026-07-26 18:25 — do'kon hikoyalari
+  "revtanga",     // 🗣 2026-07-27 09:52 — sharh-uchun-tanga
+  "shopcashback", // 🪙 2026-07-27 10:22 — xarid-cashback
 ];
 
 export async function reconcileFlags(): Promise<{ missing: string[]; effective: { name: string; on: boolean }[] }> {
