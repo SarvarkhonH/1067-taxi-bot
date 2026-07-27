@@ -59,7 +59,16 @@ JIM ishlamas edi (`isAwaitingBroadcastPhoto` chetga oluvchisi qo'shildi — `/hi
 AYNI xato); (b) ikkita `command("bekor")` — birinchisi `next()` chaqirmagani uchun ikkinchisi o'lik
 kod edi va boshqa modullarning `/bekor`ini ham yutardi.
 
-**Qolgan (ready EMAS):** (1) `public/ravella/logo.png` — ega beradi; (2) katalog seed'i (bezak
+**Demo katalog jonli bazada (2026-07-27, `scripts/seedRavellaDemo.ts`):** kategoriya #1
+«Saxna bezaklari [DEMO]» · bezak #1 «Onajon yozuvi» 100 000 · qo'shimchalar Salyut +150 000 (#1),
+Sharlar +50 000 (#2) — UCHALASIGA ham alohida rasm (skriptda generatsiya qilinadi, tashqi
+kutubxonasiz). Isbot: `/api/ravella/photo/1` va ikkala `addon-photo` → 302 → Telegram CDN → 200,
+4.9k/14k/10.5k bayt (uchtasi HAR XIL — demak rasm-almashuvi ko'rinadi). Mijoz tomoni hamon DARK:
+`/api/ravella/catalog` → bo'sh, `/api/ravella/item/1` → `item:null`. Admin API (token bilan) →
+`enabled:false` + to'liq katalog. Tozalash: `tsx seedRavellaDemo.ts --clean`.
+
+**Qolgan (ready EMAS):** (1) `public/ravella/logo.png` — ega beradi (13:43 da papka BO'SH edi, fayl
+saqlanmagan; rail ikonkasi shu sabab hozircha 🎀 emoji'ga tushadi); (2) katalog seed'i (bezak
 rasmlari + narxlar) — ega admin paneldan kiritadi; (3) Zoyir To'ychiyevning Telegram ID'si
 (`/start` → panelga yoziladi); (4) EGA QABULI → `setFlag.ts ravella on` va shundan keyingina
 `/elonrasm`. Flag DARK — jonli mijozlar hozircha HECH NARSA ko'rmaydi.
