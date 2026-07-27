@@ -1437,6 +1437,15 @@ export function ShopView({ me, onBanner, reload, onBook, openProductId }: { me: 
           {/* Kategoriya tanlansa panjara SHU kategoriyaga qisqaradi - avval `products` (filtrsiz xom
               ro'yxat) ishlatilgani uchun karusel bosilsa ham hech narsa o'zgarmasdi. `catalog` esa
               cat/fav/do'kon filtrlarini hisobga oladi. */}
+          {/* Bo'sh kategoriya: ro'yxat `catalog.length > 0` bilan gated bo'lgani uchun tanlov
+              natijasi NOL bo'lsa ekran jimgina bo'shab qolardi - mijoz nima bo'lganini bilmaydi.
+              Endi aniq aytiladi va bitta bosishda filtr tozalanadi. */}
+          {shopv2 && bazar && !shopFilter && !searched && cat && catalog.length === 0 && (
+            <div className="shop-home-products">
+              <div className="shop-section-title2">{cat}</div>
+              <EmptyState icon="📦" text={`«${cat}» bo'yicha hozircha mahsulot yo'q`} action="Barcha mahsulotlar" onAction={() => { haptic(); setCat(null); }} />
+            </div>
+          )}
           {shopv2 && bazar && !shopFilter && !searched && catalog.length > 0 && (
             <div className="shop-home-products">
               <div className="shop-section-title2">{cat ?? "Mahsulotlar"}</div>
