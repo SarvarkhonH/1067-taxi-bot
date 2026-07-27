@@ -97,6 +97,20 @@ function ContactRow({ contacts }: { contacts?: RavellaContacts }) {
   );
 }
 
+
+/** ‹ Orqaga — shisha kapsula. Matnli havola emas: barmoq uchun 44px maydon, kontent ustida
+ *  "suzadi" va boshqa shisha sirtlar bilan bir tilda gapiradi. Belgi — chiziqli chevron. */
+function BackButton({ onBack }: { onBack: () => void }) {
+  return (
+    <button className="rv-back" onClick={() => { haptic(); onBack(); }} aria-label="Orqaga">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.2} strokeLinecap="round" strokeLinejoin="round">
+        <path d="M15 5 8 12l7 7" />
+      </svg>
+      <span>Orqaga</span>
+    </button>
+  );
+}
+
 function CatalogSkeleton() {
   return (
     <div className="rv-grid">
@@ -203,7 +217,7 @@ function Constructor({ itemId, me, onBack, onBanner }: { itemId: number; me: MeR
   if (!data) {
     return (
       <div className="view">
-        <button className="rv-back" onClick={onBack}>‹ Orqaga</button>
+        <BackButton onBack={onBack} />
         <Skeleton h={220} /><div style={{ height: 12 }} /><Skeleton h={60} />
       </div>
     );
@@ -211,7 +225,7 @@ function Constructor({ itemId, me, onBack, onBanner }: { itemId: number; me: MeR
   if (!data.item) {
     return (
       <div className="view">
-        <button className="rv-back" onClick={onBack}>‹ Orqaga</button>
+        <BackButton onBack={onBack} />
         <EmptyState icon="🎀" text="Bezak topilmadi" />
       </div>
     );
@@ -239,7 +253,7 @@ function Constructor({ itemId, me, onBack, onBanner }: { itemId: number; me: MeR
 
   return (
     <div className="view rv-detail">
-      <button className="rv-back" onClick={onBack}>‹ Orqaga</button>
+      <BackButton onBack={onBack} />
 
       {/* Gorizontal karusel: CSS scroll-snap — kutubxona yo'q, barmoq bilan suriladi,
           klaviatura/skrinrider ham ishlaydi. Nuqtalar joriy rasmni ko'rsatadi. */}
@@ -345,7 +359,7 @@ function MyOrders({ onBack }: { onBack: () => void }) {
 
   return (
     <div className="view">
-      <button className="rv-back" onClick={onBack}>‹ Orqaga</button>
+      <BackButton onBack={onBack} />
       {orders === null ? (
         <><Skeleton h={70} /><div style={{ height: 8 }} /><Skeleton h={70} /></>
       ) : orders.length === 0 ? (

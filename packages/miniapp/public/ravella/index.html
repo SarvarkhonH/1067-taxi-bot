@@ -111,7 +111,20 @@
 
   .title { margin-top:20px; font-size:27px; font-weight:700; letter-spacing:-.024em; line-height:1.16; }
   .desc { margin-top:8px; font-size:16px; line-height:1.45; color:var(--t2); }
-  .back { background:none; border:none; color:var(--amber); font-size:17px; min-height:44px; padding:14px 0; cursor:pointer; }
+  /* Orqaga — shisha kapsula, boshqa sirtlar bilan bir retsept */
+  .back {
+    display:inline-flex; align-items:center; gap:5px;
+    min-height:44px; margin:0 0 14px; padding:10px 16px 10px 13px;
+    border:none; border-radius:999px; cursor:pointer;
+    color:var(--ink); letter-spacing:-.01em;
+    font:500 16px/1 -apple-system,BlinkMacSystemFont,"SF Pro Text","Segoe UI",Roboto,sans-serif;
+    background:var(--glass-bg);
+    -webkit-backdrop-filter:var(--glass-blur); backdrop-filter:var(--glass-blur);
+    box-shadow:var(--glass-rim), 0 10px 24px -16px rgba(31,30,26,.8);
+    transition:transform .22s cubic-bezier(.2,.9,.3,1.2);
+  }
+  .back:active { transform:scale(.94); }
+  .back svg { width:19px; height:19px; display:block; color:var(--amber); }
   .note { margin:20px 0 8px; font-size:13px; color:var(--t3); line-height:1.5; }
 
   /* Aloqa ikonkalari — har tarmoq o'z rangida, ustida yupqa yorug'lik */
@@ -157,9 +170,9 @@
 
   /* Shisha yo'q brauzerda sirt qattiq oq bo'ladi — matn har doim o'qiladi */
   @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
-    .card, .promo, .list, .bar, .badge { background:rgba(255,255,255,.94); }
+    .card, .promo, .list, .bar, .badge, .back { background:rgba(255,255,255,.94); }
   }
-  @media (prefers-reduced-motion: reduce) { .skl{animation:none} .card,.cta,.ci,.dots span{transition:none} }
+  @media (prefers-reduced-motion: reduce) { .skl{animation:none} .card,.cta,.ci,.dots span,.back{transition:none} }
 </style>
 </head>
 <body>
@@ -272,7 +285,7 @@ function item(id) {
       var srcs = (d.photoIds && d.photoIds.length)
         ? d.photoIds.map(function (pid) { return API + "/api/ravella/gallery/" + pid; })
         : (d.item.hasPhoto ? [API + "/api/ravella/photo/" + d.item.id] : []);
-      var h = '<button class="back">‹ Orqaga</button><div class="stage">';
+      var h = '<button class="back" aria-label="Orqaga"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5 8 12l7 7"/></svg><span>Orqaga</span></button><div class="stage">';
       if (srcs.length) {
         h += '<div class="slides" id="sl">';
         srcs.forEach(function (u) { h += '<img class="slide" src="' + u + '" alt="">'; });
