@@ -289,6 +289,15 @@ export function createBot(): Bot {
     // referral deep link: t.me/<bot>?start=ref_<code> ("reft_" = same code arriving via a shared
     // TrackView live-trip page — identical attach/payout path, tagged for the viral-loop metrics)
     const payload = (typeof ctx.match === "string" ? ctx.match : "").trim();
+    // 🎀 Saytdagi «Ulashish» shu yerga olib keladi: bot TUGMALI kartochkani yuboradi, odam uni
+    // istagan chatga forward qiladi. Havolani oddiy ulashishda tugma qo'shib bo'lmaydi (Telegram
+    // cheklovi) — shuning uchun oqim bot orqali o'tadi.
+    if ((typeof ctx.match === "string" ? ctx.match : "").trim() === "rvcard") {
+      const { sendRavellaCard } = await import("./ravella");
+      await sendRavellaCard(bot, ctx.chat.id);
+      await ctx.reply("👆 Shu kartochkani do'stlaringizga <b>forward</b> qiling — tugma ishlab turadi.", { parse_mode: "HTML" });
+      return;
+    }
     const joinerName = esc(ctx.from!.first_name ?? "Yangi mijoz"); // the person who clicked/scanned the invite
     const viaTrack = payload.startsWith("reft_");
     if (payload.startsWith("ref_") || viaTrack) {

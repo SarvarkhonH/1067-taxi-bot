@@ -202,26 +202,50 @@ function StoryViewer({ stories, start, onClose }: { stories: RavellaStoryView[];
 }
 
 
-/** Instagram-uslub «highlights»: har doira — bitta bezak, ichida birinchi surati.
- *  Rasmsiz bezaklar bu yerga TUSHMAYDI (bo'sh doira bosilib hech nima ko'rsatmasligi yomon). */
-function Highlights({ cat, onOpen }: { cat: RavellaCatalogResponse | null; onOpen: (id: number) => void }) {
-  const items = (cat?.categories ?? []).flatMap((c) => c.items).filter((i) => i.hasPhoto || (i.photoIds?.length ?? 0) > 0);
-  if (items.length < 2) return null;
+/** Instagram «highlights» — bu joylangan HIKOYALAR (ega tuzatishi 2026-07-28: hikoya qo'yilsa
+ *  shu qatorda ko'rinishi kerak). Har doira = bitta hikoya; bosilganda ko'ruvchi AYNAN o'sha
+ *  hikoyadan ochiladi. Video hikoya rasm sifatida chizilmaydi — o'rniga ▶ belgili doira. */
+function Highlights({ stories, onOpen }: { stories: RavellaStoryView[] | null; onOpen: (i: number) => void }) {
+  if (!stories || stories.length === 0) return null;
   return (
     <div className="rv-hl">
-      {items.map((it) => (
-        <button key={it.id} className="rv-hl-item" onClick={() => { haptic(); onOpen(it.id); }}>
-          <span className="rv-hl-ring">
-            <img
-              src={it.photoIds?.length ? apiUrl(`/api/ravella/gallery/${it.photoIds[0]}`) : apiUrl(`/api/ravella/photo/${it.id}`)}
-              alt=""
-              loading="lazy"
-            />
+      {stories.map((st, i) => (
+        <button key={st.id} className="rv-hl-item" onClick={() => { haptic(); onOpen(i); }}>
+          <span className={"rv-hl-ring" + (st.seen ? " seen" : "")}>
+            {st.kind === "video" ? (
+              <span className="rv-hl-video">▶</span>
+            ) : (
+              <img src={apiUrl(`/api/ravella/story-media/${st.id}`)} alt="" loading="lazy" />
+            )}
           </span>
-          <span className="rv-hl-name">{it.name}</span>
+          <span className="rv-hl-name">{st.caption?.slice(0, 12) || "Hikoya"}</span>
         </button>
       ))}
     </div>
+  );
+}
+
+/** Doim ko'rinadigan ulashish tugmasi (ega: "topchidek tursin, sticky, hamma joyda").
+ *  Mini app'da `switchInlineQuery` — chat tanlanadi va BOT tugmali kartochkani joylaydi.
+ *  Oddiy havola ulashishda tugma qo'shib bo'lmaydi (Telegram cheklovi), shuning uchun shu yo'l;
+ *  eski mijozlarda `switchInlineQuery` bo'lmasa — oddiy havola-ulashishga tushadi. */
+function ShareFab() {
+  return (
+    <button
+      className="rv-fab"
+      aria-label="Ulashish"
+      onClick={() => {
+        haptic();
+        const w = window as unknown as { Telegram?: { WebApp?: { switchInlineQuery?: (q: string, t?: string[]) => void } } };
+        const sw = w.Telegram?.WebApp?.switchInlineQuery;
+        if (sw) { try { sw("ravella", ["users", "groups", "channels"]); return; } catch { /* pastdagi zaxira */ } }
+        shareLink("https://app.birjoy.online/ravella?v=2", "🎀 Ravella — to'y bezaklari, sharlar, yozuvlar");
+      }}
+    >
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.9} strokeLinecap="round" strokeLinejoin="round">
+        <path d="M12 3v13M12 3 8 7M12 3l4 4" /><path d="M5 13v6a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-6" />
+      </svg>
+    </button>
   );
 }
 
@@ -407,6 +431,7 @@ function Constructor({ itemId, me, onBack, onBanner }: { itemId: number; me: MeR
 
   return (
     <div className="view rv-detail">
+      <ShareFab />
       <BackButton onBack={onBack} />
 
       {/* Gorizontal karusel: CSS scroll-snap — kutubxona yo'q, barmoq bilan suriladi,
@@ -447,27 +472,7 @@ function Constructor({ itemId, me, onBack, onBanner }: { itemId: number; me: MeR
         <Lightbox count={slides.length} start={zoom} photoUrl={(i) => slides[i]!} onClose={() => setZoom(null)} />
       )}
 
-      <div className="rv-name-row">
-        <div className="rv-name">{data.item.name}</div>
-        {/* V3: ulashish — to'y bezagini bitta odam tanlamaydi, oila maslahatlashadi */}
-        <button
-          className="rv-share"
-          aria-label="Ulashish"
-          onClick={() => {
-            haptic();
-            // `?v=` — Telegram havola-oldindan ko'rishini UZOQ keshlaydi; katalog rasmi
-            // almashganda eski kartochka ko'rinib qolmasin.
-            shareLink(
-              "https://app.birjoy.online/ravella?v=2",
-              `🎀 ${data.item!.name}\nRavella — to'y bezaklari, sharlar, yozuvlar`,
-            );
-          }}
-        >
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.9} strokeLinecap="round" strokeLinejoin="round">
-            <path d="M12 3v13M12 3 8 7M12 3l4 4" /><path d="M5 13v6a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-6" />
-          </svg>
-        </button>
-      </div>
+      <div className="rv-name">{data.item.name}</div>
       {data.item.desc && <div className="rv-desc">{data.item.desc}</div>}
       <div className="rv-base">{data.item.basePriceSom > 0 ? `Asosiy narx · ${formatNumber(data.item.basePriceSom)} so'm` : NO_PRICE}</div>
 
@@ -587,20 +592,25 @@ export function RavellaView({ me, onBanner }: { me: MeResponse; onBanner?: (msg:
   const [activeCat, setActiveCat] = useState<number | "all">("all");
   const [stories, setStories] = useState<RavellaStoryView[] | null>(null);
   const [storyOpen, setStoryOpen] = useState(false);
+  const [storyStart, setStoryStart] = useState(0);
   const loaded = useRef(false);
 
   useEffect(() => {
     if (loaded.current) return;
     loaded.current = true;
-    api.ravellaCatalog().then(setCat).catch(() => setCat({ categories: [], discountPct: 0, cashbackPct: 0 }));
+    api.ravellaCatalog().then((c) => {
+      setCat(c);
+      // Hikoyalar ro'yxati highlights qatori uchun DARHOL kerak (halqa uchun `storyCount` yetardi,
+      // lekin doiralarni chizish uchun rasm-id'lari kerak). Faqat hikoya bor bo'lsa so'raladi.
+      if ((c.storyCount ?? 0) > 0) api.ravellaStories().then((r) => setStories(r.stories)).catch(() => undefined);
+    }).catch(() => setCat({ categories: [], discountPct: 0, cashbackPct: 0 }));
   }, []);
 
   const openStories = () => {
-    // Ro'yxat FAQAT bosilganda yuklanadi — katalog javobidagi `storyCount` halqani chizishga yetadi
-    if (stories) { setStoryOpen(true); return; }
+    if (stories?.length) { setStoryStart(Math.max(0, stories.findIndex((x) => !x.seen))); setStoryOpen(true); return; }
     api.ravellaStories().then((r) => {
       setStories(r.stories);
-      if (r.stories.length) setStoryOpen(true);
+      if (r.stories.length) { setStoryStart(0); setStoryOpen(true); }
     }).catch(() => undefined);
   };
 
@@ -615,15 +625,16 @@ export function RavellaView({ me, onBanner }: { me: MeResponse; onBanner?: (msg:
       {storyOpen && stories && stories.length > 0 && (
         <StoryViewer
           stories={stories}
-          start={Math.max(0, stories.findIndex((s) => !s.seen))}
-          onClose={() => { setStoryOpen(false); setStories(null); }}
+          start={storyStart}
+          onClose={() => setStoryOpen(false)}
         />
       )}
+      <ShareFab />
       <Hero storyCount={cat?.storyCount ?? 0} unseen={!!cat?.storyUnseen} onStory={openStories} />
       {/* Aloqa hero OSTIDA — ega qarori: sahifa oxiridagi footer olib tashlandi, lekin
           qo'ng'iroq/tarmoq bir bosishda qo'l ostida qolishi kerak */}
       <ContactRow contacts={cat?.contacts} />
-      <Highlights cat={cat} onOpen={(id) => setOpenId(id)} />
+      <Highlights stories={stories} onOpen={(i) => { setStoryStart(i); setStoryOpen(true); }} />
       {cat && cat.discountPct > 0 && (
         <div className="rv-promo">
           🎁 BirJoy orqali <b>{cat.discountPct}% arzon</b>{cat.cashbackPct > 0 ? <> · <b>{cat.cashbackPct}% tanga</b> qaytadi</> : null}

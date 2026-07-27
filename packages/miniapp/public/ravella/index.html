@@ -236,13 +236,28 @@
           transition:transform .22s cubic-bezier(.2,.9,.3,1.2); }
   .hl-i:active { transform:scale(.92); }
   .hl-r { width:64px; height:64px; border-radius:50%; padding:2.5px;
-          background:linear-gradient(160deg, rgba(60,60,67,.18), rgba(60,60,67,.06));
+          background:conic-gradient(from 200deg,#f9ce34,#ee2a7b,#6228d7,#ee2a7b,#f9ce34);
           box-shadow:0 8px 18px -12px rgba(31,30,26,.8); }
+  .hl-r.seen { background:linear-gradient(160deg, rgba(60,60,67,.22), rgba(60,60,67,.08)); }
+  .hl-v { width:100%; height:100%; border-radius:50%; border:2px solid #fff; display:flex;
+          align-items:center; justify-content:center; font-size:20px; color:#fff;
+          background:linear-gradient(160deg,#3a3a3c,#1d1d1f); }
   .hl-r img { width:100%; height:100%; border-radius:50%; object-fit:cover; display:block; border:2px solid #fff; }
   .hl-n { font-size:11.5px; line-height:1.2; color:var(--t2); text-align:center; max-width:68px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
   .sv-snd { position:absolute; right:12px; bottom:calc(28px + env(safe-area-inset-bottom)); z-index:3;
             width:42px; height:42px; border-radius:21px; border:none; color:#fff; font-size:17px; cursor:pointer;
             background:rgba(255,255,255,.18); -webkit-backdrop-filter:blur(12px); backdrop-filter:blur(12px); }
+  /* Doim ko'rinadigan ulashish tugmasi — pastki panel ustida suzadi va to'liq ekran/hikoya
+     ko'ruvchisidan ham baland turadi (ega: "hamma joyda, rasmlar ichida ham"). */
+  .fab {
+    position:fixed; right:16px; bottom:96px; z-index:3200;
+    width:54px; height:54px; border-radius:27px; border:none; cursor:pointer;
+    background:linear-gradient(180deg,#ffd36b,#f2a71b); color:#2a1f00;
+    box-shadow:inset 0 1px 0 rgba(255,255,255,.75), 0 14px 28px -12px rgba(242,167,27,.95);
+    transition:transform .22s cubic-bezier(.2,.9,.3,1.2);
+  }
+  .fab:active { transform:scale(.9); }
+  .fab svg { width:22px; height:22px; display:block; margin:0 auto; }
   .skl { background:rgba(255,255,255,.5); border-radius:22px; height:220px; animation:sh 1.4s ease-in-out infinite; }
   @keyframes sh { 0%,100%{opacity:.5} 50%{opacity:.9} }
 
@@ -259,6 +274,9 @@
   <h1>Ravella</h1>
   <p>Orzudagi bezaklar — Ravella bilan</p>
 </div>
+<button class="fab" id="fab" aria-label="Ulashish">
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v13M12 3 8 7M12 3l4 4"/><path d="M5 13v6a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-6"/></svg>
+</button>
 <div class="wrap"><div id="app"><div class="skl"></div></div></div>
 
 <script>
@@ -401,11 +419,9 @@ function shareItem(name) {
 
 // V3: narx so'rash — birinchi jumlani BIZ yozamiz, mijoz faqat yuboradi
 function askHref(name) {
-  var date = (document.getElementById("askDate") || {}).value || "";
-  var place = (document.getElementById("askPlace") || {}).value || "";
+  // Sana/joy maydonlari OLIB TASHLANDI (ega qarori 2026-07-28) — ekran sodda qoldi, qolganini
+  // Ravella yozishmada so'raydi. Birinchi jumla baribir tayyor: eng katta to'siq shu edi.
   var msg = "Salom! «" + name + "» bezagi bo'yicha narx so'ramoqchi edim.";
-  if (date.trim()) msg += " Sana: " + date.trim() + ".";
-  if (place.trim()) msg += " Joy: " + place.trim() + ".";
   if (CONTACTS.telegram) {
     var u = String(CONTACTS.telegram).trim().replace(/^@/, "").replace(/^https?:\/\/t\.me\//i, "");
     return "https://t.me/" + u + "?text=" + encodeURIComponent(msg);
@@ -423,19 +439,19 @@ function catalogue() {
     if (badge && d.storyCount > 0) { badge.classList.add("ring"); badge.onclick = openStories; }
     if (!d.categories || !d.categories.length) { empty("Bezaklar tez orada shu yerda bo'ladi."); return; }
     var h = "";
-    // Highlights — rasmi bor bezaklar doira bo'lib turadi (bo'sh doira chizilmaydi)
-    var withPhoto = [];
-    d.categories.forEach(function (c) {
-      c.items.forEach(function (it) { if (it.hasPhoto || (it.photoIds && it.photoIds.length)) withPhoto.push(it); });
-    });
-    if (withPhoto.length > 1) {
+    // Highlights = joylangan HIKOYALAR (ega tuzatishi): hikoya qo'yilsa shu qatorda ko'rinadi.
+    // Video hikoya rasm sifatida chizilmaydi — o'rniga ▶ belgili doira.
+    if (STORIES === null && d.storyCount > 0) {
+      get("/api/ravella/stories").then(function (r) { STORIES = r.stories || []; catalogue(); }).catch(function () { STORIES = []; });
+    }
+    if (STORIES && STORIES.length) {
       h += '<div class="hl">';
-      withPhoto.forEach(function (it) {
-        var src = (it.photoIds && it.photoIds.length)
-          ? API + "/api/ravella/gallery/" + it.photoIds[0]
-          : API + "/api/ravella/photo/" + it.id;
-        h += '<button class="hl-i" data-hl="' + it.id + '"><span class="hl-r"><img src="' + src + '" alt="" loading="lazy"></span>' +
-             '<span class="hl-n">' + esc(it.name) + "</span></button>";
+      STORIES.forEach(function (st, i) {
+        var inner = st.kind === "video"
+          ? '<span class="hl-v">▶</span>'
+          : '<img src="' + API + "/api/ravella/story-media/" + st.id + '" alt="" loading="lazy">';
+        h += '<button class="hl-i" data-st="' + i + '"><span class="hl-r' + (st.seen ? " seen" : "") + '">' + inner + "</span>" +
+             '<span class="hl-n">' + esc((st.caption || "Hikoya").slice(0, 12)) + "</span></button>";
       });
       h += "</div>";
     }
@@ -472,8 +488,8 @@ function catalogue() {
     app.innerHTML = h;
     // Bosish/surish ajratimi: ochish `click`da emas, 8px dan kam siljigan `pointerup`da.
     // Aks holda kartani surganda sahifa ochilib ketadi va katalog "sinib qolgandek" tuyuladi.
-    [].forEach.call(app.querySelectorAll("[data-hl]"), function (b) {
-      b.onclick = function () { item(Number(b.getAttribute("data-hl"))); };
+    [].forEach.call(app.querySelectorAll("[data-st]"), function (b) {
+      b.onclick = function () { showStory(Number(b.getAttribute("data-st"))); };
     });
     [].forEach.call(app.querySelectorAll(".card"), function (b) {
       var d = null;
@@ -522,15 +538,11 @@ function item(id) {
         }
       }
       h += "</div>" +
-        '<div class="row2"><div class="title">' + esc(d.item.name) + "</div>" +
-        '<button class="share" aria-label="Ulashish"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v13M12 3 8 7M12 3l4 4"/><path d="M5 13v6a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-6"/></svg></button></div>' +
+        '<div class="title">' + esc(d.item.name) + "</div>" +
         (d.item.desc ? '<p class="desc">' + esc(d.item.desc) + "</p>" : "") +
-        '<div class="ask"><input id="askDate" placeholder="Sana (ixtiyoriy) — masalan 5-avgust"><input id="askPlace" placeholder="Joy (ixtiyoriy) — masalan Koson to\'yxonasi"></div>' +
-        '<p class="note">Sana va joyni yozsangiz — Ravella darhol narx aytadi, ortiqcha yozishmasiz.</p>';
+        '<p class="note">Narx bezak o\'lchamiga va joyiga qarab hisoblanadi — Ravella bilan bog\'lansangiz aytishadi.</p>';
       app.innerHTML = h;
       app.querySelector(".back").onclick = catalogue;
-      var shareBtn = app.querySelector(".share");
-      if (shareBtn) shareBtn.onclick = function () { shareItem(d.item.name); };
       [].forEach.call(app.querySelectorAll(".slide"), function (img, i) {
         img.onclick = function () { lightbox(srcs, i); };
       });
@@ -572,6 +584,12 @@ function bar(sub, picked) {
   var btn = document.getElementById("ctaBtn");
   if (btn) btn.onclick = function () { btn.href = CUR_ITEM ? askHref(CUR_ITEM) : orderHref(); };
 }
+
+// Ulashish: botga olib boradi va bot TUGMALI kartochkani yuboradi — havolani oddiy ulashishda
+// tugma qo'shib bo'lmaydi (Telegram cheklovi), shuning uchun oqim bot orqali o'tadi.
+document.getElementById("fab").onclick = function () {
+  window.open("https://t.me/koson1067bot?start=rvcard", "_blank");
+};
 
 catalogue();
 </script>

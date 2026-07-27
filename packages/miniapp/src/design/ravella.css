@@ -376,6 +376,14 @@
   box-shadow: 0 8px 18px -12px rgba(31, 30, 26, .8);
 }
 .rv-hl-ring img { width: 100%; height: 100%; border-radius: 50%; object-fit: cover; display: block; border: 2px solid #fff; }
+/* Ko'rilmagan hikoya — Instagram gradienti; ko'rilgani sokin kulrang (halqa bilan bir tilda) */
+.rv-hl-ring { background: conic-gradient(from 200deg, #f9ce34, #ee2a7b, #6228d7, #ee2a7b, #f9ce34); }
+.rv-hl-ring.seen { background: linear-gradient(160deg, rgba(60, 60, 67, .22), rgba(60, 60, 67, .08)); }
+.rv-hl-video {
+  width: 100%; height: 100%; border-radius: 50%; border: 2px solid #fff; display: flex;
+  align-items: center; justify-content: center; font-size: 20px; color: #fff;
+  background: linear-gradient(160deg, #3a3a3c, #1d1d1f);
+}
 .rv-hl-name {
   font-size: 11.5px; line-height: 1.2; color: var(--rv-2); text-align: center;
   max-width: 68px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
@@ -389,3 +397,16 @@
   background: rgba(255, 255, 255, .18);
   -webkit-backdrop-filter: blur(12px); backdrop-filter: blur(12px);
 }
+
+/* ══ Doim ko'rinadigan ulashish tugmasi (ega: "topchidek, sticky, hamma joyda") ══════════════
+   Pastki panel USTIDA suzadi; to'liq ekran va hikoya ko'ruvchisidan ham baland (z-index) —
+   ega "rasmlar ichida ham" dedi. Amber to'ldirish: bu yagona doimiy harakat-tugmasi. */
+.rv-fab {
+  position: fixed; right: 16px; bottom: calc(var(--tabbar-h, 64px) + 84px); z-index: 3200;
+  width: 54px; height: 54px; border-radius: 27px; border: none;
+  background: linear-gradient(180deg, #ffd36b, #f2a71b); color: #2a1f00;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .75), 0 14px 28px -12px rgba(242, 167, 27, .95);
+  transition: transform .22s cubic-bezier(.2, .9, .3, 1.2);
+}
+.rv-fab:active { transform: scale(.9); }
+.rv-fab svg { width: 22px; height: 22px; display: block; margin: 0 auto; }
