@@ -181,7 +181,11 @@ export async function getMarketHome(preview = false, q?: string, memberId?: numb
   const [bozorShops, mahallaShops, cats, products] = await Promise.all([
     prisma.marketShop.findMany({ where: { active: true, paused: false, shopKind: "bozor" }, orderBy: [{ sortOrder: "asc" }, { orderCount: "desc" }], take: 20 }),
     prisma.marketShop.findMany({ where: { active: true, paused: false, shopKind: "mahalla" }, orderBy: [{ sortOrder: "asc" }, { orderCount: "desc" }], take: 200 }),
-    prisma.categoryDef.findMany({ where: { active: true }, orderBy: { sortOrder: "asc" }, take: 20 }),
+    // 🏷 Katalog (2026-07-27): `take: 20` edi va 30-kategoriyali katalog seed qilinishi bilan
+    // mahsuloti BOR eski kategoriyalar (sortOrder 90+) ro'yxatdan tushib qoldi — jonli tekshiruvda
+    // mijoz faqat bitta «Aksiya» chipini ko'rdi. Chegara katalogdan kattaroq bo'lishi SHART; bo'sh
+    // kategoriyalar quyida baribir filtrlanadi, ya'ni katta take mijozga ortiqcha chip bermaydi.
+    prisma.categoryDef.findMany({ where: { active: true }, orderBy: { sortOrder: "asc" }, take: 100 }),
     listActiveProducts(true), // flag-tekshiruv yuqorida bo'ldi; preview=true — ichki qayta-gate emas
   ]);
   // AUDIT (2026-07-26, bazar hammaga yoqilgan kuni): sotiladigan mahsuloti YO'Q do'kon ham
