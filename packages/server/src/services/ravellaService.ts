@@ -73,10 +73,26 @@ export async function getRavellaCatalog(preview = false, memberId?: number): Pro
     prisma.ravellaCategory.findMany({ where: { active: true }, orderBy: [{ sortOrder: "asc" }, { id: "asc" }], take: 30 }),
     prisma.ravellaItem.findMany({ where: { active: true }, orderBy: [{ sortOrder: "asc" }, { id: "asc" }], take: 200 }),
   ]);
+  // 🖼 Kartada surish uchun (V1): har bezakka 5 tagacha rasm id'si. BITTA so'rov — bezak boshiga
+  // alohida so'rov bo'lsa 8 ta bezak = 8 ta so'rov bo'lardi. Faqat raqamlar, ~0.4 KB.
+  const gallery = items.length
+    ? await prisma.ravellaItemPhoto.findMany({
+        where: { itemId: { in: items.map((i) => i.id) } },
+        orderBy: [{ itemId: "asc" }, { sortOrder: "asc" }, { id: "asc" }],
+        select: { id: true, itemId: true },
+      })
+    : [];
+  const photosOf = new Map<number, number[]>();
+  for (const g of gallery) {
+    const arr = photosOf.get(g.itemId) ?? [];
+    if (arr.length < 5) arr.push(g.id); // qolganini bezak sahifasida ko'radi
+    photosOf.set(g.itemId, arr);
+  }
+
   const byCat = new Map<number, RavellaItemCard[]>();
   for (const it of items) {
     if (!byCat.has(it.categoryId)) byCat.set(it.categoryId, []);
-    byCat.get(it.categoryId)!.push(itemCard(it));
+    byCat.get(it.categoryId)!.push({ ...itemCard(it), photoIds: photosOf.get(it.id) ?? [] });
   }
   return {
     ...empty,

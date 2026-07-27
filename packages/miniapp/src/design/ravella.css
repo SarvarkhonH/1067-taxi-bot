@@ -321,3 +321,37 @@
 .rv-story-tap { position: absolute; top: 0; bottom: 0; width: 40%; border: none; background: transparent; z-index: 1; }
 .rv-story-tap.left { left: 0; }
 .rv-story-tap.right { right: 0; width: 60%; }
+
+/* ══ V1: kartada surish ══ */
+.rv-card-slides {
+  display: flex; width: 100%; height: 100%;
+  overflow-x: auto; scroll-snap-type: x mandatory;
+  scrollbar-width: none; -webkit-overflow-scrolling: touch;
+}
+.rv-card-slides::-webkit-scrollbar { display: none; }
+.rv-card-slides .rv-card-photo { flex: 0 0 100%; scroll-snap-align: center; }
+.rv-card-dots {
+  position: absolute; left: 0; right: 0; bottom: 46px; z-index: 2;
+  display: flex; gap: 4px; justify-content: center; pointer-events: none;
+}
+.rv-card-dots span {
+  width: 5px; height: 5px; border-radius: 3px; background: rgba(255, 255, 255, .55);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, .4); transition: width .2s ease, background .2s ease;
+}
+.rv-card-dots span.on { width: 14px; background: #fff; }
+
+/* ══ V2/V3: sarlavha qatori va ulashish ══ */
+.rv-name-row { display: flex; align-items: flex-start; gap: 12px; }
+.rv-name-row .rv-name { flex: 1; min-width: 0; }
+.rv-share {
+  flex: 0 0 auto; width: 46px; height: 46px; margin-top: 18px; border-radius: 23px; border: none;
+  color: var(--rv-ink);
+  background: var(--glass-bg);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+  box-shadow: var(--glass-rim), 0 8px 20px -14px rgba(31, 30, 26, .8);
+  transition: transform .22s cubic-bezier(.2, .9, .3, 1.2);
+}
+.rv-share:active { transform: scale(.92); }
+.rv-share svg { width: 20px; height: 20px; display: block; margin: 0 auto; }
+.rv-slide { cursor: zoom-in; }

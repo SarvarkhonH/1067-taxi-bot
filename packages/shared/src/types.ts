@@ -1099,6 +1099,7 @@ export interface RavellaItemCard {
   basePriceSom: number;
   hasPhoto: boolean; // render /api/ravella/photo/:id when true
   photoCount?: number; // galereya hajmi (kartada "1/N" ko'rsatish uchun)
+  photoIds?: number[]; // kartada surish uchun 5 tagacha galereya id'si (/api/ravella/gallery/:id)
 }
 
 export interface RavellaAddonView {

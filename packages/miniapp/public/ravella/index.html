@@ -190,6 +190,40 @@
   .sv-tap { position:absolute; top:0; bottom:0; width:40%; border:none; background:transparent; z-index:1; cursor:pointer; }
   .sv-tap.l { left:0; }
   .sv-tap.r { right:0; width:60%; }
+  /* V1: kartada surish */
+  .card .slides2 { display:flex; width:100%; height:100%; overflow-x:auto; scroll-snap-type:x mandatory; scrollbar-width:none; -webkit-overflow-scrolling:touch; }
+  .card .slides2::-webkit-scrollbar { display:none; }
+  .card .slides2 img { flex:0 0 100%; width:100%; height:100%; object-fit:cover; scroll-snap-align:center; }
+  .card .cdots { position:absolute; left:0; right:0; bottom:46px; z-index:2; display:flex; gap:4px; justify-content:center; pointer-events:none; }
+  .card .cdots span { width:5px; height:5px; border-radius:3px; background:rgba(255,255,255,.55); box-shadow:0 1px 3px rgba(0,0,0,.4); transition:width .2s ease,background .2s ease; }
+  .card .cdots span.on { width:14px; background:#fff; }
+  /* V2: to'liq ekran */
+  .lb { position:fixed; inset:0; z-index:2500; background:rgba(0,0,0,.96); display:flex; align-items:center; justify-content:center; }
+  .lb-strip { display:flex; width:100%; height:100%; overflow-x:auto; scroll-snap-type:x mandatory; scrollbar-width:none; }
+  .lb-strip::-webkit-scrollbar { display:none; }
+  .lb-strip img { flex:0 0 100%; width:100%; height:100%; object-fit:contain; scroll-snap-align:center; }
+  .lb-x { position:absolute; top:calc(14px + env(safe-area-inset-top)); right:14px; z-index:2; width:40px; height:40px; border-radius:20px; border:none; cursor:pointer;
+          background:rgba(255,255,255,.18); color:#fff; font-size:18px; -webkit-backdrop-filter:blur(12px); backdrop-filter:blur(12px); }
+  .lb-n { position:absolute; top:calc(20px + env(safe-area-inset-top)); left:16px; z-index:2; color:#fff; font-size:14px; font-weight:600; text-shadow:0 1px 6px rgba(0,0,0,.6); }
+  .slide { cursor:zoom-in; }
+  /* V3: ulashish va so'rov maydonlari */
+  .row2 { display:flex; align-items:flex-start; gap:12px; }
+  .row2 .title { flex:1; min-width:0; }
+  .share {
+    flex:0 0 auto; width:46px; height:46px; margin-top:20px; border-radius:23px; border:none; cursor:pointer; color:var(--ink);
+    background:var(--glass-bg); -webkit-backdrop-filter:var(--glass-blur); backdrop-filter:var(--glass-blur);
+    box-shadow:var(--glass-rim), 0 8px 20px -14px rgba(31,30,26,.8);
+    transition:transform .22s cubic-bezier(.2,.9,.3,1.2);
+  }
+  .share:active { transform:scale(.92); }
+  .share svg { width:20px; height:20px; display:block; margin:0 auto; }
+  .ask { margin-top:18px; display:grid; gap:8px; }
+  .ask input {
+    width:100%; padding:13px 15px; border-radius:14px; border:none; font:16px/1.2 inherit; color:var(--ink);
+    background:rgba(255,255,255,.65); box-shadow:var(--glass-rim);
+    -webkit-backdrop-filter:blur(14px); backdrop-filter:blur(14px);
+  }
+  .ask input::placeholder { color:var(--t3); }
   .skl { background:rgba(255,255,255,.5); border-radius:22px; height:220px; animation:sh 1.4s ease-in-out infinite; }
   @keyframes sh { 0%,100%{opacity:.5} 50%{opacity:.9} }
 
@@ -269,7 +303,7 @@ function get(path) {
 function empty(msg) { app.innerHTML = '<p class="note" style="text-align:center;padding:40px 0">' + esc(msg) + "</p>"; }
 
 // 📹 Hikoya: ro'yxat FAQAT halqa bosilganda yuklanadi (katalogdagi storyCount chizishga yetadi)
-var STORIES = null, SIDX = 0, STIMER = null;
+var STORIES = null, SIDX = 0, STIMER = null, CUR_ITEM = null;
 function openStories() {
   if (STORIES) { showStory(0); return; }
   get("/api/ravella/stories").then(function (d) {
@@ -311,6 +345,46 @@ function showStory(i) {
   }
 }
 
+// V2: rasmni to'liq ekranda ochish
+function lightbox(srcs, start) {
+  var el = document.createElement("div");
+  el.className = "lb";
+  var strip = '<div class="lb-strip" id="lbs">';
+  srcs.forEach(function (u) { strip += '<img src="' + u + '" alt="">'; });
+  strip += "</div>";
+  el.innerHTML = strip + '<div class="lb-n" id="lbn">' + (start + 1) + "/" + srcs.length + '</div><button class="lb-x" aria-label="Yopish">✕</button>';
+  document.body.appendChild(el);
+  var s = document.getElementById("lbs"), n = document.getElementById("lbn");
+  s.scrollLeft = start * s.clientWidth;
+  s.addEventListener("scroll", function () {
+    n.textContent = (Math.round(s.scrollLeft / Math.max(1, s.clientWidth)) + 1) + "/" + srcs.length;
+  });
+  el.querySelector(".lb-x").onclick = function () { el.remove(); };
+}
+
+// V3: ulashish — oila maslahatlashadi, skrinshot o'rniga chiroyli havola ketsin
+function shareItem(name) {
+  var url = "https://app.birjoy.online/ravella";
+  var text = "🎀 " + name + " — Ravella bezaklari";
+  if (navigator.share) { navigator.share({ title: "Ravella", text: text, url: url }).catch(function () {}); return; }
+  window.open("https://t.me/share/url?url=" + encodeURIComponent(url) + "&text=" + encodeURIComponent(text), "_blank");
+}
+
+// V3: narx so'rash — birinchi jumlani BIZ yozamiz, mijoz faqat yuboradi
+function askHref(name) {
+  var date = (document.getElementById("askDate") || {}).value || "";
+  var place = (document.getElementById("askPlace") || {}).value || "";
+  var msg = "Salom! «" + name + "» bezagi bo'yicha narx so'ramoqchi edim.";
+  if (date.trim()) msg += " Sana: " + date.trim() + ".";
+  if (place.trim()) msg += " Joy: " + place.trim() + ".";
+  if (CONTACTS.telegram) {
+    var u = String(CONTACTS.telegram).trim().replace(/^@/, "").replace(/^https?:\/\/t\.me\//i, "");
+    return "https://t.me/" + u + "?text=" + encodeURIComponent(msg);
+  }
+  if (CONTACTS.phone) return contactHref("phone", CONTACTS.phone);
+  return BOT;
+}
+
 function catalogue() {
   app.innerHTML = '<div class="skl"></div>';
   get("/api/ravella/catalog").then(function (d) {
@@ -326,20 +400,51 @@ function catalogue() {
     d.categories.forEach(function (c) {
       h += (many ? "<h2>" + esc(c.emoji) + " " + esc(c.name) + "</h2>" : "") + '<div class="grid">';
       c.items.forEach(function (it) {
-        h += '<button class="card" data-id="' + it.id + '">' +
-          (it.hasPhoto
-            ? '<div class="ph"><img src="' + API + "/api/ravella/photo/" + it.id + '" alt=""></div>'
-            : '<div class="ph noimg">🎀</div>') +
+        var srcs = (it.photoIds && it.photoIds.length)
+          ? it.photoIds.map(function (pid) { return API + "/api/ravella/gallery/" + pid; })
+          : (it.hasPhoto ? [API + "/api/ravella/photo/" + it.id] : []);
+        var inner = "";
+        if (srcs.length) {
+          inner = '<div class="ph"><div class="slides2">';
+          srcs.forEach(function (u) { inner += '<img src="' + u + '" alt="">'; });
+          inner += "</div>";
+          if (srcs.length > 1) {
+            inner += '<div class="cdots">';
+            srcs.forEach(function (_, n) { inner += "<span" + (n === 0 ? ' class="on"' : "") + "></span>"; });
+            inner += "</div>";
+          }
+          inner += "</div>";
+        } else {
+          inner = '<div class="ph noimg">🎀</div>';
+        }
+        h += '<div class="card" role="button" tabindex="0" data-id="' + it.id + '">' + inner +
           '<div class="bd"><div class="nm">' + esc(it.name) + '</div><div class="pr">' +
-          (it.basePriceSom > 0 ? money(it.basePriceSom) + " so'mdan" : NO_PRICE) + "</div></div></button>";
+          (it.basePriceSom > 0 ? money(it.basePriceSom) + " so'mdan" : NO_PRICE) + "</div></div></div>";
       });
       h += "</div>";
     });
     h += '<p class="note">Narx bezak o\'lchamiga va joyiga qarab hisoblanadi — buyurtmadan keyin operator qo\'ng\'iroq qilib aytadi.</p>';
     app.innerHTML = h;
+    // Bosish/surish ajratimi: ochish `click`da emas, 8px dan kam siljigan `pointerup`da.
+    // Aks holda kartani surganda sahifa ochilib ketadi va katalog "sinib qolgandek" tuyuladi.
     [].forEach.call(app.querySelectorAll(".card"), function (b) {
-      b.onclick = function () { item(Number(b.getAttribute("data-id"))); };
+      var d = null;
+      b.addEventListener("pointerdown", function (e) { d = { x: e.clientX, y: e.clientY }; });
+      b.addEventListener("pointerup", function (e) {
+        if (!d) return;
+        var moved = Math.abs(e.clientX - d.x) >= 8 || Math.abs(e.clientY - d.y) >= 8;
+        d = null;
+        if (!moved) item(Number(b.getAttribute("data-id")));
+      });
+      var sl = b.querySelector(".slides2"), dots = b.querySelector(".cdots");
+      if (sl && dots) {
+        sl.addEventListener("scroll", function () {
+          var i = Math.round(sl.scrollLeft / Math.max(1, sl.clientWidth));
+          [].forEach.call(dots.children, function (dot, n) { dot.className = n === i ? "on" : ""; });
+        });
+      }
     });
+    CUR_ITEM = null;
     bar(null);
   }).catch(function () { empty("Yuklanmadi — internetni tekshirib qayta urinib ko'ring."); });
 }
@@ -351,6 +456,7 @@ function item(id) {
     if (!d.item) { empty("Bezak topilmadi."); return; }
     var qty = {}, heroAddon = null;
     var photo = function (a) { return API + "/api/ravella/addon-photo/" + a; };
+    CUR_ITEM = d.item.name;
     var draw = function () {
       // Qo'shimchalar (+/−) EKRANDAN OLIB TASHLANDI — ega qarori: keyingi bosqichda qaytadi.
       var srcs = (d.photoIds && d.photoIds.length)
@@ -368,11 +474,18 @@ function item(id) {
         }
       }
       h += "</div>" +
-        '<div class="title">' + esc(d.item.name) + "</div>" +
+        '<div class="row2"><div class="title">' + esc(d.item.name) + "</div>" +
+        '<button class="share" aria-label="Ulashish"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v13M12 3 8 7M12 3l4 4"/><path d="M5 13v6a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-6"/></svg></button></div>' +
         (d.item.desc ? '<p class="desc">' + esc(d.item.desc) + "</p>" : "") +
-        '<p class="note">Narx bezak o\'lchamiga va joyiga qarab hisoblanadi — Ravella bilan bog\'lansangiz aytishadi.</p>';
+        '<div class="ask"><input id="askDate" placeholder="Sana (ixtiyoriy) — masalan 5-avgust"><input id="askPlace" placeholder="Joy (ixtiyoriy) — masalan Koson to\'yxonasi"></div>' +
+        '<p class="note">Sana va joyni yozsangiz — Ravella darhol narx aytadi, ortiqcha yozishmasiz.</p>';
       app.innerHTML = h;
       app.querySelector(".back").onclick = catalogue;
+      var shareBtn = app.querySelector(".share");
+      if (shareBtn) shareBtn.onclick = function () { shareItem(d.item.name); };
+      [].forEach.call(app.querySelectorAll(".slide"), function (img, i) {
+        img.onclick = function () { lightbox(srcs, i); };
+      });
       var sl = document.getElementById("sl"), dots = document.getElementById("dots");
       if (sl && dots) {
         sl.addEventListener("scroll", function () {
@@ -406,7 +519,10 @@ function bar(sub, picked) {
   } else {
     left = "<small>Narx bezakka qarab</small><b>" + NO_PRICE + "</b>";
   }
-  el.innerHTML = '<div class="in"><div>' + left + '</div><a class="cta" href="' + orderHref() + '" target="_blank" rel="noopener">Buyurtma berish</a></div>';
+  // CTA bosilganda tayyor matn bilan Telegram ochiladi (sana/joy yozilgan bo'lsa qo'shiladi)
+  el.innerHTML = '<div class="in"><div>' + left + '</div><a class="cta" id="ctaBtn" href="#" target="_blank" rel="noopener">Narxini so\'rash</a></div>';
+  var btn = document.getElementById("ctaBtn");
+  if (btn) btn.onclick = function () { btn.href = CUR_ITEM ? askHref(CUR_ITEM) : orderHref(); };
 }
 
 catalogue();

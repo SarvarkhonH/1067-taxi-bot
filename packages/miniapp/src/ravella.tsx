@@ -8,8 +8,8 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import type { MeResponse, RavellaAddonView, RavellaCatalogResponse, RavellaContacts, RavellaItemCard, RavellaOrderView, RavellaStoryView } from "@t1067/shared";
 import { formatNumber } from "@t1067/shared";
 import { api, apiUrl } from "./api";
-import { haptic, hapticSuccess } from "./telegram";
-import { Button, EmptyState, Sheet, Skeleton } from "./design/components";
+import { haptic, hapticSuccess, shareLink } from "./telegram";
+import { Button, EmptyState, Lightbox, Sheet, Skeleton } from "./design/components";
 import "./design/ravella.css";
 
 const LAST_ADDR_KEY = "ravella_last_addr";
@@ -190,21 +190,60 @@ function CatalogSkeleton() {
   );
 }
 
+/** V1: kartaning O'ZIDA surish. Eng nozik joyi — surish va bosish bir-biriga xalaqit beradi:
+ *  barmoq sal siljisa brauzer baribir "bosildi" deydi va sahifa ochilib ketadi. Shuning uchun
+ *  ochish `click`da emas, `pointerup`da va FAQAT 8px dan kam siljiganda. 8px — barmoqning
+ *  beixtiyor tebranishi bilan haqiqiy surish orasidagi chegara. */
+const TAP_SLOP = 8;
+
 function ItemCard({ it, onOpen }: { it: RavellaItemCard; onOpen: (it: RavellaItemCard) => void }) {
+  const [slide, setSlide] = useState(0);
+  const down = useRef<{ x: number; y: number } | null>(null);
+  const ids = it.photoIds ?? [];
+  const srcs = ids.length
+    ? ids.map((pid) => apiUrl(`/api/ravella/gallery/${pid}`))
+    : it.hasPhoto ? [apiUrl(`/api/ravella/photo/${it.id}`)] : [];
+
   return (
-    <button className="rv-card" onClick={() => { haptic(); onOpen(it); }}>
+    <div
+      className="rv-card"
+      role="button"
+      tabIndex={0}
+      onPointerDown={(e) => { down.current = { x: e.clientX, y: e.clientY }; }}
+      onPointerUp={(e) => {
+        const d = down.current;
+        down.current = null;
+        if (!d) return;
+        if (Math.abs(e.clientX - d.x) < TAP_SLOP && Math.abs(e.clientY - d.y) < TAP_SLOP) { haptic(); onOpen(it); }
+      }}
+      onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { haptic(); onOpen(it); } }}
+    >
       <div className="rv-card-photo-wrap">
-        {it.hasPhoto ? (
-          <img className="rv-card-photo" src={apiUrl(`/api/ravella/photo/${it.id}`)} loading="lazy" decoding="async" alt="" />
+        {srcs.length ? (
+          <div
+            className="rv-card-slides"
+            onScroll={(e) => {
+              const el = e.currentTarget;
+              const i = Math.round(el.scrollLeft / Math.max(1, el.clientWidth));
+              if (i !== slide) setSlide(i);
+            }}
+          >
+            {srcs.map((src) => <img key={src} className="rv-card-photo" src={src} loading="lazy" decoding="async" alt="" />)}
+          </div>
         ) : (
           <div className="rv-card-photo rv-noimg">🎀</div>
+        )}
+        {srcs.length > 1 && (
+          <div className="rv-card-dots">
+            {srcs.map((src, i) => <span key={src} className={i === slide ? "on" : ""} />)}
+          </div>
         )}
       </div>
       <div className="rv-card-body">
         <div className="rv-card-name">{it.name}</div>
         <div className="rv-card-price">{it.basePriceSom > 0 ? <>{formatNumber(it.basePriceSom)} so'm<span>dan</span></> : <span>{NO_PRICE}</span>}</div>
       </div>
-    </button>
+    </div>
   );
 }
 
@@ -216,6 +255,7 @@ function Constructor({ itemId, me, onBack, onBanner }: { itemId: number; me: MeR
   // Ma'lumot o'chirilmadi, faqat ko'rsatilmaydi; qaytarish = shu blokni tiklash.
   const [qty] = useState<Record<number, number>>({});
   const [slide, setSlide] = useState(0); // karusel: hozirgi rasm
+  const [zoom, setZoom] = useState<number | null>(null); // V2: to'liq ekran (bosilgan rasm raqami)
   const [checkout, setCheckout] = useState(false);
   const [useDiscount, setUseDiscount] = useState(false);
   const [contact, setContact] = useState(() => me.member?.phone ?? "");
@@ -329,8 +369,16 @@ function Constructor({ itemId, me, onBack, onBanner }: { itemId: number; me: MeR
               if (i !== slide) setSlide(i);
             }}
           >
-            {slides.map((src) => (
-              <img key={src} className="rv-slide" src={src} alt="" loading="lazy" decoding="async" />
+            {slides.map((src, i) => (
+              <img
+                key={src}
+                className="rv-slide"
+                src={src}
+                alt=""
+                loading="lazy"
+                decoding="async"
+                onClick={() => { haptic(); setZoom(i); }}
+              />
             ))}
           </div>
         ) : (
@@ -343,7 +391,26 @@ function Constructor({ itemId, me, onBack, onBanner }: { itemId: number; me: MeR
         )}
       </div>
 
-      <div className="rv-name">{data.item.name}</div>
+      {zoom !== null && (
+        <Lightbox count={slides.length} start={zoom} photoUrl={(i) => slides[i]!} onClose={() => setZoom(null)} />
+      )}
+
+      <div className="rv-name-row">
+        <div className="rv-name">{data.item.name}</div>
+        {/* V3: ulashish — to'y bezagini bitta odam tanlamaydi, oila maslahatlashadi */}
+        <button
+          className="rv-share"
+          aria-label="Ulashish"
+          onClick={() => {
+            haptic();
+            shareLink(`https://app.birjoy.online/ravella`, `🎀 ${data.item!.name} — Ravella bezaklari`);
+          }}
+        >
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.9} strokeLinecap="round" strokeLinejoin="round">
+            <path d="M12 3v13M12 3 8 7M12 3l4 4" /><path d="M5 13v6a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-6" />
+          </svg>
+        </button>
+      </div>
       {data.item.desc && <div className="rv-desc">{data.item.desc}</div>}
       <div className="rv-base">{data.item.basePriceSom > 0 ? `Asosiy narx · ${formatNumber(data.item.basePriceSom)} so'm` : NO_PRICE}</div>
 
