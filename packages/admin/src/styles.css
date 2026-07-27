@@ -15,7 +15,7 @@
 }
 
 * { box-sizing: border-box; margin: 0; padding: 0; }
-body { background: var(--bg); color: var(--text); font-family: -apple-system, "Segoe UI", Roboto, system-ui, sans-serif; font-size: 14px; line-height: 1.5; }
+body { background: var(--bg); color: var(--text); font-family: -apple-system, "Segoe UI", Roboto, system-ui, sans-serif; font-size: 14px; line-height: 1.5; overflow-wrap: anywhere; }
 .muted { color: var(--muted); }
 code { background: #ffffff14; padding: 1px 6px; border-radius: 6px; font-size: 12px; }
 
@@ -165,6 +165,9 @@ tbody tr:last-child td { border-bottom: 0; }
 tbody tr:hover { background: rgba(255,255,255,.04); }
 .td-name { font-weight: 600; }
 .td-sub { font-size: 11.5px; margin-top: 1px; color: var(--muted); }
+/* Long space-less values (decorative-unicode names, raw IDs) wrap inside their
+   column instead of ballooning the table and breaking the panel width. */
+.table-wrap td { max-width: 280px; overflow-wrap: anywhere; }
 .num.strong { font-weight: 800; }
 .lvl { font-size: 12px; white-space: nowrap; background: rgba(255,255,255,.07); border: 1px solid var(--line); padding: 3px 8px; border-radius: 999px; }
 .lvl.warn { background: rgba(255,206,79,.15); color: #ffce4f; border-color: rgba(255,206,79,.3); }
@@ -399,6 +402,7 @@ textarea.search { font-family: inherit; resize: vertical; }
 .bh-fulltext { font-size: 13px; white-space: pre-wrap; word-break: break-word; background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; }
 .bh-failed-list { display: flex; flex-direction: column; max-height: 260px; overflow-y: auto; }
 .bh-failed-row { display: flex; justify-content: space-between; gap: 8px; font-size: 12px; padding: 4px 0; border-bottom: 1px solid var(--line); }
+.bh-failed-row > span { min-width: 0; } /* let long unbreakable names shrink+wrap instead of overflowing */
 .bh-failed-row:last-child { border-bottom: none; }
 .bh-empty { text-align: center; padding: 28px 12px; color: var(--muted); font-size: 13px; display: flex; flex-direction: column; gap: 8px; align-items: center; }
 .bh-link { margin-top: 8px; background: none; border: none; padding: 0; cursor: pointer; color: var(--accent); font-size: 12px; font-weight: 600; text-decoration: underline; text-underline-offset: 3px; font-family: inherit; text-align: left; }
