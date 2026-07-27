@@ -932,7 +932,12 @@ export function createApiServer(opts: ApiOptions = {}) {
       res.set("Content-Type", m[1]!).set("Cache-Control", "public, max-age=3600").send(Buffer.from(m[2]!, "base64"));
       return;
     }
-    res.set("Cache-Control", "private, max-age=3600").redirect(302, url);
+    // ⚠️ Telegram file-havolasi ~1 SOATDA eskiradi. 302'ni bir soat keshlash brauzerga eskirgan
+    // manzilni qayta-qayta beradi → mijoz singan rasm ko'radi (2026-07-27 da brauzerda aynan shu
+    // yuz berdi: kesh chetlab o'tilganda rasm darhol yuklandi). Shuning uchun YO'NALTIRISH qisqa
+    // keshlanadi — rasmning O'ZI baribir Telegram CDN'da keshlanadi, ya'ni tejash yo'qolmaydi.
+    // (Xuddi shu naqsh restoran/do'kon/haydovchi-rasm yo'llarida ham bor — alohida tiket.)
+    res.set("Cache-Control", "private, max-age=120").redirect(302, url);
   };
   app.get("/api/ravella/photo/:id", serveRavellaPhoto("item"));
   app.get("/api/ravella/addon-photo/:id", serveRavellaPhoto("addon"));
