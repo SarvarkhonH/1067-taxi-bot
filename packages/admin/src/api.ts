@@ -298,6 +298,30 @@ export const adminApi = {
   restoranMenuEdit: (id: number, patch: Record<string, unknown>) => postJson<{ ok: boolean }>(`/api/admin/restoran/menu/${id}`, patch),
   restoranMenuDelete: (id: number) => req<{ ok: boolean }>(`/api/admin/restoran/menu/${id}`, { method: "DELETE" }),
   restoranMenuPhotoUpload: (id: number, mime: string, base64: string) => postJson<{ ok: boolean }>(`/api/admin/restoran/menu/${id}/photo`, { mime, base64 }),
+  // 🎀 ravella — bezak konstruktori: kategoriya/bezak/qo'shimcha CRUD + rasm + buyurtma navbati
+  ravellaAll: () => req<{
+    enabled: boolean; partnerChatId: string | null;
+    categories: import("@t1067/shared").AdminRavellaCategoryRow[];
+    items: import("@t1067/shared").AdminRavellaItemRow[];
+    addons: import("@t1067/shared").AdminRavellaAddonRow[];
+  }>("/api/admin/ravella"),
+  ravellaPartnerChat: (chatId: string) => postJson<{ ok: boolean }>("/api/admin/ravella/partner-chat", { chatId }),
+  ravellaCategoryCreate: (p: { name: string; emoji?: string; sortOrder?: number }) => postJson<{ ok: boolean; id?: number; error?: string }>("/api/admin/ravella/category", p),
+  ravellaCategoryEdit: (id: number, patch: Record<string, unknown>) => postJson<{ ok: boolean }>(`/api/admin/ravella/category/${id}`, patch),
+  ravellaCategoryDelete: (id: number) => req<{ ok: boolean }>(`/api/admin/ravella/category/${id}`, { method: "DELETE" }),
+  ravellaItemCreate: (p: { categoryId: number; name: string; basePriceSom: number; desc?: string }) => postJson<{ ok: boolean; id?: number; error?: string }>("/api/admin/ravella/item", p),
+  ravellaItemEdit: (id: number, patch: Record<string, unknown>) => postJson<{ ok: boolean }>(`/api/admin/ravella/item/${id}`, patch),
+  ravellaItemDelete: (id: number) => req<{ ok: boolean }>(`/api/admin/ravella/item/${id}`, { method: "DELETE" }),
+  ravellaItemPhoto: (id: number, mime: string, base64: string) => postJson<{ ok: boolean }>(`/api/admin/ravella/item/${id}/photo`, { mime, base64 }),
+  ravellaAddonCreate: (p: { name: string; priceSom: number; itemId?: number | null; categoryId?: number | null; maxQty?: number }) => postJson<{ ok: boolean; id?: number; error?: string }>("/api/admin/ravella/addon", p),
+  ravellaAddonEdit: (id: number, patch: Record<string, unknown>) => postJson<{ ok: boolean }>(`/api/admin/ravella/addon/${id}`, patch),
+  ravellaAddonDelete: (id: number) => req<{ ok: boolean }>(`/api/admin/ravella/addon/${id}`, { method: "DELETE" }),
+  ravellaAddonPhoto: (id: number, mime: string, base64: string) => postJson<{ ok: boolean }>(`/api/admin/ravella/addon/${id}/photo`, { mime, base64 }),
+  ravellaOrders: (status?: string) => req<{ orders: import("@t1067/shared").AdminRavellaOrderRow[] }>(`/api/admin/ravella/orders${status ? `?status=${status}` : ""}`),
+  ravellaOrderAction: (id: number, action: "accept" | "call" | "done" | "reject", reason?: string) =>
+    postJson<{ ok: boolean; reason?: string; cashbackSom?: number }>(`/api/admin/ravella/orders/${id}/${action}`, { reason }),
+  ravellaItemPhotoUrl: (id: number) => `${API_BASE}/api/ravella/photo/${id}`,
+  ravellaAddonPhotoUrl: (id: number) => `${API_BASE}/api/ravella/addon-photo/${id}`,
   // 🔎 xizmatlar directory
   svcList: (status?: string) => req<{ rows: SvcAdminRow[]; enabled: boolean; pending: number; hiddenReviews: number; phoneFlagged: number; newRequests: number }>(`/api/admin/services${status ? `?status=${status}` : ""}`),
   svcRequests: (status = "new") => req<{ requests: { id: number; query: string; note: string; status: string; createdAt: string }[] }>(`/api/admin/service-requests?status=${status}`),

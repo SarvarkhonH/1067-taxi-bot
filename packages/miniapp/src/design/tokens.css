@@ -3252,6 +3252,9 @@ body {
 .nh-i-b { background:rgba(59,130,246,.16); color:var(--nh-blue); } .nh-i-o { background:rgba(251,146,60,.18); color:var(--nh-org); }
 .nh-i-t { background:rgba(45,212,191,.16); color:var(--nh-teal); } .nh-i-v { background:rgba(167,139,250,.18); color:var(--nh-vio); }
 .nh-i-p { background:rgba(244,114,182,.16); color:var(--nh-pink); } .nh-i-g { background:rgba(52,211,153,.16); color:var(--nh-grn); }
+/* 🎀 Ravella rail-ikonkasi: brend amber'i + logotip rasmi (emoji o'rniga) */
+.nh-i-r { background:rgba(249,190,62,.16); color:#f9be3e; }
+.nh-brand-ic { width:30px; height:30px; border-radius:9px; object-fit:contain; }
 .nh-i-all { background:linear-gradient(135deg,rgba(255,201,60,.2),rgba(255,143,31,.14)); color:#ffd873; border-color:rgba(255,179,0,.3); }
 
 .nh-sh { display:flex; align-items:center; justify-content:space-between; margin:20px 0 10px; }

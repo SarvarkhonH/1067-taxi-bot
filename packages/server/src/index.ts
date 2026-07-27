@@ -171,6 +171,14 @@ async function main(): Promise<void> {
     notifyRiderOrderRejected: async (notice) => {
       if (bot) await (await import("./bot/restoran")).notifyRiderOrderRejected(bot, notice);
     },
+    // 🎀 yangi Ravella buyurtmasi → HAMKOR kartasi [✅ Qabul][☎️ Bog'landim][✔ Bajarildi][❌ Rad] (+ega CC)
+    notifyRavellaPartner: async (notice) => {
+      if (bot) await (await import("./bot/ravella")).notifyRavellaPartner(bot, notice);
+    },
+    // 🎀 holat o'zgardi → mijozga push (done'da berilgan tanga summasi bilan)
+    notifyRavellaCustomer: async (notice) => {
+      if (bot) await (await import("./bot/ravella")).notifyRavellaCustomer(bot, notice);
+    },
   });
   // economy alerts (withdraws, anomalies) → admins
   const { registerAdminNotifier } = await import("./services/economyService");
@@ -406,6 +414,10 @@ async function main(): Promise<void> {
       // kas'ga umuman bog'liq emas — faqat 3+ daq javobsiz FoodOrder'larni operatorlarga eslatadi.
       const { checkRestoranSlaAndAlert } = await import("./services/restoranService");
       await checkRestoranSlaAndAlert(alertAdmins).catch((e) => console.error("[restoran-sla] failed:", e));
+      // 🎀 RAVELLA SLA-sweep — bir xil naqsh (yangi poller YO'Q): hamkor javob bermagan
+      // buyurtmalar egaga BIR marta eslatiladi (`slaAlertedAt`). Flag OFF → funksiya darhol qaytadi.
+      const { checkRavellaSlaAndAlert } = await import("./services/ravellaService");
+      await checkRavellaSlaAndAlert(alertAdmins).catch((e) => console.error("[ravella-sla] failed:", e));
       // 🏪 BirJoy V1.5 SLA-sweep — restoran naqshi (yangi poller YO'Q): 15+ daq javobsiz
       // ShopPurchase'lar egaga BIR marta eslatiladi (slaAlertedAt idempotent-marker).
       const { checkShopSlaAndAlert } = await import("./services/shopService");

@@ -2,6 +2,49 @@
 
 ## Jarayonda (yangi)
 
+### 🎀 RAVELLA — bezak konstruktori (hamkor-brend) — `in progress (gaps: rasm/seed, DB push, e'lon, QABUL)`
+**Ega so'radi (2026-07-27):** «Bosh ekranda kichik, umuman boshqa xizmat turi. Admin paneldan men
+rasm qo'shaman va narxlarini yozaman — masalan "Onajon" yozuvi 100 ming. Pastda kichik xizmatlar:
+"salyut qo'shish" bosadi — qo'shiladi, qo'shilgan rasmga o'tadi, narxi ham plus bo'ladi; ayirishni
+bossa ayriladi. Oxiri "hammasini tayyorlash". Keyin "BirJoy chegirmasidan foydalanish" 10% narxni
+olib tashlaydi. Buyurtma berilsa — "tez orada telefon qilishadi". Saxna bezaklari va bayramlar
+uchun yozuvlar bor.» **Ega qarorlari:** 10% chegirma RAVELLA hisobidan · 1% cashback BIZNING
+hisobimizdan · brend-belgi bosh ekranda (rail + e'lon/banner joyi). Reja: `RAVELLA_PLAN.md`.
+
+**Yozilgan (typecheck 4/4 yashil, vitest 42/42, miniapp build yashil):**
+- **Sxema (4 model, additiv):** `RavellaCategory` · `RavellaItem` (asosiy bezak + rasm) ·
+  `RavellaAddon` (qo'shimcha + O'Z "qo'shilgan holat" rasmi, `itemId` yoki kategoriya-bo'ylab) ·
+  `RavellaOrder` (narx/nom SNAPSHOT + discountSom/cashbackSom audit). `migrate diff` — faqat
+  4 CreateTable + 6 index, DROP/ALTER YO'Q.
+- **`services/ravellaService.ts` (yangi):** katalog/detal (owner-preview), buyurtma yaratish
+  (**narx SERVERDA qayta hisoblanadi — client summasiga ishonilmaydi**), holat-o'tishlari shartli
+  `updateMany` guard bilan, SLA-sweep (mavjud tick'ga ulandi — YANGI POLLER YO'Q), admin CRUD +
+  rasm yuklash (Telegram file_id quvuri), hamkor chat-id (AppState `ravella:chat`).
+- **Pul (§7):** buyurtmada CoinTxn YO'Q (naqd). Cashback FAQAT `done`-flip muvaffaqiyatli
+  bo'lgach — `rvlcb:<id>` idempotent kaliti + `pendingCreate/pendingResolve`, `withMemberLock`
+  ichida kunlik-cap o'qish+grant serializatsiyasi, `bookingId` BERILMAYDI → safar ≤350 clamp'iga
+  tegmaydi. Knoblar: `ravellaDiscountPct`(10) `ravellaCashbackPct`(1) `...PerOrder`(20k)
+  `...Daily`(20k) `...SlaMinutes`(15).
+- **Bot `bot/ravella.ts` (yangi):** hamkor kartasi [✅ Qabul][☎️ Bog'landim][✔ Bajarildi][❌ Rad]
+  (+ega CC; hamkor sozlanmagan bo'lsa faqat egaga), mijozga har o'tishda push, `/ravella` ochiq
+  buyurtmalar. Guard: tugmalarni faqat hamkor/ega bosa oladi.
+- **Mini App `ravella.tsx` + `design/ravella.css` (yangi):** katalog → konstruktor (qo'shimcha
+  qo'shilganda katta rasm SHUNGA o'tadi, 200ms opacity-crossfade) → sticky jami → «Hammasi
+  tayyor» → «🎁 BirJoy chegirmasi −10%» (eski narx chiziladi) → buyurtma → «tez orada telefon
+  qilishadi» + «ish tugagach +N tanga». Alohida lazy-chunk: 11.7 kB (gzip 3.9) — boshqa
+  ekranlarga vazn qo'shmaydi. Kirish: uy rail'ida KICHIK brend-tugma (+hub, +eski uy tiles),
+  tabbar'da YO'Q (ega: «umuman boshqa xizmat turi»).
+- **Admin `admin/src/ravella.tsx` (yangi tab 🎀):** kategoriya/bezak/qo'shimcha CRUD, har biriga
+  rasm yuklash, hamkor chat-id, buyurtma navbati (SLA-rang + ✅/☎️/✔/❌).
+- **O'chirildi:** eski `miniapp/src/service.tsx` (unrouted, inline-stil, binafsha to'y-katalog) +
+  `public/ravella/index.html` (2026-06-28 mustaqil landing) — ikkalasi ham yangi brendga zid.
+
+**Qolgan (ready EMAS):** (1) `public/ravella/logo.png` — ega beradi; (2) jonli VPS bazasiga
+`db push` (lokal `.env` hali eski Neon'ga qaraydi — push VPS'da bajarilishi SHART); (3) katalog
+seed'i (rasm+narx) egadan; (4) `/elonrasm` rasmli e'lon (R5); (5) `scripts/testRavella.ts` pul-testi
+ALOHIDA `TEST_DATABASE_URL`da; (6) EGA QABULI → `setFlag.ts ravella on`. Flag DARK — jonli
+mijozlar hozircha HECH NARSA ko'rmaydi.
+
 ### 📞 SOTUV_PLAN — Koson biznesini platformaga ko'chirish + 3 vosita — `ready for verification`
 **Ega so'radi:** "hammani BirJoyga jalb qilish, yagona shahar platformasi — qanday sotay?"
 Avval 3 ta pul-mexanika qoralamasi (offline cashback-hamkor · QR+GPS-geofence · "Chaqa" naqd

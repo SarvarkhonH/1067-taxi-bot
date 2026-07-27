@@ -223,6 +223,15 @@ export const BONUS_ECON_KNOBS: BonusEconKnob[] = [
   { key: "reviewTangaBase", label: "🗣 Sharh uchun tanga", def: 300, min: 0, max: 1000, step: 50, group: "BirJoy bozor" },
   { key: "reviewTangaPhotoBonus", label: "🗣 Sharh + rasm — qo'shimcha", def: 200, min: 0, max: 1000, step: 50, group: "BirJoy bozor" },
   { key: "reviewTangaDailyMax", label: "🗣 Sharh-tanga — max/kun/a'zo (dona)", def: 3, min: 0, max: 10, step: 1, group: "BirJoy bozor" },
+  // ── 🎀 RAVELLA (flag `ravella`, RAVELLA_PLAN §7) — hamkor-brend bezak konstruktori.
+  // CHEGIRMA foizi RAVELLA hisobidan (bizga 0 so'm — hamkor kelishuvi, buyurtmada audit uchun
+  // yoziladi). CASHBACK foizi esa BIZNING yangi emissiya-manbamiz: safar ≤350 clamp'iga TEGMAYDI
+  // (grantCoins bookingId'siz), grant FAQAT ish "done"ga o'tganda, buyurtma+kunlik cap ichida.
+  { key: "ravellaDiscountPct", label: "🎀 BirJoy chegirmasi (%) — Ravella hisobidan", def: 10, min: 0, max: 30, step: 1, group: "Ravella" },
+  { key: "ravellaCashbackPct", label: "🎀 Cashback foizi (%) — biz to'laymiz", def: 1, min: 0, max: 5, step: 1, group: "Ravella" },
+  { key: "ravellaCashbackPerOrder", label: "🎀 Cashback — max/buyurtma (tanga)", def: 20000, min: 0, max: 100000, step: 1000, group: "Ravella" },
+  { key: "ravellaCashbackDaily", label: "🎀 Cashback — max/kun/a'zo (tanga)", def: 20000, min: 0, max: 100000, step: 1000, group: "Ravella" },
+  { key: "ravellaSlaMinutes", label: "🎀 Javobsiz buyurtma — alert (daqiqa)", def: 15, min: 3, max: 120, step: 1, group: "Ravella" },
 ];
 // 🏅 level index → cashback-multiplier knob key (null for Yangi = baseline ×1.0).
 const TIER_MULT_KNOB: Record<number, string> = {

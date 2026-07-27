@@ -64,6 +64,7 @@ export interface MeResponse {
     newhome?: boolean; // 🏠 premium super-app home redesign (owner-preview: admins see it while DARK)
     newprofile?: boolean; // 👤 enriched Profil redesign (owner-preview: admins see it while DARK)
     shopv2?: boolean; // 🏪 BirJoy Market qorong'i-qayta-dizayni (owner-preview: admins see it while DARK)
+    ravella?: boolean; // 🎀 Ravella bezak konstruktori — bosh ekran tugmasi + banner (owner-preview: admins see it while DARK)
   };
 }
 
@@ -1015,4 +1016,108 @@ export interface HomeFeedResponse {
   banner: HomeBanner | null;
   items: HomeFeedItem[];
   services: { key: string; on: boolean }[]; // rail flag-state mirror (client may also read me.flags)
+}
+
+// ── 🎀 RAVELLA (feature "ravella", RAVELLA_PLAN.md) — bezak KONSTRUKTORI ─────────────────────────
+// Narx REAL SO'M (tanga emas). Mijoz faqat `itemId` + `[{addonId, qty}]` yuboradi — JAMI, chegirma
+// va cashback SERVERDA jonli narxlardan qayta hisoblanadi (RAVELLA_PLAN §7.1: client narxiga
+// ISHONILMAYDI). Shu sababli create-body'da hech qanday summa maydoni YO'Q.
+
+export interface RavellaCategoryView {
+  id: number;
+  name: string;
+  emoji: string;
+}
+
+export interface RavellaItemCard {
+  id: number;
+  categoryId: number;
+  name: string;
+  desc?: string | null;
+  basePriceSom: number;
+  hasPhoto: boolean; // render /api/ravella/photo/:id when true
+}
+
+export interface RavellaAddonView {
+  id: number;
+  name: string;
+  priceSom: number;
+  maxQty: number;
+  hasPhoto: boolean; // render /api/ravella/addon-photo/:id — "qo'shilgan holat" rasmi
+}
+
+export interface RavellaCatalogResponse {
+  categories: (RavellaCategoryView & { items: RavellaItemCard[] })[];
+  discountPct: number; // ekranda "−N%" deb ko'rsatiladi (knob)
+  cashbackPct: number; // "N% tanga qaytadi" (knob)
+}
+
+export interface RavellaItemDetailResponse {
+  item: RavellaItemCard | null;
+  addons: RavellaAddonView[];
+  discountPct: number;
+  cashbackPct: number;
+}
+
+export interface RavellaOrderCreateBody {
+  itemId: number;
+  addons: { addonId: number; qty: number }[];
+  contact: string;
+  address: string;
+  eventDate?: string;
+  note?: string;
+  useDiscount?: boolean; // mijoz "🎁 BirJoy chegirmasi" tugmasini bosdimi
+}
+
+export interface RavellaOrderCreateResponse {
+  ok: boolean;
+  reason?: "off" | "unavailable" | "bad_item" | "bad_addon" | "bad_contact" | "bad_address" | "pending_limit";
+  orderId?: number;
+  totalSom?: number;
+  cashbackSom?: number; // "ish tugagach shuncha tanga qaytadi" — VA'DA, hali berilmagan
+}
+
+export type RavellaOrderStatus = "pending" | "accepted" | "called" | "done" | "rejected" | "cancelled_by_user";
+
+export interface RavellaOrderView {
+  id: number;
+  itemName: string;
+  addons: { addonId: number; name: string; qty: number; priceSom: number }[];
+  subtotalSom: number;
+  discountSom: number;
+  totalSom: number;
+  status: RavellaOrderStatus;
+  rejectReason?: string | null;
+  cashbackSom: number; // done'dan keyin — HAQIQATDA berilgan tanga
+  address: string;
+  eventDate?: string | null;
+  createdAt: string;
+}
+
+export interface AdminRavellaOrderRow extends RavellaOrderView {
+  memberId: number;
+  buyerName: string;
+  contact: string;
+  note: string;
+  ageMinutes: number; // SLA-rang admin panelda shu bilan hisoblanadi (restoran naqshi)
+}
+
+export interface AdminRavellaCategoryRow extends RavellaCategoryView {
+  sortOrder: number;
+  active: boolean;
+  itemCount: number;
+}
+
+export interface AdminRavellaItemRow extends RavellaItemCard {
+  active: boolean;
+  sortOrder: number;
+  orderCount: number;
+  addonCount: number;
+}
+
+export interface AdminRavellaAddonRow extends RavellaAddonView {
+  itemId: number | null;
+  categoryId: number | null;
+  active: boolean;
+  sortOrder: number;
 }

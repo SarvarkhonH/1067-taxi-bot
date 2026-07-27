@@ -110,13 +110,18 @@ export const FEATURES = [
               // buyurtma pending'da qolaveradi va faqat mijozning o'zi bekor qila oladi (bugungi
               // xatti-harakat AYNAN). Qaytarish mavjud terminateWithRefund yo'li bilan (idempotent
               // `mktrefund:<id>` kaliti) — yangi pul-mantiq yozilmadi.
+  "ravella",  // 🎀 RAVELLA (RAVELLA_PLAN.md): hamkor-brend bezak KONSTRUKTORI — asosiy bezak +
+              // qo'shimchalar (`+`/`−`, har biriga o'z rasmi), 10% chegirma RAVELLA hisobidan,
+              // 1% cashback BIZNING hisobimizdan (faqat ish bajarilgach, cap'lar bilan). To'lov
+              // naqd — buyurtmada CoinTxn YO'Q. Bitta kill-switch: OFF = bosh ekranda tugma ham,
+              // banner ham ko'rinmaydi, katalog bo'sh, buyurtma rad. DARK until owner QABUL.
 ] as const;
 export type FeatureName = (typeof FEATURES)[number];
 
 // Off until explicitly enabled (go-live flip = setFeature(name, true) after owner QABUL).
 // booking3 = the new map/trip flow; owner still gets a preview via server.ts owner-branch,
 // but real users stay on the (fixed) classic flow until it's accepted. A missing row → OFF.
-const DEFAULT_OFF = new Set<FeatureName>(["booking3", "livinghome", "aibrain", "mahalla", "tolqin", "baraban", "komissiya", "qarz", "welcomebonus", "refstaged", "drvstaged", "drvrecruit", "drvpush", "promo", "clientbooking", "cashout", "carupgrade", "intercity", "tierloyalty", "waitcomp", "trackcta", "jackpotpost", "drvrank", "instantstatus", "spinreminder", "shop", "xizmatlar", "elonlar", "elontop", "restoran", "bazar", "bazarcart", "shopcashback", "revtanga", "airemind", "aihisob", "aidost", "aicity", "aibilim", "aineeds", "shopstory", "shopchat", "newhome", "newprofile", "shopv2", "mktexpire"]);
+const DEFAULT_OFF = new Set<FeatureName>(["booking3", "livinghome", "aibrain", "mahalla", "tolqin", "baraban", "komissiya", "qarz", "welcomebonus", "refstaged", "drvstaged", "drvrecruit", "drvpush", "promo", "clientbooking", "cashout", "carupgrade", "intercity", "tierloyalty", "waitcomp", "trackcta", "jackpotpost", "drvrank", "instantstatus", "spinreminder", "shop", "xizmatlar", "elonlar", "elontop", "restoran", "bazar", "bazarcart", "shopcashback", "revtanga", "airemind", "aihisob", "aidost", "aicity", "aibilim", "aineeds", "shopstory", "shopchat", "newhome", "newprofile", "shopv2", "mktexpire", "ravella"]);
 
 let cache: { at: number; map: Record<string, boolean> } = { at: 0, map: {} };
 

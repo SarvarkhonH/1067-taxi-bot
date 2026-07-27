@@ -210,6 +210,13 @@ export const api = {
   restoranReviews: (id: number) => get<import("@t1067/shared").RestaurantReviewsResponse>(`/api/restoran/${id}/reviews`),
   restoranReviewSubmit: (id: number, stars: number, text?: string) => post<import("@t1067/shared").RestaurantReviewSubmitResponse>(`/api/restoran/${id}/review`, { stars, text }),
   restoranReviewDelete: (id: number) => del<{ ok: boolean }>(`/api/restoran/${id}/review`),
+  // 🎀 ravella (feature "ravella") — bezak konstruktori. Narx SERVERDA hisoblanadi: order body'da
+  // hech qanday summa YO'Q, faqat id'lar + "chegirmani xohlayman" bayrog'i.
+  ravellaCatalog: () => get<import("@t1067/shared").RavellaCatalogResponse>("/api/ravella/catalog"),
+  ravellaItem: (id: number) => get<import("@t1067/shared").RavellaItemDetailResponse>(`/api/ravella/item/${id}`),
+  ravellaOrder: (b: import("@t1067/shared").RavellaOrderCreateBody) => post<import("@t1067/shared").RavellaOrderCreateResponse>("/api/ravella/order", b),
+  ravellaOrders: () => get<{ orders: import("@t1067/shared").RavellaOrderView[] }>("/api/ravella/orders"),
+  ravellaCancel: (orderId: number) => post<{ ok: boolean; reason?: string }>(`/api/ravella/orders/${orderId}/cancel`),
   // 🔎 xizmatlar (feature "xizmatlar") — Koson services directory
   svcCategories: () => get<{ categories: import("@t1067/shared").ServiceCategoryView[]; popularTags: string[] }>("/api/services/categories"),
   svcList: (p: { cat?: number; q?: string; limit?: number; offset?: number; sort?: "new" } = {}) => {

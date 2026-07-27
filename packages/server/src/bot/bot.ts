@@ -1601,6 +1601,7 @@ export function createBot(): Bot {
   registerDriverDebt(bot); // /qarz — pay kas debt with tanga (gated behind `qarz` flag). No login: uses the member's already-linked plate.
   registerDriverReports(bot); // /safarlarim + /daromad (read-only driver reports)
   void import("./aiKnowledge").then(({ registerAiKnowledge }) => registerAiKnowledge(bot)); // 🧠 AI-bilim owner ✅/❌ (callback-only → lazy-register order-safe)
+  void import("./ravella").then(({ registerRavella }) => registerRavella(bot)); // 🎀 Ravella hamkor kartasi ✅/☎️/✔/❌ + /ravella (callback+command only → lazy-register order-safe)
   registerBooking(bot, mainMenu);
 
   // 🤖 AI-1 rules-first free text: runs AFTER booking's own text handler

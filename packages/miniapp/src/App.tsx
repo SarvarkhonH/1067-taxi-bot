@@ -25,6 +25,9 @@ const XizmatlarView = lazy(() => import("./services").then((m) => ({ default: m.
 const ElonlarView = lazy(() => import("./elonlar").then((m) => ({ default: m.ElonlarView })));
 // 🍽 Restoran — taom-buyurtma, "wallet"ning bo'shagan tab-slotini egallaydi (gated by feature `restoran`; owner-preview while DARK)
 const RestoranView = lazy(() => import("./restoran").then((m) => ({ default: m.RestoranView })));
+// 🎀 Ravella — hamkor-brend bezak konstruktori. Tabbar'da YO'Q (ega qarori: "bosh ekranda kichik,
+// umuman boshqa xizmat turi") — faqat uy rail'i / banner / deep-link orqali ochiladi.
+const RavellaView = lazy(() => import("./ravella").then((m) => ({ default: m.RavellaView })));
 import { BirJoyMark } from "./design/birjoy";
 import { Icon } from "./icons";
 import { useCountUp } from "./util";
@@ -32,7 +35,7 @@ import { NewProfileView, ThemePicker, initTheme } from "./profile"; // 👤 newp
 
 initTheme(); // 🎨 apply saved / Telegram theme on <html> before first paint (features newhome/newprofile)
 
-type Tab = "uy" | "wallet" | "play" | "reyting" | "yol" | "dokon" | "xizmat" | "elonlar" | "restoran" | "driver" | "profile";
+type Tab = "uy" | "wallet" | "play" | "reyting" | "yol" | "dokon" | "xizmat" | "elonlar" | "restoran" | "ravella" | "driver" | "profile";
 
 // ── `me` stale-while-revalidate cache (instant repeat opens, hides cold-start) ──
 // Keyed by the Telegram user id so a shared device never shows one user another's cached data.
@@ -100,6 +103,7 @@ const GO_MAP: Record<string, Tab> = {
   yol: "yol", intercity: "yol", reys: "yol", // 🚐 shaharlararo
   elonlar: "elonlar", elon: "elonlar", elonlash: "elonlar", // 📋 mahalla e'lon taxtasi
   restoran: "restoran", restaurant: "restoran", taom: "restoran", ovqat: "restoran", // 🍽 taom-buyurtma (flag off bo'lsa App tab-guard Uy'ga tushiradi)
+  ravella: "ravella", bezak: "ravella", toy: "ravella", // 🎀 Ravella bezak konstruktori (flag off bo'lsa tab-guard Uy'ga tushiradi)
   driver: "driver", profile: "profile",
 };
 
@@ -273,6 +277,7 @@ export function App() {
     if (t === "xizmat" && !me.flags?.xizmatlar) t = "uy"; // 🔎 deep-link guard: xizmatlar dark → land home
     if (t === "elonlar" && !me.flags?.elonlar) t = "reyting"; // 📋 deep-link guard: elonlar dark → land on Reyting (its old slot)
     if (t === "restoran" && !me.flags?.restoran) t = "uy"; // 🍽 deep-link guard: restoran dark → land home
+    if (t === "ravella" && !me.flags?.ravella) t = "uy"; // 🎀 deep-link guard: ravella dark → land home
     if (t === tab) return;
     haptic();
     setTab(t);
@@ -373,6 +378,7 @@ export function App() {
               : tab === "xizmat" ? "Xizmatlar"
               : tab === "elonlar" ? "E'lonlar"
               : tab === "restoran" ? "Restoran"
+              : tab === "ravella" ? "Ravella"
               : tab === "reyting" ? "Reyting"
               : tab === "driver" ? "Daromad"
               : tab === "profile" ? "Profil"
@@ -422,6 +428,7 @@ export function App() {
             {tab === "xizmat" && <XizmatlarView me={me} onBanner={flash} />}
             {tab === "elonlar" && <ElonlarView me={me} onBanner={flash} reload={reload} />}
             {tab === "restoran" && <RestoranView me={me} onBanner={flash} openRestaurantId={openRestoranFromFeed} />}
+            {tab === "ravella" && <RavellaView me={me} onBanner={flash} />}
             {tab === "driver" && <DriverView me={me} />}
             {tab === "profile" && (
               me.flags?.newprofile ? (

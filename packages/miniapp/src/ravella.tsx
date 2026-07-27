@@ -1,0 +1,397 @@
+// 🎀 RAVELLA (feature "ravella", RAVELLA_PLAN.md) — bayram/saxna bezaklari KONSTRUKTORI.
+// Oqim: katalog → bezak → qo'shimchalarni `+`/`−` (har qo'shimchaning O'Z rasmi bor: qo'shilganda
+// katta rasm SHUNGA o'tadi) → «Hammasi tayyor» → «🎁 BirJoy chegirmasi −10%» → buyurtma →
+// «tez orada telefon qilishadi». PUL: to'lov naqd/kelishuv — bu ekran hech qanday tanga
+// SARFLAMAYDI; 1% cashback ish bajarilgach serverda beriladi (bu yerda faqat VA'DA ko'rsatiladi).
+// Barcha summalar server javobidan olinadi — client hisobi faqat JONLI ko'rsatkich uchun.
+import { useEffect, useMemo, useRef, useState } from "react";
+import type { MeResponse, RavellaAddonView, RavellaCatalogResponse, RavellaItemCard, RavellaOrderView } from "@t1067/shared";
+import { formatNumber } from "@t1067/shared";
+import { api, apiUrl } from "./api";
+import { haptic, hapticSuccess } from "./telegram";
+import { Button, EmptyState, Sheet, Skeleton } from "./design/components";
+import "./design/ravella.css";
+
+const LAST_ADDR_KEY = "ravella_last_addr";
+
+const STATUS_LABEL: Record<RavellaOrderView["status"], { t: string; c: string }> = {
+  pending: { t: "⏳ Kutilmoqda", c: "pending" },
+  accepted: { t: "✅ Qabul qilindi", c: "delivered" },
+  called: { t: "☎️ Bog'lanishmoqda", c: "delivered" },
+  done: { t: "🎉 Bajarildi", c: "delivered" },
+  rejected: { t: "❌ Rad etildi", c: "rejected" },
+  cancelled_by_user: { t: "✖ Bekor qilindi", c: "rejected" },
+};
+
+function Hero() {
+  return (
+    <div className="rv-hero">
+      <img className="rv-hero-logo" src="/ravella/logo.png" alt="Ravella" onError={(e) => ((e.target as HTMLImageElement).style.display = "none")} />
+      <div className="rv-hero-title">Ravella</div>
+      <div className="rv-hero-sub">Saxna bezaklari · bayram yozuvlari</div>
+    </div>
+  );
+}
+
+function CatalogSkeleton() {
+  return (
+    <div className="rv-grid">
+      {[1, 2, 3, 4].map((i) => (
+        <div key={i} className="rv-card">
+          <Skeleton h={130} />
+          <div style={{ padding: "10px 12px" }}>
+            <Skeleton h={14} w="70%" />
+            <div style={{ height: 6 }} />
+            <Skeleton h={11} w="45%" />
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function ItemCard({ it, onOpen }: { it: RavellaItemCard; onOpen: (it: RavellaItemCard) => void }) {
+  return (
+    <button className="rv-card" onClick={() => { haptic(); onOpen(it); }}>
+      <div className="rv-card-photo-wrap">
+        {it.hasPhoto ? (
+          <img className="rv-card-photo" src={apiUrl(`/api/ravella/photo/${it.id}`)} loading="lazy" decoding="async" alt="" />
+        ) : (
+          <div className="rv-card-photo rv-noimg">🎀</div>
+        )}
+      </div>
+      <div className="rv-card-body">
+        <div className="rv-card-name">{it.name}</div>
+        <div className="rv-card-price">{formatNumber(it.basePriceSom)} so'm<span>dan</span></div>
+      </div>
+    </button>
+  );
+}
+
+// ── konstruktor ──────────────────────────────────────────────────────────────────────────────────
+
+function Constructor({ itemId, me, onBack, onBanner }: { itemId: number; me: MeResponse; onBack: () => void; onBanner?: (m: string) => void }) {
+  const [data, setData] = useState<{ item: RavellaItemCard | null; addons: RavellaAddonView[]; discountPct: number; cashbackPct: number } | null>(null);
+  const [qty, setQty] = useState<Record<number, number>>({});
+  // ⭐ Ega tavsifi: "qo'shilsa qo'shilgan rasmga o'tadi" — oxirgi QO'SHILGAN, rasmi bor qo'shimcha
+  // katta rasmni egallaydi; hammasi olib tashlansa asosiy rasm qaytadi.
+  const [heroAddonId, setHeroAddonId] = useState<number | null>(null);
+  const [checkout, setCheckout] = useState(false);
+  const [useDiscount, setUseDiscount] = useState(false);
+  const [contact, setContact] = useState(() => me.member?.phone ?? "");
+  const [address, setAddress] = useState(() => { try { return localStorage.getItem(LAST_ADDR_KEY) ?? ""; } catch { return ""; } });
+  const [eventDate, setEventDate] = useState("");
+  const [note, setNote] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [done, setDone] = useState<{ orderId: number; totalSom: number; cashbackSom: number } | null>(null);
+
+  useEffect(() => {
+    setData(null);
+    api.ravellaItem(itemId).then(setData).catch(() => setData({ item: null, addons: [], discountPct: 0, cashbackPct: 0 }));
+  }, [itemId]);
+
+  const addonOf = useMemo(() => new Map((data?.addons ?? []).map((a) => [a.id, a])), [data]);
+  const lines = useMemo(
+    () => Object.entries(qty).filter(([, q]) => q > 0).map(([id, q]) => ({ addon: addonOf.get(Number(id))!, qty: q })).filter((l) => l.addon),
+    [qty, addonOf],
+  );
+  const subtotalSom = (data?.item?.basePriceSom ?? 0) + lines.reduce((s, l) => s + l.addon.priceSom * l.qty, 0);
+  const discountSom = useDiscount ? Math.floor((subtotalSom * (data?.discountPct ?? 0)) / 100) : 0;
+  const totalSom = subtotalSom - discountSom;
+  const cashbackSom = Math.floor((totalSom * (data?.cashbackPct ?? 0)) / 100);
+
+  const bump = (a: RavellaAddonView, delta: 1 | -1) => {
+    haptic();
+    setQty((c) => {
+      const next = Math.max(0, Math.min(a.maxQty, (c[a.id] ?? 0) + delta));
+      // rasm: qo'shilganda shu qo'shimchaga o'tadi, nolga tushsa asosiy rasm qaytadi
+      if (delta === 1 && next > 0 && a.hasPhoto) setHeroAddonId(a.id);
+      if (next === 0 && heroAddonId === a.id) setHeroAddonId(null);
+      return { ...c, [a.id]: next };
+    });
+  };
+
+  const submit = async () => {
+    if (!data?.item || busy) return;
+    if (contact.replace(/\D/g, "").length < 7) { onBanner?.("Telefon raqamingizni to'liq yozing"); return; }
+    if (address.trim().length < 5) { onBanner?.("Manzilni to'liqroq yozing (kamida 5 belgi)"); return; }
+    setBusy(true);
+    try {
+      const r = await api.ravellaOrder({
+        itemId: data.item.id,
+        addons: lines.map((l) => ({ addonId: l.addon.id, qty: l.qty })),
+        contact, address, eventDate, note, useDiscount,
+      });
+      if (r.ok && r.orderId) {
+        hapticSuccess();
+        try { localStorage.setItem(LAST_ADDR_KEY, address.trim()); } catch { /* private mode */ }
+        setDone({ orderId: r.orderId, totalSom: r.totalSom ?? 0, cashbackSom: r.cashbackSom ?? 0 });
+        setCheckout(false);
+      } else {
+        const msgs: Record<string, string> = {
+          off: "Xizmat hozircha yopiq",
+          unavailable: "Bu bezak hozircha mavjud emas",
+          bad_item: "Katalog yangilandi — qaytadan tanlang",
+          bad_addon: "Qo'shimcha yangilandi — qaytadan tanlang",
+          bad_contact: "Telefon raqamingizni to'liq yozing",
+          bad_address: "Manzilni to'liqroq yozing",
+          pending_limit: "Sizda ochiq buyurtmalar bor — avval ular tugasin",
+        };
+        onBanner?.(msgs[r.reason ?? ""] ?? "Xatolik yuz berdi");
+      }
+    } catch {
+      onBanner?.("Xatolik yuz berdi — qayta urinib ko'ring");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  if (!data) {
+    return (
+      <div className="view">
+        <button className="rv-back" onClick={onBack}>‹ Orqaga</button>
+        <Skeleton h={220} /><div style={{ height: 12 }} /><Skeleton h={60} />
+      </div>
+    );
+  }
+  if (!data.item) {
+    return (
+      <div className="view">
+        <button className="rv-back" onClick={onBack}>‹ Orqaga</button>
+        <EmptyState icon="🎀" text="Bezak topilmadi" />
+      </div>
+    );
+  }
+  if (done) {
+    return (
+      <div className="view rv-done">
+        <div className="rv-done-icon">✅</div>
+        <div className="rv-done-title">Buyurtmangiz qabul qilindi</div>
+        <div className="rv-done-sub">#{done.orderId} · {formatNumber(done.totalSom)} so'm</div>
+        <div className="rv-done-call">☎️ Tez orada Ravella siz bilan bog'lanadi</div>
+        {done.cashbackSom > 0 && (
+          <div className="rv-done-cb">🪙 Ish bajarilgach <b>+{formatNumber(done.cashbackSom)} tanga</b> qaytadi</div>
+        )}
+        <Button variant="brand" onClick={onBack}>Katalogga qaytish</Button>
+      </div>
+    );
+  }
+
+  const heroAddon = heroAddonId !== null ? addonOf.get(heroAddonId) : undefined;
+  const heroSrc = heroAddon?.hasPhoto
+    ? apiUrl(`/api/ravella/addon-photo/${heroAddon.id}`)
+    : data.item.hasPhoto ? apiUrl(`/api/ravella/photo/${data.item.id}`) : null;
+
+  return (
+    <div className="view rv-detail">
+      <button className="rv-back" onClick={onBack}>‹ Orqaga</button>
+
+      <div className="rv-stage">
+        {heroSrc ? (
+          // key → rasm almashganda CSS crossfade qayta ishga tushadi (faqat opacity — §6 qoidasi)
+          <img key={heroSrc} className="rv-stage-photo" src={heroSrc} alt="" />
+        ) : (
+          <div className="rv-stage-photo rv-noimg">🎀</div>
+        )}
+        {heroAddon && <span className="rv-stage-tag">+ {heroAddon.name}</span>}
+      </div>
+
+      <div className="rv-name">{data.item.name}</div>
+      {data.item.desc && <div className="rv-desc">{data.item.desc}</div>}
+      <div className="rv-base">Asosiy narx · {formatNumber(data.item.basePriceSom)} so'm</div>
+
+      {data.addons.length > 0 && (
+        <div className="rv-section">
+          <div className="rv-section-title">Qo'shimchalar</div>
+          {data.addons.map((a) => {
+            const q = qty[a.id] ?? 0;
+            return (
+              <div key={a.id} className={"rv-addon" + (q > 0 ? " on" : "")}>
+                {a.hasPhoto ? (
+                  <img className="rv-addon-photo" src={apiUrl(`/api/ravella/addon-photo/${a.id}`)} loading="lazy" decoding="async" alt="" />
+                ) : (
+                  <div className="rv-addon-photo rv-noimg">✨</div>
+                )}
+                <div className="rv-addon-body">
+                  <div className="rv-addon-name">{a.name}</div>
+                  <div className="rv-addon-price">+{formatNumber(a.priceSom)} so'm</div>
+                </div>
+                {q === 0 ? (
+                  <button className="rv-addon-add" onClick={() => bump(a, 1)}>+</button>
+                ) : (
+                  <div className="rv-stepper">
+                    <button onClick={() => bump(a, -1)}>−</button>
+                    <span>{q}</span>
+                    <button onClick={() => bump(a, 1)}>+</button>
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      <div className="rv-total-bar">
+        <div className="rv-total-num">
+          <small>Jami</small>
+          <b>{formatNumber(subtotalSom)} so'm</b>
+        </div>
+        <button className="rv-ready" onClick={() => { haptic(); setCheckout(true); }}>✅ Hammasi tayyor</button>
+      </div>
+
+      <Sheet open={checkout} onClose={() => setCheckout(false)}>
+        <h3>Buyurtmani rasmiylashtirish</h3>
+        <div className="rv-confirm-line"><span>{data.item.name}</span><span>{formatNumber(data.item.basePriceSom)} so'm</span></div>
+        {lines.map((l) => (
+          <div key={l.addon.id} className="rv-confirm-line">
+            <span>{l.addon.name} ×{l.qty}</span><span>{formatNumber(l.addon.priceSom * l.qty)} so'm</span>
+          </div>
+        ))}
+
+        {data.discountPct > 0 && (
+          useDiscount ? (
+            <div className="rv-disc-on">✅ BirJoy chegirmasi qo'llandi — <b>−{formatNumber(discountSom)} so'm</b></div>
+          ) : (
+            <button className="rv-disc-btn" onClick={() => { hapticSuccess(); setUseDiscount(true); }}>
+              🎁 BirJoy chegirmasidan foydalanish — {data.discountPct}%
+            </button>
+          )
+        )}
+
+        <div className="rv-confirm-total">
+          <span>Jami</span>
+          <span>
+            {useDiscount && <s>{formatNumber(subtotalSom)}</s>}
+            <b> {formatNumber(totalSom)} so'm</b>
+          </span>
+        </div>
+        {cashbackSom > 0 && <div className="rv-cb-hint">🪙 Ish bajarilgach <b>+{formatNumber(cashbackSom)} tanga</b> qaytadi</div>}
+
+        <input className="bk-input mt8" placeholder="Telefon: +998 __ ___ __ __" value={contact} onChange={(e) => setContact(e.target.value)} maxLength={30} />
+        <input className="bk-input mt8" placeholder="Manzil: Koson sh., ko'cha, uy" value={address} onChange={(e) => setAddress(e.target.value)} maxLength={200} />
+        <input className="bk-input mt8" placeholder="Sana (masalan: 5-avgust)" value={eventDate} onChange={(e) => setEventDate(e.target.value)} maxLength={40} />
+        <input className="bk-input mt8" placeholder="Izoh (ixtiyoriy)" value={note} onChange={(e) => setNote(e.target.value)} maxLength={200} />
+        <Button variant="brand" disabled={busy} onClick={submit}>
+          {busy ? "Yuborilmoqda…" : "Buyurtma berish"}
+        </Button>
+        <div className="rv-pay-note">To'lov naqd — hech qanday tanga yechilmaydi. Tez orada telefon qilishadi.</div>
+      </Sheet>
+    </div>
+  );
+}
+
+// ── mening buyurtmalarim ─────────────────────────────────────────────────────────────────────────
+
+function MyOrders({ onBack }: { onBack: () => void }) {
+  const [orders, setOrders] = useState<RavellaOrderView[] | null>(null);
+  const [busyId, setBusyId] = useState<number | null>(null);
+  useEffect(() => {
+    const load = () => api.ravellaOrders().then((r) => setOrders(r.orders)).catch(() => undefined);
+    load();
+    const iv = setInterval(load, 8000); // hamkor botdan holatni o'zgartirsa mijoz shu yerda jonli ko'radi
+    return () => clearInterval(iv);
+  }, []);
+
+  const cancel = async (o: RavellaOrderView) => {
+    haptic();
+    setBusyId(o.id);
+    const r = await api.ravellaCancel(o.id).catch(() => ({ ok: false as const }));
+    setBusyId(null);
+    if (r.ok) { hapticSuccess(); api.ravellaOrders().then((x) => setOrders(x.orders)).catch(() => undefined); }
+  };
+
+  return (
+    <div className="view">
+      <button className="rv-back" onClick={onBack}>‹ Orqaga</button>
+      {orders === null ? (
+        <><Skeleton h={70} /><div style={{ height: 8 }} /><Skeleton h={70} /></>
+      ) : orders.length === 0 ? (
+        <EmptyState icon="📦" text="Hali buyurtma yo'q" />
+      ) : (
+        orders.map((o) => {
+          const s = STATUS_LABEL[o.status];
+          return (
+            <div key={o.id} className="rv-order-card">
+              <div className="rv-order-top">
+                <b>{o.itemName}</b>
+                <span className={`order-status-pill ${s.c}`}>{s.t}</span>
+              </div>
+              {o.addons.length > 0 && <div className="muted fs12">{o.addons.map((a) => `${a.name} ×${a.qty}`).join(", ")}</div>}
+              <div className="rv-order-bottom">
+                <span>{o.eventDate || o.address}</span>
+                <b>{formatNumber(o.totalSom)} so'm</b>
+              </div>
+              {o.discountSom > 0 && <div className="muted fs11">🎁 BirJoy chegirmasi: −{formatNumber(o.discountSom)} so'm</div>}
+              {o.cashbackSom > 0 && <div className="rv-order-cb">🪙 +{formatNumber(o.cashbackSom)} tanga qaytdi</div>}
+              {o.status === "rejected" && o.rejectReason && <div className="rv-order-reason">Sabab: {o.rejectReason}</div>}
+              {o.status === "pending" && (
+                <button className="rv-order-cancel" disabled={busyId === o.id} onClick={() => cancel(o)}>✖ Bekor qilish</button>
+              )}
+            </div>
+          );
+        })
+      )}
+    </div>
+  );
+}
+
+// ── katalog (kirish nuqtasi) ─────────────────────────────────────────────────────────────────────
+
+export function RavellaView({ me, onBanner }: { me: MeResponse; onBanner?: (msg: string) => void }) {
+  const [cat, setCat] = useState<RavellaCatalogResponse | null>(null);
+  const [openId, setOpenId] = useState<number | null>(null);
+  const [ordersOpen, setOrdersOpen] = useState(false);
+  const [activeCat, setActiveCat] = useState<number | "all">("all");
+  const loaded = useRef(false);
+
+  useEffect(() => {
+    if (loaded.current) return;
+    loaded.current = true;
+    api.ravellaCatalog().then(setCat).catch(() => setCat({ categories: [], discountPct: 0, cashbackPct: 0 }));
+  }, []);
+
+  if (ordersOpen) return <MyOrders onBack={() => setOrdersOpen(false)} />;
+  if (openId != null) return <Constructor itemId={openId} me={me} onBack={() => setOpenId(null)} onBanner={onBanner} />;
+
+  const cats = cat?.categories ?? [];
+  const shown = activeCat === "all" ? cats : cats.filter((c) => c.id === activeCat);
+
+  return (
+    <div className="view rv-view">
+      <Hero />
+      {cat && cat.discountPct > 0 && (
+        <div className="rv-promo">
+          🎁 BirJoy orqali <b>{cat.discountPct}% arzon</b>{cat.cashbackPct > 0 ? <> · <b>{cat.cashbackPct}% tanga</b> qaytadi</> : null}
+        </div>
+      )}
+      <button className="rv-myorders" onClick={() => { haptic(); setOrdersOpen(true); }}>📦 Mening buyurtmalarim</button>
+
+      {cat === null ? (
+        <CatalogSkeleton />
+      ) : cats.length === 0 ? (
+        <EmptyState icon="🎀" text="Hozircha bezaklar qo'shilmagan — tez orada" />
+      ) : (
+        <>
+          {cats.length > 1 && (
+            <div className="rv-cat-row">
+              <button className={"rv-chip" + (activeCat === "all" ? " on" : "")} onClick={() => { haptic(); setActiveCat("all"); }}>Barchasi</button>
+              {cats.map((c) => (
+                <button key={c.id} className={"rv-chip" + (activeCat === c.id ? " on" : "")} onClick={() => { haptic(); setActiveCat(c.id); }}>
+                  {c.emoji} {c.name}
+                </button>
+              ))}
+            </div>
+          )}
+          {shown.map((c) => (
+            <div key={c.id} className="rv-cat-block">
+              <div className="rv-cat-title">{c.emoji} {c.name}</div>
+              <div className="rv-grid">
+                {c.items.map((it) => <ItemCard key={it.id} it={it} onOpen={(x) => setOpenId(x.id)} />)}
+              </div>
+            </div>
+          ))}
+        </>
+      )}
+    </div>
+  );
+}

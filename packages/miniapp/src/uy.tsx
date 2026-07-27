@@ -75,6 +75,7 @@ export function UyView({ me, onBook, onNav, onBanner }: { me: MeResponse; onBook
         <button className="uy-tile" onClick={() => { haptic(); onNav("wallet"); }}>👛<span>Hamyon</span></button>
         <button className="uy-tile" onClick={() => { haptic(); onNav("play"); }}>🎮<span>O'yin</span></button>
         <button className="uy-tile" onClick={() => { haptic(); onNav("market"); }}>🏪<span>Bozor</span></button>
+        {me.flags?.ravella && <button className="uy-tile" onClick={() => { haptic(); onNav("ravella"); }}>🎀<span>Ravella</span></button>}
         <button className="uy-tile" onClick={() => { haptic(); onNav("reyting"); }}>🏆<span>Reyting</span></button>
         <button className="uy-tile" onClick={() => { haptic(); onNav("history"); }}>📜<span>Tarix</span></button>
       </div>
@@ -133,6 +134,9 @@ export function NewUyView({ me, onBook, onNav, onBanner }: { me: MeResponse; onB
   const rail = [
     { on: !!f.shop, ic: "nh-i-b", em: "🏪", lb: "Do'kon", nav: "dokon", locked: false },
     { on: !!f.restoran, ic: "nh-i-o", em: "🍽", lb: "Restoran", nav: "restoran", locked: false },
+    // 🎀 Ravella — hamkor-brend (ega qarori 2026-07-27): rail'da KICHIK tugma, ikonkasi emoji emas,
+    // brend logotipi. Do'kon/Restoran'dan keyin turadi — u alohida xizmat turi, ular ichida emas.
+    { on: !!f.ravella, ic: "nh-i-r", em: "🎀", img: "/ravella/logo.png", lb: "Ravella", nav: "ravella", locked: false },
     { on: !!f.intercity, ic: "nh-i-t", em: "🚐", lb: "Yo'l", nav: "yol", locked: false },
     { on: !!f.xizmatlar, ic: "nh-i-v", em: "🔧", lb: "Xizmat", nav: "xizmat", locked: FOCUS_MODE },
     { on: !!f.elonlar, ic: "nh-i-p", em: "📋", lb: "E'lon", nav: "elonlar", locked: FOCUS_MODE },
@@ -171,7 +175,12 @@ export function NewUyView({ me, onBook, onNav, onBanner }: { me: MeResponse; onB
         <div className="nh-rail">
           {rail.map((r) => (
             <button key={r.nav} className={`nh-svc${r.locked ? " locked" : ""}`} onClick={() => tapRail(r)}>
-              <span className={`ic ${r.ic}`}>{r.em}{r.locked && <span className="soon-bd" aria-hidden="true">🔒</span>}</span>
+              <span className={`ic ${r.ic}`}>
+                {"img" in r && r.img
+                  ? <img className="nh-brand-ic" src={r.img} alt="" onError={(e) => ((e.target as HTMLImageElement).replaceWith(document.createTextNode(r.em)))} />
+                  : r.em}
+                {r.locked && <span className="soon-bd" aria-hidden="true">🔒</span>}
+              </span>
               <span className="lb">{r.lb}</span>
             </button>
           ))}
@@ -283,6 +292,7 @@ function ServicesHub({ me, onNav, onClose, onBanner }: { me: MeResponse; onNav: 
     { on: !!f.restoran, ic: "nh-i-o", em: "🍽", n: "Restoran", s: "Taom yetkazish", nav: "restoran", locked: false },
     { on: !!f.xizmatlar, ic: "nh-i-v", em: "🔧", n: "Xizmatlar", s: FOCUS_MODE ? "🔒 Tez orada" : "Usta · master", nav: "xizmat", locked: FOCUS_MODE },
     { on: !!f.elonlar, ic: "nh-i-p", em: "📋", n: "E'lonlar", s: FOCUS_MODE ? "🔒 Tez orada" : "Mahalla taxtasi", nav: "elonlar", locked: FOCUS_MODE },
+    { on: !!f.ravella, ic: "nh-i-r", em: "🎀", n: "Ravella", s: "Bayram bezaklari", nav: "ravella", locked: false },
     { on: !!f.intercity, ic: "nh-i-t", em: "🚐", n: "Yo'l", s: "Shaharlararo", nav: "yol", locked: false },
     { on: true, ic: "nh-i-g", em: "🎁", n: "Bonus", s: "O'yin · vazifa", nav: "play", locked: false },
     { on: true, ic: "nh-i-g", em: "🏆", n: "Reyting", s: "Liga · do'stlar", nav: "reyting", locked: false },

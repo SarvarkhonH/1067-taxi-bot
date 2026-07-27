@@ -2000,3 +2000,89 @@ model HomeFeatured {
 
   @@index([active, sortOrder])
 }
+
+// ── 🎀 RAVELLA (feature "ravella", RAVELLA_PLAN.md) — bayram/saxna bezaklari KONSTRUKTORI ────────
+// Ega tavsifi: asosiy bezak (rasm + narx) + pastdagi qo'shimchalar `+`/`−` bilan qo'shiladi; har
+// qo'shimchaning O'Z rasmi bor — tanlanganda katta rasm shunga o'tadi va narx o'sadi. To'lov
+// ONLAYN EMAS (naqd/kelishuv — restoran V1 concierge naqshi): buyurtmada CoinTxn YO'Q. Yagona pul
+// harakati — ish BAJARILGACH beriladigan 1% cashback (RAVELLA_PLAN §7).
+model RavellaCategory {
+  id        Int      @id @default(autoincrement())
+  name      String // "Saxna bezaklari" | "Bayram yozuvlari"
+  emoji     String   @default("🎀")
+  sortOrder Int      @default(0)
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+
+  @@index([active, sortOrder])
+}
+
+// Asosiy bezak — "«Onajon» yozuvi", 100 000 so'm. Rasm: Telegram file_id quvuri (driver-photo/shop
+// naqshi) yoki data-URL fallback. `active=false` bilan yaratiladi — EGA yoqadi (shop/restoran naqshi).
+model RavellaItem {
+  id           Int      @id @default(autoincrement())
+  categoryId   Int
+  name         String
+  desc         String?
+  basePriceSom Int
+  photoFileId  String?
+  photoUrl     String?
+  active       Boolean  @default(false)
+  sortOrder    Int      @default(0)
+  orderCount   Int      @default(0)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@index([categoryId, active, sortOrder])
+}
+
+// Qo'shimcha — "🎆 Salyut +150 000". `itemId` to'ldirilsa FAQAT shu bezakka; null bo'lsa
+// `categoryId` bo'yicha butun kategoriyaga tegishli umumiy qo'shimcha. `photo*` = "qo'shilgan
+// holat" rasmi: mijoz qo'shganda konstruktorning katta rasmi SHUNGA almashadi (rasm yo'q bo'lsa
+// asosiy rasm qoladi — xatti-harakat buzilmaydi).
+model RavellaAddon {
+  id          Int      @id @default(autoincrement())
+  itemId      Int?
+  categoryId  Int?
+  name        String
+  priceSom    Int
+  maxQty      Int      @default(5)
+  photoFileId String?
+  photoUrl    String?
+  active      Boolean  @default(true)
+  sortOrder   Int      @default(0)
+  createdAt   DateTime @default(now())
+
+  @@index([itemId, active, sortOrder])
+  @@index([categoryId, active, sortOrder])
+}
+
+// Buyurtma. Narx SNAPSHOT (itemName/addonsJson/summalar) — keyin admin narxni o'zgartirsa ham
+// eski buyurtma o'zgarmaydi. `discountSom` = Ravella hisobidan berilgan 10% (BirJoy to'lamaydi);
+// `cashbackSom` = BIZ bergan 1% (faqat `done`'da, idempotent `rvlcb:<id>`).
+model RavellaOrder {
+  id           Int       @id @default(autoincrement())
+  memberId     Int
+  itemId       Int
+  itemName     String
+  addonsJson   Json // [{addonId, name, qty, priceSom}] — snapshot
+  subtotalSom  Int
+  discountPct  Int       @default(0)
+  discountSom  Int       @default(0)
+  totalSom     Int
+  contact      String
+  address      String
+  eventDate    String? // erkin matn ("5-avgust", "shanba") — sana-tanlagich V2'da
+  note         String    @default("")
+  status       String    @default("pending") // pending|accepted|called|done|rejected|cancelled_by_user
+  rejectReason String?
+  cashbackSom  Int       @default(0)
+  slaAlertedAt DateTime?
+  acceptedAt   DateTime?
+  doneAt       DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  @@index([memberId, id])
+  @@index([status, createdAt])
+}
