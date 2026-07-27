@@ -13,8 +13,8 @@ const OWNER_TG = "6506297119";
 // Zoyir akaga va faylasufga qulaylik ber"). Admin panelsiz, botning o'zida: bezak qo'shish,
 // rasmni almashtirish, qo'shimcha qo'shish. Sessiya xotirada (market.ts wizard naqshi) — bot
 // qayta ishga tushsa qoralama yo'qoladi, bu arzon va xavfsiz.
-type Step = "cat" | "name" | "desc" | "photo" | "addonName" | "addonPhoto" | "replacePhoto";
-interface Draft { step: Step; categoryId?: number; itemId?: number; name?: string; desc?: string; addonId?: number }
+type Step = "cat" | "name" | "desc" | "photo" | "addonName" | "addonPhoto" | "replacePhoto" | "contact";
+interface Draft { step: Step; categoryId?: number; itemId?: number; name?: string; desc?: string; addonId?: number; contactKey?: string }
 const drafts = new Map<string, Draft>();
 
 /** bot.ts'dagi `:photo` handleri hamkor (admin ham, haydovchi ham emas) rasmini `next()`siz
@@ -155,7 +155,8 @@ export function registerRavella(bot: Bot): void {
           .text("📦 Buyurtmalar", "rvm:orders").row()
           .text("➕ Yangi bezak", "rvm:new").row()
           .text("🖼 Rasmni almashtirish", "rvm:photo").row()
-          .text("➕ Qo'shimcha qo'shish", "rvm:addon"),
+          .text("➕ Qo'shimcha qo'shish", "rvm:addon").row()
+          .text("☎️ Aloqa va tarmoqlar", "rvm:contacts"),
       },
     );
   });
@@ -221,6 +222,54 @@ export function registerRavella(bot: Bot): void {
     }
   });
 
+
+  // ── ☎️ Aloqa va ijtimoiy tarmoqlar (ega so'radi 2026-07-27: "botdan sozlaymiz") ──────────────
+  const CONTACT_LABEL: Record<string, string> = {
+    phone: "📞 Telefon", telegram: "✈️ Telegram", instagram: "📸 Instagram",
+    youtube: "▶️ YouTube", tiktok: "🎵 TikTok", facebook: "📘 Facebook", website: "🌐 Sayt",
+  };
+
+  const contactsScreen = async (ctx: Context): Promise<void> => {
+    const { getRavellaContacts, RAVELLA_CONTACT_KEYS } = await import("../services/ravellaService");
+    const c = await getRavellaContacts() as Record<string, string | undefined>;
+    const lines = RAVELLA_CONTACT_KEYS.map((k) => `${CONTACT_LABEL[k]}: ${c[k] ? esc(c[k]!) : "—"}`);
+    const kb = new InlineKeyboard();
+    RAVELLA_CONTACT_KEYS.forEach((k, i) => {
+      kb.text(CONTACT_LABEL[k]!, `rvm:c:${k}`);
+      if (i % 2 === 1) kb.row();
+    });
+    await ctx.reply(
+      `☎️ <b>Aloqa va tarmoqlar</b>\n\n${lines.join("\n")}\n\n<i>Sayt va ilovada shu ikonkalar chiqadi. O'zgartirish uchun tugmani bosing.</i>`,
+      { parse_mode: "HTML", reply_markup: kb },
+    );
+  };
+
+  bot.callbackQuery("rvm:contacts", async (ctx) => {
+    if (!(await guard(ctx))) return;
+    await ctx.answerCallbackQuery();
+    await contactsScreen(ctx);
+  });
+
+  bot.callbackQuery(/^rvm:c:([a-z]+)$/, async (ctx) => {
+    if (!(await guard(ctx))) return;
+    await ctx.answerCallbackQuery();
+    const key = (ctx.match as unknown as string[])[1]!;
+    drafts.set(String(ctx.from.id), { step: "contact", contactKey: key });
+    const hint: Record<string, string> = {
+      phone: "+998 90 123 45 67",
+      telegram: "@ravella_uz yoki t.me/ravella_uz",
+      instagram: "@ravella yoki instagram.com/ravella",
+      youtube: "youtube.com/@ravella",
+      tiktok: "@ravella",
+      facebook: "facebook.com/ravella",
+      website: "ravella.uz",
+    };
+    await ctx.reply(
+      `${CONTACT_LABEL[key]} — qiymatini yozing.\n<i>Masalan: ${esc(hint[key] ?? "")}</i>\n\nO'chirish uchun «-» yuboring.\n❌ Bekor: /bekor_ravella`,
+      { parse_mode: "HTML" },
+    );
+  });
+
   bot.command("bekor_ravella", async (ctx) => {
     if (drafts.delete(String(ctx.from!.id))) await ctx.reply("❌ Bekor qilindi.");
   });
@@ -251,6 +300,13 @@ export function registerRavella(bot: Bot): void {
       d.step = "photo";
       drafts.set(tg, d);
       await ctx.reply("📸 Endi shu bezakning RASMINI yuboring (surat sifatida).");
+      return;
+    }
+    if (d.step === "contact") {
+      const r = await svc.setRavellaContact(d.contactKey!, text);
+      drafts.delete(tg);
+      await ctx.reply(r.ok ? "✅ Saqlandi." : "❌ Noto'g'ri qiymat (telefon kamida 7 raqam bo'lsin).");
+      if (r.ok) await contactsScreen(ctx);
       return;
     }
     if (d.step === "addonName") {

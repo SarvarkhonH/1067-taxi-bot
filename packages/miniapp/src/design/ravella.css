@@ -233,3 +233,17 @@
   .rv-stage-photo { animation: none; }
   .rv-card, .rv-ready, .rv-addon { transition: none; }
 }
+
+/* ☎️ Aloqa ikonkalari — doira tugmalar, faqat telefon amber (u ASOSIY harakat). */
+.rv-contacts-h { margin: 26px 0 10px; text-align: center; font-size: 13px; color: var(--rv-3); }
+.rv-contacts { display: flex; flex-wrap: wrap; gap: 10px; justify-content: center; }
+.rv-ci {
+  width: 52px; height: 52px; border-radius: 26px;
+  display: inline-flex; align-items: center; justify-content: center;
+  background: #fff; border: .5px solid var(--rv-sep); color: var(--rv-ink);
+  transition: transform .18s cubic-bezier(.32, .72, 0, 1);
+}
+.rv-ci:active { transform: scale(.94); }
+.rv-ci.call { background: var(--rv-fill); border-color: transparent; }
+.rv-ci svg { width: 23px; height: 23px; display: block; }
+@media (prefers-reduced-motion: reduce) { .rv-ci { transition: none; } }

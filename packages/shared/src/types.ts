@@ -1108,10 +1108,24 @@ export interface RavellaAddonView {
   hasPhoto: boolean; // render /api/ravella/addon-photo/:id — "qo'shilgan holat" rasmi
 }
 
+/** Ravella aloqa kanallari — ega/hamkor BOTDAN sozlaydi (AppState `ravella:contacts`).
+ *  Bo'sh maydon UMUMAN ko'rsatilmaydi: sozlanmagan tarmoq ikonkasi chiqib, bosilganda hech
+ *  qayerga olib bormasligi eng yomon variant. */
+export interface RavellaContacts {
+  phone?: string;      // "+998901234567" — tel: havolasi
+  telegram?: string;   // username yoki to'liq havola
+  instagram?: string;
+  youtube?: string;
+  tiktok?: string;
+  facebook?: string;
+  website?: string;
+}
+
 export interface RavellaCatalogResponse {
   categories: (RavellaCategoryView & { items: RavellaItemCard[] })[];
   discountPct: number; // ekranda "−N%" deb ko'rsatiladi (knob)
   cashbackPct: number; // "N% tanga qaytadi" (knob)
+  contacts?: RavellaContacts;
 }
 
 export interface RavellaItemDetailResponse {
@@ -1119,6 +1133,7 @@ export interface RavellaItemDetailResponse {
   addons: RavellaAddonView[];
   discountPct: number;
   cashbackPct: number;
+  contacts?: RavellaContacts; // bezak sahifasiga TO'G'RIDAN-TO'G'RI kirganda ham aloqa ko'rinsin
 }
 
 export interface RavellaOrderCreateBody {

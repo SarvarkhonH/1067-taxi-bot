@@ -10,7 +10,7 @@
 import type {
   AdminRavellaAddonRow, AdminRavellaCategoryRow, AdminRavellaItemRow, AdminRavellaOrderRow,
   RavellaAddonView, RavellaCatalogResponse, RavellaItemCard, RavellaItemDetailResponse,
-  RavellaOrderCreateBody, RavellaOrderStatus, RavellaOrderView,
+  RavellaContacts, RavellaOrderCreateBody, RavellaOrderStatus, RavellaOrderView,
 } from "@t1067/shared";
 import { prisma } from "../db";
 import { featureOn } from "./featureFlags";
@@ -62,8 +62,8 @@ const addonView = (a: { id: number; name: string; priceSom: number; maxQty: numb
 // nima ko'rmaydi (shop/restoran owner-preview naqshi AYNAN).
 
 export async function getRavellaCatalog(preview = false): Promise<RavellaCatalogResponse> {
-  const k = await knobs();
-  const empty: RavellaCatalogResponse = { categories: [], discountPct: k.discountPct, cashbackPct: k.cashbackPct };
+  const [k, contacts] = await Promise.all([knobs(), getRavellaContacts()]);
+  const empty: RavellaCatalogResponse = { categories: [], discountPct: k.discountPct, cashbackPct: k.cashbackPct, contacts };
   if (!preview && !(await featureOn("ravella"))) return empty;
   const [cats, items] = await Promise.all([
     prisma.ravellaCategory.findMany({ where: { active: true }, orderBy: [{ sortOrder: "asc" }, { id: "asc" }], take: 30 }),
@@ -85,8 +85,8 @@ export async function getRavellaCatalog(preview = false): Promise<RavellaCatalog
 
 /** Konstruktor ekrani: bezak + unga tegishli qo'shimchalar (o'ziga xos + kategoriya-bo'ylab umumiy). */
 export async function getRavellaItemDetail(id: number, preview = false): Promise<RavellaItemDetailResponse> {
-  const k = await knobs();
-  const empty: RavellaItemDetailResponse = { item: null, addons: [], discountPct: k.discountPct, cashbackPct: k.cashbackPct };
+  const [k, contacts] = await Promise.all([knobs(), getRavellaContacts()]);
+  const empty: RavellaItemDetailResponse = { item: null, addons: [], discountPct: k.discountPct, cashbackPct: k.cashbackPct, contacts };
   if (!validId(id)) return empty;
   if (!preview && !(await featureOn("ravella"))) return empty;
   const item = await prisma.ravellaItem.findUnique({ where: { id } });
@@ -572,6 +572,46 @@ export async function adminListRavellaOrders(status?: string): Promise<AdminRave
 
 /** Xom qiymat (admin ekranida ko'rsatiladi). Ega qarori 2026-07-27: BIR NECHTA hamkor bo'lishi
  *  mumkin — vergul/probel bilan ajratiladi, buyurtma kartasi HAMMASIGA boradi. */
+// ── ☎️ Aloqa kanallari (AppState `ravella:contacts`) ────────────────────────────────────────────
+// Ega/hamkor BOTDAN sozlaydi. Har qiymat oddiy matn — havola qurish MIJOZ tomonida (tel:, t.me,
+// instagram.com/...). Bo'sh qiymat butunlay olib tashlanadi: sozlanmagan ikonka ko'rinib, hech
+// qayerga olib bormasligi eng yomon holat.
+export const RAVELLA_CONTACT_KEYS = ["phone", "telegram", "instagram", "youtube", "tiktok", "facebook", "website"] as const;
+export type RavellaContactKey = (typeof RAVELLA_CONTACT_KEYS)[number];
+
+export async function getRavellaContacts(): Promise<RavellaContacts> {
+  const row = await prisma.appState.findUnique({ where: { key: "ravella:contacts" } }).catch(() => null);
+  if (!row?.value) return {};
+  try {
+    const raw = JSON.parse(row.value) as Record<string, unknown>;
+    const out: RavellaContacts = {};
+    for (const k of RAVELLA_CONTACT_KEYS) {
+      const v = raw[k];
+      if (typeof v === "string" && v.trim()) out[k] = v.trim();
+    }
+    return out;
+  } catch {
+    return {};
+  }
+}
+
+/** Bo'sh (yoki "-") qiymat kanalni O'CHIRADI. Telefon raqamlari bo'yicha yumshoq tekshiruv —
+ *  qolganlari erkin matn (username ham, to'liq havola ham qabul qilinadi). */
+export async function setRavellaContact(key: string, value: string): Promise<{ ok: boolean }> {
+  if (!(RAVELLA_CONTACT_KEYS as readonly string[]).includes(key)) return { ok: false };
+  const v = (value ?? "").trim().slice(0, 120);
+  const current = await getRavellaContacts();
+  if (!v || v === "-") delete current[key as RavellaContactKey];
+  else if (key === "phone" && v.replace(/\D/g, "").length < 7) return { ok: false };
+  else current[key as RavellaContactKey] = v;
+  await prisma.appState.upsert({
+    where: { key: "ravella:contacts" },
+    create: { key: "ravella:contacts", value: JSON.stringify(current) },
+    update: { value: JSON.stringify(current) },
+  });
+  return { ok: true };
+}
+
 export async function getRavellaPartnerChat(): Promise<string | null> {
   const row = await prisma.appState.findUnique({ where: { key: "ravella:chat" } }).catch(() => null);
   return row?.value?.trim() || null;

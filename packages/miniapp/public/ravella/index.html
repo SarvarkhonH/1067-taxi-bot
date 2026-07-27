@@ -95,6 +95,21 @@
     display:inline-flex; align-items:center; cursor:pointer; transition:transform .18s cubic-bezier(.32,.72,0,1);
   }
   .cta:active { transform:scale(.97); }
+  /* Aloqa ikonkalari: doira tugmalar, ichida bitta chiziqli belgi. Rangsiz — faqat telefon
+     amber, chunki u ASOSIY harakat (qo'ng'iroq qilish). Sozlanmagan tarmoq umuman chizilmaydi. */
+  .contacts { display:flex; flex-wrap:wrap; gap:10px; justify-content:center; margin:26px 0 8px; }
+  .ci {
+    width:52px; height:52px; border-radius:26px; display:inline-flex; align-items:center; justify-content:center;
+    background:#fff; border:.5px solid var(--sep); color:var(--ink); text-decoration:none;
+    transition:transform .18s cubic-bezier(.32,.72,0,1);
+  }
+  .ci:active { transform:scale(.94); }
+  .ci.call { background:var(--fill); border-color:transparent; }
+  .ci svg { width:23px; height:23px; display:block; }
+  .contacts-h { margin:26px 0 0; text-align:center; font-size:13px; color:var(--t3); }
+  .bar .icons { display:flex; gap:8px; }
+  .bar .icons .ci { width:44px; height:44px; border-radius:22px; }
+  .bar .icons .ci svg { width:20px; height:20px; }
   .back { background:none; border:none; color:var(--amber); font-size:17px; min-height:44px; padding:14px 0; cursor:pointer; }
   .note { margin:20px 0 8px; font-size:13px; color:var(--t3); line-height:1.46; }
   .skl { background:var(--grp); border-radius:18px; height:200px; animation:sh 1.4s ease-in-out infinite; }
@@ -120,6 +135,41 @@ var q = P ? "?p=" + encodeURIComponent(P) : "";
 var NO_PRICE = "Narxi kelishiladi";
 var money = function (n) { return (n || 0).toLocaleString("ru-RU").replace(/,/g, " "); };
 var esc = function (s) { return String(s == null ? "" : s).replace(/[&<>"]/g, function (c) { return ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]; }); };
+var CONTACTS = {};
+// Chiziqli belgilar — tashqi kutubxona yo'q, hammasi inline SVG (CSP toza, so'rov yo'q).
+var ICON = {
+  phone: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3.1 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2.1 4.2 2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7c.1 1 .3 1.9.6 2.8a2 2 0 0 1-.5 2.1L8 9.8a16 16 0 0 0 6 6l1.2-1.2a2 2 0 0 1 2.1-.5c.9.3 1.8.5 2.8.6a2 2 0 0 1 1.7 2z"/></svg>',
+  telegram: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21.5 3.5 2.9 10.8c-.8.3-.8 1.4 0 1.7l4.6 1.5 1.8 5.4c.2.7 1.1.9 1.6.3l2.5-2.7 4.7 3.5c.6.4 1.4.1 1.6-.6l3-14.6c.2-.8-.6-1.5-1.2-1.3z"/><path d="M7.5 14 19 6.5 10 15.4"/></svg>',
+  instagram: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="5"/><circle cx="12" cy="12" r="4"/><circle cx="17.5" cy="6.5" r="1.2" fill="currentColor" stroke="none"/></svg>',
+  youtube: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><rect x="2" y="5" width="20" height="14" rx="4"/><path d="M10 9.2v5.6l5-2.8z" fill="currentColor" stroke="none"/></svg>',
+  tiktok: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3v9.5a4 4 0 1 1-3.2-3.9"/><path d="M15 6.2A5 5 0 0 0 19.5 9"/></svg>',
+  facebook: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 8.5H17V5.6h-2.6c-2 0-3.4 1.4-3.4 3.5v1.6H9v3h2v7h3v-7h2.3l.5-3H14v-1.3c0-.6.2-.9.5-.9z"/></svg>',
+  website: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c2.5 2.6 3.8 5.6 3.8 9S14.5 18.4 12 21c-2.5-2.6-3.8-5.6-3.8-9S9.5 5.6 12 3z"/></svg>'
+};
+// Xom qiymatni haqiqiy havolaga aylantirish (ega botga "@ravella" ham, to'liq havola ham yozishi mumkin)
+function contactHref(kind, v) {
+  var t = String(v).trim();
+  if (kind === "phone") return "tel:" + t.replace(/[^\d+]/g, "");
+  if (/^https?:\/\//i.test(t)) return t;
+  var u = t.replace(/^@/, "");
+  if (kind === "telegram") return "https://t.me/" + u;
+  if (kind === "instagram") return "https://instagram.com/" + u;
+  if (kind === "youtube") return "https://youtube.com/" + (u.charAt(0) === "@" ? u : "@" + u);
+  if (kind === "tiktok") return "https://tiktok.com/@" + u;
+  if (kind === "facebook") return "https://facebook.com/" + u;
+  return "https://" + u;
+}
+function contactIcons(compact) {
+  var order = ["phone", "telegram", "instagram", "youtube", "tiktok", "facebook", "website"];
+  var out = "";
+  order.forEach(function (k) {
+    if (!CONTACTS[k]) return;
+    out += '<a class="ci' + (k === "phone" ? " call" : "") + '" href="' + contactHref(k, CONTACTS[k]) + '"' +
+      (k === "phone" ? "" : ' target="_blank" rel="noopener"') + ' aria-label="' + k + '">' + ICON[k] + "</a>";
+  });
+  return out ? (compact ? out : '<div class="contacts-h">Bog\'lanish</div><div class="contacts">' + out + "</div>") : "";
+}
+
 var app = document.getElementById("app");
 var DISC = 0, CB = 0;
 
@@ -131,12 +181,14 @@ function empty(msg) { app.innerHTML = '<p class="note" style="text-align:center;
 function catalogue() {
   app.innerHTML = '<div class="skl"></div>';
   get("/api/ravella/catalog").then(function (d) {
-    DISC = d.discountPct || 0; CB = d.cashbackPct || 0;
+    DISC = d.discountPct || 0; CB = d.cashbackPct || 0; CONTACTS = d.contacts || {};
     if (!d.categories || !d.categories.length) { empty("Bezaklar tez orada shu yerda bo'ladi."); return; }
     var h = "";
     if (DISC > 0) h += '<div class="promo">🎁 BirJoy orqali <b>' + DISC + "% arzon</b>" + (CB > 0 ? " · <b>" + CB + "% tanga</b> qaytadi" : "") + "</div>";
+    // Bo'lim bitta bo'lsa sarlavha chiqarilmaydi — kartalar o'zi gapiradi
+    var many = d.categories.length > 1;
     d.categories.forEach(function (c) {
-      h += "<h2>" + esc(c.emoji) + " " + esc(c.name) + '</h2><div class="grid">';
+      h += (many ? "<h2>" + esc(c.emoji) + " " + esc(c.name) + "</h2>" : "") + '<div class="grid">';
       c.items.forEach(function (it) {
         h += '<button class="card" data-id="' + it.id + '"><div class="ph">' +
           (it.hasPhoto ? '<img src="' + API + "/api/ravella/photo/" + it.id + '" alt="">' : "") +
@@ -146,6 +198,7 @@ function catalogue() {
       h += "</div>";
     });
     h += '<p class="note">Narx bezak o\'lchamiga va joyiga qarab hisoblanadi — buyurtmadan keyin operator qo\'ng\'iroq qilib aytadi.</p>';
+    h += contactIcons(false);
     app.innerHTML = h;
     [].forEach.call(app.querySelectorAll(".card"), function (b) {
       b.onclick = function () { item(Number(b.getAttribute("data-id"))); };
@@ -204,7 +257,7 @@ function item(id) {
       });
       bar(sub, picked);
     };
-    DISC = d.discountPct || DISC; CB = d.cashbackPct || CB;
+    DISC = d.discountPct || DISC; CB = d.cashbackPct || CB; CONTACTS = d.contacts || CONTACTS;
     draw();
   }).catch(function () { empty("Yuklanmadi — qayta urinib ko'ring."); });
 }
@@ -213,9 +266,12 @@ function item(id) {
 function bar(sub, picked) {
   var el = document.getElementById("bar");
   if (!el) { el = document.createElement("div"); el.id = "bar"; el.className = "bar"; document.body.appendChild(el); }
+  // Katalog holati: ega qarori 2026-07-27 — «Ilovada ochish» tugmasi OLIB TASHLANDI.
+  // O'rniga qo'ng'iroq (asosiy harakat) va ijtimoiy tarmoq ikonkalari.
   if (sub == null) {
-    el.innerHTML = '<div class="in"><div><small>Bezaklarni ko\'ring</small><b>Ravella</b></div>' +
-      '<a class="cta" href="' + BOT + '">Ilovada ochish</a></div>';
+    var icons = contactIcons(true);
+    el.innerHTML = '<div class="in"><div><small>Orzudagi bezaklar</small><b>Ravella</b></div>' +
+      (icons ? '<div class="icons" style="margin-left:auto">' + icons + "</div>" : "") + "</div>";
     return;
   }
   var left;

@@ -5,7 +5,7 @@
 // SARFLAMAYDI; 1% cashback ish bajarilgach serverda beriladi (bu yerda faqat VA'DA ko'rsatiladi).
 // Barcha summalar server javobidan olinadi — client hisobi faqat JONLI ko'rsatkich uchun.
 import { useEffect, useMemo, useRef, useState } from "react";
-import type { MeResponse, RavellaAddonView, RavellaCatalogResponse, RavellaItemCard, RavellaOrderView } from "@t1067/shared";
+import type { MeResponse, RavellaAddonView, RavellaCatalogResponse, RavellaContacts, RavellaItemCard, RavellaOrderView } from "@t1067/shared";
 import { formatNumber } from "@t1067/shared";
 import { api, apiUrl } from "./api";
 import { haptic, hapticSuccess } from "./telegram";
@@ -39,6 +39,62 @@ function Hero() {
       <h1 className="rv-hero-title">Ravella</h1>
       <div className="rv-hero-sub">Orzudagi bezaklar — Ravella bilan</div>
     </div>
+  );
+}
+
+
+// ☎️ Aloqa ikonkalari. Ega/hamkor BOTDAN sozlaydi (/ravella → «Aloqa va tarmoqlar»);
+// sozlanmagan kanal umuman chizilmaydi — bosilganda hech qayerga bormaydigan ikonka
+// eng yomon variant. Belgilar inline SVG: tashqi so'rov ham, kutubxona ham yo'q.
+const CONTACT_ICON: Record<string, JSX.Element> = {
+  phone: <path d="M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3.1 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2.1 4.2 2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7c.1 1 .3 1.9.6 2.8a2 2 0 0 1-.5 2.1L8 9.8a16 16 0 0 0 6 6l1.2-1.2a2 2 0 0 1 2.1-.5c.9.3 1.8.5 2.8.6a2 2 0 0 1 1.7 2z" />,
+  telegram: <><path d="M21.5 3.5 2.9 10.8c-.8.3-.8 1.4 0 1.7l4.6 1.5 1.8 5.4c.2.7 1.1.9 1.6.3l2.5-2.7 4.7 3.5c.6.4 1.4.1 1.6-.6l3-14.6c.2-.8-.6-1.5-1.2-1.3z" /><path d="M7.5 14 19 6.5 10 15.4" /></>,
+  instagram: <><rect x="3" y="3" width="18" height="18" rx="5" /><circle cx="12" cy="12" r="4" /><circle cx="17.5" cy="6.5" r="1.2" fill="currentColor" stroke="none" /></>,
+  youtube: <><rect x="2" y="5" width="20" height="14" rx="4" /><path d="M10 9.2v5.6l5-2.8z" fill="currentColor" stroke="none" /></>,
+  tiktok: <><path d="M15 3v9.5a4 4 0 1 1-3.2-3.9" /><path d="M15 6.2A5 5 0 0 0 19.5 9" /></>,
+  facebook: <path d="M14.5 8.5H17V5.6h-2.6c-2 0-3.4 1.4-3.4 3.5v1.6H9v3h2v7h3v-7h2.3l.5-3H14v-1.3c0-.6.2-.9.5-.9z" />,
+  website: <><circle cx="12" cy="12" r="9" /><path d="M3 12h18M12 3c2.5 2.6 3.8 5.6 3.8 9S14.5 18.4 12 21c-2.5-2.6-3.8-5.6-3.8-9S9.5 5.6 12 3z" /></>,
+};
+const CONTACT_ORDER = ["phone", "telegram", "instagram", "youtube", "tiktok", "facebook", "website"] as const;
+
+/** Ega botga «@ravella» ham, to'liq havola ham yozishi mumkin — ikkalasi ham ishlashi kerak. */
+function contactHref(kind: string, raw: string): string {
+  const t = raw.trim();
+  if (kind === "phone") return `tel:${t.replace(/[^\d+]/g, "")}`;
+  if (/^https?:\/\//i.test(t)) return t;
+  const u = t.replace(/^@/, "");
+  if (kind === "telegram") return `https://t.me/${u}`;
+  if (kind === "instagram") return `https://instagram.com/${u}`;
+  if (kind === "youtube") return `https://youtube.com/${u.startsWith("@") ? u : `@${u}`}`;
+  if (kind === "tiktok") return `https://tiktok.com/@${u}`;
+  if (kind === "facebook") return `https://facebook.com/${u}`;
+  return `https://${u}`;
+}
+
+function ContactRow({ contacts }: { contacts?: RavellaContacts }) {
+  const list = CONTACT_ORDER.filter((k) => (contacts as Record<string, string | undefined> | undefined)?.[k]);
+  if (!list.length) return null;
+  return (
+    <>
+      <div className="rv-contacts-h">Bog'lanish</div>
+      <div className="rv-contacts">
+        {list.map((k) => (
+          <a
+            key={k}
+            className={"rv-ci" + (k === "phone" ? " call" : "")}
+            href={contactHref(k, (contacts as Record<string, string>)[k]!)}
+            target={k === "phone" ? undefined : "_blank"}
+            rel="noopener"
+            aria-label={k}
+            onClick={() => haptic()}
+          >
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round">
+              {CONTACT_ICON[k]}
+            </svg>
+          </a>
+        ))}
+      </div>
+    </>
   );
 }
 
@@ -402,12 +458,14 @@ export function RavellaView({ me, onBanner }: { me: MeResponse; onBanner?: (msg:
           )}
           {shown.map((c) => (
             <div key={c.id} className="rv-cat-block">
-              <div className="rv-cat-title">{c.emoji} {c.name}</div>
+              {/* Bo'lim bitta bo'lsa sarlavha ortiqcha shovqin — kartalarning o'zi yetarli */}
+              {cats.length > 1 && <div className="rv-cat-title">{c.emoji} {c.name}</div>}
               <div className="rv-grid">
                 {c.items.map((it) => <ItemCard key={it.id} it={it} onOpen={(x) => setOpenId(x.id)} />)}
               </div>
             </div>
           ))}
+          <ContactRow contacts={cat?.contacts} />
         </>
       )}
     </div>

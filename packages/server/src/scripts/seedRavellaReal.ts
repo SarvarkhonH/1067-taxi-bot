@@ -19,54 +19,26 @@ interface CatSpec { name: string; emoji: string; items: ItemSpec[]; addons?: Add
 
 const CATALOGUE: CatSpec[] = [
   {
-    name: "Saxna va foto-zona",
-    emoji: "🎭",
+    // Ega qarori (2026-07-27): kartalar TADBIR TURI bo'yicha, aynan shu tartibda — mijoz
+    // "menda qanday tadbir?" deb o'ylaydi, "qanday bezak kerak?" deb emas. Bitta bo'lim
+    // bo'lgani uchun ekranda bo'lim sarlavhasi ko'rsatilmaydi (faqat kartalar).
+    name: "Bezaklar",
+    emoji: "🎀",
     items: [
-      {
-        name: "Bitiruv sahnasi — foto-zona",
-        desc: "Bosma taxta (nomi va yili bilan), balon arkasi, figuralar. Bog'cha va maktab bitiruvlari uchun.",
-        priceSom: 0,
-        photo: "ish-bitiruv-sahna.jpg",
-        addons: [
-          // ⭐ Bu qo'shimchaning rasmi AYNAN shu zalning shift bezagi bilan olingan surati —
-          // mijoz «+» bosganda sahna rasmi shu kadrga o'tadi va farqni o'z ko'zi bilan ko'radi.
-          { name: "Zal shifti bezagi", priceSom: 0, maxQty: 1, photo: "ish-zal-shift.jpg" },
-          { name: "Ismli banner (qo'shimcha taxta)", priceSom: 0, maxQty: 2 },
-        ],
-      },
-      {
-        name: "Sahna arkasi — oltin/oq",
-        desc: "Sahna markazi uchun spiral arka. Tadbir turiga qarab rang tanlanadi.",
-        priceSom: 0,
-        photo: "ish-oltin-arka.jpg",
-      },
-      {
-        name: "Premium bitiruv zali — chiroqli",
-        desc: "Logotipli taxta, qora-oltin gulchambar, kapalak chiroqlari va gul lampalari bilan to'liq zal.",
-        priceSom: 0,
-        photo: "ish-premium-zal.jpg",
-      },
+      { name: "Restoran uchun", desc: "To'yxona va restoran zali: sahna, stol va kirish bezagi.", priceSom: 0, photo: "" },
+      { name: "Kelin uyi", desc: "Kelin uyi bezagi: kirish, hovli va ichkari zal.", priceSom: 0, photo: "" },
+      { name: "Kiyov uyi", desc: "Kuyov uyi bezagi: darvoza, hovli va mehmon qismi.", priceSom: 0, photo: "" },
+      { name: "Sunnat to'y", desc: "Sunnat to'yi uchun bezak: sahna, foto-zona va shar bezaklari.", priceSom: 0, photo: "" },
+      { name: "Ochilish marosimi", desc: "Yangi bino ochilishi: kirish arkasi va yo'lak gulchambarlari.", priceSom: 0, photo: "ish-bino-kirish.jpg" },
+      { name: "Davlat tadbirlari", desc: "Rasmiy tadbirlar: logotipli taxta, zal va sahna bezagi.", priceSom: 0, photo: "ish-premium-zal.jpg" },
+      { name: "Sharlar", desc: "Shar arkalari, gulchambarlar va shar kompozitsiyalari.", priceSom: 0, photo: "ish-oltin-arka.jpg" },
+      { name: "Boshqa", desc: "Bitiruv, tug'ilgan kun va boshqa tadbirlar — aytganingizga qarab tayyorlanadi.", priceSom: 0, photo: "ish-bitiruv-sahna.jpg" },
     ],
-  },
-  {
-    name: "Kirish va tashqi bezak",
-    emoji: "🎈",
-    items: [
-      {
-        name: "Kirish arkasi — bayram",
-        desc: "Eshik oldi arkasi: yulduzlar, qo'ng'iroq va ustunlar bilan. 1-sentabr va bitiruv uchun.",
-        priceSom: 0,
-        photo: "ish-kirish-arka.jpg",
-      },
-      {
-        name: "Bino kirishi + yo'lak gulchambari",
-        desc: "Tashqi bezak: kirish arkasi va yo'lak bo'ylab osma gulchambarlar. Ochilish marosimlari uchun.",
-        priceSom: 0,
-        photo: "ish-bino-kirish.jpg",
-      },
-    ],
-    // Kategoriya-bo'ylab qo'shimchalar — ikkala bezakka ham mos keladi
+    // Qo'shimchalar BUTUN bo'limga tegishli — ya'ni har 8 ta kartada chiqadi. Rasmi borlari
+    // «qo'shilgan holat» suratini ko'rsatadi: mijoz «+» bosganda katta rasm shunga o'zgaradi.
     addons: [
+      { name: "Zal shifti bezagi", priceSom: 0, maxQty: 1, photo: "ish-zal-shift.jpg" },
+      { name: "Kirish arkasi", priceSom: 0, maxQty: 2, photo: "ish-kirish-arka.jpg" },
       { name: "Sovuq salyut (juft)", priceSom: 0, maxQty: 4 },
       { name: "Foil yulduzlar (5 dona)", priceSom: 0, maxQty: 4 },
     ],
@@ -108,7 +80,7 @@ async function main(): Promise<void> {
     }
     const categoryId = catRow!.id;
 
-    for (const it of cat.items) {
+    for (const [idx, it] of cat.items.entries()) {
       let itemRow = await prisma.ravellaItem.findFirst({ where: { name: it.name, categoryId } });
       if (!itemRow) {
         const r = await svc.adminCreateItem({ categoryId, name: it.name, basePriceSom: it.priceSom, desc: it.desc });
@@ -117,9 +89,10 @@ async function main(): Promise<void> {
       } else {
         console.log(`  ↻ ${it.name} allaqachon bor (#${itemRow.id}) — narx TEGILMADI`);
       }
-      const buf = photoBuf(it.photo);
+      // rasm hali yo'q bo'lishi mumkin (hamkor botdan yuklaydi) — bu xato emas
+      const buf = it.photo ? photoBuf(it.photo) : null;
       if (buf) await svc.uploadRavellaItemPhoto(itemRow!.id, buf, "image/jpeg");
-      await svc.adminEditItem(itemRow!.id, { active: true });
+      await svc.adminEditItem(itemRow!.id, { active: true, sortOrder: idx }); // ega bergan tartib
 
       for (const a of it.addons ?? []) {
         let addonRow = await prisma.ravellaAddon.findFirst({ where: { name: a.name, itemId: itemRow!.id } });
