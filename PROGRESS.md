@@ -67,8 +67,18 @@ kutubxonasiz). Isbot: `/api/ravella/photo/1` va ikkala `addon-photo` → 302 →
 `/api/ravella/catalog` → bo'sh, `/api/ravella/item/1` → `item:null`. Admin API (token bilan) →
 `enabled:false` + to'liq katalog. Tozalash: `tsx seedRavellaDemo.ts --clean`.
 
-**Qolgan (ready EMAS):** (1) `public/ravella/logo.png` — ega beradi (13:43 da papka BO'SH edi, fayl
-saqlanmagan; rail ikonkasi shu sabab hozircha 🎀 emoji'ga tushadi); (2) katalog seed'i (bezak
+**Logotip JONLI (2026-07-27 15:2x):** ega `logo.jpg` (640×640, qora + amber) berdi. Rail ikonkasi
+30px — unda so'z o'qilmaydi, shuning uchun belgi (amber kvadrat + R) amber-piksel chegarasini
+skanerlab AVTOMATIK kesildi → `logo-mark.png` (256×256). Rail + ekran sarlavhasi belgini,
+to'liq lockup esa kelajakdagi e'lon rasmi uchun turadi. Isbot: `app.birjoy.online/ravella/logo-mark.png`
+→ 200 `image/png` 42 321 bayt · `logo.jpg` → 200 `image/jpeg` 14 783 bayt.
+**Deploy nuqsoni (topildi, tuzatilmadi):** `deploy.sh` `rsync -a` ni `--delete`SIZ ishlatadi →
+repodan o'chirilgan fayl jonli saytda MANGU qoladi. Eski `/var/www/miniapp/ravella/index.html`
+(d78ed27 da o'chirilgan landing) shu sabab turgan edi — qo'lda o'chirildi (zaxira:
+`/root/zaxira/ravella-eski-landing-*.html`). Caddy uni katalog-so'rovida BERMAYOTGAN edi (SPA
+fallback ustun), ya'ni bu ega ko'rgan "eski versiya"ning sababi EMAS — lekin naqsh o'zi xavfli.
+
+**Qolgan (ready EMAS):** (2) katalog seed'i (bezak
 rasmlari + narxlar) — ega admin paneldan kiritadi; (3) Zoyir To'ychiyevning Telegram ID'si
 (`/start` → panelga yoziladi); (4) EGA QABULI → `setFlag.ts ravella on` va shundan keyingina
 `/elonrasm`. Flag DARK — jonli mijozlar hozircha HECH NARSA ko'rmaydi.
