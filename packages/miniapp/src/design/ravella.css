@@ -111,8 +111,24 @@
   position: relative; border-radius: 18px; overflow: hidden;
   background: var(--rv-fill-bg); aspect-ratio: 4 / 3; border: .5px solid var(--rv-sep);
 }
-.rv-stage-photo { width: 100%; height: 100%; object-fit: cover; display: block; animation: rv-fade .25s cubic-bezier(.32, .72, 0, 1); }
-@keyframes rv-fade { from { opacity: 0; } to { opacity: 1; } }
+.rv-stage-photo { width: 100%; height: 100%; object-fit: cover; display: block; }
+/* Karusel: scroll-snap — JS'siz, inersiya tizimniki, ya'ni "native" his beradi */
+.rv-slides {
+  display: flex; width: 100%; height: 100%;
+  overflow-x: auto; scroll-snap-type: x mandatory;
+  scrollbar-width: none; -webkit-overflow-scrolling: touch;
+}
+.rv-slides::-webkit-scrollbar { display: none; }
+.rv-slide { flex: 0 0 100%; width: 100%; height: 100%; object-fit: cover; scroll-snap-align: center; }
+.rv-dots {
+  position: absolute; left: 0; right: 0; bottom: 10px;
+  display: flex; gap: 6px; justify-content: center; pointer-events: none;
+}
+.rv-dots span {
+  width: 6px; height: 6px; border-radius: 3px; background: rgba(255, 255, 255, .55);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, .3); transition: width .2s ease, background .2s ease;
+}
+.rv-dots span.on { width: 18px; background: #fff; }
 .rv-stage-tag {
   position: absolute; left: 12px; bottom: 12px;
   padding: 7px 13px; border-radius: 999px;
@@ -234,16 +250,55 @@
   .rv-card, .rv-ready, .rv-addon { transition: none; }
 }
 
-/* ☎️ Aloqa ikonkalari — doira tugmalar, faqat telefon amber (u ASOSIY harakat). */
-.rv-contacts-h { margin: 26px 0 10px; text-align: center; font-size: 13px; color: var(--rv-3); }
-.rv-contacts { display: flex; flex-wrap: wrap; gap: 10px; justify-content: center; }
+/* ☎️ Aloqa ikonkalari — har tarmoq O'Z brend rangida, belgi oq. Tanish rang o'ylashni talab
+   qilmaydi. Telefon amber: u Ravella brendi va ASOSIY harakat. Hero ostida, bir qatorda. */
+.rv-contacts { display: flex; flex-wrap: wrap; gap: 10px; justify-content: center; margin: 0 0 20px; }
 .rv-ci {
-  width: 52px; height: 52px; border-radius: 26px;
+  width: 46px; height: 46px; border-radius: 23px;
   display: inline-flex; align-items: center; justify-content: center;
-  background: #fff; border: .5px solid var(--rv-sep); color: var(--rv-ink);
+  background: #8e8e93; color: #fff; border: none;
   transition: transform .18s cubic-bezier(.32, .72, 0, 1);
 }
 .rv-ci:active { transform: scale(.94); }
-.rv-ci.call { background: var(--rv-fill); border-color: transparent; }
-.rv-ci svg { width: 23px; height: 23px; display: block; }
+.rv-ci svg { width: 21px; height: 21px; display: block; }
+.rv-ci.phone { background: var(--rv-fill); color: #1d1d1f; }
+.rv-ci.telegram { background: #229ED9; }
+.rv-ci.instagram { background: linear-gradient(45deg, #F58529 0%, #DD2A7B 45%, #8134AF 75%, #515BD4 100%); }
+.rv-ci.youtube { background: #FF0000; }
+.rv-ci.tiktok { background: #000; }
+.rv-ci.facebook { background: #1877F2; }
+.rv-ci.website { background: #3a3a3c; }
 @media (prefers-reduced-motion: reduce) { .rv-ci { transition: none; } }
+
+/* ══ Liquid Glass (ega so'radi 2026-07-27) ══════════════════════════════════════════════════
+   Apple'ning yangi qatlam-tili: sirt tagidagi narsani XIRALASHTIRIB o'tkazadi, ustiga juda
+   yupqa yorug'lik chekkasi qo'yadi. Bu yerda uch joyda ishlatiladi — sarlavha-paneli, karta
+   va pastki panel. Fon rasm ustida turganda ta'sir ko'rinadi; tekis fonda esa oddiy oq
+   sirtdan farq qilmaydi, ya'ni hech narsa buzilmaydi (progressive enhancement). */
+.rv-view, .rv-detail { --rv-glass: rgba(255, 255, 255, .72); --rv-glass-edge: rgba(255, 255, 255, .55); }
+
+.rv-card,
+.rv-addon-list,
+.rv-order-card,
+.rv-promo,
+.rv-myorders {
+  background: var(--rv-glass);
+  -webkit-backdrop-filter: saturate(180%) blur(24px);
+  backdrop-filter: saturate(180%) blur(24px);
+  box-shadow: inset 0 .5px 0 var(--rv-glass-edge), 0 1px 2px rgba(0, 0, 0, .04);
+}
+.rv-total-bar {
+  background: rgba(255, 255, 255, .68);
+  -webkit-backdrop-filter: saturate(200%) blur(30px);
+  backdrop-filter: saturate(200%) blur(30px);
+  box-shadow: inset 0 .5px 0 var(--rv-glass-edge), 0 -1px 20px -12px rgba(0, 0, 0, .35);
+}
+.rv-chip.on {
+  background: rgba(255, 255, 255, .9);
+  -webkit-backdrop-filter: blur(12px);
+  backdrop-filter: blur(12px);
+}
+/* Sahna ustidagi shisha-qatlam: rasm chekkasida yumshoq yorug'lik */
+.rv-stage { box-shadow: inset 0 0 0 .5px rgba(255, 255, 255, .35); }
+/* Tugma ham suyuq: bosilganda ozgina "botadi" */
+.rv-ready { box-shadow: inset 0 .5px 0 rgba(255, 255, 255, .6), 0 4px 14px -6px rgba(249, 190, 62, .7); }

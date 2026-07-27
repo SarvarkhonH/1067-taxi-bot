@@ -96,7 +96,7 @@ export async function getRavellaItemDetail(id: number, preview = false): Promise
     orderBy: [{ sortOrder: "asc" }, { id: "asc" }],
     take: 50,
   });
-  return { ...empty, item: itemCard(item), addons: addons.map(addonView) };
+  return { ...empty, item: itemCard(item), photoIds: await listRavellaItemPhotoIds(id), addons: addons.map(addonView) };
 }
 
 // ── buyurtma ─────────────────────────────────────────────────────────────────────────────────────
@@ -343,6 +343,51 @@ export async function checkRavellaSlaAndAlert(alertAdmins: (html: string) => Pro
 
 // ── rasm (Telegram file_id quvuri — driver-photo/shop/restoran naqshi) ───────────────────────────
 
+// ── 🖼 Galereya (karusel) ────────────────────────────────────────────────────────────────────
+// Ega so'radi (2026-07-27): har bezakda bir nechta rasm, gorizontal suriladi. Qopqoq
+// (`RavellaItem.photoFileId`) 0-rasm sifatida qoladi — shu sababli eski bezaklar hech qanday
+// migratsiyasiz ishlayveradi va bo'sh galereya hech qachon "rasmsiz" ko'rinishga olib kelmaydi.
+
+export async function listRavellaItemPhotoIds(itemId: number): Promise<number[]> {
+  if (!validId(itemId)) return [];
+  const rows = await prisma.ravellaItemPhoto.findMany({
+    where: { itemId },
+    orderBy: [{ sortOrder: "asc" }, { id: "asc" }],
+    select: { id: true },
+    take: 12,
+  });
+  return rows.map((r) => r.id);
+}
+
+/** Hamkor botga rasm yuborganda chaqiriladi — surat allaqachon Telegram'da, faqat file_id yoziladi.
+ *  Birinchi rasm bo'lsa qopqoq ham shu bo'ladi (katalog kartasi bo'sh turmasin). */
+export async function addRavellaItemPhoto(itemId: number, fileId: string): Promise<{ ok: boolean; count: number }> {
+  if (!validId(itemId) || !fileId) return { ok: false, count: 0 };
+  const count = await prisma.ravellaItemPhoto.count({ where: { itemId } });
+  if (count >= 12) return { ok: false, count }; // aql-idrok shifti
+  await prisma.ravellaItemPhoto.create({ data: { itemId, fileId, sortOrder: count } });
+  const item = await prisma.ravellaItem.findUnique({ where: { id: itemId }, select: { photoFileId: true, photoUrl: true } });
+  if (!item?.photoFileId && !item?.photoUrl) {
+    await prisma.ravellaItem.update({ where: { id: itemId }, data: { photoFileId: fileId, photoUrl: null } }).catch(() => undefined);
+  }
+  return { ok: true, count: count + 1 };
+}
+
+/** Bezakning BARCHA rasmlarini o'chiradi (qopqoq ham) — hamkor "qaytadan yuklayman" desa. */
+export async function clearRavellaItemPhotos(itemId: number): Promise<{ ok: boolean }> {
+  if (!validId(itemId)) return { ok: false };
+  await prisma.ravellaItemPhoto.deleteMany({ where: { itemId } });
+  await prisma.ravellaItem.update({ where: { id: itemId }, data: { photoFileId: null, photoUrl: null } }).catch(() => undefined);
+  return { ok: true };
+}
+
+export async function resolveRavellaGalleryPhoto(photoId: number): Promise<string | null> {
+  if (!validId(photoId)) return null;
+  const r = await prisma.ravellaItemPhoto.findUnique({ where: { id: photoId }, select: { url: true, fileId: true } });
+  if (!r) return null;
+  return resolvePhoto({ photoUrl: r.url, photoFileId: r.fileId });
+}
+
 export async function resolveRavellaItemPhoto(itemId: number): Promise<string | null> {
   if (!validId(itemId)) return null;
   const r = await prisma.ravellaItem.findUnique({ where: { id: itemId }, select: { photoUrl: true, photoFileId: true } });
@@ -524,6 +569,7 @@ export async function adminEditItem(id: number, b: RavellaItemPatch): Promise<{ 
 
 export async function adminDeleteItem(id: number): Promise<{ ok: boolean }> {
   if (!validId(id)) return { ok: false };
+  await prisma.ravellaItemPhoto.deleteMany({ where: { itemId: id } }).catch(() => undefined);
   await prisma.ravellaAddon.deleteMany({ where: { itemId: id } }).catch(() => undefined);
   await prisma.ravellaItem.delete({ where: { id } }).catch(() => undefined);
   return { ok: true };

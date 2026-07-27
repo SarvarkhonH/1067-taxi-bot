@@ -76,12 +76,11 @@ function ContactRow({ contacts }: { contacts?: RavellaContacts }) {
   if (!list.length) return null;
   return (
     <>
-      <div className="rv-contacts-h">Bog'lanish</div>
       <div className="rv-contacts">
         {list.map((k) => (
           <a
             key={k}
-            className={"rv-ci" + (k === "phone" ? " call" : "")}
+            className={`rv-ci ${k}`}
             href={contactHref(k, (contacts as Record<string, string>)[k]!)}
             target={k === "phone" ? undefined : "_blank"}
             rel="noopener"
@@ -136,11 +135,11 @@ function ItemCard({ it, onOpen }: { it: RavellaItemCard; onOpen: (it: RavellaIte
 // ── konstruktor ──────────────────────────────────────────────────────────────────────────────────
 
 function Constructor({ itemId, me, onBack, onBanner }: { itemId: number; me: MeResponse; onBack: () => void; onBanner?: (m: string) => void }) {
-  const [data, setData] = useState<{ item: RavellaItemCard | null; addons: RavellaAddonView[]; discountPct: number; cashbackPct: number } | null>(null);
-  const [qty, setQty] = useState<Record<number, number>>({});
-  // ⭐ Ega tavsifi: "qo'shilsa qo'shilgan rasmga o'tadi" — oxirgi QO'SHILGAN, rasmi bor qo'shimcha
-  // katta rasmni egallaydi; hammasi olib tashlansa asosiy rasm qaytadi.
-  const [heroAddonId, setHeroAddonId] = useState<number | null>(null);
+  const [data, setData] = useState<{ item: RavellaItemCard | null; photoIds?: number[]; addons: RavellaAddonView[]; discountPct: number; cashbackPct: number } | null>(null);
+  // Qo'shimchalar (+/−) EKRANDAN OLIB TASHLANDI — ega qarori 2026-07-27: "keyingi etapda".
+  // Ma'lumot o'chirilmadi, faqat ko'rsatilmaydi; qaytarish = shu blokni tiklash.
+  const [qty] = useState<Record<number, number>>({});
+  const [slide, setSlide] = useState(0); // karusel: hozirgi rasm
   const [checkout, setCheckout] = useState(false);
   const [useDiscount, setUseDiscount] = useState(false);
   const [contact, setContact] = useState(() => me.member?.phone ?? "");
@@ -152,6 +151,7 @@ function Constructor({ itemId, me, onBack, onBanner }: { itemId: number; me: MeR
 
   useEffect(() => {
     setData(null);
+    setSlide(0);
     api.ravellaItem(itemId).then(setData).catch(() => setData({ item: null, addons: [], discountPct: 0, cashbackPct: 0 }));
   }, [itemId]);
 
@@ -164,17 +164,6 @@ function Constructor({ itemId, me, onBack, onBanner }: { itemId: number; me: MeR
   const discountSom = useDiscount ? Math.floor((subtotalSom * (data?.discountPct ?? 0)) / 100) : 0;
   const totalSom = subtotalSom - discountSom;
   const cashbackSom = Math.floor((totalSom * (data?.cashbackPct ?? 0)) / 100);
-
-  const bump = (a: RavellaAddonView, delta: 1 | -1) => {
-    haptic();
-    setQty((c) => {
-      const next = Math.max(0, Math.min(a.maxQty, (c[a.id] ?? 0) + delta));
-      // rasm: qo'shilganda shu qo'shimchaga o'tadi, nolga tushsa asosiy rasm qaytadi
-      if (delta === 1 && next > 0 && a.hasPhoto) setHeroAddonId(a.id);
-      if (next === 0 && heroAddonId === a.id) setHeroAddonId(null);
-      return { ...c, [a.id]: next };
-    });
-  };
 
   const submit = async () => {
     if (!data?.item || busy) return;
@@ -242,72 +231,52 @@ function Constructor({ itemId, me, onBack, onBanner }: { itemId: number; me: MeR
     );
   }
 
-  const heroAddon = heroAddonId !== null ? addonOf.get(heroAddonId) : undefined;
-  const heroSrc = heroAddon?.hasPhoto
-    ? apiUrl(`/api/ravella/addon-photo/${heroAddon.id}`)
-    : data.item.hasPhoto ? apiUrl(`/api/ravella/photo/${data.item.id}`) : null;
+  // Karusel manbai: galereya (bir nechta rasm). Bo'sh bo'lsa eski qopqoq rasmiga tushamiz —
+  // shu tufayli hali galereyaga o'tmagan bezaklar ham rasmsiz ko'rinmaydi.
+  const slides = (data.photoIds ?? []).length
+    ? data.photoIds!.map((pid) => apiUrl(`/api/ravella/gallery/${pid}`))
+    : data.item.hasPhoto ? [apiUrl(`/api/ravella/photo/${data.item.id}`)] : [];
 
   return (
     <div className="view rv-detail">
       <button className="rv-back" onClick={onBack}>‹ Orqaga</button>
 
+      {/* Gorizontal karusel: CSS scroll-snap — kutubxona yo'q, barmoq bilan suriladi,
+          klaviatura/skrinrider ham ishlaydi. Nuqtalar joriy rasmni ko'rsatadi. */}
       <div className="rv-stage">
-        {heroSrc ? (
-          // key → rasm almashganda CSS crossfade qayta ishga tushadi (faqat opacity — §6 qoidasi)
-          <img key={heroSrc} className="rv-stage-photo" src={heroSrc} alt="" />
+        {slides.length ? (
+          <div
+            className="rv-slides"
+            onScroll={(e) => {
+              const el = e.currentTarget;
+              const i = Math.round(el.scrollLeft / Math.max(1, el.clientWidth));
+              if (i !== slide) setSlide(i);
+            }}
+          >
+            {slides.map((src) => (
+              <img key={src} className="rv-slide" src={src} alt="" loading="lazy" decoding="async" />
+            ))}
+          </div>
         ) : (
           <div className="rv-stage-photo rv-noimg">🎀</div>
         )}
-        {heroAddon && <span className="rv-stage-tag">+ {heroAddon.name}</span>}
+        {slides.length > 1 && (
+          <div className="rv-dots">
+            {slides.map((src, i) => <span key={src} className={i === slide ? "on" : ""} />)}
+          </div>
+        )}
       </div>
 
       <div className="rv-name">{data.item.name}</div>
       {data.item.desc && <div className="rv-desc">{data.item.desc}</div>}
       <div className="rv-base">{data.item.basePriceSom > 0 ? `Asosiy narx · ${formatNumber(data.item.basePriceSom)} so'm` : NO_PRICE}</div>
 
-      {data.addons.length > 0 && (
-        <div className="rv-section">
-          <div className="rv-section-title">Qo'shimchalar</div>
-          {/* iOS "grouped list": bitta oq karta, satrlar orasida hairline ajratgich */}
-          <div className="rv-addon-list">
-          {data.addons.map((a) => {
-            const q = qty[a.id] ?? 0;
-            return (
-              <div key={a.id} className={"rv-addon" + (q > 0 ? " on" : "")}>
-                {a.hasPhoto ? (
-                  <img className="rv-addon-photo" src={apiUrl(`/api/ravella/addon-photo/${a.id}`)} loading="lazy" decoding="async" alt="" />
-                ) : (
-                  <div className="rv-addon-photo rv-noimg">✨</div>
-                )}
-                <div className="rv-addon-body">
-                  <div className="rv-addon-name">{a.name}</div>
-                  {a.priceSom > 0 && <div className="rv-addon-price">+{formatNumber(a.priceSom)} so'm</div>}
-                </div>
-                {q === 0 ? (
-                  <button className="rv-addon-add" onClick={() => bump(a, 1)}>+</button>
-                ) : (
-                  <div className="rv-stepper">
-                    <button onClick={() => bump(a, -1)}>−</button>
-                    <span>{q}</span>
-                    <button onClick={() => bump(a, 1)}>+</button>
-                  </div>
-                )}
-              </div>
-            );
-          })}
-          </div>
-        </div>
-      )}
-
       <div className="rv-total-bar">
         <div className="rv-total-num">
-          {subtotalSom > 0 ? (
-            <><small>Jami</small><b>{formatNumber(subtotalSom)} so'm</b></>
-          ) : (
-            <><small>{lines.length > 0 ? `${lines.reduce((n, l) => n + l.qty, 0)} ta qo'shimcha tanlandi` : "Qo'shimchalarni tanlang"}</small><b>{NO_PRICE}</b></>
-          )}
+          <small>{data.item.name}</small>
+          <b>{subtotalSom > 0 ? `${formatNumber(subtotalSom)} so'm` : NO_PRICE}</b>
         </div>
-        <button className="rv-ready" onClick={() => { haptic(); setCheckout(true); }}>Davom etish</button>
+        <button className="rv-ready" onClick={() => { haptic(); setCheckout(true); }}>Buyurtma berish</button>
       </div>
 
       <Sheet open={checkout} onClose={() => setCheckout(false)}>
@@ -433,6 +402,9 @@ export function RavellaView({ me, onBanner }: { me: MeResponse; onBanner?: (msg:
   return (
     <div className="view rv-view">
       <Hero />
+      {/* Aloqa hero OSTIDA — ega qarori: sahifa oxiridagi footer olib tashlandi, lekin
+          qo'ng'iroq/tarmoq bir bosishda qo'l ostida qolishi kerak */}
+      <ContactRow contacts={cat?.contacts} />
       {cat && cat.discountPct > 0 && (
         <div className="rv-promo">
           🎁 BirJoy orqali <b>{cat.discountPct}% arzon</b>{cat.cashbackPct > 0 ? <> · <b>{cat.cashbackPct}% tanga</b> qaytadi</> : null}
@@ -465,7 +437,6 @@ export function RavellaView({ me, onBanner }: { me: MeResponse; onBanner?: (msg:
               </div>
             </div>
           ))}
-          <ContactRow contacts={cat?.contacts} />
         </>
       )}
     </div>

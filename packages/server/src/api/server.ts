@@ -940,6 +940,19 @@ export function createApiServer(opts: ApiOptions = {}) {
     res.set("Cache-Control", "private, max-age=120").redirect(302, url);
   };
   app.get("/api/ravella/photo/:id", serveRavellaPhoto("item"));
+  // karusel rasmi (galereya) — qopqoqdan farqli, o'z id'si bilan
+  app.get("/api/ravella/gallery/:id", async (req: Request, res: Response) => {
+    const { resolveRavellaGalleryPhoto } = await import("../services/ravellaService");
+    const url = await resolveRavellaGalleryPhoto(Number(req.params.id));
+    if (!url) { res.status(404).end(); return; }
+    if (url.startsWith("data:")) {
+      const m = /^data:([^;]+);base64,(.*)$/.exec(url);
+      if (!m) { res.status(404).end(); return; }
+      res.set("Content-Type", m[1]!).set("Cache-Control", "public, max-age=3600").send(Buffer.from(m[2]!, "base64"));
+      return;
+    }
+    res.set("Cache-Control", "private, max-age=120").redirect(302, url);
+  });
   app.get("/api/ravella/addon-photo/:id", serveRavellaPhoto("addon"));
 
   // ── 🔎 XIZMATLAR (feature "xizmatlar", DARK until seed + QABUL) — moves NO money ──────────────

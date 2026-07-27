@@ -58,8 +58,13 @@
   .muted { color:var(--t2); }
   /* Konstruktor */
   .stage { border-radius:18px; overflow:hidden; background:var(--grp); aspect-ratio:4/3; position:relative; border:.5px solid var(--sep); }
-  .stage img { width:100%; height:100%; object-fit:cover; display:block; animation:fade .25s cubic-bezier(.32,.72,0,1); }
-  @keyframes fade { from{opacity:0} to{opacity:1} }
+  /* Karusel: CSS scroll-snap — kutubxona yo'q, inersiya tizimniki (native his) */
+  .slides { display:flex; width:100%; height:100%; overflow-x:auto; scroll-snap-type:x mandatory; scrollbar-width:none; -webkit-overflow-scrolling:touch; }
+  .slides::-webkit-scrollbar { display:none; }
+  .slide { flex:0 0 100%; width:100%; height:100%; object-fit:cover; scroll-snap-align:center; }
+  .dots { position:absolute; left:0; right:0; bottom:10px; display:flex; gap:6px; justify-content:center; pointer-events:none; }
+  .dots span { width:6px; height:6px; border-radius:3px; background:rgba(255,255,255,.55); box-shadow:0 1px 3px rgba(0,0,0,.3); transition:width .2s ease, background .2s ease; }
+  .dots span.on { width:18px; background:#fff; }
   .tag {
     position:absolute; left:12px; bottom:12px; padding:7px 13px; border-radius:999px;
     background:rgba(255,255,255,.82); -webkit-backdrop-filter:saturate(180%) blur(20px);
@@ -97,21 +102,39 @@
   .cta:active { transform:scale(.97); }
   /* Aloqa ikonkalari: doira tugmalar, ichida bitta chiziqli belgi. Rangsiz — faqat telefon
      amber, chunki u ASOSIY harakat (qo'ng'iroq qilish). Sozlanmagan tarmoq umuman chizilmaydi. */
-  .contacts { display:flex; flex-wrap:wrap; gap:10px; justify-content:center; margin:26px 0 8px; }
+  /* Har tarmoq O'Z brend rangida (ega qarori 2026-07-27), belgi oq — tanish rang odamni
+     o'ylantirmaydi: ko'k qog'oz-samolyot = Telegram, pushti-binafsha = Instagram. Telefon
+     amber qoladi: u Ravella brendining o'zi va ekrandagi ASOSIY harakat. */
   .ci {
-    width:52px; height:52px; border-radius:26px; display:inline-flex; align-items:center; justify-content:center;
-    background:#fff; border:.5px solid var(--sep); color:var(--ink); text-decoration:none;
+    width:46px; height:46px; border-radius:23px; display:inline-flex; align-items:center; justify-content:center;
+    background:#8e8e93; color:#fff; text-decoration:none; border:none;
     transition:transform .18s cubic-bezier(.32,.72,0,1);
   }
   .ci:active { transform:scale(.94); }
-  .ci.call { background:var(--fill); border-color:transparent; }
-  .ci svg { width:23px; height:23px; display:block; }
-  .contacts-h { margin:26px 0 0; text-align:center; font-size:13px; color:var(--t3); }
-  .bar .icons { display:flex; gap:8px; }
-  .bar .icons .ci { width:44px; height:44px; border-radius:22px; }
-  .bar .icons .ci svg { width:20px; height:20px; }
+  .ci svg { width:21px; height:21px; display:block; }
+  .ci.phone     { background:var(--fill); color:#1d1d1f; }
+  .ci.telegram  { background:#229ED9; }
+  .ci.instagram { background:linear-gradient(45deg,#F58529 0%,#DD2A7B 45%,#8134AF 75%,#515BD4 100%); }
+  .ci.youtube   { background:#FF0000; }
+  .ci.tiktok    { background:#000; }
+  .ci.facebook  { background:#1877F2; }
+  .ci.website   { background:#3a3a3c; }
+  .bar .icons { display:flex; gap:8px; margin-left:auto; }
   .back { background:none; border:none; color:var(--amber); font-size:17px; min-height:44px; padding:14px 0; cursor:pointer; }
   .note { margin:20px 0 8px; font-size:13px; color:var(--t3); line-height:1.46; }
+  /* ══ Liquid Glass: sirt tagidagini xiralashtirib o'tkazadi + yupqa yorug'lik chekkasi ══ */
+  .card, .list, .promo {
+    background:rgba(255,255,255,.72);
+    -webkit-backdrop-filter:saturate(180%) blur(24px); backdrop-filter:saturate(180%) blur(24px);
+    box-shadow:inset 0 .5px 0 rgba(255,255,255,.55), 0 1px 2px rgba(0,0,0,.04);
+  }
+  .bar {
+    background:rgba(255,255,255,.68);
+    -webkit-backdrop-filter:saturate(200%) blur(30px); backdrop-filter:saturate(200%) blur(30px);
+    box-shadow:inset 0 .5px 0 rgba(255,255,255,.55), 0 -1px 20px -12px rgba(0,0,0,.35);
+  }
+  .cta { box-shadow:inset 0 .5px 0 rgba(255,255,255,.6), 0 4px 14px -6px rgba(249,190,62,.7); }
+  .stage { box-shadow:inset 0 0 0 .5px rgba(255,255,255,.35); }
   .skl { background:var(--grp); border-radius:18px; height:200px; animation:sh 1.4s ease-in-out infinite; }
   @keyframes sh { 0%,100%{opacity:.55} 50%{opacity:1} }
   @media (prefers-reduced-motion: reduce) { .stage img,.skl{animation:none} .card,.row,.cta{transition:none} }
@@ -127,6 +150,13 @@
 
 <script>
 var BOT = "https://t.me/koson1067bot/app?startapp=ravella";
+// Ega qarori 2026-07-27: saytdan "Buyurtma berish" bosilsa RAVELLA'ning Telegramiga o'tsin —
+// mijoz odam bilan yozishadi. Telegram sozlanmagan bo'lsa telefonga, u ham yo'q bo'lsa ilovaga.
+function orderHref() {
+  if (CONTACTS.telegram) return contactHref("telegram", CONTACTS.telegram);
+  if (CONTACTS.phone) return contactHref("phone", CONTACTS.phone);
+  return BOT;
+}
 var API = location.hostname === "localhost" ? "" : "https://api.birjoy.online";
 // ?p=<token> — ega bergan preview havolasi: xizmat hali ommaga ochilmagan bo'lsa ham ko'rsatadi.
 var P = new URLSearchParams(location.search).get("p");
@@ -159,15 +189,15 @@ function contactHref(kind, v) {
   if (kind === "facebook") return "https://facebook.com/" + u;
   return "https://" + u;
 }
-function contactIcons(compact) {
+function contactIcons() {
   var order = ["phone", "telegram", "instagram", "youtube", "tiktok", "facebook", "website"];
   var out = "";
   order.forEach(function (k) {
     if (!CONTACTS[k]) return;
-    out += '<a class="ci' + (k === "phone" ? " call" : "") + '" href="' + contactHref(k, CONTACTS[k]) + '"' +
+    out += '<a class="ci ' + k + '" href="' + contactHref(k, CONTACTS[k]) + '"' +
       (k === "phone" ? "" : ' target="_blank" rel="noopener"') + ' aria-label="' + k + '">' + ICON[k] + "</a>";
   });
-  return out ? (compact ? out : '<div class="contacts-h">Bog\'lanish</div><div class="contacts">' + out + "</div>") : "";
+  return out;
 }
 
 var app = document.getElementById("app");
@@ -198,7 +228,6 @@ function catalogue() {
       h += "</div>";
     });
     h += '<p class="note">Narx bezak o\'lchamiga va joyiga qarab hisoblanadi — buyurtmadan keyin operator qo\'ng\'iroq qilib aytadi.</p>';
-    h += contactIcons(false);
     app.innerHTML = h;
     [].forEach.call(app.querySelectorAll(".card"), function (b) {
       b.onclick = function () { item(Number(b.getAttribute("data-id"))); };
@@ -215,47 +244,35 @@ function item(id) {
     var qty = {}, heroAddon = null;
     var photo = function (a) { return API + "/api/ravella/addon-photo/" + a; };
     var draw = function () {
-      var sub = d.item.basePriceSom, picked = 0;
-      d.addons.forEach(function (a) { var n = qty[a.id] || 0; if (n) { sub += a.priceSom * n; picked += n; } });
-      var src = heroAddon ? photo(heroAddon.id) : (d.item.hasPhoto ? API + "/api/ravella/photo/" + d.item.id : "");
-      var h = '<button class="back">‹ Orqaga</button>' +
-        '<div class="stage">' + (src ? '<img src="' + src + '" alt="">' : "") +
-        (heroAddon ? '<span class="tag">+ ' + esc(heroAddon.name) + "</span>" : "") + "</div>" +
-        '<div class="title">' + esc(d.item.name) + "</div>" +
-        (d.item.desc ? '<p class="desc">' + esc(d.item.desc) + "</p>" : "");
-      if (d.addons.length) {
-        h += '<div class="grouphead">Qo\'shimchalar</div><div class="list">';
-        d.addons.forEach(function (a) {
-          var n = qty[a.id] || 0;
-          h += '<div class="row' + (n ? " on" : "") + '">' +
-            (a.hasPhoto ? '<img src="' + photo(a.id) + '" alt="">' : '<img alt="">') +
-            '<div class="g"><b>' + esc(a.name) + "</b>" + (a.priceSom > 0 ? "<small>+" + money(a.priceSom) + " so'm</small>" : "") + "</div>" +
-            (n ? '<div class="step"><button data-m="' + a.id + '">−</button><span>' + n + '</span><button data-p="' + a.id + '">+</button></div>'
-               : '<button class="add" data-p="' + a.id + '">+</button>') + "</div>";
-        });
+      // Qo'shimchalar (+/−) EKRANDAN OLIB TASHLANDI — ega qarori: keyingi bosqichda qaytadi.
+      var srcs = (d.photoIds && d.photoIds.length)
+        ? d.photoIds.map(function (pid) { return API + "/api/ravella/gallery/" + pid; })
+        : (d.item.hasPhoto ? [API + "/api/ravella/photo/" + d.item.id] : []);
+      var h = '<button class="back">‹ Orqaga</button><div class="stage">';
+      if (srcs.length) {
+        h += '<div class="slides" id="sl">';
+        srcs.forEach(function (u) { h += '<img class="slide" src="' + u + '" alt="">'; });
         h += "</div>";
+        if (srcs.length > 1) {
+          h += '<div class="dots" id="dots">';
+          srcs.forEach(function (_, i) { h += "<span" + (i === 0 ? ' class="on"' : "") + "></span>"; });
+          h += "</div>";
+        }
       }
-      h += '<p class="note">Tanlaganingiz rasmda darhol ko\'rinadi. Buyurtma berish uchun BirJoy ilovasini oching — narxni operator qo\'ng\'iroq qilib aytadi' +
-        (CB > 0 ? ", ish tugagach <b>" + CB + "% tanga</b> qaytadi" : "") + ".</p>";
+      h += "</div>" +
+        '<div class="title">' + esc(d.item.name) + "</div>" +
+        (d.item.desc ? '<p class="desc">' + esc(d.item.desc) + "</p>" : "") +
+        '<p class="note">Narx bezak o\'lchamiga va joyiga qarab hisoblanadi — Ravella bilan bog\'lansangiz aytishadi.</p>';
       app.innerHTML = h;
       app.querySelector(".back").onclick = catalogue;
-      [].forEach.call(app.querySelectorAll("[data-p]"), function (b) {
-        b.onclick = function () {
-          var a = d.addons.filter(function (x) { return x.id === Number(b.getAttribute("data-p")); })[0];
-          qty[a.id] = Math.min(a.maxQty, (qty[a.id] || 0) + 1);
-          if (a.hasPhoto) heroAddon = a;
-          draw();
-        };
-      });
-      [].forEach.call(app.querySelectorAll("[data-m]"), function (b) {
-        b.onclick = function () {
-          var a = d.addons.filter(function (x) { return x.id === Number(b.getAttribute("data-m")); })[0];
-          qty[a.id] = Math.max(0, (qty[a.id] || 0) - 1);
-          if (!qty[a.id] && heroAddon && heroAddon.id === a.id) heroAddon = null;
-          draw();
-        };
-      });
-      bar(sub, picked);
+      var sl = document.getElementById("sl"), dots = document.getElementById("dots");
+      if (sl && dots) {
+        sl.addEventListener("scroll", function () {
+          var i = Math.round(sl.scrollLeft / Math.max(1, sl.clientWidth));
+          [].forEach.call(dots.children, function (dot, n) { dot.className = n === i ? "on" : ""; });
+        });
+      }
+      bar(0, 0);
     };
     DISC = d.discountPct || DISC; CB = d.cashbackPct || CB; CONTACTS = d.contacts || CONTACTS;
     draw();
@@ -269,9 +286,9 @@ function bar(sub, picked) {
   // Katalog holati: ega qarori 2026-07-27 — «Ilovada ochish» tugmasi OLIB TASHLANDI.
   // O'rniga qo'ng'iroq (asosiy harakat) va ijtimoiy tarmoq ikonkalari.
   if (sub == null) {
-    var icons = contactIcons(true);
+    var icons = contactIcons();
     el.innerHTML = '<div class="in"><div><small>Orzudagi bezaklar</small><b>Ravella</b></div>' +
-      (icons ? '<div class="icons" style="margin-left:auto">' + icons + "</div>" : "") + "</div>";
+      (icons ? '<div class="icons">' + icons + "</div>" : "") + "</div>";
     return;
   }
   var left;
@@ -279,9 +296,9 @@ function bar(sub, picked) {
     var fin = Math.max(0, sub - Math.floor(sub * DISC / 100));
     left = "<small>Jami" + (DISC > 0 ? " (BirJoy −" + DISC + "%)" : "") + "</small><b>" + money(fin) + " so'm</b>";
   } else {
-    left = "<small>" + (picked ? picked + " ta qo'shimcha tanlandi" : "Qo'shimchalarni tanlang") + "</small><b>" + NO_PRICE + "</b>";
+    left = "<small>Narx bezakka qarab</small><b>" + NO_PRICE + "</b>";
   }
-  el.innerHTML = '<div class="in"><div>' + left + '</div><a class="cta" href="' + BOT + '">Buyurtma berish</a></div>';
+  el.innerHTML = '<div class="in"><div>' + left + '</div><a class="cta" href="' + orderHref() + '" target="_blank" rel="noopener">Buyurtma berish</a></div>';
 }
 
 catalogue();

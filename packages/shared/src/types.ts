@@ -1098,6 +1098,7 @@ export interface RavellaItemCard {
   desc?: string | null;
   basePriceSom: number;
   hasPhoto: boolean; // render /api/ravella/photo/:id when true
+  photoCount?: number; // galereya hajmi (kartada "1/N" ko'rsatish uchun)
 }
 
 export interface RavellaAddonView {
@@ -1130,6 +1131,9 @@ export interface RavellaCatalogResponse {
 
 export interface RavellaItemDetailResponse {
   item: RavellaItemCard | null;
+  /** Gorizontal karusel uchun galereya rasm-id'lari: /api/ravella/gallery/:id.
+   *  Bo'sh bo'lsa mijoz qopqoq rasmiga (/api/ravella/photo/:itemId) tushadi. */
+  photoIds?: number[];
   addons: RavellaAddonView[];
   discountPct: number;
   cashbackPct: number;

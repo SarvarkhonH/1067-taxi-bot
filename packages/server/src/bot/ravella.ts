@@ -154,7 +154,7 @@ export function registerRavella(bot: Bot): void {
         reply_markup: new InlineKeyboard()
           .text("📦 Buyurtmalar", "rvm:orders").row()
           .text("➕ Yangi bezak", "rvm:new").row()
-          .text("🖼 Rasmni almashtirish", "rvm:photo").row()
+          .text("🖼 Rasm qo'shish (karusel)", "rvm:photo").row()
           .text("➕ Qo'shimcha qo'shish", "rvm:addon").row()
           .text("☎️ Aloqa va tarmoqlar", "rvm:contacts"),
       },
@@ -196,7 +196,7 @@ export function registerRavella(bot: Bot): void {
     if (!items.length) { await ctx.reply("Katalog bo'sh — avval «➕ Yangi bezak»."); return; }
     const kb = new InlineKeyboard();
     for (const i of items) kb.text(i.name.slice(0, 40), `rvm:${action}:${i.id}`).row();
-    await ctx.reply(action === "photo" ? "Qaysi bezakning rasmini almashtiramiz?" : "Qaysi bezakka qo'shimcha qo'shamiz?", { reply_markup: kb });
+    await ctx.reply(action === "photo" ? "Qaysi bezakka rasm qo'shamiz?" : "Qaysi bezakka qo'shimcha qo'shamiz?", { reply_markup: kb });
   };
   bot.callbackQuery("rvm:photo", async (ctx) => {
     if (!(await guard(ctx))) return;
@@ -215,7 +215,12 @@ export function registerRavella(bot: Bot): void {
     const itemId = Number(idStr);
     if (action === "photo") {
       drafts.set(String(ctx.from.id), { step: "replacePhoto", itemId });
-      await ctx.reply("📸 Yangi rasmni yuboring (surat sifatida).\n\n❌ Bekor: /bekor_ravella");
+      const have = (await (await import("../services/ravellaService")).listRavellaItemPhotoIds(itemId)).length;
+      await ctx.reply(
+        `📸 Rasmlarni yuboring — <b>ketma-ket bir nechtasini</b> yuborsangiz bo'ladi, mijoz ularni chapga-o'ngga suradi.\n\n` +
+          `Hozir bu bezakda: <b>${have}</b> ta rasm.\n\n✅ Tugatish: /tayyor\n🗑 Hammasini o'chirish: /rasmlar_tozala\n❌ Bekor: /bekor_ravella`,
+        { parse_mode: "HTML" },
+      );
     } else {
       drafts.set(String(ctx.from.id), { step: "addonName", itemId });
       await ctx.reply("✍️ Qo'shimcha nomini yozing.\n<i>Masalan: Salyut</i>\n\n❌ Bekor: /bekor_ravella", { parse_mode: "HTML" });
@@ -268,6 +273,15 @@ export function registerRavella(bot: Bot): void {
       `${CONTACT_LABEL[key]} — qiymatini yozing.\n<i>Masalan: ${esc(hint[key] ?? "")}</i>\n\nO'chirish uchun «-» yuboring.\n❌ Bekor: /bekor_ravella`,
       { parse_mode: "HTML" },
     );
+  });
+
+  // Butun galereyani tozalash — hamkor "qaytadan yuklayman" deganda
+  bot.command("rasmlar_tozala", async (ctx, next) => {
+    const d = drafts.get(String(ctx.from!.id));
+    if (!d?.itemId) { await next(); return; }
+    const { clearRavellaItemPhotos } = await import("../services/ravellaService");
+    await clearRavellaItemPhotos(d.itemId);
+    await ctx.reply("🗑 Rasmlar o'chirildi. Endi yangilarini yuboring.");
   });
 
   bot.command("bekor_ravella", async (ctx) => {
@@ -337,19 +351,26 @@ export function registerRavella(bot: Bot): void {
     if (d.step === "photo") {
       const r = await svc.adminCreateItem({ categoryId: d.categoryId!, name: d.name!, basePriceSom: 0, desc: d.desc });
       if (!r.ok || !r.id) { drafts.delete(tg); await ctx.reply("❌ Saqlanmadi."); return; }
-      await svc.setRavellaItemPhotoFileId(r.id, fileId);
+      await svc.addRavellaItemPhoto(r.id, fileId);
       await svc.adminEditItem(r.id, { active: true });
-      drafts.delete(tg);
-      await ctx.reply(`✅ <b>${esc(d.name!)}</b> katalogga qo'shildi va ko'rinmoqda.\n\nNarxni ega belgilaydi.`, { parse_mode: "HTML" });
+      // Sessiya rasm-rejimida qoladi: hamkor shu bezakka yana rasm qo'sha oladi (karusel)
+      drafts.set(tg, { step: "replacePhoto", itemId: r.id });
+      await ctx.reply(
+        `✅ <b>${esc(d.name!)}</b> katalogga qo'shildi va ko'rinmoqda.\n\n📸 Yana rasm yuborsangiz karuselga qo'shiladi. Tugatish: /tayyor`,
+        { parse_mode: "HTML" },
+      );
       if (tg !== OWNER_TG) {
         await bot.api.sendMessage(OWNER_TG, `🎀 Ravella yangi bezak qo'shdi: <b>${esc(d.name!)}</b>`, { parse_mode: "HTML" }).catch(() => undefined);
       }
       return;
     }
     if (d.step === "replacePhoto") {
-      await svc.setRavellaItemPhotoFileId(d.itemId!, fileId);
-      drafts.delete(tg);
-      await ctx.reply("✅ Rasm almashtirildi.");
+      // Sessiya YOPILMAYDI: hamkor ketma-ket bir nechta rasm yuborishi mumkin (karusel).
+      // Telegram albom yuborsa ham har surat alohida update bo'lib keladi — hammasi qo'shiladi.
+      const r = await svc.addRavellaItemPhoto(d.itemId!, fileId);
+      await ctx.reply(
+        r.ok ? `✅ ${r.count}-rasm qo'shildi. Yana yuboring yoki /tayyor` : "⚠️ Bu bezakda rasm to'lgan (12 ta). /tayyor",
+      );
       return;
     }
     await svc.setRavellaAddonPhotoFileId(d.addonId!, fileId);

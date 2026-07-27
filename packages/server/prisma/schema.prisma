@@ -2098,3 +2098,18 @@ model RavellaOrder {
   @@index([memberId, id])
   @@index([status, createdAt])
 }
+
+// 🎀 Ravella bezak GALEREYASI (ega so'radi 2026-07-27: "karusel rasmlar, gorizontal").
+// Bitta bezak = bir nechta surat: mijoz chapga-o'ngga suradi. Eski `RavellaItem.photoFileId`
+// qopqoq sifatida qoladi (0-rasm) — shu sababli mavjud bezaklar migratsiyasiz ishlayveradi.
+// ProductPhoto naqshi: loose FK (relation yo'q), o'chirish servisda qo'lda qilinadi.
+model RavellaItemPhoto {
+  id        Int      @id @default(autoincrement())
+  itemId    Int
+  fileId    String? // Telegram file_id — hamkor botga rasm yuborganda shu to'ldiriladi
+  url       String? // data-URL zaxira (bot yo'q bo'lsa)
+  sortOrder Int      @default(0)
+  createdAt DateTime @default(now())
+
+  @@index([itemId, sortOrder])
+}
