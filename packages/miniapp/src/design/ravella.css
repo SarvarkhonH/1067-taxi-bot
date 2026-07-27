@@ -39,14 +39,17 @@
 
 /* ── Hero: belgi + nom. Katta bo'sh joy — Apple'da sarlavha "nafas oladi". ── */
 .rv-hero { padding: 8px 0 22px; text-align: center; }
+/* Belgi OQ fonli (2026-07-27 yangi logotip) — kvadrat ham oq, atrofida hairline.
+   Qora fon qolsa belgining oq maydoni ichida qora ramka bo'lib ko'rinardi. */
 .rv-hero-badge {
   width: 88px; height: 88px; margin: 0 auto 14px;
   border-radius: 22px;
   overflow: hidden;
-  background: #000;
-  box-shadow: 0 8px 24px -10px rgba(0, 0, 0, .35), 0 0 0 .5px rgba(0, 0, 0, .06);
+  background: #fff;
+  box-shadow: 0 6px 20px -12px rgba(0, 0, 0, .3), 0 0 0 .5px rgba(60, 60, 67, .14);
 }
-.rv-hero-badge img { width: 100%; height: 100%; object-fit: cover; display: block; }
+/* contain + padding: belgi kesilmasin, kvadrat ichida nafas olsin (cover uni qirqardi) */
+.rv-hero-badge img { width: 100%; height: 100%; object-fit: contain; display: block; padding: 7px; }
 .rv-hero-title { font-size: 30px; line-height: 1.12; font-weight: 700; letter-spacing: -.022em; color: var(--rv-ink); }
 .rv-hero-sub { margin-top: 5px; font-size: 15px; font-weight: 400; color: var(--rv-2); }
 

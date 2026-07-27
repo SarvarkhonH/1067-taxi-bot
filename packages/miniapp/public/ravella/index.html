@@ -32,11 +32,12 @@
   .wrap { max-width:600px; margin:0 auto; padding:0 20px; }
   /* Hero: belgi squircle ichida, keyin katta sarlavha — Apple'da sarlavha nafas oladi */
   .hero { text-align:center; padding:40px 20px 26px; }
+  /* Belgi oq fonli — kvadrat ham oq, atrofida hairline (qora fon ramka bo'lib ko'rinardi) */
   .badge {
-    width:92px; height:92px; margin:0 auto 16px; border-radius:23px; overflow:hidden; background:#000;
-    box-shadow:0 10px 28px -12px rgba(0,0,0,.4), 0 0 0 .5px rgba(0,0,0,.06);
+    width:92px; height:92px; margin:0 auto 16px; border-radius:23px; overflow:hidden; background:#fff;
+    box-shadow:0 6px 20px -12px rgba(0,0,0,.3), 0 0 0 .5px rgba(60,60,67,.14);
   }
-  .badge img { width:100%; height:100%; object-fit:cover; display:block; }
+  .badge img { width:100%; height:100%; object-fit:contain; display:block; padding:7px; }
   h1 { font-size:32px; line-height:1.1; font-weight:700; letter-spacing:-.022em; }
   .hero p { margin-top:6px; font-size:16px; color:var(--t2); }
   .promo { margin:0 0 20px; padding:14px 16px; border-radius:14px; background:#fff; border:.5px solid var(--sep); font-size:15px; }
