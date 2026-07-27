@@ -404,27 +404,38 @@
   -webkit-backdrop-filter: blur(12px); backdrop-filter: blur(12px);
 }
 
-/* ══ Ulashish tugmasi — kapsula: ikonka + qisqa yozuv ═══════════════════════════════════════
-   Yolg'iz doira "bu nima?" degan savol tug'diradi; yozuv bilan birinchi qarashda tushunarli.
-   Pastki panel USTIDA suzadi va to'liq ekran/hikoya ko'ruvchisidan ham baland (z-index 3200) —
-   ega "hamma joyda, rasmlar ichida ham" dedi. Amber to'ldirish: yagona doimiy harakat. */
+/* ══ Ulashish tugmasi — ega bergan dizayn, CSS bilan qayta qurilgan ══════════════════════════
+   Tuzilishi: tashqi qatlam = OLTIN RAMKA (2px padding + gradient fon), ichkarisi qora kapsula.
+   `border` o'rniga padding-gradient naqshi: shunda ramka ham gradient bo'ladi (border gradient
+   qo'llamaydi). Nur — tashqi soya. Chap doira: oltin disk, ichida ulashish belgisi. */
 .rv-fab {
-  position: fixed; right: 14px; bottom: calc(var(--tabbar-h, 64px) + 82px); z-index: 3200;
-  display: inline-flex; align-items: center; gap: 8px;
-  height: 50px; padding: 0 18px 0 15px; border: none; border-radius: 25px;
-  background: linear-gradient(180deg, #ffd873, #f2a71b);
-  color: #2a1f00; font-size: 15.5px; font-weight: 650; letter-spacing: -.01em;
+  position: fixed; right: 14px; bottom: calc(var(--tabbar-h, 64px) + 78px); z-index: 3200;
+  padding: 2px; border: none; border-radius: 999px;
+  background: linear-gradient(180deg, #ffdd7a 0%, #f0b02a 45%, #b87b0a 100%);
   box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, .85),
-    inset 0 -1px 0 rgba(140, 90, 0, .18),
-    0 10px 24px -10px rgba(242, 167, 27, .95),
-    0 2px 6px -3px rgba(31, 30, 26, .4);
+    0 0 24px rgba(245, 179, 1, .45),
+    0 16px 34px -14px rgba(0, 0, 0, .75);
   transition: transform .22s cubic-bezier(.2, .9, .3, 1.2), box-shadow .22s ease;
 }
 .rv-fab:active {
-  transform: scale(.94);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .85), 0 4px 10px -6px rgba(242, 167, 27, .9);
+  transform: scale(.955);
+  box-shadow: 0 0 14px rgba(245, 179, 1, .35), 0 6px 14px -10px rgba(0, 0, 0, .8);
 }
-.rv-fab svg { width: 19px; height: 19px; display: block; }
+.rv-fab-in {
+  display: flex; align-items: center; gap: 13px;
+  padding: 4px 16px 4px 4px; border-radius: 999px;
+  background: linear-gradient(180deg, #232323 0%, #0f0f0f 100%);
+}
+.rv-fab-ic {
+  width: 48px; height: 48px; border-radius: 50%; flex: 0 0 auto;
+  display: flex; align-items: center; justify-content: center; color: #fff;
+  background: linear-gradient(180deg, #ffd259 0%, #eda31a 100%);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .75), inset 0 -2px 6px rgba(150, 95, 0, .35);
+}
+.rv-fab-ic svg { width: 22px; height: 22px; display: block; }
+.rv-fab-txt { display: flex; flex-direction: column; align-items: flex-start; gap: 1px; }
+.rv-fab-txt b { color: #fff; font-size: 18px; font-weight: 700; letter-spacing: -.01em; line-height: 1.1; }
+.rv-fab-txt small { color: #e7b95c; font-size: 9px; font-weight: 600; letter-spacing: .13em; }
+.rv-fab-arr { color: #f5b301; font-size: 21px; line-height: 1; margin-left: 2px; }
 
 @media (prefers-reduced-motion: reduce) { .rv-fab { transition: none; } }

@@ -226,22 +226,35 @@ function Highlights({ stories, onOpen }: { stories: RavellaStoryView[] | null; o
   );
 }
 
-/** Doim ko'rinadigan ulashish tugmasi. Sayt havolasini ulashadi — havola Telegram'da katalog
- *  posteri bilan chiqadi (og:image). Yozuv qisqa va ikonka yonida: "Ulashish". */
+/** Ulashish tugmasi — ega bergan dizayn (qora kapsula, oltin doira, oltin ramka va nur).
+ *  Rasm sifatida emas, CSS bilan qurilgan: har ekranda tiniq, ~1 KB, matnini o'zgartirsa bo'ladi
+ *  va ekran-o'quvchi uchun haqiqiy tugma bo'lib qoladi (rasm bo'lsa bularning hech biri bo'lmaydi).
+ *  Sayt havolasini ulashadi — u Telegram'da katalog posteri bilan chiqadi. */
 function ShareFab() {
   return (
     <button
       className="rv-fab"
-      aria-label="Ulashish"
+      aria-label="Ulashish — do'stlarga yuboring"
       onClick={() => {
         haptic();
         shareLink("https://app.birjoy.online/ravella?v=2", "🎀 Ravella — to'y bezaklari, sharlar, yozuvlar");
       }}
     >
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
-        <path d="M12 3v13M12 3 8 7M12 3l4 4" /><path d="M5 13v6a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-6" />
-      </svg>
-      <span>Ulashish</span>
+      <span className="rv-fab-in">
+        <span className="rv-fab-ic">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+            <circle cx="18" cy="5" r="2.6" fill="currentColor" stroke="none" />
+            <circle cx="6" cy="12" r="2.6" fill="currentColor" stroke="none" />
+            <circle cx="18" cy="19" r="2.6" fill="currentColor" stroke="none" />
+            <path d="M8.4 10.8 15.6 6.6M8.4 13.2l7.2 4.2" />
+          </svg>
+        </span>
+        <span className="rv-fab-txt">
+          <b>Ulashish</b>
+          <small>DO&apos;STLARGA YUBORING</small>
+        </span>
+        <span className="rv-fab-arr" aria-hidden="true">›</span>
+      </span>
     </button>
   );
 }

@@ -252,24 +252,28 @@
   .sv-snd { position:absolute; right:12px; bottom:calc(28px + env(safe-area-inset-bottom)); z-index:3;
             width:42px; height:42px; border-radius:21px; border:none; color:#fff; font-size:17px; cursor:pointer;
             background:rgba(255,255,255,.18); -webkit-backdrop-filter:blur(12px); backdrop-filter:blur(12px); }
-  /* Ulashish — kapsula: ikonka + qisqa yozuv. Yolg'iz doira "bu nima?" degan savol tug'diradi.
-     Pastki panel ustida suzadi, to'liq ekran va hikoyadan ham baland turadi. */
+  /* Ulashish — ega bergan dizayn, CSS bilan qurilgan (rasm emas: har ekranda tiniq, ~1 KB,
+     matni o'zgaradi va haqiqiy tugma bo'lib qoladi). Tashqi qatlam = oltin ramka (padding +
+     gradient fon, chunki `border` gradient qo'llamaydi), ichkarisi qora kapsula, tashqarisida nur. */
   .fab {
-    position:fixed; right:14px; bottom:92px; z-index:3200;
-    display:inline-flex; align-items:center; gap:8px;
-    height:50px; padding:0 18px 0 15px; border:none; border-radius:25px; cursor:pointer;
-    background:linear-gradient(180deg,#ffd873,#f2a71b);
-    color:#2a1f00; font:650 15.5px/1 -apple-system,BlinkMacSystemFont,"SF Pro Text","Segoe UI",Roboto,sans-serif;
-    letter-spacing:-.01em;
-    box-shadow:
-      inset 0 1px 0 rgba(255,255,255,.85),
-      inset 0 -1px 0 rgba(140,90,0,.18),
-      0 10px 24px -10px rgba(242,167,27,.95),
-      0 2px 6px -3px rgba(31,30,26,.4);
+    position:fixed; right:14px; bottom:86px; z-index:3200;
+    padding:2px; border:none; border-radius:999px; cursor:pointer;
+    background:linear-gradient(180deg,#ffdd7a 0%,#f0b02a 45%,#b87b0a 100%);
+    box-shadow:0 0 24px rgba(245,179,1,.45), 0 16px 34px -14px rgba(0,0,0,.75);
     transition:transform .22s cubic-bezier(.2,.9,.3,1.2), box-shadow .22s ease;
+    font:inherit;
   }
-  .fab:active { transform:scale(.94); box-shadow:inset 0 1px 0 rgba(255,255,255,.85), 0 4px 10px -6px rgba(242,167,27,.9); }
-  .fab svg { width:19px; height:19px; display:block; }
+  .fab:active { transform:scale(.955); box-shadow:0 0 14px rgba(245,179,1,.35), 0 6px 14px -10px rgba(0,0,0,.8); }
+  .fab-in { display:flex; align-items:center; gap:13px; padding:4px 16px 4px 4px; border-radius:999px;
+            background:linear-gradient(180deg,#232323 0%,#0f0f0f 100%); }
+  .fab-ic { width:48px; height:48px; border-radius:50%; flex:0 0 auto; display:flex; align-items:center; justify-content:center; color:#fff;
+            background:linear-gradient(180deg,#ffd259 0%,#eda31a 100%);
+            box-shadow:inset 0 1px 0 rgba(255,255,255,.75), inset 0 -2px 6px rgba(150,95,0,.35); }
+  .fab-ic svg { width:22px; height:22px; display:block; }
+  .fab-txt { display:flex; flex-direction:column; align-items:flex-start; gap:1px; }
+  .fab-txt b { color:#fff; font-size:18px; font-weight:700; letter-spacing:-.01em; line-height:1.1; }
+  .fab-txt small { color:#e7b95c; font-size:9px; font-weight:600; letter-spacing:.13em; }
+  .fab-arr { color:#f5b301; font-size:21px; line-height:1; margin-left:2px; }
   .skl { background:rgba(255,255,255,.5); border-radius:22px; height:220px; animation:sh 1.4s ease-in-out infinite; }
   @keyframes sh { 0%,100%{opacity:.5} 50%{opacity:.9} }
 
@@ -286,9 +290,19 @@
   <h1>Ravella</h1>
   <p>Orzudagi bezaklar — Ravella bilan</p>
 </div>
-<button class="fab" id="fab" aria-label="Ulashish">
-  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v13M12 3 8 7M12 3l4 4"/><path d="M5 13v6a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-6"/></svg>
-  <span>Ulashish</span>
+<button class="fab" id="fab" aria-label="Ulashish — do'stlarga yuboring">
+  <span class="fab-in">
+    <span class="fab-ic">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="18" cy="5" r="2.6" fill="currentColor" stroke="none"/>
+        <circle cx="6" cy="12" r="2.6" fill="currentColor" stroke="none"/>
+        <circle cx="18" cy="19" r="2.6" fill="currentColor" stroke="none"/>
+        <path d="M8.4 10.8 15.6 6.6M8.4 13.2l7.2 4.2"/>
+      </svg>
+    </span>
+    <span class="fab-txt"><b>Ulashish</b><small>DO'STLARGA YUBORING</small></span>
+    <span class="fab-arr" aria-hidden="true">›</span>
+  </span>
 </button>
 <div class="wrap"><div id="app"><div class="skl"></div></div></div>
 
