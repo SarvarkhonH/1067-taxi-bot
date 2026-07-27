@@ -300,7 +300,7 @@ export const adminApi = {
   restoranMenuPhotoUpload: (id: number, mime: string, base64: string) => postJson<{ ok: boolean }>(`/api/admin/restoran/menu/${id}/photo`, { mime, base64 }),
   // 🎀 ravella — bezak konstruktori: kategoriya/bezak/qo'shimcha CRUD + rasm + buyurtma navbati
   ravellaAll: () => req<{
-    enabled: boolean; partnerChatId: string | null;
+    enabled: boolean; partnerChatId: string | null; previewToken: string;
     categories: import("@t1067/shared").AdminRavellaCategoryRow[];
     items: import("@t1067/shared").AdminRavellaItemRow[];
     addons: import("@t1067/shared").AdminRavellaAddonRow[];

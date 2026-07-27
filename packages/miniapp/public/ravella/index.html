@@ -1,0 +1,200 @@
+<!doctype html>
+<html lang="uz">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>Ravella — saxna bezaklari va bayram yozuvlari | BirJoy</title>
+<meta name="description" content="Ravella bezaklari BirJoy orqali 10% arzon, ustiga 1% tanga qaytadi. Bezakni o'zingiz yig'ing: qo'shimchani qo'shing — rasm ham, narx ham darhol o'zgaradi." />
+<meta property="og:title" content="Ravella — BirJoy orqali 10% arzon" />
+<meta property="og:description" content="Saxna bezaklari va bayram yozuvlari. Qo'shimchalarni tanlang, narxni darhol ko'ring." />
+<meta property="og:image" content="/ravella/logo.jpg" />
+<link rel="icon" href="/ravella/logo-mark.png" />
+<!--
+  🎀 Ravella — OMMAVIY sahifa (mini app EMAS). Nega alohida: mini app Telegram imzosini talab
+  qiladi, bu sahifa esa oddiy havola bilan har kimga ochiladi — hamkorga ko'rsatish, ijtimoiy
+  tarmoqqa tashlash uchun. Faqat KO'RISH: buyurtma shu yerdan berilmaydi, «Buyurtma berish»
+  tugmasi Telegram'dagi ilovaga olib boradi (u yerda kim buyurtma berayotgani ANIQ va
+  hamkorga karta boradi). Narxlar jonli API'dan — bu faylda hech qanday narx yozilmagan.
+-->
+<style>
+  :root { --ink:#0b0b0d; --amber:#f9be3e; --line:rgba(255,255,255,.10); --dim:rgba(255,255,255,.60); }
+  * { box-sizing:border-box; margin:0; padding:0; -webkit-tap-highlight-color:transparent; }
+  body { background:var(--ink); color:#fff; font:15px/1.5 -apple-system,"Segoe UI",Roboto,sans-serif; padding-bottom:96px; }
+  .wrap { max-width:560px; margin:0 auto; padding:0 16px; }
+  .hero { text-align:center; padding:34px 16px 22px; background:radial-gradient(120% 100% at 50% 0%, rgba(249,190,62,.16) 0%, transparent 62%); }
+  .hero img { width:76px; height:76px; border-radius:20px; object-fit:contain; }
+  .hero h1 { margin-top:10px; font-size:26px; font-weight:900; letter-spacing:.5px; }
+  .hero p { margin-top:4px; font-size:13px; color:var(--dim); }
+  .promo { margin:14px 0 18px; padding:12px 14px; border-radius:14px; font-size:13.5px; font-weight:700;
+           background:rgba(249,190,62,.12); border:1px solid rgba(249,190,62,.3); }
+  .promo b { color:var(--amber); }
+  h2 { margin:22px 0 12px; font-size:16px; font-weight:800; }
+  .grid { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+  .card { border:1px solid var(--line); border-radius:18px; overflow:hidden; background:rgba(255,255,255,.03);
+          cursor:pointer; text-align:left; color:inherit; font:inherit; padding:0; transition:transform .12s ease; }
+  .card:active { transform:scale(.975); }
+  .card .ph { aspect-ratio:1/1; background:#000; }
+  .card .ph img { width:100%; height:100%; object-fit:cover; display:block; }
+  .card .bd { padding:10px 12px 12px; }
+  .card .nm { font-size:14px; font-weight:700; }
+  .card .pr { margin-top:4px; font-size:13px; font-weight:800; color:var(--amber); }
+  .card .pr span { color:var(--dim); font-weight:600; }
+  .muted { color:var(--dim); font-size:13px; }
+  /* — konstruktor — */
+  .stage { border-radius:20px; overflow:hidden; background:#000; aspect-ratio:4/3; position:relative; }
+  .stage img { width:100%; height:100%; object-fit:cover; display:block; animation:fade .2s ease; }
+  @keyframes fade { from{opacity:0} to{opacity:1} }
+  .tag { position:absolute; left:10px; bottom:10px; padding:6px 12px; border-radius:999px; background:rgba(249,190,62,.94); color:#000; font-size:12px; font-weight:800; }
+  .row { display:flex; align-items:center; gap:12px; padding:10px; margin-bottom:8px; border:1px solid var(--line); border-radius:16px; background:rgba(255,255,255,.03); }
+  .row.on { border-color:rgba(249,190,62,.55); background:rgba(249,190,62,.07); }
+  .row img { width:54px; height:54px; border-radius:12px; object-fit:cover; background:#000; flex:0 0 auto; }
+  .row .g { flex:1; min-width:0; }
+  .row .g b { display:block; font-size:14px; }
+  .row .g small { color:var(--amber); font-size:13px; font-weight:800; }
+  .step { display:flex; align-items:center; gap:4px; flex:0 0 auto; }
+  .step button { width:34px; height:34px; border-radius:11px; font-size:19px; font-weight:800; cursor:pointer;
+                 background:rgba(249,190,62,.15); color:var(--amber); border:1px solid rgba(249,190,62,.35); }
+  .step span { min-width:24px; text-align:center; font-weight:800; }
+  .add { width:38px; height:38px; border-radius:12px; border:none; background:var(--amber); color:#000; font-size:22px; font-weight:700; cursor:pointer; flex:0 0 auto; }
+  .bar { position:fixed; left:0; right:0; bottom:0; background:rgba(11,11,13,.96); border-top:1px solid var(--line); backdrop-filter:blur(8px); }
+  .bar .in { max-width:560px; margin:0 auto; padding:12px 16px calc(12px + env(safe-area-inset-bottom)); display:flex; align-items:center; gap:12px; }
+  .bar small { display:block; color:var(--dim); font-size:11px; }
+  .bar b { font-size:18px; font-weight:900; }
+  .bar s { color:var(--dim); font-weight:600; font-size:13px; margin-right:6px; }
+  .cta { margin-left:auto; padding:13px 20px; border-radius:14px; border:none; background:var(--amber); color:#000; font-size:14.5px; font-weight:800; text-decoration:none; cursor:pointer; }
+  .back { background:none; border:none; color:var(--amber); font-size:15px; font-weight:700; padding:14px 0; cursor:pointer; }
+  .note { margin:16px 0 8px; font-size:12px; color:var(--dim); line-height:1.6; }
+  .skl { background:linear-gradient(90deg,rgba(255,255,255,.05),rgba(255,255,255,.10),rgba(255,255,255,.05)); border-radius:14px; height:190px; animation:sh 1.2s infinite; }
+  @keyframes sh { 0%{opacity:.6} 50%{opacity:1} 100%{opacity:.6} }
+  @media (prefers-reduced-motion: reduce) { .stage img,.skl{animation:none} .card{transition:none} }
+</style>
+</head>
+<body>
+<div class="hero">
+  <img src="/ravella/logo-mark.png" alt="" onerror="this.style.display='none'" />
+  <h1>Ravella</h1>
+  <p>Saxna bezaklari · bayram yozuvlari</p>
+</div>
+<div class="wrap"><div id="app"><div class="skl"></div></div></div>
+
+<script>
+// Telegram bot havolasi — buyurtma FAQAT u yerda beriladi (kim berayotgani aniq bo'lsin).
+var BOT = "https://t.me/koson1067bot/app?startapp=ravella";
+var API = location.hostname === "localhost" ? "" : "https://api.birjoy.online";
+// ?p=<token> — ega bergan preview havolasi: xizmat hali ommaga ochilmagan bo'lsa ham ko'rsatadi.
+var P = new URLSearchParams(location.search).get("p");
+var q = P ? "?p=" + encodeURIComponent(P) : "";
+var money = function (n) { return (n || 0).toLocaleString("ru-RU").replace(/,/g, " "); };
+var esc = function (s) { return String(s == null ? "" : s).replace(/[&<>"]/g, function (c) { return ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]; }); };
+var app = document.getElementById("app");
+var DISC = 0, CB = 0;
+
+function get(path) {
+  return fetch(API + path + (path.indexOf("?") === -1 ? q : q.replace("?", "&"))).then(function (r) { return r.json(); });
+}
+
+function empty(msg) {
+  app.innerHTML = '<p class="note" style="text-align:center;padding:30px 0">' + esc(msg) + "</p>";
+}
+
+function catalogue() {
+  app.innerHTML = '<div class="skl"></div>';
+  get("/api/ravella/catalog").then(function (d) {
+    DISC = d.discountPct || 0; CB = d.cashbackPct || 0;
+    if (!d.categories || !d.categories.length) { empty("Bezaklar tez orada shu yerda bo'ladi."); return; }
+    var h = "";
+    if (DISC > 0) h += '<div class="promo">🎁 BirJoy orqali <b>' + DISC + "% arzon</b>" + (CB > 0 ? " · <b>" + CB + "% tanga</b> qaytadi" : "") + "</div>";
+    d.categories.forEach(function (c) {
+      h += "<h2>" + esc(c.emoji) + " " + esc(c.name) + '</h2><div class="grid">';
+      c.items.forEach(function (it) {
+        h += '<button class="card" data-id="' + it.id + '"><div class="ph">' +
+          (it.hasPhoto ? '<img src="' + API + "/api/ravella/photo/" + it.id + '" alt="" loading="lazy">' : "") +
+          '</div><div class="bd"><div class="nm">' + esc(it.name) + '</div><div class="pr">' + money(it.basePriceSom) + " so'm<span>dan</span></div></div></button>";
+      });
+      h += "</div>";
+    });
+    h += '<p class="note">Narxlar jonli — Ravella o\'zgartirsa shu yerda ham darhol o\'zgaradi. Buyurtma Telegram ilovasi orqali beriladi.</p>';
+    app.innerHTML = h;
+    [].forEach.call(app.querySelectorAll(".card"), function (b) {
+      b.onclick = function () { item(Number(b.getAttribute("data-id"))); };
+    });
+    bar(null);
+  }).catch(function () { empty("Yuklanmadi — internetni tekshirib qayta urinib ko'ring."); });
+}
+
+function item(id) {
+  window.scrollTo(0, 0);
+  app.innerHTML = '<div class="skl"></div>';
+  get("/api/ravella/item/" + id).then(function (d) {
+    if (!d.item) { empty("Bezak topilmadi."); return; }
+    var qty = {}, heroAddon = null;
+    var photo = function (a) { return API + "/api/ravella/addon-photo/" + a; };
+    var draw = function () {
+      var sub = d.item.basePriceSom, chosen = [];
+      d.addons.forEach(function (a) { var n = qty[a.id] || 0; if (n) { sub += a.priceSom * n; chosen.push(a.name + " ×" + n); } });
+      var src = heroAddon ? photo(heroAddon.id) : (d.item.hasPhoto ? API + "/api/ravella/photo/" + d.item.id : "");
+      var h = '<button class="back">‹ Orqaga</button>' +
+        '<div class="stage">' + (src ? '<img src="' + src + '" alt="">' : "") +
+        (heroAddon ? '<span class="tag">+ ' + esc(heroAddon.name) + "</span>" : "") + "</div>" +
+        '<h2 style="margin-bottom:2px">' + esc(d.item.name) + "</h2>" +
+        (d.item.desc ? '<p class="muted">' + esc(d.item.desc) + "</p>" : "") +
+        '<p style="margin-top:6px;color:var(--amber);font-weight:700;font-size:13px">Asosiy narx · ' + money(d.item.basePriceSom) + " so'm</p>";
+      if (d.addons.length) {
+        h += "<h2>Qo'shimchalar</h2>";
+        d.addons.forEach(function (a) {
+          var n = qty[a.id] || 0;
+          h += '<div class="row' + (n ? " on" : "") + '">' +
+            (a.hasPhoto ? '<img src="' + photo(a.id) + '" alt="" loading="lazy">' : '<img alt="">') +
+            '<div class="g"><b>' + esc(a.name) + "</b><small>+" + money(a.priceSom) + " so'm</small></div>" +
+            (n ? '<div class="step"><button data-m="' + a.id + '">−</button><span>' + n + '</span><button data-p="' + a.id + '">+</button></div>'
+               : '<button class="add" data-p="' + a.id + '">+</button>') + "</div>";
+        });
+      }
+      h += '<p class="note">Tanlagan qo\'shimchangiz rasmda darhol ko\'rinadi. Buyurtma berish uchun Telegram ilovasini oching — u yerda ' +
+        (DISC > 0 ? "<b>" + DISC + "% chegirma</b> qo'llanadi" : "buyurtma rasmiylashtiriladi") +
+        (CB > 0 ? " va ish tugagach <b>" + CB + "% tanga</b> qaytadi" : "") + ".</p>";
+      app.innerHTML = h;
+      app.querySelector(".back").onclick = catalogue;
+      [].forEach.call(app.querySelectorAll("[data-p]"), function (b) {
+        b.onclick = function () {
+          var a = d.addons.filter(function (x) { return x.id === Number(b.getAttribute("data-p")); })[0];
+          qty[a.id] = Math.min(a.maxQty, (qty[a.id] || 0) + 1);
+          if (a.hasPhoto) heroAddon = a;
+          draw();
+        };
+      });
+      [].forEach.call(app.querySelectorAll("[data-m]"), function (b) {
+        b.onclick = function () {
+          var a = d.addons.filter(function (x) { return x.id === Number(b.getAttribute("data-m")); })[0];
+          qty[a.id] = Math.max(0, (qty[a.id] || 0) - 1);
+          if (!qty[a.id] && heroAddon && heroAddon.id === a.id) heroAddon = null;
+          draw();
+        };
+      });
+      bar(sub, chosen.length);
+    };
+    DISC = d.discountPct || DISC; CB = d.cashbackPct || CB;
+    draw();
+  }).catch(function () { empty("Yuklanmadi — qayta urinib ko'ring."); });
+}
+
+// Pastki panel: jami + chegirmali narx. Bu YERDA hisob faqat KO'RSATISH uchun —
+// haqiqiy summa buyurtma paytida serverda qayta hisoblanadi (mini app ichida).
+function bar(sub) {
+  var el = document.getElementById("bar");
+  if (!el) { el = document.createElement("div"); el.id = "bar"; el.className = "bar"; document.body.appendChild(el); }
+  if (sub == null) {
+    el.innerHTML = '<div class="in"><div><small>Bezaklarni ko\'ring</small><b>Ravella</b></div>' +
+      '<a class="cta" href="' + BOT + '">Ilovada ochish</a></div>';
+    return;
+  }
+  var fin = Math.max(0, sub - Math.floor(sub * DISC / 100));
+  el.innerHTML = '<div class="in"><div><small>Jami' + (DISC > 0 ? " (BirJoy −" + DISC + "%)" : "") + "</small><b>" +
+    (DISC > 0 ? "<s>" + money(sub) + "</s>" : "") + money(fin) + " so'm</b></div>" +
+    '<a class="cta" href="' + BOT + '">Buyurtma berish</a></div>';
+}
+
+catalogue();
+</script>
+</body>
+</html>

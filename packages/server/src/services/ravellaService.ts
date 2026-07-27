@@ -403,13 +403,15 @@ export async function uploadRavellaAddonPhoto(addonId: number, buf: Buffer, mime
 export async function adminListRavella(): Promise<{
   enabled: boolean;
   partnerChatId: string | null;
+  previewToken: string;
   categories: AdminRavellaCategoryRow[];
   items: AdminRavellaItemRow[];
   addons: AdminRavellaAddonRow[];
 }> {
-  const [enabled, partnerChatId, cats, items, addons] = await Promise.all([
+  const [enabled, partnerChatId, previewToken, cats, items, addons] = await Promise.all([
     featureOn("ravella"),
     getRavellaPartnerChat(),
+    getOrCreateRavellaPreviewToken(),
     prisma.ravellaCategory.findMany({ orderBy: [{ sortOrder: "asc" }, { id: "asc" }] }),
     prisma.ravellaItem.findMany({ orderBy: [{ sortOrder: "asc" }, { id: "asc" }] }),
     prisma.ravellaAddon.findMany({ orderBy: [{ sortOrder: "asc" }, { id: "asc" }] }),
@@ -421,6 +423,7 @@ export async function adminListRavella(): Promise<{
   return {
     enabled,
     partnerChatId,
+    previewToken,
     categories: cats.map((c) => ({ id: c.id, name: c.name, emoji: c.emoji, sortOrder: c.sortOrder, active: c.active, itemCount: itemsPerCat.get(c.id) ?? 0 })),
     items: items.map((i) => ({ ...itemCard(i), active: i.active, sortOrder: i.sortOrder, orderCount: i.orderCount, addonCount: addonsPerItem.get(i.id) ?? 0 })),
     addons: addons.map((a) => ({ ...addonView(a), itemId: a.itemId, categoryId: a.categoryId, active: a.active, sortOrder: a.sortOrder })),
@@ -564,6 +567,38 @@ export async function getRavellaPartnerChats(): Promise<string[]> {
   const raw = await getRavellaPartnerChat();
   if (!raw) return [];
   return [...new Set(raw.split(/[,\s]+/).map((x) => x.trim()).filter((x) => /^-?\d{5,}$/.test(x)))];
+}
+
+// ── 🌐 ommaviy sayt uchun preview-token (RAVELLA_PLAN §6 kengaytmasi) ───────────────────────────
+// Ega Ravella'ni JONLI qilishdan OLDIN hamkorga ko'rsata olishi kerak. Butun flagni yoqish
+// (=hamma mijozga ochish) buning uchun juda qo'pol. Shuning uchun: bitta maxfiy token DARK
+// katalogni FAQAT O'QISH uchun ochadi. Token buyurtma bermaydi, pul harakatlantirmaydi,
+// shaxsiy ma'lumot ko'rsatmaydi — eng yomon holatda begona odam narxlar ro'yxatini ko'radi.
+// Bekor qilish: AppState'dan `ravella:preview` satrini o'chirish (yoki admin'dan qayta yaratish).
+
+export async function getOrCreateRavellaPreviewToken(): Promise<string> {
+  const row = await prisma.appState.findUnique({ where: { key: "ravella:preview" } }).catch(() => null);
+  if (row?.value) return row.value;
+  const { randomBytes } = await import("node:crypto");
+  const token = randomBytes(16).toString("hex");
+  // Poyga-himoya: ikki so'rov bir vaqtda yaratsa `create` P2002 beradi → g'olibni qayta o'qiymiz.
+  try {
+    await prisma.appState.create({ data: { key: "ravella:preview", value: token } });
+    return token;
+  } catch {
+    const winner = await prisma.appState.findUnique({ where: { key: "ravella:preview" } });
+    return winner?.value ?? token;
+  }
+}
+
+/** Vaqt-bo'yicha xavfsiz solishtirish (admin-token naqshi, server.ts:123). */
+export async function isRavellaPreviewToken(candidate: string | undefined): Promise<boolean> {
+  const t = (candidate ?? "").trim();
+  if (t.length !== 32) return false;
+  const row = await prisma.appState.findUnique({ where: { key: "ravella:preview" } }).catch(() => null);
+  if (!row?.value || row.value.length !== t.length) return false;
+  const { timingSafeEqual } = await import("node:crypto");
+  return timingSafeEqual(Buffer.from(row.value), Buffer.from(t));
 }
 
 export async function setRavellaPartnerChat(chatId: string): Promise<{ ok: boolean }> {

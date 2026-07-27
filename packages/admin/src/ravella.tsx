@@ -6,6 +6,8 @@ import { useEffect, useState } from "react";
 import type { AdminRavellaAddonRow, AdminRavellaCategoryRow, AdminRavellaItemRow, AdminRavellaOrderRow } from "@t1067/shared";
 import { adminApi } from "./api";
 
+const PUBLIC_URL = "https://app.birjoy.online/ravella";
+
 const som = (n: number) => n.toLocaleString("ru-RU").replace(/,/g, " ");
 
 /** Fayl tanlash → base64 → yuklash (restoran/driver-photo bilan bir xil quvur). */
@@ -28,7 +30,7 @@ function pickPhoto(onPicked: (mime: string, base64: string) => Promise<void>): v
 
 export function RavellaAdminView() {
   const [data, setData] = useState<{
-    enabled: boolean; partnerChatId: string | null;
+    enabled: boolean; partnerChatId: string | null; previewToken: string;
     categories: AdminRavellaCategoryRow[]; items: AdminRavellaItemRow[]; addons: AdminRavellaAddonRow[];
   } | null>(null);
   const [orders, setOrders] = useState<AdminRavellaOrderRow[]>([]);
@@ -134,6 +136,21 @@ export function RavellaAdminView() {
             load();
           }}>Saqlash</button>
         </div>
+      </div>
+
+      <div className="card">
+        <h3>🌐 Ommaviy sayt havolasi</h3>
+        <p className="muted">
+          Telegram'siz ochiladigan sahifa — hamkorga ko'rsatish yoki ijtimoiy tarmoqqa tashlash uchun.
+          Faqat KO'RISH: buyurtma shu yerdan berilmaydi, tugma Telegram ilovasiga olib boradi.
+        </p>
+        <p><b>Ommaga (xizmat yoqilgandan keyin ishlaydi):</b><br />
+          <code>{PUBLIC_URL}</code></p>
+        <p><b>Hozir ko'rish uchun (maxfiy havola — xizmat DARK bo'lsa ham ochadi):</b><br />
+          <code>{`${PUBLIC_URL}?p=${data.previewToken}`}</code></p>
+        <button onClick={() => { navigator.clipboard?.writeText(`${PUBLIC_URL}?p=${data.previewToken}`); flash("✅ Nusxalandi"); }}>
+          📋 Maxfiy havolani nusxalash
+        </button>
       </div>
 
       <div className="card">

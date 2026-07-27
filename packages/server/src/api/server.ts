@@ -876,10 +876,19 @@ export function createApiServer(opts: ApiOptions = {}) {
   // ── 🎀 RAVELLA (feature "ravella", DARK until seed + QABUL) — bezak konstruktori ───────────────
   // Narx SERVERDA hisoblanadi (RAVELLA_PLAN §7.1) — bu yerda client'dan hech qanday summa
   // O'QILMAYDI, faqat id'lar. owner-preview: ega katalogni QABUL qilgunча mijozlar bo'sh ko'radi.
-  app.get("/api/ravella/catalog", allowGuest, rateLimit(30), async (_req, res) => {
+  // `?p=<token>` — ommaviy sayt uchun FAQAT-O'QISH preview (DARK flagni chetlab o'tadi). Buyurtma
+  // yo'llari bu tokenni BILMAYDI: sayt orqali hech kim buyurtma bera olmaydi, faqat ko'radi.
+  const ravellaPreview = async (req: Request, res: Response): Promise<boolean> => {
+    if (isAdmin(res.locals.telegramId as string)) return true;
+    const p = req.query?.p;
+    if (typeof p !== "string" || !p) return false;
+    const { isRavellaPreviewToken } = await import("../services/ravellaService");
+    return isRavellaPreviewToken(p);
+  };
+  app.get("/api/ravella/catalog", allowGuest, rateLimit(30), async (req, res) => {
     const { getRavellaCatalog } = await import("../services/ravellaService");
     res.set("Cache-Control", "private, max-age=30");
-    res.json(await getRavellaCatalog(isAdmin(res.locals.telegramId as string)));
+    res.json(await getRavellaCatalog(await ravellaPreview(req, res)));
   });
   // "order"/"orders" /api/ravella/item/:id bilan TO'QNASHMAYDI (turli segment) — lekin restoran
   // saboqiga ko'ra buyurtma yo'llari baribir katalog-yo'llaridan OLDIN turadi.
@@ -909,7 +918,7 @@ export function createApiServer(opts: ApiOptions = {}) {
   }));
   app.get("/api/ravella/item/:id", allowGuest, rateLimit(30), async (req, res) => {
     const { getRavellaItemDetail } = await import("../services/ravellaService");
-    res.json(await getRavellaItemDetail(Number(req.params.id), isAdmin(res.locals.telegramId as string)));
+    res.json(await getRavellaItemDetail(Number(req.params.id), await ravellaPreview(req, res)));
   });
   const serveRavellaPhoto = (kind: "item" | "addon") => async (req: Request, res: Response): Promise<void> => {
     const svc = await import("../services/ravellaService");
