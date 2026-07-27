@@ -3118,3 +3118,293 @@ jurnalda `/api/shop/market` 500 soni = **0**, umumiy xato = **0**, servis active
 
 **Holat**: A `ready for verification` (flag OFF — yoqish egaga havola); B — tuzatilgan va
 jonlida isbotlangan.
+
+---
+
+## §52 — 📱 FULLSCREEN XAVFSIZ-ZONA (T-FS1) · 2026-07-27
+**Holat: `ready for verification`** (mustaqil tekshiruv + ega QABUL'i kutilyapti — R1/R4/R6)
+
+**Muammo (ega hisoboti + 5 skrinshot).** Ega Mini App'ni to'liq ekran (fullscreen) rejimiga
+o'tkazgach, Telegram WebView'ni butun ekranga cho'zdi va O'ZINING `✕ Close / ⌄ / ⋮` panelini
+kontent USTIGA chizdi. Natijada 5 ekranda ustma-ustlik: Uy — "Tanga balansi" va "Yechish"
+tugmasi panel ostida; Do'kon — "SHABADA" qatori; Profil — "Boburxon H" sarlavhasi; Restoran —
+"Mening buyurtmalarim"; Taksi — HUD (tanga/streak/jackpot) va "Qayerdan?" qidiruvi.
+
+**Sabab (o'lchov, taxmin emas).** Butun ilova faqat CSS'ning `env(safe-area-inset-*)` idan
+foydalanardi — u **qurilma** notch/status-bar'ini biladi, **Telegram panelini bilmaydi**
+(Android'da odatda `0px`). Repo bo'yicha: `env(safe-area-inset-top)` = 7 marta (`tokens.css`),
+`styles.css` = 0 marta; `--tg-safe-area-inset-*` / `--tg-content-safe-area-inset-*` (Bot API 8.0)
+va `safeAreaInset`/`contentSafeAreaInset` — grep bo'yicha **0 marta** ishlatilgan.
+Ustiga eng ko'p ko'riladigan 2 sarlavha (`.nh-topbar` = Uy/Profil, `.topbar` = qolgan tablar)
+xavfsiz zonani **umuman** hisobga olmasdi.
+
+**Yechim — bitta inset tizimi, fullscreen O'CHIRILMADI (ega qarori: fullscreen qoladi).**
+- `telegram.ts`: `safeAreaInset` (qurilma) + `contentSafeAreaInset` (Telegram paneli) o'qiladi va
+  `--tg-sa-*` / `--tg-ca-*` CSS o'zgaruvchilariga yoziladi; `safeAreaChanged`,
+  `contentSafeAreaChanged`, `fullscreenChanged`, `viewportChanged` hodisalariga obuna + 300ms/1200ms
+  kechikkan qayta-o'qish (insetlar `ready()` dan keyin to'ladi — `initData` bilan bir xil lag).
+  `<html>` ga `is-fullscreen` klassi. Telegram inset bermasa o'zgaruvchilarga TEGILMAYDI →
+  `env()` fallback kuchda, ya'ni **oddiy rejimda ko'rinish o'zgarmaydi**.
+- `tokens.css`: yagona manba `--safe-top/-bottom/-left/-right`; `html.is-fullscreen` da
+  `--safe-min-top: 48px` (klient inset bermay qolsa ham kontent panel ostiga kirmaydi).
+- Barcha `env(safe-area-inset-*)` → tokenlarga ko'chirildi; safe-area'siz sarlavhalarga qo'shildi
+  (`.topbar` ×2 ta'rif, `.nh-topbar`); topbar'siz ekranlar uchun `.app.no-topbar` (Uy tabi +
+  mehmon rejimi, `App.tsx`).
+- `booking3.tsx`: `fullscreenChanged` → Leaflet `invalidateSize()` (mavjud `fix()` yo'liga ulandi,
+  yangi mantiq yo'q).
+
+**Isbot (buyruq + xom natija).**
+- `tsc --noEmit -p packages/miniapp/tsconfig.json` → **0 xato** (tsconfig'ning TS5101 `baseUrl`
+  deprecation ogohlantirishi bazaviy holatda ham bor — `git stash` bilan tasdiqlandi, meniki emas).
+- `pnpm -C packages/miniapp build` → `✓ built in 1.97s`.
+- **BUNDLE GREP** (`dist/assets/index-BaB8U-VE.css`):
+  `--safe-top: max(calc(var(--tg-sa-top) + var(--tg-ca-top)), var(--safe-min-top))` ·
+  `html.is-fullscreen{--safe-min-top: 48px}` ·
+  `.app.no-topbar>.content,.app.no-topbar>.view{padding-top:calc(4px + var(--safe-top))}` ·
+  `.topbar{…padding:calc(14px + var(--safe-top))…}` · `.b3-top{…calc(8px + var(--safe-top))…}` ·
+  `.nh-topbar{…calc(2px + var(--safe-top))…}` · `.tabbar{…calc(8px + var(--safe-bottom))}`.
+  Qolgan xom `env(safe-area-inset-*)` = **4 ta**, hammasi `:root` ta'rifi (fallback) — boshqa
+  joyda 0.
+
+**TEKSHIRILMAGAN (ochiq aytaman).** Real qurilmada render ko'rilmadi — deploy qilinmadi, ega
+QABUL'i yo'q. `--safe-min-top: 48px` poli faqat klient inset bermagan holat uchun mo'ljallangan
+zaxira; real klient qiymat berganda `max()` uni bosadi, lekin buni jonli o'lchov bilan
+tasdiqlash kerak. R6 bo'yicha 5 ekranning fullscreen ON/OFF skrinshoti egadan kutiladi.
+
+**Yo'l-yo'lakay topilgan, TUZATILMAGAN**: Restoran ro'yxatida "Uchqirra Baliq" rasmi singan
+(broken-image) — alohida tiket, bu commit'ga kiritilmadi.
+
+**Keyingi navbat (ega tasdiqlagan tartib)**: `requestContact()` (ilova ichida raqam ulash) →
+`BackButton` (Android "orqaga" hozir ilovani butunlay yopadi) → `addToHomeScreen()` →
+`shareToStory()` → `isActive` bilan polling pauzasi → `BiometricManager` (cashout).
+
+---
+
+## §53 — 📱 RAQAMNI ILOVA ICHIDA ULASH (T-TG1, `requestContact`) · 2026-07-27
+**Holat: `ready for verification`** (flag `linkinapp` = **OFF/DARK**; mustaqil tekshiruv + ega
+QABUL'i kutilyapti — R1/R4/R6)
+
+**Nega.** Ulanmagan mijoz "Raqamni ulash" bosganda ilovadan CHIQIB botga otilardi
+(`App.tsx:openLinkBot`). O'z o'lchovimiz (`App.tsx:569-574` izohi, DB 2026-07-26): `/start` bosgan
+**1060** odamdan **289 tasi ulanmagan**, shundan **286 tasi tugmani umuman bosmagan**. Endi
+Telegram'ning o'z tasdiq oynasi ilova ichida ochiladi — sakrash yo'q.
+
+**Nima qilindi.**
+1. **`services/linkService.ts` (YANGI, bot'dan mustaqil)** — `completeLink()`: ulash + hamma mukofot
+   qadami (join-sovg'a, referal, haydovchi-QR ulushi) bitta joyda. Xabar YUBORMAYDI: `extras`
+   (foydalanuvchiga) va `notices` (do'st/haydovchiga) qaytaradi, kim yuborishini chaqiruvchi hal
+   qiladi. `deriveDisplayName`/`autoSetDisplayName` ham shu yerga ko'chdi.
+2. **`bot/bot.ts::handleLink` shu funksiyaga o'tkazildi** — bot yo'lida pul-mantiq NUSXALANMADI,
+   faqat KO'RSATISH qoldi. (Bu talab: aks holda ikkita mukofot yo'li paydo bo'lardi.)
+3. **`api/telegramAuth.ts::validateContactResponse`** — imzo tekshiruvi (initData bilan ayni
+   algoritm: secret = HMAC_SHA256("WebAppData", token)). `hash` tashqarida ham, query-string ichida
+   ham kelishi mumkin — ikkalasi qo'llab-quvvatlanadi. Shubha bo'lsa RAD (fail closed).
+4. **`POST /api/link/contact`** — IKKI mustaqil isbot, ikkalasi ham SHART: (a) imzo → raqamni
+   TELEGRAM tasdiqlagan; (b) `contact.user_id === initData'dagi id` → raqam AYNAN shu
+   foydalanuvchiniki (bot yo'lidagi `contact.user_id !== ctx.from.id` qoidasining ekvivalenti).
+   `requireUser` + `rateLimit(6)`.
+5. **Mini App**: `telegram.ts::askContact()` (versiya-darvozasi `isVersionAtLeast("6.9")` + 60s
+   xavfsizlik to'ri, HECH QACHON rad etmaydi) · `api.linkContact()` · `App.tsx::useLinkFlow` —
+   mehmon rejimidagi 3 ta kirish nuqtasi (bo'sh-ekran tugmasi, pastki `guest-bar`, do'kondagi
+   "buyurtma") shunga ulandi; muvaffaqiyatda `location.reload()`.
+6. **Kill-switch `linkinapp`, DEFAULT_OFF** (CLAUDE.md qoidasi). OFF = eski bot-yo'li AYNAN.
+   Owner-preview: ega/adminlar QORONG'I holatda ham ko'radi (mavjud `flagPreview` naqshi),
+   mehmon uchun ham flag `/api/me` ning guest shoxida uzatiladi.
+
+**Isbot (buyruq + xom natija).**
+- `tsx src/scripts/testContactAuth.ts` (YANGI, DB'ga TEGMAYDI — faqat crypto, soxta token):
+  **🟢 8/8 o'tdi** — haqiqiy imzo qabul · `hash` string ichida bo'lsa ham qabul ·
+  **raqam almashtirilgan → RAD** · **user_id almashtirilgan → RAD** · begona token → RAD ·
+  imzosiz → RAD · eskirgan → RAD · bo'sh javob/tokensiz server → RAD.
+- `tsc --noEmit`: server **0 xato**, miniapp **0 xato**.
+- `pnpm -C packages/miniapp build` → `✓ built in 2.21s`; **BUNDLE GREP**
+  (`dist/assets/index-bWm94p-l.js`): `requestContact` ✓ · `/api/link/contact` ✓ · `linkinapp` ✓.
+- `featureFlags.ts` DEFAULT_OFF ro'yxatida `linkinapp` bor (kod darajasida isbot).
+
+**TEKSHIRILMAGAN (ochiq aytaman).** (1) Uchidan-uchiga jonli oqim — bu muhitda `DATABASE_URL` ham,
+`BOT_TOKEN` ham yo'q, server ko'tarilmaydi; ya'ni HAQIQIY Telegram javobi bilan `/api/link/contact`
+sinalmagan — faqat imzo-yadrosi sinalgan. (2) `handleLink` refaktori jonli bot'da yugurtirilmagan:
+mantiq bir xil ko'chirildi va `tsc` toza, lekin bu **pul yo'li** — deploydan keyin bitta real
+ulanish kuzatilishi shart. (3) Referal/QR mukofotlari testi TEST_DATABASE_URL talab qiladi
+(CLAUDE.md), bu sessiyada yo'q. Shu 3 sabab uchun flag **OFF** chiqarildi.
+
+---
+
+## §54 — ‹ TELEGRAM ORQAGA TUGMASI (T-TG2, `BackButton`) · 2026-07-27
+**Holat: `ready for verification`** (ega QABUL'i kutilyapti — R1/R6)
+
+**Muammo.** `BackButton` (Bot API 6.1) kodda **hech qachon ishlatilmagan** (grep: 0 natija).
+Telegram Android'da apparat «orqaga» tugmasi shu tugmaga yo'naltiriladi — u ko'rinmasa, apparat
+tugmasi ichki ekrandan chiqarish o'rniga **Mini App'ni butunlay yopadi**. Ya'ni mijoz taksi
+xaritasidan, mahsulot ichidan, savatdan yoki buyurtmalar ro'yxatidan orqaga bosса — ilovadan
+tashqarida qolardi.
+
+**Yechim — bitta global tugma ustiga PRIORITETLI STEK.**
+- `telegram.ts`: `pushBack(handler, priority)` → stek; eng yuqori prioritet g'olib, teng bo'lsa
+  oxirgi qo'yilgani; stek bo'shaganda tugma YASHIRILADI (Telegram'ning o'z «yopish» xatti-harakati
+  qaytadi). Klientda `BackButton` bo'lmasa — hech narsa o'zgarmaydi.
+- **Nega faqat LIFO yetarli emas**: React bola-effektlarni ota-effektlardan OLDIN yurgizadi, ya'ni
+  deep-link bilan ichki ekran darhol ochilganda (`?go=dokon:35`) qobiqning "tabdan Uy'ga" ishlov
+  beruvchisi ustiga chiqib qolardi va orqaga bosish mahsulotni emas, butun tabni yopardi. Shuning
+  uchun qobiq = prioritet 0, ichki ekranlar = 1, ular ustidagi varaq = 2.
+- `useBackButton.ts` (yangi hook): `onBack` ref'da saqlanadi → effekt FAQAT `active` o'zgarganda
+  qayta ishga tushadi (aks holda har render stekni bo'shatib-to'ldirib tartibni buzardi).
+
+**Qamrov — 14 ta ulanish nuqtasi (`App.tsx`, `shop.tsx`, `restoran.tsx`)**
+- Qobiq: taksi ekrani · taklif · safar tarixi · Uy'dan boshqa tab → Uy · mehmon rejimi tablari.
+- Do'kon: rasm-lightbox · hikoya-ko'ruvchi · savat · buyurtmalarim · mahsulot (sharh/tasdiq
+  qadamlari avval yechiladi, keyin mahsulot yopiladi) · do'kon-sahifasi.
+- Restoran: restoran-sahifasi · buyurtmalarim · checkout varag'i (prioritet 2).
+
+**Isbot (buyruq + xom natija).**
+- `tsc --noEmit -p packages/miniapp/tsconfig.json` → **0 xato**.
+- `pnpm -C packages/miniapp build` → `✓ built in 2.24s`.
+- **BUNDLE GREP** (`dist/assets/index-LwLzHmjy.js`) — minifikatsiyalangan stek to'liq turibdi:
+  `const e=S?.BackButton;if(!e)return;Ut&&(e.offClick(Ut),Ut=null);let n;for(const t of ls)
+  (!n||t.priority>=n.priority)&&(n=t);if(n){…e.onClick(Ut),e.show()}else e.hide()`.
+- Hook-tartibi qo'lda tekshirildi: hamma `useBackButton` chaqiruvi komponentning erta
+  `return`laridan OLDIN (`awk` bilan 197–515 va 414–432 oraliqlari ko'rildi — o'sha oraliqlardagi
+  `return`lar faqat ichki callback'lar ichida).
+
+**FLAG YO'Q — ongli qaror.** CLAUDE.md "har mexanika kill-switch bilan" deydi; bu **mexanika emas,
+buzuq xatti-harakatning tuzatilishi** (pul yo'q, iqtisod yo'q). Eski klientda `BackButton`
+bo'lmasa kod jim o'tadi, ya'ni tabiiy fallback bor. Fullscreen tuzatishi (§52) bilan bir xil
+yondashuv. Xohlasangiz flag ortiga olaman — bir necha qatorlik ish.
+
+**QAMRALMAGAN (ochiq aytaman).** (1) `booking3` ichki varaqlari (manzil tanlash, qidiruv) — orqaga
+butun taksi ekranini yopadi, bir qadam yuqoriga sakraydi. (2) Xizmatlar, E'lonlar, Hamyon, Profil
+ichki ekranlari va do'kon-chati hali ulanmagan — keyingi supurishda. (3) Real qurilmada
+sinalmagan: bu muhitda Telegram klienti yo'q, ya'ni «apparat orqaga endi ilovani yopmaydi» degan
+yakuniy isbot FAQAT sizning telefoningizdan keladi.
+
+---
+
+## §55 — 🏠 TELEFON EKRANIGA QO'SHISH (T-TG3, `addToHomeScreen`) · 2026-07-27
+**Holat: `ready for verification`** (flag `homescreen` = **OFF/DARK**; ega QABUL'i kutilyapti)
+
+**Nega.** Bugun mijoz 1067 ga kirish uchun Telegram'ni ochib, botni qidirishi kerak. Ikonka bilan
+ilova telefon ekranidan bir bosishda ochiladi — taksi ilovasi uchun eng arzon qaytish (retention)
+mexanikasi. Bot API 8.0 buni beradi, biz ishlatmaganmiz (grep: 0).
+
+**Nima qilindi.**
+- `telegram.ts`: `homeScreenStatus()` (versiya-darvozasi `8.0` + 3s xavfsizlik to'ri → javobsiz
+  klientda taklif KO'RSATILMAYDI) · `addToHomeScreen()` · `onHomeScreenAdded()` obunasi.
+- `App.tsx::AddToHomeCard` — bir qatorli taklif kartochkasi. **Nazokat qoidalari**: faqat status
+  `missed` (klient qo'llab-quvvatlaydi VA ikonka hali yo'q) · faqat **Uy** tabida · «✕» bosilsa
+  **30 kun jim** (`localStorage: hs_dismissed_at`) · qo'shilgani `homeScreenAdded` hodisasi bilan
+  TASDIQLANADI (taxmin qilmaymiz) → kartochka yo'qoladi + "🏠 Tayyor!" bildirishnomasi.
+- `tokens.css::.hs-card` — faqat tokenlardan (inline stil YO'Q), animatsiya transform/opacity'da,
+  `prefers-reduced-motion` hurmat qilinadi (CLAUDE.md dizayn qoidalari).
+- **Kill-switch `homescreen`, DEFAULT_OFF** + owner-preview (`/api/me`).
+
+**Isbot.** `tsc` server+miniapp **0 xato** · `vite build` ✓ · **BUNDLE GREP**
+(`index-Dm2HW7Ln.js`): `addToHomeScreen` ✓ `checkHomeScreenStatus` ✓ `homeScreenAdded` ✓
+`hs_dismissed_at` ✓; CSS'da `.hs-card{…var(--r-card)…var(--surface-2)…}` ✓.
+
+**TEKSHIRILMAGAN.** Real qurilmada ko'rilmagan: bu muhitda Telegram klienti yo'q, ya'ni `missed`
+holati va qo'shish oqimi FAQAT sizning telefoningizda tasdiqlanadi.
+
+---
+
+## §56 — 📸 TAKLIFNI HIKOYAGA ULASHISH (T-TG4, `shareToStory`) · 2026-07-27
+**Holat: `ready for verification`** (flag `storyshare` = **OFF/DARK**)
+
+**Nega.** Referal tizimi bor, lekin ulashishning YAGONA yo'li — chatga yuborish. Hikoya (story)
+bir marta qo'yiladi va butun kontakt ro'yxati ko'radi; taklif uchun bu eng arzon tarqalish kanali.
+Bot API 7.8 buni beradi, ishlatilmagan (grep: 0).
+
+**Nima qilindi.**
+- `telegram.ts::shareStory(text, link)` — versiya-darvozasi `7.8`; muharrir ochilmasa **`false`**
+  qaytaradi va chaqiruvchi odatdagi «chatga yuborish»ga tushadi (foydalanuvchi bo'sh bosishni
+  sezmaydi).
+- **Rasm**: yangi asset YASALMADI — mavjud `public/invite-poster.jpg` ishlatiladi (o'lchamini
+  tekshirdim: **853×1280**, tik format, hikoyaga to'g'ri keladi; OG-kartada allaqachon jonli
+  ishlaydi). URL ish vaqtida `location.origin` dan olinadi — ilova qaysi domendan ochilgan bo'lsa,
+  rasm ham o'sha yerda.
+- **Premium nuansi**: Telegram hikoyadagi bosiladigan havolaga FAQAT Premium obunachilarga ruxsat
+  beradi. Shuning uchun `widget_link` faqat `initDataUnsafe.user.is_premium` bo'lganda yuboriladi;
+  oddiy foydalanuvchida havola matn ichiga qo'shiladi (ko'rinadi, o'qiladi). Ya'ni hech kimda
+  "ishlamayapti" holati chiqmaydi.
+- **Link AYNI OLDINGISI** (`inviteLandingUrl`) → referal hisobi va to'lovlari o'zgarmaydi, yangi
+  pul-mantiq yo'q.
+- UI: `ReferralView` da «📸 Hikoyaga (Story) qo'yish» tugmasi, `storyshare` flagi ostida.
+- **Kill-switch `storyshare`, DEFAULT_OFF** + owner-preview.
+
+**Isbot.** `tsc` server+miniapp **0 xato** · `vite build` ✓ · **BUNDLE GREP**
+(`index-CQ1FcQ5J.js`) — minifikatsiyalangan mantiq, Premium shoxi bilan birga:
+`if(!(N?.shareToStory)||!(N.isVersionAtLeast?.call(N,"7.8")))return!1; … N.shareToStory($m(),
+{text:r?e:`${e}\n${n}`,...r?{widget_link:{url:n,name:"BirJoy"}}:{}}),!0` ·
+`new URL("/invite-poster.jpg",location.origin)` ✓ · poster `dist/` da (172 576 bayt) ✓.
+
+**TEKSHIRILMAGAN.** Hikoya muharriri real qurilmada ochilmagan; rasmning hikoyadagi kadrlanishi
+(853×1280 → 9:16 ga biroz kesiladi) FAQAT sizning ekraningizda baholanadi. Premium/oddiy
+foydalanuvchi farqi ham jonli sinalmagan.
+
+---
+
+## §57 — ⏸ FONDA SO'ROV YO'Q (`isActive`) + ☁️ BULUT-XOTIRA (`CloudStorage`) · 2026-07-27
+**Holat: `ready for verification`** (flag YO'Q — ikkalasi ham infratuzilma, degradatsiya = bugungi
+xatti-harakat)
+
+### A. `isActive` — fonda so'rov halqalari to'xtaydi
+**Muammo.** Mini App yopilmasdan fonga tushishi mumkin (boshqa chatga o'tildi, ekran o'chdi).
+Bugungacha halqalar fonda ham urib turardi: **restoran buyurtmalari 8s**, **safar/mashina pinlari
+15s**, **eski booking 45s**, **kuzatuv sahifasi 5s**. Bu mijozning batareyasi va trafigi + bizning
+serverimiz — behuda.
+**Yechim.** `telegram.ts::isAppActive()` + `onActiveChange()` (Bot API 8.0 `activated`/`deactivated`;
+eski klientda brauzerning `visibilitychange` fallback'i) → `useIsActive()` hooki. Halqa effektlariga
+`if (!appActive) return;` + `deps` ga `appActive`. **Qo'shimcha foyda**: ilovaga qaytilganda effekt
+qayta ishga tushib **darhol bir marta yangilaydi** — foydalanuvchi eskirgan ma'lumot ko'rmaydi.
+Shubhali holatda FAOL deb hisoblanadi (halqa to'xtab qolgandan ko'ra ishlagani afzal).
+**Tegilmadi**: sof UI-tiklari (soat, taymer) — ular tarmoqqa chiqmaydi.
+
+### B. `CloudStorage` — kichik afzalliklar qurilmalararo
+`cloudGet`/`cloudSet` (3s xavfsizlik to'ri, yozish "eng yaxshi harakat" — xato bo'lsa jim o'tadi,
+chunki localStorage baribir yozilgan). Ikki joyda ishlatildi:
+1. **Mavzu** (`birjoy_theme`) — `initTheme()` sinxron qolgan (birinchi bo'yashda miltillash yo'q),
+   bulut javobi kelganda FAQAT farq bo'lsa qo'llanadi. Telefon almashtirilsa mavzu o'zi bilan keladi.
+2. **«Ekranga qo'shish» rad etilgani** (`hs_dismissed_at`) — bitta «yo'q» endi HAMMA qurilmada
+   hurmat qilinadi.
+**Ataylab saqlanmaydi**: savat, buyurtma, pul yoki shaxsiy ma'lumot — bulutga faqat kichik UI
+afzalliklari ketadi.
+
+**Isbot.** `tsc` miniapp **0 xato** · `vite build` ✓ · **BUNDLE GREP** (`index-DeCUfihw.js`):
+`typeof x?.isActive=="boolean"?…:document.visibilityState!=="hidden"` ·
+`onEvent("activated"…)/("deactivated"…)+addEventListener("visibilitychange"…)` va tozalashi ·
+`CloudStorage.getItem` + 3s `setTimeout` to'ri · `birjoy_theme` ✓.
+
+**Diff intizomi (o'zim topgan xato).** Halqalarni ulashda `active` nomi `booking.tsx`/`booking3.tsx`
+da ALLAQACHON band edi (faol safar holati) — ommaviy almashtirish 2 ta begona `useEffect` ning
+bog'liqlik ro'yxatini buzgan edi. `tsc` buni TUTMAGAN (ikkalasi ham to'g'ri tipda). Diff'ni satrma-
+satr o'qib topdim va tikladim; o'zgaruvchi `appActive` deb nomlandi. Yakuniy diff: har faylda
+**faqat 4 qator** (`git diff` bilan tasdiqlandi).
+
+**TEKSHIRILMAGAN.** Fon/old-plan almashuvi real qurilmada sinalmagan — halqa rostdan to'xtayotgani
+va qaytishda darhol yangilanayotgani FAQAT sizning telefoningizda ko'rinadi. CloudStorage ikki
+qurilmada sinalmagan.
+
+---
+
+## 📦 SESSIYA YAKUNI (2026-07-27) — 6 tiket, hammasi GitHub'da, deploy KUTILYAPTI
+
+| § | Tiket | Flag | Holat |
+|---|---|---|---|
+| 52 | Fullscreen xavfsiz-zona | yo'q (bug-fix) | ready for verification |
+| 53 | Raqamni ilova ichida ulash (`requestContact`) | `linkinapp` **OFF** | ready for verification |
+| 54 | Telegram ‹ orqaga tugmasi (`BackButton`) | yo'q (bug-fix) | ready for verification |
+| 55 | Telefon ekraniga qo'shish (`addToHomeScreen`) | `homescreen` **OFF** | ready for verification |
+| 56 | Taklifni hikoyaga ulashish (`shareToStory`) | `storyshare` **OFF** | ready for verification |
+| 57 | Fonda so'rov yo'q (`isActive`) + bulut-xotira (`CloudStorage`) | yo'q (infratuzilma) | ready for verification |
+
+**Ega qarori (2026-07-27, so'zma-so'z): «kodni ma'qulladim, deploydan keyin telefonda ko'raman».**
+Ya'ni bu KOD KO'RIGI ma'qullashi — R6 ma'nosidagi QABUL EMAS. Barcha 6 tiket `ready for
+verification` holatida QOLADI; `owner-accepted` FAQAT deploydan keyin, jonli qurilmadagi real
+render ko'rilgach yoziladi. `linkinapp` / `homescreen` / `storyshare` flaglari shu QABUL'gacha
+OFF turadi (R6: QABUL'dan oldin global flag yoqilmaydi).
+
+**Deploy uchun eslatma (boshqa sessiya bajaradi).** Miniapp: `VITE_API_URL=<render> vite build` →
+`dist` ni `.vercel/output/static` ga KO'CHIR → `vercel deploy --prebuilt --prod` → BUNDLE GREP
+bilan isbotla. Server: GH Actions `deploy` jobi (autoDeploy o'chiq). **Sxema o'zgarishi YO'Q** —
+`prisma db push` KERAK EMAS (yangi model/ustun qo'shilmagan; `featureFlags` AppState orqali ishlaydi).
+Ikkala yangi flag DARK holatda chiqadi, ya'ni deploy mijozlarga ko'rinadigan HECH NARSANI
+o'zgartirmaydi — §52/§54 tuzatishlaridan tashqari (ular bug-fix, flagsiz).

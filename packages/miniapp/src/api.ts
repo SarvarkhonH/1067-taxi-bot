@@ -165,6 +165,11 @@ export function apiUrl(path: string): string {
 
 export const api = {
   me: () => get<MeResponse | GuestMe>("/api/me"),
+  /** 📱 Raqamni ilova ichida ulash: `askContact()` javobini serverga uzatadi. Imzo va «bu raqam
+   *  shu foydalanuvchiniki» tekshiruvi SERVERDA (/api/link/contact) — bu yerda hech narsa
+   *  tasdiqlanmaydi. `status`: linked | not_found | taken | banned | bad_contact | not_own_contact. */
+  linkContact: (response: string, hash?: string) =>
+    post<{ ok: boolean; status: string; extras?: string[] }>("/api/link/contact", { response, hash }),
   // 🛍 tanga shop (feature "shop")
   // shopId berilsa — O'SHA do'konning to'liq vitrinasi (global 100-limit katta do'konni kesardi)
   shopProducts: (shopId?: number) => get<{ products: import("@t1067/shared").ShopProductView[] }>(`/api/shop/products${shopId ? `?shopId=${shopId}` : ""}`),

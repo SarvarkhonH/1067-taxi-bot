@@ -6,12 +6,14 @@ import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import { formatNumber, haversineKm } from "@t1067/shared";
 import { api, type PublicTrip } from "./api";
+import { useIsActive } from "./useIsActive";
 
 const TILE_URL = "https://mt{s}.google.com/vt/lyrs=m&hl=uz&x={x}&y={y}&z={z}";
 const TILE_SUBDOMAINS = ["0", "1", "2", "3"];
 const CAR = `<svg width="34" height="34" viewBox="0 0 32 32" style="display:block"><rect x="9.5" y="3" width="13" height="26" rx="6" fill="#FFB300"/><path d="M11 7 Q16 4.3 21 7 L20 12 H12 Z" fill="#0b1f3a" opacity=".78"/><rect x="11.5" y="20" width="9" height="6" rx="2" fill="#0b1f3a" opacity=".5"/></svg>`;
 
 export function TrackView({ token }: { token: string }) {
+  const appActive = useIsActive(); // ⏸ fonda so'rov halqasi to'xtaydi
   const mapRef = useRef<HTMLDivElement | null>(null);
   const map = useRef<L.Map | null>(null);
   const carMk = useRef<L.Marker | null>(null);
@@ -50,13 +52,14 @@ export function TrackView({ token }: { token: string }) {
   useEffect(() => {
     let alive = true;
     const load = () => api.trackTrip(token).then((t) => { if (alive) setTrip(t); }).catch(() => undefined);
+    if (!appActive) { return () => { alive = false; }; } // ⏸ sahifa ko'rinmasa 5s halqa to'xtaydi
     load();
     const id = window.setInterval(load, 5000);
     return () => {
       alive = false;
       clearInterval(id);
     };
-  }, [token]);
+  }, [token, appActive]);
 
   useEffect(() => {
     if (!map.current || !trip) return;

@@ -11,7 +11,7 @@ import {
   type WeeklyBoardResponse,
 } from "@t1067/shared";
 import { api, type RideHistoryRow, type RideHistoryResponse } from "./api";
-import { copyText, haptic, shareLink, inviteText, inviteLandingUrl } from "./telegram";
+import { copyText, haptic, shareLink, shareStory, inviteText, inviteLandingUrl } from "./telegram";
 import { loadErrorText } from "./util";
 
 export function Spinner() {
@@ -335,7 +335,7 @@ function GapSection() {
   );
 }
 
-export function ReferralView({ onClose }: { onClose?: () => void } = {}) {
+export function ReferralView({ onClose, story }: { onClose?: () => void; story?: boolean } = {}) {
   const [data, setData] = useState<ReferralResponse | null>(null);
   const [copied, setCopied] = useState(false);
   const [err, setErr] = useState(false);
@@ -351,6 +351,12 @@ export function ReferralView({ onClose }: { onClose?: () => void } = {}) {
   if (err && !data) return <LoadError onRetry={load} />;
   if (!data) return <Spinner />;
   const share = () => shareLink(inviteLandingUrl(data.link), inviteText(data.rewardReferee));
+  // 📸 Hikoyaga ulashish (feature "storyshare"). Telegram muharriri ochilmasa (eski klient) —
+  // jimgina odatdagi «chatga yuborish» yo'liga tushamiz, foydalanuvchi bo'sh bosishni sezmaydi.
+  const toStory = () => {
+    haptic();
+    if (!shareStory(inviteText(data.rewardReferee), inviteLandingUrl(data.link))) share();
+  };
   const copy = async () => {
     await copyText(data.link);
     setCopied(true);
@@ -397,6 +403,11 @@ export function ReferralView({ onClose }: { onClose?: () => void } = {}) {
       <button className="btn-primary" onClick={share}>
         📤 Do'stga yuborish
       </button>
+      {story && (
+        <button className="btn-ghost" onClick={toStory}>
+          📸 Hikoyaga (Story) qo'yish
+        </button>
+      )}
       <button className="btn-ghost" onClick={copy}>
         {copied ? "✅ Nusxa olindi" : "🔗 Havoladan nusxa olish"}
       </button>
