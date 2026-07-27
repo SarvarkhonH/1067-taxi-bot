@@ -59,6 +59,10 @@ export interface ApiOptions {
   notifyRiderOrderStatus?: (notice: { memberId: number; restaurantName: string; newStatus: string }) => Promise<void>;
   /** 🍽 Order rejected → rider push with the reason. */
   notifyRiderOrderRejected?: (notice: { memberId: number; restaurantName: string; reason: string }) => Promise<void>;
+  /** 🎀 New Ravella order → PARTNER card with [✅ Qabul][☎️ Bog'landim][✔ Bajarildi][❌ Rad] (+owner CC). */
+  notifyRavellaPartner?: (notice: import("../services/ravellaService").RavellaOwnerNotice) => Promise<void>;
+  /** 🎀 Ravella order status changed → customer push (cashback berilgan bo'lsa summasi bilan). */
+  notifyRavellaCustomer?: (notice: { memberId: number; itemName: string; newStatus: string; cashbackSom?: number; reason?: string }) => Promise<void>;
 }
 
 function memberType(req: Request, fallback: MemberType): MemberType {
@@ -581,16 +585,21 @@ export function createApiServer(opts: ApiOptions = {}) {
   }));
 
   // 📹 S1: do'kon-hikoya (story) — tray (Bozor-bosh) + bitta do'konning to'liq-ekran ko'ruvchisi.
-  app.get("/api/shop/stories", requireUser, rateLimit(30), withMember2(async (memberId, _req, res) => {
+  // 🚪 Hikoyalar mehmonga ham ochiq — bu KASHF sirtqisi, uni raqam so'rab yopish mantiqsiz.
+  // `withMember2` mehmonda 404 berardi; memberId endi yumshoq (ko'rilgan-belgisi mehmonda bo'sh).
+  // Ko'rish-hisobi (POST .../view) requireUser'da qoladi — u a'zoga yoziladi.
+  app.get("/api/shop/stories", allowGuest, rateLimit(30), async (_req, res) => {
     const { listStoryTray } = await import("../services/shopService");
-    return { shops: await listStoryTray(memberId, isAdmin(res.locals.telegramId as string)) };
-  }));
-  app.get("/api/shop/stories/:shopId", requireUser, rateLimit(30), withMember2(async (memberId, req, res) => {
+    const memberId = (await getMemberId(res.locals.telegramId as string)) ?? undefined;
+    res.json({ shops: await listStoryTray(memberId, isAdmin((res.locals.telegramId as string) ?? "")) });
+  });
+  app.get("/api/shop/stories/:shopId", allowGuest, rateLimit(30), async (req, res) => {
     const shopId = Number(req.params.shopId);
-    if (!Number.isFinite(shopId)) { res.status(404); return { error: "not_found" }; }
+    if (!Number.isFinite(shopId)) { res.status(404).json({ error: "not_found" }); return; }
     const { getShopStories } = await import("../services/shopService");
-    return { stories: await getShopStories(shopId, memberId, isAdmin(res.locals.telegramId as string)) };
-  }));
+    const memberId = (await getMemberId(res.locals.telegramId as string)) ?? undefined;
+    res.json({ stories: await getShopStories(shopId, memberId, isAdmin((res.locals.telegramId as string) ?? "")) });
+  });
   app.post("/api/shop/stories/:id/view", requireUser, rateLimit(60), withMember2(async (memberId, req) => {
     const id = Number(req.params.id);
     if (!Number.isFinite(id)) return { ok: false };
@@ -812,6 +821,61 @@ export function createApiServer(opts: ApiOptions = {}) {
     res.set("Cache-Control", "private, max-age=3600").redirect(302, url);
   };
   app.get("/api/restoran/menuphoto/:id", serveMenuItemPhoto);
+
+  // ── 🎀 RAVELLA (feature "ravella", DARK until seed + QABUL) — bezak konstruktori ───────────────
+  // Narx SERVERDA hisoblanadi (RAVELLA_PLAN §7.1) — bu yerda client'dan hech qanday summa
+  // O'QILMAYDI, faqat id'lar. owner-preview: ega katalogni QABUL qilgunча mijozlar bo'sh ko'radi.
+  app.get("/api/ravella/catalog", allowGuest, rateLimit(30), async (_req, res) => {
+    const { getRavellaCatalog } = await import("../services/ravellaService");
+    res.set("Cache-Control", "private, max-age=30");
+    res.json(await getRavellaCatalog(isAdmin(res.locals.telegramId as string)));
+  });
+  // "order"/"orders" /api/ravella/item/:id bilan TO'QNASHMAYDI (turli segment) — lekin restoran
+  // saboqiga ko'ra buyurtma yo'llari baribir katalog-yo'llaridan OLDIN turadi.
+  app.post("/api/ravella/order", requireUser, rateLimit(10), withMember2(async (id, req, res) => {
+    const { createRavellaOrder } = await import("../services/ravellaService");
+    const b = req.body ?? {};
+    const addons = Array.isArray(b.addons)
+      ? (b.addons as { addonId: unknown; qty: unknown }[]).map((a) => ({ addonId: Number(a.addonId), qty: Number(a.qty) }))
+      : [];
+    const r = await createRavellaOrder(id, {
+      itemId: Number(b.itemId), addons,
+      contact: String(b.contact ?? ""), address: String(b.address ?? ""),
+      eventDate: String(b.eventDate ?? ""), note: String(b.note ?? ""),
+      useDiscount: b.useDiscount === true,
+    }, isAdmin(res.locals.telegramId as string));
+    if (r.ok && r.notice && opts.notifyRavellaPartner) await opts.notifyRavellaPartner(r.notice).catch(() => undefined);
+    const { notice: _n, ...pub } = r; // hamkor-kartasi (telefon/manzil) javob yo'liga CHIQMAYDI
+    return pub;
+  }));
+  app.get("/api/ravella/orders", requireUser, rateLimit(30), withMember2(async (id) => {
+    const { myRavellaOrders } = await import("../services/ravellaService");
+    return { orders: await myRavellaOrders(id) };
+  }));
+  app.post("/api/ravella/orders/:id/cancel", requireUser, rateLimit(10), withMember2(async (id, req) => {
+    const { cancelRavellaOrder } = await import("../services/ravellaService");
+    return cancelRavellaOrder(id, Number(req.params.id));
+  }));
+  app.get("/api/ravella/item/:id", allowGuest, rateLimit(30), async (req, res) => {
+    const { getRavellaItemDetail } = await import("../services/ravellaService");
+    res.json(await getRavellaItemDetail(Number(req.params.id), isAdmin(res.locals.telegramId as string)));
+  });
+  const serveRavellaPhoto = (kind: "item" | "addon") => async (req: Request, res: Response): Promise<void> => {
+    const svc = await import("../services/ravellaService");
+    const url = kind === "item"
+      ? await svc.resolveRavellaItemPhoto(Number(req.params.id))
+      : await svc.resolveRavellaAddonPhoto(Number(req.params.id));
+    if (!url) { res.status(404).end(); return; }
+    if (url.startsWith("data:")) {
+      const m = /^data:([^;]+);base64,(.*)$/.exec(url);
+      if (!m) { res.status(404).end(); return; }
+      res.set("Content-Type", m[1]!).set("Cache-Control", "public, max-age=3600").send(Buffer.from(m[2]!, "base64"));
+      return;
+    }
+    res.set("Cache-Control", "private, max-age=3600").redirect(302, url);
+  };
+  app.get("/api/ravella/photo/:id", serveRavellaPhoto("item"));
+  app.get("/api/ravella/addon-photo/:id", serveRavellaPhoto("addon"));
 
   // ── 🔎 XIZMATLAR (feature "xizmatlar", DARK until seed + QABUL) — moves NO money ──────────────
   // owner-preview everywhere: admins browse/QABUL the real catalog while riders still see nothing.
@@ -1917,6 +1981,91 @@ export function createApiServer(opts: ApiOptions = {}) {
     const { adminGetRestaurantDetail } = await import("../services/restoranService");
     const r = await adminGetRestaurantDetail(Number(req.params.id));
     res.json({ items: r.items });
+  });
+
+  // ── 🎀 RAVELLA admin — konstruktor CRUD (kategoriya/bezak/qo'shimcha + rasm) + buyurtma navbati ──
+  // Bu yerdan ega: rasm qo'yadi, narx yozadi, qaysi qo'shimcha qaysi rasmni chiqarishini belgilaydi.
+  app.get("/api/admin/ravella", requireAdmin, async (_req, res) => {
+    const { adminListRavella } = await import("../services/ravellaService");
+    res.json(await adminListRavella());
+  });
+  app.post("/api/admin/ravella/partner-chat", requireAdmin, rateLimit(20), async (req, res) => {
+    const { setRavellaPartnerChat } = await import("../services/ravellaService");
+    res.json(await setRavellaPartnerChat(String(req.body?.chatId ?? "")));
+  });
+  app.post("/api/admin/ravella/category", requireAdmin, rateLimit(20), async (req, res) => {
+    const { adminCreateCategory } = await import("../services/ravellaService");
+    res.json(await adminCreateCategory(req.body ?? {}));
+  });
+  app.post("/api/admin/ravella/category/:id", requireAdmin, rateLimit(20), async (req, res) => {
+    const { adminEditCategory } = await import("../services/ravellaService");
+    res.json(await adminEditCategory(Number(req.params.id), req.body ?? {}));
+  });
+  app.delete("/api/admin/ravella/category/:id", requireAdmin, requireOwner, rateLimit(20), async (req, res) => {
+    const { adminDeleteCategory } = await import("../services/ravellaService");
+    res.json(await adminDeleteCategory(Number(req.params.id)));
+  });
+  app.post("/api/admin/ravella/item", requireAdmin, rateLimit(20), async (req, res) => {
+    const { adminCreateItem } = await import("../services/ravellaService");
+    res.json(await adminCreateItem(req.body ?? {}));
+  });
+  app.post("/api/admin/ravella/item/:id", requireAdmin, rateLimit(20), async (req, res) => {
+    const { adminEditItem } = await import("../services/ravellaService");
+    res.json(await adminEditItem(Number(req.params.id), req.body ?? {}));
+  });
+  app.delete("/api/admin/ravella/item/:id", requireAdmin, requireOwner, rateLimit(20), async (req, res) => {
+    const { adminDeleteItem } = await import("../services/ravellaService");
+    res.json(await adminDeleteItem(Number(req.params.id)));
+  });
+  app.post("/api/admin/ravella/item/:id/photo", express.json({ limit: "6mb" }), requireAdmin, async (req, res) => {
+    const b = req.body as { mime?: string; base64?: string };
+    if (!b?.base64) { res.status(400).json({ error: "no image" }); return; }
+    const { uploadRavellaItemPhoto } = await import("../services/ravellaService");
+    res.json(await uploadRavellaItemPhoto(Number(req.params.id), Buffer.from(b.base64, "base64"), b.mime || "image/jpeg"));
+  });
+  app.post("/api/admin/ravella/addon", requireAdmin, rateLimit(20), async (req, res) => {
+    const { adminCreateAddon } = await import("../services/ravellaService");
+    res.json(await adminCreateAddon(req.body ?? {}));
+  });
+  app.post("/api/admin/ravella/addon/:id", requireAdmin, rateLimit(20), async (req, res) => {
+    const { adminEditAddon } = await import("../services/ravellaService");
+    res.json(await adminEditAddon(Number(req.params.id), req.body ?? {}));
+  });
+  app.delete("/api/admin/ravella/addon/:id", requireAdmin, requireOwner, rateLimit(20), async (req, res) => {
+    const { adminDeleteAddon } = await import("../services/ravellaService");
+    res.json(await adminDeleteAddon(Number(req.params.id)));
+  });
+  app.post("/api/admin/ravella/addon/:id/photo", express.json({ limit: "6mb" }), requireAdmin, async (req, res) => {
+    const b = req.body as { mime?: string; base64?: string };
+    if (!b?.base64) { res.status(400).json({ error: "no image" }); return; }
+    const { uploadRavellaAddonPhoto } = await import("../services/ravellaService");
+    res.json(await uploadRavellaAddonPhoto(Number(req.params.id), Buffer.from(b.base64, "base64"), b.mime || "image/jpeg"));
+  });
+  app.get("/api/admin/ravella/orders", requireAdmin, async (req, res) => {
+    const { adminListRavellaOrders } = await import("../services/ravellaService");
+    res.json({ orders: await adminListRavellaOrders(req.query?.status ? String(req.query.status) : undefined) });
+  });
+  // Holat-o'tishlari: hamkor botdan bosadi, ega esa shu yerdan (bir xil servis funksiyalari —
+  // status-guard ikkalasida ham bir xil ishlaydi, ikki tomondan bosilsa faqat bittasi o'tadi).
+  app.post("/api/admin/ravella/orders/:id/:action", requireAdmin, rateLimit(30), async (req, res) => {
+    const svc = await import("../services/ravellaService");
+    const id = Number(req.params.id);
+    const action = String(req.params.action);
+    const r = action === "accept" ? await svc.acceptRavellaOrder(id)
+      : action === "call" ? await svc.markRavellaCalled(id)
+      : action === "done" ? await svc.finishRavellaOrder(id)
+      : action === "reject" ? await svc.rejectRavellaOrder(id, String(req.body?.reason ?? ""))
+      : { ok: false as const, reason: "bad_action" };
+    if (r.ok && "memberId" in r && r.memberId && opts.notifyRavellaCustomer) {
+      await opts.notifyRavellaCustomer({
+        memberId: r.memberId,
+        itemName: r.itemName ?? "Ravella",
+        newStatus: r.newStatus ?? action,
+        cashbackSom: r.cashbackSom,
+        reason: action === "reject" ? String(req.body?.reason ?? "") : undefined,
+      }).catch(() => undefined);
+    }
+    res.json(r);
   });
 
   // ── 🔎 XIZMATLAR admin (owner-gated writes) ───────────────────────────────────────────────────
