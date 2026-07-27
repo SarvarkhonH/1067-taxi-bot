@@ -31,7 +31,20 @@ function OpenBadge({ wh }: { wh?: string | null }) {
   return <span className={"svc-open" + (o ? "" : " closed")}>{o ? "Ochiq" : "Yopiq"}{wh ? ` · ${wh}` : ""}</span>;
 }
 
+/** Yetkazish/min-buyurtma qatori. Faqat NOLDAN katta raqamlar qo'shiladi, ya'ni sozlanmagan
+ *  restoran hech narsa va'da qilmaydi. `extra` — kartada yo'q, lekin restoran sahifasida
+ *  doim bo'ladigan tayyorlanish vaqti. Hech biri bo'lmasa bo'sh satr qaytadi (chaqiruvchi
+ *  qatorni umuman chizmaydi). */
+function feeLine(r: { deliveryFeeSom: number; minOrderSom: number }, opts?: { long?: boolean; extra?: string }): string {
+  return [
+    r.deliveryFeeSom > 0 ? `Yetkazish ${formatNumber(r.deliveryFeeSom)} so'm` : null,
+    r.minOrderSom > 0 ? `min${opts?.long ? " buyurtma" : ""} ${formatNumber(r.minOrderSom)}${opts?.long ? " so'm" : ""}` : null,
+    opts?.extra ?? null,
+  ].filter(Boolean).join(" · ");
+}
+
 function RestaurantCard({ r, top, onOpen }: { r: RestaurantView; top: boolean; onOpen: (r: RestaurantView) => void }) {
+  const fee = feeLine(r);
   return (
     <button className="rst-card glass" onClick={() => { haptic(); onOpen(r); }}>
       <div className="rst-card-photo-wrap">
@@ -48,10 +61,12 @@ function RestaurantCard({ r, top, onOpen }: { r: RestaurantView; top: boolean; o
           <OpenBadge wh={r.workHours} />
           {r.avgRating > 0 && <span className="rst-rating">★ {r.avgRating.toFixed(1)}</span>}
         </div>
-        <div className="rst-card-fee">
-          {r.deliveryFeeSom > 0 ? `Yetkazish ${formatNumber(r.deliveryFeeSom)} so'm` : "Bepul yetkazish"}
-          {r.minOrderSom > 0 && ` · min ${formatNumber(r.minOrderSom)}`}
-        </div>
+        {/* 💸 Yetkazish qatori. Ilgari `fee === 0` da «Bepul yetkazish» yozilardi — lekin jonli
+            bazada 11 ta faol restoranning 11 tasida ham fee=0, ya'ni 0 «bepul» degani emas,
+            «hali sozlanmagan» degani edi: ilova bajarilishi kafolatlanmagan va'dani berardi.
+            Endi faqat HAQIQATDAN belgilangan raqamlar chiqadi; hech narsa yo'q bo'lsa qator
+            umuman chizilmaydi (bo'sh div har kartada oraliq qoldirardi). */}
+        {fee && <div className="rst-card-fee">{fee}</div>}
       </div>
     </button>
   );
@@ -330,11 +345,8 @@ function RestaurantDetail({ id, me, initialCart, onBack, onBanner }: { id: numbe
             {r.avgRating > 0 && <span className="rst-rating">★ {r.avgRating.toFixed(1)} ({r.reviewCount})</span>}
           </div>
           {r.address && <div className="muted fs12">{r.address}</div>}
-          <div className="rst-card-fee">
-            {r.deliveryFeeSom > 0 ? `Yetkazish ${formatNumber(r.deliveryFeeSom)} so'm` : "Bepul yetkazish"}
-            {r.minOrderSom > 0 && ` · min buyurtma ${formatNumber(r.minOrderSom)} so'm`}
-            {` · ~${r.prepMinutes} daq`}
-          </div>
+          {/* Bu yerda tayyorlanish vaqti DOIM bor, shuning uchun qator hech qachon bo'sh emas. */}
+          <div className="rst-card-fee">{feeLine(r, { long: true, extra: `~${r.prepMinutes} daq` })}</div>
         </div>
       </div>
       {data.items.length === 0 ? (
