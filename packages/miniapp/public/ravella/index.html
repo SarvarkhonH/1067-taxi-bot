@@ -18,126 +18,148 @@
   maydonlari, amber faqat bosiladigan/tanlangan narsa uchun.
 -->
 <style>
+  /* Liquid Glass (Apple iOS 26 tili). Haqiqiy sinish SVG feDisplacementMap bilan bo'ladi, lekin
+     uni backdrop-filter ichida faqat Chromium qo'llaydi — shuning uchun bu yerda: kuchli
+     saturate+brightness (shisha ortidagi rang jonlanadi), to'rt tomonlama qirra-yorug'ligi va
+     chuqurlik soyasi. Safari'da ham, Chrome'da ham bir xil ko'rinadi.
+     Manbalar: css-tricks.com/getting-clarity-on-apples-liquid-glass, kube.io/blog/liquid-glass-css-svg */
   :root {
-    --ink:#1d1d1f; --t2:#6e6e73; --t3:#8e8e93;
-    --amber:#e09600; --fill:#f9be3e;
-    --sep:rgba(60,60,67,.12); --bg:#f5f5f7; --grp:#f2f2f7;
+    --ink:#1d1d1f; --t2:#55555a; --t3:#8a8a8f;
+    --amber:#d98f00; --fill:#f9be3e;
+    --sep:rgba(60,60,67,.10);
+    --glass-bg:rgba(255,255,255,.55);
+    --glass-blur:saturate(190%) brightness(1.06) blur(26px);
+    --glass-rim:
+      inset 0 1px 0 rgba(255,255,255,.85),
+      inset 0 -1px 0 rgba(255,255,255,.30),
+      inset 1px 0 0 rgba(255,255,255,.35),
+      inset -1px 0 0 rgba(255,255,255,.35);
+    --glass-depth:0 12px 32px -18px rgba(31,30,26,.55), 0 2px 6px -4px rgba(31,30,26,.25);
   }
   * { box-sizing:border-box; margin:0; padding:0; -webkit-tap-highlight-color:transparent; }
   body {
-    background:var(--bg); color:var(--ink); letter-spacing:-.01em;
+    color:var(--ink); letter-spacing:-.01em; min-height:100vh; padding-bottom:120px;
     font:15px/1.47 -apple-system,BlinkMacSystemFont,"SF Pro Text","Segoe UI",Roboto,sans-serif;
-    padding-bottom:104px; min-height:100vh; -webkit-font-smoothing:antialiased;
+    -webkit-font-smoothing:antialiased;
+    background:
+      radial-gradient(120% 80% at 50% -10%, rgba(249,190,62,.20) 0%, transparent 60%),
+      radial-gradient(90% 60% at 100% 8%, rgba(120,180,255,.12) 0%, transparent 55%),
+      #f2f2f5;
+    background-attachment:fixed;
   }
   .wrap { max-width:600px; margin:0 auto; padding:0 20px; }
-  /* Hero: belgi squircle ichida, keyin katta sarlavha — Apple'da sarlavha nafas oladi */
-  .hero { text-align:center; padding:40px 20px 26px; }
-  /* Belgi oq fonli — kvadrat ham oq, atrofida hairline (qora fon ramka bo'lib ko'rinardi) */
+  .hero { text-align:center; padding:42px 20px 22px; }
   .badge {
-    width:92px; height:92px; margin:0 auto 16px; border-radius:23px; overflow:hidden; background:#fff;
-    box-shadow:0 6px 20px -12px rgba(0,0,0,.3), 0 0 0 .5px rgba(60,60,67,.14);
+    width:96px; height:96px; margin:0 auto 16px; border-radius:25px; overflow:hidden;
+    background:rgba(255,255,255,.62);
+    -webkit-backdrop-filter:var(--glass-blur); backdrop-filter:var(--glass-blur);
+    box-shadow:var(--glass-rim), 0 20px 44px -24px rgba(31,30,26,.75);
   }
-  .badge img { width:100%; height:100%; object-fit:contain; display:block; padding:7px; }
-  h1 { font-size:32px; line-height:1.1; font-weight:700; letter-spacing:-.022em; }
-  .hero p { margin-top:6px; font-size:16px; color:var(--t2); }
-  .promo { margin:0 0 20px; padding:14px 16px; border-radius:14px; background:#fff; border:.5px solid var(--sep); font-size:15px; }
+  .badge img { width:100%; height:100%; object-fit:contain; display:block; padding:9px; }
+  h1 { font-size:36px; line-height:1.06; font-weight:700; letter-spacing:-.026em; }
+  .hero p { margin-top:7px; font-size:16.5px; color:var(--t2); }
+  .promo, .list {
+    background:var(--glass-bg);
+    -webkit-backdrop-filter:var(--glass-blur); backdrop-filter:var(--glass-blur);
+    box-shadow:var(--glass-rim), var(--glass-depth);
+  }
+  .promo { margin:0 0 20px; padding:15px 17px; border-radius:18px; font-size:15px; }
   .promo b { color:var(--amber); font-weight:600; }
-  h2 { margin:26px 0 13px; font-size:22px; font-weight:700; letter-spacing:-.02em; }
+  h2 { margin:28px 0 14px; font-size:24px; font-weight:700; letter-spacing:-.022em; }
+
+  /* Karta: rasm butun yuzani egallaydi, nom rasm USTIDA (Apple TV naqshi) */
   .grid { display:grid; grid-template-columns:1fr 1fr; gap:14px; }
   .card {
-    border:.5px solid var(--sep); border-radius:18px; overflow:hidden; background:#fff;
-    cursor:pointer; text-align:left; color:inherit; font:inherit; padding:0;
-    transition:transform .18s cubic-bezier(.32,.72,0,1);
+    position:relative; aspect-ratio:4/5; border-radius:22px; overflow:hidden; border:none; padding:0;
+    text-align:left; color:inherit; font:inherit; cursor:pointer;
+    background:var(--glass-bg);
+    -webkit-backdrop-filter:var(--glass-blur); backdrop-filter:var(--glass-blur);
+    box-shadow:var(--glass-rim), var(--glass-depth);
+    transition:transform .25s cubic-bezier(.2,.9,.3,1.2), box-shadow .25s ease;
   }
-  .card:active { transform:scale(.97); }
-  .card .ph { aspect-ratio:1/1; background:var(--grp); }
+  .card:active { transform:scale(.965); box-shadow:var(--glass-rim), 0 6px 16px -12px rgba(31,30,26,.6); }
+  .card .ph { position:absolute; inset:0; }
   .card .ph img { width:100%; height:100%; object-fit:cover; display:block; }
-  .card .bd { padding:11px 13px 14px; }
-  .card .nm { font-size:15px; font-weight:600; line-height:1.27; }
-  .card .pr { margin-top:3px; font-size:13px; color:var(--t3); }
+  .card .ph::after {
+    content:""; position:absolute; inset:0; pointer-events:none;
+    background:linear-gradient(to top, rgba(0,0,0,.74) 0%, rgba(0,0,0,.30) 34%, transparent 62%);
+  }
+  .card .ph.noimg { background:linear-gradient(160deg, rgba(249,190,62,.38), rgba(255,255,255,.12)); display:flex; align-items:center; justify-content:center; font-size:40px; color:rgba(31,30,26,.35); }
+  .card .bd { position:absolute; left:0; right:0; bottom:0; padding:14px; z-index:1; }
+  .card .nm { font-size:16px; font-weight:650; line-height:1.22; color:#fff; text-shadow:0 1px 10px rgba(0,0,0,.55); }
+  .card .pr { margin-top:3px; font-size:12.5px; color:rgba(255,255,255,.85); }
   .muted { color:var(--t2); }
-  /* Konstruktor */
-  .stage { border-radius:18px; overflow:hidden; background:var(--grp); aspect-ratio:4/3; position:relative; border:.5px solid var(--sep); }
-  /* Karusel: CSS scroll-snap — kutubxona yo'q, inersiya tizimniki (native his) */
+
+  /* Karusel */
+  .stage {
+    position:relative; border-radius:24px; overflow:hidden; aspect-ratio:4/3;
+    background:rgba(120,120,128,.10);
+    box-shadow:inset 0 0 0 1px rgba(255,255,255,.45), var(--glass-depth);
+  }
   .slides { display:flex; width:100%; height:100%; overflow-x:auto; scroll-snap-type:x mandatory; scrollbar-width:none; -webkit-overflow-scrolling:touch; }
   .slides::-webkit-scrollbar { display:none; }
   .slide { flex:0 0 100%; width:100%; height:100%; object-fit:cover; scroll-snap-align:center; }
-  .dots { position:absolute; left:0; right:0; bottom:10px; display:flex; gap:6px; justify-content:center; pointer-events:none; }
-  .dots span { width:6px; height:6px; border-radius:3px; background:rgba(255,255,255,.55); box-shadow:0 1px 3px rgba(0,0,0,.3); transition:width .2s ease, background .2s ease; }
-  .dots span.on { width:18px; background:#fff; }
-  .tag {
-    position:absolute; left:12px; bottom:12px; padding:7px 13px; border-radius:999px;
-    background:rgba(255,255,255,.82); -webkit-backdrop-filter:saturate(180%) blur(20px);
-    backdrop-filter:saturate(180%) blur(20px); font-size:13px; font-weight:600;
+  .dots {
+    position:absolute; left:50%; transform:translateX(-50%); bottom:12px;
+    display:flex; gap:6px; align-items:center; padding:7px 10px; border-radius:999px;
+    background:rgba(255,255,255,.28);
+    -webkit-backdrop-filter:saturate(180%) blur(14px); backdrop-filter:saturate(180%) blur(14px);
+    box-shadow:inset 0 1px 0 rgba(255,255,255,.55); pointer-events:none;
   }
-  .title { margin-top:18px; font-size:24px; font-weight:700; letter-spacing:-.021em; line-height:1.2; }
-  .desc { margin-top:6px; font-size:15px; color:var(--t2); }
-  .grouphead { margin:26px 4px 8px; font-size:13px; font-weight:500; text-transform:uppercase; letter-spacing:.04em; color:var(--t3); }
-  .list { background:#fff; border:.5px solid var(--sep); border-radius:16px; overflow:hidden; }
-  .row { display:flex; align-items:center; gap:13px; padding:11px 13px; min-height:68px; border-bottom:.5px solid var(--sep); transition:background .15s ease; }
-  .row:last-child { border-bottom:none; }
-  .row.on { background:rgba(249,190,62,.10); }
-  .row img { width:52px; height:52px; border-radius:11px; object-fit:cover; background:var(--grp); flex:0 0 auto; }
-  .row .g { flex:1; min-width:0; }
-  .row .g b { display:block; font-size:16px; font-weight:500; line-height:1.3; }
-  .row .g small { color:var(--amber); font-size:14px; font-weight:500; }
-  .step { display:flex; align-items:center; gap:2px; flex:0 0 auto; }
-  .step button { width:40px; height:40px; border-radius:20px; font-size:21px; font-weight:400; line-height:1; cursor:pointer; background:var(--grp); color:var(--amber); border:none; }
-  .step span { min-width:28px; text-align:center; font-size:17px; font-weight:600; }
-  .add { width:44px; height:44px; border-radius:22px; border:none; background:var(--grp); color:var(--amber); font-size:24px; line-height:1; cursor:pointer; flex:0 0 auto; }
-  /* Pastki toolbar */
-  .bar {
-    position:fixed; left:0; right:0; bottom:0; background:rgba(255,255,255,.86);
-    -webkit-backdrop-filter:saturate(180%) blur(20px); backdrop-filter:saturate(180%) blur(20px);
-    border-top:.5px solid var(--sep);
-  }
-  .bar .in { max-width:600px; margin:0 auto; padding:12px 20px calc(12px + env(safe-area-inset-bottom)); display:flex; align-items:center; gap:14px; }
-  .bar small { display:block; color:var(--t2); font-size:12px; }
-  .bar b { font-size:17px; font-weight:600; letter-spacing:-.02em; }
-  .cta {
-    margin-left:auto; flex:0 0 auto; min-height:48px; padding:13px 22px; border-radius:14px; border:none;
-    background:var(--fill); color:#1d1d1f; font-size:17px; font-weight:600; text-decoration:none;
-    display:inline-flex; align-items:center; cursor:pointer; transition:transform .18s cubic-bezier(.32,.72,0,1);
-  }
-  .cta:active { transform:scale(.97); }
-  /* Aloqa ikonkalari: doira tugmalar, ichida bitta chiziqli belgi. Rangsiz — faqat telefon
-     amber, chunki u ASOSIY harakat (qo'ng'iroq qilish). Sozlanmagan tarmoq umuman chizilmaydi. */
-  /* Har tarmoq O'Z brend rangida (ega qarori 2026-07-27), belgi oq — tanish rang odamni
-     o'ylantirmaydi: ko'k qog'oz-samolyot = Telegram, pushti-binafsha = Instagram. Telefon
-     amber qoladi: u Ravella brendining o'zi va ekrandagi ASOSIY harakat. */
+  .dots span { width:6px; height:6px; border-radius:3px; background:rgba(255,255,255,.6); transition:width .25s cubic-bezier(.2,.9,.3,1.2), background .25s ease; }
+  .dots span.on { width:20px; background:#fff; }
+
+  .title { margin-top:20px; font-size:27px; font-weight:700; letter-spacing:-.024em; line-height:1.16; }
+  .desc { margin-top:8px; font-size:16px; line-height:1.45; color:var(--t2); }
+  .back { background:none; border:none; color:var(--amber); font-size:17px; min-height:44px; padding:14px 0; cursor:pointer; }
+  .note { margin:20px 0 8px; font-size:13px; color:var(--t3); line-height:1.5; }
+
+  /* Aloqa ikonkalari — har tarmoq o'z rangida, ustida yupqa yorug'lik */
   .ci {
     width:46px; height:46px; border-radius:23px; display:inline-flex; align-items:center; justify-content:center;
     background:#8e8e93; color:#fff; text-decoration:none; border:none;
-    transition:transform .18s cubic-bezier(.32,.72,0,1);
+    box-shadow:inset 0 1px 0 rgba(255,255,255,.45), 0 8px 18px -10px rgba(31,30,26,.8);
+    transition:transform .22s cubic-bezier(.2,.9,.3,1.2);
   }
-  .ci:active { transform:scale(.94); }
+  .ci:active { transform:scale(.9); }
   .ci svg { width:21px; height:21px; display:block; }
-  .ci.phone     { background:var(--fill); color:#1d1d1f; }
-  .ci.telegram  { background:#229ED9; }
+  .ci.phone { background:linear-gradient(180deg,#ffd36b,#f2a71b); color:#2a1f00; }
+  .ci.telegram { background:linear-gradient(180deg,#35b6ee,#1c93cf); }
   .ci.instagram { background:linear-gradient(45deg,#F58529 0%,#DD2A7B 45%,#8134AF 75%,#515BD4 100%); }
-  .ci.youtube   { background:#FF0000; }
-  .ci.tiktok    { background:#000; }
-  .ci.facebook  { background:#1877F2; }
-  .ci.website   { background:#3a3a3c; }
-  .bar .icons { display:flex; gap:8px; margin-left:auto; }
-  .back { background:none; border:none; color:var(--amber); font-size:17px; min-height:44px; padding:14px 0; cursor:pointer; }
-  .note { margin:20px 0 8px; font-size:13px; color:var(--t3); line-height:1.46; }
-  /* ══ Liquid Glass: sirt tagidagini xiralashtirib o'tkazadi + yupqa yorug'lik chekkasi ══ */
-  .card, .list, .promo {
-    background:rgba(255,255,255,.72);
-    -webkit-backdrop-filter:saturate(180%) blur(24px); backdrop-filter:saturate(180%) blur(24px);
-    box-shadow:inset 0 .5px 0 rgba(255,255,255,.55), 0 1px 2px rgba(0,0,0,.04);
-  }
+  .ci.youtube { background:linear-gradient(180deg,#ff3b3b,#e00000); }
+  .ci.tiktok { background:linear-gradient(180deg,#2b2b2b,#000); }
+  .ci.facebook { background:linear-gradient(180deg,#2b8cff,#0f66d0); }
+  .ci.website { background:linear-gradient(180deg,#4a4a4f,#2c2c30); }
+
+  /* Suzuvchi shisha panel */
   .bar {
-    background:rgba(255,255,255,.68);
-    -webkit-backdrop-filter:saturate(200%) blur(30px); backdrop-filter:saturate(200%) blur(30px);
-    box-shadow:inset 0 .5px 0 rgba(255,255,255,.55), 0 -1px 20px -12px rgba(0,0,0,.35);
+    position:fixed; left:12px; right:12px; bottom:12px; border-radius:26px;
+    background:rgba(255,255,255,.58);
+    -webkit-backdrop-filter:saturate(220%) brightness(1.08) blur(32px);
+    backdrop-filter:saturate(220%) brightness(1.08) blur(32px);
+    box-shadow:var(--glass-rim), 0 20px 44px -20px rgba(31,30,26,.75);
   }
-  .cta { box-shadow:inset 0 .5px 0 rgba(255,255,255,.6), 0 4px 14px -6px rgba(249,190,62,.7); }
-  .stage { box-shadow:inset 0 0 0 .5px rgba(255,255,255,.35); }
-  .skl { background:var(--grp); border-radius:18px; height:200px; animation:sh 1.4s ease-in-out infinite; }
-  @keyframes sh { 0%,100%{opacity:.55} 50%{opacity:1} }
-  @media (prefers-reduced-motion: reduce) { .stage img,.skl{animation:none} .card,.row,.cta{transition:none} }
+  .bar .in { max-width:576px; margin:0 auto; padding:11px 12px 11px 18px; display:flex; align-items:center; gap:14px; }
+  .bar small { display:block; color:var(--t2); font-size:12px; }
+  .bar b { font-size:17px; font-weight:650; letter-spacing:-.02em; }
+  .bar .icons { display:flex; gap:8px; margin-left:auto; }
+  .cta {
+    margin-left:auto; flex:0 0 auto; min-height:48px; padding:13px 22px; border-radius:16px; border:none;
+    background:linear-gradient(180deg,#ffd36b,#f2a71b); color:#2a1f00;
+    font-size:17px; font-weight:650; text-decoration:none; display:inline-flex; align-items:center; cursor:pointer;
+    box-shadow:inset 0 1px 0 rgba(255,255,255,.75), 0 10px 22px -12px rgba(242,167,27,.95);
+    transition:transform .22s cubic-bezier(.2,.9,.3,1.2);
+  }
+  .cta:active { transform:scale(.96); }
+
+  .skl { background:rgba(255,255,255,.5); border-radius:22px; height:220px; animation:sh 1.4s ease-in-out infinite; }
+  @keyframes sh { 0%,100%{opacity:.5} 50%{opacity:.9} }
+
+  /* Shisha yo'q brauzerda sirt qattiq oq bo'ladi — matn har doim o'qiladi */
+  @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+    .card, .promo, .list, .bar, .badge { background:rgba(255,255,255,.94); }
+  }
+  @media (prefers-reduced-motion: reduce) { .skl{animation:none} .card,.cta,.ci,.dots span{transition:none} }
 </style>
 </head>
 <body>
@@ -220,9 +242,11 @@ function catalogue() {
     d.categories.forEach(function (c) {
       h += (many ? "<h2>" + esc(c.emoji) + " " + esc(c.name) + "</h2>" : "") + '<div class="grid">';
       c.items.forEach(function (it) {
-        h += '<button class="card" data-id="' + it.id + '"><div class="ph">' +
-          (it.hasPhoto ? '<img src="' + API + "/api/ravella/photo/" + it.id + '" alt="">' : "") +
-          '</div><div class="bd"><div class="nm">' + esc(it.name) + '</div><div class="pr">' +
+        h += '<button class="card" data-id="' + it.id + '">' +
+          (it.hasPhoto
+            ? '<div class="ph"><img src="' + API + "/api/ravella/photo/" + it.id + '" alt=""></div>'
+            : '<div class="ph noimg">🎀</div>') +
+          '<div class="bd"><div class="nm">' + esc(it.name) + '</div><div class="pr">' +
           (it.basePriceSom > 0 ? money(it.basePriceSom) + " so'mdan" : NO_PRICE) + "</div></div></button>";
       });
       h += "</div>";
