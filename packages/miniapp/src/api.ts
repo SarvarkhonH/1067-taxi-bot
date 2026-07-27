@@ -222,6 +222,8 @@ export const api = {
   ravellaOrder: (b: import("@t1067/shared").RavellaOrderCreateBody) => post<import("@t1067/shared").RavellaOrderCreateResponse>("/api/ravella/order", b),
   ravellaOrders: () => get<{ orders: import("@t1067/shared").RavellaOrderView[] }>("/api/ravella/orders"),
   ravellaCancel: (orderId: number) => post<{ ok: boolean; reason?: string }>(`/api/ravella/orders/${orderId}/cancel`),
+  ravellaStories: () => get<{ stories: import("@t1067/shared").RavellaStoryView[] }>("/api/ravella/stories"),
+  ravellaStoryViewed: (id: number) => post<{ ok: boolean }>(`/api/ravella/stories/${id}/viewed`),
   // 🔎 xizmatlar (feature "xizmatlar") — Koson services directory
   svcCategories: () => get<{ categories: import("@t1067/shared").ServiceCategoryView[]; popularTags: string[] }>("/api/services/categories"),
   svcList: (p: { cat?: number; q?: string; limit?: number; offset?: number; sort?: "new" } = {}) => {

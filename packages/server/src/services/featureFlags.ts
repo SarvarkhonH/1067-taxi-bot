@@ -129,6 +129,9 @@ export const FEATURES = [
               // buyurtma pending'da qolaveradi va faqat mijozning o'zi bekor qila oladi (bugungi
               // xatti-harakat AYNAN). Qaytarish mavjud terminateWithRefund yo'li bilan (idempotent
               // `mktrefund:<id>` kaliti) — yangi pul-mantiq yozilmadi.
+  "ravellastory", // 🎀📹 Ravella hikoyalari: oxirgi 10 ta (muddat YO'Q — 11-chisi eng eskisini
+              // siqib chiqaradi, ega qoidasi). Rasm + qisqa video. Pul mexanikasi YO'Q.
+              // `ravella` dan ALOHIDA: hikoyani butun Ravella'ni o'chirmasdan to'xtatish uchun.
   "ravella",  // 🎀 RAVELLA (RAVELLA_PLAN.md): hamkor-brend bezak KONSTRUKTORI — asosiy bezak +
               // qo'shimchalar (`+`/`−`, har biriga o'z rasmi), 10% chegirma RAVELLA hisobidan,
               // 1% cashback BIZNING hisobimizdan (faqat ish bajarilgach, cap'lar bilan). To'lov

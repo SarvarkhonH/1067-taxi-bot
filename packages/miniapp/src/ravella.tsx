@@ -5,7 +5,7 @@
 // SARFLAMAYDI; 1% cashback ish bajarilgach serverda beriladi (bu yerda faqat VA'DA ko'rsatiladi).
 // Barcha summalar server javobidan olinadi — client hisobi faqat JONLI ko'rsatkich uchun.
 import { useEffect, useMemo, useRef, useState } from "react";
-import type { MeResponse, RavellaAddonView, RavellaCatalogResponse, RavellaContacts, RavellaItemCard, RavellaOrderView } from "@t1067/shared";
+import type { MeResponse, RavellaAddonView, RavellaCatalogResponse, RavellaContacts, RavellaItemCard, RavellaOrderView, RavellaStoryView } from "@t1067/shared";
 import { formatNumber } from "@t1067/shared";
 import { api, apiUrl } from "./api";
 import { haptic, hapticSuccess } from "./telegram";
@@ -28,12 +28,19 @@ const STATUS_LABEL: Record<RavellaOrderView["status"], { t: string; c: string }>
   cancelled_by_user: { t: "✖ Bekor qilindi", c: "rejected" },
 };
 
-function Hero() {
+function Hero({ storyCount = 0, unseen = false, onStory }: { storyCount?: number; unseen?: boolean; onStory?: () => void }) {
+  // Halqa faqat hikoya BOR bo'lganda — bo'sh halqani bosib hech nima ochilmasligi eng yomon holat
+  const ring = storyCount > 0;
   return (
     <div className="rv-hero">
       {/* Brend belgisi squircle ichida (iOS ilova-ikonkasi nisbati). So'zsiz variant — nom pastda
           matn bilan yoziladi, takrorlanmasin. Rasm yuklanmasa nom baribir joyida qoladi. */}
-      <div className="rv-hero-badge">
+      <div
+        className={"rv-hero-badge" + (ring ? (unseen ? " ring" : " ring seen") : "")}
+        onClick={ring ? () => { haptic(); onStory?.(); } : undefined}
+        role={ring ? "button" : undefined}
+        aria-label={ring ? `Hikoyalar (${storyCount})` : undefined}
+      >
         <img src="/ravella/logo-mark.png" alt="" onError={(e) => { const b = (e.target as HTMLImageElement).parentElement; if (b) b.style.display = "none"; }} />
       </div>
       <h1 className="rv-hero-title">Ravella</h1>
@@ -108,6 +115,61 @@ function BackButton({ onBack }: { onBack: () => void }) {
       </svg>
       <span>Orqaga</span>
     </button>
+  );
+}
+
+
+// ── 📹 HIKOYA (RAVELLA_V2_PLAN §5) ──────────────────────────────────────────────────────────────
+// Ega qoidasi: oxirgi 10 ta, muddat YO'Q. Ko'ruvchi do'kon-hikoyasidan ALOHIDA yozildi: u
+// `shopName`/`featuredProduct` kabi do'kon tushunchalariga bog'langan va eski `bj-` uslubida —
+// uni umumiylashtirish jonli do'kon-xizmatiga tegishni talab qilardi (RAVELLA_V2_PLAN'da
+// aytilgan zaxira yo'l). Bu variant Liquid Glass tilida va ~70 qator.
+function StoryViewer({ stories, start, onClose }: { stories: RavellaStoryView[]; start: number; onClose: () => void }) {
+  const [idx, setIdx] = useState(start);
+  const cur = stories[idx];
+
+  // Ko'rildi — ochilgan zahoti belgilanadi (server idempotent, takror yozilmaydi)
+  useEffect(() => {
+    if (cur) api.ravellaStoryViewed(cur.id).catch(() => undefined);
+  }, [cur?.id]);
+
+  const go = (d: 1 | -1) => {
+    haptic();
+    const n = idx + d;
+    if (n < 0) return;
+    if (n >= stories.length) { onClose(); return; } // oxirgisidan keyin yopiladi
+    setIdx(n);
+  };
+
+  // Rasm 5 soniya turadi; video o'zining tugashi bilan o'tadi (onEnded)
+  useEffect(() => {
+    if (!cur || cur.kind === "video") return;
+    const t = setTimeout(() => go(1), 5000);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cur?.id]);
+
+  if (!cur) return null;
+  return (
+    <div className="rv-story-viewer">
+      <div className="rv-story-progress">
+        {stories.map((s, i) => <span key={s.id} className={i < idx ? "done" : i === idx ? "active" : ""} />)}
+      </div>
+      <div className="rv-story-head">
+        <img className="rv-story-avatar" src="/ravella/logo-mark.png" alt="" />
+        <span className="rv-story-name">Ravella</span>
+        <button className="rv-story-close" onClick={() => { haptic(); onClose(); }} aria-label="Yopish">✕</button>
+      </div>
+      {cur.kind === "video" ? (
+        <video key={cur.id} className="rv-story-media" src={apiUrl(`/api/ravella/story-media/${cur.id}`)} autoPlay muted playsInline onEnded={() => go(1)} />
+      ) : (
+        <img key={cur.id} className="rv-story-media" src={apiUrl(`/api/ravella/story-media/${cur.id}`)} alt="" />
+      )}
+      {cur.caption && <div className="rv-story-caption">{cur.caption}</div>}
+      {/* Chap/o'ng yarim — Instagram naqshi: bosib o'tiladi */}
+      <button className="rv-story-tap left" aria-label="Oldingi" onClick={() => go(-1)} />
+      <button className="rv-story-tap right" aria-label="Keyingi" onClick={() => go(1)} />
+    </div>
   );
 }
 
@@ -399,6 +461,8 @@ export function RavellaView({ me, onBanner }: { me: MeResponse; onBanner?: (msg:
   const [openId, setOpenId] = useState<number | null>(null);
   const [ordersOpen, setOrdersOpen] = useState(false);
   const [activeCat, setActiveCat] = useState<number | "all">("all");
+  const [stories, setStories] = useState<RavellaStoryView[] | null>(null);
+  const [storyOpen, setStoryOpen] = useState(false);
   const loaded = useRef(false);
 
   useEffect(() => {
@@ -406,6 +470,15 @@ export function RavellaView({ me, onBanner }: { me: MeResponse; onBanner?: (msg:
     loaded.current = true;
     api.ravellaCatalog().then(setCat).catch(() => setCat({ categories: [], discountPct: 0, cashbackPct: 0 }));
   }, []);
+
+  const openStories = () => {
+    // Ro'yxat FAQAT bosilganda yuklanadi — katalog javobidagi `storyCount` halqani chizishga yetadi
+    if (stories) { setStoryOpen(true); return; }
+    api.ravellaStories().then((r) => {
+      setStories(r.stories);
+      if (r.stories.length) setStoryOpen(true);
+    }).catch(() => undefined);
+  };
 
   if (ordersOpen) return <MyOrders onBack={() => setOrdersOpen(false)} />;
   if (openId != null) return <Constructor itemId={openId} me={me} onBack={() => setOpenId(null)} onBanner={onBanner} />;
@@ -415,7 +488,14 @@ export function RavellaView({ me, onBanner }: { me: MeResponse; onBanner?: (msg:
 
   return (
     <div className="view rv-view">
-      <Hero />
+      {storyOpen && stories && stories.length > 0 && (
+        <StoryViewer
+          stories={stories}
+          start={Math.max(0, stories.findIndex((s) => !s.seen))}
+          onClose={() => { setStoryOpen(false); setStories(null); }}
+        />
+      )}
+      <Hero storyCount={cat?.storyCount ?? 0} unseen={!!cat?.storyUnseen} onStory={openStories} />
       {/* Aloqa hero OSTIDA — ega qarori: sahifa oxiridagi footer olib tashlandi, lekin
           qo'ng'iroq/tarmoq bir bosishda qo'l ostida qolishi kerak */}
       <ContactRow contacts={cat?.contacts} />

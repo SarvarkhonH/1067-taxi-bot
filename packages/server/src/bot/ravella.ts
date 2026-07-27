@@ -13,7 +13,7 @@ const OWNER_TG = "6506297119";
 // Zoyir akaga va faylasufga qulaylik ber"). Admin panelsiz, botning o'zida: bezak qo'shish,
 // rasmni almashtirish, qo'shimcha qo'shish. Sessiya xotirada (market.ts wizard naqshi) — bot
 // qayta ishga tushsa qoralama yo'qoladi, bu arzon va xavfsiz.
-type Step = "cat" | "name" | "desc" | "photo" | "addonName" | "addonPhoto" | "replacePhoto" | "contact";
+type Step = "cat" | "name" | "desc" | "photo" | "addonName" | "addonPhoto" | "replacePhoto" | "contact" | "story";
 interface Draft { step: Step; categoryId?: number; itemId?: number; name?: string; desc?: string; addonId?: number; contactKey?: string }
 const drafts = new Map<string, Draft>();
 
@@ -21,7 +21,7 @@ const drafts = new Map<string, Draft>();
  *  yutadi — /hikoya va /elonrasm bilan bo'lgan AYNI xato. Shu yerda kutayotgan bo'lsak chetga oladi. */
 export function isAwaitingRavellaPhoto(tgId: string): boolean {
   const d = drafts.get(tgId);
-  return d?.step === "photo" || d?.step === "addonPhoto" || d?.step === "replacePhoto";
+  return d?.step === "photo" || d?.step === "addonPhoto" || d?.step === "replacePhoto" || d?.step === "story";
 }
 
 function esc(s: string): string {
@@ -156,6 +156,7 @@ export function registerRavella(bot: Bot): void {
           .text("➕ Yangi bezak", "rvm:new").row()
           .text("🖼 Rasm qo'shish (karusel)", "rvm:photo").row()
           .text("➕ Qo'shimcha qo'shish", "rvm:addon").row()
+          .text("📹 Hikoya joylash", "rvm:story").row()
           .text("☎️ Aloqa va tarmoqlar", "rvm:contacts"),
       },
     );
@@ -276,6 +277,59 @@ export function registerRavella(bot: Bot): void {
   });
 
   // Butun galereyani tozalash — hamkor "qaytadan yuklayman" deganda
+
+  // ── 📹 Hikoya (RAVELLA_V2_PLAN §5) — oxirgi 10 ta, muddat YO'Q, 11-chisi eskisini siqib chiqaradi ──
+  bot.callbackQuery("rvm:story", async (ctx) => {
+    if (!(await guard(ctx))) return;
+    await ctx.answerCallbackQuery();
+    const { listRavellaStories, RAVELLA_STORY_MAX } = await import("../services/ravellaStoryService");
+    const list = await listRavellaStories(undefined, true);
+    drafts.set(String(ctx.from.id), { step: "story" });
+    const kb = new InlineKeyboard();
+    if (list.length) kb.text(`🗑 Eng eskisini o'chirish (${list.length}/${RAVELLA_STORY_MAX})`, `rvm:sdel:${list[0]!.id}`);
+    await ctx.reply(
+      `📹 <b>Hikoya joylash</b>\n\nRasm yoki QISQA video yuboring (30 soniyagacha).\n\n` +
+        `Hozir: <b>${list.length}/${RAVELLA_STORY_MAX}</b> ta hikoya.\n` +
+        `<i>Muddat yo'q — ${RAVELLA_STORY_MAX} tadan oshsa eng eskisi o'zi o'chadi.</i>\n\n❌ Bekor: /bekor_ravella`,
+      { parse_mode: "HTML", reply_markup: list.length ? kb : undefined },
+    );
+  });
+
+  bot.callbackQuery(/^rvm:sdel:(\d+)$/, async (ctx) => {
+    if (!(await guard(ctx))) return;
+    const { deleteRavellaStory } = await import("../services/ravellaStoryService");
+    await deleteRavellaStory(Number((ctx.match as unknown as string[])[1]));
+    await ctx.answerCallbackQuery({ text: "O'chirildi" });
+    await ctx.editMessageReplyMarkup({ reply_markup: undefined }).catch(() => undefined);
+  });
+
+  /** Hikoya saqlangach ikkalasiga ham bir xil javob — rasm va video yo'llari ajralib ketmasin. */
+  const storySaved = async (ctx: Context, r: { ok: boolean; removed: number }): Promise<void> => {
+    drafts.delete(String(ctx.from!.id));
+    if (!r.ok) { await ctx.reply("❌ Saqlanmadi, qaytadan urinib ko'ring."); return; }
+    await ctx.reply(
+      `✅ Hikoya joylandi.${r.removed ? ` (${r.removed} ta eng eski hikoya o'chdi — 10 ta chegara)` : ""}\n\nYana joylash: /ravella`,
+    );
+    if (String(ctx.from!.id) !== OWNER_TG) {
+      await bot.api.sendMessage(OWNER_TG, "🎀📹 Ravella yangi hikoya joyladi.").catch(() => undefined);
+    }
+  };
+
+  // video — hikoya kutilayotgan paytdagina ushlanadi, aks holda next() (boshqa oqimlar buzilmasin)
+  bot.on([":video", ":animation", ":video_note"], async (ctx, next) => {
+    const d = drafts.get(String(ctx.from?.id ?? ""));
+    if (d?.step !== "story") { await next(); return; }
+    const v = ctx.message?.video ?? ctx.message?.animation ?? ctx.message?.video_note;
+    if (!v) { await next(); return; }
+    // ⏱ 30 soniyalik chegara: uzun video hikoya emas — mobil internetda ochilmaydi va odam ketadi
+    if (typeof v.duration === "number" && v.duration > 30) {
+      await ctx.reply("⚠️ Video 30 soniyadan uzun. Qisqaroq video yuboring.");
+      return;
+    }
+    const { createRavellaStory } = await import("../services/ravellaStoryService");
+    await storySaved(ctx, await createRavellaStory({ videoFileId: v.file_id, caption: ctx.message?.caption }));
+  });
+
   bot.command("rasmlar_tozala", async (ctx, next) => {
     const d = drafts.get(String(ctx.from!.id));
     if (!d?.itemId) { await next(); return; }
@@ -343,9 +397,14 @@ export function registerRavella(bot: Bot): void {
   bot.on("message:photo", async (ctx, next) => {
     const tg = String(ctx.from.id);
     const d = drafts.get(tg);
-    if (!d || (d.step !== "photo" && d.step !== "addonPhoto" && d.step !== "replacePhoto")) { await next(); return; }
+    if (!d || (d.step !== "photo" && d.step !== "addonPhoto" && d.step !== "replacePhoto" && d.step !== "story")) { await next(); return; }
     const sizes = ctx.message.photo;
     const fileId = sizes[sizes.length - 1]!.file_id; // eng katta o'lcham
+    if (d.step === "story") {
+      const { createRavellaStory } = await import("../services/ravellaStoryService");
+      await storySaved(ctx, await createRavellaStory({ photoFileId: fileId, caption: ctx.message.caption }));
+      return;
+    }
     const svc = await import("../services/ravellaService");
 
     if (d.step === "photo") {

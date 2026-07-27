@@ -61,9 +61,13 @@ const addonView = (a: { id: number; name: string; priceSom: number; maxQty: numb
 // `preview=true` (ega) DARK flagni chetlab o'tadi — ega katalogni QABUL qilgunча mijozlar hech
 // nima ko'rmaydi (shop/restoran owner-preview naqshi AYNAN).
 
-export async function getRavellaCatalog(preview = false): Promise<RavellaCatalogResponse> {
-  const [k, contacts] = await Promise.all([knobs(), getRavellaContacts()]);
-  const empty: RavellaCatalogResponse = { categories: [], discountPct: k.discountPct, cashbackPct: k.cashbackPct, contacts };
+export async function getRavellaCatalog(preview = false, memberId?: number): Promise<RavellaCatalogResponse> {
+  const { ravellaStoryBadge } = await import("./ravellaStoryService");
+  const [k, contacts, story] = await Promise.all([knobs(), getRavellaContacts(), ravellaStoryBadge(memberId, preview)]);
+  const empty: RavellaCatalogResponse = {
+    categories: [], discountPct: k.discountPct, cashbackPct: k.cashbackPct, contacts,
+    storyCount: story.count, storyUnseen: story.unseen,
+  };
   if (!preview && !(await featureOn("ravella"))) return empty;
   const [cats, items] = await Promise.all([
     prisma.ravellaCategory.findMany({ where: { active: true }, orderBy: [{ sortOrder: "asc" }, { id: "asc" }], take: 30 }),

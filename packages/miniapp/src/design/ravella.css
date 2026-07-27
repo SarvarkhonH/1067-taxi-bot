@@ -277,3 +277,47 @@
 @media (prefers-reduced-motion: reduce) {
   .rv-card, .rv-ready, .rv-ci, .rv-myorders, .rv-dots span, .rv-back { transition: none; }
 }
+
+/* ══ 📹 Hikoya ══════════════════════════════════════════════════════════════════════════════
+   Halqa: amber gradient — hikoya bor va ko'rilmagan bo'lsa; ko'rilgan bo'lsa kulrang (Instagram
+   qoidasi, odam uni o'rgangan). Halqa faqat hikoya BOR bo'lganda chiziladi. */
+.rv-hero-badge.ring { position: relative; cursor: pointer; }
+.rv-hero-badge.ring::after {
+  content: ""; position: absolute; inset: -6px; border-radius: 30px; pointer-events: none;
+  background: conic-gradient(from 210deg, #f9be3e, #ff9d2e, #f9be3e, #ffd36b, #f9be3e);
+  -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 3px), #000 calc(100% - 3px));
+  mask: radial-gradient(farthest-side, transparent calc(100% - 3px), #000 calc(100% - 3px));
+}
+.rv-hero-badge.ring.seen::after { background: rgba(120, 120, 128, .35); }
+
+.rv-story-viewer {
+  position: fixed; inset: 0; z-index: 3000; background: #000;
+  display: flex; align-items: center; justify-content: center;
+}
+.rv-story-media { width: 100%; height: 100%; object-fit: contain; display: block; }
+.rv-story-progress {
+  position: absolute; top: calc(10px + env(safe-area-inset-top)); left: 10px; right: 10px; z-index: 2;
+  display: flex; gap: 4px;
+}
+.rv-story-progress span { flex: 1; height: 3px; border-radius: 2px; background: rgba(255, 255, 255, .3); }
+.rv-story-progress span.done, .rv-story-progress span.active { background: #fff; }
+.rv-story-head {
+  position: absolute; top: calc(24px + env(safe-area-inset-top)); left: 12px; right: 12px; z-index: 2;
+  display: flex; align-items: center; gap: 9px;
+}
+.rv-story-avatar { width: 32px; height: 32px; border-radius: 10px; object-fit: contain; background: #fff; padding: 3px; }
+.rv-story-name { color: #fff; font-size: 15px; font-weight: 600; text-shadow: 0 1px 6px rgba(0, 0, 0, .6); }
+.rv-story-close {
+  margin-left: auto; width: 36px; height: 36px; border-radius: 18px; border: none;
+  background: rgba(255, 255, 255, .18); color: #fff; font-size: 17px;
+  -webkit-backdrop-filter: blur(12px); backdrop-filter: blur(12px);
+}
+.rv-story-caption {
+  position: absolute; left: 16px; right: 16px; bottom: calc(28px + env(safe-area-inset-bottom)); z-index: 2;
+  color: #fff; font-size: 15px; line-height: 1.4; text-align: center;
+  text-shadow: 0 1px 10px rgba(0, 0, 0, .7);
+}
+/* Bosish maydonlari — ko'rinmaydi, lekin butun ekranni ikkiga bo'ladi */
+.rv-story-tap { position: absolute; top: 0; bottom: 0; width: 40%; border: none; background: transparent; z-index: 1; }
+.rv-story-tap.left { left: 0; }
+.rv-story-tap.right { right: 0; width: 60%; }

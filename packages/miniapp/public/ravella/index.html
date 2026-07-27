@@ -165,6 +165,31 @@
   }
   .cta:active { transform:scale(.96); }
 
+  /* 📹 Hikoya halqasi va ko'ruvchisi. Saytda "ko'rilgan" holati yo'q (autentifikatsiya yo'q) —
+     halqa har doim rangli. Bu to'g'ri: hikoya ommaviy kontent, ko'rildi esa shaxsiy holat. */
+  .badge.ring { position:relative; cursor:pointer; }
+  .badge.ring::after {
+    content:""; position:absolute; inset:-6px; border-radius:31px; pointer-events:none;
+    background:conic-gradient(from 210deg,#f9be3e,#ff9d2e,#f9be3e,#ffd36b,#f9be3e);
+    -webkit-mask:radial-gradient(farthest-side, transparent calc(100% - 3px), #000 calc(100% - 3px));
+    mask:radial-gradient(farthest-side, transparent calc(100% - 3px), #000 calc(100% - 3px));
+  }
+  .sv { position:fixed; inset:0; z-index:3000; background:#000; display:flex; align-items:center; justify-content:center; }
+  .sv-media { width:100%; height:100%; object-fit:contain; display:block; }
+  .sv-pg { position:absolute; top:calc(10px + env(safe-area-inset-top)); left:10px; right:10px; z-index:2; display:flex; gap:4px; }
+  .sv-pg span { flex:1; height:3px; border-radius:2px; background:rgba(255,255,255,.3); }
+  .sv-pg span.on { background:#fff; }
+  .sv-head { position:absolute; top:calc(24px + env(safe-area-inset-top)); left:12px; right:12px; z-index:2; display:flex; align-items:center; gap:9px; }
+  .sv-av { width:32px; height:32px; border-radius:10px; object-fit:contain; background:#fff; padding:3px; }
+  .sv-nm { color:#fff; font-size:15px; font-weight:600; text-shadow:0 1px 6px rgba(0,0,0,.6); }
+  .sv-x { margin-left:auto; width:36px; height:36px; border-radius:18px; border:none; cursor:pointer;
+          background:rgba(255,255,255,.18); color:#fff; font-size:17px;
+          -webkit-backdrop-filter:blur(12px); backdrop-filter:blur(12px); }
+  .sv-cap { position:absolute; left:16px; right:16px; bottom:calc(28px + env(safe-area-inset-bottom)); z-index:2;
+            color:#fff; font-size:15px; line-height:1.4; text-align:center; text-shadow:0 1px 10px rgba(0,0,0,.7); }
+  .sv-tap { position:absolute; top:0; bottom:0; width:40%; border:none; background:transparent; z-index:1; cursor:pointer; }
+  .sv-tap.l { left:0; }
+  .sv-tap.r { right:0; width:60%; }
   .skl { background:rgba(255,255,255,.5); border-radius:22px; height:220px; animation:sh 1.4s ease-in-out infinite; }
   @keyframes sh { 0%,100%{opacity:.5} 50%{opacity:.9} }
 
@@ -243,10 +268,56 @@ function get(path) {
 }
 function empty(msg) { app.innerHTML = '<p class="note" style="text-align:center;padding:40px 0">' + esc(msg) + "</p>"; }
 
+// 📹 Hikoya: ro'yxat FAQAT halqa bosilganda yuklanadi (katalogdagi storyCount chizishga yetadi)
+var STORIES = null, SIDX = 0, STIMER = null;
+function openStories() {
+  if (STORIES) { showStory(0); return; }
+  get("/api/ravella/stories").then(function (d) {
+    STORIES = d.stories || [];
+    if (STORIES.length) showStory(0);
+  }).catch(function () {});
+}
+function closeStory() {
+  clearTimeout(STIMER);
+  var el = document.getElementById("sv");
+  if (el) el.remove();
+}
+function showStory(i) {
+  clearTimeout(STIMER);
+  if (i < 0) return;
+  if (i >= STORIES.length) { closeStory(); return; }
+  SIDX = i;
+  var st = STORIES[i];
+  var el = document.getElementById("sv");
+  if (!el) { el = document.createElement("div"); el.id = "sv"; el.className = "sv"; document.body.appendChild(el); }
+  var media = st.kind === "video"
+    ? '<video class="sv-media" src="' + API + "/api/ravella/story-media/" + st.id + '" autoplay muted playsinline id="svv"></video>'
+    : '<img class="sv-media" src="' + API + "/api/ravella/story-media/" + st.id + '" alt="">';
+  var pg = "";
+  STORIES.forEach(function (_, n) { pg += "<span" + (n <= i ? ' class="on"' : "") + "></span>"; });
+  el.innerHTML = '<div class="sv-pg">' + pg + "</div>" +
+    '<div class="sv-head"><img class="sv-av" src="/ravella/logo-mark.png" alt=""><span class="sv-nm">Ravella</span>' +
+    '<button class="sv-x" aria-label="Yopish">✕</button></div>' + media +
+    (st.caption ? '<div class="sv-cap">' + esc(st.caption) + "</div>" : "") +
+    '<button class="sv-tap l" aria-label="Oldingi"></button><button class="sv-tap r" aria-label="Keyingi"></button>';
+  el.querySelector(".sv-x").onclick = closeStory;
+  el.querySelector(".sv-tap.l").onclick = function () { showStory(SIDX - 1); };
+  el.querySelector(".sv-tap.r").onclick = function () { showStory(SIDX + 1); };
+  if (st.kind === "video") {
+    var v = document.getElementById("svv");
+    if (v) v.onended = function () { showStory(SIDX + 1); };
+  } else {
+    STIMER = setTimeout(function () { showStory(SIDX + 1); }, 5000);
+  }
+}
+
 function catalogue() {
   app.innerHTML = '<div class="skl"></div>';
   get("/api/ravella/catalog").then(function (d) {
     DISC = d.discountPct || 0; CB = d.cashbackPct || 0; CONTACTS = d.contacts || {};
+    // Halqa faqat hikoya BOR bo'lganda — bo'sh halqa bosilib hech nima ochilmasligi yomon holat
+    var badge = document.querySelector(".badge");
+    if (badge && d.storyCount > 0) { badge.classList.add("ring"); badge.onclick = openStories; }
     if (!d.categories || !d.categories.length) { empty("Bezaklar tez orada shu yerda bo'ladi."); return; }
     var h = "";
     if (DISC > 0) h += '<div class="promo">🎁 BirJoy orqali <b>' + DISC + "% arzon</b>" + (CB > 0 ? " · <b>" + CB + "% tanga</b> qaytadi" : "") + "</div>";

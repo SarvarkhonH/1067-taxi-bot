@@ -2113,3 +2113,28 @@ model RavellaItemPhoto {
 
   @@index([itemId, sortOrder])
 }
+
+// 🎀📹 RAVELLA HIKOYA (RAVELLA_V2_PLAN §5). Ega qoidasi 2026-07-28: **muddat YO'Q** — hikoya
+// 24 soatda o'chmaydi, faqat 11-chisi kelganda eng eskisi ketadi (FIFO, 10 ta). Sabab: Ravella
+// kuniga bir marta ish qiladi; 24 soatlik qoida halqani ko'pincha bo'sh qoldirardi. Ya'ni bu
+// "bugungi lenta" emas — "oxirgi 10 ta ish". Do'kon hikoyalari (ShopStory) BUTUNLAY tegilmaydi.
+model RavellaStory {
+  id          Int      @id @default(autoincrement())
+  photoFileId String? // Telegram file_id — hamkor botga yuborganda
+  videoFileId String? // qisqa video (≤30s) uchun
+  caption     String?
+  createdAt   DateTime @default(now())
+  viewCount   Int      @default(0)
+
+  @@index([createdAt])
+}
+
+model RavellaStoryView {
+  id       Int      @id @default(autoincrement())
+  storyId  Int
+  memberId Int
+  viewedAt DateTime @default(now())
+
+  @@unique([storyId, memberId]) // bir a'zo — bir ko'rish; halqa holati shundan hisoblanadi
+  @@index([memberId])
+}

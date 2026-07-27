@@ -888,7 +888,28 @@ export function createApiServer(opts: ApiOptions = {}) {
   app.get("/api/ravella/catalog", allowGuest, rateLimit(30), async (req, res) => {
     const { getRavellaCatalog } = await import("../services/ravellaService");
     res.set("Cache-Control", "private, max-age=30");
-    res.json(await getRavellaCatalog(await ravellaPreview(req, res)));
+    // memberId halqa-holati uchun (ko'rilganmi) — mehmonda undefined, hammasi "yangi" ko'rinadi
+    const { getMemberId } = await import("../services/memberService");
+    const memberId = res.locals.telegramId ? (await getMemberId(res.locals.telegramId as string)) ?? undefined : undefined;
+    res.json(await getRavellaCatalog(await ravellaPreview(req, res), memberId));
+  });
+
+  // 📹 Hikoyalar — ro'yxat mehmonga ham ochiq (ommaviy kontent), "ko'rildi" faqat a'zoga yoziladi
+  app.get("/api/ravella/stories", allowGuest, rateLimit(30), async (req, res) => {
+    const { listRavellaStories } = await import("../services/ravellaStoryService");
+    const { getMemberId } = await import("../services/memberService");
+    const memberId = res.locals.telegramId ? (await getMemberId(res.locals.telegramId as string)) ?? undefined : undefined;
+    res.json({ stories: await listRavellaStories(memberId, await ravellaPreview(req, res)) });
+  });
+  app.post("/api/ravella/stories/:id/viewed", requireUser, rateLimit(60), withMember2(async (memberId, req) => {
+    const { markRavellaStoryViewed } = await import("../services/ravellaStoryService");
+    return markRavellaStoryViewed(Number(req.params.id), memberId);
+  }));
+  app.get("/api/ravella/story-media/:id", async (req: Request, res: Response) => {
+    const { resolveRavellaStoryMedia } = await import("../services/ravellaStoryService");
+    const url = await resolveRavellaStoryMedia(Number(req.params.id));
+    if (!url) { res.status(404).end(); return; }
+    res.set("Cache-Control", "private, max-age=120").redirect(302, url);
   });
   // "order"/"orders" /api/ravella/item/:id bilan TO'QNASHMAYDI (turli segment) — lekin restoran
   // saboqiga ko'ra buyurtma yo'llari baribir katalog-yo'llaridan OLDIN turadi.

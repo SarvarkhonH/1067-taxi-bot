@@ -1122,11 +1122,23 @@ export interface RavellaContacts {
   website?: string;
 }
 
+/** 📹 Hikoya (RAVELLA_V2_PLAN §5). Muddat yo'q — oxirgi 10 tasi turadi. */
+export interface RavellaStoryView {
+  id: number;
+  kind: "photo" | "video";
+  caption?: string | null;
+  createdAt: string;
+  seen: boolean;
+}
+
 export interface RavellaCatalogResponse {
   categories: (RavellaCategoryView & { items: RavellaItemCard[] })[];
   discountPct: number; // ekranda "−N%" deb ko'rsatiladi (knob)
   cashbackPct: number; // "N% tanga qaytadi" (knob)
   contacts?: RavellaContacts;
+  /** Halqa uchun: nechta hikoya bor va ko'rilmagani bormi — alohida so'rovsiz. */
+  storyCount?: number;
+  storyUnseen?: boolean;
 }
 
 export interface RavellaItemDetailResponse {
