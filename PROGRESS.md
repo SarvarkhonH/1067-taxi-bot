@@ -79,8 +79,12 @@ repodan o'chirilgan fayl jonli saytda MANGU qoladi. Eski `/var/www/miniapp/ravel
 fallback ustun), ya'ni bu ega ko'rgan "eski versiya"ning sababi EMAS — lekin naqsh o'zi xavfli.
 
 **Qolgan (ready EMAS):** (2) katalog seed'i (bezak
-rasmlari + narxlar) — ega admin paneldan kiritadi; (3) Zoyir To'ychiyevning Telegram ID'si
-(`/start` → panelga yoziladi); (4) EGA QABULI → `setFlag.ts ravella on` va shundan keyingina
+rasmlari + narxlar) — ega admin paneldan kiritadi; (3) — BAJARILDI: hamkor chat-id = `159391041`
+(«Ravella Reklama», @ravella_uz, botda 2026-07-04 dan beri; ega bergan ikkinchi variant
+`7019500305` = «faylasuf», a'zo #6587 — Ravella'niki emas). AppState `ravella:chat` ga yozildi,
+admin API qaytarib o'qidi. ⚠️ Endi HAR buyurtma — test buyurtmasi ham — Ravella chatiga karta
+yuboradi; sinovdan oldin ega ularni ogohlantirishi kerak (yoki id vaqtincha bo'shatiladi →
+kartalar faqat egaga tushadi). (4) EGA QABULI → `setFlag.ts ravella on` va shundan keyingina
 `/elonrasm`. Flag DARK — jonli mijozlar hozircha HECH NARSA ko'rmaydi.
 
 ### 📞 SOTUV_PLAN — Koson biznesini platformaga ko'chirish + 3 vosita — `ready for verification`
