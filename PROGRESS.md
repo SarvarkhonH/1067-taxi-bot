@@ -3412,3 +3412,51 @@ bilan isbotla. Server: GH Actions `deploy` jobi (autoDeploy o'chiq). **Sxema o'z
 `prisma db push` KERAK EMAS (yangi model/ustun qo'shilmagan; `featureFlags` AppState orqali ishlaydi).
 Ikkala yangi flag DARK holatda chiqadi, ya'ni deploy mijozlarga ko'rinadigan HECH NARSANI
 o'zgartirmaydi — §52/§54 tuzatishlaridan tashqari (ular bug-fix, flagsiz).
+
+## §58 — 🔀 TARMOQ-CHALKASHLIGI YOPILDI + 4 BAYROQ GO-LIVE · 2026-07-27
+
+**Ega so'rovi:** «sessiyalarni, boshqa bot versiyalarni ham — GitHub'da juda katta chalkashlik bor.
+Funksiyalarni tekshir, latest versionni hammaga live qil va to'liq ishlasin.»
+
+### Topilgan chalkashlik (o'lchov bilan, taxmin emas)
+| Nima | Holati | Natija |
+|---|---|---|
+| `claude/haftalik-birinchi-orini-4vt8c2` | 6 commit, 2026-07-27, ega kod-ko'rigini ma'qullagan, **main'ga birlashtirilMAGAN** | main'ga birlashtirildi (§51–§57 ishi) |
+| `claude/angry-almeida-a3c2e4` | 3 commit (admin jadval o'rash + testBilim typecheck), main'da YO'Q edi | main'ga birlashtirildi |
+| `claude/eager-kapitsa-615b35` | main'dan 251 orqada, **0 ta oldinda** — ishi allaqachon ichida | o'chirildi |
+| `EXPECTED_ON` vs jonli DB | 10 ta bayroq jonlida YOQIQ, ro'yxatda YO'Q | tuzatildi (`f9a2fd1`) |
+| `welcomebonus` izohi | «ega ataylab OFF» deb yozilgan, jonlida esa **2026-07-22 13:44 dan ON** | izoh haqiqatga keltirildi |
+| CloudStorage chaqiruvi | versiya-gvardiyasiz → eski klientda konsol xatosi + 3s osilish | tuzatildi (`1d18a7e`) |
+
+Birlashtirishda 3 konflikt (`featureFlags.ts`, `shared/types.ts`, `api/server.ts`) — **ikkala
+tomon ham saqlandi**, hech biri tashlanmadi: `ravella` VA `linkinapp/homescreen/storyshare`
+yonma-yon yashaydi. Isbot: mehmon `/api/me` javobida ikkalasi ham bor.
+
+### Bayroq go-live (ega qarori 2026-07-27)
+`linkinapp` · `homescreen` · `storyshare` · `ravella` → **ON** (setFlag.ts, har biri alertAdmins
+yubordi). `mktexpire` ATAYLAB OFF qoldirildi — pul harakati va §51'da ochiq yozilgani kabi real
+ma'lumotga qarshi hali sinalmagan.
+
+### Isbot (buyruq + natija)
+- `pnpm -r typecheck` → 4 paketning hammasi **Done**, 0 xato (birlashtirishdan keyin).
+- `testContactAuth.ts` → **8/8 o'tdi** (imzo-gvardiya: soxta raqam, soxta user_id, begona token,
+  hash yo'q, muddati o'tgan — hammasi rad etiladi).
+- Jonli VPS HEAD `1d18a7e`, `bot1067` **active**, `/health` → `{"ok":true,"mode":"live","bot":true}`.
+- **Mehmon** (autentifikatsiyasiz, ega-preview EMAS) `GET https://api.birjoy.online/api/me` → 200,
+  `{"guest":true,...,"ravella":true,"linkinapp":true}`.
+- `POST /api/link/contact` → **401** (yo'nalish bor va `requireUser` bilan himoyalangan; birlashtirishdan
+  oldin 404 edi).
+- Yangi bundle'da `isVersionAtLeast` **6 marta** (avval 5 — CloudStorage gvardiyasi qo'shilgani).
+  Toza tabda `app.birjoy.online` konsoli — **0 xato** (avval 2 ta CloudStorage xatosi bor edi).
+- GitHub'da endi **bitta** tarmoq: `main`. Tiklash kerak bo'lsa SHA'lar: haftalik `6001a57`,
+  angry-almeida `1f8d42b`, eager-kapitsa `73d473d`.
+
+### Holat
+`ready for verification` — kod jonli va bayroqlar yoqiq. **Egadan kutiladi (R6):** real telefonda
+ODDIY mijoz sifatida tekshirish — (1) raqam ulash ilova ichida ishlayaptimi, (2) apparat «orqaga»
+tugmasi ilovani yopmayaptimi, (3) Ravella tugmasi va konstruktori, (4) «telefon ekraniga qo'shish»
+taklifi. QABUL kelgach bu satr `owner-accepted` ga o'zgaradi.
+
+**Tegilmagan (ochiq aytaman):** `packages/miniapp/src/restoran.tsx` da boshqa sessiyaning commit
+qilinmagan o'zgarishi turibdi (yetkazish-narxi qatorini `join(" · ")` ga o'tkazish, «Bepul yetkazish»
+yozuvi YO'QOLADI). Niyati noaniq bo'lgani uchun deploy'ga kiritilmadi — ega hal qiladi.
