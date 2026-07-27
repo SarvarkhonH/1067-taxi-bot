@@ -110,6 +110,35 @@ Logotip 92px squircle'da, faqat belgi (nom pastda matn bilan). Shior: **«Orzuda
 Ravella bilan»**. Brauzer isboti: fon `rgb(245,245,247)`, logo 256px, promo-satr YO'Q, 5 karta
 «Narxi kelishiladi», panel «1 ta qo'shimcha tanlandi», nishon «+ Zal shifti bezagi».
 
+**🗂 8 TA KARTA — TADBIR TURI BO'YICHA (ega bergan tartib, 2026-07-27):** Restoran uchun · Kelin
+uyi · Kiyov uyi · Sunnat to'y · Ochilish marosimi · Davlat tadbirlari · Sharlar · Boshqa. Mijoz
+"menda qanday tadbir?" deb o'ylaydi — katalog shunga moslandi. Bitta bo'lim bo'lgani uchun bo'lim
+sarlavhasi ko'rsatilmaydi (bitta sarlavha + bitta grid = shovqin). 4 tasida real rasm bor
+(Ochilish/Davlat/Sharlar/Boshqa), qolgan 4 tasini hamkorlar BOTDAN yuklaydi. Qo'shimchalar endi
+BO'LIM darajasida — 8 kartaning hammasida chiqadi; ikkitasi «qo'shilgan holat» rasmi bilan
+(zal shifti, kirish arkasi). Isbot: brauzerda 8 karta AYNAN shu tartibda, `<h2>` yo'q.
+
+**☎️ ALOQA VA IJTIMOIY TARMOQLAR (ega so'radi, botdan sozlanadi):** `/ravella` → «Aloqa va
+tarmoqlar» → telefon · Telegram · Instagram · YouTube · TikTok · Facebook · Sayt. Qiymat
+`@nom` ham, to'liq havola ham bo'lishi mumkin (mijoz tomonida to'g'ri havolaga aylanadi).
+Saqlash joyi AppState `ravella:contacts`. Saytdagi «Ilovada ochish» tugmasi OLIB TASHLANDI —
+o'rniga qo'ng'iroq (amber, asosiy harakat) va tarmoq ikonkalari (chiziqli, sokin). Sozlanmagan
+kanal UMUMAN chizilmaydi. Ikonkalar inline SVG — tashqi so'rov ham, kutubxona ham yo'q.
+Isbot: sozlanmaganda 0 ta ikonka; qiymat berilganda `tel:+998901234567`, `t.me/ravella_uz`,
+`instagram.com/ravella`. Yozish-testi: qisqa telefon rad (`ok:false`), noto'g'ri kalit rad,
+yozildi→o'qildi→«-» bilan tozalandi. **Hozir bo'sh** — ega/hamkor botdan to'ldiradi.
+
+**🎀 YANGI LOGOTIP:** ega ChatGPT'da chizdirgan oq fonli lockup. Belgi siyoh chegarasi o'lchanib
+kesildi (X 388-866, Y 278-758) → `logo-mark.png` 512×512; to'liq lockup `logo.jpg` (58 KB,
+havola-oldindan ko'rish + e'lon uchun). Badge foni oq + hairline (qora qolsa belgining o'z oq
+maydoni qora ramkada qolardi), `object-fit: contain` — hech joyi qirqilmaydi.
+⚠️ Logotipdagi xizmat satri «YAZUVLAR» — «YOZUVLAR» bo'lishi kerakka o'xshaydi, ega qaroriga
+qoldirildi (brend-material, jimgina o'zgartirilmadi).
+
+**📨 HAMKORLARGA XABAR YUBORILDI (ega tasdiqlagan matn bilan, 2026-07-27):** 159391041 va
+7019500305 — ikkalasiga `ok:true`. Xabarda: buyurtma kartasi qanday keladi, `/ravella` paneli,
+narxni ega belgilashi, sayt havolasi.
+
 **🛠 HAMKOR BOT-PANELI (ega so'radi):** `/ravella` → [📦 Buyurtmalar][➕ Yangi bezak]
 [🖼 Rasmni almashtirish][➕ Qo'shimcha qo'shish]. Zoyir/faylasuf admin panelsiz, botda: bo'lim
 tanlaydi → nom → tavsif → RASM yuboradi → bezak darhol katalogda (ega xabar oladi). Rasm
