@@ -14,6 +14,11 @@ import "./design/ravella.css";
 
 const LAST_ADDR_KEY = "ravella_last_addr";
 
+// Ega qarori (2026-07-27): katalogda narx KO'RSATILMAYDI — bezak o'lchamiga qarab hisoblanadi va
+// operator aytadi. Narx 0 bo'lsa "0 so'm" yozish mijozni chalg'itadi, shuning uchun matn beriladi.
+const NO_PRICE = "Narxi kelishiladi";
+const priceLabel = (som: number): string => (som > 0 ? `${formatNumber(som)} so'm` : NO_PRICE);
+
 const STATUS_LABEL: Record<RavellaOrderView["status"], { t: string; c: string }> = {
   pending: { t: "⏳ Kutilmoqda", c: "pending" },
   accepted: { t: "✅ Qabul qilindi", c: "delivered" },
@@ -26,10 +31,12 @@ const STATUS_LABEL: Record<RavellaOrderView["status"], { t: string; c: string }>
 function Hero() {
   return (
     <div className="rv-hero">
-      {/* Brend belgisi (so'zsiz variant — nom pastda matn bilan yoziladi, takrorlanmasin).
-          `logo-mark.png` to'liq `logo.jpg` dan kesib olingan; rasm yuklanmasa nom baribir qoladi. */}
-      <img className="rv-hero-logo" src="/ravella/logo-mark.png" alt="" onError={(e) => ((e.target as HTMLImageElement).style.display = "none")} />
-      <div className="rv-hero-title">Ravella</div>
+      {/* Brend belgisi squircle ichida (iOS ilova-ikonkasi nisbati). So'zsiz variant — nom pastda
+          matn bilan yoziladi, takrorlanmasin. Rasm yuklanmasa nom baribir joyida qoladi. */}
+      <div className="rv-hero-badge">
+        <img src="/ravella/logo-mark.png" alt="" onError={(e) => { const b = (e.target as HTMLImageElement).parentElement; if (b) b.style.display = "none"; }} />
+      </div>
+      <h1 className="rv-hero-title">Ravella</h1>
       <div className="rv-hero-sub">Saxna bezaklari · bayram yozuvlari</div>
     </div>
   );
@@ -64,7 +71,7 @@ function ItemCard({ it, onOpen }: { it: RavellaItemCard; onOpen: (it: RavellaIte
       </div>
       <div className="rv-card-body">
         <div className="rv-card-name">{it.name}</div>
-        <div className="rv-card-price">{formatNumber(it.basePriceSom)} so'm<span>dan</span></div>
+        <div className="rv-card-price">{it.basePriceSom > 0 ? <>{formatNumber(it.basePriceSom)} so'm<span>dan</span></> : <span>{NO_PRICE}</span>}</div>
       </div>
     </button>
   );
@@ -169,7 +176,7 @@ function Constructor({ itemId, me, onBack, onBanner }: { itemId: number; me: MeR
       <div className="view rv-done">
         <div className="rv-done-icon">✅</div>
         <div className="rv-done-title">Buyurtmangiz qabul qilindi</div>
-        <div className="rv-done-sub">#{done.orderId} · {formatNumber(done.totalSom)} so'm</div>
+        <div className="rv-done-sub">#{done.orderId}{done.totalSom > 0 ? ` · ${formatNumber(done.totalSom)} so'm` : ""}</div>
         <div className="rv-done-call">☎️ Tez orada Ravella siz bilan bog'lanadi</div>
         {done.cashbackSom > 0 && (
           <div className="rv-done-cb">🪙 Ish bajarilgach <b>+{formatNumber(done.cashbackSom)} tanga</b> qaytadi</div>
@@ -200,11 +207,13 @@ function Constructor({ itemId, me, onBack, onBanner }: { itemId: number; me: MeR
 
       <div className="rv-name">{data.item.name}</div>
       {data.item.desc && <div className="rv-desc">{data.item.desc}</div>}
-      <div className="rv-base">Asosiy narx · {formatNumber(data.item.basePriceSom)} so'm</div>
+      <div className="rv-base">{data.item.basePriceSom > 0 ? `Asosiy narx · ${formatNumber(data.item.basePriceSom)} so'm` : NO_PRICE}</div>
 
       {data.addons.length > 0 && (
         <div className="rv-section">
           <div className="rv-section-title">Qo'shimchalar</div>
+          {/* iOS "grouped list": bitta oq karta, satrlar orasida hairline ajratgich */}
+          <div className="rv-addon-list">
           {data.addons.map((a) => {
             const q = qty[a.id] ?? 0;
             return (
@@ -216,7 +225,7 @@ function Constructor({ itemId, me, onBack, onBanner }: { itemId: number; me: MeR
                 )}
                 <div className="rv-addon-body">
                   <div className="rv-addon-name">{a.name}</div>
-                  <div className="rv-addon-price">+{formatNumber(a.priceSom)} so'm</div>
+                  {a.priceSom > 0 && <div className="rv-addon-price">+{formatNumber(a.priceSom)} so'm</div>}
                 </div>
                 {q === 0 ? (
                   <button className="rv-addon-add" onClick={() => bump(a, 1)}>+</button>
@@ -230,23 +239,27 @@ function Constructor({ itemId, me, onBack, onBanner }: { itemId: number; me: MeR
               </div>
             );
           })}
+          </div>
         </div>
       )}
 
       <div className="rv-total-bar">
         <div className="rv-total-num">
-          <small>Jami</small>
-          <b>{formatNumber(subtotalSom)} so'm</b>
+          {subtotalSom > 0 ? (
+            <><small>Jami</small><b>{formatNumber(subtotalSom)} so'm</b></>
+          ) : (
+            <><small>{lines.length > 0 ? `${lines.reduce((n, l) => n + l.qty, 0)} ta qo'shimcha tanlandi` : "Qo'shimchalarni tanlang"}</small><b>{NO_PRICE}</b></>
+          )}
         </div>
-        <button className="rv-ready" onClick={() => { haptic(); setCheckout(true); }}>✅ Hammasi tayyor</button>
+        <button className="rv-ready" onClick={() => { haptic(); setCheckout(true); }}>Davom etish</button>
       </div>
 
       <Sheet open={checkout} onClose={() => setCheckout(false)}>
         <h3>Buyurtmani rasmiylashtirish</h3>
-        <div className="rv-confirm-line"><span>{data.item.name}</span><span>{formatNumber(data.item.basePriceSom)} so'm</span></div>
+        <div className="rv-confirm-line"><span>{data.item.name}</span><span>{priceLabel(data.item.basePriceSom)}</span></div>
         {lines.map((l) => (
           <div key={l.addon.id} className="rv-confirm-line">
-            <span>{l.addon.name} ×{l.qty}</span><span>{formatNumber(l.addon.priceSom * l.qty)} so'm</span>
+            <span>{l.addon.name} ×{l.qty}</span><span>{l.addon.priceSom > 0 ? `${formatNumber(l.addon.priceSom * l.qty)} so'm` : ""}</span>
           </div>
         ))}
 
@@ -263,8 +276,11 @@ function Constructor({ itemId, me, onBack, onBanner }: { itemId: number; me: MeR
         <div className="rv-confirm-total">
           <span>Jami</span>
           <span>
-            {useDiscount && <s>{formatNumber(subtotalSom)}</s>}
-            <b> {formatNumber(totalSom)} so'm</b>
+            {subtotalSom > 0 ? (
+              <>{useDiscount && <s>{formatNumber(subtotalSom)}</s>}<b> {formatNumber(totalSom)} so'm</b></>
+            ) : (
+              <b>{NO_PRICE}</b>
+            )}
           </span>
         </div>
         {cashbackSom > 0 && <div className="rv-cb-hint">🪙 Ish bajarilgach <b>+{formatNumber(cashbackSom)} tanga</b> qaytadi</div>}
@@ -276,7 +292,7 @@ function Constructor({ itemId, me, onBack, onBanner }: { itemId: number; me: MeR
         <Button variant="brand" disabled={busy} onClick={submit}>
           {busy ? "Yuborilmoqda…" : "Buyurtma berish"}
         </Button>
-        <div className="rv-pay-note">To'lov naqd — hech qanday tanga yechilmaydi. Tez orada telefon qilishadi.</div>
+        <div className="rv-pay-note">Narx bezak o'lchamiga qarab hisoblanadi — operator qo'ng'iroq qilib aytadi. Hech qanday tanga yechilmaydi.</div>
       </Sheet>
     </div>
   );

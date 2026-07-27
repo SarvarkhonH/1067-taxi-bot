@@ -1,305 +1,232 @@
 /* 🎀 RAVELLA — bezak konstruktori (RAVELLA_PLAN §6).
-   Ega qarori 2026-07-27: dizayn OQ (yorug'). Sabab mahsulotdan kelib chiqadi — bu ekranda
-   asosiy narsa BEZAK RASMLARI: to'y-bayram suratlari rangli va yorug', qora fonda ular
-   og'irlashadi. Oq qog'ozda esa rasm o'zi gapiradi, amber faqat harakat (narx, tugma, tanlov)
-   uchun qoladi. Qora fon endi faqat rasm ichida (surat o'zi qanday bo'lsa).
-   Ranglar/o'lchamlar tokens.css o'zgaruvchilaridan; animatsiya faqat opacity/transform. */
+   Ega qarori 2026-07-27: OQ fon + APPLE (iOS) uslubi.
+   Uslub qoidalari, shu tartibda qo'llanadi:
+     • Ierarxiya rang bilan emas, O'LCHAM va OG'IRLIK bilan quriladi (large-title → headline →
+       footnote). Amber faqat BITTA vazifa uchun: bosiladigan/tanlangan narsa.
+     • Ajratish soya bilan emas, HAIRLINE (0.5-1px, rgba) va bo'sh joy bilan.
+     • Har bosiladigan element ≥44px (Apple HIG minimal tegish maydoni).
+     • Radiuslar: karta 18, tugma 14, squircle-belgi 22%.
+     • Fon #f5f5f7 (tizim kulrangi), kartalar toza oq — rasm ustida rang shovqini bo'lmasin.
+   Narx endi ko'rsatilmaydi (operator aytadi), shuning uchun kartada asosiy urg'u — RASM va NOM. */
 
 .app.ravella-light {
-  background: linear-gradient(180deg, #fffdf7 0%, #fff9ec 42%, #fffdf7 100%);
-  color: #1b1710;
+  background: #f5f5f7;
+  color: #1d1d1f;
 }
 .app.ravella-light::before,
 .app.ravella-light .aurora { display: none; }
 .app.ravella-light .topbar {
-  background: linear-gradient(180deg, rgba(255, 253, 247, .97), rgba(255, 253, 247, .62));
-  border-bottom: 1px solid rgba(201, 148, 20, .16);
-  backdrop-filter: none;
-  -webkit-backdrop-filter: none;
+  background: rgba(245, 245, 247, .82);
+  border-bottom: .5px solid rgba(60, 60, 67, .14);
+  backdrop-filter: saturate(180%) blur(20px);
+  -webkit-backdrop-filter: saturate(180%) blur(20px);
 }
-.app.ravella-light .brand-name { color: #1b1710; }
+.app.ravella-light .brand-name { color: #1d1d1f; font-weight: 600; letter-spacing: -.01em; }
 
 .rv-view,
 .rv-detail {
-  --rv: #c99414;          /* matn ustida o'qiladigan quyuqroq amber (kontrast uchun) */
-  --rv-bright: #f9be3e;   /* brend amber — to'ldirish/tugma uchun */
-  --rv-ink: #1b1710;
-  --rv-dim: #6f6455;
-  --rv-line: rgba(27, 23, 16, .10);
-  --rv-card: #fff;
+  --rv-amber: #e09600;        /* matn/ikonka uchun — oq ustida AA kontrast beradi */
+  --rv-fill: #f9be3e;         /* brend to'ldirishi (tugma foni) */
+  --rv-ink: #1d1d1f;
+  --rv-2: #6e6e73;            /* ikkilamchi matn */
+  --rv-3: #8e8e93;            /* uchlamchi */
+  --rv-sep: rgba(60, 60, 67, .12);
+  --rv-fill-bg: #f2f2f7;
   color: var(--rv-ink);
-  padding-bottom: 96px;
+  padding-bottom: 108px;
+  letter-spacing: -.01em;
 }
 
-.rv-hero {
-  margin: 4px 0 14px;
-  padding: 22px 16px 18px;
+/* ── Hero: belgi + nom. Katta bo'sh joy — Apple'da sarlavha "nafas oladi". ── */
+.rv-hero { padding: 8px 0 22px; text-align: center; }
+.rv-hero-badge {
+  width: 88px; height: 88px; margin: 0 auto 14px;
   border-radius: 22px;
-  text-align: center;
-  background: #fff;
-  border: 1px solid var(--rv-line);
-  box-shadow: 0 10px 30px -18px rgba(27, 23, 16, .35);
+  overflow: hidden;
+  background: #000;
+  box-shadow: 0 8px 24px -10px rgba(0, 0, 0, .35), 0 0 0 .5px rgba(0, 0, 0, .06);
 }
-.rv-hero-logo { width: 62px; height: 62px; border-radius: 16px; object-fit: contain; }
-.rv-hero-title { margin-top: 8px; font-size: 22px; font-weight: 900; letter-spacing: .4px; color: var(--rv-ink); }
-.rv-hero-sub { margin-top: 3px; font-size: 12.5px; font-weight: 600; color: var(--rv-dim); }
+.rv-hero-badge img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.rv-hero-title { font-size: 30px; line-height: 1.12; font-weight: 700; letter-spacing: -.022em; color: var(--rv-ink); }
+.rv-hero-sub { margin-top: 5px; font-size: 15px; font-weight: 400; color: var(--rv-2); }
 
 .rv-promo {
-  margin-bottom: 12px;
-  padding: 12px 14px;
-  border-radius: 14px;
-  font-size: 13px;
-  font-weight: 700;
-  color: var(--rv-ink);
-  background: #fff8e6;
-  border: 1px solid rgba(201, 148, 20, .28);
+  margin-bottom: 18px; padding: 13px 16px;
+  border-radius: 14px; font-size: 15px; font-weight: 500;
+  color: var(--rv-ink); background: #fff; border: .5px solid var(--rv-sep);
 }
-.rv-promo b { color: var(--rv); }
+.rv-promo b { color: var(--rv-amber); font-weight: 600; }
 
 .rv-myorders {
-  width: 100%;
-  margin-bottom: 14px;
-  padding: 12px;
-  border-radius: 14px;
-  font-size: 14px;
-  font-weight: 700;
-  background: var(--rv-card);
-  border: 1px solid var(--rv-line);
-  color: var(--rv-ink);
+  width: 100%; min-height: 48px; margin-bottom: 22px; padding: 13px;
+  border-radius: 14px; font-size: 16px; font-weight: 500;
+  background: #fff; border: .5px solid var(--rv-sep); color: var(--rv-ink);
 }
 .rv-back {
-  margin-bottom: 10px;
-  padding: 6px 0;
-  background: none;
-  border: none;
-  color: var(--rv);
-  font-size: 15px;
-  font-weight: 700;
+  min-height: 44px; margin-bottom: 4px; padding: 6px 0;
+  background: none; border: none; color: var(--rv-amber);
+  font-size: 17px; font-weight: 400;
 }
 
-.rv-cat-row { display: flex; gap: 8px; overflow-x: auto; padding-bottom: 10px; scrollbar-width: none; }
+/* ── Segmentlar (kategoriya filtri) — iOS segmented control ruhida ── */
+.rv-cat-row {
+  display: flex; gap: 6px; overflow-x: auto; padding: 4px; margin-bottom: 16px;
+  background: var(--rv-fill-bg); border-radius: 12px; scrollbar-width: none;
+}
 .rv-cat-row::-webkit-scrollbar { display: none; }
 .rv-chip {
-  flex: 0 0 auto;
-  padding: 8px 14px;
-  border-radius: 999px;
-  font-size: 13px;
-  font-weight: 700;
-  background: var(--rv-card);
-  border: 1px solid var(--rv-line);
-  color: var(--rv-dim);
+  flex: 0 0 auto; min-height: 34px; padding: 7px 14px;
+  border-radius: 9px; font-size: 14px; font-weight: 500;
+  background: transparent; border: none; color: var(--rv-2);
 }
-.rv-chip.on { background: var(--rv-bright); border-color: var(--rv-bright); color: #241c06; }
+.rv-chip.on {
+  background: #fff; color: var(--rv-ink); font-weight: 600;
+  box-shadow: 0 3px 8px -4px rgba(0, 0, 0, .3), 0 0 0 .5px rgba(0, 0, 0, .04);
+}
 
-.rv-cat-block { margin-bottom: 18px; }
-.rv-cat-title { margin: 6px 0 10px; font-size: 15px; font-weight: 800; color: var(--rv-ink); }
+.rv-cat-block { margin-bottom: 26px; }
+.rv-cat-title { margin: 0 0 12px; font-size: 22px; font-weight: 700; letter-spacing: -.02em; color: var(--rv-ink); }
 
-/* Kartochka: oq qog'oz + yumshoq soya. Rasm to'liq kenglikni oladi — mahsulot shu. */
-.rv-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+/* ── Katalog kartochkasi: rasm asosiy, matn ostida sokin ── */
+.rv-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
 .rv-card {
-  padding: 0;
-  overflow: hidden;
-  text-align: left;
-  border-radius: 18px;
-  background: var(--rv-card);
-  border: 1px solid var(--rv-line);
-  box-shadow: 0 8px 22px -16px rgba(27, 23, 16, .5);
-  transition: transform .12s var(--ease-out), box-shadow .12s var(--ease-out);
+  padding: 0; overflow: hidden; text-align: left;
+  border-radius: 18px; background: #fff; border: .5px solid var(--rv-sep);
+  transition: transform .18s cubic-bezier(.32, .72, 0, 1);
 }
-.rv-card:active { transform: scale(.975); box-shadow: 0 4px 12px -10px rgba(27, 23, 16, .5); }
-.rv-card-photo-wrap { position: relative; aspect-ratio: 1 / 1; background: #f3efe6; }
+.rv-card:active { transform: scale(.97); }
+.rv-card-photo-wrap { position: relative; aspect-ratio: 1 / 1; background: var(--rv-fill-bg); }
 .rv-card-photo { width: 100%; height: 100%; object-fit: cover; display: block; }
-.rv-noimg { display: flex; align-items: center; justify-content: center; font-size: 34px; color: rgba(27, 23, 16, .28); }
-.rv-card-body { padding: 10px 12px 12px; }
-.rv-card-name { font-size: 14px; font-weight: 700; color: var(--rv-ink); line-height: 1.3; }
-.rv-card-price { margin-top: 4px; font-size: 13px; font-weight: 800; color: var(--rv); }
-.rv-card-price span { font-weight: 600; color: var(--rv-dim); }
+.rv-noimg { display: flex; align-items: center; justify-content: center; font-size: 32px; color: var(--rv-3); }
+.rv-card-body { padding: 11px 13px 14px; }
+.rv-card-name { font-size: 15px; font-weight: 600; line-height: 1.27; color: var(--rv-ink); }
+.rv-card-price { margin-top: 3px; font-size: 13px; font-weight: 500; color: var(--rv-amber); }
+.rv-card-price span { font-weight: 400; color: var(--rv-3); }
 
-/* Konstruktor sahnasi: qo'shimcha qo'shilganda katta rasm SHUNGA o'tadi (key → qayta-mount). */
+/* ── Konstruktor sahnasi ── */
 .rv-stage {
-  position: relative;
-  border-radius: 20px;
-  overflow: hidden;
-  background: #f3efe6;
-  aspect-ratio: 4 / 3;
-  border: 1px solid var(--rv-line);
+  position: relative; border-radius: 18px; overflow: hidden;
+  background: var(--rv-fill-bg); aspect-ratio: 4 / 3; border: .5px solid var(--rv-sep);
 }
-.rv-stage-photo { width: 100%; height: 100%; object-fit: cover; display: block; animation: rv-fade .2s var(--ease-out); }
+.rv-stage-photo { width: 100%; height: 100%; object-fit: cover; display: block; animation: rv-fade .25s cubic-bezier(.32, .72, 0, 1); }
 @keyframes rv-fade { from { opacity: 0; } to { opacity: 1; } }
 .rv-stage-tag {
-  position: absolute;
-  left: 10px;
-  bottom: 10px;
-  padding: 6px 12px;
-  border-radius: 999px;
-  background: rgba(255, 255, 255, .94);
-  border: 1px solid rgba(201, 148, 20, .4);
-  color: #241c06;
-  font-size: 12px;
-  font-weight: 800;
+  position: absolute; left: 12px; bottom: 12px;
+  padding: 7px 13px; border-radius: 999px;
+  background: rgba(255, 255, 255, .82);
+  backdrop-filter: saturate(180%) blur(20px);
+  -webkit-backdrop-filter: saturate(180%) blur(20px);
+  color: var(--rv-ink); font-size: 13px; font-weight: 600;
 }
 
-.rv-name { margin-top: 14px; font-size: 19px; font-weight: 800; color: var(--rv-ink); }
-.rv-desc { margin-top: 4px; font-size: 13px; color: var(--rv-dim); line-height: 1.5; }
-.rv-base { margin-top: 6px; font-size: 13px; font-weight: 700; color: var(--rv); }
+.rv-name { margin-top: 18px; font-size: 24px; font-weight: 700; letter-spacing: -.021em; line-height: 1.2; }
+.rv-desc { margin-top: 6px; font-size: 15px; line-height: 1.47; color: var(--rv-2); }
+.rv-base { margin-top: 8px; font-size: 15px; font-weight: 500; color: var(--rv-amber); }
 
-.rv-section { margin-top: 18px; }
-.rv-section-title { margin-bottom: 10px; font-size: 15px; font-weight: 800; color: var(--rv-ink); }
+.rv-section { margin-top: 26px; }
+.rv-section-title {
+  margin: 0 4px 8px; font-size: 13px; font-weight: 500; text-transform: uppercase;
+  letter-spacing: .04em; color: var(--rv-3);
+}
+/* Guruhlangan ro'yxat: bitta oq karta, satrlar orasida ichkariga surilgan hairline */
+.rv-addon-list { background: #fff; border-radius: 16px; border: .5px solid var(--rv-sep); overflow: hidden; }
 .rv-addon {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 10px;
-  margin-bottom: 8px;
-  border-radius: 16px;
-  background: var(--rv-card);
-  border: 1px solid var(--rv-line);
-  transition: border-color .15s var(--ease-out), background .15s var(--ease-out);
+  display: flex; align-items: center; gap: 13px;
+  padding: 11px 13px; min-height: 68px; background: transparent;
+  border-bottom: .5px solid var(--rv-sep);
+  transition: background .15s ease;
 }
-.rv-addon.on { border-color: rgba(201, 148, 20, .5); background: #fffaf0; }
-.rv-addon-photo { width: 54px; height: 54px; border-radius: 12px; object-fit: cover; flex: 0 0 auto; background: #f3efe6; }
+.rv-addon:last-child { border-bottom: none; }
+.rv-addon.on { background: rgba(249, 190, 62, .10); }
+.rv-addon-photo { width: 52px; height: 52px; border-radius: 11px; object-fit: cover; flex: 0 0 auto; background: var(--rv-fill-bg); }
 .rv-addon-body { flex: 1; min-width: 0; }
-.rv-addon-name { font-size: 14px; font-weight: 700; color: var(--rv-ink); }
-.rv-addon-price { margin-top: 2px; font-size: 13px; font-weight: 800; color: var(--rv); }
+.rv-addon-name { font-size: 16px; font-weight: 500; color: var(--rv-ink); line-height: 1.3; }
+.rv-addon-price { margin-top: 2px; font-size: 14px; font-weight: 500; color: var(--rv-amber); }
 .rv-addon-add {
-  flex: 0 0 auto;
-  width: 38px;
-  height: 38px;
-  border-radius: 12px;
-  font-size: 22px;
-  font-weight: 700;
-  background: var(--rv-bright);
-  color: #241c06;
-  border: none;
+  flex: 0 0 auto; width: 44px; height: 44px; border-radius: 22px;
+  font-size: 24px; font-weight: 400; line-height: 1;
+  background: var(--rv-fill-bg); color: var(--rv-amber); border: none;
 }
-.rv-stepper { flex: 0 0 auto; display: flex; align-items: center; gap: 4px; }
+.rv-addon-add:active { background: #e5e5ea; }
+.rv-stepper { flex: 0 0 auto; display: flex; align-items: center; gap: 2px; }
 .rv-stepper button {
-  width: 34px;
-  height: 34px;
-  border-radius: 11px;
-  font-size: 19px;
-  font-weight: 800;
-  background: #fff5df;
-  color: var(--rv);
-  border: 1px solid rgba(201, 148, 20, .38);
+  width: 40px; height: 40px; border-radius: 20px; font-size: 21px; font-weight: 400; line-height: 1;
+  background: var(--rv-fill-bg); color: var(--rv-amber); border: none;
 }
-.rv-stepper span { min-width: 24px; text-align: center; font-size: 15px; font-weight: 800; color: var(--rv-ink); }
+.rv-stepper span { min-width: 28px; text-align: center; font-size: 17px; font-weight: 600; }
 
-/* Pastki panel oq — lekin qorong'i tabbar ustida turgani uchun soya bilan ajratiladi. */
+/* ── Pastki panel: iOS toolbar — shaffof-xira, hairline bilan ajratilgan ── */
 .rv-total-bar {
-  position: fixed;
-  left: 12px;
-  right: 12px;
-  bottom: calc(var(--tabbar-h, 64px) + 10px);
-  z-index: 40;
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 10px 12px 10px 16px;
-  border-radius: 18px;
-  background: #fff;
-  border: 1px solid rgba(201, 148, 20, .3);
-  box-shadow: 0 16px 36px -14px rgba(27, 23, 16, .45);
+  position: fixed; left: 0; right: 0; bottom: 0; z-index: 40;
+  display: flex; align-items: center; gap: 14px;
+  padding: 12px 16px calc(12px + env(safe-area-inset-bottom));
+  background: rgba(255, 255, 255, .86);
+  backdrop-filter: saturate(180%) blur(20px);
+  -webkit-backdrop-filter: saturate(180%) blur(20px);
+  border-top: .5px solid var(--rv-sep);
 }
-.rv-total-num { display: flex; flex-direction: column; }
-.rv-total-num small { font-size: 11px; font-weight: 600; color: var(--rv-dim); }
-.rv-total-num b { font-size: 17px; font-weight: 900; color: var(--rv-ink); }
+.rv-total-num { display: flex; flex-direction: column; min-width: 0; }
+.rv-total-num small { font-size: 12px; font-weight: 400; color: var(--rv-2); }
+.rv-total-num b { font-size: 17px; font-weight: 600; letter-spacing: -.02em; color: var(--rv-ink); }
 .rv-ready {
-  margin-left: auto;
-  padding: 12px 18px;
-  border-radius: 14px;
-  border: none;
-  background: var(--rv-bright);
-  color: #241c06;
-  font-size: 14px;
-  font-weight: 800;
-  transition: transform .12s var(--ease-out);
+  margin-left: auto; flex: 0 0 auto; min-height: 48px; padding: 13px 22px;
+  border-radius: 14px; border: none;
+  background: var(--rv-fill); color: #1d1d1f;
+  font-size: 17px; font-weight: 600; letter-spacing: -.01em;
+  transition: transform .18s cubic-bezier(.32, .72, 0, 1), opacity .15s ease;
 }
-.rv-ready:active { transform: scale(.97); }
+.rv-ready:active { transform: scale(.97); opacity: .9; }
 
-.rv-confirm-line { display: flex; justify-content: space-between; gap: 12px; padding: 7px 0; font-size: 13.5px; color: var(--rv-ink); }
-.rv-disc-btn {
-  width: 100%;
-  margin: 12px 0 6px;
-  padding: 14px;
-  border-radius: 16px;
-  border: 1px dashed rgba(201, 148, 20, .65);
-  background: #fff8e6;
-  color: var(--rv);
-  font-size: 14.5px;
-  font-weight: 800;
-  transition: transform .12s var(--ease-out);
+.rv-confirm-line {
+  display: flex; justify-content: space-between; gap: 14px;
+  padding: 11px 0; font-size: 16px; color: var(--rv-ink);
+  border-bottom: .5px solid var(--rv-sep);
 }
-.rv-disc-btn:active { transform: scale(.985); }
+.rv-disc-btn {
+  width: 100%; min-height: 50px; margin: 16px 0 8px; padding: 15px;
+  border-radius: 14px; border: none;
+  background: rgba(249, 190, 62, .16); color: var(--rv-amber);
+  font-size: 17px; font-weight: 600;
+}
 .rv-disc-on {
-  margin: 12px 0 6px;
-  padding: 12px 14px;
-  border-radius: 14px;
-  background: #eefaf0;
-  border: 1px solid rgba(41, 193, 85, .4);
-  font-size: 13.5px;
-  font-weight: 700;
-  color: var(--rv-ink);
+  margin: 16px 0 8px; padding: 13px 15px; border-radius: 14px;
+  background: rgba(52, 199, 89, .12); color: var(--rv-ink);
+  font-size: 15px; font-weight: 500;
 }
 .rv-confirm-total {
-  display: flex;
-  justify-content: space-between;
-  align-items: baseline;
-  padding-top: 10px;
-  border-top: 1px solid var(--rv-line);
-  font-size: 15px;
-  font-weight: 800;
-  color: var(--rv-ink);
+  display: flex; justify-content: space-between; align-items: baseline;
+  padding-top: 14px; font-size: 17px; font-weight: 600; color: var(--rv-ink);
 }
-.rv-confirm-total s { font-weight: 600; color: var(--rv-dim); margin-right: 6px; }
-.rv-cb-hint { margin-top: 8px; font-size: 12.5px; font-weight: 600; color: var(--rv-dim); }
-.rv-cb-hint b { color: var(--rv); }
-.rv-pay-note { margin-top: 10px; font-size: 11.5px; line-height: 1.5; color: var(--rv-dim); text-align: center; }
+.rv-confirm-total s { font-weight: 400; color: var(--rv-3); margin-right: 8px; }
+.rv-cb-hint { margin-top: 8px; font-size: 13px; color: var(--rv-2); }
+.rv-cb-hint b { color: var(--rv-amber); font-weight: 600; }
+.rv-pay-note { margin-top: 14px; font-size: 13px; line-height: 1.46; color: var(--rv-3); text-align: center; }
 
-.rv-done { text-align: center; padding-top: 44px; }
-.rv-done-icon { font-size: 56px; }
-.rv-done-title { margin-top: 10px; font-size: 20px; font-weight: 800; color: var(--rv-ink); }
-.rv-done-sub { margin-top: 4px; font-size: 13px; color: var(--rv-dim); }
+.rv-done { text-align: center; padding-top: 54px; }
+.rv-done-icon { font-size: 60px; }
+.rv-done-title { margin-top: 14px; font-size: 26px; font-weight: 700; letter-spacing: -.021em; }
+.rv-done-sub { margin-top: 5px; font-size: 15px; color: var(--rv-2); }
 .rv-done-call {
-  margin-top: 14px;
-  padding: 12px 16px;
-  border-radius: 14px;
-  background: #fff8e6;
-  border: 1px solid rgba(201, 148, 20, .3);
-  font-size: 14px;
-  font-weight: 700;
-  color: var(--rv-ink);
+  margin-top: 20px; padding: 15px 18px; border-radius: 14px;
+  background: #fff; border: .5px solid var(--rv-sep);
+  font-size: 16px; font-weight: 500; color: var(--rv-ink);
 }
-.rv-done-cb { margin: 10px 0 18px; font-size: 13px; font-weight: 600; color: var(--rv-dim); }
-.rv-done-cb b { color: var(--rv); }
+.rv-done-cb { margin: 12px 0 22px; font-size: 14px; color: var(--rv-2); }
+.rv-done-cb b { color: var(--rv-amber); font-weight: 600; }
 
-.rv-order-card {
-  padding: 14px;
-  margin-bottom: 10px;
-  border-radius: 16px;
-  background: var(--rv-card);
-  border: 1px solid var(--rv-line);
-  box-shadow: 0 8px 22px -18px rgba(27, 23, 16, .5);
-}
-.rv-order-top { display: flex; justify-content: space-between; align-items: center; gap: 10px; margin-bottom: 6px; font-size: 14.5px; color: var(--rv-ink); }
-.rv-order-bottom { display: flex; justify-content: space-between; gap: 10px; margin-top: 8px; font-size: 13px; color: var(--rv-ink); }
-.rv-order-cb { margin-top: 6px; font-size: 12.5px; font-weight: 700; color: var(--rv); }
-.rv-order-reason { margin-top: 6px; font-size: 12.5px; color: #c02b2b; }
+.rv-order-card { padding: 16px; margin-bottom: 12px; border-radius: 16px; background: #fff; border: .5px solid var(--rv-sep); }
+.rv-order-top { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 6px; font-size: 16px; font-weight: 600; }
+.rv-order-bottom { display: flex; justify-content: space-between; gap: 12px; margin-top: 10px; font-size: 15px; color: var(--rv-2); }
+.rv-order-cb { margin-top: 8px; font-size: 14px; font-weight: 500; color: var(--rv-amber); }
+.rv-order-reason { margin-top: 8px; font-size: 14px; color: #d70015; }
 .rv-order-cancel {
-  margin-top: 10px;
-  padding: 9px 14px;
-  border-radius: 12px;
-  background: transparent;
-  border: 1px solid var(--rv-line);
-  color: var(--rv-dim);
-  font-size: 13px;
-  font-weight: 700;
+  min-height: 44px; margin-top: 12px; padding: 11px 16px; border-radius: 12px;
+  background: var(--rv-fill-bg); border: none; color: var(--rv-2); font-size: 15px; font-weight: 500;
 }
 
-/* Oq qog'ozda `muted`/`fs12` kabi umumiy sinflar qorong'i mavzu rangini olib qolmasin. */
-.rv-view .muted, .rv-detail .muted { color: var(--rv-dim); }
+.rv-view .muted, .rv-detail .muted { color: var(--rv-2); }
 
 @media (prefers-reduced-motion: reduce) {
   .rv-stage-photo { animation: none; }
-  .rv-card, .rv-ready, .rv-disc-btn, .rv-addon { transition: none; }
+  .rv-card, .rv-ready, .rv-addon { transition: none; }
 }

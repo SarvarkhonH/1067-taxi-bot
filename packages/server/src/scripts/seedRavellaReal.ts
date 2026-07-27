@@ -1,10 +1,10 @@
 // 🎀 Ravella HAQIQIY katalogi (ega bergan suratlar, 2026-07-27). Namuna `[DEMO]` satrlari
 // o'chiriladi va o'rniga Ravella'ning REAL ishlari qo'yiladi — rasm, nom, narx.
 //
-// NARXLAR TAXMINIY: bozor darajasiga qarab qo'yildi, ega admin panelda bir bosishda tuzatadi.
-// Bu skript ularni faqat BOSHLANG'ICH qiymat sifatida yozadi — keyingi yugurishda ega
-// o'zgartirgan narxni QAYTA YOZIB YUBORMAYDI (mavjud bezak nomi bo'yicha topiladi va faqat
-// yo'qlari yaratiladi). Rasmlarni esa har safar yangilaydi (fayl almashsa yangisi chiqsin).
+// NARX QO'YILMAYDI (ega qarori 2026-07-27): hamma narx 0 — mijozga "Narxi kelishiladi" deb
+// ko'rsatiladi, ega esa admin panelda o'zi kiritadi. Skript mavjud bezakning narxiga TEGMAYDI
+// (nom bo'yicha topadi, faqat yo'qini yaratadi) — ya'ni ega kiritgan narx qayta yugurtirilganda
+// nolga qaytmaydi. Rasmlar esa har safar yangilanadi (fayl almashsa yangisi chiqsin).
 //
 // Rasmlar: packages/miniapp/public/ravella/*.jpg (repo bilan birga deploy bo'ladi).
 // Tozalash/qayta qurish: `--reset` — Ravella katalogini butunlay o'chirib qaytadan yaratadi.
@@ -25,25 +25,25 @@ const CATALOGUE: CatSpec[] = [
       {
         name: "Bitiruv sahnasi — foto-zona",
         desc: "Bosma taxta (nomi va yili bilan), balon arkasi, figuralar. Bog'cha va maktab bitiruvlari uchun.",
-        priceSom: 1_800_000,
+        priceSom: 0,
         photo: "ish-bitiruv-sahna.jpg",
         addons: [
           // ⭐ Bu qo'shimchaning rasmi AYNAN shu zalning shift bezagi bilan olingan surati —
           // mijoz «+» bosganda sahna rasmi shu kadrga o'tadi va farqni o'z ko'zi bilan ko'radi.
-          { name: "Zal shifti bezagi", priceSom: 900_000, maxQty: 1, photo: "ish-zal-shift.jpg" },
-          { name: "Ismli banner (qo'shimcha taxta)", priceSom: 400_000, maxQty: 2 },
+          { name: "Zal shifti bezagi", priceSom: 0, maxQty: 1, photo: "ish-zal-shift.jpg" },
+          { name: "Ismli banner (qo'shimcha taxta)", priceSom: 0, maxQty: 2 },
         ],
       },
       {
         name: "Sahna arkasi — oltin/oq",
         desc: "Sahna markazi uchun spiral arka. Tadbir turiga qarab rang tanlanadi.",
-        priceSom: 700_000,
+        priceSom: 0,
         photo: "ish-oltin-arka.jpg",
       },
       {
         name: "Premium bitiruv zali — chiroqli",
         desc: "Logotipli taxta, qora-oltin gulchambar, kapalak chiroqlari va gul lampalari bilan to'liq zal.",
-        priceSom: 2_800_000,
+        priceSom: 0,
         photo: "ish-premium-zal.jpg",
       },
     ],
@@ -55,20 +55,20 @@ const CATALOGUE: CatSpec[] = [
       {
         name: "Kirish arkasi — bayram",
         desc: "Eshik oldi arkasi: yulduzlar, qo'ng'iroq va ustunlar bilan. 1-sentabr va bitiruv uchun.",
-        priceSom: 900_000,
+        priceSom: 0,
         photo: "ish-kirish-arka.jpg",
       },
       {
         name: "Bino kirishi + yo'lak gulchambari",
         desc: "Tashqi bezak: kirish arkasi va yo'lak bo'ylab osma gulchambarlar. Ochilish marosimlari uchun.",
-        priceSom: 1_600_000,
+        priceSom: 0,
         photo: "ish-bino-kirish.jpg",
       },
     ],
     // Kategoriya-bo'ylab qo'shimchalar — ikkala bezakka ham mos keladi
     addons: [
-      { name: "Sovuq salyut (juft)", priceSom: 300_000, maxQty: 4 },
-      { name: "Foil yulduzlar (5 dona)", priceSom: 150_000, maxQty: 4 },
+      { name: "Sovuq salyut (juft)", priceSom: 0, maxQty: 4 },
+      { name: "Foil yulduzlar (5 dona)", priceSom: 0, maxQty: 4 },
     ],
   },
 ];
