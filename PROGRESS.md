@@ -3315,6 +3315,12 @@ qurilmada sinalmagan.
 | 56 | Taklifni hikoyaga ulashish (`shareToStory`) | `storyshare` **OFF** | ready for verification |
 | 57 | Fonda so'rov yo'q (`isActive`) + bulut-xotira (`CloudStorage`) | yo'q (infratuzilma) | ready for verification |
 
+**Ega qarori (2026-07-27, so'zma-so'z): «kodni ma'qulladim, deploydan keyin telefonda ko'raman».**
+Ya'ni bu KOD KO'RIGI ma'qullashi — R6 ma'nosidagi QABUL EMAS. Barcha 6 tiket `ready for
+verification` holatida QOLADI; `owner-accepted` FAQAT deploydan keyin, jonli qurilmadagi real
+render ko'rilgach yoziladi. `linkinapp` / `homescreen` / `storyshare` flaglari shu QABUL'gacha
+OFF turadi (R6: QABUL'dan oldin global flag yoqilmaydi).
+
 **Deploy uchun eslatma (boshqa sessiya bajaradi).** Miniapp: `VITE_API_URL=<render> vite build` →
 `dist` ni `.vercel/output/static` ga KO'CHIR → `vercel deploy --prebuilt --prod` → BUNDLE GREP
 bilan isbotla. Server: GH Actions `deploy` jobi (autoDeploy o'chiq). **Sxema o'zgarishi YO'Q** —
