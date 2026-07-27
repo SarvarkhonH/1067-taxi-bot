@@ -31,6 +31,16 @@ interface TgInset {
   right: number;
 }
 
+/** Telegram'ning native «‹ Orqaga» tugmasi (Bot API 6.1+). Android'da APPARAT «orqaga» tugmasi ham
+ *  SHU tugmaga yo'naltiriladi — u ko'rinmasa, apparat tugmasi Mini App'ni butunlay YOPADI. */
+interface TgBackButton {
+  isVisible: boolean;
+  show: () => void;
+  hide: () => void;
+  onClick: (cb: () => void) => void;
+  offClick: (cb: () => void) => void;
+}
+
 /** `requestContact()` javobi. `response` — imzolangan query-string (`contact=<json>&auth_date=…`),
  *  `hash` — uning HMAC imzosi. IKKALASI ham serverga o'zgarishsiz uzatiladi: raqamning haqiqiyligini
  *  FAQAT server, bot tokeni bilan tekshira oladi (mijozga ishonch YO'Q). */
@@ -62,6 +72,7 @@ interface TelegramWebApp {
   offEvent?: (event: string, cb: () => void) => void;
   // Bot API 6.9+ — Telegram tasdiqlagan raqamni ILOVA ICHIDA so'rash (botga sakramasdan).
   requestContact?: (cb: (ok: boolean, resp?: TgContactResponse) => void) => void;
+  BackButton?: TgBackButton;
   LocationManager?: TgLocationManager;
   HapticFeedback?: { impactOccurred: (s: string) => void; selectionChanged: () => void; notificationOccurred?: (t: string) => void };
 }
@@ -104,6 +115,60 @@ function syncInsets(): void {
 /** True when Telegram is currently drawing us edge-to-edge. */
 export function isFullscreen(): boolean {
   return !!tg?.isFullscreen;
+}
+
+// ── ‹ ORQAGA tugmasi (Bot API 6.1+) ──────────────────────────────────────────
+// Muammo: biz bu tugmani hech qachon ko'rsatmaganmiz, shuning uchun Android'da apparat «orqaga»
+// tugmasi ichki ekrandan chiqarish o'rniga Mini App'ni BUTUNLAY YOPARDI (taksi xaritasidan,
+// mahsulot ichidan, tarixdan — hammasidan). Telegram bitta global tugma beradi, bizda esa ekranlar
+// ichma-ich ochiladi — shuning uchun STEK: eng ustki ro'yxatdan o'tgan ishlov beruvchi g'olib,
+// stek bo'shaganda tugma YASHIRILADI (shunda Telegram'ning o'z «yopish» xatti-harakati qaytadi).
+interface BackEntry {
+  handler: () => void;
+  priority: number;
+}
+const backStack: BackEntry[] = [];
+let backBound: (() => void) | null = null;
+
+function syncBackButton(): void {
+  const bb = tg?.BackButton;
+  if (!bb) return; // eski klient — hech narsa o'zgarmaydi (bugungi xatti-harakat aynan)
+  if (backBound) {
+    bb.offClick(backBound);
+    backBound = null;
+  }
+  // Eng yuqori PRIORITET g'olib, teng bo'lsa — oxirgi qo'yilgani. Faqat LIFO yetarli emas edi:
+  // React bola-effektlarni ota-effektlardan OLDIN yurgizadi, ya'ni deep-link bilan ichki ekran
+  // darhol ochilganda (?go=dokon:35) qobiqning "tabdan Uy'ga" ishlov beruvchisi ustiga chiqib
+  // qolardi va orqaga bosish mahsulotni emas, butun tabni yopardi.
+  let top: BackEntry | undefined;
+  for (const e of backStack) if (!top || e.priority >= top.priority) top = e;
+  if (top) {
+    const h = top.handler;
+    backBound = () => { haptic(); h(); };
+    bb.onClick(backBound);
+    bb.show();
+  } else {
+    bb.hide();
+  }
+}
+
+/** Orqaga-ishlov beruvchini stekka qo'yadi. Qaytgan funksiyani chaqirish uni olib tashlaydi
+ *  (React'da `useEffect` cleanup'i) — shuning uchun ekran yopilganda tugma o'z-o'zidan tartibga
+ *  keladi, hech qanday qo'lda `hide()` kerak emas.
+ *  `priority`: qobiq darajasi = 0, ichki (ustma-ust ochilgan) ekranlar = 1+. */
+export function pushBack(handler: () => void, priority = 0): () => void {
+  const entry: BackEntry = { handler, priority };
+  backStack.push(entry);
+  syncBackButton();
+  let released = false;
+  return () => {
+    if (released) return; // ikki marta chaqirilsa begona ishlov beruvchini o'chirib yubormasin
+    released = true;
+    const i = backStack.indexOf(entry);
+    if (i >= 0) backStack.splice(i, 1);
+    syncBackButton();
+  };
 }
 
 // ── 📱 raqamni ilova ichida so'rash (Bot API 6.9+) ────────────────────────────

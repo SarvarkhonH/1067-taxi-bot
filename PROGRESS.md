@@ -3146,3 +3146,52 @@ sinalmagan — faqat imzo-yadrosi sinalgan. (2) `handleLink` refaktori jonli bot
 mantiq bir xil ko'chirildi va `tsc` toza, lekin bu **pul yo'li** — deploydan keyin bitta real
 ulanish kuzatilishi shart. (3) Referal/QR mukofotlari testi TEST_DATABASE_URL talab qiladi
 (CLAUDE.md), bu sessiyada yo'q. Shu 3 sabab uchun flag **OFF** chiqarildi.
+
+---
+
+## §54 — ‹ TELEGRAM ORQAGA TUGMASI (T-TG2, `BackButton`) · 2026-07-27
+**Holat: `ready for verification`** (ega QABUL'i kutilyapti — R1/R6)
+
+**Muammo.** `BackButton` (Bot API 6.1) kodda **hech qachon ishlatilmagan** (grep: 0 natija).
+Telegram Android'da apparat «orqaga» tugmasi shu tugmaga yo'naltiriladi — u ko'rinmasa, apparat
+tugmasi ichki ekrandan chiqarish o'rniga **Mini App'ni butunlay yopadi**. Ya'ni mijoz taksi
+xaritasidan, mahsulot ichidan, savatdan yoki buyurtmalar ro'yxatidan orqaga bosса — ilovadan
+tashqarida qolardi.
+
+**Yechim — bitta global tugma ustiga PRIORITETLI STEK.**
+- `telegram.ts`: `pushBack(handler, priority)` → stek; eng yuqori prioritet g'olib, teng bo'lsa
+  oxirgi qo'yilgani; stek bo'shaganda tugma YASHIRILADI (Telegram'ning o'z «yopish» xatti-harakati
+  qaytadi). Klientda `BackButton` bo'lmasa — hech narsa o'zgarmaydi.
+- **Nega faqat LIFO yetarli emas**: React bola-effektlarni ota-effektlardan OLDIN yurgizadi, ya'ni
+  deep-link bilan ichki ekran darhol ochilganda (`?go=dokon:35`) qobiqning "tabdan Uy'ga" ishlov
+  beruvchisi ustiga chiqib qolardi va orqaga bosish mahsulotni emas, butun tabni yopardi. Shuning
+  uchun qobiq = prioritet 0, ichki ekranlar = 1, ular ustidagi varaq = 2.
+- `useBackButton.ts` (yangi hook): `onBack` ref'da saqlanadi → effekt FAQAT `active` o'zgarganda
+  qayta ishga tushadi (aks holda har render stekni bo'shatib-to'ldirib tartibni buzardi).
+
+**Qamrov — 14 ta ulanish nuqtasi (`App.tsx`, `shop.tsx`, `restoran.tsx`)**
+- Qobiq: taksi ekrani · taklif · safar tarixi · Uy'dan boshqa tab → Uy · mehmon rejimi tablari.
+- Do'kon: rasm-lightbox · hikoya-ko'ruvchi · savat · buyurtmalarim · mahsulot (sharh/tasdiq
+  qadamlari avval yechiladi, keyin mahsulot yopiladi) · do'kon-sahifasi.
+- Restoran: restoran-sahifasi · buyurtmalarim · checkout varag'i (prioritet 2).
+
+**Isbot (buyruq + xom natija).**
+- `tsc --noEmit -p packages/miniapp/tsconfig.json` → **0 xato**.
+- `pnpm -C packages/miniapp build` → `✓ built in 2.24s`.
+- **BUNDLE GREP** (`dist/assets/index-LwLzHmjy.js`) — minifikatsiyalangan stek to'liq turibdi:
+  `const e=S?.BackButton;if(!e)return;Ut&&(e.offClick(Ut),Ut=null);let n;for(const t of ls)
+  (!n||t.priority>=n.priority)&&(n=t);if(n){…e.onClick(Ut),e.show()}else e.hide()`.
+- Hook-tartibi qo'lda tekshirildi: hamma `useBackButton` chaqiruvi komponentning erta
+  `return`laridan OLDIN (`awk` bilan 197–515 va 414–432 oraliqlari ko'rildi — o'sha oraliqlardagi
+  `return`lar faqat ichki callback'lar ichida).
+
+**FLAG YO'Q — ongli qaror.** CLAUDE.md "har mexanika kill-switch bilan" deydi; bu **mexanika emas,
+buzuq xatti-harakatning tuzatilishi** (pul yo'q, iqtisod yo'q). Eski klientda `BackButton`
+bo'lmasa kod jim o'tadi, ya'ni tabiiy fallback bor. Fullscreen tuzatishi (§52) bilan bir xil
+yondashuv. Xohlasangiz flag ortiga olaman — bir necha qatorlik ish.
+
+**QAMRALMAGAN (ochiq aytaman).** (1) `booking3` ichki varaqlari (manzil tanlash, qidiruv) — orqaga
+butun taksi ekranini yopadi, bir qadam yuqoriga sakraydi. (2) Xizmatlar, E'lonlar, Hamyon, Profil
+ichki ekranlari va do'kon-chati hali ulanmagan — keyingi supurishda. (3) Real qurilmada
+sinalmagan: bu muhitda Telegram klienti yo'q, ya'ni «apparat orqaga endi ilovani yopmaydi» degan
+yakuniy isbot FAQAT sizning telefoningizdan keladi.

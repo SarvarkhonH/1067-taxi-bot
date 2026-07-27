@@ -5,6 +5,7 @@ const ShopDemo = lazy(() => import("./design/shopDemo").then((m) => ({ default: 
 import type { LeaderboardResponse, MeResponse } from "@t1067/shared";
 import { api, getInitData, waitForInitData } from "./api";
 import { askContact, haptic, hapticSuccess, tg } from "./telegram";
+import { useBackButton } from "./useBackButton";
 import { LeaderboardView, LoadError, MissionsView, ReferralView, RideHistoryView, Spinner } from "./components";
 import { AccountCard, TierLadder, TierLadderCompact, WalletView } from "./wallet"; // bosh tab — eager (birinchi paint)
 import { UyView, NewUyView } from "./uy"; // Uy tabi — yengil (leaflet-siz), eager. NewUyView = feature "newhome" redizayn
@@ -259,6 +260,17 @@ export function App() {
       })
       .catch(() => undefined);
   };
+
+  // ‹ ORQAGA (Bot API 6.1) — Android'da apparat «orqaga» tugmasi shu yerga yo'naltiriladi. Ilgari
+  // biz bu tugmani hech qachon ko'rsatmaganimiz uchun u ilovani BUTUNLAY YOPARDI: xaritadan,
+  // taklif va tarix ekranlaridan, hatto Do'kon tabidan ham. Hooklar quyidagi erta return'lardan
+  // OLDIN — ustma-ust ochilgan ekranlar stek bo'lib ishlaydi, eng ustkisi g'olib.
+  useBackButton(booking, () => setBooking(false));
+  useBackButton(invite, () => setInvite(false));
+  useBackButton(history, () => setHistory(false));
+  // Boshqa tabdan Uy'ga. `go()` emas — u quyiroqda e'lon qilingan; "uy" ga o'tishda uning
+  // deep-link qorong'i-flag qorovullari baribir qo'llanmaydi, ya'ni natija AYNAN bir xil.
+  useBackButton(!booking && !invite && !history && tab !== "uy", () => setTab("uy"));
 
   if (error) return <ErrorScreen error={error} />;
   if (linked === null) return <BootSplash />;
@@ -661,6 +673,9 @@ function GuestApp({ flags }: { flags: MeResponse["flags"] }) {
   };
   // 📱 Ulash endi ilova ICHIDA (requestContact) — hooklar erta return'dan OLDIN chaqiriladi.
   const link = useLinkFlow(flash, !!flags?.linkinapp);
+  // ‹ Orqaga: mehmon ham birinchi tabga qaytadi, ilova yopilmaydi.
+  const firstTab = tabs[0]?.id;
+  useBackButton(!!firstTab && tab !== firstTab, () => setTab(firstTab ?? "dokon"));
   // Ko'rish uchun ochiq tab bo'lmasa — eski (tugmali) taklif ekrani.
   if (!tabs.length) {
     return (

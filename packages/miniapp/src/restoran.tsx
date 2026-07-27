@@ -8,6 +8,7 @@ import { formatNumber } from "@t1067/shared";
 import { api, apiUrl } from "./api";
 import { haptic, hapticSuccess } from "./telegram";
 import { Button, EmptyState, Sheet, Skeleton } from "./design/components";
+import { useBackButton } from "./useBackButton";
 
 const LAST_ADDR_KEY = "restoran_last_addr";
 
@@ -201,6 +202,8 @@ function RestaurantDetail({ id, me, initialCart, onBack, onBanner }: { id: numbe
   const [cart, setCart] = useState<Record<number, number>>({});
   const [checkoutOpen, setCheckoutOpen] = useState(false);
   const [isPickup, setIsPickup] = useState(false);
+  // ‹ Buyurtma-tasdiq varag'i restoran-sahifasi USTIDA ochiladi → prioritet 2 (restoran = 1).
+  useBackButton(checkoutOpen, () => setCheckoutOpen(false), 2);
   const [address, setAddress] = useState(() => { try { return localStorage.getItem(LAST_ADDR_KEY) ?? ""; } catch { return ""; } });
   const [note, setNote] = useState("");
   const [busy, setBusy] = useState(false);
@@ -420,6 +423,11 @@ export function RestoranView({ me, onBanner, openRestaurantId }: { me: MeRespons
   const [openOnly, setOpenOnly] = useState(false);
   const [catFilter, setCatFilter] = useState<string>("all");
   const deepOpened = useRef(false);
+
+  // ‹ ORQAGA: restoran ichidan / buyurtmalarim ekranidan apparat «orqaga» ilgari butun ilovani
+  // yopardi. Prioritet 1 — qobiqning "tabdan Uy'ga" ishlov beruvchisidan ustun.
+  useBackButton(openId !== null, () => setOpenId(null), 1);
+  useBackButton(openId === null && ordersOpen, () => setOrdersOpen(false), 1);
 
   useEffect(() => {
     api.restoranList().then((r) => setList(r.restaurants)).catch(() => setList([]));

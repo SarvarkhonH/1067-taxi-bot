@@ -25,6 +25,7 @@ import { api, apiUrl } from "./api";
 import { loadErrorText } from "./util";
 import { haptic, hapticSuccess, inviteText, inviteLandingUrl, shareLink, tgGetLocation, tgHasLocationManager } from "./telegram";
 import { confetti, compressImage } from "./util";
+import { useBackButton } from "./useBackButton";
 import { Button, EmptyState, ProgressBar, Sheet, Skeleton } from "./design/components";
 import { BjCategoryCarousel, BjShopCard, BjMahallaShopCard, BjSection, BjStickyCartBar } from "./design/birjoy"; // 🏪 V1.4+V2 BirJoy-kit
 import { Icon } from "./icons";
@@ -486,6 +487,28 @@ export function ShopView({ me, onBanner, reload, onBook, openProductId }: { me: 
   const [cart, setCart] = useState<Record<number, number>>(() => { try { return JSON.parse(localStorage.getItem(CART_KEY) ?? "{}").items ?? {}; } catch { return {}; } });
   const [cartShopId, setCartShopId] = useState<number | null>(() => { try { return JSON.parse(localStorage.getItem(CART_KEY) ?? "{}").shopId ?? null; } catch { return null; } });
   const [cartOpen, setCartOpen] = useState(false);
+
+  // ‹ ORQAGA (Bot API 6.1). Do'konda ekranlar ichma-ich ochiladi (rasm → hikoya → savat →
+  // buyurtmalar → mahsulot → do'kon-sahifasi), Telegram esa BITTA global tugma beradi. Ilgari
+  // tugma umuman ko'rsatilmagani uchun Android'ning apparat «orqaga»si shu ekranlarning
+  // HAMMASIDAN ilovani butunlay yopardi. `backTop` — ayni damdagi eng ustki qatlam: bir vaqtda
+  // faqat BITTA ishlov beruvchi faol bo'ladi, ya'ni orqaga bosish har doim bitta qadam yechadi.
+  // Prioritet 1 — qobiqning "tabdan Uy'ga" ishlov beruvchisidan (0) ustun.
+  const backTop = lightbox !== null ? "lightbox"
+    : storyViewer ? "story"
+    : cartOpen ? "cart"
+    : ordersOpen ? "orders"
+    : sel ? "product"
+    : shopFilter ? "shop"
+    : null;
+  useBackButton(backTop === "lightbox", () => setLightbox(null), 1);
+  useBackButton(backTop === "story", () => setStoryViewer(null), 1);
+  useBackButton(backTop === "cart", () => setCartOpen(false), 1);
+  useBackButton(backTop === "orders", () => setOrdersOpen(false), 1);
+  // Mahsulot ichida sharhlar/tasdiq qadamlari bor — avval o'sha qadam yechiladi, keyin mahsulot.
+  useBackButton(backTop === "product", () => { if (step === "detail") setSel(null); else setStep("detail"); }, 1);
+  useBackButton(backTop === "shop", () => { setShopFilter(null); setShopProfile(null); }, 1);
+
   // savatni har o'zgarishda saqla; bo'sh bo'lsa — tozala (do'kon ham unutiladi)
   useEffect(() => {
     try {
