@@ -550,11 +550,23 @@ model Product {
   active      Boolean  @default(false) // created OFF; owner flips ON to list
   sortOrder   Int      @default(0)
   favCount    Int      @default(0) // 🧡 V2b: ❤ sevimlilar-hisoblagich (ServiceListing naqshi — viral signal)
+  // 🏷 KATALOG-PASPORT (ega, 2026-07-27) — supermarket-darajali mahsulot ma'lumoti. HAMMASI
+  // nullable: 175 mavjud mahsulot tegilmasdan qoladi, sotuvchi xohlaganini to'ldiradi.
+  // Mijozga ko'rinadi: brand/unit/manufacturer/expiryDate. ICHKI (faqat sotuvchi+admin,
+  // API javobidan chiqarilgan): barcode/sku/supplier.
+  barcode      String? // EAN-8…GTIN-14, faqat raqam. Noyob EMAS — bir mahsulotni ko'p do'kon sotadi
+  sku          String? // do'konning ichki kodi
+  brand        String? // "Coca-Cola"
+  unit         String? // og'irlik yoki hajm: "1.5 L", "500 g"
+  manufacturer String? // ishlab chiqaruvchi zavod/kompaniya
+  expiryDate   DateTime? // yaroqlilik muddati (sana; vaqt qismi ishlatilmaydi)
+  supplier     String? // yetkazib beruvchi — ICHKI
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
   @@index([active, sortOrder])
   @@index([shopId, active]) // 🏪 V1: seller-scoped katalog so'rovlari
+  @@index([barcode]) // 🏷 skaner/barkod bo'yicha qidiruv
 }
 
 // 🖼 Product gallery — up to 5 photos per product ("real market feel": swipeable detail gallery).

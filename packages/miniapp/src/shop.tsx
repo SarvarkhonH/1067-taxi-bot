@@ -93,6 +93,36 @@ function Badges({ p }: { p: ShopProductView }) {
   );
 }
 
+// 🏷 KATALOG (ega, 2026-07-27): mahsulot-pasporti jadvali — supermarket darajasidagi "Xususiyatlar".
+// Faqat TO'LDIRILGAN satrlar chiziladi: bo'sh maydon "—" bo'lib turmaydi (bo'sh jadval mahsulotni
+// arzon ko'rsatadi). Barkod/SKU/yetkazib beruvchi bu yerda YO'Q — ular server javobiga ham
+// qo'shilmaydi (ega qarori: ichki ma'lumot).
+function ProductSpecs({ p }: { p: ShopProductView }) {
+  const rows: [string, string][] = [];
+  if (p.brand) rows.push(["Brend", p.brand]);
+  if (p.unit) rows.push(["Hajmi / og'irligi", p.unit]);
+  if (p.manufacturer) rows.push(["Ishlab chiqaruvchi", p.manufacturer]);
+  if (p.expiryDate) {
+    // ISO (YYYY-MM-DD) → kun.oy.yil. Muddat o'tgan bo'lsa mijozga ROSTINI aytamiz — bunday
+    // mahsulot javondan olinishi kerak, yashirish ishonchni yo'q qiladi.
+    const [y, m, d] = p.expiryDate.split("-");
+    const left = Math.ceil((new Date(`${p.expiryDate}T00:00:00Z`).getTime() - Date.now()) / 86400_000);
+    rows.push(["Yaroqlilik muddati", `${d}.${m}.${y}${left < 0 ? " ⛔ o'tgan" : left <= 7 ? ` · ${left} kun qoldi` : ""}`]);
+  }
+  if (!rows.length) return null;
+  return (
+    <div className="shop-spec">
+      <div className="shop-spec-title">Xususiyatlari</div>
+      {rows.map(([k, v]) => (
+        <div className="shop-spec-row" key={k}>
+          <span className="shop-spec-k">{k}</span>
+          <span className="shop-spec-v">{v}</span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 function PriceBlock({ p, big }: { p: ShopProductView; big?: boolean }) {
   const d = discountPct(p);
   const [why, setWhy] = useState(false);
@@ -148,6 +178,9 @@ function ProductCard({ p, onOpen, wide, onFav }: { p: ShopProductView; onOpen: (
       </div>
       <div className="shop-card-body">
         <div className="shop-card-name">{p.name}</div>
+        {/* 🏷 Katalog: "Coca-Cola · 1.5 L" — supermarket kartasida nomdan keyingi eng muhim ikki
+            ma'lumot. To'ldirilmagan bo'lsa qator umuman chizilmaydi (bo'sh joy qolmaydi). */}
+        {(p.brand || p.unit) && <div className="shop-card-spec">{[p.brand, p.unit].filter(Boolean).join(" · ")}</div>}
         {p.likes > 0 && <div className="shop-card-likes">👍 {p.likes}{p.dislikes > 0 ? ` · 👎 ${p.dislikes}` : ""}</div>}
         <PriceBlock p={p} />
         {/* AUDIT: "Sotib olish" deb yozilgan-u, bosilganda faqat mahsulot OCHILADI — hech narsa
@@ -696,7 +729,9 @@ export function ShopView({ me, onBanner, reload, onBook, openProductId }: { me: 
     if (!t) return null;
     // bazar: server-natija ustuvor (tavsif-qidiruv + demand-capture); kelguncha client-filtr
     if (bazar && srv && srv.q.toLowerCase() === t) return srv.products;
-    return (products ?? []).filter((p) => p.name.toLowerCase().includes(t) || p.category.toLowerCase().includes(t));
+    // 🏷 Katalog: brend ham (server-natija kelguncha ishlaydigan client-filtr — server tarafda
+    // brend+tavsif+barkod bo'yicha to'liq qidiruv bor, getMarketHome).
+    return (products ?? []).filter((p) => p.name.toLowerCase().includes(t) || p.category.toLowerCase().includes(t) || (p.brand ?? "").toLowerCase().includes(t));
   }, [products, q, bazar, srv]);
   // AUDIT: qidiruvda mos DO'KONLAR (nom bo'yicha) — placeholder buni allaqachon va'da qilgan edi
   const searchedShops = useMemo(() => {
@@ -1557,6 +1592,7 @@ export function ShopView({ me, onBanner, reload, onBook, openProductId }: { me: 
                 ? <>🚚 <b>{sel.deliveryText}</b> · do&apos;kon egasi qo&apos;ng&apos;iroq qiladi</>
                 : <>🚚 Yetkazish vaqtini do&apos;kon egasi qo&apos;ng&apos;iroq qilib aytadi</>}
             </div>
+            <ProductSpecs p={sel} />
             <button className="shop-reviews-entry" onClick={() => { haptic(); loadReviews(sel.id); setStep("reviews"); }}>
               <span>🗣 Sharhlar</span>
               <span className="shop-reviews-agg">

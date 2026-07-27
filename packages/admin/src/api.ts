@@ -228,7 +228,7 @@ export const adminApi = {
   deleteCampaign: (id: string) => postJson<{ ok: boolean }>("/api/admin/campaigns/delete", { id }),
   // 🛍 tanga shop
   shopProducts: (shopId?: number) => req<{ products: ShopAdminProductRow[]; enabled: boolean; pendingOrders: number }>(`/api/admin/shop/products${shopId ? `?shopId=${shopId}` : ""}`),
-  shopCreate: (p: { name: string; priceTanga: number; stock: number; category?: string; description?: string }, shopId?: number) =>
+  shopCreate: (p: { name: string; priceTanga: number; stock: number; category?: string; description?: string; brand?: string; unit?: string; barcode?: string }, shopId?: number) =>
     postJson<{ ok: boolean; id?: number; error?: string }>("/api/admin/shop/products", shopId ? { ...p, shopId } : p),
   shopEdit: (id: number, patch: Record<string, unknown>) => postJson<{ ok: boolean }>(`/api/admin/shop/products/${id}`, patch),
   shopToggle: (id: number, active: boolean) => postJson<{ ok: boolean }>(`/api/admin/shop/products/${id}/toggle`, { active }),
@@ -699,6 +699,14 @@ export interface ShopAdminProductRow {
   featured: boolean;
   soldCount: number;
   createdAt: string;
+  // 🏷 Katalog-pasport (server AdminProductRow bilan bir xil) — sotuvchi to'liq ko'radi
+  barcode: string | null;
+  sku: string | null;
+  brand: string | null;
+  unit: string | null;
+  manufacturer: string | null;
+  expiryDate: string | null; // "YYYY-MM-DD"
+  supplier: string | null;
 }
 export interface ShopAdminOrderRow {
   id: number;

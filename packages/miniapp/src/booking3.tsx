@@ -945,11 +945,49 @@ function Booking3Inner({ me, info, onClose }: { me: MeResponse; info: BookingInf
    *  Farqi ikkitagina: titratish yo'q, va rad etilganda sozlamalar DEEP-LINK'i ochilmaydi —
    *  so'ralmagan holda foydalanuvchini Telegram sozlamalariga otib yuborish qo'pol bo'lardi.
    *  Qolgan hammasi bir xil yo'l: LocationManager → brauzer GPS zaxira, aniqlik toraytirish. */
+  /** Brauzer GPS: `capMs` davomida KUZATIB eng aniq o'qishni qaytaradi. Birinchi o'qish ko'pincha
+   *  ~50 m'lik tarmoq-nuqtasi bo'ladi (chip hali qulflanmagan), keyin ~5 m gacha toraytiriladi —
+   *  shuning uchun bittasini olib qo'yamiz emas, eng tigizini kutamiz. Hech narsa kelmasa null. */
+  const browserBestFix = (capMs: number): Promise<GeolocationPosition | null> =>
+    new Promise((resolve) => {
+      if (!navigator.geolocation) { resolve(null); return; }
+      let best: GeolocationPosition | null = null;
+      let watchId = 0;
+      let done = false;
+      let timer: ReturnType<typeof setTimeout>;
+      const finish = () => {
+        if (done) return;
+        done = true;
+        navigator.geolocation.clearWatch(watchId);
+        clearTimeout(timer);
+        resolve(best);
+      };
+      timer = setTimeout(finish, capMs);
+      watchId = navigator.geolocation.watchPosition(
+        (pos) => {
+          if (!best || pos.coords.accuracy < best.coords.accuracy) best = pos; // eng tigizini saqlaymiz
+          if (pos.coords.accuracy <= 15) finish(); // yetarlicha aniq → erta to'xtaymiz
+        },
+        () => { if (!best) finish(); },
+        { enableHighAccuracy: true, timeout: 14000, maximumAge: 0 },
+      );
+    });
+
+  /** Telegram'ning bitta o'qishi shu chegaradan yomon bo'lsa — brauzer GPS bilan toraytiramiz. */
+  const COARSE_M = 50;
+
   const locateMe = async (auto = false) => {
     if (!map.current) return;
     if (!auto) haptic();
     setLocating(true);
     flashMsg("📍 Joylashuv aniqlanmoqda…", 16000);
+
+    // Aniqlikni RAQAM bilan aytamiz. Ilgari faqat «aniqlik past» derdi — mijoz ham, biz ham
+    // xato 50 metrmi yoki 800 metrmi, bila olmasdik. Endi ekranning o'zi diagnostika beradi.
+    const apply = (lat: number, lng: number, accuracy: number) => {
+      map.current?.setView([lat, lng], 17, { animate: true });
+      flashMsg(accuracy <= 35 ? null : `📍 Aniqlik ~${Math.round(accuracy)} m — pinni biroz suring`, 6000);
+    };
 
     // Telegram Mini App: navigator.geolocation is unreliable in the in-app WebView (the OS permission
     // prompt often never appears → "allow" never lands). Prefer the NATIVE LocationManager (Bot API
@@ -957,11 +995,21 @@ function Booking3Inner({ me, info, onClose }: { me: MeResponse; info: BookingInf
     // Fall back to the browser API for older clients / real browsers.
     if (tgHasLocationManager()) {
       const r = await tgGetLocation();
-      setLocating(false);
       if ("lat" in r) {
-        map.current.setView([r.lat, r.lng], 17, { animate: true });
-        flashMsg(r.accuracy <= 35 ? null : "📍 Aniqlik past — kerak bo'lsa pinni biroz suring");
-      } else if (r.error === "denied") {
+        apply(r.lat, r.lng, r.accuracy);
+        // ⚠️ Telegram BIR MARTA o'qiydi va bu ko'pincha tarmoq/uyacha nuqtasi — yuzlab metr xato
+        // bo'lishi mumkin («pin qimirladi, lekin noto'g'ri joy» shikoyati aynan shu edi). Brauzer
+        // yo'lidagi toraytirish bu yerda YO'Q edi. Endi aniqlik past bo'lsa toraytiramiz va faqat
+        // HAQIQATDAN yaxshiroq o'qish kelsa pinni ko'chiramiz — aks holda Telegram nuqtasi qoladi.
+        if (r.accuracy > COARSE_M) {
+          const b = await browserBestFix(6000);
+          if (b && b.coords.accuracy < r.accuracy) apply(b.coords.latitude, b.coords.longitude, b.coords.accuracy);
+        }
+        setLocating(false);
+        return;
+      }
+      setLocating(false);
+      if (r.error === "denied") {
         flashMsg(auto ? "📍 Joylashuv yopiq — pinni qo'lda suring yoki 📍 ni bosing" : "📍 Joylashuvga ruxsat berilmagan — sozlamalardan yoqing", 6000);
         if (!auto) tgOpenLocationSettings(); // deep-link so the user can re-grant in one tap
       } else {
@@ -970,40 +1018,10 @@ function Booking3Inner({ me, info, onClose }: { me: MeResponse; info: BookingInf
       return;
     }
 
-    if (!navigator.geolocation) {
-      setLocating(false);
-      flashMsg("📍 Joylashuv mavjud emas — manzilni qo'lda belgilang", 6000);
-      return;
-    }
-    // browser fallback — WATCH for a few seconds and keep the most accurate reading. The FIRST fix is
-    // often a coarse network position (~50 m off) because the GPS chip hasn't locked yet; it refines
-    // from ~50 m to ~5 m, so we stop early once it's tight and recenter on the best fix.
-    let best: GeolocationPosition | null = null;
-    let watchId = 0;
-    let done = false;
-    let timer: ReturnType<typeof setTimeout>;
-    const finish = () => {
-      if (done) return;
-      done = true;
-      navigator.geolocation.clearWatch(watchId);
-      clearTimeout(timer);
-      setLocating(false);
-      if (best && map.current) {
-        map.current.setView([best.coords.latitude, best.coords.longitude], 17, { animate: true });
-        flashMsg(best.coords.accuracy <= 35 ? null : "📍 Aniqlik past — kerak bo'lsa pinni biroz suring");
-      } else {
-        flashMsg("📍 Joylashuvni aniqlab bo'lmadi — ruxsat bering yoki qo'lda belgilang", 6000);
-      }
-    };
-    timer = setTimeout(finish, 7000); // cap: recenter on the best fix gathered within 7s
-    watchId = navigator.geolocation.watchPosition(
-      (pos) => {
-        if (!best || pos.coords.accuracy < best.coords.accuracy) best = pos; // keep the tightest fix
-        if (pos.coords.accuracy <= 15) finish(); // good enough → stop early
-      },
-      () => { if (!best) finish(); },
-      { enableHighAccuracy: true, timeout: 14000, maximumAge: 0 },
-    );
+    const b = await browserBestFix(7000);
+    setLocating(false);
+    if (b) apply(b.coords.latitude, b.coords.longitude, b.coords.accuracy);
+    else flashMsg("📍 Joylashuvni aniqlab bo'lmadi — ruxsat bering yoki qo'lda belgilang", 6000);
   };
 
   // 📍 OCHILGANDA O'ZI ANIQLASH (feature:autoloc). Ilgari GPS FAQAT 📍 tugmasi bosilganda

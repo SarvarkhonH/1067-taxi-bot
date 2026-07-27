@@ -3505,3 +3505,48 @@ tugma o'zini avto-rejimdek tutardi (titrashsiz, sozlamalar havolasisiz). `() => 
 **Holat:** `ready for verification` — **egadan kutiladi (R6):** telefonda taksi xaritasini ochib,
 pin haqiqatan turgan joyingizga tushayotganini tasdiqlash. Yoqmasa bir buyruq bilan qaytadi:
 `tsx src/scripts/setFlag.ts autoloc off`.
+
+---
+
+## §60 — 🗂 BIRJOYMARKET KATALOGI: 30 KATEGORIYA + MAHSULOT PASPORTI · 2026-07-27
+
+**Ega so'radi:** supermarket/mini-market darajasidagi katalog — 30 ta kategoriya (emoji bilan) +
+har mahsulot uchun to'liq ma'lumot (barkod, SKU, brend, hajm, ishlab chiqaruvchi, yaroqlilik
+muddati, yetkazib beruvchi…). DoD: `BIRJOY_KATALOG_DOD.md`.
+**Ega qarori:** barkod/SKU/yetkazib beruvchi — FAQAT sotuvchi va admin ko'radi, mijozga yo'q.
+
+**Kod (yozildi, typecheck 4/4 toza):**
+| Qatlam | O'zgarish |
+|---|---|
+| `shared/types.ts` | `MARKET_CATEGORIES` (30 ta slug/nom/emoji) · `SHOP_CATEGORIES` shundan hosil bo'ladi (+ `Aksiya` + mahsuloti bor 4 eski nom) · `ShopProductView` ga brand/unit/manufacturer/expiryDate |
+| `schema.prisma` | `Product` +7 nullable ustun (barcode/sku/brand/unit/manufacturer/expiryDate/supplier) + `Product_barcode_idx` |
+| `shopService.ts` | `cleanPatch` validatsiyasi (barkod 8–14 raqam, ISO sana, uzunlik cheklovlari; bo'sh satr = tozalash) · mijoz-javobiga faqat 4 maydon · admin-javobiga 7 tasi ham · `getMarketHome` qidiruviga BREND + (sof raqamli so'rovda) BARKOD |
+| `admin/App.tsx` | qo'shish formasiga brend/hajm/barkod · tahrir formasiga 7 maydon (2 blok: «mijoz ko'radi» / «🔒 ichki») · kartada 🏷brend ⚖️hajm + ⛔/⏳ muddat-bayrog'i · qidiruv barkod/SKU/brend/yetkazib beruvchi bo'yicha · **kategoriya endi majburiy tanlov** (default «umumiy» olib tashlandi — jonli bazada 37 mahsulot shu sabab «umumiy»da qolgan) |
+| `miniapp/shop.tsx` | kartada «brend · hajm» qatori · detalda **«Xususiyatlari»** jadvali (faqat to'ldirilgan satrlar; muddat o'tgan/7 kundan kam qolganda ogohlantirish) · client-qidiruvga brend |
+| `scripts/seedMarketCategories.ts` | IDEMPOTENT seed: `PARFUMERIYA`→`Parfumeriya` birlashtirish · 30 kategoriya upsert (ikonka-rasmga TEGMAYDI) · bo'sh eski kategoriyalarni o'chirish, mahsuloti borlarini oxirida saqlash · ISBOT: kategoriyasiz mahsulot soni |
+| `scripts/testProductPatch.ts` | 23 ta validatsiya sinovi, DB'siz |
+
+**Isbot (buyruq + natija):**
+- `pnpm -r typecheck` → 4/4 paket **Done, 0 xato**
+- `tsx src/scripts/testProductPatch.ts` → **23 o'tdi · 0 yiqildi**
+- `#shopdemo` (jonli komponent daraxti): to'liq pasport → jadval 4 satr · muddati 3 kun qolgan →
+  «30.07.2026 · 3 kun qoldi» · pasportsiz mahsulot → **jadval umuman chizilmaydi** · kartada
+  «Coca-Cola · 1.5 L» · konsolda 0 xato
+- `prisma migrate diff` → mening o'zgarishim: `ALTER TABLE "Product" ADD COLUMN` ×7 +
+  `CREATE INDEX "Product_barcode_idx"`
+
+**⚠️ YO'L-YO'LAKAY TOPILDI (ikkita, ikkalasi ham hali YOPILMAGAN):**
+1. **Lokal `.env` JONLI BAZAGA QARAMAYDI.** `DATABASE_URL` hamon **Neon**'ga ishora qiladi, jonli
+   baza esa 2026-07-25 cutover'dan beri **VPS'dagi `localhost:5432/birjoy`**. Ya'ni bu sessiyadagi
+   barcha "jonli" o'lchovlar (175 mahsulot, kategoriya sanoqlari) — **Neondagi eski nusxadan**.
+   `migrate diff` ham shuni ko'rsatadi: Neon'da `Ravella*` jadvallari va `MarketOrder.eta*`
+   ustunlari YO'Q (cutover'dan keyingi ishlar). **db:push va seed ALBATTA VPS bazasiga qarshi
+   yugurishi kerak**, aks holda hech narsa o'zgarmaydi.
+2. **27 mahsulot hozir kategoriya-karuselida ko'rinmaydi** (Neon nusxasida): ularning kategoriyasi
+   `PARFUMERIYA`, `CategoryDef`da esa faqat `Parfumeriya` bor — karusel NOM bo'yicha solishtiradi.
+   Seed skripti shuni tuzatadi.
+
+**Holat:** `ready for verification` (kod) · **DB qadami hali BAJARILMAGAN** — ega tasdig'i kerak:
+VPS'da `pnpm db:push` + `seedMarketCategories.ts --apply`. K9 (admin-forma) va K10 (miniapp jadval)
+ega telefonida QABUL kutadi; K12 (brend/barkod qidiruvi) — `#shopdemo` mock-serveri qidiruvni
+filtrlamaydi, shuning uchun faqat jonli tekshiriladi.

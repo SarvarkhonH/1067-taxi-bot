@@ -1615,11 +1615,16 @@ function CampaignsView() {
 interface ShopDraft {
   name: string; category: string; description: string;
   priceTanga: string; oldPriceTanga: string; stock: string;
+  // 🏷 Katalog-pasport (ega, 2026-07-27). Bo'sh satr = maydonni tozalash (server null qiladi).
+  brand: string; unit: string; manufacturer: string; expiryDate: string;
+  barcode: string; sku: string; supplier: string; // ICHKI — mijozga ko'rinmaydi
 }
 function shopDraftFromRow(p: ShopAdminProductRow): ShopDraft {
   return {
     name: p.name, category: p.category, description: p.description ?? "",
     priceTanga: String(p.priceTanga), oldPriceTanga: p.oldPriceTanga != null ? String(p.oldPriceTanga) : "", stock: String(p.stock),
+    brand: p.brand ?? "", unit: p.unit ?? "", manufacturer: p.manufacturer ?? "", expiryDate: p.expiryDate ?? "",
+    barcode: p.barcode ?? "", sku: p.sku ?? "", supplier: p.supplier ?? "",
   };
 }
 
@@ -1943,8 +1948,15 @@ function ShopAdminView() {
   const [name, setName] = useState("");
   const [price, setPrice] = useState("");
   const [stock, setStock] = useState("");
-  const [category, setCategory] = useState("umumiy");
+  // Katalog (2026-07-27): default kategoriya YO'Q — avval "umumiy" edi va shu sabab jonli bazada
+  // 37 ta mahsulot "umumiy"da yig'ilib qolgan (sotuvchi tanlashni o'ylab ham ko'rmagan). Endi
+  // ongli tanlov talab qilinadi.
+  const [category, setCategory] = useState("");
   const [desc, setDesc] = useState("");
+  // 🏷 Katalog-pasport: tez-qo'shishda eng ko'p kerak bo'ladigan 3 tasi (qolgani tahrir formasida)
+  const [brand, setBrand] = useState("");
+  const [unit, setUnit] = useState("");
+  const [barcode, setBarcode] = useState("");
   const [msg, setMsg] = useState("");
   const [q, setQ] = useState("");
   const [stFilter, setStFilter] = useState<string>("all");
@@ -1995,13 +2007,17 @@ function ShopAdminView() {
   const create = async () => {
     const p = Number(price), s = Number(stock);
     if (!name.trim() || p <= 0) { setMsg("⚠️ Nom va narx to'g'ri bo'lsin"); return; }
+    if (!category.trim()) { setMsg("⚠️ Kategoriyani tanlang — mijoz mahsulotni shu orqali topadi"); return; }
     // ko'p-do'kon: aniq tanlanmagan bo'lsa qaysi do'konga tushishini owner bilmaydi — talab qilamiz
     if (myShops && myShops.length > 1 && !shopId) { setMsg("⚠️ Avval yuqorida do'kon tanlang"); return; }
     // real error surfaced (was a blind "❌ Xatolik" — undiagnosable remotely)
-    const r = await adminApi.shopCreate({ name: name.trim(), priceTanga: p, stock: Math.max(0, s || 0), category: category.trim() || "umumiy", description: desc.trim() || undefined }, shopId ?? undefined)
+    const r = await adminApi.shopCreate({
+      name: name.trim(), priceTanga: p, stock: Math.max(0, s || 0), category: category.trim(), description: desc.trim() || undefined,
+      brand: brand.trim() || undefined, unit: unit.trim() || undefined, barcode: barcode.trim() || undefined,
+    }, shopId ?? undefined)
       .catch((e: Error) => ({ ok: false as const, error: e.message }));
     setMsg(r.ok ? "✅ Qo'shildi (o'chiq holda — rasm yuklab, keyin yoqing)" : `❌ Qo'shilmadi: ${("error" in r && r.error) || "server javob bermadi — 1 daqiqadan keyin urinib ko'ring"}`);
-    if (r.ok) { setName(""); setPrice(""); setStock(""); setDesc(""); setShowAdd(false); load(); }
+    if (r.ok) { setName(""); setPrice(""); setStock(""); setDesc(""); setBrand(""); setUnit(""); setBarcode(""); setCategory(""); setShowAdd(false); load(); }
   };
 
   const toggleExpand = (p: ShopAdminProductRow) => {
@@ -2020,6 +2036,10 @@ function ShopAdminView() {
       name: draft.name, category: draft.category || "umumiy", description: draft.description,
       priceTanga, stock: Number.isFinite(stock) ? stock : 0,
       oldPriceTanga: draft.oldPriceTanga.trim() === "" ? 0 : Number(draft.oldPriceTanga),
+      // 🏷 pasport — bo'sh satr YUBORILADI (undefined emas): server uni null qiladi, ya'ni
+      // sotuvchi maydonni tozalay oladi. Barkod/sana noto'g'ri bo'lsa server o'zi null qiladi.
+      brand: draft.brand, unit: draft.unit, manufacturer: draft.manufacturer, expiryDate: draft.expiryDate,
+      barcode: draft.barcode, sku: draft.sku, supplier: draft.supplier,
     };
     const r = await adminApi.shopEdit(id, patch).catch((e: Error) => ({ ok: false as const, error: e.message }));
     setMsg(r.ok ? "✅ Saqlandi" : "❌ Saqlanmadi");
@@ -2059,7 +2079,11 @@ function ShopAdminView() {
     .filter((p) => (catFilter === "all" ? true : p.category === catFilter))
     .filter((p) => {
       const t = q.trim().toLowerCase();
-      return !t || p.name.toLowerCase().includes(t) || p.category.toLowerCase().includes(t);
+      // 🏷 Katalog: sotuvchi barkod/SKU/brend bo'yicha ham topa oladi (skanerdan ko'chirib qo'yish
+      // yoki ombor-kodini yozish) — bu maydonlar faqat SHU panelda ko'rinadi, mijozda emas.
+      return !t || p.name.toLowerCase().includes(t) || p.category.toLowerCase().includes(t)
+        || (p.brand ?? "").toLowerCase().includes(t) || (p.barcode ?? "").includes(t)
+        || (p.sku ?? "").toLowerCase().includes(t) || (p.supplier ?? "").toLowerCase().includes(t);
     });
 
   // §10.1: global qidiruv — mijoz-nom, telefon, yoki buyurtma-ID
@@ -2144,7 +2168,10 @@ function ShopAdminView() {
             <div className="adm-field"><span className="adm-field-label">Nomi</span><input value={name} onChange={(e) => setName(e.target.value)} placeholder="Elektro choynak Vitek" /></div>
             <div className="adm-field"><span className="adm-field-label">Narx (tanga)</span><input type="number" value={price} onChange={(e) => setPrice(e.target.value)} /></div>
             <div className="adm-field"><span className="adm-field-label">Soni</span><input type="number" value={stock} onChange={(e) => setStock(e.target.value)} /></div>
-            <div className="adm-field"><span className="adm-field-label">Kategoriya</span><select value={category} onChange={(e) => setCategory(e.target.value)}>{category && !SHOP_CATEGORIES.includes(category as (typeof SHOP_CATEGORIES)[number]) && <option value={category}>{category}</option>}{SHOP_CATEGORIES.map((c) => <option key={c} value={c}>{c}</option>)}</select></div>
+            <div className="adm-field"><span className="adm-field-label">Kategoriya</span><select value={category} onChange={(e) => setCategory(e.target.value)}><option value="">— tanlang —</option>{SHOP_CATEGORIES.map((c) => <option key={c} value={c}>{c}</option>)}</select></div>
+            <div className="adm-field"><span className="adm-field-label">Brend (ixtiyoriy)</span><input value={brand} onChange={(e) => setBrand(e.target.value)} placeholder="Coca-Cola" /></div>
+            <div className="adm-field"><span className="adm-field-label">Hajm / og&apos;irlik</span><input value={unit} onChange={(e) => setUnit(e.target.value)} placeholder="1.5 L / 500 g" /></div>
+            <div className="adm-field"><span className="adm-field-label">Barkod (ichki)</span><input value={barcode} onChange={(e) => setBarcode(e.target.value)} placeholder="5449000000999" inputMode="numeric" /></div>
             <div className="adm-field"><span className="adm-field-label">Tavsif (ixtiyoriy)</span><input value={desc} onChange={(e) => setDesc(e.target.value)} /></div>
             <div className="adm-field">
               <span className="adm-field-label">&nbsp;</span>
@@ -2177,10 +2204,20 @@ function ShopAdminView() {
                   <span className={"badge " + (p.active ? "badge-ok" : "badge-muted")}>{p.active ? "🟢 Yoniq" : "🔴 O'chiq"}</span>
                   {p.featured && <span className="badge badge-warn">⭐ TOP&apos;da</span>}
                   {p.oldPriceTanga ? <span className="badge badge-bad">💥 −{Math.round((1 - p.priceTanga / p.oldPriceTanga) * 100)}%</span> : null}
+                  {/* 🏷 Muddat-nazorati: o'tgan = qizil, 30 kundan kam qolgan = sariq. Supermarket
+                      uchun eng muhim signal — javondagi eskirgan mahsulotni darhol ko'rsatadi. */}
+                  {p.expiryDate && (() => {
+                    const left = Math.ceil((new Date(`${p.expiryDate}T00:00:00Z`).getTime() - Date.now()) / 86400_000);
+                    if (left < 0) return <span className="badge badge-bad">⛔ Muddati o&apos;tgan</span>;
+                    if (left <= 30) return <span className="badge badge-warn">⏳ {left} kun qoldi</span>;
+                    return null;
+                  })()}
                 </div>
                 <div className="adm-card-sub">
                   {!shopId && p.shopName && <span>🏪 {p.shopName}</span>}
                   <span>{p.category}</span>
+                  {p.brand && <span>🏷 {p.brand}</span>}
+                  {p.unit && <span>⚖️ {p.unit}</span>}
                   <span>🪙 {p.priceTanga.toLocaleString("ru-RU")}</span>
                   <span>📦 {p.stock} dona</span>
                   <span>sotildi: {p.soldCount}</span>
@@ -2210,6 +2247,20 @@ function ShopAdminView() {
                 <div className="adm-field" style={{ marginTop: 10 }}>
                   <span className="adm-field-label">Tavsif</span>
                   <textarea value={draft.description} onChange={(e) => setDraft({ ...draft, description: e.target.value })} placeholder="Qisqa tavsif…" />
+                </div>
+                {/* 🏷 Katalog-pasport. Yuqori blok — MIJOZ ko'radi, pastki blok — faqat shu panel. */}
+                <p className="adm-field-hint" style={{ marginTop: 12, marginBottom: 4 }}><b>🏷 Mahsulot ma&apos;lumoti</b> — mijoz mahsulot sahifasida ko&apos;radi</p>
+                <div className="adm-form-grid wide">
+                  <div className="adm-field"><span className="adm-field-label">Brend</span><input value={draft.brand} onChange={(e) => setDraft({ ...draft, brand: e.target.value })} placeholder="Coca-Cola" /></div>
+                  <div className="adm-field"><span className="adm-field-label">Hajm / og&apos;irlik</span><input value={draft.unit} onChange={(e) => setDraft({ ...draft, unit: e.target.value })} placeholder="1.5 L / 500 g" /></div>
+                  <div className="adm-field"><span className="adm-field-label">Ishlab chiqaruvchi</span><input value={draft.manufacturer} onChange={(e) => setDraft({ ...draft, manufacturer: e.target.value })} placeholder="Coca-Cola Ichimligi UZ" /></div>
+                  <div className="adm-field"><span className="adm-field-label">Yaroqlilik muddati</span><input type="date" value={draft.expiryDate} onChange={(e) => setDraft({ ...draft, expiryDate: e.target.value })} /></div>
+                </div>
+                <p className="adm-field-hint" style={{ marginTop: 12, marginBottom: 4 }}><b>🔒 Ichki ma&apos;lumot</b> — faqat siz ko&apos;rasiz, mijozga ko&apos;rinmaydi</p>
+                <div className="adm-form-grid wide">
+                  <div className="adm-field"><span className="adm-field-label">Barkod</span><input value={draft.barcode} onChange={(e) => setDraft({ ...draft, barcode: e.target.value })} placeholder="5449000000999" inputMode="numeric" /></div>
+                  <div className="adm-field"><span className="adm-field-label">SKU (ichki kod)</span><input value={draft.sku} onChange={(e) => setDraft({ ...draft, sku: e.target.value })} placeholder="COLA-1.5" /></div>
+                  <div className="adm-field"><span className="adm-field-label">Yetkazib beruvchi</span><input value={draft.supplier} onChange={(e) => setDraft({ ...draft, supplier: e.target.value })} placeholder="Ulgurji baza / firma" /></div>
                 </div>
                 <div className="adm-card-body-foot">
                   <button className="btn" disabled={saving} onClick={() => void saveDraft(p.id)}>{saving ? "Saqlanmoqda…" : "💾 Saqlash"}</button>

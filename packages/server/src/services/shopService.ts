@@ -6,6 +6,9 @@
 // (V0.2 BirJoy audit: flip+refund atomik — throw = rollback = order pending'da qoladi). NO lootboxes — the
 // owner's hard rule: deterministic price ↔ product only. UI word is "tanga", never "coin".
 import {
+  PRODUCT_BARCODE_MAX,
+  PRODUCT_BARCODE_MIN,
+  PRODUCT_TEXT_MAX,
   SHOP_ANNOUNCEMENT_MAX,
   SHOP_LOW_STOCK,
   SHOP_MAX_PRICE,
@@ -83,6 +86,13 @@ export async function listActiveProducts(preview = false, memberId?: number, sho
     deliveryText: p.shopId ? shopOf.get(p.shopId)?.deliveryText ?? null : null,
     favCount: p.favCount,
     isFav: favIds.has(p.id),
+    // 🏷 Katalog-pasport — MIJOZGA ko'rinadigan qismi. barcode/sku/supplier ATAYLAB yo'q (ega
+    // qarori: ichki ma'lumot) — shu sababli mijoz-qidiruvi ular bo'yicha emas, nom/kategoriya/
+    // brend bo'yicha ishlaydi; barkod/SKU qidiruvi sotuvchi-panelida (adminListProducts).
+    brand: p.brand,
+    unit: p.unit,
+    manufacturer: p.manufacturer,
+    expiryDate: p.expiryDate ? p.expiryDate.toISOString().slice(0, 10) : null,
   }));
 }
 
@@ -200,7 +210,13 @@ export async function getMarketHome(preview = false, q?: string, memberId?: numb
   let filtered = products;
   if (query) {
     const ql = query.toLowerCase();
-    filtered = products.filter((p) => p.name.toLowerCase().includes(ql) || (p.description ?? "").toLowerCase().includes(ql) || p.category.toLowerCase().includes(ql));
+    // 🏷 Katalog: BREND ham qidiriladi ("coca" → Coca-Cola mahsulotlari). Barkod — faqat so'rov
+    // sof raqam bo'lsa (mijoz qadoqdagi raqamni ko'chirib yozsa): maydonning o'zi javobda YO'Q,
+    // shuning uchun moslik DB'dan alohida topiladi. Raqamsiz so'rovda qo'shimcha so'rov ketmaydi.
+    const barcodeIds = /^\d{8,14}$/.test(query)
+      ? new Set((await prisma.product.findMany({ where: { barcode: query, active: true, stock: { gt: 0 } }, select: { id: true } })).map((r) => r.id))
+      : new Set<number>();
+    filtered = products.filter((p) => p.name.toLowerCase().includes(ql) || (p.description ?? "").toLowerCase().includes(ql) || p.category.toLowerCase().includes(ql) || (p.brand ?? "").toLowerCase().includes(ql) || barcodeIds.has(p.id));
     // AUDIT TOPDI: mahsulot topilmasa "qidirildi-topilmadi" ro'yxatiga yozilardi — hatto mijoz
     // MAVJUD DO'KON nomini yozgan bo'lsa ham. Natijada eganing "yo'q mahsulotlar" hisoboti
     // allaqachon bor do'kon nomlari bilan to'lardi. Endi do'kon-nomi mos kelsa — bu talab emas.
@@ -730,6 +746,15 @@ export interface AdminProductRow {
   photoCount: number;
   soldCount: number;
   createdAt: string;
+  // 🏷 Katalog-pasport — sotuvchi/admin TO'LIQ ko'radi (mijoz-javobidan farqli o'laroq bu yerda
+  // barcode/sku/supplier ham bor: bu sirt token bilan himoyalangan va do'kon-ko'lamli).
+  barcode: string | null;
+  sku: string | null;
+  brand: string | null;
+  unit: string | null;
+  manufacturer: string | null;
+  expiryDate: string | null; // "YYYY-MM-DD"
+  supplier: string | null;
 }
 
 // ── 📹 S1: do'kon-hikoya (Instagram/Snapchat-uslub, 24 soatda yo'qoladi) ──────────────────────────
@@ -979,6 +1004,13 @@ export async function adminListProducts(scopeShopId?: number): Promise<{ product
       photoCount: photosOf.get(p.id) ?? (p.photoFileId || p.photoUrl ? 1 : 0),
       soldCount: soldOf.get(p.id) ?? 0,
       createdAt: p.createdAt.toISOString(),
+      barcode: p.barcode,
+      sku: p.sku,
+      brand: p.brand,
+      unit: p.unit,
+      manufacturer: p.manufacturer,
+      expiryDate: p.expiryDate ? p.expiryDate.toISOString().slice(0, 10) : null,
+      supplier: p.supplier,
     })),
   };
 }
@@ -992,10 +1024,34 @@ export interface ProductPatch {
   featured?: boolean;
   stock?: number;
   sortOrder?: number;
+  // 🏷 Katalog-pasport (ega, 2026-07-27). Bo'sh satr = maydonni TOZALASH (null), shuning uchun
+  // `string | null`: forma bo'sh input yuborsa eski qiymat qolib ketmaydi.
+  barcode?: string | null;
+  sku?: string | null;
+  brand?: string | null;
+  unit?: string | null;
+  manufacturer?: string | null;
+  expiryDate?: string | null; // "YYYY-MM-DD" (bo'sh = tozalash)
+  supplier?: string | null;
 }
 
-function cleanPatch(b: ProductPatch): ProductPatch {
-  const out: ProductPatch = {};
+/** Prisma'ga uzatiladigan tozalangan patch. `expiryDate` string→Date ga aylanadi, shuning uchun
+ *  qaytish turi ProductPatch EMAS (u API-shakli, bu — DB-shakli). */
+type ProductData = Omit<ProductPatch, "expiryDate"> & { expiryDate?: Date | null };
+
+/** Bo'sh/probel satr → null (tozalash), aks holda kesilgan matn. undefined → tegilmaydi. */
+function cleanText(v: string | null | undefined, max: number): string | null | undefined {
+  if (v === undefined) return undefined;
+  if (v === null) return null;
+  if (typeof v !== "string") return undefined;
+  const t = v.trim().slice(0, max);
+  return t || null;
+}
+
+/** `export` — sof funksiya, DB'ga tegmaydi; scripts/testProductPatch.ts uni jonli bazasiz
+ *  sinaydi (repo'da server uchun test-runner yo'q, konventsiya — tsx skript). */
+export function cleanPatch(b: ProductPatch): ProductData {
+  const out: ProductData = {};
   if (typeof b.name === "string" && b.name.trim()) out.name = b.name.trim().slice(0, 80);
   if (typeof b.description === "string") out.description = b.description.trim().slice(0, 400) || null;
   if (typeof b.category === "string" && b.category.trim()) out.category = b.category.trim().slice(0, 40);
@@ -1007,6 +1063,24 @@ function cleanPatch(b: ProductPatch): ProductPatch {
   if (typeof b.featured === "boolean") out.featured = b.featured;
   if (typeof b.stock === "number" && Number.isFinite(b.stock)) out.stock = Math.min(100000, Math.max(0, Math.floor(b.stock)));
   if (typeof b.sortOrder === "number" && Number.isFinite(b.sortOrder)) out.sortOrder = Math.floor(b.sortOrder);
+  // 🏷 pasport
+  const brand = cleanText(b.brand, PRODUCT_TEXT_MAX.brand); if (brand !== undefined) out.brand = brand;
+  const unit = cleanText(b.unit, PRODUCT_TEXT_MAX.unit); if (unit !== undefined) out.unit = unit;
+  const manuf = cleanText(b.manufacturer, PRODUCT_TEXT_MAX.manufacturer); if (manuf !== undefined) out.manufacturer = manuf;
+  const supp = cleanText(b.supplier, PRODUCT_TEXT_MAX.supplier); if (supp !== undefined) out.supplier = supp;
+  const sku = cleanText(b.sku, PRODUCT_TEXT_MAX.sku); if (sku !== undefined) out.sku = sku;
+  // barkod: faqat raqamlar (defis/probel tashlanadi); noto'g'ri uzunlik → null (soxta barkod
+  // saqlashdan ko'ra bo'sh qolgani yaxshi — keyin skaner bilan solishtirganda adashtirmaydi)
+  if (b.barcode !== undefined) {
+    const digits = typeof b.barcode === "string" ? b.barcode.replace(/\D/g, "") : "";
+    out.barcode = digits.length >= PRODUCT_BARCODE_MIN && digits.length <= PRODUCT_BARCODE_MAX ? digits : null;
+  }
+  // yaroqlilik muddati: "YYYY-MM-DD" (kun boshi, UTC). Xato sana → null.
+  if (b.expiryDate !== undefined) {
+    const s = typeof b.expiryDate === "string" ? b.expiryDate.trim().slice(0, 10) : "";
+    const d = /^\d{4}-\d{2}-\d{2}$/.test(s) ? new Date(`${s}T00:00:00.000Z`) : null;
+    out.expiryDate = d && !Number.isNaN(d.getTime()) ? d : null;
+  }
   return out;
 }
 
