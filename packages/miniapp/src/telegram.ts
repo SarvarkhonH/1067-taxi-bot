@@ -512,9 +512,18 @@ export function onActiveChange(cb: (active: boolean) => void): () => void {
 // Telegram hisobiga bog'langan kalit-qiymat: telefon almashtirilsa yoki Desktop'dan kirilsa ham
 // qoladi. Bu yerda FAQAT kichik UI-afzalliklari saqlanadi (mavzu, rad etilgan taklif) — pul,
 // buyurtma yoki shaxsiy ma'lumot EMAS. localStorage tez manba bo'lib qoladi; bulut — nusxa.
+/** Klient CloudStorage'ni ROSTDAN qo'llab-quvvatlaydimi. Faqat `CloudStorage` obyektining borligi
+ *  YETARLI EMAS: Telegram Web'ning 6.0 qobig'ida obyekt BOR, lekin chaqirilganda SDK konsolga
+ *  «CloudStorage is not supported in version 6.0» deb xato yozadi va callback'ni HECH QACHON
+ *  chaqirmaydi — o'qish quyidagi 3s taymerigacha osilib qolardi. Boshqa hamma Telegram-imkoniyati
+ *  (requestContact 6.9, addToHomeScreen 8.0, shareToStory 7.8) shu naqsh bilan tekshiriladi. */
+function cloudReady(): boolean {
+  return !!tg?.CloudStorage?.getItem && tg.isVersionAtLeast?.("6.9") !== false;
+}
+
 export function cloudGet(key: string): Promise<string | null> {
   return new Promise((resolve) => {
-    const cs = tg?.CloudStorage;
+    const cs = cloudReady() ? tg?.CloudStorage : null;
     if (!cs?.getItem) { resolve(null); return; }
     let settled = false;
     const done = (v: string | null) => { if (!settled) { settled = true; resolve(v); } };
@@ -532,6 +541,7 @@ export function cloudGet(key: string): Promise<string | null> {
  *  baribir yozilgan va ilova ishlashda davom etadi. */
 export function cloudSet(key: string, value: string): void {
   try {
+    if (!cloudReady()) return; // eski klient — mahalliy nusxa yetarli, konsolni xato bilan to'ldirmaymiz
     tg?.CloudStorage?.setItem?.(key, value.slice(0, 4096), () => undefined);
   } catch {
     /* qo'llab-quvvatlanmaydi — mahalliy nusxa yetarli */
