@@ -32,23 +32,33 @@ Sen 1067 loyihasining bosh muhandisi VA mahsulot dizaynerisan. Har qaror ikkala 
 - Testlar JONLI Postgres'ga uriladi: jackpot_pool / mashina_fund kabi global
   holatni snapshot-restore qil; TAG'li throwaway satrlar + to'liq cleanup.
 - BOOKING_LIVE=true lokal .env'da — booking testlari BOOKING_LIVE=false bilan.
-- Vercel deploy: `VITE_API_URL=<render> vite build` → dist'ni .vercel/output/static'ga
-  KO'CHIR → `vercel deploy --prebuilt --prod`. Keyin BUNDLE GREP bilan isbotla
-  (`vercel build` eski outputni qoldirishi mumkin — bir marta aldagan).
-- Render deploy (2026-07-21'dan): autoDeploy O'CHIQ — deploy FAQAT GH Actions `deploy` jobi
-  orqali (CI shield yashil bo'lsa avtomatik; qo'lda kerak bo'lsa POST .../deploys). Start
-  buyrug'ida `prisma db push` YO'Q — sxema o'zgarishi ALOHIDA ONGLI qadam: avval
-  `prisma migrate diff` bilan diff ko'r, keyin lokaldan `pnpm db:push`, KEYIN kod push.
-  Jonli servis: kas1067-taxi-fra (srv-d8mj9kkm0tmc73d72440); eski kas1067-taxi-bot
-  suspend — HECH QACHON resume qilma. Health-monitor + tungi backup: GH Actions
-  (health.yml/backup.yml; secrets: RENDER_API_KEY, BOT_TOKEN, ALERT_CHAT_ID, DATABASE_URL).
-  Flag toggle HAR DOIM alert beradi (admin-panel/setFlag.ts) — jim toggle taqiq.
+- ⛔ **NEON'GA HECH NARSA YOZILMAYDI** (ega qarori 2026-07-27). Neon — 2026-07-25 cutover'dan
+  oldingi MUZLATILGAN nusxa; undagi raqamlar JONLI HAQIQAT EMAS (bir marta aldagan: "175 mahsulot"
+  o'lchovi Neon'dan olingan edi). Lokal `.env`dagi Neon URL'lari izohga olingan, `migrateToNeon.ts`
+  o'chirilgan. Lokaldan `pnpm db:push` / seed / diagnostika skriptlari **ISHLAMAYDI va ishlamasligi
+  KERAK** (localhost:5433 → P1001) — hammasi VPS'da yuriladi.
+- **Deploy (2026-07-25 Contabo cutover'dan keyin — Render/Vercel ENDI YO'Q):** jonli tizim bitta
+  VPS'da: `169.58.55.249` (birjoy.online) · bot `systemd bot1067` · frontendlar `/var/www/{miniapp,
+  admin}` · **baza VPS ichida `localhost:5432/birjoy`** (tashqaridan yopiq). Deploy = `main`ga push
+  → CI yashil → GH Actions SSH bilan `bash /opt/app/deploy/deploy.sh` (pull → build → rsync →
+  `systemctl restart bot1067` → health). `deploy.sh`da `prisma db push` YO'Q — sxema o'zgarishi
+  ALOHIDA ONGLI qadam va **VPS'da** bajariladi, kod push'idan OLDIN (ustun yo'q bo'lsa yangi kod
+  har mahsulot so'rovida yiqiladi):
+  `ssh -i ~/.ssh/id_ed25519_1067vps root@169.58.55.249` → `cd /opt/app` →
+  `pnpm --filter @t1067/server exec dotenv -e ../../.env -- prisma migrate diff --from-schema-datasource prisma/schema.prisma --to-schema-datamodel prisma/schema.prisma --script`
+  (diff ni O'QI) → `… prisma db push`. Skript yugurtirish ham shu yerda:
+  `cd /opt/app/packages/server && npx dotenv -e ../../.env -- npx tsx src/scripts/<skript>.ts`.
+  Isbot: `/health` + jonli bundle grep (`/var/www/miniapp/assets/*.js`).
+  Health-monitor: GH Actions `health.yml` → `https://api.birjoy.online/health`. Tungi backup: VPS
+  cron (`deploy/backup-cron.sh`). Flag toggle HAR DOIM alert beradi — jim toggle taqiq.
 - kas1067: sahifa ~50 cap; terminal status "delivered" (payment bilan).
 - SWEEP testlari (testPhantomRide/testRideCard global finish-sweep'ni yurgizadi) — APP DB'da
   HECH QACHON: jonli bot'ning 90s sweep'i test a'zolarini poygalaydi → flaky + prod'ni buzadi
   (T3-bug'ni shu pattern yashirgan). `_testDb` ALOHIDA DB talab qiladi (TEST_DATABASE_URL),
   app DB'da ishlashdan BOSH TORTADI; +sweep `memberScope` bilan faqat o'z TAG-a'zolariga
-  qisqartiriladi. App DB=Neon EU (DATABASE_URL); TEST_DATABASE_URL=alohida (Render kas1067_db).
+  qisqartiriladi. App DB = VPS `localhost:5432/birjoy`. **TEST_DATABASE_URL hozir YO'Q** — u Neon'da
+  edi va 2026-07-27'da o'chirildi, ya'ni sweep-testlari yugurmaydi; kerak bo'lsa VPS'da alohida
+  `birjoy_test` bazasi ochilsin (app bazasiga HECH QACHON emas).
   Trust isboti: gate'ni 3× ket-ket yashil yugurt (flaky pul-test = ishonchsiz gate).
 
 ## TAYYORLIK TA'RIFI & TEKSHIRUV PROTOKOLI (DoD) — har qanday yumshoqroq "done"ni BEKOR qiladi

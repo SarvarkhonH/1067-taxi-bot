@@ -90,9 +90,16 @@ strongest part — preserve it.
 - **Tests are manual tsx scripts against LIVE Postgres.** CI runs typecheck only — money logic has NO
   automated test. Use a SEPARATE `TEST_DATABASE_URL`; never run sweep tests against the app DB (the
   live 90s sweep will chase your test rows). See CLAUDE.md "TEXNIK ESLATMALAR".
-- **Deploy**: server = push to `main` → Render auto-deploy (start cmd runs `prisma db push` — run
-  destructive schema locally first). Mini App = `VITE_API_URL=<render> vite build` → copy `dist` to
-  `.vercel/output/static` → `vercel deploy --prebuilt --prod`, then GREP the live bundle to prove it.
+- **Deploy (2026-07-25 Contabo cutover — Render/Vercel are GONE)**: everything runs on ONE VPS,
+  `169.58.55.249` / birjoy.online — bot under `systemd bot1067`, front-ends served from
+  `/var/www/{miniapp,admin}`, **Postgres inside the box at `localhost:5432/birjoy`** (closed to the
+  outside). Ship = push to `main` → CI green → GH Actions SSHes and runs `deploy/deploy.sh`.
+  `deploy.sh` does NOT run `prisma db push`: schema changes are a separate, conscious step done ON
+  THE VPS **before** the code push (missing column = every product query throws). Prove a release by
+  grepping the live bundle in `/var/www/miniapp/assets/` + `/health`.
+- ⛔ **Neon is a frozen pre-cutover copy — never read it as "live", never write to it** (owner
+  decision 2026-07-27). Local `.env` Neon URLs are commented out and `migrateToNeon.ts` is deleted,
+  so local DB scripts fail with P1001 by design; run them over SSH on the VPS instead.
 
 ## 6. Feature flags = the control panel
 
