@@ -100,6 +100,29 @@ kerak;** skript mavjud narxni qayta yozmaydi (nom bo'yicha topadi, faqat yo'qini
 Brauzer isboti: «Zal shifti» qo'shildi → sahna `photo/2`→`addon-photo/3`, nishon «+ Zal shifti
 bezagi», panel 1 800 000+900 000 = 2 700 000 → −10% = **2 430 000**.
 
+**🍎 APPLE USLUBI + NARXSIZ + CHEGIRMASIZ (2026-07-27, ega qarori):** narx umuman ko'rsatilmaydi
+(hamma narx 0 → «Narxi kelishiladi»; jami o'rniga «N ta qo'shimcha tanlandi»; operator qo'ng'iroq
+qilib aytadi), BirJoy chegirmasi O'CHIRILDI (`ravellaDiscountPct`=0 → promo-satr, chegirma-tugmasi,
+chizilgan narx o'z-o'zidan yo'qoldi — hammasi shartli edi). Dizayn iOS: ierarxiya rang emas
+O'LCHAM/bo'sh joy bilan, hairline ajratgichlar, qo'shimchalar bitta guruhlangan ro'yxatda, xira
+(translucent) toolbar, ≥44px tegish maydonlari, amber faqat «bosiladigan/tanlangan» ma'nosida.
+Logotip 92px squircle'da, faqat belgi (nom pastda matn bilan). Shior: **«Orzudagi bezaklar —
+Ravella bilan»**. Brauzer isboti: fon `rgb(245,245,247)`, logo 256px, promo-satr YO'Q, 5 karta
+«Narxi kelishiladi», panel «1 ta qo'shimcha tanlandi», nishon «+ Zal shifti bezagi».
+
+**🛠 HAMKOR BOT-PANELI (ega so'radi):** `/ravella` → [📦 Buyurtmalar][➕ Yangi bezak]
+[🖼 Rasmni almashtirish][➕ Qo'shimcha qo'shish]. Zoyir/faylasuf admin panelsiz, botda: bo'lim
+tanlaydi → nom → tavsif → RASM yuboradi → bezak darhol katalogda (ega xabar oladi). Rasm
+`file_id` bilan saqlanadi (hamkor yuborgan surat allaqachon Telegram'da — qayta yuklash yo'q;
+`photoUrl` tozalanadi, aks holda eski data-URL yangi rasmdan ustun chiqardi).
+**Uchinchi marta bir xil tuzoq:** `bot.ts` rasm-handleri admin ham, haydovchi ham bo'lmaganni
+`next()`siz yutadi — hamkor aynan shunday. `isAwaitingRavellaPhoto` chetlab o'tuvchisi qo'shildi.
+
+**Caddy kesh (ega «yozuv chiqmadiku» dedi — sabab shu edi):** `@html path / /index.html` faqat BOSH
+sahifani qamragan, `/ravella` esa `Cache-Control`SIZ ketardi → brauzer jimgina keshlab, yangi
+deploy ko'rinmasdi. Endi `@html path / /index.html /*/index.html /ravella /ravella/`; zaxira
+`/root/zaxira/Caddyfile-*.bak`, `caddy validate` = Valid, uchala yo'l `no-cache` qaytaradi.
+
 **Rasm-keshi (tuzatildi, lekin dalil TO'G'RILANDI):** `/api/ravella/photo/:id` 302 bilan Telegram
 CDN'ga yo'naltiradi, Telegram havolasi ~1 soatda eskiradi — 302'ni 1 soat keshlash mijozga
 eskirgan manzil berishi mumkin edi. `max-age=120` ga tushirildi (mantiqan to'g'ri qattiqlashtirish).
