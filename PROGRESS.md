@@ -3460,3 +3460,48 @@ taklifi. QABUL kelgach bu satr `owner-accepted` ga o'zgaradi.
 **Tegilmagan (ochiq aytaman):** `packages/miniapp/src/restoran.tsx` da boshqa sessiyaning commit
 qilinmagan o'zgarishi turibdi (yetkazish-narxi qatorini `join(" · ")` ga o'tkazish, «Bepul yetkazish»
 yozuvi YO'QOLADI). Niyati noaniq bo'lgani uchun deploy'ga kiritilmadi — ega hal qiladi.
+
+## §59 — 🍽 «Bepul yetkazish» va'dasi olib tashlandi + 📍 lokatsiya endi qotib qolmaydi · 2026-07-27
+
+### A. Restoran yetkazish qatori (`363e7a9`) — ega qo'shishni so'radi
+Boshqa sessiyaning commit qilinmagan o'zgarishi edi; ega «buni ham qo'sh» dedi.
+**Jonli o'lchov avval qilindi:** 11 ta FAOL restoranning **11 tasida ham** `deliveryFeeSom=0` va
+`minOrderSom=0`. Ya'ni 0 «bepul» degani EMAS — «hali sozlanmagan»; ilova esa har kartada
+bajarilishi kafolatlanmagan «Bepul yetkazish» va'dasini berardi.
+O'zgarish o'z holicha har kartada **bo'sh div** qoldirardi (11/11), shuning uchun yakunlandi:
+qator faqat aytadigan gap bo'lsa chiziladi. Restoran sahifasida tayyorlanish vaqti doim borligi
+uchun u yerda qator hech qachon bo'sh emas. Uch joydagi bir xil mantiq bitta `feeLine()` ga
+yig'ildi; checkout'da narx allaqachon `>0` shartida edi — tegilmadi.
+**Isbot:** jonli bundle'da `Bepul yetkazish` satri **0 marta** uchraydi.
+
+### B. «Lokatsiya eski joyga qotib qolopti» (`734919b`, flag `autoloc`) — ega shikoyati
+**Bu kesh xatosi EMAS edi, mantiq shunday yozilgan edi:**
+| Qadam | Fayl | Nima bo'lardi |
+|---|---|---|
+| Xarita markazi | `bookingService.ts:139` | har doim **kompaniya nuqtasi** (39.04/65.57) |
+| Olib ketish nuqtasi | `booking3.tsx:349` | `info.quickPickup` = **oxirgi safar manzili** |
+| Manba | `bookingService.ts:399` | `member.lastPickup*` (DB) |
+| Qayta markazlashuv | `booking3.tsx:701` | pinpick'dan chiqqach xarita o'sha eski manzilga sakraydi |
+| GPS qachon | `booking3.tsx:1190` | **faqat 📍 tugmasi bosilganda** — yagona chaqiruv nuqtasi |
+Ya'ni ochilishda GPS umuman so'ralmasdi: mijoz qayerda bo'lsa ham pin bir xil joyda turardi.
+
+**Tuzatish:** pinpick ochilishi bilan mavjud `locateMe()` bir marta o'zi ishga tushadi.
+**Yangi GPS kodi YOZILMADI** — bor yo'l chaqirildi (Telegram LocationManager 8.0+ → brauzer GPS
+zaxira, aniqlikni ~50 m dan ~5 m gacha toraytirish).
+Ehtiyot choralari: `auto` rejimida titratish YO'Q va rad etilganda sozlamalar deep-link'i
+**OCHILMAYDI** (foydalanuvchi bosmagan harakat uni sozlamalarga otib yubormasligi kerak) · faqat
+bir marta (ref) · faqat `pinpick` · faqat xarita mavjud bo'lgach · aktiv safarda tegilmaydi ·
+muvaffaqiyatsizlikda avvalgi holat AYNAN qoladi. Dispetcherlik yo'li o'zgarmadi — mijoz baribir
+tasdiqlaydi, pul-mantiq yo'q.
+**Yo'l-yo'lakay tuzatilgan tuzoq:** tugma `onClick={locateMe}` edi — React bosish hodisasini
+birinchi argument sifatida uzatadi, ya'ni `auto` **truthy** bo'lib tushardi va qo'lda bosilgan
+tugma o'zini avto-rejimdek tutardi (titrashsiz, sozlamalar havolasisiz). `() => void locateMe()`.
+**Ega-preview ATAYLAB yo'q** — ega va mijoz bir xil ko'rishi shart (§50 saboqi).
+
+**Isbot:** `pnpm -r typecheck` 4 paket **Done, 0 xato** · jonli `booking3-UAJwn9sf.js` chunk'ida
+`autoloc` bor va `index-BkTGNQjn.js` aynan o'shani yuklaydi · `setFlag.ts autoloc on` →
+`featureOn()` **true** · `/health` 200.
+
+**Holat:** `ready for verification` — **egadan kutiladi (R6):** telefonda taksi xaritasini ochib,
+pin haqiqatan turgan joyingizga tushayotganini tasdiqlash. Yoqmasa bir buyruq bilan qaytadi:
+`tsx src/scripts/setFlag.ts autoloc off`.
