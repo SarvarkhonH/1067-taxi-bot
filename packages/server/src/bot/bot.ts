@@ -29,7 +29,7 @@ import { registerCashout } from "./cashout";
 import { registerMarket, isInMarketWizard, isAwaitingStory } from "./market";
 import { registerIntercity } from "./intercity";
 import { isAwaitingBroadcastPhoto, registerBroadcast } from "./broadcast";
-import { isAwaitingRavellaPhoto } from "./ravella";
+import { isAwaitingRavellaPhoto, registerRavella } from "./ravella";
 import type { DriverPanelExtras } from "../services/driverReportService";
 import {
   renderBadgeUnlocked,
@@ -1545,7 +1545,11 @@ export function createBot(): Bot {
   registerDriverDebt(bot); // /qarz — pay kas debt with tanga (gated behind `qarz` flag). No login: uses the member's already-linked plate.
   registerDriverReports(bot); // /safarlarim + /daromad (read-only driver reports)
   void import("./aiKnowledge").then(({ registerAiKnowledge }) => registerAiKnowledge(bot)); // 🧠 AI-bilim owner ✅/❌ (callback-only → lazy-register order-safe)
-  void import("./ravella").then(({ registerRavella }) => registerRavella(bot)); // 🎀 Ravella hamkor kartasi ✅/☎️/✔/❌ + /ravella (callback+command only → lazy-register order-safe)
+  // 🎀 Ravella: SINXRON ro'yxatdan o'tadi va booking'dan OLDIN — sababi jonli xato (2026-07-27):
+  // lazy `import().then()` handlerni butun sinxron blokdan KEYIN ulaydi, ya'ni eng oxirida. Shunda
+  // hamkor yozgan matn (aloqa raqami, bezak nomi) undan oldingi matn-handlerlarga tushib ketardi
+  // va sozlama umuman saqlanmasdi. `registerMarket` bilan bir xil sabab, bir xil joy.
+  registerRavella(bot);
   registerBooking(bot, mainMenu);
 
   // 🤖 AI-1 rules-first free text: runs AFTER booking's own text handler
