@@ -564,6 +564,7 @@ function Booking3Inner({ me, info, onClose }: { me: MeResponse; info: BookingInf
       fixTimers = [120, 350, 700, 1400].map((d) => setTimeout(fix, d)); // catch the expand animation
       window.addEventListener("resize", fix);
       tgEv?.onEvent?.("viewportChanged", fix); // Telegram WebView height settled → re-fit tiles
+      tgEv?.onEvent?.("fullscreenChanged", fix); // to'liq ekranga kirish/chiqish = boshqa o'lcham
     } catch {
       setMapFailed(true);
     }
@@ -572,6 +573,7 @@ function Booking3Inner({ me, info, onClose }: { me: MeResponse; info: BookingInf
       fixTimers.forEach(clearTimeout);
       window.removeEventListener("resize", fix);
       tgEv?.offEvent?.("viewportChanged", fix);
+      tgEv?.offEvent?.("fullscreenChanged", fix);
       map.current?.remove();
       map.current = null;
       setMapReady(false);

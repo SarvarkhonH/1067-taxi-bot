@@ -3037,3 +3037,62 @@ jurnalda `/api/shop/market` 500 soni = **0**, umumiy xato = **0**, servis active
 
 **Holat**: A `ready for verification` (flag OFF — yoqish egaga havola); B — tuzatilgan va
 jonlida isbotlangan.
+
+---
+
+## §52 — 📱 FULLSCREEN XAVFSIZ-ZONA (T-FS1) · 2026-07-27
+**Holat: `ready for verification`** (mustaqil tekshiruv + ega QABUL'i kutilyapti — R1/R4/R6)
+
+**Muammo (ega hisoboti + 5 skrinshot).** Ega Mini App'ni to'liq ekran (fullscreen) rejimiga
+o'tkazgach, Telegram WebView'ni butun ekranga cho'zdi va O'ZINING `✕ Close / ⌄ / ⋮` panelini
+kontent USTIGA chizdi. Natijada 5 ekranda ustma-ustlik: Uy — "Tanga balansi" va "Yechish"
+tugmasi panel ostida; Do'kon — "SHABADA" qatori; Profil — "Boburxon H" sarlavhasi; Restoran —
+"Mening buyurtmalarim"; Taksi — HUD (tanga/streak/jackpot) va "Qayerdan?" qidiruvi.
+
+**Sabab (o'lchov, taxmin emas).** Butun ilova faqat CSS'ning `env(safe-area-inset-*)` idan
+foydalanardi — u **qurilma** notch/status-bar'ini biladi, **Telegram panelini bilmaydi**
+(Android'da odatda `0px`). Repo bo'yicha: `env(safe-area-inset-top)` = 7 marta (`tokens.css`),
+`styles.css` = 0 marta; `--tg-safe-area-inset-*` / `--tg-content-safe-area-inset-*` (Bot API 8.0)
+va `safeAreaInset`/`contentSafeAreaInset` — grep bo'yicha **0 marta** ishlatilgan.
+Ustiga eng ko'p ko'riladigan 2 sarlavha (`.nh-topbar` = Uy/Profil, `.topbar` = qolgan tablar)
+xavfsiz zonani **umuman** hisobga olmasdi.
+
+**Yechim — bitta inset tizimi, fullscreen O'CHIRILMADI (ega qarori: fullscreen qoladi).**
+- `telegram.ts`: `safeAreaInset` (qurilma) + `contentSafeAreaInset` (Telegram paneli) o'qiladi va
+  `--tg-sa-*` / `--tg-ca-*` CSS o'zgaruvchilariga yoziladi; `safeAreaChanged`,
+  `contentSafeAreaChanged`, `fullscreenChanged`, `viewportChanged` hodisalariga obuna + 300ms/1200ms
+  kechikkan qayta-o'qish (insetlar `ready()` dan keyin to'ladi — `initData` bilan bir xil lag).
+  `<html>` ga `is-fullscreen` klassi. Telegram inset bermasa o'zgaruvchilarga TEGILMAYDI →
+  `env()` fallback kuchda, ya'ni **oddiy rejimda ko'rinish o'zgarmaydi**.
+- `tokens.css`: yagona manba `--safe-top/-bottom/-left/-right`; `html.is-fullscreen` da
+  `--safe-min-top: 48px` (klient inset bermay qolsa ham kontent panel ostiga kirmaydi).
+- Barcha `env(safe-area-inset-*)` → tokenlarga ko'chirildi; safe-area'siz sarlavhalarga qo'shildi
+  (`.topbar` ×2 ta'rif, `.nh-topbar`); topbar'siz ekranlar uchun `.app.no-topbar` (Uy tabi +
+  mehmon rejimi, `App.tsx`).
+- `booking3.tsx`: `fullscreenChanged` → Leaflet `invalidateSize()` (mavjud `fix()` yo'liga ulandi,
+  yangi mantiq yo'q).
+
+**Isbot (buyruq + xom natija).**
+- `tsc --noEmit -p packages/miniapp/tsconfig.json` → **0 xato** (tsconfig'ning TS5101 `baseUrl`
+  deprecation ogohlantirishi bazaviy holatda ham bor — `git stash` bilan tasdiqlandi, meniki emas).
+- `pnpm -C packages/miniapp build` → `✓ built in 1.97s`.
+- **BUNDLE GREP** (`dist/assets/index-BaB8U-VE.css`):
+  `--safe-top: max(calc(var(--tg-sa-top) + var(--tg-ca-top)), var(--safe-min-top))` ·
+  `html.is-fullscreen{--safe-min-top: 48px}` ·
+  `.app.no-topbar>.content,.app.no-topbar>.view{padding-top:calc(4px + var(--safe-top))}` ·
+  `.topbar{…padding:calc(14px + var(--safe-top))…}` · `.b3-top{…calc(8px + var(--safe-top))…}` ·
+  `.nh-topbar{…calc(2px + var(--safe-top))…}` · `.tabbar{…calc(8px + var(--safe-bottom))}`.
+  Qolgan xom `env(safe-area-inset-*)` = **4 ta**, hammasi `:root` ta'rifi (fallback) — boshqa
+  joyda 0.
+
+**TEKSHIRILMAGAN (ochiq aytaman).** Real qurilmada render ko'rilmadi — deploy qilinmadi, ega
+QABUL'i yo'q. `--safe-min-top: 48px` poli faqat klient inset bermagan holat uchun mo'ljallangan
+zaxira; real klient qiymat berganda `max()` uni bosadi, lekin buni jonli o'lchov bilan
+tasdiqlash kerak. R6 bo'yicha 5 ekranning fullscreen ON/OFF skrinshoti egadan kutiladi.
+
+**Yo'l-yo'lakay topilgan, TUZATILMAGAN**: Restoran ro'yxatida "Uchqirra Baliq" rasmi singan
+(broken-image) — alohida tiket, bu commit'ga kiritilmadi.
+
+**Keyingi navbat (ega tasdiqlagan tartib)**: `requestContact()` (ilova ichida raqam ulash) →
+`BackButton` (Android "orqaga" hozir ilovani butunlay yopadi) → `addToHomeScreen()` →
+`shareToStory()` → `isActive` bilan polling pauzasi → `BiometricManager` (cashout).

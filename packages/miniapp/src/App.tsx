@@ -357,8 +357,12 @@ export function App() {
   // klassi shop.tsx'dagi yangi dark-glass elementlarga aksent-uslub beradi.
   const shellCls = tab === "dokon" ? (me?.flags?.shopv2 ? "app bjm" : me?.flags?.bazar ? "app shop-light bazar-light" : "app shop-light") : tab === "elonlar" ? "app elonlar-light" : tab === "xizmat" ? "app xizmat-light" : tab === "restoran" ? "app restoran-light" : "app";
 
+  // 📱 Uy tabida topbar ko'rsatilmaydi (pastdagi shart) → xavfsiz zonani `.content` oladi, aks holda
+  // to'liq ekran rejimida birinchi karta Telegram'ning ✕/⌄/⋮ paneli ostida qoladi.
+  const noTopbar = tab === "uy";
+
   return (
-    <div className={newhomeUi ? shellCls + " nh-app" : shellCls}>
+    <div className={(newhomeUi ? shellCls + " nh-app" : shellCls) + (noTopbar ? " no-topbar" : "")}>
       <div className="aurora" />
       {/* Minimalizm (ega qarori 2026-07-26): tepada FAQAT joriy bo'lim nomi qoladi.
           Olib tashlandi — brend nomi (har ekranda takrorlanardi), a'zolar-chipi, tanga-pill
@@ -625,7 +629,7 @@ function GuestApp({ flags }: { flags: MeResponse["flags"] }) {
     );
   }
   return (
-    <div className="app nh-app">
+    <div className="app nh-app no-topbar">
       {msg && <div className="toast">{msg}</div>}
       <div className="view">
         <Suspense fallback={<Spinner />}>

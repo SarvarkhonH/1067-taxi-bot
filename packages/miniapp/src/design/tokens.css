@@ -17,6 +17,24 @@
   --r-chip: 999px;
   --shadow-1: 0 4px 24px rgba(0, 0, 0, 0.35);
 
+  /* 📱 XAVFSIZ ZONA — butun ilova SHU 4 tokendan foydalanadi, `env()` dan TO'G'RIDAN-TO'G'RI EMAS.
+     Sabab: to'liq ekran (fullscreen) rejimida Telegram o'zining ✕/⌄/⋮ panelini kontent USTIGA
+     chizadi; CSS'ning env(safe-area-inset-top) esa faqat qurilma notch'ini biladi (Android'da
+     ko'pincha 0px) → sarlavhalar panel ostida qolardi. `--tg-sa-*` (qurilma) va `--tg-ca-*`
+     (Telegram paneli) qiymatlarini telegram.ts:syncInsets yozadi; Telegram bermasa quyidagi env()
+     fallback kuchda qoladi, ya'ni oddiy (fullscreen'siz) rejimda ko'rinish O'ZGARMAYDI. */
+  --tg-sa-top: env(safe-area-inset-top, 0px);
+  --tg-sa-bottom: env(safe-area-inset-bottom, 0px);
+  --tg-sa-left: env(safe-area-inset-left, 0px);
+  --tg-sa-right: env(safe-area-inset-right, 0px);
+  --tg-ca-top: 0px;
+  --tg-ca-bottom: 0px;
+  --safe-min-top: 0px;
+  --safe-top: max(calc(var(--tg-sa-top) + var(--tg-ca-top)), var(--safe-min-top));
+  --safe-bottom: calc(var(--tg-sa-bottom) + var(--tg-ca-bottom));
+  --safe-left: var(--tg-sa-left);
+  --safe-right: var(--tg-sa-right);
+
   /* harakat tili */
   --dur-page: 220ms;
   --dur-press: 90ms;
@@ -55,6 +73,16 @@
   --rst-bg-grad: linear-gradient(180deg, #fff7ed, #fdead9 30%, #fbd9b8);
   --rst-accent: #ea580c;
 }
+
+/* To'liq ekranda tepada HAR DOIM status-bar + Telegram paneli bor. Klient inset qiymatini
+   bermay qolsa ham kontent ular ostiga kirib ketmasin — pol (floor) qo'yamiz. Klass'ni
+   telegram.ts:syncInsets <html> ga qo'yadi/oladi. */
+html.is-fullscreen { --safe-min-top: 48px; }
+
+/* Topbar YO'Q ekranlarda (Uy tabi va mehmon rejimi — App.tsx `no-topbar` klassini qo'yadi)
+   xavfsiz zonani kontentning o'zi oladi; aks holda birinchi karta Telegram paneli ostida qoladi. */
+.app.no-topbar > .content,
+.app.no-topbar > .view { padding-top: calc(4px + var(--safe-top)); }
 
 body { font-variant-numeric: tabular-nums; }
 
@@ -119,7 +147,7 @@ body { font-variant-numeric: tabular-nums; }
 }
 .d-sheet {
   width: 100%; background: var(--surface-2); border-radius: var(--r-card) var(--r-card) 0 0;
-  padding: 10px 16px calc(18px + env(safe-area-inset-bottom)); box-shadow: var(--shadow-1);
+  padding: 10px 16px calc(18px + var(--safe-bottom)); box-shadow: var(--shadow-1);
   animation: d-up var(--dur-card) var(--ease-out);
   /* tall sheets (ORZU, Detallar, bozor) must SCROLL inside — not drag the whole app. pan-y allows
      native vertical scroll; overscroll-contain stops the scroll from leaking to the Telegram webview. */
@@ -399,14 +427,14 @@ body {
 .b3-map-fallback-ico { font-size: 44px; opacity: 0.7; }
 .b3-radar-dim { position: absolute; inset: 0; background: radial-gradient(circle at 50% 40%, rgba(255,179,0,.06), transparent 60%); }
 /* top status bar — tugmalar xaritaga yopishmaydi (yuqorida, safe-area) */
-.b3-top { position: absolute; top: 0; left: 0; right: 0; z-index: 3; display: flex; align-items: center; gap: 10px; padding: calc(8px + env(safe-area-inset-top)) 14px 8px; background: linear-gradient(180deg, rgba(11,15,26,.82), transparent); }
+.b3-top { position: absolute; top: 0; left: 0; right: 0; z-index: 3; display: flex; align-items: center; gap: 10px; padding: calc(8px + var(--safe-top)) 14px 8px; background: linear-gradient(180deg, rgba(11,15,26,.82), transparent); }
 .b3-x { width: 38px; height: 38px; border-radius: 12px; border: 1px solid var(--line); background: var(--surface-2); color: var(--text); font-size: 18px; cursor: pointer; flex: none; }
 .b3-stats { display: flex; gap: 12px; font-size: 13px; font-weight: 800; color: var(--text); align-items: center; background: rgba(21,27,43,.7); backdrop-filter: blur(8px); border: 1px solid var(--line); border-radius: 999px; padding: 6px 12px; }
 .b3-jack { color: var(--brand); }
 /* below the search pill (pill: top safe+52px, h46, z6) — was top:64px/z4, i.e. STUCK BEHIND it */
-.b3-msg { position: absolute; top: calc(8px + env(safe-area-inset-top) + 44px + 46px + 10px); left: 14px; right: 14px; z-index: 7; background: var(--surface-2); border: 1px solid var(--line); border-radius: 12px; padding: 10px 14px; font-size: 13px; box-shadow: var(--shadow-1); animation: d-page 220ms var(--ease-out); }
+.b3-msg { position: absolute; top: calc(8px + var(--safe-top) + 44px + 46px + 10px); left: 14px; right: 14px; z-index: 7; background: var(--surface-2); border: 1px solid var(--line); border-radius: 12px; padding: 10px 14px; font-size: 13px; box-shadow: var(--shadow-1); animation: d-page 220ms var(--ease-out); }
 /* bottom sheet — bo'shliq bilan (xaritaga yopishmaydi), surface fon */
-.b3-sheet { position: absolute; left: 0; right: 0; bottom: 0; z-index: 3; background: var(--surface-2); border-radius: 20px 20px 0 0; padding: 8px 16px calc(18px + env(safe-area-inset-bottom)); box-shadow: 0 -8px 30px rgba(0,0,0,.5); animation: d-up var(--dur-card) var(--ease-out); }
+.b3-sheet { position: absolute; left: 0; right: 0; bottom: 0; z-index: 3; background: var(--surface-2); border-radius: 20px 20px 0 0; padding: 8px 16px calc(18px + var(--safe-bottom)); box-shadow: 0 -8px 30px rgba(0,0,0,.5); animation: d-up var(--dur-card) var(--ease-out); }
 .b3-grip { width: 44px; height: 5px; border-radius: 99px; background: var(--line); margin: 2px auto 10px; }
 .b3-sheet-title { font-weight: 800; font-size: 16px; margin-bottom: 10px; }
 .b3-results { margin-top: 8px; max-height: 240px; overflow: auto; }
@@ -694,7 +722,7 @@ body {
   border-top: 1px solid rgba(255, 255, 255, .08);
 }
 .b3-grip-tap { cursor: pointer; padding: 6px 30px; margin: -4px auto 6px; background-clip: content-box; box-sizing: content-box; }
-.b3-minisheet { padding-top: 4px; padding-bottom: calc(10px + env(safe-area-inset-bottom)); }
+.b3-minisheet { padding-top: 4px; padding-bottom: calc(10px + var(--safe-bottom)); }
 .b3-mini-row { display: flex; align-items: center; gap: 10px; padding: 2px 2px 4px; cursor: pointer; }
 .b3-mini-status { font-size: 14px; font-weight: 600; flex: 1; }
 .b3-wchip-mini { color: var(--accent); font-size: 14px; white-space: nowrap; }
@@ -746,7 +774,7 @@ body {
 /* 🛡 TrackView — read-only family-safety live trip page (public ?track=<token>). Redesigned to
    match the app: brand header + live dot, big status pill, driver card w/ plate chip, gold CTA. */
 .tv-wrap { position: fixed; inset: 0; display: flex; flex-direction: column; background: var(--bg); }
-.tv-top { display: flex; align-items: center; justify-content: space-between; padding: calc(10px + env(safe-area-inset-top)) 18px 11px; background: var(--surface-2); border-bottom: 1px solid var(--line); }
+.tv-top { display: flex; align-items: center; justify-content: space-between; padding: calc(10px + var(--safe-top)) 18px 11px; background: var(--surface-2); border-bottom: 1px solid var(--line); }
 .tv-brand { font-weight: 800; font-size: 18px; color: var(--text); letter-spacing: .3px; }
 .tv-live { display: flex; align-items: center; gap: 6px; font-size: 12.5px; font-weight: 600; color: var(--muted, #9aa0a6); }
 .tv-live-dot { width: 8px; height: 8px; border-radius: 50%; background: #22c55e; animation: tv-pulse 1.5s ease-in-out infinite; }
@@ -755,7 +783,7 @@ body {
 .tv-map .leaflet-container { background: var(--surface); }
 .tv-map .leaflet-tile-pane { filter: invert(1) hue-rotate(180deg) brightness(.92) contrast(.9); }
 .tv-car svg { filter: drop-shadow(0 0 6px rgba(255,179,0,.6)) drop-shadow(0 2px 3px rgba(0,0,0,.5)); transition: transform .9s linear; }
-.tv-panel { position: relative; padding: 16px 16px calc(18px + env(safe-area-inset-bottom)); background: var(--surface-2); border-top: 1px solid var(--line); border-radius: 20px 20px 0 0; box-shadow: 0 -10px 30px rgba(0,0,0,.5); display: flex; flex-direction: column; gap: 10px; }
+.tv-panel { position: relative; padding: 16px 16px calc(18px + var(--safe-bottom)); background: var(--surface-2); border-top: 1px solid var(--line); border-radius: 20px 20px 0 0; box-shadow: 0 -10px 30px rgba(0,0,0,.5); display: flex; flex-direction: column; gap: 10px; }
 .tv-panel-min { padding-top: 8px; gap: 4px; }
 /* grip = tap to collapse/expand the panel (bigger map for the route trail) */
 .tv-grip { width: 46px; height: 5px; border-radius: 99px; background: var(--line); margin: 0 auto 4px; cursor: pointer; }
@@ -848,14 +876,14 @@ body {
 @media (prefers-reduced-motion: reduce) { .b3-ghostperson, .b3-myloc::before { animation: none !important; } }
 @media (prefers-reduced-motion: reduce) { .b3-centerpin, .b3-hail-arm, .b3-hail-hand, .b3-hail-shadow, .b3-walking, .b3-walking .b3-leg-l, .b3-walking .b3-leg-r, .b3-walking .b3-case { animation: none !important; } }
 .b3-mappick { width: 100%; margin-top: 8px; padding: 11px; border-radius: 12px; background: var(--surface); border: 1px solid var(--line); color: var(--text); font-size: 14px; font-weight: 600; }
-.b3-pinbar { position: absolute; left: 0; right: 0; bottom: 0; z-index: 3; background: var(--surface-2); border-radius: 20px 20px 0 0; padding: 8px 16px calc(16px + env(safe-area-inset-bottom)); box-shadow: 0 -8px 30px rgba(0,0,0,.5); animation: d-up var(--dur-card) var(--ease-out); transition: transform .3s var(--ease-out); }
+.b3-pinbar { position: absolute; left: 0; right: 0; bottom: 0; z-index: 3; background: var(--surface-2); border-radius: 20px 20px 0 0; padding: 8px 16px calc(16px + var(--safe-bottom)); box-shadow: 0 -8px 30px rgba(0,0,0,.5); animation: d-up var(--dur-card) var(--ease-out); transition: transform .3s var(--ease-out); }
 /* map-is-picker: while dragging, the bar slides DOWN (map open + character walks); returns on stop */
 .b3-pinbar.dragging { transform: translateY(calc(100% - 34px)); box-shadow: 0 -4px 16px rgba(0,0,0,.4); }
 .b3-pin-label { text-align: center; font-size: 15px; margin: 6px 0 10px; min-height: 20px; }
 .b3-pin-chips { justify-content: center; margin-bottom: 10px; }
 
 /* floating top search pill (pinpick) — tap to type an address */
-.b3-pin-search { position: absolute; top: calc(8px + env(safe-area-inset-top) + 44px); left: 14px; right: 14px; z-index: 6;
+.b3-pin-search { position: absolute; top: calc(8px + var(--safe-top) + 44px); left: 14px; right: 14px; z-index: 6;
   display: flex; align-items: center; gap: 9px; height: 46px; padding: 0 16px; border: 1px solid rgba(255,255,255,.12);
   border-radius: 15px; background: rgba(21,27,43,.92); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
   color: var(--text-dim); font-size: 15px; font-weight: 600; cursor: pointer; box-shadow: 0 8px 24px -10px rgba(0,0,0,.6);
@@ -1933,7 +1961,7 @@ body {
   background: var(--surface-2, #232b3c); border-radius: 999px; padding: 4px 8px; }
 .rst-item-stepper button { width: 22px; height: 22px; border-radius: 50%; font-size: 15px; font-weight: 800; color: var(--text); background: transparent; }
 .rst-item-stepper span { font-size: 13px; font-weight: 800; min-width: 14px; text-align: center; }
-.rst-cart-bar { position: fixed; left: 16px; right: 16px; bottom: calc(72px + env(safe-area-inset-bottom, 0px));
+.rst-cart-bar { position: fixed; left: 16px; right: 16px; bottom: calc(72px + var(--safe-bottom));
   display: flex; align-items: center; gap: 10px; padding: 13px 16px; border-radius: 16px;
   background: var(--brand-grad); color: #1a1205; font-weight: 800; font-size: 14px; box-shadow: var(--shadow-1); z-index: 20; }
 .rst-cart-bar:active { transform: scale(.98); }
@@ -2241,7 +2269,7 @@ body {
 .shop-lightbox { position: fixed; inset: 0; z-index: 200; background: rgba(4, 6, 12, .96);
   display: flex; flex-direction: column; align-items: center; justify-content: center; animation: d-fade 160ms ease-out; }
 .shop-lightbox-back {
-  position: absolute; top: calc(14px + env(safe-area-inset-top)); left: 14px; z-index: 2;
+  position: absolute; top: calc(14px + var(--safe-top)); left: 14px; z-index: 2;
   padding: 9px 14px; border-radius: 999px; background: rgba(255, 255, 255, .12); backdrop-filter: blur(8px);
   color: #fff; font-size: 13.5px; font-weight: 700; border: 1px solid rgba(255, 255, 255, .18);
 }
@@ -2249,7 +2277,7 @@ body {
 .shop-lightbox-strip { display: flex; width: 100%; height: 100%; overflow-x: auto; scroll-snap-type: x mandatory; -webkit-overflow-scrolling: touch; scrollbar-width: none; }
 .shop-lightbox-strip::-webkit-scrollbar { display: none; }
 .shop-lightbox-img { width: 100%; flex: 0 0 100%; scroll-snap-align: center; object-fit: contain; height: 100%; }
-.shop-lightbox-dots { position: absolute; bottom: calc(18px + env(safe-area-inset-bottom)); left: 0; right: 0; display: flex; justify-content: center; gap: 6px; }
+.shop-lightbox-dots { position: absolute; bottom: calc(18px + var(--safe-bottom)); left: 0; right: 0; display: flex; justify-content: center; gap: 6px; }
 
 /* ── XIZMATLAR v1.4: ijtimoiy tarmoq + «1067 tekshiruvi» — 100-ballik 5-mezon sertifikat tizimi
    (1067_TEKSHIRUVI_STANDARTLARI.pdf). Daraja rangi (oltin/kumush/bronza) — mijoz ★reytingidan
@@ -2626,7 +2654,7 @@ body {
 @keyframes bjPulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.45; } }
 
 /* 🧺 yopishqoq savat-bar */
-.bj-cartbar { position: fixed; left: 12px; right: 12px; bottom: calc(64px + env(safe-area-inset-bottom, 0px)); z-index: 40; display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 12px 16px; border-radius: var(--r-card); background: var(--bj-hero-grad); color: #fff; font-weight: 700; box-shadow: 0 10px 30px rgba(6, 95, 70, 0.35); transition: transform var(--dur-card) var(--ease-out), opacity var(--dur-card) var(--ease-out); }
+.bj-cartbar { position: fixed; left: 12px; right: 12px; bottom: calc(64px + var(--safe-bottom)); z-index: 40; display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 12px 16px; border-radius: var(--r-card); background: var(--bj-hero-grad); color: #fff; font-weight: 700; box-shadow: 0 10px 30px rgba(6, 95, 70, 0.35); transition: transform var(--dur-card) var(--ease-out), opacity var(--dur-card) var(--ease-out); }
 .bj-cartbar-count { display: inline-flex; align-items: center; gap: 6px; }
 .bj-cartbar.hidden { transform: translateY(120%); opacity: 0; pointer-events: none; }
 
@@ -2757,9 +2785,9 @@ body {
 .bj-story-tap.right { right: 0; }
 
 /* shopv2: "yuqoriga surish" — ko'p sotiladigan mahsulot taklifi */
-.bj-story-hint { position: absolute; left: 0; right: 0; bottom: calc(env(safe-area-inset-bottom, 8px) + 14px); z-index: 5; display: flex; flex-direction: column; align-items: center; gap: 2px; background: none; border: none; color: #fff; font-size: 12.5px; font-weight: 600; cursor: pointer; animation: bjHint 1.6s ease-in-out infinite; }
+.bj-story-hint { position: absolute; left: 0; right: 0; bottom: calc(var(--safe-bottom) + 14px); z-index: 5; display: flex; flex-direction: column; align-items: center; gap: 2px; background: none; border: none; color: #fff; font-size: 12.5px; font-weight: 600; cursor: pointer; animation: bjHint 1.6s ease-in-out infinite; }
 @keyframes bjHint { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-4px); } }
-.bj-story-product { position: absolute; left: 0; right: 0; bottom: 0; z-index: 6; background: rgba(255, 255, 255, .92); backdrop-filter: blur(20px) saturate(180%); -webkit-backdrop-filter: blur(20px) saturate(180%); border-radius: 20px 20px 0 0; padding: 16px 16px calc(16px + env(safe-area-inset-bottom, 8px)); display: flex; align-items: center; gap: 12px; animation: bjmScreenIn .2s var(--ease-out); }
+.bj-story-product { position: absolute; left: 0; right: 0; bottom: 0; z-index: 6; background: rgba(255, 255, 255, .92); backdrop-filter: blur(20px) saturate(180%); -webkit-backdrop-filter: blur(20px) saturate(180%); border-radius: 20px 20px 0 0; padding: 16px 16px calc(16px + var(--safe-bottom)); display: flex; align-items: center; gap: 12px; animation: bjmScreenIn .2s var(--ease-out); }
 .bj-story-product-img { width: 48px; height: 48px; border-radius: 10px; flex: none; object-fit: cover; background: linear-gradient(160deg, #34d399, #0d9668); display: flex; align-items: center; justify-content: center; }
 .bj-story-product-ph { color: rgba(255, 255, 255, .8); font-weight: 800; font-size: 18px; }
 .bj-story-product-body { flex: 1; min-width: 0; }
@@ -2823,7 +2851,7 @@ body {
 
 /* 📹 xavfsiz-zona tuzatish (v2-dizayn asosida topilgan bug, flag'dan qat'i nazar to'g'ri):
    hikoya-ko'ruvchi tepa paneli status-bar/notch bilan aralashib ketardi. */
-.bj-story-head { padding-top: calc(env(safe-area-inset-top, 20px) + 16px); }
+.bj-story-head { padding-top: calc(var(--safe-top) + 16px); }
 
 /* ═══════════════════════════════════════════════════════════════════════════
    🏪 BirJoy Market v2 (flag "shopv2") — Claude Design'da 2 marta iteratsiya
@@ -2969,7 +2997,7 @@ body {
 .app.bjm .content { padding: 0 0 96px; }
 .app.bjm .shop-head {
   position: sticky; top: 0; z-index: 20;
-  padding: calc(env(safe-area-inset-top, 20px) + 8px) 14px 10px;
+  padding: calc(var(--safe-top) + 8px) 14px 10px;
   background: rgba(255, 255, 255, .88);
   backdrop-filter: blur(20px) saturate(180%); -webkit-backdrop-filter: blur(20px) saturate(180%);
   border-bottom: 1px solid var(--bj-line);
@@ -3210,7 +3238,7 @@ body {
 }
 
 .nh-view { background:var(--nh-bg); color:var(--nh-tx); min-height:100%; margin:-4px -16px 0; padding:8px 16px 24px; }
-.nh-topbar { display:flex; align-items:center; gap:10px; padding:2px 0 12px; }
+.nh-topbar { display:flex; align-items:center; gap:10px; padding:calc(2px + var(--safe-top)) 0 12px; }
 .nh-brand { flex:1; font-size:19px; font-weight:800; color:var(--nh-tx); }
 .nh-brand b { color:var(--nh-brand); }
 .nh-coin { display:flex; align-items:center; gap:5px; border-radius:99px; padding:7px 12px; font-size:13.5px; font-weight:800;

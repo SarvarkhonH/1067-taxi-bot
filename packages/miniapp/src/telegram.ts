@@ -22,6 +22,15 @@ interface TgLocationManager {
   openSettings?: () => void;
 }
 
+/** Bot API 8.0+ inset, in CSS pixels. `safeArea` = device (status bar / notch / gesture bar),
+ *  `contentSafeArea` = Telegram's OWN overlay chrome (the ✕ / ⌄ / ⋮ strip in fullscreen). */
+interface TgInset {
+  top: number;
+  bottom: number;
+  left: number;
+  right: number;
+}
+
 interface TelegramWebApp {
   initData: string;
   version?: string;
@@ -35,6 +44,15 @@ interface TelegramWebApp {
   openTelegramLink?: (url: string) => void;
   disableVerticalSwipes?: () => void; // Bot API 7.7+ — stop the swipe-to-close gesture from hijacking in-app scroll
   isVerticalSwipesEnabled?: boolean;
+  // Bot API 8.0+ fullscreen. In fullscreen Telegram draws its own ✕/⌄/⋮ chrome ON TOP of our
+  // WebView — `contentSafeAreaInset` is the only way to know how much room it takes.
+  isFullscreen?: boolean;
+  requestFullscreen?: () => void;
+  exitFullscreen?: () => void;
+  safeAreaInset?: TgInset;
+  contentSafeAreaInset?: TgInset;
+  onEvent?: (event: string, cb: () => void) => void;
+  offEvent?: (event: string, cb: () => void) => void;
   LocationManager?: TgLocationManager;
   HapticFeedback?: { impactOccurred: (s: string) => void; selectionChanged: () => void; notificationOccurred?: (t: string) => void };
 }
@@ -47,6 +65,38 @@ declare global {
 
 export const tg = window.Telegram?.WebApp;
 
+// ── xavfsiz-zona (fullscreen) ─────────────────────────────────────────────────
+// To'liq ekran rejimida Telegram WebView'ni butun ekranga cho'zadi va O'Z boshqaruvlarini
+// (✕ Close / ⌄ / ⋮) kontent USTIGA chizadi. CSS'ning `env(safe-area-inset-top)` faqat qurilma
+// notch'ini biladi, Telegram panelini BILMAYDI (Android'da odatda 0px) — shuning uchun sarlavhalar
+// panel ostida qolib ketgan edi. Bu yerda ikkala insetni o'qib CSS o'zgaruvchilariga yozamiz;
+// tokens.css ularni `--safe-top` / `--safe-bottom` ga jamlaydi. Telegram inset bermasa
+// (eski klient) o'zgaruvchilarga TEGMAYMIZ — CSS'dagi env() fallback kuchda qoladi.
+const px = (n: number | undefined): string => `${Math.max(0, Math.round(n ?? 0))}px`;
+
+function syncInsets(): void {
+  if (!tg) return;
+  const root = document.documentElement;
+  const sa = tg.safeAreaInset;
+  if (sa) {
+    root.style.setProperty("--tg-sa-top", px(sa.top));
+    root.style.setProperty("--tg-sa-bottom", px(sa.bottom));
+    root.style.setProperty("--tg-sa-left", px(sa.left));
+    root.style.setProperty("--tg-sa-right", px(sa.right));
+  }
+  const ca = tg.contentSafeAreaInset;
+  if (ca) {
+    root.style.setProperty("--tg-ca-top", px(ca.top));
+    root.style.setProperty("--tg-ca-bottom", px(ca.bottom));
+  }
+  root.classList.toggle("is-fullscreen", !!tg.isFullscreen);
+}
+
+/** True when Telegram is currently drawing us edge-to-edge. */
+export function isFullscreen(): boolean {
+  return !!tg?.isFullscreen;
+}
+
 export function initTelegram(): void {
   if (!tg) return;
   tg.ready();
@@ -56,6 +106,14 @@ export function initTelegram(): void {
   tg.disableVerticalSwipes?.();
   tg.setHeaderColor?.("#0b0f1a");
   tg.setBackgroundColor?.("#0b0f1a");
+  syncInsets();
+  // Telegram fills the insets slightly AFTER ready() on some clients (same lag as initData) —
+  // re-read on every relevant event, plus two cheap catch-up ticks so the first paint is never stale.
+  for (const ev of ["safeAreaChanged", "contentSafeAreaChanged", "fullscreenChanged", "viewportChanged"]) {
+    tg.onEvent?.(ev, syncInsets);
+  }
+  setTimeout(syncInsets, 300);
+  setTimeout(syncInsets, 1200);
 }
 
 export function haptic(): void {
