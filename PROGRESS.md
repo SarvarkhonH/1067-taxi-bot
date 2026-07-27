@@ -3096,3 +3096,53 @@ tasdiqlash kerak. R6 bo'yicha 5 ekranning fullscreen ON/OFF skrinshoti egadan ku
 **Keyingi navbat (ega tasdiqlagan tartib)**: `requestContact()` (ilova ichida raqam ulash) →
 `BackButton` (Android "orqaga" hozir ilovani butunlay yopadi) → `addToHomeScreen()` →
 `shareToStory()` → `isActive` bilan polling pauzasi → `BiometricManager` (cashout).
+
+---
+
+## §53 — 📱 RAQAMNI ILOVA ICHIDA ULASH (T-TG1, `requestContact`) · 2026-07-27
+**Holat: `ready for verification`** (flag `linkinapp` = **OFF/DARK**; mustaqil tekshiruv + ega
+QABUL'i kutilyapti — R1/R4/R6)
+
+**Nega.** Ulanmagan mijoz "Raqamni ulash" bosganda ilovadan CHIQIB botga otilardi
+(`App.tsx:openLinkBot`). O'z o'lchovimiz (`App.tsx:569-574` izohi, DB 2026-07-26): `/start` bosgan
+**1060** odamdan **289 tasi ulanmagan**, shundan **286 tasi tugmani umuman bosmagan**. Endi
+Telegram'ning o'z tasdiq oynasi ilova ichida ochiladi — sakrash yo'q.
+
+**Nima qilindi.**
+1. **`services/linkService.ts` (YANGI, bot'dan mustaqil)** — `completeLink()`: ulash + hamma mukofot
+   qadami (join-sovg'a, referal, haydovchi-QR ulushi) bitta joyda. Xabar YUBORMAYDI: `extras`
+   (foydalanuvchiga) va `notices` (do'st/haydovchiga) qaytaradi, kim yuborishini chaqiruvchi hal
+   qiladi. `deriveDisplayName`/`autoSetDisplayName` ham shu yerga ko'chdi.
+2. **`bot/bot.ts::handleLink` shu funksiyaga o'tkazildi** — bot yo'lida pul-mantiq NUSXALANMADI,
+   faqat KO'RSATISH qoldi. (Bu talab: aks holda ikkita mukofot yo'li paydo bo'lardi.)
+3. **`api/telegramAuth.ts::validateContactResponse`** — imzo tekshiruvi (initData bilan ayni
+   algoritm: secret = HMAC_SHA256("WebAppData", token)). `hash` tashqarida ham, query-string ichida
+   ham kelishi mumkin — ikkalasi qo'llab-quvvatlanadi. Shubha bo'lsa RAD (fail closed).
+4. **`POST /api/link/contact`** — IKKI mustaqil isbot, ikkalasi ham SHART: (a) imzo → raqamni
+   TELEGRAM tasdiqlagan; (b) `contact.user_id === initData'dagi id` → raqam AYNAN shu
+   foydalanuvchiniki (bot yo'lidagi `contact.user_id !== ctx.from.id` qoidasining ekvivalenti).
+   `requireUser` + `rateLimit(6)`.
+5. **Mini App**: `telegram.ts::askContact()` (versiya-darvozasi `isVersionAtLeast("6.9")` + 60s
+   xavfsizlik to'ri, HECH QACHON rad etmaydi) · `api.linkContact()` · `App.tsx::useLinkFlow` —
+   mehmon rejimidagi 3 ta kirish nuqtasi (bo'sh-ekran tugmasi, pastki `guest-bar`, do'kondagi
+   "buyurtma") shunga ulandi; muvaffaqiyatda `location.reload()`.
+6. **Kill-switch `linkinapp`, DEFAULT_OFF** (CLAUDE.md qoidasi). OFF = eski bot-yo'li AYNAN.
+   Owner-preview: ega/adminlar QORONG'I holatda ham ko'radi (mavjud `flagPreview` naqshi),
+   mehmon uchun ham flag `/api/me` ning guest shoxida uzatiladi.
+
+**Isbot (buyruq + xom natija).**
+- `tsx src/scripts/testContactAuth.ts` (YANGI, DB'ga TEGMAYDI — faqat crypto, soxta token):
+  **🟢 8/8 o'tdi** — haqiqiy imzo qabul · `hash` string ichida bo'lsa ham qabul ·
+  **raqam almashtirilgan → RAD** · **user_id almashtirilgan → RAD** · begona token → RAD ·
+  imzosiz → RAD · eskirgan → RAD · bo'sh javob/tokensiz server → RAD.
+- `tsc --noEmit`: server **0 xato**, miniapp **0 xato**.
+- `pnpm -C packages/miniapp build` → `✓ built in 2.21s`; **BUNDLE GREP**
+  (`dist/assets/index-bWm94p-l.js`): `requestContact` ✓ · `/api/link/contact` ✓ · `linkinapp` ✓.
+- `featureFlags.ts` DEFAULT_OFF ro'yxatida `linkinapp` bor (kod darajasida isbot).
+
+**TEKSHIRILMAGAN (ochiq aytaman).** (1) Uchidan-uchiga jonli oqim — bu muhitda `DATABASE_URL` ham,
+`BOT_TOKEN` ham yo'q, server ko'tarilmaydi; ya'ni HAQIQIY Telegram javobi bilan `/api/link/contact`
+sinalmagan — faqat imzo-yadrosi sinalgan. (2) `handleLink` refaktori jonli bot'da yugurtirilmagan:
+mantiq bir xil ko'chirildi va `tsc` toza, lekin bu **pul yo'li** — deploydan keyin bitta real
+ulanish kuzatilishi shart. (3) Referal/QR mukofotlari testi TEST_DATABASE_URL talab qiladi
+(CLAUDE.md), bu sessiyada yo'q. Shu 3 sabab uchun flag **OFF** chiqarildi.

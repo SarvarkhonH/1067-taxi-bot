@@ -11,10 +11,11 @@ import {
   linkByPhone,
   touchTelegramUser,
 } from "../services/memberService";
+import { autoSetDisplayName, completeLink } from "../services/linkService";
 import { dailyCheckIn, spinWheel } from "../services/rewardService";
 import { claimMission, getMissions } from "../services/missionService";
 import { getBoxStatus, openBox } from "../services/boxService";
-import { attachPendingReferral, completeReferral, getReferralInfo, REFERRER_REWARD, REFEREE_REWARD } from "../services/referralService";
+import { attachPendingReferral, getReferralInfo, REFERRER_REWARD, REFEREE_REWARD } from "../services/referralService";
 import { featureOn } from "../services/featureFlags";
 import { getBonusEcon } from "../services/bonusConfig";
 import { getWeeklyBoard } from "../services/weeklyService";
@@ -46,7 +47,6 @@ import {
   renderFare,
   renderHelp,
   renderLinked,
-  renderReferralWin,
   renderTaken,
   renderWeeklyBlock,
   renderStartLinked,
@@ -244,28 +244,8 @@ function looksLikeName(text: string): boolean {
   return /^[\p{L}]/u.test(text.trim());
 }
 
-// Best-effort friendly name from a Telegram user + phone, in priority order:
-//   1. first (+ last) name  2. @username  3. "Mijoz ••1234" (phone last 4)
-// Returns null if nothing usable (caller keeps the existing default).
-function deriveDisplayName(from: { first_name?: string; last_name?: string; username?: string }, phone: string): string | null {
-  const full = [from.first_name, from.last_name].filter(Boolean).join(" ").trim();
-  if (full.length >= 2) return full.slice(0, 40);
-  if (from.username && from.username.length >= 2) return from.username.slice(0, 40);
-  const digits = phone.replace(/\D/g, "");
-  if (digits.length >= 4) return `Mijoz ••${digits.slice(-4)}`;
-  return null;
-}
-
-// Auto-set a derived display name ONLY when the member has none yet — never clobber a name
-// the user (or a prior link) already chose. Clients only.
-async function autoSetDisplayName(memberId: number, from: { first_name?: string; last_name?: string; username?: string }, phone: string): Promise<void> {
-  const m = await prisma.member.findUnique({ where: { id: memberId }, select: { displayName: true } }).catch(() => null);
-  if (!m || (m.displayName && m.displayName.trim().length > 0)) return;
-  const derived = deriveDisplayName(from, phone);
-  if (!derived) return;
-  const { setDisplayName } = await import("../services/memberService");
-  await setDisplayName(memberId, derived).catch(() => undefined);
-}
+// deriveDisplayName + autoSetDisplayName services/linkService.ts ga ko'chirildi (Mini App'ning
+// requestContact yo'li ham aynan shularni ishlatadi — nusxa bo'lmasligi uchun).
 
 export function createBot(): Bot {
   const bot = new Bot(env.BOT_TOKEN);
@@ -403,61 +383,18 @@ export function createBot(): Bot {
     const id = String(ctx.from!.id);
     // «🔎 Tekshiryapman…» xabari o'rniga typing-indikatori — u xabar sanog'iga qo'shilmaydi.
     await ctx.replyWithChatAction("typing").catch(() => undefined);
-    const res = await linkByPhone(id, phone, profileOf(ctx.from!));
+    // Ulash + hamma mukofot qadami — services/linkService.ts da (Mini App'ning requestContact
+    // yo'li ayni funksiyani chaqiradi). Bu yerda faqat KO'RSATISH qoladi.
+    const res = await completeLink(id, phone, profileOf(ctx.from!));
     if (res.status === "linked") {
       // Ulanish tasdig'i BITTA xabar (ega qarori 2026-07-26). Avval bu yerda 5 tagacha xabar
       // ketma-ket kelardi: tasdiq → sovg'a → referal → profil-statistika → «ilova ham bor» →
       // AI salomi. Sovg'a va referal qatorlari endi shu yagona kartaning ichida.
-      const extras: string[] = [];
-      // Auto-derive a friendly display name (no fragile "type your name" prompt that captured
-      // menu-button taps): Telegram first+last name → @username → phone's last 4 digits.
-      // Only for clients, and only if they don't already have a user-set name. Silent — they can
-      // change it anytime via Hisobim → ✏️ Ismni o'zgartirish.
-      if (res.type === "client" && res.memberId) await autoSetDisplayName(res.memberId, ctx.from!, phone);
-      if (res.welcomeBonus) {
-        extras.push(`🎁 Sovg'a: <b>+${formatNumber(res.welcomeBonus)} tanga</b> hisobingizga tushdi.`);
-      }
-      // pay out a pending referral (this user joined via someone's invite)
-      if (res.memberId) {
-        const credit = await completeReferral(id, res.memberId).catch(() => null);
-        if (credit) {
-          // friend: only promise an on-ride bonus when there IS one (legacy, or staged w/o join-welcome).
-          // In STAGED with the join-welcome ON, the friend already saw their +5000 message above.
-          if (credit.refereeReward > 0) {
-            extras.push(`✅ Do'st taklifi qabul qilindi — birinchi safaringizdan keyin <b>+${formatNumber(credit.refereeReward)} tanga</b>.`);
-          }
-          // inviter: STAGED → "raqam ulandi, +refShare now, +refRide on ride"; LEGACY → the win card.
-          if (credit.staged && credit.shareReward > 0) {
-            const rideMore =
-              credit.referrerReward > 0 ? ` Birinchi safarini qilsa — yana <b>+${formatNumber(credit.referrerReward)} tanga</b>! 🚕` : "";
-            await ctx.api
-              .sendMessage(
-                credit.referrerTelegramId,
-                `📱 <b>Do'stingiz raqamini uladi!</b>\n\n👥 Sizga <b>+${formatNumber(credit.shareReward)} tanga</b> tushdi.${rideMore}`,
-                { parse_mode: "HTML" },
-              )
-              .catch(() => undefined);
-          } else if (!credit.staged && credit.referrerReward > 0) {
-            await ctx.api
-              .sendMessage(credit.referrerTelegramId, renderReferralWin(credit.referrerReward), { parse_mode: "HTML" })
-              .catch(() => undefined);
-          }
-        }
-        // 🚖 driver-QR staged: if this client arrived via a driver's QR, pay the driver the share-stage reward.
-        const { completeDriverRecruitShare } = await import("../services/recruitService");
-        const drv = await completeDriverRecruitShare(id, res.memberId).catch(() => null);
-        if (drv?.driverTelegramId && drv.shareReward > 0) {
-          await ctx.api
-            .sendMessage(
-              drv.driverTelegramId,
-              `📱 <b>QR-mijozingiz raqamini uladi!</b>\n\n🚖 Sizga <b>+${formatNumber(drv.shareReward)} tanga</b> tushdi. Endi har safaridan ulush olasiz! 💰`,
-              { parse_mode: "HTML" },
-            )
-            .catch(() => undefined);
-        }
+      for (const n of res.notices) {
+        await ctx.api.sendMessage(n.telegramId, n.html, { parse_mode: "HTML" }).catch(() => undefined);
       }
       // …va mana o'sha YAGONA xabar: poster + tasdiq (+ sovg'a/referal qatorlari) + ilova tugmasi.
-      await sendLinkedCard(ctx, res.fullName ?? "Mijoz", extras);
+      await sendLinkedCard(ctx, res.fullName ?? "Mijoz", res.extras);
     } else if (res.status === "banned") {
       await ctx.reply("🚫 Bu raqam bloklangan. Bot xizmatlaridan foydalanolmaysiz.\nSavol bo'lsa: 1067");
     } else if (res.status === "taken") {

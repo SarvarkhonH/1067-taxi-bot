@@ -4,7 +4,7 @@ const DesignDemo = lazy(() => import("./design/demo")); // #demo dagina yuklanad
 const ShopDemo = lazy(() => import("./design/shopDemo").then((m) => ({ default: m.ShopDemoPage }))); // #shopdemo dagina — shopv2 vizual-QA (mock-fetch, real Telegram auth kerak emas)
 import type { LeaderboardResponse, MeResponse } from "@t1067/shared";
 import { api, getInitData, waitForInitData } from "./api";
-import { haptic, tg } from "./telegram";
+import { askContact, haptic, hapticSuccess, tg } from "./telegram";
 import { LeaderboardView, LoadError, MissionsView, ReferralView, RideHistoryView, Spinner } from "./components";
 import { AccountCard, TierLadder, TierLadderCompact, WalletView } from "./wallet"; // bosh tab — eager (birinchi paint)
 import { UyView, NewUyView } from "./uy"; // Uy tabi — yengil (leaflet-siz), eager. NewUyView = feature "newhome" redizayn
@@ -570,6 +570,51 @@ function openLinkBot(): void {
   else window.open(url, "_blank");
 }
 
+/** 📱 RAQAMNI ILOVA ICHIDA ULASH (Bot API 6.9 `requestContact`).
+ *
+ *  Ilgari mehmon "Raqamni ulash" bosganda ilovadan CHIQIB botga otilardi — va ko'pchilik
+ *  qaytmasdi: /start bosgan 1060 odamdan 289 tasi ulanmagan, 286 tasi tugmani umuman bosmagan
+ *  (DB, 2026-07-26). Endi Telegram'ning o'z tasdiq oynasi shu yerda ochiladi va ulanish ilovani
+ *  tark etmasdan tugaydi. Eski klient yoki xato — eski bot-yo'li fallback bo'lib qoladi, ya'ni
+ *  hech kim yo'lda qolib ketmaydi.
+ *
+ *  Raqam bu yerda TEKSHIRILMAYDI: imzolangan javob serverga uzatiladi, haqiqiyligini bot tokeni
+ *  bilan FAQAT server hal qiladi (/api/link/contact). */
+function useLinkFlow(flash: (msg: string) => void, enabled: boolean) {
+  const [busy, setBusy] = useState(false);
+  const start = async (): Promise<void> => {
+    if (busy) return;
+    // Kill-switch: `linkinapp` OFF bo'lsa eski bot-yo'li AYNAN ishlaydi (ega QABUL'igacha).
+    if (!enabled) { openLinkBot(); return; }
+    haptic();
+    setBusy(true);
+    try {
+      const ask = await askContact();
+      if (ask.status === "unsupported") { openLinkBot(); return; } // eski klient → bot yo'li
+      if (ask.status === "cancelled") { flash("Bekor qilindi — istalgan payt qayta urinib ko'rasiz."); return; }
+      const r = await api.linkContact(ask.response, ask.hash);
+      if (r.ok) {
+        hapticSuccess();
+        flash("✅ Raqam ulandi! Ilova yangilanmoqda…");
+        setTimeout(() => location.reload(), 800); // butun qobiq ulangan foydalanuvchi sifatida qayta yuklanadi
+        return;
+      }
+      flash(
+        r.status === "not_found" ? "Bu raqam 1067 bazasida topilmadi. Bot orqali urinib ko'ring."
+          : r.status === "taken" ? "Bu raqam boshqa Telegram hisobiga ulangan."
+          : r.status === "banned" ? "Bu raqam bloklangan. Savol bo'lsa: 1067"
+          : "Ulanmadi — bot orqali urinib ko'ring.",
+      );
+    } catch {
+      // 400/403 (imzo/identifikatsiya xatosi) yoki tarmoq — mijozga sabab emas, YO'L kerak.
+      flash("Ulanmadi — bot orqali urinib ko'ring.");
+    } finally {
+      setBusy(false);
+    }
+  };
+  return { busy, start };
+}
+
 /** 🚪 MEHMON REJIMI. Bu ekran avval `NotLinked` — bironta tugmasiz boshi berk ko'cha edi: «botga
  *  kiring va raqamingizni ulang». DB (2026-07-26): /start bosgan 1 060 odamdan 289 tasi ulanmagan,
  *  shundan 286 tasi tugmani umuman bosmagan. Ular hech narsa ko'rmasdan turib raqam so'ralgani
@@ -614,16 +659,21 @@ function GuestApp({ flags }: { flags: MeResponse["flags"] }) {
     setMsg(m);
     setTimeout(() => setMsg(null), 3200);
   };
+  // 📱 Ulash endi ilova ICHIDA (requestContact) — hooklar erta return'dan OLDIN chaqiriladi.
+  const link = useLinkFlow(flash, !!flags?.linkinapp);
   // Ko'rish uchun ochiq tab bo'lmasa — eski (tugmali) taklif ekrani.
   if (!tabs.length) {
     return (
       <div className="screen center">
         <div className="aurora" />
+        {msg && <div className="toast">{msg}</div>}
         <div className="nl-card glass pad tac">
           <div className="nl-emoji">🔗</div>
           <h2>Bir qadam qoldi</h2>
           <p className="muted">Raqamingizni ulasangiz — taksi chaqirasiz, tanga va cashback yig'asiz, buyurtma berasiz.</p>
-          <button className="btn-primary" onClick={openLinkBot}>📱 Raqamni ulash</button>
+          <button className="btn-primary" onClick={() => void link.start()} disabled={link.busy}>
+            {link.busy ? "⏳ Ulanmoqda…" : "📱 Raqamni ulash"}
+          </button>
         </div>
       </div>
     );
@@ -633,15 +683,15 @@ function GuestApp({ flags }: { flags: MeResponse["flags"] }) {
       {msg && <div className="toast">{msg}</div>}
       <div className="view">
         <Suspense fallback={<Spinner />}>
-          {tab === "dokon" && <ShopView me={me} onBanner={flash} reload={() => undefined} onBook={openLinkBot} />}
+          {tab === "dokon" && <ShopView me={me} onBanner={flash} reload={() => undefined} onBook={() => void link.start()} />}
           {tab === "restoran" && <RestoranView me={me} onBanner={flash} />}
           {tab === "xizmat" && <XizmatlarView me={me} onBanner={flash} />}
         </Suspense>
       </div>
       {/* Doimiy taklif — bosim emas, taklif: nima ochilishini aytadi va bir bosishda ulaydi. */}
-      <button className="guest-bar" onClick={openLinkBot}>
+      <button className="guest-bar" onClick={() => void link.start()} disabled={link.busy}>
         <span className="gb-txt"><b>Raqamni ulang</b><small>Buyurtma berish, taksi va tanga uchun</small></span>
-        <span className="gb-cta">Ulash</span>
+        <span className="gb-cta">{link.busy ? "⏳" : "Ulash"}</span>
       </button>
       <nav className="tabbar">
         {tabs.map((t) => (

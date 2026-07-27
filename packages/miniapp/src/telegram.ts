@@ -31,6 +31,13 @@ interface TgInset {
   right: number;
 }
 
+/** `requestContact()` javobi. `response` — imzolangan query-string (`contact=<json>&auth_date=…`),
+ *  `hash` — uning HMAC imzosi. IKKALASI ham serverga o'zgarishsiz uzatiladi: raqamning haqiqiyligini
+ *  FAQAT server, bot tokeni bilan tekshira oladi (mijozga ishonch YO'Q). */
+type TgContactResponse =
+  | { status: "sent"; response: string; hash?: string; responseUnsafe?: { auth_date: string; contact: { user_id: number; phone_number: string; first_name?: string; last_name?: string } } }
+  | { status: "cancelled" };
+
 interface TelegramWebApp {
   initData: string;
   version?: string;
@@ -53,6 +60,8 @@ interface TelegramWebApp {
   contentSafeAreaInset?: TgInset;
   onEvent?: (event: string, cb: () => void) => void;
   offEvent?: (event: string, cb: () => void) => void;
+  // Bot API 6.9+ — Telegram tasdiqlagan raqamni ILOVA ICHIDA so'rash (botga sakramasdan).
+  requestContact?: (cb: (ok: boolean, resp?: TgContactResponse) => void) => void;
   LocationManager?: TgLocationManager;
   HapticFeedback?: { impactOccurred: (s: string) => void; selectionChanged: () => void; notificationOccurred?: (t: string) => void };
 }
@@ -95,6 +104,38 @@ function syncInsets(): void {
 /** True when Telegram is currently drawing us edge-to-edge. */
 export function isFullscreen(): boolean {
   return !!tg?.isFullscreen;
+}
+
+// ── 📱 raqamni ilova ichida so'rash (Bot API 6.9+) ────────────────────────────
+export type ContactAsk =
+  | { status: "sent"; response: string; hash?: string }
+  | { status: "cancelled" }
+  | { status: "unsupported" }; // eski klient → chaqiruvchi botga yo'naltiradi
+
+/** Telegram'ning o'z raqam-so'rov oynasini ochadi. HECH QACHON rad etmaydi; javob serverga
+ *  o'zgarishsiz uzatilishi va O'SHA YERDA tekshirilishi shart. Klient eski bo'lsa yoki javob
+ *  15s ichida kelmasa — "unsupported"/"cancelled" (ilova botga qaytish yo'lini ko'rsatadi). */
+export function askContact(): Promise<ContactAsk> {
+  return new Promise((resolve) => {
+    if (!tg?.requestContact || !tg.isVersionAtLeast?.("6.9")) {
+      resolve({ status: "unsupported" });
+      return;
+    }
+    let settled = false;
+    const done = (r: ContactAsk) => { if (!settled) { settled = true; resolve(r); } };
+    try {
+      tg.requestContact((ok, resp) => {
+        if (!ok || !resp || resp.status !== "sent" || !resp.response) { done({ status: "cancelled" }); return; }
+        done({ status: "sent", response: resp.response, hash: resp.hash });
+      });
+    } catch {
+      done({ status: "unsupported" });
+      return;
+    }
+    // Xavfsizlik to'ri: ba'zi klientlar oynani yopganda callback'ni umuman chaqirmaydi —
+    // spinner abadiy aylanib qolmasin.
+    setTimeout(() => done({ status: "cancelled" }), 60000);
+  });
 }
 
 export function initTelegram(): void {

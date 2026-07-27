@@ -14,6 +14,7 @@ import {
   getMemberId,
   isAdmin,
   linkByPhone,
+  touchTelegramUser,
 } from "../services/memberService";
 import { dailyCheckIn, spinWheel } from "../services/rewardService";
 import { claimMission, getMissions } from "../services/missionService";
@@ -35,7 +36,7 @@ import { prisma } from "../db";
 import { getFareConfig } from "../services/clientInfoService";
 import { callOneTapFor, cancelBookingFor, createBookingFor, estimateFare, getActiveBookingFor, getBookingInfo, getRecentPickups, nearestAddressFor, searchBookingAddress } from "../services/bookingService";
 import type { BookingCreateBody, BookingNowBody, GeoPt } from "@t1067/shared";
-import { validateInitData } from "./telegramAuth";
+import { validateContactResponse, validateInitData } from "./telegramAuth";
 import { isTgBanned } from "../services/banService";
 import { featureOn } from "../services/featureFlags";
 
@@ -252,7 +253,7 @@ export function createApiServer(opts: ApiOptions = {}) {
   });
 
   app.get("/api/me", allowGuest, async (_req, res) => {
-    const [me, booking3, livinghome, intercity, tierloyalty, shopOn, xizmatlarOn, elonlarOn, restoranOn, bazarOn, bazarcartOn, revtangaOn, shopstoryOn, shopchatOn, newhomeOn, newprofileOn, shopv2On] = await Promise.all([
+    const [me, booking3, livinghome, intercity, tierloyalty, shopOn, xizmatlarOn, elonlarOn, restoranOn, bazarOn, bazarcartOn, revtangaOn, shopstoryOn, shopchatOn, newhomeOn, newprofileOn, shopv2On, linkinappOn] = await Promise.all([
       getMe(res.locals.telegramId as string),
       featureOn("booking3"),
       featureOn("livinghome"),
@@ -270,6 +271,7 @@ export function createApiServer(opts: ApiOptions = {}) {
       featureOn("newhome"),
       featureOn("newprofile"),
       featureOn("shopv2"),
+      featureOn("linkinapp"),
     ]);
     // 🚪 Mehmon (yoki ulanmagan) — 401 EMAS. Bayroqlar baribir yuboriladi: mijoz ilovaga kiradi,
     // katalogni ko'radi, raqam faqat harakat paytida so'raladi. `guest` = Telegram identifikatori
@@ -279,7 +281,7 @@ export function createApiServer(opts: ApiOptions = {}) {
       res.json({
         linked: false,
         guest,
-        flags: { shop: shopOn, xizmatlar: xizmatlarOn, restoran: restoranOn, bazar: bazarOn, bazarcart: bazarcartOn, shopv2: shopv2On, newhome: newhomeOn },
+        flags: { shop: shopOn, xizmatlar: xizmatlarOn, restoran: restoranOn, bazar: bazarOn, bazarcart: bazarcartOn, shopv2: shopv2On, newhome: newhomeOn, linkinapp: linkinappOn || isAdmin(String(res.locals.telegramId ?? "")) },
       });
       return;
     }
@@ -309,7 +311,50 @@ export function createApiServer(opts: ApiOptions = {}) {
     const newprofilePreview = newprofileOn || isAdmin(res.locals.telegramId as string);
     // 🏪 shopv2 owner-preview — BirJoy Market qorong'i-qayta-dizayni QABUL'gacha faqat ega ekranida
     const shopv2Preview = shopv2On || isAdmin(res.locals.telegramId as string);
-    res.json({ ...me, flags: { booking3, livinghome, intercity, tierloyalty: tierPreview, shop: shopPreview, xizmatlar: xizmatlarPreview, elonlar: elonlarPreview, restoran: restoranPreview, bazar: bazarPreview, bazarcart: bazarcartPreview, revtanga: revtangaPreview, shopstory: shopstoryPreview, shopchat: shopchatPreview, newhome: newhomePreview, newprofile: newprofilePreview, shopv2: shopv2Preview } });
+    res.json({ ...me, flags: { booking3, livinghome, intercity, tierloyalty: tierPreview, shop: shopPreview, xizmatlar: xizmatlarPreview, elonlar: elonlarPreview, restoran: restoranPreview, bazar: bazarPreview, bazarcart: bazarcartPreview, revtanga: revtangaPreview, shopstory: shopstoryPreview, shopchat: shopchatPreview, newhome: newhomePreview, newprofile: newprofilePreview, shopv2: shopv2Preview, linkinapp: linkinappOn || isAdmin(res.locals.telegramId as string) } });
+  });
+
+  /**
+   * 📱 RAQAMNI ILOVA ICHIDA ULASH — Mini App'ning `WebApp.requestContact()` javobi.
+   *
+   * Nega: ilgari ulanmagan mijoz "Raqamni ulash" bosganda ilovadan CHIQIB botga otilardi. DB
+   * o'lchovi (2026-07-26): /start bosgan 1060 odamdan 289 tasi ulanmagan, shundan 286 tasi
+   * tugmani umuman bosmagan. Endi ulash ilova ichida, bitta tasdiqda tugaydi.
+   *
+   * XAVFSIZLIK — ikki mustaqil isbot, ikkalasi ham SHART:
+   *   1. `hash` imzosi (bot tokeni bilan) → raqamni TELEGRAM tasdiqlagan, mijoz o'ylab topmagan.
+   *   2. `contact.user_id === initData'dagi id` → bu raqam AYNAN shu autentifikatsiya qilingan
+   *      foydalanuvchiniki. Bu bot yo'lidagi `contact.user_id !== ctx.from.id` qoidasining ayni
+   *      ekvivalenti — usiz begona hisobga ulanib olish mumkin bo'lardi.
+   * Ulash va hamma mukofot qadami `completeLink` da — bot bilan BITTA yo'l, nusxa yo'q.
+   */
+  app.post("/api/link/contact", requireUser, rateLimit(6), async (req, res) => {
+    const tgId = res.locals.telegramId as string;
+    const body = (req.body ?? {}) as { response?: string; hash?: string };
+    const v = validateContactResponse(String(body.response ?? ""), body.hash ? String(body.hash) : null, env.BOT_TOKEN);
+    if (!v.ok || !v.contact) {
+      res.status(400).json({ ok: false, status: "bad_contact", reason: v.reason });
+      return;
+    }
+    if (String(v.contact.user_id) !== tgId) {
+      console.warn(`[link] contact user_id mismatch: signed=${v.contact.user_id} auth=${tgId}`);
+      res.status(403).json({ ok: false, status: "not_own_contact" });
+      return;
+    }
+    const profile = { firstName: v.contact.first_name, lastName: v.contact.last_name };
+    await touchTelegramUser(tgId, profile).catch(() => undefined);
+    const { completeLink } = await import("../services/linkService");
+    const r = await completeLink(tgId, v.contact.phone_number, profile);
+    if (r.status === "linked" && opts.sendMessage) {
+      // Uchinchi shaxs mukofotlari (taklif qilgan do'st / QR-haydovchi) — bot yo'lidagi bilan bir xil.
+      for (const n of r.notices) await opts.sendMessage(n.telegramId, n.html).catch(() => undefined);
+      // Foydalanuvchining o'ziga tasdiq: ilova darhol ko'rsatadi, chatda ham yozuv qolsin (sovg'a
+      // qatorlari bilan). Bot yo'lidagi poster-karta bu yerda takrorlanmaydi — matn yetarli.
+      const { renderLinked } = await import("../bot/render");
+      const html = renderLinked(r.fullName ?? "Mijoz") + (r.extras.length ? `\n\n${r.extras.join("\n")}` : "");
+      await opts.sendMessage(tgId, html).catch(() => undefined);
+    }
+    res.json({ ok: r.status === "linked", status: r.status, extras: r.extras });
   });
 
   // 🏅 Tier ladder benefits — labels derived from LIVE knobs (single source of truth). 60s client cache.
