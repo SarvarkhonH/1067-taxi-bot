@@ -37,7 +37,7 @@ function Hero() {
         <img src="/ravella/logo-mark.png" alt="" onError={(e) => { const b = (e.target as HTMLImageElement).parentElement; if (b) b.style.display = "none"; }} />
       </div>
       <h1 className="rv-hero-title">Ravella</h1>
-      <div className="rv-hero-sub">Saxna bezaklari · bayram yozuvlari</div>
+      <div className="rv-hero-sub">Orzudagi bezaklar — Ravella bilan</div>
     </div>
   );
 }

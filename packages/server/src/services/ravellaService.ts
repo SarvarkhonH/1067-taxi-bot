@@ -384,6 +384,21 @@ async function tgUploadPhoto(buf: Buffer, mime: string, caption: string): Promis
   }
 }
 
+/** Hamkor botga rasm yuborganda: surat ALLAQACHON Telegram'da — `file_id` shundoq saqlanadi.
+ *  Ya'ni bayt yuklanmaydi, tarmoq ishlatilmaydi (admin-panel yo'lidan farqi shu). `photoUrl`
+ *  tozalanadi: eski data-URL qolib ketsa u yangi file_id'dan USTUN chiqib, eski rasm ko'rinardi. */
+export async function setRavellaItemPhotoFileId(itemId: number, fileId: string): Promise<{ ok: boolean }> {
+  if (!validId(itemId) || !fileId) return { ok: false };
+  await prisma.ravellaItem.update({ where: { id: itemId }, data: { photoFileId: fileId, photoUrl: null } }).catch(() => undefined);
+  return { ok: true };
+}
+
+export async function setRavellaAddonPhotoFileId(addonId: number, fileId: string): Promise<{ ok: boolean }> {
+  if (!validId(addonId) || !fileId) return { ok: false };
+  await prisma.ravellaAddon.update({ where: { id: addonId }, data: { photoFileId: fileId, photoUrl: null } }).catch(() => undefined);
+  return { ok: true };
+}
+
 export async function uploadRavellaItemPhoto(itemId: number, buf: Buffer, mime = "image/jpeg"): Promise<{ ok: boolean }> {
   const { fileId } = await tgUploadPhoto(buf, mime, `🎀 Ravella bezak · #${itemId}`);
   const url = fileId ? null : `data:${mime};base64,${buf.toString("base64")}`;

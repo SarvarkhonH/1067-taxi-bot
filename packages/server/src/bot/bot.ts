@@ -29,6 +29,7 @@ import { registerCashout } from "./cashout";
 import { registerMarket, isInMarketWizard, isAwaitingStory } from "./market";
 import { registerIntercity } from "./intercity";
 import { isAwaitingBroadcastPhoto, registerBroadcast } from "./broadcast";
+import { isAwaitingRavellaPhoto } from "./ravella";
 import type { DriverPanelExtras } from "../services/driverReportService";
 import {
   renderBadgeUnlocked,
@@ -486,6 +487,9 @@ export function createBot(): Bot {
     // 🖼 /elonrasm ham xuddi shunday: ega rasm yuborayotgan bo'lsa — chetga olamiz, aks holda
     // quyidagi admin-shoxobcha sarlavhasiz rasmni `next()`siz yutadi va e'lon JIM ishlamaydi.
     if (isAwaitingBroadcastPhoto(id)) { await next(); return; }
+    // 🎀 Ravella hamkori (Zoyir/faylasuf) katalogga rasm yuborayotgan bo'lsa — chetga olamiz.
+    // Ular admin ham, haydovchi ham emas: quyidagi shoxobcha ularni `next()`siz yutib yuborardi.
+    if (isAwaitingRavellaPhoto(id)) { await next(); return; }
     const photos = ctx.message?.photo ?? [];
     if (!photos.length) return;
     const biggest = photos[photos.length - 1]!; // largest size variant
