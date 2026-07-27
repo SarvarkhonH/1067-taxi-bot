@@ -29,6 +29,7 @@ import { useBackButton } from "./useBackButton";
 import { Button, EmptyState, ProgressBar, Sheet, Skeleton } from "./design/components";
 import { BjCategoryCarousel, BjShopCard, BjMahallaShopCard, BjSection, BjStickyCartBar } from "./design/birjoy"; // 🏪 V1.4+V2 BirJoy-kit
 import { Icon } from "./icons";
+import "./design/feat/shop.css"; // bu tab ochilgandagina yuklanadi (kritik yo'lda emas)
 
 const LAST_ADDR_KEY = "shop_last_addr";
 const CART_KEY = "bj_cart_v1"; // 🧺 V2: savat localStorage'da (tab-almashinuv/reopen'dan omon qoladi)

@@ -1,0 +1,100 @@
+/* rst-* uslublari - tokens.css'dan ajratildi (2026-07-27).
+   Bu fayl faqat mos lazy-chunk yuklanganda keladi, ya'ni birinchi
+   chizilishni bloklamaydi. Faqat bitta xususiyatga tegadigan qoidalar
+   ko'chirildi; aralash yoki umumiy qoidalar yadroda qoldi. */
+.rst-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.rst-card { --acc: var(--brand); padding: 0; overflow: hidden; text-align: left; display: flex; flex-direction: column; }
+.rst-card:active { transform: scale(.96); }
+.rst-card-photo-wrap { position: relative; }
+.rst-card-photo { width: 100%; aspect-ratio: 4 / 3; object-fit: cover; display: block; background: var(--surface, #1a2130); }
+.rst-card-noimg { display: flex; align-items: center; justify-content: center; font-size: 44px; }
+.rst-card-body { padding: 9px 10px 10px; display: flex; flex-direction: column; gap: 5px; }
+.rst-card-name { font-size: 13.5px; font-weight: 700; color: var(--text); line-height: 1.25; }
+.rst-card-meta { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.rst-rating { font-size: 11.5px; color: var(--muted, #9aa4b2); font-weight: 700; white-space: nowrap; }
+.rst-card-fee { font-size: 11.5px; color: var(--muted, #9aa4b2); }
+.rst-back { align-self: flex-start; font-size: 14px; font-weight: 700; color: var(--muted, #9aa4b2); padding: 6px 2px; margin-bottom: 4px; }
+.rst-hero { display: flex; flex-direction: column; gap: 10px; margin-bottom: 14px; }
+.rst-hero-photo { width: 100%; aspect-ratio: 16 / 9; object-fit: cover; border-radius: 16px; background: var(--surface, #1a2130); font-size: 60px; }
+.rst-hero-info { display: flex; flex-direction: column; gap: 4px; }
+.rst-hero-name { font-size: 18px; font-weight: 800; color: var(--text); }
+.rst-section { margin-bottom: 16px; }
+.rst-section-title { font-size: 13px; font-weight: 800; color: var(--muted, #9aa4b2); text-transform: uppercase; letter-spacing: .04em; margin-bottom: 8px; }
+.rst-item { display: flex; gap: 10px; padding: 8px 0; border-bottom: 1px solid var(--line, #2a3242); }
+.rst-item:last-child { border-bottom: none; }
+.rst-item.unavailable { opacity: .5; }
+.rst-item-photo { width: 56px; height: 56px; border-radius: 12px; object-fit: cover; flex-shrink: 0; display: flex; align-items: center; justify-content: center; font-size: 26px; background: var(--surface, #1a2130); }
+.rst-item-body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.rst-item-name { font-size: 13.5px; font-weight: 700; color: var(--text); }
+.rst-item-desc { font-size: 11.5px; color: var(--muted, #9aa4b2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rst-item-price { font-size: 12.5px; font-weight: 700; color: var(--brand); }
+.rst-detail-view { padding-bottom: 76px; }
+.rst-item-add { flex: 0 0 auto; align-self: center; width: 30px; height: 30px; border-radius: 50%;
+  background: var(--brand); color: #1a1205; font-size: 18px; font-weight: 800; line-height: 1; }
+.rst-item-add:active { transform: scale(.92); }
+.rst-item-stepper { flex: 0 0 auto; align-self: center; display: flex; align-items: center; gap: 8px;
+  background: var(--surface-2, #232b3c); border-radius: 999px; padding: 4px 8px; }
+.rst-item-stepper button { width: 22px; height: 22px; border-radius: 50%; font-size: 15px; font-weight: 800; color: var(--text); background: transparent; }
+.rst-item-stepper span { font-size: 13px; font-weight: 800; min-width: 14px; text-align: center; }
+.rst-cart-bar { position: fixed; left: 16px; right: 16px; bottom: calc(72px + var(--safe-bottom));
+  display: flex; align-items: center; gap: 10px; padding: 13px 16px; border-radius: 16px;
+  background: var(--brand-grad); color: #1a1205; font-weight: 800; font-size: 14px; box-shadow: var(--shadow-1); z-index: 20; }
+.rst-cart-bar:active { transform: scale(.98); }
+.rst-cart-bar b { margin-left: auto; }
+.rst-cart-badge { background: #1a1205; color: #fff; border-radius: 999px; min-width: 20px; height: 20px; padding: 0 5px; font-size: 12px; display: flex; align-items: center; justify-content: center; }
+.rst-confirm-line { display: flex; justify-content: space-between; font-size: 13px; padding: 4px 0; color: var(--text); }
+.rst-confirm-total { display: flex; justify-content: space-between; font-size: 13px; color: var(--muted, #9aa4b2); padding: 6px 0; }
+.rst-confirm-grand { font-size: 15px; font-weight: 800; color: var(--text); border-top: 1px solid var(--line, #2a3242); margin-top: 4px; padding-top: 10px; }
+.rst-pickup-toggle { display: flex; gap: 8px; margin: 10px 0; }
+.rst-pickup-toggle button { flex: 1; padding: 10px; border-radius: 12px; border: 1px solid var(--line, #2a3242); background: var(--surface, #1a2130); color: var(--muted, #9aa4b2); font-weight: 700; font-size: 13px; }
+.rst-pickup-toggle button.on { background: var(--brand); color: #1a1205; border-color: transparent; }
+.rst-myorders-btn { display: block; width: 100%; text-align: left; padding: 12px 14px; border-radius: 14px;
+  background: var(--surface, #1a2130); border: 1px solid var(--line, #2a3242); color: var(--text); font-weight: 700; font-size: 13.5px; margin-bottom: 12px; }
+.rst-myorders-btn:active { transform: scale(.98); }
+.rst-order-card { background: var(--surface, #1a2130); border: 1px solid var(--line, #2a3242); border-radius: 14px; padding: 12px; margin-bottom: 10px; }
+.rst-order-top { display: flex; align-items: center; justify-content: space-between; gap: 8px; font-size: 14px; color: var(--text); margin-bottom: 4px; }
+.rst-order-items { margin-bottom: 6px; }
+.rst-order-bottom { display: flex; justify-content: space-between; align-items: center; font-size: 12.5px; color: var(--text); }
+.rst-order-reason { margin-top: 6px; font-size: 11.5px; color: var(--danger); }
+.rst-order-cancel, .rst-order-reorder { margin-top: 8px; width: 100%; padding: 9px; border-radius: 10px; font-size: 12.5px; font-weight: 700; }
+.rst-order-cancel { background: rgba(248,113,113,.12); color: var(--danger); border: 1px solid rgba(248,113,113,.25); }
+.rst-order-cancel:active { transform: scale(.97); }
+.rst-order-reorder { background: var(--surface-2, #232b3c); color: var(--text); border: 1px solid var(--line, #2a3242); }
+.rst-order-reorder:active { transform: scale(.97); }
+.rst-badge-top { position: absolute; top: 8px; left: 8px; background: linear-gradient(135deg,#ff6b35,#e34234); color: #fff; font-size: 10.5px; font-weight: 800; padding: 3px 7px; border-radius: 999px; }
+.rst-toolbar { display: flex; gap: 8px; margin-bottom: 8px; align-items: center; }
+.rst-toolbar .bk-input { flex: 1; margin-top: 0; }
+.rst-cat-row { display: flex; gap: 6px; overflow-x: auto; scrollbar-width: none; margin-bottom: 10px; padding-bottom: 2px; }
+.rst-cat-row::-webkit-scrollbar { display: none; }
+.rst-chip { flex: 0 0 auto; white-space: nowrap; padding: 7px 12px; border-radius: 999px; font-size: 12.5px; font-weight: 700;
+  background: var(--surface, #1a2130); border: 1px solid var(--line, #2a3242); color: var(--muted, #9aa4b2); }
+.rst-chip.on { background: var(--brand); color: #1a1205; border-color: transparent; }
+.rst-stars-input { display: flex; gap: 4px; margin-bottom: 4px; }
+.rst-stars-input button { font-size: 26px; color: var(--line, #2a3242); line-height: 1; }
+.rst-stars-input button.on { color: #ffc233; }
+.rst-review-row { padding: 6px 0; border-bottom: 1px solid var(--line, #2a3242); font-size: 12.5px; }
+.rst-review-row:last-child { border-bottom: none; }
+.app.restoran-light .rst-card { --acc: var(--rst-accent); background: #fff; border: 1px solid #fbd9b8; box-shadow: 0 3px 12px -8px rgba(154, 52, 18, 0.2); }
+.app.restoran-light .rst-card-name, .app.restoran-light .rst-hero-name, .app.restoran-light .rst-item-name { color: #2b1c12; }
+.app.restoran-light .rst-card-fee, .app.restoran-light .rst-item-desc, .app.restoran-light .rst-section-title { color: #a17858; }
+.app.restoran-light .rst-card-photo, .app.restoran-light .rst-hero-photo, .app.restoran-light .rst-item-photo { background: #fdead9; }
+.app.restoran-light .rst-item { border-bottom-color: #fbd9b8; }
+.app.restoran-light .rst-item-price { color: var(--rst-accent); }
+.app.restoran-light .rst-back { color: #a17858; }
+.app.restoran-light .rst-item-stepper { background: #fdead9; }
+.app.restoran-light .rst-item-stepper button { color: #2b1c12; }
+.app.restoran-light .rst-cart-bar { color: #fff; background: linear-gradient(135deg, var(--rst-accent), #c2410c); }
+.app.restoran-light .rst-cart-badge { background: rgba(0,0,0,.28); }
+.app.restoran-light .rst-confirm-line, .app.restoran-light .rst-confirm-grand { color: #2b1c12; }
+.app.restoran-light .rst-confirm-total { color: #a17858; }
+.app.restoran-light .rst-confirm-grand { border-top-color: #fbd9b8; }
+.app.restoran-light .rst-pickup-toggle button { background: #fff; border-color: #fbd9b8; color: #a17858; }
+.app.restoran-light .rst-pickup-toggle button.on { background: var(--rst-accent); color: #fff; }
+.app.restoran-light .rst-myorders-btn { background: #fff; border-color: #fbd9b8; color: #2b1c12; }
+.app.restoran-light .rst-order-card { background: #fff; border-color: #fbd9b8; }
+.app.restoran-light .rst-order-top { color: #2b1c12; }
+.app.restoran-light .rst-order-bottom { color: #2b1c12; }
+.app.restoran-light .rst-order-reorder { background: #fff; border-color: #fbd9b8; color: #2b1c12; }
+.app.restoran-light .rst-chip { background: #fff; border-color: #fbd9b8; color: #a17858; }
+.app.restoran-light .rst-chip.on { background: var(--rst-accent); color: #fff; }
+.app.restoran-light .rst-review-row { border-bottom-color: #fbd9b8; color: #2b1c12; }

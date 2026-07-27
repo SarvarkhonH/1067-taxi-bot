@@ -9,6 +9,7 @@ import { api, apiUrl } from "./api";
 import { loadErrorText } from "./util";
 import { haptic, hapticSuccess, tg } from "./telegram";
 import { Button, EmptyState, Lightbox, Sheet, Skeleton } from "./design/components";
+import "./design/feat/svc.css"; // bu tab ochilgandagina yuklanadi (kritik yo'lda emas)
 
 const BOT_LINK = "https://t.me/koson1067bot"; // share deep-link target (single source: server QR uses the same)
 

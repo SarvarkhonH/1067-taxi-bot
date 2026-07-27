@@ -17,6 +17,7 @@ import { api, apiUrl } from "./api";
 import { haptic, hapticSuccess, tg } from "./telegram";
 import { compressImage } from "./util";
 import { Button, EmptyState, Lightbox, Sheet, Skeleton } from "./design/components";
+import "./design/feat/elon.css"; // bu tab ochilgandagina yuklanadi (kritik yo'lda emas)
 
 type PriceBand = "arzon" | "ortacha" | "qimmat";
 

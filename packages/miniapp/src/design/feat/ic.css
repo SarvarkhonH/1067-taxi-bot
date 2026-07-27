@@ -1,0 +1,25 @@
+/* ic-* uslublari - tokens.css'dan ajratildi (2026-07-27).
+   Bu fayl faqat mos lazy-chunk yuklanganda keladi, ya'ni birinchi
+   chizilishni bloklamaydi. Faqat bitta xususiyatga tegadigan qoidalar
+   ko'chirildi; aralash yoki umumiy qoidalar yadroda qoldi. */
+.ic-pick { width: 100%; display: flex; align-items: center; gap: 10px; padding: 13px 14px; border-radius: var(--r-btn); background: var(--surface); border: 1px solid var(--line); color: var(--text); font-size: 15px; cursor: pointer; text-align: left; }
+.ic-pick:active { transform: scale(0.99); }
+.ic-pick .ic-pick-ico { font-size: 17px; flex: none; }
+.ic-pick .ic-pick-val { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 700; }
+.ic-pick .ic-pick-val.empty { color: var(--text-dim); font-weight: 600; }
+.ic-input { width: 100%; padding: 13px 14px; border-radius: var(--r-btn); background: var(--surface); border: 1px solid var(--line); color: var(--text); font-size: 16px; outline: none; }
+.ic-input:focus { border-color: var(--brand); }
+.ic-results { margin-top: 6px; max-height: 320px; overflow: auto; -webkit-overflow-scrolling: touch; }
+.ic-trip { display: flex; flex-direction: column; gap: 7px; }
+.ic-trip-top { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
+.ic-trip-route { font-size: 16px; font-weight: 800; color: var(--text); }
+.ic-trip-time { font-size: 14px; font-weight: 800; color: var(--brand); flex: none; }
+.ic-trip-meta { display: flex; align-items: center; gap: 8px; font-size: 12.5px; color: var(--text-dim); }
+.ic-seat { display: inline-flex; align-items: center; gap: 4px; padding: 2px 9px; border-radius: 999px; background: rgba(52,211,153,.14); border: 1px solid rgba(52,211,153,.4); color: var(--win); font-weight: 700; }
+.ic-fare { font-size: 18px; font-weight: 900; color: var(--text); }
+.ic-fare small { font-size: 12px; font-weight: 700; color: var(--text-dim); }
+.ic-msg { text-align: center; font-size: 14px; font-weight: 700; padding: 11px; border-radius: 12px; background: var(--surface-2); border: 1px solid var(--line); color: var(--text); }
+.ic-bk { display: flex; align-items: center; gap: 10px; }
+.ic-bk-meta { flex: 1; min-width: 0; }
+.ic-bk-route { font-size: 15px; font-weight: 800; color: var(--text); }
+.ic-bk-status { font-size: 12px; color: var(--text-dim); margin-top: 2px; }

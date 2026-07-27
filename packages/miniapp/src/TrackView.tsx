@@ -7,6 +7,7 @@ import "leaflet/dist/leaflet.css";
 import { formatNumber, haversineKm } from "@t1067/shared";
 import { api, type PublicTrip } from "./api";
 import { useIsActive } from "./useIsActive";
+import "./design/feat/tv.css"; // bu tab ochilgandagina yuklanadi (kritik yo'lda emas)
 
 const TILE_URL = "https://mt{s}.google.com/vt/lyrs=m&hl=uz&x={x}&y={y}&z={z}";
 const TILE_SUBDOMAINS = ["0", "1", "2", "3"];

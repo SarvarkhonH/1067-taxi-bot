@@ -4,6 +4,7 @@ import { api } from "./api";
 import { Spinner } from "./components";
 import { useCountUp, confetti } from "./util";
 import { hapticSuccess, shareLink, copyText } from "./telegram";
+import "./design/feat/drv.css"; // bu tab ochilgandagina yuklanadi (kritik yo'lda emas)
 
 type DriverMission = { id: string; emoji: string; title: string; target: number; reward: number; progress: number; claimable: boolean; claimed: boolean };
 type HotZone = { name: string; count: number };

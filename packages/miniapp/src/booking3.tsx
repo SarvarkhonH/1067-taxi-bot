@@ -39,6 +39,7 @@ function WaitTicker({ waitComp, startAt, mini }: { waitComp: BookingInfoResponse
 import { confetti } from "./util";
 import { Button, Sheet, Skeleton } from "./design/components";
 import { useIsActive } from "./useIsActive";
+import "./design/feat/b3.css"; // bu tab ochilgandagina yuklanadi (kritik yo'lda emas)
 
 const BookingViewOld = lazy(() => import("./booking").then((m) => ({ default: m.BookingView })));
 

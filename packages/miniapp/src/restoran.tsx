@@ -10,6 +10,7 @@ import { haptic, hapticSuccess } from "./telegram";
 import { Button, EmptyState, Sheet, Skeleton } from "./design/components";
 import { useBackButton } from "./useBackButton";
 import { useIsActive } from "./useIsActive";
+import "./design/feat/rst.css"; // bu tab ochilgandagina yuklanadi (kritik yo'lda emas)
 
 const LAST_ADDR_KEY = "restoran_last_addr";
 

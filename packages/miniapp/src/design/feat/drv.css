@@ -1,0 +1,86 @@
+/* drv-* uslublari - tokens.css'dan ajratildi (2026-07-27).
+   Bu fayl faqat mos lazy-chunk yuklanganda keladi, ya'ni birinchi
+   chizilishni bloklamaydi. Faqat bitta xususiyatga tegadigan qoidalar
+   ko'chirildi; aralash yoki umumiy qoidalar yadroda qoldi. */
+.drv-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 9px; margin-top: 12px; }
+.drv-stat { display: flex; flex-direction: column; gap: 3px; padding: 13px; border-radius: 14px;
+  background: linear-gradient(160deg, rgba(255,255,255,.05), rgba(255,255,255,.012)), var(--surface);
+  border: 1px solid var(--line); box-shadow: inset 0 1px 0 rgba(255,255,255,.05); }
+.drv-stat-top { display: flex; align-items: center; gap: 6px; }
+.drv-stat-ico { font-size: 16px; line-height: 1; }
+.drv-stat-lbl { font-size: 10.5px; font-weight: 800; letter-spacing: .5px; text-transform: uppercase; color: var(--text-dim); }
+.drv-stat-val { font-size: 20px; font-weight: 900; letter-spacing: -.4px; color: var(--text); line-height: 1.1; }
+.drv-stat-val small { font-size: 12px; font-weight: 700; color: var(--text-dim); letter-spacing: 0; }
+.drv-stat.warn { background: linear-gradient(150deg, rgba(248,113,113,.16), var(--surface)); border-color: rgba(248,113,113,.32); }
+.drv-stat.warn .drv-stat-val { color: #fda4a4; }
+.drv-stat.ok { background: linear-gradient(150deg, rgba(52,211,153,.14), var(--surface)); border-color: rgba(52,211,153,.28); }
+.drv-stat.ok .drv-stat-val { color: var(--win); }
+.drv-stat.gold { background: linear-gradient(150deg, rgba(255,179,0,.13), var(--surface)); border-color: rgba(255,179,0,.26); }
+.drv-debt { margin-top: 11px; padding: 13px; border-radius: 14px;
+  background: linear-gradient(150deg, rgba(255,179,0,.11), var(--surface)); border: 1px solid rgba(255,179,0,.26); }
+.drv-debt-h { font-size: 13.5px; font-weight: 800; margin-bottom: 4px; }
+.drv-debt-sub { font-size: 11.5px; color: var(--text-dim); margin-bottom: 10px; }
+.drv-debt-chips { display: flex; flex-wrap: wrap; gap: 8px; }
+.drv-debt-chip { flex: 1 1 86px; padding: 12px 6px; border-radius: 12px; border: 1px solid rgba(255,179,0,.34);
+  background: rgba(255,179,0,.07); color: #ffe7a8; font-weight: 800; font-size: 14px; cursor: pointer;
+  transition: transform var(--dur-press) ease, filter 160ms ease; }
+.drv-debt-chip.full { background: linear-gradient(165deg,#ffd060,var(--brand) 46%,#ff8f00); color: #2a1900; border-color: transparent;
+  box-shadow: 0 8px 20px -8px rgba(255,159,0,.7), inset 0 1px 0 rgba(255,255,255,.4); }
+.drv-debt-chip:active:not(:disabled) { transform: scale(.95); }
+.drv-debt-chip:disabled { opacity: .45; filter: saturate(.4); cursor: default; }
+.drv-debt-warn { font-size: 12.5px; color: var(--text-dim); margin-top: 8px; line-height: 1.45; }
+.drv-qr-wrap { display: flex; justify-content: center; padding: 12px 0 4px; }
+.drv-qr { border-radius: 16px; background: #fff; padding: 10px; box-shadow: 0 10px 30px -10px rgba(0,0,0,.6); }
+.drv-share { display: flex; gap: 8px; margin-top: 12px; }
+.drv-share button { flex: 1; padding: 12px; border-radius: 12px; font-weight: 800; font-size: 14px; cursor: pointer; border: 1px solid var(--line);
+  background: var(--surface-2); color: var(--text); transition: transform var(--dur-press) ease; }
+.drv-share button:active { transform: scale(.96); }
+.drv-share .primary { background: linear-gradient(165deg,#ffd060,var(--brand) 46%,#ff8f00); color: #2a1900; border-color: transparent;
+  box-shadow: 0 8px 20px -8px rgba(255,159,0,.6); }
+.drv-ride { display: flex; align-items: center; gap: 11px; padding: 11px 0; border-top: 1px solid var(--line); }
+.drv-ride:first-child { border-top: 0; }
+.drv-ride-ico { font-size: 19px; flex: none; width: 26px; text-align: center; }
+.drv-ride-meta { flex: 1; min-width: 0; }
+.drv-ride-addr { font-weight: 700; font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.drv-ride-sub { font-size: 11.5px; color: var(--text-dim); margin-top: 1px; }
+.drv-ride-amt { font-weight: 900; font-size: 15px; color: var(--text); letter-spacing: -.3px; flex: none; }
+.drv-blocked { display: flex; align-items: center; gap: 11px; padding: 14px; margin-bottom: 12px; border-radius: 14px;
+  background: linear-gradient(150deg, rgba(248,113,113,.18), var(--surface)); border: 1px solid rgba(248,113,113,.4); }
+.drv-blocked-ico { font-size: 26px; flex: none; }
+.drv-blocked b { color: #fda4a4; font-size: 14px; }
+.drv-blocked span { display: block; font-size: 12px; color: var(--text-dim); margin-top: 2px; }
+.drv-meta-row { display: flex; gap: 8px; margin-top: 9px; }
+.drv-meta { flex: 1; display: flex; align-items: center; gap: 6px; padding: 9px 11px; border-radius: 11px; background: var(--surface); border: 1px solid var(--line); font-size: 13px; }
+.drv-meta b { color: var(--text); font-weight: 800; }
+.drv-meta .star { color: var(--brand); }
+.drv-zones { display: flex; flex-wrap: wrap; gap: 7px; margin-top: 8px; }
+.drv-zone { display: flex; align-items: center; gap: 5px; padding: 7px 11px; border-radius: 999px;
+  background: linear-gradient(135deg, rgba(255,179,0,.12), var(--surface)); border: 1px solid rgba(255,179,0,.24);
+  font-size: 12.5px; font-weight: 700; color: var(--text); }
+.drv-zone small { color: var(--brand); font-weight: 800; }
+.drv-calls { display: flex; flex-direction: column; gap: 8px; }
+.drv-call { display: flex; align-items: center; gap: 11px; padding: 12px 13px; border-radius: 12px; text-decoration: none;
+  background: var(--surface); border: 1px solid var(--line); color: var(--text); transition: transform var(--dur-press) ease; }
+.drv-call:active { transform: scale(.98); }
+.drv-call-ico { width: 38px; height: 38px; border-radius: 50%; display: flex; align-items: center; justify-content: center; flex: none;
+  background: linear-gradient(135deg, rgba(52,211,153,.2), rgba(52,211,153,.06)); font-size: 18px; }
+.drv-call-meta { flex: 1; min-width: 0; }
+.drv-call-meta b { font-size: 14px; font-weight: 700; }
+.drv-call-meta span { display: block; font-size: 12px; color: var(--text-dim); }
+.drv-call-go { color: var(--win); font-size: 20px; }
+.drv-mis-list { display: flex; flex-direction: column; gap: 10px; }
+.drv-mis { border-radius: 14px; padding: 10px 12px; background: rgba(255, 255, 255, .03); border: 1px solid var(--line); }
+.drv-mis.ready { border-color: rgba(255, 179, 0, .45); background: rgba(255, 179, 0, .07); }
+.drv-mis.done { opacity: .55; }
+.drv-mis-top { display: flex; align-items: center; gap: 8px; }
+.drv-mis-emoji { font-size: 18px; }
+.drv-mis-title { flex: 1; font-weight: 700; font-size: 14px; }
+.drv-mis-reward { color: var(--accent); font-weight: 800; font-size: 14px; }
+.drv-mis-bar { height: 8px; border-radius: 6px; background: rgba(255, 255, 255, .08); overflow: hidden; margin: 8px 0 6px; }
+.drv-mis-bar i { display: block; height: 100%; border-radius: 6px; background: var(--accent); transition: width .5s ease; }
+.drv-mis.ready .drv-mis-bar i { background: #FFB300; }
+.drv-mis-foot { display: flex; justify-content: space-between; font-size: 12px; }
+.drv-mis-done { color: #22c55e; font-weight: 700; }
+.drv-mis-claim { width: 100%; margin-top: 9px; border: 0; border-radius: 12px; padding: 12px; background: #FFB300; color: #1a1200; font-weight: 800; font-size: 14px; cursor: pointer; }
+.drv-mis-claim:active { transform: scale(.98); }
+.drv-mis-badge { margin-left: 8px; background: rgba(255, 179, 0, .15); color: #FFB300; font-size: 11px; font-weight: 800; padding: 2px 8px; border-radius: 99px; vertical-align: 2px; }

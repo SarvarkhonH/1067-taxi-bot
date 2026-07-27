@@ -4,6 +4,7 @@
 import { useEffect, useState } from "react";
 import { api, type IntercityCity, type IntercityTripRow, type IntercityBookingRow, type IntercityDriverTrip, type IntercityManifest } from "./api";
 import { haptic } from "./telegram";
+import "./design/feat/ic.css"; // bu tab ochilgandagina yuklanadi (kritik yo'lda emas)
 
 const TK = 5 * 3_600_000; // Tashkent = UTC+5
 
