@@ -211,6 +211,13 @@ export const EXPECTED_ON: FeatureName[] = [
   "shopstory",    // 📹 2026-07-26 18:25 — do'kon hikoyalari
   "revtanga",     // 🗣 2026-07-27 09:52 — sharh-uchun-tanga
   "shopcashback", // 🪙 2026-07-27 10:22 — xarid-cashback
+  // 📱 Telegram-mahalliy qatlam — ega QABUL 2026-07-27 (kod-ko'rigi oldin ma'qullangan,
+  // «QABUL deploydan keyin»; deploy 1d18a7e, keyin ega yoqishga ruxsat berdi). Pul YO'Q.
+  "linkinapp",  // raqamni ilova ichida ulash (requestContact) — bot-yo'li zaxira bo'lib qoladi
+  "homescreen", // telefon ekraniga qo'shish taklifi
+  "storyshare", // taklifni Telegram hikoyasiga ulashish
+  "ravella",    // 🎀 hamkor-brend bezak konstruktori — ega QABUL 2026-07-27. Buyurtmada CoinTxn
+                // YO'Q (naqd); 1% cashback bizning hisobimizdan, cap'lar bilan.
 ];
 
 export async function reconcileFlags(): Promise<{ missing: string[]; effective: { name: string; on: boolean }[] }> {
