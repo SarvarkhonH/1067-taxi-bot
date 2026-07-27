@@ -87,6 +87,30 @@ birorta narx YOZILMAGAN. Brauzerda isbot: `+ Salyut` → rasm `photo/1`→`addon
 `/`, `/ravella`, `/ravella/`, admin — hammasi tekshirildi. Preview-token (`?p=`) qo'shildi: DARK
 katalogni FAQAT-O'QISH uchun ochadi (buyurtma yo'llari uni bilmaydi).
 
+**🤍 OQ DIZAYN + HAQIQIY KATALOG (2026-07-27, ega so'radi):** ekran qora-amber'dan OQ'ga
+o'tkazildi (mini app `ravella-light` qobig'i + `design/ravella.css` + ommaviy sahifa). Sabab
+mahsulotdan: ekranda asosiy narsa bezak SURATLARI — yorug', rangli to'y-bayram kadrlari oq
+qog'ozda o'z holicha ko'rinadi, qora fon ularni og'irlashtiradi; amber faqat harakat uchun qoldi.
+Ega 7 ta REAL ish suratini berdi → `[DEMO]` o'chirildi, `scripts/seedRavellaReal.ts` bilan
+2 kategoriya · 5 bezak qo'yildi: Bitiruv sahnasi 1 800 000 · Sahna arkasi 700 000 · Premium zal
+2 800 000 · Kirish arkasi 900 000 · Bino kirishi 1 600 000; qo'shimchalar: Zal shifti +900 000
+(⭐ rasmi AYNAN o'sha zalning shift bezagi bilan — «+» bosilganda farq ko'rinadi), Ismli banner
++400 000, Sovuq salyut +300 000, Foil yulduzlar +150 000. **Narxlar TAXMINIY — ega tasdiqlashi
+kerak;** skript mavjud narxni qayta yozmaydi (nom bo'yicha topadi, faqat yo'qini yaratadi).
+Brauzer isboti: «Zal shifti» qo'shildi → sahna `photo/2`→`addon-photo/3`, nishon «+ Zal shifti
+bezagi», panel 1 800 000+900 000 = 2 700 000 → −10% = **2 430 000**.
+
+**Rasm-keshi (tuzatildi, lekin dalil TO'G'RILANDI):** `/api/ravella/photo/:id` 302 bilan Telegram
+CDN'ga yo'naltiradi, Telegram havolasi ~1 soatda eskiradi — 302'ni 1 soat keshlash mijozga
+eskirgan manzil berishi mumkin edi. `max-age=120` ga tushirildi (mantiqan to'g'ri qattiqlashtirish).
+**Lekin:** o'sha paytda ko'rgan «rasm yuklanmadi» holati BU EMAS edi — sabab `loading="lazy"`:
+brauzer paneli ko'rsatilmagani uchun lazy umuman ishga tushmaydi. Lazy olib tashlanganda 5 ta
+rasm ham darhol yuklandi (960-1280px). Ya'ni kesh-nuqsoni JONLIDA KUZATILMAGAN, faqat nazariy.
+
+**⚠️ `.env` dan `TEST_DATABASE_URL` YO'QOLDI** (fayl 2026-07-27 20:40 da qayta yozilgan, men
+emas). Natija: pul-testlarini alohida bazada yugurtirib bo'lmaydi — `testRavella.ts` hozir
+ishlamaydi. Tiklash kerak.
+
 **⚠️ BAYROQ YOQILGAN (men EMAS):** `feature:ravella` = **on**, 2026-07-27 13:49:03 — `linkinapp`/
 `homescreen`/`storyshare` bilan bitta to'plamda (boshqa oqim). Ya'ni Ravella HOZIR barcha mijozlarga
 ochiq va ular ko'radigan yagona narsa — `[DEMO]` bezagi (skript chizgan namuna rasm). Jonli
