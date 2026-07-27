@@ -941,9 +941,13 @@ function Booking3Inner({ me, info, onClose }: { me: MeResponse; info: BookingInf
     setMsg(text);
     if (text) window.setTimeout(() => setMsg((c) => (c === text ? null : c)), ms);
   };
-  const locateMe = async () => {
+  /** `auto` = xarita ochilganda O'ZI chaqirildi (foydalanuvchi bosmadi, feature:autoloc).
+   *  Farqi ikkitagina: titratish yo'q, va rad etilganda sozlamalar DEEP-LINK'i ochilmaydi —
+   *  so'ralmagan holda foydalanuvchini Telegram sozlamalariga otib yuborish qo'pol bo'lardi.
+   *  Qolgan hammasi bir xil yo'l: LocationManager → brauzer GPS zaxira, aniqlik toraytirish. */
+  const locateMe = async (auto = false) => {
     if (!map.current) return;
-    haptic();
+    if (!auto) haptic();
     setLocating(true);
     flashMsg("📍 Joylashuv aniqlanmoqda…", 16000);
 
@@ -958,8 +962,8 @@ function Booking3Inner({ me, info, onClose }: { me: MeResponse; info: BookingInf
         map.current.setView([r.lat, r.lng], 17, { animate: true });
         flashMsg(r.accuracy <= 35 ? null : "📍 Aniqlik past — kerak bo'lsa pinni biroz suring");
       } else if (r.error === "denied") {
-        flashMsg("📍 Joylashuvga ruxsat berilmagan — sozlamalardan yoqing", 6000);
-        tgOpenLocationSettings(); // deep-link so the user can re-grant in one tap
+        flashMsg(auto ? "📍 Joylashuv yopiq — pinni qo'lda suring yoki 📍 ni bosing" : "📍 Joylashuvga ruxsat berilmagan — sozlamalardan yoqing", 6000);
+        if (!auto) tgOpenLocationSettings(); // deep-link so the user can re-grant in one tap
       } else {
         flashMsg("📍 Joylashuvni aniqlab bo'lmadi — qo'lda belgilang", 6000);
       }
@@ -1001,6 +1005,22 @@ function Booking3Inner({ me, info, onClose }: { me: MeResponse; info: BookingInf
       { enableHighAccuracy: true, timeout: 14000, maximumAge: 0 },
     );
   };
+
+  // 📍 OCHILGANDA O'ZI ANIQLASH (feature:autoloc). Ilgari GPS FAQAT 📍 tugmasi bosilganda
+  // o'qilardi, xarita esa har safar kompaniya markazida ochilardi — mijoz qayerda bo'lishidan
+  // qat'i nazar pin bir xil joyda turardi («lokatsiya eski joyda qotib qolgan»). Endi pinpick
+  // ekrani ochilishi bilan bir marta o'zi aniqlaydi.
+  // Shartlar: faqat bir marta (ref) · faqat pinpick (aktiv safarda «searching» ekraniga tegmaymiz) ·
+  // faqat xarita mavjud bo'lgach. Muvaffaqiyatsizlikda hech narsa buzilmaydi — locateMe xabar
+  // ko'rsatadi va pin avvalgi joyida qoladi, ya'ni flag OFF holatidagi xatti-harakat.
+  const autoLocated = useRef(false);
+  useEffect(() => {
+    if (!me.flags?.autoloc || autoLocated.current) return;
+    if (!mapReady || screen !== "pinpick") return;
+    autoLocated.current = true;
+    void locateMe(true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mapReady, screen, me.flags?.autoloc]);
 
   // A: celebrate the moment a driver ACCEPTS (haptic + "✅ Topildi!" pop). B: haptic on ARRIVAL.
   // Rising-edge via refs → fires once per transition, never on every status poll.
@@ -1187,7 +1207,7 @@ function Booking3Inner({ me, info, onClose }: { me: MeResponse; info: BookingInf
             </svg>
           </div>
           <div className={`b3-pin-callout${walking ? " hide" : ""}`} aria-hidden="true">📍 Mashina shu yerga keladi</div>
-          <button className={`b3-myloc${locating ? " locating" : ""}`} onClick={locateMe} aria-label="Joylashuvni yuborish" title="Joylashuvim">
+          <button className={`b3-myloc${locating ? " locating" : ""}`} onClick={() => void locateMe()} aria-label="Joylashuvni yuborish" title="Joylashuvim">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true">
               <circle cx="12" cy="12" r="6.5" />
               <circle cx="12" cy="12" r="2" fill="currentColor" stroke="none" />

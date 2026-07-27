@@ -68,6 +68,7 @@ export interface MeResponse {
     linkinapp?: boolean; // 📱 raqamni ilova ichida ulash (requestContact); OFF = bot-yo'li (owner-preview)
     homescreen?: boolean; // 🏠 telefon ekraniga qo'shish taklifi (addToHomeScreen) (owner-preview)
     storyshare?: boolean; // 📸 taklifni Telegram hikoyasiga ulashish (shareToStory) (owner-preview)
+    autoloc?: boolean; // 📍 taksi xaritasi ochilganda joylashuvni O'ZI aniqlash; OFF = pin shahar markazida/oxirgi manzilda qoladi
   };
 }
 
@@ -369,6 +370,12 @@ export interface ShopProductView {
   // 🧡 V2b (additiv): sevimlilar
   favCount?: number;
   isFav?: boolean; // shu a'zo uchun — faqat auth'langan so'rovda hisoblanadi
+  // 🏷 Katalog-pasport (additiv, hammasi ixtiyoriy — to'ldirilmagani UI'da umuman ko'rinmaydi).
+  // ⚠️ barcode/sku/supplier BU YERDA YO'Q va bo'lmasligi kerak — ichki maydonlar (ega qarori).
+  brand?: string | null;
+  unit?: string | null; // og'irlik/hajm: "1.5 L", "500 g"
+  manufacturer?: string | null;
+  expiryDate?: string | null; // ISO sana (YYYY-MM-DD)
 }
 
 export type ShopPurchaseStatus = "pending" | "delivered" | "rejected" | "cancelled";
@@ -463,12 +470,64 @@ export interface ShopBuyResponse {
 }
 
 export const SHOP_MAX_PRICE = 5_000_000; // sanity ceiling for admin-entered prices
-// V0.5 (BirJoy): kanonik kategoriya-ro'yxat — erkin-string tartibsizligi (umumiy/umum/uy ro'zgo'or)
-// shu bilan tugaydi. Majburlash FAQAT admin-UI select darajasida (cleanPatch ataylab erkin qoldi —
-// test-TAG kategoriyalari va kelajak-migratsiyalar uchun); to'liq enforcement D1'da CategoryDef
-// jadvaliga ko'chganda (ikonka-rasm + tartib bilan).
-export const SHOP_CATEGORIES = ["Aksiya", "umumiy", "Uy anjomlari", "Parfumeriya", "Oziq-ovqat", "Elektronika", "Kiyim-kechak", "Bolalar uchun", "Go'zallik"] as const;
+
+// ── 🗂 KATALOG (ega, 2026-07-27): supermarket-darajali 30 ta kanonik kategoriya ────────────────────
+// Eski 9-lik erkin-ro'yxat (Aksiya/umumiy/Uy anjomlari…) supermarket uchun juda qo'pol edi. Bu ro'yxat
+// mini-market + mahalliy do'kon assortimentini qoplaydi va `CategoryDef` jadvaliga seed qilinadi
+// (seedMarketCategories.ts). `name` — mijoz ko'radigan matn VA `Product.category` da saqlanadigan
+// satr (karusel NOM bo'yicha solishtiradi, shop.tsx) — shuning uchun nomlarni O'ZGARTIRISH =
+// migratsiya talab qiladigan buzilish, ehtiyot bo'l.
+export interface MarketCategoryDef { slug: string; name: string; emoji: string }
+export const MARKET_CATEGORIES: readonly MarketCategoryDef[] = [
+  { slug: "non", name: "Non mahsulotlari", emoji: "🥖" },
+  { slug: "sut", name: "Sut mahsulotlari", emoji: "🥛" },
+  { slug: "pishloq", name: "Pishloq va sariyog'", emoji: "🧀" },
+  { slug: "tuxum", name: "Tuxum", emoji: "🥚" },
+  { slug: "gosht", name: "Go'sht", emoji: "🍗" },
+  { slug: "kolbasa", name: "Kolbasa va sosiska", emoji: "🌭" },
+  { slug: "baliq", name: "Baliq va dengiz mahsulotlari", emoji: "🐟" },
+  { slug: "yorma", name: "Un va yorma", emoji: "🍚" },
+  { slug: "makaron", name: "Makaron", emoji: "🍝" },
+  { slug: "dukkakli", name: "Dukkaklilar", emoji: "🫘" },
+  { slug: "yog", name: "Yog'", emoji: "🛢️" },
+  { slug: "ziravor", name: "Ziravorlar", emoji: "🧂" },
+  { slug: "konserva", name: "Konservalar", emoji: "🥫" },
+  { slug: "sabzavot", name: "Sabzavotlar", emoji: "🍅" },
+  { slug: "meva", name: "Mevalar", emoji: "🍎" },
+  { slug: "yongoq", name: "Yong'oq va quruq mevalar", emoji: "🥜" },
+  { slug: "shirinlik", name: "Shirinliklar", emoji: "🍪" },
+  { slug: "tort", name: "Tort va pishiriqlar", emoji: "🍰" },
+  { slug: "muzqaymoq", name: "Muzqaymoq", emoji: "🍦" },
+  { slug: "ichimlik", name: "Ichimliklar", emoji: "🥤" },
+  { slug: "choy", name: "Choy va qahva", emoji: "☕" },
+  { slug: "energetik", name: "Energetik ichimliklar", emoji: "⚡" },
+  { slug: "bolalar-ovqat", name: "Bolalar oziq-ovqati", emoji: "🍼" },
+  { slug: "uy-rozgor", name: "Uy-ro'zg'or", emoji: "🧼" },
+  { slug: "gigiyena", name: "Gigiyena", emoji: "🧻" },
+  { slug: "hayvon", name: "Uy hayvonlari", emoji: "🐶" },
+  { slug: "muzlatilgan", name: "Muzlatilgan mahsulotlar", emoji: "❄️" },
+  { slug: "asal", name: "Asal va murabbo", emoji: "🍯" },
+  { slug: "tayyor", name: "Tayyor mahsulotlar", emoji: "🍟" },
+  { slug: "qoshimcha", name: "Qo'shimcha mahsulotlar", emoji: "💊" },
+];
+// 🔥 Aksiya — kategoriya emas, merchandising-javon (chegirmali mahsulotlar), doim birinchi.
+export const MARKET_PROMO_CATEGORY = "Aksiya";
+// Katalogdan OLDINGI davr kategoriyalari: jonli bazada haqiqiy mahsulotlar shularda turibdi
+// (2026-07-27: Uy anjomlari 45, umumiy 37, Parfumeriya 49, Bolalar uchun 1). O'chirish = 94 faol
+// mahsulotni kategoriyasiz qoldirish, shuning uchun ro'yxat OXIRIDA saqlanadi. Yangi mahsulot
+// uchun tavsiya etilmaydi — vaqt bilan bo'shaganda seed skripti o'zi o'chiradi.
+export const SHOP_LEGACY_CATEGORIES = ["umumiy", "Uy anjomlari", "Parfumeriya", "Bolalar uchun"] as const;
+// Admin-UI select uchun to'liq ro'yxat. Majburlash FAQAT UI darajasida (cleanPatch ataylab erkin —
+// test-TAG kategoriyalari va migratsiyalar uchun).
+export const SHOP_CATEGORIES: readonly string[] = [MARKET_PROMO_CATEGORY, ...MARKET_CATEGORIES.map((c) => c.name), ...SHOP_LEGACY_CATEGORIES];
 export const SHOP_LOW_STOCK = 5; // "kam qoldi" badge threshold
+
+// ── 🏷 Mahsulot pasporti (ega, 2026-07-27) ────────────────────────────────────────────────────────
+// Do'kon-darajali maydonlar. Uchtasi ICHKI: `barcode`/`sku`/`supplier` mijoz javobiga HECH QACHON
+// qo'shilmaydi (ega qarori — tijorat ma'lumoti); qidiruv ular bo'yicha ishlaydi, ko'rsatmasdan.
+export const PRODUCT_BARCODE_MIN = 8; // EAN-8
+export const PRODUCT_BARCODE_MAX = 14; // GTIN-14
+export const PRODUCT_TEXT_MAX = { sku: 32, brand: 40, unit: 24, manufacturer: 60, supplier: 60 } as const;
 
 // ── 🛍 shop reviews: sharh + 👍/👎 + 2-3 rasm (Uzum pattern) ─────────────────────────────────────
 export type ShopReviewThumb = "up" | "down";

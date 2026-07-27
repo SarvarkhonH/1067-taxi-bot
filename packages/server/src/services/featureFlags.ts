@@ -117,6 +117,13 @@ export const FEATURES = [
               // Mavjud taklif-posteri ishlatiladi, yangi asset yo'q; klient qo'llab-quvvatlamasa
               // odatdagi «chatga yuborish» yo'liga tushadi. Pul YO'Q (referal to'lovi o'zgarmaydi,
               // link aynan o'sha). OFF = tugma ko'rinmaydi. DARK until owner QABUL.
+  "autoloc",  // 📍 Taksi xaritasi OCHILGANDA joylashuvni o'zi aniqlaydi (mavjud locateMe yo'li:
+              // Telegram LocationManager 8.0+ → brauzer GPS zaxira, aniqlik toraytirish bilan).
+              // OFF = bugungi xatti-harakat AYNAN: xarita kompaniya markazida ochiladi va pin
+              // faqat 📍 tugmasi bosilganda harakatlanadi. Pul-mantiq YO'Q, dispetcherlik yo'li
+              // o'zgarmaydi — faqat xarita KO'RINISHI; mijoz baribir tasdiqlaydi. Rad etilsa yoki
+              // topilmasa avvalgi holat qoladi. Ega-preview ATAYLAB yo'q: ega va mijoz bir xil
+              // ko'rishi shart (owner-preview-masks-dark-flags saboqi).
   "mktexpire", // ⏳ Javobsiz savat-buyurtmani AVTOMATIK bekor qilish + tangani qaytarish (sotuvchi
               // N soat javob bermasa). PUL harakati — shuning uchun alohida kill-switch. OFF =
               // buyurtma pending'da qolaveradi va faqat mijozning o'zi bekor qila oladi (bugungi
@@ -133,7 +140,7 @@ export type FeatureName = (typeof FEATURES)[number];
 // Off until explicitly enabled (go-live flip = setFeature(name, true) after owner QABUL).
 // booking3 = the new map/trip flow; owner still gets a preview via server.ts owner-branch,
 // but real users stay on the (fixed) classic flow until it's accepted. A missing row → OFF.
-const DEFAULT_OFF = new Set<FeatureName>(["booking3", "livinghome", "aibrain", "mahalla", "tolqin", "baraban", "komissiya", "qarz", "welcomebonus", "refstaged", "drvstaged", "drvrecruit", "drvpush", "promo", "clientbooking", "cashout", "carupgrade", "intercity", "tierloyalty", "waitcomp", "trackcta", "jackpotpost", "drvrank", "instantstatus", "spinreminder", "shop", "xizmatlar", "elonlar", "elontop", "restoran", "bazar", "bazarcart", "shopcashback", "revtanga", "airemind", "aihisob", "aidost", "aicity", "aibilim", "aineeds", "shopstory", "shopchat", "newhome", "newprofile", "shopv2", "mktexpire", "ravella", "linkinapp", "homescreen", "storyshare"]);
+const DEFAULT_OFF = new Set<FeatureName>(["booking3", "livinghome", "aibrain", "mahalla", "tolqin", "baraban", "komissiya", "qarz", "welcomebonus", "refstaged", "drvstaged", "drvrecruit", "drvpush", "promo", "clientbooking", "cashout", "carupgrade", "intercity", "tierloyalty", "waitcomp", "trackcta", "jackpotpost", "drvrank", "instantstatus", "spinreminder", "shop", "xizmatlar", "elonlar", "elontop", "restoran", "bazar", "bazarcart", "shopcashback", "revtanga", "airemind", "aihisob", "aidost", "aicity", "aibilim", "aineeds", "shopstory", "shopchat", "newhome", "newprofile", "shopv2", "mktexpire", "ravella", "linkinapp", "homescreen", "storyshare", "autoloc"]);
 
 let cache: { at: number; map: Record<string, boolean> } = { at: 0, map: {} };
 

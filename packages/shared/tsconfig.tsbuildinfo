@@ -1,0 +1,1 @@
+{"root":["./src/booking.ts","./src/clientinfo.ts","./src/economy.ts","./src/format.ts","./src/gamify.ts","./src/index.ts","./src/missions.ts","./src/types.ts","./src/weekly.ts","./src/__tests__/booking.test.ts","./src/__tests__/economy.test.ts"],"version":"5.9.3"}
