@@ -180,6 +180,12 @@ export async function getMarketHome(preview = false, q?: string, memberId?: numb
   // (ega/admin) HAMMASI qoladi — sotuvchi o'z bo'sh do'konini ko'rib, mahsulot qo'sha olishi kerak.
   // `products` ro'yxatidan hisoblanmaydi: u 100 ta bilan cheklangan, ya'ni katta katalogda
   // do'konlar noto'g'ri yashirinib qolardi — shuning uchun alohida groupBy.
+  // kategoriya-bo'yicha mahsulot soni - `products` dan hisoblab bo'lmaydi (u 100 ta bilan
+  // cheklangan), do'kon-filtri bilan bir xil sababga ko'ra alohida groupBy.
+  const catCounts = new Map<string, number>(
+    (await prisma.product.groupBy({ by: ["category"], where: { active: true, stock: { gt: 0 } }, _count: true }))
+      .map((g) => [g.category, g._count as unknown as number] as const),
+  );
   let bozor = bozorShops;
   let mahalla = mahallaShops;
   if (!preview) {
@@ -220,7 +226,13 @@ export async function getMarketHome(preview = false, q?: string, memberId?: numb
   });
   return {
     shops: [...bozor, ...mahalla].map(shopView),
-    cats: cats.map((c) => ({ id: c.id, slug: c.slug, name: c.name, emoji: c.emoji, hasIcon: !!(c.iconFileId || c.iconUrl) })),
+    // Mahsuloti YO'Q kategoriya mijozga ko'rsatilmaydi: 9 ta chip bor edi, 4 tasi butunlay bo'sh -
+    // mijoz bosadi, ekran bo'shab qoladi va katalog kambag'al ko'rinadi. `preview` (ega/admin) da
+    // HAMMASI qoladi, aks holda ega yangi kategoriyaga birinchi mahsulotni qo'sha olmaydi.
+    // Do'kon-ro'yxatidagi "zaxirasi bor" filtri bilan bir xil naqsh, xuddi shu sabab.
+    cats: cats
+      .filter((c) => preview || (catCounts.get(c.name) ?? 0) > 0)
+      .map((c) => ({ id: c.id, slug: c.slug, name: c.name, emoji: c.emoji, hasIcon: !!(c.iconFileId || c.iconUrl) })),
     products: filtered,
   };
 }

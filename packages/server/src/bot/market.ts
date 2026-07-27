@@ -25,6 +25,8 @@ async function sendSellerPanelLink(bot: Bot, chatId: string, shopId: number, sho
       // 📹 /hikoya to'liq qurilgan (foto+video, 24 soat) edi, lekin HECH QAYERDA aytilmagan —
       // shuning uchun butun bozorda 1 ta hikoya bor edi. Sotuvchi panelini olgan har kishi endi
       // buni ko'radi, chunki bu xabar tasdiqlanganda ham, /dokonim da ham yuboriladi.
+      `🏪 <b>Logo qo'ying:</b> <code>/logo</code> yozing va do'koningiz rasmini yuboring — ` +
+      `logosiz do'kon ro'yxatda bo'sh doira bo'lib turadi, mijoz esa rasmga qarab tanlaydi.\n\n` +
       `📹 <b>Hikoya joylang:</b> <code>/hikoya</code> yozing va rasm yoki video yuboring — ` +
       `24 soat mijozlarning Do'kon sahifasida, eng tepada ko'rinadi. Yangi tovar, chegirma, ` +
       `ish jarayoni — har kuni bittasi do'koningizni jonli ushlab turadi.`,
@@ -122,6 +124,7 @@ const sessions = new Map<string, Draft>();
 // kutish-holati (svcSearchWait/codeLink naqshi, bot.ts), 10 daqiqa TTL o'rniga oddiy Map (kichik
 // hajm, restart = bekor — arzon, mos).
 const storyAwait = new Map<string, number>(); // tgId -> shopId
+const logoAwait = new Map<string, number>(); // 🏪 tgId -> shopId (do'kon-logo kutilyapti)
 
 /** Bot-bug fix (ega telefonda topdi, 2026-07-22): bot.ts'dagi global «raqamni qo'lda yozib
  *  bo'lmaydi» xavfsizlik-ogohlantirish (`bot.hears(/^\+?\d.../)`) ANCHA OLDINROQ ro'yxatdan o'tgan
@@ -139,7 +142,9 @@ export function isInMarketWizard(tg: string): boolean {
  *  yerga YETIB KELMAYDI. isInMarketWizard naqshi bilan bir xil: hikoya kutilayotgan bo'lsa, bot.ts
  *  o'zini chetga oladi (market.ts o'zi rasmni to'g'ri qabul qiladi). */
 export function isAwaitingStory(tg: string): boolean {
-  return storyAwait.has(tg);
+  // 🏪 logo ham xuddi shu yo'lda keladi (/logo -> rasm): bo'lmasa haydovchi-rasm handler'i uni
+  // yutib yuboradi va sotuvchining logosi hech qachon saqlanmaydi. Bitta nom ostida ikkalasi.
+  return storyAwait.has(tg) || logoAwait.has(tg);
 }
 
 function esc(s: string): string {
@@ -448,6 +453,38 @@ export function registerMarket(bot: Bot): void {
     for (const s of shops) kb.text(s.name, `story:pick:${s.id}`).row();
     await ctx.reply("Qaysi do'kon uchun hikoya qo'shasiz?", { reply_markup: kb });
   });
+  // 🏪 Do'kon-logosi. 2026-07-27 holati: 7 ta do'konning HECH BIRIDA logo yo'q edi - yagona yo'l
+  // veb-panelga kirib yuklash bo'lgani uchun hech kim qilmagan. Natijada do'kon kartalari va
+  // hikoya-halqalari bosh harf / 🏬 emoji bilan chiqardi. /hikoya bilan bir xil naqsh: buyruq ->
+  // rasm yuboriladi -> file_id to'g'ridan-to'g'ri saqlanadi (relay kerak emas, rasm botning
+  // o'ziga yuborilgan).
+  bot.command("logo", async (ctx) => {
+    const tg = String(ctx.from?.id ?? "");
+    if (!tg) return;
+    const shops = await prisma.marketShop.findMany({ where: { ownerChatId: tg, active: true } });
+    if (!shops.length) { await ctx.reply("Sizda faol do'kon topilmadi. Boshlash uchun: /sotuvchi"); return; }
+    if (shops.length === 1) {
+      logoAwait.set(tg, shops[0]!.id);
+      await ctx.reply(`🏪 <b>${esc(shops[0]!.name)}</b> uchun logo
+
+Do'koningiz rasmini (logo yoki peshtaxta surati) yuboring — u do'kon kartasida va hikoya halqasida ko'rinadi. Kvadrat rasm eng chiroyli chiqadi.`, { parse_mode: "HTML" });
+      return;
+    }
+    const kb = new InlineKeyboard();
+    for (const sh of shops) kb.text(sh.name, `logo:pick:${sh.id}`).row();
+    await ctx.reply("Qaysi do'kon uchun logo qo'yasiz?", { reply_markup: kb });
+  });
+  bot.callbackQuery(/^logo:pick:(\d+)$/, async (ctx) => {
+    await ctx.answerCallbackQuery().catch(() => undefined);
+    const tg = String(ctx.from.id);
+    const shopId = Number(ctx.match![1]);
+    const shop = await prisma.marketShop.findFirst({ where: { id: shopId, ownerChatId: tg, active: true } });
+    if (!shop) return;
+    logoAwait.set(tg, shopId);
+    await ctx.reply(`🏪 <b>${esc(shop.name)}</b> uchun logo
+
+Rasm yuboring.`, { parse_mode: "HTML" });
+  });
   bot.callbackQuery(/^story:pick:(\d+)$/, async (ctx) => {
     await ctx.answerCallbackQuery().catch(() => undefined);
     const tg = String(ctx.from.id);
@@ -473,6 +510,17 @@ export function registerMarket(bot: Bot): void {
   // (mahsulot-rasm, sharh-rasm) mutlaqo shaffof.
   bot.on(":photo", async (ctx, next) => {
     const tg = String(ctx.from?.id ?? "");
+    // 🏪 logo hikoyadan OLDIN: sotuvchi /logo yozgan bo'lsa shu rasm logo bo'ladi, hikoya emas.
+    const logoShopId = logoAwait.get(tg);
+    if (logoShopId !== undefined) {
+      logoAwait.delete(tg);
+      const photos = ctx.message?.photo ?? [];
+      const best = photos[photos.length - 1];
+      if (!best) { await ctx.reply("❌ Rasm o'qilmadi, qaytadan yuboring."); return; }
+      await prisma.marketShop.update({ where: { id: logoShopId }, data: { photoFileId: best.file_id, photoUrl: null } }).catch(() => undefined);
+      await ctx.reply("✅ Logo qo'yildi — do'koningiz endi rasm bilan ko'rinadi.");
+      return;
+    }
     const shopId = storyAwait.get(tg);
     if (shopId === undefined) { await next(); return; }
     storyAwait.delete(tg);
