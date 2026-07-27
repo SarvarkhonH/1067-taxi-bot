@@ -136,7 +136,7 @@ export function NewUyView({ me, onBook, onNav, onBanner }: { me: MeResponse; onB
     { on: !!f.restoran, ic: "nh-i-o", em: "🍽", lb: "Restoran", nav: "restoran", locked: false },
     // 🎀 Ravella — hamkor-brend (ega qarori 2026-07-27): rail'da KICHIK tugma, ikonkasi emoji emas,
     // brend logotipi. Do'kon/Restoran'dan keyin turadi — u alohida xizmat turi, ular ichida emas.
-    { on: !!f.ravella, ic: "nh-i-r", em: "🎀", img: "/ravella/logo.png", lb: "Ravella", nav: "ravella", locked: false },
+    { on: !!f.ravella, ic: "nh-i-r", em: "🎀", img: "/ravella/logo-mark.png", lb: "Ravella", nav: "ravella", locked: false },
     { on: !!f.intercity, ic: "nh-i-t", em: "🚐", lb: "Yo'l", nav: "yol", locked: false },
     { on: !!f.xizmatlar, ic: "nh-i-v", em: "🔧", lb: "Xizmat", nav: "xizmat", locked: FOCUS_MODE },
     { on: !!f.elonlar, ic: "nh-i-p", em: "📋", lb: "E'lon", nav: "elonlar", locked: FOCUS_MODE },

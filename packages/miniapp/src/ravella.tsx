@@ -26,7 +26,9 @@ const STATUS_LABEL: Record<RavellaOrderView["status"], { t: string; c: string }>
 function Hero() {
   return (
     <div className="rv-hero">
-      <img className="rv-hero-logo" src="/ravella/logo.png" alt="Ravella" onError={(e) => ((e.target as HTMLImageElement).style.display = "none")} />
+      {/* Brend belgisi (so'zsiz variant — nom pastda matn bilan yoziladi, takrorlanmasin).
+          `logo-mark.png` to'liq `logo.jpg` dan kesib olingan; rasm yuklanmasa nom baribir qoladi. */}
+      <img className="rv-hero-logo" src="/ravella/logo-mark.png" alt="" onError={(e) => ((e.target as HTMLImageElement).style.display = "none")} />
       <div className="rv-hero-title">Ravella</div>
       <div className="rv-hero-sub">Saxna bezaklari · bayram yozuvlari</div>
     </div>
