@@ -225,6 +225,8 @@ export const EXPECTED_ON: FeatureName[] = [
   "storyshare", // taklifni Telegram hikoyasiga ulashish
   "ravella",    // 🎀 hamkor-brend bezak konstruktori — ega QABUL 2026-07-27. Buyurtmada CoinTxn
                 // YO'Q (naqd); 1% cashback bizning hisobimizdan, cap'lar bilan.
+  "autoloc",    // 📍 taksi xaritasi ochilganda joylashuvni o'zi aniqlaydi — ega QABUL 2026-07-27
+                // («lokatsiya eski joyga qotib qolopti» shikoyatiga javob). Pul-mantiq YO'Q.
 ];
 
 export async function reconcileFlags(): Promise<{ missing: string[]; effective: { name: string; on: boolean }[] }> {
