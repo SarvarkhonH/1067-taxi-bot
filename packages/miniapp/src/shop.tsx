@@ -1175,9 +1175,13 @@ export function ShopView({ me, onBanner, reload, onBook, openProductId }: { me: 
               )}
             </>
           )}
-          {/* ── 📹 S1: do'kon-hikoya tray. shopv2'da bu bosh-sahifada YO'Q — mockup'da hikoyalar
-              DO'KON-PROFILIDA (yuqoridagi .shop-sp-stories), shu sababli bu blok legacy'ga qoldi. ── */}
-          {bazar && shopstory && !shopv2 && !shopFilter && storyTray && storyTray.length > 0 && (
+          {/* ── 📹 S1: do'kon-hikoya tray — Do'kon BOSH sahifasida, qidiruvdan keyin, do'konlardan
+              oldin (Instagram/Uzum joylashuvi). Avval `!shopv2` bilan yopilgan edi: v2 dizaynida
+              hikoyalar faqat do'kon-profilida qolgan, ya'ni mijoz ularni topolmasdi — hikoya
+              ko'rilishi uchun avval do'konni ochish kerak bo'lardi (1 ta hikoya, 1 ta ko'rish).
+              Ega qarori 2026-07-27: ikkala joyda ham bo'lsin — bosh sahifada KASHF qilinadi,
+              profilda esa o'sha do'konnikini ko'rish uchun qoladi. ── */}
+          {bazar && shopstory && !shopFilter && storyTray && storyTray.length > 0 && (
             <div className="bj-story-tray">
               {storyTray.map((s) => (
                 <button key={s.shopId} className="bj-story-item" onClick={() => openStoryViewer(s.shopId)}>
