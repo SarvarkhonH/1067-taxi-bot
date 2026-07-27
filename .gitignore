@@ -2,9 +2,11 @@ node_modules/
 dist/
 build/
 *.log
+# Har qanday .env varianti — nusxa/zaxira fayllar ham (masalan .env.neon-backup-…): faqat `.env`
+# yozilgan bo'lsa, parallel sessiyaning `git add -A` si zaxira nusxani commit qilib sirlarni
+# oshkor qilardi.
 .env
-.env.local
-.env.*.local
+.env*
 packages/server/prisma/dev.db
 packages/server/prisma/dev.db-journal
 packages/server/prisma/*.db
