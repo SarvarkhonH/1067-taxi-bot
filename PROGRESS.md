@@ -3550,3 +3550,33 @@ muddati, yetkazib beruvchi…). DoD: `BIRJOY_KATALOG_DOD.md`.
 VPS'da `pnpm db:push` + `seedMarketCategories.ts --apply`. K9 (admin-forma) va K10 (miniapp jadval)
 ega telefonida QABUL kutadi; K12 (brend/barkod qidiruvi) — `#shopdemo` mock-serveri qidiruvni
 filtrlamaydi, shuning uchun faqat jonli tekshiriladi.
+
+## §60 — 📍 Lokatsiya: BIRINCHI TUZATISH YETARLI EMAS EDI (`8ab3b4f`) · 2026-07-27
+
+**Ega §59'dan keyin:** «pin qimirlaydi, lekin baribir noto'g'ri joy».
+Ya'ni `autoloc` ishlagan (GPS o'qilgan, pin ko'chgan) — lekin natija noto'g'ri. §59 muammoning
+faqat YARMINI yopgan ekan; buni ochiq yozib qo'yaman.
+
+**Topilgan ikkinchi sabab:** ikki GPS yo'lidan FAQAT bittasida aniqlik toraytirish bor edi.
+| Yo'l | Kim ishlatadi | Toraytirish |
+|---|---|---|
+| Brauzer `watchPosition` | eski klientlar, haqiqiy brauzer | ✅ bir necha soniya kuzatadi, ~50 m → ~5 m |
+| Telegram `LocationManager` | **8.0+ klientlar, ya'ni ko'pchilik** | ❌ **BIR MARTA** o'qiydi va shuni qabul qiladi |
+Telegram'ning bitta o'qishi ko'pincha tarmoq/uyacha nuqtasi — yuzlab metr xato. Aynan shu
+«pin qimirladi, lekin noto'g'ri joy» edi.
+
+**Tuzatish:** Telegram o'qishi 50 m dan yomon bo'lsa brauzer GPS bilan toraytiriladi va pin
+**faqat haqiqatdan aniqroq** o'qish kelsa ko'chiriladi — aks holda Telegram nuqtasi qoladi
+(regressiya yo'q). Kuzatish mantiqi `browserBestFix()` ga chiqarildi, nusxa emas.
+
+**Diagnostika qo'shildi:** ilgari ekran faqat «aniqlik past» derdi — xato 50 metrmi yoki 800
+metrmi, na mijoz na biz bila olardik. Endi aynan raqam: «📍 Aniqlik ~N m». Keyingi shikoyatda
+raqamning o'zi javob beradi.
+
+**Isbot:** miniapp typecheck 0 xato · jonli `index-BWG1bZms.js` → `booking3-DYCyfCpK.js`, o'sha
+chunk'da `Aniqlik ~` va `autoloc` bor · VPS `8ab3b4f` · `bot1067` active · reconcile «none
+missing» · 10 daqiqada 0 xato.
+
+**Holat:** `ready for verification` — ega ilovani TO'LIQ yopib qayta ochadi va ekranda chiqqan
+aniqlik raqamini aytadi. Raqam kichik (≤35 m) bo'lsa-yu joy baribir noto'g'ri bo'lsa — muammo
+GPS'da emas, nuqta→manzil yo'lida (`nearestCatalogAddress`), keyingi qadam o'sha bo'ladi.
