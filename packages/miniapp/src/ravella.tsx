@@ -126,6 +126,10 @@ function BackButton({ onBack }: { onBack: () => void }) {
 // aytilgan zaxira yo'l). Bu variant Liquid Glass tilida va ~70 qator.
 function StoryViewer({ stories, start, onClose }: { stories: RavellaStoryView[]; start: number; onClose: () => void }) {
   const [idx, setIdx] = useState(start);
+  // Video JIM boshlanadi — brauzer ovozli avto-ijroni bloklaydi va video umuman yurmay qoladi.
+  // Ovoz bir bosishda yoqiladi (Instagram ham aynan shunday).
+  const [sound, setSound] = useState(false);
+  const vid = useRef<HTMLVideoElement | null>(null);
   const cur = stories[idx];
 
   // Ko'rildi — ochilgan zahoti belgilanadi (server idempotent, takror yozilmaydi)
@@ -161,14 +165,62 @@ function StoryViewer({ stories, start, onClose }: { stories: RavellaStoryView[];
         <button className="rv-story-close" onClick={() => { haptic(); onClose(); }} aria-label="Yopish">✕</button>
       </div>
       {cur.kind === "video" ? (
-        <video key={cur.id} className="rv-story-media" src={apiUrl(`/api/ravella/story-media/${cur.id}`)} autoPlay muted playsInline onEnded={() => go(1)} />
+        <video
+          key={cur.id}
+          ref={vid}
+          className="rv-story-media"
+          src={apiUrl(`/api/ravella/story-media/${cur.id}`)}
+          autoPlay
+          muted={!sound}
+          playsInline
+          onEnded={() => go(1)}
+        />
       ) : (
         <img key={cur.id} className="rv-story-media" src={apiUrl(`/api/ravella/story-media/${cur.id}`)} alt="" />
+      )}
+      {cur.kind === "video" && (
+        <button
+          className="rv-story-sound"
+          aria-label={sound ? "Ovozni o'chirish" : "Ovozni yoqish"}
+          onClick={(e) => {
+            e.stopPropagation();
+            haptic();
+            const next = !sound;
+            setSound(next);
+            if (vid.current) { vid.current.muted = !next; void vid.current.play().catch(() => undefined); }
+          }}
+        >
+          {sound ? "🔊" : "🔇"}
+        </button>
       )}
       {cur.caption && <div className="rv-story-caption">{cur.caption}</div>}
       {/* Chap/o'ng yarim — Instagram naqshi: bosib o'tiladi */}
       <button className="rv-story-tap left" aria-label="Oldingi" onClick={() => go(-1)} />
       <button className="rv-story-tap right" aria-label="Keyingi" onClick={() => go(1)} />
+    </div>
+  );
+}
+
+
+/** Instagram-uslub «highlights»: har doira — bitta bezak, ichida birinchi surati.
+ *  Rasmsiz bezaklar bu yerga TUSHMAYDI (bo'sh doira bosilib hech nima ko'rsatmasligi yomon). */
+function Highlights({ cat, onOpen }: { cat: RavellaCatalogResponse | null; onOpen: (id: number) => void }) {
+  const items = (cat?.categories ?? []).flatMap((c) => c.items).filter((i) => i.hasPhoto || (i.photoIds?.length ?? 0) > 0);
+  if (items.length < 2) return null;
+  return (
+    <div className="rv-hl">
+      {items.map((it) => (
+        <button key={it.id} className="rv-hl-item" onClick={() => { haptic(); onOpen(it.id); }}>
+          <span className="rv-hl-ring">
+            <img
+              src={it.photoIds?.length ? apiUrl(`/api/ravella/gallery/${it.photoIds[0]}`) : apiUrl(`/api/ravella/photo/${it.id}`)}
+              alt=""
+              loading="lazy"
+            />
+          </span>
+          <span className="rv-hl-name">{it.name}</span>
+        </button>
+      ))}
     </div>
   );
 }
@@ -403,7 +455,12 @@ function Constructor({ itemId, me, onBack, onBanner }: { itemId: number; me: MeR
           aria-label="Ulashish"
           onClick={() => {
             haptic();
-            shareLink(`https://app.birjoy.online/ravella`, `🎀 ${data.item!.name} — Ravella bezaklari`);
+            // `?v=` — Telegram havola-oldindan ko'rishini UZOQ keshlaydi; katalog rasmi
+            // almashganda eski kartochka ko'rinib qolmasin.
+            shareLink(
+              "https://app.birjoy.online/ravella?v=2",
+              `🎀 ${data.item!.name}\nRavella — to'y bezaklari, sharlar, yozuvlar`,
+            );
           }}
         >
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.9} strokeLinecap="round" strokeLinejoin="round">
@@ -566,6 +623,7 @@ export function RavellaView({ me, onBanner }: { me: MeResponse; onBanner?: (msg:
       {/* Aloqa hero OSTIDA — ega qarori: sahifa oxiridagi footer olib tashlandi, lekin
           qo'ng'iroq/tarmoq bir bosishda qo'l ostida qolishi kerak */}
       <ContactRow contacts={cat?.contacts} />
+      <Highlights cat={cat} onOpen={(id) => setOpenId(id)} />
       {cat && cat.discountPct > 0 && (
         <div className="rv-promo">
           🎁 BirJoy orqali <b>{cat.discountPct}% arzon</b>{cat.cashbackPct > 0 ? <> · <b>{cat.cashbackPct}% tanga</b> qaytadi</> : null}

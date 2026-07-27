@@ -58,7 +58,7 @@
 .rv-hero { padding: 14px 0 20px; text-align: center; }
 .rv-hero-badge {
   width: 92px; height: 92px; margin: 0 auto 14px;
-  border-radius: 24px; overflow: hidden;
+  border-radius: 50%; overflow: hidden;
   background: rgba(255, 255, 255, .62);
   backdrop-filter: var(--glass-blur);
   -webkit-backdrop-filter: var(--glass-blur);
@@ -283,8 +283,10 @@
    qoidasi, odam uni o'rgangan). Halqa faqat hikoya BOR bo'lganda chiziladi. */
 .rv-hero-badge.ring { position: relative; cursor: pointer; }
 .rv-hero-badge.ring::after {
-  content: ""; position: absolute; inset: -6px; border-radius: 30px; pointer-events: none;
-  background: conic-gradient(from 210deg, #f9be3e, #ff9d2e, #f9be3e, #ffd36b, #f9be3e);
+  content: ""; position: absolute; inset: -6px; border-radius: 50%; pointer-events: none;
+  /* Instagram palitrasi (ega so'radi): sariq→pushti→binafsha. Odam bu rangni "hikoya bor"
+     deb o'qishga o'rgangan — brend amberi bilan almashtirsak, signal yo'qoladi. */
+  background: conic-gradient(from 200deg, #f9ce34, #ee2a7b, #6228d7, #ee2a7b, #f9ce34);
   -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 3px), #000 calc(100% - 3px));
   mask: radial-gradient(farthest-side, transparent calc(100% - 3px), #000 calc(100% - 3px));
 }
@@ -355,3 +357,35 @@
 .rv-share:active { transform: scale(.92); }
 .rv-share svg { width: 20px; height: 20px; display: block; margin: 0 auto; }
 .rv-slide { cursor: zoom-in; }
+
+/* ══ Instagram-uslub «highlights» — bezaklarga tez kirish (ega so'radi) ══════════════════════
+   Har doira = bitta bezak, ichida uning birinchi surati. Hikoyadan farqi: bu doim turadi va
+   bosilganda o'sha bezak ochiladi. Rasmsiz bezak bu qatorga TUSHMAYDI — bo'sh doira bosilib
+   hech nima ko'rsatmasligi eng yomon holat. */
+.rv-hl { display: flex; gap: 14px; overflow-x: auto; padding: 2px 2px 6px; margin: 0 0 22px; scrollbar-width: none; }
+.rv-hl::-webkit-scrollbar { display: none; }
+.rv-hl-item {
+  flex: 0 0 auto; width: 68px; border: none; background: none; padding: 0;
+  display: flex; flex-direction: column; align-items: center; gap: 6px;
+  transition: transform .22s cubic-bezier(.2, .9, .3, 1.2);
+}
+.rv-hl-item:active { transform: scale(.92); }
+.rv-hl-ring {
+  width: 64px; height: 64px; border-radius: 50%; padding: 2.5px;
+  background: linear-gradient(160deg, rgba(60, 60, 67, .18), rgba(60, 60, 67, .06));
+  box-shadow: 0 8px 18px -12px rgba(31, 30, 26, .8);
+}
+.rv-hl-ring img { width: 100%; height: 100%; border-radius: 50%; object-fit: cover; display: block; border: 2px solid #fff; }
+.rv-hl-name {
+  font-size: 11.5px; line-height: 1.2; color: var(--rv-2); text-align: center;
+  max-width: 68px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+
+/* Hikoyadagi ovoz tugmasi — video jim boshlanadi (brauzer qoidasi: ovozli avto-ijro bloklanadi),
+   bosilganda ovoz yoqiladi. Instagram ham AYNAN shunday ishlaydi. */
+.rv-story-sound {
+  position: absolute; right: 12px; bottom: calc(28px + env(safe-area-inset-bottom)); z-index: 3;
+  width: 42px; height: 42px; border-radius: 21px; border: none; color: #fff; font-size: 17px;
+  background: rgba(255, 255, 255, .18);
+  -webkit-backdrop-filter: blur(12px); backdrop-filter: blur(12px);
+}

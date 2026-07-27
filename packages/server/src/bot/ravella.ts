@@ -157,6 +157,7 @@ export function registerRavella(bot: Bot): void {
           .text("🖼 Rasm qo'shish (karusel)", "rvm:photo").row()
           .text("➕ Qo'shimcha qo'shish", "rvm:addon").row()
           .text("📹 Hikoya joylash", "rvm:story").row()
+          .text("📣 Reklama kartochkasi", "rvm:card").row()
           .text("☎️ Aloqa va tarmoqlar", "rvm:contacts"),
       },
     );
@@ -279,6 +280,32 @@ export function registerRavella(bot: Bot): void {
   // Butun galereyani tozalash — hamkor "qaytadan yuklayman" deganda
 
   // ── 📹 Hikoya (RAVELLA_V2_PLAN §5) — oxirgi 10 ta, muddat YO'Q, 11-chisi eskisini siqib chiqaradi ──
+
+  // ── 📣 Reklama kartochkasi (ega so'radi: "ajoyib tugma, xuddi oldin so'raganimdek") ──────────
+  // Rasm + matn + havola-tugmasi. URL-tugma FORWARD qilinganda ham saqlanadi — ya'ni hamkor
+  // buni kanalga yoki mijozga uzatsa, tugma baribir ishlaydi. Rasm serverdan URL bilan olinadi
+  // (bayt yuklanmaydi), shuning uchun rasm almashsa kartochka ham o'zi yangilanadi.
+  bot.callbackQuery("rvm:card", async (ctx) => {
+    if (!(await guard(ctx))) return;
+    await ctx.answerCallbackQuery();
+    const { getRavellaContacts } = await import("../services/ravellaService");
+    const c = (await getRavellaContacts()) as Record<string, string | undefined>;
+    const kb = new InlineKeyboard().url("🎀 Katalogni ochish", "https://app.birjoy.online/ravella");
+    if (c.phone) kb.row().url("📞 Qo'ng'iroq", `tel:${c.phone.replace(/[^\d+]/g, "")}`);
+    await ctx.replyWithPhoto("https://app.birjoy.online/ravella/katalog.jpg", {
+      caption:
+        "🎀 <b>Ravella — Online katalog</b>\n" +
+        "<i>Orzudagi bezaklar — Ravella bilan</i>\n\n" +
+        "Gul bezaklar · Saxna bezaklari · Yo'lak bezaklari · Fotozona\n\n" +
+        "Bezaklarni suratlar bilan ko'ring, yoqqanini bir bosishda so'rang 👇",
+      parse_mode: "HTML",
+      reply_markup: kb,
+    }).catch(async () => {
+      await ctx.reply("❌ Kartochka yuborilmadi (rasm topilmadi).");
+    });
+    await ctx.reply("👆 Shu kartochkani kanalingizga yoki mijozlarga <b>forward</b> qiling — tugma ishlab turadi.", { parse_mode: "HTML" });
+  });
+
   bot.callbackQuery("rvm:story", async (ctx) => {
     if (!(await guard(ctx))) return;
     await ctx.answerCallbackQuery();

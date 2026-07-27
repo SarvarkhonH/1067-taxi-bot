@@ -7,7 +7,10 @@
 <meta name="description" content="Ravella: saxna bezaklari, bayram yozuvlari, kirish arkalari. Bezakni o'zingiz yig'ing — qo'shimchani tanlang, rasm darhol o'zgaradi. Buyurtma BirJoy ilovasi orqali." />
 <meta property="og:title" content="Ravella — saxna bezaklari va bayram yozuvlari" />
 <meta property="og:description" content="Orzudagi bezaklar — Ravella bilan. Bezakni o'zingiz yig'ing: qo'shimchani tanlang, natijani darhol ko'ring." />
-<meta property="og:image" content="/ravella/logo.jpg" />
+<meta property="og:image" content="https://app.birjoy.online/ravella/katalog.jpg" />
+<meta property="og:image:width" content="1080" />
+<meta property="og:image:height" content="1080" />
+<meta name="twitter:card" content="summary_large_image" />
 <link rel="icon" href="/ravella/logo-mark.png" />
 <!--
   🎀 Ravella — OMMAVIY sahifa (mini app EMAS). Mini app Telegram imzosini talab qiladi, bu sahifa
@@ -50,7 +53,7 @@
   .wrap { max-width:600px; margin:0 auto; padding:0 20px; }
   .hero { text-align:center; padding:42px 20px 22px; }
   .badge {
-    width:96px; height:96px; margin:0 auto 16px; border-radius:25px; overflow:hidden;
+    width:96px; height:96px; margin:0 auto 16px; border-radius:50%; overflow:hidden;
     background:rgba(255,255,255,.62);
     -webkit-backdrop-filter:var(--glass-blur); backdrop-filter:var(--glass-blur);
     box-shadow:var(--glass-rim), 0 20px 44px -24px rgba(31,30,26,.75);
@@ -169,8 +172,9 @@
      halqa har doim rangli. Bu to'g'ri: hikoya ommaviy kontent, ko'rildi esa shaxsiy holat. */
   .badge.ring { position:relative; cursor:pointer; }
   .badge.ring::after {
-    content:""; position:absolute; inset:-6px; border-radius:31px; pointer-events:none;
-    background:conic-gradient(from 210deg,#f9be3e,#ff9d2e,#f9be3e,#ffd36b,#f9be3e);
+    content:""; position:absolute; inset:-6px; border-radius:50%; pointer-events:none;
+    /* Instagram palitrasi — odam bu rangni "hikoya bor" deb o'qishga o'rgangan */
+    background:conic-gradient(from 200deg,#f9ce34,#ee2a7b,#6228d7,#ee2a7b,#f9ce34);
     -webkit-mask:radial-gradient(farthest-side, transparent calc(100% - 3px), #000 calc(100% - 3px));
     mask:radial-gradient(farthest-side, transparent calc(100% - 3px), #000 calc(100% - 3px));
   }
@@ -224,6 +228,21 @@
     -webkit-backdrop-filter:blur(14px); backdrop-filter:blur(14px);
   }
   .ask input::placeholder { color:var(--t3); }
+  /* Instagram-uslub highlights */
+  .hl { display:flex; gap:14px; overflow-x:auto; padding:2px 2px 6px; margin:0 0 22px; scrollbar-width:none; }
+  .hl::-webkit-scrollbar { display:none; }
+  .hl-i { flex:0 0 auto; width:68px; border:none; background:none; padding:0; cursor:pointer;
+          display:flex; flex-direction:column; align-items:center; gap:6px;
+          transition:transform .22s cubic-bezier(.2,.9,.3,1.2); }
+  .hl-i:active { transform:scale(.92); }
+  .hl-r { width:64px; height:64px; border-radius:50%; padding:2.5px;
+          background:linear-gradient(160deg, rgba(60,60,67,.18), rgba(60,60,67,.06));
+          box-shadow:0 8px 18px -12px rgba(31,30,26,.8); }
+  .hl-r img { width:100%; height:100%; border-radius:50%; object-fit:cover; display:block; border:2px solid #fff; }
+  .hl-n { font-size:11.5px; line-height:1.2; color:var(--t2); text-align:center; max-width:68px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .sv-snd { position:absolute; right:12px; bottom:calc(28px + env(safe-area-inset-bottom)); z-index:3;
+            width:42px; height:42px; border-radius:21px; border:none; color:#fff; font-size:17px; cursor:pointer;
+            background:rgba(255,255,255,.18); -webkit-backdrop-filter:blur(12px); backdrop-filter:blur(12px); }
   .skl { background:rgba(255,255,255,.5); border-radius:22px; height:220px; animation:sh 1.4s ease-in-out infinite; }
   @keyframes sh { 0%,100%{opacity:.5} 50%{opacity:.9} }
 
@@ -333,6 +352,7 @@ function showStory(i) {
     '<div class="sv-head"><img class="sv-av" src="/ravella/logo-mark.png" alt=""><span class="sv-nm">Ravella</span>' +
     '<button class="sv-x" aria-label="Yopish">✕</button></div>' + media +
     (st.caption ? '<div class="sv-cap">' + esc(st.caption) + "</div>" : "") +
+    (st.kind === "video" ? '<button class="sv-snd" id="svs" aria-label="Ovoz">🔇</button>' : "") +
     '<button class="sv-tap l" aria-label="Oldingi"></button><button class="sv-tap r" aria-label="Keyingi"></button>';
   el.querySelector(".sv-x").onclick = closeStory;
   el.querySelector(".sv-tap.l").onclick = function () { showStory(SIDX - 1); };
@@ -340,6 +360,14 @@ function showStory(i) {
   if (st.kind === "video") {
     var v = document.getElementById("svv");
     if (v) v.onended = function () { showStory(SIDX + 1); };
+    // Video jim boshlanadi (brauzer ovozli avto-ijroni bloklaydi) — bir bosishda ovoz yoqiladi
+    var sb = document.getElementById("svs");
+    if (sb && v) sb.onclick = function (e) {
+      e.stopPropagation();
+      v.muted = !v.muted;
+      sb.textContent = v.muted ? "🔇" : "🔊";
+      v.play().catch(function () {});
+    };
   } else {
     STIMER = setTimeout(function () { showStory(SIDX + 1); }, 5000);
   }
@@ -364,8 +392,9 @@ function lightbox(srcs, start) {
 
 // V3: ulashish — oila maslahatlashadi, skrinshot o'rniga chiroyli havola ketsin
 function shareItem(name) {
-  var url = "https://app.birjoy.online/ravella";
-  var text = "🎀 " + name + " — Ravella bezaklari";
+  // `?v=` — Telegram oldindan ko'rishni uzoq keshlaydi; rasm yangilanganda eski kartochka qolmasin
+  var url = "https://app.birjoy.online/ravella?v=2";
+  var text = "🎀 " + name + "\nRavella — to'y bezaklari, sharlar, yozuvlar";
   if (navigator.share) { navigator.share({ title: "Ravella", text: text, url: url }).catch(function () {}); return; }
   window.open("https://t.me/share/url?url=" + encodeURIComponent(url) + "&text=" + encodeURIComponent(text), "_blank");
 }
@@ -394,6 +423,22 @@ function catalogue() {
     if (badge && d.storyCount > 0) { badge.classList.add("ring"); badge.onclick = openStories; }
     if (!d.categories || !d.categories.length) { empty("Bezaklar tez orada shu yerda bo'ladi."); return; }
     var h = "";
+    // Highlights — rasmi bor bezaklar doira bo'lib turadi (bo'sh doira chizilmaydi)
+    var withPhoto = [];
+    d.categories.forEach(function (c) {
+      c.items.forEach(function (it) { if (it.hasPhoto || (it.photoIds && it.photoIds.length)) withPhoto.push(it); });
+    });
+    if (withPhoto.length > 1) {
+      h += '<div class="hl">';
+      withPhoto.forEach(function (it) {
+        var src = (it.photoIds && it.photoIds.length)
+          ? API + "/api/ravella/gallery/" + it.photoIds[0]
+          : API + "/api/ravella/photo/" + it.id;
+        h += '<button class="hl-i" data-hl="' + it.id + '"><span class="hl-r"><img src="' + src + '" alt="" loading="lazy"></span>' +
+             '<span class="hl-n">' + esc(it.name) + "</span></button>";
+      });
+      h += "</div>";
+    }
     if (DISC > 0) h += '<div class="promo">🎁 BirJoy orqali <b>' + DISC + "% arzon</b>" + (CB > 0 ? " · <b>" + CB + "% tanga</b> qaytadi" : "") + "</div>";
     // Bo'lim bitta bo'lsa sarlavha chiqarilmaydi — kartalar o'zi gapiradi
     var many = d.categories.length > 1;
@@ -427,6 +472,9 @@ function catalogue() {
     app.innerHTML = h;
     // Bosish/surish ajratimi: ochish `click`da emas, 8px dan kam siljigan `pointerup`da.
     // Aks holda kartani surganda sahifa ochilib ketadi va katalog "sinib qolgandek" tuyuladi.
+    [].forEach.call(app.querySelectorAll("[data-hl]"), function (b) {
+      b.onclick = function () { item(Number(b.getAttribute("data-hl"))); };
+    });
     [].forEach.call(app.querySelectorAll(".card"), function (b) {
       var d = null;
       b.addEventListener("pointerdown", function (e) { d = { x: e.clientX, y: e.clientY }; });
