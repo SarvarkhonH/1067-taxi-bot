@@ -3610,3 +3610,82 @@ missing» · 10 daqiqada 0 xato.
 **Holat:** `ready for verification` — ega ilovani TO'LIQ yopib qayta ochadi va ekranda chiqqan
 aniqlik raqamini aytadi. Raqam kichik (≤35 m) bo'lsa-yu joy baribir noto'g'ri bo'lsa — muammo
 GPS'da emas, nuqta→manzil yo'lida (`nearestCatalogAddress`), keyingi qadam o'sha bo'ladi.
+
+---
+
+## §61 — 🚪 MEHMON REJIMI + DO'KON BO'LIMI TIKLANDI · 2026-07-27 · **OWNER-ACCEPTED**
+
+**Ega QABUL berdi:** «tekshirdim, ishlayapti» (2026-07-27, real telefonda).
+
+### Nima tuzatildi
+
+**1. `initData` poygasi — «internetni tekshiring» yolg'oni.** Telegram Desktop/Web Z initData'ni
+WebView ochilgandan bir necha yuz ms KEYIN to'ldiradi. Faqat `/api/me` buni bilib kutardi; qolgan
+har so'rov oldinga otilib, imzosiz ketardi, 401 olardi — 401 esa `request()` da qayta urinilmasdan
+otilardi. Natijada Do'kon ekrani sog'lom internetda «Yuklanmadi — internetni tekshiring» derdi.
+Log isboti: `GET /api/shop/products auth-header: NONE -> 401`. Endi HAR so'rov initData'ni kutadi
+(tayyor bo'lsa 0 ms) + 401 bir marta qayta uriniladi. Xato matnlari ham rostgo'y bo'ldi —
+`navigator.onLine` false bo'lgandagina tarmoq aybdor deyiladi.
+
+**2. Uy ekranidagi taksi tugmasi qaytdi.** `a24be21` uni «pastki bardagi FAB qoplaydi» deb
+o'chirgan, `a6461f0` esa o'sha FAB'ni o'chirgan — taksi ilovasida taksi chaqirish nuqtasi
+qolmagandi. Ega faqat FAB haqida aytgan edi.
+
+**3. Mehmon rejimi.** 1 060 odam `/start` bosgan, 289 tasi ulanmagan, shundan **286 tasi raqam
+tugmasini umuman bosmagan** — hech narsa ko'rmasdan raqam so'ralgani uchun ketishgan. Server:
+yangi `allowGuest` middleware faqat o'qish-katalog GET'larida; pul/buyurtma/shaxsiy hammasi
+`requireUser`da qoldi. `/api/me` ulanmaganlarga `{linked:false, guest, flags}` beradi. Mijoz:
+`GuestApp` boshi berk `NotLinked` kartasini almashtirdi — Do'kon/Restoran/Xizmatlar ochiq, savat
+va xaridda raqam so'raladi. Yo'lda chiqqan 500 (`findUnique({id:null})`) `getMe`/`getMemberId`
+manbasida tuzatildi.
+
+**4. Do'kon bo'limi: `shopv2` yashirgan, lekin qayta qurmagan narsalar.** Kategoriya karuseli
+(mavjud edi, lekin panjara `products` ustidan chizilgani uchun filtr umuman ishlamasdi),
+yopishqoq savat paneli, «Sotuvchi bo'ling» CTA, do'kon va mahsulot ulashish tugmalari — hammasi
+qaytarildi. Bo'sh kategoriyalar mijozdan (va egadan ham) yashirildi: 9 chip → 5. Bo'sh kategoriya
+tanlansa endi izoh + «Barcha mahsulotlar» tugmasi chiqadi.
+
+**5. Ma'lumot xatosi:** 27 mahsulot `PARFUMERIYA` (katta harf) deb yozilgan, `CategoryDef` da
+`Parfumeriya` — bu 27 mahsulotga karuseldan yetib bo'lmasdi. `UPDATE 27` bilan birlashtirildi.
+
+**6. Hikoyalar.** Tray `!shopv2` bilan yopilgan edi, ya'ni hikoyani ko'rish uchun avval o'sha
+do'konni ochish kerak bo'lardi (butun bozorda 1 hikoya, 1 ko'rish). Endi Do'kon boshida ham,
+do'kon profilida ham; mehmonga ham ochiq (kashf sirtqisi).
+
+**7. Sotuvchi vositalari.** `/hikoya` to'liq qurilgan, lekin hech qayerda aytilmagan edi. Yangi
+`/logo` qo'shildi (`isAwaitingStory` ichiga kiritildi — aks holda `bot.ts` dagi haydovchi-rasm
+handleri rasmni yutib yuborardi). Sotuvchi panel xabari ikkalasini ham tushuntiradi. 7 ta do'kon
+egasiga logo so'rovi yuborildi — 7/7 yetkazildi (hech birida logo yo'q edi).
+
+**8. Kirish ekrani** — 🚕 va `1067 TAXI` o'rniga BirJoy logosi (inline SVG) + «Bir shahar. Ko'plab
+xizmatlar.» `/start` bitta xabarga qisqardi: brend posteri + ilova tugmasi + raqam tugmasi.
+
+**9. Bayroqlar yoqildi:** `revtanga` (sharh 300 tanga, rasm bilan +200, kuniga 3 ta, faqat
+yetkazilgan xaridor) va `shopcashback` (2%, buyurtmaga 2 000, kuniga 5 000, faqat `delivered`;
+safar ≤350 clamp'iga tegmaydi — `grantCoins` `bookingId` siz chaqiriladi). Ikkalasi ham adminlarga
+avtomatik ogohlantirish yubordi.
+
+### Isbot
+
+- Oddiy mijoz (admin EMAS) imzolangan sessiyasi: `shop/bazar/bazarcart/shopv2/shopstory/shopchat/
+  revtanga/restoran/xizmatlar/newhome` — hammasi **ON**; kategoriyalar 5 ta. Ega-preview niqobi
+  YO'Q (bu ilgari butun bozorni mijozdan yashirgan xato edi).
+- Mehmon: `/api/me`, `/api/shop/{products,market,stories}`, `/api/restoran/list`,
+  `/api/services/list`, `/api/mahalla` → **200**; `/api/wallet`, `/api/shop/orders`,
+  `/api/booking/info`, `/api/missions` → **401**.
+- Brauzerda jonli DOM: hikoya-tray (qidiruv va filtr qatori orasida), 5 ta kategoriya chipi,
+  `.shop-seller-cta`, `.shop-share-btn`, mehmon paneli «Raqamni ulang». Karusel bosilganda
+  sarlavha va panjara o'zgardi; bo'sh kategoriyada izoh chiqdi.
+- Infra: `bot1067` active, `NRestarts=0`, 20 daqiqada 0 xato, webhook pending=0 xatosiz,
+  `/health` ok, load 0.03, disk 4%.
+
+**Holat:** `owner-accepted`.
+
+### Qolgan ochiq ish
+
+- Do'kon logolari hali yuklanmagan (so'rov yuborildi, javob kutilyapti) — hikoya halqasida 🏬.
+- Cloudflare hali qo'yilmagan: har HTTPS ulanish Toshkent↔Germaniya ~350 ms. Server javobi 2-5 ms,
+  ya'ni sekinlikning ~70% i masofadan. Bu bitta ish ochilishni 3-5 barobar tezlashtiradi, narxi $0.
+- `revtanga` / `shopcashback` — yangi emissiya manbalari, bir haftadan keyin
+  `CoinTxn where kind in ('shop_cashback','shop_review')` bo'yicha o'lchov olinsin.
+
