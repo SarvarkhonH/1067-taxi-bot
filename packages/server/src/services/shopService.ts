@@ -226,12 +226,14 @@ export async function getMarketHome(preview = false, q?: string, memberId?: numb
   });
   return {
     shops: [...bozor, ...mahalla].map(shopView),
-    // Mahsuloti YO'Q kategoriya mijozga ko'rsatilmaydi: 9 ta chip bor edi, 4 tasi butunlay bo'sh -
-    // mijoz bosadi, ekran bo'shab qoladi va katalog kambag'al ko'rinadi. `preview` (ega/admin) da
-    // HAMMASI qoladi, aks holda ega yangi kategoriyaga birinchi mahsulotni qo'sha olmaydi.
-    // Do'kon-ro'yxatidagi "zaxirasi bor" filtri bilan bir xil naqsh, xuddi shu sabab.
+    // Mahsuloti YO'Q kategoriya KO'RSATILMAYDI - 9 ta chipdan 4 tasi butunlay bo'sh edi, mijoz
+    // bosadi va ekran bo'shab qoladi. Do'kon-ro'yxatidagi "zaxirasi bor" filtridan farqli o'laroq
+    // bu yerda `preview` istisnosi YO'Q: bo'sh do'konni egasi ko'rishi SHART (mahsulot qo'shish
+    // uchun), lekin kategoriya chipi shunchaki mijoz-filtri - mahsulotga kategoriya sotuvchi
+    // panelidan beriladi, bu chipdan emas. Istisno bo'lsa ega o'z telefonida tekshirib ko'rganda
+    // hech narsa o'zgarmagandek ko'rinardi.
     cats: cats
-      .filter((c) => preview || (catCounts.get(c.name) ?? 0) > 0)
+      .filter((c) => (catCounts.get(c.name) ?? 0) > 0)
       .map((c) => ({ id: c.id, slug: c.slug, name: c.name, emoji: c.emoji, hasIcon: !!(c.iconFileId || c.iconUrl) })),
     products: filtered,
   };
