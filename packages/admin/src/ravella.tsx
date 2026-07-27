@@ -122,14 +122,15 @@ export function RavellaAdminView() {
           {" "}Qo'shimchalar: <b>{data.addons.length}</b>
         </p>
         <p className="muted">
-          Hamkorning Telegram chat-id'si — buyurtma kartalari shu chatga tushadi. Bo'sh bo'lsa faqat
-          egaga boradi. (Zoyir aka botga <code>/start</code> bossin, keyin ID'sini shu yerga yozing.)
+          Hamkorlarning Telegram chat-id'lari — buyurtma kartalari shu chatlarga tushadi. Bir nechta
+          bo'lsa VERGUL bilan yozing (masalan <code>159391041,7019500305</code>). Bo'sh bo'lsa faqat
+          egaga boradi. (Hamkor avval botga <code>/start</code> bossin.)
         </p>
         <div style={{ display: "flex", gap: 8 }}>
-          <input value={chatId} onChange={(e) => setChatId(e.target.value)} placeholder="masalan 123456789" />
+          <input value={chatId} onChange={(e) => setChatId(e.target.value)} placeholder="159391041,7019500305" />
           <button onClick={async () => {
             const r = await adminApi.ravellaPartnerChat(chatId.trim()).catch(() => ({ ok: false }));
-            flash(r.ok ? "✅ Saqlandi" : "❌ Faqat raqam bo'lishi kerak");
+            flash(r.ok ? "✅ Saqlandi" : "❌ Faqat raqam va vergul (bittasi noto'g'ri bo'lsa hech biri saqlanmaydi)");
             load();
           }}>Saqlash</button>
         </div>

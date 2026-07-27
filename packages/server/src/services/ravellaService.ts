@@ -552,14 +552,34 @@ export async function adminListRavellaOrders(status?: string): Promise<AdminRave
 // Sozlanmagan bo'lsa buyurtma kartalari EGAga tushadi (xavfsiz fallback — buyurtma hech qachon
 // "hech kimga" ketmaydi).
 
+/** Xom qiymat (admin ekranida ko'rsatiladi). Ega qarori 2026-07-27: BIR NECHTA hamkor bo'lishi
+ *  mumkin — vergul/probel bilan ajratiladi, buyurtma kartasi HAMMASIGA boradi. */
 export async function getRavellaPartnerChat(): Promise<string | null> {
   const row = await prisma.appState.findUnique({ where: { key: "ravella:chat" } }).catch(() => null);
   return row?.value?.trim() || null;
 }
 
+/** Yuborish/guard uchun tozalangan ro'yxat. Bo'sh bo'lsa [] — chaqiruvchi egaga tushiradi. */
+export async function getRavellaPartnerChats(): Promise<string[]> {
+  const raw = await getRavellaPartnerChat();
+  if (!raw) return [];
+  return [...new Set(raw.split(/[,\s]+/).map((x) => x.trim()).filter((x) => /^-?\d{5,}$/.test(x)))];
+}
+
 export async function setRavellaPartnerChat(chatId: string): Promise<{ ok: boolean }> {
-  const v = (chatId ?? "").trim().slice(0, 32);
-  if (v && !/^-?\d{5,}$/.test(v)) return { ok: false };
-  await prisma.appState.upsert({ where: { key: "ravella:chat" }, create: { key: "ravella:chat", value: v }, update: { value: v } });
+  const raw = (chatId ?? "").trim().slice(0, 200);
+  if (!raw) {
+    await prisma.appState.upsert({ where: { key: "ravella:chat" }, create: { key: "ravella:chat", value: "" }, update: { value: "" } });
+    return { ok: true };
+  }
+  const ids = raw.split(/[,\s]+/).map((x) => x.trim()).filter(Boolean);
+  // BITTASI ham noto'g'ri bo'lsa butun so'rov rad etiladi — yarim saqlangan ro'yxat
+  // (bir hamkor tushib qolgan) jim yo'qotish bo'lardi.
+  if (!ids.every((x) => /^-?\d{5,}$/.test(x))) return { ok: false };
+  await prisma.appState.upsert({
+    where: { key: "ravella:chat" },
+    create: { key: "ravella:chat", value: ids.join(",") },
+    update: { value: ids.join(",") },
+  });
   return { ok: true };
 }

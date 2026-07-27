@@ -21,10 +21,9 @@ async function tgOf(memberId: number): Promise<string | null> {
 /** Kim bosishi mumkin: hamkor (sozlangan bo'lsa) + ega. Bitta joyda — callback-guard ham,
  *  yuborish-ro'yxati ham shundan o'qiladi (ikkisi ajralib qolmasin). */
 async function ravellaChats(): Promise<string[]> {
-  const { getRavellaPartnerChat } = await import("../services/ravellaService");
+  const { getRavellaPartnerChats } = await import("../services/ravellaService");
   const chats = new Set<string>([OWNER_TG]);
-  const partner = await getRavellaPartnerChat();
-  if (partner) chats.add(partner);
+  for (const id of await getRavellaPartnerChats()) chats.add(id);
   return [...chats];
 }
 
