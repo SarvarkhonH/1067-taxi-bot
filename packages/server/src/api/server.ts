@@ -253,7 +253,7 @@ export function createApiServer(opts: ApiOptions = {}) {
   });
 
   app.get("/api/me", allowGuest, async (_req, res) => {
-    const [me, booking3, livinghome, intercity, tierloyalty, shopOn, xizmatlarOn, elonlarOn, restoranOn, bazarOn, bazarcartOn, revtangaOn, shopstoryOn, shopchatOn, newhomeOn, newprofileOn, shopv2On, linkinappOn, homescreenOn] = await Promise.all([
+    const [me, booking3, livinghome, intercity, tierloyalty, shopOn, xizmatlarOn, elonlarOn, restoranOn, bazarOn, bazarcartOn, revtangaOn, shopstoryOn, shopchatOn, newhomeOn, newprofileOn, shopv2On, linkinappOn, homescreenOn, storyshareOn] = await Promise.all([
       getMe(res.locals.telegramId as string),
       featureOn("booking3"),
       featureOn("livinghome"),
@@ -273,6 +273,7 @@ export function createApiServer(opts: ApiOptions = {}) {
       featureOn("shopv2"),
       featureOn("linkinapp"),
       featureOn("homescreen"),
+      featureOn("storyshare"),
     ]);
     // 🚪 Mehmon (yoki ulanmagan) — 401 EMAS. Bayroqlar baribir yuboriladi: mijoz ilovaga kiradi,
     // katalogni ko'radi, raqam faqat harakat paytida so'raladi. `guest` = Telegram identifikatori
@@ -312,7 +313,7 @@ export function createApiServer(opts: ApiOptions = {}) {
     const newprofilePreview = newprofileOn || isAdmin(res.locals.telegramId as string);
     // 🏪 shopv2 owner-preview — BirJoy Market qorong'i-qayta-dizayni QABUL'gacha faqat ega ekranida
     const shopv2Preview = shopv2On || isAdmin(res.locals.telegramId as string);
-    res.json({ ...me, flags: { booking3, livinghome, intercity, tierloyalty: tierPreview, shop: shopPreview, xizmatlar: xizmatlarPreview, elonlar: elonlarPreview, restoran: restoranPreview, bazar: bazarPreview, bazarcart: bazarcartPreview, revtanga: revtangaPreview, shopstory: shopstoryPreview, shopchat: shopchatPreview, newhome: newhomePreview, newprofile: newprofilePreview, shopv2: shopv2Preview, linkinapp: linkinappOn || isAdmin(res.locals.telegramId as string), homescreen: homescreenOn || isAdmin(res.locals.telegramId as string) } });
+    res.json({ ...me, flags: { booking3, livinghome, intercity, tierloyalty: tierPreview, shop: shopPreview, xizmatlar: xizmatlarPreview, elonlar: elonlarPreview, restoran: restoranPreview, bazar: bazarPreview, bazarcart: bazarcartPreview, revtanga: revtangaPreview, shopstory: shopstoryPreview, shopchat: shopchatPreview, newhome: newhomePreview, newprofile: newprofilePreview, shopv2: shopv2Preview, linkinapp: linkinappOn || isAdmin(res.locals.telegramId as string), homescreen: homescreenOn || isAdmin(res.locals.telegramId as string), storyshare: storyshareOn || isAdmin(res.locals.telegramId as string) } });
   });
 
   /**

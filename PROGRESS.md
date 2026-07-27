@@ -3225,7 +3225,43 @@ holati va qo'shish oqimi FAQAT sizning telefoningizda tasdiqlanadi.
 
 ---
 
-## 📦 SESSIYA YAKUNI (2026-07-27) — 4 tiket, hammasi GitHub'da, deploy KUTILYAPTI
+## §56 — 📸 TAKLIFNI HIKOYAGA ULASHISH (T-TG4, `shareToStory`) · 2026-07-27
+**Holat: `ready for verification`** (flag `storyshare` = **OFF/DARK**)
+
+**Nega.** Referal tizimi bor, lekin ulashishning YAGONA yo'li — chatga yuborish. Hikoya (story)
+bir marta qo'yiladi va butun kontakt ro'yxati ko'radi; taklif uchun bu eng arzon tarqalish kanali.
+Bot API 7.8 buni beradi, ishlatilmagan (grep: 0).
+
+**Nima qilindi.**
+- `telegram.ts::shareStory(text, link)` — versiya-darvozasi `7.8`; muharrir ochilmasa **`false`**
+  qaytaradi va chaqiruvchi odatdagi «chatga yuborish»ga tushadi (foydalanuvchi bo'sh bosishni
+  sezmaydi).
+- **Rasm**: yangi asset YASALMADI — mavjud `public/invite-poster.jpg` ishlatiladi (o'lchamini
+  tekshirdim: **853×1280**, tik format, hikoyaga to'g'ri keladi; OG-kartada allaqachon jonli
+  ishlaydi). URL ish vaqtida `location.origin` dan olinadi — ilova qaysi domendan ochilgan bo'lsa,
+  rasm ham o'sha yerda.
+- **Premium nuansi**: Telegram hikoyadagi bosiladigan havolaga FAQAT Premium obunachilarga ruxsat
+  beradi. Shuning uchun `widget_link` faqat `initDataUnsafe.user.is_premium` bo'lganda yuboriladi;
+  oddiy foydalanuvchida havola matn ichiga qo'shiladi (ko'rinadi, o'qiladi). Ya'ni hech kimda
+  "ishlamayapti" holati chiqmaydi.
+- **Link AYNI OLDINGISI** (`inviteLandingUrl`) → referal hisobi va to'lovlari o'zgarmaydi, yangi
+  pul-mantiq yo'q.
+- UI: `ReferralView` da «📸 Hikoyaga (Story) qo'yish» tugmasi, `storyshare` flagi ostida.
+- **Kill-switch `storyshare`, DEFAULT_OFF** + owner-preview.
+
+**Isbot.** `tsc` server+miniapp **0 xato** · `vite build` ✓ · **BUNDLE GREP**
+(`index-CQ1FcQ5J.js`) — minifikatsiyalangan mantiq, Premium shoxi bilan birga:
+`if(!(N?.shareToStory)||!(N.isVersionAtLeast?.call(N,"7.8")))return!1; … N.shareToStory($m(),
+{text:r?e:`${e}\n${n}`,...r?{widget_link:{url:n,name:"BirJoy"}}:{}}),!0` ·
+`new URL("/invite-poster.jpg",location.origin)` ✓ · poster `dist/` da (172 576 bayt) ✓.
+
+**TEKSHIRILMAGAN.** Hikoya muharriri real qurilmada ochilmagan; rasmning hikoyadagi kadrlanishi
+(853×1280 → 9:16 ga biroz kesiladi) FAQAT sizning ekraningizda baholanadi. Premium/oddiy
+foydalanuvchi farqi ham jonli sinalmagan.
+
+---
+
+## 📦 SESSIYA YAKUNI (2026-07-27) — 5 tiket, hammasi GitHub'da, deploy KUTILYAPTI
 
 | § | Tiket | Flag | Holat |
 |---|---|---|---|
@@ -3233,6 +3269,7 @@ holati va qo'shish oqimi FAQAT sizning telefoningizda tasdiqlanadi.
 | 53 | Raqamni ilova ichida ulash (`requestContact`) | `linkinapp` **OFF** | ready for verification |
 | 54 | Telegram ‹ orqaga tugmasi (`BackButton`) | yo'q (bug-fix) | ready for verification |
 | 55 | Telefon ekraniga qo'shish (`addToHomeScreen`) | `homescreen` **OFF** | ready for verification |
+| 56 | Taklifni hikoyaga ulashish (`shareToStory`) | `storyshare` **OFF** | ready for verification |
 
 **Deploy uchun eslatma (boshqa sessiya bajaradi).** Miniapp: `VITE_API_URL=<render> vite build` →
 `dist` ni `.vercel/output/static` ga KO'CHIR → `vercel deploy --prebuilt --prod` → BUNDLE GREP

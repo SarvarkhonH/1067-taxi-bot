@@ -277,7 +277,7 @@ export function App() {
   if (linked === false) return <GuestApp flags={guestFlags} />;
   if (!me) return <BootSplash />;
   if (booking) return <Suspense fallback={<BootSplash />}><Booking3View me={me} onClose={() => setBooking(false)} /></Suspense>;
-  if (invite) return <div className="app"><main className="content"><ReferralView onClose={() => setInvite(false)} /></main></div>;
+  if (invite) return <div className="app"><main className="content"><ReferralView onClose={() => setInvite(false)} story={!!me.flags?.storyshare} /></main></div>;
   if (history) return <div className="app"><main className="content"><RideHistoryView onClose={() => setHistory(false)} /></main></div>;
 
   const go = (t: Tab) => {
@@ -428,7 +428,7 @@ export function App() {
               (board ? (
                 <>
                   <LeaderboardView board={board} />
-                  <ReferralView />
+                  <ReferralView story={!!me.flags?.storyshare} />
                 </>
               ) : boardErr ? (
                 <LoadError onRetry={loadBoard} />

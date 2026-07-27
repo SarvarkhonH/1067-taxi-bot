@@ -41,6 +41,13 @@ interface TgBackButton {
   offClick: (cb: () => void) => void;
 }
 
+/** `shareToStory` parametrlari (Bot API 7.8). `widget_link` — hikoyaga bosiladigan havola;
+ *  Telegram uni FAQAT Premium obunachilarga ruxsat beradi, shuning uchun shartli yuboriladi. */
+interface TgShareStoryParams {
+  text?: string;
+  widget_link?: { url: string; name?: string };
+}
+
 /** `checkHomeScreenStatus` javobi (Bot API 8.0):
  *  `unsupported` — klient qo'llab-quvvatlamaydi · `unknown` — aniqlab bo'lmadi ·
  *  `added` — ikonka allaqachon bor · `missed` — qo'shish MUMKIN, lekin hali qo'shilmagan. */
@@ -81,6 +88,9 @@ interface TelegramWebApp {
   // Bot API 8.0+ — telefon ekraniga "1067" ikonkasini qo'shish.
   addToHomeScreen?: () => void;
   checkHomeScreenStatus?: (cb: (status: HomeScreenStatus) => void) => void;
+  // Bot API 7.8+ — Telegram hikoyasi (story) muharririni tayyor rasm bilan ochish.
+  shareToStory?: (mediaUrl: string, params?: TgShareStoryParams) => void;
+  initDataUnsafe?: { user?: { id?: number; is_premium?: boolean }; start_param?: string };
   LocationManager?: TgLocationManager;
   HapticFeedback?: { impactOccurred: (s: string) => void; selectionChanged: () => void; notificationOccurred?: (t: string) => void };
 }
@@ -455,6 +465,47 @@ export function inviteLandingUrl(botLink: string): string {
   // &v bumps the URL when the OG card content changes → Telegram fetches a FRESH preview
   // instead of showing a stale cached card (v2 = gift-emoji removed).
   return m && m[1] ? `${INVITE_LANDING}?r=${encodeURIComponent(m[1])}&v=2` : botLink;
+}
+
+// ── 📸 Telegram hikoyasi (story) — Bot API 7.8+ ───────────────────────────────
+/** Hikoyaga qo'yiladigan rasm. Telegram uni O'ZI yuklab oladi, shuning uchun URL ochiq HTTPS
+ *  bo'lishi shart. Mavjud taklif-posteri (853×1280, tik format) ayni maqsadga to'g'ri keladi —
+ *  yangi asset yasalmadi. Origin ish vaqtida olinadi: ilova qaysi domendan ochilgan bo'lsa,
+ *  rasm ham o'sha yerda (bitta Vercel deploy). */
+function storyMediaUrl(): string {
+  try {
+    return new URL("/invite-poster.jpg", location.origin).href;
+  } catch {
+    return "https://app.birjoy.online/invite-poster.jpg";
+  }
+}
+
+/** Telegram Premium obunachisimi — `widget_link` faqat ularda ishlaydi (Telegram cheklovi). */
+function isPremium(): boolean {
+  return !!tg?.initDataUnsafe?.user?.is_premium;
+}
+
+/**
+ * Telegram hikoya-muharririni tayyor rasm bilan ochadi.
+ *
+ * `true` qaytarsa — muharrir ochildi; `false` bo'lsa klient qo'llab-quvvatlamaydi va chaqiruvchi
+ * odatdagi «chatga ulashish» yo'liga qaytishi kerak (hech kim yo'lda qolmasin).
+ *
+ * Havola: Premium'da bosiladigan `widget_link` sifatida ketadi; oddiy foydalanuvchida Telegram
+ * havolaga ruxsat bermaydi, shuning uchun URL matn ichiga qo'shiladi (ko'rinadi, o'qiladi).
+ */
+export function shareStory(text: string, link: string): boolean {
+  if (!tg?.shareToStory || !tg.isVersionAtLeast?.("7.8")) return false;
+  try {
+    const premium = isPremium();
+    tg.shareToStory(storyMediaUrl(), {
+      text: premium ? text : `${text}\n${link}`,
+      ...(premium ? { widget_link: { url: link, name: "BirJoy" } } : {}),
+    });
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 /** Open Telegram's native "share to a chat" dialog with an invite link. */

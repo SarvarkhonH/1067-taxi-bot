@@ -66,6 +66,7 @@ export interface MeResponse {
     shopv2?: boolean; // 🏪 BirJoy Market qorong'i-qayta-dizayni (owner-preview: admins see it while DARK)
     linkinapp?: boolean; // 📱 raqamni ilova ichida ulash (requestContact); OFF = bot-yo'li (owner-preview)
     homescreen?: boolean; // 🏠 telefon ekraniga qo'shish taklifi (addToHomeScreen) (owner-preview)
+    storyshare?: boolean; // 📸 taklifni Telegram hikoyasiga ulashish (shareToStory) (owner-preview)
   };
 }
 
