@@ -3542,14 +3542,44 @@ muddati, yetkazib beruvchi…). DoD: `BIRJOY_KATALOG_DOD.md`.
    `migrate diff` ham shuni ko'rsatadi: Neon'da `Ravella*` jadvallari va `MarketOrder.eta*`
    ustunlari YO'Q (cutover'dan keyingi ishlar). **db:push va seed ALBATTA VPS bazasiga qarshi
    yugurishi kerak**, aks holda hech narsa o'zgarmaydi.
-2. **27 mahsulot hozir kategoriya-karuselida ko'rinmaydi** (Neon nusxasida): ularning kategoriyasi
-   `PARFUMERIYA`, `CategoryDef`da esa faqat `Parfumeriya` bor — karusel NOM bo'yicha solishtiradi.
-   Seed skripti shuni tuzatadi.
+2. ~~27 mahsulot karuselda ko'rinmaydi (`PARFUMERIYA`≠`Parfumeriya`)~~ — **TUZATISH KERAK EMAS
+   edi**: bu faqat Neon nusxasidagi holat. Jonli bazada dublikat yo'q (`Parfumeriya` 49 ta,
+   `kategoriyasiz mahsulot: 0`). Ega buyrug'i bilan yuqoridagi 1-band ham yopildi — endi jonli
+   bazaga to'g'ridan-to'g'ri (SSH) ishlanadi.
 
-**Holat:** `ready for verification` (kod) · **DB qadami hali BAJARILMAGAN** — ega tasdig'i kerak:
-VPS'da `pnpm db:push` + `seedMarketCategories.ts --apply`. K9 (admin-forma) va K10 (miniapp jadval)
-ega telefonida QABUL kutadi; K12 (brend/barkod qidiruvi) — `#shopdemo` mock-serveri qidiruvni
-filtrlamaydi, shuning uchun faqat jonli tekshiriladi.
+### JONLI CHIQARISH (ega: «live qil») — bajarildi
+
+| Qadam | Buyruq | Natija |
+|---|---|---|
+| Sxema-diff (jonli, o'zgarishdan oldin) | `prisma migrate diff` VPS'da | `-- This is an empty migration` (baza commit'dagi sxemaga AYNAN teng) |
+| Sxema-diff (yangi sxema bilan) | ⇧ | faqat `ALTER TABLE "Product" ADD COLUMN` ×7 + `CREATE INDEX "Product_barcode_idx"` — buzuvchi hech narsa yo'q |
+| Sxema qo'llash | `prisma db push` (VPS, `localhost:5432/birjoy`) | `Your database is now in sync — 492ms` |
+| Kategoriya seed | `seedMarketCategories.ts --apply` | `yangi=30 · yangilandi=4 · o'chirildi=4 · CategoryDef=35 · kategoriyasiz mahsulot: 0` |
+| Idempotentlik (K6) | ⇧ ikkinchi marta | `yangi=0 · yangilandi=0 · o'chirildi=0` ✅ |
+| Frontend (K10) | `curl app.birjoy.online` | `index-BWG1bZms.js` → `shop-BpV-_yXQ.js`, unda `Xususiyatlari` + `shop-spec-title` |
+| Admin (K9) | bundle grep | `index-K5Y-oI7K.js` da `Yetkazib beruvchi` |
+| Ichki maydonlar (K11) | `curl api.birjoy.online/api/shop/market` | `barcode/sku/supplier` uchrashi = **0** ✅ |
+
+### ⛔ JONLI TEKSHIRUVDA TOPILGAN REGRESSIYA (topildi va yopildi, `36fd6be`)
+
+Seed'dan keyin `/api/shop/market` mijozga **faqat bitta «Aksiya» chipini** qaytardi.
+Sabab: `getMarketHome` `categoryDef.findMany({ take: 20 })` qilardi — seed'dan keyin birinchi 20 ta
+= Aksiya + hali mahsuloti yo'q 19 yangi kategoriya (ular bo'sh bo'lgani uchun filtrlanadi), mahsuloti
+BOR eskilari esa (`umumiy` 36, `Uy anjomlari` 33, `Parfumeriya` 20, `Bolalar uchun` 1 — jami 90 ta
+faol mahsulot) `take`dan tashqarida qolgan. `take: 100` ga oshirildi.
+**Isbot (deploy'dan keyin):** `cats` = 5 ta chip (Aksiya · umumiy · Uy anjomlari · Parfumeriya ·
+Bolalar uchun) · `/health` `{"ok":true,"mode":"live","bot":true}`.
+
+**Holat:** kod va baza **jonli** (`36fd6be`, VPS HEAD tasdiqlangan). Kutilayotgani — ega QABUL'i:
+telefonda mahsulot-detalida «Xususiyatlari» jadvali (K10) va admin-panelda 7 maydon (K9).
+**Eslatma:** 30 ta yangi kategoriya bazada bor va admin-ro'yxatida ko'rinadi, lekin mijoz-karuselida
+faqat mahsuloti bo'lgani chiqadi (bu ESKI, ataylab qo'yilgan qoida) — sotuvchi mahsulotni yangi
+kategoriyaga o'tkazgan sayin chiplar paydo bo'ladi.
+
+### ⚠️ Parallel sessiya (ikkinchi marta)
+`shared/types.ts` `734919b` (autoloc) ga, qolgan katalog fayllari esa `8ab3b4f` (booking3 GPS) ga
+qo'shib yuborilgan — ikkalasi ham boshqa sessiyaning commit'lari. Kod to'g'ri va jonli, lekin
+commit-xabarlari mazmunga mos emas. Bir worktree'da parallel ishlashning bahosi.
 
 ## §60 — 📍 Lokatsiya: BIRINCHI TUZATISH YETARLI EMAS EDI (`8ab3b4f`) · 2026-07-27
 

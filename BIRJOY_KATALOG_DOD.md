@@ -81,6 +81,18 @@ mavjudlik=`active`+`stock`.
 | K12 | ⏳ | Server (`getMarketHome`) + client filtriga brend qo'shildi; `#shopdemo` mock-serveri qidiruvni filtrlamaydi → faqat jonli tekshiriladi |
 | K13 | ✅ | `git status`: coinService/cashback/booking* fayllarga tegilmagan |
 
+## JONLI holat (2026-07-27, ega «live qil» dedi)
+
+K6 ✅ (`--apply` ×2 → 2-marta 0 o'zgarish) · K7 ✅ (`kategoriyasiz mahsulot: 0`) ·
+K8 — **kerak emas edi**: dublikat faqat Neon nusxasida bor edi, jonli bazada yo'q ·
+K10 ✅ (jonli bundle `shop-BpV-_yXQ.js` da `Xususiyatlari`) · K11 ✅ (jonli API'da
+`barcode/sku/supplier` = 0 ta) · K9 — ega QABUL'i kutilmoqda · K12 — ega jonli qidiruvda
+tekshiradi.
+
+**Jonli tekshiruv bitta regressiyani ushladi:** seed'dan keyin kategoriya-karusel faqat «Aksiya»ni
+ko'rsatdi (`take: 20` chegarasi 30-kategoriyali katalogdan kichik edi) → `take: 100`, commit
+`36fd6be`, deploy'dan keyin 5 ta chip qaytdi.
+
 ## ⚠️ TOPILGAN ikki masala (kod emas, INFRA)
 
 1. **Lokal `.env` eski bazaga qaraydi.** `DATABASE_URL` → Neon; jonli baza esa 2026-07-25
