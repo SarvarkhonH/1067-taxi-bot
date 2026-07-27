@@ -13,6 +13,7 @@ import { api } from "./api";
 import { ensureLeaflet } from "./leaflet";
 import { haptic } from "./telegram";
 import { Button, Sheet } from "./design/components";
+import { useIsActive } from "./useIsActive";
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
@@ -177,6 +178,7 @@ function ScheduleBlock({ pickup, onMsg }: { pickup: SavedAddressView; onMsg: (m:
 }
 
 export function BookingView({ onClose }: { onClose: () => void }) {
+  const appActive = useIsActive(); // ⏸ fonda so'rov halqasi to'xtaydi
   const [info, setInfo] = useState<BookingInfoResponse | null>(null);
   const [active, setActive] = useState<ActiveBookingView | null>(null);
   const [pickup, setPickup] = useState<SavedAddressView | null>(null);
@@ -273,6 +275,7 @@ export function BookingView({ onClose }: { onClose: () => void }) {
         L.marker([d.lat, d.lng], { icon: pin(L, d.busy ? "#666" : "#22c55e", d.busy ? "🚖" : "🟢") }).addTo(map.current),
       );
     };
+    if (!appActive) { return () => { alive = false; }; } // ⏸ fonda so'rov yubormaymiz
     load();
     const t = setInterval(load, 45_000);
     return () => {
@@ -280,7 +283,7 @@ export function BookingView({ onClose }: { onClose: () => void }) {
       clearInterval(t);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [appActive]);
 
   // E3: history-based fare prediction for the picked address
   useEffect(() => {

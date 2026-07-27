@@ -1,10 +1,11 @@
-import { Fragment, Suspense, lazy, useEffect, useState } from "react";
+import { Fragment, Suspense, lazy, useEffect, useRef, useState } from "react";
 
 const DesignDemo = lazy(() => import("./design/demo")); // #demo dagina yuklanadi
 const ShopDemo = lazy(() => import("./design/shopDemo").then((m) => ({ default: m.ShopDemoPage }))); // #shopdemo dagina — shopv2 vizual-QA (mock-fetch, real Telegram auth kerak emas)
 import type { LeaderboardResponse, MeResponse } from "@t1067/shared";
 import { api, getInitData, waitForInitData } from "./api";
-import { haptic, tg } from "./telegram";
+import { addToHomeScreen, askContact, cloudGet, cloudSet, haptic, hapticSuccess, homeScreenStatus, onHomeScreenAdded, tg } from "./telegram";
+import { useBackButton } from "./useBackButton";
 import { LeaderboardView, LoadError, MissionsView, ReferralView, RideHistoryView, Spinner } from "./components";
 import { AccountCard, TierLadder, TierLadderCompact, WalletView } from "./wallet"; // bosh tab — eager (birinchi paint)
 import { UyView, NewUyView } from "./uy"; // Uy tabi — yengil (leaflet-siz), eager. NewUyView = feature "newhome" redizayn
@@ -31,7 +32,7 @@ const RavellaView = lazy(() => import("./ravella").then((m) => ({ default: m.Rav
 import { BirJoyMark } from "./design/birjoy";
 import { Icon } from "./icons";
 import { useCountUp } from "./util";
-import { NewProfileView, ThemePicker, initTheme } from "./profile"; // 👤 newprofile + shared theme picker
+import { NewProfileView, ThemePicker, initTheme, syncThemeFromCloud } from "./profile"; // 👤 newprofile + shared theme picker
 
 initTheme(); // 🎨 apply saved / Telegram theme on <html> before first paint (features newhome/newprofile)
 
@@ -199,6 +200,7 @@ export function App() {
     // opens — firing /api/me immediately would race into a 401 ("Telegram orqali oching"). Wait
     // for initData first (up to ~2.5s); if Telegram never fills it, proceed anyway and let the
     // server's normal auth response decide.
+    void syncThemeFromCloud(); // ☁️ boshqa qurilmada tanlangan mavzu — javob kelganda qo'llanadi
     waitForInitData()
       .then(() => api.me())
       .then((r) => {
@@ -264,12 +266,23 @@ export function App() {
       .catch(() => undefined);
   };
 
+  // ‹ ORQAGA (Bot API 6.1) — Android'da apparat «orqaga» tugmasi shu yerga yo'naltiriladi. Ilgari
+  // biz bu tugmani hech qachon ko'rsatmaganimiz uchun u ilovani BUTUNLAY YOPARDI: xaritadan,
+  // taklif va tarix ekranlaridan, hatto Do'kon tabidan ham. Hooklar quyidagi erta return'lardan
+  // OLDIN — ustma-ust ochilgan ekranlar stek bo'lib ishlaydi, eng ustkisi g'olib.
+  useBackButton(booking, () => setBooking(false));
+  useBackButton(invite, () => setInvite(false));
+  useBackButton(history, () => setHistory(false));
+  // Boshqa tabdan Uy'ga. `go()` emas — u quyiroqda e'lon qilingan; "uy" ga o'tishda uning
+  // deep-link qorong'i-flag qorovullari baribir qo'llanmaydi, ya'ni natija AYNAN bir xil.
+  useBackButton(!booking && !invite && !history && tab !== "uy", () => setTab("uy"));
+
   if (error) return <ErrorScreen error={error} />;
   if (linked === null) return <BootSplash />;
   if (linked === false) return <GuestApp flags={guestFlags} />;
   if (!me) return <BootSplash />;
   if (booking) return <Suspense fallback={<BootSplash />}><Booking3View me={me} onClose={() => setBooking(false)} /></Suspense>;
-  if (invite) return <div className="app"><main className="content"><ReferralView onClose={() => setInvite(false)} /></main></div>;
+  if (invite) return <div className="app"><main className="content"><ReferralView onClose={() => setInvite(false)} story={!!me.flags?.storyshare} /></main></div>;
   if (history) return <div className="app"><main className="content"><RideHistoryView onClose={() => setHistory(false)} /></main></div>;
 
   const go = (t: Tab) => {
@@ -362,8 +375,12 @@ export function App() {
   // klassi shop.tsx'dagi yangi dark-glass elementlarga aksent-uslub beradi.
   const shellCls = tab === "dokon" ? (me?.flags?.shopv2 ? "app bjm" : me?.flags?.bazar ? "app shop-light bazar-light" : "app shop-light") : tab === "elonlar" ? "app elonlar-light" : tab === "xizmat" ? "app xizmat-light" : tab === "restoran" ? "app restoran-light" : "app";
 
+  // 📱 Uy tabida topbar ko'rsatilmaydi (pastdagi shart) → xavfsiz zonani `.content` oladi, aks holda
+  // to'liq ekran rejimida birinchi karta Telegram'ning ✕/⌄/⋮ paneli ostida qoladi.
+  const noTopbar = tab === "uy";
+
   return (
-    <div className={newhomeUi ? shellCls + " nh-app" : shellCls}>
+    <div className={(newhomeUi ? shellCls + " nh-app" : shellCls) + (noTopbar ? " no-topbar" : "")}>
       <div className="aurora" />
       {/* Minimalizm (ega qarori 2026-07-26): tepada FAQAT joriy bo'lim nomi qoladi.
           Olib tashlandi — brend nomi (har ekranda takrorlanardi), a'zolar-chipi, tanga-pill
@@ -394,6 +411,8 @@ export function App() {
       )}
 
       <main className="content">
+        {/* 🏠 Ekranga qo'shish taklifi — faqat Uy tabida, faqat flag ON'da (ega QABUL'igacha DARK). */}
+        {tab === "uy" && me.flags?.homescreen && <AddToHomeCard onBanner={flash} />}
         <div className="page" key={tab}>
           <Suspense fallback={<Spinner />}>
             {tab === "uy" &&
@@ -416,7 +435,7 @@ export function App() {
               (board ? (
                 <>
                   <LeaderboardView board={board} />
-                  <ReferralView />
+                  <ReferralView story={!!me.flags?.storyshare} />
                 </>
               ) : boardErr ? (
                 <LoadError onRetry={loadBoard} />
@@ -566,11 +585,118 @@ function ErrorScreen({ error }: { error: string }) {
   );
 }
 
+/** 🏠 «Telefon ekraniga qo'shish» taklifi (Telegram `addToHomeScreen`, Bot API 8.0).
+ *
+ *  Nega: bugun mijoz 1067 ga kirish uchun Telegram'ni ochib, botni qidirishi kerak. Ikonka bilan
+ *  ilova telefon ekranidan bir bosishda ochiladi — taksi ilovasi uchun bu eng arzon qaytish
+ *  (retention) mexanikasi.
+ *
+ *  Nazokat qoidalari (bosim EMAS, taklif): faqat `missed` holatida ko'rinadi (ya'ni klient
+ *  qo'llab-quvvatlaydi VA ikonka hali yo'q), faqat Uy tabida, va «Keyinroq» bosilsa 30 kun jim.
+ *  Qo'shilgani `homeScreenAdded` hodisasi bilan tasdiqlanadi — taxmin qilmaymiz. */
+const HS_KEY = "hs_dismissed_at";
+const HS_QUIET_MS = 30 * 24 * 3600 * 1000;
+
+function AddToHomeCard({ onBanner }: { onBanner: (msg: string) => void }) {
+  const [show, setShow] = useState(false);
+  useEffect(() => {
+    let alive = true;
+    const quiet = (at: number) => !!at && Date.now() - at < HS_QUIET_MS;
+    let localAt = 0;
+    try { localAt = Number(localStorage.getItem(HS_KEY) ?? 0); } catch { /* private mode */ }
+    if (quiet(localAt)) return; // yaqinda rad etilgan — bezovta qilmaymiz
+    // ☁️ Boshqa qurilmada rad etilgan bo'lsa ham hurmat qilamiz: bitta "yo'q" — hamma qurilmada.
+    void (async () => {
+      const cloudAt = Number((await cloudGet(HS_KEY)) ?? 0);
+      if (!alive || quiet(cloudAt)) return;
+      const s = await homeScreenStatus().catch(() => "unsupported" as const);
+      if (alive && s === "missed") setShow(true);
+    })();
+    return () => { alive = false; };
+  }, []);
+  // `onBanner` har renderda yangi funksiya (inline `flash`) — ref'da saqlanadi, aks holda obuna
+  // har renderda uzilib-ulanib turardi.
+  const bannerRef = useRef(onBanner);
+  bannerRef.current = onBanner;
+  useEffect(() => {
+    if (!show) return;
+    return onHomeScreenAdded(() => {
+      setShow(false);
+      hapticSuccess();
+      bannerRef.current("🏠 Tayyor! 1067 telefon ekraningizda.");
+    });
+  }, [show]);
+  if (!show) return null;
+  const dismiss = () => {
+    haptic();
+    const at = String(Date.now());
+    try { localStorage.setItem(HS_KEY, at); } catch { /* ignore */ }
+    cloudSet(HS_KEY, at); // ☁️ boshqa qurilmada ham qayta so'ramaymiz
+    setShow(false);
+  };
+  return (
+    <div className="hs-card">
+      <span className="hs-ic">🏠</span>
+      <div className="hs-txt">
+        <b>Ekranga qo'shing</b>
+        <small>1067 bir bosishda ochiladi — botni qidirmaysiz</small>
+      </div>
+      <button className="hs-add" onClick={() => { haptic(); addToHomeScreen(); }}>Qo'shish</button>
+      <button className="hs-x" onClick={dismiss} aria-label="Keyinroq">✕</button>
+    </div>
+  );
+}
+
 function openLinkBot(): void {
   haptic();
   const url = "https://t.me/koson1067bot?start=link";
   if (tg?.openTelegramLink) tg.openTelegramLink(url);
   else window.open(url, "_blank");
+}
+
+/** 📱 RAQAMNI ILOVA ICHIDA ULASH (Bot API 6.9 `requestContact`).
+ *
+ *  Ilgari mehmon "Raqamni ulash" bosganda ilovadan CHIQIB botga otilardi — va ko'pchilik
+ *  qaytmasdi: /start bosgan 1060 odamdan 289 tasi ulanmagan, 286 tasi tugmani umuman bosmagan
+ *  (DB, 2026-07-26). Endi Telegram'ning o'z tasdiq oynasi shu yerda ochiladi va ulanish ilovani
+ *  tark etmasdan tugaydi. Eski klient yoki xato — eski bot-yo'li fallback bo'lib qoladi, ya'ni
+ *  hech kim yo'lda qolib ketmaydi.
+ *
+ *  Raqam bu yerda TEKSHIRILMAYDI: imzolangan javob serverga uzatiladi, haqiqiyligini bot tokeni
+ *  bilan FAQAT server hal qiladi (/api/link/contact). */
+function useLinkFlow(flash: (msg: string) => void, enabled: boolean) {
+  const [busy, setBusy] = useState(false);
+  const start = async (): Promise<void> => {
+    if (busy) return;
+    // Kill-switch: `linkinapp` OFF bo'lsa eski bot-yo'li AYNAN ishlaydi (ega QABUL'igacha).
+    if (!enabled) { openLinkBot(); return; }
+    haptic();
+    setBusy(true);
+    try {
+      const ask = await askContact();
+      if (ask.status === "unsupported") { openLinkBot(); return; } // eski klient → bot yo'li
+      if (ask.status === "cancelled") { flash("Bekor qilindi — istalgan payt qayta urinib ko'rasiz."); return; }
+      const r = await api.linkContact(ask.response, ask.hash);
+      if (r.ok) {
+        hapticSuccess();
+        flash("✅ Raqam ulandi! Ilova yangilanmoqda…");
+        setTimeout(() => location.reload(), 800); // butun qobiq ulangan foydalanuvchi sifatida qayta yuklanadi
+        return;
+      }
+      flash(
+        r.status === "not_found" ? "Bu raqam 1067 bazasida topilmadi. Bot orqali urinib ko'ring."
+          : r.status === "taken" ? "Bu raqam boshqa Telegram hisobiga ulangan."
+          : r.status === "banned" ? "Bu raqam bloklangan. Savol bo'lsa: 1067"
+          : "Ulanmadi — bot orqali urinib ko'ring.",
+      );
+    } catch {
+      // 400/403 (imzo/identifikatsiya xatosi) yoki tarmoq — mijozga sabab emas, YO'L kerak.
+      flash("Ulanmadi — bot orqali urinib ko'ring.");
+    } finally {
+      setBusy(false);
+    }
+  };
+  return { busy, start };
 }
 
 /** 🚪 MEHMON REJIMI. Bu ekran avval `NotLinked` — bironta tugmasiz boshi berk ko'cha edi: «botga
@@ -617,34 +743,42 @@ function GuestApp({ flags }: { flags: MeResponse["flags"] }) {
     setMsg(m);
     setTimeout(() => setMsg(null), 3200);
   };
+  // 📱 Ulash endi ilova ICHIDA (requestContact) — hooklar erta return'dan OLDIN chaqiriladi.
+  const link = useLinkFlow(flash, !!flags?.linkinapp);
+  // ‹ Orqaga: mehmon ham birinchi tabga qaytadi, ilova yopilmaydi.
+  const firstTab = tabs[0]?.id;
+  useBackButton(!!firstTab && tab !== firstTab, () => setTab(firstTab ?? "dokon"));
   // Ko'rish uchun ochiq tab bo'lmasa — eski (tugmali) taklif ekrani.
   if (!tabs.length) {
     return (
       <div className="screen center">
         <div className="aurora" />
+        {msg && <div className="toast">{msg}</div>}
         <div className="nl-card glass pad tac">
           <div className="nl-emoji">🔗</div>
           <h2>Bir qadam qoldi</h2>
           <p className="muted">Raqamingizni ulasangiz — taksi chaqirasiz, tanga va cashback yig'asiz, buyurtma berasiz.</p>
-          <button className="btn-primary" onClick={openLinkBot}>📱 Raqamni ulash</button>
+          <button className="btn-primary" onClick={() => void link.start()} disabled={link.busy}>
+            {link.busy ? "⏳ Ulanmoqda…" : "📱 Raqamni ulash"}
+          </button>
         </div>
       </div>
     );
   }
   return (
-    <div className="app nh-app">
+    <div className="app nh-app no-topbar">
       {msg && <div className="toast">{msg}</div>}
       <div className="view">
         <Suspense fallback={<Spinner />}>
-          {tab === "dokon" && <ShopView me={me} onBanner={flash} reload={() => undefined} onBook={openLinkBot} />}
+          {tab === "dokon" && <ShopView me={me} onBanner={flash} reload={() => undefined} onBook={() => void link.start()} />}
           {tab === "restoran" && <RestoranView me={me} onBanner={flash} />}
           {tab === "xizmat" && <XizmatlarView me={me} onBanner={flash} />}
         </Suspense>
       </div>
       {/* Doimiy taklif — bosim emas, taklif: nima ochilishini aytadi va bir bosishda ulaydi. */}
-      <button className="guest-bar" onClick={openLinkBot}>
+      <button className="guest-bar" onClick={() => void link.start()} disabled={link.busy}>
         <span className="gb-txt"><b>Raqamni ulang</b><small>Buyurtma berish, taksi va tanga uchun</small></span>
-        <span className="gb-cta">Ulash</span>
+        <span className="gb-cta">{link.busy ? "⏳" : "Ulash"}</span>
       </button>
       <nav className="tabbar">
         {tabs.map((t) => (

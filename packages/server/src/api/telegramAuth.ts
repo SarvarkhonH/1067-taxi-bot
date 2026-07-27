@@ -55,3 +55,66 @@ export function validateInitData(initData: string, botToken: string, maxAgeSec =
     return { ok: true };
   }
 }
+
+// ── 📱 requestContact (Bot API 6.9+) ──────────────────────────────────────────
+export interface WebAppContact {
+  user_id: number;
+  phone_number: string;
+  first_name?: string;
+  last_name?: string;
+}
+
+export interface ContactResult {
+  ok: boolean;
+  contact?: WebAppContact;
+  reason?: string;
+}
+
+/**
+ * Mini App'dagi `WebApp.requestContact()` javobini tekshiradi.
+ *
+ * Klient `{ status:"sent", response:"<query-string>", hash:"<hex>" }` qaytaradi; `response` ichida
+ * `contact=<json>&auth_date=<unix>` (ba'zi klientlar `hash` ni ham SHU string ichiga qo'yadi).
+ * Imzo initData bilan AYNI algoritm: secret = HMAC_SHA256("WebAppData", botToken),
+ * hash = HMAC_SHA256(secret, dataCheckString) — kalitlar alifbo bo'yicha, `k=v` lar \n bilan.
+ *
+ * BU IMZO — YAGONA IDENTIFIKATSIYA ISBOTI. Usiz mijoz istalgan raqamni yuborib begona hisobga
+ * ulanib olardi (bot tomonidagi `contact.user_id !== ctx.from.id` tekshiruvining ekvivalenti).
+ * Shubha bo'lsa — RAD (fail closed). maxAge qisqa: bu jonli, interaktiv harakat, 1 soat yetarli.
+ */
+export function validateContactResponse(
+  response: string,
+  outerHash: string | null,
+  botToken: string,
+  maxAgeSec = 3600,
+): ContactResult {
+  if (!response) return { ok: false, reason: "empty response" };
+  if (!botToken) return { ok: false, reason: "no bot token" };
+  const params = new URLSearchParams(response);
+  const hash = outerHash || params.get("hash");
+  if (!hash) return { ok: false, reason: "no hash" };
+
+  const secret = crypto.createHmac("sha256", "WebAppData").update(botToken).digest();
+  const pairs: string[] = [];
+  params.forEach((value, key) => {
+    if (key === "hash") return;
+    pairs.push(`${key}=${value}`);
+  });
+  const expected = crypto.createHmac("sha256", secret).update(pairs.sort().join("\n")).digest("hex");
+  if (expected !== hash) return { ok: false, reason: `bad signature (keys: ${[...params.keys()].sort().join(",")})` };
+
+  const authDate = Number(params.get("auth_date") ?? 0);
+  if (maxAgeSec > 0 && authDate > 0 && Math.floor(Date.now() / 1000) - authDate > maxAgeSec) {
+    return { ok: false, reason: "expired" };
+  }
+
+  try {
+    const raw = params.get("contact");
+    if (!raw) return { ok: false, reason: "no contact" };
+    const contact = JSON.parse(raw) as WebAppContact;
+    if (!contact?.phone_number || !contact?.user_id) return { ok: false, reason: "incomplete contact" };
+    return { ok: true, contact };
+  } catch {
+    return { ok: false, reason: "bad contact json" };
+  }
+}

@@ -68,7 +68,9 @@ body {
 /* topbar */
 .topbar {
   position: sticky; top: 0; z-index: 5;
-  padding: 14px 18px 12px;
+  /* padding-top ichida --safe-top: sticky panel ekran tepasiga yopishganda ham matni Telegram'ning
+     fullscreen paneli (✕/⌄/⋮) OSTIDA qolmaydi; blur fon esa panel orqasini to'ldiradi. */
+  padding: calc(14px + var(--safe-top)) 18px 12px;
   display: flex; align-items: center; justify-content: space-between;
   background: linear-gradient(180deg, rgba(7, 9, 15, 0.95), rgba(7, 9, 15, 0.55));
   backdrop-filter: blur(12px);
@@ -129,7 +131,7 @@ body {
 .sheet-back { position: fixed; inset: 0; z-index: 50; background: rgba(0, 0, 0, 0.6); display: flex; align-items: flex-end; animation: fade 0.2s ease; }
 .sheet {
   width: 100%; background: var(--bg-2); border-radius: 24px 24px 0 0;
-  border-top: 1px solid var(--line); padding: 14px 18px calc(20px + env(safe-area-inset-bottom));
+  border-top: 1px solid var(--line); padding: 14px 18px calc(20px + var(--safe-bottom));
   display: flex; flex-direction: column; gap: 12px; animation: up 0.25s cubic-bezier(0.2, 0.8, 0.2, 1);
 }
 @keyframes up { from { transform: translateY(40%); } to { transform: none; } }
@@ -228,7 +230,7 @@ body {
 .race-vs { font-size: 14px; font-weight: 700; }
 .race-stake { font-size: 12px; }
 .race-canvas { width: 100vw; height: 100vh; display: block; touch-action: none; }
-.race-controls { position: absolute; bottom: calc(20px + env(safe-area-inset-bottom)); left: 0; right: 0; display: flex; justify-content: space-between; padding: 0 18px; z-index: 2; }
+.race-controls { position: absolute; bottom: calc(20px + var(--safe-bottom)); left: 0; right: 0; display: flex; justify-content: space-between; padding: 0 18px; z-index: 2; }
 .race-controls button { width: 42%; height: 70px; border-radius: 18px; border: 1px solid var(--line); background: rgba(255,255,255,0.08); color: var(--text); font-size: 30px; backdrop-filter: blur(8px); }
 .race-controls button:active { background: rgba(255,206,79,0.2); }
 .race-result { text-align: center; padding: 28px; display: flex; flex-direction: column; gap: 14px; align-items: center; }
@@ -302,7 +304,7 @@ body {
 .bk-back { width: auto; padding: 6px 14px; font-size: 18px; }
 .bk-title { font-size: 16px; font-weight: 800; }
 .bk-map { flex: 1; min-height: 200px; background: #0a0e18; }
-.bk-sheet { background: var(--bg-2); border-radius: 22px 22px 0 0; border-top: 1px solid var(--line); padding: 14px 16px calc(20px + env(safe-area-inset-bottom)); display: flex; flex-direction: column; gap: 10px; max-height: 56vh; overflow-y: auto; margin-top: -22px; z-index: 2; }
+.bk-sheet { background: var(--bg-2); border-radius: 22px 22px 0 0; border-top: 1px solid var(--line); padding: 14px 16px calc(20px + var(--safe-bottom)); display: flex; flex-direction: column; gap: 10px; max-height: 56vh; overflow-y: auto; margin-top: -22px; z-index: 2; }
 .bk-msg { background: rgba(34,211,238,0.12); border: 1px solid rgba(34,211,238,0.35); border-radius: 12px; padding: 11px; font-size: 13px; font-weight: 600; text-align: center; }
 .bk-earn { font-size: 12px; color: var(--cyan); text-align: center; font-weight: 700; }
 .bk-input { width: 100%; padding: 14px; border-radius: 13px; background: var(--card-solid); border: 1px solid var(--line); color: var(--text); font-size: 15px; }
@@ -464,7 +466,7 @@ body {
 .tabbar {
   position: fixed; bottom: 0; left: 0; right: 0; z-index: 10;
   display: flex; background: rgba(7, 9, 15, 0.92); backdrop-filter: blur(14px);
-  border-top: 1px solid var(--line); padding: 8px 6px calc(8px + env(safe-area-inset-bottom));
+  border-top: 1px solid var(--line); padding: 8px 6px calc(8px + var(--safe-bottom));
 }
 .tab { flex: 1; border: 0; background: transparent; color: var(--muted); font-size: 10px; display: flex; flex-direction: column; align-items: center; gap: 3px; padding: 6px 2px; font-weight: 700; }
 .tab span { font-size: 20px; transition: transform 0.15s ease; }
@@ -559,7 +561,7 @@ body {
 .btn-primary:active, .btn-violet:active { transform: scale(0.965); filter: brightness(1.05); }
 
 /* topbar + coin pill */
-.topbar { padding: 16px 18px 10px; }
+.topbar { padding: calc(16px + var(--safe-top)) 18px 10px; }
 .brand { gap: 9px; font-weight: 800; letter-spacing: 1.5px; }
 .brand-name { font-size: 16px; }
 .brand-name b { color: var(--gold); margin-left: 2px; }
@@ -607,7 +609,7 @@ body {
   border: 1px solid var(--line);
   box-shadow: 0 20px 50px -20px rgba(0, 0, 0, 0.95);
   backdrop-filter: blur(20px) saturate(1.3);
-  padding: 9px 6px calc(9px + env(safe-area-inset-bottom));
+  padding: 9px 6px calc(9px + var(--safe-bottom));
   overflow: hidden;
 }
 .tab-ind {

@@ -105,6 +105,18 @@ export const FEATURES = [
               // to'liq qorong'i-oynasimon (glassmorphic) qayta-dizayni (Claude Design'da ega bilan
               // ikki marta iteratsiya qilingan). OFF = eski oq-karta shop.tsx AYNAN qoladi. Pul
               // YO'Q. DARK until owner QABUL (owner-preview: /api/me flagPreview naqshi).
+  "linkinapp", // 📱 Raqamni ILOVA ICHIDA ulash (Telegram requestContact, Bot API 6.9) — mehmon
+              // botga sakramaydi. OFF = eski bot-yo'li AYNAN qoladi (openLinkBot). Yangi pul-mantiq
+              // YO'Q: ulash va mukofotlar bot bilan BITTA yo'lda (services/linkService.ts,
+              // idempotent). DARK until owner QABUL (owner-preview: /api/me flagPreview naqshi).
+  "homescreen", // 🏠 "Telefon ekraniga qo'shish" taklifi (Telegram addToHomeScreen, Bot API 8.0).
+              // Faqat status "missed" bo'lganda va faqat Uy tabida bir marta ko'rinadi; rad etilsa
+              // 30 kun jim. Pul YO'Q, yangi ma'lumot yo'q. OFF = hech narsa ko'rinmaydi (bugungi
+              // holat aynan). DARK until owner QABUL (owner-preview: /api/me flagPreview naqshi).
+  "storyshare", // 📸 Taklifni Telegram HIKOYASIGA (story) ulashish (shareToStory, Bot API 7.8).
+              // Mavjud taklif-posteri ishlatiladi, yangi asset yo'q; klient qo'llab-quvvatlamasa
+              // odatdagi «chatga yuborish» yo'liga tushadi. Pul YO'Q (referal to'lovi o'zgarmaydi,
+              // link aynan o'sha). OFF = tugma ko'rinmaydi. DARK until owner QABUL.
   "mktexpire", // ⏳ Javobsiz savat-buyurtmani AVTOMATIK bekor qilish + tangani qaytarish (sotuvchi
               // N soat javob bermasa). PUL harakati — shuning uchun alohida kill-switch. OFF =
               // buyurtma pending'da qolaveradi va faqat mijozning o'zi bekor qila oladi (bugungi
@@ -121,7 +133,7 @@ export type FeatureName = (typeof FEATURES)[number];
 // Off until explicitly enabled (go-live flip = setFeature(name, true) after owner QABUL).
 // booking3 = the new map/trip flow; owner still gets a preview via server.ts owner-branch,
 // but real users stay on the (fixed) classic flow until it's accepted. A missing row → OFF.
-const DEFAULT_OFF = new Set<FeatureName>(["booking3", "livinghome", "aibrain", "mahalla", "tolqin", "baraban", "komissiya", "qarz", "welcomebonus", "refstaged", "drvstaged", "drvrecruit", "drvpush", "promo", "clientbooking", "cashout", "carupgrade", "intercity", "tierloyalty", "waitcomp", "trackcta", "jackpotpost", "drvrank", "instantstatus", "spinreminder", "shop", "xizmatlar", "elonlar", "elontop", "restoran", "bazar", "bazarcart", "shopcashback", "revtanga", "airemind", "aihisob", "aidost", "aicity", "aibilim", "aineeds", "shopstory", "shopchat", "newhome", "newprofile", "shopv2", "mktexpire", "ravella"]);
+const DEFAULT_OFF = new Set<FeatureName>(["booking3", "livinghome", "aibrain", "mahalla", "tolqin", "baraban", "komissiya", "qarz", "welcomebonus", "refstaged", "drvstaged", "drvrecruit", "drvpush", "promo", "clientbooking", "cashout", "carupgrade", "intercity", "tierloyalty", "waitcomp", "trackcta", "jackpotpost", "drvrank", "instantstatus", "spinreminder", "shop", "xizmatlar", "elonlar", "elontop", "restoran", "bazar", "bazarcart", "shopcashback", "revtanga", "airemind", "aihisob", "aidost", "aicity", "aibilim", "aineeds", "shopstory", "shopchat", "newhome", "newprofile", "shopv2", "mktexpire", "ravella", "linkinapp", "homescreen", "storyshare"]);
 
 let cache: { at: number; map: Record<string, boolean> } = { at: 0, map: {} };
 

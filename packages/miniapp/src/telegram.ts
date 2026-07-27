@@ -22,6 +22,53 @@ interface TgLocationManager {
   openSettings?: () => void;
 }
 
+/** Bot API 8.0+ inset, in CSS pixels. `safeArea` = device (status bar / notch / gesture bar),
+ *  `contentSafeArea` = Telegram's OWN overlay chrome (the ✕ / ⌄ / ⋮ strip in fullscreen). */
+interface TgInset {
+  top: number;
+  bottom: number;
+  left: number;
+  right: number;
+}
+
+/** Telegram'ning native «‹ Orqaga» tugmasi (Bot API 6.1+). Android'da APPARAT «orqaga» tugmasi ham
+ *  SHU tugmaga yo'naltiriladi — u ko'rinmasa, apparat tugmasi Mini App'ni butunlay YOPADI. */
+interface TgBackButton {
+  isVisible: boolean;
+  show: () => void;
+  hide: () => void;
+  onClick: (cb: () => void) => void;
+  offClick: (cb: () => void) => void;
+}
+
+/** Telegram bulut-xotirasi (Bot API 6.9). Kalit: 1–128 belgi `[A-Za-z0-9_-]`, qiymat ≤4096 belgi.
+ *  Foydalanuvchi hisobiga bog'langan — telefon almashtirilsa ham qoladi. */
+interface TgCloudStorage {
+  setItem: (key: string, value: string, cb?: (err: string | null, ok?: boolean) => void) => void;
+  getItem: (key: string, cb?: (err: string | null, value?: string) => void) => void;
+  getItems: (keys: string[], cb?: (err: string | null, values?: Record<string, string>) => void) => void;
+  removeItem: (key: string, cb?: (err: string | null, ok?: boolean) => void) => void;
+}
+
+/** `shareToStory` parametrlari (Bot API 7.8). `widget_link` — hikoyaga bosiladigan havola;
+ *  Telegram uni FAQAT Premium obunachilarga ruxsat beradi, shuning uchun shartli yuboriladi. */
+interface TgShareStoryParams {
+  text?: string;
+  widget_link?: { url: string; name?: string };
+}
+
+/** `checkHomeScreenStatus` javobi (Bot API 8.0):
+ *  `unsupported` — klient qo'llab-quvvatlamaydi · `unknown` — aniqlab bo'lmadi ·
+ *  `added` — ikonka allaqachon bor · `missed` — qo'shish MUMKIN, lekin hali qo'shilmagan. */
+export type HomeScreenStatus = "unsupported" | "unknown" | "added" | "missed";
+
+/** `requestContact()` javobi. `response` — imzolangan query-string (`contact=<json>&auth_date=…`),
+ *  `hash` — uning HMAC imzosi. IKKALASI ham serverga o'zgarishsiz uzatiladi: raqamning haqiqiyligini
+ *  FAQAT server, bot tokeni bilan tekshira oladi (mijozga ishonch YO'Q). */
+type TgContactResponse =
+  | { status: "sent"; response: string; hash?: string; responseUnsafe?: { auth_date: string; contact: { user_id: number; phone_number: string; first_name?: string; last_name?: string } } }
+  | { status: "cancelled" };
+
 interface TelegramWebApp {
   initData: string;
   version?: string;
@@ -35,6 +82,28 @@ interface TelegramWebApp {
   openTelegramLink?: (url: string) => void;
   disableVerticalSwipes?: () => void; // Bot API 7.7+ — stop the swipe-to-close gesture from hijacking in-app scroll
   isVerticalSwipesEnabled?: boolean;
+  // Bot API 8.0+ fullscreen. In fullscreen Telegram draws its own ✕/⌄/⋮ chrome ON TOP of our
+  // WebView — `contentSafeAreaInset` is the only way to know how much room it takes.
+  isFullscreen?: boolean;
+  requestFullscreen?: () => void;
+  exitFullscreen?: () => void;
+  safeAreaInset?: TgInset;
+  contentSafeAreaInset?: TgInset;
+  onEvent?: (event: string, cb: () => void) => void;
+  offEvent?: (event: string, cb: () => void) => void;
+  // Bot API 6.9+ — Telegram tasdiqlagan raqamni ILOVA ICHIDA so'rash (botga sakramasdan).
+  requestContact?: (cb: (ok: boolean, resp?: TgContactResponse) => void) => void;
+  BackButton?: TgBackButton;
+  // Bot API 8.0+ — telefon ekraniga "1067" ikonkasini qo'shish.
+  addToHomeScreen?: () => void;
+  checkHomeScreenStatus?: (cb: (status: HomeScreenStatus) => void) => void;
+  // Bot API 7.8+ — Telegram hikoyasi (story) muharririni tayyor rasm bilan ochish.
+  shareToStory?: (mediaUrl: string, params?: TgShareStoryParams) => void;
+  initDataUnsafe?: { user?: { id?: number; is_premium?: boolean }; start_param?: string };
+  // Bot API 8.0+ — ilova old planda (ko'rinib turibdi va fokusda) mi.
+  isActive?: boolean;
+  // Bot API 6.9+ — Telegram serverida saqlanadigan kalit-qiymat (qurilmalararo).
+  CloudStorage?: TgCloudStorage;
   LocationManager?: TgLocationManager;
   HapticFeedback?: { impactOccurred: (s: string) => void; selectionChanged: () => void; notificationOccurred?: (t: string) => void };
 }
@@ -47,6 +116,154 @@ declare global {
 
 export const tg = window.Telegram?.WebApp;
 
+// ── xavfsiz-zona (fullscreen) ─────────────────────────────────────────────────
+// To'liq ekran rejimida Telegram WebView'ni butun ekranga cho'zadi va O'Z boshqaruvlarini
+// (✕ Close / ⌄ / ⋮) kontent USTIGA chizadi. CSS'ning `env(safe-area-inset-top)` faqat qurilma
+// notch'ini biladi, Telegram panelini BILMAYDI (Android'da odatda 0px) — shuning uchun sarlavhalar
+// panel ostida qolib ketgan edi. Bu yerda ikkala insetni o'qib CSS o'zgaruvchilariga yozamiz;
+// tokens.css ularni `--safe-top` / `--safe-bottom` ga jamlaydi. Telegram inset bermasa
+// (eski klient) o'zgaruvchilarga TEGMAYMIZ — CSS'dagi env() fallback kuchda qoladi.
+const px = (n: number | undefined): string => `${Math.max(0, Math.round(n ?? 0))}px`;
+
+function syncInsets(): void {
+  if (!tg) return;
+  const root = document.documentElement;
+  const sa = tg.safeAreaInset;
+  if (sa) {
+    root.style.setProperty("--tg-sa-top", px(sa.top));
+    root.style.setProperty("--tg-sa-bottom", px(sa.bottom));
+    root.style.setProperty("--tg-sa-left", px(sa.left));
+    root.style.setProperty("--tg-sa-right", px(sa.right));
+  }
+  const ca = tg.contentSafeAreaInset;
+  if (ca) {
+    root.style.setProperty("--tg-ca-top", px(ca.top));
+    root.style.setProperty("--tg-ca-bottom", px(ca.bottom));
+  }
+  root.classList.toggle("is-fullscreen", !!tg.isFullscreen);
+}
+
+/** True when Telegram is currently drawing us edge-to-edge. */
+export function isFullscreen(): boolean {
+  return !!tg?.isFullscreen;
+}
+
+// ── ‹ ORQAGA tugmasi (Bot API 6.1+) ──────────────────────────────────────────
+// Muammo: biz bu tugmani hech qachon ko'rsatmaganmiz, shuning uchun Android'da apparat «orqaga»
+// tugmasi ichki ekrandan chiqarish o'rniga Mini App'ni BUTUNLAY YOPARDI (taksi xaritasidan,
+// mahsulot ichidan, tarixdan — hammasidan). Telegram bitta global tugma beradi, bizda esa ekranlar
+// ichma-ich ochiladi — shuning uchun STEK: eng ustki ro'yxatdan o'tgan ishlov beruvchi g'olib,
+// stek bo'shaganda tugma YASHIRILADI (shunda Telegram'ning o'z «yopish» xatti-harakati qaytadi).
+interface BackEntry {
+  handler: () => void;
+  priority: number;
+}
+const backStack: BackEntry[] = [];
+let backBound: (() => void) | null = null;
+
+function syncBackButton(): void {
+  const bb = tg?.BackButton;
+  if (!bb) return; // eski klient — hech narsa o'zgarmaydi (bugungi xatti-harakat aynan)
+  if (backBound) {
+    bb.offClick(backBound);
+    backBound = null;
+  }
+  // Eng yuqori PRIORITET g'olib, teng bo'lsa — oxirgi qo'yilgani. Faqat LIFO yetarli emas edi:
+  // React bola-effektlarni ota-effektlardan OLDIN yurgizadi, ya'ni deep-link bilan ichki ekran
+  // darhol ochilganda (?go=dokon:35) qobiqning "tabdan Uy'ga" ishlov beruvchisi ustiga chiqib
+  // qolardi va orqaga bosish mahsulotni emas, butun tabni yopardi.
+  let top: BackEntry | undefined;
+  for (const e of backStack) if (!top || e.priority >= top.priority) top = e;
+  if (top) {
+    const h = top.handler;
+    backBound = () => { haptic(); h(); };
+    bb.onClick(backBound);
+    bb.show();
+  } else {
+    bb.hide();
+  }
+}
+
+/** Orqaga-ishlov beruvchini stekka qo'yadi. Qaytgan funksiyani chaqirish uni olib tashlaydi
+ *  (React'da `useEffect` cleanup'i) — shuning uchun ekran yopilganda tugma o'z-o'zidan tartibga
+ *  keladi, hech qanday qo'lda `hide()` kerak emas.
+ *  `priority`: qobiq darajasi = 0, ichki (ustma-ust ochilgan) ekranlar = 1+. */
+export function pushBack(handler: () => void, priority = 0): () => void {
+  const entry: BackEntry = { handler, priority };
+  backStack.push(entry);
+  syncBackButton();
+  let released = false;
+  return () => {
+    if (released) return; // ikki marta chaqirilsa begona ishlov beruvchini o'chirib yubormasin
+    released = true;
+    const i = backStack.indexOf(entry);
+    if (i >= 0) backStack.splice(i, 1);
+    syncBackButton();
+  };
+}
+
+// ── 🏠 telefon ekraniga qo'shish (Bot API 8.0+) ───────────────────────────────
+/** Ikonka holatini so'raydi. HECH QACHON rad etmaydi: klient eski bo'lsa yoki javob 3s ichida
+ *  kelmasa — "unsupported" (chaqiruvchi hech narsa ko'rsatmaydi). */
+export function homeScreenStatus(): Promise<HomeScreenStatus> {
+  return new Promise((resolve) => {
+    if (!tg?.checkHomeScreenStatus || !tg.isVersionAtLeast?.("8.0")) { resolve("unsupported"); return; }
+    let settled = false;
+    const done = (s: HomeScreenStatus) => { if (!settled) { settled = true; resolve(s); } };
+    try {
+      tg.checkHomeScreenStatus((s) => done(s ?? "unknown"));
+    } catch {
+      done("unsupported");
+      return;
+    }
+    setTimeout(() => done("unsupported"), 3000); // javobsiz klient taklifni ko'rsatmasin
+  });
+}
+
+/** Telegram'ning o'z "ekranga qo'shish" oqimini ochadi. Natija `homeScreenAdded` hodisasi bilan
+ *  keladi — foydalanuvchi tasdiqlaganini FAQAT shu bildiradi (funksiya o'zi hech narsa qaytarmaydi). */
+export function addToHomeScreen(): void {
+  tg?.addToHomeScreen?.();
+}
+
+/** `homeScreenAdded` hodisasiga obuna. Qaytgan funksiya obunani bekor qiladi. */
+export function onHomeScreenAdded(cb: () => void): () => void {
+  tg?.onEvent?.("homeScreenAdded", cb);
+  return () => tg?.offEvent?.("homeScreenAdded", cb);
+}
+
+// ── 📱 raqamni ilova ichida so'rash (Bot API 6.9+) ────────────────────────────
+export type ContactAsk =
+  | { status: "sent"; response: string; hash?: string }
+  | { status: "cancelled" }
+  | { status: "unsupported" }; // eski klient → chaqiruvchi botga yo'naltiradi
+
+/** Telegram'ning o'z raqam-so'rov oynasini ochadi. HECH QACHON rad etmaydi; javob serverga
+ *  o'zgarishsiz uzatilishi va O'SHA YERDA tekshirilishi shart. Klient eski bo'lsa yoki javob
+ *  15s ichida kelmasa — "unsupported"/"cancelled" (ilova botga qaytish yo'lini ko'rsatadi). */
+export function askContact(): Promise<ContactAsk> {
+  return new Promise((resolve) => {
+    if (!tg?.requestContact || !tg.isVersionAtLeast?.("6.9")) {
+      resolve({ status: "unsupported" });
+      return;
+    }
+    let settled = false;
+    const done = (r: ContactAsk) => { if (!settled) { settled = true; resolve(r); } };
+    try {
+      tg.requestContact((ok, resp) => {
+        if (!ok || !resp || resp.status !== "sent" || !resp.response) { done({ status: "cancelled" }); return; }
+        done({ status: "sent", response: resp.response, hash: resp.hash });
+      });
+    } catch {
+      done({ status: "unsupported" });
+      return;
+    }
+    // Xavfsizlik to'ri: ba'zi klientlar oynani yopganda callback'ni umuman chaqirmaydi —
+    // spinner abadiy aylanib qolmasin.
+    setTimeout(() => done({ status: "cancelled" }), 60000);
+  });
+}
+
 export function initTelegram(): void {
   if (!tg) return;
   tg.ready();
@@ -56,6 +273,14 @@ export function initTelegram(): void {
   tg.disableVerticalSwipes?.();
   tg.setHeaderColor?.("#0b0f1a");
   tg.setBackgroundColor?.("#0b0f1a");
+  syncInsets();
+  // Telegram fills the insets slightly AFTER ready() on some clients (same lag as initData) —
+  // re-read on every relevant event, plus two cheap catch-up ticks so the first paint is never stale.
+  for (const ev of ["safeAreaChanged", "contentSafeAreaChanged", "fullscreenChanged", "viewportChanged"]) {
+    tg.onEvent?.(ev, syncInsets);
+  }
+  setTimeout(syncInsets, 300);
+  setTimeout(syncInsets, 1200);
 }
 
 export function haptic(): void {
@@ -253,6 +478,105 @@ export function inviteLandingUrl(botLink: string): string {
   // &v bumps the URL when the OG card content changes → Telegram fetches a FRESH preview
   // instead of showing a stale cached card (v2 = gift-emoji removed).
   return m && m[1] ? `${INVITE_LANDING}?r=${encodeURIComponent(m[1])}&v=2` : botLink;
+}
+
+// ── ⏸ FAOLLIK: ilova fonda bo'lsa so'rov yubormaymiz (Bot API 8.0 `activated`/`deactivated`) ──
+// Mini App yopilmasdan fonga tushishi mumkin (boshqa chatga o'tildi, ekran o'chdi). Bugungacha
+// so'rov halqalari (restoran 8s, safar 15s, kuzatuv 5s) fonda ham urib turardi: mijozning
+// batareyasi va trafigi, bizning serverimiz — hammasi behuda sarflanadi. Endi halqa faqat ilova
+// KO'RINIB TURGANDA yuradi va qaytishda darhol bir marta yangilanadi.
+// Eski klientda `activated`/`deactivated` yo'q — brauzerning `visibilitychange` fallback'i ishlaydi.
+export function isAppActive(): boolean {
+  if (typeof tg?.isActive === "boolean") return tg.isActive;
+  try {
+    return document.visibilityState !== "hidden";
+  } catch {
+    return true; // shubha bo'lsa — FAOL deb hisoblaymiz (halqa to'xtab qolgandan ko'ra ishlagani afzal)
+  }
+}
+
+/** Faollik o'zgarishiga obuna. Qaytgan funksiya obunani bekor qiladi. */
+export function onActiveChange(cb: (active: boolean) => void): () => void {
+  const fire = () => cb(isAppActive());
+  tg?.onEvent?.("activated", fire);
+  tg?.onEvent?.("deactivated", fire);
+  document.addEventListener("visibilitychange", fire);
+  return () => {
+    tg?.offEvent?.("activated", fire);
+    tg?.offEvent?.("deactivated", fire);
+    document.removeEventListener("visibilitychange", fire);
+  };
+}
+
+// ── ☁️ Bulut-xotira (Bot API 6.9+) ────────────────────────────────────────────
+// Telegram hisobiga bog'langan kalit-qiymat: telefon almashtirilsa yoki Desktop'dan kirilsa ham
+// qoladi. Bu yerda FAQAT kichik UI-afzalliklari saqlanadi (mavzu, rad etilgan taklif) — pul,
+// buyurtma yoki shaxsiy ma'lumot EMAS. localStorage tez manba bo'lib qoladi; bulut — nusxa.
+export function cloudGet(key: string): Promise<string | null> {
+  return new Promise((resolve) => {
+    const cs = tg?.CloudStorage;
+    if (!cs?.getItem) { resolve(null); return; }
+    let settled = false;
+    const done = (v: string | null) => { if (!settled) { settled = true; resolve(v); } };
+    try {
+      cs.getItem(key, (err, value) => done(err ? null : (value ?? null)));
+    } catch {
+      done(null);
+      return;
+    }
+    setTimeout(() => done(null), 3000); // javobsiz klient boot'ni ushlab qolmasin
+  });
+}
+
+/** Yozish — "eng yaxshi harakat" (fire-and-forget): xato bo'lsa jim o'tadi, chunki localStorage
+ *  baribir yozilgan va ilova ishlashda davom etadi. */
+export function cloudSet(key: string, value: string): void {
+  try {
+    tg?.CloudStorage?.setItem?.(key, value.slice(0, 4096), () => undefined);
+  } catch {
+    /* qo'llab-quvvatlanmaydi — mahalliy nusxa yetarli */
+  }
+}
+
+// ── 📸 Telegram hikoyasi (story) — Bot API 7.8+ ───────────────────────────────
+/** Hikoyaga qo'yiladigan rasm. Telegram uni O'ZI yuklab oladi, shuning uchun URL ochiq HTTPS
+ *  bo'lishi shart. Mavjud taklif-posteri (853×1280, tik format) ayni maqsadga to'g'ri keladi —
+ *  yangi asset yasalmadi. Origin ish vaqtida olinadi: ilova qaysi domendan ochilgan bo'lsa,
+ *  rasm ham o'sha yerda (bitta Vercel deploy). */
+function storyMediaUrl(): string {
+  try {
+    return new URL("/invite-poster.jpg", location.origin).href;
+  } catch {
+    return "https://app.birjoy.online/invite-poster.jpg";
+  }
+}
+
+/** Telegram Premium obunachisimi — `widget_link` faqat ularda ishlaydi (Telegram cheklovi). */
+function isPremium(): boolean {
+  return !!tg?.initDataUnsafe?.user?.is_premium;
+}
+
+/**
+ * Telegram hikoya-muharririni tayyor rasm bilan ochadi.
+ *
+ * `true` qaytarsa — muharrir ochildi; `false` bo'lsa klient qo'llab-quvvatlamaydi va chaqiruvchi
+ * odatdagi «chatga ulashish» yo'liga qaytishi kerak (hech kim yo'lda qolmasin).
+ *
+ * Havola: Premium'da bosiladigan `widget_link` sifatida ketadi; oddiy foydalanuvchida Telegram
+ * havolaga ruxsat bermaydi, shuning uchun URL matn ichiga qo'shiladi (ko'rinadi, o'qiladi).
+ */
+export function shareStory(text: string, link: string): boolean {
+  if (!tg?.shareToStory || !tg.isVersionAtLeast?.("7.8")) return false;
+  try {
+    const premium = isPremium();
+    tg.shareToStory(storyMediaUrl(), {
+      text: premium ? text : `${text}\n${link}`,
+      ...(premium ? { widget_link: { url: link, name: "BirJoy" } } : {}),
+    });
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 /** Open Telegram's native "share to a chat" dialog with an invite link. */

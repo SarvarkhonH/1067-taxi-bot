@@ -8,6 +8,8 @@ import { formatNumber } from "@t1067/shared";
 import { api, apiUrl } from "./api";
 import { haptic, hapticSuccess } from "./telegram";
 import { Button, EmptyState, Sheet, Skeleton } from "./design/components";
+import { useBackButton } from "./useBackButton";
+import { useIsActive } from "./useIsActive";
 
 const LAST_ADDR_KEY = "restoran_last_addr";
 
@@ -84,16 +86,18 @@ const STATUS_LABEL: Record<FoodOrderView["status"], { t: string; c: string }> = 
 const TERMINAL_STATUSES = new Set<FoodOrderView["status"]>(["delivered", "rejected", "cancelled_by_user"]);
 
 function MyOrdersView({ onBack, onReorder }: { onBack: () => void; onReorder: (o: FoodOrderView) => void }) {
+  const appActive = useIsActive(); // ⏸ fonda so'rov halqasi to'xtaydi
   const [orders, setOrders] = useState<FoodOrderView[] | null>(null);
   const [busyId, setBusyId] = useState<number | null>(null);
   useEffect(() => {
     const load = () => api.restoranOrders().then((r) => setOrders(r.orders)).catch(() => undefined);
+    if (!appActive) return; // ⏸ fonda so'rov yubormaymiz; qaytilganda effekt qayta ishga tushib darhol yangilaydi
     load();
     // R3 DoD: operator admin panelda holat o'zgartirsa mijoz shu ekranda jonli ko'rishi kerak —
     // faqat ochiq bo'lgan payt poll qilinadi (8s, booking3'ning adaptiv-poll ruhida, ortiqcha kuch sarflamaydi)
     const iv = setInterval(load, 8000);
     return () => clearInterval(iv);
-  }, []);
+  }, [appActive]);
 
   const cancel = async (o: FoodOrderView) => {
     haptic();
@@ -201,6 +205,8 @@ function RestaurantDetail({ id, me, initialCart, onBack, onBanner }: { id: numbe
   const [cart, setCart] = useState<Record<number, number>>({});
   const [checkoutOpen, setCheckoutOpen] = useState(false);
   const [isPickup, setIsPickup] = useState(false);
+  // ‹ Buyurtma-tasdiq varag'i restoran-sahifasi USTIDA ochiladi → prioritet 2 (restoran = 1).
+  useBackButton(checkoutOpen, () => setCheckoutOpen(false), 2);
   const [address, setAddress] = useState(() => { try { return localStorage.getItem(LAST_ADDR_KEY) ?? ""; } catch { return ""; } });
   const [note, setNote] = useState("");
   const [busy, setBusy] = useState(false);
@@ -420,6 +426,11 @@ export function RestoranView({ me, onBanner, openRestaurantId }: { me: MeRespons
   const [openOnly, setOpenOnly] = useState(false);
   const [catFilter, setCatFilter] = useState<string>("all");
   const deepOpened = useRef(false);
+
+  // ‹ ORQAGA: restoran ichidan / buyurtmalarim ekranidan apparat «orqaga» ilgari butun ilovani
+  // yopardi. Prioritet 1 — qobiqning "tabdan Uy'ga" ishlov beruvchisidan ustun.
+  useBackButton(openId !== null, () => setOpenId(null), 1);
+  useBackButton(openId === null && ordersOpen, () => setOrdersOpen(false), 1);
 
   useEffect(() => {
     api.restoranList().then((r) => setList(r.restaurants)).catch(() => setList([]));

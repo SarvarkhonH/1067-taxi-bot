@@ -23,7 +23,7 @@ async function main(): Promise<void> {
 
   check("qisqa matn rad", !(await submitKnowledge(TAG_TG, "oz", "Test")).ok);
   const s1 = await submitKnowledge(TAG_TG, "Chilla basseyn dushanba kuni yopiq bo'ladi", "Test");
-  check("submit → pending + notice", s1.ok && !!s1.id && (s1.notice?.text.includes("Chilla") ?? false));
+  check("submit → pending + notice", !!s1.ok && !!s1.id && (s1.notice?.text.includes("Chilla") ?? false));
   check("pending ro'yxatda ko'rinadi", (await listByStatus("pending")).some((r) => r.id === s1.id));
 
   // approved bo'lmaguncha AI bilimida YO'Q
