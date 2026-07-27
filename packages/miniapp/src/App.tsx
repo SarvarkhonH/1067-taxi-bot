@@ -1,10 +1,10 @@
-import { Fragment, Suspense, lazy, useEffect, useState } from "react";
+import { Fragment, Suspense, lazy, useEffect, useRef, useState } from "react";
 
 const DesignDemo = lazy(() => import("./design/demo")); // #demo dagina yuklanadi
 const ShopDemo = lazy(() => import("./design/shopDemo").then((m) => ({ default: m.ShopDemoPage }))); // #shopdemo dagina — shopv2 vizual-QA (mock-fetch, real Telegram auth kerak emas)
 import type { LeaderboardResponse, MeResponse } from "@t1067/shared";
 import { api, getInitData, waitForInitData } from "./api";
-import { askContact, haptic, hapticSuccess, tg } from "./telegram";
+import { addToHomeScreen, askContact, haptic, hapticSuccess, homeScreenStatus, onHomeScreenAdded, tg } from "./telegram";
 import { useBackButton } from "./useBackButton";
 import { LeaderboardView, LoadError, MissionsView, ReferralView, RideHistoryView, Spinner } from "./components";
 import { AccountCard, TierLadder, TierLadderCompact, WalletView } from "./wallet"; // bosh tab — eager (birinchi paint)
@@ -404,6 +404,8 @@ export function App() {
       )}
 
       <main className="content">
+        {/* 🏠 Ekranga qo'shish taklifi — faqat Uy tabida, faqat flag ON'da (ega QABUL'igacha DARK). */}
+        {tab === "uy" && me.flags?.homescreen && <AddToHomeCard onBanner={flash} />}
         <div className="page" key={tab}>
           <Suspense fallback={<Spinner />}>
             {tab === "uy" &&
@@ -571,6 +573,60 @@ function ErrorScreen({ error }: { error: string }) {
           </p>
         )}
       </div>
+    </div>
+  );
+}
+
+/** 🏠 «Telefon ekraniga qo'shish» taklifi (Telegram `addToHomeScreen`, Bot API 8.0).
+ *
+ *  Nega: bugun mijoz 1067 ga kirish uchun Telegram'ni ochib, botni qidirishi kerak. Ikonka bilan
+ *  ilova telefon ekranidan bir bosishda ochiladi — taksi ilovasi uchun bu eng arzon qaytish
+ *  (retention) mexanikasi.
+ *
+ *  Nazokat qoidalari (bosim EMAS, taklif): faqat `missed` holatida ko'rinadi (ya'ni klient
+ *  qo'llab-quvvatlaydi VA ikonka hali yo'q), faqat Uy tabida, va «Keyinroq» bosilsa 30 kun jim.
+ *  Qo'shilgani `homeScreenAdded` hodisasi bilan tasdiqlanadi — taxmin qilmaymiz. */
+const HS_KEY = "hs_dismissed_at";
+const HS_QUIET_MS = 30 * 24 * 3600 * 1000;
+
+function AddToHomeCard({ onBanner }: { onBanner: (msg: string) => void }) {
+  const [show, setShow] = useState(false);
+  useEffect(() => {
+    try {
+      const at = Number(localStorage.getItem(HS_KEY) ?? 0);
+      if (at && Date.now() - at < HS_QUIET_MS) return; // yaqinda rad etilgan — bezovta qilmaymiz
+    } catch { /* private mode */ }
+    let alive = true;
+    homeScreenStatus().then((s) => { if (alive && s === "missed") setShow(true); }).catch(() => undefined);
+    return () => { alive = false; };
+  }, []);
+  // `onBanner` har renderda yangi funksiya (inline `flash`) — ref'da saqlanadi, aks holda obuna
+  // har renderda uzilib-ulanib turardi.
+  const bannerRef = useRef(onBanner);
+  bannerRef.current = onBanner;
+  useEffect(() => {
+    if (!show) return;
+    return onHomeScreenAdded(() => {
+      setShow(false);
+      hapticSuccess();
+      bannerRef.current("🏠 Tayyor! 1067 telefon ekraningizda.");
+    });
+  }, [show]);
+  if (!show) return null;
+  const dismiss = () => {
+    haptic();
+    try { localStorage.setItem(HS_KEY, String(Date.now())); } catch { /* ignore */ }
+    setShow(false);
+  };
+  return (
+    <div className="hs-card">
+      <span className="hs-ic">🏠</span>
+      <div className="hs-txt">
+        <b>Ekranga qo'shing</b>
+        <small>1067 bir bosishda ochiladi — botni qidirmaysiz</small>
+      </div>
+      <button className="hs-add" onClick={() => { haptic(); addToHomeScreen(); }}>Qo'shish</button>
+      <button className="hs-x" onClick={dismiss} aria-label="Keyinroq">✕</button>
     </div>
   );
 }

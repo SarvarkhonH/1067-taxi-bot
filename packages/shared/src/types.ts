@@ -65,6 +65,7 @@ export interface MeResponse {
     newprofile?: boolean; // 👤 enriched Profil redesign (owner-preview: admins see it while DARK)
     shopv2?: boolean; // 🏪 BirJoy Market qorong'i-qayta-dizayni (owner-preview: admins see it while DARK)
     linkinapp?: boolean; // 📱 raqamni ilova ichida ulash (requestContact); OFF = bot-yo'li (owner-preview)
+    homescreen?: boolean; // 🏠 telefon ekraniga qo'shish taklifi (addToHomeScreen) (owner-preview)
   };
 }
 

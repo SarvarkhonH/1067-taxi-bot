@@ -3195,3 +3195,48 @@ butun taksi ekranini yopadi, bir qadam yuqoriga sakraydi. (2) Xizmatlar, E'lonla
 ichki ekranlari va do'kon-chati hali ulanmagan — keyingi supurishda. (3) Real qurilmada
 sinalmagan: bu muhitda Telegram klienti yo'q, ya'ni «apparat orqaga endi ilovani yopmaydi» degan
 yakuniy isbot FAQAT sizning telefoningizdan keladi.
+
+---
+
+## §55 — 🏠 TELEFON EKRANIGA QO'SHISH (T-TG3, `addToHomeScreen`) · 2026-07-27
+**Holat: `ready for verification`** (flag `homescreen` = **OFF/DARK**; ega QABUL'i kutilyapti)
+
+**Nega.** Bugun mijoz 1067 ga kirish uchun Telegram'ni ochib, botni qidirishi kerak. Ikonka bilan
+ilova telefon ekranidan bir bosishda ochiladi — taksi ilovasi uchun eng arzon qaytish (retention)
+mexanikasi. Bot API 8.0 buni beradi, biz ishlatmaganmiz (grep: 0).
+
+**Nima qilindi.**
+- `telegram.ts`: `homeScreenStatus()` (versiya-darvozasi `8.0` + 3s xavfsizlik to'ri → javobsiz
+  klientda taklif KO'RSATILMAYDI) · `addToHomeScreen()` · `onHomeScreenAdded()` obunasi.
+- `App.tsx::AddToHomeCard` — bir qatorli taklif kartochkasi. **Nazokat qoidalari**: faqat status
+  `missed` (klient qo'llab-quvvatlaydi VA ikonka hali yo'q) · faqat **Uy** tabida · «✕» bosilsa
+  **30 kun jim** (`localStorage: hs_dismissed_at`) · qo'shilgani `homeScreenAdded` hodisasi bilan
+  TASDIQLANADI (taxmin qilmaymiz) → kartochka yo'qoladi + "🏠 Tayyor!" bildirishnomasi.
+- `tokens.css::.hs-card` — faqat tokenlardan (inline stil YO'Q), animatsiya transform/opacity'da,
+  `prefers-reduced-motion` hurmat qilinadi (CLAUDE.md dizayn qoidalari).
+- **Kill-switch `homescreen`, DEFAULT_OFF** + owner-preview (`/api/me`).
+
+**Isbot.** `tsc` server+miniapp **0 xato** · `vite build` ✓ · **BUNDLE GREP**
+(`index-Dm2HW7Ln.js`): `addToHomeScreen` ✓ `checkHomeScreenStatus` ✓ `homeScreenAdded` ✓
+`hs_dismissed_at` ✓; CSS'da `.hs-card{…var(--r-card)…var(--surface-2)…}` ✓.
+
+**TEKSHIRILMAGAN.** Real qurilmada ko'rilmagan: bu muhitda Telegram klienti yo'q, ya'ni `missed`
+holati va qo'shish oqimi FAQAT sizning telefoningizda tasdiqlanadi.
+
+---
+
+## 📦 SESSIYA YAKUNI (2026-07-27) — 4 tiket, hammasi GitHub'da, deploy KUTILYAPTI
+
+| § | Tiket | Flag | Holat |
+|---|---|---|---|
+| 52 | Fullscreen xavfsiz-zona | yo'q (bug-fix) | ready for verification |
+| 53 | Raqamni ilova ichida ulash (`requestContact`) | `linkinapp` **OFF** | ready for verification |
+| 54 | Telegram ‹ orqaga tugmasi (`BackButton`) | yo'q (bug-fix) | ready for verification |
+| 55 | Telefon ekraniga qo'shish (`addToHomeScreen`) | `homescreen` **OFF** | ready for verification |
+
+**Deploy uchun eslatma (boshqa sessiya bajaradi).** Miniapp: `VITE_API_URL=<render> vite build` →
+`dist` ni `.vercel/output/static` ga KO'CHIR → `vercel deploy --prebuilt --prod` → BUNDLE GREP
+bilan isbotla. Server: GH Actions `deploy` jobi (autoDeploy o'chiq). **Sxema o'zgarishi YO'Q** —
+`prisma db push` KERAK EMAS (yangi model/ustun qo'shilmagan; `featureFlags` AppState orqali ishlaydi).
+Ikkala yangi flag DARK holatda chiqadi, ya'ni deploy mijozlarga ko'rinadigan HECH NARSANI
+o'zgartirmaydi — §52/§54 tuzatishlaridan tashqari (ular bug-fix, flagsiz).

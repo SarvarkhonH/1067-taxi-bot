@@ -79,6 +79,32 @@
    telegram.ts:syncInsets <html> ga qo'yadi/oladi. */
 html.is-fullscreen { --safe-min-top: 48px; }
 
+/* 🏠 «Ekranga qo'shish» taklifi (feature "homescreen"). Bosim emas — taklif: bitta qator, aniq
+   foyda, yonida «keyinroq». Ranglar faqat tokenlardan; animatsiya transform/opacity'da. */
+.hs-card {
+  display: flex; align-items: center; gap: 10px; margin: 0 0 12px;
+  padding: 10px 12px; border-radius: var(--r-card);
+  background: var(--surface-2); border: 1px solid var(--line); box-shadow: var(--shadow-1);
+  animation: d-card-in var(--dur-card) var(--ease-out) backwards;
+}
+.hs-ic { font-size: 22px; line-height: 1; }
+.hs-txt { flex: 1; display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.hs-txt b { font-size: 14px; font-weight: 800; color: var(--text); }
+.hs-txt small { font-size: 11.5px; color: var(--text-dim); }
+.hs-add {
+  flex-shrink: 0; padding: 8px 14px; border: none; border-radius: var(--r-btn);
+  background: var(--brand-grad); color: #1a1204; font-size: 13px; font-weight: 800;
+  transition: transform var(--dur-press) var(--ease-out);
+}
+.hs-add:active { transform: scale(0.95); }
+.hs-x {
+  flex-shrink: 0; width: 26px; height: 26px; padding: 0; border: none; border-radius: 50%;
+  background: transparent; color: var(--text-dim); font-size: 13px; line-height: 1;
+}
+.hs-x:active { transform: scale(0.9); }
+@keyframes d-card-in { from { opacity: 0; transform: translateY(-6px); } to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) { .hs-card { animation: none; } }
+
 /* Topbar YO'Q ekranlarda (Uy tabi va mehmon rejimi — App.tsx `no-topbar` klassini qo'yadi)
    xavfsiz zonani kontentning o'zi oladi; aks holda birinchi karta Telegram paneli ostida qoladi. */
 .app.no-topbar > .content,

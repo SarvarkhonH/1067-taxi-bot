@@ -41,6 +41,11 @@ interface TgBackButton {
   offClick: (cb: () => void) => void;
 }
 
+/** `checkHomeScreenStatus` javobi (Bot API 8.0):
+ *  `unsupported` — klient qo'llab-quvvatlamaydi · `unknown` — aniqlab bo'lmadi ·
+ *  `added` — ikonka allaqachon bor · `missed` — qo'shish MUMKIN, lekin hali qo'shilmagan. */
+export type HomeScreenStatus = "unsupported" | "unknown" | "added" | "missed";
+
 /** `requestContact()` javobi. `response` — imzolangan query-string (`contact=<json>&auth_date=…`),
  *  `hash` — uning HMAC imzosi. IKKALASI ham serverga o'zgarishsiz uzatiladi: raqamning haqiqiyligini
  *  FAQAT server, bot tokeni bilan tekshira oladi (mijozga ishonch YO'Q). */
@@ -73,6 +78,9 @@ interface TelegramWebApp {
   // Bot API 6.9+ — Telegram tasdiqlagan raqamni ILOVA ICHIDA so'rash (botga sakramasdan).
   requestContact?: (cb: (ok: boolean, resp?: TgContactResponse) => void) => void;
   BackButton?: TgBackButton;
+  // Bot API 8.0+ — telefon ekraniga "1067" ikonkasini qo'shish.
+  addToHomeScreen?: () => void;
+  checkHomeScreenStatus?: (cb: (status: HomeScreenStatus) => void) => void;
   LocationManager?: TgLocationManager;
   HapticFeedback?: { impactOccurred: (s: string) => void; selectionChanged: () => void; notificationOccurred?: (t: string) => void };
 }
@@ -169,6 +177,36 @@ export function pushBack(handler: () => void, priority = 0): () => void {
     if (i >= 0) backStack.splice(i, 1);
     syncBackButton();
   };
+}
+
+// ── 🏠 telefon ekraniga qo'shish (Bot API 8.0+) ───────────────────────────────
+/** Ikonka holatini so'raydi. HECH QACHON rad etmaydi: klient eski bo'lsa yoki javob 3s ichida
+ *  kelmasa — "unsupported" (chaqiruvchi hech narsa ko'rsatmaydi). */
+export function homeScreenStatus(): Promise<HomeScreenStatus> {
+  return new Promise((resolve) => {
+    if (!tg?.checkHomeScreenStatus || !tg.isVersionAtLeast?.("8.0")) { resolve("unsupported"); return; }
+    let settled = false;
+    const done = (s: HomeScreenStatus) => { if (!settled) { settled = true; resolve(s); } };
+    try {
+      tg.checkHomeScreenStatus((s) => done(s ?? "unknown"));
+    } catch {
+      done("unsupported");
+      return;
+    }
+    setTimeout(() => done("unsupported"), 3000); // javobsiz klient taklifni ko'rsatmasin
+  });
+}
+
+/** Telegram'ning o'z "ekranga qo'shish" oqimini ochadi. Natija `homeScreenAdded` hodisasi bilan
+ *  keladi — foydalanuvchi tasdiqlaganini FAQAT shu bildiradi (funksiya o'zi hech narsa qaytarmaydi). */
+export function addToHomeScreen(): void {
+  tg?.addToHomeScreen?.();
+}
+
+/** `homeScreenAdded` hodisasiga obuna. Qaytgan funksiya obunani bekor qiladi. */
+export function onHomeScreenAdded(cb: () => void): () => void {
+  tg?.onEvent?.("homeScreenAdded", cb);
+  return () => tg?.offEvent?.("homeScreenAdded", cb);
 }
 
 // ── 📱 raqamni ilova ichida so'rash (Bot API 6.9+) ────────────────────────────
