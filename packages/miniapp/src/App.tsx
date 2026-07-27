@@ -4,7 +4,7 @@ const DesignDemo = lazy(() => import("./design/demo")); // #demo dagina yuklanad
 const ShopDemo = lazy(() => import("./design/shopDemo").then((m) => ({ default: m.ShopDemoPage }))); // #shopdemo dagina — shopv2 vizual-QA (mock-fetch, real Telegram auth kerak emas)
 import type { LeaderboardResponse, MeResponse } from "@t1067/shared";
 import { api, getInitData, waitForInitData } from "./api";
-import { addToHomeScreen, askContact, haptic, hapticSuccess, homeScreenStatus, onHomeScreenAdded, tg } from "./telegram";
+import { addToHomeScreen, askContact, cloudGet, cloudSet, haptic, hapticSuccess, homeScreenStatus, onHomeScreenAdded, tg } from "./telegram";
 import { useBackButton } from "./useBackButton";
 import { LeaderboardView, LoadError, MissionsView, ReferralView, RideHistoryView, Spinner } from "./components";
 import { AccountCard, TierLadder, TierLadderCompact, WalletView } from "./wallet"; // bosh tab — eager (birinchi paint)
@@ -29,7 +29,7 @@ const RestoranView = lazy(() => import("./restoran").then((m) => ({ default: m.R
 import { BirJoyMark } from "./design/birjoy";
 import { Icon } from "./icons";
 import { useCountUp } from "./util";
-import { NewProfileView, ThemePicker, initTheme } from "./profile"; // 👤 newprofile + shared theme picker
+import { NewProfileView, ThemePicker, initTheme, syncThemeFromCloud } from "./profile"; // 👤 newprofile + shared theme picker
 
 initTheme(); // 🎨 apply saved / Telegram theme on <html> before first paint (features newhome/newprofile)
 
@@ -196,6 +196,7 @@ export function App() {
     // opens — firing /api/me immediately would race into a 401 ("Telegram orqali oching"). Wait
     // for initData first (up to ~2.5s); if Telegram never fills it, proceed anyway and let the
     // server's normal auth response decide.
+    void syncThemeFromCloud(); // ☁️ boshqa qurilmada tanlangan mavzu — javob kelganda qo'llanadi
     waitForInitData()
       .then(() => api.me())
       .then((r) => {
@@ -592,12 +593,18 @@ const HS_QUIET_MS = 30 * 24 * 3600 * 1000;
 function AddToHomeCard({ onBanner }: { onBanner: (msg: string) => void }) {
   const [show, setShow] = useState(false);
   useEffect(() => {
-    try {
-      const at = Number(localStorage.getItem(HS_KEY) ?? 0);
-      if (at && Date.now() - at < HS_QUIET_MS) return; // yaqinda rad etilgan — bezovta qilmaymiz
-    } catch { /* private mode */ }
     let alive = true;
-    homeScreenStatus().then((s) => { if (alive && s === "missed") setShow(true); }).catch(() => undefined);
+    const quiet = (at: number) => !!at && Date.now() - at < HS_QUIET_MS;
+    let localAt = 0;
+    try { localAt = Number(localStorage.getItem(HS_KEY) ?? 0); } catch { /* private mode */ }
+    if (quiet(localAt)) return; // yaqinda rad etilgan — bezovta qilmaymiz
+    // ☁️ Boshqa qurilmada rad etilgan bo'lsa ham hurmat qilamiz: bitta "yo'q" — hamma qurilmada.
+    void (async () => {
+      const cloudAt = Number((await cloudGet(HS_KEY)) ?? 0);
+      if (!alive || quiet(cloudAt)) return;
+      const s = await homeScreenStatus().catch(() => "unsupported" as const);
+      if (alive && s === "missed") setShow(true);
+    })();
     return () => { alive = false; };
   }, []);
   // `onBanner` har renderda yangi funksiya (inline `flash`) — ref'da saqlanadi, aks holda obuna
@@ -615,7 +622,9 @@ function AddToHomeCard({ onBanner }: { onBanner: (msg: string) => void }) {
   if (!show) return null;
   const dismiss = () => {
     haptic();
-    try { localStorage.setItem(HS_KEY, String(Date.now())); } catch { /* ignore */ }
+    const at = String(Date.now());
+    try { localStorage.setItem(HS_KEY, at); } catch { /* ignore */ }
+    cloudSet(HS_KEY, at); // ☁️ boshqa qurilmada ham qayta so'ramaymiz
     setShow(false);
   };
   return (

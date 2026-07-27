@@ -9,6 +9,7 @@ import { api, apiUrl } from "./api";
 import { haptic, hapticSuccess } from "./telegram";
 import { Button, EmptyState, Sheet, Skeleton } from "./design/components";
 import { useBackButton } from "./useBackButton";
+import { useIsActive } from "./useIsActive";
 
 const LAST_ADDR_KEY = "restoran_last_addr";
 
@@ -85,16 +86,18 @@ const STATUS_LABEL: Record<FoodOrderView["status"], { t: string; c: string }> = 
 const TERMINAL_STATUSES = new Set<FoodOrderView["status"]>(["delivered", "rejected", "cancelled_by_user"]);
 
 function MyOrdersView({ onBack, onReorder }: { onBack: () => void; onReorder: (o: FoodOrderView) => void }) {
+  const appActive = useIsActive(); // ⏸ fonda so'rov halqasi to'xtaydi
   const [orders, setOrders] = useState<FoodOrderView[] | null>(null);
   const [busyId, setBusyId] = useState<number | null>(null);
   useEffect(() => {
     const load = () => api.restoranOrders().then((r) => setOrders(r.orders)).catch(() => undefined);
+    if (!appActive) return; // ⏸ fonda so'rov yubormaymiz; qaytilganda effekt qayta ishga tushib darhol yangilaydi
     load();
     // R3 DoD: operator admin panelda holat o'zgartirsa mijoz shu ekranda jonli ko'rishi kerak —
     // faqat ochiq bo'lgan payt poll qilinadi (8s, booking3'ning adaptiv-poll ruhida, ortiqcha kuch sarflamaydi)
     const iv = setInterval(load, 8000);
     return () => clearInterval(iv);
-  }, []);
+  }, [appActive]);
 
   const cancel = async (o: FoodOrderView) => {
     haptic();

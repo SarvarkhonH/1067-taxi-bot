@@ -41,6 +41,15 @@ interface TgBackButton {
   offClick: (cb: () => void) => void;
 }
 
+/** Telegram bulut-xotirasi (Bot API 6.9). Kalit: 1–128 belgi `[A-Za-z0-9_-]`, qiymat ≤4096 belgi.
+ *  Foydalanuvchi hisobiga bog'langan — telefon almashtirilsa ham qoladi. */
+interface TgCloudStorage {
+  setItem: (key: string, value: string, cb?: (err: string | null, ok?: boolean) => void) => void;
+  getItem: (key: string, cb?: (err: string | null, value?: string) => void) => void;
+  getItems: (keys: string[], cb?: (err: string | null, values?: Record<string, string>) => void) => void;
+  removeItem: (key: string, cb?: (err: string | null, ok?: boolean) => void) => void;
+}
+
 /** `shareToStory` parametrlari (Bot API 7.8). `widget_link` — hikoyaga bosiladigan havola;
  *  Telegram uni FAQAT Premium obunachilarga ruxsat beradi, shuning uchun shartli yuboriladi. */
 interface TgShareStoryParams {
@@ -91,6 +100,10 @@ interface TelegramWebApp {
   // Bot API 7.8+ — Telegram hikoyasi (story) muharririni tayyor rasm bilan ochish.
   shareToStory?: (mediaUrl: string, params?: TgShareStoryParams) => void;
   initDataUnsafe?: { user?: { id?: number; is_premium?: boolean }; start_param?: string };
+  // Bot API 8.0+ — ilova old planda (ko'rinib turibdi va fokusda) mi.
+  isActive?: boolean;
+  // Bot API 6.9+ — Telegram serverida saqlanadigan kalit-qiymat (qurilmalararo).
+  CloudStorage?: TgCloudStorage;
   LocationManager?: TgLocationManager;
   HapticFeedback?: { impactOccurred: (s: string) => void; selectionChanged: () => void; notificationOccurred?: (t: string) => void };
 }
@@ -465,6 +478,64 @@ export function inviteLandingUrl(botLink: string): string {
   // &v bumps the URL when the OG card content changes → Telegram fetches a FRESH preview
   // instead of showing a stale cached card (v2 = gift-emoji removed).
   return m && m[1] ? `${INVITE_LANDING}?r=${encodeURIComponent(m[1])}&v=2` : botLink;
+}
+
+// ── ⏸ FAOLLIK: ilova fonda bo'lsa so'rov yubormaymiz (Bot API 8.0 `activated`/`deactivated`) ──
+// Mini App yopilmasdan fonga tushishi mumkin (boshqa chatga o'tildi, ekran o'chdi). Bugungacha
+// so'rov halqalari (restoran 8s, safar 15s, kuzatuv 5s) fonda ham urib turardi: mijozning
+// batareyasi va trafigi, bizning serverimiz — hammasi behuda sarflanadi. Endi halqa faqat ilova
+// KO'RINIB TURGANDA yuradi va qaytishda darhol bir marta yangilanadi.
+// Eski klientda `activated`/`deactivated` yo'q — brauzerning `visibilitychange` fallback'i ishlaydi.
+export function isAppActive(): boolean {
+  if (typeof tg?.isActive === "boolean") return tg.isActive;
+  try {
+    return document.visibilityState !== "hidden";
+  } catch {
+    return true; // shubha bo'lsa — FAOL deb hisoblaymiz (halqa to'xtab qolgandan ko'ra ishlagani afzal)
+  }
+}
+
+/** Faollik o'zgarishiga obuna. Qaytgan funksiya obunani bekor qiladi. */
+export function onActiveChange(cb: (active: boolean) => void): () => void {
+  const fire = () => cb(isAppActive());
+  tg?.onEvent?.("activated", fire);
+  tg?.onEvent?.("deactivated", fire);
+  document.addEventListener("visibilitychange", fire);
+  return () => {
+    tg?.offEvent?.("activated", fire);
+    tg?.offEvent?.("deactivated", fire);
+    document.removeEventListener("visibilitychange", fire);
+  };
+}
+
+// ── ☁️ Bulut-xotira (Bot API 6.9+) ────────────────────────────────────────────
+// Telegram hisobiga bog'langan kalit-qiymat: telefon almashtirilsa yoki Desktop'dan kirilsa ham
+// qoladi. Bu yerda FAQAT kichik UI-afzalliklari saqlanadi (mavzu, rad etilgan taklif) — pul,
+// buyurtma yoki shaxsiy ma'lumot EMAS. localStorage tez manba bo'lib qoladi; bulut — nusxa.
+export function cloudGet(key: string): Promise<string | null> {
+  return new Promise((resolve) => {
+    const cs = tg?.CloudStorage;
+    if (!cs?.getItem) { resolve(null); return; }
+    let settled = false;
+    const done = (v: string | null) => { if (!settled) { settled = true; resolve(v); } };
+    try {
+      cs.getItem(key, (err, value) => done(err ? null : (value ?? null)));
+    } catch {
+      done(null);
+      return;
+    }
+    setTimeout(() => done(null), 3000); // javobsiz klient boot'ni ushlab qolmasin
+  });
+}
+
+/** Yozish — "eng yaxshi harakat" (fire-and-forget): xato bo'lsa jim o'tadi, chunki localStorage
+ *  baribir yozilgan va ilova ishlashda davom etadi. */
+export function cloudSet(key: string, value: string): void {
+  try {
+    tg?.CloudStorage?.setItem?.(key, value.slice(0, 4096), () => undefined);
+  } catch {
+    /* qo'llab-quvvatlanmaydi — mahalliy nusxa yetarli */
+  }
 }
 
 // ── 📸 Telegram hikoyasi (story) — Bot API 7.8+ ───────────────────────────────

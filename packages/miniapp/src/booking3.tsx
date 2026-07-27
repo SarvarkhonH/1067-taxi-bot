@@ -38,6 +38,7 @@ function WaitTicker({ waitComp, startAt, mini }: { waitComp: BookingInfoResponse
 }
 import { confetti } from "./util";
 import { Button, Sheet, Skeleton } from "./design/components";
+import { useIsActive } from "./useIsActive";
 
 const BookingViewOld = lazy(() => import("./booking").then((m) => ({ default: m.BookingView })));
 
@@ -341,6 +342,7 @@ function MapSkeleton() {
 }
 
 function Booking3Inner({ me, info, onClose }: { me: MeResponse; info: BookingInfoResponse; onClose: () => void }) {
+  const appActive = useIsActive(); // ⏸ fonda so'rov halqasi to'xtaydi
   // Map-is-picker redesign: the entry IS the live map picker (pinpick), not a separate search sheet.
   // The search sheet ("map") is now a sub-screen reached via the top search pill.
   const [screen, setScreen] = useState<Screen>(info.active ? "searching" : "pinpick");
@@ -626,6 +628,7 @@ function Booking3Inner({ me, info, onClose }: { me: MeResponse; info: BookingInf
         if (!seen.has(id)) { entry.mk.remove(); markers.delete(id); } // car left the fleet → drop its marker
       }
     };
+    if (!appActive) { return () => { alive = false; }; } // ⏸ fonda mashina-pinlari so'ralmaydi
     load();
     const t = setInterval(load, 15_000);
     return () => {
@@ -633,7 +636,7 @@ function Booking3Inner({ me, info, onClose }: { me: MeResponse; info: BookingInf
       clearInterval(t);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [appActive]);
 
   // 🚗 ghost fleet: once the map is up, scatter decoy cars around the view and keep a few "rides"
   // gliding so the city never looks empty (owner). Own marker ref → the 15s real-pin refresh never

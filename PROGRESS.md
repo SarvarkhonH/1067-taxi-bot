@@ -3261,7 +3261,50 @@ foydalanuvchi farqi ham jonli sinalmagan.
 
 ---
 
-## 📦 SESSIYA YAKUNI (2026-07-27) — 5 tiket, hammasi GitHub'da, deploy KUTILYAPTI
+## §57 — ⏸ FONDA SO'ROV YO'Q (`isActive`) + ☁️ BULUT-XOTIRA (`CloudStorage`) · 2026-07-27
+**Holat: `ready for verification`** (flag YO'Q — ikkalasi ham infratuzilma, degradatsiya = bugungi
+xatti-harakat)
+
+### A. `isActive` — fonda so'rov halqalari to'xtaydi
+**Muammo.** Mini App yopilmasdan fonga tushishi mumkin (boshqa chatga o'tildi, ekran o'chdi).
+Bugungacha halqalar fonda ham urib turardi: **restoran buyurtmalari 8s**, **safar/mashina pinlari
+15s**, **eski booking 45s**, **kuzatuv sahifasi 5s**. Bu mijozning batareyasi va trafigi + bizning
+serverimiz — behuda.
+**Yechim.** `telegram.ts::isAppActive()` + `onActiveChange()` (Bot API 8.0 `activated`/`deactivated`;
+eski klientda brauzerning `visibilitychange` fallback'i) → `useIsActive()` hooki. Halqa effektlariga
+`if (!appActive) return;` + `deps` ga `appActive`. **Qo'shimcha foyda**: ilovaga qaytilganda effekt
+qayta ishga tushib **darhol bir marta yangilaydi** — foydalanuvchi eskirgan ma'lumot ko'rmaydi.
+Shubhali holatda FAOL deb hisoblanadi (halqa to'xtab qolgandan ko'ra ishlagani afzal).
+**Tegilmadi**: sof UI-tiklari (soat, taymer) — ular tarmoqqa chiqmaydi.
+
+### B. `CloudStorage` — kichik afzalliklar qurilmalararo
+`cloudGet`/`cloudSet` (3s xavfsizlik to'ri, yozish "eng yaxshi harakat" — xato bo'lsa jim o'tadi,
+chunki localStorage baribir yozilgan). Ikki joyda ishlatildi:
+1. **Mavzu** (`birjoy_theme`) — `initTheme()` sinxron qolgan (birinchi bo'yashda miltillash yo'q),
+   bulut javobi kelganda FAQAT farq bo'lsa qo'llanadi. Telefon almashtirilsa mavzu o'zi bilan keladi.
+2. **«Ekranga qo'shish» rad etilgani** (`hs_dismissed_at`) — bitta «yo'q» endi HAMMA qurilmada
+   hurmat qilinadi.
+**Ataylab saqlanmaydi**: savat, buyurtma, pul yoki shaxsiy ma'lumot — bulutga faqat kichik UI
+afzalliklari ketadi.
+
+**Isbot.** `tsc` miniapp **0 xato** · `vite build` ✓ · **BUNDLE GREP** (`index-DeCUfihw.js`):
+`typeof x?.isActive=="boolean"?…:document.visibilityState!=="hidden"` ·
+`onEvent("activated"…)/("deactivated"…)+addEventListener("visibilitychange"…)` va tozalashi ·
+`CloudStorage.getItem` + 3s `setTimeout` to'ri · `birjoy_theme` ✓.
+
+**Diff intizomi (o'zim topgan xato).** Halqalarni ulashda `active` nomi `booking.tsx`/`booking3.tsx`
+da ALLAQACHON band edi (faol safar holati) — ommaviy almashtirish 2 ta begona `useEffect` ning
+bog'liqlik ro'yxatini buzgan edi. `tsc` buni TUTMAGAN (ikkalasi ham to'g'ri tipda). Diff'ni satrma-
+satr o'qib topdim va tikladim; o'zgaruvchi `appActive` deb nomlandi. Yakuniy diff: har faylda
+**faqat 4 qator** (`git diff` bilan tasdiqlandi).
+
+**TEKSHIRILMAGAN.** Fon/old-plan almashuvi real qurilmada sinalmagan — halqa rostdan to'xtayotgani
+va qaytishda darhol yangilanayotgani FAQAT sizning telefoningizda ko'rinadi. CloudStorage ikki
+qurilmada sinalmagan.
+
+---
+
+## 📦 SESSIYA YAKUNI (2026-07-27) — 6 tiket, hammasi GitHub'da, deploy KUTILYAPTI
 
 | § | Tiket | Flag | Holat |
 |---|---|---|---|
@@ -3270,6 +3313,7 @@ foydalanuvchi farqi ham jonli sinalmagan.
 | 54 | Telegram ‹ orqaga tugmasi (`BackButton`) | yo'q (bug-fix) | ready for verification |
 | 55 | Telefon ekraniga qo'shish (`addToHomeScreen`) | `homescreen` **OFF** | ready for verification |
 | 56 | Taklifni hikoyaga ulashish (`shareToStory`) | `storyshare` **OFF** | ready for verification |
+| 57 | Fonda so'rov yo'q (`isActive`) + bulut-xotira (`CloudStorage`) | yo'q (infratuzilma) | ready for verification |
 
 **Deploy uchun eslatma (boshqa sessiya bajaradi).** Miniapp: `VITE_API_URL=<render> vite build` →
 `dist` ni `.vercel/output/static` ga KO'CHIR → `vercel deploy --prebuilt --prod` → BUNDLE GREP
