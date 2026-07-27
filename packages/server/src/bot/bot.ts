@@ -27,7 +27,7 @@ import { registerDriverReports } from "./driverReports";
 import { registerCashout } from "./cashout";
 import { registerMarket, isInMarketWizard, isAwaitingStory } from "./market";
 import { registerIntercity } from "./intercity";
-import { registerBroadcast } from "./broadcast";
+import { isAwaitingBroadcastPhoto, registerBroadcast } from "./broadcast";
 import type { DriverPanelExtras } from "../services/driverReportService";
 import {
   renderBadgeUnlocked,
@@ -546,6 +546,9 @@ export function createBot(): Bot {
     // ishlardi, chunki :video faqat market.ts'da). isInMarketWizard naqshi bilan bir xil:
     // hikoya kutilayotgan bo'lsa chetga olamiz — market.ts o'zi rasmni qabul qiladi.
     if (isAwaitingStory(id)) { await next(); return; }
+    // 🖼 /elonrasm ham xuddi shunday: ega rasm yuborayotgan bo'lsa — chetga olamiz, aks holda
+    // quyidagi admin-shoxobcha sarlavhasiz rasmni `next()`siz yutadi va e'lon JIM ishlamaydi.
+    if (isAwaitingBroadcastPhoto(id)) { await next(); return; }
     const photos = ctx.message?.photo ?? [];
     if (!photos.length) return;
     const biggest = photos[photos.length - 1]!; // largest size variant
