@@ -78,6 +78,25 @@ repodan o'chirilgan fayl jonli saytda MANGU qoladi. Eski `/var/www/miniapp/ravel
 `/root/zaxira/ravella-eski-landing-*.html`). Caddy uni katalog-so'rovida BERMAYOTGAN edi (SPA
 fallback ustun), ya'ni bu ega ko'rgan "eski versiya"ning sababi EMAS — lekin naqsh o'zi xavfli.
 
+**🌐 Ommaviy sayt (2026-07-27):** `app.birjoy.online/ravella` — Telegram'siz ochiladigan mustaqil
+sahifa (mini app EMAS: u imzo talab qiladi). Jonli API'dan o'qiydi, konstruktori ishlaydi, buyurtma
+esa mini app'ga uzatiladi (kim buyurtma berayotgani aniq bo'lsin + hamkorga karta ketsin). Sahifada
+birorta narx YOZILMAGAN. Brauzerda isbot: `+ Salyut` → rasm `photo/1`→`addon-photo/1`, narx
+100 000→250 000, panel «−10% · 225 000». Caddy `try_files` ga `{path}/index.html` qo'shildi (avval
+`/ravella` SPA'ga tushib ketardi); zaxira `/root/zaxira/Caddyfile-*.bak`, `caddy validate` = Valid,
+`/`, `/ravella`, `/ravella/`, admin — hammasi tekshirildi. Preview-token (`?p=`) qo'shildi: DARK
+katalogni FAQAT-O'QISH uchun ochadi (buyurtma yo'llari uni bilmaydi).
+
+**⚠️ BAYROQ YOQILGAN (men EMAS):** `feature:ravella` = **on**, 2026-07-27 13:49:03 — `linkinapp`/
+`homescreen`/`storyshare` bilan bitta to'plamda (boshqa oqim). Ya'ni Ravella HOZIR barcha mijozlarga
+ochiq va ular ko'radigan yagona narsa — `[DEMO]` bezagi (skript chizgan namuna rasm). Jonli
+buyurtmalar: #1 rejected (585 000), #2 pending (270 000) — Boburxon H; #3 **done** (495 000) —
+1067 Ofis. Pul yo'li JONLIDA to'g'ri ishlagan: 550 000 → −10% = 495 000 → cashback **4950** tanga,
+AYNAN 1 ta CoinTxn (`rvlcb:3`), `bookingId` = NULL. Ega qarori kerak: DEMO satrlarni o'chirish
+(`seedRavellaDemo.ts --clean`) yoki haqiqiy katalog kirguncha bayroqni qaytarib o'chirish.
+**Eslatma:** bayroq ON bo'lgani uchun preview-token himoyasi HOZIR isbotlab bo'lmaydi (katalog
+baribir ochiq); token mantiqi flag OFF holatida sinalishi kerak.
+
 **Qolgan (ready EMAS):** (2) katalog seed'i (bezak
 rasmlari + narxlar) — ega admin paneldan kiritadi; (3) — BAJARILDI: hamkor chat-id = `159391041`
 («Ravella Reklama», @ravella_uz, botda 2026-07-04 dan beri; ega bergan ikkinchi variant
