@@ -39,11 +39,30 @@ hisobimizdan · brend-belgi bosh ekranda (rail + e'lon/banner joyi). Reja: `RAVE
 - **O'chirildi:** eski `miniapp/src/service.tsx` (unrouted, inline-stil, binafsha to'y-katalog) +
   `public/ravella/index.html` (2026-06-28 mustaqil landing) — ikkalasi ham yangi brendga zid.
 
-**Qolgan (ready EMAS):** (1) `public/ravella/logo.png` — ega beradi; (2) jonli VPS bazasiga
-`db push` (lokal `.env` hali eski Neon'ga qaraydi — push VPS'da bajarilishi SHART); (3) katalog
-seed'i (rasm+narx) egadan; (4) `/elonrasm` rasmli e'lon (R5); (5) `scripts/testRavella.ts` pul-testi
-ALOHIDA `TEST_DATABASE_URL`da; (6) EGA QABULI → `setFlag.ts ravella on`. Flag DARK — jonli
-mijozlar hozircha HECH NARSA ko'rmaydi.
+**Jonli holat (2026-07-27, ega ruxsati bilan):** kod `main`'ga push qilindi va VPS'ga deploy
+bo'ldi (d78ed27 → 218efed). Jonli bazaga `db push` bajarildi — `migrate diff` jonli baza ustida
+FAQAT 4 CreateTable ko'rsatdi, DROP/ALTER YO'Q; push'dan keyin Member 3362 / CoinTxn 11120
+(ma'lumot butun), bot `active`. Jonli isbot: `/health` 200 · `/api/ravella/catalog` →
+`{"categories":[],"discountPct":10,"cashbackPct":1}` (DARK, to'g'ri) · `/api/admin/ravella`
+tokensiz **403**.
+
+**Pul-testi (`scripts/testRavella.ts`, ALOHIDA `TEST_DATABASE_URL`):** 37 tasdiq, **3 marta
+ket-ket yashil** (flaky emas). Qamrov: narx serverda (450k → 10% → 405k), maxQty qirqish, begona
+qo'shimcha rad, pending-limit, `done`'da 1% = 4050 va AYNAN 1 ta CoinTxn, `bookingId=null`,
+takroriy `done`/`grant` → yangi tanga YO'Q, buyurtma-cap (5 mln → 5000), kunlik cap (6000 → 1000),
+rad etilganda CoinTxn yo'q + keyin `done` o'tmaydi (cashback fermasi yopiq), SLA aynan 1 marta.
+
+**R5 `/elonrasm` (yangi):** rasm + izoh + mini-app tugmasi (`/elonrasm ravella` → to'g'ridan-to'g'ri
+konstruktor), preview + tasdiq, ~22 msg/s, fon-yuborish. **Yo'lda 2 ta jonli xato tuzatildi:**
+(a) `bot.ts:542` haydovchi-rasm handler'i sarlavhasiz admin-rasmini `next()`siz yutardi → e'lon
+JIM ishlamas edi (`isAwaitingBroadcastPhoto` chetga oluvchisi qo'shildi — `/hikoya` bilan bo'lgan
+AYNI xato); (b) ikkita `command("bekor")` — birinchisi `next()` chaqirmagani uchun ikkinchisi o'lik
+kod edi va boshqa modullarning `/bekor`ini ham yutardi.
+
+**Qolgan (ready EMAS):** (1) `public/ravella/logo.png` — ega beradi; (2) katalog seed'i (bezak
+rasmlari + narxlar) — ega admin paneldan kiritadi; (3) Zoyir To'ychiyevning Telegram ID'si
+(`/start` → panelga yoziladi); (4) EGA QABULI → `setFlag.ts ravella on` va shundan keyingina
+`/elonrasm`. Flag DARK — jonli mijozlar hozircha HECH NARSA ko'rmaydi.
 
 ### 📞 SOTUV_PLAN — Koson biznesini platformaga ko'chirish + 3 vosita — `ready for verification`
 **Ega so'radi:** "hammani BirJoyga jalb qilish, yagona shahar platformasi — qanday sotay?"
