@@ -1061,13 +1061,18 @@ export function ShopView({ me, onBanner, reload, onBook, openProductId }: { me: 
               nom+reyting → info-qator → hikoya-tray → e'lon → about → sodiqlik → sharh → CTA ── */}
           {shopFilter && shopProfile  && (
             <>
-              <div className="shop-sp-cover">
-                {shopProfile.hasPhoto
-                  ? <img src={apiUrl(`/api/shop/shop-photo/${shopProfile.id}`)} alt="" />
-                  : <span className="shop-sp-cover-initial" aria-hidden="true">{shopProfile.name.trim().charAt(0).toUpperCase()}</span>}
+              {/* 🏬 5-BOSQICH: muqova endi tekis och-yashil blok + KATTA HARF emas. Harf pastdagi
+                  monogramda allaqachon bor edi — ya'ni bitta harf ikki marta, va katta bo'sh maydon
+                  "tayyor emas" taassurotini berardi (eganing e'tirozi). Endi bozor-ro'yxatidagi
+                  kartalar bilan AYNAN bir xil, do'kon nomidan hisoblangan barqaror gradient. */}
+              <div
+                className="shop-sp-cover"
+                style={shopProfile.hasPhoto ? undefined : { background: `linear-gradient(150deg, hsl(${shopHue(shopProfile.name)} 62% 38%), hsl(${shopHue(shopProfile.name)} 68% 24%) 58%, hsl(${(shopHue(shopProfile.name) + 38) % 360} 70% 46%))` }}
+              >
+                {shopProfile.hasPhoto && <img src={apiUrl(`/api/shop/shop-photo/${shopProfile.id}`)} alt="" />}
               </div>
               <div className="shop-sp-body">
-                <div className="shop-sp-avatar" aria-hidden="true">{shopProfile.name.trim().slice(0, 2).toUpperCase()}</div>
+                <div className="shop-sp-avatar" aria-hidden="true" style={{ background: `linear-gradient(155deg, hsl(${shopHue(shopProfile.name)} 60% 40%), hsl(${shopHue(shopProfile.name)} 66% 26%))` }}>{shopMonogram(shopProfile.name)}</div>
                 <div className="shop-sp-head">
                   <div className="shop-sp-name">{shopProfile.name}</div>
                   {shopProfile.reviewCount > 0 && (
