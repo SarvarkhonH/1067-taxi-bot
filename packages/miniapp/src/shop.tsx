@@ -11,6 +11,7 @@ import {
   type MeResponse,
   type MarketHomeResponse,
   type MarketOrderView,
+  type MarketShopView,
   type ShopChatMessageView,
   type ShopProductView,
   type ShopProfileView,
@@ -178,7 +179,7 @@ function ProductCard({ p, onOpen, wide, onFav }: { p: ShopProductView; onOpen: (
         )}
       </div>
       <div className="shop-card-body">
-        <div className="shop-card-name">{p.name}</div>
+        <div className="shop-card-name">{prettyName(p.name)}</div>
         {/* 🏷 Katalog: "Coca-Cola · 1.5 L" — supermarket kartasida nomdan keyingi eng muhim ikki
             ma'lumot. To'ldirilmagan bo'lsa qator umuman chizilmaydi (bo'sh joy qolmaydi). */}
         {(p.brand || p.unit) && <div className="shop-card-spec">{[p.brand, p.unit].filter(Boolean).join(" · ")}</div>}
@@ -196,32 +197,81 @@ function ProductCard({ p, onOpen, wide, onFav }: { p: ShopProductView; onOpen: (
 // kvadrat kafel (rasm/gradient fon, rasm bo'lmasa katta bosh-harf, pastda qorong'i-gradient
 // ustida nom+narx). Faqat do'kon-profilda ishlatiladi — ProductCard qidiruv/o'xshash-mahsulot
 // natijalarida (ko'proq ma'lumot kerak bo'lgan joylarda) o'zgarishsiz qoladi.
+// 🏬 2-BOSQICH: do'kon kartasi → VITRINA. Ilgari logosi yo'q do'kon katta och-yashil blok ustida
+// bitta harf bo'lib turardi ("tayyor emas" taassuroti — eganing asosiy e'tirozi). Logo baribir
+// kelmaguncha, kamida kartaning O'ZI tugallangan ko'rinsin: har do'konga o'z nomidan hisoblangan
+// BARQAROR gradient (bir do'kon har doim bir xil rangda) + monogram + holat chipi + meta qatori.
+const SHOP_HUES = [162, 190, 258, 22, 340, 128]; // zumraddan boshlanadi — brend rangi birinchi
+function shopHue(name: string): number {
+  let h = 0;
+  for (let i = 0; i < name.length; i++) h = (h * 31 + name.charCodeAt(i)) >>> 0;
+  return SHOP_HUES[h % SHOP_HUES.length]!;
+}
+function shopMonogram(name: string): string {
+  const words = name.trim().split(/\s+/).filter(Boolean);
+  const a = words[0]?.charAt(0) ?? "";
+  const b = words.length > 1 ? words[1]!.charAt(0) : (words[0]?.charAt(1) ?? "");
+  return (a + b).toLocaleUpperCase("uz");
+}
+function CityTile({ s, onOpen }: { s: MarketShopView; onOpen: () => void }) {
+  const hue = shopHue(s.name);
+  return (
+    <button className="shop-city-tile" onClick={onOpen}>
+      <div
+        className="shop-city-tile-cover"
+        style={s.hasPhoto ? undefined : { background: `linear-gradient(150deg, hsl(${hue} 62% 38%), hsl(${hue} 68% 24%) 58%, hsl(${(hue + 38) % 360} 70% 46%))` }}
+      >
+        {s.hasPhoto && <img src={apiUrl(`/api/shop/shop-photo/${s.id}`)} alt="" loading="lazy" />}
+        <span className={"shop-city-tile-open" + (s.open ? "" : " closed")}>{s.open ? "Ochiq" : "Yopiq"}</span>
+        <span className="shop-city-tile-mono" style={{ background: `linear-gradient(155deg, hsl(${hue} 60% 40%), hsl(${hue} 66% 26%))` }}>{shopMonogram(s.name)}</span>
+      </div>
+      <div className="shop-city-tile-body">
+        <div className="shop-city-tile-name">{s.name}</div>
+        <div className="shop-city-tile-meta">
+          {s.rating > 0 && <span>★ {s.rating.toFixed(1)}</span>}
+          {s.deliveryText && <span className="shop-city-tile-deliver">🚚 {s.deliveryText}</span>}
+        </div>
+      </div>
+    </button>
+  );
+}
+
 function StoreTile({ p, onOpen, onFav }: { p: ShopProductView; onOpen: (p: ShopProductView) => void; onFav?: (p: ShopProductView) => void }) {
   const d = discountPct(p);
   return (
     <button className="shop-tile" onClick={() => onOpen(p)}>
-      {p.hasPhoto ? (
-        <img className="shop-tile-img" src={apiUrl(`/api/shop/photo/${p.id}?s=1`)} loading="lazy" decoding="async" alt="" />
-      ) : (
-        <span className="shop-tile-initial" aria-hidden="true">{p.name.trim().charAt(0).toUpperCase()}</span>
-      )}
-      <div className="shop-tile-grad" />
-      {d > 0 && <span className="shop-tile-disc">−{d}%</span>}
-      {onFav && (
-        <span
-          className={"shop-tile-fav" + (p.isFav ? " on" : "")}
-          role="button"
-          tabIndex={0}
-          aria-label={p.isFav ? "Sevimlidan olish" : "Sevimliga qo'shish"}
-          onClick={(e) => { e.stopPropagation(); onFav(p); }}
-          onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); e.stopPropagation(); onFav(p); } }}
-        >
-          <Icon name="heart" size={13} filled={p.isFav} />
-        </span>
-      )}
+      {/* 🫧 2-BOSQICH (ega, 2026-07-28): matn RASM USTIDAN TUSHDI. Ilgari nom va narx qorong'i
+          gradient ustida turardi — rasmni ham yopardi, o'zi ham to'liq o'qilmasdi (eganing
+          skrinshotlari aynan shuni ko'rsatdi). Endi rasm o'z maydonida to'liq ko'rinadi, matn
+          esa shisha tanada. Faqat chegirma va ❤️ rasm ustida qoladi — ular belgi, matn emas. */}
+      <div className="shop-tile-ph">
+        {p.hasPhoto ? (
+          <img className="shop-tile-img" src={apiUrl(`/api/shop/photo/${p.id}?s=1`)} loading="lazy" decoding="async" alt="" />
+        ) : (
+          <span className="shop-tile-initial" aria-hidden="true">{p.name.trim().charAt(0).toUpperCase()}</span>
+        )}
+        {d > 0 && <span className="shop-tile-disc">−{d}%</span>}
+        {onFav && (
+          <span
+            className={"shop-tile-fav" + (p.isFav ? " on" : "")}
+            role="button"
+            tabIndex={0}
+            aria-label={p.isFav ? "Sevimlidan olish" : "Sevimliga qo'shish"}
+            onClick={(e) => { e.stopPropagation(); onFav(p); }}
+            onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); e.stopPropagation(); onFav(p); } }}
+          >
+            <Icon name="heart" size={13} filled={p.isFav} />
+          </span>
+        )}
+      </div>
       <div className="shop-tile-body">
-        <div className="shop-tile-name">{p.name}</div>
-        <div className="shop-tile-price">{formatNumber(p.priceTanga)} so&apos;m</div>
+        <div className="shop-tile-name">{prettyName(p.name)}</div>
+        {(p.brand || p.unit) && <div className="shop-tile-spec">{[p.brand, p.unit].filter(Boolean).join(" · ")}</div>}
+        <div className="shop-tile-price">
+          <b>{formatNumber(p.priceTanga)}</b>
+          <span className="shop-tile-cur">so&apos;m</span>
+          {p.oldPriceTanga ? <s>{formatNumber(p.oldPriceTanga)}</s> : null}
+        </div>
       </div>
     </button>
   );
@@ -969,18 +1019,7 @@ export function ShopView({ me, onBanner, reload, onBook, openProductId }: { me: 
                 <div className="shop-section-title2">Do&apos;konlar</div>
                 <div className="shop-city-grid">
                   {searchedShops.map((s) => (
-                    <button key={s.id} className="shop-city-tile" onClick={() => { haptic(); setQ(""); setShopFilter({ id: s.id, name: s.name }); setCat(null); }}>
-                      <div className="shop-city-tile-cover">
-                        {s.hasPhoto ? <img src={apiUrl(`/api/shop/shop-photo/${s.id}`)} alt="" loading="lazy" /> : <span className="shop-city-tile-initial">{s.name.trim().charAt(0).toUpperCase()}</span>}
-                      </div>
-                      <div className="shop-city-tile-body">
-                        <div className="shop-city-tile-name">{s.name}</div>
-                        <div className="shop-city-tile-status">
-                          <span className={"bj-open-dot" + (s.open ? "" : " closed")} />
-                          {s.open ? "Ochiq" : "Yopiq"}
-                        </div>
-                      </div>
-                    </button>
+                    <CityTile key={s.id} s={s} onOpen={() => { haptic(); setQ(""); setShopFilter({ id: s.id, name: s.name }); setCat(null); }} />
                   ))}
                 </div>
               </div>
@@ -1296,19 +1335,7 @@ export function ShopView({ me, onBanner, reload, onBook, openProductId }: { me: 
               <div className="shop-section-title2">Butun shahar bo'ylab</div>
               <div className="shop-city-grid">
                 {cityShops.map((s) => (
-                  <button key={s.id} className="shop-city-tile" onClick={() => { haptic(); setShopFilter({ id: s.id, name: s.name }); setCat(null); }}>
-                    <div className="shop-city-tile-cover">
-                      {s.hasPhoto ? <img src={apiUrl(`/api/shop/shop-photo/${s.id}`)} alt="" loading="lazy" /> : <span className="shop-city-tile-initial">{s.name.trim().charAt(0).toUpperCase()}</span>}
-                    </div>
-                    <div className="shop-city-tile-body">
-                      <div className="shop-city-tile-name">{s.name}</div>
-                      {s.rating > 0 && <div className="shop-city-tile-rating">★ {s.rating.toFixed(1)}</div>}
-                      <div className="shop-city-tile-status">
-                        <span className={"bj-open-dot" + (s.open ? "" : " closed")} />
-                        {s.open ? "Ochiq" : "Yopiq"}
-                      </div>
-                    </div>
-                  </button>
+                  <CityTile key={s.id} s={s} onOpen={() => { haptic(); setShopFilter({ id: s.id, name: s.name }); setCat(null); }} />
                 ))}
               </div>
             </div>
@@ -1458,7 +1485,7 @@ export function ShopView({ me, onBanner, reload, onBook, openProductId }: { me: 
               <div className="shop-detail-photo shop-card-noimg">🛍</div>
             )}
             <div className="shop-detail-headline">
-              <h3 className="shop-detail-name">{sel.name}</h3>
+              <h3 className="shop-detail-name">{prettyName(sel.name)}</h3>
               {/* shopv2: mockup'da mahsulot-ekranida FAQAT yurak-tugma bor (ulashish yo'q) */}
               <button className="shop-share-btn sm" onClick={() => toggleFav(sel)} aria-label={sel.isFav ? "Sevimlidan olish" : "Sevimliga qo'shish"}>
                 <Icon name="heart" size={15} filled={sel.isFav} />
@@ -1555,7 +1582,7 @@ export function ShopView({ me, onBanner, reload, onBook, openProductId }: { me: 
                   {similar.map((p) => (
                     <button key={p.id} className="shop-mini" onClick={(e) => { openProduct(p); e.currentTarget.closest(".d-sheet")?.scrollTo({ top: 0, behavior: "instant" }); }}>
                       {p.hasPhoto ? <img className="shop-mini-img" src={apiUrl(`/api/shop/photo/${p.id}?s=1`)} loading="lazy" decoding="async" alt="" /> : <div className="shop-mini-img shop-card-noimg">🛍</div>}
-                      <div className="shop-mini-name">{p.name}</div>
+                      <div className="shop-mini-name">{prettyName(p.name)}</div>
                       <div className="shop-mini-price">{formatNumber(p.priceTanga)} so'm</div>
                     </button>
                   ))}

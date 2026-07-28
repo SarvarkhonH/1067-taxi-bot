@@ -71,3 +71,30 @@ export function loadErrorText(): string {
   const offline = typeof navigator !== "undefined" && navigator.onLine === false;
   return offline ? "Internet aloqasi yo'q — ulanib qayta urining" : "Yuklanmadi — qayta urinib ko'ring";
 }
+
+/** 🔤 «BAK NERJAVEKA XITOY 45-26cm» → «Bak nerjaveka Xitoy 45×26 cm».
+ *
+ *  NEGA: sotuvchilar nomni CAPS LOCK bilan kiritadi (jonli katalogda ko'pchiligi shunday) va
+ *  panjara bozor peshtaxtasidek qichqirib turadi. Bu FAQAT KO'RSATISH qoidasi — bazadagi matn
+ *  tegilmaydi, ya'ni sotuvchi o'z nomini o'zi yozgan holida ko'radi va qidiruv ham buzilmaydi.
+ *
+ *  Ehtiyot: nom allaqachon normal yozilgan bo'lsa (CAPS ulushi past) UMUMAN tegilmaydi — aks holda
+ *  «iPhone» → «Iphone» bo'lib, to'g'ri yozilgan nomni buzardik. */
+const UNIT_WORDS = new Set(["cm", "mm", "sm", "kg", "gr", "g", "l", "ml", "litr", "dona", "ta", "talik", "sm2"]);
+export function prettyName(raw: string): string {
+  const s = (raw ?? "").trim().replace(/\s{2,}/g, " ");
+  if (!s) return s;
+  const letters = s.replace(/[^\p{L}]/gu, "");
+  if (letters.length < 4) return s;
+  const upper = (letters.match(/\p{Lu}/gu) ?? []).length;
+  if (upper / letters.length < 0.7) return s; // aralash/normal yozilgan — tegilmaydi
+
+  const lowered = s.toLocaleLowerCase("uz");
+  const out = lowered
+    // «45-26cm» / «36-27CM» → «45×26 cm»: o'lcham chizig'i ko'paytirish belgisiga aylanadi
+    .replace(/(\d)\s*[-x×]\s*(\d)/g, "$1×$2")
+    // raqamdan keyin darhol kelgan birlik ajratiladi: «38cm» → «38 cm», «2litr» → «2 litr»
+    .replace(/(\d)\s*([a-z]{1,5})\b/g, (m, n: string, w: string) => (UNIT_WORDS.has(w) ? `${n} ${w}` : m))
+    .trim();
+  return out.charAt(0).toLocaleUpperCase("uz") + out.slice(1);
+}
