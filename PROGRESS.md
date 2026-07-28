@@ -3985,3 +3985,87 @@ qirrasi bilan orasi 0px** — ya'ni har doim yopishgan; panelda 3 tugma to'g'ri 
 
 **Qolgan ochiq ish:** do'kon logolari (sotuvchilardan) · 175 mahsulotni 30 yangi kategoriyaga
 taqsimlash (hozir hammasi eski 5 tasida) · bot tokenini `/revoke` qilish (§63).
+
+## §67 — 🧺 4 OZIQ-OVQAT DO'KONI: 225 MAHSULOT, HAMMASI RASM BILAN · 2026-07-28
+
+**Ega buyrug'i:** «3-4 xil men uchun do'konlar yasa, mahsulotlar rasmi bilan to'ldirib chiq,
+narxlarni menga qoldir — to'g'rilab chiqaman, hozir oziq-ovqat bo'yicha hammasini qo'y».
+
+**Jonli holat (buyruqdan oldin):** 8 do'kon, 221 mahsulot.
+
+⚠️ **TUZATISH (publish'dan keyin topildi, R7 — PROGRESS literal haqiqat):** dastlab «hech qaysi
+mahsulotda rasm yo'q» deb yozilgan edi — **NOTO'G'RI**. U da'vo faqat `Product.photoFileId` /
+`Product.photoUrl` ustunlariga qaralib chiqarilgan, **`ProductPhoto` galereya-jadvali qaralmagan**.
+Haqiqat: `ProductPhoto` da **336 satr / 215 mahsulot** rasmli; rasmi umuman yo'q faol eski mahsulot
+atigi **6 ta**. Saboq: bu kodbazada mahsulot-rasmi UCH joyda bo'lishi mumkin (`photoFileId`,
+`photoUrl`, `ProductPhoto`) — bittasiga qarab «rasm yo'q» deyish xato.
+Yangi 225 mahsulot uchun ish o'zgarmaydi (ularda rasm yo'q edi va endi bor).
+
+### Nima qilindi (kod, hali bazaga YOZILMAGAN)
+| Fayl | Nima |
+|---|---|
+| `packages/server/src/scripts/lib/foodArt.ts` | 34 ta mahsulot-formasi + 13 glif + 4 do'kon logosi. SVG → `data:image/svg+xml;base64` (kategoriya-ikonkalari naqshi, `serveShopPhoto` data-URL yo'lini allaqachon qo'llaydi) |
+| `packages/server/src/scripts/lib/foodCatalog.ts` | 4 do'kon + 225 mahsulot (sof ma'lumot, prisma yo'q) |
+| `packages/server/src/scripts/previewFoodCatalog.ts` | Bazasiz lokal HTML ko'rik — ega yozishdan oldin ko'radi |
+| `packages/server/src/scripts/seedOzikOvqatShops.ts` | DRY-RUN default · `--apply` · `--publish` |
+
+**Do'konlar:** BirJoy Oziq-ovqat (87 mahsulot / 11 kategoriya) · Yangi Bozor — meva-sabzavot (48/4) ·
+Non & Shirinlik uyi (53/6) · Go'sht & Baliq rastasi (37/5). Jami **26 ta oziq-ovqat kategoriyasi
+to'liq qoplandi** (30 katalog kategoriyasidan oziq-ovqat bo'lmagan 4 tasi — uy-ro'zg'or, gigiyena,
+uy hayvonlari, qo'shimcha — ataylab qoldirildi).
+
+**Xavfsizlik qarori:** mahsulot ham, do'kon ham `active: false` yaratiladi — `listProducts` faqat
+`active && stock>0` beradi, ya'ni **narx tasdiqlanmaguncha mijoz hech narsani ko'rmaydi**
+(«owner-preview masks dark flags» saboqining teskarisi: bu safar ataylab qorong'i). Narxlar
+taxminiy; `seedOzikOvqatShops.ts` mavjud mahsulotning `priceTanga`siga **qayta tegmaydi** —
+ega tahrirlagan narx skript qayta yugurganda tiklanib qolmaydi.
+
+**Isbot:** `pnpm -r typecheck` 4/4 **0 xato** · `previewFoodCatalog.ts` → `4 do'kon · 225 mahsulot` ·
+34 formaning hammasi vizual ko'rikdan o'tkazildi, 8 tasi qayta chizildi (qop silindrga o'xshagan edi;
+qadoq tomi ko'rinmasdi; karam yashil shar edi; tuxumlar lotok ostida qolgan; go'sht/tovuq/tort/kolbasa
+siluetlari o'qilmasdi; do'kon logolari qulf/blobga o'xshardi).
+
+**Holat:** `ready for verification` — **bazaga hech narsa yozilmagan**. Ega HTML ko'rikni ko'rib
+narxlarni tasdiqlaydi, keyin VPS'da `--apply`, narxlar to'g'rilangach `--publish`.
+
+### §67 — APPLY bajarildi (2026-07-28, ega «apply qil» dedi)
+
+Skriptlar VPS'ga vaqtincha `scp` qilindi, yugurtirildi, keyin **o'chirildi** (kelgusi `git pull`
+untracked-fayl to'qnashuvini oldini olish uchun; `git status` VPS'da toza).
+
+| Tekshiruv | Buyruq | Natija |
+|---|---|---|
+| DRY-RUN | `seedOzikOvqatShops.ts` | `do'kon yangi=4 · mahsulot yangi=225` |
+| Yozish | `… --apply` | `#9=87 · #10=48 · #11=53 · #12=37 · mijozga ko'rinadigan: 0` |
+| Do'konlar | psql `MarketShop where id>=9` | 4 ta, `active=f`, logo bor, `ownerChatId=6506297119` |
+| Rasm qamrovi | psql `Product where shopId>=9` | `jami=225 · rasmli=225 · faol=0` |
+| Eski ma'lumot | psql `Product where shopId<9` | `221` — **tegilmagan** |
+| Kategoriya | psql distinct | `26` |
+| Idempotentlik | `--apply` 2-marta | `yangi=0 · o'zgarmadi=225` |
+| Jonli rasm | `GET /api/shop/photo/369` | `http=200 · image/svg+xml · 952 bayt` |
+| Sog'liq | `/health` | `200` |
+
+**Holat:** mahsulotlar bazada, mijozga **ko'rinmaydi** (`active=false`). Muhim nuans: owner-preview
+FLAG'ni chetlab o'tadi, `active`ni EMAS (`listActiveProducts` doim `active:true, stock>0` filtri) —
+demak yangi mahsulotlar hozir FAQAT **admin panel → Do'kon** ro'yxatida ko'rinadi, mini-ilovada emas.
+Narxlar tasdiqlangach `--publish` hammasini yoqadi.
+
+**Qoldi:** narx-tasdiq (ega) → `--publish` · kod hali commit/push qilinmagan (ega qaroriga qoldirildi).
+
+### §67 — PUBLISH bajarildi (2026-07-28, ega «publish qil» dedi)
+
+| Tekshiruv | Natija |
+|---|---|
+| `--publish` | `do'kon yangilandi=4 · mahsulot yoqildi=225` |
+| psql `MarketShop id>=9` | 4 ta `active=t · paused=f` |
+| psql faol mahsulot | `225` / `26` kategoriya |
+| **Mehmon (auth'siz) `GET /api/shop/market`** | `200` · do'konlar ro'yxatida **4 yangi do'kon ham bor** · `cats` 5 → **32** |
+| `/health` | `200` |
+| VPS git holati | toza (vaqtincha skriptlar o'chirildi) |
+
+**Kutilmagan topilma:** bosh-lenta 100 mahsulot bilan cheklangan (`listActiveProducts` global
+`take: 100`, §60 auditida ma'lum bo'lgan cheklov). Yangi 225 mahsulot lentaga deyarli chiqmadi
+(manba: `BirJoy Market` 61 · `BirJoy o'z do'koni` 37 · yangi do'konlar 1) — ular kategoriya-chip va
+do'kon sahifasi orqali topiladi (do'kon-ko'lamli so'rov `take: 300`). Ya'ni **umumiy lentada
+saralash/limit endi haqiqiy muammo** — 446 faol mahsulotdan 100 tasi ko'rsatilyapti. Keyingi tiket
+uchun: sortOrder strategiyasi + lenta limitini qayta ko'rib chiqish.
