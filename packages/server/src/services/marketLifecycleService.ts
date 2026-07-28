@@ -22,6 +22,7 @@ export const LIFECYCLE_MAX_PER_TICK = 20;
 const QUIET_FROM = 9; // Toshkent soati (shu soatdan boshlab yuboriladi)
 const QUIET_TO = 21; // shu soatgacha (21:00 dan keyin yo'q)
 const DEMAND_LOOKBACK_DAYS = 30; // shundan eskisi uchun xabar berish g'alati (mijoz unutgan)
+const MIN_QUERY_LEN = 4; // 3 harfli so'rov juda noaniq («Sab» → «Sabzi» ham, «Sabun» ham)
 const FRESH_HOURS = 48; // mahsulot/chegirma shu oyna ichida paydo bo'lgan bo'lsa "yangilik"
 
 export type LifecycleKind = "demand" | "fav";
@@ -52,6 +53,20 @@ function norm(s: string): string {
     else out += ch;
   }
   return out.toLowerCase().replace(/[ʻʼ']/g, "'").replace(/õ/g, "o").trim();
+}
+
+/** So'z-chegarali moslik. NEGA SHART: jonli simulyatsiya (2026-07-28) oddiy `includes()` bilan
+ *  8 ta mosligining 4 tasi YOLG'ON ekanini ko'rsatdi —
+ *    «Rus» → "Adrenaline **Rus**h" · «Kola» → "Sho**kola**dli tort"
+ *    «Top» → "SOK APARAT BEL**TOP**" · «kul» → "Ger**kul**es"
+ *  Bunday xabar («Siz qidirgan «Kola» endi bor: Shokoladli tort») mijoz oldida ahmoqona ko'rinadi
+ *  va ishonchni yo'qotadi. Endi so'rovdagi HAR SO'Z mahsulot nomidagi biror SO'ZNING BOSHIDAN
+ *  mos kelishi shart — ya'ni so'z o'rtasidagi tasodifiy bo'lak hisobga olinmaydi. */
+function nameMatchesQuery(name: string, q: string): boolean {
+  const words = norm(name).split(/[^\p{L}\p{N}]+/u).filter(Boolean);
+  const parts = q.split(/[^\p{L}\p{N}]+/u).filter((w) => w.length >= MIN_QUERY_LEN);
+  if (!parts.length) return false;
+  return parts.every((part) => words.some((w) => w.startsWith(part)));
 }
 
 async function markerExists(key: string): Promise<boolean> {
@@ -106,8 +121,8 @@ export async function planLifecyclePushes(
   for (const d of demands) {
     if (out.length >= LIFECYCLE_MAX_PER_TICK) break;
     const q = norm(d.query);
-    if (q.length < 3) continue;
-    const hit = freshProducts.find((p) => norm(p.name).includes(q));
+    if (q.length < MIN_QUERY_LEN) continue;
+    const hit = freshProducts.find((p) => nameMatchesQuery(p.name, q));
     if (!hit) continue;
     const memberId = d.memberId!;
     const key = `mktlife:d:${memberId}:${hit.id}`;
