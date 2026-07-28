@@ -12,6 +12,7 @@
 #      HAR DOIM qayta tekshiriladi (aks holda yangi deploy ko'rinmay qoladi).
 
 api.birjoy.online {
+	log
 	# Deploy paytida bot ~2-3s ga qayta ishga tushadi. lb_try_duration'siz Caddy o'sha
 	# oynada 502 qaytarardi — mijoz uchun "server o'chdi" ko'rinardi. Endi so'rov 15s gacha
 	# kutadi va bot ko'tarilishi bilan bajariladi: deploy mijozga sezilmaydi.
@@ -23,31 +24,63 @@ api.birjoy.online {
 }
 
 app.birjoy.online {
+	log
 	root * /var/www/miniapp
 	encode zstd gzip
 
 	# Hash'li fayllar — mazmun o'zgarsa nomi o'zgaradi → abadiy keshlash xavfsiz.
-	@hashed path /assets/*
-	header @hashed Cache-Control "public, max-age=31536000, immutable"
+	# /assets/* — Vite hash'li fayllar. MAVJUD bo'lsa 1 yil kesh; YO'Q bo'lsa 404.
+	# SPA-fallback bu blokda ATAYLAB yo'q. Avval try_files /assets/* ga ham tegardi:
+	# eski index.html ushlab qolgan mijoz yo'q chunk so'raganda 200 + index.html olardi
+	# (Content-Type: text/html) -> brauzer JS o'rniga HTML ko'rib modulni ISHGA TUSHIRMASDI
+	# -> abadiy oq ekran, va o'sha buzuq javob immutable bo'lgani uchun 1 YILGA keshlanardi.
+	# Endi 404 qaytadi - Vite'ning vite:preloadError self-heal'i uni ushlab qayta yuklaydi.
+	handle /assets/* {
+		header Cache-Control "public, max-age=31536000, immutable"
+		file_server
+	}
 
 	# index.html — hech qachon keshlanmaydi, aks holda yangi versiya chiqmaydi.
-	@html path / /index.html
-	header @html Cache-Control "no-cache"
+	# Har qanday HTML — bosh sahifa ham, /ravella kabi mustaqil sahifalar ham — HAR DOIM
+	# qayta tekshiriladi. Avval faqat "/" va "/index.html" yozilgandi: /ravella/ sahifasi
+	# Cache-Control'siz ketardi va brauzer uni jimgina keshlab, yangi deploy ko'rinmasdi.
+	handle {
+		@html path / /index.html /*/index.html /ravella /ravella/
+		header @html Cache-Control "no-cache"
 
-	try_files {path} /index.html
-	file_server
+	# {path}/index.html — katalog ichidagi mustaqil sahifalar (masalan /ravella) SPA fallback'ga
+	# tushib ketmasin; SPA fallback oxirgi bo'lib qoladi.
+		try_files {path} {path}/index.html /index.html
+		file_server
+	}
 }
 
 admin.birjoy.online {
+	log
 	root * /var/www/admin
 	encode zstd gzip
 
-	@hashed path /assets/*
-	header @hashed Cache-Control "public, max-age=31536000, immutable"
+	# /assets/* — Vite hash'li fayllar. MAVJUD bo'lsa 1 yil kesh; YO'Q bo'lsa 404.
+	# SPA-fallback bu blokda ATAYLAB yo'q. Avval try_files /assets/* ga ham tegardi:
+	# eski index.html ushlab qolgan mijoz yo'q chunk so'raganda 200 + index.html olardi
+	# (Content-Type: text/html) -> brauzer JS o'rniga HTML ko'rib modulni ISHGA TUSHIRMASDI
+	# -> abadiy oq ekran, va o'sha buzuq javob immutable bo'lgani uchun 1 YILGA keshlanardi.
+	# Endi 404 qaytadi - Vite'ning vite:preloadError self-heal'i uni ushlab qayta yuklaydi.
+	handle /assets/* {
+		header Cache-Control "public, max-age=31536000, immutable"
+		file_server
+	}
 
-	@html path / /index.html
-	header @html Cache-Control "no-cache"
+	# Har qanday HTML — bosh sahifa ham, /ravella kabi mustaqil sahifalar ham — HAR DOIM
+	# qayta tekshiriladi. Avval faqat "/" va "/index.html" yozilgandi: /ravella/ sahifasi
+	# Cache-Control'siz ketardi va brauzer uni jimgina keshlab, yangi deploy ko'rinmasdi.
+	handle {
+		@html path / /index.html /*/index.html /ravella /ravella/
+		header @html Cache-Control "no-cache"
 
-	try_files {path} /index.html
-	file_server
+	# {path}/index.html — katalog ichidagi mustaqil sahifalar (masalan /ravella) SPA fallback'ga
+	# tushib ketmasin; SPA fallback oxirgi bo'lib qoladi.
+		try_files {path} {path}/index.html /index.html
+		file_server
+	}
 }
