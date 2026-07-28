@@ -1318,11 +1318,10 @@ export function ShopView({ me, onBanner, reload, onBook, openProductId }: { me: 
                     )}
                   </>
                 )}
-                {!!me.flags?.shopchat && (
-                  <button className="shop-sp-cta" onClick={() => openChat(shopProfile.id, shopProfile.name)}>
-                    <Icon name="chat" size={16} /> <span>Do&apos;konga yozish</span>
-                  </button>
-                )}
+                {/* ⛔ Eski ULKAN «Do'konga yozish» tugmasi — endi sarlavha yonidagi ikonka
+                    (taklif ⑧). Bloklar pastga ko'chganda u ham ergashib ketgan edi: jonli
+                    bundle grep'i ushladi (demo'da `shopchat` flagi o'chiq bo'lgani uchun
+                    ko'rinmagan) — ya'ni sahifada ikkita bir xil harakat qolardi. */}
             </div>
           )}
 
