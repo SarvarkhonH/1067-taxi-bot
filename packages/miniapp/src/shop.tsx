@@ -277,6 +277,9 @@ function StoreTile({ p, onOpen, onFav }: { p: ShopProductView; onOpen: (p: ShopP
 
 const BOT_LINK = "https://t.me/koson1067bot"; // share deep-link target (same source as services.tsx)
 
+// 🛒 Ega qarori (2026-07-28): bosh sahifada mahsulot-oldindan ko'rsatish soni.
+const HOME_PRODUCT_PREVIEW = 4;
+
 export function ShopView({ me, onBanner, reload, onBook, openProductId }: { me: MeResponse; onBanner: (msg: string) => void; reload: () => void; onBook: () => void; openProductId?: number | null }) {
   const [products, setProducts] = useState<ShopProductView[] | null>(PROD_CACHE);
   const [err, setErr] = useState(false);
@@ -510,6 +513,13 @@ export function ShopView({ me, onBanner, reload, onBook, openProductId }: { me: 
   // savat ilova qayta-ochilishi/tab-almashinuvidan omon qoladi (1 savat = 1 do'kon).
   const [cart, setCart] = useState<Record<number, number>>(() => { try { return JSON.parse(localStorage.getItem(CART_KEY) ?? "{}").items ?? {}; } catch { return {}; } });
   const [cartShopId, setCartShopId] = useState<number | null>(() => { try { return JSON.parse(localStorage.getItem(CART_KEY) ?? "{}").shopId ?? null; } catch { return null; } });
+  // 🐛 EGA TOPDI (2026-07-28): «savatga solish nol ko'rsatyapti». Sabab: savat faqat ID saqlardi,
+  // qatorlarni esa XOTIRADAGI global `products` ro'yxatidan qidirardi — u esa serverda 100 ta bilan
+  // cheklangan (`listActiveProducts` take:100). Katalog 446 taga chiqqach, 100-likka tushmagan
+  // mahsulotni qo'shsangiz qator TOPILMASDI → savat bo'sh, jami 0. Endi mahsulot savatga
+  // solinganda uning NUSXASI ham saqlanadi: savat hech qanday ro'yxatga bog'liq emas.
+  // (Narx baribir serverda qayta hisoblanadi — bu nusxa faqat ko'rsatish uchun.)
+  const [cartSnap, setCartSnap] = useState<Record<number, ShopProductView>>(() => { try { return JSON.parse(localStorage.getItem(CART_KEY) ?? "{}").snap ?? {}; } catch { return {}; } });
   const [cartOpen, setCartOpen] = useState(false);
 
   // ‹ ORQAGA (Bot API 6.1). Do'konda ekranlar ichma-ich ochiladi (rasm → hikoya → savat →
@@ -537,9 +547,14 @@ export function ShopView({ me, onBanner, reload, onBook, openProductId }: { me: 
   useEffect(() => {
     try {
       if (Object.keys(cart).length === 0) localStorage.removeItem(CART_KEY);
-      else localStorage.setItem(CART_KEY, JSON.stringify({ shopId: cartShopId, items: cart }));
+      else {
+        // faqat savatdagi ID'lar nusxada qoladi — o'chirilgan mahsulot xotirada osilib qolmaydi
+        const snap: Record<number, ShopProductView> = {};
+        for (const id of Object.keys(cart)) { const p = cartSnap[Number(id)]; if (p) snap[Number(id)] = p; }
+        localStorage.setItem(CART_KEY, JSON.stringify({ shopId: cartShopId, items: cart, snap }));
+      }
     } catch { /* private mode */ }
-  }, [cart, cartShopId]);
+  }, [cart, cartShopId, cartSnap]);
   const [coBusy, setCoBusy] = useState(false);
   const [coErr, setCoErr] = useState<string | null>(null);
   const [coPay, setCoPay] = useState<"tanga" | "cash">("tanga");
@@ -559,9 +574,34 @@ export function ShopView({ me, onBanner, reload, onBook, openProductId }: { me: 
     prevCartCount.current = cartCount;
   }, [cartCount]);
   const cartLines = useMemo(() => {
-    const byId = new Map((products ?? []).map((p) => [p.id, p]));
-    return Object.entries(cart).map(([id, qty]) => ({ p: byId.get(Number(id)), qty })).filter((l): l is { p: ShopProductView; qty: number } => !!l.p && l.qty > 0);
-  }, [cart, products]);
+    // Manba tartibi: xotiradagi TIRIK ro'yxatlar (eng yangi narx/zaxira) → keyin savat-nusxasi.
+    // Nusxa oxirgi chora: global ro'yxat 100 ta bilan cheklangani uchun undan tashqaridagi
+    // mahsulot faqat shu yerdan topiladi (ega topgan «savat 0 ko'rsatyapti» bug'i).
+    const byId = new Map<number, ShopProductView>();
+    for (const src of [products, shopCatalog, catProducts, chatProducts]) {
+      for (const p of src ?? []) byId.set(p.id, p);
+    }
+    return Object.entries(cart)
+      .map(([id, qty]) => ({ p: byId.get(Number(id)) ?? cartSnap[Number(id)], qty }))
+      .filter((l): l is { p: ShopProductView; qty: number } => !!l.p && l.qty > 0);
+  }, [cart, cartSnap, products, shopCatalog, catProducts, chatProducts]);
+  // ♻️ ESKI SAVATLARNI TIKLASH: nusxa-mexanizmigacha to'ldirilgan savatlarda `snap` yo'q, ya'ni
+  // 100-likka tushmagan mahsulot baribir topilmasdi. Savat BITTA do'konniki (`cartShopId`), demak
+  // o'sha do'konning to'liq vitrinasini (300 tagacha) bir marta so'rab, yetishmayotganini
+  // to'ldiramiz. Bir martalik — hammasi topilgach qayta so'ramaydi.
+  const cartRepair = useRef(false);
+  useEffect(() => {
+    const missing = Object.keys(cart).map(Number).filter((id) => !cartLines.some((l) => l.p.id === id));
+    if (!missing.length || !cartShopId || cartRepair.current) return;
+    cartRepair.current = true;
+    api.shopProducts(cartShopId)
+      .then((r) => {
+        const add: Record<number, ShopProductView> = {};
+        for (const p of r.products) if (missing.includes(p.id)) add[p.id] = p;
+        if (Object.keys(add).length) setCartSnap((s) => ({ ...s, ...add }));
+      })
+      .catch(() => undefined);
+  }, [cart, cartLines, cartShopId]);
   const cartItemsTotal = useMemo(() => cartLines.reduce((s, l) => s + l.qty * l.p.priceTanga, 0), [cartLines]);
   const cartShop = useMemo(() => market?.shops.find((s) => s.id === cartShopId) ?? null, [market, cartShopId]);
   const cartDelivery = cartShop?.deliveryFeeSom ?? 0;
@@ -584,11 +624,13 @@ export function ShopView({ me, onBanner, reload, onBook, openProductId }: { me: 
       // o'chib ketardi. Endi do'kon nomi va nechta mahsulot yo'qolgani aniq aytiladi.
       onBanner(`🧺 «${cartShop?.name ?? "oldingi do'kon"}» savatingizdagi ${cartCount} ta mahsulot o'chirildi — bir savatga faqat bitta do'kon mahsuloti sig'adi`);
       setCart({ [p.id]: Math.max(1, delta) });
+      setCartSnap({ [p.id]: p });
       setCartShopId(pShop);
       haptic();
       return;
     }
     setCartShopId(pShop);
+    setCartSnap((s) => ({ ...s, [p.id]: p })); // ro'yxatdan mustaqil ko'rsatish uchun nusxa
     setCart((c) => {
       // AUDIT: zaxiradan ortiq qo'shishga yo'l qo'ymaymiz — aks holda checkout'da server rad
       // etadi va mijoz sababini bilmay qoladi. Server baribir yakuniy hakam, bu faqat oldini olish.
@@ -1265,9 +1307,24 @@ export function ShopView({ me, onBanner, reload, onBook, openProductId }: { me: 
           )}
           {!shopFilter && !searched && catalog.length > 0 && (
             <div className="shop-home-products">
-              <div className="shop-section-title2">{cat ?? "Mahsulotlar"}</div>
+              {/* 🛒 EGA QARORI (2026-07-28): bosh sahifada 4 ta mahsulot YETADI — «qolganini
+                  o'zlari tablarga kirib ko'radi». Ilgari 24 ta chizilardi va ekranning yarmi
+                  tasodifiy mahsulotlar bilan to'lib, kategoriya-bo'limlari pastda ko'rinmay
+                  qolardi. Kategoriya TANLANGANDA esa cheklov yo'q — o'sha bo'limning to'liq
+                  ro'yxati (serverdan) ko'rsatiladi. */}
+              <div className="shop-section-head2">
+                <div className="shop-section-title2">{cat ?? "Mahsulotlar"}</div>
+                {!cat && catalog.length > HOME_PRODUCT_PREVIEW && (
+                  <button
+                    className="shop-section-all"
+                    onClick={() => { haptic(); document.querySelector(".bj-groups-wrap")?.scrollIntoView({ behavior: "smooth", block: "start" }); }}
+                  >
+                    Bo&apos;limlar ›
+                  </button>
+                )}
+              </div>
               <div className="shop-tile-grid home">
-                {catalog.slice(0, 24).map((p) => (
+                {(cat ? catalog : catalog.slice(0, HOME_PRODUCT_PREVIEW)).map((p) => (
                   <StoreTile key={p.id} p={p} onOpen={openProduct} onFav={toggleFav} />
                 ))}
               </div>
