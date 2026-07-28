@@ -4131,3 +4131,53 @@ Isbot (jonli): mavjud asset `200 · immutable` · yo'q asset `404 · no-store` �
 `200 · no-cache` · app/admin ochiladi · `/health` ok. Zaxira: `/root/Caddyfile.backup-2026-07-28`.
 
 **Holat:** hammasi jonli. Ega build shtampini telefonda tasdiqladi («ha shunday chiqopti»).
+
+---
+
+## §68 — 🔔 V4: HAYOT-SIKLI PUSH'LARI (`mktlife`, DARK) · 2026-07-28
+
+**DoD:** `BIRJOY_V4_DOD.md`.
+
+### Avval tekshirdim: nima ALLAQACHON bor
+`bot/market.ts:325-375` — buyurtma holati o'zgarganda xaridorga push **allaqachon boradi**
+(✅ qabul / 🚚 yo'lda / ✔ yetkazildi / 😔 rad + tanga qaytgani), sotuvchi bergan **ETA** ham.
+Javobsiz buyurtma avto-yopiladi (`mktexpire`). Ya'ni **tranzaksion hayot-sikl yopilgan** — qayta
+qurilmadi.
+
+### Shu bosqichda qurilgani
+| # | Qachon | Nima |
+|---|---|---|
+| V4.1 | Mijoz qidirgan, topilmagan (`MarketDemand`), keyin o'sha mahsulot paydo bo'lgan | «🔎 Siz qidirgan «X» endi bor» + mahsulot kartasi |
+| V4.2 | ❤️ bosilgan mahsulotga oxirgi 48 soatda chegirma qo'yilgan | «💥 Sevimlingiz arzonlashdi — N%» + karta |
+
+Xabar = bir qatorli sabab + **mavjud** `sendProductCard` (rasm, narx, «Ochish» deep-link).
+
+**⛔ Savat-tashlab-ketish push'i ATAYLAB YO'Q** — savat faqat mijoz qurilmasida, server uni
+bilmaydi. Serverga saqlash = yangi API + jadval, alohida tiket. Yo'q narsani "bor" demaslik uchun
+kodda ham, DoD'da ham ochiq yozildi.
+
+**Spamga qarshi:** bayroq `mktlife` **DEFAULT_OFF** · faqat 09:00–21:00 Toshkent · bir a'zoga
+**kuniga 1 ta** · bir (a'zo, mahsulot) juftligiga **bir marta** (AppState marker) · tick'da ko'pi
+bilan 20 ta · faqat faol+zaxirali mahsulot · **yangi poller yo'q** (15-daqiqalik tick'ga ulandi).
+Marker faqat yuborish muvaffaqiyatli bo'lgach qo'yiladi.
+
+### ⚠️ Jonli simulyatsiya TO'RT marta xato ushladi (bayroq yoqilmasdan OLDIN)
+`planLifecyclePushes()` hech narsa yubormaydi va marker qo'ymaydi, shuning uchun jonli bazada
+xavfsiz sinaldi. Har yugurishda mantiq yaxshilandi:
+
+| # | Xato | Misol | Tuzatish |
+|---|---|---|---|
+| 1 | `includes()` so'z ichidan topardi | «Rus»→"Adrenaline **Rus**h" · «Kola»→"Sho**kola**dli" · «Top»→"BEL**TOP**" · «kul»→"Ger**kul**es" | so'z-chegarali moslik + min 4 harf |
+| 2 | apostrof so'zni bo'lardi | «O'g'il bolalar»→"Bolalar suti" | apostrof so'z ichida qoladi |
+| 3 | apostrofning 3 varianti bilinardi | o'sha moslik U+2018 bilan qaytdi | **olti** variant normalizatsiya |
+| 4 | umumiy sifat-so'zlar | «Arzon b»→"BAGIMA SERIY ARZONI" | stop-ro'yxat (arzon/yangi/katta/…) |
+
+**Natija:** 8 ta rejadan → **3 ta**, uchalasi ham to'g'ri: «Pepsi»→Pepsi · «Tova»→"PIZZA PAN
+TOVALARIMIZ" · «Ichimlik»→"Ichimlik suvi". Yolg'on moslik **0**.
+
+**Isbot:** `pnpm -r typecheck` 4/4 · jonli dry-run: bayroq OFF → `0 push` (K1) · sokin soat 03:00
+→ `quiet=true, 0` (K2) · bir a'zoga 1 tadan ko'p emas (K3) · 3 ≤ 20 (K5) · faol/zaxirasiz mahsulot
+rejada 0 ta (K6) · `/health` ok. Manba: 30 kunlik «topilmadi» qidiruvlari **70 ta**, ❤️ **6 ta**.
+
+**Holat:** `ready for verification` — kod jonli, **bayroq hali OFF**. Ega QABUL bergach
+`tsx src/scripts/setFlag.ts mktlife on` bilan yoqiladi va birinchi kun push soni o'lchanadi (K9).
