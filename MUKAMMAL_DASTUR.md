@@ -158,6 +158,35 @@ Uzilgan mobil tarmoqda bu 1 soniyalik xatoni **15 soniyalik muzlashga** aylantir
 
 ---
 
+## 5b. DARVOZALANGAN — o'chirilmadi, lekin hozir emas
+
+Loyihaning o'z GATE falsafasi (Founder Bible §17): katta g'oya rad etilmaydi, unga **shart**
+qo'yiladi. Kod qoladi, bayroq **OFF** bo'ladi — shunda bazadagi bayroq haqiqatni aytadi.
+
+### `livinghome` — xaritali AI-uy (`home.tsx`, 177 qator) · bayroq OFF qilindi 2026-07-28
+
+**Nima bo'lgan:** 2026-07-23 da `ce9ba6a` (UY_REDESIGN) yangi uy ekranini olib keldi va renderni
+`newhome ? NewUyView : livinghome ? LivingHome : UyView` deb yozdi. `newhome` o'sha kuni yoqilgan
+va shundan beri ON — ternary uni BIRINCHI tekshirgani uchun `LivingHome` chizilishi uchun `newhome`
+o'chirilgan bo'lishi kerak edi. Hech qachon bo'lmagan. Ya'ni **5 kun davomida** bazada
+`feature:livinghome = on` deb turgan, kod esa unga hech qachon yetib bormagan — bayroq yolg'on
+gapirgan. `newhome` olib tashlanganda bu ko'rinib qoldi (LivingHome'ni chaqiradigan yagona joy
+o'sha ternary edi).
+
+**Qaror (ega, 2026-07-28):** kod qoladi, bayroq OFF. Qaytarish sharti: uy ekraniga xarita kerak
+bo'lsa — lekin uni `LivingHome` sifatida emas, `NewUyView` ichiga qism sifatida olib kirish
+(hozirgi uy ekrani QABUL qilingan, uni almashtirmaymiz).
+
+### `intercity` — shaharlararo o'rin band qilish (8 jadval, 0 buyurtma) · bayroq allaqachon OFF
+
+**Foydali, lekin hozir emas:** (1) tugallanmagan — `testCrashGuards` D4 topdi: mijoz bekor qilgach
+o'sha reysga qayta yozila olmaydi (`already_booked`); (2) boshqa operatsiya — haydovchi ro'yxati,
+marshrut, komissiya qarzi, qaytarish; (3) fokus — bozorda 6 do'kon bor, uchinchi jabha ochish
+sekinlashtiradi.
+
+**Qaytarish sharti:** bozor **50 do'kon / kuniga 30 buyurtma** ga yetganda. Ochishdan OLDIN D4
+xatosi tuzatilishi shart.
+
 ## 6. Doimiy qoidalar (CLAUDE.md ga qo'shiladi)
 
 1. **Bayroq vaqtinchalik.** QABUL'dan 2 hafta ichida bayroq ham, eski shox ham o'chadi.
@@ -196,3 +225,14 @@ Uzilgan mobil tarmoqda bu 1 soniyalik xatoni **15 soniyalik muzlashga** aylantir
 1. **Intercity** — rejada bormi yoki o'chiramizmi?
 2. Qaysi bayroqlar QABUL qilingan deb hisoblanadi (yuqoridagi 8 talik ro'yxat to'g'rimi)?
 3. P0 dan boshlaymizmi, yoki boshqa tartib?
+8. **Bayroqni olib tashlashdan OLDIN server darvozalarini sana.**
+   `grep -rn 'featureOn("<flag>")' packages/server/src | grep -v /scripts/`
+   - **1 ta** (faqat `/api/me` payload) → UI-ayrilishi, bu qarz, **o'chiriladi**.
+   - **2+ ta** (xizmat qatlamida) → bu **kill-switch**, avariyada deploysiz o'chirish yo'li,
+     **QOLDIRILADI**. CLAUDE.md: "Har mexanika kill-switch flag bilan."
+   2026-07-28 da shu qoidasizlik tufayli `shop`/`restoran`/`xizmatlar`/`bazarcart` ning mijoz
+   darvozalari olib tashlangan edi — yarim ishlaydigan kill-switch umuman yo'qidan yomonroq,
+   chunki ishlayotgandek ko'rinadi. Qaytarildi.
+9. **Yoqilgan bayroq ishlayapti degani emas.** Yangi ekran eskisining OLDIGA qo'yilsa, eskisining
+   bayrog'i ON qolib, kod unga hech qachon yetmasligi mumkin (`livinghome` 5 kun shunday turdi).
+   Yangi shox qo'shganda eskisining bayrog'i O'SHA commit'da OFF qilinadi yoki o'chiriladi.
