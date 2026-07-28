@@ -2,6 +2,7 @@
 // tokens.css'dagi --bj-* dan (inline-stil TAQIQ, dinamik qiymatlargina istisno). Animatsiya faqat
 // transform/opacity; global reduced-motion kill-switch avtomatik qamrab oladi.
 import type { ReactNode } from "react";
+import { MARKET_GROUPS } from "@t1067/shared";
 import { Icon } from "../icons";
 
 /* ── 🎠 kategoriya-karusel (Uzum-referens: pill + 44px ikonka-rasm) ───────────────────────────── */
@@ -10,6 +11,42 @@ export interface BjCategory {
   name: string;
   emoji: string;
   iconUrl?: string | null; // admin yuklagan rasm (file_id pipeline orqali API-URL); yo'q → emoji
+}
+
+export interface BjGroupCat { slug: string; name: string; count?: number; iconUrl: string | null }
+
+// 🗂 «Barcha bo'limlar» — guruhlangan rangli kafellar (ega tanlovi «B variant», 2026-07-28).
+// Tepadagi dumaloq karusel TEZ o'tish uchun (eng ko'p ishlatiladigan 6-7 kategoriya), bu esa
+// TO'LIQ katalog: 39 kategoriya 10 guruhga bo'linadi, har guruh o'z rangida. Rang bezak emas —
+// mijoz uni belgi sifatida eslab qoladi (yashil = sabzavot-meva, ko'k = sut, qizil = go'sht).
+// Mahsuloti YO'Q kategoriya ko'rsatilmaydi: bo'sh javonni ko'rsatish ishonchni yo'qotadi.
+export function BjCategoryGroups({ cats, active, onPick }: { cats: BjGroupCat[]; active?: string | null; onPick: (name: string) => void }) {
+  const byslug = new Map(cats.map((c) => [c.slug, c]));
+  const groups = MARKET_GROUPS.map((g) => ({ ...g, items: g.slugs.map((s) => byslug.get(s)).filter((c): c is BjGroupCat => !!c && (c.count ?? 0) > 0) })).filter((g) => g.items.length > 0);
+  if (!groups.length) return null;
+  return (
+    <div className="bj-groups">
+      {groups.map((g) => (
+        <div key={g.title} className="bj-group">
+          <div className="bj-group-t">{g.title}</div>
+          <div className="bj-group-tiles">
+            {g.items.map((c) => (
+              <button
+                key={c.slug}
+                className={"bj-gt" + (active === c.name ? " on" : "")}
+                style={{ background: g.bg, color: g.ink }}
+                onClick={() => onPick(c.name)}
+              >
+                <span className="bj-gt-n">{c.name}</span>
+                <span className="bj-gt-c">{c.count} ta</span>
+                {c.iconUrl && <img className="bj-gt-ic" src={c.iconUrl} alt="" loading="lazy" />}
+              </button>
+            ))}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
 }
 
 export function BjCategoryCarousel({ cats, active, onPick }: { cats: BjCategory[]; active?: string | null; onPick: (slug: string | null) => void }) {

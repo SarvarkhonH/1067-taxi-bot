@@ -260,7 +260,7 @@ export async function getMarketHome(preview = false, q?: string, memberId?: numb
     // hech narsa o'zgarmagandek ko'rinardi.
     cats: cats
       .filter((c) => (catCounts.get(c.name) ?? 0) > 0)
-      .map((c) => ({ id: c.id, slug: c.slug, name: c.name, emoji: c.emoji, hasIcon: !!(c.iconFileId || c.iconUrl) })),
+      .map((c) => ({ id: c.id, slug: c.slug, name: c.name, emoji: c.emoji, hasIcon: !!(c.iconFileId || c.iconUrl), count: catCounts.get(c.name) ?? 0 })),
     products: filtered,
   };
 }

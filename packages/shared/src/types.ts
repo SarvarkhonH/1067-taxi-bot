@@ -417,7 +417,26 @@ export interface MarketCategoryView {
   name: string;
   emoji: string;
   hasIcon: boolean;
+  count?: number; // 🗂 2026-07-28: kafelda «16 ta» ko'rsatish uchun (server allaqachon hisoblaydi)
 }
+
+// 🗂 KATEGORIYA GURUHLARI (ega tanlovi «B variant», 2026-07-28): 39 ta kategoriya bitta uzun
+// ro'yxatda ko'z ilg'amas edi. Korzinka naqshi: bo'lim sarlavhasi + rangli kafellar. Guruh rangi
+// mahsulot turiga bog'liq (yashil — sabzavot/meva, ko'k — sut, qizil — go'sht…), ya'ni rang
+// bezak emas, MA'LUMOT: mijoz rangdan bo'limni taniydi.
+export interface MarketGroupDef { title: string; bg: string; ink: string; slugs: string[] }
+export const MARKET_GROUPS: readonly MarketGroupDef[] = [
+  { title: "Sabzavot va mevalar", bg: "#dff3e6", ink: "#14663f", slugs: ["sabzavot", "meva", "yongoq", "dukkakli"] },
+  { title: "Sut, tuxum, pishloq", bg: "#dfeaf7", ink: "#1a4a72", slugs: ["sut", "tuxum", "pishloq"] },
+  { title: "Go'sht va baliq", bg: "#fae0e3", ink: "#8b2230", slugs: ["gosht", "kolbasa", "baliq"] },
+  { title: "Non va shirinlik", bg: "#fbeeda", ink: "#7a4c12", slugs: ["non", "tort", "shirinlik", "muzqaymoq", "asal"] },
+  { title: "Ichimliklar", bg: "#e9e2f7", ink: "#4b3183", slugs: ["ichimlik", "choy", "energetik"] },
+  { title: "Oziq-ovqat mollari", bg: "#dcf0ef", ink: "#14595a", slugs: ["yorma", "makaron", "yog", "ziravor", "konserva", "tayyor"] },
+  { title: "Muzlatilgan", bg: "#dbeef8", ink: "#155e75", slugs: ["muzlatilgan"] },
+  { title: "Bolalar uchun", bg: "#e2f5e9", ink: "#166534", slugs: ["bolalar-ovqat"] },
+  { title: "Uy va gigiyena", bg: "#efe6f6", ink: "#5b21b6", slugs: ["uy-rozgor", "gigiyena", "hayvon", "parfumeriya"] },
+  { title: "Oshxona va texnika", bg: "#e6eaee", ink: "#334155", slugs: ["oshxona-idish", "dasturxon", "maishiy-texnika", "kiyim"] },
+];
 export interface MarketHomeResponse {
   shops: MarketShopView[];
   cats: MarketCategoryView[];

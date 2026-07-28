@@ -46,10 +46,18 @@ const MOCK_MARKET: MarketHomeResponse = {
     { id: 7, name: "Go'sht & Baliq rastasi", open: false, deliveryText: "3 soat", rating: 4.4, hasPhoto: false, deliveryFeeSom: 12000, minOrderTanga: 50000, shopKind: "bozor", mahallaId: null },
     { id: 8, name: "Amazonbabykids", open: true, deliveryText: "Ertaga", rating: 0, hasPhoto: false, deliveryFeeSom: 9000, minOrderTanga: 20000, shopKind: "bozor", mahallaId: null },
   ],
+  // 🗂 2026-07-28: mock kategoriyalar JONLI slug'larga keltirildi (avval "meva-sabzavot" kabi
+  // o'ylab topilgan slug'lar edi) — aks holda «Barcha bo'limlar» guruhlari QA'da hech qachon
+  // chizilmasdi: guruhlash slug bo'yicha ishlaydi, va `count` yo'q kategoriya yashiriladi.
   cats: [
-    { id: 1, slug: "meva-sabzavot", name: "Meva-sabzavot", emoji: "🥕", hasIcon: false },
-    { id: 2, slug: "gosht-baliq", name: "Go'sht-baliq", emoji: "🥩", hasIcon: false },
-    { id: 3, slug: "maishiy-kimyo", name: "Maishiy kimyo", emoji: "🧴", hasIcon: false },
+    { id: 1, slug: "sabzavot", name: "Sabzavotlar", emoji: "🍅", hasIcon: false, count: 16 },
+    { id: 2, slug: "meva", name: "Mevalar", emoji: "🍎", hasIcon: false, count: 15 },
+    { id: 3, slug: "gosht", name: "Go'sht", emoji: "🍗", hasIcon: false, count: 10 },
+    { id: 4, slug: "sut", name: "Sut mahsulotlari", emoji: "🥛", hasIcon: false, count: 10 },
+    { id: 5, slug: "non", name: "Non mahsulotlari", emoji: "🥖", hasIcon: false, count: 9 },
+    { id: 6, slug: "ichimlik", name: "Ichimliklar", emoji: "🥤", hasIcon: false, count: 12 },
+    { id: 7, slug: "uy-rozgor", name: "Uy-ro'zg'or", emoji: "🧼", hasIcon: false, count: 7 },
+    { id: 8, slug: "oshxona-idish", name: "Oshxona idishlari", emoji: "🍳", hasIcon: false, count: 42 },
   ],
   products: MOCK_PRODUCTS,
 };

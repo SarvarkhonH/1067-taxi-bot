@@ -543,3 +543,18 @@
 .app.bjm .shop-seller-ico { background: var(--bj-card); box-shadow: none; }
 .app.bjm .shop-seller-title { color: var(--bj-ink); }
 .app.bjm .shop-seller-sub { color: var(--bj-ink-dim); }
+
+/* ── 🗂 «Barcha bo'limlar»: guruhlangan rangli kafellar (ega tanlovi «B variant», 2026-07-28) ──
+   Rang guruhga bog'liq va JSX'dan keladi (mahsulot turi bo'yicha — yashil sabzavot, ko'k sut,
+   qizil go'sht): mijoz rangdan bo'limni taniydi, ya'ni rang bezak emas, belgi. */
+.bj-groups-wrap { padding: 20px 16px 8px; }
+.bj-groups { display: flex; flex-direction: column; gap: 16px; }
+.bj-group-t { font-size: 13.5px; font-weight: 800; color: var(--bj-ink, #101418); letter-spacing: -.02em; margin-bottom: 8px; }
+.bj-group-tiles { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.bj-gt { position: relative; border: none; border-radius: 16px; padding: 12px 12px 13px; min-height: 76px; text-align: left; display: flex; flex-direction: column; justify-content: flex-start; overflow: hidden; cursor: pointer; transition: transform var(--dur-press) var(--ease-out); }
+.bj-gt:active { transform: scale(0.96); }
+.bj-gt.on { box-shadow: inset 0 0 0 2px currentColor; }
+.bj-gt-n { font-size: 12.8px; font-weight: 750; line-height: 1.25; letter-spacing: -.015em; max-width: 68%; }
+.bj-gt-c { margin-top: 4px; font-size: 11px; font-weight: 700; opacity: .62; }
+/* ikonka SVG-data-URL orqali keladi (rangi ichida) — kafel rangiga moslashishi uchun biroz shaffof */
+.bj-gt-ic { position: absolute; right: 8px; bottom: 7px; width: 34px; height: 34px; object-fit: contain; opacity: .9; }

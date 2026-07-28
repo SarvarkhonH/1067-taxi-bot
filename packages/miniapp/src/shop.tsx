@@ -20,15 +20,14 @@ import {
   type ShopPurchaseView,
   type ShopReviewsResponse,
   type ReferralResponse,
-  type MahallaView,
 } from "@t1067/shared";
 import { api, apiUrl } from "./api";
 import { loadErrorText, prettyName } from "./util";
-import { haptic, hapticSuccess, inviteText, inviteLandingUrl, shareLink, tgGetLocation, tgHasLocationManager } from "./telegram";
+import { haptic, hapticSuccess, inviteText, inviteLandingUrl, shareLink } from "./telegram";
 import { confetti, compressImage } from "./util";
 import { useBackButton } from "./useBackButton";
 import { Button, EmptyState, ProgressBar, Sheet, Skeleton } from "./design/components";
-import { BjCategoryCarousel, BjShopCard, BjMahallaShopCard, BjSection, BjStickyCartBar } from "./design/birjoy"; // 🏪 V1.4+V2 BirJoy-kit
+import { BjCategoryCarousel, BjCategoryGroups, BjShopCard, BjMahallaShopCard, BjSection, BjStickyCartBar } from "./design/birjoy"; // 🏪 V1.4+V2 BirJoy-kit
 import { Icon } from "./icons";
 import "./design/feat/shop.css"; // bu tab ochilgandagina yuklanadi (kritik yo'lda emas)
 
@@ -462,19 +461,10 @@ export function ShopView({ me, onBanner, reload, onBook, openProductId }: { me: 
   const [market, setMarket] = useState<MarketHomeResponse | null>(null);
   const [marketErr, setMarketErr] = useState(false); // AUDIT: bozor-yuklanish xatosi ko'rsatiladi
   // 🏠 V1.5 (Mahalla bozori): "uy" mahalla + safar-rejimi vaqtinchalik override — ikkalasi hech
-  // qachon aralashtirilmaydi, joriy mahalla = travelMahallaId ?? mahallaId ?? null.
-  const activeMahallaId = me.member.travelMahallaId ?? me.member.mahallaId ?? null;
   // ikki bo'lim — o'z mahallasi (shopKind="mahalla" + mos mahallaId) vs butun shahar (qolgani)
-  // §10.2: "hozir ochiq" tezkor-filtr — ikkala ro'yxatga ham qo'llaniladi
-  const [openOnly, setOpenOnly] = useState(false);
-  // shopv2: tasdiqlangan dizaynda "Barchasi / Mahallamga yetkazadi / Butun shahar" kind-filtri
-  // bor edi — mening avvalgi implementatsiyam ikkala bo'limni HAR DOIM ko'rsatardi (filtr yo'q
-  // edi). Legacy (shopv2 OFF) o'zgarishsiz qoladi — "all" bilan xatti-harakat bir xil.
-  const [shopKindFilter, setShopKindFilter] = useState<"all" | "mahalla" | "bozor">("all");
-  const mahallaShops = useMemo(() => (market?.shops ?? []).filter((s) => s.shopKind === "mahalla" && s.mahallaId === activeMahallaId && (!openOnly || s.open)), [market, activeMahallaId, openOnly]);
-  const cityShops = useMemo(() => (market?.shops ?? []).filter((s) => s.shopKind !== "mahalla" && (!openOnly || s.open)), [market, openOnly]);
-  const showMahallaKind = shopKindFilter !== "bozor";
-  const showBozorKind = shopKindFilter !== "mahalla";
+  // 📍 2026-07-28: mahalla-qatlami (kind-filtri, "hozir ochiq", mahalla-ro'yxati) OLIB TASHLANDI —
+  // jonli do'konlarning hammasi "bozor" turida edi. Do'konlar endi bitta ro'yxat.
+  const cityShops = useMemo(() => (market?.shops ?? []).filter((s) => s.shopKind !== "mahalla"), [market]);
   const [shopFilter, setShopFilter] = useState<{ id: number; name: string } | null>(null); // 🏬 do'kon-sahifa (lite)
   // shopv2 + bazar-bosh (store-discovery ekrani, hali shopFilter tanlanmagan): yondashilgan reja
   // "Bozor-bosh (qidiruv+kind-chip+ochiq-filtr+ikki bo'lim)" edi — eski hero-karusel+flat-katalog
@@ -484,55 +474,6 @@ export function ShopView({ me, onBanner, reload, onBook, openProductId }: { me: 
   const homeFlatCatalog = !!shopFilter;
   // Hero-karusel ("barcha do'konlar bo'ylab ajratilgan") hech qachon do'kon-birinchi oqimga mos
   // kelmaydi — na bazar-bosh'da (do'kon-kashfiyoti), na do'kon-profilda (o'sha DO'KONning o'zi
-  const [mahallaList, setMahallaList] = useState<MahallaView[] | null>(null);
-  const [mahallaPickerOpen, setMahallaPickerOpen] = useState(false);
-  const [mahallaQuery, setMahallaQuery] = useState("");
-  const [mahallaLocating, setMahallaLocating] = useState(false);
-  const [travelSuggest, setTravelSuggest] = useState<{ id: number; name: string } | null>(null);
-  const [travelDismissed, setTravelDismissed] = useState(false);
-  const activeMahalla = useMemo(() => mahallaList?.find((m) => m.id === activeMahallaId) ?? null, [mahallaList, activeMahallaId]);
-  useEffect(() => {
-    api.mahallaList().then((r) => setMahallaList(r.mahallas)).catch(() => undefined);
-  }, []);
-  // GPS-eng-yaqin taxmin: birinchi marta bo'lsa jim "uy" sifatida saqlaydi (owner qarori — avtomatik
-  // taxmin + qo'lda o'zgartirish), aks holda farq qilsa bir martalik safar-rejimi banner ko'rsatadi.
-  useEffect(() => {
-    if (shopFilter || !tgHasLocationManager()) return;
-    let stale = false;
-    tgGetLocation().then((loc) => {
-      if (stale || "error" in loc) return;
-      api.mahallaNearest(loc.lat, loc.lng).then((r) => {
-        if (stale || !r.mahalla) return;
-        if (activeMahallaId === null) api.setMahalla(r.mahalla!.id, "home").then(reload).catch(() => undefined);
-        else if (r.mahalla!.id !== activeMahallaId && !travelDismissed) setTravelSuggest({ id: r.mahalla!.id, name: r.mahalla!.name });
-      }).catch(() => undefined);
-    });
-    return () => { stale = true; };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [shopFilter]);
-  const pickMahalla = async (id: number) => {
-    haptic();
-    setMahallaPickerOpen(false);
-    const r = await api.setMahalla(id, "home").catch(() => ({ ok: false }));
-    if (r.ok) { onBanner("📍 Mahalla tanlandi"); reload(); }
-  };
-  const detectMahalla = async () => {
-    setMahallaLocating(true);
-    const loc = await tgGetLocation();
-    setMahallaLocating(false);
-    if ("error" in loc) { onBanner("📍 Joylashuvni aniqlab bo'lmadi"); return; }
-    const r = await api.mahallaNearest(loc.lat, loc.lng).catch(() => ({ mahalla: null }));
-    if (r.mahalla) await pickMahalla(r.mahalla.id);
-    else onBanner("📍 Yaqin mahalla topilmadi");
-  };
-  const acceptTravel = async () => {
-    if (!travelSuggest) return;
-    haptic();
-    await api.setMahalla(travelSuggest.id, "travel").catch(() => undefined);
-    setTravelSuggest(null);
-    reload();
-  };
-  const dismissTravel = () => { haptic(); setTravelDismissed(true); setTravelSuggest(null); };
   // 🏪 D2: do'kon-profil (hero/info-qator/e'lon/hikoya/reyting) — shopFilter tanlanganda yuklanadi.
   const [shopProfile, setShopProfile] = useState<ShopProfileView | null>(null);
   const [shopProfileReviews, setShopProfileReviews] = useState<ShopReviewsResponse | null>(null);
@@ -981,18 +922,10 @@ export function ShopView({ me, onBanner, reload, onBook, openProductId }: { me: 
         </div>
       </div>
 
-      {/* shopv2: mockup'dagi "📍 Koson" shahar-qatori. Mockup'da bu statik matn, lekin bizda
-          mahalla-tanlash HAQIQIY funksiya — shuning uchun ko'rinishi mockup bilan AYNAN bir xil
-          qoladi (o'sha o'lcham/rang/joylashuv), faqat bosilganda mahalla-tanlagich ochiladi.
-          Shu bilan alohida "mahalla-chip" (mockup'da yo'q) butunlay olib tashlandi. */}
-      {/* AUDIT: "Koson" — shahar nomi, sozlama emas edi; mahallasi yo'q mijoz nima bosishini
-          bilmasdi. Endi nomlangan CTA + karet, ya'ni bosiladigan boshqaruvga o'xshaydi. */}
-      {!shopFilter && (
-        <button className="shop-city-label" onClick={() => { haptic(); setMahallaPickerOpen(true); }} aria-label="Mahallani o'zgartirish">
-          <Icon name="pin" size={12} /> {activeMahalla?.name ?? "Mahallani tanlang"}
-          <span className="shop-city-label-caret">▾</span>
-        </button>
-      )}
+      {/* 📍 MAHALLA OLIB TASHLANDI (ega, 2026-07-28): jonli 7 do'konning HAMMASI «butun shahar»
+          turida edi — mahalla do'koni 0 ta. Ya'ni bu qatlam hech kimga xizmat qilmay, ekranning
+          eng qimmatli joyini (qidiruvdan yuqori) egallab turardi. Server API va 39 ta mahalla
+          yozuvi bazada TEGILMASDAN qoldi — qaytarish bir kunlik ish. */}
       {/* shopv2: qidiruv FAQAT bosh-sahifada — mockup'ning do'kon-sahifasida qidiruv-qutisi yo'q */}
       {!shopFilter && (
         <div className={"shop-search-wrap" + " v2"}>
@@ -1220,15 +1153,6 @@ export function ShopView({ me, onBanner, reload, onBook, openProductId }: { me: 
           {/* ── 🏠 V1.5: mahalla-chip. shopv2'da YO'Q — mockup'da alohida chip yo'q, mahalla-tanlash
               yuqoridagi "📍 Koson" qatoriga ko'chirildi (aynan mockup ko'rinishi). ── */}
 
-          {!shopFilter && travelSuggest && (
-            <div className="bj-travel-banner">
-              <span>Hozir <b>{travelSuggest.name}</b> mahalladasiz — shu yerdagi do&apos;konlarni ko&apos;rsataymi?</span>
-              <div className="bj-travel-actions">
-                <button className="bj-travel-yes" onClick={acceptTravel}>Ha</button>
-                <button className="bj-travel-no" onClick={dismissTravel}>Yo&apos;q</button>
-              </div>
-            </div>
-          )}
           {/* ── 🏪 V1.4 BirJoy: kategoriya-KARUSEL (Uzum-referens) — pastdagi flat-katalogni filtrlaydi,
               shopv2 bazar-bosh'da flat-katalog o'zi yashirin bo'lgani uchun bu ham yashirin ── */}
           {!shopFilter && market && market.cats.length > 0 && (
@@ -1260,88 +1184,25 @@ export function ShopView({ me, onBanner, reload, onBook, openProductId }: { me: 
           {/* shopv2: tasdiqlangan dizayndagi "Barchasi / Mahallamga yetkazadi / Butun shahar"
               kind-filtri — bitta gorizontal-scroll qatorda "Hozir ochiq" bilan birga (mockup'da
               ham aynan shu tartibda). Legacy (shopv2 OFF)'da eski yagona "Hozir ochiq" chip qoladi. */}
-          {!shopFilter  && market && (mahallaShops.length > 0 || cityShops.length > 0 || openOnly) && (
-            <div className="shop-kind-row">
-              {([["all", "Barchasi"], ["mahalla", "Mahallamga yetkazadi"], ["bozor", "Butun shahar"]] as const).map(([key, label]) => (
-                <button key={key} className={"shop-kind-chip" + (shopKindFilter === key ? " on" : "")} onClick={() => { haptic(); setShopKindFilter(key); }}>
-                  {label}
-                </button>
-              ))}
-              <button className={"shop-kind-chip icon" + (openOnly ? " on" : "")} onClick={() => { haptic(); setOpenOnly((v) => !v); }}>
-                <Icon name="bolt" size={11} /> Hozir ochiq
-              </button>
-            </div>
-          )}
+          {/* 🔀 FILTR QATORI OLIB TASHLANDI (ega, 2026-07-28): «Barchasi · Mahallamga yetkazadi ·
+              Butun shahar · Hozir ochiq» — to'rt tugma, biri ham kerak emas edi (mahalla do'koni
+              0 ta). Ular kategoriya-karusel bilan bir ekranda ikkita raqobatlashuvchi filtr-qator
+              hosil qilardi — eganing «tartibsiz» degani shundan. */}
           {/* §10.2: "hozir ochiq" tezkor-filtr — do'kon-rail ustida, kategoriya-karuseldan keyin */}
 
           {/* shopv2: tasdiqlangan dizaynda mahalla-bo'lim = GORIZONTAL 148px kartalar (rasm-qopqoq
               +katta bosh-harf+"Mahallangiz" belgisi), sarlavha emoji-siz "Mahallamga yetkazadi".
               Mening avvalgi implementatsiyam legacy V1.5 VERTIKAL to'liq-kenglikdagi "qo'shni"
               kartani ishlatardi — bu mockup bilan eng katta joylashuv-farqi edi. */}
-          {!shopFilter  && showMahallaKind && market && activeMahallaId !== null && mahallaShops.length > 0 && (
-            <div className="shop-mah-wrap">
-              <div className="shop-section-title2">Mahallamga yetkazadi</div>
-              <div className="shop-mah-row">
-                {mahallaShops.map((s) => (
-                  <button key={s.id} className="shop-mah-card" onClick={() => { haptic(); setShopFilter({ id: s.id, name: s.name }); setCat(null); }}>
-                    <div className="shop-mah-cover">
-                      {s.hasPhoto ? <img src={apiUrl(`/api/shop/shop-photo/${s.id}`)} alt="" loading="lazy" /> : <span className="shop-mah-initial">{s.name.trim().charAt(0).toUpperCase()}</span>}
-                      <span className="shop-mah-badge">Mahallangiz</span>
-                    </div>
-                    <div className="shop-mah-name">{s.name}</div>
-                    <div className="shop-mah-meta">
-                      <span className={"bj-open-dot" + (s.open ? "" : " closed")} />
-                      <span>{s.open ? "Ochiq" : "Yopiq"}</span>
-                      {s.rating > 0 && <span className="shop-mah-rating">· ★{s.rating.toFixed(1)}</span>}
-                    </div>
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
           {/* 🏠 V1.5 (legacy, shopv2 OFF): kattaroq "qo'shni" karta + hikoya-parcha + haqiqiy
               ijtimoiy-signal (ega: "oddiy online do'kondan farq qilmayapti" fikriga javob) */}
 
-          {/* shopv2: mockup'da bo'sh mahalla-bo'limi UMUMAN ko'rsatilmaydi (showMahallaSection =
-              mahallaStores.length > 0). Ega skrinshotda ko'rsatdi: katta "birinchi bo'ling!" bloki
-              butun ekranni egallab, haqiqiy do'konlarni pastga surib yuborardi. Endi u FAQAT
-              foydalanuvchi ataylab "Mahallamga yetkazadi" filtrini tanlaganda chiqadi — aks holda
-              ekran bo'sh qolardi (R4 topgan bug). "Barchasi"/"Butun shahar"da — yashirin. */}
-          {!shopFilter && market && activeMahallaId !== null && mahallaShops.length === 0
-            && shopKindFilter === "mahalla" && (
-            <div className="bj-mahalla-cta">
-              <div className="bj-mahalla-cta-icon">🔔</div>
-              <div className="bj-mahalla-cta-text">{activeMahalla?.name ?? "Bu mahalla"}da hali do&apos;kon yo&apos;q — birinchi bo&apos;ling!</div>
-              <button
-                className="bj-mahalla-cta-btn"
-                onClick={() => {
-                  haptic();
-                  shareLink(BOT_LINK, `🏠 ${activeMahalla?.name ?? "Mahallangiz"}da BirJoy do'kon oching — mahallangizga tez yetkazing! Botga o'ting, /sotuvchi deb yozing.`);
-                }}
-              >
-                📣 Sotuvchi taklif qiling
-              </button>
-            </div>
-          )}
-          {/* R4 topdi (live bug): "Mahallamga yetkazadi" filtri tanlangan, lekin foydalanuvchining
-              uy-mahallasi HALI tanlanmagan bo'lsa (activeMahallaId===null — masalan Telegram
-              joylashuv-ruxsati berilmagan/yo'q) — yuqoridagi ikkala blok ham `activeMahallaId !==
-              null` bilan gated, demak HECH NARSA ko'rsatmasdi: bo'sh, tushuntirishsiz ekran. */}
-          {!shopFilter  && shopKindFilter === "mahalla" && activeMahallaId === null && (
-            <div className="bj-mahalla-cta">
-              <div className="bj-mahalla-cta-icon">📍</div>
-              <div className="bj-mahalla-cta-text">Mahallangizni tanlang — shunda yaqin do&apos;konlarni ko&apos;rsatamiz.</div>
-              <button className="bj-mahalla-cta-btn" onClick={() => { haptic(); setMahallaPickerOpen(true); }}>
-                📍 Mahallani tanlash
-              </button>
-            </div>
-          )}
           {/* shopv2: tasdiqlangan dizaynda "Butun shahar" 2-ustunli GRID (rasm-qopqoq+katta bosh-
               harf+reyting+holat-nuqta) — gorizontal-scroll AVATAR-karta (legacy BjShopCard) emas. */}
           {/* AUDIT TOPDI: `> 1` sharti — agar shaharda FAQAT BITTA do'kon qolsa (yoki "Hozir
               ochiq" filtri bittasini qoldirsa) bo'lim butunlay yo'qolib, ekran bo'sh qolardi.
               shopv2'da `> 0` (legacy `> 1`da qoladi — u yerda pastda flat-katalog ham bor). */}
-          {!shopFilter  && showBozorKind && market && cityShops.length > 0 && (
+          {!shopFilter && market && cityShops.length > 0 && (
             <div className="shop-city-rail-wrap">
               <div className="shop-section-title2">Butun shahar bo&apos;ylab</div>
               <div className="shop-city-rail">
@@ -1350,16 +1211,6 @@ export function ShopView({ me, onBanner, reload, onBook, openProductId }: { me: 
                 ))}
               </div>
             </div>
-          )}
-          {/* AUDIT TOPDI: kechqurun "🟢 Hozir ochiq" filtri BARCHA do'konni chiqarib tashlaydi
-              (hammasi yopiq) — ekran butunlay bo'sh qolardi, tushuntirishsiz. */}
-          {!shopFilter  && market && cityShops.length === 0 && mahallaShops.length === 0 && openOnly && (
-            <EmptyState
-              icon="🌙"
-              text="Hozir hamma do'kon yopiq — ertalab qayta kiring"
-              action="Hammasini ko'rsatish"
-              onAction={() => { haptic(); setOpenOnly(false); }}
-            />
           )}
           {/* 🏪 butun-shahar do'konlar — hozirgi (mahalla-oldi) ro'yxat, o'zgarishsiz (shopv2 OFF) */}
 
@@ -1438,6 +1289,19 @@ export function ShopView({ me, onBanner, reload, onBook, openProductId }: { me: 
                   </button>
                 ))}
               </div>
+            </div>
+          )}
+          {/* 🗂 «Barcha bo'limlar» — guruhlangan rangli kafellar (ega tanlovi «B variant»).
+              Tepadagi dumaloq karusel — TEZ o'tish; bu esa TO'LIQ katalog. Mahsuloti bor
+              kategoriyalargina chiziladi (bo'sh javon ko'rsatilmaydi). */}
+          {!shopFilter && !searched && market && market.cats.length > 0 && (
+            <div className="bj-groups-wrap">
+              <div className="shop-section-title2">Barcha bo&apos;limlar</div>
+              <BjCategoryGroups
+                cats={market.cats.map((c) => ({ slug: c.slug, name: c.name, count: c.count, iconUrl: c.hasIcon ? apiUrl(`/api/shop/cat-icon/${c.id}`) : null }))}
+                active={cat}
+                onPick={(name) => { haptic(); setCat(name); window.scrollTo({ top: 0, behavior: "smooth" }); }}
+              />
             </div>
           )}
         </>
@@ -1801,27 +1665,6 @@ export function ShopView({ me, onBanner, reload, onBook, openProductId }: { me: 
         <div className="bj-chat-input-row">
           <input className="bj-chat-input" value={chatText} onChange={(e) => setChatText(e.target.value)} placeholder="Yozing…" maxLength={500} />
           <Button variant="brand" disabled={!chatText.trim() || chatSending} onClick={() => sendChat(chatText)}>Yuborish</Button>
-        </div>
-      </Sheet>
-
-      {/* ── 🏠 V1.5: mahalla-tanlov bottom-sheet ── */}
-      <Sheet open={mahallaPickerOpen} onClose={() => setMahallaPickerOpen(false)}>
-        <h3>📍 Mahallangizni tanlang</h3>
-        <button className="bj-mahalla-gps" onClick={detectMahalla} disabled={mahallaLocating}>
-          {mahallaLocating ? "Aniqlanmoqda…" : "📍 GPS bilan aniqlash"}
-        </button>
-        <div className="shop-search-wrap mt10">
-          <input className="shop-search" placeholder="🔍 Mahalla qidirish…" value={mahallaQuery} onChange={(e) => setMahallaQuery(e.target.value)} />
-          {mahallaQuery && <button className="shop-search-x" onClick={() => setMahallaQuery("")}>✕</button>}
-        </div>
-        <div className="bj-mahalla-list">
-          {(mahallaList ?? [])
-            .filter((m) => m.name.toLowerCase().includes(mahallaQuery.toLowerCase()))
-            .map((m) => (
-              <button key={m.id} className={"bj-mahalla-item" + (m.id === activeMahallaId ? " on" : "")} onClick={() => pickMahalla(m.id)}>
-                {m.name}{m.id === activeMahallaId && " ✓"}
-              </button>
-            ))}
         </div>
       </Sheet>
 
