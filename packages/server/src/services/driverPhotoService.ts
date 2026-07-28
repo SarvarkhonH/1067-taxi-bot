@@ -35,13 +35,25 @@ export async function syncDriverPhotoFromTelegram(memberId: number): Promise<boo
 
 /** Resolve the current CDN URL for a stored Telegram file_id (TTL ~1h, but we ALWAYS resolve fresh
  *  per request so staleness isn't a concern). Returns null on any failure. */
+/** ⚡ file_id → URL KESHI (ega, 2026-07-28 — «do'kon qotmoqda»): har rasm so'rovi avval
+ *  Telegram'ga `getFile` yuborardi, ya'ni 24 kafelli ekran = 24 ta ortiqcha aylanma (Telegram
+ *  serverigacha borib-kelish). `file_path` bir necha soat barqaror, shuning uchun 45 daqiqa
+ *  keshlaymiz — TTL Telegram URL amal qilish muddatidan (~1 soat) qisqa qilib olindi. */
+const fileUrlCache = new Map<string, { url: string; at: number }>();
+const FILE_URL_TTL_MS = 45 * 60_000;
+
 export async function resolveTelegramFileUrl(fileId: string): Promise<string | null> {
   if (!env.BOT_TOKEN) return null;
+  const hit = fileUrlCache.get(fileId);
+  if (hit && Date.now() - hit.at < FILE_URL_TTL_MS) return hit.url;
   try {
     const res = await fetch(`${TG_API}/bot${env.BOT_TOKEN}/getFile?file_id=${encodeURIComponent(fileId)}`);
     const data = (await res.json()) as { ok: boolean; result?: { file_path?: string } };
     if (!data.ok || !data.result?.file_path) return null;
-    return `${TG_API}/file/bot${env.BOT_TOKEN}/${data.result.file_path}`;
+    const url = `${TG_API}/file/bot${env.BOT_TOKEN}/${data.result.file_path}`;
+    if (fileUrlCache.size > 5_000) fileUrlCache.clear(); // xotira chegarasi (driver-photo naqshi)
+    fileUrlCache.set(fileId, { url, at: Date.now() });
+    return url;
   } catch {
     return null;
   }

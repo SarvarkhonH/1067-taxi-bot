@@ -78,13 +78,74 @@ export interface ApiOptions {
  *  Oqim (`pipe`) ishlatiladi — butun faylni xotiraga yig'ish YO'Q (hikoya-videolari MB'lab
  *  bo'lishi mumkin). Upstream yiqilsa 404: mijoz uchun "rasm yo'q" — token oshkor bo'lgandan
  *  ko'ra ming marta yaxshi. */
-async function pipeTelegramFile(res: Response, url: string, maxAgeSec = 3600): Promise<void> {
+/** ⚡ RASM KESHI (ega, 2026-07-28 — «do'kon bo'limi qotmoqda»).
+ *
+ *  O'LCHOV (jonli, curl): kartochka rasmi ~30 KB / to'liq rasm 450-545 KB, HAR BIRI uchun server
+ *  avval Telegram'ga `getFile` so'rovi yuborardi, keyin faylni Telegram'dan ko'chirib olib mijozga
+ *  quyardi — ya'ni bitta ekran (24 kafel) = 24 ta Telegram aylanmasi + 24 ta yuklab olish.
+ *  Bir foydalanuvchi ko'rgan rasmni ikkinchisi so'raganda hammasi BOSHIDAN takrorlanardi.
+ *
+ *  Endi baytlar xotirada saqlanadi (LRU, byudjet bilan): birinchi so'rov Telegram'dan, qolgani
+ *  xotiradan. Token baribir serverdan chiqmaydi (§63 xavfsizlik qoidasi buzilmaydi).
+ *  Katta fayllar (>2 MB — hikoya-videolari) keshlanmaydi va eski oqim yo'lidan ketadi. */
+const IMG_CACHE_BUDGET = 96 * 1024 * 1024; // ~96 MB — VPS'da 6.5 GB bo'sh RAM bor
+const IMG_CACHE_MAX_ITEM = 2 * 1024 * 1024;
+interface ImgEntry { buf: Buffer; type: string; etag: string }
+const imgCache = new Map<string, ImgEntry>(); // Map tartibi = LRU (eskisi boshida)
+let imgCacheBytes = 0;
+function imgCacheGet(key: string): ImgEntry | undefined {
+  const hit = imgCache.get(key);
+  if (!hit) return undefined;
+  imgCache.delete(key); // "yaqinda ishlatilgan" — oxiriga ko'chadi
+  imgCache.set(key, hit);
+  return hit;
+}
+function imgCachePut(key: string, e: ImgEntry): void {
+  if (e.buf.length > IMG_CACHE_MAX_ITEM) return;
+  const prev = imgCache.get(key);
+  if (prev) imgCacheBytes -= prev.buf.length; // qayta yozishda eski hajm hisobdan chiqadi
+  imgCache.set(key, e);
+  imgCacheBytes += e.buf.length;
+  while (imgCacheBytes > IMG_CACHE_BUDGET) {
+    const oldest = imgCache.keys().next().value as string | undefined;
+    if (oldest === undefined) break;
+    imgCacheBytes -= imgCache.get(oldest)?.buf.length ?? 0;
+    imgCache.delete(oldest);
+  }
+}
+function imgEtag(buf: Buffer): string {
+  return `W/"${crypto.createHash("sha1").update(buf).digest("base64url").slice(0, 22)}"`;
+}
+/** Baytlarni ETag bilan yuboradi. `max-age` ATAYLAB 1 soatligicha qoldirildi (eskirish xavfi
+ *  oshmasin — sotuvchi rasmni almashtirsa 1 soatda ko'rinadi). Tezlik ETag'dan keladi: soat
+ *  o'tgach brauzer 500 KB ni QAYTA YUKLAMAYDI, ~200 baytlik 304 oladi. `stale-while-revalidate`
+ *  esa eski nusxani darhol ko'rsatib, yangisini fonda tekshiradi — ekran kutib turmaydi. */
+function sendImage(req: Request, res: Response, buf: Buffer, type: string, maxAgeSec = 3600): void {
+  const etag = imgEtag(buf);
+  res.set("Content-Type", type).set("ETag", etag)
+    .set("Cache-Control", `private, max-age=${maxAgeSec}, stale-while-revalidate=86400`);
+  if (req.headers["if-none-match"] === etag) { res.status(304).end(); return; }
+  res.send(buf);
+}
+async function pipeTelegramFile(res: Response, url: string, maxAgeSec = 3600, req?: Request): Promise<void> {
+  // Kesh kaliti — URL'ning TOKENSIZ qismi (token xotirada ham, logda ham qolmasin)
+  const key = url.replace(/\/file\/bot[^/]+\//, "/file/");
+  const cached = req ? imgCacheGet(key) : undefined;
+  if (cached && req) { sendImage(req, res, cached.buf, cached.type, maxAgeSec); return; }
   try {
     const upstream = await fetch(url, { signal: AbortSignal.timeout(20_000) });
     if (!upstream.ok || !upstream.body) { res.status(404).end(); return; }
-    res.set("Content-Type", upstream.headers.get("content-type") ?? "application/octet-stream");
-    const len = upstream.headers.get("content-length");
-    if (len) res.set("Content-Length", len);
+    const type = upstream.headers.get("content-type") ?? "application/octet-stream";
+    const len = Number(upstream.headers.get("content-length") ?? 0);
+    // Kichik fayl (rasm) → xotiraga yig'ib keshlaymiz. Katta fayl (video) → eski oqim yo'li.
+    if (req && len > 0 && len <= IMG_CACHE_MAX_ITEM) {
+      const buf = Buffer.from(await upstream.arrayBuffer());
+      imgCachePut(key, { buf, type, etag: imgEtag(buf) });
+      sendImage(req, res, buf, type, maxAgeSec);
+      return;
+    }
+    res.set("Content-Type", type);
+    if (len) res.set("Content-Length", String(len));
     res.set("Cache-Control", `private, max-age=${maxAgeSec}`);
     const { Readable } = await import("node:stream");
     const node = Readable.fromWeb(upstream.body as Parameters<typeof Readable.fromWeb>[0]);
@@ -564,10 +625,10 @@ export function createApiServer(opts: ApiOptions = {}) {
     if (url.startsWith("data:")) {
       const m = /^data:([^;]+);base64,(.*)$/.exec(url);
       if (!m) { res.status(404).end(); return; }
-      res.set("Content-Type", m[1]!).set("Cache-Control", "public, max-age=3600").send(Buffer.from(m[2]!, "base64"));
+      sendImage(req, res, Buffer.from(m[2]!, "base64"), m[1]!);
       return;
     }
-    await pipeTelegramFile(res, url, 3600);
+    await pipeTelegramFile(res, url, 3600, req);
   };
   app.get("/api/shop/photo/:productId", serveShopPhoto);
   app.get("/api/shop/photo/:productId/:n", serveShopPhoto);
@@ -621,10 +682,10 @@ export function createApiServer(opts: ApiOptions = {}) {
     if (url.startsWith("data:")) {
       const m = /^data:([^;]+);base64,(.*)$/.exec(url);
       if (!m) { res.status(404).end(); return; }
-      res.set("Content-Type", m[1]!).set("Cache-Control", "public, max-age=3600").send(Buffer.from(m[2]!, "base64"));
+      sendImage(req, res, Buffer.from(m[2]!, "base64"), m[1]!);
       return;
     }
-    await pipeTelegramFile(res, url, 3600);
+    await pipeTelegramFile(res, url, 3600, req);
   };
   app.get("/api/shop/cat-icon/:id", serveMarketImage("cat"));
   app.get("/api/shop/shop-photo/:id", serveMarketImage("shop"));
@@ -688,7 +749,7 @@ export function createApiServer(opts: ApiOptions = {}) {
     const { resolveTelegramFileUrl } = await import("../services/driverPhotoService");
     const url = await resolveTelegramFileUrl(fileId);
     if (!url) { res.status(404).end(); return; }
-    await pipeTelegramFile(res, url, 3600);
+    await pipeTelegramFile(res, url, 3600, req);
   });
 
   // 💬 C1: mijoz↔do'kon chat (bot-relay — yangi chat-server yo'q, mavjud SupportMsg kengaytirilgan).
@@ -775,10 +836,10 @@ export function createApiServer(opts: ApiOptions = {}) {
     if (url.startsWith("data:")) {
       const m = /^data:([^;]+);base64,(.*)$/.exec(url);
       if (!m) { res.status(404).end(); return; }
-      res.set("Content-Type", m[1]!).set("Cache-Control", "public, max-age=3600").send(Buffer.from(m[2]!, "base64"));
+      sendImage(req, res, Buffer.from(m[2]!, "base64"), m[1]!);
       return;
     }
-    await pipeTelegramFile(res, url, 3600);
+    await pipeTelegramFile(res, url, 3600, req);
   };
   app.get("/api/shop/review-photo/:reviewId", serveReviewPhoto);
   app.get("/api/shop/review-photo/:reviewId/:n", serveReviewPhoto);
@@ -872,10 +933,10 @@ export function createApiServer(opts: ApiOptions = {}) {
     if (url.startsWith("data:")) {
       const m = /^data:([^;]+);base64,(.*)$/.exec(url);
       if (!m) { res.status(404).end(); return; }
-      res.set("Content-Type", m[1]!).set("Cache-Control", "public, max-age=3600").send(Buffer.from(m[2]!, "base64"));
+      sendImage(req, res, Buffer.from(m[2]!, "base64"), m[1]!);
       return;
     }
-    await pipeTelegramFile(res, url, 3600);
+    await pipeTelegramFile(res, url, 3600, req);
   };
   app.get("/api/restoran/photo/:id", serveRestoranPhoto);
   const serveMenuItemPhoto = async (req: Request, res: Response): Promise<void> => {
@@ -885,10 +946,10 @@ export function createApiServer(opts: ApiOptions = {}) {
     if (url.startsWith("data:")) {
       const m = /^data:([^;]+);base64,(.*)$/.exec(url);
       if (!m) { res.status(404).end(); return; }
-      res.set("Content-Type", m[1]!).set("Cache-Control", "public, max-age=3600").send(Buffer.from(m[2]!, "base64"));
+      sendImage(req, res, Buffer.from(m[2]!, "base64"), m[1]!);
       return;
     }
-    await pipeTelegramFile(res, url, 3600);
+    await pipeTelegramFile(res, url, 3600, req);
   };
   app.get("/api/restoran/menuphoto/:id", serveMenuItemPhoto);
 
@@ -928,7 +989,7 @@ export function createApiServer(opts: ApiOptions = {}) {
     const { resolveRavellaStoryMedia } = await import("../services/ravellaStoryService");
     const url = await resolveRavellaStoryMedia(Number(req.params.id));
     if (!url) { res.status(404).end(); return; }
-    await pipeTelegramFile(res, url, 120);
+    await pipeTelegramFile(res, url, 120, req);
   });
   // "order"/"orders" /api/ravella/item/:id bilan TO'QNASHMAYDI (turli segment) — lekin restoran
   // saboqiga ko'ra buyurtma yo'llari baribir katalog-yo'llaridan OLDIN turadi.
@@ -969,7 +1030,7 @@ export function createApiServer(opts: ApiOptions = {}) {
     if (url.startsWith("data:")) {
       const m = /^data:([^;]+);base64,(.*)$/.exec(url);
       if (!m) { res.status(404).end(); return; }
-      res.set("Content-Type", m[1]!).set("Cache-Control", "public, max-age=3600").send(Buffer.from(m[2]!, "base64"));
+      sendImage(req, res, Buffer.from(m[2]!, "base64"), m[1]!);
       return;
     }
     // ⚠️ Telegram file-havolasi ~1 SOATDA eskiradi. 302'ni bir soat keshlash brauzerga eskirgan
@@ -977,7 +1038,7 @@ export function createApiServer(opts: ApiOptions = {}) {
     // yuz berdi: kesh chetlab o'tilganda rasm darhol yuklandi). Shuning uchun YO'NALTIRISH qisqa
     // keshlanadi — rasmning O'ZI baribir Telegram CDN'da keshlanadi, ya'ni tejash yo'qolmaydi.
     // (Xuddi shu naqsh restoran/do'kon/haydovchi-rasm yo'llarida ham bor — alohida tiket.)
-    await pipeTelegramFile(res, url, 120);
+    await pipeTelegramFile(res, url, 120, req);
   };
   app.get("/api/ravella/photo/:id", serveRavellaPhoto("item"));
   // karusel rasmi (galereya) — qopqoqdan farqli, o'z id'si bilan
@@ -988,10 +1049,10 @@ export function createApiServer(opts: ApiOptions = {}) {
     if (url.startsWith("data:")) {
       const m = /^data:([^;]+);base64,(.*)$/.exec(url);
       if (!m) { res.status(404).end(); return; }
-      res.set("Content-Type", m[1]!).set("Cache-Control", "public, max-age=3600").send(Buffer.from(m[2]!, "base64"));
+      sendImage(req, res, Buffer.from(m[2]!, "base64"), m[1]!);
       return;
     }
-    await pipeTelegramFile(res, url, 120);
+    await pipeTelegramFile(res, url, 120, req);
   });
   app.get("/api/ravella/addon-photo/:id", serveRavellaPhoto("addon"));
 
@@ -1119,10 +1180,10 @@ export function createApiServer(opts: ApiOptions = {}) {
     if (url.startsWith("data:")) {
       const m = /^data:([^;]+);base64,(.*)$/.exec(url);
       if (!m) { res.status(404).end(); return; }
-      res.set("Content-Type", m[1]!).set("Cache-Control", "public, max-age=3600").send(Buffer.from(m[2]!, "base64"));
+      sendImage(req, res, Buffer.from(m[2]!, "base64"), m[1]!);
       return;
     }
-    await pipeTelegramFile(res, url, 3600);
+    await pipeTelegramFile(res, url, 3600, req);
   };
   app.get("/api/services/photo/:listingId", serveServicePhoto);
   app.get("/api/services/photo/:listingId/:n", serveServicePhoto);
@@ -1225,10 +1286,10 @@ export function createApiServer(opts: ApiOptions = {}) {
     if (url.startsWith("data:")) {
       const m = /^data:([^;]+);base64,(.*)$/.exec(url);
       if (!m) { res.status(404).end(); return; }
-      res.set("Content-Type", m[1]!).set("Cache-Control", "public, max-age=3600").send(Buffer.from(m[2]!, "base64"));
+      sendImage(req, res, Buffer.from(m[2]!, "base64"), m[1]!);
       return;
     }
-    await pipeTelegramFile(res, url, 3600);
+    await pipeTelegramFile(res, url, 3600, req);
   };
   app.get("/api/elonlar/photo/:adId", serveAdPhoto);
   app.get("/api/elonlar/photo/:adId/:n", serveAdPhoto);
@@ -1685,7 +1746,7 @@ export function createApiServer(opts: ApiOptions = {}) {
     const { resolveDriverPhoto } = await import("../services/driverPhotoService");
     const p = await resolveDriverPhoto(id);
     if (!p) { res.status(404).end(); return; }
-    await pipeTelegramFile(res, p.url, 3600); // ~1 soat — Telegram URL TTL bilan bir xil
+    await pipeTelegramFile(res, p.url, 3600, req); // ~1 soat — Telegram URL TTL bilan bir xil
   });
   app.post("/api/admin/driver-photos/sync", requireAdmin, requireOwner, async (_req, res) => {
     const { syncAllLinkedDriverPhotos } = await import("../services/driverPhotoService");
