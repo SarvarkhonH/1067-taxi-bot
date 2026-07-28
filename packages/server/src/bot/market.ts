@@ -442,8 +442,14 @@ export function registerMarket(bot: Bot): void {
   bot.command("hikoya", async (ctx) => {
     const tg = String(ctx.from?.id ?? "");
     if (!tg) return;
-    const shops = await prisma.marketShop.findMany({ where: { ownerChatId: tg, active: true } });
-    if (!shops.length) { await ctx.reply("Sizda faol do'kon topilmadi. Boshlash uchun: /sotuvchi"); return; }
+    // ⚠️ `active: true` SHARTI OLIB TASHLANDI (2026-07-28): logo do'konni YOQISHDAN OLDIN kerak —
+    // yangi do'kon DARK yaratiladi, ega esa avval logo va mahsulot qo'yib, keyin yoqadi. Eski
+    // shart tufayli yangi do'konga logo qo'yib bo'lmasdi. Ega (OWNER_TG) barcha do'konni ko'radi.
+    const shops = await prisma.marketShop.findMany({
+      where: tg === OWNER_TG ? {} : { ownerChatId: tg },
+      orderBy: [{ active: "desc" }, { id: "asc" }],
+    });
+    if (!shops.length) { await ctx.reply("Sizda do'kon topilmadi. Boshlash uchun: /sotuvchi"); return; }
     if (shops.length === 1) {
       storyAwait.set(tg, shops[0]!.id);
       await ctx.reply(`📹 <b>${esc(shops[0]!.name)}</b> uchun hikoya\n\nVideo yoki rasm yuboring (24 soat mijozlarga ko'rinadi). Izoh qo'shmoqchi bo'lsangiz — yuborayotganda caption qilib yozing.`, { parse_mode: "HTML" });
@@ -471,14 +477,14 @@ Do'koningiz rasmini (logo yoki peshtaxta surati) yuboring — u do'kon kartasida
       return;
     }
     const kb = new InlineKeyboard();
-    for (const sh of shops) kb.text(sh.name, `logo:pick:${sh.id}`).row();
+    for (const sh of shops) kb.text(sh.active ? sh.name : `${sh.name} (yopiq)`, `logo:pick:${sh.id}`).row();
     await ctx.reply("Qaysi do'kon uchun logo qo'yasiz?", { reply_markup: kb });
   });
   bot.callbackQuery(/^logo:pick:(\d+)$/, async (ctx) => {
     await ctx.answerCallbackQuery().catch(() => undefined);
     const tg = String(ctx.from.id);
     const shopId = Number(ctx.match![1]);
-    const shop = await prisma.marketShop.findFirst({ where: { id: shopId, ownerChatId: tg, active: true } });
+    const shop = await prisma.marketShop.findFirst({ where: tg === OWNER_TG ? { id: shopId } : { id: shopId, ownerChatId: tg } });
     if (!shop) return;
     logoAwait.set(tg, shopId);
     await ctx.reply(`🏪 <b>${esc(shop.name)}</b> uchun logo
