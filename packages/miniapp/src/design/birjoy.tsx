@@ -20,7 +20,9 @@ export function BjCategoryCarousel({ cats, active, onPick }: { cats: BjCategory[
         {cats.map((c) => (
           <button key={c.slug} role="tab" aria-selected={active === c.slug} className={`bj-cat${active === c.slug ? " on" : ""}`} onClick={() => onPick(active === c.slug ? null : c.slug)}>
             <span className="bj-cat-ic">{c.iconUrl ? <img src={c.iconUrl} alt="" loading="lazy" onError={(e) => { (e.target as HTMLImageElement).replaceWith(document.createTextNode(c.emoji)); }} /> : c.emoji}</span>
-            {c.name}
+            {/* 3-BOSQICH: nom endi ikonka OSTIDA (Uzum-uslub kafel), shuning uchun alohida element —
+                yalang'och matn tugunini 2 qatorga cheklab bo'lmaydi. */}
+            <span className="bj-cat-l">{c.name}</span>
           </button>
         ))}
       </div>
