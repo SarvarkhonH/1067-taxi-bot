@@ -467,8 +467,15 @@ export function registerMarket(bot: Bot): void {
   bot.command("logo", async (ctx) => {
     const tg = String(ctx.from?.id ?? "");
     if (!tg) return;
-    const shops = await prisma.marketShop.findMany({ where: { ownerChatId: tg, active: true } });
-    if (!shops.length) { await ctx.reply("Sizda faol do'kon topilmadi. Boshlash uchun: /sotuvchi"); return; }
+    // ⚠️ `active: true` SHARTI OLIB TASHLANDI (2026-07-28, ikkinchi urinish): birinchi tuzatish
+    // adashib /hikoya ga tushgan edi, /logo esa eski shart bilan qolgan — shu sabab ega #13/#14
+    // (DARK) va #4 (boshqa sotuvchining ownerChatId'i) do'konlarini ro'yxatda ko'rmadi. Logo
+    // do'konni YOQISHDAN OLDIN kerak. Ega (OWNER_TG) barcha do'konni ko'radi.
+    const shops = await prisma.marketShop.findMany({
+      where: tg === OWNER_TG ? {} : { ownerChatId: tg },
+      orderBy: [{ active: "desc" }, { id: "asc" }],
+    });
+    if (!shops.length) { await ctx.reply("Sizda do'kon topilmadi. Boshlash uchun: /sotuvchi"); return; }
     if (shops.length === 1) {
       logoAwait.set(tg, shops[0]!.id);
       await ctx.reply(`🏪 <b>${esc(shops[0]!.name)}</b> uchun logo
@@ -495,7 +502,9 @@ Rasm yuboring.`, { parse_mode: "HTML" });
     await ctx.answerCallbackQuery().catch(() => undefined);
     const tg = String(ctx.from.id);
     const shopId = Number(ctx.match![1]);
-    const shop = await prisma.marketShop.findFirst({ where: { id: shopId, ownerChatId: tg, active: true } });
+    // `active: true` yo'q: /hikoya endi yopiq do'konni ham ro'yxatlaydi, shart qolsa tugma JIM
+    // qolardi (bosasan — hech narsa bo'lmaydi). Egalik tekshiruvi saqlanadi.
+    const shop = await prisma.marketShop.findFirst({ where: tg === OWNER_TG ? { id: shopId } : { id: shopId, ownerChatId: tg } });
     if (!shop) return; // begona/eski tugma — jim
     storyAwait.set(tg, shopId);
     await ctx.reply(`📹 <b>${esc(shop.name)}</b> uchun hikoya\n\nVideo yoki rasm yuboring (24 soat mijozlarga ko'rinadi).`, { parse_mode: "HTML" });
