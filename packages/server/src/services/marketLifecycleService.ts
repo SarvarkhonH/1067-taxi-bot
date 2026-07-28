@@ -63,11 +63,17 @@ async function putMarker(key: string, value = "1"): Promise<void> {
 
 /** Kim nima olishi kerakligini HISOBLAYDI — hech narsa YUBORMAYDI va marker QO'YMAYDI.
  *  Shu sababli jonli bazada xavfsiz "dry-run" qilsa bo'ladi (K8). */
-export async function planLifecyclePushes(now = new Date()): Promise<{ enabled: boolean; quiet: boolean; pushes: LifecyclePush[] }> {
+export async function planLifecyclePushes(
+  now = new Date(),
+  opts: { ignoreFlag?: boolean } = {},
+): Promise<{ enabled: boolean; quiet: boolean; pushes: LifecyclePush[] }> {
   const enabled = await featureOn("mktlife");
   const hour = tashkentHour(now);
   const quiet = hour < QUIET_FROM || hour >= QUIET_TO;
-  if (!enabled || quiet) return { enabled, quiet, pushes: [] };
+  // `ignoreFlag` — FAQAT tekshiruv skripti uchun: bayroq hali OFF bo'lganda ham "kim nima olardi"
+  // ni ko'rsatadi. Bu funksiya baribir hech narsa YUBORMAYDI va marker QO'YMAYDI, ya'ni
+  // simulyatsiya jonli bazada ham zararsiz. runLifecyclePushes() bu parametrni ISHLATMAYDI.
+  if ((!enabled && !opts.ignoreFlag) || quiet) return { enabled, quiet, pushes: [] };
 
   const dayKey = tashkentDayKey(now);
   const out: LifecyclePush[] = [];

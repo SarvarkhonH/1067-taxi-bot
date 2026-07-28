@@ -19,7 +19,9 @@ async function main(): Promise<void> {
 
   // Hozirgi (yoki kunduzgi) reja
   const noon = new Date(Date.UTC(2026, 6, 28, 9, 0, 0)); // 14:00 Toshkent
-  const plan = await planLifecyclePushes(noon);
+  // ignoreFlag: bayroq hali OFF — lekin mantiq jonli ma'lumotda TO'G'RI ishlayotganini ko'rish
+  // shart (ega bayroqni yoqishdan OLDIN nima ketishini bilishi kerak). Yubormaydi, marker qo'ymaydi.
+  const plan = await planLifecyclePushes(noon, { ignoreFlag: true });
   console.log(`\nKunduzgi reja: enabled=${plan.enabled} · quiet=${plan.quiet} · ${plan.pushes.length} ta push`);
   for (const p of plan.pushes) {
     const prod = await prisma.product.findUnique({ where: { id: p.productId }, select: { name: true, priceTanga: true, active: true, stock: true } });
