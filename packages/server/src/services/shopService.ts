@@ -43,12 +43,17 @@ const PENDING_PER_MEMBER = 3; // anti-spam: at most 3 open orders per rider
  *  116 tasidan faqat ~83 tasi mijozga yetib borardi, ya'ni vitrinasi JIMGINA kesilgan edi.
  *  Global limitni oshirish har ilova-ochilishida yukni oshiradi; o'rniga do'kon ochilganda
  *  `shopId` bo'yicha alohida, chegaralangan so'rov qilinadi. */
-export async function listActiveProducts(preview = false, memberId?: number, shopId?: number): Promise<ShopProductView[]> {
+export async function listActiveProducts(preview = false, memberId?: number, shopId?: number, category?: string): Promise<ShopProductView[]> {
   if (!preview && !(await featureOn("shop"))) return [];
   const rows = await prisma.product.findMany({
-    where: { active: true, stock: { gt: 0 }, ...(shopId ? { shopId } : {}) },
+    where: { active: true, stock: { gt: 0 }, ...(shopId ? { shopId } : {}), ...(category ? { category } : {}) },
     orderBy: [{ sortOrder: "asc" }, { id: "desc" }],
-    take: shopId ? 300 : 100, // do'kon-ko'lamli so'rov cheklangan, shuning uchun kattaroq
+    // 🐞 JONLI XATO (2026-07-28): bosh sahifa 100 ta bilan chegaralangan, kategoriya-filtri esa
+    // MIJOZ TARAFIDA o'sha 100 tadan qidirardi. Bazada 403 faol mahsulot, 32 kategoriya bor edi —
+    // yuborilgan 100 tada faqat 6 kategoriya bo'lgani uchun QOLGAN 26 CHIP BOSILSA EKRAN BO'SH
+    // chiqardi (mijoz «Sabzavotlar»ni bosadi, bazada 16 ta bor, ekranda hech narsa yo'q).
+    // Endi kategoriya ham do'kon kabi SERVERDAN so'raladi va o'z chegarasi bilan keladi.
+    take: shopId || category ? 300 : 100,
   });
   const newCutoff = Date.now() - NEW_BADGE_DAYS * 86400_000;
   // grouped queries → per-product gallery size + top-3 sellers (delivered orders) + 👍/👎 tallies
@@ -169,7 +174,7 @@ async function logMarketDemand(query: string, memberId?: number): Promise<void> 
 /** 🏪 V1.4 (BirJoy): Bozor-bosh payload — do'kon-rail + kategoriya-karusel + server-qidiruv.
  *  q berilsa: OR-contains qidiruv (serviceDirectory naqshi); nol natija → MarketDemand yozuvi
  *  («qidirildi-topilmadi» — egaga qaysi sotuvchini chaqirishni aytadi). */
-export async function getMarketHome(preview = false, q?: string, memberId?: number): Promise<{
+export async function getMarketHome(preview = false, q?: string, memberId?: number, cat?: string): Promise<{
   shops: { id: number; name: string; open: boolean; deliveryText: string | null; rating: number; hasPhoto: boolean; deliveryFeeSom: number; minOrderTanga: number; shopKind: string; mahallaId: number | null; story?: string | null; weeklyOrders?: number }[];
   cats: { slug: string; name: string; emoji: string; hasIcon: boolean; id: number }[];
   products: ShopProductView[];
@@ -185,7 +190,9 @@ export async function getMarketHome(preview = false, q?: string, memberId?: numb
     // mijoz faqat bitta «Aksiya» chipini ko'rdi. Chegara katalogdan kattaroq bo'lishi SHART; bo'sh
     // kategoriyalar quyida baribir filtrlanadi, ya'ni katta take mijozga ortiqcha chip bermaydi.
     prisma.categoryDef.findMany({ where: { active: true }, orderBy: { sortOrder: "asc" }, take: 100 }),
-    listActiveProducts(true), // flag-tekshiruv yuqorida bo'ldi; preview=true — ichki qayta-gate emas
+    // `cat` berilsa — FAQAT o'sha kategoriya (300 tagacha). Bosh sahifada (cat yo'q) avvalgidek
+    // 100 ta: birinchi ekranni og'irlashtirmaydi.
+    listActiveProducts(true, memberId, undefined, cat), // flag-tekshiruv yuqorida bo'ldi
   ]);
   // AUDIT (2026-07-26, bazar hammaga yoqilgan kuni): sotiladigan mahsuloti YO'Q do'kon ham
   // mijoz-qatorida turardi — mijoz bosadi, bo'sh javon ko'radi va bozorga ishonchi qaytmaydi.

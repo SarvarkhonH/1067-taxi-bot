@@ -178,7 +178,15 @@ export const api = {
   // 🛍 tanga shop (feature "shop")
   // shopId berilsa — O'SHA do'konning to'liq vitrinasi (global 100-limit katta do'konni kesardi)
   shopProducts: (shopId?: number) => get<{ products: import("@t1067/shared").ShopProductView[] }>(`/api/shop/products${shopId ? `?shopId=${shopId}` : ""}`),
-  shopMarket: (q?: string) => get<import("@t1067/shared").MarketHomeResponse>(`/api/shop/market${q ? `?q=${encodeURIComponent(q)}` : ""}`), // 🏪 V1.4 BirJoy bozor-bosh
+  // 🏪 V1.4 BirJoy bozor-bosh. `cat` — kategoriya SERVERDA filtrlansin (2026-07-28 xatosi: mijoz
+  // tarafida 100 ta yuklangan ro'yxatdan filtrlanardi va 26 chip bo'sh ekran berardi).
+  shopMarket: (q?: string, cat?: string) => {
+    const qs = new URLSearchParams();
+    if (q) qs.set("q", q);
+    if (cat) qs.set("cat", cat);
+    const t = qs.toString();
+    return get<import("@t1067/shared").MarketHomeResponse>(`/api/shop/market${t ? `?${t}` : ""}`);
+  },
   // 🏠 V1.5 Mahalla bozori
   mahallaList: () => get<{ mahallas: import("@t1067/shared").MahallaView[] }>("/api/mahalla"),
   mahallaNearest: (lat: number, lng: number) => post<{ mahalla: import("@t1067/shared").MahallaView | null }>("/api/mahalla/nearest", { lat, lng }),

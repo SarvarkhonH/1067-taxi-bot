@@ -641,7 +641,7 @@ export function createApiServer(opts: ApiOptions = {}) {
     // memberId endi IXTIYORIY (avval withMember2 mehmonga 404 qaytarardi) — mehmon bozorni ko'radi,
     // faqat shaxsiy bezaklar (sevimli, sodiqlik) bo'sh keladi.
     const memberId = (await getMemberId(res.locals.telegramId as string)) ?? undefined;
-    res.json(await getMarketHome(isAdmin((res.locals.telegramId as string) ?? ""), req.query?.q ? String(req.query.q) : undefined, memberId));
+    res.json(await getMarketHome(isAdmin((res.locals.telegramId as string) ?? ""), req.query?.q ? String(req.query.q) : undefined, memberId, req.query?.cat ? String(req.query.cat).slice(0, 40) : undefined));
   });
   // 🏠 V1.5 (Mahalla bozori): mahalla ro'yxati (picker uchun) + GPS-eng-yaqin taxmin + tanlov saqlash.
   app.get("/api/mahalla", allowGuest, rateLimit(30), async (_req, res) => {

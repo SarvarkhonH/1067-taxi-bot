@@ -283,6 +283,11 @@ export function ShopView({ me, onBanner, reload, onBook, openProductId }: { me: 
   const [err, setErr] = useState(false);
   const [q, setQ] = useState("");
   const [cat, setCat] = useState<string | null>(null); // null = "Hammasi"
+  // 🐞 2026-07-28: kategoriya bosilganda MIJOZ TARAFIDA 100 ta yuklangan ro'yxatdan filtrlanardi.
+  // Bazada 403 faol mahsulot / 32 kategoriya bor edi, yuborilgan 100 tada esa atigi 6 kategoriya —
+  // ya'ni 26 chip bosilsa EKRAN BO'SH chiqardi. Endi kategoriya do'kon kabi SERVERDAN so'raladi.
+  const [catProducts, setCatProducts] = useState<ShopProductView[] | null>(null);
+  const [catLoading, setCatLoading] = useState(false);
   const [sel, setSel] = useState<ShopProductView | null>(null);
   const [step, setStep] = useState<"detail" | "confirm" | "reviews">("detail");
   const [address, setAddress] = useState(() => { try { return localStorage.getItem(LAST_ADDR_KEY) ?? ""; } catch { return ""; } });
@@ -758,14 +763,27 @@ export function ShopView({ me, onBanner, reload, onBook, openProductId }: { me: 
   }, [products, shopFilter]);
   // Amazon/Uzum standarti: bitta VERTIKAL 2-ustunli katalog-grid (gorizontal scroll faqat kichik
   // "tavsiya" qatorlarida) — 100+ mahsulotli kategoriya endi cheksiz eniga tasmaga aylanmaydi.
+  useEffect(() => {
+    if (!cat || shopFilter) { setCatProducts(null); setCatLoading(false); return; }
+    let alive = true;
+    setCatLoading(true);
+    api.shopMarket(undefined, cat)
+      .then((r) => { if (alive) setCatProducts(r.products); })
+      .catch(() => { if (alive) setCatProducts(null); })
+      .finally(() => { if (alive) setCatLoading(false); });
+    return () => { alive = false; };
+  }, [cat, shopFilter]);
+
   const catalog = useMemo(() => {
     // AUDIT: do'kon ochilganda global 100-limit vitrinani kesardi — endi shu do'kon uchun
     // alohida to'liq ro'yxat yuklanadi (`shopCatalog`), kelmaguncha global ro'yxatdan filtrlanadi.
-    let list = shopFilter && shopCatalog ? shopCatalog : (products ?? []);
+    // kategoriya tanlangan va do'kon-rejimida emasmiz → serverdan kelgan TO'LIQ ro'yxat
+    // (kelmaguncha eski ro'yxatdan filtrlab turamiz, ekran sakramasin).
+    let list = shopFilter && shopCatalog ? shopCatalog : (cat && catProducts ? catProducts : (products ?? []));
     if (favOnly) list = list.filter((p) => p.isFav); // 🧡 V2b: sevimlilar-filtr
     if (shopFilter) list = list.filter((p) => p.shopId === shopFilter.id); // 🏬 do'kon-sahifa rejimi
     return cat ? list.filter((p) => p.category === cat) : list;
-  }, [products, shopCatalog, cat, shopFilter, favOnly]);
+  }, [products, shopCatalog, catProducts, cat, shopFilter, favOnly]);
   const searched = useMemo(() => {
     const t = q.trim().toLowerCase();
     if (!t) return null;
@@ -1358,7 +1376,13 @@ export function ShopView({ me, onBanner, reload, onBook, openProductId }: { me: 
               bosiladi — mijoz do'konni ochsa, panjara joyida shunchaki bo'shliq qolardi
               (hech qanday matn yo'q → "ilova buzuq" degan taassurot). */}
           {homeFlatCatalog && (
-            catalog.length === 0 ? (
+            /* Kategoriya serverdan yuklanayotganda skelet — ilgari bu joyda bir zumga BO'SH
+               ekran ko'rinardi (yoki eski ro'yxatning noto'g'ri qismi). */
+            catLoading && !catProducts ? (
+              <div className="shop-tile-grid">
+                {[0, 1, 2, 3].map((i) => <Skeleton key={i} h={230} />)}
+              </div>
+            ) : catalog.length === 0 ? (
               <EmptyState
                 icon="📦"
                 text={cat ? `«${cat}» bo'yicha mahsulot yo'q` : "Bu do'konda hozircha mahsulot yo'q"}
