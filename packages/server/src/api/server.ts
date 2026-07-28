@@ -585,6 +585,19 @@ export function createApiServer(opts: ApiOptions = {}) {
     const shopId = Number(req.query.shopId) || undefined;
     res.json({ products: await listActiveProducts(isAdmin(res.locals.telegramId as string), memberId, shopId) });
   });
+  // 🔗 BITTA MAHSULOT (ega, 2026-07-28 — «100 limitni to'g'irla» zanjirining oxirgi bo'g'ini):
+  // deep-link (`?go=dokon&p=<id>`) mahsulotni MIJOZ XOTIRASIDAGI ro'yxatdan qidirardi; ro'yxat
+  // esa kesilgan edi, ya'ni ulashilgan havola ochilganda hech narsa ochilmasdi (jimgina).
+  // Endi ro'yxatda topilmasa shu yo'ldan aniq so'raladi.
+  app.get("/api/shop/product/:id", allowGuest, rateLimit(60), async (req, res) => {
+    const id = Number(req.params.id);
+    if (!Number.isFinite(id)) { res.status(404).json({ error: "not_found" }); return; }
+    const { listActiveProducts } = await import("../services/shopService");
+    const memberId = (await getMemberId(res.locals.telegramId as string)) ?? undefined;
+    const [p] = await listActiveProducts(isAdmin(res.locals.telegramId as string), memberId, undefined, undefined, [id]);
+    if (!p) { res.status(404).json({ error: "not_found" }); return; }
+    res.set("Cache-Control", "private, max-age=30").json({ product: p });
+  });
   // 🧡 V2b: sevimlilar toggle + ro'yxat
   app.post("/api/shop/fav", requireUser, rateLimit(30), withMember2(async (memberId, req, res) => {
     const { toggleProductFavorite } = await import("../services/shopService");

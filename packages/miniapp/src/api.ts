@@ -178,6 +178,7 @@ export const api = {
   // 🛍 tanga shop (feature "shop")
   // shopId berilsa — O'SHA do'konning to'liq vitrinasi (global 100-limit katta do'konni kesardi)
   shopProducts: (shopId?: number) => get<{ products: import("@t1067/shared").ShopProductView[] }>(`/api/shop/products${shopId ? `?shopId=${shopId}` : ""}`),
+  shopProduct: (id: number) => get<{ product: import("@t1067/shared").ShopProductView }>(`/api/shop/product/${id}`),
   // 🏪 V1.4 BirJoy bozor-bosh. `cat` — kategoriya SERVERDA filtrlansin (2026-07-28 xatosi: mijoz
   // tarafida 100 ta yuklangan ro'yxatdan filtrlanardi va 26 chip bo'sh ekran berardi).
   shopMarket: (q?: string, cat?: string) => {

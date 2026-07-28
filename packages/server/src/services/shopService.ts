@@ -43,17 +43,22 @@ const PENDING_PER_MEMBER = 3; // anti-spam: at most 3 open orders per rider
  *  116 tasidan faqat ~83 tasi mijozga yetib borardi, ya'ni vitrinasi JIMGINA kesilgan edi.
  *  Global limitni oshirish har ilova-ochilishida yukni oshiradi; o'rniga do'kon ochilganda
  *  `shopId` bo'yicha alohida, chegaralangan so'rov qilinadi. */
-export async function listActiveProducts(preview = false, memberId?: number, shopId?: number, category?: string): Promise<ShopProductView[]> {
+export async function listActiveProducts(preview = false, memberId?: number, shopId?: number, category?: string, ids?: number[]): Promise<ShopProductView[]> {
   if (!preview && !(await featureOn("shop"))) return [];
   const rows = await prisma.product.findMany({
-    where: { active: true, stock: { gt: 0 }, ...(shopId ? { shopId } : {}), ...(category ? { category } : {}) },
+    where: { active: true, stock: { gt: 0 }, ...(shopId ? { shopId } : {}), ...(category ? { category } : {}), ...(ids ? { id: { in: ids } } : {}) },
     orderBy: [{ sortOrder: "asc" }, { id: "desc" }],
     // 🐞 JONLI XATO (2026-07-28): bosh sahifa 100 ta bilan chegaralangan, kategoriya-filtri esa
     // MIJOZ TARAFIDA o'sha 100 tadan qidirardi. Bazada 403 faol mahsulot, 32 kategoriya bor edi —
     // yuborilgan 100 tada faqat 6 kategoriya bo'lgani uchun QOLGAN 26 CHIP BOSILSA EKRAN BO'SH
     // chiqardi (mijoz «Sabzavotlar»ni bosadi, bazada 16 ta bor, ekranda hech narsa yo'q).
     // Endi kategoriya ham do'kon kabi SERVERDAN so'raladi va o'z chegarasi bilan keladi.
-    take: shopId || category ? 300 : 100,
+    // ⬆️ EGA (2026-07-28): «bosh lentadagi 100 limitni ham to'g'irla». Global ro'yxat 100 ta
+    // edi — 446 faol mahsulotning 346 tasi mijoz xotirasiga UMUMAN tushmasdi, ya'ni
+    // deep-link, «o'xshash mahsulotlar» va sevimlilar o'sha mahsulotlarni topa olmasdi
+    // (savat va kategoriya-chiplari ham AYNAN shu sababdan buzilgan edi). Endi 300.
+    // `ids` berilganda — aniq so'ralgan satrlar, cheklovsiz (sevimlilar/deep-link).
+    take: ids ? Math.min(ids.length, 300) : 300,
   });
   const newCutoff = Date.now() - NEW_BADGE_DAYS * 86400_000;
   // grouped queries → per-product gallery size + top-3 sellers (delivered orders) + 👍/👎 tallies
@@ -127,9 +132,13 @@ export async function toggleProductFavorite(memberId: number, productId: number,
 export async function listFavoriteProducts(memberId: number, preview = false): Promise<ShopProductView[]> {
   const favs = await prisma.productFavorite.findMany({ where: { memberId }, orderBy: { createdAt: "desc" }, select: { productId: true } });
   if (!favs.length) return [];
-  const ids = new Set(favs.map((f) => f.productId));
-  const all = await listActiveProducts(preview, memberId); // shu preview/flag-qoidasi — do'kon o'chsa sevimlilar ham ko'rinmaydi
-  return all.filter((p) => ids.has(p.id));
+  // 🐞 EGA TOPGAN 100-LIMIT ZANJIRI: ilgari bu yerda GLOBAL ro'yxat (100 ta) olinib, undan
+  // sevimlilar filtrlanardi — ya'ni 100-likka tushmagan mahsulotni ❤ belgilagan mijoz uni
+  // «Sevimlilar»da HECH QACHON ko'rmasdi. Endi aynan sevimli ID'lar so'raladi.
+  const ids = favs.map((f) => f.productId);
+  const rows = await listActiveProducts(preview, memberId, undefined, undefined, ids);
+  const order = new Map(ids.map((id, i) => [id, i])); // sevimliga qo'shilgan tartib saqlanadi
+  return rows.sort((a, b) => (order.get(a.id) ?? 0) - (order.get(b.id) ?? 0));
 }
 
 // 📞 SOTUV-SIGNALI: «qidirildi-topilmadi» yozuvi egaga qaysi sotuvchini chaqirishni aytadi —

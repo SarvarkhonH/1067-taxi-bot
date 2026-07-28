@@ -808,8 +808,14 @@ export function ShopView({ me, onBanner, reload, onBook, openProductId }: { me: 
   useEffect(() => {
     if (!openProductId || deepOpened.current || !products) return;
     const p = products.find((x) => x.id === openProductId);
-    if (p) { deepOpened.current = true; setSel(p); setStep("detail"); setGalleryIdx(0); }
-  }, [openProductId, products]);
+    if (p) { deepOpened.current = true; setSel(p); setStep("detail"); setGalleryIdx(0); return; }
+    // 🔗 Ro'yxatda yo'q (u serverda cheklangan) — mahsulotni ID bo'yicha so'raymiz. Ilgari
+    // ulashilgan havola shunchaki JIMGINA ochilmasdi.
+    deepOpened.current = true;
+    api.shopProduct(openProductId)
+      .then((r) => { setSel(r.product); setStep("detail"); setGalleryIdx(0); })
+      .catch(() => onBanner("Mahsulot topilmadi — sotuvchi uni o'chirgan bo'lishi mumkin"));
+  }, [openProductId, products, onBanner]);
 
   const shareShop = () => {
     haptic();
