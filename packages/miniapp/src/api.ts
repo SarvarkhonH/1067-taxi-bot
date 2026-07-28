@@ -97,7 +97,7 @@ export interface GuestMe {
   flags?: MeResponse["flags"];
 }
 
-async function request<T>(method: string, path: string, body?: unknown, retries = 5): Promise<T> {
+async function request<T>(method: string, path: string, body?: unknown, retries = 2): Promise<T> {
   let lastErr: unknown;
   // ⏳ EVERY call waits for initData, not just /api/me. Telegram Desktop/Web Z fill initData a few
   // hundred ms after the WebView opens; any request that raced ahead of it went out unauthenticated,
@@ -106,7 +106,11 @@ async function request<T>(method: string, path: string, body?: unknown, retries 
   // for /api/shop/products in the access log, 2026-07-26). Resolves instantly once initData is set.
   if (tg && !getInitData()) await waitForInitData();
   let retried401 = false;
-  // Retry network-level failures (Render free-tier cold start can take ~30s to wake).
+  // Retry network-level failures. The old policy — 5 attempts with 1.5/3/4.5/6s waits — was written
+  // for Render's free tier, where a cold instance took ~30s to wake. The VPS never sleeps, so all
+  // that shape does now is turn a one-second blip on a moving phone into a FIFTEEN-second frozen
+  // screen: the user taps, nothing happens, they assume the app is broken and close it. Two attempts
+  // with 400/1200ms cover a genuine transient and give up while the user is still watching.
   for (let attempt = 0; attempt < retries; attempt++) {
     // did THIS attempt carry a signed initData? a 401 despite one is a real auth failure, not a race.
     const sentInitData = !!getInitData();
@@ -133,7 +137,8 @@ async function request<T>(method: string, path: string, body?: unknown, retries 
       lastErr = e;
       const msg = e instanceof Error ? e.message : String(e);
       if (msg === "unauthorized" || /-> \d{3}$/.test(msg)) throw e;
-      await sleep(1500 * (attempt + 1));
+      // no sleep after the LAST attempt — the old loop waited 6s and then threw anyway
+      if (attempt < retries - 1) await sleep(attempt === 0 ? 400 : 1200);
     }
   }
   throw lastErr;
