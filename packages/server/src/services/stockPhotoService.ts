@@ -143,7 +143,16 @@ export async function searchOpenFoodPhoto(term: string): Promise<FoundPhoto | nu
     const res = await fetch(url, { headers: { "User-Agent": UA }, signal: AbortSignal.timeout(10_000) });
     if (!res.ok) return null;
     const d = (await res.json()) as { products?: { product_name?: string; image_front_url?: string }[] };
-    const hit = (d.products ?? []).find((p) => p.image_front_url && p.product_name);
+    // ⚠️ QATTIQ FILTR (jonli dry-run saboqlari, 2026-07-28): OFF matn-qidiruvi «sugar» so'roviga
+    // «KRISPROLLS Complets» (non), «corn oil» ga «Nachos», «white beans» ga «Coffee Beans»
+    // qaytardi — ya'ni mahsulot nomida so'rov so'zi BO'LMASA moslik yolg'on. Endi nomda
+    // so'rovning MA'NOLI so'zlari (3 harfdan uzun) BO'LISHI shart.
+    const need = term.split(" ").filter((w) => w.length > 3).map((w) => w.toLowerCase());
+    const hit = (d.products ?? []).find((p) => {
+      if (!p.image_front_url || !p.product_name) return false;
+      const nm = p.product_name.toLowerCase();
+      return need.length === 0 || need.every((w) => nm.includes(w));
+    });
     if (!hit) return null;
     return { url: hit.image_front_url!, title: hit.product_name!, source: "openfoodfacts", license: "CC BY-SA", credit: `Open Food Facts (CC BY-SA) · ${hit.product_name}` };
   } catch {
@@ -160,9 +169,17 @@ export async function searchOpenversePhoto(term: string): Promise<FoundPhoto | n
     if (!res.ok) return null;
     const d = (await res.json()) as { results?: { title?: string; url?: string; license?: string; provider?: string; creator?: string }[] };
     const words = term.split(" ").filter((w) => w.length > 3);
-    const ok = (r: { title?: string; provider?: string }): boolean =>
-      !!r.provider && GOOD_PROVIDERS.has(r.provider) &&
-      (!words.length || words.some((w) => (r.title ?? "").toLowerCase().includes(w)));
+    // ⚠️ SHOVQIN-SO'ZLAR (jonli dry-run): «buckwheat» so'rovi «Bee atop California buckwheat»
+    // (asalari!) ni, «potato» esa 1899-yilgi dala fotosini qaytargan edi. Bunday hujjatli/tabiat
+    // fotosi mahsulot kartasida hozirgi gradientdan ham yomon ko'rinadi.
+    const NOISE = /(bee|insect|beetle|disease|freckle|pest|farm|field|harvest|plantation|museum|vintage|18\d\d|19\d\d|man|woman|worker|market stall)/i;
+    const ok = (r: { title?: string; provider?: string }): boolean => {
+      const title = (r.title ?? "").toLowerCase();
+      if (!r.provider || !GOOD_PROVIDERS.has(r.provider)) return false;
+      if (NOISE.test(title)) return false;
+      // sarlavhada so'rovning HAR ma'noli so'zi bo'lishi shart (avval "biror biri" edi)
+      return words.length === 0 || words.every((w) => title.includes(w.toLowerCase()));
+    };
     const hit = (d.results ?? []).find((r) => r.url && ok(r));
     if (!hit?.url) return null;
     return {
