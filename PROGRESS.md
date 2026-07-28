@@ -3850,3 +3850,51 @@ javobda `api.telegram.org` **yo'q**, `file` buyrug'i JPEG deydi.
 **⚠️ OCHIQ, EGA BAJARADI:** tuzatish leak'ni to'xtatdi, lekin **allaqachon oshkor bo'lgan tokenni
 bekor qilmaydi**. @BotFather → `/revoke` → yangi token → VPS `/opt/app/.env` da `BOT_TOKEN=`
 almashtirilib `systemctl restart bot1067`. Mavjud `file_id`lar yangi tokenda ham ishlaydi.
+
+---
+
+## §64 — 🫧 DO'KON REDIZAYNI, 2-BOSQICH: MATN RASMDAN TUSHDI · 2026-07-28
+
+**Ega e'tirozi (skrinshotlar bilan):** nom va narx mahsulot RASMI USTIDA, nomlar BOSH HARFDA,
+do'kon kartasi esa bo'sh yashil blok ustida bitta harf.
+
+### 1. Mahsulot kafeli (`StoreTile`) — tuzilma o'zgardi
+Qorong'i gradient (`.shop-tile-grad`) va uning ustidagi matn **olib tashlandi**. Endi: rasm o'z
+1:1 maydonida to'liq ko'rinadi (atrofida 6px neytral nafas — sotuvchi fotolari rang-barang fonli:
+karopka, pol, javon), matn esa shisha tanada — nom (2 qator), «brend · hajm», amber narx + eski
+narx. Rasm ustida faqat **belgi** qoladi: chegirma va ❤️ (qora doira emas, shisha).
+
+### 2. `prettyName()` — faqat ko'rsatish qoidasi
+| Bazada | Ekranda |
+|---|---|
+| `BAK NERJAVEKA XITOY 45-26cm` | Bak nerjaveka xitoy 45×26 cm |
+| `MANTUQAZON VAKALINA 38CM` | Mantuqazon vakalina 38 cm |
+| `Coca-Cola 1.5 L` | **o'zgarmaydi** |
+| `iPhone 15 Pro` | **o'zgarmaydi** |
+
+Bazaga TEGILMAYDI (sotuvchi o'z yozganini ko'radi, qidiruv buzilmaydi). Himoya: bosh harf ulushi
+70% dan past bo'lsa umuman tegilmaydi — aks holda to'g'ri yozilgan nomni buzardik. Kafel/karta/
+mahsulot sarlavhasi/mini-kartada qo'llanildi; savat va buyurtma satrlari **tegilmaydi** (ular
+yozuv — snapshot).
+
+### 3. Do'kon kartasi (`CityTile`) — vitrina
+Nomdan hisoblangan **barqaror** gradient muqova (bir do'kon har doim bir xil rangda), yarim chiqib
+turgan monogram, «Ochiq/Yopiq» shisha chipi, meta qatori (★ reyting · 🚚 va'da). Logo kelganda
+`<img>` gradientni qoplaydi — boshqa hech narsa o'zgartirilmaydi. Ikki chaqiruv joyi bitta
+komponentga birlashtirildi.
+
+**Isbot:** `pnpm -r typecheck` 4/4 **0 xato** · build o'tdi · `#shopdemo`: 7 kafel, nom
+`rgb(16,20,24)` va `text-shadow: none` (ya'ni rasm ustida emas), narx amber `rgb(180,83,9)`,
+«Coca-Cola · 1.5 L» spec qatori, `.shop-tile-grad` **0 ta** qoldi; do'kon kartasida monogram «KM»
++ «Ochiq» + «★ 4.5 · 🚚 1 kun ichida» · 375px enda gorizontal scroll **yo'q**, kafel 166×255,
+rasm 154×154, matn kesilmagan, konsolda 0 xato · `prettyName` 9 nomda sinaldi ·
+**jonli:** VPS `7a8335d`, `app.birjoy.online` → `index-DXbClZLM.js` → `shop-Cuf0nGG-.js`
+(`shop-tile-spec` bor) + `shop-B5pilOPN.css` (`shop-city-tile-mono` bor), `/health` ok.
+
+**Yo'l-yo'lakay xato (o'zim qildim, o'zim tuzatdim):** JSX blokini skript bilan almashtirganda
+`</button>` ni noto'g'ri topib, «Hozir hamma do'kon yopiq» EmptyState blokini o'chirib qo'ygandim.
+Typecheck darhol ushladi; blok HEAD nusxasidan aynan tiklandi (isbot: `git diff` da o'sha bo'lim
+faqat `CityTile` almashuvini ko'rsatadi).
+
+**Holat:** `ready for verification` — ega telefonda ko'rib QABUL beradi.
+Keyingisi: 3-bosqich (kategoriya ikonkalari) va 4-bosqich (mahsulot sahifasi + skeletonlar).
