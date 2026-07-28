@@ -1445,7 +1445,7 @@ export function ShopView({ me, onBanner, reload, onBook, openProductId }: { me: 
             <div className="shop-trust">
               <div><span>🚚</span>{sel.deliveryText ?? "Sotuvchi aytadi"}</div>
               <div><span>✅</span>Eshikda tekshirasiz</div>
-              <div><span>📞</span>Sotuvchi qo&apos;ng&apos;iroq qiladi</div>
+              <div><span>📞</span>Sotuvchi qo&apos;ng&apos;iroq<br />qiladi</div>
             </div>
             <ProductSpecs p={sel} />
             <button className="shop-reviews-entry" onClick={() => { haptic(); loadReviews(sel.id); setStep("reviews"); }}>
