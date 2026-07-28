@@ -526,6 +526,10 @@ model ProductPhoto {
   fileId      String?
   url         String?
   thumbFileId String? // ~320px Telegram size — card/mini/hero lists load this, NOT the full photo
+  // ⚡ ~800px tier (ega, 2026-07-28): detal/galereya AVVAL to'liq rasmni berardi — jonli o'lchov
+  // 450-545 KB. Telegram sendPhoto size-ladder'ida ~800px pog'onasi allaqachon bor edi, biz uni
+  // saqlamagan ekanmiz. `backfillProductMid.ts` shuni to'ldiradi; yo'q bo'lsa fileId'ga qaytamiz.
+  midFileId   String?
   sortOrder   Int     @default(0)
 
   @@index([productId, sortOrder])

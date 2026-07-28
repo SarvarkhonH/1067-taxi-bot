@@ -1215,7 +1215,14 @@ export async function resolveProductPhoto(productId: number, idx = 0, small = fa
   const { resolveTelegramFileUrl } = await import("./driverPhotoService");
   if (pick) {
     if (pick.url) return pick.url;
-    const fid = (small && pick.thumbFileId) || pick.fileId; // small → ~320px tier; legacy rows fall back to full
+    // ⚡ Tier tanlovi (ega, 2026-07-28 — «rasmni 800px ga kichraytir»):
+    //   small (?s=1, kartochka) → ~320px · aks holda (detal/galereya/lightbox) → ~800px.
+    // To'liq rasm (1280px+, 450-545 KB) endi HECH QAYERDA ishlatilmaydi — telefon ekranida
+    // farqi ko'rinmaydi, lekin har ochilishda yarim megabayt yeyardi. midFileId yo'q eski
+    // satrlar avvalgidek fileId'ga tushadi (backfill tugaguncha ishlashda uzilish bo'lmaydi).
+    const fid = small
+      ? (pick.thumbFileId ?? pick.midFileId ?? pick.fileId)
+      : (pick.midFileId ?? pick.fileId);
     if (fid) return resolveTelegramFileUrl(fid);
     return null;
   }
