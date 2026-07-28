@@ -66,6 +66,35 @@ export interface ApiOptions {
   notifyRavellaCustomer?: (notice: { memberId: number; itemName: string; newStatus: string; cashbackSom?: number; reason?: string }) => Promise<void>;
 }
 
+/** 🔐 Telegram fayl-baytlarini SERVER orqali uzatish.
+ *
+ *  XAVFSIZLIK (2026-07-28, jonli topildi): bu funksiyagacha har rasm-endpoint
+ *  `res.redirect(302, <telegram file URL>)` qilardi, o'sha URL esa `…/file/bot<BOT_TOKEN>/…`
+ *  ko'rinishida — ya'ni **BOT_TOKEN har rasm so'rovida brauzerga qaytardi**. Do'kon rasmlari
+ *  ochiq (mehmonga ham) bo'lgani uchun tokenni istalgan odam bitta `curl -I` bilan olardi va
+ *  bot ustidan to'liq nazoratga ega bo'lardi (barcha foydalanuvchiga xabar, webhook o'g'irlash).
+ *  Endi baytlar biz orqali oqadi va token serverdan chiqmaydi.
+ *
+ *  Oqim (`pipe`) ishlatiladi — butun faylni xotiraga yig'ish YO'Q (hikoya-videolari MB'lab
+ *  bo'lishi mumkin). Upstream yiqilsa 404: mijoz uchun "rasm yo'q" — token oshkor bo'lgandan
+ *  ko'ra ming marta yaxshi. */
+async function pipeTelegramFile(res: Response, url: string, maxAgeSec = 3600): Promise<void> {
+  try {
+    const upstream = await fetch(url, { signal: AbortSignal.timeout(20_000) });
+    if (!upstream.ok || !upstream.body) { res.status(404).end(); return; }
+    res.set("Content-Type", upstream.headers.get("content-type") ?? "application/octet-stream");
+    const len = upstream.headers.get("content-length");
+    if (len) res.set("Content-Length", len);
+    res.set("Cache-Control", `private, max-age=${maxAgeSec}`);
+    const { Readable } = await import("node:stream");
+    const node = Readable.fromWeb(upstream.body as Parameters<typeof Readable.fromWeb>[0]);
+    node.on("error", () => { if (!res.headersSent) res.status(404).end(); else res.end(); });
+    node.pipe(res);
+  } catch {
+    if (!res.headersSent) res.status(404).end(); else res.end();
+  }
+}
+
 function memberType(req: Request, fallback: MemberType): MemberType {
   const t = req.query.type;
   return t === "client" || t === "driver" ? t : fallback;
@@ -548,7 +577,7 @@ export function createApiServer(opts: ApiOptions = {}) {
       res.set("Content-Type", m[1]!).set("Cache-Control", "public, max-age=3600").send(Buffer.from(m[2]!, "base64"));
       return;
     }
-    res.set("Cache-Control", "private, max-age=3600").redirect(302, url);
+    await pipeTelegramFile(res, url, 3600);
   };
   app.get("/api/shop/photo/:productId", serveShopPhoto);
   app.get("/api/shop/photo/:productId/:n", serveShopPhoto);
@@ -605,7 +634,7 @@ export function createApiServer(opts: ApiOptions = {}) {
       res.set("Content-Type", m[1]!).set("Cache-Control", "public, max-age=3600").send(Buffer.from(m[2]!, "base64"));
       return;
     }
-    res.set("Cache-Control", "private, max-age=3600").redirect(302, url);
+    await pipeTelegramFile(res, url, 3600);
   };
   app.get("/api/shop/cat-icon/:id", serveMarketImage("cat"));
   app.get("/api/shop/shop-photo/:id", serveMarketImage("shop"));
@@ -669,7 +698,7 @@ export function createApiServer(opts: ApiOptions = {}) {
     const { resolveTelegramFileUrl } = await import("../services/driverPhotoService");
     const url = await resolveTelegramFileUrl(fileId);
     if (!url) { res.status(404).end(); return; }
-    res.set("Cache-Control", "private, max-age=3600").redirect(302, url);
+    await pipeTelegramFile(res, url, 3600);
   });
 
   // 💬 C1: mijoz↔do'kon chat (bot-relay — yangi chat-server yo'q, mavjud SupportMsg kengaytirilgan).
@@ -759,7 +788,7 @@ export function createApiServer(opts: ApiOptions = {}) {
       res.set("Content-Type", m[1]!).set("Cache-Control", "public, max-age=3600").send(Buffer.from(m[2]!, "base64"));
       return;
     }
-    res.set("Cache-Control", "private, max-age=3600").redirect(302, url);
+    await pipeTelegramFile(res, url, 3600);
   };
   app.get("/api/shop/review-photo/:reviewId", serveReviewPhoto);
   app.get("/api/shop/review-photo/:reviewId/:n", serveReviewPhoto);
@@ -856,7 +885,7 @@ export function createApiServer(opts: ApiOptions = {}) {
       res.set("Content-Type", m[1]!).set("Cache-Control", "public, max-age=3600").send(Buffer.from(m[2]!, "base64"));
       return;
     }
-    res.set("Cache-Control", "private, max-age=3600").redirect(302, url);
+    await pipeTelegramFile(res, url, 3600);
   };
   app.get("/api/restoran/photo/:id", serveRestoranPhoto);
   const serveMenuItemPhoto = async (req: Request, res: Response): Promise<void> => {
@@ -869,7 +898,7 @@ export function createApiServer(opts: ApiOptions = {}) {
       res.set("Content-Type", m[1]!).set("Cache-Control", "public, max-age=3600").send(Buffer.from(m[2]!, "base64"));
       return;
     }
-    res.set("Cache-Control", "private, max-age=3600").redirect(302, url);
+    await pipeTelegramFile(res, url, 3600);
   };
   app.get("/api/restoran/menuphoto/:id", serveMenuItemPhoto);
 
@@ -909,7 +938,7 @@ export function createApiServer(opts: ApiOptions = {}) {
     const { resolveRavellaStoryMedia } = await import("../services/ravellaStoryService");
     const url = await resolveRavellaStoryMedia(Number(req.params.id));
     if (!url) { res.status(404).end(); return; }
-    res.set("Cache-Control", "private, max-age=120").redirect(302, url);
+    await pipeTelegramFile(res, url, 120);
   });
   // "order"/"orders" /api/ravella/item/:id bilan TO'QNASHMAYDI (turli segment) — lekin restoran
   // saboqiga ko'ra buyurtma yo'llari baribir katalog-yo'llaridan OLDIN turadi.
@@ -958,7 +987,7 @@ export function createApiServer(opts: ApiOptions = {}) {
     // yuz berdi: kesh chetlab o'tilganda rasm darhol yuklandi). Shuning uchun YO'NALTIRISH qisqa
     // keshlanadi — rasmning O'ZI baribir Telegram CDN'da keshlanadi, ya'ni tejash yo'qolmaydi.
     // (Xuddi shu naqsh restoran/do'kon/haydovchi-rasm yo'llarida ham bor — alohida tiket.)
-    res.set("Cache-Control", "private, max-age=120").redirect(302, url);
+    await pipeTelegramFile(res, url, 120);
   };
   app.get("/api/ravella/photo/:id", serveRavellaPhoto("item"));
   // karusel rasmi (galereya) — qopqoqdan farqli, o'z id'si bilan
@@ -972,7 +1001,7 @@ export function createApiServer(opts: ApiOptions = {}) {
       res.set("Content-Type", m[1]!).set("Cache-Control", "public, max-age=3600").send(Buffer.from(m[2]!, "base64"));
       return;
     }
-    res.set("Cache-Control", "private, max-age=120").redirect(302, url);
+    await pipeTelegramFile(res, url, 120);
   });
   app.get("/api/ravella/addon-photo/:id", serveRavellaPhoto("addon"));
 
@@ -1103,7 +1132,7 @@ export function createApiServer(opts: ApiOptions = {}) {
       res.set("Content-Type", m[1]!).set("Cache-Control", "public, max-age=3600").send(Buffer.from(m[2]!, "base64"));
       return;
     }
-    res.set("Cache-Control", "private, max-age=3600").redirect(302, url);
+    await pipeTelegramFile(res, url, 3600);
   };
   app.get("/api/services/photo/:listingId", serveServicePhoto);
   app.get("/api/services/photo/:listingId/:n", serveServicePhoto);
@@ -1209,7 +1238,7 @@ export function createApiServer(opts: ApiOptions = {}) {
       res.set("Content-Type", m[1]!).set("Cache-Control", "public, max-age=3600").send(Buffer.from(m[2]!, "base64"));
       return;
     }
-    res.set("Cache-Control", "private, max-age=3600").redirect(302, url);
+    await pipeTelegramFile(res, url, 3600);
   };
   app.get("/api/elonlar/photo/:adId", serveAdPhoto);
   app.get("/api/elonlar/photo/:adId/:n", serveAdPhoto);
@@ -1666,8 +1695,7 @@ export function createApiServer(opts: ApiOptions = {}) {
     const { resolveDriverPhoto } = await import("../services/driverPhotoService");
     const p = await resolveDriverPhoto(id);
     if (!p) { res.status(404).end(); return; }
-    res.set("Cache-Control", "private, max-age=3600"); // ~1h, matches Telegram URL TTL
-    res.redirect(302, p.url);
+    await pipeTelegramFile(res, p.url, 3600); // ~1 soat — Telegram URL TTL bilan bir xil
   });
   app.post("/api/admin/driver-photos/sync", requireAdmin, requireOwner, async (_req, res) => {
     const { syncAllLinkedDriverPhotos } = await import("../services/driverPhotoService");
