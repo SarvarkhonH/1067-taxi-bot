@@ -40,6 +40,15 @@ app.birjoy.online {
 		file_server
 	}
 
+	# ⚠️ XATO JAVOBLAR KESHLANMAYDI (2026-07-28). Yuqoridagi `header` butun `handle` blokiga
+	# tegishli — ya'ni 404 ham `immutable, 1 yil` bilan qaytardi. Deploy paytidagi poygada bitta
+	# 404 olgan mijoz uchun o'sha chunk BIR YILGA yo'q bo'lib qolardi. Endi xato javob
+	# `no-store` bilan ketadi va keyingi urinishda qayta so'raladi.
+	handle_errors {
+		header Cache-Control "no-store"
+		respond "{err.status_code} {err.status_text}" {err.status_code}
+	}
+
 	# index.html — hech qachon keshlanmaydi, aks holda yangi versiya chiqmaydi.
 	# Har qanday HTML — bosh sahifa ham, /ravella kabi mustaqil sahifalar ham — HAR DOIM
 	# qayta tekshiriladi. Avval faqat "/" va "/index.html" yozilgandi: /ravella/ sahifasi
@@ -69,6 +78,15 @@ admin.birjoy.online {
 	handle /assets/* {
 		header Cache-Control "public, max-age=31536000, immutable"
 		file_server
+	}
+
+	# ⚠️ XATO JAVOBLAR KESHLANMAYDI (2026-07-28). Yuqoridagi `header` butun `handle` blokiga
+	# tegishli — ya'ni 404 ham `immutable, 1 yil` bilan qaytardi. Deploy paytidagi poygada bitta
+	# 404 olgan mijoz uchun o'sha chunk BIR YILGA yo'q bo'lib qolardi. Endi xato javob
+	# `no-store` bilan ketadi va keyingi urinishda qayta so'raladi.
+	handle_errors {
+		header Cache-Control "no-store"
+		respond "{err.status_code} {err.status_text}" {err.status_code}
 	}
 
 	# Har qanday HTML — bosh sahifa ham, /ravella kabi mustaqil sahifalar ham — HAR DOIM

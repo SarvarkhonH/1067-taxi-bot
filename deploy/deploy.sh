@@ -23,6 +23,13 @@ VITE_API_URL="$API_URL" pnpm --filter @t1067/admin build
 # turgan mijozning sahifasi hali ESKI nomlarni so'raydi (lazy-chunk: Do'kon, Restoran...).
 # --delete ularni o'chirib yuborardi → mijoz deploy paytida "ilova sindi" holatiga tushardi.
 # Endi eski fayllar joyida qoladi; 7 kundan oshganlari quyida tozalanadi (disk to'lmasin).
+# ⚠️ TARTIB MUHIM (2026-07-28): AVVAL /assets, KEYIN index.html.
+# rsync atomik emas. Agar index.html avval ko'chsa, o'sha bir necha yuz millisekundda ilovani
+# ochgan mijoz YANGI index.html oladi-yu, u so'ragan chunk hali yo'q → 404. Caddy 404'ni ham
+# `immutable, 1 yil` bilan qaytarardi, ya'ni o'sha mijoz uchun chunk ABADIY yo'q bo'lib qolardi.
+# Assets oldin ko'chsa bunday oyna umuman yo'q (eski index.html eski chunk'larni so'rayveradi).
+rsync -a packages/miniapp/dist/assets/ /var/www/miniapp/assets/
+rsync -a packages/admin/dist/assets/ /var/www/admin/assets/
 rsync -a packages/miniapp/dist/ /var/www/miniapp/
 rsync -a packages/admin/dist/ /var/www/admin/
 find /var/www/miniapp/assets /var/www/admin/assets -type f -mtime +7 -delete 2>/dev/null || true
