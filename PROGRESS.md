@@ -4072,7 +4072,10 @@ uchun: sortOrder strategiyasi + lenta limitini qayta ko'rib chiqish.
 
 ---
 
-## §67 — 🗂 TAQSIMLASH · 5-BOSQICH · «hech nima o'zgarmagan» sababi · 2026-07-28
+## §68 — 🗂 TAQSIMLASH · 5-BOSQICH · «hech nima o'zgarmagan» sababi · 2026-07-28
+
+> Raqam §67 dan §68 ga o'zgartirildi: ikki parallel sessiya bir vaqtda §67 yozgan (bu bo'lim
+> `53c0e08`, oziq-ovqat do'konlari `d59dc2c`). Fayl tartibi bo'yicha bu keyingisi. Mazmun tegilmagan.
 
 ### 1. Mahsulotlar haqiqiy kategoriyalarga taqsimlandi
 221 mahsulot nomi tahlil qilindi. **Do'kon deyarli oziq-ovqat sotmaydi** — 27-iyulda seed qilingan
