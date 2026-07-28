@@ -4069,3 +4069,62 @@ Narxlar tasdiqlangach `--publish` hammasini yoqadi.
 do'kon sahifasi orqali topiladi (do'kon-ko'lamli so'rov `take: 300`). Ya'ni **umumiy lentada
 saralash/limit endi haqiqiy muammo** — 446 faol mahsulotdan 100 tasi ko'rsatilyapti. Keyingi tiket
 uchun: sortOrder strategiyasi + lenta limitini qayta ko'rib chiqish.
+
+---
+
+## §67 — 🗂 TAQSIMLASH · 5-BOSQICH · «hech nima o'zgarmagan» sababi · 2026-07-28
+
+### 1. Mahsulotlar haqiqiy kategoriyalarga taqsimlandi
+221 mahsulot nomi tahlil qilindi. **Do'kon deyarli oziq-ovqat sotmaydi** — 27-iyulda seed qilingan
+30 ta oziq-ovqat kategoriyasiga ATIGI BITTA mahsulot mos keldi (Frisolac). Shuning uchun avval
+4 ta yangi kategoriya qo'shildi (ikonkasi bilan), keyin ko'chirildi.
+
+| Kategoriya | Faol mahsulot |
+|---|---|
+| 🔥 Aksiya (tegilmadi) | 43 |
+| 🍳 Oshxona idishlari | 42 |
+| 🍽 Dasturxon va serviz | 36 |
+| 🔌 Maishiy texnika | 30 |
+| 🧴 Parfumeriya | 23 |
+| 🛍 umumiy (qoldiq) | 3 |
+| 🍼 Bolalar oziq-ovqati | 1 |
+
+`ko'chirildi=124 · allaqachon to'g'ri=48 · mos kelmadi (TEGILMADI)=6 · «Aksiya»da qoldi=43`.
+Ikkinchi yugurish: `ko'chirildi=0` (idempotent). **Orqaga qaytarish yozuvi:**
+`AppState["recat:backup:2026-07-28100312"]` — 124 satr (id + eski kategoriya).
+4 ta yangi kategoriya `MARKET_CATEGORIES` ga kiritildi, aks holda `seedMarketCategories` ularni
+har yugurishda ro'yxat oxiriga surib yuborardi.
+
+### 2. 5-bosqich — bosh sahifa ritmi + do'kon sahifasi
+Ega: «bosh sahifa tartibsiz, do'konlarni o'z sahifasi juda dabdala».
+Bo'lim oralig'i 4/12/16/18/22/24px aralash edi → bitta shkala (20px / 10px / 16px chekka).
+Do'kon sahifasi: muqovadagi tekis blok + katta harf → bozor kartalari bilan bir xil gradient +
+monogram; avatar 76px va qora soyadan 68px + zumrad soyaga; CTA plastik ko'rinishdan toza
+zumradga; panellar orasi 6/10/14 → 12px.
+
+### 3. ⚠️ «TELEFONDA HECH NIMA O'ZGARMAGAN» — sabab topildi va yopildi
+O'lchov (12:29): `index.html = index-2LlSi2Bn.js` (yangi), **menyu tugmasi = `?v=CvZ8S3DM`**
+(bir deploy eski). `deploy.sh` rsync'dan so'ng botni DARHOL restart qiladi; bot ishga tushishida
+`index.html`dan versiya-tokenini o'qiydi va ba'zan eski faylni ko'radi. Telegram Mini App'ni **URL
+bo'yicha** keshlagani uchun foydalanuvchi eski build'ni ochadi.
+**Tuzatish (`165f5ad`):** 45 soniyadan keyin qayta probe + faqat hash o'zgargan bo'lsa
+`setChatMenuButton`. Isbot: `index.html = index-DbuaHMGq.js` ↔ `?v=DbuaHMGq`.
+
+**+ Build shtampi (`52f845c`, `6ee078f`):** Profil pastida `BirJoy · <sana soat>` (Toshkent vaqti).
+Endi «yangilanmadimi?» savoli 2 soniyada hal bo'ladi. Shtamp dastlab `define` bilan JS ichiga
+muhrlangandi — bu **har deployda bundle hashini o'zgartirardi** (faqat server kodi tegilganda ham
+har mijoz 78 KB qayta yuklardi). `index.html`dagi `<meta>` ga ko'chirildi.
+Isbot: ketma-ket ikki build → JS hash AYNAN bir xil, meta 15:51→15:53.
+
+### 4. T-A1 qoldiqlari yopildi (`1bdf6a7`)
+Asosiy tuzoq (yo'q asset → 200 + index.html → abadiy oq ekran) allaqachon yopilgan ekan. Ikkita
+nozik qoldiq:
+- Caddy **404'ni ham `immutable, 1 yil`** bilan qaytarardi → deploy poygasida bitta 404 olgan
+  mijoz uchun chunk BIR YILGA yo'q bo'lardi. → `handle_errors { Cache-Control: no-store }`.
+- `rsync` atomik emas: index.html avval ko'chsa, o'sha lahzada ilovani ochgan mijoz yangi
+  index.html oladi-yu chunk hali yo'q. → **avval `/assets`, keyin index.html**.
+
+Isbot (jonli): mavjud asset `200 · immutable` · yo'q asset `404 · no-store` · index.html
+`200 · no-cache` · app/admin ochiladi · `/health` ok. Zaxira: `/root/Caddyfile.backup-2026-07-28`.
+
+**Holat:** hammasi jonli. Ega build shtampini telefonda tasdiqladi («ha shunday chiqopti»).
