@@ -4273,3 +4273,38 @@ Birinchi ko'rishdagi 545 KB ham qolgan muammo: uni faqat kichikroq rasm tieri ha
 (rasm sifati = dizayn qarori, shuning uchun tegilmadi).
 
 **Holat:** `ready for verification` — ega telefonda sezishi kerak (takroriy ochish sezilarli tez).
+
+## §71 — 🩹 EGA SKRINSHOTLARI BO'YICHA TUZATISHLAR + DIZAYN TAKLIFI · 2026-07-28
+
+**Ega:** «nega hali ham do'kon bo'limi sekinroq» + 3 skrinshot → «hammasini to'g'irla, bularda
+yangiroq dizayn taklifi va to'g'irlash kerak».
+
+### 1. Sekinlik — RENDER edi, tarmoq emas
+O'lchov: `/api/shop/products` 40 KB/79 ms · `/api/shop/market` 45 KB/63 ms · VPS load 0.00.
+Sabab: `backdrop-filter: blur(24px)` HAR mahsulot kafelida + HAR ❤ tugmasida + har kategoriya
+ikonkasida. Yangi token `--bj-card-solid: rgba(255,255,255,.93)` va blur olib tashlandi
+(`.shop-tile`, `.shop-tile-fav`, `.shop-mini`, `.shop-badge-stock`, `.shop-sp-rev`, `.bj-cat-ic`).
+Shisha FAQAT doimiy sirtlarda qoldi.
+**Isbot (`#shopdemo`, getComputedStyle):** blur qatlamlari **28 → 6**; qolgani topbar/tabbar/
+shop-head/qidiruv/share. Kafel: `backdrop-filter: none`, fon `rgba(255,255,255,.93)`.
+Jonli: `grep 'shop-tile{…backdrop-filter' index css → 0`.
+
+### 2. Skrinshotlardagi 4 muammo
+| Muammo | Yechim | Isbot |
+|---|---|---|
+| Rasmsiz mahsulot ULKAN HARF («F») | `productPlaceholder.ts` — `CategoryDef.iconUrl` ikonkasi yumshoq fonda; klientda `hasPhoto` sharti 6 joydan olib tashlandi | 6 ta rasmsiz mahsulot: `200 · image/svg+xml · 549-651 bayt`, ichida ikonka `<g>` markupi |
+| Muqova TO'Q KO'K blok | hue saqlandi, lekin pastel (`44% 93%` / `38% 85%`) | demo: `linear-gradient(150deg, rgb(229,242,245), rgb(202,226,231))` |
+| «Sharhlar 0 ta ▼» bo'sh akkordeon | sharh yo'q bo'lsa umuman chizilmaydi | JSX shart: `(totalCount ?? reviews.length) > 0` |
+| «208 do'stingizga ulashsangiz» | `FRIENDS_HINT_MAX = 15` — ortig'ida jim | 430 000 so'mlik mahsulotda maslahat endi chiqmaydi |
+
+`jadlkfj` kabi chala do'konlar — parallel sessiya `5ee40f4` da yopgan (0 mahsulotli 5 do'kon
+`active=false`), ya'ni skrinshot o'sha deploydan oldin olingan.
+
+### 3. Dizayn taklifi (hali BAJARILMAGAN — ega tanlovini kutadi)
+`dizayn_taklifi.html` — mahsulot sahifasi va do'kon profili uchun «hozir vs taklif» maketi
+(telefon ramkalarida, muammolar qizil ramkada). Asosiy g'oyalar: narx yonida chegirma + 3 ta
+ishonch belgisi; tanga-bloki 4× kichrayadi; bitta asosiy tugma + miqdor; profilda mahsulot
+BIRINCHI ekranda, «Do'konga yozish» ikonkaga aylanadi, 3 ta raqam (mahsulot soni/baho/yetkazish).
+
+**Commitlar:** `69a3a26` (blur) · `a9f227f` (o'rinbosar rasm + bo'sh bloklar).
+**Holat:** 1 va 2 — `ready for verification` (jonli, isbotlangan). 3 — taklif, tasdiq kutilmoqda.
