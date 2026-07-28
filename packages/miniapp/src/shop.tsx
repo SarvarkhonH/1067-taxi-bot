@@ -784,7 +784,6 @@ export function ShopView({ me, onBanner, reload, onBook, openProductId }: { me: 
   const similar = useMemo(() => (sel ? (products ?? []).filter((p) => p.category === sel.category && p.id !== sel.id).slice(0, 6) : []), [products, sel]);
   // shopv2: "O'xshash do'konlar" — do'kon-profil ekranining pastida, tasdiqlangan dizaynda bor
   // (avvalgi implementatsiyada butunlay yo'q edi). Real market.shops'dan, joriy do'kondan boshqa.
-  const similarStores = useMemo(() => (shopFilter ? (market?.shops ?? []).filter((s) => s.id !== shopFilter.id).slice(0, 6) : []), [market, shopFilter]);
   // shopv2: hikoya-ko'ruvchidagi "yuqoriga surish" kartasi — shu do'konning eng ko'p sotilgan
   // mahsuloti (mavjud `topSeller` maydonidan, yangi backend-maydon shart emas).
   const storyFeaturedProduct = useMemo(() => (storyViewer ? (products ?? []).find((p) => p.shopId === storyViewer.shopId && p.topSeller) ?? null : null), [storyViewer, products]);
@@ -1338,23 +1337,9 @@ export function ShopView({ me, onBanner, reload, onBook, openProductId }: { me: 
             </div>
           )}
 
-          {/* shopv2: "O'xshash do'konlar" — do'kon-profil sahifasining oxiri, tasdiqlangan
-              dizaynda bor edi, avvalgi implementatsiyada butunlay qurilmagan. */}
-          {shopFilter && similarStores.length > 0 && (
-            <div className="shop-similar-stores">
-              <div className="shop-section-title2">O&apos;xshash do&apos;konlar</div>
-              <div className="shop-similar-stores-row">
-                {similarStores.map((s) => (
-                  <button key={s.id} className="shop-similar-store" onClick={() => { haptic(); setShopFilter({ id: s.id, name: s.name }); setCat(null); }}>
-                    <div className="shop-similar-store-av">
-                      {s.hasPhoto ? <img src={apiUrl(`/api/shop/shop-photo/${s.id}`)} alt="" loading="lazy" /> : s.name.trim().charAt(0).toUpperCase()}
-                    </div>
-                    <span className="shop-similar-store-name">{s.name}</span>
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
+          {/* ⛔ «O'xshash do'konlar» OLIB TASHLANDI (ega, 2026-07-28): do'kon sahifasining
+              maqsadi — SHU do'kondan xarid qilish; pastda raqiblar ro'yxatini ko'rsatish mijozni
+              olib chiqib ketadi. Bozor-bosh sahifasida do'kon-qatori baribir bor. */}
           {/* 🗂 «Barcha bo'limlar» — guruhlangan rangli kafellar (ega tanlovi «B variant»).
               Tepadagi dumaloq karusel — TEZ o'tish; bu esa TO'LIQ katalog. Mahsuloti bor
               kategoriyalargina chiziladi (bo'sh javon ko'rsatilmaydi). */}
@@ -1371,18 +1356,8 @@ export function ShopView({ me, onBanner, reload, onBook, openProductId }: { me: 
         </>
       )}
 
-      {/* ── sotuvchi bo'lish CTA — do'kon egalarini jalb qilish. shopv2'da YO'Q (mockup'da
-          bunday blok yo'q; ega "ortiqcha hech nima bo'lmasin" dedi). ── */}
-      {!sel && !ordersOpen && (
-        <div className="shop-seller-cta">
-          <div className="shop-seller-ico">🏪</div>
-          <div className="shop-seller-body">
-            <div className="shop-seller-title">Biz bilan sotishni xohlaysizmi?</div>
-            <div className="shop-seller-sub"><b>Minglab kosonlik mijozlar</b> bazasiga ega do'kon — <b>kafolatlangan savdo</b>. Mahsulotingizni qo'shamiz.</div>
-          </div>
-          <a className="shop-seller-call" href="tel:1067" onClick={() => haptic()}>📞 1067</a>
-        </div>
-      )}
+      {/* ⛔ «Biz bilan sotishni xohlaysizmi?» CTA OLIB TASHLANDI (ega, 2026-07-28): har
+          sahifaning pastida turgan sotuvchi-jalbi mijoz oqimiga aloqasi yo'q reklama edi. */}
 
       {/* ── product detail: gallery + discount + delivery + similar ── */}
       <Sheet open={!!sel} onClose={() => setSel(null)}>
