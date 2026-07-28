@@ -173,7 +173,11 @@ export async function setFeature(name: FeatureName, on: boolean): Promise<void> 
 // at every QABUL / intentional off); boot logs the effective state and ALERTS on any mismatch —
 // it never auto-flips (an intentional off must stay off until this list is edited).
 export const EXPECTED_ON: FeatureName[] = [
-  "wheel", "items", "transfers", "push", "gap", "plus", "recruit", "booking3", "livinghome",
+  "wheel", "items", "transfers", "push", "gap", "plus", "recruit", "booking3",
+  // livinghome 2026-07-28 da ATAYLAB o'chirildi va shu ro'yxatdan chiqarildi: 2026-07-23 dagi
+  // UY_REDESIGN (ce9ba6a) NewUyView'ni ternaryda uning OLDIGA qo'ygan, ya'ni newhome ON turgan
+  // 5 kun davomida LivingHome'ga kod umuman yetib bormagan - bayroq "on" deb yolg'on gapirgan.
+  // Kod (home.tsx) saqlanadi, qaytarish sharti MUKAMMAL_DASTUR.md §5b da.
   "baraban", "komissiya", "promo", "qarz", "refstaged", "drvstaged", "drvrecruit",
   "welcomebonus", // 🎁 2026-07-17 da ega o'chirgan edi ("o'chirganman"), LEKIN 2026-07-22 13:44 da
              // QAYTA YOQILGAN (jonli AppState qatorining updatedAt'i) va shundan beri ishlayapti —
