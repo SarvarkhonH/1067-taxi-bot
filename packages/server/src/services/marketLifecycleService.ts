@@ -63,8 +63,13 @@ function norm(s: string): string {
  *  va ishonchni yo'qotadi. Endi so'rovdagi HAR SO'Z mahsulot nomidagi biror SO'ZNING BOSHIDAN
  *  mos kelishi shart — ya'ni so'z o'rtasidagi tasodifiy bo'lak hisobga olinmaydi. */
 function nameMatchesQuery(name: string, q: string): boolean {
-  const words = norm(name).split(/[^\p{L}\p{N}]+/u).filter(Boolean);
-  const parts = q.split(/[^\p{L}\p{N}]+/u).filter((w) => w.length >= MIN_QUERY_LEN);
+  // ⚠️ APOSTROF SO'Z ICHIDA QOLADI: o'zbekcha «o'g'il», «yog'», «qo'shiq» — apostrofni ajratuvchi
+  //    deb hisoblasak, ular «o»+«g»+«il» ga bo'linib ketadi, hammasi 4 harfdan qisqa bo'lgani
+  //    uchun tashlanadi va so'rovdan FAQAT «bolalar» qoladi. Jonli simulyatsiya buni ushladi:
+  //    «O'g'il bolalar u» so'rovi «Bolalar suti (steril)» ga mos kelib qolgandi.
+  const split = (t: string): string[] => t.split(/[^\p{L}\p{N}']+/u).filter(Boolean);
+  const words = split(norm(name));
+  const parts = split(q).filter((w) => w.length >= MIN_QUERY_LEN);
   if (!parts.length) return false;
   return parts.every((part) => words.some((w) => w.startsWith(part)));
 }
