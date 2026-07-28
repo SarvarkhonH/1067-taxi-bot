@@ -3898,3 +3898,43 @@ faqat `CityTile` almashuvini ko'rsatadi).
 
 **Holat:** `ready for verification` — ega telefonda ko'rib QABUL beradi.
 Keyingisi: 3-bosqich (kategoriya ikonkalari) va 4-bosqich (mahsulot sahifasi + skeletonlar).
+
+---
+
+## §65 — 🎨 DO'KON REDIZAYNI, 3-BOSQICH: 35 KATEGORIYA IKONKASI · 2026-07-28
+
+**Ega tanlovi:** «Ikonkalarni men chizaman, logo — sizdan». Bajarildi — egadan **hech qanday
+mehnat talab qilinmadi**.
+
+### Ikonkalar
+`seedCategoryIcons.ts` — har ikonka SVG bo'lib `CategoryDef.iconUrl` ga
+`data:image/svg+xml;base64,…` sifatida yoziladi. Fayl-xosting, Telegram-yuklash yo'q; server
+`serveMarketImage` data-URL yo'lini allaqachon qo'llaydi (jonli javob: `Content-Type:
+image/svg+xml`). SVG har ekranda tiniq.
+
+**Grammatika (hammasi bitta qo'ldan chiqqandek):** 24×24 to'r · 1.6px dumaloq uchli chiziq ·
+zumrad `#0d9668` + **har ikonkada aynan bitta** amber `#d98f00` urg'u.
+
+### Karusel
+Gorizontal «pill» → Uzum-uslub **kafel**: 58px shisha kafel, ikonka tepada, nom ostida (2
+qatorgacha). Faol kafel zumrad gradient bo'ladi; ikonka `<img>` orqali kelgani uchun CSS uni
+ranglay olmaydi → `filter: brightness(0) invert(1)` bilan oppoq qilinadi (emoji-fallback filtrsiz
+qoladi). Nom endi alohida `<span>` — yalang'och matn tugunini 2 qatorga cheklab bo'lmasdi.
+
+### ⚠️ Jonli DRY-RUN bir gapni ochdi (shuning uchun 30 emas, 35 ta)
+Birinchi urinishda faqat 30 ta yangi katalog-kategoriyasi chizilgandi. Jonli dry-run ko'rsatdi:
+**mijoz karuselida aynan ESKI 5 kategoriya ko'rinadi** (Aksiya, umumiy, Uy anjomlari, Parfumeriya,
+Bolalar uchun) — 30 ta yangisida hali mahsulot yo'q, bo'sh kategoriya esa yashiriladi. Ya'ni
+faqat 30 tasi bilan **mijoz uchun hech narsa o'zgarmasdi**. Eski 5 tasi ham chizildi (`d6d9ef1`).
+
+**Isbot:** 35/35 SVG XML-parser'dan o'tdi (sintaksis xatosi 0) · `pnpm -r typecheck` 4/4 **0
+xato** · build o'tdi · `#shopdemo`: kafel 66×90, ikonka 58×58 r20 shisha, nom 10.8px ostida,
+faol kafel zumrad gradient + oq-filtr qoidasi mavjud, konsolda 0 xato ·
+**jonli:** VPS `d6d9ef1`, seed `--apply` → `yozildi=35 · ikonkasi yo'q=0`, ikkinchi yugurish
+`yozildi=0 · o'zgarmagan=35` (idempotent) · `/api/shop/market` → 5/5 chip `hasIcon:true` ·
+`/api/shop/cat-icon/3` → `200 · Content-Type: image/svg+xml`.
+
+Ikonkalarni ko'rish: taklif-sahifasi yangilandi (artifact `965dc365`) — 35 tasi to'liq.
+
+**Holat:** `ready for verification` — ega telefonda ko'rib QABUL beradi.
+Keyingisi: 4-bosqich (mahsulot sahifasi: galereya, yopishqoq xarid paneli, skeletonlar).
