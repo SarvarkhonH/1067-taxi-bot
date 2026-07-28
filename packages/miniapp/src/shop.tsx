@@ -1011,7 +1011,17 @@ export function ShopView({ me, onBanner, reload, onBook, openProductId }: { me: 
            mahsulot qidirardi. Mijoz ekranda turgan do'kon nomini yozsa — butun sahifa
            «topilmadi»ga almashardi. Endi mos do'konlar ham ko'rsatiladi. */
         searched.length === 0 && searchedShops.length === 0 ? (
-          <EmptyState icon="🔍" text={`«${q}» topilmadi`} action="Tozalash" onAction={() => setQ("")} />
+          /* 4-BOSQICH: bo'sh natija ham dizayn. Ilgari faqat «topilmadi» derdi — mijoz nima
+             qilishini bilmasdi. Endi ROSTINI aytamiz: bunday so'rov serverda MarketDemand'ga
+             yoziladi (logMarketDemand) va ega qaysi sotuvchini chaqirishni shundan ko'radi.
+             ⚠️ «Kelganda xabar beramiz» deb VA'DA BERILMAYDI — bunday bildirishnoma tizimi yo'q,
+             yolg'on va'da esa ishonchni yo'q qiladi (CLAUDE.md). */
+          <EmptyState
+            icon="🔍"
+            text={`«${q}» hozircha yo'q — qidiruvingiz do'konlarga yuborildi`}
+            action="Barcha mahsulotlar"
+            onAction={() => { haptic(); setQ(""); }}
+          />
         ) : (
           <>
             {searchedShops.length > 0 && (
@@ -1514,60 +1524,59 @@ export function ShopView({ me, onBanner, reload, onBook, openProductId }: { me: 
               </span>
               <span className="shop-reviews-chev">›</span>
             </button>
-            {deficit > 0 ? (
-              <>
-                {/* 🧺 V2: tanga yetmasa ham savatga qo'shsa bo'ladi — savat NAQD bilan yakunlanadi */}
-                {bazarcart && (
-                  (cart[sel.id] ?? 0) > 0 ? (
-                    <div className="shop-qty-row">
-                      <Button variant="ghost" onClick={() => addToCart(sel, -1)} aria-label="Kamaytirish">−</Button>
-                      <span className="shop-qty-n">🧺 {cart[sel.id]}</span>
-                      <Button variant="ghost" onClick={() => addToCart(sel, 1)} aria-label="Ko'paytirish">+</Button>
-                      <Button variant="brand" onClick={() => { setSel(null); setCartOpen(true); }}>Savatni ochish</Button>
-                    </div>
-                  ) : (
-                    <Button variant="brand" onClick={() => addToCart(sel, 1)}>🧺 Savatga qo'shish (naqd)</Button>
-                  )
+            {/* 🪙 tanga yetmasa — MA'LUMOT bloki (u yopishqoq panelga tushmaydi: uzun, va har
+                aylantirishda ko'rinib turishi shart emas) */}
+            {deficit > 0 && (
+              <div className="shop-insufficient-bar">
+                <div className="fs13">🪙 Tanga bilan: sizda <b>{formatNumber(me.coins)}</b> / kerak: <b>{formatNumber(sel.priceTanga)}</b></div>
+                <ProgressBar value={me.coins} max={sel.priceTanga} />
+                <div className="muted fs12 mt6">Yana <b>{formatNumber(deficit)} tanga</b> kerak.</div>
+                {friendsNeeded && (
+                  <div className="fs13 mt6" style={{ lineHeight: 1.5 }}>
+                    👥 <b>{friendsNeeded} do'stingizga</b> ulashsangiz — yetadi!<br />
+                    <span className="muted fs12">Har do'st qo'shilib safar qilsa sizga <b>{formatNumber(refInfo!.rewardReferrer)} tanga</b> tushadi.</span>
+                  </div>
                 )}
-                {/* tanga yetmasa ham NAQD yo'li doim ochiq — hamkor-do'kon savdosi yo'qolmaydi */}
+                <Button variant="ghost" onClick={() => {
+                  haptic();
+                  if (refInfo) shareLink(inviteLandingUrl(refInfo.link), inviteText(refInfo.rewardReferee));
+                }}>👥 Do'stlarga ulashib tanga yig'ish</Button>
+              </div>
+            )}
+            {/* 🫧 4-BOSQICH: XARID PANELI YOPISHQOQ. Ilgari tugmalar oqim ichida edi va uzun
+                sahifada (xususiyatlar + sharhlar + o'xshash mahsulotlar) ekrandan chiqib ketardi —
+                sotib olish uchun qayta yuqoriga aylantirish kerak bo'lardi. Endi panel pastda
+                turadi. Tugmalarning O'ZI va shartlari o'zgarmadi (savat/tanga/naqd, tanga yetmasa
+                faqat naqd) — faqat joyi. */}
+            <div className="shop-buybar">
+              {/* 🧺 V2: savatga qo'shish — bazarcart ON'dagina; 1-dona tezkor-oqim ham qoladi.
+                  Tanga yetmasa ham savat ochiq: savat NAQD bilan yakunlanadi. */}
+              {bazarcart && (
+                (cart[sel.id] ?? 0) > 0 ? (
+                  <div className="shop-qty-row">
+                    <Button variant="ghost" onClick={() => addToCart(sel, -1)} aria-label="Kamaytirish">−</Button>
+                    <span className="shop-qty-n">🧺 {cart[sel.id]}</span>
+                    <Button variant="ghost" onClick={() => addToCart(sel, 1)} aria-label="Ko'paytirish">+</Button>
+                    <Button variant="brand" onClick={() => { setSel(null); setCartOpen(true); }}>Savatni ochish</Button>
+                  </div>
+                ) : (
+                  <Button variant="brand" onClick={() => addToCart(sel, 1)}>
+                    {deficit > 0 ? "🧺 Savatga qo'shish (naqd)" : `🧺 Savatga qo'shish — ${formatNumber(sel.priceTanga)} so'm`}
+                  </Button>
+                )
+              )}
+              {deficit > 0 ? (
+                /* tanga yetmasa ham NAQD yo'li doim ochiq — hamkor-do'kon savdosi yo'qolmaydi */
                 <Button variant={bazarcart ? "ghost" : "brand"} onClick={() => { haptic(); setPayMode("cash"); setStep("confirm"); }}>
                   💵 Bittasini naqdga — {formatNumber(sel.priceTanga)} so'm
                 </Button>
-                <div className="shop-insufficient-bar">
-                  <div className="fs13">🪙 Tanga bilan: sizda <b>{formatNumber(me.coins)}</b> / kerak: <b>{formatNumber(sel.priceTanga)}</b></div>
-                  <ProgressBar value={me.coins} max={sel.priceTanga} />
-                  <div className="muted fs12 mt6">Yana <b>{formatNumber(deficit)} tanga</b> kerak.</div>
-                  {friendsNeeded && (
-                    <div className="fs13 mt6" style={{ lineHeight: 1.5 }}>
-                      👥 <b>{friendsNeeded} do'stingizga</b> ulashsangiz — yetadi!<br />
-                      <span className="muted fs12">Har do'st qo'shilib safar qilsa sizga <b>{formatNumber(refInfo!.rewardReferrer)} tanga</b> tushadi.</span>
-                    </div>
-                  )}
-                  <Button variant="ghost" onClick={() => {
-                    haptic();
-                    if (refInfo) shareLink(inviteLandingUrl(refInfo.link), inviteText(refInfo.rewardReferee));
-                  }}>👥 Do'stlarga ulashib tanga yig'ish</Button>
-                </div>
-              </>
-            ) : (
-              <>
-                {/* 🧺 V2: savatga qo'shish — bazarcart ON'dagina; 1-dona tezkor-oqim ham qoladi */}
-                {bazarcart && (
-                  (cart[sel.id] ?? 0) > 0 ? (
-                    <div className="shop-qty-row">
-                      <Button variant="ghost" onClick={() => addToCart(sel, -1)} aria-label="Kamaytirish">−</Button>
-                      <span className="shop-qty-n">🧺 {cart[sel.id]}</span>
-                      <Button variant="ghost" onClick={() => addToCart(sel, 1)} aria-label="Ko'paytirish">+</Button>
-                      <Button variant="brand" onClick={() => { setSel(null); setCartOpen(true); }}>Savatni ochish</Button>
-                    </div>
-                  ) : (
-                    <Button variant="brand" onClick={() => addToCart(sel, 1)}>🧺 Savatga qo'shish — {formatNumber(sel.priceTanga)} so'm</Button>
-                  )
-                )}
-                <Button variant={bazarcart ? "ghost" : "brand"} onClick={() => { haptic(); setPayMode("tanga"); setStep("confirm"); }}>🪙 {bazarcart ? "Bittasini darhol olish" : `Tanga bilan olish — ${formatNumber(sel.priceTanga)} so'm`}</Button>
-                <Button variant="ghost" onClick={() => { haptic(); setPayMode("cash"); setStep("confirm"); }}>💵 Naqdga buyurtma — {formatNumber(sel.priceTanga)} so'm</Button>
-              </>
-            )}
+              ) : (
+                <>
+                  <Button variant={bazarcart ? "ghost" : "brand"} onClick={() => { haptic(); setPayMode("tanga"); setStep("confirm"); }}>🪙 {bazarcart ? "Bittasini darhol olish" : `Tanga bilan olish — ${formatNumber(sel.priceTanga)} so'm`}</Button>
+                  <Button variant="ghost" onClick={() => { haptic(); setPayMode("cash"); setStep("confirm"); }}>💵 Naqdga buyurtma — {formatNumber(sel.priceTanga)} so'm</Button>
+                </>
+              )}
+            </div>
             {similar.length > 0 && (
               <div className="shop-section mt10">
                 <div className="shop-section-head"><span className="shop-section-title">O'xshash mahsulotlar</span></div>
