@@ -52,7 +52,11 @@ function norm(s: string): string {
     else if (o >= 0x1d41a && o <= 0x1d433) out += String.fromCharCode(97 + o - 0x1d41a);
     else out += ch;
   }
-  return out.toLowerCase().replace(/[ʻʼ']/g, "'").replace(/õ/g, "o").trim();
+  // ⚠️ APOSTROFNING HAMMA VARIANTI: o'zbek matnida kamida oltitasi uchraydi — ʻ (U+02BB),
+  // ʼ (U+02BC), ' (U+2018), ' (U+2019), ` (U+0060), ´ (U+00B4) va oddiy '. Jonli simulyatsiya
+  // buni ushladi: «O'g'il bolalar» dagi apostrof U+2018 edi, ro'yxatda esa faqat uchtasi bor edi —
+  // shuning uchun so'z baribir bo'linib ketardi va noto'g'ri moslik chiqardi.
+  return out.toLowerCase().replace(/[ʻʼ‘’`´']/g, "'").replace(/õ/g, "o").trim();
 }
 
 /** So'z-chegarali moslik. NEGA SHART: jonli simulyatsiya (2026-07-28) oddiy `includes()` bilan
