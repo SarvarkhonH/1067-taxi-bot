@@ -134,6 +134,9 @@ function PriceBlock({ p, big }: { p: ShopProductView; big?: boolean }) {
           qoladi (masalan "Tanga bilan olish" to'lov-usuli, yetarli-emas-hamyon balansi). */}
       <span className={big ? "shop-confirm-total" : "shop-price-chip"}>{formatNumber(p.priceTanga)} so&apos;m</span>
       {d > 0 && <span className="shop-price-old">{formatNumber(p.oldPriceTanga!)} so&apos;m</span>}
+      {/* ① Chegirma nishoni endi DETALDA ham (avval faqat kafelda edi): eski narx yolg'iz
+          turganda «nega bu narx?» savolini tug'dirardi — nishon o'sha savolga javob. */}
+      {d > 0 && <span className="shop-price-off">−{d}%</span>}
       {/* §10.2: "Nima uchun bu narx?" — narx-tarkibi shaffofligi, faqat detail-sahifada (big) */}
       {big && (
         <button className="shop-price-why" onClick={() => setWhy((v) => !v)} aria-label="Nima uchun bu narx?">
@@ -739,10 +742,14 @@ export function ShopView({ me, onBanner, reload, onBook, openProductId }: { me: 
   // 🏪 D2: do'kon-profil ichidagi kategoriya-sub-filtr — faqat shu do'konning mahsulotlaridan
   const shopCategories = useMemo(() => {
     if (!shopFilter) return [];
+    // ⚠️ Avval GLOBAL `products` (server take:100) filtrlanardi — 87 mahsulotli do'konda
+    // chiplarning yarmi yo'qolardi (savat-bug'i bilan bir xil sabab). `shopCatalog` —
+    // do'kon-ko'lamli to'liq ro'yxat (300 tagacha); u kelmaguncha globalga tushamiz.
+    const src = shopCatalog ?? (products ?? []).filter((p) => p.shopId === shopFilter.id);
     const m = new Map<string, number>();
-    for (const p of products ?? []) if (p.shopId === shopFilter.id) m.set(p.category, (m.get(p.category) ?? 0) + 1);
-    return [...m.entries()];
-  }, [products, shopFilter]);
+    for (const p of src) m.set(p.category, (m.get(p.category) ?? 0) + 1);
+    return [...m.entries()].sort((a, b) => b[1] - a[1]);
+  }, [products, shopCatalog, shopFilter]);
   // Amazon/Uzum standarti: bitta VERTIKAL 2-ustunli katalog-grid (gorizontal scroll faqat kichik
   // "tavsiya" qatorlarida) — 100+ mahsulotli kategoriya endi cheksiz eniga tasmaga aylanmaydi.
   useEffect(() => {
@@ -1068,101 +1075,38 @@ export function ShopView({ me, onBanner, reload, onBook, openProductId }: { me: 
                     ? <img className="shop-sp-avatar-img" src={apiUrl(`/api/shop/shop-photo/${shopProfile.id}`)} alt="" />
                     : shopMonogram(shopProfile.name)}
                 </div>
-                <div className="shop-sp-head">
-                  <div className="shop-sp-name">{shopProfile.name}</div>
-                  {shopProfile.reviewCount > 0 && (
-                    <div className="shop-sp-rating">★ {shopProfile.avgRating} · {shopProfile.reviewCount} baho</div>
+                <div className="shop-sp-headrow">
+                  <div className="shop-sp-headtxt">
+                    <div className="shop-sp-name">{shopProfile.name}</div>
+                    <div className="shop-sp-meta">
+                      {shopProfile.neighborhood && <><Icon name="pin" size={11} /> {shopProfile.neighborhood} · </>}
+                      <span className={"bj-open-dot" + (shopProfile.open ? "" : " closed")} />{shopProfile.open ? "Ochiq" : "Yopiq"}
+                    </div>
+                  </div>
+                  {/* 💬 «Do'konga yozish» ULKAN yashil tugma edi va ekranning eng kuchli elementi
+                      bo'lib turardi — sahifaning maqsadi esa XARID. Endi u nom yonidagi ikonka. */}
+                  {!!me.flags?.shopchat && (
+                    <button className="shop-sp-act" aria-label="Do'konga yozish" onClick={() => openChat(shopProfile.id, shopProfile.name)}>
+                      <Icon name="chat" size={17} />
+                    </button>
                   )}
                 </div>
-                <div className="shop-sp-info">
-                  {shopProfile.neighborhood && <span><Icon name="pin" size={12} /> {shopProfile.neighborhood}</span>}
-                  <span><span className={"bj-open-dot" + (shopProfile.open ? "" : " closed")} />{shopProfile.open ? "Ochiq" : "Yopiq"}</span>
-                  {/* haqiqiy signal (soxta "tez javob beradi" o'rniga) — getShopOrdersToday */}
-                  {shopProfile.ordersToday > 0 && <span>· Bugun {shopProfile.ordersToday} marta buyurtma qabul qilgan</span>}
-                </div>
-                {shopProfile.deliveryText && (
-                  <div className="shop-sp-hours"><Icon name="clock" size={12} /> {shopProfile.deliveryText}</div>
-                )}
-                {/* mockup'da hikoya-tray AYNAN shu yerda (bosh-sahifada emas) */}
-                {shopstory && storyTray && storyTray.some((t) => t.shopId === shopProfile.id) && (
-                  <div className="shop-sp-stories">
-                    {storyTray.filter((t) => t.shopId === shopProfile.id).map((t) => (
-                      <button key={t.shopId} className="bj-story-item" onClick={() => openStoryViewer(t.shopId)}>
-                        <span className={"bj-story-ring" + (t.seen ? " seen" : "")}>
-                          {t.hasPhoto
-                            ? <img className="bj-story-avatar-img" src={apiUrl(`/api/shop/shop-photo/${t.shopId}`)} alt="" />
-                            : <span className="bj-story-avatar">{t.shopName.trim().charAt(0).toUpperCase()}</span>}
-                        </span>
-                        <span className="bj-story-name">Hikoya</span>
-                      </button>
-                    ))}
+                {/* 📊 Uch raqam: do'konni bir qarashda tushuntiradi (avval bu ma'lumot uch xil
+                    joyga sochilgan matn edi). Baho yo'q bo'lsa NOL emas, «—» deb ochiq aytiladi. */}
+                <div className="shop-sp-stats">
+                  {/* do'kon-ko'lamli ro'yxat kelmaguncha ekrandagi kafellar soni ko'rsatiladi
+                      — «…» osilib qolmasin (demo QA'da aynan shu holat ushlandi) */}
+                  <div><b>{shopCatalog?.length ?? (catalog.length || "…")}</b><span>mahsulot</span></div>
+                  <div>
+                    <b>{shopProfile.reviewCount > 0 ? `★ ${shopProfile.avgRating}` : "★ —"}</b>
+                    <span>{shopProfile.reviewCount > 0 ? `${shopProfile.reviewCount} baho` : "baho yo'q"}</span>
                   </div>
+                  <div><b>{shopProfile.deliveryText ?? "—"}</b><span>yetkazish</span></div>
+                </div>
+                {shopProfile.ordersToday > 0 && (
+                  <div className="shop-sp-today">Bugun {shopProfile.ordersToday} marta buyurtma qabul qilgan</div>
                 )}
                 {shopProfile.announcement && <div className="shop-sp-announce">{shopProfile.announcement}</div>}
-                {shopProfile.story && (
-                  <div className="shop-sp-about">
-                    <b>Biz haqimizda.</b>{" "}
-                    {aboutOpen || shopProfile.story.length <= 140 ? shopProfile.story : `${shopProfile.story.slice(0, 140)}…`}
-                    {shopProfile.story.length > 140 && (
-                      <> <button className="shop-sp-about-more" onClick={() => setAboutOpen((v) => !v)}>{aboutOpen ? "Kamroq" : "Ko'proq"}</button></>
-                    )}
-                  </div>
-                )}
-                {/* AUDIT: server har doim `{purchaseCount:0, milestone:5}` qaytaradi, ya'ni
-                    YANGI bozorda HAR BIR birinchi tashrifda bo'sh "Sodiqlik dasturi 0/5"
-                    chizig'i chiqardi — yangi mijozga bosim, ma'nosiz. Ega qarori ham shu edi
-                    (2026-07-23): ko'rsatkich-only, mukofot NOMLANMAYDI. */}
-                {loyalty && loyalty.purchaseCount > 0 && (
-                  <div className="shop-sp-loyalty">
-                    <div className="shop-sp-loyalty-row">
-                      <span>Sodiqlik dasturi</span><span>{loyalty.purchaseCount}/{loyalty.milestone} xarid</span>
-                    </div>
-                    <div className="shop-sp-loyalty-bar">
-                      <div style={{ width: `${Math.round((loyalty.purchaseCount / Math.max(1, loyalty.milestone)) * 100)}%` }} />
-                    </div>
-                  </div>
-                )}
-                {/* mockup `toggleReviews`: sharhlar ALOHIDA oynada emas, shu yerda ICHKI ochiladi
-                    (▼/▲ akkordeon) — ega "review missing" deb aynan shuni ko'rsatdi. */}
-                {/* 🗣 Sharh YO'Q bo'lsa akkordeon umuman chizilmaydi — ega skrinshotida «Sharhlar
-                    0 ta ▼» bo'sh quti bo'lib turgan edi, bosilsa «Hali sharh yo'q» deb ochilardi:
-                    ikki bosishda hech narsa. Sharh paydo bo'lishi bilan qatori o'zi qaytadi. */}
-                {shopProfileReviews && (shopProfileReviews.totalCount ?? shopProfileReviews.reviews.length) > 0 && (
-                  <>
-                    <button className="shop-sp-reviews" onClick={() => { haptic(); setShopReviewsOpen((v) => !v); }}>
-                      {/* AUDIT: bu yerda `reviews.length` (30 ta cap) turardi, sarlavhada esa
-                          faqat BAHOLANGAN sharhlar soni — bitta ekranda ikki xil raqam. Endi
-                          jami (kesilmagan) son ko'rsatiladi, sarlavha esa «baho» deb ataladi. */}
-                      <span className="shop-sp-reviews-l"><Icon name="chat" size={15} /> Sharhlar {shopProfileReviews.totalCount ?? shopProfileReviews.reviews.length} ta</span>
-                      <span className="shop-sp-reviews-c">{shopReviewsOpen ? "▲" : "▼"}</span>
-                    </button>
-                    {shopReviewsOpen && (
-                      <div className="shop-sp-revlist">
-                        {shopProfileReviews.reviews.length === 0 ? (
-                          <div className="shop-sp-rev"><div className="shop-sp-rev-text">Hali sharh yo&apos;q</div></div>
-                        ) : shopProfileReviews.reviews.map((r) => (
-                          <div key={r.id} className="shop-sp-rev">
-                            <div className="shop-sp-rev-top">
-                              <span>{r.name}</span>
-                              <span>{r.rating ? "★".repeat(r.rating) : r.thumb === "up" ? "👍" : "👎"}</span>
-                            </div>
-                            {r.text && <div className="shop-sp-rev-text">{r.text}</div>}
-                            <div className="shop-sp-rev-days">{daysAgo(r.createdAt)}</div>
-                          </div>
-                        ))}
-                        {/* Jim kesish yo'q: ro'yxat cheklangan bo'lsa buni ochiq aytamiz. */}
-                        {(shopProfileReviews.totalCount ?? 0) > shopProfileReviews.reviews.length && (
-                          <div className="shop-sp-rev-more">Oxirgi {shopProfileReviews.reviews.length} tasi ko&apos;rsatilgan</div>
-                        )}
-                      </div>
-                    )}
-                  </>
-                )}
-                {!!me.flags?.shopchat && (
-                  <button className="shop-sp-cta" onClick={() => openChat(shopProfile.id, shopProfile.name)}>
-                    <Icon name="chat" size={16} /> <span>Do&apos;konga yozish</span>
-                  </button>
-                )}
                 {/* mockup: CTA'dan keyin kategoriya-chiplar, keyin mahsulot-panjara */}
                 {shopCategories.length > 1 && (
                   <div className="shop-sp-chips">
@@ -1295,6 +1239,93 @@ export function ShopView({ me, onBanner, reload, onBook, openProductId }: { me: 
             )
           )}
 
+          {/* 🔽 DO'KON HIKOYASI · SODIQLIK · SHARHLAR — endi MAHSULOTDAN KEYIN (ega tasdiqlagan
+              taklif ⑥): ilgari bular yuqorida turib, mahsulotgacha ikki ekran surish kerak edi.
+              Do'kon sahifasining maqsadi — xarid; hikoya/sharh esa qarordan KEYINGI ma'lumot. */}
+          {shopFilter && shopProfile && (
+            <div className="shop-sp-body shop-sp-below">
+                {/* mockup'da hikoya-tray AYNAN shu yerda (bosh-sahifada emas) */}
+                {shopstory && storyTray && storyTray.some((t) => t.shopId === shopProfile.id) && (
+                  <div className="shop-sp-stories">
+                    {storyTray.filter((t) => t.shopId === shopProfile.id).map((t) => (
+                      <button key={t.shopId} className="bj-story-item" onClick={() => openStoryViewer(t.shopId)}>
+                        <span className={"bj-story-ring" + (t.seen ? " seen" : "")}>
+                          {t.hasPhoto
+                            ? <img className="bj-story-avatar-img" src={apiUrl(`/api/shop/shop-photo/${t.shopId}`)} alt="" />
+                            : <span className="bj-story-avatar">{t.shopName.trim().charAt(0).toUpperCase()}</span>}
+                        </span>
+                        <span className="bj-story-name">Hikoya</span>
+                      </button>
+                    ))}
+                  </div>
+                )}
+                {shopProfile.story && (
+                  <div className="shop-sp-about">
+                    <b>Biz haqimizda.</b>{" "}
+                    {aboutOpen || shopProfile.story.length <= 140 ? shopProfile.story : `${shopProfile.story.slice(0, 140)}…`}
+                    {shopProfile.story.length > 140 && (
+                      <> <button className="shop-sp-about-more" onClick={() => setAboutOpen((v) => !v)}>{aboutOpen ? "Kamroq" : "Ko'proq"}</button></>
+                    )}
+                  </div>
+                )}
+                {/* AUDIT: server har doim `{purchaseCount:0, milestone:5}` qaytaradi, ya'ni
+                    YANGI bozorda HAR BIR birinchi tashrifda bo'sh "Sodiqlik dasturi 0/5"
+                    chizig'i chiqardi — yangi mijozga bosim, ma'nosiz. Ega qarori ham shu edi
+                    (2026-07-23): ko'rsatkich-only, mukofot NOMLANMAYDI. */}
+                {loyalty && loyalty.purchaseCount > 0 && (
+                  <div className="shop-sp-loyalty">
+                    <div className="shop-sp-loyalty-row">
+                      <span>Sodiqlik dasturi</span><span>{loyalty.purchaseCount}/{loyalty.milestone} xarid</span>
+                    </div>
+                    <div className="shop-sp-loyalty-bar">
+                      <div style={{ width: `${Math.round((loyalty.purchaseCount / Math.max(1, loyalty.milestone)) * 100)}%` }} />
+                    </div>
+                  </div>
+                )}
+                {/* mockup `toggleReviews`: sharhlar ALOHIDA oynada emas, shu yerda ICHKI ochiladi
+                    (▼/▲ akkordeon) — ega "review missing" deb aynan shuni ko'rsatdi. */}
+                {/* 🗣 Sharh YO'Q bo'lsa akkordeon umuman chizilmaydi — ega skrinshotida «Sharhlar
+                    0 ta ▼» bo'sh quti bo'lib turgan edi, bosilsa «Hali sharh yo'q» deb ochilardi:
+                    ikki bosishda hech narsa. Sharh paydo bo'lishi bilan qatori o'zi qaytadi. */}
+                {shopProfileReviews && (shopProfileReviews.totalCount ?? shopProfileReviews.reviews.length) > 0 && (
+                  <>
+                    <button className="shop-sp-reviews" onClick={() => { haptic(); setShopReviewsOpen((v) => !v); }}>
+                      {/* AUDIT: bu yerda `reviews.length` (30 ta cap) turardi, sarlavhada esa
+                          faqat BAHOLANGAN sharhlar soni — bitta ekranda ikki xil raqam. Endi
+                          jami (kesilmagan) son ko'rsatiladi, sarlavha esa «baho» deb ataladi. */}
+                      <span className="shop-sp-reviews-l"><Icon name="chat" size={15} /> Sharhlar {shopProfileReviews.totalCount ?? shopProfileReviews.reviews.length} ta</span>
+                      <span className="shop-sp-reviews-c">{shopReviewsOpen ? "▲" : "▼"}</span>
+                    </button>
+                    {shopReviewsOpen && (
+                      <div className="shop-sp-revlist">
+                        {shopProfileReviews.reviews.length === 0 ? (
+                          <div className="shop-sp-rev"><div className="shop-sp-rev-text">Hali sharh yo&apos;q</div></div>
+                        ) : shopProfileReviews.reviews.map((r) => (
+                          <div key={r.id} className="shop-sp-rev">
+                            <div className="shop-sp-rev-top">
+                              <span>{r.name}</span>
+                              <span>{r.rating ? "★".repeat(r.rating) : r.thumb === "up" ? "👍" : "👎"}</span>
+                            </div>
+                            {r.text && <div className="shop-sp-rev-text">{r.text}</div>}
+                            <div className="shop-sp-rev-days">{daysAgo(r.createdAt)}</div>
+                          </div>
+                        ))}
+                        {/* Jim kesish yo'q: ro'yxat cheklangan bo'lsa buni ochiq aytamiz. */}
+                        {(shopProfileReviews.totalCount ?? 0) > shopProfileReviews.reviews.length && (
+                          <div className="shop-sp-rev-more">Oxirgi {shopProfileReviews.reviews.length} tasi ko&apos;rsatilgan</div>
+                        )}
+                      </div>
+                    )}
+                  </>
+                )}
+                {!!me.flags?.shopchat && (
+                  <button className="shop-sp-cta" onClick={() => openChat(shopProfile.id, shopProfile.name)}>
+                    <Icon name="chat" size={16} /> <span>Do&apos;konga yozish</span>
+                  </button>
+                )}
+            </div>
+          )}
+
           {/* EGA QAROLI (AskUserQuestion: "Ikkalasi: do'kon-qatori + mahsulot-panjarasi"):
               bosh-sahifada do'konlardan KEYIN barcha do'konlarning mahsulotlari ham ko'rsatiladi.
               Mockup faqat do'konlarni chizgan edi — ega ikkala oqim ham ochiq bo'lishini tanladi
@@ -1388,7 +1419,15 @@ export function ShopView({ me, onBanner, reload, onBook, openProductId }: { me: 
               <button className="shop-share-btn sm" onClick={() => shareProduct(sel)} aria-label="Ulashish"><Icon name="share" size={15} /></button>
             </div>
             {/* mockup: nom ostida "{birlik} · {do'kon nomi}" 12px xira qatori */}
-            {sel.shopName && <div className="shop-detail-sub">{sel.shopName}</div>}
+            {/* ⑤ Do'kon nomi endi BOSILADI — mijoz sotuvchini ko'rmoqchi bo'lsa, sahifadan
+                chiqib qidirmasin. */}
+            {sel.shopName && (
+              <button className="shop-detail-shop" onClick={() => { haptic(); const id = sel.shopId; const nm = sel.shopName!; setSel(null); if (id) { setShopFilter({ id, name: nm }); setCat(null); } }}>
+                <span className="shop-detail-shop-mono">{shopMonogram(sel.shopName)}</span>
+                <span className="shop-detail-shop-name">{sel.shopName}</span>
+                <span className="shop-detail-shop-chev">›</span>
+              </button>
+            )}
             {sel.description && <p className="muted fs13">{sel.description}</p>}
             <PriceBlock p={sel} big />
             {sel.stock <= SHOP_LOW_STOCK && <div className="shop-low-line">⚡ Kam qoldi: {sel.stock} dona</div>}
@@ -1396,10 +1435,12 @@ export function ShopView({ me, onBanner, reload, onBook, openProductId }: { me: 
                 berardi — har bir uchinchi-tomon mahsulotiga, kafolatsiz. Yetkazishni SOTUVCHI
                 qiladi; har mahsulotda sotuvchining o'z va'dasi (`deliveryText`) bor. Endi
                 sotuvchining o'z so'zi ko'rsatiladi, bo'lmasa — hech narsa va'da qilinmaydi. */}
-            <div className="shop-deliver-line">
-              {sel.deliveryText
-                ? <>🚚 <b>{sel.deliveryText}</b> · do&apos;kon egasi qo&apos;ng&apos;iroq qiladi</>
-                : <>🚚 Yetkazish vaqtini do&apos;kon egasi qo&apos;ng&apos;iroq qilib aytadi</>}
+            {/* ② Uch ishonch belgisi bitta qatorda — avval bu bitta uzun jumla edi va
+                «eshikda tekshirish» kabi eng muhim shart umuman aytilmasdi. */}
+            <div className="shop-trust">
+              <div><span>🚚</span>{sel.deliveryText ?? "Sotuvchi aytadi"}</div>
+              <div><span>✅</span>Eshikda tekshirasiz</div>
+              <div><span>📞</span>Sotuvchi qo&apos;ng&apos;iroq qiladi</div>
             </div>
             <ProductSpecs p={sel} />
             <button className="shop-reviews-entry" onClick={() => { haptic(); loadReviews(sel.id); setStep("reviews"); }}>
@@ -1411,21 +1452,21 @@ export function ShopView({ me, onBanner, reload, onBook, openProductId }: { me: 
             </button>
             {/* 🪙 tanga yetmasa — MA'LUMOT bloki (u yopishqoq panelga tushmaydi: uzun, va har
                 aylantirishda ko'rinib turishi shart emas) */}
+            {/* ③ Tanga bloki 4 marta kichraydi. Avval ekranning yarmini egallab «sizda pul
+                yetmaydi» deb turardi (ega skrinshoti) — endi bitta qator + chiziq: «yig'ilyapti».
+                Do'st-taklifi faqat REAL bo'lsa (≤15) va bitta qatorda. */}
             {deficit > 0 && (
-              <div className="shop-insufficient-bar">
-                <div className="fs13">🪙 Tanga bilan: sizda <b>{formatNumber(me.coins)}</b> / kerak: <b>{formatNumber(sel.priceTanga)}</b></div>
+              <div className="shop-coinprog">
+                <div className="shop-coinprog-row">
+                  <span>🪙 Tangangiz: <b>{formatNumber(me.coins)}</b></span>
+                  <span className="muted">{Math.round((me.coins / Math.max(1, sel.priceTanga)) * 100)}% yig&apos;ildi</span>
+                </div>
                 <ProgressBar value={me.coins} max={sel.priceTanga} />
-                <div className="muted fs12 mt6">Yana <b>{formatNumber(deficit)} tanga</b> kerak.</div>
                 {friendsNeeded && (
-                  <div className="fs13 mt6" style={{ lineHeight: 1.5 }}>
-                    👥 <b>{friendsNeeded} do'stingizga</b> ulashsangiz — yetadi!<br />
-                    <span className="muted fs12">Har do'st qo'shilib safar qilsa sizga <b>{formatNumber(refInfo!.rewardReferrer)} tanga</b> tushadi.</span>
-                  </div>
+                  <button className="shop-coinprog-inv" onClick={() => { haptic(); if (refInfo) shareLink(inviteLandingUrl(refInfo.link), inviteText(refInfo.rewardReferee)); }}>
+                    👥 {friendsNeeded} do&apos;stingizga ulashsangiz — yetadi ›
+                  </button>
                 )}
-                <Button variant="ghost" onClick={() => {
-                  haptic();
-                  if (refInfo) shareLink(inviteLandingUrl(refInfo.link), inviteText(refInfo.rewardReferee));
-                }}>👥 Do'stlarga ulashib tanga yig'ish</Button>
               </div>
             )}
             {/* 🫧 4-BOSQICH: XARID PANELI YOPISHQOQ. Ilgari tugmalar oqim ichida edi va uzun
@@ -1433,34 +1474,40 @@ export function ShopView({ me, onBanner, reload, onBook, openProductId }: { me: 
                 sotib olish uchun qayta yuqoriga aylantirish kerak bo'lardi. Endi panel pastda
                 turadi. Tugmalarning O'ZI va shartlari o'zgarmadi (savat/tanga/naqd, tanga yetmasa
                 faqat naqd) — faqat joyi. */}
+            {/* ④ XARID PANELI: ilgari ikki-uchta bir xil vaznli tugma turardi va ikkalasi ham
+                «naqd» derdi — mijoz qaysi birini bosishni bilmasdi. Endi BITTA asosiy harakat
+                (savatga, yonida miqdor), to'lov usullari esa ostidagi kichik matn-havolalar. */}
             <div className="shop-buybar">
-              {/* 🧺 V2: savatga qo'shish — bazarcart ON'dagina; 1-dona tezkor-oqim ham qoladi.
-                  Tanga yetmasa ham savat ochiq: savat NAQD bilan yakunlanadi. */}
-              {bazarcart && (
-                (cart[sel.id] ?? 0) > 0 ? (
-                  <div className="shop-qty-row">
-                    <Button variant="ghost" onClick={() => addToCart(sel, -1)} aria-label="Kamaytirish">−</Button>
-                    <span className="shop-qty-n">🧺 {cart[sel.id]}</span>
-                    <Button variant="ghost" onClick={() => addToCart(sel, 1)} aria-label="Ko'paytirish">+</Button>
-                    <Button variant="brand" onClick={() => { setSel(null); setCartOpen(true); }}>Savatni ochish</Button>
-                  </div>
-                ) : (
-                  <Button variant="brand" onClick={() => addToCart(sel, 1)}>
-                    {deficit > 0 ? "🧺 Savatga qo'shish (naqd)" : `🧺 Savatga qo'shish — ${formatNumber(sel.priceTanga)} so'm`}
-                  </Button>
-                )
-              )}
-              {deficit > 0 ? (
-                /* tanga yetmasa ham NAQD yo'li doim ochiq — hamkor-do'kon savdosi yo'qolmaydi */
-                <Button variant={bazarcart ? "ghost" : "brand"} onClick={() => { haptic(); setPayMode("cash"); setStep("confirm"); }}>
-                  💵 Bittasini naqdga — {formatNumber(sel.priceTanga)} so'm
-                </Button>
+              {bazarcart ? (
+                <div className="shop-buyrow">
+                  {(cart[sel.id] ?? 0) > 0 && (
+                    <div className="shop-qty">
+                      <button onClick={() => addToCart(sel, -1)} aria-label="Kamaytirish">−</button>
+                      <span>{cart[sel.id]}</span>
+                      <button onClick={() => addToCart(sel, 1)} aria-label="Ko'paytirish">+</button>
+                    </div>
+                  )}
+                  {(cart[sel.id] ?? 0) > 0 ? (
+                    <Button variant="brand" onClick={() => { setSel(null); setCartOpen(true); }}>🧺 Savatni ochish</Button>
+                  ) : (
+                    <Button variant="brand" onClick={() => addToCart(sel, 1)}>🧺 Savatga · {formatNumber(sel.priceTanga)} so'm</Button>
+                  )}
+                </div>
               ) : (
-                <>
-                  <Button variant={bazarcart ? "ghost" : "brand"} onClick={() => { haptic(); setPayMode("tanga"); setStep("confirm"); }}>🪙 {bazarcart ? "Bittasini darhol olish" : `Tanga bilan olish — ${formatNumber(sel.priceTanga)} so'm`}</Button>
-                  <Button variant="ghost" onClick={() => { haptic(); setPayMode("cash"); setStep("confirm"); }}>💵 Naqdga buyurtma — {formatNumber(sel.priceTanga)} so'm</Button>
-                </>
+                <Button variant="brand" onClick={() => { haptic(); setPayMode(deficit > 0 ? "cash" : "tanga"); setStep("confirm"); }}>
+                  {deficit > 0 ? `💵 Naqdga buyurtma — ${formatNumber(sel.priceTanga)} so'm` : `🪙 Tanga bilan olish — ${formatNumber(sel.priceTanga)} so'm`}
+                </Button>
               )}
+              <div className="shop-buyalt">
+                {deficit > 0 ? (
+                  <button onClick={() => { haptic(); setPayMode("cash"); setStep("confirm"); }}>yoki <b>bir bosishda</b> naqdga olish</button>
+                ) : (
+                  <>
+                    <button onClick={() => { haptic(); setPayMode("tanga"); setStep("confirm"); }}>🪙 bittasini tanga bilan</button>
+                    <button onClick={() => { haptic(); setPayMode("cash"); setStep("confirm"); }}>💵 bittasini naqdga</button>
+                  </>
+                )}
+              </div>
             </div>
             {similar.length > 0 && (
               <div className="shop-section mt10">

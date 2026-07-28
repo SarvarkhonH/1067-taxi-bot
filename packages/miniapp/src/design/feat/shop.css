@@ -27,7 +27,6 @@
 .shop-detail-name { margin: 10px 0 2px; }
 .shop-confirm-total { font-size: 26px; font-weight: 900; color: var(--brand); margin: 8px 0; }
 .shop-low-line { font-size: 12.5px; color: #fca5a5; margin-bottom: 6px; }
-.shop-insufficient-bar { display: flex; flex-direction: column; gap: 8px; padding: 12px; border-radius: var(--r-card); background: var(--surface); border: 1px solid var(--line); }
 .shop-success-title { font-size: 18px; font-weight: 800; color: var(--text); margin-top: 6px; }
 .shop-success-promise { margin: 10px 0; padding: 10px; border-radius: 12px; font-size: 13px; background: rgba(52,211,153,.12); border: 1px solid rgba(52,211,153,.3); color: #6ee7b7; }
 .shop-order-row { display: flex; flex-direction: column; gap: 5px; margin-top: 8px; }
@@ -109,7 +108,6 @@
 .shop-wrap .d-btn.ghost { background: #ffffff; color: #14532d; border: 1px solid #cde9d6; box-shadow: none; }
 .shop-wrap .d-progress { background: #e3ede6; }
 .shop-wrap .d-progress > span { background: linear-gradient(90deg, #4ade80, #16a34a); }
-.shop-insufficient-bar { background: #ffffff; border-color: #dcefe2; }
 .shop-deliver-line { background: #e8f4fb; border-color: #bfe1f2; color: #1e5b7a; }
 .shop-detail-name { color: #14532d; }
 .shop-low-line { color: #dc2626; }
@@ -416,6 +414,62 @@
 .app.bjm .shop-sp-avatar { overflow: hidden; }
 .app.bjm .shop-sp-avatar-img { width: 100%; height: 100%; object-fit: contain; background: #fff; display: block; border-radius: inherit; }
 .app.bjm .shop-sp-body { padding: 0 16px 24px; }
+/* 🏬 PROFIL SARLAVHASI (ega tasdiqlagan taklif ⑦⑧, 2026-07-28): nom + holat bir qatorda,
+   o'ngda «yozish» ikonkasi (ilgari ekranning eng katta yashil tugmasi edi), ostida uch raqam. */
+.app.bjm .shop-sp-headrow { display: flex; align-items: flex-start; gap: 10px; margin-top: 8px; }
+.app.bjm .shop-sp-headtxt { flex: 1; min-width: 0; }
+.app.bjm .shop-sp-meta { display: flex; align-items: center; gap: 5px; font-size: 12.5px; color: var(--bj-ink-dim); margin-top: 2px; }
+.app.bjm .shop-sp-act { flex: none; width: 38px; height: 38px; border-radius: 13px; background: var(--bj-card-solid, #fff);
+  border: 1px solid var(--bj-line); color: var(--bj-accent, #0d9668); display: flex; align-items: center; justify-content: center;
+  box-shadow: var(--bj-shadow); transition: transform var(--dur-press) var(--ease-out); }
+.app.bjm .shop-sp-act:active { transform: scale(0.94); }
+.app.bjm .shop-sp-stats { display: flex; gap: 8px; margin-top: 12px; }
+.app.bjm .shop-sp-stats > div { flex: 1; min-width: 0; background: var(--bj-card-solid, #fff); border: 1px solid var(--bj-line);
+  border-radius: 13px; padding: 9px 6px; text-align: center; }
+.app.bjm .shop-sp-stats b { display: block; font-size: 13.5px; font-weight: 800; color: var(--bj-ink);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.app.bjm .shop-sp-stats span { font-size: 10.5px; color: var(--bj-ink-dim); }
+.app.bjm .shop-sp-today { font-size: 12px; color: var(--bj-ink-dim); margin-top: 8px; }
+/* mahsulotdan KEYINGI blok — tepadagi tanadan ajratib turadigan chiziq */
+.app.bjm .shop-sp-below { margin-top: 18px; padding-top: 16px; border-top: 1px solid var(--bj-line); }
+
+/* ── 🛒 MAHSULOT SAHIFASI (ega tasdiqlagan taklif, 2026-07-28) ─────────────────────────── */
+/* ① chegirma nishoni narx yonida */
+.app.bjm .shop-price-off { font-size: 11.5px; font-weight: 900; padding: 3px 8px; border-radius: 999px;
+  background: #fde8ee; color: #be123c; }
+/* ⑤ do'kon nomi — bosiladigan qator */
+.app.bjm .shop-detail-shop { display: flex; align-items: center; gap: 8px; width: 100%; margin-top: 8px;
+  padding: 7px 10px; border-radius: 13px; background: var(--bj-card-solid, #fff); border: 1px solid var(--bj-line);
+  color: var(--bj-ink); text-align: left; transition: transform var(--dur-press) var(--ease-out); }
+.app.bjm .shop-detail-shop:active { transform: scale(0.985); }
+.app.bjm .shop-detail-shop-mono { width: 26px; height: 26px; flex: none; border-radius: 9px; font-size: 10.5px;
+  font-weight: 800; color: #fff; background: linear-gradient(155deg, #12a674, #0b6b4c);
+  display: flex; align-items: center; justify-content: center; }
+.app.bjm .shop-detail-shop-name { flex: 1; min-width: 0; font-size: 13px; font-weight: 700;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.app.bjm .shop-detail-shop-chev { color: var(--bj-ink-dim); font-size: 16px; }
+/* ② uch ishonch belgisi */
+.app.bjm .shop-trust { display: flex; gap: 6px; margin-top: 12px; }
+.app.bjm .shop-trust > div { flex: 1; min-width: 0; text-align: center; font-size: 10.5px; line-height: 1.25;
+  color: var(--bj-ink-dim); background: var(--bj-card-solid, #fff); border: 1px solid var(--bj-line);
+  border-radius: 12px; padding: 8px 5px; }
+.app.bjm .shop-trust span { display: block; font-size: 16px; margin-bottom: 3px; }
+/* ③ ixcham tanga-progressi */
+.app.bjm .shop-coinprog { margin-top: 12px; padding: 10px 12px; border-radius: 13px;
+  background: var(--bj-card-solid, #fff); border: 1px solid var(--bj-line); }
+.app.bjm .shop-coinprog-row { display: flex; justify-content: space-between; font-size: 12.5px; margin-bottom: 7px; }
+.app.bjm .shop-coinprog-inv { display: block; width: 100%; margin-top: 9px; font-size: 12.5px; font-weight: 700;
+  color: var(--bj-accent, #0d9668); text-align: left; }
+/* ④ xarid paneli: miqdor + bitta asosiy tugma, ostida kichik usul-havolalari */
+.app.bjm .shop-buyrow { display: flex; gap: 9px; align-items: stretch; }
+.app.bjm .shop-buyrow > button { flex: 1; }
+.app.bjm .shop-qty { display: flex; align-items: center; gap: 4px; flex: none; border: 1px solid var(--bj-line);
+  border-radius: 14px; background: var(--bj-card-solid, #fff); padding: 0 4px; }
+.app.bjm .shop-qty button { width: 32px; height: 100%; font-size: 18px; font-weight: 800; color: var(--bj-ink); }
+.app.bjm .shop-qty span { min-width: 20px; text-align: center; font-size: 14.5px; font-weight: 800; }
+.app.bjm .shop-buyalt { display: flex; justify-content: center; gap: 14px; margin-top: 8px; }
+.app.bjm .shop-buyalt button { font-size: 12px; color: var(--bj-ink-dim); }
+.app.bjm .shop-buyalt button b { color: var(--bj-ink); }
 /* qora 0.4 soya yorug' shisha-mavzuda "yopishtirilgan" ko'rinardi — zumrad-tusli yumshoq soya */
 .app.bjm .shop-sp-avatar { margin-top: -26px; width: 68px; height: 68px; border-radius: 22px; background: var(--bj-hero-grad); border: 3px solid rgba(255, 255, 255, .92); box-shadow: 0 10px 24px -12px rgba(6, 95, 70, .8), inset 0 1px 0 rgba(255, 255, 255, .3); display: flex; align-items: center; justify-content: center; color: #fff; font-size: 19px; font-weight: 800; letter-spacing: -.02em; box-sizing: border-box; }
 .app.bjm .shop-sp-head { margin-top: 10px; }
@@ -503,7 +557,6 @@
 .app.bjm .shop-wrap .d-progress > span { background: var(--bj-hero-grad); }
 .app.bjm .shop-wrap .sheet-err { color: #b91c1c; }
 .app.bjm .shop-wrap .pay-back { color: var(--bj-accent-deep); }
-.app.bjm .shop-insufficient-bar { background: var(--bj-card); border-color: var(--bj-line); color: var(--bj-ink); }
 .app.bjm .shop-deliver-line { background: rgba(56, 189, 248, .1); border-color: rgba(56, 189, 248, .25); color: #075985; }
 .app.bjm .shop-detail-name { color: var(--bj-ink); }
 .app.bjm .shop-low-line { color: #b91c1c; }
