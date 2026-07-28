@@ -126,7 +126,6 @@ function ProductSpecs({ p }: { p: ShopProductView }) {
 
 function PriceBlock({ p, big }: { p: ShopProductView; big?: boolean }) {
   const d = discountPct(p);
-  const [why, setWhy] = useState(false);
   return (
     <div className={big ? "shop-price-big" : "shop-price-line"}>
       {/* Ega qarori: do'kon-narxlar HAQIQIY pul (1 tanga=1 so'm) — shu sabab shu yerda "so'm"
@@ -137,22 +136,9 @@ function PriceBlock({ p, big }: { p: ShopProductView; big?: boolean }) {
       {/* ① Chegirma nishoni endi DETALDA ham (avval faqat kafelda edi): eski narx yolg'iz
           turganda «nega bu narx?» savolini tug'dirardi — nishon o'sha savolga javob. */}
       {d > 0 && <span className="shop-price-off">−{d}%</span>}
-      {/* §10.2: "Nima uchun bu narx?" — narx-tarkibi shaffofligi, faqat detail-sahifada (big) */}
-      {big && (
-        <button className="shop-price-why" onClick={() => setWhy((v) => !v)} aria-label="Nima uchun bu narx?">
-          ⓘ Nima uchun bu narx?
-        </button>
-      )}
-      {big && why && (
-        <div className="shop-price-why-box">
-          {d > 0 ? (
-            <p>Asl narx <b>{formatNumber(p.oldPriceTanga!)} so&apos;m</b> edi — hozir <b>−{d}%</b> chegirma bilan <b>{formatNumber(p.priceTanga)} so&apos;m</b>.</p>
-          ) : (
-            <p>Bu — sotuvchi belgilagan mahsulot narxi, chegirmasiz.</p>
-          )}
-          <p className="muted">🚚 Yetkazish narxga kiritilmagan — sotuvchi qo&apos;ng&apos;iroq qilib manzil/yetkazishni kelishadi.</p>
-        </div>
-      )}
+      {/* ⛔ «ⓘ Nima uchun bu narx?» OLIB TASHLANDI (ega, 2026-07-28): narx yonidagi savol
+          savdo sahifasida shubha uyg'otardi. Javobi allaqachon ekranda: chegirma nishoni
+          (−N%) narx tarkibini, ishonch-qatori esa yetkazishni aytadi. */}
     </div>
   );
 }
@@ -1415,6 +1401,12 @@ export function ShopView({ me, onBanner, reload, onBook, openProductId }: { me: 
             ) : (
               <img className="shop-detail-photo" src={apiUrl(`/api/shop/photo/${sel.id}`)} alt="" onClick={() => { haptic(); setLightbox(0); }} />
             )}
+            {/* 🏷 Maketdagi tepa-chiplar: kategoriya + zaxira. «Kam qoldi» qatori shu yerga
+                ko'chdi (avval narxdan keyin alohida qator bo'lib osilib turardi). */}
+            <div className="shop-detail-chips">
+              <span className="chip-soft">{sel.category}</span>
+              {sel.stock <= SHOP_LOW_STOCK && <span className="chip-soft warn">⚡ {sel.stock} dona qoldi</span>}
+            </div>
             <div className="shop-detail-headline">
               <h3 className="shop-detail-name">{prettyName(sel.name)}</h3>
               {/* shopv2: mockup'da mahsulot-ekranida FAQAT yurak-tugma bor (ulashish yo'q) */}
@@ -1435,7 +1427,6 @@ export function ShopView({ me, onBanner, reload, onBook, openProductId }: { me: 
             )}
             {sel.description && <p className="muted fs13">{sel.description}</p>}
             <PriceBlock p={sel} big />
-            {sel.stock <= SHOP_LOW_STOCK && <div className="shop-low-line">⚡ Kam qoldi: {sel.stock} dona</div>}
             {/* AUDIT TOPDI: bu yerda BirJoy O'Z NOMIDAN "1 kun ichida yetkazamiz" deb va'da
                 berardi — har bir uchinchi-tomon mahsulotiga, kafolatsiz. Yetkazishni SOTUVCHI
                 qiladi; har mahsulotda sotuvchining o'z va'dasi (`deliveryText`) bor. Endi
