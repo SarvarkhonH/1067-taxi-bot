@@ -120,6 +120,10 @@ export const FEATURES = [
               // o'zgarmaydi — faqat xarita KO'RINISHI; mijoz baribir tasdiqlaydi. Rad etilsa yoki
               // topilmasa avvalgi holat qoladi. Ega-preview ATAYLAB yo'q: ega va mijoz bir xil
               // ko'rishi shart (owner-preview-masks-dark-flags saboqi).
+  "mktlife", // 🔔 V4: hayot-sikli push'lari — «qidirganingiz keldi» (MarketDemand) va «sevimlingiz
+             // arzonlashdi» (ProductFavorite). TRANZAKSION push'lar (buyurtma holati/ETA) BU
+             // BAYROQDAN MUSTAQIL — ular doim ishlaydi. OFF = hech kimga hech narsa bormaydi.
+             // Cheklovlar servisda: 09:00-21:00, kuniga 1 ta, juftlikka bir marta, tick'da 20 ta.
   "mktexpire", // ⏳ Javobsiz savat-buyurtmani AVTOMATIK bekor qilish + tangani qaytarish (sotuvchi
               // N soat javob bermasa). PUL harakati — shuning uchun alohida kill-switch. OFF =
               // buyurtma pending'da qolaveradi va faqat mijozning o'zi bekor qila oladi (bugungi
@@ -139,7 +143,7 @@ export type FeatureName = (typeof FEATURES)[number];
 // Off until explicitly enabled (go-live flip = setFeature(name, true) after owner QABUL).
 // booking3 = the new map/trip flow; owner still gets a preview via server.ts owner-branch,
 // but real users stay on the (fixed) classic flow until it's accepted. A missing row → OFF.
-const DEFAULT_OFF = new Set<FeatureName>(["booking3", "livinghome", "aibrain", "mahalla", "tolqin", "baraban", "komissiya", "qarz", "welcomebonus", "refstaged", "drvstaged", "drvrecruit", "drvpush", "promo", "clientbooking", "cashout", "carupgrade", "intercity", "tierloyalty", "waitcomp", "trackcta", "jackpotpost", "drvrank", "instantstatus", "spinreminder", "shop", "xizmatlar", "elonlar", "elontop", "restoran", "bazarcart", "shopcashback", "revtanga", "airemind", "aihisob", "aidost", "aicity", "aibilim", "aineeds", "shopstory", "shopchat", "mktexpire", "ravella", "linkinapp", "homescreen", "storyshare", "autoloc"]);
+const DEFAULT_OFF = new Set<FeatureName>(["booking3", "livinghome", "aibrain", "mahalla", "tolqin", "baraban", "komissiya", "qarz", "welcomebonus", "refstaged", "drvstaged", "drvrecruit", "drvpush", "promo", "clientbooking", "cashout", "carupgrade", "intercity", "tierloyalty", "waitcomp", "trackcta", "jackpotpost", "drvrank", "instantstatus", "spinreminder", "shop", "xizmatlar", "elonlar", "elontop", "restoran", "bazarcart", "shopcashback", "revtanga", "airemind", "aihisob", "aidost", "aicity", "aibilim", "aineeds", "shopstory", "shopchat", "mktexpire", "mktlife", "ravella", "linkinapp", "homescreen", "storyshare", "autoloc"]);
 
 let cache: { at: number; map: Record<string, boolean> } = { at: 0, map: {} };
 

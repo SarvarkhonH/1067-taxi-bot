@@ -449,6 +449,19 @@ async function main(): Promise<void> {
       // (kunlik 2 + haftalik 2 + opt-out + tun-soatlari + tor oyna) ichida, flag OFF bo'lsa darrov qaytadi.
       const { needsEngineTick } = await import("./services/ai/needsEngine");
       await needsEngineTick(bot).catch((e) => console.error("[needs] tick failed:", e));
+      // 🔔 V4: bozor hayot-sikli push'lari (mktlife, yangi poller YO'Q) — «qidirganingiz keldi» va
+      // «sevimlingiz arzonlashdi». Flag OFF bo'lsa servis darrov bo'sh reja qaytaradi (0 so'rov
+      // yuborilmaydi). Cheklovlar servis ichida: 09:00-21:00 Toshkent · kuniga 1 ta · juftlikka
+      // bir marta · tick'da 20 ta. Xabar = sabab-qatori + MAVJUD mahsulot kartasi (sendProductCard).
+      const { runLifecyclePushes } = await import("./services/marketLifecycleService");
+      const life = await runLifecyclePushes(async (memberId, lead, productId) => {
+        const tgu = await prisma.telegramUser.findFirst({ where: { memberId }, select: { id: true } }).catch(() => null);
+        if (!tgu) return false;
+        await bot.api.sendMessage(tgu.id, lead, { parse_mode: "HTML" }).catch(() => undefined);
+        const { sendProductCard } = await import("./bot/shop");
+        return await sendProductCard(bot, tgu.id, productId).catch(() => false);
+      }).catch((e) => { console.error("[mktlife] failed:", e); return { planned: 0, sent: 0 }; });
+      if (life.sent) console.log(`[mktlife] ${life.sent}/${life.planned} push yuborildi`);
     }
     // 🚖 SMS-parity speed: while a rider is WAITING for a driver, poll every 5s so "Haydovchi
     // topildi" lands in seconds like the kas SMS. Assigned / in-trip → 15s (arrival is WS-instant).
