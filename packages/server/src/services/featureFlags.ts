@@ -94,10 +94,8 @@ export const FEATURES = [
               // (foto — S1.2b'da, `:photo` handler-tartib tuzatilgach). DARK until owner QABUL.
   "shopchat", // 💬 BirJoy C1: mijoz↔do'kon chat — bot-relay (mavjud SupportMsg kengaytirilgan,
               // yangi chat-server YO'Q). Pul YO'Q. DARK until owner QABUL.
-  "newhome",  // 🏠 UY_REDESIGN Bosqich 1: premium super-app home (search + colored service-rail +
               // promo/hero + image bento feed + Liquid-Glass tabbar + 3 selectable themes). OFF =
               // classic UyView AYNAN qoladi (App.tsx fallback). Pul YO'Q. DARK until owner QABUL.
-  "newprofile", // 👤 UY_REDESIGN Bosqich 5: enriched Profil (unified orders + saved addresses +
               // favorites + tier + referral + settings/theme picker + partner onboarding). OFF =
               // classic profile tab AYNAN. Pul YO'Q. DARK until owner QABUL.
               // to'liq qorong'i-oynasimon (glassmorphic) qayta-dizayni (Claude Design'da ega bilan
@@ -141,7 +139,7 @@ export type FeatureName = (typeof FEATURES)[number];
 // Off until explicitly enabled (go-live flip = setFeature(name, true) after owner QABUL).
 // booking3 = the new map/trip flow; owner still gets a preview via server.ts owner-branch,
 // but real users stay on the (fixed) classic flow until it's accepted. A missing row → OFF.
-const DEFAULT_OFF = new Set<FeatureName>(["booking3", "livinghome", "aibrain", "mahalla", "tolqin", "baraban", "komissiya", "qarz", "welcomebonus", "refstaged", "drvstaged", "drvrecruit", "drvpush", "promo", "clientbooking", "cashout", "carupgrade", "intercity", "tierloyalty", "waitcomp", "trackcta", "jackpotpost", "drvrank", "instantstatus", "spinreminder", "shop", "xizmatlar", "elonlar", "elontop", "restoran", "bazarcart", "shopcashback", "revtanga", "airemind", "aihisob", "aidost", "aicity", "aibilim", "aineeds", "shopstory", "shopchat", "newhome", "newprofile", "mktexpire", "ravella", "linkinapp", "homescreen", "storyshare", "autoloc"]);
+const DEFAULT_OFF = new Set<FeatureName>(["booking3", "livinghome", "aibrain", "mahalla", "tolqin", "baraban", "komissiya", "qarz", "welcomebonus", "refstaged", "drvstaged", "drvrecruit", "drvpush", "promo", "clientbooking", "cashout", "carupgrade", "intercity", "tierloyalty", "waitcomp", "trackcta", "jackpotpost", "drvrank", "instantstatus", "spinreminder", "shop", "xizmatlar", "elonlar", "elontop", "restoran", "bazarcart", "shopcashback", "revtanga", "airemind", "aihisob", "aidost", "aicity", "aibilim", "aineeds", "shopstory", "shopchat", "mktexpire", "ravella", "linkinapp", "homescreen", "storyshare", "autoloc"]);
 
 let cache: { at: number; map: Record<string, boolean> } = { at: 0, map: {} };
 
@@ -210,8 +208,6 @@ export const EXPECTED_ON: FeatureName[] = [
   // o'chirib qo'yardi (aynan yuqoridagi A7 xavfi — AI bayroqlari bilan bir marta sodir bo'lgan).
   // Har birining sanasi jonli AppState qatorining updatedAt'idan olingan, taxmin emas.
   "spinreminder", // 🎁 2026-07-22 13:44 (welcomebonus bilan bitta to'plamda) — unutilgan baraban pushi
-  "newhome",      // 🏠 2026-07-23 11:36 — premium super-app bosh ekran
-  "newprofile",   // 👤 2026-07-23 11:37 — boyitilgan Profil
   "bazarcart",    // 🧺 2026-07-26 18:25 — savat/checkout (bazar bilan bitta to'plamda)
   "shopchat",     // 💬 2026-07-26 18:25 — mijoz↔do'kon chat
   "shopstory",    // 📹 2026-07-26 18:25 — do'kon hikoyalari

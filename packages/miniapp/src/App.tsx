@@ -8,14 +8,12 @@ import { addToHomeScreen, askContact, cloudGet, cloudSet, haptic, hapticSuccess,
 import { useBackButton } from "./useBackButton";
 import { LeaderboardView, LoadError, MissionsView, ReferralView, RideHistoryView, Spinner } from "./components";
 import { AccountCard, TierLadder, TierLadderCompact, WalletView } from "./wallet"; // bosh tab — eager (birinchi paint)
-import { UyView, NewUyView } from "./uy"; // Uy tabi — yengil (leaflet-siz), eager. NewUyView = feature "newhome" redizayn
+import { NewUyView } from "./uy"; // Uy tabi — yengil (leaflet-siz), eager
 // T2 (AUDIT 2.9): boshqa tablar lazy — har biri alohida chunk, asosiy bundle kichrayadi
 const RewardsView = lazy(() => import("./rewards").then((m) => ({ default: m.RewardsView })));
 const DriverView = lazy(() => import("./driver").then((m) => ({ default: m.DriverView })));
 // T4: Booking 3.0 (MapLibre) — internally falls back to classic Leaflet if feature:booking3 OFF
 const Booking3View = lazy(() => import("./booking3").then((m) => ({ default: m.Booking3View })));
-// V1: living AI home — lazy (loads Leaflet); shown on the home tab when feature:livinghome ON
-const LivingHome = lazy(() => import("./home").then((m) => ({ default: m.LivingHome })));
 // 🚐 Yo'l — nationwide intercity seat booking (gated by feature `intercity`)
 const IntercityView = lazy(() => import("./intercity").then((m) => ({ default: m.IntercityView })));
 // 🛍 Do'kon — tanga shop (gated by feature `shop`; owner-preview while DARK)
@@ -156,7 +154,6 @@ export function App() {
   const [tab, setTab] = useState<Tab>(() => GO_MAP[readGo()] ?? "uy");
   const [board, setBoard] = useState<LeaderboardResponse | null>(null);
   const [boardErr, setBoardErr] = useState(false);
-  const [livinghome, setLivinghome] = useState(false);
   // 🚪 mehmon rejimi: /api/me ulanmaganlarga ham bayroqlarni beradi — qaysi tab ochiqligi shundan.
   const [guestFlags, setGuestFlags] = useState<MeResponse["flags"]>(undefined);
   const [error, setError] = useState<string | null>(null);
@@ -215,7 +212,6 @@ export function App() {
           setLinked(true);
           // flags piggy-backed on /api/me — no separate bookingInfo call needed
           if (me.flags) {
-            setLivinghome(!!me.flags.livinghome);
           }
         }
       })
@@ -359,7 +355,7 @@ export function App() {
   // ONLY in the home rail + "Barchasi" hub — they no longer clutter the bar (previously the dynamic
   // flag-accumulation above grew the classic bar to 5-6 tabs, which is what we're replacing here).
   // Drivers keep the classic dynamic bar (Uy/Daromad/Reyting) — driver economy wasn't in this redesign's scope.
-  const newhomeUi = !!me.flags?.newhome && me.type !== "driver";
+  const newhomeUi = me.type !== "driver"; // `newhome` bayrog'i olib tashlandi (QABUL, doim ON)
   if (newhomeUi) {
     TABS = [
       { id: "uy" as Tab, icon: "home", label: "Uy" },
@@ -415,14 +411,7 @@ export function App() {
         {tab === "uy" && me.flags?.homescreen && <AddToHomeCard onBanner={flash} />}
         <div className="page" key={tab}>
           <Suspense fallback={<Spinner />}>
-            {tab === "uy" &&
-              (me.flags?.newhome ? (
-                <NewUyView me={me} onBook={() => { haptic(); setBooking(true); }} onNav={nav} onBanner={flash} />
-              ) : livinghome ? (
-                <LivingHome me={me} onBanner={flash} reload={reload} onBook={() => { haptic(); setBooking(true); }} onNav={nav} />
-              ) : (
-                <UyView me={me} onBook={() => { haptic(); setBooking(true); }} onNav={nav} onBanner={flash} />
-              ))}
+            {tab === "uy" && <NewUyView me={me} onBook={() => { haptic(); setBooking(true); }} onNav={nav} onBanner={flash} />}
             {tab === "wallet" && <WalletView me={me} onBanner={flash} reload={reload} onBook={() => { haptic(); setBooking(true); }} onNav={nav} />}
             {tab === "play" && (
               <>
@@ -449,22 +438,7 @@ export function App() {
             {tab === "restoran" && <RestoranView me={me} onBanner={flash} openRestaurantId={openRestoranFromFeed} />}
             {tab === "ravella" && <RavellaView me={me} onBanner={flash} />}
             {tab === "driver" && <DriverView me={me} />}
-            {tab === "profile" && (
-              me.flags?.newprofile ? (
-                <NewProfileView me={me} onNav={nav} onBanner={flash} />
-              ) : (
-                <div className="view">
-                  <TierLadderCompact me={me} onOpen={() => go("play")} />
-                  {me.flags?.newhome && <ThemePicker />}
-                  <AccountCard />
-                  <button className="rh-open-btn" onClick={() => { haptic(); setHistory(true); }}>
-                    <span className="rh-open-ico">📜</span>
-                    <span className="rh-open-txt"><b>Safarlar tarixi</b><small>Har safar: km · daqiqa · narx · cashback</small></span>
-                    <span className="rh-open-chev">›</span>
-                  </button>
-                </div>
-              )
-            )}
+            {tab === "profile" && <NewProfileView me={me} onNav={nav} onBanner={flash} />}
           </Suspense>
         </div>
       </main>

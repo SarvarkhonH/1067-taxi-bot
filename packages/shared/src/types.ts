@@ -60,8 +60,6 @@ export interface MeResponse {
     revtanga?: boolean; // 🗣 BirJoy sharh-uchun-tanga (owner-preview: admins see it while DARK)
     shopstory?: boolean; // 📹 BirJoy do'kon-hikoya (owner-preview: admins see it while DARK)
     shopchat?: boolean; // 💬 BirJoy mijoz↔do'kon chat (owner-preview: admins see it while DARK)
-    newhome?: boolean; // 🏠 premium super-app home redesign (owner-preview: admins see it while DARK)
-    newprofile?: boolean; // 👤 enriched Profil redesign (owner-preview: admins see it while DARK)
     ravella?: boolean; // 🎀 Ravella bezak konstruktori — bosh ekran tugmasi + banner (owner-preview: admins see it while DARK)
     linkinapp?: boolean; // 📱 raqamni ilova ichida ulash (requestContact); OFF = bot-yo'li (owner-preview)
     homescreen?: boolean; // 🏠 telefon ekraniga qo'shish taklifi (addToHomeScreen) (owner-preview)
