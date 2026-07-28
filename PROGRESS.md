@@ -2,6 +2,58 @@
 
 ## Jarayonda (yangi)
 
+### 🍽 RESTORAN REDIZAYN (design_handoff_restoran/1a) — B0 `ready for verification`
+**Kontekst:** ega tashqi dizayn-paketi berdi (`C:\Users\sarva\Desktop\design_handoff_restoran`):
+piksel-spetsifikatsiya (`README.md`), kontent (`data/content.json`), jonli prototip
+(`Restoran.dc.html`, DC-runtime'siz ishlamaydi — manba kodidan o'qildi). Amalga oshiriladigan
+variant **faqat `1a`** (`1b`/`1c` rad etilgan).
+
+**Ega qarorlari (2026-07-29, AskUserQuestion bilan yozib olindi):**
+1. **Rejimlar: 2 ta** — Yetkazish + Olib ketish TO'LIQ ishlaydi. «Stol bron»/«Stolda QR» V1'da
+   QURILMAYDI (yangi mahsulot: sana/odam soni/stol raqami/QR + operator oqimi + restoran kelishuvi).
+2. **Shrift: Manrope, o'zimizda saqlab** — 600/700/800, `public/fonts`, faqat restoran chunk'ida.
+3. **«Yo'l xaritasi» ekrani mijozga KO'RSATILMAYDI** (B0…B6 ichki hujjat).
+4. **Fotolar: ikkala yo'l** — kuchli fotosiz-fallback + parallel ega restoranlardan foto yig'adi.
+
+**Dizayndan ATAYLAB olinmagan (sabab bilan, keyin qayta so'ralmasin):**
+- Dizayndagi 5-tabli tabbar (Uy·Taksi·Restoran·Yo'l xarita·Buyurtmalar) — tabbar butun ilovaniki
+  (`App.tsx` BASE_TABS), uni o'zgartirish Do'kon/Xizmatlar/Ravella/Taksini buzardi. Kerak ham emas:
+  «Buyurtmalarim» dizaynning o'zida katalog header'ida turibdi.
+- Header'dagi `⋯`/`×` — Telegram'ning O'Z chrome'i imitatsiyasi, biz chizsak ikki marta chiqadi.
+- `content.json` dagi restoran/taom ma'lumoti — o'ylab topilgan demo. Matn/yorliqlar (`copy`,
+  `timelines`, `checkoutFields`) so'zma-so'z olinadi; restoran ma'lumoti JONLI API'dan.
+
+**B0 — POYDEVOR (kod yozildi, mustaqil tekshiruv + ega QABULi kutilmoqda):**
+- `tokens.css` — `--rst-*` amber→README palitrasi (22 token), `.app.restoran-light` qobig'i
+  issiq-kremdan oq/ko'k-yashilga (topbar, tabbar, toast, muted, input, sheet). Gradient/aurora/glow
+  o'chirildi (dizayn: qobiq tekis va jim).
+- `design/feat/rst.css` — to'liq qayta yozildi: `@font-face` ×3, `rst-rise/pop/pulse/shim`
+  keyframe'lari, `prefers-reduced-motion` bloki, har rang tokendan.
+- `design/feat/rstIcons.tsx` (yangi) — 13 inline SVG (`currentColor`, stroke 1.7). Har `path`
+  prototipdan AYNAN ko'chirilgan.
+- `restoran.tsx` — bo'limdagi HAMMA emoji SVG/matnga almashtirildi; «Qayta buyurtma»→«Yana shu»,
+  qidiruv placeholder'i content.json'dagi matnga («Osh, somsa, burger, tort…»), lupa input ichiga.
+- `components.tsx` — `EmptyState.icon`: `string` → `ReactNode` (tip kengaytmasi, ish vaqtida
+  o'zgarish YO'Q; `string` ham ReactNode, mavjud 40+ chaqiruv tegilmadi).
+- `design/rstDemo.tsx` (yangi) + `App.tsx` `#rstdemo` — vizual-QA laboratoriyasi (`#shopdemo`
+  qolipi): mock-fetch bilan HAQIQIY `RestoranView` Telegram autentifikatsiyasiz ko'riladi.
+  B1…B5 da har qadam shu bilan ko'zdan kechiriladi.
+
+**B0 isbotlari (buyruq+xom natija bilan):** `pnpm -r typecheck` 4/4 toza · brauzerda computed:
+fon `rgb(245,246,248)`=#f5f6f8, karta oq/18px/`0 1px 3px rgba(14,21,36,.07)`, aktiv chip
+`rgb(14,21,36)`, aktiv tab `rgb(21,82,184)`=#1552B8 — hammasi README bilan 1:1 · Manrope
+yuklandi (`document.fonts.check`=true), `oʻ/gʻ` (U+02BB) VA `o'/g'` (ASCII) ikkalasi ham qoplangan,
+o'lchangan kenglik fallback'dan farq qiladi (ya'ni haqiqatan Manrope chizilyapti) · emoji-grep:
+UI matnlarida 0 (faqat kod izohlarida) · scope-grep: yangi selektorlarning HAMMASI
+`.app.restoran-light` yoki `.rst-*` ichida — boshqa bo'limlarga sizib chiqmagan · build: `dist/fonts`
+3 woff2 (41 KB), `@font-face` FAQAT `restoran-*.css` chunk'ida (Uy kritik yo'lida Manrope YO'Q).
+
+**B0 da hali BAJARILMAGAN (halol ro'yxat):** ekran skrinshoti (Browser paneli yopiq edi) ·
+boshqa tablarning regressiya skrinshotlari · ega telefonida QABUL. Shularsiz B0 «done» EMAS.
+
+**Keyingi:** B1 katalog (manzil bloki, rejim segmenti, 126px kartalar, ETA badge) — B0 QABUL'idan
+keyin.
+
 ### 🎀 RAVELLA — bezak konstruktori (hamkor-brend) — `in progress (gaps: rasm/seed, DB push, e'lon, QABUL)`
 **Ega so'radi (2026-07-27):** «Bosh ekranda kichik, umuman boshqa xizmat turi. Admin paneldan men
 rasm qo'shaman va narxlarini yozaman — masalan "Onajon" yozuvi 100 ming. Pastda kichik xizmatlar:

@@ -1,100 +1,163 @@
-/* rst-* uslublari - tokens.css'dan ajratildi (2026-07-27).
-   Bu fayl faqat mos lazy-chunk yuklanganda keladi, ya'ni birinchi
-   chizilishni bloklamaydi. Faqat bitta xususiyatga tegadigan qoidalar
-   ko'chirildi; aralash yoki umumiy qoidalar yadroda qoldi. */
+/* 🍽 rst-* — Restoran bo'limi uslublari (design_handoff_restoran/1a).
+   Bu fayl faqat restoran lazy-chunk'i yuklanganda keladi, ya'ni Uy ekranining birinchi
+   chizilishini bloklamaydi (shrift ham shu bilan birga keladi — pastga qarang).
+
+   B0 (2026-07-29) — POYDEVOR: rang dunyosi amber→ko'k/yashil, Manrope shrifti, dizayn
+   keyframe'lari. Ekran TUZILISHI (kartalar 1 ustunmi/2 ustunmi, foto o'lchovlari, sticky
+   chiplar…) ataylab TEGILMAGAN — u B1–B5 da ekran-ekran almashtiriladi. Shu sabab bu yerda
+   hali eski klass nomlari turibdi; ular endi yangi tokenlar bilan bo'yalgan. */
+
+/* ── Manrope (README: Font = Manrope 400/500/600/700/800) ────────────────────────────────────
+   Google Fonts'dan YUKLANMAYDI: chet CDN O'zbekistonda ishonchsiz — index.html'dagi Leaflet
+   izohi shu saboqni yozib qo'ygan ("foreign CDN blanked the map in UZ"). Fayllar
+   @fontsource/manrope@5.3.0 dan olinib public/fonts ga qo'yilgan (latin subset, woff2).
+   3 og'irlik = 41 KB jami. 400/500 OLINMADI: dizaynda ular faqat ikkilamchi matnda ishlatiladi
+   va 600 bilan farqi bu o'lchovlarda ko'rinmaydi — 28 KB tejaladi, kerak bo'lsa qo'shiladi.
+   unicode-range latin subset'iniki: U+02BB-02BC ichida, ya'ni o'zbekcha «oʻ»/«gʻ» tutuq belgisi
+   ham, oddiy ASCII apostrof ham shu faylda bor. */
+@font-face {
+  font-family: 'Manrope'; font-style: normal; font-weight: 600; font-display: swap;
+  src: url(/fonts/manrope-600.woff2) format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+@font-face {
+  font-family: 'Manrope'; font-style: normal; font-weight: 700; font-display: swap;
+  src: url(/fonts/manrope-700.woff2) format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+@font-face {
+  font-family: 'Manrope'; font-style: normal; font-weight: 800; font-display: swap;
+  src: url(/fonts/manrope-800.woff2) format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+/* Faqat restoran qobig'i — boshqa bo'limlar tizim shriftida qoladi (ega qarori: Manrope hozircha
+   butun ilovaga emas). `swap` — shrift kechiksa matn ko'rinmay turmaydi. */
+.app.restoran-light { font-family: 'Manrope', system-ui, -apple-system, sans-serif; }
+
+/* ── Dizayn keyframe'lari (README §Interactions) — faqat transform/opacity/box-shadow ───────── */
+@keyframes rst-rise { from { transform: translateY(14px); opacity: 0; } to { transform: none; opacity: 1; } }
+@keyframes rst-pop { 0% { transform: scale(.6); opacity: 0; } 60% { transform: scale(1.15); } 100% { transform: scale(1); opacity: 1; } }
+@keyframes rst-pulse { 0%, 100% { box-shadow: 0 0 0 0 rgba(23, 163, 74, .45); } 50% { box-shadow: 0 0 0 9px rgba(23, 163, 74, 0); } }
+@keyframes rst-shim { from { background-position: -380px 0; } to { background-position: 380px 0; } }
+
+/* ── Katalog ────────────────────────────────────────────────────────────────────────────────── */
 .rst-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
-.rst-card { --acc: var(--brand); padding: 0; overflow: hidden; text-align: left; display: flex; flex-direction: column; }
+.rst-card { --acc: var(--rst-blue); padding: 0; overflow: hidden; text-align: left; display: flex; flex-direction: column;
+  background: var(--rst-surface); border: 1px solid var(--rst-line); border-radius: 18px; box-shadow: var(--rst-shadow-card); }
 .rst-card:active { transform: scale(.96); }
 .rst-card-photo-wrap { position: relative; }
-.rst-card-photo { width: 100%; aspect-ratio: 4 / 3; object-fit: cover; display: block; background: var(--surface, #1a2130); }
-.rst-card-noimg { display: flex; align-items: center; justify-content: center; font-size: 44px; }
+.rst-card-photo { width: 100%; aspect-ratio: 4 / 3; object-fit: cover; display: block; background: var(--rst-fill); }
+.rst-card-noimg { display: flex; align-items: center; justify-content: center; color: var(--rst-muted-2); }
 .rst-card-body { padding: 9px 10px 10px; display: flex; flex-direction: column; gap: 5px; }
-.rst-card-name { font-size: 13.5px; font-weight: 700; color: var(--text); line-height: 1.25; }
+.rst-card-name { font-size: 14.5px; font-weight: 800; color: var(--rst-ink); line-height: 1.25; letter-spacing: -.2px; }
 .rst-card-meta { display: flex; align-items: center; gap: 8px; min-width: 0; }
-.rst-rating { font-size: 11.5px; color: var(--muted, #9aa4b2); font-weight: 700; white-space: nowrap; }
-.rst-card-fee { font-size: 11.5px; color: var(--muted, #9aa4b2); }
-.rst-back { align-self: flex-start; font-size: 14px; font-weight: 700; color: var(--muted, #9aa4b2); padding: 6px 2px; margin-bottom: 4px; }
+.rst-rating { font-size: 12px; color: var(--rst-ink); font-weight: 800; white-space: nowrap; display: inline-flex; align-items: center; gap: 3px; }
+.rst-rating svg { color: var(--rst-green); }
+.rst-card-fee { font-size: 11.5px; font-weight: 600; color: var(--rst-muted); }
+.rst-back { align-self: flex-start; font-size: 14px; font-weight: 600; color: var(--rst-blue); padding: 6px 2px; margin-bottom: 4px;
+  display: inline-flex; align-items: center; gap: 5px; }
+
+/* ── Restoran sahifasi ──────────────────────────────────────────────────────────────────────── */
 .rst-hero { display: flex; flex-direction: column; gap: 10px; margin-bottom: 14px; }
-.rst-hero-photo { width: 100%; aspect-ratio: 16 / 9; object-fit: cover; border-radius: 16px; background: var(--surface, #1a2130); font-size: 60px; }
+.rst-hero-photo { width: 100%; aspect-ratio: 16 / 9; object-fit: cover; border-radius: 16px; background: var(--rst-fill); }
 .rst-hero-info { display: flex; flex-direction: column; gap: 4px; }
-.rst-hero-name { font-size: 18px; font-weight: 800; color: var(--text); }
+.rst-hero-name { font-size: 19px; font-weight: 800; color: var(--rst-ink); letter-spacing: -.5px; }
 .rst-section { margin-bottom: 16px; }
-.rst-section-title { font-size: 13px; font-weight: 800; color: var(--muted, #9aa4b2); text-transform: uppercase; letter-spacing: .04em; margin-bottom: 8px; }
-.rst-item { display: flex; gap: 10px; padding: 8px 0; border-bottom: 1px solid var(--line, #2a3242); }
-.rst-item:last-child { border-bottom: none; }
+.rst-section-title { font-size: 15px; font-weight: 800; color: var(--rst-ink); letter-spacing: -.2px; margin-bottom: 8px; }
+.rst-item { display: flex; gap: 12px; padding: 11px; background: var(--rst-surface); border: 1px solid var(--rst-line);
+  border-radius: 16px; box-shadow: var(--rst-shadow-card); margin-bottom: 10px; }
 .rst-item.unavailable { opacity: .5; }
-.rst-item-photo { width: 56px; height: 56px; border-radius: 12px; object-fit: cover; flex-shrink: 0; display: flex; align-items: center; justify-content: center; font-size: 26px; background: var(--surface, #1a2130); }
-.rst-item-body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
-.rst-item-name { font-size: 13.5px; font-weight: 700; color: var(--text); }
-.rst-item-desc { font-size: 11.5px; color: var(--muted, #9aa4b2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.rst-item-price { font-size: 12.5px; font-weight: 700; color: var(--brand); }
+.rst-item-photo { width: 78px; height: 78px; border-radius: 12px; object-fit: cover; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center; background: var(--rst-fill); color: var(--rst-muted-2); }
+.rst-item-body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+.rst-item-name { font-size: 14.5px; font-weight: 700; color: var(--rst-ink); }
+.rst-item-desc { font-size: 12px; font-weight: 500; color: var(--rst-muted); line-height: 1.45;
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.rst-item-price { font-size: 14.5px; font-weight: 800; color: var(--rst-ink); margin-top: auto; }
 .rst-detail-view { padding-bottom: 76px; }
-.rst-item-add { flex: 0 0 auto; align-self: center; width: 30px; height: 30px; border-radius: 50%;
-  background: var(--brand); color: #1a1205; font-size: 18px; font-weight: 800; line-height: 1; }
+/* «+» tugmasi: savatda yo'q → och-ko'k fon + ko'k belgi; savatda bor → yashil fon + oq «N ta» */
+.rst-item-add { flex: 0 0 auto; align-self: flex-end; min-width: 34px; padding: 6px 10px; border-radius: 10px;
+  background: var(--rst-fill-blue); color: var(--rst-blue); font-size: 13px; font-weight: 800; line-height: 1.2; }
 .rst-item-add:active { transform: scale(.92); }
-.rst-item-stepper { flex: 0 0 auto; align-self: center; display: flex; align-items: center; gap: 8px;
-  background: var(--surface-2, #232b3c); border-radius: 999px; padding: 4px 8px; }
-.rst-item-stepper button { width: 22px; height: 22px; border-radius: 50%; font-size: 15px; font-weight: 800; color: var(--text); background: transparent; }
-.rst-item-stepper span { font-size: 13px; font-weight: 800; min-width: 14px; text-align: center; }
+.rst-item-stepper { flex: 0 0 auto; align-self: flex-end; display: flex; align-items: center; gap: 8px;
+  background: var(--rst-fill); border-radius: 10px; padding: 4px 8px; }
+.rst-item-stepper button { width: 22px; height: 22px; border-radius: 6px; font-size: 17px; font-weight: 800; color: var(--rst-blue); background: transparent; }
+.rst-item-stepper span { font-size: 13px; font-weight: 800; color: var(--rst-ink); min-width: 14px; text-align: center; }
+
+/* ── Savat paneli (sticky CTA) ──────────────────────────────────────────────────────────────── */
 .rst-cart-bar { position: fixed; left: 16px; right: 16px; bottom: calc(72px + var(--safe-bottom));
-  display: flex; align-items: center; gap: 10px; padding: 13px 16px; border-radius: 16px;
-  background: var(--brand-grad); color: #1a1205; font-weight: 800; font-size: 14px; box-shadow: var(--shadow-1); z-index: 20; }
+  display: flex; align-items: center; gap: 10px; padding: 13px 16px; border-radius: 14px;
+  background: var(--rst-blue); color: #fff; font-weight: 800; font-size: 15px; box-shadow: var(--rst-shadow-cta); z-index: 20; }
 .rst-cart-bar:active { transform: scale(.98); }
 .rst-cart-bar b { margin-left: auto; }
-.rst-cart-badge { background: #1a1205; color: #fff; border-radius: 999px; min-width: 20px; height: 20px; padding: 0 5px; font-size: 12px; display: flex; align-items: center; justify-content: center; }
-.rst-confirm-line { display: flex; justify-content: space-between; font-size: 13px; padding: 4px 0; color: var(--text); }
-.rst-confirm-total { display: flex; justify-content: space-between; font-size: 13px; color: var(--muted, #9aa4b2); padding: 6px 0; }
-.rst-confirm-grand { font-size: 15px; font-weight: 800; color: var(--text); border-top: 1px solid var(--line, #2a3242); margin-top: 4px; padding-top: 10px; }
-.rst-pickup-toggle { display: flex; gap: 8px; margin: 10px 0; }
-.rst-pickup-toggle button { flex: 1; padding: 10px; border-radius: 12px; border: 1px solid var(--line, #2a3242); background: var(--surface, #1a2130); color: var(--muted, #9aa4b2); font-weight: 700; font-size: 13px; }
-.rst-pickup-toggle button.on { background: var(--brand); color: #1a1205; border-color: transparent; }
-.rst-myorders-btn { display: block; width: 100%; text-align: left; padding: 12px 14px; border-radius: 14px;
-  background: var(--surface, #1a2130); border: 1px solid var(--line, #2a3242); color: var(--text); font-weight: 700; font-size: 13.5px; margin-bottom: 12px; }
+.rst-cart-badge { background: rgba(255, 255, 255, .22); color: #fff; border-radius: 999px; min-width: 20px; height: 20px;
+  padding: 0 5px; font-size: 12px; font-weight: 800; display: flex; align-items: center; justify-content: center;
+  animation: rst-pop .28s var(--ease-out, ease-out); }
+
+/* ── Checkout / totallar ────────────────────────────────────────────────────────────────────── */
+.rst-confirm-line { display: flex; justify-content: space-between; font-size: 13px; padding: 4px 0; color: var(--rst-ink); }
+.rst-confirm-total { display: flex; justify-content: space-between; font-size: 13.5px; font-weight: 600; color: var(--rst-desc); padding: 6px 0; }
+.rst-confirm-grand { font-size: 16px; font-weight: 800; color: var(--rst-ink); border-top: 1px solid var(--rst-line); margin-top: 4px; padding-top: 10px; }
+.rst-pickup-toggle { display: flex; gap: 8px; margin: 10px 0; background: var(--rst-fill); border-radius: 14px; padding: 4px; }
+.rst-pickup-toggle button { flex: 1; padding: 9px 2px; border-radius: 11px; border: none; background: transparent;
+  color: #7c8494; font-weight: 700; font-size: 11.5px; transition: background .18s, color .18s, box-shadow .18s; }
+.rst-pickup-toggle button.on { background: var(--rst-surface); color: var(--rst-ink); box-shadow: 0 1px 3px rgba(14, 21, 36, .12); }
+
+/* ── Buyurtmalarim ──────────────────────────────────────────────────────────────────────────── */
+.rst-myorders-btn { display: flex; align-items: center; gap: 9px; width: 100%; text-align: left; padding: 12px 14px; border-radius: 14px;
+  background: var(--rst-surface); border: 1px solid var(--rst-line); color: var(--rst-ink); font-weight: 700; font-size: 13.5px;
+  margin-bottom: 12px; box-shadow: var(--rst-shadow-card); }
 .rst-myorders-btn:active { transform: scale(.98); }
-.rst-order-card { background: var(--surface, #1a2130); border: 1px solid var(--line, #2a3242); border-radius: 14px; padding: 12px; margin-bottom: 10px; }
-.rst-order-top { display: flex; align-items: center; justify-content: space-between; gap: 8px; font-size: 14px; color: var(--text); margin-bottom: 4px; }
-.rst-order-items { margin-bottom: 6px; }
-.rst-order-bottom { display: flex; justify-content: space-between; align-items: center; font-size: 12.5px; color: var(--text); }
-.rst-order-reason { margin-top: 6px; font-size: 11.5px; color: var(--danger); }
-.rst-order-cancel, .rst-order-reorder { margin-top: 8px; width: 100%; padding: 9px; border-radius: 10px; font-size: 12.5px; font-weight: 700; }
-.rst-order-cancel { background: rgba(248,113,113,.12); color: var(--danger); border: 1px solid rgba(248,113,113,.25); }
+.rst-order-card { background: var(--rst-surface); border: 1px solid var(--rst-line); border-radius: 17px; padding: 13px 14px;
+  margin-bottom: 10px; box-shadow: var(--rst-shadow-card); }
+.rst-order-top { display: flex; align-items: center; justify-content: space-between; gap: 8px; font-size: 15.5px; font-weight: 800; color: var(--rst-ink); margin-bottom: 4px; }
+.rst-order-items { margin-bottom: 6px; font-size: 13px; font-weight: 600; color: var(--rst-ink-2); }
+.rst-order-bottom { display: flex; justify-content: space-between; align-items: center; font-size: 12.5px; font-weight: 600; color: var(--rst-ink); }
+.rst-order-reason { margin-top: 6px; font-size: 11.5px; color: #b42318; }
+.rst-order-cancel, .rst-order-reorder { margin-top: 8px; width: 100%; padding: 9px; border-radius: 11px; font-size: 13px; font-weight: 800; }
+.rst-order-cancel { background: #fef3f2; color: #b42318; border: 1px solid #fecdc9; }
 .rst-order-cancel:active { transform: scale(.97); }
-.rst-order-reorder { background: var(--surface-2, #232b3c); color: var(--text); border: 1px solid var(--line, #2a3242); }
+.rst-order-reorder { background: var(--rst-fill-blue); color: var(--rst-blue); border: none; }
 .rst-order-reorder:active { transform: scale(.97); }
-.rst-badge-top { position: absolute; top: 8px; left: 8px; background: linear-gradient(135deg,#ff6b35,#e34234); color: #fff; font-size: 10.5px; font-weight: 800; padding: 3px 7px; border-radius: 999px; }
+
+/* ── Badge / chiplar / qidiruv ──────────────────────────────────────────────────────────────── */
+.rst-badge-top { position: absolute; top: 8px; left: 8px; background: var(--rst-open-bg); color: #fff;
+  font-size: 10.5px; font-weight: 800; padding: 3px 7px; border-radius: 7px; }
 .rst-toolbar { display: flex; gap: 8px; margin-bottom: 8px; align-items: center; }
-.rst-toolbar .bk-input { flex: 1; margin-top: 0; }
-.rst-cat-row { display: flex; gap: 6px; overflow-x: auto; scrollbar-width: none; margin-bottom: 10px; padding-bottom: 2px; }
+/* Qidiruv: lupa maydon ICHIDA (dizayn) — ilgari placeholder'da 🔍 emoji turardi. */
+.rst-search { flex: 1; display: flex; align-items: center; gap: 9px; padding: 0 13px;
+  background: var(--rst-bg-grad); border: 1px solid var(--rst-line); border-radius: 13px; color: var(--rst-muted); }
+.rst-search .bk-input { flex: 1; margin: 0; padding: 11px 0; border: none; background: transparent;
+  font-size: 13.5px; font-weight: 500; }
+/* Ichkarida ramka bor — inputning o'z ramkasi ikki marta chiziq berardi. */
+.app.restoran-light .rst-search .bk-input { border: none; background: transparent; }
+.rst-cat-row { display: flex; gap: 8px; overflow-x: auto; scrollbar-width: none; margin-bottom: 10px; padding-bottom: 2px; }
 .rst-cat-row::-webkit-scrollbar { display: none; }
-.rst-chip { flex: 0 0 auto; white-space: nowrap; padding: 7px 12px; border-radius: 999px; font-size: 12.5px; font-weight: 700;
-  background: var(--surface, #1a2130); border: 1px solid var(--line, #2a3242); color: var(--muted, #9aa4b2); }
-.rst-chip.on { background: var(--brand); color: #1a1205; border-color: transparent; }
+.rst-chip { flex: 0 0 auto; white-space: nowrap; padding: 8px 14px; border-radius: 999px; font-size: 12.5px; font-weight: 700;
+  background: var(--rst-surface); border: 1px solid var(--rst-line); color: var(--rst-ink-2); transition: background .18s, color .18s; }
+.rst-chip.on { background: var(--rst-ink); color: #fff; border-color: var(--rst-ink); }
+
+/* ── Sharh/baho ─────────────────────────────────────────────────────────────────────────────── */
 .rst-stars-input { display: flex; gap: 4px; margin-bottom: 4px; }
-.rst-stars-input button { font-size: 26px; color: var(--line, #2a3242); line-height: 1; }
-.rst-stars-input button.on { color: #ffc233; }
-.rst-review-row { padding: 6px 0; border-bottom: 1px solid var(--line, #2a3242); font-size: 12.5px; }
+.rst-stars-input button { color: #e2e5ea; line-height: 1; background: transparent; }
+.rst-stars-input button.on { color: var(--rst-green); }
+.rst-review-row { padding: 6px 0; border-bottom: 1px solid var(--rst-line); font-size: 12.5px; color: var(--rst-ink); }
 .rst-review-row:last-child { border-bottom: none; }
-.app.restoran-light .rst-card { --acc: var(--rst-accent); background: #fff; border: 1px solid #fbd9b8; box-shadow: 0 3px 12px -8px rgba(154, 52, 18, 0.2); }
-.app.restoran-light .rst-card-name, .app.restoran-light .rst-hero-name, .app.restoran-light .rst-item-name { color: #2b1c12; }
-.app.restoran-light .rst-card-fee, .app.restoran-light .rst-item-desc, .app.restoran-light .rst-section-title { color: #a17858; }
-.app.restoran-light .rst-card-photo, .app.restoran-light .rst-hero-photo, .app.restoran-light .rst-item-photo { background: #fdead9; }
-.app.restoran-light .rst-item { border-bottom-color: #fbd9b8; }
-.app.restoran-light .rst-item-price { color: var(--rst-accent); }
-.app.restoran-light .rst-back { color: #a17858; }
-.app.restoran-light .rst-item-stepper { background: #fdead9; }
-.app.restoran-light .rst-item-stepper button { color: #2b1c12; }
-.app.restoran-light .rst-cart-bar { color: #fff; background: linear-gradient(135deg, var(--rst-accent), #c2410c); }
-.app.restoran-light .rst-cart-badge { background: rgba(0,0,0,.28); }
-.app.restoran-light .rst-confirm-line, .app.restoran-light .rst-confirm-grand { color: #2b1c12; }
-.app.restoran-light .rst-confirm-total { color: #a17858; }
-.app.restoran-light .rst-confirm-grand { border-top-color: #fbd9b8; }
-.app.restoran-light .rst-pickup-toggle button { background: #fff; border-color: #fbd9b8; color: #a17858; }
-.app.restoran-light .rst-pickup-toggle button.on { background: var(--rst-accent); color: #fff; }
-.app.restoran-light .rst-myorders-btn { background: #fff; border-color: #fbd9b8; color: #2b1c12; }
-.app.restoran-light .rst-order-card { background: #fff; border-color: #fbd9b8; }
-.app.restoran-light .rst-order-top { color: #2b1c12; }
-.app.restoran-light .rst-order-bottom { color: #2b1c12; }
-.app.restoran-light .rst-order-reorder { background: #fff; border-color: #fbd9b8; color: #2b1c12; }
-.app.restoran-light .rst-chip { background: #fff; border-color: #fbd9b8; color: #a17858; }
-.app.restoran-light .rst-chip.on { background: var(--rst-accent); color: #fff; }
-.app.restoran-light .rst-review-row { border-bottom-color: #fbd9b8; color: #2b1c12; }
+.rst-review-row .svc-stars .on { color: var(--rst-green); }
+
+/* ── Holat pillari (buyurtma tarixi) ────────────────────────────────────────────────────────── */
+.app.restoran-light .order-status-pill { border-radius: 999px; padding: 4px 10px; font-size: 11.5px; font-weight: 800; }
+.app.restoran-light .order-status-pill.pending { background: var(--rst-fill-blue); color: var(--rst-blue); }
+.app.restoran-light .order-status-pill.delivered { background: var(--rst-fill-green); color: var(--rst-green); }
+.app.restoran-light .order-status-pill.rejected { background: #fef3f2; color: #b42318; }
+
+/* Bo'sh holat ikonkasi — endi emoji emas, SVG: o'lchamni komponent beradi, rang shu yerdan. */
+.app.restoran-light .d-empty-ico { color: var(--rst-muted-2); display: flex; justify-content: center; }
+
+/* Kartalar kirishi — ro'yxat chizilganda pastdan ko'tariladi (README: rise .32s). */
+.rst-card, .rst-item, .rst-order-card { animation: rst-rise .32s var(--ease-out, ease-out) backwards; }
+
+@media (prefers-reduced-motion: reduce) {
+  .rst-card, .rst-item, .rst-order-card, .rst-cart-badge { animation: none; }
+  .rst-chip, .rst-pickup-toggle button { transition: none; }
+}

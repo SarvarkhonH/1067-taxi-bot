@@ -8,6 +8,7 @@ import { formatNumber } from "@t1067/shared";
 import { api, apiUrl } from "./api";
 import { haptic, hapticSuccess } from "./telegram";
 import { Button, EmptyState, Sheet, Skeleton } from "./design/components";
+import { RstIcon } from "./design/feat/rstIcons";
 import { useBackButton } from "./useBackButton";
 import { useIsActive } from "./useIsActive";
 import "./design/feat/rst.css"; // bu tab ochilgandagina yuklanadi (kritik yo'lda emas)
@@ -52,15 +53,15 @@ function RestaurantCard({ r, top, onOpen }: { r: RestaurantView; top: boolean; o
         {r.hasPhoto ? (
           <img className="rst-card-photo" src={apiUrl(`/api/restoran/photo/${r.id}`)} loading="lazy" decoding="async" alt="" />
         ) : (
-          <div className="rst-card-photo rst-card-noimg">🍽</div>
+          <div className="rst-card-photo rst-card-noimg"><RstIcon name="plate" size={38} /></div>
         )}
-        {top && <span className="rst-badge-top">🔥 TOP</span>}
+        {top && <span className="rst-badge-top">TOP</span>}
       </div>
       <div className="rst-card-body">
         <div className="rst-card-name">{r.name}</div>
         <div className="rst-card-meta">
           <OpenBadge wh={r.workHours} />
-          {r.avgRating > 0 && <span className="rst-rating">★ {r.avgRating.toFixed(1)}</span>}
+          {r.avgRating > 0 && <span className="rst-rating"><RstIcon name="star" size={12} />{r.avgRating.toFixed(1)}</span>}
         </div>
         {/* 💸 Yetkazish qatori. Ilgari `fee === 0` da «Bepul yetkazish» yozilardi — lekin jonli
             bazada 11 ta faol restoranning 11 tasida ham fee=0, ya'ni 0 «bepul» degani emas,
@@ -90,14 +91,16 @@ function CatalogSkeleton() {
   );
 }
 
+// Emoji'siz — dizaynda holat rang bilan ajratiladi (ko'k = jarayonda, yashil = tugadi, qizil = bekor),
+// `c` esa .order-status-pill klassini beradi. Matnlar content.json → `timelines` bilan bir xil.
 const STATUS_LABEL: Record<FoodOrderView["status"], { t: string; c: string }> = {
-  pending: { t: "⏳ Kutilmoqda", c: "pending" },
-  accepted: { t: "✅ Qabul qilindi", c: "delivered" },
-  preparing: { t: "🍳 Tayyorlanmoqda", c: "delivered" },
-  delivering: { t: "🛵 Yo'lda", c: "delivered" },
-  delivered: { t: "✅ Yetkazildi", c: "delivered" },
-  rejected: { t: "❌ Rad etildi", c: "rejected" },
-  cancelled_by_user: { t: "✖ Bekor qilindi", c: "rejected" },
+  pending: { t: "Kutilmoqda", c: "pending" },
+  accepted: { t: "Qabul qilindi", c: "pending" },
+  preparing: { t: "Tayyorlanmoqda", c: "pending" },
+  delivering: { t: "Yo'lda", c: "pending" },
+  delivered: { t: "Yetkazildi", c: "delivered" },
+  rejected: { t: "Rad etildi", c: "rejected" },
+  cancelled_by_user: { t: "Bekor qilindi", c: "rejected" },
 };
 const TERMINAL_STATUSES = new Set<FoodOrderView["status"]>(["delivered", "rejected", "cancelled_by_user"]);
 
@@ -125,11 +128,11 @@ function MyOrdersView({ onBack, onReorder }: { onBack: () => void; onReorder: (o
 
   return (
     <div className="view">
-      <button className="rst-back" onClick={onBack}>‹ Orqaga</button>
+      <button className="rst-back" onClick={onBack}><RstIcon name="chevron-left" size={13} />Orqaga</button>
       {orders === null ? (
         <><Skeleton h={70} /><div style={{ height: 8 }} /><Skeleton h={70} /></>
       ) : orders.length === 0 ? (
-        <EmptyState icon="📦" text="Hali buyurtma yo'q" />
+        <EmptyState icon={<RstIcon name="orders" size={34} />} text="Hali buyurtma yo'q" />
       ) : (
         orders.map((o) => {
           const s = STATUS_LABEL[o.status];
@@ -146,10 +149,10 @@ function MyOrdersView({ onBack, onReorder }: { onBack: () => void; onReorder: (o
               </div>
               {o.status === "rejected" && o.rejectReason && <div className="rst-order-reason">Sabab: {o.rejectReason}</div>}
               {o.status === "pending" && (
-                <button className="rst-order-cancel" disabled={busyId === o.id} onClick={() => cancel(o)}>✖ Bekor qilish</button>
+                <button className="rst-order-cancel" disabled={busyId === o.id} onClick={() => cancel(o)}>Bekor qilish</button>
               )}
               {TERMINAL_STATUSES.has(o.status) && (
-                <button className="rst-order-reorder" onClick={() => { haptic(); onReorder(o); }}>🔁 Qayta buyurtma</button>
+                <button className="rst-order-reorder" onClick={() => { haptic(); onReorder(o); }}>Yana shu</button>
               )}
             </div>
           );
@@ -161,7 +164,11 @@ function MyOrdersView({ onBack, onReorder }: { onBack: () => void; onReorder: (o
 
 function Stars({ v }: { v: number }) {
   const full = Math.round(v);
-  return <span className="svc-stars"><span aria-label={`${v} yulduz`}>{[1, 2, 3, 4, 5].map((i) => <span key={i} className={i <= full ? "on" : ""}>★</span>)}</span></span>;
+  return (
+    <span className="svc-stars" aria-label={`${v} yulduz`}>
+      {[1, 2, 3, 4, 5].map((i) => <span key={i} className={i <= full ? "on" : ""}><RstIcon name="star" size={12} /></span>)}
+    </span>
+  );
 }
 
 function ReviewSection({ restaurantId, onBanner }: { restaurantId: number; onBanner?: (msg: string) => void }) {
@@ -192,7 +199,9 @@ function ReviewSection({ restaurantId, onBanner }: { restaurantId: number; onBan
       <div className="rst-section-title">Baholang</div>
       <div className="rst-stars-input">
         {[1, 2, 3, 4, 5].map((n) => (
-          <button key={n} className={n <= stars ? "on" : ""} onClick={() => { haptic(); setStars(n); }}>★</button>
+          <button key={n} className={n <= stars ? "on" : ""} onClick={() => { haptic(); setStars(n); }} aria-label={`${n} yulduz`}>
+            <RstIcon name="star" size={26} />
+          </button>
         ))}
       </div>
       {stars > 0 && (
@@ -300,7 +309,7 @@ function RestaurantDetail({ id, me, initialCart, onBack, onBanner }: { id: numbe
   if (!data) {
     return (
       <div className="view">
-        <button className="rst-back" onClick={onBack}>‹ Orqaga</button>
+        <button className="rst-back" onClick={onBack}><RstIcon name="chevron-left" size={13} />Orqaga</button>
         <Skeleton h={140} />
         <div style={{ height: 12 }} />
         <Skeleton h={60} />
@@ -310,15 +319,15 @@ function RestaurantDetail({ id, me, initialCart, onBack, onBanner }: { id: numbe
   if (!data.restaurant) {
     return (
       <div className="view">
-        <button className="rst-back" onClick={onBack}>‹ Orqaga</button>
-        <EmptyState icon="🍽" text="Restoran topilmadi" />
+        <button className="rst-back" onClick={onBack}><RstIcon name="chevron-left" size={13} />Orqaga</button>
+        <EmptyState icon={<RstIcon name="plate" size={34} />} text="Restoran topilmadi" />
       </div>
     );
   }
   if (done) {
     return (
       <div className="view">
-        <EmptyState icon="✅" text={`Buyurtma qabul qilindi! #${done.orderId} · ${formatNumber(done.totalSom)} so'm. Tez orada operator siz bilan bog'lanadi.`} action="Orqaga" onAction={onBack} />
+        <EmptyState icon={<RstIcon name="check" size={34} />} text={`Buyurtma qabul qilindi! #${done.orderId} · ${formatNumber(done.totalSom)} so'm. Tez orada operator siz bilan bog'lanadi.`} action="Orqaga" onAction={onBack} />
       </div>
     );
   }
@@ -332,18 +341,18 @@ function RestaurantDetail({ id, me, initialCart, onBack, onBanner }: { id: numbe
 
   return (
     <div className="view rst-detail-view">
-      <button className="rst-back" onClick={onBack}>‹ Orqaga</button>
+      <button className="rst-back" onClick={onBack}><RstIcon name="chevron-left" size={13} />Orqaga</button>
       <div className="rst-hero">
         {r.hasPhoto ? (
           <img className="rst-hero-photo" src={apiUrl(`/api/restoran/photo/${r.id}`)} alt="" />
         ) : (
-          <div className="rst-hero-photo rst-card-noimg">🍽</div>
+          <div className="rst-hero-photo rst-card-noimg"><RstIcon name="plate" size={54} /></div>
         )}
         <div className="rst-hero-info">
           <div className="rst-hero-name">{r.name}</div>
           <div className="rst-card-meta">
             <OpenBadge wh={r.workHours} />
-            {r.avgRating > 0 && <span className="rst-rating">★ {r.avgRating.toFixed(1)} ({r.reviewCount})</span>}
+            {r.avgRating > 0 && <span className="rst-rating"><RstIcon name="star" size={13} />{r.avgRating.toFixed(1)} ({r.reviewCount})</span>}
           </div>
           {r.address && <div className="muted fs12">{r.address}</div>}
           {/* Bu yerda tayyorlanish vaqti DOIM bor, shuning uchun qator hech qachon bo'sh emas. */}
@@ -351,7 +360,7 @@ function RestaurantDetail({ id, me, initialCart, onBack, onBanner }: { id: numbe
         </div>
       </div>
       {data.items.length === 0 ? (
-        <EmptyState icon="📋" text="Menyu hali kiritilmagan" />
+        <EmptyState icon={<RstIcon name="orders" size={34} />} text="Menyu hali kiritilmagan" />
       ) : (
         [...sections.entries()].map(([section, items]) => (
           <div key={section} className="rst-section">
@@ -363,7 +372,7 @@ function RestaurantDetail({ id, me, initialCart, onBack, onBanner }: { id: numbe
                   {it.hasPhoto ? (
                     <img className="rst-item-photo" src={apiUrl(`/api/restoran/menuphoto/${it.id}`)} loading="lazy" decoding="async" alt="" />
                   ) : (
-                    <div className="rst-item-photo rst-card-noimg">🍲</div>
+                    <div className="rst-item-photo rst-card-noimg"><RstIcon name="plate" size={30} /></div>
                   )}
                   <div className="rst-item-body">
                     <div className="rst-item-name">{it.name}</div>
@@ -372,12 +381,12 @@ function RestaurantDetail({ id, me, initialCart, onBack, onBanner }: { id: numbe
                   </div>
                   {it.available && !closed && (
                     qty === 0 ? (
-                      <button className="rst-item-add" onClick={() => setQty(it.id, 1)}>+</button>
+                      <button className="rst-item-add" onClick={() => setQty(it.id, 1)} aria-label="Savatga qo'shish"><RstIcon name="plus" size={14} /></button>
                     ) : (
                       <div className="rst-item-stepper">
-                        <button onClick={() => setQty(it.id, -1)}>−</button>
+                        <button onClick={() => setQty(it.id, -1)} aria-label="Kamaytirish"><RstIcon name="minus" size={14} /></button>
                         <span>{qty}</span>
-                        <button onClick={() => setQty(it.id, 1)}>+</button>
+                        <button onClick={() => setQty(it.id, 1)} aria-label="Ko'paytirish"><RstIcon name="plus" size={14} /></button>
                       </div>
                     )
                   )}
@@ -392,7 +401,7 @@ function RestaurantDetail({ id, me, initialCart, onBack, onBanner }: { id: numbe
         <button className="rst-cart-bar" onClick={() => { haptic(); setCheckoutOpen(true); }}>
           <span className="rst-cart-badge">{cartCount}</span>
           <span>Savat</span>
-          <b>{formatNumber(itemsTotalSom)} so'm →</b>
+          <b>{formatNumber(itemsTotalSom)} so'm</b>
         </button>
       )}
       <Sheet open={checkoutOpen} onClose={() => setCheckoutOpen(false)}>
@@ -405,8 +414,8 @@ function RestaurantDetail({ id, me, initialCart, onBack, onBanner }: { id: numbe
         ))}
         {r.pickupEnabled && (
           <div className="rst-pickup-toggle">
-            <button className={!isPickup ? "on" : ""} onClick={() => { haptic(); setIsPickup(false); }}>🛵 Yetkazish</button>
-            <button className={isPickup ? "on" : ""} onClick={() => { haptic(); setIsPickup(true); }}>🚶 Olib ketish</button>
+            <button className={!isPickup ? "on" : ""} onClick={() => { haptic(); setIsPickup(false); }}>Yetkazish</button>
+            <button className={isPickup ? "on" : ""} onClick={() => { haptic(); setIsPickup(true); }}>Olib ketish</button>
           </div>
         )}
         {!isPickup && (
@@ -493,16 +502,22 @@ export function RestoranView({ me, onBanner, openRestaurantId }: { me: MeRespons
 
   return (
     <div className="view">
-      <button className="rst-myorders-btn" onClick={() => { haptic(); setOrdersOpen(true); }}>📦 Mening buyurtmalarim</button>
+      <button className="rst-myorders-btn" onClick={() => { haptic(); setOrdersOpen(true); }}>
+        <RstIcon name="orders" size={15} /> Mening buyurtmalarim
+      </button>
       {list === null ? (
         <CatalogSkeleton />
       ) : list.length === 0 ? (
-        <EmptyState icon="🍽" text="Hozircha restoran yo'q — tez orada qo'shiladi" />
+        <EmptyState icon={<RstIcon name="plate" size={34} />} text="Hozircha restoran yo'q — tez orada qo'shiladi" />
       ) : (
         <>
           <div className="rst-toolbar">
-            <input className="bk-input" value={q} onChange={(e) => setQ(e.target.value)} placeholder="🔍 Restoran qidirish…" />
-            <button className={"rst-chip" + (openOnly ? " on" : "")} onClick={() => { haptic(); setOpenOnly((v) => !v); }}>🟢 Ochiq hozir</button>
+            {/* Qidiruv maydoni — dizayndagi lupa ikonkasi input ichida (rst-search wrapper). */}
+            <div className="rst-search">
+              <RstIcon name="search" size={15} />
+              <input className="bk-input" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Osh, somsa, burger, tort…" />
+            </div>
+            <button className={"rst-chip" + (openOnly ? " on" : "")} onClick={() => { haptic(); setOpenOnly((v) => !v); }}>Ochiq hozir</button>
           </div>
           {cats.length > 1 && (
             <div className="rst-cat-row">
@@ -513,7 +528,7 @@ export function RestoranView({ me, onBanner, openRestaurantId }: { me: MeRespons
             </div>
           )}
           {filtered.length === 0 ? (
-            <EmptyState icon="🔍" text="Mos restoran topilmadi" />
+            <EmptyState icon={<RstIcon name="search" size={32} />} text="Mos restoran topilmadi" />
           ) : (
             <div className="rst-grid">
               {filtered.map((r) => (
