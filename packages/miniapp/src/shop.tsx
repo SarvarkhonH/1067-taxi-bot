@@ -213,25 +213,24 @@ function shopMonogram(name: string): string {
   const b = words.length > 1 ? words[1]!.charAt(0) : (words[0]?.charAt(1) ?? "");
   return (a + b).toLocaleUpperCase("uz");
 }
-function CityTile({ s, onOpen }: { s: MarketShopView; onOpen: () => void }) {
+/** 🏬 Do'kon-karta: GORIZONTAL qatorda (ega qarori 2026-07-28 — «4-5 tasi ko'rinsin»).
+ *  Ilgari 2-ustunli vertikal grid edi: do'kon 3 ta bo'lganda to'g'ri tanlov edi, 12 ta bo'lgach
+ *  ekranning yarmini egallab, mahsulotlarni pastga surib yubordi. 84px karta + 10px oraliq =
+ *  390px ekranda 4 ta to'liq + 5-chisi yarim ko'rinadi (yarim karta = «surilади» ishorasi). */
+function CityShopCard({ s, onOpen }: { s: MarketShopView; onOpen: () => void }) {
   const hue = shopHue(s.name);
+  const grad = `linear-gradient(150deg, hsl(${hue} 62% 38%), hsl(${hue} 68% 24%) 58%, hsl(${(hue + 38) % 360} 70% 46%))`;
   return (
-    <button className="shop-city-tile" onClick={onOpen}>
-      <div
-        className="shop-city-tile-cover"
-        style={s.hasPhoto ? undefined : { background: `linear-gradient(150deg, hsl(${hue} 62% 38%), hsl(${hue} 68% 24%) 58%, hsl(${(hue + 38) % 360} 70% 46%))` }}
-      >
-        {s.hasPhoto && <img src={apiUrl(`/api/shop/shop-photo/${s.id}`)} alt="" loading="lazy" />}
-        <span className={"shop-city-tile-open" + (s.open ? "" : " closed")}>{s.open ? "Ochiq" : "Yopiq"}</span>
-        <span className="shop-city-tile-mono" style={{ background: `linear-gradient(155deg, hsl(${hue} 60% 40%), hsl(${hue} 66% 26%))` }}>{shopMonogram(s.name)}</span>
+    <button className="shop-city-card" onClick={onOpen}>
+      <div className="shop-city-card-cover" style={s.hasPhoto ? undefined : { background: grad }}>
+        {s.hasPhoto
+          ? <img src={apiUrl(`/api/shop/shop-photo/${s.id}`)} alt="" loading="lazy" />
+          : <span className="shop-city-card-mono">{shopMonogram(s.name)}</span>}
+        {/* 84px kartada «Ochiq/Yopiq» yozuvi sig'maydi — nuqta bilan beriladi (matn pastda) */}
+        <span className={"shop-city-card-dot" + (s.open ? "" : " closed")} />
       </div>
-      <div className="shop-city-tile-body">
-        <div className="shop-city-tile-name">{s.name}</div>
-        <div className="shop-city-tile-meta">
-          {s.rating > 0 && <span>★ {s.rating.toFixed(1)}</span>}
-          {s.deliveryText && <span className="shop-city-tile-deliver">🚚 {s.deliveryText}</span>}
-        </div>
-      </div>
+      <div className="shop-city-card-name">{s.name}</div>
+      <div className="shop-city-card-meta">{s.rating > 0 ? `★ ${s.rating.toFixed(1)}` : s.open ? "Ochiq" : "Yopiq"}</div>
     </button>
   );
 }
@@ -1019,11 +1018,11 @@ export function ShopView({ me, onBanner, reload, onBook, openProductId }: { me: 
         ) : (
           <>
             {searchedShops.length > 0 && (
-              <div className="shop-city-grid-wrap">
+              <div className="shop-city-rail-wrap">
                 <div className="shop-section-title2">Do&apos;konlar</div>
-                <div className="shop-city-grid">
+                <div className="shop-city-rail">
                   {searchedShops.map((s) => (
-                    <CityTile key={s.id} s={s} onOpen={() => { haptic(); setQ(""); setShopFilter({ id: s.id, name: s.name }); setCat(null); }} />
+                    <CityShopCard key={s.id} s={s} onOpen={() => { haptic(); setQ(""); setShopFilter({ id: s.id, name: s.name }); setCat(null); }} />
                   ))}
                 </div>
               </div>
@@ -1325,11 +1324,11 @@ export function ShopView({ me, onBanner, reload, onBook, openProductId }: { me: 
               ochiq" filtri bittasini qoldirsa) bo'lim butunlay yo'qolib, ekran bo'sh qolardi.
               shopv2'da `> 0` (legacy `> 1`da qoladi — u yerda pastda flat-katalog ham bor). */}
           {!shopFilter  && showBozorKind && market && cityShops.length > 0 && (
-            <div className="shop-city-grid-wrap">
-              <div className="shop-section-title2">Butun shahar bo'ylab</div>
-              <div className="shop-city-grid">
+            <div className="shop-city-rail-wrap">
+              <div className="shop-section-title2">Butun shahar bo&apos;ylab</div>
+              <div className="shop-city-rail">
                 {cityShops.map((s) => (
-                  <CityTile key={s.id} s={s} onOpen={() => { haptic(); setShopFilter({ id: s.id, name: s.name }); setCat(null); }} />
+                  <CityShopCard key={s.id} s={s} onOpen={() => { haptic(); setShopFilter({ id: s.id, name: s.name }); setCat(null); }} />
                 ))}
               </div>
             </div>

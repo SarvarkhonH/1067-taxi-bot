@@ -1518,7 +1518,7 @@ body {
    va orasiga kamroq joy bilan, haqiqiy do'konlardek". 2 ustun + zich oraliq. */
 /* Ega topdi: plitkalar 2px oraliq bilan, o'z radiusi/soyasisiz yopishib turardi — bitta yaxlit
    mozaika bo'lib ko'rinib, qayerda bir mahsulot tugab ikkinchisi boshlangani BILINMASDI. Endi har
-   plitka o'z kartasi: radius + nafas + do'kon kartasi (.shop-city-tile) bilan AYNI chegara/soya. */
+   plitka o'z kartasi: radius + nafas + do'kon kartasi (.shop-city-card) bilan AYNI chegara/soya. */
 /* 2 ustunda kafel kengroq — nom to'liq o'qiladigan bo'ldi (3 ustunda 10.5px'da kesilardi) */
 .app.bjm .bj-cartbar { animation: bjmScreenIn .28s var(--ease-out); }
 .app.bjm .bj-cartbar.bump { animation: bjmBump .42s var(--ease-out); }

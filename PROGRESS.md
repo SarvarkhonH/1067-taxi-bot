@@ -4181,3 +4181,34 @@ rejada 0 ta (K6) · `/health` ok. Manba: 30 kunlik «topilmadi» qidiruvlari **7
 
 **Holat:** `ready for verification` — kod jonli, **bayroq hali OFF**. Ega QABUL bergach
 `tsx src/scripts/setFlag.ts mktlife on` bilan yoqiladi va birinchi kun push soni o'lchanadi (K9).
+
+## §69 — 🏬 DO'KONLAR GORIZONTAL QATORGA O'TDI · 2026-07-28
+
+**Ega:** «nega do'konlar gorizontalga bormay eski usulda qoldi» → «ha shunday qil, 4-5 tasi
+ko'rinsin».
+
+**Sabab (tekshiruv):** eski usul emas edi — shopv2 redizaynida ATAYLAB 2-ustunli vertikal grid
+tanlangan (`shop.tsx` izohi: «tasdiqlangan dizaynda "Butun shahar" 2-ustunli GRID … gorizontal-
+scroll AVATAR-karta EMAS»). Gorizontal qator kodda bor edi, lekin faqat MAHALLA bo'limida
+(`.shop-mah-row`), u esa `feature:mahalla=off`. Ya'ni gorizontal qator hech qachon ko'rinmagan.
+Grid 3 ta do'konga to'g'ri kelardi; do'kon soni 12 taga chiqqach ekranning yarmini yeb qo'ydi.
+
+**Qilindi:** `.shop-city-grid` (2-ustunli grid) → `.shop-city-rail` (gorizontal qator);
+`CityTile` → `CityShopCard` (80×80 muqova + holat-nuqta + 2 qatorli nom + reyting). Ikkala
+ishlatilish joyi ham ko'chdi: bosh-sahifa «Butun shahar bo'ylab» + qidiruv natijasidagi
+«Do'konlar». `shopDemo.tsx` mock'iga 5 ta do'kon qo'shildi (2 ta bilan qator hech qachon
+surilmasdi — QA aynan shu holatni ko'rmasdi).
+
+**Jonli o'lchov (`#shopdemo`, 390×844, DOM `getBoundingClientRect`):**
+`birinchiKartaX=16` (sahifa chekkasi bilan bir xil) · `toliqKorinadi=4` ·
+`yarimKorinadi=[{Non & Shirinlik uyi, 22px}]` · `suriladi=true` · konsolda 0 xato.
+
+**O'lchov paytida topilgan bug:** `scroll-snap-type: x` birinchi kartaning boshiga yopishib,
+16px chekka bo'shliqni yeb qo'yardi (`scrollLeft=16` — qator butun sahifadan chapga siljigan).
+Snap olib tashlandi (mahalla-qatorida ham yo'q — endi ikkalasi bir xil).
+
+**Isbot:** `pnpm -r typecheck` 4/4 **0 xato** · `pnpm --filter @t1067/miniapp build` ✓
+(`shop-C_jLYOQ4.js`). **Skrinshot olinmadi** — bu sessiyada brauzer paneli yopiq edi, shuning
+uchun isbot DOM-o'lchovi (yuqorida), ko'z bilan emas. Ega telefonda ko'rib QABUL beradi.
+
+**Holat:** `ready for verification`.

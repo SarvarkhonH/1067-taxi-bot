@@ -333,24 +333,30 @@
 .shop-kind-chip.on { background: var(--bj-hero-grad); color: #ffffff; border-color: transparent; }
 .shop-kind-chip:active { transform: scale(0.96); }
 .shop-kind-chip.icon { display: inline-flex; align-items: center; gap: 6px; }
-.shop-city-grid-wrap { padding: 20px 16px 0; }
 .shop-section-title2 { font-size: 15px; font-weight: 800; color: var(--bj-ink); margin-bottom: 10px; letter-spacing: -0.2px; }
-.shop-city-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
-.shop-city-tile { background: var(--bj-card); backdrop-filter: var(--bj-glass-blur); -webkit-backdrop-filter: var(--bj-glass-blur); border: 1px solid var(--bj-line); border-radius: 16px; overflow: hidden; cursor: pointer; box-shadow: var(--bj-shadow); text-align: left; padding: 0; transition: transform var(--dur-press) var(--ease-out); }
-.shop-city-tile:active { transform: scale(0.96); }
-/* 🏬 2-BOSQICH: muqova endi "bo'sh yashil blok + bitta harf" emas — do'kon nomidan hisoblangan
-   barqaror gradient (JSX'da), ustida holat chipi va yarim chiqib turgan monogram. Logo kelganda
-   `img` gradientni to'liq qoplaydi va bir piksel ham o'zgartirish kerak bo'lmaydi. */
-.shop-city-tile-cover { position: relative; height: 84px; background: linear-gradient(160deg, rgba(52, 211, 153, .22), rgba(13, 150, 104, .12)); }
-.shop-city-tile-cover img { width: 100%; height: 100%; object-fit: cover; display: block; }
-.shop-city-tile-open { position: absolute; top: 8px; right: 8px; padding: 3px 8px; border-radius: 999px; font-size: 10px; font-weight: 800; color: #0b7a55; background: rgba(255, 255, 255, .84); backdrop-filter: blur(10px) saturate(180%); -webkit-backdrop-filter: blur(10px) saturate(180%); }
-.shop-city-tile-open.closed { color: #6b7280; }
-.shop-city-tile-mono { position: absolute; left: 10px; bottom: -18px; width: 42px; height: 42px; border-radius: 14px; display: flex; align-items: center; justify-content: center; font-size: 15px; font-weight: 800; letter-spacing: -.02em; color: #fff; border: 2.5px solid rgba(255, 255, 255, .92); box-shadow: 0 8px 18px -10px rgba(6, 95, 70, .9), inset 0 1px 0 rgba(255, 255, 255, .3); }
-.shop-city-tile-meta { display: flex; flex-wrap: wrap; gap: 3px 9px; margin-top: 4px; font-size: 11px; color: var(--bj-ink-dim, #6b7280); }
-.shop-city-tile-deliver { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
-/* monogram muqovadan 18px pastga chiqadi — tana shuncha joy bo'shatadi (aks holda nom ustiga tushardi) */
-.shop-city-tile-body { padding: 24px 11px 12px; }
-.shop-city-tile-name { font-size: 13px; font-weight: 700; color: var(--bj-ink); }
+/* 🏬 DO'KON-QATORI (ega, 2026-07-28): 2-ustunli vertikal grid → gorizontal qator.
+   Grid 3 ta do'konga to'g'ri kelardi; 12 ta bo'lgach ekranning yarmini yeb, mahsulotlarni
+   ekrandan pastga surib yubordi. O'lchov ATAYLAB shunday: 16px chekka + 80px karta + 8px oraliq
+   = 390px ekranda 4 ta TO'LIQ, 5-chisi 22px chiqib turadi — yarim karta odamga «bu yon tomonga
+   suriladi» deb aytadi (hammasi to'liq sig'sa, hech kim surmaydi).
+   scroll-snap ATAYLAB YO'Q: o'lchov paytida topildi — snap birinchi kartaning boshiga yopishib,
+   16px chekka bo'shliqni yeb qo'yardi (scrollLeft=16), qator sahifaning qolgan qismidan
+   chapga siljib ketardi. Mahalla-qatorida (.shop-mah-row) ham snap yo'q — bir xil xulq. */
+.shop-city-rail-wrap { padding: 20px 0 0; }
+.shop-city-rail-wrap .shop-section-title2 { padding: 0 16px; }
+.shop-city-rail { display: flex; gap: 8px; overflow-x: auto; padding: 2px 16px 4px; scrollbar-width: none; -webkit-overflow-scrolling: touch; }
+.shop-city-rail::-webkit-scrollbar { display: none; }
+.shop-city-card { flex: none; width: 80px; background: none; border: none; padding: 0; text-align: center; color: inherit; cursor: pointer; transition: transform var(--dur-press) var(--ease-out); }
+.shop-city-card:active { transform: scale(0.95); }
+/* muqova: logo bo'lsa rasm to'liq qoplaydi, bo'lmasa do'kon nomidan hisoblangan barqaror
+   gradient + monogram (2-bosqichdagi qoida o'zgarmadi, faqat kvadratga ko'chdi) */
+.shop-city-card-cover { position: relative; width: 80px; height: 80px; border-radius: 24px; overflow: hidden; display: flex; align-items: center; justify-content: center; border: 1px solid var(--bj-line); box-shadow: var(--bj-shadow); }
+.shop-city-card-cover img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.shop-city-card-mono { font-size: 23px; font-weight: 800; letter-spacing: -.02em; color: #fff; text-shadow: 0 1px 6px rgba(0, 0, 0, .28); }
+.shop-city-card-dot { position: absolute; right: 7px; top: 7px; width: 10px; height: 10px; border-radius: 50%; background: #22c55e; border: 2px solid rgba(255, 255, 255, .92); }
+.shop-city-card-dot.closed { background: #9ca3af; }
+.shop-city-card-name { margin-top: 7px; font-size: 11px; font-weight: 700; line-height: 1.22; color: var(--bj-ink); display: -webkit-box; -webkit-line-clamp: 2; line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.shop-city-card-meta { margin-top: 2px; font-size: 10px; color: var(--bj-ink-dim, #6b7280); }
 .app.bjm .shop-head {
   position: sticky; top: 0; z-index: 20;
   padding: calc(var(--safe-top) + 8px) 14px 10px;

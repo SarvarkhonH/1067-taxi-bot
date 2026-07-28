@@ -37,6 +37,14 @@ const MOCK_MARKET: MarketHomeResponse = {
     { id: 1, name: "Guliston bozorchasi", open: true, deliveryText: "30 daqiqada", rating: 4.8, hasPhoto: false, deliveryFeeSom: 5000, minOrderTanga: 20000, shopKind: "mahalla", mahallaId: 1, story: "Har kuni ertalab yangi meva-sabzavot — o'z bog'imizdan.", weeklyOrders: 34 },
     { id: 2, name: "Kamol Market", open: true, deliveryText: "1 kun ichida", rating: 4.5, hasPhoto: false, deliveryFeeSom: 8000, minOrderTanga: 30000, shopKind: "bozor", mahallaId: null },
     { id: 3, name: "Farrux do'koni", open: false, deliveryText: "Ertaga", rating: 4.2, hasPhoto: false, deliveryFeeSom: 6000, minOrderTanga: 15000, shopKind: "bozor", mahallaId: null },
+    // Do'kon-qatori (2026-07-28) uchun: jonli bazada 11 ta "bozor" do'koni bor — mock 2 ta bilan
+    // qolganda qator hech qachon SURILMASdi, ya'ni QA aynan tekshirishi kerak bo'lgan holatni
+    // ko'rsatmasdi (4 to'liq + 5-chisi yarim + surилиши).
+    { id: 4, name: "BirJoy Oziq-ovqat", open: true, deliveryText: "Bugun 2-4 soat", rating: 0, hasPhoto: false, deliveryFeeSom: 10000, minOrderTanga: 30000, shopKind: "bozor", mahallaId: null },
+    { id: 5, name: "Yangi Bozor — meva-sabzavot", open: true, deliveryText: "Kunduzi", rating: 4.9, hasPhoto: false, deliveryFeeSom: 10000, minOrderTanga: 25000, shopKind: "bozor", mahallaId: null },
+    { id: 6, name: "Non & Shirinlik uyi", open: true, deliveryText: "1 soat", rating: 4.7, hasPhoto: false, deliveryFeeSom: 8000, minOrderTanga: 20000, shopKind: "bozor", mahallaId: null },
+    { id: 7, name: "Go'sht & Baliq rastasi", open: false, deliveryText: "3 soat", rating: 4.4, hasPhoto: false, deliveryFeeSom: 12000, minOrderTanga: 50000, shopKind: "bozor", mahallaId: null },
+    { id: 8, name: "Amazonbabykids", open: true, deliveryText: "Ertaga", rating: 0, hasPhoto: false, deliveryFeeSom: 9000, minOrderTanga: 20000, shopKind: "bozor", mahallaId: null },
   ],
   cats: [
     { id: 1, slug: "meva-sabzavot", name: "Meva-sabzavot", emoji: "🥕", hasIcon: false },
