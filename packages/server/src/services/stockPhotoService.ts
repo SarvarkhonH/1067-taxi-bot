@@ -177,7 +177,10 @@ export async function searchOpenversePhoto(term: string): Promise<FoundPhoto | n
     // ⚠️ SHOVQIN-SO'ZLAR (jonli dry-run): «buckwheat» so'rovi «Bee atop California buckwheat»
     // (asalari!) ni, «potato» esa 1899-yilgi dala fotosini qaytargan edi. Bunday hujjatli/tabiat
     // fotosi mahsulot kartasida hozirgi gradientdan ham yomon ko'rinadi.
-    const NOISE = new RegExp("\b(bee|bees|insect|beetle|disease|freckle|pest|farm|field|harvest|plantation|museum|vintage|worker|recipe|salad|soup)\b|\b(18|19)\d\d\b", "i");
+    // ⚠️ REGEX LITERAL, satr EMAS: `new RegExp("\b…")` da "\b" — JS satrida BACKSPACE belgisi
+    //    (U+0008), so'z-chegarasi emas. Shu sabab filtr umuman ishlamay, «Bee atop California
+    //    buckwheat» (asalari fotosi) uchinchi dry-run'da ham o'tib ketdi.
+    const NOISE = /\b(bee|bees|insect|beetle|disease|freckle|pest|farm|field|harvest|plantation|museum|vintage|worker|recipe|salad|soup|sofa|background green)\b|\b(18|19)\d\d\b/i;
     const ok = (r: { title?: string; provider?: string }): boolean => {
       const title = (r.title ?? "").toLowerCase();
       if (!r.provider || !GOOD_PROVIDERS.has(r.provider)) return false;
