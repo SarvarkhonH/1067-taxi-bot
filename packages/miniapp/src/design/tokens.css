@@ -1217,7 +1217,7 @@ body {
 .bj-cats::-webkit-scrollbar { display: none; }
 .bj-cat { scroll-snap-align: start; flex: 0 0 auto; width: 66px; display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 0; background: none; border: none; box-shadow: none; transition: transform var(--dur-press) var(--ease-out); }
 .bj-cat:active { transform: scale(0.94); }
-.bj-cat-ic { width: 58px; height: 58px; border-radius: 20px; background: var(--bj-card); box-shadow: var(--bj-shadow); backdrop-filter: var(--bj-glass-blur); -webkit-backdrop-filter: var(--bj-glass-blur); display: flex; align-items: center; justify-content: center; font-size: 27px; overflow: hidden; }
+.bj-cat-ic { width: 58px; height: 58px; border-radius: 20px; background: var(--bj-card-solid, #fff); box-shadow: var(--bj-shadow); display: flex; align-items: center; justify-content: center; font-size: 27px; overflow: hidden; }
 .bj-cat-ic img { width: 34px; height: 34px; object-fit: contain; }
 .bj-cat-l { font-size: 10.8px; font-weight: 650; line-height: 1.22; color: var(--bj-ink-dim); text-align: center; letter-spacing: -.01em; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
 .bj-cat.on .bj-cat-ic { background: var(--bj-hero-grad); box-shadow: var(--bj-glass-rim), 0 12px 26px -14px rgba(6, 95, 70, .85); }
@@ -1431,6 +1431,11 @@ body {
     radial-gradient(88% 56% at 100% 6%, rgba(249, 190, 62, .16) 0%, transparent 54%),
     #f4f5f6;
   --bj-card: rgba(255, 255, 255, .62);
+  /* ⚡ TAKRORLANADIGAN SIRTLAR uchun (kafel, mini-karta, ikonka): shishasiz, deyarli
+     shaffofmas. Sabab — `backdrop-filter` har elementda alohida GPU qatlami yaratadi va
+     ro'yxatda o'nlab bo'lganda scroll qotadi (ega: «do'kon bo'limi sekinroq»). Shisha
+     endi FAQAT doimiy sirtlarda: header, tabbar, qidiruv, yopishqoq panel. */
+  --bj-card-solid: rgba(255, 255, 255, .93);
   --bj-line: rgba(16, 20, 24, 0.055);
   --bj-sale: #e11d48;
   --bj-ink: #101418;

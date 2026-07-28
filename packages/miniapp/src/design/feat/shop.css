@@ -16,7 +16,7 @@
 .shop-card-noimg { display: flex; align-items: center; justify-content: center; font-size: 52px;
   background: radial-gradient(circle at 50% 40%, color-mix(in srgb, var(--acc) 26%, transparent), var(--surface) 75%); }
 .shop-badge-new { position: absolute; top: 6px; left: 6px; font-size: 10px; font-weight: 800; letter-spacing: .04em; padding: 3px 8px; border-radius: var(--r-chip); background: var(--brand-grad); color: #1a1205; box-shadow: 0 2px 8px rgba(255,179,0,.45); }
-.shop-badge-stock { position: absolute; bottom: 6px; right: 6px; font-size: 10px; font-weight: 700; padding: 3px 8px; border-radius: var(--r-chip); background: rgba(0,0,0,.6); color: var(--text); backdrop-filter: blur(4px); }
+.shop-badge-stock { position: absolute; bottom: 6px; right: 6px; font-size: 10px; font-weight: 700; padding: 3px 8px; border-radius: var(--r-chip); background: rgba(0,0,0,.6); color: var(--text); }
 .shop-badge-stock.low { background: rgba(248,113,113,.25); color: #fecaca; border: 1px solid rgba(248,113,113,.4); }
 .shop-card-body { padding: 9px 10px 10px; display: flex; flex-direction: column; gap: 7px; }
 .shop-card-name { font-size: 13.5px; font-weight: 700; color: var(--text); line-height: 1.25; min-height: 2.5em; }
@@ -318,7 +318,7 @@
 .app.bjm .shop-price-chip { background: rgba(245, 158, 11, .14); color: var(--bj-tanga); border: 1px solid rgba(245, 158, 11, .28); }
 .app.bjm .shop-price-old { color: var(--bj-ink-dim); }
 .app.bjm .shop-buy-bar { background: var(--bj-hero-grad); color: #ffffff; box-shadow: 0 4px 14px -4px rgba(13, 150, 104, .55); }
-.app.bjm .shop-mini { background: var(--bj-card); border: none; box-shadow: var(--bj-shadow); backdrop-filter: var(--bj-glass-blur); -webkit-backdrop-filter: var(--bj-glass-blur); }
+.app.bjm .shop-mini { background: var(--bj-card-solid, #fff); border: none; box-shadow: var(--bj-shadow); }
 .app.bjm .shop-mini-name { color: var(--bj-ink); }
 .app.bjm .shop-mini-price { color: var(--bj-accent); }
 .app.bjm .shop-section-title { color: var(--bj-ink); }
@@ -412,7 +412,7 @@
 .shop-head-icon-badge { position: absolute; top: -3px; right: -3px; background: #34d399; color: #0a1a12; font-size: 9px; font-weight: 800; min-width: 15px; height: 15px; border-radius: 8px; display: flex; align-items: center; justify-content: center; padding: 0 3px; }
 /* 🏬 5-BOSQICH: fon endi JSX'dan (do'kon nomidan hisoblangan gradient) keladi — bu yerda faqat
    zaxira rang. Balandlik 100 -> 92: ekranning yuqori qismi mahsulotga tezroq yetsin. */
-.app.bjm .shop-sp-cover { height: 92px; position: relative; overflow: hidden; background: linear-gradient(150deg, #0f8f66, #0b6b4c); }
+.app.bjm .shop-sp-cover { height: 92px; position: relative; overflow: hidden; background: linear-gradient(150deg, #dff3ea, #c7e8db); }
 /* muqova: rasm XIRA fon (kvadrat logo keng lentaga kesilganda xunuk ko'rinardi) — tiniq
    nusxasi avatarda turadi. `filter: blur` (backdrop-filter EMAS) va butun profilda BITTA
    element, ya'ni ro'yxat-scroll'iga hech qanday narxi yo'q. */
@@ -448,7 +448,7 @@
 .app.bjm .shop-rev-qlabel { font-size: 12.5px; font-weight: 700; color: var(--bj-ink); margin-top: 4px; }
 .app.bjm .shop-rev-why { margin-top: -2px; }
 .app.bjm .shop-sp-revlist { display: flex; flex-direction: column; gap: 8px; margin-top: 12px; }
-.app.bjm .shop-sp-rev { background: var(--bj-card); backdrop-filter: var(--bj-glass-blur); -webkit-backdrop-filter: var(--bj-glass-blur); border: 1px solid var(--bj-line); border-radius: 12px; padding: 11px 13px; }
+.app.bjm .shop-sp-rev { background: var(--bj-card-solid, #fff); border: 1px solid var(--bj-line); border-radius: 12px; padding: 11px 13px; }
 .app.bjm .shop-sp-rev-top { display: flex; justify-content: space-between; font-size: 12.5px; font-weight: 700; color: var(--bj-ink); }
 .app.bjm .shop-sp-rev-text { font-size: 12.5px; color: var(--bj-ink); margin-top: 4px; }
 .app.bjm .shop-sp-rev-days { font-size: 10.5px; color: var(--bj-ink-dim); margin-top: 5px; }
@@ -482,14 +482,14 @@
 /* 🫧 2-BOSQICH: kafel endi "rasm + tana", matn rasm ustida emas.
    Rasm o'z maydonida (1:1) to'liq ko'rinadi, atrofida 6px nafas — sotuvchi fotolari rang-barang
    fonli (karopka, pol, javon), shuning uchun neytral maydon ularni bir xil tinchlantiradi. */
-.shop-tile { position: relative; display: flex; flex-direction: column; text-align: left; background: var(--bj-card, #fff); border: none; border-radius: 18px; box-shadow: var(--bj-shadow); padding: 0; cursor: pointer; overflow: hidden; backdrop-filter: var(--bj-glass-blur); -webkit-backdrop-filter: var(--bj-glass-blur); transition: transform var(--dur-press) var(--ease-out); }
+.shop-tile { position: relative; display: flex; flex-direction: column; text-align: left; background: var(--bj-card-solid, #fff); border: none; border-radius: 18px; box-shadow: var(--bj-shadow); padding: 0; cursor: pointer; overflow: hidden; transition: transform var(--dur-press) var(--ease-out); }
 .shop-tile:active { transform: scale(0.96); }
 .shop-tile-ph { position: relative; aspect-ratio: 1 / 1; margin: 6px 6px 0; border-radius: 13px; overflow: hidden; background: linear-gradient(160deg, rgba(52, 211, 153, .16), rgba(13, 150, 104, .09)); display: flex; align-items: center; justify-content: center; }
 .shop-tile-img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
 .shop-tile-initial { position: relative; font-size: 40px; font-weight: 800; color: rgba(6, 95, 70, .30); letter-spacing: -1px; }
 .shop-tile-disc { position: absolute; top: 7px; left: 7px; font-size: 10px; font-weight: 900; padding: 3px 7px; border-radius: 9px; background: linear-gradient(135deg, #f0426b, #dc2626); color: #fff; z-index: 1; box-shadow: 0 6px 14px -8px rgba(190, 18, 60, .9); }
 /* ❤️ rasm ustida qoladi, lekin qora doira emas — shisha (fon rasmga moslashadi) */
-.shop-tile-fav { position: absolute; top: 7px; right: 7px; width: 27px; height: 27px; border-radius: 50%; background: rgba(255, 255, 255, .72); backdrop-filter: blur(12px) saturate(180%); -webkit-backdrop-filter: blur(12px) saturate(180%); display: flex; align-items: center; justify-content: center; color: #55555a; z-index: 1; cursor: pointer; box-shadow: 0 4px 12px -6px rgba(20, 26, 24, .55); }
+.shop-tile-fav { position: absolute; top: 7px; right: 7px; width: 27px; height: 27px; border-radius: 50%; background: rgba(255, 255, 255, .88); display: flex; align-items: center; justify-content: center; color: #55555a; z-index: 1; cursor: pointer; box-shadow: 0 4px 12px -6px rgba(20, 26, 24, .55); }
 .shop-tile-fav.on { color: #ef4444; }
 .shop-tile-body { padding: 9px 10px 11px; }
 .shop-tile-name { font-size: 12.8px; font-weight: 650; line-height: 1.32; color: var(--bj-ink, #1b2333); letter-spacing: -.012em; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; min-height: 34px; }

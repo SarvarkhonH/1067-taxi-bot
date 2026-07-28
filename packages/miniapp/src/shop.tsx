@@ -1059,7 +1059,10 @@ export function ShopView({ me, onBanner, reload, onBook, openProductId }: { me: 
                   kartalar bilan AYNAN bir xil, do'kon nomidan hisoblangan barqaror gradient. */}
               <div
                 className="shop-sp-cover"
-                style={shopProfile.hasPhoto ? undefined : { background: `linear-gradient(150deg, hsl(${shopHue(shopProfile.name)} 62% 38%), hsl(${shopHue(shopProfile.name)} 68% 24%) 58%, hsl(${(shopHue(shopProfile.name) + 38) % 360} 70% 46%))` }}
+                // 🎨 EGA SKRINSHOTI (2026-07-28): muqova to'q KO'K blok bo'lib chiqqan edi (hue 190,
+                // 62% to'yinganlik) — brend zumradiga ham, oq-shisha temaga ham begona. Rang-xilma-xillik
+                // QOLADI (do'kon nomidan), lekin PASTEL: katta maydon tinch, urg'u avatar/nomda.
+                style={shopProfile.hasPhoto ? undefined : { background: `linear-gradient(150deg, hsl(${shopHue(shopProfile.name)} 44% 93%), hsl(${shopHue(shopProfile.name)} 38% 85%) 60%, hsl(${(shopHue(shopProfile.name) + 30) % 360} 42% 90%))` }}
               >
                 {/* 🖼 EGA TOPDI (2026-07-28): «ichkariga kirsa do'kon profili xunuk». Sabab —
                     do'kon rasmi KVADRAT logo, muqova esa 92px balandlikdagi keng lenta: logo
