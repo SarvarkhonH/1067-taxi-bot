@@ -54,6 +54,14 @@ const ICONS: Record<string, string> = {
   tayyor: `<path d="M7.4 6.6h9.2l1.4 11.6a2 2 0 0 1-2 2.2H8a2 2 0 0 1-2-2.2Z"/><path d="M7.4 6.6 9 4h6l1.6 2.6"/><circle cx="10.4" cy="13.4" r="1.05" fill="${A}" stroke="none"/><circle cx="13.6" cy="16" r="1.05" fill="${A}" stroke="none"/>`,
   qoshimcha: `<rect x="4.6" y="8.6" width="12.8" height="7.8" rx="2.2"/><path d="M17.4 11.4h1.6v2.2h-1.6" fill="${A}" stroke="${A}"/><path d="M8.4 12.5h5.2M11 9.9v5.2"/>`,
 
+  // ── No-oziq-ovqat kategoriyalari (2026-07-28): jonli assortiment shu to'rttada.
+  // Ikonkalar dastlab recategorizeProducts.ts ichida yaratilgan edi; ikonka-to'plami BITTA joyda
+  // turishi uchun shu yerga ko'chirildi (u yerda faqat yangi kategoriya yaratishda ishlatiladi).
+  "oshxona-idish": `<path d="M4.2 10.6h13.2v4.8a4.2 4.2 0 0 1-4.2 4.2H8.4a4.2 4.2 0 0 1-4.2-4.2Z"/><path d="M17.4 11.8h1.8a1.9 1.9 0 1 1 0 3.8h-1.8"/><path d="M3 10.6h15.4" stroke-width="1.7"/><path d="M8.6 7.8c.7-.9.7-1.6 0-2.5M12.6 7.8c.7-.9.7-1.6 0-2.5" stroke="${A}"/>`,
+  dasturxon: `<path d="M6.4 4.6v6.2a2.2 2.2 0 0 0 4.4 0V4.6"/><path d="M8.6 4.6v14.8"/><path d="M16.6 4.6c1.6 0 2.6 1.8 2.6 4.4 0 2-.7 3.2-1.6 3.6v6.8"/><circle cx="6.4" cy="8" r=".9" fill="${A}" stroke="none"/>`,
+  "maishiy-texnika": `<rect x="4.4" y="5.6" width="15.2" height="12.8" rx="2.4"/><path d="M8.4 9.4h7.2M8.4 12.6h4.6"/><circle cx="16.6" cy="15" r="1.3" fill="${A}" stroke="none"/>`,
+  kiyim: `<path d="M8.6 4.6 5 6.8l1.6 3.4 1.6-.8v9.2h7.6V9.4l1.6.8L19 6.8l-3.6-2.2"/><path d="M8.6 4.6a3.4 3.4 0 0 0 6.8 0" stroke="${A}"/>`,
+
   // ── Katalogdan OLDINGI kategoriyalar. Jonli dry-run ko'rsatdi: mijoz karuselida AYNAN SHU
   // beshtasi ko'rinadi (30 ta yangisida hali mahsulot yo'q, bo'sh kategoriya yashiriladi), ya'ni
   // ularsiz redizayn mijoz uchun umuman o'zgarmasdi. Mahsulotlar yangi kategoriyalarga ko'chgach

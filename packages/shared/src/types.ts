@@ -507,6 +507,16 @@ export const MARKET_CATEGORIES: readonly MarketCategoryDef[] = [
   { slug: "asal", name: "Asal va murabbo", emoji: "🍯" },
   { slug: "tayyor", name: "Tayyor mahsulotlar", emoji: "🍟" },
   { slug: "qoshimcha", name: "Qo'shimcha mahsulotlar", emoji: "💊" },
+  // ── NO-OZIQ-OVQAT (2026-07-28, jonli assortiment tahlilidan) ─────────────────────────────────
+  // Yuqoridagi 30 talik ro'yxat supermarket uchun tuzilgan edi, lekin jonli do'kon deyarli
+  // oziq-ovqat sotmaydi: 221 mahsulotdan ATIGI BITTASI oziq-ovqatga tushdi. Haqiqiy assortiment
+  // shu to'rt guruhda (recategorizeProducts.ts o'lchadi): idish-tovoq, serviz, maishiy texnika,
+  // kiyim. Shuning uchun ular ham KANONIK ro'yxatga kiritildi — aks holda seedMarketCategories
+  // ularni "katalogdan tashqari eski" deb hisoblab ro'yxat oxiriga surib yuborardi.
+  { slug: "oshxona-idish", name: "Oshxona idishlari", emoji: "🍳" },
+  { slug: "dasturxon", name: "Dasturxon va serviz", emoji: "🍽" },
+  { slug: "maishiy-texnika", name: "Maishiy texnika", emoji: "🔌" },
+  { slug: "kiyim", name: "Kiyim va aksessuar", emoji: "👕" },
 ];
 // 🔥 Aksiya — kategoriya emas, merchandising-javon (chegirmali mahsulotlar), doim birinchi.
 export const MARKET_PROMO_CATEGORY = "Aksiya";
