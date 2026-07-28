@@ -3784,3 +3784,69 @@ avtomatik ogohlantirish yubordi.
 - `revtanga` / `shopcashback` — yangi emissiya manbalari, bir haftadan keyin
   `CoinTxn where kind in ('shop_cashback','shop_review')` bo'yicha o'lchov olinsin.
 
+
+---
+
+## §62 — 🫧 DO'KON REDIZAYNI, 1-BOSQICH: SUYUQ-SHISHA TILI · 2026-07-28
+
+**Ega:** «ravella da chiroyli dizayn bo'ldi… do'konlarni ham yaxshiroq dizaynga olish kerak» →
+mockup ko'rsatildi va tasdiqlandi (artifact `965dc365`) → «boshla 1-bosqichni».
+
+**Qamrov (ataylab tor):** 1-bosqich = TIL, tuzilma emas. Kartalarning ichki tuzilishi (matn
+rasmdan tushishi, nom normalizatsiyasi, brend·hajm qatori) — 2-bosqich.
+
+**Nima qilindi.** Retsept `ravella.css` dan olindi va **token darajasida** qo'yildi — har sirt
+allaqachon `--bj-card` / `--bj-line` / `--bj-shadow` dan oziqlangani uchun uchta o'zgaruvchini
+almashtirish butun bo'limni bir yo'la yangiladi:
+
+| Token | Oldin | Endi |
+|---|---|---|
+| `--bj-card` | `#f5f6f7` tekis | `rgba(255,255,255,.62)` shaffof |
+| `--bj-shadow` | oddiy soya | `--bj-glass-rim` (4 tomonlama ichki specular) + `--bj-glass-depth` |
+| `--bj-bg-grad` | `#ffffff` | zumrad+amber radial nurlar, `background-attachment: fixed` |
+| yangi | — | `--bj-glass-blur: saturate(185%) brightness(1.04) blur(24px)` |
+| — | — | `letter-spacing: -.011em` (Ravella tipografikasi) |
+
+`shop.css`: qo'lda yozilgan **14 xil** blur qiymati bitta tokenga keltirildi; qidiruv,
+kategoriya-chip, ulashish/buyurtma tugmalari, mahsulot va mini kartalar, yopishqoq tepa-panel —
+chegara o'rniga qirra-yorug'lik oldi; tab-panel ham shisha (oldin 92% qattiq oq edi).
+
+**Ehtiyot choralari:** `.shop-kind-chip` `.app.bjm` ostida EMAS → tokenlarga fallback berildi
+(bjm o'chsa avvalgi ko'rinish qoladi). `.shop-mah-badge` ataylab eski 6px blur'da qoldirildi —
+kichik va deyarli noshaffof nishonga kuchli blur ortiqcha yuk.
+
+**Isbot:** `pnpm -r typecheck` 4/4 **0 xato** · `vite build` o'tdi · `#shopdemo` jonli
+komponent-daraxtida `.app.bjm` foni gradient, `.shop-search`/`.shop-city-tile`/`.shop-head`/
+`.tabbar` — `rgba(255,255,255,.6x)` + `var(--bj-glass-blur)` + rim; konsolda 0 xato ·
+jonli: `app.birjoy.online` → `index-B6PYF6pl.css` da `bj-glass-rim` + `bj-bg-grad` bor,
+`shop-HPBfZ7S3.css` da `bj-glass-blur` bor · `/health` ok · VPS `af64ea2`.
+
+**Holat:** `ready for verification` — ega telefonda ko'rib QABUL beradi. Keyingisi: 2-bosqich
+(mahsulot va do'kon kartasi — mockupdagi eng katta o'zgarish shu yerda).
+
+---
+
+## §63 — 🔐 BOT TOKENI RASM SO'ROVLARIDA OSHKOR BO'LGAN (kritik) · 2026-07-28
+
+Mockup uchun mahsulot rasmini yuklab olayotib topildi:
+
+```
+curl -sI https://api.birjoy.online/api/shop/photo/246?s=1
+Location: https://api.telegram.org/file/bot7984766606:<TOKEN>/photos/file_1016.jpg
+```
+
+**12 ta** rasm/video endpoint mijozni to'g'ridan-to'g'ri Telegram CDN'ga `302` bilan yuborardi,
+manzil ichida esa `BOT_TOKEN` bor edi. Do'kon rasmlari mehmonga ham ochiq — ya'ni tokenni
+**istalgan odam autentifikatsiyasiz, bitta HEAD so'rovi bilan** olardi. Token = botni to'liq
+egallash (1000+ foydalanuvchiga xabar, webhook o'g'irlash, yangilanishlarni o'qish).
+
+**Tuzatish (`eeb5f0d`):** `pipeTelegramFile()` — baytlar server orqali oqadi (node stream, butun
+faylni xotiraga yig'maydi), token serverdan chiqmaydi. 12/12 redirect almashtirildi (repo bo'ylab
+grep: 0 qoldi). Javob sarlavhalari o'sha-o'sha.
+
+**Isbot (deploy'dan keyin):** `/api/shop/photo/246?s=1` → `200`, `Content-Length: 35171`,
+javobda `api.telegram.org` **yo'q**, `file` buyrug'i JPEG deydi.
+
+**⚠️ OCHIQ, EGA BAJARADI:** tuzatish leak'ni to'xtatdi, lekin **allaqachon oshkor bo'lgan tokenni
+bekor qilmaydi**. @BotFather → `/revoke` → yangi token → VPS `/opt/app/.env` da `BOT_TOKEN=`
+almashtirilib `systemctl restart bot1067`. Mavjud `file_id`lar yangi tokenda ham ishlaydi.
