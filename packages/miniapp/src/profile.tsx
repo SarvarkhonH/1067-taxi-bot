@@ -189,6 +189,11 @@ export function NewProfileView({ me, onNav, onBanner }: { me: MeResponse; onNav:
       </div>
 
       <div style={{ marginTop: 16 }}><AccountCard /></div>
+      {/* 🔖 Build shtampi — "yangilanmadi" shikoyatini 2 soniyada tekshirish uchun. Telegram
+          Mini App'ni keshlaydi; bu sana eskimasa, demak telefon eski nusxani ochyapti. */}
+      <div style={{ marginTop: 18, textAlign: "center", fontSize: 11, color: "var(--nh-dim)", opacity: .7 }}>
+        BirJoy · {__BUILD_STAMP__}
+      </div>
     </div>
   );
 }
