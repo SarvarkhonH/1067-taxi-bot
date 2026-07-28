@@ -97,6 +97,16 @@ async function main(): Promise<void> {
     plan.get(hit.cat)!.push({ id: p.id, name: p.name, from: p.category, key: hit.key });
   }
 
+  // ORQAGA QAYTARISH YOZUVI: ommaviy o'zgarish oldidan har mahsulotning ESKI kategoriyasi
+  // AppState'ga saqlanadi. Ega natijani yoqtirmasa, bitta skript shu yozuvdan hammasini
+  // tiklaydi — aks holda eski qiymatlar butunlay yo'qolardi.
+  if (APPLY && plan.size) {
+    const backup = [...plan.values()].flat().map((i) => ({ id: i.id, from: i.from }));
+    const key = `recat:backup:${new Date().toISOString().slice(0, 19).replace(/[:T]/g, "")}`;
+    await prisma.appState.create({ data: { key, value: JSON.stringify(backup) } });
+    console.log(`\n📼 orqaga-qaytarish yozuvi: AppState["${key}"] — ${backup.length} satr`);
+  }
+
   for (const [cat, list] of [...plan.entries()].sort((a, b) => b[1].length - a[1].length)) {
     console.log(`\n2) → ${cat}  (${list.length} ta)`);
     for (const it of list.slice(0, 5)) console.log(`     #${it.id} «${it.name.slice(0, 46)}» ← ${it.from} [${it.key}]`);
