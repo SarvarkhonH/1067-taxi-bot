@@ -4179,8 +4179,26 @@ TOVALARIMIZ" · «Ichimlik»→"Ichimlik suvi". Yolg'on moslik **0**.
 → `quiet=true, 0` (K2) · bir a'zoga 1 tadan ko'p emas (K3) · 3 ≤ 20 (K5) · faol/zaxirasiz mahsulot
 rejada 0 ta (K6) · `/health` ok. Manba: 30 kunlik «topilmadi» qidiruvlari **70 ta**, ❤️ **6 ta**.
 
-**Holat:** `ready for verification` — kod jonli, **bayroq hali OFF**. Ega QABUL bergach
-`tsx src/scripts/setFlag.ts mktlife on` bilan yoqiladi va birinchi kun push soni o'lchanadi (K9).
+### YOQILDI (ega buyrug'i, 2026-07-28 19:36 Toshkent)
+Avval **ega o'ziga sinov-push** oldi (`sendLifecyclePreview.ts` — chat ID kodda qattiq yozilgan,
+boshqa hech kimga yubora olmaydi; marker qo'ymaydi, ya'ni mijozning haqiqiy xabari o'g'irlanmadi).
+Ega formatni tasdiqlagach `setFlag.ts mktlife on`.
+
+**Birinchi tsikl (19:37 Toshkent, yoqilgandan 1 daqiqa keyin):**
+`[mktlife] 3/3 push yuborildi` — uchalasi ham yetdi.
+
+| A'zo | Nima oldi |
+|---|---|
+| #7257 | «Pepsi» qidirgan edi → Pepsi (12 000) |
+| #6752 | «Tova» qidirgan edi → PIZZA PAN TOVALARIMIZ 26cm (65 000) |
+| #7080 | «Ichimlik» qidirgan edi → Ichimlik suvi, gazsiz (4 000) |
+
+**Isbot:** AppState'da **6 ta marker** (har a'zoga juftlik-markeri + kunlik marker), hammasi
+14:37 UTC · keyingi dry-run: **`0 ta push`** — ya'ni takror yuborilmaydi (K3/K4 jonli isbotlandi) ·
+`/health` ok.
+
+**Holat:** `owner-accepted` (ega yoqishga buyruq berdi) · o'lchov: bir kundan keyin push soni +
+ochilish qaraladi (K9).
 
 ## §69 — 🏬 DO'KONLAR GORIZONTAL QATORGA O'TDI · 2026-07-28
 
