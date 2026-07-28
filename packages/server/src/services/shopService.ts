@@ -174,7 +174,6 @@ export async function getMarketHome(preview = false, q?: string, memberId?: numb
   cats: { slug: string; name: string; emoji: string; hasIcon: boolean; id: number }[];
   products: ShopProductView[];
 }> {
-  if (!preview && !(await featureOn("bazar"))) return { shops: [], cats: [], products: [] };
   const query = (q ?? "").trim().slice(0, 60);
   // V1.5: mahalla-tur do'konlar bozor-tur bilan bitta take:20'ga sig'ishmasin (shahar ulg'aygach
   // mahalla-do'konlar top-20'dan siqib chiqarilib ko'rinmay qolardi) — ikkisi ALOHIDA so'raladi.
@@ -282,7 +281,6 @@ export async function getShopOrdersToday(shopId: number): Promise<number> {
 }
 
 export async function getShopProfile(shopId: number, preview = false): Promise<ShopProfileView | null> {
-  if (!preview && !(await featureOn("bazar"))) return null;
   const shop = await prisma.marketShop.findUnique({ where: { id: shopId } });
   if (!shop || (!shop.active && !preview)) return null;
   // V1.5: mahallaId bo'lsa Mahalla.name ustun keladi, aks holda eski erkin-matn neighborhood'ga fallback.

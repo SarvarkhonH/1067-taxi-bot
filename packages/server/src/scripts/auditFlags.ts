@@ -9,7 +9,7 @@ async function main() {
   console.log("=== AI-related flags (live DB) ===");
   for (const f of AI_FLAGS) console.log(`  ${f}: ${map.get(f) ?? "(no row = OFF, default-off)"}`);
   console.log("\n=== OTHER content flags relevant to Koson AI providers ===");
-  for (const f of ["restoran", "xizmatlar", "bazar", "elonlar", "intercity", "shop"]) console.log(`  ${f}: ${map.get(f) ?? "(no row)"}`);
+  for (const f of ["restoran", "xizmatlar", "elonlar", "intercity", "shop"]) console.log(`  ${f}: ${map.get(f) ?? "(no row)"}`);
   console.log(`\n=== total feature: rows in DB: ${rows.length} ===`);
   await prisma.$disconnect();
 }

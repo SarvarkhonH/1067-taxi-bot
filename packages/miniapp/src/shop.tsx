@@ -382,7 +382,6 @@ export function ShopView({ me, onBanner, reload, onBook, openProductId }: { me: 
   };
 
   // 🏪 V1.4 (BirJoy): bazar-qatlam — flag OFF'da market so'ralmaydi ham, UI ham eski holicha AYNAN
-  const bazar = !!me.flags?.bazar;
   // 🌘 BirJoy Market v2: qorong'i-oynasimon qayta-dizayn (Claude Design'da tasdiqlangan) — faqat
   // vizual qatlam (className toggle + tokens.css'dagi .app.bjm override'lari), mantiq o'zgarmaydi.
   // 📹 S1: do'kon-hikoya — tray Bozor-boshda, alohida flag (bazar ON bo'lsa ham story hali DARK
@@ -391,9 +390,9 @@ export function ShopView({ me, onBanner, reload, onBook, openProductId }: { me: 
   const [storyTray, setStoryTray] = useState<ShopStoryTrayItem[] | null>(null);
   const [storyViewer, setStoryViewer] = useState<{ shopId: number; stories: ShopStoryPost[]; idx: number } | null>(null);
   useEffect(() => {
-    if (!bazar || !shopstory) return;
+    if (!shopstory) return;
     api.shopStories().then((r) => setStoryTray(r.shops)).catch(() => undefined);
-  }, [bazar, shopstory]);
+  }, [shopstory]);
   const openStoryViewer = async (shopId: number) => {
     haptic();
     try {
@@ -478,11 +477,9 @@ export function ShopView({ me, onBanner, reload, onBook, openProductId }: { me: 
   // (pre-BirJoy, yagona-do'kon davridan qolgan) shu ekranda O'RNATILMAGAN edi. Ega "hali chalaku"
   // deb topdi — sabab shu: ikki xil IA (do'kon-bo'yicha ko'rish VA flat-mahsulot-katalog) bir
   // sahifada ustma-ust chiqardi. shopv2'da bazar-bosh endi FAQAT do'kon-kashfiyoti.
-  const homeFlatCatalog = !(bazar  && !shopFilter);
+  const homeFlatCatalog = !!shopFilter;
   // Hero-karusel ("barcha do'konlar bo'ylab ajratilgan") hech qachon do'kon-birinchi oqimga mos
   // kelmaydi — na bazar-bosh'da (do'kon-kashfiyoti), na do'kon-profilda (o'sha DO'KONning o'zi
-  // ko'rsatilishi kerak). homeFlatCatalog'dan farqli — shopFilter tanlangan bo'lsa ham yashirin.
-  const showHeroStrip = !bazar;
   const [mahallaList, setMahallaList] = useState<MahallaView[] | null>(null);
   const [mahallaPickerOpen, setMahallaPickerOpen] = useState(false);
   const [mahallaQuery, setMahallaQuery] = useState("");
@@ -491,13 +488,12 @@ export function ShopView({ me, onBanner, reload, onBook, openProductId }: { me: 
   const [travelDismissed, setTravelDismissed] = useState(false);
   const activeMahalla = useMemo(() => mahallaList?.find((m) => m.id === activeMahallaId) ?? null, [mahallaList, activeMahallaId]);
   useEffect(() => {
-    if (!bazar) return;
     api.mahallaList().then((r) => setMahallaList(r.mahallas)).catch(() => undefined);
-  }, [bazar]);
+  }, []);
   // GPS-eng-yaqin taxmin: birinchi marta bo'lsa jim "uy" sifatida saqlaydi (owner qarori — avtomatik
   // taxmin + qo'lda o'zgartirish), aks holda farq qilsa bir martalik safar-rejimi banner ko'rsatadi.
   useEffect(() => {
-    if (!bazar || shopFilter || !tgHasLocationManager()) return;
+    if (shopFilter || !tgHasLocationManager()) return;
     let stale = false;
     tgGetLocation().then((loc) => {
       if (stale || "error" in loc) return;
@@ -509,7 +505,7 @@ export function ShopView({ me, onBanner, reload, onBook, openProductId }: { me: 
     });
     return () => { stale = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [bazar, shopFilter]);
+  }, [shopFilter]);
   const pickMahalla = async (id: number) => {
     haptic();
     setMahallaPickerOpen(false);
@@ -720,14 +716,13 @@ export function ShopView({ me, onBanner, reload, onBook, openProductId }: { me: 
   // NOL natija server'da MarketDemand'ga tushadi («qidirildi-topilmadi» ro'yxati egaga)
   const [srv, setSrv] = useState<{ q: string; products: ShopProductView[] } | null>(null);
   useEffect(() => {
-    if (!bazar) return;
     const t = q.trim();
     if (t.length < 2) { setSrv(null); return; }
     const id = setTimeout(() => {
       api.shopMarket(t).then((r) => setSrv({ q: t, products: r.products })).catch(() => undefined);
     }, 450);
     return () => clearTimeout(id);
-  }, [q, bazar]);
+  }, [q]);
 
   const load = () => {
     setErr(false);
@@ -744,10 +739,9 @@ export function ShopView({ me, onBanner, reload, onBook, openProductId }: { me: 
     api.shopMarket().then(setMarket).catch(() => setMarketErr(true));
   };
   useEffect(() => {
-    if (!bazar) return;
     loadMarket();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [bazar]);
+  }, []);
 
   const featured = useMemo(() => (products ?? []).filter((p) => p.featured).slice(0, 6), [products]);
   // kategoriya chiplar — nechta va qaysi tartibda birinchi ko'rinishda paydo bo'lgan bo'lsa shu
@@ -777,11 +771,11 @@ export function ShopView({ me, onBanner, reload, onBook, openProductId }: { me: 
     const t = q.trim().toLowerCase();
     if (!t) return null;
     // bazar: server-natija ustuvor (tavsif-qidiruv + demand-capture); kelguncha client-filtr
-    if (bazar && srv && srv.q.toLowerCase() === t) return srv.products;
+    if (srv && srv.q.toLowerCase() === t) return srv.products;
     // 🏷 Katalog: brend ham (server-natija kelguncha ishlaydigan client-filtr — server tarafda
     // brend+tavsif+barkod bo'yicha to'liq qidiruv bor, getMarketHome).
     return (products ?? []).filter((p) => p.name.toLowerCase().includes(t) || p.category.toLowerCase().includes(t) || (p.brand ?? "").toLowerCase().includes(t));
-  }, [products, q, bazar, srv]);
+  }, [products, q, srv]);
   // AUDIT: qidiruvda mos DO'KONLAR (nom bo'yicha) — placeholder buni allaqachon va'da qilgan edi
   const searchedShops = useMemo(() => {
     const t = q.trim().toLowerCase();
@@ -976,7 +970,7 @@ export function ShopView({ me, onBanner, reload, onBook, openProductId }: { me: 
           Shu bilan alohida "mahalla-chip" (mockup'da yo'q) butunlay olib tashlandi. */}
       {/* AUDIT: "Koson" — shahar nomi, sozlama emas edi; mahallasi yo'q mijoz nima bosishini
           bilmasdi. Endi nomlangan CTA + karet, ya'ni bosiladigan boshqaruvga o'xshaydi. */}
-      {bazar && !shopFilter && (
+      {!shopFilter && (
         <button className="shop-city-label" onClick={() => { haptic(); setMahallaPickerOpen(true); }} aria-label="Mahallani o'zgartirish">
           <Icon name="pin" size={12} /> {activeMahalla?.name ?? "Mahallani tanlang"}
           <span className="shop-city-label-caret">▾</span>
@@ -1043,21 +1037,6 @@ export function ShopView({ me, onBanner, reload, onBook, openProductId }: { me: 
         <>
           {/* ── featured hero carousel — legacy yagona-do'kon oqimi, bazar+shopv2'da (bosh HAM
               profil HAM) yashirilgan, do'kon-birinchi oqimga mos kelmaydi ── */}
-          {showHeroStrip && featured.length > 0 && (
-            <div className="shop-hero-strip">
-              {featured.map((p) => (
-                <button key={p.id} className="shop-hero" onClick={() => openProduct(p)}>
-                  {p.hasPhoto ? <img className="shop-hero-img" src={apiUrl(`/api/shop/photo/${p.id}?s=1`)} loading="lazy" decoding="async" alt="" /> : <div className="shop-hero-img shop-card-noimg">🛍</div>}
-                  <div className="shop-hero-grad" />
-                  <div className="shop-hero-info">
-                    <div className="shop-hero-name">{p.name}</div>
-                    <PriceBlock p={p} />
-                  </div>
-                  <div className="shop-hero-badges"><Badges p={p} /></div>
-                </button>
-              ))}
-            </div>
-          )}
 
           {/* ── 🏪 D2: do'kon-profil (storefront) — hero/info-qator/e'lon/hikoya/reyting ──
               R4: back-control now renders UNCONDITIONALLY (loading/error/loaded alike) — the old
@@ -1068,10 +1047,10 @@ export function ShopView({ me, onBanner, reload, onBook, openProductId }: { me: 
               R4'ning "har doim ko'rinadigan orqaga yo'li" talabi shu yerda ham saqlanadi — shopv2
               bo'lsa bu blok butunlay ortiqcha, nom ikki marta chiqmasligi uchun olib tashlanadi. */}
 
-          {bazar && shopFilter && profileErr && (
+          {shopFilter && profileErr && (
             <EmptyState icon="📡" text="Do'kon-profil yuklanmadi — qayta urinib ko'ring" action="🔄 Qayta urinish" onAction={() => { setProfileErr(false); api.shopProfile(shopFilter.id).then((r) => { setShopProfile(r.profile); setShopProfileReviews(r.reviews); }).catch(() => setProfileErr(true)); }} />
           )}
-          {bazar && shopFilter && !profileErr && !shopProfile && (
+          {shopFilter && !profileErr && !shopProfile && (
             <div className="bj-profile-loading">
               <Skeleton h={148} />
               <Skeleton h={16} w="60%" />
@@ -1080,7 +1059,7 @@ export function ShopView({ me, onBanner, reload, onBook, openProductId }: { me: 
           )}
           {/* ── shopv2: do'kon-profil AYNAN mockup tartibida: qopqoq → (ustiga chiqqan) avatar →
               nom+reyting → info-qator → hikoya-tray → e'lon → about → sodiqlik → sharh → CTA ── */}
-          {bazar && shopFilter && shopProfile  && (
+          {shopFilter && shopProfile  && (
             <>
               <div className="shop-sp-cover">
                 {shopProfile.hasPhoto
@@ -1200,7 +1179,7 @@ export function ShopView({ me, onBanner, reload, onBook, openProductId }: { me: 
               ko'rilishi uchun avval do'konni ochish kerak bo'lardi (1 ta hikoya, 1 ta ko'rish).
               Ega qarori 2026-07-27: ikkala joyda ham bo'lsin — bosh sahifada KASHF qilinadi,
               profilda esa o'sha do'konnikini ko'rish uchun qoladi. ── */}
-          {bazar && shopstory && !shopFilter && storyTray && storyTray.length > 0 && (
+          {shopstory && !shopFilter && storyTray && storyTray.length > 0 && (
             <div className="bj-story-tray">
               {storyTray.map((s) => (
                 <button key={s.shopId} className="bj-story-item" onClick={() => openStoryViewer(s.shopId)}>
@@ -1219,7 +1198,7 @@ export function ShopView({ me, onBanner, reload, onBook, openProductId }: { me: 
           {/* ── 🏠 V1.5: mahalla-chip. shopv2'da YO'Q — mockup'da alohida chip yo'q, mahalla-tanlash
               yuqoridagi "📍 Koson" qatoriga ko'chirildi (aynan mockup ko'rinishi). ── */}
 
-          {bazar && !shopFilter && travelSuggest && (
+          {!shopFilter && travelSuggest && (
             <div className="bj-travel-banner">
               <span>Hozir <b>{travelSuggest.name}</b> mahalladasiz — shu yerdagi do&apos;konlarni ko&apos;rsataymi?</span>
               <div className="bj-travel-actions">
@@ -1230,7 +1209,7 @@ export function ShopView({ me, onBanner, reload, onBook, openProductId }: { me: 
           )}
           {/* ── 🏪 V1.4 BirJoy: kategoriya-KARUSEL (Uzum-referens) — pastdagi flat-katalogni filtrlaydi,
               shopv2 bazar-bosh'da flat-katalog o'zi yashirin bo'lgani uchun bu ham yashirin ── */}
-          {bazar && !shopFilter && market && market.cats.length > 0 && (
+          {!shopFilter && market && market.cats.length > 0 && (
             <BjCategoryCarousel
               cats={market.cats.map((c) => ({ slug: c.name, name: c.name, emoji: c.emoji, iconUrl: c.hasIcon ? apiUrl(`/api/shop/cat-icon/${c.id}`) : null }))}
               active={cat}
@@ -1240,7 +1219,7 @@ export function ShopView({ me, onBanner, reload, onBook, openProductId }: { me: 
           {/* AUDIT: bozor yuklanayotganda skelet, xato bo'lsa — tushuntirish + qayta urinish.
               Avval bu holatlarda ekran butunlay bo'sh qolardi (`PROD_CACHE` iliq bo'lgani uchun
               pastdagi mahsulot-skeleti ham chiqmasdi). */}
-          {bazar && !shopFilter  && !market && !marketErr && (
+          {!shopFilter  && !market && !marketErr && (
             <div className="shop-market-skel">
               <Skeleton h={20} w="55%" />
               <div className="shop-market-skel-row"><Skeleton h={100} w="148px" /><Skeleton h={100} w="148px" /></div>
@@ -1248,7 +1227,7 @@ export function ShopView({ me, onBanner, reload, onBook, openProductId }: { me: 
               <div className="shop-market-skel-grid"><Skeleton h={140} /><Skeleton h={140} /></div>
             </div>
           )}
-          {bazar && !shopFilter  && marketErr && (
+          {!shopFilter  && marketErr && (
             <EmptyState
               icon="📡"
               text={loadErrorText()}
@@ -1259,7 +1238,7 @@ export function ShopView({ me, onBanner, reload, onBook, openProductId }: { me: 
           {/* shopv2: tasdiqlangan dizayndagi "Barchasi / Mahallamga yetkazadi / Butun shahar"
               kind-filtri — bitta gorizontal-scroll qatorda "Hozir ochiq" bilan birga (mockup'da
               ham aynan shu tartibda). Legacy (shopv2 OFF)'da eski yagona "Hozir ochiq" chip qoladi. */}
-          {bazar && !shopFilter  && market && (mahallaShops.length > 0 || cityShops.length > 0 || openOnly) && (
+          {!shopFilter  && market && (mahallaShops.length > 0 || cityShops.length > 0 || openOnly) && (
             <div className="shop-kind-row">
               {([["all", "Barchasi"], ["mahalla", "Mahallamga yetkazadi"], ["bozor", "Butun shahar"]] as const).map(([key, label]) => (
                 <button key={key} className={"shop-kind-chip" + (shopKindFilter === key ? " on" : "")} onClick={() => { haptic(); setShopKindFilter(key); }}>
@@ -1277,7 +1256,7 @@ export function ShopView({ me, onBanner, reload, onBook, openProductId }: { me: 
               +katta bosh-harf+"Mahallangiz" belgisi), sarlavha emoji-siz "Mahallamga yetkazadi".
               Mening avvalgi implementatsiyam legacy V1.5 VERTIKAL to'liq-kenglikdagi "qo'shni"
               kartani ishlatardi — bu mockup bilan eng katta joylashuv-farqi edi. */}
-          {bazar && !shopFilter  && showMahallaKind && market && activeMahallaId !== null && mahallaShops.length > 0 && (
+          {!shopFilter  && showMahallaKind && market && activeMahallaId !== null && mahallaShops.length > 0 && (
             <div className="shop-mah-wrap">
               <div className="shop-section-title2">Mahallamga yetkazadi</div>
               <div className="shop-mah-row">
@@ -1306,7 +1285,7 @@ export function ShopView({ me, onBanner, reload, onBook, openProductId }: { me: 
               butun ekranni egallab, haqiqiy do'konlarni pastga surib yuborardi. Endi u FAQAT
               foydalanuvchi ataylab "Mahallamga yetkazadi" filtrini tanlaganda chiqadi — aks holda
               ekran bo'sh qolardi (R4 topgan bug). "Barchasi"/"Butun shahar"da — yashirin. */}
-          {bazar && !shopFilter && market && activeMahallaId !== null && mahallaShops.length === 0
+          {!shopFilter && market && activeMahallaId !== null && mahallaShops.length === 0
             && shopKindFilter === "mahalla" && (
             <div className="bj-mahalla-cta">
               <div className="bj-mahalla-cta-icon">🔔</div>
@@ -1326,7 +1305,7 @@ export function ShopView({ me, onBanner, reload, onBook, openProductId }: { me: 
               uy-mahallasi HALI tanlanmagan bo'lsa (activeMahallaId===null — masalan Telegram
               joylashuv-ruxsati berilmagan/yo'q) — yuqoridagi ikkala blok ham `activeMahallaId !==
               null` bilan gated, demak HECH NARSA ko'rsatmasdi: bo'sh, tushuntirishsiz ekran. */}
-          {bazar && !shopFilter  && shopKindFilter === "mahalla" && activeMahallaId === null && (
+          {!shopFilter  && shopKindFilter === "mahalla" && activeMahallaId === null && (
             <div className="bj-mahalla-cta">
               <div className="bj-mahalla-cta-icon">📍</div>
               <div className="bj-mahalla-cta-text">Mahallangizni tanlang — shunda yaqin do&apos;konlarni ko&apos;rsatamiz.</div>
@@ -1340,7 +1319,7 @@ export function ShopView({ me, onBanner, reload, onBook, openProductId }: { me: 
           {/* AUDIT TOPDI: `> 1` sharti — agar shaharda FAQAT BITTA do'kon qolsa (yoki "Hozir
               ochiq" filtri bittasini qoldirsa) bo'lim butunlay yo'qolib, ekran bo'sh qolardi.
               shopv2'da `> 0` (legacy `> 1`da qoladi — u yerda pastda flat-katalog ham bor). */}
-          {bazar && !shopFilter  && showBozorKind && market && cityShops.length > 0 && (
+          {!shopFilter  && showBozorKind && market && cityShops.length > 0 && (
             <div className="shop-city-grid-wrap">
               <div className="shop-section-title2">Butun shahar bo'ylab</div>
               <div className="shop-city-grid">
@@ -1352,7 +1331,7 @@ export function ShopView({ me, onBanner, reload, onBook, openProductId }: { me: 
           )}
           {/* AUDIT TOPDI: kechqurun "🟢 Hozir ochiq" filtri BARCHA do'konni chiqarib tashlaydi
               (hammasi yopiq) — ekran butunlay bo'sh qolardi, tushuntirishsiz. */}
-          {bazar && !shopFilter  && market && cityShops.length === 0 && mahallaShops.length === 0 && openOnly && (
+          {!shopFilter  && market && cityShops.length === 0 && mahallaShops.length === 0 && openOnly && (
             <EmptyState
               icon="🌙"
               text="Hozir hamma do'kon yopiq — ertalab qayta kiring"
@@ -1363,18 +1342,6 @@ export function ShopView({ me, onBanner, reload, onBook, openProductId }: { me: 
           {/* 🏪 butun-shahar do'konlar — hozirgi (mahalla-oldi) ro'yxat, o'zgarishsiz (shopv2 OFF) */}
 
           {/* ── kategoriya chiplar (bitta qator, kichik tugmalar — Amazon "departments" pattern) ── */}
-          {!bazar && categories.length > 1 && (
-            <div className="shop-cat-chips">
-              <button className={"shop-cat-chip" + (cat === null ? " on" : "")} onClick={() => { haptic(); setCat(null); }}>
-                Hammasi <span className="shop-cat-chip-n">{products?.length ?? 0}</span>
-              </button>
-              {categories.map(([c, n]) => (
-                <button key={c} className={"shop-cat-chip" + (cat === c ? " on" : "")} onClick={() => { haptic(); setCat(c); }}>
-                  {c} <span className="shop-cat-chip-n">{n}</span>
-                </button>
-              ))}
-            </div>
-          )}
 
           {/* ── katalog: VERTIKAL grid — shopv2'da tasdiqlangan dizayndagi 3-ustunli "Instagram-
               uslub" StoreTile (bu blok shopv2'da FAQAT do'kon-profil ichida ko'rinadi, chunki
@@ -1386,7 +1353,7 @@ export function ShopView({ me, onBanner, reload, onBook, openProductId }: { me: 
           {/* AUDIT TOPDI: jonli bazada 6 faol do'kondan 3 tasida MAHSULOT YO'Q, va hammasi
               bosiladi — mijoz do'konni ochsa, panjara joyida shunchaki bo'shliq qolardi
               (hech qanday matn yo'q → "ilova buzuq" degan taassurot). */}
-          {homeFlatCatalog  && bazar && (
+          {homeFlatCatalog && (
             catalog.length === 0 ? (
               <EmptyState
                 icon="📦"
@@ -1400,17 +1367,6 @@ export function ShopView({ me, onBanner, reload, onBook, openProductId }: { me: 
               </div>
             )
           )}
-          {homeFlatCatalog && !bazar && (
-            <>
-              <div className="shop-section-head">
-                <span className="shop-section-title">{cat ?? "Hammasi"}</span>
-                <span className="muted fs12">{catalog.length} ta</span>
-              </div>
-              <div className="shop-grid">
-                {catalog.map((p) => <ProductCard key={p.id} p={p} onOpen={openProduct} onFav={toggleFav} wide />)}
-              </div>
-            </>
-          )}
 
           {/* EGA QAROLI (AskUserQuestion: "Ikkalasi: do'kon-qatori + mahsulot-panjarasi"):
               bosh-sahifada do'konlardan KEYIN barcha do'konlarning mahsulotlari ham ko'rsatiladi.
@@ -1422,13 +1378,13 @@ export function ShopView({ me, onBanner, reload, onBook, openProductId }: { me: 
           {/* Bo'sh kategoriya: ro'yxat `catalog.length > 0` bilan gated bo'lgani uchun tanlov
               natijasi NOL bo'lsa ekran jimgina bo'shab qolardi - mijoz nima bo'lganini bilmaydi.
               Endi aniq aytiladi va bitta bosishda filtr tozalanadi. */}
-          {bazar && !shopFilter && !searched && cat && catalog.length === 0 && (
+          {!shopFilter && !searched && cat && catalog.length === 0 && (
             <div className="shop-home-products">
               <div className="shop-section-title2">{cat}</div>
               <EmptyState icon="📦" text={`«${cat}» bo'yicha hozircha mahsulot yo'q`} action="Barcha mahsulotlar" onAction={() => { haptic(); setCat(null); }} />
             </div>
           )}
-          {bazar && !shopFilter && !searched && catalog.length > 0 && (
+          {!shopFilter && !searched && catalog.length > 0 && (
             <div className="shop-home-products">
               <div className="shop-section-title2">{cat ?? "Mahsulotlar"}</div>
               <div className="shop-tile-grid home">

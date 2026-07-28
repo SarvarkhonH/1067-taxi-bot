@@ -56,7 +56,6 @@ export interface MeResponse {
     xizmatlar?: boolean; // 🔎 services directory tab (owner-preview: admins see it while DARK)
     elonlar?: boolean; // 📋 mahalla e'lon taxtasi tab, Reyting'ni tabbar'dan almashtiradi (owner-preview: admins see it while DARK)
     restoran?: boolean; // 🍽 restoran taom-buyurtma tab, "wallet" o'rnini egallaydi (owner-preview: admins see it while DARK)
-    bazar?: boolean; // 🏪 BirJoy marketplace-qatlam do'kon ustida (owner-preview: admins see it while DARK)
     bazarcart?: boolean; // 🧺 BirJoy savat-checkout (MarketOrder) (owner-preview: admins see it while DARK)
     revtanga?: boolean; // 🗣 BirJoy sharh-uchun-tanga (owner-preview: admins see it while DARK)
     shopstory?: boolean; // 📹 BirJoy do'kon-hikoya (owner-preview: admins see it while DARK)

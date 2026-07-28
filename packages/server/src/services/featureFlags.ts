@@ -63,7 +63,6 @@ export const FEATURES = [
               // (RESTORAN_PLAN.md). V1 = CONCIERGE: naqd/so'm to'lov (CoinTxn YO'Q), operator
               // telefon qiladi + admin panelda holatni qo'lda boshqaradi. R1 = katalog o'qish only
               // (savat/buyurtma R2'da). DARK until seed + owner QABUL.
-  "bazar",    // 🏪 BirJoy V1 (BAZAR_PLAN): multi-vendor marketplace qatlami do'kon ustida —
               // OFF = bugungi flat do'kon AYNAN; ON = Bozor-bosh (kategoriya-karusel, do'kon-rail,
               // server-qidiruv) + buyurtma-routing sellerlarga. DARK until pilot sellers + QABUL.
   "bazarcart", // 🧺 BirJoy V2: ko'p-satrli savat-checkout (MarketOrder) — OFF = 1-dona buyProduct
@@ -142,7 +141,7 @@ export type FeatureName = (typeof FEATURES)[number];
 // Off until explicitly enabled (go-live flip = setFeature(name, true) after owner QABUL).
 // booking3 = the new map/trip flow; owner still gets a preview via server.ts owner-branch,
 // but real users stay on the (fixed) classic flow until it's accepted. A missing row → OFF.
-const DEFAULT_OFF = new Set<FeatureName>(["booking3", "livinghome", "aibrain", "mahalla", "tolqin", "baraban", "komissiya", "qarz", "welcomebonus", "refstaged", "drvstaged", "drvrecruit", "drvpush", "promo", "clientbooking", "cashout", "carupgrade", "intercity", "tierloyalty", "waitcomp", "trackcta", "jackpotpost", "drvrank", "instantstatus", "spinreminder", "shop", "xizmatlar", "elonlar", "elontop", "restoran", "bazar", "bazarcart", "shopcashback", "revtanga", "airemind", "aihisob", "aidost", "aicity", "aibilim", "aineeds", "shopstory", "shopchat", "newhome", "newprofile", "mktexpire", "ravella", "linkinapp", "homescreen", "storyshare", "autoloc"]);
+const DEFAULT_OFF = new Set<FeatureName>(["booking3", "livinghome", "aibrain", "mahalla", "tolqin", "baraban", "komissiya", "qarz", "welcomebonus", "refstaged", "drvstaged", "drvrecruit", "drvpush", "promo", "clientbooking", "cashout", "carupgrade", "intercity", "tierloyalty", "waitcomp", "trackcta", "jackpotpost", "drvrank", "instantstatus", "spinreminder", "shop", "xizmatlar", "elonlar", "elontop", "restoran", "bazarcart", "shopcashback", "revtanga", "airemind", "aihisob", "aidost", "aicity", "aibilim", "aineeds", "shopstory", "shopchat", "newhome", "newprofile", "mktexpire", "ravella", "linkinapp", "homescreen", "storyshare", "autoloc"]);
 
 let cache: { at: number; map: Record<string, boolean> } = { at: 0, map: {} };
 
@@ -199,7 +198,6 @@ export const EXPECTED_ON: FeatureName[] = [
              // buzuq/placeholder telefon + 5 tasida bo'sh menyu — owner "hozir live qil, keyin tuzataman"
              // deb aniq buyurdi; keyingi tozalash kerak: koson miliy taomlari, Do'stlar Choyxonasi,
              // Chinor Oilaviy Restorant telefonlari + 5ta menyu to'ldirish)
-  "bazar", // 🏪 BirJoy marketplace-qatlam — owner QABUL real telefonda 2026-07-21 («yaxshi chiqibdi»),
            // R4 mustaqil tekshiruv PASS (PROGRESS 07-21). 1 do'kon (BirJoy o'z do'koni, 140 mahsulot);
            // pilot-sellerlar /sotuvchi orqali keladi.
   // 🤖 Koson AI (2026-07-23): owner-driven AI-FIRST — real tugmalar olib tashlandi, AI endi
