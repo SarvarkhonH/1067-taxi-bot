@@ -9,9 +9,22 @@ import react from "@vitejs/plugin-react";
 // turardi-yu, telefonida 15:28 bo'lardi va shtamp shubha uyg'otardi.
 const BUILD_STAMP = new Date(Date.now() + 5 * 3600_000).toISOString().slice(0, 16).replace("T", " ");
 
+// ⚠️ NEGA `define` EMAS, `<meta>`: `define` shtampni JS bundle ichiga muhrlaydi va shtamp har
+// build'da o'zgargani uchun BUNDLE HASH ham har deployda o'zgarardi — ya'ni faqat server kodi
+// o'zgargan deployda ham har bir mijoz 78 KB (gzip) ni qayta yuklardi. `index.html` esa
+// allaqachon `no-cache` bilan ketadi, shuning uchun shtamp O'SHA YERGA yoziladi: JS o'zgarmaydi,
+// shtamp esa doim yangi.
 export default defineConfig({
-  define: { __BUILD_STAMP__: JSON.stringify(BUILD_STAMP) },
-  plugins: [react()],
+  plugins: [
+    react(),
+    {
+      name: "birjoy-build-stamp",
+      transformIndexHtml: {
+        order: "pre" as const,
+        handler: (html: string) => html.replace("</head>", `  <meta name="birjoy-build" content="${BUILD_STAMP}" />\n  </head>`),
+      },
+    },
+  ],
   resolve: {
     alias: {
       "@t1067/shared": fileURLToPath(new URL("../shared/src/index.ts", import.meta.url)),

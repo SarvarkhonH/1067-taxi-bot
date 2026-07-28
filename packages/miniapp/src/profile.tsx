@@ -8,35 +8,10 @@ import { api, apiUrl } from "./api";
 import { cloudGet, cloudSet, haptic, tg } from "./telegram";
 import { AccountCard, TierLadderCompact } from "./wallet";
 
-// ── theme apply/init/picker (shared by the App shell + this profile) ──
-export function applyTheme(t: string): void {
-  try { document.documentElement.setAttribute("data-theme", t); } catch { /* SSR-safe */ }
-}
-const THEME_KEY = "birjoy_theme";
-const THEMES = ["dark", "light", "vibrant"];
+// ── tema: mantiq `theme.ts` da (App uni birinchi paintdan oldin chaqiradi; bu fayl esa lazy).
+//    Bu yerdan qayta eksport — eski importlar buzilmasin.
+export { applyTheme, initTheme, syncThemeFromCloud, saveTheme, THEME_KEY, THEMES } from "./theme";
 
-export function initTheme(): void {
-  let t = "dark";
-  try {
-    const saved = localStorage.getItem(THEME_KEY);
-    t = saved || (tg?.colorScheme === "light" ? "light" : "dark");
-  } catch { /* private mode */ }
-  applyTheme(t);
-}
-
-/** ☁️ Mavzu tanlovini QURILMALARARO tiklash (Telegram CloudStorage). `initTheme` sinxron ishlaydi
- *  va birinchi bo'yashdan oldin mahalliy qiymatni qo'yadi (miltillash yo'q); bu esa keyin, javob
- *  kelganda, FAQAT farq bo'lsa qo'llaydi. Bulut bo'sh/qo'llab-quvvatlanmasa — hech narsa
- *  o'zgarmaydi. Telefon almashtirilsa yoki Desktop'dan kirilsa mavzu o'zi bilan keladi. */
-export async function syncThemeFromCloud(): Promise<void> {
-  const cloud = await cloudGet(THEME_KEY);
-  if (!cloud || !THEMES.includes(cloud)) return;
-  let local: string | null = null;
-  try { local = localStorage.getItem(THEME_KEY); } catch { /* private mode */ }
-  if (local === cloud) return;
-  try { localStorage.setItem(THEME_KEY, cloud); } catch { /* ignore */ }
-  applyTheme(cloud);
-}
 export function ThemePicker() {
   const [t, setT] = useState<string>(() => document.documentElement.getAttribute("data-theme") || "dark");
   const pick = (v: string) => {
@@ -192,7 +167,7 @@ export function NewProfileView({ me, onNav, onBanner }: { me: MeResponse; onNav:
       {/* 🔖 Build shtampi — "yangilanmadi" shikoyatini 2 soniyada tekshirish uchun. Telegram
           Mini App'ni keshlaydi; bu sana eskimasa, demak telefon eski nusxani ochyapti. */}
       <div style={{ marginTop: 18, textAlign: "center", fontSize: 11, color: "var(--nh-dim)", opacity: .7 }}>
-        BirJoy · {__BUILD_STAMP__}
+        BirJoy · {document.querySelector('meta[name="birjoy-build"]')?.getAttribute("content") ?? "—"}
       </div>
     </div>
   );
