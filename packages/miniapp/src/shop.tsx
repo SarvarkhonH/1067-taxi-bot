@@ -1061,10 +1061,19 @@ export function ShopView({ me, onBanner, reload, onBook, openProductId }: { me: 
                 className="shop-sp-cover"
                 style={shopProfile.hasPhoto ? undefined : { background: `linear-gradient(150deg, hsl(${shopHue(shopProfile.name)} 62% 38%), hsl(${shopHue(shopProfile.name)} 68% 24%) 58%, hsl(${(shopHue(shopProfile.name) + 38) % 360} 70% 46%))` }}
               >
-                {shopProfile.hasPhoto && <img src={apiUrl(`/api/shop/shop-photo/${shopProfile.id}`)} alt="" />}
+                {/* 🖼 EGA TOPDI (2026-07-28): «ichkariga kirsa do'kon profili xunuk». Sabab —
+                    do'kon rasmi KVADRAT logo, muqova esa 92px balandlikdagi keng lenta: logo
+                    shunday kesilardiki, ekranda tasodifiy rangli chiziq qolardi. Endi standart
+                    profil naqshi: muqovada O'SHA rasm xiralashtirilgan fon sifatida, avatarda esa
+                    TINIQ holda. Blur bitta elementda (kartalarda emas) — scroll'ga ta'siri yo'q. */}
+                {shopProfile.hasPhoto && <img className="shop-sp-cover-blur" src={apiUrl(`/api/shop/shop-photo/${shopProfile.id}`)} alt="" />}
               </div>
               <div className="shop-sp-body">
-                <div className="shop-sp-avatar" aria-hidden="true" style={{ background: `linear-gradient(155deg, hsl(${shopHue(shopProfile.name)} 60% 40%), hsl(${shopHue(shopProfile.name)} 66% 26%))` }}>{shopMonogram(shopProfile.name)}</div>
+                <div className="shop-sp-avatar" aria-hidden="true" style={shopProfile.hasPhoto ? undefined : { background: `linear-gradient(155deg, hsl(${shopHue(shopProfile.name)} 60% 40%), hsl(${shopHue(shopProfile.name)} 66% 26%))` }}>
+                  {shopProfile.hasPhoto
+                    ? <img className="shop-sp-avatar-img" src={apiUrl(`/api/shop/shop-photo/${shopProfile.id}`)} alt="" />
+                    : shopMonogram(shopProfile.name)}
+                </div>
                 <div className="shop-sp-head">
                   <div className="shop-sp-name">{shopProfile.name}</div>
                   {shopProfile.reviewCount > 0 && (

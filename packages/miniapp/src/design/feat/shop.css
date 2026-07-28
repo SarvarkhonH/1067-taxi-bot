@@ -413,7 +413,13 @@
 /* 🏬 5-BOSQICH: fon endi JSX'dan (do'kon nomidan hisoblangan gradient) keladi — bu yerda faqat
    zaxira rang. Balandlik 100 -> 92: ekranning yuqori qismi mahsulotga tezroq yetsin. */
 .app.bjm .shop-sp-cover { height: 92px; position: relative; overflow: hidden; background: linear-gradient(150deg, #0f8f66, #0b6b4c); }
+/* muqova: rasm XIRA fon (kvadrat logo keng lentaga kesilganda xunuk ko'rinardi) — tiniq
+   nusxasi avatarda turadi. `filter: blur` (backdrop-filter EMAS) va butun profilda BITTA
+   element, ya'ni ro'yxat-scroll'iga hech qanday narxi yo'q. */
 .app.bjm .shop-sp-cover img { width: 100%; height: 100%; object-fit: cover; }
+.app.bjm .shop-sp-cover-blur { filter: blur(16px) saturate(1.25) brightness(.92); transform: scale(1.25); }
+.app.bjm .shop-sp-avatar { overflow: hidden; }
+.app.bjm .shop-sp-avatar-img { width: 100%; height: 100%; object-fit: cover; display: block; border-radius: inherit; }
 .app.bjm .shop-sp-body { padding: 0 16px 24px; }
 /* qora 0.4 soya yorug' shisha-mavzuda "yopishtirilgan" ko'rinardi — zumrad-tusli yumshoq soya */
 .app.bjm .shop-sp-avatar { margin-top: -26px; width: 68px; height: 68px; border-radius: 22px; background: var(--bj-hero-grad); border: 3px solid rgba(255, 255, 255, .92); box-shadow: 0 10px 24px -12px rgba(6, 95, 70, .8), inset 0 1px 0 rgba(255, 255, 255, .3); display: flex; align-items: center; justify-content: center; color: #fff; font-size: 19px; font-weight: 800; letter-spacing: -.02em; box-sizing: border-box; }
