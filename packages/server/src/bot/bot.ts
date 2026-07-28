@@ -2262,6 +2262,26 @@ export async function setupBotCommands(bot: Bot): Promise<void> {
       // Desktop sometimes start with a few-hundred-ms initData delay). Owner preference: land on the
       // HOME screen (living map + one-tap CTA + shortcuts), NOT straight into the booking map.
       await bot.api.setChatMenuButton({ menu_button: { type: "web_app", text: "🚕 BirJoy", web_app: { url: webAppUrl() } } });
+      // ⏱ DEPLOY POYGASI (2026-07-28 da o'lchandi va ega shundan zarar ko'rdi): deploy.sh
+      // frontendni rsync qiladi va SHU ZAHOTI botni qayta ishga tushiradi. Yuqoridagi probe
+      // ba'zan index.html hali eski bo'lgan lahzada o'qiydi → menyu tugmasi BIR DEPLOY ORQADA
+      // qoladi. Telegram esa Mini App'ni URL bo'yicha keshlaydi, ya'ni foydalanuvchi eski
+      // build'ni ochadi va "hech nima o'zgarmadi" deydi (o'sha kuni aynan shunday bo'ldi:
+      // index.html = index-2LlSi2Bn.js, menyu tugmasi = ?v=CvZ8S3DM).
+      // 45 soniyadan keyin qayta tekshiramiz va FAQAT o'zgargan bo'lsa yangilaymiz.
+      setTimeout(() => {
+        void (async () => {
+          const before = webAppVer;
+          await refreshWebAppVer();
+          if (webAppVer === before) return;
+          try {
+            await bot.api.setChatMenuButton({ menu_button: { type: "web_app", text: "🚕 BirJoy", web_app: { url: webAppUrl() } } });
+            console.log(`[bot] menyu tugmasi yangilandi: ${before} → ${webAppVer}`);
+          } catch (e) {
+            console.error("[bot] menu button resync failed", e instanceof Error ? e.message : e);
+          }
+        })();
+      }, 45_000).unref?.();
     } catch (e) {
       console.error("[bot] setChatMenuButton failed", e instanceof Error ? e.message : e);
     }
