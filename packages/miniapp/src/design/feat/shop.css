@@ -344,15 +344,15 @@
 .app.bjm .shop-home-products .shop-section-title2 { padding: 0 16px; }
 .app.bjm .shop-seller-cta { margin: 22px 16px 10px; }
 .app.bjm .shop-title { background: linear-gradient(135deg, #6ee7b7, #34d399); -webkit-background-clip: text; background-clip: text; }
-.app.bjm .shop-search { background: var(--bj-card); border: 1px solid var(--bj-line); color: var(--bj-ink); backdrop-filter: blur(14px) saturate(160%); -webkit-backdrop-filter: blur(14px) saturate(160%); }
+.app.bjm .shop-search { background: var(--bj-card); border: none; color: var(--bj-ink); box-shadow: var(--bj-shadow); backdrop-filter: var(--bj-glass-blur); -webkit-backdrop-filter: var(--bj-glass-blur); }
 .app.bjm .shop-search::placeholder { color: var(--bj-ink-dim); }
-.app.bjm .shop-orders-btn, .app.bjm .shop-share-btn { background: var(--bj-card); border: 1px solid var(--bj-line); color: var(--bj-ink); backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px); }
-.app.bjm .shop-cat-chip { background: var(--bj-card); border: 1px solid var(--bj-line); color: var(--bj-ink-dim); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); }
+.app.bjm .shop-orders-btn, .app.bjm .shop-share-btn { background: var(--bj-card); border: none; color: var(--bj-ink); box-shadow: var(--bj-shadow); backdrop-filter: var(--bj-glass-blur); -webkit-backdrop-filter: var(--bj-glass-blur); }
+.app.bjm .shop-cat-chip { background: var(--bj-card); border: none; color: var(--bj-ink-dim); box-shadow: var(--bj-shadow); backdrop-filter: var(--bj-glass-blur); -webkit-backdrop-filter: var(--bj-glass-blur); }
 .app.bjm .shop-cat-chip.on { background: var(--bj-hero-grad); color: #ffffff; border-color: transparent; }
 .app.bjm .shop-card, .app.bjm .shop-hero { --acc: #34d399; }
 .app.bjm .shop-card, .app.bjm .shop-card.glass {
-  background: var(--bj-card); border: 1px solid var(--bj-line);
-  box-shadow: var(--bj-shadow); backdrop-filter: blur(16px) saturate(170%); -webkit-backdrop-filter: blur(16px) saturate(170%);
+  background: var(--bj-card); border: none;
+  box-shadow: var(--bj-shadow); backdrop-filter: var(--bj-glass-blur); -webkit-backdrop-filter: var(--bj-glass-blur);
 }
 .app.bjm .shop-card-name { color: var(--bj-ink); }
 .app.bjm .shop-card-photo, .app.bjm .shop-detail-photo, .app.bjm .shop-mini-img, .app.bjm .shop-gallery-img { background: var(--bj-card); }
@@ -360,24 +360,26 @@
 .app.bjm .shop-price-chip { background: rgba(245, 158, 11, .14); color: var(--bj-tanga); border: 1px solid rgba(245, 158, 11, .28); }
 .app.bjm .shop-price-old { color: var(--bj-ink-dim); }
 .app.bjm .shop-buy-bar { background: var(--bj-hero-grad); color: #ffffff; box-shadow: 0 4px 14px -4px rgba(13, 150, 104, .55); }
-.app.bjm .shop-mini { background: var(--bj-card); border: 1px solid var(--bj-line); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); }
+.app.bjm .shop-mini { background: var(--bj-card); border: none; box-shadow: var(--bj-shadow); backdrop-filter: var(--bj-glass-blur); -webkit-backdrop-filter: var(--bj-glass-blur); }
 .app.bjm .shop-mini-name { color: var(--bj-ink); }
 .app.bjm .shop-mini-price { color: var(--bj-accent); }
 .app.bjm .shop-section-title { color: var(--bj-ink); }
 .app.bjm .shop-cart-totals, .app.bjm .shop-qty-btn, .app.bjm .bk-input, .app.bjm .shop-order-row {
-  background: var(--bj-card); border: 1px solid var(--bj-line); color: var(--bj-ink); backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px);
+  background: var(--bj-card); border: 1px solid var(--bj-line); color: var(--bj-ink); backdrop-filter: var(--bj-glass-blur); -webkit-backdrop-filter: var(--bj-glass-blur);
 }
 .app.bjm .shop-open-filter-chip.on { background: var(--bj-hero-grad); color: #ffffff; border-color: transparent; }
 .shop-kind-row { display: flex; gap: 8px; overflow-x: auto; padding: 4px 16px 10px; scrollbar-width: none; }
 .shop-kind-row::-webkit-scrollbar { display: none; }
-.shop-kind-chip { flex: none; padding: 8px 14px; border-radius: 20px; font-size: 13px; font-weight: 600; white-space: nowrap; cursor: pointer; background: var(--bj-card); color: var(--bj-ink); border: 1px solid var(--bj-line); backdrop-filter: blur(14px) saturate(180%); -webkit-backdrop-filter: blur(14px) saturate(180%); }
+/* Bu qoida `.app.bjm` ostida EMAS (eski `shop-light` yo'li ham shundan foydalanadi), shuning uchun
+   shisha-tokenlarga fallback berilgan: bjm o'chiq bo'lsa chip avvalgi ko'rinishida qoladi. */
+.shop-kind-chip { flex: none; padding: 8px 14px; border-radius: 20px; font-size: 13px; font-weight: 600; white-space: nowrap; cursor: pointer; background: var(--bj-card, #ffffff); color: var(--bj-ink, #1b2333); border: none; box-shadow: var(--bj-shadow, 0 0 0 1px #dcefe2); backdrop-filter: var(--bj-glass-blur, blur(14px) saturate(180%)); -webkit-backdrop-filter: var(--bj-glass-blur, blur(14px) saturate(180%)); }
 .shop-kind-chip.on { background: var(--bj-hero-grad); color: #ffffff; border-color: transparent; }
 .shop-kind-chip:active { transform: scale(0.96); }
 .shop-kind-chip.icon { display: inline-flex; align-items: center; gap: 6px; }
 .shop-city-grid-wrap { padding: 18px 16px 24px; }
 .shop-section-title2 { font-size: 15px; font-weight: 800; color: var(--bj-ink); margin-bottom: 10px; letter-spacing: -0.2px; }
 .shop-city-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
-.shop-city-tile { background: var(--bj-card); backdrop-filter: blur(16px) saturate(180%); -webkit-backdrop-filter: blur(16px) saturate(180%); border: 1px solid var(--bj-line); border-radius: 16px; overflow: hidden; cursor: pointer; box-shadow: var(--bj-shadow); text-align: left; padding: 0; transition: transform var(--dur-press) var(--ease-out); }
+.shop-city-tile { background: var(--bj-card); backdrop-filter: var(--bj-glass-blur); -webkit-backdrop-filter: var(--bj-glass-blur); border: 1px solid var(--bj-line); border-radius: 16px; overflow: hidden; cursor: pointer; box-shadow: var(--bj-shadow); text-align: left; padding: 0; transition: transform var(--dur-press) var(--ease-out); }
 .shop-city-tile:active { transform: scale(0.96); }
 .shop-city-tile-cover { height: 88px; background: linear-gradient(160deg, rgba(52, 211, 153, .22), rgba(13, 150, 104, .12)); display: flex; align-items: center; justify-content: center; }
 .shop-city-tile-cover img { width: 100%; height: 100%; object-fit: cover; }
@@ -389,9 +391,10 @@
 .app.bjm .shop-head {
   position: sticky; top: 0; z-index: 20;
   padding: calc(var(--safe-top) + 8px) 14px 10px;
-  background: rgba(255, 255, 255, .88);
-  backdrop-filter: blur(20px) saturate(180%); -webkit-backdrop-filter: blur(20px) saturate(180%);
-  border-bottom: 1px solid var(--bj-line);
+  background: rgba(255, 255, 255, .58);
+  backdrop-filter: var(--bj-glass-blur); -webkit-backdrop-filter: var(--bj-glass-blur);
+  border-bottom: none;
+  box-shadow: inset 0 -.5px 0 rgba(255, 255, 255, .55), 0 1px 24px -16px rgba(20, 26, 24, .55);
 }
 .app.bjm .shop-detail-photo, .app.bjm .shop-gallery-img { aspect-ratio: 1 / 1.05; border-radius: 16px; object-fit: cover; }
 .app.bjm .shop-gallery-dots { gap: 5px; margin-top: 9px; }
@@ -432,15 +435,15 @@
 .app.bjm .shop-sp-hours { display: flex; align-items: center; gap: 4px; font-size: 12.5px; color: var(--bj-ink-dim); margin-top: 6px; white-space: nowrap; }
 .app.bjm .shop-sp-stories { display: flex; gap: 16px; overflow-x: auto; padding: 16px 0 4px; scrollbar-width: none; }
 .app.bjm .shop-sp-stories::-webkit-scrollbar { display: none; }
-.app.bjm .shop-sp-announce { background: var(--bj-card); backdrop-filter: blur(18px) saturate(180%); -webkit-backdrop-filter: blur(18px) saturate(180%); border: 1px solid var(--bj-line); border-left: 3px solid var(--bj-accent); border-radius: 10px; padding: 11px 13px; font-size: 13px; color: var(--bj-ink); margin-top: 14px; }
+.app.bjm .shop-sp-announce { background: var(--bj-card); backdrop-filter: var(--bj-glass-blur); -webkit-backdrop-filter: var(--bj-glass-blur); border: 1px solid var(--bj-line); border-left: 3px solid var(--bj-accent); border-radius: 10px; padding: 11px 13px; font-size: 13px; color: var(--bj-ink); margin-top: 14px; }
 .app.bjm .shop-sp-stories + .shop-sp-announce { margin-top: 6px; }
 .app.bjm .shop-sp-about { font-size: 13.5px; line-height: 1.5; color: var(--bj-ink); margin-top: 14px; }
 .app.bjm .shop-sp-about-more { color: var(--bj-accent); background: none; border: none; padding: 0; font-size: 13.5px; font-weight: 600; cursor: pointer; }
-.app.bjm .shop-sp-loyalty { background: var(--bj-card); backdrop-filter: blur(18px) saturate(180%); -webkit-backdrop-filter: blur(18px) saturate(180%); border: 1px solid var(--bj-line); border-radius: 12px; padding: 12px 14px; margin-top: 14px; }
+.app.bjm .shop-sp-loyalty { background: var(--bj-card); backdrop-filter: var(--bj-glass-blur); -webkit-backdrop-filter: var(--bj-glass-blur); border: 1px solid var(--bj-line); border-radius: 12px; padding: 12px 14px; margin-top: 14px; }
 .app.bjm .shop-sp-loyalty-row { display: flex; justify-content: space-between; font-size: 12.5px; font-weight: 700; color: var(--bj-ink); }
 .app.bjm .shop-sp-loyalty-bar { height: 6px; background: var(--bj-line); border-radius: 3px; margin-top: 8px; overflow: hidden; }
 .app.bjm .shop-sp-loyalty-bar > div { height: 100%; background: linear-gradient(90deg, #10b981, #a3e635); border-radius: 3px; }
-.app.bjm .shop-sp-reviews { display: flex; align-items: center; justify-content: space-between; width: 100%; background: var(--bj-card); backdrop-filter: blur(18px) saturate(180%); -webkit-backdrop-filter: blur(18px) saturate(180%); border: 1px solid var(--bj-line); border-radius: 12px; padding: 12px 14px; margin-top: 10px; cursor: pointer; }
+.app.bjm .shop-sp-reviews { display: flex; align-items: center; justify-content: space-between; width: 100%; background: var(--bj-card); backdrop-filter: var(--bj-glass-blur); -webkit-backdrop-filter: var(--bj-glass-blur); border: 1px solid var(--bj-line); border-radius: 12px; padding: 12px 14px; margin-top: 10px; cursor: pointer; }
 .app.bjm .shop-sp-reviews-l { display: flex; align-items: center; gap: 7px; font-size: 13px; font-weight: 700; color: var(--bj-ink); }
 .app.bjm .shop-sp-reviews-c { color: var(--bj-ink-dim); font-size: 13px; }
 .app.bjm .shop-market-skel { padding: 16px; display: flex; flex-direction: column; gap: 10px; }
@@ -449,7 +452,7 @@
 .app.bjm .shop-rev-qlabel { font-size: 12.5px; font-weight: 700; color: var(--bj-ink); margin-top: 4px; }
 .app.bjm .shop-rev-why { margin-top: -2px; }
 .app.bjm .shop-sp-revlist { display: flex; flex-direction: column; gap: 8px; margin-top: 8px; }
-.app.bjm .shop-sp-rev { background: var(--bj-card); backdrop-filter: blur(18px) saturate(180%); -webkit-backdrop-filter: blur(18px) saturate(180%); border: 1px solid var(--bj-line); border-radius: 12px; padding: 11px 13px; }
+.app.bjm .shop-sp-rev { background: var(--bj-card); backdrop-filter: var(--bj-glass-blur); -webkit-backdrop-filter: var(--bj-glass-blur); border: 1px solid var(--bj-line); border-radius: 12px; padding: 11px 13px; }
 .app.bjm .shop-sp-rev-top { display: flex; justify-content: space-between; font-size: 12.5px; font-weight: 700; color: var(--bj-ink); }
 .app.bjm .shop-sp-rev-text { font-size: 12.5px; color: var(--bj-ink); margin-top: 4px; }
 .app.bjm .shop-sp-rev-days { font-size: 10.5px; color: var(--bj-ink-dim); margin-top: 5px; }
@@ -466,6 +469,7 @@
 .shop-mah-cover { position: relative; width: 148px; height: 100px; border-radius: 16px; overflow: hidden; display: flex; align-items: center; justify-content: center; background: linear-gradient(160deg, rgba(52, 211, 153, .22), rgba(13, 150, 104, .14)); box-shadow: 0 10px 24px rgba(0, 0, 0, .45); border: 1px solid var(--bj-line); }
 .shop-mah-cover img { width: 100%; height: 100%; object-fit: cover; }
 .shop-mah-initial { font-size: 36px; font-weight: 800; color: rgba(6, 95, 70, .55); letter-spacing: -1px; }
+/* kichik, deyarli shaffof bo'lmagan nishon — kuchli shisha-blur bu yerda ortiqcha yuk (avvalgidek) */
 .shop-mah-badge { position: absolute; left: 8px; bottom: 8px; background: rgba(13, 150, 104, .85); backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); color: #fff; font-size: 9.5px; font-weight: 700; padding: 3px 7px; border-radius: 8px; }
 .shop-mah-name { font-size: 13.5px; font-weight: 700; color: var(--bj-ink); margin-top: 7px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .shop-mah-meta { display: flex; align-items: center; gap: 5px; margin-top: 2px; font-size: 11.5px; color: var(--bj-ink-dim); }

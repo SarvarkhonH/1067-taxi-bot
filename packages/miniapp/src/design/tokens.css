@@ -1526,13 +1526,35 @@ body {
   --bj-tanga: #b45309;
   --bj-tanga-grad: linear-gradient(135deg, #f59e0b, #b45309);
   --bj-hero-grad: linear-gradient(135deg, #047857, #065f46);
-  --bj-bg-grad: #ffffff;
-  --bj-card: #f5f6f7;
-  --bj-line: rgba(16, 20, 24, 0.10);
+  /* ── 🫧 1-BOSQICH (ega, 2026-07-28): Ravella'ning «suyuq shisha» tili bozorga ko'chdi ──────────
+     NEGA TOKEN DARAJASIDA: har sirt allaqachon `--bj-card` + `--bj-line` + `--bj-shadow` dan
+     oziqlanadi, shuning uchun retseptni SHU UCHTASIDA almashtirish butun bo'limni bir yo'la
+     yangilaydi (o'nlab qoidani qo'lda tahrirlash shart emas — va kelajakda ham bitta joy).
+     Retsept ravella.css dan: (1) shaffof oq sirt, (2) orqadagini jonlantiruvchi blur+saturate,
+     (3) qirrada to'rt tomonlama specular yorug'lik, (4) chuqurlik soyasi. `feDisplacementMap`
+     bilan haqiqiy sinish FAQAT Chromium'da ishlaydi (Telegram iOS'da emas) — shuning uchun
+     sinish ILLUZIYASI quriladi va natija ikkala brauzerda bir xil ko'rinadi. */
+  --bj-glass-blur: saturate(185%) brightness(1.04) blur(24px);
+  --bj-glass-rim:
+    inset 0 1px 0 rgba(255, 255, 255, .85),
+    inset 0 -1px 0 rgba(255, 255, 255, .30),
+    inset 1px 0 0 rgba(255, 255, 255, .35),
+    inset -1px 0 0 rgba(255, 255, 255, .35);
+  --bj-glass-depth: 0 12px 30px -20px rgba(20, 26, 24, .55), 0 2px 6px -4px rgba(20, 26, 24, .22);
+  /* fon endi tekis oq emas: zumrad va amber nurlari — shisha ustida aynan shu «sinadi».
+     `fixed` — aylantirganda fon qimirlamaydi, ya'ni sirtlar fon ustida suzayotgandek ko'rinadi. */
+  --bj-bg-grad:
+    radial-gradient(120% 78% at 50% -12%, rgba(13, 150, 104, .13) 0%, transparent 58%),
+    radial-gradient(88% 56% at 100% 6%, rgba(249, 190, 62, .16) 0%, transparent 54%),
+    #f4f5f6;
+  --bj-card: rgba(255, 255, 255, .62);
+  --bj-line: rgba(16, 20, 24, 0.055);
   --bj-sale: #e11d48;
   --bj-ink: #101418;
   --bj-ink-dim: #6b7280;
-  --bj-shadow: 0 1px 2px rgba(16, 20, 24, .06), 0 8px 24px -18px rgba(16, 20, 24, .45);
+  /* Sirt-soyasi endi = qirra-yorug'lik + chuqurlik. `--bj-shadow` allaqachon karta/kafellarda
+     ishlatilgani uchun bitta bu satr ularning hammasini shishaga aylantiradi. */
+  --bj-shadow: var(--bj-glass-rim), var(--bj-glass-depth);
   /* rasm ustidagi matn uchun (kafel/qopqoq) — bular OQ qoladi, chunki fon rasm/gradient.
      AUDIT TOPDI: narx uchun `--bj-tanga` (#b45309) ishlatilardi — u OQ KARTA uchun tanlangan,
      qora-soyali rasm ustida esa ~1.2:1 bo'lib KO'RINMASDI. Rasm ustidagi narx alohida, och-amber. */
@@ -1540,12 +1562,21 @@ body {
   --bj-tanga-on-media: #fcd34d;
   --bj-ink-faint: rgba(16, 20, 24, .42);
   color: var(--bj-ink);
-  background: #ffffff;
+  background: var(--bj-bg-grad);
+  background-attachment: fixed;
+  /* Ravella tipografikasi: bir oz siqilgan harflar — matn zichroq va «ilova»roq ko'rinadi */
+  letter-spacing: -.011em;
 }
 /* ilova qobig'i ham yorug' bo'ladi (do'kon bo'limida) — pastki tab-panel ham */
 .app.bjm .aurora { display: none; }
 .app.bjm::before { display: none; }
-.app.bjm .tabbar { background: rgba(255, 255, 255, .92); border-top: 1px solid var(--bj-line); backdrop-filter: blur(18px) saturate(180%); -webkit-backdrop-filter: blur(18px) saturate(180%); }
+/* tab-panel — endi qattiq oq emas, shisha: ostidan mahsulotlar sezilib turadi */
+.app.bjm .tabbar {
+  background: rgba(255, 255, 255, .60);
+  border-top: none;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .8), 0 -2px 30px -18px rgba(20, 26, 24, .55);
+  backdrop-filter: var(--bj-glass-blur); -webkit-backdrop-filter: var(--bj-glass-blur);
+}
 .app.bjm .tab { color: #9aa1aa; }
 .app.bjm .tab.active { color: var(--bj-accent); }
 .app.bjm .tab.active svg { filter: none; }
