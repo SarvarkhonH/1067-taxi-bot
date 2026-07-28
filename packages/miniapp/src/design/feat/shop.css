@@ -351,7 +351,7 @@
 /* muqova: logo bo'lsa rasm to'liq qoplaydi, bo'lmasa do'kon nomidan hisoblangan barqaror
    gradient + monogram (2-bosqichdagi qoida o'zgarmadi, faqat kvadratga ko'chdi) */
 .shop-city-card-cover { position: relative; width: 80px; height: 80px; border-radius: 24px; overflow: hidden; display: flex; align-items: center; justify-content: center; border: 1px solid var(--bj-line); box-shadow: var(--bj-shadow); }
-.shop-city-card-cover img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.shop-city-card-cover img { width: 100%; height: 100%; object-fit: contain; background: #fff; display: block; }
 .shop-city-card-mono { font-size: 23px; font-weight: 800; letter-spacing: -.02em; color: #fff; text-shadow: 0 1px 6px rgba(0, 0, 0, .28); }
 .shop-city-card-dot { position: absolute; right: 7px; top: 7px; width: 10px; height: 10px; border-radius: 50%; background: #22c55e; border: 2px solid rgba(255, 255, 255, .92); }
 .shop-city-card-dot.closed { background: #9ca3af; }
@@ -412,14 +412,17 @@
 .shop-head-icon-badge { position: absolute; top: -3px; right: -3px; background: #34d399; color: #0a1a12; font-size: 9px; font-weight: 800; min-width: 15px; height: 15px; border-radius: 8px; display: flex; align-items: center; justify-content: center; padding: 0 3px; }
 /* 🏬 5-BOSQICH: fon endi JSX'dan (do'kon nomidan hisoblangan gradient) keladi — bu yerda faqat
    zaxira rang. Balandlik 100 -> 92: ekranning yuqori qismi mahsulotga tezroq yetsin. */
-.app.bjm .shop-sp-cover { height: 92px; position: relative; overflow: hidden; background: linear-gradient(150deg, #dff3ea, #c7e8db); }
+.app.bjm .shop-sp-cover { height: 92px; position: relative; overflow: hidden; background: linear-gradient(150deg, #e6f5ee, #cfeadd); }
 /* muqova: rasm XIRA fon (kvadrat logo keng lentaga kesilganda xunuk ko'rinardi) — tiniq
    nusxasi avatarda turadi. `filter: blur` (backdrop-filter EMAS) va butun profilda BITTA
    element, ya'ni ro'yxat-scroll'iga hech qanday narxi yo'q. */
 .app.bjm .shop-sp-cover img { width: 100%; height: 100%; object-fit: cover; }
-.app.bjm .shop-sp-cover-blur { filter: blur(16px) saturate(1.25) brightness(.92); transform: scale(1.25); }
+/* Muqovaga rasm QO'YILMAYDI (ega: «bu ko'k narsani yo'qot»): xira logo lenta rangini
+   do'kon logosidan olardi va ko'k/tasodifiy chiqardi. Endi lenta HAR DOIM och zumrad,
+   logo esa avatarda TO'LIQ ko'rinadi. Sinf saqlanadi (eski JS bilan moslik uchun). */
+.app.bjm .shop-sp-cover-blur { display: none; }
 .app.bjm .shop-sp-avatar { overflow: hidden; }
-.app.bjm .shop-sp-avatar-img { width: 100%; height: 100%; object-fit: cover; display: block; border-radius: inherit; }
+.app.bjm .shop-sp-avatar-img { width: 100%; height: 100%; object-fit: contain; background: #fff; display: block; border-radius: inherit; }
 .app.bjm .shop-sp-body { padding: 0 16px 24px; }
 /* qora 0.4 soya yorug' shisha-mavzuda "yopishtirilgan" ko'rinardi — zumrad-tusli yumshoq soya */
 .app.bjm .shop-sp-avatar { margin-top: -26px; width: 68px; height: 68px; border-radius: 22px; background: var(--bj-hero-grad); border: 3px solid rgba(255, 255, 255, .92); box-shadow: 0 10px 24px -12px rgba(6, 95, 70, .8), inset 0 1px 0 rgba(255, 255, 255, .3); display: flex; align-items: center; justify-content: center; color: #fff; font-size: 19px; font-weight: 800; letter-spacing: -.02em; box-sizing: border-box; }
@@ -464,7 +467,7 @@
 .shop-mah-card { flex: none; width: 148px; background: none; border: none; padding: 0; text-align: left; cursor: pointer; color: inherit; transition: transform var(--dur-press) var(--ease-out); }
 .shop-mah-card:active { transform: scale(0.96); }
 .shop-mah-cover { position: relative; width: 148px; height: 100px; border-radius: 16px; overflow: hidden; display: flex; align-items: center; justify-content: center; background: linear-gradient(160deg, rgba(52, 211, 153, .22), rgba(13, 150, 104, .14)); box-shadow: 0 10px 24px rgba(0, 0, 0, .45); border: 1px solid var(--bj-line); }
-.shop-mah-cover img { width: 100%; height: 100%; object-fit: cover; }
+.shop-mah-cover img { width: 100%; height: 100%; object-fit: contain; background: #fff; }
 .shop-mah-initial { font-size: 36px; font-weight: 800; color: rgba(6, 95, 70, .55); letter-spacing: -1px; }
 /* kichik, deyarli shaffof bo'lmagan nishon — kuchli shisha-blur bu yerda ortiqcha yuk (avvalgidek) */
 .shop-mah-badge { position: absolute; left: 8px; bottom: 8px; background: rgba(13, 150, 104, .85); backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); color: #fff; font-size: 9.5px; font-weight: 700; padding: 3px 7px; border-radius: 8px; }
@@ -476,7 +479,7 @@
 .shop-similar-stores-row::-webkit-scrollbar { display: none; }
 .shop-similar-store { flex: none; display: flex; flex-direction: column; align-items: center; gap: 5px; width: 64px; background: none; border: none; cursor: pointer; color: inherit; }
 .shop-similar-store-av { width: 56px; height: 56px; border-radius: 28px; background: var(--bj-hero-grad); display: flex; align-items: center; justify-content: center; color: #fff; font-weight: 800; font-size: 16px; border: 2px solid rgba(255, 255, 255, .15); box-shadow: 0 6px 14px rgba(0, 0, 0, .35); overflow: hidden; }
-.shop-similar-store-av img { width: 100%; height: 100%; object-fit: cover; }
+.shop-similar-store-av img { width: 100%; height: 100%; object-fit: contain; background: #fff; }
 .shop-similar-store-name { font-size: 10px; color: var(--bj-ink-dim); text-align: center; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 64px; }
 .shop-tile-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin: 4px 0; }
 /* 🫧 2-BOSQICH: kafel endi "rasm + tana", matn rasm ustida emas.

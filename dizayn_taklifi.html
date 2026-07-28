@@ -1,0 +1,264 @@
+<!doctype html><html lang="uz"><head><meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>BirJoy — mahsulot sahifasi va do'kon profili: dizayn taklifi</title>
+<style>
+  :root { color-scheme: light; --ink:#101418; --dim:#6b7280; --em:#0d9668; --em2:#047857;
+          --am:#b45309; --line:rgba(16,20,24,.08); --card:#fff; }
+  * { box-sizing: border-box; }
+  body { margin:0; padding:28px 16px 80px; background:#eef2ef; color:var(--ink);
+         font:15px/1.5 -apple-system,Segoe UI,Roboto,sans-serif; }
+  .wrap { max-width: 1180px; margin: 0 auto; }
+  h1 { font-size: 26px; margin: 0 0 6px; letter-spacing: -.02em; }
+  .lede { color: var(--dim); margin: 0 0 30px; max-width: 760px; }
+  h2 { font-size: 19px; margin: 34px 0 4px; }
+  .sub { color: var(--dim); margin: 0 0 16px; font-size: 14px; }
+  .pair { display: flex; gap: 26px; flex-wrap: wrap; align-items: flex-start; }
+  .col { flex: 1 1 300px; min-width: 290px; max-width: 360px; }
+  .tag { display:inline-block; font-size:11px; font-weight:800; letter-spacing:.04em;
+         padding:4px 10px; border-radius:999px; margin-bottom:8px; }
+  .tag.now { background:#fde8e8; color:#b91c1c; }
+  .tag.new { background:#dff3ea; color:#046c4e; }
+  /* telefon ramkasi */
+  .ph { width:100%; max-width:360px; margin:0 auto; border-radius:26px; background:
+        radial-gradient(120% 78% at 50% -12%, rgba(13,150,104,.10) 0%, transparent 58%),
+        radial-gradient(88% 56% at 100% 6%, rgba(249,190,62,.13) 0%, transparent 54%), #f5f7f6;
+        border:1px solid var(--line); overflow:hidden; box-shadow:0 18px 40px -24px rgba(6,60,45,.5); }
+  .bar { height:30px; display:flex; align-items:center; justify-content:space-between;
+         padding:0 14px; font-size:11px; color:var(--dim); }
+  .s { padding: 0 12px 14px; }
+  .note { font-size:12.5px; color:var(--dim); margin-top:10px; padding-left:14px; }
+  .note li { margin: 3px 0; }
+  /* umumiy bo'laklar */
+  .img { aspect-ratio:1/1; border-radius:14px; background:linear-gradient(160deg,#dff3ea,#bfe6d5);
+         display:flex; align-items:center; justify-content:center; font-size:44px; }
+  .img.wide { aspect-ratio:4/3; border-radius:0; margin:0 -12px; }
+  .btn { display:block; text-align:center; font-weight:800; border-radius:14px; padding:13px;
+         background:linear-gradient(135deg,#12a674,#047857); color:#fff; font-size:14.5px; }
+  .btn.ghost { background:#fff; color:var(--ink); border:1px solid var(--line); font-weight:700; }
+  .btn.sm { padding:9px 12px; font-size:13px; border-radius:12px; }
+  .row { display:flex; align-items:center; gap:8px; }
+  .muted { color:var(--dim); font-size:12.5px; }
+  .price { font-size:24px; font-weight:900; color:var(--am); letter-spacing:-.02em; }
+  .price small { font-size:13px; font-weight:700; color:var(--dim); }
+  .old { text-decoration:line-through; color:#9aa3b2; font-size:13px; }
+  .chip { font-size:11.5px; font-weight:700; padding:4px 10px; border-radius:999px;
+          background:#eef5f1; color:#046c4e; }
+  .box { background:var(--card); border:1px solid var(--line); border-radius:14px; padding:11px 12px; margin-top:10px; }
+  .bad { outline:2px dashed #ef4444; outline-offset:3px; border-radius:10px; }
+  .badnote { color:#b91c1c; font-size:11.5px; font-weight:700; margin-top:4px; }
+  .prog { height:7px; background:#e6ece9; border-radius:4px; overflow:hidden; margin-top:7px; }
+  .prog > i { display:block; height:100%; width:4%; background:linear-gradient(90deg,#10b981,#a3e635); }
+  .grid2 { display:grid; grid-template-columns:1fr 1fr; gap:9px; }
+  .tile { background:#fff; border-radius:14px; overflow:hidden; box-shadow:0 6px 18px -14px rgba(6,60,45,.6); }
+  .tile .im { aspect-ratio:1/1; margin:5px 5px 0; border-radius:11px;
+              background:linear-gradient(160deg,#e3f3ec,#cfe9dd); display:flex; align-items:center; justify-content:center; font-size:26px; }
+  .tile .bd { padding:7px 8px 9px; }
+  .tile b { font-size:12px; font-weight:650; display:block; line-height:1.25; }
+  .tile .p { font-size:13px; font-weight:800; color:var(--am); margin-top:4px; }
+  .cover { height:96px; margin:0 -12px; background:linear-gradient(150deg,#0f8f66,#0b6b4c); }
+  .cover.blue { background:linear-gradient(150deg,#1b7f95,#1e3a8a); }
+  .cover.soft { height:96px; background:linear-gradient(150deg,#e6f5ee,#cfeadd); position:relative; }
+  .cover.soft::after { content:""; position:absolute; right:-24px; top:-30px; width:150px; height:150px;
+    border-radius:50%; background:rgba(255,255,255,.45); }
+  /* profil sarlavhasi: avatar ramkadan CHIQMAYDI (maketning birinchi versiyasida chap chekkada
+     kesilgan edi — ega topdi). Salbiy margin faqat TEPAGA, yon tomonlarga emas. */
+  .sp-head { display:flex; align-items:flex-end; gap:10px; margin-top:-26px; }
+  .sp-av { width:60px; height:60px; flex:none; border-radius:19px; border:3px solid #fff;
+    background:linear-gradient(155deg,#12a674,#0b6b4c); color:#fff; font-weight:800; font-size:15px;
+    display:flex; align-items:center; justify-content:center; box-shadow:0 8px 18px -12px rgba(6,95,70,.9); }
+  .sp-name { flex:1; min-width:0; padding-bottom:2px; }
+  .sp-name b { font-size:16.5px; letter-spacing:-.02em; display:block; }
+  .sp-meta { font-size:12px; color:var(--dim); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .sp-acts { display:flex; gap:6px; flex:none; padding-bottom:2px; }
+  .sp-acts span { width:34px; height:34px; border-radius:12px; background:#fff; border:1px solid var(--line);
+    display:flex; align-items:center; justify-content:center; font-size:14px; }
+  .sp-stats { display:flex; gap:8px; margin-top:12px; }
+  .sp-stats div { flex:1; background:#fff; border:1px solid var(--line); border-radius:12px;
+    padding:8px 6px; text-align:center; }
+  .sp-stats b { display:block; font-size:14px; font-weight:800; }
+  .sp-stats span { font-size:10.5px; color:var(--dim); }
+  .av { width:64px; height:64px; border-radius:20px; background:linear-gradient(155deg,#12a674,#0b6b4c);
+        border:3px solid #fff; margin-top:-26px; display:flex; align-items:center; justify-content:center;
+        color:#fff; font-weight:800; }
+  .stat { display:flex; gap:14px; margin-top:8px; }
+  .stat div { font-size:12px; color:var(--dim); }
+  .stat b { display:block; font-size:14px; color:var(--ink); }
+  .ann { border-left:3px solid #f59e0b; background:#fffaf0; border-radius:0 10px 10px 0;
+         padding:8px 10px; font-size:12.5px; margin-top:10px; }
+  .rail { display:flex; gap:8px; overflow:hidden; margin-top:10px; }
+  .rail .c { flex:none; width:74px; text-align:center; }
+  .rail .c i { display:block; width:74px; height:74px; border-radius:22px;
+               background:linear-gradient(155deg,#12a674,#0b6b4c); color:#fff; font-style:normal;
+               display:flex; align-items:center; justify-content:center; font-weight:800; }
+  .rail .c span { font-size:10.5px; display:block; margin-top:5px; line-height:1.2; }
+  .buybar { position:sticky; bottom:0; background:rgba(255,255,255,.92); border-top:1px solid var(--line);
+            margin:12px -12px -14px; padding:10px 12px 14px; }
+  .qty { display:flex; align-items:center; gap:10px; border:1px solid var(--line); border-radius:12px;
+         padding:8px 10px; font-weight:800; font-size:14px; }
+  .legend { display:flex; gap:16px; flex-wrap:wrap; margin:8px 0 22px; font-size:13px; color:var(--dim); }
+  .legend span::before { content:""; display:inline-block; width:10px; height:10px; border-radius:3px;
+                         margin-right:6px; vertical-align:-1px; }
+  .legend .r::before { background:#ef4444; }
+  .legend .g::before { background:#12a674; }
+</style></head><body><div class="wrap">
+
+<h1>Mahsulot sahifasi va do'kon profili — dizayn taklifi</h1>
+<p class="lede">Chapda — <b>hozir nima bor</b> (sizning skrinshotlaringizdan), o'ngda — <b>taklif</b>.
+Taklifda bitta qoida bor: <b>ekranning yuqori yarmi mahsulotni sotadi</b>, qolgani pastga tushadi.
+Hech qanday yangi mexanika qo'shilmaydi — faqat tartib, o'lcham va bo'sh joy.</p>
+<div class="legend"><span class="r">qizil ramka = muammo</span><span class="g">yashil = taklif</span></div>
+
+<h2>A. Mahsulot sahifasi</h2>
+<p class="sub">Muammo: sotib olish qarori uchun kerak bo'lgan narsa (rasm · narx · tugma) uch joyga tarqalgan,
+oralarida esa katta «tanga yetmaydi» bloki turibdi.</p>
+<div class="pair">
+  <div class="col">
+    <span class="tag now">HOZIR</span>
+    <div class="ph"><div class="bar"><span>21:35</span><span>40%</span></div><div class="s">
+      <div class="img wide">📦</div>
+      <div style="margin-top:12px"><b style="font-size:18px">Beltop blendir</b>
+        <div class="muted">BirJoy Market</div></div>
+      <div class="row" style="margin-top:8px"><span class="price">430 000 <small>so'm</small></span>
+        <span class="muted bad">ⓘ Nima uchun bu narx?</span></div>
+      <div class="badnote">savdo sahifasida savol tug'diradi</div>
+      <div class="muted" style="margin-top:8px">⚡ Kam qoldi: 3 dona</div>
+      <div class="box">🚚 <b>Bir kunda</b> · do'kon egasi qo'ng'iroq qiladi</div>
+      <div class="box row" style="justify-content:space-between"><span>🗣 Sharhlar</span><span class="muted">Birinchi bo'lib yozing ›</span></div>
+      <div class="box bad">
+        <div style="font-size:13px">🪙 Tanga bilan: sizda <b>14 490</b> / kerak: <b>430 000</b></div>
+        <div class="prog"><i></i></div>
+        <div class="muted" style="margin-top:5px">Yana <b>415 510 tanga</b> kerak.</div>
+        <div style="font-size:13px;margin-top:6px">👥 <b>208 do'stingizga</b> ulashsangiz — yetadi!</div>
+        <div class="btn ghost sm" style="margin-top:9px">👥 Do'stlarga ulashib tanga yig'ish</div>
+      </div>
+      <div class="badnote">ekranning yarmi «sizda pul yetmaydi» deb turadi</div>
+      <div class="btn" style="margin-top:12px">🧺 Savatga qo'shish (naqd)</div>
+      <div class="btn ghost" style="margin-top:8px">💵 Bittasini naqdga — 430 000 so'm</div>
+      <div class="badnote">ikkala tugma ham «naqd» deydi — farqi tushunarsiz</div>
+    </div></div>
+  </div>
+
+  <div class="col">
+    <span class="tag new">TAKLIF</span>
+    <div class="ph"><div class="bar"><span>21:35</span><span>40%</span></div><div class="s">
+      <div class="img wide">📦</div>
+      <div class="row" style="margin-top:11px;gap:6px">
+        <span class="chip">Maishiy texnika</span><span class="chip">⚡ 3 dona qoldi</span>
+      </div>
+      <div style="margin-top:9px"><b style="font-size:19px;letter-spacing:-.02em">Beltop blendir</b></div>
+      <div class="row" style="margin-top:7px;gap:7px">
+        <span style="width:26px;height:26px;border-radius:9px;background:linear-gradient(155deg,#12a674,#0b6b4c);color:#fff;font-size:11px;font-weight:800;display:flex;align-items:center;justify-content:center">BM</span>
+        <span style="font-size:13px;font-weight:700">BirJoy Market</span>
+        <span class="muted">· ⭐ 4.8 · Ochiq</span>
+      </div>
+      <div class="row" style="margin-top:12px;align-items:baseline;gap:9px">
+        <span class="price">430 000 <small>so'm</small></span><span class="old">495 000</span>
+        <span class="chip" style="background:#fde8ee;color:#be123c">−13%</span>
+      </div>
+      <div class="row" style="margin-top:11px;gap:0;justify-content:space-between;text-align:center">
+        <div style="flex:1"><div style="font-size:17px">🚚</div><div class="muted">Bir kunda</div></div>
+        <div style="flex:1"><div style="font-size:17px">✅</div><div class="muted">Eshikda<br/>tekshirasiz</div></div>
+        <div style="flex:1"><div style="font-size:17px">📞</div><div class="muted">Sotuvchi<br/>qo'ng'iroq qiladi</div></div>
+      </div>
+      <div class="box" style="padding:9px 11px">
+        <div class="row" style="justify-content:space-between;font-size:12.5px">
+          <span>🪙 Tangangiz: <b>14 490</b></span><span class="muted">3% yig'ildi</span></div>
+        <div class="prog"><i></i></div>
+      </div>
+      <div class="box row" style="justify-content:space-between"><span>🗣 Sharhlar</span><span class="muted">Birinchi bo'lib yozing ›</span></div>
+      <div style="font-size:13px;font-weight:700;margin-top:14px">O'xshash mahsulotlar</div>
+      <div class="rail" style="margin-top:8px">
+        <div class="c"><i style="background:linear-gradient(160deg,#e3f3ec,#cfe9dd);color:#0b6b4c">🍳</i><span>Mikser</span></div>
+        <div class="c"><i style="background:linear-gradient(160deg,#e3f3ec,#cfe9dd);color:#0b6b4c">☕</i><span>Choynak</span></div>
+        <div class="c"><i style="background:linear-gradient(160deg,#e3f3ec,#cfe9dd);color:#0b6b4c">🔪</i><span>Pichoq</span></div>
+      </div>
+      <div class="buybar">
+        <div class="row" style="gap:9px">
+          <div class="qty">− <span>1</span> +</div>
+          <div class="btn" style="flex:1">🧺 Savatga · 430 000</div>
+        </div>
+        <div class="muted" style="text-align:center;margin-top:7px;font-size:12px">yoki <b>bir bosishda</b> naqdga buyurtma</div>
+      </div>
+    </div></div>
+    <ul class="note">
+      <li><b>Narx yonida chegirma</b> — «nima uchun bu narx?» savoli o'rniga javob.</li>
+      <li><b>Uch ishonch belgisi</b> bitta qatorda: yetkazish · eshikda tekshirish · qo'ng'iroq.</li>
+      <li><b>Tanga bloki 4 marta kichraydi</b> — «yetmaydi» emas, «yig'ilyapti».</li>
+      <li><b>Bitta asosiy tugma</b> + miqdor; naqd — kichik matn-havola.</li>
+      <li>Do'kon nomi bosiladigan — profilга o'tadi.</li>
+    </ul>
+  </div>
+</div>
+
+<h2>B. Do'kon profili</h2>
+<p class="sub">Muammo: mahsulotgacha ikki ekran surish kerak — yuqorida muqova, avatar, e'lon, «Biz haqimizda»,
+sharh akkordeoni va ulkan yashil tugma turadi.</p>
+<div class="pair">
+  <div class="col">
+    <span class="tag now">HOZIR</span>
+    <div class="ph"><div class="bar"><span>21:35</span><span>40%</span></div><div class="s">
+      <div class="cover blue bad"></div>
+      <div class="badnote">to'q ko'k blok — brendga begona <i>(bu allaqachon pastelga o'zgartirildi)</i></div>
+      <div class="av">AM</div>
+      <div style="margin-top:7px"><b style="font-size:17px">Amazon-kids</b></div>
+      <div class="muted">📍 Saripul · ● Ochiq</div>
+      <div class="muted">🕒 15 daqiqa</div>
+      <div class="ann">Bugun yangi partiya keldi</div>
+      <div style="font-size:12.5px;margin-top:9px"><b>Biz haqimizda.</b> Amazon kids Koson buylab</div>
+      <div class="box row bad" style="justify-content:space-between"><span>💬 Sharhlar 0 ta</span><span>▼</span></div>
+      <div class="badnote">bosilsa «hali sharh yo'q» — bo'sh ish <i>(olib tashlandi)</i></div>
+      <div class="btn bad" style="margin-top:10px">💬 Do'konga yozish</div>
+      <div class="badnote">eng katta tugma — sotuvchiga yozish, sotib olish emas</div>
+      <div class="grid2" style="margin-top:12px">
+        <div class="tile"><div class="im bad">F</div><div class="bd"><b>Frisolac gold 1 (400g)</b><div class="p">145 000</div></div></div>
+      </div>
+      <div class="badnote">rasmsiz mahsulot — ulkan harf <i>(endi kategoriya chizmasi)</i></div>
+    </div></div>
+  </div>
+
+  <div class="col">
+    <span class="tag new">TAKLIF</span>
+    <div class="ph"><div class="bar"><span>21:35</span><span>40%</span></div><div class="s">
+      <div class="cover soft"></div>
+      <div class="sp-head">
+        <div class="sp-av">AM</div>
+        <div class="sp-name">
+          <b>Amazon-kids</b>
+          <div class="sp-meta">📍 Saripul · <span style="color:#0b7a55">Ochiq</span> · 15 daq</div>
+        </div>
+        <div class="sp-acts"><span>💬</span><span>↗</span></div>
+      </div>
+      <div class="sp-stats">
+        <div><b>1</b><span>mahsulot</span></div>
+        <div><b>⭐ —</b><span>baho yo'q</span></div>
+        <div><b>15 daq</b><span>yetkazish</span></div>
+      </div>
+      <div class="ann">Bugun yangi partiya keldi</div>
+      <div class="row" style="gap:6px;margin-top:12px">
+        <span class="chip" style="background:#12a674;color:#fff">Hammasi</span>
+        <span class="chip">Bolalar ovqati</span><span class="chip">Gigiyena</span>
+      </div>
+      <div class="grid2" style="margin-top:10px">
+        <div class="tile"><div class="im">🍼</div><div class="bd"><b>Frisolac gold 1 (400g)</b><div class="p">145 000</div></div></div>
+        <div class="tile"><div class="im">🧴</div><div class="bd"><b>Bolalar shampuni</b><div class="p">32 000</div></div></div>
+      </div>
+      <div class="muted" style="text-align:center;margin-top:12px;font-size:12.5px">
+        Biz haqimizda · Sharhlar · O'xshash do'konlar ↓</div>
+    </div></div>
+    <ul class="note">
+      <li><b>Mahsulot birinchi ekranda.</b> Hikoya, sharh, «o'xshash do'konlar» — pastga.</li>
+      <li><b>Uch raqam</b> (mahsulot soni · baho · yetkazish) — do'konni bir qarashda tushuntiradi.</li>
+      <li><b>«Do'konga yozish» ikonka bo'ldi</b> — asosiy harakat xarid, yozish emas.</li>
+      <li><b>Kategoriya chiplari</b> do'kon ichida ham — 87 mahsulotli do'konda shartsiz kerak.</li>
+      <li>Baho yo'q bo'lsa «⭐ —» deb ochiq aytiladi, nol emas.</li>
+    </ul>
+  </div>
+</div>
+
+<h2 style="margin-top:40px">Nima allaqachon bajarildi</h2>
+<p class="sub">Bugungi tuzatishlar (jonli): muqova pastel · rasmsiz mahsulotga kategoriya chizmasi ·
+bo'sh «Sharhlar 0 ta» olib tashlandi · «208 do'st» maslahati 15 tadan oshsa ko'rsatilmaydi ·
+kartalardan blur olib tashlandi (28 → 6 qatlam) · rasmlar 800px (4-10× yengil) · savat «0» bug'i.</p>
+<p class="sub">Yuqoridagi <b>taklif</b> esa hali qilinmagan — sizning «ha» degan javobingizni kutadi.
+Har bandni alohida ham tanlashingiz mumkin.</p>
+</div></body></html>

@@ -1057,26 +1057,14 @@ export function ShopView({ me, onBanner, reload, onBook, openProductId }: { me: 
               nom+reyting → info-qator → hikoya-tray → e'lon → about → sodiqlik → sharh → CTA ── */}
           {shopFilter && shopProfile  && (
             <>
-              {/* 🏬 5-BOSQICH: muqova endi tekis och-yashil blok + KATTA HARF emas. Harf pastdagi
-                  monogramda allaqachon bor edi — ya'ni bitta harf ikki marta, va katta bo'sh maydon
-                  "tayyor emas" taassurotini berardi (eganing e'tirozi). Endi bozor-ro'yxatidagi
-                  kartalar bilan AYNAN bir xil, do'kon nomidan hisoblangan barqaror gradient. */}
-              <div
-                className="shop-sp-cover"
-                // 🎨 EGA SKRINSHOTI (2026-07-28): muqova to'q KO'K blok bo'lib chiqqan edi (hue 190,
-                // 62% to'yinganlik) — brend zumradiga ham, oq-shisha temaga ham begona. Rang-xilma-xillik
-                // QOLADI (do'kon nomidan), lekin PASTEL: katta maydon tinch, urg'u avatar/nomda.
-                style={shopProfile.hasPhoto ? undefined : { background: `linear-gradient(150deg, hsl(${shopHue(shopProfile.name)} 44% 93%), hsl(${shopHue(shopProfile.name)} 38% 85%) 60%, hsl(${(shopHue(shopProfile.name) + 30) % 360} 42% 90%))` }}
-              >
-                {/* 🖼 EGA TOPDI (2026-07-28): «ichkariga kirsa do'kon profili xunuk». Sabab —
-                    do'kon rasmi KVADRAT logo, muqova esa 92px balandlikdagi keng lenta: logo
-                    shunday kesilardiki, ekranda tasodifiy rangli chiziq qolardi. Endi standart
-                    profil naqshi: muqovada O'SHA rasm xiralashtirilgan fon sifatida, avatarda esa
-                    TINIQ holda. Blur bitta elementda (kartalarda emas) — scroll'ga ta'siri yo'q. */}
-                {shopProfile.hasPhoto && <img className="shop-sp-cover-blur" src={apiUrl(`/api/shop/shop-photo/${shopProfile.id}`)} alt="" />}
-              </div>
+              {/* 🏬 MUQOVA (ega, 2026-07-28: «nega do'kon logosi to'liq emas · bu ko'k narsani yo'qot»):
+                  ilgari muqova do'kon rasmini xira qilib ko'rsatardi, rangi esa logodan olinardi —
+                  Amazon-kids'da butun ekran KO'K blok bo'lib chiqqan. Endi lenta HAR DOIM bitta
+                  och zumrad, do'kon logosi esa faqat avatarda va TO'LIQ (object-fit: contain —
+                  avval `cover` logoning chetlarini kesardi). */}
+              <div className="shop-sp-cover" />
               <div className="shop-sp-body">
-                <div className="shop-sp-avatar" aria-hidden="true" style={shopProfile.hasPhoto ? undefined : { background: `linear-gradient(155deg, hsl(${shopHue(shopProfile.name)} 60% 40%), hsl(${shopHue(shopProfile.name)} 66% 26%))` }}>
+                <div className="shop-sp-avatar" aria-hidden="true" style={shopProfile.hasPhoto ? undefined : { background: "linear-gradient(155deg, #12a674, #0b6b4c)" }}>
                   {shopProfile.hasPhoto
                     ? <img className="shop-sp-avatar-img" src={apiUrl(`/api/shop/shop-photo/${shopProfile.id}`)} alt="" />
                     : shopMonogram(shopProfile.name)}
