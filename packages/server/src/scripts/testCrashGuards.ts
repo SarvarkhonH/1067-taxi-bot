@@ -56,6 +56,14 @@ async function main(): Promise<void> {
     await prisma.intercityTrip.deleteMany({ where: { id: { in: trips.map((t) => t.id) } } });
     await prisma.intercityDriverEnrollment.deleteMany({ where: { driverId: { in: mids } } });
     await prisma.coinTxn.deleteMany({ where: { memberId: { in: mids } } });
+    // Marshrutlar SHAHARLARDAN oldin o'chiriladi: `IntercityRoute.originCityId` shaharga
+    // ishora qiladi, shuning uchun avval shaharni o'chirish FK'ni buzardi (P2003) — barcha
+    // tekshiruvlar yashil o'tsa ham skript teardown'da qulab, "test yiqildi" deb ko'rinardi
+    // va TAG'li satrlar bazada qolib ketardi.
+    const cityIds = (await prisma.intercityCity.findMany({ where: { name: { startsWith: TAG } }, select: { id: true } })).map((c) => c.id);
+    if (cityIds.length) {
+      await prisma.intercityRoute.deleteMany({ where: { OR: [{ originCityId: { in: cityIds } }, { destCityId: { in: cityIds } }] } });
+    }
     await prisma.intercityCity.deleteMany({ where: { name: { startsWith: TAG } } });
     await prisma.member.deleteMany({ where: { id: { in: mids } } });
     await prisma.appState.deleteMany({ where: { key: { contains: TAG } } });
