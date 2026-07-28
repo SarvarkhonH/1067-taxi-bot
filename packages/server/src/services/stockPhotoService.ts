@@ -147,11 +147,15 @@ export async function searchOpenFoodPhoto(term: string): Promise<FoundPhoto | nu
     // «KRISPROLLS Complets» (non), «corn oil» ga «Nachos», «white beans» ga «Coffee Beans»
     // qaytardi — ya'ni mahsulot nomida so'rov so'zi BO'LMASA moslik yolg'on. Endi nomda
     // so'rovning MA'NOLI so'zlari (3 harfdan uzun) BO'LISHI shart.
-    const need = term.split(" ").filter((w) => w.length > 3).map((w) => w.toLowerCase());
+    // So'z-CHEGARALI moslik va 3 harfli so'zlar ham hisobga olinadi: «sesame oil» da "oil"
+    // tashlansa «Organic Sesame Biscuits» o'tib ketardi; substring bo'lsa «white beans»
+    // «CoffeeBEANS» ga mos kelardi. Ikkalasi ham jonli dry-run'da chiqdi.
+    const need = term.split(" ").filter((w) => w.length >= 3).map((w) => w.toLowerCase());
+    const wordIn = (hay: string, w: string): boolean => new RegExp("\\b" + w.replace(/[^a-z0-9]/gi, "") + "\\b", "i").test(hay);
     const hit = (d.products ?? []).find((p) => {
       if (!p.image_front_url || !p.product_name) return false;
       const nm = p.product_name.toLowerCase();
-      return need.length === 0 || need.every((w) => nm.includes(w));
+      return need.length === 0 || need.every((w) => wordIn(nm, w));
     });
     if (!hit) return null;
     return { url: hit.image_front_url!, title: hit.product_name!, source: "openfoodfacts", license: "CC BY-SA", credit: `Open Food Facts (CC BY-SA) · ${hit.product_name}` };
@@ -168,17 +172,18 @@ export async function searchOpenversePhoto(term: string): Promise<FoundPhoto | n
     const res = await fetch(url, { headers: { "User-Agent": UA }, signal: AbortSignal.timeout(10_000) });
     if (!res.ok) return null;
     const d = (await res.json()) as { results?: { title?: string; url?: string; license?: string; provider?: string; creator?: string }[] };
-    const words = term.split(" ").filter((w) => w.length > 3);
+    const words = term.split(" ").filter((w) => w.length >= 3);
+    const wordIn = (hay: string, w: string): boolean => new RegExp("\\b" + w.replace(/[^a-z0-9]/gi, "") + "\\b", "i").test(hay);
     // ⚠️ SHOVQIN-SO'ZLAR (jonli dry-run): «buckwheat» so'rovi «Bee atop California buckwheat»
     // (asalari!) ni, «potato» esa 1899-yilgi dala fotosini qaytargan edi. Bunday hujjatli/tabiat
     // fotosi mahsulot kartasida hozirgi gradientdan ham yomon ko'rinadi.
-    const NOISE = /(bee|insect|beetle|disease|freckle|pest|farm|field|harvest|plantation|museum|vintage|18\d\d|19\d\d|man|woman|worker|market stall)/i;
+    const NOISE = new RegExp("\b(bee|bees|insect|beetle|disease|freckle|pest|farm|field|harvest|plantation|museum|vintage|worker|recipe|salad|soup)\b|\b(18|19)\d\d\b", "i");
     const ok = (r: { title?: string; provider?: string }): boolean => {
       const title = (r.title ?? "").toLowerCase();
       if (!r.provider || !GOOD_PROVIDERS.has(r.provider)) return false;
       if (NOISE.test(title)) return false;
       // sarlavhada so'rovning HAR ma'noli so'zi bo'lishi shart (avval "biror biri" edi)
-      return words.length === 0 || words.every((w) => title.includes(w.toLowerCase()));
+      return words.length === 0 || words.every((w) => wordIn(title, w));
     };
     const hit = (d.results ?? []).find((r) => r.url && ok(r));
     if (!hit?.url) return null;
