@@ -5,17 +5,12 @@
 .app.shop-light .member-chip { color: #15803d; background: rgba(21,128,61,.1); border-color: rgba(21,128,61,.25); }
 .shop-wrap { display: flex; flex-direction: column; gap: 10px; }
 .shop-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
-.shop-orders-btn { border: 1px solid var(--line); background: var(--surface-2); color: var(--text); font-size: 12.5px; font-weight: 700; padding: 8px 12px; border-radius: var(--r-chip); }
-.shop-orders-btn:active { transform: scale(.96); }
-.shop-cats { margin: 2px 0 4px; }
 .shop-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
 .shop-card { --acc: var(--brand); padding: 0; overflow: hidden; text-align: left; display: flex; flex-direction: column; position: relative;
   border: 1px solid color-mix(in srgb, var(--acc) 45%, transparent);
   box-shadow: 0 6px 24px -10px color-mix(in srgb, var(--acc) 55%, transparent), inset 0 1px 0 rgba(255,255,255,.08);
   transition: transform .12s ease; }
 .shop-card:active { transform: scale(.96); }
-.shop-card-cat { font-size: 10px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; text-align: center; padding: 4px 6px;
-  background: linear-gradient(135deg, color-mix(in srgb, var(--acc) 85%, #fff 0%), color-mix(in srgb, var(--acc) 60%, #000 10%)); color: #fff; text-shadow: 0 1px 2px rgba(0,0,0,.35); }
 .shop-card-photo-wrap { position: relative; }
 .shop-card-photo { width: 100%; aspect-ratio: 1 / 1; object-fit: cover; display: block; background: var(--surface); }
 .shop-card-noimg { display: flex; align-items: center; justify-content: center; font-size: 52px;
@@ -45,33 +40,16 @@
 .shop-gallery-dots { position: absolute; bottom: 8px; left: 0; right: 0; display: flex; justify-content: center; gap: 6px; }
 .shop-gallery-dot { width: 7px; height: 7px; border-radius: 50%; background: rgba(255,255,255,.35); transition: transform .15s ease, background .15s ease; }
 .shop-gallery-dot.on { background: var(--brand); transform: scale(1.25); box-shadow: 0 0 6px rgba(255,179,0,.7); }
-.shop-title { font-size: 20px; font-weight: 900; background: var(--brand-grad); -webkit-background-clip: text; background-clip: text; color: transparent; }
 .shop-search-wrap { position: relative; }
 .shop-search { width: 100%; padding: 11px 38px 11px 14px; border-radius: var(--r-btn); border: 1px solid var(--line); background: var(--surface-2); color: var(--text); font-size: 14px; }
 .shop-search:focus { outline: none; border-color: rgba(255,179,0,.45); }
 .shop-search-x { position: absolute; right: 8px; top: 50%; transform: translateY(-50%); width: 26px; height: 26px; border: 0; border-radius: 50%; background: rgba(255,255,255,.08); color: var(--text-dim, #9aa0a6); }
-.shop-hero-strip { display: flex; gap: 10px; overflow-x: auto; scroll-snap-type: x mandatory; -webkit-overflow-scrolling: touch; scrollbar-width: none; margin: 2px 0; }
-.shop-hero-strip::-webkit-scrollbar { display: none; }
-.shop-hero { position: relative; flex: 0 0 86%; scroll-snap-align: center; border-radius: var(--r-card); overflow: hidden; padding: 0; text-align: left;
-  border: 1px solid color-mix(in srgb, var(--acc, #ffb300) 50%, transparent); box-shadow: 0 8px 28px -10px color-mix(in srgb, var(--acc, #ffb300) 55%, transparent); }
-.shop-hero:active { transform: scale(.98); }
-.shop-hero-img { width: 100%; aspect-ratio: 16 / 9; object-fit: cover; display: block; background: var(--surface); }
-.shop-hero-grad { position: absolute; inset: 0; background: linear-gradient(180deg, transparent 35%, rgba(5,8,16,.88)); }
-.shop-hero-info { position: absolute; left: 12px; right: 12px; bottom: 10px; }
-.shop-hero-name { font-size: 15px; font-weight: 800; color: #fff; text-shadow: 0 1px 3px rgba(0,0,0,.6); margin-bottom: 4px; }
-.shop-hero-badges { position: absolute; top: 8px; left: 8px; display: flex; gap: 6px; }
-.shop-hero-badges > * { position: static !important; }
 .shop-section { margin-top: 4px; }
 .shop-section-head { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 8px; }
 .shop-section-title { font-size: 15px; font-weight: 800; color: var(--text); border-left: 3px solid var(--acc, var(--brand)); padding-left: 8px; text-transform: capitalize; }
 .shop-row-strip { display: flex; gap: 10px; overflow-x: auto; -webkit-overflow-scrolling: touch; scrollbar-width: none; padding-bottom: 4px; }
 .shop-row-strip::-webkit-scrollbar { display: none; }
 .shop-card-h { flex: 0 0 46%; }
-.shop-cat-chips { display: flex; gap: 8px; overflow-x: auto; -webkit-overflow-scrolling: touch; scrollbar-width: none; padding: 2px 0 6px; }
-.shop-cat-chips::-webkit-scrollbar { display: none; }
-.shop-cat-chip { flex: none; padding: 8px 13px; border-radius: 999px; background: var(--surface-2); border: 1px solid var(--line); color: var(--text-dim); font-size: 12.5px; font-weight: 700; white-space: nowrap; }
-.shop-cat-chip.on { background: var(--brand-grad); color: #2a1900; border-color: transparent; }
-.shop-cat-chip-n { opacity: .65; font-weight: 800; margin-left: 3px; }
 .shop-badge-disc { position: absolute; top: 6px; left: 6px; font-size: 11px; font-weight: 900; padding: 3px 8px; border-radius: var(--r-chip); background: linear-gradient(135deg, #f0426b, #dc2626); color: #fff; box-shadow: 0 2px 8px rgba(220,38,38,.5); }
 .shop-badge-top { position: absolute; top: 6px; right: 6px; font-size: 10px; font-weight: 800; padding: 3px 8px; border-radius: var(--r-chip); background: linear-gradient(135deg, #ff9500, #f0426b); color: #fff; }
 .shop-badge-top ~ .shop-badge-stock { top: auto; bottom: 6px; }
@@ -90,10 +68,8 @@
 .shop-mini-name { font-size: 11px; font-weight: 700; color: var(--text); padding: 5px 6px 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .shop-mini-price { font-size: 11.5px; font-weight: 800; color: var(--brand); }
 .shop-wrap { background: radial-gradient(640px 240px at 50% -80px, rgba(22,163,74,.22), transparent); border-radius: 18px; }
-.shop-title { background: linear-gradient(135deg, #6ee7b7, #16a34a); -webkit-background-clip: text; background-clip: text; }
 .shop-search { border-color: rgba(34,197,94,.35); }
 .shop-search:focus { border-color: rgba(74,222,128,.7); box-shadow: 0 0 0 3px rgba(34,197,94,.15); }
-.shop-orders-btn { border-color: rgba(34,197,94,.4); background: rgba(34,197,94,.12); color: #86efac; }
 .shop-card, .shop-card.glass { background: #ffffff; box-shadow: 0 8px 22px -10px rgba(10,14,30,.55), 0 0 0 1px color-mix(in srgb, var(--acc) 30%, #e6efe8); border: none; }
 .shop-card-name { color: #1b2333; }
 .shop-card-photo, .shop-detail-photo, .shop-mini-img, .shop-gallery-img { background: #f4f7f5; }
@@ -106,8 +82,7 @@
 .shop-mini-price { color: #15803d; }
 .shop-section-title { color: #d9f7e4; }
 .shop-card .d-skel { background: #eaf2ec; }
-.shop-card, .shop-hero { --acc: #22c55e; }
-.shop-card-cat { display: none; }
+.shop-card { --acc: #22c55e; }
 .shop-badge-new { background: linear-gradient(135deg, #34d399, #16a34a); color: #fff; box-shadow: 0 2px 8px rgba(22,163,74,.45); }
 .shop-badge-top { background: linear-gradient(135deg, #f0426b, #dc2626); }
 .shop-section-title { border-left-color: #22c55e; }
@@ -118,7 +93,6 @@
 .shop-search { background: #ffffff; color: #1b2333; border-color: #cde9d6; }
 .shop-search::placeholder { color: #93a89b; }
 .shop-search-x { background: #e6f1ea; color: #5f7066; }
-.shop-orders-btn { background: linear-gradient(135deg, #22c55e, #15803d); border: none; color: #fff; box-shadow: 0 3px 12px -4px rgba(22,163,74,.55); }
 .shop-section-title { color: #14532d; }
 .shop-wrap .d-skel { background: #e3ede6; }
 .shop-wrap .d-empty { color: #5f7066; }
@@ -143,8 +117,6 @@
 .shop-wrap .bk-input { background: #ffffff; color: #1b2333; border: 1px solid #cde9d6; }
 .shop-wrap .bk-input::placeholder { color: #93a89b; }
 .shop-wrap .pay-back { color: #15803d; background: transparent; border: none; }
-.shop-wrap .shop-cat-chip { background: #ffffff; border: 1px solid #dcefe2; color: #5f7066; }
-.shop-wrap .shop-cat-chip.on { background: linear-gradient(135deg, #22c55e, #15803d); color: #fff; }
 .shop-wrap .shop-order-row { background: #ffffff; box-shadow: 0 0 0 1px #e2eee6; border: none; color: #1b2333; }
 .app.shop-light { background: linear-gradient(180deg, #eef7f1, #f7faf8 30%, #f2f6f4); color: #1b2333; }
 .app.shop-light::before { opacity: 0.02; }
@@ -155,7 +127,6 @@
 }
 .app.shop-light .brand-name { color: #1b2333; }
 .app.shop-light .brand-name b { color: #16a34a; text-shadow: none; }
-.app.shop-light .build-ver { color: #16a34a; }
 .app.shop-light .coin-pill {
   background: #ffffff; border: 1px solid #c9ecd4; color: #15803d;
   box-shadow: 0 3px 12px -5px rgba(21, 128, 61, 0.35), inset 0 1px 0 #fff;
@@ -182,7 +153,6 @@
 .shop-card-h { flex: 0 0 clamp(150px, 46%, 190px); }
 .shop-card-name { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
 .shop-price-line { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
-.shop-hero { flex: 0 0 min(86%, 340px); }
 .shop-detail-photo, .shop-gallery-img { max-height: 340px; }
 .shop-card-likes { font-size: 11px; color: #5f7066; font-weight: 700; }
 .shop-card-spec { font-size: 11px; color: #6b7f72; font-weight: 600; margin-top: 1px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -223,8 +193,6 @@
 .shop-wrap .bk-input { font-size: 16px; }
 .shop-wrap { overflow-x: clip; }
 .shop-head > div { min-width: 0; }
-.shop-title { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.shop-orders-btn { flex: none; white-space: nowrap; }
 .shop-card-name, .shop-detail-name, .shop-wrap .muted { overflow-wrap: anywhere; }
 .app.shop-light .page { animation-duration: 180ms; }
 .shop-wrap .pay-back, .shop-light .pay-back {
@@ -296,17 +264,7 @@
 .shop-lightbox-strip::-webkit-scrollbar { display: none; }
 .shop-lightbox-img { width: 100%; flex: 0 0 100%; scroll-snap-align: center; object-fit: contain; height: 100%; }
 .shop-lightbox-dots { position: absolute; bottom: calc(18px + var(--safe-bottom)); left: 0; right: 0; display: flex; justify-content: center; gap: 6px; }
-.app.bazar-light .shop-cat-chip.on { background: var(--bj-hero-grad); color: #fff; }
-.app.bazar-light .shop-cat-chip { text-transform: capitalize; }
 .app.bazar-light .shop-card-noimg { background: linear-gradient(155deg, #eef2ee, #dbe6df); font-size: 32px; color: var(--bj-ink-dim); }
-.shop-open-filter-chip {
-  display: inline-flex; align-items: center; gap: 4px; margin: 4px 16px 6px;
-  padding: 8px 14px; border-radius: var(--r-chip); border: 1px solid var(--bj-line);
-  background: var(--bj-card); color: var(--bj-ink); font-weight: 700; font-size: 13px;
-  box-shadow: var(--bj-shadow); cursor: pointer;
-}
-.shop-open-filter-chip:active { transform: scale(0.97); }
-.app.bazar-light .shop-open-filter-chip.on { background: var(--bj-hero-grad); color: #fff; border-color: transparent; }
 .shop-qty-row { display: flex; align-items: center; gap: 10px; }
 .shop-qty-btn { width: 44px; height: 44px; border-radius: var(--r-btn); border: 1px solid var(--bj-line); background: var(--bj-card); color: var(--bj-ink); font-size: 20px; font-weight: 700; transition: transform var(--dur-press) var(--ease-out); }
 .shop-qty-btn:active { transform: scale(0.93); }
@@ -346,13 +304,10 @@
 .app.bjm .shop-home-products { padding: 20px 0 24px; }
 .app.bjm .shop-home-products .shop-section-title2 { padding: 0 16px; }
 .app.bjm .shop-seller-cta { margin: 20px 16px 8px; }
-.app.bjm .shop-title { background: linear-gradient(135deg, #6ee7b7, #34d399); -webkit-background-clip: text; background-clip: text; }
 .app.bjm .shop-search { background: var(--bj-card); border: none; color: var(--bj-ink); box-shadow: var(--bj-shadow); backdrop-filter: var(--bj-glass-blur); -webkit-backdrop-filter: var(--bj-glass-blur); }
 .app.bjm .shop-search::placeholder { color: var(--bj-ink-dim); }
-.app.bjm .shop-orders-btn, .app.bjm .shop-share-btn { background: var(--bj-card); border: none; color: var(--bj-ink); box-shadow: var(--bj-shadow); backdrop-filter: var(--bj-glass-blur); -webkit-backdrop-filter: var(--bj-glass-blur); }
-.app.bjm .shop-cat-chip { background: var(--bj-card); border: none; color: var(--bj-ink-dim); box-shadow: var(--bj-shadow); backdrop-filter: var(--bj-glass-blur); -webkit-backdrop-filter: var(--bj-glass-blur); }
-.app.bjm .shop-cat-chip.on { background: var(--bj-hero-grad); color: #ffffff; border-color: transparent; }
-.app.bjm .shop-card, .app.bjm .shop-hero { --acc: #34d399; }
+.app.bjm .shop-share-btn { background: var(--bj-card); border: none; color: var(--bj-ink); box-shadow: var(--bj-shadow); backdrop-filter: var(--bj-glass-blur); -webkit-backdrop-filter: var(--bj-glass-blur); }
+.app.bjm .shop-card { --acc: #34d399; }
 .app.bjm .shop-card, .app.bjm .shop-card.glass {
   background: var(--bj-card); border: none;
   box-shadow: var(--bj-shadow); backdrop-filter: var(--bj-glass-blur); -webkit-backdrop-filter: var(--bj-glass-blur);
@@ -370,7 +325,6 @@
 .app.bjm .shop-cart-totals, .app.bjm .shop-qty-btn, .app.bjm .bk-input, .app.bjm .shop-order-row {
   background: var(--bj-card); border: 1px solid var(--bj-line); color: var(--bj-ink); backdrop-filter: var(--bj-glass-blur); -webkit-backdrop-filter: var(--bj-glass-blur);
 }
-.app.bjm .shop-open-filter-chip.on { background: var(--bj-hero-grad); color: #ffffff; border-color: transparent; }
 .shop-kind-row { display: flex; gap: 8px; overflow-x: auto; padding: 2px 16px 6px; scrollbar-width: none; }
 .shop-kind-row::-webkit-scrollbar { display: none; }
 /* Bu qoida `.app.bjm` ostida EMAS (eski `shop-light` yo'li ham shundan foydalanadi), shuning uchun
@@ -394,12 +348,9 @@
 .shop-city-tile-mono { position: absolute; left: 10px; bottom: -18px; width: 42px; height: 42px; border-radius: 14px; display: flex; align-items: center; justify-content: center; font-size: 15px; font-weight: 800; letter-spacing: -.02em; color: #fff; border: 2.5px solid rgba(255, 255, 255, .92); box-shadow: 0 8px 18px -10px rgba(6, 95, 70, .9), inset 0 1px 0 rgba(255, 255, 255, .3); }
 .shop-city-tile-meta { display: flex; flex-wrap: wrap; gap: 3px 9px; margin-top: 4px; font-size: 11px; color: var(--bj-ink-dim, #6b7280); }
 .shop-city-tile-deliver { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
-.shop-city-tile-initial { font-size: 30px; font-weight: 800; color: rgba(6, 95, 70, .55); letter-spacing: -1px; }
 /* monogram muqovadan 18px pastga chiqadi — tana shuncha joy bo'shatadi (aks holda nom ustiga tushardi) */
 .shop-city-tile-body { padding: 24px 11px 12px; }
 .shop-city-tile-name { font-size: 13px; font-weight: 700; color: var(--bj-ink); }
-.shop-city-tile-rating { font-size: 11px; color: var(--bj-ink); margin-top: 2px; }
-.shop-city-tile-status { display: flex; align-items: center; gap: 5px; margin-top: 5px; font-size: 11px; color: var(--bj-ink-dim); }
 .app.bjm .shop-head {
   position: sticky; top: 0; z-index: 20;
   padding: calc(var(--safe-top) + 8px) 14px 10px;
@@ -411,8 +362,7 @@
 /* ── 🫧 4-BOSQICH: mahsulot sahifasi ────────────────────────────────────────────────────────────
    Galereya chetdan-chetga. Sheet'ning 16px yon padding'i manfiy margin bilan qoplanadi — rasm
    telefon enini to'liq egallaydi (mockupdagi kabi), qolgan kontent esa o'z padding'ida qoladi. */
-.app.bjm .shop-detail .shop-gallery,
-.app.bjm .shop-detail > .shop-detail-photo { margin: 0 -16px; width: calc(100% + 32px); }
+.app.bjm .shop-detail .shop-gallery, .app.bjm .shop-detail > .shop-detail-photo { margin: 0 -16px; width: calc(100% + 32px); }
 .app.bjm .shop-detail .shop-gallery-strip { border-radius: 0; }
 .app.bjm .shop-detail-photo, .app.bjm .shop-gallery-img { aspect-ratio: 1 / 1; border-radius: 0; object-fit: cover; }
 /* Yopishqoq xarid paneli: sheet'ning pastki padding'i (18px + xavfsiz-zona) manfiy margin bilan
@@ -458,7 +408,6 @@
    zaxira rang. Balandlik 100 -> 92: ekranning yuqori qismi mahsulotga tezroq yetsin. */
 .app.bjm .shop-sp-cover { height: 92px; position: relative; overflow: hidden; background: linear-gradient(150deg, #0f8f66, #0b6b4c); }
 .app.bjm .shop-sp-cover img { width: 100%; height: 100%; object-fit: cover; }
-.app.bjm .shop-sp-cover-initial { position: relative; font-size: 44px; font-weight: 800; color: rgba(6, 95, 70, .55); letter-spacing: -1px; }
 .app.bjm .shop-sp-body { padding: 0 16px 24px; }
 /* qora 0.4 soya yorug' shisha-mavzuda "yopishtirilgan" ko'rinardi — zumrad-tusli yumshoq soya */
 .app.bjm .shop-sp-avatar { margin-top: -26px; width: 68px; height: 68px; border-radius: 22px; background: var(--bj-hero-grad); border: 3px solid rgba(255, 255, 255, .92); box-shadow: 0 10px 24px -12px rgba(6, 95, 70, .8), inset 0 1px 0 rgba(255, 255, 255, .3); display: flex; align-items: center; justify-content: center; color: #fff; font-size: 19px; font-weight: 800; letter-spacing: -.02em; box-sizing: border-box; }

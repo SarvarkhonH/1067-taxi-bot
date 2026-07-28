@@ -20,10 +20,8 @@
 .elon-card.top { box-shadow: 0 0 0 2px var(--classified-accent), 0 8px 20px -10px color-mix(in srgb, var(--classified-accent) 45%, transparent); }
 .elon-card-pin { position: absolute; top: 6px; left: 6px; font-size: 15px; filter: drop-shadow(0 1px 2px rgba(0,0,0,.25)); z-index: 1; }
 .elon-card.lostfound { border-style: dashed; border-width: 1.5px; }
-.elon-card.lostfound.lost { border-color: #dc2626; }
 .elon-card.lostfound.found { border-color: #16a34a; }
 .elon-card-ribbon { font-size: 10px; font-weight: 800; letter-spacing: .03em; padding: 2px 8px; border-radius: var(--r-chip); align-self: flex-start; }
-.elon-card-ribbon.lost { background: #fdecec; color: #dc2626; }
 .elon-card-ribbon.found { background: #e9f9ef; color: #16a34a; }
 .elon-new-dot { position: absolute; top: 6px; right: 6px; width: 8px; height: 8px; border-radius: 50%; background: var(--classified-accent); z-index: 1; }
 .elon-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }

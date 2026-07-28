@@ -106,8 +106,7 @@ html.is-fullscreen { --safe-min-top: 48px; }
 }
 /* Topbar YO'Q ekranlarda (Uy tabi va mehmon rejimi — App.tsx `no-topbar` klassini qo'yadi)
    xavfsiz zonani kontentning o'zi oladi; aks holda birinchi karta Telegram paneli ostida qoladi. */
-.app.no-topbar > .content,
-.app.no-topbar > .view { padding-top: calc(4px + var(--safe-top)); }
+.app.no-topbar > .content, .app.no-topbar > .view { padding-top: calc(4px + var(--safe-top)); }
 body { font-variant-numeric: tabular-nums; }
 /* ── utility klasslar (inline-style'lar o'rniga) ───────────────────────── */
 .row { display: flex; align-items: center; }
@@ -117,9 +116,7 @@ body { font-variant-numeric: tabular-nums; }
 .wrap { flex-wrap: wrap; }
 .grow { flex: 1; }
 .g4 { gap: 4px; }
-.g6 { gap: 6px; }
 .g8 { gap: 8px; }
-.g10 { gap: 10px; }
 .mt4 { margin-top: 4px; }
 .mt6 { margin-top: 6px; }
 .mt8 { margin-top: 8px; }
@@ -133,19 +130,12 @@ body { font-variant-numeric: tabular-nums; }
 .fs13 { font-size: 13px; }
 .fs22 { font-size: 22px; }
 .fs34 { font-size: 34px; }
-.fs40 { font-size: 40px; }
 .tac { text-align: center; }
-.tar { text-align: right; }
 .tal { text-align: left; }
 .dim { color: var(--text-dim); }
-.break { word-break: break-all; }
-.self-center { align-self: center; }
-.pre-line { white-space: pre-line; }
 .pointer { cursor: pointer; }
 .faded { opacity: 0.3; }
 .row-line { border-top: 1px solid rgba(255, 255, 255, 0.08); padding: 8px 0; }
-.minw70 { min-width: 70px; }
-.maxh200 { max-height: 200px; overflow: auto; }
 .uppercase { text-transform: uppercase; }
 /* ── dizayn-komponentlar ───────────────────────────────────────────────── */
 .d-btn {
@@ -253,14 +243,11 @@ body { font-variant-numeric: tabular-nums; }
 }
 @keyframes d-sheen { 0% { left: -50%; } 60%, 100% { left: 130%; } }
 /* WOW-10: bekor qilingan qator chapga uchadi */
-.fly-left { animation: d-fly 260ms ease-in forwards; }
 @keyframes d-fly { to { transform: translateX(-110%); opacity: 0; } }
 /* WOW-12: xarita pini tomchi bo'lib tushadi */
 .pin-drop { animation: d-drop 420ms var(--ease-out); }
 @keyframes d-drop { 0% { transform: translateY(-26px); opacity: 0; } 60% { transform: translateY(2px); opacity: 1; } 100% { transform: translateY(0); } }
 /* WOW-8: pull-to-refresh mini-taksi */
-.ptr { position: relative; }
-.ptr-ind { position: absolute; top: -34px; left: 0; right: 0; text-align: center; font-size: 22px; transition: transform 160ms ease; pointer-events: none; }
 /* sahifa o'tish (220ms fade + 8px slide) */
 .page { animation: d-page var(--dur-page) var(--ease-out); }
 @keyframes d-page { from { transform: translateY(8px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
@@ -272,10 +259,7 @@ body { font-variant-numeric: tabular-nums; }
 .view > section:nth-child(5) { animation-delay: 160ms; }
 .view > section:nth-child(6) { animation-delay: 200ms; }
 /* cold-start ekranlar (4-shart: ikki holat ALOHIDA) */
-.wake-taxi { font-size: 44px; display: inline-block; animation: d-taxi 1.6s ease-in-out infinite; }
 @keyframes d-taxi { 0%, 100% { transform: translateX(-26px); } 50% { transform: translateX(26px); } }
-.wake-bar { height: 6px; border-radius: 99px; background: var(--surface-2); overflow: hidden; margin-top: 12px; }
-.wake-bar > span { display: block; height: 100%; width: 40%; border-radius: 99px; background: var(--brand-grad); animation: d-wake 1.4s ease-in-out infinite; }
 @keyframes d-wake { 0% { margin-left: -40%; } 100% { margin-left: 100%; } }
 .brand-bar > span { background: var(--brand-grad) !important; }
 .badge-strip[data-stretch] { align-items: stretch; }
@@ -397,7 +381,6 @@ body {
 /* topbar brand — nozik porlash */
 .brand-name b { text-shadow: 0 0 14px rgba(255, 179, 0, 0.5); }
 /* build-versiya stamp — kesh tekshiruvi uchun (yangi bundle yuklanganini ko'rsatadi) */
-.build-ver { font-size: 9px; font-weight: 700; color: var(--brand); opacity: 0.7; margin-left: 6px; letter-spacing: 0.3px; }
 /* 👥 social-proof member chip (top, next to brand) — small gold pill, live count */
 .member-chip {
   margin-left: 8px;
@@ -561,8 +544,6 @@ body {
    a soft blend into the controls; the middle stays clear so cars/people read crisply. */
 .lh-veil { position: absolute; inset: 0; z-index: 1; pointer-events: none;
   background: linear-gradient(180deg, rgba(8,11,18,.55) 0%, rgba(8,11,18,.10) 26%, rgba(8,11,18,.06) 68%, rgba(8,11,18,.5) 100%); }
-.lh-car { font-size: 18px; filter: drop-shadow(0 1px 3px rgba(0,0,0,.6)); animation: lh-bob 3s ease-in-out infinite; }
-.lh-car.busy { opacity: .85; }
 @keyframes lh-bob { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-3px); } }
 .lh-top { position: absolute; top: 0; left: 0; right: 0; z-index: 2; padding: 14px 14px 0; }
 .lh-hi { font-size: 20px; font-weight: 800; color: #fff; text-shadow: 0 1px 8px rgba(0,0,0,.5); }
@@ -610,8 +591,6 @@ body {
   color: #fff; background: rgba(20,26,38,.7); border: 1px solid rgba(255,255,255,.1); border-radius: 13px; padding: 8px 0; backdrop-filter: blur(6px); }
 .lh-place span { font-size: 11px; font-weight: 600; color: rgba(255,255,255,.85); }
 .lh-place:active { transform: scale(.95); }
-.lh-back { align-self: flex-start; margin: 4px 0 8px; font-size: 14px; font-weight: 700;
-  color: var(--text, #e8edf4); background: var(--surface, #1a2130); border: 1px solid var(--line, #2a3242); border-radius: 999px; padding: 7px 14px; }
 /* ✨ Win burst — full-screen "you won" celebration with 0→N count-up (every tanga faucet) */
 .winburst { position: fixed; inset: 0; z-index: 95; display: flex; align-items: center; justify-content: center;
   background: radial-gradient(circle at center, rgba(8,10,18,.5), rgba(8,10,18,.14) 58%, transparent);
@@ -654,32 +633,8 @@ body {
 }
 /* Topbar profile gear + Uy (taxi-first home) */
 .topbar-right { display: flex; align-items: center; gap: 8px; }
-.profile-btn { width: 34px; height: 34px; border-radius: 50%; display: flex; align-items: center; justify-content: center;
-  background: var(--surface, #1a2130); border: 1px solid var(--line, #2a3242); color: var(--text, #e8edf4); }
-.profile-btn:active { transform: scale(.94); }
 /* ✨ eye-catching profile avatar in the topbar: gradient core + level-colored glow ring + level badge */
-.profile-av { position: relative; width: 40px; height: 40px; border: 0; padding: 0; background: transparent;
-  display: flex; align-items: center; justify-content: center; cursor: pointer; flex: 0 0 auto;
-  transition: transform .15s cubic-bezier(.34,1.56,.64,1); }
-.profile-av:active { transform: scale(.9); }
-.profile-av-ring { position: absolute; inset: -2px; border-radius: 50%;
-  background: conic-gradient(from 210deg, var(--lvl), color-mix(in srgb, var(--lvl) 35%, #fff) 50%, var(--lvl));
-  filter: drop-shadow(0 0 7px color-mix(in srgb, var(--lvl) 60%, transparent));
-  animation: profileSpin 6s linear infinite; }
-.profile-av-core { position: relative; width: 34px; height: 34px; border-radius: 50%;
-  display: flex; align-items: center; justify-content: center;
-  font-weight: 800; font-size: 16px; line-height: 1; letter-spacing: .2px;
-  color: #fff; text-shadow: 0 1px 2px rgba(0,0,0,.35);
-  background: linear-gradient(145deg, color-mix(in srgb, var(--lvl) 78%, #fff 8%), color-mix(in srgb, var(--lvl) 92%, #000 22%));
-  box-shadow: inset 0 1px 1px rgba(255,255,255,.4), inset 0 -3px 6px rgba(0,0,0,.28); }
-.profile-av-core::after { content: ""; position: absolute; top: 3px; left: 6px; right: 9px; height: 38%;
-  border-radius: 50%; background: linear-gradient(180deg, rgba(255,255,255,.55), transparent); pointer-events: none; }
-.profile-av-lvl { position: absolute; right: -3px; bottom: -3px; font-size: 12px; line-height: 1;
-  filter: drop-shadow(0 1px 2px rgba(0,0,0,.45)); transform: rotate(0); }
 @keyframes profileSpin { to { transform: rotate(360deg); } }
-@media (prefers-reduced-motion: reduce) {
-.profile-av-ring { animation: none; }
-}
 /* 🏅 Daraja narvoni — profil panelidagi tier ladder */
 .tier-card { display: flex; flex-direction: column; }
 .tier-hero { display: flex; align-items: center; gap: 12px; margin: 4px 0 12px; padding: 12px 14px; border-radius: 14px;
@@ -739,42 +694,9 @@ body {
 @media (prefers-reduced-motion: reduce) {
 .tier-seg > span, .tier-bar > span { transition: none; }
 }
-.uy-view { display: flex; flex-direction: column; gap: 14px; }
-.uy-greet { font-size: 18px; font-weight: 800; }
-.uy-bal { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 6px;
-  background: none; border: none; padding: 0; text-align: left; cursor: pointer; font: inherit; }
-.uy-bal:active { transform: scale(.97); }
-.uy-coin { font-size: 14px; font-weight: 700; background: linear-gradient(135deg,#ffc233,#ff9800); color: #1a1205; padding: 6px 12px; border-radius: 999px; }
-.uy-cash { font-size: 13px; color: var(--muted, #9aa4b2); background: var(--surface, #1a2130); border: 1px solid var(--line, #2a3242); padding: 6px 12px; border-radius: 999px; }
 /* 🔁 "Yana shu yo'l" — 1-tap repeat-route chips (NEXT_LEVEL_PLAN 1.1) */
-.uy-repeat { display: flex; flex-direction: column; gap: 6px; }
-.uy-repeat-label { font-size: 12px; font-weight: 700; color: var(--muted, #9aa4b2); padding: 0 2px; }
-.uy-repeat-row { display: flex; gap: 8px; overflow-x: auto; scrollbar-width: none; }
-.uy-repeat-row::-webkit-scrollbar { display: none; }
-.uy-chip { flex: 0 0 auto; max-width: 160px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-  padding: 9px 14px; border-radius: 999px; border: 1px solid var(--line, #2a3242);
-  background: var(--surface, #1a2130); color: var(--text, #e8edf4); font-size: 13px; font-weight: 600; }
-.uy-chip:active { transform: scale(.96); }
-.uy-chip:disabled { opacity: .6; }
-.uy-tiles { display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; }
-.uy-tile { display: flex; flex-direction: column; align-items: center; gap: 4px; font-size: 24px; padding: 12px 0;
-  background: var(--surface, #1a2130); border: 1px solid var(--line, #2a3242); border-radius: 14px; color: var(--text, #e8edf4); }
-.uy-tile span { font-size: 11px; font-weight: 600; color: var(--muted, #9aa4b2); }
-.uy-tile:active { transform: scale(.95); }
 /* 🎁 home invite banner — gold-tinted, eye-catching but secondary to the taxi CTA */
-.uy-invite { display: flex; align-items: center; gap: 12px; width: 100%; text-align: left; cursor: pointer;
-  padding: 13px 15px; border-radius: 16px; border: 1px solid #5a4519;
-  background: linear-gradient(135deg, #2c2212, #211a0d); }
-.uy-invite:active { transform: scale(.985); }
-.uy-invite-ic { font-size: 30px; line-height: 1; animation: uy-gift 2.4s ease-in-out infinite; }
-.uy-invite-txt { display: flex; flex-direction: column; gap: 2px; flex: 1; min-width: 0; }
-.uy-invite-txt b { font-size: 15px; font-weight: 800; color: #ffd87a; }
-.uy-invite-txt small { font-size: 11.5px; line-height: 1.3; color: #cbb98e; }
-.uy-invite-arr { font-size: 20px; font-weight: 700; color: var(--brand, #ffb300); flex: 0 0 auto; }
 @keyframes uy-gift { 0%, 88%, 100% { transform: rotate(0); } 91% { transform: rotate(-13deg); } 95% { transform: rotate(13deg); } }
-@media (prefers-reduced-motion: reduce) {
-.uy-invite-ic { animation: none; }
-}
 /* invite overlay back header (one-tap from home, no Reyting scroll) */
 .inv-overlay-head { display: flex; align-items: center; gap: 6px; margin-bottom: 4px; }
 .inv-back { background: none; border: 0; padding: 6px 4px; font-size: 15px; font-weight: 600; color: var(--brand, #ffb300); cursor: pointer; }
@@ -880,18 +802,6 @@ body {
   .b3-found-card { background: var(--surface-2); }
 }
 /* ─── 📜 Safarlar tarixi (RideHistoryView) ──────────────────────────────────────────────────── */
-.rh-open-btn {
-  display: flex; align-items: center; gap: 12px; width: 100%;
-  margin-top: 14px; padding: 14px 16px;
-  background: var(--card); border: 1px solid var(--line); border-radius: 16px;
-  color: var(--text); cursor: pointer; text-align: left;
-  transition: transform 90ms var(--ease-out), background 180ms;
-}
-.rh-open-btn:active { transform: scale(0.98); background: var(--surface-2); }
-.rh-open-ico { font-size: 26px; flex: none; }
-.rh-open-txt { flex: 1; display: flex; flex-direction: column; gap: 2px; }
-.rh-open-txt small { color: var(--muted); font-size: 12px; }
-.rh-open-chev { color: var(--muted); font-size: 22px; flex: none; }
 .rh-summary {
   display: flex; margin: 4px 0 14px; padding: 14px 8px; border-radius: 16px;
   border: 1px solid var(--line);
@@ -1060,7 +970,6 @@ body {
 }
 .app.elonlar-light .brand-name { color: #1b2333; }
 .app.elonlar-light .brand-name b { color: var(--classified-accent); text-shadow: none; }
-.app.elonlar-light .build-ver { color: var(--classified-accent); }
 .app.elonlar-light .coin-pill {
   background: #ffffff; border: 1px solid color-mix(in srgb, var(--classified-accent) 30%, transparent);
   color: color-mix(in srgb, var(--classified-accent) 78%, black);
@@ -1112,7 +1021,6 @@ body {
 /* ─── Unified back button (premium pill + gradient chevron) ───────────────────
    Overrides every legacy plain-text back link (.b3-sheet-back .inv-back .lh-back
    .pay-back) with one consistent, tappable pill. NOT .sheet-back (modal backdrop). */
-.lh-back { margin: 4px 0 8px; }
 /* light shop context → dark-green pill so it reads on the white marketplace bg */
 /* ── XIZMATLAR v1.2: narxlar + saqlash + borish ─────────────────────────── */
 /* ❤️ Layk (=Saqlash) — OMMAVIY hisoblagich bilan, viral-ulashish uchun ("N kishi layk bosgan").
@@ -1145,7 +1053,6 @@ body {
 }
 .app.xizmat-light .brand-name { color: #16233b; }
 .app.xizmat-light .brand-name b { color: var(--svc-accent); text-shadow: none; }
-.app.xizmat-light .build-ver { color: var(--svc-accent); }
 .app.xizmat-light .member-chip { color: var(--svc-accent); background: color-mix(in srgb, var(--svc-accent) 12%, transparent); border-color: color-mix(in srgb, var(--svc-accent) 26%, transparent); }
 .app.xizmat-light .coin-pill {
   background: #ffffff; border: 1px solid #cfe0ff; color: #1d4ed8;
@@ -1168,7 +1075,7 @@ body {
 }
 .app.xizmat-light .page { animation-duration: 180ms; }
 /* Xizmatlar kartalari — och fonda: oq karta + quyuq matn (svc-* light override) */
-.app.xizmat-light .shop-search, .app.xizmat-light .svc-search input { background: #fff; border-color: #d7e3fb; color: #16233b; }
+.app.xizmat-light .shop-search { background: #fff; border-color: #d7e3fb; color: #16233b; }
 /* Profil varag'i (DetailSheet) — haqiqiy modal komponent .d-sheet (design/components.tsx Sheet()),
    .sheet EMAS (shu xato birinchi urinishda tuzatilmagan qoldirdi — hech qanday effekt bermadi).
    Hamma bo'limda bir xil qora shishadek qolar edi (ega: "yangi rang bilinmayapti, liquid qil");
@@ -1229,7 +1136,6 @@ body {
 }
 .app.restoran-light .brand-name { color: #2b1c12; }
 .app.restoran-light .brand-name b { color: var(--rst-accent); text-shadow: none; }
-.app.restoran-light .build-ver { color: var(--rst-accent); }
 .app.restoran-light .member-chip { color: var(--rst-accent); background: color-mix(in srgb, var(--rst-accent) 12%, transparent); border-color: color-mix(in srgb, var(--rst-accent) 26%, transparent); }
 .app.restoran-light .coin-pill {
   background: #ffffff; border: 1px solid #fbd9b8; color: #9a3412;
@@ -1324,7 +1230,6 @@ body {
 /* 🪙 tanga-qaytim lenta */
 .bj-tanga-ribbon { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 700; padding: 4px 10px; border-radius: var(--r-chip); background: var(--bj-tanga-grad); color: #4a2c00; }
 /* 🛍 mahsulot-karta (2-ustun grid) */
-.bj-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; padding: 0 16px; }
 .bj-pcard { background: var(--bj-card); border: 1px solid var(--bj-line); border-radius: var(--r-card); box-shadow: var(--bj-shadow); overflow: hidden; color: var(--bj-ink); transition: transform var(--dur-press) var(--ease-out); }
 .bj-pcard:active { transform: scale(0.97); }
 .bj-pcard-img { width: 100%; aspect-ratio: 4 / 5; object-fit: cover; background: #f1f7f4; display: block; }
@@ -1341,8 +1246,6 @@ body {
 .bj-fav:active { transform: scale(0.9); }
 .bj-pcard-imgwrap { position: relative; }
 /* 🏬 do'kon-karta (rail) */
-.bj-shops { display: flex; gap: 12px; overflow-x: auto; padding: 4px 16px 10px; scrollbar-width: none; }
-.bj-shops::-webkit-scrollbar { display: none; }
 .bj-shopcard { flex: 0 0 auto; width: 132px; background: var(--bj-card); border: 1px solid var(--bj-line); border-radius: var(--r-card); box-shadow: var(--bj-shadow); padding: 12px 10px; text-align: center; color: var(--bj-ink); transition: transform var(--dur-press) var(--ease-out); }
 .bj-shopcard:active { transform: scale(0.97); }
 .bj-shopava { width: 56px; height: 56px; border-radius: 50%; margin: 0 auto 8px; padding: 2px; background: linear-gradient(135deg, #0d9668, #34d399); }
@@ -1362,14 +1265,6 @@ body {
 .bj-sect h3 { font-size: 15.5px; font-weight: 800; color: var(--bj-ink); margin: 0; }
 .bj-sect-all { font-size: 12.5px; font-weight: 700; color: var(--bj-accent); }
 /* 🏠 V1.5 (Mahalla bozori): mahalla-chip + safar-rejimi banner + picker-sheet ro'yxati */
-.bj-mahalla-chip {
-  display: inline-flex; align-items: center; gap: 4px; margin: 4px 16px 6px;
-  padding: 8px 14px; border-radius: var(--r-chip); border: 1px solid var(--bj-line);
-  background: var(--bj-card); color: var(--bj-ink); font-weight: 700; font-size: 13px;
-  box-shadow: var(--bj-shadow); cursor: pointer;
-}
-.bj-mahalla-chip:active { transform: scale(0.97); }
-.bj-mahalla-chip-caret { font-size: 11px; color: var(--bj-ink-dim); }
 /* §10.2: "hozir ochiq" tezkor-filtr chipi — bj-mahalla-chip bilan bir xil qobiq, faqat "on" holati */
 .bj-travel-banner {
   margin: 6px 16px 10px; padding: 12px 14px; border-radius: var(--r-card);
@@ -1380,7 +1275,6 @@ body {
 .bj-travel-yes, .bj-travel-no { flex: 1; padding: 8px; border-radius: var(--r-btn); font-weight: 700; font-size: 13px; cursor: pointer; }
 .bj-travel-yes { border: 0; background: var(--bj-hero-grad); color: #fff; }
 .bj-travel-no { border: 1px solid var(--bj-line); background: transparent; color: var(--bj-ink-dim); }
-.bj-mahalla-empty { text-align: center; padding: 20px; margin: 4px 16px; color: var(--bj-ink-dim); font-size: 13px; }
 .bj-mahalla-gps {
   width: 100%; margin: 8px 0 4px; padding: 12px; border-radius: var(--r-btn); border: 0;
   background: var(--bj-hero-grad); color: #fff; font-weight: 700; font-size: 14px; cursor: pointer;
@@ -1391,7 +1285,6 @@ body {
 .bj-mahalla-item:active { background: rgba(13, 150, 104, 0.08); }
 .bj-mahalla-item.on { color: var(--bj-accent); font-weight: 800; }
 /* 🏠 V1.5: "qo'shni" karta — vertikal to'p (BjShopCard'ning gorizontal-scroll'idan ataylab farqli) */
-.bj-mshops { display: flex; flex-direction: column; gap: 12px; padding: 0 16px 10px; }
 .bj-mshop {
   display: flex; gap: 12px; text-align: left; width: 100%;
   background: var(--bj-card); border: 1px solid var(--bj-line); border-radius: var(--r-card);
@@ -1423,24 +1316,8 @@ body {
 .bj-empty svg { margin-bottom: 10px; }
 /* 🏪 D2: Do'kon-profil (storefront) — premium yo'nalish: emoji-siz chrome, jim info-qator,
    zumrad FAQAT aksent (CTA/link), amber FAQAT tanga. Rasm-tonli hero (yorqin ikki-rang gradient EMAS). */
-.bj-profile-hero { position: relative; height: 148px; margin: 0 0 34px; background: linear-gradient(160deg, #2a3b34, #1c2b25); }
-.bj-profile-hero img { width: 100%; height: 100%; object-fit: cover; display: block; }
-.bj-profile-hero::after { content: ""; position: absolute; inset: 0; background: linear-gradient(0deg, rgba(0,0,0,.55), transparent 60%); }
-.bj-profile-hero-name { position: absolute; left: 16px; bottom: 12px; color: #fff; font-size: 17px; font-weight: 700; z-index: 1; }
-.bj-profile-hero-monogram { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-size: 64px; font-weight: 700; color: rgba(255,255,255,.14); user-select: none; }
-.bj-profile-rating { position: absolute; right: 12px; top: 12px; background: rgba(255,255,255,.16); backdrop-filter: blur(2px); border-radius: 8px; padding: 4px 9px; color: #fff; font-size: 11px; display: flex; align-items: center; gap: 4px; z-index: 1; }
-.bj-profile-info { display: flex; gap: 16px; padding: 0 16px 12px; color: var(--bj-ink-dim); font-size: 12px; flex-wrap: wrap; position: sticky; top: 0; background: var(--bj-card); z-index: 5; border-bottom: 1px solid var(--bj-line); }
-.bj-profile-info span { display: flex; align-items: center; gap: 4px; }
-.bj-profile-info .on { color: var(--bj-accent-deep); font-weight: 600; }
-.bj-profile-announce { margin: 12px 16px; padding: 9px 12px; border: 1px solid var(--bj-line); border-left: 2px solid var(--bj-accent); border-radius: 0 8px 8px 0; color: var(--bj-ink); font-size: 13px; }
-.bj-profile-about { margin: 0 16px 12px; color: var(--bj-ink-dim); line-height: 1.55; font-size: 13px; }
-.bj-profile-about b { color: var(--bj-ink); font-weight: 600; }
-.bj-profile-about button { color: var(--bj-accent); background: none; border: none; padding: 0; font-size: 13px; font-weight: 600; }
 .bj-profile-loading { padding: 16px; display: flex; flex-direction: column; gap: 10px; }
-.bj-profile-reviews-entry { margin: 0 16px 12px; }
 /* §10.2: sodiqlik-progress-bar — ko'rsatkich-only (mukofotsiz) */
-.bj-loyalty { margin: 0 16px 12px; padding: 10px 12px; border: 1px solid var(--bj-line); border-radius: 10px; background: var(--bj-card); display: flex; flex-direction: column; gap: 6px; }
-.bj-loyalty-label { font-size: 13px; font-weight: 700; color: var(--bj-ink); }
 /* 📹 S1: do'kon-hikoya — tray (Bozor-bosh) + to'liq-ekran ko'ruvchi. Halqa = brend-aksent gradient
    (ko'rilmagan) / kulrang (ko'rilgan) — §1bis premium-qoidaga mos, chrome'da emoji yo'q (faqat
    real do'kon-rasmi bo'lganda <img>, hozircha fallback belgisi vaqtinchalik). */
@@ -1478,7 +1355,6 @@ body {
 .bj-story-product-price { font-size: 13px; font-weight: 800; color: #b45309; }
 .bj-story-product-cta { flex: none; background: linear-gradient(135deg, #0d9668, #34d399); color: #fff; font-size: 12.5px; font-weight: 700; padding: 10px 14px; border-radius: 12px; border: none; cursor: pointer; white-space: nowrap; }
 /* 💬 C1: mijoz↔do'kon chat */
-.bj-profile-chat-cta { display: flex; align-items: center; justify-content: center; gap: 6px; width: calc(100% - 32px); margin: 4px 16px 16px; background: var(--bj-accent); color: #fff; border: none; border-radius: var(--r-btn); padding: 12px; font-weight: 700; font-size: 14px; }
 .bj-chat-thread { display: flex; flex-direction: column; gap: 8px; min-height: 120px; padding: 4px 0 12px; }
 .bj-chat-privacy { align-self: center; background: #ecfdf3; color: var(--bj-accent-deep); border-radius: 8px; padding: 6px 10px; font-size: 11px; text-align: center; max-width: 85%; }
 .bj-chat-bubble { align-self: flex-start; background: var(--bj-card); border: 1px solid var(--bj-line); border-radius: 12px 12px 12px 3px; padding: 8px 12px; max-width: 78%; font-size: 13.5px; line-height: 1.4; }
@@ -1703,14 +1579,6 @@ body {
   --nh-shadow:0 12px 30px rgba(168,85,247,.28);
 }
 .nh-view { background:var(--nh-bg); color:var(--nh-tx); min-height:100%; margin:-4px -16px 0; padding:8px 16px 24px; }
-.nh-topbar { display:flex; align-items:center; gap:10px; padding:calc(2px + var(--safe-top)) 0 12px; }
-.nh-brand { flex:1; font-size:19px; font-weight:800; color:var(--nh-tx); }
-.nh-brand b { color:var(--nh-brand); }
-.nh-coin { display:flex; align-items:center; gap:5px; border-radius:99px; padding:7px 12px; font-size:13.5px; font-weight:800;
-  background:rgba(255,179,0,.16); border:1px solid rgba(255,179,0,.3); color:#e0a318; }
-.nh-search { display:flex; align-items:center; gap:10px; background:var(--nh-sf); border:1px solid var(--nh-ln);
-  border-radius:15px; padding:13px 15px; margin-bottom:14px; width:100%; text-align:left; }
-.nh-search .ph { color:var(--nh-dim2); font-size:14px; }
 .nh-wallet { position:relative; border-radius:22px; padding:16px; overflow:hidden; margin-bottom:13px; border:1px solid var(--nh-ln);
   background:linear-gradient(135deg,rgba(120,90,255,.22),rgba(59,130,246,.13) 60%,rgba(255,143,31,.14)); }
 :root[data-theme="light"] .nh-wallet { background:linear-gradient(135deg,#fff4e0,#ffe9f0 60%,#e9f0ff); box-shadow:var(--nh-shadow); }
@@ -1734,7 +1602,6 @@ body {
 .nh-svc { flex:0 0 auto; display:flex; flex-direction:column; align-items:center; gap:7px; width:60px; background:none; border:0; }
 .nh-svc .ic { width:54px; height:54px; border-radius:18px; display:flex; align-items:center; justify-content:center; font-size:24px; border:1px solid var(--nh-ln); position:relative; }
 .nh-svc .lb { font-size:11px; font-weight:600; color:var(--nh-dim); }
-.nh-svc .bd { position:absolute; top:-5px; right:-5px; background:#ef4444; color:#fff; font-size:8.5px; font-weight:800; padding:2px 5px; border-radius:99px; border:2px solid var(--nh-bg); }
 .nh-svc.locked { opacity:.78; }
 .nh-svc.locked .ic { filter:grayscale(.6); }
 .nh-svc.locked .lb { font-style:italic; }
@@ -1843,11 +1710,6 @@ body {
 .nh-app .tab { border-radius:16px; padding:7px 2px; transition:color .2s, background .2s; }
 .nh-app .tab.active { color:var(--nh-brand); background:var(--nh-gpill); box-shadow:inset 0 1px 0 rgba(255,255,255,.25); }
 .nh-app .tab.active svg { filter:none; transform:none; }
-.nh-fab { flex:0 0 auto; width:54px; height:54px; margin:-30px 6px 0; border:2px solid rgba(255,255,255,.22); border-radius:50%;
-  background:var(--nh-bgrad); color:var(--nh-bink); font-size:24px; display:flex; align-items:center; justify-content:center;
-  box-shadow:0 12px 26px rgba(255,143,31,.55), inset 0 2px 3px rgba(255,255,255,.45); }
-.nh-fab:active { transform:scale(.94); }
-:root[data-theme="vibrant"] .nh-fab { box-shadow:0 12px 26px rgba(168,85,247,.6), inset 0 2px 3px rgba(255,255,255,.45); }
 /* 👤 newprofile — "hisobim markazi" */
 .np-head { display:flex; align-items:center; gap:14px; padding:6px 2px 4px; }
 .np-av { width:64px; height:64px; border-radius:50%; background:conic-gradient(from 120deg, var(--lvl,var(--nh-brand)), var(--nh-brand), var(--lvl,var(--nh-brand))); padding:3px; flex:0 0 auto; }

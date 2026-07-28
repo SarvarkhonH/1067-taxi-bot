@@ -172,12 +172,10 @@
 }
 .app.xizmat-light .svc-cat-name { color: #16233b; }
 .app.xizmat-light .svc-cat-count { color: #6b7f9e; }
-.app.xizmat-light .svc-cat-head-name, .app.xizmat-light .svc-cat-head { color: #16233b; }
+.app.xizmat-light .svc-cat-head { color: #16233b; }
 .app.xizmat-light .svc-card { background: #fff; border: 1px solid #e2ebfb; box-shadow: 0 3px 12px -8px rgba(20, 40, 90, 0.2); }
 .app.xizmat-light .svc-card-name { color: #16233b; }
 .app.xizmat-light .svc-card-tags { color: #6b7f9e; }
-.app.xizmat-light .svc-cat-chip { background: #fff; border-color: #d7e3fb; color: #46597a; }
-.app.xizmat-light .svc-cat-chip.on { background: var(--svc-accent); border-color: var(--svc-accent); color: #fff; }
 .app.xizmat-light .svc-detail-noimg {
   background:
     radial-gradient(circle at 28% 26%, color-mix(in srgb, #60a5fa 65%, transparent), transparent 55%),
@@ -215,11 +213,7 @@
   box-shadow: 0 3px 12px -8px rgba(20, 40, 90, 0.15);
 }
 .app.xizmat-light .svc-add-plus { color: var(--svc-accent); }
-.app.xizmat-light .svc-info,
-.app.xizmat-light .svc-prices,
-.app.xizmat-light .svc-rate-box,
-.app.xizmat-light .svc-demand,
-.app.xizmat-light .svc-mine-row {
+.app.xizmat-light .svc-info, .app.xizmat-light .svc-prices, .app.xizmat-light .svc-rate-box, .app.xizmat-light .svc-demand, .app.xizmat-light .svc-mine-row {
   background: linear-gradient(160deg, color-mix(in srgb, var(--svc-accent) 6%, #fff), #ffffff 70%);
   border: 1px solid #e2ebfb;
   box-shadow: 0 3px 12px -8px rgba(20, 40, 90, 0.12);

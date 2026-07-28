@@ -7,7 +7,6 @@
 .b3-map .leaflet-container { background: var(--surface); }
 .b3-map .leaflet-tile-pane { filter: invert(1) hue-rotate(180deg) brightness(.92) contrast(.9); }
 .b3-map-fallback { position: absolute; inset: 0; z-index: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; text-align: center; padding: 24px; color: var(--text); background: var(--bg); }
-.b3-map-fallback-ico { font-size: 44px; opacity: 0.7; }
 .b3-radar-dim { position: absolute; inset: 0; background: radial-gradient(circle at 50% 40%, rgba(255,179,0,.06), transparent 60%); }
 .b3-top { position: absolute; top: 0; left: 0; right: 0; z-index: 3; display: flex; align-items: center; gap: 10px; padding: calc(8px + var(--safe-top)) 14px 8px; background: linear-gradient(180deg, rgba(11,15,26,.82), transparent); }
 .b3-x { width: 38px; height: 38px; border-radius: 12px; border: 1px solid var(--line); background: var(--surface-2); color: var(--text); font-size: 18px; cursor: pointer; flex: none; }
@@ -218,7 +217,6 @@
 @media (prefers-reduced-motion: reduce) {
 .b3-found-card, .b3-found-emoji, .b3-arrived { animation: none; }
 }
-.b3-pin { font-size: 22px; filter: drop-shadow(0 2px 3px rgba(0,0,0,.6)); transition: transform .6s linear; }
 .b3-carmark { display: block; transition: transform .8s linear; filter: drop-shadow(0 1px 2px rgba(0,0,0,.55)); }
 .leaflet-marker-icon.b3-glide { transition: transform 1.2s linear; }
 .b3-search-sheet {
@@ -268,8 +266,6 @@
 .b3-carpin-i { display: inline-block; transition: transform .9s linear; filter: drop-shadow(0 0 6px rgba(255,179,0,.6)) drop-shadow(0 2px 3px rgba(0,0,0,.5)); }
 .b3-carpax { position: absolute; left: 50%; top: 50%; width: 8px; height: 8px; margin: -4px 0 0 -4px; border-radius: 50%; background: #f4c89a; box-shadow: 0 0 3px rgba(0,0,0,.55); opacity: 0; transition: opacity .5s ease; }
 .b3-carpin.b3-aboard .b3-carpax { opacity: 1; }
-.b3-pin.busy { opacity: .55; }
-.b3-pickpin { font-size: 30px; filter: drop-shadow(0 2px 4px rgba(255,179,0,.8)); }
 .b3-centerpin { position: absolute; left: 50%; top: 50%; z-index: 5; transform: translate(-50%, -100%); pointer-events: none; animation: b3-hail-bob 1.7s var(--ease-out) infinite; }
 .b3-hail-shadow { fill: rgba(0,0,0,.4); animation: b3-hail-shadow 1.7s var(--ease-out) infinite; }
 .b3-hail-fig { filter: drop-shadow(0 3px 4px rgba(0,0,0,.45)); }
@@ -304,7 +300,6 @@
 @media (prefers-reduced-motion: reduce) {
 .b3-centerpin, .b3-hail-arm, .b3-hail-hand, .b3-hail-shadow, .b3-walking, .b3-walking .b3-leg-l, .b3-walking .b3-leg-r, .b3-walking .b3-case { animation: none !important; }
 }
-.b3-mappick { width: 100%; margin-top: 8px; padding: 11px; border-radius: 12px; background: var(--surface); border: 1px solid var(--line); color: var(--text); font-size: 14px; font-weight: 600; }
 .b3-pinbar { position: absolute; left: 0; right: 0; bottom: 0; z-index: 3; background: var(--surface-2); border-radius: 20px 20px 0 0; padding: 8px 16px calc(16px + var(--safe-bottom)); box-shadow: 0 -8px 30px rgba(0,0,0,.5); animation: d-up var(--dur-card) var(--ease-out); transition: transform .3s var(--ease-out); }
 .b3-pinbar.dragging { transform: translateY(calc(100% - 34px)); box-shadow: 0 -4px 16px rgba(0,0,0,.4); }
 .b3-pin-label { text-align: center; font-size: 15px; margin: 6px 0 10px; min-height: 20px; }
@@ -414,7 +409,7 @@
 }
 .b3-act-call:active { background: linear-gradient(135deg, #ffb320, #ff8a00); }
 .b3-sheet .d-btn { box-shadow: var(--glass-inset), 0 8px 28px rgba(255, 152, 0, 0.35); }
-.b3-sheet-back, .inv-back, .lh-back, .pay-back {
+.b3-sheet-back, .inv-back, .pay-back {
   display: inline-flex !important;
   align-items: center;
   gap: 8px;
@@ -434,7 +429,7 @@
   transition: transform .13s ease, background .16s, border-color .16s;
   -webkit-tap-highlight-color: transparent;
 }
-.b3-sheet-back::before, .inv-back::before, .lh-back::before, .pay-back::before {
+.b3-sheet-back::before, .inv-back::before, .pay-back::before {
   content: "‹";
   display: grid;
   place-items: center;
@@ -450,11 +445,11 @@
   flex: none;
   box-shadow: 0 2px 8px rgba(255, 149, 0, .3);
 }
-.b3-sheet-back:hover, .inv-back:hover, .lh-back:hover, .pay-back:hover {
+.b3-sheet-back:hover, .inv-back:hover, .pay-back:hover {
   border-color: rgba(255, 179, 0, .4) !important;
   background: rgba(255, 255, 255, .07) !important;
 }
-.b3-sheet-back:active, .inv-back:active, .lh-back:active, .pay-back:active {
+.b3-sheet-back:active, .inv-back:active, .pay-back:active {
   transform: scale(.94);
 }
 .b3-pin-callout { position:absolute; left:50%; top:50%; z-index:6; transform:translate(-50%, calc(-100% - 64px)); pointer-events:none;
