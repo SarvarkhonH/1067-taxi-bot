@@ -4308,3 +4308,45 @@ BIRINCHI ekranda, «Do'konga yozish» ikonkaga aylanadi, 3 ta raqam (mahsulot so
 
 **Commitlar:** `69a3a26` (blur) · `a9f227f` (o'rinbosar rasm + bo'sh bloklar).
 **Holat:** 1 va 2 — `ready for verification` (jonli, isbotlangan). 3 — taklif, tasdiq kutilmoqda.
+
+## §72 — 🎨 DIZAYN TAKLIFI TO'LIQ BAJARILDI (mahsulot sahifasi + do'kon profili) · 2026-07-28
+
+**Ega:** taklif maketini ko'rib «hammasini qil» dedi (`dizayn_taklifi.html`, 9 band).
+Maketning O'ZIDA ham xato bor edi — ega topdi («bu ham xatolik borku»): avatar chap chekkadan
+kesilgan, muqova bo'sh katta blok, matn noto'g'ri o'ralgan. Maket tuzatildi (ramka qat'iy 360px,
+`.sp-head` yangi tuzilma) va o'lchov bilan tekshirildi: 4 ramkaning birortasida ham chetdan
+chiqqan element yo'q.
+
+### Mahsulot sahifasi (①–⑤)
+| # | Nima | Isbot (`#shopdemo`, DOM) |
+|---|---|---|
+| ① | Narx yonida chegirma nishoni | `−14%` |
+| ② | Uch ishonch belgisi bitta qatorda | `🚚 1 kun ichida · ✅ Eshikda tekshirasiz · 📞 Sotuvchi qo'ng'iroq qiladi` |
+| ③ | Tanga bloki ixchamlashdi | `🪙 Tangangiz: 45 000 · 47% yig'ildi` — **53px** (avval ~200px+) |
+| ④ | Bitta asosiy tugma + miqdor | `🧺 Savatga · 42 000 so'm` + 2 ta kichik usul-havolasi |
+| ⑤ | Do'kon nomi bosiladigan | `Kamol Market ›` |
+
+### Do'kon profili (⑥–⑨)
+| # | Nima | Isbot |
+|---|---|---|
+| ⑥ | Mahsulot BIRINCHI ekranda | panjara `.shop-sp-below` dan tepada (`true`) |
+| ⑦ | Uch raqam kartasi | `3 mahsulot · ★ 4.8 23 baho · 30 daqiqada yetkazish` |
+| ⑧ | «Do'konga yozish» → ikonka | `.shop-sp-act = 1`, `.shop-sp-cta = 0` |
+| ⑨ | Kategoriya chiplari | `Hammasi + 3` |
+
+**⑨ da yo'l-yo'lakay bug topildi:** chiplar GLOBAL (take:100) ro'yxatdan hisoblanardi — 87
+mahsulotli do'konda kategoriyalarning yarmi chiqmasdi. Endi `shopCatalog` (300 tagacha).
+Savat «0» bug'i bilan AYNAN bir xil sabab — 100-limit ikkinchi marta tishladi.
+
+### JONLI BUNDLE GREP'I DEMO KO'RMAGAN XATONI USHLADI
+`53dacd4` deploy'idan keyin `shop-sp-cta` CSS'da 1 ta qolgani ko'rindi: bloklar pastga
+ko'chganda eski ULKAN yashil «Do'konga yozish» tugmasi ham ergashgan edi — ya'ni sarlavhada
+ikonka, pastda o'shaning ulkan nusxasi. Demo QA ko'rmadi (u yerda `shopchat` flagi o'chiq).
+`f17eb87` da olib tashlandi. Jonli isbot: `shop-sp-cta = 0`, JS'dagi yagona «Do'konga yozish»
+matni — ikonkaning `aria-label`i.
+
+**Saboq:** demo-QA flagga bog'liq bo'lakni ko'rsatmaydi — jonli bundle grepi majburiy qadam.
+
+**Commitlar:** `53dacd4` (9 band) · `f17eb87` (dublikat CTA). Jonli: `shop-C-J-LsL1.css` /
+`shop-pfjMOHaf.js`, `/health` 200.
+**Holat:** `ready for verification` — ega telefonda ko'rib QABUL beradi.
