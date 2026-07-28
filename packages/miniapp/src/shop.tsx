@@ -22,7 +22,7 @@ import {
   type MahallaView,
 } from "@t1067/shared";
 import { api, apiUrl } from "./api";
-import { loadErrorText } from "./util";
+import { loadErrorText, prettyName } from "./util";
 import { haptic, hapticSuccess, inviteText, inviteLandingUrl, shareLink, tgGetLocation, tgHasLocationManager } from "./telegram";
 import { confetti, compressImage } from "./util";
 import { useBackButton } from "./useBackButton";
@@ -904,22 +904,18 @@ export function ShopView({ me, onBanner, reload, onBook, openProductId }: { me: 
             endi shu yerdagi ikonkadan (avvalgi yopishqoq savat-bar ham mockup'da yo'q edi). */}
         <div className="shop-head-actions">
 
-          {<button className="shop-share-btn" onClick={shareShop} aria-label="Do'konni ulashish"><Icon name="share" size={18} /></button>}
-          {(
-            <>
-              {/* AUDIT TOPDI: bu tugma buyurtmalarni ochadi, lekin QO'NG'IROQ ikonkasi bilan
-                  turardi (mockup'da qo'ng'iroq bezak, bosilmaydi). `icons.tsx`da `bag` ikonkasi
-                  ALLAQACHON aynan shu tugma uchun yozilgan ekan — ishlatilmay qolgan. */}
-              <button className="shop-head-icon" onClick={openOrders} aria-label="Buyurtmalarim">
-                <Icon name="bag" size={15} />
-              </button>
-              {bazarcart && (
-                <button className={"shop-head-icon" + (cartBump ? " bump" : "")} onClick={() => { haptic(); setCartOpen(true); }} aria-label="Savat">
-                  <Icon name="cart" size={15} />
-                  {cartCount > 0 && <span className="shop-head-icon-badge">{cartCount}</span>}
-                </button>
-              )}
-            </>
+          <button className="shop-share-btn" onClick={shareShop} aria-label="Do'konni ulashish"><Icon name="share" size={18} /></button>
+          {/* AUDIT TOPDI: bu tugma buyurtmalarni ochadi, lekin QO'NG'IROQ ikonkasi bilan
+              turardi (mockup'da qo'ng'iroq bezak, bosilmaydi). `icons.tsx`da `bag` ikonkasi
+              ALLAQACHON aynan shu tugma uchun yozilgan ekan — ishlatilmay qolgan. */}
+          <button className="shop-head-icon" onClick={openOrders} aria-label="Buyurtmalarim">
+            <Icon name="bag" size={15} />
+          </button>
+          {bazarcart && (
+            <button className={"shop-head-icon" + (cartBump ? " bump" : "")} onClick={() => { haptic(); setCartOpen(true); }} aria-label="Savat">
+              <Icon name="cart" size={15} />
+              {cartCount > 0 && <span className="shop-head-icon-badge">{cartCount}</span>}
+            </button>
           )}
         </div>
       </div>
@@ -1467,7 +1463,7 @@ export function ShopView({ me, onBanner, reload, onBook, openProductId }: { me: 
               <button className="shop-share-btn sm" onClick={() => toggleFav(sel)} aria-label={sel.isFav ? "Sevimlidan olish" : "Sevimliga qo'shish"}>
                 <Icon name="heart" size={15} filled={sel.isFav} />
               </button>
-              {<button className="shop-share-btn sm" onClick={() => shareProduct(sel)} aria-label="Ulashish"><Icon name="share" size={15} /></button>}
+              <button className="shop-share-btn sm" onClick={() => shareProduct(sel)} aria-label="Ulashish"><Icon name="share" size={15} /></button>
             </div>
             {/* mockup: nom ostida "{birlik} · {do'kon nomi}" 12px xira qatori */}
             {sel.shopName && <div className="shop-detail-sub">{sel.shopName}</div>}
