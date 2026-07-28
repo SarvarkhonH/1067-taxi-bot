@@ -53,6 +53,16 @@ const ICONS: Record<string, string> = {
   asal: `<path d="M7.6 9.6h8.8l.8 8.4a2 2 0 0 1-2 2.2H8.8a2 2 0 0 1-2-2.2Z"/><path d="M7.2 9.6c0-1.4 2.2-2.2 4.8-2.2s4.8.8 4.8 2.2"/><path d="M12 4.4v3"/><path d="M9.8 13.4h4.4c.9 0 1.6.7 1.6 1.6s-.7 1.6-1.6 1.6H9.8c-.9 0-1.6-.7-1.6-1.6s.7-1.6 1.6-1.6Z" fill="${A}" stroke="none"/>`,
   tayyor: `<path d="M7.4 6.6h9.2l1.4 11.6a2 2 0 0 1-2 2.2H8a2 2 0 0 1-2-2.2Z"/><path d="M7.4 6.6 9 4h6l1.6 2.6"/><circle cx="10.4" cy="13.4" r="1.05" fill="${A}" stroke="none"/><circle cx="13.6" cy="16" r="1.05" fill="${A}" stroke="none"/>`,
   qoshimcha: `<rect x="4.6" y="8.6" width="12.8" height="7.8" rx="2.2"/><path d="M17.4 11.4h1.6v2.2h-1.6" fill="${A}" stroke="${A}"/><path d="M8.4 12.5h5.2M11 9.9v5.2"/>`,
+
+  // ── Katalogdan OLDINGI kategoriyalar. Jonli dry-run ko'rsatdi: mijoz karuselida AYNAN SHU
+  // beshtasi ko'rinadi (30 ta yangisida hali mahsulot yo'q, bo'sh kategoriya yashiriladi), ya'ni
+  // ularsiz redizayn mijoz uchun umuman o'zgarmasdi. Mahsulotlar yangi kategoriyalarga ko'chgach
+  // bular tabiiy ravishda yo'qoladi.
+  aksiya: `<path d="M12 3.6c.6 3 3.2 4 4.4 6.4a6 6 0 1 1-10.4 4 6 6 0 0 1 1.8-4.2c.3 1 .9 1.8 1.8 2 .3-3.4 1.4-6.4 2.4-8.2Z"/><path d="M12 20a3 3 0 0 0 2.2-5.2c-.6-.6-1.6-1.2-2-2.4-.8 1.2-2.4 2-2.4 4.2A2.9 2.9 0 0 0 12 20Z" fill="${A}" stroke="none"/>`,
+  umumiy: `<path d="M6.4 8.6h11.2l1 10.2a1.6 1.6 0 0 1-1.6 1.8H7a1.6 1.6 0 0 1-1.6-1.8Z"/><path d="M9.2 8.6V6.8a2.8 2.8 0 0 1 5.6 0v1.8"/><circle cx="12" cy="13.4" r="1.15" fill="${A}" stroke="none"/>`,
+  "uy-anjomlari": `<path d="M5.6 10.4h11.2v5.4a3.4 3.4 0 0 1-3.4 3.4H9a3.4 3.4 0 0 1-3.4-3.4Z"/><path d="M16.8 11.6h1.8a1.9 1.9 0 1 1 0 3.8h-1.8"/><path d="M4.4 10.4h13.6" stroke-width="1.7"/><path d="M9.6 7.6c.7-.8.7-1.5 0-2.4M13.4 7.6c.7-.8.7-1.5 0-2.4" stroke="${A}"/>`,
+  parfumeriya: `<path d="M8.4 10.4h7.2v8.4a1.6 1.6 0 0 1-1.6 1.6h-4a1.6 1.6 0 0 1-1.6-1.6Z"/><path d="M10.4 10.4V8h3.2v2.4"/><rect x="10.6" y="5.6" width="2.8" height="2.4" rx=".8"/><path d="M16.6 6.6a1.5 1.5 0 1 1 0 3 1.5 1.5 0 0 1 0-3Z" fill="${A}" stroke="none"/><path d="M14.6 8.1h.9" stroke="${A}"/>`,
+  "bolalar-uchun": `<circle cx="12" cy="13.6" r="5.4"/><circle cx="7.4" cy="8.4" r="2.4"/><circle cx="16.6" cy="8.4" r="2.4"/><circle cx="10.2" cy="12.6" r=".95" fill="${A}" stroke="none"/><circle cx="13.8" cy="12.6" r=".95" fill="${A}" stroke="none"/><path d="M10.6 16c.9.7 1.9.7 2.8 0"/>`,
 };
 
 async function main(): Promise<void> {
