@@ -4230,3 +4230,46 @@ Snap olib tashlandi (mahalla-qatorida ham yo'q — endi ikkalasi bir xil).
 uchun isbot DOM-o'lchovi (yuqorida), ko'z bilan emas. Ega telefonda ko'rib QABUL beradi.
 
 **Holat:** `ready for verification`.
+
+## §70 — ⚡ «DO'KON QOTMOQDA»: RASM KESHI + ETag · 2026-07-28
+
+**Ega:** «nega do'kon bo'limi juda qotmoqda… hamma telefonda… migratsiyadan keyin».
+
+### Tashxis (o'lchov, taxmin emas)
+| Nima | O'lchov |
+|---|---|
+| market API (VPS ichidan) | `35-55 ms`, load `0.00` → **server aybdor emas** |
+| Kartochka rasmi (`?s=1`) | ~30 KB |
+| **To'liq rasm** (detal/galereya) | **450-545 KB** |
+| Har rasm so'rovi | Telegram `getFile` aylanmasi + faylni bizdan o'tkazish, **keshsiz** |
+| Blur qatlamlari (`#shopdemo` DOM) | 7 mahsulotda **28**, shundan **14 tasi kartalarniki** (`.shop-tile` + `.shop-tile-fav`) |
+
+Migratsiya konteksti (Caddyfile izohida yozilgan): O'zbekistondan RTT ~126 ms, va endi hammasi
+bitta serverdan — avval frontend Vercel CDN'da edi. Ega taxmini to'g'ri chiqdi.
+
+### Qilindi (ega: «yangi dizayn qurayapmiz, dizaynsizlarini qilaver»)
+1. `resolveTelegramFileUrl` — 45 daqiqalik `file_id → URL` keshi.
+2. `pipeTelegramFile` — xotirada LRU bayt keshi (96 MB byudjet, ≤2 MB fayl). Katta fayl (video)
+   eski oqim yo'lida qoladi. Kesh kaliti URL'ning **TOKENSIZ** qismi (§63 qoidasi buzilmadi).
+3. Barcha rasm javoblari **ETag + `If-None-Match` → 304**. `max-age` ATAYLAB 1 soatligicha —
+   eskirish xavfi oshmasin; tezlik 304 dan keladi. `stale-while-revalidate=86400`.
+
+### Isbot (jonli, deploy'dan keyin — `e4a2f10`)
+```
+sovuq → iliq:  #281 0.260→0.064s · #280 0.118→0.064s · #279 0.108→0.054s
+to'liq rasm:   sovuq 0.142s → iliq 0.056s (544 794 bayt, o'zgarmagan)
+ETag:          W/"vjOC_wZTX5z2lG457G_quU" → If-None-Match → 304, 0 bayt
+health=200 · journalctl'da 0 xato · RAM 796/7941 MB
+```
+Ya'ni takroriy ko'rishda mijoz 30-545 KB o'rniga **0 bayt** oladi; birinchi ko'rishda server
+tomoni 2-5× tez.
+
+### QOLGAN (ega qaroriga ko'ra keyinga — yangi dizaynda hal bo'ladi)
+`.shop-tile` va `.shop-tile-fav` da `backdrop-filter: blur(24px)` — HAR mahsulot kartasida 2 ta
+blur qatlami (87 mahsulotli do'konda ~174 qatlam). Scroll janki aynan shundan.
+**Yangi dizayn qoidasi:** takrorlanadigan elementda (karta/kafel/ro'yxat qatori) `backdrop-filter`
+ISHLATILMAYDI — shisha faqat doimiy sirtlarda (header, tabbar, yopishqoq panel).
+Birinchi ko'rishdagi 545 KB ham qolgan muammo: uni faqat kichikroq rasm tieri hal qiladi
+(rasm sifati = dizayn qarori, shuning uchun tegilmadi).
+
+**Holat:** `ready for verification` — ega telefonda sezishi kerak (takroriy ochish sezilarli tez).
