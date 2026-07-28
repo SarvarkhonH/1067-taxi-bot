@@ -48,8 +48,22 @@ UI matnlarida 0 (faqat kod izohlarida) · scope-grep: yangi selektorlarning HAMM
 `.app.restoran-light` yoki `.rst-*` ichida — boshqa bo'limlarga sizib chiqmagan · build: `dist/fonts`
 3 woff2 (41 KB), `@font-face` FAQAT `restoran-*.css` chunk'ida (Uy kritik yo'lida Manrope YO'Q).
 
-**B0 da hali BAJARILMAGAN (halol ro'yxat):** ekran skrinshoti (Browser paneli yopiq edi) ·
-boshqa tablarning regressiya skrinshotlari · ega telefonida QABUL. Shularsiz B0 «done» EMAS.
+**B0 QA (skrinshot) 4 ta HAQIQIY nuqsonni ochdi — hammasi tuzatildi (`96de4696`):**
+1. **Ko'rinmas menyu** — `animation: … backwards` `.rst-item` ning dam olish holatini `opacity: 0`
+   qilgan edi; animatsiya boshlanmasa (fonga tushgan WebView) taomlar DOM'da bor, ekranda YO'Q.
+   QA'da aynan takrorlandi. `backwards` olib tashlandi.
+2. **Tugmalarning UA ramkasi/foni** — loyihada global `button` reset yo'q; oq fonda «Orqaga»,
+   «+», stepper, savat paneli atrofida kulrang quti chiqdi.
+3. **Qorong'i skelet** — umumiy `.d-skel` qorong'i temaga qurilgan, och fonda qora plashka edi.
+4. **Aktiv tabdagi sariq nur** — `styles.css:332` yorliqqa oltin drop-shadow beradi; men faqat
+   `svg`ni bosgan edim.
+
+**Skrinshot isbotlari (375×812 @2x, headless Chrome CDP orqali aniq telefon-viewport bilan):**
+katalog · restoran sahifasi (ochiq, [+] tugmalari) · savat paneli (2 dona, 11 000 so'm) ·
+buyurtmalarim (3 holat: jarayonda/yetkazildi/rad etildi) · skelet · **#shopdemo regressiyasi —
+Do'kon o'z yashil dizaynida, o'zgarmagan**.
+
+**B0 da hali BAJARILMAGAN:** ega telefonida REAL QABUL. Shusiz B0 «done» EMAS.
 
 **Keyingi:** B1 katalog (manzil bloki, rejim segmenti, 126px kartalar, ETA badge) — B0 QABUL'idan
 keyin.
