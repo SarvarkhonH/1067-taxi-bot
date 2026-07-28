@@ -233,6 +233,9 @@ export const adminApi = {
   shopEdit: (id: number, patch: Record<string, unknown>) => postJson<{ ok: boolean }>(`/api/admin/shop/products/${id}`, patch),
   shopToggle: (id: number, active: boolean) => postJson<{ ok: boolean }>(`/api/admin/shop/products/${id}/toggle`, { active }),
   shopDelete: (id: number) => req<{ ok: boolean }>(`/api/admin/shop/products/${id}`, { method: "DELETE" }),
+  // 🌍 Open Food Facts: barkod bo'yicha nom/brend/hajm/rasm (faqat o'qish)
+  shopBarcodeLookup: (code: string) => req<{ found: boolean; product: { barcode: string; name: string | null; brand: string | null; unit: string | null; imageUrl: string | null; credit: string } | null }>(`/api/admin/shop/barcode/${encodeURIComponent(code)}`),
+  shopPhotoFromBarcode: (id: number) => postJson<{ ok: boolean; error?: string; photoCount?: number; credit?: string }>(`/api/admin/shop/products/${id}/photo-from-barcode`, {}),
   shopPhotoUpload: (id: number, mime: string, base64: string) => postJson<{ ok: boolean; error?: string; photoCount?: number }>(`/api/admin/shop/products/${id}/photo`, { mime, base64 }),
   shopPhotoClear: (id: number) => req<{ ok: boolean }>(`/api/admin/shop/products/${id}/photo`, { method: "DELETE" }),
   shopOrders: (status?: string, shopId?: number) => {

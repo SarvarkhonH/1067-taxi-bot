@@ -1927,6 +1927,31 @@ export function createApiServer(opts: ApiOptions = {}) {
     const { uploadProductPhoto } = await import("../services/shopService");
     res.json(await uploadProductPhoto(Number(req.params.id), Buffer.from(b.base64, "base64"), b.mime || "image/jpeg"));
   });
+  // 🌍 Open Food Facts: barkod bo'yicha nom/brend/hajm/rasm (ega so'rovi 2026-07-28).
+  // Faqat O'QIYDI — hech narsani saqlamaydi; sotuvchi formada ko'radi va o'zi tasdiqlaydi.
+  app.get("/api/admin/shop/barcode/:code", requireAdmin, requireShopWrite, rateLimit(30), async (req, res) => {
+    const { lookupBarcode } = await import("../services/openFoodService");
+    const found = await lookupBarcode(String(req.params.code));
+    res.json({ found: !!found, product: found });
+  });
+  // Rasmni OFF'dan olib mahsulotga qo'shish. Manzil MIJOZDAN OLINMAYDI — server barkod bo'yicha
+  // o'zi qaraydi va faqat images.openfoodfacts.org dan yuklaydi (aks holda bu endpoint
+  // "istalgan URL'dan rasm tort" ga aylanardi — SSRF va mualliflik muammosi).
+  app.post("/api/admin/shop/products/:id/photo-from-barcode", requireAdmin, requireShopWrite, rateLimit(20), async (req, res) => {
+    const id = Number(req.params.id);
+    if (!(await sellerOwnsProduct(res, id))) return;
+    const row = await prisma.product.findUnique({ where: { id }, select: { barcode: true } });
+    if (!row?.barcode) { res.json({ ok: false, error: "no_barcode" }); return; }
+    const { lookupBarcode, fetchOffImage } = await import("../services/openFoodService");
+    const off = await lookupBarcode(row.barcode);
+    if (!off?.imageUrl) { res.json({ ok: false, error: "no_image" }); return; }
+    const img = await fetchOffImage(off.imageUrl);
+    if (!img) { res.json({ ok: false, error: "fetch_failed" }); return; }
+    const { uploadProductPhoto } = await import("../services/shopService");
+    const r = await uploadProductPhoto(id, img.buf, img.mime);
+    await prisma.product.update({ where: { id }, data: { photoCredit: off.credit } }).catch(() => undefined);
+    res.json({ ...r, credit: off.credit });
+  });
   app.delete("/api/admin/shop/products/:id/photo", requireAdmin, requireShopWrite, async (req, res) => {
     if (!(await sellerOwnsProduct(res, Number(req.params.id)))) return;
     const { clearProductPhotos } = await import("../services/shopService");

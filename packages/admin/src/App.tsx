@@ -2026,6 +2026,33 @@ function ShopAdminView() {
     setDraft(shopDraftFromRow(p));
   };
 
+  // 🌍 Barkoddan to'ldirish (Open Food Facts). Faqat bo'sh maydonlar to'ldiriladi; rasm bo'lsa
+  // alohida so'rov bilan serverga import qilinadi (URL mijozdan olinmaydi — server o'zi biladi).
+  const [offBusy, setOffBusy] = useState(false);
+  const fillFromBarcode = async (id: number) => {
+    if (!draft) return;
+    const code = draft.barcode.replace(/\D/g, "");
+    if (code.length < 8) { setMsg("⚠️ Avval barkodni kiriting (8-14 raqam)"); return; }
+    setOffBusy(true);
+    const r = await adminApi.shopBarcodeLookup(code).catch(() => null);
+    if (!r?.found || !r.product) { setOffBusy(false); setMsg("🌍 Bu barkod Open Food Facts bazasida topilmadi (mahalliy mahsulotlar u yerda kam)"); return; }
+    const o = r.product;
+    setDraft({
+      ...draft,
+      name: draft.name.trim() || o.name || draft.name,
+      brand: draft.brand.trim() || o.brand || "",
+      unit: draft.unit.trim() || o.unit || "",
+    });
+    let note = `🌍 To'ldirildi: ${[o.name && "nom", o.brand && "brend", o.unit && "hajm"].filter(Boolean).join(", ")}`;
+    if (o.imageUrl) {
+      const ph = await adminApi.shopPhotoFromBarcode(id).catch(() => ({ ok: false }));
+      note += ph.ok ? " + rasm (manba: Open Food Facts)" : " · rasm yuklanmadi";
+      if (ph.ok) load();
+    }
+    setOffBusy(false);
+    setMsg(`${note}. Tekshirib, «Saqlash»ni bosing.`);
+  };
+
   const saveDraft = async (id: number) => {
     if (!draft) return;
     const priceTanga = Number(draft.priceTanga);
@@ -2258,7 +2285,16 @@ function ShopAdminView() {
                 </div>
                 <p className="adm-field-hint" style={{ marginTop: 12, marginBottom: 4 }}><b>🔒 Ichki ma&apos;lumot</b> — faqat siz ko&apos;rasiz, mijozga ko&apos;rinmaydi</p>
                 <div className="adm-form-grid wide">
-                  <div className="adm-field"><span className="adm-field-label">Barkod</span><input value={draft.barcode} onChange={(e) => setDraft({ ...draft, barcode: e.target.value })} placeholder="5449000000999" inputMode="numeric" /></div>
+                  <div className="adm-field">
+                    <span className="adm-field-label">Barkod</span>
+                    <input value={draft.barcode} onChange={(e) => setDraft({ ...draft, barcode: e.target.value })} placeholder="5449000000999" inputMode="numeric" />
+                    {/* 🌍 Open Food Facts: barkoddan nom/brend/hajm/rasm. Faqat BO'SH maydonlar
+                        to'ldiriladi — qo'lda yozganingiz ustidan yozilmaydi. Mahalliy mahsulotlar
+                        bu bazada deyarli yo'q (xalqaro brendlar bor). */}
+                    <button className="btn sm" style={{ marginTop: 6 }} disabled={offBusy} onClick={() => void fillFromBarcode(p.id)}>
+                      {offBusy ? "Qidirilmoqda…" : "🌍 Barkoddan to'ldirish"}
+                    </button>
+                  </div>
                   <div className="adm-field"><span className="adm-field-label">SKU (ichki kod)</span><input value={draft.sku} onChange={(e) => setDraft({ ...draft, sku: e.target.value })} placeholder="COLA-1.5" /></div>
                   <div className="adm-field"><span className="adm-field-label">Yetkazib beruvchi</span><input value={draft.supplier} onChange={(e) => setDraft({ ...draft, supplier: e.target.value })} placeholder="Ulgurji baza / firma" /></div>
                 </div>

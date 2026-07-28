@@ -509,6 +509,9 @@ model Product {
   manufacturer  String? // ishlab chiqaruvchi zavod/kompaniya
   expiryDate    DateTime? // yaroqlilik muddati (sana; vaqt qismi ishlatilmaydi)
   supplier      String? // yetkazib beruvchi — ICHKI
+  // 🌍 Rasm manbasi. Open Food Facts rasmlari CC-BY-SA — ishlatish MUMKIN, sharti manbani
+  // ko'rsatish. Kredit shu yerda saqlanadi va mahsulot sahifasida ko'rsatiladi.
+  photoCredit   String?
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
 
