@@ -4350,3 +4350,48 @@ matni — ikonkaning `aria-label`i.
 **Commitlar:** `53dacd4` (9 band) · `f17eb87` (dublikat CTA). Jonli: `shop-C-J-LsL1.css` /
 `shop-pfjMOHaf.js`, `/health` 200.
 **Holat:** `ready for verification` — ega telefonda ko'rib QABUL beradi.
+
+## §73 — 🩹 EGA SKRINSHOTLARI: CSS'NI O'ZIM BUZDIM + qolgan tuzatishlar · 2026-07-28
+
+**Ega:** «nima axvol bu dabdala qilibsanku… nega dizaynlarni to'g'irlashda doim Claude Code
+oqsayapti» · «hali ham tepada g'alati bar logoni to'sib qo'ygan» · «nima uchun bu gap degan gap
+hali ham turibti… chalalar bor».
+
+### 1. MENING XATOYIM: CSS qator bo'yicha o'chirilgan
+O'lik qoidalarni tozalaganimda skript FAQAT selektor qatorini o'chirgan — ko'p qatorli
+qoidalarning TANASI yetim qolgan (`}` dan keyin `display:flex;…}`). CSS parser yetim
+e'lonlardan keyingi matnni selektor deb yutadi → keyingi qoidalar YO'QOLADI.
+`.shop-head-actions{display:flex}` shunday yo'qolgan: sarlavha 56px o'rniga **120px**, uchta
+yumaloq tugma vertikal ustun bo'lib qolgan. Tuzatildi (`5dfc87f`): 3 yetim blok o'chirildi,
+10 CSS faylning hammasi tekshirildi.
+
+### 2. ⚠️ TASHXISIMNI O'ZIM RAD ETDIM (R7 — literal haqiqat)
+Egaga «tepadagi bar shu buzilgan CSS'dan» dedim — **JONLI TIZIM UCHUN NOTO'G'RI**. Tekshiruv:
+oxirgi 8 ta deploy bundle'ining HAMMASIDA `shop-head-actions{display:flex}` bor
+(`for f in $(ls -t shop-*.css | head -8)`), ya'ni minifier yetim qatorlarni parse paytida
+tashlab yuborgan va **prod hech qachon buzilmagan** — buzilgani mening dev-serverim/demo edi.
+Eganing telefonidagi holat eskirgan kesh (Telegram `index.html`ni ushlab qolsa yangi JS + eski
+CSS aralashadi) bo'lishi ehtimoli yuqori — egadan kesh tozalab qayta skrinshot so'raldi.
+
+### 3. Skrinshotlardagi qolgan tuzatishlar
+| Muammo | Yechim | Isbot |
+|---|---|---|
+| «yoki bir bosishda naqdga olish» KULRANG TUGMA-QUTISI | `<button>` ga `background:none;border:none;appearance:none` (tokens.css:1551 dagi AYNAN shu saboq — ikkinchi marta) | fon `rgba(0,0,0,0)`, chegara `none` |
+| Ishonch qatorining 3-ustuni siqiq | matn ikki qatorga | 115×67px, matn toshmaydi |
+| «ⓘ Nima uchun bu narx?» | tugma + izoh-qutisi butunlay olib tashlandi | jonli JS'da matn **yo'q** |
+| «Kam qoldi» alohida osilgan qator | tepa-chipga ko'chdi + kategoriya chipi | `["Maishiy kimyo", "⚡ 3 dona qoldi"]` |
+
+### 4. Jarayon o'zgarishi (ega tanqidining asosiy sababi)
+- **CSS'ni qator bo'yicha o'chirish TAQIQ** — faqat to'liq blok, keyin har safar tekshiruv:
+  qavs balansi + salbiy chuqurlik + yetim e'lon (hozir: 432/432, 0, 0).
+- **DOM'da sinf borligi «tasdiq» emas.** Bu sessiyada brauzer paneli skrinshot bermadi
+  (`the Browser pane is not displayed`), men esa element-mavjudligini isbot deb yozdim.
+  Endi dizayn o'zgarishi uchun MAJBURIY: element koordinatalari (bir qatordami, balandligi),
+  jonli bundle grepi va **eganing skrinshoti** — ega ko'rmaguncha «tayyor» yo'q.
+- **Jonli bundle grepida ehtiyot bo'l:** `/var/www/miniapp/assets/` da eski fayllar qoladi;
+  har doim `index.html` → `index-*.js` → shu chunk ichidagi nomni oling (bir marta eski faylni
+  grep qilib «qoldi» degan xato xulosa chiqargandim).
+
+**Commitlar:** `5dfc87f` (CSS tiklash) · `e762b00` (tugma-fon + ishonch matni) · `2a878d3`
+(«Nima uchun bu narx» + tepa-chiplar). Jonli: `shop-2fq93KBg.css` / `shop-DFsjDuXp.js`,
+`/health` 200. **Holat:** ega telefonda tekshiradi.
