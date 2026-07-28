@@ -286,7 +286,7 @@ export function createApiServer(opts: ApiOptions = {}) {
   });
 
   app.get("/api/me", allowGuest, async (_req, res) => {
-    const [me, booking3, livinghome, intercity, tierloyalty, shopOn, xizmatlarOn, elonlarOn, restoranOn, bazarOn, bazarcartOn, revtangaOn, shopstoryOn, shopchatOn, newhomeOn, newprofileOn, shopv2On, ravellaOn, linkinappOn, homescreenOn, storyshareOn, autolocOn] = await Promise.all([
+    const [me, booking3, livinghome, intercity, tierloyalty, shopOn, xizmatlarOn, elonlarOn, restoranOn, bazarOn, bazarcartOn, revtangaOn, shopstoryOn, shopchatOn, newhomeOn, newprofileOn, ravellaOn, linkinappOn, homescreenOn, storyshareOn, autolocOn] = await Promise.all([
       getMe(res.locals.telegramId as string),
       featureOn("booking3"),
       featureOn("livinghome"),
@@ -303,7 +303,6 @@ export function createApiServer(opts: ApiOptions = {}) {
       featureOn("shopchat"),
       featureOn("newhome"),
       featureOn("newprofile"),
-      featureOn("shopv2"),
       featureOn("ravella"),
       featureOn("linkinapp"),
       featureOn("homescreen"),
@@ -318,7 +317,7 @@ export function createApiServer(opts: ApiOptions = {}) {
       res.json({
         linked: false,
         guest,
-        flags: { shop: shopOn, xizmatlar: xizmatlarOn, restoran: restoranOn, bazar: bazarOn, bazarcart: bazarcartOn, shopv2: shopv2On, newhome: newhomeOn, ravella: ravellaOn, linkinapp: linkinappOn || isAdmin(String(res.locals.telegramId ?? "")) },
+        flags: { shop: shopOn, xizmatlar: xizmatlarOn, restoran: restoranOn, bazar: bazarOn, bazarcart: bazarcartOn,  newhome: newhomeOn, ravella: ravellaOn, linkinapp: linkinappOn || isAdmin(String(res.locals.telegramId ?? "")) },
       });
       return;
     }
@@ -347,10 +346,9 @@ export function createApiServer(opts: ApiOptions = {}) {
     const newhomePreview = newhomeOn || isAdmin(res.locals.telegramId as string);
     const newprofilePreview = newprofileOn || isAdmin(res.locals.telegramId as string);
     // 🏪 shopv2 owner-preview — BirJoy Market qorong'i-qayta-dizayni QABUL'gacha faqat ega ekranida
-    const shopv2Preview = shopv2On || isAdmin(res.locals.telegramId as string);
     // 🎀 ravella owner-preview — bezak konstruktori QABUL'gacha faqat ega ekranida ko'rinadi
     const ravellaPreview = ravellaOn || isAdmin(res.locals.telegramId as string);
-    res.json({ ...me, flags: { booking3, livinghome, intercity, tierloyalty: tierPreview, shop: shopPreview, xizmatlar: xizmatlarPreview, elonlar: elonlarPreview, restoran: restoranPreview, bazar: bazarPreview, bazarcart: bazarcartPreview, revtanga: revtangaPreview, shopstory: shopstoryPreview, shopchat: shopchatPreview, newhome: newhomePreview, newprofile: newprofilePreview, shopv2: shopv2Preview, ravella: ravellaPreview, linkinapp: linkinappOn || isAdmin(res.locals.telegramId as string), homescreen: homescreenOn || isAdmin(res.locals.telegramId as string), storyshare: storyshareOn || isAdmin(res.locals.telegramId as string), autoloc: autolocOn } });
+    res.json({ ...me, flags: { booking3, livinghome, intercity, tierloyalty: tierPreview, shop: shopPreview, xizmatlar: xizmatlarPreview, elonlar: elonlarPreview, restoran: restoranPreview, bazar: bazarPreview, bazarcart: bazarcartPreview, revtanga: revtangaPreview, shopstory: shopstoryPreview, shopchat: shopchatPreview, newhome: newhomePreview, newprofile: newprofilePreview,  ravella: ravellaPreview, linkinapp: linkinappOn || isAdmin(res.locals.telegramId as string), homescreen: homescreenOn || isAdmin(res.locals.telegramId as string), storyshare: storyshareOn || isAdmin(res.locals.telegramId as string), autoloc: autolocOn } });
   });
 
   /**

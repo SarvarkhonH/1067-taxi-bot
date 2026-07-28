@@ -373,7 +373,7 @@ export function App() {
   // 🏪 BirJoy Market v2: yangi qorong'i-oynasimon dizayn — flag ON'da shop-light/bazar-light
   // OVERRIDE qo'llanmaydi (ilovaning tabiiy qorong'i bazaviy temasi ko'rinadi), o'rniga `bjm`
   // klassi shop.tsx'dagi yangi dark-glass elementlarga aksent-uslub beradi.
-  const shellCls = tab === "dokon" ? (me?.flags?.shopv2 ? "app bjm" : me?.flags?.bazar ? "app shop-light bazar-light" : "app shop-light") : tab === "elonlar" ? "app elonlar-light" : tab === "xizmat" ? "app xizmat-light" : tab === "restoran" ? "app restoran-light" : tab === "ravella" ? "app ravella-light" : "app";
+  const shellCls = tab === "dokon" ? "app bjm" : tab === "elonlar" ? "app elonlar-light" : tab === "xizmat" ? "app xizmat-light" : tab === "restoran" ? "app restoran-light" : tab === "ravella" ? "app ravella-light" : "app";
 
   // 📱 Uy tabida topbar ko'rsatilmaydi (pastdagi shart) → xavfsiz zonani `.content` oladi, aks holda
   // to'liq ekran rejimida birinchi karta Telegram'ning ✕/⌄/⋮ paneli ostida qoladi.
