@@ -22,6 +22,10 @@ export const LIFECYCLE_MAX_PER_TICK = 20;
 const QUIET_FROM = 9; // Toshkent soati (shu soatdan boshlab yuboriladi)
 const QUIET_TO = 21; // shu soatgacha (21:00 dan keyin yo'q)
 const DEMAND_LOOKBACK_DAYS = 30; // shundan eskisi uchun xabar berish g'alati (mijoz unutgan)
+// Umumiy sifat/holat so'zlari: bular «qidirgan mahsulotingiz» emas. «Arzon» so'ragan odamga
+// «Siz qidirgan «Arzon b» endi bor: BAGIMA SERIY ARZONI» deb yozish — va'daning ma'nosini
+// yo'qotadi (jonli simulyatsiyada aynan shu chiqdi).
+const STOP_WORDS = new Set(["arzon", "arzoni", "qimmat", "yangi", "katta", "kichik", "sotiladi", "kerak", "narx", "narxi", "bor", "yaxshi", "sifatli", "tez", "keldi"]);
 const MIN_QUERY_LEN = 4; // 3 harfli so'rov juda noaniq («Sab» → «Sabzi» ham, «Sabun» ham)
 const FRESH_HOURS = 48; // mahsulot/chegirma shu oyna ichida paydo bo'lgan bo'lsa "yangilik"
 
@@ -73,7 +77,7 @@ function nameMatchesQuery(name: string, q: string): boolean {
   //    «O'g'il bolalar u» so'rovi «Bolalar suti (steril)» ga mos kelib qolgandi.
   const split = (t: string): string[] => t.split(/[^\p{L}\p{N}']+/u).filter(Boolean);
   const words = split(norm(name));
-  const parts = split(q).filter((w) => w.length >= MIN_QUERY_LEN);
+  const parts = split(q).filter((w) => w.length >= MIN_QUERY_LEN && !STOP_WORDS.has(w));
   if (!parts.length) return false;
   return parts.every((part) => words.some((w) => w.startsWith(part)));
 }
