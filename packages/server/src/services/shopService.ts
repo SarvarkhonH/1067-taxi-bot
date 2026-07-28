@@ -1227,11 +1227,14 @@ export async function resolveProductPhoto(productId: number, idx = 0, small = fa
     return null;
   }
   if (idx > 0) return null; // gallery miss beyond cover
-  const p = await prisma.product.findUnique({ where: { id: productId }, select: { photoUrl: true, photoFileId: true } });
+  const p = await prisma.product.findUnique({ where: { id: productId }, select: { photoUrl: true, photoFileId: true, category: true } });
   if (!p) return null;
   if (p.photoUrl) return p.photoUrl;
   if (p.photoFileId) return resolveTelegramFileUrl(p.photoFileId);
-  return null;
+  // 🖼 Rasm umuman yo'q → kategoriya-chizmasi (ega: kafeldagi ULKAN HARF xunuk). 404 qaytarish
+  // mumkin edi, lekin unda mijoz yana harfni ko'rardi — endi har mahsulotda rasm bor.
+  const { categoryPlaceholder } = await import("./productPlaceholder");
+  return categoryPlaceholder(p.category);
 }
 
 // ── 🗣 reviews: sharh + 👍/👎 + up to 3 photos (one review per member per product) ───────────────

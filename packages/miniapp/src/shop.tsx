@@ -159,7 +159,7 @@ function ProductCard({ p, onOpen, wide, onFav }: { p: ShopProductView; onOpen: (
   return (
     <button className={"shop-card glass" + (wide ? "" : " shop-card-h")} onClick={() => onOpen(p)}>
       <div className="shop-card-photo-wrap">
-        {p.hasPhoto ? <img className="shop-card-photo" src={apiUrl(`/api/shop/photo/${p.id}?s=1`)} loading="lazy" decoding="async" alt="" /> : <div className="shop-card-photo shop-card-noimg">🛍</div>}
+        <img className="shop-card-photo" src={apiUrl(`/api/shop/photo/${p.id}?s=1`)} loading="lazy" decoding="async" alt="" onError={(e) => { e.currentTarget.style.visibility = "hidden"; }} />
         <Badges p={p} />
         {/* 🧡 V2b: sevimlilar — optimistic toggle, xatoda rollback (services.tsx naqshi).
             <span role="button"> — <button> ichida <button> INVALID HTML edi (DOM-nesting
@@ -243,11 +243,10 @@ function StoreTile({ p, onOpen, onFav }: { p: ShopProductView; onOpen: (p: ShopP
           skrinshotlari aynan shuni ko'rsatdi). Endi rasm o'z maydonida to'liq ko'rinadi, matn
           esa shisha tanada. Faqat chegirma va ❤️ rasm ustida qoladi — ular belgi, matn emas. */}
       <div className="shop-tile-ph">
-        {p.hasPhoto ? (
-          <img className="shop-tile-img" src={apiUrl(`/api/shop/photo/${p.id}?s=1`)} loading="lazy" decoding="async" alt="" />
-        ) : (
-          <span className="shop-tile-initial" aria-hidden="true">{p.name.trim().charAt(0).toUpperCase()}</span>
-        )}
+        {/* 🖼 EGA SKRINSHOTI (2026-07-28): rasmsiz mahsulot ULKAN HARF bilan chiqardi («F»).
+            Endi server rasm bo'lmasa KATEGORIYA CHIZMASINI qaytaradi (productPlaceholder.ts),
+            ya'ni har mahsulotda rasm bor — shart ham kerak emas. */}
+        <img className="shop-tile-img" src={apiUrl(`/api/shop/photo/${p.id}?s=1`)} loading="lazy" decoding="async" alt="" onError={(e) => { e.currentTarget.style.visibility = "hidden"; }} />
         {d > 0 && <span className="shop-tile-disc">−{d}%</span>}
         {onFav && (
           <span
@@ -919,7 +918,12 @@ export function ShopView({ me, onBanner, reload, onBook, openProductId }: { me: 
 
   const deficit = sel ? Math.max(0, sel.priceTanga - me.coins) : 0;
   // how many friends to invite to cover the shortfall (spread > rides right now)
-  const friendsNeeded = deficit > 0 && refInfo?.rewardReferrer ? Math.max(1, Math.ceil(deficit / refInfo.rewardReferrer)) : null;
+  // 🧮 EGA SKRINSHOTI (2026-07-28): 430 000 so'mlik blenderda «208 do'stingizga ulashsangiz —
+  // yetadi!» chiqqan. Texnik jihatdan to'g'ri, lekin maslahat sifatida kulgili va ishonchni
+  // tushiradi. Real bajariladigan chegara: 15 do'stgacha ayt, undan ortig'ida — jim.
+  const FRIENDS_HINT_MAX = 15;
+  const friendsNeededRaw = deficit > 0 && refInfo?.rewardReferrer ? Math.max(1, Math.ceil(deficit / refInfo.rewardReferrer)) : null;
+  const friendsNeeded = friendsNeededRaw !== null && friendsNeededRaw <= FRIENDS_HINT_MAX ? friendsNeededRaw : null;
 
   return (
     // 🌘 shopv2: dark-glass tema `.app.bjm` orqali App.tsx shell-klassidan keladi (tokens.css) —
@@ -1133,7 +1137,10 @@ export function ShopView({ me, onBanner, reload, onBook, openProductId }: { me: 
                 )}
                 {/* mockup `toggleReviews`: sharhlar ALOHIDA oynada emas, shu yerda ICHKI ochiladi
                     (▼/▲ akkordeon) — ega "review missing" deb aynan shuni ko'rsatdi. */}
-                {shopProfileReviews && (
+                {/* 🗣 Sharh YO'Q bo'lsa akkordeon umuman chizilmaydi — ega skrinshotida «Sharhlar
+                    0 ta ▼» bo'sh quti bo'lib turgan edi, bosilsa «Hali sharh yo'q» deb ochilardi:
+                    ikki bosishda hech narsa. Sharh paydo bo'lishi bilan qatori o'zi qaytadi. */}
+                {shopProfileReviews && (shopProfileReviews.totalCount ?? shopProfileReviews.reviews.length) > 0 && (
                   <>
                     <button className="shop-sp-reviews" onClick={() => { haptic(); setShopReviewsOpen((v) => !v); }}>
                       {/* AUDIT: bu yerda `reviews.length` (30 ta cap) turardi, sarlavhada esa
@@ -1406,10 +1413,8 @@ export function ShopView({ me, onBanner, reload, onBook, openProductId }: { me: 
                   ))}
                 </div>
               </div>
-            ) : sel.hasPhoto ? (
-              <img className="shop-detail-photo" src={apiUrl(`/api/shop/photo/${sel.id}`)} alt="" onClick={() => { haptic(); setLightbox(0); }} />
             ) : (
-              <div className="shop-detail-photo shop-card-noimg">🛍</div>
+              <img className="shop-detail-photo" src={apiUrl(`/api/shop/photo/${sel.id}`)} alt="" onClick={() => { haptic(); setLightbox(0); }} />
             )}
             <div className="shop-detail-headline">
               <h3 className="shop-detail-name">{prettyName(sel.name)}</h3>
@@ -1507,7 +1512,7 @@ export function ShopView({ me, onBanner, reload, onBook, openProductId }: { me: 
                 <div className="shop-row-strip">
                   {similar.map((p) => (
                     <button key={p.id} className="shop-mini" onClick={(e) => { openProduct(p); e.currentTarget.closest(".d-sheet")?.scrollTo({ top: 0, behavior: "instant" }); }}>
-                      {p.hasPhoto ? <img className="shop-mini-img" src={apiUrl(`/api/shop/photo/${p.id}?s=1`)} loading="lazy" decoding="async" alt="" /> : <div className="shop-mini-img shop-card-noimg">🛍</div>}
+                      <img className="shop-mini-img" src={apiUrl(`/api/shop/photo/${p.id}?s=1`)} loading="lazy" decoding="async" alt="" onError={(e) => { e.currentTarget.style.visibility = "hidden"; }} />
                       <div className="shop-mini-name">{prettyName(p.name)}</div>
                       <div className="shop-mini-price">{formatNumber(p.priceTanga)} so'm</div>
                     </button>
@@ -1715,9 +1720,7 @@ export function ShopView({ me, onBanner, reload, onBook, openProductId }: { me: 
           <div className="bj-chat-shelf" aria-label="Do'kon mahsulotlari">
             {chatProducts.slice(0, 12).map((p) => (
               <div key={p.id} className="bj-chat-item">
-                {p.hasPhoto
-                  ? <img className="bj-chat-item-img" src={apiUrl(`/api/shop/photo/${p.id}?s=1`)} loading="lazy" decoding="async" alt="" />
-                  : <div className="bj-chat-item-img bj-chat-item-noimg">{p.name.slice(0, 1).toUpperCase()}</div>}
+                <img className="bj-chat-item-img" src={apiUrl(`/api/shop/photo/${p.id}?s=1`)} loading="lazy" decoding="async" alt="" onError={(e) => { e.currentTarget.style.visibility = "hidden"; }} />
                 <div className="bj-chat-item-name">{p.name}</div>
                 <div className="bj-chat-item-price">{formatNumber(p.priceTanga)} so'm</div>
                 <button
@@ -1947,11 +1950,7 @@ function StoryViewer({ stories, idx, onAdvance, onClose, featuredProduct, onGoTo
       )}
       {featuredProduct && revealed && (
         <div className="bj-story-product" onClick={(e) => e.stopPropagation()}>
-          {featuredProduct.hasPhoto ? (
-            <img className="bj-story-product-img" src={apiUrl(`/api/shop/photo/${featuredProduct.id}?s=1`)} alt="" />
-          ) : (
-            <span className="bj-story-product-img bj-story-product-ph">{featuredProduct.name.trim().charAt(0).toUpperCase()}</span>
-          )}
+          <img className="bj-story-product-img" src={apiUrl(`/api/shop/photo/${featuredProduct.id}?s=1`)} alt="" />
           <div className="bj-story-product-body">
             <div className="bj-story-product-tag">Ko&apos;p sotiladi</div>
             <div className="bj-story-product-name">{featuredProduct.name}</div>
