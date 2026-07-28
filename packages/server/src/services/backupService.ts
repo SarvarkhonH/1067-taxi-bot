@@ -26,9 +26,6 @@ async function snapshot(): Promise<{ json: string; total: number }> {
     memberAchievement: () => prisma.memberAchievement.findMany(),
     transfer: () => prisma.transfer.findMany(),
     rideReward: () => prisma.rideReward.findMany(),
-    shop: () => prisma.shop.findMany(),
-    listing: () => prisma.listing.findMany(),
-    shopOrder: () => prisma.shopOrder.findMany(),
     appState: () => prisma.appState.findMany(),
     syncRun: () => prisma.syncRun.findMany(),
   };

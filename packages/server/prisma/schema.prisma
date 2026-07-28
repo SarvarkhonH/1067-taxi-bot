@@ -86,29 +86,29 @@ model Member {
   createdAt          DateTime  @default(now())
   updatedAt          DateTime  @updatedAt
 
-  telegramUser  TelegramUser?
-  achievements  MemberAchievement[]
-  rewardGrants  RewardGrant[]
-  streak        Streak?
-  wheelSpins    WheelSpin[]
-  missions      MissionProgress[]
-  boxOpens      BoxOpen[]
-  weeklyScores  WeeklyScore[]
-  coinTxns      CoinTxn[]
-  withdrawals   Withdrawal[]
-  cashoutRequests CashoutRequest[] // 💵 real cash-out (tanga → card/home), owner-approved
-  driverSession DriverSession? // Bosqich 2: kas /api/driverApp/* auth (drivers only)
+  telegramUser         TelegramUser?
+  achievements         MemberAchievement[]
+  rewardGrants         RewardGrant[]
+  streak               Streak?
+  wheelSpins           WheelSpin[]
+  missions             MissionProgress[]
+  boxOpens             BoxOpen[]
+  weeklyScores         WeeklyScore[]
+  coinTxns             CoinTxn[]
+  withdrawals          Withdrawal[]
+  cashoutRequests      CashoutRequest[] // 💵 real cash-out (tanga → card/home), owner-approved
+  driverSession        DriverSession? // Bosqich 2: kas /api/driverApp/* auth (drivers only)
   // 🚐 Intercity (nationwide shared-taxi) — additive, gated behind feature "intercity"
-  intercityTrips       IntercityTrip[]            @relation("IntercityDriver")
+  intercityTrips       IntercityTrip[]             @relation("IntercityDriver")
   intercityBookings    IntercityBooking[]
   intercityEnrollments IntercityDriverEnrollment[]
   intercityCommissions IntercityCommissionDebt[]
   intercityPenalties   IntercityDriverPenalty[]
   intercityWaitEntries IntercityWaitEntry[]
-  leagueTier   String              @default("Bronza") // promotion/relegation tier
-  driverTier   String              @default("Bronza") // weekly driver tier (DiDi model): Bronza|Kumush|Oltin|Olmos
-  shopPurchases ShopPurchase[] // 🛍 tanga shop purchases (feature "shop")
-  foodOrders    FoodOrder[] // 🍽 restoran buyurtmalari (feature "restoran")
+  leagueTier           String                      @default("Bronza") // promotion/relegation tier
+  driverTier           String                      @default("Bronza") // weekly driver tier (DiDi model): Bronza|Kumush|Oltin|Olmos
+  shopPurchases        ShopPurchase[] // 🛍 tanga shop purchases (feature "shop")
+  foodOrders           FoodOrder[] // 🍽 restoran buyurtmalari (feature "restoran")
 
   @@unique([type, kasId])
   @@index([type, points])
@@ -290,58 +290,6 @@ model WheelSpin {
   @@index([memberId, dayKey])
 }
 
-// ── 🏪 Bozor: spendable-cashback marketplace ──────────────────────────────────
-// Local shops list goods priced in coins; buying BURNS the buyer's coins and
-// issues a voucher code the shop redeems in person. MVP is ABSORB-only: the
-// shop honors the voucher as its own discount/marketing — costs us 0 real
-// money. (Cash settlement / REDEEM mode is a later, separately-budgeted phase.)
-model Shop {
-  id             Int       @id @default(autoincrement())
-  name           String
-  emoji          String    @default("🏪")
-  category       String    @default("boshqa") // oziq-ovqat | xizmat | do'kon | boshqa
-  ownerPhone     String? // verified owner phone (redeems vouchers)
-  status         String    @default("active") // active | paused
-  // settlement trust ladder: every shop starts ABSORB (0 cash risk); admin may
-  // promote to REDEEM (weekly cash settle at spread, bozor-budget gated)
-  settlementMode String    @default("absorb") // absorb | redeem
-  spread         Float     @default(0.12) // our take on REDEEM settlements
-  dailyCapCoins  Float     @default(100000) // max coin volume the shop can take per day
-  createdAt      DateTime  @default(now())
-  listings       Listing[]
-}
-
-model Listing {
-  id           Int     @id @default(autoincrement())
-  shop         Shop    @relation(fields: [shopId], references: [id], onDelete: Cascade)
-  shopId       Int
-  title        String
-  emoji        String  @default("🎁")
-  priceCoins   Float
-  perUserLimit Int     @default(3) // anti-wash: max purchases per member per listing
-  active       Boolean @default(true)
-
-  @@index([shopId, active])
-}
-
-// Escrowed purchase: coins are burned at buy time; the voucher is the durable
-// claim the buyer shows at the shop. Idempotent redeem via status flip.
-model ShopOrder {
-  id            Int       @id @default(autoincrement())
-  shopId        Int
-  listingId     Int
-  buyerMemberId Int
-  priceCoins    Float
-  voucherCode   String    @unique // 6-char code shown at the counter
-  status        String    @default("issued") // issued | redeemed | expired
-  createdAt     DateTime  @default(now())
-  redeemedAt    DateTime?
-  settledAt     DateTime? // REDEEM-mode: when the weekly cash settle covered this order
-
-  @@index([buyerMemberId, createdAt])
-  @@index([shopId, status])
-}
-
 // P2P coin movement (client<->client, client->driver tip). Coins MOVE, never
 // mint: paired CoinTxn rows (-amount / +net) in one transaction keep the
 // reconciliation invariant per member; the burn shrinks total supply.
@@ -398,33 +346,33 @@ model CoinTxn {
 // Shop/Listing/ShopOrder (voucher-tizim qoldiqlari) ATAYLAB tegilmagan — bu YANGI, toza model.
 // Do'kon #1 = «BirJoy o'z do'koni» (ega, migrateBirjoySeller.ts); har lokal do'kon o'z vitrinasi.
 model MarketShop {
-  id             Int      @id @default(autoincrement())
+  id             Int       @id @default(autoincrement())
   name           String
-  category       String   @default("boshqa")
+  category       String    @default("boshqa")
   phone          String
   address        String?
   workHours      String? // "09:00-22:00" — restoran bilan bir xil Ochiq/Yopiq hisob
   deliveryText   String? // Tier-1 yetkazish-va'dasi kartada: "Bugun 14:00-18:00" / "Ertaga"
-  deliveryFeeSom Int      @default(0)
-  minOrderTanga  Int      @default(0)
-  slaMinutes     Int      @default(15) // shu vaqt ichida javob bo'lmasa egaga alert (sweep)
+  deliveryFeeSom Int       @default(0)
+  minOrderTanga  Int       @default(0)
+  slaMinutes     Int       @default(15) // shu vaqt ichida javob bo'lmasa egaga alert (sweep)
   ownerChatId    String? // sotuvchining Telegram chat_id'si — buyurtma-kartalar shu yerga (null → ega)
   photoFileId    String? // do'kon-logo (tgUploadPhoto pipeline)
   photoUrl       String?
-  active         Boolean  @default(false) // wizard DARK yaratadi; EGA yoqadi
-  paused         Boolean  @default(false)
-  sortOrder      Int      @default(0)
-  avgRating      Float    @default(0) // V3'da sotuvchi-reyting keshi
-  reviewCount    Int      @default(0)
-  orderCount     Int      @default(0)
+  active         Boolean   @default(false) // wizard DARK yaratadi; EGA yoqadi
+  paused         Boolean   @default(false)
+  sortOrder      Int       @default(0)
+  avgRating      Float     @default(0) // V3'da sotuvchi-reyting keshi
+  reviewCount    Int       @default(0)
+  orderCount     Int       @default(0)
   story          String? // D2: "Biz haqimizda" — seller-tahrirlanadigan hikoya/tavsif matni
   announcement   String? // D2: Etsy-uslub bitta-qatorli e'lon (masalan "Bugun yangi partiya keldi")
   announcementAt DateTime? // e'lon oxirgi yangilangan vaqti
   neighborhood   String? // D2: erkin-matn mahalla-teg (legacy) — mahallaId bo'lsa Mahalla.name unga ustun keladi, aks holda shu matnga fallback
-  shopKind       String   @default("bozor") // V1.5: "bozor" (butun shahar) | "mahalla" (faqat o'z mahallasiga tez yetkazish)
+  shopKind       String    @default("bozor") // V1.5: "bozor" (butun shahar) | "mahalla" (faqat o'z mahallasiga tez yetkazish)
   mahallaId      Int? // V1.5: faqat shopKind="mahalla" bo'lganda to'ldiriladi — loose FK (Mahalla.id)
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
 
   @@index([active, sortOrder])
   @@index([shopKind, mahallaId, active])
@@ -435,14 +383,14 @@ model MarketShop {
 // butun admin-panelni (buyurtma/kampaniya/haydovchi-missiya va h.k.) qamrab olish alohida, kattaroq
 // tiket bo'lardi; bu yerda §10.1'ning o'zi so'ragan ko'p-do'kon boshqaruv sirtiga mos.
 model AdminAuditLog {
-  id          Int      @id @default(autoincrement())
-  actorRole   String // "owner" | "shopseller:<shopId>" | "operator"
-  actorTgId   String? // res.locals.telegramId (bo'lsa)
-  action      String // "toggle_pause" | "edit_product" | "create_product" | "delete_product" | "update_profile" | "bulk_announcement"
-  targetType  String // "shop" | "product"
-  targetId    Int?
-  detail      String? // qisqa inson-o'qiy oladigan tafsilot (masalan "narx 5000→6000")
-  createdAt   DateTime @default(now())
+  id         Int      @id @default(autoincrement())
+  actorRole  String // "owner" | "shopseller:<shopId>" | "operator"
+  actorTgId  String? // res.locals.telegramId (bo'lsa)
+  action     String // "toggle_pause" | "edit_product" | "create_product" | "delete_product" | "update_profile" | "bulk_announcement"
+  targetType String // "shop" | "product"
+  targetId   Int?
+  detail     String? // qisqa inson-o'qiy oladigan tafsilot (masalan "narx 5000→6000")
+  createdAt  DateTime @default(now())
 
   @@index([targetType, targetId, createdAt])
   @@index([createdAt])
@@ -465,15 +413,15 @@ model Mahalla {
 // 🎠 D1: boshqariladigan kategoriya (Uzum-uslub ikonka-karusel) — erkin-string davri tugaydi.
 // Ikonka = admin yuklagan rasm (file_id pipeline); rasm yo'q bo'lsa emoji fallback.
 model CategoryDef {
-  id          Int      @id @default(autoincrement())
-  slug        String   @unique // deep-link ?go=dokon&c=<slug>
-  name        String
-  emoji       String   @default("🛍") // ikonka-rasm bo'lmaganda katta-emoji
-  iconFileId  String?
-  iconUrl     String?
-  sortOrder   Int      @default(0)
-  active      Boolean  @default(true)
-  createdAt   DateTime @default(now())
+  id         Int      @id @default(autoincrement())
+  slug       String   @unique // deep-link ?go=dokon&c=<slug>
+  name       String
+  emoji      String   @default("🛍") // ikonka-rasm bo'lmaganda katta-emoji
+  iconFileId String?
+  iconUrl    String?
+  sortOrder  Int      @default(0)
+  active     Boolean  @default(true)
+  createdAt  DateTime @default(now())
 
   @@index([active, sortOrder])
 }
@@ -483,29 +431,29 @@ model CategoryDef {
 // bitta tx'da stock-claim bilan); reject/cancel = flip+restock+refund (`mktrefund:<id>`) BITTA tx
 // (V0.2 saboqlari tug'ma). Status: pending→accepted→delivering→delivered | rejected | cancelled.
 model MarketOrder {
-  id             Int       @id @default(autoincrement())
-  memberId       Int
-  shopId         Int
-  shopName       String // snapshot
-  itemsJson      Json // [{productId, name, qty, priceTanga}] — narx-snapshot
-  itemsTotal     Int // tanga (=so'm)
-  deliveryFee    Int       @default(0)
-  total          Int
-  payKind        String    @default("tanga") // "tanga" (buy'da ushlangan) | "cash" (yetkazganda)
-  address        String
-  contact        String
-  note           String?
-  status         String    @default("pending") // pending|accepted|delivering|delivered|rejected|cancelled
-  rejectReason   String?
-  slaAlertedAt   DateTime?
+  id           Int       @id @default(autoincrement())
+  memberId     Int
+  shopId       Int
+  shopName     String // snapshot
+  itemsJson    Json // [{productId, name, qty, priceTanga}] — narx-snapshot
+  itemsTotal   Int // tanga (=so'm)
+  deliveryFee  Int       @default(0)
+  total        Int
+  payKind      String    @default("tanga") // "tanga" (buy'da ushlangan) | "cash" (yetkazganda)
+  address      String
+  contact      String
+  note         String?
+  status       String    @default("pending") // pending|accepted|delivering|delivered|rejected|cancelled
+  rejectReason String?
+  slaAlertedAt DateTime?
   // ⏱ §10.3 jonli ETA: sotuvchi buyurtmani qabul qilgach BERGAN va'dasi (daqiqa) + va'da berilgan
   // payt. Mijoz kartasidagi sanoq shu ikkisidan hisoblanadi. Ikkalasi ham NULL bo'lishi mumkin —
   // sotuvchi va'da bermasa hech qanday ETA ko'rsatilmaydi (soxta raqam TAQIQ, faqat haqiqiy va'da).
-  etaMinutes     Int?
-  etaSetAt       DateTime?
-  decidedAt      DateTime?
-  createdAt      DateTime  @default(now())
-  updatedAt      DateTime  @updatedAt
+  etaMinutes   Int?
+  etaSetAt     DateTime?
+  decidedAt    DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
 
   @@index([memberId, createdAt])
   @@index([shopId, status])
@@ -536,33 +484,33 @@ model ProductFavorite {
 }
 
 model Product {
-  id          Int      @id @default(autoincrement())
-  shopId      Int? // 🏪 V1: qaysi MarketShop'niki (loose FK, ProductPhoto precedenti); null = hali migratsiyadan o'tmagan
-  name        String
-  description String?
-  category    String   @default("umumiy") // free bucket: "oziq-ovqat" | "elektronika" | … (D1'da CategoryDef.slug'ga ko'chadi)
-  priceTanga  Int // whole tanga only (1 tanga = 1 so'm)
+  id            Int       @id @default(autoincrement())
+  shopId        Int? // 🏪 V1: qaysi MarketShop'niki (loose FK, ProductPhoto precedenti); null = hali migratsiyadan o'tmagan
+  name          String
+  description   String?
+  category      String    @default("umumiy") // free bucket: "oziq-ovqat" | "elektronika" | … (D1'da CategoryDef.slug'ga ko'chadi)
+  priceTanga    Int // whole tanga only (1 tanga = 1 so'm)
   oldPriceTanga Int? // marketplace discount display: strikethrough + −N% badge (null = no discount)
-  featured    Boolean  @default(false) // hero-carousel slot on the shop home
-  stock       Int      @default(0) // remaining units — decrement is ATOMIC (updateMany stock>=1)
-  photoFileId String? // Telegram file_id (durable) — driver-photo pattern
-  photoUrl    String? // data-URL fallback / permanent override
-  active      Boolean  @default(false) // created OFF; owner flips ON to list
-  sortOrder   Int      @default(0)
-  favCount    Int      @default(0) // 🧡 V2b: ❤ sevimlilar-hisoblagich (ServiceListing naqshi — viral signal)
+  featured      Boolean   @default(false) // hero-carousel slot on the shop home
+  stock         Int       @default(0) // remaining units — decrement is ATOMIC (updateMany stock>=1)
+  photoFileId   String? // Telegram file_id (durable) — driver-photo pattern
+  photoUrl      String? // data-URL fallback / permanent override
+  active        Boolean   @default(false) // created OFF; owner flips ON to list
+  sortOrder     Int       @default(0)
+  favCount      Int       @default(0) // 🧡 V2b: ❤ sevimlilar-hisoblagich (ServiceListing naqshi — viral signal)
   // 🏷 KATALOG-PASPORT (ega, 2026-07-27) — supermarket-darajali mahsulot ma'lumoti. HAMMASI
   // nullable: 175 mavjud mahsulot tegilmasdan qoladi, sotuvchi xohlaganini to'ldiradi.
   // Mijozga ko'rinadi: brand/unit/manufacturer/expiryDate. ICHKI (faqat sotuvchi+admin,
   // API javobidan chiqarilgan): barcode/sku/supplier.
-  barcode      String? // EAN-8…GTIN-14, faqat raqam. Noyob EMAS — bir mahsulotni ko'p do'kon sotadi
-  sku          String? // do'konning ichki kodi
-  brand        String? // "Coca-Cola"
-  unit         String? // og'irlik yoki hajm: "1.5 L", "500 g"
-  manufacturer String? // ishlab chiqaruvchi zavod/kompaniya
-  expiryDate   DateTime? // yaroqlilik muddati (sana; vaqt qismi ishlatilmaydi)
-  supplier     String? // yetkazib beruvchi — ICHKI
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  barcode       String? // EAN-8…GTIN-14, faqat raqam. Noyob EMAS — bir mahsulotni ko'p do'kon sotadi
+  sku           String? // do'konning ichki kodi
+  brand         String? // "Coca-Cola"
+  unit          String? // og'irlik yoki hajm: "1.5 L", "500 g"
+  manufacturer  String? // ishlab chiqaruvchi zavod/kompaniya
+  expiryDate    DateTime? // yaroqlilik muddati (sana; vaqt qismi ishlatilmaydi)
+  supplier      String? // yetkazib beruvchi — ICHKI
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
 
   @@index([active, sortOrder])
   @@index([shopId, active]) // 🏪 V1: seller-scoped katalog so'rovlari
@@ -591,7 +539,7 @@ model ProductReview {
   productId  Int
   memberId   Int
   thumb      String // "up" | "down"
-  rating     Int?     // ⭐ V3.2: 1-5 (additiv — eski thumb-only sharhlar rating=null qolaveradi)
+  rating     Int? // ⭐ V3.2: 1-5 (additiv — eski thumb-only sharhlar rating=null qolaveradi)
   text       String?
   photosJson String?
   tangaPaid  Boolean  @default(false) // V3.2: sharh-uchun-tanga BIR UMR to'langanmi (idempotent-belgi, kalit bilan bir qatorda)
@@ -607,20 +555,20 @@ model ProductReview {
 // (Named ShopPurchase — a LEGACY "ShopOrder" model from the removed user-shops system still holds
 // historical rows above and can't be renamed until the Phase-3 schema pass.)
 model ShopPurchase {
-  id          Int       @id @default(autoincrement())
-  member      Member    @relation(fields: [memberId], references: [id], onDelete: Cascade)
-  memberId    Int
-  productId   Int
-  productName String // snapshot — survives product edit/delete
-  priceTanga  Int // snapshot — the price actually paid
-  qty         Int       @default(1) // MVP: always 1
-  payKind     String    @default("tanga") // "tanga" (buy'da ushlanadi) | "cash" (naqd — yetkazganda to'lanadi, coin ops YO'Q)
-  address     String // delivery address
-  contact     String // phone snapshot
-  status      String    @default("pending") // pending | delivered | rejected | cancelled
-  note        String? // owner's rejection reason (rider sees it)
-  createdAt   DateTime  @default(now())
-  decidedAt   DateTime?
+  id           Int       @id @default(autoincrement())
+  member       Member    @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  memberId     Int
+  productId    Int
+  productName  String // snapshot — survives product edit/delete
+  priceTanga   Int // snapshot — the price actually paid
+  qty          Int       @default(1) // MVP: always 1
+  payKind      String    @default("tanga") // "tanga" (buy'da ushlanadi) | "cash" (naqd — yetkazganda to'lanadi, coin ops YO'Q)
+  address      String // delivery address
+  contact      String // phone snapshot
+  status       String    @default("pending") // pending | delivered | rejected | cancelled
+  note         String? // owner's rejection reason (rider sees it)
+  createdAt    DateTime  @default(now())
+  decidedAt    DateTime?
   slaAlertedAt DateTime? // 🏪 V1.5: seller 15 daqiqada javob bermasa egaga BIR marta alert (sweep-marker)
 
   @@index([memberId, status])
@@ -632,26 +580,26 @@ model ShopPurchase {
 // (D2/D3, orderChatId/bot-avtomatika V2'ga qoldirilgan). Shop patterni bilan bir xil (Product-uslub
 // katalog + snapshot-order), yagona farq: ko'p-taomli savat (itemsJson).
 model Restaurant {
-  id             Int      @id @default(autoincrement())
+  id             Int                @id @default(autoincrement())
   name           String
-  category       String   @default("milliy") // milliy|fastfood|shirinlik|ichimlik|boshqa
+  category       String             @default("milliy") // milliy|fastfood|shirinlik|ichimlik|boshqa
   phone          String // operator shu raqamga qo'ng'iroq qiladi (V1 yagona aloqa kanali)
   address        String?
   workHours      String? // "09:00-22:00" — xizmatlar bilan bir xil Ochiq/Yopiq hisob (client-side)
-  deliveryFeeSom Int      @default(0)
-  minOrderSom    Int      @default(0)
-  pickupEnabled  Boolean  @default(true)
-  prepMinutes    Int      @default(30) // "taxminan N daqiqa" — operator checkout paytida ko'radi
+  deliveryFeeSom Int                @default(0)
+  minOrderSom    Int                @default(0)
+  pickupEnabled  Boolean            @default(true)
+  prepMinutes    Int                @default(30) // "taxminan N daqiqa" — operator checkout paytida ko'radi
   photoFileId    String? // Telegram file_id (durable) — shop/driver-photo patterni
   photoUrl       String? // data-URL fallback / permanent override
-  active         Boolean  @default(false) // created OFF; admin flips ON to list (shop patterni)
-  paused         Boolean  @default(false) // avto (V2: 3× expired) yoki operator so'rovi bilan
-  sortOrder      Int      @default(0)
-  avgRating      Float    @default(0)
-  reviewCount    Int      @default(0)
-  orderCount     Int      @default(0) // kelajak sotuv-quroli: "sizga N buyurtma keltirdik"
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
+  active         Boolean            @default(false) // created OFF; admin flips ON to list (shop patterni)
+  paused         Boolean            @default(false) // avto (V2: 3× expired) yoki operator so'rovi bilan
+  sortOrder      Int                @default(0)
+  avgRating      Float              @default(0)
+  reviewCount    Int                @default(0)
+  orderCount     Int                @default(0) // kelajak sotuv-quroli: "sizga N buyurtma keltirdik"
+  createdAt      DateTime           @default(now())
+  updatedAt      DateTime           @updatedAt
   menuItems      MenuItem[]
   reviews        RestaurantReview[]
 
@@ -976,17 +924,17 @@ model ScheduledRide {
 model Reminder {
   id         Int       @id @default(autoincrement())
   memberId   Int
-  telegramId String    // delivery chat — ALWAYS the requester themselves (no third parties)
+  telegramId String // delivery chat — ALWAYS the requester themselves (no third parties)
   kind       String    @default("oddiy") // oddiy | taksi | qarz
-  text       String    // ≤120 chars, sanitized at create
-  runAt      DateTime  // resolved by the LOCAL Uzbek time parser (never the LLM)
-  recurrence String?   // P1 ships null only; P2: "daily" | "weekly:N"
-  actionJson String?   // optional 1-tap payload, e.g. {"type":"book","query":"bozor"}
+  text       String // ≤120 chars, sanitized at create
+  runAt      DateTime // resolved by the LOCAL Uzbek time parser (never the LLM)
+  recurrence String? // P1 ships null only; P2: "daily" | "weekly:N"
+  actionJson String? // optional 1-tap payload, e.g. {"type":"book","query":"bozor"}
   status     String    @default("pending") // pending | sent | cancelled | failed
   createdAt  DateTime  @default(now())
   sentAt     DateTime?
 
-  @@index([status, runAt])   // the sweep's due-query
+  @@index([status, runAt]) // the sweep's due-query
   @@index([memberId, status]) // "eslatmalarim" list + pending cap
 }
 
@@ -998,7 +946,7 @@ model Reminder {
 model MemberMemory {
   id        Int      @id @default(autoincrement())
   memberId  Int
-  note      String   // ≤200 chars, sanitized
+  note      String // ≤200 chars, sanitized
   createdAt DateTime @default(now())
 
   @@index([memberId, createdAt])
@@ -1098,7 +1046,7 @@ model GarajCar {
   fuelRefillCount    Int       @default(0) // MUST NOT RESET on re-buy (audit-B1 pattern). Deterministic idempotency key tail.
   // 🏛 P1-A — Motor Olami P1 fields (lifespan + capital remont + hidden defect + Ofis-held)
   capitalRepairCount Int       @default(0) // immutable counter (RESTORE craft ++), feeds REPAIR_NARX_FACTOR resale clamp
-  hiddenDefect       String?   // JSON {zone, severity} — 3% deterministic stamp on acquire; Premium CarCheck reveals
+  hiddenDefect       String? // JSON {zone, severity} — 3% deterministic stamp on acquire; Premium CarCheck reveals
   ofisHeld           Boolean   @default(false) // true while 1067 Ofis owns the car (re-list / scrap pending)
   // 🔗 P2-A — merge mechanic counter; +1 per 2→1 fuse (sacrifice ANY car to promote this one);
   // bounded by MERGE_MAX_COUNT (anti-runaway). MUST NOT RESET on re-buy (audit-B1 pattern).
@@ -1150,20 +1098,6 @@ model GarajRideDrop {
   @@index([memberId])
 }
 
-// 🏺 Ko'zacha ledger — the SECOND currency, earned ONLY from real rides (≤8/ride),
-// spent in the Kozacha shop. Fully SEPARATE from CoinTxn (never flows into tanga).
-// Balance is denormalized on MemberGarajMeta.kozachaBalance.
-model KozachaTxn {
-  id             Int      @id @default(autoincrement())
-  memberId       Int
-  amount         Int // + earn, - spend
-  reason         String
-  idempotencyKey String   @unique
-  createdAt      DateTime @default(now())
-
-  @@index([memberId, createdAt])
-}
-
 // 🔧 Mechanic skill — Usta-ko'z rank (diagnosis accuracy) + 4 specialization
 // branches (XP accrues from repair/flip; tier derived from MECH_XP_TIERS).
 model MemberMechanicSkill {
@@ -1200,16 +1134,16 @@ model GarajBazaarListing {
 // 🔨 W4 sealed-bid auction. Escrow at bid (one bid/bidder, no revision), anti-snipe
 // (+5min if bid in last 5min), settle in the sweep: highest wins, losers refunded.
 model GarajAuction {
-  id           Int       @id @default(autoincrement())
+  id           Int      @id @default(autoincrement())
   sellerId     Int
   garajCarId   Int
   carCode      String
   minBid       Int
-  highBid      Int       @default(0) // display cache; settle uses max(bids) authoritatively
+  highBid      Int      @default(0) // display cache; settle uses max(bids) authoritatively
   highBidderId Int?
-  status       String    @default("open") // open | settled | cancelled
+  status       String   @default("open") // open | settled | cancelled
   endsAt       DateTime
-  createdAt    DateTime  @default(now())
+  createdAt    DateTime @default(now())
 
   @@index([status, endsAt])
 }
@@ -1232,13 +1166,13 @@ model GarajAuctionBid {
 // Installed on a car → +earnBonusPct to THAT car's earn. The serial is a per-partCode
 // global unique mint # (Twin Turbo #042 / 500). Counter lives in AppState mo:part:next:<code>.
 model GarajPart {
-  id             Int       @id @default(autoincrement())
+  id             Int      @id @default(autoincrement())
   partCode       String // twin_turbo | nitro | sport_ecu (MOTOR_PARTS config)
   serial         Int // per-partCode global unique mint #
   ownerId        Int // current owner member
   installedCarId Int? // null = sitting in inventory; set = bolted onto this GarajCar
-  status         String    @default("owned") // owned | installed | listed
-  mintedAt       DateTime  @default(now())
+  status         String   @default("owned") // owned | installed | listed
+  mintedAt       DateTime @default(now())
 
   @@unique([partCode, serial]) // race-safe: two concurrent mints can't share a serial
   @@index([ownerId, status])
@@ -1318,15 +1252,6 @@ model MahallaWeeklyResult {
   @@unique([groupId, weekKey])
 }
 
-// 🏆 W5 Hall of Fame — permanent entry after Prestige 5, shown to all on the Museum.
-model GarajHallOfFame {
-  id            Int      @id @default(autoincrement())
-  memberId      Int      @unique
-  prestigeCount Int
-  repAtEntry    Int
-  createdAt     DateTime @default(now())
-}
-
 // 🏆 #8 Exhibition — weekly car show. One entry per member per week (a snapshot so it
 // persists even if the car is sold); one vote per member per week (self-vote blocked).
 // The top-voted entry of the closed week wins a bounded, idempotent prize (sweep-settled).
@@ -1372,23 +1297,6 @@ model GarajCraftJob {
 
   @@index([memberId, status])
   @@index([status, finishesAt])
-}
-
-// 🏛 P1-A — 1067 Ofis korp-ledger: every market-maker action (buy/release/scrap) audited
-// here, kept SEPARATE from CoinTxn so corp budget is not confused with player emission. The
-// daily budget cap is enforced by aggregating amount per dayKey. status: held|relisted|scrapped.
-model OfisLedger {
-  id         Int      @id @default(autoincrement())
-  kind       String // buy | release | scrap
-  amount     Int      @default(0) // tanga moved (negative = spent, positive = recovered)
-  carCode    String?
-  refCarId   Int? // GarajCar.id at time of action (audit reference; may be deleted)
-  dayKey     String // tashkent date — budget aggregation key
-  status     String   @default("held") // held | relisted | scrapped
-  createdAt  DateTime @default(now())
-
-  @@index([dayKey, kind])
-  @@index([refCarId])
 }
 
 // 💸 Bosqich 3 audit log for driver-self debt repayments through the bot. ONE row per attempt; the
@@ -1440,7 +1348,7 @@ model DriverSession {
 model SupportMsg {
   id         Int      @id @default(autoincrement())
   telegramId String
-  direction  String   // "in" | "out"
+  direction  String // "in" | "out"
   text       String
   read       Boolean  @default(false)
   createdAt  DateTime @default(now())
@@ -1514,21 +1422,21 @@ model BroadcastRecipient {
 // Static city catalog (seeded, not user-generated). lat/lng for display only.
 model IntercityCity {
   id         Int      @id @default(autoincrement())
-  name       String   // Uzbek, e.g. "Qarshi"
-  nameRu     String?  // Russian display
-  regionCode String   // "qashqadarya" | "tashkent" | ...
+  name       String // Uzbek, e.g. "Qarshi"
+  nameRu     String? // Russian display
+  regionCode String // "qashqadarya" | "tashkent" | ...
   lat        Float    @default(0)
   lng        Float    @default(0)
   active     Boolean  @default(true)
   createdAt  DateTime @default(now())
 
-  originRoutes      IntercityRoute[]   @relation("RouteOrigin")
-  destRoutes        IntercityRoute[]   @relation("RouteDest")
-  originTrips       IntercityTrip[]    @relation("TripOrigin")
-  destTrips         IntercityTrip[]    @relation("TripDest")
+  originRoutes      IntercityRoute[]     @relation("RouteOrigin")
+  destRoutes        IntercityRoute[]     @relation("RouteDest")
+  originTrips       IntercityTrip[]      @relation("TripOrigin")
+  destTrips         IntercityTrip[]      @relation("TripDest")
   stopEntries       IntercityRouteStop[]
-  boardingBookings  IntercityBooking[] @relation("BookingBoarding")
-  alightingBookings IntercityBooking[] @relation("BookingAlighting")
+  boardingBookings  IntercityBooking[]   @relation("BookingBoarding")
+  alightingBookings IntercityBooking[]   @relation("BookingAlighting")
 
   @@unique([name, regionCode])
   @@index([regionCode])
@@ -1538,18 +1446,18 @@ model IntercityCity {
 // A corridor between two cities. Stored normalized (originCityId < destCityId) so
 // A→B and B→A are ONE row; the actual direction lives on each IntercityTrip.
 model IntercityRoute {
-  id             Int      @id @default(autoincrement())
+  id             Int           @id @default(autoincrement())
   originCity     IntercityCity @relation("RouteOrigin", fields: [originCityId], references: [id])
   originCityId   Int
   destCity       IntercityCity @relation("RouteDest", fields: [destCityId], references: [id])
   destCityId     Int
-  defaultFareSom Int      @default(0) // per seat, owner-set
-  commissionSom  Int      @default(0) // platform cut per booking, owner-set (0 in pilot)
-  distanceKm     Int      @default(0) // informational
-  durationMin    Int      @default(0) // informational
-  active         Boolean  @default(true)
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
+  defaultFareSom Int           @default(0) // per seat, owner-set
+  commissionSom  Int           @default(0) // platform cut per booking, owner-set (0 in pilot)
+  distanceKm     Int           @default(0) // informational
+  durationMin    Int           @default(0) // informational
+  active         Boolean       @default(true)
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
 
   stops       IntercityRouteStop[]
   trips       IntercityTrip[]
@@ -1561,13 +1469,13 @@ model IntercityRoute {
 
 // Intermediate boarding/alighting points along a corridor (mid-route pickup).
 model IntercityRouteStop {
-  id                Int      @id @default(autoincrement())
+  id                Int            @id @default(autoincrement())
   route             IntercityRoute @relation(fields: [routeId], references: [id], onDelete: Cascade)
   routeId           Int
-  city              IntercityCity @relation(fields: [cityId], references: [id])
+  city              IntercityCity  @relation(fields: [cityId], references: [id])
   cityId            Int
-  stopOrder         Int      // 0 = origin … N = destination
-  fareFromOriginSom Int      @default(0)
+  stopOrder         Int // 0 = origin … N = destination
+  fareFromOriginSom Int            @default(0)
 
   @@unique([routeId, cityId])
   @@index([routeId, stopOrder])
@@ -1575,15 +1483,15 @@ model IntercityRouteStop {
 
 // A driver declares which corridors they serve (preference, NOT a trip).
 model IntercityDriverEnrollment {
-  id                     Int      @id @default(autoincrement())
-  driver                 Member   @relation(fields: [driverId], references: [id], onDelete: Cascade)
+  id                     Int            @id @default(autoincrement())
+  driver                 Member         @relation(fields: [driverId], references: [id], onDelete: Cascade)
   driverId               Int
   route                  IntercityRoute @relation(fields: [routeId], references: [id], onDelete: Cascade)
   routeId                Int
-  carCapacity            Int      @default(4)
-  preferredDepartureTime String?  // "08:00" Tashkent local, informational
-  active                 Boolean  @default(true)
-  createdAt              DateTime @default(now())
+  carCapacity            Int            @default(4)
+  preferredDepartureTime String? // "08:00" Tashkent local, informational
+  active                 Boolean        @default(true)
+  createdAt              DateTime       @default(now())
 
   @@unique([driverId, routeId])
   @@index([driverId])
@@ -1592,30 +1500,30 @@ model IntercityDriverEnrollment {
 
 // A single published trip for a specific date/time/direction.
 model IntercityTrip {
-  id            Int      @id @default(autoincrement())
-  driver        Member   @relation("IntercityDriver", fields: [driverId], references: [id], onDelete: Cascade)
+  id            Int            @id @default(autoincrement())
+  driver        Member         @relation("IntercityDriver", fields: [driverId], references: [id], onDelete: Cascade)
   driverId      Int
   route         IntercityRoute @relation(fields: [routeId], references: [id])
   routeId       Int
   // actual direction for THIS trip (route is normalized; trip is directional)
-  originCity    IntercityCity @relation("TripOrigin", fields: [originCityId], references: [id])
+  originCity    IntercityCity  @relation("TripOrigin", fields: [originCityId], references: [id])
   originCityId  Int
-  destCity      IntercityCity @relation("TripDest", fields: [destCityId], references: [id])
+  destCity      IntercityCity  @relation("TripDest", fields: [destCityId], references: [id])
   destCityId    Int
   scheduledAt   DateTime // planned departure (UTC; Tashkent local +5)
-  carCapacity   Int      @default(4)
-  bookedSeats   Int      @default(0) // ATOMIC: only via updateMany WHERE-guard (anti-overbooking)
-  fareSom       Int      @default(0) // per seat, frozen at publish time
-  commissionSom Int      @default(0) // per booking, frozen at publish time
-  status        String   @default("OPEN") // OPEN|BOARDING|DEPARTED|COMPLETED|CANCELLED|EXPIRED
-  note          String?  // driver note, e.g. "Konditsioner bor"
-  waitNotified  Boolean  @default(false) // wait-list riders already pinged for this trip
+  carCapacity   Int            @default(4)
+  bookedSeats   Int            @default(0) // ATOMIC: only via updateMany WHERE-guard (anti-overbooking)
+  fareSom       Int            @default(0) // per seat, frozen at publish time
+  commissionSom Int            @default(0) // per booking, frozen at publish time
+  status        String         @default("OPEN") // OPEN|BOARDING|DEPARTED|COMPLETED|CANCELLED|EXPIRED
+  note          String? // driver note, e.g. "Konditsioner bor"
+  waitNotified  Boolean        @default(false) // wait-list riders already pinged for this trip
   departedAt    DateTime? // server-stamped on → DEPARTED
   completedAt   DateTime?
   cancelledAt   DateTime?
   cancelReason  String?
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
 
   bookings       IntercityBooking[]
   commissionDebt IntercityCommissionDebt?
@@ -1628,28 +1536,28 @@ model IntercityTrip {
 }
 
 model IntercityBooking {
-  id              Int      @id @default(autoincrement())
-  trip            IntercityTrip @relation(fields: [tripId], references: [id], onDelete: Cascade)
+  id              Int            @id @default(autoincrement())
+  trip            IntercityTrip  @relation(fields: [tripId], references: [id], onDelete: Cascade)
   tripId          Int
-  rider           Member   @relation(fields: [riderId], references: [id], onDelete: Cascade)
+  rider           Member         @relation(fields: [riderId], references: [id], onDelete: Cascade)
   riderId         Int
-  seatsBooked     Int      @default(1)
-  paymentMethod   String   @default("CASH") // CASH | PREPAY
-  status          String   @default("CONFIRMED")
+  seatsBooked     Int            @default(1)
+  paymentMethod   String         @default("CASH") // CASH | PREPAY
+  status          String         @default("CONFIRMED")
   // CONFIRMED|PREPAY_PENDING|RIDER_CANCELLED|RIDER_CANCELLED_LATE|CANCELLED_BY_DRIVER|CANCELLED_NO_PAYMENT|COMPLETED|REFUND_PENDING|REFUNDED
-  agreedFareSom   Int      @default(0) // total fare at booking time (immutable)
-  tangaDiscount   Int      @default(0) // tanga spent as discount (≤5000)
-  prepaidSom      Int      @default(0) // 0 for CASH; set on owner prepay-confirm
-  commissionSom   Int      @default(0) // frozen from trip at booking time
+  agreedFareSom   Int            @default(0) // total fare at booking time (immutable)
+  tangaDiscount   Int            @default(0) // tanga spent as discount (≤5000)
+  prepaidSom      Int            @default(0) // 0 for CASH; set on owner prepay-confirm
+  commissionSom   Int            @default(0) // frozen from trip at booking time
   boardingCity    IntercityCity? @relation("BookingBoarding", fields: [boardingCityId], references: [id])
-  boardingCityId  Int?     // null = trip origin
+  boardingCityId  Int? // null = trip origin
   alightingCity   IntercityCity? @relation("BookingAlighting", fields: [alightingCityId], references: [id])
-  alightingCityId Int?     // null = trip destination
-  idempotencyKey  String   @unique // "ibooking:<riderId>:<tripId>"
+  alightingCityId Int? // null = trip destination
+  idempotencyKey  String         @unique // "ibooking:<riderId>:<tripId>"
   confirmedAt     DateTime?
   cancelledAt     DateTime?
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
 
   refund IntercityRefund?
 
@@ -1661,15 +1569,15 @@ model IntercityBooking {
 
 // Owner-approved refunds for prepaid bookings (mirrors CashoutRequest flow).
 model IntercityRefund {
-  id             Int      @id @default(autoincrement())
+  id             Int              @id @default(autoincrement())
   booking        IntercityBooking @relation(fields: [bookingId], references: [id], onDelete: Cascade)
-  bookingId      Int      @unique
+  bookingId      Int              @unique
   refundSom      Int
-  reason         String   // driver_cancel | rider_cancel_full | rider_cancel_partial | auto_expire
-  status         String   @default("PENDING") // PENDING | SETTLED | WAIVED
-  idempotencyKey String   @unique // "irefund_settle:<id>"
+  reason         String // driver_cancel | rider_cancel_full | rider_cancel_partial | auto_expire
+  status         String           @default("PENDING") // PENDING | SETTLED | WAIVED
+  idempotencyKey String           @unique // "irefund_settle:<id>"
   settledAt      DateTime?
-  createdAt      DateTime @default(now())
+  createdAt      DateTime         @default(now())
 
   @@index([status, createdAt])
 }
@@ -1677,15 +1585,15 @@ model IntercityRefund {
 // Commission owed by a driver, recognized at trip COMPLETED. Separate ledger from
 // the kas-company debt that /qarz writes — these two are NEVER conflated.
 model IntercityCommissionDebt {
-  id            Int      @id @default(autoincrement())
-  driver        Member   @relation(fields: [driverId], references: [id], onDelete: Cascade)
+  id            Int           @id @default(autoincrement())
+  driver        Member        @relation(fields: [driverId], references: [id], onDelete: Cascade)
   driverId      Int
   trip          IntercityTrip @relation(fields: [tripId], references: [id], onDelete: Cascade)
-  tripId        Int      @unique // one debt per trip (idempotent)
+  tripId        Int           @unique // one debt per trip (idempotent)
   commissionSom Int
-  status        String   @default("PENDING") // PENDING | PAID | WAIVED
+  status        String        @default("PENDING") // PENDING | PAID | WAIVED
   paidAt        DateTime?
-  createdAt     DateTime @default(now())
+  createdAt     DateTime      @default(now())
 
   @@index([driverId, status])
   @@index([status, createdAt])
@@ -1694,28 +1602,28 @@ model IntercityCommissionDebt {
 // Driver penalty for last-minute cancel / no-show. Accumulates; blocks new trips
 // once pending total exceeds the cap.
 model IntercityDriverPenalty {
-  id         Int      @id @default(autoincrement())
-  driver     Member   @relation(fields: [driverId], references: [id], onDelete: Cascade)
+  id         Int            @id @default(autoincrement())
+  driver     Member         @relation(fields: [driverId], references: [id], onDelete: Cascade)
   driverId   Int
   trip       IntercityTrip? @relation(fields: [tripId], references: [id], onDelete: SetNull)
   tripId     Int?
   penaltySom Int
   reason     String
-  status     String   @default("PENDING") // PENDING | WAIVED | SETTLED
-  createdAt  DateTime @default(now())
+  status     String         @default("PENDING") // PENDING | WAIVED | SETTLED
+  createdAt  DateTime       @default(now())
 
   @@index([driverId, status])
 }
 
 // Rider wants a trip that doesn't exist yet (T6). Sweep matches new trips → push.
 model IntercityWaitEntry {
-  id          Int      @id @default(autoincrement())
-  rider       Member   @relation(fields: [riderId], references: [id], onDelete: Cascade)
+  id          Int       @id @default(autoincrement())
+  rider       Member    @relation(fields: [riderId], references: [id], onDelete: Cascade)
   riderId     Int
-  routeId     Int      // normalized route id
-  desiredDate String   // "YYYY-MM-DD"
+  routeId     Int // normalized route id
+  desiredDate String // "YYYY-MM-DD"
   notifiedAt  DateTime?
-  createdAt   DateTime @default(now())
+  createdAt   DateTime  @default(now())
 
   @@unique([riderId, routeId, desiredDate])
   @@index([routeId, desiredDate])
@@ -1724,10 +1632,10 @@ model IntercityWaitEntry {
 // Admin-configured peak hours: drivers earn bonusTanga per completed ride in this window.
 model PeakHour {
   id         Int      @id @default(autoincrement())
-  label      String   // e.g. "Ertalab pik"
-  startTime  String   // "HH:MM" in Tashkent time (UTC+5)
-  endTime    String   // "HH:MM"
-  bonusTanga Int      // tanga per ride during this window
+  label      String // e.g. "Ertalab pik"
+  startTime  String // "HH:MM" in Tashkent time (UTC+5)
+  endTime    String // "HH:MM"
+  bonusTanga Int // tanga per ride during this window
   active     Boolean  @default(true)
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
@@ -1781,25 +1689,25 @@ model ServiceCategory {
 }
 
 model ServiceListing {
-  id          Int             @id @default(autoincrement())
-  category    ServiceCategory @relation(fields: [categoryId], references: [id])
-  categoryId  Int
-  name        String
-  phone       String
-  phone2      String?
-  desc        String          @default("")
-  tags        String          @default("") // "sement, g'isht, qurilish" — search field
-  address     String?
-  geoLat      Float? // «Borish» tugmasi → tashqi navigator deep-link (app ichida xarita shart emas)
-  geoLng      Float?
-  instagram   String? // ijtimoiy tarmoq havolalari — profilda ikon-tugma, faqat displey
-  telegramUrl String?
-  facebook    String?
-  website     String?
-  workHours   String? // "08:00-19:00" → UI computes Ochiq/Yopiq live
-  status      String          @default("pending") // pending | active | rejected | archived
-  isVip       Boolean         @default(false)
-  verified    Boolean         @default(false) // blue badge — admin-granted only (identity/phone trust)
+  id           Int                @id @default(autoincrement())
+  category     ServiceCategory    @relation(fields: [categoryId], references: [id])
+  categoryId   Int
+  name         String
+  phone        String
+  phone2       String?
+  desc         String             @default("")
+  tags         String             @default("") // "sement, g'isht, qurilish" — search field
+  address      String?
+  geoLat       Float? // «Borish» tugmasi → tashqi navigator deep-link (app ichida xarita shart emas)
+  geoLng       Float?
+  instagram    String? // ijtimoiy tarmoq havolalari — profilda ikon-tugma, faqat displey
+  telegramUrl  String?
+  facebook     String?
+  website      String?
+  workHours    String? // "08:00-19:00" → UI computes Ochiq/Yopiq live
+  status       String             @default("pending") // pending | active | rejected | archived
+  isVip        Boolean            @default(false)
+  verified     Boolean            @default(false) // blue badge — admin-granted only (identity/phone trust)
   // 🏅 «1067 TEKSHIRUVI» — MIJOZ BAHOSIDAN BUTUNLAY ALOHIDA: 1067 jamoasi jismoniy borib
   // tekshirgan rasmiy audit (toza joymi, xizmat sifati, narx-mos). `verified` shunchaki
   // telefon/identity ishonchi; bu esa SIFAT auditi. avgRating/reviewCount'ga HECH tegmaydi,
@@ -1807,28 +1715,28 @@ model ServiceListing {
   // 100-ballik 5-mezonli standart (1067_TEKSHIRUVI_STANDARTLARI.pdf) — har biri 0-20 ball,
   // umumiy ball server-side hisoblanadi (shared/inspection.ts). 60dan past bo'lsa ommaviy
   // belgi UMUMAN chiqmaydi (kredibillikni himoya qiladi) — kod tomonda, saqlashda emas.
-  inspClean   Int? // 🧼 Tozalik va sanitariya (0-20)
-  inspProf    Int? // 👔 Professionalizm va muomala (0-20)
-  inspPrice   Int? // 💰 Narx-sifat muvofiqligi (0-20)
-  inspTrust   Int? // 📜 Ishonchlilik — manzil/telefon/litsenziya haqiqiyligi (0-20)
-  inspQuality Int? // ⭐ Xizmat/mahsulot sifati (0-20)
-  inspNote    String? // qisqa xulosa: "Toza, professional, narxlar mos"
-  inspAt      DateTime? // tekshirilgan sana — audit natijasi o'zgarganda serverda avto-yangilanadi
-  ownerTgId   BigInt? // who self-submitted (edit rights + spam cap)
-  viewCount   Int             @default(0)
-  callCount   Int             @default(0) // server-side only — "sizni N marta izlashdi" proof
-  favCount    Int             @default(0) // ❤️ Like (=ServiceFavorite toggle) — OMMAVIY hisoblagich,
-              // viral-ijtimoiy signal ("N kishi like bosgan, siz ham bosing") uchun. Bir xil
-              // mexanizm (saqlash=like), faqat endi hammaga ko'rinadigan son bilan.
-  phoneReports Int            @default(0) // "raqam ishlamadi" flags (1/user via AppState marker); ≥2 → admin recheck queue; reset on phone edit
-  avgRating   Float           @default(0) // cached aggregate, recomputed on each review write
-  reviewCount Int             @default(0) // cached aggregate
-  rankScore   Float           @default(0) // bayes ranking cache: (avg*n + 4.0*5)/(n+5)
-  createdAt   DateTime        @default(now())
-  updatedAt   DateTime        @updatedAt
-  photos      ServicePhoto[]
-  reviews     ServiceReview[]
-  prices      ServicePriceItem[]
+  inspClean    Int? // 🧼 Tozalik va sanitariya (0-20)
+  inspProf     Int? // 👔 Professionalizm va muomala (0-20)
+  inspPrice    Int? // 💰 Narx-sifat muvofiqligi (0-20)
+  inspTrust    Int? // 📜 Ishonchlilik — manzil/telefon/litsenziya haqiqiyligi (0-20)
+  inspQuality  Int? // ⭐ Xizmat/mahsulot sifati (0-20)
+  inspNote     String? // qisqa xulosa: "Toza, professional, narxlar mos"
+  inspAt       DateTime? // tekshirilgan sana — audit natijasi o'zgarganda serverda avto-yangilanadi
+  ownerTgId    BigInt? // who self-submitted (edit rights + spam cap)
+  viewCount    Int                @default(0)
+  callCount    Int                @default(0) // server-side only — "sizni N marta izlashdi" proof
+  favCount     Int                @default(0) // ❤️ Like (=ServiceFavorite toggle) — OMMAVIY hisoblagich,
+  // viral-ijtimoiy signal ("N kishi like bosgan, siz ham bosing") uchun. Bir xil
+  // mexanizm (saqlash=like), faqat endi hammaga ko'rinadigan son bilan.
+  phoneReports Int                @default(0) // "raqam ishlamadi" flags (1/user via AppState marker); ≥2 → admin recheck queue; reset on phone edit
+  avgRating    Float              @default(0) // cached aggregate, recomputed on each review write
+  reviewCount  Int                @default(0) // cached aggregate
+  rankScore    Float              @default(0) // bayes ranking cache: (avg*n + 4.0*5)/(n+5)
+  createdAt    DateTime           @default(now())
+  updatedAt    DateTime           @updatedAt
+  photos       ServicePhoto[]
+  reviews      ServiceReview[]
+  prices       ServicePriceItem[]
 
   @@index([categoryId, status, rankScore])
   @@index([status, isVip])
@@ -1909,25 +1817,25 @@ model ServiceReview {
 // (tanga, knob elonPostPrice) — CoinTxn idempotencyKey `elon_post_<adId>` bilan; rad etilsa
 // `elon_refund_<adId>` bilan bir marta avto-qaytariladi (E2).
 model ClassifiedAd {
-  id         Int       @id @default(autoincrement())
+  id         Int          @id @default(autoincrement())
   tgId       BigInt // egasi (edit/delete huquqi + spam-cap) — payment uchun memberId submit vaqtida getMemberId orqali resolve qilinadi
   authorName String
   category   String // oldi_sotdi | ish | yoqoldi | uyjoy | transport
   subtype    String // sotaman|olaman / beraman|izlayman / yoqoldi|topildi / ijara|sotuv / mashina|molhol
   title      String
-  desc       String    @default("")
+  desc       String       @default("")
   priceSom   Int? // null = "Kelishiladi"; yoqoldi'da doim null
   phone      String
-  status     String    @default("pending") // pending | active | sold | rejected | archived | expired
-  isTop      Boolean   @default(false) // tanga-boost, 24 soat (E4)
+  status     String       @default("pending") // pending | active | sold | rejected | archived | expired
+  isTop      Boolean      @default(false) // tanga-boost, 24 soat (E4)
   topUntil   DateTime?
-  paidCoins  Int       @default(0) // joylash uchun to'langan tanga (0 = bepul davr yoki yoqoldi)
-  viewCount  Int       @default(0) // cache — haqiqiy manba AdView
-  callCount  Int       @default(0) // cache — haqiqiy manba AdContact
-  reports    Int       @default(0) // 3 ta → auto-hide + moderatsiya navbati (E3)
+  paidCoins  Int          @default(0) // joylash uchun to'langan tanga (0 = bepul davr yoki yoqoldi)
+  viewCount  Int          @default(0) // cache — haqiqiy manba AdView
+  callCount  Int          @default(0) // cache — haqiqiy manba AdContact
+  reports    Int          @default(0) // 3 ta → auto-hide + moderatsiya navbati (E3)
   expiresAt  DateTime // createdAt + 30 kun
-  createdAt  DateTime  @default(now())
-  updatedAt  DateTime  @updatedAt
+  createdAt  DateTime     @default(now())
+  updatedAt  DateTime     @updatedAt
   photos     AdPhoto[]
   reactions  AdReaction[]
 
@@ -1956,13 +1864,13 @@ model AdReaction {
 
 // ServicePhoto pattern: Telegram file_id (durable, tekin) with data-URL fallback.
 model AdPhoto {
-  id        Int          @id @default(autoincrement())
-  ad        ClassifiedAd @relation(fields: [adId], references: [id], onDelete: Cascade)
-  adId      Int
-  fileId    String?
+  id          Int          @id @default(autoincrement())
+  ad          ClassifiedAd @relation(fields: [adId], references: [id], onDelete: Cascade)
+  adId        Int
+  fileId      String?
   thumbFileId String?
-  url       String?
-  sortOrder Int          @default(0)
+  url         String?
+  sortOrder   Int          @default(0)
 
   @@index([adId, sortOrder])
 }
