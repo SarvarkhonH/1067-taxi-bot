@@ -3938,3 +3938,50 @@ Ikonkalarni ko'rish: taklif-sahifasi yangilandi (artifact `965dc365`) — 35 tas
 
 **Holat:** `ready for verification` — ega telefonda ko'rib QABUL beradi.
 Keyingisi: 4-bosqich (mahsulot sahifasi: galereya, yopishqoq xarid paneli, skeletonlar).
+
+---
+
+## §66 — 🫧 DO'KON REDIZAYNI, 4-BOSQICH: MAHSULOT SAHIFASI · 2026-07-28
+
+### 1. Galereya chetdan-chetga
+Sheet'ning 16px yon padding'i manfiy margin bilan qoplandi — rasm telefon enini **to'liq**
+egallaydi (390px viewport'da o'lchandi: galereya eni 390, x=0). Nisbat `1/1.05` → `1/1`, burchak
+radiusi olib tashlandi.
+
+### 2. Xarid paneli endi yopishqoq
+Ilgari tugmalar oqim ichida edi: xususiyatlar + sharhlar + o'xshash mahsulotlar qo'shilgach ular
+ekrandan chiqib ketardi va sotib olish uchun qayta yuqoriga aylantirish kerak bo'lardi. Endi panel
+sheet'ning pastki qirrasiga yopishadi, shisha ostidan kontent sirg'aladi.
+**Tugmalarning o'zi va shartlari o'zgarmadi** (savat / tanga / naqd; tanga yetmasa faqat naqd) —
+faqat joyi. «Tanga yetmadi» ma'lumot bloki (progress + do'stlarga ulashish) **ataylab** oqimda
+qoldi: uzun, va har aylantirishda ko'rinishi shart emas.
+
+### 3. Bo'sh natija ham dizayn
+«topilmadi» → «"X" hozircha yo'q — qidiruvingiz do'konlarga yuborildi» + «Barcha mahsulotlar».
+Bu **rost**: `logMarketDemand` serverda yozadi va ega shundan qaysi sotuvchini chaqirishni ko'radi.
+Mockupdagi «🔔 Kelganda xabar bering» tugmasi **ataylab QO'YILMADI** — bunday bildirishnoma tizimi
+yo'q, yolg'on va'da esa ishonchni yo'q qiladi.
+
+### Skeletonlar
+Tekshirildi: sharhlar (`reviews === null` → 2 ta `Skeleton`) va bozor-bosh (`shop-market-skel`)
+allaqachon bor; mahsulot detali xotiradan ochiladi (kutish holati yo'q). Yangi skeleton kerak emas.
+
+**Isbot:** `pnpm -r typecheck` 4/4 **0 xato** · build o'tdi · `#shopdemo` 390×844: galereya eni
+390 x=0, panel `position: sticky` va **4 xil scroll holatida (0% / 30% / 70% / 100%) sheet pastki
+qirrasi bilan orasi 0px** — ya'ni har doim yopishgan; panelda 3 tugma to'g'ri matn bilan; konsolda
+0 xato · **jonli:** VPS `df534de`, `app.birjoy.online` → `index-DGR6W2So.js` →
+`shop-Bc53aPkf.css` (`shop-buybar` bor) + `shop-xzuRYEuz.js` (yangi bo'sh-holat matni bor),
+`/health` ok.
+
+**Holat:** `ready for verification` — ega telefonda ko'rib QABUL beradi.
+
+### Redizayn yakuni (1–4 bosqich)
+| Bosqich | Nima | Commit |
+|---|---|---|
+| 1 | Suyuq-shisha tili (token darajasida) | `af64ea2` |
+| 2 | Matn rasmdan tushdi + nom normalizatsiyasi + do'kon vitrinasi | `7a8335d` |
+| 3 | 35 kategoriya ikonkasi + kafel-karusel | `14c3e57`, `d6d9ef1` |
+| 4 | Mahsulot sahifasi: galereya + yopishqoq panel + bo'sh holat | `df534de` |
+
+**Qolgan ochiq ish:** do'kon logolari (sotuvchilardan) · 175 mahsulotni 30 yangi kategoriyaga
+taqsimlash (hozir hammasi eski 5 tasida) · bot tokenini `/revoke` qilish (§63).
