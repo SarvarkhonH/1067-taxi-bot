@@ -11,14 +11,13 @@ import { AccountCard, TierLadderCompact } from "./wallet";
 // ── tema: mantiq `theme.ts` da (App uni birinchi paintdan oldin chaqiradi; bu fayl esa lazy).
 //    Bu yerdan qayta eksport — eski importlar buzilmasin.
 export { applyTheme, initTheme, syncThemeFromCloud, saveTheme, THEME_KEY, THEMES } from "./theme";
+import { saveTheme } from "./theme";
 
 export function ThemePicker() {
   const [t, setT] = useState<string>(() => document.documentElement.getAttribute("data-theme") || "dark");
   const pick = (v: string) => {
     haptic();
-    applyTheme(v);
-    try { localStorage.setItem(THEME_KEY, v); } catch { /* ignore */ }
-    cloudSet(THEME_KEY, v); // ☁️ boshqa qurilmada ham shu mavzu ochiladi
+    saveTheme(v); // mahalliy + bulut + data-theme — uchalasi theme.ts da
     setT(v);
   };
   const opts: [string, string][] = [["dark", "Tungi"], ["light", "Kunduzgi"], ["vibrant", "Yorqin"]];

@@ -25,6 +25,21 @@ export default defineConfig({
       },
     },
   ],
+  // 📦 React o'z chunkida. U DEPLOYDAN DEPLOYGA o'zgarmaydi, ilova kodi esa kuniga bir necha marta
+  // o'zgaradi — bitta faylda bo'lsa mijoz har deployda IKKALASINI ham qayta yuklaydi. Ajratilgach
+  // React'ning fayl nomi (va `immutable` keshi) joyida qoladi: takroriy deployda faqat ~23 KB
+  // ilova kodi keladi, ~45 KB React emas. Birinchi yuklashda umumiy bayt o'zgarmaydi — yutuq
+  // TAKRORIY ochishda, va u shtamp-ni `<meta>`ga ko'chirish bilan bir maqsadga xizmat qiladi.
+  build: {
+    rollupOptions: {
+      output: {
+        manualChunks(id: string) {
+          if (/node_modules[\\/](react|react-dom|scheduler)[\\/]/.test(id)) return "react";
+          return undefined;
+        },
+      },
+    },
+  },
   resolve: {
     alias: {
       "@t1067/shared": fileURLToPath(new URL("../shared/src/index.ts", import.meta.url)),

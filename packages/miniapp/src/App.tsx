@@ -6,8 +6,8 @@ import type { LeaderboardResponse, MeResponse } from "@t1067/shared";
 import { api, getInitData, waitForInitData } from "./api";
 import { addToHomeScreen, askContact, cloudGet, cloudSet, haptic, hapticSuccess, homeScreenStatus, onHomeScreenAdded, tg } from "./telegram";
 import { useBackButton } from "./useBackButton";
-import { LeaderboardView, LoadError, MissionsView, ReferralView, RideHistoryView, Spinner } from "./components";
-import { AccountCard, TierLadder, TierLadderCompact, WalletView } from "./wallet"; // bosh tab — eager (birinchi paint)
+import { LoadError, Spinner } from "./components"; // faqat shular kritik yo'lda — qolgani lazy
+
 import { NewUyView } from "./uy"; // Uy tabi — yengil (leaflet-siz), eager
 // T2 (AUDIT 2.9): boshqa tablar lazy — har biri alohida chunk, asosiy bundle kichrayadi
 const RewardsView = lazy(() => import("./rewards").then((m) => ({ default: m.RewardsView })));
@@ -27,10 +27,23 @@ const RestoranView = lazy(() => import("./restoran").then((m) => ({ default: m.R
 // 🎀 Ravella — hamkor-brend bezak konstruktori. Tabbar'da YO'Q (ega qarori: "bosh ekranda kichik,
 // umuman boshqa xizmat turi") — faqat uy rail'i / banner / deep-link orqali ochiladi.
 const RavellaView = lazy(() => import("./ravella").then((m) => ({ default: m.RavellaView })));
+// 💼 Hamyon · 👤 Profil · 🏆 Reyting · 🎯 Vazifa · 👥 Taklif · 📜 Tarix — hech biri BIRINCHI
+// ekranda ko'rinmaydi, shuning uchun lazy. `wallet.tsx` (961 qator) shu tariqa kritik yo'ldan
+// butunlay chiqadi; ilgari uni uy ekrani o'lik import orqali tortib turgan edi.
+const WalletView = lazy(() => import("./wallet").then((m) => ({ default: m.WalletView })));
+const AccountCard = lazy(() => import("./wallet").then((m) => ({ default: m.AccountCard })));
+const TierLadder = lazy(() => import("./wallet").then((m) => ({ default: m.TierLadder })));
+const TierLadderCompact = lazy(() => import("./wallet").then((m) => ({ default: m.TierLadderCompact })));
+const NewProfileView = lazy(() => import("./profile").then((m) => ({ default: m.NewProfileView })));
+const ThemePicker = lazy(() => import("./profile").then((m) => ({ default: m.ThemePicker })));
+const LeaderboardView = lazy(() => import("./components").then((m) => ({ default: m.LeaderboardView })));
+const MissionsView = lazy(() => import("./components").then((m) => ({ default: m.MissionsView })));
+const ReferralView = lazy(() => import("./components").then((m) => ({ default: m.ReferralView })));
+const RideHistoryView = lazy(() => import("./components").then((m) => ({ default: m.RideHistoryView })));
 import { BirJoyMark } from "./design/birjoy";
 import { Icon } from "./icons";
 import { useCountUp } from "./util";
-import { NewProfileView, ThemePicker, initTheme, syncThemeFromCloud } from "./profile"; // 👤 newprofile + shared theme picker
+import { initTheme, syncThemeFromCloud } from "./theme"; // kichik modul — profile/wallet zanjirini tortmaydi
 
 initTheme(); // 🎨 apply saved / Telegram theme on <html> before first paint (features newhome/newprofile)
 
@@ -278,8 +291,8 @@ export function App() {
   if (linked === false) return <GuestApp flags={guestFlags} />;
   if (!me) return <BootSplash />;
   if (booking) return <Suspense fallback={<BootSplash />}><Booking3View me={me} onClose={() => setBooking(false)} /></Suspense>;
-  if (invite) return <div className="app"><main className="content"><ReferralView onClose={() => setInvite(false)} story={!!me.flags?.storyshare} /></main></div>;
-  if (history) return <div className="app"><main className="content"><RideHistoryView onClose={() => setHistory(false)} /></main></div>;
+  if (invite) return <div className="app"><main className="content"><Suspense fallback={<Spinner />}><ReferralView onClose={() => setInvite(false)} story={!!me.flags?.storyshare} /></Suspense></main></div>;
+  if (history) return <div className="app"><main className="content"><Suspense fallback={<Spinner />}><RideHistoryView onClose={() => setHistory(false)} /></Suspense></main></div>;
 
   const go = (t: Tab) => {
     if (t === "dokon" && !me.flags?.shop) t = "uy"; // 🛍 deep-link guard: shop dark → land home

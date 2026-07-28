@@ -6,7 +6,6 @@ import type { ClassifiedCard, HomeBanner, HomeFeedItem, MeResponse, SavedAddress
 import { INSP_TIER_EMOJI, INSP_TIER_LABEL } from "@t1067/shared";
 import { api, apiUrl } from "./api";
 import { haptic } from "./telegram";
-import { BugunStripView } from "./wallet";
 import { HomeGames } from "./homeGames";
 
 // ═══════════════════════════════════════════════════════════════════════════
