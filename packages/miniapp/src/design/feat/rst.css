@@ -40,6 +40,16 @@
 @keyframes rst-pulse { 0%, 100% { box-shadow: 0 0 0 0 rgba(23, 163, 74, .45); } 50% { box-shadow: 0 0 0 9px rgba(23, 163, 74, 0); } }
 @keyframes rst-shim { from { background-position: -380px 0; } to { background-position: 380px 0; } }
 
+/* ⚠️ Loyihada global `button { border: 0 }` reset YO'Q (styles.css'da faqat `* { box-sizing }`).
+   Ya'ni ramkasi aniq berilmagan har `<button>` brauzerning standart `outset` ramkasini oladi.
+   Qorong'i fonda u ko'rinmasdi — och fonda esa har tugma atrofida kulrang quti bo'lib chiqdi
+   (B0 QA skrinshotida «Orqaga», «+», stepper va savat paneli aynan shunday ko'rindi).
+   Shu sabab restoran bo'limidagi ramkasiz tugmalar uchun aniq reset. Xuddi shu sabab FON ham:
+   `<button>`ning UA standart foni `ButtonFace` (och kulrang) — «Orqaga» atrofida kulrang
+   plashka bo'lib qolgan edi. */
+.rst-back, .rst-item-add, .rst-item-stepper button, .rst-cart-bar, .rst-stars-input button { border: none; }
+.rst-back { background: none; }
+
 /* ── Katalog ────────────────────────────────────────────────────────────────────────────────── */
 .rst-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
 .rst-card { --acc: var(--rst-blue); padding: 0; overflow: hidden; text-align: left; display: flex; flex-direction: column;
@@ -151,11 +161,25 @@
 .app.restoran-light .order-status-pill.delivered { background: var(--rst-fill-green); color: var(--rst-green); }
 .app.restoran-light .order-status-pill.rejected { background: #fef3f2; color: #b42318; }
 
+/* Skelet — umumiy `.d-skel` QORONG'I temaga qurilgan (`--surface-2` + oq shimmer). Och fonda u
+   qop-qora plashka bo'lib chiqardi (B0 skrinshotida aynan shunday ko'rindi). README talabi:
+   "sekin tarmoqda karta shaklidagi skelet, bo'sh oq ekran bo'lmasin" — demak skelet KO'RINISHI,
+   lekin kontent rangida bo'lishi kerak. */
+.app.restoran-light .d-skel { background: #e9ecf1; border-radius: 12px; }
+.app.restoran-light .d-skel::after {
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, .85), transparent);
+}
+
 /* Bo'sh holat ikonkasi — endi emoji emas, SVG: o'lchamni komponent beradi, rang shu yerdan. */
 .app.restoran-light .d-empty-ico { color: var(--rst-muted-2); display: flex; justify-content: center; }
 
-/* Kartalar kirishi — ro'yxat chizilganda pastdan ko'tariladi (README: rise .32s). */
-.rst-card, .rst-item, .rst-order-card { animation: rst-rise .32s var(--ease-out, ease-out) backwards; }
+/* Kartalar kirishi — ro'yxat chizilganda pastdan ko'tariladi (README: rise .32s).
+   ⚠️ `backwards` ATAYLAB YO'Q. U bilan elementning DAM OLISH holati `opacity: 0` bo'lib qoladi va
+   animatsiya biror sababga ko'ra boshlanmasa (fonga tushgan/kadr bermayotgan WebView — Telegram'da
+   tez-tez uchraydi) menyu MANGU ko'rinmas qoladi. B0 QA'da aynan shu yuz berdi: taomlar DOM'da bor
+   edi, `opacity: 0` bilan. `backwards`siz dam olish holati — ko'rinadigan holat; animatsiya faqat
+   imkon bo'lsa o'ynaydi. Kechikish (delay) ishlatilmagani uchun `backwards` hech narsa bermasdi. */
+.rst-card, .rst-item, .rst-order-card { animation: rst-rise .32s var(--ease-out, ease-out); }
 
 @media (prefers-reduced-motion: reduce) {
   .rst-card, .rst-item, .rst-order-card, .rst-cart-badge { animation: none; }

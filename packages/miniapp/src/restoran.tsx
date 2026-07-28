@@ -48,7 +48,7 @@ function feeLine(r: { deliveryFeeSom: number; minOrderSom: number }, opts?: { lo
 function RestaurantCard({ r, top, onOpen }: { r: RestaurantView; top: boolean; onOpen: (r: RestaurantView) => void }) {
   const fee = feeLine(r);
   return (
-    <button className="rst-card glass" onClick={() => { haptic(); onOpen(r); }}>
+    <button className="rst-card" onClick={() => { haptic(); onOpen(r); }}>
       <div className="rst-card-photo-wrap">
         {r.hasPhoto ? (
           <img className="rst-card-photo" src={apiUrl(`/api/restoran/photo/${r.id}`)} loading="lazy" decoding="async" alt="" />
@@ -78,7 +78,7 @@ function CatalogSkeleton() {
   return (
     <div className="rst-grid">
       {[1, 2, 3, 4].map((i) => (
-        <div key={i} className="rst-card glass">
+        <div key={i} className="rst-card">
           <Skeleton h={110} />
           <div style={{ padding: "10px 12px" }}>
             <Skeleton h={14} w="70%" />

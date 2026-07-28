@@ -16,7 +16,9 @@ import { Icon } from "../icons";
 
 const REST: RestaurantView[] = [
   { id: 1, name: "Choyxona Bahor", category: "Milliy taomlar", address: "Ohangaron ko'chasi, 14", workHours: "09:00-22:00", deliveryFeeSom: 8000, minOrderSom: 30000, pickupEnabled: true, prepMinutes: 30, hasPhoto: false, avgRating: 4.8, reviewCount: 212, orderCount: 340 },
-  { id: 2, name: "Somsa Baraka", category: "Somsa · Non", address: "Bozor yoni", workHours: "08:00-20:00", deliveryFeeSom: 0, minOrderSom: 20000, pickupEnabled: true, prepMinutes: 20, hasPhoto: false, avgRating: 4.9, reviewCount: 318, orderCount: 512 },
+  // ⏰ Ataylab 24/7: QA istalgan vaqtda (tunda ham) OCHIQ holatni, [+] tugmasini va savat
+  // panelini sinay olishi kerak. Qolgan 5 tasi real ish-vaqti bilan — "Yopiq" holati ular bilan.
+  { id: 2, name: "Somsa Baraka", category: "Somsa · Non", address: "Bozor yoni", workHours: "00:00-23:59", deliveryFeeSom: 0, minOrderSom: 20000, pickupEnabled: true, prepMinutes: 20, hasPhoto: false, avgRating: 4.9, reviewCount: 318, orderCount: 512 },
   { id: 3, name: "Burger Time", category: "Fastfood", address: "Markaziy ko'cha", workHours: "10:00-23:00", deliveryFeeSom: 6000, minOrderSom: 25000, pickupEnabled: true, prepMinutes: 25, hasPhoto: false, avgRating: 4.6, reviewCount: 140, orderCount: 190 },
   { id: 4, name: "Kabob Zarafshon", category: "Kabob · Grill", address: null, workHours: "11:00-23:00", deliveryFeeSom: 8000, minOrderSom: 40000, pickupEnabled: true, prepMinutes: 35, hasPhoto: false, avgRating: 4.5, reviewCount: 96, orderCount: 88 },
   // Ataylab YOPIQ (ish vaqti tunda tugaydi) — "Yopiq" badge va bloklangan savat shu bilan sinaladi.

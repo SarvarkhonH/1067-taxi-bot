@@ -1183,8 +1183,12 @@ body {
 }
 .app.restoran-light .tab { color: var(--rst-muted-2); }
 .app.restoran-light .tab.active { color: var(--rst-blue); }
-/* Aktiv tab: dizaynda yorqinlik/glow yo'q — faqat rang farqi. */
+/* Aktiv tab: dizaynda yorqinlik/glow yo'q — faqat rang farqi. Ikkala qoida ham kerak:
+   styles.css:332 `.tab.active span` yorliqqa OLTIN drop-shadow + scale(1.18) beradi (ilovaning
+   amber brendidan), styles.css:470 esa ikonkaga. Faqat `svg`ni bosgan edim — skrinshotda ko'k
+   tabbar ostida sariq nur qolib ketgan edi. */
 .app.restoran-light .tab.active svg { filter: none; }
+.app.restoran-light .tab.active span { filter: none; transform: none; }
 .app.restoran-light .tab-ind { background: none; box-shadow: none; }
 .app.restoran-light .page { animation-duration: 180ms; }
 .app.restoran-light .muted { color: var(--rst-muted); }
