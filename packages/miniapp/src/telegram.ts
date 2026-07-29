@@ -268,6 +268,16 @@ export function initTelegram(): void {
   if (!tg) return;
   tg.ready();
   tg.expand();
+  // 📱 FULLSCREEN (ega, 2026-07-29: "botni ichida fullscreen versiyasi emas eski versiyasi
+  // chiqadi... bir necha marta kirib-chiqqandan keyin to'g'ri ishlaydi, keyin yana eski
+  // versiyaga o'tadi"). Kod fullscreen HOLATINI kuzatishga tayyor edi (isFullscreen,
+  // .is-fullscreen CSS klassi, fullscreenChanged listener) - lekin uni SO'RASH unutilgan
+  // ekan. expand() faqat balandlikni to'ldiradi, Telegram'ning o'z /'/^/... panelini olib
+  // tashlamaydi; shuning uchun rejim Telegram'ning har safar o'zgaruvchan ichki qaroriga
+  // qolib ketgan - ba'zan fullscreen (yangi ko'rinish), ba'zan oddiy kengaytirilgan rejim
+  // ("eski versiya" taassuroti). Eski Bot API'li klientlarda requestFullscreen yo'q -
+  // optional chaining bilan xavfsiz.
+  tg.requestFullscreen?.();
   // Stop Telegram's vertical swipe-to-close/minimize from hijacking in-app scrolling — without this,
   // scrolling a long sheet (ORZU, Detallar, bozor) drags the whole Mini App closed ("pasga-tepaga ochib yopib").
   tg.disableVerticalSwipes?.();
