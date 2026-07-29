@@ -267,6 +267,16 @@ function pathAllowedForShopSeller(path: string): boolean {
   return path.startsWith("/api/admin/shop/") || path === "/api/admin/whoami" || path === "/api/admin/health";
 }
 
+// 🎧 Super Operator (chatops): same choke-point discipline as shopseller — a leaked operator
+// token must not reach financial/moderation/config endpoints. Scoped to the chat-escalation +
+// call-center + ops-dashboard surface only (/api/admin/chat/*, /api/admin/opr/*) + the shell
+// bootstrap routes. Money-adjacent actions inside /api/admin/opr/* (coins/ban/cancel) are the
+// SAME functions the owner's full dashboard already calls — scoping here is about which ROUTES
+// an operator token can reach at all, not a second permission system.
+function pathAllowedForChatOps(path: string): boolean {
+  return path.startsWith("/api/admin/chat/") || path.startsWith("/api/admin/opr/") || path === "/api/admin/whoami" || path === "/api/admin/health";
+}
+
 function requireAdmin(req: Request, res: Response, next: NextFunction): void {
   // desktop dashboard (no Telegram): a strong shared token grants admin access
   const token = req.header("X-Admin-Token");
@@ -286,14 +296,23 @@ function requireAdmin(req: Request, res: Response, next: NextFunction): void {
         // — multi-vendor'da har seller FAQAT o'z do'konining satrlariga scoped.
         const raw = row.value || "operator";
         const sellerMatch = /^shopseller(?::(\d+))?$/.exec(raw);
-        const role = sellerMatch ? "shopseller" : raw;
+        // 🎧 Super Operator: token value "chatops:<Name>" — a named human, not just "operator".
+        // res.locals.operatorName drives BOTH the audit-log actorRole and the admin-UI shell
+        // switch (a chatops role gets the minimal 4-tab console, never the owner's full dashboard).
+        const chatopsMatch = /^chatops:(.+)$/.exec(raw);
+        const role = sellerMatch ? "shopseller" : chatopsMatch ? "chatops" : raw;
         if (role === "shopseller" && !pathAllowedForShopSeller(req.path)) {
           res.status(403).json({ error: "shop_only" });
+          return;
+        }
+        if (role === "chatops" && !pathAllowedForChatOps(req.path)) {
+          res.status(403).json({ error: "chatops_only" });
           return;
         }
         res.locals.telegramId = "panel-operator";
         res.locals.adminRole = role;
         if (sellerMatch) res.locals.sellerShopId = Number(sellerMatch[1] ?? 1); // legacy bare token = «BirJoy o'z do'koni»
+        if (chatopsMatch) res.locals.operatorName = chatopsMatch[1];
         next();
       })
       .catch(() => res.status(403).json({ error: "forbidden" }));
@@ -306,6 +325,7 @@ function requireAdmin(req: Request, res: Response, next: NextFunction): void {
   }
   res.locals.telegramId = id;
   res.locals.adminRole = "owner";
+  res.locals.operatorName = "Sarvarxon"; // owner's own actions in the operator console are still attributable
   next();
 }
 
@@ -2566,14 +2586,26 @@ body{font-family:Arial,sans-serif;background:#eee;-webkit-print-color-adjust:exa
       res.json({ ok: true, token, role: "shopseller" });
       return;
     }
+    // 🎧 Super Operator: role "chatops" + a name mints "chatops:<Name>" — requireAdmin's own
+    // regex (server.ts, near requireAdmin) parses this back into adminRole="chatops" +
+    // res.locals.operatorName, which is what drives the minimal 4-tab shell (see App.tsx).
+    if (req.body?.role === "chatops") {
+      const name = String(req.body?.name ?? "").trim().slice(0, 40);
+      if (!name) { res.status(400).json({ ok: false, error: "name_required" }); return; }
+      const token = Array.from({ length: 24 }, () => "abcdefghjkmnpqrstuvwxyz23456789"[Math.floor(Math.random() * 31)]).join("");
+      await prisma.appState.create({ data: { key: `oprtoken:${token}`, value: `chatops:${name}` } });
+      res.json({ ok: true, token, role: "chatops" });
+      return;
+    }
     const role = req.body?.role === "shopseller" ? "shopseller" : "operator";
     const token = Array.from({ length: 24 }, () => "abcdefghjkmnpqrstuvwxyz23456789"[Math.floor(Math.random() * 31)]).join("");
     await prisma.appState.create({ data: { key: `oprtoken:${token}`, value: role } });
     res.json({ ok: true, token, role });
   });
-  // frontend uses this to tailor the sidebar (e.g. shopseller sees ONLY Do'kon)
+  // frontend uses this to tailor the sidebar (e.g. shopseller sees ONLY Do'kon, chatops sees
+  // ONLY the Super Operator 4-tab console)
   app.get("/api/admin/whoami", requireAdmin, (_req, res) => {
-    res.json({ role: res.locals.adminRole as string });
+    res.json({ role: res.locals.adminRole as string, operatorName: res.locals.operatorName as string | undefined });
   });
   // V1.6e: shop-picker uchun qisqa ro'yxat (owner-only) — token-yaratish select'iga xizmat qiladi.
   app.get("/api/admin/market-shops", requireAdmin, requireOwner, async (_req, res) => {
@@ -3062,10 +3094,57 @@ body{font-family:Arial,sans-serif;background:#eee;-webkit-print-color-adjust:exa
     res.json(await sendChatReply(telegramId, text.trim(), opts.sendMessage));
   });
 
+  // 🎧 Super Operator: pause/resume the AI for one conversation (chat-attached entry point —
+  // the customer-triggered escalation, operatorPause.ts, already exists; this is the admin-
+  // panel-triggered mirror of it).
+  app.post("/api/admin/chat/pause", requireAdmin, rateLimit(30), async (req, res) => {
+    if (!(await featureOn("operatorAssist"))) { res.status(403).json({ ok: false, message: "O'chirilgan" }); return; }
+    const { telegramId, on } = req.body as { telegramId: string; on: boolean };
+    if (!telegramId) { res.status(400).json({ ok: false }); return; }
+    const { pauseAiForOperator, resumeAiForOperator } = await import("../services/ai/operatorPause");
+    if (on) await pauseAiForOperator(telegramId);
+    else await resumeAiForOperator(telegramId);
+    res.json({ ok: true });
+  });
+
   app.get("/api/admin/msg-history", requireAdmin, async (req, res) => {
     const limit = Math.min(500, Number(req.query.limit) || 200);
     const { getAdminMsgHistory } = await import("../services/adminOps");
     res.json(await getAdminMsgHistory(limit));
+  });
+
+  // ── 🎧 Super Operator console (/api/admin/opr/*) ────────────────────────────────────────
+  // Chat-attached (memberId resolved from an existing telegramId) AND call-center (memberId
+  // resolved/created from a bare phone number, no telegramId) both funnel through the same
+  // dispatchAction — see services/operatorConsole.ts for the "why" and the full action list.
+  app.post("/api/admin/opr/resolve-phone", requireAdmin, rateLimit(20), async (req, res) => {
+    if (!(await featureOn("operatorAssist"))) { res.status(403).json({ ok: false, message: "O'chirilgan" }); return; }
+    const { phone, fullName } = req.body as { phone: string; fullName?: string };
+    if (!phone || phone.replace(/\D/g, "").length < 9) { res.status(400).json({ ok: false, message: "Raqam noto'g'ri" }); return; }
+    const { createLocalMember } = await import("../services/memberService");
+    const m = await createLocalMember(phone, fullName || "Mijoz");
+    res.json({ ok: true, memberId: m.id, fullName: m.fullName });
+  });
+
+  app.post("/api/admin/opr/act", requireAdmin, rateLimit(60), async (req, res) => {
+    if (!(await featureOn("operatorAssist"))) { res.status(403).json({ ok: false, message: "O'chirilgan" }); return; }
+    const { memberId, telegramId, action, params } = req.body as { memberId: number; telegramId?: string | null; action: string; params?: object };
+    if (!memberId || !action) { res.status(400).json({ ok: false, message: "memberId/action kerak" }); return; }
+    const { dispatchAction } = await import("../services/operatorConsole");
+    const operatorName = String(res.locals.operatorName ?? res.locals.adminRole ?? "operator");
+    const result = await dispatchAction(Number(memberId), telegramId || null, action, params ?? {}, operatorName, opts.sendMessage);
+    res.json(result);
+  });
+
+  app.get("/api/admin/opr/dashboard", requireAdmin, async (_req, res) => {
+    if (!(await featureOn("operatorAssist"))) { res.status(403).json({ rows: [] }); return; }
+    const { getOpsDashboard } = await import("../services/operatorConsole");
+    res.json({ rows: await getOpsDashboard() });
+  });
+
+  app.get("/api/admin/opr/health", requireAdmin, async (_req, res) => {
+    const { getSystemHealth } = await import("../services/operatorConsole");
+    res.json(await getSystemHealth());
   });
 
   // ── Peak Hours ──────────────────────────────────────────────────────────────

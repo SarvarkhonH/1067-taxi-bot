@@ -310,6 +310,28 @@ export async function upsertKasMember(km: {
   return { id: m.id, type: m.type as MemberType, fullName: m.fullName };
 }
 
+// 🎧 Super Operator call-center: a phone-in caller who has NEVER used kas1067 (no taxi, no bot)
+// still needs an account so an operator can place a food/bazar order for them on the spot — food
+// and bazar orders are purely local to this app and must NOT touch kas1067 at all (kas is only the
+// taxi-dispatch system). Reuses the EXACT SAME synthetic-kasId convention linkByPhone's own
+// A1 self-register branch already uses (`tg_<id>`, see below) — just with a phone-keyed suffix
+// instead of a telegramId-keyed one, so upsertKasMember's existing "adopt a synthetic member by
+// phone" step (above, step 2) transparently upgrades this SAME row in place (no duplicate, tangas
+// kept) if this person later becomes a real kas client. No new adopt-logic needed.
+export async function createLocalMember(rawPhone: string, fullName: string): Promise<{ id: number; fullName: string }> {
+  const norm = normPhone(rawPhone);
+  const existing = await prisma.member.findMany({ where: { phone: { not: null } } });
+  const match = existing.find((m) => m.phone && normPhone(m.phone) === norm && m.type === "client");
+  if (match) return { id: match.id, fullName: match.fullName };
+  const kasId = `tg_call:${norm}`;
+  const created =
+    (await prisma.member
+      .create({ data: { type: "client", kasId, fullName: fullName.trim().slice(0, 80) || "Mijoz", phone: rawPhone, points: 0, trips: 0, rating: 0, active: true } })
+      .catch(() => null)) ?? (await prisma.member.findUnique({ where: { type_kasId: { type: "client", kasId } } }));
+  if (!created) throw new Error("createLocalMember: create failed and no existing row found");
+  return { id: created.id, fullName: created.fullName };
+}
+
 export async function linkByPhone(
   telegramId: string,
   rawPhone: string,

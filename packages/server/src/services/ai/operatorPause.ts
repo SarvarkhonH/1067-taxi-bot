@@ -22,3 +22,10 @@ export async function isAiPausedForOperator(telegramId: string): Promise<boolean
   if (!row) return false;
   return new Date(row.value).getTime() > Date.now();
 }
+
+// 🎧 Super Operator console: explicit "🤖 AI faol" resume button — the auto-expire above handles
+// the customer-escalation case fine, but an operator ending a chat-console session early needs
+// to hand the conversation straight back rather than wait out the remaining TTL.
+export async function resumeAiForOperator(telegramId: string): Promise<void> {
+  await prisma.appState.delete({ where: { key: `oprpause:${telegramId}` } }).catch(() => undefined);
+}
