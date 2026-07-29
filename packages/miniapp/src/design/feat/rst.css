@@ -47,23 +47,67 @@
    Shu sabab restoran bo'limidagi ramkasiz tugmalar uchun aniq reset. Xuddi shu sabab FON ham:
    `<button>`ning UA standart foni `ButtonFace` (och kulrang) — «Orqaga» atrofida kulrang
    plashka bo'lib qolgan edi. */
-.rst-back, .rst-item-add, .rst-item-stepper button, .rst-cart-bar, .rst-stars-input button { border: none; }
+.rst-back, .rst-addr, .rst-item-add, .rst-item-stepper button, .rst-cart-bar, .rst-stars-input button { border: none; }
 .rst-back { background: none; }
 
-/* ── Katalog ────────────────────────────────────────────────────────────────────────────────── */
-.rst-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
-.rst-card { --acc: var(--rst-blue); padding: 0; overflow: hidden; text-align: left; display: flex; flex-direction: column;
-  background: var(--rst-surface); border: 1px solid var(--rst-line); border-radius: 18px; box-shadow: var(--rst-shadow-card); }
-.rst-card:active { transform: scale(.96); }
-.rst-card-photo-wrap { position: relative; }
-.rst-card-photo { width: 100%; aspect-ratio: 4 / 3; object-fit: cover; display: block; background: var(--rst-fill); }
-.rst-card-noimg { display: flex; align-items: center; justify-content: center; color: var(--rst-muted-2); }
-.rst-card-body { padding: 9px 10px 10px; display: flex; flex-direction: column; gap: 5px; }
-.rst-card-name { font-size: 14.5px; font-weight: 800; color: var(--rst-ink); line-height: 1.25; letter-spacing: -.2px; }
-.rst-card-meta { display: flex; align-items: center; gap: 8px; min-width: 0; }
-.rst-rating { font-size: 12px; color: var(--rst-ink); font-weight: 800; white-space: nowrap; display: inline-flex; align-items: center; gap: 3px; }
+/* ── B1 · Katalog tepa bloki ────────────────────────────────────────────────────────────────
+   Dizaynda manzil/rejim/qidiruv/kategoriya BITTA oq maydonda; ekran foni faqat kartalardan
+   boshlanadi. `.view` ning yon padding'i (16px) shu blokda teskari-kompensatsiya qilinadi,
+   shunda oq maydon ekranning butun enini egallaydi. */
+.rst-catalog { padding-top: 0; }
+.rst-top { background: var(--rst-surface); margin: 0 -16px 12px; padding: 14px 16px 0; border-bottom: 1px solid var(--rst-line); }
+.rst-addr-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 12px; }
+.rst-addr { flex: 1; min-width: 0; text-align: left; background: none; border: none; padding: 0; }
+.rst-addr-label { display: block; font-size: 11px; font-weight: 700; color: var(--rst-green); letter-spacing: .6px; text-transform: uppercase; }
+.rst-addr-value { display: flex; align-items: center; gap: 6px; margin-top: 3px; font-size: 19px; font-weight: 800;
+  color: var(--rst-ink); letter-spacing: -.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rst-addr-value svg { flex: 0 0 auto; }
+.rst-orders-btn { flex: 0 0 auto; width: 38px; height: 38px; border-radius: 12px; border: none; background: var(--rst-fill);
+  color: var(--rst-ink); display: flex; align-items: center; justify-content: center; }
+.rst-orders-btn:active { transform: scale(.92); }
+
+/* Rejim segmenti — bo'laklar `flex: 1`, ya'ni 2 ta ham, keyinchalik 4 ta ham teng bo'linadi. */
+.rst-modes { display: flex; gap: 8px; background: var(--rst-fill); border-radius: 14px; padding: 4px; margin-bottom: 12px; }
+.rst-mode { flex: 1; padding: 9px 2px; border: none; border-radius: 11px; background: transparent; color: #7c8494;
+  font-size: 11.5px; font-weight: 700; transition: background .18s, color .18s, box-shadow .18s; }
+.rst-mode.on { background: var(--rst-surface); color: var(--rst-ink); box-shadow: 0 1px 3px rgba(14, 21, 36, .12); }
+
+.rst-list-head { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 10px; }
+.rst-list-head > span:first-child { font-size: 16px; font-weight: 800; color: var(--rst-ink); letter-spacing: -.2px; }
+.rst-list-count { font-size: 12px; font-weight: 600; color: var(--rst-muted); }
+
+/* ── B1 · Restoran kartasi (1 ustun, 126px foto) ─────────────────────────────────────────────
+   Ilgari 2 ustunli tor kartalar edi: ish vaqti va narx qatorlari ikki qatorga sinib, kartalar
+   turli balandlikda chiqardi. Dizaynda karta butun enni oladi — matn sinmaydi. */
+.rst-list { display: flex; flex-direction: column; gap: 14px; }
+.rst-card { padding: 0; overflow: hidden; text-align: left; display: block; width: 100%;
+  background: var(--rst-surface); border: none; border-radius: 18px; box-shadow: var(--rst-shadow-card); }
+.rst-card:active { transform: scale(.985); }
+.rst-card-photo-wrap { position: relative; height: 126px; }
+.rst-card-photo { width: 100%; height: 100%; object-fit: cover; display: block; background: var(--rst-fill); }
+/* Pastki qorayish — dizaynda 56px; fotoning pastki qismidagi matn/badge o'qilishi uchun. */
+.rst-card-photo-wrap::after { content: ""; position: absolute; left: 0; right: 0; bottom: 0; height: 56px;
+  background: linear-gradient(transparent, rgba(0, 0, 0, .42)); pointer-events: none; }
+.rst-card-noimg { display: flex; align-items: center; justify-content: center; color: rgba(255, 255, 255, .58);
+  background-size: cover; background-position: center; }
+.rst-card-badges { position: absolute; top: 9px; left: 9px; display: flex; gap: 6px; z-index: 1; }
+.rst-pb { font-size: 10.5px; font-weight: 800; padding: 4px 8px; border-radius: 8px; white-space: nowrap; }
+.rst-pb-state { background: var(--rst-closed-bg); color: #fff; }
+.rst-pb-state.open { background: var(--rst-open-bg); }
+.rst-pb-eta { background: rgba(255, 255, 255, .9); color: var(--rst-ink); }
+.rst-card-body { padding: 12px 14px 13px; }
+.rst-card-top { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.rst-card-name { font-size: 16px; font-weight: 800; color: var(--rst-ink); letter-spacing: -.2px; min-width: 0;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rst-rating { flex: 0 0 auto; font-size: 13px; font-weight: 800; color: var(--rst-ink); display: inline-flex; align-items: center; gap: 4px; }
 .rst-rating svg { color: var(--rst-green); }
-.rst-card-fee { font-size: 11.5px; font-weight: 600; color: var(--rst-muted); }
+.rst-rating-n { font-size: 11.5px; font-weight: 600; color: var(--rst-muted-2); font-style: normal; }
+.rst-card-cat { margin-top: 2px; font-size: 12.5px; font-weight: 600; color: var(--rst-muted); }
+.rst-card-badges-row { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+.rst-badge { font-size: 11.5px; font-weight: 700; padding: 5px 9px; border-radius: 8px; background: var(--rst-fill); color: var(--rst-ink-2); }
+.rst-badge.cash { background: var(--rst-fill-green); color: var(--rst-green); }
+.rst-skel-photo { border-radius: 0 !important; }
+
 .rst-back { align-self: flex-start; font-size: 14px; font-weight: 600; color: var(--rst-blue); padding: 6px 2px; margin-bottom: 4px;
   display: inline-flex; align-items: center; gap: 5px; }
 
@@ -114,10 +158,6 @@
 .rst-pickup-toggle button.on { background: var(--rst-surface); color: var(--rst-ink); box-shadow: 0 1px 3px rgba(14, 21, 36, .12); }
 
 /* ── Buyurtmalarim ──────────────────────────────────────────────────────────────────────────── */
-.rst-myorders-btn { display: flex; align-items: center; gap: 9px; width: 100%; text-align: left; padding: 12px 14px; border-radius: 14px;
-  background: var(--rst-surface); border: 1px solid var(--rst-line); color: var(--rst-ink); font-weight: 700; font-size: 13.5px;
-  margin-bottom: 12px; box-shadow: var(--rst-shadow-card); }
-.rst-myorders-btn:active { transform: scale(.98); }
 .rst-order-card { background: var(--rst-surface); border: 1px solid var(--rst-line); border-radius: 17px; padding: 13px 14px;
   margin-bottom: 10px; box-shadow: var(--rst-shadow-card); }
 .rst-order-top { display: flex; align-items: center; justify-content: space-between; gap: 8px; font-size: 15.5px; font-weight: 800; color: var(--rst-ink); margin-bottom: 4px; }
@@ -130,18 +170,18 @@
 .rst-order-reorder { background: var(--rst-fill-blue); color: var(--rst-blue); border: none; }
 .rst-order-reorder:active { transform: scale(.97); }
 
-/* ── Badge / chiplar / qidiruv ──────────────────────────────────────────────────────────────── */
-.rst-badge-top { position: absolute; top: 8px; left: 8px; background: var(--rst-open-bg); color: #fff;
-  font-size: 10.5px; font-weight: 800; padding: 3px 7px; border-radius: 7px; }
-.rst-toolbar { display: flex; gap: 8px; margin-bottom: 8px; align-items: center; }
+/* ── Qidiruv / kategoriya chiplari ──────────────────────────────────────────────────────────── */
 /* Qidiruv: lupa maydon ICHIDA (dizayn) — ilgari placeholder'da 🔍 emoji turardi. */
-.rst-search { flex: 1; display: flex; align-items: center; gap: 9px; padding: 0 13px;
+.rst-search { display: flex; align-items: center; gap: 9px; padding: 0 13px; margin-bottom: 14px;
   background: var(--rst-bg-grad); border: 1px solid var(--rst-line); border-radius: 13px; color: var(--rst-muted); }
-.rst-search .bk-input { flex: 1; margin: 0; padding: 11px 0; border: none; background: transparent;
+.rst-search .bk-input { flex: 1; min-width: 0; margin: 0; padding: 11px 0; border: none; background: transparent;
   font-size: 13.5px; font-weight: 500; }
 /* Ichkarida ramka bor — inputning o'z ramkasi ikki marta chiziq berardi. */
 .app.restoran-light .rst-search .bk-input { border: none; background: transparent; }
-.rst-cat-row { display: flex; gap: 8px; overflow-x: auto; scrollbar-width: none; margin-bottom: 10px; padding-bottom: 2px; }
+/* Chiplar oq maydonning chetigacha suriladi (dizayn: gorizontal scroll) — shuning uchun yon
+   padding teskari-kompensatsiya qilinadi, aks holda oxirgi chip 16px erta «tugab» qolardi. */
+.rst-cat-row { display: flex; gap: 8px; overflow-x: auto; scrollbar-width: none;
+  margin: 0 -16px; padding: 0 16px 13px; }
 .rst-cat-row::-webkit-scrollbar { display: none; }
 .rst-chip { flex: 0 0 auto; white-space: nowrap; padding: 8px 14px; border-radius: 999px; font-size: 12.5px; font-weight: 700;
   background: var(--rst-surface); border: 1px solid var(--rst-line); color: var(--rst-ink-2); transition: background .18s, color .18s; }
@@ -169,6 +209,24 @@
 .app.restoran-light .d-skel::after {
   background: linear-gradient(90deg, transparent, rgba(255, 255, 255, .85), transparent);
 }
+
+/* ── Umumiy komponentlarni restoran dunyosiga keltirish ─────────────────────────────────────
+   `Button variant="brand"` global OLTIN brend rangini beradi (--brand: #ffb300) — ko'k/yashil
+   ekranda u yot sariq plashka bo'lib chiqdi (B1 QA: manzil varag'idagi «Saqlash»).
+   Dizaynda asosiy CTA — ko'k #1552B8, tasdiqlovchi (yuborish) — yashil #17A34A.
+   ⚠️ `!important` SHART va bu shu loyihaning o'rnashgan konvensiyasi: global qoida
+   `.btn-primary, .d-btn:not(.ghost):not(.danger)` (tokens.css:371) O'ZI `!important` bilan
+   yozilgan, ya'ni oddiy override — hatto yuqoriroq spetsifiklik bilan ham — yutiladi. Bozor
+   (`.app.bazar-light`) va Xizmatlar (`.app.xizmat-light`) aynan shunday qaytargan. */
+.app.restoran-light .d-btn:not(.ghost):not(.danger) {
+  background: var(--rst-blue) !important; color: #fff !important; box-shadow: var(--rst-shadow-cta) !important;
+}
+.app.restoran-light .d-btn.ghost { background: var(--rst-fill-blue); color: var(--rst-blue); border: none; box-shadow: none; }
+.app.restoran-light .d-btn.danger { background: #fef3f2; color: #b42318; box-shadow: none; }
+/* Fokus: brauzerning qora `outline: auto` halqasi o'rniga o'z ko'k ramkamiz (input allaqachon
+   1px ramkali — faqat rangi o'zgaradi, ya'ni maydon "sakramaydi"). */
+.app.restoran-light .bk-input:focus { outline: none; border-color: var(--rst-blue); }
+.app.restoran-light .rst-search:focus-within { border-color: var(--rst-blue); }
 
 /* Bo'sh holat ikonkasi — endi emoji emas, SVG: o'lchamni komponent beradi, rang shu yerdan. */
 .app.restoran-light .d-empty-ico { color: var(--rst-muted-2); display: flex; justify-content: center; }

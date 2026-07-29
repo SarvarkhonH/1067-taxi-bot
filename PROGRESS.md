@@ -65,8 +65,43 @@ Do'kon o'z yashil dizaynida, o'zgarmagan**.
 
 **B0 da hali BAJARILMAGAN:** ega telefonida REAL QABUL. Shusiz B0 «done» EMAS.
 
-**Keyingi:** B1 katalog (manzil bloki, rejim segmenti, 126px kartalar, ETA badge) — B0 QABUL'idan
-keyin.
+### 🍽 B1 — KATALOG `ready for verification`
+- **Manzil bloki** — yashil uppercase yorliq («KOSON · YETKAZIB BERISH»), 19px/800 manzil +
+  chevron, o'ngda 38×38 «Buyurtmalarim» tugmasi. Manzil bosilsa varaq ochiladi; qiymat checkout
+  bilan BIR XIL kalitda (`LAST_ADDR_KEY`) saqlanadi, ya'ni checkout'da avtomatik turadi.
+  Dizaynda manzil statik matn edi — tahrirlash oqimi chizilmagan, eng kam qadamli variant qo'shildi.
+- **Rejim segmenti** — Yetkazish / Olib ketish. Katalog darajasida yashaydi va restoran sahifasiga
+  uzatiladi (`initialPickup`), ya'ni checkout'da qayta tanlash shart emas. «Olib ketish»da
+  `pickupEnabled` bo'lmagan restoranlar ro'yxatdan chiqadi (6 ta → 5 ta, skrinshot bilan).
+- **Kartalar 2 ustundan 1 ustunga** — 126px foto, pastida 56px qorayish, ustida Ochiq/Yopiq + ETA
+  badge'lari; tanasida nom + ★reyting(sharh soni), kategoriya, 3 badge (yetkazish / min / Naqd).
+- **Fotosiz fon** — dizaynerning O'Z gradient palitrasi (`IMGS`), `id % 6` bo'yicha barqaror
+  tanlanadi (bitta restoran har doim bir xil fonda — tanilib qoladi).
+- **Ochiqlar birinchi saralanadi** — dizaynda yo'q, lekin aralash ro'yxatda mijoz yopiq restoranga
+  kirib boshi berk ko'chaga uriladi. Shu bilan «Ochiq hozir» filtr-chipi keraksiz bo'ldi va olib
+  tashlandi (dizaynda ham u yo'q edi).
+- **Kategoriya yorliqlari** — `CAT_LABEL` xaritasi: bazadagi kalit (`milliy`) → ko'rsatiladigan nom
+  («Milliy»). Kalit noma'lum bo'lsa xom qiymat chiqadi, ya'ni admin yangi kategoriya qo'shsa
+  hech narsa yo'qolmaydi.
+
+**B1 QA'da topilgan va tuzatilgan 2 nuqson:** (1) varaqdagi «Saqlash» tugmasi OLTIN chiqdi — global
+`.d-btn` qoidasi `!important` bilan yozilgan (tokens.css:371), shuning uchun Bozor/Xizmatlar
+konvensiyasi bo'yicha `!important` bilan qaytarildi; (2) input fokusida brauzerning qora halqasi —
+o'rniga ko'k ramka.
+
+**B1 isbotlari:** `pnpm -r typecheck` 4/4 toza · miniapp build yashil · CTA computed
+`rgb(21,82,184)`=#1552B8 · saralash: 08:46 da tartib «Somsa=Ochiq, Coffee=Ochiq, Choyxona=Yopiq,
+Burger=Yopiq, Kabob=Yopiq, Shirinlik=Yopiq» (dasturiy o'lchov) · skrinshotlar: katalog / olib
+ketish (5 ta) / manzil varag'i / yopiq karta.
+**Bajarilmagan:** ega telefonida QABUL.
+
+**Dizayndan olinmagani (B1):** «Bepul yetkazish» badge'i — jonli bazada barcha restoranda fee=0 va
+u yerda 0 «bepul» emas, «sozlanmagan» degani; admin panelda narx qo'yilgach badge o'zi paydo
+bo'ladi. Kartadagi kategoriya matni dizaynda boy («Somsa · Non»), bizda esa kalit-yorliq
+(«Milliy») — boy matn uchun schema'ga yangi maydon kerak.
+
+**Keyingi:** B2 — restoran sahifasi (168px hero, sticky bo'lim chiplari, 78px menyu kartalari,
+taom modali).
 
 ### 🎀 RAVELLA — bezak konstruktori (hamkor-brend) — `in progress (gaps: rasm/seed, DB push, e'lon, QABUL)`
 **Ega so'radi (2026-07-27):** «Bosh ekranda kichik, umuman boshqa xizmat turi. Admin paneldan men

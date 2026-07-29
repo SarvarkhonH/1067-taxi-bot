@@ -15,6 +15,27 @@ import "./design/feat/rst.css"; // bu tab ochilgandagina yuklanadi (kritik yo'ld
 
 const LAST_ADDR_KEY = "restoran_last_addr";
 
+/** Rejimlar. Ega qarori (2026-07-29): V1'da FAQAT shu ikkisi ishlaydi. Dizayndagi «Stol bron» va
+ *  «Stolda QR» — yangi mahsulot (sana/odam soni/stol raqami/QR + operator oqimi + restoran bilan
+ *  kelishuv), shuning uchun ataylab QURILMADI. Segment ularni keyin sig'diradigan qilib yozilgan:
+ *  bu massivga element qo'shilsa, bo'laklar avtomatik teng bo'linadi. */
+const MODES = [
+  { key: "delivery", label: "Yetkazish" },
+  { key: "pickup", label: "Olib ketish" },
+] as const;
+
+/** Kategoriya kaliti → ko'rsatiladigan nom. Bazada `category` — qisqa kalit (schema default'lari:
+ *  milliy|fastfood|shirinlik|ichimlik|boshqa), dizaynda esa chiroyli yorliqlar. Kalit ro'yxatda
+ *  bo'lmasa xom qiymat ko'rsatiladi — ya'ni admin yangi kategoriya qo'shsa ham hech narsa
+ *  yo'qolmaydi, faqat tarjimasiz chiqadi. */
+const CAT_LABEL: Record<string, string> = {
+  milliy: "Milliy",
+  fastfood: "Fastfood",
+  shirinlik: "Shirinlik",
+  ichimlik: "Ichimlik",
+  boshqa: "Boshqa",
+};
+
 // Xizmatlar'dagi bilan bir xil "09:00-22:00" formatini o'qish — mustaqil nusxa (services.tsx'ga
 // bog'lanish restoran chunk'ini keraksiz og'irlashtirmasin).
 function openNow(wh?: string | null): boolean | null {
@@ -45,30 +66,65 @@ function feeLine(r: { deliveryFeeSom: number; minOrderSom: number }, opts?: { lo
   ].filter(Boolean).join(" · ");
 }
 
-function RestaurantCard({ r, top, onOpen }: { r: RestaurantView; top: boolean; onOpen: (r: RestaurantView) => void }) {
-  const fee = feeLine(r);
+// 🎨 Fotosiz restoran uchun fon. Ega qarori (2026-07-29): «kuchli fallback + parallel foto
+// yig'ish» — ya'ni fotosi yo'q restoran ham chiroyli ko'rinishi kerak, chunki jonli bazada
+// ko'pchilikda foto yo'q va dizayn 126px rasmga qurilgan. Gradientlar DIZAYNERNING o'ziniki
+// (`Restoran.dc.html` → `IMGS`), shuning uchun palitra begona emas. Tanlov `id` bo'yicha —
+// ya'ni bitta restoran har ochilganda BIR XIL fonni oladi (tasodifiy emas, tanilib qoladi).
+const PHOTO_FALLBACKS = [
+  "linear-gradient(150deg,#8a6a3f,#c9a063 55%,#6b4f2c)",
+  "linear-gradient(150deg,#a2632e,#e0a55c 55%,#7a4a1f)",
+  "linear-gradient(150deg,#7b3f34,#c96b4a 55%,#5c2d24)",
+  "linear-gradient(150deg,#5c4030,#9c6b45 55%,#3d2a1f)",
+  "linear-gradient(150deg,#8f5a72,#d9a3b6 55%,#6b4055)",
+  "linear-gradient(150deg,#3f5c56,#7ba39a 55%,#2b3f3b)",
+];
+const fallbackBg = (id: number) => PHOTO_FALLBACKS[id % PHOTO_FALLBACKS.length];
+
+/** Foto ustidagi badge qatori: Ochiq/Yopiq + taxminiy vaqt (README §1). */
+function PhotoBadges({ r }: { r: RestaurantView }) {
+  const o = openNow(r.workHours);
+  return (
+    <div className="rst-card-badges">
+      {o !== null && <span className={"rst-pb rst-pb-state" + (o ? " open" : "")}>{o ? "Ochiq" : "Yopiq"}</span>}
+      {r.prepMinutes > 0 && <span className="rst-pb rst-pb-eta">~{r.prepMinutes} daq</span>}
+    </div>
+  );
+}
+
+function RestaurantCard({ r, onOpen }: { r: RestaurantView; onOpen: (r: RestaurantView) => void }) {
   return (
     <button className="rst-card" onClick={() => { haptic(); onOpen(r); }}>
       <div className="rst-card-photo-wrap">
         {r.hasPhoto ? (
           <img className="rst-card-photo" src={apiUrl(`/api/restoran/photo/${r.id}`)} loading="lazy" decoding="async" alt="" />
         ) : (
-          <div className="rst-card-photo rst-card-noimg"><RstIcon name="plate" size={38} /></div>
+          <div className="rst-card-photo rst-card-noimg" style={{ backgroundImage: fallbackBg(r.id) }}>
+            <RstIcon name="plate" size={34} />
+          </div>
         )}
-        {top && <span className="rst-badge-top">TOP</span>}
+        <PhotoBadges r={r} />
       </div>
       <div className="rst-card-body">
-        <div className="rst-card-name">{r.name}</div>
-        <div className="rst-card-meta">
-          <OpenBadge wh={r.workHours} />
-          {r.avgRating > 0 && <span className="rst-rating"><RstIcon name="star" size={12} />{r.avgRating.toFixed(1)}</span>}
+        <div className="rst-card-top">
+          <div className="rst-card-name">{r.name}</div>
+          {r.avgRating > 0 && (
+            <span className="rst-rating">
+              <RstIcon name="star" size={12} />{r.avgRating.toFixed(1)}
+              {r.reviewCount > 0 && <i className="rst-rating-n">({r.reviewCount})</i>}
+            </span>
+          )}
         </div>
-        {/* 💸 Yetkazish qatori. Ilgari `fee === 0` da «Bepul yetkazish» yozilardi — lekin jonli
-            bazada 11 ta faol restoranning 11 tasida ham fee=0, ya'ni 0 «bepul» degani emas,
-            «hali sozlanmagan» degani edi: ilova bajarilishi kafolatlanmagan va'dani berardi.
-            Endi faqat HAQIQATDAN belgilangan raqamlar chiqadi; hech narsa yo'q bo'lsa qator
-            umuman chizilmaydi (bo'sh div har kartada oraliq qoldirardi). */}
-        {fee && <div className="rst-card-fee">{fee}</div>}
+        <div className="rst-card-cat">{CAT_LABEL[r.category] ?? r.category}</div>
+        <div className="rst-card-badges-row">
+          {/* 💸 «Bepul yetkazish» ATAYLAB chiqmaydi. Dizayn `fee === 0` da shuni yozishni so'raydi,
+              lekin jonli bazada faol restoranlarning HAMMASIDA fee=0 — u yerda 0 «bepul» degani
+              emas, «hali sozlanmagan» degani. Ilova bajarilishi kafolatlanmagan va'dani bermaydi.
+              Admin panelda haqiqiy narx qo'yilgach badge o'zi paydo bo'ladi. */}
+          {r.deliveryFeeSom > 0 && <span className="rst-badge">Yetkazish {formatNumber(r.deliveryFeeSom)} so'm</span>}
+          {r.minOrderSom > 0 && <span className="rst-badge">Min {formatNumber(r.minOrderSom)} so'm</span>}
+          <span className="rst-badge cash">Naqd</span>
+        </div>
       </div>
     </button>
   );
@@ -76,14 +132,14 @@ function RestaurantCard({ r, top, onOpen }: { r: RestaurantView; top: boolean; o
 
 function CatalogSkeleton() {
   return (
-    <div className="rst-grid">
-      {[1, 2, 3, 4].map((i) => (
+    <div className="rst-list">
+      {[1, 2, 3].map((i) => (
         <div key={i} className="rst-card">
-          <Skeleton h={110} />
-          <div style={{ padding: "10px 12px" }}>
-            <Skeleton h={14} w="70%" />
-            <div style={{ height: 6 }} />
-            <Skeleton h={11} w="45%" />
+          <Skeleton h={126} className="rst-skel-photo" />
+          <div className="rst-card-body">
+            <Skeleton h={16} w="62%" />
+            <Skeleton h={12} w="38%" />
+            <Skeleton h={22} w="80%" />
           </div>
         </div>
       ))}
@@ -225,11 +281,13 @@ function ReviewSection({ restaurantId, onBanner }: { restaurantId: number; onBan
   );
 }
 
-function RestaurantDetail({ id, me, initialCart, onBack, onBanner }: { id: number; me: MeResponse; initialCart?: Record<number, number> | null; onBack: () => void; onBanner?: (msg: string) => void }) {
+function RestaurantDetail({ id, me, initialCart, initialPickup, onBack, onBanner }: { id: number; me: MeResponse; initialCart?: Record<number, number> | null; initialPickup?: boolean; onBack: () => void; onBanner?: (msg: string) => void }) {
   const [data, setData] = useState<{ restaurant: RestaurantView | null; items: MenuItemView[] } | null>(null);
   const [cart, setCart] = useState<Record<number, number>>({});
   const [checkoutOpen, setCheckoutOpen] = useState(false);
-  const [isPickup, setIsPickup] = useState(false);
+  // Katalogdagi rejim shu yerga uzatiladi — mijoz «Olib ketish»ni tepada tanlagan bo'lsa,
+  // checkout'da uni QAYTA tanlashi kerak emas (dizayn: rejim butun oqimni belgilaydi).
+  const [isPickup, setIsPickup] = useState(!!initialPickup);
   // ‹ Buyurtma-tasdiq varag'i restoran-sahifasi USTIDA ochiladi → prioritet 2 (restoran = 1).
   useBackButton(checkoutOpen, () => setCheckoutOpen(false), 2);
   const [address, setAddress] = useState(() => { try { return localStorage.getItem(LAST_ADDR_KEY) ?? ""; } catch { return ""; } });
@@ -445,14 +503,21 @@ export function RestoranView({ me, onBanner, openRestaurantId }: { me: MeRespons
   const [ordersOpen, setOrdersOpen] = useState(false);
   const [reorderCart, setReorderCart] = useState<Record<number, number> | null>(null);
   const [q, setQ] = useState("");
-  const [openOnly, setOpenOnly] = useState(false);
   const [catFilter, setCatFilter] = useState<string>("all");
+  // 🚚 Rejim katalog darajasida yashaydi va restoran sahifasiga uzatiladi (dizayn: «tanlangan
+  // rejim checkout va timeline'ni butunlay belgilaydi»). Ega qarori: V1'da 2 ta — «Stol bron» va
+  // «Stolda QR» qurilmaydi, lekin segment ularni keyin sig'diradigan qilib yozilgan.
+  const [mode, setMode] = useState<"delivery" | "pickup">("delivery");
+  const [addr, setAddr] = useState(() => { try { return localStorage.getItem(LAST_ADDR_KEY) ?? ""; } catch { return ""; } });
+  const [addrOpen, setAddrOpen] = useState(false);
   const deepOpened = useRef(false);
 
   // ‹ ORQAGA: restoran ichidan / buyurtmalarim ekranidan apparat «orqaga» ilgari butun ilovani
   // yopardi. Prioritet 1 — qobiqning "tabdan Uy'ga" ishlov beruvchisidan ustun.
   useBackButton(openId !== null, () => setOpenId(null), 1);
   useBackButton(openId === null && ordersOpen, () => setOrdersOpen(false), 1);
+  // Manzil varag'i katalog USTIDA ochiladi → prioriteti kattaroq (katalog = 1).
+  useBackButton(openId === null && !ordersOpen && addrOpen, () => setAddrOpen(false), 2);
 
   useEffect(() => {
     api.restoranList().then((r) => setList(r.restaurants)).catch(() => setList([]));
@@ -466,14 +531,18 @@ export function RestoranView({ me, onBanner, openRestaurantId }: { me: MeRespons
   }, [openRestaurantId, list]);
 
   const cats = useMemo(() => Array.from(new Set((list ?? []).map((r) => r.category))), [list]);
-  const topIds = useMemo(() => {
-    const withOrders = (list ?? []).filter((r) => r.orderCount > 0);
-    return new Set([...withOrders].sort((a, b) => b.orderCount - a.orderCount).slice(0, 3).map((r) => r.id));
-  }, [list]);
-  const filtered = (list ?? [])
+  const filtered = useMemo(() => (list ?? [])
     .filter((r) => catFilter === "all" || r.category === catFilter)
-    .filter((r) => !openOnly || openNow(r.workHours) === true)
-    .filter((r) => { const t = q.trim().toLowerCase(); return !t || r.name.toLowerCase().includes(t); });
+    // 🚶 «Olib ketish» rejimida faqat shuni qo'llab-quvvatlaydigan restoranlar — aks holda mijoz
+    // ichkariga kirib, checkout'da «olib ketish yo'q» degan devorga urilardi.
+    .filter((r) => mode !== "pickup" || r.pickupEnabled)
+    .filter((r) => { const t = q.trim().toLowerCase(); return !t || r.name.toLowerCase().includes(t); })
+    // 🟢 OCHIQLAR BIRINCHI. Dizaynda saralash aytilmagan, lekin aralash ro'yxatda mijoz yopiq
+    // restoranga kirib boshi berk ko'chaga uriladi (ichkarida hech narsa qo'sha olmaydi).
+    // Ilgari buni «Ochiq hozir» filtr-chipi hal qilardi — u dizaynda yo'q va endi keraksiz:
+    // saralash o'sha foydani bosish talab qilmasdan beradi.
+    .sort((a, b) => Number(openNow(b.workHours) === true) - Number(openNow(a.workHours) === true)),
+    [list, catFilter, mode, q]);
 
   if (ordersOpen) {
     return (
@@ -494,6 +563,7 @@ export function RestoranView({ me, onBanner, openRestaurantId }: { me: MeRespons
         id={openId}
         me={me}
         initialCart={reorderCart}
+        initialPickup={mode === "pickup"}
         onBack={() => { setOpenId(null); setReorderCart(null); }}
         onBanner={onBanner}
       />
@@ -501,43 +571,87 @@ export function RestoranView({ me, onBanner, openRestaurantId }: { me: MeRespons
   }
 
   return (
-    <div className="view">
-      <button className="rst-myorders-btn" onClick={() => { haptic(); setOrdersOpen(true); }}>
-        <RstIcon name="orders" size={15} /> Mening buyurtmalarim
-      </button>
+    <div className="view rst-catalog">
+      {/* ── Tepa blok: manzil + rejim + qidiruv + kategoriyalar. Dizaynda bularning hammasi
+          BITTA oq maydonda turadi va ekran foni faqat kartalardan boshlanadi. ── */}
+      <div className="rst-top">
+        <div className="rst-addr-row">
+          <button className="rst-addr" onClick={() => { haptic(); setAddrOpen(true); }}>
+            <span className="rst-addr-label">Koson · {mode === "pickup" ? "olib ketish" : "yetkazib berish"}</span>
+            <span className="rst-addr-value">
+              {mode === "pickup" ? "Restorandan olasiz" : addr.trim() || "Manzilni kiriting"}
+              {mode !== "pickup" && <RstIcon name="chevron-down" size={10} />}
+            </span>
+          </button>
+          <button className="rst-orders-btn" onClick={() => { haptic(); setOrdersOpen(true); }} aria-label="Mening buyurtmalarim">
+            <RstIcon name="orders" size={17} />
+          </button>
+        </div>
+
+        <div className="rst-modes">
+          {MODES.map((m) => (
+            <button key={m.key} className={"rst-mode" + (mode === m.key ? " on" : "")} onClick={() => { haptic(); setMode(m.key); }}>
+              {m.label}
+            </button>
+          ))}
+        </div>
+
+        <div className="rst-search">
+          <RstIcon name="search" size={15} />
+          <input className="bk-input" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Osh, somsa, burger, tort…" />
+        </div>
+
+        {cats.length > 1 && (
+          <div className="rst-cat-row">
+            <button className={"rst-chip" + (catFilter === "all" ? " on" : "")} onClick={() => { haptic(); setCatFilter("all"); }}>Hammasi</button>
+            {cats.map((c) => (
+              <button key={c} className={"rst-chip" + (catFilter === c ? " on" : "")} onClick={() => { haptic(); setCatFilter(c); }}>
+                {CAT_LABEL[c] ?? c}
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+
       {list === null ? (
         <CatalogSkeleton />
       ) : list.length === 0 ? (
         <EmptyState icon={<RstIcon name="plate" size={34} />} text="Hozircha restoran yo'q — tez orada qo'shiladi" />
       ) : (
         <>
-          <div className="rst-toolbar">
-            {/* Qidiruv maydoni — dizayndagi lupa ikonkasi input ichida (rst-search wrapper). */}
-            <div className="rst-search">
-              <RstIcon name="search" size={15} />
-              <input className="bk-input" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Osh, somsa, burger, tort…" />
-            </div>
-            <button className={"rst-chip" + (openOnly ? " on" : "")} onClick={() => { haptic(); setOpenOnly((v) => !v); }}>Ochiq hozir</button>
+          <div className="rst-list-head">
+            <span>Kosondagi joylar</span>
+            <span className="rst-list-count">{filtered.length} ta</span>
           </div>
-          {cats.length > 1 && (
-            <div className="rst-cat-row">
-              <button className={"rst-chip" + (catFilter === "all" ? " on" : "")} onClick={() => setCatFilter("all")}>Barchasi</button>
-              {cats.map((c) => (
-                <button key={c} className={"rst-chip" + (catFilter === c ? " on" : "")} onClick={() => setCatFilter(c)}>{c}</button>
-              ))}
-            </div>
-          )}
           {filtered.length === 0 ? (
             <EmptyState icon={<RstIcon name="search" size={32} />} text="Mos restoran topilmadi" />
           ) : (
-            <div className="rst-grid">
+            <div className="rst-list">
               {filtered.map((r) => (
-                <RestaurantCard key={r.id} r={r} top={topIds.has(r.id)} onOpen={(x) => setOpenId(x.id)} />
+                <RestaurantCard key={r.id} r={r} onOpen={(x) => setOpenId(x.id)} />
               ))}
             </div>
           )}
         </>
       )}
+
+      {/* Manzil — dizaynda bosiladigan sarlavha, lekin tahrirlash oqimi chizilmagan. Eng kam
+          qadamli variant: bitta maydonli varaq. Qiymat checkout bilan BIR XIL kalitda saqlanadi
+          (LAST_ADDR_KEY), ya'ni bu yerda kiritilgan manzil checkout'da avtomatik turadi. */}
+      <Sheet open={addrOpen} onClose={() => setAddrOpen(false)}>
+        <h3>Yetkazish manzili</h3>
+        <input
+          className="bk-input mt8" autoFocus value={addr} maxLength={120}
+          onChange={(e) => setAddr(e.target.value)}
+          placeholder="Ko'cha, uy, mo'ljal — masalan: Ohangaron 14, ko'k darvoza"
+        />
+        <Button
+          variant="brand" disabled={addr.trim().length < 5}
+          onClick={() => { hapticSuccess(); try { localStorage.setItem(LAST_ADDR_KEY, addr.trim()); } catch { /* private mode */ } setAddrOpen(false); }}
+        >
+          Saqlash
+        </Button>
+      </Sheet>
     </div>
   );
 }
