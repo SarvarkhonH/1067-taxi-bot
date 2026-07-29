@@ -409,8 +409,16 @@ export async function touchTelegramUser(
     languageCode: profile.languageCode ?? null,
     isAdmin: isAdmin(telegramId),
   };
-  // any interaction proves they're reachable again → clear a stale "blocked" mark
+  // any interaction proves they're reachable again → clear a stale "blocked" mark.
+  // BLK-1: blokdan QAYTISH ham tarixga yoziladi — lekin faqat haqiqatan bloklangan bo'lsa
+  // (updateMany count = 1). Har oddiy harakatda satr yozilmaydi.
+  const unblocked = await prisma.telegramUser.updateMany({ where: { id: telegramId, blockedAt: { not: null } }, data: { blockedAt: null } }).catch(() => ({ count: 0 }));
   await prisma.telegramUser.upsert({ where: { id: telegramId }, create: { id: telegramId, ...base }, update: { ...base, blockedAt: null } });
+  if (unblocked.count === 1) {
+    const { recordReturn } = await import("./pushSend");
+    const row = await prisma.telegramUser.findUnique({ where: { id: telegramId }, select: { memberId: true } }).catch(() => null);
+    await recordReturn(telegramId, row?.memberId ?? null);
+  }
 }
 
 // ─── admin (scoped to a member type) ───────────────────────────────────────────

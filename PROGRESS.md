@@ -4777,3 +4777,50 @@ manbada `maxAgeSec = 604_800` tasdiqlandi · `/health` 200.
 
 **Commit:** `2fb94f4`. **Holat:** `ready for verification` — ega kamida 7 kun kutmasdan
 tekshiradi (avvalgi naqsh: kuniga bir marta buzilardi).
+
+---
+
+## §77 — 📵 BLK-1: «kunlik xabarlar odamni haydayaptimi?» — O'LCHOV YO'Q EDI · 2026-07-29
+
+**Ega savoli:** «har kuni bonus haqida xabar yuboryapsan, kechalari reyting e'lon qilasan — ko'rchi
+nechi kishi bloklagan ekan shular asosida».
+
+### O'lchov (jonli DB, 2026-07-29)
+| | |
+|---|---|
+| TelegramUser jami / `blockedAt` to'ldirilgan | 1 104 / **87 (7.9%)** |
+| Ulardan 07-12 18:00da aniqlangani | **86** (bitta broadcast, `Broadcast` id=1: 551 ta → 90 failed) |
+| Undan keyin aniqlangani | 1 ta (07-23) |
+| Kunlik push | ~780 kishi/kun · ~950–1 418 xabar/kun (`NotifyLog`) |
+| 30 kunlik eng katta push | `freespin_wait` 4 952 · `drv_workcall` 3 882 · `drv_eod` 2 378 |
+| Ilova ichida bildirishnomani o'chirganlar | 8 |
+
+**Ildiz sabab:** `blockedAt` ni butun kodbazada FAQAT `index.ts:130` (`sendTg` — admin/API yo'li)
+yozardi. Barcha proaktiv push'lar 403 ni `.catch(() => undefined)` bilan yutardi
+(`notifyService.ts:48` va boshq.). Ya'ni 87 raqami — 17 kun oldingi BITTA broadcast'ning izi,
+kunlik xabarlarning ta'siri EMAS. Savolga javob berish texnik jihatdan imkonsiz edi.
+
+### Nima qilindi (faqat O'LCHOV — birorta xabar matni/chastotasi o'zgarmadi)
+- Yangi `services/pushSend.ts` — bitta yuborish chokepoint'i: bloklaganga (force emas) API
+  chaqiruvi UMUMAN ketmaydi · 403 → `blockedAt` + `BlockEvent(kind, "block")` · 429/tarmoq
+  xatosi blok DEB YOZILMAYDI.
+- Yangi `BlockEvent` jadvali (blok/qaytish TARIXI + qaysi push turi). `blockedAt` tegilmadi.
+- 11 yuborish nuqtasi ulandi: notifyService(trySend) · tierLoyalty · linkReminder · needsEngine ·
+  reminder · classified(2) · bookingNotifier(4, `force`) · index.ts(mkt_expire `force`, mkt_life,
+  notifyUser=reward, sendTg=api_send). `notifyOnce` orqali driverEngage + campaign ham qamraldi.
+- `touchTelegramUser` — qaytish `BlockEvent(event="return")` bo'lib yoziladi (faqat haqiqatan
+  bloklangan bo'lsa; oddiy harakatda satr yozilmaydi).
+- Admin «Bloklaganlar» → «Qaysi xabardan keyin» ustuni + CSV (eski bloklarda «noma'lum» — hech
+  narsa to'qilmaydi).
+
+**QAMROVDAN TASHQARIDA (ongli):** `bot/*.ts` ichidagi foydalanuvchi harakatiga JAVOB xabarlari,
+sotuvchi/do'kon chat'lariga ketadigan bildirishnomalar (`bot/market.ts`, `ravella`, `restoran`,
+`shop` — nishon ko'pincha guruh chat, "blok" semantikasi boshqacha), kanal postlari, `scripts/*`.
+
+**Isbot:** A1 grep (qamrovdagi 8 faylda yutilgan `api.send` = 0) · A7 `pnpm -r typecheck` 4/4 ·
+A8 xabar-matni to'plami HEAD bilan bir xil (10 faylda 133 literal, 0 farq) · A9 VPS'da
+`migrate diff` o'qildi (faqat CREATE TABLE + 3 indeks) → `db push` → `\d "BlockEvent"` tasdiqlandi.
+A2–A6 `scripts/testBlockRecord.ts` bilan JONLI deploy'ga qarshi tekshiriladi.
+
+**Holat:** `in progress (gaps: A2–A6 jonli tekshiruv, A10 24-soatlik natija, R4 mustaqil tekshiruv,
+ega QABULi)`. **«Done» EMAS.**

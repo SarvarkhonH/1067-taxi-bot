@@ -38,6 +38,10 @@ export async function notifyOnce(bot: Bot, chatId: string, memberId: number, kin
 async function trySend(bot: Bot, chatId: string, memberId: number, kind: string, html: string): Promise<boolean> {
   const dk = dayKey();
   if (await isNotifyOff(memberId)) return false; // user opted out of smart push
+  // 📵 BLK-1: blokni CLAIM'dan oldin tekshiramiz — bloklagan odamga NotifyLog markeri ham
+  // yozilmaydi (aks holda "yuborildi" statistikasi hech qachon yetib bormagan xabar bilan bulg'anadi).
+  const { isBlocked, pushMessage } = await import("./pushSend");
+  if (await isBlocked(chatId)) return false;
   const sentToday = await prisma.notifyLog.count({ where: { memberId, dayKey: dk } });
   if (sentToday >= DAILY_PUSH_CAP) return false;
   try {
@@ -45,8 +49,7 @@ async function trySend(bot: Bot, chatId: string, memberId: number, kind: string,
   } catch {
     return false; // already sent this trigger today
   }
-  await bot.api.sendMessage(chatId, html, { parse_mode: "HTML" }).catch(() => undefined);
-  return true;
+  return (await pushMessage(bot, chatId, kind, html, { memberId })) === "sent";
 }
 
 /** Periodic tick (piggybacks the existing loop). Cheap checks, hard caps. */

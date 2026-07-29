@@ -690,19 +690,29 @@ export async function getAdminTransactions(kind: "all" | "transfer" | "tip" | "f
 }
 
 // ─── 📵 users who blocked the bot ────────────────────────────────────────────
-export async function getAdminBlocked(limit = 500): Promise<{ telegramId: string; name: string; phone: string | null; linked: boolean; at: string }[]> {
+export async function getAdminBlocked(limit = 500): Promise<{ telegramId: string; name: string; phone: string | null; linked: boolean; at: string; kind: string | null }[]> {
   const rows = await prisma.telegramUser.findMany({
     where: { blockedAt: { not: null } },
     orderBy: { blockedAt: "desc" },
     take: limit,
     select: { id: true, firstName: true, lastName: true, username: true, blockedAt: true, member: { select: { fullName: true, displayName: true, phone: true } } },
   });
+  // BLK-1: qaysi xabardan keyin bloklangani. 2026-07-12'gacha bo'lgan bloklarda yozuv YO'Q
+  // (o'sha paytda umuman qayd etilmagan) → `kind: null` ko'rsatiladi, hech narsa to'qilmaydi.
+  const events = await prisma.blockEvent.findMany({
+    where: { telegramId: { in: rows.map((r) => r.id) }, event: "block" },
+    orderBy: { at: "desc" },
+    select: { telegramId: true, kind: true },
+  });
+  const lastKind = new Map<string, string>();
+  for (const e of events) if (!lastKind.has(e.telegramId)) lastKind.set(e.telegramId, e.kind);
   return rows.map((t) => ({
     telegramId: t.id,
     name: t.member?.displayName || t.member?.fullName || [t.firstName, t.lastName].filter(Boolean).join(" ") || (t.username ? `@${t.username}` : t.id),
     phone: t.member?.phone ?? null,
     linked: !!t.member,
     at: (t.blockedAt ?? new Date()).toISOString(),
+    kind: lastKind.get(t.id) ?? null,
   }));
 }
 

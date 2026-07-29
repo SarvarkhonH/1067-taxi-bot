@@ -806,6 +806,24 @@ model TelegramUser {
   @@index([lastSeenAt])
 }
 
+// 📵 BLK-1 — blok-o'lchov. `TelegramUser.blockedAt` faqat OXIRGI holatni saqlaydi (qaytsa
+// tozalanadi), shuning uchun "qaysi xabardan keyin bloklashdi?" savoliga javob bermaydi.
+// Bu jadval — TARIX: har blok va har qaytish alohida satr. `kind` = o'sha paytda yuborilgan
+// push turi (freespin_wait / lucky_day / drv_eod / …) yoki qaytish uchun "return".
+// Faqat o'lchov — hech qanday biznes-qaror bu jadvalga bog'lanmagan.
+model BlockEvent {
+  id         Int      @id @default(autoincrement())
+  telegramId String
+  memberId   Int?
+  kind       String // push turi (403 qaytgan xabar) yoki "return"
+  event      String // "block" | "return"
+  at         DateTime @default(now())
+
+  @@index([at])
+  @@index([kind])
+  @@index([telegramId])
+}
+
 model MemberAchievement {
   id       Int      @id @default(autoincrement())
   member   Member   @relation(fields: [memberId], references: [id], onDelete: Cascade)

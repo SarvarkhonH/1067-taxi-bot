@@ -15,6 +15,10 @@ import { kasMapSocket } from "./kasMapSocket";
 import { kasClientSocket } from "./kasClientSocket";
 import { resolveDisplayName } from "./memberService";
 import { markRideActive } from "./tierLoyaltyService";
+// 📵 BLK-1: safar push'lari HAR DOIM `force` bilan ketadi — odam safar buyurtma qilgan, eski yoki
+// noto'g'ri blok bayrog'i tufayli "haydovchi yetib keldi" YO'QOLMASLIGI kerak. 403 esa baribir
+// yoziladi, shunda "safar xabaridan keyin bloklagan" holati ham ko'rinadi.
+import { pushMessage } from "./pushSend";
 
 const CITY_KMH = 24;
 // kas lifecycle: new → take → in_place → delivered. "in_place" is normalized to "started" in the
@@ -337,7 +341,7 @@ export async function pushBookingUpdates(
         }
         if (firstArrival) {
           const car = driver ? `\n🚘 ${esc(driver.carModel)} · <b>${esc(driver.carNumber)}</b>` : b.carNumber ? `\n🚘 <b>${esc(b.carNumber)}</b>` : "";
-          await bot.api.sendMessage(chatId, `🚕 <b>Haydovchingiz YETIB KELDI — chiqing!</b>${car}`, { parse_mode: "HTML" }).catch(() => undefined);
+          await pushMessage(bot, chatId, "ride_arrived", `🚕 <b>Haydovchingiz YETIB KELDI — chiqing!</b>${car}`, { memberId: m.id, force: true });
         }
       } else if (cardId && b.carNumber && b.carNumber !== m.lastBookingCar && b.status !== "new" && b.status !== "arrived" && b.status !== "started") {
         // 🚖 driver JUST assigned — a car appeared (or CHANGED) for THIS ride. Gate on the car
@@ -351,9 +355,7 @@ export async function pushBookingUpdates(
             : "";
         const name = driver?.fullName ? `\n👤 ${esc(driver.fullName)}${driver.rating ? ` ⭐${driver.rating.toFixed(1)}` : ""}` : "";
         const ph = driver?.phone ? `\n📞 ${esc(driver.phone)}` : "";
-        await bot.api
-          .sendMessage(chatId, `🚖 <b>Haydovchi topildi — yo'lda!</b>${eta}${name}\n🚘 ${esc(driver?.carModel ?? "Mashina")} · <b>${esc(b.carNumber)}</b>${ph}`, { parse_mode: "HTML" })
-          .catch(() => undefined);
+        await pushMessage(bot, chatId, "ride_assigned", `🚖 <b>Haydovchi topildi — yo'lda!</b>${eta}${name}\n🚘 ${esc(driver?.carModel ?? "Mashina")} · <b>${esc(b.carNumber)}</b>${ph}`, { memberId: m.id, force: true });
       }
 
       // 📡 register the assigned car with the kas map WebSocket → INSTANT "arrived" ping the moment
@@ -370,7 +372,7 @@ export async function pushBookingUpdates(
             } catch {
               return; // started-ping already fired for this ride
             }
-            await bot.api.sendMessage(chat2, `🚕 <b>Haydovchingiz YETIB KELDI — chiqing!</b>${carLine}`, { parse_mode: "HTML" }).catch(() => undefined);
+            await pushMessage(bot, chat2, "ride_arrived", `🚕 <b>Haydovchingiz YETIB KELDI — chiqing!</b>${carLine}`, { memberId: m.id, force: true });
           })();
         });
       }
@@ -640,7 +642,7 @@ export async function pushBookingUpdates(
                 if (!existing) {
                   await grantCoins(driver.id, pkBonus, "peak_bonus", `🔥 Pik vaqt bonus`, pkKey);
                   const dtg = await prisma.telegramUser.findFirst({ where: { memberId: driver.id } });
-                  if (dtg) await bot.api.sendMessage(dtg.id, `🔥 <b>Pik vaqt bonus!</b>\n💰 <b>+${pkBonus.toLocaleString("ru-RU")} tanga</b> — pik vaqtda buyurtma topshirdingiz!`, { parse_mode: "HTML" }).catch(() => undefined);
+                  if (dtg) await pushMessage(bot, dtg.id, "peak_bonus", `🔥 <b>Pik vaqt bonus!</b>\n💰 <b>+${pkBonus.toLocaleString("ru-RU")} tanga</b> — pik vaqtda buyurtma topshirdingiz!`, { memberId: driver.id, force: true });
                 }
               }
             } catch (e) {
@@ -850,7 +852,7 @@ export async function pushBookingUpdates(
   try {
     const { sweepIntercityTrips } = await import("./intercityService");
     await sweepIntercityTrips(async (chatId, html) => {
-      await bot.api.sendMessage(chatId, html, { parse_mode: "HTML" }).catch(() => undefined);
+      await pushMessage(bot, chatId, "intercity", html, { force: true }); // sotib olingan safar — force
     });
   } catch (e) {
     console.error("[intercity] sweep failed:", e);
