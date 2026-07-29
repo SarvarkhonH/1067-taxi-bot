@@ -19,7 +19,10 @@ const REST: RestaurantView[] = [
   // ⏰ Ataylab 24/7: QA istalgan vaqtda (tunda ham) OCHIQ holatni, [+] tugmasini va savat
   // panelini sinay olishi kerak. Qolgan 5 tasi real ish-vaqti bilan — "Yopiq" holati ular bilan.
   { id: 2, name: "Somsa Baraka", category: "milliy", address: "Bozor yoni", workHours: "00:00-23:59", deliveryFeeSom: 0, minOrderSom: 20000, pickupEnabled: true, prepMinutes: 20, hasPhoto: false, avgRating: 4.9, reviewCount: 318, orderCount: 512 },
-  { id: 3, name: "Burger Time", category: "fastfood", address: "Markaziy ko'cha", workHours: "10:00-23:00", deliveryFeeSom: 6000, minOrderSom: 25000, pickupEnabled: true, prepMinutes: 25, hasPhoto: false, avgRating: 4.6, reviewCount: 140, orderCount: 190 },
+  // ⚠️ hasPhoto: TRUE, lekin mock foto 404 qaytaradi — «foto bor deb belgilangan, lekin
+  // kelmadi» holati (fayl o'chgan / CDN uzilgan). Sinuq rasm belgisi EMAS, gradient-zaxira
+  // ko'rinishi kerak.
+  { id: 3, name: "Burger Time", category: "fastfood", address: "Markaziy ko'cha", workHours: "10:00-23:00", deliveryFeeSom: 6000, minOrderSom: 25000, pickupEnabled: true, prepMinutes: 25, hasPhoto: true, avgRating: 4.6, reviewCount: 140, orderCount: 190 },
   { id: 4, name: "Kabob Zarafshon", category: "milliy", address: null, workHours: "11:00-23:00", deliveryFeeSom: 8000, minOrderSom: 40000, pickupEnabled: true, prepMinutes: 35, hasPhoto: false, avgRating: 4.5, reviewCount: 96, orderCount: 88 },
   // Ataylab YOPIQ (ish vaqti tunda tugaydi) — "Yopiq" badge va bloklangan savat shu bilan sinaladi.
   { id: 5, name: "Shirinlik Nasiba", category: "shirinlik", address: null, workHours: "09:00-19:00", deliveryFeeSom: 6000, minOrderSom: 20000, pickupEnabled: false, prepMinutes: 25, hasPhoto: false, avgRating: 4.7, reviewCount: 77, orderCount: 41 },
@@ -87,6 +90,11 @@ function installRstMockFetch(): void {
     }
     // Fotolar — 404: fotosiz holat (jonli bazadagi haqiqat) ataylab sinaladi.
     if (path.startsWith("/api/restoran/photo") || path.startsWith("/api/restoran/menuphoto")) return new Response(null, { status: 404 });
+    // `?fail=1` — tarmoq xatosi holatini ko'rish uchun QA kaliti. Xato ekranlari ham bo'sh
+    // ekranlar kabi: deyarli hech qachon ko'rilmaydi, shuning uchun bir bosishda chaqiriladi.
+    if (new URLSearchParams(location.search).get("fail") === "1" && path.startsWith("/api/restoran/")) {
+      return Promise.reject(new Error("QA: tarmoq uzildi"));
+    }
     if (path === "/api/restoran/list") return json({ restaurants: REST });
     // `?empty=1` — bo'sh holatlarni ko'rish uchun QA kaliti (bo'sh buyurtmalar ro'yxati).
     // Bo'sh ekranlar eng kam ko'riladigan, eng ko'p unutiladigan holat.

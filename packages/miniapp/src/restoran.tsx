@@ -2,7 +2,7 @@
 // operator/admin (server-side) + qulayliklar (bekor qilish, qayta buyurtma, qidiruv/filtr, sharh,
 // mijozga push). V1 = CONCIERGE: narx REAL SO'M (D1), buyurtma operator orqali telefon bilan
 // tayyorlanadi (admin panel orqali boshqariladi) — bu ekran faqat mijoz-tomon.
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type SyntheticEvent } from "react";
 import type { FoodOrderView, MeResponse, MenuItemView, RestaurantView } from "@t1067/shared";
 import { formatNumber } from "@t1067/shared";
 import { api, apiUrl } from "./api";
@@ -83,7 +83,9 @@ const PHOTO_FALLBACKS = [
   "linear-gradient(150deg,#8f5a72,#d9a3b6 55%,#6b4055)",
   "linear-gradient(150deg,#3f5c56,#7ba39a 55%,#2b3f3b)",
 ];
-const fallbackBg = (id: number) => PHOTO_FALLBACKS[id % PHOTO_FALLBACKS.length];
+// `!` — modul bo'yicha qoldiq har doim massiv chegarasida, lekin `noUncheckedIndexedAccess`
+// buni bilmaydi va `string | undefined` qaytaradi.
+const fallbackBg = (id: number): string => PHOTO_FALLBACKS[Math.abs(id) % PHOTO_FALLBACKS.length]!;
 
 /** Foto ustidagi badge qatori: Ochiq/Yopiq + taxminiy vaqt (README §1). */
 function PhotoBadges({ r }: { r: RestaurantView }) {
@@ -101,7 +103,7 @@ function RestaurantCard({ r, onOpen }: { r: RestaurantView; onOpen: (r: Restaura
     <button className="rst-card" onClick={() => { haptic(); onOpen(r); }}>
       <div className="rst-card-photo-wrap">
         {r.hasPhoto ? (
-          <img className="rst-card-photo" src={apiUrl(`/api/restoran/photo/${r.id}`)} loading="lazy" decoding="async" alt="" />
+          <img className="rst-card-photo" src={apiUrl(`/api/restoran/photo/${r.id}`)} onError={photoFallback(r.id)} loading="lazy" decoding="async" alt="" />
         ) : (
           <div className="rst-card-photo rst-card-noimg" style={{ backgroundImage: fallbackBg(r.id) }}>
             <RstIcon name="plate" size={34} />
@@ -163,6 +165,35 @@ const STATUS_LABEL: Record<FoodOrderView["status"], { t: string; c: string }> = 
   cancelled_by_user: { t: "Bekor qilindi", c: "rejected" },
 };
 const TERMINAL_STATUSES = new Set<FoodOrderView["status"]>(["delivered", "rejected", "cancelled_by_user"]);
+
+/** 📡 Tarmoq xatosi — dizaynda umuman chizilmagan holat, lekin sekin/uzilgan internetda mijoz
+ *  AYNAN shuni ko'radi. Ilgari xato «bo'sh» bilan aralashtirilardi: `catch` ro'yxatni `[]` qilib
+ *  qo'yardi va ekranda «Hozircha restoran yo'q — tez orada qo'shiladi» chiqardi. Bu YOLG'ON —
+ *  restoranlar bor, internet yo'q edi. Endi sabab to'g'ri aytiladi va qayta urinish tugmasi bor. */
+function LoadError({ onRetry }: { onRetry: () => void }) {
+  return (
+    <div className="rst-card-plain rst-empty">
+      <div className="rst-empty-t">Yuklanmadi</div>
+      <div className="rst-empty-s">Internet aloqasini tekshiring va qayta urinib ko'ring.</div>
+      <button className="rst-retry" onClick={() => { haptic(); onRetry(); }}>Qayta urinish</button>
+    </div>
+  );
+}
+
+/** Fotosi bor deb belgilangan, lekin YUKLANMAGAN rasm (fayl o'chgan, CDN uzilgan) — sinuq rasm
+ *  belgisi o'rniga o'sha gradient-zaxira ko'rsatiladi. `hasPhoto: false` holati allaqachon
+ *  qoplangan edi; bu — «bor, lekin kelmadi» holati. */
+function photoFallback(id: number) {
+  return (e: SyntheticEvent<HTMLImageElement>) => {
+    const el = e.currentTarget;
+    if (el.dataset.fallback) return; // bir marta
+    el.dataset.fallback = "1";
+    el.removeAttribute("src");
+    el.style.backgroundImage = fallbackBg(id);
+    el.style.backgroundSize = "cover";
+    el.style.backgroundPosition = "center";
+  };
+}
 
 /** «Bugun · Yetkazish» meta-qatori (dizayn §7). Sana faqat kunlar farqidan hisoblanadi —
  *  soatlar ayirmasidan emas: kecha 23:50 va bugun 00:10 orasida 20 daqiqa bor, lekin bu
@@ -234,7 +265,7 @@ function MyOrdersView({ onBack, onReorder, onOpen }: { onBack: () => void; onReo
 
   return (
     <div className="view">
-      <button className="rst-back" onClick={onBack}><RstIcon name="chevron-left" size={13} />Orqaga</button>
+      <button className="rst-back" onClick={() => { haptic(); onBack(); }}><RstIcon name="chevron-left" size={13} />Orqaga</button>
       {orders === null ? (
         <><Skeleton h={96} /><div style={{ height: 12 }} /><Skeleton h={96} /></>
       ) : orders.length === 0 ? (
@@ -340,7 +371,7 @@ function OrderTrackView({ orderId, onBack, onBanner }: { orderId: number; onBack
   if (!order) {
     return (
       <div className="view rst-detail-view">
-        <button className="rst-back" onClick={onBack}><RstIcon name="chevron-left" size={13} />Orqaga</button>
+        <button className="rst-back" onClick={() => { haptic(); onBack(); }}><RstIcon name="chevron-left" size={13} />Orqaga</button>
         {missing
           ? <EmptyState icon={<RstIcon name="orders" size={34} />} text="Buyurtma topilmadi" action="Orqaga" onAction={onBack} />
           : <><Skeleton h={132} /><div style={{ height: 12 }} /><Skeleton h={200} /></>}
@@ -355,7 +386,7 @@ function OrderTrackView({ orderId, onBack, onBanner }: { orderId: number; onBack
 
   return (
     <div className="view rst-detail-view">
-      <button className="rst-back" onClick={onBack}><RstIcon name="chevron-left" size={13} />Orqaga</button>
+      <button className="rst-back" onClick={() => { haptic(); onBack(); }}><RstIcon name="chevron-left" size={13} />Orqaga</button>
 
       <div className={"rst-track-hero" + (terminated ? " off" : "")}>
         <div className="rst-track-no">Buyurtma №{order.id}</div>
@@ -511,7 +542,7 @@ function DishSheet({ item, qty, onClose, onApply }: { item: MenuItemView; qty: n
     <Sheet open onClose={onClose}>
       <div className="rst-dish">
         {item.hasPhoto ? (
-          <img className="rst-dish-photo" src={apiUrl(`/api/restoran/menuphoto/${item.id}`)} alt="" />
+          <img className="rst-dish-photo" src={apiUrl(`/api/restoran/menuphoto/${item.id}`)} onError={photoFallback(item.id)} alt="" />
         ) : (
           <div className="rst-dish-photo rst-card-noimg" style={{ backgroundImage: fallbackBg(item.id) }}>
             <RstIcon name="plate" size={54} />
@@ -543,6 +574,10 @@ function DishSheet({ item, qty, onClose, onApply }: { item: MenuItemView; qty: n
 
 function RestaurantDetail({ id, me, initialCart, initialPickup, onBack, onBanner, onOrdered }: { id: number; me: MeResponse; initialCart?: Record<number, number> | null; initialPickup?: boolean; onBack: () => void; onBanner?: (msg: string) => void; onOrdered: (orderId: number) => void }) {
   const [data, setData] = useState<{ restaurant: RestaurantView | null; items: MenuItemView[] } | null>(null);
+  // Tarmoq xatosi «restoran topilmadi» dan FARQ qiladi: birinchisida qayta urinish mumkin,
+  // ikkinchisida restoran haqiqatan yo'q. Ilgari ikkalasi bir xil matn berardi.
+  const [dataErr, setDataErr] = useState(false);
+  const [reload, setReload] = useState(0);
   const [cart, setCart] = useState<Record<number, number>>({});
   // 🧭 Dizaynda savat va checkout — ALOHIDA EKRANLAR (rest → cart → checkout), varaq emas.
   // Ilgari ikkalasi bitta `Sheet` ichida siqilgan edi: savat qatorlarida stepper yo'q edi,
@@ -603,6 +638,7 @@ function RestaurantDetail({ id, me, initialCart, initialPickup, onBack, onBanner
 
   useEffect(() => {
     setData(null);
+    setDataErr(false);
     api.restoranDetail(id).then((d) => {
       setData(d);
       if (initialCart) {
@@ -614,8 +650,9 @@ function RestaurantDetail({ id, me, initialCart, initialPickup, onBack, onBanner
         setCart({});
       }
       // eslint-disable-next-line react-hooks/exhaustive-deps
-    }).catch(() => setData({ restaurant: null, items: [] }));
-  }, [id]);
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+    }).catch(() => { setData({ restaurant: null, items: [] }); setDataErr(true); });
+  }, [id, reload]);
 
   const itemOf = useMemo(() => new Map((data?.items ?? []).map((it) => [it.id, it])), [data]);
   const cartLines = useMemo(
@@ -678,7 +715,7 @@ function RestaurantDetail({ id, me, initialCart, initialPickup, onBack, onBanner
   if (!data) {
     return (
       <div className="view">
-        <button className="rst-back" onClick={onBack}><RstIcon name="chevron-left" size={13} />Orqaga</button>
+        <button className="rst-back" onClick={() => { haptic(); onBack(); }}><RstIcon name="chevron-left" size={13} />Orqaga</button>
         <Skeleton h={140} />
         <div style={{ height: 12 }} />
         <Skeleton h={60} />
@@ -688,8 +725,10 @@ function RestaurantDetail({ id, me, initialCart, initialPickup, onBack, onBanner
   if (!data.restaurant) {
     return (
       <div className="view">
-        <button className="rst-back" onClick={onBack}><RstIcon name="chevron-left" size={13} />Orqaga</button>
-        <EmptyState icon={<RstIcon name="plate" size={34} />} text="Restoran topilmadi" />
+        <button className="rst-back" onClick={() => { haptic(); onBack(); }}><RstIcon name="chevron-left" size={13} />Orqaga</button>
+        {dataErr
+          ? <LoadError onRetry={() => setReload((n) => n + 1)} />
+          : <EmptyState icon={<RstIcon name="plate" size={34} />} text="Restoran topilmadi" />}
       </div>
     );
   }
@@ -749,7 +788,7 @@ function RestaurantDetail({ id, me, initialCart, initialPickup, onBack, onBanner
   if (step === "cart") {
     return (
       <div className="view rst-detail-view">
-        <button className="rst-back" onClick={() => setStep("menu")}><RstIcon name="chevron-left" size={13} />Orqaga</button>
+        <button className="rst-back" onClick={() => { haptic(); setStep("menu"); }}><RstIcon name="chevron-left" size={13} />Orqaga</button>
         {cartLines.length === 0 ? (
           <EmptyState icon={<RstIcon name="orders" size={34} />} text="Savat bo'sh" action="Menyuga qaytish" onAction={() => setStep("menu")} />
         ) : (
@@ -761,7 +800,7 @@ function RestaurantDetail({ id, me, initialCart, initialPickup, onBack, onBanner
               {cartLines.map((l) => (
                 <div key={l.item.id} className="rst-cart-row">
                   {l.item.hasPhoto ? (
-                    <img className="rst-cart-photo" src={apiUrl(`/api/restoran/menuphoto/${l.item.id}`)} loading="lazy" alt="" />
+                    <img className="rst-cart-photo" src={apiUrl(`/api/restoran/menuphoto/${l.item.id}`)} onError={photoFallback(l.item.id)} loading="lazy" alt="" />
                   ) : (
                     <div className="rst-cart-photo rst-card-noimg" style={{ backgroundImage: fallbackBg(l.item.id) }}>
                       <RstIcon name="plate" size={18} />
@@ -832,7 +871,7 @@ function RestaurantDetail({ id, me, initialCart, initialPickup, onBack, onBanner
     const ready = !busy && !blocker;
     return (
       <div className="view rst-detail-view">
-        <button className="rst-back" onClick={() => setStep("cart")}><RstIcon name="chevron-left" size={13} />Orqaga</button>
+        <button className="rst-back" onClick={() => { haptic(); setStep("cart"); }}><RstIcon name="chevron-left" size={13} />Orqaga</button>
 
         <div className="rst-card-plain">
           {fields.map((f) => (
@@ -881,12 +920,12 @@ function RestaurantDetail({ id, me, initialCart, initialPickup, onBack, onBanner
 
   return (
     <div className="view rst-detail-view">
-      <button className="rst-back" onClick={onBack}><RstIcon name="chevron-left" size={13} />Orqaga</button>
+      <button className="rst-back" onClick={() => { haptic(); onBack(); }}><RstIcon name="chevron-left" size={13} />Orqaga</button>
 
       {/* ── Hero 168px: foto + pastdan qorayish, ustida nom va meta (README §2) ── */}
       <div className="rst-hero">
         {r.hasPhoto ? (
-          <img className="rst-hero-photo" src={apiUrl(`/api/restoran/photo/${r.id}`)} alt="" />
+          <img className="rst-hero-photo" src={apiUrl(`/api/restoran/photo/${r.id}`)} onError={photoFallback(r.id)} alt="" />
         ) : (
           <div className="rst-hero-photo rst-card-noimg" style={{ backgroundImage: fallbackBg(r.id) }}>
             <RstIcon name="plate" size={46} />
@@ -943,7 +982,7 @@ function RestaurantDetail({ id, me, initialCart, initialPickup, onBack, onBanner
                   onClick={() => { if (buyable) { haptic(); setDish(it); } }}
                 >
                   {it.hasPhoto ? (
-                    <img className="rst-item-photo" src={apiUrl(`/api/restoran/menuphoto/${it.id}`)} loading="lazy" decoding="async" alt="" />
+                    <img className="rst-item-photo" src={apiUrl(`/api/restoran/menuphoto/${it.id}`)} onError={photoFallback(it.id)} loading="lazy" decoding="async" alt="" />
                   ) : (
                     <div className="rst-item-photo rst-card-noimg" style={{ backgroundImage: fallbackBg(it.id) }}>
                       <RstIcon name="plate" size={26} />
@@ -995,6 +1034,7 @@ function RestaurantDetail({ id, me, initialCart, initialPickup, onBack, onBanner
 
 export function RestoranView({ me, onBanner, openRestaurantId }: { me: MeResponse; onBanner?: (msg: string) => void; openRestaurantId?: number | null }) {
   const [list, setList] = useState<RestaurantView[] | null>(null);
+  const [listErr, setListErr] = useState(false);
   const [openId, setOpenId] = useState<number | null>(null);
   const [ordersOpen, setOrdersOpen] = useState(false);
   const [trackId, setTrackId] = useState<number | null>(null); // 📍 buyurtma holati ekrani
@@ -1016,9 +1056,13 @@ export function RestoranView({ me, onBanner, openRestaurantId }: { me: MeRespons
   // Manzil varag'i katalog USTIDA ochiladi → prioriteti kattaroq (katalog = 1).
   useBackButton(openId === null && !ordersOpen && addrOpen, () => setAddrOpen(false), 2);
 
-  useEffect(() => {
-    api.restoranList().then((r) => setList(r.restaurants)).catch(() => setList([]));
-  }, []);
+  const loadList = () => {
+    setListErr(false);
+    setList(null);
+    api.restoranList().then((r) => setList(r.restaurants)).catch(() => { setList([]); setListErr(true); });
+  };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => { loadList(); }, []);
 
   // 🏠 UY feed'dan bosilgan restoran (?openRestaurantId) — ro'yxat kelgach BIR marta avto-ochiladi.
   useEffect(() => {
@@ -1121,6 +1165,8 @@ export function RestoranView({ me, onBanner, openRestaurantId }: { me: MeRespons
 
       {list === null ? (
         <CatalogSkeleton />
+      ) : listErr ? (
+        <LoadError onRetry={loadList} />
       ) : list.length === 0 ? (
         <EmptyState icon={<RstIcon name="plate" size={34} />} text="Hozircha restoran yo'q — tez orada qo'shiladi" />
       ) : (
