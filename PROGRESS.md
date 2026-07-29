@@ -210,8 +210,36 @@ yo'q, shuning uchun aloqa botga (operatorga) olib boradi.
 qoldirish» · `rejected`: «Rad etildi» + «Restoran band edi», timeline satrlari 0.
 **Bajarilmagan:** ega telefonida QABUL (B2–B4 birga).
 
-**Keyingi:** B5 — buyurtmalar tarixi ekranini dizaynga keltirish + baholash oqimi va qolgan
-holatlar (tarmoq xatosi, bo'sh menyu, «kutilayotgan buyurtmalar ko'p»).
+### 🍽 B5 — BUYURTMALAR TARIXI + BAHOLASH OQIMI `ready for verification`
+- **Buyurtma kartasi** (dizayn §7): restoran nomi + holat badge, «Bugun · Yetkazish» meta,
+  `N× taom` ro'yxati, pastda manzil va jami; holatga qarab «Bekor qilish» yoki «Yana shu».
+- **Bo'sh holat** — karta ichida sarlavha + izoh (dizayn §7), oldingi umumiy `EmptyState` o'rniga.
+- **⭐️ Baholash varag'i (yangi)** — `delivered` buyurtmada «Bahoni qoldirish» endi AYNAN shu yerda
+  varaq ochadi (yulduzlar + ixtiyoriy sharh). Ilgari u restoran sahifasini ochardi va mijoz baho
+  blokini sahifa o'rtasidan o'zi qidirishi kerak edi.
+- **`dayLabel`** — «Bugun/Kecha/dd.MM». Kunlar farqidan hisoblanadi, soatlar ayirmasidan EMAS:
+  kecha 23:50 va bugun 00:10 orasi 20 daqiqa, lekin bu «kecha» bo'lishi kerak.
+- **QA kaliti `?empty=1`** — bo'sh ekranlarni ko'rish uchun (`#rstdemo` da). Bo'sh holatlar eng
+  kam ko'riladigan, eng ko'p unutiladigan holat.
+
+**Dizayndan CHEKINISH:** ro'yxatda dizayn faqat «Jarayonda / Yetkazildi» ikkita yorliqni
+ko'rsatadi; bizda aniq holat allaqachon bor («Yo'lda», «Tayyorlanmoqda») — bir xil joyda ko'proq
+ma'lumot, shuning uchun aniq matn qoldirildi. Rang guruhlari dizayndagidek.
+Bo'sh holat matnidan «25 daqiqada uyingizda bo'ladi» qismi OLINDI — bajarilishi kafolatlanmagan
+va'da (yetkazish vaqti bizning nazoratimizda emas).
+
+**B5 isbotlari:** `pnpm -r typecheck` 4/4 toza · build yashil · ro'yxat dasturiy o'lchandi (4 karta:
+Kutilmoqda/Tayyorlanmoqda/Yetkazildi/Rad etildi, hammasida «Bugun · …» meta) · baholash varag'i:
+4 yulduz tanlandi, sharh maydoni chiqdi · bo'sh holat: sarlavha+izoh bor, karta 0 ta.
+**Bajarilmagan:** ega telefonida QABUL (B2–B5 birga).
+
+**Hali ochiq, ega qaroriga muhtoj (kod emas, qoida):** sharhni HOZIR istalgan odam qoldira oladi —
+`submitRestaurantReview` buyurtma qilganini tekshirmaydi (`restoranService.ts:621`). Ya'ni raqobatchi
+1★ qo'yishi mumkin. Faqat `delivered` buyurtmasi borlarga cheklash — kichik server o'zgarishi,
+lekin bu MAHSULOT qoidasi, shuning uchun so'ramasdan qilinmadi.
+
+**Keyingi:** B6 — sayqal (haptika, `prefers-reduced-motion`, sekin tarmoq, xato holatlari) yoki
+ega tanlagan boshqa ish.
 
 ### 🎀 RAVELLA — bezak konstruktori (hamkor-brend) — `in progress (gaps: rasm/seed, DB push, e'lon, QABUL)`
 **Ega so'radi (2026-07-27):** «Bosh ekranda kichik, umuman boshqa xizmat turi. Admin paneldan men

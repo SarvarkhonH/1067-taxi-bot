@@ -128,6 +128,12 @@
       "port": 5822
     },
     {
+      "name": "rstdemo-lan",
+      "runtimeExecutable": "pnpm",
+      "runtimeArgs": ["--filter", "@t1067/miniapp", "exec", "vite", "--host", "--port", "5918", "--strictPort"],
+      "port": 5918
+    },
+    {
       "name": "rstdemo",
       "runtimeExecutable": "pnpm",
       "runtimeArgs": ["--filter", "@t1067/miniapp", "exec", "vite", "--port", "5917", "--strictPort"],

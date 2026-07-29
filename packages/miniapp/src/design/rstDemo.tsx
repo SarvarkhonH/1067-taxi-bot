@@ -88,7 +88,11 @@ function installRstMockFetch(): void {
     // Fotolar — 404: fotosiz holat (jonli bazadagi haqiqat) ataylab sinaladi.
     if (path.startsWith("/api/restoran/photo") || path.startsWith("/api/restoran/menuphoto")) return new Response(null, { status: 404 });
     if (path === "/api/restoran/list") return json({ restaurants: REST });
-    if (path === "/api/restoran/orders") return json({ orders: ORDERS });
+    // `?empty=1` — bo'sh holatlarni ko'rish uchun QA kaliti (bo'sh buyurtmalar ro'yxati).
+    // Bo'sh ekranlar eng kam ko'riladigan, eng ko'p unutiladigan holat.
+    if (path === "/api/restoran/orders") {
+      return json({ orders: new URLSearchParams(location.search).get("empty") === "1" ? [] : ORDERS });
+    }
     const detail = /^\/api\/restoran\/(\d+)$/.exec(path);
     if (detail) {
       const id = Number(detail[1]);

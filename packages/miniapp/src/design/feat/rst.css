@@ -296,11 +296,22 @@
 }
 
 /* ── Buyurtmalarim ──────────────────────────────────────────────────────────────────────────── */
-.rst-order-card { background: var(--rst-surface); border: 1px solid var(--rst-line); border-radius: 17px; padding: 13px 14px;
-  margin-bottom: 10px; box-shadow: var(--rst-shadow-card); }
-.rst-order-top { display: flex; align-items: center; justify-content: space-between; gap: 8px; font-size: 15.5px; font-weight: 800; color: var(--rst-ink); margin-bottom: 4px; }
-.rst-order-items { margin-bottom: 6px; font-size: 13px; font-weight: 600; color: var(--rst-ink-2); }
-.rst-order-bottom { display: flex; justify-content: space-between; align-items: center; font-size: 12.5px; font-weight: 600; color: var(--rst-ink); }
+.rst-order-card { background: var(--rst-surface); border: none; border-radius: 17px; padding: 14px;
+  margin-bottom: 12px; box-shadow: var(--rst-shadow-card); }
+.rst-order-card:active { transform: scale(.99); }
+.rst-order-top { display: flex; align-items: center; justify-content: space-between; gap: 8px; font-size: 15.5px; font-weight: 800; color: var(--rst-ink); }
+.rst-order-meta { margin-top: 3px; font-size: 12.5px; font-weight: 600; color: var(--rst-muted); }
+.rst-order-items { margin-top: 6px; font-size: 13px; font-weight: 600; color: var(--rst-ink-2); line-height: 1.4; }
+.rst-order-bottom { display: flex; justify-content: space-between; align-items: center; gap: 10px; margin-top: 8px;
+  font-size: 12.5px; font-weight: 600; color: var(--rst-muted); }
+.rst-order-bottom b { font-size: 15px; font-weight: 800; color: var(--rst-ink); white-space: nowrap; }
+
+.rst-empty { text-align: center; padding: 26px 18px; }
+.rst-empty-t { font-size: 16px; font-weight: 800; color: var(--rst-ink); }
+.rst-empty-s { margin-top: 5px; font-size: 13px; font-weight: 600; color: var(--rst-muted); line-height: 1.45; }
+
+.rst-rate-q { margin-top: 2px; font-size: 13.5px; font-weight: 600; color: var(--rst-muted); }
+.rst-stars-input.big { gap: 10px; margin: 12px 0 4px; justify-content: center; }
 .rst-order-reason { margin-top: 6px; font-size: 11.5px; color: #b42318; }
 .rst-order-cancel, .rst-order-reorder { margin-top: 8px; width: 100%; padding: 9px; border-radius: 11px; font-size: 13px; font-weight: 800; }
 .rst-order-cancel { background: #fef3f2; color: #b42318; border: 1px solid #fecdc9; }

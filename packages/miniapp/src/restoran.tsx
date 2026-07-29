@@ -164,6 +164,52 @@ const STATUS_LABEL: Record<FoodOrderView["status"], { t: string; c: string }> = 
 };
 const TERMINAL_STATUSES = new Set<FoodOrderView["status"]>(["delivered", "rejected", "cancelled_by_user"]);
 
+/** «Bugun · Yetkazish» meta-qatori (dizayn §7). Sana faqat kunlar farqidan hisoblanadi —
+ *  soatlar ayirmasidan emas: kecha 23:50 va bugun 00:10 orasida 20 daqiqa bor, lekin bu
+ *  «kecha» bo'lishi kerak. */
+function dayLabel(iso: string): string {
+  const d = new Date(iso);
+  const midnight = (x: Date) => new Date(x.getFullYear(), x.getMonth(), x.getDate()).getTime();
+  const diff = Math.round((midnight(new Date()) - midnight(d)) / 86_400_000);
+  if (diff === 0) return "Bugun";
+  if (diff === 1) return "Kecha";
+  return d.toLocaleDateString("ru-RU", { day: "2-digit", month: "2-digit" });
+}
+
+/** ⭐️ Baholash varag'i — `delivered` buyurtmadan keyin holat ekranidagi «Bahoni qoldirish».
+ *  Ilgari bu tugma restoran sahifasini ochardi va mijoz baho blokini o'zi qidirishi kerak edi
+ *  (u sahifaning o'rtasida). Endi baho aynan shu yerda, ikki bosishda qoladi. */
+function RateSheet({ restaurantId, restaurantName, onClose, onDone }: { restaurantId: number; restaurantName: string; onClose: () => void; onDone: (msg: string) => void }) {
+  const [stars, setStars] = useState(0);
+  const [text, setText] = useState("");
+  const [busy, setBusy] = useState(false);
+  const submit = async () => {
+    if (stars < 1 || busy) return;
+    setBusy(true);
+    const r = await api.restoranReviewSubmit(restaurantId, stars, text).catch(() => ({ ok: false as const }));
+    setBusy(false);
+    if (r.ok) { hapticSuccess(); onDone("Rahmat! Bahoyingiz qabul qilindi"); onClose(); }
+    else onDone("Baho yuborilmadi — qayta urinib ko'ring");
+  };
+  return (
+    <Sheet open onClose={onClose}>
+      <h3>{restaurantName}</h3>
+      <div className="rst-rate-q">Buyurtma qanday bo'ldi?</div>
+      <div className="rst-stars-input big">
+        {[1, 2, 3, 4, 5].map((n) => (
+          <button key={n} className={n <= stars ? "on" : ""} onClick={() => { haptic(); setStars(n); }} aria-label={`${n} yulduz`}>
+            <RstIcon name="star" size={34} />
+          </button>
+        ))}
+      </div>
+      {stars > 0 && (
+        <input className="bk-input mt8" placeholder="Sharh (ixtiyoriy)" value={text} onChange={(e) => setText(e.target.value)} maxLength={280} />
+      )}
+      <Button variant="brand" disabled={stars < 1 || busy} onClick={submit}>{busy ? "Yuborilmoqda…" : "Yuborish"}</Button>
+    </Sheet>
+  );
+}
+
 function MyOrdersView({ onBack, onReorder, onOpen }: { onBack: () => void; onReorder: (o: FoodOrderView) => void; onOpen: (o: FoodOrderView) => void }) {
   const appActive = useIsActive(); // ⏸ fonda so'rov halqasi to'xtaydi
   const [orders, setOrders] = useState<FoodOrderView[] | null>(null);
@@ -190,9 +236,15 @@ function MyOrdersView({ onBack, onReorder, onOpen }: { onBack: () => void; onReo
     <div className="view">
       <button className="rst-back" onClick={onBack}><RstIcon name="chevron-left" size={13} />Orqaga</button>
       {orders === null ? (
-        <><Skeleton h={70} /><div style={{ height: 8 }} /><Skeleton h={70} /></>
+        <><Skeleton h={96} /><div style={{ height: 12 }} /><Skeleton h={96} /></>
       ) : orders.length === 0 ? (
-        <EmptyState icon={<RstIcon name="orders" size={34} />} text="Hali buyurtma yo'q" />
+        // Bo'sh holat — dizayn §7: karta ichida sarlavha + ruhlantiruvchi izoh. Matn
+        // content.json dan, lekin «25 daqiqada uyingizda bo'ladi» qismi OLINDI: bu bizning
+        // ma'lumotimizda yo'q va bajarilishi kafolatlanmagan va'da.
+        <div className="rst-card-plain rst-empty">
+          <div className="rst-empty-t">Hali buyurtma yo'q</div>
+          <div className="rst-empty-s">Restoran tanlab birinchi buyurtmangizni bering.</div>
+        </div>
       ) : (
         orders.map((o) => {
           const s = STATUS_LABEL[o.status];
@@ -202,9 +254,14 @@ function MyOrdersView({ onBack, onReorder, onOpen }: { onBack: () => void; onReo
             <div key={o.id} className="rst-order-card" onClick={() => { haptic(); onOpen(o); }}>
               <div className="rst-order-top">
                 <b>{o.restaurantName}</b>
+                {/* Dizaynda ro'yxatda faqat «Jarayonda / Yetkazildi» ikkita yorliq bor. Bizda
+                    aniq holat allaqachon mavjud («Yo'lda», «Tayyorlanmoqda») — bir xil joyda
+                    ko'proq ma'lumot, shuning uchun aniq matn qoldirildi; rang guruhlari
+                    dizayndagidek (ko'k = jarayonda, yashil = tugadi, qizil = yopildi). */}
                 <span className={`order-status-pill ${s.c}`}>{s.t}</span>
               </div>
-              <div className="rst-order-items muted fs12">{o.itemsJson.map((i) => `${i.name} ×${i.qty}`).join(", ")}</div>
+              <div className="rst-order-meta">{dayLabel(o.createdAt)} · {o.isPickup ? "Olib ketish" : "Yetkazish"}</div>
+              <div className="rst-order-items">{o.itemsJson.map((i) => `${i.qty}× ${i.name}`).join(", ")}</div>
               <div className="rst-order-bottom">
                 <span>{o.isPickup ? "Olib ketish" : o.address}</span>
                 <b>{formatNumber(o.totalSom)} so'm</b>
@@ -259,10 +316,11 @@ function trackPos(status: FoodOrderView["status"]): { i: number; done: boolean }
   }
 }
 
-function OrderTrackView({ orderId, onBack, onRate }: { orderId: number; onBack: () => void; onRate: (restaurantId: number) => void }) {
+function OrderTrackView({ orderId, onBack, onBanner }: { orderId: number; onBack: () => void; onBanner?: (msg: string) => void }) {
   const appActive = useIsActive();
   const [order, setOrder] = useState<FoodOrderView | null>(null);
   const [missing, setMissing] = useState(false);
+  const [rating, setRating] = useState(false);
   useBackButton(true, onBack, 2);
 
   useEffect(() => {
@@ -370,7 +428,13 @@ function OrderTrackView({ orderId, onBack, onRate }: { orderId: number; onBack: 
       </div>
 
       {order.status === "delivered" && (
-        <button className="rst-cta" onClick={() => { haptic(); onRate(order.restaurantId); }}>Bahoni qoldirish</button>
+        <button className="rst-cta" onClick={() => { haptic(); setRating(true); }}>Bahoni qoldirish</button>
+      )}
+      {rating && (
+        <RateSheet
+          restaurantId={order.restaurantId} restaurantName={order.restaurantName}
+          onClose={() => setRating(false)} onDone={(m) => onBanner?.(m)}
+        />
       )}
     </div>
   );
@@ -981,11 +1045,7 @@ export function RestoranView({ me, onBanner, openRestaurantId }: { me: MeRespons
   // «Buyurtmalarim»dagi karta bosilganda ham shu ochiladi.
   if (trackId != null) {
     return (
-      <OrderTrackView
-        orderId={trackId}
-        onBack={() => setTrackId(null)}
-        onRate={(restaurantId) => { setTrackId(null); setOrdersOpen(false); setOpenId(restaurantId); }}
-      />
+      <OrderTrackView orderId={trackId} onBack={() => setTrackId(null)} onBanner={onBanner} />
     );
   }
   if (ordersOpen) {
