@@ -1459,12 +1459,20 @@ body {
 .app.bjm .aurora { display: none; }
 .app.bjm::before { display: none; }
 /* tab-panel — endi qattiq oq emas, shisha: ostidan mahsulotlar sezilib turadi */
+/* ⚡ Tabbar DOIM ekranda va `fixed` — backdrop-filter bilan har scroll kadrida qayta
+   blur qilinardi. Fon 60% dan 96% ga: ko'z farqni sezmaydi, GPU sezadi. */
 .app.bjm .tabbar {
-  background: rgba(255, 255, 255, .60);
+  background: rgba(255, 255, 255, .96);
+  /* asosiy `.tabbar` qoidasidagi blur(22px) ni ham bekor qilamiz — u `fixed` element,
+     ya'ni har scroll kadrida qayta hisoblanadi (o'lchovda aynan shu qolib ketgan edi) */
+  backdrop-filter: none; -webkit-backdrop-filter: none;
   border-top: none;
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, .8), 0 -2px 30px -18px rgba(20, 26, 24, .55);
-  backdrop-filter: var(--bj-glass-blur); -webkit-backdrop-filter: var(--bj-glass-blur);
 }
+/* ⚡ `.aurora` — fixed, 80vh, `filter: blur(30px)` VA 16s cheksiz scale-animatsiya: blurlangan
+   qatlamni miqyoslash har kadrda qayta rasterlashni talab qiladi, ya'ni ilova hech qachon
+   tinchimaydi. BirJoy temasining o'z fon-gradienti bor — bu qatlam bu yerda ortiqcha. */
+.app.bjm .aurora { display: none; }
 .app.bjm .tab { color: #9aa1aa; }
 .app.bjm .tab.active { color: var(--bj-accent); }
 .app.bjm .tab.active svg { filter: none; }
