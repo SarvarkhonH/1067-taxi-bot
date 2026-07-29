@@ -367,10 +367,9 @@ export function createApiServer(opts: ApiOptions = {}) {
   });
 
   app.get("/api/me", allowGuest, async (_req, res) => {
-    const [me, booking3, livinghome, intercity, tierloyalty, shopOn, xizmatlarOn, elonlarOn, restoranOn,  bazarcartOn, revtangaOn, shopstoryOn, shopchatOn,  ravellaOn, linkinappOn, homescreenOn, storyshareOn, autolocOn] = await Promise.all([
+    const [me, booking3, intercity, tierloyalty, shopOn, xizmatlarOn, elonlarOn, restoranOn,  bazarcartOn, revtangaOn, shopstoryOn, shopchatOn,  ravellaOn, linkinappOn, homescreenOn, storyshareOn, autolocOn] = await Promise.all([
       getMe(res.locals.telegramId as string),
       featureOn("booking3"),
-      featureOn("livinghome"),
       featureOn("intercity"),
       featureOn("tierloyalty"),
       featureOn("shop"),
@@ -421,7 +420,7 @@ export function createApiServer(opts: ApiOptions = {}) {
     // 🏪 shopv2 owner-preview — BirJoy Market qorong'i-qayta-dizayni QABUL'gacha faqat ega ekranida
     // 🎀 ravella owner-preview — bezak konstruktori QABUL'gacha faqat ega ekranida ko'rinadi
     const ravellaPreview = ravellaOn || isAdmin(res.locals.telegramId as string);
-    res.json({ ...me, flags: { booking3, livinghome, intercity, tierloyalty: tierPreview, shop: shopPreview, xizmatlar: xizmatlarPreview, elonlar: elonlarPreview, restoran: restoranPreview,  bazarcart: bazarcartPreview, revtanga: revtangaPreview, shopstory: shopstoryPreview, shopchat: shopchatPreview,   ravella: ravellaPreview, linkinapp: linkinappOn || isAdmin(res.locals.telegramId as string), homescreen: homescreenOn || isAdmin(res.locals.telegramId as string), storyshare: storyshareOn || isAdmin(res.locals.telegramId as string), autoloc: autolocOn } });
+    res.json({ ...me, flags: { booking3, intercity, tierloyalty: tierPreview, shop: shopPreview, xizmatlar: xizmatlarPreview, elonlar: elonlarPreview, restoran: restoranPreview,  bazarcart: bazarcartPreview, revtanga: revtangaPreview, shopstory: shopstoryPreview, shopchat: shopchatPreview,   ravella: ravellaPreview, linkinapp: linkinappOn || isAdmin(res.locals.telegramId as string), homescreen: homescreenOn || isAdmin(res.locals.telegramId as string), storyshare: storyshareOn || isAdmin(res.locals.telegramId as string), autoloc: autolocOn } });
   });
 
   /**
@@ -1587,11 +1586,11 @@ export function createApiServer(opts: ApiOptions = {}) {
   // ─── Uber-level booking (map + live tracking) ───────────────────────────────
   app.get("/api/booking/info", requireUser, withMember(async (id, req) => {
     const { featureOn } = await import("../services/featureFlags");
-    const [info, flagOn, livinghome] = await Promise.all([getBookingInfo(id), featureOn("booking3"), featureOn("livinghome")]);
+    const [info, flagOn] = await Promise.all([getBookingInfo(id), featureOn("booking3")]);
     // Booking 3.0 ega-ko'z darvozasi: global flag OFF bo'lsa ham EGA yangi oqimni ko'radi
     // (ilovani oddiy ochib — tasdiqdan oldin preview). QABUL → flag global ON → bu ahamiyatsiz.
     const previewer = resolveTelegramId(req) === "6506297119";
-    return { ...info, booking3: flagOn || previewer, livinghome };
+    return { ...info, booking3: flagOn || previewer };
   }));
   // V1 living home aggregate: greeting name, usual ride, live cars, balances.
   app.get("/api/home", requireUser, withMember(async (id) => {
