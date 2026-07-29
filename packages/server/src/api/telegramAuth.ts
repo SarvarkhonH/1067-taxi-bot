@@ -19,7 +19,14 @@ export interface InitDataResult {
  *   secret = HMAC_SHA256(key="WebAppData", data=botToken)
  *   hash   = HMAC_SHA256(key=secret, data=dataCheckString)
  */
-export function validateInitData(initData: string, botToken: string, maxAgeSec = 86400): InitDataResult {
+// ⏰ maxAgeSec (ega, 2026-07-29: «keshni har kun tozalayman, o'zi ishlab yana ishlamay
+// qoladi»): Telegram Mini App'ga initData BIR MARTA, ochilganda beriladi (`auth_date`).
+// Telefon WebView'ni fonda tirik saqlab qolsa, bu imzo YANGILANMAYDI — eski 86400s (24 soat)
+// chegarasi aynan shu sababdan har kuni "expired" berib, mijozni jimgina mehmon holatiga
+// tushirib qo'ygan (hech qanday tushunarli xato ko'rsatmasdan). 7 kunga ko'tarildi: odatiy
+// foydalanish naqshiga (ilova kunlab qayta ochilmasdan fonda turishi) mos, imzo baribir
+// HMAC bilan tekshiriladi — faqat REPLAY OYNASI kengayadi, autentifikatsiyaning o'zi emas.
+export function validateInitData(initData: string, botToken: string, maxAgeSec = 604_800): InitDataResult {
   if (!initData) return { ok: false, reason: "empty initData" };
   const params = new URLSearchParams(initData);
   const hash = params.get("hash");
