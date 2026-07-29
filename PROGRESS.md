@@ -4395,3 +4395,46 @@ CSS aralashadi) bo'lishi ehtimoli yuqori — egadan kesh tozalab qayta skrinshot
 **Commitlar:** `5dfc87f` (CSS tiklash) · `e762b00` (tugma-fon + ishonch matni) · `2a878d3`
 («Nima uchun bu narx» + tepa-chiplar). Jonli: `shop-2fq93KBg.css` / `shop-DFsjDuXp.js`,
 `/health` 200. **Holat:** ega telefonda tekshiradi.
+
+## §74 — ⚡ DO'KON «CHAQMOQDEK»: barcha kadr-narxlari olib tashlandi · 2026-07-29
+
+**Ega:** «nega baribir ham tepada pastga skrol og'ir harakat qiladi» → «background-attachment ni
+ham olib tashla va live qil, oddiy oq bo'lsin va chaqmoqdek ishlasin».
+
+### Nima aniqlandi (o'lchov, #shopdemo getComputedStyle)
+Kartalardan blur olingandan keyin ham ekranda TO'RTTA blur qatlam qolgan edi va hammasi
+**yopishqoq/fixed** — ya'ni backdrop har scroll kadrida o'zgaradi va blur QAYTA hisoblanadi:
+`.shop-head` (blur 24px+saturate 185%) · `.tabbar` (blur 22px, **ikkita** qoidada) ·
+`.shop-search` · `.shop-share-btn`. Ustiga `.app.bjm` fonida `background-attachment: fixed`
+(mobil brauzerda scroll paytida butun fon qayta chiziladi) va har kafelda 30px blur radiusli soya.
+
+### Qilindi
+| Element | Avval | Endi |
+|---|---|---|
+| Sarlavha (sticky) | 58% + blur 24px | 95% qattiq, blur yo'q |
+| Tabbar (fixed) | 60% + blur 22px ×2 qoida | 96% qattiq, ikkalasi bekor |
+| Qidiruv / ulashish | blur | qattiq fon |
+| `.app.bjm` fon | 2 radial gradient + `attachment: fixed` | **`#ffffff`**, attachment yo'q |
+| `--bj-shadow` | 4 inset qirra + 30px blur chuqurlik | `1px/2px + 4px/10px` |
+| Karta ajralishi | shaffoflik+shisha | `1px solid var(--bj-line)` (0.055 → 0.09) |
+
+**Jonli isbot:** `index-E19CTTOy.css` → `.app.bjm` da `background-attachment` **0**,
+`--bj-bg-grad: #ffffff`, `--bj-card-solid: #ffffff`, `--bj-shadow` ixcham;
+`shop-uEhnTo_f.css` → `.shop-head` da backdrop **0**, `.shop-tile` da `border: 1px solid`.
+Demo: ko'rinadigan blur qatlami **0**, `appFon rgb(255,255,255)`, `gradient none`.
+
+### ⚠️ IKKI JARAYON XATOSI (ikkalasi ham men qildim, ikkalasi ham tuzatildi)
+1. **Commit boshqa shoxga tushdi.** Parallel sessiya ulashilgan ishchi papkani
+   `design/restoran-b0` ga o'tkazgan; mening `git commit` o'sha shoxga yozgan, `git push origin
+   main` esa lokal (o'zgarmagan) `main` ni yuborgan — **xato bermay, hech narsa chiqmagan**.
+   Deploy 12 soat davomida eski kodda turgan. Endi commit alohida `git worktree` da main'ga
+   cherry-pick qilinadi. **Qoida: push'dan keyin `git log origin/main` bilan tasdiqlash.**
+2. **Begona ish main'ga tortildi.** Fayllarni ulashilgan papkadan nusxalaganimda restoran
+   shoxidagi `--rst-*` va `.app.restoran-light` o'zgarishlari main'ga tushdi (`5667360`).
+   `7b4d475` da qaytarildi: tokens.css main holatidan tiklanib, faqat mening 6 satrim qayta
+   qo'llandi (diff 11+/11−, «rst-» 0 ta). **Qoida: ulashilgan papkadan FAYL NUSXALAMA — faqat
+   cherry-pick yoki o'sha worktree ichida tahrir.**
+
+**Commitlar:** `fb20674` (blur) · `1cd85b8` (dublikat aurora qoidasi) · `5667360` (oq fon) ·
+`7b4d475` (begona ishni qaytarish). `/health` 200.
+**Holat:** `ready for verification` — ega telefonda kesh tozalab tekshiradi.
