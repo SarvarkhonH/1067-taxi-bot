@@ -4438,3 +4438,42 @@ Demo: ko'rinadigan blur qatlami **0**, `appFon rgb(255,255,255)`, `gradient none
 **Commitlar:** `fb20674` (blur) · `1cd85b8` (dublikat aurora qoidasi) · `5667360` (oq fon) ·
 `7b4d475` (begona ishni qaytarish). `/health` 200.
 **Holat:** `ready for verification` — ega telefonda kesh tozalab tekshiradi.
+
+## §75 — 🔄 «ESKI DIZAYNGA QAYTADI / GOH YANGI, GOH ESKI» — versiya nazorati · 2026-07-29
+
+**Ega:** «nega har qancha vaqtga bir bot eski dizaynga o'tadi menda va yuklamay qoladi, qandaydir
+versiya kontrol yo'q va juda katta chalkashlik bor» → «lekin bir yangisi bir eskisi ochiloptiku».
+
+### Tashxis (o'lchov, taxmin emas)
+| Tekshiruv | Natija |
+|---|---|
+| `curl -I app.birjoy.online/` | `cache-control: no-cache` + ETag — **kesh to'g'ri sozlangan** |
+| `curl -I /assets/index-*.js` | `immutable, 1 yil` — to'g'ri (nomda hash bor) |
+| `getChatMenuButton` | `app.birjoy.online/?v=<joriy bundle hash>` |
+| `bot/booking.ts` `webAppUrl()` | **`v` YO'Q** — bot.ts nusxasidan farq qiladi |
+| eski xabarlardagi tugmalar | o'sha paytdagi `?v=<eski hash>` bilan **muzlab qolgan** |
+
+Ya'ni muammo kesh sozlamasi emas, IKKI sabab:
+1. **Telegram Mini App WebView'ni yopganda o'chirmaydi** — fonda saqlaydi va qayta ochilganda
+   O'SHA ESKI JS davom etadi (deploy chiqqani bilan mijoz ko'rmaydi).
+2. **Har xil kirish nuqtasi har xil MANZIL beradi** (menyu `?v=hash` · booking `?go=book` · eski
+   xabar `?v=eski`). Har manzil WebView uchun ALOHIDA kesh yozuvi va alohida sahifa nusxasi —
+   shuning uchun goh yangi, goh eski ochiladi.
+
+### Yechim (mijoz o'zini davolaydi)
+- `vite.config.ts`: har build'da `dist/version.txt` (16 bayt) — `<meta name="birjoy-build">`
+  bilan AYNI shtamp.
+- `main.tsx`: ilova ko'rinadigan bo'lganda (`visibilitychange`/`focus` + ochilishdan 5s keyin)
+  `/version.txt?t=…` ni `no-store` bilan so'raydi, o'z shtampi bilan solishtiradi. Farq bo'lsa
+  manzildagi `v` ni JORIY shtampga almashtirib qayta yuklanadi — **kesh kaliti ham yangilanadi**.
+  `location.hash` saqlanadi (Telegram initData o'sha yerda).
+- Xavfsizlik: ikkala qiymat bo'lsa va farq qilsa · sessiyada shu versiyaga bir marta · 60s
+  throttle · xatoda jim.
+
+**Jonli isbot:** `version.txt` = `meta` = `2026-07-29 18:58`; menyu tugmasi `?v=Cmxoinla` ==
+jonli bundle `index-Cmxoinla.js`; `/health` 200.
+
+**Qolgan (kichik):** `bot/booking.ts` dagi mahalliy `webAppUrl()` ga ham `v=` qo'shilsa, manzillar
+bir xillashadi (hozir mijoz-qorovuli buni baribir tuzatadi, lekin manbada ikki xillik qoladi).
+
+**Commitlar:** `74a0367` (version.txt + qorovul) · `12448e8` (kesh kalitini yangilash).
