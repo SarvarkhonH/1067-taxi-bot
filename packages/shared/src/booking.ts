@@ -74,7 +74,6 @@ export interface BookingInfoResponse {
   // T4-A: real per-km tariff for the honest rate card (NO fabricated total — kas is taximeter)
   tariff: { minimalPayment: number; minimalDistanceKm: number; perKmCity: number; perMinute: number } | null;
   booking3?: boolean; // T4: feature flag — show the MapLibre flow vs the old Leaflet one
-  livinghome?: boolean; // V1: feature flag — show the living AI home screen
   // 🪙 wait compensation (feature "waitcomp"): null when OFF. Lets the Mini App render a LIVE, honest
   // running estimate while searching (the real payout is server-timed at ride-finish — this is a
   // client-side preview using the same knobs, not the source of truth).

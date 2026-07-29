@@ -687,7 +687,6 @@ const FLAG_INFO: Record<string, { risk: FlagRisk; desc: string }> = {
   waitcomp: { risk: "money", desc: "Kutish kompensatsiyasi (o'z byudjeti)" },
   clientbooking: { risk: "ux", desc: "GPS «new» aniq-pin buyurtma" },
   instantstatus: { risk: "ux", desc: "Tez holat — kas soket (~1s)" },
-  livinghome: { risk: "ux", desc: "Jonli xarita bosh ekran" },
   trackcta: { risk: "cosmetic", desc: "Kuzatuv-sahifa taklif CTA" },
   jackpotpost: { risk: "cosmetic", desc: "Jackpot → Koson kanaliga post" },
   drvrank: { risk: "cosmetic", desc: "Haydovchi QR reyting (o'chirilgan)" },

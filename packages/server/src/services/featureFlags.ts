@@ -7,7 +7,6 @@ import { prisma } from "../db";
 export const FEATURES = [
   "wheel", "garage", "items", "transfers", "push", "gap", "plus", "recruit", "booking3",
   // v3 tracks — each ships dark behind its flag until owner QABUL:
-  "livinghome", // V1 living AI home screen
   "aibrain", // V2 AI concierge (proactive + conversational)
   "mahalla", // V5 mahalla-scoped leaderboard
   "tolqin", // V4 Yashil to'lqin skill game
@@ -149,7 +148,7 @@ export type FeatureName = (typeof FEATURES)[number];
 // Off until explicitly enabled (go-live flip = setFeature(name, true) after owner QABUL).
 // booking3 = the new map/trip flow; owner still gets a preview via server.ts owner-branch,
 // but real users stay on the (fixed) classic flow until it's accepted. A missing row → OFF.
-const DEFAULT_OFF = new Set<FeatureName>(["booking3", "livinghome", "aibrain", "mahalla", "tolqin", "baraban", "komissiya", "qarz", "welcomebonus", "refstaged", "drvstaged", "drvrecruit", "drvpush", "promo", "clientbooking", "cashout", "carupgrade", "intercity", "tierloyalty", "waitcomp", "trackcta", "jackpotpost", "drvrank", "instantstatus", "spinreminder", "shop", "xizmatlar", "elonlar", "elontop", "restoran", "bazarcart", "shopcashback", "revtanga", "airemind", "aihisob", "aidost", "aicity", "aibilim", "aineeds", "shopstory", "shopchat", "mktexpire", "mktlife", "ravella", "linkinapp", "homescreen", "storyshare", "autoloc", "operatorAssist"]);
+const DEFAULT_OFF = new Set<FeatureName>(["booking3", "aibrain", "mahalla", "tolqin", "baraban", "komissiya", "qarz", "welcomebonus", "refstaged", "drvstaged", "drvrecruit", "drvpush", "promo", "clientbooking", "cashout", "carupgrade", "intercity", "tierloyalty", "waitcomp", "trackcta", "jackpotpost", "drvrank", "instantstatus", "spinreminder", "shop", "xizmatlar", "elonlar", "elontop", "restoran", "bazarcart", "shopcashback", "revtanga", "airemind", "aihisob", "aidost", "aicity", "aibilim", "aineeds", "shopstory", "shopchat", "mktexpire", "mktlife", "ravella", "linkinapp", "homescreen", "storyshare", "autoloc", "operatorAssist"]);
 
 let cache: { at: number; map: Record<string, boolean> } = { at: 0, map: {} };
 
@@ -184,10 +183,14 @@ export async function setFeature(name: FeatureName, on: boolean): Promise<void> 
 // it never auto-flips (an intentional off must stay off until this list is edited).
 export const EXPECTED_ON: FeatureName[] = [
   "wheel", "items", "transfers", "push", "gap", "plus", "recruit", "booking3",
-  // livinghome 2026-07-28 da ATAYLAB o'chirildi va shu ro'yxatdan chiqarildi: 2026-07-23 dagi
-  // UY_REDESIGN (ce9ba6a) NewUyView'ni ternaryda uning OLDIGA qo'ygan, ya'ni newhome ON turgan
-  // 5 kun davomida LivingHome'ga kod umuman yetib bormagan - bayroq "on" deb yolg'on gapirgan.
-  // Kod (home.tsx) saqlanadi, qaytarish sharti MUKAMMAL_DASTUR.md §5b da.
+  // livinghome 2026-07-29 da BUTUNLAY olib tashlandi (TOZALASH_DOD.md Blok A1): bayroq nomi,
+  // server quvuri (/api/me + /api/booking/info), shared tipi, admin toggle'i va home.tsx'ning
+  // o'zi. Sabab: 2026-07-23 dagi UY_REDESIGN (ce9ba6a) NewUyView'ni ternaryda uning OLDIGA
+  // qo'ygan, ya'ni LivingHome'ga kod umuman yetib bormagan - bayroq "on" deb yolg'on gapirgan.
+  // 2026-07-28 dagi "kod qoladi, bayroq OFF" qarori ega tomonidan bekor qilindi; kod git
+  // tarixida: `git show c5ef1e47:packages/miniapp/src/home.tsx`. MUKAMMAL_DASTUR.md §5b dagi
+  // qaytarish sharti O'ZGARMAYDI - u xaritani NewUyView ICHIGA qism sifatida olib kirishni
+  // nazarda tutadi, ya'ni home.tsx'ga bog'liq emas.
   "baraban", "komissiya", "promo", "qarz", "refstaged", "drvstaged", "drvrecruit",
   "welcomebonus", // 🎁 2026-07-17 da ega o'chirgan edi ("o'chirganman"), LEKIN 2026-07-22 13:44 da
              // QAYTA YOQILGAN (jonli AppState qatorining updatedAt'i) va shundan beri ishlayapti —

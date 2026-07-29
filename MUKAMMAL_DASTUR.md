@@ -177,6 +177,14 @@ o'sha ternary edi).
 bo'lsa — lekin uni `LivingHome` sifatida emas, `NewUyView` ichiga qism sifatida olib kirish
 (hozirgi uy ekrani QABUL qilingan, uni almashtirmaymiz).
 
+**⚠️ YANGILANDI (ega, 2026-07-29 — TOZALASH_DOD.md Blok A1):** «umuman eski versiya qolmasin»
+ko'rsatmasi bilan yuqoridagi «kod qoladi» qarori BEKOR qilindi. Butunlay olib tashlandi:
+`home.tsx` fayli, `livinghome` bayroq nomi (`FEATURES`/`DEFAULT_OFF`), server quvuri
+(`/api/me` + `/api/booking/info` javoblari), `shared` tiplari, admin toggle qatori va jonli
+`AppState` qatori. **Qaytarish sharti O'ZGARMAYDI** — u xaritani `NewUyView` ICHIGA qism
+sifatida olib kirishni nazarda tutadi, ya'ni `home.tsx`ga bog'liq emas. Kod git tarixida:
+`git show c5ef1e47:packages/miniapp/src/home.tsx`.
+
 ### `intercity` — shaharlararo o'rin band qilish (8 jadval, 0 buyurtma) · bayroq allaqachon OFF
 
 **Foydali, lekin hozir emas:** (1) tugallanmagan — `testCrashGuards` D4 topdi: mijoz bekor qilgach
