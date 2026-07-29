@@ -3128,11 +3128,18 @@ body{font-family:Arial,sans-serif;background:#eee;-webkit-print-color-adjust:exa
 
   app.post("/api/admin/opr/act", requireAdmin, rateLimit(60), async (req, res) => {
     if (!(await featureOn("operatorAssist"))) { res.status(403).json({ ok: false, message: "O'chirilgan" }); return; }
-    const { memberId, telegramId, action, params } = req.body as { memberId: number; telegramId?: string | null; action: string; params?: object };
+    const { telegramId, action, params } = req.body as { memberId?: number; telegramId?: string | null; action: string; params?: object };
+    let memberId = Number((req.body as { memberId?: number }).memberId) || undefined;
+    // chat-attached callers naturally only have telegramId (the open conversation) — resolve
+    // memberId server-side rather than making every UI call-site plumb it through separately.
+    if (!memberId && telegramId) {
+      const tu = await prisma.telegramUser.findUnique({ where: { id: telegramId }, select: { memberId: true } });
+      memberId = tu?.memberId ?? undefined;
+    }
     if (!memberId || !action) { res.status(400).json({ ok: false, message: "memberId/action kerak" }); return; }
     const { dispatchAction } = await import("../services/operatorConsole");
     const operatorName = String(res.locals.operatorName ?? res.locals.adminRole ?? "operator");
-    const result = await dispatchAction(Number(memberId), telegramId || null, action, params ?? {}, operatorName, opts.sendMessage);
+    const result = await dispatchAction(memberId, telegramId || null, action, params ?? {}, operatorName, opts.sendMessage);
     res.json(result);
   });
 
@@ -3145,6 +3152,14 @@ body{font-family:Arial,sans-serif;background:#eee;-webkit-print-color-adjust:exa
   app.get("/api/admin/opr/health", requireAdmin, async (_req, res) => {
     const { getSystemHealth } = await import("../services/operatorConsole");
     res.json(await getSystemHealth());
+  });
+
+  // 🕵️ Jurnal — every dispatchAction() call writes here via the EXISTING logAudit()
+  // (shopService.ts, already used for shop moderation) — reused, not a new log table.
+  app.get("/api/admin/opr/jurnal", requireAdmin, async (_req, res) => {
+    const { listAuditLog } = await import("../services/shopService");
+    const rows = (await listAuditLog(200)).filter((r) => r.action.startsWith("opr_"));
+    res.json({ items: rows });
   });
 
   // ── Peak Hours ──────────────────────────────────────────────────────────────

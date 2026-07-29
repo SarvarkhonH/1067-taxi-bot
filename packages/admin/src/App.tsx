@@ -30,7 +30,7 @@ import {
   SHOP_CATEGORIES,
 } from "@t1067/shared";
 import { RavellaAdminView } from "./ravella";
-import { adminApi, clearAdminToken, hasAdminToken, setAdminToken, type AdminBannedRow, type AdminChatConvo, type AdminChatMsg, type AdminDebtRow, type AdminMsgHistoryRow, type AdminRatingRow, type AdminTxnRow, type AdminBlockedRow, type AdminReferralRow, type AdminRideRow, type AdminUserRow, type AdminWithdrawalRow, type AdminWithdrawalTabRow, type CampaignRow, type Driver360, type DriverCallRow, type DriverCallStats, type DriverMissionRow, type IntercityAdminTrip, type IntercityAdminDebt, type Member360, type PeakHourRow, type ShopAdminProductRow, type ShopAdminOrderRow, type ShopAdminReviewRow, type SvcAdminRow, type SvcAdminCat, type SvcAdminReview, type RestoranAdminRow, type RestoranMenuItemRow } from "./api";
+import { adminApi, clearAdminToken, hasAdminToken, setAdminToken, type AdminBannedRow, type AdminChatConvo, type AdminChatMsg, type AdminDebtRow, type AdminMsgHistoryRow, type AdminRatingRow, type AdminTxnRow, type AdminBlockedRow, type AdminReferralRow, type AdminRideRow, type AdminUserRow, type AdminWithdrawalRow, type AdminWithdrawalTabRow, type CampaignRow, type Driver360, type DriverCallRow, type DriverCallStats, type DriverMissionRow, type IntercityAdminTrip, type IntercityAdminDebt, type Member360, type PeakHourRow, type ShopAdminProductRow, type ShopAdminOrderRow, type ShopAdminReviewRow, type SvcAdminRow, type SvcAdminCat, type SvcAdminReview, type RestoranAdminRow, type RestoranMenuItemRow, type OprOpsRow, type OprJurnalRow } from "./api";
 
 type Tab = "overview" | "pulse" | "analytics" | "finance" | "live" | "x360" | "driver" | "client" | "botusers" | "obzvon" | "boshqaruv" | "topshiriq" | "actions" | "integrity" | "audit" | "safarlar" | "qarzlar" | "referallar" | "banlist" | "yechishlar" | "baholar" | "xabar" | "chat" | "broadcasts" | "intercity" | "pik" | "transactions" | "blocked" | "shop" | "xizmatlar" | "elonlar" | "restoran" | "ravella" | "bilim" | "bosh";
 
@@ -108,10 +108,11 @@ export function App() {
   const [sideOpen, setSideOpen] = useState(false);
   const [authed, setAuthed] = useState<boolean>(hasAdminToken);
   const [role, setRole] = useState<string | null>(null);
+  const [operatorName, setOperatorName] = useState<string | undefined>(undefined);
 
   useEffect(() => {
     if (!authed) return;
-    adminApi.whoami().then((r) => setRole(r.role)).catch(() => setRole(null));
+    adminApi.whoami().then((r) => { setRole(r.role); setOperatorName(r.operatorName); }).catch(() => setRole(null));
     const load = () =>
       adminApi
         .health()
@@ -135,6 +136,13 @@ export function App() {
   if (!authed) return <LoginScreen onAuthed={() => setAuthed(true)} />;
 
   function logout() { clearAdminToken(); setHealth(null); setAuthed(false); }
+
+  // 🎧 Super Operator: a "chatops" token gets ONLY the 4-tab console (never the owner's full
+  // ~20-tab BOSHQARUV dashboard) — same "separate minimal shell by role" pattern as shopseller
+  // just below, so a call-center hire never sees financial/moderation screens they don't need.
+  if (role === "chatops") {
+    return <OperatorConsoleShell operatorName={operatorName} onLogout={logout} />;
+  }
 
   if (role === "shopseller") {
     return (
@@ -4647,15 +4655,31 @@ function ChatView() {
   const [reply, setReply] = useState("");
   const [sending, setSending] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  // 🎧 Super Operator: pause toggle is UI-local state (best-effort — the server is the source
+  // of truth on isAiPausedForOperator; this just avoids a round-trip to reflect the click).
+  const [paused, setPaused] = useState(false);
+  const [pausing, setPausing] = useState(false);
+  const [showActions, setShowActions] = useState(false);
 
   const loadConvos = () => adminApi.chatConversations().then(setConvos).catch(() => setConvos([]));
   useEffect(() => { loadConvos(); const t = setInterval(loadConvos, 15000); return () => clearInterval(t); }, []);
 
   const openChat = async (tgId: string) => {
-    setActive(tgId); setMsgs(null); setErr(null);
+    setActive(tgId); setMsgs(null); setErr(null); setPaused(false); setShowActions(false);
     const m = await adminApi.chatMessages(tgId).catch(() => null);
     setMsgs(m ?? []);
     loadConvos();
+  };
+
+  const togglePause = async () => {
+    if (!active || pausing) return;
+    setPausing(true);
+    try {
+      await adminApi.chatPause(active, !paused);
+      setPaused((p) => !p);
+    } finally {
+      setPausing(false);
+    }
   };
 
   const send = async () => {
@@ -4707,10 +4731,19 @@ function ChatView() {
           </div>
         ) : (
           <>
-            <div style={{ padding: "12px 16px", borderBottom: "1px solid var(--line)", fontWeight: 700 }}>
-              {activeConvo?.name ?? activeConvo?.username ?? active}
-              {activeConvo?.username && <span className="muted" style={{ fontSize: 12, marginLeft: 6 }}>@{activeConvo.username}</span>}
+            <div style={{ padding: "12px 16px", borderBottom: "1px solid var(--line)", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
+              <div style={{ fontWeight: 700 }}>
+                {activeConvo?.name ?? activeConvo?.username ?? active}
+                {activeConvo?.username && <span className="muted" style={{ fontSize: 12, marginLeft: 6 }}>@{activeConvo.username}</span>}
+              </div>
+              <div style={{ display: "flex", gap: 6 }}>
+                <button className="btn sm" onClick={() => setShowActions((s) => !s)}>🎧 {showActions ? "Yopish" : "Amallar"}</button>
+                <button className="btn sm" onClick={togglePause} disabled={pausing} style={paused ? { background: "var(--red)", color: "#fff" } : undefined}>
+                  {pausing ? "…" : paused ? "🙋 Operator yordamda" : "🤖 AI faol"}
+                </button>
+              </div>
             </div>
+            {showActions && <div style={{ borderBottom: "1px solid var(--line)", padding: 12 }}><OperatorActions telegramId={active} onDone={() => { const m = active; if (m) void adminApi.chatMessages(m).then((r) => setMsgs(r)).catch(() => undefined); }} /></div>}
             <div style={{ flex: 1, overflowY: "auto", padding: "12px 16px", display: "flex", flexDirection: "column", gap: 8 }}>
               {!msgs && <div className="muted">Yuklanmoqda…</div>}
               {msgs?.length === 0 && <div className="muted">Xabar yo'q</div>}
@@ -4730,6 +4763,271 @@ function ChatView() {
             {err && <div className="muted" style={{ padding: "4px 14px 8px", color: "var(--red)" }}>{err}</div>}
           </>
         )}
+      </div>
+    </div>
+  );
+}
+
+// ─── 🎧 Super Operator — shared action panel ────────────────────────────────
+// One memberId (resolved server-side from telegramId when only that's given — see
+// /api/admin/opr/act) does everything the Koson AI agent + admin member-management can do.
+// Mounted both inside ChatView (chat-attached) and CallMarkazView (call-center, no telegramId).
+type OprSection = "taksi" | "qidiruv" | "eslatma" | "tezkor" | "tanga" | "ban";
+
+function OperatorActions({ memberId, telegramId, onDone }: { memberId?: number | null; telegramId?: string | null; onDone?: () => void }) {
+  const [section, setSection] = useState<OprSection>("tezkor");
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState<string | null>(null);
+
+  const act = async (action: string, params: Record<string, unknown> = {}) => {
+    setBusy(true); setMsg(null);
+    try {
+      const r = await adminApi.oprAct(memberId ?? null, telegramId ?? null, action, params);
+      setMsg(r.message);
+      onDone?.();
+      return r;
+    } catch {
+      setMsg("Xatolik — qaytadan urinib ko'ring");
+      return null;
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  // ── taksi ──
+  const [addr, setAddr] = useState("");
+  // ── qidiruv/buyurtma ──
+  const [provider, setProvider] = useState("restoran");
+  const [query, setQuery] = useState("");
+  const [cards, setCards] = useState<{ id: string; title: string; subtitle?: string; restaurantId?: number; menuItemId?: number; shopId?: number; productId?: number }[] | null>(null);
+  const [pickedId, setPickedId] = useState("");
+  const [qty, setQty] = useState(1);
+  const [orderAddr, setOrderAddr] = useState("");
+  // ── eslatma ──
+  const [remText, setRemText] = useState("");
+  const [remAt, setRemAt] = useState("");
+  // ── tanga ──
+  const [coinAmt, setCoinAmt] = useState(0);
+  const [coinReason, setCoinReason] = useState("");
+  // ── ban ──
+  const [banReason, setBanReason] = useState("");
+
+  const search = async () => {
+    setBusy(true); setMsg(null); setCards(null);
+    const r = await adminApi.oprAct(memberId ?? null, telegramId ?? null, "search", { providerKey: provider, query });
+    setBusy(false);
+    if (r.ok) setCards(((r.extra as { cards?: typeof cards })?.cards) ?? []);
+    else setMsg(r.message);
+  };
+
+  return (
+    <div className="panel" style={{ padding: 12 }}>
+      <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 10 }}>
+        {([["tezkor", "📍 Tezkor"], ["taksi", "🚕 Taksi"], ["qidiruv", "🔎 Buyurtma"], ["eslatma", "⏰ Eslatma"], ["tanga", "🪙 Tanga"], ["ban", "🚫 Ban"]] as [OprSection, string][]).map(([id, label]) => (
+          <button key={id} className="btn sm" onClick={() => setSection(id)} style={section === id ? { background: "var(--accent)", color: "#000" } : undefined}>{label}</button>
+        ))}
+      </div>
+
+      {section === "tezkor" && (
+        <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+          <button className="btn sm" disabled={busy} onClick={() => act("status_taxi")}>📍 Taksi holati</button>
+          <button className="btn sm" disabled={busy} onClick={() => act("balance")}>🪙 Balans</button>
+          <button className="btn sm" disabled={busy} onClick={() => act("stats", { period: "oy" })}>📊 Oylik hisobot</button>
+          <button className="btn sm" disabled={busy} onClick={() => act("cancel_taxi")}>✖️ Taksini bekor qilish</button>
+        </div>
+      )}
+
+      {section === "taksi" && (
+        <div style={{ display: "flex", gap: 6 }}>
+          <input className="inp" style={{ flex: 1 }} placeholder="Manzil (bo'sh — saqlangan manzil ishlatiladi)" value={addr} onChange={(e) => setAddr(e.target.value)} />
+          <button className="btn sm" disabled={busy} onClick={() => act("book", addr.trim() ? { addressQuery: addr.trim() } : {})}>🚕 Chaqirish</button>
+        </div>
+      )}
+
+      {section === "qidiruv" && (
+        <div>
+          <div style={{ display: "flex", gap: 6, marginBottom: 8 }}>
+            <select className="inp" value={provider} onChange={(e) => setProvider(e.target.value)}>
+              <option value="restoran">🍽 Restoran</option>
+              <option value="xizmat">🔎 Xizmat</option>
+              <option value="bazar">🛒 Bozor</option>
+              <option value="elon">📋 E'lon</option>
+              <option value="reys">🚐 Reys</option>
+            </select>
+            <input className="inp" style={{ flex: 1 }} placeholder="Nima qidiryapsiz?" value={query} onChange={(e) => setQuery(e.target.value)} onKeyDown={(e) => e.key === "Enter" && void search()} />
+            <button className="btn sm" disabled={busy || !query.trim()} onClick={search}>Qidirish</button>
+          </div>
+          {cards && (
+            <div style={{ display: "flex", flexDirection: "column", gap: 4, marginBottom: 8 }}>
+              {cards.length === 0 && <div className="muted">Hech narsa topilmadi</div>}
+              {cards.map((c) => (
+                <label key={c.id} style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 13, cursor: "pointer" }}>
+                  <input type="radio" name="opr-card" checked={pickedId === c.id} onChange={() => setPickedId(c.id)} />
+                  <b>{c.title}</b> {c.subtitle && <span className="muted">— {c.subtitle}</span>}
+                </label>
+              ))}
+            </div>
+          )}
+          {(provider === "restoran" || provider === "bazar") && (
+            <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+              <input className="inp" type="number" min={1} style={{ width: 70 }} value={qty} onChange={(e) => setQty(Math.max(1, Number(e.target.value) || 1))} />
+              <input className="inp" style={{ flex: 1 }} placeholder="Yetkazish manzili" value={orderAddr} onChange={(e) => setOrderAddr(e.target.value)} />
+              <button
+                className="btn sm"
+                disabled={busy || !pickedId || !orderAddr.trim()}
+                onClick={() => {
+                  const picked = cards?.find((c) => c.id === pickedId);
+                  if (!picked) return;
+                  void act(provider === "restoran" ? "order_food" : "order_bazar", {
+                    ...(provider === "restoran"
+                      ? { restaurantId: picked.restaurantId, foodItems: [{ menuItemId: picked.menuItemId, qty }] }
+                      : { shopId: picked.shopId, bazarItems: [{ productId: picked.productId, qty }] }),
+                    address: orderAddr.trim(),
+                  });
+                }}
+              >
+                🛒 Buyurtma qilish
+              </button>
+            </div>
+          )}
+        </div>
+      )}
+
+      {section === "eslatma" && (
+        <div style={{ display: "flex", gap: 6 }}>
+          <input className="inp" style={{ flex: 1 }} placeholder="Eslatma matni" value={remText} onChange={(e) => setRemText(e.target.value)} />
+          <input className="inp" type="datetime-local" value={remAt} onChange={(e) => setRemAt(e.target.value)} />
+          <button className="btn sm" disabled={busy || !remText.trim() || !remAt} onClick={() => act("remind", { text: remText.trim(), runAtIso: new Date(remAt).toISOString() })}>Saqlash</button>
+        </div>
+      )}
+
+      {section === "tanga" && (
+        <div style={{ display: "flex", gap: 6 }}>
+          <input className="inp" type="number" style={{ width: 100 }} placeholder="±summa" value={coinAmt || ""} onChange={(e) => setCoinAmt(Number(e.target.value) || 0)} />
+          <input className="inp" style={{ flex: 1 }} placeholder="Sabab" value={coinReason} onChange={(e) => setCoinReason(e.target.value)} />
+          <button className="btn sm" disabled={busy || !coinAmt} onClick={() => act("coins", { amount: coinAmt, reason: coinReason.trim() })}>Qo'llash</button>
+        </div>
+      )}
+
+      {section === "ban" && (
+        <div style={{ display: "flex", gap: 6 }}>
+          <input className="inp" style={{ flex: 1 }} placeholder="Sabab" value={banReason} onChange={(e) => setBanReason(e.target.value)} />
+          <button className="btn sm" disabled={busy} onClick={() => act("ban", { reason: banReason.trim() })}>🚫 Bloklash</button>
+          <button className="btn sm" disabled={busy} onClick={() => act("unban")}>✅ Blokdan chiqarish</button>
+        </div>
+      )}
+
+      {msg && <div className="muted" style={{ marginTop: 8, fontSize: 13 }}>{msg}</div>}
+    </div>
+  );
+}
+
+// ─── ☎️ Call-markaz — telefon-mijoz, kas1067'siz ────────────────────────────
+function CallMarkazView() {
+  const [phone, setPhone] = useState("");
+  const [name, setName] = useState("");
+  const [resolved, setResolved] = useState<{ memberId: number; fullName: string } | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+
+  const resolve = async () => {
+    if (!phone.trim()) return;
+    setBusy(true); setErr(null); setResolved(null);
+    const r = await adminApi.oprResolvePhone(phone.trim(), name.trim() || undefined);
+    setBusy(false);
+    if (r.ok && r.memberId) setResolved({ memberId: r.memberId, fullName: r.fullName ?? "Mijoz" });
+    else setErr(r.message ?? "Topilmadi");
+  };
+
+  return (
+    <div style={{ maxWidth: 640 }}>
+      <div className="panel" style={{ padding: 12, marginBottom: 12 }}>
+        <div className="panel-title">☎️ Qo'ng'iroq — mijozni toping yoki yarating</div>
+        <div style={{ display: "flex", gap: 6, marginTop: 8 }}>
+          <input className="inp" placeholder="+998 90 123 45 67" value={phone} onChange={(e) => setPhone(e.target.value)} />
+          <input className="inp" placeholder="Ism (agar yangi bo'lsa)" value={name} onChange={(e) => setName(e.target.value)} />
+          <button className="btn sm" disabled={busy || !phone.trim()} onClick={resolve}>Topish / Yaratish</button>
+        </div>
+        {err && <div className="muted" style={{ marginTop: 6, color: "var(--red)" }}>{err}</div>}
+        {resolved && <div className="muted" style={{ marginTop: 6 }}>✅ {resolved.fullName} (#{resolved.memberId})</div>}
+      </div>
+      {resolved && <OperatorActions memberId={resolved.memberId} />}
+    </div>
+  );
+}
+
+// ─── 📡 Nazorat — jonli buyurtma/safar-dashboard ────────────────────────────
+function NazoratView() {
+  const [rows, setRows] = useState<OprOpsRow[] | null>(null);
+  const load = () => adminApi.oprDashboard().then((r) => setRows(r.rows)).catch(() => setRows([]));
+  useEffect(() => { load(); const t = setInterval(load, 15000); return () => clearInterval(t); }, []);
+
+  const icon: Record<OprOpsRow["module"], string> = { taxi: "🚕", food: "🍽", bazar: "🛒", reys: "🚐" };
+
+  return (
+    <div className="table-wrap">
+      <div className="panel-title" style={{ marginBottom: 8 }}>📡 Hozir faol — {rows?.length ?? "…"}</div>
+      {!rows && <div className="muted">Yuklanmoqda…</div>}
+      {rows?.length === 0 && <div className="muted">Hozir faol buyurtma/safar yo'q.</div>}
+      {rows?.map((r) => (
+        <div key={`${r.module}-${r.id}`} className="panel" style={{ padding: "8px 12px", marginBottom: 6, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+          <div>
+            {icon[r.module]} <b>{r.title}</b> <span className="muted">— {r.status}</span>
+          </div>
+          <div>
+            <span className="muted">{r.ageMin} daq</span>
+            {r.stuck && <span className="badge badge-bad" style={{ marginLeft: 8 }}>⚠️ uzoq kutmoqda</span>}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// ─── 🕵️ Jurnal — kim nima qildi ─────────────────────────────────────────────
+function JurnalView() {
+  const [rows, setRows] = useState<OprJurnalRow[] | null>(null);
+  useEffect(() => { adminApi.oprJurnal().then((r) => setRows(r.items)).catch(() => setRows([])); }, []);
+  return (
+    <div className="table-wrap">
+      {!rows && <div className="muted">Yuklanmoqda…</div>}
+      {rows?.length === 0 && <div className="muted">Hali amal yo'q.</div>}
+      {rows?.map((r) => (
+        <div key={r.id} className="panel" style={{ padding: "8px 12px", marginBottom: 6, fontSize: 13 }}>
+          <b>{r.actorRole}</b> <span className="muted">— {r.action.replace(/^opr_/, "")}</span>
+          {r.targetId && <span className="muted"> · mijoz #{r.targetId}</span>}
+          {r.detail && <div className="muted" style={{ marginTop: 2 }}>{r.detail}</div>}
+          <div className="muted" style={{ fontSize: 11, marginTop: 2 }}>{fmtTime(r.createdAt)}</div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// ─── 🎧 Super Operator shell — minimal 4-tab console for the "chatops" role ─
+function OperatorConsoleShell({ operatorName, onLogout }: { operatorName?: string; onLogout: () => void }) {
+  const [tab, setTab] = useState<"chat" | "call" | "nazorat" | "jurnal">("chat");
+  const tabs: [typeof tab, string][] = [["chat", "💬 Chat"], ["call", "☎️ Call-markaz"], ["nazorat", "📡 Nazorat"], ["jurnal", "🕵️ Mening amallarim"]];
+  return (
+    <div className="dash">
+      <div className="content" style={{ marginLeft: 0 }}>
+        <div className="content-header">
+          <div className="content-title">🎧 Operator{operatorName ? ` — ${operatorName}` : ""}</div>
+          <div className="content-header-right">
+            <button className="logout-btn" onClick={onLogout}>🚪 Chiqish</button>
+          </div>
+        </div>
+        <div style={{ display: "flex", gap: 6, padding: "0 16px", marginTop: 8 }}>
+          {tabs.map(([id, label]) => (
+            <button key={id} className="btn sm" onClick={() => setTab(id)} style={tab === id ? { background: "var(--accent)", color: "#000" } : undefined}>{label}</button>
+          ))}
+        </div>
+        <div className="content-body">
+          {tab === "chat" && <ChatView />}
+          {tab === "call" && <CallMarkazView />}
+          {tab === "nazorat" && <NazoratView />}
+          {tab === "jurnal" && <JurnalView />}
+        </div>
       </div>
     </div>
   );

@@ -104,6 +104,40 @@ export async function dispatchAction(
     }
     case "search": {
       if (!params.providerKey || !params.query) return { ok: false, message: "provider/query kerak" };
+      // 🍽 restoran needs a richer card than the AI's AiCard{id,title,subtitle} gives — its `id`
+      // is just the menuItemId (no restaurantId), fine for the AI's own single-item order() flow
+      // (which re-searches by name to disambiguate) but not enough for the operator UI to submit
+      // a direct multi-item createFoodOrder call. Search restaurants+menus directly here instead
+      // of going through the AI provider, so each card also carries restaurantId.
+      if (params.providerKey === "restoran") {
+        const { listActiveRestaurants, getRestaurantDetail } = await import("./restoranService");
+        const q = params.query.toLowerCase().trim();
+        const restaurants = await listActiveRestaurants();
+        const found: { id: string; title: string; subtitle?: string; restaurantId: number; menuItemId: number }[] = [];
+        for (const r of restaurants) {
+          const { restaurant, items } = await getRestaurantDetail(r.id);
+          if (!restaurant) continue;
+          for (const it of items) {
+            if (!it.available || !it.name.toLowerCase().includes(q)) continue;
+            found.push({ id: `${r.id}:${it.id}`, title: `${it.name} — ${restaurant.name}`, subtitle: `${it.priceSom.toLocaleString("ru-RU")} so'm`, restaurantId: r.id, menuItemId: it.id });
+          }
+        }
+        audit(`qidiruv: restoran "${params.query}" -> ${found.length}`);
+        return { ok: true, message: `${found.length} ta topildi`, extra: { cards: found.slice(0, 12) } };
+      }
+      // 🛒 bazar — same reasoning as restoran above: need shopId per product for
+      // createMarketOrder, which the AI's plain AiCard.id (bare productId) doesn't carry.
+      if (params.providerKey === "bazar") {
+        const q = params.query.toLowerCase();
+        const rows = await prisma.product.findMany({
+          where: { active: true, stock: { gt: 0 }, shopId: { not: null }, OR: [{ name: { contains: q, mode: "insensitive" } }, { category: { contains: q, mode: "insensitive" } }] },
+          take: 12,
+          select: { id: true, name: true, priceTanga: true, stock: true, shopId: true },
+        });
+        const found = rows.map((p) => ({ id: `${p.shopId}:${p.id}`, title: p.name, subtitle: `🪙 ${p.priceTanga.toLocaleString("ru-RU")} tanga · 📦 ${p.stock}`, shopId: p.shopId as number, productId: p.id }));
+        audit(`qidiruv: bazar "${params.query}" -> ${found.length}`);
+        return { ok: true, message: `${found.length} ta topildi`, extra: { cards: found } };
+      }
       const { providerByKey } = await import("./ai/providers");
       const prov = providerByKey(params.providerKey);
       if (!prov) return { ok: false, message: "Bu bo'lim hozir mavjud emas" };

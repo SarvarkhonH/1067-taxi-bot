@@ -132,7 +132,7 @@ export const adminApi = {
   optoken: (role: "operator" | "shopseller" = "operator", shopId?: number) => postJson<{ ok: boolean; token: string; role: string; error?: string }>("/api/admin/optoken", { role, shopId }),
   marketShops: () => req<{ shops: { id: number; name: string; active: boolean }[] }>("/api/admin/market-shops"), // V1.6e
   optokens: () => req<{ tokens: { token: string; role: string; shopName?: string; createdAt: string }[] }>("/api/admin/optokens"),
-  whoami: () => req<{ role: string }>("/api/admin/whoami"),
+  whoami: () => req<{ role: string; operatorName?: string }>("/api/admin/whoami"),
   optokenRevoke: (token: string) => req<{ ok: boolean }>(`/api/admin/optokens/${encodeURIComponent(token)}`, { method: "DELETE" }),
   unflag: (memberId: number) => postJson<AdminActionResult>("/api/admin/unflag", { memberId }),
   // 📷 driver portrait — upload a JPEG/PNG (≤5MB). base64 → server → Telegram CDN → file_id in DB.
@@ -371,6 +371,16 @@ export const adminApi = {
   chatConversations: () => req<AdminChatConvo[]>("/api/admin/chat/conversations"),
   chatMessages: (telegramId: string) => req<AdminChatMsg[]>(`/api/admin/chat/messages/${encodeURIComponent(telegramId)}`),
   chatReply: (telegramId: string, text: string) => postJson<{ ok: boolean }>("/api/admin/chat/reply", { telegramId, text }),
+  // 🎧 Super Operator console
+  chatPause: (telegramId: string, on: boolean) => postJson<{ ok: boolean }>("/api/admin/chat/pause", { telegramId, on }),
+  oprResolvePhone: (phone: string, fullName?: string) =>
+    postJson<{ ok: boolean; memberId?: number; fullName?: string; message?: string }>("/api/admin/opr/resolve-phone", { phone, fullName }),
+  oprAct: (memberId: number | null, telegramId: string | null, action: string, params: Record<string, unknown> = {}) =>
+    postJson<{ ok: boolean; message: string; extra?: unknown }>("/api/admin/opr/act", { memberId, telegramId, action, params }),
+  oprDashboard: () => req<{ rows: OprOpsRow[] }>("/api/admin/opr/dashboard"),
+  oprHealth: () => req<OprSystemHealth>("/api/admin/opr/health"),
+  oprMintToken: (name: string) => postJson<{ ok: boolean; token: string; role: string }>("/api/admin/optoken", { role: "chatops", name }),
+  oprJurnal: () => req<{ items: OprJurnalRow[] }>("/api/admin/opr/jurnal"),
   // 📱 message history
   msgHistory: (limit = 200) => req<AdminMsgHistoryRow[]>(`/api/admin/msg-history?limit=${limit}`),
   // 🔥 peak hours
@@ -557,6 +567,33 @@ export interface AdminChatMsg {
   direction: string;
   text: string;
   at: string;
+}
+
+// 🎧 Super Operator console
+export interface OprOpsRow {
+  module: "taxi" | "food" | "bazar" | "reys";
+  id: number | string;
+  memberId?: number;
+  title: string;
+  status: string;
+  ageMin: number;
+  stuck: boolean;
+}
+export interface OprSystemHealth {
+  flags: { name: string; on: boolean }[];
+  globalUsedToday: number;
+  globalCap: number;
+  memberCap: number;
+}
+export interface OprJurnalRow {
+  id: number;
+  actorRole: string;
+  actorTgId: string | null;
+  action: string;
+  targetType: string;
+  targetId: number | null;
+  detail: string | null;
+  createdAt: string;
 }
 
 export interface AdminMsgHistoryRow {
