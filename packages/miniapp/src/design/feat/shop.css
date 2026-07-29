@@ -263,9 +263,9 @@
 .app.bjm .shop-tile-grid { margin: 0 16px; }
 .app.bjm .shop-home-products { padding: 20px 0 24px; }
 .app.bjm .shop-home-products .shop-section-title2 { padding: 0 16px; }
-.app.bjm .shop-search { background: var(--bj-card); border: none; color: var(--bj-ink); box-shadow: var(--bj-shadow); backdrop-filter: var(--bj-glass-blur); -webkit-backdrop-filter: var(--bj-glass-blur); }
+.app.bjm .shop-search { background: var(--bj-card-solid, #fff); border: none; color: var(--bj-ink); box-shadow: var(--bj-shadow); }
 .app.bjm .shop-search::placeholder { color: var(--bj-ink-dim); }
-.app.bjm .shop-share-btn { background: var(--bj-card); border: none; color: var(--bj-ink); box-shadow: var(--bj-shadow); backdrop-filter: var(--bj-glass-blur); -webkit-backdrop-filter: var(--bj-glass-blur); }
+.app.bjm .shop-share-btn { background: var(--bj-card-solid, #fff); border: none; color: var(--bj-ink); box-shadow: var(--bj-shadow); }
 .app.bjm .shop-card { --acc: #34d399; }
 .app.bjm .shop-card, .app.bjm .shop-card.glass {
   background: var(--bj-card); border: none;
@@ -316,11 +316,15 @@
 .shop-city-card-dot.closed { background: #9ca3af; }
 .shop-city-card-name { margin-top: 7px; font-size: 11px; font-weight: 700; line-height: 1.22; color: var(--bj-ink); display: -webkit-box; -webkit-line-clamp: 2; line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
 .shop-city-card-meta { margin-top: 2px; font-size: 10px; color: var(--bj-ink-dim, #6b7280); }
+/* ⚡ EGA (2026-07-28): «nega baribir tepada pastga skrol og'ir harakat qiladi».
+   Sabab: YOPISHQOQ sarlavha `backdrop-filter` bilan edi — u har scroll kadrida orqasidan
+   o'tayotgan kontentni QAYTA blur qiladi (kafellardagi blurdan ham qimmatroq, chunki
+   backdrop har kadrda o'zgaradi). Fon 58% shaffofdan 95% ga ko'tarildi: ko'rinish deyarli
+   o'sha, narxi nolga tushdi. */
 .app.bjm .shop-head {
   position: sticky; top: 0; z-index: 20;
   padding: calc(var(--safe-top) + 8px) 14px 10px;
-  background: rgba(255, 255, 255, .58);
-  backdrop-filter: var(--bj-glass-blur); -webkit-backdrop-filter: var(--bj-glass-blur);
+  background: rgba(255, 255, 255, .95);
   border-bottom: none;
   box-shadow: inset 0 -.5px 0 rgba(255, 255, 255, .55), 0 1px 24px -16px rgba(20, 26, 24, .55);
 }
