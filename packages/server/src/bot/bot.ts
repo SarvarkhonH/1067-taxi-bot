@@ -57,8 +57,8 @@ import {
 import { getFareConfig } from "../services/clientInfoService";
 import { markSeen } from "../services/presence";
 import { isTgBanned } from "../services/banService";
-
-const canWebApp = env.TELEGRAM_WEBAPP_URL.startsWith("https://");
+import { canWebApp, getWebAppVer, refreshWebAppVer, webAppUrl } from "./webAppUrl";
+export { webAppUrl } from "./webAppUrl"; // re-export: existing importers (broadcast.ts, shop.ts) keep working
 
 // The friend-facing invite message (the text Telegram prepends before the link in the
 // share dialog). Single source so every client share point — bot link, bot QR, driver→client
@@ -81,40 +81,8 @@ function inviteLandingUrl(botLink: string): string {
   return m && m[1] ? `${INVITE_LANDING}?r=${encodeURIComponent(m[1])}&v=2` : botLink;
 }
 
-// Telegram caches the Mini App aggressively BY URL — the owner kept seeing stale builds
-// (worst: the persistent Menu Button, whose URL had NO version → permanently cached → the
-// old UZ-blocked map → blank). We version the URL (?v=<token>) so Telegram treats each
-// release as a brand-new app → guaranteed fresh load. The token AUTO-tracks the live
-// frontend: we probe index.html's hashed bundle name at startup, so no manual bump is
-// needed on a frontend deploy (the stale "v14" that caused this never auto-updated).
-const WEBAPP_BUILD = "v16"; // static fallback if the live-hash probe fails
-let webAppVer = WEBAPP_BUILD;
-async function refreshWebAppVer(): Promise<void> {
-  try {
-    const res = await fetch(env.TELEGRAM_WEBAPP_URL);
-    // Vite content hashes are base64url → can contain "-" and "_" (e.g. index-BilONG-Z.js).
-    // The old [A-Za-z0-9_]+ class missed the hyphen → probe failed → menu button fell back to
-    // the stale "v16", so every user opened a cached old build. Include "-" so it always parses.
-    const m = (await res.text()).match(/index-([A-Za-z0-9_-]+)\.js/);
-    if (m) webAppVer = m[1]!;
-  } catch (e) {
-    console.error("[bot] webapp version probe failed → fallback", WEBAPP_BUILD, e instanceof Error ? e.message : e);
-  }
-}
-export function webAppUrl(go?: string): string {
-  // Always emit a URL with an explicit `/` path before the query — some Telegram clients (older
-  // Android, Web Z) parse `https://host?…` differently from `https://host/?…` and can drop the
-  // hash they need to append (#tgWebAppData=…) → initData missing → "Telegram orqali oching".
-  let u = env.TELEGRAM_WEBAPP_URL;
-  // If no path yet (e.g. "https://example.com" or "https://example.com?x=1"), ensure a "/" before the query.
-  const noPath = !/^https?:\/\/[^/?#]+\/[^?]/.test(u);
-  if (noPath) {
-    const qi = u.indexOf("?");
-    if (qi === -1) u = u.replace(/\/?$/, "/");
-    else u = u.slice(0, qi).replace(/\/?$/, "/") + u.slice(qi);
-  }
-  return u + (u.includes("?") ? "&" : "?") + "v=" + webAppVer + (go ? "&go=" + go : "");
-}
+// webAppUrl()/refreshWebAppVer()/canWebApp now live in ./webAppUrl (single source of truth —
+// booking.ts used to keep a drifting local duplicate; see that module's header comment).
 
 // Minimal 2-button menu (2026-07-23 cleanup — the reply keyboard had grown to 8+ rows across
 // sessions; owner asked to strip it down to the two things people tap constantly: invite-a-friend
@@ -2271,12 +2239,13 @@ export async function setupBotCommands(bot: Bot): Promise<void> {
       // 45 soniyadan keyin qayta tekshiramiz va FAQAT o'zgargan bo'lsa yangilaymiz.
       setTimeout(() => {
         void (async () => {
-          const before = webAppVer;
+          const before = getWebAppVer();
           await refreshWebAppVer();
-          if (webAppVer === before) return;
+          const after = getWebAppVer();
+          if (after === before) return;
           try {
             await bot.api.setChatMenuButton({ menu_button: { type: "web_app", text: "🚕 BirJoy", web_app: { url: webAppUrl() } } });
-            console.log(`[bot] menyu tugmasi yangilandi: ${before} → ${webAppVer}`);
+            console.log(`[bot] menyu tugmasi yangilandi: ${before} → ${after}`);
           } catch (e) {
             console.error("[bot] menu button resync failed", e instanceof Error ? e.message : e);
           }

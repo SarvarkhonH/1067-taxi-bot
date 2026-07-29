@@ -61,6 +61,14 @@ async function checkForNewBuild(): Promise<void> {
 document.addEventListener("visibilitychange", () => { void checkForNewBuild(); });
 window.addEventListener("focus", () => { void checkForNewBuild(); });
 setTimeout(() => { void checkForNewBuild(); }, 5_000); // birinchi ochilishdan keyin ham
+// 🚗 HAYDOVCHI holati: yuqoridagi 3 tasi hammasi "hodisa" ga bog'liq (ko'rinish o'zgarishi/fokus).
+// Haydovchi ilovani smenaning boshida OCHADI va soatlab OLDIN qo'ymaydi (bir joyda,
+// backgroundga o'tmasdan, telefon ekrani yonib turadi) — shu holatda hech qanday hodisa
+// ishga tushmaydi va u kunlab eski build'da qolib ketadi (ega: "haydovchilar uchun ham juda
+// eski narsalar turibti"). Davriy tekshiruv shu uzun-ochiq sessiyalarni ham davolaydi;
+// `checkForNewBuild` ichidagi 60s throttle allaqachon bor, shuning uchun bu shunchaki
+// "hech bo'lmasa har daqiqada bir marta chaqiring" kafolati — qo'shimcha server yuki yo'q.
+setInterval(() => { void checkForNewBuild(); }, 60_000);
 
 // 🛡 family-safety: a public ?track=<token> link opens the read-only live trip view (lazy → leaflet
 // loads only for this case), bypassing the authed app entirely. No login / Telegram needed.

@@ -1,21 +1,11 @@
 import { Bot, Context, InlineKeyboard, Keyboard } from "grammy";
 import { formatNumber, haversineKm } from "@t1067/shared";
 import { env } from "../env";
-
-// Local helper — mirrors bot.ts webAppUrl(). Used to append inline web_app buttons to bot replies
-// so users have a reliable one-tap entry into the Mini App (inline web_app = same auth as the menu
-// button, never the reply-keyboard web_app flakiness). Trailing slash before the query is mandatory.
-const canWebApp = env.TELEGRAM_WEBAPP_URL.startsWith("https://");
-function webAppUrl(go?: string): string {
-  let u = env.TELEGRAM_WEBAPP_URL;
-  const noPath = !/^https?:\/\/[^/?#]+\/[^?]/.test(u);
-  if (noPath) {
-    const qi = u.indexOf("?");
-    if (qi === -1) u = u.replace(/\/?$/, "/");
-    else u = u.slice(0, qi).replace(/\/?$/, "/") + u.slice(qi);
-  }
-  return u + (u.includes("?") ? "&" : "?") + (go ? "go=" + go : "");
-}
+// canWebApp/webAppUrl used to be a LOCAL duplicate here (to dodge a circular import with bot.ts,
+// which imports FROM this file) — that duplicate drifted out of sync when bot.ts's copy gained the
+// `?v=` cache-busting param, so every booking-wizard inline button silently kept serving a
+// version-less URL. Now both import the same module — see webAppUrl.ts's header comment.
+import { canWebApp, webAppUrl } from "./webAppUrl";
 import { getDataSource, type ActiveBooking, type SavedAddress } from "../kas";
 import { getMe, getMemberId } from "../services/memberService";
 import { getFareConfig } from "../services/clientInfoService";
