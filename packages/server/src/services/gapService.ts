@@ -104,9 +104,8 @@ export async function settleGapsWeekly(bot: Bot): Promise<void> {
     for (const m of tus) {
       if (!m.telegramUser) continue;
       const isPot = m.id === potWinner.memberId;
-      await bot.api
-        .sendMessage(m.telegramUser.id, `👬 <b>"${gap.name}"</b> haftalik maqsadni bajardi (${rides}/${goal} safar)!\n💰 +${GAP_REWARD_EACH} tanga${isPot ? ` va 🏆 GAP POTI: +${GAP_POT} tanga SIZGA!` : ""}`, { parse_mode: "HTML" })
-        .catch(() => null);
+      const { pushMessage } = await import("./pushSend"); // BLK-1 (tanga berilgan — force)
+      await pushMessage(bot, m.telegramUser.id, "gap_weekly", `👬 <b>"${gap.name}"</b> haftalik maqsadni bajardi (${rides}/${goal} safar)!\n💰 +${GAP_REWARD_EACH} tanga${isPot ? ` va 🏆 GAP POTI: +${GAP_POT} tanga SIZGA!` : ""}`, { memberId: m.id, force: true });
     }
   }
   await prisma.appState.update({ where: { key: marker }, data: { value: "done" } }).catch(() => null);

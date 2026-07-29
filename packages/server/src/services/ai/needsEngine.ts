@@ -90,7 +90,7 @@ export async function sendNudge(bot: Bot, chatId: string, memberId: number, kind
   } catch {
     return false; // this kind already fired today
   }
-  await pushMessage(bot, chatId, kind, html, { memberId, extra: { reply_markup: stopKb() } });
+  await pushMessage(bot, chatId, kind, html, { memberId, prechecked: true, extra: { reply_markup: stopKb() } });
   await bumpWeekly(memberId);
   return true;
 }

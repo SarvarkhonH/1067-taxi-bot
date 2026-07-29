@@ -33,12 +33,15 @@ export async function sendProductCard(bot: Bot, chatId: string, productId: numbe
     (p.description ? `\n${esc(p.description.slice(0, 300))}\n` : "") +
     `\n<i>Do'kondagi barcha mahsulotlar: «🚀 Ilova» → Do'kon</i>`;
   const photoUrl = await resolveProductPhoto(productId, 0).catch(() => null);
+  // BLK-1: `force` — o'lchov uchun (403 yoziladi), lekin hech qachon bostirilmaydi: bu karta
+  // foydalanuvchi harakati bilan ham chiqadi.
+  const { pushSend } = await import("../services/pushSend");
   if (photoUrl) {
-    await bot.api.sendPhoto(chatId, photoUrl, { caption, parse_mode: "HTML", reply_markup: kb }).catch(async () => {
-      await bot.api.sendMessage(chatId, caption, { parse_mode: "HTML", reply_markup: kb }).catch(() => undefined);
+    await pushSend(chatId, "shop_card", () => bot.api.sendPhoto(chatId, photoUrl, { caption, parse_mode: "HTML", reply_markup: kb }), { force: true }).then(async (o) => {
+      if (o !== "sent") await pushSend(chatId, "shop_card", () => bot.api.sendMessage(chatId, caption, { parse_mode: "HTML", reply_markup: kb }), { force: true });
     });
   } else {
-    await bot.api.sendMessage(chatId, caption, { parse_mode: "HTML", reply_markup: kb }).catch(() => undefined);
+    await pushSend(chatId, "shop_card", () => bot.api.sendMessage(chatId, caption, { parse_mode: "HTML", reply_markup: kb }), { force: true });
   }
   return true;
 }

@@ -48,6 +48,15 @@ async function main(): Promise<void> {
   const o6 = await pushMessage(fakeBot(), ID_A, "ride_arrived", "test", { force: true });
   check("A6 force → safar push'i ketadi", o6 === "sent" && calls === 1, `outcome=${o6} chaqiruv=${calls}`);
 
+  // ── A7 (R4/D6): `force` yo'li bloklanganga qayta-qayta 403 olsa — TAKRORIY satr yozilmaydi
+  const firstAt = (await prisma.telegramUser.findUnique({ where: { id: ID_A }, select: { blockedAt: true } }))?.blockedAt;
+  await pushMessage(fakeBot(e403), ID_A, "ride_finish", "test", { force: true });
+  await pushMessage(fakeBot(e403), ID_A, "ride_fare", "test", { force: true });
+  const evCount = await prisma.blockEvent.count({ where: { telegramId: ID_A, event: "block" } });
+  const stillAt = (await prisma.telegramUser.findUnique({ where: { id: ID_A }, select: { blockedAt: true } }))?.blockedAt;
+  check("A7 force 403 takrori → 1 satr, vaqt surilmaydi", evCount === 1 && firstAt?.getTime() === stillAt?.getTime(),
+    `blockEvent=${evCount} (kutilgan 1) blockedAt o'zgarmadi=${firstAt?.getTime() === stillAt?.getTime()}`);
+
   // ── A4: qaytish → blockedAt tozalanadi + BlockEvent(return)
   const blockedBefore = await isBlocked(ID_A);
   await touchTelegramUser(ID_A, { firstName: "BLK1TEST" });

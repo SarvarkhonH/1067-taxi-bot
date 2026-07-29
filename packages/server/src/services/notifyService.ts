@@ -49,7 +49,10 @@ async function trySend(bot: Bot, chatId: string, memberId: number, kind: string,
   } catch {
     return false; // already sent this trigger today
   }
-  return (await pushMessage(bot, chatId, kind, html, { memberId })) === "sent";
+  // ⚠️ Qaytish qiymati AVVALGIDEK: "slot band qilindi" (yuborishga urinildi), "yetkazildi" EMAS.
+  // Aks holda 429 da chaqiruvchi zanjiri (`continue`) buzilib, o'sha tick'da ikkinchi trigger
+  // ishga tushardi va `comebackOfferUntil` yozilmay qolardi — bu tiket oqimni O'ZGARTIRMAYDI.
+  return (await pushMessage(bot, chatId, kind, html, { memberId, prechecked: true })) !== "skipped";
 }
 
 /** Periodic tick (piggybacks the existing loop). Cheap checks, hard caps. */
