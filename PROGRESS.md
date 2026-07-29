@@ -4748,3 +4748,32 @@ jonli bundle `index-Cmxoinla.js`; `/health` 200.
 bir xillashadi (hozir mijoz-qorovuli buni baribir tuzatadi, lekin manbada ikki xillik qoladi).
 
 **Commitlar:** `74a0367` (version.txt + qorovul) · `12448e8` (kesh kalitini yangilash).
+
+## §76 — 🔑 «ISHLAB YANA ISHLAMAY QOLADI»: initData 24 soatlik chegara edi · 2026-07-29
+
+**Ega:** «sarvarxonh@ da hali ham ishlamayapti, ma'lumotlar yuklanmaydi» → «ishlamadi… keshni har
+kun tozalayman, o'zi qanchadir vaqtdan keyin ishlab yana ishlamay qoladi».
+
+### Tashxis (o'lchov, kesh nazariyasi RAD ETILDI)
+`journalctl -u caddy` da ega akkaunti (`TelegramUser.id=6506297119`, `memberId=26`, admin) uchun
+so'nggi 3 soatda **139 so'rov — hammasi 200/204/304**, bitta ham xato yo'q. Ya'ni server tomon
+sog'lom edi; muammo boshqa joyda.
+
+**Haqiqiy sabab:** `telegramAuth.ts:22` — `validateInitData(…, maxAgeSec = 86400)`. Telegram
+Mini App'ga `initData` (imzo, `auth_date` bilan) FAQAT ochilganda beriladi. Telefon Telegram
+WebView'ni fonda tirik saqlab qolgani uchun bu imzo hech qachon yangilanmaydi. 24 soatdan keyin
+`ageSec > maxAgeSec` → `{ ok:false, reason:"expired" }` → `resolveTelegramId` **jimgina** `null`
+qaytaradi (hech qanday tushunarli xato yo'q) → mijoz sezmasdan "mehmon" holatiga tushadi.
+Naqsh aynan mos: kesh tozalash = yangi ochilish = yangi `auth_date` = ishlaydi, ~1 kundan keyin
+imzo eskiradi = yana "ma'lumot yuklanmaydi".
+
+### Tuzatish
+`maxAgeSec: 86400 → 604_800` (7 kun). Faqat REPLAY OYNASI kengaydi — HMAC imzo tekshiruvi
+o'zgarmadi. Telefon-raqam-ulash oqimidagi ALOHIDA `validateContactResponse` (1 soat, bir martalik
+interaktiv harakat) ATAYLAB tegilmadi.
+
+**Isbot:** server typecheck 4/4 · vitest 42/42 (pul-matematikasi ta'sirlanmagan) · jonli VPS
+manbada `maxAgeSec = 604_800` tasdiqlandi · `/health` 200.
+
+**Commit:** `2fb94f4`. **Holat:** `ready for verification` — ega kamida 7 kun kutmasdan
+tekshiradi (avvalgi naqsh: kuniga bir marta buzilardi).
