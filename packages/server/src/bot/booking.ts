@@ -20,6 +20,7 @@ import { getDataSource, type ActiveBooking, type SavedAddress } from "../kas";
 import { getMe, getMemberId } from "../services/memberService";
 import { getFareConfig } from "../services/clientInfoService";
 import { callOneTapFor, cancelBookingFor, claimDispatchSlot, getActiveBookingFor, getQuickPickup, releaseDispatchSlot, rememberPickup } from "../services/bookingService";
+import { getAddressAliases } from "../services/addressAlias";
 
 interface BookingSession {
   awaitingText: boolean;
@@ -74,8 +75,9 @@ function normAddr(s: string): string {
   return s.toLowerCase().replace(/[''`]/g, "'").replace(/\s+/g, " ").trim();
 }
 // Aggressive normalize for FUZZY matching: strip everything but letters/digits so
-// "post-gai" == "postgai" and spacing/punctuation never blocks a match.
-function fuzzyNorm(s: string): string {
+// "post-gai" == "postgai" and spacing/punctuation never blocks a match. Exported: also the key
+// format for services/addressAlias.ts, so an alias always normalizes exactly like a query word.
+export function fuzzyNorm(s: string): string {
   return s.toLowerCase().replace(/[''`]/g, "").replace(/[^\p{L}\p{N}]+/gu, "");
 }
 // Levenshtein edit distance (bounded; small strings — kas catalog is ~111 names). "shabda"↔
@@ -105,6 +107,18 @@ export function fuzzyWords(s: string): string[] {
     .map((w) => fuzzyNorm(w))
     .filter((w) => w.length >= 2);
 }
+// Uzbek case/direction suffixes ("Banisaga" = "Banisa" + "-ga"). Longest first so "-gacha" strips
+// whole, not as "-ga"+"cha". Only ONE layer is stripped (a word is either bare or bare+suffix, never
+// double-suffixed) and only when ≥3 letters remain — short real place roots ("Bahor", "Olon") must
+// never be mangled down to nothing.
+const UZ_CASE_SUFFIXES = ["gacha", "larga", "larni", "dagi", "ning", "niki", "dan", "tan", "lar", "ga", "da", "ta", "qa", "ka", "ni"];
+function stripUzSuffix(word: string): string {
+  for (const suf of UZ_CASE_SUFFIXES) {
+    if (word.length - suf.length >= 3 && word.endsWith(suf)) return word.slice(0, -suf.length);
+  }
+  return word;
+}
+
 // Best fuzzy closeness of query words against a place name (0 = exact/substring; higher = farther).
 export function fuzzyDistance(queryWords: string[], name: string): number {
   const nameNorm = fuzzyNorm(name);
@@ -113,11 +127,20 @@ export function fuzzyDistance(queryWords: string[], name: string): number {
   let best = 99;
   for (const qw of queryWords) {
     if (qw.length < 3) continue; // 1-2 char tokens ("ga", "da") aren't places
-    if (nameNorm.includes(qw)) return 0; // query word is inside the place name
-    best = Math.min(best, editDistance(qw, nameNorm));
-    for (const nw of nameWords) {
-      if (Math.abs(qw.length - nw.length) > 3) continue;
-      best = Math.min(best, editDistance(qw, nw));
+    // 🩹 "Banisaga"/"Banisa" → OBRON BALNITSA never matched before (edit distance 4, threshold 2)
+    // because the caught-inflection form was compared as-is. Also try the suffix-stripped form —
+    // real bug traced 2026-07-29 (a rider typed the address 3x across 2 days, order never got a
+    // driver because the wizard's own dispatch bug — see rememberPickup — hid this as a SEPARATE
+    // failure: her search was ALSO dead-ending on "topilmadi" every time).
+    const stripped = stripUzSuffix(qw);
+    const variants = stripped === qw ? [qw] : [qw, stripped];
+    for (const v of variants) {
+      if (nameNorm.includes(v)) return 0; // query word (bare or stripped) is inside the place name
+      best = Math.min(best, editDistance(v, nameNorm));
+      for (const nw of nameWords) {
+        if (Math.abs(v.length - nw.length) > 3) continue;
+        best = Math.min(best, editDistance(v, nw));
+      }
     }
   }
   return best;
@@ -145,6 +168,22 @@ async function resolveAddresses(query: string): Promise<SavedAddress[]> {
       : [];
   const out: SavedAddress[] = [];
   const seen = new Set<number>();
+  // 🗺 owner-curated alias pass (services/addressAlias.ts) — ranked FIRST so a human-confirmed
+  // alias always outranks a generic fuzzy guess. Checks each query word bare and suffix-stripped
+  // ("banisaga" and "banisa" both hit the "banisa" alias key).
+  const aliases = await getAddressAliases();
+  if (aliases.size) {
+    for (const w of fuzzyWords(query)) {
+      const hit = aliases.get(w) ?? aliases.get(stripUzSuffix(w));
+      if (!hit) continue;
+      const target = catalog.find((a) => normAddr(a.name) === normAddr(hit));
+      if (target && !seen.has(target.id)) {
+        seen.add(target.id);
+        out.push(target);
+        if (out.length >= 6) break;
+      }
+    }
+  }
   for (const a of [...byName, ...sub]) {
     if (seen.has(a.id)) continue;
     seen.add(a.id);
@@ -745,9 +784,11 @@ export function registerBooking(bot: Bot, mainMenu: (isDriver?: boolean, tgId?: 
     const id = String(ctx.from.id);
     const s = sessions.get(id);
     if (!s?.pickup) return;
-    // persist the 1-tap memory (survives restarts; next time = one button)
+    // persist the 1-tap memory (survives restarts; next time = one button). stampDispatch=false:
+    // claimDispatchSlot below must still see this member as "not just dispatched" — see the
+    // rememberPickup comment for the 25-day silent-noop bug this fixes.
     const memberId = await getMemberId(id);
-    if (memberId) await rememberPickup(memberId, s.pickup, "bot").catch(() => undefined);
+    if (memberId) await rememberPickup(memberId, s.pickup, "bot", false).catch(() => undefined);
     // Send the exact lat/lng WHENEVER we have them — even with a snapped addressId — so kas dispatches
     // to the precise pin, not the snapped address. (Was gated on id===0, which dropped the coords the
     // moment the pin was near a saved address → the driver went to the address, ~1 km off.)
@@ -788,6 +829,9 @@ export function registerBooking(bot: Bot, mainMenu: (isDriver?: boolean, tgId?: 
     const res = await getDataSource()
       .createBooking(req)
       .catch((e) => ({ ok: false as const, message: e instanceof Error ? e.message : String(e) }));
+    // dispatch outcome trace — this wizard path had NO logging at all, which is exactly why the
+    // 25-day rememberPickup/claimDispatchSlot ordering bug went unnoticed (see rememberPickup).
+    console.log(`[dispatch] m${memberId} src=bot wizard=${s.pickup.id || "map"} → ok=${res.ok}${res.ok ? "" : ` msg="${res.message ?? ""}"`}`);
     if (!res.ok) await releaseDispatchSlot(memberId, slot.prev);
     if (res.ok) {
       await ctx.editMessageText(`✅ <b>Buyurtma qabul qilindi!</b>\n📍 ${esc(req.addressName)}\n\n🔍 Haydovchi qidirilyapti — holat shu yerda <b>jonli</b> yangilanadi 👇`, {

@@ -373,7 +373,19 @@ export async function getRecentPickups(memberId: number): Promise<SavedAddressVi
   }
 }
 
-export async function rememberPickup(memberId: number, a: { id: number; name: string; lat?: number | null; lng?: number | null }, source = "bot"): Promise<void> {
+// stampDispatch=false: remember the pickup WITHOUT touching lastBookingAt/lastBookingSource — for
+// callers that still need to claimDispatchSlot() themselves AFTER this call (the bot's manzil-wizard
+// confirm). Stamping lastBookingAt here used to make that immediately-following claimDispatchSlot()
+// see a "just claimed" slot and refuse it every time — a real dispatch never left this function
+// (bug found 2026-07-29, ~25 days live: the wizard's ✅ Chaqirish button silently no-opped after
+// showing "✅ Buyurtma qabul qilindi"). Default stays true for every OTHER caller (createBookingFor /
+// callOneTapFor), which already call claimDispatchSlot BEFORE rememberPickup.
+export async function rememberPickup(
+  memberId: number,
+  a: { id: number; name: string; lat?: number | null; lng?: number | null },
+  source = "bot",
+  stampDispatch = true,
+): Promise<void> {
   await prisma.member
     .update({
       where: { id: memberId },
@@ -382,8 +394,7 @@ export async function rememberPickup(memberId: number, a: { id: number; name: st
         lastPickupName: a.name,
         lastPickupLat: a.lat ?? null,
         lastPickupLng: a.lng ?? null,
-        lastBookingAt: new Date(),
-        lastBookingSource: source,
+        ...(stampDispatch ? { lastBookingAt: new Date(), lastBookingSource: source } : {}),
       },
     })
     .catch(() => undefined);
