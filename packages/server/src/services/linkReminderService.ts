@@ -24,19 +24,20 @@ export async function dispatchLinkReminders(bot: Bot): Promise<void> {
   const pending = candidates.filter((c) => !sentSet.has(`${STATE_PREFIX}${c.id}`));
   if (!pending.length) return;
 
+  // 📵 BLK-1: yuborish `pushMessage` orqali — bloklaganga urinilmaydi, 403 esa
+  // "link_remind" nomi bilan BlockEvent'ga tushadi (avval bu xato butunlay yo'qolardi).
+  const { pushMessage } = await import("./pushSend");
   for (const { id } of pending) {
-    try {
-      await bot.api.sendMessage(
-        id,
-        "👋 Siz hali 1067 raqamingizni ulamadingiz.\n\n" +
-          "Raqamingizni ulasangiz — <b>+5 000 tanga sovg'a</b> va barcha imkoniyatlar ochiladi 🎁\n\n" +
-          "/start — bosing va «📱 Raqamni ulashish» tugmasini tanlang.",
-        { parse_mode: "HTML" },
-      );
-      await prisma.appState.create({ data: { key: `${STATE_PREFIX}${id}`, value: "1" } }).catch(() => undefined);
-    } catch {
-      // Foydalanuvchi botni bloklagan bo'lishi mumkin — o'tkazib yuboramiz
-    }
+    const outcome = await pushMessage(
+      bot,
+      id,
+      "link_remind",
+      "👋 Siz hali 1067 raqamingizni ulamadingiz.\n\n" +
+        "Raqamingizni ulasangiz — <b>+5 000 tanga sovg'a</b> va barcha imkoniyatlar ochiladi 🎁\n\n" +
+        "/start — bosing va «📱 Raqamni ulashish» tugmasini tanlang.",
+    );
+    // Marker faqat haqiqatan yetkazilganda (avvalgi xatti-harakat: throw → marker yo'q)
+    if (outcome === "sent") await prisma.appState.create({ data: { key: `${STATE_PREFIX}${id}`, value: "1" } }).catch(() => undefined);
   }
 
   if (pending.length) console.log(`[linkReminder] ${pending.length} ta eslatma yuborildi`);

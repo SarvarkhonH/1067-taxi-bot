@@ -683,7 +683,8 @@ export async function elonlarLifecycleTick(bot?: Bot): Promise<{ expired: number
       continue; // allaqachon ogohlantirilgan
     }
     if (bot) {
-      await bot.api.sendMessage(a.tgId.toString(), `⏳ <b>E'loningiz tugayapti!</b>\n📋 ${a.title}\n\n«Mening e'lonlarim»dan 🔄 qayta faollashtirishingiz mumkin.`, { parse_mode: "HTML" }).catch(() => undefined);
+      const { pushMessage } = await import("./pushSend"); // 📵 BLK-1
+      await pushMessage(bot, a.tgId.toString(), "elon_expiry", `⏳ <b>E'loningiz tugayapti!</b>\n📋 ${a.title}\n\n«Mening e'lonlarim»dan 🔄 qayta faollashtirishingiz mumkin.`);
     }
     warned++;
   }
@@ -703,7 +704,8 @@ export async function elonlarLifecycleTick(bot?: Bot): Promise<{ expired: number
     if (bot) {
       const { InlineKeyboard } = await import("grammy");
       const kb = new InlineKeyboard().text("✅ Faol qolsin", `elonlar:keep:${a.id}`).text("❌ Sotildi", `elonlar:sold:${a.id}`);
-      await bot.api.sendMessage(a.tgId.toString(), `🤔 <b>Hali sotilmadimi?</b>\n📋 ${a.title}\n\nAgar sotilgan bo'lsa yoping — xaridorlar bekorga qo'ng'iroq qilmasin.`, { parse_mode: "HTML", reply_markup: kb }).catch(() => undefined);
+      const { pushMessage } = await import("./pushSend"); // 📵 BLK-1
+      await pushMessage(bot, a.tgId.toString(), "elon_soldcheck", `🤔 <b>Hali sotilmadimi?</b>\n📋 ${a.title}\n\nAgar sotilgan bo'lsa yoping — xaridorlar bekorga qo'ng'iroq qilmasin.`, { extra: { reply_markup: kb } });
     }
     soldChecked++;
   }

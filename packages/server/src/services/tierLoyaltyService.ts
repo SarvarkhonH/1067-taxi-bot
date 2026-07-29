@@ -184,6 +184,9 @@ export async function runTierLoyaltyDaily(bot: Bot, m: SweepMember): Promise<voi
 }
 
 async function sendDecayWarning(bot: Bot, m: SweepMember, idle: number, grace: number, today: string): Promise<void> {
+  // 📵 BLK-1: blokni marker yozishdan OLDIN tekshiramiz (notifyService.trySend naqshi)
+  const { isBlocked, pushMessage } = await import("./pushSend");
+  if (await isBlocked(m.telegramUser!.id)) return;
   try {
     await prisma.notifyLog.create({ data: { memberId: m.id, kind: "decay_warn", dayKey: today } });
   } catch {
@@ -194,7 +197,7 @@ async function sendDecayWarning(bot: Bot, m: SweepMember, idle: number, grace: n
   const html = idle <= grace
     ? `⚠️ <b>Darajangiz xavf ostida!</b>\n\nSiz so'nggi ${grace} kun 1067'da faol bo'lmadingiz.\nErtadan boshlab ballingiz yechila boshlaydi.\n\nBugun bitta vazifa bajaring yoki safar qiling — darajangizni saqlang! 🚕`
     : `📉 <b>Ball yechilmoqda!</b>\n\nSiz ${idle} kun faol bo'lmadingiz.\nHozirgi ball: <b>${m.ballPoints.toLocaleString("ru-RU")}</b> ${lvl.emoji}\nBir safar yoki bitta vazifa — yetarli! 🚕`;
-  await bot.api.sendMessage(chatId, html, { parse_mode: "HTML" }).catch(() => undefined);
+  await pushMessage(bot, chatId, "decay_warn", html, { memberId: m.id });
 }
 
 /** 0.3 sweep-diet: the daily pass over ALL clients, moved OFF the fast booking sweep onto the

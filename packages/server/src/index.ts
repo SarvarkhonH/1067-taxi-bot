@@ -125,10 +125,10 @@ async function main(): Promise<void> {
     } catch (e) {
       // 403 = user blocked/deactivated the bot → mark it so the admin can SEE who blocked
       // (cleared automatically the moment they interact again — see touchTelegramUser).
-      const code = (e as { error_code?: number })?.error_code;
-      if (code === 403 || /blocked|deactivated|forbidden/i.test(String((e as Error)?.message))) {
-        await prisma.telegramUser.update({ where: { id: telegramId }, data: { blockedAt: new Date() } }).catch(() => undefined);
-      }
+      // BLK-1: aniqlash + yozish endi bitta joyda (pushSend) — broadcast/API yo'li ham
+      // xuddi push'lar kabi BlockEvent tarixiga tushadi.
+      const { isBlockError, recordBlock } = await import("./services/pushSend");
+      if (isBlockError(e)) await recordBlock(telegramId, "api_send");
       throw e; // keep existing callers' failure-counting behaviour intact
     }
   };
@@ -257,8 +257,17 @@ async function main(): Promise<void> {
   });
 
   // 4. periodic refresh (cashback + badges + weekly payout + surprise drops)
+  // Haftalik yutuq / kutilmagan sovg'a / cashback xabarlari. BLK-1: 403 yozib olinadi, lekin
+  // xato AVVALGIDEK yuqoriga tashlanadi — chaqiruvchilarning xatti-harakati o'zgarmaydi.
   const notifyUser = async (telegramId: string, html: string) => {
-    if (bot) await bot.api.sendMessage(telegramId, html, { parse_mode: "HTML" });
+    if (!bot) return;
+    try {
+      await bot.api.sendMessage(telegramId, html, { parse_mode: "HTML" });
+    } catch (e) {
+      const { isBlockError, recordBlock } = await import("./services/pushSend");
+      if (isBlockError(e)) await recordBlock(telegramId, "reward");
+      throw e;
+    }
   };
 
   // A7 (audit P0): flag ground-truth at boot. Flags exist only as DB rows — a reseeded DB silently
@@ -434,7 +443,9 @@ async function main(): Promise<void> {
         const tgu = await prisma.telegramUser.findFirst({ where: { memberId: x.memberId }, select: { id: true } }).catch(() => null);
         if (tgu) {
           const money = x.payKind === "cash" ? "Hech qanday pul olinmagan." : `✅ <b>${formatNumber(x.total)} tanga hisobingizga qaytarildi.</b>`;
-          await bot.api.sendMessage(tgu.id, `⏳ <b>Buyurtma bekor qilindi</b>\n🏬 ${x.shopName}\nDo'kon vaqtida javob bermadi.\n${money}`, { parse_mode: "HTML" }).catch(() => undefined);
+          // pul qaytgani haqidagi xabar — tranzaksion, force (BLK-1)
+          const { pushMessage } = await import("./services/pushSend");
+          await pushMessage(bot, tgu.id, "mkt_expire", `⏳ <b>Buyurtma bekor qilindi</b>\n🏬 ${x.shopName}\nDo'kon vaqtida javob bermadi.\n${money}`, { memberId: x.memberId, force: true });
         }
         await alertAdmins(`⏳ <b>Avto-bekor</b> (javobsiz): 🧺 #${x.orderId} · ${x.shopName}`).catch(() => undefined);
       }
@@ -457,7 +468,9 @@ async function main(): Promise<void> {
       const life = await runLifecyclePushes(async (memberId, lead, productId) => {
         const tgu = await prisma.telegramUser.findFirst({ where: { memberId }, select: { id: true } }).catch(() => null);
         if (!tgu) return false;
-        await bot.api.sendMessage(tgu.id, lead, { parse_mode: "HTML" }).catch(() => undefined);
+        // BLK-1: bloklagan bo'lsa sabab-qatori ham, karta ham yuborilmaydi (avval ikkalasi bekorga ketardi)
+        const { pushMessage } = await import("./services/pushSend");
+        if ((await pushMessage(bot, tgu.id, "mkt_life", lead, { memberId })) !== "sent") return false;
         const { sendProductCard } = await import("./bot/shop");
         return await sendProductCard(bot, tgu.id, productId).catch(() => false);
       }).catch((e) => { console.error("[mktlife] failed:", e); return { planned: 0, sent: 0 }; });

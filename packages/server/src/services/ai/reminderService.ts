@@ -83,16 +83,18 @@ export async function deliverDueReminders(bot: Bot): Promise<number> {
     // claim first — a concurrent sweep/restart loses the race and skips
     const claim = await prisma.reminder.updateMany({ where: { id: r.id, status: "pending" }, data: { status: "sent", sentAt: new Date() } });
     if (claim.count !== 1) continue;
-    try {
-      const kb: { inline_keyboard: { text: string; callback_data: string }[][] } | undefined =
-        r.kind === "taksi"
-          ? { inline_keyboard: [[{ text: "🚕 Hozir chaqirish", callback_data: "bk:now" }], [{ text: "😴 15 daqiqadan keyin", callback_data: `rem:snooze:${r.id}` }]] }
-          : undefined;
-      await bot.api.sendMessage(r.telegramId, `🔔 <b>Eslatma!</b>\n${escapeHtml(r.text)}`, { parse_mode: "HTML", reply_markup: kb });
+    const kb: { inline_keyboard: { text: string; callback_data: string }[][] } | undefined =
+      r.kind === "taksi"
+        ? { inline_keyboard: [[{ text: "🚕 Hozir chaqirish", callback_data: "bk:now" }], [{ text: "😴 15 daqiqadan keyin", callback_data: `rem:snooze:${r.id}` }]] }
+        : undefined;
+    // 📵 BLK-1: 403 endi "reminder" nomi bilan yoziladi (avval faqat status=failed bo'lardi)
+    const { pushMessage } = await import("../pushSend");
+    const outcome = await pushMessage(bot, r.telegramId, "reminder", `🔔 <b>Eslatma!</b>\n${escapeHtml(r.text)}`, { extra: { reply_markup: kb } });
+    if (outcome === "sent") {
       sent++;
-    } catch (e) {
+    } else {
       await prisma.reminder.updateMany({ where: { id: r.id }, data: { status: "failed" } }).catch(() => undefined);
-      console.error(`[reminder] send failed id=${r.id}:`, e instanceof Error ? e.message : e);
+      console.error(`[reminder] send failed id=${r.id}: ${outcome}`);
     }
   }
   return sent;

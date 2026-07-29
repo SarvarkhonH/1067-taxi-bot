@@ -5639,6 +5639,28 @@ function TransactionsView() {
 }
 
 // ─── 📵 Bloklaganlar — botni bloklagan foydalanuvchilar ───────────────────────
+// BLK-1: push turi → o'zbekcha yorliq. Ro'yxatda yo'q turlar xom ko'rinadi (to'qilmaydi).
+const BLOCK_KIND_LABEL: Record<string, string> = {
+  freespin_wait: "🎡 Bepul aylantirish eslatmasi",
+  lucky_day: "🍀 Omad kuni",
+  streak_saver: "🔥 Streak xavfda",
+  comeback: "🎁 Sizni sog'indik",
+  jackpot: "🎰 Jackpot",
+  recap: "📊 Haftalik hisobot",
+  decay_warn: "📉 Ball yechilmoqda",
+  link_remind: "👋 Raqamni ulang",
+  reminder: "🔔 Shaxsiy eslatma",
+  elon_expiry: "⏳ E'lon tugayapti",
+  elon_soldcheck: "🤔 Sotildimi?",
+  mkt_life: "🛍 Bozor taklifi",
+  mkt_expire: "⏳ Buyurtma bekor",
+  ride_arrived: "🚕 Haydovchi yetib keldi",
+  ride_assigned: "🚖 Haydovchi topildi",
+  peak_bonus: "🔥 Pik bonus",
+  intercity: "🚐 Shaharlararo",
+  api_send: "📢 Broadcast / admin xabari",
+};
+
 function BlockedView() {
   const [rows, setRows] = useState<AdminBlockedRow[]>([]);
   const [q, setQ] = useState("");
@@ -5658,8 +5680,8 @@ function BlockedView() {
   });
 
   const exportCsv = () => {
-    const csv = "Ism,Telefon,TelegramID,Bog'langan,BloklaganSana\n" +
-      filtered.map((r) => `"${r.name}",${r.phone ?? ""},${r.telegramId},${r.linked ? "ha" : "yo'q"},"${fmtTime(r.at)}"`).join("\n");
+    const csv = "Ism,Telefon,TelegramID,Bog'langan,QaysiXabar,BloklaganSana\n" +
+      filtered.map((r) => `"${r.name}",${r.phone ?? ""},${r.telegramId},${r.linked ? "ha" : "yo'q"},${r.kind ?? ""},"${fmtTime(r.at)}"`).join("\n");
     const a = document.createElement("a");
     a.href = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8" }));
     a.download = "bloklaganlar.csv";
@@ -5696,7 +5718,7 @@ function BlockedView() {
         <div className="table-wrap">
           <table>
             <thead>
-              <tr><th>Ism</th><th>Telefon</th><th>Holat</th><th>Bloklagan sana</th></tr>
+              <tr><th>Ism</th><th>Telefon</th><th>Holat</th><th>Qaysi xabardan keyin</th><th>Bloklagan sana</th></tr>
             </thead>
             <tbody>
               {filtered.map((r) => (
@@ -5704,6 +5726,7 @@ function BlockedView() {
                   <td className="td-name">{r.name}</td>
                   <td>{r.phone ?? <span className="muted">—</span>}</td>
                   <td>{r.linked ? <span className="lvl">🔗 Bog'langan</span> : <span className="muted">ulanmagan</span>}</td>
+                  <td>{r.kind ? <span className="lvl">{BLOCK_KIND_LABEL[r.kind] ?? r.kind}</span> : <span className="muted">noma'lum</span>}</td>
                   <td style={{ fontSize: 12, color: "var(--muted)", whiteSpace: "nowrap" }}>{fmtTime(r.at)}</td>
                 </tr>
               ))}
@@ -5711,7 +5734,7 @@ function BlockedView() {
           </table>
         </div>
       )}
-      <p className="muted" style={{ fontSize: 11, marginTop: 10 }}>Botga xabar yuborilganda 403 qaytsa (bot bloklangan) shu ro'yxatga tushadi. Foydalanuvchi qaytib /start bossa yoki bot bilan ishlasa — avtomatik ro'yxatdan chiqadi.</p>
+      <p className="muted" style={{ fontSize: 11, marginTop: 10 }}>Botga xabar yuborilganda 403 qaytsa (bot bloklangan) shu ro'yxatga tushadi. Foydalanuvchi qaytib /start bossa yoki bot bilan ishlasa — avtomatik ro'yxatdan chiqadi. «Qaysi xabardan keyin» ustuni 2026-07-29'dan boshlab yoziladi; undan oldingi bloklarda ma'lumot yo'q («noma'lum»).</p>
     </div>
   );
 }

@@ -81,6 +81,8 @@ async function aiNudge(brief: string): Promise<string | null> {
 export async function sendNudge(bot: Bot, chatId: string, memberId: number, kind: string, html: string): Promise<boolean> {
   const { isNotifyOff, dayKey } = await import("../notifyService");
   if (await isNotifyOff(memberId)) return false; // user opted out of proactive push
+  const { isBlocked, pushMessage } = await import("../pushSend"); // 📵 BLK-1
+  if (await isBlocked(chatId)) return false; // bloklagan → marker ham yozilmaydi
   const dk = dayKey();
   if ((await prisma.notifyLog.count({ where: { memberId, dayKey: dk } })) >= 2) return false; // shared 2/day cap
   try {
@@ -88,7 +90,7 @@ export async function sendNudge(bot: Bot, chatId: string, memberId: number, kind
   } catch {
     return false; // this kind already fired today
   }
-  await bot.api.sendMessage(chatId, html, { parse_mode: "HTML", reply_markup: stopKb() }).catch(() => undefined);
+  await pushMessage(bot, chatId, kind, html, { memberId, extra: { reply_markup: stopKb() } });
   await bumpWeekly(memberId);
   return true;
 }

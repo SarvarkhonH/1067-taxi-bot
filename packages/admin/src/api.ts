@@ -526,6 +526,7 @@ export interface AdminBlockedRow {
   phone: string | null;
   linked: boolean;
   at: string;
+  kind: string | null; // BLK-1: qaysi xabardan keyin bloklagan (eski yozuvlarda null)
 }
 
 export interface AdminTxnRow {
