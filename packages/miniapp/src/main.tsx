@@ -21,6 +21,35 @@ window.addEventListener("vite:preloadError", (e) => {
 });
 window.addEventListener("load", () => { try { sessionStorage.removeItem("chunk_reloaded"); } catch { /* ignore */ } });
 
+// 🔄 VERSIYA QOROVULI (ega, 2026-07-29: «har qancha vaqtga bir bot eski dizaynga o'tadi»).
+// Telegram Mini App yopilganda WebView O'CHMAYDI — fonda turadi va qayta ochilganda ESKI JS
+// davom etadi. Shuning uchun deploy chiqqani bilan mijoz uni ko'rmasligi mumkin (ba'zan
+// kunlab). Bu qorovul: ilova ko'rinadigan bo'lganda serverdagi `version.txt` ni so'raydi va
+// o'zining `<meta name="birjoy-build">` shtampi bilan solishtiradi; farq bo'lsa BIR MARTA
+// qayta yuklanadi.
+// XAVFSIZLIK: (1) faqat ikkala qiymat ham bo'lsa va farq qilsa; (2) sessiyada bir marta —
+// tarmoq g'alati javob qaytarsa ham cheksiz sikl bo'lmaydi; (3) tekshiruv 60 soniyada bir
+// martadan tez emas; (4) xato bo'lsa jim (ilova ishlashda davom etadi).
+const MY_BUILD = document.querySelector('meta[name="birjoy-build"]')?.getAttribute("content") ?? "";
+let lastCheck = 0;
+async function checkForNewBuild(): Promise<void> {
+  if (!MY_BUILD || document.hidden) return;
+  if (Date.now() - lastCheck < 60_000) return;
+  lastCheck = Date.now();
+  try {
+    const res = await fetch(`/version.txt?t=${Date.now()}`, { cache: "no-store" });
+    if (!res.ok) return;
+    const live = (await res.text()).trim();
+    if (!live || live === MY_BUILD) return;
+    if (sessionStorage.getItem("build_reloaded") === live) return; // shu versiyaga bir marta
+    sessionStorage.setItem("build_reloaded", live);
+    window.location.reload();
+  } catch { /* tarmoq — jim */ }
+}
+document.addEventListener("visibilitychange", () => { void checkForNewBuild(); });
+window.addEventListener("focus", () => { void checkForNewBuild(); });
+setTimeout(() => { void checkForNewBuild(); }, 5_000); // birinchi ochilishdan keyin ham
+
 // 🛡 family-safety: a public ?track=<token> link opens the read-only live trip view (lazy → leaflet
 // loads only for this case), bypassing the authed app entirely. No login / Telegram needed.
 const trackToken = new URLSearchParams(location.search).get("track");

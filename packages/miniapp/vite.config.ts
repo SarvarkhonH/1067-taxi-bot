@@ -19,6 +19,17 @@ export default defineConfig({
     react(),
     {
       name: "birjoy-build-stamp",
+      // 🔄 `version.txt` — «ESKI DIZAYNGA QAYTISH» muammosining yechimi (ega, 2026-07-29:
+      // «har qancha vaqtga bir bot eski dizaynga o'tadi va yuklamay qoladi»). Telegram Mini App
+      // WebView'ni fonda TIRIK saqlaydi: ilovani qayta ochganda o'sha ESKI JS ishlashda davom
+      // etadi — bu kesh emas, jarayonning o'zi eski. Yagona ishonchli yechim: ilova serverdagi
+      // shtampni so'rab, farq bo'lsa o'zini qayta yuklashi. Fayl 16 bayt, `no-store` bilan
+      // so'raladi va `index.html` keshidan mustaqil.
+      generateBundle() {
+        // eslint-disable-next-line @typescript-eslint/no-invalid-this
+        (this as unknown as { emitFile: (f: { type: "asset"; fileName: string; source: string }) => void })
+          .emitFile({ type: "asset", fileName: "version.txt", source: BUILD_STAMP });
+      },
       transformIndexHtml: {
         order: "pre" as const,
         handler: (html: string) => html.replace("</head>", `  <meta name="birjoy-build" content="${BUILD_STAMP}" />\n  </head>`),
