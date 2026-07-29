@@ -1469,10 +1469,6 @@ body {
   border-top: none;
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, .8), 0 -2px 30px -18px rgba(20, 26, 24, .55);
 }
-/* ⚡ `.aurora` — fixed, 80vh, `filter: blur(30px)` VA 16s cheksiz scale-animatsiya: blurlangan
-   qatlamni miqyoslash har kadrda qayta rasterlashni talab qiladi, ya'ni ilova hech qachon
-   tinchimaydi. BirJoy temasining o'z fon-gradienti bor — bu qatlam bu yerda ortiqcha. */
-.app.bjm .aurora { display: none; }
 .app.bjm .tab { color: #9aa1aa; }
 .app.bjm .tab.active { color: var(--bj-accent); }
 .app.bjm .tab.active svg { filter: none; }
