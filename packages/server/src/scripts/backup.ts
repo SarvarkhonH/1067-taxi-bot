@@ -24,6 +24,7 @@ async function main(): Promise<void> {
     adminAuditLog: () => prisma.adminAuditLog.findMany(),
     aiKnowledge: () => prisma.aiKnowledge.findMany(),
     appState: () => prisma.appState.findMany(),
+    blockEvent: () => prisma.blockEvent.findMany(),
     boxOpen: () => prisma.boxOpen.findMany(),
     broadcast: () => prisma.broadcast.findMany(),
     broadcastRecipient: () => prisma.broadcastRecipient.findMany(),
