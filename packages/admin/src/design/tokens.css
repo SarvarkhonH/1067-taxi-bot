@@ -66,17 +66,29 @@
   --info-ink: #60a5fa;
   --info-soft: rgba(59, 130, 246, 0.13);
 
-  /* ── GRAFIK PALITRASI ──────────────────────────────────────────────────
-     Ketma-ket qatorlar uchun 6 rang: ohang bo'yicha ajratilgan, yorug'ligi
-     yaqin (biri boshqasidan "baland" ko'rinmasin). Birinchisi — brend.
-     Toifa-rangi HAR DOIM shu tartibda beriladi (barqarorlik: bir xil qator
-     har ekranda bir xil rangda). */
-  --c1: #12b37c;
-  --c2: #60a5fa;
-  --c3: #fbbf24;
-  --c4: #a78bfa;
-  --c5: #fb7185;
-  --c6: #22d3ee;
+  /* ── GRAFIK PALITRASI (TEKSHIRILGAN — ko'z bilan tanlanMAGAN) ──────────
+     Manba: `dataviz` skill'ning tasdiqlangan kategorik temasi; tartib
+     `scripts/validate_palette.js` bilan QIDIRILGAN (aqua→ko'k→to'q-sariq→
+     binafsha→sariq→pushti). Mening dastlabki ko'z-bilan-tanlagan palitram
+     YIQILDI: binafsha↔ko'k daltonizmda ΔE 0.3 (deyarli bir xil), yashil↔moviy
+     normal ko'rishda ΔE 11.9 — ya'ni real nuqson edi.
+
+     Natija (2026-07-30 o'lchov):
+       n=6 `adjacent`  → LIGHT ✅ / DARK ✅ (eng yomon juftlik ΔE 16.3/13.2 deutan)
+       n=3 `pairs=all` → LIGHT ✅ / DARK ✅ (ixtiyoriy kichik to'plam xavfsiz)
+
+     QOIDA: rang HAR DOIM shu tartibda beriladi va aylanmaydi (skill'ning
+     buzilmas qoidasi). 4+ qator FAQAT doimiy, to'liq ko'rinadigan to'plamda
+     (masalan taksi/ovqat/bozor/reys) — o'zgaruvchan kichik to'plamlarda 3 tadan
+     oshmasin, aks holda facet/«Boshqa»ga yig'iladi.
+     Yorug' temada bir necha rang kontrasti 3:1 dan past → grafiklarda
+     KO'RINADIGAN yorliq yoki jadval-ko'rinish MAJBURIY (skill: dismiss qilinmaydi). */
+  --c1: #199e70; /* brend-oilasi */
+  --c2: #3987e5;
+  --c3: #d95926;
+  --c4: #9085e9;
+  --c5: #c98500;
+  --c6: #d55181;
   --grid-line: rgba(255, 255, 255, 0.07); /* grafik to'r chizig'i */
 
   /* ── TIPOGRAFIYA ───────────────────────────────────────────────────────
@@ -194,13 +206,15 @@
   --info-ink: #1d4ed8;
   --info-soft: rgba(59, 130, 246, 0.11);
 
-  /* yorug' fonda grafik ranglari to'qroq — aks holda oq ustida "yuvilib" ketadi */
-  --c1: #0d9668;
-  --c2: #2563eb;
-  --c3: #d97706;
-  --c4: #7c3aed;
-  --c5: #e11d48;
-  --c6: #0891b2;
+  /* Yorug' rejim uchun ALOHIDA qadamlar (avtomatik "teskari" EMAS — skill talabi:
+     dark/light ramplar mustaqil tanlanadi va o'z sirtiga qarshi tekshiriladi).
+     Yuqoridagi bilan bir xil ohang-tartibi, oq sirt uchun qayta o'lchangan. */
+  --c1: #1baf7a;
+  --c2: #2a78d6;
+  --c3: #eb6834;
+  --c4: #4a3aa7;
+  --c5: #eda100;
+  --c6: #e87ba4;
   --grid-line: rgba(15, 23, 41, 0.08);
 
   --sh-1: 0 1px 2px rgba(16, 24, 40, 0.06);

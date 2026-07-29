@@ -381,6 +381,8 @@ export const adminApi = {
   oprHealth: () => req<OprSystemHealth>("/api/admin/opr/health"),
   oprMintToken: (name: string) => postJson<{ ok: boolean; token: string; role: string }>("/api/admin/optoken", { role: "chatops", name }),
   oprJurnal: () => req<{ items: OprJurnalRow[] }>("/api/admin/opr/jurnal"),
+  // 📈 kunlik rollup — trend-grafiklar manbai (46+ kunlik tarix)
+  dailyStats: (days = 60) => req<{ days: DailyStatRow[] }>(`/api/admin/daily-stats?days=${days}`),
   // 📱 message history
   msgHistory: (limit = 200) => req<AdminMsgHistoryRow[]>(`/api/admin/msg-history?limit=${limit}`),
   // 🔥 peak hours
@@ -586,6 +588,15 @@ export interface OprSystemHealth {
   globalCap: number;
   memberCap: number;
 }
+/** Kunlik rollup qatori (`DailyStat`) — trend-grafiklar uchun. */
+export interface DailyStatRow {
+  day: string; // "YYYY-MM-DD" (Toshkent)
+  completedRides: number;
+  cancelledRides: number;
+  botRides: number;
+  gmv: number;
+}
+
 export interface OprJurnalRow {
   id: number;
   actorRole: string;

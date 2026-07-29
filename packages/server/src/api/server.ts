@@ -2734,6 +2734,15 @@ body{font-family:Arial,sans-serif;background:#eee;-webkit-print-color-adjust:exa
     const { getGrowth } = await import("../services/adminOps");
     res.json(await getGrowth());
   });
+  // 📈 Kunlik rollup — trend-grafiklarning YAGONA manbai. `DailyStat` jadvali
+  // 2026-06-15 dan beri to'planib turadi (rollupService.ts), lekin shu paytgacha
+  // uni HECH QANDAY endpoint ko'rsatmagan: faqat backup.ts/testRollup.ts o'qigan.
+  // Ya'ni panelda grafik yo'qligining sababi ma'lumot yo'qligi EMAS edi.
+  app.get("/api/admin/daily-stats", requireAdmin, async (req, res) => {
+    const days = Math.min(180, Math.max(7, Number(req.query.days) || 60));
+    const rows = await prisma.dailyStat.findMany({ orderBy: { day: "desc" }, take: days });
+    res.json({ days: rows.reverse() });
+  });
   app.get("/api/admin/bookings", requireAdmin, async (_req, res) => {
     const { getLiveBookings } = await import("../services/adminOps");
     res.json(await getLiveBookings());

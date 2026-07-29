@@ -380,7 +380,10 @@
   font-weight: var(--fw-black);
   line-height: 1.1;
   letter-spacing: -0.02em;
-  font-variant-numeric: tabular-nums;
+  /* ATAYLAB proporsional raqamlar (tabular-nums EMAS): `tabular-nums` har raqamga
+     "0" kengligini beradi va katta o'lchamda "121" kabi son bo'sh-bo'sh ko'rinadi.
+     tabular-nums FAQAT ustunlar uchun (jadval qatorlari, o'q belgilari). */
+  font-variant-numeric: proportional-nums;
 }
 .a2-stat-bottom {
   display: flex;

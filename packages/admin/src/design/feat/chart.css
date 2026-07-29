@@ -1,0 +1,261 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   BirJoy Admin v2 — GRAFIKLAR (charts.tsx)
+
+   Spetsifikatsiyalar `dataviz` skill'dan (references/marks-and-anatomy.md) —
+   ko'z bilan tanlanmagan:
+     · chiziq 2px, round join/cap
+     · marker ≥8px (r≥4), sirt rangida 2px halqa (chiziq ustida ham ko'rinadi)
+     · maydon to'ldirish ~10% shaffoflik (blok emas, yengil parda)
+     · ustun ≤24px, ma'lumot-uchi 4px yumaloq, tayanchda to'g'ri burchak
+     · to'r chizig'i 1px SOLID (punktir EMAS), sirtdan bir qadam nariroq, past-ovoz
+     · yonma-yon to'ldirishlar orasida 2px SIRT RANGIDA bo'shliq (chegara chizilmaydi)
+     · matn HECH QACHON ma'lumot rangini kiymaydi — faqat matn tokenlari
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.ch {
+  position: relative;
+  width: 100%;
+  min-width: 0;
+}
+
+/* SVG o'lchamlari `useSize` bilan REAL pikselda beriladi (viewBox cho'zilishi
+   emas) — aks holda `stroke-width` ham cho'zilib, 2px chiziq buziladi. */
+.ch svg {
+  display: block;
+  overflow: visible;
+}
+
+/* ── o'q va to'r ── */
+.ch-grid {
+  stroke: var(--grid-line);
+  stroke-width: 1;
+  shape-rendering: crispEdges;
+}
+.ch-axis {
+  stroke: var(--line-2);
+  stroke-width: 1;
+  shape-rendering: crispEdges;
+}
+.ch-tick {
+  font-size: 10px;
+  fill: var(--text-3);
+  font-variant-numeric: tabular-nums; /* o'q belgilari — USTUN, tabular to'g'ri */
+}
+.ch-tick-x {
+  text-anchor: middle;
+}
+.ch-tick-y {
+  text-anchor: end;
+  dominant-baseline: middle;
+}
+
+/* ── chiziq / maydon ── */
+.ch-line {
+  fill: none;
+  stroke-width: 2;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+}
+.ch-area {
+  stroke: none;
+  opacity: 0.1; /* skill: ~10% — parda, to'yingan blok emas */
+}
+.ch-dot {
+  /* sirt rangida 2px halqa: nuqta chiziq ustida yoki boshqa nuqta bilan
+     kesishganda ham ko'rinib turadi */
+  stroke: var(--surface);
+  stroke-width: 2;
+}
+
+/* ── ustunlar ── */
+.ch-bar {
+  /* 4px yumaloq ma'lumot-uchi + tayanchda to'g'ri burchak `path` bilan
+     chiziladi (rx butun ustunni yumaloqlaydi — bu noto'g'ri bo'lardi) */
+  stroke: none;
+}
+.ch-bar-track {
+  fill: var(--surface-3);
+}
+
+/* ── sparkline (StatCard ichida) ── */
+.ch-spark {
+  display: block;
+  width: 100%;
+  height: 26px;
+  overflow: visible;
+}
+.ch-spark-line {
+  fill: none;
+  stroke: var(--text-3); /* skill: "de-emphasis hue" */
+  stroke-width: 1.5;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+}
+.ch-spark-last {
+  fill: var(--brand-ink); /* joriy davr — aksent */
+}
+
+/* ── voronka ── */
+.ch-funnel {
+  display: flex;
+  flex-direction: column;
+  gap: 2px; /* skill: 2px SIRT bo'shlig'i — chegara emas */
+}
+.ch-fn-row {
+  display: grid;
+  grid-template-columns: 150px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--s-3);
+}
+.ch-fn-label {
+  font-size: var(--fs-12);
+  color: var(--text-2);
+}
+.ch-fn-track {
+  height: 22px;
+  background: var(--surface-3);
+  border-radius: 0 4px 4px 0; /* ma'lumot-uchi yumaloq, tayanch to'g'ri */
+  overflow: hidden;
+}
+.ch-fn-fill {
+  height: 100%;
+  width: var(--w, 0%);
+  border-radius: 0 4px 4px 0;
+  transition: width var(--dur-slow) var(--ease);
+}
+.ch-fn-val {
+  font-size: var(--fs-13);
+  font-weight: var(--fw-bold);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.ch-fn-drop {
+  font-size: var(--fs-11);
+  color: var(--text-3);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ── issiqlik-xarita (pik soatlar) ── */
+.ch-heat {
+  display: grid;
+  gap: 2px; /* sirt bo'shlig'i */
+  grid-template-columns: 28px repeat(24, minmax(0, 1fr));
+}
+.ch-heat-cell {
+  aspect-ratio: 1;
+  border-radius: 2px;
+  background: var(--brand);
+  opacity: var(--o, 0.06); /* magnituda = shaffoflik (bitta ohang, light→dark) */
+  min-width: 0;
+}
+.ch-heat-lbl {
+  font-size: 9px;
+  color: var(--text-3);
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  padding-right: 3px;
+  font-variant-numeric: tabular-nums;
+}
+.ch-heat-hrs {
+  display: grid;
+  grid-template-columns: 28px repeat(24, minmax(0, 1fr));
+  gap: 2px;
+  margin-top: 2px;
+}
+.ch-heat-hr {
+  font-size: 9px;
+  color: var(--text-3);
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ── ulush chizig'i (donut O'RNIGA — qism-butun uchun aniqroq o'qiladi) ── */
+.ch-share {
+  display: flex;
+  height: 10px;
+  border-radius: var(--r-pill);
+  overflow: hidden;
+  gap: 2px; /* sirt bo'shlig'i segmentlar orasida */
+  background: var(--surface-3);
+}
+.ch-share-seg {
+  height: 100%;
+  width: var(--w, 0%);
+  min-width: 0;
+}
+
+/* ── legenda (≥2 qator uchun MAJBURIY — rang yolg'iz identifikator bo'lmaydi) ── */
+.ch-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s-2) var(--s-4);
+}
+.ch-lg-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: var(--fs-12);
+  color: var(--text-2); /* matn — matn tokeni, ma'lumot rangi EMAS */
+}
+.ch-lg-swatch {
+  width: 10px;
+  height: 10px;
+  border-radius: 3px;
+  flex-shrink: 0;
+}
+.ch-lg-item-off {
+  opacity: 0.42;
+}
+
+/* ── hover: krestcha + tooltip ── */
+.ch-cross {
+  stroke: var(--line-2);
+  stroke-width: 1;
+  shape-rendering: crispEdges;
+  pointer-events: none;
+}
+.ch-hit {
+  fill: transparent;
+  cursor: crosshair;
+}
+.ch-tip {
+  position: absolute;
+  z-index: var(--z-sticky);
+  pointer-events: none;
+  min-width: 128px;
+  padding: var(--s-2);
+  background: var(--surface-3);
+  border: 1px solid var(--line-2);
+  border-radius: var(--r);
+  box-shadow: var(--sh-2);
+  font-size: var(--fs-12);
+  transform: translate(var(--tx, 0), var(--ty, 0));
+}
+.ch-tip-t {
+  font-weight: var(--fw-bold);
+  margin-bottom: 3px;
+  white-space: nowrap;
+}
+.ch-tip-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+}
+.ch-tip-row .a2-spacer {
+  min-width: var(--s-4);
+}
+.ch-tip-v {
+  font-weight: var(--fw-bold);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ── grafik sarlavhasi qatori (filtrlar BITTA qatorda, grafik ustida) ── */
+.ch-head {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+  flex-wrap: wrap;
+  margin-bottom: var(--s-3);
+}

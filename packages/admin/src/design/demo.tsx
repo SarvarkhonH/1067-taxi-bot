@@ -40,13 +40,34 @@ import {
   useToast,
   type Tone,
 } from "./kit";
-import { ago, dt, mins, num, pctRaw, phone, som, tanga, delta } from "../lib/fmt";
+import { BarRows, ChartWithTable, Funnel, Heatmap, ShareBar, Sparkline, TrendChart } from "./charts";
+import { ago, dt, mins, num, pctRaw, phone, short, som, tanga, delta } from "../lib/fmt";
 import "./tokens.css";
 import "./base.css";
 import "./feat/kit.css";
+import "./feat/chart.css";
 import "./feat/demo.css";
 
 const TONES: Tone[] = ["neutral", "ok", "warn", "bad", "info", "brand", "coin"];
+
+// Demo ma'lumoti — shakli JONLI `DailyStat` bilan bir xil (30 kun), shuning uchun
+// grafiklar haqiqiy ma'lumotda ham xuddi shunday ko'rinadi.
+const DEMO_X = Array.from({ length: 30 }, (_, i) => {
+  const d = new Date(Date.UTC(2026, 5, 30) + i * 86_400_000);
+  return `${String(d.getUTCDate()).padStart(2, "0")}.${String(d.getUTCMonth() + 1).padStart(2, "0")}`;
+});
+const DEMO_RIDES: number[] = [88, 94, 102, 97, 118, 131, 76, 91, 99, 108, 104, 126, 140, 82, 95, 103, 111, 107, 129, 145, 87, 99, 106, 114, 110, 133, 149, 92, 121, 142];
+const DEMO_BOT: number[] = DEMO_RIDES.map((v, i) => Math.round(v * (0.3 + (i / 60))));
+const DEMO_CANCEL: number[] = DEMO_RIDES.map((v, i) => Math.round(v * (0.14 - i * 0.002)));
+// 7 kun × 24 soat — pik soatlar (ertalab 7-9 va kechqurun 17-20 balandroq)
+const DEMO_HEAT: number[][] = Array.from({ length: 7 }, (_, d) =>
+  Array.from({ length: 24 }, (_, h) => {
+    const morning = Math.max(0, 6 - Math.abs(h - 8) * 2);
+    const evening = Math.max(0, 9 - Math.abs(h - 18.5) * 2.2);
+    const weekend = d >= 5 ? 0.6 : 1;
+    return Math.round((morning + evening + (h >= 22 || h <= 5 ? 0.4 : 1.6)) * weekend * 3);
+  }),
+);
 
 function Row({ title, note, children }: { title: string; note?: string; children: React.ReactNode }) {
   return (
@@ -110,12 +131,37 @@ function DemoInner() {
       </p>
 
       {/* ── StatCard: eng ko'p ko'rinadigan element ── */}
-      <Row title="StatCard" note="qiymat + o'zgarish % + sparkline sloti (grafik 2-qadamda ulanadi)">
+      <Row title="StatCard" note="qiymat + o'zgarish % + 12-nuqtali sparkline (dataviz skill'ning stat-tile kontrakti)">
         <div className="a2-grid-4">
-          <StatCard label="Safarlar" value={num(142)} delta={delta(142, 127)} deltaSub="o'tgan hafta shu kuni" />
-          <StatCard label="GMV" value={som(2_140_000)} delta={delta(2_140_000, 1_980_000)} deltaSub="o'tgan hafta shu kuni" />
-          <StatCard label="Bot ulushi" value={pctRaw(38.4)} delta={delta(38.4, 41.2)} deltaSub="o'tgan hafta shu kuni" />
-          <StatCard label="Bekor" value={pctRaw(6.1)} delta={delta(6.1, 9.4)} deltaSub="kamaygani — yaxshi" tone="ok" />
+          <StatCard
+            label="Safarlar"
+            value={num(142)}
+            delta={delta(142, 127)}
+            deltaSub="o'tgan hafta shu kuni"
+            spark={<Sparkline values={DEMO_RIDES} />}
+          />
+          <StatCard
+            label="GMV"
+            value={short(2_140_000)}
+            delta={delta(2_140_000, 1_980_000)}
+            deltaSub="o'tgan hafta shu kuni"
+            spark={<Sparkline values={DEMO_RIDES.map((v) => v * 15_000)} />}
+          />
+          <StatCard
+            label="Bot ulushi"
+            value={pctRaw(38.4)}
+            delta={delta(38.4, 41.2)}
+            deltaSub="o'tgan hafta shu kuni"
+            spark={<Sparkline values={DEMO_BOT} />}
+          />
+          <StatCard
+            label="Bekor"
+            value={pctRaw(6.1)}
+            delta={delta(6.1, 9.4)}
+            deltaSub="kamaygani — yaxshi"
+            tone="ok"
+            spark={<Sparkline values={DEMO_CANCEL} />}
+          />
         </div>
       </Row>
 
@@ -375,6 +421,82 @@ function DemoInner() {
           </Panel>
         </div>
       </Drawer>
+
+      {/* ── GRAFIKLAR ── */}
+      <Row
+        title="Grafiklar"
+        note="spetsifikatsiya dataviz skill'dan · palitra skript bilan TEKSHIRILGAN (ko'z bilan tanlanmagan)"
+      >
+        <Panel title="Trend — 1 qator (maydon bilan, legenda YO'Q: sarlavha aytadi)">
+          <TrendChart x={DEMO_X} series={[{ label: "Safarlar", values: DEMO_RIDES, area: true }]} />
+        </Panel>
+        <Panel title="Trend — 3 qator (legenda MAJBURIY, bosib o'chirish mumkin · sichqonchani ustiga olib boring)">
+          <TrendChart
+            x={DEMO_X}
+            series={[
+              { label: "Safarlar", values: DEMO_RIDES },
+              { label: "Bot orqali", values: DEMO_BOT },
+              { label: "Bekor", values: DEMO_CANCEL },
+            ]}
+          />
+        </Panel>
+        <div className="a2-grid-2">
+          <Panel title="Voronka (o'sish)">
+            <Funnel
+              stages={[
+                { label: "Botga kirgan", value: 1284 },
+                { label: "Raqam ulagan", value: 412 },
+                { label: "24s faol", value: 96 },
+                { label: "Tangasi bor", value: 61 },
+              ]}
+            />
+          </Panel>
+          <Panel title="Ustunlar (magnituda)">
+            <BarRows
+              rows={[
+                { label: "Chinor Oilaviy Restorant", value: 84 },
+                { label: "Qazili Hot-Dog", value: 61 },
+                { label: "Uzoq Bobo", value: 47 },
+                { label: "Zilola oshxonasi", value: 23 },
+              ]}
+            />
+          </Panel>
+          <Panel title="Ulush (donut O'RNIGA — uzunlik burchakdan aniq o'qiladi)">
+            <ShareBar
+              parts={[
+                { label: "Taksi", value: 142 },
+                { label: "Ovqat", value: 38 },
+                { label: "Bozor", value: 21 },
+                { label: "Reys", value: 9 },
+              ]}
+            />
+          </Panel>
+          <Panel title="Sparkline (StatCard ichida ishlatiladi)">
+            <div className="a2-col-3">
+              <Sparkline values={DEMO_RIDES.filter((v): v is number => v != null)} />
+              <span className="a2-hint">Past-ovoz rangda, oxirgi nuqta aksentda — o'q/to'r/yorliq yo'q.</span>
+            </div>
+          </Panel>
+        </div>
+        <Panel title="Issiqlik-xarita — pik soatlar (bitta ohang: magnituda = to'qlik, kamalak EMAS)">
+          <Heatmap grid={DEMO_HEAT} />
+        </Panel>
+        <Panel title="Grafik ↔ jadval almashtirgichi (yorug' temada MAJBURIY — kontrast talabi)">
+          <ChartWithTable
+            chart={<TrendChart x={DEMO_X.slice(-14)} series={[{ label: "Safarlar", values: DEMO_RIDES.slice(-14), area: true }]} />}
+            table={
+              <div className="a2-col">
+                {DEMO_X.slice(-14).map((d, i) => (
+                  <div className="a2-between" key={d}>
+                    <span className="a2-dim">{d}</span>
+                    <span className="a2-num">{num(DEMO_RIDES.slice(-14)[i] ?? 0)}</span>
+                  </div>
+                ))}
+              </div>
+            }
+          />
+        </Panel>
+      </Row>
 
       <footer className="kd-foot a2-dim-2">
         Tokenlar: <code className="a2-mono">design/tokens.css</code> · Kit:{" "}
