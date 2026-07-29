@@ -6,7 +6,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import type { FoodOrderView, MeResponse, MenuItemView, RestaurantView } from "@t1067/shared";
 import { formatNumber } from "@t1067/shared";
 import { api, apiUrl } from "./api";
-import { haptic, hapticSuccess } from "./telegram";
+import { haptic, hapticSuccess, tg } from "./telegram";
 import { Button, EmptyState, Sheet, Skeleton } from "./design/components";
 import { RstIcon } from "./design/feat/rstIcons";
 import { useBackButton } from "./useBackButton";
@@ -164,7 +164,7 @@ const STATUS_LABEL: Record<FoodOrderView["status"], { t: string; c: string }> = 
 };
 const TERMINAL_STATUSES = new Set<FoodOrderView["status"]>(["delivered", "rejected", "cancelled_by_user"]);
 
-function MyOrdersView({ onBack, onReorder }: { onBack: () => void; onReorder: (o: FoodOrderView) => void }) {
+function MyOrdersView({ onBack, onReorder, onOpen }: { onBack: () => void; onReorder: (o: FoodOrderView) => void; onOpen: (o: FoodOrderView) => void }) {
   const appActive = useIsActive(); // ⏸ fonda so'rov halqasi to'xtaydi
   const [orders, setOrders] = useState<FoodOrderView[] | null>(null);
   const [busyId, setBusyId] = useState<number | null>(null);
@@ -197,7 +197,9 @@ function MyOrdersView({ onBack, onReorder }: { onBack: () => void; onReorder: (o
         orders.map((o) => {
           const s = STATUS_LABEL[o.status];
           return (
-            <div key={o.id} className="rst-order-card">
+            // Karta bosilsa holat ekrani ochiladi (dizayn §7). Ichkaridagi tugmalar
+            // (bekor qilish / yana shu) o'z hodisasini to'xtatadi.
+            <div key={o.id} className="rst-order-card" onClick={() => { haptic(); onOpen(o); }}>
               <div className="rst-order-top">
                 <b>{o.restaurantName}</b>
                 <span className={`order-status-pill ${s.c}`}>{s.t}</span>
@@ -209,14 +211,166 @@ function MyOrdersView({ onBack, onReorder }: { onBack: () => void; onReorder: (o
               </div>
               {o.status === "rejected" && o.rejectReason && <div className="rst-order-reason">Sabab: {o.rejectReason}</div>}
               {o.status === "pending" && (
-                <button className="rst-order-cancel" disabled={busyId === o.id} onClick={() => cancel(o)}>Bekor qilish</button>
+                <button className="rst-order-cancel" disabled={busyId === o.id} onClick={(e) => { e.stopPropagation(); cancel(o); }}>Bekor qilish</button>
               )}
               {TERMINAL_STATUSES.has(o.status) && (
-                <button className="rst-order-reorder" onClick={() => { haptic(); onReorder(o); }}>Yana shu</button>
+                <button className="rst-order-reorder" onClick={(e) => { e.stopPropagation(); haptic(); onReorder(o); }}>Yana shu</button>
               )}
             </div>
           );
         })
+      )}
+    </div>
+  );
+}
+
+// ── 📍 B4 · BUYURTMA HOLATI (README §6) ───────────────────────────────────────────────────────
+// Bu ekran mijoz tajribasining eng og'ir yuki: ovqat buyurtmasining hissiyoti — KUTISH daqiqalari.
+// B3'gacha buyurtmadan keyin bitta «qabul qilindi» yozuvi chiqib, mijoz o'zi «Buyurtmalarim»ga
+// bormasa boshqa hech narsa ko'rmasdi.
+//
+// Matnlar content.json → `timelines` dan. IKKI joyda ataylab O'ZGARTIRILDI: dizaynda
+// «taxminan 20 daqiqa» va «10–15 daqiqa» qat'iy yozilgan — bu raqamlar bizning ma'lumotimizda
+// YO'Q (FoodOrderView'da prepMinutes kelmaydi), ya'ni ular o'ylab topilgan va'da bo'lardi.
+const TRACK_STEPS: Record<"delivery" | "pickup", [string, string][]> = {
+  delivery: [
+    ["Qabul qilindi", "Restoran buyurtmani tasdiqladi"],
+    ["Tayyorlanmoqda", "Oshxonada tayyorlanmoqda"],
+    ["Yo'lda", "Kuryer yo'lga chiqdi"],
+    ["Yetkazildi", "Naqd to'lov qabul qilindi"],
+  ],
+  pickup: [
+    ["Qabul qilindi", "Restoran buyurtmani oldi"],
+    ["Tayyorlanmoqda", "Oshxonada tayyorlanmoqda"],
+    ["Tayyor — kutmoqda", "Kelib olib ketishingiz mumkin"],
+    ["Olib ketildi", "Rahmat! Bahoingizni qoldiring"],
+  ],
+};
+
+/** Holat → timeline indeksi. `pending` — 0-qadam HALI bajarilmagan (operator restoran bilan
+ *  bog'lanmoqda), shuning uchun alohida `done: false` bilan qaytadi. */
+function trackPos(status: FoodOrderView["status"]): { i: number; done: boolean } {
+  switch (status) {
+    case "pending": return { i: 0, done: false };
+    case "accepted": case "preparing": return { i: 1, done: false };
+    case "delivering": return { i: 2, done: false };
+    case "delivered": return { i: 3, done: true };
+    default: return { i: 0, done: false };
+  }
+}
+
+function OrderTrackView({ orderId, onBack, onRate }: { orderId: number; onBack: () => void; onRate: (restaurantId: number) => void }) {
+  const appActive = useIsActive();
+  const [order, setOrder] = useState<FoodOrderView | null>(null);
+  const [missing, setMissing] = useState(false);
+  useBackButton(true, onBack, 2);
+
+  useEffect(() => {
+    const load = () => api.restoranOrders()
+      .then((r) => {
+        const found = r.orders.find((o) => o.id === orderId) ?? null;
+        setOrder(found);
+        if (!found) setMissing(true);
+      })
+      .catch(() => undefined);
+    if (!appActive) return; // ⏸ fonda so'rov yubormaymiz (buyurtmalar ro'yxati bilan bir xil qoida)
+    load();
+    const iv = setInterval(load, 8000);
+    return () => clearInterval(iv);
+  }, [orderId, appActive]);
+
+  if (!order) {
+    return (
+      <div className="view rst-detail-view">
+        <button className="rst-back" onClick={onBack}><RstIcon name="chevron-left" size={13} />Orqaga</button>
+        {missing
+          ? <EmptyState icon={<RstIcon name="orders" size={34} />} text="Buyurtma topilmadi" action="Orqaga" onAction={onBack} />
+          : <><Skeleton h={132} /><div style={{ height: 12 }} /><Skeleton h={200} /></>}
+      </div>
+    );
+  }
+
+  const terminated = order.status === "rejected" || order.status === "cancelled_by_user";
+  const steps = TRACK_STEPS[order.isPickup ? "pickup" : "delivery"];
+  const { i, done } = trackPos(order.status);
+  const headSub = order.isPickup ? `${order.restaurantName} · olib ketish` : `${order.address} · naqd to'lov`;
+
+  return (
+    <div className="view rst-detail-view">
+      <button className="rst-back" onClick={onBack}><RstIcon name="chevron-left" size={13} />Orqaga</button>
+
+      <div className={"rst-track-hero" + (terminated ? " off" : "")}>
+        <div className="rst-track-no">Buyurtma №{order.id}</div>
+        <div className="rst-track-title">
+          {terminated ? (order.status === "rejected" ? "Rad etildi" : "Bekor qilindi") : (order.status === "pending" ? "Kutilmoqda" : steps[i]![0])}
+        </div>
+        <div className="rst-track-sub">{terminated ? (order.rejectReason || "Buyurtma yopildi") : headSub}</div>
+        {!terminated && (
+          <div className="rst-track-bars">
+            {[0, 1, 2, 3].map((n) => <span key={n} className={n < i || (n === i && done) ? "on" : ""} />)}
+          </div>
+        )}
+      </div>
+
+      {!terminated && (
+        <div className="rst-card-plain">
+          {steps.map(([title, sub], n) => {
+            const complete = n < i || (n === i && done);
+            const active = n === i && !done;
+            return (
+              <div key={title} className="rst-tl-row">
+                <div className="rst-tl-rail">
+                  <span className={"rst-tl-dot" + (complete || active ? " on" : "") + (active ? " live" : "")} />
+                  {n < steps.length - 1 && <span className={"rst-tl-line" + (complete ? " on" : "")} />}
+                </div>
+                <div className="rst-tl-body">
+                  {/* pending — 0-qadam HALI bajarilmagan. Sarlavha ham, izoh ham almashadi:
+                      «Qabul qilindi» deb turib «operator bog'lanmoqda» deyish qarama-qarshi
+                      signal berardi (B4 QA'da aynan shu ko'rindi). */}
+                  <div className={"rst-tl-title" + (complete || active ? "" : " next")}>
+                    {active && order.status === "pending" && n === 0 ? "Yuborildi" : title}
+                  </div>
+                  <div className="rst-tl-sub">
+                    {active && order.status === "pending" && n === 0 ? "Operator restoran bilan bog'lanmoqda" : sub}
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {/* Aloqa — dizaynda restoranga qo'ng'iroq. Bizda V1 CONCIERGE: restoran bilan OPERATOR
+          gaplashadi, mijozning restoran telefoni yo'q (FoodOrderView'da ham kelmaydi).
+          Shuning uchun aloqa botga — ya'ni operatorga — olib boradi. */}
+      <div className="rst-card-plain rst-contact">
+        <div className="rst-contact-ic"><RstIcon name="phone" size={19} /></div>
+        <div className="rst-contact-body">
+          <div className="rst-contact-name">{order.restaurantName}</div>
+          <div className="rst-contact-sub">Savol bo'lsa yozing</div>
+        </div>
+        <button className="rst-contact-btn" onClick={() => {
+          haptic();
+          const url = "https://t.me/koson1067bot";
+          const t = tg as unknown as { openTelegramLink?: (u: string) => void } | undefined;
+          if (t?.openTelegramLink) t.openTelegramLink(url); else window.open(url, "_blank");
+        }}>Aloqa</button>
+      </div>
+
+      <div className="rst-card-plain">
+        {order.itemsJson.map((it) => (
+          <div key={it.menuItemId} className="rst-tot"><span>{it.qty}× {it.name}</span><span>{formatNumber(it.priceSom * it.qty)} so'm</span></div>
+        ))}
+        {/* Yetkazish qatori dizaynda yo'q edi — usiz taomlar summasi bilan «Jami» orasidagi farq
+            tushuntirilmay qolardi (84 000 → 92 000). Mijoz naqd to'laydi, raqam aniq bo'lsin. */}
+        {order.deliveryFeeSom > 0 && (
+          <div className="rst-tot"><span>Yetkazish</span><span>{formatNumber(order.deliveryFeeSom)} so'm</span></div>
+        )}
+        <div className="rst-tot grand"><span>Jami (naqd)</span><span>{formatNumber(order.totalSom)} so'm</span></div>
+      </div>
+
+      {order.status === "delivered" && (
+        <button className="rst-cta" onClick={() => { haptic(); onRate(order.restaurantId); }}>Bahoni qoldirish</button>
       )}
     </div>
   );
@@ -323,7 +477,7 @@ function DishSheet({ item, qty, onClose, onApply }: { item: MenuItemView; qty: n
   );
 }
 
-function RestaurantDetail({ id, me, initialCart, initialPickup, onBack, onBanner }: { id: number; me: MeResponse; initialCart?: Record<number, number> | null; initialPickup?: boolean; onBack: () => void; onBanner?: (msg: string) => void }) {
+function RestaurantDetail({ id, me, initialCart, initialPickup, onBack, onBanner, onOrdered }: { id: number; me: MeResponse; initialCart?: Record<number, number> | null; initialPickup?: boolean; onBack: () => void; onBanner?: (msg: string) => void; onOrdered: (orderId: number) => void }) {
   const [data, setData] = useState<{ restaurant: RestaurantView | null; items: MenuItemView[] } | null>(null);
   const [cart, setCart] = useState<Record<number, number>>({});
   // 🧭 Dizaynda savat va checkout — ALOHIDA EKRANLAR (rest → cart → checkout), varaq emas.
@@ -343,7 +497,6 @@ function RestaurantDetail({ id, me, initialCart, initialPickup, onBack, onBanner
   const [contact, setContact] = useState(me.member.phone ?? "");
   const [note, setNote] = useState("");
   const [busy, setBusy] = useState(false);
-  const [done, setDone] = useState<{ orderId: number; totalSom: number } | null>(null);
   // 🍲 Taom kartochkasi (dizayndagi eng katta YANGI element) + yopishqoq bo'lim chiplari.
   const [dish, setDish] = useState<MenuItemView | null>(null);
   const [activeSection, setActiveSection] = useState<string | null>(null);
@@ -434,9 +587,9 @@ function RestaurantDetail({ id, me, initialCart, initialPickup, onBack, onBanner
       if (r.ok && r.orderId) {
         hapticSuccess();
         try { if (!isPickup) localStorage.setItem(LAST_ADDR_KEY, address.trim()); } catch { /* private mode */ }
-        setDone({ orderId: r.orderId, totalSom: r.totalSom ?? 0 });
         setCart({});
         setStep("menu");
+        onOrdered(r.orderId); // → holat ekrani
       } else {
         const msgs: Record<string, string> = {
           off: "Xizmat hozircha yopiq",
@@ -476,13 +629,9 @@ function RestaurantDetail({ id, me, initialCart, initialPickup, onBack, onBanner
       </div>
     );
   }
-  if (done) {
-    return (
-      <div className="view">
-        <EmptyState icon={<RstIcon name="check" size={34} />} text={`Buyurtma qabul qilindi! #${done.orderId} · ${formatNumber(done.totalSom)} so'm. Tez orada operator siz bilan bog'lanadi.`} action="Orqaga" onAction={onBack} />
-      </div>
-    );
-  }
+  // `done` endi ishlatilmaydi: buyurtma yuborilgach mijoz TO'G'RIDAN holat ekraniga o'tadi
+  // (RestoranView `onOrdered` orqali). Ilgari bitta «qabul qilindi» yozuvi chiqib, mijoz
+  // kutish davomida hech narsa ko'rmasdi — bu bo'limning eng katta bo'shlig'i edi.
   const r = data.restaurant;
   const closed = openNow(r.workHours) === false;
   const sections = new Map<string, MenuItemView[]>();
@@ -630,17 +779,14 @@ function RestaurantDetail({ id, me, initialCart, initialPickup, onBack, onBanner
           ))}
         </div>
 
+        {/* 💳 Dizaynda bu yerda «Karta · Tez kunda» o'chiq kartasi ham bor edi — EGA QARORI
+            (2026-07-29) bilan olib tashlandi: bermaydigan va'da bermaymiz («Bepul yetkazish»
+            badge'i ham shu sababdan yo'q). To'lov integratsiyasi qo'shilganda qaytariladi. */}
         <div className="rst-lbl mt14">To'lov turi</div>
         <div className="rst-pay">
           <div className="rst-pay-card on">
             <b>Naqd</b>
             <span>Yetkazishda to'lanadi</span>
-          </div>
-          {/* Dizaynda shu karta bor va O'CHIQ. Bu — va'da; jonli to'lov integratsiyasi yo'q.
-              Ega qaroriga havola qilib qoldirildi, matn dizayndagidek. */}
-          <div className="rst-pay-card off">
-            <b>Karta</b>
-            <span>Tez kunda</span>
           </div>
         </div>
 
@@ -787,6 +933,7 @@ export function RestoranView({ me, onBanner, openRestaurantId }: { me: MeRespons
   const [list, setList] = useState<RestaurantView[] | null>(null);
   const [openId, setOpenId] = useState<number | null>(null);
   const [ordersOpen, setOrdersOpen] = useState(false);
+  const [trackId, setTrackId] = useState<number | null>(null); // 📍 buyurtma holati ekrani
   const [reorderCart, setReorderCart] = useState<Record<number, number> | null>(null);
   const [q, setQ] = useState("");
   const [catFilter, setCatFilter] = useState<string>("all");
@@ -830,10 +977,22 @@ export function RestoranView({ me, onBanner, openRestaurantId }: { me: MeRespons
     .sort((a, b) => Number(openNow(b.workHours) === true) - Number(openNow(a.workHours) === true)),
     [list, catFilter, mode, q]);
 
+  // 📍 Holat ekrani hamma narsadan ustun: buyurtma yuborilgach mijoz TO'G'RIDAN shu yerga tushadi,
+  // «Buyurtmalarim»dagi karta bosilganda ham shu ochiladi.
+  if (trackId != null) {
+    return (
+      <OrderTrackView
+        orderId={trackId}
+        onBack={() => setTrackId(null)}
+        onRate={(restaurantId) => { setTrackId(null); setOrdersOpen(false); setOpenId(restaurantId); }}
+      />
+    );
+  }
   if (ordersOpen) {
     return (
       <MyOrdersView
         onBack={() => setOrdersOpen(false)}
+        onOpen={(o) => setTrackId(o.id)}
         onReorder={(o) => {
           const cart = Object.fromEntries(o.itemsJson.map((i) => [i.menuItemId, i.qty]));
           setReorderCart(cart);
@@ -852,6 +1011,7 @@ export function RestoranView({ me, onBanner, openRestaurantId }: { me: MeRespons
         initialPickup={mode === "pickup"}
         onBack={() => { setOpenId(null); setReorderCart(null); }}
         onBanner={onBanner}
+        onOrdered={(orderId) => { setOpenId(null); setReorderCart(null); setTrackId(orderId); }}
       />
     );
   }

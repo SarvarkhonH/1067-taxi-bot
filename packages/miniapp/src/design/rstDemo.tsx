@@ -59,6 +59,8 @@ const GEN: MenuItemView[] = [
 // Har holat pilli ko'rinsin: jarayonda (bekor qilish tugmasi), rad etilgan (sabab), yetkazilgan
 // ("Yana shu"). Bo'sh ro'yxatni ko'rish uchun bu massivni vaqtincha [] qiling.
 const ORDERS: FoodOrderView[] = [
+  // pending — timeline'ning 0-qadami HALI bajarilmagan holati (operator bog'lanmoqda).
+  { id: 1044, restaurantId: 2, restaurantName: "Somsa Baraka", itemsJson: [{ menuItemId: 201, name: "Go'shtli somsa", qty: 4, priceSom: 6000 }], itemsTotalSom: 24000, deliveryFeeSom: 0, totalSom: 24000, isPickup: false, address: "Ohangaron ko'chasi, 14", status: "pending", createdAt: new Date().toISOString() },
   { id: 1043, restaurantId: 1, restaurantName: "Choyxona Bahor", itemsJson: [{ menuItemId: 101, name: "Toy oshi", qty: 3, priceSom: 28000 }], itemsTotalSom: 84000, deliveryFeeSom: 8000, totalSom: 92000, isPickup: false, address: "Ohangaron ko'chasi, 14", status: "preparing", createdAt: new Date().toISOString() },
   { id: 1042, restaurantId: 2, restaurantName: "Somsa Baraka", itemsJson: [{ menuItemId: 201, name: "Go'shtli somsa", qty: 5, priceSom: 6000 }], itemsTotalSom: 30000, deliveryFeeSom: 0, totalSom: 30000, isPickup: true, address: "", status: "delivered", createdAt: new Date().toISOString() },
   { id: 1041, restaurantId: 3, restaurantName: "Burger Time", itemsJson: [{ menuItemId: 301, name: "BirJoy Burger", qty: 1, priceSom: 34000 }], itemsTotalSom: 34000, deliveryFeeSom: 6000, totalSom: 40000, isPickup: false, address: "Markaziy ko'cha 2", status: "rejected", rejectReason: "Restoran band edi", createdAt: new Date().toISOString() },

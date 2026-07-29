@@ -170,11 +170,48 @@ to'liq surilganda 100px bo'sh joy, qoplama YO'Q · skrinshotlar: savat / minimal
 checkout / yashil CTA.
 **Bajarilmagan:** ega telefonida QABUL (B2 bilan birga).
 
-**Ega qaroriga qoldirilgan:** checkout'dagi «Karta · Tez kunda» kartasi — dizaynda bor, lekin bu
-bermaydigan va'damiz. Olib tashlash bir qatorlik ish.
+**Ega qarori (2026-07-29):** checkout'dagi «Karta · Tez kunda» kartasi OLIB TASHLANDI — bermaydigan
+va'da bermaymiz («Bepul yetkazish» badge'i ham shu sababdan yo'q). To'lov integratsiyasi qo'shilsa
+qaytariladi.
 
-**Keyingi:** B4 — buyurtma holati ekrani (gradient hero, 4 segmentli progress, `pulse` timeline,
-aloqa kartasi). Bu — mijoz uchun eng muhim yetishmayotgan ekran.
+### 🍽 B4 — BUYURTMA HOLATI EKRANI `ready for verification`
+Bo'limning eng katta bo'shlig'i yopildi: ilgari buyurtma yuborilgach mijoz bitta «qabul qilindi»
+yozuvini ko'rar, keyin o'zi «Buyurtmalarim»ga bormasa hech narsa ko'rmasdi. Endi buyurtmadan keyin
+TO'G'RIDAN holat ekraniga tushadi, va «Buyurtmalarim»dagi karta bosilsa ham shu ochiladi.
+
+- **Gradient hero** (ko'k→yashil): «BUYURTMA №N», holat sarlavhasi 22px/800, manzil + «naqd
+  to'lov», 4 segmentli progress.
+- **Timeline** — 18px doiralar, aktivi `pulse 1.8s`, bajarilganlari yashil chiziq bilan ulanadi.
+  Yetkazish va olib ketish uchun alohida matnlar (`content.json` → `timelines`).
+- **Aloqa kartasi** — telefon ikonkasi + restoran nomi + «Aloqa» tugmasi.
+- **Buyurtma tarkibi** — `N× taom` qatorlari + yetkazish + «Jami (naqd)».
+- `delivered` da **«Bahoni qoldirish»** CTA → restoran sahifasidagi baho blokiga olib boradi.
+- Holat 8 soniyada yangilanadi (fonda to'xtaydi — `useIsActive`, mavjud qoida).
+
+**Dizaynda YO'Q, qo'shilgan (sababi bilan):**
+- **`pending` holati** — dizayn buyurtma allaqachon qabul qilingan deb boshlaydi. Bizda V1
+  CONCIERGE: operator restoran bilan telefonda bog'languncha buyurtma `pending`da turadi. Shu qadam
+  «Yuborildi / Operator restoran bilan bog'lanmoqda» deb ko'rsatiladi. QA'da avval sarlavha
+  «Qabul qilindi» qolib ketgandi — qarama-qarshi signal edi, tuzatildi.
+- **`rejected` / `cancelled_by_user` holati** — dizaynda umuman chizilmagan. Gradient «hammasi
+  yaxshi» degan signal bergani uchun bu holatda jim quyuq hero + sabab ko'rsatiladi, timeline
+  chizilmaydi.
+- **Yetkazish qatori** buyurtma tarkibida — usiz taomlar summasi bilan «Jami» orasidagi farq
+  tushuntirilmay qolardi (84 000 → 92 000).
+
+**Dizayndan O'ZGARTIRILGANI:** timeline izohlaridagi «taxminan 20 daqiqa» va «10–15 daqiqa»
+raqamlari OLINDI — `FoodOrderView`da `prepMinutes` kelmaydi, ya'ni ular o'ylab topilgan va'da
+bo'lardi. Aloqa dizaynda restoranga qo'ng'iroq; bizda operator ko'prik va mijozda restoran telefoni
+yo'q, shuning uchun aloqa botga (operatorga) olib boradi.
+
+**B4 isbotlari:** `pnpm -r typecheck` 4/4 toza · build yashil · 4 holat dasturiy o'lchandi —
+`pending`: sarlavha «Kutilmoqda», 0 segment, jonli nuqta #0 · `preparing`: «Tayyorlanmoqda»,
+1 segment, jonli nuqta #1 · `delivered` (olib ketish): «Olib ketildi», 4 segment, CTA «Bahoni
+qoldirish» · `rejected`: «Rad etildi» + «Restoran band edi», timeline satrlari 0.
+**Bajarilmagan:** ega telefonida QABUL (B2–B4 birga).
+
+**Keyingi:** B5 — buyurtmalar tarixi ekranini dizaynga keltirish + baholash oqimi va qolgan
+holatlar (tarmoq xatosi, bo'sh menyu, «kutilayotgan buyurtmalar ko'p»).
 
 ### 🎀 RAVELLA — bezak konstruktori (hamkor-brend) — `in progress (gaps: rasm/seed, DB push, e'lon, QABUL)`
 **Ega so'radi (2026-07-27):** «Bosh ekranda kichik, umuman boshqa xizmat turi. Admin paneldan men
