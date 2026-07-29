@@ -337,7 +337,9 @@ export function registerMarket(bot: Bot): void {
           ? `😔 <b>Buyurtma rad etildi</b>\n🏬 ${escMkt(r.shopName ?? "")}\nHech qanday pul olinmagan.`
           : `😔 <b>Buyurtma rad etildi</b>\n🏬 ${escMkt(r.shopName ?? "")}\n✅ <b>${formatNumber(r.total ?? 0)} tanga hisobingizga qaytarildi.</b>`)
         : RIDER_STATUS_MSG[st]?.(r.shopName ?? "") ?? "";
-      if (msg) await ctx.api.sendMessage(tg, msg, { parse_mode: "HTML" }).catch(() => undefined);
+      // BLK-1: mijozning SHAXSIY chatiga ketadigan tranzaksion xabar — `force` (o'lchov uchun)
+      const { pushSend } = await import("../services/pushSend");
+      if (msg) await pushSend(tg, `mkt_${st}`, () => ctx.api.sendMessage(tg, msg, { parse_mode: "HTML" }), { memberId: r.memberId, force: true });
     }
     // ⏱ §10.3 jonli ETA — QABUL QILINGANDAN KEYIN alohida savol. Ataylab qabul-tugmasining
     // ichiga qo'shilmadi: qabul bir bosishda qolsin (sotuvchi odati buzilmasin, SLA hisobi
@@ -371,7 +373,8 @@ export function registerMarket(bot: Bot): void {
     await ctx.editMessageText(`⏱ <b>#${orderId}</b> — va'da: <b>${minutes} daqiqa</b>\n<i>Kechiksangiz shu yerda qaytadan tanlashingiz mumkin edi — yangi karta uchun buyurtmani qayta oching.</i>`, { parse_mode: "HTML" }).catch(() => undefined);
     const tg = r.memberId ? await tgOf(r.memberId) : null;
     if (tg) {
-      await ctx.api.sendMessage(tg, `⏱ <b>Yetkazish vaqti belgilandi</b>\n🏬 ${escMkt(r.shopName ?? "")}\n<b>≈ ${minutes} daqiqa</b> ichida yetkaziladi.`, { parse_mode: "HTML" }).catch(() => undefined);
+      const { pushSend } = await import("../services/pushSend"); // BLK-1 (mijoz chati — force)
+      await pushSend(tg, "mkt_eta", () => ctx.api.sendMessage(tg, `⏱ <b>Yetkazish vaqti belgilandi</b>\n🏬 ${escMkt(r.shopName ?? "")}\n<b>≈ ${minutes} daqiqa</b> ichida yetkaziladi.`, { parse_mode: "HTML" }), { memberId: r.memberId, force: true });
     }
   });
 

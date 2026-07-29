@@ -89,7 +89,9 @@ export async function deliverDueReminders(bot: Bot): Promise<number> {
         : undefined;
     // 📵 BLK-1: 403 endi "reminder" nomi bilan yoziladi (avval faqat status=failed bo'lardi)
     const { pushMessage } = await import("../pushSend");
-    const outcome = await pushMessage(bot, r.telegramId, "reminder", `🔔 <b>Eslatma!</b>\n${escapeHtml(r.text)}`, { extra: { reply_markup: kb } });
+    // `force`: bu foydalanuvchining O'ZI qo'ygan eslatmasi — eskirgan blok bayrog'i tufayli
+    // jim yo'qolmasligi kerak (avval ham har doim urinardi).
+    const outcome = await pushMessage(bot, r.telegramId, "reminder", `🔔 <b>Eslatma!</b>\n${escapeHtml(r.text)}`, { force: true, extra: { reply_markup: kb } });
     if (outcome === "sent") {
       sent++;
     } else {

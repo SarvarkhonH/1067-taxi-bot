@@ -1,6 +1,8 @@
 # BLOK-O'LCHOV DoD — «kim, qaysi xabardan keyin bloklади?»
 
-**Holat:** `not started` — egadan TASDIQ kutilmoqda (kod yozilmagan).
+**Holat:** `in progress` — ega TASDIQLADI (2026-07-29, «force bilan boshla»); kod jonli
+(`8e4c9987` + R4 tuzatishlari `db592159`). QOLGAN GAP: A10 (24 soatlik jonli natija) va ega QABULi.
+R4 mustaqil tekshiruvi A1 ni bir marta RAD ETDI — tafsilot PROGRESS.md §77b.
 **Sana:** 2026-07-29 · **Tiket:** BLK-1
 
 ---

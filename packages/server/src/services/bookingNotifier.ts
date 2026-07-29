@@ -18,7 +18,7 @@ import { markRideActive } from "./tierLoyaltyService";
 // 📵 BLK-1: safar push'lari HAR DOIM `force` bilan ketadi — odam safar buyurtma qilgan, eski yoki
 // noto'g'ri blok bayrog'i tufayli "haydovchi yetib keldi" YO'QOLMASLIGI kerak. 403 esa baribir
 // yoziladi, shunda "safar xabaridan keyin bloklagan" holati ham ko'rinadi.
-import { pushMessage } from "./pushSend";
+import { pushMessage, pushResult } from "./pushSend";
 
 const CITY_KMH = 24;
 // kas lifecycle: new → take → in_place → delivered. "in_place" is normalized to "started" in the
@@ -309,15 +309,11 @@ export async function pushBookingUpdates(
       // different new ride (lastBookingId still holds the OLD id) starts a fresh card as before.
       let cardId = isNewRide && m.lastBookingId !== null ? null : m.rideCardMsgId;
       if (!cardId) {
-        const sent = await bot.api
-          .sendMessage(chatId, renderRideCard(b, ctx), { parse_mode: "HTML", reply_markup: rideCardKb(b, ctx) })
-          .catch(() => null);
+        const sent = await pushResult(chatId, "ride_card", () => bot.api.sendMessage(chatId, renderRideCard(b, ctx), { parse_mode: "HTML", reply_markup: rideCardKb(b, ctx) }), { memberId: m.id, force: true });
         cardId = sent?.message_id ?? null;
       } else if (statusChanged || b.status === "started" || driver) {
         // edit in place (statuses + moving ETA); ignore "not modified"
-        await bot.api
-          .editMessageText(chatId, cardId, renderRideCard(b, ctx), { parse_mode: "HTML", reply_markup: rideCardKb(b, ctx) })
-          .catch(() => undefined);
+        await pushResult(chatId, "ride_card_edit", () => bot.api.editMessageText(chatId, cardId!, renderRideCard(b, ctx), { parse_mode: "HTML", reply_markup: rideCardKb(b, ctx) }), { memberId: m.id, force: true });
       }
 
       // PING on the key transition — the card EDIT above is SILENT (Telegram edits don't notify),
@@ -327,9 +323,7 @@ export async function pushBookingUpdates(
         const car = b.carNumber ? ` · <b>${esc(b.carNumber)}</b>` : "";
         const ph = ctx.driver?.phone ? ` · 📞 ${esc(ctx.driver.phone)}` : "";
         const bonus = b.clientBonus ? `\n💰 +${formatNumber(b.clientBonus)} so'm cashback · narx taksometr bo'yicha` : "\n💰 narx taksometr bo'yicha";
-        await bot.api
-          .sendMessage(chatId, `🚖 <b>Haydovchingiz keldi — kutyapti, chiqing!</b>\n🚘 ${esc(ctx.driver?.carModel ?? "Mashina")}${car}${ph}${bonus}`, { parse_mode: "HTML" })
-          .catch(() => undefined);
+        await pushMessage(bot, chatId, "ride_arrived", `🚖 <b>Haydovchingiz keldi — kutyapti, chiqing!</b>\n🚘 ${esc(ctx.driver?.carModel ?? "Mashina")}${car}${ph}${bonus}`, { memberId: m.id, force: true });
       } else if (statusChanged && cardId && b.status === "started") {
         // arrival ping. kas "in_place"→"started" OR the map-socket geofence, whichever the rider
         // hits FIRST: a wsarrived:<id> marker (idempotent create) makes exactly ONE of them ping.
@@ -386,9 +380,7 @@ export async function pushBookingUpdates(
       let pinId = isNewRide ? null : m.liveLocMsgId;
       if (typeof pinLat === "number" && typeof pinLng === "number") {
         if (!pinId) {
-          const pin = await bot.api
-            .sendLocation(chatId, pinLat, pinLng, { live_period: 3600, disable_notification: true })
-            .catch(() => null);
+          const pin = await pushResult(chatId, "ride_pin", () => bot.api.sendLocation(chatId, pinLat, pinLng, { live_period: 3600, disable_notification: true }), { memberId: m.id, force: true });
           pinId = pin?.message_id ?? null;
         } else {
           await bot.api.editMessageLiveLocation(chatId, pinId, pinLat, pinLng).catch(async (e) => {
@@ -397,9 +389,7 @@ export async function pushBookingUpdates(
             // spammed a new pin every 15 s.) Only a genuinely gone/expired message gets a fresh pin.
             const msg = e instanceof Error ? e.message : String(e);
             if (/not modified/i.test(msg)) return;
-            const pin = await bot.api
-              .sendLocation(chatId, pinLat, pinLng, { live_period: 3600, disable_notification: true })
-              .catch(() => null);
+            const pin = await pushResult(chatId, "ride_pin", () => bot.api.sendLocation(chatId, pinLat, pinLng, { live_period: 3600, disable_notification: true }), { memberId: m.id, force: true });
             pinId = pin?.message_id ?? pinId;
           });
         }
@@ -455,14 +445,14 @@ export async function pushBookingUpdates(
               const { noteWaitVoucher } = await import("./cashbackService");
               const worth = (await resilient("waitvoucher", () => noteWaitVoucher(m.id, bid!, waitSeconds))) ?? 0;
               if (worth > 0) {
-                await bot.api
-                  .sendMessage(
-                    chatId,
-                    `😔 <b>Uzr — bu safar mashina topib bera olmadik.</b>\n` +
-                      `Kutganingiz bekor ketmaydi: <b>+${formatNumber(worth)} tanga</b> keyingi safaringizda avtomatik qo'shiladi. 🚕`,
-                    { parse_mode: "HTML", reply_markup: new InlineKeyboard().text("🔁 Qayta chaqirish", "bk:now") },
-                  )
-                  .catch(() => undefined);
+                await pushMessage(
+                  bot,
+                  chatId,
+                  "ride_nocar",
+                  `😔 <b>Uzr — bu safar mashina topib bera olmadik.</b>\n` +
+                    `Kutganingiz bekor ketmaydi: <b>+${formatNumber(worth)} tanga</b> keyingi safaringizda avtomatik qo'shiladi. 🚕`,
+                  { memberId: m.id, force: true, extra: { reply_markup: new InlineKeyboard().text("🔁 Qayta chaqirish", "bk:now") } },
+                );
               }
             }
           } catch (e) {
@@ -514,13 +504,11 @@ export async function pushBookingUpdates(
           })();
           await resilient("baraban_token", () => grantWheelToken(m.id, bid));
           if (firstForRide) {
-            await bot.api
-              .sendMessage(
-                chatId,
-                "🎰 <b>Safar tugadi!</b> 5 daqiqa ichida barabanni aylantiring — tanga yutib oling! /baraban",
-                { parse_mode: "HTML", reply_markup: new InlineKeyboard().text("🎰 Aylantirish", "baraban:spin") },
-              )
-              .catch(() => undefined);
+            await pushMessage(bot, chatId, "ride_baraban", "🎰 <b>Safar tugadi!</b> 5 daqiqa ichida barabanni aylantiring — tanga yutib oling! /baraban", {
+              memberId: m.id,
+              force: true,
+              extra: { reply_markup: new InlineKeyboard().text("🎰 Aylantirish", "baraban:spin") },
+            });
           }
         }
       } catch (e) {
@@ -660,9 +648,7 @@ export async function pushBookingUpdates(
               if (drop?.fullCar) {
                 const dtg = await prisma.telegramUser.findFirst({ where: { memberId: driver.id } });
                 if (dtg) {
-                  await bot.api
-                    .sendMessage(dtg.id, "🚙 <b>TABRIKLAYMIZ!</b> 20 qismni yig'ib TO'LIQ MASHINA yasadingiz!\nYillik katta o'yinda chiptangiz bor. 🏆", { parse_mode: "HTML" })
-                    .catch(() => undefined);
+                  await pushMessage(bot, dtg.id, "garaj_full_car", "🚙 <b>TABRIKLAYMIZ!</b> 20 qismni yig'ib TO'LIQ MASHINA yasadingiz!\nYillik katta o'yinda chiptangiz bor. 🏆", { memberId: driver.id, force: true });
                 }
               }
             } catch (e) {
@@ -681,13 +667,7 @@ export async function pushBookingUpdates(
               const { payDriverRecruitMilestone } = await import("./recruitService");
               const r = await payDriverRecruitMilestone(driver.id, m.lastBookingId!);
               if (r.paid && r.recruiterTelegramId) {
-                await bot.api
-                  .sendMessage(
-                    r.recruiterTelegramId,
-                    `🚖 <b>Tabriklaymiz!</b>\nOlib kelgan haydovchingiz <b>10 ta safar</b> qildi — sizga <b>+${formatNumber(r.amount ?? 0)} tanga</b> tushdi! 🎉`,
-                    { parse_mode: "HTML" },
-                  )
-                  .catch(() => undefined);
+                await pushMessage(bot, r.recruiterTelegramId, "drv_recruit_reward", `🚖 <b>Tabriklaymiz!</b>\nOlib kelgan haydovchingiz <b>10 ta safar</b> qildi — sizga <b>+${formatNumber(r.amount ?? 0)} tanga</b> tushdi! 🎉`, { force: true });
               }
             } catch (e) {
               console.error("[drvrecruit] milestone failed:", e);
@@ -709,18 +689,14 @@ export async function pushBookingUpdates(
           if (ref.rewardReferee > 0) {
             const g = await grantCoins(m.id, ref.rewardReferee, "referral", "Do'st taklifi — birinchi safaringiz uchun 🎁", `ref_referee_ride:${ref.id}`);
             if (g.ok) {
-              await bot.api
-                .sendMessage(chatId, `🎁 Taklif sovg'asi ochildi: <b>+${formatNumber(ref.rewardReferee)} tanga</b> — birinchi safaringiz muborak!`, { parse_mode: "HTML" })
-                .catch(() => undefined);
+              await pushMessage(bot, chatId, "referral_gift", `🎁 Taklif sovg'asi ochildi: <b>+${formatNumber(ref.rewardReferee)} tanga</b> — birinchi safaringiz muborak!`, { memberId: m.id, force: true });
             }
           }
           const refTg = await prisma.telegramUser.findUnique({ where: { id: ref.referrerId } });
           if (refTg?.memberId && ref.rewardReferrer > 0) {
             const g = await grantCoins(refTg.memberId, ref.rewardReferrer, "referral", `Do'stingiz birinchi safarini qildi 🚕`, `ref_ride:${ref.id}`);
             if (g.ok) {
-              await bot.api
-                .sendMessage(refTg.id, `🎉 Taklif qilgan do'stingiz birinchi safarini qildi!\n👥 Sizga <b>+${formatNumber(ref.rewardReferrer)} tanga</b> tushdi.`, { parse_mode: "HTML" })
-                .catch(() => undefined);
+              await pushMessage(bot, refTg.id, "referral_gift", `🎉 Taklif qilgan do'stingiz birinchi safarini qildi!\n👥 Sizga <b>+${formatNumber(ref.rewardReferrer)} tanga</b> tushdi.`, { memberId: refTg.memberId, force: true });
             }
           }
           // T0.5 (AUDIT 3.2): convergence order — grants FIRST (idempotent
@@ -808,21 +784,21 @@ export async function pushBookingUpdates(
         } catch (e) {
           console.error("[xizmatlar-promo] flag check failed:", e);
         }
-        await bot.api
-          .sendMessage(
-            chatId,
-            "🏁 <b>Safaringiz yakunlandi — rahmat!</b>" +
-              fareLine +
-              rollLine +
-              waitCompLine +
-              guessLine +
-              streakLine +
-              questLine +
-              "\n🎯 Vazifalaringizni «🎁 Bonuslar»da tekshiring." +
-              (canPayFare ? "\n\n🪙 Yo'l haqini tanga bilan to'lashingiz mumkin 👇" : driverId ? "\n\n🚗 Haydovchiga tanga bilan rahmat aytasizmi?" : ""),
-            { parse_mode: "HTML", reply_markup: tipKb },
-          )
-          .catch(() => undefined);
+        await pushMessage(
+          bot,
+          chatId,
+          "ride_finish",
+          "🏁 <b>Safaringiz yakunlandi — rahmat!</b>" +
+            fareLine +
+            rollLine +
+            waitCompLine +
+            guessLine +
+            streakLine +
+            questLine +
+            "\n🎯 Vazifalaringizni «🎁 Bonuslar»da tekshiring." +
+            (canPayFare ? "\n\n🪙 Yo'l haqini tanga bilan to'lashingiz mumkin 👇" : driverId ? "\n\n🚗 Haydovchiga tanga bilan rahmat aytasizmi?" : ""),
+          { memberId: m.id, force: true, extra: { reply_markup: tipKb } },
+        );
         const { alertAdmins } = await import("./economyService");
         await alertAdmins(`🏁 Safar yakunlandi: <b>${resolveDisplayName(m.displayName || m.fullName, m.telegramUser)}</b>${rollLine ? ` ·${rollLine.replace(/<[^>]+>/g, "")}` : ""}`).catch(() => undefined);
       }
@@ -934,9 +910,7 @@ async function resolvePendingFares(bot: Bot, ds: KasDataSource): Promise<void> {
           if (firstSend) {
             const km = ride.distance ? ` · 📏 ${(ride.distance / 1000).toFixed(1)} km` : ""; // kas distance is METRES
             const mins = ride.time ? ` · ⏱ ${ride.time} daq` : "";
-            await bot.api
-              .sendMessage(chatId!, `🧾 <b>Yo'l haqi: ${formatNumber(ride.payment)} so'm</b>${km}${mins}`, { parse_mode: "HTML" })
-              .catch(() => undefined);
+            await pushMessage(bot, chatId!, "ride_fare", `🧾 <b>Yo'l haqi: ${formatNumber(ride.payment)} so'm</b>${km}${mins}`, { force: true });
           }
           settled = true;
         }

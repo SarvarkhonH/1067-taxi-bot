@@ -72,14 +72,12 @@ export async function dispatchScheduled(bot: Bot): Promise<number> {
       sent++;
     }
     if (member?.telegramUser) {
-      await bot.api
-        .sendMessage(
-          member.telegramUser.id,
-          res.ok
-            ? `⏰ Rejali taksingiz chiqarildi! 📍 ${r.addressName}${r.phone !== member.phone ? ` · 📞 ${r.phone} raqamiga` : ""}`
-            : `⚠️ Rejali safar (${r.addressName}) yuborilmadi — qaytadan chaqiring yoki 1067 ga qo'ng'iroq qiling.`,
-        )
-        .catch(() => null);
+      // BLK-1: foydalanuvchining O'ZI rejalashtirgan safari — `force` (hech qachon bostirilmaydi)
+      const { pushSend } = await import("./pushSend");
+      const html = res.ok
+        ? `⏰ Rejali taksingiz chiqarildi! 📍 ${r.addressName}${r.phone !== member.phone ? ` · 📞 ${r.phone} raqamiga` : ""}`
+        : `⚠️ Rejali safar (${r.addressName}) yuborilmadi — qaytadan chaqiring yoki 1067 ga qo'ng'iroq qiling.`;
+      await pushSend(member.telegramUser.id, "sched_ride", () => bot.api.sendMessage(member.telegramUser!.id, html), { memberId: member.id, force: true });
     }
   }
   return sent;

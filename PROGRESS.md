@@ -4824,3 +4824,55 @@ A2–A6 `scripts/testBlockRecord.ts` bilan JONLI deploy'ga qarshi tekshiriladi.
 
 **Holat:** `in progress (gaps: A2–A6 jonli tekshiruv, A10 24-soatlik natija, R4 mustaqil tekshiruv,
 ega QABULi)`. **«Done» EMAS.**
+
+### §77b — R4 MUSTAQIL TEKSHIRUVI BUILDER DA'VOSINI RAD ETDI (o'sha kuni tuzatildi)
+
+Kodni yozmagan alohida agent A1 ni **RAD ETDI**. Sabab — builder'ning A1 grep'i BIR QATORLI
+(`api\.send.*catch\(\(\) => undefined\)`), repo uslubi esa ko'p qatorli:
+`bot.api` ⏎ `.sendMessage(…)` ⏎ `.catch(…)`. Ya'ni CLAUDE.md R3 ogohlantirgan "tor grep"
+xatosining AYNAN o'zi takrorlandi: qamrovdagi `bookingNotifier.ts` da **11 ta** yuborish
+o'lchanmay qolgan edi (safar kartasi, «haydovchi keldi — kutyapti», jonli lokatsiya pin'i,
+mashina topilmadi vaucheri, baraban, safar yakuni kartasi, yo'l haqi cheki, referal/rekrut
+mukofotlari, to'liq mashina).
+
+**Tuzatildi (2-commit):**
+- `bookingNotifier` 11 nuqta + `bot/shop.ts sendProductCard` + `gapService` + `scheduledService`
+  + `bot/market.ts` mijoz-chatidagi 2 xabar → hammasi `pushSend`/`pushResult` orqali, `force` bilan.
+- `pushResult<T>` qo'shildi (message_id kerak bo'ladigan karta/pin uchun).
+- **D3 (oqim buzilishi):** `trySend` qaytish qiymati «yetkazildi» ga o'zgargan edi → 429 da
+  `continue` zanjiri buzilib, o'sha tick'da ikkinchi trigger yonardi va `comebackOfferUntil`
+  yozilmay qolardi. AVVALGI semantika tiklandi: `!== "skipped"` («slot band qilindi»).
+- **D6 (o'lchov buzilishi):** `force` yo'llari har sweep'da 403 olib, bitta blok uchun o'nlab
+  `BlockEvent` satri yozar va `blockedAt` ni oldinga surar edi → endi faqat O'TISH yoziladi
+  (`recordBlock` boshida `if (row?.blockedAt) return`).
+- **D4:** ikki karra `isBlocked` so'rovi → `prechecked` opsiyasi bilan bittaga tushdi.
+- **D7:** foydalanuvchining O'ZI qo'ygan eslatmasi (`reminder`) endi `force` — eskirgan blok
+  bayrog'i tufayli jim yo'qolmaydi.
+- **D8:** `linkReminder` logi «nomzod» emas, HAQIQATAN yuborilganini sanaydi.
+- **D9:** §77 dagi qamrov-sababi noto'g'ri edi (`bot/market.ts` faqat "do'kon chatlari" deb
+  yozilgandi) — aslida u yerda MIJOZ chatiga ketadigan tranzaksion xabarlar ham bor edi; ular
+  endi qamrovda.
+
+**Qamrovdan tashqarida (aniq ro'yxat):** sotuvchi/do'kon GURUH chatlariga ketadigan bildirishnomalar
+(`shop.ts:88`, `market.ts` `marketChatsFor` sikllari, `ravella`, `restoran`, `xizmatlar`),
+`bot/*.ts` dagi foydalanuvchi harakatiga JAVOB xabarlari, kanal postlari, admin alertlari,
+`backupService`, `scripts/*`. `index.ts:124` (`sendTg`) va `:265` (`notifyUser`) `pushSend`dan
+O'TMAYDI (chaqiruvchilar `throw` ga tayanadi) — lekin 403 ni `recordBlock` bilan YOZADI.
+
+**Saboq:** «0 topildi» degan grep natijasi — grep'ning O'ZI to'g'ri yozilganini isbotlamaydi.
+Ko'p qatorli chaqiruv uslubi bor repo'da bir qatorli regex bilan "qamrov to'liq" deyish MUMKIN EMAS.
+
+### §77c — BIRINCHI JONLI NATIJA (deploy'dan ~5 daqiqa keyin)
+
+`BlockEvent` = **25 satr**, hammasi `kind=link_remind`, hammasi `memberId IS NULL`
+(ya'ni raqamini HECH QACHON ulamagan foydalanuvchilar). `blockedAt` 87 → **112**.
+
+**To'g'ri o'qilishi:** bu 25 kishi bugun bloklagani EMAS — ular ALLAQACHON bloklagan edi, biz
+endigina bilib oldik. Sabab: `linkReminderService` markerni faqat MUVAFFAQIYATLI yuborishda
+yozadi, 403 esa yutilardi → bot bu odamlarga 24 soatdan beri HAR TICK'da bekorga urinib kelgan.
+Endi `blockedAt` qo'yilgani uchun bu tsikl to'xtaydi.
+
+**Hali javob YO'Q:** ega so'ragan asosiy savol — «kunlik bonus / kechki reyting xabarlaridan
+nechta odam bloklaydi» — hozircha o'lchanmagan, chunki tun (Toshkent 23:50) va `quietHours()`
+21:00–08:00 proaktiv push'larni to'xtatib turibdi. Birinchi haqiqiy raqamlar ertaga 08:00 dan
+keyin `freespin_wait` / `lucky_day` / `drv_eod` kabi turlar bo'yicha kela boshlaydi (A10).
