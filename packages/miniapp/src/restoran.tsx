@@ -326,13 +326,21 @@ function DishSheet({ item, qty, onClose, onApply }: { item: MenuItemView; qty: n
 function RestaurantDetail({ id, me, initialCart, initialPickup, onBack, onBanner }: { id: number; me: MeResponse; initialCart?: Record<number, number> | null; initialPickup?: boolean; onBack: () => void; onBanner?: (msg: string) => void }) {
   const [data, setData] = useState<{ restaurant: RestaurantView | null; items: MenuItemView[] } | null>(null);
   const [cart, setCart] = useState<Record<number, number>>({});
-  const [checkoutOpen, setCheckoutOpen] = useState(false);
+  // 🧭 Dizaynda savat va checkout — ALOHIDA EKRANLAR (rest → cart → checkout), varaq emas.
+  // Ilgari ikkalasi bitta `Sheet` ichida siqilgan edi: savat qatorlarida stepper yo'q edi,
+  // ya'ni sonni kamaytirish umuman imkonsiz edi.
+  const [step, setStep] = useState<"menu" | "cart" | "checkout">("menu");
   // Katalogdagi rejim shu yerga uzatiladi — mijoz «Olib ketish»ni tepada tanlagan bo'lsa,
   // checkout'da uni QAYTA tanlashi kerak emas (dizayn: rejim butun oqimni belgilaydi).
   const [isPickup, setIsPickup] = useState(!!initialPickup);
-  // ‹ Buyurtma-tasdiq varag'i restoran-sahifasi USTIDA ochiladi → prioritet 2 (restoran = 1).
-  useBackButton(checkoutOpen, () => setCheckoutOpen(false), 2);
+  // ‹ Ierarxik orqaga: checkout → cart → menu (dizayn §Interactions). Prioritet 2 — katalogning
+  // «restorandan chiqish» ishlov beruvchisidan (1) ustun, ya'ni avval ichki qadam qaytariladi.
+  useBackButton(step !== "menu", () => setStep((s) => (s === "checkout" ? "cart" : "menu")), 2);
   const [address, setAddress] = useState(() => { try { return localStorage.getItem(LAST_ADDR_KEY) ?? ""; } catch { return ""; } });
+  // Checkout maydonlari dizaynda O'QISH-uchun qatorlar (yorliq + qiymat) — tahrirlash oqimi
+  // chizilmagan. Bosilganda bitta maydonli varaq ochiladi: eng kam qadam, ekran tuzilishi buzilmaydi.
+  const [edit, setEdit] = useState<null | "address" | "contact" | "note">(null);
+  const [contact, setContact] = useState(me.member.phone ?? "");
   const [note, setNote] = useState("");
   const [busy, setBusy] = useState(false);
   const [done, setDone] = useState<{ orderId: number; totalSom: number } | null>(null);
@@ -421,14 +429,14 @@ function RestaurantDetail({ id, me, initialCart, initialPickup, onBack, onBanner
       const r = await api.restoranOrder({
         restaurantId: data.restaurant.id,
         items: cartLines.map((l) => ({ menuItemId: l.item.id, qty: l.qty })),
-        address, contact: me.member.phone ?? "", note, isPickup,
+        address, contact, note, isPickup,
       });
       if (r.ok && r.orderId) {
         hapticSuccess();
         try { if (!isPickup) localStorage.setItem(LAST_ADDR_KEY, address.trim()); } catch { /* private mode */ }
         setDone({ orderId: r.orderId, totalSom: r.totalSom ?? 0 });
         setCart({});
-        setCheckoutOpen(false);
+        setStep("menu");
       } else {
         const msgs: Record<string, string> = {
           off: "Xizmat hozircha yopiq",
@@ -481,6 +489,180 @@ function RestaurantDetail({ id, me, initialCart, initialPickup, onBack, onBanner
   for (const it of data.items) {
     if (!sections.has(it.section)) sections.set(it.section, []);
     sections.get(it.section)!.push(it);
+  }
+
+  // ── Savat/checkout uchun umumiy hisoblar ────────────────────────────────────────────────────
+  const feeSom = isPickup ? 0 : r.deliveryFeeSom;
+  const grandSom = itemsTotalSom + feeSom;
+  const missingSom = Math.max(0, r.minOrderSom - itemsTotalSom);
+  const minOk = missingSom === 0;
+
+  /** Totallar kartasi — savatda ham, checkout'da ham AYNAN bir xil (dizayn talabi). */
+  const Totals = (
+    <div className="rst-card-plain">
+      <div className="rst-tot"><span>Taomlar</span><span>{formatNumber(itemsTotalSom)} so'm</span></div>
+      <div className="rst-tot">
+        <span>{isPickup ? "Yetkazish yo'q" : "Yetkazish"}</span>
+        <span>{isPickup ? "—" : r.deliveryFeeSom > 0 ? `${formatNumber(r.deliveryFeeSom)} so'm` : "—"}</span>
+      </div>
+      <div className="rst-tot grand"><span>Jami (naqd)</span><span>{formatNumber(grandSom)} so'm</span></div>
+    </div>
+  );
+
+  /** Bitta maydonli tahrir-varag'i (manzil / telefon / izoh). */
+  const editSheet = (() => {
+    if (!edit) return null;
+    const cfg = {
+      address: { title: "Yetkazish manzili", value: address, set: setAddress, ph: "Ko'cha, uy, mo'ljal — masalan: Ohangaron 14, ko'k darvoza", max: 120, min: 5 },
+      contact: { title: "Telefon", value: contact, set: setContact, ph: "+998 90 123 45 67", max: 20, min: 7 },
+      note: { title: "Izoh", value: note, set: setNote, ph: "Masalan: achchiq solmang, 2 ta non qo'shing…", max: 200, min: 0 },
+    }[edit];
+    return (
+      <Sheet open onClose={() => setEdit(null)}>
+        <h3>{cfg.title}</h3>
+        <input
+          className="bk-input mt8" autoFocus value={cfg.value} maxLength={cfg.max}
+          onChange={(e) => cfg.set(e.target.value)} placeholder={cfg.ph}
+        />
+        <Button variant="brand" disabled={cfg.value.trim().length < cfg.min} onClick={() => {
+          if (edit === "address") { try { localStorage.setItem(LAST_ADDR_KEY, address.trim()); } catch { /* private mode */ } }
+          hapticSuccess(); setEdit(null);
+        }}>Saqlash</Button>
+      </Sheet>
+    );
+  })();
+
+  // ── 🛒 SAVAT EKRANI (README §4) ─────────────────────────────────────────────────────────────
+  if (step === "cart") {
+    return (
+      <div className="view rst-detail-view">
+        <button className="rst-back" onClick={() => setStep("menu")}><RstIcon name="chevron-left" size={13} />Orqaga</button>
+        {cartLines.length === 0 ? (
+          <EmptyState icon={<RstIcon name="orders" size={34} />} text="Savat bo'sh" action="Menyuga qaytish" onAction={() => setStep("menu")} />
+        ) : (
+          <>
+            <div className="rst-card-plain">
+              <div className="rst-lbl">Restoran</div>
+              <div className="rst-cart-rest">{r.name}</div>
+              <div className="rst-hr" />
+              {cartLines.map((l) => (
+                <div key={l.item.id} className="rst-cart-row">
+                  {l.item.hasPhoto ? (
+                    <img className="rst-cart-photo" src={apiUrl(`/api/restoran/menuphoto/${l.item.id}`)} loading="lazy" alt="" />
+                  ) : (
+                    <div className="rst-cart-photo rst-card-noimg" style={{ backgroundImage: fallbackBg(l.item.id) }}>
+                      <RstIcon name="plate" size={18} />
+                    </div>
+                  )}
+                  <div className="rst-cart-body">
+                    <div className="rst-cart-name">{l.item.name}</div>
+                    <div className="rst-cart-mul">{formatNumber(l.item.priceSom)} × {l.qty}</div>
+                  </div>
+                  {/* Nihoyat kamaytirish yo'li: dizaynda stepper AYNAN shu ekranda. */}
+                  <div className="rst-item-stepper">
+                    <button onClick={() => setQty(l.item.id, -1)} aria-label="Kamaytirish"><RstIcon name="minus" size={14} /></button>
+                    <span>{l.qty}</span>
+                    <button onClick={() => setQty(l.item.id, 1)} aria-label="Ko'paytirish"><RstIcon name="plus" size={14} /></button>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {Totals}
+
+            {!minOk && (
+              <div className="rst-warn">
+                Bu restoranda minimal buyurtma {formatNumber(r.minOrderSom)} so'm.
+                Yana {formatNumber(missingSom)} so'm qo'shsangiz yuborish mumkin.
+              </div>
+            )}
+
+            <div className="rst-note">
+              To'lov — yetkazib berilganda naqd pulda. Buyurtmani operator restoran bilan tasdiqlaydi.
+            </div>
+
+            <button
+              className={"rst-cta" + (minOk ? "" : " off")}
+              onClick={() => { haptic(); if (minOk) setStep("checkout"); else onBanner?.(`Yana ${formatNumber(missingSom)} so'm qo'shing`); }}
+            >
+              {minOk ? `Rasmiylashtirish · ${formatNumber(grandSom)} so'm` : "Minimal summa yetmadi"}
+            </button>
+          </>
+        )}
+        {editSheet}
+      </div>
+    );
+  }
+
+  // ── 🧾 CHECKOUT EKRANI (README §5) ──────────────────────────────────────────────────────────
+  if (step === "checkout") {
+    const fields: { label: string; value: string; edit?: "address" | "contact" }[] = isPickup
+      ? [
+          { label: "Olib ketish manzili", value: r.address ? `${r.name}, ${r.address}` : r.name },
+          { label: "Tayyor bo'ladi", value: `Taxminan ${r.prepMinutes} daqiqada` },
+          { label: "Telefon", value: contact || "Kiritilmagan", edit: "contact" },
+        ]
+      : [
+          { label: "Yetkazish manzili", value: address.trim() || "Kiritilmagan", edit: "address" },
+          { label: "Telefon", value: contact || "Kiritilmagan", edit: "contact" },
+          { label: "Yetkazish vaqti", value: `Tezroq · ~${r.prepMinutes} daq` },
+        ];
+    // Dizaynda CTA doim yashil va faol. Realda u o'chib qolishi mumkin (manzil/telefon yo'q) —
+    // va o'chiq tugma SABABINI aytmasa, mijoz nima qilishini bilmay ekranda qotib qoladi.
+    // Shuning uchun o'chiq holatda tugma NIMA YETISHMAYOTGANINI yozadi va bosilganda to'g'ri
+    // maydonni ochadi, ya'ni boshi berk ko'cha bo'lmaydi.
+    const blocker: { text: string; open?: "address" | "contact" } | null =
+      !minOk ? { text: "Minimal summa yetmadi" }
+      : !isPickup && address.trim().length < 5 ? { text: "Manzilni kiriting", open: "address" }
+      : contact.trim().length < 7 ? { text: "Telefonni kiriting", open: "contact" }
+      : null;
+    const ready = !busy && !blocker;
+    return (
+      <div className="view rst-detail-view">
+        <button className="rst-back" onClick={() => setStep("cart")}><RstIcon name="chevron-left" size={13} />Orqaga</button>
+
+        <div className="rst-card-plain">
+          {fields.map((f) => (
+            <button key={f.label} className={"rst-field" + (f.edit ? "" : " static")} onClick={() => { if (f.edit) { haptic(); setEdit(f.edit); } }}>
+              <span className="rst-lbl">{f.label}</span>
+              <span className="rst-field-val">{f.value}{f.edit && <RstIcon name="chevron-down" size={9} />}</span>
+            </button>
+          ))}
+        </div>
+
+        <div className="rst-lbl mt14">To'lov turi</div>
+        <div className="rst-pay">
+          <div className="rst-pay-card on">
+            <b>Naqd</b>
+            <span>Yetkazishda to'lanadi</span>
+          </div>
+          {/* Dizaynda shu karta bor va O'CHIQ. Bu — va'da; jonli to'lov integratsiyasi yo'q.
+              Ega qaroriga havola qilib qoldirildi, matn dizayndagidek. */}
+          <div className="rst-pay-card off">
+            <b>Karta</b>
+            <span>Tez kunda</span>
+          </div>
+        </div>
+
+        <button className="rst-card-plain rst-note-card mt14" onClick={() => { haptic(); setEdit("note"); }}>
+          <span className="rst-lbl">Izoh</span>
+          <span className={"rst-field-val" + (note.trim() ? "" : " ph")}>
+            {note.trim() || "Masalan: achchiq solmang, 2 ta non qo'shing…"}
+            <RstIcon name="chevron-down" size={9} />
+          </span>
+        </button>
+
+        {Totals}
+
+        <button
+          className={"rst-cta send" + (ready ? "" : " off")}
+          onClick={() => { haptic(); if (ready) submit(); else if (blocker?.open) setEdit(blocker.open); else setStep("cart"); }}
+        >
+          {busy ? "Yuborilmoqda…" : blocker ? blocker.text : `Buyurtmani yuborish · ${formatNumber(grandSom)} so'm`}
+        </button>
+        {editSheet}
+      </div>
+    );
   }
 
   const sectionNames = [...sections.keys()];
@@ -591,43 +773,12 @@ function RestaurantDetail({ id, me, initialCart, initialPickup, onBack, onBanner
       {dish && <DishSheet item={dish} qty={cart[dish.id] ?? 0} onClose={() => setDish(null)} onApply={(n) => { setQtyAbs(dish.id, n); setDish(null); onBanner?.(n > 0 ? `${dish.name} savatga qo'shildi` : `${dish.name} savatdan olib tashlandi`); }} />}
 
       {cartCount > 0 && (
-        <button className="rst-cart-bar" onClick={() => { haptic(); setCheckoutOpen(true); }}>
+        <button className="rst-cart-bar" onClick={() => { haptic(); setStep("cart"); }}>
           <span className="rst-cart-badge">{cartCount}</span>
           <span>Savat</span>
           <b>{formatNumber(itemsTotalSom)} so'm</b>
         </button>
       )}
-      <Sheet open={checkoutOpen} onClose={() => setCheckoutOpen(false)}>
-        <h3>Buyurtmani rasmiylashtirish</h3>
-        {cartLines.map((l) => (
-          <div key={l.item.id} className="rst-confirm-line">
-            <span>{l.item.name} ×{l.qty}</span>
-            <span>{formatNumber(l.item.priceSom * l.qty)} so'm</span>
-          </div>
-        ))}
-        {r.pickupEnabled && (
-          <div className="rst-pickup-toggle">
-            <button className={!isPickup ? "on" : ""} onClick={() => { haptic(); setIsPickup(false); }}>Yetkazish</button>
-            <button className={isPickup ? "on" : ""} onClick={() => { haptic(); setIsPickup(true); }}>Olib ketish</button>
-          </div>
-        )}
-        {!isPickup && (
-          <input className="bk-input mt8" placeholder="Manzil: Koson sh., ko'cha, uy" value={address} onChange={(e) => setAddress(e.target.value)} />
-        )}
-        <input className="bk-input mt8" placeholder="Izoh (ixtiyoriy)" value={note} onChange={(e) => setNote(e.target.value)} maxLength={200} />
-        <div className="rst-confirm-total">
-          <span>Taomlar</span><span>{formatNumber(itemsTotalSom)} so'm</span>
-        </div>
-        {!isPickup && r.deliveryFeeSom > 0 && (
-          <div className="rst-confirm-total"><span>Yetkazish</span><span>{formatNumber(r.deliveryFeeSom)} so'm</span></div>
-        )}
-        <div className="rst-confirm-total rst-confirm-grand">
-          <span>Jami (naqd)</span><span>{formatNumber(itemsTotalSom + (isPickup ? 0 : r.deliveryFeeSom))} so'm</span>
-        </div>
-        <Button variant="brand" disabled={busy || (!isPickup && address.trim().length < 5) || (r.minOrderSom > 0 && itemsTotalSom < r.minOrderSom)} onClick={submit}>
-          {busy ? "Yuborilmoqda..." : r.minOrderSom > 0 && itemsTotalSom < r.minOrderSom ? `Yana ${formatNumber(r.minOrderSom - itemsTotalSom)} so'm qo'shing` : "Buyurtma berish (naqd)"}
-        </Button>
-      </Sheet>
     </div>
   );
 }

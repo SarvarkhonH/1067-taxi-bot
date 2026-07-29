@@ -139,8 +139,42 @@ skrinshotlar: restoran sahifasi / taom kartochkasi / savatda «2 ta» + savat pa
 `MenuItem`da bunday maydonlar YO'Q (faqat `desc`); o'ylab topib yozish mijozni aldash bo'lardi.
 Kerak bo'lsa schema'ga porsiya/og'irlik maydonlari qo'shiladi.
 
-**Keyingi:** B3 — savat va checkout ekranlari (alohida ekran, stepper'lar, minimal summa
-ogohlantirishi, rejimga moslashadigan maydonlar, yashil «Buyurtmani yuborish»).
+### 🍽 B3 — SAVAT + CHECKOUT `ready for verification`
+Ega ruxsati bilan B2 QABUL'idan OLDIN boshlandi (2026-07-29, «b3ni boshla hali b2 tekshira
+olmayman») — ya'ni B2 hamon `ready for verification` holatida, «done» EMAS.
+
+- **Savat va checkout endi ALOHIDA EKRANLAR** (`rest → cart → checkout`), ilgari ikkalasi bitta
+  `Sheet` ichida siqilgan edi. Apparat «orqaga» ierarxik: checkout → cart → menyu.
+- **Savat**: «RESTORAN» yorlig'i + nom, 52px rasmli qatorlar, `narx × son`, **stepper** — bu bilan
+  sonni KAMAYTIRISH yo'li paydo bo'ldi (B2'gacha umuman yo'q edi).
+- **Totallar kartasi** — savatda ham, checkout'da ham bir xil; «Yetkazish» olib ketishda «—».
+- **Minimal summa ogohlantirishi** — warn ranglari, matn `content.json` dan so'zma-so'z; CTA
+  o'chadi va «Minimal summa yetmadi» yozadi.
+- **Checkout maydonlari** rejimga moslashadi: Yetkazish (manzil · telefon · vaqt) / Olib ketish
+  (restoran manzili · tayyor bo'ladi · telefon). Dizaynda ular O'QISH-uchun qatorlar edi —
+  bosilganda bitta maydonli varaq ochiladi (manzil/telefon/izoh).
+- **To'lov turi** — «Naqd» tanlangan (yashil ramka), «Karta · Tez kunda» o'chiq.
+- **CTA** — yashil «Buyurtmani yuborish · {jami}».
+
+**Dizayndan ONGLI CHEKINISH:** dizaynda CTA doim faol. Realda u o'chishi mumkin (manzil/telefon
+yo'q) — o'chiq tugma sababini aytmasa mijoz ekranda qotib qoladi. Endi tugma NIMA yetishmayotganini
+yozadi («Manzilni kiriting») va bosilganda o'sha maydonni ochadi.
+
+**B3 QA'da topilgan va tuzatilgan 2 nuqson:** (1) «Izoh» kartasi `.rst-field` ning nol-padding'ini
+olib, matn karta chetiga yopishib qolgandi; (2) o'chiq CTA sababsiz edi (yuqoridagi chekinish).
+
+**B3 isbotlari:** `pnpm -r typecheck` 4/4 toza · build yashil · savat CTA computed
+`rgb(21,82,184)`, checkout CTA `rgb(23,163,74)` · manzil kiritilgach CTA «Manzilni kiriting» →
+«Buyurtmani yuborish · 96 000 so'm» ga o'tdi (dasturiy o'lchov) · CTA–tabbar oralig'i o'lchandi:
+to'liq surilganda 100px bo'sh joy, qoplama YO'Q · skrinshotlar: savat / minimal-ogohlantirish /
+checkout / yashil CTA.
+**Bajarilmagan:** ega telefonida QABUL (B2 bilan birga).
+
+**Ega qaroriga qoldirilgan:** checkout'dagi «Karta · Tez kunda» kartasi — dizaynda bor, lekin bu
+bermaydigan va'damiz. Olib tashlash bir qatorlik ish.
+
+**Keyingi:** B4 — buyurtma holati ekrani (gradient hero, 4 segmentli progress, `pulse` timeline,
+aloqa kartasi). Bu — mijoz uchun eng muhim yetishmayotgan ekran.
 
 ### 🎀 RAVELLA — bezak konstruktori (hamkor-brend) — `in progress (gaps: rasm/seed, DB push, e'lon, QABUL)`
 **Ega so'radi (2026-07-27):** «Bosh ekranda kichik, umuman boshqa xizmat turi. Admin paneldan men
