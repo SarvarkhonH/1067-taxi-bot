@@ -26,8 +26,9 @@ const REST: RestaurantView[] = [
   { id: 4, name: "Kabob Zarafshon", category: "milliy", address: null, workHours: "11:00-23:00", deliveryFeeSom: 8000, minOrderSom: 40000, pickupEnabled: true, prepMinutes: 35, hasPhoto: false, avgRating: 4.5, reviewCount: 96, orderCount: 88 },
   // Ataylab YOPIQ (ish vaqti tunda tugaydi) — "Yopiq" badge va bloklangan savat shu bilan sinaladi.
   { id: 5, name: "Shirinlik Nasiba", category: "shirinlik", address: null, workHours: "09:00-19:00", deliveryFeeSom: 6000, minOrderSom: 20000, pickupEnabled: false, prepMinutes: 25, hasPhoto: false, avgRating: 4.7, reviewCount: 77, orderCount: 41 },
-  // Ataylab REYTINGSIZ (avgRating 0) — yangi restoran holati: yulduz qatori umuman chizilmasligi kerak.
-  { id: 6, name: "Coffee Point", category: "ichimlik", address: null, workHours: "08:00-22:00", deliveryFeeSom: 5000, minOrderSom: 15000, pickupEnabled: true, prepMinutes: 15, hasPhoto: false, avgRating: 0, reviewCount: 0, orderCount: 12 },
+  // JONLI MA'LUMOTGA MOS holat (2026-07-29 o'lchovi): ish vaqti YO'Q + reyting 0 + fee/min 0.
+  // Jonli bazadagi 11 restorandan 9 tasi aynan shunday — info qatori bo'sh qolmasligi kerak.
+  { id: 6, name: "Coffee Point", category: "ichimlik", address: null, workHours: null, deliveryFeeSom: 0, minOrderSom: 0, pickupEnabled: true, prepMinutes: 30, hasPhoto: false, avgRating: 0, reviewCount: 0, orderCount: 12 },
 ];
 
 const MENU: Record<number, MenuItemView[]> = {

@@ -937,19 +937,24 @@ function RestaurantDetail({ id, me, initialCart, initialPickup, onBack, onBanner
         </div>
       </div>
 
-      {/* ── Info qatori: reyting · ish vaqti · Ochiq/Yopiq ── */}
-      <div className="rst-info">
-        {r.avgRating > 0 && (
-          <>
+      {/* ── Info qatori: reyting · ish vaqti · Ochiq/Yopiq ──
+          JONLI MA'LUMOT SABOG'I (2026-07-29): 11 faol restorandan 9 tasida `workHours` YO'Q va
+          ko'pchiligida reyting ham 0. U holda bu qator BO'SH chiziqli plashka bo'lib qolardi —
+          dizaynda hech qachon bo'lmagan holat, chunki prototipdagi har restoranda ikkalasi ham
+          bor edi. Endi ichida hech narsa bo'lmasa qator umuman chizilmaydi. Ajratkich ham faqat
+          ikkala tomonida kontent bo'lsa qo'yiladi. */}
+      {(r.avgRating > 0 || !!r.workHours) && (
+        <div className="rst-info">
+          {r.avgRating > 0 && (
             <span className="rst-rating"><RstIcon name="star" size={13} />{r.avgRating.toFixed(1)}
               {r.reviewCount > 0 && <i className="rst-rating-n">({r.reviewCount})</i>}
             </span>
-            <i className="rst-info-div" />
-          </>
-        )}
-        {r.workHours && <span className="rst-info-hours">{r.workHours}</span>}
-        <span className="rst-info-state"><OpenBadge wh={r.workHours} /></span>
-      </div>
+          )}
+          {r.avgRating > 0 && !!r.workHours && <i className="rst-info-div" />}
+          {r.workHours && <span className="rst-info-hours">{r.workHours}</span>}
+          <span className="rst-info-state"><OpenBadge wh={r.workHours} /></span>
+        </div>
+      )}
       {r.address && <div className="rst-info-addr">{r.address}</div>}
 
       {data.items.length === 0 ? (
