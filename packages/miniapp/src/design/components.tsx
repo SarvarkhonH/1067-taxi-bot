@@ -166,7 +166,9 @@ export function Skeleton({ h = 14, w, className = "" }: { h?: number; w?: string
   return <div className={`d-skel ${className}`.trim()} style={{ height: h, width: w }} />;
 }
 
-export function EmptyState({ icon = "🗂", text, action, onAction }: { icon?: string; text: string; action?: string; onAction?: () => void }) {
+// `icon` — matn (emoji) YOKI React tuguni: restoran bo'limida dizayn emoji'ni taqiqlaydi va
+// inline SVG uzatiladi. `string` ham ReactNode bo'lgani uchun mavjud chaqiruvlar o'zgarmadi.
+export function EmptyState({ icon = "🗂", text, action, onAction }: { icon?: ReactNode; text: string; action?: string; onAction?: () => void }) {
   return (
     <div className="d-empty">
       <div className="d-empty-ico">{icon}</div>

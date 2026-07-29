@@ -2,6 +2,277 @@
 
 ## Jarayonda (yangi)
 
+### 🍽 RESTORAN REDIZAYN (design_handoff_restoran/1a) — B0 `owner-accepted`
+**Kontekst:** ega tashqi dizayn-paketi berdi (`C:\Users\sarva\Desktop\design_handoff_restoran`):
+piksel-spetsifikatsiya (`README.md`), kontent (`data/content.json`), jonli prototip
+(`Restoran.dc.html`, DC-runtime'siz ishlamaydi — manba kodidan o'qildi). Amalga oshiriladigan
+variant **faqat `1a`** (`1b`/`1c` rad etilgan).
+
+**Ega qarorlari (2026-07-29, AskUserQuestion bilan yozib olindi):**
+1. **Rejimlar: 2 ta** — Yetkazish + Olib ketish TO'LIQ ishlaydi. «Stol bron»/«Stolda QR» V1'da
+   QURILMAYDI (yangi mahsulot: sana/odam soni/stol raqami/QR + operator oqimi + restoran kelishuvi).
+2. **Shrift: Manrope, o'zimizda saqlab** — 600/700/800, `public/fonts`, faqat restoran chunk'ida.
+3. **«Yo'l xaritasi» ekrani mijozga KO'RSATILMAYDI** (B0…B6 ichki hujjat).
+4. **Fotolar: ikkala yo'l** — kuchli fotosiz-fallback + parallel ega restoranlardan foto yig'adi.
+
+**Dizayndan ATAYLAB olinmagan (sabab bilan, keyin qayta so'ralmasin):**
+- Dizayndagi 5-tabli tabbar (Uy·Taksi·Restoran·Yo'l xarita·Buyurtmalar) — tabbar butun ilovaniki
+  (`App.tsx` BASE_TABS), uni o'zgartirish Do'kon/Xizmatlar/Ravella/Taksini buzardi. Kerak ham emas:
+  «Buyurtmalarim» dizaynning o'zida katalog header'ida turibdi.
+- Header'dagi `⋯`/`×` — Telegram'ning O'Z chrome'i imitatsiyasi, biz chizsak ikki marta chiqadi.
+- `content.json` dagi restoran/taom ma'lumoti — o'ylab topilgan demo. Matn/yorliqlar (`copy`,
+  `timelines`, `checkoutFields`) so'zma-so'z olinadi; restoran ma'lumoti JONLI API'dan.
+
+**⚑ EGA QABULI (2026-07-29):** ega «hammasi tekshirildi» dedi — **B0…B5 owner-accepted**.
+Tekshiruv ega tomonidan qanday qilinganini men KO'RMADIM (jonli deploy hali yo'q, telefon-preview
+`192.168.100.4:5918/#rstdemo` orqali ochilgan bo'lishi mumkin) — qabul EGANING so'zi bo'yicha
+yozildi. B6 shundan keyin boshlandi.
+
+**B0 — POYDEVOR:**
+- `tokens.css` — `--rst-*` amber→README palitrasi (22 token), `.app.restoran-light` qobig'i
+  issiq-kremdan oq/ko'k-yashilga (topbar, tabbar, toast, muted, input, sheet). Gradient/aurora/glow
+  o'chirildi (dizayn: qobiq tekis va jim).
+- `design/feat/rst.css` — to'liq qayta yozildi: `@font-face` ×3, `rst-rise/pop/pulse/shim`
+  keyframe'lari, `prefers-reduced-motion` bloki, har rang tokendan.
+- `design/feat/rstIcons.tsx` (yangi) — 13 inline SVG (`currentColor`, stroke 1.7). Har `path`
+  prototipdan AYNAN ko'chirilgan.
+- `restoran.tsx` — bo'limdagi HAMMA emoji SVG/matnga almashtirildi; «Qayta buyurtma»→«Yana shu»,
+  qidiruv placeholder'i content.json'dagi matnga («Osh, somsa, burger, tort…»), lupa input ichiga.
+- `components.tsx` — `EmptyState.icon`: `string` → `ReactNode` (tip kengaytmasi, ish vaqtida
+  o'zgarish YO'Q; `string` ham ReactNode, mavjud 40+ chaqiruv tegilmadi).
+- `design/rstDemo.tsx` (yangi) + `App.tsx` `#rstdemo` — vizual-QA laboratoriyasi (`#shopdemo`
+  qolipi): mock-fetch bilan HAQIQIY `RestoranView` Telegram autentifikatsiyasiz ko'riladi.
+  B1…B5 da har qadam shu bilan ko'zdan kechiriladi.
+
+**B0 isbotlari (buyruq+xom natija bilan):** `pnpm -r typecheck` 4/4 toza · brauzerda computed:
+fon `rgb(245,246,248)`=#f5f6f8, karta oq/18px/`0 1px 3px rgba(14,21,36,.07)`, aktiv chip
+`rgb(14,21,36)`, aktiv tab `rgb(21,82,184)`=#1552B8 — hammasi README bilan 1:1 · Manrope
+yuklandi (`document.fonts.check`=true), `oʻ/gʻ` (U+02BB) VA `o'/g'` (ASCII) ikkalasi ham qoplangan,
+o'lchangan kenglik fallback'dan farq qiladi (ya'ni haqiqatan Manrope chizilyapti) · emoji-grep:
+UI matnlarida 0 (faqat kod izohlarida) · scope-grep: yangi selektorlarning HAMMASI
+`.app.restoran-light` yoki `.rst-*` ichida — boshqa bo'limlarga sizib chiqmagan · build: `dist/fonts`
+3 woff2 (41 KB), `@font-face` FAQAT `restoran-*.css` chunk'ida (Uy kritik yo'lida Manrope YO'Q).
+
+**B0 QA (skrinshot) 4 ta HAQIQIY nuqsonni ochdi — hammasi tuzatildi (`96de4696`):**
+1. **Ko'rinmas menyu** — `animation: … backwards` `.rst-item` ning dam olish holatini `opacity: 0`
+   qilgan edi; animatsiya boshlanmasa (fonga tushgan WebView) taomlar DOM'da bor, ekranda YO'Q.
+   QA'da aynan takrorlandi. `backwards` olib tashlandi.
+2. **Tugmalarning UA ramkasi/foni** — loyihada global `button` reset yo'q; oq fonda «Orqaga»,
+   «+», stepper, savat paneli atrofida kulrang quti chiqdi.
+3. **Qorong'i skelet** — umumiy `.d-skel` qorong'i temaga qurilgan, och fonda qora plashka edi.
+4. **Aktiv tabdagi sariq nur** — `styles.css:332` yorliqqa oltin drop-shadow beradi; men faqat
+   `svg`ni bosgan edim.
+
+**Skrinshot isbotlari (375×812 @2x, headless Chrome CDP orqali aniq telefon-viewport bilan):**
+katalog · restoran sahifasi (ochiq, [+] tugmalari) · savat paneli (2 dona, 11 000 so'm) ·
+buyurtmalarim (3 holat: jarayonda/yetkazildi/rad etildi) · skelet · **#shopdemo regressiyasi —
+Do'kon o'z yashil dizaynida, o'zgarmagan**.
+
+**B0 da hali BAJARILMAGAN:** ega telefonida REAL QABUL. Shusiz B0 «done» EMAS.
+
+### 🍽 B1 — KATALOG `owner-accepted`
+- **Manzil bloki** — yashil uppercase yorliq («KOSON · YETKAZIB BERISH»), 19px/800 manzil +
+  chevron, o'ngda 38×38 «Buyurtmalarim» tugmasi. Manzil bosilsa varaq ochiladi; qiymat checkout
+  bilan BIR XIL kalitda (`LAST_ADDR_KEY`) saqlanadi, ya'ni checkout'da avtomatik turadi.
+  Dizaynda manzil statik matn edi — tahrirlash oqimi chizilmagan, eng kam qadamli variant qo'shildi.
+- **Rejim segmenti** — Yetkazish / Olib ketish. Katalog darajasida yashaydi va restoran sahifasiga
+  uzatiladi (`initialPickup`), ya'ni checkout'da qayta tanlash shart emas. «Olib ketish»da
+  `pickupEnabled` bo'lmagan restoranlar ro'yxatdan chiqadi (6 ta → 5 ta, skrinshot bilan).
+- **Kartalar 2 ustundan 1 ustunga** — 126px foto, pastida 56px qorayish, ustida Ochiq/Yopiq + ETA
+  badge'lari; tanasida nom + ★reyting(sharh soni), kategoriya, 3 badge (yetkazish / min / Naqd).
+- **Fotosiz fon** — dizaynerning O'Z gradient palitrasi (`IMGS`), `id % 6` bo'yicha barqaror
+  tanlanadi (bitta restoran har doim bir xil fonda — tanilib qoladi).
+- **Ochiqlar birinchi saralanadi** — dizaynda yo'q, lekin aralash ro'yxatda mijoz yopiq restoranga
+  kirib boshi berk ko'chaga uriladi. Shu bilan «Ochiq hozir» filtr-chipi keraksiz bo'ldi va olib
+  tashlandi (dizaynda ham u yo'q edi).
+- **Kategoriya yorliqlari** — `CAT_LABEL` xaritasi: bazadagi kalit (`milliy`) → ko'rsatiladigan nom
+  («Milliy»). Kalit noma'lum bo'lsa xom qiymat chiqadi, ya'ni admin yangi kategoriya qo'shsa
+  hech narsa yo'qolmaydi.
+
+**B1 QA'da topilgan va tuzatilgan 2 nuqson:** (1) varaqdagi «Saqlash» tugmasi OLTIN chiqdi — global
+`.d-btn` qoidasi `!important` bilan yozilgan (tokens.css:371), shuning uchun Bozor/Xizmatlar
+konvensiyasi bo'yicha `!important` bilan qaytarildi; (2) input fokusida brauzerning qora halqasi —
+o'rniga ko'k ramka.
+
+**B1 isbotlari:** `pnpm -r typecheck` 4/4 toza · miniapp build yashil · CTA computed
+`rgb(21,82,184)`=#1552B8 · saralash: 08:46 da tartib «Somsa=Ochiq, Coffee=Ochiq, Choyxona=Yopiq,
+Burger=Yopiq, Kabob=Yopiq, Shirinlik=Yopiq» (dasturiy o'lchov) · skrinshotlar: katalog / olib
+ketish (5 ta) / manzil varag'i / yopiq karta.
+**Bajarilmagan:** ega telefonida QABUL.
+
+**Dizayndan olinmagani (B1):** «Bepul yetkazish» badge'i — jonli bazada barcha restoranda fee=0 va
+u yerda 0 «bepul» emas, «sozlanmagan» degani; admin panelda narx qo'yilgach badge o'zi paydo
+bo'ladi. Kartadagi kategoriya matni dizaynda boy («Somsa · Non»), bizda esa kalit-yorliq
+(«Milliy») — boy matn uchun schema'ga yangi maydon kerak.
+
+### 🍽 B2 — RESTORAN SAHIFASI + TAOM KARTOCHKASI `owner-accepted`
+- **Hero 168px** — foto + `linear-gradient(transparent 40%, rgba(0,0,0,.5))`, ustida nom 22px/800
+  oq va meta «Kategoriya · ~N daq · yetkazish N so'm».
+- **Info qatori** — ★reyting(sharh soni) · ajratkich · ish vaqti · o'ngda Ochiq/Yopiq pill.
+- **Yopishqoq bo'lim chiplari** + scroll-spy; chip bosilsa bo'limga siljiydi.
+- **Menyu kartalari** — 78×78 foto, nom/tavsif(2 qator)/narx, o'ng-pastda tugma: savatda yo'q →
+  och-ko'k «+», bor → **yashil «N ta»** (dizayn). Kartaning qolgan joyi bosilsa taom kartochkasi.
+- **🍲 Taom kartochkasi (yangi)** — 190px foto varaqning tepasida, ustida oq «✕», nom 20px/800,
+  tavsif, narx, pastda stepper + ko'k CTA «Savatga · {jami}».
+
+**Dizayndan ONGLI CHEKINISH:** prototipda kartochka steppери HAR DOIM 1 dan boshlanadi va CTA
+savatga QO'SHADI. Bizda stepper savatdagi JORIY sonni ko'rsatadi va CTA uni O'RNATADI (0 =
+savatdan chiqarish). Sabab: ro'yxatdagi tugma dizaynda faqat qo'sha oladi, ya'ni asl mantiqda
+mijozda kamaytirish yo'li UMUMAN qolmasdi (savat ekrani hali B3'da). Ko'rinish o'zgarmadi.
+
+**B2 QA'da topilgan va tuzatilgan 4 nuqson:**
+1. **Versiya qorovuli QA'ni buzardi** — bugun qo'shilgan `main.tsx` qorovuli dev serverda
+   `version.txt` farqini ko'rib sahifani qayta yuklardi: restoran ochilib, darhol katalogga
+   tashlanardi. `#rstdemo` mock'i endi o'z build-shtampini qaytaradi (JONLI mantiqqa tegilmadi).
+2. **Ochiq/Yopiq badge uslubsiz** — `svc-open` klassi XIZMATLAR chunk'idagi `svc.css` da yashaydi
+   va restoran sahifasida umuman yuklanmaydi. O'z klassi (`rst-open`) yozildi.
+3. **Ish vaqti ikki marta** chiqardi (badge ichida ham, alohida ham) — badge endi faqat holatni
+   ko'rsatadi.
+4. **Scroll-spy noto'g'ri bo'limni yoqardi** — IntersectionObserver'da allaqachon surilib ketgan
+   uzun bo'lim hamon «kesishayotgan» bo'lib, `rect.top` bo'yicha doim g'olib chiqardi. Endi
+   to'g'ridan-to'g'ri o'lchov. Yana: scroll konteyneri `.content` DEB TAXMIN QILINGAN edi — u
+   `overflow: visible`, surilish oynaga o'tadi, ya'ni `scroll` hodisasi u yerda otilmasdi.
+   Konteyner endi TOPILADI (overflow-y auto/scroll bo'lgan eng yaqin ota, topilmasa `window`).
+   Ayrim: «✕» tugmasi ekrandan chiqib ketgani (`.d-sheet-bar` manfiy margin'i) ham tuzatildi.
+
+**B2 isbotlari:** `pnpm -r typecheck` 4/4 toza · build yashil · CTA computed `rgb(21,82,184)` ·
+scroll-spy o'lchovi: chip bosilgach aktiv «Asosiy taomlar» → «Salat va non» ga o'tdi ·
+skrinshotlar: restoran sahifasi / taom kartochkasi / savatda «2 ta» + savat paneli.
+**Bajarilmagan:** ega telefonida QABUL.
+
+**Dizayndan olinmagani (B2):** taom kartochkasidagi «1 kishilik · ~450 g · Achchiq emas» chiplari —
+`MenuItem`da bunday maydonlar YO'Q (faqat `desc`); o'ylab topib yozish mijozni aldash bo'lardi.
+Kerak bo'lsa schema'ga porsiya/og'irlik maydonlari qo'shiladi.
+
+### 🍽 B3 — SAVAT + CHECKOUT `owner-accepted`
+Ega ruxsati bilan B2 QABUL'idan OLDIN boshlandi (2026-07-29, «b3ni boshla hali b2 tekshira
+olmayman») — ya'ni B2 hamon `ready for verification` holatida, «done» EMAS.
+
+- **Savat va checkout endi ALOHIDA EKRANLAR** (`rest → cart → checkout`), ilgari ikkalasi bitta
+  `Sheet` ichida siqilgan edi. Apparat «orqaga» ierarxik: checkout → cart → menyu.
+- **Savat**: «RESTORAN» yorlig'i + nom, 52px rasmli qatorlar, `narx × son`, **stepper** — bu bilan
+  sonni KAMAYTIRISH yo'li paydo bo'ldi (B2'gacha umuman yo'q edi).
+- **Totallar kartasi** — savatda ham, checkout'da ham bir xil; «Yetkazish» olib ketishda «—».
+- **Minimal summa ogohlantirishi** — warn ranglari, matn `content.json` dan so'zma-so'z; CTA
+  o'chadi va «Minimal summa yetmadi» yozadi.
+- **Checkout maydonlari** rejimga moslashadi: Yetkazish (manzil · telefon · vaqt) / Olib ketish
+  (restoran manzili · tayyor bo'ladi · telefon). Dizaynda ular O'QISH-uchun qatorlar edi —
+  bosilganda bitta maydonli varaq ochiladi (manzil/telefon/izoh).
+- **To'lov turi** — «Naqd» tanlangan (yashil ramka), «Karta · Tez kunda» o'chiq.
+- **CTA** — yashil «Buyurtmani yuborish · {jami}».
+
+**Dizayndan ONGLI CHEKINISH:** dizaynda CTA doim faol. Realda u o'chishi mumkin (manzil/telefon
+yo'q) — o'chiq tugma sababini aytmasa mijoz ekranda qotib qoladi. Endi tugma NIMA yetishmayotganini
+yozadi («Manzilni kiriting») va bosilganda o'sha maydonni ochadi.
+
+**B3 QA'da topilgan va tuzatilgan 2 nuqson:** (1) «Izoh» kartasi `.rst-field` ning nol-padding'ini
+olib, matn karta chetiga yopishib qolgandi; (2) o'chiq CTA sababsiz edi (yuqoridagi chekinish).
+
+**B3 isbotlari:** `pnpm -r typecheck` 4/4 toza · build yashil · savat CTA computed
+`rgb(21,82,184)`, checkout CTA `rgb(23,163,74)` · manzil kiritilgach CTA «Manzilni kiriting» →
+«Buyurtmani yuborish · 96 000 so'm» ga o'tdi (dasturiy o'lchov) · CTA–tabbar oralig'i o'lchandi:
+to'liq surilganda 100px bo'sh joy, qoplama YO'Q · skrinshotlar: savat / minimal-ogohlantirish /
+checkout / yashil CTA.
+**Bajarilmagan:** ega telefonida QABUL (B2 bilan birga).
+
+**Ega qarori (2026-07-29):** checkout'dagi «Karta · Tez kunda» kartasi OLIB TASHLANDI — bermaydigan
+va'da bermaymiz («Bepul yetkazish» badge'i ham shu sababdan yo'q). To'lov integratsiyasi qo'shilsa
+qaytariladi.
+
+### 🍽 B4 — BUYURTMA HOLATI EKRANI `owner-accepted`
+Bo'limning eng katta bo'shlig'i yopildi: ilgari buyurtma yuborilgach mijoz bitta «qabul qilindi»
+yozuvini ko'rar, keyin o'zi «Buyurtmalarim»ga bormasa hech narsa ko'rmasdi. Endi buyurtmadan keyin
+TO'G'RIDAN holat ekraniga tushadi, va «Buyurtmalarim»dagi karta bosilsa ham shu ochiladi.
+
+- **Gradient hero** (ko'k→yashil): «BUYURTMA №N», holat sarlavhasi 22px/800, manzil + «naqd
+  to'lov», 4 segmentli progress.
+- **Timeline** — 18px doiralar, aktivi `pulse 1.8s`, bajarilganlari yashil chiziq bilan ulanadi.
+  Yetkazish va olib ketish uchun alohida matnlar (`content.json` → `timelines`).
+- **Aloqa kartasi** — telefon ikonkasi + restoran nomi + «Aloqa» tugmasi.
+- **Buyurtma tarkibi** — `N× taom` qatorlari + yetkazish + «Jami (naqd)».
+- `delivered` da **«Bahoni qoldirish»** CTA → restoran sahifasidagi baho blokiga olib boradi.
+- Holat 8 soniyada yangilanadi (fonda to'xtaydi — `useIsActive`, mavjud qoida).
+
+**Dizaynda YO'Q, qo'shilgan (sababi bilan):**
+- **`pending` holati** — dizayn buyurtma allaqachon qabul qilingan deb boshlaydi. Bizda V1
+  CONCIERGE: operator restoran bilan telefonda bog'languncha buyurtma `pending`da turadi. Shu qadam
+  «Yuborildi / Operator restoran bilan bog'lanmoqda» deb ko'rsatiladi. QA'da avval sarlavha
+  «Qabul qilindi» qolib ketgandi — qarama-qarshi signal edi, tuzatildi.
+- **`rejected` / `cancelled_by_user` holati** — dizaynda umuman chizilmagan. Gradient «hammasi
+  yaxshi» degan signal bergani uchun bu holatda jim quyuq hero + sabab ko'rsatiladi, timeline
+  chizilmaydi.
+- **Yetkazish qatori** buyurtma tarkibida — usiz taomlar summasi bilan «Jami» orasidagi farq
+  tushuntirilmay qolardi (84 000 → 92 000).
+
+**Dizayndan O'ZGARTIRILGANI:** timeline izohlaridagi «taxminan 20 daqiqa» va «10–15 daqiqa»
+raqamlari OLINDI — `FoodOrderView`da `prepMinutes` kelmaydi, ya'ni ular o'ylab topilgan va'da
+bo'lardi. Aloqa dizaynda restoranga qo'ng'iroq; bizda operator ko'prik va mijozda restoran telefoni
+yo'q, shuning uchun aloqa botga (operatorga) olib boradi.
+
+**B4 isbotlari:** `pnpm -r typecheck` 4/4 toza · build yashil · 4 holat dasturiy o'lchandi —
+`pending`: sarlavha «Kutilmoqda», 0 segment, jonli nuqta #0 · `preparing`: «Tayyorlanmoqda»,
+1 segment, jonli nuqta #1 · `delivered` (olib ketish): «Olib ketildi», 4 segment, CTA «Bahoni
+qoldirish» · `rejected`: «Rad etildi» + «Restoran band edi», timeline satrlari 0.
+**Bajarilmagan:** ega telefonida QABUL (B2–B4 birga).
+
+### 🍽 B5 — BUYURTMALAR TARIXI + BAHOLASH OQIMI `owner-accepted`
+- **Buyurtma kartasi** (dizayn §7): restoran nomi + holat badge, «Bugun · Yetkazish» meta,
+  `N× taom` ro'yxati, pastda manzil va jami; holatga qarab «Bekor qilish» yoki «Yana shu».
+- **Bo'sh holat** — karta ichida sarlavha + izoh (dizayn §7), oldingi umumiy `EmptyState` o'rniga.
+- **⭐️ Baholash varag'i (yangi)** — `delivered` buyurtmada «Bahoni qoldirish» endi AYNAN shu yerda
+  varaq ochadi (yulduzlar + ixtiyoriy sharh). Ilgari u restoran sahifasini ochardi va mijoz baho
+  blokini sahifa o'rtasidan o'zi qidirishi kerak edi.
+- **`dayLabel`** — «Bugun/Kecha/dd.MM». Kunlar farqidan hisoblanadi, soatlar ayirmasidan EMAS:
+  kecha 23:50 va bugun 00:10 orasi 20 daqiqa, lekin bu «kecha» bo'lishi kerak.
+- **QA kaliti `?empty=1`** — bo'sh ekranlarni ko'rish uchun (`#rstdemo` da). Bo'sh holatlar eng
+  kam ko'riladigan, eng ko'p unutiladigan holat.
+
+**Dizayndan CHEKINISH:** ro'yxatda dizayn faqat «Jarayonda / Yetkazildi» ikkita yorliqni
+ko'rsatadi; bizda aniq holat allaqachon bor («Yo'lda», «Tayyorlanmoqda») — bir xil joyda ko'proq
+ma'lumot, shuning uchun aniq matn qoldirildi. Rang guruhlari dizayndagidek.
+Bo'sh holat matnidan «25 daqiqada uyingizda bo'ladi» qismi OLINDI — bajarilishi kafolatlanmagan
+va'da (yetkazish vaqti bizning nazoratimizda emas).
+
+**B5 isbotlari:** `pnpm -r typecheck` 4/4 toza · build yashil · ro'yxat dasturiy o'lchandi (4 karta:
+Kutilmoqda/Tayyorlanmoqda/Yetkazildi/Rad etildi, hammasida «Bugun · …» meta) · baholash varag'i:
+4 yulduz tanlandi, sharh maydoni chiqdi · bo'sh holat: sarlavha+izoh bor, karta 0 ta.
+**Bajarilmagan:** ega telefonida QABUL (B2–B5 birga).
+
+**Hali ochiq, ega qaroriga muhtoj (kod emas, qoida):** sharhni HOZIR istalgan odam qoldira oladi —
+`submitRestaurantReview` buyurtma qilganini tekshirmaydi (`restoranService.ts:621`). Ya'ni raqobatchi
+1★ qo'yishi mumkin. Faqat `delivered` buyurtmasi borlarga cheklash — kichik server o'zgarishi,
+lekin bu MAHSULOT qoidasi, shuning uchun so'ramasdan qilinmadi.
+
+### 🍽 B6 — SAYQAL VA XATO HOLATLARI `ready for verification`
+Dizaynda chizilmagan, lekin real telefonda tez-tez uchraydigan holatlar.
+
+- **📡 Tarmoq xatosi ≠ bo'sh ro'yxat (halollik xatosi tuzatildi).** Ilgari `catch` ro'yxatni `[]`
+  qilardi va ekranda **«Hozircha restoran yo'q — tez orada qo'shiladi»** chiqardi — bu YOLG'ON:
+  restoranlar bor, internet yo'q edi. Restoran sahifasida ham xuddi shunday «Restoran topilmadi»
+  ko'rinardi. Endi ikkalasida «Yuklanmadi + Qayta urinish» chiqadi, `dataErr`/`listErr` bilan
+  haqiqiy bo'sh holatdan ajratilgan.
+- **🖼 Sinuq foto zaxirasi.** `hasPhoto: true` bo'lib rasm kelmasa (fayl o'chgan, CDN uzilgan)
+  brauzerning sinuq-rasm belgisi chiqardi. Endi `onError` o'sha gradient-zaxiraga o'tkazadi —
+  5 ta rasm joyining hammasida (karta, hero, menyu, savat, taom kartochkasi).
+- **Haptika** — orqaga tugmalariga ham qo'shildi (ilgari faqat asosiy harakatlarda edi).
+- **QA kalitlari** `#rstdemo` da: `?empty=1` (bo'sh holatlar), `?fail=1` (tarmoq xatosi).
+  Bu ikki holat deyarli hech qachon ko'rilmaydi — endi bir bosishda chaqiriladi.
+
+**B6 isbotlari:** `pnpm -r typecheck` 4/4 toza · build yashil · tarmoq xatosi dasturiy o'lchandi:
+«Yuklanmadi» + «Qayta urinish» chiqdi, eski yolg'on matn ekranda YO'Q (`false`) ·
+`prefers-reduced-motion: reduce` emulyatsiyasi: karta animatsiyasi `none`, chip o'tishi `0s` ·
+sinuq foto: `src` olib tashlandi, `data-fallback=1`, fon gradientga o'tdi · emoji-grep: UI
+qatorlarida **0** (faqat izohlarda) · scope-grep: yangi CSS selektorlarning hammasi
+`.app.restoran-light` / `.rst-*` doirasida.
+
+**Hali ochiq (ega qaroriga muhtoj):** sharh cheklovi — `submitRestaurantReview` buyurtma qilganini
+tekshirmaydi (`restoranService.ts:621`), ya'ni istalgan odam baho qo'ya oladi.
+
+**Keyingi:** jonli chiqarish. ⚠️ `restoran` flagi 2026-07-07 dan YONIQ, ya'ni `main`ga merge =
+redizaynni HAMMA mijozga bir vaqtda chiqarish. Chiqarishdan oldin hal qilinishi kerak:
+(1) restoranlarga yetkazish narxi va minimal summa kiritish (hozir hammasida 0 — badge'lar
+chiqmaydi); (2) fotolar; (3) chiqarish vaqti (tinch soat) va kuzatuv.
+
 ### 🎀 RAVELLA — bezak konstruktori (hamkor-brend) — `in progress (gaps: rasm/seed, DB push, e'lon, QABUL)`
 **Ega so'radi (2026-07-27):** «Bosh ekranda kichik, umuman boshqa xizmat turi. Admin paneldan men
 rasm qo'shaman va narxlarini yozaman — masalan "Onajon" yozuvi 100 ming. Pastda kichik xizmatlar:
