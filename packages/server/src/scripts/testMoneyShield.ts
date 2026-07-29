@@ -23,9 +23,8 @@ const ledger = async (id: number) => (await prisma.coinTxn.aggregate({ where: { 
 async function cleanup(): Promise<void> {
   const ms = await prisma.member.findMany({ where: { kasId: { startsWith: TAG } }, select: { id: true } });
   const ids = ms.map((m) => m.id);
-  const offers = await prisma.tradeOffer.findMany({ where: { OR: [{ fromId: { in: ids } }, { toId: { in: ids } }] } });
-  await prisma.tradeMessage.deleteMany({ where: { offerId: { in: offers.map((o) => o.id) } } });
-  await prisma.tradeOffer.deleteMany({ where: { id: { in: offers.map((o) => o.id) } } });
+  // TradeOffer/TradeMessage 2026-07-29 da sxemadan olib tashlandi (TOZALASH_DOD.md Blok B) —
+  // runtime kodda hech qachon ishlatilmagan, jonli bazada 0 qator edi. Bu tozalash ham keraksiz.
   await prisma.itemListing.deleteMany({ where: { sellerId: { in: ids } } });
   await prisma.item.deleteMany({ where: { ownerId: { in: ids } } });
   await prisma.rideReward.deleteMany({ where: { memberId: { in: ids } } });
