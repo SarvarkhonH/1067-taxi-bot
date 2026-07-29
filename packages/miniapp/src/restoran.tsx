@@ -48,10 +48,14 @@ function openNow(wh?: string | null): boolean | null {
   return a <= b ? cur >= a && cur < b : cur >= a || cur < b;
 }
 
+/** Ochiq/Yopiq pill. Ilgari `svc-open` klassi ishlatilardi — u XIZMATLAR chunk'idagi `svc.css` da
+ *  yashaydi va restoran sahifasida umuman yuklanmaydi, ya'ni badge uslubsiz xom matn bo'lib
+ *  chiqardi (B2 QA skrinshotida shunday ko'rindi). Endi o'z klassi bor. Ish vaqti ALOHIDA
+ *  ko'rsatiladi, shuning uchun bu yerda takrorlanmaydi. */
 function OpenBadge({ wh }: { wh?: string | null }) {
   const o = openNow(wh);
   if (o === null) return null;
-  return <span className={"svc-open" + (o ? "" : " closed")}>{o ? "Ochiq" : "Yopiq"}{wh ? ` · ${wh}` : ""}</span>;
+  return <span className={"rst-open" + (o ? " open" : "")}>{o ? "Ochiq" : "Yopiq"}</span>;
 }
 
 /** Yetkazish/min-buyurtma qatori. Faqat NOLDAN katta raqamlar qo'shiladi, ya'ni sozlanmagan
@@ -281,6 +285,44 @@ function ReviewSection({ restaurantId, onBanner }: { restaurantId: number; onBan
   );
 }
 
+/** 🍲 Taom kartochkasi — dizayndagi eng katta YANGI element (README §3).
+ *  `qty` — savatdagi joriy son (0 bo'lishi mumkin); `onApply` uni O'RNATADI. */
+function DishSheet({ item, qty, onClose, onApply }: { item: MenuItemView; qty: number; onClose: () => void; onApply: (n: number) => void }) {
+  const [n, setN] = useState(Math.max(1, qty));
+  return (
+    <Sheet open onClose={onClose}>
+      <div className="rst-dish">
+        {item.hasPhoto ? (
+          <img className="rst-dish-photo" src={apiUrl(`/api/restoran/menuphoto/${item.id}`)} alt="" />
+        ) : (
+          <div className="rst-dish-photo rst-card-noimg" style={{ backgroundImage: fallbackBg(item.id) }}>
+            <RstIcon name="plate" size={54} />
+          </div>
+        )}
+        <div className="rst-dish-body">
+          <div className="rst-dish-name">{item.name}</div>
+          {/* Dizaynda bu yerda «1 kishilik · ~450 g · Achchiq emas» chiplari bor. Bizning
+              MenuItem'da bunday maydonlar YO'Q (faqat `desc`), shuning uchun chiplar
+              chizilmaydi — o'ylab topilgan porsiya/og'irlik yozish mijozni aldash bo'lardi.
+              Ular kerak bo'lsa schema'ga alohida maydon qo'shiladi (V2 taklifi). */}
+          {item.desc && <div className="rst-dish-desc">{item.desc}</div>}
+          <div className="rst-dish-price">{formatNumber(item.priceSom)} so'm</div>
+        </div>
+        <div className="rst-dish-bar">
+          <div className="rst-dish-step">
+            <button onClick={() => { haptic(); setN((v) => Math.max(0, v - 1)); }} aria-label="Kamaytirish"><RstIcon name="minus" size={16} /></button>
+            <span>{n}</span>
+            <button onClick={() => { haptic(); setN((v) => Math.min(20, v + 1)); }} aria-label="Ko'paytirish"><RstIcon name="plus" size={16} /></button>
+          </div>
+          <button className={"rst-dish-cta" + (n === 0 ? " remove" : "")} onClick={() => onApply(n)}>
+            {n === 0 ? "Savatdan olib tashlash" : `Savatga · ${formatNumber(item.priceSom * n)} so'm`}
+          </button>
+        </div>
+      </div>
+    </Sheet>
+  );
+}
+
 function RestaurantDetail({ id, me, initialCart, initialPickup, onBack, onBanner }: { id: number; me: MeResponse; initialCart?: Record<number, number> | null; initialPickup?: boolean; onBack: () => void; onBanner?: (msg: string) => void }) {
   const [data, setData] = useState<{ restaurant: RestaurantView | null; items: MenuItemView[] } | null>(null);
   const [cart, setCart] = useState<Record<number, number>>({});
@@ -294,6 +336,45 @@ function RestaurantDetail({ id, me, initialCart, initialPickup, onBack, onBanner
   const [note, setNote] = useState("");
   const [busy, setBusy] = useState(false);
   const [done, setDone] = useState<{ orderId: number; totalSom: number } | null>(null);
+  // 🍲 Taom kartochkasi (dizayndagi eng katta YANGI element) + yopishqoq bo'lim chiplari.
+  const [dish, setDish] = useState<MenuItemView | null>(null);
+  const [activeSection, setActiveSection] = useState<string | null>(null);
+  const sectionRefs = useRef<Record<string, HTMLDivElement | null>>({});
+  useBackButton(dish !== null, () => setDish(null), 3);
+
+  // Scroll-spy: chiplar tepasidagi «chiziq»dan O'TGAN oxirgi bo'lim aktiv bo'ladi.
+  // IntersectionObserver bilan boshlangan edi va NOTO'G'RI ishladi: allaqachon yuqoriga surilib
+  // ketgan uzun bo'lim hamon «kesishayotgan» bo'lib qolardi va `rect.top` bo'yicha eng kichigi
+  // sifatida doim g'olib chiqardi (QA: uchinchi bo'limga o'tilsa ham birinchi chip yonib turardi).
+  // To'g'ridan-to'g'ri o'lchash ancha aniq va o'qishga oson.
+  useEffect(() => {
+    const nodes = Object.values(sectionRefs.current).filter(Boolean) as HTMLDivElement[];
+    if (nodes.length < 2) return;
+    // Konteynerni TOPAMIZ, taxmin qilmaymiz. `.content` deb yozilgan edi va ishlamadi: u
+    // `overflow: visible` — surilish oynaning o'ziga o'tadi, ya'ni `scroll` hodisasi u yerda
+    // hech qachon otilmasdi. Boshqa ekranlarda esa haqiqiy scroll-div bo'lishi mumkin.
+    const findScroller = (el: HTMLElement): HTMLElement | null => {
+      for (let p = el.parentElement; p; p = p.parentElement) {
+        const oy = getComputedStyle(p).overflowY;
+        if ((oy === "auto" || oy === "scroll") && p.scrollHeight > p.clientHeight + 2) return p;
+      }
+      return null; // oyna suriladi
+    };
+    const scroller = findScroller(nodes[0]!);
+    const target: HTMLElement | Window = scroller ?? window;
+    let raf = 0;
+    const pick = () => {
+      raf = 0;
+      const line = (scroller ? scroller.getBoundingClientRect().top : 0) + 96; // chiplar ostidagi chiziq
+      let cur = nodes[0]!;
+      for (const n of nodes) if (n.getBoundingClientRect().top <= line) cur = n;
+      setActiveSection(cur.dataset.section ?? null);
+    };
+    const onScroll = () => { if (!raf) raf = requestAnimationFrame(pick); };
+    pick();
+    target.addEventListener("scroll", onScroll, { passive: true });
+    return () => { target.removeEventListener("scroll", onScroll); if (raf) cancelAnimationFrame(raf); };
+  }, [data]);
 
   useEffect(() => {
     setData(null);
@@ -325,6 +406,11 @@ function RestaurantDetail({ id, me, initialCart, initialPickup, onBack, onBanner
       const next = Math.max(0, Math.min(20, (c[menuItemId] ?? 0) + delta));
       return { ...c, [menuItemId]: next };
     });
+  };
+  /** Aniq son o'rnatish (taom kartochkasidan). 0 = savatdan chiqarish. */
+  const setQtyAbs = (menuItemId: number, n: number) => {
+    hapticSuccess();
+    setCart((c) => ({ ...c, [menuItemId]: Math.max(0, Math.min(20, n)) }));
   };
 
   const submit = async () => {
@@ -397,64 +483,113 @@ function RestaurantDetail({ id, me, initialCart, initialPickup, onBack, onBanner
     sections.get(it.section)!.push(it);
   }
 
+  const sectionNames = [...sections.keys()];
+  const heroMeta = [CAT_LABEL[r.category] ?? r.category, `~${r.prepMinutes} daq`, r.deliveryFeeSom > 0 ? `yetkazish ${formatNumber(r.deliveryFeeSom)} so'm` : null]
+    .filter(Boolean).join(" · ");
+
   return (
     <div className="view rst-detail-view">
       <button className="rst-back" onClick={onBack}><RstIcon name="chevron-left" size={13} />Orqaga</button>
+
+      {/* ── Hero 168px: foto + pastdan qorayish, ustida nom va meta (README §2) ── */}
       <div className="rst-hero">
         {r.hasPhoto ? (
           <img className="rst-hero-photo" src={apiUrl(`/api/restoran/photo/${r.id}`)} alt="" />
         ) : (
-          <div className="rst-hero-photo rst-card-noimg"><RstIcon name="plate" size={54} /></div>
+          <div className="rst-hero-photo rst-card-noimg" style={{ backgroundImage: fallbackBg(r.id) }}>
+            <RstIcon name="plate" size={46} />
+          </div>
         )}
         <div className="rst-hero-info">
           <div className="rst-hero-name">{r.name}</div>
-          <div className="rst-card-meta">
-            <OpenBadge wh={r.workHours} />
-            {r.avgRating > 0 && <span className="rst-rating"><RstIcon name="star" size={13} />{r.avgRating.toFixed(1)} ({r.reviewCount})</span>}
-          </div>
-          {r.address && <div className="muted fs12">{r.address}</div>}
-          {/* Bu yerda tayyorlanish vaqti DOIM bor, shuning uchun qator hech qachon bo'sh emas. */}
-          <div className="rst-card-fee">{feeLine(r, { long: true, extra: `~${r.prepMinutes} daq` })}</div>
+          <div className="rst-hero-meta">{heroMeta}</div>
         </div>
       </div>
+
+      {/* ── Info qatori: reyting · ish vaqti · Ochiq/Yopiq ── */}
+      <div className="rst-info">
+        {r.avgRating > 0 && (
+          <>
+            <span className="rst-rating"><RstIcon name="star" size={13} />{r.avgRating.toFixed(1)}
+              {r.reviewCount > 0 && <i className="rst-rating-n">({r.reviewCount})</i>}
+            </span>
+            <i className="rst-info-div" />
+          </>
+        )}
+        {r.workHours && <span className="rst-info-hours">{r.workHours}</span>}
+        <span className="rst-info-state"><OpenBadge wh={r.workHours} /></span>
+      </div>
+      {r.address && <div className="rst-info-addr">{r.address}</div>}
+
       {data.items.length === 0 ? (
         <EmptyState icon={<RstIcon name="orders" size={34} />} text="Menyu hali kiritilmagan" />
       ) : (
-        [...sections.entries()].map(([section, items]) => (
-          <div key={section} className="rst-section">
+        <>
+          {/* Bo'lim chiplari — yopishqoq. Bittagina bo'lim bo'lsa chizilmaydi: u holda chip
+              hech qayerga olib bormaydi, faqat joy egallaydi. */}
+          {sectionNames.length > 1 && (
+            <div className="rst-sec-tabs">
+              {sectionNames.map((s) => (
+                <button
+                  key={s} className={"rst-chip" + (activeSection === s ? " on" : "")}
+                  onClick={() => { haptic(); sectionRefs.current[s]?.scrollIntoView({ behavior: "smooth", block: "start" }); }}
+                >
+                  {s}
+                </button>
+              ))}
+            </div>
+          )}
+          {[...sections.entries()].map(([section, items]) => (
+          <div key={section} className="rst-section" data-section={section} ref={(el) => { sectionRefs.current[section] = el; }}>
             <div className="rst-section-title">{section}</div>
             {items.map((it) => {
               const qty = cart[it.id] ?? 0;
+              const buyable = it.available && !closed;
               return (
-                <div key={it.id} className={"rst-item" + (it.available ? "" : " unavailable")}>
+                <div
+                  key={it.id} className={"rst-item" + (it.available ? "" : " unavailable")}
+                  onClick={() => { if (buyable) { haptic(); setDish(it); } }}
+                >
                   {it.hasPhoto ? (
                     <img className="rst-item-photo" src={apiUrl(`/api/restoran/menuphoto/${it.id}`)} loading="lazy" decoding="async" alt="" />
                   ) : (
-                    <div className="rst-item-photo rst-card-noimg"><RstIcon name="plate" size={30} /></div>
+                    <div className="rst-item-photo rst-card-noimg" style={{ backgroundImage: fallbackBg(it.id) }}>
+                      <RstIcon name="plate" size={26} />
+                    </div>
                   )}
                   <div className="rst-item-body">
                     <div className="rst-item-name">{it.name}</div>
                     {it.desc && <div className="rst-item-desc">{it.desc}</div>}
                     <div className="rst-item-price">{formatNumber(it.priceSom)} so'm{!it.available && " · tugagan"}</div>
                   </div>
-                  {it.available && !closed && (
-                    qty === 0 ? (
-                      <button className="rst-item-add" onClick={() => setQty(it.id, 1)} aria-label="Savatga qo'shish"><RstIcon name="plus" size={14} /></button>
-                    ) : (
-                      <div className="rst-item-stepper">
-                        <button onClick={() => setQty(it.id, -1)} aria-label="Kamaytirish"><RstIcon name="minus" size={14} /></button>
-                        <span>{qty}</span>
-                        <button onClick={() => setQty(it.id, 1)} aria-label="Ko'paytirish"><RstIcon name="plus" size={14} /></button>
-                      </div>
-                    )
+                  {/* Dizayn: savatda bo'lmasa «+», bo'lsa yashil «N ta». Bosilganda modal
+                      OCHILMAYDI (stopPropagation) — to'g'ridan savatga qo'shiladi. Kamaytirish
+                      taom kartochkasi ichida (stepper) yoki savatda. */}
+                  {buyable && (
+                    <button
+                      className={"rst-item-add" + (qty > 0 ? " in" : "")}
+                      onClick={(e) => { e.stopPropagation(); setQty(it.id, 1); }}
+                      aria-label={qty > 0 ? `Savatda ${qty} ta, yana qo'shish` : "Savatga qo'shish"}
+                    >
+                      {qty > 0 ? `${qty} ta` : <RstIcon name="plus" size={14} />}
+                    </button>
                   )}
                 </div>
               );
             })}
           </div>
-        ))
+        ))}
+        </>
       )}
       <ReviewSection restaurantId={r.id} onBanner={onBanner} />
+
+      {/* ── 🍲 Taom kartochkasi (README §3) ────────────────────────────────────────────────────
+          Prototipda stepper HAR DOIM 1 dan boshlanadi va CTA savatga QO'SHADI. Bu yerda stepper
+          savatdagi JORIY sonni ko'rsatadi va CTA uni O'RNATADI — chunki dizaynda ro'yxatdagi
+          tugma faqat qo'sha oladi, ya'ni «qo'shish» semantikasi bilan mijozda kamaytirish yo'li
+          umuman qolmasdi (savat ekrani B3'da). Ko'rinish o'zgarmadi, xatti-harakat xavfsizroq. */}
+      {dish && <DishSheet item={dish} qty={cart[dish.id] ?? 0} onClose={() => setDish(null)} onApply={(n) => { setQtyAbs(dish.id, n); setDish(null); onBanner?.(n > 0 ? `${dish.name} savatga qo'shildi` : `${dish.name} savatdan olib tashlandi`); }} />}
+
       {cartCount > 0 && (
         <button className="rst-cart-bar" onClick={() => { haptic(); setCheckoutOpen(true); }}>
           <span className="rst-cart-badge">{cartCount}</span>

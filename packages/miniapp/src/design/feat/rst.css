@@ -111,18 +111,42 @@
 .rst-back { align-self: flex-start; font-size: 14px; font-weight: 600; color: var(--rst-blue); padding: 6px 2px; margin-bottom: 4px;
   display: inline-flex; align-items: center; gap: 5px; }
 
-/* ── Restoran sahifasi ──────────────────────────────────────────────────────────────────────── */
-.rst-hero { display: flex; flex-direction: column; gap: 10px; margin-bottom: 14px; }
-.rst-hero-photo { width: 100%; aspect-ratio: 16 / 9; object-fit: cover; border-radius: 16px; background: var(--rst-fill); }
-.rst-hero-info { display: flex; flex-direction: column; gap: 4px; }
-.rst-hero-name { font-size: 19px; font-weight: 800; color: var(--rst-ink); letter-spacing: -.5px; }
-.rst-section { margin-bottom: 16px; }
+/* ── B2 · Restoran sahifasi ─────────────────────────────────────────────────────────────────
+   Hero 168px, foto ustida nom+meta; ostida info qatori; keyin yopishqoq bo'lim chiplari. */
+.rst-hero { position: relative; height: 168px; border-radius: 16px; overflow: hidden; margin-bottom: 12px; }
+.rst-hero-photo { width: 100%; height: 100%; object-fit: cover; display: block; background: var(--rst-fill); }
+.rst-hero::after { content: ""; position: absolute; inset: 0; pointer-events: none;
+  background: linear-gradient(transparent 40%, rgba(0, 0, 0, .5)); }
+.rst-hero-info { position: absolute; left: 14px; right: 14px; bottom: 12px; z-index: 1; }
+.rst-hero-name { font-size: 22px; font-weight: 800; color: #fff; letter-spacing: -.6px; text-shadow: 0 1px 8px rgba(0, 0, 0, .3); }
+.rst-hero-meta { margin-top: 2px; font-size: 12.5px; font-weight: 600; color: rgba(255, 255, 255, .85); }
+.rst-info { display: flex; align-items: center; gap: 10px; padding: 13px 0; border-bottom: 1px solid var(--rst-line); }
+.rst-info-div { width: 1px; height: 16px; background: var(--rst-line); }
+.rst-info-hours { font-size: 12.5px; font-weight: 600; color: var(--rst-ink-2); }
+.rst-info-state { margin-left: auto; }
+/* Hero fotosi `display: block` (rasm uchun) — fotosiz holatda ikonka markazlashishi uchun
+   flex qaytariladi, aks holda u yuqori-chap burchakda osilib qolardi. */
+.rst-hero .rst-card-noimg { display: flex; align-items: center; justify-content: center; }
+.rst-open { font-size: 11.5px; font-weight: 800; padding: 4px 9px; border-radius: 999px;
+  background: var(--rst-fill); color: var(--rst-ink-2); }
+.rst-open.open { background: var(--rst-fill-green); color: var(--rst-green); }
+.rst-info-addr { padding: 8px 0 0; font-size: 12.5px; font-weight: 600; color: var(--rst-muted); }
+
+/* Bo'lim chiplari — kontent bilan birga suriladi, tepaga yetganda yopishadi. Fon SHART:
+   shaffof bo'lsa menyu kartalari chiplar ostidan o'tib ko'rinib turardi. */
+.rst-sec-tabs { position: sticky; top: 0; z-index: 3; display: flex; gap: 8px; overflow-x: auto; scrollbar-width: none;
+  margin: 12px -16px 12px; padding: 10px 16px; background: var(--rst-bg-grad); }
+.rst-sec-tabs::-webkit-scrollbar { display: none; }
+
+.rst-section { margin-bottom: 16px; scroll-margin-top: 56px; }
 .rst-section-title { font-size: 15px; font-weight: 800; color: var(--rst-ink); letter-spacing: -.2px; margin-bottom: 8px; }
-.rst-item { display: flex; gap: 12px; padding: 11px; background: var(--rst-surface); border: 1px solid var(--rst-line);
-  border-radius: 16px; box-shadow: var(--rst-shadow-card); margin-bottom: 10px; }
+.rst-item { display: flex; gap: 12px; padding: 11px; background: var(--rst-surface); border: none;
+  border-radius: 16px; box-shadow: var(--rst-shadow-card); margin-bottom: 10px; align-items: stretch; }
+.rst-item:active { transform: scale(.99); }
 .rst-item.unavailable { opacity: .5; }
 .rst-item-photo { width: 78px; height: 78px; border-radius: 12px; object-fit: cover; flex-shrink: 0;
-  display: flex; align-items: center; justify-content: center; background: var(--rst-fill); color: var(--rst-muted-2); }
+  display: flex; align-items: center; justify-content: center; background: var(--rst-fill) center / cover;
+  color: rgba(255, 255, 255, .55); }
 .rst-item-body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
 .rst-item-name { font-size: 14.5px; font-weight: 700; color: var(--rst-ink); }
 .rst-item-desc { font-size: 12px; font-weight: 500; color: var(--rst-muted); line-height: 1.45;
@@ -131,12 +155,42 @@
 .rst-detail-view { padding-bottom: 76px; }
 /* «+» tugmasi: savatda yo'q → och-ko'k fon + ko'k belgi; savatda bor → yashil fon + oq «N ta» */
 .rst-item-add { flex: 0 0 auto; align-self: flex-end; min-width: 34px; padding: 6px 10px; border-radius: 10px;
-  background: var(--rst-fill-blue); color: var(--rst-blue); font-size: 13px; font-weight: 800; line-height: 1.2; }
+  background: var(--rst-fill-blue); color: var(--rst-blue); font-size: 13px; font-weight: 800; line-height: 1.2;
+  display: flex; align-items: center; justify-content: center; }
+.rst-item-add.in { background: var(--rst-green); color: #fff; }
 .rst-item-add:active { transform: scale(.92); }
-.rst-item-stepper { flex: 0 0 auto; align-self: flex-end; display: flex; align-items: center; gap: 8px;
-  background: var(--rst-fill); border-radius: 10px; padding: 4px 8px; }
-.rst-item-stepper button { width: 22px; height: 22px; border-radius: 6px; font-size: 17px; font-weight: 800; color: var(--rst-blue); background: transparent; }
-.rst-item-stepper span { font-size: 13px; font-weight: 800; color: var(--rst-ink); min-width: 14px; text-align: center; }
+
+/* ── B2 · Taom kartochkasi (varaq) ──────────────────────────────────────────────────────────
+   Foto varaqning butun enini oladi — Sheet'ning o'z padding'i teskari-kompensatsiya qilinadi. */
+/* Yuqoridagi -10px — Sheet'ning o'z padding-top'i; usiz foto tepada oq chiziq qoldirardi. */
+.rst-dish { margin: -10px -16px -18px; }
+.rst-dish-photo { width: 100%; height: 190px; object-fit: cover; display: flex; align-items: center;
+  justify-content: center; background: var(--rst-fill) center / cover; color: rgba(255, 255, 255, .55); }
+.rst-dish-body { padding: 16px; }
+.rst-dish-name { font-size: 20px; font-weight: 800; color: var(--rst-ink); letter-spacing: -.5px; }
+.rst-dish-desc { margin-top: 6px; font-size: 13.5px; font-weight: 500; color: var(--rst-desc); line-height: 1.5; }
+.rst-dish-price { margin-top: 10px; font-size: 16px; font-weight: 800; color: var(--rst-ink); }
+.rst-dish-bar { display: flex; align-items: center; gap: 10px; padding: 0 16px calc(16px + var(--safe-bottom)); }
+.rst-dish-step { display: flex; align-items: center; gap: 12px; background: var(--rst-fill); border-radius: 13px; padding: 11px 14px; }
+.rst-dish-step button { border: none; background: transparent; color: var(--rst-blue); display: flex; align-items: center; }
+.rst-dish-step span { font-size: 16px; font-weight: 800; color: var(--rst-ink); min-width: 16px; text-align: center; }
+.rst-dish-cta { flex: 1; height: 50px; border: none; border-radius: 14px; background: var(--rst-blue); color: #fff;
+  font-size: 15px; font-weight: 800; }
+.rst-dish-cta.remove { background: #fef3f2; color: #b42318; }
+.rst-dish-cta:active { transform: scale(.98); }
+/* Varaqning tortish-tasmasi fotoning USTIDA suzadi (dizaynda foto varaqning eng tepasida).
+   `:has()` qo'llab-quvvatlanmasa tasma odatdagidek fotodan yuqorida qoladi — ko'rinish biroz
+   boshqacha, lekin hech narsa buzilmaydi. */
+/* `margin: 0` SHART: `.d-sheet-bar` asosiy qoidasida `margin: -10px -16px 2px` bor (sticky
+   holat uchun) — absolyut holatda u tasmani 16px chapga surib, 32px kengaytiradi, natijada
+   o'ngdagi «✕» ekrandan chiqib ketardi (B2 QA skrinshotida yarmi kesilgan edi).
+   Foni ham shaffof: aks holda foto ustida oq tasma turardi. */
+.app.restoran-light .d-sheet:has(> .rst-dish) .d-sheet-bar {
+  position: absolute; left: 0; right: 0; top: 0; z-index: 2; margin: 0; padding: 10px 16px; background: transparent;
+}
+.app.restoran-light .d-sheet:has(> .rst-dish) .d-grip { background: rgba(255, 255, 255, .75); }
+.app.restoran-light .d-sheet:has(> .rst-dish) .d-sheet-x { background: rgba(255, 255, 255, .92); color: var(--rst-ink); }
+.app.restoran-light .d-sheet:has(> .rst-dish) { position: relative; overflow: hidden; }
 
 /* ── Savat paneli (sticky CTA) ──────────────────────────────────────────────────────────────── */
 .rst-cart-bar { position: fixed; left: 16px; right: 16px; bottom: calc(72px + var(--safe-bottom));

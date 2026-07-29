@@ -74,6 +74,15 @@ function installRstMockFetch(): void {
   window.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
     const url = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
     const path = url.replace(location.origin, "");
+    // 🔄 Versiya qorovuli (main.tsx) `/version.txt` ni so'raydi va o'zining build-shtampidan
+    // farq qilsa sahifani QAYTA YUKLAYDI. Dev serverda shtamplar mos kelmaydi, natijada QA
+    // o'rtasida ekran nolga qaytardi (restoran ochilib, darhol katalogga tashlanardi). Bu yerda
+    // o'z shtampimizni qaytaramiz → qorovul "yangilik yo'q" deb tinch qoladi. Qorovulning
+    // JONLI mantig'iga tegilmaydi — faqat shu QA sahifasida.
+    if (path.startsWith("/version.txt")) {
+      const mine = document.querySelector('meta[name="birjoy-build"]')?.getAttribute("content") ?? "";
+      return new Response(mine, { status: 200, headers: { "content-type": "text/plain" } });
+    }
     // Fotolar — 404: fotosiz holat (jonli bazadagi haqiqat) ataylab sinaladi.
     if (path.startsWith("/api/restoran/photo") || path.startsWith("/api/restoran/menuphoto")) return new Response(null, { status: 404 });
     if (path === "/api/restoran/list") return json({ restaurants: REST });

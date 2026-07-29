@@ -100,8 +100,47 @@ u yerda 0 «bepul» emas, «sozlanmagan» degani; admin panelda narx qo'yilgach 
 bo'ladi. Kartadagi kategoriya matni dizaynda boy («Somsa · Non»), bizda esa kalit-yorliq
 («Milliy») — boy matn uchun schema'ga yangi maydon kerak.
 
-**Keyingi:** B2 — restoran sahifasi (168px hero, sticky bo'lim chiplari, 78px menyu kartalari,
-taom modali).
+### 🍽 B2 — RESTORAN SAHIFASI + TAOM KARTOCHKASI `ready for verification`
+- **Hero 168px** — foto + `linear-gradient(transparent 40%, rgba(0,0,0,.5))`, ustida nom 22px/800
+  oq va meta «Kategoriya · ~N daq · yetkazish N so'm».
+- **Info qatori** — ★reyting(sharh soni) · ajratkich · ish vaqti · o'ngda Ochiq/Yopiq pill.
+- **Yopishqoq bo'lim chiplari** + scroll-spy; chip bosilsa bo'limga siljiydi.
+- **Menyu kartalari** — 78×78 foto, nom/tavsif(2 qator)/narx, o'ng-pastda tugma: savatda yo'q →
+  och-ko'k «+», bor → **yashil «N ta»** (dizayn). Kartaning qolgan joyi bosilsa taom kartochkasi.
+- **🍲 Taom kartochkasi (yangi)** — 190px foto varaqning tepasida, ustida oq «✕», nom 20px/800,
+  tavsif, narx, pastda stepper + ko'k CTA «Savatga · {jami}».
+
+**Dizayndan ONGLI CHEKINISH:** prototipda kartochka steppери HAR DOIM 1 dan boshlanadi va CTA
+savatga QO'SHADI. Bizda stepper savatdagi JORIY sonni ko'rsatadi va CTA uni O'RNATADI (0 =
+savatdan chiqarish). Sabab: ro'yxatdagi tugma dizaynda faqat qo'sha oladi, ya'ni asl mantiqda
+mijozda kamaytirish yo'li UMUMAN qolmasdi (savat ekrani hali B3'da). Ko'rinish o'zgarmadi.
+
+**B2 QA'da topilgan va tuzatilgan 4 nuqson:**
+1. **Versiya qorovuli QA'ni buzardi** — bugun qo'shilgan `main.tsx` qorovuli dev serverda
+   `version.txt` farqini ko'rib sahifani qayta yuklardi: restoran ochilib, darhol katalogga
+   tashlanardi. `#rstdemo` mock'i endi o'z build-shtampini qaytaradi (JONLI mantiqqa tegilmadi).
+2. **Ochiq/Yopiq badge uslubsiz** — `svc-open` klassi XIZMATLAR chunk'idagi `svc.css` da yashaydi
+   va restoran sahifasida umuman yuklanmaydi. O'z klassi (`rst-open`) yozildi.
+3. **Ish vaqti ikki marta** chiqardi (badge ichida ham, alohida ham) — badge endi faqat holatni
+   ko'rsatadi.
+4. **Scroll-spy noto'g'ri bo'limni yoqardi** — IntersectionObserver'da allaqachon surilib ketgan
+   uzun bo'lim hamon «kesishayotgan» bo'lib, `rect.top` bo'yicha doim g'olib chiqardi. Endi
+   to'g'ridan-to'g'ri o'lchov. Yana: scroll konteyneri `.content` DEB TAXMIN QILINGAN edi — u
+   `overflow: visible`, surilish oynaga o'tadi, ya'ni `scroll` hodisasi u yerda otilmasdi.
+   Konteyner endi TOPILADI (overflow-y auto/scroll bo'lgan eng yaqin ota, topilmasa `window`).
+   Ayrim: «✕» tugmasi ekrandan chiqib ketgani (`.d-sheet-bar` manfiy margin'i) ham tuzatildi.
+
+**B2 isbotlari:** `pnpm -r typecheck` 4/4 toza · build yashil · CTA computed `rgb(21,82,184)` ·
+scroll-spy o'lchovi: chip bosilgach aktiv «Asosiy taomlar» → «Salat va non» ga o'tdi ·
+skrinshotlar: restoran sahifasi / taom kartochkasi / savatda «2 ta» + savat paneli.
+**Bajarilmagan:** ega telefonida QABUL.
+
+**Dizayndan olinmagani (B2):** taom kartochkasidagi «1 kishilik · ~450 g · Achchiq emas» chiplari —
+`MenuItem`da bunday maydonlar YO'Q (faqat `desc`); o'ylab topib yozish mijozni aldash bo'lardi.
+Kerak bo'lsa schema'ga porsiya/og'irlik maydonlari qo'shiladi.
+
+**Keyingi:** B3 — savat va checkout ekranlari (alohida ekran, stepper'lar, minimal summa
+ogohlantirishi, rejimga moslashadigan maydonlar, yashil «Buyurtmani yuborish»).
 
 ### 🎀 RAVELLA — bezak konstruktori (hamkor-brend) — `in progress (gaps: rasm/seed, DB push, e'lon, QABUL)`
 **Ega so'radi (2026-07-27):** «Bosh ekranda kichik, umuman boshqa xizmat turi. Admin paneldan men
