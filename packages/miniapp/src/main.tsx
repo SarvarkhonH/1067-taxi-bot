@@ -43,7 +43,19 @@ async function checkForNewBuild(): Promise<void> {
     if (!live || live === MY_BUILD) return;
     if (sessionStorage.getItem("build_reloaded") === live) return; // shu versiyaga bir marta
     sessionStorage.setItem("build_reloaded", live);
-    window.location.reload();
+    // ⚠️ Oddiy `reload()` YETARLI EMAS (ega: «bir yangisi, bir eskisi ochilyapti»): bot har xil
+    // joyda har xil manzil beradi — menyu tugmasi `?v=<bundle-hash>` bilan, ESKI xabarlardagi
+    // tugmalar esa eski `?v=` yoki umuman `v` siz. Har manzil WebView uchun ALOHIDA kesh yozuvi,
+    // shuning uchun goh yangi, goh eski ochiladi. `v` ni JORIY shtampga almashtirsak kesh kaliti
+    // ham yangilanadi. `hash` SAQLANADI — Telegram initData aynan o'sha yerda (yo'qotsak
+    // "Telegram orqali oching" xatosi chiqadi).
+    try {
+      const u = new URL(window.location.href);
+      u.searchParams.set("v", live.replace(/[^0-9]/g, ""));
+      window.location.replace(u.toString());
+    } catch {
+      window.location.reload();
+    }
   } catch { /* tarmoq — jim */ }
 }
 document.addEventListener("visibilitychange", () => { void checkForNewBuild(); });
