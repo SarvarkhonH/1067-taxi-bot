@@ -1,0 +1,228 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   BirJoy Admin v2 — DIZAYN TOKENLARI (yagona manba)
+
+   Qoida (CLAUDE.md): "Faqat design/tokens dan rang/o'lcham. Inline stil = xato."
+   Yagona istisno — HAQIQATAN dinamik qiymat (grafik geometriyasi, progress
+   kengligi): u ham `style={{ "--w": pct }}` ko'rinishida, klass CSS'da qoladi.
+
+   MUHIM: bu fayl FAQAT v2 aktiv bo'lganda yuklanadi (App.tsx lazy-import qiladi),
+   shuning uchun nomlar eski `styles.css`dagi `--bg/--card/--accent` bilan
+   to'qnashmaydi — legacy panel v2 qurilayotganda buzilmasin. v2 default bo'lgach
+   (12-qadam) legacy o'chadi va bu izoh ham keraksiz bo'ladi.
+
+   Tema: qorong'i — asosiy; yorug' — `:root[data-a2="light"]`. Ega qarori
+   2026-07-30: ikkalasi ham quriladi, almashish bitta tugma (qaytariladigan qaror).
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+:root {
+  /* ── SIRTLAR (qorong'i) ────────────────────────────────────────────────
+     Bir-biriga yaqin 4 pog'ona: fon → panel → ichki panel → ko'tarilgan.
+     Pog'onalar orasidagi farq ATAYLAB kichik: ma'lumot-zich panelda kuchli
+     kontrast "chalkash" ko'rinadi, chegara (`--line`) qatlamni ajratadi. */
+  --bg: #080b12;
+  --surface: #0e131e;
+  --surface-2: #141b29;
+  --surface-3: #1b2436;
+  --overlay: rgba(4, 6, 11, 0.72); /* modal/drawer orqa fon */
+
+  /* ── CHEGARALAR ── */
+  --line: #1e2938;
+  --line-2: #2a3850; /* kuchliroq: jadval sarlavhasi, faol chegara */
+
+  /* ── MATN (3 pog'ona — 4-si keraksiz murakkablik) ── */
+  --text: #e7ecf7;
+  --text-2: #9aa9c2;
+  --text-3: #62718c;
+
+  /* ── BREND: BirJoy yashili ─────────────────────────────────────────────
+     `--brand` = to'ldirish/chegara. `--brand-ink` = qorong'i fonda MATN uchun
+     (yashilning o'zi matn sifatida kontrastni o'tmaydi — WCAG uchun ochroq
+     variant kerak). `--on-brand` = yashil to'ldirish USTIDAGI matn. */
+  --brand: #0d9668;
+  --brand-hi: #12b37c; /* hover */
+  --brand-ink: #3ddc9a;
+  --brand-soft: rgba(13, 150, 104, 0.14);
+  --brand-line: rgba(13, 150, 104, 0.38);
+  --on-brand: #04150e;
+
+  /* ── TANGA (oltin) — FAQAT tanga/coin semantikasi ──────────────────────
+     Miniapp bilan bir xil mantiq: oltin = tanga. Boshqa hech narsaga oltin
+     ishlatilmaydi (eski panelning muammosi shunda edi — hammasi oltin edi). */
+  --coin: #ffb300;
+  --coin-ink: #ffc94d;
+  --coin-soft: rgba(255, 179, 0, 0.13);
+
+  /* ── HOLAT ── */
+  --ok: #22c55e;
+  --ok-ink: #4ade80;
+  --ok-soft: rgba(34, 197, 94, 0.13);
+  --warn: #f59e0b;
+  --warn-ink: #fbbf24;
+  --warn-soft: rgba(245, 158, 11, 0.13);
+  --bad: #ef4444;
+  --bad-ink: #f87171;
+  --bad-soft: rgba(239, 68, 68, 0.13);
+  --info: #3b82f6;
+  --info-ink: #60a5fa;
+  --info-soft: rgba(59, 130, 246, 0.13);
+
+  /* ── GRAFIK PALITRASI ──────────────────────────────────────────────────
+     Ketma-ket qatorlar uchun 6 rang: ohang bo'yicha ajratilgan, yorug'ligi
+     yaqin (biri boshqasidan "baland" ko'rinmasin). Birinchisi — brend.
+     Toifa-rangi HAR DOIM shu tartibda beriladi (barqarorlik: bir xil qator
+     har ekranda bir xil rangda). */
+  --c1: #12b37c;
+  --c2: #60a5fa;
+  --c3: #fbbf24;
+  --c4: #a78bfa;
+  --c5: #fb7185;
+  --c6: #22d3ee;
+  --grid-line: rgba(255, 255, 255, 0.07); /* grafik to'r chizig'i */
+
+  /* ── TIPOGRAFIYA ───────────────────────────────────────────────────────
+     Tizim shrifti ataylab: tashqi shrift yuklash = qo'shimcha so'rov +
+     FOUT; admin panel tezlik uchun. `--ff-num` — raqamlar ustun bo'ylab
+     TEKIS turishi uchun (tabular-nums): jadvalda bu o'qishni sezilarli
+     yaxshilaydi. */
+  --ff: -apple-system, "Segoe UI", Roboto, system-ui, sans-serif;
+  --ff-mono: ui-monospace, "SF Mono", "Cascadia Mono", Consolas, monospace;
+
+  --fs-11: 0.6875rem; /* 11px — mayda yorliq, ustun sarlavhasi */
+  --fs-12: 0.75rem;
+  --fs-13: 0.8125rem; /* jadval asosiy o'lchami */
+  --fs-14: 0.875rem; /* interfeys asosiy o'lchami */
+  --fs-16: 1rem;
+  --fs-20: 1.25rem;
+  --fs-26: 1.625rem; /* StatCard qiymati */
+  --fs-32: 2rem;
+
+  --fw-med: 500;
+  --fw-semi: 600;
+  --fw-bold: 700;
+  --fw-black: 800;
+
+  --lh-tight: 1.25;
+  --lh: 1.5;
+
+  /* ── BO'SHLIQ (4px shkala) ── */
+  --s-1: 4px;
+  --s-2: 8px;
+  --s-3: 12px;
+  --s-4: 16px;
+  --s-5: 20px;
+  --s-6: 24px;
+  --s-8: 32px;
+  --s-10: 40px;
+
+  /* ── RADIUS ────────────────────────────────────────────────────────────
+     Eski panelda hamma joyda 14px edi — "iste'molchi ilovasi" hissi.
+     Professional asbob uchun ancha tor: 8/10/14. */
+  --r-sm: 6px;
+  --r: 9px;
+  --r-lg: 13px;
+  --r-pill: 999px;
+
+  /* ── SOYA ── */
+  --sh-1: 0 1px 2px rgba(0, 0, 0, 0.4);
+  --sh-2: 0 4px 14px rgba(0, 0, 0, 0.45);
+  --sh-3: 0 18px 48px rgba(0, 0, 0, 0.6);
+
+  /* ── FOKUS HALQASI ─────────────────────────────────────────────────────
+     Admin panel klaviatura bilan boshqariladi (⌘K, Tab, jadval navigatsiyasi)
+     — ko'rinadigan fokus MAJBURIY, dekoratsiya emas. */
+  --ring: 0 0 0 2px var(--bg), 0 0 0 4px var(--brand-line);
+
+  /* ── ZICHLIK / O'LCHAMLAR ── */
+  --sb-w: 232px;
+  --sb-w-min: 60px; /* yig'ilgan yon panel */
+  --topbar-h: 52px;
+  --row-h: 38px;
+  --row-h-dense: 30px;
+  --ctrl-h: 34px; /* input/tugma balandligi */
+  --ctrl-h-sm: 28px;
+  --page-max: 1680px;
+
+  /* ── HARAKAT ───────────────────────────────────────────────────────────
+     Faqat transform/opacity animatsiyalanadi (CLAUDE.md). Bosishga javob
+     <100ms bo'lishi uchun `--dur-fast`. */
+  --dur-fast: 90ms;
+  --dur: 160ms;
+  --dur-slow: 240ms;
+  --ease: cubic-bezier(0.22, 0.8, 0.32, 1);
+
+  /* ── Z QATLAMLARI (bitta joyda — "z-index: 9999" urushini oldini oladi) ── */
+  --z-sticky: 20;
+  --z-topbar: 40;
+  --z-sidebar: 60;
+  --z-drawer: 80;
+  --z-modal: 100;
+  --z-palette: 120;
+  --z-toast: 140;
+}
+
+/* ═══════════════════ YORUG' TEMA ═══════════════════════════════════════════
+   Faqat sirt/matn/chegara qayta aniqlanadi — brend, holat, grafik palitrasi
+   va BARCHA o'lcham/harakat tokenlari o'zgarmaydi. Shu sababli yorug' tema
+   "ikkinchi dizayn" emas, bir xil dizaynning ikkinchi yoritilishi. */
+:root[data-a2="light"] {
+  --bg: #f6f8fb;
+  --surface: #ffffff;
+  --surface-2: #f2f5f9;
+  --surface-3: #e8edf4;
+  --overlay: rgba(16, 24, 40, 0.44);
+
+  --line: #e2e8f0;
+  --line-2: #cbd5e1;
+
+  --text: #0f1729;
+  --text-2: #52627c;
+  --text-3: #8494ab;
+
+  /* yorug' fonda yashil MATN sifatida to'q bo'lishi kerak (kontrast) */
+  --brand-ink: #07704e;
+  --brand-soft: rgba(13, 150, 104, 0.1);
+  --brand-line: rgba(13, 150, 104, 0.34);
+
+  --coin-ink: #a86800;
+  --coin-soft: rgba(255, 179, 0, 0.16);
+  --ok-ink: #157f3d;
+  --ok-soft: rgba(34, 197, 94, 0.12);
+  --warn-ink: #96590a;
+  --warn-soft: rgba(245, 158, 11, 0.15);
+  --bad-ink: #b91c1c;
+  --bad-soft: rgba(239, 68, 68, 0.1);
+  --info-ink: #1d4ed8;
+  --info-soft: rgba(59, 130, 246, 0.11);
+
+  /* yorug' fonda grafik ranglari to'qroq — aks holda oq ustida "yuvilib" ketadi */
+  --c1: #0d9668;
+  --c2: #2563eb;
+  --c3: #d97706;
+  --c4: #7c3aed;
+  --c5: #e11d48;
+  --c6: #0891b2;
+  --grid-line: rgba(15, 23, 41, 0.08);
+
+  --sh-1: 0 1px 2px rgba(16, 24, 40, 0.06);
+  --sh-2: 0 4px 14px rgba(16, 24, 40, 0.08);
+  --sh-3: 0 18px 48px rgba(16, 24, 40, 0.16);
+}
+
+/* ═══════════════════ HARAKATNI KAMAYTIRISH ═════════════════════════════════
+   CLAUDE.md: "prefers-reduced-motion hurmat qilinadi". Butun tizim harakat
+   davomiyligini SHU 3 tokendan oladi, shuning uchun ularni nolga tushirish
+   yetarli — har komponentda alohida media-query yozish shart emas. */
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --dur-fast: 0ms;
+    --dur: 0ms;
+    --dur-slow: 0ms;
+  }
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+  }
+}

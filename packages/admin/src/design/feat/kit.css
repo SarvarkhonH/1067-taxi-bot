@@ -1,0 +1,659 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   BirJoy Admin v2 — KOMPONENT KITI (kit.tsx uchun stillar)
+   Panel · Button · Badge · Input/Select · Segmented · StatCard · Skeleton ·
+   EmptyState · ErrorState · Modal · Drawer · Tabs · Toast · Spinner
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* ── PANEL: barcha kontentning asosiy idishi ── */
+.a2-panel {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--r-lg);
+}
+.a2-panel-pad {
+  padding: var(--s-4);
+}
+.a2-panel-head {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+  padding: var(--s-3) var(--s-4);
+  border-bottom: 1px solid var(--line);
+  min-height: 46px;
+}
+.a2-panel-title {
+  font-size: var(--fs-13);
+  font-weight: var(--fw-bold);
+}
+.a2-panel-body {
+  padding: var(--s-4);
+}
+.a2-panel-body-flush {
+  padding: 0;
+}
+.a2-panel-foot {
+  padding: var(--s-3) var(--s-4);
+  border-top: 1px solid var(--line);
+}
+
+/* ── TUGMA ────────────────────────────────────────────────────────────────
+   4 variant: primary (brend) · default (neytral) · ghost (chegarasiz) ·
+   danger. Bosishga javob <100ms: `transform: translateY(1px)` — CLAUDE.md
+   talabi (faqat transform animatsiyalanadi). */
+.a2-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--s-2);
+  height: var(--ctrl-h);
+  padding: 0 var(--s-3);
+  border-radius: var(--r);
+  border: 1px solid var(--line-2);
+  background: var(--surface-2);
+  color: var(--text);
+  font-size: var(--fs-13);
+  font-weight: var(--fw-semi);
+  white-space: nowrap;
+  transition: background var(--dur-fast) var(--ease), border-color var(--dur-fast) var(--ease),
+    transform var(--dur-fast) var(--ease), opacity var(--dur-fast) var(--ease);
+}
+.a2-btn:hover:not(:disabled) {
+  background: var(--surface-3);
+  border-color: var(--text-3);
+}
+.a2-btn:active:not(:disabled) {
+  transform: translateY(1px);
+}
+.a2-btn:disabled {
+  opacity: 0.45;
+}
+
+.a2-btn-primary {
+  background: var(--brand);
+  border-color: var(--brand);
+  color: var(--on-brand);
+  font-weight: var(--fw-bold);
+}
+.a2-btn-primary:hover:not(:disabled) {
+  background: var(--brand-hi);
+  border-color: var(--brand-hi);
+}
+
+.a2-btn-ghost {
+  background: transparent;
+  border-color: transparent;
+  color: var(--text-2);
+}
+.a2-btn-ghost:hover:not(:disabled) {
+  background: var(--surface-2);
+  border-color: transparent;
+  color: var(--text);
+}
+
+.a2-btn-danger {
+  background: var(--bad-soft);
+  border-color: var(--bad);
+  color: var(--bad-ink);
+}
+.a2-btn-danger:hover:not(:disabled) {
+  background: var(--bad);
+  border-color: var(--bad);
+  color: #fff;
+}
+
+.a2-btn-sm {
+  height: var(--ctrl-h-sm);
+  padding: 0 var(--s-2);
+  font-size: var(--fs-12);
+  border-radius: var(--r-sm);
+}
+.a2-btn-icon {
+  width: var(--ctrl-h);
+  padding: 0;
+  flex-shrink: 0;
+}
+.a2-btn-icon.a2-btn-sm {
+  width: var(--ctrl-h-sm);
+}
+.a2-btn-block {
+  width: 100%;
+}
+
+/* ── BADGE / PILL ── */
+.a2-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-1);
+  padding: 2px var(--s-2);
+  border-radius: var(--r-pill);
+  font-size: var(--fs-11);
+  font-weight: var(--fw-bold);
+  white-space: nowrap;
+  background: var(--surface-3);
+  color: var(--text-2);
+}
+.a2-badge-ok {
+  background: var(--ok-soft);
+  color: var(--ok-ink);
+}
+.a2-badge-warn {
+  background: var(--warn-soft);
+  color: var(--warn-ink);
+}
+.a2-badge-bad {
+  background: var(--bad-soft);
+  color: var(--bad-ink);
+}
+.a2-badge-info {
+  background: var(--info-soft);
+  color: var(--info-ink);
+}
+.a2-badge-brand {
+  background: var(--brand-soft);
+  color: var(--brand-ink);
+}
+.a2-badge-coin {
+  background: var(--coin-soft);
+  color: var(--coin-ink);
+}
+
+/* Holat nuqtasi — matnsiz, "tirik" signal (jonli qatorlar uchun) */
+.a2-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--text-3);
+  flex-shrink: 0;
+}
+.a2-dot-ok {
+  background: var(--ok);
+  box-shadow: 0 0 0 3px var(--ok-soft);
+}
+.a2-dot-warn {
+  background: var(--warn);
+  box-shadow: 0 0 0 3px var(--warn-soft);
+}
+.a2-dot-bad {
+  background: var(--bad);
+  box-shadow: 0 0 0 3px var(--bad-soft);
+}
+.a2-dot-live {
+  background: var(--ok);
+  animation: a2-pulse 1.8s var(--ease) infinite;
+}
+@keyframes a2-pulse {
+  0%,
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.55;
+    transform: scale(0.86);
+  }
+}
+
+/* ── MAYDONLAR (input / select / textarea) ── */
+.a2-field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-1);
+  min-width: 0;
+}
+.a2-label {
+  font-size: var(--fs-11);
+  font-weight: var(--fw-bold);
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--text-3);
+}
+.a2-hint {
+  font-size: var(--fs-11);
+  color: var(--text-3);
+}
+.a2-err-text {
+  font-size: var(--fs-11);
+  color: var(--bad-ink);
+  font-weight: var(--fw-semi);
+}
+
+.a2-input,
+.a2-select,
+.a2-textarea {
+  width: 100%;
+  height: var(--ctrl-h);
+  padding: 0 var(--s-3);
+  background: var(--bg);
+  border: 1px solid var(--line-2);
+  border-radius: var(--r);
+  color: var(--text);
+  font-size: var(--fs-13);
+  transition: border-color var(--dur-fast) var(--ease);
+}
+.a2-textarea {
+  height: auto;
+  min-height: 76px;
+  padding: var(--s-2) var(--s-3);
+  resize: vertical;
+  line-height: var(--lh);
+}
+.a2-input:hover,
+.a2-select:hover,
+.a2-textarea:hover {
+  border-color: var(--text-3);
+}
+.a2-input:focus,
+.a2-select:focus,
+.a2-textarea:focus {
+  border-color: var(--brand);
+  box-shadow: 0 0 0 3px var(--brand-soft);
+}
+.a2-input::placeholder,
+.a2-textarea::placeholder {
+  color: var(--text-3);
+}
+.a2-input-err,
+.a2-input-err:focus {
+  border-color: var(--bad);
+}
+.a2-select {
+  appearance: none;
+  padding-right: var(--s-6);
+  /* o'ng tomondagi ▾ — SVG data-URI (tashqi ikonka fayli shart emas) */
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%2362718c' stroke-width='1.6' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right var(--s-3) center;
+}
+.a2-input-num {
+  font-variant-numeric: tabular-nums;
+}
+
+/* Ikonkali input (qidiruv) */
+.a2-input-wrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+  min-width: 0;
+}
+.a2-input-wrap .a2-input {
+  padding-left: var(--s-8);
+}
+.a2-input-ico {
+  position: absolute;
+  left: var(--s-3);
+  font-size: var(--fs-13);
+  color: var(--text-3);
+  pointer-events: none;
+}
+
+/* ── SEGMENTED (2-5 variant orasidan tanlash) ── */
+.a2-seg {
+  display: inline-flex;
+  padding: 2px;
+  gap: 2px;
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  border-radius: var(--r);
+}
+.a2-seg-btn {
+  height: calc(var(--ctrl-h) - 8px);
+  padding: 0 var(--s-3);
+  border-radius: var(--r-sm);
+  font-size: var(--fs-12);
+  font-weight: var(--fw-semi);
+  color: var(--text-2);
+  transition: background var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease);
+  white-space: nowrap;
+}
+.a2-seg-btn:hover {
+  color: var(--text);
+}
+.a2-seg-btn[aria-pressed="true"] {
+  background: var(--surface-3);
+  color: var(--text);
+}
+
+/* ── TABS ── */
+.a2-tabs {
+  display: flex;
+  gap: var(--s-1);
+  border-bottom: 1px solid var(--line);
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.a2-tabs::-webkit-scrollbar {
+  display: none;
+}
+.a2-tab {
+  position: relative;
+  padding: var(--s-2) var(--s-3);
+  font-size: var(--fs-13);
+  font-weight: var(--fw-semi);
+  color: var(--text-2);
+  white-space: nowrap;
+  transition: color var(--dur-fast) var(--ease);
+}
+.a2-tab:hover {
+  color: var(--text);
+}
+.a2-tab[aria-selected="true"] {
+  color: var(--text);
+}
+.a2-tab[aria-selected="true"]::after {
+  content: "";
+  position: absolute;
+  left: var(--s-2);
+  right: var(--s-2);
+  bottom: -1px;
+  height: 2px;
+  border-radius: 2px 2px 0 0;
+  background: var(--brand);
+}
+
+/* ── STAT CARD ────────────────────────────────────────────────────────────
+   Yorliq → katta qiymat → o'zgarish % + sparkline. "3 soniya testi": bitta
+   qarashda "raqam qancha va yaxshiga ketyaptimi" tushuniladi. */
+.a2-stat {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+  padding: var(--s-4);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--r-lg);
+  min-width: 0;
+}
+.a2-stat-top {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+}
+.a2-stat-label {
+  font-size: var(--fs-11);
+  font-weight: var(--fw-black);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-3);
+}
+.a2-stat-val {
+  font-size: var(--fs-26);
+  font-weight: var(--fw-black);
+  line-height: 1.1;
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+}
+.a2-stat-bottom {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: var(--s-3);
+  min-height: 26px;
+}
+.a2-stat-spark {
+  flex: 1;
+  min-width: 0;
+  max-width: 120px;
+}
+.a2-delta {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-size: var(--fs-12);
+  font-weight: var(--fw-bold);
+  font-variant-numeric: tabular-nums;
+  color: var(--text-3);
+  white-space: nowrap;
+}
+.a2-delta-up {
+  color: var(--ok-ink);
+}
+.a2-delta-down {
+  color: var(--bad-ink);
+}
+.a2-delta-sub {
+  font-size: var(--fs-11);
+  font-weight: var(--fw-med);
+  color: var(--text-3);
+}
+
+/* ── SKELETON (har async holatda MAJBURIY — CLAUDE.md) ── */
+.a2-sk {
+  /* o'lcham `--h`/`--w` orqali keladi (kit.tsx Skeleton) — inline stilda faqat
+     CSS o'zgaruvchilar bo'lishi qoidasini saqlaydi */
+  height: var(--h, 14px);
+  width: var(--w, 100%);
+  flex-shrink: 0;
+  border-radius: var(--r-sm);
+  background: linear-gradient(90deg, var(--surface-2) 25%, var(--surface-3) 50%, var(--surface-2) 75%);
+  background-size: 240% 100%;
+  animation: a2-shimmer 1.3s linear infinite;
+}
+@keyframes a2-shimmer {
+  to {
+    background-position: -240% 0;
+  }
+}
+
+/* ── BO'SH / XATO HOLAT ── */
+.a2-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--s-2);
+  padding: var(--s-10) var(--s-4);
+  text-align: center;
+  color: var(--text-2);
+}
+.a2-empty-ico {
+  font-size: 30px;
+  opacity: 0.65;
+}
+.a2-empty-title {
+  font-size: var(--fs-14);
+  font-weight: var(--fw-bold);
+  color: var(--text);
+}
+.a2-empty-sub {
+  font-size: var(--fs-12);
+  color: var(--text-3);
+  max-width: 320px;
+}
+
+/* ── SPINNER ── */
+.a2-spin {
+  width: 16px;
+  height: 16px;
+  border: 2px solid var(--line-2);
+  border-top-color: var(--brand-ink);
+  border-radius: 50%;
+  animation: a2-spin 0.7s linear infinite;
+  flex-shrink: 0;
+}
+.a2-spin-lg {
+  width: 30px;
+  height: 30px;
+  border-width: 3px;
+}
+@keyframes a2-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* ── MODAL ── */
+.a2-scrim {
+  position: fixed;
+  inset: 0;
+  background: var(--overlay);
+  backdrop-filter: blur(2px);
+  animation: a2-fade var(--dur) var(--ease);
+}
+@keyframes a2-fade {
+  from {
+    opacity: 0;
+  }
+}
+.a2-modal-wrap {
+  position: fixed;
+  inset: 0;
+  z-index: var(--z-modal);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--s-4);
+}
+.a2-modal {
+  position: relative;
+  width: 100%;
+  max-width: var(--mw, 440px);
+  max-height: calc(100vh - var(--s-8));
+  display: flex;
+  flex-direction: column;
+  background: var(--surface);
+  border: 1px solid var(--line-2);
+  border-radius: var(--r-lg);
+  box-shadow: var(--sh-3);
+  animation: a2-pop var(--dur) var(--ease);
+}
+@keyframes a2-pop {
+  from {
+    opacity: 0;
+    transform: translateY(6px) scale(0.985);
+  }
+}
+.a2-modal-body {
+  padding: var(--s-4);
+  overflow-y: auto;
+}
+
+/* ── DRAWER (obyekt-detali — o'ngdan) ── */
+.a2-drawer-wrap {
+  position: fixed;
+  inset: 0;
+  z-index: var(--z-drawer);
+  display: flex;
+  justify-content: flex-end;
+}
+.a2-drawer {
+  position: relative;
+  width: 100%;
+  max-width: var(--dw, 620px);
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  background: var(--surface);
+  border-left: 1px solid var(--line-2);
+  box-shadow: var(--sh-3);
+  animation: a2-slide var(--dur-slow) var(--ease);
+}
+@keyframes a2-slide {
+  from {
+    transform: translateX(18px);
+    opacity: 0.6;
+  }
+}
+.a2-drawer-head {
+  padding: var(--s-4);
+  border-bottom: 1px solid var(--line);
+}
+.a2-drawer-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: var(--s-4);
+}
+
+/* ── TOAST ── */
+.a2-toasts {
+  position: fixed;
+  right: var(--s-4);
+  bottom: var(--s-4);
+  z-index: var(--z-toast);
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+  pointer-events: none;
+}
+.a2-toast {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+  min-width: 240px;
+  max-width: 380px;
+  padding: var(--s-3);
+  background: var(--surface-3);
+  border: 1px solid var(--line-2);
+  border-left: 3px solid var(--text-3);
+  border-radius: var(--r);
+  box-shadow: var(--sh-2);
+  font-size: var(--fs-13);
+  animation: a2-toast-in var(--dur) var(--ease);
+  pointer-events: auto;
+}
+.a2-toast-ok {
+  border-left-color: var(--ok);
+}
+.a2-toast-bad {
+  border-left-color: var(--bad);
+}
+.a2-toast-warn {
+  border-left-color: var(--warn);
+}
+@keyframes a2-toast-in {
+  from {
+    opacity: 0;
+    transform: translateX(12px);
+  }
+}
+
+/* ── KV: kalit-qiymat qatorlari (obyekt-detali) ───────────────────────────
+   Yorliq ustuni FIKSIRLANGAN kenglikda — qiymatlar ustun bo'ylab tekis
+   turadi va ko'z bir chiziq bo'ylab yuguradi (o'qish tezligi). */
+.a2-kv {
+  display: flex;
+  flex-direction: column;
+}
+.a2-kv-row {
+  display: grid;
+  grid-template-columns: 132px minmax(0, 1fr);
+  gap: var(--s-3);
+  align-items: baseline;
+  padding: var(--s-2) 0;
+  border-bottom: 1px solid var(--line);
+}
+.a2-kv-row:last-child {
+  border-bottom: 0;
+}
+.a2-kv-k {
+  font-size: var(--fs-11);
+  font-weight: var(--fw-bold);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-3);
+}
+.a2-kv-v {
+  font-size: var(--fs-13);
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+@media (max-width: 560px) {
+  .a2-kv-row {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 2px;
+  }
+}
+
+/* ── KEY (klaviatura ko'rsatmasi: ⌘K) ── */
+.a2-kbd {
+  display: inline-flex;
+  align-items: center;
+  padding: 1px 5px;
+  border: 1px solid var(--line-2);
+  border-bottom-width: 2px;
+  border-radius: var(--r-sm);
+  background: var(--surface-2);
+  font-family: var(--ff-mono);
+  font-size: 10px;
+  font-weight: var(--fw-bold);
+  color: var(--text-3);
+  white-space: nowrap;
+}

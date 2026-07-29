@@ -1,0 +1,244 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   BirJoy Admin v2 — ASOS: reset, tipografiya, umumiy primitivlar.
+   Faqat `tokens.css`dan keyin import qilinadi.
+   Klass prefiksi: `.a2-*` (miniapp `design/feat/*.css`dagi `.rst-*` naqshi).
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+* {
+  margin: 0;
+  padding: 0;
+}
+
+html,
+body {
+  height: 100%;
+}
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--ff);
+  font-size: var(--fs-14);
+  line-height: var(--lh);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+/* Raqamlar HAR JOYDA ustun bo'ylab tekis turadi — jadval/StatCard o'qishi
+   uchun eng sezilarli yaxshilanish (proporsional raqamlar "sakraydi"). */
+.a2 {
+  font-variant-numeric: tabular-nums;
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+  color: inherit;
+}
+
+button {
+  cursor: pointer;
+  background: none;
+  border: 0;
+}
+
+button:disabled {
+  cursor: default;
+}
+
+a {
+  color: var(--brand-ink);
+  text-decoration: none;
+}
+a:hover {
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+table {
+  border-collapse: collapse;
+  width: 100%;
+}
+
+svg {
+  display: block;
+}
+
+/* ── FOKUS ─────────────────────────────────────────────────────────────────
+   `:focus-visible` — sichqoncha bosganda halqa chiqmaydi, klaviatura bilan
+   chiqadi. Admin panel klaviatura bilan boshqariladi, shuning uchun bu
+   dekoratsiya emas — navigatsiyaning bir qismi. */
+:focus {
+  outline: none;
+}
+:focus-visible {
+  outline: none;
+  box-shadow: var(--ring);
+  border-radius: var(--r-sm);
+}
+
+::selection {
+  background: var(--brand-soft);
+  color: var(--text);
+}
+
+/* ── SCROLLBAR ────────────────────────────────────────────────────────────
+   Qorong'i panelda tizim scrollbar'i (oq, keng) qattiq ajralib turadi. */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--line-2) transparent;
+}
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--line-2);
+  border-radius: var(--r-pill);
+  border: 2px solid transparent;
+  background-clip: content-box;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--text-3);
+  background-clip: content-box;
+}
+
+/* ═══════════════════ MATN PRIMITIVLARI ═════════════════════════════════════ */
+.a2-h1 {
+  font-size: var(--fs-20);
+  font-weight: var(--fw-black);
+  line-height: var(--lh-tight);
+  letter-spacing: -0.01em;
+}
+.a2-h2 {
+  font-size: var(--fs-16);
+  font-weight: var(--fw-bold);
+  line-height: var(--lh-tight);
+}
+.a2-h3 {
+  font-size: var(--fs-13);
+  font-weight: var(--fw-bold);
+}
+/* Bo'lim yorlig'i — CAPS + harf oralig'i. Ma'lumot-zich ekranda sarlavhani
+   o'lcham bilan emas, SHAKL bilan ajratish joy tejaydi. */
+.a2-eyebrow {
+  font-size: var(--fs-11);
+  font-weight: var(--fw-black);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-3);
+}
+.a2-dim {
+  color: var(--text-2);
+}
+.a2-dim-2 {
+  color: var(--text-3);
+}
+.a2-num {
+  font-variant-numeric: tabular-nums;
+}
+.a2-mono {
+  font-family: var(--ff-mono);
+  font-size: var(--fs-12);
+}
+.a2-truncate {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}
+/* Bo'shliqsiz uzun qiymatlar (dekorativ-unicode ismlar, xom ID) ustunni
+   cho'zib panelni buzmasin — eski panelda aynan shu muammo bo'lgan. */
+.a2-wrap-any {
+  overflow-wrap: anywhere;
+}
+
+/* ═══════════════════ LAYOUT PRIMITIVLARI ═══════════════════════════════════
+   Kichik, bir maqsadli yordamchilar. Bular inline stil O'RNIGA turadi —
+   `style={{display:"flex",gap:8}}` yozish endi keraksiz. */
+.a2-row {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+}
+.a2-row-3 {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+}
+.a2-row-wrap {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+  flex-wrap: wrap;
+}
+.a2-col {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+}
+.a2-col-3 {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-3);
+}
+.a2-col-4 {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-4);
+}
+.a2-between {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-3);
+}
+.a2-spacer {
+  flex: 1;
+  min-width: 0;
+}
+.a2-center {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Moslashuvchan to'r: `--min` bilan ustun kengligi boshqariladi (dinamik
+   qiymat CSS o'zgaruvchisi orqali — inline stil qoidasi buzilmaydi). */
+.a2-grid {
+  display: grid;
+  gap: var(--s-3);
+  grid-template-columns: repeat(auto-fit, minmax(var(--min, 220px), 1fr));
+}
+.a2-grid-2 {
+  display: grid;
+  gap: var(--s-3);
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+.a2-grid-4 {
+  display: grid;
+  gap: var(--s-3);
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+@media (max-width: 1180px) {
+  .a2-grid-4 {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+@media (max-width: 700px) {
+  .a2-grid-2,
+  .a2-grid-4 {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
