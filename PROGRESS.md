@@ -4876,3 +4876,94 @@ Endi `blockedAt` qo'yilgani uchun bu tsikl to'xtaydi.
 nechta odam bloklaydi» — hozircha o'lchanmagan, chunki tun (Toshkent 23:50) va `quietHours()`
 21:00–08:00 proaktiv push'larni to'xtatib turibdi. Birinchi haqiqiy raqamlar ertaga 08:00 dan
 keyin `freespin_wait` / `lucky_day` / `drv_eod` kabi turlar bo'yicha kela boshlaydi (A10).
+
+## §78 — 🧹 ESKI QOLDIQLARNI TOZALASH: Render/Vercel yo'q qilindi + 20 yetim jadval · 2026-07-29
+
+**Ega:** «nega hali ham render versel mavjud… eski hamma narsa umuman tarixdan ham yo'q bo'lishi
+kerak emasdimi» → «hammasini yuqot, tokenlar ham, vercel va render nol bo'lsin» → keyin
+«umuman eski versiya qolmasin… barcha qoldiqlar, eski linklar, eski usullar ketadi».
+Doira ega bilan kelishildi: **kod-qoldiqlar + bazadagi eski jadvallar**. `TOZALASH_DOD.md`
+kod yozishdan OLDIN yozildi va ega tasdiqladi.
+
+### 1. Render / Vercel — jismonan nol
+| Nima | Natija |
+|---|---|
+| Render `kas1067-taxi-fra` + `kas1067-taxi-bot` | API `DELETE` → **204**, ro'yxatda yo'q |
+| Vercel `1067taxi-miniapp` + `admin` | API `DELETE` → **204**, eski URL'lar endi **404** |
+| `.env` dagi `RENDER_API_KEY` + eski Render/Neon plaintext parollari | olib tashlandi |
+| Lokal `.vercel/` link papkalari (3 ta) | o'chirildi |
+| **Tegilmadi** | Render'da 4, Vercel'da 10 aloqasi yo'q loyiha (ID solishtirib tasdiqlangan) |
+
+Eski Vercel nusxasi **tirik edi va o'lik Render API'ga urinardi** (`kas1067-taxi-fra.onrender.com`
+`preconnect`i bundle ichida) — ya'ni haqiqiy chalkashlik manbai.
+
+### 2. 🔴 Yo'l-yo'lakay topilgan P0: tungi zaxiraning yarmi buzuq edi
+Jadval o'chirishdan oldin zaxirani tekshirganda `/var/log/birjoy-backup.log`da:
+```
+❌ backup.ts is out of sync with schema.prisma:
+   missing from backup (data would be LOST): [ 'blockEvent' ]
+```
+`pg_dump` qatlami ishlayotgan edi, **JSON snapshot qatlami 28-iyuldan beri yiqilgan** (ega har
+kecha Telegram alert olgan). Parity-qorovulining O'ZI to'g'ri ishlagan — ogohlantirishi
+e'tibordan chetda qolgan. `blockEvent` ro'yxatga qo'shildi (`039c071`).
+**Isbot:** `✅ 64638 rows across 111/111 tables` + ikkala fayl bugungi sana bilan.
+
+### 3. Blok A — kod-qoldiqlar (`340bd7a`)
+- **`livinghome` quvuri BUTUNLAY** olib tashlandi: `home.tsx` (177 qator, hech qayerdan import
+  qilinmagan), bayroq nomi (`FEATURES`/`DEFAULT_OFF`), server quvuri (`/api/me` +
+  `/api/booking/info` — 4 joy), `shared` tiplari, admin toggle qatori.
+  Jonli isbot: manba grep **0**, jonli bundle grep **0**.
+- **4 o'lik `AppState` flag qatori** o'chirildi: `garajx`, `kozacha`, `motorolami` (kodda nom
+  YO'Q edi) + `livinghome`. 59 → 56 qator; bot qayta yuklandi, `[flags]` qatorida ular yo'q, 0 xato.
+- ⚠️ 2026-07-28 dagi «kod qoladi, bayroq OFF» qarori (MUKAMMAL_DASTUR.md §5b) ega tomonidan
+  bekor qilindi; §5b hujjati shu ma'noda yangilandi. Kod git tarixida:
+  `git show c5ef1e47:packages/miniapp/src/home.tsx`.
+
+### 4. Blok B — 20 yetim jadval (`8acef3f` + jonli `DROP`)
+Bu 20 model runtime kodda HECH QAYERDA ishlatilmagan — yagona havola `backup.ts` edi:
+Garaj\* (12) · MemberGarajMeta · MemberMechanicSkill · MahallaGroup · MahallaGroupMember ·
+MahallaWeeklyResult · MemberCar · TradeOffer · TradeMessage.
+
+**TARTIB ATAYLAB shunday:** (1) avval kod — sxema + `backup.ts` **bitta commitda**
+(teskarisi qilinsa `prisma generate` modelni o'chirgach `backup.ts` kompilyatsiyadan o'tmay
+tungi zaxira butunlay yiqiladi); (2) keyin ALOHIDA qadam — yangi `pg_dump`, so'ng `DROP TABLE`.
+
+**Xavfsizlik tekshiruvlari (hammasi `DROP`dan OLDIN):**
+- Tashqi FK: `information_schema` bo'yicha **0 ta** — hech narsa ularga bog'lanmagan
+- `CASCADE` **ATAYLAB ishlatilmadi** — kutilmagan bog'liqlik jim o'chirilmasin, tranzaksiya
+  qaytsin. Bola-jadval avval (`TradeMessage` → `TradeOffer`)
+- Rollback nusxasi: `pg-2026-07-29T20-56-44Z.dump` — `pg_restore -l` bilan 20 jadvalning
+  hammasi ichida borligi nomma-nom tasdiqlandi
+- Vaqt: Toshkent 01:57 (past-trafik oyna)
+
+**Natija:** `111 → 91` jadval, `44 MB → 42 MB`. Tirik ma'lumot butun: Member 3387,
+CoinTxn 11662, RideReward 756, IntercityCity 34, Mahalla 39.
+
+**`MemberCar` bo'yicha alohida:** ARCHITECTURE.md §7 «NOT MemberCar… do not conflate» deb
+yozgan edi. Tekshirildi — 9 qator, `carCode` = `damas`/`matiz`/`cobalt`/`nexia`, `level` =
+yangilash darajasi → eski **`garage` v1 o'yin** ma'lumoti, haqiqiy haydovchi mashinasi EMAS
+(u `Member.carNumber`da). Oxirgi tegilishi 2026-06-17. Ega qarori bilan o'chirildi.
+
+### 5. TEGILMADI — va nega (dalil bilan)
+| Nima | Nega |
+|---|---|
+| **Intercity** (1 137 qator, 22 route, 7 jadval) | Xususiyat butun, **34 shahar + 3 marshrut real ma'lumot**, faqat flag off. «O'lik» emas — «uxlab yotgan». Ega qarori: qoldirish |
+| **`booking.tsx`** (543 qator) | `booking3.tsx:314`da `flagOff` holatida tirik zaxira. **16/16 API metodi hali joyida** (tekshirilgan) → chirimаgan. Ega qarori: qoldirish |
+| **`BroadcastRecipient`** | «0 to'g'ridan-to'g'ri havola» ko'rinadi, lekin `adminOps.ts:429`da **nested-create** orqali ishlatiladi. Yolg'on-musbatga misol — shuning uchun har model qo'lda tekshirildi |
+| **Mahalla katalogi** | `mahallaService.ts` MAVJUD va `shopService.ts` ishlatadi (ARCHITECTURE.md bu yerda eskirgan). Faqat `MahallaGroup*` guruh-o'yini o'lik edi |
+| **`GO_MAP` 29 alias · 27 `bot.hears`** | Foydalanuvchi Telegram tarixidagi eski tugmalar abadiy qoladi — alias/handler o'chirilsa ular «Uy»ga tushadi yoki «tushunarsiz so'rov» beradi |
+
+### 6. Parallel-sessiya tuzog'i (yana ushlandi)
+`git diff origin/main` ish daraxtida `admin/App.tsx` (311 qator) va `server.ts` (109 qator)
+farqini ko'rsatdi — lokal nusxalar **eskirgan** edi (boshqa sessiya «Super Operator» konsolini
+`main`ga qo'shgan, lokal fayllar yangilanmagan). Agar patch shundan olinganda, **o'sha yangi
+funksiya o'chib ketardi**. Yechim: har blok toza `origin/main` ustidagi ALOHIDA worktree'da
+qaytadan tahrirlandi; `git diff --stat` bilan har commit doirasi tasdiqlandi.
+
+### 7. Isbotlar
+`typecheck 4/4` (har blokda) · `vitest 42/42` · `simEconomy` BUZILMAS ✅ · `prisma validate`
+valid 🚀 · zaxira `111/111` → keyin `91/91` · `/health` ok · `bot1067` active · `journalctl` 0 xato ·
+`/api/admin/{health,economy,integrity}` → 200 · butun repo'da yetim modelga havola **0**.
+
+**Holat:** `ready for verification` — ega telefonda tekshiradi (Mini App 4 tab + botdan real
+buyurtma). Kod tomoni to'liq isbotlangan; foydalanuvchiga ko'rinadigan qism ega sinovini kutadi.
