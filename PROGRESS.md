@@ -4861,3 +4861,18 @@ O'TMAYDI (chaqiruvchilar `throw` ga tayanadi) — lekin 403 ni `recordBlock` bil
 
 **Saboq:** «0 topildi» degan grep natijasi — grep'ning O'ZI to'g'ri yozilganini isbotlamaydi.
 Ko'p qatorli chaqiruv uslubi bor repo'da bir qatorli regex bilan "qamrov to'liq" deyish MUMKIN EMAS.
+
+### §77c — BIRINCHI JONLI NATIJA (deploy'dan ~5 daqiqa keyin)
+
+`BlockEvent` = **25 satr**, hammasi `kind=link_remind`, hammasi `memberId IS NULL`
+(ya'ni raqamini HECH QACHON ulamagan foydalanuvchilar). `blockedAt` 87 → **112**.
+
+**To'g'ri o'qilishi:** bu 25 kishi bugun bloklagani EMAS — ular ALLAQACHON bloklagan edi, biz
+endigina bilib oldik. Sabab: `linkReminderService` markerni faqat MUVAFFAQIYATLI yuborishda
+yozadi, 403 esa yutilardi → bot bu odamlarga 24 soatdan beri HAR TICK'da bekorga urinib kelgan.
+Endi `blockedAt` qo'yilgani uchun bu tsikl to'xtaydi.
+
+**Hali javob YO'Q:** ega so'ragan asosiy savol — «kunlik bonus / kechki reyting xabarlaridan
+nechta odam bloklaydi» — hozircha o'lchanmagan, chunki tun (Toshkent 23:50) va `quietHours()`
+21:00–08:00 proaktiv push'larni to'xtatib turibdi. Birinchi haqiqiy raqamlar ertaga 08:00 dan
+keyin `freespin_wait` / `lucky_day` / `drv_eod` kabi turlar bo'yicha kela boshlaydi (A10).
