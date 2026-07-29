@@ -66,12 +66,39 @@
   /* 🔎 Xizmatlar teması — ko'k/indigo (professional, ishonch) */
   --svc-bg-grad: linear-gradient(180deg, #f4f8ff, #eef4ff 30%, #e9f1ff);
   --svc-accent: #2563eb;
-  /* 🍽 Restoran teması — amber-qizil (do'kon=yashil, xizmatlar=ko'k, e'lonlar=terrakota-jigarrang).
-     Ega tanladi (nomzod C, taqqoslash skrinshotidan): e'lonlar terrakotasiga eng yaqin variant —
-     ataylab yuqori to'yinganlik (vivid) bilan ajratildi, lekin ikkalasi ham "sariq-qizil" oilasida
-     qolgani ma'lum va qabul qilingan tanlov. */
-  --rst-bg-grad: linear-gradient(180deg, #fff7ed, #fdead9 30%, #fbd9b8);
-  --rst-accent: #ea580c;
+  /* 🍽 Restoran teması — KO'K+YASHIL (design_handoff_restoran/README.md §Design Tokens, 2026-07-29).
+     Ilgari amber-qizil edi; ega tasdiqlagan yangi dizayn BirJoy logotipining ko'k→yashil
+     gradientiga o'tkazdi (--bj-logo-blue/--bj-logo-green-deep bilan bir oilada, ular dizaynerdan
+     mustaqil ravishda o'sha logodan olingan edi). Har qiymat README jadvalidan 1:1 — taxmin yo'q. */
+  --rst-blue: #1552B8;          /* asosiy tugma, aktiv ikonka, havola, "+" matni */
+  --rst-blue-deep: #0E3A86;     /* gradient boshi, bosilgan holat */
+  --rst-green: #17A34A;         /* tasdiq, "Ochiq", reyting yulduzi, yuborish tugmasi, timeline */
+  --rst-grad: linear-gradient(135deg, #1552B8, #17A34A);       /* buyurtma holati hero */
+  --rst-grad-deep: linear-gradient(135deg, #0E3A86, #17A34A);  /* yo'l xaritasi hero */
+  --rst-ink: #0E1524;           /* asosiy matn, aktiv chip foni, toast */
+  --rst-ink-2: #4a5364;         /* ikkilamchi matn */
+  --rst-desc: #6B7484;          /* taom tavsifi, total qatorlari */
+  --rst-muted: #8b93a3;         /* uchinchi daraja, placeholder */
+  --rst-muted-2: #a4abb8;       /* passiv ikonka/matn */
+  --rst-surface: #ffffff;       /* kartalar, header, tabbar */
+  --rst-fill: #f1f3f7;          /* chip/qty fon, ikonka konteyneri */
+  --rst-fill-blue: #eef2fb;     /* ikkilamchi tugma foni (ko'k matn bilan) */
+  --rst-fill-green: #eaf6ee;    /* "Naqd" badge, tanlangan to'lov */
+  --rst-line: rgba(14, 21, 36, .07);
+  --rst-warn-bg: #fff5e6;
+  --rst-warn-bd: #ffd9a0;
+  --rst-warn-fg: #8a5a00;
+  --rst-disabled: #c3c9d4;      /* o'chiq CTA foni */
+  --rst-open-bg: rgba(23, 163, 74, .92);   /* "Ochiq" badge (foto ustida) */
+  --rst-closed-bg: rgba(14, 21, 36, .62);  /* "Yopiq" badge */
+  --rst-shadow-card: 0 1px 3px rgba(14, 21, 36, .07);
+  --rst-shadow-cta: 0 6px 18px rgba(21, 82, 184, .28);
+  /* Ekran foni tekis (README: bg #f5f6f8) — ilgari issiq gradient edi. Nomi o'zgarmadi, chunki
+     .app.restoran-light dan tashqarida ham ishlatiladi; qiymati endi gradient emas, tekis rang. */
+  --rst-bg-grad: #f5f6f8;
+  /* Eski nom — hali qolgan bir nechta qoida shunga tayanadi; endi ko'kni ko'rsatadi, shuning uchun
+     hech qayerda "adashib amber" chiqib qolmaydi. B1–B5 da qoidalar birma-bir --rst-blue'ga o'tadi. */
+  --rst-accent: #1552B8;
 }
 /* To'liq ekranda tepada HAR DOIM status-bar + Telegram paneli bor. Klient inset qiymatini
    bermay qolsa ham kontent ular ostiga kirib ketmasin — pol (floor) qo'yamiz. Klass'ni
@@ -1125,49 +1152,54 @@ body {
 /* Qolgan .glass ishlatuvchilar (svc-add-cta bilan bir xil sabab — umumiy dark komponent, o'ziga xos
    fon-override'i yo'q edi): telefon/soat/manzil bloki, narxlar, baho-berish qutisi, "topilmadi"
    so'rov qutisi, "Meniki" ro'yxatidagi qatorlar. Bitta yengil oq-ko'k karta ko'rinishi — hammasi. */
-/* ── 🍽 RESTORAN teması (amber-qizil) — shop-light/xizmat-light qolipidan; App.tsx tab==="restoran"da ── */
-.app.restoran-light { background: var(--rst-bg-grad); color: #2b1c12; }
+/* ── 🍽 RESTORAN teması (ko'k+yashil) — App.tsx tab==="restoran"da qobiqqa qo'yiladi ─────────────
+   Dizayn: design_handoff_restoran (1a variant). Qobiq ataylab TEKIS va JIM: dizaynda butun
+   e'tibor kontentga (foto-kartalar) qaratilgan, shuning uchun bu yerda gradient, aurora, glow,
+   blur — hech biri yo'q. Boshqa bo'limlar (shop/xizmat/elonlar/ravella) bu blokdan ta'sirlanmaydi:
+   har qoida `.app.restoran-light` bilan boshlanadi. */
+.app.restoran-light { background: var(--rst-bg-grad); color: var(--rst-ink); }
 .app.restoran-light::before { display: none; }
 .app.restoran-light .aurora { display: none; }
 .app.restoran-light .topbar {
-  background: linear-gradient(180deg, rgba(255, 247, 237, 0.97), rgba(255, 247, 237, 0.62));
-  border-bottom: 1px solid color-mix(in srgb, var(--rst-accent) 14%, transparent);
+  background: #f7f8fa;
+  border-bottom: 1px solid var(--rst-line);
   backdrop-filter: none; -webkit-backdrop-filter: none;
 }
-.app.restoran-light .brand-name { color: #2b1c12; }
-.app.restoran-light .brand-name b { color: var(--rst-accent); text-shadow: none; }
-.app.restoran-light .member-chip { color: var(--rst-accent); background: color-mix(in srgb, var(--rst-accent) 12%, transparent); border-color: color-mix(in srgb, var(--rst-accent) 26%, transparent); }
+.app.restoran-light .brand-name { color: var(--rst-ink); }
+.app.restoran-light .brand-name b { color: var(--rst-blue); text-shadow: none; }
+.app.restoran-light .member-chip { color: var(--rst-blue); background: var(--rst-fill-blue); border-color: transparent; }
 .app.restoran-light .coin-pill {
-  background: #ffffff; border: 1px solid #fbd9b8; color: #9a3412;
-  box-shadow: 0 3px 12px -5px rgba(234, 88, 12, 0.35), inset 0 1px 0 #fff;
+  background: var(--rst-surface); border: 1px solid var(--rst-line); color: var(--rst-ink);
+  box-shadow: var(--rst-shadow-card);
 }
 .app.restoran-light .coin-dot { filter: none; }
-.app.restoran-light .toast { background: #ffffff; color: #2b1c12; box-shadow: 0 10px 30px -12px rgba(0, 0, 0, 0.35); }
+/* Toast — dizaynda quyuq (ink) plashka + oq matn, kartalarga qarama-qarshi (README §3). */
+.app.restoran-light .toast { background: var(--rst-ink); color: #fff; box-shadow: 0 10px 30px -12px rgba(14, 21, 36, .45); }
 .app.restoran-light .tabbar {
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.94), rgba(255, 247, 237, 0.98));
-  border: 1px solid color-mix(in srgb, var(--rst-accent) 18%, #fbd9b8);
-  box-shadow: 0 18px 44px -20px rgba(154, 52, 18, 0.30);
+  background: var(--rst-surface);
+  border: 1px solid var(--rst-line);
+  box-shadow: 0 -1px 0 var(--rst-line), 0 18px 44px -24px rgba(14, 21, 36, .22);
   backdrop-filter: none; -webkit-backdrop-filter: none;
 }
-.app.restoran-light .tab { color: #d1a68a; }
-.app.restoran-light .tab.active { color: var(--rst-accent); }
-.app.restoran-light .tab.active svg { filter: drop-shadow(0 0 8px color-mix(in srgb, var(--rst-accent) 50%, transparent)); }
-.app.restoran-light .tab-ind {
-  background: radial-gradient(circle at 50% 40%, color-mix(in srgb, var(--rst-accent) 26%, transparent), color-mix(in srgb, var(--rst-accent) 6%, transparent) 70%, transparent);
-  box-shadow: 0 0 18px color-mix(in srgb, var(--rst-accent) 28%, transparent);
-}
+.app.restoran-light .tab { color: var(--rst-muted-2); }
+.app.restoran-light .tab.active { color: var(--rst-blue); }
+/* Aktiv tab: dizaynda yorqinlik/glow yo'q — faqat rang farqi. Ikkala qoida ham kerak:
+   styles.css:332 `.tab.active span` yorliqqa OLTIN drop-shadow + scale(1.18) beradi (ilovaning
+   amber brendidan), styles.css:470 esa ikonkaga. Faqat `svg`ni bosgan edim — skrinshotda ko'k
+   tabbar ostida sariq nur qolib ketgan edi. */
+.app.restoran-light .tab.active svg { filter: none; }
+.app.restoran-light .tab.active span { filter: none; transform: none; }
+.app.restoran-light .tab-ind { background: none; box-shadow: none; }
 .app.restoran-light .page { animation-duration: 180ms; }
-.app.restoran-light .muted { color: #a17858; }
-/* Restoran kartalari — och fonda: oq karta + quyuq matn (svc-card light override qolipidan) */
+.app.restoran-light .muted { color: var(--rst-muted); }
 /* R2 — savat/checkout/buyurtmalarim och-fon override */
-.app.restoran-light .bk-input { background: #ffffff; color: #2b1c12; border: 1px solid #fbd9b8; }
-.app.restoran-light .bk-input::placeholder { color: #c99f80; }
-.app.restoran-light .d-sheet { background: #ffffff; color: #2b1c12; }
-.app.restoran-light .d-sheet h3 { color: #2b1c12; }
-.app.restoran-light .d-sheet-bar { background: #ffffff; }
-.app.restoran-light .d-grip { background: #fbd9b8; }
-.app.restoran-light .d-sheet-x { background: color-mix(in srgb, var(--rst-accent) 12%, transparent); color: var(--rst-accent); }
-/* qulayliklar och-fon override */
+.app.restoran-light .bk-input { background: var(--rst-surface); color: var(--rst-ink); border: 1px solid var(--rst-line); }
+.app.restoran-light .bk-input::placeholder { color: var(--rst-muted); }
+.app.restoran-light .d-sheet { background: var(--rst-surface); color: var(--rst-ink); }
+.app.restoran-light .d-sheet h3 { color: var(--rst-ink); }
+.app.restoran-light .d-sheet-bar { background: var(--rst-surface); }
+.app.restoran-light .d-grip { background: #e2e5ea; }
+.app.restoran-light .d-sheet-x { background: var(--rst-fill); color: var(--rst-ink-2); }
 /* ═══════════════════════════════ 🏪 BirJoy BOZOR (D1, flag `bazar`) ═══════════════════════════════
    Zumrad + amber duotone. Qoidalar: chegirma FAQAT --bj-sale; tanga FAQAT amber; animatsiya faqat
    transform/opacity (global reduced-motion kill-switch bunga ham tegishli); inline-stil TAQIQ. */
@@ -1217,7 +1249,7 @@ body {
 .bj-cats::-webkit-scrollbar { display: none; }
 .bj-cat { scroll-snap-align: start; flex: 0 0 auto; width: 66px; display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 0; background: none; border: none; box-shadow: none; transition: transform var(--dur-press) var(--ease-out); }
 .bj-cat:active { transform: scale(0.94); }
-.bj-cat-ic { width: 58px; height: 58px; border-radius: 20px; background: var(--bj-card-solid, #fff); box-shadow: var(--bj-shadow); display: flex; align-items: center; justify-content: center; font-size: 27px; overflow: hidden; }
+.bj-cat-ic { width: 58px; height: 58px; border-radius: 20px; background: var(--bj-card-solid, #fff); box-shadow: var(--bj-shadow); border: 1px solid var(--bj-line); display: flex; align-items: center; justify-content: center; font-size: 27px; overflow: hidden; }
 .bj-cat-ic img { width: 34px; height: 34px; object-fit: contain; }
 .bj-cat-l { font-size: 10.8px; font-weight: 650; line-height: 1.22; color: var(--bj-ink-dim); text-align: center; letter-spacing: -.01em; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
 .bj-cat.on .bj-cat-ic { background: var(--bj-hero-grad); box-shadow: var(--bj-glass-rim), 0 12px 26px -14px rgba(6, 95, 70, .85); }
@@ -1424,25 +1456,26 @@ body {
     inset 1px 0 0 rgba(255, 255, 255, .35),
     inset -1px 0 0 rgba(255, 255, 255, .35);
   --bj-glass-depth: 0 12px 30px -20px rgba(20, 26, 24, .55), 0 2px 6px -4px rgba(20, 26, 24, .22);
-  /* fon endi tekis oq emas: zumrad va amber nurlari — shisha ustida aynan shu «sinadi».
-     `fixed` — aylantirganda fon qimirlamaydi, ya'ni sirtlar fon ustida suzayotgandek ko'rinadi. */
-  --bj-bg-grad:
-    radial-gradient(120% 78% at 50% -12%, rgba(13, 150, 104, .13) 0%, transparent 58%),
-    radial-gradient(88% 56% at 100% 6%, rgba(249, 190, 62, .16) 0%, transparent 54%),
-    #f4f5f6;
+  /* ⚡ FON — ODDIY OQ (ega, 2026-07-29: «background-attachment ni ham olib tashla, oddiy oq
+     bo'lsin va chaqmoqdek ishlasin»). Avval ikkita radial gradient + `background-attachment:
+     fixed` edi: mobil brauzerda `fixed` fon scroll paytida sahifa bilan birga siljimaydi, ya'ni
+     har kadrda QAYTA CHIZILADI — bu shishadan keyingi eng katta scroll-narxi edi. */
+  --bj-bg-grad: #ffffff;
   --bj-card: rgba(255, 255, 255, .62);
   /* ⚡ TAKRORLANADIGAN SIRTLAR uchun (kafel, mini-karta, ikonka): shishasiz, deyarli
      shaffofmas. Sabab — `backdrop-filter` har elementda alohida GPU qatlami yaratadi va
      ro'yxatda o'nlab bo'lganda scroll qotadi (ega: «do'kon bo'limi sekinroq»). Shisha
      endi FAQAT doimiy sirtlarda: header, tabbar, qidiruv, yopishqoq panel. */
-  --bj-card-solid: rgba(255, 255, 255, .93);
-  --bj-line: rgba(16, 20, 24, 0.055);
+  --bj-card-solid: #ffffff;
+  --bj-line: rgba(16, 20, 24, 0.09);
   --bj-sale: #e11d48;
   --bj-ink: #101418;
   --bj-ink-dim: #6b7280;
   /* Sirt-soyasi endi = qirra-yorug'lik + chuqurlik. `--bj-shadow` allaqachon karta/kafellarda
      ishlatilgani uchun bitta bu satr ularning hammasini shishaga aylantiradi. */
-  --bj-shadow: var(--bj-glass-rim), var(--bj-glass-depth);
+  /* ⚡ Soya ham arzonlashdi: 30px blur radiusi har kafelda qayta chiziladi. Endi ixcham
+     soya + ingichka chegara — oq fonda kartalar baribir ajralib turadi. */
+  --bj-shadow: 0 1px 2px rgba(16, 20, 24, .05), 0 4px 10px -6px rgba(16, 20, 24, .12);
   /* rasm ustidagi matn uchun (kafel/qopqoq) — bular OQ qoladi, chunki fon rasm/gradient.
      AUDIT TOPDI: narx uchun `--bj-tanga` (#b45309) ishlatilardi — u OQ KARTA uchun tanlangan,
      qora-soyali rasm ustida esa ~1.2:1 bo'lib KO'RINMASDI. Rasm ustidagi narx alohida, och-amber. */
@@ -1451,7 +1484,6 @@ body {
   --bj-ink-faint: rgba(16, 20, 24, .42);
   color: var(--bj-ink);
   background: var(--bj-bg-grad);
-  background-attachment: fixed;
   /* Ravella tipografikasi: bir oz siqilgan harflar — matn zichroq va «ilova»roq ko'rinadi */
   letter-spacing: -.011em;
 }
@@ -1469,6 +1501,10 @@ body {
   border-top: none;
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, .8), 0 -2px 30px -18px rgba(20, 26, 24, .55);
 }
+/* ⚡ `.aurora` — fixed, 80vh, `filter: blur(30px)` VA 16s cheksiz scale-animatsiya: blurlangan
+   qatlamni miqyoslash har kadrda qayta rasterlashni talab qiladi, ya'ni ilova hech qachon
+   tinchimaydi. BirJoy temasining o'z fon-gradienti bor — bu qatlam bu yerda ortiqcha. */
+.app.bjm .aurora { display: none; }
 .app.bjm .tab { color: #9aa1aa; }
 .app.bjm .tab.active { color: var(--bj-accent); }
 .app.bjm .tab.active svg { filter: none; }

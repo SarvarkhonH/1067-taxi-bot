@@ -277,7 +277,7 @@
 .app.bjm .shop-price-chip { background: rgba(245, 158, 11, .14); color: var(--bj-tanga); border: 1px solid rgba(245, 158, 11, .28); }
 .app.bjm .shop-price-old { color: var(--bj-ink-dim); }
 .app.bjm .shop-buy-bar { background: var(--bj-hero-grad); color: #ffffff; box-shadow: 0 4px 14px -4px rgba(13, 150, 104, .55); }
-.app.bjm .shop-mini { background: var(--bj-card-solid, #fff); border: none; box-shadow: var(--bj-shadow); }
+.app.bjm .shop-mini { background: var(--bj-card-solid, #fff); border: 1px solid var(--bj-line); box-shadow: var(--bj-shadow); }
 .app.bjm .shop-mini-name { color: var(--bj-ink); }
 .app.bjm .shop-mini-price { color: var(--bj-accent); }
 .app.bjm .shop-section-title { color: var(--bj-ink); }
@@ -504,7 +504,7 @@
 /* 🫧 2-BOSQICH: kafel endi "rasm + tana", matn rasm ustida emas.
    Rasm o'z maydonida (1:1) to'liq ko'rinadi, atrofida 6px nafas — sotuvchi fotolari rang-barang
    fonli (karopka, pol, javon), shuning uchun neytral maydon ularni bir xil tinchlantiradi. */
-.shop-tile { position: relative; display: flex; flex-direction: column; text-align: left; background: var(--bj-card-solid, #fff); border: none; border-radius: 18px; box-shadow: var(--bj-shadow); padding: 0; cursor: pointer; overflow: hidden; transition: transform var(--dur-press) var(--ease-out); }
+.shop-tile { position: relative; display: flex; flex-direction: column; text-align: left; background: var(--bj-card-solid, #fff); border: 1px solid var(--bj-line); border-radius: 18px; box-shadow: var(--bj-shadow); padding: 0; cursor: pointer; overflow: hidden; transition: transform var(--dur-press) var(--ease-out); }
 .shop-tile:active { transform: scale(0.96); }
 .shop-tile-ph { position: relative; aspect-ratio: 1 / 1; margin: 6px 6px 0; border-radius: 13px; overflow: hidden; background: linear-gradient(160deg, rgba(52, 211, 153, .16), rgba(13, 150, 104, .09)); display: flex; align-items: center; justify-content: center; }
 .shop-tile-img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
