@@ -8,8 +8,9 @@
 // imkoniyat yo'qolmaydi.
 // ═══════════════════════════════════════════════════════════════════════════
 import { Suspense, lazy, useEffect, useState } from "react";
-import { adminApi, clearAdminToken } from "../api";
-import { Async, Button, Panel, Spinner, ToastHost } from "../design/kit";
+import { adminApi, clearAdminToken, hasAdminToken } from "../api";
+import { LoginScreen } from "../App";
+import { Button, Panel, Spinner, ToastHost } from "../design/kit";
 import { useRoute } from "../lib/routing";
 import { CommandPalette } from "./CommandPalette";
 import { Shell } from "./Shell";
@@ -64,18 +65,33 @@ export function AdminV2() {
   const route = useRoute();
   const [role, setRole] = useState<string | null>(null);
   const [operatorName, setOperatorName] = useState<string | undefined>();
-  const [err, setErr] = useState<string | null>(null);
+  const [authed, setAuthed] = useState<boolean>(hasAdminToken);
   const [pal, setPal] = useState(false);
 
   useEffect(() => {
+    if (!authed) return;
     adminApi
       .whoami()
       .then((r) => {
         setRole(r.role);
         setOperatorName(r.operatorName);
       })
-      .catch((e) => setErr(e instanceof Error ? e.message : String(e)));
-  }, []);
+      .catch((e) => {
+        // 403 → tokenni tozalab LOGIN ekraniga (qayta yuklash EMAS).
+        // Avval bu yerda `clearAdminToken(); location.reload()` turgan edi va
+        // v2'da login ekrani yo'q edi → 403 → token o'chadi → reload → yana 403
+        // → CHEKSIZ QAYTA YUKLANISH, panel hech qachon ochilmasdi (jonli
+        // o'lchov: localStorage.admin_token === null, sahifa bo'sh).
+        if (e instanceof Error && e.message === "forbidden") {
+          clearAdminToken();
+          setAuthed(false);
+          return;
+        }
+        // Boshqa xato (tarmoq/server) — rolni bilmasak ham panel ISHLAYVERADI;
+        // har ekran o'z xatosini o'zi ko'rsatadi. Butun sahifani bo'shatmaymiz.
+        console.error("[v2] whoami failed:", e);
+      });
+  }, [authed]);
 
   // ⌘K / Ctrl+K — global qidiruv. `/` ham ochadi (input ichida bo'lmasa).
   useEffect(() => {
@@ -93,22 +109,19 @@ export function AdminV2() {
     return () => window.removeEventListener("keydown", onKey);
   }, []);
 
-  if (err === "forbidden") {
-    clearAdminToken();
-    location.reload();
-    return null;
-  }
+  // Token yo'q/yaroqsiz → eski paneldagi AYNAN o'sha login ekrani (qayta
+  // yozilmaydi; v2 ham, v1 ham bir xil kirish oqimidan foydalanadi).
+  if (!authed) return <LoginScreen onAuthed={() => setAuthed(true)} />;
 
   return (
     <ToastHost>
       <Shell role={role} operatorName={operatorName} view={route.view} onOpenPalette={() => setPal(true)}>
-        <Async data={role ?? (err ? null : undefined)} error={err} skeleton={<div className="a2-center"><Spinner large /></div>}>
-          {() => (
-            <Suspense fallback={<div className="a2-center"><Spinner large /></div>}>
-              <Router view={route.view} />
-            </Suspense>
-          )}
-        </Async>
+        {/* Router HAR DOIM render bo'ladi — `whoami` javobini KUTMAYDI.
+            Avval butun kontent `Async data={role}` ichida edi va bitta so'rov
+            yiqilsa yoki sekinlashsa EKRAN BUTUNLAY bo'shab qolardi. */}
+        <Suspense fallback={<div className="a2-center"><Spinner large /></div>}>
+          <Router view={route.view} />
+        </Suspense>
       </Shell>
       <CommandPalette open={pal} onClose={() => setPal(false)} role={role} />
     </ToastHost>

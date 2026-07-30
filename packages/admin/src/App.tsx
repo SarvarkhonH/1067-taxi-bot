@@ -4465,7 +4465,7 @@ function AnalyticsView() {
   );
 }
 
-function LoginScreen({ onAuthed }: { onAuthed: () => void }) {
+export function LoginScreen({ onAuthed }: { onAuthed: () => void }) {
   const [password, setPassword] = useState("");
   const [show, setShow] = useState(false);
   const [busy, setBusy] = useState(false);
