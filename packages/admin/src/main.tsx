@@ -24,7 +24,15 @@ const hash = location.hash.replace(/^#\/?/, "");
 if (hash === "v2" || hash === "v1") {
   if (hash === "v2") localStorage.setItem(UI_KEY, "v2");
   else localStorage.removeItem(UI_KEY);
-  history.replaceState(null, "", location.pathname + (hash === "v2" ? "#/bugun" : ""));
+  // URL'ni chiroyliga almashtirish — FAQAT kosmetika. Ba'zi muhitlarda (sahifa
+  // iframe ichida) bu jimgina ishlamaydi, shuning uchun router `v2`/`v1` ni
+  // ALLAQACHON bosh ekran deb qabul qiladi (lib/routing.ts COMMAND_HASHES) —
+  // ya'ni bu qator ishlamasa ham panel to'g'ri ochiladi.
+  try {
+    history.replaceState(null, "", location.pathname + (hash === "v2" ? "#/bugun" : ""));
+  } catch {
+    /* iframe/sandbox — router baribir to'g'ri ishlaydi */
+  }
 }
 
 const isKit = hash === "kit";

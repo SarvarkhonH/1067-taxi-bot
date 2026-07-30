@@ -45,9 +45,25 @@
 }
 
 /* ── jadval ── */
+/* Gorizontal scroll FAQAT tor ekranda.
+   Sabab (CSS spetsifikatsiyasi): bitta o'q `visible` bo'lmasa, ikkinchisi ham
+   `auto` ga aylanadi — ya'ni `overflow-x: auto` qo'ysak, blok VERTIKAL scroll
+   konteyneriga ham aylanadi va ichidagi `position: sticky` sarlavha SAHIFA
+   scroll'iga emas, shu blokka bog'lanib qoladi → sarlavha yopishmaydi.
+   Desktop (asosiy nishon) da ustunlar sig'adi, shuning uchun u yerda
+   `visible` qoldiriladi va sarlavha to'g'ri yopishadi. */
 .tb-scroll {
-  overflow-x: auto;
-  overflow-y: visible;
+  overflow: visible;
+}
+@media (max-width: 1080px) {
+  .tb-scroll {
+    overflow-x: auto;
+  }
+  /* bu kenglikda sarlavha baribir yopishmaydi (yuqoridagi sabab) — uni
+     yopishqoq qilib ko'rsatib, aslida ishlamasligidan ko'ra ochiq qoldiramiz */
+  .tb thead th {
+    position: static;
+  }
 }
 .tb {
   width: 100%;
