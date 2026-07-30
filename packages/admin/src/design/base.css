@@ -242,3 +242,12 @@ svg {
     grid-template-columns: minmax(0, 1fr);
   }
 }
+
+/* Ikkilamchi ustun/blok — tor ekranda yashiriladi (jadval ustunlari uchun:
+   `Column.hideSmall`). Ma'lumot YO'QOLMAYDI — u drill-down panelida va CSV
+   eksportda qoladi, faqat tor ekranda o'rin band qilmaydi. */
+@media (max-width: 900px) {
+  .a2-hide-sm {
+    display: none;
+  }
+}

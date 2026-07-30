@@ -18,10 +18,12 @@ import "../design/base.css";
 import "../design/feat/kit.css";
 import "../design/feat/chart.css";
 import "../design/feat/shell.css";
+import "../design/feat/table.css";
 
 // Ekranlar lazy — har biri o'z chunk'ida (33 ekranni bitta bundle'ga
 // yig'ish eski panelning muammosi edi: 406KB bitta fayl).
 const Bugun = lazy(() => import("./views/Bugun").then((m) => ({ default: m.Bugun })));
+const Odamlar = lazy(() => import("./views/Odamlar").then((m) => ({ default: m.Odamlar })));
 
 /** Hali ko'chirilmagan ekranlar uchun halol placeholder — "tayyor" ko'rinib
  *  turmasin. Reja bo'yicha 5-11 qadamlarda to'ldiriladi. */
@@ -52,6 +54,7 @@ function Todo({ view }: { view: string }) {
 
 function Router({ view }: { view: string }) {
   if (view === "bugun") return <Bugun />;
+  if (view === "odamlar") return <Odamlar />;
   return <Todo view={view} />;
 }
 

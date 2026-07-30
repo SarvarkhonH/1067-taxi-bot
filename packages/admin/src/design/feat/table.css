@@ -1,0 +1,198 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   BirJoy Admin v2 — DATATABLE
+   Eski panelda 0 ta saralanadigan jadval bor edi; ustunlar inline stil bilan
+   qo'lda yasalardi. Bu yerda: yopishqoq sarlavha · saralash · qidiruv · filtr ·
+   sahifalash · ko'p-tanlov + ommaviy amal · CSV · qator→drill-down.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.tb-wrap {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+/* ── asboblar qatori (filtrlar BITTA qatorda, jadval ustida) ── */
+.tb-tools {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+  flex-wrap: wrap;
+  padding: var(--s-3) var(--s-4);
+  border-bottom: 1px solid var(--line);
+}
+.tb-count {
+  font-size: var(--fs-12);
+  color: var(--text-3);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+/* ── ommaviy amal paneli (tanlov bo'lganda asboblar o'rnini egallaydi) ── */
+.tb-bulk {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+  flex-wrap: wrap;
+  padding: var(--s-2) var(--s-4);
+  background: var(--brand-soft);
+  border-bottom: 1px solid var(--brand-line);
+}
+.tb-bulk-n {
+  font-size: var(--fs-13);
+  font-weight: var(--fw-bold);
+  color: var(--brand-ink);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ── jadval ── */
+.tb-scroll {
+  overflow-x: auto;
+  overflow-y: visible;
+}
+.tb {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  font-size: var(--fs-13);
+  font-variant-numeric: tabular-nums; /* ustunlar bo'ylab raqamlar tekis */
+}
+
+.tb thead th {
+  position: sticky;
+  top: var(--topbar-h); /* tepa panel ostiga yopishadi */
+  z-index: var(--z-sticky);
+  background: var(--surface-2);
+  border-bottom: 1px solid var(--line-2);
+  padding: 0 var(--s-3);
+  height: 34px;
+  text-align: left;
+  white-space: nowrap;
+  font-size: var(--fs-11);
+  font-weight: var(--fw-bold);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-3);
+}
+.tb th.tb-num,
+.tb td.tb-num {
+  text-align: right;
+}
+.tb th.tb-mid,
+.tb td.tb-mid {
+  text-align: center;
+}
+
+/* saralanadigan sarlavha — butun katak bosiladi */
+.tb-sort {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  width: 100%;
+  height: 100%;
+  color: inherit;
+  font: inherit;
+  letter-spacing: inherit;
+  text-transform: inherit;
+  transition: color var(--dur-fast) var(--ease);
+}
+.tb th.tb-num .tb-sort {
+  justify-content: flex-end;
+}
+.tb-sort:hover {
+  color: var(--text);
+}
+.tb-sort-on {
+  color: var(--brand-ink);
+}
+.tb-caret {
+  font-size: 9px;
+  opacity: 0.9;
+}
+
+.tb tbody td {
+  height: var(--row-h);
+  padding: 0 var(--s-3);
+  border-bottom: 1px solid var(--line);
+  vertical-align: middle;
+  max-width: 320px;
+  overflow-wrap: anywhere;
+}
+.tb-dense tbody td {
+  height: var(--row-h-dense);
+}
+.tb tbody tr:last-child td {
+  border-bottom: 0;
+}
+.tb tbody tr {
+  transition: background var(--dur-fast) var(--ease);
+}
+.tb-clickable tbody tr {
+  cursor: pointer;
+}
+.tb tbody tr:hover {
+  background: var(--surface-2);
+}
+.tb tbody tr[aria-selected="true"] {
+  background: var(--brand-soft);
+}
+/* diqqat talab qiladigan qator (tiqilib qolgan buyurtma, bloklangan a'zo) */
+.tb tbody tr.tb-row-bad td {
+  box-shadow: inset 2px 0 0 var(--bad);
+}
+.tb tbody tr.tb-row-warn td {
+  box-shadow: inset 2px 0 0 var(--warn);
+}
+
+.tb-check {
+  width: 34px;
+  padding-left: var(--s-3);
+}
+.tb-check input {
+  width: 14px;
+  height: 14px;
+  accent-color: var(--brand);
+  cursor: pointer;
+}
+
+/* asosiy ustun — drill-down havolasi */
+.tb-main {
+  font-weight: var(--fw-semi);
+  color: var(--text);
+}
+.tb-sub {
+  font-size: var(--fs-11);
+  color: var(--text-3);
+  margin-top: 1px;
+}
+
+/* ── sahifalash ── */
+.tb-foot {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+  padding: var(--s-2) var(--s-4);
+  border-top: 1px solid var(--line);
+}
+.tb-page {
+  font-size: var(--fs-12);
+  color: var(--text-3);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+/* ── skeleton ── */
+.tb-sk td {
+  padding: var(--s-2) var(--s-3);
+}
+
+@media (max-width: 720px) {
+  .tb thead th {
+    top: 0; /* telefonda tepa panel yopishmaydi */
+  }
+  .tb-tools,
+  .tb-foot,
+  .tb-bulk {
+    padding-left: var(--s-3);
+    padding-right: var(--s-3);
+  }
+}
