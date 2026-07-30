@@ -24,6 +24,7 @@ import "../design/feat/table.css";
 // yig'ish eski panelning muammosi edi: 406KB bitta fayl).
 const Bugun = lazy(() => import("./views/Bugun").then((m) => ({ default: m.Bugun })));
 const Odamlar = lazy(() => import("./views/Odamlar").then((m) => ({ default: m.Odamlar })));
+const Jonli = lazy(() => import("./views/Jonli").then((m) => ({ default: m.Jonli })));
 
 /** Hali ko'chirilmagan ekranlar uchun halol placeholder — "tayyor" ko'rinib
  *  turmasin. Reja bo'yicha 5-11 qadamlarda to'ldiriladi. */
@@ -55,6 +56,7 @@ function Todo({ view }: { view: string }) {
 function Router({ view }: { view: string }) {
   if (view === "bugun") return <Bugun />;
   if (view === "odamlar") return <Odamlar />;
+  if (view === "jonli") return <Jonli />;
   return <Todo view={view} />;
 }
 
