@@ -4967,3 +4967,29 @@ valid 🚀 · zaxira `111/111` → keyin `91/91` · `/health` ok · `bot1067` ac
 
 **Holat:** `ready for verification` — ega telefonda tekshiradi (Mini App 4 tab + botdan real
 buyurtma). Kod tomoni to'liq isbotlangan; foydalanuvchiga ko'rinadigan qism ega sinovini kutadi.
+---
+
+## 2026-07-31 — 👔 JAMOA J1: hisob-yadro + sxema + flag (JAMOA_PLAN.md)
+
+**Holat: ready for verification** (ega tasdig'i bilan J1 boshlangan edi; J2 bot-oqim boshlanmagan)
+
+Nima qilindi (hammasi kod-tomonda, DB'ga tegilmagan):
+- `packages/shared/src/staff.ts` — SOF pul-matematika: `computeDayPay` + stavka/ish-kun
+  yordamchilari. Qoidalar: grace (10 daq), 5-daq yaxlitlash, tushlik (≥6 soatda 60 daq),
+  kechikish = kelgan vaqtdan, kunlik stavkadan oshmaydi (overtime faqat siyosat bilan:
+  off/qolda/avto ×1.5), kun holatlari (ishladi/kelmadi/javobli/kasallik/tatil/bayram),
+  3 maosh turi (oylik — haqiqiy yoki qat'iy-26 bo'luvchi / kunlik / soatlik), yarim tunga
+  o'tuvchi smena. Tanga/CoinTxn'ga ALOQASI YO'Q — real so'm.
+- `packages/shared/src/__tests__/staff.test.ts` — 33 test, hammasi yashil (jami suite 75/75).
+  Typecheck shared+server yashil.
+- `packages/server/prisma/schema.prisma` — +4 model: Organization (korxona-default siyosat,
+  multi-tenant kun-1'dan — B2B §4), Employee (xodim + null=meros sozlamalar + openingBalance),
+  WorkSession (`@@unique([employeeId,date])` — qayta-hisob xavfsiz), StaffLedger
+  (`idempotencyKey @unique`, earn: `staffearn:<sessionId>`). `prisma validate` yashil.
+  ⚠️ **VPS'da `db push` HALI QILINMAGAN** — J2 kodi push'idan OLDIN alohida ongli qadam.
+- `featureFlags.ts` — `jamoa` flag qo'shildi, DEFAULT_OFF (DARK until owner QABUL).
+
+Isbot: `pnpm vitest run` → 3 files, 75 passed · `tsc --noEmit` (shared, server) toza ·
+`prisma validate` → "schema is valid".
+Qoldi: J2 (bot Keldim/Ketdim) → J3 (admin Jamoa tab) → J4 (kechki tasdiqlash) → J5 (eski
+oyliklar + hisobot). Har biri alohida DoD bilan.

@@ -1712,3 +1712,102 @@ model RavellaStoryView {
   @@unique([storyId, memberId]) // bir a'zo — bir ko'rish; halqa holati shundan hisoblanadi
   @@index([memberId])
 }
+
+// ============================== 👔 JAMOA (JAMOA_PLAN.md) ==============================
+// Staff attendance + payroll. REAL so'm accounting — fully separate from the tanga
+// economy (CoinTxn untouched). Multi-tenant from day 1: org #1 = the owner's own
+// office; a future Ravella-style tenant is just a new Organization row (B2B §4).
+
+// Org-level policy DEFAULTS; any null field on Employee inherits from here.
+model Organization {
+  id                Int        @id @default(autoincrement())
+  name              String
+  ownerTelegramId   String // who manages this org's staff (owner gets the daily summary)
+  plan              String     @default("free") // free | pro (B2B pricing later)
+  active            Boolean    @default(true)
+  divisorMode       String     @default("haqiqiy") // oylik→kunlik: real workdays | "qatiy"
+  fixedDivisor      Int        @default(26)
+  graceMin          Int        @default(10)
+  roundMin          Int        @default(5)
+  lunchMin          Int        @default(60)
+  lunchPaid         Boolean    @default(false)
+  lunchThresholdMin Int        @default(360) // deduct lunch only when worked >= 6h
+  overtimeMode      String     @default("off") // off | qolda | avto
+  overtimeMult      Float      @default(1.5)
+  sickPct           Int        @default(0)
+  vacationPct       Int        @default(100)
+  holidayPaid       Boolean    @default(true)
+  workDays          String     @default("123456") // 1=Du ... 7=Ya
+  shiftStart        String     @default("09:00")
+  shiftEnd          String     @default("18:00")
+  holidays          Json? // ["2027-03-21", ...] org holiday calendar
+  shiftTemplates    Json? // [{name:"Ofis 09-18",start:"09:00",end:"18:00"}, ...]
+  createdAt         DateTime   @default(now())
+  employees         Employee[]
+}
+
+model Employee {
+  id             Int           @id @default(autoincrement())
+  orgId          Int
+  telegramId     String        @unique // bot "Keldim/Ketdim" gate — one job per account
+  name           String
+  role           String        @default("") // "operator", ...
+  active         Boolean       @default(true)
+  payType        String        @default("oylik") // oylik | kunlik | soatlik
+  monthlySalary  Int           @default(0) // so'm (payType oylik)
+  dailyRate      Int           @default(0) // so'm (payType kunlik)
+  hourlyRate     Int           @default(0) // so'm (payType soatlik)
+  // null = inherit the org default (JAMOA_PLAN §5 hierarchy):
+  shiftStart     String?
+  shiftEnd       String?
+  workDays       String?
+  graceMin       Int?
+  lunchMin       Int?
+  openingBalance Int           @default(0) // eski oylik/qarz — J5 import lands here
+  vacationDaysYr Int           @default(15)
+  createdAt      DateTime      @default(now())
+  org            Organization  @relation(fields: [orgId], references: [id])
+  sessions       WorkSession[]
+  ledger         StaffLedger[]
+
+  @@index([orgId, active])
+}
+
+// One employee-day. date = Asia/Tashkent calendar day "YYYY-MM-DD" (string, no TZ traps).
+model WorkSession {
+  id            Int       @id @default(autoincrement())
+  employeeId    Int
+  date          String // "2026-07-31" Tashkent-local
+  dayStatus     String    @default("ishladi") // ishladi|kelmadi|javobli|kasallik|tatil|bayram
+  checkIn       DateTime?
+  checkOut      DateTime?
+  shiftStartOvr String? // day-level shift override ("to'y 16:00-24:00")
+  shiftEndOvr   String?
+  minutesWorked Int       @default(0) // computeDayPay output, denormalized for lists
+  overtimeMin   Int       @default(0)
+  amountEarned  Int       @default(0) // so'm — mirrors the "earn" StaffLedger row
+  autoClosed    Boolean   @default(false) // "Ketdim" forgotten → closed at shift end
+  confirmedAt   DateTime? // owner's daily "Tasdiqlash"
+  editedBy      String? // telegramId of the admin who hand-edited times (audit)
+  createdAt     DateTime  @default(now())
+  employee      Employee  @relation(fields: [employeeId], references: [id])
+
+  @@unique([employeeId, date]) // one day — one session (recompute-safe)
+  @@index([date])
+}
+
+// Cash ledger: + accruals, − payouts. Balance = openingBalance + sum(earn|bonus|adjust) − sum(payout).
+model StaffLedger {
+  id             Int      @id @default(autoincrement())
+  employeeId     Int
+  kind           String // earn | payout | bonus | adjust
+  amount         Int // so'm, always positive; kind decides the sign
+  note           String? // MAJBURIY for bonus/jarima (service enforces)
+  sessionId      Int? // earn rows point at their WorkSession
+  idempotencyKey String   @unique // earn: "staffearn:<sessionId>" — recompute never double-writes
+  createdBy      String // telegramId of the actor (owner/admin/system)
+  createdAt      DateTime @default(now())
+  employee       Employee @relation(fields: [employeeId], references: [id])
+
+  @@index([employeeId, createdAt])
+}
