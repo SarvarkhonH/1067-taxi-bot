@@ -21,7 +21,7 @@ async function main() {
   const emp = await prisma.employee.upsert({
     where: { telegramId: tgId },
     create: { orgId: org.id, telegramId: tgId, name, role, monthlySalary: Number(salary) },
-    update: { name, role, monthlySalary: Number(salary), active: true },
+    update: { orgId: org.id, name, role, monthlySalary: Number(salary), active: true },
   });
   console.log(`✓ Employee #${emp.id} ${emp.name} (${emp.role}) — ${emp.monthlySalary.toLocaleString()} so'm/oy, org #${org.id}`);
   console.log(`Endi: flag yoqilmagan bo'lsa — npx tsx src/scripts/setFlag.ts jamoa on · xodim botda /ish yozadi`);

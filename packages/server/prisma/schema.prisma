@@ -1797,7 +1797,8 @@ model WorkSession {
   @@index([date])
 }
 
-// Cash ledger: + accruals, − payouts. Balance = openingBalance + sum(earn|bonus|adjust) − sum(payout).
+// Cash ledger: + accruals, − payouts. Balance = openingBalance + sum(earn|bonus) − sum(payout|adjust).
+// "adjust" = MINUS-korreksiya/jarima (izoh majburiy); yuqoriga tuzatish = "bonus". staffService bilan bir xil.
 model StaffLedger {
   id             Int      @id @default(autoincrement())
   employeeId     Int

@@ -46,6 +46,10 @@ function fmt(n: number): string {
   return n.toLocaleString("ru-RU").replace(/,/g, " ");
 }
 
+function esc(s: string): string {
+  return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+}
+
 function ymd(date: string): [number, number, number] {
   const p = date.split("-").map(Number);
   return [p[0] ?? 0, p[1] ?? 1, p[2] ?? 1];
@@ -65,6 +69,22 @@ export async function staffCheckIn(telegramId: string, now = new Date()): Promis
   if (existing?.checkIn) {
     const at = minutesSinceTashkentMidnight(existing.checkIn, t.date);
     return { ok: true, text: `Bugun allaqachon ${hhmm(at)} da kelgansiz. Ketishda "🏁 Ketdim" bosing.` };
+  }
+  // Past-midnight arrival for YESTERDAY's night shift (to'y 16:00–00:30, employee
+  // taps Keldim at 00:10): the check-in belongs to yesterday's overridden row, not
+  // to a fresh today-session under the default 09:00–18:00 policy (→ 0 so'm ghost).
+  if (!existing) {
+    const yDate = tashkentDayMinutes(new Date(now.getTime() - 86_400_000)).date;
+    const prev = await prisma.workSession.findUnique({ where: { employeeId_date: { employeeId: emp.id, date: yDate } } });
+    if (prev && !prev.checkIn && !prev.checkOut) {
+      const ppol = policyFor(emp, prev);
+      const pstart = hhmmToMin(ppol.shiftStart);
+      const pend = hhmmToMin(ppol.shiftEnd);
+      if (pend <= pstart && minutesSinceTashkentMidnight(now, yDate) < pend + 1440 + 60) {
+        await prisma.workSession.update({ where: { id: prev.id }, data: { dayStatus: "ishladi", checkIn: now } });
+        return { ok: true, text: `✅ Keldingiz: <b>${hhmm(t.minutes)}</b> · Kechagi ${ppol.shiftStart}–${ppol.shiftEnd} smenaga yozildi.` };
+      }
+    }
   }
   const pol = policyFor(emp, existing ?? undefined);
   const [y, m, d] = ymd(t.date);
@@ -174,12 +194,12 @@ export async function staffMyAccount(telegramId: string, now = new Date()): Prom
   const balance = emp.openingBalance + plus - minus;
   const lastPayouts = ledger.filter((l) => l.kind === "payout").slice(0, 3);
   const payoutLines = lastPayouts.length
-    ? "\n\nOxirgi to'lovlar:\n" + lastPayouts.map((l) => `− ${fmt(l.amount)} so'm ${l.note ? `(${l.note})` : ""} · ${l.createdAt.toISOString().slice(0, 10)}`).join("\n")
+    ? "\n\nOxirgi to'lovlar:\n" + lastPayouts.map((l) => `− ${fmt(l.amount)} so'm ${l.note ? `(${esc(l.note)})` : ""} · ${tashkentDayMinutes(l.createdAt).date}`).join("\n")
     : "";
   return {
     ok: true,
     text:
-      `📊 <b>${emp.name}</b> — ${monthPrefix}\n` +
+      `📊 <b>${esc(emp.name)}</b> — ${monthPrefix}\n` +
       `Ishlagan: <b>${worked.length} kun</b> · ${Math.floor(monthMin / 60)} soat ${monthMin % 60} daq\n` +
       `Shu oy hisoblangan: <b>${fmt(monthEarn)} so'm</b>\n` +
       `💰 Umumiy qoldiq: <b>${fmt(balance)} so'm</b>` +
@@ -197,7 +217,7 @@ export async function staffAutoCloseOverdue(now = new Date()): Promise<number> {
   });
   let closed = 0;
   for (const s of open) {
-    if (!s.employee.active) continue;
+    if (!s.employee.active || !s.employee.org.active) continue;
     const pol = policyFor(s.employee as EmployeeWithOrg, s);
     const start = hhmmToMin(pol.shiftStart);
     let end = hhmmToMin(pol.shiftEnd);
