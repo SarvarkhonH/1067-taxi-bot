@@ -375,6 +375,89 @@ export async function staffAdminOrgs() {
   return orgs.map((o) => ({ ...o, calendar: (o.calendar as StaffCalendar | null) ?? {} }));
 }
 
+// ---------------------------------------------------------------------------
+// 📄 J5 — oy-oxiri hisobot + eski oyliklarni ommaviy kiritish
+// ---------------------------------------------------------------------------
+
+/** Month-end payroll sheet: one row per employee — days/hours, earned, bonus,
+ *  jarima, paid out (all Tashkent-month scoped) + the ALL-TIME running balance. */
+export async function staffAdminMonthReport(orgId: number, month: string) {
+  const m = /^(\d{4})-(\d{2})$/.exec(month) ? month : tashkentDayMinutes(new Date()).date.slice(0, 7);
+  const org = await prisma.organization.findUnique({ where: { id: orgId }, include: { employees: { orderBy: { name: "asc" } } } });
+  if (!org) return null;
+  // Toshkent oyining [boshi, keyingi oy boshi) UTC oralig'i — ledger createdAt filtri uchun.
+  const [yy, mm] = m.split("-").map(Number) as [number, number];
+  const from = tkInstant(`${m}-01`, 0);
+  const nextM = mm === 12 ? `${yy + 1}-01` : `${yy}-${String(mm + 1).padStart(2, "0")}`;
+  const to = tkInstant(`${nextM}-01`, 0);
+  const rows = [];
+  for (const e of org.employees) {
+    const [sessions, ledgerM, bal] = await Promise.all([
+      prisma.workSession.findMany({ where: { employeeId: e.id, date: { startsWith: m } } }),
+      prisma.staffLedger.groupBy({ by: ["kind"], where: { employeeId: e.id, createdAt: { gte: from, lt: to } }, _sum: { amount: true } }),
+      balanceOf(e.id, e.openingBalance),
+    ]);
+    const sum = (kind: string) => ledgerM.find((g) => g.kind === kind)?._sum.amount ?? 0;
+    const worked = sessions.filter((s) => s.dayStatus === "ishladi" && s.minutesWorked > 0);
+    rows.push({
+      id: e.id,
+      name: e.name,
+      role: e.role,
+      active: e.active,
+      daysWorked: worked.length,
+      minutes: worked.reduce((a, s) => a + s.minutesWorked, 0),
+      overtimeMin: sessions.reduce((a, s) => a + s.overtimeMin, 0),
+      absent: sessions.filter((s) => s.dayStatus === "kelmadi").length,
+      statusDays: sessions.filter((s) => !["ishladi", "kelmadi"].includes(s.dayStatus)).length, // javobli/kasallik/tatil/bayram
+      earned: sessions.reduce((a, s) => a + s.amountEarned, 0),
+      bonus: sum("bonus"),
+      jarima: sum("adjust"),
+      paidOut: sum("payout"),
+      unconfirmed: sessions.filter((s) => !s.confirmedAt).length,
+      openingBalance: e.openingBalance,
+      balance: bal.balance, // umumiy joriy qoldiq (oy emas — "qancha puli bor" savoliga javob)
+    });
+  }
+  return { org: { id: org.id, name: org.name }, month: m, rows };
+}
+
+/** 📥 Bulk import: "telegramId ; Ism ; oylik ; eskiBalans [; rol]" per line.
+ *  Upsert by telegramId — safe to re-paste the same list (openingBalance updated,
+ *  NOT summed). Returns per-line results so the owner sees exactly what happened. */
+export async function staffAdminBulkImport(orgId: number, textRaw: string): Promise<{ ok: boolean; error?: string; results?: { line: string; ok: boolean; info: string }[] }> {
+  const org = await prisma.organization.findUnique({ where: { id: orgId } });
+  if (!org) return { ok: false, error: "Korxona topilmadi" };
+  const lines = textRaw.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
+  if (!lines.length) return { ok: false, error: "Bo'sh ro'yxat" };
+  if (lines.length > 200) return { ok: false, error: `${lines.length} qator — 200 tadan ko'p, bo'lib yuboring (jim qirqish yo'q)` };
+  const results = [];
+  for (const line of lines) {
+    // Minglik vergullar ("3,000,000") avval yopishtiriladi — aks holda pastdagi split
+    // raqam ICHIDA bo'linib, 3 so'mlik oylik jimgina yozilardi (tekshiruv Bug 1).
+    const norm = line.replace(/(\d),(?=\d{3}(\D|$))/g, "$1");
+    const p = norm.split(/[;\t]|,(?=\s*[-\d])/).map((s) => s.trim()); // vergul faqat raqam oldida ajratadi (ismda vergul bo'lsa buzilmasin)
+    const [tgId, name, salaryRaw, openRaw, role] = [p[0] ?? "", p[1] ?? "", p[2] ?? "", p[3] ?? "0", p[4] ?? ""];
+    const salary = Number(salaryRaw.replace(/[\s']/g, ""));
+    const opening = Number((openRaw || "0").replace(/[\s']/g, ""));
+    if (p.length > 5 || !/^\d{5,15}$/.test(tgId) || !name || !Number.isFinite(salary) || salary <= 0 || salary > 1_000_000_000 || !Number.isFinite(opening) || Math.abs(opening) > 1_000_000_000) {
+      results.push({ line, ok: false, info: "format: telegramId ; Ism ; oylik ; eskiBalans [; rol]" });
+      continue;
+    }
+    try {
+      const e = await prisma.employee.upsert({
+        where: { telegramId: tgId },
+        create: { orgId, telegramId: tgId, name, role: role || "operator", monthlySalary: Math.round(salary), openingBalance: Math.round(opening) },
+        // orgId ham yangilanadi — tanlangan korxona bilan natija bir xil bo'lsin (staffAdd Bug 7 saboqni takrorlamaymiz)
+        update: { orgId, name, monthlySalary: Math.round(salary), openingBalance: Math.round(opening), active: true, ...(role ? { role } : {}) },
+      });
+      results.push({ line, ok: true, info: `#${e.id} ${name} — ${Math.round(salary).toLocaleString()} so'm/oy, boshlang'ich ${Math.round(opening).toLocaleString()}` });
+    } catch (err) {
+      results.push({ line, ok: false, info: "yozilmadi: " + (err instanceof Error ? err.message.slice(0, 80) : "xato") });
+    }
+  }
+  return { ok: true, results };
+}
+
 /** Month-calendar day toggle: set "ish"|"dam"|"bayram" or null (back to weekly default). */
 export async function staffAdminCalendarSet(orgId: number, date: string, kind: StaffDayKind | null): Promise<{ ok: boolean; error?: string }> {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return { ok: false, error: "Sana noto'g'ri" };

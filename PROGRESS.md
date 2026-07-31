@@ -5053,3 +5053,26 @@ oyliklar + hisobot). Har biri alohida DoD bilan.
   sessiya "hali ishda" ko'rinadi, tasdiqlanmaydi — to'g'ri, lekin org-sozlanmasi V2 ga);
   ~55+ xodimda 4096-belgi limiti (chunking kerak bo'ladi); kechqurun yuborilmasa o'sha kun
   xulosasi qayta yuborilmaydi (ma'lumot panelda turadi).
+
+### 2026-07-31 — 👔 JAMOA J5: oy-oxiri hisobot + eski oyliklar importi
+
+**Holat: ready for verification (kod-daraja; egadagi raqamlar bilan solishtirish deploy'dan keyin)**
+- `staffAdminMonthReport`: har xodim — ish kun/soat/OT, kelmadi, hisoblangan, bonus, jarima,
+  berilgan (hammasi Toshkent-oy oynasida; yil o'tishi to'g'ri), tasdiqsiz soni + UMUMIY qoldiq
+  (balanceOf — xodim sahifasi bilan AYNAN bir funksiya, farq bo'lishi mumkin emas).
+- `staffAdminBulkImport`: "TelegramID ; Ism ; oylik ; eskiBalans [; rol]" — qator-by-qator
+  natija; TelegramID bo'yicha upsert (qayta yopishtirish xavfsiz, openingBalance YANGILANADI).
+- UI: «📄 Oylik hisobot» (org+oy tanlash, JAMI qatori, ⬇️ CSV — BOM bilan, Excel ochadi) va
+  «📥 Eski oyliklar» (textarea import, yashil/qizil natijalar).
+- Routes: report GET + import POST (rateLimit 10) — requireAdmin+requireOwner (server.ts tree'da).
+- Mustaqil tekshiruv (R4): 3 bug topildi, BARI tuzatildi: minglik-vergul ("3,000,000" → 3 so'm
+  bo'lib yozilardi — endi normalizatsiya + ustun-soni tekshiruvi), import update-branch orgId
+  (staffAdd Bug7 ning aynan o'zi), >200 qator jim qirqilardi (endi aniq rad). Minorlar: 1e9 cap
+  importda ham, hisobot xato-holati ("Yuklanmoqda" abadiy emas), eski-javob guard, reaktivatsiya
+  haqida UI ogohlantirish.
+- Isbot: typecheck server+admin toza · admin build ✓ · shared 90/90.
+
+**JAMOA J1–J5 KOD TOMONI TUGADI.** Jonli qilish checklisti (kod main'ga qo'shilgach, VPS'da):
+1) `prisma migrate diff` O'QISH → `db push` (4 yangi jadval) 2) deploy 3) `staffAdd.ts` yoki
+panel-import bilan xodimlar 4) `setFlag.ts jamoa on` (alert) 5) ega: telefonda /ish + panelda
+Jamoa tab + kechki xulosa → QABUL. Flag DEFAULT_OFF — QABULgacha hech kimga ko'rinmaydi.

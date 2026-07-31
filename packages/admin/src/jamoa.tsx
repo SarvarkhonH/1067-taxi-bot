@@ -36,6 +36,13 @@ export interface EmpDetail {
   ledger: { id: number; kind: string; amount: number; note: string | null; date: string; createdBy: string }[];
   totals: { monthEarned: number; plus: number; minus: number; balance: number; openingBalance: number };
 }
+export interface MonthReportRow {
+  id: number; name: string; role: string; active: boolean;
+  daysWorked: number; minutes: number; overtimeMin: number; absent: number; statusDays: number;
+  earned: number; bonus: number; jarima: number; paidOut: number; unconfirmed: number;
+  openingBalance: number; balance: number;
+}
+export interface MonthReport { org: { id: number; name: string }; month: string; rows: MonthReportRow[] }
 export interface OrgRow {
   id: number; name: string; ownerTelegramId: string; active: boolean;
   divisorMode: string; fixedDivisor: number; graceMin: number; roundMin: number;
@@ -63,6 +70,8 @@ export function JamoaAdminView() {
   const [openEmp, setOpenEmp] = useState<number | null>(null);
   const [showSettings, setShowSettings] = useState(false);
   const [showAdd, setShowAdd] = useState(false);
+  const [showReport, setShowReport] = useState(false);
+  const [showImport, setShowImport] = useState(false);
   const [msg, setMsg] = useState("");
   const flash = (t: string) => { setMsg(t); setTimeout(() => setMsg(""), 3000); };
 
@@ -81,12 +90,16 @@ export function JamoaAdminView() {
         <EmpDetailView empId={openEmp} onBack={() => { setOpenEmp(null); load(); }} flash={flash} />
       ) : (
         <>
-          <div className="adm-toolbar" style={{ display: "flex", gap: 8, marginBottom: 12 }}>
+          <div className="adm-toolbar" style={{ display: "flex", gap: 8, marginBottom: 12, flexWrap: "wrap" }}>
             <button className="btn" onClick={() => setShowAdd((s) => !s)}>➕ Xodim qo'shish</button>
             <button className="btn" onClick={() => setShowSettings((s) => !s)}>⚙️ Korxona sozlamalari va taqvim</button>
+            <button className="btn" onClick={() => setShowReport((s) => !s)}>📄 Oylik hisobot</button>
+            <button className="btn" onClick={() => setShowImport((s) => !s)}>📥 Eski oyliklar (import)</button>
           </div>
           {showAdd && <AddEmpForm orgs={orgs} onDone={() => { setShowAdd(false); load(); flash("✅ Xodim saqlandi"); }} flash={flash} />}
           {showSettings && <OrgSettings orgs={orgs} onChanged={() => { adminApi.staffOrgs().then((r) => setOrgs(r.orgs)).catch(() => undefined); }} flash={flash} />}
+          {showReport && <MonthReportView orgs={orgs} />}
+          {showImport && <BulkImportView orgs={orgs} onDone={load} />}
           {roster.orgs.map((org) => (
             <div key={org.id} className="panel" style={{ marginBottom: 16 }}>
               <div className="panel-head"><div className="panel-title">🏢 {org.name}{!org.active && " (o'chirilgan)"} — {roster.today}</div></div>
@@ -114,6 +127,120 @@ export function JamoaAdminView() {
             </div>
           ))}
         </>
+      )}
+    </div>
+  );
+}
+
+// ── 📄 J5: oy-oxiri hisobot (CSV bilan) ──
+function MonthReportView({ orgs }: { orgs: OrgRow[] }) {
+  const now = new Date();
+  const [orgId, setOrgId] = useState<number>(orgs[0]?.id ?? 0);
+  const [month, setMonth] = useState(`${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`);
+  const [rep, setRep] = useState<MonthReport | null>(null);
+  const [err, setErr] = useState(false);
+  useEffect(() => {
+    let stale = false; // tez oy almashtirishda eski javob keyin kelib ustiga yozmasin
+    setErr(false);
+    if (orgId) adminApi.staffReport(orgId, month).then((r) => { if (!stale) setRep(r); }).catch(() => { if (!stale) { setRep(null); setErr(true); } });
+    return () => { stale = true; };
+  }, [orgId, month]);
+  const shift = (delta: number) => {
+    const [y, m] = month.split("-").map(Number);
+    const nd = new Date(Date.UTC(y ?? 2026, (m ?? 1) - 1 + delta, 1));
+    setMonth(`${nd.getUTCFullYear()}-${String(nd.getUTCMonth() + 1).padStart(2, "0")}`);
+  };
+  const csv = () => {
+    if (!rep) return;
+    const head = "Xodim;Lavozim;Ish kun;Soat;Kelmadi;Hisoblangan;Bonus;Jarima;Berilgan;Boshlang'ich;QOLDIQ";
+    const lines = rep.rows.map((r) =>
+      [r.name, r.role, r.daysWorked, `${Math.floor(r.minutes / 60)}:${String(r.minutes % 60).padStart(2, "0")}`, r.absent, r.earned, r.bonus, r.jarima, r.paidOut, r.openingBalance, r.balance]
+        .map((v) => String(v).replace(/;/g, ",")).join(";")
+    );
+    const blob = new Blob(["﻿" + [head, ...lines].join("\r\n")], { type: "text/csv;charset=utf-8" });
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = `jamoa-${rep.org.name}-${rep.month}.csv`;
+    a.click();
+    URL.revokeObjectURL(a.href);
+  };
+  const T = rep?.rows.reduce((a, r) => ({ earned: a.earned + r.earned, bonus: a.bonus + r.bonus, jarima: a.jarima + r.jarima, paidOut: a.paidOut + r.paidOut, balance: a.balance + r.balance }), { earned: 0, bonus: 0, jarima: 0, paidOut: 0, balance: 0 });
+  return (
+    <div className="panel" style={{ marginBottom: 12 }}>
+      <div className="panel-head" style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+        {orgs.length > 1 && <select className="inp" value={orgId} onChange={(e) => setOrgId(Number(e.target.value))}>{orgs.map((o) => <option key={o.id} value={o.id}>{o.name}</option>)}</select>}
+        <button className="btn" onClick={() => shift(-1)}>←</button>
+        <div className="panel-title">📄 {month}</div>
+        <button className="btn" onClick={() => shift(1)}>→</button>
+        <button className="btn" style={{ marginLeft: "auto" }} onClick={csv} disabled={!rep}>⬇️ CSV</button>
+      </div>
+      {err ? <div className="alert alert-red">Hisobot yuklanmadi — tarmoqni tekshirib qayta urining</div> : !rep ? <div className="card">Yuklanmoqda…</div> : (
+        <div className="table-wrap">
+          <table>
+            <thead><tr><th>Xodim</th><th>Kun</th><th>Soat</th><th>Kelmadi</th><th>Hisoblangan</th><th>Bonus</th><th>Jarima</th><th>Berilgan</th><th>QOLDIQ</th></tr></thead>
+            <tbody>
+              {rep.rows.map((r) => (
+                <tr key={r.id} style={{ opacity: r.active ? 1 : 0.5 }}>
+                  <td className="td-name">{r.name}{r.unconfirmed > 0 && <span className="badge badge-warn" style={{ marginLeft: 6 }}>{r.unconfirmed} tasdiqsiz</span>}<div className="td-sub muted">{r.role}</div></td>
+                  <td>{r.daysWorked}{r.statusDays ? ` (+${r.statusDays})` : ""}</td>
+                  <td>{Math.floor(r.minutes / 60)}:{String(r.minutes % 60).padStart(2, "0")}{r.overtimeMin ? ` +${r.overtimeMin}d` : ""}</td>
+                  <td>{r.absent || "—"}</td>
+                  <td>{som(r.earned)}</td>
+                  <td>{r.bonus ? "+" + som(r.bonus) : "—"}</td>
+                  <td>{r.jarima ? "−" + som(r.jarima) : "—"}</td>
+                  <td>{r.paidOut ? som(r.paidOut) : "—"}</td>
+                  <td><b style={{ color: r.balance < 0 ? "#e05555" : undefined }}>{som(r.balance)}</b></td>
+                </tr>
+              ))}
+              {T && rep.rows.length > 0 && (
+                <tr style={{ fontWeight: 700 }}>
+                  <td>JAMI</td><td /><td /><td />
+                  <td>{som(T.earned)}</td><td>{T.bonus ? "+" + som(T.bonus) : "—"}</td><td>{T.jarima ? "−" + som(T.jarima) : "—"}</td><td>{som(T.paidOut)}</td><td>{som(T.balance)}</td>
+                </tr>
+              )}
+              {rep.rows.length === 0 && <tr><td colSpan={9} className="muted">Xodim yo'q</td></tr>}
+            </tbody>
+          </table>
+        </div>
+      )}
+      <div className="muted" style={{ fontSize: 12, padding: "6px 0" }}>QOLDIQ — umumiy joriy hisob (boshlang'ich + hamma hisoblangan − hamma berilgan), oyga bog'liq emas. «Kun (+N)» — N ta ta'til/kasallik/bayram kuni.</div>
+    </div>
+  );
+}
+
+// ── 📥 J5: eski oyliklarni ommaviy kiritish ──
+function BulkImportView({ orgs, onDone }: { orgs: OrgRow[]; onDone: () => void }) {
+  const [orgId, setOrgId] = useState<number>(orgs[0]?.id ?? 0);
+  const [text, setText] = useState("");
+  const [results, setResults] = useState<{ line: string; ok: boolean; info: string }[] | null>(null);
+  const [busy, setBusy] = useState(false);
+  const run = async () => {
+    if (!text.trim() || !orgId) return;
+    setBusy(true);
+    const r = await adminApi.staffImport(orgId, text).catch(() => ({ ok: false, error: "tarmoq", results: undefined }));
+    setBusy(false);
+    if (!r.ok) { setResults([{ line: "", ok: false, info: r.error ?? "Xato" }]); return; }
+    setResults(r.results ?? []);
+    onDone();
+  };
+  return (
+    <div className="card" style={{ marginBottom: 12 }}>
+      <div className="card-title">📥 Eski oyliklar — ommaviy kiritish</div>
+      <div className="muted" style={{ fontSize: 12, margin: "6px 0" }}>
+        Har qatorda: <code>TelegramID ; Ism Familiya ; oylik ; eski qoldiq [; lavozim]</code><br />
+        Masalan: <code>123456789 ; Aziza Karimova ; 3000000 ; 1250000 ; operator</code> — eski qoldiq = hozir unga qarzingiz (minus ham bo'ladi).
+        Qayta yopishtirish xavfsiz: xodim TelegramID bo'yicha YANGILANADI (qo'shilib ketmaydi).
+        Diqqat: ro'yxatdagi o'chirilgan xodim qayta FAOL bo'ladi va tanlangan korxonaga o'tadi.
+      </div>
+      {orgs.length > 1 && <select className="inp" value={orgId} onChange={(e) => setOrgId(Number(e.target.value))}>{orgs.map((o) => <option key={o.id} value={o.id}>{o.name}</option>)}</select>}
+      <textarea className="inp" style={{ width: "100%", minHeight: 120, marginTop: 6, fontFamily: "monospace" }} value={text} onChange={(e) => setText(e.target.value)} placeholder={"123456789 ; Aziza Karimova ; 3000000 ; 1250000\n987654321 ; Bekzod Aliyev ; 2500000 ; -400000 ; kuryer"} />
+      <div style={{ marginTop: 6 }}><button className="btn" onClick={run} disabled={busy}>{busy ? "…" : "📥 Kiritish"}</button></div>
+      {results && (
+        <div style={{ marginTop: 8 }}>
+          {results.map((r, i) => (
+            <div key={i} style={{ fontSize: 13, color: r.ok ? "#3fb26f" : "#e05555" }}>{r.ok ? "✓" : "✗"} {r.info}{!r.ok && r.line ? ` — «${r.line.slice(0, 60)}»` : ""}</div>
+          ))}
+        </div>
       )}
     </div>
   );
