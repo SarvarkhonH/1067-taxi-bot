@@ -270,17 +270,19 @@ export async function staffAdminSessionSet(input: {
   actor: string;
 }): Promise<{ ok: boolean; error?: string; amountEarned?: number }> {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(input.date)) return { ok: false, error: "Sana noto'g'ri" };
-  const emp = await prisma.employee.findUnique({ where: { id: input.employeeId } });
+  const emp = await prisma.employee.findUnique({ where: { id: input.employeeId }, include: { org: true } });
   if (!emp) return { ok: false, error: "Xodim topilmadi" };
+  const existing = await prisma.workSession.findUnique({ where: { employeeId_date: { employeeId: emp.id, date: input.date } } });
   const data: Record<string, unknown> = { editedBy: input.actor };
   if (input.dayStatus !== undefined) {
     if (!["ishladi", "kelmadi", "javobli", "kasallik", "tatil", "bayram"].includes(input.dayStatus)) return { ok: false, error: "Holat noto'g'ri" };
     data.dayStatus = input.dayStatus;
   }
+  let inMin: number | null | undefined;
+  let outMin: number | null | undefined;
   try {
-    for (const [field, val] of [["checkIn", input.checkIn], ["checkOut", input.checkOut]] as const) {
-      if (val !== undefined) data[field] = val == null || val === "" ? null : tkInstant(input.date, hhmmToMin(val));
-    }
+    if (input.checkIn !== undefined) inMin = input.checkIn == null || input.checkIn === "" ? null : hhmmToMin(input.checkIn);
+    if (input.checkOut !== undefined) outMin = input.checkOut == null || input.checkOut === "" ? null : hhmmToMin(input.checkOut);
     for (const [field, val] of [["shiftStartOvr", input.shiftStartOvr], ["shiftEndOvr", input.shiftEndOvr]] as const) {
       if (val !== undefined) {
         if (val != null && val !== "") hhmmToMin(val);
@@ -290,13 +292,28 @@ export async function staffAdminSessionSet(input: {
   } catch {
     return { ok: false, error: "Vaqt HH:MM formatida" };
   }
+  // B2 (tekshiruv topgan): ODDIY (yarim tunga o'tmaydigan) smenada "Ketdi < Keldi" —
+  // deyarli har doim xato terilgan vaqt. computeDayPay buni ertasi kunga o'tish deb
+  // tushunadi va avto-OT rejimida bitta xato ~2.5 kunlik pul yozadi. Aniq RAD etamiz.
+  {
+    const ovrStart = (data.shiftStartOvr as string | null | undefined) ?? existing?.shiftStartOvr;
+    const ovrEnd = (data.shiftEndOvr as string | null | undefined) ?? existing?.shiftEndOvr;
+    const pol = resolveStaffPolicy({ ...emp.org, calendar: emp.org.calendar ?? undefined }, emp, { shiftStartOvr: ovrStart, shiftEndOvr: ovrEnd });
+    const nightShift = hhmmToMin(pol.shiftEnd) <= hhmmToMin(pol.shiftStart);
+    const effIn = inMin !== undefined ? inMin : existing?.checkIn ? minutesSinceTashkentMidnight(existing.checkIn, input.date) : null;
+    const effOut = outMin !== undefined ? outMin : existing?.checkOut ? minutesSinceTashkentMidnight(existing.checkOut, input.date) : null;
+    if (!nightShift && effIn != null && effOut != null && effOut < effIn) {
+      return { ok: false, error: "Ketish kelishdan oldin bo'lolmaydi (smena yarim tunga o'tmaydi)" };
+    }
+  }
+  if (inMin !== undefined) data.checkIn = inMin == null ? null : tkInstant(input.date, inMin);
+  if (outMin !== undefined) data.checkOut = outMin == null ? null : tkInstant(input.date, outMin);
   if (input.overtimeMin !== undefined) {
     const v = Math.round(Number(input.overtimeMin));
     if (!Number.isFinite(v) || v < 0 || v > 720) return { ok: false, error: "Overtime 0-720 daqiqa" };
     data.overtimeMin = v;
   }
   if (input.confirm) data.confirmedAt = new Date();
-  // checkOut before checkIn on the same day would go negative in compute (clip to 0) — allow, computeDayPay guards.
   const s = await prisma.workSession.upsert({
     where: { employeeId_date: { employeeId: emp.id, date: input.date } },
     create: { employeeId: emp.id, date: input.date, dayStatus: (data.dayStatus as string) ?? "ishladi", ...data } as never,

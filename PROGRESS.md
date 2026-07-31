@@ -5016,3 +5016,22 @@ oyliklar + hisobot). Har biri alohida DoD bilan.
   AI catch-all'dan keyin qolib O'LIK edi (endi sinxron); HTML esc; answerCallbackQuery avval;
   auto-close org.active; yarim tun Keldim kechagi smenaga; to'lov sanasi Toshkent; staffAdd orgId.
   Kod-daraja: ready for verification. Jonli isbot (db push → deploy → ega /ish skrinshoti) qoldi.
+
+### 2026-07-31 — 👔 JAMOA J3: admin «Jamoa» paneli
+
+**Holat: ready for verification (kod-daraja; jonli UI isbot deploy'dan keyin — R6)**
+- `services/staffAdminService.ts` (YANGI): roster (bugungi holat + oy + balans), xodim oy-grid
+  (taqvim-kind), xodim CRUD (qattiq validatsiya, faqat openingBalance manfiy bo'la oladi),
+  idempotent to'lov `staffpay:<emp>:<key>` + xodimga bot-xabar (route opts.sendMessage bilan
+  yuboradi), kun qo'lda tuzatish (editedBy audit + qayta hisob), korxona siyosati, oy taqvimi
+  toggle (o'sha OY sessiyalari qayta hisoblanadi — boshqa oylarga tegmaydi).
+- `admin/src/jamoa.tsx` (YANGI): roster-jadval → xodim sahifa (5 karta, 💸 forma, oy-jadval
+  kun-muharrir bilan, kassa lentasi) → sozlamalar + bosiladigan oy-taqvim (dam/bayram/ish).
+- server.ts 9 route (BARI requireAdmin+requireOwner — oylik operator-admin'ga ko'rinmaydi),
+  api.ts 9 metod, App.tsx tab — uchchala fayl foreign-WIP, commitdan TASHQARIDA (tree'da).
+- Mustaqil tekshiruv (R4): 9/9 tekshiruv PASS + 3 bug + 1 bo'shliq topdi, BARI tuzatildi:
+  B1 idemKey ledger-100-cap'da qotib jim to'lov yutilishi (endi useState + muvaffaqiyatda
+  yangi kalit), B2 «Ketdi<Keldi» oddiy smenada rad (avto-OT ~2.5 kunlik xato to'lovi yopildi),
+  B3 React key, G1 xodimni tahrirlash/o'chirish UI (✏️ karta). Qarz sifatida qoldi (blocker
+  emas): overview N+1 (~150 so'rov/50 xodim), taqvim-toggle ketma-ket recompute.
+- Isbot: typecheck server+admin toza, admin build ✓, shared 90/90.

@@ -2,7 +2,7 @@
 // balans), xodim sahifasi (oy-jadval, qo'lda tuzatish, 💸 pul berish), korxona
 // sozlamalari + OY TAQVIMI (kun bosilsa ish→dam→bayram→default aylanadi).
 // Pul MATEMATIKASI serverda (shared computeDayPay) — bu fayl faqat ko'rsatadi.
-import { useEffect, useMemo, useState } from "react";
+import { Fragment, useEffect, useState } from "react";
 import { adminApi } from "./api";
 
 const som = (n: number) => n.toLocaleString("ru-RU").replace(/,/g, " ");
@@ -175,8 +175,13 @@ function EmpDetailView({ empId, onBack, flash }: { empId: number; onBack: () => 
   const [d, setD] = useState<EmpDetail | null>(null);
   const [month, setMonth] = useState<string>("");
   const [editDay, setEditDay] = useState<string | null>(null);
+  const [showEdit, setShowEdit] = useState(false);
   const [pay, setPay] = useState({ kind: "payout", amount: "", note: "" });
-  const idemKey = useMemo(() => `ui:${Date.now()}:${Math.floor(Math.random() * 1e6)}`, [d?.ledger.length]);
+  // Bir urinish = bir kalit: tarmoq-retry AYNAN shu kalit bilan (ikki marta yozilmaydi),
+  // MUVAFFAQIYATdan keyin esa yangisi olinadi (keyingi ongli to'lov yutilib ketmasin —
+  // useMemo(ledger.length) varianti 100-qator cap'da qotib qolardi, tekshiruv B1).
+  const newKey = () => `ui:${Date.now()}:${Math.floor(Math.random() * 1e6)}`;
+  const [idemKey, setIdemKey] = useState(newKey);
 
   const load = (m?: string) => adminApi.staffEmployee(empId, m).then((r) => { setD(r); setMonth(r.month); }).catch(() => undefined);
   useEffect(() => { load(); }, [empId]);
@@ -193,6 +198,7 @@ function EmpDetailView({ empId, onBack, flash }: { empId: number; onBack: () => 
     if (!Number.isFinite(amount) || amount <= 0) { flash("❌ Summa noto'g'ri"); return; }
     const r = await adminApi.staffPay({ employeeId: empId, kind: pay.kind, amount, note: pay.note.trim() || undefined, idemKey }).catch(() => ({ ok: false, error: "tarmoq" }));
     if (!r.ok) { flash("❌ " + (r.error ?? "Yozilmadi")); return; }
+    setIdemKey(newKey());
     setPay({ kind: "payout", amount: "", note: "" });
     flash("✅ Yozildi va xodimga xabar yuborildi");
     load(month);
@@ -202,8 +208,10 @@ function EmpDetailView({ empId, onBack, flash }: { empId: number; onBack: () => 
     <div>
       <div style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 10 }}>
         <button className="btn" onClick={onBack}>← Ro'yxat</button>
-        <div className="panel-title" style={{ flex: 1 }}>👤 {d.employee.name} <span className="muted">({d.employee.role || d.employee.payType} · TG {d.employee.telegramId})</span></div>
+        <div className="panel-title" style={{ flex: 1 }}>👤 {d.employee.name} <span className="muted">({d.employee.role || d.employee.payType} · TG {d.employee.telegramId}){!d.employee.active && " · ⛔ o'chirilgan"}</span></div>
+        <button className="btn" onClick={() => setShowEdit((s) => !s)}>✏️ Tahrirlash</button>
       </div>
+      {showEdit && <EditEmpForm emp={d.employee} onDone={() => { setShowEdit(false); load(month); flash("✅ Xodim yangilandi"); }} flash={flash} />}
 
       <div className="cards" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(170px,1fr))", gap: 8, marginBottom: 12 }}>
         <div className="card"><div className="card-label">Shu oy hisoblangan</div><div className="card-value">{som(d.totals.monthEarned)}</div></div>
@@ -240,8 +248,8 @@ function EmpDetailView({ empId, onBack, flash }: { empId: number; onBack: () => 
                 const isRest = day.kind !== "ish" && !day.sessionId;
                 const st = day.dayStatus ?? (day.kind === "bayram" ? "bayram" : day.kind === "dam" ? "dam" : "");
                 return (
-                  <>
-                    <tr key={day.date} style={{ cursor: "pointer", opacity: isRest ? 0.45 : 1 }} onClick={() => setEditDay(editDay === day.date ? null : day.date)}>
+                  <Fragment key={day.date}>
+                    <tr style={{ cursor: "pointer", opacity: isRest ? 0.45 : 1 }} onClick={() => setEditDay(editDay === day.date ? null : day.date)}>
                       <td>{day.date.slice(8)} <span className="muted">{WD[day.weekday - 1]}</span></td>
                       <td>{st === "dam" ? <span className="badge badge-muted">dam</span> : st ? <span className={"badge " + (STATUS_BADGE[st]?.cls ?? "badge-muted")}>{st}</span> : "—"}
                         {day.autoClosed && " ⚠️"}{day.confirmed && " ✓"}{day.editedBy && " ✏️"}</td>
@@ -252,11 +260,11 @@ function EmpDetailView({ empId, onBack, flash }: { empId: number; onBack: () => 
                       <td>{day.shiftStartOvr && <span className="muted">{day.shiftStartOvr}–{day.shiftEndOvr}</span>}</td>
                     </tr>
                     {editDay === day.date && (
-                      <tr key={day.date + ":edit"}>
+                      <tr>
                         <td colSpan={7}><DayEditor empId={empId} day={day} onSaved={() => { setEditDay(null); load(month); flash("✅ Kun yangilandi"); }} flash={flash} /></td>
                       </tr>
                     )}
-                  </>
+                  </Fragment>
                 );
               })}
             </tbody>
@@ -282,6 +290,55 @@ function EmpDetailView({ empId, onBack, flash }: { empId: number; onBack: () => 
             </tbody>
           </table>
         </div>
+      </div>
+    </div>
+  );
+}
+
+// ── ✏️ xodimni tahrirlash (oylik/smena/rol/faollik — G1 tekshiruv topgan bo'shliq) ──
+function EditEmpForm({ emp, onDone, flash }: { emp: EmpDetail["employee"]; onDone: () => void; flash: (t: string) => void }) {
+  const amount0 = emp.payType === "kunlik" ? emp.dailyRate : emp.payType === "soatlik" ? emp.hourlyRate : emp.monthlySalary;
+  const [f, setF] = useState({
+    name: emp.name, role: emp.role, telegramId: emp.telegramId, payType: emp.payType,
+    amount: String(amount0), openingBalance: String(emp.openingBalance),
+    shiftStart: emp.shiftStart ?? "", shiftEnd: emp.shiftEnd ?? "", workDays: emp.workDays ?? "",
+    active: emp.active,
+  });
+  const set = (k: string, v: string | boolean) => setF((p) => ({ ...p, [k]: v }));
+  const save = async () => {
+    const amount = Number(f.amount.replace(/\s/g, ""));
+    if (!f.name.trim() || !Number.isFinite(amount)) { flash("❌ Ism va summa noto'g'ri"); return; }
+    const r = await adminApi.staffEmployeeSave({
+      id: emp.id,
+      name: f.name.trim(), role: f.role.trim(), telegramId: f.telegramId.trim(), payType: f.payType,
+      monthlySalary: f.payType === "oylik" ? amount : 0,
+      dailyRate: f.payType === "kunlik" ? amount : 0,
+      hourlyRate: f.payType === "soatlik" ? amount : 0,
+      openingBalance: Number(f.openingBalance.replace(/\s/g, "")) || 0,
+      shiftStart: f.shiftStart.trim() || null, shiftEnd: f.shiftEnd.trim() || null, workDays: f.workDays.trim() || null,
+      active: f.active,
+    }).catch(() => ({ ok: false, error: "tarmoq" }));
+    if (!r.ok) { flash("❌ " + (r.error ?? "Saqlanmadi")); return; }
+    onDone();
+  };
+  return (
+    <div className="card" style={{ marginBottom: 12 }}>
+      <div className="form-grid" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(160px,1fr))", gap: 8 }}>
+        <input className="inp" placeholder="Ism" value={f.name} onChange={(e) => set("name", e.target.value)} />
+        <input className="inp" placeholder="Lavozim" value={f.role} onChange={(e) => set("role", e.target.value)} />
+        <input className="inp" placeholder="Telegram ID" value={f.telegramId} onChange={(e) => set("telegramId", e.target.value)} />
+        <select className="inp" value={f.payType} onChange={(e) => set("payType", e.target.value)}>
+          <option value="oylik">Oylik</option><option value="kunlik">Kunlik</option><option value="soatlik">Soatlik</option>
+        </select>
+        <input className="inp" placeholder="Summa" value={f.amount} onChange={(e) => set("amount", e.target.value)} />
+        <input className="inp" placeholder="Boshlang'ich balans" value={f.openingBalance} onChange={(e) => set("openingBalance", e.target.value)} />
+        <input className="inp" placeholder="Smena boshi" value={f.shiftStart} onChange={(e) => set("shiftStart", e.target.value)} />
+        <input className="inp" placeholder="Smena oxiri" value={f.shiftEnd} onChange={(e) => set("shiftEnd", e.target.value)} />
+        <input className="inp" placeholder="Ish kunlari (123456)" value={f.workDays} onChange={(e) => set("workDays", e.target.value)} />
+      </div>
+      <div style={{ display: "flex", gap: 10, alignItems: "center", marginTop: 8 }}>
+        <label className="muted"><input type="checkbox" checked={f.active} onChange={(e) => set("active", e.target.checked)} /> faol (o'chirilsa botda /ish yopiladi, tarix saqlanadi)</label>
+        <button className="btn" onClick={save}>💾 Saqlash</button>
       </div>
     </div>
   );
