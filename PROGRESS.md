@@ -5035,3 +5035,21 @@ oyliklar + hisobot). Har biri alohida DoD bilan.
   B3 React key, G1 xodimni tahrirlash/o'chirish UI (✏️ karta). Qarz sifatida qoldi (blocker
   emas): overview N+1 (~150 so'rov/50 xodim), taqvim-toggle ketma-ket recompute.
 - Isbot: typecheck server+admin toza, admin build ✓, shared 90/90.
+
+### 2026-07-31 — 👔 JAMOA J4: kechki xulosa + tasdiqlash
+
+**Holat: ready for verification (kod-daraja; jonli isbot deploy'dan keyin)**
+- `staffService.ts`: `staffDailyTick` — 15-daq tick ichida (YANGI poller YO'Q): avval unutilgan
+  "Ketdim"lar avto-yopiladi (smena oxiri +30 daq), 21:00 Toshkentdan keyin har faol korxona
+  egasiga BITTA xulosa-karta (kim keldi-ketdi · summa · ⚠️avto/✏️ belgilar · jami; kelmaganlar 0).
+  Marker `staffsummary:<org>:<kun>` faqat muvaffaqiyatli yuborilganda — yiqilsa keyingi tick
+  qayta uradi (kechqurun ~12 urinish). Marker 2-kunlik TTL ro'yxatiga qo'shildi (appStateUtil).
+- "✅ Tasdiqlash" tugmasi (`ishc:<org>:<kun>`): FAQAT o'sha korxona egasi; OCHIQ smena
+  tasdiqlanmaydi (summasi keyin o'zgarardi — tekshiruv BUG1), "hali ishda N ta" deb aytadi;
+  hammasi tasdiq bo'lsa tugma umuman chiqmaydi (BUG2); tasdiqdan keyin tugma olib tashlanadi.
+- index.ts tick-ulanish 2 qator (foreign WIP — commitdan tashqari, tree'da).
+- Mustaqil tekshiruv (R4): 8 tekshiruv, 3 bug topildi va tuzatildi (yuqoridagilar + marker TTL).
+  Ma'lum cheklovlar (blocker emas): xulosa vaqti 21:00 qat'iy (tungi smenali korxinada ochiq
+  sessiya "hali ishda" ko'rinadi, tasdiqlanmaydi — to'g'ri, lekin org-sozlanmasi V2 ga);
+  ~55+ xodimda 4096-belgi limiti (chunking kerak bo'ladi); kechqurun yuborilmasa o'sha kun
+  xulosasi qayta yuborilmaydi (ma'lumot panelda turadi).

@@ -207,6 +207,96 @@ export async function staffMyAccount(telegramId: string, now = new Date()): Prom
   };
 }
 
+// ---------------------------------------------------------------------------
+// 🌙 J4 — kechki xulosa + tasdiqlash (15-daq tick'dan; YANGI poller YO'Q)
+// ---------------------------------------------------------------------------
+
+const SUMMARY_AFTER_MIN = 21 * 60; // 21:00 Toshkent — kun yakuni xulosasi shu vaqtdan keyin
+
+/** One org's day in one message: kim keldi-ketdi, qancha hisoblandi, kim kelmadi. */
+async function buildDailySummary(
+  org: { id: number; name: string },
+  employees: { id: number; name: string }[],
+  date: string
+): Promise<{ text: string; unconfirmed: number }> {
+  const sessions = await prisma.workSession.findMany({ where: { date, employeeId: { in: employees.map((e) => e.id) } } });
+  const byEmp = new Map(sessions.map((s) => [s.employeeId, s]));
+  const lines: string[] = [];
+  let total = 0;
+  let unconfirmed = 0;
+  for (const e of employees) {
+    const s = byEmp.get(e.id);
+    if (!s || (!s.checkIn && s.dayStatus === "ishladi")) {
+      if (s && !s.confirmedAt) unconfirmed++; // sharpa-yozuv ham tasdiq kutadi (hisob 0)
+      lines.push(`⚪ ${esc(e.name)} — kelmadi · 0`);
+      continue;
+    }
+    if (!s.confirmedAt) unconfirmed++;
+    total += s.amountEarned;
+    if (s.dayStatus !== "ishladi") {
+      lines.push(`▫️ ${esc(e.name)} — ${s.dayStatus} · ${fmt(s.amountEarned)}`);
+      continue;
+    }
+    const io = `${s.checkIn ? hhmm(minutesSinceTashkentMidnight(s.checkIn, date)) : "—"}–${s.checkOut ? hhmm(minutesSinceTashkentMidnight(s.checkOut, date)) : "hali ishda"}`;
+    lines.push(`${s.checkOut ? "🟢" : "🔵"} ${esc(e.name)} — ${io} · <b>${fmt(s.amountEarned)}</b>${s.autoClosed ? " ⚠️avto" : ""}${s.editedBy ? " ✏️" : ""}`);
+  }
+  const text =
+    `📋 <b>${esc(org.name)} — ${date}</b>\n\n` +
+    lines.join("\n") +
+    `\n\nJami hisoblandi: <b>${fmt(total)} so'm</b>` +
+    (unconfirmed ? `\n✅ Tasdiqlash — ${unconfirmed} ta kun yozuvi` : "\nHammasi tasdiqlangan ✓") +
+    `\n<i>To'g'irlash: Admin panel → 👔 Jamoa</i>`;
+  return { text, unconfirmed };
+}
+
+/** Owner taps "✅ Tasdiqlash" on the evening card. Only that org's owner may confirm. */
+export async function staffConfirmDay(orgId: number, date: string, actorTgId: string): Promise<{ ok: boolean; text: string }> {
+  const org = await prisma.organization.findUnique({ where: { id: orgId } });
+  if (!org) return { ok: false, text: "Korxona topilmadi" };
+  if (org.ownerTelegramId !== actorTgId) return { ok: false, text: "Faqat korxona egasi tasdiqlaydi" };
+  // OCHIQ smena (keldi, hali ketmagan) tasdiqlanMAYDI — summasi keyin o'zgaradi va
+  // "tasdiqlangan" so'zi yolg'onga aylanadi (tekshiruv BUG 1). U ertaga avto-yopilib
+  // keyingi kartada tasdiq oladi.
+  const r = await prisma.workSession.updateMany({
+    where: {
+      date,
+      confirmedAt: null,
+      employee: { orgId },
+      NOT: { dayStatus: "ishladi", checkIn: { not: null }, checkOut: null },
+    },
+    data: { confirmedAt: new Date() },
+  });
+  const open = await prisma.workSession.count({ where: { date, employee: { orgId }, dayStatus: "ishladi", checkIn: { not: null }, checkOut: null } });
+  const openNote = open ? ` (${open} ta hali ishda — yopilgach tasdiqlanadi)` : "";
+  return { ok: true, text: r.count ? `✅ ${date} tasdiqlandi (${r.count} ta yozuv)${openNote}` : `✅ ${date} — hammasi allaqachon tasdiqlangan${openNote}` };
+}
+
+/** 15-min tick entry (index.ts): auto-close forgotten sessions, then after 21:00
+ *  Tashkent send each org-owner ONE summary card (AppState marker = once per day,
+ *  set only after a successful send — failed evening send retries next tick). */
+export async function staffDailyTick(bot: import("grammy").Bot, now = new Date()): Promise<void> {
+  if (!(await featureOn("jamoa"))) return;
+  await staffAutoCloseOverdue(now).catch((e) => console.error("[staff] autoclose failed:", e));
+  const t = tashkentDayMinutes(now);
+  if (t.minutes < SUMMARY_AFTER_MIN) return;
+  const orgs = await prisma.organization.findMany({ where: { active: true }, include: { employees: { where: { active: true }, orderBy: { name: "asc" } } } });
+  for (const org of orgs) {
+    if (!org.employees.length) continue;
+    const marker = `staffsummary:${org.id}:${t.date}`;
+    if (await prisma.appState.findUnique({ where: { key: marker } })) continue;
+    const { text, unconfirmed } = await buildDailySummary(org, org.employees, t.date);
+    const { InlineKeyboard } = await import("grammy");
+    const kb = unconfirmed ? new InlineKeyboard().text("✅ Tasdiqlash", `ishc:${org.id}:${t.date}`) : undefined;
+    try {
+      await bot.api.sendMessage(org.ownerTelegramId, text, { parse_mode: "HTML", reply_markup: kb });
+    } catch (e) {
+      console.error(`[staff] summary send failed org=${org.id}:`, e);
+      continue; // marker YO'Q — keyingi tick qayta uradi (kechqurun ~12 urinish max)
+    }
+    await prisma.appState.upsert({ where: { key: marker }, create: { key: marker, value: "1" }, update: { value: "1" } });
+  }
+}
+
 /** Sweep hook (J4 wires this into the 15-min tick): auto-close forgotten sessions
  *  once the shift end is well past (checkOut = shift end, ⚠️ autoClosed flag). */
 export async function staffAutoCloseOverdue(now = new Date()): Promise<number> {

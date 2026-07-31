@@ -44,4 +44,14 @@ export function registerStaff(bot: Bot): void {
   bot.callbackQuery("ish:in", onTap(async (tg) => (await import("../services/staffService")).staffCheckIn(tg)));
   bot.callbackQuery("ish:out", onTap(async (tg) => (await import("../services/staffService")).staffCheckOut(tg)));
   bot.callbackQuery("ish:acct", onTap(async (tg) => (await import("../services/staffService")).staffMyAccount(tg)));
+
+  // 🌙 J4 — kechki xulosa kartasidagi "✅ Tasdiqlash" (faqat o'sha korxona egasiga o'tadi).
+  // Tasdiqlangach tugma olib tashlanadi — kartaning o'zi hujjat bo'lib qoladi.
+  bot.callbackQuery(/^ishc:(\d+):(\d{4}-\d{2}-\d{2})$/, async (ctx) => {
+    await ctx.answerCallbackQuery().catch(() => undefined);
+    const { staffConfirmDay } = await import("../services/staffService");
+    const r = await staffConfirmDay(Number(ctx.match[1]), String(ctx.match[2]), String(ctx.from.id));
+    if (r.ok) await ctx.editMessageReplyMarkup({ reply_markup: undefined }).catch(() => undefined);
+    await ctx.reply(r.text, { parse_mode: "HTML" }).catch(() => undefined);
+  });
 }
