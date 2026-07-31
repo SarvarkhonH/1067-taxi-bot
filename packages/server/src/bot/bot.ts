@@ -57,7 +57,7 @@ import {
 import { getFareConfig } from "../services/clientInfoService";
 import { markSeen } from "../services/presence";
 import { isTgBanned } from "../services/banService";
-import { canWebApp, getWebAppVer, refreshWebAppVer, webAppUrl } from "./webAppUrl";
+import { canWebApp, ensureChatMenuButton, getWebAppVer, refreshWebAppVer, webAppUrl } from "./webAppUrl";
 export { webAppUrl } from "./webAppUrl"; // re-export: existing importers (broadcast.ts, shop.ts) keep working
 
 // The friend-facing invite message (the text Telegram prepends before the link in the
@@ -243,6 +243,9 @@ export function createBot(): Bot {
   // Runs before all handlers; the honest source for the admin "online" column.
   bot.use(async (ctx, next) => {
     if (ctx.from?.id) markSeen(String(ctx.from.id));
+    // 🩹 eskirgan menyu tugmasini tuzatish (webAppUrl.ts izohiga qarang) — jarayon umrida
+    // har foydalanuvchiga bir marta, fire-and-forget.
+    if (ctx.from?.id && ctx.chat?.type === "private") ensureChatMenuButton(bot.api, String(ctx.from.id));
     await next();
   });
 

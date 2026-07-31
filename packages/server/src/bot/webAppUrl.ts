@@ -47,3 +47,30 @@ export function webAppUrl(go?: string): string {
   }
   return u + (u.includes("?") ? "&" : "?") + "v=" + webAppVer + (go ? "&go=" + go : "");
 }
+
+// 🩹 STALE MENU BUTTON (2026-07-31, haydovchi 6497 «Zafar» hodisasi): `setChatMenuButton` GLOBAL
+// chaqiriladi (boot'da), Telegram mijozlari esa uni O'Z KESHIDA saqlaydi va sekin yangilaydi.
+// 2026-07-25 Vercel→VPS ko'chishidan OLDIN keshlagan mijozda tugma hali ham O'CHIRILGAN Vercel
+// hostiga ishora qiladi → bosganda o'lik domenga boradi, serverimizga BIRORTA ham so'rov yetib
+// kelmaydi, ekran qorayib qoladi. Diagnostika: 24 soatda 0 so'rov, boshqa haydovchilarda 0 xato,
+// `getChatMenuButton?chat_id=…` → "type":"default". Xavf ostidagi guruh: migratsiyadan oldin
+// ulangan 572 kishi (131 haydovchi).
+//
+// Yechim: foydalanuvchi bot bilan gaplashganda uning chatiga PER-CHAT tugma o'rnatamiz — per-chat
+// qiymat mijozga majburan yetkaziladi, global keshni chetlab o'tadi. Bir jarayon umri davomida
+// har foydalanuvchiga BIR MARTA (in-memory), ya'ni Telegram API'ga qo'shimcha yuk deyarli yo'q.
+// Fire-and-forget: xato bo'lsa jim — bu hech qachon xabar ishlovini to'smaydi.
+const menuFixed = new Set<string>();
+
+export function ensureChatMenuButton(api: { setChatMenuButton: (args: Record<string, unknown>) => Promise<unknown> }, telegramId: string): void {
+  if (!canWebApp || menuFixed.has(telegramId)) return;
+  menuFixed.add(telegramId);
+  void api
+    .setChatMenuButton({
+      chat_id: Number(telegramId),
+      menu_button: { type: "web_app", text: "🚕 BirJoy", web_app: { url: webAppUrl() } },
+    })
+    .catch(() => {
+      menuFixed.delete(telegramId); // vaqtinchalik xato — keyingi aloqada qayta urinsin
+    });
+}
