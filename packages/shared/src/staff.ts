@@ -254,3 +254,100 @@ export function computeDayPay(policy: StaffDayPolicy, day: StaffDayInput): Staff
 function clampPct(p: number): number {
   return Math.min(100, Math.max(0, Number.isFinite(p) ? p : 0));
 }
+
+// ---------------------------------------------------------------------------
+// Policy resolution + Tashkent clock (pure — the server feeds DB rows in).
+// ---------------------------------------------------------------------------
+
+/** Org-level defaults as stored on the Organization row (shape matches Prisma). */
+export interface StaffOrgPolicyRow {
+  divisorMode: string;
+  fixedDivisor: number;
+  graceMin: number;
+  roundMin: number;
+  lunchMin: number;
+  lunchPaid: boolean;
+  lunchThresholdMin: number;
+  overtimeMode: string;
+  overtimeMult: number;
+  sickPct: number;
+  vacationPct: number;
+  holidayPaid: boolean;
+  workDays: string;
+  shiftStart: string;
+  shiftEnd: string;
+  calendar?: unknown; // Prisma Json — validated here
+}
+
+/** Employee-level overrides (null = inherit org). Shape matches Prisma Employee. */
+export interface StaffEmployeeRow {
+  payType: string;
+  monthlySalary: number;
+  dailyRate: number;
+  hourlyRate: number;
+  shiftStart?: string | null;
+  shiftEnd?: string | null;
+  workDays?: string | null;
+  graceMin?: number | null;
+  lunchMin?: number | null;
+}
+
+/**
+ * JAMOA_PLAN §5 hierarchy in one place: org default ← employee override ← day
+ * override. Output feeds computeDayPay directly. Unknown enum strings fall back
+ * to safe defaults (a typo'd DB row must not crash payroll — it degrades loudly
+ * in the owner summary instead).
+ */
+export function resolveStaffPolicy(
+  org: StaffOrgPolicyRow,
+  emp: StaffEmployeeRow,
+  day?: { shiftStartOvr?: string | null; shiftEndOvr?: string | null }
+): StaffDayPolicy {
+  const payType: StaffPayType = emp.payType === "kunlik" || emp.payType === "soatlik" ? emp.payType : "oylik";
+  const cal = org.calendar && typeof org.calendar === "object" && !Array.isArray(org.calendar) ? (org.calendar as StaffCalendar) : undefined;
+  return {
+    payType,
+    monthlySalary: emp.monthlySalary,
+    dailyRate: emp.dailyRate,
+    hourlyRate: emp.hourlyRate,
+    divisorMode: org.divisorMode === "qatiy" ? "qatiy" : "haqiqiy",
+    fixedDivisor: org.fixedDivisor,
+    workDays: emp.workDays ?? org.workDays,
+    shiftStart: day?.shiftStartOvr ?? emp.shiftStart ?? org.shiftStart,
+    shiftEnd: day?.shiftEndOvr ?? emp.shiftEnd ?? org.shiftEnd,
+    graceMin: emp.graceMin ?? org.graceMin,
+    roundMin: org.roundMin,
+    lunchMin: emp.lunchMin ?? org.lunchMin,
+    lunchPaid: org.lunchPaid,
+    lunchThresholdMin: org.lunchThresholdMin,
+    overtimeMode: org.overtimeMode === "qolda" || org.overtimeMode === "avto" ? org.overtimeMode : "off",
+    overtimeMult: org.overtimeMult,
+    sickPct: org.sickPct,
+    vacationPct: org.vacationPct,
+    holidayPaid: org.holidayPaid,
+    calendar: cal,
+  };
+}
+
+/** Tashkent is UTC+5 with no DST — a fixed offset is deliberate (no tz-db drift). */
+export const TASHKENT_UTC_OFFSET_MIN = 300;
+
+/** The Tashkent calendar day + minutes-from-midnight for an absolute instant. */
+export function tashkentDayMinutes(at: Date): { date: string; minutes: number } {
+  const shifted = new Date(at.getTime() + TASHKENT_UTC_OFFSET_MIN * 60_000);
+  return {
+    date: dateKey(shifted.getUTCFullYear(), shifted.getUTCMonth() + 1, shifted.getUTCDate()),
+    minutes: shifted.getUTCHours() * 60 + shifted.getUTCMinutes(),
+  };
+}
+
+/**
+ * Minutes since the Tashkent midnight of a SESSION's date ("YYYY-MM-DD") — may
+ * exceed 1440 when a past-midnight shift checks out on the next calendar day.
+ */
+export function minutesSinceTashkentMidnight(at: Date, sessionDate: string): number {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(sessionDate);
+  if (!m) throw new Error(`staff: bad session date "${sessionDate}"`);
+  const midnightUtcMs = Date.UTC(Number(m[1]), Number(m[2]) - 1, Number(m[3])) - TASHKENT_UTC_OFFSET_MIN * 60_000;
+  return Math.floor((at.getTime() - midnightUtcMs) / 60_000);
+}

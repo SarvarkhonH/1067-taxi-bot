@@ -14,8 +14,11 @@ import {
   hhmmToMin,
   hourlyRateFor,
   isoWeekday,
+  minutesSinceTashkentMidnight,
+  resolveStaffPolicy,
   shiftLengthMin,
   shiftPayableMin,
+  tashkentDayMinutes,
 } from "../staff";
 
 // Baseline: operator, 3 000 000 so'm/oy, 09:00–18:00, Mon–Sat, defaults everywhere.
@@ -218,6 +221,58 @@ describe("computeDayPay — overtime policy", () => {
     expect(r.overtimeMin).toBe(120);
     const hourly = (111_111 * 60) / 480;
     expect(r.amountEarned).toBe(111_111 + Math.round(2 * hourly * 1.5));
+  });
+});
+
+describe("resolveStaffPolicy — org ← employee ← day hierarchy", () => {
+  const ORG = {
+    divisorMode: "haqiqiy", fixedDivisor: 26, graceMin: 10, roundMin: 5,
+    lunchMin: 60, lunchPaid: false, lunchThresholdMin: 360, overtimeMode: "off",
+    overtimeMult: 1.5, sickPct: 0, vacationPct: 100, holidayPaid: true,
+    workDays: "123456", shiftStart: "09:00", shiftEnd: "18:00",
+    calendar: { "2026-07-20": "bayram" },
+  };
+  const EMP = { payType: "oylik", monthlySalary: 3_000_000, dailyRate: 0, hourlyRate: 0 };
+  it("employee nulls inherit org values", () => {
+    const p = resolveStaffPolicy(ORG, { ...EMP, shiftStart: null, graceMin: null });
+    expect(p.shiftStart).toBe("09:00");
+    expect(p.graceMin).toBe(10);
+    expect(p.calendar).toEqual({ "2026-07-20": "bayram" });
+  });
+  it("employee override beats org, day override beats employee", () => {
+    const p = resolveStaffPolicy(ORG, { ...EMP, shiftStart: "10:00", workDays: "1234567" }, { shiftStartOvr: "16:00", shiftEndOvr: "23:00" });
+    expect(p.shiftStart).toBe("16:00");
+    expect(p.shiftEnd).toBe("23:00");
+    expect(p.workDays).toBe("1234567");
+  });
+  it("typo'd enums degrade to safe defaults, junk calendar dropped", () => {
+    const p = resolveStaffPolicy({ ...ORG, divisorMode: "xxx", overtimeMode: "yes", calendar: [1] }, { ...EMP, payType: "weird" });
+    expect(p.divisorMode).toBe("haqiqiy");
+    expect(p.overtimeMode).toBe("off");
+    expect(p.payType).toBe("oylik");
+    expect(p.calendar).toBeUndefined();
+  });
+});
+
+describe("Tashkent clock (UTC+5, no DST)", () => {
+  it("UTC 2026-07-31 04:04 → Tashkent 09:04 same day", () => {
+    const t = tashkentDayMinutes(new Date(Date.UTC(2026, 6, 31, 4, 4)));
+    expect(t).toEqual({ date: "2026-07-31", minutes: 544 });
+  });
+  it("UTC 20:30 → next Tashkent day 01:30 (evening rollover)", () => {
+    const t = tashkentDayMinutes(new Date(Date.UTC(2026, 6, 31, 20, 30)));
+    expect(t).toEqual({ date: "2026-08-01", minutes: 90 });
+  });
+  it("minutesSinceTashkentMidnight exceeds 1440 for a next-day checkout", () => {
+    // session date 2026-07-31; checkout at Tashkent 2026-08-01 00:30 (UTC 07-31 19:30)
+    expect(minutesSinceTashkentMidnight(new Date(Date.UTC(2026, 6, 31, 19, 30)), "2026-07-31")).toBe(1470);
+  });
+  it("round-trips with computeDayPay for a to'y shift crossing midnight", () => {
+    const p = D({ shiftStart: "16:00", shiftEnd: "00:30", lunchThresholdMin: 9999 });
+    const checkIn = minutesSinceTashkentMidnight(new Date(Date.UTC(2026, 6, 31, 11, 0)), "2026-07-31"); // 16:00 Tashkent
+    const checkOut = minutesSinceTashkentMidnight(new Date(Date.UTC(2026, 6, 31, 19, 30)), "2026-07-31"); // 00:30 next day
+    const r = computeDayPay(p, { ...JUL, dayStatus: "ishladi", checkInMin: checkIn, checkOutMin: checkOut });
+    expect(r.minutesWorked).toBe(510);
   });
 });
 

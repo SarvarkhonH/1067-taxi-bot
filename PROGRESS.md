@@ -4993,3 +4993,22 @@ Isbot: `pnpm vitest run` → 3 files, 75 passed · `tsc --noEmit` (shared, serve
 `prisma validate` → "schema is valid".
 Qoldi: J2 (bot Keldim/Ketdim) → J3 (admin Jamoa tab) → J4 (kechki tasdiqlash) → J5 (eski
 oyliklar + hisobot). Har biri alohida DoD bilan.
+
+### 2026-07-31 — 👔 JAMOA J2: bot oqimi (Keldim/Ketdim/Hisobim)
+
+**Holat: in progress (gaps: VPS db push yo'q, jonli sinov yo'q)** — kod tayyor, deploy-qadamlari qoldi.
+- `services/staffService.ts` (YANGI): employeeFor (jamoa-flag + active gate), staffCheckIn
+  (idempotent — ikkinchi bosish qayta-hisobot), staffCheckOut (yarim tun smenada kechagi ochiq
+  sessiyani ham topadi), recomputeSession (ledger `staffearn:<id>` UPSERT — qayta hisob hech
+  qachon ikki marta yozmaydi), staffMyAccount (oy + umumiy qoldiq), staffAutoCloseOverdue
+  (smena tugash +30 daq — J4'da tickka ulanadi). Balans: opening + Σ(earn,bonus) − Σ(payout,adjust).
+- `bot/staff.ts` (YANGI): /ish + 3 inline tugma, bot-sessiya holati NOL (restart-proof),
+  xodim bo'lmaganga JIM (surface leak yo'q). bot.ts'ga lazy-register bitta qator (bu fayl
+  commitga KIRMADI — webAppUrl foreign-WIP; qator tree'da).
+- `scripts/staffAdd.ts` (YANGI): VPS bootstrap — org+xodim qo'shish (J3 panelgacha).
+- shared: resolveStaffPolicy (org←xodim←kun ierarxiyasi), Toshkent soati (UTC+5 qat'iy),
+  minutesSinceTashkentMidnight (>1440 yarim tun uchun) + 7 test. Suite 90/90, typecheck toza.
+
+**Jonli qilish tartibi (kod push'idan OLDIN, VPS'da):** 1) `prisma migrate diff` o'qish → `db push`
+(4 yangi jadval, mavjudlarga tegmaydi) 2) main'ga push → deploy 3) `staffAdd.ts <tgId> "<Ism>" <oylik>`
+4) `setFlag.ts jamoa on` (alert chiqadi) 5) ega o'zini xodim qilib /ish sinaydi → skrinshot = QABUL isboti.
