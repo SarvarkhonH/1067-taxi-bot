@@ -214,8 +214,14 @@ soni — DEFAULT) yoki `qatiy` (har doim belgilangan songa, masalan 26, bo'lish 
 - **Kunlik istisno:** ega istalgan kunga alohida jadval qo'yadi ("shanba Aziza
   14:00–23:00") yoki bir martalik ish kuni qo'shadi — Ravella'ning notekis
   to'y-jadvali aynan shu.
-- **Bayram kalendari:** korxona darajasida bayram kunlari (Navro'z…) —
-  `tolanadigan` (kelmasa ham kunlik yoziladi) yoki `tolanmaydigan`. Default: to'lanadigan.
+- **OY TAQVIMI (ega qarori 2026-07-31: "ish kunlari har oy yaratiladi"):** admin
+  panelda har oy uchun taqvim-katak — ega istalgan kunni bosib turini o'zgartiradi:
+  `ish` (ishlaydigan yakshanba) / `dam` (qo'shimcha dam) / `bayram` (Navro'z…).
+  Haftalik naqsh (har kun ish / faqat shanba dam / shanba-yakshanba dam — istalgan
+  kombinatsiya) faqat DEFAULT beradi, taqvim istisno kun-by-kun ustidan yozadi.
+  Kunlik stavka bo'luvchisi ham shu taqvimdan hisoblanadi: to'lanadigan bayram
+  bo'luvchini saqlaydi (oy jami AYNAN oylikka teng chiqadi), to'lanmaydigani
+  bo'luvchini kamaytiradi. `shared` da `dayKindFor`/`countPayableDaysInMonth`.
 
 ### 5.4 Kun holatlari (attendance status — jahon HR standarti)
 Har kun WorkSession'da `dayStatus` bo'ladi:
@@ -240,7 +246,8 @@ model Organization {
   // korxona-default siyosat:
   divisorMode "haqiqiy", fixedDivisor 26, graceMin 10, roundMin 5,
   lunchMin 60, lunchPaid false, overtimeMode "off", advancePct 100,
-  holidays Json?, shiftTemplates Json?   // [{name,start,end}]
+  calendar Json?,                        // {"2027-03-21":"bayram", "2027-08-02":"ish", ...}
+  shiftTemplates Json?                   // [{name,start,end}]
 }
 model Employee {
   id, orgId, telegramId (unique), name, role, active, createdAt,

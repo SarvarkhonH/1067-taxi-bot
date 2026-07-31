@@ -17,6 +17,12 @@ export type StaffDayStatus =
 // Resolved policy for ONE employee on ONE day. The service layer merges
 // org defaults ← employee overrides ← day override before calling computeDayPay,
 // so this shape is always fully populated (no nulls to branch on here).
+// Org month calendar (JAMOA_PLAN §5.3): explicit per-date overrides on top of the
+// weekly workDays mask — "2026-03-21" → "bayram", a working Sunday → "ish", an
+// extra rest day → "dam". Owner edits this month-by-month in the admin panel.
+export type StaffDayKind = "ish" | "dam" | "bayram";
+export type StaffCalendar = Record<string, StaffDayKind>; // key "YYYY-MM-DD"
+
 export interface StaffDayPolicy {
   payType: StaffPayType;
   monthlySalary: number; // so'm — used when payType === "oylik"
@@ -37,6 +43,7 @@ export interface StaffDayPolicy {
   sickPct: number; // 0..100 — kasallik pay as % of dailyRate
   vacationPct: number; // 0..100 — ta'til pay as % of dailyRate
   holidayPaid: boolean; // bayram: pay full dailyRate even if not worked
+  calendar?: StaffCalendar; // per-date overrides (dam/bayram/ish) on top of workDays
 }
 
 export interface StaffDayInput {
@@ -90,12 +97,43 @@ export function isoWeekday(year: number, month: number, day: number): number {
   return d === 0 ? 7 : d;
 }
 
+/** "YYYY-MM-DD" for a calendar date (zero-padded, matches StaffCalendar keys). */
+export function dateKey(year: number, month: number, day: number): string {
+  return `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+}
+
+/**
+ * What kind of day is this for the org/employee? Calendar override wins;
+ * otherwise the weekly workDays mask decides ish vs dam.
+ */
+export function dayKindFor(year: number, month: number, day: number, workDays: string, calendar?: StaffCalendar): StaffDayKind {
+  const override = calendar?.[dateKey(year, month, day)];
+  if (override === "ish" || override === "dam" || override === "bayram") return override;
+  return workDays.includes(String(isoWeekday(year, month, day))) ? "ish" : "dam";
+}
+
 /** How many workdays (per workDays mask "12345") the given month has. */
-export function countWorkDaysInMonth(year: number, month: number, workDays: string): number {
+export function countWorkDaysInMonth(year: number, month: number, workDays: string, calendar?: StaffCalendar): number {
   const last = new Date(Date.UTC(year, month, 0)).getUTCDate(); // day count of month
   let n = 0;
   for (let day = 1; day <= last; day++) {
-    if (workDays.includes(String(isoWeekday(year, month, day)))) n++;
+    if (dayKindFor(year, month, day, workDays, calendar) === "ish") n++;
+  }
+  return n;
+}
+
+/**
+ * Divisor days for the "haqiqiy" monthly-salary split: ish days, plus bayram
+ * days when they are paid — so a full month always sums to EXACTLY the salary
+ * (paid holiday replaces the workday it displaced; unpaid holiday shrinks the
+ * divisor instead of silently shrinking every remaining day's rate).
+ */
+export function countPayableDaysInMonth(policy: Pick<StaffDayPolicy, "workDays" | "calendar" | "holidayPaid">, year: number, month: number): number {
+  const last = new Date(Date.UTC(year, month, 0)).getUTCDate();
+  let n = 0;
+  for (let day = 1; day <= last; day++) {
+    const kind = dayKindFor(year, month, day, policy.workDays, policy.calendar);
+    if (kind === "ish" || (kind === "bayram" && policy.holidayPaid)) n++;
   }
   return n;
 }
@@ -127,7 +165,7 @@ export function dailyRateFor(policy: StaffDayPolicy, year: number, month: number
   const divisor =
     policy.divisorMode === "qatiy"
       ? Math.max(1, policy.fixedDivisor)
-      : Math.max(1, countWorkDaysInMonth(year, month, policy.workDays));
+      : Math.max(1, countPayableDaysInMonth(policy, year, month));
   return Math.round(policy.monthlySalary / divisor);
 }
 

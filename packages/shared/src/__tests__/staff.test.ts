@@ -6,8 +6,11 @@ import {
   STAFF_POLICY_DEFAULTS,
   type StaffDayPolicy,
   computeDayPay,
+  countPayableDaysInMonth,
   countWorkDaysInMonth,
   dailyRateFor,
+  dateKey,
+  dayKindFor,
   hhmmToMin,
   hourlyRateFor,
   isoWeekday,
@@ -49,6 +52,43 @@ describe("hhmmToMin / isoWeekday / month math", () => {
   });
   it("counts Mon–Fri workdays: Jul-2026 = 23", () => {
     expect(countWorkDaysInMonth(2026, 7, "12345")).toBe(23);
+  });
+});
+
+describe("oy taqvimi — per-date dam/bayram/ish overrides (owner: 'ish kunlari har oy yaratiladi')", () => {
+  // July 2026 Mon–Sat baseline = 27 workdays.
+  it("dateKey pads correctly", () => expect(dateKey(2026, 7, 5)).toBe("2026-07-05"));
+  it("weekly mask decides when no override", () => {
+    expect(dayKindFor(2026, 7, 31, "123456")).toBe("ish"); // Friday
+    expect(dayKindFor(2026, 8, 2, "123456")).toBe("dam"); // Sunday
+  });
+  it("override wins over the mask: working Sunday, extra rest Tuesday, bayram Monday", () => {
+    const cal = { "2026-07-05": "ish", "2026-07-07": "dam", "2026-07-20": "bayram" } as const;
+    expect(dayKindFor(2026, 7, 5, "123456", cal)).toBe("ish"); // Sunday → ish
+    expect(dayKindFor(2026, 7, 7, "123456", cal)).toBe("dam"); // Tuesday → dam
+    expect(dayKindFor(2026, 7, 20, "123456", cal)).toBe("bayram");
+  });
+  it("workday count follows the calendar: +working Sunday −rest day −bayram", () => {
+    const cal = { "2026-07-05": "ish", "2026-07-07": "dam", "2026-07-20": "bayram" } as const;
+    expect(countWorkDaysInMonth(2026, 7, "123456", cal)).toBe(26); // 27 +1 −1 −1
+  });
+  it("PAID bayram keeps the divisor (month still sums to exactly the salary)", () => {
+    const cal = { "2026-07-20": "bayram" } as const;
+    const p = D({ calendar: cal }); // holidayPaid=true default
+    expect(countPayableDaysInMonth(p, 2026, 7)).toBe(27); // 26 ish + 1 paid bayram
+    expect(dailyRateFor(p, 2026, 7)).toBe(111_111);
+    // 26 worked days + 1 bayram day = 27 × 111 111 ≈ salary
+  });
+  it("UNPAID bayram shrinks the divisor instead of every day's rate", () => {
+    const cal = { "2026-07-20": "bayram" } as const;
+    const p = D({ calendar: cal, holidayPaid: false });
+    expect(countPayableDaysInMonth(p, 2026, 7)).toBe(26);
+    expect(dailyRateFor(p, 2026, 7)).toBe(Math.round(3_000_000 / 26));
+  });
+  it("hafta naqshlari: har kun ish / faqat shanba dam / shanba-yakshanba dam", () => {
+    expect(countWorkDaysInMonth(2026, 7, "1234567")).toBe(31); // har kun
+    expect(countWorkDaysInMonth(2026, 7, "123457")).toBe(27); // faqat shanba dam
+    expect(countWorkDaysInMonth(2026, 7, "12345")).toBe(23); // sh-yak dam
   });
 });
 

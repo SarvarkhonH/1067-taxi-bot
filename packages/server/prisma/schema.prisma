@@ -1740,7 +1740,8 @@ model Organization {
   workDays          String     @default("123456") // 1=Du ... 7=Ya
   shiftStart        String     @default("09:00")
   shiftEnd          String     @default("18:00")
-  holidays          Json? // ["2027-03-21", ...] org holiday calendar
+  calendar          Json? // oy taqvimi: {"2027-03-21":"bayram","2027-08-02":"ish","2027-08-10":"dam"} —
+  // haftalik workDays maskasi ustidan kun-by-kun istisno (JAMOA_PLAN §5.3, shared StaffCalendar)
   shiftTemplates    Json? // [{name:"Ofis 09-18",start:"09:00",end:"18:00"}, ...]
   createdAt         DateTime   @default(now())
   employees         Employee[]
