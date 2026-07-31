@@ -5012,3 +5012,7 @@ oyliklar + hisobot). Har biri alohida DoD bilan.
 **Jonli qilish tartibi (kod push'idan OLDIN, VPS'da):** 1) `prisma migrate diff` o'qish → `db push`
 (4 yangi jadval, mavjudlarga tegmaydi) 2) main'ga push → deploy 3) `staffAdd.ts <tgId> "<Ism>" <oylik>`
 4) `setFlag.ts jamoa on` (alert chiqadi) 5) ega o'zini xodim qilib /ish sinaydi → skrinshot = QABUL isboti.
+- Mustaqil tekshiruv (R4) 7 bug topdi, hammasi tuzatildi (7af265c9): KRITIK — /ish lazy-register
+  AI catch-all'dan keyin qolib O'LIK edi (endi sinxron); HTML esc; answerCallbackQuery avval;
+  auto-close org.active; yarim tun Keldim kechagi smenaga; to'lov sanasi Toshkent; staffAdd orgId.
+  Kod-daraja: ready for verification. Jonli isbot (db push → deploy → ega /ish skrinshoti) qoldi.
