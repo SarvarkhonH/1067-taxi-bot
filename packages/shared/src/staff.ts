@@ -198,7 +198,9 @@ export function computeDayPay(policy: StaffDayPolicy, day: StaffDayInput): Staff
   if (policy.overtimeMode === "qolda") {
     overtimeMin = Math.max(0, Math.floor(day.approvedOvertimeMin ?? 0));
   } else if (policy.overtimeMode === "avto") {
-    overtimeMin = roundTo(Math.max(0, checkOut - shiftEnd), policy.roundMin);
+    // From when they were ACTUALLY there past shift end — an evening-only
+    // check-in must not earn overtime for the empty hours before arrival.
+    overtimeMin = roundTo(Math.max(0, checkOut - Math.max(shiftEnd, checkIn)), policy.roundMin);
   }
   const overtimePay = Math.round((overtimeMin / 60) * hourly * policy.overtimeMult);
 

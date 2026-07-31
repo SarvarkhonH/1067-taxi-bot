@@ -168,6 +168,11 @@ describe("computeDayPay — overtime policy", () => {
   it("qolda without approval pays nothing extra", () => {
     expect(computeDayPay(D({ overtimeMode: "qolda" }), late).amountEarned).toBe(111_111);
   });
+  it("avto: arriving AFTER shift end earns overtime only from arrival (verifier bug)", () => {
+    const r = computeDayPay(D({ overtimeMode: "avto" }), { ...JUL, dayStatus: "ishladi", checkInMin: hhmmToMin("20:00"), checkOutMin: hhmmToMin("22:00") });
+    expect(r.minutesWorked).toBe(0); // shift itself untouched
+    expect(r.overtimeMin).toBe(120); // NOT 240 — the empty 18:00–20:00 is not paid
+  });
   it("avto: minutes past shift end ×1.5 automatically", () => {
     const r = computeDayPay(D({ overtimeMode: "avto" }), late);
     expect(r.overtimeMin).toBe(120);
