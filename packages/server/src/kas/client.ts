@@ -443,8 +443,23 @@ export class KasLiveSource implements KasDataSource {
   }
 
   // ─── booking ────────────────────────────────────────────────────────────────
+  // ⏱ CHECK_CLIENT_TTL: getBookingInfo() kas'ga 6 ta so'rov yuboradi, ular esa 600ms oralatib
+  // KETMA-KET navbatda ketadi (MIN_GAP_MS). 5 tasi allaqachon keshlangan — checkClient YO'Q edi,
+  // ya'ni har panel ochilishida bitta to'liq navbat sloti sarflanardi (o'lchov: /api/booking/info
+  // p90 4.36s). Qisqa kesh shu slotni yo'qotadi va `cached()` stale-while-revalidate bo'lgani
+  // uchun ikkinchi ochilish UMUMAN bloklamaydi.
+  // ⚠️ XAVFSIZLIK: bu javobdagi `activeBooking` faqat MA'LUMOT uchun (bot sehrgarida «sizda faol
+  // buyurtma bor» eslatmasi). Ikki-marta-buyurtma qo'riqchisi BOSHQA yo'lda —
+  // getActiveBookingFor() → getActiveBooking() (o'z 2.5s keshi) + claimDispatchSlot() CAS.
+  // Shuning uchun bu kesh pul oqimini zaiflashtirmaydi. TTL ataylab qisqa.
+  private static readonly CHECK_CLIENT_TTL_MS = 10_000;
+
   async checkClient(phone: string): Promise<ClientBookingInfo | null> {
     const clean = kasPhone(phone); // normalize to +998<last9> — kas rejects other shapes
+    return this.cached(`client:${clean}`, KasLiveSource.CHECK_CLIENT_TTL_MS, () => this.checkClientFresh(clean));
+  }
+
+  private async checkClientFresh(clean: string): Promise<ClientBookingInfo | null> {
     const data = await this.getJson(`api/bookings/checkClientPhoneNumber/${encodeURIComponent(clean)}`);
     const bd = data.bookingDto as Record<string, unknown> | null | undefined;
     return {

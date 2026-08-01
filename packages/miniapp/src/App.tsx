@@ -242,6 +242,16 @@ export function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // ⚡ TAXI issiq start — ENG MUHIMI, lekin uzoq vaqt YO'Q edi (ega, 2026-08-01: «xaritaga
+  // kirayotganda sekin»). Do'kon/Xizmatlar/E'lonlar allaqachon isitilardi, pul keltiradigan
+  // taksi esa YO'Q — bosilgan payt booking3 (~45 KB) + leaflet (~150 KB) = ~195 KB yuklanardi.
+  // Bayroqqa bog'lanmaydi: taksi HAR DOIM asosiy oqim.
+  useEffect(() => {
+    const w = window as unknown as { requestIdleCallback?: (cb: () => void, o?: { timeout: number }) => void };
+    const idle = (cb: () => void) => (w.requestIdleCallback ? w.requestIdleCallback(cb, { timeout: 3000 }) : setTimeout(cb, 1500));
+    idle(() => { void import("./booking3").catch(() => undefined); });
+  }, []);
+
   // ⚡ Do'kon issiq start: tab lazy chunk + mahsulot ro'yxati BO'SH VAQTDA oldindan yuklanadi —
   // birinchi bosishda spinner+network kutish yo'q, tab bir zumda ochiladi (ega: "sekin chiqib tushadi").
   const shopOn = !!me?.flags?.shop;

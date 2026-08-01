@@ -48,6 +48,12 @@ const BookingViewOld = lazy(() => import("./booking").then((m) => ({ default: m.
 const TILE_URL = "https://mt{s}.google.com/vt/lyrs=m&hl=uz&x={x}&y={y}&z={z}";
 const TILE_SUBDOMAINS = ["0", "1", "2", "3"];
 
+// Koson markazi — serverdagi zaxira qiymat bilan AYNI (bookingService.getBookingInfo:
+// `company.lat || 39.04, company.lng || 65.57`). Yuklanish paytida xaritani DARHOL shu yerda
+// chizamiz: aks holda `/api/booking/info` javobini (p90 ~4.4s — kas navbati 600ms x 6 so'rov)
+// kutib, ekran kulrang quti bo'lib turardi.
+const KOSON_CENTER: [number, number] = [39.04, 65.57];
+
 // Leaflet divIcon with NO default white box (className:"" drops .leaflet-div-icon styling);
 // our own class styles the marker. Markers live in .leaflet-marker-pane → never dark-filtered.
 function divIcon(cls: string, html: string): L.DivIcon {
@@ -328,9 +334,34 @@ export function Booking3View({ me, onClose }: { me: MeResponse; onClose: () => v
 }
 
 function MapSkeleton() {
+  // ⚡ Yuklanish paytida ham HAQIQIY xarita (ega, 2026-08-01: «xaritaga kirayotganda 4-5 soniya
+  // yuklanmay turadi»). Ilgari bu yerda kulrang quti turardi va xarita FAQAT info kelgach
+  // ulanardi — ya'ni sekinlik xaritadan emas, unga boshlashga ruxsat berilmaganidan edi.
+  // Bu xarita INTERAKTIV EMAS (faqat ko'rinish) va info kelishi bilan Booking3Inner o'zinikini
+  // ulaydi — plitkalar brauzer keshida bo'lgani uchun u bir zumda chiziladi.
+  const skelMap = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!skelMap.current) return;
+    let m: L.Map | undefined;
+    try {
+      m = L.map(skelMap.current, {
+        zoomControl: false,
+        attributionControl: false,
+        dragging: false,
+        scrollWheelZoom: false,
+        doubleClickZoom: false,
+        touchZoom: false,
+        keyboard: false,
+      }).setView(KOSON_CENTER, 14);
+      L.tileLayer(TILE_URL, { subdomains: TILE_SUBDOMAINS, maxZoom: 20 }).addTo(m);
+    } catch {
+      /* xarita chizilmasa — eski skeleton ko'rinishi qoladi, hech narsa buzilmaydi */
+    }
+    return () => { try { m?.remove(); } catch { /* ignore */ } };
+  }, []);
   return (
     <div className="b3-screen">
-      <div className="b3-map" style={{ background: "var(--surface)" }}>
+      <div className="b3-map" ref={skelMap} style={{ background: "var(--surface)" }}>
         <div className="b3-radar-dim" />
       </div>
       <div className="b3-sheet">
