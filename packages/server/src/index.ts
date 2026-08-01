@@ -296,6 +296,23 @@ async function main(): Promise<void> {
     }
   })();
   const intervalMs = Math.max(1, env.SYNC_INTERVAL_MINUTES) * 60_000;
+  // 👔 JAMOA eslatmalari — DAQIQA aniqligida ("vaxtiga eslatsin", ega 2026-08-01).
+  // Bu kas'ga tegmaydigan, faqat lokal-DB o'qiydigan yengil soat: jamoa flag OFF
+  // bo'lsa birinchi query'dayoq qaytadi; marker'lar dublikatni oldini oladi.
+  // (15-daq tick ichida turganda eslatma 15 daqiqagacha kechikardi.)
+  let staffRemindBusy = false;
+  setInterval(async () => {
+    if (!bot || staffRemindBusy) return;
+    staffRemindBusy = true;
+    try {
+      const { staffRemindersTick } = await import("./services/staffService");
+      await staffRemindersTick(bot);
+    } catch (e) {
+      console.error("[staff] remind failed:", e);
+    } finally {
+      staffRemindBusy = false;
+    }
+  }, 60_000);
   let periodicBusy = false;
   let reconcileTick = 0;
   const timer = setInterval(async () => {
