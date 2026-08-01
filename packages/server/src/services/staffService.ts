@@ -8,6 +8,7 @@ import {
   computeDayPay,
   dayKindFor,
   hhmmToMin,
+  hourlyRateFor,
   minutesSinceTashkentMidnight,
   resolveStaffPolicy,
   tashkentDayMinutes,
@@ -295,6 +296,97 @@ export async function staffSelfPayoutCancel(ledgerId: number, actorTgId: string)
 // ---------------------------------------------------------------------------
 
 const SUMMARY_AFTER_MIN = 21 * 60; // 21:00 Toshkent — kun yakuni xulosasi shu vaqtdan keyin
+const REMIND_IN_WINDOW = 90; // smena boshidan shuncha daqiqagacha "Keldim" eslatmasi aktual
+const REMIND_OUT_WINDOW = 45; // smena oxiridan keyin "Ketdim" eslatmasi oynasi (OT-off rejim)
+
+/**
+ * ⏰ Eslatmalar (ega talabi 2026-08-01): "ish payti bo'ldi — Keldim bosing",
+ * "ketish payti — Ketdim bosing", smenadan keyin ishlayotganga "qo'shimcha hisob
+ * boshlandi, soatiga ~X" + har soatda jamlangan summa. Har eslatma AppState marker
+ * bilan BIR MARTA (stfremin/stfremout/stfotping — 2 kunlik TTL). 15-daq tick
+ * granulyarligi: eslatma smena chegarasidan ±15 daq ichida yetadi.
+ */
+export async function staffRemindersTick(bot: import("grammy").Bot, now = new Date()): Promise<void> {
+  if (!(await featureOn("jamoa"))) return;
+  const t = tashkentDayMinutes(now);
+  const { InlineKeyboard } = await import("grammy");
+  const kbInOut = () => new InlineKeyboard().text("✅ Keldim", "ish:in").text("🏁 Ketdim", "ish:out");
+  const once = async (marker: string, chatId: string, text: string, kb?: InstanceType<typeof InlineKeyboard>) => {
+    if (await prisma.appState.findUnique({ where: { key: marker } })) return;
+    try {
+      await bot.api.sendMessage(chatId, text, { parse_mode: "HTML", reply_markup: kb });
+    } catch {
+      return; // yuborilmadi (blok/tarmoq) — marker qo'yilmaydi, keyingi tick oynada bo'lsa qayta uradi
+    }
+    await prisma.appState.upsert({ where: { key: marker }, create: { key: marker, value: "1" }, update: { value: "1" } });
+  };
+
+  // 1) "✅ Keldim" eslatmasi — bugun ish kuni, hali kelmagan, smena boshlangan.
+  const orgs = await prisma.organization.findMany({ where: { active: true }, include: { employees: { where: { active: true } } } });
+  const [ty, tm, td] = ymd(t.date);
+  for (const org of orgs) {
+    for (const e of org.employees) {
+      const session = await prisma.workSession.findUnique({ where: { employeeId_date: { employeeId: e.id, date: t.date } } });
+      if (session?.checkIn || (session && session.dayStatus !== "ishladi")) continue; // kelgan yoki tatil/kasallik/... belgilangan
+      const pol = resolveStaffPolicy({ ...org, calendar: org.calendar ?? undefined }, e, session ?? undefined);
+      if (dayKindFor(ty, tm, td, pol.workDays, pol.calendar) !== "ish") continue; // dam/bayram — tinch
+      const start = hhmmToMin(pol.shiftStart);
+      if (t.minutes < start || t.minutes > start + REMIND_IN_WINDOW) continue;
+      await once(
+        `stfremin:${e.id}:${t.date}`,
+        e.telegramId,
+        `🕘 Ish payti boshlandi (${pol.shiftStart}). Kelganingizda "✅ Keldim" bosing — hisob kelgan vaqtingizdan yuritiladi.`,
+        kbInOut()
+      );
+    }
+  }
+
+  // 2) "🏁 Ketdim" / qo'shimcha-ish eslatmalari — OCHIQ sessiyalar bo'yicha
+  //    (sessiya sanasi bilan ishlaymiz — yarim tunga o'tgan smenalar ham to'g'ri).
+  const open = await prisma.workSession.findMany({
+    where: { checkIn: { not: null }, checkOut: null },
+    include: { employee: { include: { org: true } } },
+  });
+  for (const s of open) {
+    if (!s.employee.active || !s.employee.org.active) continue;
+    const pol = resolveStaffPolicy({ ...s.employee.org, calendar: s.employee.org.calendar ?? undefined }, s.employee, s);
+    const start = hhmmToMin(pol.shiftStart);
+    let end = hhmmToMin(pol.shiftEnd);
+    if (end <= start) end += 1440;
+    const nowMin = minutesSinceTashkentMidnight(now, s.date);
+    if (nowMin < end) continue; // smena hali tugamagan
+
+    if (pol.overtimeMode === "off") {
+      // Qo'shimcha hisob YO'Q — faqat "Ketdim bosing" (keyin +30 daqda avto-yopiladi)
+      if (nowMin <= end + REMIND_OUT_WINDOW) {
+        await once(
+          `stfremout:${s.id}`,
+          s.employee.telegramId,
+          `🏁 Ish vaqti tugadi (${pol.shiftEnd}). Ketayotganingizda "🏁 Ketdim" bosing — kun hisobi yozilsin.`,
+          kbInOut()
+        );
+      }
+      continue;
+    }
+
+    // Overtime yoqilgan (qolda/avto): soat boshiga bitta xabar — 0-soat "boshlandi",
+    // keyingilari jamlangan summa bilan ("bir soatligini chiqarib qo'shib boradi").
+    const [sy, sm] = ymd(s.date);
+    const hourly = Math.round(hourlyRateFor(pol, sy, sm) * pol.overtimeMult);
+    const hourIdx = Math.floor((nowMin - end) / 60); // 0 = endi boshlandi, 1 = 1 soat o'tdi…
+    if (hourIdx > 12) continue; // 12 soatdan keyin jim (unutilgan sessiya — avto-yopish bor)
+    const accrued = Math.round(((nowMin - end) / 60) * hourly);
+    const text =
+      hourIdx === 0
+        ? `🕕 Asosiy ish vaqti tugadi (${pol.shiftEnd}). Hali ishdamisiz? ⏱ <b>Qo'shimcha hisob boshlandi</b> — soatiga ~<b>${fmt(hourly)} so'm</b>` +
+          (pol.overtimeMode === "qolda" ? ` (ega tasdig'i bilan to'lanadi)` : "") +
+          `.\nIshni tugatganda "🏁 Ketdim" bosing.`
+        : `⏱ Qo'shimcha ish davom etmoqda: <b>${hourIdx} soat</b> ≈ <b>+${fmt(accrued)} so'm</b>` +
+          (pol.overtimeMode === "qolda" ? ` (ega tasdig'i bilan)` : "") +
+          `.\nTugatganda "🏁 Ketdim" bosing.`;
+    await once(`stfotping:${s.id}:${hourIdx}`, s.employee.telegramId, text, kbInOut());
+  }
+}
 
 /** One org's day in one message: kim keldi-ketdi, qancha hisoblandi, kim kelmadi. */
 async function buildDailySummary(
@@ -381,6 +473,9 @@ export async function staffConfirmDay(orgId: number, date: string, actorTgId: st
  *  set only after a successful send — failed evening send retries next tick). */
 export async function staffDailyTick(bot: import("grammy").Bot, now = new Date()): Promise<void> {
   if (!(await featureOn("jamoa"))) return;
+  // Eslatmalar bu yerda EMAS — ular index.ts'dagi 60-soniyalik yengil soatda
+  // ("vaxtiga eslatsin", ega 2026-08-01): daqiqa aniqligi. Markerlar bir xil,
+  // shuning uchun ikkala yo'l to'qnashsa ham dublikat bo'lmaydi.
   await staffAutoCloseOverdue(now).catch((e) => console.error("[staff] autoclose failed:", e));
   const t = tashkentDayMinutes(now);
   if (t.minutes < SUMMARY_AFTER_MIN) return;
@@ -418,7 +513,11 @@ export async function staffAutoCloseOverdue(now = new Date()): Promise<number> {
     let end = hhmmToMin(pol.shiftEnd);
     if (end <= start) end += 1440;
     const nowMin = minutesSinceTashkentMidnight(now, s.date);
-    if (nowMin <= end + 30) continue; // 30-min courtesy window after shift end
+    // OT-off: +30 daq muloyimlik. OT yoqilgan: +4 soat kutamiz — xodim ataylab
+    // qo'shimcha ishlayotgan bo'lishi mumkin (soatlik ping'lar ketmoqda). Unutgan
+    // bo'lsa ham checkOut = SMENA OXIRI (isbotlanmagan OT to'lanmaydi, ega ✏️ tuzatadi).
+    const closeGrace = pol.overtimeMode === "off" ? 30 : 240;
+    if (nowMin <= end + closeGrace) continue;
     const [y, m, d] = ymd(s.date);
     const checkOutAt = new Date(Date.UTC(y, m - 1, d) - TASHKENT_UTC_OFFSET_MIN * 60_000 + end * 60_000);
     await prisma.workSession.update({ where: { id: s.id }, data: { checkOut: checkOutAt, autoClosed: true } });
