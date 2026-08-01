@@ -684,7 +684,10 @@ export async function elonlarLifecycleTick(bot?: Bot): Promise<{ expired: number
     }
     if (bot) {
       const { pushMessage } = await import("./pushSend"); // 📵 BLK-1
-      await pushMessage(bot, a.tgId.toString(), "elon_expiry", `⏳ <b>E'loningiz tugayapti!</b>\n📋 ${a.title}\n\n«Mening e'lonlarim»dan 🔄 qayta faollashtirishingiz mumkin.`);
+      const { appBtn } = await import("../bot/webAppUrl");
+      await pushMessage(bot, a.tgId.toString(), "elon_expiry", `⏳ <b>E'loningiz tugayapti!</b>\n📋 ${a.title}\n\nBir bosishda qayta faollashtiring 👇`, {
+        extra: appBtn("🔄 E'lonlarim", "elonlar"),
+      });
     }
     warned++;
   }

@@ -34,6 +34,14 @@ export async function refreshWebAppVer(): Promise<void> {
   }
 }
 
+/** Push/xabar uchun «ilovani ochish» tugmasi. Matn «falon joyga boring» deb yozib, tugma
+ *  bermasligi — mijoz uchun bajarib bo'lmaydigan ko'rsatma (ega, 2026-08-01: «barbir mini app
+ *  siz keldi»). Oddiy obyekt qaytaradi, ya'ni InlineKeyboard import qilish shart emas. */
+export function appBtn(label: string, go: string): { reply_markup: { inline_keyboard: { text: string; web_app: { url: string } }[][] } } | undefined {
+  if (!canWebApp) return undefined;
+  return { reply_markup: { inline_keyboard: [[{ text: label, web_app: { url: webAppUrl(go) } }]] } };
+}
+
 export function webAppUrl(go?: string): string {
   // Always emit a URL with an explicit `/` path before the query — some Telegram clients (older
   // Android, Web Z) parse `https://host?…` differently from `https://host/?…` and can drop the

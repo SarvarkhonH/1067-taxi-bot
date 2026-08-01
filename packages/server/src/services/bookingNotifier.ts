@@ -504,7 +504,7 @@ export async function pushBookingUpdates(
           })();
           await resilient("baraban_token", () => grantWheelToken(m.id, bid));
           if (firstForRide) {
-            await pushMessage(bot, chatId, "ride_baraban", "🎰 <b>Safar tugadi!</b> 5 daqiqa ichida barabanni aylantiring — tanga yutib oling! /baraban", {
+            await pushMessage(bot, chatId, "ride_baraban", "🎰 <b>Safar tugadi!</b> 5 daqiqa ichida barabanni aylantiring — tanga yutib oling! 👇", {
               memberId: m.id,
               force: true,
               extra: { reply_markup: new InlineKeyboard().text("🎰 Aylantirish", "baraban:spin") },
