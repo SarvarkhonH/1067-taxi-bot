@@ -301,6 +301,20 @@ export const adminApi = {
   restoranMenuEdit: (id: number, patch: Record<string, unknown>) => postJson<{ ok: boolean }>(`/api/admin/restoran/menu/${id}`, patch),
   restoranMenuDelete: (id: number) => req<{ ok: boolean }>(`/api/admin/restoran/menu/${id}`, { method: "DELETE" }),
   restoranMenuPhotoUpload: (id: number, mime: string, base64: string) => postJson<{ ok: boolean }>(`/api/admin/restoran/menu/${id}/photo`, { mime, base64 }),
+  // 👔 jamoa — xodimlar davomati + oylik (owner-only; JAMOA_PLAN J3). Tiplar jamoa.tsx'da
+  // (type-only import — runtime aylanish yo'q).
+  staffOverview: () => req<import("./jamoa").JamoaOverview>("/api/admin/staff/overview"),
+  staffOrgs: () => req<{ orgs: import("./jamoa").OrgRow[] }>("/api/admin/staff/orgs"),
+  staffEmployee: (id: number, month?: string) => req<import("./jamoa").EmpDetail>(`/api/admin/staff/employee/${id}${month ? `?month=${month}` : ""}`),
+  staffEmployeeSave: (p: Record<string, unknown>) => postJson<{ ok: boolean; id?: number; error?: string }>("/api/admin/staff/employee", p),
+  staffPay: (p: { employeeId: number; kind: string; amount: number; note?: string; idemKey: string }) => postJson<{ ok: boolean; error?: string }>("/api/admin/staff/pay", p),
+  staffSessionSet: (p: Record<string, unknown>) => postJson<{ ok: boolean; error?: string; amountEarned?: number }>("/api/admin/staff/session", p),
+  staffOrgCreate: (name: string, ownerTelegramId: string) => postJson<{ ok: boolean; id?: number; error?: string }>("/api/admin/staff/org", { name, ownerTelegramId }),
+  staffOrgSave: (id: number, patch: Record<string, unknown>) => postJson<{ ok: boolean; error?: string }>(`/api/admin/staff/org/${id}`, patch),
+  staffCalendarSet: (orgId: number, date: string, kind: string | null) => postJson<{ ok: boolean; error?: string }>("/api/admin/staff/calendar", { orgId, date, kind }),
+  staffReport: (orgId: number, month?: string) => req<import("./jamoa").MonthReport>(`/api/admin/staff/report?orgId=${orgId}${month ? `&month=${month}` : ""}`),
+  staffImport: (orgId: number, text: string) => postJson<{ ok: boolean; error?: string; results?: { line: string; ok: boolean; info: string }[] }>("/api/admin/staff/import", { orgId, text }),
+
   // 🎀 ravella — bezak konstruktori: kategoriya/bezak/qo'shimcha CRUD + rasm + buyurtma navbati
   ravellaAll: () => req<{
     enabled: boolean; partnerChatId: string | null; previewToken: string;

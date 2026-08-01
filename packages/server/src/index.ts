@@ -354,6 +354,10 @@ async function main(): Promise<void> {
           await runTierLoyaltyDailyAll(bot).catch((e) => console.error("[tierdaily] failed:", e));
           const { settleGapsWeekly } = await import("./services/gapService");
           if (new Date(Date.now() + 5 * 3600_000).getUTCDay() === 1) await settleGapsWeekly(bot).catch((e) => console.error("[gap] failed:", e));
+          // 👔 JAMOA J4: unutilgan "Ketdim"larni avto-yopish + 21:00 dan keyin har korxona
+          // egasiga BITTA kechki xulosa (AppState marker, muvaffaqiyatda) — jamoa flag ichkarida.
+          const { staffDailyTick } = await import("./services/staffService");
+          await staffDailyTick(bot).catch((e) => console.error("[staff] failed:", e));
         }
         await reapStaleSyncs(30 * 60_000).catch(() => undefined); // watchdog (>30min)
         {

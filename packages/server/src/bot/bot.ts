@@ -30,6 +30,7 @@ import { registerMarket, isInMarketWizard, isAwaitingStory } from "./market";
 import { registerIntercity } from "./intercity";
 import { isAwaitingBroadcastPhoto, registerBroadcast } from "./broadcast";
 import { isAwaitingRavellaPhoto, registerRavella } from "./ravella";
+import { registerStaff } from "./staff";
 import type { DriverPanelExtras } from "../services/driverReportService";
 import {
   renderBadgeUnlocked,
@@ -643,6 +644,10 @@ export function createBot(): Bot {
     // registerMarket'dan OLDINROQ ro'yxatdan o'tgan va next() chaqirmasdi. Faol wizard-sessiyasi
     // bo'lsa o'tkazib yuboramiz (market.ts o'zi bu matnni to'g'ri qabul qiladi).
     if (isInMarketWizard(String(ctx.from?.id ?? ""))) { await next(); return; }
+    // 👔 JAMOA: botning O'Z xabariga reply (masalan "💸 Pul oldim" ForceReply-promptiga
+    // "1 000 000" summa) — bu hech qachon qo'lda terilgan telefon raqam emas, o'tkazamiz
+    // (aynan 2026-07-22 /sotuvchi saboqning takrori: bu guard keyingi handlerlarni yutadi).
+    if (ctx.message?.reply_to_message?.from?.id === ctx.me.id) { await next(); return; }
     await ctx.reply(
       "🔒 Raqamni <b>qo'lda yozib bo'lmaydi</b> — bu xavfsiz emas.\n\n" +
         "• <b>O'z</b> raqamingiz → pastdagi «📱 Raqamni ulashish» tugmasi (Telegram tasdiqlaydi)\n" +
@@ -1490,6 +1495,8 @@ export function createBot(): Bot {
   bot.on("message:text", async (ctx, next) => {
     const id = String(ctx.from!.id);
     if (!svcSearchWait.has(id)) return next();
+    // Bot promptiga reply — bu qidiruv so'rovi emas (masalan 👔 "Pul oldim" summasi); flag saqlanadi.
+    if (ctx.message.reply_to_message?.from?.id === ctx.me.id) return next();
     svcSearchWait.delete(id);
     const q = ctx.message.text.trim();
     // a menu-button tap or command while "waiting" is NOT a search query — bail to next()
@@ -1520,6 +1527,9 @@ export function createBot(): Bot {
   void import("./shop").then(({ registerShop }) => registerShop(bot)); // 🛍 shop owner ✅/❌ callbacks (callback-only, no text capture → lazy-register is order-safe)
   void import("./xizmatlar").then(({ registerXizmatlar }) => registerXizmatlar(bot)); // 🔎 xizmatlar owner ✅/❌ moderation callbacks (callback-only → lazy-register is order-safe)
   void import("./elonlar").then(({ registerElonlar }) => registerElonlar(bot)); // 📋 e'lonlar owner ✅/❌ moderation callbacks (callback-only → lazy-register is order-safe)
+  registerStaff(bot); // 👔 /ish — xodim Keldim/Ketdim/Hisobim (JAMOA J2). SINXRON registratsiya
+  // SHART: /ish KOMANDA, lazy .then() esa AI catch-all'dan KEYIN qo'shilardi → komanda o'lik
+  // (registerRavella'dagi 2026-07-27 saboqning aynan o'zi). Gate servisda (jamoa flag + Employee).
   registerIntercity(bot); // 🚐 /reys — nationwide intercity seat booking (publish/search/book). Gated DARK by `intercity`. Session-gated text capture → registered before booking.
   registerMarket(bot); // 🏪 /sotuvchi — BirJoy seller-onboarding wizard (DARK vitrina → ega tasdiqlaydi). Session-gated text capture → registered before booking.
   registerDriverDebt(bot); // /qarz — pay kas debt with tanga (gated behind `qarz` flag). No login: uses the member's already-linked plate.

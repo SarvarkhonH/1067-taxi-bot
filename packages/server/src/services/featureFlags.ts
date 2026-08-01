@@ -142,13 +142,17 @@ export const FEATURES = [
               // funksiyalarni qayta ishlatadi (createFoodOrder/terminateWithRefund/adminGrantCoins
               // va h.k.). Bitta kill-switch: OFF = /api/admin/opr/* va operator pauza-oqimi butunlay
               // o'chadi. DARK until owner QABUL.
+  "jamoa", // 👔 JAMOA (JAMOA_PLAN.md): xodimlar davomati + oylik hisobi (REAL so'm,
+              // StaffLedger — tanga/CoinTxn'ga MUTLAQO aralashmaydi). OFF = botda "Ish"
+              // bo'limi ko'rinmaydi, kechki xulosa yuborilmaydi, admin "Jamoa" tab
+              // ma'lumot o'qiydi lekin bot-oqim o'lik. DARK until owner QABUL.
 ] as const;
 export type FeatureName = (typeof FEATURES)[number];
 
 // Off until explicitly enabled (go-live flip = setFeature(name, true) after owner QABUL).
 // booking3 = the new map/trip flow; owner still gets a preview via server.ts owner-branch,
 // but real users stay on the (fixed) classic flow until it's accepted. A missing row → OFF.
-const DEFAULT_OFF = new Set<FeatureName>(["booking3", "aibrain", "mahalla", "tolqin", "baraban", "komissiya", "qarz", "welcomebonus", "refstaged", "drvstaged", "drvrecruit", "drvpush", "promo", "clientbooking", "cashout", "carupgrade", "intercity", "tierloyalty", "waitcomp", "trackcta", "jackpotpost", "drvrank", "instantstatus", "spinreminder", "shop", "xizmatlar", "elonlar", "elontop", "restoran", "bazarcart", "shopcashback", "revtanga", "airemind", "aihisob", "aidost", "aicity", "aibilim", "aineeds", "shopstory", "shopchat", "mktexpire", "mktlife", "ravella", "linkinapp", "homescreen", "storyshare", "autoloc", "operatorAssist"]);
+const DEFAULT_OFF = new Set<FeatureName>(["booking3", "aibrain", "mahalla", "tolqin", "baraban", "komissiya", "qarz", "welcomebonus", "refstaged", "drvstaged", "drvrecruit", "drvpush", "promo", "clientbooking", "cashout", "carupgrade", "intercity", "tierloyalty", "waitcomp", "trackcta", "jackpotpost", "drvrank", "instantstatus", "spinreminder", "shop", "xizmatlar", "elonlar", "elontop", "restoran", "bazarcart", "shopcashback", "revtanga", "airemind", "aihisob", "aidost", "aicity", "aibilim", "aineeds", "shopstory", "shopchat", "mktexpire", "mktlife", "ravella", "linkinapp", "homescreen", "storyshare", "autoloc", "operatorAssist", "jamoa"]);
 
 let cache: { at: number; map: Record<string, boolean> } = { at: 0, map: {} };
 

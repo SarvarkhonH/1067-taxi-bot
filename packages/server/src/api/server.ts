@@ -1889,6 +1889,75 @@ export function createApiServer(opts: ApiOptions = {}) {
     res.json(await deleteKnowledge(Number(req.params.id)));
   });
 
+  // 👔 JAMOA J3 (JAMOA_PLAN.md) — xodimlar paneli. REAL so'm (StaffLedger), tanga EMAS.
+  // Hammasi owner-only: oylik ma'lumoti admin-tokenli operatorga ham ko'rinmasligi kerak.
+  app.get("/api/admin/staff/overview", requireAdmin, requireOwner, async (_req, res) => {
+    const { staffAdminOverview } = await import("../services/staffAdminService");
+    res.json(await staffAdminOverview());
+  });
+  app.get("/api/admin/staff/employee/:id", requireAdmin, requireOwner, async (req, res) => {
+    const { staffAdminEmployee } = await import("../services/staffAdminService");
+    const r = await staffAdminEmployee(Number(req.params.id), String(req.query.month ?? ""));
+    if (!r) { res.status(404).json({ error: "not found" }); return; }
+    res.json(r);
+  });
+  app.post("/api/admin/staff/employee", requireAdmin, requireOwner, rateLimit(60), async (req, res) => {
+    const { staffAdminEmployeeSave } = await import("../services/staffAdminService");
+    res.json(await staffAdminEmployeeSave(req.body ?? {}));
+  });
+  app.post("/api/admin/staff/pay", requireAdmin, requireOwner, rateLimit(30), async (req, res) => {
+    const { staffAdminPay } = await import("../services/staffAdminService");
+    const b = req.body as { employeeId?: number; kind?: string; amount?: number; note?: string; idemKey?: string };
+    const r = await staffAdminPay({
+      employeeId: Number(b?.employeeId),
+      kind: b?.kind as "payout" | "bonus" | "adjust",
+      amount: Number(b?.amount),
+      note: b?.note,
+      idemKey: String(b?.idemKey ?? ""),
+      actor: String(res.locals.telegramId ?? "admin"),
+    });
+    // Xodimga darhol xabar (JAMOA_PLAN §1.2 — "tortishuv qolmaydi"); yuborilmasa ham pul yozildi.
+    if (r.ok && r.notifyTelegramId && r.notifyText && opts.sendMessage) {
+      await opts.sendMessage(r.notifyTelegramId, r.notifyText).catch(() => undefined);
+    }
+    res.json({ ok: r.ok, error: r.error });
+  });
+  app.post("/api/admin/staff/session", requireAdmin, requireOwner, rateLimit(120), async (req, res) => {
+    const { staffAdminSessionSet } = await import("../services/staffAdminService");
+    const b = (req.body ?? {}) as Record<string, unknown>;
+    res.json(await staffAdminSessionSet({ ...(b as object), employeeId: Number(b.employeeId), date: String(b.date ?? ""), actor: String(res.locals.telegramId ?? "admin") } as never));
+  });
+  app.get("/api/admin/staff/orgs", requireAdmin, requireOwner, async (_req, res) => {
+    const { staffAdminOrgs } = await import("../services/staffAdminService");
+    res.json({ orgs: await staffAdminOrgs() });
+  });
+  app.post("/api/admin/staff/org", requireAdmin, requireOwner, rateLimit(20), async (req, res) => {
+    const { staffAdminOrgCreate } = await import("../services/staffAdminService");
+    const b = req.body as { name?: string; ownerTelegramId?: string };
+    res.json(await staffAdminOrgCreate(String(b?.name ?? ""), String(b?.ownerTelegramId ?? "")));
+  });
+  app.post("/api/admin/staff/org/:id", requireAdmin, requireOwner, rateLimit(60), async (req, res) => {
+    const { staffAdminOrgSave } = await import("../services/staffAdminService");
+    res.json(await staffAdminOrgSave(Number(req.params.id), (req.body ?? {}) as Record<string, unknown>));
+  });
+  app.post("/api/admin/staff/calendar", requireAdmin, requireOwner, rateLimit(120), async (req, res) => {
+    const { staffAdminCalendarSet } = await import("../services/staffAdminService");
+    const b = req.body as { orgId?: number; date?: string; kind?: string | null };
+    res.json(await staffAdminCalendarSet(Number(b?.orgId), String(b?.date ?? ""), (b?.kind ?? null) as never));
+  });
+  // 📄 J5: oy-oxiri hisobot + eski oyliklarni ommaviy kiritish
+  app.get("/api/admin/staff/report", requireAdmin, requireOwner, async (req, res) => {
+    const { staffAdminMonthReport } = await import("../services/staffAdminService");
+    const r = await staffAdminMonthReport(Number(req.query.orgId), String(req.query.month ?? ""));
+    if (!r) { res.status(404).json({ error: "org not found" }); return; }
+    res.json(r);
+  });
+  app.post("/api/admin/staff/import", requireAdmin, requireOwner, rateLimit(10), async (req, res) => {
+    const { staffAdminBulkImport } = await import("../services/staffAdminService");
+    const b = req.body as { orgId?: number; text?: string };
+    res.json(await staffAdminBulkImport(Number(b?.orgId), String(b?.text ?? "")));
+  });
+
   // 🎁 Acquisition bonuses — owner sets first-ride / referral / recruit / driver→driver amounts live.
   app.get("/api/admin/bonus-economy", requireAdmin, async (_req, res) => {
     const { BONUS_ECON_KNOBS } = await import("@t1067/shared");

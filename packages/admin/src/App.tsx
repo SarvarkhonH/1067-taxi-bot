@@ -30,9 +30,10 @@ import {
   SHOP_CATEGORIES,
 } from "@t1067/shared";
 import { RavellaAdminView } from "./ravella";
+import { JamoaAdminView } from "./jamoa";
 import { adminApi, clearAdminToken, hasAdminToken, setAdminToken, type AdminBannedRow, type AdminChatConvo, type AdminChatMsg, type AdminDebtRow, type AdminMsgHistoryRow, type AdminRatingRow, type AdminTxnRow, type AdminBlockedRow, type AdminReferralRow, type AdminRideRow, type AdminUserRow, type AdminWithdrawalRow, type AdminWithdrawalTabRow, type CampaignRow, type Driver360, type DriverCallRow, type DriverCallStats, type DriverMissionRow, type IntercityAdminTrip, type IntercityAdminDebt, type Member360, type PeakHourRow, type ShopAdminProductRow, type ShopAdminOrderRow, type ShopAdminReviewRow, type SvcAdminRow, type SvcAdminCat, type SvcAdminReview, type RestoranAdminRow, type RestoranMenuItemRow, type OprOpsRow, type OprJurnalRow } from "./api";
 
-type Tab = "overview" | "pulse" | "analytics" | "finance" | "live" | "x360" | "driver" | "client" | "botusers" | "obzvon" | "boshqaruv" | "topshiriq" | "actions" | "integrity" | "audit" | "safarlar" | "qarzlar" | "referallar" | "banlist" | "yechishlar" | "baholar" | "xabar" | "chat" | "broadcasts" | "intercity" | "pik" | "transactions" | "blocked" | "shop" | "xizmatlar" | "elonlar" | "restoran" | "ravella" | "bilim" | "bosh";
+type Tab = "overview" | "pulse" | "analytics" | "finance" | "live" | "x360" | "driver" | "client" | "botusers" | "obzvon" | "boshqaruv" | "topshiriq" | "actions" | "integrity" | "audit" | "safarlar" | "qarzlar" | "referallar" | "banlist" | "yechishlar" | "baholar" | "xabar" | "chat" | "broadcasts" | "intercity" | "pik" | "transactions" | "blocked" | "shop" | "xizmatlar" | "elonlar" | "restoran" | "ravella" | "bilim" | "bosh" | "jamoa";
 
 const NAV_GROUPS: { label: string; items: { id: Tab; icon: string; label: string }[] }[] = [
   {
@@ -91,6 +92,7 @@ const NAV_GROUPS: { label: string; items: { id: Tab; icon: string; label: string
       { id: "elonlar", icon: "📋", label: "E'lonlar" },
       { id: "restoran", icon: "🍽", label: "Restoran" },
       { id: "ravella", icon: "🎀", label: "Ravella" },
+      { id: "jamoa", icon: "👔", label: "Jamoa" },
       { id: "bilim", icon: "🧠", label: "AI Bilim" },
       { id: "pik", icon: "🔥", label: "Pik Vaqtlar" },
       { id: "actions", icon: "⚡", label: "Amallar" },
@@ -232,6 +234,7 @@ export function App() {
           {tab === "elonlar" && <ElonlarAdminView />}
           {tab === "restoran" && (<><RestoranAdminView /><RestoranCatalogAdminView /></>)}
           {tab === "ravella" && <RavellaAdminView />}
+          {tab === "jamoa" && <JamoaAdminView />}
           {tab === "bilim" && <KnowledgeAdminView />}
           {tab === "topshiriq" && <><QuickAnnounceView /><CampaignsView /><DriverMissionsView /></>}
           {tab === "actions" && <><ActionsView onHistory={() => goTab("broadcasts")} /><ControlCards /></>}
