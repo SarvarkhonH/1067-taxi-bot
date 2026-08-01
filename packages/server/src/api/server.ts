@@ -1945,6 +1945,27 @@ export function createApiServer(opts: ApiOptions = {}) {
     const b = req.body as { orgId?: number; date?: string; kind?: string | null };
     res.json(await staffAdminCalendarSet(Number(b?.orgId), String(b?.date ?? ""), (b?.kind ?? null) as never));
   });
+  // 🔁 O'rniga ishlash: kelmagandan kesilgan pulni o'rniga ishlaganga o'tkazish
+  app.post("/api/admin/staff/cover", requireAdmin, requireOwner, rateLimit(60), async (req, res) => {
+    const { staffAdminCoverSet } = await import("../services/staffAdminService");
+    const b = req.body as { date?: string; absentEmployeeId?: number; coverEmployeeId?: number | null; amount?: number };
+    const r = await staffAdminCoverSet({
+      date: String(b?.date ?? ""),
+      absentEmployeeId: Number(b?.absentEmployeeId),
+      coverEmployeeId: b?.coverEmployeeId == null ? null : Number(b.coverEmployeeId),
+      amount: b?.amount == null ? undefined : Number(b.amount),
+      actor: String(res.locals.telegramId ?? "admin"),
+    });
+    if (r.ok && r.notifyTelegramId && r.notifyText && opts.sendMessage) {
+      await opts.sendMessage(r.notifyTelegramId, r.notifyText).catch((e) => console.error("[staff] cover notify failed:", e));
+    }
+    // Qayta-biriktirishda AVVALGI oluvchi ham xabardor bo'ladi (balansi jimgina kamaymasin)
+    if (r.ok && r.revokeTelegramId && r.revokeText && opts.sendMessage) {
+      await opts.sendMessage(r.revokeTelegramId, r.revokeText).catch(() => undefined);
+    }
+    res.json({ ok: r.ok, error: r.error, amount: r.amount });
+  });
+
   // 📄 J5: oy-oxiri hisobot + eski oyliklarni ommaviy kiritish
   app.get("/api/admin/staff/report", requireAdmin, requireOwner, async (req, res) => {
     const { staffAdminMonthReport } = await import("../services/staffAdminService");

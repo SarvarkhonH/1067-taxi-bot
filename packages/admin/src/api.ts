@@ -312,6 +312,7 @@ export const adminApi = {
   staffOrgCreate: (name: string, ownerTelegramId: string) => postJson<{ ok: boolean; id?: number; error?: string }>("/api/admin/staff/org", { name, ownerTelegramId }),
   staffOrgSave: (id: number, patch: Record<string, unknown>) => postJson<{ ok: boolean; error?: string }>(`/api/admin/staff/org/${id}`, patch),
   staffCalendarSet: (orgId: number, date: string, kind: string | null) => postJson<{ ok: boolean; error?: string }>("/api/admin/staff/calendar", { orgId, date, kind }),
+  staffCoverSet: (p: { date: string; absentEmployeeId: number; coverEmployeeId: number | null; amount?: number }) => postJson<{ ok: boolean; error?: string; amount?: number }>("/api/admin/staff/cover", p),
   staffReport: (orgId: number, month?: string) => req<import("./jamoa").MonthReport>(`/api/admin/staff/report?orgId=${orgId}${month ? `&month=${month}` : ""}`),
   staffImport: (orgId: number, text: string) => postJson<{ ok: boolean; error?: string; results?: { line: string; ok: boolean; info: string }[] }>("/api/admin/staff/import", { orgId, text }),
 
