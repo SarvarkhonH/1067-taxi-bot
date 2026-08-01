@@ -5,6 +5,7 @@
 import {
   type StaffCalendar,
   type StaffDayKind,
+  dailyRateFor,
   dayKindFor,
   dateKey,
   hhmmToMin,
@@ -65,6 +66,7 @@ export async function staffAdminOverview(now = new Date()) {
       ]);
       employees.push({
         id: e.id,
+        orgId: e.orgId,
         telegramId: e.telegramId,
         name: e.name,
         role: e.role,
@@ -116,7 +118,21 @@ export async function staffAdminEmployee(employeeId: number, month: string, now 
       editedBy: s?.editedBy ?? null,
       shiftStartOvr: s?.shiftStartOvr ?? null,
       shiftEndOvr: s?.shiftEndOvr ?? null,
+      dailyRate: dailyRateFor(pol, yy, mm), // "yo'qotilgan pul" ni hisoblash uchun (o'rniga ishlash)
+      coverTo: null as { employeeId: number; name: string; amount: number } | null,
     });
+  }
+  // 🔁 O'RNIGA ISHLASH: shu xodim kelmagan/kech kelgan kunlari uchun boshqasiga
+  // o'tkazilgan pullar (kalit `staffcover:<kelmaganId>:<sana>`) — kun jadvalida
+  // "→ Bekzodga o'tdi" bo'lib ko'rinadi.
+  const coverRows = await prisma.staffLedger.findMany({
+    where: { idempotencyKey: { startsWith: `staffcover:${employeeId}:` }, kind: "bonus" }, // "bekor" tombstonelar belgi ko'rsatmaydi
+    include: { employee: { select: { id: true, name: true } } },
+  });
+  const coverByDate = new Map(coverRows.map((c) => [c.idempotencyKey.split(":")[2] ?? "", c]));
+  for (const d of days) {
+    const c = coverByDate.get(d.date);
+    (d as Record<string, unknown>).coverTo = c ? { employeeId: c.employee.id, name: c.employee.name, amount: c.amount } : null;
   }
   const ledger = await prisma.staffLedger.findMany({ where: { employeeId }, orderBy: { createdAt: "desc" }, take: 100 });
   const bal = await balanceOf(employeeId, emp.openingBalance);
@@ -268,7 +284,7 @@ export async function staffAdminSessionSet(input: {
   shiftEndOvr?: string | null;
   confirm?: boolean;
   actor: string;
-}): Promise<{ ok: boolean; error?: string; amountEarned?: number }> {
+}): Promise<{ ok: boolean; error?: string; amountEarned?: number; coverNote?: string }> {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(input.date)) return { ok: false, error: "Sana noto'g'ri" };
   const emp = await prisma.employee.findUnique({ where: { id: input.employeeId }, include: { org: true } });
   if (!emp) return { ok: false, error: "Xodim topilmadi" };
@@ -320,7 +336,123 @@ export async function staffAdminSessionSet(input: {
     update: data as never,
   });
   const pay = await recomputeSession(s.id);
-  return { ok: true, amountEarned: pay?.amountEarned ?? 0 };
+  // Kun tuzatilgach o'rniga-ishlash o'tkazmasi ham moslanadi (B3: aks holda A to'liq
+  // pul oladi, B esa o'tkazmani saqlab qoladi — bir kun ikki marta to'lanardi).
+  const rec = await staffAdminCoverReconcile(emp.id, input.date).catch(() => ({ changed: false as const }));
+  return { ok: true, amountEarned: pay?.amountEarned ?? 0, coverNote: rec.changed ? rec.note : undefined };
+}
+
+/**
+ * 🔁 O'RNIGA ISHLASH (ega qoidasi #1, birinchi kundan beri): kelmagan/kech kelgan
+ * xodimdan KESILGAN pul o'rniga ishlaganga YOZILADI. Kesish allaqachon avtomatik
+ * (computeDayPay kelmaganga 0, kechikkanga faqat kelgan vaqtidan) — bu funksiya
+ * o'sha yo'qotilgan summani ikkinchi xodimga o'tkazadi. Biznes uchun xarajat
+ * NEYTRAL: bir kunlik pul ikki marta chiqmaydi.
+ *
+ * Idempotent kalit `staffcover:<kelmaganId>:<sana>` — bir kelmagan-kun uchun BITTA
+ * o'tkazma. Boshqa xodim tanlansa yoki summa o'zgarsa — o'sha qator ko'chadi
+ * (ikkinchi to'lov yaralmaydi). coverEmployeeId=null → o'tkazma bekor qilinadi.
+ */
+export async function staffAdminCoverSet(input: {
+  date: string;
+  absentEmployeeId: number;
+  coverEmployeeId: number | null;
+  amount?: number;
+  actor: string;
+}): Promise<{ ok: boolean; error?: string; amount?: number; notifyTelegramId?: string; notifyText?: string; revokeTelegramId?: string; revokeText?: string }> {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(input.date)) return { ok: false, error: "Sana noto'g'ri" };
+  if (!Number.isFinite(input.absentEmployeeId)) return { ok: false, error: "Xodim tanlanmagan" };
+  const absent = await prisma.employee.findUnique({ where: { id: input.absentEmployeeId }, include: { org: true } });
+  if (!absent) return { ok: false, error: "Kelmagan xodim topilmadi" };
+  const key = `staffcover:${absent.id}:${input.date}`;
+  const existing = await prisma.staffLedger.findUnique({ where: { idempotencyKey: key }, include: { employee: true } });
+
+  // Bekor qilish: o'chirish emas — "bekor" tombstone (audit qoladi, qayta-yozuv tirilmaydi)
+  // + AVVALGI oluvchiga xabar (aks holda balansi jimgina kamayardi — tekshiruv B4).
+  if (input.coverEmployeeId == null) {
+    if (existing && existing.kind !== "bekor") {
+      await prisma.staffLedger.updateMany({ where: { idempotencyKey: key, kind: "bonus" }, data: { kind: "bekor", note: `${existing.note ?? ""} · ❌ bekor (${input.actor})` } });
+      const b = await balanceOf(existing.employeeId, existing.employee.openingBalance);
+      return { ok: true, amount: 0, notifyTelegramId: existing.employee.telegramId, notifyText: `❌ «${esc(existing.note ?? "o'rniga ishlash")}» o'tkazmasi bekor qilindi (−${fmt(existing.amount)} so'm)\n💰 Qoldiq: <b>${fmt(b.balance)} so'm</b>` };
+    }
+    return { ok: true, amount: 0 };
+  }
+  if (!Number.isFinite(input.coverEmployeeId)) return { ok: false, error: "O'rniga ishlagan tanlanmagan" };
+  if (input.coverEmployeeId === absent.id) return { ok: false, error: "O'ziga o'zi o'rniga ishlay olmaydi" };
+  const cover = await prisma.employee.findUnique({ where: { id: input.coverEmployeeId } });
+  if (!cover) return { ok: false, error: "O'rniga ishlagan xodim topilmadi" };
+  if (cover.orgId !== absent.orgId) return { ok: false, error: "Boshqa korxona xodimi" };
+  if (!cover.active) return { ok: false, error: "O'chirilgan xodimga o'tkazib bo'lmaydi" };
+
+  // Kelajakdagi kun / ish kuni bo'lmagan kun uchun o'tkazma YO'Q — u yerda hech kim
+  // hech narsa yo'qotmagan (tekshiruv B1: dam kunida ham to'liq kunlik taklif qilinardi).
+  const [yy, mm] = ymdOf(input.date);
+  const dd = Number(input.date.slice(8));
+  const session = await prisma.workSession.findUnique({ where: { employeeId_date: { employeeId: absent.id, date: input.date } } });
+  const pol = resolveStaffPolicy({ ...absent.org, calendar: absent.org.calendar ?? undefined }, absent, session ?? undefined);
+  const kind = dayKindFor(yy, mm, dd, pol.workDays, pol.calendar);
+  const paidDay = kind === "ish" || (kind === "bayram" && pol.holidayPaid);
+  if (!paidDay) return { ok: false, error: `Bu kun ish kuni emas (${kind}) — yo'qotilgan pul yo'q` };
+  if (input.date > tashkentDayMinutes(new Date()).date) return { ok: false, error: "Kelajakdagi kun uchun o'tkazib bo'lmaydi" };
+
+  // TOM = o'sha kuni kelmagan xodim YO'QOTGAN pul (kunlik − ishlagani). Qo'lda kiritilgan
+  // summa ham shundan OSHA OLMAYDI — aks holda bir kunlik pul ikki marta chiqardi (B2).
+  const lost = Math.max(0, dailyRateFor(pol, yy, mm) - (session?.amountEarned ?? 0));
+  if (lost <= 0) return { ok: false, error: "Yo'qotilgan pul yo'q — o'sha kuni to'liq ishlagan" };
+  let amount = input.amount == null ? lost : Math.round(Number(input.amount));
+  if (!Number.isFinite(amount) || amount <= 0) return { ok: false, error: "Summa noto'g'ri" };
+  if (amount > lost) return { ok: false, error: `Yo'qotilgani ${fmt(lost)} so'm — undan ko'p o'tkazib bo'lmaydi` };
+
+  const note = `🔁 ${absent.name} o'rniga (${input.date})`;
+  // upsert = poyga-xavfsiz (ikki marta bosish/ikki ega — ikkinchisi ustiga yozadi, dublikat yo'q)
+  await prisma.staffLedger.upsert({
+    where: { idempotencyKey: key },
+    create: { employeeId: cover.id, kind: "bonus", amount, note, idempotencyKey: key, createdBy: input.actor },
+    update: { employeeId: cover.id, kind: "bonus", amount, note, createdBy: input.actor },
+  });
+  const bal = await balanceOf(cover.id, cover.openingBalance);
+  const prev = existing && existing.kind === "bonus" && existing.employeeId !== cover.id ? existing : null;
+  return {
+    ok: true,
+    amount,
+    notifyTelegramId: cover.telegramId,
+    notifyText: `🔁 <b>${esc(absent.name)}</b> o'rniga ishlaganingiz uchun: <b>+${fmt(amount)} so'm</b> (${input.date})\n💰 Qoldiq: <b>${fmt(bal.balance)} so'm</b>`,
+    revokeTelegramId: prev?.employee.telegramId,
+    revokeText: prev ? `↩️ «${esc(prev.note ?? "o'rniga ishlash")}» o'tkazmasi boshqa xodimga o'tkazildi (−${fmt(prev.amount)} so'm)` : undefined,
+  };
+}
+
+/**
+ * A ning kuni QO'LDA tuzatilgandan keyin o'tkazmani qayta moslash: A endi to'liq
+ * ishlagan bo'lsa o'tkazma bekor qilinadi, kamroq yo'qotgan bo'lsa qisqartiriladi.
+ * Busiz bir kunlik pul IKKI MARTA chiqardi (tekshiruv B3).
+ */
+export async function staffAdminCoverReconcile(absentEmployeeId: number, date: string): Promise<{ changed: boolean; note?: string }> {
+  const key = `staffcover:${absentEmployeeId}:${date}`;
+  const row = await prisma.staffLedger.findUnique({ where: { idempotencyKey: key } });
+  if (!row || row.kind !== "bonus") return { changed: false };
+  const absent = await prisma.employee.findUnique({ where: { id: absentEmployeeId }, include: { org: true } });
+  if (!absent) return { changed: false };
+  const [yy, mm] = ymdOf(date);
+  const session = await prisma.workSession.findUnique({ where: { employeeId_date: { employeeId: absentEmployeeId, date } } });
+  const pol = resolveStaffPolicy({ ...absent.org, calendar: absent.org.calendar ?? undefined }, absent, session ?? undefined);
+  const lost = Math.max(0, dailyRateFor(pol, yy, mm) - (session?.amountEarned ?? 0));
+  if (lost >= row.amount) return { changed: false };
+  if (lost <= 0) {
+    await prisma.staffLedger.updateMany({ where: { idempotencyKey: key, kind: "bonus" }, data: { kind: "bekor", note: `${row.note ?? ""} · ❌ avto-bekor (kun tuzatildi)` } });
+    return { changed: true, note: `🔁 o'tkazma bekor qilindi (${fmt(row.amount)} so'm) — kun tuzatilgach yo'qotilgan pul qolmadi` };
+  }
+  await prisma.staffLedger.update({ where: { idempotencyKey: key }, data: { amount: lost, note: `${row.note ?? ""} · ✏️ ${fmt(row.amount)}→${fmt(lost)}` } });
+  return { changed: true, note: `🔁 o'tkazma ${fmt(row.amount)} → ${fmt(lost)} so'mga qisqartirildi (kun tuzatildi)` };
+}
+
+function ymdOf(date: string): [number, number] {
+  const p = date.split("-").map(Number);
+  return [p[0] ?? 0, p[1] ?? 1];
+}
+
+function esc(s: string): string {
+  return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 }
 
 const ORG_NUM_FIELDS = ["fixedDivisor", "graceMin", "roundMin", "lunchMin", "lunchThresholdMin", "sickPct", "vacationPct"] as const;

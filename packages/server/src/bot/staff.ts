@@ -49,17 +49,39 @@ function onTap(action: (tgId: string) => Promise<{ ok: boolean; text: string }>)
   };
 }
 
+/** Egaga bugungi xulosa + ✅ Tasdiqlash (kechki 21:00 kartasining talab-bo'yicha nusxasi). */
+async function sendOwnerSummary(ctx: Context, tg: string): Promise<boolean> {
+  const { staffOwnerSummary } = await import("../services/staffService");
+  const s = await staffOwnerSummary(tg);
+  if (!s.ok || !s.text) return false;
+  const kb = s.unconfirmed && s.orgId && s.date ? new InlineKeyboard().text("✅ Tasdiqlash", `ishc:${s.orgId}:${s.date}`) : undefined;
+  await ctx.reply(s.text, { parse_mode: "HTML", reply_markup: kb }).catch(() => undefined);
+  return true;
+}
+
 export function registerStaff(bot: Bot): void {
   bot.command("ish", async (ctx) => {
     const tg = String(ctx.from?.id ?? "");
     if (!tg || ctx.chat.type !== "private") return; // guruhda jim — maosh sirti yo'q
     const { employeeFor } = await import("../services/staffService");
     const emp = await employeeFor(tg);
-    if (!emp) return; // not an employee (or flag off) — stay silent, no surface leak
-    await ctx.reply(
-      `👔 <b>${esc(emp.name)}</b> — ${esc(emp.org.name)}\nIsh boshida "Keldim", ketishda "Ketdim" bosing.`,
-      { parse_mode: "HTML", reply_markup: ishKeyboard() }
-    );
+    if (emp) {
+      await ctx.reply(
+        `👔 <b>${esc(emp.name)}</b> — ${esc(emp.org.name)}\nIsh boshida "Keldim", ketishda "Ketdim" bosing.`,
+        { parse_mode: "HTML", reply_markup: ishKeyboard() }
+      );
+      return;
+    }
+    // Xodim emas, lekin KORXONA EGASI bo'lishi mumkin — unga jim qolish noto'g'ri
+    // (2026-08-01: ega /ish yozdi, bot mutlaqo javob bermadi). Boshqalarga — jim.
+    await sendOwnerSummary(ctx, tg);
+  });
+
+  // 📋 Egaga bugungi xulosa TALAB BO'YICHA (21:00 ni kutmasdan) + ✅ Tasdiqlash.
+  bot.command("jamoa", async (ctx) => {
+    const tg = String(ctx.from?.id ?? "");
+    if (!tg || ctx.chat.type !== "private") return;
+    await sendOwnerSummary(ctx, tg);
   });
 
   bot.callbackQuery("ish:in", onTap(async (tg) => (await import("../services/staffService")).staffCheckIn(tg)));

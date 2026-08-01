@@ -10,7 +10,7 @@ const WD = ["Du", "Se", "Ch", "Pa", "Ju", "Sh", "Ya"]; // isoWeekday 1..7
 
 // ── server javob shakllari (staffAdminService bilan 1:1; api.ts type-only import qiladi) ──
 export interface RosterEmp {
-  id: number; telegramId: string; name: string; role: string; active: boolean;
+  id: number; orgId: number; telegramId: string; name: string; role: string; active: boolean;
   payType: string; monthlySalary: number; dailyRate: number; hourlyRate: number;
   todayIn: string | null; todayOut: string | null; todayStatus: string;
   monthEarned: number; monthMinutes: number; balance: number;
@@ -23,6 +23,8 @@ export interface DayRow {
   minutesWorked: number; overtimeMin: number; amountEarned: number;
   autoClosed: boolean; confirmed: boolean; editedBy: string | null;
   shiftStartOvr: string | null; shiftEndOvr: string | null;
+  dailyRate: number;
+  coverTo: { employeeId: number; name: string; amount: number } | null;
 }
 export interface EmpDetail {
   employee: {
@@ -62,6 +64,9 @@ const STATUS_BADGE: Record<string, { cls: string; label: string }> = {
   bayram: { cls: "badge-muted", label: "🎉 bayram" },
 };
 
+// Toshkent bugungi kuni (UTC+5) — cover-qatorini kelajak kunlarda yashirish uchun
+const todayTk = () => new Date(Date.now() + 5 * 3600_000).toISOString().slice(0, 10);
+
 const DAY_STATUSES = ["ishladi", "kelmadi", "javobli", "kasallik", "tatil", "bayram"] as const;
 
 export function JamoaAdminView() {
@@ -87,7 +92,7 @@ export function JamoaAdminView() {
     <div>
       {msg && <div className="alert">{msg}</div>}
       {openEmp != null ? (
-        <EmpDetailView empId={openEmp} onBack={() => { setOpenEmp(null); load(); }} flash={flash} />
+        <EmpDetailView empId={openEmp} roster={roster.orgs.flatMap((o) => o.employees)} onBack={() => { setOpenEmp(null); load(); }} flash={flash} />
       ) : (
         <>
           <div className="adm-toolbar" style={{ display: "flex", gap: 8, marginBottom: 12, flexWrap: "wrap" }}>
@@ -298,7 +303,7 @@ function AddEmpForm({ orgs, onDone, flash }: { orgs: OrgRow[]; onDone: () => voi
 }
 
 // ── 👤 xodim sahifasi ──
-function EmpDetailView({ empId, onBack, flash }: { empId: number; onBack: () => void; flash: (t: string) => void }) {
+function EmpDetailView({ empId, roster, onBack, flash }: { empId: number; roster: RosterEmp[]; onBack: () => void; flash: (t: string) => void }) {
   const [d, setD] = useState<EmpDetail | null>(null);
   const [month, setMonth] = useState<string>("");
   const [editDay, setEditDay] = useState<string | null>(null);
@@ -384,11 +389,12 @@ function EmpDetailView({ empId, onBack, flash }: { empId: number; onBack: () => 
                       <td>{day.checkOut ?? "—"}</td>
                       <td>{day.minutesWorked ? `${Math.floor(day.minutesWorked / 60)}:${String(day.minutesWorked % 60).padStart(2, "0")}` : "—"}{day.overtimeMin ? ` +${day.overtimeMin}d OT` : ""}</td>
                       <td>{day.amountEarned ? som(day.amountEarned) : "—"}</td>
-                      <td>{day.shiftStartOvr && <span className="muted">{day.shiftStartOvr}–{day.shiftEndOvr}</span>}</td>
+                      <td>{day.shiftStartOvr && <span className="muted">{day.shiftStartOvr}–{day.shiftEndOvr}</span>}
+                        {day.coverTo && <span className="badge badge-ok" title={`${som(day.coverTo.amount)} so'm o'tkazildi`}>🔁 {day.coverTo.name}</span>}</td>
                     </tr>
                     {editDay === day.date && (
                       <tr>
-                        <td colSpan={7}><DayEditor empId={empId} day={day} onSaved={() => { setEditDay(null); load(month); flash("✅ Kun yangilandi"); }} flash={flash} /></td>
+                        <td colSpan={7}><DayEditor empId={empId} roster={roster.filter((r) => r.orgId === d.employee.orgId)} day={day} onSaved={() => { setEditDay(null); load(month); flash("✅ Kun yangilandi"); }} flash={flash} /></td>
                       </tr>
                     )}
                   </Fragment>
@@ -472,7 +478,7 @@ function EditEmpForm({ emp, onDone, flash }: { emp: EmpDetail["employee"]; onDon
 }
 
 // ── kun tuzatish (audit bilan) ──
-function DayEditor({ empId, day, onSaved, flash }: { empId: number; day: DayRow; onSaved: () => void; flash: (t: string) => void }) {
+function DayEditor({ empId, roster, day, onSaved, flash }: { empId: number; roster: RosterEmp[]; day: DayRow; onSaved: () => void; flash: (t: string) => void }) {
   const [f, setF] = useState({
     dayStatus: day.dayStatus ?? "ishladi",
     checkIn: day.checkIn ?? "",
@@ -481,7 +487,24 @@ function DayEditor({ empId, day, onSaved, flash }: { empId: number; day: DayRow;
     shiftStartOvr: day.shiftStartOvr ?? "",
     shiftEndOvr: day.shiftEndOvr ?? "",
   });
+  // 🔁 o'rniga ishlash: yo'qotilgan pul (kunlik − ishlagani) kimga o'tadi
+  const lost = Math.max(0, day.dailyRate - day.amountEarned);
+  const [cover, setCover] = useState({ to: String(day.coverTo?.employeeId ?? ""), amount: String(day.coverTo?.amount ?? "") });
   const set = (k: string, v: string) => setF((p) => ({ ...p, [k]: v }));
+  const saveCover = async () => {
+    if (cover.to && cover.amount.trim() && (!Number.isFinite(Number(cover.amount.replace(/\s/g, ""))) || Number(cover.amount.replace(/\s/g, "")) <= 0)) {
+      flash("❌ Summa noto'g'ri — raqam yozing yoki bo'sh qoldiring (avtomatik hisoblanadi)"); return;
+    }
+    const r = await adminApi.staffCoverSet({
+      date: day.date,
+      absentEmployeeId: empId,
+      coverEmployeeId: cover.to ? Number(cover.to) : null,
+      amount: cover.amount.trim() ? Number(cover.amount.replace(/\s/g, "")) : undefined,
+    }).catch(() => ({ ok: false, error: "tarmoq", amount: 0 }));
+    if (!r.ok) { flash("❌ " + (r.error ?? "Saqlanmadi")); return; }
+    flash(cover.to ? `✅ ${som(r.amount ?? 0)} so'm o'rniga ishlaganga yozildi (xodimga xabar bordi)` : day.coverTo ? "✅ O'tkazma bekor qilindi (xodimga xabar bordi)" : "✅");
+    onSaved();
+  };
   const save = async (confirm: boolean) => {
     const r = await adminApi.staffSessionSet({
       employeeId: empId,
@@ -498,7 +521,8 @@ function DayEditor({ empId, day, onSaved, flash }: { empId: number; day: DayRow;
     onSaved();
   };
   return (
-    <div style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center", padding: "6px 0" }}>
+    <div style={{ padding: "6px 0" }}>
+    <div style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" }}>
       <select className="inp" value={f.dayStatus} onChange={(e) => set("dayStatus", e.target.value)}>
         {DAY_STATUSES.map((s) => <option key={s} value={s}>{s}</option>)}
       </select>
@@ -510,6 +534,22 @@ function DayEditor({ empId, day, onSaved, flash }: { empId: number; day: DayRow;
       <button className="btn" onClick={() => save(false)}>💾 Saqlash</button>
       <button className="btn" onClick={() => save(true)}>✅ Saqlash + tasdiqlash</button>
       <span className="muted" style={{ fontSize: 12 }}>O'zgartirish jurnalga yoziladi (✏️)</span>
+    </div>
+
+    {/* 🔁 O'rniga ishlash — kelmagan/kech kelgandan KESILGAN pul boshqasiga o'tadi.
+        Faqat yo'qotilgan pul bo'lsa (yoki allaqachon o'tkazma bo'lsa) ko'rinadi. */}
+    {((lost > 0 && day.kind === "ish" && day.date <= todayTk()) || day.coverTo) && (
+      <div style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center", marginTop: 8, paddingTop: 8, borderTop: "1px solid rgba(128,128,128,.25)" }}>
+        <span className="muted" style={{ fontSize: 13 }}>🔁 Bu kuni <b>{som(lost)}</b> so'm kesildi — kim o'rniga ishladi?</span>
+        <select className="inp" value={cover.to} onChange={(e) => setCover((p) => ({ ...p, to: e.target.value }))}>
+          <option value="">— hech kim (pul hech kimga yozilmaydi) —</option>
+          {roster.filter((r) => r.id !== empId && r.active).map((r) => <option key={r.id} value={r.id}>{r.name}</option>)}
+        </select>
+        <input className="inp" style={{ width: 110 }} placeholder={`summa (${som(lost)})`} value={cover.amount} onChange={(e) => setCover((p) => ({ ...p, amount: e.target.value }))} />
+        <button className="btn" onClick={saveCover}>🔁 O'tkazish</button>
+        {day.coverTo && <span className="badge badge-ok">hozir: {day.coverTo.name} +{som(day.coverTo.amount)}</span>}
+      </div>
+    )}
     </div>
   );
 }

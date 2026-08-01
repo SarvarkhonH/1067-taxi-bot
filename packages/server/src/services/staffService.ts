@@ -332,6 +332,28 @@ async function buildDailySummary(
   return { text, unconfirmed };
 }
 
+/**
+ * EGA uchun: bugungi (yoki berilgan kundagi) xulosani TALAB BO'YICHA olish.
+ * Kechki 21:00 kartasini kutmasdan `/jamoa` bilan chaqiriladi — ega test qilayotganda
+ * yoki kun o'rtasida holatni ko'rmoqchi bo'lganda (2026-08-01: "tasdiqlash kelmadi" —
+ * aslida karta 21:00 dan keyin ketadi, ega buni bilmasligi kerak emas).
+ */
+export async function staffOwnerSummary(
+  telegramId: string,
+  now = new Date()
+): Promise<{ ok: boolean; text: string; orgId?: number; date?: string; unconfirmed?: number }> {
+  if (!(await featureOn("jamoa"))) return { ok: false, text: "Jamoa moduli o'chirilgan." };
+  const org = await prisma.organization.findFirst({
+    where: { ownerTelegramId: telegramId, active: true },
+    include: { employees: { where: { active: true }, orderBy: { name: "asc" } } },
+  });
+  if (!org) return { ok: false, text: "" }; // ega emas — jim
+  if (!org.employees.length) return { ok: true, text: `👔 <b>${esc(org.name)}</b>\n\nHali xodim qo'shilmagan. Admin panel → 👔 Jamoa → «➕ Xodim qo'shish».` };
+  const t = tashkentDayMinutes(now);
+  const { text, unconfirmed } = await buildDailySummary(org, org.employees, t.date);
+  return { ok: true, text, orgId: org.id, date: t.date, unconfirmed };
+}
+
 /** Owner taps "✅ Tasdiqlash" on the evening card. Only that org's owner may confirm. */
 export async function staffConfirmDay(orgId: number, date: string, actorTgId: string): Promise<{ ok: boolean; text: string }> {
   const org = await prisma.organization.findUnique({ where: { id: orgId } });
