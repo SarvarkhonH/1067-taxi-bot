@@ -336,6 +336,9 @@ export async function staffAdminOrgSave(orgId: number, patch: Record<string, unk
     else if ((ORG_NUM_FIELDS as readonly string[]).includes(k)) {
       const n = Math.round(Number(v));
       if (!Number.isFinite(n) || n < 0 || n > 100_000) return { ok: false, error: `${k} noto'g'ri` };
+      // fixedDivisor=0 → shared Math.max(1,…) bo'luvchini 1 ga qisqartirib HAR KUNGA
+      // to'liq oylik yozadi (tekshiruv topgan falokat) — 1 dan kichik rad etiladi.
+      if (k === "fixedDivisor" && n < 1) return { ok: false, error: "fixedDivisor kamida 1" };
       data[k] = n;
     } else if (k === "overtimeMult") {
       const n = Number(v);

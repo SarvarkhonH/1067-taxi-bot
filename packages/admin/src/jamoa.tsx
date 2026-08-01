@@ -406,10 +406,10 @@ function EmpDetailView({ empId, onBack, flash }: { empId: number; onBack: () => 
             <thead><tr><th>Sana</th><th>Tur</th><th>Summa</th><th>Izoh</th><th>Kim</th></tr></thead>
             <tbody>
               {d.ledger.map((l) => (
-                <tr key={l.id}>
+                <tr key={l.id} style={{ opacity: l.kind === "bekor" ? 0.5 : 1 }}>
                   <td>{l.date}</td>
-                  <td>{l.kind === "earn" ? "hisob" : l.kind === "payout" ? "💸 to'lov" : l.kind === "bonus" ? "🎁 bonus" : "⚠️ jarima"}</td>
-                  <td style={{ color: l.kind === "payout" || l.kind === "adjust" ? "#e05555" : "#3fb26f" }}>{l.kind === "payout" || l.kind === "adjust" ? "−" : "+"}{som(l.amount)}</td>
+                  <td>{l.kind === "earn" ? "hisob" : l.kind === "payout" ? "💸 to'lov" : l.kind === "bonus" ? "🎁 bonus" : l.kind === "bekor" ? "❌ bekor" : "⚠️ jarima"}</td>
+                  <td style={{ color: l.kind === "bekor" ? undefined : l.kind === "payout" || l.kind === "adjust" ? "#e05555" : "#3fb26f", textDecoration: l.kind === "bekor" ? "line-through" : undefined }}>{l.kind === "bekor" ? "" : l.kind === "payout" || l.kind === "adjust" ? "−" : "+"}{som(l.amount)}</td>
                   <td className="muted">{l.note ?? ""}</td>
                   <td className="muted">{l.createdBy === "system" ? "avto" : l.createdBy}</td>
                 </tr>
@@ -515,6 +515,13 @@ function DayEditor({ empId, day, onSaved, flash }: { empId: number; day: DayRow;
 }
 
 // ── ⚙️ korxona sozlamalari + oy taqvimi ──
+// Row MODUL darajasida: render ichida e'lon qilinsa har flash/reload'da komponent
+// IDENTITETI yangilanib, inputlar remount bo'ladi — yozayotganda fokus yo'qoladi va
+// defaultValue eskisiga qaytadi ("sozlamalar o'zgarmayapti" shikoyatining ildizi).
+const Row = ({ label, children }: { label: string; children: React.ReactNode }) => (
+  <div style={{ display: "flex", gap: 8, alignItems: "center" }}><span style={{ minWidth: 190 }} className="muted">{label}</span>{children}</div>
+);
+
 function OrgSettings({ orgs, onChanged, flash }: { orgs: OrgRow[]; onChanged: () => void; flash: (t: string) => void }) {
   const [orgId, setOrgId] = useState<number>(orgs[0]?.id ?? 0);
   const org = orgs.find((o) => o.id === orgId) ?? orgs[0];
@@ -561,12 +568,11 @@ function OrgSettings({ orgs, onChanged, flash }: { orgs: OrgRow[]; onChanged: ()
     setCalMonth(`${nd.getUTCFullYear()}-${String(nd.getUTCMonth() + 1).padStart(2, "0")}`);
   };
 
-  const Row = ({ label, children }: { label: string; children: React.ReactNode }) => (
-    <div style={{ display: "flex", gap: 8, alignItems: "center" }}><span style={{ minWidth: 190 }} className="muted">{label}</span>{children}</div>
-  );
-
+  // key: org almashsa YOKI server qiymatni normallashtirsa (Math.round) inputlar
+  // yangi defaultValue bilan remount bo'ladi — ko'rsatilgan ≠ saqlangan bo'lib qolmaydi
+  const orgKey = [org.id, org.graceMin, org.lunchMin, org.fixedDivisor, org.overtimeMult, org.sickPct, org.vacationPct, org.shiftStart, org.shiftEnd, org.workDays].join(":");
   return (
-    <div className="card" style={{ marginBottom: 12 }}>
+    <div className="card" style={{ marginBottom: 12 }} key={orgKey}>
       <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
         <div className="card-title">⚙️ {org.name}</div>
         {orgs.length > 1 && <select className="inp" value={orgId} onChange={(e) => setOrgId(Number(e.target.value))}>{orgs.map((o) => <option key={o.id} value={o.id}>{o.name}</option>)}</select>}
@@ -585,7 +591,12 @@ function OrgSettings({ orgs, onChanged, flash }: { orgs: OrgRow[]; onChanged: ()
           <select className="inp" value={org.divisorMode} onChange={(e) => patch({ divisorMode: e.target.value })}>
             <option value="haqiqiy">haqiqiy ish kunlari</option><option value="qatiy">qat'iy songa</option>
           </select>
-          {org.divisorMode === "qatiy" && <input className="inp" style={{ width: 60 }} defaultValue={org.fixedDivisor} onBlur={(e) => patch({ fixedDivisor: Number(e.target.value) })} />}
+          {org.divisorMode === "qatiy" && <input className="inp" style={{ width: 60 }} defaultValue={org.fixedDivisor} onBlur={(e) => {
+            // Bo'sh/0 qiymat FALOKAT: bo'luvchi 1 ga qisqarib har kunga TO'LIQ oylik yozilardi
+            const n = Number(e.target.value);
+            if (Number.isFinite(n) && n >= 1 && n !== org.fixedDivisor) patch({ fixedDivisor: n });
+            else e.target.value = String(org.fixedDivisor);
+          }} />}
         </Row>
         <Row label="Kechikish kechirimi (daq)"><input className="inp" style={{ width: 70 }} defaultValue={org.graceMin} onBlur={(e) => Number(e.target.value) !== org.graceMin && patch({ graceMin: Number(e.target.value) })} /></Row>
         <Row label="Tushlik">

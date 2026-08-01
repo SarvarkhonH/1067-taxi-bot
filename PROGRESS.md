@@ -5076,3 +5076,26 @@ oyliklar + hisobot). Har biri alohida DoD bilan.
 1) `prisma migrate diff` O'QISH → `db push` (4 yangi jadval) 2) deploy 3) `staffAdd.ts` yoki
 panel-import bilan xodimlar 4) `setFlag.ts jamoa on` (alert) 5) ega: telefonda /ish + panelda
 Jamoa tab + kechki xulosa → QABUL. Flag DEFAULT_OFF — QABULgacha hech kimga ko'rinmaydi.
+
+### 2026-08-01 — 👔 JAMOA: xodim o'zi "pul oldim" yozishi + sozlamalar-bug + 4-linzali tekshiruv
+
+**Holat: ready for verification (kod-daraja)**
+- Ega ko'rigi vaqtida 2 shikoyat: "sozlamalar o'zgarmayapti", "tugmalar ishlamayapti".
+  Ildizlar: (a) HAQIQIY UI bug — OrgSettings.Row render ichida e'lon qilinib har flash'da
+  inputlar remount bo'lardi (modulga chiqarildi + orgKey remount-kaliti); (b) preview mock
+  statik edi — endi STATEFUL (scratchpad staff-mock-server.cjs v2), jonli tekshirildi:
+  grace 10→12 saqlanib UI'da ko'rinadi, taqvim toggle, to'lov→lenta+qoldiq, import→ro'yxat.
+- YANGI: xodim botda "💸 Pul oldim" (ega talabi, minus balans MUMKIN): ForceReply sessiyasiz
+  oqim, egaga darhol karta + ❌ Bekor (soft-bekor: kind→"bekor", tombstone qoladi).
+- Workflow (4 linza: pul/ruxsat/telegram/UI) 22 topilma berdi, dedupdan keyingi BARI tuzatildi:
+  HIGH: regex ochko'zligi ("100000 2 kun avans"→1 000 002 bo'lardi → qat'iy summa-regex);
+  telefon-qo'riqchi "1 000 000"ni yutardi (bot.ts:638 reply-to-bot o'tkazgich — tree'da);
+  fixedDivisor=0 → har kunga to'liq oylik (UI guard + server n<1 rad).
+  MEDIUM: idempotency kaliti endi chat-scoped (staffself:<emp>:<chat>:<msgId>); bekor
+  hard-delete emas soft (redelivery qayta tiriltirolmaydi, audit qoladi); guruh-chatda
+  /ish va hamma ish:* JIM/alert (maosh guruhga to'kilmaydi); ega-kartasi yuborilmasa log.
+  LOW: P2002/count=0 poyga-javoblari; xatoda yana ForceReply (retry yo'qolmaydi); svcSearch
+  reply-o'tkazgich (bot.ts, tree'da); rasm-javobga "faqat matn" javobi; ega=xodim bo'lsa
+  bekor tugmasi o'z xabarida; lenta "❌ bekor" ko'rinishi (chizilgan, rangsiz).
+- Typecheck server+admin toza, admin build ✓. bot.ts o'zgarishlari (2 o'tkazgich) foreign-WIP
+  sababli commitdan tashqari, tree'da.

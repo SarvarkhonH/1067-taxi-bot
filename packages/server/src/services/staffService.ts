@@ -208,6 +208,89 @@ export async function staffMyAccount(telegramId: string, now = new Date()): Prom
 }
 
 // ---------------------------------------------------------------------------
+// 💸 Xodim O'ZI "pul oldim" deb yozadi (ega qarori 2026-07-31). Minus balans
+// MUMKIN — real hayotda ega baribir beradi, daftar haqiqatni yozsin. Har yozuv
+// egaga DARHOL boradi (❌ Bekor tugmasi bilan) — nazorat yo'qolmaydi.
+// ---------------------------------------------------------------------------
+
+async function ledgerBalance(employeeId: number, openingBalance: number): Promise<number> {
+  const ledger = await prisma.staffLedger.groupBy({ by: ["kind"], where: { employeeId }, _sum: { amount: true } });
+  let bal = openingBalance;
+  for (const g of ledger) {
+    const s = g._sum.amount ?? 0;
+    if ((PLUS_KINDS as readonly string[]).includes(g.kind)) bal += s;
+    if ((MINUS_KINDS as readonly string[]).includes(g.kind)) bal -= s; // "bekor" kind hech qaysida emas → 0
+  }
+  return bal;
+}
+
+function selfPayoutOwnerCard(emp: { name: string; org: { ownerTelegramId: string } }, a: number, note: string, bal: number, ledgerId: number) {
+  return {
+    chatId: emp.org.ownerTelegramId,
+    ledgerId,
+    text:
+      `💸 <b>${esc(emp.name)}</b> "pul oldim" deb yozdi: <b>${fmt(a)} so'm</b>` +
+      `${note ? ` (${esc(note.slice(0, 80))})` : ""}\n💰 Qoldig'i: <b>${fmt(bal)} so'm</b>${bal < 0 ? " ⚠️minus" : ""}`,
+  };
+}
+
+export async function staffSelfPayout(
+  telegramId: string,
+  amount: number,
+  note: string,
+  msgKey: string // "<chatId>:<messageId>" — message_id faqat chat ichida unikal (tekshiruv topgan)
+): Promise<{ ok: boolean; text: string; owner?: { chatId: string; text: string; ledgerId: number } }> {
+  const emp = await employeeFor(telegramId);
+  if (!emp) return { ok: false, text: "Siz xodim sifatida ro'yxatda emassiz." };
+  const a = Math.round(amount);
+  if (!Number.isFinite(a) || a <= 0 || a > 100_000_000) return { ok: false, text: "Summa noto'g'ri. Masalan: <code>500000</code> yoki <code>500000 avans</code>" };
+  const key = `staffself:${emp.id}:${msgKey}`; // bir xabar — bir yozuv (retry ikkilamaydi)
+  const existing = await prisma.staffLedger.findUnique({ where: { idempotencyKey: key } });
+  if (existing) {
+    if (existing.kind !== "payout") return { ok: true, text: "Bu yozuv bekor qilingan edi." }; // soft-bekor tombstone
+    // Qayta-yetkazish: ega kartasi ham QAYTA yuborilsin — birinchi urinishda yetmagan bo'lishi mumkin.
+    const bal0 = await ledgerBalance(emp.id, emp.openingBalance);
+    return { ok: true, text: "Bu xabar allaqachon yozilgan.", owner: selfPayoutOwnerCard(emp, existing.amount, existing.note ?? "", bal0, existing.id) };
+  }
+  let row;
+  try {
+    row = await prisma.staffLedger.create({
+      data: { employeeId: emp.id, kind: "payout", amount: a, note: note ? note.slice(0, 80) : "o'zi yozdi", idempotencyKey: key, createdBy: telegramId },
+    });
+  } catch {
+    return { ok: true, text: "Bu xabar allaqachon yozilgan." }; // P2002 poyga — birinchi yozuv g'olib
+  }
+  const bal = await ledgerBalance(emp.id, emp.openingBalance);
+  const minusNote = bal < 0 ? `\n⚠️ Qoldiq minusda — oldindan olingan pul keyingi hisoblardan yopiladi.` : "";
+  return {
+    ok: true,
+    text: `💸 Yozildi: <b>−${fmt(a)} so'm</b>${note ? ` (${esc(note.slice(0, 80))})` : ""}\n💰 Qoldiq: <b>${fmt(bal)} so'm</b>${minusNote}`,
+    owner: selfPayoutOwnerCard(emp, a, note, bal, row.id),
+  };
+}
+
+/** Ega ❌ Bekor bosdi: FAQAT xodim o'zi yozgan payout SOFT-bekor qilinadi (kind →
+ *  "bekor" — idempotency-kalit tombstone bo'lib qoladi, Telegram qayta-yetkazsa
+ *  yozuv qayta tirilmaydi; audit ham saqlanadi). O'chirish YO'Q. */
+export async function staffSelfPayoutCancel(ledgerId: number, actorTgId: string): Promise<{ ok: boolean; text: string; employee?: { chatId: string; text: string } }> {
+  const row = await prisma.staffLedger.findUnique({ where: { id: ledgerId }, include: { employee: { include: { org: true } } } });
+  if (!row) return { ok: false, text: "Yozuv topilmadi" };
+  if (row.employee.org.ownerTelegramId !== actorTgId) return { ok: false, text: "Faqat korxona egasi bekor qiladi" };
+  if (row.createdBy !== row.employee.telegramId) return { ok: false, text: "Bu yozuv xodim o'zi yozgani emas — panel orqali tuzating" };
+  // updateMany + kind-filtri = poyga-xavfsiz (ikki marta bosishda ikkinchisi count=0 oladi)
+  const r = await prisma.staffLedger.updateMany({
+    where: { id: ledgerId, kind: "payout" },
+    data: { kind: "bekor", note: `${row.note ? row.note + " · " : ""}❌ ega bekor qildi` },
+  });
+  if (r.count === 0) return { ok: true, text: "Allaqachon bekor qilingan." };
+  return {
+    ok: true,
+    text: `❌ Bekor qilindi: ${esc(row.employee.name)} — ${fmt(row.amount)} so'm`,
+    employee: { chatId: row.employee.telegramId, text: `❌ Egangiz "${fmt(row.amount)} so'm oldim" yozuvingizni bekor qildi. Savol bo'lsa bog'laning.` },
+  };
+}
+
+// ---------------------------------------------------------------------------
 // 🌙 J4 — kechki xulosa + tasdiqlash (15-daq tick'dan; YANGI poller YO'Q)
 // ---------------------------------------------------------------------------
 
