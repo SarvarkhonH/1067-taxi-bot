@@ -54,8 +54,13 @@ async function sendOwnerSummary(ctx: Context, tg: string): Promise<boolean> {
   const { staffOwnerSummary } = await import("../services/staffService");
   const s = await staffOwnerSummary(tg);
   if (!s.ok || !s.text) return false;
-  const kb = s.unconfirmed && s.orgId && s.date ? new InlineKeyboard().text("✅ Tasdiqlash", `ishc:${s.orgId}:${s.date}`) : undefined;
-  await ctx.reply(s.text, { parse_mode: "HTML", reply_markup: kb }).catch(() => undefined);
+  const kb = new InlineKeyboard();
+  if (s.unconfirmed && s.orgId && s.date) kb.text("✅ Tasdiqlash", `ishc:${s.orgId}:${s.date}`);
+  for (const sg of s.suggestions ?? []) {
+    kb.row().text(`🔁 ${sg.absentName} puli → ${sg.coverName}`.slice(0, 60), `ishcv:${sg.absentId}:${sg.coverId}:${s.date}`);
+  }
+  const hasKb = !!(s.unconfirmed || (s.suggestions ?? []).length);
+  await ctx.reply(s.text, { parse_mode: "HTML", reply_markup: hasKb ? kb : undefined }).catch(() => undefined);
   return true;
 }
 
@@ -141,6 +146,18 @@ export function registerStaff(bot: Bot): void {
     if (r.ok) await ctx.editMessageReplyMarkup({ reply_markup: undefined }).catch(() => undefined);
     await ctx.reply(r.text, { parse_mode: "HTML" }).catch(() => undefined);
     if (r.ok && r.employee) await ctx.api.sendMessage(r.employee.chatId, r.employee.text, { parse_mode: "HTML" }).catch(() => undefined);
+  });
+
+  // 🔁 Kechki kartadagi aqlli taklif: "X puli → Y" — bir bosishda o'tkazma
+  // (kesilganidan oshmaydi, idempotent; faqat korxona egasi).
+  bot.callbackQuery(/^ishcv:(\d+):(\d+):(\d{4}-\d{2}-\d{2})$/, async (ctx) => {
+    await ctx.answerCallbackQuery().catch(() => undefined);
+    const { staffCoverApplyByOwner } = await import("../services/staffAdminService");
+    const r = await staffCoverApplyByOwner(Number(ctx.match[1]), Number(ctx.match[2]), String(ctx.match[3]), String(ctx.from.id));
+    await ctx.reply(r.text, { parse_mode: "HTML" }).catch(() => undefined);
+    if (r.ok && r.notifyTelegramId && r.notifyText) {
+      await ctx.api.sendMessage(r.notifyTelegramId, r.notifyText, { parse_mode: "HTML" }).catch(() => undefined);
+    }
   });
 
   // 🌙 J4 — kechki xulosa kartasidagi "✅ Tasdiqlash" (faqat o'sha korxona egasiga o'tadi).

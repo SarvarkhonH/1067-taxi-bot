@@ -422,6 +422,28 @@ export async function staffAdminCoverSet(input: {
   };
 }
 
+/** 🔁 Kechki kartadagi taklif-tugmadan: FAQAT o'sha korxona egasi bosa oladi.
+ *  Ichkarida staffAdminCoverSet — hamma clamp/idempotent qoidalar bir joyda. */
+export async function staffCoverApplyByOwner(
+  absentEmployeeId: number,
+  coverEmployeeId: number,
+  date: string,
+  actorTgId: string
+): Promise<{ ok: boolean; text: string; notifyTelegramId?: string; notifyText?: string }> {
+  if (!Number.isFinite(absentEmployeeId) || !Number.isFinite(coverEmployeeId)) return { ok: false, text: "Xodim tanlanmagan" };
+  const absent = await prisma.employee.findUnique({ where: { id: absentEmployeeId }, include: { org: true } });
+  if (!absent) return { ok: false, text: "Xodim topilmadi" };
+  if (absent.org.ownerTelegramId !== actorTgId) return { ok: false, text: "Faqat korxona egasi o'tkazadi" };
+  const r = await staffAdminCoverSet({ date, absentEmployeeId, coverEmployeeId, actor: actorTgId });
+  if (!r.ok) return { ok: false, text: `❌ ${r.error ?? "O'tkazilmadi"}` };
+  return {
+    ok: true,
+    text: `✅ ${fmt(r.amount ?? 0)} so'm o'tkazildi — ${esc(absent.name)} o'rniga ishlaganga yozildi va unga xabar bordi.`,
+    notifyTelegramId: r.notifyTelegramId,
+    notifyText: r.notifyText,
+  };
+}
+
 /**
  * A ning kuni QO'LDA tuzatilgandan keyin o'tkazmani qayta moslash: A endi to'liq
  * ishlagan bo'lsa o'tkazma bekor qilinadi, kamroq yo'qotgan bo'lsa qisqartiriladi.

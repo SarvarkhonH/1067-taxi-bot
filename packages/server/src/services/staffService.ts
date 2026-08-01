@@ -6,9 +6,12 @@ import {
   TASHKENT_UTC_OFFSET_MIN,
   type StaffDayPay,
   computeDayPay,
+  dailyRateFor,
   dayKindFor,
   hhmmToMin,
   hourlyRateFor,
+  type StaffEmployeeRow,
+  type StaffOrgPolicyRow,
   minutesSinceTashkentMidnight,
   resolveStaffPolicy,
   tashkentDayMinutes,
@@ -389,18 +392,57 @@ export async function staffRemindersTick(bot: import("grammy").Bot, now = new Da
 }
 
 /** One org's day in one message: kim keldi-ketdi, qancha hisoblandi, kim kelmadi. */
+export interface CoverSuggestion {
+  absentId: number;
+  absentName: string;
+  coverId: number;
+  coverName: string;
+  lost: number; // shu kuni kesilgan pul (o'tkazma shu miqdorgacha)
+}
+
+type SummaryEmp = StaffEmployeeRow & { id: number; name: string };
+type SummaryOrg = StaffOrgPolicyRow & { id: number; name: string; holidayPaid: boolean };
+
 async function buildDailySummary(
-  org: { id: number; name: string },
-  employees: { id: number; name: string }[],
+  org: SummaryOrg,
+  employees: SummaryEmp[],
   date: string
-): Promise<{ text: string; unconfirmed: number }> {
+): Promise<{ text: string; unconfirmed: number; suggestions: CoverSuggestion[] }> {
   const sessions = await prisma.workSession.findMany({ where: { date, employeeId: { in: employees.map((e) => e.id) } } });
   const byEmp = new Map(sessions.map((s) => [s.employeeId, s]));
   const lines: string[] = [];
   let total = 0;
   let unconfirmed = 0;
+  // 🔁 aqlli taklif uchun material: kim qancha yo'qotdi, kim smenadan ortiq ishladi
+  const [yy, mm, dd] = ymd(date);
+  const losers: { id: number; name: string; lost: number }[] = [];
+  const cands: { id: number; name: string; extraMin: number }[] = [];
+  const coveredKeys = new Set(
+    (
+      await prisma.staffLedger.findMany({
+        where: { idempotencyKey: { in: employees.map((e) => `staffcover:${e.id}:${date}`) }, kind: "bonus" },
+        select: { idempotencyKey: true },
+      })
+    ).map((r) => r.idempotencyKey)
+  );
   for (const e of employees) {
     const s = byEmp.get(e.id);
+    // 🔁 taklif-material (barcha tarmoqlardan OLDIN — kelmagan ham, ishlagan ham hisobga olinsin):
+    {
+      const pol = resolveStaffPolicy(org, e, s ?? undefined);
+      const kind = dayKindFor(yy, mm, dd, pol.workDays, pol.calendar);
+      const paidDay = kind === "ish" || (kind === "bayram" && pol.holidayPaid);
+      const lost = paidDay ? Math.max(0, dailyRateFor(pol, yy, mm) - (s?.amountEarned ?? 0)) : 0;
+      if (lost > 0 && !coveredKeys.has(`staffcover:${e.id}:${date}`)) losers.push({ id: e.id, name: e.name, lost });
+      if (s?.dayStatus === "ishladi" && s.checkIn && s.checkOut && !s.autoClosed) {
+        const start = hhmmToMin(pol.shiftStart);
+        let end = hhmmToMin(pol.shiftEnd);
+        if (end <= start) end += 1440;
+        // smenadan ≥30 daq ortiq qolgan YOKI o'z dam kunida kelib ishlagan — nomzod
+        const extra = paidDay ? minutesSinceTashkentMidnight(s.checkOut, date) - end : s.minutesWorked;
+        if (extra >= 30) cands.push({ id: e.id, name: e.name, extraMin: extra });
+      }
+    }
     if (!s || (!s.checkIn && s.dayStatus === "ishladi")) {
       if (s && !s.confirmedAt) unconfirmed++; // sharpa-yozuv ham tasdiq kutadi (hisob 0)
       lines.push(`⚪ ${esc(e.name)} — kelmadi · 0`);
@@ -415,13 +457,27 @@ async function buildDailySummary(
     const io = `${s.checkIn ? hhmm(minutesSinceTashkentMidnight(s.checkIn, date)) : "—"}–${s.checkOut ? hhmm(minutesSinceTashkentMidnight(s.checkOut, date)) : "hali ishda"}`;
     lines.push(`${s.checkOut ? "🟢" : "🔵"} ${esc(e.name)} — ${io} · <b>${fmt(s.amountEarned)}</b>${s.autoClosed ? " ⚠️avto" : ""}${s.editedBy ? " ✏️" : ""}`);
   }
+  // 🔁 Aqlli taklif: yo'qotgan(lar)ni eng ko'p ortiq ishlagan bilan juftlash (maks 3).
+  const suggestions: CoverSuggestion[] = [];
+  if (cands.length) {
+    cands.sort((a, b) => b.extraMin - a.extraMin);
+    for (const l of losers.slice(0, 3)) {
+      const c = cands.find((c0) => c0.id !== l.id);
+      if (c) suggestions.push({ absentId: l.id, absentName: l.name, coverId: c.id, coverName: c.name, lost: l.lost });
+    }
+  }
   const text =
     `📋 <b>${esc(org.name)} — ${date}</b>\n\n` +
     lines.join("\n") +
     `\n\nJami hisoblandi: <b>${fmt(total)} so'm</b>` +
     (unconfirmed ? `\n✅ Tasdiqlash — ${unconfirmed} ta kun yozuvi` : "\nHammasi tasdiqlangan ✓") +
+    (suggestions.length
+      ? `\n\n🔁 <b>Taklif:</b> ` +
+        suggestions.map((sg) => `${esc(sg.absentName)} yo'qotdi (−${fmt(sg.lost)}), ${esc(sg.coverName)} ortiq ishladi`).join("; ") +
+        ` — bir bosishda o'tkazing 👇`
+      : "") +
     `\n<i>To'g'irlash: Admin panel → 👔 Jamoa</i>`;
-  return { text, unconfirmed };
+  return { text, unconfirmed, suggestions };
 }
 
 /**
@@ -433,7 +489,7 @@ async function buildDailySummary(
 export async function staffOwnerSummary(
   telegramId: string,
   now = new Date()
-): Promise<{ ok: boolean; text: string; orgId?: number; date?: string; unconfirmed?: number }> {
+): Promise<{ ok: boolean; text: string; orgId?: number; date?: string; unconfirmed?: number; suggestions?: CoverSuggestion[] }> {
   if (!(await featureOn("jamoa"))) return { ok: false, text: "Jamoa moduli o'chirilgan." };
   const org = await prisma.organization.findFirst({
     where: { ownerTelegramId: telegramId, active: true },
@@ -442,8 +498,8 @@ export async function staffOwnerSummary(
   if (!org) return { ok: false, text: "" }; // ega emas — jim
   if (!org.employees.length) return { ok: true, text: `👔 <b>${esc(org.name)}</b>\n\nHali xodim qo'shilmagan. Admin panel → 👔 Jamoa → «➕ Xodim qo'shish».` };
   const t = tashkentDayMinutes(now);
-  const { text, unconfirmed } = await buildDailySummary(org, org.employees, t.date);
-  return { ok: true, text, orgId: org.id, date: t.date, unconfirmed };
+  const { text, unconfirmed, suggestions } = await buildDailySummary(org, org.employees, t.date);
+  return { ok: true, text, orgId: org.id, date: t.date, unconfirmed, suggestions };
 }
 
 /** Owner taps "✅ Tasdiqlash" on the evening card. Only that org's owner may confirm. */
@@ -484,11 +540,13 @@ export async function staffDailyTick(bot: import("grammy").Bot, now = new Date()
     if (!org.employees.length) continue;
     const marker = `staffsummary:${org.id}:${t.date}`;
     if (await prisma.appState.findUnique({ where: { key: marker } })) continue;
-    const { text, unconfirmed } = await buildDailySummary(org, org.employees, t.date);
+    const { text, unconfirmed, suggestions } = await buildDailySummary(org, org.employees, t.date);
     const { InlineKeyboard } = await import("grammy");
-    const kb = unconfirmed ? new InlineKeyboard().text("✅ Tasdiqlash", `ishc:${org.id}:${t.date}`) : undefined;
+    const kb = new InlineKeyboard();
+    if (unconfirmed) kb.text("✅ Tasdiqlash", `ishc:${org.id}:${t.date}`);
+    for (const sg of suggestions) kb.row().text(`🔁 ${sg.absentName} puli → ${sg.coverName} (${fmt(sg.lost)})`.slice(0, 60), `ishcv:${sg.absentId}:${sg.coverId}:${t.date}`);
     try {
-      await bot.api.sendMessage(org.ownerTelegramId, text, { parse_mode: "HTML", reply_markup: kb });
+      await bot.api.sendMessage(org.ownerTelegramId, text, { parse_mode: "HTML", reply_markup: unconfirmed || suggestions.length ? kb : undefined });
     } catch (e) {
       console.error(`[staff] summary send failed org=${org.id}:`, e);
       continue; // marker YO'Q — keyingi tick qayta uradi (kechqurun ~12 urinish max)

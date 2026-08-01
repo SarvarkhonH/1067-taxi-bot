@@ -5099,3 +5099,58 @@ Jamoa tab + kechki xulosa → QABUL. Flag DEFAULT_OFF — QABULgacha hech kimga 
   bekor tugmasi o'z xabarida; lenta "❌ bekor" ko'rinishi (chizilgan, rangsiz).
 - Typecheck server+admin toza, admin build ✓. bot.ts o'zgarishlari (2 o'tkazgich) foreign-WIP
   sababli commitdan tashqari, tree'da.
+
+### 2026-08-01 — 🚀 JAMOA JONLI DEPLOY (to'liq)
+
+**Holat: JONLIDA, flag ON, 0 xodim (ega ro'yxatini kutmoqda) → owner-QABUL qoldi**
+
+Tartib (CLAUDE.md deploy protokoli bo'yicha, sxema kod'dan OLDIN):
+1. Toza `deploy/jamoa` worktree origin/main'dan; 11 jamoa-commiti cherry-pick (faqat
+   PROGRESS.md konflikti — union bilan yechildi).
+2. Ulanish qatorlari toza worktree'da qo'llandi va ALOHIDA commit qilindi (`47f17969`):
+   bot.ts (registerStaff sinxron + telefon-qo'riqchi/svcSearch reply-o'tkazgichlari),
+   index.ts (staffDailyTick), server.ts (11 route), api.ts, App.tsx, featureFlags (jamoa).
+   Begona WIP kirmadi: 6 fayl / +106 qator.
+3. Gate: `pnpm -r typecheck` 4/4 toza · shared 90/90 · admin+miniapp build ✓.
+4. **VPS sxema**: `prisma migrate diff` O'QILDI — 4 CREATE TABLE + 6 index + 3 FK,
+   DROP/TRUNCATE/RENAME **yo'q** → `prisma db push` (882ms). psql tasdiqi: Organization/
+   Employee/WorkSession/StaffLedger mavjud, `StaffLedger_idempotencyKey_key` va
+   `WorkSession_employeeId_date_key` unikal indekslari joyida.
+5. `main`ga fast-forward push (b71998fd → 47f17969), CI yashil → GH Actions deploy.sh.
+6. **Jonli isbot:** VPS HEAD=47f1796 · `systemctl is-active bot1067`=active ·
+   `/health` {"ok":true,"mode":"live","bot":true} (lokal + https://api.birjoy.online) ·
+   jonli admin bundle `index-C3F6oIF3.js` ichida "Jamoa"/"staff/overview"/"Eski oyliklar"/
+   "Pul berdim"/"Oy taqvimi" · `/api/admin/staff/overview` → 403 (route BOR, auth ishlaydi),
+   soxta route → 404 · boot loglarida `[staff]` xatosi yo'q.
+7. Org #1 "BirJoy ofis" yaratildi (ega 6506297119, default 09:00–18:00, Du–Sha, grace 10,
+   tushlik 60). `setFlag.ts jamoa on` → flag ON (alert yuborildi).
+
+**Qolgan yagona qadam — EGA:** xodimlar ro'yxatini kiritish (panel → 👔 Jamoa →
+📥 Eski oyliklar yoki ➕ Xodim qo'shish) va telefonda `/ish` ni sinab QABUL berish.
+Xodim yo'q ekan hech kim hech narsa ko'rmaydi (bot-oqim Employee qatoriga bog'liq).
+Rollback: `setFlag.ts jamoa off` (jadvallar qoladi, ma'lumot yo'qolmaydi).
+
+### 2026-08-01 (2) — 🔁 O'rniga ishlash + /jamoa + ega jonli-test kamchiliklari
+
+**Holat: main'ga push qilindi (22feada4), VPS deploy kutilmoqda**
+- Ega jonli testi ko'rsatdi: (a) "tasdiqlash kelmadi" — kechki karta 21:00 da ekanini
+  bilmasdi + /ish egaga JIM edi → endi /ish ega uchun ham javob beradi va yangi /jamoa
+  buyrug'i istalgan payt bugungi xulosa + ✅ Tasdiqlash beradi; (b) "hisobot ishlamayapti" —
+  aslida xodim 0-oylik bilan qo'shilgan (hamma hisob 0 chiqadi), kod emas, ma'lumot;
+  ega panel ✏️ orqali oylikni to'g'irlashi kerak; (c) xodim "pul oldim" oqimi ISHLADI
+  (skrinshot: 40 000 karta + Bekor tugmasi).
+- 🔁 O'RNIGA ISHLASH (ega qoidasi #1): kun-muharririda "kim o'rniga ishladi" tanlovi —
+  kesilgan pul (kunlik − ishlagani) boshqa xodimga bonus bo'lib o'tadi. Adversarial
+  tekshiruv 12 topilma berdi, kritiklari yopildi: summa yo'qotilgandan osholmaydi,
+  dam/kelajak kuniga o'tkazma yo'q, kun tuzatilsa avto-reconcile (2x to'lov yo'q),
+  bekor = tombstone + eski oluvchiga xabar, upsert poyga-xavfsiz, NaN-guard,
+  faqat o'z korxona ro'yxati. Sxema o'zgarishi YO'Q (StaffLedger kifoya).
+
+### 2026-08-01 — 👔 JAMOA: aqlli 🔁 taklif + overtime avto (ega: "ikkalasini ham qil")
+- Kechki karta va /jamoa xulosasida endi AQLLI TAKLIF: kimdir yo'qotgan (kelmadi/kechikdi)
+  + kimdir ≥30 daq ortiq (yoki dam kunida) ishlagan kun — "🔁 X puli → Y (summa)" tugmasi,
+  bir bosishda o'tkazma (ishcv: callback → staffCoverApplyByOwner → staffAdminCoverSet:
+  clamp/idempotent/xabar hammasi bir joyda; faqat korxona egasi). Maks 3 taklif, allaqachon
+  o'tkazilgan kunlar taklif qilinmaydi.
+- Jonli org #1 overtimeMode: off → AVTO (ega qarori) — smenadan keyingi vaqt ×1.5 avto,
+  soatlik "qo'shimcha ketmoqda" pinglari endi amalda.
