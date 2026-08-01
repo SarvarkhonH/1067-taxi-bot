@@ -913,7 +913,12 @@ export function createBot(): Bot {
     const r = await claimDriverMission(me.member.id, id);
     if (r.ok) {
       await ctx.answerCallbackQuery({ text: `🎁 +${r.reward} tanga!`, show_alert: true }).catch(() => undefined);
-      await ctx.reply(`🎁 Tabriklaymiz! Topshiriq uchun <b>+${formatNumber(r.reward ?? 0)} tanga</b> 🚗`, { parse_mode: "HTML" }).catch(() => undefined);
+      await ctx
+        .reply(`🎁 Tabriklaymiz! Topshiriq uchun <b>+${formatNumber(r.reward ?? 0)} tanga</b> 🚗`, {
+          parse_mode: "HTML",
+          reply_markup: canWebApp ? new InlineKeyboard().webApp("🚗 Daromadim — Mini App", webAppUrl("driver")) : undefined,
+        })
+        .catch(() => undefined);
     } else {
       const msg = r.reason === "not_ready" ? "Hali bajarilmadi" : r.reason === "claimed" ? "Allaqachon olingan" : "Olib bo'lmadi";
       await ctx.answerCallbackQuery({ text: msg }).catch(() => undefined);
@@ -1023,7 +1028,10 @@ export function createBot(): Bot {
     }
     const msg = await ctx.reply("🎡 G'ildirak aylanmoqda…");
     const r = await spinWheel(me.member.id);
-    await ctx.api.editMessageText(msg.chat.id, msg.message_id, renderWheel(r), { parse_mode: "HTML" });
+    await ctx.api.editMessageText(msg.chat.id, msg.message_id, renderWheel(r), {
+      parse_mode: "HTML",
+      reply_markup: canWebApp ? new InlineKeyboard().webApp("🚀 Bonuslar — Mini App", webAppUrl("play")) : undefined,
+    });
   };
   bot.hears("🎡 G'ildirak", spin); // old cached keyboards still work
   bot.command("wheel", spin);
@@ -1163,6 +1171,9 @@ export function createBot(): Bot {
       .filter((x) => x.claimable)
       .forEach((x) => kb.text(`🎁 ${x.emoji} +${formatNumber(x.reward)} tanga`, `claim:${x.code}`).row());
     if (box.eligible && !box.opened) kb.text("🎁 BEPUL QUTINI OCHISH", "openbox").row();
+    // ilovaga kirish HAR DOIM qoladi — tahrirlangan xabarda ham (aks holda vazifa bajarilgach
+    // xabar tugmasiz qolib, mijoz bonusni ololmay qolardi).
+    if (canWebApp) kb.webApp("🚀 Bonuslar — Mini App", webAppUrl("play")).row();
     return kb;
   }
 
@@ -1180,7 +1191,6 @@ export function createBot(): Bot {
       return;
     }
     const { text, kb } = await missionsView(memberId);
-    if (canWebApp) kb.row().webApp("🚀 Bonuslar — Mini App", webAppUrl("play"));
     await ctx.reply(text, { parse_mode: "HTML", reply_markup: kb });
   };
   bot.hears("🎁 Bonuslar", showMissions);
@@ -1207,7 +1217,7 @@ export function createBot(): Bot {
   const refreshMissionsMessage = async (ctx: Context, memberId: number) => {
     const { text, kb } = await missionsView(memberId);
     await ctx
-      .editMessageText(text, { parse_mode: "HTML", reply_markup: kb.inline_keyboard.length ? kb : undefined })
+      .editMessageText(text, { parse_mode: "HTML", reply_markup: kb })
       .catch(() => undefined);
   };
 
@@ -1827,7 +1837,13 @@ export function createBot(): Bot {
         if (r?.action?.type === "balance") {
           const m = await prisma.member.findUnique({ where: { id: tu.memberId }, select: { coins: true } });
           const t = `🪙 Balansingiz: <b>${(m?.coins ?? 0).toLocaleString("ru-RU")} tanga</b> (1 tanga = 1 so'm).\nMini App → Hamyon'da to'liq tarix va so'mga yechish bor.`;
-          await ctx.reply(t, { parse_mode: "HTML" });
+          // matn «Mini App → Hamyon» deydi — tugmasiz bu ko'rsatma bajarib bo'lmaydigan edi.
+          // IKB nomi bilan: shu blokda `InlineKeyboard` keyinroq lokal e'lon qilingan (TDZ).
+          const { InlineKeyboard: IKB } = await import("grammy");
+          await ctx.reply(t, {
+            parse_mode: "HTML",
+            reply_markup: canWebApp ? new IKB().webApp("🚀 Hamyonni ochish", webAppUrl("wallet")) : undefined,
+          });
           // PRIVACY: the marker (not the number) goes to history — SupportMsg feeds the
           // agent's next-turn prompt, and balances must never round-trip through the LLM
           saveOut("🪙 Balans ko'rsatildi (Mini App → Hamyon'ga yo'naltirildi).");
