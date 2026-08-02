@@ -230,6 +230,8 @@ export interface OyinStateResponse {
   season: OyinSeasonClientView;
   // 📸 Hikoya-poster holati (HIKOYA_POSTER_PLAN.md).
   story: OyinStoryState;
+  // 🎟 Mavsumda olingan chipta soni — "Mening chiptalarim" qatorini ko'rsatish uchun.
+  ticketCount: number;
 }
 
 // ── 📸 HIKOYA-POSTER ─────────────────────────────────────────────────────────────────────────
@@ -287,6 +289,22 @@ export interface OyinPrizeView {
   mine: number; // shu foydalanuvchining shu sovringa nechta chiptasi bor
   chancePct: number | null; // null = hali chiptasi yo'q; aks holda mine/sold %
   photoUrl: string | null; // admin qo'ygan real rasm — null bo'lsa `icon` emoji fallback ishlatiladi
+}
+
+/** 🎟 Mijozning MAVSUM chiptalari. Avval chipta raqami bayram-oynasida bir marta ko'rinib
+ *  abadiy yo'qolardi — odam 600 ball to'lab qo'lida hech narsa qolmasdi. */
+export interface OyinMyTicket {
+  prizeKey: string;
+  prizeName: string;
+  prizeIcon: string;
+  photoUrl: string | null;
+  no: number; // sovrin ichidagi ketma-ket raqam
+  at: string; // ISO — qachon olingan
+  price: number; // o'sha paytdagi narx (keyin o'zgarsa ham tarix saqlanadi)
+}
+export interface OyinMyTicketsResponse {
+  tickets: OyinMyTicket[];
+  drawIso: string | null; // mavsum tugash sanasi — "tiraj qachon" savoliga javob
 }
 
 /** 👀 Mehmon (raqami ulanmagan) ko'radigan teaser — a'zo ma'lumoti YO'Q, hammasi ochiq axborot.

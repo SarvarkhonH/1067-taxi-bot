@@ -10,7 +10,7 @@
 // soxta QR-kvadrat — real QR-generatsiya (referralQrService) B1-B5 doirasida qurilmagan, shuning
 // uchun olib tashlandi (ishlamaydigan grafika ko'rsatish — yolg'on).
 import { useCallback, useEffect, useRef, useState } from "react";
-import type { OyinBoardResponse, OyinJamoamResponse, OyinPrizeView, OyinSeasonClientView, OyinStateResponse, OyinVitrinaResponse } from "@t1067/shared";
+import type { OyinBoardResponse, OyinJamoamResponse, OyinMyTicketsResponse, OyinPrizeView, OyinSeasonClientView, OyinStateResponse, OyinVitrinaResponse } from "@t1067/shared";
 import { api, apiUrl } from "./api";
 import { copyText, haptic, inviteLandingUrl, shareLink } from "./telegram";
 import "./design/feat/oyk.css"; // bu ekran ochilgandagina yuklanadi (kritik yo'lda emas)
@@ -24,6 +24,16 @@ const OB_SLIDES = [
 const OB_SEEN_KEY = "oyk_onboard_seen";
 const START_TAB_KEY = "oyk_start_tab"; // uy-hero'dagi "Sovrinlarni ko'rish" shu orqali vitrina'ga ochadi
 const FINAL_WARN_MS = 48 * 3600_000;
+
+// ⚠️ `toLocaleDateString("uz-UZ", …)` ba'zi klientlarda "M08 14" qaytaradi (lokal ma'lumot yo'q).
+// Sana mijozga ko'rinadigan joyda — taxmin qilib bo'lmaydi, shuning uchun o'zimiz yozamiz.
+const UZ_OYLAR = ["yanvar", "fevral", "mart", "aprel", "may", "iyun", "iyul", "avgust", "sentabr", "oktabr", "noyabr", "dekabr"];
+export function uzDate(iso: string | null): string {
+  if (!iso) return "";
+  const d = new Date(iso);
+  if (!Number.isFinite(d.getTime())) return "";
+  return `${d.getDate()}-${UZ_OYLAR[d.getMonth()] ?? ""}`;
+}
 
 function pad(n: number): string {
   return String(n).padStart(2, "0");
@@ -63,7 +73,7 @@ function countdownTo(iso: string | null): { d: number; h: number; m: number; tot
 }
 
 type OyinTab = "home" | "vitrina" | "jamoam";
-type SheetKind = "board" | "buy" | "howto" | null;
+type SheetKind = "board" | "buy" | "howto" | "tickets" | null;
 type LoadState = "loading" | "ready" | "error";
 
 export function OyinView() {
@@ -72,6 +82,7 @@ export function OyinView() {
   const [vitrina, setVitrina] = useState<OyinVitrinaResponse | null>(null);
   const [jamoam, setJamoam] = useState<OyinJamoamResponse | null>(null);
   const [board, setBoard] = useState<OyinBoardResponse | null>(null);
+  const [tickets, setTickets] = useState<OyinMyTicketsResponse | null>(null);
   const [tab, setTab] = useState<OyinTab>(() => {
     try {
       const t = localStorage.getItem(START_TAB_KEY);
@@ -118,6 +129,12 @@ export function OyinView() {
     toastT.current = setTimeout(() => setToast(null), ms);
   }, []);
   useEffect(() => () => clearTimeout(toastT.current), []);
+
+  const openTickets = useCallback(() => {
+    haptic();
+    setSheet("tickets");
+    if (!tickets) api.oyinTickets().then(setTickets).catch(() => setTickets({ tickets: [], drawIso: null }));
+  }, [tickets]);
 
   const openBoard = useCallback(() => {
     setSheet("board");
@@ -210,9 +227,7 @@ export function OyinView() {
       const top = [...(vitrina?.prizes ?? [])].sort((a, b) => b.price - a.price)[0];
       const code = ref?.link.match(/start=ref_([A-Za-z0-9_-]+)/)?.[1] ?? null;
       const endIso = state?.season.endIso ?? null;
-      const drawDate = endIso
-        ? new Date(endIso).toLocaleDateString("uz-UZ", { day: "numeric", month: "long" })
-        : "";
+      const drawDate = uzDate(endIso);
       const blob = await renderPoster({
         headline: posterText.trim() || state?.story.texts[0] || "Sen ham yutib ol",
         name: posterName,
@@ -462,6 +477,15 @@ Taksida yur, ball yig', chipta ol. Mavsum oxiri jonli tirajda o'ynaladi. Mening 
               <span>💡 Ball qanday yig'iladi?</span>
               <span className="oyk-howto-go">→</span>
             </button>
+
+            {/* 🎟 Chipta raqami avval bayram-oynasida BIR MARTA ko'rinib abadiy yo'qolardi —
+                odam 600 ball to'lab qo'lida hech narsa qolmasdi. Endi doimiy ro'yxat bor. */}
+            {state.ticketCount > 0 && (
+              <button type="button" className="oyk-howto" onClick={openTickets}>
+                <span>🎟 Mening chiptalarim <b>({state.ticketCount})</b></span>
+                <span className="oyk-howto-go">→</span>
+              </button>
+            )}
 
             {/* 🔥 Haftalik vazifa — zanjir (prototipdagi blok). Ma'lumot: kunlik kirish ro'yxati. */}
             {state.week.bonusBall > 0 && (
@@ -754,6 +778,42 @@ Taksida yur, ball yig', chipta ol. Mavsum oxiri jonli tirajda o'ynaladi. Mening 
                       <div className="oyk-brow is-me"><div className="oyk-brow-pos">{board.myPos}</div><div className="oyk-brow-name">SEN</div><div className="oyk-brow-pts">{state.ball}</div></div>
                     )}
                   </div>
+                )}
+              </>
+            )}
+
+            {sheet === "tickets" && (
+              <>
+                <div className="oyk-sheet-title">🎟 Mening chiptalarim</div>
+                {!tickets ? (
+                  <div className="oyk-skel-block oyk-skel-daily" />
+                ) : tickets.tickets.length === 0 ? (
+                  <div className="oyk-note-violet">Hali chipta olmadingiz. Ball yig'ib vitrinadan tanlang!</div>
+                ) : (
+                  <>
+                    <div className="oyk-tk-list">
+                      {tickets.tickets.map((t) => (
+                        <div key={`${t.prizeKey}-${t.no}`} className="oyk-tk">
+                          <div className="oyk-tk-ic">
+                            {t.photoUrl
+                              ? <img src={t.photoUrl} alt="" loading="lazy" onError={(e) => { (e.target as HTMLImageElement).replaceWith(document.createTextNode(t.prizeIcon)); }} />
+                              : t.prizeIcon}
+                          </div>
+                          <div className="oyk-tk-body">
+                            <div className="oyk-tk-name">{t.prizeName}</div>
+                            <div className="oyk-tk-meta">{uzDate(t.at)} · {t.price} ball</div>
+                          </div>
+                          <div className="oyk-tk-no">№{String(t.no).padStart(4, "0")}</div>
+                        </div>
+                      ))}
+                    </div>
+                    <div className="oyk-tk-note">
+                      {tickets.drawIso && (
+                        <>📅 <b>Tiraj: {uzDate(tickets.drawIso)}</b> — Telegram kanalimizda jonli efirda.<br /></>
+                      )}
+                      G'olib tasodifiy tanlanadi. Yutsangiz — botdan darhol xabar keladi.
+                    </div>
+                  </>
                 )}
               </>
             )}

@@ -1577,6 +1577,12 @@ export function createApiServer(opts: ApiOptions = {}) {
     const { getBoard } = await import("../services/oyinService");
     res.json(await getBoard(memberId));
   });
+  app.get("/api/oyin/tickets", requireUser, async (_req, res) => {
+    const memberId = await getMemberId(res.locals.telegramId as string);
+    if (!memberId) { res.status(404).json({ error: "not linked" }); return; }
+    const { myTickets } = await import("../services/oyinService");
+    res.json(await myTickets(memberId));
+  });
   app.get("/api/oyin/jamoam", requireUser, async (_req, res) => {
     const memberId = await getMemberId(res.locals.telegramId as string);
     if (!memberId) { res.status(404).json({ error: "not linked" }); return; }

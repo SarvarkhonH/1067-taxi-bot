@@ -22,6 +22,7 @@ import {
   type OyinDrawExport,
   type OyinFriendRow,
   type OyinJamoamResponse,
+  type OyinMyTicketsResponse,
   type OyinPrizeKey,
   type OyinPrizeUpsertInput,
   type OyinSeasonCloseResult,
@@ -441,6 +442,7 @@ export async function getOyinState(memberId: number): Promise<OyinStateResponse>
     live,
     week,
     story: storyState,
+    ticketCount,
     season: {
       configured: season.configured,
       phase: season.phase,
@@ -547,6 +549,35 @@ function uniqueCatalogKey(name: string, existing: OyinCatalogPrize[]): string {
 export async function adminListCatalog(): Promise<OyinAdminPrizeRow[]> {
   const [catalog, soldMap] = await Promise.all([getCatalog(), getSoldMap()]);
   return catalog.map((p) => ({ ...p, sold: soldMap.get(p.key) ?? 0 }));
+}
+
+/** 🎟 Mijozning mavsum chiptalari — sovrin nomi/rasmi bilan birga. Chipta raqami avval faqat
+ *  bayram-oynasida bir marta ko'rinardi va qayta ko'rishning YO'LI yo'q edi. */
+export async function myTickets(memberId: number): Promise<OyinMyTicketsResponse> {
+  const [season, catalog, row] = await Promise.all([
+    getSeason(),
+    getCatalog(),
+    prisma.appState.findUnique({ where: { key: `oyin:tickets:${memberId}` } }),
+  ]);
+  if (!season.configured) return { tickets: [], drawIso: null };
+  const byKey = new Map(catalog.map((p) => [p.key, p]));
+  const tickets = parseTickets(row?.value)
+    .filter((t) => ticketInSeason(t, season.startMs as number, season.endMs as number))
+    .map((t) => {
+      const p = byKey.get(t.prizeKey);
+      return {
+        prizeKey: t.prizeKey,
+        // Sovrin katalogdan o'chirilgan bo'lsa ham chipta YO'QOLMAYDI — kalitni ko'rsatamiz.
+        prizeName: p?.name ?? t.prizeKey,
+        prizeIcon: p?.icon ?? "🎟",
+        photoUrl: p?.photoUrl ?? null,
+        no: t.no,
+        at: t.ts,
+        price: t.priceAtPurchase,
+      };
+    })
+    .sort((a, b) => Date.parse(b.at) - Date.parse(a.at));
+  return { tickets, drawIso: season.endIso };
 }
 
 /** 👀 Mehmon-teaser: sovrinlar + mavsum holati. A'zo ma'lumoti YO'Q, shuning uchun auth kerak emas. */

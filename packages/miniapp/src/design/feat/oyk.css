@@ -639,3 +639,25 @@
 .oyk-howto-ball { font-size: 15px; font-weight: 900; color: var(--oyk-gold-deep); font-variant-numeric: tabular-nums; flex-shrink: 0; }
 .oyk-howto-tip { font-size: 12px; color: var(--oyk-text-2); line-height: 1.5; padding-top: 4px; }
 .oyk-howto-tip b { color: var(--oyk-text); }
+
+/* ── 🎟 Mening chiptalarim ── */
+.oyk-tk-list { display: flex; flex-direction: column; gap: 8px; }
+.oyk-tk {
+  display: flex; align-items: center; gap: 11px; padding: 10px 12px; border-radius: 14px;
+  background: var(--oyk-fill); border: 1px solid var(--oyk-line);
+}
+.oyk-tk-ic {
+  width: 44px; height: 44px; border-radius: 11px; flex-shrink: 0; font-size: 22px;
+  display: flex; align-items: center; justify-content: center; overflow: hidden;
+  background: linear-gradient(150deg, rgba(245,183,0,.16), rgba(110,90,255,.14));
+}
+.oyk-tk-ic img { width: 100%; height: 100%; object-fit: cover; }
+.oyk-tk-body { flex: 1; min-width: 0; }
+.oyk-tk-name { font-size: 13.5px; font-weight: 800; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.oyk-tk-meta { font-size: 11px; color: var(--oyk-text-3); font-variant-numeric: tabular-nums; }
+.oyk-tk-no {
+  font-size: 15px; font-weight: 900; color: var(--oyk-gold-deep); flex-shrink: 0;
+  font-variant-numeric: tabular-nums; letter-spacing: .02em;
+}
+.oyk-tk-note { font-size: 12px; color: var(--oyk-text-2); line-height: 1.55; padding-top: 4px; }
+.oyk-tk-note b { color: var(--oyk-text); }
