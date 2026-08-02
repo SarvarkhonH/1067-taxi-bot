@@ -198,6 +198,7 @@ export interface OyinFriendRow {
   status: OyinFriendStatus;
   daysSilent: number; // faqat status="silent" bo'lganda ma'noli
   gainToday: number; // bugun shu do'stdan taklifchiga kelgan ball
+  ridesToday: number; // bugungi safarlar soni — "3-safarini qildi!" matni uchun
 }
 export interface OyinJamoamResponse {
   friends: OyinFriendRow[];

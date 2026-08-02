@@ -522,7 +522,7 @@ export async function getJamoam(memberId: number): Promise<OyinJamoamResponse> {
         status = "silent";
         daysSilent = lastRide ? Math.floor((Date.now() - lastRide.getTime()) / 86400_000) : 999;
       }
-      return { name: tu ? shortName(tu) : "Mijoz", status, daysSilent, gainToday };
+      return { name: tu ? shortName(tu) : "Mijoz", status, daysSilent, gainToday, ridesToday: todayCount };
     });
   // referRides ulushi ham jami-hisobotga qo'shiladi (barcha 14-kunlik oynadan tashqari safarlar
   // ham HISOBGA kiradi — computeBallMap'dagi haqiqiy jami bilan ziddiyat bo'lmasin, shu yerda

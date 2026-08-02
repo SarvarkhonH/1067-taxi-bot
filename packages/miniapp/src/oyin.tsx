@@ -92,9 +92,11 @@ export function OyinView() {
     const t = setInterval(() => forceTick((n) => n + 1), 60_000);
     return () => clearInterval(t);
   }, []);
+  // Jamoam BOSH yuklanishdayoq keladi (tab ochilishini kutmaydi) — bosh ekrandagi "rahmat-karta"
+  // (oyk-magnet) shu ma'lumotga qaraydi; aks holda u Jamoam tabiga kirmaguncha hech ko'rinmasdi.
   useEffect(() => {
-    if (tab === "jamoam" && !jamoam) api.oyinJamoam().then(setJamoam).catch(() => setJamoam({ friends: [], totalBall: 0 }));
-  }, [tab, jamoam]);
+    api.oyinJamoam().then(setJamoam).catch(() => setJamoam({ friends: [], totalBall: 0 }));
+  }, []);
 
   const showToast = useCallback((text: string, ms = 2600) => {
     setToast(text);
@@ -320,7 +322,7 @@ export function OyinView() {
               <div className="oyk-magnet">
                 <div className="oyk-magnet-emoji">🔥</div>
                 <div className="oyk-magnet-body">
-                  <div className="oyk-magnet-title">{activeFriend.name} bugun safar qildi!</div>
+                  <div className="oyk-magnet-title">{activeFriend.name} bugun {activeFriend.ridesToday > 1 ? `${activeFriend.ridesToday}-safarini` : "safarini"} qildi!</div>
                   <div className="oyk-magnet-sub">Senga bugun <b>+{activeFriend.gainToday} ball</b> olib keldi — unga rahmat de 🤝</div>
                 </div>
               </div>
