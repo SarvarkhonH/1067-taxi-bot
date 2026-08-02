@@ -722,6 +722,7 @@ function ControlCards() {
   const [catalog, setCatalog] = useState<OyinAdminPrizeRow[] | null>(null);
   const [catalogDraft, setCatalogDraft] = useState<Record<string, { icon: string; name: string; valueLabel: string; price: string; limit: string; photoUrl: string }>>({});
   const [newPrize, setNewPrize] = useState({ icon: "🎁", name: "", valueLabel: "", price: "500", limit: "5", photoUrl: "" });
+  const [savedPrizeKey, setSavedPrizeKey] = useState<string | null>(null);
   const [corps, setCorps] = useState<{ id: number; name: string; balance: number; employees: number }[]>([]);
   const [cName, setCName] = useState("");
   const [empPhone, setEmpPhone] = useState("");
@@ -759,14 +760,25 @@ function ControlCards() {
     try { setSponsorState(await adminApi.setOyinSponsor(sponsorName, sponsorUrl || null, active)); }
     catch { alert("Homiyni saqlab bo'lmadi"); }
   };
+  const flashSaved = (key: string) => {
+    setSavedPrizeKey(key);
+    setTimeout(() => setSavedPrizeKey((cur) => (cur === key ? null : cur)), 2000);
+  };
   const saveCatalogPrize = async (key: string) => {
     const d = catalogDraft[key];
     if (!d) return;
     try {
-      setCatalog(await adminApi.upsertOyinPrize({
+      const prizes = (await adminApi.upsertOyinPrize({
         key, icon: d.icon, name: d.name, valueLabel: d.valueLabel,
         price: Number(d.price) || 0, limit: Number(d.limit) || 0, photoUrl: d.photoUrl || null,
-      }).then((r) => r.prizes));
+      })).prizes;
+      setCatalog(prizes);
+      // server normalizatsiyasini (trim/clamp) shu qatorning draft'ida ham aks ettiramiz
+      const saved = prizes.find((p) => p.key === key);
+      if (saved) setCatalogDraft((cur) => ({ ...cur, [key]: {
+        icon: saved.icon, name: saved.name, valueLabel: saved.valueLabel, price: String(saved.price), limit: String(saved.limit), photoUrl: saved.photoUrl ?? "",
+      } }));
+      flashSaved(key);
     } catch { alert("Sovrinni saqlab bo'lmadi"); }
   };
   const addNewPrize = async () => {
@@ -781,6 +793,7 @@ function ControlCards() {
         icon: p.icon, name: p.name, valueLabel: p.valueLabel, price: String(p.price), limit: String(p.limit), photoUrl: p.photoUrl ?? "",
       }])));
       setNewPrize({ icon: "🎁", name: "", valueLabel: "", price: "500", limit: "5", photoUrl: "" });
+      flashSaved("__new__");
     } catch { alert("Yangi sovrin qo'shib bo'lmadi"); }
   };
   const toggleCatalogPrize = async (key: string, active: boolean) => {
@@ -880,7 +893,7 @@ function ControlCards() {
                     ) : (
                       <span style={{ width: 34, height: 34, borderRadius: 8, background: "rgba(255,255,255,.06)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18, flexShrink: 0 }}>{d.icon || "🎁"}</span>
                     )}
-                    <input type="text" value={d.icon} onChange={(e) => setD({ icon: e.target.value })} placeholder="emoji" style={{ width: 44, textAlign: "center" }} maxLength={4} />
+                    <input type="text" value={d.icon} onChange={(e) => setD({ icon: e.target.value })} placeholder="emoji" style={{ width: 44, textAlign: "center" }} maxLength={8} />
                     <input type="text" value={d.name} onChange={(e) => setD({ name: e.target.value })} placeholder="Nomi" style={{ flex: 1, minWidth: 120 }} />
                     <input type="text" value={d.valueLabel} onChange={(e) => setD({ valueLabel: e.target.value })} placeholder="~narx (masalan 120 000 so'm)" style={{ width: 150 }} />
                     {!p.active && <span style={{ fontSize: 11, color: "#f0b429" }}>yashirilgan</span>}
@@ -894,7 +907,7 @@ function ControlCards() {
                   </div>
                   <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
                     <input type="text" value={d.photoUrl} onChange={(e) => setD({ photoUrl: e.target.value })} placeholder="Rasm URL (ixtiyoriy — bo'sh = emoji)" style={{ flex: 1 }} />
-                    <button className="btn sm" onClick={() => void saveCatalogPrize(p.key)}>Saqlash</button>
+                    <button className="btn sm" style={savedPrizeKey === p.key ? { background: "rgba(52,211,153,.25)", color: "#34d399" } : undefined} onClick={() => void saveCatalogPrize(p.key)}>{savedPrizeKey === p.key ? "✓ Saqlandi" : "Saqlash"}</button>
                     <button className="btn sm" onClick={() => void toggleCatalogPrize(p.key, !p.active)}>{p.active ? "Yashirish" : "Qaytarish"}</button>
                     <button className="btn sm danger" onClick={() => void removeCatalogPrize(p.key)}>O'chirish</button>
                   </div>
@@ -904,7 +917,7 @@ function ControlCards() {
             <div style={{ display: "grid", gap: 6, padding: "10px", borderRadius: 10, border: "1px dashed rgba(255,255,255,.2)" }}>
               <div className="muted" style={{ fontSize: 11, fontWeight: 800, textTransform: "uppercase", letterSpacing: 0.5 }}>+ Yangi sovrin</div>
               <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
-                <input type="text" value={newPrize.icon} onChange={(e) => setNewPrize((s) => ({ ...s, icon: e.target.value }))} placeholder="emoji" style={{ width: 44, textAlign: "center" }} maxLength={4} />
+                <input type="text" value={newPrize.icon} onChange={(e) => setNewPrize((s) => ({ ...s, icon: e.target.value }))} placeholder="emoji" style={{ width: 44, textAlign: "center" }} maxLength={8} />
                 <input type="text" value={newPrize.name} onChange={(e) => setNewPrize((s) => ({ ...s, name: e.target.value }))} placeholder="Nomi (masalan: Termos)" style={{ flex: 1, minWidth: 120 }} />
                 <input type="text" value={newPrize.valueLabel} onChange={(e) => setNewPrize((s) => ({ ...s, valueLabel: e.target.value }))} placeholder="~narx" style={{ width: 150 }} />
               </div>
@@ -916,7 +929,7 @@ function ControlCards() {
               </div>
               <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
                 <input type="text" value={newPrize.photoUrl} onChange={(e) => setNewPrize((s) => ({ ...s, photoUrl: e.target.value }))} placeholder="Rasm URL (ixtiyoriy)" style={{ flex: 1 }} />
-                <button className="btn sm" disabled={!newPrize.name.trim()} onClick={() => void addNewPrize()}>Qo'shish</button>
+                <button className="btn sm" style={savedPrizeKey === "__new__" ? { background: "rgba(52,211,153,.25)", color: "#34d399" } : undefined} disabled={!newPrize.name.trim() && savedPrizeKey !== "__new__"} onClick={() => void addNewPrize()}>{savedPrizeKey === "__new__" ? "✓ Qo'shildi" : "Qo'shish"}</button>
               </div>
             </div>
           </div>
