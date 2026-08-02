@@ -26,7 +26,7 @@
    paydo bo'ladi, tayyor kontent esa yumshoq fade bilan almashadi. */
 .oyk-skel { flex: 1; min-height: 0; overflow: hidden; padding: calc(var(--safe-top) + 10px) 16px 26px; display: flex; flex-direction: column; gap: 14px; }
 .oyk-skel-block {
-  border-radius: 20px; background: linear-gradient(90deg, rgba(255,255,255,.045) 25%, rgba(255,255,255,.10) 37%, rgba(255,255,255,.045) 63%);
+  border-radius: 20px; background: linear-gradient(90deg, rgba(20,26,46,.05) 25%, rgba(20,26,46,.10) 37%, rgba(20,26,46,.05) 63%);
   background-size: 400px 100%; animation: oyk-shimmer 1.4s ease-in-out infinite, oyk-fadeup .4s ease both;
 }
 .oyk-skel-head { height: 34px; width: 62%; border-radius: 12px; }
@@ -41,7 +41,7 @@
 /* 2) XATO holati (tarmoq/server) */
 .oyk-error { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; padding: 30px; text-align: center; }
 .oyk-error-icon { font-size: 44px; }
-.oyk-error-text { font-size: 14px; color: rgba(255,255,255,.6); max-width: 260px; }
+.oyk-error-text { font-size: 14px; color: var(--oyk-text-2); max-width: 260px; }
 .oyk-error-retry {
   min-height: 48px; padding: 0 22px; border: none; border-radius: 13px; background: var(--oyk-gold-grad);
   color: var(--oyk-ink); font-size: 14px; font-weight: 900; cursor: pointer; transition: transform var(--dur-press);
@@ -51,21 +51,21 @@
 /* 3) YANGI-ODAM hero varianti (ball=0, reyting yo'q) — qo'rqitmaydigan, taklif qiluvchi */
 .oyk-hero.is-new { text-align: center; }
 .oyk-hero-new-title { position: relative; font-size: 17px; font-weight: 900; margin-top: 4px; }
-.oyk-hero-new-sub { position: relative; font-size: 12.5px; color: rgba(255,255,255,.65); margin-top: 6px; line-height: 1.5; }
+.oyk-hero-new-sub { position: relative; font-size: 12.5px; color: var(--oyk-text-2); margin-top: 6px; line-height: 1.5; }
 .oyk-hero-new-sub b { color: var(--oyk-gold-soft); }
 
 /* 4) FINAL-48 — shoshilish: qizil urg'u, countdown yiriklashadi, tikish muzlagan */
-.oyk-chip-cd.is-final { color: #fff; background: rgba(255, 90, 95, .22); border-color: rgba(255, 90, 95, .55); font-size: 12px; padding: 6px 11px; }
+.oyk-chip-cd.is-final { color: var(--oyk-red-soft); background: rgba(255, 90, 95, .22); border-color: rgba(255, 90, 95, .55); font-size: 12px; padding: 6px 11px; }
 .oyk-final-banner {
   display: flex; align-items: center; gap: 10px; padding: 11px 14px; border-radius: 14px;
   background: rgba(255, 90, 95, .12); border: 1px solid rgba(255, 90, 95, .4); color: var(--oyk-red-soft);
   font-size: 12.5px; font-weight: 700; line-height: 1.5;
 }
-.oyk-final-banner b { color: #fff; }
+.oyk-final-banner b { color: var(--oyk-text); }
 .oyk-pbtn.is-frozen, .oyk-vbtn.is-frozen { background: rgba(255, 90, 95, .12); color: var(--oyk-red-soft); cursor: not-allowed; }
 
 /* 5) SOTILGAN TUGADI (limit to'lgan) */
-.oyk-pbtn.is-soldout, .oyk-vbtn.is-soldout { background: rgba(255,255,255,.05); color: rgba(255,255,255,.35); cursor: not-allowed; }
+.oyk-pbtn.is-soldout, .oyk-vbtn.is-soldout { background: var(--oyk-fill); color: var(--oyk-text-3); cursor: not-allowed; }
 .oyk-pcard.is-soldout, .oyk-vcard.is-soldout { opacity: .55; }
 
 /* 6) MAVSUM YAKUNI — konvertatsiya xulosasi */
@@ -73,20 +73,25 @@
 .oyk-ended-icon { font-size: 52px; }
 .oyk-ended-title { font-size: 19px; font-weight: 900; }
 .oyk-ended-card {
-  width: 100%; max-width: 320px; background: var(--card); border: 1px solid var(--line); border-radius: 18px;
-  padding: 16px; display: flex; flex-direction: column; gap: 8px; font-size: 13px; color: rgba(255,255,255,.75);
+  width: 100%; max-width: 320px; background: var(--oyk-surface); border: 1px solid var(--oyk-line); border-radius: 18px;
+  padding: 16px; display: flex; flex-direction: column; gap: 8px; font-size: 13px; color: var(--oyk-text-2);
 }
 .oyk-ended-row { display: flex; justify-content: space-between; }
 .oyk-ended-row b { color: var(--oyk-gold-soft); font-variant-numeric: tabular-nums; }
-.oyk-ended-note { font-size: 11.5px; color: rgba(255,255,255,.45); max-width: 280px; }
+.oyk-ended-note { font-size: 11.5px; color: var(--oyk-text-3); max-width: 280px; }
 
 /* ── qobiq ── */
+/* 🖥 To'liq ekran: ilova qobig'ining padding'i va animatsiyasi o'yin uchun o'chiriladi — aks holda
+   o'yin ekran o'rtasida chekkalari ochiq "qog'oz to'rtburchak" bo'lib turadi (ega 2026-08-02). */
+.app.oyin-full .content { padding: 0; }
+.app.oyin-full .page { animation: none; }
+
 .oyk {
-  position: relative; display: flex; flex-direction: column; min-height: 100dvh; color: var(--oyk-text);
+  position: relative; display: flex; flex-direction: column; height: 100dvh; color: var(--oyk-text);
   background: var(--oyk-halo), var(--oyk-bg-grad);
   overflow: hidden;
 }
-.oyk-scroll { flex: 1; min-height: 0; overflow-y: auto; padding: calc(var(--safe-top) + 10px) 16px 26px; display: flex; flex-direction: column; gap: 14px; }
+.oyk-scroll { flex: 1; min-height: 0; overflow-y: auto; padding: calc(var(--safe-top) + 10px) 16px calc(92px + var(--safe-bottom)); display: flex; flex-direction: column; gap: 14px; }
 .oyk-scroll > * { flex-shrink: 0; }
 .oyk button { font-family: inherit; }
 
@@ -125,7 +130,7 @@
 }
 .oyk-hero-unit { font-size: 15px; font-weight: 800; color: var(--oyk-gold-soft); padding-bottom: 6px; }
 .oyk-hero-progress { position: relative; margin-top: 10px; }
-.oyk-bar { height: 14px; border-radius: 7px; background: rgba(255, 255, 255, .08); overflow: hidden; }
+.oyk-bar { height: 14px; border-radius: 7px; background: var(--oyk-fill); overflow: hidden; }
 .oyk-bar-fill {
   height: 100%; border-radius: 7px; background: linear-gradient(90deg, var(--oyk-gold-deep), var(--oyk-gold), var(--oyk-gold-pale));
   box-shadow: 0 0 12px rgba(245, 183, 0, .55); transition: width .5s var(--ease-out);
@@ -133,15 +138,15 @@
 .oyk-bar-meta { display: flex; justify-content: space-between; margin-top: 6px; font-size: 11.5px; font-variant-numeric: tabular-nums; }
 .oyk-bar-left { font-weight: 800; color: var(--oyk-gold-soft); }
 .oyk-bar-left.is-ready { color: var(--oyk-green); }
-.oyk-bar-right { color: rgba(255, 255, 255, .45); font-weight: 700; }
+.oyk-bar-right { color: var(--oyk-text-3); font-weight: 700; }
 
 /* ── bugungi maqsad (halqa) ── */
 .oyk-daily {
-  background: var(--card); border: 1px solid var(--line); border-radius: 20px; padding: 14px;
+  background: var(--oyk-surface); border: 1px solid var(--oyk-line); border-radius: 20px; padding: 14px;
   display: flex; gap: 14px; align-items: center;
 }
 .oyk-ring { position: relative; width: 72px; height: 72px; flex-shrink: 0; }
-.oyk-ring-track { fill: none; stroke: rgba(255, 255, 255, .08); stroke-width: 7; }
+.oyk-ring-track { fill: none; stroke: var(--oyk-fill); stroke-width: 7; }
 .oyk-ring-fill {
   fill: none; stroke: var(--oyk-violet); stroke-width: 7; stroke-linecap: round;
   transition: stroke-dashoffset .7s var(--ease-out); filter: drop-shadow(0 0 6px rgba(110, 90, 255, .7));
@@ -155,12 +160,12 @@
 .oyk-task { display: flex; align-items: center; gap: 8px; font-size: 12px; }
 .oyk-task-dot {
   width: 17px; height: 17px; border-radius: 50%; flex-shrink: 0; display: flex; align-items: center;
-  justify-content: center; font-size: 10px; font-weight: 900; color: #fff;
-  background: transparent; border: 1px solid rgba(255, 255, 255, .25);
+  justify-content: center; font-size: 10px; font-weight: 900; color: var(--oyk-text);
+  background: transparent; border: 1px solid var(--oyk-line);
 }
 .oyk-task.is-done .oyk-task-dot { background: var(--oyk-violet); border-color: var(--oyk-violet); }
 .oyk-task-label { font-weight: 600; color: var(--oyk-text); }
-.oyk-task.is-done .oyk-task-label { color: rgba(255, 255, 255, .45); }
+.oyk-task.is-done .oyk-task-label { color: var(--oyk-text-3); }
 .oyk-task-reward { margin-left: auto; font-weight: 800; color: var(--oyk-gold-soft); font-variant-numeric: tabular-nums; }
 
 /* ── haftalik vazifa chizig'i ── */
@@ -170,26 +175,26 @@
 }
 .oyk-week-emoji { font-size: 17px; }
 .oyk-week-text { flex: 1; min-width: 0; font-size: 12px; font-weight: 700; color: var(--oyk-violet-soft); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.oyk-week-text b { color: #fff; }
+.oyk-week-text b { color: var(--oyk-text); }
 .oyk-week-pts { font-size: 11.5px; font-weight: 900; color: var(--oyk-gold-soft); white-space: nowrap; }
 
 /* ── jonli lenta ── */
 .oyk-feed {
-  background: rgba(255, 255, 255, .035); border: 1px solid rgba(255, 255, 255, .08); border-radius: 16px;
+  background: var(--oyk-fill); border: 1px solid var(--oyk-line); border-radius: 16px;
   padding: 10px 14px; display: flex; align-items: center; gap: 10px; overflow: hidden;
 }
 .oyk-live { font-size: 9.5px; font-weight: 900; letter-spacing: .08em; color: var(--oyk-red-live); flex-shrink: 0; display: flex; align-items: center; gap: 5px; }
 .oyk-live-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--oyk-red); display: inline-block; animation: oyk-blink 1.2s infinite; }
-.oyk-feed-body { flex: 1; min-width: 0; font-size: 12px; color: rgba(255, 255, 255, .8); }
+.oyk-feed-body { flex: 1; min-width: 0; font-size: 12px; color: var(--oyk-text-2); }
 .oyk-feed-item { animation: oyk-fadeup .4s ease-out; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
 /* ── sovrin reli (gorizontal) ── */
 .oyk-rail-head { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 9px; }
 .oyk-rail-title { font-size: 15px; font-weight: 900; }
-.oyk-rail-sub { font-size: 11px; color: rgba(255, 255, 255, .4); white-space: nowrap; }
+.oyk-rail-sub { font-size: 11px; color: var(--oyk-text-3); white-space: nowrap; }
 .oyk-rail { display: flex; gap: 10px; overflow-x: auto; margin: 0 -16px; padding: 0 16px 8px; }
 .oyk-pcard {
-  flex-shrink: 0; width: 164px; background: var(--card); border: 1px solid var(--line); border-radius: 18px;
+  flex-shrink: 0; width: 164px; background: var(--oyk-surface); border: 1px solid var(--oyk-line); border-radius: 18px; box-shadow: var(--oyk-shadow);
   padding: 12px; display: flex; flex-direction: column; gap: 7px;
 }
 .oyk-pcard.is-hot { border-color: rgba(111, 207, 151, .5); box-shadow: 0 0 20px rgba(111, 207, 151, .2); }
@@ -207,13 +212,13 @@
   font-size: 12px; font-weight: 800; text-align: center; line-height: 1.25;
   display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
 }
-.oyk-pcard-meta { font-size: 10.5px; color: rgba(255, 255, 255, .45); text-align: center; font-variant-numeric: tabular-nums; }
-.oyk-pbar { height: 6px; border-radius: 3px; background: rgba(255, 255, 255, .08); overflow: hidden; }
+.oyk-pcard-meta { font-size: 10.5px; color: var(--oyk-text-3); text-align: center; font-variant-numeric: tabular-nums; }
+.oyk-pbar { height: 6px; border-radius: 3px; background: var(--oyk-fill); overflow: hidden; }
 .oyk-pbar-fill { height: 100%; border-radius: 3px; background: var(--oyk-gold); transition: width .5s; }
 .oyk-pcard.is-hot .oyk-pbar-fill { background: var(--oyk-green); }
 .oyk-pbtn {
   min-height: 40px; border: none; border-radius: 11px; font-size: 12px; font-weight: 900; cursor: pointer;
-  transition: transform var(--dur-press); background: rgba(255, 255, 255, .07); color: rgba(255, 255, 255, .5);
+  transition: transform var(--dur-press); background: var(--oyk-fill); color: var(--oyk-text-3);
 }
 .oyk-pbtn:active { transform: scale(.96); }
 .oyk-pbtn.is-on { background: var(--oyk-gold-grad); color: var(--oyk-ink); }
@@ -222,7 +227,7 @@
 /* ── 🎯 Bugungi maqsad — halqa + 3 vazifa (prototipdagi karta, real ma'lumot bilan) ── */
 .oyk-daily {
   display: flex; gap: 14px; align-items: center; padding: 14px;
-  background: var(--card); border: 1px solid var(--line); border-radius: 20px;
+  background: var(--oyk-surface); border: 1px solid var(--oyk-line); border-radius: 20px; box-shadow: var(--oyk-shadow);
 }
 .oyk-daily-ring { position: relative; flex-shrink: 0; width: 64px; height: 64px; }
 .oyk-daily-ring-num {
@@ -240,24 +245,24 @@
 .oyk-daily-check {
   width: 18px; height: 18px; border-radius: 50%; flex-shrink: 0; font-size: 10px; font-weight: 900;
   display: flex; align-items: center; justify-content: center;
-  border: 1.5px solid rgba(255, 255, 255, .22); color: var(--oyk-ink);
+  border: 1.5px solid var(--oyk-line); color: var(--oyk-ink);
 }
 .oyk-daily-row.is-done .oyk-daily-check { background: var(--oyk-violet); border-color: var(--oyk-violet); color: #fff; }
-.oyk-daily-label { flex: 1; font-size: 12.5px; font-weight: 700; color: rgba(255, 255, 255, .78); }
-.oyk-daily-row.is-done .oyk-daily-label { color: rgba(255, 255, 255, .45); }
-.oyk-daily-gain { font-size: 11.5px; font-weight: 800; color: rgba(255, 255, 255, .5); font-variant-numeric: tabular-nums; }
+.oyk-daily-label { flex: 1; font-size: 12.5px; font-weight: 700; color: var(--oyk-text-2); }
+.oyk-daily-row.is-done .oyk-daily-label { color: var(--oyk-text-3); }
+.oyk-daily-gain { font-size: 11.5px; font-weight: 800; color: var(--oyk-text-3); font-variant-numeric: tabular-nums; }
 .oyk-daily-row.is-done .oyk-daily-gain { color: var(--oyk-gold-soft); }
 
 /* ── 🔥 Haftalik vazifa (zanjir) — prototipdagi chiziq, real login-kunlaridan ── */
 .oyk-streak {
   display: flex; align-items: center; gap: 10px; padding: 11px 14px; border-radius: 14px;
   background: rgba(110, 90, 255, .10); border: 1px solid rgba(110, 90, 255, .30);
-  font-size: 12.5px; color: rgba(255, 255, 255, .8);
+  font-size: 12.5px; color: var(--oyk-text-2);
 }
 .oyk-streak.is-done { background: rgba(52, 211, 153, .10); border-color: rgba(52, 211, 153, .34); }
 .oyk-streak-emoji { font-size: 16px; flex-shrink: 0; }
 .oyk-streak-text { flex: 1; min-width: 0; }
-.oyk-streak-text b { color: #fff; }
+.oyk-streak-text b { color: var(--oyk-text); }
 .oyk-streak-gain { font-weight: 900; color: var(--oyk-gold-soft); font-variant-numeric: tabular-nums; flex-shrink: 0; }
 
 /* ── 🤝 "Rahmat ayt" tugmasi (magnet kartada va Jamoam qatorlarida) ── */
@@ -274,7 +279,7 @@
 .oyk-live {
   display: flex; align-items: center; gap: 8px; padding: 10px 13px;
   background: rgba(255, 90, 95, .07); border: 1px solid rgba(255, 90, 95, .22); border-radius: 14px;
-  font-size: 12px; color: rgba(255, 255, 255, .75); overflow: hidden; white-space: nowrap;
+  font-size: 12px; color: var(--oyk-text-2); overflow: hidden; white-space: nowrap;
 }
 .oyk-live-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--oyk-red); animation: oyk-blink 1.4s ease-in-out infinite; flex-shrink: 0; }
 .oyk-live-tag { font-size: 10px; font-weight: 900; letter-spacing: .08em; color: var(--oyk-red-soft); flex-shrink: 0; }
@@ -294,15 +299,15 @@
 /* ── homiy chizig'i + huquqiy izoh ── */
 .oyk-sponsor {
   display: flex; align-items: center; justify-content: center; gap: 9px; padding: 10px 14px;
-  background: rgba(255, 255, 255, .03); border: 1px solid rgba(255, 255, 255, .07); border-radius: 14px;
+  background: var(--oyk-fill); border: 1px solid var(--oyk-line); border-radius: 14px;
 }
 .oyk-sponsor-logo {
   width: 26px; height: 26px; border-radius: 8px; background: linear-gradient(160deg, var(--oyk-gold), var(--oyk-gold-deep));
   display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 900; color: var(--oyk-ink); flex-shrink: 0;
 }
-.oyk-sponsor-text { font-size: 11px; color: rgba(255, 255, 255, .5); white-space: nowrap; }
-.oyk-sponsor-text b { color: rgba(255, 255, 255, .8); }
-.oyk-legal { text-align: center; font-size: 10.5px; color: rgba(255, 255, 255, .35); padding: 0 12px; }
+.oyk-sponsor-text { font-size: 11px; color: var(--oyk-text-3); white-space: nowrap; }
+.oyk-sponsor-text b { color: var(--oyk-text); }
+.oyk-legal { text-align: center; font-size: 10.5px; color: var(--oyk-text-3); padding: 0 12px; }
 
 /* ── vitrina tabi ── */
 .oyk-v-head { display: flex; align-items: baseline; justify-content: space-between; }
@@ -312,9 +317,9 @@
   background: rgba(245, 183, 0, .06); border: 1px solid rgba(245, 183, 0, .2); border-radius: 12px;
 }
 .oyk-sponsor-strip .oyk-sponsor-logo { width: 24px; height: 24px; border-radius: 7px; font-size: 11px; }
-.oyk-sponsor-strip-text { font-size: 11px; color: rgba(255, 255, 255, .6); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.oyk-sponsor-strip-text { font-size: 11px; color: var(--oyk-text-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .oyk-sponsor-strip-text b { color: var(--oyk-gold-soft); }
-.oyk-vcard { background: var(--card); border: 1px solid var(--line); border-radius: 20px; padding: 14px; display: flex; flex-direction: column; gap: 9px; }
+.oyk-vcard { background: var(--oyk-surface); border: 1px solid var(--oyk-line); border-radius: 20px; box-shadow: var(--oyk-shadow); padding: 14px; display: flex; flex-direction: column; gap: 9px; }
 /* Katta rasm-banner (ega talabi 2026-08-02): rasm bor sovrinda karta tepasi to'liq mahsulot-foto —
    pastdan qoraytirish bilan narx-chip o'qiladi. Rasm yuklanmasa JS parentni olib tashlaydi (emoji-yo'l). */
 .oyk-vcard-photo { position: relative; margin: -14px -14px 2px; height: 200px; overflow: hidden; border-radius: 19px 19px 0 0; }
@@ -340,19 +345,19 @@
 }
 .oyk-vcard-title { flex: 1; min-width: 0; }
 .oyk-vcard-name { font-size: 14.5px; font-weight: 900; }
-.oyk-vcard-sub { font-size: 11px; color: rgba(255, 255, 255, .45); }
+.oyk-vcard-sub { font-size: 11px; color: var(--oyk-text-3); }
 .oyk-vcard-price { text-align: right; flex-shrink: 0; }
 .oyk-vcard-price-num { font-size: 15px; font-weight: 900; color: var(--oyk-gold-soft); font-variant-numeric: tabular-nums; }
-.oyk-vcard-price-unit { font-size: 10px; color: rgba(255, 255, 255, .4); }
-.oyk-vbar { height: 8px; border-radius: 4px; background: rgba(255, 255, 255, .08); overflow: hidden; }
+.oyk-vcard-price-unit { font-size: 10px; color: var(--oyk-text-3); }
+.oyk-vbar { height: 8px; border-radius: 4px; background: var(--oyk-fill); overflow: hidden; }
 .oyk-vbar-fill { height: 100%; border-radius: 4px; background: linear-gradient(90deg, var(--oyk-gold-deep), var(--oyk-gold)); transition: width .5s; }
-.oyk-vcard-stats { display: flex; justify-content: space-between; font-size: 11.5px; color: rgba(255, 255, 255, .55); font-variant-numeric: tabular-nums; }
+.oyk-vcard-stats { display: flex; justify-content: space-between; font-size: 11.5px; color: var(--oyk-text-2); font-variant-numeric: tabular-nums; }
 .oyk-vcard-stats b { color: var(--oyk-text); }
-.oyk-vcard-path { font-size: 12px; color: rgba(255, 255, 255, .6); }
-.oyk-vcard-history { font-size: 10.5px; color: rgba(255, 255, 255, .35); }
+.oyk-vcard-path { font-size: 12px; color: var(--oyk-text-2); }
+.oyk-vcard-history { font-size: 10.5px; color: var(--oyk-text-3); }
 .oyk-vbtn {
   min-height: 46px; border: none; border-radius: 12px; font-size: 13px; font-weight: 900; cursor: pointer;
-  transition: transform var(--dur-press); background: rgba(255, 255, 255, .07); color: rgba(255, 255, 255, .5);
+  transition: transform var(--dur-press); background: var(--oyk-fill); color: var(--oyk-text-3);
 }
 .oyk-vbtn:active { transform: scale(.97); }
 .oyk-vbtn.is-on { background: var(--oyk-gold-grad); color: var(--oyk-ink); }
@@ -361,12 +366,12 @@
   padding: 13px 15px; display: flex; gap: 11px; align-items: center;
 }
 .oyk-sched-emoji { font-size: 22px; }
-.oyk-sched-text { font-size: 11.5px; color: rgba(255, 255, 255, .7); line-height: 1.55; }
+.oyk-sched-text { font-size: 11.5px; color: var(--oyk-text-2); line-height: 1.55; }
 .oyk-sched-text b { color: var(--oyk-red-soft); }
 
 /* ── jamoam tabi ── */
 .oyk-j-title { font-size: 17px; font-weight: 900; }
-.oyk-j-count { font-size: 12px; font-weight: 700; color: rgba(255, 255, 255, .45); }
+.oyk-j-count { font-size: 12px; font-weight: 700; color: var(--oyk-text-3); }
 .oyk-magnet {
   background: linear-gradient(160deg, rgba(245, 183, 0, .16), rgba(255, 90, 95, .08));
   border: 1px solid rgba(245, 183, 0, .35); border-radius: 18px; padding: 14px;
@@ -374,13 +379,15 @@
 }
 .oyk-magnet-emoji { font-size: 28px; }
 .oyk-magnet-body { flex: 1; min-width: 0; }
-.oyk-magnet-title { font-size: 13.5px; font-weight: 900; color: var(--oyk-gold-pale); }
-.oyk-magnet-sub { font-size: 12px; color: rgba(255, 255, 255, .65); margin-top: 2px; }
+/* --oyk-gold-pale och-krem: u FAQAT qorong'i fon ustida (toast, bayram ekrani) ishlaydi.
+   Yorug' kartada ko'rinmay ketardi — qora siyohga o'tkazildi. */
+.oyk-magnet-title { font-size: 13.5px; font-weight: 900; color: var(--oyk-text); }
+.oyk-magnet-sub { font-size: 12px; color: var(--oyk-text-2); margin-top: 2px; }
 .oyk-magnet-sub b { color: var(--oyk-gold-soft); }
 .oyk-friends { display: flex; flex-direction: column; gap: 7px; }
 .oyk-friend {
   display: flex; align-items: center; gap: 11px; padding: 10px 12px; border-radius: 14px;
-  background: rgba(255, 255, 255, .04); border: 1px solid rgba(255, 255, 255, .08);
+  background: var(--oyk-fill); border: 1px solid var(--oyk-line);
 }
 .oyk-avatar {
   width: 36px; height: 36px; border-radius: 50%; display: flex; align-items: center; justify-content: center;
@@ -394,7 +401,7 @@
 .oyk-av-4 { background: #22d3ee; }
 .oyk-friend-body { flex: 1; min-width: 0; }
 .oyk-friend-name { font-size: 13px; font-weight: 800; }
-.oyk-friend-status { font-size: 11px; color: rgba(255, 255, 255, .4); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.oyk-friend-status { font-size: 11px; color: var(--oyk-text-3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .oyk-friend-status.is-active { color: var(--oyk-green); }
 .oyk-wake {
   min-height: 44px; padding: 0 14px; border: 1px solid rgba(110, 90, 255, .5); border-radius: 11px;
@@ -404,16 +411,16 @@
 .oyk-wake:active { transform: scale(.95); }
 .oyk-friend-gain { font-size: 12.5px; font-weight: 900; color: var(--oyk-green); white-space: nowrap; flex-shrink: 0; }
 .oyk-j-report {
-  background: rgba(255, 255, 255, .035); border: 1px solid rgba(255, 255, 255, .08); border-radius: 14px;
-  padding: 12px 14px; font-size: 12px; color: rgba(255, 255, 255, .6); line-height: 1.55;
+  background: var(--oyk-fill); border: 1px solid var(--oyk-line); border-radius: 14px;
+  padding: 12px 14px; font-size: 12px; color: var(--oyk-text-2); line-height: 1.55;
 }
 .oyk-j-hint {
   background: rgba(110, 90, 255, .08); border: 1px solid rgba(110, 90, 255, .3); border-radius: 14px;
   padding: 11px 14px; font-size: 12px; color: var(--oyk-violet-soft); line-height: 1.5;
 }
-.oyk-j-hint b { color: #fff; }
+.oyk-j-hint b { color: var(--oyk-text); }
 .oyk-qr {
-  background: var(--card); border: 1px solid var(--line); border-radius: 20px; padding: 16px;
+  background: var(--oyk-surface); border: 1px solid var(--oyk-line); border-radius: 20px; padding: 16px;
   display: flex; flex-direction: column; gap: 11px; align-items: center; text-align: center;
 }
 .oyk-qr-svg { border-radius: 8px; background: #fff; padding: 6px; box-sizing: content-box; }
@@ -424,18 +431,38 @@
   color: var(--oyk-ink); font-size: 13.5px; font-weight: 900; cursor: pointer; transition: transform var(--dur-press);
 }
 .oyk-qr-btn:active { transform: scale(.97); }
-.oyk-qr-note { font-size: 11px; color: rgba(255, 255, 255, .4); }
+.oyk-qr-note { font-size: 11px; color: var(--oyk-text-3); }
 .oyk-qr-note b { color: var(--oyk-gold-soft); }
 
 /* ── pastki tab-bar ── */
-.oyk-tabs { height: 62px; flex-shrink: 0; display: flex; border-top: 1px solid rgba(255, 255, 255, .08); background: rgba(10, 12, 20, .95); padding-bottom: var(--safe-bottom); box-sizing: content-box; }
+/* 💧 Liquid glass: tab-qatori ekran pastida SUZIB turadi va HAR DOIM ko'rinadi (ega 2026-08-02:
+   "to'liq liqued bo'lib ko'rinib tursin, eng pastga skrollda chiqmasin"). Avval oqim ichidagi
+   oddiy blok edi — kontent tugagandagina ko'rinardi. Kontent ostiga kirib ketmasligi uchun
+   `.oyk-scroll` pastdan qo'shimcha joy oladi. */
+/* 💧 Liquid glass: tab-qatori ekran pastida SUZIB turadi va HAR DOIM ko'rinadi (ega 2026-08-02:
+   "to'liq liqued bo'lib ko'rinib tursin, eng pastga skrollda chiqmasin"). Avval oqim ichidagi
+   oddiy blok edi — kontent tugagandagina ko'rinardi. */
+.oyk-tabs {
+  position: absolute; left: 12px; right: 12px; bottom: calc(10px + var(--safe-bottom)); z-index: 20;
+  height: 60px; display: flex; gap: 4px; padding: 5px; border-radius: 22px; box-sizing: border-box;
+  background: rgba(255, 255, 255, .72);
+  -webkit-backdrop-filter: blur(20px) saturate(1.7);
+  backdrop-filter: blur(20px) saturate(1.7);
+  border: 1px solid rgba(255, 255, 255, .9);
+  box-shadow: 0 1px 0 rgba(255, 255, 255, .9) inset, var(--oyk-shadow-lift);
+}
 .oyk-tab {
-  flex: 1; min-height: 44px; border: none; background: transparent; cursor: pointer;
+  flex: 1; min-height: 44px; border: none; background: transparent; cursor: pointer; border-radius: 17px;
   display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px;
-  color: rgba(255, 255, 255, .4); transition: transform var(--dur-press); border-top: 2px solid transparent;
+  color: var(--oyk-text-3); transition: transform var(--dur-press), background .2s, color .2s;
 }
 .oyk-tab:active { transform: scale(.95); }
-.oyk-tab.is-active { color: var(--oyk-gold-soft); border-top-color: var(--oyk-gold); }
+/* Faol tab — shisha "tabletka" (tepadagi chiziq emas) */
+.oyk-tab.is-active {
+  color: var(--oyk-gold-deep);
+  background: linear-gradient(180deg, rgba(255, 255, 255, .95), rgba(255, 246, 224, .95));
+  box-shadow: 0 2px 8px rgba(20, 26, 46, .10);
+}
 .oyk-tab-icon { font-size: 19px; }
 .oyk-tab-label { font-size: 10px; font-weight: 800; }
 
@@ -460,43 +487,43 @@
 /* ── pastki sheet ── */
 .oyk-scrim { position: absolute; inset: 0; background: rgba(0, 0, 0, .6); z-index: 40; display: flex; align-items: flex-end; }
 .oyk-sheet {
-  width: 100%; background: var(--oyk-sheet-bg); border-radius: 26px 26px 0 0; padding: 20px 20px calc(28px + var(--safe-bottom));
+  width: 100%; color: var(--oyk-text); background: var(--oyk-sheet-bg); border-radius: 26px 26px 0 0; padding: 20px 20px calc(28px + var(--safe-bottom));
   box-sizing: border-box; display: flex; flex-direction: column; gap: 12px; animation: oyk-sheet .28s var(--ease-out);
   max-height: 82%; overflow-y: auto;
 }
-.oyk-sheet-grip { width: 38px; height: 4px; border-radius: 2px; background: rgba(255, 255, 255, .2); margin: 0 auto; flex-shrink: 0; }
+.oyk-sheet-grip { width: 38px; height: 4px; border-radius: 2px; background: var(--oyk-fill); margin: 0 auto; flex-shrink: 0; }
 .oyk-sheet-title { font-size: 16px; font-weight: 900; }
 .oyk-note-violet { background: rgba(110, 90, 255, .1); border: 1px solid rgba(110, 90, 255, .35); border-radius: 12px; padding: 10px 12px; font-size: 12px; color: var(--oyk-violet-soft); line-height: 1.5; }
-.oyk-note-violet b { color: #fff; }
+.oyk-note-violet b { color: var(--oyk-text); }
 .oyk-note-violet .oyk-note-gold { color: var(--oyk-gold-soft); font-weight: 800; }
 .oyk-note-red { background: rgba(255, 90, 95, .1); border: 1px solid rgba(255, 90, 95, .35); border-radius: 12px; padding: 10px 12px; font-size: 12.5px; font-weight: 700; color: var(--oyk-red-soft); }
 
 /* reyting ro'yxati */
 .oyk-board { display: flex; flex-direction: column; gap: 6px; }
-.oyk-brow { display: flex; align-items: center; gap: 10px; padding: 9px 12px; border-radius: 12px; background: rgba(255, 255, 255, .03); border: 1px solid rgba(255, 255, 255, .07); }
+.oyk-brow { display: flex; align-items: center; gap: 10px; padding: 9px 12px; border-radius: 12px; background: var(--oyk-fill); border: 1px solid var(--oyk-line); }
 .oyk-brow.is-me { background: rgba(245, 183, 0, .12); border-color: rgba(245, 183, 0, .45); }
-.oyk-brow-pos { width: 26px; font-size: 12.5px; font-weight: 900; color: rgba(255, 255, 255, .5); font-variant-numeric: tabular-nums; }
+.oyk-brow-pos { width: 26px; font-size: 12.5px; font-weight: 900; color: var(--oyk-text-3); font-variant-numeric: tabular-nums; }
 .oyk-brow.is-top .oyk-brow-pos { color: var(--oyk-gold-soft); }
 .oyk-brow-name { flex: 1; font-size: 13px; font-weight: 700; }
-.oyk-brow.is-me .oyk-brow-name { color: var(--oyk-gold-pale); }
+.oyk-brow.is-me .oyk-brow-name { color: var(--oyk-gold-deep); }
 .oyk-brow-pts { font-size: 13px; font-weight: 900; color: var(--oyk-gold-soft); font-variant-numeric: tabular-nums; }
 
 /* ulashish sheet'i */
-.oyk-share-preview { background: rgba(255, 255, 255, .05); border: 1px solid rgba(255, 255, 255, .1); border-radius: 14px; padding: 12px; font-size: 12.5px; color: rgba(255, 255, 255, .75); line-height: 1.5; }
-.oyk-share-preview b { color: #fff; }
+.oyk-share-preview { background: var(--oyk-line); border: 1px solid var(--oyk-line); border-radius: 14px; padding: 12px; font-size: 12.5px; color: var(--oyk-text-2); line-height: 1.5; }
+.oyk-share-preview b { color: var(--oyk-text); }
 .oyk-contacts { display: flex; flex-direction: column; gap: 6px; }
 .oyk-contact {
   display: flex; align-items: center; gap: 12px; padding: 10px 12px; border-radius: 14px;
-  background: rgba(255, 255, 255, .04); border: 1px solid rgba(255, 255, 255, .09); cursor: pointer;
+  background: var(--oyk-fill); border: 1px solid var(--oyk-line); cursor: pointer;
   color: var(--oyk-text); min-height: 52px; transition: transform var(--dur-press); text-align: left;
 }
 .oyk-contact:active { transform: scale(.98); }
 .oyk-contact .oyk-avatar { width: 38px; height: 38px; font-size: 15px; }
 .oyk-contact-body { flex: 1; }
 .oyk-contact-name { font-size: 13.5px; font-weight: 800; }
-.oyk-contact-sub { font-size: 11px; color: rgba(255, 255, 255, .45); }
+.oyk-contact-sub { font-size: 11px; color: var(--oyk-text-3); }
 .oyk-contact-action { font-size: 12px; font-weight: 800; color: var(--oyk-green); }
-.oyk-share-hint { font-size: 11px; color: rgba(255, 255, 255, .4); text-align: center; }
+.oyk-share-hint { font-size: 11px; color: var(--oyk-text-3); text-align: center; }
 
 /* chipta-tasdiq sheet'i */
 .oyk-buy-row { display: flex; align-items: center; gap: 12px; background: rgba(245, 183, 0, .08); border: 1px solid rgba(245, 183, 0, .3); border-radius: 16px; padding: 14px; }
@@ -504,8 +531,8 @@
 .oyk-buy-icon img { width: 52px; height: 52px; border-radius: 14px; object-fit: cover; display: block; }
 .oyk-buy-body { flex: 1; }
 .oyk-buy-name { font-size: 14px; font-weight: 900; }
-.oyk-buy-price { font-size: 12px; color: rgba(255, 255, 255, .55); font-variant-numeric: tabular-nums; }
-.oyk-buy-note { font-size: 11.5px; color: rgba(255, 255, 255, .45); text-align: center; }
+.oyk-buy-price { font-size: 12px; color: var(--oyk-text-2); font-variant-numeric: tabular-nums; }
+.oyk-buy-note { font-size: 11.5px; color: var(--oyk-text-3); text-align: center; }
 .oyk-buy-actions { display: flex; gap: 8px; }
 .oyk-buy-confirm {
   flex: 1; min-height: 52px; border: none; border-radius: 14px; background: var(--oyk-gold-grad);
@@ -513,7 +540,7 @@
 }
 .oyk-buy-confirm:active { transform: scale(.97); }
 .oyk-buy-cancel {
-  min-height: 52px; padding: 0 18px; border: 1px solid rgba(255, 255, 255, .15); border-radius: 14px;
+  min-height: 52px; padding: 0 18px; border: 1px solid var(--oyk-line); border-radius: 14px;
   background: transparent; color: var(--oyk-text); font-size: 14px; font-weight: 700; cursor: pointer;
 }
 
@@ -547,11 +574,11 @@
 .oyk-ob-step { font-size: 12px; font-weight: 900; letter-spacing: .12em; color: var(--oyk-gold-soft); }
 .oyk-ob-text { font-size: 19px; font-weight: 900; line-height: 1.4; max-width: 280px; }
 .oyk-ob-dots { display: flex; gap: 6px; }
-.oyk-ob-dot { width: 8px; height: 8px; border-radius: 50%; background: rgba(255, 255, 255, .18); transition: background .3s; }
+.oyk-ob-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--oyk-fill); transition: background .3s; }
 .oyk-ob-dot.is-active { background: var(--oyk-gold); }
 .oyk-ob-next {
   width: 100%; min-height: 52px; border: none; border-radius: 14px; background: var(--oyk-gold-grad);
   color: var(--oyk-ink); font-size: 15px; font-weight: 900; cursor: pointer; transition: transform var(--dur-press); margin-top: 8px;
 }
 .oyk-ob-next:active { transform: scale(.97); }
-.oyk-ob-skip { min-height: 44px; border: none; background: transparent; color: rgba(255, 255, 255, .4); font-size: 13px; font-weight: 700; cursor: pointer; }
+.oyk-ob-skip { min-height: 44px; border: none; background: transparent; color: var(--oyk-text-3); font-size: 13px; font-weight: 700; cursor: pointer; }

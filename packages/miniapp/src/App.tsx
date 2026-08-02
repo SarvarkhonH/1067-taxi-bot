@@ -412,7 +412,10 @@ export function App() {
   // 🏪 BirJoy Market v2: yangi qorong'i-oynasimon dizayn — flag ON'da shop-light/bazar-light
   // OVERRIDE qo'llanmaydi (ilovaning tabiiy qorong'i bazaviy temasi ko'rinadi), o'rniga `bjm`
   // klassi shop.tsx'dagi yangi dark-glass elementlarga aksent-uslub beradi.
-  const shellCls = tab === "dokon" ? "app bjm" : tab === "elonlar" ? "app elonlar-light" : tab === "xizmat" ? "app xizmat-light" : tab === "restoran" ? "app restoran-light" : tab === "ravella" ? "app ravella-light" : "app";
+  // 🎮 `oyin-full` — o'yin ekrani ilova qobig'ining padding'idan (10px 16px 96px) CHIQADI.
+  // Usiz o'yin ekran o'rtasida "qog'oz to'rtburchak" bo'lib turardi va o'z tab-qatori ekran
+  // pastiga yetmasdi (100dvh + padding = ekrandan baland).
+  const shellCls = tab === "oyin" ? "app oyin-full" : tab === "dokon" ? "app bjm" : tab === "elonlar" ? "app elonlar-light" : tab === "xizmat" ? "app xizmat-light" : tab === "restoran" ? "app restoran-light" : tab === "ravella" ? "app ravella-light" : "app";
 
   // 📱 Uy tabida topbar ko'rsatilmaydi (pastdagi shart) → xavfsiz zonani `.content` oladi, aks holda
   // to'liq ekran rejimida birinchi karta Telegram'ning ✕/⌄/⋮ paneli ostida qoladi.

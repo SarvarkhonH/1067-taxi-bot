@@ -616,16 +616,16 @@ export async function getJamoam(memberId: number): Promise<OyinJamoamResponse> {
 
   const referrals = await prisma.referral.findMany({
     where: { referrerId: myTu.id },
-    select: { refereeMemberId: true, referrerPaidAt: true },
+    select: { refereeMemberId: true, referrerPaidAt: true, createdAt: true },
     orderBy: { createdAt: "desc" },
   });
   const refereeIds = referrals.map((r) => r.refereeMemberId).filter((id): id is number => id != null);
   if (refereeIds.length === 0) return { friends: [], totalBall: 0 };
 
-  // 14 kunlik oyna mavsum boshiga QISILADI — do'stning mavsumgacha bo'lgan safari "bugungi faollik"
-  // sifatida ko'rinmasin (ball baribir bermaydi, ko'rsatish ham noto'g'ri bo'lardi).
+  // Safarlar oynasi = BUTUN mavsum (avval qat'iy 14 kun edi) — "shu mavsumda yurganmi" savoliga
+  // javob berish uchun kerak, chunki quyidagi ro'yxat shunga qarab filtrlanadi.
   const ridesSince = season.configured
-    ? new Date(Math.max(Date.now() - 14 * 86400_000, season.startMs as number))
+    ? new Date(season.startMs as number)
     : new Date(Date.now() - 14 * 86400_000);
 
   const [refereeTus, recentRides, thanksRow] = await Promise.all([
@@ -646,9 +646,22 @@ export async function getJamoam(memberId: number): Promise<OyinJamoamResponse> {
     ridesByMember.set(r.memberId, arr);
   }
 
+  // 👥 Ro'yxat MAVSUM jamoasi (ega 2026-08-02: "nega eski referallarim ham chiqib kelmoqda").
+  // Do'st ko'rinadi, agar u SHU MAVSUMDA biror hissa qo'shgan bo'lsa: mavsumda qo'shilgan, yoki
+  // birinchi safar-mukofoti mavsumda to'langan, yoki mavsumda safar qilgan. Ballga hissa qo'shgan
+  // hech kim yashirilmaydi (aks holda ball qayerdan kelgani ko'rinmay qolardi); mavsumda umuman
+  // faol bo'lmagan eski takliflar esa ro'yxatni to'ldirmaydi.
+  const inSeason = (d: Date | null): boolean =>
+    !!d && season.configured && d.getTime() >= (season.startMs as number) && d.getTime() <= (season.endMs as number);
+
   let totalBall = 0;
   const friends: OyinFriendRow[] = referrals
     .filter((r) => r.refereeMemberId != null)
+    .filter((r) => {
+      if (!season.configured) return true;
+      if (inSeason(r.createdAt) || inSeason(r.referrerPaidAt)) return true;
+      return (ridesByMember.get(r.refereeMemberId as number) ?? []).length > 0;
+    })
     .map((r) => {
       const friendId = r.refereeMemberId as number;
       const tu = tuByMemberId.get(friendId);
