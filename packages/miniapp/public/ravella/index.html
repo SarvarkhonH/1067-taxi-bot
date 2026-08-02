@@ -21,34 +21,25 @@
   maydonlari, amber faqat bosiladigan/tanlangan narsa uchun.
 -->
 <style>
-  /* Liquid Glass (Apple iOS 26 tili). Haqiqiy sinish SVG feDisplacementMap bilan bo'ladi, lekin
-     uni backdrop-filter ichida faqat Chromium qo'llaydi — shuning uchun bu yerda: kuchli
-     saturate+brightness (shisha ortidagi rang jonlanadi), to'rt tomonlama qirra-yorug'ligi va
-     chuqurlik soyasi. Safari'da ham, Chrome'da ham bir xil ko'rinadi.
-     Manbalar: css-tricks.com/getting-clarity-on-apples-liquid-glass, kube.io/blog/liquid-glass-css-svg */
+  /* ⚠️ TEZLIK: bu sahifada blur EFFEKTI YO'Q (ega hisoboti 2026-07-28 — ilova qotib qolardi).
+     Mobil brauzer har blur-element uchun alohida qatlam ochib, har scroll kadrida ortidagi
+     piksellarni qayta hisoblaydi; 9 karta + panel = telefon bo'g'iladi. O'rniga qattiq oq sirt,
+     ingichka qirra va yengil soya: ko'rinish o'sha, har kadr arzon. */
   :root {
     --ink:#1d1d1f; --t2:#55555a; --t3:#8a8a8f;
     --amber:#d98f00; --fill:#f9be3e;
     --sep:rgba(60,60,67,.10);
-    --glass-bg:rgba(255,255,255,.55);
-    --glass-blur:saturate(190%) brightness(1.06) blur(26px);
-    --glass-rim:
-      inset 0 1px 0 rgba(255,255,255,.85),
-      inset 0 -1px 0 rgba(255,255,255,.30),
-      inset 1px 0 0 rgba(255,255,255,.35),
-      inset -1px 0 0 rgba(255,255,255,.35);
-    --glass-depth:0 12px 32px -18px rgba(31,30,26,.55), 0 2px 6px -4px rgba(31,30,26,.25);
+    /* blur YO'Q — mobil brauzerda har kadrda qayta hisoblanadi va sahifa qotadi */
+    --glass-bg:#fff;
+    --glass-rim:inset 0 0 0 .5px rgba(60,60,67,.10);
+    --glass-depth:0 6px 16px -12px rgba(31,30,26,.35);
   }
   * { box-sizing:border-box; margin:0; padding:0; -webkit-tap-highlight-color:transparent; }
   body {
     color:var(--ink); letter-spacing:-.01em; min-height:100vh; padding-bottom:120px;
     font:15px/1.47 -apple-system,BlinkMacSystemFont,"SF Pro Text","Segoe UI",Roboto,sans-serif;
     -webkit-font-smoothing:antialiased;
-    background:
-      radial-gradient(120% 80% at 50% -10%, rgba(249,190,62,.20) 0%, transparent 60%),
-      radial-gradient(90% 60% at 100% 8%, rgba(120,180,255,.12) 0%, transparent 55%),
-      #f2f2f5;
-    background-attachment:fixed;
+    background:linear-gradient(180deg,#fdf6e6 0%,#f4f4f7 42%,#f2f2f5 100%);
   }
   .wrap { max-width:600px; margin:0 auto; padding:0 20px; }
   .hero { text-align:center; padding:42px 20px 22px; }
@@ -57,18 +48,16 @@
   .badge {
     position:relative;
     width:96px; height:96px; margin:0 auto 18px; border-radius:50%;
-    background:rgba(255,255,255,.62);
-    -webkit-backdrop-filter:var(--glass-blur); backdrop-filter:var(--glass-blur);
-    box-shadow:var(--glass-rim), 0 20px 44px -24px rgba(31,30,26,.75);
+    background:#fff;
+    box-shadow:var(--glass-rim), 0 6px 14px -10px rgba(31,30,26,.4);
   }
   .badge img { width:100%; height:100%; border-radius:50%; object-fit:contain; display:block; padding:9px; }
   /* Halqa va rasm orasida oq oraliq — Instagram'dagidek */
-  .badge.ring { box-shadow:var(--glass-rim), 0 0 0 3px #fff, 0 20px 44px -24px rgba(31,30,26,.75); }
+  .badge.ring { box-shadow:var(--glass-rim), 0 0 0 3px #fff, 0 6px 14px -10px rgba(31,30,26,.4); }
   h1 { font-size:36px; line-height:1.06; font-weight:700; letter-spacing:-.026em; }
   .hero p { margin-top:7px; font-size:16.5px; color:var(--t2); }
   .promo, .list {
     background:var(--glass-bg);
-    -webkit-backdrop-filter:var(--glass-blur); backdrop-filter:var(--glass-blur);
     box-shadow:var(--glass-rim), var(--glass-depth);
   }
   .promo { margin:0 0 20px; padding:15px 17px; border-radius:18px; font-size:15px; }
@@ -81,11 +70,10 @@
     position:relative; aspect-ratio:4/5; border-radius:22px; overflow:hidden; border:none; padding:0;
     text-align:left; color:inherit; font:inherit; cursor:pointer;
     background:var(--glass-bg);
-    -webkit-backdrop-filter:var(--glass-blur); backdrop-filter:var(--glass-blur);
     box-shadow:var(--glass-rim), var(--glass-depth);
-    transition:transform .25s cubic-bezier(.2,.9,.3,1.2), box-shadow .25s ease;
+    transition:transform .25s cubic-bezier(.2,.9,.3,1.2);
   }
-  .card:active { transform:scale(.965); box-shadow:var(--glass-rim), 0 6px 16px -12px rgba(31,30,26,.6); }
+  .card:active { transform:scale(.965); }
   .card .ph { position:absolute; inset:0; }
   .card .ph img { width:100%; height:100%; object-fit:cover; display:block; }
   .card .ph::after {
@@ -110,8 +98,7 @@
   .dots {
     position:absolute; left:50%; transform:translateX(-50%); bottom:12px;
     display:flex; gap:6px; align-items:center; padding:7px 10px; border-radius:999px;
-    background:rgba(255,255,255,.28);
-    -webkit-backdrop-filter:saturate(180%) blur(14px); backdrop-filter:saturate(180%) blur(14px);
+    background:rgba(0,0,0,.35);
     box-shadow:inset 0 1px 0 rgba(255,255,255,.55); pointer-events:none;
   }
   .dots span { width:6px; height:6px; border-radius:3px; background:rgba(255,255,255,.6); transition:width .25s cubic-bezier(.2,.9,.3,1.2), background .25s ease; }
@@ -127,8 +114,7 @@
     color:var(--ink); letter-spacing:-.01em;
     font:500 16px/1 -apple-system,BlinkMacSystemFont,"SF Pro Text","Segoe UI",Roboto,sans-serif;
     background:var(--glass-bg);
-    -webkit-backdrop-filter:var(--glass-blur); backdrop-filter:var(--glass-blur);
-    box-shadow:var(--glass-rim), 0 10px 24px -16px rgba(31,30,26,.8);
+    box-shadow:var(--glass-rim), 0 4px 10px -8px rgba(31,30,26,.4);
     transition:transform .22s cubic-bezier(.2,.9,.3,1.2);
   }
   .back:active { transform:scale(.94); }
@@ -139,7 +125,7 @@
   .ci {
     width:46px; height:46px; border-radius:23px; display:inline-flex; align-items:center; justify-content:center;
     background:#8e8e93; color:#fff; text-decoration:none; border:none;
-    box-shadow:inset 0 1px 0 rgba(255,255,255,.45), 0 8px 18px -10px rgba(31,30,26,.8);
+    box-shadow:inset 0 1px 0 rgba(255,255,255,.35);
     transition:transform .22s cubic-bezier(.2,.9,.3,1.2);
   }
   .ci:active { transform:scale(.9); }
@@ -156,9 +142,7 @@
   .bar {
     position:fixed; left:12px; right:12px; bottom:12px; border-radius:26px;
     background:rgba(255,255,255,.58);
-    -webkit-backdrop-filter:saturate(220%) brightness(1.08) blur(32px);
-    backdrop-filter:saturate(220%) brightness(1.08) blur(32px);
-    box-shadow:var(--glass-rim), 0 20px 44px -20px rgba(31,30,26,.75);
+    box-shadow:var(--glass-rim), 0 -2px 12px -8px rgba(31,30,26,.3);
   }
   .bar .in { max-width:576px; margin:0 auto; padding:11px 12px 11px 18px; display:flex; align-items:center; gap:14px; }
   .bar small { display:block; color:var(--t2); font-size:12px; }
@@ -192,8 +176,8 @@
   .sv-av { width:32px; height:32px; border-radius:10px; object-fit:contain; background:#fff; padding:3px; }
   .sv-nm { color:#fff; font-size:15px; font-weight:600; text-shadow:0 1px 6px rgba(0,0,0,.6); }
   .sv-x { margin-left:auto; width:36px; height:36px; border-radius:18px; border:none; cursor:pointer;
-          background:rgba(255,255,255,.18); color:#fff; font-size:17px;
-          -webkit-backdrop-filter:blur(12px); backdrop-filter:blur(12px); }
+          background:rgba(255,255,255,.22); color:#fff; font-size:17px;
+          }
   .sv-cap { position:absolute; left:16px; right:16px; bottom:calc(28px + env(safe-area-inset-bottom)); z-index:2;
             color:#fff; font-size:15px; line-height:1.4; text-align:center; text-shadow:0 1px 10px rgba(0,0,0,.7); }
   .sv-tap { position:absolute; top:0; bottom:0; width:40%; border:none; background:transparent; z-index:1; cursor:pointer; }
@@ -212,7 +196,7 @@
   .lb-strip::-webkit-scrollbar { display:none; }
   .lb-strip img { flex:0 0 100%; width:100%; height:100%; object-fit:contain; scroll-snap-align:center; }
   .lb-x { position:absolute; top:calc(14px + env(safe-area-inset-top)); right:14px; z-index:2; width:40px; height:40px; border-radius:20px; border:none; cursor:pointer;
-          background:rgba(255,255,255,.18); color:#fff; font-size:18px; -webkit-backdrop-filter:blur(12px); backdrop-filter:blur(12px); }
+          background:rgba(255,255,255,.22); color:#fff; font-size:18px; }
   .lb-n { position:absolute; top:calc(20px + env(safe-area-inset-top)); left:16px; z-index:2; color:#fff; font-size:14px; font-weight:600; text-shadow:0 1px 6px rgba(0,0,0,.6); }
   .slide { cursor:zoom-in; }
   /* V3: ulashish va so'rov maydonlari */
@@ -220,7 +204,7 @@
   .row2 .title { flex:1; min-width:0; }
   .share {
     flex:0 0 auto; width:46px; height:46px; margin-top:20px; border-radius:23px; border:none; cursor:pointer; color:var(--ink);
-    background:var(--glass-bg); -webkit-backdrop-filter:var(--glass-blur); backdrop-filter:var(--glass-blur);
+    background:var(--glass-bg);
     box-shadow:var(--glass-rim), 0 8px 20px -14px rgba(31,30,26,.8);
     transition:transform .22s cubic-bezier(.2,.9,.3,1.2);
   }
@@ -230,7 +214,6 @@
   .ask input {
     width:100%; padding:13px 15px; border-radius:14px; border:none; font:16px/1.2 inherit; color:var(--ink);
     background:rgba(255,255,255,.65); box-shadow:var(--glass-rim);
-    -webkit-backdrop-filter:blur(14px); backdrop-filter:blur(14px);
   }
   .ask input::placeholder { color:var(--t3); }
   /* Instagram-uslub highlights */
@@ -242,7 +225,7 @@
   .hl-i:active { transform:scale(.92); }
   .hl-r { width:64px; height:64px; border-radius:50%; padding:2.5px;
           background:conic-gradient(from 200deg,#f9ce34,#ee2a7b,#6228d7,#ee2a7b,#f9ce34);
-          box-shadow:0 8px 18px -12px rgba(31,30,26,.8); }
+          box-shadow:none; }
   .hl-r.seen { background:linear-gradient(160deg, rgba(60,60,67,.22), rgba(60,60,67,.08)); }
   .hl-v { width:100%; height:100%; border-radius:50%; border:2px solid #fff; display:flex;
           align-items:center; justify-content:center; font-size:20px; color:#fff;
@@ -251,7 +234,7 @@
   .hl-n { font-size:11.5px; line-height:1.2; color:var(--t2); text-align:center; max-width:68px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
   .sv-snd { position:absolute; right:12px; bottom:calc(28px + env(safe-area-inset-bottom)); z-index:3;
             width:42px; height:42px; border-radius:21px; border:none; color:#fff; font-size:17px; cursor:pointer;
-            background:rgba(255,255,255,.18); -webkit-backdrop-filter:blur(12px); backdrop-filter:blur(12px); }
+            background:rgba(255,255,255,.22); }
   /* Ulashish — ega bergan dizayn, CSS bilan qurilgan (rasm emas: har ekranda tiniq, ~1 KB,
      matni o'zgaradi va haqiqiy tugma bo'lib qoladi). Tashqi qatlam = oltin ramka (padding +
      gradient fon, chunki `border` gradient qo'llamaydi), ichkarisi qora kapsula, tashqarisida nur. */
@@ -259,11 +242,11 @@
     position:fixed; right:14px; bottom:86px; z-index:3200;
     padding:2px; border:none; border-radius:999px; cursor:pointer;
     background:linear-gradient(180deg,#ffdd7a 0%,#f0b02a 45%,#b87b0a 100%);
-    box-shadow:0 0 24px rgba(245,179,1,.45), 0 16px 34px -14px rgba(0,0,0,.75);
-    transition:transform .22s cubic-bezier(.2,.9,.3,1.2), box-shadow .22s ease;
+    box-shadow:0 8px 18px -10px rgba(0,0,0,.5);
+    transition:transform .22s cubic-bezier(.2,.9,.3,1.2);
     font:inherit;
   }
-  .fab:active { transform:scale(.955); box-shadow:0 0 14px rgba(245,179,1,.35), 0 6px 14px -10px rgba(0,0,0,.8); }
+  .fab:active { transform:scale(.955); box-shadow:0 3px 8px -6px rgba(0,0,0,.6); }
   .fab-in { display:flex; align-items:center; gap:13px; padding:4px 16px 4px 4px; border-radius:999px;
             background:linear-gradient(180deg,#232323 0%,#0f0f0f 100%); }
   .fab-ic { width:48px; height:48px; border-radius:50%; flex:0 0 auto; display:flex; align-items:center; justify-content:center; color:#fff;
@@ -277,10 +260,6 @@
   .skl { background:rgba(255,255,255,.5); border-radius:22px; height:220px; animation:sh 1.4s ease-in-out infinite; }
   @keyframes sh { 0%,100%{opacity:.5} 50%{opacity:.9} }
 
-  /* Shisha yo'q brauzerda sirt qattiq oq bo'ladi — matn har doim o'qiladi */
-  @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
-    .card, .promo, .list, .bar, .badge, .back { background:rgba(255,255,255,.94); }
-  }
   @media (prefers-reduced-motion: reduce) { .skl{animation:none} .card,.cta,.ci,.dots span,.back{transition:none} }
 </style>
 </head>

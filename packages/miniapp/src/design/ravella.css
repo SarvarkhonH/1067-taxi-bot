@@ -1,21 +1,20 @@
-/* 🎀 RAVELLA — Liquid Glass (Apple iOS 26 tili), oq mavzu.
+/* 🎀 RAVELLA — oq mavzu, TEZLIK BIRINCHI O'RINDA.
  *
- * NEGA AVVALGISI "SHISHA" EMAS EDI: faqat `blur` qo'yilgandi. Haqiqiy Liquid Glass uch narsadan
- * iborat — (1) ORQADAGINI sindirib o'tkazish, (2) qirradagi SPECULAR yorug'lik, (3) qatlam-chuqurlik.
- * Sinishning haqiqiysi SVG `feDisplacementMap` bilan bo'ladi, lekin uni `backdrop-filter` ichida
- * FAQAT Chromium qo'llaydi — Telegram'ning iOS brauzeri emas. Shuning uchun bu yerda sinish
- * ILLUZIYASI quriladi: kuchli `saturate` + `brightness` (shisha ortidagi rang jonlanadi), qirrada
- * to'rt tomonlama ichki yorug'lik, va chuqurlik-soyasi. Natija Safari'da ham, Chrome'da ham bir xil.
+ * ⚠️ `backdrop-filter: blur()` BU YERDA ISHLATILMAYDI (ega hisoboti 2026-07-28: ilova qotib
+ * qolyapti — do'konda ham AYNAN shu bo'lgan edi). Sababi: har `backdrop-filter` element uchun
+ * brauzer alohida kompozitsiya qatlami ochadi va HAR SCROLL KADRIDA ortidagi pikselларni
+ * qaytadan xiralashtiradi. 9 ta karta + panel + chiplar = telefon har kadrda o'nlab marta blur
+ * hisoblaydi. Mobil WebView (Telegram ichidagi brauzer) buni ko'tarmaydi.
  *
- * Manbalar: css-tricks.com/getting-clarity-on-apples-liquid-glass · kube.io/blog/liquid-glass-css-svg
+ * O'rniga: QATTIQ oq sirt + ingichka qirra + yengil soya. Rang va shakl o'sha-o'sha qoladi,
+ * lekin har kadr arzon. Katta "nur" (glow) soyalari ham olib tashlandi — ular ham har kadrda
+ * qayta chiziladi va foyda bermaydi.
  */
 
 .app.ravella-light {
-  background:
-    radial-gradient(120% 80% at 50% -10%, rgba(249, 190, 62, .18) 0%, transparent 60%),
-    radial-gradient(90% 60% at 100% 8%, rgba(120, 180, 255, .10) 0%, transparent 55%),
-    #f2f2f5;
-  background-attachment: fixed;
+  /* `background-attachment: fixed` OLIB TASHLANDI — iOS'da u har scroll kadrida butun fonni
+     qayta chizishga majbur qiladi (blur bilan birga asosiy sekinlik sababi edi). */
+  background: linear-gradient(180deg, #fdf6e6 0%, #f4f4f7 42%, #f2f2f5 100%);
   color: #1d1d1f;
 }
 .app.ravella-light::before,
@@ -24,8 +23,6 @@
   background: rgba(255, 255, 255, .60);
   border-bottom: none;
   box-shadow: inset 0 -.5px 0 rgba(255, 255, 255, .5), 0 1px 24px -16px rgba(0, 0, 0, .5);
-  backdrop-filter: saturate(200%) blur(28px);
-  -webkit-backdrop-filter: saturate(200%) blur(28px);
 }
 .app.ravella-light .brand-name { color: #1d1d1f; font-weight: 600; letter-spacing: -.01em; }
 
@@ -39,15 +36,10 @@
   --rv-sep: rgba(60, 60, 67, .10);
   --rv-fill-bg: rgba(120, 120, 128, .12);
 
-  /* Shisha retsepti — bitta joyda, hamma sirt shundan foydalanadi */
-  --glass-bg: rgba(255, 255, 255, .55);
-  --glass-blur: saturate(190%) brightness(1.06) blur(26px);
-  --glass-rim:
-    inset 0 1px 0 rgba(255, 255, 255, .85),
-    inset 0 -1px 0 rgba(255, 255, 255, .30),
-    inset 1px 0 0 rgba(255, 255, 255, .35),
-    inset -1px 0 0 rgba(255, 255, 255, .35);
-  --glass-depth: 0 12px 32px -18px rgba(31, 30, 26, .55), 0 2px 6px -4px rgba(31, 30, 26, .25);
+  /* Sirt retsepti — blur YO'Q, hammasi arzon: qattiq fon + hairline + yengil soya */
+  --glass-bg: #fff;
+  --glass-rim: inset 0 0 0 .5px rgba(60, 60, 67, .10);
+  --glass-depth: 0 6px 16px -12px rgba(31, 30, 26, .35);
 
   color: var(--rv-ink);
   padding-bottom: 116px;
@@ -63,10 +55,8 @@
   position: relative;
   width: 92px; height: 92px; margin: 0 auto 16px;
   border-radius: 50%;
-  background: rgba(255, 255, 255, .62);
-  backdrop-filter: var(--glass-blur);
-  -webkit-backdrop-filter: var(--glass-blur);
-  box-shadow: var(--glass-rim), 0 18px 40px -22px rgba(31, 30, 26, .7);
+  background: #fff;
+  box-shadow: var(--glass-rim), 0 6px 14px -10px rgba(31, 30, 26, .4);
 }
 .rv-hero-badge img { width: 100%; height: 100%; border-radius: 50%; object-fit: contain; display: block; padding: 9px; }
 .rv-hero-title { font-size: 34px; line-height: 1.08; font-weight: 700; letter-spacing: -.026em; }
@@ -77,7 +67,7 @@
   width: 48px; height: 48px; border-radius: 24px;
   display: inline-flex; align-items: center; justify-content: center;
   background: #8e8e93; color: #fff; border: none;
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .45), 0 8px 18px -10px rgba(31, 30, 26, .8);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .35);
   transition: transform .22s cubic-bezier(.2, .9, .3, 1.2);
 }
 .rv-ci:active { transform: scale(.9); }
@@ -96,8 +86,6 @@
 .rv-order-card,
 .rv-done-call {
   background: var(--glass-bg);
-  backdrop-filter: var(--glass-blur);
-  -webkit-backdrop-filter: var(--glass-blur);
   box-shadow: var(--glass-rim), var(--glass-depth);
   border: none;
 }
@@ -117,9 +105,7 @@
   border: none; border-radius: 999px;
   color: var(--rv-ink); font-size: 16px; font-weight: 500; letter-spacing: -.01em;
   background: var(--glass-bg);
-  backdrop-filter: var(--glass-blur);
-  -webkit-backdrop-filter: var(--glass-blur);
-  box-shadow: var(--glass-rim), 0 10px 24px -16px rgba(31, 30, 26, .8);
+  box-shadow: var(--glass-rim), 0 4px 10px -8px rgba(31, 30, 26, .4);
   transition: transform .22s cubic-bezier(.2, .9, .3, 1.2);
 }
 .rv-back:active { transform: scale(.94); }
@@ -128,9 +114,7 @@
 .rv-cat-row {
   display: flex; gap: 6px; overflow-x: auto; padding: 5px; margin-bottom: 18px;
   border-radius: 16px; scrollbar-width: none;
-  background: rgba(255, 255, 255, .45);
-  backdrop-filter: saturate(180%) blur(18px);
-  -webkit-backdrop-filter: saturate(180%) blur(18px);
+  background: #eeeef2;
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, .7);
 }
 .rv-cat-row::-webkit-scrollbar { display: none; }
@@ -139,7 +123,7 @@
   font-size: 14.5px; font-weight: 500; background: transparent; border: none; color: var(--rv-2);
 }
 .rv-chip.on {
-  background: rgba(255, 255, 255, .92); color: var(--rv-ink); font-weight: 600;
+  background: #fff; color: var(--rv-ink); font-weight: 600;
   box-shadow: inset 0 1px 0 #fff, 0 4px 10px -6px rgba(31, 30, 26, .6);
 }
 
@@ -153,12 +137,10 @@
   position: relative; padding: 0; overflow: hidden; text-align: left; border: none;
   border-radius: 22px; aspect-ratio: 4 / 5;
   background: var(--glass-bg);
-  backdrop-filter: var(--glass-blur);
-  -webkit-backdrop-filter: var(--glass-blur);
   box-shadow: var(--glass-rim), var(--glass-depth);
-  transition: transform .25s cubic-bezier(.2, .9, .3, 1.2), box-shadow .25s ease;
+  transition: transform .25s cubic-bezier(.2, .9, .3, 1.2);
 }
-.rv-card:active { transform: scale(.965); box-shadow: var(--glass-rim), 0 6px 16px -12px rgba(31, 30, 26, .6); }
+.rv-card:active { transform: scale(.965); }
 .rv-card-photo-wrap { position: absolute; inset: 0; }
 .rv-card-photo { width: 100%; height: 100%; object-fit: cover; display: block; }
 /* Matn o'qilishi uchun pastdan qorayish — rasm rangi qanday bo'lishidan qat'i nazar ishlaydi */
@@ -194,9 +176,7 @@
 .rv-dots {
   position: absolute; left: 50%; transform: translateX(-50%); bottom: 12px;
   display: flex; gap: 6px; align-items: center; padding: 7px 10px; border-radius: 999px;
-  background: rgba(255, 255, 255, .28);
-  backdrop-filter: saturate(180%) blur(14px);
-  -webkit-backdrop-filter: saturate(180%) blur(14px);
+  background: rgba(0, 0, 0, .35);
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, .55);
   pointer-events: none;
 }
@@ -228,10 +208,8 @@
   position: fixed; left: 12px; right: 12px; bottom: calc(var(--tabbar-h, 64px) + 10px); z-index: 40;
   display: flex; align-items: center; gap: 14px;
   padding: 11px 12px 11px 18px; border-radius: 24px;
-  background: rgba(255, 255, 255, .58);
-  backdrop-filter: saturate(220%) brightness(1.08) blur(32px);
-  -webkit-backdrop-filter: saturate(220%) brightness(1.08) blur(32px);
-  box-shadow: var(--glass-rim), 0 20px 44px -20px rgba(31, 30, 26, .75);
+  background: #fff;
+  box-shadow: var(--glass-rim), 0 -2px 12px -8px rgba(31, 30, 26, .3);
 }
 .rv-total-num { display: flex; flex-direction: column; min-width: 0; }
 .rv-total-num small { font-size: 12px; color: var(--rv-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -241,7 +219,7 @@
   border-radius: 16px; border: none;
   background: linear-gradient(180deg, #ffd36b, #f2a71b); color: #2a1f00;
   font-size: 17px; font-weight: 650; letter-spacing: -.01em;
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .75), 0 10px 22px -12px rgba(242, 167, 27, .95);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .6);
   transition: transform .22s cubic-bezier(.2, .9, .3, 1.2);
 }
 .rv-ready:active { transform: scale(.96); }
@@ -272,11 +250,6 @@
 
 .rv-view .muted, .rv-detail .muted { color: var(--rv-2); }
 
-/* Shishani qo'llamaydigan brauzer: sirt deyarli qattiq oq bo'ladi — matn har doim o'qiladi */
-@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
-  .rv-card, .rv-promo, .rv-myorders, .rv-addon-list, .rv-order-card,
-  .rv-total-bar, .rv-hero-badge, .rv-done-call, .rv-back { background: rgba(255, 255, 255, .94); }
-}
 
 @media (prefers-reduced-motion: reduce) {
   .rv-card, .rv-ready, .rv-ci, .rv-myorders, .rv-dots span, .rv-back { transition: none; }
@@ -317,8 +290,7 @@
 .rv-story-name { color: #fff; font-size: 15px; font-weight: 600; text-shadow: 0 1px 6px rgba(0, 0, 0, .6); }
 .rv-story-close {
   margin-left: auto; width: 36px; height: 36px; border-radius: 18px; border: none;
-  background: rgba(255, 255, 255, .18); color: #fff; font-size: 17px;
-  -webkit-backdrop-filter: blur(12px); backdrop-filter: blur(12px);
+  background: rgba(255, 255, 255, .22); color: #fff; font-size: 17px;
 }
 .rv-story-caption {
   position: absolute; left: 16px; right: 16px; bottom: calc(28px + env(safe-area-inset-bottom)); z-index: 2;
@@ -355,8 +327,6 @@
   flex: 0 0 auto; width: 46px; height: 46px; margin-top: 18px; border-radius: 23px; border: none;
   color: var(--rv-ink);
   background: var(--glass-bg);
-  backdrop-filter: var(--glass-blur);
-  -webkit-backdrop-filter: var(--glass-blur);
   box-shadow: var(--glass-rim), 0 8px 20px -14px rgba(31, 30, 26, .8);
   transition: transform .22s cubic-bezier(.2, .9, .3, 1.2);
 }
@@ -379,7 +349,7 @@
 .rv-hl-ring {
   width: 64px; height: 64px; border-radius: 50%; padding: 2.5px;
   background: linear-gradient(160deg, rgba(60, 60, 67, .18), rgba(60, 60, 67, .06));
-  box-shadow: 0 8px 18px -12px rgba(31, 30, 26, .8);
+  box-shadow: none;
 }
 .rv-hl-ring img { width: 100%; height: 100%; border-radius: 50%; object-fit: cover; display: block; border: 2px solid #fff; }
 /* Ko'rilmagan hikoya — Instagram gradienti; ko'rilgani sokin kulrang (halqa bilan bir tilda) */
@@ -400,8 +370,7 @@
 .rv-story-sound {
   position: absolute; right: 12px; bottom: calc(28px + env(safe-area-inset-bottom)); z-index: 3;
   width: 42px; height: 42px; border-radius: 21px; border: none; color: #fff; font-size: 17px;
-  background: rgba(255, 255, 255, .18);
-  -webkit-backdrop-filter: blur(12px); backdrop-filter: blur(12px);
+  background: rgba(255, 255, 255, .22);
 }
 
 /* ══ Ulashish tugmasi — ega bergan dizayn, CSS bilan qayta qurilgan ══════════════════════════
@@ -412,14 +381,12 @@
   position: fixed; right: 14px; bottom: calc(var(--tabbar-h, 64px) + 78px); z-index: 3200;
   padding: 2px; border: none; border-radius: 999px;
   background: linear-gradient(180deg, #ffdd7a 0%, #f0b02a 45%, #b87b0a 100%);
-  box-shadow:
-    0 0 24px rgba(245, 179, 1, .45),
-    0 16px 34px -14px rgba(0, 0, 0, .75);
-  transition: transform .22s cubic-bezier(.2, .9, .3, 1.2), box-shadow .22s ease;
+  box-shadow: 0 8px 18px -10px rgba(0, 0, 0, .5);
+  transition: transform .22s cubic-bezier(.2, .9, .3, 1.2);
 }
 .rv-fab:active {
   transform: scale(.955);
-  box-shadow: 0 0 14px rgba(245, 179, 1, .35), 0 6px 14px -10px rgba(0, 0, 0, .8);
+  box-shadow: 0 3px 8px -6px rgba(0, 0, 0, .6);
 }
 .rv-fab-in {
   display: flex; align-items: center; gap: 13px;
