@@ -59,7 +59,8 @@ async function sendOwnerSummary(ctx: Context, tg: string): Promise<boolean> {
   for (const sg of s.suggestions ?? []) {
     kb.row().text(`🔁 ${sg.absentName} puli → ${sg.coverName}`.slice(0, 60), `ishcv:${sg.absentId}:${sg.coverId}:${s.date}`);
   }
-  const hasKb = !!(s.unconfirmed || (s.suggestions ?? []).length);
+  if (s.olderPending && s.orgId) kb.row().text(`✅ Barchasini tasdiqlash (${s.olderPending} eski kun)`, `ishcall:${s.orgId}`);
+  const hasKb = !!(s.unconfirmed || (s.suggestions ?? []).length || s.olderPending);
   await ctx.reply(s.text, { parse_mode: "HTML", reply_markup: hasKb ? kb : undefined }).catch(() => undefined);
   return true;
 }
@@ -158,6 +159,16 @@ export function registerStaff(bot: Bot): void {
     if (r.ok && r.notifyTelegramId && r.notifyText) {
       await ctx.api.sendMessage(r.notifyTelegramId, r.notifyText, { parse_mode: "HTML" }).catch(() => undefined);
     }
+  });
+
+  // ⏳ "✅ Barchasini tasdiqlash" — bugungidan tashqari qolgan yopiq-tasdiqsiz kunlar
+  // (2026-08-02 bug: shu turdagi kun tugma orqali HECH QACHON chiqmasdi).
+  bot.callbackQuery(/^ishcall:(\d+)$/, async (ctx) => {
+    await ctx.answerCallbackQuery().catch(() => undefined);
+    const { staffConfirmAllPending } = await import("../services/staffService");
+    const r = await staffConfirmAllPending(Number(ctx.match[1]), String(ctx.from.id));
+    if (r.ok) await ctx.editMessageReplyMarkup({ reply_markup: undefined }).catch(() => undefined);
+    await ctx.reply(r.text, { parse_mode: "HTML" }).catch(() => undefined);
   });
 
   // 🌙 J4 — kechki xulosa kartasidagi "✅ Tasdiqlash" (faqat o'sha korxona egasiga o'tadi).

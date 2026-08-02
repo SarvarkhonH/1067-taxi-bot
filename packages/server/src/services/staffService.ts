@@ -489,7 +489,7 @@ async function buildDailySummary(
 export async function staffOwnerSummary(
   telegramId: string,
   now = new Date()
-): Promise<{ ok: boolean; text: string; orgId?: number; date?: string; unconfirmed?: number; suggestions?: CoverSuggestion[] }> {
+): Promise<{ ok: boolean; text: string; orgId?: number; date?: string; unconfirmed?: number; suggestions?: CoverSuggestion[]; olderPending?: number }> {
   if (!(await featureOn("jamoa"))) return { ok: false, text: "Jamoa moduli o'chirilgan." };
   const org = await prisma.organization.findFirst({
     where: { ownerTelegramId: telegramId, active: true },
@@ -499,7 +499,46 @@ export async function staffOwnerSummary(
   if (!org.employees.length) return { ok: true, text: `👔 <b>${esc(org.name)}</b>\n\nHali xodim qo'shilmagan. Admin panel → 👔 Jamoa → «➕ Xodim qo'shish».` };
   const t = tashkentDayMinutes(now);
   const { text, unconfirmed, suggestions } = await buildDailySummary(org, org.employees, t.date);
-  return { ok: true, text, orgId: org.id, date: t.date, unconfirmed, suggestions };
+  const older = await pendingOlderSessions(org.id, t.date);
+  const fullText = older.count ? `${text}\n\n⏳ <b>Eski tasdiqsiz kunlar:</b> ${older.count} ta · jami ${fmt(older.total)} so'm` : text;
+  return { ok: true, text: fullText, orgId: org.id, date: t.date, unconfirmed, suggestions, olderPending: older.count };
+}
+
+/** "✅ Barchasini tasdiqlash" — bugungidan TASHQARI qolgan barcha yopiq-tasdiqsiz
+ *  kunlarni bir bosishda tasdiqlaydi (ochiq smenalarga tegmaydi). */
+export async function staffConfirmAllPending(orgId: number, actorTgId: string): Promise<{ ok: boolean; text: string }> {
+  const org = await prisma.organization.findUnique({ where: { id: orgId } });
+  if (!org) return { ok: false, text: "Korxona topilmadi" };
+  if (org.ownerTelegramId !== actorTgId) return { ok: false, text: "Faqat korxona egasi tasdiqlaydi" };
+  const r = await prisma.workSession.updateMany({
+    where: {
+      confirmedAt: null,
+      employee: { orgId },
+      NOT: { dayStatus: "ishladi", checkIn: { not: null }, checkOut: null },
+    },
+    data: { confirmedAt: new Date() },
+  });
+  return { ok: true, text: r.count ? `✅ ${r.count} ta eski kun tasdiqlandi` : "✅ Tasdiqlash uchun eski kun qolmagan" };
+}
+
+/**
+ * ⏳ ESKI TASDIQSIZ KUNLAR (bug topildi 2026-08-02): kechki karta va /jamoa faqat
+ * BUGUNGI sanani ko'rsatadi — agar bir kun yopilgan-lekin-tasdiqlanmagan bo'lib
+ * qolsa (masalan yarim tundan keyin Ketdim bosilib, o'sha kunning kechki kartasi
+ * allaqachon ketgan bo'lsa), u tugma orqali HECH QACHON qayta chiqmasdi — faqat
+ * panelda ko'rinardi. Endi har chaqiruvda BUGUNGIDAN TASHQARI ham tekshiriladi.
+ */
+async function pendingOlderSessions(orgId: number, excludeDate: string): Promise<{ count: number; total: number }> {
+  const rows = await prisma.workSession.findMany({
+    where: {
+      confirmedAt: null,
+      date: { not: excludeDate },
+      employee: { orgId },
+      NOT: { dayStatus: "ishladi", checkIn: { not: null }, checkOut: null }, // ochiq smena — hali tasdiqqa loyiq emas
+    },
+    select: { amountEarned: true },
+  });
+  return { count: rows.length, total: rows.reduce((a, r) => a + r.amountEarned, 0) };
 }
 
 /** Owner taps "✅ Tasdiqlash" on the evening card. Only that org's owner may confirm. */
@@ -541,12 +580,15 @@ export async function staffDailyTick(bot: import("grammy").Bot, now = new Date()
     const marker = `staffsummary:${org.id}:${t.date}`;
     if (await prisma.appState.findUnique({ where: { key: marker } })) continue;
     const { text, unconfirmed, suggestions } = await buildDailySummary(org, org.employees, t.date);
+    const older = await pendingOlderSessions(org.id, t.date);
+    const fullText = older.count ? `${text}\n\n⏳ <b>Eski tasdiqsiz kunlar:</b> ${older.count} ta · jami ${fmt(older.total)} so'm` : text;
     const { InlineKeyboard } = await import("grammy");
     const kb = new InlineKeyboard();
     if (unconfirmed) kb.text("✅ Tasdiqlash", `ishc:${org.id}:${t.date}`);
     for (const sg of suggestions) kb.row().text(`🔁 ${sg.absentName} puli → ${sg.coverName} (${fmt(sg.lost)})`.slice(0, 60), `ishcv:${sg.absentId}:${sg.coverId}:${t.date}`);
+    if (older.count) kb.row().text(`✅ Barchasini tasdiqlash (${older.count} eski kun)`, `ishcall:${org.id}`);
     try {
-      await bot.api.sendMessage(org.ownerTelegramId, text, { parse_mode: "HTML", reply_markup: unconfirmed || suggestions.length ? kb : undefined });
+      await bot.api.sendMessage(org.ownerTelegramId, fullText, { parse_mode: "HTML", reply_markup: unconfirmed || suggestions.length || older.count ? kb : undefined });
     } catch (e) {
       console.error(`[staff] summary send failed org=${org.id}:`, e);
       continue; // marker YO'Q — keyingi tick qayta uradi (kechqurun ~12 urinish max)

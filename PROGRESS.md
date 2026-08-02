@@ -5154,3 +5154,17 @@ Rollback: `setFlag.ts jamoa off` (jadvallar qoladi, ma'lumot yo'qolmaydi).
   o'tkazilgan kunlar taklif qilinmaydi.
 - Jonli org #1 overtimeMode: off → AVTO (ega qarori) — smenadan keyingi vaqt ×1.5 avto,
   soatlik "qo'shimcha ketmoqda" pinglari endi amalda.
+
+### 2026-08-02 — 👔 JAMOA: eski tasdiqsiz kunlar bugungi kunda "yo'qolib" ketardi (ega topdi)
+
+**Sabab:** kechki karta va `/jamoa` FAQAT bugungi sanani hisoblardi. Yarim tundan keyin
+Ketdim bosilgan kunlar (o'sha kunning kechki kartasi allaqachon ketgan bo'lsa) tugma orqali
+HECH QACHON qayta chiqmasdi — faqat admin panelda ko'rinardi. Jonli misolda topildi: Elbek
+Elboyevning 2026-08-01 sessiyasi (52 604 so'm, yopiq) tasdiqsiz qolgan edi, `/jamoa` bugungi
+(08-02) kunni ko'rsatib, bu haqda hech narsa demagan — shuning uchun "tugma yo'q" tuyulgan.
+
+**Tuzatildi:** `pendingOlderSessions` — bugungidan tashqari HAMMA yopiq-tasdiqsiz kunlarni
+topadi; `/jamoa` va kechki karta endi "⏳ Eski tasdiqsiz kunlar: N ta · jami X so'm" +
+"✅ Barchasini tasdiqlash" tugmasi bilan ko'rsatadi (`staffConfirmAllPending`, faqat ega,
+ochiq smenalarga tegmaydi). Isbot: jonli tsx bilan sinaldi — 1 ta eski kun (52 604 so'm)
+to'g'ri topildi.
