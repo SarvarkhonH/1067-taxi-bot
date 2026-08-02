@@ -479,6 +479,23 @@ export async function adminListCatalog(): Promise<OyinAdminPrizeRow[]> {
   return catalog.map((p) => ({ ...p, sold: soldMap.get(p.key) ?? 0 }));
 }
 
+/** 🤝 Taklif-kartochkasi uchun (bot/oyin.ts) — eng qimmat FAOL sovrin + jami o'rin soni.
+ *  Mavsum yopiq bo'lsa `null` (kartochka umuman yuborilmaydi — yolg'on va'da bermaymiz). */
+export async function joinCardData(): Promise<{ prizeName: string; photoUrl: string | null; icon: string; slots: number; seasonLabel: string | null } | null> {
+  const season = await getSeason();
+  if (season.phase !== "active" && season.phase !== "upcoming") return null;
+  const catalog = (await getCatalog()).filter((p) => p.active);
+  if (!catalog.length) return null;
+  const top = [...catalog].sort((a, b) => b.price - a.price)[0] as OyinCatalogPrize;
+  return {
+    prizeName: top.name,
+    photoUrl: top.photoUrl,
+    icon: top.icon,
+    slots: catalog.reduce((s, p) => s + p.limit, 0),
+    seasonLabel: season.label,
+  };
+}
+
 /** Admin: sovrin qo'shish (key bo'sh/topilmasa) yoki tahrirlash (key mavjud bo'lsa). */
 export async function adminUpsertPrize(input: OyinPrizeUpsertInput): Promise<OyinAdminPrizeRow[]> {
   const catalog = await getCatalog();

@@ -118,15 +118,23 @@ export function OyinView() {
     if (!board) api.oyinBoard().then(setBoard).catch(() => setBoard({ rows: [], myPos: null }));
   }, [board]);
 
+  // Ulashish matni ANIQ bo'lishi kerak (ega 2026-08-02: "chiroyli va aniq qilish kerak"):
+  // bosh sovrin nomi + nima qilish kerakligi + nima uchun bepul. Umumiy "qo'shil" chaqirig'i
+  // hech kimni qiziqtirmaydi. Havolani ochgan odam esa botdan rasm+tugmali kartochka oladi
+  // (server: bot/oyin.ts sendOyinJoinCard) — chiroylik qabul qiluvchi tomonda.
   const inviteFriend = useCallback(async (nudge?: string) => {
     haptic();
     try {
       const r = await api.referral();
-      shareLink(r.link, nudge ?? "🎮 Koson O'yiniga qo'shil! Safar qil, ball yig', oy oxiri jonli tirajda real sovrin yut. Mening havolam bilan kirsang — ikkalamizga ham ball! 🚀");
+      const topPrize = [...(vitrina?.prizes ?? [])].sort((a, b) => b.price - a.price)[0];
+      const text = nudge ?? (topPrize
+        ? `🎁 BirJoy O'yinlar Mavsumi — bosh sovrin: ${topPrize.name}!\n\nHech narsa to'lamaysan: shunchaki taksida yur, ball yig', chipta ol. Mavsum oxiri jonli tirajda sovrinlar o'ynaladi.\n\nMening havolam bilan kirsang — ikkalamizga ham ball tushadi 🤝`
+        : "🎁 BirJoy O'yinlar Mavsumi — taksida yur, ball yig', jonli tirajda sovrin yut. Mening havolam bilan kirsang, ikkalamizga ham ball tushadi 🤝");
+      shareLink(r.link, text);
     } catch {
       showToast("Havolani ochib bo'lmadi — birozdan keyin urinib ko'ring");
     }
-  }, [showToast]);
+  }, [showToast, vitrina]);
 
   const tapPrize = useCallback((p: OyinPrizeView) => {
     haptic();
@@ -294,7 +302,7 @@ export function OyinView() {
               <div className="oyk-hero is-new">
                 <div className="oyk-hero-glow" />
                 <div className="oyk-hero-label">XUSH KELIBSIZ</div>
-                <div className="oyk-hero-new-title">🎮 Koson O'yiniga qo'shildingiz!</div>
+                <div className="oyk-hero-new-title">🎮 O'yinlar mavsumiga qo'shildingiz!</div>
                 <div className="oyk-hero-new-sub">Birinchi safaringiz — <b>+{state.hints.rideBall > 0 ? "80" : ""} ball</b>. Do'st chaqirsangiz — ikkalangizga ham ball tushadi.</div>
               </div>
             ) : (
@@ -539,7 +547,7 @@ export function OyinView() {
             <div className="oyk-j-hint">💡 Taksi <b>KO'P chaqiradigan</b> tanishingni chaqir — u senga eng ko'p ball olib keladi</div>
             <div className="oyk-qr">
               <div className="oyk-qr-text">
-                {state.rank ? <>Men Koson O'yinida <b>{state.rank}-o'rindaman</b>. Sen nechanchisan? 😉</> : <>Men Koson O'yiniga qo'shildim — sen ham qo'shil! 🎮</>}
+                {state.rank ? <>Men BirJoy O'yinlar Mavsumida <b>{state.rank}-o'rindaman</b>. Sen nechanchisan? 😉</> : <>Men BirJoy O'yinlar Mavsumidaman — sen ham qo'shil! 🎮</>}
               </div>
               <button type="button" className="oyk-qr-btn" onClick={() => void inviteFriend()}>👥 Do'stimga yubor</button>
               <button

@@ -289,6 +289,19 @@ export function createBot(): Bot {
             : `🎉 <b>Siz ${joinerName}ni taklif qildingiz!</b>\n\n<b>${joinerName}</b> havolangiz orqali botga kirdi. U telefon ulab birinchi safarini qilsa — sizga <b>${formatNumber(REFERRER_REWARD)} tanga</b> tushadi.`;
         await bot.api.sendMessage(r.referrerTelegramId, msg, { parse_mode: "HTML" }).catch(() => undefined);
       }
+      // 🎮 KELGAN ODAMGA o'yin-kartochkasi (ega 2026-08-02). Ilgari taklif qiluvchiga xabar
+      // borardi-yu, kelgan odam o'yin haqida hech narsa ko'rmasdi. Mavsum yopiq bo'lsa yoki
+      // bayroq DARK bo'lsa — jim (funksiyaning o'zi tekshiradi). Xato bo'lsa /start oqimi
+      // buzilmaydi: bu qo'shimcha, asosiy yo'l emas.
+      try {
+        const inviterName = r.attached && r.referrerTelegramId
+          ? (await prisma.telegramUser.findUnique({ where: { id: r.referrerTelegramId }, select: { firstName: true } }))?.firstName ?? null
+          : null;
+        const { sendOyinJoinCard } = await import("./oyin");
+        await sendOyinJoinCard(bot, id, inviterName);
+      } catch (e) {
+        console.error("[oyin] join card failed:", e);
+      }
     }
     if (payload.startsWith("drvdrv_")) {
       // 🚖 driver→driver: a NEW driver candidate arrived via another driver's recruit link. Checked
