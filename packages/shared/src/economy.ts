@@ -232,6 +232,30 @@ export const BONUS_ECON_KNOBS: BonusEconKnob[] = [
   { key: "ravellaCashbackPerOrder", label: "🎀 Cashback — max/buyurtma (tanga)", def: 20000, min: 0, max: 100000, step: 1000, group: "Ravella" },
   { key: "ravellaCashbackDaily", label: "🎀 Cashback — max/kun/a'zo (tanga)", def: 20000, min: 0, max: 100000, step: 1000, group: "Ravella" },
   { key: "ravellaSlaMinutes", label: "🎀 Javobsiz buyurtma — alert (daqiqa)", def: 15, min: 3, max: 120, step: 1, group: "Ravella" },
+  // ── 🎮 KOSON O'YINI (flag `oyin`, KOSON_OYIN_PLAN.md v9.2) — ball og'irliklari + sovrin-katalog,
+  // hammasi jonli boshqariladigan. Ball — alohida hisob-kitob birligi (Coin/CoinTxn EMAS), lekin
+  // mavsum yopilishida oyinService qoldiqni tangaga aylantiradi — shuning uchun bu massivda,
+  // ega "nimaga nechi ball" nazoratini shu yerdan oladi.
+  { key: "oyinRideBall", label: "🎮 Oddiy safar — ball", def: 30, min: 0, max: 1000, step: 5, group: "Koson O'yini" },
+  { key: "oyinFirstRideBall", label: "🎮 Birinchi safar (hayotda) — ball", def: 80, min: 0, max: 2000, step: 10, group: "Koson O'yini" },
+  { key: "oyinPhoneBall", label: "🎮 Telefon tasdiqlash — ball", def: 20, min: 0, max: 1000, step: 5, group: "Koson O'yini" },
+  { key: "oyinReferJoinBall", label: "🎮 Do'st telefon ulaganda — taklifchiga ball", def: 40, min: 0, max: 2000, step: 10, group: "Koson O'yini" },
+  { key: "oyinReferFirstRideBall", label: "🎮 Do'st birinchi safar qilganda — taklifchiga ball", def: 120, min: 0, max: 5000, step: 10, group: "Koson O'yini" },
+  { key: "oyinReferRideBall", label: "🎮 Do'stning har keyingi safaridan — taklifchiga ball", def: 10, min: 0, max: 500, step: 5, group: "Koson O'yini" },
+  { key: "oyinDailyLoginBall", label: "🎮 Kunlik kirish — ball", def: 2, min: 0, max: 100, step: 1, group: "Koson O'yini" },
+  { key: "oyinShareBall", label: "🎮 Sovrinni ulashish — ball", def: 5, min: 0, max: 100, step: 1, group: "Koson O'yini" },
+  { key: "oyinStoryProofBall", label: "🎮 Hikoya-isbot (admin tasdig'i) — ball", def: 100, min: 0, max: 2000, step: 10, group: "Koson O'yini" },
+  { key: "oyinSprintBonusBall", label: "🎮 Haftalik sprint top-3 — bonus ball", def: 100, min: 0, max: 2000, step: 10, group: "Koson O'yini" },
+  { key: "oyinPriceVoucher", label: "🎟 30k voucher — chipta narxi (ball)", def: 600, min: 100, max: 50000, step: 50, group: "Koson O'yini" },
+  { key: "oyinPriceServiz", label: "🎟 Choy serviz — chipta narxi (ball)", def: 1000, min: 100, max: 50000, step: 50, group: "Koson O'yini" },
+  { key: "oyinPriceDazmol", label: "🎟 Dazmol — chipta narxi (ball)", def: 1500, min: 100, max: 50000, step: 50, group: "Koson O'yini" },
+  { key: "oyinPriceBlender", label: "🎟 Blender — chipta narxi (ball)", def: 2200, min: 100, max: 50000, step: 50, group: "Koson O'yini" },
+  { key: "oyinPriceFryer", label: "🎟 Air Fryer — chipta narxi (ball)", def: 3200, min: 100, max: 50000, step: 50, group: "Koson O'yini" },
+  { key: "oyinLimitVoucher", label: "🎟 30k voucher — chipta-o'rin (dona)", def: 15, min: 1, max: 500, step: 1, group: "Koson O'yini" },
+  { key: "oyinLimitServiz", label: "🎟 Choy serviz — chipta-o'rin (dona)", def: 5, min: 1, max: 500, step: 1, group: "Koson O'yini" },
+  { key: "oyinLimitDazmol", label: "🎟 Dazmol — chipta-o'rin (dona)", def: 4, min: 1, max: 500, step: 1, group: "Koson O'yini" },
+  { key: "oyinLimitBlender", label: "🎟 Blender — chipta-o'rin (dona)", def: 3, min: 1, max: 500, step: 1, group: "Koson O'yini" },
+  { key: "oyinLimitFryer", label: "🎟 Air Fryer — chipta-o'rin (dona)", def: 1, min: 1, max: 500, step: 1, group: "Koson O'yini" },
 ];
 // 🏅 level index → cashback-multiplier knob key (null for Yangi = baseline ×1.0).
 const TIER_MULT_KNOB: Record<number, string> = {

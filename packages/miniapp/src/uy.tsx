@@ -2,11 +2,57 @@
 // version is the flag-gated upgrade. Greeting + balance + taxi CTA + Bugun + quick tiles.
 // NewUyView (feature "newhome", UY_REDESIGN Bosqich 1) = the premium super-app home below.
 import { useEffect, useState } from "react";
-import type { ClassifiedCard, HomeBanner, HomeFeedItem, MeResponse, SavedAddressView, ServiceListingCard } from "@t1067/shared";
-import { INSP_TIER_EMOJI, INSP_TIER_LABEL } from "@t1067/shared";
+import type { ClassifiedCard, HomeBanner, HomeFeedItem, MeResponse, OyinStateResponse, SavedAddressView, ServiceListingCard } from "@t1067/shared";
+import { INSP_TIER_EMOJI, INSP_TIER_LABEL, SEASON_END_ISO } from "@t1067/shared";
 import { api, apiUrl } from "./api";
-import { haptic } from "./telegram";
+import { haptic, shareLink } from "./telegram";
 import { HomeGames } from "./homeGames";
+
+// 🎮 Koson O'yini — uy-ekran kartasi (feature "oyin", KOSON_ADMIN_DOD.md B5). Taksi CTA'dan KEYIN,
+// telefonning birinchi ekranida. Bosilganda o'yin ekraniga o'tadi; "Do'st chaqirish" mavjud
+// `shareLink` (telegram.ts) + real invite-havola (`api.referral()`) orqali — soxta kontakt-ro'yxati
+// YO'Q (KOSON_DIZAYN_PROMPT_1.md dagi 2-tugma spetsifikatsiyasi: asosiy=Do'st chaqirish, ikkilamchi=Sovrinlar).
+function KosonOyinCard({ onNav }: { onNav: (t: string) => void }) {
+  const [state, setState] = useState<OyinStateResponse | null>(null);
+  useEffect(() => {
+    let alive = true;
+    api.oyinState().then((s) => { if (alive) setState(s); }).catch(() => undefined);
+    return () => { alive = false; };
+  }, []);
+
+  const invite = async () => {
+    haptic();
+    try {
+      const r = await api.referral();
+      shareLink(r.link, "🎮 Koson O'yiniga qo'shil! Safar qil, ball yig', oy oxiri jonli tirajda real sovrin yut. Mening havolam bilan kirsang — ikkalamizga ham ball! 🚀");
+    } catch { /* jim — asosiy oqim emas */ }
+  };
+
+  if (!state) return <div className="nh-oyin"><div className="nh-skel" style={{ height: 62, borderRadius: 14 }} /></div>;
+
+  const left = Math.max(0, Date.parse(SEASON_END_ISO) - Date.now());
+  const days = Math.floor(left / 86400_000);
+  const hours = Math.floor((left % 86400_000) / 3600_000);
+
+  return (
+    <div className="nh-oyin">
+      <button className="nh-oyin-head" onClick={() => { haptic(); onNav("oyin"); }}>
+        <div className="nh-oyin-top">
+          <div className="nh-oyin-title">🎮 Koson O'yini</div>
+          <div className="nh-oyin-cd">⏳ {days}k {hours}s</div>
+        </div>
+        <div className="nh-oyin-mid">
+          <div className="nh-oyin-ball">{state.ball} 🪙</div>
+          {state.rank && <div className="nh-oyin-rank">🏅 {state.rank}-o'rin</div>}
+        </div>
+      </button>
+      <div className="nh-oyin-actions">
+        <button className="nh-oyin-btn primary" onClick={() => void invite()}>👥 Do'st chaqirish</button>
+        <button className="nh-oyin-btn secondary" onClick={() => { haptic(); onNav("oyin"); }}>🎁 Sovrinlar →</button>
+      </div>
+    </div>
+  );
+}
 
 // ═══════════════════════════════════════════════════════════════════════════
 // 🏠 NewUyView — premium super-app home (feature "newhome", UY_REDESIGN).
@@ -94,6 +140,8 @@ export function NewUyView({ me, onBook, onNav, onBanner }: { me: MeResponse; onB
         <span><b>Taxi chaqirish</b><small>Bir tap bilan — yaqin mashina</small></span>
         <span className="go">→</span>
       </button>
+
+      {f.oyin && <KosonOyinCard onNav={onNav} />}
 
       {(rail.length > 0) && (
         <div className="nh-rail">

@@ -20,6 +20,9 @@ import type {
   AdminStats,
   MemberType,
   OpsPulse,
+  OyinActivityAction,
+  OyinActivityResponse,
+  OyinDrawExport,
 } from "@t1067/shared";
 
 interface TgWindow {
@@ -121,6 +124,19 @@ export const adminApi = {
   setTransferEconomy: (key: string, value: number) => postJson<{ ok: boolean; values: Record<string, number> }>("/api/admin/transfer-economy", { key, value }),
   bonusEconomy: () => req<{ knobs: { key: string; label: string; def: number; min: number; max: number; step: number; group: string }[]; values: Record<string, number> }>("/api/admin/bonus-economy"),
   setBonusEconomy: (key: string, value: number) => postJson<{ ok: boolean; values: Record<string, number> }>("/api/admin/bonus-economy", { key, value }),
+  oyinSponsor: () => req<{ name: string; photoUrl: string | null; active: boolean; isDefault: boolean }>("/api/admin/oyin/sponsor"),
+  setOyinSponsor: (name: string, photoUrl: string | null, active: boolean) =>
+    postJson<{ name: string; photoUrl: string | null; active: boolean; isDefault: boolean }>("/api/admin/oyin/sponsor", { name, photoUrl, active }),
+  oyinActivity: (filter: { memberId?: number; action?: OyinActivityAction; from?: string; to?: string; page?: number }) => {
+    const p = new URLSearchParams();
+    if (filter.memberId) p.set("memberId", String(filter.memberId));
+    if (filter.action) p.set("action", filter.action);
+    if (filter.from) p.set("from", filter.from);
+    if (filter.to) p.set("to", filter.to);
+    if (filter.page) p.set("page", String(filter.page));
+    return req<OyinActivityResponse>(`/api/admin/oyin/activity?${p.toString()}`);
+  },
+  oyinDraw: () => req<OyinDrawExport>("/api/admin/oyin/draw"),
   corps: () => req<{ corps: { id: number; name: string; balance: number; employees: number }[] }>("/api/admin/corps"),
   corpCreate: (name: string, cap: number) => postJson<{ id: number }>("/api/admin/corps", { name, cap }),
   corpAddEmployee: (id: number, phone: string, name?: string) => postJson<{ ok: boolean; reason?: string }>(`/api/admin/corps/${id}/employees`, { phone, name }),

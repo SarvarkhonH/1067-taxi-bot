@@ -27,6 +27,11 @@ import type {
   WithdrawResponse,
   CashoutResponse,
   TierBenefitsResponse,
+  OyinBuyResult,
+  OyinJamoamResponse,
+  OyinBoardResponse,
+  OyinStateResponse,
+  OyinVitrinaResponse,
 } from "@t1067/shared";
 import { tg } from "./telegram";
 
@@ -290,6 +295,14 @@ export const api = {
   trackTrip: (token: string) => get<PublicTrip>(`/api/track/${encodeURIComponent(token)}`),
   // server defaults the leaderboard to the caller's own member type
   leaderboard: () => get<LeaderboardResponse>("/api/leaderboard"),
+  // 🎮 Koson O'yini (feature "oyin") — KOSON_OYIN_PLAN.md v9.2. `oyinState` GET har chaqirilganda
+  // serverda kunlik-kirish belgisi ham qo'yiladi ("miniapp ochish" = kirish, alohida POST shart emas).
+  oyinState: () => get<OyinStateResponse>("/api/oyin/state"),
+  oyinVitrina: () => get<OyinVitrinaResponse>("/api/oyin/vitrina"),
+  oyinBoard: () => get<OyinBoardResponse>("/api/oyin/board"),
+  oyinJamoam: () => get<OyinJamoamResponse>("/api/oyin/jamoam"),
+  oyinBuyTicket: (prizeKey: string) => post<OyinBuyResult>("/api/oyin/ticket", { prizeKey }),
+  oyinShare: () => post<{ ok: boolean }>("/api/oyin/share"),
   checkin: () => post<CheckInResponse>("/api/checkin"),
   spinWheel: () => request<WheelSpinResponse>("POST", "/api/wheel", undefined, 1),
   wheelFree: () =>

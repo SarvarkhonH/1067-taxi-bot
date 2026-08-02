@@ -64,6 +64,7 @@ export interface MeResponse {
     homescreen?: boolean; // 🏠 telefon ekraniga qo'shish taklifi (addToHomeScreen) (owner-preview)
     storyshare?: boolean; // 📸 taklifni Telegram hikoyasiga ulashish (shareToStory) (owner-preview)
     autoloc?: boolean; // 📍 taksi xaritasi ochilganda joylashuvni O'ZI aniqlash; OFF = pin shahar markazida/oxirgi manzilda qoladi
+    oyin?: boolean; // 🎮 Koson O'yini — ball→chipta→tiraj mavsumi (owner-preview: admins see it while DARK)
   };
 }
 

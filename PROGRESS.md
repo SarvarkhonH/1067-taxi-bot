@@ -2,6 +2,56 @@
 
 ## Jarayonda (yangi)
 
+### 🎮 KOSON O'YINI (KOSON_OYIN_PLAN.md v9.2, KOSON_ADMIN_DOD.md) — B1-B5 **ready for verification**
+
+**Kontekst:** oy davomida ball→chipta→tiraj lototeya-o'yini, referral-zanjiri, admin nazorat
+markazi. Flag `oyin` DEFAULT_OFF, owner-preview orqali faqat admin akkauntda ko'rinadi (D12
+saboqi — "ega ko'rdi" ≠ "mijoz ko'radi"). Yangi Prisma model YO'Q, yangi poller YO'Q.
+
+**Qurilgan (barcha B1-B5):**
+- **B1**: 20 ta admin-knob (`economy.ts` `BONUS_ECON_KNOBS`, "Koson O'yini" guruhi — ball
+  og'irliklari + sovrin narx/limit), Homiy (`sponsorService.ts`, `AppState`, BirJoy-fallback,
+  yangi Prisma model yo'q).
+- **B2**: `oyinService.ts` — ball JONLI hisoblanadi (`RideReward`+`Referral`+`TelegramUser`+
+  AppState-markerlar, CoinTxn'ga TEGMAYDI). Chipta N-limit — `economyService.ts`dagi
+  `consumeWithdrawBudget` bilan bir xil reserve→tekshir→rollback atomik naqsh. `bookingNotifier.ts`
+  ga 1 ta yangi blok (do'st-safar push, `notifyOnce`, yangi DB-yozuv yo'q).
+- **B2b**: haftalik sprint (snapshot-farq usuli), tiraj-eksport (`drawExport`, READ-ONLY), mavsum-
+  yopilish (`seasonClose` — real tanga, `SEASON_END_ISO` qat'iy sana-darvozasi bilan himoyalangan,
+  dark-test paytida hech qachon erta ishlamaydi).
+- **B3**: admin "kim-nima-qildi" jadvali (`getActivity()`) — ball jonli hisoblangani uchun bu
+  READ-ONLY rekonstruksiya (RideReward/Referral/AppState-markerlarni sanalangan qatorlarga
+  yoyadi), bugun bunday admin-ekran umuman yo'q edi.
+- **B4**: `oyin.tsx` real API'ga ulandi (mock YO'Q). 3 ta prototip-elementi ATAYLAB olib
+  tashlandi (soxta kontakt-ro'yxati/QR/kunlik-vazifa — real backend yo'q edi), o'rniga mavjud
+  `telegram.ts`dagi `shareLink`/`shareStory`. 6 yetishmagan holat qo'shildi (skeleton/xato/
+  yangi-odam/final-48/mavsum-yakuni/sotildi).
+- **B5**: uy-ekran kartasi (`uy.tsx` `KosonOyinCard`), taksi CTA'dan keyin, `me.flags?.oyin` bilan
+  gated.
+
+**Yo'lda topilgan haqiqiy xato (bu ishga aloqasiz, lekin shu jarayonda ochilgan):**
+`initTelegram()` dagi `tg.requestFullscreen?.()` eski Bot API klientlarida `WebAppMethodUnsupported`
+istisnosini tashlab, butun mini-ilovani OQ EKRAN qilib qo'yardi (`createRoot`dan oldin sinxron
+chaqirilgani uchun). `main`da bu xato allaqachon bor edi (`801baf9d` commit, tuzatilmagan holda) —
+versiya-darvozasi (`isVersionAtLeast("8.0")`) + `try/catch` bilan tuzatildi.
+
+**Isbot:** `pnpm -r typecheck` 4/4 toza, `pnpm --filter @t1067/shared test` 90/90 toza. Brauzerda
+tekshirildi: `#oyindemo` (mock-bosqichida) va real marshrutlash — qulash yo'q, o'z xato-tinglovchi
+bilan tasdiqlangan.
+
+**⚠️ Isbotlanmagan qism (GAP, ochiq e'tirof):** lokal Postgres CLAUDE.md qoidasi bo'yicha ataylab
+o'chirilgan — haqiqiy ma'lumot bilan to'liq oqim (D2-D6, D8-D21) hech qachon shu muhitda
+isbotlanmadi, VPS + real admin-token + real test-a'zo talab qiladi. Bu "done" emasligi sababi.
+
+**Git holati:** bu ish avval `design/restoran-b0` branch'ida (90 fayl, boshqa tugallanmagan ish
+bilan aralashgan holda) qilingan edi; keyin toza `origin/main` ustiga qayta qurildi
+(`koson-oyin-clean` branch) — faqat Koson O'yinига tegishli o'zgarishlar bilan, `main`ning
+mustaqil rivojlangan boshqa ishiga (jamoa moduli J1-J5, BLK-1 push-kuzatuv, admin-v2, Super
+Operator console) tegilmasdan.
+
+**Keyingi:** ega telefonda haqiqiy tekshiruv (owner-preview) → mustaqil tekshiruv bosqichi →
+QABUL → flag ON.
+
 ### 🍽 RESTORAN REDIZAYN (design_handoff_restoran/1a) — B0 `owner-accepted`
 **Kontekst:** ega tashqi dizayn-paketi berdi (`C:\Users\sarva\Desktop\design_handoff_restoran`):
 piksel-spetsifikatsiya (`README.md`), kontent (`data/content.json`), jonli prototip

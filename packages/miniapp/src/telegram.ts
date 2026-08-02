@@ -275,9 +275,15 @@ export function initTelegram(): void {
   // ekan. expand() faqat balandlikni to'ldiradi, Telegram'ning o'z /'/^/... panelini olib
   // tashlamaydi; shuning uchun rejim Telegram'ning har safar o'zgaruvchan ichki qaroriga
   // qolib ketgan - ba'zan fullscreen (yangi ko'rinish), ba'zan oddiy kengaytirilgan rejim
-  // ("eski versiya" taassuroti). Eski Bot API'li klientlarda requestFullscreen yo'q -
-  // optional chaining bilan xavfsiz.
-  tg.requestFullscreen?.();
+  // ("eski versiya" taassuroti).
+  // ⚠️ 2026-08-02: optional chaining YETARLI EMAS edi. telegram-web-app.js metodni HAR DOIM
+  // e'lon qiladi, lekin klient Bot API 8.0 dan past bo'lsa uni chaqirish `WebAppMethodUnsupported`
+  // ISTISNOSINI tashlaydi. `initTelegram()` esa main.tsx da `createRoot`dan OLDIN sinxron
+  // chaqiriladi — ya'ni eski klientda istisno butun ilovaning mount bo'lishini to'xtatib, OQ EKRAN
+  // qoldirardi. Endi shu fayldagi boshqa yangi-API chaqiruvlari naqshi: versiya-darvozasi + try.
+  if (tg.isVersionAtLeast?.("8.0")) {
+    try { tg.requestFullscreen?.(); } catch { /* klient rad etdi — oddiy expand rejimida davom etamiz */ }
+  }
   // Stop Telegram's vertical swipe-to-close/minimize from hijacking in-app scrolling — without this,
   // scrolling a long sheet (ORZU, Detallar, bozor) drags the whole Mini App closed ("pasga-tepaga ochib yopib").
   tg.disableVerticalSwipes?.();

@@ -3,6 +3,7 @@ import { Fragment, Suspense, lazy, useEffect, useRef, useState } from "react";
 const DesignDemo = lazy(() => import("./design/demo")); // #demo dagina yuklanadi
 const ShopDemo = lazy(() => import("./design/shopDemo").then((m) => ({ default: m.ShopDemoPage }))); // #shopdemo dagina — shopv2 vizual-QA (mock-fetch, real Telegram auth kerak emas)
 const RstDemo = lazy(() => import("./design/rstDemo").then((m) => ({ default: m.RstDemoPage }))); // #rstdemo dagina — restoran dizayn-QA (B0…B5 yonma-yon solishtirish uchun)
+const OyinDemo = lazy(() => import("./design/oyinDemo").then((m) => ({ default: m.OyinDemoPage }))); // #oyindemo dagina — Koson O'yini dizayn-QA (qorong'i qurilish, flag `oyin` hali yo'q)
 import type { LeaderboardResponse, MeResponse } from "@t1067/shared";
 import { api, getInitData, waitForInitData } from "./api";
 import { addToHomeScreen, askContact, cloudGet, cloudSet, haptic, hapticSuccess, homeScreenStatus, onHomeScreenAdded, tg } from "./telegram";
@@ -28,6 +29,8 @@ const RestoranView = lazy(() => import("./restoran").then((m) => ({ default: m.R
 // 🎀 Ravella — hamkor-brend bezak konstruktori. Tabbar'da YO'Q (ega qarori: "bosh ekranda kichik,
 // umuman boshqa xizmat turi") — faqat uy rail'i / banner / deep-link orqali ochiladi.
 const RavellaView = lazy(() => import("./ravella").then((m) => ({ default: m.RavellaView })));
+// 🎮 Koson O'yini — ball→chipta→tiraj mavsumi (gated by feature `oyin`; owner-preview while DARK)
+const OyinView = lazy(() => import("./oyin").then((m) => ({ default: m.OyinView })));
 // 💼 Hamyon · 👤 Profil · 🏆 Reyting · 🎯 Vazifa · 👥 Taklif · 📜 Tarix — hech biri BIRINCHI
 // ekranda ko'rinmaydi, shuning uchun lazy. `wallet.tsx` (961 qator) shu tariqa kritik yo'ldan
 // butunlay chiqadi; ilgari uni uy ekrani o'lik import orqali tortib turgan edi.
@@ -48,7 +51,7 @@ import { initTheme, syncThemeFromCloud } from "./theme"; // kichik modul — pro
 
 initTheme(); // 🎨 apply saved / Telegram theme on <html> before first paint (features newhome/newprofile)
 
-type Tab = "uy" | "wallet" | "play" | "reyting" | "yol" | "dokon" | "xizmat" | "elonlar" | "restoran" | "ravella" | "driver" | "profile";
+type Tab = "uy" | "wallet" | "play" | "reyting" | "yol" | "dokon" | "xizmat" | "elonlar" | "restoran" | "ravella" | "driver" | "profile" | "oyin";
 
 // ── `me` stale-while-revalidate cache (instant repeat opens, hides cold-start) ──
 // Keyed by the Telegram user id so a shared device never shows one user another's cached data.
@@ -117,6 +120,7 @@ const GO_MAP: Record<string, Tab> = {
   elonlar: "elonlar", elon: "elonlar", elonlash: "elonlar", // 📋 mahalla e'lon taxtasi
   restoran: "restoran", restaurant: "restoran", taom: "restoran", ovqat: "restoran", // 🍽 taom-buyurtma (flag off bo'lsa App tab-guard Uy'ga tushiradi)
   ravella: "ravella", bezak: "ravella", toy: "ravella", // 🎀 Ravella bezak konstruktori (flag off bo'lsa tab-guard Uy'ga tushiradi)
+  oyin: "oyin", koson: "oyin", game: "oyin", // 🎮 Koson O'yini (flag off bo'lsa App tab-guard Uy'ga tushiradi)
   driver: "driver", profile: "profile",
 };
 
@@ -162,6 +166,13 @@ export function App() {
     return (
       <Suspense fallback={<div className="boot"><div className="boot-logo">🍽</div></div>}>
         <RstDemo />
+      </Suspense>
+    );
+  }
+  if (window.location.hash === "#oyindemo") {
+    return (
+      <Suspense fallback={<div className="boot"><div className="boot-logo">🎮</div></div>}>
+        <OyinDemo />
       </Suspense>
     );
   }
@@ -318,6 +329,7 @@ export function App() {
     if (t === "elonlar" && !me.flags?.elonlar) t = "reyting"; // 📋 deep-link guard: elonlar dark → land on Reyting (its old slot)
     if (t === "restoran" && !me.flags?.restoran) t = "uy"; // 🍽 deep-link guard: restoran dark → land home
     if (t === "ravella" && !me.flags?.ravella) t = "uy"; // 🎀 deep-link guard: ravella dark → land home
+    if (t === "oyin" && !me.flags?.oyin) t = "uy"; // 🎮 deep-link guard: Koson O'yini dark → land home
     if (t === tab) return;
     haptic();
     setTab(t);
@@ -468,6 +480,7 @@ export function App() {
             {tab === "elonlar" && <ElonlarView me={me} onBanner={flash} reload={reload} />}
             {tab === "restoran" && <RestoranView me={me} onBanner={flash} openRestaurantId={openRestoranFromFeed} />}
             {tab === "ravella" && <RavellaView me={me} onBanner={flash} />}
+            {tab === "oyin" && <OyinView />}
             {tab === "driver" && <DriverView me={me} />}
             {tab === "profile" && <NewProfileView me={me} onNav={nav} onBanner={flash} />}
           </Suspense>

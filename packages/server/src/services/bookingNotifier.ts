@@ -713,6 +713,31 @@ export async function pushBookingUpdates(
         await alertAdmins(`⚠️ Referral payout xatosi (member ${m.id}): ${e instanceof Error ? e.message : String(e)}`).catch(() => undefined);
       }
 
+      // 🎮 KOSON O'YINI — do'st-safar push (feature "oyin", DARK — KOSON_OYIN_PLAN.md v9.2 §2.1).
+      // Ball GRANT QILINMAYDI bu yerda (jonli hisoblanadi, oyinService.getBall) — bu FAQAT
+      // taklifchiga bildirishnoma, HAR safar (yuqoridagi referral-payout blokidan farqli, u faqat
+      // BIRINCHI safarda ishlaydi). Yangi DB-yozuv yo'q → bu blok butunlay xato bersa ham safar-
+      // oqimiga (real main loop) ta'sir qilmaydi. `notifyOnce` kaliti do'st-scoped: bir do'st =
+      // kuniga max 1 push (boshqa do'st safar qilsa alohida push — bu ataylab, "bir do'st" degani).
+      try {
+        const { featureOn } = await import("./featureFlags");
+        if (await featureOn("oyin")) {
+          const { referrerOf } = await import("./oyinService");
+          const referrer = await referrerOf(m.id);
+          if (referrer) {
+            const { getBonusEcon } = await import("./bonusConfig");
+            const econ = await getBonusEcon();
+            const gain = econ.oyinReferRideBall ?? 0;
+            if (gain > 0) {
+              const { notifyOnce } = await import("./notifyService");
+              await notifyOnce(bot, referrer.telegramId, referrer.memberId, `oyin_ref_ride:${m.id}`, `🤝 Do'stingiz safar qildi — sizga <b>+${gain} ball</b> qo'shildi! 🎮`);
+            }
+          }
+        }
+      } catch (e) {
+        console.error("[oyin] referral push failed:", e);
+      }
+
       // 🎁 Welcome bonus MOVED to JOIN — every new user (client OR driver) now gets the 5000 the
       // moment they link their phone (grantJoinWelcome in memberService.linkByPhone), no ride needed.
       // Was here on first ride; removed so nobody is double-paid (join-grant + ride-grant).

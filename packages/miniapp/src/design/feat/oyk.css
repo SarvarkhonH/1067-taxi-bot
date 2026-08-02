@@ -1,0 +1,456 @@
+/* 🎮 oyk-* — Koson O'yini ekrani (feature "oyin", DEFAULT_OFF — qorong'i qurilish).
+   Dizayn-manba: Claude Design "BirJoy home screen states" → Koson Game World.dc.html (ega tanlagan
+   yakuniy prototip). Bu fayl faqat o'yin lazy-chunk'i yuklanganda keladi — Uy birinchi chizilishini
+   bloklamaydi. Ranglar faqat tokens.css'dagi --oyk-* bo'limidan; dinamik geometriya (progress
+   kengligi, halqa-offset, zarracha-fizika) komponentda style orqali beriladi — mavjud idiom. */
+
+/* ── keyframe'lar (faqat transform/opacity — dizayn qoidasi) ── */
+@keyframes oyk-glow { 0%, 100% { opacity: .5; } 50% { opacity: 1; } }
+@keyframes oyk-pulse { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.05); } }
+@keyframes oyk-shine { 0% { transform: translateX(-130%) skewX(-18deg); } 60%, 100% { transform: translateX(260%) skewX(-18deg); } }
+@keyframes oyk-fadeup { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+@keyframes oyk-sheet { from { transform: translateY(100%); } to { transform: translateY(0); } }
+@keyframes oyk-pop { 0% { transform: scale(.7) rotate(-4deg); opacity: 0; } 60% { transform: scale(1.06) rotate(1deg); } 100% { transform: scale(1) rotate(0); } }
+@keyframes oyk-coin { 0% { transform: translateY(-60px) rotate(0); opacity: 1; } 80% { opacity: 1; } 100% { transform: translateY(110vh) rotate(320deg); opacity: 0; } }
+@keyframes oyk-bob { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-4px); } }
+@keyframes oyk-blink { 0%, 100% { opacity: 1; } 50% { opacity: .45; } }
+@keyframes oyk-shimmer { 0% { background-position: -300px 0; } 100% { background-position: 300px 0; } }
+@media (prefers-reduced-motion: reduce) {
+  .oyk *, .oyk *::before, .oyk *::after { animation: none !important; transition: none !important; }
+}
+
+/* ── B4: yetishmagan holatlar ── */
+
+/* 1) SKELETON — dastlabki yuklanish, layout-shift yo'q */
+.oyk-skel { flex: 1; min-height: 0; overflow: hidden; padding: calc(var(--safe-top) + 10px) 16px 26px; display: flex; flex-direction: column; gap: 14px; }
+.oyk-skel-block {
+  border-radius: 20px; background: linear-gradient(90deg, rgba(255,255,255,.045) 25%, rgba(255,255,255,.09) 37%, rgba(255,255,255,.045) 63%);
+  background-size: 400px 100%; animation: oyk-shimmer 1.4s ease-in-out infinite;
+}
+.oyk-skel-hero { height: 132px; }
+.oyk-skel-daily { height: 96px; }
+.oyk-skel-rail { height: 176px; }
+
+/* 2) XATO holati (tarmoq/server) */
+.oyk-error { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; padding: 30px; text-align: center; }
+.oyk-error-icon { font-size: 44px; }
+.oyk-error-text { font-size: 14px; color: rgba(255,255,255,.6); max-width: 260px; }
+.oyk-error-retry {
+  min-height: 48px; padding: 0 22px; border: none; border-radius: 13px; background: var(--oyk-gold-grad);
+  color: var(--oyk-ink); font-size: 14px; font-weight: 900; cursor: pointer; transition: transform var(--dur-press);
+}
+.oyk-error-retry:active { transform: scale(.97); }
+
+/* 3) YANGI-ODAM hero varianti (ball=0, reyting yo'q) — qo'rqitmaydigan, taklif qiluvchi */
+.oyk-hero.is-new { text-align: center; }
+.oyk-hero-new-title { position: relative; font-size: 17px; font-weight: 900; margin-top: 4px; }
+.oyk-hero-new-sub { position: relative; font-size: 12.5px; color: rgba(255,255,255,.65); margin-top: 6px; line-height: 1.5; }
+.oyk-hero-new-sub b { color: var(--oyk-gold-soft); }
+
+/* 4) FINAL-48 — shoshilish: qizil urg'u, countdown yiriklashadi, tikish muzlagan */
+.oyk-chip-cd.is-final { color: #fff; background: rgba(255, 90, 95, .22); border-color: rgba(255, 90, 95, .55); font-size: 12px; padding: 6px 11px; }
+.oyk-final-banner {
+  display: flex; align-items: center; gap: 10px; padding: 11px 14px; border-radius: 14px;
+  background: rgba(255, 90, 95, .12); border: 1px solid rgba(255, 90, 95, .4); color: var(--oyk-red-soft);
+  font-size: 12.5px; font-weight: 700; line-height: 1.5;
+}
+.oyk-final-banner b { color: #fff; }
+.oyk-pbtn.is-frozen, .oyk-vbtn.is-frozen { background: rgba(255, 90, 95, .12); color: var(--oyk-red-soft); cursor: not-allowed; }
+
+/* 5) SOTILGAN TUGADI (limit to'lgan) */
+.oyk-pbtn.is-soldout, .oyk-vbtn.is-soldout { background: rgba(255,255,255,.05); color: rgba(255,255,255,.35); cursor: not-allowed; }
+.oyk-pcard.is-soldout, .oyk-vcard.is-soldout { opacity: .55; }
+
+/* 6) MAVSUM YAKUNI — konvertatsiya xulosasi */
+.oyk-ended { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 14px; padding: 32px; text-align: center; }
+.oyk-ended-icon { font-size: 52px; }
+.oyk-ended-title { font-size: 19px; font-weight: 900; }
+.oyk-ended-card {
+  width: 100%; max-width: 320px; background: var(--card); border: 1px solid var(--line); border-radius: 18px;
+  padding: 16px; display: flex; flex-direction: column; gap: 8px; font-size: 13px; color: rgba(255,255,255,.75);
+}
+.oyk-ended-row { display: flex; justify-content: space-between; }
+.oyk-ended-row b { color: var(--oyk-gold-soft); font-variant-numeric: tabular-nums; }
+.oyk-ended-note { font-size: 11.5px; color: rgba(255,255,255,.45); max-width: 280px; }
+
+/* ── qobiq ── */
+.oyk {
+  position: relative; display: flex; flex-direction: column; min-height: 100dvh; color: var(--oyk-text);
+  background: var(--oyk-halo), var(--oyk-bg-grad);
+  overflow: hidden;
+}
+.oyk-scroll { flex: 1; min-height: 0; overflow-y: auto; padding: calc(var(--safe-top) + 10px) 16px 26px; display: flex; flex-direction: column; gap: 14px; }
+.oyk-scroll > * { flex-shrink: 0; }
+.oyk button { font-family: inherit; }
+
+/* ── sarlavha qatori ── */
+.oyk-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.oyk-title { font-size: 19px; font-weight: 900; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.oyk-chips { display: flex; gap: 6px; flex-shrink: 0; }
+.oyk-chip-cd {
+  font-size: 11px; font-weight: 800; color: var(--oyk-gold-soft); background: rgba(245, 183, 0, .1);
+  border: 1px solid rgba(245, 183, 0, .3); padding: 5px 9px; border-radius: var(--r-chip);
+  font-variant-numeric: tabular-nums; white-space: nowrap; animation: oyk-blink 2.4s ease-in-out infinite;
+}
+.oyk-chip-rank {
+  font-size: 11px; font-weight: 800; color: var(--oyk-violet-soft); background: rgba(110, 90, 255, .14);
+  border: 1px solid rgba(110, 90, 255, .4); padding: 5px 9px; border-radius: var(--r-chip);
+  white-space: nowrap; cursor: pointer; transition: transform var(--dur-press);
+}
+.oyk-chip-rank:active { transform: scale(.95); }
+
+/* ── xazina-hero ── */
+.oyk-hero {
+  position: relative; overflow: hidden; border-radius: 22px; padding: 16px;
+  background: linear-gradient(160deg, rgba(245, 183, 0, .14), rgba(110, 90, 255, .1));
+  border: 1px solid rgba(245, 183, 0, .3);
+}
+.oyk-hero-glow {
+  position: absolute; top: -70px; left: 50%; margin-left: -110px; width: 220px; height: 150px;
+  background: radial-gradient(ellipse, rgba(245, 183, 0, .3), transparent 70%);
+  animation: oyk-glow 3s ease-in-out infinite; pointer-events: none;
+}
+.oyk-hero-label { position: relative; font-size: 10.5px; font-weight: 900; letter-spacing: .12em; color: var(--oyk-gold-soft); }
+.oyk-hero-row { position: relative; display: flex; align-items: flex-end; gap: 8px; }
+.oyk-hero-num {
+  font-size: 54px; line-height: 1; font-weight: 900; font-variant-numeric: tabular-nums;
+  background: var(--oyk-gold-text-grad); -webkit-background-clip: text; background-clip: text; color: transparent;
+}
+.oyk-hero-unit { font-size: 15px; font-weight: 800; color: var(--oyk-gold-soft); padding-bottom: 6px; }
+.oyk-hero-progress { position: relative; margin-top: 10px; }
+.oyk-bar { height: 14px; border-radius: 7px; background: rgba(255, 255, 255, .08); overflow: hidden; }
+.oyk-bar-fill {
+  height: 100%; border-radius: 7px; background: linear-gradient(90deg, var(--oyk-gold-deep), var(--oyk-gold), var(--oyk-gold-pale));
+  box-shadow: 0 0 12px rgba(245, 183, 0, .55); transition: width .5s var(--ease-out);
+}
+.oyk-bar-meta { display: flex; justify-content: space-between; margin-top: 6px; font-size: 11.5px; font-variant-numeric: tabular-nums; }
+.oyk-bar-left { font-weight: 800; color: var(--oyk-gold-soft); }
+.oyk-bar-left.is-ready { color: var(--oyk-green); }
+.oyk-bar-right { color: rgba(255, 255, 255, .45); font-weight: 700; }
+
+/* ── bugungi maqsad (halqa) ── */
+.oyk-daily {
+  background: var(--card); border: 1px solid var(--line); border-radius: 20px; padding: 14px;
+  display: flex; gap: 14px; align-items: center;
+}
+.oyk-ring { position: relative; width: 72px; height: 72px; flex-shrink: 0; }
+.oyk-ring-track { fill: none; stroke: rgba(255, 255, 255, .08); stroke-width: 7; }
+.oyk-ring-fill {
+  fill: none; stroke: var(--oyk-violet); stroke-width: 7; stroke-linecap: round;
+  transition: stroke-dashoffset .7s var(--ease-out); filter: drop-shadow(0 0 6px rgba(110, 90, 255, .7));
+}
+.oyk-ring-label { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-size: 15px; font-weight: 900; color: var(--oyk-violet-soft); font-variant-numeric: tabular-nums; }
+.oyk-daily-body { flex: 1; min-width: 0; }
+.oyk-daily-head { display: flex; align-items: baseline; justify-content: space-between; }
+.oyk-daily-title { font-size: 13.5px; font-weight: 900; }
+.oyk-daily-bonus { font-size: 11px; font-weight: 800; color: var(--oyk-gold-soft); white-space: nowrap; }
+.oyk-tasks { display: flex; flex-direction: column; gap: 5px; margin-top: 8px; }
+.oyk-task { display: flex; align-items: center; gap: 8px; font-size: 12px; }
+.oyk-task-dot {
+  width: 17px; height: 17px; border-radius: 50%; flex-shrink: 0; display: flex; align-items: center;
+  justify-content: center; font-size: 10px; font-weight: 900; color: #fff;
+  background: transparent; border: 1px solid rgba(255, 255, 255, .25);
+}
+.oyk-task.is-done .oyk-task-dot { background: var(--oyk-violet); border-color: var(--oyk-violet); }
+.oyk-task-label { font-weight: 600; color: var(--oyk-text); }
+.oyk-task.is-done .oyk-task-label { color: rgba(255, 255, 255, .45); }
+.oyk-task-reward { margin-left: auto; font-weight: 800; color: var(--oyk-gold-soft); font-variant-numeric: tabular-nums; }
+
+/* ── haftalik vazifa chizig'i ── */
+.oyk-week {
+  background: rgba(110, 90, 255, .08); border: 1px solid rgba(110, 90, 255, .3); border-radius: 14px;
+  padding: 10px 14px; display: flex; align-items: center; gap: 10px;
+}
+.oyk-week-emoji { font-size: 17px; }
+.oyk-week-text { flex: 1; min-width: 0; font-size: 12px; font-weight: 700; color: var(--oyk-violet-soft); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.oyk-week-text b { color: #fff; }
+.oyk-week-pts { font-size: 11.5px; font-weight: 900; color: var(--oyk-gold-soft); white-space: nowrap; }
+
+/* ── jonli lenta ── */
+.oyk-feed {
+  background: rgba(255, 255, 255, .035); border: 1px solid rgba(255, 255, 255, .08); border-radius: 16px;
+  padding: 10px 14px; display: flex; align-items: center; gap: 10px; overflow: hidden;
+}
+.oyk-live { font-size: 9.5px; font-weight: 900; letter-spacing: .08em; color: var(--oyk-red-live); flex-shrink: 0; display: flex; align-items: center; gap: 5px; }
+.oyk-live-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--oyk-red); display: inline-block; animation: oyk-blink 1.2s infinite; }
+.oyk-feed-body { flex: 1; min-width: 0; font-size: 12px; color: rgba(255, 255, 255, .8); }
+.oyk-feed-item { animation: oyk-fadeup .4s ease-out; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+/* ── sovrin reli (gorizontal) ── */
+.oyk-rail-head { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 9px; }
+.oyk-rail-title { font-size: 15px; font-weight: 900; }
+.oyk-rail-sub { font-size: 11px; color: rgba(255, 255, 255, .4); white-space: nowrap; }
+.oyk-rail { display: flex; gap: 10px; overflow-x: auto; margin: 0 -16px; padding: 0 16px 8px; }
+.oyk-pcard {
+  flex-shrink: 0; width: 148px; background: var(--card); border: 1px solid var(--line); border-radius: 18px;
+  padding: 12px; display: flex; flex-direction: column; gap: 7px;
+}
+.oyk-pcard.is-hot { border-color: rgba(111, 207, 151, .5); box-shadow: 0 0 20px rgba(111, 207, 151, .2); }
+.oyk-pcard-icon { font-size: 30px; text-align: center; animation: oyk-bob 2.6s ease-in-out infinite; }
+.oyk-pcard-name { font-size: 12px; font-weight: 800; text-align: center; line-height: 1.25; }
+.oyk-pcard-meta { font-size: 10.5px; color: rgba(255, 255, 255, .45); text-align: center; font-variant-numeric: tabular-nums; }
+.oyk-pbar { height: 6px; border-radius: 3px; background: rgba(255, 255, 255, .08); overflow: hidden; }
+.oyk-pbar-fill { height: 100%; border-radius: 3px; background: var(--oyk-gold); transition: width .5s; }
+.oyk-pcard.is-hot .oyk-pbar-fill { background: var(--oyk-green); }
+.oyk-pbtn {
+  min-height: 40px; border: none; border-radius: 11px; font-size: 12px; font-weight: 900; cursor: pointer;
+  transition: transform var(--dur-press); background: rgba(255, 255, 255, .07); color: rgba(255, 255, 255, .5);
+}
+.oyk-pbtn:active { transform: scale(.96); }
+.oyk-pbtn.is-on { background: var(--oyk-gold-grad); color: var(--oyk-ink); }
+.oyk-pbtn.is-hot { animation: oyk-pulse 1.6s ease-in-out infinite; }
+
+/* ── bosh CTA ── */
+.oyk-cta {
+  min-height: 54px; border: none; border-radius: 16px; background: var(--oyk-gold-grad); color: var(--oyk-ink);
+  font-size: 15px; font-weight: 900; cursor: pointer; position: relative; overflow: hidden;
+  box-shadow: 0 8px 26px rgba(245, 183, 0, .35); transition: transform var(--dur-press);
+}
+.oyk-cta:active { transform: scale(.98); }
+.oyk-cta-label { position: relative; z-index: 1; }
+.oyk-cta-shine { position: absolute; top: 0; bottom: 0; width: 50px; background: rgba(255, 255, 255, .5); filter: blur(7px); animation: oyk-shine 2.8s ease-in-out infinite; }
+
+/* ── homiy chizig'i + huquqiy izoh ── */
+.oyk-sponsor {
+  display: flex; align-items: center; justify-content: center; gap: 9px; padding: 10px 14px;
+  background: rgba(255, 255, 255, .03); border: 1px solid rgba(255, 255, 255, .07); border-radius: 14px;
+}
+.oyk-sponsor-logo {
+  width: 26px; height: 26px; border-radius: 8px; background: linear-gradient(160deg, var(--oyk-gold), var(--oyk-gold-deep));
+  display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 900; color: var(--oyk-ink); flex-shrink: 0;
+}
+.oyk-sponsor-text { font-size: 11px; color: rgba(255, 255, 255, .5); white-space: nowrap; }
+.oyk-sponsor-text b { color: rgba(255, 255, 255, .8); }
+.oyk-legal { text-align: center; font-size: 10.5px; color: rgba(255, 255, 255, .35); padding: 0 12px; }
+
+/* ── vitrina tabi ── */
+.oyk-v-head { display: flex; align-items: baseline; justify-content: space-between; }
+.oyk-v-title { font-size: 17px; font-weight: 900; }
+.oyk-sponsor-strip {
+  display: flex; align-items: center; gap: 9px; padding: 9px 12px;
+  background: rgba(245, 183, 0, .06); border: 1px solid rgba(245, 183, 0, .2); border-radius: 12px;
+}
+.oyk-sponsor-strip .oyk-sponsor-logo { width: 24px; height: 24px; border-radius: 7px; font-size: 11px; }
+.oyk-sponsor-strip-text { font-size: 11px; color: rgba(255, 255, 255, .6); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.oyk-sponsor-strip-text b { color: var(--oyk-gold-soft); }
+.oyk-vcard { background: var(--card); border: 1px solid var(--line); border-radius: 20px; padding: 14px; display: flex; flex-direction: column; gap: 9px; }
+.oyk-vcard-top { display: flex; gap: 12px; align-items: center; }
+.oyk-vcard-icon {
+  width: 50px; height: 50px; border-radius: 14px; background: rgba(245, 183, 0, .1);
+  display: flex; align-items: center; justify-content: center; font-size: 26px; flex-shrink: 0;
+}
+.oyk-vcard-title { flex: 1; min-width: 0; }
+.oyk-vcard-name { font-size: 14.5px; font-weight: 900; }
+.oyk-vcard-sub { font-size: 11px; color: rgba(255, 255, 255, .45); }
+.oyk-vcard-price { text-align: right; flex-shrink: 0; }
+.oyk-vcard-price-num { font-size: 15px; font-weight: 900; color: var(--oyk-gold-soft); font-variant-numeric: tabular-nums; }
+.oyk-vcard-price-unit { font-size: 10px; color: rgba(255, 255, 255, .4); }
+.oyk-vbar { height: 8px; border-radius: 4px; background: rgba(255, 255, 255, .08); overflow: hidden; }
+.oyk-vbar-fill { height: 100%; border-radius: 4px; background: linear-gradient(90deg, var(--oyk-gold-deep), var(--oyk-gold)); transition: width .5s; }
+.oyk-vcard-stats { display: flex; justify-content: space-between; font-size: 11.5px; color: rgba(255, 255, 255, .55); font-variant-numeric: tabular-nums; }
+.oyk-vcard-stats b { color: var(--oyk-text); }
+.oyk-vcard-path { font-size: 12px; color: rgba(255, 255, 255, .6); }
+.oyk-vcard-history { font-size: 10.5px; color: rgba(255, 255, 255, .35); }
+.oyk-vbtn {
+  min-height: 46px; border: none; border-radius: 12px; font-size: 13px; font-weight: 900; cursor: pointer;
+  transition: transform var(--dur-press); background: rgba(255, 255, 255, .07); color: rgba(255, 255, 255, .5);
+}
+.oyk-vbtn:active { transform: scale(.97); }
+.oyk-vbtn.is-on { background: var(--oyk-gold-grad); color: var(--oyk-ink); }
+.oyk-sched {
+  background: rgba(255, 90, 95, .07); border: 1px solid rgba(255, 90, 95, .3); border-radius: 16px;
+  padding: 13px 15px; display: flex; gap: 11px; align-items: center;
+}
+.oyk-sched-emoji { font-size: 22px; }
+.oyk-sched-text { font-size: 11.5px; color: rgba(255, 255, 255, .7); line-height: 1.55; }
+.oyk-sched-text b { color: var(--oyk-red-soft); }
+
+/* ── jamoam tabi ── */
+.oyk-j-title { font-size: 17px; font-weight: 900; }
+.oyk-j-count { font-size: 12px; font-weight: 700; color: rgba(255, 255, 255, .45); }
+.oyk-magnet {
+  background: linear-gradient(160deg, rgba(245, 183, 0, .16), rgba(255, 90, 95, .08));
+  border: 1px solid rgba(245, 183, 0, .35); border-radius: 18px; padding: 14px;
+  display: flex; gap: 12px; align-items: center;
+}
+.oyk-magnet-emoji { font-size: 28px; }
+.oyk-magnet-body { flex: 1; min-width: 0; }
+.oyk-magnet-title { font-size: 13.5px; font-weight: 900; color: var(--oyk-gold-pale); }
+.oyk-magnet-sub { font-size: 12px; color: rgba(255, 255, 255, .65); margin-top: 2px; }
+.oyk-magnet-sub b { color: var(--oyk-gold-soft); }
+.oyk-friends { display: flex; flex-direction: column; gap: 7px; }
+.oyk-friend {
+  display: flex; align-items: center; gap: 11px; padding: 10px 12px; border-radius: 14px;
+  background: rgba(255, 255, 255, .04); border: 1px solid rgba(255, 255, 255, .08);
+}
+.oyk-avatar {
+  width: 36px; height: 36px; border-radius: 50%; display: flex; align-items: center; justify-content: center;
+  font-size: 14px; font-weight: 900; color: #fff; flex-shrink: 0;
+}
+/* avatar palitrasi — dizayndagi 5 rang, indeks bo'yicha aylanadi (dinamik rang inline emas) */
+.oyk-av-0 { background: var(--oyk-violet); }
+.oyk-av-1 { background: #2f9e68; }
+.oyk-av-2 { background: #e5484d; }
+.oyk-av-3 { background: var(--oyk-gold-deep); }
+.oyk-av-4 { background: #22d3ee; }
+.oyk-friend-body { flex: 1; min-width: 0; }
+.oyk-friend-name { font-size: 13px; font-weight: 800; }
+.oyk-friend-status { font-size: 11px; color: rgba(255, 255, 255, .4); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.oyk-friend-status.is-active { color: var(--oyk-green); }
+.oyk-wake {
+  min-height: 44px; padding: 0 14px; border: 1px solid rgba(110, 90, 255, .5); border-radius: 11px;
+  background: rgba(110, 90, 255, .14); color: var(--oyk-violet-soft); font-size: 12px; font-weight: 800;
+  cursor: pointer; transition: transform var(--dur-press); flex-shrink: 0;
+}
+.oyk-wake:active { transform: scale(.95); }
+.oyk-friend-gain { font-size: 12.5px; font-weight: 900; color: var(--oyk-green); white-space: nowrap; flex-shrink: 0; }
+.oyk-j-report {
+  background: rgba(255, 255, 255, .035); border: 1px solid rgba(255, 255, 255, .08); border-radius: 14px;
+  padding: 12px 14px; font-size: 12px; color: rgba(255, 255, 255, .6); line-height: 1.55;
+}
+.oyk-j-hint {
+  background: rgba(110, 90, 255, .08); border: 1px solid rgba(110, 90, 255, .3); border-radius: 14px;
+  padding: 11px 14px; font-size: 12px; color: var(--oyk-violet-soft); line-height: 1.5;
+}
+.oyk-j-hint b { color: #fff; }
+.oyk-qr {
+  background: var(--card); border: 1px solid var(--line); border-radius: 20px; padding: 16px;
+  display: flex; flex-direction: column; gap: 11px; align-items: center; text-align: center;
+}
+.oyk-qr-svg { border-radius: 8px; background: #fff; padding: 6px; box-sizing: content-box; }
+.oyk-qr-text { font-size: 13.5px; font-weight: 900; }
+.oyk-qr-text b { color: var(--oyk-gold-soft); }
+.oyk-qr-btn {
+  width: 100%; min-height: 48px; border: none; border-radius: 13px; background: var(--oyk-gold-grad);
+  color: var(--oyk-ink); font-size: 13.5px; font-weight: 900; cursor: pointer; transition: transform var(--dur-press);
+}
+.oyk-qr-btn:active { transform: scale(.97); }
+.oyk-qr-note { font-size: 11px; color: rgba(255, 255, 255, .4); }
+.oyk-qr-note b { color: var(--oyk-gold-soft); }
+
+/* ── pastki tab-bar ── */
+.oyk-tabs { height: 62px; flex-shrink: 0; display: flex; border-top: 1px solid rgba(255, 255, 255, .08); background: rgba(10, 12, 20, .95); padding-bottom: var(--safe-bottom); box-sizing: content-box; }
+.oyk-tab {
+  flex: 1; min-height: 44px; border: none; background: transparent; cursor: pointer;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px;
+  color: rgba(255, 255, 255, .4); transition: transform var(--dur-press); border-top: 2px solid transparent;
+}
+.oyk-tab:active { transform: scale(.95); }
+.oyk-tab.is-active { color: var(--oyk-gold-soft); border-top-color: var(--oyk-gold); }
+.oyk-tab-icon { font-size: 19px; }
+.oyk-tab-label { font-size: 10px; font-weight: 800; }
+
+/* ── toast ── */
+.oyk-toast {
+  position: absolute; top: calc(var(--safe-top) + 12px); left: 20px; right: 20px; z-index: 30;
+  background: var(--oyk-toast-bg); border: 1px solid rgba(245, 183, 0, .4); border-radius: 14px;
+  padding: 12px 14px; font-size: 13px; font-weight: 800; color: var(--oyk-gold-pale); text-align: center;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, .5); animation: oyk-fadeup .25s ease-out;
+}
+
+/* ── tanga-yomg'iri / konfetti (fizika style orqali: --x/--d/--w) ── */
+.oyk-rain { position: absolute; inset: 0; pointer-events: none; z-index: 25; overflow: hidden; }
+.oyk-rain-coin { position: absolute; top: 0; left: var(--x); font-size: var(--s); animation: oyk-coin var(--d) var(--w) cubic-bezier(.3, .1, .6, 1) both; }
+.oyk-cf { position: absolute; top: 0; left: var(--x); width: 9px; height: 9px; border-radius: 2px; animation: oyk-coin var(--d) var(--w) cubic-bezier(.3, .1, .6, 1) both; }
+.oyk-cf-0 { background: var(--oyk-gold); }
+.oyk-cf-1 { background: var(--oyk-red); }
+.oyk-cf-2 { background: var(--oyk-violet); }
+.oyk-cf-3 { background: var(--oyk-green); }
+.oyk-cf-4 { background: var(--oyk-gold-hi); }
+
+/* ── pastki sheet ── */
+.oyk-scrim { position: absolute; inset: 0; background: rgba(0, 0, 0, .6); z-index: 40; display: flex; align-items: flex-end; }
+.oyk-sheet {
+  width: 100%; background: var(--oyk-sheet-bg); border-radius: 26px 26px 0 0; padding: 20px 20px calc(28px + var(--safe-bottom));
+  box-sizing: border-box; display: flex; flex-direction: column; gap: 12px; animation: oyk-sheet .28s var(--ease-out);
+  max-height: 82%; overflow-y: auto;
+}
+.oyk-sheet-grip { width: 38px; height: 4px; border-radius: 2px; background: rgba(255, 255, 255, .2); margin: 0 auto; flex-shrink: 0; }
+.oyk-sheet-title { font-size: 16px; font-weight: 900; }
+.oyk-note-violet { background: rgba(110, 90, 255, .1); border: 1px solid rgba(110, 90, 255, .35); border-radius: 12px; padding: 10px 12px; font-size: 12px; color: var(--oyk-violet-soft); line-height: 1.5; }
+.oyk-note-violet b { color: #fff; }
+.oyk-note-violet .oyk-note-gold { color: var(--oyk-gold-soft); font-weight: 800; }
+.oyk-note-red { background: rgba(255, 90, 95, .1); border: 1px solid rgba(255, 90, 95, .35); border-radius: 12px; padding: 10px 12px; font-size: 12.5px; font-weight: 700; color: var(--oyk-red-soft); }
+
+/* reyting ro'yxati */
+.oyk-board { display: flex; flex-direction: column; gap: 6px; }
+.oyk-brow { display: flex; align-items: center; gap: 10px; padding: 9px 12px; border-radius: 12px; background: rgba(255, 255, 255, .03); border: 1px solid rgba(255, 255, 255, .07); }
+.oyk-brow.is-me { background: rgba(245, 183, 0, .12); border-color: rgba(245, 183, 0, .45); }
+.oyk-brow-pos { width: 26px; font-size: 12.5px; font-weight: 900; color: rgba(255, 255, 255, .5); font-variant-numeric: tabular-nums; }
+.oyk-brow.is-top .oyk-brow-pos { color: var(--oyk-gold-soft); }
+.oyk-brow-name { flex: 1; font-size: 13px; font-weight: 700; }
+.oyk-brow.is-me .oyk-brow-name { color: var(--oyk-gold-pale); }
+.oyk-brow-pts { font-size: 13px; font-weight: 900; color: var(--oyk-gold-soft); font-variant-numeric: tabular-nums; }
+
+/* ulashish sheet'i */
+.oyk-share-preview { background: rgba(255, 255, 255, .05); border: 1px solid rgba(255, 255, 255, .1); border-radius: 14px; padding: 12px; font-size: 12.5px; color: rgba(255, 255, 255, .75); line-height: 1.5; }
+.oyk-share-preview b { color: #fff; }
+.oyk-contacts { display: flex; flex-direction: column; gap: 6px; }
+.oyk-contact {
+  display: flex; align-items: center; gap: 12px; padding: 10px 12px; border-radius: 14px;
+  background: rgba(255, 255, 255, .04); border: 1px solid rgba(255, 255, 255, .09); cursor: pointer;
+  color: var(--oyk-text); min-height: 52px; transition: transform var(--dur-press); text-align: left;
+}
+.oyk-contact:active { transform: scale(.98); }
+.oyk-contact .oyk-avatar { width: 38px; height: 38px; font-size: 15px; }
+.oyk-contact-body { flex: 1; }
+.oyk-contact-name { font-size: 13.5px; font-weight: 800; }
+.oyk-contact-sub { font-size: 11px; color: rgba(255, 255, 255, .45); }
+.oyk-contact-action { font-size: 12px; font-weight: 800; color: var(--oyk-green); }
+.oyk-share-hint { font-size: 11px; color: rgba(255, 255, 255, .4); text-align: center; }
+
+/* chipta-tasdiq sheet'i */
+.oyk-buy-row { display: flex; align-items: center; gap: 12px; background: rgba(245, 183, 0, .08); border: 1px solid rgba(245, 183, 0, .3); border-radius: 16px; padding: 14px; }
+.oyk-buy-icon { font-size: 34px; }
+.oyk-buy-body { flex: 1; }
+.oyk-buy-name { font-size: 14px; font-weight: 900; }
+.oyk-buy-price { font-size: 12px; color: rgba(255, 255, 255, .55); font-variant-numeric: tabular-nums; }
+.oyk-buy-note { font-size: 11.5px; color: rgba(255, 255, 255, .45); text-align: center; }
+.oyk-buy-actions { display: flex; gap: 8px; }
+.oyk-buy-confirm {
+  flex: 1; min-height: 52px; border: none; border-radius: 14px; background: var(--oyk-gold-grad);
+  color: var(--oyk-ink); font-size: 14.5px; font-weight: 900; cursor: pointer; transition: transform var(--dur-press);
+}
+.oyk-buy-confirm:active { transform: scale(.97); }
+.oyk-buy-cancel {
+  min-height: 52px; padding: 0 18px; border: 1px solid rgba(255, 255, 255, .15); border-radius: 14px;
+  background: transparent; color: var(--oyk-text); font-size: 14px; font-weight: 700; cursor: pointer;
+}
+
+/* ── bayram (chipta olindi) ── */
+.oyk-celebrate {
+  position: absolute; inset: 0; background: rgba(5, 7, 15, .9); z-index: 50; display: flex; flex-direction: column;
+  align-items: center; justify-content: center; gap: 16px; padding: 30px; box-sizing: border-box; overflow: hidden;
+}
+.oyk-ticket {
+  position: relative; background: var(--oyk-celebrate-grad); border-radius: 22px; padding: 26px 30px; text-align: center;
+  animation: oyk-pop .5s var(--ease-out); box-shadow: 0 0 60px rgba(245, 183, 0, .4);
+}
+.oyk-ticket-emoji { font-size: 46px; }
+.oyk-ticket-no { font-size: 11px; font-weight: 900; letter-spacing: .14em; color: var(--oyk-celebrate-label); margin-top: 6px; }
+.oyk-ticket-name { font-size: 19px; font-weight: 900; color: var(--oyk-celebrate-title); margin-top: 2px; }
+.oyk-ticket-sub { font-size: 11.5px; color: var(--oyk-celebrate-sub); margin-top: 6px; }
+.oyk-celebrate-wish { font-size: 14px; font-weight: 800; color: var(--oyk-gold-pale); text-align: center; }
+.oyk-celebrate-btn {
+  min-height: 50px; padding: 0 34px; border: none; border-radius: 14px; background: var(--oyk-gold-grad);
+  color: var(--oyk-ink); font-size: 14.5px; font-weight: 900; cursor: pointer; transition: transform var(--dur-press);
+}
+.oyk-celebrate-btn:active { transform: scale(.97); }
+
+/* ── onboarding ── */
+.oyk-onboard {
+  position: absolute; inset: 0; z-index: 60; background: var(--oyk-bg-grad); display: flex; flex-direction: column;
+  align-items: center; justify-content: center; gap: 18px; padding: 34px; box-sizing: border-box; text-align: center;
+}
+.oyk-ob-icon { font-size: 64px; animation: oyk-bob 2.2s ease-in-out infinite; }
+.oyk-ob-step { font-size: 12px; font-weight: 900; letter-spacing: .12em; color: var(--oyk-gold-soft); }
+.oyk-ob-text { font-size: 19px; font-weight: 900; line-height: 1.4; max-width: 280px; }
+.oyk-ob-dots { display: flex; gap: 6px; }
+.oyk-ob-dot { width: 8px; height: 8px; border-radius: 50%; background: rgba(255, 255, 255, .18); transition: background .3s; }
+.oyk-ob-dot.is-active { background: var(--oyk-gold); }
+.oyk-ob-next {
+  width: 100%; min-height: 52px; border: none; border-radius: 14px; background: var(--oyk-gold-grad);
+  color: var(--oyk-ink); font-size: 15px; font-weight: 900; cursor: pointer; transition: transform var(--dur-press); margin-top: 8px;
+}
+.oyk-ob-next:active { transform: scale(.97); }
+.oyk-ob-skip { min-height: 44px; border: none; background: transparent; color: rgba(255, 255, 255, .4); font-size: 13px; font-weight: 700; cursor: pointer; }

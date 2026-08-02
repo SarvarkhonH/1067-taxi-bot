@@ -367,7 +367,7 @@ export function createApiServer(opts: ApiOptions = {}) {
   });
 
   app.get("/api/me", allowGuest, async (_req, res) => {
-    const [me, booking3, intercity, tierloyalty, shopOn, xizmatlarOn, elonlarOn, restoranOn,  bazarcartOn, revtangaOn, shopstoryOn, shopchatOn,  ravellaOn, linkinappOn, homescreenOn, storyshareOn, autolocOn] = await Promise.all([
+    const [me, booking3, intercity, tierloyalty, shopOn, xizmatlarOn, elonlarOn, restoranOn,  bazarcartOn, revtangaOn, shopstoryOn, shopchatOn,  ravellaOn, linkinappOn, homescreenOn, storyshareOn, autolocOn, oyinOn] = await Promise.all([
       getMe(res.locals.telegramId as string),
       featureOn("booking3"),
       featureOn("intercity"),
@@ -385,6 +385,7 @@ export function createApiServer(opts: ApiOptions = {}) {
       featureOn("homescreen"),
       featureOn("storyshare"),
       featureOn("autoloc"),
+      featureOn("oyin"),
     ]);
     // 🚪 Mehmon (yoki ulanmagan) — 401 EMAS. Bayroqlar baribir yuboriladi: mijoz ilovaga kiradi,
     // katalogni ko'radi, raqam faqat harakat paytida so'raladi. `guest` = Telegram identifikatori
@@ -420,7 +421,11 @@ export function createApiServer(opts: ApiOptions = {}) {
     // 🏪 shopv2 owner-preview — BirJoy Market qorong'i-qayta-dizayni QABUL'gacha faqat ega ekranida
     // 🎀 ravella owner-preview — bezak konstruktori QABUL'gacha faqat ega ekranida ko'rinadi
     const ravellaPreview = ravellaOn || isAdmin(res.locals.telegramId as string);
-    res.json({ ...me, flags: { booking3, intercity, tierloyalty: tierPreview, shop: shopPreview, xizmatlar: xizmatlarPreview, elonlar: elonlarPreview, restoran: restoranPreview,  bazarcart: bazarcartPreview, revtanga: revtangaPreview, shopstory: shopstoryPreview, shopchat: shopchatPreview,   ravella: ravellaPreview, linkinapp: linkinappOn || isAdmin(res.locals.telegramId as string), homescreen: homescreenOn || isAdmin(res.locals.telegramId as string), storyshare: storyshareOn || isAdmin(res.locals.telegramId as string), autoloc: autolocOn } });
+    // 🎮 oyin owner-preview — Koson O'yini QABUL'gacha faqat ega ekranida. ⚠️ D12 saboqi
+    // (owner-preview-masks-dark-flags): bu FAQAT ega ko'rishini beradi — "ega ko'rdi" ≠ "mijoz
+    // ko'radi", real mijoz-akkauntida `oyinOn` (preview'siz) tekshirilmaguncha "READY" deyilmaydi.
+    const oyinPreview = oyinOn || isAdmin(res.locals.telegramId as string);
+    res.json({ ...me, flags: { booking3, intercity, tierloyalty: tierPreview, shop: shopPreview, xizmatlar: xizmatlarPreview, elonlar: elonlarPreview, restoran: restoranPreview,  bazarcart: bazarcartPreview, revtanga: revtangaPreview, shopstory: shopstoryPreview, shopchat: shopchatPreview,   ravella: ravellaPreview, linkinapp: linkinappOn || isAdmin(res.locals.telegramId as string), homescreen: homescreenOn || isAdmin(res.locals.telegramId as string), storyshare: storyshareOn || isAdmin(res.locals.telegramId as string), autoloc: autolocOn, oyin: oyinPreview } });
   });
 
   /**
@@ -1544,6 +1549,47 @@ export function createApiServer(opts: ApiOptions = {}) {
     res.json(await getReferralInfo(res.locals.telegramId as string));
   });
 
+  // 🎮 KOSON O'YINI (feature "oyin", DARK — KOSON_OYIN_PLAN.md v9.2). Ball hisobi JONLI (yangi
+  // "grant"-yozuv yo'q) — bu ro'yxatdagi hech biri pul/tanga yo'liga tegmaydi. `buyTicket` ichida
+  // o'z flag-tekshiruvi bor (yozuv-yo'l uchun himoya ikkilanchi bo'lsa ham xavfsizroq).
+  app.get("/api/oyin/state", requireUser, async (_req, res) => {
+    const memberId = await getMemberId(res.locals.telegramId as string);
+    if (!memberId) { res.status(404).json({ error: "not linked" }); return; }
+    const { getOyinState, markLogin } = await import("../services/oyinService");
+    await markLogin(memberId); // "miniapp ochish" = kunlik kirish (§1) — alohida POST shart emas
+    res.json(await getOyinState(memberId));
+  });
+  app.get("/api/oyin/vitrina", requireUser, async (_req, res) => {
+    const memberId = await getMemberId(res.locals.telegramId as string);
+    if (!memberId) { res.status(404).json({ error: "not linked" }); return; }
+    const { getVitrina } = await import("../services/oyinService");
+    res.json(await getVitrina(memberId));
+  });
+  app.get("/api/oyin/board", requireUser, async (_req, res) => {
+    const memberId = await getMemberId(res.locals.telegramId as string);
+    if (!memberId) { res.status(404).json({ error: "not linked" }); return; }
+    const { getBoard } = await import("../services/oyinService");
+    res.json(await getBoard(memberId));
+  });
+  app.get("/api/oyin/jamoam", requireUser, async (_req, res) => {
+    const memberId = await getMemberId(res.locals.telegramId as string);
+    if (!memberId) { res.status(404).json({ error: "not linked" }); return; }
+    const { getJamoam } = await import("../services/oyinService");
+    res.json(await getJamoam(memberId));
+  });
+  app.post("/api/oyin/ticket", requireUser, rateLimit(10), async (req, res) => {
+    const memberId = await getMemberId(res.locals.telegramId as string);
+    if (!memberId) { res.status(404).json({ error: "not linked" }); return; }
+    const { buyTicket } = await import("../services/oyinService");
+    res.json(await buyTicket(memberId, String((req.body as { prizeKey?: string })?.prizeKey ?? "")));
+  });
+  app.post("/api/oyin/share", requireUser, rateLimit(10), async (_req, res) => {
+    const memberId = await getMemberId(res.locals.telegramId as string);
+    if (!memberId) { res.status(404).json({ error: "not linked" }); return; }
+    const { markShare } = await import("../services/oyinService");
+    res.json(await markShare(memberId));
+  });
+
   app.get("/api/weekly", requireUser, async (_req, res) => {
     const memberId = await getMemberId(res.locals.telegramId as string);
     if (!memberId) {
@@ -1994,6 +2040,41 @@ export function createApiServer(opts: ApiOptions = {}) {
     }
     const { setBonusEcon } = await import("../services/bonusConfig");
     res.json({ ok: true, values: await setBonusEcon(b.key as string, b.value) });
+  });
+  // 🎮 Koson O'yini — mavsum homiysi (KOSON_OYIN_PLAN.md v9.2 §5). Sozlanmaganda BirJoy fallback.
+  app.get("/api/admin/oyin/sponsor", requireAdmin, async (_req, res) => {
+    const { getSponsor } = await import("../services/sponsorService");
+    res.json(await getSponsor());
+  });
+  app.post("/api/admin/oyin/sponsor", requireAdmin, requireOwner, async (req, res) => {
+    const b = req.body as { name?: string; photoUrl?: string | null; active?: boolean };
+    if (typeof b?.name !== "string" || !b.name.trim()) {
+      res.status(400).json({ error: "name required" });
+      return;
+    }
+    const { setSponsor } = await import("../services/sponsorService");
+    res.json(await setSponsor({ name: b.name, photoUrl: b.photoUrl ?? null, active: !!b.active }));
+  });
+  // 🎟 Tiraj-kuni: raqamlangan chipta-ro'yxati (READ-ONLY, kanalga e'lon/jonli video uchun).
+  app.get("/api/admin/oyin/draw", requireAdmin, async (_req, res) => {
+    const { drawExport } = await import("../services/oyinService");
+    res.json(await drawExport());
+  });
+  // 📋 Kim-nima-qildi jadvali (B3) — bugun umuman yo'q edi (tekshirilgan). Ball JONLI hisoblangani
+  // uchun bu READ-ONLY rekonstruksiya (yangi yozuv yo'q) — getActivity() izohiga qarang.
+  app.get("/api/admin/oyin/activity", requireAdmin, async (req, res) => {
+    const q = req.query as Record<string, string | undefined>;
+    const { getActivity } = await import("../services/oyinService");
+    const { OYIN_ACTIVITY_ACTIONS } = await import("@t1067/shared");
+    const action = OYIN_ACTIVITY_ACTIONS.includes(q.action as (typeof OYIN_ACTIVITY_ACTIONS)[number]) ? (q.action as (typeof OYIN_ACTIVITY_ACTIONS)[number]) : undefined;
+    res.json(await getActivity({
+      memberId: q.memberId ? Number(q.memberId) : undefined,
+      action,
+      from: q.from,
+      to: q.to,
+      page: q.page ? Number(q.page) : undefined,
+      pageSize: q.pageSize ? Number(q.pageSize) : undefined,
+    }));
   });
   // ── 🛍 SHOP admin (owner-gated writes) ────────────────────────────────────────────────────────
   // V1.7: seller-token FAQAT o'z scope'i (sellerShopId majburiy); owner (scope yo'q) `?shopId=`/body

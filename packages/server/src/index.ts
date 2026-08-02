@@ -369,6 +369,16 @@ async function main(): Promise<void> {
           // per-DAY mechanic; the in-memory guard makes every tick after the day's first ~free.
           const { runTierLoyaltyDailyAll } = await import("./services/tierLoyaltyService");
           await runTierLoyaltyDailyAll(bot).catch((e) => console.error("[tierdaily] failed:", e));
+          // 🎮 KOSON O'YINI — haftalik sprint-baholash (o'z-ichida idempotent: hafta almashmaguncha
+          // no-op) + mavsum-yopilish (ichkarida SEASON_END-darvozasi bor — real tanga beradi, shuning
+          // uchun muvaffaqiyatli konvertatsiyada egaga alert). Ikkalasi ham flag "oyin" ichida gated.
+          const { sprintCheck, seasonClose } = await import("./services/oyinService");
+          await sprintCheck().catch((e) => console.error("[oyin] sprintCheck failed:", e));
+          const oyinClose = await seasonClose().catch((e) => { console.error("[oyin] seasonClose failed:", e); return null; });
+          if (oyinClose && oyinClose.convertedCount > 0) {
+            const { alertAdmins } = await import("./services/economyService");
+            await alertAdmins(`🎮 Koson O'yini mavsumi yopildi: ${oyinClose.convertedCount} a'zoga jami ${oyinClose.totalTanga} tanga konvertatsiya qilindi.`).catch(() => undefined);
+          }
           const { settleGapsWeekly } = await import("./services/gapService");
           if (new Date(Date.now() + 5 * 3600_000).getUTCDay() === 1) await settleGapsWeekly(bot).catch((e) => console.error("[gap] failed:", e));
           // 👔 JAMOA J4: unutilgan "Ketdim"larni avto-yopish + 21:00 dan keyin har korxona

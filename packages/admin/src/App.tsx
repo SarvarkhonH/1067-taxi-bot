@@ -28,12 +28,14 @@ import {
   type AdminMemberRow,
   type AdminStats,
   SHOP_CATEGORIES,
+  type OyinActivityAction,
+  type OyinActivityResponse,
 } from "@t1067/shared";
 import { RavellaAdminView } from "./ravella";
 import { JamoaAdminView } from "./jamoa";
 import { adminApi, clearAdminToken, hasAdminToken, setAdminToken, type AdminBannedRow, type AdminChatConvo, type AdminChatMsg, type AdminDebtRow, type AdminMsgHistoryRow, type AdminRatingRow, type AdminTxnRow, type AdminBlockedRow, type AdminReferralRow, type AdminRideRow, type AdminUserRow, type AdminWithdrawalRow, type AdminWithdrawalTabRow, type CampaignRow, type Driver360, type DriverCallRow, type DriverCallStats, type DriverMissionRow, type IntercityAdminTrip, type IntercityAdminDebt, type Member360, type PeakHourRow, type ShopAdminProductRow, type ShopAdminOrderRow, type ShopAdminReviewRow, type SvcAdminRow, type SvcAdminCat, type SvcAdminReview, type RestoranAdminRow, type RestoranMenuItemRow, type OprOpsRow, type OprJurnalRow } from "./api";
 
-type Tab = "overview" | "pulse" | "analytics" | "finance" | "live" | "x360" | "driver" | "client" | "botusers" | "obzvon" | "boshqaruv" | "topshiriq" | "actions" | "integrity" | "audit" | "safarlar" | "qarzlar" | "referallar" | "banlist" | "yechishlar" | "baholar" | "xabar" | "chat" | "broadcasts" | "intercity" | "pik" | "transactions" | "blocked" | "shop" | "xizmatlar" | "elonlar" | "restoran" | "ravella" | "bilim" | "bosh" | "jamoa";
+type Tab = "overview" | "pulse" | "analytics" | "finance" | "live" | "x360" | "driver" | "client" | "botusers" | "obzvon" | "boshqaruv" | "topshiriq" | "actions" | "integrity" | "audit" | "safarlar" | "qarzlar" | "referallar" | "banlist" | "yechishlar" | "baholar" | "xabar" | "chat" | "broadcasts" | "intercity" | "pik" | "transactions" | "blocked" | "shop" | "xizmatlar" | "elonlar" | "restoran" | "ravella" | "bilim" | "bosh" | "jamoa" | "oyin";
 
 const NAV_GROUPS: { label: string; items: { id: Tab; icon: string; label: string }[] }[] = [
   {
@@ -93,6 +95,7 @@ const NAV_GROUPS: { label: string; items: { id: Tab; icon: string; label: string
       { id: "restoran", icon: "🍽", label: "Restoran" },
       { id: "ravella", icon: "🎀", label: "Ravella" },
       { id: "jamoa", icon: "👔", label: "Jamoa" },
+      { id: "oyin", icon: "🎮", label: "Koson O'yini" },
       { id: "bilim", icon: "🧠", label: "AI Bilim" },
       { id: "pik", icon: "🔥", label: "Pik Vaqtlar" },
       { id: "actions", icon: "⚡", label: "Amallar" },
@@ -235,6 +238,7 @@ export function App() {
           {tab === "restoran" && (<><RestoranAdminView /><RestoranCatalogAdminView /></>)}
           {tab === "ravella" && <RavellaAdminView />}
           {tab === "jamoa" && <JamoaAdminView />}
+          {tab === "oyin" && <OyinActivityView />}
           {tab === "bilim" && <KnowledgeAdminView />}
           {tab === "topshiriq" && <><QuickAnnounceView /><CampaignsView /><DriverMissionsView /></>}
           {tab === "actions" && <><ActionsView onHistory={() => goTab("broadcasts")} /><ControlCards /></>}
@@ -711,6 +715,9 @@ function ControlCards() {
   const [fund, setFund] = useState(0);
   const [bonusEcon, setBonusEcon] = useState<{ knobs: { key: string; label: string; def: number; min: number; max: number; step: number; group: string }[]; values: Record<string, number> } | null>(null);
   const [txEcon, setTxEcon] = useState<{ knobs: { key: string; label: string; def: number; min: number; max: number; step: number }[]; values: Record<string, number>; enabled: boolean; earned: { total: number; today: number } } | null>(null);
+  const [sponsor, setSponsorState] = useState<{ name: string; photoUrl: string | null; active: boolean; isDefault: boolean } | null>(null);
+  const [sponsorName, setSponsorName] = useState("");
+  const [sponsorUrl, setSponsorUrl] = useState("");
   const [corps, setCorps] = useState<{ id: number; name: string; balance: number; employees: number }[]>([]);
   const [cName, setCName] = useState("");
   const [empPhone, setEmpPhone] = useState("");
@@ -726,6 +733,7 @@ function ControlCards() {
   const load = () => {
     adminApi.features().then((r) => { setFlags(r.features); setFund(r.mashinaFund); }).catch(() => undefined);
     adminApi.bonusEconomy().then(setBonusEcon).catch(() => undefined);
+    adminApi.oyinSponsor().then((s) => { setSponsorState(s); setSponsorName(s.isDefault ? "" : s.name); setSponsorUrl(s.photoUrl ?? ""); }).catch(() => undefined);
     adminApi.transferEconomy().then(setTxEcon).catch(() => undefined);
     adminApi.corps().then((r) => setCorps(r.corps)).catch(() => undefined);
     adminApi.optokens().then((r) => setOptokens(r.tokens)).catch(() => undefined);
@@ -736,6 +744,10 @@ function ControlCards() {
   const saveBonusEcon = async (key: string, value: number) => {
     try { const r = await adminApi.setBonusEconomy(key, value); setBonusEcon((e) => (e ? { ...e, values: r.values } : e)); }
     catch { alert(`'${key}' qiymatini saqlab bo'lmadi`); }
+  };
+  const saveSponsor = async (active: boolean) => {
+    try { setSponsorState(await adminApi.setOyinSponsor(sponsorName, sponsorUrl || null, active)); }
+    catch { alert("Homiyni saqlab bo'lmadi"); }
   };
   const saveTxEcon = async (key: string, value: number) => {
     try { const r = await adminApi.setTransferEconomy(key, value); setTxEcon((e) => (e ? { ...e, values: r.values } : e)); }
@@ -785,6 +797,25 @@ function ControlCards() {
           </div>
         </section>
       )}
+      <section className="card">
+        <h3>🎮 Koson O'yini — mavsum homiysi</h3>
+        <p className="muted" style={{ margin: "0 0 8px", fontSize: 12 }}>
+          Sozlanmagan yoki o'chirilgan holatda mijozga <b>BirJoy</b> homiy sifatida ko'rinadi — bo'sh joy qolmaydi.
+        </p>
+        {sponsor && (
+          <div style={{ display: "grid", gap: 6, maxWidth: 420 }}>
+            <div style={{ fontSize: 12 }} className="muted">
+              Joriy: <b style={{ color: "var(--text)" }}>{sponsor.name}</b>{sponsor.isDefault ? " (default — hech kim sozlamagan)" : sponsor.active ? " (faol)" : " (o'chirilgan)"}
+            </div>
+            <input type="text" placeholder="Homiy nomi (masalan: Koson Market)" value={sponsorName} onChange={(e) => setSponsorName(e.target.value)} maxLength={60} />
+            <input type="text" placeholder="Logo rasm URL (ixtiyoriy)" value={sponsorUrl} onChange={(e) => setSponsorUrl(e.target.value)} />
+            <div style={{ display: "flex", gap: 8 }}>
+              <button className="btn sm" disabled={!sponsorName.trim()} onClick={() => void saveSponsor(true)}>Saqlash va yoqish</button>
+              <button className="btn sm" onClick={() => void saveSponsor(false)}>O'chirish (BirJoy ko'rinsin)</button>
+            </div>
+          </div>
+        )}
+      </section>
       <section className="card">
         <h3>🔌 Mexanika kill-switch (deploy'siz o'chirish)</h3>
         <p className="muted" style={{ margin: "0 0 8px", fontSize: 12 }}>Har flag yonida <b>ta'sir doirasi</b>: 💰 pul (real tanga/emissiya), 👁 UX (foydalanuvchi oqimi), ◽ kosmetik (xavfsiz). Yoqishdan oldin nimaga tegishini bilib turing.</p>
@@ -5264,6 +5295,65 @@ function IntercityAdmin() {
 }
 
 // ─── 👥 referallar ──────────────────────────────────────────────────────────
+// ─── 🎮 Koson O'yini — kim-nima-qildi (B3) ──────────────────────────────────────────────────────
+const OYIN_ACTION_LABEL: Record<string, string> = {
+  ride: "🚕 Safar", first_ride: "🚕 Birinchi safar", phone: "📱 Telefon tasdiqlash",
+  refer_join: "🤝 Do'st ulandi", refer_first_ride: "🤝 Do'st birinchi safari", refer_ride: "🤝 Do'stning safari",
+  login: "📲 Kunlik kirish", share: "📤 Ulashish", sprint_bonus: "🏁 Sprint bonusi", ticket_buy: "🎟 Chipta xaridi",
+};
+function OyinActivityView() {
+  const [data, setData] = useState<OyinActivityResponse | null>(null);
+  const [q, setQ] = useState("");
+  const [action, setAction] = useState<OyinActivityAction | "">("");
+  const load = () => { adminApi.oyinActivity({ action: action || undefined }).then(setData).catch(() => setData({ rows: [], total: 0, page: 1, pageSize: 50 })); };
+  useEffect(() => { load(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [action]);
+  const filtered = useMemo(() => {
+    if (!data) return [];
+    const s = q.trim().toLowerCase();
+    if (!s) return data.rows;
+    return data.rows.filter((r) => [r.name, r.helpedName].some((v) => v?.toLowerCase().includes(s)));
+  }, [data, q]);
+  if (!data) return <div className="screen center"><div className="spinner" /></div>;
+  const positive = data.rows.filter((r) => r.ball > 0).reduce((s, r) => s + r.ball, 0);
+  const spent = data.rows.filter((r) => r.ball < 0).reduce((s, r) => s + -r.ball, 0);
+  return (
+    <section className="panel">
+      <div className="panel-head">
+        <div className="panel-title">🎮 Koson O'yini — faoliyat ({data.total} voqea, so'nggi {data.pageSize})</div>
+        <input className="search" placeholder="🔍 Ism bo'yicha…" value={q} onChange={(e) => setQ(e.target.value)} />
+      </div>
+      <div className="cards" style={{ marginBottom: 12 }}>
+        <Card icon="🎮" label="Ko'rsatilgan voqealar" value={formatNumber(data.rows.length)} accent />
+        <Card icon="🟢" label="Jami keldi (ball)" value={formatNumber(positive)} />
+        <Card icon="🎟" label="Jami sarflandi (ball)" value={formatNumber(spent)} sub="chipta xaridlari" />
+      </div>
+      <div style={{ display: "flex", gap: 8, marginBottom: 10, flexWrap: "wrap" }}>
+        <button className={"btn sm" + (action === "" ? " active" : "")} onClick={() => setAction("")}>Hammasi</button>
+        {Object.entries(OYIN_ACTION_LABEL).map(([k, label]) => (
+          <button key={k} className={"btn sm" + (action === k ? " active" : "")} onClick={() => setAction(k as OyinActivityAction)}>{label}</button>
+        ))}
+      </div>
+      <div className="table-wrap">
+        <table>
+          <thead><tr><th>Vaqt</th><th>A'zo</th><th>Harakat</th><th className="num">Ball</th><th>Kimga yordam berdi</th><th>Izoh</th></tr></thead>
+          <tbody>
+            {filtered.map((r, i) => (
+              <tr key={`${r.at}-${r.memberId}-${r.action}-${i}`}>
+                <td className="muted">{fmtTime(r.at)}</td>
+                <td className="td-name">{r.name}</td>
+                <td>{OYIN_ACTION_LABEL[r.action] ?? r.action}</td>
+                <td className="num strong" style={{ color: r.ball >= 0 ? "var(--green)" : "var(--red)" }}>{r.ball >= 0 ? "+" : ""}{formatNumber(r.ball)}</td>
+                <td className="muted">{r.helpedName ?? "—"}</td>
+                <td className="muted">{r.note ?? "—"}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </section>
+  );
+}
+
 function ReferallarView() {
   const [rows, setRows] = useState<AdminReferralRow[] | null>(null);
   const [q, setQ] = useState("");
