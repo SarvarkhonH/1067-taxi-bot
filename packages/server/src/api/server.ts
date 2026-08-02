@@ -1552,11 +1552,17 @@ export function createApiServer(opts: ApiOptions = {}) {
   // 🎮 KOSON O'YINI (feature "oyin", DARK — KOSON_OYIN_PLAN.md v9.2). Ball hisobi JONLI (yangi
   // "grant"-yozuv yo'q) — bu ro'yxatdagi hech biri pul/tanga yo'liga tegmaydi. `buyTicket` ichida
   // o'z flag-tekshiruvi bor (yozuv-yo'l uchun himoya ikkilanchi bo'lsa ham xavfsizroq).
+  // 👁 Ega-preview: bayroq DARK bo'lsa ham ega BUTUN oqimni (kirish/xarid/ulashish) sinay oladi —
+  // shop/elonlar/ravella/restoran bilan AYNAN bir xil naqsh. Avtorizatsiya SHU YERDA hisoblanadi,
+  // servis faqat `boolean` oladi (kodbaza invarianti: `isAdmin` servislarga kirmaydi).
+  // ⚠️ preview bayroqni aylanib o'tadi, MAVSUMNI emas — mavsum mahsulot qoidasi, ega uchun ham.
+  const oyinPreviewOf = (res: Response): boolean => isAdmin(res.locals.telegramId as string);
+
   app.get("/api/oyin/state", requireUser, async (_req, res) => {
     const memberId = await getMemberId(res.locals.telegramId as string);
     if (!memberId) { res.status(404).json({ error: "not linked" }); return; }
     const { getOyinState, markLogin } = await import("../services/oyinService");
-    await markLogin(memberId); // "miniapp ochish" = kunlik kirish (§1) — alohida POST shart emas
+    await markLogin(memberId, oyinPreviewOf(res)); // "miniapp ochish" = kunlik kirish (§1)
     res.json(await getOyinState(memberId));
   });
   app.get("/api/oyin/vitrina", requireUser, async (_req, res) => {
@@ -1581,13 +1587,23 @@ export function createApiServer(opts: ApiOptions = {}) {
     const memberId = await getMemberId(res.locals.telegramId as string);
     if (!memberId) { res.status(404).json({ error: "not linked" }); return; }
     const { buyTicket } = await import("../services/oyinService");
-    res.json(await buyTicket(memberId, String((req.body as { prizeKey?: string })?.prizeKey ?? "")));
+    res.json(await buyTicket(memberId, String((req.body as { prizeKey?: string })?.prizeKey ?? ""), oyinPreviewOf(res)));
   });
   app.post("/api/oyin/share", requireUser, rateLimit(10), async (_req, res) => {
     const memberId = await getMemberId(res.locals.telegramId as string);
     if (!memberId) { res.status(404).json({ error: "not linked" }); return; }
     const { markShare } = await import("../services/oyinService");
-    res.json(await markShare(memberId));
+    res.json(await markShare(memberId, oyinPreviewOf(res)));
+  });
+  // 🤝 "Rahmat ayt" — do'stning Telegram'iga botdan xabar. Servis juftlikni Referral'da tekshiradi
+  // (faqat o'z do'stingga), notifyOnce spam/jim-soat/blok qoidalarini o'zi qo'llaydi.
+  app.post("/api/oyin/thanks", requireUser, rateLimit(10), async (req, res) => {
+    const memberId = await getMemberId(res.locals.telegramId as string);
+    if (!memberId) { res.status(404).json({ error: "not linked" }); return; }
+    const friendMemberId = Number((req.body as { friendMemberId?: unknown })?.friendMemberId);
+    if (!Number.isFinite(friendMemberId)) { res.status(400).json({ error: "friendMemberId required" }); return; }
+    const { thankFriend } = await import("../services/oyinService");
+    res.json(await thankFriend(memberId, friendMemberId, oyinPreviewOf(res)));
   });
 
   app.get("/api/weekly", requireUser, async (_req, res) => {
@@ -2059,6 +2075,38 @@ export function createApiServer(opts: ApiOptions = {}) {
   app.get("/api/admin/oyin/draw", requireAdmin, async (_req, res) => {
     const { drawExport } = await import("../services/oyinService");
     res.json(await drawExport());
+  });
+  // 📅 Mavsum sanalari — admin kiritadi (ega talabi 2026-08-02). Sozlanmaguncha o'yin YOPIQ.
+  app.get("/api/admin/oyin/season", requireAdmin, async (_req, res) => {
+    const { getSeason } = await import("../services/oyinSeason");
+    res.json(await getSeason());
+  });
+  // ⚠️ `datetime-local` input zonasiz qiymat beradi ("2026-08-15T00:00"). VPS UTC'da ishlaydi —
+  // xom uzatilsa mavsum 5 soat kech boshlanardi. Shu yerda Toshkent zonasi majburan qo'shiladi.
+  const toTashkentIso = (v: string): string =>
+    /(?:Z|[+-]\d{2}:\d{2})$/.test(v) ? v : `${v.length === 16 ? `${v}:00` : v}+05:00`;
+  app.post("/api/admin/oyin/season", requireAdmin, requireOwner, async (req, res) => {
+    const b = req.body as { startIso?: string; endIso?: string; label?: string | null };
+    if (typeof b?.startIso !== "string" || typeof b?.endIso !== "string") {
+      res.status(400).json({ error: "startIso/endIso required" });
+      return;
+    }
+    const { adminSetSeason } = await import("../services/oyinService");
+    try {
+      res.json(await adminSetSeason({ startIso: toTashkentIso(b.startIso), endIso: toTashkentIso(b.endIso), label: b.label ?? null }));
+    } catch (e) {
+      res.status(400).json({ error: e instanceof Error ? e.message : "Sana noto'g'ri" });
+    }
+  });
+  // 🧹 Toza boshlash: eski mavsum yozuvlarini arxivlaydi (o'chirmaydi) va mavsum raqamini oshiradi.
+  app.post("/api/admin/oyin/season/reset", requireAdmin, requireOwner, async (req, res) => {
+    const b = req.body as { startIso?: string; endIso?: string; label?: string | null };
+    if (typeof b?.startIso !== "string" || typeof b?.endIso !== "string") {
+      res.status(400).json({ error: "startIso/endIso required" });
+      return;
+    }
+    const { adminStartNewSeason } = await import("../services/oyinService");
+    res.json(await adminStartNewSeason({ startIso: toTashkentIso(b.startIso), endIso: toTashkentIso(b.endIso), label: b.label ?? null }));
   });
   // 🎁 Sovrin-katalog — to'liq admin-CRUD (2026-08-02, ega talabi: "sovg'alarni ham yasash kerakda
   // nimaga fixed"). Homiy bilan bir xil AppState naqshi (yangi Prisma model YO'Q) — oyinService.ts.

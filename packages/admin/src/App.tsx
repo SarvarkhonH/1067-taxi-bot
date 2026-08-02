@@ -31,6 +31,7 @@ import {
   type OyinActivityAction,
   type OyinActivityResponse,
   type OyinAdminPrizeRow,
+  type OyinSeasonView,
 } from "@t1067/shared";
 import { RavellaAdminView } from "./ravella";
 import { JamoaAdminView } from "./jamoa";
@@ -96,7 +97,7 @@ const NAV_GROUPS: { label: string; items: { id: Tab; icon: string; label: string
       { id: "restoran", icon: "🍽", label: "Restoran" },
       { id: "ravella", icon: "🎀", label: "Ravella" },
       { id: "jamoa", icon: "👔", label: "Jamoa" },
-      { id: "oyin", icon: "🎮", label: "Koson O'yini" },
+      { id: "oyin", icon: "🎮", label: "O'yin mavsumi" },
       { id: "bilim", icon: "🧠", label: "AI Bilim" },
       { id: "pik", icon: "🔥", label: "Pik Vaqtlar" },
       { id: "actions", icon: "⚡", label: "Amallar" },
@@ -719,6 +720,11 @@ function ControlCards() {
   const [sponsor, setSponsorState] = useState<{ name: string; photoUrl: string | null; active: boolean; isDefault: boolean } | null>(null);
   const [sponsorName, setSponsorName] = useState("");
   const [sponsorUrl, setSponsorUrl] = useState("");
+  const [season, setSeasonState] = useState<OyinSeasonView | null>(null);
+  const [seasonStart, setSeasonStart] = useState("");
+  const [seasonEnd, setSeasonEnd] = useState("");
+  const [seasonLabel, setSeasonLabel] = useState("");
+  const [seasonMsg, setSeasonMsg] = useState<string | null>(null);
   const [catalog, setCatalog] = useState<OyinAdminPrizeRow[] | null>(null);
   const [catalogDraft, setCatalogDraft] = useState<Record<string, { icon: string; name: string; valueLabel: string; price: string; limit: string; photoUrl: string }>>({});
   const [newPrize, setNewPrize] = useState({ icon: "🎁", name: "", valueLabel: "", price: "500", limit: "5", photoUrl: "" });
@@ -739,6 +745,14 @@ function ControlCards() {
     adminApi.features().then((r) => { setFlags(r.features); setFund(r.mashinaFund); }).catch(() => undefined);
     adminApi.bonusEconomy().then(setBonusEcon).catch(() => undefined);
     adminApi.oyinSponsor().then((s) => { setSponsorState(s); setSponsorName(s.isDefault ? "" : s.name); setSponsorUrl(s.photoUrl ?? ""); }).catch(() => undefined);
+    adminApi.oyinSeason().then((s) => {
+      setSeasonState(s);
+      // datetime-local formatiga ("YYYY-MM-DDTHH:mm") o'tkazamiz — server javobida to'liq ISO keladi.
+      const toLocal = (iso: string | null) => (iso ? iso.slice(0, 16) : "");
+      setSeasonStart(toLocal(s.startIso));
+      setSeasonEnd(toLocal(s.endIso));
+      setSeasonLabel(s.label ?? "");
+    }).catch(() => undefined);
     adminApi.oyinCatalog().then((r) => {
       setCatalog(r.prizes);
       setCatalogDraft(Object.fromEntries(r.prizes.map((p) => [p.key, {
@@ -759,6 +773,28 @@ function ControlCards() {
   const saveSponsor = async (active: boolean) => {
     try { setSponsorState(await adminApi.setOyinSponsor(sponsorName, sponsorUrl || null, active)); }
     catch { alert("Homiyni saqlab bo'lmadi"); }
+  };
+  const saveSeason = async () => {
+    setSeasonMsg(null);
+    try {
+      setSeasonState(await adminApi.setOyinSeason(seasonStart, seasonEnd, seasonLabel.trim() || null));
+      setSeasonMsg("✓ Mavsum sanalari saqlandi");
+    } catch {
+      setSeasonMsg("⛔ Saqlab bo'lmadi — sanani tekshiring (tugash sanasi kelajakda bo'lishi kerak)");
+    }
+  };
+  const resetSeason = async () => {
+    if (!confirm("Yangi mavsum toza boshlanadimi?\n\nEski chiptalar, sotilgan-hisoblagichlar va kunlik belgilar ARXIVGA ko'chiriladi (o'chirilmaydi). Sovrinlar ro'yxati saqlanib qoladi.")) return;
+    setSeasonMsg(null);
+    try {
+      const r = await adminApi.resetOyinSeason(seasonStart, seasonEnd, seasonLabel.trim() || null);
+      if (!r.ok) { setSeasonMsg(`⛔ ${r.error ?? "Bajarilmadi"}`); return; }
+      setSeasonState(await adminApi.oyinSeason());
+      setSeasonMsg(`✓ ${r.seasonId} mavsumi boshlandi — ${r.archivedRows ?? 0} ta yozuv arxivlandi`);
+      adminApi.oyinCatalog().then((rc) => setCatalog(rc.prizes)).catch(() => undefined);
+    } catch {
+      setSeasonMsg("⛔ Bajarilmadi — qayta urinib ko'ring");
+    }
   };
   const flashSaved = (key: string) => {
     setSavedPrizeKey(key);
@@ -857,7 +893,46 @@ function ControlCards() {
         </section>
       )}
       <section className="card">
-        <h3>🎮 Koson O'yini — mavsum homiysi</h3>
+        <h3>📅 BirJoy O'yinlar Mavsumi — mavsum vaqtlari</h3>
+        <p className="muted" style={{ margin: "0 0 8px", fontSize: 12 }}>
+          Ball <b>faqat mavsum ichidagi</b> harakatlar uchun beriladi — mavsumgacha bo'lgan safarlar hisoblanmaydi.
+          Sana kiritilmaguncha o'yin butunlay yopiq turadi.
+        </p>
+        {season && (
+          <div style={{ display: "grid", gap: 8, maxWidth: 520 }}>
+            <div style={{ fontSize: 12.5, padding: "8px 12px", borderRadius: 10, background: season.phase === "active" ? "rgba(52,211,153,.12)" : "rgba(255,255,255,.05)" }}>
+              {season.phase === "unset" && <><b>Sozlanmagan</b> — o'yin yopiq, hech kimda ball yo'q</>}
+              {season.phase === "upcoming" && <>🚀 <b>Boshlanishi kutilmoqda</b> — {season.startIso?.slice(0, 16).replace("T", " ")} dan</>}
+              {season.phase === "active" && <>🟢 <b>Mavsum ochiq</b> — {season.endIso?.slice(0, 16).replace("T", " ")} gacha</>}
+              {season.phase === "ended" && <>🏁 <b>Mavsum yakunlandi</b></>}
+              <span className="muted"> · {season.seasonId}-mavsum</span>
+            </div>
+            <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+              <span style={{ fontSize: 12, minWidth: 84 }}>Boshlanishi</span>
+              <input type="datetime-local" value={seasonStart} onChange={(e) => setSeasonStart(e.target.value)} />
+            </div>
+            <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+              <span style={{ fontSize: 12, minWidth: 84 }}>Tugashi</span>
+              <input type="datetime-local" value={seasonEnd} onChange={(e) => setSeasonEnd(e.target.value)} />
+            </div>
+            <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+              <span style={{ fontSize: 12, minWidth: 84 }}>Nomi</span>
+              <input type="text" value={seasonLabel} onChange={(e) => setSeasonLabel(e.target.value)} placeholder="Avgust mavsumi (ixtiyoriy)" maxLength={40} style={{ flex: 1, minWidth: 160 }} />
+            </div>
+            {seasonMsg && <div style={{ fontSize: 12, color: seasonMsg.startsWith("✓") ? "#34d399" : "#ff9a9e" }}>{seasonMsg}</div>}
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+              <button className="btn sm" disabled={!seasonStart || !seasonEnd} onClick={() => void saveSeason()}>Sanalarni saqlash</button>
+              <button className="btn sm danger" disabled={!seasonStart || !seasonEnd} onClick={() => void resetSeason()}>🧹 Yangi mavsumni toza boshlash</button>
+            </div>
+            <p className="muted" style={{ fontSize: 11, margin: 0, lineHeight: 1.5 }}>
+              <b>Sanalarni saqlash</b> — faqat vaqtni o'zgartiradi, eski chiptalar joyida qoladi.<br />
+              <b>Toza boshlash</b> — eski chiptalar, sotilgan-hisoblagichlar va kunlik belgilar arxivga ko'chadi, sovrinlar zaxirasi 0 dan boshlanadi. Sovrinlar ro'yxati o'chmaydi.
+            </p>
+          </div>
+        )}
+      </section>
+      <section className="card">
+        <h3>🎮 BirJoy O'yinlar Mavsumi — mavsum homiysi</h3>
         <p className="muted" style={{ margin: "0 0 8px", fontSize: 12 }}>
           Sozlanmagan yoki o'chirilgan holatda mijozga <b>BirJoy</b> homiy sifatida ko'rinadi — bo'sh joy qolmaydi.
         </p>
@@ -876,7 +951,7 @@ function ControlCards() {
         )}
       </section>
       <section className="card">
-        <h3>🎁 Koson O'yini — sovrin-katalog</h3>
+        <h3>🎁 BirJoy O'yinlar Mavsumi — sovrin-katalog</h3>
         <p className="muted" style={{ margin: "0 0 8px", fontSize: 12 }}>
           Yangi sovrin qo'shish, mavjudini narxi/soni/rasmi bilan tahrirlash, vitrinadan yashirish yoki (chiptasi sotilmagan bo'lsa) butunlay o'chirish.
         </p>
@@ -5414,7 +5489,7 @@ function IntercityAdmin() {
 }
 
 // ─── 👥 referallar ──────────────────────────────────────────────────────────
-// ─── 🎮 Koson O'yini — kim-nima-qildi (B3) ──────────────────────────────────────────────────────
+// ─── 🎮 BirJoy O'yinlar Mavsumi — kim-nima-qildi (B3) ──────────────────────────────────────────────────────
 const OYIN_ACTION_LABEL: Record<string, string> = {
   ride: "🚕 Safar", first_ride: "🚕 Birinchi safar", phone: "📱 Telefon tasdiqlash",
   refer_join: "🤝 Do'st ulandi", refer_first_ride: "🤝 Do'st birinchi safari", refer_ride: "🤝 Do'stning safari",
@@ -5438,7 +5513,7 @@ function OyinActivityView() {
   return (
     <section className="panel">
       <div className="panel-head">
-        <div className="panel-title">🎮 Koson O'yini — faoliyat ({data.total} voqea, so'nggi {data.pageSize})</div>
+        <div className="panel-title">🎮 O'yin mavsumi — faoliyat ({data.total} voqea, so'nggi {data.pageSize})</div>
         <input className="search" placeholder="🔍 Ism bo'yicha…" value={q} onChange={(e) => setQ(e.target.value)} />
       </div>
       <div className="cards" style={{ marginBottom: 12 }}>

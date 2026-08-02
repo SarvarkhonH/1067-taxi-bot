@@ -67,11 +67,55 @@ export interface OyinBallBreakdown {
   ball: number; // earned − spent (manfiy bo'lmaydi)
 }
 
-// Mavsum sanalari — ega hali TASDIQLAMAGAN (KOSON_ADMIN_DOD.md ochiq savoli, plan §"Boshlanish
-// sanasi?"). Plan taymlaynidagi taklif sifatida qo'yilgan — tasdiqlangach FAQAT shu yerda
-// o'zgartiriladi (butun oyinService shu ikki konstantaga qaraydi, boshqa joyda sana yozilmagan).
-export const SEASON_START_ISO = "2026-08-15T00:00:00+05:00";
-export const SEASON_END_ISO = "2026-09-14T23:59:59+05:00";
+// ── 📅 MAVSUM (2026-08-02, ega talabi: "har mavsum vaxtlarini ham qo'yish kerak") ────────────────
+// Sanalar ENDI konstanta EMAS — admin panelda kiritiladi, `oyin:seasoncfg` AppState qatorida
+// saqlanadi (oyinSeason.ts). Eski SEASON_START_ISO/SEASON_END_ISO ATAYLAB o'chirildi va fallback
+// sifatida ham qoldirilmadi: qolsa, kelajakda kimdir `?? SEASON_END_ISO` yozib qo'yadi va sana
+// yana kodga qotib qoladi.
+//
+// Ball FAQAT mavsum ichidagi harakatlar uchun beriladi (avval butun umr tarixi sanalardi — 100 ta
+// eski safari bor mijoz o'yin boshlanmasdan minglab ballga ega bo'lardi).
+
+export type OyinSeasonPhase = "unset" | "upcoming" | "active" | "ended";
+
+export interface OyinSeasonView {
+  configured: boolean; // false = "mavsum sozlanmagan" — o'yin butunlay yopiq
+  seasonNo: number; // 1, 2, 3… — FAQAT "toza boshlash" tugmasi oshiradi
+  seasonId: string; // `s${seasonNo}` — arxiv prefiksi VA pul-idempotentlik langari
+  label: string | null; // ixtiyoriy nom: "Avgust mavsumi"
+  startIso: string | null;
+  endIso: string | null;
+  startMs: number | null;
+  endMs: number | null;
+  startDayKey: string | null; // Toshkent "YYYY-MM-DD" — kun-ro'yxatlari bilan SATR sifatida solishtiriladi
+  endDayKey: string | null;
+  startWeekKey: string | null; // "2026-W33" — sprint hafta-kalitlari bilan solishtiriladi
+  endWeekKey: string | null;
+  phase: OyinSeasonPhase;
+}
+
+export interface OyinSeasonInput {
+  startIso: string;
+  endIso: string;
+  label?: string | null;
+}
+
+/** Mijozga beriladigan qisqartma (OyinStateResponse ichida) — miniapp sanani API'dan oladi. */
+export interface OyinSeasonClientView {
+  configured: boolean;
+  phase: OyinSeasonPhase;
+  label: string | null;
+  startIso: string | null;
+  endIso: string | null;
+}
+
+/** Admin: mavsumni tozalab boshlash natijasi. */
+export interface OyinSeasonResetResult {
+  ok: boolean;
+  error?: string;
+  seasonId?: string;
+  archivedRows?: number;
+}
 
 // Anti-abuz: bitta a'zo 4 haftalik oynada sprint-top-3'ni necha marta yutishi mumkin (whale bitta
 // odam hamma haftani yeb qo'ymasin — KOSON_OYIN_PLAN.md v9.x §sprint).
@@ -131,6 +175,9 @@ export interface OyinActivityFilter {
   to?: string; // ISO
   page?: number;
   pageSize?: number;
+  // "season" (default) = faqat joriy mavsum — jadval reyting bilan KELISHADI. "all" = butun tarix
+  // (mavsumgacha bo'lgan davrni ko'rishning yagona yo'li, faqat tekshiruv uchun).
+  scope?: "season" | "all";
 }
 export interface OyinActivityResponse {
   rows: OyinActivityRow[];
@@ -159,6 +206,11 @@ export interface OyinStateResponse {
   // 🔴 JONLI lenta: bugungi eng so'nggi do'st-taklif voqeasi (butun populyatsiya bo'ylab) — ijtimoiy
   // isbot. null = bugun hali hech kim do'st qo'shmadi.
   live: { name: string; ball: number } | null;
+  // 🔥 Haftalik vazifa (prototipdagi "3 kunlik zanjir" bloki). Yangi saqlash YO'Q — zanjir mavjud
+  // `oyin:login:<memberId>` kun-ro'yxatidan ketma-ket kunlarni sanash bilan chiqadi.
+  week: { streak: number; target: number; bonusBall: number; done: boolean };
+  // 📅 Mavsum holati — miniapp sanani API'dan oladi (shared konstanta endi yo'q).
+  season: OyinSeasonClientView;
 }
 
 export interface OyinPrizeView {
@@ -194,11 +246,18 @@ export interface OyinBoardResponse {
 
 export type OyinFriendStatus = "active_today" | "silent" | "never_rode";
 export interface OyinFriendRow {
+  memberId: number; // "Rahmat ayt" tugmasi shu id bo'yicha yuboradi (server juftlikni tekshiradi)
   name: string;
   status: OyinFriendStatus;
   daysSilent: number; // faqat status="silent" bo'lganda ma'noli
   gainToday: number; // bugun shu do'stdan taklifchiga kelgan ball
   ridesToday: number; // bugungi safarlar soni — "3-safarini qildi!" matni uchun
+  thankedToday: boolean; // bugun rahmat aytilganmi (tugma "✓ Aytildi" holatida chiqadi)
+}
+/** "🤝 Rahmat ayt" natijasi — do'stning Telegram'iga botdan xabar boradi. */
+export interface OyinThanksResult {
+  ok: boolean;
+  reason?: "not_friend" | "already" | "unreachable" | "off";
 }
 export interface OyinJamoamResponse {
   friends: OyinFriendRow[];
@@ -207,7 +266,9 @@ export interface OyinJamoamResponse {
 
 export interface OyinBuyResult {
   ok: boolean;
-  reason?: "insufficient" | "sold_out" | "unknown_prize" | "off";
+  // `season_off` — mavsum sozlanmagan/boshlanmagan/tugagan. `off` dan FARQ qiladi (bayroq) va
+  // `insufficient` deb aytish YOLG'ON bo'lardi — mijozga balansi haqida noto'g'ri xabar bermaymiz.
+  reason?: "insufficient" | "sold_out" | "unknown_prize" | "off" | "season_off";
   ticketNo?: number;
   prizeKey?: OyinPrizeKey;
   ballLeft?: number;

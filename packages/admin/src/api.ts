@@ -26,6 +26,8 @@ import type {
   OyinDeleteResult,
   OyinDrawExport,
   OyinPrizeUpsertInput,
+  OyinSeasonResetResult,
+  OyinSeasonView,
 } from "@t1067/shared";
 
 interface TgWindow {
@@ -128,6 +130,11 @@ export const adminApi = {
   bonusEconomy: () => req<{ knobs: { key: string; label: string; def: number; min: number; max: number; step: number; group: string }[]; values: Record<string, number> }>("/api/admin/bonus-economy"),
   setBonusEconomy: (key: string, value: number) => postJson<{ ok: boolean; values: Record<string, number> }>("/api/admin/bonus-economy", { key, value }),
   oyinSponsor: () => req<{ name: string; photoUrl: string | null; active: boolean; isDefault: boolean }>("/api/admin/oyin/sponsor"),
+  oyinSeason: () => req<OyinSeasonView>("/api/admin/oyin/season"),
+  setOyinSeason: (startIso: string, endIso: string, label: string | null) =>
+    postJson<OyinSeasonView>("/api/admin/oyin/season", { startIso, endIso, label }),
+  resetOyinSeason: (startIso: string, endIso: string, label: string | null) =>
+    postJson<OyinSeasonResetResult>("/api/admin/oyin/season/reset", { startIso, endIso, label }),
   oyinCatalog: () => req<{ prizes: OyinAdminPrizeRow[] }>("/api/admin/oyin/catalog"),
   upsertOyinPrize: (input: OyinPrizeUpsertInput) => postJson<{ prizes: OyinAdminPrizeRow[] }>("/api/admin/oyin/prize", input),
   setOyinPrizeActive: (key: string, active: boolean) =>

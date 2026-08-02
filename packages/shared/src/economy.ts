@@ -247,6 +247,7 @@ export const BONUS_ECON_KNOBS: BonusEconKnob[] = [
   { key: "oyinShareBall", label: "🎮 Sovrinni ulashish — ball", def: 5, min: 0, max: 100, step: 1, group: "Koson O'yini" },
   { key: "oyinStoryProofBall", label: "🎮 Hikoya-isbot (admin tasdig'i) — ball", def: 100, min: 0, max: 2000, step: 10, group: "Koson O'yini" },
   { key: "oyinSprintBonusBall", label: "🎮 Haftalik sprint top-3 — bonus ball", def: 100, min: 0, max: 2000, step: 10, group: "Koson O'yini" },
+  { key: "oyinStreakBall", label: "🔥 Haftalik zanjir (3 kun ketma-ket) — bonus ball", def: 50, min: 0, max: 1000, step: 10, group: "Koson O'yini" },
 ];
 // 🏅 level index → cashback-multiplier knob key (null for Yangi = baseline ×1.0).
 const TIER_MULT_KNOB: Record<number, string> = {

@@ -721,7 +721,10 @@ export async function pushBookingUpdates(
       // kuniga max 1 push (boshqa do'st safar qilsa alohida push — bu ataylab, "bir do'st" degani).
       try {
         const { featureOn } = await import("./featureFlags");
-        if (await featureOn("oyin")) {
+        // ⚠️ Mavsum FAOL bo'lmasa push yuborilmaydi: aks holda bot "+30 ball qo'shildi" deydi,
+        // balans esa 0 turadi (ball faqat mavsum ichida beriladi) — bu eng ishonch buzuvchi xato.
+        const { getSeason } = await import("./oyinSeason");
+        if ((await featureOn("oyin")) && (await getSeason()).phase === "active") {
           const { referrerOf } = await import("./oyinService");
           const referrer = await referrerOf(m.id);
           if (referrer) {
