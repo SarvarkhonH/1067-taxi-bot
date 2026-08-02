@@ -151,11 +151,31 @@ Ya'ni ball jonli hisoblanadi, boshqa manbalar bilan bir xil — alohida grant yo
 | Sana | Mavsum tugash sanasi, "Tiraj: 14-sentabr" ko'rinishida |
 | Narx/ball | **Ko'rsatilmaydi** — tashqi odam uchun ma'nosiz va "o'yin murakkab" hissini beradi |
 
-## Uchta matn varianti (mijoz tanlaydi)
+## Poster matni — admin sozlaydi, mijoz tahrirlaydi (ega tuzatishi 2026-08-02)
 
-1. **Maqtanish:** «MEN {N} TA CHIPTA OLDIM» — eng ko'p chipta olganlar uchun
-2. **Chaqiriq:** «SEN HAM YUTIB OL» — hali chiptasi kamlar uchun
-3. **Sovrin:** «{SOVRIN} MENIKI BO'LADI» — o'ziga ishonganlar uchun (hazil ohang)
+Matn kodda QATTIQ YOZILMAYDI. Sovrin-katalog bilan **aynan bir xil naqsh**: admin panelda
+ro'yxat, AppState'da saqlanadi (`oyin:postertext`), deploysiz o'zgaradi.
+
+**Admin panelda:** "📸 Poster matnlari" kartasi — qo'shish / tahrirlash / o'chirish / yashirish.
+Har qatorda o'rin-egallar ishlatiladi:
+
+| O'rin-egal | Nimaga almashadi |
+|---|---|
+| `{ism}` | Mijoz ismi |
+| `{chipta}` | Shu mavsumdagi chipta soni |
+| `{sovrin}` | Tanlangan sovrin nomi |
+
+Boshlang'ich uchta qator (admin keyin o'zgartiradi):
+1. `Men {chipta} ta chipta oldim`
+2. `Sen ham yutib ol`
+3. `{sovrin} meniki bo'ladi`
+
+**Mijoz tomonida:** tayyor matnlardan birini tanlaydi **yoki** o'z matnini yozadi
+(maydon ochiq, 40 belgigacha). Ya'ni admin yo'nalish beradi, mijoz esa o'z ovozida gapiradi —
+begona odamga "shablon reklama" emas, tirik odam yozganday ko'rinadi.
+
+**Cheklov:** mijoz matni ham 40 belgi, qator-uzilish yo'q, havola/@ belgisi yo'q (poster o'z
+QR'ini ko'taradi, boshqa reklama joylashtirilmasin).
 
 ## Uslub
 
