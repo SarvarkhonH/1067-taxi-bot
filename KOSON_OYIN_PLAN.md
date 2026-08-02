@@ -95,6 +95,48 @@ senga eng ko'p yordam beradi", reytingda "Har hafta top-3 bonus oladi". Ko'rilga
 Bor-yo'g'i **8 ta qator** — hammasi bitta valyutada (ball), hammasi `BONUS_ECON_KNOBS` orqali
 admin panelidan sozlanadi (§7.1).
 
+### 2.0 BALL IERARXIYASI — qaysi harakat eng ko'p beradi (ega qarori 2026-08-02)
+
+Bu **dizayn qonuni**, shunchaki raqamlar emas: harakat qanchalik **ijtimoiy** (bizga yangi odam
+yoki yangi ko'z olib kelsa) — shuncha ko'p ball beradi. Yolg'iz qilinadigan ish eng kam beradi.
+
+| O'rin | Harakat | Nega shu o'rinda |
+|:--:|---|---|
+| 🥇 **1** | **Hikoya joylash** (story + admin tasdig'i) | Bizga tashqi auditoriya olib keladi — mijozning butun tanishlari ko'radi. Eng qimmat harakat, shuning uchun eng ko'p ball |
+| 🥈 **2** | **Do'stning safari** | Yangi mijoz **va** yangi safar — ikki tomonlama foyda. Yordam zanjirining yuragi (§2.1) |
+| 🥉 **3** | **O'z safari** | Asosiy biznes, lekin bir martalik qiymat — faqat o'sha safar |
+| **4** | **Ulashish** (ilova ichida) | Eng arzon harakat, isbot talab qilmaydi — shuning uchun eng kam |
+
+**⚠️ Hozirgi raqamlar bu tartibga ZID** (tekshirilgan, `packages/shared/src/economy.ts:240-250`):
+
+| Harakat | Hozir | Bo'lishi kerak | Izoh |
+|---|--:|--:|---|
+| Hikoya (1-o'rin) | 100 | **150** | Eng yuqori bo'lib qolishi kerak, farq sezilarli bo'lsin |
+| Do'st safari (2-o'rin) | **10** | **40** | ❌ hozir o'z safaridan 3× KAM — tartib teskari |
+| O'z safari (3-o'rin) | 30 | 30 | o'zgarmaydi |
+| Ulashish (4-o'rin) | 5 | 10 | eng past bo'lib qoladi, lekin ko'rinarli bo'lsin |
+
+Ya'ni **bitta o'zgarish yetarli emas — ikkitasi kerak**: do'st-safari 10 → 40 (asosiy tuzatish)
+va hikoya 100 → 150 (1-o'rinni mustahkamlash). Qolgan ikkitasi tartibga o'zi mos.
+
+**Nega do'st-safari o'z safaridan ko'p bo'lishi shart:** shunda taklif qilish **dominant
+strategiya** bo'ladi. Mijoz "o'zim yuraymi yoki do'st chaqiraymi" deb o'ylaganda javob aniq —
+do'st chaqirish foydaliroq. Bu aynan viral halqani tezlashtiradi.
+
+**⚠️ Yangi xavf va uni yopish (majburiy, shu o'zgarish bilan BIRGA):**
+
+Do'st-safari 40 ga chiqsa, 20 ta faol do'sti bor odam oyiga ~8000 ball yig'adi — bu bitta sovrinning
+BARCHA chiptalarini sotib olishga yetadi (masalan voucher: 15 o'rin × 600 = 9000). Pul tomonda xavf
+YO'Q (mavsum yopilishida odam boshiga eng ko'pi 500 tanga — `seasonClose` clamp), lekin **sovrin
+adolati buziladi**: bitta odam butun tirajni egallab oladi.
+
+Yechim: **bitta odam bitta sovrinning eng ko'pi N ta chiptasini oladi** — yangi knob
+`oyinMaxTicketsPerPrize` (def **3**). `buyTicket` da tekshiriladi, `OyinBuyResult.reason` ga
+`own_limit` qo'shiladi, vitrinada "Sizniki: 3/3 — limitga yetdingiz" ko'rinadi.
+
+Bu qoida ierarxiyaning o'zini buzmaydi: ko'p ball yig'gan odam **boshqa** sovrinlarga chipta oladi,
+ya'ni ko'p ball hali ham foydali — lekin bitta sovrinni monopoliya qila olmaydi.
+
 ### 2.1 YORDAM ZANJIRI — o'yinning YURAGI (ega: "mukammal kuchli g'oya, katta urg'u")
 
 O'yinning eng muhim joyi: **o'zi safar qilishi VA birovni safarga undashi.** Taklif eng katta
