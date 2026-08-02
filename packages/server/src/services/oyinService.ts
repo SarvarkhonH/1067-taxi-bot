@@ -21,6 +21,7 @@ import {
   type OyinFriendRow,
   type OyinJamoamResponse,
   type OyinPrizeKey,
+  type OyinPrizePhotoRow,
   type OyinSeasonCloseResult,
   type OyinSprintResult,
   type OyinStateResponse,
@@ -231,11 +232,12 @@ export async function getBoard(memberId: number, limit = 50): Promise<OyinBoardR
 }
 
 export async function getVitrina(memberId: number): Promise<OyinVitrinaResponse> {
-  const [econ, soldRows, ticketsRow, sponsor] = await Promise.all([
+  const [econ, soldRows, ticketsRow, sponsor, photos] = await Promise.all([
     getBonusEcon(),
     Promise.all(OYIN_PRIZES.map((p) => prisma.appState.findUnique({ where: { key: `oyin_sold:${p.key}` } }))),
     prisma.appState.findUnique({ where: { key: `oyin:tickets:${memberId}` } }),
     getSponsor(),
+    getPrizePhotoMap(),
   ]);
   const mine = parseTickets(ticketsRow?.value);
   const mineByPrize = new Map<string, number>();
@@ -250,9 +252,39 @@ export async function getVitrina(memberId: number): Promise<OyinVitrinaResponse>
       key: p.key, icon: p.icon, name: p.name, valueLabel: p.valueLabel,
       price, limit, sold, remaining: Math.max(0, limit - sold), soldOut: sold >= limit,
       mine: myCount, chancePct: myCount > 0 && sold > 0 ? Math.round((myCount / sold) * 10000) / 100 : null,
+      photoUrl: photos.get(p.key) ?? null,
     };
   });
   return { prizes, sponsor: { name: sponsor.name, photoUrl: sponsor.photoUrl } };
+}
+
+// ── Sovrin-rasmlari (admin) — Homiy bilan AYNAN bir xil naqsh: AppState, yangi Prisma model YO'Q.
+// `oyin:prizephoto:<prizeKey>` = ham qiymat sifatida to'g'ridan-to'g'ri URL saqlanadi (JSON emas —
+// bitta maydon, ortiqcha parselash shart emas). Bo'sh/mavjud bo'lmasa null → miniapp emoji fallback. ─
+async function getPrizePhotoMap(): Promise<Map<OyinPrizeKey, string>> {
+  const rows = await prisma.appState.findMany({ where: { key: { startsWith: "oyin:prizephoto:" } } });
+  const map = new Map<OyinPrizeKey, string>();
+  for (const row of rows) {
+    const key = row.key.slice("oyin:prizephoto:".length) as OyinPrizeKey;
+    if (row.value.trim()) map.set(key, row.value.trim());
+  }
+  return map;
+}
+
+/** Admin: barcha 5 sovrinning joriy rasm-holati (bo'sh — emoji fallback bilan). */
+export async function listPrizePhotos(): Promise<OyinPrizePhotoRow[]> {
+  const photos = await getPrizePhotoMap();
+  return OYIN_PRIZES.map((p) => ({ key: p.key, name: p.name, icon: p.icon, photoUrl: photos.get(p.key) ?? null }));
+}
+
+/** Admin: bitta sovrin rasmini o'rnatish/o'chirish (bo'sh string = o'chirish, emoji'ga qaytadi). */
+export async function setPrizePhoto(prizeKeyRaw: string, photoUrl: string): Promise<OyinPrizePhotoRow[]> {
+  const prize = OYIN_PRIZES.find((p) => p.key === prizeKeyRaw);
+  if (!prize) return listPrizePhotos();
+  const key = `oyin:prizephoto:${prize.key}`;
+  const value = photoUrl.trim().slice(0, 500);
+  await prisma.appState.upsert({ where: { key }, create: { key, value }, update: { value } });
+  return listPrizePhotos();
 }
 
 // ── chipta xaridi: reserve→tekshir→rollback atomik hisoblagich (economyService.ts

@@ -277,7 +277,7 @@ export function OyinView() {
                   const hot = affordable && p.mine === 0 && !p.soldOut;
                   return (
                     <div key={p.key} className={`oyk-pcard${hot ? " is-hot" : ""}${p.soldOut ? " is-soldout" : ""}`}>
-                      <div className="oyk-pcard-icon">{p.icon}</div>
+                      <div className="oyk-pcard-icon">{p.photoUrl ? <img src={p.photoUrl} alt="" loading="lazy" onError={(e) => { (e.target as HTMLImageElement).replaceWith(document.createTextNode(p.icon)); }} /> : p.icon}</div>
                       <div className="oyk-pcard-name">{p.name}</div>
                       <div className="oyk-pcard-meta">
                         {p.soldOut ? "Tugadi" : p.mine > 0 ? `Sizniki: ${p.mine} · ${p.chancePct != null ? `≈${p.chancePct}%` : ""}` : `${p.price} ball · ${p.remaining} o'rin qoldi`}
@@ -320,7 +320,7 @@ export function OyinView() {
               return (
                 <div key={p.key} className={`oyk-vcard${p.soldOut ? " is-soldout" : ""}`}>
                   <div className="oyk-vcard-top">
-                    <div className="oyk-vcard-icon">{p.icon}</div>
+                    <div className="oyk-vcard-icon">{p.photoUrl ? <img src={p.photoUrl} alt="" loading="lazy" onError={(e) => { (e.target as HTMLImageElement).replaceWith(document.createTextNode(p.icon)); }} /> : p.icon}</div>
                     <div className="oyk-vcard-title">
                       <div className="oyk-vcard-name">{p.name}</div>
                       <div className="oyk-vcard-sub">{p.valueLabel} · {p.limit} dona</div>
@@ -456,7 +456,7 @@ export function OyinView() {
               <>
                 <div className="oyk-sheet-title">🎟 Chipta olasanmi?</div>
                 <div className="oyk-buy-row">
-                  <div className="oyk-buy-icon">{buyPrize.icon}</div>
+                  <div className="oyk-buy-icon">{buyPrize.photoUrl ? <img src={buyPrize.photoUrl} alt="" onError={(e) => { (e.target as HTMLImageElement).replaceWith(document.createTextNode(buyPrize.icon)); }} /> : buyPrize.icon}</div>
                   <div className="oyk-buy-body">
                     <div className="oyk-buy-name">{buyPrize.name}</div>
                     <div className="oyk-buy-price">{buyPrize.price} ball yechiladi · qaytarilmaydi</div>
@@ -476,7 +476,7 @@ export function OyinView() {
       {celebrate && (
         <div className="oyk-celebrate">
           <div className="oyk-ticket">
-            <div className="oyk-ticket-emoji">{celebrate.prize.icon}</div>
+            <div className="oyk-ticket-emoji">{celebrate.prize.photoUrl ? <img src={celebrate.prize.photoUrl} alt="" onError={(e) => { (e.target as HTMLImageElement).replaceWith(document.createTextNode(celebrate.prize.icon)); }} /> : celebrate.prize.icon}</div>
             <div className="oyk-ticket-no">CHIPTA №{String(celebrate.ticketNo).padStart(4, "0")}</div>
             <div className="oyk-ticket-name">{celebrate.prize.name}</div>
             <div className="oyk-ticket-sub">Tirajda qatnashasan — mavsum oxiri jonli efir!</div>

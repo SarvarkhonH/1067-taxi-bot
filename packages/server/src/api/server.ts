@@ -2060,6 +2060,17 @@ export function createApiServer(opts: ApiOptions = {}) {
     const { drawExport } = await import("../services/oyinService");
     res.json(await drawExport());
   });
+  // 🖼 Sovrin-rasmlari — Homiy bilan bir xil AppState naqshi (yangi Prisma model YO'Q).
+  app.get("/api/admin/oyin/prize-photos", requireAdmin, async (_req, res) => {
+    const { listPrizePhotos } = await import("../services/oyinService");
+    res.json({ prizes: await listPrizePhotos() });
+  });
+  app.post("/api/admin/oyin/prize-photo", requireAdmin, requireOwner, async (req, res) => {
+    const b = req.body as { key?: string; photoUrl?: string };
+    if (typeof b?.key !== "string") { res.status(400).json({ error: "key required" }); return; }
+    const { setPrizePhoto } = await import("../services/oyinService");
+    res.json({ prizes: await setPrizePhoto(b.key, String(b.photoUrl ?? "")) });
+  });
   // 📋 Kim-nima-qildi jadvali (B3) — bugun umuman yo'q edi (tekshirilgan). Ball JONLI hisoblangani
   // uchun bu READ-ONLY rekonstruksiya (yangi yozuv yo'q) — getActivity() izohiga qarang.
   app.get("/api/admin/oyin/activity", requireAdmin, async (req, res) => {

@@ -187,6 +187,7 @@
 }
 .oyk-pcard.is-hot { border-color: rgba(111, 207, 151, .5); box-shadow: 0 0 20px rgba(111, 207, 151, .2); }
 .oyk-pcard-icon { font-size: 30px; text-align: center; animation: oyk-bob 2.6s ease-in-out infinite; }
+.oyk-pcard-icon img { width: 44px; height: 44px; margin: 0 auto; border-radius: 12px; object-fit: cover; display: block; }
 .oyk-pcard-name { font-size: 12px; font-weight: 800; text-align: center; line-height: 1.25; }
 .oyk-pcard-meta { font-size: 10.5px; color: rgba(255, 255, 255, .45); text-align: center; font-variant-numeric: tabular-nums; }
 .oyk-pbar { height: 6px; border-radius: 3px; background: rgba(255, 255, 255, .08); overflow: hidden; }
@@ -235,6 +236,7 @@
 .oyk-sponsor-strip-text b { color: var(--oyk-gold-soft); }
 .oyk-vcard { background: var(--card); border: 1px solid var(--line); border-radius: 20px; padding: 14px; display: flex; flex-direction: column; gap: 9px; }
 .oyk-vcard-top { display: flex; gap: 12px; align-items: center; }
+.oyk-vcard-icon img { width: 100%; height: 100%; border-radius: 14px; object-fit: cover; }
 .oyk-vcard-icon {
   width: 50px; height: 50px; border-radius: 14px; background: rgba(245, 183, 0, .1);
   display: flex; align-items: center; justify-content: center; font-size: 26px; flex-shrink: 0;
@@ -402,6 +404,7 @@
 /* chipta-tasdiq sheet'i */
 .oyk-buy-row { display: flex; align-items: center; gap: 12px; background: rgba(245, 183, 0, .08); border: 1px solid rgba(245, 183, 0, .3); border-radius: 16px; padding: 14px; }
 .oyk-buy-icon { font-size: 34px; }
+.oyk-buy-icon img { width: 52px; height: 52px; border-radius: 14px; object-fit: cover; display: block; }
 .oyk-buy-body { flex: 1; }
 .oyk-buy-name { font-size: 14px; font-weight: 900; }
 .oyk-buy-price { font-size: 12px; color: rgba(255, 255, 255, .55); font-variant-numeric: tabular-nums; }
@@ -427,6 +430,7 @@
   animation: oyk-pop .5s var(--ease-out); box-shadow: 0 0 60px rgba(245, 183, 0, .4);
 }
 .oyk-ticket-emoji { font-size: 46px; }
+.oyk-ticket-emoji img { width: 72px; height: 72px; margin: 0 auto; border-radius: 16px; object-fit: cover; display: block; box-shadow: 0 8px 20px rgba(0,0,0,.25); }
 .oyk-ticket-no { font-size: 11px; font-weight: 900; letter-spacing: .14em; color: var(--oyk-celebrate-label); margin-top: 6px; }
 .oyk-ticket-name { font-size: 19px; font-weight: 900; color: var(--oyk-celebrate-title); margin-top: 2px; }
 .oyk-ticket-sub { font-size: 11.5px; color: var(--oyk-celebrate-sub); margin-top: 6px; }

@@ -718,6 +718,8 @@ function ControlCards() {
   const [sponsor, setSponsorState] = useState<{ name: string; photoUrl: string | null; active: boolean; isDefault: boolean } | null>(null);
   const [sponsorName, setSponsorName] = useState("");
   const [sponsorUrl, setSponsorUrl] = useState("");
+  const [prizePhotos, setPrizePhotos] = useState<{ key: string; name: string; icon: string; photoUrl: string | null }[] | null>(null);
+  const [prizePhotoDraft, setPrizePhotoDraft] = useState<Record<string, string>>({});
   const [corps, setCorps] = useState<{ id: number; name: string; balance: number; employees: number }[]>([]);
   const [cName, setCName] = useState("");
   const [empPhone, setEmpPhone] = useState("");
@@ -734,6 +736,10 @@ function ControlCards() {
     adminApi.features().then((r) => { setFlags(r.features); setFund(r.mashinaFund); }).catch(() => undefined);
     adminApi.bonusEconomy().then(setBonusEcon).catch(() => undefined);
     adminApi.oyinSponsor().then((s) => { setSponsorState(s); setSponsorName(s.isDefault ? "" : s.name); setSponsorUrl(s.photoUrl ?? ""); }).catch(() => undefined);
+    adminApi.oyinPrizePhotos().then((r) => {
+      setPrizePhotos(r.prizes);
+      setPrizePhotoDraft(Object.fromEntries(r.prizes.map((p) => [p.key, p.photoUrl ?? ""])));
+    }).catch(() => undefined);
     adminApi.transferEconomy().then(setTxEcon).catch(() => undefined);
     adminApi.corps().then((r) => setCorps(r.corps)).catch(() => undefined);
     adminApi.optokens().then((r) => setOptokens(r.tokens)).catch(() => undefined);
@@ -748,6 +754,10 @@ function ControlCards() {
   const saveSponsor = async (active: boolean) => {
     try { setSponsorState(await adminApi.setOyinSponsor(sponsorName, sponsorUrl || null, active)); }
     catch { alert("Homiyni saqlab bo'lmadi"); }
+  };
+  const savePrizePhoto = async (key: string) => {
+    try { setPrizePhotos((await adminApi.setOyinPrizePhoto(key, prizePhotoDraft[key] ?? "")).prizes); }
+    catch { alert("Sovrin rasmini saqlab bo'lmadi"); }
   };
   const saveTxEcon = async (key: string, value: number) => {
     try { const r = await adminApi.setTransferEconomy(key, value); setTxEcon((e) => (e ? { ...e, values: r.values } : e)); }
@@ -813,6 +823,33 @@ function ControlCards() {
               <button className="btn sm" disabled={!sponsorName.trim()} onClick={() => void saveSponsor(true)}>Saqlash va yoqish</button>
               <button className="btn sm" onClick={() => void saveSponsor(false)}>O'chirish (BirJoy ko'rinsin)</button>
             </div>
+          </div>
+        )}
+      </section>
+      <section className="card">
+        <h3>🖼 Koson O'yini — sovrin rasmlari</h3>
+        <p className="muted" style={{ margin: "0 0 8px", fontSize: 12 }}>
+          Rasm-URL bo'sh qoldirilsa, mijozga emoji (masalan 🍵) ko'rinadi. To'ldirilsa — darhol real rasm bilan almashadi.
+        </p>
+        {prizePhotos && (
+          <div style={{ display: "grid", gap: 8, maxWidth: 480 }}>
+            {prizePhotos.map((p) => (
+              <div key={p.key} style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                {prizePhotoDraft[p.key] ? (
+                  <img src={prizePhotoDraft[p.key]} alt="" style={{ width: 34, height: 34, borderRadius: 8, objectFit: "cover", flexShrink: 0 }} onError={(e) => { (e.target as HTMLImageElement).style.visibility = "hidden"; }} />
+                ) : (
+                  <span style={{ width: 34, height: 34, borderRadius: 8, background: "rgba(255,255,255,.06)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18, flexShrink: 0 }}>{p.icon}</span>
+                )}
+                <span style={{ width: 90, fontSize: 12.5, flexShrink: 0 }}>{p.name}</span>
+                <input
+                  type="text" placeholder="Rasm URL"
+                  value={prizePhotoDraft[p.key] ?? ""}
+                  onChange={(e) => setPrizePhotoDraft((d) => ({ ...d, [p.key]: e.target.value }))}
+                  style={{ flex: 1 }}
+                />
+                <button className="btn sm" onClick={() => void savePrizePhoto(p.key)}>Saqlash</button>
+              </div>
+            ))}
           </div>
         )}
       </section>

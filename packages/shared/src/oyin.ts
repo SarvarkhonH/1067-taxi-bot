@@ -136,6 +136,16 @@ export interface OyinPrizeView {
   soldOut: boolean;
   mine: number; // shu foydalanuvchining shu sovringa nechta chiptasi bor
   chancePct: number | null; // null = hali chiptasi yo'q; aks holda mine/sold %
+  photoUrl: string | null; // admin qo'ygan real rasm — null bo'lsa `icon` emoji fallback ishlatiladi
+}
+
+// Admin: har sovrinning rasm-URL'ini boshqarish (Homiy bilan bir xil AppState naqshi — yangi
+// Prisma model YO'Q). List-shaklda: bitta so'rov bilan barcha 5 ta sovrin rasmini olib/qo'yish.
+export interface OyinPrizePhotoRow {
+  key: OyinPrizeKey;
+  name: string;
+  icon: string;
+  photoUrl: string | null;
 }
 
 export interface OyinVitrinaResponse {
