@@ -1,27 +1,57 @@
 // 🎮 KOSON O'YINI — tiplar + sovrin-katalog (KOSON_OYIN_PLAN.md v9.2, KOSON_ADMIN_DOD.md).
-// Ball — alohida hisob-kitob birligi (Coin/CoinTxn'ga MUTLAQO TEGMAYDI). Narx/limit qiymatlari
-// `BONUS_ECON_KNOBS`dan (economy.ts) o'qiladi — bu yerda faqat qaysi knob-kalit qaysi sovringa
-// tegishli ekanini bog'laydigan statik xarita, sonlarning o'zi emas (admin panel jonli boshqaradi).
+// Ball — alohida hisob-kitob birligi (Coin/CoinTxn'ga MUTLAQO TEGMAYDI).
+//
+// 🔄 2026-08-02 (ega talabi — "sovg'alarni ham yasash kerak, nimaga fixed qilingan"): sovrin-
+// katalog ENDI to'liq admin-boshqariladigan — statik 5-elementli ro'yxat + alohida narx/limit-
+// knob emas. Butun katalog BITTA AppState qatorida (`oyin:catalog`, oyinService.ts) — admin
+// panelda yangi sovrin QO'SHISH, mavjudini narxi/soni/nomi/rasmi bilan TAHRIRLASH, faollikni
+// O'CHIRISH/YOQISH mumkin. Narx/limit ENDI BONUS_ECON_KNOBS'da EMAS (o'sha 10 knob olib
+// tashlandi) — har sovrinning o'z qatorida to'g'ridan-to'g'ri saqlanadi. Yangi Prisma model YO'Q.
 
-export type OyinPrizeKey = "voucher" | "serviz" | "dazmol" | "blender" | "fryer";
+export type OyinPrizeKey = string; // ochiq kalit — admin istagan sovrin qo'sha oladi
 
-export interface OyinPrizeDef {
-  key: OyinPrizeKey;
-  icon: string;
+export interface OyinCatalogPrize {
+  key: string;
+  icon: string; // emoji — rasm sozlanmaganda/yuklanmasa fallback
   name: string;
   valueLabel: string; // taxminiy real narx — faqat ko'rsatish uchun, hisobga kirmaydi
-  priceKnob: string; // BONUS_ECON_KNOBS kaliti — chipta ball-narxi
-  limitKnob: string; // BONUS_ECON_KNOBS kaliti — chipta-o'rin soni (N-limit)
+  price: number; // chipta ball-narxi
+  limit: number; // chipta-o'rin soni (N-limit)
+  photoUrl: string | null;
+  active: boolean; // false = vitrinada/xariddan yashiringan, lekin tarixiy yozuvlar (tiraj/
+                    // faoliyat-jadval) uchun katalogda QOLADI — hech qachon chin o'chirilmaydi
+                    // (sotilgan chiptasi bo'lsa kalit "yetim" bo'lib qolmasin).
 }
 
-// Tartib muhim: vitrina/tiraj shu ketma-ketlikda ko'rsatiladi (arzondan qimmatga).
-export const OYIN_PRIZES: OyinPrizeDef[] = [
-  { key: "voucher", icon: "🏷️", name: "30k voucher", valueLabel: "30 000 so'm", priceKnob: "oyinPriceVoucher", limitKnob: "oyinLimitVoucher" },
-  { key: "serviz", icon: "🍵", name: "Choy serviz", valueLabel: "~120 000 so'm", priceKnob: "oyinPriceServiz", limitKnob: "oyinLimitServiz" },
-  { key: "dazmol", icon: "👕", name: "Dazmol", valueLabel: "~180 000 so'm", priceKnob: "oyinPriceDazmol", limitKnob: "oyinLimitDazmol" },
-  { key: "blender", icon: "🥤", name: "Blender", valueLabel: "~350 000 so'm", priceKnob: "oyinPriceBlender", limitKnob: "oyinLimitBlender" },
-  { key: "fryer", icon: "🍟", name: "Air Fryer", valueLabel: "~800 000 so'm", priceKnob: "oyinPriceFryer", limitKnob: "oyinLimitFryer" },
+// Birinchi ishga tushirishda (`oyin:catalog` AppState hali yo'q) shu default bilan urug'lanadi —
+// v9.2 rejadagi bazaviy 5 sovrin, o'sha paytdagi narx/limit qiymatlari bilan. Shundan keyin
+// TO'LIQ admin qo'lida — bu massiv faqat BIR MARTALIK boshlang'ich holat, keyin o'qilmaydi.
+export const OYIN_SEED_CATALOG: OyinCatalogPrize[] = [
+  { key: "voucher", icon: "🏷️", name: "30k voucher", valueLabel: "30 000 so'm", price: 600, limit: 15, photoUrl: null, active: true },
+  { key: "serviz", icon: "🍵", name: "Choy serviz", valueLabel: "~120 000 so'm", price: 1000, limit: 5, photoUrl: null, active: true },
+  { key: "dazmol", icon: "👕", name: "Dazmol", valueLabel: "~180 000 so'm", price: 1500, limit: 4, photoUrl: null, active: true },
+  { key: "blender", icon: "🥤", name: "Blender", valueLabel: "~350 000 so'm", price: 2200, limit: 3, photoUrl: null, active: true },
+  { key: "fryer", icon: "🍟", name: "Air Fryer", valueLabel: "~800 000 so'm", price: 3200, limit: 1, photoUrl: null, active: true },
 ];
+
+// Admin: sovrin qo'shish/tahrirlash so'rovi. `key` bo'lsa — o'sha yozuv YANGILANADI; bo'sh/
+// topilmasa — YANGI sovrin yaratiladi (server tomonda kalit generatsiya qilinadi).
+export interface OyinPrizeUpsertInput {
+  key?: string;
+  icon: string;
+  name: string;
+  valueLabel: string;
+  price: number;
+  limit: number;
+  photoUrl: string | null;
+}
+export interface OyinAdminPrizeRow extends OyinCatalogPrize {
+  sold: number; // nazorat uchun — nechta chipta allaqachon sotilgan (o'chirish xavfsizligini ko'rsatadi)
+}
+export interface OyinDeleteResult {
+  ok: boolean;
+  reason?: "has_sales"; // sold>0 — chin o'chirish rad etiladi, o'rniga active:false tavsiya qilinadi
+}
 
 export interface OyinBallBreakdown {
   rides: number; // birinchi safar bonusi + har keyingi safar (o'zining)
@@ -137,15 +167,6 @@ export interface OyinPrizeView {
   mine: number; // shu foydalanuvchining shu sovringa nechta chiptasi bor
   chancePct: number | null; // null = hali chiptasi yo'q; aks holda mine/sold %
   photoUrl: string | null; // admin qo'ygan real rasm — null bo'lsa `icon` emoji fallback ishlatiladi
-}
-
-// Admin: har sovrinning rasm-URL'ini boshqarish (Homiy bilan bir xil AppState naqshi — yangi
-// Prisma model YO'Q). List-shaklda: bitta so'rov bilan barcha 5 ta sovrin rasmini olib/qo'yish.
-export interface OyinPrizePhotoRow {
-  key: OyinPrizeKey;
-  name: string;
-  icon: string;
-  photoUrl: string | null;
 }
 
 export interface OyinVitrinaResponse {

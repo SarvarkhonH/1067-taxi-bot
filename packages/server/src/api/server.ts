@@ -2060,16 +2060,35 @@ export function createApiServer(opts: ApiOptions = {}) {
     const { drawExport } = await import("../services/oyinService");
     res.json(await drawExport());
   });
-  // 🖼 Sovrin-rasmlari — Homiy bilan bir xil AppState naqshi (yangi Prisma model YO'Q).
-  app.get("/api/admin/oyin/prize-photos", requireAdmin, async (_req, res) => {
-    const { listPrizePhotos } = await import("../services/oyinService");
-    res.json({ prizes: await listPrizePhotos() });
+  // 🎁 Sovrin-katalog — to'liq admin-CRUD (2026-08-02, ega talabi: "sovg'alarni ham yasash kerakda
+  // nimaga fixed"). Homiy bilan bir xil AppState naqshi (yangi Prisma model YO'Q) — oyinService.ts.
+  app.get("/api/admin/oyin/catalog", requireAdmin, async (_req, res) => {
+    const { adminListCatalog } = await import("../services/oyinService");
+    res.json({ prizes: await adminListCatalog() });
   });
-  app.post("/api/admin/oyin/prize-photo", requireAdmin, requireOwner, async (req, res) => {
-    const b = req.body as { key?: string; photoUrl?: string };
+  app.post("/api/admin/oyin/prize", requireAdmin, requireOwner, async (req, res) => {
+    const b = req.body as { key?: string; icon?: string; name?: string; valueLabel?: string; price?: number; limit?: number; photoUrl?: string | null };
+    if (typeof b?.name !== "string" || !b.name.trim()) { res.status(400).json({ error: "name required" }); return; }
+    const { adminUpsertPrize } = await import("../services/oyinService");
+    res.json({
+      prizes: await adminUpsertPrize({
+        key: typeof b.key === "string" ? b.key : undefined,
+        icon: String(b.icon ?? ""), name: b.name, valueLabel: String(b.valueLabel ?? ""),
+        price: Number(b.price) || 0, limit: Number(b.limit) || 0, photoUrl: b.photoUrl ?? null,
+      }),
+    });
+  });
+  app.post("/api/admin/oyin/prize/active", requireAdmin, requireOwner, async (req, res) => {
+    const b = req.body as { key?: string; active?: boolean };
     if (typeof b?.key !== "string") { res.status(400).json({ error: "key required" }); return; }
-    const { setPrizePhoto } = await import("../services/oyinService");
-    res.json({ prizes: await setPrizePhoto(b.key, String(b.photoUrl ?? "")) });
+    const { adminSetPrizeActive } = await import("../services/oyinService");
+    res.json({ prizes: await adminSetPrizeActive(b.key, !!b.active) });
+  });
+  app.post("/api/admin/oyin/prize/delete", requireAdmin, requireOwner, async (req, res) => {
+    const b = req.body as { key?: string };
+    if (typeof b?.key !== "string") { res.status(400).json({ error: "key required" }); return; }
+    const { adminDeletePrize } = await import("../services/oyinService");
+    res.json(await adminDeletePrize(b.key));
   });
   // 📋 Kim-nima-qildi jadvali (B3) — bugun umuman yo'q edi (tekshirilgan). Ball JONLI hisoblangani
   // uchun bu READ-ONLY rekonstruksiya (yangi yozuv yo'q) — getActivity() izohiga qarang.

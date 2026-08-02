@@ -22,7 +22,10 @@ import type {
   OpsPulse,
   OyinActivityAction,
   OyinActivityResponse,
+  OyinAdminPrizeRow,
+  OyinDeleteResult,
   OyinDrawExport,
+  OyinPrizeUpsertInput,
 } from "@t1067/shared";
 
 interface TgWindow {
@@ -125,9 +128,11 @@ export const adminApi = {
   bonusEconomy: () => req<{ knobs: { key: string; label: string; def: number; min: number; max: number; step: number; group: string }[]; values: Record<string, number> }>("/api/admin/bonus-economy"),
   setBonusEconomy: (key: string, value: number) => postJson<{ ok: boolean; values: Record<string, number> }>("/api/admin/bonus-economy", { key, value }),
   oyinSponsor: () => req<{ name: string; photoUrl: string | null; active: boolean; isDefault: boolean }>("/api/admin/oyin/sponsor"),
-  oyinPrizePhotos: () => req<{ prizes: { key: string; name: string; icon: string; photoUrl: string | null }[] }>("/api/admin/oyin/prize-photos"),
-  setOyinPrizePhoto: (key: string, photoUrl: string) =>
-    postJson<{ prizes: { key: string; name: string; icon: string; photoUrl: string | null }[] }>("/api/admin/oyin/prize-photo", { key, photoUrl }),
+  oyinCatalog: () => req<{ prizes: OyinAdminPrizeRow[] }>("/api/admin/oyin/catalog"),
+  upsertOyinPrize: (input: OyinPrizeUpsertInput) => postJson<{ prizes: OyinAdminPrizeRow[] }>("/api/admin/oyin/prize", input),
+  setOyinPrizeActive: (key: string, active: boolean) =>
+    postJson<{ prizes: OyinAdminPrizeRow[] }>("/api/admin/oyin/prize/active", { key, active }),
+  deleteOyinPrize: (key: string) => postJson<OyinDeleteResult>("/api/admin/oyin/prize/delete", { key }),
   setOyinSponsor: (name: string, photoUrl: string | null, active: boolean) =>
     postJson<{ name: string; photoUrl: string | null; active: boolean; isDefault: boolean }>("/api/admin/oyin/sponsor", { name, photoUrl, active }),
   oyinActivity: (filter: { memberId?: number; action?: OyinActivityAction; from?: string; to?: string; page?: number }) => {

@@ -30,6 +30,7 @@ import {
   SHOP_CATEGORIES,
   type OyinActivityAction,
   type OyinActivityResponse,
+  type OyinAdminPrizeRow,
 } from "@t1067/shared";
 import { RavellaAdminView } from "./ravella";
 import { JamoaAdminView } from "./jamoa";
@@ -718,8 +719,9 @@ function ControlCards() {
   const [sponsor, setSponsorState] = useState<{ name: string; photoUrl: string | null; active: boolean; isDefault: boolean } | null>(null);
   const [sponsorName, setSponsorName] = useState("");
   const [sponsorUrl, setSponsorUrl] = useState("");
-  const [prizePhotos, setPrizePhotos] = useState<{ key: string; name: string; icon: string; photoUrl: string | null }[] | null>(null);
-  const [prizePhotoDraft, setPrizePhotoDraft] = useState<Record<string, string>>({});
+  const [catalog, setCatalog] = useState<OyinAdminPrizeRow[] | null>(null);
+  const [catalogDraft, setCatalogDraft] = useState<Record<string, { icon: string; name: string; valueLabel: string; price: string; limit: string; photoUrl: string }>>({});
+  const [newPrize, setNewPrize] = useState({ icon: "🎁", name: "", valueLabel: "", price: "500", limit: "5", photoUrl: "" });
   const [corps, setCorps] = useState<{ id: number; name: string; balance: number; employees: number }[]>([]);
   const [cName, setCName] = useState("");
   const [empPhone, setEmpPhone] = useState("");
@@ -736,9 +738,11 @@ function ControlCards() {
     adminApi.features().then((r) => { setFlags(r.features); setFund(r.mashinaFund); }).catch(() => undefined);
     adminApi.bonusEconomy().then(setBonusEcon).catch(() => undefined);
     adminApi.oyinSponsor().then((s) => { setSponsorState(s); setSponsorName(s.isDefault ? "" : s.name); setSponsorUrl(s.photoUrl ?? ""); }).catch(() => undefined);
-    adminApi.oyinPrizePhotos().then((r) => {
-      setPrizePhotos(r.prizes);
-      setPrizePhotoDraft(Object.fromEntries(r.prizes.map((p) => [p.key, p.photoUrl ?? ""])));
+    adminApi.oyinCatalog().then((r) => {
+      setCatalog(r.prizes);
+      setCatalogDraft(Object.fromEntries(r.prizes.map((p) => [p.key, {
+        icon: p.icon, name: p.name, valueLabel: p.valueLabel, price: String(p.price), limit: String(p.limit), photoUrl: p.photoUrl ?? "",
+      }])));
     }).catch(() => undefined);
     adminApi.transferEconomy().then(setTxEcon).catch(() => undefined);
     adminApi.corps().then((r) => setCorps(r.corps)).catch(() => undefined);
@@ -755,9 +759,41 @@ function ControlCards() {
     try { setSponsorState(await adminApi.setOyinSponsor(sponsorName, sponsorUrl || null, active)); }
     catch { alert("Homiyni saqlab bo'lmadi"); }
   };
-  const savePrizePhoto = async (key: string) => {
-    try { setPrizePhotos((await adminApi.setOyinPrizePhoto(key, prizePhotoDraft[key] ?? "")).prizes); }
-    catch { alert("Sovrin rasmini saqlab bo'lmadi"); }
+  const saveCatalogPrize = async (key: string) => {
+    const d = catalogDraft[key];
+    if (!d) return;
+    try {
+      setCatalog(await adminApi.upsertOyinPrize({
+        key, icon: d.icon, name: d.name, valueLabel: d.valueLabel,
+        price: Number(d.price) || 0, limit: Number(d.limit) || 0, photoUrl: d.photoUrl || null,
+      }).then((r) => r.prizes));
+    } catch { alert("Sovrinni saqlab bo'lmadi"); }
+  };
+  const addNewPrize = async () => {
+    if (!newPrize.name.trim()) return;
+    try {
+      const r = await adminApi.upsertOyinPrize({
+        icon: newPrize.icon, name: newPrize.name, valueLabel: newPrize.valueLabel,
+        price: Number(newPrize.price) || 0, limit: Number(newPrize.limit) || 0, photoUrl: newPrize.photoUrl || null,
+      });
+      setCatalog(r.prizes);
+      setCatalogDraft(Object.fromEntries(r.prizes.map((p) => [p.key, {
+        icon: p.icon, name: p.name, valueLabel: p.valueLabel, price: String(p.price), limit: String(p.limit), photoUrl: p.photoUrl ?? "",
+      }])));
+      setNewPrize({ icon: "🎁", name: "", valueLabel: "", price: "500", limit: "5", photoUrl: "" });
+    } catch { alert("Yangi sovrin qo'shib bo'lmadi"); }
+  };
+  const toggleCatalogPrize = async (key: string, active: boolean) => {
+    try { setCatalog(await adminApi.setOyinPrizeActive(key, active).then((r) => r.prizes)); }
+    catch { alert("Holatni o'zgartirib bo'lmadi"); }
+  };
+  const removeCatalogPrize = async (key: string) => {
+    if (!confirm("Bu sovrinni butunlay o'chirasizmi?")) return;
+    try {
+      const r = await adminApi.deleteOyinPrize(key);
+      if (!r.ok) { alert("Bu sovringa allaqachon chipta sotilgan — o'chirib bo'lmaydi, buning o'rniga «yashirish»ni ishlating."); return; }
+      setCatalog((c) => (c ? c.filter((p) => p.key !== key) : c));
+    } catch { alert("O'chirib bo'lmadi"); }
   };
   const saveTxEcon = async (key: string, value: number) => {
     try { const r = await adminApi.setTransferEconomy(key, value); setTxEcon((e) => (e ? { ...e, values: r.values } : e)); }
@@ -827,29 +863,62 @@ function ControlCards() {
         )}
       </section>
       <section className="card">
-        <h3>🖼 Koson O'yini — sovrin rasmlari</h3>
+        <h3>🎁 Koson O'yini — sovrin-katalog</h3>
         <p className="muted" style={{ margin: "0 0 8px", fontSize: 12 }}>
-          Rasm-URL bo'sh qoldirilsa, mijozga emoji (masalan 🍵) ko'rinadi. To'ldirilsa — darhol real rasm bilan almashadi.
+          Yangi sovrin qo'shish, mavjudini narxi/soni/rasmi bilan tahrirlash, vitrinadan yashirish yoki (chiptasi sotilmagan bo'lsa) butunlay o'chirish.
         </p>
-        {prizePhotos && (
-          <div style={{ display: "grid", gap: 8, maxWidth: 480 }}>
-            {prizePhotos.map((p) => (
-              <div key={p.key} style={{ display: "flex", gap: 8, alignItems: "center" }}>
-                {prizePhotoDraft[p.key] ? (
-                  <img src={prizePhotoDraft[p.key]} alt="" style={{ width: 34, height: 34, borderRadius: 8, objectFit: "cover", flexShrink: 0 }} onError={(e) => { (e.target as HTMLImageElement).style.visibility = "hidden"; }} />
-                ) : (
-                  <span style={{ width: 34, height: 34, borderRadius: 8, background: "rgba(255,255,255,.06)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18, flexShrink: 0 }}>{p.icon}</span>
-                )}
-                <span style={{ width: 90, fontSize: 12.5, flexShrink: 0 }}>{p.name}</span>
-                <input
-                  type="text" placeholder="Rasm URL"
-                  value={prizePhotoDraft[p.key] ?? ""}
-                  onChange={(e) => setPrizePhotoDraft((d) => ({ ...d, [p.key]: e.target.value }))}
-                  style={{ flex: 1 }}
-                />
-                <button className="btn sm" onClick={() => void savePrizePhoto(p.key)}>Saqlash</button>
+        {catalog && (
+          <div style={{ display: "grid", gap: 10, maxWidth: 640 }}>
+            {catalog.map((p) => {
+              const d = catalogDraft[p.key] ?? { icon: p.icon, name: p.name, valueLabel: p.valueLabel, price: String(p.price), limit: String(p.limit), photoUrl: p.photoUrl ?? "" };
+              const setD = (patch: Partial<typeof d>) => setCatalogDraft((cur) => ({ ...cur, [p.key]: { ...d, ...patch } }));
+              return (
+                <div key={p.key} style={{ display: "grid", gap: 6, padding: "8px 10px", borderRadius: 10, background: p.active ? "rgba(255,255,255,.04)" : "rgba(255,255,255,.02)", opacity: p.active ? 1 : 0.55 }}>
+                  <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+                    {d.photoUrl ? (
+                      <img src={d.photoUrl} alt="" style={{ width: 34, height: 34, borderRadius: 8, objectFit: "cover", flexShrink: 0 }} onError={(e) => { (e.target as HTMLImageElement).style.visibility = "hidden"; }} />
+                    ) : (
+                      <span style={{ width: 34, height: 34, borderRadius: 8, background: "rgba(255,255,255,.06)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18, flexShrink: 0 }}>{d.icon || "🎁"}</span>
+                    )}
+                    <input type="text" value={d.icon} onChange={(e) => setD({ icon: e.target.value })} placeholder="emoji" style={{ width: 44, textAlign: "center" }} maxLength={4} />
+                    <input type="text" value={d.name} onChange={(e) => setD({ name: e.target.value })} placeholder="Nomi" style={{ flex: 1, minWidth: 120 }} />
+                    <input type="text" value={d.valueLabel} onChange={(e) => setD({ valueLabel: e.target.value })} placeholder="~narx (masalan 120 000 so'm)" style={{ width: 150 }} />
+                    {!p.active && <span style={{ fontSize: 11, color: "#f0b429" }}>yashirilgan</span>}
+                  </div>
+                  <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+                    <span className="muted" style={{ fontSize: 11 }}>Chipta narxi (ball)</span>
+                    <input type="number" min={1} value={d.price} onChange={(e) => setD({ price: e.target.value })} style={{ width: 90 }} />
+                    <span className="muted" style={{ fontSize: 11 }}>Chipta-o'rin (dona)</span>
+                    <input type="number" min={1} value={d.limit} onChange={(e) => setD({ limit: e.target.value })} style={{ width: 70 }} />
+                    <span className="muted" style={{ fontSize: 11 }}>sotilgan: {p.sold}</span>
+                  </div>
+                  <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                    <input type="text" value={d.photoUrl} onChange={(e) => setD({ photoUrl: e.target.value })} placeholder="Rasm URL (ixtiyoriy — bo'sh = emoji)" style={{ flex: 1 }} />
+                    <button className="btn sm" onClick={() => void saveCatalogPrize(p.key)}>Saqlash</button>
+                    <button className="btn sm" onClick={() => void toggleCatalogPrize(p.key, !p.active)}>{p.active ? "Yashirish" : "Qaytarish"}</button>
+                    <button className="btn sm danger" onClick={() => void removeCatalogPrize(p.key)}>O'chirish</button>
+                  </div>
+                </div>
+              );
+            })}
+            <div style={{ display: "grid", gap: 6, padding: "10px", borderRadius: 10, border: "1px dashed rgba(255,255,255,.2)" }}>
+              <div className="muted" style={{ fontSize: 11, fontWeight: 800, textTransform: "uppercase", letterSpacing: 0.5 }}>+ Yangi sovrin</div>
+              <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+                <input type="text" value={newPrize.icon} onChange={(e) => setNewPrize((s) => ({ ...s, icon: e.target.value }))} placeholder="emoji" style={{ width: 44, textAlign: "center" }} maxLength={4} />
+                <input type="text" value={newPrize.name} onChange={(e) => setNewPrize((s) => ({ ...s, name: e.target.value }))} placeholder="Nomi (masalan: Termos)" style={{ flex: 1, minWidth: 120 }} />
+                <input type="text" value={newPrize.valueLabel} onChange={(e) => setNewPrize((s) => ({ ...s, valueLabel: e.target.value }))} placeholder="~narx" style={{ width: 150 }} />
               </div>
-            ))}
+              <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+                <span className="muted" style={{ fontSize: 11 }}>Chipta narxi (ball)</span>
+                <input type="number" min={1} value={newPrize.price} onChange={(e) => setNewPrize((s) => ({ ...s, price: e.target.value }))} style={{ width: 90 }} />
+                <span className="muted" style={{ fontSize: 11 }}>Chipta-o'rin (dona)</span>
+                <input type="number" min={1} value={newPrize.limit} onChange={(e) => setNewPrize((s) => ({ ...s, limit: e.target.value }))} style={{ width: 70 }} />
+              </div>
+              <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                <input type="text" value={newPrize.photoUrl} onChange={(e) => setNewPrize((s) => ({ ...s, photoUrl: e.target.value }))} placeholder="Rasm URL (ixtiyoriy)" style={{ flex: 1 }} />
+                <button className="btn sm" disabled={!newPrize.name.trim()} onClick={() => void addNewPrize()}>Qo'shish</button>
+              </div>
+            </div>
           </div>
         )}
       </section>

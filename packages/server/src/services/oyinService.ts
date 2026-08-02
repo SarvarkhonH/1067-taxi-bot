@@ -7,21 +7,24 @@
 // pastda ko'ring). Faqat kunlik-kirish/ulashish va chipta-xarid/sotilgan-son AppState'da yoziladi
 // (`oyin:*` prefiks). Yangi Prisma model YO'Q, yangi poller YO'Q (ARCHITECTURE.md invariantlari).
 import {
-  OYIN_PRIZES,
+  OYIN_SEED_CATALOG,
   SEASON_END_ISO,
   SPRINT_MAX_WINS_PER_ROLLING_4W,
   type OyinActivityAction,
   type OyinActivityFilter,
   type OyinActivityResponse,
   type OyinActivityRow,
+  type OyinAdminPrizeRow,
   type OyinBallBreakdown,
   type OyinBoardResponse,
   type OyinBuyResult,
+  type OyinCatalogPrize,
+  type OyinDeleteResult,
   type OyinDrawExport,
   type OyinFriendRow,
   type OyinJamoamResponse,
   type OyinPrizeKey,
-  type OyinPrizePhotoRow,
+  type OyinPrizeUpsertInput,
   type OyinSeasonCloseResult,
   type OyinSprintResult,
   type OyinStateResponse,
@@ -232,59 +235,126 @@ export async function getBoard(memberId: number, limit = 50): Promise<OyinBoardR
 }
 
 export async function getVitrina(memberId: number): Promise<OyinVitrinaResponse> {
-  const [econ, soldRows, ticketsRow, sponsor, photos] = await Promise.all([
-    getBonusEcon(),
-    Promise.all(OYIN_PRIZES.map((p) => prisma.appState.findUnique({ where: { key: `oyin_sold:${p.key}` } }))),
+  const [catalog, soldMap, ticketsRow, sponsor] = await Promise.all([
+    getCatalog(),
+    getSoldMap(),
     prisma.appState.findUnique({ where: { key: `oyin:tickets:${memberId}` } }),
     getSponsor(),
-    getPrizePhotoMap(),
   ]);
   const mine = parseTickets(ticketsRow?.value);
   const mineByPrize = new Map<string, number>();
   for (const t of mine) mineByPrize.set(t.prizeKey, (mineByPrize.get(t.prizeKey) ?? 0) + 1);
 
-  const prizes = OYIN_PRIZES.map((p, i) => {
-    const price = econ[p.priceKnob] ?? 0;
-    const limit = econ[p.limitKnob] ?? 0;
-    const sold = Number(soldRows[i]?.value ?? 0) || 0;
-    const myCount = mineByPrize.get(p.key) ?? 0;
-    return {
-      key: p.key, icon: p.icon, name: p.name, valueLabel: p.valueLabel,
-      price, limit, sold, remaining: Math.max(0, limit - sold), soldOut: sold >= limit,
-      mine: myCount, chancePct: myCount > 0 && sold > 0 ? Math.round((myCount / sold) * 10000) / 100 : null,
-      photoUrl: photos.get(p.key) ?? null,
-    };
-  });
+  const prizes = catalog
+    .filter((p) => p.active)
+    .map((p) => {
+      const sold = soldMap.get(p.key) ?? 0;
+      const myCount = mineByPrize.get(p.key) ?? 0;
+      return {
+        key: p.key, icon: p.icon, name: p.name, valueLabel: p.valueLabel,
+        price: p.price, limit: p.limit, sold, remaining: Math.max(0, p.limit - sold), soldOut: sold >= p.limit,
+        mine: myCount, chancePct: myCount > 0 && sold > 0 ? Math.round((myCount / sold) * 10000) / 100 : null,
+        photoUrl: p.photoUrl,
+      };
+    });
   return { prizes, sponsor: { name: sponsor.name, photoUrl: sponsor.photoUrl } };
 }
 
-// ── Sovrin-rasmlari (admin) — Homiy bilan AYNAN bir xil naqsh: AppState, yangi Prisma model YO'Q.
-// `oyin:prizephoto:<prizeKey>` = ham qiymat sifatida to'g'ridan-to'g'ri URL saqlanadi (JSON emas —
-// bitta maydon, ortiqcha parselash shart emas). Bo'sh/mavjud bo'lmasa null → miniapp emoji fallback. ─
-async function getPrizePhotoMap(): Promise<Map<OyinPrizeKey, string>> {
-  const rows = await prisma.appState.findMany({ where: { key: { startsWith: "oyin:prizephoto:" } } });
-  const map = new Map<OyinPrizeKey, string>();
-  for (const row of rows) {
-    const key = row.key.slice("oyin:prizephoto:".length) as OyinPrizeKey;
-    if (row.value.trim()) map.set(key, row.value.trim());
+// ── Sovrin-katalog (admin, to'liq CRUD — 2026-08-02) — Homiy bilan bir xil naqsh: BITTA AppState
+// qatorida (`oyin:catalog`) JSON massiv, yangi Prisma model YO'Q. Birinchi o'qishda bo'sh bo'lsa
+// OYIN_SEED_CATALOG bilan urug'lanadi va shu holda saqlanadi (shundan keyin faqat admin o'zgartiradi,
+// seed massiv qayta o'qilmaydi). `oyin_sold:<key>` hisoblagichlari kalit nomiga bog'liq — shuning
+// uchun chin o'chirish faqat sold=0 bo'lganda ruxsat etiladi (aks holda "yetim" hisoblagich qoladi).
+const CATALOG_KEY = "oyin:catalog";
+
+function parseCatalog(raw: string | undefined): OyinCatalogPrize[] {
+  if (!raw) return [];
+  try {
+    const arr = JSON.parse(raw) as unknown;
+    return Array.isArray(arr) ? (arr as OyinCatalogPrize[]) : [];
+  } catch {
+    return [];
   }
+}
+
+async function getCatalog(): Promise<OyinCatalogPrize[]> {
+  const row = await prisma.appState.findUnique({ where: { key: CATALOG_KEY } });
+  if (!row) {
+    await saveCatalog(OYIN_SEED_CATALOG).catch(() => undefined);
+    return OYIN_SEED_CATALOG;
+  }
+  const parsed = parseCatalog(row.value);
+  return parsed.length ? parsed : OYIN_SEED_CATALOG;
+}
+
+async function saveCatalog(catalog: OyinCatalogPrize[]): Promise<void> {
+  const value = JSON.stringify(catalog);
+  await prisma.appState.upsert({ where: { key: CATALOG_KEY }, create: { key: CATALOG_KEY, value }, update: { value } });
+}
+
+async function getSoldMap(): Promise<Map<string, number>> {
+  const rows = await prisma.appState.findMany({ where: { key: { startsWith: "oyin_sold:" } } });
+  const map = new Map<string, number>();
+  for (const row of rows) map.set(row.key.slice("oyin_sold:".length), Number(row.value) || 0);
   return map;
 }
 
-/** Admin: barcha 5 sovrinning joriy rasm-holati (bo'sh — emoji fallback bilan). */
-export async function listPrizePhotos(): Promise<OyinPrizePhotoRow[]> {
-  const photos = await getPrizePhotoMap();
-  return OYIN_PRIZES.map((p) => ({ key: p.key, name: p.name, icon: p.icon, photoUrl: photos.get(p.key) ?? null }));
+function slugify(name: string): string {
+  const base = name.trim().toLowerCase().replace(/[^a-z0-9а-яё'ʻʼ]+/gi, "-").replace(/^-+|-+$/g, "");
+  return base.slice(0, 40) || "sovrin";
+}
+function uniqueCatalogKey(name: string, existing: OyinCatalogPrize[]): string {
+  const base = slugify(name);
+  if (!existing.some((p) => p.key === base)) return base;
+  let i = 2;
+  while (existing.some((p) => p.key === `${base}-${i}`)) i++;
+  return `${base}-${i}`;
 }
 
-/** Admin: bitta sovrin rasmini o'rnatish/o'chirish (bo'sh string = o'chirish, emoji'ga qaytadi). */
-export async function setPrizePhoto(prizeKeyRaw: string, photoUrl: string): Promise<OyinPrizePhotoRow[]> {
-  const prize = OYIN_PRIZES.find((p) => p.key === prizeKeyRaw);
-  if (!prize) return listPrizePhotos();
-  const key = `oyin:prizephoto:${prize.key}`;
-  const value = photoUrl.trim().slice(0, 500);
-  await prisma.appState.upsert({ where: { key }, create: { key, value }, update: { value } });
-  return listPrizePhotos();
+/** Admin: butun katalog, har biriga sotilgan-son qo'shilgan (o'chirish xavfsizligini ko'rsatish uchun). */
+export async function adminListCatalog(): Promise<OyinAdminPrizeRow[]> {
+  const [catalog, soldMap] = await Promise.all([getCatalog(), getSoldMap()]);
+  return catalog.map((p) => ({ ...p, sold: soldMap.get(p.key) ?? 0 }));
+}
+
+/** Admin: sovrin qo'shish (key bo'sh/topilmasa) yoki tahrirlash (key mavjud bo'lsa). */
+export async function adminUpsertPrize(input: OyinPrizeUpsertInput): Promise<OyinAdminPrizeRow[]> {
+  const catalog = await getCatalog();
+  const name = (input.name || "").trim().slice(0, 60) || "Sovrin";
+  const icon = (input.icon || "🎁").trim().slice(0, 8) || "🎁";
+  const valueLabel = (input.valueLabel || "").trim().slice(0, 60);
+  const price = Math.max(1, Math.round(Number(input.price) || 0));
+  const limit = Math.max(1, Math.round(Number(input.limit) || 0));
+  const photoUrl = input.photoUrl?.trim().slice(0, 500) || null;
+
+  const existing = input.key ? catalog.find((p) => p.key === input.key) : undefined;
+  if (existing) {
+    Object.assign(existing, { name, icon, valueLabel, price, limit, photoUrl });
+  } else {
+    catalog.push({ key: uniqueCatalogKey(name, catalog), icon, name, valueLabel, price, limit, photoUrl, active: true });
+  }
+  await saveCatalog(catalog);
+  return adminListCatalog();
+}
+
+/** Admin: vitrinadan yashirish/qaytarish — chin o'chirishning xavfsiz muqobili. */
+export async function adminSetPrizeActive(key: string, active: boolean): Promise<OyinAdminPrizeRow[]> {
+  const catalog = await getCatalog();
+  const existing = catalog.find((p) => p.key === key);
+  if (existing) {
+    existing.active = active;
+    await saveCatalog(catalog);
+  }
+  return adminListCatalog();
+}
+
+/** Admin: chin o'chirish — FAQAT sotilgan chiptasi yo'q sovrinlar uchun (aks holda active:false tavsiya). */
+export async function adminDeletePrize(key: string): Promise<OyinDeleteResult> {
+  const [catalog, soldMap] = await Promise.all([getCatalog(), getSoldMap()]);
+  if ((soldMap.get(key) ?? 0) > 0) return { ok: false, reason: "has_sales" };
+  const next = catalog.filter((p) => p.key !== key);
+  if (next.length !== catalog.length) await saveCatalog(next);
+  return { ok: true };
 }
 
 // ── chipta xaridi: reserve→tekshir→rollback atomik hisoblagich (economyService.ts
@@ -309,33 +379,31 @@ async function reserveSoldSlot(prizeKey: OyinPrizeKey, limit: number): Promise<n
 
 export async function buyTicket(memberId: number, prizeKeyRaw: string): Promise<OyinBuyResult> {
   if (!(await featureOn("oyin"))) return { ok: false, reason: "off" };
-  const prize = OYIN_PRIZES.find((p) => p.key === prizeKeyRaw);
+  const catalog = await getCatalog();
+  const prize = catalog.find((p) => p.key === prizeKeyRaw && p.active);
   if (!prize) return { ok: false, reason: "unknown_prize" };
 
   // withMemberLock: bitta a'zoning ketma-ket xaridlarini serializatsiya qiladi — ball-tekshiruv va
   // yechish orasida race bo'lmasin (ikkinchi urinish BIRINCHISI YOZIB BO'LGANDAN keyin ballni o'qiydi).
   // Cross-member xavfsizlik esa yuqoridagi reserveSoldSlot'ning atomik SQL'idan keladi.
   return withMemberLock(memberId, async () => {
-    const econ = await getBonusEcon();
-    const price = econ[prize.priceKnob] ?? 0;
-    const limit = econ[prize.limitKnob] ?? 0;
     const ball = await getBall(memberId);
-    if (ball < price) return { ok: false, reason: "insufficient" as const, ballLeft: ball };
+    if (ball < prize.price) return { ok: false, reason: "insufficient" as const, ballLeft: ball };
 
-    const ticketNo = await reserveSoldSlot(prize.key, limit);
+    const ticketNo = await reserveSoldSlot(prize.key, prize.limit);
     if (ticketNo === null) return { ok: false, reason: "sold_out" as const, ballLeft: ball };
 
     const key = `oyin:tickets:${memberId}`;
     const row = await prisma.appState.findUnique({ where: { key } });
     const tickets = parseTickets(row?.value);
-    tickets.push({ prizeKey: prize.key, no: ticketNo, priceAtPurchase: price, ts: new Date().toISOString() });
+    tickets.push({ prizeKey: prize.key, no: ticketNo, priceAtPurchase: prize.price, ts: new Date().toISOString() });
     await prisma.appState.upsert({
       where: { key },
       create: { key, value: JSON.stringify(tickets) },
       update: { value: JSON.stringify(tickets) },
     });
     invalidateBallCache();
-    return { ok: true, ticketNo, prizeKey: prize.key, ballLeft: ball - price };
+    return { ok: true, ticketNo, prizeKey: prize.key, ballLeft: ball - prize.price };
   });
 }
 
