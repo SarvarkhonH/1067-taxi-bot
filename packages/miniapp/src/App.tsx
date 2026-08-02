@@ -416,7 +416,9 @@ export function App() {
 
   // 📱 Uy tabida topbar ko'rsatilmaydi (pastdagi shart) → xavfsiz zonani `.content` oladi, aks holda
   // to'liq ekran rejimida birinchi karta Telegram'ning ✕/⌄/⋮ paneli ostida qoladi.
-  const noTopbar = tab === "uy";
+  // 🎮 O'yin ham to'liq ekran (ega qarori 2026-08-02): topbarda unga NOM yo'q edi — sarlavhasiz
+  // bo'sh panel ~52px joyni yeb turardi. Qoida: panel yo nomli, yo umuman yo'q.
+  const noTopbar = tab === "uy" || tab === "oyin";
 
   return (
     <div className={(newhomeUi ? shellCls + " nh-app" : shellCls) + (noTopbar ? " no-topbar" : "")}>
@@ -487,6 +489,10 @@ export function App() {
         </div>
       </main>
 
+      {/* 🎮 O'yin ekranida ilova menyusi CHIZILMAYDI: o'yinning O'Z 3 tabi bor edi va ikkalasi
+          ustma-ust tushib, pastda ikki qator menyu chiqardi. Qoida: bitta ekran — bitta pastki
+          menyu. Orqaga qaytish Telegram BackButton orqali (yuqorida useBackButton). */}
+      {tab !== "oyin" && (
       <nav className="tabbar">
         {/* activeIndex === -1 bo'ladi hozirgi ekran tabbarda YO'Q bo'lganda (masalan Hamyon — W1'dan keyin
             tab tugmasi yo'q, Uy'dan ochiladi). Bunday paytda indikatorni yashiramiz, aks holda chapga sakraydi. */}
@@ -508,6 +514,7 @@ export function App() {
           </Fragment>
         ))}
       </nav>
+      )}
     </div>
   );
 }

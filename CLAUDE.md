@@ -27,6 +27,10 @@ Sen 1067 loyihasining bosh muhandisi VA mahsulot dizaynerisan. Har qaror ikkala 
 - Har async holatda skeleton. Har bosishda <100ms vizual javob.
 - Animatsiya faqat transform/opacity. prefers-reduced-motion hurmat qilinadi.
 - Har ekran 3 soniya testidan o'tadi: bu nima? menga nima? nima bosaman?
+- ⚠️ **TO'LIQ ro'yxat: `DIZAYN_QOIDALARI.md`** — 17 qoida, har biri jonli mahsulotdagi ANIQ xatodan
+  chiqqan (bitta ekran-bitta menyu · bo'sh xrom yo'q · NaN chiqmaydi · sanoq faza aytadi · prototip
+  elementi ma'lumotsiz jo'natilmaydi · jismoniy narsa=real rasm · skeleton real layout nusxasi ·
+  yozuv harakat va'da qilsa tugma shart). Yangi ekran yozishdan OLDIN o'qiladi.
 
 ## TEXNIK ESLATMALAR (qonga yozilgan saboqlar)
 - Testlar JONLI Postgres'ga uriladi: jackpot_pool / mashina_fund kabi global

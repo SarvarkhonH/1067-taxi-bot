@@ -189,16 +189,24 @@
 .oyk-rail-sub { font-size: 11px; color: rgba(255, 255, 255, .4); white-space: nowrap; }
 .oyk-rail { display: flex; gap: 10px; overflow-x: auto; margin: 0 -16px; padding: 0 16px 8px; }
 .oyk-pcard {
-  flex-shrink: 0; width: 148px; background: var(--card); border: 1px solid var(--line); border-radius: 18px;
+  flex-shrink: 0; width: 164px; background: var(--card); border: 1px solid var(--line); border-radius: 18px;
   padding: 12px; display: flex; flex-direction: column; gap: 7px;
 }
 .oyk-pcard.is-hot { border-color: rgba(111, 207, 151, .5); box-shadow: 0 0 20px rgba(111, 207, 151, .2); }
 .oyk-pcard-icon { font-size: 34px; text-align: center; animation: oyk-bob 2.6s ease-in-out infinite; }
 /* Katta rasm (ega talabi 2026-08-02): rail-kartada rasm butun eni bo'ylab — mahsulot ko'rinadi,
    emoji-fallback esa avvalgidek markazda kichik turadi. */
-.oyk-pcard-icon img { width: 100%; height: 96px; margin: 0; border-radius: 12px; object-fit: cover; display: block; animation: none; }
+.oyk-pcard-icon img { width: 100%; height: 120px; margin: 0; border-radius: 12px; object-fit: cover; display: block; animation: none; }
 .oyk-pcard-icon:has(img) { animation: none; }
-.oyk-pcard-name { font-size: 12px; font-weight: 800; text-align: center; line-height: 1.25; }
+/* Rasm yo'q holati — rangli fon + katta emoji. Bo'sh kulrang kvadrat TAQIQ (dizayn qoidasi #6). */
+.oyk-pcard-icon:not(:has(img)) {
+  height: 120px; border-radius: 12px; font-size: 44px; display: flex; align-items: center; justify-content: center;
+  background: linear-gradient(150deg, rgba(245, 183, 0, .16), rgba(110, 90, 255, .14));
+}
+.oyk-pcard-name {
+  font-size: 12px; font-weight: 800; text-align: center; line-height: 1.25;
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+}
 .oyk-pcard-meta { font-size: 10.5px; color: rgba(255, 255, 255, .45); text-align: center; font-variant-numeric: tabular-nums; }
 .oyk-pbar { height: 6px; border-radius: 3px; background: rgba(255, 255, 255, .08); overflow: hidden; }
 .oyk-pbar-fill { height: 100%; border-radius: 3px; background: var(--oyk-gold); transition: width .5s; }
@@ -239,6 +247,28 @@
 .oyk-daily-row.is-done .oyk-daily-label { color: rgba(255, 255, 255, .45); }
 .oyk-daily-gain { font-size: 11.5px; font-weight: 800; color: rgba(255, 255, 255, .5); font-variant-numeric: tabular-nums; }
 .oyk-daily-row.is-done .oyk-daily-gain { color: var(--oyk-gold-soft); }
+
+/* ── 🔥 Haftalik vazifa (zanjir) — prototipdagi chiziq, real login-kunlaridan ── */
+.oyk-streak {
+  display: flex; align-items: center; gap: 10px; padding: 11px 14px; border-radius: 14px;
+  background: rgba(110, 90, 255, .10); border: 1px solid rgba(110, 90, 255, .30);
+  font-size: 12.5px; color: rgba(255, 255, 255, .8);
+}
+.oyk-streak.is-done { background: rgba(52, 211, 153, .10); border-color: rgba(52, 211, 153, .34); }
+.oyk-streak-emoji { font-size: 16px; flex-shrink: 0; }
+.oyk-streak-text { flex: 1; min-width: 0; }
+.oyk-streak-text b { color: #fff; }
+.oyk-streak-gain { font-weight: 900; color: var(--oyk-gold-soft); font-variant-numeric: tabular-nums; flex-shrink: 0; }
+
+/* ── 🤝 "Rahmat ayt" tugmasi (magnet kartada va Jamoam qatorlarida) ── */
+.oyk-thanks {
+  min-height: 34px; padding: 0 12px; border: 1px solid rgba(245, 183, 0, .45); border-radius: 11px;
+  background: rgba(245, 183, 0, .14); color: var(--oyk-gold-soft);
+  font-size: 12px; font-weight: 800; white-space: nowrap; cursor: pointer; flex-shrink: 0;
+  transition: transform var(--dur-press);
+}
+.oyk-thanks:active { transform: scale(.96); }
+.oyk-thanks.is-done { background: rgba(52, 211, 153, .14); border-color: rgba(52, 211, 153, .4); color: var(--oyk-green, #6fcf97); cursor: default; }
 
 /* ── 🔴 JONLI lenta — bugungi so'nggi taklif-voqea (ijtimoiy isbot) ── */
 .oyk-live {
@@ -287,12 +317,19 @@
 .oyk-vcard { background: var(--card); border: 1px solid var(--line); border-radius: 20px; padding: 14px; display: flex; flex-direction: column; gap: 9px; }
 /* Katta rasm-banner (ega talabi 2026-08-02): rasm bor sovrinda karta tepasi to'liq mahsulot-foto —
    pastdan qoraytirish bilan narx-chip o'qiladi. Rasm yuklanmasa JS parentni olib tashlaydi (emoji-yo'l). */
-.oyk-vcard-photo { position: relative; margin: -14px -14px 2px; height: 158px; overflow: hidden; border-radius: 19px 19px 0 0; }
+.oyk-vcard-photo { position: relative; margin: -14px -14px 2px; height: 200px; overflow: hidden; border-radius: 19px 19px 0 0; }
 .oyk-vcard-photo img { width: 100%; height: 100%; object-fit: cover; display: block; }
-.oyk-vcard-photo-fade { position: absolute; inset: 0; background: linear-gradient(180deg, transparent 45%, rgba(10, 8, 22, .82)); }
+.oyk-vcard-photo-fade { position: absolute; inset: 0; background: linear-gradient(180deg, transparent 40%, rgba(10, 8, 22, .88)); }
+/* Afisha effekti: sovrin nomi RASM USTIDA katta oq harflarda */
+.oyk-vcard-photo-name {
+  position: absolute; left: 14px; right: 96px; bottom: 12px;
+  font-size: 19px; font-weight: 900; color: #fff; line-height: 1.2;
+  text-shadow: 0 2px 12px rgba(0, 0, 0, .6);
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+}
 .oyk-vcard-photo-price {
-  position: absolute; right: 12px; bottom: 10px; padding: 5px 12px; border-radius: 99px;
-  background: var(--oyk-gold-grad); color: var(--oyk-ink); font-size: 14px; font-weight: 900; font-variant-numeric: tabular-nums;
+  position: absolute; right: 12px; bottom: 12px; padding: 7px 14px; border-radius: 99px;
+  background: var(--oyk-gold-grad); color: var(--oyk-ink); font-size: 16px; font-weight: 900; font-variant-numeric: tabular-nums;
 }
 .oyk-vcard-photo-price small { font-size: 10px; font-weight: 800; }
 .oyk-vcard-top { display: flex; gap: 12px; align-items: center; }

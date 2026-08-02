@@ -3,7 +3,7 @@
 // NewUyView (feature "newhome", UY_REDESIGN Bosqich 1) = the premium super-app home below.
 import { useEffect, useState } from "react";
 import type { ClassifiedCard, HomeBanner, HomeFeedItem, MeResponse, OyinPrizeView, OyinStateResponse, SavedAddressView, ServiceListingCard } from "@t1067/shared";
-import { INSP_TIER_EMOJI, INSP_TIER_LABEL, SEASON_END_ISO } from "@t1067/shared";
+import { INSP_TIER_EMOJI, INSP_TIER_LABEL } from "@t1067/shared";
 import { api, apiUrl } from "./api";
 import { haptic } from "./telegram";
 import { HomeGames } from "./homeGames";
@@ -29,10 +29,19 @@ function KosonOyinCard({ onNav }: { onNav: (t: string) => void }) {
     onNav("oyin");
   };
 
-  if (!state) return <div className="nh-koson"><div className="nh-skel" style={{ height: 216, borderRadius: 22 }} /></div>;
+  // Skeleton balandligi real kartaga TENG (~267px) — aks holda yuklanganda sahifa sakraydi.
+  if (!state) return <div className="nh-koson"><div className="nh-skel" style={{ height: 267, borderRadius: 22 }} /></div>;
+  // Mavsum sozlanmagan — karta umuman chizilmaydi (yolg'on sanoq ko'rsatgandan ko'ra yo'q bo'lgani yaxshi).
+  if (!state.season.configured || state.season.phase === "ended") return null;
 
-  const left = Math.max(0, Date.parse(SEASON_END_ISO) - Date.now());
+  // ⚠️ `Date.parse(null) → NaN` → `Math.max(0, NaN) → NaN` → ekranda "NaN kun qoldi". Qo'riqlanadi.
+  const upcoming = state.season.phase === "upcoming";
+  const targetIso = upcoming ? state.season.startIso : state.season.endIso;
+  const targetMs = targetIso ? Date.parse(targetIso) : NaN;
+  const left = Number.isFinite(targetMs) ? Math.max(0, targetMs - Date.now()) : 0;
   const days = Math.floor(left / 86400_000);
+  const hours = Math.floor((left % 86400_000) / 3600_000);
+  const cdText = days > 0 ? `${days} kun` : `${hours} soat`;
   // Eng qimmat 3 sovrin — "katta yutuq" hissi (arzonlari o'yin ichida baribir ko'rinadi).
   const top = (prizes ?? []).slice().sort((a, b) => b.price - a.price).slice(0, 3);
 
@@ -41,10 +50,12 @@ function KosonOyinCard({ onNav }: { onNav: (t: string) => void }) {
       <div className="nh-koson-glow" aria-hidden="true" />
       <button className="nh-koson-main" onClick={goOyin}>
         <div className="nh-koson-top">
-          <span className="nh-koson-badge">🔥 MAVSUM OCHIQ</span>
-          <span className="nh-koson-cd">⏳ {days} kun qoldi</span>
+          <span className="nh-koson-badge">{upcoming ? "🚀 TEZ ORADA" : "🔥 MAVSUM OCHIQ"}</span>
+          <span className="nh-koson-cd">{upcoming ? `⏳ ${cdText}dan keyin` : `⏳ ${cdText} qoldi`}</span>
         </div>
-        <div className="nh-koson-title">Tekin sovg'alar mavsumi boshlandi! 🎁</div>
+        <div className="nh-koson-title">
+          {upcoming ? "Tekin sovg'alar mavsumi boshlanmoqda! 🎁" : "Tekin sovg'alar mavsumi boshlandi! 🎁"}
+        </div>
         <div className="nh-koson-sub">Safar qil, ball yig' — oy oxiri jonli tirajda real sovrinlar</div>
         {top.length > 0 && (
           <div className="nh-koson-prizes">
@@ -120,6 +131,9 @@ export function NewUyView({ me, onBook, onNav, onBanner }: { me: MeResponse; onB
   }, []);
 
   const rail = [
+    // 🎮 O'yin rail'da ham bor: hero'dan pastga o'tib ketgan odam uchun IKKINCHI yo'l (avval
+    // o'yinga faqat hero orqali kirilardi, hub'da ham yo'q edi).
+    { on: !!f.oyin, ic: "nh-i-g", em: "🎮", lb: "O'yin", nav: "oyin", locked: false },
     { on: !!f.shop, ic: "nh-i-b", em: "🏪", lb: "Do'kon", nav: "dokon", locked: false },
     { on: !!f.restoran, ic: "nh-i-o", em: "🍽", lb: "Restoran", nav: "restoran", locked: false },
     // 🎀 Ravella — hamkor-brend (ega qarori 2026-07-27): rail'da KICHIK tugma, ikonkasi emoji emas,
@@ -264,11 +278,16 @@ export function NewUyView({ me, onBook, onNav, onBanner }: { me: MeResponse; onB
         </>
       )}
 
-      <button className="nh-invite" onClick={() => go("invite")}>
-        <span className="ii">👥</span>
-        <span><b>Do'stni chaqir — pul ishla</b><small>Har do'st uchun bonus · birinchi safar bepul</small></span>
-        <span className="ar">→</span>
-      </button>
+      {/* O'yin yoniqda bu karta chiqmaydi: yuqoridagi o'yin-hero'si allaqachon do'st chaqiradi va
+          kuchliroq sabab bilan ("do'sting yursa senga ball tushadi"). Ikkita bir xil CTA —
+          ikkalasi ham zaiflashadi. O'yin o'chsa karta avvalgidek qaytadi. */}
+      {!f.oyin && (
+        <button className="nh-invite" onClick={() => go("invite")}>
+          <span className="ii">👥</span>
+          <span><b>Do'stni chaqir — pul ishla</b><small>Har do'st uchun bonus · birinchi safar bepul</small></span>
+          <span className="ar">→</span>
+        </button>
+      )}
 
       {hub && <ServicesHub me={me} onNav={onNav} onClose={() => setHub(false)} onBanner={onBanner} />}
     </div>
@@ -280,6 +299,7 @@ function ServicesHub({ me, onNav, onClose, onBanner }: { me: MeResponse; onNav: 
   const f = me.flags ?? {};
   const items = [
     { on: true, ic: "nh-i-o", em: "🚖", n: "Taxi", s: "Chaqirish", nav: "uy", locked: false },
+    { on: !!f.oyin, ic: "nh-i-g", em: "🎮", n: "O'yin mavsumi", s: "Ball · sovrinlar", nav: "oyin", locked: false },
     { on: !!f.shop, ic: "nh-i-b", em: "🏪", n: "Do'kon", s: "Mahsulot xarid", nav: "dokon", locked: false },
     { on: !!f.restoran, ic: "nh-i-o", em: "🍽", n: "Restoran", s: "Taom yetkazish", nav: "restoran", locked: false },
     { on: !!f.xizmatlar, ic: "nh-i-v", em: "🔧", n: "Xizmatlar", s: FOCUS_MODE ? "🔒 Tez orada" : "Usta · master", nav: "xizmat", locked: FOCUS_MODE },

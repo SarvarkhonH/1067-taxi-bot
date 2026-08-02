@@ -31,6 +31,7 @@ import type {
   OyinJamoamResponse,
   OyinBoardResponse,
   OyinStateResponse,
+  OyinThanksResult,
   OyinVitrinaResponse,
 } from "@t1067/shared";
 import { tg } from "./telegram";
@@ -297,6 +298,7 @@ export const api = {
   leaderboard: () => get<LeaderboardResponse>("/api/leaderboard"),
   // 🎮 Koson O'yini (feature "oyin") — KOSON_OYIN_PLAN.md v9.2. `oyinState` GET har chaqirilganda
   // serverda kunlik-kirish belgisi ham qo'yiladi ("miniapp ochish" = kirish, alohida POST shart emas).
+  oyinThanks: (friendMemberId: number) => post<OyinThanksResult>("/api/oyin/thanks", { friendMemberId }),
   oyinState: () => get<OyinStateResponse>("/api/oyin/state"),
   oyinVitrina: () => get<OyinVitrinaResponse>("/api/oyin/vitrina"),
   oyinBoard: () => get<OyinBoardResponse>("/api/oyin/board"),

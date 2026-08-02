@@ -10,7 +10,7 @@
 // soxta QR-kvadrat — real QR-generatsiya (referralQrService) B1-B5 doirasida qurilmagan, shuning
 // uchun olib tashlandi (ishlamaydigan grafika ko'rsatish — yolg'on).
 import { useCallback, useEffect, useRef, useState } from "react";
-import { SEASON_END_ISO, type OyinBoardResponse, type OyinJamoamResponse, type OyinPrizeView, type OyinStateResponse, type OyinVitrinaResponse } from "@t1067/shared";
+import type { OyinBoardResponse, OyinJamoamResponse, OyinPrizeView, OyinSeasonClientView, OyinStateResponse, OyinVitrinaResponse } from "@t1067/shared";
 import { api } from "./api";
 import { copyText, haptic, shareLink } from "./telegram";
 import "./design/feat/oyk.css"; // bu ekran ochilgandagina yuklanadi (kritik yo'lda emas)
@@ -39,15 +39,20 @@ function fastPath(remaining: number, referCombo: number, rideBall: number): stri
   if (sf > 0) parts.push(`${sf} safar`);
   return parts.length ? `Eng tez yo'l: ${parts.join(" + ")}` : `${remaining} ball qoldi`;
 }
-function seasonPhase(): "active" | "final48" | "ended" {
-  const end = Date.parse(SEASON_END_ISO);
-  const left = end - Date.now();
-  if (left <= 0) return "ended";
-  if (left <= FINAL_WARN_MS) return "final48";
+// Ekran fazasi = server fazasi + "final48" (oxirgi 48 soat — chipta olish yopiladi).
+type ScreenPhase = "unset" | "upcoming" | "active" | "final48" | "ended";
+function screenPhase(season: OyinSeasonClientView): ScreenPhase {
+  if (!season.configured) return "unset";
+  if (season.phase !== "active") return season.phase; // upcoming | ended
+  const end = season.endIso ? Date.parse(season.endIso) : NaN;
+  if (Number.isFinite(end) && end - Date.now() <= FINAL_WARN_MS) return "final48";
   return "active";
 }
-function countdown(): { d: number; h: number; m: number; totalMs: number } {
-  const left = Math.max(0, Date.parse(SEASON_END_ISO) - Date.now());
+/** ⚠️ `Date.parse(null) → NaN`, `Math.max(0, NaN) → NaN` — qo'riqsiz qoldirilsa ekranda
+ *  "NaN kun qoldi" chiqadi. Sana yo'q bo'lsa nol qaytariladi va chaqiruvchi umuman chizmaydi. */
+function countdownTo(iso: string | null): { d: number; h: number; m: number; totalMs: number } {
+  const target = iso ? Date.parse(iso) : NaN;
+  const left = Number.isFinite(target) ? Math.max(0, target - Date.now()) : 0;
   const d = Math.floor(left / 86400_000);
   const h = Math.floor((left % 86400_000) / 3600_000);
   const m = Math.floor((left % 3600_000) / 60_000);
@@ -76,6 +81,7 @@ export function OyinView() {
   const [busy, setBusy] = useState(false);
   const [celebrate, setCelebrate] = useState<{ prize: OyinPrizeView; ticketNo: number } | null>(null);
   const [toast, setToast] = useState<string | null>(null);
+  const [thanked, setThanked] = useState<Set<number>>(new Set());
   const [onboard, setOnboard] = useState<number | null>(() => {
     try { return localStorage.getItem(OB_SEEN_KEY) ? null : 0; } catch { return 0; }
   });
@@ -95,7 +101,9 @@ export function OyinView() {
   // Jamoam BOSH yuklanishdayoq keladi (tab ochilishini kutmaydi) — bosh ekrandagi "rahmat-karta"
   // (oyk-magnet) shu ma'lumotga qaraydi; aks holda u Jamoam tabiga kirmaguncha hech ko'rinmasdi.
   useEffect(() => {
-    api.oyinJamoam().then(setJamoam).catch(() => setJamoam({ friends: [], totalBall: 0 }));
+    api.oyinJamoam()
+      .then((j) => { setJamoam(j); setThanked(new Set(j.friends.filter((f) => f.thankedToday).map((f) => f.memberId))); })
+      .catch(() => setJamoam({ friends: [], totalBall: 0 }));
   }, []);
 
   const showToast = useCallback((text: string, ms = 2600) => {
@@ -140,7 +148,12 @@ export function OyinView() {
         setCelebrate({ prize, ticketNo: r.ticketNo });
         loadHome();
       } else {
-        showToast(r.reason === "sold_out" ? "😔 Bu sovrin uchun o'rinlar tugadi" : r.reason === "off" ? "O'yin hali yopiq" : "⚡ Ball yetarli emas");
+        showToast(
+          r.reason === "sold_out" ? "😔 Bu sovrin uchun o'rinlar tugadi"
+            : r.reason === "off" ? "O'yin hali yopiq"
+            : r.reason === "season_off" ? "📅 Mavsum hozir faol emas — chipta olish yopiq"
+            : "⚡ Ball yetarli emas",
+        );
       }
     } catch {
       setSheet(null);
@@ -150,6 +163,22 @@ export function OyinView() {
       setBuyKey(null);
     }
   }, [buyKey, busy, vitrina, loadHome, showToast]);
+
+  // 🤝 Rahmat: tugma DARHOL "✓ Aytildi" ga o'tadi (<100ms javob qoidasi), server rad etsa qaytadi.
+  const sayThanks = useCallback(async (friendMemberId: number) => {
+    haptic();
+    setThanked((s) => new Set(s).add(friendMemberId));
+    try {
+      const r = await api.oyinThanks(friendMemberId);
+      if (r.ok) { showToast("🤝 Rahmatingiz yuborildi!"); return; }
+      if (r.reason === "already") { showToast("Bugun allaqachon rahmat aytdingiz"); return; }
+      setThanked((s) => { const n = new Set(s); n.delete(friendMemberId); return n; });
+      showToast(r.reason === "unreachable" ? "Xabar yetib bormadi — do'stingiz botni bloklagan bo'lishi mumkin" : "Yuborib bo'lmadi");
+    } catch {
+      setThanked((s) => { const n = new Set(s); n.delete(friendMemberId); return n; });
+      showToast("Xatolik — qayta urinib ko'ring");
+    }
+  }, [showToast]);
 
   const doShareBonus = useCallback(async () => {
     try {
@@ -193,8 +222,32 @@ export function OyinView() {
     );
   }
 
-  const phase = seasonPhase();
-  // ── 3) MAVSUM YAKUNI ──
+  const phase = screenPhase(state.season);
+  const seasonName = state.season.label ? `BirJoy O'yinlar Mavsumi · ${state.season.label}` : "BirJoy O'yinlar Mavsumi";
+
+  // ── 3a) MAVSUM SOZLANMAGAN / HALI BOSHLANMAGAN ──
+  if (phase === "unset" || phase === "upcoming") {
+    const start = countdownTo(state.season.startIso);
+    return (
+      <div className="oyk">
+        <div className="oyk-ended">
+          <div className="oyk-ended-icon">{phase === "unset" ? "🎮" : "🚀"}</div>
+          <div className="oyk-ended-title">{phase === "unset" ? "Mavsum tez orada" : "Mavsum boshlanmoqda"}</div>
+          {phase === "upcoming" && (
+            <div className="oyk-ended-card">
+              <div className="oyk-ended-row"><span>Boshlanishiga</span><b>{start.d > 0 ? `${start.d} kun` : `${pad(start.h)}:${pad(start.m)}`}</b></div>
+            </div>
+          )}
+          <div className="oyk-ended-note">
+            Safar qiling, do'st chaqiring — mavsum boshlanishi bilan har harakat <b>ball</b> olib keladi.
+            Ball chiptaga aylanadi, chipta esa oy oxiridagi <b>jonli tirajga</b>. 🎁
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // ── 3b) MAVSUM YAKUNI ──
   if (phase === "ended") {
     const estTanga = Math.min(500, Math.floor(state.ball * 0.5));
     return (
@@ -216,7 +269,7 @@ export function OyinView() {
   const isNew = state.ball === 0 && state.rank === null;
   const cheapest = [...vitrina.prizes].sort((a, b) => a.price - b.price)[0] ?? null;
   const nearMiss = cheapest ? state.ball >= cheapest.price : false;
-  const cd = countdown();
+  const cd = countdownTo(state.season.endIso);
   const buyPrize = vitrina.prizes.find((p) => p.key === buyKey) ?? null;
   const activeFriend = jamoam?.friends.find((f) => f.status === "active_today" && f.gainToday > 0) ?? null;
 
@@ -224,7 +277,7 @@ export function OyinView() {
     <div className="oyk">
       <div className="oyk-scroll">
         <div className="oyk-head">
-          <div className="oyk-title">🎮 Koson O'yini</div>
+          <div className="oyk-title">🎮 {seasonName}</div>
           <div className="oyk-chips">
             <div className={`oyk-chip-cd${phase === "final48" ? " is-final" : ""}`}>⏳ {cd.d} kun {pad(cd.h)}:{pad(cd.m)}</div>
             <button type="button" className="oyk-chip-rank" onClick={openBoard}>🏅 {state.rank ? `${state.rank}-o'rin` : "Reyting"}</button>
@@ -310,6 +363,17 @@ export function OyinView() {
               );
             })()}
 
+            {/* 🔥 Haftalik vazifa — zanjir (prototipdagi blok). Ma'lumot: kunlik kirish ro'yxati. */}
+            {state.week.bonusBall > 0 && (
+              <div className={`oyk-streak${state.week.done ? " is-done" : ""}`}>
+                <span className="oyk-streak-emoji">{state.week.done ? "✅" : "🔥"}</span>
+                <span className="oyk-streak-text">
+                  Haftalik vazifa: <b>{state.week.target} kunlik zanjir</b> — {state.week.streak}/{state.week.target}
+                </span>
+                <span className="oyk-streak-gain">+{state.week.bonusBall}</span>
+              </div>
+            )}
+
             {state.live && (
               <div className="oyk-live">
                 <span className="oyk-live-dot" />
@@ -323,8 +387,14 @@ export function OyinView() {
                 <div className="oyk-magnet-emoji">🔥</div>
                 <div className="oyk-magnet-body">
                   <div className="oyk-magnet-title">{activeFriend.name} bugun {activeFriend.ridesToday > 1 ? `${activeFriend.ridesToday}-safarini` : "safarini"} qildi!</div>
-                  <div className="oyk-magnet-sub">Senga bugun <b>+{activeFriend.gainToday} ball</b> olib keldi — unga rahmat de 🤝</div>
+                  <div className="oyk-magnet-sub">Senga bugun <b>+{activeFriend.gainToday} ball</b> olib keldi</div>
                 </div>
+                <button
+                  type="button"
+                  className={`oyk-thanks${thanked.has(activeFriend.memberId) ? " is-done" : ""}`}
+                  disabled={thanked.has(activeFriend.memberId)}
+                  onClick={() => void sayThanks(activeFriend.memberId)}
+                >{thanked.has(activeFriend.memberId) ? "✓ Aytildi" : "🤝 Rahmat ayt"}</button>
               </div>
             )}
 
@@ -385,13 +455,14 @@ export function OyinView() {
                     <div className="oyk-vcard-photo">
                       <img src={p.photoUrl} alt="" loading="lazy" onError={(e) => { (e.target as HTMLImageElement).parentElement?.remove(); }} />
                       <div className="oyk-vcard-photo-fade" />
+                      <div className="oyk-vcard-photo-name">{p.name}</div>
                       <div className="oyk-vcard-photo-price">{p.price} <small>ball</small></div>
                     </div>
                   )}
                   <div className="oyk-vcard-top">
                     {!p.photoUrl && <div className="oyk-vcard-icon">{p.icon}</div>}
                     <div className="oyk-vcard-title">
-                      <div className="oyk-vcard-name">{p.name}</div>
+                      {!p.photoUrl && <div className="oyk-vcard-name">{p.name}</div>}
                       <div className="oyk-vcard-sub">{p.valueLabel} · {p.limit} dona</div>
                     </div>
                     {!p.photoUrl && (
@@ -446,6 +517,14 @@ export function OyinView() {
                     </div>
                     {f.status === "silent" && f.daysSilent >= 5 && (
                       <button type="button" className="oyk-wake" onClick={() => void inviteFriend(`${f.name}, yur birga — menga ball, senga sovg'a 🎁`)}>⏰ Uyg'ot</button>
+                    )}
+                    {f.status === "active_today" && (
+                      <button
+                        type="button"
+                        className={`oyk-thanks${thanked.has(f.memberId) ? " is-done" : ""}`}
+                        disabled={thanked.has(f.memberId)}
+                        onClick={() => void sayThanks(f.memberId)}
+                      >{thanked.has(f.memberId) ? "✓" : "🤝 Rahmat"}</button>
                     )}
                     {f.status === "active_today" && f.gainToday > 0 && <div className="oyk-friend-gain">+{f.gainToday} bugun</div>}
                   </div>
