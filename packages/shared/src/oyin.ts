@@ -61,6 +61,7 @@ export interface OyinBallBreakdown {
   referRides: number; // do'stlarning HAR safaridan doimiy oqim (cheksiz)
   login: number; // kunlik kirish
   share: number; // sovrinni ulashish
+  story: number; // 📸 tasdiqlangan hikoya-isbotlar (admin ko'rgan, HIKOYA_POSTER_PLAN.md)
   sprintBonus: number; // haftalik sprint top-3 (§sprintCheck)
   earned: number; // yig'indi (yuqoridagi hammasi)
   spent: number; // chiptalarga sarflangan
@@ -211,6 +212,50 @@ export interface OyinStateResponse {
   week: { streak: number; target: number; bonusBall: number; done: boolean };
   // 📅 Mavsum holati — miniapp sanani API'dan oladi (shared konstanta endi yo'q).
   season: OyinSeasonClientView;
+  // 📸 Hikoya-poster holati (HIKOYA_POSTER_PLAN.md).
+  story: OyinStoryState;
+}
+
+// ── 📸 HIKOYA-POSTER ─────────────────────────────────────────────────────────────────────────
+export type OyinStoryStatus = "pending" | "approved" | "rejected";
+
+export interface OyinStoryItem {
+  id: string;
+  url: string;
+  at: string; // ISO — mavsum filtri shu bo'yicha
+  status: OyinStoryStatus;
+  reviewedAt: string | null;
+  reason: string | null; // rad etilganda sabab (mijozga aynan shu matn boradi)
+}
+
+/** Mijoz ko'radigan holat: nechta tasdiqlangan, qancha qoldi, kutilayotgani bormi. */
+export interface OyinStoryState {
+  approved: number; // shu mavsumda tasdiqlangan
+  limit: number; // mavsumdagi eng ko'p soni
+  pending: boolean; // hozir tekshiruvda turgani bormi
+  ballEach: number; // bittasi uchun ball (oyinStoryProofBall knobi)
+  lastRejectReason: string | null; // oxirgi rad sababi — mijoz nimani tuzatishini bilsin
+  texts: string[]; // admin sozlagan poster matnlari (o'rin-egallar ALMASHTIRILGAN holda)
+}
+
+export interface OyinStorySubmitResult {
+  ok: boolean;
+  reason?: "off" | "season_off" | "limit" | "pending" | "bad_url" | "duplicate";
+}
+
+/** Admin moderatsiya jadvali qatori. */
+export interface OyinStoryAdminRow extends OyinStoryItem {
+  memberId: number;
+  name: string;
+  approvedInSeason: number; // shu mijoz mavsumda nechtasini tasdiqlatgan
+  hoursWaiting: number; // 24 dan oshgani panelda QIZIL
+}
+
+/** Admin sozlaydigan poster matni. `{ism}` / `{chipta}` / `{sovrin}` o'rin-egallari. */
+export interface OyinPosterText {
+  id: string;
+  text: string;
+  active: boolean;
 }
 
 export interface OyinPrizeView {

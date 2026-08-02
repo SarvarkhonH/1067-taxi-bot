@@ -11,7 +11,7 @@
 // uchun olib tashlandi (ishlamaydigan grafika ko'rsatish — yolg'on).
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { OyinBoardResponse, OyinJamoamResponse, OyinPrizeView, OyinSeasonClientView, OyinStateResponse, OyinVitrinaResponse } from "@t1067/shared";
-import { api } from "./api";
+import { api, apiUrl } from "./api";
 import { copyText, haptic, shareLink } from "./telegram";
 import "./design/feat/oyk.css"; // bu ekran ochilgandagina yuklanadi (kritik yo'lda emas)
 
@@ -82,6 +82,9 @@ export function OyinView() {
   const [celebrate, setCelebrate] = useState<{ prize: OyinPrizeView; ticketNo: number } | null>(null);
   const [toast, setToast] = useState<string | null>(null);
   const [thanked, setThanked] = useState<Set<number>>(new Set());
+  const [posterText, setPosterText] = useState("");
+  const [posterName, setPosterName] = useState("");
+  const [storyUrl, setStoryUrl] = useState("");
   const [onboard, setOnboard] = useState<number | null>(() => {
     try { return localStorage.getItem(OB_SEEN_KEY) ? null : 0; } catch { return 0; }
   });
@@ -187,6 +190,68 @@ export function OyinView() {
       showToast("Xatolik — qayta urinib ko'ring");
     }
   }, [showToast]);
+
+  // 📸 Poster: rasm ham, QR ham O'Z domenimizdan olinadi — aks holda canvas "iflos" bo'lib
+  // `toBlob` ishlamaydi va poster saqlanmaydi.
+  const makePoster = useCallback(async () => {
+    if (busy) return;
+    setBusy(true);
+    try {
+      const [{ renderPoster, downloadBlob }, ref] = await Promise.all([
+        import("./design/poster"),
+        api.referral().catch(() => null),
+      ]);
+      const top = [...(vitrina?.prizes ?? [])].sort((a, b) => b.price - a.price)[0];
+      const code = ref?.link.match(/start=ref_([A-Za-z0-9_-]+)/)?.[1] ?? null;
+      const endIso = state?.season.endIso ?? null;
+      const drawDate = endIso
+        ? new Date(endIso).toLocaleDateString("uz-UZ", { day: "numeric", month: "long" })
+        : "";
+      const blob = await renderPoster({
+        headline: posterText.trim() || state?.story.texts[0] || "Sen ham yutib ol",
+        name: posterName,
+        prizeName: top?.name ?? "Sovrin",
+        prizePhotoUrl: top?.photoUrl ? apiUrl(`/api/oyin/prizephoto?key=${encodeURIComponent(top.key)}`) : null,
+        prizeIcon: top?.icon ?? "🎁",
+        qrUrl: code ? apiUrl(`/api/oyin/qr?code=${encodeURIComponent(code)}`) : null,
+        drawDate,
+      });
+      if (!blob) { showToast("Posterni yasab bo'lmadi"); return; }
+      downloadBlob(blob, "birjoy-poster.png");
+      showToast("⬇️ Poster yuklandi — endi hikoyangizga qo'ying!", 3400);
+    } catch {
+      showToast("Posterni yasab bo'lmadi — qayta urinib ko'ring");
+    } finally {
+      setBusy(false);
+    }
+  }, [busy, vitrina, state, posterText, posterName, showToast]);
+
+  const submitStory = useCallback(async () => {
+    if (busy) return;
+    setBusy(true);
+    try {
+      const r = await api.oyinStory(storyUrl.trim());
+      if (r.ok) {
+        setStoryUrl("");
+        showToast("✅ Yuborildi — 24 soat ichida tekshiramiz", 3400);
+        loadHome();
+        return;
+      }
+      showToast(
+        r.reason === "bad_url" ? "Havola noto'g'ri — Instagram yoki Telegram havolasini yuboring"
+          : r.reason === "pending" ? "Oldingi arizangiz hali tekshiruvda"
+          : r.reason === "limit" ? "Bu mavsumda limitga yetdingiz"
+          : r.reason === "duplicate" ? "Bu havola allaqachon yuborilgan"
+          : r.reason === "season_off" ? "Mavsum hozir faol emas"
+          : "Yuborib bo'lmadi",
+        3400,
+      );
+    } catch {
+      showToast("Xatolik — qayta urinib ko'ring");
+    } finally {
+      setBusy(false);
+    }
+  }, [busy, storyUrl, showToast, loadHome]);
 
   const doShareBonus = useCallback(async () => {
     try {
@@ -560,6 +625,62 @@ export function OyinView() {
               <span className="oyk-cta-label">📤 Sovrinni ulashish (bugungi bonus)</span>
               <span className="oyk-cta-shine" />
             </button>
+
+            {/* 📸 Hikoya-poster — HIKOYA_POSTER_PLAN.md. Ball admin tasdig'idan keyin tushadi. */}
+            {state.story.ballEach > 0 && (
+              <div className="oyk-poster">
+                <div className="oyk-poster-head">
+                  <span className="oyk-poster-title">📸 Hikoya qo'y — <b>+{state.story.ballEach} ball</b></span>
+                  <span className="oyk-poster-count">{state.story.approved}/{state.story.limit}</span>
+                </div>
+                {state.story.approved >= state.story.limit ? (
+                  <div className="oyk-poster-note">✅ Bu mavsumda limitga yetdingiz — rahmat!</div>
+                ) : state.story.pending ? (
+                  <div className="oyk-poster-note">⏳ Tekshiruvda — 24 soat ichida javob beramiz</div>
+                ) : (
+                  <>
+                    <div className="oyk-poster-note">
+                      Posterni yuklab oling, hikoyangizga qo'ying va havolasini shu yerga tashlang. Tekshirgach ball tushadi.
+                    </div>
+                    {state.story.lastRejectReason && (
+                      <div className="oyk-poster-reject">⛔ Oxirgi urinish rad etildi: {state.story.lastRejectReason}</div>
+                    )}
+                    {state.story.texts.length > 0 && (
+                      <div className="oyk-poster-texts">
+                        {state.story.texts.map((t) => (
+                          <button
+                            key={t} type="button"
+                            className={`oyk-poster-chip${posterText === t ? " is-on" : ""}`}
+                            onClick={() => { haptic(); setPosterText(t); }}
+                          >{t}</button>
+                        ))}
+                      </div>
+                    )}
+                    <input
+                      className="oyk-poster-input" type="text" maxLength={40}
+                      value={posterText} onChange={(e) => setPosterText(e.target.value)}
+                      placeholder="Yoki o'z matningizni yozing"
+                    />
+                    <input
+                      className="oyk-poster-input" type="text" maxLength={24}
+                      value={posterName} onChange={(e) => setPosterName(e.target.value)}
+                      placeholder="Ismingiz (ixtiyoriy)"
+                    />
+                    <button type="button" className="oyk-poster-btn" disabled={busy} onClick={() => void makePoster()}>
+                      {busy ? "⏳ Tayyorlanmoqda…" : "⬇️ Posterni yuklab olish"}
+                    </button>
+                    <input
+                      className="oyk-poster-input" type="url"
+                      value={storyUrl} onChange={(e) => setStoryUrl(e.target.value)}
+                      placeholder="Hikoya havolasini joylashtiring"
+                    />
+                    <button type="button" className="oyk-poster-btn ghost" disabled={!storyUrl.trim() || busy} onClick={() => void submitStory()}>
+                      Havolani yuborish →
+                    </button>
+                  </>
+                )}
+              </div>
+            )}
           </>
         )}
 

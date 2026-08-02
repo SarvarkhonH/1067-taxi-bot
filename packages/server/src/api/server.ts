@@ -1595,6 +1595,45 @@ export function createApiServer(opts: ApiOptions = {}) {
     const { markShare } = await import("../services/oyinService");
     res.json(await markShare(memberId, oyinPreviewOf(res)));
   });
+  // 📸 Poster uchun ikkita OCHIQ rasm-endpointi (auth YO'Q — <img> teg maxsus sarlavha yubora
+  // olmaydi). Ikkalasi ham maxfiy ma'lumot bermaydi: QR taklif-kodi allaqachon ulashiladigan
+  // havolada, sovrin rasmi esa vitrinada hammaga ko'rinadi. Global `cors()` tufayli canvas
+  // "iflos" bo'lmaydi — ya'ni posterni PNG qilib saqlash ishlaydi.
+  app.get("/api/oyin/qr", async (req, res) => {
+    const code = String((req.query as { code?: string }).code ?? "").slice(0, 64);
+    if (!/^[a-zA-Z0-9_-]+$/.test(code)) { res.status(400).json({ error: "bad code" }); return; }
+    const QR = await import("qrcode");
+    const png = await QR.toBuffer(`https://t.me/koson1067bot?start=ref_${code}`, { width: 480, margin: 1 });
+    res.setHeader("Content-Type", "image/png");
+    res.setHeader("Cache-Control", "public, max-age=86400");
+    res.send(png);
+  });
+  // Sovrin rasmini O'Z domenimizdan uzatamiz — admin qo'ygan tashqi URL CORS bermasa canvas
+  // iflos bo'lib, poster saqlanmay qolardi.
+  app.get("/api/oyin/prizephoto", async (req, res) => {
+    const key = String((req.query as { key?: string }).key ?? "").slice(0, 64);
+    const { adminListCatalog } = await import("../services/oyinService");
+    const prize = (await adminListCatalog()).find((p) => p.key === key);
+    if (!prize?.photoUrl) { res.status(404).json({ error: "no photo" }); return; }
+    try {
+      const r = await fetch(prize.photoUrl);
+      if (!r.ok) { res.status(404).json({ error: "fetch failed" }); return; }
+      const buf = Buffer.from(await r.arrayBuffer());
+      res.setHeader("Content-Type", r.headers.get("content-type") ?? "image/jpeg");
+      res.setHeader("Cache-Control", "public, max-age=3600");
+      res.send(buf);
+    } catch {
+      res.status(404).json({ error: "fetch failed" });
+    }
+  });
+  // 📸 Hikoya-isbot yuborish. Ball BU YERDA berilmaydi — admin tasdig'idan keyin jonli hisoblanadi.
+  app.post("/api/oyin/story", requireUser, rateLimit(5), async (req, res) => {
+    const memberId = await getMemberId(res.locals.telegramId as string);
+    if (!memberId) { res.status(404).json({ error: "not linked" }); return; }
+    if (!oyinPreviewOf(res) && !(await featureOn("oyin"))) { res.json({ ok: false, reason: "off" }); return; }
+    const { submitStory } = await import("../services/oyinStory");
+    res.json(await submitStory(memberId, String((req.body as { url?: string })?.url ?? "")));
+  });
   // 🤝 "Rahmat ayt" — do'stning Telegram'iga botdan xabar. Servis juftlikni Referral'da tekshiradi
   // (faqat o'z do'stingga), notifyOnce spam/jim-soat/blok qoidalarini o'zi qo'llaydi.
   app.post("/api/oyin/thanks", requireUser, rateLimit(10), async (req, res) => {
@@ -2075,6 +2114,45 @@ export function createApiServer(opts: ApiOptions = {}) {
   app.get("/api/admin/oyin/draw", requireAdmin, async (_req, res) => {
     const { drawExport } = await import("../services/oyinService");
     res.json(await drawExport());
+  });
+  // 📸 Hikoya-isbot moderatsiyasi — admin havolani OCHIB ko'radi, keyin qaror qiladi.
+  // Avtomatik tasdiq YO'Q: havola haqiqiyligini faqat odam tekshira oladi.
+  app.get("/api/admin/oyin/stories", requireAdmin, async (req, res) => {
+    const all = String((req.query as { all?: string }).all ?? "") === "1";
+    const { adminListStories } = await import("../services/oyinStory");
+    res.json({ rows: await adminListStories(all ? "all" : "pending") });
+  });
+  app.post("/api/admin/oyin/stories/review", requireAdmin, requireOwner, async (req, res) => {
+    const b = req.body as { memberId?: number; storyId?: string; approve?: boolean; reason?: string };
+    if (!Number.isFinite(Number(b?.memberId)) || typeof b?.storyId !== "string") {
+      res.status(400).json({ error: "memberId/storyId required" });
+      return;
+    }
+    const { adminReviewStory } = await import("../services/oyinStory");
+    const r = await adminReviewStory(Number(b.memberId), b.storyId, !!b.approve, b.reason);
+    // Tasdiqlansa ball keyingi hisobda paydo bo'ladi — keshni darhol bekor qilamiz.
+    if (r.ok && b.approve) {
+      const { invalidateBallCacheExternal } = await import("../services/oyinService");
+      invalidateBallCacheExternal();
+    }
+    res.json(r);
+  });
+  // 📸 Poster matnlari — sovrin-katalog bilan bir xil CRUD naqshi.
+  app.get("/api/admin/oyin/poster-texts", requireAdmin, async (_req, res) => {
+    const { getPosterTexts } = await import("../services/oyinStory");
+    res.json({ texts: await getPosterTexts() });
+  });
+  app.post("/api/admin/oyin/poster-texts", requireAdmin, requireOwner, async (req, res) => {
+    const b = req.body as { id?: string; text?: string; active?: boolean };
+    if (typeof b?.text !== "string" || !b.text.trim()) { res.status(400).json({ error: "text required" }); return; }
+    const { adminUpsertPosterText } = await import("../services/oyinStory");
+    res.json({ texts: await adminUpsertPosterText({ id: b.id, text: b.text, active: b.active }) });
+  });
+  app.post("/api/admin/oyin/poster-texts/delete", requireAdmin, requireOwner, async (req, res) => {
+    const b = req.body as { id?: string };
+    if (typeof b?.id !== "string") { res.status(400).json({ error: "id required" }); return; }
+    const { adminDeletePosterText } = await import("../services/oyinStory");
+    res.json({ texts: await adminDeletePosterText(b.id) });
   });
   // 📅 Mavsum sanalari — admin kiritadi (ega talabi 2026-08-02). Sozlanmaguncha o'yin YOPIQ.
   app.get("/api/admin/oyin/season", requireAdmin, async (_req, res) => {

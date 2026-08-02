@@ -52,7 +52,7 @@ function withMemberLock<T>(memberId: number, fn: () => Promise<T>): Promise<T> {
 
 const EMPTY_BREAKDOWN: OyinBallBreakdown = {
   rides: 0, phone: 0, referJoin: 0, referFirstRide: 0, referRides: 0, login: 0, share: 0,
-  sprintBonus: 0, earned: 0, spent: 0, ball: 0,
+  story: 0, sprintBonus: 0, earned: 0, spent: 0, ball: 0,
 };
 
 interface MemberBallRow {
@@ -154,6 +154,11 @@ function invalidateBallCache(): void {
   ballMapCache = null;
 }
 
+/** Tashqi chaqiruvchilar uchun (admin route'lari) — hikoya tasdiqlangach ball darhol ko'rinsin. */
+export function invalidateBallCacheExternal(): void {
+  invalidateBallCache();
+}
+
 async function computeBallMap(): Promise<Map<number, MemberBallRow>> {
   const season = await getSeason();
   if (ballMapCache && ballMapCache.seasonId === season.seasonId && Date.now() - ballMapCache.at < 60_000) {
@@ -175,7 +180,7 @@ async function computeBallMap(): Promise<Map<number, MemberBallRow>> {
   const fromWeek = season.startWeekKey as string;
   const toWeek = season.endWeekKey as string;
 
-  const [rideCounts, referrals, telegramUsers, ticketRows, loginRows, shareRows, sprintWinRows] = await Promise.all([
+  const [rideCounts, referrals, telegramUsers, ticketRows, loginRows, shareRows, sprintWinRows, storyRows] = await Promise.all([
     // 1) YAGONA DB-darajasidagi sana filtri — katta jadval va indeksi bor (@@index([createdAt])).
     prisma.rideReward.groupBy({ by: ["memberId"], _count: { _all: true }, where: { createdAt: { gte: from, lte: to } } }),
     // 2) FILTRLANMAYDI: bitta qator UCHTA komponentni uchta HAR XIL soat bilan boqadi
@@ -192,6 +197,8 @@ async function computeBallMap(): Promise<Map<number, MemberBallRow>> {
     prisma.appState.findMany({ where: { key: { startsWith: "oyin:login:" } } }) as Promise<AppStateRow[]>,
     prisma.appState.findMany({ where: { key: { startsWith: "oyin:share:" } } }) as Promise<AppStateRow[]>,
     prisma.appState.findMany({ where: { key: { startsWith: "oyin:sprintwin:" } } }) as Promise<AppStateRow[]>,
+    // 📸 hikoya-isbotlar (HIKOYA_POSTER_PLAN.md) — faqat TASDIQLANGANLARI va mavsum ichidagilari
+    prisma.appState.findMany({ where: { key: { startsWith: "oyin:story:" } } }) as Promise<AppStateRow[]>,
   ]);
 
   // Nomi ATAYLAB "season…" — endi ikki vazifa bajaradi (o'z safari + referee safari), kelajakda
@@ -239,6 +246,22 @@ async function computeBallMap(): Promise<Map<number, MemberBallRow>> {
     const memberId = Number(row.key.slice("oyin:share:".length));
     if (Number.isFinite(memberId)) shareDaysByMember.set(memberId, countDays(row.value));
   }
+  // Tasdiqlangan + mavsum oynasidagi hikoya-isbotlar
+  const storyByMember = new Map<number, number>();
+  for (const row of storyRows) {
+    const memberId = Number(row.key.slice("oyin:story:".length));
+    if (!Number.isFinite(memberId)) continue;
+    let n = 0;
+    try {
+      const parsed = JSON.parse(row.value) as { items?: { at?: string; status?: string }[] };
+      for (const it of parsed.items ?? []) {
+        if (it.status !== "approved") continue;
+        const t = Date.parse(String(it.at));
+        if (Number.isFinite(t) && t >= fromMs && t <= toMs) n++;
+      }
+    } catch { /* buzuq JSON — 0 deb sanaymiz */ }
+    storyByMember.set(memberId, n);
+  }
   const sprintWinsByMember = new Map<number, number>();
   for (const row of sprintWinRows) {
     const memberId = Number(row.key.slice("oyin:sprintwin:".length));
@@ -263,7 +286,8 @@ async function computeBallMap(): Promise<Map<number, MemberBallRow>> {
     const loginBall = (loginDaysByMember.get(memberId) ?? 0) * (econ.oyinDailyLoginBall ?? 0);
     const shareBall = (shareDaysByMember.get(memberId) ?? 0) * (econ.oyinShareBall ?? 0);
     const sprintBall = (sprintWinsByMember.get(memberId) ?? 0) * (econ.oyinSprintBonusBall ?? 0);
-    const earned = ridesBall + phoneBall + referJoinBall + referFirstBall + referRideBall + loginBall + shareBall + sprintBall;
+    const storyBall = (storyByMember.get(memberId) ?? 0) * (econ.oyinStoryProofBall ?? 0);
+    const earned = ridesBall + phoneBall + referJoinBall + referFirstBall + referRideBall + loginBall + shareBall + storyBall + sprintBall;
     const spent = spentByMember.get(memberId) ?? 0;
     map.set(memberId, {
       memberId,
@@ -272,7 +296,7 @@ async function computeBallMap(): Promise<Map<number, MemberBallRow>> {
       seasonRides: rides,
       breakdown: {
         rides: ridesBall, phone: phoneBall, referJoin: referJoinBall, referFirstRide: referFirstBall,
-        referRides: referRideBall, login: loginBall, share: shareBall, sprintBonus: sprintBall,
+        referRides: referRideBall, login: loginBall, share: shareBall, story: storyBall, sprintBonus: sprintBall,
         earned, spent, ball: Math.max(0, earned - spent),
       },
     });
@@ -349,6 +373,20 @@ export async function getOyinState(memberId: number): Promise<OyinStateResponse>
     done: streak >= streakTarget,
   };
 
+  // 📸 Hikoya-poster holati. Matnlardagi {ism}/{chipta}/{sovrin} SERVERDA almashtiriladi —
+  // miniapp shablon bilan ovora bo'lmaydi va admin matnni istagancha o'zgartiraveradi.
+  const { storyStateOf } = await import("./oyinStory");
+  const myTickets = parseTickets((await prisma.appState.findUnique({ where: { key: `oyin:tickets:${memberId}` } }))?.value);
+  const ticketCount = season.configured
+    ? myTickets.filter((t) => ticketInSeason(t, season.startMs as number, season.endMs as number)).length
+    : 0;
+  const topPrizeName = (await getCatalog()).filter((p) => p.active).sort((a, b) => b.price - a.price)[0]?.name ?? "sovrin";
+  const storyState = await storyStateOf(memberId, econ.oyinStoryProofBall ?? 0, {
+    ism: mine?.name ?? "Do'st",
+    chipta: ticketCount,
+    sovrin: topPrizeName,
+  });
+
   // 🔴 JONLI lenta — bugungi eng so'nggi do'st-taklif (populyatsiya bo'ylab, ijtimoiy isbot).
   // Ism ballMap keshidan olinadi (qo'shimcha so'rov yo'q); taklifchi a'zo bo'lmasa ko'rsatilmaydi.
   let live: { name: string; ball: number } | null = null;
@@ -371,6 +409,7 @@ export async function getOyinState(memberId: number): Promise<OyinStateResponse>
     today,
     live,
     week,
+    story: storyState,
     season: {
       configured: season.configured,
       phase: season.phase,

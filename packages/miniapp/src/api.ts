@@ -31,6 +31,7 @@ import type {
   OyinJamoamResponse,
   OyinBoardResponse,
   OyinStateResponse,
+  OyinStorySubmitResult,
   OyinThanksResult,
   OyinVitrinaResponse,
 } from "@t1067/shared";
@@ -299,6 +300,7 @@ export const api = {
   // 🎮 Koson O'yini (feature "oyin") — KOSON_OYIN_PLAN.md v9.2. `oyinState` GET har chaqirilganda
   // serverda kunlik-kirish belgisi ham qo'yiladi ("miniapp ochish" = kirish, alohida POST shart emas).
   oyinThanks: (friendMemberId: number) => post<OyinThanksResult>("/api/oyin/thanks", { friendMemberId }),
+  oyinStory: (url: string) => post<OyinStorySubmitResult>("/api/oyin/story", { url }),
   oyinState: () => get<OyinStateResponse>("/api/oyin/state"),
   oyinVitrina: () => get<OyinVitrinaResponse>("/api/oyin/vitrina"),
   oyinBoard: () => get<OyinBoardResponse>("/api/oyin/board"),

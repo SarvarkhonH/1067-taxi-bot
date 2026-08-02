@@ -31,7 +31,9 @@ import {
   type OyinActivityAction,
   type OyinActivityResponse,
   type OyinAdminPrizeRow,
+  type OyinPosterText,
   type OyinSeasonView,
+  type OyinStoryAdminRow,
 } from "@t1067/shared";
 import { RavellaAdminView } from "./ravella";
 import { JamoaAdminView } from "./jamoa";
@@ -711,6 +713,83 @@ const RISK_STYLE: Record<FlagRisk, { label: string; color: string; bg: string }>
   cosmetic: { label: "◽ kosmetik", color: "#8b94a7", bg: "rgba(139,148,167,.12)" },
 };
 
+// 📸 Hikoya-isbot moderatsiyasi + poster matnlari (HIKOYA_POSTER_PLAN.md).
+// Avtomatik tasdiq YO'Q — havola haqiqiyligini faqat odam ko'radi, shuning uchun bu ekran bor.
+function StoryModerationCard() {
+  const [rows, setRows] = useState<OyinStoryAdminRow[] | null>(null);
+  const [texts, setTexts] = useState<OyinPosterText[] | null>(null);
+  const [newText, setNewText] = useState("");
+  const [busy, setBusy] = useState<string | null>(null);
+
+  const load = () => {
+    adminApi.oyinStories().then((r) => setRows(r.rows)).catch(() => setRows([]));
+    adminApi.oyinPosterTexts().then((r) => setTexts(r.texts)).catch(() => setTexts([]));
+  };
+  useEffect(() => { load(); }, []);
+
+  const review = async (r: OyinStoryAdminRow, approve: boolean) => {
+    const reason = approve ? undefined : (prompt("Rad etish sababi (mijozga shu matn boradi):", "Hikoya topilmadi") ?? undefined);
+    if (!approve && !reason) return;
+    setBusy(r.id);
+    try {
+      await adminApi.reviewOyinStory(r.memberId, r.id, approve, reason);
+      setRows((cur) => (cur ? cur.filter((x) => x.id !== r.id) : cur));
+    } catch { alert("Bajarilmadi — qayta urinib ko'ring"); }
+    finally { setBusy(null); }
+  };
+
+  return (
+    <section className="card">
+      <h3>📸 Hikoya-isbotlar {rows && rows.length > 0 && <span style={{ color: "#f0b429" }}>({rows.length} kutmoqda)</span>}</h3>
+      <p className="muted" style={{ margin: "0 0 8px", fontSize: 12 }}>
+        Mijoz posterni hikoyasiga qo'yib havolasini yuboradi. <b>Havolani ochib ko'ring</b> — hikoya rostdan bormi.
+        Tasdiqlansangiz ball darhol tushadi va mijozga xabar boradi. 24 soatdan oshgani qizil.
+      </p>
+      {!rows ? <div className="muted" style={{ fontSize: 12 }}>Yuklanmoqda…</div>
+        : rows.length === 0 ? <div className="muted" style={{ fontSize: 12 }}>✅ Kutilayotgan ariza yo'q</div>
+        : (
+          <div style={{ display: "grid", gap: 8, maxWidth: 640 }}>
+            {rows.map((r) => (
+              <div key={r.id} style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap", padding: "9px 12px", borderRadius: 10, background: "rgba(255,255,255,.04)" }}>
+                <span style={{ fontWeight: 700, minWidth: 110 }}>{r.name}</span>
+                <a href={r.url} target="_blank" rel="noreferrer" style={{ flex: 1, minWidth: 180, fontSize: 12, color: "#378ADD", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{r.url}</a>
+                <span className="muted" style={{ fontSize: 11, color: r.hoursWaiting >= 24 ? "#ff9a9e" : undefined }}>{r.hoursWaiting} soat</span>
+                <span className="muted" style={{ fontSize: 11 }}>mavsumda: {r.approvedInSeason}</span>
+                <button className="btn sm" disabled={busy === r.id} onClick={() => void review(r, true)}>✅ Tasdiqlash</button>
+                <button className="btn sm danger" disabled={busy === r.id} onClick={() => void review(r, false)}>❌ Rad</button>
+              </div>
+            ))}
+          </div>
+        )}
+
+      <h3 style={{ marginTop: 16 }}>📝 Poster matnlari</h3>
+      <p className="muted" style={{ margin: "0 0 8px", fontSize: 12 }}>
+        Mijoz shu matnlardan birini tanlaydi yoki o'zi yozadi. O'rin-egallar: <code>{"{ism}"}</code> <code>{"{chipta}"}</code> <code>{"{sovrin}"}</code>
+      </p>
+      {texts && (
+        <div style={{ display: "grid", gap: 6, maxWidth: 520 }}>
+          {texts.map((t) => (
+            <div key={t.id} style={{ display: "flex", gap: 8, alignItems: "center" }}>
+              <input
+                type="text" defaultValue={t.text} maxLength={60} style={{ flex: 1 }}
+                onBlur={(e) => { if (e.target.value !== t.text) void adminApi.saveOyinPosterText(e.target.value, t.id, t.active).then((r) => setTexts(r.texts)); }}
+              />
+              <button className="btn sm" onClick={() => void adminApi.saveOyinPosterText(t.text, t.id, !t.active).then((r) => setTexts(r.texts))}>
+                {t.active ? "🟢 Yoniq" : "🔴 O'chiq"}
+              </button>
+              <button className="btn sm danger" onClick={() => void adminApi.deleteOyinPosterText(t.id).then((r) => setTexts(r.texts))}>O'chirish</button>
+            </div>
+          ))}
+          <div style={{ display: "flex", gap: 8 }}>
+            <input type="text" value={newText} onChange={(e) => setNewText(e.target.value)} placeholder="Yangi matn — masalan: Men {chipta} ta chipta oldim" maxLength={60} style={{ flex: 1 }} />
+            <button className="btn sm" disabled={!newText.trim()} onClick={() => void adminApi.saveOyinPosterText(newText).then((r) => { setTexts(r.texts); setNewText(""); })}>Qo'shish</button>
+          </div>
+        </div>
+      )}
+    </section>
+  );
+}
+
 // kill-switch toggles + mashina fund + B2B corp registry
 function ControlCards() {
   const [flags, setFlags] = useState<{ name: string; on: boolean }[] | null>(null);
@@ -892,6 +971,7 @@ function ControlCards() {
           </div>
         </section>
       )}
+      <StoryModerationCard />
       <section className="card">
         <h3>📅 BirJoy O'yinlar Mavsumi — mavsum vaqtlari</h3>
         <p className="muted" style={{ margin: "0 0 8px", fontSize: 12 }}>
