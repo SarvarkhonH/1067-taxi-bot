@@ -151,7 +151,14 @@ export interface OyinStateResponse {
   sponsor: OyinSponsorView;
   // "Eng tez yo'l" tavsiyasi uchun — mijoz bu sonlarni HARDCODE qilmasin (admin-knob o'zgarsa
   // matn eskirib qolmasin), server joriy knob-qiymatlarini shu yerda beradi.
-  hints: { referComboBall: number; rideBall: number };
+  hints: { referComboBall: number; rideBall: number; loginBall: number; referJoinBall: number };
+  // 🎯 "Bugungi maqsad" halqasi — REAL holat (soxta emas): login = oyin:login kun-ro'yxati (state
+  // so'rovining o'zi markLogin qiladi, shuning uchun ochilgan zahoti ✓ — bu ataylab: "kirish" vazifasi
+  // shu), rides = bugungi RideReward soni, shared/referJoined = ulashish-marker / bugun qo'shilgan do'st.
+  today: { login: boolean; rides: number; shared: boolean; referJoined: boolean };
+  // 🔴 JONLI lenta: bugungi eng so'nggi do'st-taklif voqeasi (butun populyatsiya bo'ylab) — ijtimoiy
+  // isbot. null = bugun hali hech kim do'st qo'shmadi.
+  live: { name: string; ball: number } | null;
 }
 
 export interface OyinPrizeView {

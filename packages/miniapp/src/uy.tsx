@@ -2,53 +2,71 @@
 // version is the flag-gated upgrade. Greeting + balance + taxi CTA + Bugun + quick tiles.
 // NewUyView (feature "newhome", UY_REDESIGN Bosqich 1) = the premium super-app home below.
 import { useEffect, useState } from "react";
-import type { ClassifiedCard, HomeBanner, HomeFeedItem, MeResponse, OyinStateResponse, SavedAddressView, ServiceListingCard } from "@t1067/shared";
+import type { ClassifiedCard, HomeBanner, HomeFeedItem, MeResponse, OyinPrizeView, OyinStateResponse, SavedAddressView, ServiceListingCard } from "@t1067/shared";
 import { INSP_TIER_EMOJI, INSP_TIER_LABEL, SEASON_END_ISO } from "@t1067/shared";
 import { api, apiUrl } from "./api";
-import { haptic, shareLink } from "./telegram";
+import { haptic } from "./telegram";
 import { HomeGames } from "./homeGames";
 
-// 🎮 Koson O'yini — uy-ekran kartasi (feature "oyin", KOSON_ADMIN_DOD.md B5). Taksi CTA'dan KEYIN,
-// telefonning birinchi ekranida. Bosilganda o'yin ekraniga o'tadi; "Do'st chaqirish" mavjud
-// `shareLink` (telegram.ts) + real invite-havola (`api.referral()`) orqali — soxta kontakt-ro'yxati
-// YO'Q (KOSON_DIZAYN_PROMPT_1.md dagi 2-tugma spetsifikatsiyasi: asosiy=Do'st chaqirish, ikkilamchi=Sovrinlar).
+// 🎮 Koson O'yini — uy-ekran HERO kartasi (feature "oyin", ega redizayni 2026-08-02: "katta va
+// chiroyli preview kerak"). "Bugungi tavsiya" banneri o'rnini oladi (uy renderida f.oyin bilan
+// mask qilinadi). Katta sovrin-rasmlari real vitrina'dan (admin qo'ygan foto, emoji-fallback);
+// "Sovrinlarni ko'rish" o'yin ekranini to'g'ridan-to'g'ri vitrina tabida ochadi (localStorage flag).
 function KosonOyinCard({ onNav }: { onNav: (t: string) => void }) {
   const [state, setState] = useState<OyinStateResponse | null>(null);
+  const [prizes, setPrizes] = useState<OyinPrizeView[] | null>(null);
   useEffect(() => {
     let alive = true;
     api.oyinState().then((s) => { if (alive) setState(s); }).catch(() => undefined);
+    api.oyinVitrina().then((v) => { if (alive) setPrizes(v.prizes); }).catch(() => undefined);
     return () => { alive = false; };
   }, []);
 
-  const invite = async () => {
+  const goOyin = () => { haptic(); onNav("oyin"); };
+  const goVitrina = () => {
     haptic();
-    try {
-      const r = await api.referral();
-      shareLink(r.link, "🎮 Koson O'yiniga qo'shil! Safar qil, ball yig', oy oxiri jonli tirajda real sovrin yut. Mening havolam bilan kirsang — ikkalamizga ham ball! 🚀");
-    } catch { /* jim — asosiy oqim emas */ }
+    try { localStorage.setItem("oyk_start_tab", "vitrina"); } catch { /* xotira yopiq — home tabda ochiladi */ }
+    onNav("oyin");
   };
 
-  if (!state) return <div className="nh-oyin"><div className="nh-skel" style={{ height: 62, borderRadius: 14 }} /></div>;
+  if (!state) return <div className="nh-koson"><div className="nh-skel" style={{ height: 216, borderRadius: 22 }} /></div>;
 
   const left = Math.max(0, Date.parse(SEASON_END_ISO) - Date.now());
   const days = Math.floor(left / 86400_000);
-  const hours = Math.floor((left % 86400_000) / 3600_000);
+  // Eng qimmat 3 sovrin — "katta yutuq" hissi (arzonlari o'yin ichida baribir ko'rinadi).
+  const top = (prizes ?? []).slice().sort((a, b) => b.price - a.price).slice(0, 3);
 
   return (
-    <div className="nh-oyin">
-      <button className="nh-oyin-head" onClick={() => { haptic(); onNav("oyin"); }}>
-        <div className="nh-oyin-top">
-          <div className="nh-oyin-title">🎮 Koson O'yini</div>
-          <div className="nh-oyin-cd">⏳ {days}k {hours}s</div>
+    <div className="nh-koson">
+      <div className="nh-koson-glow" aria-hidden="true" />
+      <button className="nh-koson-main" onClick={goOyin}>
+        <div className="nh-koson-top">
+          <span className="nh-koson-badge">🔥 MAVSUM OCHIQ</span>
+          <span className="nh-koson-cd">⏳ {days} kun qoldi</span>
         </div>
-        <div className="nh-oyin-mid">
-          <div className="nh-oyin-ball">{state.ball} 🪙</div>
-          {state.rank && <div className="nh-oyin-rank">🏅 {state.rank}-o'rin</div>}
-        </div>
+        <div className="nh-koson-title">Tekin sovg'alar mavsumi boshlandi! 🎁</div>
+        <div className="nh-koson-sub">Safar qil, ball yig' — oy oxiri jonli tirajda real sovrinlar</div>
+        {top.length > 0 && (
+          <div className="nh-koson-prizes">
+            {top.map((p) => (
+              <div key={p.key} className="nh-koson-prize">
+                <div className="nh-koson-prize-im">
+                  {p.photoUrl
+                    ? <img src={p.photoUrl} alt="" loading="lazy" onError={(e) => { (e.target as HTMLImageElement).replaceWith(document.createTextNode(p.icon)); }} />
+                    : <span className="nh-koson-prize-em">{p.icon}</span>}
+                </div>
+                <span className="nh-koson-prize-nm">{p.name}</span>
+              </div>
+            ))}
+          </div>
+        )}
       </button>
-      <div className="nh-oyin-actions">
-        <button className="nh-oyin-btn primary" onClick={() => void invite()}>👥 Do'st chaqirish</button>
-        <button className="nh-oyin-btn secondary" onClick={() => { haptic(); onNav("oyin"); }}>🎁 Sovrinlar →</button>
+      <div className="nh-koson-foot">
+        <span className="nh-koson-ball">🪙 Sizda <b>{state.ball}</b> ball{state.rank ? ` · 🏅 ${state.rank}-o'rin` : ""}</span>
+        <span className="nh-koson-actions">
+          <button className="nh-koson-btn primary" onClick={goOyin}>▶ Boshlash</button>
+          <button className="nh-koson-btn ghost" onClick={goVitrina}>🎁 Sovrinlar</button>
+        </span>
       </div>
     </div>
   );
@@ -162,7 +180,9 @@ export function NewUyView({ me, onBook, onNav, onBanner }: { me: MeResponse; onB
         </div>
       )}
 
-      {banner && (
+      {/* "Bugungi tavsiya" banneri o'yin yoniq bo'lganda chiqmaydi (ega qarori 2026-08-02) —
+          o'rnini yuqoridagi Koson hero-kartasi oladi; o'yin o'chirilsa banner avvalgidek qaytadi. */}
+      {banner && !f.oyin && (
         <>
           <div className="nh-sh"><div className="t">🔥 Bugungi tavsiya</div></div>
           <button className="nh-promo" onClick={() => go(banner.target)}>

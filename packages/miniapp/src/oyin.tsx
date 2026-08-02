@@ -22,6 +22,7 @@ const OB_SLIDES = [
   { icon: "🎁", text: "Oy oxiri — jonli tiraj. Real sovrinlar!" },
 ];
 const OB_SEEN_KEY = "oyk_onboard_seen";
+const START_TAB_KEY = "oyk_start_tab"; // uy-hero'dagi "Sovrinlarni ko'rish" shu orqali vitrina'ga ochadi
 const FINAL_WARN_MS = 48 * 3600_000;
 
 function pad(n: number): string {
@@ -63,7 +64,13 @@ export function OyinView() {
   const [vitrina, setVitrina] = useState<OyinVitrinaResponse | null>(null);
   const [jamoam, setJamoam] = useState<OyinJamoamResponse | null>(null);
   const [board, setBoard] = useState<OyinBoardResponse | null>(null);
-  const [tab, setTab] = useState<OyinTab>("home");
+  const [tab, setTab] = useState<OyinTab>(() => {
+    try {
+      const t = localStorage.getItem(START_TAB_KEY);
+      if (t) localStorage.removeItem(START_TAB_KEY);
+      return t === "vitrina" ? "vitrina" : "home";
+    } catch { return "home"; }
+  });
   const [sheet, setSheet] = useState<SheetKind>(null);
   const [buyKey, setBuyKey] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -161,9 +168,12 @@ export function OyinView() {
     return (
       <div className="oyk">
         <div className="oyk-skel">
+          <div className="oyk-skel-block oyk-skel-head" />
           <div className="oyk-skel-block oyk-skel-hero" />
           <div className="oyk-skel-block oyk-skel-daily" />
-          <div className="oyk-skel-block oyk-skel-rail" />
+          <div className="oyk-skel-rail-row">
+            {[0, 1, 2].map((i) => <div key={i} className="oyk-skel-block oyk-skel-rail-card" />)}
+          </div>
         </div>
       </div>
     );
@@ -256,6 +266,56 @@ export function OyinView() {
               </div>
             )}
 
+            {(() => {
+              // 🎯 Bugungi maqsad — prototipdagi halqa, endi REAL ma'lumot bilan (state.today).
+              const inviteDone = state.today.shared || state.today.referJoined;
+              const tasks = [
+                { done: state.today.login, label: "Ilovaga kirish", gain: state.hints.loginBall, tap: null },
+                { done: state.today.rides > 0, label: "1 safar qilish", gain: state.hints.rideBall, tap: null },
+                { done: inviteDone, label: "Do'st chaqirish", gain: state.hints.referJoinBall, tap: () => void inviteFriend() },
+              ] as const;
+              const doneCount = tasks.filter((t) => t.done).length;
+              const R = 26;
+              const C = 2 * Math.PI * R;
+              return (
+                <div className="oyk-daily">
+                  <div className="oyk-daily-ring">
+                    <svg viewBox="0 0 64 64" width="64" height="64" aria-hidden="true">
+                      <circle cx="32" cy="32" r={R} fill="none" stroke="rgba(255,255,255,.09)" strokeWidth="6" />
+                      <circle
+                        cx="32" cy="32" r={R} fill="none" stroke="var(--oyk-violet)" strokeWidth="6" strokeLinecap="round"
+                        strokeDasharray={C} strokeDashoffset={C * (1 - doneCount / tasks.length)}
+                        transform="rotate(-90 32 32)" style={{ transition: "stroke-dashoffset .6s ease" }}
+                      />
+                    </svg>
+                    <div className="oyk-daily-ring-num">{doneCount}/{tasks.length}</div>
+                  </div>
+                  <div className="oyk-daily-body">
+                    <div className="oyk-daily-title">🎯 Bugungi maqsad</div>
+                    {tasks.map((t) => (
+                      <button
+                        key={t.label} type="button" disabled={t.done || !t.tap}
+                        className={`oyk-daily-row${t.done ? " is-done" : ""}${!t.done && t.tap ? " is-tappable" : ""}`}
+                        onClick={t.tap ?? undefined}
+                      >
+                        <span className="oyk-daily-check">{t.done ? "✔" : ""}</span>
+                        <span className="oyk-daily-label">{t.label}</span>
+                        <span className="oyk-daily-gain">{t.done ? `✓ +${t.gain}` : `+${t.gain}`}</span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              );
+            })()}
+
+            {state.live && (
+              <div className="oyk-live">
+                <span className="oyk-live-dot" />
+                <span className="oyk-live-tag">JONLI</span>
+                <span className="oyk-live-text">🥇 {state.live.name} do'st chaqirdi — <b>+{state.live.ball} ball</b></span>
+              </div>
+            )}
+
             {activeFriend && (
               <div className="oyk-magnet">
                 <div className="oyk-magnet-emoji">🔥</div>
@@ -319,16 +379,25 @@ export function OyinView() {
               const affordable = phase !== "final48" ? state.ball >= p.price : false;
               return (
                 <div key={p.key} className={`oyk-vcard${p.soldOut ? " is-soldout" : ""}`}>
+                  {p.photoUrl && (
+                    <div className="oyk-vcard-photo">
+                      <img src={p.photoUrl} alt="" loading="lazy" onError={(e) => { (e.target as HTMLImageElement).parentElement?.remove(); }} />
+                      <div className="oyk-vcard-photo-fade" />
+                      <div className="oyk-vcard-photo-price">{p.price} <small>ball</small></div>
+                    </div>
+                  )}
                   <div className="oyk-vcard-top">
-                    <div className="oyk-vcard-icon">{p.photoUrl ? <img src={p.photoUrl} alt="" loading="lazy" onError={(e) => { (e.target as HTMLImageElement).replaceWith(document.createTextNode(p.icon)); }} /> : p.icon}</div>
+                    {!p.photoUrl && <div className="oyk-vcard-icon">{p.icon}</div>}
                     <div className="oyk-vcard-title">
                       <div className="oyk-vcard-name">{p.name}</div>
                       <div className="oyk-vcard-sub">{p.valueLabel} · {p.limit} dona</div>
                     </div>
-                    <div className="oyk-vcard-price">
-                      <div className="oyk-vcard-price-num">{p.price}</div>
-                      <div className="oyk-vcard-price-unit">ball</div>
-                    </div>
+                    {!p.photoUrl && (
+                      <div className="oyk-vcard-price">
+                        <div className="oyk-vcard-price-num">{p.price}</div>
+                        <div className="oyk-vcard-price-unit">ball</div>
+                      </div>
+                    )}
                   </div>
                   <div className="oyk-vbar">
                     <div className="oyk-vbar-fill" style={{ width: `${Math.min(100, Math.round((state.ball / p.price) * 100))}%` }} />

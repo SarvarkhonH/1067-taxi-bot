@@ -21,15 +21,22 @@
 
 /* ── B4: yetishmagan holatlar ── */
 
-/* 1) SKELETON — dastlabki yuklanish, layout-shift yo'q */
+/* 1) SKELETON — dastlabki yuklanish, layout-shift yo'q. Ega tuzatishi 2026-08-02: "sahifa ochilishi
+   xunuk" — endi real layout'ga mos (sarlavha + hero + maqsad + rail-kartalar), bosqichma-bosqich
+   paydo bo'ladi, tayyor kontent esa yumshoq fade bilan almashadi. */
 .oyk-skel { flex: 1; min-height: 0; overflow: hidden; padding: calc(var(--safe-top) + 10px) 16px 26px; display: flex; flex-direction: column; gap: 14px; }
 .oyk-skel-block {
-  border-radius: 20px; background: linear-gradient(90deg, rgba(255,255,255,.045) 25%, rgba(255,255,255,.09) 37%, rgba(255,255,255,.045) 63%);
-  background-size: 400px 100%; animation: oyk-shimmer 1.4s ease-in-out infinite;
+  border-radius: 20px; background: linear-gradient(90deg, rgba(255,255,255,.045) 25%, rgba(255,255,255,.10) 37%, rgba(255,255,255,.045) 63%);
+  background-size: 400px 100%; animation: oyk-shimmer 1.4s ease-in-out infinite, oyk-fadeup .4s ease both;
 }
-.oyk-skel-hero { height: 132px; }
-.oyk-skel-daily { height: 96px; }
+.oyk-skel-head { height: 34px; width: 62%; border-radius: 12px; }
+.oyk-skel-hero { height: 148px; animation-delay: 0s, .06s; }
+.oyk-skel-daily { height: 104px; animation-delay: 0s, .12s; }
+.oyk-skel-rail-row { display: flex; gap: 10px; overflow: hidden; }
+.oyk-skel-rail-card { flex-shrink: 0; width: 148px; height: 208px; border-radius: 18px; animation-delay: 0s, .18s; }
 .oyk-skel-rail { height: 176px; }
+/* tayyor kontent — skeleton'dan yumshoq o'tish */
+.oyk-scroll { animation: oyk-fadeup .35s ease both; }
 
 /* 2) XATO holati (tarmoq/server) */
 .oyk-error { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; padding: 30px; text-align: center; }
@@ -186,8 +193,11 @@
   padding: 12px; display: flex; flex-direction: column; gap: 7px;
 }
 .oyk-pcard.is-hot { border-color: rgba(111, 207, 151, .5); box-shadow: 0 0 20px rgba(111, 207, 151, .2); }
-.oyk-pcard-icon { font-size: 30px; text-align: center; animation: oyk-bob 2.6s ease-in-out infinite; }
-.oyk-pcard-icon img { width: 44px; height: 44px; margin: 0 auto; border-radius: 12px; object-fit: cover; display: block; }
+.oyk-pcard-icon { font-size: 34px; text-align: center; animation: oyk-bob 2.6s ease-in-out infinite; }
+/* Katta rasm (ega talabi 2026-08-02): rail-kartada rasm butun eni bo'ylab — mahsulot ko'rinadi,
+   emoji-fallback esa avvalgidek markazda kichik turadi. */
+.oyk-pcard-icon img { width: 100%; height: 96px; margin: 0; border-radius: 12px; object-fit: cover; display: block; animation: none; }
+.oyk-pcard-icon:has(img) { animation: none; }
 .oyk-pcard-name { font-size: 12px; font-weight: 800; text-align: center; line-height: 1.25; }
 .oyk-pcard-meta { font-size: 10.5px; color: rgba(255, 255, 255, .45); text-align: center; font-variant-numeric: tabular-nums; }
 .oyk-pbar { height: 6px; border-radius: 3px; background: rgba(255, 255, 255, .08); overflow: hidden; }
@@ -200,6 +210,46 @@
 .oyk-pbtn:active { transform: scale(.96); }
 .oyk-pbtn.is-on { background: var(--oyk-gold-grad); color: var(--oyk-ink); }
 .oyk-pbtn.is-hot { animation: oyk-pulse 1.6s ease-in-out infinite; }
+
+/* ── 🎯 Bugungi maqsad — halqa + 3 vazifa (prototipdagi karta, real ma'lumot bilan) ── */
+.oyk-daily {
+  display: flex; gap: 14px; align-items: center; padding: 14px;
+  background: var(--card); border: 1px solid var(--line); border-radius: 20px;
+}
+.oyk-daily-ring { position: relative; flex-shrink: 0; width: 64px; height: 64px; }
+.oyk-daily-ring-num {
+  position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+  font-size: 14px; font-weight: 900; font-variant-numeric: tabular-nums;
+}
+.oyk-daily-body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 5px; }
+.oyk-daily-title { font-size: 13.5px; font-weight: 900; margin-bottom: 2px; }
+.oyk-daily-row {
+  display: flex; align-items: center; gap: 8px; border: none; background: none; padding: 2px 0;
+  text-align: left; color: inherit; cursor: default; width: 100%;
+}
+.oyk-daily-row.is-tappable { cursor: pointer; }
+.oyk-daily-row.is-tappable:active { transform: scale(.98); }
+.oyk-daily-check {
+  width: 18px; height: 18px; border-radius: 50%; flex-shrink: 0; font-size: 10px; font-weight: 900;
+  display: flex; align-items: center; justify-content: center;
+  border: 1.5px solid rgba(255, 255, 255, .22); color: var(--oyk-ink);
+}
+.oyk-daily-row.is-done .oyk-daily-check { background: var(--oyk-violet); border-color: var(--oyk-violet); color: #fff; }
+.oyk-daily-label { flex: 1; font-size: 12.5px; font-weight: 700; color: rgba(255, 255, 255, .78); }
+.oyk-daily-row.is-done .oyk-daily-label { color: rgba(255, 255, 255, .45); }
+.oyk-daily-gain { font-size: 11.5px; font-weight: 800; color: rgba(255, 255, 255, .5); font-variant-numeric: tabular-nums; }
+.oyk-daily-row.is-done .oyk-daily-gain { color: var(--oyk-gold-soft); }
+
+/* ── 🔴 JONLI lenta — bugungi so'nggi taklif-voqea (ijtimoiy isbot) ── */
+.oyk-live {
+  display: flex; align-items: center; gap: 8px; padding: 10px 13px;
+  background: rgba(255, 90, 95, .07); border: 1px solid rgba(255, 90, 95, .22); border-radius: 14px;
+  font-size: 12px; color: rgba(255, 255, 255, .75); overflow: hidden; white-space: nowrap;
+}
+.oyk-live-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--oyk-red); animation: oyk-blink 1.4s ease-in-out infinite; flex-shrink: 0; }
+.oyk-live-tag { font-size: 10px; font-weight: 900; letter-spacing: .08em; color: var(--oyk-red-soft); flex-shrink: 0; }
+.oyk-live-text { overflow: hidden; text-overflow: ellipsis; }
+.oyk-live-text b { color: var(--oyk-gold-soft); }
 
 /* ── bosh CTA ── */
 .oyk-cta {
@@ -235,6 +285,16 @@
 .oyk-sponsor-strip-text { font-size: 11px; color: rgba(255, 255, 255, .6); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .oyk-sponsor-strip-text b { color: var(--oyk-gold-soft); }
 .oyk-vcard { background: var(--card); border: 1px solid var(--line); border-radius: 20px; padding: 14px; display: flex; flex-direction: column; gap: 9px; }
+/* Katta rasm-banner (ega talabi 2026-08-02): rasm bor sovrinda karta tepasi to'liq mahsulot-foto —
+   pastdan qoraytirish bilan narx-chip o'qiladi. Rasm yuklanmasa JS parentni olib tashlaydi (emoji-yo'l). */
+.oyk-vcard-photo { position: relative; margin: -14px -14px 2px; height: 158px; overflow: hidden; border-radius: 19px 19px 0 0; }
+.oyk-vcard-photo img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.oyk-vcard-photo-fade { position: absolute; inset: 0; background: linear-gradient(180deg, transparent 45%, rgba(10, 8, 22, .82)); }
+.oyk-vcard-photo-price {
+  position: absolute; right: 12px; bottom: 10px; padding: 5px 12px; border-radius: 99px;
+  background: var(--oyk-gold-grad); color: var(--oyk-ink); font-size: 14px; font-weight: 900; font-variant-numeric: tabular-nums;
+}
+.oyk-vcard-photo-price small { font-size: 10px; font-weight: 800; }
 .oyk-vcard-top { display: flex; gap: 12px; align-items: center; }
 .oyk-vcard-icon img { width: 100%; height: 100%; border-radius: 14px; object-fit: cover; }
 .oyk-vcard-icon {

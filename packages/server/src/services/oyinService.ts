@@ -211,16 +211,55 @@ export async function getBall(memberId: number): Promise<number> {
 }
 
 export async function getOyinState(memberId: number): Promise<OyinStateResponse> {
-  const [map, sponsor, econ] = await Promise.all([computeBallMap(), getSponsor(), getBonusEcon()]);
+  // Toshkent-kunining boshlanishi (UTC vaqtida) — "bugun" chegarasi hamma joyda bir xil bo'lsin.
+  const todayKey = tashkentDayKey(new Date());
+  const dayStart = new Date(Date.parse(`${todayKey}T00:00:00+05:00`));
+
+  const [map, sponsor, econ, ridesToday, loginRow, shareRow, lastReferToday] = await Promise.all([
+    computeBallMap(),
+    getSponsor(),
+    getBonusEcon(),
+    prisma.rideReward.count({ where: { memberId, createdAt: { gte: dayStart } } }),
+    prisma.appState.findUnique({ where: { key: `oyin:login:${memberId}` } }),
+    prisma.appState.findUnique({ where: { key: `oyin:share:${memberId}` } }),
+    prisma.referral.findFirst({ where: { createdAt: { gte: dayStart } }, orderBy: { createdAt: "desc" }, select: { referrerId: true } }),
+  ]);
   const mine = map.get(memberId);
   const ranked = [...map.values()].filter((r) => r.breakdown.ball > 0).sort((a, b) => b.breakdown.ball - a.breakdown.ball);
   const rank = mine && mine.breakdown.ball > 0 ? ranked.findIndex((r) => r.memberId === memberId) + 1 : null;
+
+  // 🎯 Bugungi maqsad — hammasi mavjud manbalardan, yangi yozuv YO'Q (ball baribir jonli hisoblanadi).
+  const referJoined = mine
+    ? (await prisma.referral.count({ where: { referrerId: mine.telegramId, createdAt: { gte: dayStart } } })) > 0
+    : false;
+  const today = {
+    login: parseDayList(loginRow?.value).includes(todayKey),
+    rides: ridesToday,
+    shared: parseDayList(shareRow?.value).includes(todayKey),
+    referJoined,
+  };
+
+  // 🔴 JONLI lenta — bugungi eng so'nggi do'st-taklif (populyatsiya bo'ylab, ijtimoiy isbot).
+  // Ism ballMap keshidan olinadi (qo'shimcha so'rov yo'q); taklifchi a'zo bo'lmasa ko'rsatilmaydi.
+  let live: { name: string; ball: number } | null = null;
+  if (lastReferToday) {
+    const referrer = [...map.values()].find((r) => r.telegramId === lastReferToday.referrerId);
+    if (referrer) live = { name: referrer.name, ball: econ.oyinReferJoinBall ?? 0 };
+  }
+
   return {
     ball: mine?.breakdown.ball ?? 0,
     breakdown: mine?.breakdown ?? EMPTY_BREAKDOWN,
     rank,
     sponsor: { name: sponsor.name, photoUrl: sponsor.photoUrl },
-    hints: { referComboBall: (econ.oyinReferJoinBall ?? 0) + (econ.oyinReferFirstRideBall ?? 0), rideBall: econ.oyinRideBall ?? 0 },
+    hints: {
+      referComboBall: (econ.oyinReferJoinBall ?? 0) + (econ.oyinReferFirstRideBall ?? 0),
+      rideBall: econ.oyinRideBall ?? 0,
+      loginBall: econ.oyinDailyLoginBall ?? 0,
+      referJoinBall: econ.oyinReferJoinBall ?? 0,
+    },
+    today,
+    live,
   };
 }
 
