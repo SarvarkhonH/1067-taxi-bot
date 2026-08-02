@@ -619,3 +619,23 @@
 .oyk-poster-btn:active { transform: scale(.97); }
 .oyk-poster-btn:disabled { opacity: .5; cursor: not-allowed; }
 .oyk-poster-btn.ghost { background: var(--oyk-fill); color: var(--oyk-text); border: 1px solid var(--oyk-line); }
+
+/* ── 💡 "Ball qanday yig'iladi" — eng muhim savolga javob ── */
+.oyk-howto {
+  display: flex; align-items: center; justify-content: space-between; gap: 8px;
+  min-height: 44px; padding: 0 14px; border-radius: 14px; cursor: pointer;
+  background: var(--oyk-surface); border: 1px solid var(--oyk-line); box-shadow: var(--oyk-shadow);
+  font-size: 13px; font-weight: 800; color: var(--oyk-text); font-family: inherit;
+  transition: transform var(--dur-press);
+}
+.oyk-howto:active { transform: scale(.98); }
+.oyk-howto-go { color: var(--oyk-text-3); }
+.oyk-howto-list { display: flex; flex-direction: column; gap: 2px; }
+.oyk-howto-row { display: flex; align-items: center; gap: 10px; padding: 9px 4px; border-bottom: 1px solid var(--oyk-line); }
+.oyk-howto-row:last-child { border-bottom: none; }
+.oyk-howto-ic { font-size: 18px; width: 24px; text-align: center; flex-shrink: 0; }
+.oyk-howto-lb { flex: 1; min-width: 0; font-size: 13px; font-weight: 700; display: flex; flex-direction: column; }
+.oyk-howto-lb small { font-size: 11px; font-weight: 400; color: var(--oyk-text-3); margin-top: 1px; }
+.oyk-howto-ball { font-size: 15px; font-weight: 900; color: var(--oyk-gold-deep); font-variant-numeric: tabular-nums; flex-shrink: 0; }
+.oyk-howto-tip { font-size: 12px; color: var(--oyk-text-2); line-height: 1.5; padding-top: 4px; }
+.oyk-howto-tip b { color: var(--oyk-text); }

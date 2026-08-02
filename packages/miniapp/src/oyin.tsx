@@ -12,13 +12,13 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { OyinBoardResponse, OyinJamoamResponse, OyinPrizeView, OyinSeasonClientView, OyinStateResponse, OyinVitrinaResponse } from "@t1067/shared";
 import { api, apiUrl } from "./api";
-import { copyText, haptic, shareLink } from "./telegram";
+import { copyText, haptic, inviteLandingUrl, shareLink } from "./telegram";
 import "./design/feat/oyk.css"; // bu ekran ochilgandagina yuklanadi (kritik yo'lda emas)
 
 const OB_SLIDES = [
   { icon: "🚕", text: "Safar qil — har safarga +30 ball" },
   { icon: "🤝", text: "Do'st chaqir — u yursa senga ham ball tushadi" },
-  { icon: "🎟", text: "400+ ball = chipta. Chipta — ishtirok, g'alaba emas" },
+  { icon: "🎟", text: "Ball yig'ilgach chiptaga almashtirasan — chipta tirajda qatnashish huquqi" },
   { icon: "🎁", text: "Oy oxiri — jonli tiraj. Real sovrinlar!" },
 ];
 const OB_SEEN_KEY = "oyk_onboard_seen";
@@ -28,6 +28,9 @@ const FINAL_WARN_MS = 48 * 3600_000;
 function pad(n: number): string {
   return String(n).padStart(2, "0");
 }
+// ⚠️ `referCombo` = do'st ulandi + birinchi safari (masalan 40+120=160). Ekranning boshqa
+// joyida do'st "+40" deb ko'rsatilardi va ikkalasi bir-biriga zid chiqardi — endi "Ball qanday
+// yig'iladi" varag'ida uchala do'st-bali ham alohida yozilgan, ya'ni ziddiyat yo'q.
 function fastPath(remaining: number, referCombo: number, rideBall: number): string {
   if (remaining <= 0) return "Ball yetdi — chiptani ol!";
   if (referCombo <= 0 && rideBall <= 0) return `${remaining} ball qoldi`;
@@ -60,7 +63,7 @@ function countdownTo(iso: string | null): { d: number; h: number; m: number; tot
 }
 
 type OyinTab = "home" | "vitrina" | "jamoam";
-type SheetKind = "board" | "buy" | null;
+type SheetKind = "board" | "buy" | "howto" | null;
 type LoadState = "loading" | "ready" | "error";
 
 export function OyinView() {
@@ -133,7 +136,9 @@ export function OyinView() {
       const text = nudge ?? (topPrize
         ? `🎁 BirJoy O'yinlar Mavsumi — bosh sovrin: ${topPrize.name}!\n\nHech narsa to'lamaysan: shunchaki taksida yur, ball yig', chipta ol. Mavsum oxiri jonli tirajda sovrinlar o'ynaladi.\n\nMening havolam bilan kirsang — ikkalamizga ham ball tushadi 🤝`
         : "🎁 BirJoy O'yinlar Mavsumi — taksida yur, ball yig', jonli tirajda sovrin yut. Mening havolam bilan kirsang, ikkalamizga ham ball tushadi 🤝");
-      shareLink(r.link, text);
+      // `inviteLandingUrl` — landing sahifa OG-kartasi bilan (rasm + sarlavha). Xom bot
+      // havolasi ulashilsa Telegram quruq, rasmsiz preview chizadi.
+      shareLink(inviteLandingUrl(r.link), text);
     } catch {
       showToast("Havolani ochib bo'lmadi — birozdan keyin urinib ko'ring");
     }
@@ -163,6 +168,7 @@ export function OyinView() {
           r.reason === "sold_out" ? "😔 Bu sovrin uchun o'rinlar tugadi"
             : r.reason === "off" ? "O'yin hali yopiq"
             : r.reason === "season_off" ? "📅 Mavsum hozir faol emas — chipta olish yopiq"
+            : r.reason === "own_limit" ? "⚖️ Bu sovrindan limitga yetdingiz — boshqasini tanlang"
             : "⚡ Ball yetarli emas",
         );
       }
@@ -253,14 +259,27 @@ export function OyinView() {
     }
   }, [busy, storyUrl, showToast, loadHome]);
 
+  // ⚠️ Avval bu tugma HECH NARSA ulashmasdan ball berardi (bepul ball, ulashuv nol).
+  // Endi avval Telegram ulashish oynasi ochiladi, ball undan KEYIN beriladi.
   const doShareBonus = useCallback(async () => {
+    haptic();
     try {
-      const r = await api.oyinShare();
-      showToast(r.ok ? "📤 Rahmat! +ball qo'shildi" : "Bugun allaqachon ulashdingiz");
+      const r = await api.referral();
+      const topPrize = [...(vitrina?.prizes ?? [])].sort((a, b) => b.price - a.price)[0];
+      shareLink(
+        inviteLandingUrl(r.link),
+        topPrize
+          ? `🎁 BirJoy O'yinlar Mavsumi — bosh sovrin: ${topPrize.name}!
+
+Taksida yur, ball yig', chipta ol. Mavsum oxiri jonli tirajda o'ynaladi. Mening havolam bilan kirsang — ikkalamizga ham ball 🤝`
+          : "🎁 BirJoy O'yinlar Mavsumi — taksida yur, ball yig', jonli tirajda sovrin yut 🤝",
+      );
+      const b = await api.oyinShare();
+      showToast(b.ok ? "📤 Rahmat! Ball qo'shildi" : "Bugungi ulashish boni allaqachon olingan");
     } catch {
       showToast("Xatolik — qayta urinib ko'ring");
     }
-  }, [showToast]);
+  }, [showToast, vitrina]);
 
   const finishOnboard = useCallback(() => {
     setOnboard(null);
@@ -435,6 +454,14 @@ export function OyinView() {
                 </div>
               );
             })()}
+
+            {/* ⭐ Eng muhim savol — "nima qilsam ball ko'payadi?". Avval javob HECH QAYERDA yo'q edi:
+                eng katta mukofot (do'st birinchi safari) va doimiy oqim (har safari) ekranda
+                umuman ko'rinmasdi. Raqamlar serverdan (knoblardan) keladi — qotirilmagan. */}
+            <button type="button" className="oyk-howto" onClick={() => { haptic(); setSheet("howto"); }}>
+              <span>💡 Ball qanday yig'iladi?</span>
+              <span className="oyk-howto-go">→</span>
+            </button>
 
             {/* 🔥 Haftalik vazifa — zanjir (prototipdagi blok). Ma'lumot: kunlik kirish ro'yxati. */}
             {state.week.bonusBall > 0 && (
@@ -728,6 +755,38 @@ export function OyinView() {
                     )}
                   </div>
                 )}
+              </>
+            )}
+
+            {sheet === "howto" && (
+              <>
+                <div className="oyk-sheet-title">💡 Ball qanday yig'iladi</div>
+                <div className="oyk-howto-list">
+                  {([
+                    ["📸", "Hikoya joylash", state.hints.storyBall, "admin tasdig'idan keyin"],
+                    ["🤝", "Do'stingning har safari", state.hints.referRideBall, "cheksiz — u yurgani sari"],
+                    ["🎉", "Do'sting birinchi safarini qildi", state.hints.referFirstRideBall, "har do'st uchun bir marta"],
+                    ["👥", "Do'sting raqamini uladi", state.hints.referJoinBall, "har do'st uchun bir marta"],
+                    ["🚕", "O'z safaring", state.hints.rideBall, "cheksiz"],
+                    ["🥇", "Birinchi safaring", state.hints.firstRideBall, "mavsumda bir marta"],
+                    ["🔥", "3 kunlik zanjir", state.hints.streakBall, "har 3 kun ketma-ket kirsang"],
+                    ["📤", "Ulashish", state.hints.shareBall, "kuniga bir marta"],
+                    ["📱", "Telefon tasdiqlash", state.hints.phoneBall, "bir marta"],
+                    ["🗓", "Kunlik kirish", state.hints.loginBall, "kuniga bir marta"],
+                  ] as const)
+                    .filter(([, , ball]) => ball > 0)
+                    .sort((a, b) => b[2] - a[2])
+                    .map(([icon, label, ball, note]) => (
+                      <div key={label} className="oyk-howto-row">
+                        <span className="oyk-howto-ic">{icon}</span>
+                        <span className="oyk-howto-lb">{label}<small>{note}</small></span>
+                        <span className="oyk-howto-ball">+{ball}</span>
+                      </div>
+                    ))}
+                </div>
+                <div className="oyk-howto-tip">
+                  💡 Eng foydalisi — <b>do'st chaqirish</b>: u yurgan sari senga ball tushaveradi.
+                </div>
               </>
             )}
 

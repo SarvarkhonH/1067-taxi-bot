@@ -237,17 +237,21 @@ export const BONUS_ECON_KNOBS: BonusEconKnob[] = [
   // tangaga aylantiradi — shuning uchun bu massivda, ega "nimaga nechi ball" nazoratini shu
   // yerdan oladi. Sovrin-katalog (narx/limit/rasm) ENDI bu yerda EMAS — 2026-08-02'dan boshlab
   // to'liq admin-CRUD, `oyin:catalog` AppState qatorida saqlanadi (oyinService.ts, oyin.ts).
-  { key: "oyinRideBall", label: "🎮 Oddiy safar — ball", def: 30, min: 0, max: 1000, step: 5, group: "Koson O'yini" },
+  { key: "oyinRideBall", label: "🎮 O'z safari — ball (3-o'rin)", def: 30, min: 0, max: 1000, step: 5, group: "Koson O'yini" },
   { key: "oyinFirstRideBall", label: "🎮 Birinchi safar (hayotda) — ball", def: 80, min: 0, max: 2000, step: 10, group: "Koson O'yini" },
   { key: "oyinPhoneBall", label: "🎮 Telefon tasdiqlash — ball", def: 20, min: 0, max: 1000, step: 5, group: "Koson O'yini" },
   { key: "oyinReferJoinBall", label: "🎮 Do'st telefon ulaganda — taklifchiga ball", def: 40, min: 0, max: 2000, step: 10, group: "Koson O'yini" },
   { key: "oyinReferFirstRideBall", label: "🎮 Do'st birinchi safar qilganda — taklifchiga ball", def: 120, min: 0, max: 5000, step: 10, group: "Koson O'yini" },
-  { key: "oyinReferRideBall", label: "🎮 Do'stning har keyingi safaridan — taklifchiga ball", def: 10, min: 0, max: 500, step: 5, group: "Koson O'yini" },
+  { key: "oyinReferRideBall", label: "🎮 Do'stning har safaridan — taklifchiga ball (2-o'rin)", def: 40, min: 0, max: 500, step: 5, group: "Koson O'yini" },
   { key: "oyinDailyLoginBall", label: "🎮 Kunlik kirish — ball", def: 2, min: 0, max: 100, step: 1, group: "Koson O'yini" },
-  { key: "oyinShareBall", label: "🎮 Sovrinni ulashish — ball", def: 5, min: 0, max: 100, step: 1, group: "Koson O'yini" },
-  { key: "oyinStoryProofBall", label: "🎮 Hikoya-isbot (admin tasdig'i) — ball", def: 100, min: 0, max: 2000, step: 10, group: "Koson O'yini" },
+  { key: "oyinShareBall", label: "🎮 Ulashish — ball (4-o'rin)", def: 10, min: 0, max: 100, step: 1, group: "Koson O'yini" },
+  { key: "oyinStoryProofBall", label: "🎮 Hikoya joylash (admin tasdig'i) — ball (1-o'rin)", def: 150, min: 0, max: 2000, step: 10, group: "Koson O'yini" },
   { key: "oyinSprintBonusBall", label: "🎮 Haftalik sprint top-3 — bonus ball", def: 100, min: 0, max: 2000, step: 10, group: "Koson O'yini" },
-  { key: "oyinStreakBall", label: "🔥 Haftalik zanjir (3 kun ketma-ket) — bonus ball", def: 50, min: 0, max: 1000, step: 10, group: "Koson O'yini" },
+  { key: "oyinStreakBall", label: "🔥 3 kunlik zanjir — bonus ball", def: 50, min: 0, max: 1000, step: 10, group: "Koson O'yini" },
+  // ⚖️ Adolat qo'rig'i: do'st-safari 40 ga chiqqach, ko'p do'stli odam bitta sovrinning BARCHA
+  // chiptasini sotib olishi mumkin edi. Pul xavfi yo'q (seasonClose 500 tanga bilan cheklaydi),
+  // lekin tiraj adolati buzilardi — bitta odam butun sovrinni egallab olardi.
+  { key: "oyinMaxTicketsPerPrize", label: "⚖️ Bitta odam bitta sovrindan max chipta", def: 3, min: 1, max: 50, step: 1, group: "Koson O'yini" },
 ];
 // 🏅 level index → cashback-multiplier knob key (null for Yangi = baseline ×1.0).
 const TIER_MULT_KNOB: Record<number, string> = {

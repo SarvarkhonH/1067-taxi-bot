@@ -62,6 +62,7 @@ export interface OyinBallBreakdown {
   login: number; // kunlik kirish
   share: number; // sovrinni ulashish
   story: number; // 📸 tasdiqlangan hikoya-isbotlar (admin ko'rgan, HIKOYA_POSTER_PLAN.md)
+  streak: number; // 🔥 3 kunlik zanjir bonuslari
   sprintBonus: number; // haftalik sprint top-3 (§sprintCheck)
   earned: number; // yig'indi (yuqoridagi hammasi)
   spent: number; // chiptalarga sarflangan
@@ -155,7 +156,7 @@ export interface OyinSeasonCloseResult {
 export const OYIN_ACTIVITY_ACTIONS = [
   "ride", "first_ride", "phone",
   "refer_join", "refer_first_ride", "refer_ride",
-  "login", "share", "sprint_bonus", "ticket_buy",
+  "login", "share", "story", "streak", "sprint_bonus", "ticket_buy",
 ] as const;
 export type OyinActivityAction = (typeof OYIN_ACTIVITY_ACTIONS)[number];
 
@@ -199,7 +200,22 @@ export interface OyinStateResponse {
   sponsor: OyinSponsorView;
   // "Eng tez yo'l" tavsiyasi uchun — mijoz bu sonlarni HARDCODE qilmasin (admin-knob o'zgarsa
   // matn eskirib qolmasin), server joriy knob-qiymatlarini shu yerda beradi.
-  hints: { referComboBall: number; rideBall: number; loginBall: number; referJoinBall: number };
+  // "Ball qanday yig'iladi" varag'i uchun TO'LIQ jadval — mijoz eng foydali harakatni bilishi
+  // shart. Avval faqat 4 tasi kelardi va ekranda eng katta mukofot (do'st birinchi safari)
+  // umuman ko'rinmasdi.
+  hints: {
+    referComboBall: number; // referJoin + referFirstRide (fastPath hisobi shu bilan)
+    rideBall: number;
+    firstRideBall: number;
+    phoneBall: number;
+    loginBall: number;
+    shareBall: number;
+    referJoinBall: number;
+    referFirstRideBall: number;
+    referRideBall: number;
+    streakBall: number;
+    storyBall: number;
+  };
   // 🎯 "Bugungi maqsad" halqasi — REAL holat (soxta emas): login = oyin:login kun-ro'yxati (state
   // so'rovining o'zi markLogin qiladi, shuning uchun ochilgan zahoti ✓ — bu ataylab: "kirish" vazifasi
   // shu), rides = bugungi RideReward soni, shared/referJoined = ulashish-marker / bugun qo'shilgan do'st.
@@ -273,6 +289,15 @@ export interface OyinPrizeView {
   photoUrl: string | null; // admin qo'ygan real rasm — null bo'lsa `icon` emoji fallback ishlatiladi
 }
 
+/** 👀 Mehmon (raqami ulanmagan) ko'radigan teaser — a'zo ma'lumoti YO'Q, hammasi ochiq axborot.
+ *  Taklif havolasi orqali kelgan odam sovrinlarni ko'rishi uchun (aks holda u Do'kon ro'yxatiga
+ *  tushib qolardi va o'yin haqida hech narsa ko'rmasdi). */
+export interface OyinTeaserResponse {
+  season: OyinSeasonClientView;
+  sponsor: OyinSponsorView;
+  prizes: { key: string; icon: string; name: string; valueLabel: string; price: number; limit: number; photoUrl: string | null }[];
+}
+
 export interface OyinVitrinaResponse {
   prizes: OyinPrizeView[];
   sponsor: OyinSponsorView;
@@ -313,7 +338,7 @@ export interface OyinBuyResult {
   ok: boolean;
   // `season_off` — mavsum sozlanmagan/boshlanmagan/tugagan. `off` dan FARQ qiladi (bayroq) va
   // `insufficient` deb aytish YOLG'ON bo'lardi — mijozga balansi haqida noto'g'ri xabar bermaymiz.
-  reason?: "insufficient" | "sold_out" | "unknown_prize" | "off" | "season_off";
+  reason?: "insufficient" | "sold_out" | "unknown_prize" | "off" | "season_off" | "own_limit";
   ticketNo?: number;
   prizeKey?: OyinPrizeKey;
   ballLeft?: number;

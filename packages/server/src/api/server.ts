@@ -1595,6 +1595,12 @@ export function createApiServer(opts: ApiOptions = {}) {
     const { markShare } = await import("../services/oyinService");
     res.json(await markShare(memberId, oyinPreviewOf(res)));
   });
+  // 👀 Mehmon-teaser — AUTH YO'Q (ochiq axborot: sovrinlar vitrinada hammaga ko'rinadi).
+  // Taklif havolasi orqali kelgan, raqami hali ulanmagan odam o'yinni SHU orqali ko'radi.
+  app.get("/api/oyin/teaser", async (_req, res) => {
+    const { teaserData } = await import("../services/oyinService");
+    res.json(await teaserData());
+  });
   // 📸 Poster uchun ikkita OCHIQ rasm-endpointi (auth YO'Q — <img> teg maxsus sarlavha yubora
   // olmaydi). Ikkalasi ham maxfiy ma'lumot bermaydi: QR taklif-kodi allaqachon ulashiladigan
   // havolada, sovrin rasmi esa vitrinada hammaga ko'rinadi. Global `cors()` tufayli canvas

@@ -30,6 +30,7 @@ import {
   type OyinSeasonView,
   type OyinSprintResult,
   type OyinStateResponse,
+  type OyinTeaserResponse,
   type OyinThanksResult,
   type OyinVitrinaResponse,
 } from "@t1067/shared";
@@ -52,7 +53,7 @@ function withMemberLock<T>(memberId: number, fn: () => Promise<T>): Promise<T> {
 
 const EMPTY_BREAKDOWN: OyinBallBreakdown = {
   rides: 0, phone: 0, referJoin: 0, referFirstRide: 0, referRides: 0, login: 0, share: 0,
-  story: 0, sprintBonus: 0, earned: 0, spent: 0, ball: 0,
+  story: 0, streak: 0, sprintBonus: 0, earned: 0, spent: 0, ball: 0,
 };
 
 interface MemberBallRow {
@@ -262,6 +263,27 @@ async function computeBallMap(): Promise<Map<number, MemberBallRow>> {
     } catch { /* buzuq JSON — 0 deb sanaymiz */ }
     storyByMember.set(memberId, n);
   }
+  // 🔥 3 kunlik zanjir bonusi. Mening xatoyim edi: UI "+50" ko'rsatardi, ball esa HECH QACHON
+  // qo'shilmasdi (DIZAYN_QOIDALARI #5 ga zid — va'da qilingan narsa berilishi shart).
+  // Qoida: mavsum ichidagi kunlar ketma-ketligida har TO'LIQ 3 kun = 1 bonus (bir-birini
+  // qoplamaydi, ya'ni 7 kunlik zanjir = 2 bonus).
+  const STREAK_TARGET = 3;
+  const streakByMember = new Map<number, number>();
+  for (const row of loginRows) {
+    const memberId = Number(row.key.slice("oyin:login:".length));
+    if (!Number.isFinite(memberId)) continue;
+    const days = parseDayList(row.value).filter((d) => d >= fromDay && d <= toDay).sort();
+    let bonuses = 0;
+    let run = 0;
+    let prevMs: number | null = null;
+    for (const d of days) {
+      const ms = Date.parse(`${d}T00:00:00+05:00`);
+      run = prevMs !== null && ms - prevMs === 86400_000 ? run + 1 : 1;
+      prevMs = ms;
+      if (run === STREAK_TARGET) { bonuses++; run = 0; prevMs = ms; }
+    }
+    if (bonuses) streakByMember.set(memberId, bonuses);
+  }
   const sprintWinsByMember = new Map<number, number>();
   for (const row of sprintWinRows) {
     const memberId = Number(row.key.slice("oyin:sprintwin:".length));
@@ -287,7 +309,8 @@ async function computeBallMap(): Promise<Map<number, MemberBallRow>> {
     const shareBall = (shareDaysByMember.get(memberId) ?? 0) * (econ.oyinShareBall ?? 0);
     const sprintBall = (sprintWinsByMember.get(memberId) ?? 0) * (econ.oyinSprintBonusBall ?? 0);
     const storyBall = (storyByMember.get(memberId) ?? 0) * (econ.oyinStoryProofBall ?? 0);
-    const earned = ridesBall + phoneBall + referJoinBall + referFirstBall + referRideBall + loginBall + shareBall + storyBall + sprintBall;
+    const streakBall = (streakByMember.get(memberId) ?? 0) * (econ.oyinStreakBall ?? 0);
+    const earned = ridesBall + phoneBall + referJoinBall + referFirstBall + referRideBall + loginBall + shareBall + storyBall + streakBall + sprintBall;
     const spent = spentByMember.get(memberId) ?? 0;
     map.set(memberId, {
       memberId,
@@ -296,7 +319,8 @@ async function computeBallMap(): Promise<Map<number, MemberBallRow>> {
       seasonRides: rides,
       breakdown: {
         rides: ridesBall, phone: phoneBall, referJoin: referJoinBall, referFirstRide: referFirstBall,
-        referRides: referRideBall, login: loginBall, share: shareBall, story: storyBall, sprintBonus: sprintBall,
+        referRides: referRideBall, login: loginBall, share: shareBall, story: storyBall,
+        streak: streakBall, sprintBonus: sprintBall,
         earned, spent, ball: Math.max(0, earned - spent),
       },
     });
@@ -403,8 +427,15 @@ export async function getOyinState(memberId: number): Promise<OyinStateResponse>
     hints: {
       referComboBall: (econ.oyinReferJoinBall ?? 0) + (econ.oyinReferFirstRideBall ?? 0),
       rideBall: econ.oyinRideBall ?? 0,
+      firstRideBall: econ.oyinFirstRideBall ?? 0,
+      phoneBall: econ.oyinPhoneBall ?? 0,
       loginBall: econ.oyinDailyLoginBall ?? 0,
+      shareBall: econ.oyinShareBall ?? 0,
       referJoinBall: econ.oyinReferJoinBall ?? 0,
+      referFirstRideBall: econ.oyinReferFirstRideBall ?? 0,
+      referRideBall: econ.oyinReferRideBall ?? 0,
+      streakBall: econ.oyinStreakBall ?? 0,
+      storyBall: econ.oyinStoryProofBall ?? 0,
     },
     today,
     live,
@@ -518,6 +549,17 @@ export async function adminListCatalog(): Promise<OyinAdminPrizeRow[]> {
   return catalog.map((p) => ({ ...p, sold: soldMap.get(p.key) ?? 0 }));
 }
 
+/** 👀 Mehmon-teaser: sovrinlar + mavsum holati. A'zo ma'lumoti YO'Q, shuning uchun auth kerak emas. */
+export async function teaserData(): Promise<OyinTeaserResponse> {
+  const [season, catalog, sponsor] = await Promise.all([getSeason(), getCatalog(), getSponsor()]);
+  return {
+    season: { configured: season.configured, phase: season.phase, label: season.label, startIso: season.startIso, endIso: season.endIso },
+    sponsor: { name: sponsor.name, photoUrl: sponsor.photoUrl },
+    prizes: catalog.filter((p) => p.active).sort((a, b) => b.price - a.price)
+      .map((p) => ({ key: p.key, icon: p.icon, name: p.name, valueLabel: p.valueLabel, price: p.price, limit: p.limit, photoUrl: p.photoUrl })),
+  };
+}
+
 /** 🤝 Taklif-kartochkasi uchun (bot/oyin.ts) — eng qimmat FAOL sovrin + jami o'rin soni.
  *  Mavsum yopiq bo'lsa `null` (kartochka umuman yuborilmaydi — yolg'on va'da bermaymiz). */
 export async function joinCardData(): Promise<{ prizeName: string; photoUrl: string | null; icon: string; slots: number; seasonLabel: string | null } | null> {
@@ -612,6 +654,17 @@ export async function buyTicket(memberId: number, prizeKeyRaw: string, preview =
   return withMemberLock(memberId, async () => {
     const ball = await getBall(memberId);
     if (ball < prize.price) return { ok: false, reason: "insufficient" as const, ballLeft: ball };
+
+    // ⚖️ Adolat qo'rig'i: bitta odam bitta sovrinning hamma chiptasini olib qo'ymasin.
+    // Do'st-safari 40 ballga chiqqach, ko'p do'stli odam butun tirajni sotib olishi mumkin edi.
+    const econ = await getBonusEcon();
+    const maxOwn = Math.max(1, Math.round(econ.oyinMaxTicketsPerPrize ?? 3));
+    const season = await getSeason();
+    const ownRow = await prisma.appState.findUnique({ where: { key: `oyin:tickets:${memberId}` } });
+    const ownCount = parseTickets(ownRow?.value)
+      .filter((t) => t.prizeKey === prize.key && ticketInSeason(t, season.startMs as number, season.endMs as number))
+      .length;
+    if (ownCount >= maxOwn) return { ok: false, reason: "own_limit" as const, ballLeft: ball };
 
     const ticketNo = await reserveSoldSlot(prize.key, prize.limit);
     if (ticketNo === null) return { ok: false, reason: "sold_out" as const, ballLeft: ball };
@@ -1048,7 +1101,7 @@ export async function getActivity(filters: OyinActivityFilter): Promise<OyinActi
   const dayFrom = seasonScoped ? (season.startDayKey as string) : null;
   const dayTo = seasonScoped ? (season.endDayKey as string) : null;
 
-  const [telegramUsers, rideRows, referrals, ticketRows, loginRows, shareRows, sprintWinRows] = await Promise.all([
+  const [telegramUsers, rideRows, referrals, ticketRows, loginRows, shareRows, sprintWinRows, storyRows] = await Promise.all([
     prisma.telegramUser.findMany({
       where: { memberId: { not: null } },
       select: { id: true, memberId: true, firstName: true, lastName: true, username: true, phone: true, linkedAt: true },
@@ -1059,6 +1112,7 @@ export async function getActivity(filters: OyinActivityFilter): Promise<OyinActi
     prisma.appState.findMany({ where: { key: { startsWith: "oyin:login:" } } }) as Promise<AppStateRow[]>,
     prisma.appState.findMany({ where: { key: { startsWith: "oyin:share:" } } }) as Promise<AppStateRow[]>,
     prisma.appState.findMany({ where: { key: { startsWith: "oyin:sprintwin:" } } }) as Promise<AppStateRow[]>,
+    prisma.appState.findMany({ where: { key: { startsWith: "oyin:story:" } } }) as Promise<AppStateRow[]>,
   ]);
 
   const nameByMember = new Map<number, string>();
@@ -1082,9 +1136,14 @@ export async function getActivity(filters: OyinActivityFilter): Promise<OyinActi
     rows.push({ at, memberId, name: nameOf(memberId), action, ball, helpedMemberId, helpedName: helpedMemberId ? nameOf(helpedMemberId) : null, note });
   };
 
+  // ⚠️ "birinchi safar" MAVSUM ichidagi birinchisi — ball aynan shunday hisoblanadi
+  // (computeBallMap). Avval butun tarix bo'yicha aniqlanardi va jadval reytingdan farq qilardi.
   for (const [memberId, rides] of ridesByMember) {
-    [...rides].sort((a, b) => a.at.getTime() - b.at.getTime()).forEach((r, i) => {
-      push(r.at.toISOString(), memberId, i === 0 ? "first_ride" : "ride", i === 0 ? (econ.oyinFirstRideBall ?? 0) : (econ.oyinRideBall ?? 0), null, `#${r.bookingId}`);
+    const sorted = [...rides].sort((a, b) => a.at.getTime() - b.at.getTime());
+    const firstInSeasonIdx = seasonScoped ? sorted.findIndex((r) => r.at.getTime() >= fromMs) : 0;
+    sorted.forEach((r, i) => {
+      const isFirst = i === firstInSeasonIdx;
+      push(r.at.toISOString(), memberId, isFirst ? "first_ride" : "ride", isFirst ? (econ.oyinFirstRideBall ?? 0) : (econ.oyinRideBall ?? 0), null, `#${r.bookingId}`);
     });
   }
   for (const tu of telegramUsers) {
@@ -1125,6 +1184,18 @@ export async function getActivity(filters: OyinActivityFilter): Promise<OyinActi
     const memberId = Number(row.key.slice("oyin:tickets:".length));
     if (!Number.isFinite(memberId)) continue;
     for (const t of parseTickets(row.value)) push(t.ts, memberId, "ticket_buy", -t.priceAtPurchase, null, `${t.prizeKey} #${t.no}`);
+  }
+  // 📸 tasdiqlangan hikoya-isbotlar — ball beradi, demak jadvalda ham ko'rinishi SHART
+  // (aks holda "jadval reyting bilan kelishadi" da'vosi buziladi).
+  for (const row of storyRows) {
+    const memberId = Number(row.key.slice("oyin:story:".length));
+    if (!Number.isFinite(memberId)) continue;
+    try {
+      const parsed = JSON.parse(row.value) as { items?: { at?: string; status?: string }[] };
+      for (const it of parsed.items ?? []) {
+        if (it.status === "approved") push(String(it.at), memberId, "story", econ.oyinStoryProofBall ?? 0, null, null);
+      }
+    } catch { /* buzuq JSON — o'tkazamiz */ }
   }
 
   const filtered = rows.filter((r) => {

@@ -31,6 +31,8 @@ const RestoranView = lazy(() => import("./restoran").then((m) => ({ default: m.R
 const RavellaView = lazy(() => import("./ravella").then((m) => ({ default: m.RavellaView })));
 // 🎮 Koson O'yini — ball→chipta→tiraj mavsumi (gated by feature `oyin`; owner-preview while DARK)
 const OyinView = lazy(() => import("./oyin").then((m) => ({ default: m.OyinView })));
+// 👀 Mehmon-teaser: raqami ulanmagan odam sovrinlarni ko'rishi uchun (taklif havolasi oqimi)
+const OyinTeaser = lazy(() => import("./design/oyinTeaser").then((m) => ({ default: m.OyinTeaser })));
 // 💼 Hamyon · 👤 Profil · 🏆 Reyting · 🎯 Vazifa · 👥 Taklif · 📜 Tarix — hech biri BIRINCHI
 // ekranda ko'rinmaydi, shuning uchun lazy. `wallet.tsx` (961 qator) shu tariqa kritik yo'ldan
 // butunlay chiqadi; ilgari uni uy ekrani o'lik import orqali tortib turgan edi.
@@ -760,12 +762,21 @@ function guestMe(flags: MeResponse["flags"]): MeResponse {
 
 function GuestApp({ flags }: { flags: MeResponse["flags"] }) {
   const me = guestMe(flags);
+  // 🎮 O'yin mehmonga ham ko'rinadi: taklif havolasi orqali kelgan odam sovrinlarni ko'rmasa,
+  // butun viral halqa shu yerda uziladi (avval u Do'kon ro'yxatiga tushib qolardi).
   const tabs = [
+    flags?.oyin ? { id: "oyin" as const, icon: "gift", label: "O'yin" } : null,
     flags?.shop ? { id: "dokon" as const, icon: "market", label: "Do'kon" } : null,
     flags?.restoran ? { id: "restoran" as const, icon: "food", label: "Restoran" } : null,
     flags?.xizmatlar ? { id: "xizmat" as const, icon: "search", label: "Xizmatlar" } : null,
-  ].filter(Boolean) as { id: "dokon" | "restoran" | "xizmat"; icon: string; label: string }[];
-  const [tab, setTab] = useState<"dokon" | "restoran" | "xizmat">(tabs[0]?.id ?? "dokon");
+  ].filter(Boolean) as { id: "oyin" | "dokon" | "restoran" | "xizmat"; icon: string; label: string }[];
+  // Deep-link (?go=oyin — bot kartochkasidagi tugma) o'yin tabini birinchi ochadi.
+  const wantsOyin = (() => {
+    try { return new URLSearchParams(location.search).get("go") === "oyin"; } catch { return false; }
+  })();
+  const [tab, setTab] = useState<"oyin" | "dokon" | "restoran" | "xizmat">(
+    wantsOyin && flags?.oyin ? "oyin" : (tabs[0]?.id ?? "dokon"),
+  );
   const [msg, setMsg] = useState<string | null>(null);
   const flash = (m: string) => {
     setMsg(m);
@@ -798,6 +809,7 @@ function GuestApp({ flags }: { flags: MeResponse["flags"] }) {
       {msg && <div className="toast">{msg}</div>}
       <div className="view">
         <Suspense fallback={<Spinner />}>
+          {tab === "oyin" && <OyinTeaser onLink={() => void link.start()} busy={link.busy} />}
           {tab === "dokon" && <ShopView me={me} onBanner={flash} reload={() => undefined} onBook={() => void link.start()} />}
           {tab === "restoran" && <RestoranView me={me} onBanner={flash} />}
           {tab === "xizmat" && <XizmatlarView me={me} onBanner={flash} />}
@@ -805,7 +817,7 @@ function GuestApp({ flags }: { flags: MeResponse["flags"] }) {
       </div>
       {/* Doimiy taklif — bosim emas, taklif: nima ochilishini aytadi va bir bosishda ulaydi. */}
       <button className="guest-bar" onClick={() => void link.start()} disabled={link.busy}>
-        <span className="gb-txt"><b>Raqamni ulang</b><small>Buyurtma berish, taksi va tanga uchun</small></span>
+        <span className="gb-txt"><b>Raqamni ulang</b><small>{tab === "oyin" ? "Ball yig'ish va sovrinlarda qatnashish uchun" : "Buyurtma berish, taksi va tanga uchun"}</small></span>
         <span className="gb-cta">{link.busy ? "⏳" : "Ulash"}</span>
       </button>
       <nav className="tabbar">

@@ -297,8 +297,18 @@ export function createBot(): Bot {
         const inviterName = r.attached && r.referrerTelegramId
           ? (await prisma.telegramUser.findUnique({ where: { id: r.referrerTelegramId }, select: { firstName: true } }))?.firstName ?? null
           : null;
+        // 🤝 "Sizni Falonchi taklif qildi" — BAYROQDAN MUSTAQIL. Avval bu jumla butun repoda
+        // faqat o'yin-kartochkasida bor edi, u ham DARK bayroq ortida — ya'ni kelgan odam kim uni
+        // chaqirganini HECH QACHON bilmasdi. Taklif qilganga xabar borardi, kelganga hech narsa.
+        if (r.attached && inviterName) {
+          await bot.api
+            .sendMessage(id, `🤝 Sizni <b>${esc(inviterName)}</b> taklif qildi — xush kelibsiz!`, { parse_mode: "HTML" })
+            .catch(() => undefined);
+        }
         const { sendOyinJoinCard } = await import("./oyin");
-        await sendOyinJoinCard(bot, id, inviterName);
+        // Kartochka faqat HAQIQATAN biriktirilganda — aks holda o'z havolasini bosgan yoki
+        // allaqachon a'zo bo'lgan odam ham "sizni taklif qildi" degan yolg'onni ko'rardi.
+        if (r.attached) await sendOyinJoinCard(bot, id, inviterName);
       } catch (e) {
         console.error("[oyin] join card failed:", e);
       }

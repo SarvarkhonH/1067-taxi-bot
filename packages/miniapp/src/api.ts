@@ -32,6 +32,7 @@ import type {
   OyinBoardResponse,
   OyinStateResponse,
   OyinStorySubmitResult,
+  OyinTeaserResponse,
   OyinThanksResult,
   OyinVitrinaResponse,
 } from "@t1067/shared";
@@ -301,6 +302,7 @@ export const api = {
   // serverda kunlik-kirish belgisi ham qo'yiladi ("miniapp ochish" = kirish, alohida POST shart emas).
   oyinThanks: (friendMemberId: number) => post<OyinThanksResult>("/api/oyin/thanks", { friendMemberId }),
   oyinStory: (url: string) => post<OyinStorySubmitResult>("/api/oyin/story", { url }),
+  oyinTeaser: () => get<OyinTeaserResponse>("/api/oyin/teaser"),
   oyinState: () => get<OyinStateResponse>("/api/oyin/state"),
   oyinVitrina: () => get<OyinVitrinaResponse>("/api/oyin/vitrina"),
   oyinBoard: () => get<OyinBoardResponse>("/api/oyin/board"),
