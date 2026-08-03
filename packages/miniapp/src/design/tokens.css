@@ -1656,37 +1656,52 @@ body {
 /* 🎮 Koson O'yini — uy-ekran HERO kartasi (ega redizayni 2026-08-02: katta preview + katta sovrin-
    rasmlari). Ataylab HAR mavzuda qorong'i "o'yin-afisha" ko'rinishida — uy oqimidan ajralib,
    e'tibor tortadi (--oyk-* oltin/binafsha palitrasi bilan bir xil til). */
-.nh-koson { position:relative; width:100%; border-radius:22px; margin-bottom:6px; overflow:hidden;
-  background:linear-gradient(150deg, #17123a 0%, #0f0c24 55%, #1a0f2e 100%);
-  border:1px solid rgba(245,183,0,.35); display:flex; flex-direction:column; }
-.nh-koson-glow { position:absolute; top:-70px; right:-50px; width:220px; height:220px; border-radius:50%;
-  background:radial-gradient(circle, rgba(245,183,0,.28), transparent 65%); pointer-events:none; }
-.nh-koson-main { position:relative; border:0; background:none; padding:14px 15px 10px; text-align:left;
-  display:flex; flex-direction:column; gap:8px; width:100%; color:#fff; }
-.nh-koson-top { display:flex; align-items:center; justify-content:space-between; gap:8px; }
-.nh-koson-badge { font-size:10px; font-weight:900; letter-spacing:.07em; color:#ffd873;
-  background:rgba(245,183,0,.16); border:1px solid rgba(245,183,0,.35); padding:4px 10px; border-radius:99px; }
-.nh-koson-cd { font-size:10.5px; font-weight:800; color:rgba(255,255,255,.65); white-space:nowrap; }
-.nh-koson-title { font-size:17px; font-weight:900; line-height:1.25; color:#fff; }
-.nh-koson-sub { font-size:12px; color:rgba(255,255,255,.62); line-height:1.45; }
-.nh-koson-prizes { display:flex; gap:9px; margin-top:4px; }
-.nh-koson-prize { flex:1; min-width:0; display:flex; flex-direction:column; gap:5px; align-items:center; }
-.nh-koson-prize-im { width:100%; height:86px; border-radius:14px; overflow:hidden;
-  background:rgba(255,255,255,.07); border:1px solid rgba(255,255,255,.1);
-  display:flex; align-items:center; justify-content:center; }
-.nh-koson-prize-im img { width:100%; height:100%; object-fit:cover; display:block; }
-.nh-koson-prize-em { font-size:32px; }
-.nh-koson-prize-nm { font-size:10.5px; font-weight:700; color:rgba(255,255,255,.72); text-align:center;
-  max-width:100%; line-height:1.25; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical;
-  overflow:hidden; }
-.nh-koson-foot { position:relative; display:flex; align-items:center; justify-content:space-between; gap:10px;
-  padding:10px 15px 13px; border-top:1px solid rgba(255,255,255,.08); flex-wrap:wrap; }
-.nh-koson-ball { font-size:12px; font-weight:700; color:rgba(255,255,255,.7); font-variant-numeric:tabular-nums; }
-.nh-koson-ball b { color:#ffd873; font-weight:900; }
-.nh-koson-actions { display:flex; gap:8px; }
-.nh-koson-btn { border:0; border-radius:12px; padding:9px 14px; font-size:12px; font-weight:900; white-space:nowrap; }
-.nh-koson-btn.primary { background:linear-gradient(180deg,#ffd34d,#f5b700); color:#181206; box-shadow:0 4px 14px rgba(245,183,0,.35); }
-.nh-koson-btn.ghost { background:rgba(255,255,255,.09); color:#fff; border:1px solid rgba(255,255,255,.14); }
+/* ── 🎮 O'yinga chorlov kartasi (ega redizayni 2026-08-03) ────────────────────────────────
+   Avvalgi `.nh-koson` DABDALA edi: 9 element, 2 ta tugma, 5 xil o'lchamdagi matn, 3 ta kichik
+   rasm va `ball · o'rin` qatori. Uy ekranida RAQAM emas, TAKLIF turishi kerak.
+   Yangi karta 4 elementli: katta sovrin rasmi → sovrin nomi → "Bepul chipta olish uchun" →
+   bitta katta tugma. Ranglar `--nh-*` tokenlaridan, ya'ni light/dark/vibrant o'zi moslashadi. */
+.nh-oyin {
+  width: 100%; border-radius: 22px; overflow: hidden; margin-bottom: 6px;
+  background: var(--nh-sf); border: 1px solid var(--nh-ln); box-shadow: var(--nh-shadow);
+  display: flex; flex-direction: column;
+}
+/* Rasm — kartaning YURAGI. Jismoniy narsa = real rasm (DIZAYN_QOIDALARI #10). */
+.nh-oyin-hero {
+  position: relative; display: block; width: 100%; height: 176px; padding: 0; border: 0;
+  background: linear-gradient(150deg, #fff2d0, #ffe3ef 55%, #e8eeff);
+  overflow: hidden; cursor: pointer;
+}
+.nh-oyin-img { width: 100%; height: 100%; object-fit: cover; display: block; }
+/* Rasm yo'q/buzuq bo'lsa — rangli fon + KATTA emoji. Bo'sh kulrang kvadrat TAQIQ. */
+.nh-oyin-em { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-size: 62px; }
+.nh-oyin-cd {
+  position: absolute; top: 10px; right: 10px; z-index: 2;
+  font-size: 10.5px; font-weight: 800; color: #fff; background: rgba(12, 16, 30, .52);
+  padding: 5px 10px; border-radius: 99px; backdrop-filter: blur(6px); white-space: nowrap;
+}
+/* Gradient — matn HAR QANDAY rasm ustida o'qilsin (oq rasmda ham). */
+.nh-oyin-fade { position: absolute; left: 0; right: 0; bottom: 0; height: 96px; background: linear-gradient(180deg, transparent, rgba(10, 12, 24, .82)); }
+.nh-oyin-cap { position: absolute; left: 15px; right: 15px; bottom: 12px; text-align: left; }
+.nh-oyin-cap b {
+  display: block; font-size: 19px; font-weight: 900; color: #fff; line-height: 1.2;
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+}
+.nh-oyin-cap small { display: block; font-size: 11.5px; font-weight: 600; color: rgba(255, 255, 255, .78); margin-top: 3px; }
+.nh-oyin-foot { padding: 13px 15px 15px; display: flex; flex-direction: column; gap: 10px; }
+.nh-oyin-lead { font-size: 13px; font-weight: 700; color: var(--nh-dim); text-align: center; }
+.nh-oyin-cta {
+  width: 100%; height: 50px; border: 0; border-radius: 15px;
+  background: var(--nh-bgrad); color: var(--nh-bink);
+  font-size: 16px; font-weight: 900; cursor: pointer;
+  box-shadow: 0 8px 20px rgba(255, 143, 31, .28);
+  transition: transform var(--dur-press, .12s) ease;
+}
+.nh-oyin-cta:active { transform: scale(.97); }
+.nh-oyin-hero:active .nh-oyin-img { transform: scale(1.02); transition: transform .18s ease; }
+@media (prefers-reduced-motion: reduce) { .nh-oyin-cta, .nh-oyin-hero:active .nh-oyin-img { transition: none; transform: none; } }
+
+/* `.nh-koson*` (eski dabdala karta — 9 element, 2 tugma, ball+o'rin) OLIB TASHLANDI 2026-08-03. */
 .nh-i-b { background:rgba(59,130,246,.16); color:var(--nh-blue); }
 .nh-i-o { background:rgba(251,146,60,.18); color:var(--nh-org); }
 .nh-i-t { background:rgba(45,212,191,.16); color:var(--nh-teal); }

@@ -15,6 +15,7 @@ import { HomeGames } from "./homeGames";
 function KosonOyinCard({ onNav }: { onNav: (t: string) => void }) {
   const [state, setState] = useState<OyinStateResponse | null>(null);
   const [prizes, setPrizes] = useState<OyinPrizeView[] | null>(null);
+  const [noPhoto, setNoPhoto] = useState(false);
   useEffect(() => {
     let alive = true;
     api.oyinState().then((s) => { if (alive) setState(s); }).catch(() => undefined);
@@ -23,15 +24,9 @@ function KosonOyinCard({ onNav }: { onNav: (t: string) => void }) {
   }, []);
 
   const goOyin = () => { haptic(); onNav("oyin"); };
-  const goVitrina = () => {
-    haptic();
-    try { localStorage.setItem("oyk_start_tab", "vitrina"); } catch { /* xotira yopiq — home tabda ochiladi */ }
-    onNav("oyin");
-  };
 
-  // Skeleton balandligi real kartaga TENG (~267px) — aks holda yuklanganda sahifa sakraydi.
-  if (!state) return <div className="nh-koson"><div className="nh-skel" style={{ height: 267, borderRadius: 22 }} /></div>;
-  // Mavsum sozlanmagan — karta umuman chizilmaydi (yolg'on sanoq ko'rsatgandan ko'ra yo'q bo'lgani yaxshi).
+  // Skeleton balandligi real kartaga TENG (~283px) — aks holda yuklanganda sahifa sakraydi.
+  if (!state) return <div className="nh-oyin"><div className="nh-skel" style={{ height: 283, borderRadius: 22 }} /></div>;
   if (!state.season.configured || state.season.phase === "ended") return null;
 
   // ⚠️ `Date.parse(null) → NaN` → `Math.max(0, NaN) → NaN` → ekranda "NaN kun qoldi". Qo'riqlanadi.
@@ -42,42 +37,33 @@ function KosonOyinCard({ onNav }: { onNav: (t: string) => void }) {
   const days = Math.floor(left / 86400_000);
   const hours = Math.floor((left % 86400_000) / 3600_000);
   const cdText = days > 0 ? `${days} kun` : `${hours} soat`;
-  // Eng qimmat 3 sovrin — "katta yutuq" hissi (arzonlari o'yin ichida baribir ko'rinadi).
-  const top = (prizes ?? []).slice().sort((a, b) => b.price - a.price).slice(0, 3);
+
+  // Bitta ENG QIMMAT sovrin — kartaning yuragi. Avval 3 ta kichik rasm turardi va hech biri
+  // "katta yutuq" hissini bermasdi (ega: "dabdala"). Bitta katta rasm ancha kuchli.
+  const sorted = (prizes ?? []).slice().sort((a, b) => b.price - a.price);
+  const top = sorted[0] ?? null;
+  const others = Math.max(0, sorted.length - 1);
+  const showPhoto = !!top?.photoUrl && !noPhoto;
 
   return (
-    <div className="nh-koson">
-      <div className="nh-koson-glow" aria-hidden="true" />
-      <button className="nh-koson-main" onClick={goOyin}>
-        <div className="nh-koson-top">
-          <span className="nh-koson-badge">{upcoming ? "🚀 TEZ ORADA" : "🔥 MAVSUM OCHIQ"}</span>
-          <span className="nh-koson-cd">{upcoming ? `⏳ Startgacha ${cdText}` : `⏳ Tirajgacha ${cdText}`}</span>
-        </div>
-        <div className="nh-koson-title">
-          {upcoming ? "Sovrinlar mavsumi boshlanmoqda 🎁" : "Sovrinlar mavsumi ochiq 🎁"}
-        </div>
-        <div className="nh-koson-sub">Safar qiling, ball yig'ing — chipta oling. Mavsum oxirida jonli tirajda g'oliblar tasodifiy tanlanadi</div>
-        {top.length > 0 && (
-          <div className="nh-koson-prizes">
-            {top.map((p) => (
-              <div key={p.key} className="nh-koson-prize">
-                <div className="nh-koson-prize-im">
-                  {p.photoUrl
-                    ? <img src={p.photoUrl} alt="" loading="lazy" onError={(e) => { (e.target as HTMLImageElement).replaceWith(document.createTextNode(p.icon)); }} />
-                    : <span className="nh-koson-prize-em">{p.icon}</span>}
-                </div>
-                <span className="nh-koson-prize-nm">{p.name}</span>
-              </div>
-            ))}
-          </div>
-        )}
-      </button>
-      <div className="nh-koson-foot">
-        <span className="nh-koson-ball">🪙 Sizda <b>{state.ball}</b> ball{state.rank ? ` · 🏅 ${state.rank}-o'rin` : ""}</span>
-        <span className="nh-koson-actions">
-          <button className="nh-koson-btn primary" onClick={goOyin}>▶ Boshlash</button>
-          <button className="nh-koson-btn ghost" onClick={goVitrina}>🎁 Sovrinlar</button>
+    <div className="nh-oyin">
+      <button className="nh-oyin-hero" onClick={goOyin} aria-label="O'yinni ochish">
+        {showPhoto
+          ? <img className="nh-oyin-img" src={top?.photoUrl ?? ""} alt="" loading="lazy" onError={() => setNoPhoto(true)} />
+          : <span className="nh-oyin-em" aria-hidden="true">{top?.icon ?? "🎁"}</span>}
+        <span className="nh-oyin-cd">{upcoming ? `Startgacha ${cdText}` : `Tirajgacha ${cdText}`}</span>
+        <span className="nh-oyin-fade" aria-hidden="true" />
+        <span className="nh-oyin-cap">
+          <b>{top ? top.name : "Sovrinlar mavsumi"}</b>
+          {others > 0 && <small>va yana {others} ta sovrin</small>}
         </span>
+      </button>
+      <div className="nh-oyin-foot">
+        {/* Ega matni 2026-08-03. Ball/o'rin ATAYLAB YO'Q — uy ekranida raqam emas, TAKLIF turadi. */}
+        <div className="nh-oyin-lead">Bepul chipta olish uchun</div>
+        <button className="nh-oyin-cta" onClick={goOyin}>
+          {upcoming ? "Sovrinlarni ko'rish" : "Boshlash"}
+        </button>
       </div>
     </div>
   );
