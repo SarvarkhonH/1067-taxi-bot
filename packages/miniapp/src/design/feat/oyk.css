@@ -898,3 +898,122 @@
 .oyk-qty-b.is-on { background: var(--oyk-violet); border-color: var(--oyk-violet); color: #fff; }
 .oyk-qty-max { font-size: 11px; color: var(--oyk-text-3); white-space: nowrap; }
 .oyk-buy-note { line-height: 1.5; }
+
+/* ── 👤 SARLAVHA — avatar + brend + qo'ng'iroq (ega maketi 2026-08-03) ─────────────────────
+   Reyting chipi OLIB TASHLANDI: u ball QOLDIG'I bo'yicha saralanardi, ya'ni chipta olgan
+   odamning o'rni tushardi — to'g'ri xatti-harakat jazolanardi. */
+.oyk-top { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.oyk-top-me { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.oyk-top-av {
+  position: relative; width: 42px; height: 42px; border-radius: 50%; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+  background: var(--oyk-violet); color: #fff; font-size: 17px; font-weight: 900;
+}
+.oyk-top-av-b {
+  position: absolute; right: -3px; bottom: -3px; min-width: 18px; height: 18px; padding: 0 4px;
+  border-radius: 99px; background: var(--oyk-gold); color: var(--oyk-ink);
+  font-size: 10.5px; font-weight: 900; font-style: normal;
+  display: flex; align-items: center; justify-content: center; border: 2px solid var(--oyk-surface);
+}
+.oyk-top-nm { min-width: 0; line-height: 1.2; }
+.oyk-top-nm b { display: block; font-size: 17px; font-weight: 900; }
+.oyk-top-nm small { display: block; font-size: 11.5px; color: var(--oyk-text-3); }
+.oyk-bell {
+  position: relative; width: 40px; height: 40px; flex-shrink: 0; border-radius: 50%;
+  background: var(--oyk-fill); border: 1px solid var(--oyk-line); font-size: 19px;
+  cursor: pointer; transition: transform var(--dur-press);
+}
+.oyk-bell:active { transform: scale(.92); }
+.oyk-bell-dot {
+  position: absolute; top: -3px; right: -3px; min-width: 17px; height: 17px; padding: 0 4px;
+  border-radius: 99px; background: var(--oyk-red); color: #fff;
+  font-size: 10px; font-weight: 900; font-style: normal;
+  display: flex; align-items: center; justify-content: center; border: 2px solid var(--oyk-surface);
+}
+
+/* ── 📅 TIRAJ KARTASI (binafsha) ── */
+.oyk-draw {
+  position: relative; overflow: hidden; border-radius: 20px; padding: 15px 16px 16px;
+  background: linear-gradient(150deg, #3b2a8f, #2a1d6b 55%, #1e1450); color: #fff;
+}
+.oyk-draw-glow {
+  position: absolute; top: -60px; right: -40px; width: 190px; height: 190px; border-radius: 50%;
+  background: radial-gradient(circle, rgba(255, 183, 0, .3), transparent 65%); pointer-events: none;
+}
+.oyk-draw-h { position: relative; font-size: 14px; font-weight: 900; letter-spacing: .02em; color: #ffd75e; }
+.oyk-draw-k { position: relative; font-size: 11.5px; color: rgba(255, 255, 255, .72); margin-top: 8px; }
+/* Sana YONIB turadi — sovg'alar shu kuni topshiriladi (ega talabi). */
+.oyk-draw-d {
+  position: relative; font-size: 23px; font-weight: 900; letter-spacing: .01em; margin-top: 2px;
+  color: #ffd75e; text-shadow: 0 0 18px rgba(255, 215, 94, .55);
+  animation: oyk-glow 2.4s ease-in-out infinite;
+}
+.oyk-draw-btn {
+  position: relative; margin-top: 13px; padding: 9px 15px; border-radius: 12px; border: 0;
+  background: rgba(255, 255, 255, .14); color: #fff; font-size: 12.5px; font-weight: 800;
+  cursor: pointer; transition: transform var(--dur-press);
+}
+.oyk-draw-btn:active { transform: scale(.96); }
+.oyk-draw-gift { position: absolute; right: 14px; bottom: 12px; font-size: 54px; line-height: 1; filter: drop-shadow(0 4px 10px rgba(0,0,0,.3)); }
+
+/* ── 🪙 BALANS KARTASI (sarg'ish) ── */
+.oyk-bal {
+  position: relative; overflow: hidden; border-radius: 20px; padding: 14px 16px 16px;
+  background: linear-gradient(150deg, var(--oyk-gold-pale), #fff8e6);
+  border: 1px solid rgba(245, 183, 0, .3);
+}
+.oyk-bal-k { font-size: 12.5px; color: var(--oyk-gold-deep); font-weight: 700; }
+.oyk-bal-row { display: flex; align-items: baseline; gap: 7px; margin-top: 1px; }
+.oyk-bal-row b { font-size: 38px; font-weight: 900; color: var(--oyk-gold-deep); letter-spacing: -1px; font-variant-numeric: tabular-nums; }
+.oyk-bal-row span { font-size: 15px; font-weight: 800; color: var(--oyk-gold-soft); }
+.oyk-bal-need { font-size: 12.5px; color: var(--oyk-text-2); margin-top: 2px; font-variant-numeric: tabular-nums; }
+.oyk-bal-need b { color: var(--oyk-gold-deep); font-weight: 900; }
+.oyk-bal-bar { height: 8px; border-radius: 99px; background: rgba(245, 183, 0, .22); margin-top: 9px; overflow: hidden; }
+.oyk-bal-bar span { display: block; height: 100%; border-radius: 99px; background: var(--oyk-gold-grad); transition: width .5s ease; }
+.oyk-bal-btn {
+  margin-top: 12px; padding: 8px 14px; border-radius: 11px;
+  background: rgba(255, 255, 255, .75); border: 1px solid rgba(245, 183, 0, .4);
+  color: var(--oyk-gold-deep); font-size: 12.5px; font-weight: 800; cursor: pointer;
+  transition: transform var(--dur-press);
+}
+.oyk-bal-btn:active { transform: scale(.96); }
+.oyk-bal-coin { position: absolute; right: 12px; top: 16px; font-size: 46px; line-height: 1; opacity: .9; }
+
+/* ── 🎮 "Qanday ishlaydi?" varag'i (5 qadam) ── */
+.oyk-how-lead { font-size: 13px; color: var(--oyk-text-2); margin-bottom: 12px; }
+.oyk-how { display: flex; flex-direction: column; gap: 9px; }
+.oyk-how-step {
+  display: flex; align-items: flex-start; gap: 11px; padding: 12px 13px; border-radius: 15px;
+  background: var(--oyk-fill); border: 1px solid var(--oyk-line);
+}
+.oyk-how-em { font-size: 26px; line-height: 1.1; flex-shrink: 0; }
+.oyk-how-body { flex: 1; min-width: 0; }
+.oyk-how-body b { display: flex; align-items: center; gap: 7px; font-size: 14px; font-weight: 900; }
+.oyk-how-body b i {
+  width: 21px; height: 21px; border-radius: 50%; background: var(--oyk-violet); color: #fff;
+  font-size: 11.5px; font-style: normal; display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+}
+.oyk-how-body small { display: block; font-size: 12px; color: var(--oyk-text-2); line-height: 1.5; margin-top: 4px; }
+.oyk-how-ok {
+  width: 100%; margin-top: 14px; height: 50px; border: 0; border-radius: 15px;
+  background: var(--oyk-violet); color: #fff; font-size: 15px; font-weight: 900; cursor: pointer;
+}
+
+/* ── 🔔 Qo'ng'iroq ro'yxati ── */
+.oyk-bell-list { display: flex; flex-direction: column; }
+.oyk-bell-row { display: flex; align-items: center; gap: 11px; padding: 10px 2px; border-bottom: 1px solid var(--oyk-line); }
+.oyk-bell-row:last-child { border-bottom: none; }
+.oyk-bell-ic { font-size: 19px; width: 24px; text-align: center; flex-shrink: 0; }
+.oyk-bell-tx { flex: 1; min-width: 0; font-size: 13px; font-weight: 700; line-height: 1.3; }
+.oyk-bell-tx b { color: var(--oyk-violet-soft); font-weight: 800; }
+.oyk-bell-tx small { display: block; font-size: 10.5px; font-weight: 600; color: var(--oyk-text-3); margin-top: 1px; }
+.oyk-bell-b { flex-shrink: 0; font-size: 14px; font-weight: 900; color: var(--oyk-green); font-variant-numeric: tabular-nums; }
+.oyk-bell-b.is-minus { color: var(--oyk-text-3); }
+.oyk-skel-tkt, .oyk-skel-bell { height: 122px; border-radius: 16px; }
+.oyk-skel-bell { height: 52px; border-radius: 12px; }
+
+/* "Eng tez yo'l" endi TUGMA — bosilsa ulashish oynasi ochiladi (yozuv harakat va'da qiladi). */
+.oyk-fast { width: 100%; text-align: left; cursor: pointer; font-family: inherit; }
+.oyk-daily-title small { font-weight: 700; color: var(--oyk-text-3); font-size: 11px; margin-left: 6px; }
+
+@keyframes oyk-glow { 0%, 100% { text-shadow: 0 0 18px rgba(255, 215, 94, .55); } 50% { text-shadow: 0 0 26px rgba(255, 215, 94, .9); } }

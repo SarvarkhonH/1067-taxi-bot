@@ -1575,12 +1575,9 @@ export function createApiServer(opts: ApiOptions = {}) {
     const { getVitrina } = await import("../services/oyinService");
     res.json(await getVitrina(memberId));
   });
-  app.get("/api/oyin/board", requireUser, async (_req, res) => {
-    const memberId = await getMemberId(res.locals.telegramId as string);
-    if (!memberId) { res.status(404).json({ error: "not linked" }); return; }
-    const { getBoard } = await import("../services/oyinService");
-    res.json(await getBoard(memberId));
-  });
+  // ⛔ `/api/oyin/board` OLIB TASHLANDI (ega qarori 2026-08-03): reyting ball
+  // QOLDIG'I bo'yicha saralanardi — chipta olgan odamning o'rni TUSHARDI, ya'ni to'g'ri
+  // xatti-harakat jazolanardi. O'rniga `/api/oyin/bell` — ball qayerdan kelgani.
   // 🎯 Maqsad-sovrinni tanlash — hero shunga qarab chiziladi.
   app.post("/api/oyin/goal", requireUser, rateLimit(20), async (req, res) => {
     const memberId = await getMemberId(res.locals.telegramId as string);
@@ -1588,6 +1585,19 @@ export function createApiServer(opts: ApiOptions = {}) {
     const { setGoalPrize } = await import("../services/oyinService");
     res.json(await setGoalPrize(memberId, String((req.body as { prizeKey?: string })?.prizeKey ?? "")));
   });
+  // 🔔 Qo'ng'iroq — mijoz BALL QAYERDAN KELGANINI ko'radi (ega talabi 2026-08-03).
+  // Yangi jadval YO'Q: mavjud `getActivity` a'zoga qisqartiriladi (u RideReward/Referral/
+  // AppState-markerlaridan voqealarni rekonstruksiya qiladi). Push YUBORILMAYDI — ega
+  // qarori: "shunchaki to'plansin". Bot xabarlari o'z holicha ishlayveradi.
+  app.get("/api/oyin/bell", requireUser, rateLimit(30), async (req, res) => {
+    const memberId = await getMemberId(res.locals.telegramId as string);
+    if (!memberId) { res.status(404).json({ error: "not linked" }); return; }
+    const { getActivity } = await import("../services/oyinService");
+    const q = req.query as Record<string, string | undefined>;
+    const r = await getActivity({ memberId, page: q.page ? Number(q.page) : 1, pageSize: 30 });
+    res.json(r);
+  });
+
   app.get("/api/oyin/tickets", requireUser, async (_req, res) => {
     const memberId = await getMemberId(res.locals.telegramId as string);
     if (!memberId) { res.status(404).json({ error: "not linked" }); return; }

@@ -501,15 +501,10 @@ export async function getOyinState(memberId: number): Promise<OyinStateResponse>
   };
 }
 
-export async function getBoard(memberId: number, limit = 50): Promise<OyinBoardResponse> {
-  const map = await computeBallMap();
-  const ranked = [...map.values()].filter((r) => r.breakdown.ball > 0).sort((a, b) => b.breakdown.ball - a.breakdown.ball);
-  const myIdx = ranked.findIndex((r) => r.memberId === memberId);
-  return {
-    rows: ranked.slice(0, limit).map((r, i) => ({ pos: i + 1, name: r.name, ball: r.breakdown.ball, me: r.memberId === memberId })),
-    myPos: myIdx >= 0 ? myIdx + 1 : null,
-  };
-}
+// ⛔ `getBoard` OLIB TASHLANDI (ega qarori 2026-08-03). U ball QOLDIG'I bo'yicha saralardi:
+// chipta olgan odamning o'rni TUSHARDI, ball yig'ib hech narsa olmagan odam 1-o'rinda turardi —
+// reyting to'g'ri xatti-harakatni JAZOLARDI. O'rniga qo'ng'iroq: ball qayerdan kelgani.
+
 
 export async function getVitrina(memberId: number): Promise<OyinVitrinaResponse> {
   const [season, catalog, soldMap, ticketsRow, sponsor] = await Promise.all([
@@ -1273,14 +1268,28 @@ export async function getActivity(filters: OyinActivityFilter): Promise<OyinActi
   // ular kun-SATRI bo'yicha alohida filtrlanadi.
   const dayFrom = seasonScoped ? (season.startDayKey as string) : null;
   const dayTo = seasonScoped ? (season.endDayKey as string) : null;
+  // DB filtri uchun chegaralar. `-Infinity`/`Infinity` ni `Date` ga berib bo'lmaydi —
+  // `scope:"all"` da amalda cheksiz oyna (1970 → +10 yil) ishlatiladi.
+  const winFrom = new Date(Number.isFinite(fromMs) ? fromMs : 0);
+  const winTo = new Date(Number.isFinite(toMs) ? toMs : Date.now() + 10 * 365 * 86400_000);
 
   const [telegramUsers, rideRows, referrals, ticketRows, loginRows, shareRows, sprintWinRows, storyRows] = await Promise.all([
     prisma.telegramUser.findMany({
       where: { memberId: { not: null } },
       select: { id: true, memberId: true, firstName: true, lastName: true, username: true, phone: true, linkedAt: true },
     }),
-    prisma.rideReward.findMany({ select: { memberId: true, bookingId: true, createdAt: true } }),
-    prisma.referral.findMany({ select: { referrerId: true, refereeMemberId: true, referrerPaidAt: true, createdAt: true } }),
+    // ⚠️ `where` MAJBURIY. Avval ikkala jadval ham TO'LIQ o'qilardi (filtrlar keyin xotirada
+    // qo'llanardi), ya'ni admin 50 qatorlik 1-sahifani so'raganda ham server butun `RideReward`
+    // va `Referral` tarixini yuklardi — bot va taksi sweep'i bilan BITTA jarayonda. Pik soatda
+    // bu tabni ochish event-loop'ni bloklardi.
+    prisma.rideReward.findMany({
+      where: { createdAt: { gte: winFrom, lte: winTo }, ...(filters.memberId ? { memberId: filters.memberId } : {}) },
+      select: { memberId: true, bookingId: true, createdAt: true },
+    }),
+    prisma.referral.findMany({
+      where: { OR: [{ createdAt: { gte: winFrom, lte: winTo } }, { referrerPaidAt: { gte: winFrom, lte: winTo } }] },
+      select: { referrerId: true, refereeMemberId: true, referrerPaidAt: true, createdAt: true },
+    }),
     prisma.appState.findMany({ where: { key: { startsWith: "oyin:tickets:" } } }) as Promise<AppStateRow[]>,
     prisma.appState.findMany({ where: { key: { startsWith: "oyin:login:" } } }) as Promise<AppStateRow[]>,
     prisma.appState.findMany({ where: { key: { startsWith: "oyin:share:" } } }) as Promise<AppStateRow[]>,

@@ -10,7 +10,7 @@
 // soxta QR-kvadrat — real QR-generatsiya (referralQrService) B1-B5 doirasida qurilmagan, shuning
 // uchun olib tashlandi (ishlamaydigan grafika ko'rsatish — yolg'on).
 import { useCallback, useEffect, useRef, useState } from "react";
-import { OYIN_FINAL_LOCK_MS, type OyinBoardResponse, type OyinJamoamResponse, type OyinMyTicketsResponse, type OyinPrizeView, type OyinSeasonClientView, type OyinStateResponse, type OyinVitrinaResponse } from "@t1067/shared";
+import { OYIN_FINAL_LOCK_MS, type OyinActivityResponse, type OyinJamoamResponse, type OyinMyTicketsResponse, type OyinPrizeView, type OyinSeasonClientView, type OyinStateResponse, type OyinVitrinaResponse } from "@t1067/shared";
 import { api, apiUrl } from "./api";
 import { copyText, haptic, inviteLandingUrl, shareLink } from "./telegram";
 import "./design/feat/oyk.css"; // bu ekran ochilgandagina yuklanadi (kritik yo'lda emas)
@@ -118,8 +118,22 @@ function buyReasonText(reason: string | undefined): string {
   }
 }
 
+/** Qo'ng'iroq ro'yxati uchun yorliqlar — admin jadvalidagi bilan bir xil harakatlar. */
+const ACTION_EMOJI: Record<string, string> = {
+  ride: "🚕", first_ride: "🥇", phone: "📱", refer_join: "👥", refer_first_ride: "🎉",
+  refer_ride: "🤝", daily_login: "🗓", share: "📤", sprint_bonus: "🏁", ticket_buy: "🎟",
+  story: "📸", streak: "🔥",
+};
+const ACTION_LABEL: Record<string, string> = {
+  ride: "Safar qildingiz", first_ride: "Mavsumdagi birinchi safaringiz", phone: "Telefon tasdiqlandi",
+  refer_join: "Do'stingiz raqamini uladi", refer_first_ride: "Do'stingiz birinchi safarini qildi",
+  refer_ride: "Do'stingiz safar qildi", daily_login: "Ilovaga kirdingiz", share: "Ulashdingiz",
+  sprint_bonus: "Haftalik bonus", ticket_buy: "Chipta oldingiz", story: "Hikoyangiz tasdiqlandi",
+  streak: "Ketma-ket safar bonusi",
+};
+
 type OyinTab = "home" | "vitrina" | "tickets" | "jamoam";
-type SheetKind = "board" | "buy" | "info" | null;
+type SheetKind = "buy" | "info" | "how" | "ball" | "bell" | null;
 type LoadState = "loading" | "ready" | "error";
 
 export function OyinView({ onTaxi }: { onTaxi?: () => void } = {}) {
@@ -127,7 +141,12 @@ export function OyinView({ onTaxi }: { onTaxi?: () => void } = {}) {
   const [state, setState] = useState<OyinStateResponse | null>(null);
   const [vitrina, setVitrina] = useState<OyinVitrinaResponse | null>(null);
   const [jamoam, setJamoam] = useState<OyinJamoamResponse | null>(null);
-  const [board, setBoard] = useState<OyinBoardResponse | null>(null);
+  // 🔔 Qo'ng'iroq — ball qayerdan kelgani. Reyting OLIB TASHLANDI (ega qarori).
+  const [bell, setBell] = useState<OyinActivityResponse | null>(null);
+  const [bellSeen, setBellSeen] = useState<string>(() => { try { return localStorage.getItem("oyk_bell_seen") ?? ""; } catch { return ""; } });
+  // Qizil nuqta — oxirgi ko'rilgandan keyin necha voqea qo'shilgani. Ro'yxat ochilmagan
+  // bo'lsa (bell === null) nuqta ko'rsatilmaydi: soxta "yangi bor" signali bermaymiz.
+  const bellNew = bell ? bell.rows.filter((r) => r.at > bellSeen).length : 0;
   const [tickets, setTickets] = useState<OyinMyTicketsResponse | null>(null);
   const [tab, setTab] = useState<OyinTab>(() => {
     try {
@@ -173,7 +192,7 @@ export function OyinView({ onTaxi }: { onTaxi?: () => void } = {}) {
     // Jamoam va reyting ham yangilanadi: avval `jamoam` faqat mount'da (butun sessiyada bir
     // marta), `board` esa `if (!board)` bilan bir marta yuklanib QOTIB qolardi — do'st yangi
     // safar qilsa ham, mijoz ballini sarflasa ham eski raqamlar turaverardi.
-    setBoard(null);
+    setBell(null);
     Promise.all([api.oyinState(), api.oyinVitrina()])
       .then(([s, v]) => { setState(s); setVitrina(v); setLoadState("ready"); })
       .catch(() => { if (!soft) setLoadState("error"); });
@@ -211,10 +230,16 @@ export function OyinView({ onTaxi }: { onTaxi?: () => void } = {}) {
     setTab("tickets");
   }, []);
 
-  const openBoard = useCallback(() => {
-    setSheet("board");
-    if (!board) api.oyinBoard().then(setBoard).catch(() => setBoard({ rows: [], myPos: null }));
-  }, [board]);
+  // 🔔 Qo'ng'iroq — ball qayerdan kelgani. Ochilganda "ko'rildi" belgisi yangilanadi.
+  const openBell = useCallback(() => {
+    haptic();
+    setSheet("bell");
+    api.oyinBell().then((r) => {
+      setBell(r);
+      const newest = r.rows[0]?.at ?? "";
+      if (newest) { setBellSeen(newest); try { localStorage.setItem("oyk_bell_seen", newest); } catch { /* xotira yopiq */ } }
+    }).catch(() => setBell({ rows: [], total: 0, page: 1, pageSize: 30 }));
+  }, []);
 
   // Ulashish matni ANIQ bo'lishi kerak (ega 2026-08-02: "chiroyli va aniq qilish kerak"):
   // bosh sovrin nomi + nima qilish kerakligi + nima uchun bepul. Umumiy "qo'shil" chaqirig'i
@@ -511,7 +536,7 @@ Taksida yur, ball yig', chipta ol. Mavsum oxiri jonli tirajda o'ynaladi. Mening 
   // qo'llaydi (`final_lock` / `season_off`) — ekran yolg'iz qo'riq emas.
   const locked = phase === "final48" || ended;
 
-  const isNew = !ended && state.ball === 0 && state.rank === null;
+  const isNew = !ended && state.ball === 0 && state.ticketCount === 0;
   // 🎯 Maqsad-sovrin: mijoz tanlagani, tanlamagan bo'lsa eng arzoni. Hero SHUNGA qarab
   // chiziladi — "660 ball qoldi · Choy serviz" mavhum "340 ball" dan ancha kuchli.
   // ⚠️ Sotilib ketgan sovrin maqsad bo'lib qolsa hero abadiy "Ball yetdi — chiptani oling!"
@@ -542,6 +567,17 @@ Taksida yur, ball yig', chipta ol. Mavsum oxiri jonli tirajda o'ynaladi. Mening 
     return left < 0.5 ? "warn" : "none";
   };
 
+  // 📅 Ega maketidagi "31-AVGUST, 20:00" — mavsum tugash sanasi (sovg'alar shu kuni
+  // topshiriladi). Boshlanmagan mavsumda esa BOSHLANISH sanasi ko'rsatiladi.
+  // (`upcoming`/`unset` bu yergacha yetmaydi — ular yuqorida erta return bilan ushlangan.)
+  const drawDateText = (() => {
+    const iso = state.season.endIso;
+    if (!iso) return "";
+    const d = new Date(iso);
+    if (!Number.isFinite(d.getTime())) return "";
+    return `${uzDate(iso).toUpperCase()}, ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  })();
+
   // Tiraj VAQTI — mavsum tugash sanasining soati (chiptada "31-avgust, 20:00" bo'lib chiqadi).
   const drawTime = (() => {
     const iso = state.season.endIso;
@@ -565,22 +601,25 @@ Taksida yur, ball yig', chipta ol. Mavsum oxiri jonli tirajda o'ynaladi. Mening 
   return (
     <div className="oyk">
       <div className="oyk-scroll">
-        <div className="oyk-head">
-          <div className="oyk-title">🎮 {seasonName}</div>
-          <div className="oyk-chips">
-            {/* Sanoq FAZANI aytadi (DIZAYN_QOIDALARI #6): "12 kun" — nimagacha? Avval quruq son
-                turardi va mijoz uni boshlanishigacha deb o'qishi mumkin edi. */}
-            <div className={`oyk-chip-cd${phase === "final48" ? " is-final" : ""}${ended ? " is-done" : ""}`}>
-              {ended
-                ? "🏁 Yakunlandi"
-                : phase === "final48"
-                  ? <>🔒 Tirajgacha {pad(cd.h)}:{pad(cd.m)}</>
-                  : <>⏳ Tirajgacha {cd.d} kun {pad(cd.h)}:{pad(cd.m)}</>}
+        {/* Sarlavha — ega maketi 2026-08-03: avatar + brend + qo'ng'iroq.
+            ⚠️ REYTING BUTUNLAY OLIB TASHLANDI (ega qarori): u ball QOLDIG'I bo'yicha
+            saralanardi, ya'ni chipta olgan odamning o'rni TUSHARDI — to'g'ri xatti-harakat
+            jazolanardi. Hech bir ekranda o'rin haqida gap qolmadi. */}
+        <div className="oyk-top">
+          <div className="oyk-top-me">
+            <div className="oyk-top-av">
+              <span>{(state.sponsor.name[0] ?? "B").toUpperCase()}</span>
+              {state.ticketCount > 0 && <i className="oyk-top-av-b">{state.ticketCount}</i>}
             </div>
-            <button type="button" className="oyk-chip-rank" onClick={openBoard}>🏅 {state.rank ? `${state.rank}-o'rin` : "Reyting"}</button>
-            {/* Ma'lumot doim qo'l ostida — yangi tab QO'SHILMAYDI (DIZAYN_QOIDALARI IA qonuni). */}
-            <button type="button" className="oyk-chip-help" onClick={() => { haptic(); setSheet("info"); }} aria-label="Savol-javob">?</button>
+            <div className="oyk-top-nm">
+              <b>BirJoy</b>
+              <small>{state.season.label ? `${state.season.label} o'yini` : "Sovg'alar o'yini"}</small>
+            </div>
           </div>
+          <button type="button" className="oyk-bell" onClick={openBell} aria-label="Xabarlar">
+            🔔
+            {bellNew > 0 && <i className="oyk-bell-dot">{bellNew > 9 ? "9+" : bellNew}</i>}
+          </button>
         </div>
 
         {phase === "final48" && (
@@ -605,7 +644,6 @@ Taksida yur, ball yig', chipta ol. Mavsum oxiri jonli tirajda o'ynaladi. Mening 
                     </div>
                     <div className="oyk-ended-card">
                       <div className="oyk-ended-row"><span>Chiptalaringiz</span><b>{state.ticketCount} ta</b></div>
-                      {state.rank && <div className="oyk-ended-row"><span>Reytingdagi o'rningiz</span><b>{state.rank}-o'rin</b></div>}
                       <div className="oyk-ended-row"><span>Sarflanmagan ball</span><b>{state.ball}</b></div>
                     </div>
                     <div className="oyk-hero-new-sub">
@@ -616,73 +654,59 @@ Taksida yur, ball yig', chipta ol. Mavsum oxiri jonli tirajda o'ynaladi. Mening 
                   </div>
                 );
               })()
-            ) : isNew ? (
-              <div className="oyk-hero is-new">
-                <div className="oyk-hero-glow" />
-                <div className="oyk-hero-label">XUSH KELIBSIZ</div>
-                <div className="oyk-hero-new-title">🎮 O'yinlar mavsumiga qo'shildingiz!</div>
-                {/* ⚠️ Avval "80" QOTIRILGAN edi va sharti boshqa knobga (`rideBall`) bog'langan —
-                    ega birinchi-safar knobini o'zgartirsa ekran tizim to'lamaydigan sonni va'da
-                    qilardi, `rideBall=0` bo'lsa esa "Birinchi safaringiz — + ball" chiqardi. */}
-                {state.hints.firstRideBall > 0 && (
-                  <div className="oyk-hero-new-sub">Birinchi safaringiz — <b>+{state.hints.firstRideBall} ball</b>. Do'st chaqirsangiz — ikkalangizga ham ball tushadi.</div>
-                )}
-                {/* Yangi mijoz ham NIMAGA yig'ayotganini ko'rsin — maqsad-sovrin dizaynning o'zagi. */}
-                {cheapest && (
-                  <div className="oyk-hero-new-goal">
-                    <span className="oyk-hero-new-goal-ic">{cheapest.icon}</span>
-                    <span>Birinchi maqsad: <b>{cheapest.name}</b> — {cheapest.price} ball</span>
-                  </div>
-                )}
-              </div>
             ) : (
-              /* 🎯 MAQSAD-HERO (YAKUNIY DIZAYN §1): sarlavha — sovringacha qolgan ball, sovrin
-                 nomi va RASMI bilan. Avval mavhum "340 ball" turardi; endi ekran yopilgach
-                 mijoz esida SOVRIN NOMI qoladi, raqam emas. */
-              <div className="oyk-hero">
-                <div className="oyk-hero-glow" />
-                {cheapest ? (
-                  <>
-                    <div className="oyk-hero-top">
-                      <div className="oyk-hero-side">
-                        <div className="oyk-hero-goal">{state.goalPrizeKey ? "🎯 MAQSADIM" : "🎯 ENG YAQIN SOVRIN"}</div>
-                        <div className="oyk-hero-row">
-                          <div className="oyk-hero-num">{Math.max(0, cheapest.price - state.ball)}</div>
-                          <div className="oyk-hero-unit">ball qoldi</div>
-                        </div>
-                        <div className="oyk-hero-prize">{cheapest.name}{cheapest.valueLabel ? ` · ${cheapest.valueLabel}` : ""}</div>
+              /* ── EGA MAKETI 2026-08-03: ikkita karta ──────────────────────────────────
+                 1) Binafsha — TIRAJ SANASI (sovg'alar shu kuni topshiriladi, sana yonadi)
+                 2) Sarg'ish — BALANS va chiptagacha qolgan yo'l
+                 Maqsad-hero, sovrin raili, JONLI lenta va haftalik zanjir OLIB TASHLANDI —
+                 ega: "o'yin uy tabida sovrinlar ham, haftalik vazifa ham, jonli ham kerak emas". */
+              <>
+                <div className="oyk-draw">
+                  <span className="oyk-draw-glow" aria-hidden="true" />
+                  <div className="oyk-draw-h">OY OXIRIDA JONLI TIRAJ!</div>
+                  <div className="oyk-draw-k">Sovg'alar topshiriladi</div>
+                  <div className="oyk-draw-d">{drawDateText}</div>
+                  <button type="button" className="oyk-draw-btn" onClick={() => { haptic(); setSheet("how"); }}>
+                    Qanday ishlaydi? <span aria-hidden="true">›</span>
+                  </button>
+                  <span className="oyk-draw-gift" aria-hidden="true">🎁</span>
+                </div>
+
+                <div className="oyk-bal">
+                  <div className="oyk-bal-k">Sizning balansingiz</div>
+                  <div className="oyk-bal-row">
+                    <b>{state.ball}</b><span>ball</span>
+                  </div>
+                  {cheapest && (
+                    <>
+                      <div className="oyk-bal-need">
+                        <b>{Math.max(0, cheapest.price - state.ball)}</b> / {cheapest.price} ball = <b>1 ta chipta</b>
                       </div>
-                      <div className="oyk-hero-img">
-                        {/* ⚠️ `replaceWith()` React boshqaradigan tugunni DOM'dan uzardi —
-                            keyingi render'da `removeChild` xatosi va BUTUN EKRAN qulashi.
-                            Endi holat React'da (`badPhoto`), boshqa kartalar bilan bir xil. */}
-                        {cheapest.photoUrl && !badPhoto.has(cheapest.key)
-                          ? <img src={cheapest.photoUrl} alt="" loading="lazy" onError={() => markBadPhoto(cheapest.key)} />
-                          : <span className="oyk-hero-emoji">{cheapest.icon}</span>}
+                      <div className="oyk-bal-bar">
+                        <span style={{ width: `${Math.min(100, (state.ball / cheapest.price) * 100).toFixed(1)}%` }} />
                       </div>
-                    </div>
-                    <div className="oyk-hero-progress">
-                      <div className="oyk-bar">
-                        <div className="oyk-bar-fill" style={{ width: `${Math.min(100, (state.ball / cheapest.price) * 100).toFixed(1)}%` }} />
-                      </div>
-                      <div className="oyk-bar-meta">
-                        <span className={`oyk-bar-left${nearMiss ? " is-ready" : ""}`}>
-                          {nearMiss ? "🎟 Ball yetdi — chiptani oling!" : `${state.ball} / ${cheapest.price} ball`}
-                        </span>
-                        <span className="oyk-bar-right">{Math.min(100, Math.round((state.ball / cheapest.price) * 100))}%</span>
-                      </div>
-                    </div>
-                  </>
-                ) : (
-                  <>
-                    <div className="oyk-hero-label">BALLINGIZ</div>
-                    <div className="oyk-hero-row">
-                      <div className="oyk-hero-num">{state.ball}</div>
-                      <div className="oyk-hero-unit">ball</div>
-                    </div>
-                  </>
-                )}
-              </div>
+                    </>
+                  )}
+                  <button type="button" className="oyk-bal-btn" onClick={() => { haptic(); setSheet("ball"); }}>
+                    Ball qanday yig'iladi? <span aria-hidden="true">›</span>
+                  </button>
+                  <span className="oyk-bal-coin" aria-hidden="true">🪙</span>
+                </div>
+
+                {/* Ikkita asosiy harakat. "Safar qilish" XARITAGA kirgizadi (ega talabi). */}
+                <div className="oyk-acts">
+                  <button type="button" className="oyk-act is-ride" onClick={() => { haptic(); if (onTaxi) onTaxi(); else showToast("Taksi chaqirish — Uy ekranidan 🚕"); }}>
+                    <span className="oyk-act-ic">🚕</span>
+                    <b>Safar qilish</b>
+                    <small>+{state.hints.rideBall} ball</small>
+                  </button>
+                  <button type="button" className="oyk-act is-invite" onClick={() => void inviteFriend()}>
+                    <span className="oyk-act-ic">👥</span>
+                    <b>Do'st chaqirish</b>
+                    <small>+{state.hints.referFirstRideBall} ball</small>
+                  </button>
+                </div>
+              </>
             )}
 
             {/* Mavsum tugagach kunlik vazifalar ham, "ball yig'" chaqiriqlari ham MA'NOSIZ —
@@ -719,7 +743,8 @@ Taksida yur, ball yig', chipta ol. Mavsum oxiri jonli tirajda o'ynaladi. Mening 
                     <div className="oyk-daily-ring-num">{doneCount}/{tasks.length}</div>
                   </div>
                   <div className="oyk-daily-body">
-                    <div className="oyk-daily-title">🎯 Bugungi maqsad</div>
+                    {/* Ega talabi: sarlavha "vazifa" emas, YORDAM tilida. */}
+                    <div className="oyk-daily-title">Tezroq ball olish uchun <small>{doneCount}/{tasks.length} bajarildi</small></div>
                     {tasks.map((t) => (
                       <button
                         key={t.label} type="button" disabled={t.done || !t.tap}
@@ -736,34 +761,15 @@ Taksida yur, ball yig', chipta ol. Mavsum oxiri jonli tirajda o'ynaladi. Mening 
               );
             })()}
 
-            {/* 💡 "Eng tez yo'l" endi hero'dan tashqarida — hero maqsadni, bu qator YO'LNI aytadi. */}
+            {/* 💡 Eng tez yo'l — ega talabi 2026-08-03: "do'stinga ayt, SEN ORQALI taksi
+                chaqirsin". Avval quruq "N do'st + M safar" hisobi turardi; endi aniq harakat. */}
             {!ended && cheapest && !nearMiss && (
-              <div className="oyk-fast">
+              <button type="button" className="oyk-fast" onClick={() => void inviteFriend()}>
                 <span className="oyk-fast-ic">💡</span>
-                <span>{fastPath(cheapest.price - state.ball, state.hints.referComboBall, state.hints.rideBall)}</span>
-              </div>
+                <span>Eng tez yo'l: <b>do'stingga ayt — sening havolang orqali taksi chaqirsin</b></span>
+              </button>
             )}
 
-            {/* 🚕 Ikkita asosiy harakat — MUKOFOTI tugmaning o'zida (YAKUNIY DIZAYN §7).
-                "Safar qilish" BREND rangida (to'q sariq) — bizga daromad keltiradigan harakat
-                ilovaning o'zi bilan bir xil his qilinsin; "Do'st chaqirish" o'yin rangida. */}
-            {!ended && <div className="oyk-acts">
-              {/* ⚠️ Avval bu tugma faqat "Uy ekranidan chaqiring" degan toast chiqarardi — o'yindagi
-                  YAGONA daromad keltiruvchi chaqiriq boshi berk tugma edi. Endi ilova Uy tabiga
-                  o'tadi va taksi formasi ochiladi (`uy.tsx` → `oyk_start_tab` naqshining teskarisi). */}
-              <button type="button" className="oyk-act is-ride" onClick={() => { haptic(); if (onTaxi) onTaxi(); else showToast("Taksi chaqirish — Uy ekranidan 🚕"); }}>
-                <span className="oyk-act-ic">🚕</span>
-                <b>Safar qilish</b>
-                <small>+{state.hints.rideBall} ball</small>
-              </button>
-              <button type="button" className="oyk-act is-invite" onClick={() => void inviteFriend()}>
-                <span className="oyk-act-ic">👥</span>
-                <b>Do'st chaqirish</b>
-                {/* Mukofot endi do'st RAQAM ULAGANDA emas, BIRINCHI SAFARINI qilganda —
-                    soxta akkaunt fabrikasi shu bilan foydasiz bo'ladi. */}
-                <small>+{state.hints.referFirstRideBall} ball</small>
-              </button>
-            </div>}
 
             {/* 🎟 Chipta raqami avval bayram-oynasida BIR MARTA ko'rinib abadiy yo'qolardi —
                 odam 600 ball to'lab qo'lida hech narsa qolmasdi. Endi doimiy ro'yxat bor. */}
@@ -774,24 +780,9 @@ Taksida yur, ball yig', chipta ol. Mavsum oxiri jonli tirajda o'ynaladi. Mening 
               </button>
             )}
 
-            {/* 🔥 Haftalik vazifa — zanjir (prototipdagi blok). Ma'lumot: kunlik kirish ro'yxati. */}
-            {!ended && state.week.bonusBall > 0 && (
-              <div className={`oyk-streak${state.week.done ? " is-done" : ""}`}>
-                <span className="oyk-streak-emoji">{state.week.done ? "✅" : "🔥"}</span>
-                <span className="oyk-streak-text">
-                  Haftalik vazifa: <b>{state.week.target} kunlik zanjir</b> — {state.week.streak}/{state.week.target}
-                </span>
-                <span className="oyk-streak-gain">+{state.week.bonusBall}</span>
-              </div>
-            )}
-
-            {!ended && state.live && (
-              <div className="oyk-live">
-                <span className="oyk-live-dot" />
-                <span className="oyk-live-tag">JONLI</span>
-                <span className="oyk-live-text">🥇 {state.live.name} do'st chaqirdi — <b>+{state.live.ball} ball</b></span>
-              </div>
-            )}
+            {/* ⛔ Haftalik zanjir bloki va JONLI lenta OLIB TASHLANDI (ega qarori 2026-08-03):
+                "havtalik vazifa ham [kerak emas]", "Jonli ham kerak emas". Zanjir mexanikasi
+                serverda ishlayveradi va ball jadvalida ko'rinadi — faqat bu blok yo'q. */}
 
             {!ended && activeFriend && (
               <div className="oyk-magnet">
@@ -809,95 +800,17 @@ Taksida yur, ball yig', chipta ol. Mavsum oxiri jonli tirajda o'ynaladi. Mening 
               </div>
             )}
 
-            <div>
-              <div className="oyk-rail-head">
-                <div className="oyk-rail-title">🎁 Sovrinlar</div>
-                <div className="oyk-rail-sub">{vitrina.prizes.reduce((s, p) => s + p.limit, 0)} ta chipta</div>
-              </div>
-              {/* Bo'sh katalog — avval quruq "0 ta chipta" va bo'sh rail qolardi (3 soniya
-                  testining "nima bosaman?" savoli javobsiz). Endi holat aytiladi. */}
-              {vitrina.prizes.length === 0 ? (
-                <div className="oyk-j-report">Sovrinlar hozircha qo'yilmagan — tez orada paydo bo'ladi. Ball yig'ib turing, u yo'qolmaydi 🎁</div>
-              ) : (
-              <div className="oyk-rail">
-                {vitrina.prizes.map((p) => {
-                  const affordable = !locked && state.ball >= p.price;
-                  const hot = affordable && p.mine === 0 && !p.soldOut;
-                  const sc = scarcity(p);
-                  return (
-                    <div key={p.key} className={`oyk-pcard${hot ? " is-hot" : ""}${p.soldOut ? " is-soldout" : ""}`}>
-                      <div className="oyk-pcard-icon">
-                        {p.photoUrl && !badPhoto.has(p.key)
-                          ? <img src={p.photoUrl} alt="" loading="lazy" onError={() => markBadPhoto(p.key)} />
-                          : p.icon}
-                      </div>
-                      <div className="oyk-pcard-name">{p.name}</div>
-                      {/* §6 shkalasi bu yerda ham amal qiladi — avval oxirgi o'rni qolgan sovrin
-                          hech kim tegmagan sovrindan farq qilmasdi (mijozlar aynan shu ekranda turadi). */}
-                      <div className={`oyk-pcard-meta${sc === "hot" ? " is-hot" : sc === "warn" ? " is-warn" : ""}`}>
-                        {p.soldOut ? "O'rinlar tugadi"
-                          : p.mine > 0 ? `Sizniki: ${p.mine} ta${p.chancePct != null ? ` · ≈${p.chancePct}%` : ""}`
-                          : sc === "hot" ? `${p.price} ball · 🔥 ${p.remaining} ta qoldi`
-                          : `${p.price} ball · ${p.remaining} o'rin qoldi`}
-                      </div>
-                      <div className="oyk-pbar">
-                        <div className="oyk-pbar-fill" style={{ width: `${Math.min(100, Math.round((state.ball / p.price) * 100))}%` }} />
-                      </div>
-                      <button
-                        type="button"
-                        className={`oyk-pbtn${affordable && !p.soldOut ? " is-on" : ""}${hot ? " is-hot" : ""}${p.soldOut ? " is-soldout" : locked ? " is-frozen" : ""}`}
-                        onClick={() => tapPrize(p)}
-                      >
-                        {p.soldOut ? "Tugadi" : locked ? "🔒 Yopiq" : p.mine > 0 ? "🎟 Yana ol" : affordable ? "🎟 Chipta ol!" : `${p.price - state.ball} ball qoldi`}
-                      </button>
-                    </div>
-                  );
-                })}
-              </div>
-              )}
-            </div>
-
+            {/* ⛔ Sovrin raili uy tabidan OLIB TASHLANDI (ega qarori 2026-08-03:
+                "uy sahifasida sovrinlar kerak emas"). Sovrinlar o'z tabida —
+                bitta narsa ikki joyda turmasin. */}
             {/* ⭐ Eng muhim savol — "nima qilsam ball ko'payadi?". Avval javob varaq ortida edi va
                 deyarli hech kim ochmasdi: eng katta mukofot (hikoya, do'st birinchi safari) ekranda
                 umuman ko'rinmasdi. YAKUNIY DIZAYN §4 — jadval EKRANDA, ostida doimiy ogohlantirish. */}
             {/* Tugagan mavsumda ball jadvali va "do'st chaqiring" chaqirig'i ball va'da
                 qiladi, ball esa endi hech narsaga aylanmaydi — ikkalasi ham yashiriladi. */}
-            {!ended && <div className="oyk-ball">
-              <div className="oyk-ball-head">💡 Ball qanday yig'iladi</div>
-              <div className="oyk-ball-list">
-                {ballRows(state.hints).map((r) => (
-                  <div key={r.label} className="oyk-ball-row">
-                    <span className="oyk-ball-ic">{r.ic}</span>
-                    <span className="oyk-ball-lb">{r.label}<small>{r.note}</small></span>
-                    <span className="oyk-ball-num">+{r.ball}</span>
-                  </div>
-                ))}
-              </div>
-              {/* Yordam zanjiri ANIQ raqam bilan. `fastPath` bir martalik yo'lni aytadi
-                  (do'st ulash bonusi), bu qator esa DOIMIY oqimni — ikkisi zid emas. */}
-              {cheapest && state.hints.referRideBall > 0 && (
-                <div className="oyk-ball-chain">
-                  🤝 Do'stingiz har yurganda sizga <b>+{state.hints.referRideBall} ball</b> —{" "}
-                  {Math.ceil(cheapest.price / state.hints.referRideBall)} ta do'st safari = 1 chipta ({cheapest.name}).
-                </div>
-              )}
-              {/* Doimiy qator (YAKUNIY DIZAYN §4). Ball hech qachon pulga aylanmaydi —
-                  buni bir marta onboarding'da aytib qo'yish yetarli emas, doim ko'rinib tursin. */}
-              {/* Endi bu qator TO'LIQ haqiqat: mavsum oxirida konvertatsiya YO'Q (ega qarori
-                  2026-08-03) — ball hech qanday shaklda pulga aylanmaydi. Va kuyishi mavsum
-                  DAVOMIDA aytiladi, oxirida to'satdan emas. */}
-              <div className="oyk-ball-warn">
-                Ball pul emas — faqat chipta olish uchun.<br />
-                Mavsum oxirigacha sarflanmagan ball yonadi.
-              </div>
-            </div>}
-
-            {!ended && (
-              <button type="button" className="oyk-cta" onClick={() => void inviteFriend()}>
-                <span className="oyk-cta-label">👥 Do'st chaqiring — u yursa sizga ham ball tushadi</span>
-                <span className="oyk-cta-shine" />
-              </button>
-            )}
+            {/* ⛔ Ball jadvali va pastdagi CTA uy tabidan OLINDI (ega qarori 2026-08-03):
+                jadval endi "Ball qanday yig'iladi? ›" tugmasi ortida. Uy tabi qisqa va
+                aniq bo'lib qoldi: tiraj sanasi → balans → ikkita harakat → bugungi vazifalar. */}
           </>
         )}
 
@@ -1137,7 +1050,9 @@ Taksida yur, ball yig', chipta ol. Mavsum oxiri jonli tirajda o'ynaladi. Mening 
             <div className="oyk-j-hint">💡 Taksi <b>KO'P chaqiradigan</b> tanishingizni chaqiring — u sizga eng ko'p ball olib keladi</div>
             <div className="oyk-qr">
               <div className="oyk-qr-text">
-                {state.rank ? <>Men BirJoy O'yinlar Mavsumida <b>{state.rank}-o'rindaman</b>. Sen nechanchisan? 😉</> : <>Men BirJoy O'yinlar Mavsumidaman — sen ham qo'shil! 🎮</>}
+{state.ticketCount > 0
+                  ? <>Men BirJoy sovg'alar o'yinida <b>{state.ticketCount} ta chipta</b> to'pladim. Sen ham qo'shil! 🎁</>
+                  : <>Men BirJoy sovg'alar o'yinidaman — sen ham qo'shil! 🎁</>}
               </div>
               <button type="button" className="oyk-qr-btn" onClick={() => void inviteFriend()}>👥 Do'stimga yubor</button>
               <button
@@ -1234,25 +1149,93 @@ Taksida yur, ball yig', chipta ol. Mavsum oxiri jonli tirajda o'ynaladi. Mening 
           <div className="oyk-sheet" onClick={(e) => e.stopPropagation()}>
             <div className="oyk-sheet-grip" />
 
-            {sheet === "board" && (
+            {/* 🔔 QO'NG'IROQ — ball qayerdan kelgani. Reyting shu yerda edi va u ball
+                QOLDIG'I bo'yicha saralanardi: chipta olgan odamning o'rni tushardi, ya'ni
+                to'g'ri xatti-harakat jazolanardi (ega qarori — butunlay olib tashlandi). */}
+            {/* 🎮 "Qanday ishlaydi?" — ega maketi 3-rasm: 5 qadam. Raqamlar KNOBDAN va
+                katalogdan keladi, qotirilmagan (ega narxni o'zgartirsa matn ham o'zgaradi). */}
+            {sheet === "how" && (
               <>
-                <div className="oyk-sheet-title">🏅 Oylik reyting</div>
-                {!board ? (
-                  <div className="oyk-skel-block oyk-skel-daily" />
-                ) : board.rows.length === 0 ? (
-                  <div className="oyk-note-violet">Hali hech kim ball to'plamadi — birinchi bo'ling! 🚀</div>
+                <div className="oyk-sheet-title">Qanday ishlaydi?</div>
+                <div className="oyk-how-lead">Juda oson! 5 qadamda sovg'a yutasiz 🎁</div>
+                <div className="oyk-how">
+                  {([
+                    ["🚕", "Safar qiling", `Taksi chaqiring va safar qiling. Har safardan +${state.hints.rideBall} ball olasiz.`],
+                    ["🪙", "Ball yig'ing", `Vazifalarni bajaring, do'stlaringizni taklif qiling. Do'stingiz birinchi safarini qilsa +${state.hints.referFirstRideBall} ball.`],
+                    ["🎟", "Ballni chiptaga almashtiring", cheapest ? `${cheapest.price} ball = 1 ta chipta. Nechta chipta ko'p bo'lsa, yutish ehtimoli shuncha yuqori.` : "Ballni chiptaga almashtirasiz. Nechta chipta ko'p bo'lsa, yutish ehtimoli shuncha yuqori."],
+                    ["📺", "Jonli tirajda qatnashing", `${drawDateText ? `${drawDateText} — ` : "Mavsum oxirida "}Telegramda jonli efirda barcha chiptalar orasidan g'oliblar tanlanadi.`],
+                    ["🎁", "Sovg'ani yutib oling", "G'olib bo'lsangiz, sovg'angizni bepul olib ketasiz!"],
+                  ] as const).map(([em, title, body], i) => (
+                    <div key={title} className="oyk-how-step">
+                      <span className="oyk-how-em">{em}</span>
+                      <span className="oyk-how-body">
+                        <b><i>{i + 1}</i> {title}</b>
+                        <small>{body}</small>
+                      </span>
+                    </div>
+                  ))}
+                </div>
+                <button type="button" className="oyk-how-ok" onClick={() => { haptic(); setSheet(null); }}>
+                  Tushunarli, boshlaymiz! 🚀
+                </button>
+              </>
+            )}
+
+            {/* 💡 "Ball qanday yig'iladi?" — jadval SHU YERGA ko'chirildi (ega qarori). */}
+            {sheet === "ball" && (
+              <>
+                <div className="oyk-sheet-title">💡 Ball qanday yig'iladi</div>
+                <div className="oyk-ball">
+              <div className="oyk-ball-list">
+                {ballRows(state.hints).map((r) => (
+                  <div key={r.label} className="oyk-ball-row">
+                    <span className="oyk-ball-ic">{r.ic}</span>
+                    <span className="oyk-ball-lb">{r.label}<small>{r.note}</small></span>
+                    <span className="oyk-ball-num">+{r.ball}</span>
+                  </div>
+                ))}
+              </div>
+              {/* Yordam zanjiri ANIQ raqam bilan. `fastPath` bir martalik yo'lni aytadi
+                  (do'st ulash bonusi), bu qator esa DOIMIY oqimni — ikkisi zid emas. */}
+              {cheapest && state.hints.referRideBall > 0 && (
+                <div className="oyk-ball-chain">
+                  🤝 Do'stingiz har yurganda sizga <b>+{state.hints.referRideBall} ball</b> —{" "}
+                  {Math.ceil(cheapest.price / state.hints.referRideBall)} ta do'st safari = 1 chipta ({cheapest.name}).
+                </div>
+              )}
+              {/* Doimiy qator (YAKUNIY DIZAYN §4). Ball hech qachon pulga aylanmaydi —
+                  buni bir marta onboarding'da aytib qo'yish yetarli emas, doim ko'rinib tursin. */}
+              {/* Endi bu qator TO'LIQ haqiqat: mavsum oxirida konvertatsiya YO'Q (ega qarori
+                  2026-08-03) — ball hech qanday shaklda pulga aylanmaydi. Va kuyishi mavsum
+                  DAVOMIDA aytiladi, oxirida to'satdan emas. */}
+              <div className="oyk-ball-warn">
+                Ball pul emas — faqat chipta olish uchun.<br />
+                Mavsum oxirigacha sarflanmagan ball yonadi.
+              </div>
+            </div>
+              </>
+            )}
+
+            {sheet === "bell" && (
+              <>
+                <div className="oyk-sheet-title">🔔 Ballingiz qayerdan keldi</div>
+                {!bell ? (
+                  <>{[0, 1, 2].map((i) => <div key={i} className="oyk-skel-block oyk-skel-bell" />)}</>
+                ) : bell.rows.length === 0 ? (
+                  <div className="oyk-note-violet">Hali voqea yo'q. Birinchi safaringizdan keyin shu yerda ko'rinadi 🚕</div>
                 ) : (
-                  <div className="oyk-board">
-                    {board.rows.map((b) => (
-                      <div key={`${b.pos}-${b.name}`} className={`oyk-brow${b.me ? " is-me" : ""}${b.pos <= 3 ? " is-top" : ""}`}>
-                        <div className="oyk-brow-pos">{b.pos}</div>
-                        <div className="oyk-brow-name">{b.name}</div>
-                        <div className="oyk-brow-pts">{b.ball}</div>
+                  <div className="oyk-bell-list">
+                    {bell.rows.map((r, i) => (
+                      <div key={`${r.at}-${i}`} className="oyk-bell-row">
+                        <span className="oyk-bell-ic">{ACTION_EMOJI[r.action] ?? "•"}</span>
+                        <span className="oyk-bell-tx">
+                          {ACTION_LABEL[r.action] ?? r.action}
+                          {r.helpedName && <b> · {r.helpedName}</b>}
+                          <small>{uzDate(r.at)}</small>
+                        </span>
+                        <span className={`oyk-bell-b${r.ball < 0 ? " is-minus" : ""}`}>{r.ball > 0 ? `+${r.ball}` : r.ball}</span>
                       </div>
                     ))}
-                    {board.myPos && board.myPos > board.rows.length && (
-                      <div className="oyk-brow is-me"><div className="oyk-brow-pos">{board.myPos}</div><div className="oyk-brow-name">SEN</div><div className="oyk-brow-pts">{state.ball}</div></div>
-                    )}
                   </div>
                 )}
               </>
