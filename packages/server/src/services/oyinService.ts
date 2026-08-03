@@ -10,6 +10,7 @@ import {
   OYIN_FINAL_LOCK_MS,
   OYIN_SEED_CATALOG,
   OYIN_STORY_SEASON_LIMIT,
+  oyinQuestOf,
   SPRINT_MAX_WINS_PER_ROLLING_4W,
   type OyinActivityAction,
   type OyinActivityFilter,
@@ -29,6 +30,7 @@ import {
   type OyinPrizeUpsertInput,
   type OyinSeasonCloseResult,
   type OyinSeasonInput,
+  type OyinQuestState,
   type OyinSeasonResetResult,
   type OyinSeasonView,
   type OyinSprintResult,
@@ -200,7 +202,7 @@ async function computeBallMap(): Promise<Map<number, MemberBallRow>> {
   const fromWeek = season.startWeekKey as string;
   const toWeek = season.endWeekKey as string;
 
-  const [rideCounts, rideDayRows, referrals, telegramUsers, ticketRows, loginRows, shareRows, sprintWinRows, storyRows] = await Promise.all([
+  const [rideCounts, rideDayRows, referrals, telegramUsers, ticketRows, loginRows, shareRows, questRows, homeRows, sprintWinRows, storyRows] = await Promise.all([
     // 1) YAGONA DB-darajasidagi sana filtri — katta jadval va indeksi bor (@@index([createdAt])).
     prisma.rideReward.groupBy({ by: ["memberId"], _count: { _all: true }, where: { createdAt: { gte: from, lte: to } } }),
     // 1b) ⚠️ Zanjir uchun SAFAR KUNLARI. Avval zanjir `oyin:login:` (ILOVA OCHISH) bo'yicha edi —
@@ -220,6 +222,10 @@ async function computeBallMap(): Promise<Map<number, MemberBallRow>> {
     prisma.appState.findMany({ where: { key: { startsWith: "oyin:tickets:" } } }) as Promise<AppStateRow[]>,
     prisma.appState.findMany({ where: { key: { startsWith: "oyin:login:" } } }) as Promise<AppStateRow[]>,
     prisma.appState.findMany({ where: { key: { startsWith: "oyin:share:" } } }) as Promise<AppStateRow[]>,
+    // 🎯 Kunlik topshiriq bajarilgan kunlar (kun-ro'yxati, `oyin:login:` bilan bir xil naqsh)
+    prisma.appState.findMany({ where: { key: { startsWith: "oyin:quest:" } } }) as Promise<AppStateRow[]>,
+    // 🏠 Ilova ekranga o'rnatilgan kun — mavsumda BIR MARTA to'lanadi
+    prisma.appState.findMany({ where: { key: { startsWith: "oyin:home:" } } }) as Promise<AppStateRow[]>,
     prisma.appState.findMany({ where: { key: { startsWith: "oyin:sprintwin:" } } }) as Promise<AppStateRow[]>,
     // 📸 hikoya-isbotlar (HIKOYA_POSTER_PLAN.md) — faqat TASDIQLANGANLARI va mavsum ichidagilari
     prisma.appState.findMany({ where: { key: { startsWith: "oyin:story:" } } }) as Promise<AppStateRow[]>,
@@ -264,6 +270,18 @@ async function computeBallMap(): Promise<Map<number, MemberBallRow>> {
   for (const row of loginRows) {
     const memberId = Number(row.key.slice("oyin:login:".length));
     if (Number.isFinite(memberId)) loginDaysByMember.set(memberId, countDays(row.value));
+  }
+  // 🎯 Topshiriq bajarilgan kunlar va 🏠 ekranga o'rnatish — ikkalasi ham mavsumga kesiladi.
+  const questDaysByMember = new Map<number, number>();
+  for (const row of questRows) {
+    const memberId = Number(row.key.slice("oyin:quest:".length));
+    if (Number.isFinite(memberId)) questDaysByMember.set(memberId, countDays(row.value));
+  }
+  const homeByMember = new Map<number, number>();
+  for (const row of homeRows) {
+    const memberId = Number(row.key.slice("oyin:home:".length));
+    // Mavsumda BIR MARTA: mavsum ichida kun bormi — 1 yoki 0.
+    if (Number.isFinite(memberId)) homeByMember.set(memberId, countDays(row.value) > 0 ? 1 : 0);
   }
   const shareDaysByMember = new Map<number, number>();
   for (const row of shareRows) {
@@ -335,13 +353,15 @@ async function computeBallMap(): Promise<Map<number, MemberBallRow>> {
     const referRideBall = refer.rides * (econ.oyinReferRideBall ?? 0);
     const loginBall = (loginDaysByMember.get(memberId) ?? 0) * (econ.oyinDailyLoginBall ?? 0);
     const shareBall = (shareDaysByMember.get(memberId) ?? 0) * (econ.oyinShareBall ?? 0);
+    const questBall = (questDaysByMember.get(memberId) ?? 0) * (econ.oyinDailyQuestBall ?? 0);
+    const homeBall = (homeByMember.get(memberId) ?? 0) * (econ.oyinHomeScreenBall ?? 0);
     const sprintBall = (sprintWinsByMember.get(memberId) ?? 0) * (econ.oyinSprintBonusBall ?? 0);
     // Limit SUBMIT'da tekshiriladi, lekin admin xato bilan 5 tasini tasdiqlasa yoki mavsum
   // oynasi kengaytirilsa eski arizalar ichkariga kirardi — ball CHEKLOVSIZ o'sardi.
   // Ikkinchi qavat: hisobda ham kesiladi.
   const storyBall = Math.min(storyByMember.get(memberId) ?? 0, OYIN_STORY_SEASON_LIMIT) * (econ.oyinStoryProofBall ?? 0);
     const streakBall = (streakByMember.get(memberId) ?? 0) * (econ.oyinStreakBall ?? 0);
-    const earned = ridesBall + phoneBall + referJoinBall + referFirstBall + referRideBall + loginBall + shareBall + storyBall + streakBall + sprintBall;
+    const earned = ridesBall + phoneBall + referJoinBall + referFirstBall + referRideBall + loginBall + shareBall + storyBall + streakBall + sprintBall + questBall + homeBall;
     const spent = spentByMember.get(memberId) ?? 0;
     map.set(memberId, {
       memberId,
@@ -411,6 +431,16 @@ export async function getOyinState(memberId: number): Promise<OyinStateResponse>
   const referJoined = active && mine
     ? (await prisma.referral.count({ where: { referrerId: mine.telegramId, createdAt: { gte: dayStart } } })) > 0
     : false;
+  // 🤝 Do'stlarim BUGUN safar qildimi (kunlik topshiriq uchun). Ikkita kichik so'rov,
+  // faqat o'z doirasi bo'yicha — katta populyatsiya keshiga tegmaydi.
+  const referRideToday = active && mine
+    ? await (async () => {
+        const refs = await prisma.referral.findMany({ where: { referrerId: mine.telegramId }, select: { refereeMemberId: true } });
+        const ids = refs.map((r) => r.refereeMemberId).filter((x): x is number => typeof x === "number");
+        if (!ids.length) return 0;
+        return prisma.rideReward.count({ where: { memberId: { in: ids }, createdAt: { gte: dayStart } } });
+      })()
+    : 0;
   const loginDays = parseDayList(loginRow?.value);
   const today = {
     login: active && loginDays.includes(todayKey),
@@ -454,6 +484,35 @@ export async function getOyinState(memberId: number): Promise<OyinStateResponse>
     sovrin: topPrizeName,
   });
 
+  // ── 🎯 BUGUNGI TOPSHIRIQ ────────────────────────────────────────────────────────────────
+  // Tanlov DETERMINISTIK (memberId + kun) — sahifa yangilanganda o'zgarmaydi. Bajarilishi
+  // JONLI tekshiriladi (grant yozuvi yo'q, boshqa manbalar bilan bir xil), bajarilgan bo'lsa
+  // kun-markeri qo'yiladi va ball `computeBallMap` da hisoblanadi.
+  let quest: OyinQuestState | null = null;
+  if (active) {
+    const def = oyinQuestOf(memberId, todayKey);
+    const done = await (async () => {
+      switch (def.key) {
+        case "ride2": return ridesToday >= 2;
+        case "ride_share": return ridesToday >= 1 && today.shared;
+        case "friend_ride": return referRideToday > 0;
+        case "invite": return referJoined;
+        // Hikoya: bugun yuborilgan (tekshiruvda) yoki tasdiqlangan bo'lsa yopiladi —
+        // admin 24 soat kutishi mumkin, mijoz o'z ishini bajargan.
+        case "story": return storyState.pending || storyState.approved > 0;
+        default: return false;
+      }
+    })();
+    if (done) await markDay("oyin:quest:", memberId).catch(() => undefined);
+    quest = { key: def.key, icon: def.icon, title: def.title, hint: def.hint, ball: econ.oyinDailyQuestBall ?? 0, done };
+  }
+
+  // 🏠 Doimiy topshiriq — ilova ekranga o'rnatilganmi (mavsum ichida belgilangan bo'lsa).
+  const homeRow = await prisma.appState.findUnique({ where: { key: `oyin:home:${memberId}` } });
+  const homeDone = season.configured
+    ? parseDayList(homeRow?.value).some((d) => d >= (season.startDayKey as string) && d <= (season.endDayKey as string))
+    : false;
+
   // 🔴 JONLI lenta — bugungi eng so'nggi do'st-taklif (populyatsiya bo'ylab, ijtimoiy isbot).
   // Ism ballMap keshidan olinadi (qo'shimcha so'rov yo'q); taklifchi a'zo bo'lmasa ko'rsatilmaydi.
   let live: { name: string; ball: number } | null = null;
@@ -486,6 +545,8 @@ export async function getOyinState(memberId: number): Promise<OyinStateResponse>
     week,
     story: storyState,
     ticketCount,
+    quest,
+    homeTask: { ball: econ.oyinHomeScreenBall ?? 0, done: homeDone, supported: true },
     soldTotal,
     capacityTotal,
     prizeCount: activeCatalog.length,
@@ -853,7 +914,7 @@ export async function buyTicket(memberId: number, prizeKeyRaw: string, preview =
 // ── kunlik kirish / ulashish: bitta AppState qatorida kun-ro'yxati (bit-mask o'rniga sodda massiv —
 // mavsum ≤31 kun, hajmi arzon). markLogin `GET /api/oyin/state` chaqirilganda chaqiriladi ("miniapp
 // ochish" = kirish, ega spetsifikatsiyasi §1) — alohida POST endpoint shart emas. ──────────────────
-async function markDay(prefix: "oyin:login:" | "oyin:share:", memberId: number): Promise<boolean> {
+async function markDay(prefix: "oyin:login:" | "oyin:share:" | "oyin:quest:" | "oyin:home:", memberId: number): Promise<boolean> {
   // Mavsum faol emas — belgi yozilmaydi. Eski kunlar O'CHIRILMAYDI: tarix getActivity uchun kerak,
   // uni faqat arxivlash tugmasi qirqadi (tarixni bitta joy o'zgartirsin).
   if ((await getSeason()).phase !== "active") return false;
@@ -875,6 +936,24 @@ export async function markLogin(memberId: number, preview = false): Promise<void
   if (!preview && !(await featureOn("oyin"))) return;
   await markDay("oyin:login:", memberId).catch(() => undefined);
 }
+/** 🏠 Ilova telefon ekraniga o'rnatildi. Telegram'ning `homeScreenAdded` HODISASI yoki
+ *  `checkHomeScreenStatus() === "added"` javobidan keyin chaqiriladi — mijoz shunchaki
+ *  tugmani bosgani YETARLI EMAS.
+ *  ⚠️ Halol eslatma: tasdiq MIJOZ tomonida bo'ladi, ya'ni texnik odam route'ni to'g'ridan
+ *  chaqira oladi. Shuning uchun mukofot MAVSUMDA BIR MARTA (real xarajat ~750 so'm) va
+ *  `added:false` kelsa belgi OLIB TASHLANADI (o'chirib tashlagan odam ballni saqlab qolmaydi). */
+export async function markHomeScreen(memberId: number, added: boolean, preview = false): Promise<{ ok: boolean }> {
+  if (!preview && !(await featureOn("oyin"))) return { ok: false };
+  const key = `oyin:home:${memberId}`;
+  if (!added) {
+    await prisma.appState.deleteMany({ where: { key } });
+    invalidateBallCache();
+    return { ok: true };
+  }
+  const ok = await markDay("oyin:home:", memberId);
+  return { ok };
+}
+
 export async function markShare(memberId: number, preview = false): Promise<{ ok: boolean }> {
   if (!preview && !(await featureOn("oyin"))) return { ok: false };
   return { ok: await markDay("oyin:share:", memberId) };

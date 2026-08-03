@@ -264,6 +264,11 @@ export const BONUS_ECON_KNOBS: BonusEconKnob[] = [
   { key: "oyinDailyLoginBall", label: "🎮 Kunlik kirish — ball (bepul yo'l)", def: 5, min: 0, max: 100, step: 1, group: "Koson O'yini" },
   { key: "oyinShareBall", label: "🎮 Ulashish — ball (bepul yo'l)", def: 10, min: 0, max: 200, step: 1, group: "Koson O'yini" },
   { key: "oyinStoryProofBall", label: "🎮 Hikoya joylash (admin tasdig'i) — ball (bepul yo'l)", def: 150, min: 0, max: 2000, step: 10, group: "Koson O'yini" },
+  // 🎯 Kunlik topshiriq (har kuni random, server tekshiradi) va 🏠 doimiy topshiriq.
+  { key: "oyinDailyQuestBall", label: "🎯 Kunlik topshiriq — bonus ball", def: 100, min: 0, max: 2000, step: 10, group: "Koson O'yini" },
+  // Real xarajat: 500 ball × 10 so'm × 15% = 750 so'm, MAVSUMDA BIR MARTA. Telegram
+  // `homeScreenAdded` hodisasi bilan tasdiqlanadi — mijoz "bosdim" desa yetarli emas.
+  { key: "oyinHomeScreenBall", label: "🏠 Ilovani ekranga o'rnatish — bonus ball", def: 500, min: 0, max: 5000, step: 50, group: "Koson O'yini" },
   { key: "oyinSprintBonusBall", label: "🎮 Haftalik sprint top-3 — bonus ball", def: 300, min: 0, max: 5000, step: 10, group: "Koson O'yini" },
   // ⚠️ Zanjir endi SAFAR kunlari bo'yicha (avval ilova ochish sanalardi — safarsiz 500 ball/oy).
   { key: "oyinStreakBall", label: "🔥 3 kunlik SAFAR zanjiri — bonus ball", def: 50, min: 0, max: 1000, step: 10, group: "Koson O'yini" },

@@ -1598,6 +1598,15 @@ export function createApiServer(opts: ApiOptions = {}) {
     res.json(r);
   });
 
+  // 🏠 Ilova ekranga o'rnatilgani — Telegram hodisasidan keyin. `added:false` belgini olib tashlaydi.
+  app.post("/api/oyin/home", requireUser, rateLimit(10), async (req, res) => {
+    const memberId = await getMemberId(res.locals.telegramId as string);
+    if (!memberId) { res.status(404).json({ error: "not linked" }); return; }
+    const { markHomeScreen } = await import("../services/oyinService");
+    const added = (req.body as { added?: boolean } | undefined)?.added === true;
+    res.json(await markHomeScreen(memberId, added, oyinPreviewOf(res)));
+  });
+
   app.get("/api/oyin/tickets", requireUser, async (_req, res) => {
     const memberId = await getMemberId(res.locals.telegramId as string);
     if (!memberId) { res.status(404).json({ error: "not linked" }); return; }

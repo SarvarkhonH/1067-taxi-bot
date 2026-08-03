@@ -156,6 +156,59 @@ export interface OyinSeasonInput {
   label?: string | null;
 }
 
+// ── 🎯 KUNLIK TOPSHIRIQ (ega talabi 2026-08-03: "har kuni random") ───────────────────────────
+// Har mijozga har kuni BITTA topshiriq beriladi. Tanlov DETERMINISTIK: (memberId + kun) dan
+// hisoblanadi — sahifa yangilanganda o'zgarmaydi, ertaga o'zi almashadi, va o'tgan kun uchun
+// ham qayta hisoblab topish mumkin (hech narsa saqlanmaydi).
+//
+// ⚠️ To'plamga faqat SERVER TEKSHIRA OLADIGAN topshiriqlar kiradi. Ega taklif qilgan
+// "Telegram guruhga tashla" ATAYLAB YO'Q — uni tekshirib bo'lmaydi, ya'ni ball ishonchga
+// berilardi va soxta bajarish uchun ochiq eshik bo'lardi.
+export type OyinQuestKey = "ride2" | "ride_share" | "friend_ride" | "invite" | "story";
+
+export interface OyinQuestDef {
+  key: OyinQuestKey;
+  icon: string;
+  title: string;
+  hint: string;
+}
+
+export const OYIN_QUEST_POOL: OyinQuestDef[] = [
+  { key: "ride2", icon: "🚕", title: "Bugun 2 ta safar qiling", hint: "Ikkinchi safar topshiriqni yopadi" },
+  { key: "ride_share", icon: "📤", title: "1 safar qiling va havolangizni ulashing", hint: "Ikkalasi ham bugun bajarilsin" },
+  { key: "friend_ride", icon: "🤝", title: "Do'stingiz bugun safar qilsin", hint: "Ularga ayting — sizga ham ball tushadi" },
+  { key: "invite", icon: "👥", title: "Yangi do'st chaqiring", hint: "U raqamini ulasa topshiriq yopiladi" },
+  { key: "story", icon: "📸", title: "Hikoyangizga poster qo'ying", hint: "Jamoam bo'limidan posterni oling" },
+];
+
+/** Kun + a'zo bo'yicha DETERMINISTIK tanlov. Sof funksiya — server ham, mijoz ham bir xil
+ *  javob oladi va o'tgan kunlar uchun ham qayta hisoblanadi. */
+export function oyinQuestOf(memberId: number, dayKey: string): OyinQuestDef {
+  let h = 2166136261;
+  const src = `${memberId}:${dayKey}`;
+  for (let i = 0; i < src.length; i++) { h ^= src.charCodeAt(i); h = Math.imul(h, 16777619); }
+  const idx = Math.abs(h) % OYIN_QUEST_POOL.length;
+  return OYIN_QUEST_POOL[idx] as OyinQuestDef;
+}
+
+/** Mijoz ko'radigan bugungi topshiriq holati. */
+export interface OyinQuestState {
+  key: OyinQuestKey;
+  icon: string;
+  title: string;
+  hint: string;
+  ball: number;
+  done: boolean;
+}
+
+/** 🏠 Doimiy topshiriq — ilovani telefon ekraniga o'rnatish (ega talabi: "umuman ketmaydigan").
+ *  Telegram `addToHomeScreen` + `homeScreenAdded` hodisasi bilan tasdiqlanadi — taxmin yo'q. */
+export interface OyinHomeTask {
+  ball: number;
+  done: boolean;
+  supported: boolean; // klient Bot API 8.0 ni qo'llab-quvvatlaydimi
+}
+
 /** 🔒 FINAL-48: mavsum tugashiga shuncha qolganda chipta olish YOPILADI.
  *  Bu son SERVER va MIJOZ uchun BITTA joyda turadi — aks holda ekran "muzlagan" deb yozadi,
  *  server esa sotaveradi (aynan shu bug topilgan: bir mijoz ishonib ballini sarflamaydi,
@@ -302,6 +355,9 @@ export interface OyinStateResponse {
   story: OyinStoryState;
   // 🎟 Mavsumda olingan chipta soni.
   ticketCount: number;
+  // 🎯 Bugungi topshiriq va 🏠 doimiy topshiriq (ega talabi 2026-08-03).
+  quest: OyinQuestState | null; // null = mavsum faol emas
+  homeTask: OyinHomeTask;
   // 📊 UY EKRANI uchun UMUMIY (shaxsiy EMAS) raqamlar. Ega qarori 2026-08-03: uy ekranida
   // mijozning o'z balli/o'rni KO'RSATILMAYDI — u yerda TAKLIF turadi. Bular esa ijtimoiy
   // isbot: "624 chipta tarqatildi" = boshqalar ham olyapti degan signal.

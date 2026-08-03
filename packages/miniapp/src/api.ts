@@ -306,6 +306,7 @@ export const api = {
   oyinGoal: (prizeKey: string) => post<{ ok: boolean }>("/api/oyin/goal", { prizeKey }),
   // 🔔 Qo'ng'iroq — ball qayerdan kelgani (shaxsiy voqealar ro'yxati).
   oyinBell: (page = 1) => get<OyinActivityResponse>(`/api/oyin/bell?page=${page}`),
+  oyinHomeScreen: (added: boolean) => post<{ ok: boolean }>("/api/oyin/home", { added }),
   oyinTickets: () => get<OyinMyTicketsResponse>("/api/oyin/tickets"),
   oyinTeaser: () => get<OyinTeaserResponse>("/api/oyin/teaser"),
   oyinState: () => get<OyinStateResponse>("/api/oyin/state"),

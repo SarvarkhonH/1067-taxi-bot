@@ -12,7 +12,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { OYIN_FINAL_LOCK_MS, type OyinActivityResponse, type OyinJamoamResponse, type OyinMyTicketsResponse, type OyinPrizeView, type OyinSeasonClientView, type OyinStateResponse, type OyinVitrinaResponse } from "@t1067/shared";
 import { api, apiUrl } from "./api";
-import { copyText, haptic, inviteLandingUrl, shareLink } from "./telegram";
+import { addToHomeScreen, copyText, haptic, homeScreenStatus, inviteLandingUrl, onHomeScreenAdded, shareLink } from "./telegram";
 import "./design/feat/oyk.css"; // bu ekran ochilgandagina yuklanadi (kritik yo'lda emas)
 
 // ⚠️ Raqamlar KNOBDAN. Avval "+30 ball" qotirilgan edi — ega knobni o'zgartirsa ilovaning
@@ -143,6 +143,9 @@ export function OyinView({ onTaxi }: { onTaxi?: () => void } = {}) {
   const [jamoam, setJamoam] = useState<OyinJamoamResponse | null>(null);
   // 🔔 Qo'ng'iroq — ball qayerdan kelgani. Reyting OLIB TASHLANDI (ega qarori).
   const [bell, setBell] = useState<OyinActivityResponse | null>(null);
+  // 🏠 Doimiy topshiriq — Telegram klienti qo'llab-quvvatlaydimi. `unsupported` bo'lsa
+  // topshiriq umuman ko'rsatilmaydi (bajarib bo'lmaydigan vazifa ko'rsatish — bo'sh va'da).
+  const [homeSupported, setHomeSupported] = useState<boolean | null>(null);
   const [bellSeen, setBellSeen] = useState<string>(() => { try { return localStorage.getItem("oyk_bell_seen") ?? ""; } catch { return ""; } });
   // Qizil nuqta — oxirgi ko'rilgandan keyin necha voqea qo'shilgani. Ro'yxat ochilmagan
   // bo'lsa (bell === null) nuqta ko'rsatilmaydi: soxta "yangi bor" signali bermaymiz.
@@ -213,6 +216,8 @@ export function OyinView({ onTaxi }: { onTaxi?: () => void } = {}) {
       .catch(() => setJamoam({ friends: [], totalBall: 0, oneTimeBall: 0, rideBall: 0 }));
   }, []);
   useEffect(() => { loadJamoam(); }, [loadJamoam]);
+
+
   // Jamoam tabiga har kirganda yangilanadi — "do'stingiz bugun yurdi" kartasi eskirmasin.
   useEffect(() => { if (tab === "jamoam") loadJamoam(); }, [tab, loadJamoam]);
 
@@ -222,6 +227,24 @@ export function OyinView({ onTaxi }: { onTaxi?: () => void } = {}) {
     toastT.current = setTimeout(() => setToast(null), ms);
   }, []);
   useEffect(() => () => clearTimeout(toastT.current), []);
+
+  // 🏠 Ekranga o'rnatish: holatni tekshiramiz va Telegram HODISASIGA obuna bo'lamiz —
+  // mijoz tugmani bosgani yetarli emas, faqat haqiqiy qo'shilish tasdiqlanadi.
+  useEffect(() => {
+    let alive = true;
+    void homeScreenStatus().then((st) => {
+      if (!alive) return;
+      setHomeSupported(st !== "unsupported");
+      // Allaqachon qo'shilgan bo'lsa (yoki oldingi mavsumdan qolgan) — serverga bildiramiz.
+      if (st === "added") api.oyinHomeScreen(true).then(() => loadHome(true)).catch(() => undefined);
+      // O'chirib tashlagan bo'lsa belgi olib tashlanadi (ball saqlanib qolmasin).
+      if (st === "missed") api.oyinHomeScreen(false).catch(() => undefined);
+    });
+    const off = onHomeScreenAdded(() => {
+      api.oyinHomeScreen(true).then(() => { showToast("🏠 Ilova ekranga qo'shildi — ball tushdi!"); loadHome(true); }).catch(() => undefined);
+    });
+    return () => { alive = false; off(); };
+  }, [loadHome, showToast]);
 
   // Chipta endi O'Z TABIGA ega (YAKUNIY DIZAYN §1) — varaq ochilmaydi, tabga o'tiladi.
   // Bitta narsa ikki joyda ochilsa (varaq + tab) qaysi biri "haqiqiy" ekani noaniq bo'ladi.
@@ -760,6 +783,38 @@ Taksida yur, ball yig', chipta ol. Mavsum oxiri jonli tirajda o'ynaladi. Mening 
                 </div>
               );
             })()}
+
+            {/* 🎯 BUGUNGI TOPSHIRIQ — har kuni RANDOM (ega talabi 2026-08-03). Tanlov
+                deterministik (a'zo + kun), sahifa yangilanganda o'zgarmaydi. To'plamda faqat
+                SERVER TEKSHIRA OLADIGAN topshiriqlar bor. */}
+            {!ended && state.quest && state.quest.ball > 0 && (
+              <div className={`oyk-quest${state.quest.done ? " is-done" : ""}`}>
+                <span className="oyk-quest-em">{state.quest.icon}</span>
+                <span className="oyk-quest-tx">
+                  <b>{state.quest.title}</b>
+                  <small>{state.quest.done ? "Bajarildi — ball tushdi ✓" : state.quest.hint}</small>
+                </span>
+                <span className="oyk-quest-b">{state.quest.done ? `✓ +${state.quest.ball}` : `+${state.quest.ball}`}</span>
+              </div>
+            )}
+
+            {/* 🏠 DOIMIY topshiriq — ilovani telefon ekraniga o'rnatish. Klient qo'llab-
+                quvvatlamasa UMUMAN ko'rsatilmaydi: bajarib bo'lmaydigan vazifa = bo'sh va'da. */}
+            {!ended && homeSupported === true && state.homeTask.ball > 0 && (
+              <button
+                type="button"
+                className={`oyk-quest is-home${state.homeTask.done ? " is-done" : ""}`}
+                disabled={state.homeTask.done}
+                onClick={() => { haptic(); addToHomeScreen(); }}
+              >
+                <span className="oyk-quest-em">🏠</span>
+                <span className="oyk-quest-tx">
+                  <b>Ilovani telefon ekraniga o'rnating</b>
+                  <small>{state.homeTask.done ? "O'rnatilgan — ball tushdi ✓" : "Bir bosishda — keyin ilova tezroq ochiladi"}</small>
+                </span>
+                <span className="oyk-quest-b">{state.homeTask.done ? `✓ +${state.homeTask.ball}` : `+${state.homeTask.ball}`}</span>
+              </button>
+            )}
 
             {/* 💡 Eng tez yo'l — ega talabi 2026-08-03: "do'stinga ayt, SEN ORQALI taksi
                 chaqirsin". Avval quruq "N do'st + M safar" hisobi turardi; endi aniq harakat. */}
