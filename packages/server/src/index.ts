@@ -377,7 +377,7 @@ async function main(): Promise<void> {
           const oyinClose = await seasonClose().catch((e) => { console.error("[oyin] seasonClose failed:", e); return null; });
           if (oyinClose && oyinClose.convertedCount > 0) {
             const { alertAdmins } = await import("./services/economyService");
-            await alertAdmins(`🎮 Koson O'yini mavsumi yopildi: ${oyinClose.convertedCount} a'zoga jami ${oyinClose.totalTanga} tanga konvertatsiya qilindi.`).catch(() => undefined);
+            await alertAdmins(`🎮 BirJoy O'yinlar Mavsumi yopildi: ${oyinClose.convertedCount} a'zoga jami ${oyinClose.totalTanga} tanga berildi (qoldiq balldan).`).catch(() => undefined);
           }
           const { settleGapsWeekly } = await import("./services/gapService");
           if (new Date(Date.now() + 5 * 3600_000).getUTCDay() === 1) await settleGapsWeekly(bot).catch((e) => console.error("[gap] failed:", e));

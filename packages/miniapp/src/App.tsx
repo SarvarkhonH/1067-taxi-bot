@@ -487,7 +487,9 @@ export function App() {
             {tab === "elonlar" && <ElonlarView me={me} onBanner={flash} reload={reload} />}
             {tab === "restoran" && <RestoranView me={me} onBanner={flash} openRestaurantId={openRestoranFromFeed} />}
             {tab === "ravella" && <RavellaView me={me} onBanner={flash} />}
-            {tab === "oyin" && <OyinView />}
+            {/* O'yindagi "Safar qilish" tugmasi taksi formasini TO'G'RIDAN ochadi — avval u
+                faqat "Uy ekranidan chaqiring" degan toast chiqaradigan boshi berk tugma edi. */}
+            {tab === "oyin" && <OyinView onTaxi={() => { haptic(); setBooking(true); }} />}
             {tab === "driver" && <DriverView me={me} />}
             {tab === "profile" && <NewProfileView me={me} onNav={nav} onBanner={flash} />}
           </Suspense>

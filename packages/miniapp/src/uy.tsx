@@ -51,12 +51,12 @@ function KosonOyinCard({ onNav }: { onNav: (t: string) => void }) {
       <button className="nh-koson-main" onClick={goOyin}>
         <div className="nh-koson-top">
           <span className="nh-koson-badge">{upcoming ? "🚀 TEZ ORADA" : "🔥 MAVSUM OCHIQ"}</span>
-          <span className="nh-koson-cd">{upcoming ? `⏳ ${cdText}dan keyin` : `⏳ ${cdText} qoldi`}</span>
+          <span className="nh-koson-cd">{upcoming ? `⏳ Startgacha ${cdText}` : `⏳ Tirajgacha ${cdText}`}</span>
         </div>
         <div className="nh-koson-title">
-          {upcoming ? "Tekin sovg'alar mavsumi boshlanmoqda! 🎁" : "Tekin sovg'alar mavsumi boshlandi! 🎁"}
+          {upcoming ? "Sovrinlar mavsumi boshlanmoqda 🎁" : "Sovrinlar mavsumi ochiq 🎁"}
         </div>
-        <div className="nh-koson-sub">Safar qil, ball yig' — oy oxiri jonli tirajda real sovrinlar</div>
+        <div className="nh-koson-sub">Safar qiling, ball yig'ing — chipta oling. Mavsum oxirida jonli tirajda g'oliblar tasodifiy tanlanadi</div>
         {top.length > 0 && (
           <div className="nh-koson-prizes">
             {top.map((p) => (

@@ -395,7 +395,11 @@ export function createApiServer(opts: ApiOptions = {}) {
       res.json({
         linked: false,
         guest,
-        flags: { shop: shopOn, xizmatlar: xizmatlarOn, restoran: restoranOn,  bazarcart: bazarcartOn,   ravella: ravellaOn, linkinapp: linkinappOn || isAdmin(String(res.locals.telegramId ?? "")) },
+        // ⚠️ `oyin` SHU RO'YXATDA BO'LISHI SHART. U yo'q edi va butun taklif-zanjiri oxirgi
+        // qadamda uzilardi: bot sovrinli kartochka yuboradi → "🎮 O'yinni ochish" → miniapp
+        // mehmon rejimida ochiladi → `flags.oyin` yo'q → O'yin tabi YARATILMAYDI → `?go=oyin`
+        // Do'konga tushadi. `oyinTeaser.tsx` (mehmon uchun maxsus yozilgan ekran) o'lik kod edi.
+        flags: { shop: shopOn, xizmatlar: xizmatlarOn, restoran: restoranOn,  bazarcart: bazarcartOn,   ravella: ravellaOn, oyin: oyinOn, linkinapp: linkinappOn || isAdmin(String(res.locals.telegramId ?? "")) },
       });
       return;
     }

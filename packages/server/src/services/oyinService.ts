@@ -7,7 +7,9 @@
 // pastda ko'ring). Faqat kunlik-kirish/ulashish va chipta-xarid/sotilgan-son AppState'da yoziladi
 // (`oyin:*` prefiks). Yangi Prisma model YO'Q, yangi poller YO'Q (ARCHITECTURE.md invariantlari).
 import {
+  OYIN_FINAL_LOCK_MS,
   OYIN_SEED_CATALOG,
+  OYIN_STORY_SEASON_LIMIT,
   SPRINT_MAX_WINS_PER_ROLLING_4W,
   type OyinActivityAction,
   type OyinActivityFilter,
@@ -39,6 +41,7 @@ import { prisma } from "../db";
 import { getBonusEcon } from "./bonusConfig";
 import { featureOn } from "./featureFlags";
 import { weekKey } from "./missionService";
+import { isAdmin } from "./memberService";
 import { getSeason, invalidateSeasonCache, setSeason, validateSeasonInput } from "./oyinSeason";
 import { getSponsor } from "./sponsorService";
 
@@ -154,9 +157,19 @@ function ticketInSeason(t: TicketRecord, fromMs: number, toMs: number): boolean 
 // tamg'alanadi — aks holda "toza boshlash" tugmasidan keyin 60 soniya davomida chiptalar ESKI
 // mavsum balliga sotilardi. ──────────────────────────────────────────────────────────────────
 let ballMapCache: { at: number; seasonId: string; val: Map<number, MemberBallRow> } | null = null;
+// ⚠️ GENERATSIYA HISOBLAGICHI — bepul-chipta bug'ining yagona qo'rig'i.
+// Avval `invalidateBallCache()` faqat keshni null qilardi, lekin ALLAQACHON YURAYOTGAN
+// `computeBallMap()` (8 ta og'ir so'rov, sekundlar) tugagach ESKI suratni keshga YOZIB
+// qo'yardi. Ketma-ketlik: (1) `/state` recompute boshlaydi, spent=0 suratini oladi →
+// (2) mijoz chipta oladi, spent=100, kesh tozalanadi → (3) 1-qadamdagi recompute tugab
+// eskirgan `ball=100` ni keshga yozadi → (4) ikkinchi chipta BEPUL ketadi. `withMemberLock`
+// yordam bermaydi: kesh lock TASHQARISIDAN iflos qilinadi.
+// Endi har bekor qilish generatsiyani oshiradi; eskirgan hisob natijasi TASHLAB YUBORILADI.
+let ballMapGen = 0;
 
 function invalidateBallCache(): void {
   ballMapCache = null;
+  ballMapGen++;
 }
 
 /** Tashqi chaqiruvchilar uchun (admin route'lari) — hikoya tasdiqlangach ball darhol ko'rinsin. */
@@ -175,6 +188,8 @@ async function computeBallMap(): Promise<Map<number, MemberBallRow>> {
     return ballMapCache.val;
   }
 
+  // Hisob BOSHLANGANDAGI generatsiya — tugaganda o'zgargan bo'lsa natija eskirgan.
+  const gen = ballMapGen;
   const econ = await getBonusEcon();
   const fromMs = season.startMs as number;
   const toMs = season.endMs as number;
@@ -312,7 +327,10 @@ async function computeBallMap(): Promise<Map<number, MemberBallRow>> {
     const loginBall = (loginDaysByMember.get(memberId) ?? 0) * (econ.oyinDailyLoginBall ?? 0);
     const shareBall = (shareDaysByMember.get(memberId) ?? 0) * (econ.oyinShareBall ?? 0);
     const sprintBall = (sprintWinsByMember.get(memberId) ?? 0) * (econ.oyinSprintBonusBall ?? 0);
-    const storyBall = (storyByMember.get(memberId) ?? 0) * (econ.oyinStoryProofBall ?? 0);
+    // Limit SUBMIT'da tekshiriladi, lekin admin xato bilan 5 tasini tasdiqlasa yoki mavsum
+  // oynasi kengaytirilsa eski arizalar ichkariga kirardi — ball CHEKLOVSIZ o'sardi.
+  // Ikkinchi qavat: hisobda ham kesiladi.
+  const storyBall = Math.min(storyByMember.get(memberId) ?? 0, OYIN_STORY_SEASON_LIMIT) * (econ.oyinStoryProofBall ?? 0);
     const streakBall = (streakByMember.get(memberId) ?? 0) * (econ.oyinStreakBall ?? 0);
     const earned = ridesBall + phoneBall + referJoinBall + referFirstBall + referRideBall + loginBall + shareBall + storyBall + streakBall + sprintBall;
     const spent = spentByMember.get(memberId) ?? 0;
@@ -329,7 +347,10 @@ async function computeBallMap(): Promise<Map<number, MemberBallRow>> {
       },
     });
   }
-  ballMapCache = { at: Date.now(), seasonId: season.seasonId, val: map };
+  // Hisob davomida kesh bekor qilingan bo'lsa (chipta olindi / hikoya tasdiqlandi / mavsum
+  // almashdi) — bu surat ESKIRGAN, keshga YOZILMAYDI. Natija chaqiruvchiga qaytariladi
+  // (u shu lahzada to'g'ri edi), lekin keyingi so'rov yangidan hisoblaydi.
+  if (gen === ballMapGen) ballMapCache = { at: Date.now(), seasonId: season.seasonId, val: map };
   return map;
 }
 
@@ -444,12 +465,14 @@ export async function getOyinState(memberId: number): Promise<OyinStateResponse>
       referRideBall: econ.oyinReferRideBall ?? 0,
       streakBall: econ.oyinStreakBall ?? 0,
       storyBall: econ.oyinStoryProofBall ?? 0,
+      maxPerPrize: Math.max(1, Math.round(econ.oyinMaxTicketsPerPrize ?? 3)),
     },
     today,
     live,
     week,
     story: storyState,
     ticketCount,
+    seasonRides: mine?.seasonRides ?? 0,
     goalPrizeKey,
     season: {
       configured: season.configured,
@@ -495,7 +518,11 @@ export async function getVitrina(memberId: number): Promise<OyinVitrinaResponse>
       return {
         key: p.key, icon: p.icon, name: p.name, valueLabel: p.valueLabel,
         price: p.price, limit: p.limit, sold, remaining: Math.max(0, p.limit - sold), soldOut: sold >= p.limit,
-        mine: myCount, chancePct: myCount > 0 && sold > 0 ? Math.round((myCount / sold) * 10000) / 100 : null,
+        // ⚠️ Imkoniyat LIMIT bo'yicha hisoblanadi, "hozirgacha sotilgan" bo'yicha EMAS.
+        // Sotilgan bo'yicha hisoblansa birinchi xaridor "≈100%" ni ko'rardi va o'sha son keyin
+        // o'zi hech narsa qilmasdan 100% → 12% ga tushardi — ishonch buzadigan raqam.
+        // Limit bo'yicha: raqam faqat O'SADI (yana chipta olsang) — va'da haqiqatga aylanadi.
+        mine: myCount, chancePct: myCount > 0 && p.limit > 0 ? Math.round((myCount / p.limit) * 10000) / 100 : null,
         photoUrl: p.photoUrl,
       };
     });
@@ -637,7 +664,10 @@ export async function adminUpsertPrize(input: OyinPrizeUpsertInput): Promise<Oyi
   const name = (input.name || "").trim().slice(0, 60) || "Sovrin";
   const icon = (input.icon || "🎁").trim().slice(0, 8) || "🎁";
   const valueLabel = (input.valueLabel || "").trim().slice(0, 60);
-  const price = Math.max(1, Math.round(Number(input.price) || 0));
+  // `Number.isFinite` MAJBURIY: `1e999` → Infinity → JSON.stringify → `null` → keyin
+  // `ball < prize.price` solishtiruvi `false` bo'lib chiptalar BEPUL tarqalardi.
+  const priceRaw = Number(input.price);
+  const price = Math.max(1, Math.round(Number.isFinite(priceRaw) ? priceRaw : 0));
   const limit = Math.max(1, Math.round(Number(input.limit) || 0));
   const photoUrl = input.photoUrl?.trim().slice(0, 500) || null;
 
@@ -676,13 +706,17 @@ export async function adminDeletePrize(key: string): Promise<OyinDeleteResult> {
 // parallel ikkita a'zo oxirgi o'rinni bir vaqtda olishga urinsa ham HECH QACHON limitdan oshmaydi). ─
 async function reserveSoldSlot(prizeKey: OyinPrizeKey, limit: number): Promise<number | null> {
   const key = `oyin_sold:${prizeKey}`;
-  await prisma.$executeRaw`
+  // ⚠️ `RETURNING` MAJBURIY. Avval inkrement va o'qish IKKI ALOHIDA so'rov edi:
+  //   T1 INSERT(+1) → 6 · T2 INSERT(+1) → 7 · T1 SELECT → 7 · T2 SELECT → 7
+  // ya'ni ikki xaridorga BIR XIL chipta raqami tushardi va bitta raqam yo'qolardi.
+  // `RETURNING` bilan har chaqiruv O'ZI yozgan qiymatni oladi — kolliziya imkonsiz.
+  const rows = await prisma.$queryRaw<{ value: string }[]>`
     INSERT INTO "AppState" ("key","value","updatedAt")
     VALUES (${key}, '1', NOW())
     ON CONFLICT ("key") DO UPDATE
-      SET "value" = CAST((CAST("AppState"."value" AS INTEGER) + 1) AS TEXT), "updatedAt" = NOW()`;
-  const row = await prisma.appState.findUnique({ where: { key } });
-  const sold = row ? Number(row.value) || 0 : 0;
+      SET "value" = CAST((CAST("AppState"."value" AS INTEGER) + 1) AS TEXT), "updatedAt" = NOW()
+    RETURNING "value"`;
+  const sold = Number(rows[0]?.value) || 0;
   if (sold > limit) {
     await prisma.$executeRaw`
       UPDATE "AppState" SET "value" = CAST((CAST("value" AS INTEGER) - 1) AS TEXT) WHERE "key" = ${key}`;
@@ -695,23 +729,30 @@ async function reserveSoldSlot(prizeKey: OyinPrizeKey, limit: number): Promise<n
  *  BUTUN oqimni sinab ko'radi. shopService.buyProduct / classifiedService.buyTopBoost / ravella
  *  bilan AYNAN bir xil naqsh; avtorizatsiya route qatlamida qoladi, servis faqat boolean oladi.
  *  ⚠️ preview BAYROQNI aylanib o'tadi, MAVSUMNI emas — mavsum mahsulot qoidasi, ega uchun ham. */
-/** 🎟 Global chipta raqami — butun tizim bo'ylab noyob. `reserveSoldSlot` bilan bir xil atomik
- *  naqsh (raw SQL upsert-increment), ya'ni parallel xaridlarda ham takrorlanmaydi.
+/** 🎟 Global chipta raqami — butun tizim bo'ylab noyob. Inkrement va o'qish BITTA so'rovda
+ *  (`RETURNING`) — aks holda parallel ikki xaridor bir xil raqamni o'qiydi va mijozga "noyob"
+ *  deb ko'rsatilgan son ikki egali bo'lib qoladi (tiraj kunida bitta raqamga ikki da'vogar).
  *  Boshlang'ich 729474 — birinchi chipta 729475 bo'ladi (dizayndagi namuna raqam). */
 async function nextGlobalTicketNo(): Promise<number> {
   const key = "oyin:ticketno";
-  await prisma.$executeRaw`
+  const rows = await prisma.$queryRaw<{ value: string }[]>`
     INSERT INTO "AppState" ("key","value","updatedAt")
     VALUES (${key}, '729475', NOW())
     ON CONFLICT ("key") DO UPDATE
-      SET "value" = CAST((CAST("AppState"."value" AS INTEGER) + 1) AS TEXT), "updatedAt" = NOW()`;
-  const row = await prisma.appState.findUnique({ where: { key } });
-  return row ? Number(row.value) || 0 : 0;
+      SET "value" = CAST((CAST("AppState"."value" AS INTEGER) + 1) AS TEXT), "updatedAt" = NOW()
+    RETURNING "value"`;
+  return Number(rows[0]?.value) || 0;
 }
 
 export async function buyTicket(memberId: number, prizeKeyRaw: string, preview = false): Promise<OyinBuyResult> {
   if (!preview && !(await featureOn("oyin"))) return { ok: false, reason: "off" };
-  if ((await getSeason()).phase !== "active") return { ok: false, reason: "season_off" };
+  const season = await getSeason();
+  if (season.phase !== "active") return { ok: false, reason: "season_off" };
+  // 🔒 FINAL-48 — ekran "Muzlagan" deb yozadi, demak SERVER ham to'sishi shart. Avval bu faqat
+  // mijoz tomonidagi bo'yoq edi: tugma "muzlagan" ko'rinardi, bosilsa xarid o'tib ketardi.
+  // Ega-preview ham AYLANIB O'TMAYDI — bu mahsulot qoidasi, bayroq emas (chipta ro'yxati tirajga
+  // qotishi kerak; ega o'zi ham oxirgi soniyada eksportdan tashqarida chipta yaratmasin).
+  if (season.endMs != null && season.endMs - Date.now() <= OYIN_FINAL_LOCK_MS) return { ok: false, reason: "final_lock" };
   const catalog = await getCatalog();
   const prize = catalog.find((p) => p.key === prizeKeyRaw && p.active);
   if (!prize) return { ok: false, reason: "unknown_prize" };
@@ -720,13 +761,35 @@ export async function buyTicket(memberId: number, prizeKeyRaw: string, preview =
   // yechish orasida race bo'lmasin (ikkinchi urinish BIRINCHISI YOZIB BO'LGANDAN keyin ballni o'qiydi).
   // Cross-member xavfsizlik esa yuqoridagi reserveSoldSlot'ning atomik SQL'idan keladi.
   return withMemberLock(memberId, async () => {
+    // 🚫 EGA/XODIM TIRAJDAN CHETDA (KOSON_OYIN_PLAN D11). Kod izohi buni "route qatlamida"
+    // deb va'da qilardi — amalda hech qayerda yo'q edi. Xavf: bayroq DARK paytda (mijozlar
+    // o'ynay olmaganda) ega eng tanqis sovrindan o'rin va eng past chipta raqamini olib
+    // qo'yishi mumkin edi. Bitta sarlavha butun kampaniyani o'ldiradi: "ega o'z tirajida yutdi".
+    // `preview` BAYROQNI aylanib o'tadi, lekin TIRAJDA QATNASHISHNI emas.
+    const myTu = await prisma.telegramUser.findFirst({ where: { memberId }, select: { id: true } });
+    if (myTu && isAdmin(myTu.id)) return { ok: false, reason: "staff" as const, ballLeft: await getBall(memberId) };
+
+    // 🚧 SAFAR DARVOZASI — o'yindagi eng katta struktur teshik shu yerda edi.
+    // Pul yo'lida (`seasonClose`) "≥1 real safar" sharti BOR edi, SOVRIN yo'lida YO'Q.
+    // Natijada 20 ta SIM kartali ring bitta ham taksiga chiqmasdan ~18 400 ball yig'ib
+    // (login+ulashish+zanjir+o'zaro taklif) sovrin katalogining ~62% ini olardi.
+    // Endi ikkala yo'lda ham bir xil shart: chipta — SAFAR qilganlar uchun.
+    const row0 = (await computeBallMap()).get(memberId);
+    if (!row0 || row0.seasonRides <= 0) return { ok: false, reason: "no_ride" as const, ballLeft: row0?.breakdown.ball ?? 0 };
+
     const ball = await getBall(memberId);
     if (ball < prize.price) return { ok: false, reason: "insufficient" as const, ballLeft: ball };
 
     // ⚖️ Adolat qo'rig'i: bitta odam bitta sovrinning hamma chiptasini olib qo'ymasin.
     // Do'st-safari 40 ballga chiqqach, ko'p do'stli odam butun tirajni sotib olishi mumkin edi.
     const econ = await getBonusEcon();
-    const maxOwn = Math.max(1, Math.round(econ.oyinMaxTicketsPerPrize ?? 3));
+    // ⚠️ Knob YOLG'IZ yetarli emas: knob 3, blender limiti ham 3 → bitta odam butun sovrinni
+    // sotib olib 100% g'olib bo'lardi (bu tiraj emas, XARID). Endi qo'riq limitning yarmidan
+    // oshmaydi — har sovrinda kamida ikki xil da'vogar qoladi.
+    const maxOwn = Math.max(1, Math.min(
+      Math.round(econ.oyinMaxTicketsPerPrize ?? 3),
+      Math.ceil(prize.limit / 2),
+    ));
     const season = await getSeason();
     const ownRow = await prisma.appState.findUnique({ where: { key: `oyin:tickets:${memberId}` } });
     const ownCount = parseTickets(ownRow?.value)
@@ -748,7 +811,8 @@ export async function buyTicket(memberId: number, prizeKeyRaw: string, preview =
       update: { value: JSON.stringify(tickets) },
     });
     invalidateBallCache();
-    return { ok: true, ticketNo, prizeKey: prize.key, ballLeft: ball - prize.price };
+    // `gno` ham qaytariladi: bayram-oynasi mijozga AYNAN Chiptalarim'dagi raqamni ko'rsatsin.
+    return { ok: true, ticketNo, gno, prizeKey: prize.key, ballLeft: ball - prize.price };
   });
 }
 
@@ -790,7 +854,7 @@ export async function getJamoam(memberId: number): Promise<OyinJamoamResponse> {
     getBonusEcon(),
     prisma.telegramUser.findUnique({ where: { memberId } }),
   ]);
-  if (!myTu) return { friends: [], totalBall: 0 };
+  if (!myTu) return { friends: [], totalBall: 0, oneTimeBall: 0, rideBall: 0 };
 
   const referrals = await prisma.referral.findMany({
     where: { referrerId: myTu.id },
@@ -798,7 +862,7 @@ export async function getJamoam(memberId: number): Promise<OyinJamoamResponse> {
     orderBy: { createdAt: "desc" },
   });
   const refereeIds = referrals.map((r) => r.refereeMemberId).filter((id): id is number => id != null);
-  if (refereeIds.length === 0) return { friends: [], totalBall: 0 };
+  if (refereeIds.length === 0) return { friends: [], totalBall: 0, oneTimeBall: 0, rideBall: 0 };
 
   // Safarlar oynasi = BUTUN mavsum (avval qat'iy 14 kun edi) — "shu mavsumda yurganmi" savoliga
   // javob berish uchun kerak, chunki quyidagi ro'yxat shunga qarab filtrlanadi.
@@ -864,8 +928,13 @@ export async function getJamoam(memberId: number): Promise<OyinJamoamResponse> {
   // To'liq summa computeBallMap'dan (mavsum-doirali) — bu yerdagi tsikl faqat 14 kunlik oynani
   // ko'radi. Fallback 0: eski shkaladagi sonni qoldirish — noto'g'ri raqam jo'natishning yo'li.
   const mine = (await computeBallMap()).get(memberId);
-  totalBall = mine ? mine.breakdown.referJoin + mine.breakdown.referFirstRide + mine.breakdown.referRides : 0;
-  return { friends, totalBall };
+  // IKKITA SUMMA ALOHIDA (§7): bir martalik bonus TUGAYDI, do'st safaridan keladigan oqim esa
+  // TUGAMAYDI. Bitta yig'indi bu farqni yashiradi va "do'st chaqirish" bir martalik ish bo'lib
+  // ko'rinadi — aslida o'yinning butun iqtisodi shu ikkinchi ustunga tayanadi.
+  const oneTimeBall = mine ? mine.breakdown.referJoin + mine.breakdown.referFirstRide : 0;
+  const rideBall = mine ? mine.breakdown.referRides : 0;
+  totalBall = oneTimeBall + rideBall;
+  return { friends, totalBall, oneTimeBall, rideBall };
 }
 
 // ── 🤝 "Rahmat ayt" — do'stning Telegram'iga botdan xabar (ega talabi 2026-08-02). Ball BERILMAYDI
@@ -912,7 +981,7 @@ export async function thankFriend(memberId: number, friendMemberId: number, prev
   // `kind` ichida yuboruvchi id'si — bitta odam bitta do'stiga kuniga bir marta.
   const sent = await notifyOnce(
     bot, friendTu.id, friendMemberId, `oyin_thanks:${memberId}`,
-    `🤝 <b>${shortName(myTu)}</b> senga rahmat aytdi!\n\nSening safaring unga ball olib keldi. Sen ham o'yinga qo'shil — sovrinlar kutmoqda 🎁`,
+    `🤝 <b>${shortName(myTu)}</b> sizga rahmat aytdi!\n\nSizning safaringiz unga ball olib keldi. Siz ham o'yinga qo'shiling — sovrinlar kutmoqda 🎁`,
   );
   if (!sent) return { ok: false, reason: "unreachable" };
 
@@ -1032,7 +1101,9 @@ export async function drawExport(): Promise<OyinDrawExport> {
     return parseTickets(row.value)
       .filter((t) => ticketInSeason(t, season.startMs as number, season.endMs as number))
       .map((t) => ({
-        prizeKey: t.prizeKey, ticketNo: t.no, memberId, name: nameByMember.get(memberId) ?? "Mijoz",
+        // ⚠️ `t.no` — sovrin-ichi tartib raqami; mijoz esa ekranida GLOBAL `gno` ni ko'radi.
+        // Eksportda `no` qolsa jonli efirda o'qiladigan raqam mijoz qo'lidagi raqam BO'LMAYDI.
+        prizeKey: t.prizeKey, ticketNo: t.gno ?? t.no, memberId, name: nameByMember.get(memberId) ?? "Mijoz",
       }));
   });
   tickets.sort((a, b) => a.prizeKey.localeCompare(b.prizeKey) || a.ticketNo - b.ticketNo);

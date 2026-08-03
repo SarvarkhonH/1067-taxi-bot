@@ -102,6 +102,19 @@ export interface OyinSeasonInput {
   label?: string | null;
 }
 
+/** 🔒 FINAL-48: mavsum tugashiga shuncha qolganda chipta olish YOPILADI.
+ *  Bu son SERVER va MIJOZ uchun BITTA joyda turadi — aks holda ekran "muzlagan" deb yozadi,
+ *  server esa sotaveradi (aynan shu bug topilgan: bir mijoz ishonib ballini sarflamaydi,
+ *  ikkinchisi o'sha tugmani bosib chiptani oladi). Qulf sababi: tiraj oldidan ro'yxat qotishi
+ *  kerak — oxirgi soniyada olingan chipta eksportga tushmay qolishi mumkin. */
+export const OYIN_FINAL_LOCK_MS = 48 * 3600_000;
+
+/** 📸 Bitta a'zo bitta mavsumda nechta hikoya-isboti uchun ball ola oladi.
+ *  IKKI joyda qo'llanadi: yuborishda (`oyinStory.submitStory`) VA ball hisobida
+ *  (`computeBallMap`) — ikkinchisi ikkinchi qavat himoya: admin xato bilan limitdan
+ *  ortiq tasdiqlasa yoki mavsum oynasi kengaytirilsa ball cheklovsiz o'smasin. */
+export const OYIN_STORY_SEASON_LIMIT = 3;
+
 /** Mijozga beriladigan qisqartma (OyinStateResponse ichida) — miniapp sanani API'dan oladi. */
 export interface OyinSeasonClientView {
   configured: boolean;
@@ -215,6 +228,9 @@ export interface OyinStateResponse {
     referRideBall: number;
     streakBall: number;
     storyBall: number;
+    // ⚖️ Bitta odam bitta sovrindan ola oladigan eng ko'p chipta (admin knobi). Mijoz buni
+    // XARIDDAN OLDIN bilishi kerak — avval faqat urilib bo'lgandan keyin, raqamsiz aytilardi.
+    maxPerPrize: number;
   };
   // 🎯 "Bugungi maqsad" halqasi — REAL holat (soxta emas): login = oyin:login kun-ro'yxati (state
   // so'rovining o'zi markLogin qiladi, shuning uchun ochilgan zahoti ✓ — bu ataylab: "kirish" vazifasi
@@ -232,6 +248,11 @@ export interface OyinStateResponse {
   story: OyinStoryState;
   // 🎟 Mavsumda olingan chipta soni.
   ticketCount: number;
+  // 🚕 Mavsumdagi REAL safarlar SONI (ball emas!). Ikki joyda kerak: (a) mavsum yakunida
+  // "ball tangaga aylanadimi?" — server sharti aynan shu SON (`seasonRides > 0`), ball emas;
+  // (b) chipta olish darvozasi. Avval ekran `breakdown.rides` (=SAFAR BALI) ni o'qirdi va
+  // safar bali 0 ga sozlangan bo'lsa 12 marta yurgan mijozga "safaringiz yo'q" derdi.
+  seasonRides: number;
   // 🎯 Mijoz TANLAGAN maqsad-sovrin (YAKUNIY DIZAYN §1). null = tanlamagan → eng arzoni.
   // Hero shunga qarab chiziladi: "660 ball qoldi — Choy serviz". Mavhum "340 ball" o'rniga.
   goalPrizeKey: string | null;
@@ -353,15 +374,27 @@ export interface OyinThanksResult {
 }
 export interface OyinJamoamResponse {
   friends: OyinFriendRow[];
-  totalBall: number; // shu do'stlar orqali jami kelgan ball (referJoin+referFirstRide+referRides)
+  totalBall: number; // shu do'stlar orqali jami kelgan ball (oneTimeBall + rideBall)
+  // ⚠️ IKKITA SUMMA ALOHIDA (YAKUNIY DIZAYN §7). Bitta yig'indi o'yinning ASOSIY g'oyasini
+  // yashiradi: bir martalik bonus tugaydi, do'st safaridan keladigan OQIM esa tugamaydi.
+  // Mijoz shu farqni raqamda ko'rmasa "do'st chaqirish" bir martalik ish bo'lib tuyuladi.
+  oneTimeBall: number; // do'st ulandi + birinchi safari (referJoin + referFirstRide)
+  rideBall: number; // do'stlarning har safaridan (referRides) — cheksiz oqim
 }
 
 export interface OyinBuyResult {
   ok: boolean;
   // `season_off` — mavsum sozlanmagan/boshlanmagan/tugagan. `off` dan FARQ qiladi (bayroq) va
   // `insufficient` deb aytish YOLG'ON bo'lardi — mijozga balansi haqida noto'g'ri xabar bermaymiz.
-  reason?: "insufficient" | "sold_out" | "unknown_prize" | "off" | "season_off" | "own_limit";
+  // `final_lock` — mavsum tugashiga <48 soat qoldi, ro'yxat tirajga qotdi (OYIN_FINAL_LOCK_MS).
+  // `no_ride` — mavsumda birorta ham real safar yo'q. Chipta SOVRIN yo'li ham, tanga PUL yo'li
+  // ham bir xil shartga bo'ysunadi (avval faqat pul yo'li qo'riqlangan edi).
+  reason?: "insufficient" | "sold_out" | "unknown_prize" | "off" | "season_off" | "own_limit" | "final_lock" | "no_ride" | "staff";
   ticketNo?: number;
+  // 🎟 Bayram-oynasi ko'rsatadigan raqam — MIJOZ KEYIN CHIPTALARIM'da ko'radigan raqamning
+  // AYNAN O'ZI bo'lishi shart. Avval bayramda sovrin-ichi tartib raqami ("№0002"), ro'yxatda
+  // esa global raqam ("№ 729476") chiqardi — bitta chipta ikki xil raqam bilan.
+  gno?: number;
   prizeKey?: OyinPrizeKey;
   ballLeft?: number;
 }

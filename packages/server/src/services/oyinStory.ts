@@ -8,7 +8,7 @@
 // ⚠️ Ball BU YERDA berilmaydi. Ball `computeBallMap()` da jonli hisoblanadi (tasdiqlangan va
 // mavsum oynasidagi arizalar × knob) — boshqa hamma manba bilan bir xil. Shunda "grant yozildi-yu
 // ball ko'rinmadi" degan holat tug'ilmaydi.
-import type { OyinPosterText, OyinStoryAdminRow, OyinStoryItem, OyinStorySubmitResult } from "@t1067/shared";
+import { OYIN_STORY_SEASON_LIMIT, type OyinPosterText, type OyinStoryAdminRow, type OyinStoryItem, type OyinStorySubmitResult } from "@t1067/shared";
 import { prisma } from "../db";
 import { getSeason } from "./oyinSeason";
 
@@ -16,7 +16,10 @@ const TEXT_KEY = "oyin:postertext";
 const STORY_PREFIX = "oyin:story:";
 
 /** Mavsumda eng ko'pi shuncha tasdiqlangan isbot. Cheksiz bo'lsa bitta odam ballni yeb qo'yadi. */
-export const STORY_SEASON_LIMIT = 3;
+// Yagona manba — `@t1067/shared`. Avval bu yerda alohida `3` turardi va `computeBallMap`
+// da ikkinchi qavat himoya qo'yilganda ikkita mustaqil raqam paydo bo'lardi.
+const STORY_SEASON_LIMIT = OYIN_STORY_SEASON_LIMIT;
+export { OYIN_STORY_SEASON_LIMIT as STORY_SEASON_LIMIT };
 
 // Faqat haqiqiy hikoya joylanadigan platformalar. Tasodifiy matn / o'z saytiga havola o'tmaydi.
 const ALLOWED_HOSTS = ["instagram.com", "www.instagram.com", "t.me", "telegram.me", "facebook.com", "www.facebook.com", "fb.watch"];

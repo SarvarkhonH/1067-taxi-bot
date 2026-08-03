@@ -791,3 +791,110 @@
 }
 .oyk-cdown-c b { font-size: 26px; font-weight: 900; line-height: 1; color: var(--oyk-violet-soft); font-variant-numeric: tabular-nums; }
 .oyk-cdown-c small { font-size: 10px; font-weight: 800; color: var(--oyk-text-3); letter-spacing: .04em; }
+
+/* ── AUDIT-TUZATISHLARI (3 mustaqil auditor, 2026-08-03) ───────────────────────────────── */
+
+/* 🏁 Mavsum yakunlandi — sanoq chipi */
+.oyk-chip-cd.is-done {
+  color: var(--oyk-text-3); background: var(--oyk-fill); border-color: var(--oyk-line);
+  animation: none;
+}
+/* Yangi mijoz hero'sidagi birinchi maqsad — u ham NIMAGA yig'ayotganini ko'rsin */
+.oyk-hero-new-goal {
+  position: relative; display: flex; align-items: center; gap: 8px; margin-top: 10px;
+  padding: 8px 11px; border-radius: 12px; background: var(--oyk-fill);
+  font-size: 12px; line-height: 1.4;
+}
+.oyk-hero-new-goal-ic { font-size: 20px; flex-shrink: 0; }
+
+/* 📅 Vitrina tepasi — tiraj sanasi+vaqti va o'z balansi */
+.oyk-vtop {
+  display: flex; flex-direction: column; gap: 8px;
+  background: var(--oyk-surface); border: 1px solid var(--oyk-line); border-radius: 16px;
+  padding: 11px 13px; box-shadow: var(--oyk-shadow);
+}
+.oyk-vtop-draw { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--oyk-text-2); line-height: 1.4; }
+.oyk-vtop-draw b { color: var(--oyk-text); }
+.oyk-vtop-ic { font-size: 15px; flex-shrink: 0; }
+.oyk-vtop-ball {
+  display: flex; align-items: baseline; justify-content: space-between; gap: 10px;
+  border-top: 1px solid var(--oyk-line); padding-top: 8px; font-size: 12px; color: var(--oyk-text-2);
+}
+.oyk-vtop-ball b { font-size: 20px; font-weight: 900; color: var(--oyk-violet-soft); font-variant-numeric: tabular-nums; }
+
+/* Rail kartasida §6 tanqislik darajalari (avval hamma bir xil kulrang edi) */
+.oyk-pcard-meta.is-warn { color: var(--oyk-gold-soft); font-weight: 700; }
+.oyk-pcard-meta.is-hot { color: var(--oyk-red-soft); font-weight: 800; }
+
+/* Rasmsiz sovrin — vitrinada ham AFISHA o'lchamida (rangli fon + katta emoji), ro'yxat qatori emas */
+.oyk-vcard-photo.is-emoji {
+  display: flex; align-items: center; justify-content: center;
+  background: linear-gradient(150deg, var(--oyk-gold-pale), rgba(110, 90, 255, .12));
+}
+.oyk-vcard-photo-emoji { font-size: 76px; line-height: 1; }
+
+/* 👥 Jamoam — IKKITA SUMMA ALOHIDA */
+.oyk-jsum {
+  background: var(--oyk-surface); border: 1px solid var(--oyk-line); border-radius: 16px;
+  box-shadow: var(--oyk-shadow); overflow: hidden;
+}
+.oyk-jsum-row {
+  display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  padding: 10px 13px; border-bottom: 1px solid var(--oyk-line);
+}
+.oyk-jsum-row:last-child { border-bottom: none; }
+.oyk-jsum-lb { flex: 1; min-width: 0; font-size: 12.5px; font-weight: 700; line-height: 1.3; }
+.oyk-jsum-lb small { display: block; font-size: 10.5px; font-weight: 600; color: var(--oyk-text-3); margin-top: 1px; }
+.oyk-jsum-row b { flex-shrink: 0; font-size: 15px; font-weight: 900; font-variant-numeric: tabular-nums; }
+/* Oqim ustuni urg'uli — o'yin iqtisodi shunga tayanadi */
+.oyk-jsum-row.is-flow { background: rgba(110, 90, 255, .06); }
+.oyk-jsum-row.is-flow b { color: var(--oyk-violet-soft); font-size: 17px; }
+.oyk-jsum-row.is-total { background: var(--oyk-fill); }
+.oyk-jsum-row.is-total .oyk-jsum-lb { font-weight: 800; }
+
+/* 🎟 Chipta kartasida sovrin rasmi + holat */
+.oyk-tkt-pic {
+  width: 42px; height: 42px; border-radius: 10px; flex-shrink: 0; overflow: hidden;
+  display: flex; align-items: center; justify-content: center; font-size: 22px;
+  background: linear-gradient(150deg, var(--oyk-gold-pale), rgba(110, 90, 255, .12));
+}
+.oyk-tkt-pic img { width: 100%; height: 100%; object-fit: cover; }
+/* Uzun sovrin nomi kesilmaydi — 2 qatorga o'tadi (DIZAYN_QOIDALARI #12) */
+.oyk-tkt-prize {
+  white-space: normal; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
+  line-height: 1.25;
+}
+.oyk-tkt-badge.is-done { background: var(--oyk-fill); color: var(--oyk-text-3); }
+/* Skeleton real chipta balandligida (DIZAYN_QOIDALARI #11) */
+.oyk-skel-tkt { height: 122px; border-radius: 16px; }
+
+/* 🎟 Xarid varag'i — katta rasm + miqdor */
+.oyk-buy-hero {
+  position: relative; height: 168px; border-radius: 16px; overflow: hidden; margin-bottom: 10px;
+  display: flex; align-items: center; justify-content: center;
+  background: linear-gradient(150deg, var(--oyk-gold-pale), rgba(110, 90, 255, .12));
+}
+.oyk-buy-hero img { width: 100%; height: 100%; object-fit: cover; }
+.oyk-buy-hero-emoji { font-size: 72px; line-height: 1; }
+.oyk-buy-hero-fade {
+  position: absolute; left: 0; right: 0; bottom: 0; height: 72px;
+  background: linear-gradient(180deg, transparent, rgba(0,0,0,.62));
+}
+.oyk-buy-hero-name {
+  position: absolute; left: 13px; right: 13px; bottom: 26px; color: #fff;
+  font-size: 17px; font-weight: 900; line-height: 1.2;
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+}
+.oyk-buy-hero-val { position: absolute; left: 13px; bottom: 9px; color: rgba(255,255,255,.86); font-size: 11.5px; font-weight: 700; }
+.oyk-qty { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
+.oyk-qty-lb { font-size: 12.5px; font-weight: 800; }
+.oyk-qty-btns { display: flex; gap: 6px; flex: 1; }
+.oyk-qty-b {
+  width: 40px; height: 40px; border-radius: 12px; font-size: 15px; font-weight: 900;
+  background: var(--oyk-fill); border: 1px solid var(--oyk-line); color: var(--oyk-text);
+  cursor: pointer; transition: transform var(--dur-press);
+}
+.oyk-qty-b:active { transform: scale(.94); }
+.oyk-qty-b.is-on { background: var(--oyk-violet); border-color: var(--oyk-violet); color: #fff; }
+.oyk-qty-max { font-size: 11px; color: var(--oyk-text-3); white-space: nowrap; }
+.oyk-buy-note { line-height: 1.5; }

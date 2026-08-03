@@ -46,7 +46,7 @@ export function OyinTeaser({ onLink, busy }: { onLink: () => void; busy: boolean
           <div className="oyk-hero-glow" />
           <div className="oyk-hero-label">{closed ? "TEZ ORADA" : upcoming ? "TEZ ORADA BOSHLANADI" : "MAVSUM OCHIQ"}</div>
           <div className="oyk-hero-new-title">
-            {top ? <>Bosh sovrin — {top.name}</> : <>Tekin sovg'alar mavsumi</>}
+            {top ? <>Bosh sovrin — {top.name}</> : <>Sovrinlar mavsumi</>}
           </div>
           <div className="oyk-hero-new-sub">
             Hech narsa to'lamaysiz. Taksida yuring — har safar <b>ball</b> beradi.
@@ -58,7 +58,7 @@ export function OyinTeaser({ onLink, busy }: { onLink: () => void; busy: boolean
           <div>
             <div className="oyk-rail-head">
               <div className="oyk-rail-title">🎁 Sovrinlar</div>
-              <div className="oyk-rail-sub">{data.prizes.reduce((s, p) => s + p.limit, 0)} chipta-o'rin</div>
+              <div className="oyk-rail-sub">{data.prizes.reduce((s, p) => s + p.limit, 0)} ta chipta</div>
             </div>
             <div className="oyk-rail">
               {data.prizes.map((p) => (
