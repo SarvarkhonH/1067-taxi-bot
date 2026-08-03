@@ -52,6 +52,35 @@ Operator console) tegilmasdan.
 **Keyingi:** ega telefonda haqiqiy tekshiruv (owner-preview) → mustaqil tekshiruv bosqichi →
 QABUL → flag ON.
 
+#### 🎨 YAKUNIY DIZAYN (`OYIN_YAKUNIY_DIZAYN.md`, ega tasdig'i 2026-08-03) — `ready for verification`
+
+To'rtta manba birlashtirildi (jonli kodimiz · ikkita rasm-maket · Claude Design prototipi ·
+`DIZAYN_QOIDALARI.md` 17 qoida). Hujjat §8 dagi 12 o'zgarishdan **1-9 va 11 qurildi**.
+
+Qurilgan (commit `67d883f4`):
+1. Maqsad-sovrin — `oyin:goal:<id>`, `POST /api/oyin/goal`, hero "660 ball qoldi · Choy serviz"
+2. Chiptaning **global** raqami (`oyin:ticketno`, atomik upsert-increment) + tiraj **vaqti**
+3. "Chiptalarim" varaqdan **tabga** (4-tab) + bilet-obyekt grafikasi (perforatsiya, № 729475)
+4. Ball jadvali varaqdan **ekranga** + doimiy "Ball pul emas" qatori
+5. Tugmalarga mukofot (+30 / +40), sovrin kartasiga "Olingan: N · Qolgan: M"
+6. O'lchangan tanqislik 3 daraja, ekranda **eng ko'pi bitta** qizil
+7. "Xariddan keyin qoladi: N ball" — xarid varag'ida
+8. Ma'lumot to'plami "?" ortida (4 ekran, yangi tab QO'SHILMADI)
+9. Mavsum boshlanmagan ekran: kun/soat/daqiqa sanog'i + sovrinlar ko'rinadi
+11. Admin: narx/qiymat nisbati qo'rig'i (median ± 2×, tavsiya narx bilan)
+
+Yo'l-yo'lakay tuzatilgan yolg'onlar: boshlanmagan mavsumda "safar qiling, ball keladi" (mavsumdan
+oldingi safar ball bermaydi) · tugagan sovrinda "eng tez yo'l" (bo'sh va'da) · sotilgan sovrin
+tugmasi "Bu oy yakunlandi" (mavsum tugagani yo'q → "O'rinlar tugadi").
+
+**Qurilmagan (ochiq GAP):** §8 №10 g'oliblar tarixi (yozish+ko'rsatish, KT) · №12 "har 25 chipta =
+yangi sovrin" qulfi (KT — ega safardan qoladigan sof daromad raqamini aytishi kerak, §5 hisobi
+tayyor) · tiraj-KUNI jonli efir ekrani (№9 ning ikkinchi yarmi).
+
+**Isbot:** typecheck 4/4 · shared 90/90 · `simEconomy.ts` 0 buzilish (30 077 safar, max 350/safar) ·
+miniapp+admin build yashil · brauzerda `#oyindemo` uchala fazada (unset/upcoming/active) konsol
+xatosiz. **Jonli isbot va ega QABULi hali yo'q** — shuning uchun "done" emas.
+
 ### 🍽 RESTORAN REDIZAYN (design_handoff_restoran/1a) — B0 `owner-accepted`
 **Kontekst:** ega tashqi dizayn-paketi berdi (`C:\Users\sarva\Desktop\design_handoff_restoran`):
 piksel-spetsifikatsiya (`README.md`), kontent (`data/content.json`), jonli prototip
