@@ -266,10 +266,10 @@ export const BONUS_ECON_KNOBS: BonusEconKnob[] = [
   // 30 KUNLIK mavsumda, BIRORTA SAFARSIZ (faqat ilovani ochib turib) yig'sa bo'ladigan tom:
   //   kunlik kirish   5 × 30 = 150
   //   ulashish       10 × 30 = 300
-  //   ekranga o'rnatish  500 = 500  ← bepul yo'lning YARMIDAN KO'PI shu bitta knobda
+  //   ekranga o'rnatish  300 = 300
   //   ────────────────────────────
-  //   JAMI (sof "bosish")   = 950   → eng arzon sovrin 1 000 balldan HALI HAM past ✅
-  //   + telefon 100 (real raqam) + hikoya 150×3 = 450 (admin tasdig'i) → ~1 500 tom.
+  //   JAMI (sof "bosish")   = 750   → eng arzon sovrin 1 000 balldan past ✅
+  //   + telefon 100 (real raqam) + hikoya 150×3 = 450 (admin tasdig'i) → ~1 300 tom.
   //
   // ⚠️ Kunlik topshiriq bu hisobga KIRMAYDI va bu ATAYLAB: to'plamdagi 4 topshiriqning
   // uchtasi REAL safar talab qiladi (o'z safari / do'st safari), to'rtinchisi esa yangi
@@ -278,7 +278,7 @@ export const BONUS_ECON_KNOBS: BonusEconKnob[] = [
   // ~2 100 gacha ko'tarilgan edi. Teshik yopildi: shared/oyin.ts `OYIN_QUEST_POOL`.)
   //
   // 📏 Bepul yo'l mavsum UZUNLIGIGA chiziqli: kirish+ulashish = 15 ball/kun. 60 kunlik mavsum
-  // → 1 400, 90 kunlik → 1 850. Uzun mavsum belgilashdan oldin shuni hisobga oling.
+  // → 1 200, 90 kunlik → 1 650. Uzun mavsum belgilashdan oldin shuni hisobga oling.
   // Chipta darvozasi (`no_ride`: mavsumda ≥1 real safar) baribir kuchda — bepul ball yig'ilsa
   // ham, safarsiz odam chiptaga AYLANTIRA olmaydi.
   { key: "oyinDailyLoginBall", label: "🎮 Kunlik kirish — ball (bepul yo'l)", def: 5, min: 0, max: 100, step: 1, group: "Koson O'yini" },
@@ -286,9 +286,14 @@ export const BONUS_ECON_KNOBS: BonusEconKnob[] = [
   { key: "oyinStoryProofBall", label: "🎮 Hikoya joylash (admin tasdig'i) — ball (bepul yo'l)", def: 150, min: 0, max: 2000, step: 10, group: "Koson O'yini" },
   // 🎯 Kunlik topshiriq (har kuni random, server tekshiradi) va 🏠 doimiy topshiriq.
   { key: "oyinDailyQuestBall", label: "🎯 Kunlik topshiriq — bonus ball", def: 100, min: 0, max: 2000, step: 10, group: "Koson O'yini" },
-  // Real xarajat: 500 ball × 10 so'm × 15% = 750 so'm, MAVSUMDA BIR MARTA. Telegram
+  // Real xarajat: 300 ball × 10 so'm × 15% = 450 so'm, MAVSUMDA BIR MARTA. Telegram
   // `homeScreenAdded` hodisasi bilan tasdiqlanadi — mijoz "bosdim" desa yetarli emas.
-  { key: "oyinHomeScreenBall", label: "🏠 Ilovani ekranga o'rnatish — bonus ball", def: 500, min: 0, max: 5000, step: 50, group: "Koson O'yini" },
+  // ⚠️ 500 → 300 (ega qarori 2026-08-03). Ikki sabab: (1) 500 da bu knob bepul yo'lning 53% i
+  // edi — bitta knob butun bepul iqtisodni belgilab turardi; (2) tasdiq oxir-oqibat KLIENTdan
+  // keladi (`checkHomeScreenStatus()` → POST /api/oyin/home), ya'ni texnik odam route'ni qo'lda
+  // chaqira oladi. 300 da bepul yo'l 750 bo'lib eng arzon sovrindan (1 000) marja bilan past
+  // qoladi va 90 kunlik mavsumda ham oshmaydi (1 650 tomning ichida 300 ulushi kichik).
+  { key: "oyinHomeScreenBall", label: "🏠 Ilovani ekranga o'rnatish — bonus ball", def: 300, min: 0, max: 5000, step: 50, group: "Koson O'yini" },
   { key: "oyinSprintBonusBall", label: "🎮 Haftalik sprint top-3 — bonus ball", def: 300, min: 0, max: 5000, step: 10, group: "Koson O'yini" },
   // ⚠️ Zanjir endi SAFAR kunlari bo'yicha (avval ilova ochish sanalardi — safarsiz 500 ball/oy).
   { key: "oyinStreakBall", label: "🔥 3 kunlik SAFAR zanjiri — bonus ball", def: 50, min: 0, max: 1000, step: 10, group: "Koson O'yini" },
