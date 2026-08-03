@@ -34,7 +34,7 @@ DoD sifatida ishlatadi.
 | 10 | **Jismoniy narsa = real rasm.** Sovrin, mahsulot, taom — emoji faqat *fallback*. Fallback ham **rangli fon + katta emoji**; bo'sh kulrang kvadrat TAQIQ. | "sovg'a rasmlari kichik va chiroyli emas" (`XIZMATLAR_PLAN.md` §5.5 bilan bir xil qoida). |
 | 11 | **Skeleton — real layoutning nusxasi**, uch xil to'rtburchak emas. Balandligi real kartaga TENG bo'lishi shart. | "sahifa ochilishi xunuk"; hero skeletoni 216px, real karta 267px → yuklanganda sahifa sakrardi. |
 | 12 | **Uzun matn kesilmaydi, 2 qatorga o'tadi** (`-webkit-line-clamp: 2`). | Uzun sovrin nomi bir qatorda o'rtasidan kesilardi. |
-| 13 | **O'yin ekranlari mavzudan MUSTAQIL qorong'i.** Bu ongli qaror — o'yin alohida dunyo. "Hali qilinmagan ish" deb tushunilmasin. | "o'yin paneli uchun kunduzgi kerakmi?" savoli (ega qarori: kerak emas). |
+| 13 | **O'yin ekranlari ilovaning mavzusidan MUSTAQIL** — o'z doimiy palitrasida (hozir: yorug'). Ilova mavzusi o'zgarsa o'yin o'zgarmaydi. Bu ongli qaror, "hali qilinmagan ish" emas. | Avval qorong'i edi; ega "light tursin va yengil chaqmoqdek bo'lsin" dedi (2026-08-02) va ekran yorug'ga o'tkazildi. Qoida shunga moslandi — **mustaqillik** o'zgarmadi, palitra o'zgardi. |
 
 ## D. Javob va harakat
 
