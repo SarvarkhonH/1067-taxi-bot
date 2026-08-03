@@ -215,12 +215,23 @@
 .oyk-goalc-num { display: flex; align-items: baseline; gap: 8px; margin-top: 8px; }
 .oyk-goalc-num b { font-size: 40px; font-weight: 900; letter-spacing: -1.5px; line-height: 1; font-variant-numeric: tabular-nums; }
 .oyk-goalc-num span { font-size: 16px; font-weight: 800; color: var(--oyk-on-2); }
+/* 🎁 SOVRIN FOTOSI — ega 2026-08-03: "rasm kattaroq chiroyliroq bo'lsin ... bu rang bo'g'ganku".
+   Ikkita o'zgarish: (1) 82 → 108px, ya'ni foto endi kartaning ikkinchi darajali burchagi emas,
+   raqam bilan TENG og'irlikda; (2) to'q gradient fonda foto "bo'g'ilib" turardi — endi u OQ
+   plastinka ustida, oltin halqa va tashqi nur bilan ajratilgan, ya'ni karta rangi fotoni
+   bosmaydi. Karta rangining O'ZI o'zgarmadi (ega: "rangi o'z holicha qolsin"). */
 .oyk-goalc-img {
-  width: 82px; height: 82px; flex-shrink: 0; border-radius: 15px; overflow: hidden;
-  background: var(--oyk-on); display: flex; align-items: center; justify-content: center; font-size: 40px;
-  box-shadow: 0 6px 16px rgba(0, 0, 0, .3);
+  position: relative; width: 108px; height: 108px; flex-shrink: 0; border-radius: 19px; overflow: hidden;
+  background: #fff; display: flex; align-items: center; justify-content: center; font-size: 52px;
+  box-shadow: 0 10px 26px rgba(0, 0, 0, .38), 0 0 0 2px var(--oyk-gold-on-deep), 0 0 22px -6px var(--oyk-gold-on-deep);
 }
 .oyk-goalc-img img { width: 100%; height: 100%; object-fit: cover; display: block; }
+/* Yumshoq yorug'lik — foto "yaltirasin" (ega talabi), lekin animatsiyasiz: bu doimiy ko'rinadigan
+   element, harakatlanuvchi porlash bu yerda diqqatni ball raqamidan o'g'irlardi. */
+.oyk-goalc-img::after {
+  content: ""; position: absolute; inset: 0; pointer-events: none;
+  background: linear-gradient(148deg, rgba(255, 255, 255, .55) 0%, rgba(255, 255, 255, 0) 42%);
+}
 .oyk-goalc-bar { height: 9px; border-radius: 99px; background: var(--oyk-on-fill); margin-top: 13px; overflow: hidden; }
 .oyk-goalc-bar span { display: block; height: 100%; border-radius: 99px; background: var(--oyk-prog-grad); transition: width .5s ease; }
 .oyk-goalc-meta {
@@ -501,6 +512,13 @@
 .oyk-tkt-stub::before { top: -8px; }
 .oyk-tkt-stub::after { bottom: -8px; }
 .oyk-tkt-brand { font-size: 8.5px; font-weight: 900; letter-spacing: .12em; opacity: .8; }
+/* 🧪 TEST chipta (ega/admin sinovi) — HAQIQIY chiptadan bir qarashda ajralib turishi SHART.
+   Yashirin test chipta ikki tomonlama zarar: ega uni haqiqiy deb kutadi, mijoz esa keyin
+   ro'yxatda ko'rib "ega o'z tirajida qatnashgan" deb o'ylaydi. Shuning uchun boshqa rang +
+   yozuvning o'zi ochiq aytadi (oyin.tsx `oyk-tkt-brand`). */
+.oyk-tkt.is-test { border-style: dashed; border-color: var(--oyk-text-3); opacity: .92; }
+.oyk-tkt.is-test .oyk-tkt-stub { background: linear-gradient(135deg, #4b5563 0%, #1f2937 100%); }
+.oyk-tkt.is-test .oyk-tkt-brand { opacity: 1; letter-spacing: .06em; }
 .oyk-tkt-no { font-size: 20px; font-weight: 900; letter-spacing: .03em; margin-top: 4px; }
 .oyk-tkt-side {
   position: absolute; right: 0; top: 0; bottom: 0; width: 52px;

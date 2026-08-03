@@ -22,8 +22,11 @@ import type {
   OpsPulse,
   OyinActivityAction,
   OyinActivityResponse,
+  OyinAdminActionResult,
+  OyinAdminMemberDetail,
   OyinAdminPrizeRow,
   OyinDeleteResult,
+  OyinFreezeState,
   OyinDrawExport,
   OyinPosterText,
   OyinPrizeUpsertInput,
@@ -149,6 +152,16 @@ export const adminApi = {
   setOyinPrizeActive: (key: string, active: boolean) =>
     postJson<{ prizes: OyinAdminPrizeRow[] }>("/api/admin/oyin/prize/active", { key, active }),
   deleteOyinPrize: (key: string) => postJson<OyinDeleteResult>("/api/admin/oyin/prize/delete", { key }),
+  // ── 🛠 O'yin nazorati (ega talabi 2026-08-03: "oddiy kuzatuv emas") ────────────────────────
+  oyinMember: (memberId: number) => req<OyinAdminMemberDetail>(`/api/admin/oyin/member/${memberId}`),
+  oyinAdjustBall: (memberId: number, ball: number, reason: string) =>
+    postJson<OyinAdminActionResult>("/api/admin/oyin/ball", { memberId, ball, reason }),
+  oyinCancelTicket: (memberId: number, gno: number) =>
+    postJson<OyinAdminActionResult>("/api/admin/oyin/ticket/cancel", { memberId, gno }),
+  oyinSetBan: (memberId: number, banned: boolean, reason: string) =>
+    postJson<OyinAdminActionResult>("/api/admin/oyin/ban", { memberId, banned, reason }),
+  oyinFreeze: () => req<OyinFreezeState>("/api/admin/oyin/freeze"),
+  setOyinFreeze: (frozen: boolean) => postJson<OyinFreezeState>("/api/admin/oyin/freeze", { frozen }),
   setOyinSponsor: (name: string, photoUrl: string | null, active: boolean) =>
     postJson<{ name: string; photoUrl: string | null; active: boolean; isDefault: boolean }>("/api/admin/oyin/sponsor", { name, photoUrl, active }),
   oyinActivity: (filter: { memberId?: number; action?: OyinActivityAction; from?: string; to?: string; page?: number }) => {

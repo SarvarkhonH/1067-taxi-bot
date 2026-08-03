@@ -36,6 +36,34 @@ export async function notifyOnce(bot: Bot, chatId: string, memberId: number, kin
   return trySend(bot, chatId, memberId, kind, html, extra);
 }
 
+/** Nega yuborilmadi — CHAQIRUVCHI mijozga to'g'ri sabab ayta olsin.
+ *  ⚠️ 2026-08-03: "Rahmat ayt" hamma nosozlikni BITTA `unreachable` ga qulatardi va ekran
+ *  "do'stingiz botni bloklagan bo'lishi mumkin" deb yozardi. Amalda eng ko'p uchraydigan sabab
+ *  BLOK EMAS — `DAILY_PUSH_CAP` (safar bildirishnomalari ham shu limitni yeydi). Mijozga
+ *  yolg'on sabab aytilardi va u do'stiga bekordan-bekor gumon qilardi. */
+export type SendBlockReason = "blocked" | "notify_off" | "push_cap" | "duplicate" | "failed";
+
+/** 👤 FOYDALANUVCHI O'ZI BOSGAN xabar (masalan "Rahmat ayt"). `DAILY_PUSH_CAP` ni AYLANIB O'TADI.
+ *  Sabab: kunlik cap TIZIM o'z tashabbusi bilan spam qilmasin deb qo'yilgan (engagement push).
+ *  Odam o'z do'stiga atayin yuborayotgan xabar unga bo'ysunmasligi kerak — aks holda mijoz tugmani
+ *  bosadi, hech nima bo'lmaydi va sababi ham yolg'on aytiladi.
+ *  Hurmat qilinadigan chegaralar SAQLANADI: blok · "bildirishnoma o'chiq" · bir xil `kind` kuniga
+ *  bir marta (ya'ni bitta odam bitta do'stiga kuniga bitta rahmat — spam yo'li ochilmaydi). */
+export async function notifyUserInitiated(
+  bot: Bot, chatId: string, memberId: number, kind: string, html: string, extra?: object,
+): Promise<{ ok: true } | { ok: false; reason: SendBlockReason }> {
+  if (await isNotifyOff(memberId)) return { ok: false, reason: "notify_off" };
+  const { isBlocked, pushMessage } = await import("./pushSend");
+  if (await isBlocked(chatId)) return { ok: false, reason: "blocked" };
+  try {
+    await prisma.notifyLog.create({ data: { memberId, kind, dayKey: dayKey() } });
+  } catch {
+    return { ok: false, reason: "duplicate" }; // shu `kind` bugun allaqachon ketgan
+  }
+  const r = await pushMessage(bot, chatId, kind, html, { memberId, prechecked: true, extra });
+  return r === "skipped" ? { ok: false, reason: "failed" } : { ok: true };
+}
+
 async function trySend(bot: Bot, chatId: string, memberId: number, kind: string, html: string, extra?: object): Promise<boolean> {
   const dk = dayKey();
   if (await isNotifyOff(memberId)) return false; // user opted out of smart push

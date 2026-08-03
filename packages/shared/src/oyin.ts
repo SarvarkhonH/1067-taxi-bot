@@ -124,6 +124,10 @@ export interface OyinBallBreakdown {
   story: number; // 📸 tasdiqlangan hikoya-isbotlar (admin ko'rgan, HIKOYA_POSTER_PLAN.md)
   streak: number; // 🔥 3 kunlik zanjir bonuslari
   sprintBonus: number; // haftalik sprint top-3 (§sprintCheck)
+  // 🛠 Admin qo'lda tuzatgan ball (musbat = qo'shildi, manfiy = olindi). Sabab MAJBURIY va
+  // audit-logga tushadi. `earned` ichida — ya'ni yuqoridagi maydonlar yig'indisi baribir
+  // `earned` ga teng qoladi (o'sha invariantni buzmaslik uchun alohida maydon).
+  adjust: number;
   earned: number; // yig'indi (yuqoridagi HAMMASI — yangi manba qo'shilsa maydoni ham qo'shiladi)
   spent: number; // chiptalarga sarflangan
   ball: number; // earned − spent (manfiy bo'lmaydi)
@@ -281,6 +285,53 @@ export interface OyinDrawTicketRow {
 export interface OyinDrawExport {
   generatedAt: string;
   tickets: OyinDrawTicketRow[];
+  // 🔒 Tiraj muzlatilganmi va qachon. Muzlatilgan ro'yxat — jonli efirda o'qish uchun yagona
+  // ishonchli holat: undan keyin hech kim (EGA HAM) chipta qo'sha olmaydi.
+  frozenAt: string | null;
+  // Eksportdan CHIQARILGANLAR — yashirilmaydi, ochiq sanaladi (nechta test chipta, nechta
+  // chetlatilgan a'zo chiptasi). "Ro'yxat qisqartirilgan" ayblovi raqam bilan javob topadi.
+  excludedTest: number;
+  excludedBanned: number;
+}
+
+// ── 🛠 ADMIN NAZORATI (ega talabi 2026-08-03: "oddiy kuzatuv emas") ────────────────────────────
+/** Bitta a'zoning TO'LIQ o'yin holati — 12 ta ball manbai alohida, chiptalari, jazolari. */
+export interface OyinAdminMemberDetail {
+  memberId: number;
+  name: string;
+  telegramId: string | null;
+  ball: number; // joriy balans (earned − spent)
+  earned: number;
+  spent: number;
+  seasonRides: number;
+  breakdown: OyinBallBreakdown;
+  banned: boolean;
+  banReason: string | null;
+  tickets: OyinMyTicket[];
+  adjustLog: OyinBallAdjustEntry[];
+}
+export interface OyinBallAdjustEntry {
+  ball: number; // musbat = qo'shildi, manfiy = olindi
+  reason: string;
+  at: string; // ISO
+}
+/** ⚠️ `reason` MAJBURIY va bo'sh bo'lmaydi — sababsiz ball harakati keyin tekshirib bo'lmaydigan
+ *  pul izi qoldiradi (audit-log ham shuni yozadi). */
+export interface OyinBallAdjustInput {
+  memberId: number;
+  ball: number;
+  reason: string;
+}
+export interface OyinAdminActionResult {
+  ok: boolean;
+  reason?: "not_found" | "bad_input" | "frozen" | "not_ticket";
+  ball?: number; // yangi balans (ball tuzatishdan keyin)
+}
+/** 🔒 Tiraj muzlatish holati. Muzlatilgach chipta xaridi HAMMA uchun yopiladi (ega ham). */
+export interface OyinFreezeState {
+  frozen: boolean;
+  at: string | null;
+  ticketCount: number; // muzlatilgan lahzada tirajdagi chipta soni
 }
 
 export interface OyinSeasonCloseResult {
@@ -304,6 +355,9 @@ export const OYIN_ACTIVITY_ACTIONS = [
   "ride", "first_ride", "phone",
   "refer_join", "refer_first_ride", "refer_ride",
   "login", "share", "quest", "home", "story", "streak", "sprint_bonus", "ticket_buy",
+  // 🛠 Admin qo'lda tuzatgan ball. Ball BERADI (yoki OLADI), demak shu ro'yxatda BO'LISHI SHART —
+  // aks holda mijozning qo'ng'irog'ida "ball qayerdan keldi" savoli javobsiz qolardi.
+  "adjust",
 ] as const;
 export type OyinActivityAction = (typeof OYIN_ACTIVITY_ACTIONS)[number];
 
@@ -469,6 +523,9 @@ export interface OyinMyTicket {
   no: number; // sovrin ichidagi ketma-ket raqam
   at: string; // ISO — qachon olingan
   price: number; // o'sha paytdagi narx (keyin o'zgarsa ham tarix saqlanadi)
+  // 🧪 TEST chipta (ega/admin sinovi). Ekranda ochiq belgilanadi va TIRAJGA KIRMAYDI.
+  // Yashirilmaydi — yashirilgan test chipta "ega o'z tirajida qatnashdi" ayblovini keltiradi.
+  test?: boolean;
 }
 export interface OyinMyTicketsResponse {
   tickets: OyinMyTicket[];
@@ -513,7 +570,15 @@ export interface OyinFriendRow {
 /** "🤝 Rahmat ayt" natijasi — do'stning Telegram'iga botdan xabar boradi. */
 export interface OyinThanksResult {
   ok: boolean;
-  reason?: "not_friend" | "already" | "unreachable" | "off";
+  // ⚠️ 2026-08-03: avval hamma nosozlik BITTA `unreachable` ga qulardi va ekran "do'stingiz
+  // botni bloklagan bo'lishi mumkin" deb yozardi. Amalda eng ko'p uchraydigan sabab BLOK EMAS,
+  // balki kunlik push limiti edi (notifyService `DAILY_PUSH_CAP = 2` — safar bildirishnomalari
+  // ham shu limitni yeydi). Mijozga yolg'on sabab aytilardi. Endi har biri alohida:
+  //   `blocked`    — do'st botni rostan bloklagan
+  //   `notify_off` — do'st bildirishnomalarni o'chirgan
+  //   `no_chat`    — do'stning Telegram yozuvi yo'q (bot bilan hech qachon gaplashmagan)
+  //   `unreachable`— boshqa nosozlik (bot yo'q, Telegram xatosi)
+  reason?: "not_friend" | "already" | "blocked" | "notify_off" | "no_chat" | "unreachable" | "off";
 }
 export interface OyinJamoamResponse {
   friends: OyinFriendRow[];
@@ -532,7 +597,14 @@ export interface OyinBuyResult {
   // `final_lock` — mavsum tugashiga <48 soat qoldi, ro'yxat tirajga qotdi (OYIN_FINAL_LOCK_MS).
   // `no_ride` — mavsumda birorta ham real safar yo'q. Chipta SOVRIN yo'li ham, tanga PUL yo'li
   // ham bir xil shartga bo'ysunadi (avval faqat pul yo'li qo'riqlangan edi).
-  reason?: "insufficient" | "sold_out" | "unknown_prize" | "off" | "season_off" | "own_limit" | "final_lock" | "no_ride" | "staff";
+  // `banned` — a'zo o'yindan chetlatilgan (admin qarori). `frozen` — tiraj muzlatilgan: ro'yxat
+  // qotdi, hech kim (EGA HAM) yangi chipta ola olmaydi.
+  // ⚠️ `staff` ENDI QAYTARILMAYDI — ega/admin xaridi to'silish o'rniga TEST-CHIPTA bo'ladi
+  // (`test:true`, `drawExport` dan chiqarilgan). Union'da moslik uchun qoldirildi.
+  reason?: "insufficient" | "sold_out" | "unknown_prize" | "off" | "season_off" | "own_limit" | "final_lock" | "no_ride" | "staff" | "banned" | "frozen";
+  // 🧪 Bu xarid TEST edi — ega/admin butun oqimni sinaydi, chipta esa tirajga KIRMAYDI va
+  // mijozlarning sovrin-o'rinlarini YEMAYDI (alohida hisoblagich).
+  test?: boolean;
   ticketNo?: number;
   // 🎟 Bayram-oynasi ko'rsatadigan raqam — MIJOZ KEYIN CHIPTALARIM'da ko'radigan raqamning
   // AYNAN O'ZI bo'lishi shart. Avval bayramda sovrin-ichi tartib raqami ("№0002"), ro'yxatda

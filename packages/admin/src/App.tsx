@@ -36,7 +36,10 @@ import {
   SHOP_CATEGORIES,
   type OyinActivityAction,
   type OyinActivityResponse,
+  type OyinAdminMemberDetail,
   type OyinAdminPrizeRow,
+  type OyinBallBreakdown,
+  type OyinFreezeState,
   type OyinPosterText,
   type OyinSeasonView,
   type OyinStoryAdminRow,
@@ -248,7 +251,7 @@ export function App() {
           {tab === "restoran" && (<><RestoranAdminView /><RestoranCatalogAdminView /></>)}
           {tab === "ravella" && <RavellaAdminView />}
           {tab === "jamoa" && <JamoaAdminView />}
-          {tab === "oyin" && <><OyinSeasonMetricsCard /><OyinActivityView /></>}
+          {tab === "oyin" && <><OyinSeasonMetricsCard /><OyinControlCard /><OyinActivityView /></>}
           {tab === "bilim" && <KnowledgeAdminView />}
           {tab === "topshiriq" && <><QuickAnnounceView /><CampaignsView /><DriverMissionsView /></>}
           {tab === "actions" && <><ActionsView onHistory={() => goTab("broadcasts")} /><ControlCards /></>}
@@ -5821,6 +5824,168 @@ function IntercityAdmin() {
 // (nechta chipta ketdi, katalog qancha turadi, bu ballni yig'ish uchun necha safar kerak)
 // umuman bilmasdi — bularning hammasi uchun SSH kerak edi. YANGI ROUTE YO'Q: hammasi mavjud
 // `oyin/season` + `oyin/catalog` + `bonus-economy` javoblaridan hisoblanadi.
+// ─── 🛠 O'YIN NAZORATI (ega talabi 2026-08-03: "admin panelga ham kuchli nazorat kerak oddiy
+// kuzatuv emas"). To'rtta kuch: ball tuzatish · chipta bekor qilish · chetlatish · tiraj muzlatish.
+// Har biri serverda `requireOwner` bilan qo'riqlanadi va `alertAdmins` orqali e'lon qilinadi —
+// jim harakat TAQIQ (CLAUDE.md). Bu yerdagi tasdiq oynalari qulaylik uchun, HIMOYA emas.
+function OyinControlCard() {
+  const [idInput, setIdInput] = useState("");
+  const [d, setD] = useState<OyinAdminMemberDetail | null>(null);
+  const [err, setErr] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [freeze, setFreeze] = useState<OyinFreezeState | null>(null);
+  const [ballDelta, setBallDelta] = useState("");
+  const [reason, setReason] = useState("");
+
+  useEffect(() => { adminApi.oyinFreeze().then(setFreeze).catch(() => setFreeze(null)); }, []);
+
+  const load = async (id: number) => {
+    setBusy(true); setErr(null);
+    try { setD(await adminApi.oyinMember(id)); }
+    catch { setD(null); setErr(`#${id} topilmadi — bu a'zo o'yin ro'yxatida yo'q (raqami ulanganmi?)`); }
+    finally { setBusy(false); }
+  };
+  const reload = () => { if (d) void load(d.memberId); };
+
+  const doAdjust = async () => {
+    if (!d) return;
+    const n = Math.round(Number(ballDelta));
+    if (!Number.isFinite(n) || n === 0) { setErr("Ball 0 dan farqli son bo'lishi kerak"); return; }
+    if (!reason.trim()) { setErr("Sabab yozilishi SHART — bu pul izi, sababsiz qoldirilmaydi"); return; }
+    setBusy(true); setErr(null);
+    const r = await adminApi.oyinAdjustBall(d.memberId, n, reason.trim()).catch(() => null);
+    setBusy(false);
+    if (!r?.ok) { setErr("Bajarilmadi"); return; }
+    setBallDelta(""); setReason(""); reload();
+  };
+  const doCancel = async (gno: number) => {
+    if (!d || !confirm(`№${gno} chiptasi bekor qilinsinmi?\n\nSovrindagi o'rin qaytadi va sarflangan ball a'zoga qaytariladi. Bu amal qaytarilmaydi.`)) return;
+    setBusy(true);
+    await adminApi.oyinCancelTicket(d.memberId, gno).catch(() => null);
+    setBusy(false); reload();
+  };
+  const doBan = async () => {
+    if (!d) return;
+    if (d.banned) {
+      if (!confirm(`#${d.memberId} o'yinga QAYTARILSINMI?\n\nChiptalari yana tirajda qatnashadi.`)) return;
+      setBusy(true); await adminApi.oyinSetBan(d.memberId, false, "").catch(() => null); setBusy(false); reload(); return;
+    }
+    const why = prompt(`#${d.memberId} o'yindan CHETLATILSINMI?\n\nBall yig'ilishi to'xtamaydi, lekin chipta ola olmaydi va MAVJUD ${d.tickets.length} ta chiptasi TIRAJDAN CHIQARILADI.\n\nSabab (majburiy):`);
+    if (!why?.trim()) return;
+    setBusy(true); await adminApi.oyinSetBan(d.memberId, true, why.trim()).catch(() => null); setBusy(false); reload();
+  };
+  const doFreeze = async () => {
+    const on = !freeze?.frozen;
+    if (on && !confirm("TIRAJ MUZLATILSINMI?\n\nShu lahzadan HECH KIM (siz ham) yangi chipta ola olmaydi. Ro'yxat qotadi va jonli efirda o'qishga tayyor bo'ladi.\n\nKeyin qayta ochish mumkin.")) return;
+    if (!on && !confirm("Tiraj OCHILSINMI? Chipta xaridi qayta ishlaydi va ro'yxat yana o'zgaradi.")) return;
+    setBusy(true);
+    const r = await adminApi.setOyinFreeze(on).catch(() => null);
+    setBusy(false);
+    if (r) setFreeze(r);
+  };
+
+  const BD: { k: keyof OyinBallBreakdown; label: string }[] = [
+    { k: "rides", label: "🚕 O'z safarlari" }, { k: "phone", label: "📱 Telefon" },
+    { k: "referJoin", label: "👥 Do'st ulandi" }, { k: "referFirstRide", label: "🎉 Do'st 1-safar" },
+    { k: "referRides", label: "🤝 Do'st safarlari" }, { k: "login", label: "🗓 Kunlik kirish" },
+    { k: "share", label: "📤 Ulashish" }, { k: "quest", label: "🎯 Topshiriq" },
+    { k: "home", label: "🏠 Ekranga o'rnatish" }, { k: "story", label: "📸 Hikoya" },
+    { k: "streak", label: "🔥 Zanjir" }, { k: "sprintBonus", label: "🏁 Sprint" },
+    { k: "adjust", label: "🛠 Qo'lda tuzatish" },
+  ];
+
+  return (
+    <section className="panel">
+      <div className="panel-title">🛠 O'yin nazorati</div>
+
+      {/* 🔒 TIRAJ MUZLATISH — a'zodan mustaqil, butun o'yinga ta'sir qiladi, shuning uchun tepada. */}
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap", padding: "10px 12px", borderRadius: 10, marginBottom: 12, background: freeze?.frozen ? "rgba(240,180,41,.16)" : "rgba(255,255,255,.05)" }}>
+        <div style={{ fontSize: 12.5 }}>
+          {freeze?.frozen
+            ? <>🔒 <b>TIRAJ MUZLATILGAN</b> — {freeze.at?.slice(0, 16).replace("T", " ")} dan, ro'yxatda <b>{formatNumber(freeze.ticketCount)}</b> ta chipta. Hech kim (siz ham) chipta ola olmaydi.</>
+            : <>🔓 <b>Tiraj ochiq</b> — chipta xaridi ishlayapti. Jonli efirdan oldin muzlating: ro'yxat qotadi va «keyin qo'shib qo'ydi» ayblovi imkonsiz bo'ladi.</>}
+        </div>
+        <button className={freeze?.frozen ? "btn" : "btn danger"} disabled={busy} onClick={() => void doFreeze()}>
+          {freeze?.frozen ? "🔓 Tirajni ochish" : "🔒 Tirajni muzlatish"}
+        </button>
+      </div>
+
+      <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 12 }}>
+        <input value={idInput} onChange={(e) => setIdInput(e.target.value)} placeholder="A'zo ID (masalan 1234)" style={{ maxWidth: 200 }} />
+        <button className="btn" disabled={busy || !idInput.trim()} onClick={() => void load(Number(idInput.trim()))}>🔍 Ochish</button>
+        {d && <button className="btn" disabled={busy} onClick={reload}>↻ Yangilash</button>}
+      </div>
+      {err && <div style={{ fontSize: 12.5, color: "#ff6b6b", marginBottom: 10 }}>{err}</div>}
+
+      {d && (
+        <>
+          <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", marginBottom: 10 }}>
+            <b style={{ fontSize: 15 }}>{d.name}</b>
+            <span className="muted" style={{ fontSize: 12 }}>#{d.memberId}</span>
+            {d.banned && <span style={{ fontSize: 11, fontWeight: 800, padding: "3px 8px", borderRadius: 6, background: "rgba(255,107,107,.18)", color: "#ff6b6b" }}>🚫 CHETLATILGAN{d.banReason ? ` — ${d.banReason}` : ""}</span>}
+          </div>
+          <div className="cards" style={{ marginBottom: 12 }}>
+            <Card icon="🪙" label="Joriy ball" value={formatNumber(d.ball)} accent />
+            <Card icon="📈" label="Yig'ilgan" value={formatNumber(d.earned)} />
+            <Card icon="🎟" label="Sarflangan" value={formatNumber(d.spent)} sub={`${d.tickets.length} ta chipta`} />
+            <Card icon="🚕" label="Mavsum safarlari" value={formatNumber(d.seasonRides)} sub={d.seasonRides > 0 ? "chipta olishi mumkin" : "chipta OLA OLMAYDI (no_ride)"} />
+          </div>
+
+          {/* Ball qayerdan kelgani — 13 manba alohida. "Ball qayerdan keldi" savoliga bitta ekrandan javob. */}
+          <div className="table-wrap" style={{ marginBottom: 12 }}>
+            <table>
+              <thead><tr><th>Ball manbai</th><th className="num">Ball</th></tr></thead>
+              <tbody>
+                {BD.filter((r) => d.breakdown[r.k] !== 0).map((r) => (
+                  <tr key={String(r.k)}><td className="td-name">{r.label}</td><td className="num strong">{formatNumber(d.breakdown[r.k])}</td></tr>
+                ))}
+                <tr><td className="td-name"><b>Jami yig'ilgan</b></td><td className="num strong">{formatNumber(d.earned)}</td></tr>
+              </tbody>
+            </table>
+          </div>
+
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center", marginBottom: 12 }}>
+            <input value={ballDelta} onChange={(e) => setBallDelta(e.target.value)} placeholder="+500 yoki -200" style={{ maxWidth: 130 }} />
+            <input value={reason} onChange={(e) => setReason(e.target.value)} placeholder="Sabab (majburiy)" style={{ flex: 1, minWidth: 180 }} />
+            <button className="btn" disabled={busy} onClick={() => void doAdjust()}>🛠 Ball tuzatish</button>
+            <button className={d.banned ? "btn" : "btn danger"} disabled={busy} onClick={() => void doBan()}>
+              {d.banned ? "✅ O'yinga qaytarish" : "🚫 O'yindan chetlatish"}
+            </button>
+          </div>
+
+          {d.tickets.length > 0 && (
+            <div className="table-wrap" style={{ marginBottom: 12 }}>
+              <table>
+                <thead><tr><th>Chipta</th><th>Sovrin</th><th className="num">Narx</th><th>Olingan</th><th /></tr></thead>
+                <tbody>
+                  {d.tickets.map((t) => (
+                    <tr key={t.gno} style={t.test ? { opacity: 0.65 } : undefined}>
+                      <td className="td-name">№ {t.gno}{t.test ? " 🧪 TEST" : ""}</td>
+                      <td>{t.prizeIcon} {t.prizeName}</td>
+                      <td className="num">{formatNumber(t.price)}</td>
+                      <td className="muted">{t.at.slice(0, 16).replace("T", " ")}</td>
+                      <td><button className="btn danger" disabled={busy} onClick={() => void doCancel(t.gno)}>Bekor qilish</button></td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+
+          {d.adjustLog.length > 0 && (
+            <div className="muted" style={{ fontSize: 12, lineHeight: 1.8, background: "rgba(255,255,255,.04)", borderRadius: 8, padding: "10px 12px" }}>
+              <b style={{ color: "var(--text)" }}>🛠 Qo'lda tuzatishlar tarixi</b>
+              {d.adjustLog.map((e, i) => (
+                <div key={i}>{e.at.slice(0, 16).replace("T", " ")} · <b style={{ color: "var(--text)" }}>{e.ball > 0 ? "+" : ""}{formatNumber(e.ball)}</b> — {e.reason}</div>
+              ))}
+            </div>
+          )}
+        </>
+      )}
+    </section>
+  );
+}
+
 function OyinSeasonMetricsCard() {
   const [season, setSeason] = useState<OyinSeasonView | null>(null);
   const [catalog, setCatalog] = useState<OyinAdminPrizeRow[] | null>(null);

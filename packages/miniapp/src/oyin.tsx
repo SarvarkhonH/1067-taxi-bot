@@ -132,7 +132,11 @@ function buyReasonText(reason: string | undefined): string {
     case "final_lock": return "🔒 Chipta olish yopildi — ro'yxat tirajga tayyor. Chiptalaringiz «Chiptalarim» bo'limida";
     case "own_limit": return "⚖️ Bu sovrindan limitga yetdingiz — boshqasini tanlang";
     case "unknown_prize": return "🚫 Bu sovrin ro'yxatdan olib tashlandi — boshqasini tanlang";
+    // ⚠️ `staff` ENDI SERVERDAN KELMAYDI — ega/admin xaridi to'silish o'rniga TEST-chipta bo'ladi.
+    // Matn eski javoblar (kesh/qayta urinish) uchun qoldirildi.
     case "staff": return "🚫 Xodim va ega tirajda qatnashmaydi — bu adolat qoidasi";
+    case "banned": return "🚫 Hisobingiz o'yindan chetlatilgan. Savol bo'lsa — qo'llab-quvvatlashga yozing";
+    case "frozen": return "🔒 Tiraj ro'yxati muzlatildi — chipta olish yakunlandi. Chiptalaringiz «Chiptalarim»da";
     case "no_ride": return "🚕 Chipta uchun kamida bitta real safar kerak — avval taksi chaqiring";
     case "insufficient": return "⚡ Ball yetarli emas";
     default: return "Xatolik — qayta urinib ko'ring";
@@ -155,7 +159,7 @@ const ACTION_EMOJI: Record<OyinActivityAction, string> = {
   ride: "🚕", first_ride: "🥇", phone: "📱",
   refer_join: "👥", refer_first_ride: "🎉", refer_ride: "🤝",
   login: "🗓", share: "📤", quest: "🎯", home: "🏠",
-  story: "📸", streak: "🔥", sprint_bonus: "🏁", ticket_buy: "🎟",
+  story: "📸", streak: "🔥", sprint_bonus: "🏁", ticket_buy: "🎟", adjust: "🛠",
 };
 const ACTION_LABEL: Record<OyinActivityAction, string> = {
   ride: "Safar qildingiz",
@@ -172,6 +176,9 @@ const ACTION_LABEL: Record<OyinActivityAction, string> = {
   streak: "Ketma-ket safar bonusi",
   sprint_bonus: "Haftalik bonus",
   ticket_buy: "Chipta oldingiz",
+  // 🛠 Admin qo'lda tuzatgan ball. Sabab qatorning `note` maydonida chiqadi — mijoz nima
+  // uchun ekanini KO'RADI (yashirin tuzatish = "ball qayerdan keldi" savoli javobsiz qolishi).
+  adjust: "Ball tuzatildi (admin)",
 };
 /** Do'st ishtirok etgan voqealar — ism EGA bo'lgan shakl ("Amir safar qildi"). */
 const FRIEND_LABEL: Partial<Record<OyinActivityAction, string>> = {
@@ -468,7 +475,15 @@ export function OyinView({ onTaxi }: { onTaxi?: () => void } = {}) {
       if (r.ok) { showToast("🤝 Rahmatingiz yuborildi!"); return; }
       if (r.reason === "already") { showToast("Bugun allaqachon rahmat aytdingiz"); return; }
       setThanked((s) => { const n = new Set(s); n.delete(friendMemberId); return n; });
-      showToast(r.reason === "unreachable" ? "Xabar yetib bormadi — do'stingiz botni bloklagan bo'lishi mumkin" : "Yuborib bo'lmadi");
+      // ⚠️ Har sabab O'ZI aytiladi. Avval HAMMASI "do'stingiz botni bloklagan bo'lishi mumkin"
+      // deb chiqardi — eng ko'p uchraydigan sabab esa kunlik push limiti edi (server endi uni
+      // umuman qo'llamaydi). Mijoz do'stidan bekorga xafa bo'lardi.
+      showToast(
+        r.reason === "blocked" ? "Do'stingiz botni bloklagan — xabar yetib bormadi"
+          : r.reason === "notify_off" ? "Do'stingiz bildirishnomalarni o'chirgan"
+          : r.reason === "no_chat" ? "Do'stingiz hali bot bilan yozishmagan — xabar yuborib bo'lmaydi"
+          : "Yuborib bo'lmadi — birozdan keyin urinib ko'ring",
+      );
     } catch {
       setThanked((s) => { const n = new Set(s); n.delete(friendMemberId); return n; });
       showToast("Rahmat yuborilmadi — birozdan keyin urinib ko'ring");
@@ -1203,9 +1218,12 @@ Taksida yur, ball yig', chipta ol. Mavsum oxiri jonli tirajda o'ynaladi. Mening 
             ) : (
               <>
                 {tickets.tickets.map((t) => (
-                  <div key={`${t.prizeKey}-${t.gno}`} className="oyk-tkt">
+                  <div key={`${t.prizeKey}-${t.gno}`} className={`oyk-tkt${t.test ? " is-test" : ""}`}>
                     <div className="oyk-tkt-stub">
-                      <div className="oyk-tkt-brand">BIRJOY SOVRIN CHIPTASI</div>
+                      {/* 🧪 TEST chipta OCHIQ belgilanadi. Yashirilsa ega o'z sinov chiptasini
+                          haqiqiy deb o'ylab tirajni kutardi va "nega yutmadim" savoli javobsiz
+                          qolardi (DIZAYN_QOIDALARI: ekran yolg'on va'da bermaydi). */}
+                      <div className="oyk-tkt-brand">{t.test ? "🧪 TEST CHIPTA — TIRAJGA KIRMAYDI" : "BIRJOY SOVRIN CHIPTASI"}</div>
                       <div className="oyk-tkt-no">№ {t.gno}</div>
                       <div className="oyk-tkt-side">{t.gno}</div>
                     </div>

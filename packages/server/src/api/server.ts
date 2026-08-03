@@ -2258,6 +2258,64 @@ export function createApiServer(opts: ApiOptions = {}) {
     const { adminDeletePrize } = await import("../services/oyinService");
     res.json(await adminDeletePrize(b.key));
   });
+  // ── 🛠 O'YIN NAZORATI (ega talabi 2026-08-03: "oddiy kuzatuv emas") ───────────────────────────
+  // To'rttasi ham `requireOwner`: ball, chipta, jazo va tiraj — bularning har biri pulga yoki
+  // adolatga tegadi, operator-token bilan bajarilmasligi kerak.
+  // ⚠️ HAR BIRI `alertAdmins` bilan e'lon qilinadi. Loyiha qoidasi (CLAUDE.md): jim toggle TAQIQ —
+  // ega o'z telefonida ko'rmagan harakat keyin "men qilmadim" bahsiga aylanadi.
+  app.get("/api/admin/oyin/member/:id", requireAdmin, async (req, res) => {
+    const { adminMemberDetail } = await import("../services/oyinService");
+    const d = await adminMemberDetail(Number(req.params.id));
+    if (!d) { res.status(404).json({ error: "not_found" }); return; }
+    res.json(d);
+  });
+  app.post("/api/admin/oyin/ball", requireAdmin, requireOwner, rateLimit(30), async (req, res) => {
+    const b = req.body as { memberId?: number; ball?: number; reason?: string };
+    const { adminAdjustBall } = await import("../services/oyinService");
+    const r = await adminAdjustBall({ memberId: Number(b?.memberId), ball: Number(b?.ball), reason: String(b?.reason ?? "") });
+    if (r.ok) {
+      const { alertAdmins } = await import("../services/economyService");
+      const sign = Number(b?.ball) > 0 ? "+" : "";
+      await alertAdmins(`🛠 <b>O'yin ball tuzatildi</b>\n#${Number(b?.memberId)} → ${sign}${Number(b?.ball)} ball\nSabab: ${String(b?.reason ?? "")}\nYangi balans: ${r.ball}`).catch(() => undefined);
+    }
+    res.json(r);
+  });
+  app.post("/api/admin/oyin/ticket/cancel", requireAdmin, requireOwner, rateLimit(30), async (req, res) => {
+    const b = req.body as { memberId?: number; gno?: number };
+    const { adminCancelTicket } = await import("../services/oyinService");
+    const r = await adminCancelTicket(Number(b?.memberId), Number(b?.gno));
+    if (r.ok) {
+      const { alertAdmins } = await import("../services/economyService");
+      await alertAdmins(`🎟 <b>O'yin chiptasi bekor qilindi</b>\n#${Number(b?.memberId)} · chipta №${Number(b?.gno)}\nO'rin sovringa qaytarildi, ball qaytdi (yangi balans: ${r.ball})`).catch(() => undefined);
+    }
+    res.json(r);
+  });
+  app.post("/api/admin/oyin/ban", requireAdmin, requireOwner, rateLimit(30), async (req, res) => {
+    const b = req.body as { memberId?: number; banned?: boolean; reason?: string };
+    const { adminSetBan } = await import("../services/oyinService");
+    const r = await adminSetBan(Number(b?.memberId), !!b?.banned, String(b?.reason ?? ""));
+    if (r.ok) {
+      const { alertAdmins } = await import("../services/economyService");
+      await alertAdmins(b?.banned
+        ? `🚫 <b>O'yindan chetlatildi</b>\n#${Number(b?.memberId)}\nSabab: ${String(b?.reason ?? "")}\nChiptalari tirajdan chiqarildi.`
+        : `✅ <b>O'yinga qaytarildi</b>\n#${Number(b?.memberId)}`).catch(() => undefined);
+    }
+    res.json(r);
+  });
+  app.get("/api/admin/oyin/freeze", requireAdmin, async (_req, res) => {
+    const { getFreeze } = await import("../services/oyinService");
+    res.json(await getFreeze());
+  });
+  app.post("/api/admin/oyin/freeze", requireAdmin, requireOwner, async (req, res) => {
+    const b = req.body as { frozen?: boolean };
+    const { adminSetFreeze } = await import("../services/oyinService");
+    const r = await adminSetFreeze(!!b?.frozen);
+    const { alertAdmins } = await import("../services/economyService");
+    await alertAdmins(r.frozen
+      ? `🔒 <b>TIRAJ MUZLATILDI</b>\nRo'yxatda ${r.ticketCount} ta chipta.\nShu lahzadan HECH KIM (ega ham) chipta ola olmaydi.`
+      : `🔓 <b>Tiraj ochildi</b>\nChipta xaridi qayta ishlaydi.`).catch(() => undefined);
+    res.json(r);
+  });
   // 📋 Kim-nima-qildi jadvali (B3) — bugun umuman yo'q edi (tekshirilgan). Ball JONLI hisoblangani
   // uchun bu READ-ONLY rekonstruksiya (yangi yozuv yo'q) — getActivity() izohiga qarang.
   app.get("/api/admin/oyin/activity", requireAdmin, async (req, res) => {

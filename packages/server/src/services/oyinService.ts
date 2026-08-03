@@ -38,6 +38,11 @@ import {
   type OyinTeaserResponse,
   type OyinThanksResult,
   type OyinVitrinaResponse,
+  type OyinAdminActionResult,
+  type OyinAdminMemberDetail,
+  type OyinBallAdjustEntry,
+  type OyinBallAdjustInput,
+  type OyinFreezeState,
 } from "@t1067/shared";
 import { prisma } from "../db";
 import { getBonusEcon } from "./bonusConfig";
@@ -59,7 +64,7 @@ function withMemberLock<T>(memberId: number, fn: () => Promise<T>): Promise<T> {
 
 const EMPTY_BREAKDOWN: OyinBallBreakdown = {
   rides: 0, phone: 0, referJoin: 0, referFirstRide: 0, referRides: 0, login: 0, share: 0,
-  quest: 0, home: 0, story: 0, streak: 0, sprintBonus: 0, earned: 0, spent: 0, ball: 0,
+  quest: 0, home: 0, story: 0, streak: 0, sprintBonus: 0, adjust: 0, earned: 0, spent: 0, ball: 0,
 };
 
 interface MemberBallRow {
@@ -75,7 +80,9 @@ interface AppStateRow { key: string; value: string }
 // `no` — sovrin ICHIDAGI ketma-ket raqam (N-limit hisobi shunga bog'liq, o'zgarmaydi).
 // `gno` — GLOBAL noyob raqam, mijozga ko'rsatiladi (chipta = ko'rinadigan buyum).
 // Eski chiptalarda `gno` yo'q — o'sha holda `no` ko'rsatiladi (moslik).
-interface TicketRecord { prizeKey: OyinPrizeKey; no: number; gno?: number; priceAtPurchase: number; ts: string }
+// `test` — ega/admin sinov chiptasi: butun oqim AYNAN mijoznikidek yuriladi, lekin `drawExport`
+// uni chiqarib tashlaydi va u mijozlarning sovrin-o'rinlarini YEMAYDI (alohida hisoblagich).
+interface TicketRecord { prizeKey: OyinPrizeKey; no: number; gno?: number; priceAtPurchase: number; ts: string; test?: boolean }
 
 // ⚠️ VALIDATSIYA, sof `as` o'girish EMAS. Avval JSON massiv to'g'ridan-to'g'ri `TicketRecord[]`
 // deb e'lon qilinardi — tiplar YOLG'ON edi va bitta buzuq qator butun iqtisodni chalkashtirardi:
@@ -106,6 +113,9 @@ function parseTickets(raw: string | undefined): TicketRecord[] {
         priceAtPurchase: Number.isFinite(priceRaw) ? Math.max(0, Math.round(priceRaw)) : 0,
         // `ts` buzuq bo'lsa `ticketInSeason` uni MAVSUM ICHIDA deb sanaydi (o'sha izohga qarang).
         ts: typeof t.ts === "string" ? t.ts : "",
+        // ⚠️ FAQAT qat'iy `true` test hisoblanadi. `"false"`/`0`/`"1"` kabi qiymatlar test
+        // BO'LMAYDI — aks holda buzuq qator chiptani jimgina tirajdan chiqarib tashlardi.
+        ...(t.test === true ? { test: true as const } : {}),
       });
     }
     return out;
@@ -246,7 +256,7 @@ async function computeBallMap(): Promise<Map<number, MemberBallRow>> {
   const fromWeek = season.startWeekKey as string;
   const toWeek = season.endWeekKey as string;
 
-  const [rideCounts, rideDayRows, referrals, telegramUsers, ticketRows, loginRows, shareRows, questRows, homeRows, sprintWinRows, storyRows] = await Promise.all([
+  const [rideCounts, rideDayRows, referrals, telegramUsers, ticketRows, loginRows, shareRows, questRows, homeRows, sprintWinRows, storyRows, adjRows] = await Promise.all([
     // 1) YAGONA DB-darajasidagi sana filtri — katta jadval va indeksi bor (@@index([createdAt])).
     prisma.rideReward.groupBy({ by: ["memberId"], _count: { _all: true }, where: { createdAt: { gte: from, lte: to } } }),
     // 1b) ⚠️ Zanjir uchun SAFAR KUNLARI. Avval zanjir `oyin:login:` (ILOVA OCHISH) bo'yicha edi —
@@ -273,6 +283,9 @@ async function computeBallMap(): Promise<Map<number, MemberBallRow>> {
     prisma.appState.findMany({ where: { key: { startsWith: "oyin:sprintwin:" } } }) as Promise<AppStateRow[]>,
     // 📸 hikoya-isbotlar (HIKOYA_POSTER_PLAN.md) — faqat TASDIQLANGANLARI va mavsum ichidagilari
     prisma.appState.findMany({ where: { key: { startsWith: "oyin:story:" } } }) as Promise<AppStateRow[]>,
+    // 🛠 Admin qo'lda tuzatgan ball. Mavsumga KESILMAYDI (qator mavsum bilan arxivlanadi, ya'ni
+    //    yangi mavsumda o'zi bo'shaydi) — sanani ikkinchi marta filtrlash ikki qavat qoida bo'lardi.
+    prisma.appState.findMany({ where: { key: { startsWith: ADJ_PREFIX } } }) as Promise<AppStateRow[]>,
   ]);
 
   // Nomi ATAYLAB "season…" — endi ikki vazifa bajaradi (o'z safari + referee safari), kelajakda
@@ -331,6 +344,12 @@ async function computeBallMap(): Promise<Map<number, MemberBallRow>> {
   for (const row of shareRows) {
     const memberId = Number(row.key.slice("oyin:share:".length));
     if (Number.isFinite(memberId)) shareDaysByMember.set(memberId, countDays(row.value));
+  }
+  // 🛠 Admin tuzatishi — musbat ham, manfiy ham bo'lishi mumkin.
+  const adjustByMember = new Map<number, number>();
+  for (const row of adjRows) {
+    const memberId = Number(row.key.slice(ADJ_PREFIX.length));
+    if (Number.isFinite(memberId)) adjustByMember.set(memberId, parseAdjust(row.value).total);
   }
   // Tasdiqlangan + mavsum oynasidagi hikoya-isbotlar
   const storyByMember = new Map<number, number>();
@@ -405,7 +424,8 @@ async function computeBallMap(): Promise<Map<number, MemberBallRow>> {
   // Ikkinchi qavat: hisobda ham kesiladi.
   const storyBall = Math.min(storyByMember.get(memberId) ?? 0, OYIN_STORY_SEASON_LIMIT) * (econ.oyinStoryProofBall ?? 0);
     const streakBall = (streakByMember.get(memberId) ?? 0) * (econ.oyinStreakBall ?? 0);
-    const earned = ridesBall + phoneBall + referJoinBall + referFirstBall + referRideBall + loginBall + shareBall + storyBall + streakBall + sprintBall + questBall + homeBall;
+    const adjustBall = adjustByMember.get(memberId) ?? 0;
+    const earned = ridesBall + phoneBall + referJoinBall + referFirstBall + referRideBall + loginBall + shareBall + storyBall + streakBall + sprintBall + questBall + homeBall + adjustBall;
     const spent = spentByMember.get(memberId) ?? 0;
     map.set(memberId, {
       memberId,
@@ -417,7 +437,7 @@ async function computeBallMap(): Promise<Map<number, MemberBallRow>> {
         referRides: referRideBall, login: loginBall, share: shareBall,
         // `quest`/`home` avval faqat `earned` ichiga qo'shilardi va alohida ko'rinmasdi.
         quest: questBall, home: homeBall, story: storyBall,
-        streak: streakBall, sprintBonus: sprintBall,
+        streak: streakBall, sprintBonus: sprintBall, adjust: adjustBall,
         earned, spent, ball: Math.max(0, earned - spent),
       },
     });
@@ -427,6 +447,58 @@ async function computeBallMap(): Promise<Map<number, MemberBallRow>> {
   // (u shu lahzada to'g'ri edi), lekin keyingi so'rov yangidan hisoblaydi.
   if (gen === ballMapGen) ballMapCache = { at: Date.now(), seasonId: season.seasonId, val: map };
   return map;
+}
+
+// ── 🛠 ADMIN NAZORATI (ega talabi 2026-08-03: "oddiy kuzatuv emas") ──────────────────────────────
+// Uchta yangi AppState kaliti. Yangi Prisma modeli YO'Q — `oyin:catalog`/`oyin:seasoncfg` bilan
+// bir xil naqsh, migratsiya talab qilmaydi.
+//   `oyin:adj:<memberId>`  — qo'lda ball tuzatish: {total, log:[{ball,reason,at}]}
+//   `oyin:ban:<memberId>`  — o'yindan chetlatish: {reason, at}
+//   `oyin:freeze`          — tirajni muzlatish (singleton): {at, ticketCount}
+// ⚠️ Uchalasi ham `ARCHIVED_PREFIXES`/`ARCHIVED_SINGLETONS` ga QO'SHILGAN — aks holda "toza
+// boshlash" ularni ortda qoldirardi va yangi mavsum eski jazolar bilan ochilardi.
+const ADJ_PREFIX = "oyin:adj:";
+const BAN_PREFIX = "oyin:ban:";
+const FREEZE_KEY = "oyin:freeze";
+
+interface AdjustRecord { total: number; log: OyinBallAdjustEntry[] }
+function parseAdjust(raw: string | undefined): AdjustRecord {
+  if (!raw) return { total: 0, log: [] };
+  try {
+    const v = JSON.parse(raw) as { total?: unknown; log?: unknown };
+    const total = Number(v.total);
+    const log = Array.isArray(v.log)
+      ? (v.log as unknown[]).flatMap((e) => {
+          if (!e || typeof e !== "object") return [];
+          const r = e as Record<string, unknown>;
+          const ball = Number(r.ball);
+          if (!Number.isFinite(ball)) return [];
+          return [{ ball: Math.round(ball), reason: typeof r.reason === "string" ? r.reason : "", at: typeof r.at === "string" ? r.at : "" }];
+        })
+      : [];
+    // `total` buzuq bo'lsa jurnaldan QAYTA hisoblanadi — ball hech qachon NaN bo'lmasin.
+    return { total: Number.isFinite(total) ? Math.round(total) : log.reduce((s, e) => s + e.ball, 0), log };
+  } catch {
+    return { total: 0, log: [] };
+  }
+}
+
+/** 🔒 Tiraj muzlatilganmi. Muzlatilgach chipta xaridi HAMMA uchun yopiladi — ega ham, test ham. */
+export async function getFreeze(): Promise<OyinFreezeState> {
+  const row = await prisma.appState.findUnique({ where: { key: FREEZE_KEY } });
+  if (!row) return { frozen: false, at: null, ticketCount: 0 };
+  try {
+    const v = JSON.parse(row.value) as { at?: string; ticketCount?: number };
+    return { frozen: true, at: typeof v.at === "string" ? v.at : null, ticketCount: Number(v.ticketCount) || 0 };
+  } catch {
+    return { frozen: true, at: null, ticketCount: 0 };
+  }
+}
+
+/** 🚫 A'zo o'yindan chetlatilganmi. Ball YIG'ILISHI to'xtatilmaydi (tarix va tekshiruv izi
+ *  buzilmasin) — chetlatish chiptaga AYLANTIRISH va TIRAJDA qatnashish darajasida ishlaydi. */
+export async function isBanned(memberId: number): Promise<boolean> {
+  return !!(await prisma.appState.findUnique({ where: { key: `${BAN_PREFIX}${memberId}` } }));
 }
 
 /** Bitta a'zoning joriy balli. Ega/xodim ham hisoblanadi (ko'rinadi) — chetlashtirish faqat
@@ -839,6 +911,9 @@ export async function myTickets(memberId: number): Promise<OyinMyTicketsResponse
         no: t.no,
         at: t.ts,
         price: t.priceAtPurchase,
+        // 🧪 Ekranda OCHIQ belgilanadi. Yashirilsa ega o'z sinov chiptasini haqiqiy deb o'ylab
+        // tirajni kutib qolardi — va "nega yutmadim" savoli javobsiz bo'lardi.
+        ...(t.test ? { test: true } : {}),
       };
     })
     .sort((a, b) => Date.parse(b.at) - Date.parse(a.at));
@@ -952,10 +1027,36 @@ async function reserveSoldSlot(prizeKey: OyinPrizeKey, limit: number): Promise<n
 
 /** Band qilingan o'rinni QAYTARISH — chipta yozuvi yiqilganda (`economyService`
  *  `releaseWithdrawBudget` bilan bir xil naqsh). Aks holda o'rin abadiy kuyadi. */
-async function releaseSoldSlot(prizeKey: OyinPrizeKey): Promise<void> {
+async function releaseSoldSlot(prizeKey: OyinPrizeKey, test = false): Promise<void> {
   await prisma.$executeRaw`
     UPDATE "AppState" SET "value" = CAST(GREATEST(CAST("value" AS INTEGER) - 1, 0) AS TEXT)
-    WHERE "key" = ${`oyin_sold:${prizeKey}`}`;
+    WHERE "key" = ${`${test ? "oyin_sold_test:" : "oyin_sold:"}${prizeKey}`}`;
+}
+
+/** 🧪 TEST o'rni — EGA/ADMIN uchun ALOHIDA hisoblagich (`oyin_sold_test:`). Nega alohida:
+ *  ega sinov qilganda mijozlarning tanqis sovrin-o'rinlari YEYILMASLIGI shart. Aks holda
+ *  "20 ta chipta bor" deb e'lon qilingan sovrindan 3 tasi eganing sinoviga ketardi va bu
+ *  hech qayerda ko'rinmasdi. Limit ham alohida: sinov mijoz limitidan mustaqil. */
+async function reserveTestSlot(prizeKey: OyinPrizeKey): Promise<number> {
+  const rows = await prisma.$queryRaw<{ value: string }[]>`
+    INSERT INTO "AppState" ("key","value","updatedAt")
+    VALUES (${`oyin_sold_test:${prizeKey}`}, '1', NOW())
+    ON CONFLICT ("key") DO UPDATE
+      SET "value" = CAST((CAST("AppState"."value" AS INTEGER) + 1) AS TEXT), "updatedAt" = NOW()
+    RETURNING "value"`;
+  return Number(rows[0]?.value) || 1;
+}
+
+/** 🧪 TEST global raqami — 900000 dan boshlanadi, ya'ni mijoz raqamlari (729475+) bilan
+ *  hech qachon TO'QNASHMAYDI va jonli efirda ko'rilganda darhol ajralib turadi. */
+async function nextTestTicketNo(): Promise<number> {
+  const rows = await prisma.$queryRaw<{ value: string }[]>`
+    INSERT INTO "AppState" ("key","value","updatedAt")
+    VALUES ('oyin:ticketno:test', '900001', NOW())
+    ON CONFLICT ("key") DO UPDATE
+      SET "value" = CAST((CAST("AppState"."value" AS INTEGER) + 1) AS TEXT), "updatedAt" = NOW()
+    RETURNING "value"`;
+  return Number(rows[0]?.value) || 900001;
 }
 
 /** `preview=true` (ega/admin) — bayroq DARK bo'lsa ham xarid ishlaydi, shunda ega QABUL'dan oldin
@@ -986,6 +1087,10 @@ export async function buyTicket(memberId: number, prizeKeyRaw: string, preview =
   // Ega-preview ham AYLANIB O'TMAYDI — bu mahsulot qoidasi, bayroq emas (chipta ro'yxati tirajga
   // qotishi kerak; ega o'zi ham oxirgi soniyada eksportdan tashqarida chipta yaratmasin).
   if (season.endMs != null && season.endMs - Date.now() <= OYIN_FINAL_LOCK_MS) return { ok: false, reason: "final_lock" };
+  // 🔒 TIRAJ MUZLATILGAN (admin tugmasi). FINAL-48 dan FARQI: bu ega qo'li bilan, istalgan
+  // paytda qo'yiladi va TEST xaridini ham to'sadi. Muzlatilgan ro'yxat — jonli efirda o'qish
+  // uchun yagona ishonchli holat ("keyin qo'shib qo'ydi" ayblovi imkonsiz bo'ladi).
+  if ((await getFreeze()).frozen) return { ok: false, reason: "frozen" };
   const catalog = await getCatalog();
   const prize = catalog.find((p) => p.key === prizeKeyRaw && p.active);
   if (!prize) return { ok: false, reason: "unknown_prize" };
@@ -994,13 +1099,23 @@ export async function buyTicket(memberId: number, prizeKeyRaw: string, preview =
   // yechish orasida race bo'lmasin (ikkinchi urinish BIRINCHISI YOZIB BO'LGANDAN keyin ballni o'qiydi).
   // Cross-member xavfsizlik esa yuqoridagi reserveSoldSlot'ning atomik SQL'idan keladi.
   return withMemberLock(memberId, async () => {
-    // 🚫 EGA/XODIM TIRAJDAN CHETDA (KOSON_OYIN_PLAN D11). Kod izohi buni "route qatlamida"
-    // deb va'da qilardi — amalda hech qayerda yo'q edi. Xavf: bayroq DARK paytda (mijozlar
-    // o'ynay olmaganda) ega eng tanqis sovrindan o'rin va eng past chipta raqamini olib
-    // qo'yishi mumkin edi. Bitta sarlavha butun kampaniyani o'ldiradi: "ega o'z tirajida yutdi".
-    // `preview` BAYROQNI aylanib o'tadi, lekin TIRAJDA QATNASHISHNI emas.
+    // 🚫 A'ZO O'YINDAN CHETLATILGAN (admin qarori — soxta akkaunt/ferma). Ball yig'ilishi
+    // to'xtatilmaydi (tarix buzilmasin), lekin chiptaga AYLANTIRA olmaydi va mavjud chiptalari
+    // `drawExport` dan chiqariladi.
+    if (await isBanned(memberId)) return { ok: false, reason: "banned" as const, ballLeft: await getBall(memberId) };
+
+    // 🧪 EGA/XODIM — TIRAJDAN TASHQARIDA, LEKIN TO'SILMAYDI (ega qarori 2026-08-03).
+    // Avval bu yerda qattiq `reason: "staff"` to'sig'i turardi va ega BUTUN oqimni (ball →
+    // chipta → raqam → bayram oynasi → «Chiptalarim») HECH QACHON sinab ko'ra olmasdi —
+    // ya'ni mijozga chiqadigan eng muhim yo'l tekshirilmagan holda jo'natilardi.
+    // Endi xarid o'tadi, lekin chipta `test:true` bo'ladi:
+    //   · `drawExport` uni CHIQARIB TASHLAYDI → "ega o'z tirajida yutdi" imkonsiz;
+    //   · alohida hisoblagich (`oyin_sold_test:`) → mijozlarning o'rinlari YEYILMAYDI;
+    //   · raqam 900001+ seriyasidan → mijoz raqamlari bilan to'qnashmaydi;
+    //   · ekranda ochiq "🧪 TEST" deb turadi → yashirin emas.
+    // Ball ROSTAN yechiladi — sinov haqiqiy bo'lishi uchun (admin paneldan qayta qo'shiladi).
     const myTu = await prisma.telegramUser.findFirst({ where: { memberId }, select: { id: true } });
-    if (myTu && isAdmin(myTu.id)) return { ok: false, reason: "staff" as const, ballLeft: await getBall(memberId) };
+    const isTest = !!(myTu && isAdmin(myTu.id));
 
     // 🚧 SAFAR DARVOZASI — o'yindagi eng katta struktur teshik shu yerda edi.
     // Pul yo'lida (`seasonClose`) "≥1 real safar" sharti BOR edi, SOVRIN yo'lida YO'Q.
@@ -1031,7 +1146,9 @@ export async function buyTicket(memberId: number, prizeKeyRaw: string, preview =
       .length;
     if (ownCount >= maxOwn) return { ok: false, reason: "own_limit" as const, ballLeft: ball };
 
-    const ticketNo = await reserveSoldSlot(prize.key, prize.limit);
+    // 🧪 Test xaridi ALOHIDA hisoblagichdan o'rin oladi — mijozlarning `oyin_sold:` soni
+    // o'zgarmaydi, ya'ni vitrinada "qoldi N" raqami eganing sinovidan kamaymaydi.
+    const ticketNo = isTest ? await reserveTestSlot(prize.key) : await reserveSoldSlot(prize.key, prize.limit);
     if (ticketNo === null) return { ok: false, reason: "sold_out" as const, ballLeft: ball };
 
     // ⚠️ `reserveSoldSlot` o'rinni ALLAQACHON band qildi. Quyidagi 3 DB operatsiyasidan
@@ -1042,17 +1159,20 @@ export async function buyTicket(memberId: number, prizeKeyRaw: string, preview =
       const key = `oyin:tickets:${memberId}`;
       const row = await prisma.appState.findUnique({ where: { key } });
       const tickets = parseTickets(row?.value);
-      const gno = await nextGlobalTicketNo();
-      tickets.push({ prizeKey: prize.key, no: ticketNo, gno, priceAtPurchase: prize.price, ts: new Date().toISOString() });
+      const gno = isTest ? await nextTestTicketNo() : await nextGlobalTicketNo();
+      tickets.push({
+        prizeKey: prize.key, no: ticketNo, gno, priceAtPurchase: prize.price,
+        ts: new Date().toISOString(), ...(isTest ? { test: true as const } : {}),
+      });
       await prisma.appState.upsert({
         where: { key },
         create: { key, value: JSON.stringify(tickets) },
         update: { value: JSON.stringify(tickets) },
       });
       invalidateBallCache();
-      return { ok: true, ticketNo, gno, prizeKey: prize.key, ballLeft: ball - prize.price };
+      return { ok: true, ticketNo, gno, prizeKey: prize.key, ballLeft: ball - prize.price, ...(isTest ? { test: true } : {}) };
     } catch (e) {
-      await releaseSoldSlot(prize.key).catch(() => undefined);
+      await releaseSoldSlot(prize.key, isTest).catch(() => undefined);
       throw e;
     }
   });
@@ -1231,19 +1351,29 @@ export async function thankFriend(memberId: number, friendMemberId: number, prev
   if (ids.includes(friendMemberId)) return { ok: false, reason: "already" };
 
   const friendTu = await prisma.telegramUser.findUnique({ where: { memberId: friendMemberId }, select: { id: true } });
-  if (!friendTu) return { ok: false, reason: "unreachable" };
+  if (!friendTu) return { ok: false, reason: "no_chat" };
 
   const { getBotInstance } = await import("../botInstance");
   const bot = getBotInstance();
   if (!bot) return { ok: false, reason: "unreachable" };
-  const { notifyOnce } = await import("./notifyService");
-  // notifyOnce bepulga beradi: kunlik push-limiti, jim soatlar, "bildirishnoma o'chiq", blok aniqlash.
-  // `kind` ichida yuboruvchi id'si — bitta odam bitta do'stiga kuniga bir marta.
-  const sent = await notifyOnce(
+  // ⚠️ `notifyUserInitiated`, `notifyOnce` EMAS. Avvalgi kod kunlik push-limitiga (DAILY_PUSH_CAP=2)
+  // bo'ysunardi va eng ko'p uchraydigan rad javobi "limit to'ldi" edi — do'st bugun ikkita safar
+  // bildirishnomasi olgan bo'lsa yetardi. Ekran esa buni "botni BLOKLAGAN" deb tarjima qilardi:
+  // mijoz tugmani bosadi, xabar ketmaydi va u do'stidan bekorga xafa bo'ladi.
+  // Blok va "bildirishnoma o'chiq" SAQLANADI; `kind` ichida yuboruvchi id'si — bitta odam bitta
+  // do'stiga kuniga bir marta, ya'ni spam yo'li ochilmaydi.
+  const { notifyUserInitiated } = await import("./notifyService");
+  const sent = await notifyUserInitiated(
     bot, friendTu.id, friendMemberId, `oyin_thanks:${memberId}`,
     `🤝 <b>${shortName(myTu)}</b> sizga rahmat aytdi!\n\nSizning safaringiz unga ball olib keldi. Siz ham o'yinga qo'shiling — sovrinlar kutmoqda 🎁`,
   );
-  if (!sent) return { ok: false, reason: "unreachable" };
+  if (!sent.ok) {
+    // Har sabab O'ZI aytiladi — mijozga yolg'on tashxis qo'yilmaydi.
+    if (sent.reason === "blocked") return { ok: false, reason: "blocked" };
+    if (sent.reason === "notify_off") return { ok: false, reason: "notify_off" };
+    if (sent.reason === "duplicate") return { ok: false, reason: "already" };
+    return { ok: false, reason: "unreachable" };
+  }
 
   ids.push(friendMemberId);
   const value = JSON.stringify({ day: today, ids });
@@ -1346,30 +1476,47 @@ export async function sprintCheck(): Promise<OyinSprintResult | null> {
 /** Tiraj uchun raqamlangan chipta-ro'yxati — READ-ONLY (hech narsa yozmaydi), shuning uchun
  *  tabiiy idempotent: necha marta chaqirilsa ham bir xil natija (chiptalar o'zgarmaguncha). */
 export async function drawExport(): Promise<OyinDrawExport> {
-  const [season, ticketRows, telegramUsers] = await Promise.all([
+  const [season, ticketRows, telegramUsers, banRows, freeze] = await Promise.all([
     getSeason(),
     prisma.appState.findMany({ where: { key: { startsWith: "oyin:tickets:" } } }) as Promise<AppStateRow[]>,
     prisma.telegramUser.findMany({ where: { memberId: { not: null } }, select: { memberId: true, firstName: true, lastName: true, username: true } }),
+    prisma.appState.findMany({ where: { key: { startsWith: BAN_PREFIX } }, select: { key: true } }),
+    getFreeze(),
   ]);
-  if (!season.configured) return { generatedAt: new Date().toISOString(), tickets: [] };
+  const empty = { generatedAt: new Date().toISOString(), tickets: [], frozenAt: freeze.at, excludedTest: 0, excludedBanned: 0 };
+  if (!season.configured) return empty;
   const nameByMember = new Map<number, string>();
   for (const tu of telegramUsers) if (tu.memberId) nameByMember.set(tu.memberId, shortName(tu));
+  const banned = new Set<number>();
+  for (const r of banRows) {
+    const id = Number(r.key.slice(BAN_PREFIX.length));
+    if (Number.isFinite(id)) banned.add(id);
+  }
 
   // 💰 Mavsum filtri MAJBURIY: bo'lmasa o'tgan mavsum egalari jonli tirajda qatnashadi, va
   // `oyin_sold` 1 dan qayta boshlagani uchun ro'yxatda IKKI xil odamda bir xil raqam chiqadi.
+  let excludedTest = 0;
+  let excludedBanned = 0;
   const tickets = ticketRows.flatMap((row) => {
     const memberId = Number(row.key.slice("oyin:tickets:".length));
     if (!Number.isFinite(memberId)) return [];
-    return parseTickets(row.value)
-      .filter((t) => ticketInSeason(t, season.startMs as number, season.endMs as number))
-      .map((t) => ({
+    const inSeason = parseTickets(row.value).filter((t) => ticketInSeason(t, season.startMs as number, season.endMs as number));
+    // 🚫 Chetlatilgan a'zoning HAMMA chiptasi tirajdan chiqadi — chetlatishning butun ma'nosi shu.
+    if (banned.has(memberId)) { excludedBanned += inSeason.length; return []; }
+    return inSeason.flatMap((t) => {
+      // 🧪 Ega/admin sinov chiptasi TIRAJGA KIRMAYDI. Bu qator "ega o'z tirajida yutdi"
+      // sarlavhasining oldini oladigan YAGONA joy — o'chirilsa sinov chiptalari jonli
+      // efirdagi ro'yxatga tushib ketadi.
+      if (t.test) { excludedTest += 1; return []; }
+      return [{
         // ⚠️ `t.no` — sovrin-ichi tartib raqami; mijoz esa ekranida GLOBAL `gno` ni ko'radi.
         // Eksportda `no` qolsa jonli efirda o'qiladigan raqam mijoz qo'lidagi raqam BO'LMAYDI.
         prizeKey: t.prizeKey, ticketNo: t.gno ?? t.no, memberId, name: nameByMember.get(memberId) ?? "Mijoz",
-      }));
+      }];
+    });
   });
   tickets.sort((a, b) => a.prizeKey.localeCompare(b.prizeKey) || a.ticketNo - b.ticketNo);
-  return { generatedAt: new Date().toISOString(), tickets };
+  return { generatedAt: new Date().toISOString(), tickets, frozenAt: freeze.at, excludedTest, excludedBanned };
 }
 
 // ── Mavsum yopilishi: ≥1 real safar qilganlarga qoldiq ball × 50% = tanga (max 500/odam).
@@ -1433,12 +1580,125 @@ export async function seasonClose(): Promise<OyinSeasonCloseResult> {
 //    qatorlari saqlanib qoladi (`oyin:arch:sN:…`), ya'ni tekshiruv uchun yo'qolmaydi.
 //  · `oyin:goal:` — maqsad-sovrin eski katalogga ishora qiladi; yangi mavsumda mijoz o'zi tanlaydi
 //    (tanlanmaguncha hero eng arzoniga tushadi).
+// ⚠️ 2026-08-03 (ikkinchi to'lqin): admin-nazorat kalitlari ham SHU YERDA bo'lishi shart.
+//  · `oyin:adj:` — qo'lda tuzatilgan ball. Qolsa, yangi mavsum eski tuzatish bilan ochilardi
+//    (masalan test uchun qo'shilgan 50 000 ball yangi mavsumga o'tib ketardi).
+//  · `oyin:ban:` — chetlatish MAVSUM jazosi. Umrbod jazo kerak bo'lsa, u ONGLI ravishda qayta
+//    qo'yiladi; jimgina abadiylashib qolishi noto'g'ri.
+//  · `oyin_sold_test:` / `oyin:ticketno:test` — sinov hisoblagichlari, mijoz hisoblagichlari
+//    bilan bir xil taqdirni ko'radi.
 const ARCHIVED_PREFIXES = [
   "oyin:tickets:", "oyin:login:", "oyin:share:", "oyin:sprintwin:",
   "oyin_sold:", "oyin:weeksnap:", "oyin:sprintdone:", "oyin:thanks:",
   "oyin:quest:", "oyin:home:", "oyin:story:", "oyin:goal:",
+  "oyin:adj:", "oyin:ban:", "oyin_sold_test:",
 ];
-const ARCHIVED_SINGLETONS = ["oyin:sprintweek", "oyin:seasonclosed"];
+// `oyin:freeze` MAJBURIY: qolsa yangi mavsum MUZLATILGAN holda ochilardi va hech kim chipta
+// ola olmasdi — tugma nomi ("Yangi mavsumni toza boshlash") ochiq yolg'on bo'lardi.
+const ARCHIVED_SINGLETONS = ["oyin:sprintweek", "oyin:seasonclosed", FREEZE_KEY, "oyin:ticketno:test"];
+
+// ── 🛠 To'rtta admin kuchi (ega tanlovi 2026-08-03). Hammasi audit-logga tushadi: har biri
+// pulga tegadigan yoki adolatga tegadigan harakat, izsiz bo'lishi mumkin emas. ────────────────
+
+/** 🛠 Ball qo'shish/olib tashlash. `reason` MAJBURIY — sababsiz ball harakati keyin tekshirib
+ *  bo'lmaydigan iz qoldiradi. Yozuv KUMULYATIV: har tuzatish jurnalga qo'shiladi, `total` esa
+ *  `computeBallMap` ichida `earned` ga qo'shiladi (ya'ni ball JONLI hisobda qoladi — bu yerda
+ *  hech qanday "balans" saqlanmaydi, aks holda ikkita haqiqat manbai paydo bo'lardi). */
+export async function adminAdjustBall(input: OyinBallAdjustInput): Promise<OyinAdminActionResult> {
+  const ball = Math.round(Number(input.ball));
+  const reason = (input.reason || "").trim().slice(0, 200);
+  if (!Number.isFinite(ball) || ball === 0 || !reason) return { ok: false, reason: "bad_input" };
+  const memberId = Number(input.memberId);
+  if (!Number.isFinite(memberId)) return { ok: false, reason: "bad_input" };
+  const key = `${ADJ_PREFIX}${memberId}`;
+  const row = await prisma.appState.findUnique({ where: { key } });
+  const cur = parseAdjust(row?.value);
+  // Jurnal cheksiz o'smasin — oxirgi 50 tasi saqlanadi (`total` HAMMASINI hisobga oladi).
+  const log = [...cur.log, { ball, reason, at: new Date().toISOString() }].slice(-50);
+  const value = JSON.stringify({ total: cur.total + ball, log });
+  await prisma.appState.upsert({ where: { key }, create: { key, value }, update: { value } });
+  invalidateBallCache();
+  return { ok: true, ball: await getBall(memberId) };
+}
+
+/** 🎟 Chiptani bekor qilish. O'rin QAYTARILADI (test bo'lsa test-hisoblagichga), ball esa o'zi
+ *  qaytadi — `spent` chiptalardan JONLI hisoblanadi, ya'ni alohida "qaytarish" operatsiyasi
+ *  YO'Q va ikki marta qaytarish imkonsiz. */
+export async function adminCancelTicket(memberId: number, gno: number): Promise<OyinAdminActionResult> {
+  const key = `oyin:tickets:${memberId}`;
+  const row = await prisma.appState.findUnique({ where: { key } });
+  if (!row) return { ok: false, reason: "not_found" };
+  const tickets = parseTickets(row.value);
+  const idx = tickets.findIndex((t) => (t.gno ?? t.no) === gno);
+  if (idx < 0) return { ok: false, reason: "not_ticket" };
+  const [gone] = tickets.splice(idx, 1);
+  if (!gone) return { ok: false, reason: "not_ticket" };
+  await prisma.appState.update({ where: { key }, data: { value: JSON.stringify(tickets) } });
+  await releaseSoldSlot(gone.prizeKey, gone.test === true).catch(() => undefined);
+  invalidateBallCache();
+  return { ok: true, ball: await getBall(memberId) };
+}
+
+/** 🚫 O'yindan chetlatish / qaytarish. Ball yig'ilishiga TEGMAYDI (tarix buzilmasin) — chetlatish
+ *  chipta olish va `drawExport` darajasida ishlaydi. */
+export async function adminSetBan(memberId: number, banned: boolean, reason: string): Promise<OyinAdminActionResult> {
+  if (!Number.isFinite(Number(memberId))) return { ok: false, reason: "bad_input" };
+  const key = `${BAN_PREFIX}${memberId}`;
+  if (!banned) {
+    await prisma.appState.deleteMany({ where: { key } });
+    return { ok: true };
+  }
+  const r = (reason || "").trim().slice(0, 200);
+  if (!r) return { ok: false, reason: "bad_input" };
+  const value = JSON.stringify({ reason: r, at: new Date().toISOString() });
+  await prisma.appState.upsert({ where: { key }, create: { key, value }, update: { value } });
+  return { ok: true };
+}
+
+/** 🔒 Tirajni muzlatish/ochish. Muzlatilgan lahzadagi chipta soni YOZIB QO'YILADI — jonli efirda
+ *  "ro'yxatda N ta chipta bor edi" degan da'vo tekshiriladigan bo'lsin. */
+export async function adminSetFreeze(frozen: boolean): Promise<OyinFreezeState> {
+  if (!frozen) {
+    await prisma.appState.deleteMany({ where: { key: FREEZE_KEY } });
+    return { frozen: false, at: null, ticketCount: 0 };
+  }
+  const exp = await drawExport();
+  const state = { frozen: true, at: new Date().toISOString(), ticketCount: exp.tickets.length };
+  const value = JSON.stringify({ at: state.at, ticketCount: state.ticketCount });
+  await prisma.appState.upsert({ where: { key: FREEZE_KEY }, create: { key: FREEZE_KEY, value }, update: { value } });
+  return state;
+}
+
+/** 🔍 Bitta a'zoning TO'LIQ holati — 12 manba alohida, chiptalari, jazolari, tuzatish jurnali.
+ *  Ega "ball qayerdan keldi" savoliga bitta ekrandan javob topsin. */
+export async function adminMemberDetail(memberId: number): Promise<OyinAdminMemberDetail | null> {
+  const [map, tickets, banRow, adjRow] = await Promise.all([
+    computeBallMap(),
+    myTickets(memberId),
+    prisma.appState.findUnique({ where: { key: `${BAN_PREFIX}${memberId}` } }),
+    prisma.appState.findUnique({ where: { key: `${ADJ_PREFIX}${memberId}` } }),
+  ]);
+  const row = map.get(memberId);
+  if (!row) return null;
+  let banReason: string | null = null;
+  if (banRow) {
+    try { banReason = (JSON.parse(banRow.value) as { reason?: string }).reason ?? null; } catch { banReason = null; }
+  }
+  return {
+    memberId,
+    name: row.name,
+    telegramId: row.telegramId,
+    ball: row.breakdown.ball,
+    earned: row.breakdown.earned,
+    spent: row.breakdown.spent,
+    seasonRides: row.seasonRides,
+    breakdown: row.breakdown,
+    banned: !!banRow,
+    banReason,
+    tickets: tickets.tickets,
+    adjustLog: parseAdjust(adjRow?.value).log.slice().reverse(),
+  };
+}
 
 export async function adminStartNewSeason(input: OyinSeasonInput): Promise<OyinSeasonResetResult> {
   const v = validateSeasonInput(input);
@@ -1580,7 +1840,7 @@ export async function getActivity(filters: OyinActivityFilter): Promise<OyinActi
       ? prisma.appState.findMany({ where: { key: `${prefix}${filters.memberId}` } })
       : prisma.appState.findMany({ where: { key: { startsWith: prefix } } })) as Promise<AppStateRow[]>;
 
-  const [telegramUsers, rideRows, referrals, ticketRows, loginRows, shareRows, questRows, homeRows, sprintWinRows, storyRows] = await Promise.all([
+  const [telegramUsers, rideRows, referrals, ticketRows, loginRows, shareRows, questRows, homeRows, sprintWinRows, storyRows, adjActRows] = await Promise.all([
     prisma.telegramUser.findMany({
       // Ism-xaritasi uchun: mijoz-yo'lida FAQAT o'zi + do'stlari kerak (`helpedName` shulardan
       // chiqadi), butun populyatsiya emas.
@@ -1614,6 +1874,9 @@ export async function getActivity(filters: OyinActivityFilter): Promise<OyinActi
     stateRows("oyin:home:"),
     stateRows("oyin:sprintwin:"),
     stateRows("oyin:story:"),
+    // 🛠 Admin qo'lda tuzatgan ball — BALL BERADI, demak jadvalda ham, mijozning qo'ng'irog'ida
+    // ham ko'rinishi SHART. Yashirin tuzatish = "ball qayerdan keldi" savoli javobsiz qolishi.
+    stateRows(ADJ_PREFIX),
   ]);
 
   const nameByMember = new Map<number, string>();
@@ -1691,6 +1954,17 @@ export async function getActivity(filters: OyinActivityFilter): Promise<OyinActi
   explodeDays(loginRows, "oyin:login:", "login", econ.oyinDailyLoginBall ?? 0);
   explodeDays(shareRows, "oyin:share:", "share", econ.oyinShareBall ?? 0);
   explodeDays(questRows, "oyin:quest:", "quest", econ.oyinDailyQuestBall ?? 0);
+  // 🛠 Admin tuzatishlari — HAR BIRI alohida qator, o'z sanasi va SABABI bilan. `explodeDays`
+  // ishlatilmaydi: bular kun-ro'yxati emas, aniq vaqt tamg'ali yozuvlar.
+  for (const row of adjActRows) {
+    const memberId = Number(row.key.slice(ADJ_PREFIX.length));
+    if (!Number.isFinite(memberId)) continue;
+    for (const e of parseAdjust(row.value).log) {
+      const at = Date.parse(e.at);
+      if (!Number.isFinite(at)) continue;
+      push(new Date(at).toISOString(), memberId, "adjust", e.ball, null, e.reason || null);
+    }
+  }
   // 🏠 Ekranga o'rnatish — MAVSUMDA BIR MARTA to'lanadi (`computeBallMap`: kun bormi → 1 yoki 0),
   // lekin kun-ro'yxatida bir nechta kun bo'lishi mumkin (miniapp ilova har ochilganda "added"
   // holatini qayta bildiradi → markDay yangi kunni qo'shadi). `explodeDays` ishlatilsa jadval
