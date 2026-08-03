@@ -124,6 +124,12 @@ const ACTION_EMOJI: Record<string, string> = {
   refer_ride: "🤝", daily_login: "🗓", share: "📤", sprint_bonus: "🏁", ticket_buy: "🎟",
   story: "📸", streak: "🔥",
 };
+/** Do'st ishtirok etgan voqealar — ism EGA bo'lgan shakl ("Amir safar qildi"). */
+const FRIEND_LABEL: Record<string, string> = {
+  refer_ride: "safar qildi",
+  refer_first_ride: "birinchi safarini qildi",
+  refer_join: "raqamini uladi",
+};
 const ACTION_LABEL: Record<string, string> = {
   ride: "Safar qildingiz", first_ride: "Mavsumdagi birinchi safaringiz", phone: "Telefon tasdiqlandi",
   refer_join: "Do'stingiz raqamini uladi", refer_first_ride: "Do'stingiz birinchi safarini qildi",
@@ -149,6 +155,9 @@ export function OyinView({ onTaxi }: { onTaxi?: () => void } = {}) {
   const [bellSeen, setBellSeen] = useState<string>(() => { try { return localStorage.getItem("oyk_bell_seen") ?? ""; } catch { return ""; } });
   // Qizil nuqta — oxirgi ko'rilgandan keyin necha voqea qo'shilgani. Ro'yxat ochilmagan
   // bo'lsa (bell === null) nuqta ko'rsatilmaydi: soxta "yangi bor" signali bermaymiz.
+  // ⚠️ Avval `bell` FAQAT varaq ochilganda yuklanardi, ya'ni qizil son HECH QACHON
+  // ochilmasdan ko'rinmasdi — "yangi xabar bor" signali ishlamasdi. Endi ro'yxat
+  // ochilishda yuklanadi (pastdagi `useEffect`), son esa darhol ko'rinadi.
   const bellNew = bell ? bell.rows.filter((r) => r.at > bellSeen).length : 0;
   const [tickets, setTickets] = useState<OyinMyTicketsResponse | null>(null);
   const [tab, setTab] = useState<OyinTab>(() => {
@@ -216,6 +225,8 @@ export function OyinView({ onTaxi }: { onTaxi?: () => void } = {}) {
       .catch(() => setJamoam({ friends: [], totalBall: 0, oneTimeBall: 0, rideBall: 0 }));
   }, []);
   useEffect(() => { loadJamoam(); }, [loadJamoam]);
+  // Qo'ng'iroq ro'yxati ochilishda yuklanadi — qizil son varaqni ochmasdan ko'rinsin.
+  useEffect(() => { api.oyinBell().then(setBell).catch(() => undefined); }, []);
 
 
   // Jamoam tabiga har kirganda yangilanadi — "do'stingiz bugun yurdi" kartasi eskirmasin.
@@ -692,28 +703,45 @@ Taksida yur, ball yig', chipta ol. Mavsum oxiri jonli tirajda o'ynaladi. Mening 
                   <button type="button" className="oyk-draw-btn" onClick={() => { haptic(); setSheet("how"); }}>
                     Qanday ishlaydi? <span aria-hidden="true">›</span>
                   </button>
+                  <span className="oyk-draw-spark" aria-hidden="true" />
                   <span className="oyk-draw-gift" aria-hidden="true">🎁</span>
                 </div>
 
-                <div className="oyk-bal">
-                  <div className="oyk-bal-k">Sizning balansingiz</div>
-                  <div className="oyk-bal-row">
-                    <b>{state.ball}</b><span>ball</span>
-                  </div>
-                  {cheapest && (
+                {/* 🪙 BALANS — ega maketi 2026-08-03 (2-rasm): to'q rangli karta, sovrin
+                    FOTOSI o'ngda, katta "N ball qoldi", gradient progress va foiz.
+                    Avval sarg'ish fon + 🪙 emoji edi — ega: "rang emas, mana bunaqa
+                    chiroyli bo'lishi kerak edi". */}
+                <div className="oyk-goalc">
+                  {cheapest ? (
                     <>
-                      <div className="oyk-bal-need">
-                        <b>{Math.max(0, cheapest.price - state.ball)}</b> / {cheapest.price} ball = <b>1 ta chipta</b>
+                      <div className="oyk-goalc-top">
+                        <div className="oyk-goalc-side">
+                          <div className="oyk-goalc-tag"><span aria-hidden="true">🎟</span>{cheapest.name}</div>
+                          <div className="oyk-goalc-num">
+                            <b>{Math.max(0, cheapest.price - state.ball)}</b> <span>ball qoldi</span>
+                          </div>
+                        </div>
+                        <div className="oyk-goalc-img">
+                          {cheapest.photoUrl && !badPhoto.has(cheapest.key)
+                            ? <img src={cheapest.photoUrl} alt="" loading="lazy" onError={() => markBadPhoto(cheapest.key)} />
+                            : <span>{cheapest.icon}</span>}
+                        </div>
                       </div>
-                      <div className="oyk-bal-bar">
+                      <div className="oyk-goalc-bar">
                         <span style={{ width: `${Math.min(100, (state.ball / cheapest.price) * 100).toFixed(1)}%` }} />
                       </div>
+                      <div className="oyk-goalc-meta">
+                        <span><b>{state.ball}</b> / {cheapest.price} = 1 ta chipta</span>
+                        <span>{Math.min(100, Math.round((state.ball / cheapest.price) * 100))}%</span>
+                      </div>
+                      <div className="oyk-goalc-foot">{cheapest.price} ball = 1 ta chipta</div>
                     </>
+                  ) : (
+                    <div className="oyk-goalc-num"><b>{state.ball}</b> <span>ball</span></div>
                   )}
                   <button type="button" className="oyk-bal-btn" onClick={() => { haptic(); setSheet("ball"); }}>
                     Ball qanday yig'iladi? <span aria-hidden="true">›</span>
                   </button>
-                  <span className="oyk-bal-coin" aria-hidden="true">🪙</span>
                 </div>
 
                 {/* Ikkita asosiy harakat. "Safar qilish" XARITAGA kirgizadi (ega talabi). */}
@@ -1284,8 +1312,11 @@ Taksida yur, ball yig', chipta ol. Mavsum oxiri jonli tirajda o'ynaladi. Mening 
                       <div key={`${r.at}-${i}`} className="oyk-bell-row">
                         <span className="oyk-bell-ic">{ACTION_EMOJI[r.action] ?? "•"}</span>
                         <span className="oyk-bell-tx">
-                          {ACTION_LABEL[r.action] ?? r.action}
-                          {r.helpedName && <b> · {r.helpedName}</b>}
+                          {/* Do'st ishtirok etgan voqealarda ISM EGA bo'ladi: "Amir safar qildi",
+                              "Do'stingiz safar qildi · Amir" emas — ega shunday xohladi. */}
+                          {r.helpedName
+                            ? <><b>{r.helpedName}</b> {FRIEND_LABEL[r.action] ?? ACTION_LABEL[r.action] ?? r.action}</>
+                            : (ACTION_LABEL[r.action] ?? r.action)}
                           <small>{uzDate(r.at)}</small>
                         </span>
                         <span className={`oyk-bell-b${r.ball < 0 ? " is-minus" : ""}`}>{r.ball > 0 ? `+${r.ball}` : r.ball}</span>

@@ -255,7 +255,10 @@
   display: flex; align-items: center; justify-content: center;
   border: 1.5px solid var(--oyk-line); color: var(--oyk-ink);
 }
-.oyk-daily-row.is-done .oyk-daily-check { background: var(--oyk-violet); border-color: var(--oyk-violet); color: #fff; }
+/* Bajarilgan = YASHIL (ega: "checked topshiriqlar uchun pushti emas"). Binafsha galochka
+   pushtiga yaqin ko'rinardi va "bajarildi" degan universal signalni bermasdi. */
+.oyk-daily-row.is-done .oyk-daily-check { background: var(--oyk-green); border-color: var(--oyk-green); color: #fff; }
+.oyk-daily-row.is-done .oyk-daily-gain { color: var(--oyk-green); font-weight: 900; }
 .oyk-daily-label { flex: 1; font-size: 12.5px; font-weight: 700; color: var(--oyk-text-2); }
 .oyk-daily-row.is-done .oyk-daily-label { color: var(--oyk-text-3); }
 .oyk-daily-gain { font-size: 11.5px; font-weight: 800; color: var(--oyk-text-3); font-variant-numeric: tabular-nums; }
@@ -954,30 +957,77 @@
   cursor: pointer; transition: transform var(--dur-press);
 }
 .oyk-draw-btn:active { transform: scale(.96); }
-.oyk-draw-gift { position: absolute; right: 14px; bottom: 12px; font-size: 54px; line-height: 1; filter: drop-shadow(0 4px 10px rgba(0,0,0,.3)); }
+.oyk-draw-gift {
+  position: absolute; right: 8px; bottom: 4px; font-size: 92px; line-height: 1;
+  filter: drop-shadow(0 6px 16px rgba(0, 0, 0, .38)) drop-shadow(0 0 22px rgba(255, 215, 94, .55));
+  animation: oyk-shine 3s ease-in-out infinite;
+}
+/* Yaltirash — sovg'a atrofidagi oltin nur (transform/opacity, GPU'da arzon). */
+.oyk-draw-spark {
+  position: absolute; right: 14px; bottom: 18px; width: 116px; height: 116px; border-radius: 50%;
+  background: radial-gradient(circle, rgba(255, 215, 94, .45), transparent 62%);
+  pointer-events: none; animation: oyk-glow2 3s ease-in-out infinite;
+}
+@keyframes oyk-shine {
+  0%, 100% { transform: rotate(-4deg) scale(1); }
+  50% { transform: rotate(4deg) scale(1.07); }
+}
+@keyframes oyk-glow2 { 0%, 100% { opacity: .5; transform: scale(.92); } 50% { opacity: 1; transform: scale(1.08); } }
 
 /* ── 🪙 BALANS KARTASI (sarg'ish) ── */
-.oyk-bal {
-  position: relative; overflow: hidden; border-radius: 20px; padding: 14px 16px 16px;
-  background: linear-gradient(150deg, var(--oyk-gold-pale), #fff8e6);
-  border: 1px solid rgba(245, 183, 0, .3);
+.oyk-goalc {
+  position: relative; overflow: hidden; border-radius: 20px; padding: 14px 15px 15px;
+  background: linear-gradient(150deg, #241a52, #1a1340 60%, #14102f);
+  border: 1px solid rgba(255, 255, 255, .1); color: #fff;
 }
-.oyk-bal-k { font-size: 12.5px; color: var(--oyk-gold-deep); font-weight: 700; }
-.oyk-bal-row { display: flex; align-items: baseline; gap: 7px; margin-top: 1px; }
-.oyk-bal-row b { font-size: 38px; font-weight: 900; color: var(--oyk-gold-deep); letter-spacing: -1px; font-variant-numeric: tabular-nums; }
-.oyk-bal-row span { font-size: 15px; font-weight: 800; color: var(--oyk-gold-soft); }
-.oyk-bal-need { font-size: 12.5px; color: var(--oyk-text-2); margin-top: 2px; font-variant-numeric: tabular-nums; }
-.oyk-bal-need b { color: var(--oyk-gold-deep); font-weight: 900; }
-.oyk-bal-bar { height: 8px; border-radius: 99px; background: rgba(245, 183, 0, .22); margin-top: 9px; overflow: hidden; }
-.oyk-bal-bar span { display: block; height: 100%; border-radius: 99px; background: var(--oyk-gold-grad); transition: width .5s ease; }
+.oyk-goalc-top { display: flex; align-items: center; gap: 12px; }
+.oyk-goalc-side { flex: 1; min-width: 0; }
+.oyk-goalc-tag {
+  display: inline-flex; align-items: center; gap: 6px; max-width: 100%;
+  background: rgba(255, 255, 255, .1); border-radius: 9px; padding: 4px 9px;
+  font-size: 11px; font-weight: 800; color: rgba(255, 255, 255, .9);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.oyk-goalc-num { display: flex; align-items: baseline; gap: 8px; margin-top: 8px; }
+.oyk-goalc-num b { font-size: 40px; font-weight: 900; letter-spacing: -1.5px; line-height: 1; font-variant-numeric: tabular-nums; }
+.oyk-goalc-num span { font-size: 16px; font-weight: 800; color: rgba(255, 255, 255, .78); }
+.oyk-goalc-img {
+  width: 82px; height: 82px; flex-shrink: 0; border-radius: 15px; overflow: hidden;
+  background: #fff; display: flex; align-items: center; justify-content: center; font-size: 40px;
+  box-shadow: 0 6px 16px rgba(0, 0, 0, .3);
+}
+.oyk-goalc-img img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.oyk-goalc-bar { height: 9px; border-radius: 99px; background: rgba(255, 255, 255, .13); margin-top: 13px; overflow: hidden; }
+.oyk-goalc-bar span {
+  display: block; height: 100%; border-radius: 99px;
+  background: linear-gradient(90deg, #ff9d3d, #ff5fa2 55%, #8b6bff);
+  transition: width .5s ease;
+}
+.oyk-goalc-meta {
+  display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: 7px;
+  font-size: 11.5px; font-weight: 700; color: rgba(255, 255, 255, .72); font-variant-numeric: tabular-nums;
+}
+.oyk-goalc-meta b { color: #ffd75e; font-weight: 900; }
+.oyk-goalc-foot {
+  margin-top: 9px; padding-top: 9px; border-top: 1px solid rgba(255, 255, 255, .1);
+  font-size: 11.5px; font-weight: 700; color: rgba(255, 255, 255, .6); text-align: center;
+}
+
+
+
+
+
+
+
+
 .oyk-bal-btn {
-  margin-top: 12px; padding: 8px 14px; border-radius: 11px;
-  background: rgba(255, 255, 255, .75); border: 1px solid rgba(245, 183, 0, .4);
-  color: var(--oyk-gold-deep); font-size: 12.5px; font-weight: 800; cursor: pointer;
+  margin-top: 12px; padding: 9px 15px; border-radius: 12px;
+  background: rgba(255, 255, 255, .14); border: 0;
+  color: #fff; font-size: 12.5px; font-weight: 800; cursor: pointer;
   transition: transform var(--dur-press);
 }
 .oyk-bal-btn:active { transform: scale(.96); }
-.oyk-bal-coin { position: absolute; right: 12px; top: 16px; font-size: 46px; line-height: 1; opacity: .9; }
+
 
 /* ── 🎮 "Qanday ishlaydi?" varag'i (5 qadam) ── */
 .oyk-how-lead { font-size: 13px; color: var(--oyk-text-2); margin-bottom: 12px; }
