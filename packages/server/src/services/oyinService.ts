@@ -1571,11 +1571,15 @@ export async function seasonClose(): Promise<OyinSeasonCloseResult> {
 //  · `oyin:quest:` / `oyin:home:` — kun-ro'yxatlari, xuddi login/share kabi. Ball baribir mavsum
 //    oynasiga kesiladi, lekin qator qolsa u mavsumdan-mavsumga cheksiz o'sardi va `scope:"all"`
 //    faoliyat-jadvalida eski mavsum qatorlari jonli ko'rinardi.
-//  · `oyin:home:` ni arxivlash mijozga ZARAR QILMAYDI (tekshirildi — miniapp/src/oyin.tsx:246-253):
-//    o'yin ekrani har ochilganda `checkHomeScreenStatus()` yuriladi va "added" bo'lsa
-//    `POST /api/oyin/home {added:true}` qayta yuboriladi → yangi mavsumning birinchi tashrifida
-//    belgi O'ZI tiklanadi va 500 ball qaytadan tushadi. Ya'ni "ilova ekranda TURIBDI" holati har
-//    mavsumda QAYTA tasdiqlanadi — mijoz hech narsani qayta o'rnatmaydi.
+//  · `oyin:home:` — ⚠️ 2026-08-03 da bu izoh YOLG'ON bo'lib qoldi va tuzatildi. Avval bu yerda
+//    "belgi o'zi tiklanadi, 500 ball qaytadan tushadi" deb yozilgandi, chunki miniapp har
+//    ochilganda `checkHomeScreenStatus()==="added"` bo'lsa serverga qayta bildirardi. AYNAN
+//    O'SHA avto-bildirish jonli sinovda bugni keltirdi: ega hech narsa qilmasdan 300 ball oldi
+//    ("men ekranga qo'shmagankuman nega ball bergan"). Signal tekshirib bo'lmaydigan — Android
+//    yorliq qo'shilganini ilovaga aytmaydi. Avto-bildirish OLIB TASHLANDI; ball endi FAQAT
+//    `homeScreenAdded` hodisasidan keladi. Demak yangi mavsumda belgi O'ZI TIKLANMAYDI — va bu
+//    to'g'ri: ikonka allaqachon ekranda bo'lsa topshiriq ham KO'RSATILMAYDI (miniapp `missed`
+//    holatidagina chizadi), ya'ni bajarib bo'lmaydigan vazifa osilib qolmaydi.
 //  · `oyin:story:` — hikoya tarixi mavsum bilan tugaydi (yangi mavsum = yangi 3 ta limit). Arxiv
 //    qatorlari saqlanib qoladi (`oyin:arch:sN:…`), ya'ni tekshiruv uchun yo'qolmaydi.
 //  · `oyin:goal:` — maqsad-sovrin eski katalogga ishora qiladi; yangi mavsumda mijoz o'zi tanlaydi

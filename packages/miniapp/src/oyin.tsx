@@ -209,7 +209,7 @@ export function OyinView({ onTaxi }: { onTaxi?: () => void } = {}) {
   const [bell, setBell] = useState<OyinActivityResponse | null>(null);
   // 🏠 Doimiy topshiriq — Telegram klienti qo'llab-quvvatlaydimi. `unsupported` bo'lsa
   // topshiriq umuman ko'rsatilmaydi (bajarib bo'lmaydigan vazifa ko'rsatish — bo'sh va'da).
-  const [homeSupported, setHomeSupported] = useState<boolean | null>(null);
+  const [homeAddable, setHomeAddable] = useState<boolean | null>(null);
   const [bellSeen, setBellSeen] = useState<string>(() => { try { return localStorage.getItem("oyk_bell_seen") ?? ""; } catch { return ""; } });
   // Qizil nuqta — oxirgi ko'rilgandan keyin necha voqea qo'shilgani. Ro'yxat ochilmagan
   // bo'lsa (bell === null) nuqta ko'rsatilmaydi: soxta "yangi bor" signali bermaymiz.
@@ -323,15 +323,26 @@ export function OyinView({ onTaxi }: { onTaxi?: () => void } = {}) {
   }, []);
   useEffect(() => () => clearTimeout(toastT.current), []);
 
-  // 🏠 Ekranga o'rnatish: holatni tekshiramiz va Telegram HODISASIGA obuna bo'lamiz —
-  // mijoz tugmani bosgani yetarli emas, faqat haqiqiy qo'shilish tasdiqlanadi.
+  // 🏠 Ekranga o'rnatish — ⚠️ 2026-08-03 QAYTA YOZILDI (ega jonli sinovda topdi: "men ekranga
+  // qo'shmagankuman nega ball bergan").
+  //
+  // ESKI KOD: `if (st === "added") api.oyinHomeScreen(true)` — ya'ni ilova HAR OCHILGANDA
+  // Telegram'dan holat so'ralardi va u "added" desa BALL TUSHARDI, mijoz hech narsa qilmasa ham.
+  // Ustidagi izoh esa "faqat haqiqiy qo'shilish tasdiqlanadi" deb VA'DA berardi — bu yolg'on edi:
+  // Android'da tizim yorliq qo'shilganini ilovaga AYTMAYDI, Telegram so'rov yuborilishi bilanoq
+  // "added" deb belgilaydi; Desktop/Web'da javob umuman boshqacha. Ya'ni bu signalni SERVER
+  // TEKSHIRA OLMAYDI va unga 300 ball qurilgan edi.
+  //
+  // YANGI QOIDA (ega qarori): ball FAQAT jonli oqimdan — mijoz tugmani bosib Telegram'ning
+  // qo'shish oynasidan o'tganda (`homeScreenAdded` hodisasi). "Allaqachon qo'shilgan" holati
+  // uchun HECH QACHON to'lanmaydi.
+  // Topshiriq esa faqat `missed` (ya'ni ROSTDAN qo'shilmagan va qo'shish MUMKIN) bo'lganda
+  // ko'rsatiladi — aks holda bajarib bo'lmaydigan topshiriq ekranda osilib turardi.
   useEffect(() => {
     let alive = true;
     void homeScreenStatus().then((st) => {
       if (!alive) return;
-      setHomeSupported(st !== "unsupported");
-      // Allaqachon qo'shilgan bo'lsa (yoki oldingi mavsumdan qolgan) — serverga bildiramiz.
-      if (st === "added") api.oyinHomeScreen(true).then(() => loadHome(true)).catch(() => undefined);
+      setHomeAddable(st === "missed");
       // O'chirib tashlagan bo'lsa belgi olib tashlanadi (ball saqlanib qolmasin).
       if (st === "missed") api.oyinHomeScreen(false).catch(() => undefined);
     });
@@ -962,9 +973,14 @@ Taksida yur, ball yig', chipta ol. Mavsum oxiri jonli tirajda o'ynaladi. Mening 
               </div>
             )}
 
-            {/* 🏠 DOIMIY topshiriq — ilovani telefon ekraniga o'rnatish. Klient qo'llab-
-                quvvatlamasa UMUMAN ko'rsatilmaydi: bajarib bo'lmaydigan vazifa = bo'sh va'da. */}
-            {!ended && homeSupported === true && state.homeTask.ball > 0 && (
+            {/* 🏠 DOIMIY topshiriq — ilovani telefon ekraniga o'rnatish.
+                Ko'rsatish sharti (2026-08-03): `homeAddable` (avval `homeSupported`) "qo'shish MUMKIN" degani
+                (`homeScreenStatus() === "missed"`), "klient qo'llab-quvvatlaydi" emas. Sabab:
+                ikonka ALLAQACHON ekranda bo'lsa Telegram oqimi qayta ochilmaydi va hodisa
+                otilmaydi — ya'ni topshiriq BAJARIB BO'LMAYDIGAN bo'lib ekranda osilib qolardi.
+                `state.homeTask.done` bo'lsa esa baribir ko'rsatiladi: mijoz o'zi bajargan ishning
+                tasdig'ini ko'rishi kerak (aks holda ball tushadi-yu, sababi ekrandan yo'qoladi). */}
+            {!ended && (homeAddable === true || state.homeTask.done) && state.homeTask.ball > 0 && (
               <button
                 type="button"
                 className={`oyk-quest is-home${state.homeTask.done ? " is-done" : ""}`}
