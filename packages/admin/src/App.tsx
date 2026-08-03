@@ -1,9 +1,9 @@
 import { Fragment, useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import {
   OYIN_DEFAULT_SLOTS,
-  OYIN_PRIZE_SHARERS,
   OYIN_SOM_PER_BALL,
-  oyinBallPrice,
+  OYIN_TARGET_COST_PCT,
+  oyinPrizePlan,
   formatNumber,
   CLASSIFIED_CATEGORIES,
   INSP_CATEGORIES,
@@ -962,17 +962,18 @@ function ControlCards() {
   //   1 ball = 10 so'm sof daromad · chipta narxi = qiymat ÷ (3 kishi × 10 so'm) = qiymat ÷ 30
   // Median usuli xato edi: u faqat qatorlarni bir-biriga solishtirardi, katalog BUTUNLAY
   // noto'g'ri shkalada bo'lsa ham "hammasi mos" derdi. Endi har qator MUTLAQ o'lchovga qaraydi.
-  const catalogRatio = (() => {
-    if (!catalog) return null;
-    const rows = catalog.map((p) => {
-      const d = catalogDraft[p.key];
-      const sum = parseSum(d?.valueLabel ?? p.valueLabel);
-      const price = Number(d?.price ?? p.price);
-      const limit = Number(d?.limit ?? p.limit);
-      return { key: p.key, sum, price, limit, want: sum ? oyinBallPrice(sum) : null };
-    });
-    return { rows: Object.fromEntries(rows.map((r) => [r.key, r])) };
-  })();
+  // 📐 Har sovrin uchun REJA — qiymat va chipta sonidan avtomatik.
+  const planOf = (valueLabel: string, priceRaw: string | number, limitRaw: string | number) => {
+    const sum = parseSum(String(valueLabel));
+    const price = Number(priceRaw) || 0;
+    const limit = Math.max(1, Number(limitRaw) || 0);
+    if (!sum) return null;
+    const plan = oyinPrizePlan(sum, limit);
+    // Ega qo'lda boshqa narx qo'ygan bo'lsa — HAQIQIY xarajat shundan hisoblanadi.
+    const realCost = price > 0 ? (sum / (limit * price * OYIN_SOM_PER_BALL)) * 100 : 0;
+    const perDay = price > 0 ? Math.round(price / 30) : 0;
+    return { sum, price, limit, plan, realCost, perDay };
+  };
 
   return (
     <>
@@ -1071,13 +1072,16 @@ function ControlCards() {
         <p className="muted" style={{ margin: "0 0 8px", fontSize: 12 }}>
           Yangi sovrin qo'shish, mavjudini narxi/soni/rasmi bilan tahrirlash, vitrinadan yashirish yoki (chiptasi sotilmagan bo'lsa) butunlay o'chirish.
         </p>
-        <p className="muted" style={{ margin: "0 0 8px", fontSize: 12, lineHeight: 1.6 }}>
-          📐 <b>Ball = daromad kvitansiyasi.</b> 1 ball = <b>{OYIN_SOM_PER_BALL} so'm</b> sof daromad
-          (buyurtmadan 2 000 so'm → safar {2000 / OYIN_SOM_PER_BALL} ball: safarchiga 150, chaqiruvchiga 50).<br />
-          Chipta narxi = <b>qiymat ÷ {OYIN_PRIZE_SHARERS} kishi ÷ {OYIN_SOM_PER_BALL} so'm</b>. Har sovrinda{" "}
-          <b>{OYIN_DEFAULT_SLOTS} o'rin</b> bo'lsa sizning xarajatingiz kelgan daromadning{" "}
-          <b>{Math.round((OYIN_PRIZE_SHARERS / OYIN_DEFAULT_SLOTS) * 100)}%</b> i bo'ladi.
-        </p>
+        <div className="muted" style={{ margin: "0 0 10px", fontSize: 12, lineHeight: 1.7, background: "rgba(255,255,255,.04)", borderRadius: 8, padding: "10px 12px" }}>
+          📐 <b>Faqat ikkitasini yozing — qolganini panel o'zi hisoblaydi.</b><br />
+          <b>1)</b> Sovrinning real narxi (so'm) &nbsp; <b>2)</b> Nechta chipta sotasiz<br />
+          <span style={{ opacity: .8 }}>
+            Ball narxi = qiymat ÷ ({OYIN_TARGET_COST_PCT}% × chipta soni × {OYIN_SOM_PER_BALL} so'm).
+            1 ball = {OYIN_SOM_PER_BALL} so'm sof daromad (buyurtmadan 2 000 so'm).
+          </span><br />
+          ⚠️ <b>Chipta soni = sizning xarajat foizingiz.</b> Kam chipta → qimmat chipta → hech kim ola olmaydi.
+          Masalan 1 mln so'mlik TV: 4 chipta bo'lsa 166 700 ball (833 safar — imkonsiz), 33 chipta bo'lsa 20 000 ball (10 faol do'stli odam bir oyda yig'adi).
+        </div>
         {catalog && (
           <div style={{ display: "grid", gap: 10, maxWidth: 640 }}>
             {catalog.map((p) => {
@@ -1104,23 +1108,37 @@ function ControlCards() {
                     <span className="muted" style={{ fontSize: 11 }}>sotilgan: {p.sold}</span>
                   </div>
                   {(() => {
-                    const r = catalogRatio?.rows[p.key];
-                    if (!r) return null;
-                    if (!r.sum) return <div style={{ fontSize: 11, color: "#f0b429" }}>⚠️ Qiymat (so'm) yozilmagan — narxni hisoblab bo'lmaydi</div>;
-                    const brings = r.price * OYIN_SOM_PER_BALL;
-                    const off = r.want ? r.price / r.want : 1;
-                    const cost = r.limit > 0 ? (OYIN_PRIZE_SHARERS / r.limit) * 100 : 0;
-                    const warn = off < 0.75 || off > 1.34;
+                    const r = planOf(d.valueLabel, d.price, d.limit);
+                    if (!r) return <div style={{ fontSize: 11, color: "#f0b429" }}>⚠️ Sovrinning real narxini (so'm) yozing — ball o'zi hisoblanadi</div>;
+                    const off = r.price > 0 ? r.price / r.plan.ballPrice : 0;
+                    const wrongPrice = off < 0.9 || off > 1.1;
+                    const tooFew = r.limit < r.plan.minSlots;
                     return (
-                      <div style={{ fontSize: 11.5, lineHeight: 1.6, color: warn ? "#ff6b6b" : undefined }}>
-                        {warn ? "⚠️ " : "✓ "}
-                        Chipta egasi kassaga <b>{brings.toLocaleString("ru-RU")} so'm</b> olib kelgan bo'ladi.
-                        {warn && <> To'g'ri narx: <b>{r.want?.toLocaleString("ru-RU")} ball</b> ({off > 1 ? "hozir juda qimmat" : "hozir juda arzon"}).</>}
-                        <br />
-                        <span className="muted">
-                          {r.limit} o'rin → bu sovrin uchun kelgan daromadning <b>{cost.toFixed(0)}%</b> i sizning xarajatingiz
-                          {r.limit < OYIN_PRIZE_SHARERS * 4 && <span style={{ color: "#f0b429" }}> · o'rin kam, xarajat yuqori</span>}
-                        </span>
+                      <div style={{ fontSize: 11.5, lineHeight: 1.7, background: "rgba(255,255,255,.03)", borderRadius: 6, padding: "7px 9px" }}>
+                        {tooFew ? (
+                          <div style={{ color: "#ff6b6b" }}>
+                            🚫 <b>{r.limit} ta chipta juda kam.</b> Bu qiymat uchun narx {r.plan.ballPrice.toLocaleString("ru-RU")} ball bo'ladi —
+                            buni hech kim yig'a olmaydi (real chegara ~25 000). <b>Kamida {r.plan.minSlots} ta chipta</b> qo'ying.
+                          </div>
+                        ) : wrongPrice ? (
+                          <div style={{ color: "#ff6b6b" }}>
+                            ⚠️ Narx mos emas. <b>To'g'ri: {r.plan.ballPrice.toLocaleString("ru-RU")} ball</b>{" "}
+                            <button className="btn sm" style={{ marginLeft: 6 }} onClick={() => setD({ price: String(r.plan.ballPrice) })}>📐 Qo'yish</button>
+                            <br />
+                            <span className="muted">Hozirgi narxda xarajatingiz {r.realCost.toFixed(0)}% ({OYIN_TARGET_COST_PCT}% o'rniga)</span>
+                          </div>
+                        ) : (
+                          <div style={{ color: "#34d399" }}>✓ Narx to'g'ri — xarajatingiz {r.realCost.toFixed(0)}%</div>
+                        )}
+                        <div className="muted" style={{ marginTop: 3 }}>
+                          🎟 Chipta egasi kassaga <b>{(r.price * OYIN_SOM_PER_BALL).toLocaleString("ru-RU")} so'm</b> olib kelgan bo'ladi ·
+                          imkoniyat <b>1/{r.limit}</b><br />
+                          📅 Kuniga <b>{r.perDay.toLocaleString("ru-RU")} ball</b> kerak = o'zi{" "}
+                          <b>{Math.max(1, Math.round(r.perDay / 150))} safar</b> yoki{" "}
+                          <b>{Math.max(1, Math.round((r.perDay - 150) / 50))} faol do'st</b> (kuniga 1 safardan)<br />
+                          💰 Hammasi sotilsa: kassaga <b>{(r.limit * r.price * OYIN_SOM_PER_BALL).toLocaleString("ru-RU")} so'm</b>, siz to'laysiz{" "}
+                          <b>{r.sum.toLocaleString("ru-RU")} so'm</b>
+                        </div>
                       </div>
                     );
                   })()}
@@ -1138,14 +1156,52 @@ function ControlCards() {
               <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
                 <input type="text" value={newPrize.icon} onChange={(e) => setNewPrize((s) => ({ ...s, icon: e.target.value }))} placeholder="emoji" style={{ width: 44, textAlign: "center" }} maxLength={8} />
                 <input type="text" value={newPrize.name} onChange={(e) => setNewPrize((s) => ({ ...s, name: e.target.value }))} placeholder="Nomi (masalan: Termos)" style={{ flex: 1, minWidth: 120 }} />
-                <input type="text" value={newPrize.valueLabel} onChange={(e) => setNewPrize((s) => ({ ...s, valueLabel: e.target.value }))} placeholder="~narx" style={{ width: 150 }} />
+                <input
+                  type="text" value={newPrize.valueLabel} placeholder="Real narxi, masalan 1 000 000 so'm" style={{ width: 200 }}
+                  onChange={(e) => setNewPrize((st) => {
+                    const sum = parseSum(e.target.value);
+                    const plan = sum ? oyinPrizePlan(sum, Number(st.limit) || OYIN_DEFAULT_SLOTS) : null;
+                    return { ...st, valueLabel: e.target.value, price: plan ? String(plan.ballPrice) : st.price };
+                  })}
+                />
               </div>
               <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
-                <span className="muted" style={{ fontSize: 11 }}>Chipta narxi (ball)</span>
-                <input type="number" min={1} value={newPrize.price} onChange={(e) => setNewPrize((s) => ({ ...s, price: e.target.value }))} style={{ width: 90 }} />
-                <span className="muted" style={{ fontSize: 11 }}>Chipta-o'rin (dona)</span>
-                <input type="number" min={1} value={newPrize.limit} onChange={(e) => setNewPrize((s) => ({ ...s, limit: e.target.value }))} style={{ width: 70 }} />
+                <span className="muted" style={{ fontSize: 11 }}>Nechta chipta sotasiz</span>
+                <input
+                  type="number" min={1} value={newPrize.limit} style={{ width: 80 }}
+                  onChange={(e) => setNewPrize((st) => {
+                    // Chipta soni o'zgarsa ball narxi DARHOL qayta hisoblanadi.
+                    const sum = parseSum(st.valueLabel);
+                    const plan = sum ? oyinPrizePlan(sum, Number(e.target.value) || 1) : null;
+                    return { ...st, limit: e.target.value, price: plan ? String(plan.ballPrice) : st.price };
+                  })}
+                />
+                <span className="muted" style={{ fontSize: 11 }}>Ball narxi (avtomatik)</span>
+                <input type="number" min={1} value={newPrize.price} onChange={(e) => setNewPrize((st) => ({ ...st, price: e.target.value }))} style={{ width: 100 }} />
               </div>
+              {(() => {
+                const r = planOf(newPrize.valueLabel, newPrize.price, newPrize.limit);
+                if (!r) return <div className="muted" style={{ fontSize: 11 }}>💡 Sovrinning real narxini (masalan «1 000 000 so'm») yozing — ball o'zi hisoblanadi</div>;
+                const tooFew = r.limit < r.plan.minSlots;
+                return (
+                  <div style={{ fontSize: 11.5, lineHeight: 1.7, background: "rgba(255,255,255,.03)", borderRadius: 6, padding: "7px 9px" }}>
+                    {tooFew && (
+                      <div style={{ color: "#ff6b6b" }}>
+                        🚫 <b>{r.limit} ta chipta juda kam</b> — narx {r.plan.ballPrice.toLocaleString("ru-RU")} ball bo'lardi, hech kim yig'a olmaydi.
+                        <button className="btn sm" style={{ marginLeft: 6 }} onClick={() => setNewPrize((st) => ({ ...st, limit: String(r.plan.minSlots), price: String(oyinPrizePlan(r.sum, r.plan.minSlots).ballPrice) }))}>
+                          📐 {r.plan.minSlots} ta qilib to'g'irlash
+                        </button>
+                      </div>
+                    )}
+                    <div className="muted">
+                      🎟 Chipta egasi kassaga <b>{(r.price * OYIN_SOM_PER_BALL).toLocaleString("ru-RU")} so'm</b> olib keladi · imkoniyat <b>1/{r.limit}</b><br />
+                      📅 Kuniga <b>{r.perDay.toLocaleString("ru-RU")} ball</b> = o'zi <b>{Math.max(1, Math.round(r.perDay / 150))} safar</b> yoki{" "}
+                      <b>{Math.max(1, Math.round((r.perDay - 150) / 50))} faol do'st</b><br />
+                      💰 Hammasi sotilsa kassaga <b>{(r.limit * r.price * OYIN_SOM_PER_BALL).toLocaleString("ru-RU")} so'm</b> · siz to'laysiz <b>{r.sum.toLocaleString("ru-RU")} so'm</b> ({r.realCost.toFixed(0)}%)
+                    </div>
+                  </div>
+                );
+              })()}
               <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
                 <input type="text" value={newPrize.photoUrl} onChange={(e) => setNewPrize((s) => ({ ...s, photoUrl: e.target.value }))} placeholder="Rasm URL (ixtiyoriy)" style={{ flex: 1 }} />
                 <button className="btn sm" style={savedPrizeKey === "__new__" ? { background: "rgba(52,211,153,.25)", color: "#34d399" } : undefined} disabled={!newPrize.name.trim() && savedPrizeKey !== "__new__"} onClick={() => void addNewPrize()}>{savedPrizeKey === "__new__" ? "✓ Qo'shildi" : "Qo'shish"}</button>
