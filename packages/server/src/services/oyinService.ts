@@ -200,9 +200,13 @@ async function computeBallMap(): Promise<Map<number, MemberBallRow>> {
   const fromWeek = season.startWeekKey as string;
   const toWeek = season.endWeekKey as string;
 
-  const [rideCounts, referrals, telegramUsers, ticketRows, loginRows, shareRows, sprintWinRows, storyRows] = await Promise.all([
+  const [rideCounts, rideDayRows, referrals, telegramUsers, ticketRows, loginRows, shareRows, sprintWinRows, storyRows] = await Promise.all([
     // 1) YAGONA DB-darajasidagi sana filtri — katta jadval va indeksi bor (@@index([createdAt])).
     prisma.rideReward.groupBy({ by: ["memberId"], _count: { _all: true }, where: { createdAt: { gte: from, lte: to } } }),
+    // 1b) ⚠️ Zanjir uchun SAFAR KUNLARI. Avval zanjir `oyin:login:` (ILOVA OCHISH) bo'yicha edi —
+    //     safarsiz odam faqat ilovani ochib turib mavsumda 500 ball yig'ardi va tanqis chipta-
+    //     o'rnini egallardi. Endi zanjir DAROMADGA bog'langan: har 3 ketma-ket SAFAR kuni = 1 bonus.
+    prisma.rideReward.findMany({ where: { createdAt: { gte: from, lte: to } }, select: { memberId: true, createdAt: true } }),
     // 2) FILTRLANMAYDI: bitta qator UCHTA komponentni uchta HAR XIL soat bilan boqadi
     //    (createdAt → referJoin, referrerPaidAt → referFirstRide, referee safarlari → referRides).
     prisma.referral.findMany({ select: { referrerId: true, refereeMemberId: true, referrerPaidAt: true, createdAt: true } }),
@@ -287,11 +291,16 @@ async function computeBallMap(): Promise<Map<number, MemberBallRow>> {
   // Qoida: mavsum ichidagi kunlar ketma-ketligida har TO'LIQ 3 kun = 1 bonus (bir-birini
   // qoplamaydi, ya'ni 7 kunlik zanjir = 2 bonus).
   const STREAK_TARGET = 3;
+  // Safar kunlari a'zo bo'yicha (Toshkent kuni) — zanjir manbai.
+  const rideDaysByMember = new Map<number, Set<string>>();
+  for (const r of rideDayRows) {
+    const set = rideDaysByMember.get(r.memberId) ?? new Set<string>();
+    set.add(tashkentDayKey(r.createdAt));
+    rideDaysByMember.set(r.memberId, set);
+  }
   const streakByMember = new Map<number, number>();
-  for (const row of loginRows) {
-    const memberId = Number(row.key.slice("oyin:login:".length));
-    if (!Number.isFinite(memberId)) continue;
-    const days = parseDayList(row.value).filter((d) => d >= fromDay && d <= toDay).sort();
+  for (const [memberId, daySet] of rideDaysByMember) {
+    const days = [...daySet].filter((d) => d >= fromDay && d <= toDay).sort();
     let bonuses = 0;
     let run = 0;
     let prevMs: number | null = null;
@@ -1156,31 +1165,19 @@ export async function seasonClose(): Promise<OyinSeasonCloseResult> {
   // Yaroqlilik ("≥1 real safar") MAVSUM ichidagi safarga qaraydi — `seasonRides` xaritada bor,
   // shuning uchun ikkinchi so'rov kerak emas (va hisob bilan yaroqlilik hech qachon ziddiyatga
   // tushmaydi — ikkalasi ham bitta oynadan).
+  // ⚠️ EGA QARORI 2026-08-03: mavsum oxirida sarflanmagan ball BUTUNLAY KUYADI.
+  // Sabab: ball endi DAROMAD kvitansiyasi (1 ball = 10 so'm sof daromad), 50% konvertatsiya
+  // yangi shkalada mantiqsiz bo'lardi (13 800 ball → 6 900 tanga). Bu bir vaqtning o'zida
+  // o'yindan YAGONA pul-chiqish yo'lini olib tashlaydi: endi `oyin` moduli hech qachon
+  // `grantCoins` chaqirmaydi, ya'ni cheklovsiz emissiya xavfi butunlay yo'q.
+  // Mijozga bu mavsum DAVOMIDA ochiq aytiladi ("mavsum oxirigacha ballingizni sarflang").
   const map = await computeBallMap();
-  const { grantCoins } = await import("./coinService");
-  // 🚫 Bloklangan a'zoga to'lanmaydi. Avval bu tekshiruv yo'q edi: firibgarni bloklab
-  // qo'ysangiz ham mavsum yakunida uning butun balli tangaga aylanib ketardi.
-  const bannedIds = new Set(
-    (await prisma.member.findMany({ where: { banned: true }, select: { id: true } })).map((m) => m.id),
-  );
 
   let convertedCount = 0;
-  let totalTanga = 0;
-  for (const [memberId, row] of map) {
-    if (row.breakdown.ball <= 0 || row.seasonRides <= 0) continue;
-    if (bannedIds.has(memberId)) continue;
-    const tanga = Math.min(500, Math.floor(row.breakdown.ball * 0.5));
-    if (tanga <= 0) continue;
-    // 🚩 Idempotentlik kaliti MAVSUM bilan tamg'alanadi. Tamg'asiz bo'lsa 2-mavsum HECH KIMGA
-    // to'lamaydi va `convertedCount: 0` bilan "muvaffaqiyatli" hisobot beradi (grantCoins hammasini
-    // `duplicate` deb o'tkazadi). Tamg'a SANA emas, HISOBLAGICH — sana tahrirlanadigan bo'lgani
-    // uchun sanaga bog'lansa, ega sanani surganda hammaga ikkinchi marta to'lov ketardi.
-    const g = await grantCoins(
-      memberId, tanga, "oyin_convert",
-      "🎮 BirJoy O'yinlar Mavsumi — mavsum yakuni, qoldiq ball tangaga aylandi",
-      `oyin_convert:${season.seasonId}:${memberId}`,
-    );
-    if (g.ok) { convertedCount++; totalTanga += tanga; }
+  const totalTanga = 0;
+  // Hisobot uchun: nechta a'zoning balli kuydi (pul TO'LANMAYDI — faqat statistika).
+  for (const [, row] of map) {
+    if (row.breakdown.ball > 0) convertedCount++;
   }
   await prisma.appState.create({ data: { key: doneKey, value: JSON.stringify({ at: new Date().toISOString(), convertedCount, totalTanga }) } }).catch(() => undefined);
   invalidateBallCache();

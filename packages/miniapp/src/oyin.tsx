@@ -85,11 +85,11 @@ type BallRow = { ic: string; label: string; ball: number; note: string };
 function ballRows(h: OyinStateResponse["hints"]): BallRow[] {
   return ([
     ["📸", "Hikoya joylash", h.storyBall, "admin tasdig'idan keyin"],
-    ["🎉", "Do'sting birinchi safarini qildi", h.referFirstRideBall, "har do'st uchun bir marta"],
+    ["🎉", "Do'stingiz BIRINCHI safarini qildi", h.referFirstRideBall, "har do'st uchun bir marta"],
     ["🥇", "Birinchi safaring", h.firstRideBall, "mavsumda bir marta"],
-    ["🔥", "3 kunlik zanjir", h.streakBall, "har 3 kun ketma-ket kirsangiz"],
+    ["🔥", "3 kun ketma-ket safar", h.streakBall, "har 3 kun ketma-ket yursangiz"],
     ["🤝", "Do'stingizning har safari", h.referRideBall, "cheksiz — u yurgani sari"],
-    ["👥", "Do'sting raqamini uladi", h.referJoinBall, "har do'st uchun bir marta"],
+    ["👥", "Do'stingiz raqamini uladi", h.referJoinBall, "har do'st uchun bir marta"],
     ["🚕", "O'z safaringiz", h.rideBall, "cheksiz"],
     ["📱", "Telefon tasdiqlash", h.phoneBall, "bir marta"],
     ["📤", "Ulashish", h.shareBall, "kuniga bir marta"],
@@ -593,31 +593,25 @@ Taksida yur, ball yig', chipta ol. Mavsum oxiri jonli tirajda o'ynaladi. Mening 
               /* 🏁 MAVSUM YAKUNI — endi ERTA RETURN emas, O'yin tabining kontenti.
                  Tab-qatori, Chiptalarim va "?" tirik qoladi (tiraj kuni chipta kerak bo'ladi). */
               (() => {
-                // ⚠️ Konvertatsiya SERVERDA "≥1 real safar" sharti bilan (oyinService seasonClose).
-                // Bu shart ekranda ham bo'lishi SHART — aks holda faqat kirish/ulashish bilan ball
-                // yig'gan odamga "+250 tanga" va'da qilinadi, hisobiga esa 0 tushadi.
-                // ⚠️ `breakdown.rides` — safar BALI, SON emas. Ega safar balini 0 ga sozlasa
-                // 12 marta yurgan mijozga "safaringiz yo'q" deb yolg'on aytardi. Server sharti
-                // (`seasonClose`) SONGA qaraydi — ekran ham endi aynan shu songa qaraydi.
-                const rode = state.seasonRides > 0;
-                const estTanga = rode ? Math.min(500, Math.floor(state.ball * 0.5)) : 0;
+                // Ega qarori 2026-08-03: mavsum oxirida ball TANGAGA AYLANMAYDI, kuyadi.
+                // Ekran shuni ochiq aytadi — mavsum davomida ham aytilgan (ball jadvali ostida),
+                // shuning uchun bu yerda "to'satdan" bo'lmaydi.
                 return (
                   <div className="oyk-hero is-new">
                     <div className="oyk-hero-glow" />
                     <div className="oyk-hero-label">🏁 MAVSUM YAKUNLANDI</div>
-                    <div className="oyk-hero-new-title">Chiptalaringiz tirajda</div>
+                    <div className="oyk-hero-new-title">
+                      {state.ticketCount > 0 ? "Chiptalaringiz tirajda" : "Bu mavsum tugadi"}
+                    </div>
                     <div className="oyk-ended-card">
-                      <div className="oyk-ended-row"><span>Yakuniy ballingiz</span><b>{state.ball}</b></div>
-                      {state.rank && <div className="oyk-ended-row"><span>Reytingdagi o'rningiz</span><b>{state.rank}-o'rin</b></div>}
                       <div className="oyk-ended-row"><span>Chiptalaringiz</span><b>{state.ticketCount} ta</b></div>
-                      {estTanga > 0
-                        ? <div className="oyk-ended-row"><span>Ballingiz tangaga aylanadi</span><b>+{estTanga} tanga</b></div>
-                        : <div className="oyk-ended-row"><span>Ballingiz tangaga aylanadi</span><b>—</b></div>}
+                      {state.rank && <div className="oyk-ended-row"><span>Reytingdagi o'rningiz</span><b>{state.rank}-o'rin</b></div>}
+                      <div className="oyk-ended-row"><span>Sarflanmagan ball</span><b>{state.ball}</b></div>
                     </div>
                     <div className="oyk-hero-new-sub">
-                      {estTanga > 0
-                        ? <>Qolgan ball tangaga aylanadi va hisobingizga tushadi.</>
-                        : <>Ball tangaga faqat <b>real safar qilganlarga</b> aylanadi — bu mavsumda safaringiz yo'q.</>}
+                      {state.ticketCount > 0
+                        ? <>Sarflanmagan ball mavsum bilan birga yonadi. Chiptalaringiz esa tirajda — omad!</>
+                        : <>Sarflanmagan ball mavsum bilan birga yonadi. Keyingi mavsumda ballni chiptaga aylantirishni unutmang.</>}
                     </div>
                   </div>
                 );
@@ -765,7 +759,9 @@ Taksida yur, ball yig', chipta ol. Mavsum oxiri jonli tirajda o'ynaladi. Mening 
               <button type="button" className="oyk-act is-invite" onClick={() => void inviteFriend()}>
                 <span className="oyk-act-ic">👥</span>
                 <b>Do'st chaqirish</b>
-                <small>+{state.hints.referJoinBall} ball</small>
+                {/* Mukofot endi do'st RAQAM ULAGANDA emas, BIRINCHI SAFARINI qilganda —
+                    soxta akkaunt fabrikasi shu bilan foydasiz bo'ladi. */}
+                <small>+{state.hints.referFirstRideBall} ball</small>
               </button>
             </div>}
 
@@ -887,7 +883,13 @@ Taksida yur, ball yig', chipta ol. Mavsum oxiri jonli tirajda o'ynaladi. Mening 
               )}
               {/* Doimiy qator (YAKUNIY DIZAYN §4). Ball hech qachon pulga aylanmaydi —
                   buni bir marta onboarding'da aytib qo'yish yetarli emas, doim ko'rinib tursin. */}
-              <div className="oyk-ball-warn">Ball pul emas. Ball faqat chipta olish uchun.</div>
+              {/* Endi bu qator TO'LIQ haqiqat: mavsum oxirida konvertatsiya YO'Q (ega qarori
+                  2026-08-03) — ball hech qanday shaklda pulga aylanmaydi. Va kuyishi mavsum
+                  DAVOMIDA aytiladi, oxirida to'satdan emas. */}
+              <div className="oyk-ball-warn">
+                Ball pul emas — faqat chipta olish uchun.<br />
+                Mavsum oxirigacha sarflanmagan ball yonadi.
+              </div>
             </div>}
 
             {!ended && (

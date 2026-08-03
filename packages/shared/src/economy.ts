@@ -237,17 +237,36 @@ export const BONUS_ECON_KNOBS: BonusEconKnob[] = [
   // tangaga aylantiradi — shuning uchun bu massivda, ega "nimaga nechi ball" nazoratini shu
   // yerdan oladi. Sovrin-katalog (narx/limit/rasm) ENDI bu yerda EMAS — 2026-08-02'dan boshlab
   // to'liq admin-CRUD, `oyin:catalog` AppState qatorida saqlanadi (oyinService.ts, oyin.ts).
-  { key: "oyinRideBall", label: "🎮 O'z safari — ball (3-o'rin)", def: 30, min: 0, max: 1000, step: 5, group: "Koson O'yini" },
-  { key: "oyinFirstRideBall", label: "🎮 Birinchi safar (hayotda) — ball", def: 80, min: 0, max: 2000, step: 10, group: "Koson O'yini" },
-  { key: "oyinPhoneBall", label: "🎮 Telefon tasdiqlash — ball", def: 20, min: 0, max: 1000, step: 5, group: "Koson O'yini" },
-  { key: "oyinReferJoinBall", label: "🎮 Do'st telefon ulaganda — taklifchiga ball", def: 40, min: 0, max: 2000, step: 10, group: "Koson O'yini" },
-  { key: "oyinReferFirstRideBall", label: "🎮 Do'st birinchi safar qilganda — taklifchiga ball", def: 120, min: 0, max: 5000, step: 10, group: "Koson O'yini" },
-  { key: "oyinReferRideBall", label: "🎮 Do'stning har safaridan — taklifchiga ball (2-o'rin)", def: 40, min: 0, max: 500, step: 5, group: "Koson O'yini" },
-  { key: "oyinDailyLoginBall", label: "🎮 Kunlik kirish — ball", def: 2, min: 0, max: 100, step: 1, group: "Koson O'yini" },
-  { key: "oyinShareBall", label: "🎮 Ulashish — ball (4-o'rin)", def: 10, min: 0, max: 100, step: 1, group: "Koson O'yini" },
-  { key: "oyinStoryProofBall", label: "🎮 Hikoya joylash (admin tasdig'i) — ball (1-o'rin)", def: 150, min: 0, max: 2000, step: 10, group: "Koson O'yini" },
-  { key: "oyinSprintBonusBall", label: "🎮 Haftalik sprint top-3 — bonus ball", def: 100, min: 0, max: 2000, step: 10, group: "Koson O'yini" },
-  { key: "oyinStreakBall", label: "🔥 3 kunlik zanjir — bonus ball", def: 50, min: 0, max: 1000, step: 10, group: "Koson O'yini" },
+  // ── 💰 BALL = DAROMAD KVITANSIYASI (ega qarori 2026-08-03) ────────────────────────────────
+  // Yagona shkala: **1 ball = 10 so'm SOF daromad**, bitta buyurtmadan 2000 so'm (ega raqami).
+  // Ya'ni bitta safar tizimga AYNAN 200 ball kiritadi — na ko'p, na kam. Avval ball "harakat
+  // uchun mukofot" edi va safarsiz odam kunlik kirish bilan oyiga 560 ball yig'ib, kassaga bir
+  // tiyin keltirmasdan sovrin yutardi. Endi ball ishlab chiqarishning yagona yo'li — kassaga
+  // pul kelishi. Sovrin narxi ham shu shkaladan chiqadi: `ball = qiymat ÷ 30` (qiymat ÷ 3
+  // odam ÷ 10 so'm). Har sovrinda 20 o'rin → BirJoy'ning xarajati kelgan daromadning 15% i.
+  //
+  // TAQSIMOT (bitta safarning 200 balli ikki marta sanalmaydi):
+  //   safarchiga 150 (75%) · uni chaqirganga 50 (25%)
+  // Sabab: pulni kassaga safarchi keltirdi. Chaqiruvchining kuchi SONDA — 20 do'st oyiga
+  // 8 000 ball beradi, o'zining 30 safari esa 4 500. "Do'st chaqirish eng foydali" saqlanadi.
+  { key: "oyinRideBall", label: "🎮 O'z safari — ball (2000 so'm × 75% ÷ 10)", def: 150, min: 0, max: 5000, step: 10, group: "Koson O'yini" },
+  { key: "oyinFirstRideBall", label: "🎮 Mavsumdagi birinchi safar — ball", def: 150, min: 0, max: 5000, step: 10, group: "Koson O'yini" },
+  { key: "oyinPhoneBall", label: "🎮 Telefon tasdiqlash — ball (bepul yo'l)", def: 100, min: 0, max: 1000, step: 10, group: "Koson O'yini" },
+  // ⚠️ 0 — ATAYLAB. Bu knob soxta-do'st fabrikasining dvigateli edi: har SIM karta uchun
+  // safarsiz 40 ball. Endi taklifchi faqat do'st HAQIQATAN yurganda to'lanadi (pastdagi knob).
+  { key: "oyinReferJoinBall", label: "🎮 Do'st telefon ulaganda — taklifchiga ball (0 = safarsiz to'lov yo'q)", def: 0, min: 0, max: 2000, step: 10, group: "Koson O'yini" },
+  // Mijoz jalb qilish mukofoti. Real xarajati: 500 ball × 10 so'm × 15% = 750 so'm — bu
+  // tanga tomonidagi `firstRide` bonusidan (5 000 so'm) 6× arzon va faqat REAL safarga to'lanadi.
+  { key: "oyinReferFirstRideBall", label: "🎮 Do'st BIRINCHI safarini qilganda — taklifchiga ball", def: 500, min: 0, max: 5000, step: 10, group: "Koson O'yini" },
+  { key: "oyinReferRideBall", label: "🎮 Do'stning har safaridan — taklifchiga ball (2000 × 25% ÷ 10)", def: 50, min: 0, max: 2000, step: 5, group: "Koson O'yini" },
+  // ── Bepul yo'l (daromadsiz, HUQUQIY SHART): mavsumda jami ~1 000 ball = eng arzon sovrin.
+  // Kattaroq sovringa hech qachon yetmaydi — o'yin daromadni rag'batlantiradi, bosishni emas.
+  { key: "oyinDailyLoginBall", label: "🎮 Kunlik kirish — ball (bepul yo'l)", def: 5, min: 0, max: 100, step: 1, group: "Koson O'yini" },
+  { key: "oyinShareBall", label: "🎮 Ulashish — ball (bepul yo'l)", def: 10, min: 0, max: 200, step: 1, group: "Koson O'yini" },
+  { key: "oyinStoryProofBall", label: "🎮 Hikoya joylash (admin tasdig'i) — ball (bepul yo'l)", def: 150, min: 0, max: 2000, step: 10, group: "Koson O'yini" },
+  { key: "oyinSprintBonusBall", label: "🎮 Haftalik sprint top-3 — bonus ball", def: 300, min: 0, max: 5000, step: 10, group: "Koson O'yini" },
+  // ⚠️ Zanjir endi SAFAR kunlari bo'yicha (avval ilova ochish sanalardi — safarsiz 500 ball/oy).
+  { key: "oyinStreakBall", label: "🔥 3 kunlik SAFAR zanjiri — bonus ball", def: 50, min: 0, max: 1000, step: 10, group: "Koson O'yini" },
   // ⚖️ Adolat qo'rig'i: do'st-safari 40 ga chiqqach, ko'p do'stli odam bitta sovrinning BARCHA
   // chiptasini sotib olishi mumkin edi. Pul xavfi yo'q (seasonClose 500 tanga bilan cheklaydi),
   // lekin tiraj adolati buzilardi — bitta odam butun sovrinni egallab olardi.

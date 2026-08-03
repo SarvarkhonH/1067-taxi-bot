@@ -26,12 +26,33 @@ export interface OyinCatalogPrize {
 // Birinchi ishga tushirishda (`oyin:catalog` AppState hali yo'q) shu default bilan urug'lanadi —
 // v9.2 rejadagi bazaviy 5 sovrin, o'sha paytdagi narx/limit qiymatlari bilan. Shundan keyin
 // TO'LIQ admin qo'lida — bu massiv faqat BIR MARTALIK boshlang'ich holat, keyin o'qilmaydi.
+/** 💰 BALL SHKALASI — 1 ball = shuncha so'm SOF daromad (ega raqami: buyurtmadan 2000 so'm).
+ *  Butun iqtisod shu bitta sondan chiqadi: safar bali ham, sovrin narxi ham. */
+export const OYIN_SOM_PER_BALL = 10;
+
+/** 👥 Bitta sovrinni necha kishi BIRGA to'laydi (ega qarori 2026-08-03: 3).
+ *  Chipta narxi = qiymat ÷ (BU SON × OYIN_SOM_PER_BALL). */
+export const OYIN_PRIZE_SHARERS = 3;
+
+/** 🎟 Har sovrindagi standart chipta-o'rin soni. BirJoy'ning xarajatini BELGILAYDI:
+ *  o'sha sovrin uchun kelgan daromadning `SHARERS / SLOTS` ulushi = 3/20 = **15%**. */
+export const OYIN_DEFAULT_SLOTS = 20;
+
+/** Sovrin qiymatidan (so'm) chipta ball-narxini hisoblaydi. Admin panel ham shuni ko'rsatadi. */
+export function oyinBallPrice(valueSom: number): number {
+  if (!Number.isFinite(valueSom) || valueSom <= 0) return 0;
+  return Math.round(valueSom / (OYIN_PRIZE_SHARERS * OYIN_SOM_PER_BALL) / 100) * 100;
+}
+
+// Katalog SHU FORMULA bilan qayta hisoblangan (ega qarori 2026-08-03). Har qatorda chipta
+// egasi kassaga qancha pul olib kelgani ham yozilgan — bu tekshirib turish uchun.
 export const OYIN_SEED_CATALOG: OyinCatalogPrize[] = [
-  { key: "voucher", icon: "🏷️", name: "30k voucher", valueLabel: "30 000 so'm", price: 600, limit: 15, photoUrl: null, active: true },
-  { key: "serviz", icon: "🍵", name: "Choy serviz", valueLabel: "~120 000 so'm", price: 1000, limit: 5, photoUrl: null, active: true },
-  { key: "dazmol", icon: "👕", name: "Dazmol", valueLabel: "~180 000 so'm", price: 1500, limit: 4, photoUrl: null, active: true },
-  { key: "blender", icon: "🥤", name: "Blender", valueLabel: "~350 000 so'm", price: 2200, limit: 3, photoUrl: null, active: true },
-  { key: "fryer", icon: "🍟", name: "Air Fryer", valueLabel: "~800 000 so'm", price: 3200, limit: 1, photoUrl: null, active: true },
+  // qiymat ÷ 30 = ball · chipta egasi olib kelgan sof daromad = ball × 10 so'm
+  { key: "voucher", icon: "🏷️", name: "30 000 so'mlik voucher", valueLabel: "30 000 so'm", price: 1000, limit: 20, photoUrl: null, active: true },   // 10 000 so'm
+  { key: "serviz", icon: "🍵", name: "Choy serviz", valueLabel: "~120 000 so'm", price: 4000, limit: 20, photoUrl: null, active: true },              // 40 000 so'm
+  { key: "dazmol", icon: "👕", name: "Dazmol", valueLabel: "~180 000 so'm", price: 6000, limit: 20, photoUrl: null, active: true },                   // 60 000 so'm
+  { key: "blender", icon: "🥤", name: "Blender", valueLabel: "~350 000 so'm", price: 11700, limit: 20, photoUrl: null, active: true },                // 117 000 so'm
+  { key: "pech", icon: "🔥", name: "Mikroto'lqinli pech", valueLabel: "~500 000 so'm", price: 16700, limit: 20, photoUrl: null, active: true },       // 167 000 so'm
 ];
 
 // Admin: sovrin qo'shish/tahrirlash so'rovi. `key` bo'lsa — o'sha yozuv YANGILANADI; bo'sh/
