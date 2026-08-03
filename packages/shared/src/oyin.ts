@@ -302,6 +302,12 @@ export interface OyinStateResponse {
   story: OyinStoryState;
   // 🎟 Mavsumda olingan chipta soni.
   ticketCount: number;
+  // 📊 UY EKRANI uchun UMUMIY (shaxsiy EMAS) raqamlar. Ega qarori 2026-08-03: uy ekranida
+  // mijozning o'z balli/o'rni KO'RSATILMAYDI — u yerda TAKLIF turadi. Bular esa ijtimoiy
+  // isbot: "624 chipta tarqatildi" = boshqalar ham olyapti degan signal.
+  soldTotal: number; // mavsumda jami tarqatilgan chipta
+  capacityTotal: number; // katalogdagi jami chipta-o'rin
+  prizeCount: number; // faol sovrinlar soni ("8 TA REAL SOVG'A")
   // 🚕 Mavsumdagi REAL safarlar SONI (ball emas!). Ikki joyda kerak: (a) mavsum yakunida
   // "ball tangaga aylanadimi?" — server sharti aynan shu SON (`seasonRides > 0`), ball emas;
   // (b) chipta olish darvozasi. Avval ekran `breakdown.rides` (=SAFAR BALI) ni o'qirdi va

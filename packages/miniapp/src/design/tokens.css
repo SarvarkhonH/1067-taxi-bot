@@ -1656,50 +1656,132 @@ body {
 /* 🎮 Koson O'yini — uy-ekran HERO kartasi (ega redizayni 2026-08-02: katta preview + katta sovrin-
    rasmlari). Ataylab HAR mavzuda qorong'i "o'yin-afisha" ko'rinishida — uy oqimidan ajralib,
    e'tibor tortadi (--oyk-* oltin/binafsha palitrasi bilan bir xil til). */
-/* ── 🎮 O'yinga chorlov kartasi (ega redizayni 2026-08-03) ────────────────────────────────
-   Avvalgi `.nh-koson` DABDALA edi: 9 element, 2 ta tugma, 5 xil o'lchamdagi matn, 3 ta kichik
-   rasm va `ball · o'rin` qatori. Uy ekranida RAQAM emas, TAKLIF turishi kerak.
-   Yangi karta 4 elementli: katta sovrin rasmi → sovrin nomi → "Bepul chipta olish uchun" →
-   bitta katta tugma. Ranglar `--nh-*` tokenlaridan, ya'ni light/dark/vibrant o'zi moslashadi. */
+/* ── 🎁 SOVG'ALAR MAVSUMI — uy ekranidagi chorlov posteri (ega maketi 2026-08-03) ──────────
+   HAMMASI KODDA: qizil festival foni, konfetti, oltin sarlavha — tashqi rasm YO'Q (ega:
+   "rasm yuklamayman"). Faqat sovrin fotolari katalogdan keladi (jismoniy narsa = real rasm).
+   Karta MAVZUDAN MUSTAQIL qizil — bu bayram posteri, u light/dark'da bir xil ko'rinadi. */
 .nh-oyin {
-  width: 100%; border-radius: 22px; overflow: hidden; margin-bottom: 6px;
+  width: 100%; border-radius: 22px; overflow: hidden; margin-bottom: 8px;
   background: var(--nh-sf); border: 1px solid var(--nh-ln); box-shadow: var(--nh-shadow);
   display: flex; flex-direction: column;
 }
-/* Rasm — kartaning YURAGI. Jismoniy narsa = real rasm (DIZAYN_QOIDALARI #10). */
+
+/* ── Qizil hero ── */
 .nh-oyin-hero {
-  position: relative; display: block; width: 100%; height: 176px; padding: 0; border: 0;
-  background: linear-gradient(150deg, #fff2d0, #ffe3ef 55%, #e8eeff);
-  overflow: hidden; cursor: pointer;
+  position: relative; display: flex; flex-direction: column; align-items: center;
+  width: 100%; padding: 13px 14px 46px; border: 0; cursor: pointer; text-align: center;
+  background:
+    radial-gradient(120% 80% at 50% 0%, #e11d2e 0%, #b40f22 45%, #8a0a19 100%);
+  color: #fff; overflow: hidden;
 }
-.nh-oyin-img { width: 100%; height: 100%; object-fit: cover; display: block; }
-/* Rasm yo'q/buzuq bo'lsa — rangli fon + KATTA emoji. Bo'sh kulrang kvadrat TAQIQ. */
-.nh-oyin-em { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-size: 62px; }
+/* Konfetti — sof CSS, tashqi fayl yo'q. Oltin va oq nuqtalar tasodifiy joylashgan. */
+.nh-oyin-conf {
+  position: absolute; inset: 0; pointer-events: none; opacity: .55;
+  background:
+    radial-gradient(circle at 8% 12%, #ffd75e 0 3px, transparent 3px),
+    radial-gradient(circle at 22% 6%, #fff 0 2px, transparent 2px),
+    radial-gradient(circle at 38% 16%, #ffd75e 0 2px, transparent 2px),
+    radial-gradient(circle at 62% 8%, #fff 0 2.5px, transparent 2.5px),
+    radial-gradient(circle at 78% 18%, #ffd75e 0 3px, transparent 3px),
+    radial-gradient(circle at 92% 9%, #fff 0 2px, transparent 2px),
+    radial-gradient(circle at 5% 34%, #ffd75e 0 2px, transparent 2px),
+    radial-gradient(circle at 95% 38%, #ffd75e 0 2.5px, transparent 2.5px),
+    radial-gradient(circle at 14% 62%, #fff 0 2px, transparent 2px),
+    radial-gradient(circle at 88% 66%, #ffd75e 0 2px, transparent 2px);
+}
+.nh-oyin-gift {
+  position: relative; font-size: 30px; line-height: 1;
+  filter: drop-shadow(0 3px 6px rgba(0, 0, 0, .35));
+}
+.nh-oyin-h1 {
+  position: relative; font-size: 31px; font-weight: 900; letter-spacing: .02em; line-height: 1;
+  margin-top: 6px; text-shadow: 0 3px 10px rgba(0, 0, 0, .35);
+}
+/* Oltin gradient matn — `background-clip` qo'llab-quvvatlanmasa oddiy oltin rangga tushadi. */
+.nh-oyin-h2 {
+  position: relative; font-size: 31px; font-weight: 900; letter-spacing: .02em; line-height: 1.05;
+  color: #ffd75e;
+  background: linear-gradient(180deg, #ffe89a, #ffc21f 55%, #e8a300);
+  -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent;
+  filter: drop-shadow(0 3px 8px rgba(0, 0, 0, .3));
+}
+.nh-oyin-lead { position: relative; font-size: 12.5px; font-weight: 700; color: rgba(255, 255, 255, .9); margin-top: 7px; }
+.nh-oyin-lead b { color: #ffd75e; }
+
+/* Sanoq — oq lavha, rasmdagidek */
 .nh-oyin-cd {
-  position: absolute; top: 10px; right: 10px; z-index: 2;
-  font-size: 10.5px; font-weight: 800; color: #fff; background: rgba(12, 16, 30, .52);
-  padding: 5px 10px; border-radius: 99px; backdrop-filter: blur(6px); white-space: nowrap;
+  position: relative; display: flex; align-items: center; gap: 9px; margin-top: 12px;
+  background: #fff; border-radius: 13px; padding: 8px 14px; box-shadow: 0 6px 16px rgba(0, 0, 0, .22);
 }
-/* Gradient — matn HAR QANDAY rasm ustida o'qilsin (oq rasmda ham). */
-.nh-oyin-fade { position: absolute; left: 0; right: 0; bottom: 0; height: 96px; background: linear-gradient(180deg, transparent, rgba(10, 12, 24, .82)); }
-.nh-oyin-cap { position: absolute; left: 15px; right: 15px; bottom: 12px; text-align: left; }
-.nh-oyin-cap b {
-  display: block; font-size: 19px; font-weight: 900; color: #fff; line-height: 1.2;
-  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+.nh-oyin-cd-ic { font-size: 19px; }
+.nh-oyin-cd-tx { display: flex; flex-direction: column; align-items: flex-start; line-height: 1.15; }
+.nh-oyin-cd-tx small { font-size: 8.5px; font-weight: 800; letter-spacing: .05em; color: #8a0a19; }
+.nh-oyin-cd-tx b { font-size: 15px; font-weight: 900; color: #12182a; }
+
+/* Sovrin fotolari — poster kompozitsiyasi */
+.nh-oyin-shots { position: relative; display: flex; gap: 7px; margin-top: 12px; width: 100%; }
+.nh-oyin-shot {
+  flex: 1; min-width: 0; height: 68px; border-radius: 12px; overflow: hidden;
+  background: rgba(255, 255, 255, .1); border: 1px solid rgba(255, 255, 255, .22);
 }
-.nh-oyin-cap small { display: block; font-size: 11.5px; font-weight: 600; color: rgba(255, 255, 255, .78); margin-top: 3px; }
-.nh-oyin-foot { padding: 13px 15px 15px; display: flex; flex-direction: column; gap: 10px; }
-.nh-oyin-lead { font-size: 13px; font-weight: 700; color: var(--nh-dim); text-align: center; }
+.nh-oyin-shot img { width: 100%; height: 100%; object-fit: cover; display: block; }
+/* Rasm yo'q/buzuq — RANGLI plitka + emoji (bo'sh kulrang kvadrat TAQIQ, DIZAYN_QOIDALARI #10).
+   Sovrin qatordan tushirilmaydi, shuning uchun karta balandligi HAR DOIM bir xil (#11). */
+.nh-oyin-shot-em {
+  width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; font-size: 30px;
+  background: linear-gradient(150deg, rgba(255, 215, 94, .28), rgba(255, 255, 255, .1));
+}
+
+.nh-oyin-badge {
+  position: absolute; left: 50%; bottom: 14px; transform: translateX(-50%);
+  background: #fff; color: #8a0a19; font-size: 11.5px; font-weight: 900; letter-spacing: .03em;
+  padding: 7px 15px; border-radius: 99px; box-shadow: 0 5px 14px rgba(0, 0, 0, .25); white-space: nowrap;
+}
+
+/* ── Oq statistika paneli (UMUMIY raqamlar, shaxsiy ball EMAS) ── */
+.nh-oyin-stats {
+  display: grid; grid-template-columns: 1.15fr 1fr; gap: 1px;
+  background: var(--nh-ln); margin: -18px 12px 0; border-radius: 16px; overflow: hidden;
+  position: relative; z-index: 2; box-shadow: 0 6px 18px rgba(20, 30, 60, .12);
+}
+.nh-oyin-stat { background: var(--nh-sf); padding: 11px 13px 12px; min-width: 0; }
+.nh-oyin-stat-k { font-size: 9.5px; font-weight: 900; letter-spacing: .04em; color: var(--nh-dim); }
+.nh-oyin-stat-v { margin-top: 3px; font-variant-numeric: tabular-nums; }
+.nh-oyin-stat-v b { font-size: 25px; font-weight: 900; color: #e11d2e; letter-spacing: -.5px; }
+.nh-oyin-stat-v span { font-size: 13px; font-weight: 800; color: var(--nh-dim); }
+.nh-oyin-stat-v2 { margin-top: 3px; font-size: 16px; font-weight: 900; color: #e11d2e; }
+.nh-oyin-stat-s { font-size: 10px; color: var(--nh-dim); margin-top: 1px; line-height: 1.35; }
+.nh-oyin-bar { height: 6px; border-radius: 99px; background: var(--nh-ln); margin-top: 8px; overflow: hidden; }
+.nh-oyin-bar span { display: block; height: 100%; border-radius: 99px; background: linear-gradient(90deg, #ff6b3d, #e11d2e); transition: width .5s ease; }
+.nh-oyin-pct { font-size: 10px; font-weight: 800; color: #e11d2e; text-align: right; margin-top: 3px; font-variant-numeric: tabular-nums; }
+.nh-oyin-stat.is-side { display: flex; flex-direction: column; justify-content: center; }
+
+/* ── Katta oltin CTA ── */
 .nh-oyin-cta {
-  width: 100%; height: 50px; border: 0; border-radius: 15px;
-  background: var(--nh-bgrad); color: var(--nh-bink);
-  font-size: 16px; font-weight: 900; cursor: pointer;
-  box-shadow: 0 8px 20px rgba(255, 143, 31, .28);
+  display: flex; align-items: center; justify-content: center; gap: 9px;
+  margin: 13px 12px 0; height: 54px; border: 0; border-radius: 16px;
+  background: linear-gradient(180deg, #ffd75e, #f5a300);
+  color: #4a2600; font-size: 15.5px; font-weight: 900; letter-spacing: .01em; cursor: pointer;
+  box-shadow: 0 8px 20px rgba(245, 163, 0, .34);
   transition: transform var(--dur-press, .12s) ease;
 }
-.nh-oyin-cta:active { transform: scale(.97); }
-.nh-oyin-hero:active .nh-oyin-img { transform: scale(1.02); transition: transform .18s ease; }
-@media (prefers-reduced-motion: reduce) { .nh-oyin-cta, .nh-oyin-hero:active .nh-oyin-img { transition: none; transform: none; } }
+.nh-oyin-cta:active { transform: scale(.975); }
+.nh-oyin-cta-ic { font-size: 18px; }
+.nh-oyin-cta-go { font-size: 20px; font-weight: 900; opacity: .7; }
+
+/* ── 4 qadam ── */
+.nh-oyin-steps { display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; padding: 10px 12px 12px; }
+.nh-oyin-step { display: flex; flex-direction: column; align-items: center; gap: 4px; min-width: 0; }
+.nh-oyin-step-em {
+  width: 31px; height: 31px; border-radius: 50%; display: flex; align-items: center; justify-content: center;
+  font-size: 16px; background: var(--nh-sf2); border: 1px solid var(--nh-ln);
+}
+.nh-oyin-step-tx { font-size: 9.5px; font-weight: 700; color: var(--nh-dim); text-align: center; line-height: 1.2; }
+
+@media (prefers-reduced-motion: reduce) {
+  .nh-oyin-cta, .nh-oyin-bar span { transition: none; }
+  .nh-oyin-cta:active { transform: none; }
+}
 
 /* `.nh-koson*` (eski dabdala karta — 9 element, 2 tugma, ball+o'rin) OLIB TASHLANDI 2026-08-03. */
 .nh-i-b { background:rgba(59,130,246,.16); color:var(--nh-blue); }

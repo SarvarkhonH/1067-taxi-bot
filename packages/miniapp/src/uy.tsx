@@ -15,7 +15,7 @@ import { HomeGames } from "./homeGames";
 function KosonOyinCard({ onNav }: { onNav: (t: string) => void }) {
   const [state, setState] = useState<OyinStateResponse | null>(null);
   const [prizes, setPrizes] = useState<OyinPrizeView[] | null>(null);
-  const [noPhoto, setNoPhoto] = useState(false);
+  const [bad, setBad] = useState<Set<string>>(new Set());
   useEffect(() => {
     let alive = true;
     api.oyinState().then((s) => { if (alive) setState(s); }).catch(() => undefined);
@@ -25,45 +25,96 @@ function KosonOyinCard({ onNav }: { onNav: (t: string) => void }) {
 
   const goOyin = () => { haptic(); onNav("oyin"); };
 
-  // Skeleton balandligi real kartaga TENG (~283px) — aks holda yuklanganda sahifa sakraydi.
-  if (!state) return <div className="nh-oyin"><div className="nh-skel" style={{ height: 283, borderRadius: 22 }} /></div>;
+  // Skeleton balandligi real kartaga TENG — aks holda yuklanganda sahifa sakraydi.
+  if (!state) return <div className="nh-oyin"><div className="nh-skel" style={{ height: 554, borderRadius: 22 }} /></div>;
   if (!state.season.configured || state.season.phase === "ended") return null;
+  // Sovrin yo'q bo'lsa karta CHIZILMAYDI: "BEPUL SOVG'ALAR" deb chaqirib, ichida hech narsa
+  // bo'lmasligi — yolg'on va'da. Ayni paytda bu balandlik o'zgarishini ham yo'q qiladi.
+  if (state.prizeCount <= 0) return null;
 
-  // ⚠️ `Date.parse(null) → NaN` → `Math.max(0, NaN) → NaN` → ekranda "NaN kun qoldi". Qo'riqlanadi.
+  // ⚠️ `Date.parse(null) → NaN` → `Math.max(0, NaN) → NaN` → ekranda "NaN kun". Qo'riqlanadi.
   const upcoming = state.season.phase === "upcoming";
   const targetIso = upcoming ? state.season.startIso : state.season.endIso;
   const targetMs = targetIso ? Date.parse(targetIso) : NaN;
   const left = Number.isFinite(targetMs) ? Math.max(0, targetMs - Date.now()) : 0;
   const days = Math.floor(left / 86400_000);
   const hours = Math.floor((left % 86400_000) / 3600_000);
-  const cdText = days > 0 ? `${days} kun` : `${hours} soat`;
 
-  // Bitta ENG QIMMAT sovrin — kartaning yuragi. Avval 3 ta kichik rasm turardi va hech biri
-  // "katta yutuq" hissini bermasdi (ega: "dabdala"). Bitta katta rasm ancha kuchli.
-  const sorted = (prizes ?? []).slice().sort((a, b) => b.price - a.price);
-  const top = sorted[0] ?? null;
-  const others = Math.max(0, sorted.length - 1);
-  const showPhoto = !!top?.photoUrl && !noPhoto;
+  // Sovrin plitkalari — eng qimmatidan 4 tasi. Rasmi bor bo'lsa REAL rasm (DIZAYN_QOIDALARI
+  // #10), yo'q/buzuq bo'lsa RANGLI plitka + emoji. Sovrin qatordan TUSHIRILMAYDI: aks holda
+  // karta balandligi o'zgarib skeleton bilan mos kelmay qoladi va sahifa sakraydi (#11).
+  const shots = (prizes ?? []).slice().sort((a, b) => b.price - a.price).slice(0, 4);
+
+  // Progress — UMUMIY (shaxsiy ball EMAS). Nol-bo'linish qo'riqlangan.
+  const cap = Math.max(0, state.capacityTotal);
+  const sold = Math.max(0, Math.min(state.soldTotal, cap));
+  const pct = cap > 0 ? Math.min(100, (sold / cap) * 100) : 0;
 
   return (
     <div className="nh-oyin">
-      <button className="nh-oyin-hero" onClick={goOyin} aria-label="O'yinni ochish">
-        {showPhoto
-          ? <img className="nh-oyin-img" src={top?.photoUrl ?? ""} alt="" loading="lazy" onError={() => setNoPhoto(true)} />
-          : <span className="nh-oyin-em" aria-hidden="true">{top?.icon ?? "🎁"}</span>}
-        <span className="nh-oyin-cd">{upcoming ? `Startgacha ${cdText}` : `Tirajgacha ${cdText}`}</span>
-        <span className="nh-oyin-fade" aria-hidden="true" />
-        <span className="nh-oyin-cap">
-          <b>{top ? top.name : "Sovrinlar mavsumi"}</b>
-          {others > 0 && <small>va yana {others} ta sovrin</small>}
+      <button className="nh-oyin-hero" onClick={goOyin} aria-label="Sovg'alar mavsumini ochish">
+        <span className="nh-oyin-conf" aria-hidden="true" />
+        <span className="nh-oyin-gift" aria-hidden="true">🎁</span>
+        <span className="nh-oyin-h1">BEPUL</span>
+        <span className="nh-oyin-h2">SOVG'ALAR</span>
+        <span className="nh-oyin-lead">Bepul chipta olib, <b>sovg'alar</b> egasi bo'ling!</span>
+
+        <span className="nh-oyin-cd">
+          <span className="nh-oyin-cd-ic" aria-hidden="true">📅</span>
+          <span className="nh-oyin-cd-tx">
+            <small>{upcoming ? "SOVG'ALAR MAVSUMI BOSHLANISHIGA" : "SOVG'ALAR TOPSHIRILISHIGA"}</small>
+            <b>{days > 0 ? `${days} KUN` : `${hours} SOAT`} QOLDI</b>
+          </span>
         </span>
+
+        {shots.length > 0 && (
+          <span className="nh-oyin-shots">
+            {shots.map((p) => (
+              <span key={p.key} className="nh-oyin-shot">
+                {p.photoUrl && !bad.has(p.key)
+                  ? <img src={p.photoUrl} alt="" loading="lazy" onError={() => setBad((b) => new Set(b).add(p.key))} />
+                  : <span className="nh-oyin-shot-em">{p.icon}</span>}
+              </span>
+            ))}
+          </span>
+        )}
+
+        {state.prizeCount > 0 && (
+          <span className="nh-oyin-badge">⭐ {state.prizeCount} TA REAL SOVG'A</span>
+        )}
       </button>
-      <div className="nh-oyin-foot">
-        {/* Ega matni 2026-08-03. Ball/o'rin ATAYLAB YO'Q — uy ekranida raqam emas, TAKLIF turadi. */}
-        <div className="nh-oyin-lead">Bepul chipta olish uchun</div>
-        <button className="nh-oyin-cta" onClick={goOyin}>
-          {upcoming ? "Sovrinlarni ko'rish" : "Boshlash"}
-        </button>
+
+      {/* Oq panel — UMUMIY raqamlar (ijtimoiy isbot), mijozning shaxsiy balli EMAS. */}
+      <div className="nh-oyin-stats">
+        <div className="nh-oyin-stat">
+          <div className="nh-oyin-stat-k">🎟 CHIPTALAR SONI</div>
+          <div className="nh-oyin-stat-v"><b>{num(sold)}</b> <span>/ {num(cap)}</span></div>
+          <div className="nh-oyin-stat-s">tarqatildi</div>
+          <div className="nh-oyin-bar"><span style={{ width: `${pct}%` }} /></div>
+          <div className="nh-oyin-pct">{pct.toFixed(1)}%</div>
+        </div>
+        <div className="nh-oyin-stat is-side">
+          <div className="nh-oyin-stat-k">🎟 Har chipta</div>
+          <div className="nh-oyin-stat-v2">1 imkoniyat!</div>
+          <div className="nh-oyin-stat-s">Ko'proq chipta — ko'proq imkoniyat!</div>
+        </div>
+      </div>
+
+      <button className="nh-oyin-cta" onClick={goOyin}>
+        <span className="nh-oyin-cta-ic" aria-hidden="true">🎟</span>
+        <span>{upcoming ? "SOVG'ALARNI KO'RISH" : "BEPUL CHIPTA OLISH"}</span>
+        <span className="nh-oyin-cta-go" aria-hidden="true">›</span>
+      </button>
+
+      {/* 4 qadam — "bepul" so'zi qanday ishlashini DARHOL tushuntiradi (aks holda
+          "bepul chipta" va'dasi o'yin ekranidagi ball talabiga zid ko'rinadi). */}
+      <div className="nh-oyin-steps">
+        {([["🚕", "Safar qil"], ["⭐", "Ball yig'"], ["🎟", "Chipta ol"], ["🎁", "Sovg'a yut"]] as const).map(([em, tx], i) => (
+          <div key={tx} className="nh-oyin-step">
+            <span className="nh-oyin-step-em">{em}</span>
+            <span className="nh-oyin-step-tx">{i + 1}. {tx}</span>
+          </div>
+        ))}
       </div>
     </div>
   );

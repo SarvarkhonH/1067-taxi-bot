@@ -439,6 +439,11 @@ export async function getOyinState(memberId: number): Promise<OyinStateResponse>
     ? myTickets.filter((t) => ticketInSeason(t, season.startMs as number, season.endMs as number)).length
     : 0;
   const activeCatalog = (await getCatalog()).filter((p) => p.active);
+  // 📊 UY KARTASI uchun UMUMIY hisob — mijozning shaxsiy balli emas, butun mavsum bo'yicha.
+  // Bitta so'rov (`oyin_sold:*` prefiksi), qo'shimcha yuk yo'q.
+  const soldMapAll = await getSoldMap();
+  const capacityTotal = activeCatalog.reduce((n, p) => n + Math.max(0, p.limit), 0);
+  const soldTotal = activeCatalog.reduce((n, p) => n + Math.min(p.limit, soldMapAll.get(p.key) ?? 0), 0);
   const topPrizeName = [...activeCatalog].sort((a, b) => b.price - a.price)[0]?.name ?? "sovrin";
   // Maqsad: sovrin keyin o'chirilgan/yashirilgan bo'lsa null (hero avtomatik eng arzonga tushadi).
   const goalRow = await prisma.appState.findUnique({ where: { key: `${GOAL_PREFIX}${memberId}` } });
@@ -481,6 +486,9 @@ export async function getOyinState(memberId: number): Promise<OyinStateResponse>
     week,
     story: storyState,
     ticketCount,
+    soldTotal,
+    capacityTotal,
+    prizeCount: activeCatalog.length,
     seasonRides: mine?.seasonRides ?? 0,
     goalPrizeKey,
     season: {
