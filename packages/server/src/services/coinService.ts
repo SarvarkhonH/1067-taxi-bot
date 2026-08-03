@@ -34,7 +34,10 @@ export interface CoinResult {
 
 // reyting = tangalar: these positive-grant kinds are NOT "earned" (received transfers, the
 // weekly prize itself, top-up conversion, admin) → excluded from the weekly tanga leaderboard.
-const REYTING_EXCLUDE = new Set(["transfer_in", "tip_in", "weekly", "manual", "topup", "admin_coin", "shop_refund"]); // shop_refund: a rejected order's refund is NOT "earned" — must not inflate the weekly board
+// `oyin_convert`: mavsum yakunida BIR MARTA to'lanadigan katta summa (max 500). U haftalik
+// reytingga tushsa butun mavsum bo'yi yig'ilgan ball BITTA haftaning hisobiga kirib, o'sha
+// haftaning sovrinini ham yeb ketardi — ya'ni bitta yutuq ikki marta to'lanardi.
+const REYTING_EXCLUDE = new Set(["transfer_in", "tip_in", "weekly", "manual", "topup", "admin_coin", "shop_refund", "oyin_convert"]); // shop_refund: a rejected order's refund is NOT "earned" — must not inflate the weekly board
 
 /** Earn coins (game currency). Idempotent via key; NO caps — coins are internal. */
 export async function grantCoins(

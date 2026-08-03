@@ -549,11 +549,17 @@ function parseCatalog(raw: string | undefined): OyinCatalogPrize[] {
 async function getCatalog(): Promise<OyinCatalogPrize[]> {
   const row = await prisma.appState.findUnique({ where: { key: CATALOG_KEY } });
   if (!row) {
+    // NUSXA qaytariladi: `adminUpsertPrize` `Object.assign(existing, …)` / `catalog.push()`
+    // qiladi — havola qaytarilsa EKSPORT QILINGAN konstanta xotirada buzilardi va keyingi
+    // har seed-fallback buzuq holatni tarqatardi.
     await saveCatalog(OYIN_SEED_CATALOG).catch(() => undefined);
-    return OYIN_SEED_CATALOG;
+    return OYIN_SEED_CATALOG.map((p) => ({ ...p }));
   }
-  const parsed = parseCatalog(row.value);
-  return parsed.length ? parsed : OYIN_SEED_CATALOG;
+  // ⚠️ Bo'sh massiv — EGANING ONGLI QARORI ("hamma seed sovrinni o'chirdim, o'zimnikini
+  // qo'yaman"), xato emas. Avval bu yerda `parsed.length ? parsed : OYIN_SEED_CATALOG`
+  // turardi va o'chirilgan 5 ta seed sovrin QAYTIB kelardi: mijoz mavjud bo'lmagan
+  // "Air Fryer" ga chipta olardi, keyingi upsert esa fantomlarni bazaga YOZIB qo'yardi.
+  return parseCatalog(row.value);
 }
 
 async function saveCatalog(catalog: OyinCatalogPrize[]): Promise<void> {
@@ -725,6 +731,14 @@ async function reserveSoldSlot(prizeKey: OyinPrizeKey, limit: number): Promise<n
   return sold; // shu xariddagi ketma-ket chipta raqami (1-based)
 }
 
+/** Band qilingan o'rinni QAYTARISH — chipta yozuvi yiqilganda (`economyService`
+ *  `releaseWithdrawBudget` bilan bir xil naqsh). Aks holda o'rin abadiy kuyadi. */
+async function releaseSoldSlot(prizeKey: OyinPrizeKey): Promise<void> {
+  await prisma.$executeRaw`
+    UPDATE "AppState" SET "value" = CAST(GREATEST(CAST("value" AS INTEGER) - 1, 0) AS TEXT)
+    WHERE "key" = ${`oyin_sold:${prizeKey}`}`;
+}
+
 /** `preview=true` (ega/admin) — bayroq DARK bo'lsa ham xarid ishlaydi, shunda ega QABUL'dan oldin
  *  BUTUN oqimni sinab ko'radi. shopService.buyProduct / classifiedService.buyTopBoost / ravella
  *  bilan AYNAN bir xil naqsh; avtorizatsiya route qatlamida qoladi, servis faqat boolean oladi.
@@ -800,19 +814,27 @@ export async function buyTicket(memberId: number, prizeKeyRaw: string, preview =
     const ticketNo = await reserveSoldSlot(prize.key, prize.limit);
     if (ticketNo === null) return { ok: false, reason: "sold_out" as const, ballLeft: ball };
 
-    const key = `oyin:tickets:${memberId}`;
-    const row = await prisma.appState.findUnique({ where: { key } });
-    const tickets = parseTickets(row?.value);
-    const gno = await nextGlobalTicketNo();
-    tickets.push({ prizeKey: prize.key, no: ticketNo, gno, priceAtPurchase: prize.price, ts: new Date().toISOString() });
-    await prisma.appState.upsert({
-      where: { key },
-      create: { key, value: JSON.stringify(tickets) },
-      update: { value: JSON.stringify(tickets) },
-    });
-    invalidateBallCache();
-    // `gno` ham qaytariladi: bayram-oynasi mijozga AYNAN Chiptalarim'dagi raqamni ko'rsatsin.
-    return { ok: true, ticketNo, gno, prizeKey: prize.key, ballLeft: ball - prize.price };
+    // ⚠️ `reserveSoldSlot` o'rinni ALLAQACHON band qildi. Quyidagi 3 DB operatsiyasidan
+    // biri yiqilsa (DB blipi) o'rin abadiy "sotilgan" bo'lib qolardi: chipta yo'q, mijozdan
+    // ball ham yechilmagan, sovrin esa limitgacha yetmasdan "tugadi" ko'rinardi.
+    // `economyService.releaseWithdrawBudget` naqshi — izoh uni va'da qilardi, kod bajarmasdi.
+    try {
+      const key = `oyin:tickets:${memberId}`;
+      const row = await prisma.appState.findUnique({ where: { key } });
+      const tickets = parseTickets(row?.value);
+      const gno = await nextGlobalTicketNo();
+      tickets.push({ prizeKey: prize.key, no: ticketNo, gno, priceAtPurchase: prize.price, ts: new Date().toISOString() });
+      await prisma.appState.upsert({
+        where: { key },
+        create: { key, value: JSON.stringify(tickets) },
+        update: { value: JSON.stringify(tickets) },
+      });
+      invalidateBallCache();
+      return { ok: true, ticketNo, gno, prizeKey: prize.key, ballLeft: ball - prize.price };
+    } catch (e) {
+      await releaseSoldSlot(prize.key).catch(() => undefined);
+      throw e;
+    }
   });
 }
 
@@ -1136,11 +1158,17 @@ export async function seasonClose(): Promise<OyinSeasonCloseResult> {
   // tushmaydi — ikkalasi ham bitta oynadan).
   const map = await computeBallMap();
   const { grantCoins } = await import("./coinService");
+  // 🚫 Bloklangan a'zoga to'lanmaydi. Avval bu tekshiruv yo'q edi: firibgarni bloklab
+  // qo'ysangiz ham mavsum yakunida uning butun balli tangaga aylanib ketardi.
+  const bannedIds = new Set(
+    (await prisma.member.findMany({ where: { banned: true }, select: { id: true } })).map((m) => m.id),
+  );
 
   let convertedCount = 0;
   let totalTanga = 0;
   for (const [memberId, row] of map) {
     if (row.breakdown.ball <= 0 || row.seasonRides <= 0) continue;
+    if (bannedIds.has(memberId)) continue;
     const tanga = Math.min(500, Math.floor(row.breakdown.ball * 0.5));
     if (tanga <= 0) continue;
     // 🚩 Idempotentlik kaliti MAVSUM bilan tamg'alanadi. Tamg'asiz bo'lsa 2-mavsum HECH KIMGA

@@ -9,7 +9,7 @@
 //     Ichida bo'lsa, 60s ball-keshi va 30s config-keshi chalkashib ketishi oson edi.
 //  2. `index.ts` (15-daq tick) va admin route'lari butun ball-mexanikasini import qilmasdan
 //     mavsumni o'qiy oladi.
-import type { OyinSeasonInput, OyinSeasonView } from "@t1067/shared";
+import { OYIN_FINAL_LOCK_MS, type OyinSeasonInput, type OyinSeasonView } from "@t1067/shared";
 import { prisma } from "../db";
 import { weekKey } from "./missionService";
 
@@ -105,23 +105,38 @@ export type SeasonValidation = { ok: true; startMs: number; endMs: number } | { 
  *  15-daqiqalik tickdan yuriladi: ega tugash sanasini o'tmishga qo'yib yuborsa, keyingi tick
  *  hammaning ballini yarmini tangaga aylantirib to'lab yuboradi. Shu sababli o'tmishdagi tugash
  *  sanasi YOZUV chegarasida rad etiladi. */
-export function validateSeasonInput(i: OyinSeasonInput): SeasonValidation {
+export function validateSeasonInput(i: OyinSeasonInput, prevEndMs?: number | null): SeasonValidation {
   const startMs = Date.parse(i.startIso);
   const endMs = Date.parse(i.endIso);
   if (!Number.isFinite(startMs) || !Number.isFinite(endMs)) return { ok: false, error: "Sana noto'g'ri" };
   if (endMs <= startMs) return { ok: false, error: "Tugash sanasi boshlanishdan keyin bo'lishi kerak" };
-  if (endMs - startMs < 86400_000) return { ok: false, error: "Mavsum kamida 1 kun bo'lishi kerak" };
+  // ⚠️ Mavsum FINAL-48 qulfidan uzun bo'lishi SHART. Aks holda `buyTicket` birinchi
+  // soniyadan boshlab `final_lock` qaytaradi: mijozlar ball yig'adi, chipta hech qachon
+  // ololmaydi, ekranda butun mavsum "🔒 yopiq" turadi.
+  if (endMs - startMs <= OYIN_FINAL_LOCK_MS) {
+    return { ok: false, error: "Mavsum kamida 3 kun bo'lishi kerak (oxirgi 48 soat chipta olish yopiq)" };
+  }
   if (endMs - startMs > 365 * 86400_000) return { ok: false, error: "Mavsum 1 yildan uzun bo'lolmaydi" };
   if (endMs <= Date.now()) return { ok: false, error: "O'tgan sanaga mavsum belgilab bo'lmaydi" };
+  // 🚩 IKKI MARTA TO'LOV QO'RIG'I. Yangi mavsum boshlanishi oldingisining tugashidan OLDIN
+  // bo'lsa, `computeBallMap` o'sha safarlarni/takliflarni QAYTA sanaydi (RideReward/Referral
+  // jonli jadvallar — arxivlanmaydi), idempotentlik kaliti esa mavsumga tamg'alangani uchun
+  // BOSHQA bo'ladi → aynan o'sha harakatlar uchun ikkinchi marta tanga to'lanardi.
+  if (prevEndMs != null && Number.isFinite(prevEndMs) && startMs < prevEndMs) {
+    return { ok: false, error: "Yangi mavsum oldingisi tugagandan keyin boshlanishi kerak (aks holda eski safarlar qayta sanaladi)" };
+  }
   return { ok: true, startMs, endMs };
 }
 
 /** Admin: mavsum sanalarini yozish. `seasonNo` berilsa — yangi mavsum (toza boshlash tugmasi
  *  uzatadi); berilmasa joriy raqam saqlanadi (shunchaki sanani tuzatish). */
 export async function setSeason(input: OyinSeasonInput & { seasonNo?: number }): Promise<OyinSeasonView> {
-  const v = validateSeasonInput(input);
-  if (!v.ok) throw new Error(v.error);
   const cur = await getSeason();
+  // Oldingi tugash sanasi FAQAT yangi mavsum ochilayotganda qo'riq bo'ladi (`seasonNo` berilgan);
+  // joriy mavsumning sanasini tuzatishda o'z-o'ziga qarshi tekshiruv ma'nosiz.
+  const prevEnd = input.seasonNo != null && input.seasonNo !== cur.seasonNo ? cur.endMs : null;
+  const v = validateSeasonInput(input, prevEnd);
+  if (!v.ok) throw new Error(v.error);
   const core: SeasonCore = {
     seasonNo: input.seasonNo ?? cur.seasonNo,
     startIso: input.startIso,

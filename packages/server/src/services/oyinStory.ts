@@ -12,6 +12,17 @@ import { OYIN_STORY_SEASON_LIMIT, type OyinPosterText, type OyinStoryAdminRow, t
 import { prisma } from "../db";
 import { getSeason } from "./oyinSeason";
 
+/** Havolani solishtirish uchun bir ko'rinishga keltirish: sxema/`www`/so'rov/oxirgi `/`
+ *  tashlanadi, host kichik harfga tushadi. Aks holda bir xil hikoya to'rt xil URL bo'lardi. */
+function normalizeStoryUrl(raw: string): string {
+  try {
+    const u = new URL(raw);
+    const host = u.hostname.toLowerCase().replace(/^www\./, "");
+    const path = u.pathname.replace(/\/+$/, "").toLowerCase();
+    return `${host}${path}`;
+  } catch { return raw.trim().toLowerCase(); }
+}
+
 const TEXT_KEY = "oyin:postertext";
 const STORY_PREFIX = "oyin:story:";
 
@@ -132,7 +143,22 @@ export async function submitStory(memberId: number, urlRaw: string): Promise<Oyi
   if (scoped.some((i) => i.status === "pending")) return { ok: false, reason: "pending" };
   // Rad etilganlar limitdan SANALMAYDI — xato qilgan odam yana urinadi (adolat).
   if (scoped.filter((i) => i.status === "approved").length >= STORY_SEASON_LIMIT) return { ok: false, reason: "limit" };
-  if (items.some((i) => i.url === url)) return { ok: false, reason: "duplicate" };
+  // ⚠️ Dedup BUTUN POPULYATSIYA bo'ylab va NORMALIZATSIYA bilan. Avval (a) faqat o'z
+  // arizalari ichida tekshirilardi — bitta real hikoyani 20 ta akkaunt yuborib 20×150 ball
+  // olardi; (b) aniq satr solishtiruvi edi — `…/p/abc`, `…/p/abc/`, `…/p/abc?x=1` va
+  // `INSTAGRAM.com/p/abc` to'rttasi ham "boshqa" URL hisoblanardi.
+  const norm = normalizeStoryUrl(url);
+  const allRows = await prisma.appState.findMany({
+    where: { key: { startsWith: STORY_PREFIX } },
+    select: { value: true },
+  });
+  for (const r of allRows) {
+    for (const it of parseItems<OyinStoryItem>(r.value)) {
+      if (it.status !== "rejected" && normalizeStoryUrl(it.url) === norm) {
+        return { ok: false, reason: "duplicate" };
+      }
+    }
+  }
 
   items.push({ id: `s${Date.now().toString(36)}`, url, at: new Date().toISOString(), status: "pending", reviewedAt: null, reason: null });
   await saveItems(`${STORY_PREFIX}${memberId}`, items);

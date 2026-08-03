@@ -10,7 +10,7 @@
 // soxta QR-kvadrat — real QR-generatsiya (referralQrService) B1-B5 doirasida qurilmagan, shuning
 // uchun olib tashlandi (ishlamaydigan grafika ko'rsatish — yolg'on).
 import { useCallback, useEffect, useRef, useState } from "react";
-import type { OyinBoardResponse, OyinJamoamResponse, OyinMyTicketsResponse, OyinPrizeView, OyinSeasonClientView, OyinStateResponse, OyinVitrinaResponse } from "@t1067/shared";
+import { OYIN_FINAL_LOCK_MS, type OyinBoardResponse, type OyinJamoamResponse, type OyinMyTicketsResponse, type OyinPrizeView, type OyinSeasonClientView, type OyinStateResponse, type OyinVitrinaResponse } from "@t1067/shared";
 import { api, apiUrl } from "./api";
 import { copyText, haptic, inviteLandingUrl, shareLink } from "./telegram";
 import "./design/feat/oyk.css"; // bu ekran ochilgandagina yuklanadi (kritik yo'lda emas)
@@ -27,7 +27,9 @@ function obSlides(h: OyinStateResponse["hints"]): { icon: string; text: string }
 }
 const OB_SEEN_KEY = "oyk_onboard_seen";
 const START_TAB_KEY = "oyk_start_tab"; // uy-hero'dagi "Sovrinlarni ko'rish" shu orqali vitrina'ga ochadi
-const FINAL_WARN_MS = 48 * 3600_000;
+// Qulf oynasi SERVER bilan BITTA manbadan. Avval mustaqil `48 * 3600_000` turardi: ega
+// oynani o'zgartirsa ekran va server ayri ketardi (ekran "yopiq" der, server sotardi).
+const FINAL_WARN_MS = OYIN_FINAL_LOCK_MS;
 
 // ⚠️ `toLocaleDateString("uz-UZ", …)` ba'zi klientlarda "M08 14" qaytaradi (lokal ma'lumot yo'q).
 // Sana mijozga ko'rinadigan joyda — taxmin qilib bo'lmaydi, shuning uchun o'zimiz yozamiz.
@@ -137,7 +139,10 @@ export function OyinView({ onTaxi }: { onTaxi?: () => void } = {}) {
   const [sheet, setSheet] = useState<SheetKind>(null);
   const [buyKey, setBuyKey] = useState<string | null>(null);
   const [buyQty, setBuyQty] = useState(1); // 🎟 miqdor (max 3) — YAKUNIY DIZAYN §7 tafsilot ekrani
-  const [busy, setBusy] = useState(false);
+  const [busy, setBusy] = useState(false); // faqat CHIPTA XARIDI
+  // Poster/hikoya alohida flag: avval bitta `busy` uchala operatsiyani band qilardi —
+  // sekin tarmoqda chipta olayotgan mijoz Jamoam tabida "⏳ Tayyorlanmoqda…" ni ko'rardi.
+  const [posterBusy, setPosterBusy] = useState(false);
   // `ticketNo` — GLOBAL raqam (`gno`). Avval bu yerga sovrin-ichi tartib raqami tushardi va
   // bayramda "№0002", Chiptalarim'da esa "№ 729476" chiqardi — bitta chipta, ikki xil raqam.
   const [celebrate, setCelebrate] = useState<{ prize: OyinPrizeView; ticketNo: number; count: number } | null>(null);
@@ -157,10 +162,21 @@ export function OyinView({ onTaxi }: { onTaxi?: () => void } = {}) {
   const [, forceTick] = useState(0); // countdown daqiqada bir yangilansin
   const toastT = useRef<ReturnType<typeof setTimeout>>();
 
-  const loadHome = useCallback(() => {
+  // `soft=true` — QAYTA yuklash (xariddan/maqsaddan keyin). Xato bo'lsa ekran o'chirilmaydi:
+  // avval chipta olgan mijoz tarmoq uzilganda bayram-oynasini ham, tab-qatorini ham, chipta
+  // raqamini ham yo'qotardi va "yuklab bo'lmadi" ekraniga tushardi — ball to'langan, isbot yo'q.
+  const loadHome = useCallback((soft = false) => {
+    // Buzuq rasm belgisi tozalanadi: (a) bir marta tarmoq uzilib rasm kelmasa sovrin butun
+    // sessiya davomida emoji bo'lib qolardi; (b) admin URL'ni TUZATSA ham yangi rasm
+    // ko'rsatilmasdi — belgi URL emas, KALIT bo'yicha eslab qolinardi.
+    setBadPhoto(new Set());
+    // Jamoam va reyting ham yangilanadi: avval `jamoam` faqat mount'da (butun sessiyada bir
+    // marta), `board` esa `if (!board)` bilan bir marta yuklanib QOTIB qolardi — do'st yangi
+    // safar qilsa ham, mijoz ballini sarflasa ham eski raqamlar turaverardi.
+    setBoard(null);
     Promise.all([api.oyinState(), api.oyinVitrina()])
       .then(([s, v]) => { setState(s); setVitrina(v); setLoadState("ready"); })
-      .catch(() => setLoadState("error"));
+      .catch(() => { if (!soft) setLoadState("error"); });
   }, []);
   useEffect(() => { loadHome(); }, [loadHome]);
   useEffect(() => {
@@ -172,11 +188,14 @@ export function OyinView({ onTaxi }: { onTaxi?: () => void } = {}) {
   useEffect(() => {
     if (tab === "tickets" && !tickets) api.oyinTickets().then(setTickets).catch(() => setTickets({ tickets: [], drawIso: null }));
   }, [tab, tickets]);
-  useEffect(() => {
+  const loadJamoam = useCallback(() => {
     api.oyinJamoam()
       .then((j) => { setJamoam(j); setThanked(new Set(j.friends.filter((f) => f.thankedToday).map((f) => f.memberId))); })
       .catch(() => setJamoam({ friends: [], totalBall: 0, oneTimeBall: 0, rideBall: 0 }));
   }, []);
+  useEffect(() => { loadJamoam(); }, [loadJamoam]);
+  // Jamoam tabiga har kirganda yangilanadi — "do'stingiz bugun yurdi" kartasi eskirmasin.
+  useEffect(() => { if (tab === "jamoam") loadJamoam(); }, [tab, loadJamoam]);
 
   const showToast = useCallback((text: string, ms = 2600) => {
     setToast(text);
@@ -273,8 +292,12 @@ export function OyinView({ onTaxi }: { onTaxi?: () => void } = {}) {
         showToast(buyReasonText(stopReason));
       }
     } catch {
+      // ⚠️ Tsikl o'rtasida tarmoq uzilsa `got` ALLAQACHON olingan chiptalar sonini bildiradi.
+      // Avval bu qiymat tashlanardi: bayram yo'q, balans eski, Chiptalarim keshi eski —
+      // mijoz "hech narsa bo'lmadi" deb qayta bosardi va YANA chipta sotib olardi.
       setSheet(null);
-      showToast("Xatolik — qayta urinib ko'ring");
+      if (got > 0) { setTickets(null); loadHome(true); showToast(`${got} ta chipta olindi. Aloqa uzildi — qolganini keyin oling.`, 3600); }
+      else showToast("Bajarilmadi — internetni tekshirib qayta urinib ko'ring");
     } finally {
       setBusy(false);
       setBuyKey(null);
@@ -293,15 +316,15 @@ export function OyinView({ onTaxi }: { onTaxi?: () => void } = {}) {
       showToast(r.reason === "unreachable" ? "Xabar yetib bormadi — do'stingiz botni bloklagan bo'lishi mumkin" : "Yuborib bo'lmadi");
     } catch {
       setThanked((s) => { const n = new Set(s); n.delete(friendMemberId); return n; });
-      showToast("Xatolik — qayta urinib ko'ring");
+      showToast("Rahmat yuborilmadi — birozdan keyin urinib ko'ring");
     }
   }, [showToast]);
 
   // 📸 Poster: rasm ham, QR ham O'Z domenimizdan olinadi — aks holda canvas "iflos" bo'lib
   // `toBlob` ishlamaydi va poster saqlanmaydi.
   const makePoster = useCallback(async () => {
-    if (busy) return;
-    setBusy(true);
+    if (posterBusy) return;
+    setPosterBusy(true);
     try {
       const [{ renderPoster, downloadBlob }, ref] = await Promise.all([
         import("./design/poster"),
@@ -326,13 +349,13 @@ export function OyinView({ onTaxi }: { onTaxi?: () => void } = {}) {
     } catch {
       showToast("Posterni yasab bo'lmadi — qayta urinib ko'ring");
     } finally {
-      setBusy(false);
+      setPosterBusy(false);
     }
-  }, [busy, vitrina, state, posterText, posterName, showToast]);
+  }, [posterBusy, vitrina, state, posterText, posterName, showToast]);
 
   const submitStory = useCallback(async () => {
-    if (busy) return;
-    setBusy(true);
+    if (posterBusy) return;
+    setPosterBusy(true);
     try {
       const r = await api.oyinStory(storyUrl.trim());
       if (r.ok) {
@@ -351,11 +374,11 @@ export function OyinView({ onTaxi }: { onTaxi?: () => void } = {}) {
         3400,
       );
     } catch {
-      showToast("Xatolik — qayta urinib ko'ring");
+      showToast("Havolani yuborib bo'lmadi — internetni tekshiring");
     } finally {
-      setBusy(false);
+      setPosterBusy(false);
     }
-  }, [busy, storyUrl, showToast, loadHome]);
+  }, [posterBusy, storyUrl, showToast, loadHome]);
 
   // ⚠️ Avval bu tugma HECH NARSA ulashmasdan ball berardi (bepul ball, ulashuv nol).
   // Endi avval Telegram ulashish oynasi ochiladi, ball undan KEYIN beriladi.
@@ -375,7 +398,7 @@ Taksida yur, ball yig', chipta ol. Mavsum oxiri jonli tirajda o'ynaladi. Mening 
       const b = await api.oyinShare();
       showToast(b.ok ? "📤 Rahmat! Ball qo'shildi" : "Bugungi ulashish bonusini allaqachon oldingiz — ertaga yana bo'ladi");
     } catch {
-      showToast("Xatolik — qayta urinib ko'ring");
+      showToast("Ulashish bonusini olib bo'lmadi — qayta urinib ko'ring");
     }
   }, [showToast, vitrina]);
 
@@ -457,8 +480,8 @@ Taksida yur, ball yig', chipta ol. Mavsum oxiri jonli tirajda o'ynaladi. Mening 
                 {soon.map((p) => (
                   <div key={p.key} className="oyk-pcard">
                     <div className="oyk-pcard-icon">
-                      {p.photoUrl
-                        ? <img src={p.photoUrl} alt="" loading="lazy" onError={(e) => { (e.target as HTMLImageElement).replaceWith(document.createTextNode(p.icon)); }} />
+                      {p.photoUrl && !badPhoto.has(p.key)
+                        ? <img src={p.photoUrl} alt="" loading="lazy" onError={() => markBadPhoto(p.key)} />
                         : p.icon}
                     </div>
                     <div className="oyk-pcard-name">{p.name}</div>
@@ -636,8 +659,11 @@ Taksida yur, ball yig', chipta ol. Mavsum oxiri jonli tirajda o'ynaladi. Mening 
                         <div className="oyk-hero-prize">{cheapest.name}{cheapest.valueLabel ? ` · ${cheapest.valueLabel}` : ""}</div>
                       </div>
                       <div className="oyk-hero-img">
-                        {cheapest.photoUrl
-                          ? <img src={cheapest.photoUrl} alt="" loading="lazy" onError={(e) => { (e.target as HTMLImageElement).replaceWith(document.createTextNode(cheapest.icon)); }} />
+                        {/* ⚠️ `replaceWith()` React boshqaradigan tugunni DOM'dan uzardi —
+                            keyingi render'da `removeChild` xatosi va BUTUN EKRAN qulashi.
+                            Endi holat React'da (`badPhoto`), boshqa kartalar bilan bir xil. */}
+                        {cheapest.photoUrl && !badPhoto.has(cheapest.key)
+                          ? <img src={cheapest.photoUrl} alt="" loading="lazy" onError={() => markBadPhoto(cheapest.key)} />
                           : <span className="oyk-hero-emoji">{cheapest.icon}</span>}
                       </div>
                     </div>
@@ -1163,15 +1189,15 @@ Taksida yur, ball yig', chipta ol. Mavsum oxiri jonli tirajda o'ynaladi. Mening 
                       value={posterName} onChange={(e) => setPosterName(e.target.value)}
                       placeholder="Ismingiz (ixtiyoriy)"
                     />
-                    <button type="button" className="oyk-poster-btn" disabled={busy} onClick={() => void makePoster()}>
-                      {busy ? "⏳ Tayyorlanmoqda…" : "⬇️ Posterni yuklab olish"}
+                    <button type="button" className="oyk-poster-btn" disabled={posterBusy} onClick={() => void makePoster()}>
+                      {posterBusy ? "⏳ Tayyorlanmoqda…" : "⬇️ Posterni yuklab olish"}
                     </button>
                     <input
                       className="oyk-poster-input" type="url"
                       value={storyUrl} onChange={(e) => setStoryUrl(e.target.value)}
                       placeholder="Hikoya havolasini joylashtiring"
                     />
-                    <button type="button" className="oyk-poster-btn ghost" disabled={!storyUrl.trim() || busy} onClick={() => void submitStory()}>
+                    <button type="button" className="oyk-poster-btn ghost" disabled={!storyUrl.trim() || posterBusy} onClick={() => void submitStory()}>
                       Havolani yuborish →
                     </button>
                   </>
