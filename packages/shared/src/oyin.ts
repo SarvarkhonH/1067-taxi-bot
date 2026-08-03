@@ -115,10 +115,16 @@ export interface OyinBallBreakdown {
   referRides: number; // do'stlarning HAR safaridan doimiy oqim (cheksiz)
   login: number; // kunlik kirish
   share: number; // sovrinni ulashish
+  // ⚠️ 2026-08-03 QO'SHILDI. `quest`/`home` ball BERARDI va `earned` ichiga qo'shilardi, lekin
+  // o'z maydoni YO'Q edi — ya'ni `earned` yuqoridagi maydonlar YIG'INDISIGA TENG EMASDI. Bu jim
+  // tuzoq: "ball qanday yig'ildi" ekranini yozgan odam komponentlarni qo'shib jamini chiqarardi
+  // va raqam serverning `earned`idan kam bo'lib qolardi (mijoz uchun — yo'qolgan ball).
+  quest: number; // 🎯 kunlik topshiriqlar (oyinDailyQuestBall × bajarilgan kunlar)
+  home: number; // 🏠 ilovani ekranga o'rnatish (mavsumda bir marta)
   story: number; // 📸 tasdiqlangan hikoya-isbotlar (admin ko'rgan, HIKOYA_POSTER_PLAN.md)
   streak: number; // 🔥 3 kunlik zanjir bonuslari
   sprintBonus: number; // haftalik sprint top-3 (§sprintCheck)
-  earned: number; // yig'indi (yuqoridagi hammasi)
+  earned: number; // yig'indi (yuqoridagi HAMMASI — yangi manba qo'shilsa maydoni ham qo'shiladi)
   spent: number; // chiptalarga sarflangan
   ball: number; // earned − spent (manfiy bo'lmaydi)
 }
@@ -173,12 +179,21 @@ export interface OyinQuestDef {
   hint: string;
 }
 
+// ⛔ 2026-08-03: `story` to'plamdan OLIB TASHLANDI (kalit tipda QOLDI — eski javoblar/`switch`lar
+// buzilmasin). Sabab — yuqoridagi QOIDANING O'ZI: hikoyani SERVER tekshira olmaydi, uni ODAM
+// (admin) tekshiradi, ya'ni "bajarildi" belgisi ishonchga qo'yilardi. Ikkita aniq zarar bor edi:
+//  1. `done` sharti `storyState.approved > 0` edi — u MAVSUM bo'yicha sanaladi. Mavsumda BIR
+//     MARTA hikoya tasdiqlatgan mijoz shundan keyin `story` tushgan HAR kuni hech narsa
+//     qilmasdan "bajarildi" oladi (+100 ball/kun, cheksiz bepul oqim).
+//  2. Kun bo'yicha kesilganda ham teshik qolardi: "yuborildi" = bajarildi bo'lgani uchun har
+//     kuni yangi (noyob) t.me havolasini tashlab, admin rad etsa ham kunlik 100 ball olinardi.
+// Hikoya HARAKATI mukofotsiz qolmaydi: o'z yo'li bilan `oyinStoryProofBall` (mavsumda 3 tagacha)
+// ADMIN TASDIG'IDAN KEYIN to'lanadi — ya'ni ball haqiqiy, tekshirilgan ish uchun beriladi.
 export const OYIN_QUEST_POOL: OyinQuestDef[] = [
   { key: "ride2", icon: "🚕", title: "Bugun 2 ta safar qiling", hint: "Ikkinchi safar topshiriqni yopadi" },
   { key: "ride_share", icon: "📤", title: "1 safar qiling va havolangizni ulashing", hint: "Ikkalasi ham bugun bajarilsin" },
   { key: "friend_ride", icon: "🤝", title: "Do'stingiz bugun safar qilsin", hint: "Ularga ayting — sizga ham ball tushadi" },
   { key: "invite", icon: "👥", title: "Yangi do'st chaqiring", hint: "U raqamini ulasa topshiriq yopiladi" },
-  { key: "story", icon: "📸", title: "Hikoyangizga poster qo'ying", hint: "Jamoam bo'limidan posterni oling" },
 ];
 
 /** Kun + a'zo bo'yicha DETERMINISTIK tanlov. Sof funksiya — server ham, mijoz ham bir xil
@@ -206,7 +221,11 @@ export interface OyinQuestState {
 export interface OyinHomeTask {
   ball: number;
   done: boolean;
-  supported: boolean; // klient Bot API 8.0 ni qo'llab-quvvatlaydimi
+  // ⛔ `supported` OLIB TASHLANDI (2026-08-03). Server qotirilgan `true` qaytarardi — ya'ni API
+  // BILMAYDIGAN narsasini da'vo qilardi (klient Bot API versiyasi FAQAT klientda ma'lum).
+  // Hozir zarari yo'q edi, chunki miniapp baribir o'zining `checkHomeScreenStatus()` javobini
+  // ishlatadi (miniapp/src/oyin.tsx:269 `setHomeSupported(st !== "unsupported")`), lekin qolsa
+  // ertaga kimdir shu yolg'on maydonga ishonib topshiriqni ko'rsatib qo'yardi.
 }
 
 /** 🔒 FINAL-48: mavsum tugashiga shuncha qolganda chipta olish YOPILADI.
@@ -271,12 +290,20 @@ export interface OyinSeasonCloseResult {
 
 // ── Admin faoliyat-jadvali (B3) — ball JONLI hisoblanadi (B2), demak bu yerda tayyor "voqealar
 // jurnali" YO'Q. Har qator quyidagi manbalardan REKONSTRUKSIYA qilinadi: RideReward (ride/
-// first_ride), Referral (refer_join/refer_first_ride/refer_ride), AppState kunlik-markerlar
-// (login/share), sprint-g'alaba (sprint_bonus), chipta-xarid (ticket_buy, ball manfiy = sarf). ──
+// first_ride va undan chiqadigan streak), Referral (refer_join/refer_first_ride/refer_ride),
+// AppState kunlik-markerlar (login/share/quest/home), sprint-g'alaba (sprint_bonus), chipta-xarid
+// (ticket_buy, ball manfiy = sarf).
+//
+// ⚠️ QOIDA: bu ro'yxat `computeBallMap` dagi ball-manbalari bilan BIR XIL bo'lishi SHART. Buzilgan
+// holat (2026-08-03 da topildi): `quest` va `home` ball BERARDI (oyinDailyQuestBall /
+// oyinHomeScreenBall), lekin bu ro'yxatda ham, `getActivity` chiqishida ham YO'Q edi — mijozning
+// qo'ng'irog'ida ham, admin jadvalida ham ko'rinmasdi, ya'ni "jadval reyting bilan kelishadi"
+// da'vosi yolg'on bo'lardi (500 ball qayerdan kelgani hech qayerda yozilmagan). `streak` ro'yxatda
+// BOR edi-yu, `getActivity` uni chiqarmasdi — o'sha kasallikning ikkinchi ko'rinishi.
 export const OYIN_ACTIVITY_ACTIONS = [
   "ride", "first_ride", "phone",
   "refer_join", "refer_first_ride", "refer_ride",
-  "login", "share", "story", "streak", "sprint_bonus", "ticket_buy",
+  "login", "share", "quest", "home", "story", "streak", "sprint_bonus", "ticket_buy",
 ] as const;
 export type OyinActivityAction = (typeof OYIN_ACTIVITY_ACTIONS)[number];
 

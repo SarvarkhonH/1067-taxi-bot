@@ -259,8 +259,28 @@ export const BONUS_ECON_KNOBS: BonusEconKnob[] = [
   // tanga tomonidagi `firstRide` bonusidan (5 000 so'm) 6× arzon va faqat REAL safarga to'lanadi.
   { key: "oyinReferFirstRideBall", label: "🎮 Do'st BIRINCHI safarini qilganda — taklifchiga ball", def: 500, min: 0, max: 5000, step: 10, group: "Koson O'yini" },
   { key: "oyinReferRideBall", label: "🎮 Do'stning har safaridan — taklifchiga ball (2000 × 25% ÷ 10)", def: 50, min: 0, max: 2000, step: 5, group: "Koson O'yini" },
-  // ── Bepul yo'l (daromadsiz, HUQUQIY SHART): mavsumda jami ~1 000 ball = eng arzon sovrin.
-  // Kattaroq sovringa hech qachon yetmaydi — o'yin daromadni rag'batlantiradi, bosishni emas.
+  // ── Bepul yo'l (daromadsiz, HUQUQIY SHART) — HISOB 2026-08-03 da QAYTA QILINDI.
+  // Eski izoh "mavsumda jami ~1 000 ball" derdi va u ESKIRGAN edi: keyin `oyinDailyQuestBall`
+  // (100/kun) va `oyinHomeScreenBall` (500) qo'shildi, hisob esa yangilanmadi.
+  //
+  // 30 KUNLIK mavsumda, BIRORTA SAFARSIZ (faqat ilovani ochib turib) yig'sa bo'ladigan tom:
+  //   kunlik kirish   5 × 30 = 150
+  //   ulashish       10 × 30 = 300
+  //   ekranga o'rnatish  500 = 500  ← bepul yo'lning YARMIDAN KO'PI shu bitta knobda
+  //   ────────────────────────────
+  //   JAMI (sof "bosish")   = 950   → eng arzon sovrin 1 000 balldan HALI HAM past ✅
+  //   + telefon 100 (real raqam) + hikoya 150×3 = 450 (admin tasdig'i) → ~1 500 tom.
+  //
+  // ⚠️ Kunlik topshiriq bu hisobga KIRMAYDI va bu ATAYLAB: to'plamdagi 4 topshiriqning
+  // uchtasi REAL safar talab qiladi (o'z safari / do'st safari), to'rtinchisi esa yangi
+  // HAQIQIY foydalanuvchi. Bepul emas. (2026-08-03 gacha to'plamda `story` bor edi va u bir
+  // marta tasdiqlangach har safar avtomatik "bajarildi" bo'lardi — o'sha paytda bepul yo'l
+  // ~2 100 gacha ko'tarilgan edi. Teshik yopildi: shared/oyin.ts `OYIN_QUEST_POOL`.)
+  //
+  // 📏 Bepul yo'l mavsum UZUNLIGIGA chiziqli: kirish+ulashish = 15 ball/kun. 60 kunlik mavsum
+  // → 1 400, 90 kunlik → 1 850. Uzun mavsum belgilashdan oldin shuni hisobga oling.
+  // Chipta darvozasi (`no_ride`: mavsumda ≥1 real safar) baribir kuchda — bepul ball yig'ilsa
+  // ham, safarsiz odam chiptaga AYLANTIRA olmaydi.
   { key: "oyinDailyLoginBall", label: "🎮 Kunlik kirish — ball (bepul yo'l)", def: 5, min: 0, max: 100, step: 1, group: "Koson O'yini" },
   { key: "oyinShareBall", label: "🎮 Ulashish — ball (bepul yo'l)", def: 10, min: 0, max: 200, step: 1, group: "Koson O'yini" },
   { key: "oyinStoryProofBall", label: "🎮 Hikoya joylash (admin tasdig'i) — ball (bepul yo'l)", def: 150, min: 0, max: 2000, step: 10, group: "Koson O'yini" },

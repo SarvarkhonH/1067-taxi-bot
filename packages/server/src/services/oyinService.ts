@@ -59,7 +59,7 @@ function withMemberLock<T>(memberId: number, fn: () => Promise<T>): Promise<T> {
 
 const EMPTY_BREAKDOWN: OyinBallBreakdown = {
   rides: 0, phone: 0, referJoin: 0, referFirstRide: 0, referRides: 0, login: 0, share: 0,
-  story: 0, streak: 0, sprintBonus: 0, earned: 0, spent: 0, ball: 0,
+  quest: 0, home: 0, story: 0, streak: 0, sprintBonus: 0, earned: 0, spent: 0, ball: 0,
 };
 
 interface MemberBallRow {
@@ -77,11 +77,38 @@ interface AppStateRow { key: string; value: string }
 // Eski chiptalarda `gno` yo'q — o'sha holda `no` ko'rsatiladi (moslik).
 interface TicketRecord { prizeKey: OyinPrizeKey; no: number; gno?: number; priceAtPurchase: number; ts: string }
 
+// ⚠️ VALIDATSIYA, sof `as` o'girish EMAS. Avval JSON massiv to'g'ridan-to'g'ri `TicketRecord[]`
+// deb e'lon qilinardi — tiplar YOLG'ON edi va bitta buzuq qator butun iqtisodni chalkashtirardi:
+//  · `priceAtPurchase` SATR bo'lsa (`"100"`) `reduce` uni ULARDI: spent = "0100" → `earned − spent`
+//    = NaN → ball NaN → ekranda "NaN ball", chipta tekshiruvi `ball < price` = false → BEPUL chipta.
+//  · `no`/`gno` son bo'lmasa mijozning chipta raqami "undefined" ko'rinardi.
+// Qoida: qator TASHLANMAYDI (tashlash = sarflangan ball qaytishi, ya'ni ekspluatatsiya yo'nalishi),
+// faqat maydonlar xavfsiz qiymatga KELTIRILADI. Buzuq narx baland ovozda log qilinadi.
 function parseTickets(raw: string | undefined): TicketRecord[] {
   if (!raw) return [];
   try {
     const arr = JSON.parse(raw) as unknown;
-    return Array.isArray(arr) ? (arr as TicketRecord[]) : [];
+    if (!Array.isArray(arr)) return [];
+    const out: TicketRecord[] = [];
+    for (const item of arr) {
+      if (!item || typeof item !== "object") continue; // son/satr/null — chiptaga tegishli emas
+      const t = item as Record<string, unknown>;
+      const priceRaw = Number(t.priceAtPurchase);
+      if (!Number.isFinite(priceRaw)) {
+        console.warn(`[oyin] chiptada buzuq narx: ${String(t.priceAtPurchase)} — 0 deb olindi`);
+      }
+      const no = Number(t.no);
+      const gno = Number(t.gno);
+      out.push({
+        prizeKey: typeof t.prizeKey === "string" ? t.prizeKey : "",
+        no: Number.isFinite(no) ? no : 0,
+        ...(Number.isFinite(gno) && gno > 0 ? { gno } : {}),
+        priceAtPurchase: Number.isFinite(priceRaw) ? Math.max(0, Math.round(priceRaw)) : 0,
+        // `ts` buzuq bo'lsa `ticketInSeason` uni MAVSUM ICHIDA deb sanaydi (o'sha izohga qarang).
+        ts: typeof t.ts === "string" ? t.ts : "",
+      });
+    }
+    return out;
   } catch {
     return [];
   }
@@ -106,15 +133,32 @@ function parseWeekList(raw: string | undefined): string[] {
 }
 // "2026-W31" → taqqoslash uchun taxminiy chiziqli indeks (moliyaviy aniqlik EMAS — faqat
 // "4 haftalik oyna" anti-abuz cheklovi uchun, ISO-hafta 53 chegara holatlari e'tiborsiz qoldirilgan).
-// Haftalik surat: MUTLAQ ball qiymatlari + qaysi mavsumniki. Eski (tamg'asiz) format `null`
+// Haftalik surat: MUTLAQ **earned** (YIG'ILGAN) qiymatlar + qaysi mavsumniki. Eski format `null`
 // qaytaradi — u joriy mavsum surati sifatida QABUL QILINMAYDI (shkalasi boshqa bo'lishi mumkin).
-interface WeekSnap { seasonId: string; ball: Record<string, number> }
+//
+// 🚩 2026-08-03 TUZATILDI — sprint NOTO'G'RI ODAMGA to'lardi. Surat `breakdown.ball` (= QOLDIQ,
+// yig'ilgan − sarflangan) saqlardi va delta ham shundan hisoblanardi. Ya'ni hafta ichida chipta
+// olgan odamning deltasi MANFIY chiqib `.filter(d => d.delta > 0)` uni chiqarib tashlardi, +300
+// ball bonusi esa ball yig'ib HECH NARSA QILMAGANLARGA ketardi — sprint aynan to'g'ri xatti-
+// harakatni JAZOLARDI. (Ega shu xatoni reytingda topgan va reyting olib tashlangan; sprintda esa
+// QOLGAN edi.) `earned` mavsum ichida faqat O'SADI, sarflash unga TEGMAYDI — hafta-ichi faollikni
+// halol o'lchaydigan yagona son shu.
+interface WeekSnap { seasonId: string; earned: Record<string, number> }
 function parseWeekSnap(raw: string | undefined): WeekSnap | null {
   if (!raw) return null;
   try {
-    const v = JSON.parse(raw) as { seasonId?: unknown; ball?: unknown };
-    if (typeof v.seasonId !== "string" || !v.ball || typeof v.ball !== "object") return null;
-    return { seasonId: v.seasonId, ball: v.ball as Record<string, number> };
+    const v = JSON.parse(raw) as { seasonId?: unknown; earned?: unknown; ball?: unknown };
+    if (typeof v.seasonId !== "string") return null;
+    if (!v.earned || typeof v.earned !== "object") {
+      // Eski (`ball` = qoldiq) formatdagi surat. BALAND OVOZDA o'tkazib yuboriladi: qoldiqni
+      // yig'ilgan bilan solishtirish hammada soxta MUSBAT delta beradi (chipta olganlar bepul
+      // g'olib bo'lardi). Pastda o'sha haftaning o'zi `earned` bilan qayta bazalanadi.
+      if (v.ball && typeof v.ball === "object") {
+        console.warn("[oyin] sprint surati eski `ball` (qoldiq) formatida — o'tkazib yuborildi, `earned` bilan qayta bazalanadi");
+      }
+      return null;
+    }
+    return { seasonId: v.seasonId, earned: v.earned as Record<string, number> };
   } catch {
     return null;
   }
@@ -370,7 +414,9 @@ async function computeBallMap(): Promise<Map<number, MemberBallRow>> {
       seasonRides: rides,
       breakdown: {
         rides: ridesBall, phone: phoneBall, referJoin: referJoinBall, referFirstRide: referFirstBall,
-        referRides: referRideBall, login: loginBall, share: shareBall, story: storyBall,
+        referRides: referRideBall, login: loginBall, share: shareBall,
+        // `quest`/`home` avval faqat `earned` ichiga qo'shilardi va alohida ko'rinmasdi.
+        quest: questBall, home: homeBall, story: storyBall,
         streak: streakBall, sprintBonus: sprintBall,
         earned, spent, ball: Math.max(0, earned - spent),
       },
@@ -423,24 +469,39 @@ export async function getOyinState(memberId: number): Promise<OyinStateResponse>
   ]);
   const active = season.phase === "active";
   const mine = map.get(memberId);
-  const ranked = [...map.values()].filter((r) => r.breakdown.ball > 0).sort((a, b) => b.breakdown.ball - a.breakdown.ball);
-  const rank = mine && mine.breakdown.ball > 0 ? ranked.findIndex((r) => r.memberId === memberId) + 1 : null;
+  const ranked = [...map.values()].filter((r) => r.breakdown.ball > 0);
+
+  // ── 2-TO'LQIN — bir-biriga BOG'LIQ BO'LMAGAN hamma so'rov bitta `Promise.all` da.
+  // Avval bular KETMA-KET yurardi: taklif-sanog'i → do'stlar ro'yxati → do'stlar safari →
+  // chipta qatori → katalog → sotilganlar → maqsad → hikoya → uy-belgisi. Ya'ni ekranning
+  // ochilishi ~9 ta ket-ket DB borish-kelishiga cho'zilardi (mobil tarmoqda sezilarli).
+  // Haqiqiy bog'liqlik faqat ikkita: (a) do'st id'lari → ularning bugungi safari,
+  // (b) chipta soni + eng qimmat sovrin nomi → hikoya matnidagi o'rin-egallari.
+  const [referJoinedCount, myRefs, ticketsRow, catalog, soldMapAll, goalRow, homeRow, myRideRows] = await Promise.all([
+    active && mine
+      ? prisma.referral.count({ where: { referrerId: mine.telegramId, createdAt: { gte: dayStart } } })
+      : Promise.resolve(0),
+    active && mine
+      ? prisma.referral.findMany({ where: { referrerId: mine.telegramId }, select: { refereeMemberId: true } })
+      : Promise.resolve([] as { refereeMemberId: number | null }[]),
+    prisma.appState.findUnique({ where: { key: `oyin:tickets:${memberId}` } }),
+    getCatalog(),
+    getSoldMap(),
+    prisma.appState.findUnique({ where: { key: `${GOAL_PREFIX}${memberId}` } }),
+    prisma.appState.findUnique({ where: { key: `oyin:home:${memberId}` } }),
+    // 🔥 Zanjir uchun O'Z safar kunlarim (mavsum oynasida) — pastdagi izohga qarang.
+    active
+      ? prisma.rideReward.findMany({
+          where: { memberId, createdAt: { gte: new Date(season.startMs as number), lte: new Date(season.endMs as number) } },
+          select: { createdAt: true },
+        })
+      : Promise.resolve([] as { createdAt: Date }[]),
+  ]);
 
   // 🎯 Bugungi maqsad — hammasi mavjud manbalardan, yangi yozuv YO'Q (ball baribir jonli hisoblanadi).
   // Mavsum faol bo'lmasa nollanadi: ball muzlagan ekranda "bugun 3 safar ✓" ko'rsatish nomuvofiq.
-  const referJoined = active && mine
-    ? (await prisma.referral.count({ where: { referrerId: mine.telegramId, createdAt: { gte: dayStart } } })) > 0
-    : false;
-  // 🤝 Do'stlarim BUGUN safar qildimi (kunlik topshiriq uchun). Ikkita kichik so'rov,
-  // faqat o'z doirasi bo'yicha — katta populyatsiya keshiga tegmaydi.
-  const referRideToday = active && mine
-    ? await (async () => {
-        const refs = await prisma.referral.findMany({ where: { referrerId: mine.telegramId }, select: { refereeMemberId: true } });
-        const ids = refs.map((r) => r.refereeMemberId).filter((x): x is number => typeof x === "number");
-        if (!ids.length) return 0;
-        return prisma.rideReward.count({ where: { memberId: { in: ids }, createdAt: { gte: dayStart } } });
-      })()
-    : 0;
+  const referJoined = referJoinedCount > 0;
+  const refereeIds = myRefs.map((r) => r.refereeMemberId).filter((x): x is number => typeof x === "number");
   const loginDays = parseDayList(loginRow?.value);
   const today = {
     login: active && loginDays.includes(todayKey),
@@ -449,11 +510,18 @@ export async function getOyinState(memberId: number): Promise<OyinStateResponse>
     referJoined,
   };
 
-  // 🔥 Haftalik vazifa — 3 kunlik zanjir (prototipdagi blok). Mavsum kunlaridan sanaladi.
+  // 🔥 Haftalik vazifa — 3 kunlik zanjir (prototipdagi blok).
+  // 🚩 2026-08-03 TUZATILDI: bu yerda zanjir `oyin:login:` (ILOVA OCHISH) kunlaridan sanalardi,
+  // ball esa (`computeBallMap` → `rideDaysByMember`) SAFAR kunlaridan. Natijada bir marta ham
+  // taksiga chiqmagan, faqat ilovani ochib turgan mijozga ekran "🔥 3/3 bajarildi · +50" deb
+  // yozardi va ball HECH QACHON tushmasdi — DIZAYN_QOIDALARI #5 ning aynan buzilishi ("yozuv
+  // harakat va'da qilsa, harakat bajarilishi shart"). Endi ikkalasi BITTA manbadan: mavsum
+  // ichidagi SAFAR kunlari.
   const streakTarget = 3;
-  const streak = active
-    ? streakFrom(loginDays.filter((d) => d >= (season.startDayKey as string) && d <= (season.endDayKey as string)), todayKey)
-    : 0;
+  const rideDayKeys = myRideRows
+    .map((r) => tashkentDayKey(r.createdAt))
+    .filter((d) => d >= (season.startDayKey as string) && d <= (season.endDayKey as string));
+  const streak = active ? streakFrom(rideDayKeys, todayKey) : 0;
   const week = {
     streak: Math.min(streak, streakTarget),
     target: streakTarget,
@@ -461,54 +529,90 @@ export async function getOyinState(memberId: number): Promise<OyinStateResponse>
     done: streak >= streakTarget,
   };
 
-  // 📸 Hikoya-poster holati. Matnlardagi {ism}/{chipta}/{sovrin} SERVERDA almashtiriladi —
-  // miniapp shablon bilan ovora bo'lmaydi va admin matnni istagancha o'zgartiraveradi.
-  const { storyStateOf } = await import("./oyinStory");
-  const myTickets = parseTickets((await prisma.appState.findUnique({ where: { key: `oyin:tickets:${memberId}` } }))?.value);
+  const myTickets = parseTickets(ticketsRow?.value);
   const ticketCount = season.configured
     ? myTickets.filter((t) => ticketInSeason(t, season.startMs as number, season.endMs as number)).length
     : 0;
-  const activeCatalog = (await getCatalog()).filter((p) => p.active);
+  const activeCatalog = catalog.filter((p) => p.active);
   // 📊 UY KARTASI uchun UMUMIY hisob — mijozning shaxsiy balli emas, butun mavsum bo'yicha.
-  // Bitta so'rov (`oyin_sold:*` prefiksi), qo'shimcha yuk yo'q.
-  const soldMapAll = await getSoldMap();
   const capacityTotal = activeCatalog.reduce((n, p) => n + Math.max(0, p.limit), 0);
   const soldTotal = activeCatalog.reduce((n, p) => n + Math.min(p.limit, soldMapAll.get(p.key) ?? 0), 0);
   const topPrizeName = [...activeCatalog].sort((a, b) => b.price - a.price)[0]?.name ?? "sovrin";
   // Maqsad: sovrin keyin o'chirilgan/yashirilgan bo'lsa null (hero avtomatik eng arzonga tushadi).
-  const goalRow = await prisma.appState.findUnique({ where: { key: `${GOAL_PREFIX}${memberId}` } });
   const goalPrizeKey = goalRow && activeCatalog.some((p) => p.key === goalRow.value) ? goalRow.value : null;
-  const storyState = await storyStateOf(memberId, econ.oyinStoryProofBall ?? 0, {
-    ism: mine?.name ?? "Do'st",
-    chipta: ticketCount,
-    sovrin: topPrizeName,
-  });
+
+  // ── 3-TO'LQIN — 2-to'lqin natijasiga bog'liq, lekin o'zaro bog'liq EMAS.
+  // 📸 Hikoya-poster holati. Matnlardagi {ism}/{chipta}/{sovrin} SERVERDA almashtiriladi —
+  // miniapp shablon bilan ovora bo'lmaydi va admin matnni istagancha o'zgartiraveradi.
+  const { storyStateOf } = await import("./oyinStory");
+  const [referRideToday, storyState] = await Promise.all([
+    // 🤝 Do'stlarim BUGUN safar qildimi (kunlik topshiriq uchun) — faqat o'z doirasi bo'yicha.
+    active && refereeIds.length
+      ? prisma.rideReward.count({ where: { memberId: { in: refereeIds }, createdAt: { gte: dayStart } } })
+      : Promise.resolve(0),
+    storyStateOf(memberId, econ.oyinStoryProofBall ?? 0, {
+      ism: mine?.name ?? "Do'st",
+      chipta: ticketCount,
+      sovrin: topPrizeName,
+    }),
+  ]);
 
   // ── 🎯 BUGUNGI TOPSHIRIQ ────────────────────────────────────────────────────────────────
   // Tanlov DETERMINISTIK (memberId + kun) — sahifa yangilanganda o'zgarmaydi. Bajarilishi
   // JONLI tekshiriladi (grant yozuvi yo'q, boshqa manbalar bilan bir xil), bajarilgan bo'lsa
   // kun-markeri qo'yiladi va ball `computeBallMap` da hisoblanadi.
   let quest: OyinQuestState | null = null;
+  // Marker SHU so'rovda yozilgan bo'lsa, qancha ball qo'shilgani (pastda balansga qo'shiladi).
+  let questJustEarned = 0;
   if (active) {
     const def = oyinQuestOf(memberId, todayKey);
-    const done = await (async () => {
+    const done = ((): boolean => {
       switch (def.key) {
         case "ride2": return ridesToday >= 2;
         case "ride_share": return ridesToday >= 1 && today.shared;
         case "friend_ride": return referRideToday > 0;
         case "invite": return referJoined;
-        // Hikoya: bugun yuborilgan (tekshiruvda) yoki tasdiqlangan bo'lsa yopiladi —
-        // admin 24 soat kutishi mumkin, mijoz o'z ishini bajargan.
-        case "story": return storyState.pending || storyState.approved > 0;
+        // ⛔ `story` ENDI TO'PLAMDA YO'Q (shared/oyin.ts `OYIN_QUEST_POOL` izohiga qarang):
+        // bajarilishini SERVER tekshira olmaydi. Avvalgi shart `storyState.approved > 0` edi va
+        // u MAVSUM bo'yicha sanalardi — bir marta tasdiqlatgan mijoz keyin `story` tushgan HAR
+        // kuni hech narsa qilmasdan +100 ball olardi. Kalit tipda qolgani uchun `switch`
+        // to'liqligicha turadi; qaytadan qo'shilsa AVVAL kunlik, soxtalikka chidamli tekshiruv
+        // yozilishi shart — "yuborildi" ni "bajarildi" deb qabul qilish yaramaydi.
+        case "story": return false;
         default: return false;
       }
     })();
-    if (done) await markDay("oyin:quest:", memberId).catch(() => undefined);
+    // ⚠️ `markDay` javobi MUHIM: `true` = marker AYNAN HOZIR yozildi (bugun birinchi marta).
+    if (done && (await markDay("oyin:quest:", memberId).catch(() => false))) {
+      questJustEarned = econ.oyinDailyQuestBall ?? 0;
+    }
     quest = { key: def.key, icon: def.icon, title: def.title, hint: def.hint, ball: econ.oyinDailyQuestBall ?? 0, done };
   }
 
+  // 🚩 2026-08-03 TUZATILDI — "bajarildi ✓ +100" yozilardi, BALANS esa o'zgarmasdi.
+  // Sabab: `computeBallMap()` javobning ENG BOSHIDA olinadi, `markDay` esa shu yerda — ya'ni
+  // xarita marker YOZILISHIDAN OLDINGI holatni ko'rsatadi va mijoz o'z balli 60 soniyadan keyin
+  // "sakraganini" ko'rardi (DIZAYN_QOIDALARI #5: va'da qilingan narsa DARHOL berilishi kerak).
+  // Qayta hisoblash 11 ta og'ir so'rov — o'rniga ANIQ ma'lum delta lokal qo'shiladi. Bu YOLG'ON
+  // emas: marker bazaga yozildi, kesh `markDay` ichida bekor qilindi, keyingi so'rov bazadan
+  // XUDDI SHU raqamni hisoblaydi.
+  const baseBreakdown = mine?.breakdown ?? EMPTY_BREAKDOWN;
+  const breakdown: OyinBallBreakdown = questJustEarned
+    ? {
+        ...baseBreakdown,
+        quest: baseBreakdown.quest + questJustEarned,
+        earned: baseBreakdown.earned + questJustEarned,
+        ball: Math.max(0, baseBreakdown.earned + questJustEarned - baseBreakdown.spent),
+      }
+    : baseBreakdown;
+  // O'rin ham SHU (yangilangan) balldan hisoblanadi — aks holda javobda yangi ball bilan eski
+  // o'rin birga ketardi. Saralash o'rniga "mendan yuqori nechta" sanoqi: teng ballilar bir xil
+  // o'rinni bo'lishadi va ortiqcha `sort` yo'q.
+  const rank = breakdown.ball > 0
+    ? ranked.filter((r) => r.memberId !== memberId && r.breakdown.ball > breakdown.ball).length + 1
+    : null;
+
   // 🏠 Doimiy topshiriq — ilova ekranga o'rnatilganmi (mavsum ichida belgilangan bo'lsa).
-  const homeRow = await prisma.appState.findUnique({ where: { key: `oyin:home:${memberId}` } });
   const homeDone = season.configured
     ? parseDayList(homeRow?.value).some((d) => d >= (season.startDayKey as string) && d <= (season.endDayKey as string))
     : false;
@@ -522,8 +626,8 @@ export async function getOyinState(memberId: number): Promise<OyinStateResponse>
   }
 
   return {
-    ball: mine?.breakdown.ball ?? 0,
-    breakdown: mine?.breakdown ?? EMPTY_BREAKDOWN,
+    ball: breakdown.ball,
+    breakdown,
     rank,
     sponsor: { name: sponsor.name, photoUrl: sponsor.photoUrl },
     hints: {
@@ -546,7 +650,9 @@ export async function getOyinState(memberId: number): Promise<OyinStateResponse>
     story: storyState,
     ticketCount,
     quest,
-    homeTask: { ball: econ.oyinHomeScreenBall ?? 0, done: homeDone, supported: true },
+    // `supported` maydoni OLIB TASHLANDI — server klient Bot API versiyasini BILMAYDI, qotirilgan
+    // `true` esa API'ning yolg'oni edi (shared/oyin.ts `OyinHomeTask` izohiga qarang).
+    homeTask: { ball: econ.oyinHomeScreenBall ?? 0, done: homeDone },
     soldTotal,
     capacityTotal,
     prizeCount: activeCatalog.length,
@@ -609,11 +715,41 @@ export async function getVitrina(memberId: number): Promise<OyinVitrinaResponse>
 // uchun chin o'chirish faqat sold=0 bo'lganda ruxsat etiladi (aks holda "yetim" hisoblagich qoladi).
 const CATALOG_KEY = "oyin:catalog";
 
+// ⚠️ VALIDATSIYA (2026-08-03). `adminUpsertPrize` YOZUVDA narxni qo'riqlaydi ("`1e999` → Infinity
+// → JSON `null` → `ball < price` = false → chiptalar BEPUL"), lekin O'QISHDA hech qanday tekshiruv
+// yo'q edi: qator qo'lda tahrirlangan/eski formatda bo'lsa o'sha bepul-chipta yo'li ochiq qolardi.
+// Ikkinchi qavat: narx yaroqsiz bo'lsa sovrin `active:false` ga tushadi — vitrinada ko'rinmaydi va
+// `buyTicket` (u faqat `active` sovrinni topadi) uni umuman sotmaydi.
 function parseCatalog(raw: string | undefined): OyinCatalogPrize[] {
   if (!raw) return [];
   try {
     const arr = JSON.parse(raw) as unknown;
-    return Array.isArray(arr) ? (arr as OyinCatalogPrize[]) : [];
+    if (!Array.isArray(arr)) return [];
+    const out: OyinCatalogPrize[] = [];
+    for (const item of arr) {
+      if (!item || typeof item !== "object") continue;
+      const p = item as Record<string, unknown>;
+      const key = typeof p.key === "string" ? p.key.trim() : "";
+      if (!key) continue; // kalitsiz qatorni `oyin_sold:` hisoblagichiga bog'lab bo'lmaydi
+      const price = Number(p.price);
+      const limit = Number(p.limit);
+      const priceOk = Number.isFinite(price) && price >= 1;
+      const limitOk = Number.isFinite(limit) && limit >= 1;
+      if (!priceOk || !limitOk) {
+        console.warn(`[oyin] katalogda buzuq sovrin (${key}): narx=${String(p.price)} limit=${String(p.limit)} — yashirildi`);
+      }
+      out.push({
+        key,
+        icon: typeof p.icon === "string" && p.icon ? p.icon : "🎁",
+        name: typeof p.name === "string" && p.name ? p.name : key,
+        valueLabel: typeof p.valueLabel === "string" ? p.valueLabel : "",
+        price: priceOk ? Math.round(price) : 1,
+        limit: limitOk ? Math.round(limit) : 0,
+        photoUrl: typeof p.photoUrl === "string" && p.photoUrl ? p.photoUrl : null,
+        active: p.active === true && priceOk && limitOk,
+      });
+    }
+    return out;
   } catch {
     return [];
   }
@@ -739,7 +875,7 @@ export async function joinCardData(): Promise<{ prizeName: string; photoUrl: str
 
 /** Admin: sovrin qo'shish (key bo'sh/topilmasa) yoki tahrirlash (key mavjud bo'lsa). */
 export async function adminUpsertPrize(input: OyinPrizeUpsertInput): Promise<OyinAdminPrizeRow[]> {
-  const catalog = await getCatalog();
+  const [catalog, soldMap] = await Promise.all([getCatalog(), getSoldMap()]);
   const name = (input.name || "").trim().slice(0, 60) || "Sovrin";
   const icon = (input.icon || "🎁").trim().slice(0, 8) || "🎁";
   const valueLabel = (input.valueLabel || "").trim().slice(0, 60);
@@ -747,10 +883,20 @@ export async function adminUpsertPrize(input: OyinPrizeUpsertInput): Promise<Oyi
   // `ball < prize.price` solishtiruvi `false` bo'lib chiptalar BEPUL tarqalardi.
   const priceRaw = Number(input.price);
   const price = Math.max(1, Math.round(Number.isFinite(priceRaw) ? priceRaw : 0));
-  const limit = Math.max(1, Math.round(Number(input.limit) || 0));
+  const limitRaw = Math.max(1, Math.round(Number(input.limit) || 0));
   const photoUrl = input.photoUrl?.trim().slice(0, 500) || null;
 
   const existing = input.key ? catalog.find((p) => p.key === input.key) : undefined;
+  // 🛡 `limit < sold` SERVERDA to'siladi. Admin panelda tasdiq oynasi bor, LEKIN u faqat klientda —
+  // to'g'ridan-to'g'ri API so'rovi (yoki eski panel tab'i) uni aylanib o'tadi. Limit sotilganidan
+  // past qo'yilsa allaqachon chipta olganlarning yutish ehtimoli JIM o'zgaradi (ular buni hech
+  // qachon bilmaydi) va `reserveSoldSlot` keyingi har xaridni rad etadi — ya'ni sovrin "tugagan"
+  // ko'rinadi. Shuning uchun limit sotilganidan PAST tushirilmaydi: sotilganiga qisiladi.
+  const sold = existing ? (soldMap.get(existing.key) ?? 0) : 0;
+  const limit = Math.max(limitRaw, sold);
+  if (limit !== limitRaw) {
+    console.warn(`[oyin] adminUpsertPrize: "${existing?.key}" limiti ${limitRaw} → ${limit} ga ko'tarildi (allaqachon ${sold} ta sotilgan; chipta egalarining ehtimoli jim o'zgarmasin)`);
+  }
   if (existing) {
     Object.assign(existing, { name, icon, valueLabel, price, limit, photoUrl });
   } else {
@@ -877,7 +1023,8 @@ export async function buyTicket(memberId: number, prizeKeyRaw: string, preview =
       Math.round(econ.oyinMaxTicketsPerPrize ?? 3),
       Math.ceil(prize.limit / 2),
     ));
-    const season = await getSeason();
+    // (Mavsum yuqorida BIR MARTA o'qilgan — ichkarida yana `getSeason()` chaqirilardi va tashqi
+    // `season` ni SOYALARDI: bir xil qiymat, ortiqcha so'rov, o'quvchi uchun chalg'itadigan ikkilik.)
     const ownRow = await prisma.appState.findUnique({ where: { key: `oyin:tickets:${memberId}` } });
     const ownCount = parseTickets(ownRow?.value)
       .filter((t) => t.prizeKey === prize.key && ticketInSeason(t, season.startMs as number, season.endMs as number))
@@ -1150,8 +1297,9 @@ export async function sprintCheck(): Promise<OyinSprintResult | null> {
       } else if (snap.seasonId !== season.seasonId) {
         console.warn(`[oyin] sprint ${tracked}: surat boshqa mavsumniki (${snap.seasonId} ≠ ${season.seasonId}) — o'tkazib yuborildi, qayta bazalanadi`);
       } else {
+        // ⚠️ `earned` (YIG'ILGAN), `ball` (qoldiq) EMAS — yuqoridagi `WeekSnap` izohiga qarang.
         const deltas = [...map.entries()]
-          .map(([memberId, row]) => ({ memberId, name: row.name, delta: row.breakdown.ball - (snap.ball[String(memberId)] ?? 0) }))
+          .map(([memberId, row]) => ({ memberId, name: row.name, delta: row.breakdown.earned - (snap.earned[String(memberId)] ?? 0) }))
           .filter((d) => d.delta > 0)
           .sort((a, b) => b.delta - a.delta);
         const winners: typeof deltas = [];
@@ -1184,10 +1332,11 @@ export async function sprintCheck(): Promise<OyinSprintResult | null> {
   // bilan kirardi. Endi g'olib bo'lsa xarita qayta o'qiladi. (Tartib O'ZGARMAYDI: surat
   // g'oliblardan KEYIN yoziladi — aks holda bonus keyingi hafta faolligi deb ikki marta sanalardi.)
   const snapMap = result?.winners.length ? await computeBallMap() : map;
-  const ball: Record<string, number> = {};
-  for (const [id, row] of snapMap) ball[String(id)] = row.breakdown.ball;
+  // Suratda YIG'ILGAN (`earned`) saqlanadi — chipta xaridi (sarf) sprint deltasiga TEGMASIN.
+  const earned: Record<string, number> = {};
+  for (const [id, row] of snapMap) earned[String(id)] = row.breakdown.earned;
   const snapKey = `oyin:weeksnap:${wk}`;
-  const snapValue = JSON.stringify({ seasonId: season.seasonId, at: new Date().toISOString(), ball });
+  const snapValue = JSON.stringify({ seasonId: season.seasonId, at: new Date().toISOString(), earned });
   await prisma.appState.upsert({ where: { key: snapKey }, create: { key: snapKey, value: snapValue }, update: { value: snapValue } });
   await prisma.appState.upsert({ where: { key: "oyin:sprintweek" }, create: { key: "oyin:sprintweek", value: wk }, update: { value: wk } });
 
@@ -1269,9 +1418,25 @@ export async function seasonClose(): Promise<OyinSeasonCloseResult> {
 // ── 🧹 Admin: "Yangi mavsumni toza boshlash" (ega qarori 2026-08-02 — avtomatik EMAS, qo'lda).
 // Tartib MUHIM: validatsiya → arxiv → oxirida config. Jarayon o'rtada uzilsa, config hali ESKI
 // mavsumda qoladi va o'yin izchil holatda ishlayveradi (yarim tozalangan yangi mavsum EMAS).
+// ⚠️ 2026-08-03: ro'yxat MAVSUM-DOIRALI HAR BIR kalitni qamrashi SHART. Buzilgan holat: keyin
+// qo'shilgan `oyin:quest:` · `oyin:home:` · `oyin:story:` · `oyin:goal:` bu yerda YO'Q edi — ya'ni
+// "toza boshlash" tugmasi ularni ortda qoldirardi (tugma nomi yolg'on bo'lardi). Har biri nega:
+//  · `oyin:quest:` / `oyin:home:` — kun-ro'yxatlari, xuddi login/share kabi. Ball baribir mavsum
+//    oynasiga kesiladi, lekin qator qolsa u mavsumdan-mavsumga cheksiz o'sardi va `scope:"all"`
+//    faoliyat-jadvalida eski mavsum qatorlari jonli ko'rinardi.
+//  · `oyin:home:` ni arxivlash mijozga ZARAR QILMAYDI (tekshirildi — miniapp/src/oyin.tsx:246-253):
+//    o'yin ekrani har ochilganda `checkHomeScreenStatus()` yuriladi va "added" bo'lsa
+//    `POST /api/oyin/home {added:true}` qayta yuboriladi → yangi mavsumning birinchi tashrifida
+//    belgi O'ZI tiklanadi va 500 ball qaytadan tushadi. Ya'ni "ilova ekranda TURIBDI" holati har
+//    mavsumda QAYTA tasdiqlanadi — mijoz hech narsani qayta o'rnatmaydi.
+//  · `oyin:story:` — hikoya tarixi mavsum bilan tugaydi (yangi mavsum = yangi 3 ta limit). Arxiv
+//    qatorlari saqlanib qoladi (`oyin:arch:sN:…`), ya'ni tekshiruv uchun yo'qolmaydi.
+//  · `oyin:goal:` — maqsad-sovrin eski katalogga ishora qiladi; yangi mavsumda mijoz o'zi tanlaydi
+//    (tanlanmaguncha hero eng arzoniga tushadi).
 const ARCHIVED_PREFIXES = [
   "oyin:tickets:", "oyin:login:", "oyin:share:", "oyin:sprintwin:",
   "oyin_sold:", "oyin:weeksnap:", "oyin:sprintdone:", "oyin:thanks:",
+  "oyin:quest:", "oyin:home:", "oyin:story:", "oyin:goal:",
 ];
 const ARCHIVED_SINGLETONS = ["oyin:sprintweek", "oyin:seasonclosed"];
 
@@ -1312,10 +1477,46 @@ export async function adminStartNewSeason(input: OyinSeasonInput): Promise<OyinS
   return { ok: true, seasonId: next.seasonId, archivedRows };
 }
 
+/** ⚠️ Sana TUZATISH (arxivsiz) mijoz uchun boshi berk ko'cha yasashi mumkin, chunki ikki hisob
+ *  BOSHQA-BOSHQA qoidaga bo'ysunadi:
+ *   · mijozning chiptasi MAVSUM OYNASI bo'yicha filtrlanadi (`ticketInSeason`) — oyna siljisa
+ *     "Sizniki: 0" bo'lib qoladi;
+ *   · `oyin_sold:<key>` esa oddiy HISOBLAGICH, mavsumni bilmaydi — u joyida turadi.
+ *  Natija: sovrin "TUGADI" ko'rinadi, mijozda esa chipta yo'q — na sotib oladi, na tirajda
+ *  qatnashadi. Hisoblagichni JIMGINA nolga tushirish HAM yaramaydi (haqiqiy chiptalar yetim
+ *  qoladi), shuning uchun to'g'ri javob — EGANI OGOHLANTIRISH: bu holatda "Toza boshlash"
+ *  tugmasi kerak (u chiptani ham, hisoblagichni ham birga arxivlaydi).
+ *  Sxemaga TEGILMAYDI, hech narsa avtomatik o'chirilmaydi — faqat alert (seasonClose naqshi). */
+async function alertIfTicketsOrphaned(next: OyinSeasonView): Promise<void> {
+  if (!next.configured) return;
+  const rows = (await prisma.appState.findMany({ where: { key: { startsWith: "oyin:tickets:" } } })) as AppStateRow[];
+  let outside = 0;
+  let inside = 0;
+  for (const row of rows) {
+    for (const t of parseTickets(row.value)) {
+      if (ticketInSeason(t, next.startMs as number, next.endMs as number)) inside++;
+      else outside++;
+    }
+  }
+  if (!outside) return;
+  const soldTotal = [...(await getSoldMap()).values()].reduce((a, b) => a + b, 0);
+  const { alertAdmins } = await import("./economyService");
+  await alertAdmins(
+    `⚠️ <b>Mavsum sanasi o'zgartirildi — ${outside} ta chipta yangi oynadan TASHQARIDA qoldi</b>\n\n` +
+    `Oyna ichida: ${inside} ta · tashqarida: ${outside} ta · <code>oyin_sold</code> hisoblagichi: ${soldTotal}\n\n` +
+    `Mijozlar shu holatni ko'radi: sovrinlarda «TUGADI» yozuvi turadi (hisoblagich eski xaridlarni ` +
+    `sanayapti), o'z chiptalari esa 0 ko'rinadi. Chipta ham, hisoblagich ham birga tozalanishi uchun ` +
+    `«🧹 Yangi mavsumni toza boshlash» tugmasidan foydalaning — sana tuzatish uni ALMASHTIRMAYDI.`,
+  ).catch(() => undefined);
+}
+
 /** Admin: sanani tuzatish (mavsum raqami o'zgarmaydi, arxiv qilinmaydi). */
 export async function adminSetSeason(input: OyinSeasonInput): Promise<OyinSeasonView> {
   const s = await setSeason(input);
   invalidateBallCache();
+  // Ogohlantirish JAVOBNI kutdirmaydi va yiqilsa sana yozuvini bekor QILMAYDI (u allaqachon
+  // muvaffaqiyatli). Xato bo'lsa faqat logga tushadi.
+  void alertIfTicketsOrphaned(s).catch((e) => console.error("[oyin] orphan-ticket alert failed:", e));
   return s;
 }
 
@@ -1352,9 +1553,38 @@ export async function getActivity(filters: OyinActivityFilter): Promise<OyinActi
   const winFrom = new Date(Number.isFinite(fromMs) ? fromMs : 0);
   const winTo = new Date(Number.isFinite(toMs) ? toMs : Date.now() + 10 * 365 * 86400_000);
 
-  const [telegramUsers, rideRows, referrals, ticketRows, loginRows, shareRows, sprintWinRows, storyRows] = await Promise.all([
+  // 🤝 Bitta a'zo bo'yicha filtrlanganda uning DO'STLARI safarlari HAM kerak: `refer_ride`
+  // qatorlari aynan o'sha safarlardan chiqadi. Avval safar-so'rovi faqat `memberId` bilan
+  // kesilardi — natijada bitta odamni tanlagan admin uning ENG KATTA ball manbasini (do'stlar
+  // oqimi) jadvalda UMUMAN ko'rmasdi va jadval jami reyting ballidan kam chiqardi.
+  let rideMemberIds: number[] | null = null;
+  let onlyReferrerId: string | null = null;
+  if (filters.memberId) {
+    const tu = await prisma.telegramUser.findUnique({ where: { memberId: filters.memberId }, select: { id: true } });
+    onlyReferrerId = tu?.id ?? null;
+    const refs = onlyReferrerId
+      ? await prisma.referral.findMany({ where: { referrerId: onlyReferrerId }, select: { refereeMemberId: true } })
+      : [];
+    rideMemberIds = [filters.memberId, ...refs.map((r) => r.refereeMemberId).filter((x): x is number => typeof x === "number")];
+  }
+
+  // 📉 MIJOZ-YO'LI (`/api/oyin/bell` → `getActivity({ memberId })`) skani TORAYTIRILDI.
+  // Avval har chaqiruvda BUTUN populyatsiya o'qilardi: hamma `telegramUser` qatori + yettita
+  // `oyin:*` prefiksining HAMMA qatori — ya'ni bitta mijoz qo'ng'iroqni ochganda server
+  // O(a'zolar_soni) ish qilardi va bu bot/taksi sweep bilan BITTA jarayonda. A'zoga tegishli
+  // kalitlar aniq ma'lum (`<prefiks><memberId>`), demak prefiks-skan o'rniga PK bo'yicha
+  // nuqta-o'qish: O(1). Admin-yo'li (memberId berilmagan) o'zgarishsiz — u butun jadvalni
+  // ko'rishi SHART.
+  const stateRows = (prefix: string): Promise<AppStateRow[]> =>
+    (filters.memberId
+      ? prisma.appState.findMany({ where: { key: `${prefix}${filters.memberId}` } })
+      : prisma.appState.findMany({ where: { key: { startsWith: prefix } } })) as Promise<AppStateRow[]>;
+
+  const [telegramUsers, rideRows, referrals, ticketRows, loginRows, shareRows, questRows, homeRows, sprintWinRows, storyRows] = await Promise.all([
     prisma.telegramUser.findMany({
-      where: { memberId: { not: null } },
+      // Ism-xaritasi uchun: mijoz-yo'lida FAQAT o'zi + do'stlari kerak (`helpedName` shulardan
+      // chiqadi), butun populyatsiya emas.
+      where: rideMemberIds ? { memberId: { in: rideMemberIds } } : { memberId: { not: null } },
       select: { id: true, memberId: true, firstName: true, lastName: true, username: true, phone: true, linkedAt: true },
     }),
     // ⚠️ `where` MAJBURIY. Avval ikkala jadval ham TO'LIQ o'qilardi (filtrlar keyin xotirada
@@ -1362,18 +1592,28 @@ export async function getActivity(filters: OyinActivityFilter): Promise<OyinActi
     // va `Referral` tarixini yuklardi — bot va taksi sweep'i bilan BITTA jarayonda. Pik soatda
     // bu tabni ochish event-loop'ni bloklardi.
     prisma.rideReward.findMany({
-      where: { createdAt: { gte: winFrom, lte: winTo }, ...(filters.memberId ? { memberId: filters.memberId } : {}) },
+      where: { createdAt: { gte: winFrom, lte: winTo }, ...(rideMemberIds ? { memberId: { in: rideMemberIds } } : {}) },
       select: { memberId: true, bookingId: true, createdAt: true },
     }),
     prisma.referral.findMany({
-      where: { OR: [{ createdAt: { gte: winFrom, lte: winTo } }, { referrerPaidAt: { gte: winFrom, lte: winTo } }] },
+      // ⚠️ Sana oynasi bo'yicha FILTRLANMAYDI (`computeBallMap` ham filtrlamaydi): mavsumdan
+      // OLDIN yaratilgan juftlik ham mavsum ICHIDA `refer_ride` ball beradi. Oyna qo'yilganda
+      // o'sha qatorlar jadvaldan yo'qolardi-yu, ball hisobida QOLARDI. Vaqt bo'yicha kesish
+      // pastdagi umumiy `filtered` bosqichida — har QATORNING o'z sanasi bo'yicha.
+      // Bitta a'zo so'ralganda esa faqat o'sha odamning juftliklari o'qiladi (jadval qatori
+      // baribir taklifchiga yoziladi) — bu og'irlikni qaytadan chegaralaydi.
+      where: filters.memberId ? { referrerId: onlyReferrerId ?? "__none__" } : {},
       select: { referrerId: true, refereeMemberId: true, referrerPaidAt: true, createdAt: true },
     }),
-    prisma.appState.findMany({ where: { key: { startsWith: "oyin:tickets:" } } }) as Promise<AppStateRow[]>,
-    prisma.appState.findMany({ where: { key: { startsWith: "oyin:login:" } } }) as Promise<AppStateRow[]>,
-    prisma.appState.findMany({ where: { key: { startsWith: "oyin:share:" } } }) as Promise<AppStateRow[]>,
-    prisma.appState.findMany({ where: { key: { startsWith: "oyin:sprintwin:" } } }) as Promise<AppStateRow[]>,
-    prisma.appState.findMany({ where: { key: { startsWith: "oyin:story:" } } }) as Promise<AppStateRow[]>,
+    stateRows("oyin:tickets:"),
+    stateRows("oyin:login:"),
+    stateRows("oyin:share:"),
+    // 🎯 kunlik topshiriq va 🏠 ekranga o'rnatish — ikkalasi ham BALL BERADI, demak jadvalda ham
+    // ko'rinishi shart (2026-08-03 gacha yo'q edi: 500 ball qayerdan kelgani hech qayerda yo'q).
+    stateRows("oyin:quest:"),
+    stateRows("oyin:home:"),
+    stateRows("oyin:sprintwin:"),
+    stateRows("oyin:story:"),
   ]);
 
   const nameByMember = new Map<number, string>();
@@ -1422,6 +1662,20 @@ export async function getActivity(filters: OyinActivityFilter): Promise<OyinActi
       }
     }
   }
+  // Kun-markerlari TOSHKENT kuni bo'yicha yoziladi, mavsum chegarasi esa aniq SOAT. Chegara
+  // kunida `${day}T00:00Z` mavsum boshlanishidan bir necha soat oldin tushib qolishi mumkin va
+  // pastdagi umumiy ms-filtri o'sha qatorni TASHLAB yuborardi — ball hisobida esa u BOR (u kun-
+  // SATRI bo'yicha sanaydi). Shu sababli FAQAT chegara kuni (±24 soat) oynaning qirrasiga
+  // qisiladi; oynadan uzoq kun oldingidek tashqarida qoladi (aks holda `scope:"all"` + qo'lda
+  // sana filtrida eski kunlar ichkariga sudralib kirardi).
+  const dayAt = (day: string): string => {
+    const ms = Date.parse(`${day}T00:00:00.000Z`);
+    if (!Number.isFinite(ms)) return `${day}T00:00:00.000Z`;
+    if (Number.isFinite(fromMs) && ms < fromMs && fromMs - ms < 86400_000) return new Date(fromMs).toISOString();
+    if (Number.isFinite(toMs) && ms > toMs && ms - toMs < 86400_000) return new Date(toMs).toISOString();
+    return new Date(ms).toISOString();
+  };
+  const inDayWindow = (day: string): boolean => !dayFrom || (day >= dayFrom && day <= (dayTo as string));
   const explodeDays = (rowsIn: AppStateRow[], prefix: string, action: OyinActivityAction, ballKnob: number) => {
     for (const row of rowsIn) {
       const memberId = Number(row.key.slice(prefix.length));
@@ -1429,13 +1683,44 @@ export async function getActivity(filters: OyinActivityFilter): Promise<OyinActi
       for (const day of parseDayList(row.value)) {
         // Kun-satri bo'yicha mavsum filtri (pastdagi umumiy ms-filtri UTC/Toshkent farqi tufayli
         // chegara kunini noto'g'ri kesardi — ball hisobidan farq qilardi).
-        if (dayFrom && (day < dayFrom || day > (dayTo as string))) continue;
-        push(`${day}T00:00:00.000Z`, memberId, action, ballKnob, null, null);
+        if (!inDayWindow(day)) continue;
+        push(dayAt(day), memberId, action, ballKnob, null, null);
       }
     }
   };
   explodeDays(loginRows, "oyin:login:", "login", econ.oyinDailyLoginBall ?? 0);
   explodeDays(shareRows, "oyin:share:", "share", econ.oyinShareBall ?? 0);
+  explodeDays(questRows, "oyin:quest:", "quest", econ.oyinDailyQuestBall ?? 0);
+  // 🏠 Ekranga o'rnatish — MAVSUMDA BIR MARTA to'lanadi (`computeBallMap`: kun bormi → 1 yoki 0),
+  // lekin kun-ro'yxatida bir nechta kun bo'lishi mumkin (miniapp ilova har ochilganda "added"
+  // holatini qayta bildiradi → markDay yangi kunni qo'shadi). `explodeDays` ishlatilsa jadval
+  // 500 ballni HAR KUN uchun ko'rsatib reytingdan farq qilardi. Shuning uchun faqat oynadagi
+  // ENG BIRINCHI kun uchun bitta qator.
+  for (const row of homeRows) {
+    const memberId = Number(row.key.slice("oyin:home:".length));
+    if (!Number.isFinite(memberId)) continue;
+    const first = parseDayList(row.value).filter(inDayWindow).sort()[0];
+    if (first) push(dayAt(first), memberId, "home", econ.oyinHomeScreenBall ?? 0, null, null);
+  }
+  // 🔥 SAFAR ZANJIRI — ball beradi (`oyinStreakBall`), demak jadvalda ham ko'rinishi shart.
+  // Manba `computeBallMap` bilan AYNAN bir xil: mavsum ichidagi safar-kunlari, har TO'LIQ
+  // 3 ketma-ket kun = 1 bonus (bir-birini qoplamaydi). Qator sanasi — zanjirni YOPGAN kun.
+  const STREAK_TARGET_ROWS = 3;
+  for (const [memberId, rides] of ridesByMember) {
+    const days = [...new Set(rides.map((r) => tashkentDayKey(r.at)))].filter(inDayWindow).sort();
+    let run = 0;
+    let prevMs: number | null = null;
+    for (const d of days) {
+      const ms = Date.parse(`${d}T00:00:00+05:00`);
+      run = prevMs !== null && ms - prevMs === 86400_000 ? run + 1 : 1;
+      prevMs = ms;
+      if (run === STREAK_TARGET_ROWS) {
+        push(dayAt(d), memberId, "streak", econ.oyinStreakBall ?? 0, null, `${STREAK_TARGET_ROWS} kun ketma-ket`);
+        run = 0;
+        prevMs = ms;
+      }
+    }
+  }
   for (const row of sprintWinRows) {
     const memberId = Number(row.key.slice("oyin:sprintwin:".length));
     if (!Number.isFinite(memberId)) continue;
@@ -1448,13 +1733,30 @@ export async function getActivity(filters: OyinActivityFilter): Promise<OyinActi
   }
   // 📸 tasdiqlangan hikoya-isbotlar — ball beradi, demak jadvalda ham ko'rinishi SHART
   // (aks holda "jadval reyting bilan kelishadi" da'vosi buziladi).
+  // ⚠️ Ball mavsumda eng ko'pi `OYIN_STORY_SEASON_LIMIT` marta beriladi (`computeBallMap` dagi
+  // ikkinchi qavat himoya: admin xato bilan ortiqcha tasdiqlasa yoki mavsum oynasi kengaytirilsa).
+  // Jadval buni HISOBGA OLMASDI — ortiqcha qatorlar to'liq ball bilan chiqib reytingdan farq
+  // qilardi. Endi ortiqchasi KO'RINADI (admin xatosi yashirilmaydi), lekin ball 0 va sababi yozilgan.
+  // Cheklov faqat mavsum-doirasida (`scope:"all"` da har mavsumning o'z limiti bor — u yerda xom tarix).
   for (const row of storyRows) {
     const memberId = Number(row.key.slice("oyin:story:".length));
     if (!Number.isFinite(memberId)) continue;
     try {
       const parsed = JSON.parse(row.value) as { items?: { at?: string; status?: string }[] };
-      for (const it of parsed.items ?? []) {
-        if (it.status === "approved") push(String(it.at), memberId, "story", econ.oyinStoryProofBall ?? 0, null, null);
+      const approved = (parsed.items ?? [])
+        .filter((it) => it.status === "approved")
+        .sort((a, b) => Date.parse(String(a.at)) - Date.parse(String(b.at)));
+      let paid = 0;
+      for (const it of approved) {
+        const t = Date.parse(String(it.at));
+        const inWin = Number.isFinite(t) && t >= fromMs && t <= toMs;
+        const over = seasonScoped && inWin && paid >= OYIN_STORY_SEASON_LIMIT;
+        if (inWin && !over) paid++;
+        push(
+          String(it.at), memberId, "story",
+          over ? 0 : (econ.oyinStoryProofBall ?? 0), null,
+          over ? `limitdan tashqari (mavsumda max ${OYIN_STORY_SEASON_LIMIT})` : null,
+        );
       }
     } catch { /* buzuq JSON — o'tkazamiz */ }
   }

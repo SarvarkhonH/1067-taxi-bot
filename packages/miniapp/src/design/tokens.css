@@ -1608,6 +1608,14 @@ body {
   --nh-brand:#ff9500; --nh-bgrad:linear-gradient(135deg,#ffc93c,#ff8f1f); --nh-bink:#231400;
   --nh-blue:#6fb0ff; --nh-org:#ff9d54; --nh-teal:#4fddca; --nh-vio:#b49bff; --nh-pink:#ff8fcb; --nh-grn:#4fdca6;
   --nh-shadow:0 10px 28px rgba(0,0,0,.34);
+  /* ⚠️ Liquid-Glass tabbar tokenlari. AVVAL UMUMAN ANIQLANMAGAN edi: `.nh-app .tabbar` da
+     `background:var(--nh-gbar)` va `border:1px solid var(--nh-gbrd)` yozilgan, lekin bu uchta
+     token hech qayerda ta'riflanmagandi → CSS qoidasi "invalid at computed-value time" bo'lib
+     BEKOR bo'lardi: o'lchandi — `backgroundColor: rgba(0,0,0,0)`, `borderTopWidth: 0px`,
+     `.tab.active` foni ham shaffof. Ya'ni uy rejimida pastki menyu SHISHASIZ (matn kontent
+     ustida suzib turardi) va faol tab hech qanday fon bilan belgilanmasdi. */
+  --nh-gbar:linear-gradient(180deg,rgba(22,29,46,.82),rgba(10,14,23,.94));
+  --nh-gbrd:rgba(255,255,255,.1); --nh-gpill:rgba(255,255,255,.09);
 }
 :root[data-theme="light"] {
   --nh-bg:#eef1f7; --nh-sf:#ffffff; --nh-sf2:#f4f6fb; --nh-tx:#131824; --nh-dim:#6b7488; --nh-dim2:#9aa2b4;
@@ -1615,6 +1623,8 @@ body {
   --nh-brand:#ea580c; --nh-bgrad:linear-gradient(135deg,#ffc93c,#ff8f1f); --nh-bink:#231400;
   --nh-blue:#2563eb; --nh-org:#ea580c; --nh-teal:#0d9488; --nh-vio:#7c3aed; --nh-pink:#db2777; --nh-grn:#059669;
   --nh-shadow:0 8px 22px rgba(20,30,60,.08);
+  --nh-gbar:linear-gradient(180deg,rgba(255,255,255,.9),rgba(244,246,251,.96));
+  --nh-gbrd:rgba(20,30,60,.1); --nh-gpill:rgba(234,88,12,.13);
 }
 :root[data-theme="vibrant"] {
   --nh-bg:#12082a; --nh-sf:#1e1442; --nh-sf2:#281a54; --nh-tx:#f6f2ff; --nh-dim:#b3a6d6; --nh-dim2:#8878b0;
@@ -1622,9 +1632,11 @@ body {
   --nh-brand:#c4b5fd; --nh-bgrad:linear-gradient(135deg,#a855f7,#ec4899); --nh-bink:#ffffff;
   --nh-blue:#6fb0ff; --nh-org:#ff9d54; --nh-teal:#4fddca; --nh-vio:#c4b5fd; --nh-pink:#f472b6; --nh-grn:#4fdca6;
   --nh-shadow:0 12px 30px rgba(168,85,247,.28);
+  --nh-gbar:linear-gradient(180deg,rgba(40,26,84,.85),rgba(18,8,42,.95));
+  --nh-gbrd:rgba(255,255,255,.12); --nh-gpill:rgba(196,181,253,.18);
 }
 .nh-view { background:var(--nh-bg); color:var(--nh-tx); min-height:100%; margin:-4px -16px 0; padding:8px 16px 24px; }
-.nh-wallet { position:relative; border-radius:22px; padding:16px; overflow:hidden; margin-bottom:13px; border:1px solid var(--nh-ln);
+.nh-wallet { position:relative; border-radius:22px; padding:14px 16px; overflow:hidden; margin-bottom:13px; border:1px solid var(--nh-ln);
   background:linear-gradient(135deg,rgba(120,90,255,.22),rgba(59,130,246,.13) 60%,rgba(255,143,31,.14)); }
 :root[data-theme="light"] .nh-wallet { background:linear-gradient(135deg,#fff4e0,#ffe9f0 60%,#e9f0ff); box-shadow:var(--nh-shadow); }
 .nh-wallet .wrow { display:flex; justify-content:space-between; align-items:center; position:relative; gap:10px; }
@@ -1632,21 +1644,39 @@ body {
 .nh-wallet .yc { flex:0 0 auto; }
 .nh-wallet .k { font-size:12px; color:var(--nh-dim); }
 :root[data-theme="dark"] .nh-wallet .k, :root[data-theme="vibrant"] .nh-wallet .k { color:#c3ccdd; }
-.nh-wallet .b { font-size:26px; font-weight:800; color:var(--nh-tx); letter-spacing:-.5px; }
-.nh-wallet .cb { font-size:12px; font-weight:600; margin-top:5px; color:#12a172; }
-.nh-wallet .yc { margin-left:auto; background:var(--nh-bgrad); color:var(--nh-bink); border:0; font-size:12px; font-weight:800; padding:9px 14px; border-radius:99px; }
-.nh-taxi { width:100%; border:0; border-radius:20px; background:var(--nh-bgrad); color:var(--nh-bink); padding:15px 17px;
-  display:flex; align-items:center; gap:13px; text-align:left; margin-bottom:6px; box-shadow:0 12px 28px rgba(255,143,31,.3); }
+/* ⚖️ YORUG' mavzuda o'lchandi: `.k` = 4.30:1, `.cb` = 3.03:1 (karta gradienti #fff4e0→#e9f0ff
+   ustida). WCAG AA kichik matn uchun 4.5:1 talab qiladi — ikkalasi ham YIQILARDI, ya'ni quyoshda
+   telefonga qaragan odam cashback satrini umuman o'qiy olmasdi. Yangi qiymatlar: 6.15 va 4.90.
+   Qorong'i/vibrant'da eski ranglar allaqachon yetarli (11.95 / 5.85) — ular tegilmadi. */
+:root[data-theme="light"] .nh-wallet .k { color:#4f586c; }
+.nh-wallet .b { font-size:26px; font-weight:800; color:var(--nh-tx); letter-spacing:-.5px; font-variant-numeric:tabular-nums; }
+/* Cashback — "pill" (avval oddiy satr edi): tanga balansi bilan CASHBACK ikki xil pul, ular
+   yonma-yon oddiy matn bo'lib turganda bitta uzun raqam-oqimiga qo'shilib ketardi. */
+.nh-wallet .cb { display:inline-flex; align-items:center; gap:5px; font-size:12px; font-weight:700; margin-top:4px;
+  color:#12a172; background:rgba(18,161,114,.1); border:1px solid rgba(18,161,114,.24); border-radius:99px; padding:2px 8px;
+  font-variant-numeric:tabular-nums; }
+:root[data-theme="light"] .nh-wallet .cb { color:#0b7a56; background:rgba(11,122,86,.09); border-color:rgba(11,122,86,.22); }
+/* ☝️ Barmoq nishoni ≥44px (o'lchandi: avval 36px edi — telefonda tegib ketish oson emas) */
+.nh-wallet .yc { margin-left:auto; background:var(--nh-bgrad); color:var(--nh-bink); border:0; font-size:12px; font-weight:800;
+  min-height:44px; padding:0 16px; border-radius:99px; }
+/* 🚖 Taksi — ASOSIY BIZNES. 554px'lik o'yin posteri yonida 66px'lik ingichka chiziq bo'lib
+   qolgandi. Balandlik deyarli o'zgarmadi (66→72px: pastdagi rail ekrandan chiqib ketmasin),
+   lekin OG'IRLIGI oshdi: ikonka endi "plita" ichida, sarlavha 17.5px, o'q kattaroq. */
+.nh-taxi { width:100%; border:0; border-radius:20px; background:var(--nh-bgrad); color:var(--nh-bink); padding:10px 14px;
+  display:flex; align-items:center; gap:12px; text-align:left; margin-bottom:6px; box-shadow:0 12px 28px rgba(255,143,31,.3); }
 :root[data-theme="vibrant"] .nh-taxi { box-shadow:0 12px 28px rgba(168,85,247,.4); }
-.nh-taxi .i { font-size:27px; }
-.nh-taxi b { font-size:16px; display:block; }
-.nh-taxi small { font-size:11.5px; opacity:.75; font-weight:600; }
-.nh-taxi .go { margin-left:auto; width:32px; height:32px; border-radius:50%; background:rgba(0,0,0,.16); display:flex; align-items:center; justify-content:center; font-weight:800; }
-.nh-rail { display:flex; gap:13px; overflow-x:auto; padding:8px 15px 6px; margin:0 -15px; -webkit-overflow-scrolling:touch; }
+.nh-taxi .i { flex:0 0 auto; width:46px; height:46px; border-radius:15px; background:rgba(255,255,255,.28);
+  display:flex; align-items:center; justify-content:center; font-size:25px; box-shadow:inset 0 1px 0 rgba(255,255,255,.5); }
+.nh-taxi b { font-size:17.5px; display:block; letter-spacing:-.2px; }
+.nh-taxi small { font-size:12px; opacity:.8; font-weight:600; }
+.nh-taxi .go { margin-left:auto; width:34px; height:34px; border-radius:50%; background:rgba(0,0,0,.18); display:flex; align-items:center; justify-content:center; font-weight:800; font-size:17px; }
+.nh-rail { display:flex; gap:13px; overflow-x:auto; padding:6px 15px 4px; margin:0 -15px; -webkit-overflow-scrolling:touch; }
 .nh-rail::-webkit-scrollbar { display:none; }
 .nh-svc { flex:0 0 auto; display:flex; flex-direction:column; align-items:center; gap:7px; width:60px; background:none; border:0; }
 .nh-svc .ic { width:54px; height:54px; border-radius:18px; display:flex; align-items:center; justify-content:center; font-size:24px; border:1px solid var(--nh-ln); position:relative; }
 .nh-svc .lb { font-size:11px; font-weight:600; color:var(--nh-dim); }
+/* ⚖️ Rail yorlig'i yorug' mavzuda uy foni (#eef1f7) ustida 4.14:1 edi — AA'dan past. → 5.39:1 */
+:root[data-theme="light"] .nh-svc .lb { color:#5a6274; }
 .nh-svc.locked { opacity:.78; }
 .nh-svc.locked .ic { filter:grayscale(.6); }
 .nh-svc.locked .lb { font-style:italic; }
@@ -1755,6 +1785,13 @@ body {
 .nh-oyin-bar span { display: block; height: 100%; border-radius: 99px; background: linear-gradient(90deg, #ff6b3d, #e11d2e); transition: width .5s ease; }
 .nh-oyin-pct { font-size: 10px; font-weight: 800; color: #e11d2e; text-align: right; margin-top: 3px; font-variant-numeric: tabular-nums; }
 .nh-oyin-stat.is-side { display: flex; flex-direction: column; justify-content: center; }
+/* ⚖️ Qizil hero MAVZUDAN MUSTAQIL, lekin OQ STATISTIKA PANELI mavzu yuzasida (--nh-sf) turadi.
+   Qorong'i/vibrant'da festival qizili (#e11d2e) o'sha to'q yuzada 3.61:1 / 3.58:1 bo'lib
+   chiqdi — ya'ni kartaning ENG KATTA RAQAMI ("624") AA'dan past edi. Yorug'roq qizil: 6.87:1.
+   Yorug' mavzuda #e11d2e = 4.75:1 (o'tadi) — u yerda o'zgarmaydi. */
+:root[data-theme="dark"] .nh-oyin-stat-v b, :root[data-theme="vibrant"] .nh-oyin-stat-v b,
+:root[data-theme="dark"] .nh-oyin-stat-v2, :root[data-theme="vibrant"] .nh-oyin-stat-v2,
+:root[data-theme="dark"] .nh-oyin-pct, :root[data-theme="vibrant"] .nh-oyin-pct { color: #ff7a85; }
 
 /* ── Katta oltin CTA ── */
 .nh-oyin-cta {
@@ -1766,6 +1803,10 @@ body {
   transition: transform var(--dur-press, .12s) ease;
 }
 .nh-oyin-cta:active { transform: scale(.975); }
+/* Mehmon-teaser'da CTA "ulanmoqda" holatiga tushadi — bosilgani KO'RINSIN (#15) */
+.nh-oyin-cta:disabled { opacity: .62; filter: saturate(.7); cursor: default; }
+.nh-oyin-cta:disabled:active { transform: none; }
+.nh-oyin-hero:disabled { cursor: default; }
 .nh-oyin-cta-ic { font-size: 18px; }
 .nh-oyin-cta-go { font-size: 20px; font-weight: 900; opacity: .7; }
 
@@ -1783,6 +1824,65 @@ body {
   .nh-oyin-cta:active { transform: none; }
 }
 
+/* ── 👀 MEHMON-TEASER ekrani (oyinTeaser.tsx) ────────────────────────────────────────────
+   Viral zanjirning OXIRGI qadami: botdagi kartochkani bosgan, raqami ulanmagan odam.
+   Avval bu ekran BOSHQA tilda gapirardi (oq/binafsha `oyk-*` uslubi) — bot qizil-oltin
+   sovg'a kartochkasini yuborardi, odam bosardi, ekran esa butunlay boshqacha ochilardi.
+   Endi u UYDAGI QIZIL POSTERNING O'ZI (`.nh-oyin*` qayta ishlatiladi) — bir xil va'da,
+   bir xil ko'rinish. Ekran MAVZUDAN MUSTAQIL (DIZAYN_QOIDALARI #13): mehmonda ilova
+   mavzusi baribir tanlanmagan, shuning uchun doimiy YORUG' palitra. */
+.nh-tsr {
+  /* `.app.no-topbar > .view` bergan `4px + safe-top` paddingini bekor qilib, o'z fonimizni
+     status-bar tagigacha cho'zamiz — aks holda tepada qora chiziq qolardi. */
+  margin: calc(-4px - var(--safe-top)) 0 0; padding: calc(var(--safe-top) + 12px) 16px calc(158px + var(--safe-bottom));
+  min-height: 100dvh; background: radial-gradient(760px 380px at 50% -8%, #ffe4e6, transparent 62%), linear-gradient(180deg, #f7f8fc, #eef1f9);
+  color: #141a2e; display: flex; flex-direction: column; gap: 14px;
+}
+/* Poster mehmon ekranida: matn fazaga qarab 1 yoki 2 satr bo'ladi — joy OLDINDAN ajratiladi,
+   shunda barcha fazalarda balandlik bir xil va skeleton unga teng (#11). */
+.nh-tsr .nh-oyin-lead { min-height: 36px; line-height: 1.4; }
+.nh-tsr-h { font-size: 19px; font-weight: 900; text-align: center; letter-spacing: -.2px; }
+.nh-tsr-h small { display: block; font-size: 12px; font-weight: 600; color: rgba(20,26,46,.6); margin-top: 3px; }
+/* Sovrin katalogi — jismoniy narsa = real rasm (#10), rasmsizi rangli plitka + emoji */
+.nh-tsr-rail { display: grid; grid-template-columns: 1fr 1fr; gap: 11px; }
+.nh-tsr-p { background: #fff; border: 1px solid rgba(20,26,46,.09); border-radius: 18px; overflow: hidden;
+  box-shadow: 0 2px 10px rgba(20,26,46,.06); display: flex; flex-direction: column; }
+.nh-tsr-p-im { height: 108px; background: linear-gradient(150deg, #fff2cc, #ffe3e6); display: flex; align-items: center; justify-content: center; font-size: 42px; }
+.nh-tsr-p-im img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.nh-tsr-p-b { padding: 9px 11px 11px; }
+/* Nomga IKKI satr joy ajratilgan: bir sovrin nomi qisqa, ikkinchisi uzun bo'lsa panjaradagi
+   kartalar har xil balandlikda bo'lib "singan" ko'rinardi (o'lchandi: 164.25 va 180.5). */
+.nh-tsr-p-n { font-size: 13px; font-weight: 800; color: #141a2e; line-height: 1.25; min-height: 33px;
+  display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; }
+.nh-tsr-p-m { font-size: 11px; font-weight: 700; color: #b0472a; margin-top: 4px; }
+.nh-tsr-foot { display: flex; align-items: center; gap: 9px; justify-content: center; font-size: 12px; color: rgba(20,26,46,.62); }
+.nh-tsr-logo { width: 26px; height: 26px; border-radius: 50%; background: linear-gradient(135deg, #ffd75e, #f5a300);
+  color: #4a2600; display: flex; align-items: center; justify-content: center; font-weight: 900; font-size: 13px; }
+.nh-tsr-legal { font-size: 11px; color: rgba(20,26,46,.5); text-align: center; line-height: 1.45; }
+/* Xato / bo'sh holat — MEHMON uchun eng xavflisi: avval `return null` edi, ya'ni tarmoq
+   uzilsa odam butunlay OQ EKRAN ko'rardi va viral zanjir shu yerda o'lardi. */
+.nh-tsr-bad { background: #fff; border: 1px solid rgba(20,26,46,.09); border-radius: 20px; padding: 26px 20px; text-align: center;
+  box-shadow: 0 2px 10px rgba(20,26,46,.06); }
+.nh-tsr-bad-i { font-size: 42px; }
+.nh-tsr-bad-t { font-size: 15px; font-weight: 800; margin-top: 10px; color: #141a2e; }
+.nh-tsr-bad-s { font-size: 12.5px; color: rgba(20,26,46,.62); margin-top: 6px; line-height: 1.5; }
+.nh-tsr-bad-b { margin-top: 16px; min-height: 48px; padding: 0 22px; border: 0; border-radius: 14px;
+  background: linear-gradient(180deg, #ffd75e, #f5a300); color: #4a2600; font-size: 14px; font-weight: 900; cursor: pointer;
+  transition: transform var(--dur-press, .12s) ease; }
+.nh-tsr-bad-b:active { transform: scale(.97); }
+/* Teaser skeleton — REAL layoutning nusxasi (#11): poster + 4 sovrin plitkasi.
+   Balandliklar TAXMIN emas, O'LCHOV: poster 473.58px (390/360/320 kengliklarda, mavsumning
+   4 fazasida ham BIR XIL — matnlarga oldindan joy ajratilgani uchun), sovrin plitkasi
+   180.5px. Skeleton ↔ real farqi <0.5px, ya'ni yuklanganda sahifa sakramaydi. */
+.nh-tsr-sk-post { height: 474px; border-radius: 22px; }
+.nh-tsr-sk-p { height: 180px; border-radius: 18px; }
+/* Mehmonda mavsum yopiq — CTA yolg'on va'da bermasligi uchun oltin emas, jim kulrang-oltin */
+.nh-oyin-cta.is-soon { background: linear-gradient(180deg, #fff0c2, #ffdf8a); color: #6b4a00; box-shadow: 0 6px 16px rgba(245,163,0,.2); }
+@media (prefers-reduced-motion: reduce) {
+  .nh-tsr-bad-b { transition: none; }
+  .nh-tsr-bad-b:active { transform: none; }
+}
+
 /* `.nh-koson*` (eski dabdala karta — 9 element, 2 tugma, ball+o'rin) OLIB TASHLANDI 2026-08-03. */
 .nh-i-b { background:rgba(59,130,246,.16); color:var(--nh-blue); }
 .nh-i-o { background:rgba(251,146,60,.18); color:var(--nh-org); }
@@ -1797,7 +1897,11 @@ body {
 .nh-sh { display:flex; align-items:center; justify-content:space-between; margin:20px 0 10px; }
 .nh-sh .t { font-size:16px; font-weight:800; color:var(--nh-tx); }
 .nh-sh .t small { display:block; font-size:11.5px; font-weight:500; color:var(--nh-dim); margin-top:2px; }
-.nh-sh .all { font-size:12.5px; color:var(--nh-brand); font-weight:700; background:none; border:0; }
+/* "Barchasi" — o'lchandi: nishoni 65×16px edi (barmoq uchun juda kichik). Ko'rinish
+   o'zgarmaydi: padding bosish maydonini kengaytiradi, teng manfiy margin esa qatorni
+   joyida ushlab turadi. */
+.nh-sh .all { font-size:12.5px; color:var(--nh-brand); font-weight:700; background:none; border:0;
+  padding:15px 6px; margin:-15px -6px; }
 .nh-promo { position:relative; border-radius:22px; overflow:hidden; height:150px; display:flex; align-items:flex-end; padding:16px; margin-bottom:6px; background:var(--nh-sf2); }
 .nh-promo img { position:absolute; inset:0; width:100%; height:100%; object-fit:cover; }
 .nh-promo::after { content:""; position:absolute; inset:0; background:linear-gradient(75deg,rgba(0,0,0,.8),rgba(0,0,0,.05) 75%); }
@@ -1866,6 +1970,25 @@ body {
 .nh-hc .hs { font-size:11.5px; color:var(--nh-dim); margin-top:3px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 .nh-hc.locked { opacity:.82; }
 .nh-hc.locked .hi { filter:grayscale(.6); }
+/* ⚡ BOSISH JAVOBI (DIZAYN_QOIDALARI #15 — "har bosishda <100ms vizual javob").
+   Tekshirildi: uy ekranidagi butun `nh-*` oilasida `:active` FAQAT bitta joyda bor edi
+   (`.nh-oyin-cta`). Ya'ni hamyon, taksi, rail, bento, hub, e'lon qatorlari — hammasi JIM
+   bosilardi: odam bosdimi yoki tegmadimi, ekran bilinmasdi. */
+.nh-taxi, .nh-wallet .yc, .nh-bc, .nh-hc, .nh-erow, .nh-ust, .nh-invite, .nh-promo, .nh-err .eb,
+.nh-svc, .nh-sh .all { transition: transform var(--dur-press, .12s) ease; }
+.nh-taxi:active, .nh-wallet .yc:active, .nh-bc:active, .nh-hc:active, .nh-erow:active,
+.nh-ust:active, .nh-invite:active, .nh-promo:active, .nh-err .eb:active { transform: scale(.975); }
+/* Kichik ikonkalar — .975 ko'rinmaydi, shuning uchun chuqurroq */
+.nh-svc:active, .nh-sh .all:active { transform: scale(.92); }
+/* 🚨 YUKLANMADI holati — avval BUTUNLAY JIM edi: `/api/home/feed` yiqilsa `setFeed([])`
+   bo'lib, ekranda hech narsa chiqmasdi (na xato, na qayta-urinish). Odam "tavsiyalar yo'q"
+   deb o'ylardi, aslida interneti uzilgan edi. */
+.nh-err { display:flex; align-items:center; gap:11px; margin-top:14px; padding:13px 14px;
+  background:var(--nh-sf); border:1px solid var(--nh-ln); border-radius:16px; }
+.nh-err .ei { font-size:22px; flex:0 0 auto; }
+.nh-err .et { flex:1; min-width:0; font-size:12.5px; font-weight:600; color:var(--nh-dim); line-height:1.4; }
+.nh-err .eb { flex:0 0 auto; border:0; border-radius:99px; min-height:44px; padding:0 17px; font-size:12.5px; font-weight:800;
+  background:var(--nh-bgrad); color:var(--nh-bink); cursor:pointer; }
 /* skeletons */
 .nh-skel { position:relative; overflow:hidden; background:var(--nh-sf2); border-radius:12px; }
 .nh-skel::after { content:""; position:absolute; inset:0; background:linear-gradient(90deg,transparent,rgba(255,255,255,.06),transparent); animation:nh-shimmer var(--dur-shimmer) infinite; }
@@ -1936,6 +2059,11 @@ body {
 .np-pc .ps { font-size:11px; color:var(--nh-dim); margin-top:3px; }
 @media (prefers-reduced-motion: reduce) {
 .nh-hub, .nh-skel::after { animation:none; }
+.nh-taxi, .nh-wallet .yc, .nh-bc, .nh-hc, .nh-erow, .nh-ust, .nh-invite, .nh-promo, .nh-err .eb,
+.nh-svc, .nh-sh .all { transition:none; }
+.nh-taxi:active, .nh-wallet .yc:active, .nh-bc:active, .nh-hc:active, .nh-erow:active,
+.nh-ust:active, .nh-invite:active, .nh-promo:active, .nh-err .eb:active,
+.nh-svc:active, .nh-sh .all:active { transform:none; }
 }
 /* 🗺 Taxi map pinpick affordances (people didn't know the center pin marks pickup + to drag→confirm) */
 @keyframes b3-coach-bounce { 0%,100%{transform:translateY(0);} 50%{transform:translateY(9px);} }

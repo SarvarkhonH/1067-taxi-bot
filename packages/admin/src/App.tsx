@@ -1,6 +1,8 @@
 import { Fragment, useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import {
+  OYIN_ACTIVITY_ACTIONS,
   OYIN_DEFAULT_SLOTS,
+  OYIN_FINAL_LOCK_MS,
   OYIN_SOM_PER_BALL,
   OYIN_TARGET_COST_PCT,
   oyinPrizePlan,
@@ -246,7 +248,7 @@ export function App() {
           {tab === "restoran" && (<><RestoranAdminView /><RestoranCatalogAdminView /></>)}
           {tab === "ravella" && <RavellaAdminView />}
           {tab === "jamoa" && <JamoaAdminView />}
-          {tab === "oyin" && <OyinActivityView />}
+          {tab === "oyin" && <><OyinSeasonMetricsCard /><OyinActivityView /></>}
           {tab === "bilim" && <KnowledgeAdminView />}
           {tab === "topshiriq" && <><QuickAnnounceView /><CampaignsView /><DriverMissionsView /></>}
           {tab === "actions" && <><ActionsView onHistory={() => goTab("broadcasts")} /><ControlCards /></>}
@@ -681,7 +683,12 @@ function MashinaCard() {
 // 🚦 Phase-4: blast-radius labels for the kill-switch board. Each flag = what flipping it actually
 // affects, so a non-engineer owner sees "pul-riski" vs "kosmetik" BEFORE toggling. risk: money =
 // touches real tanga/emission, ux = user-visible flow, cosmetic = safe/reversible-nothing.
-type FlagRisk = "money" | "ux" | "cosmetic";
+// ❔ `unknown` — ro'yxatda YO'Q bayroq. Avval bunday bayroq `?? "cosmetic"` bilan "kosmetik
+// (xavfsiz)" deb chizilardi: ya'ni panel BILMAGAN narsasini XAVFSIZ deb YOLG'ON aytardi. Aynan
+// shu tufayli `oyin` (butun o'yin iqtisodi + chipta xaridi) ega uchun "kosmetik" ko'rinib turgan.
+// Endi noma'lum bayroq alohida, ogohlantiruvchi guruhga tushadi — kamsitilmaydi ham, yolg'on
+// "xavfsiz" yorlig'ini ham olmaydi.
+type FlagRisk = "money" | "ux" | "cosmetic" | "unknown";
 const FLAG_INFO: Record<string, { risk: FlagRisk; desc: string }> = {
   booking3: { risk: "ux", desc: "Xarita-first taxi oqimi (asosiy)" },
   wheel: { risk: "money", desc: "Safar g'ildiragi — tanga yutuq" },
@@ -700,6 +707,12 @@ const FLAG_INFO: Record<string, { risk: FlagRisk; desc: string }> = {
   tierloyalty: { risk: "money", desc: "Daraja cashback ko'paytirgich" },
   intercity: { risk: "money", desc: "Shaharlararo safar (real pul)" },
   waitcomp: { risk: "money", desc: "Kutish kompensatsiyasi (o'z byudjeti)" },
+  // 🎮 Bu bayroq FLAG_INFO'da umuman yo'q edi → panel uni "◽ kosmetik (xavfsiz)" deb ko'rsatardi.
+  // Aslida u: (a) chipta xaridini butunlay to'sadi (`buyTicket` → reason:"off"), (b) mavsum
+  // yopilishida qolgan ball TANGAGA aylanadi, ya'ni real emissiyaga tegadi, (c) o'chirilsa
+  // miniappda o'yin ekrani yo'qoladi va push to'xtaydi. Mavsum o'rtasida "zararsiz" deb bosilsa
+  // 500 mijoz o'yin ichida qolib ketadi — shuning uchun 💰 PUL toifasi.
+  oyin: { risk: "money", desc: "🎮 O'yin mavsumi — chipta xaridi + ball→tanga konvertatsiyasi" },
   clientbooking: { risk: "ux", desc: "GPS «new» aniq-pin buyurtma" },
   instantstatus: { risk: "ux", desc: "Tez holat — kas soket (~1s)" },
   trackcta: { risk: "cosmetic", desc: "Kuzatuv-sahifa taklif CTA" },
@@ -715,6 +728,7 @@ const RISK_STYLE: Record<FlagRisk, { label: string; color: string; bg: string }>
   money: { label: "💰 PUL", color: "#f0b429", bg: "rgba(240,180,41,.14)" },
   ux: { label: "👁 UX", color: "#378ADD", bg: "rgba(55,138,221,.14)" },
   cosmetic: { label: "◽ kosmetik", color: "#8b94a7", bg: "rgba(139,148,167,.12)" },
+  unknown: { label: "❔ TOIFASI YOZILMAGAN — bosishdan oldin so'rang", color: "#c084fc", bg: "rgba(192,132,252,.12)" },
 };
 
 // 📸 Hikoya-isbot moderatsiyasi + poster matnlari (HIKOYA_POSTER_PLAN.md).
@@ -837,6 +851,9 @@ function ControlCards() {
   const [sellerShopPick, setSellerShopPick] = useState<number | "">("");
   const [msg, setMsg] = useState<string | null>(null);
   const [msg2, setMsg2] = useState<string | null>(null);
+  // Daqiqada bir yangilanadigan "hozir" — FINAL-48 qulfi ochiq turgan panelda ham to'g'ri ko'rinsin.
+  const [nowTs, setNowTs] = useState(() => Date.now());
+  useEffect(() => { const t = setInterval(() => setNowTs(Date.now()), 60_000); return () => clearInterval(t); }, []);
 
   const load = () => {
     adminApi.features().then((r) => { setFlags(r.features); setFund(r.mashinaFund); }).catch(() => undefined);
@@ -872,6 +889,24 @@ function ControlCards() {
     catch { alert("Homiyni saqlab bo'lmadi"); }
   };
   const saveSeason = async () => {
+    // ⛔ Oyna toraysa — chipta yo'qoladi (ticketInSeason filtri). Ogohlantirish kartada ham bor,
+    // lekin oxirgi to'siq shu yerda: bu qaytarib bo'lmaydigan (mijoz ko'zida) o'zgarish.
+    const savedS = season?.startIso?.slice(0, 16) ?? "";
+    const savedE = season?.endIso?.slice(0, 16) ?? "";
+    const shrinkStart = !!savedS && !!seasonStart && seasonStart > savedS;
+    const shrinkEnd = !!savedE && !!seasonEnd && seasonEnd < savedE;
+    if (shrinkStart || shrinkEnd) {
+      const ok = confirm(
+        `⛔ Mavsum oynasi toraymoqda.\n\n` +
+        (shrinkStart ? `Boshlanish: ${savedS.replace("T", " ")} → ${seasonStart.replace("T", " ")}\n` : "") +
+        (shrinkEnd ? `Tugash: ${savedE.replace("T", " ")} → ${seasonEnd.replace("T", " ")}\n` : "") +
+        `\nYangi oynadan tashqarida qolgan CHIPTALAR mijozning «Mening chiptalarim»\n` +
+        `ro'yxatidan, chipta-hisobidan va tiraj eksportidan YO'QOLADI.\n` +
+        `Sarflangan ball ularga qaytib keladi va reyting o'zgaradi. Xabar bormaydi.\n\n` +
+        `Davom etasizmi?`,
+      );
+      if (!ok) return;
+    }
     setSeasonMsg(null);
     try {
       setSeasonState(await adminApi.setOyinSeason(seasonStart, seasonEnd, seasonLabel.trim() || null));
@@ -900,6 +935,41 @@ function ControlCards() {
   const saveCatalogPrize = async (key: string) => {
     const d = catalogDraft[key];
     if (!d) return;
+    const cur = catalog?.find((p) => p.key === key);
+    const nextPrice = Number(d.price) || 0;
+    const nextLimit = Number(d.limit) || 0;
+    if (cur) {
+      // 🚫 QO'RIQ 1 — limitni sotilgan sondan PASTGA tushirish. Server buni JIMGINA qabul qiladi
+      // (`Math.max(1, …)` dan boshqa tekshiruv yo'q): natijada `remaining` manfiy bo'ladi, sovrin
+      // "tugagan" ko'rinadi va allaqachon chipta olgan mijozning imkoniyati (1/N) uning xabarisiz
+      // o'zgaradi. Bu — pulga teng qaror, shuning uchun ANIQ tasdiq so'raladi.
+      if (nextLimit < cur.sold) {
+        const ok = confirm(
+          `⛔ «${cur.name}» sovrinida ALLAQACHON ${cur.sold} ta chipta sotilgan,\n` +
+          `siz esa o'rinni ${nextLimit} ta qilmoqchisiz.\n\n` +
+          `Natija: sovrin darhol «tugagan» bo'lib qoladi, yangi chipta sotilmaydi,\n` +
+          `chipta olganlarning imkoniyati esa o'zgaradi — ular hech qanday xabar olmaydi.\n\n` +
+          `Baribir davom etasizmi?`,
+        );
+        if (!ok) return;
+      }
+      // ⚠️ QO'RIQ 2 — mavsum FAOL paytda narx/limit o'zgarishi. Chipta olganlar bir qoida bilan
+      // to'lagan, keyin kelganlar boshqa qoida bilan oladi — bu o'yinni "adolatsiz" qiladi.
+      else if (season?.phase === "active" && (nextPrice !== cur.price || nextLimit !== cur.limit)) {
+        const parts: string[] = [];
+        if (nextPrice !== cur.price) parts.push(`narx: ${cur.price} → ${nextPrice} ball`);
+        if (nextLimit !== cur.limit) parts.push(`o'rin: ${cur.limit} → ${nextLimit} ta`);
+        const ok = confirm(
+          `⚠️ MAVSUM HOZIR FAOL — siz o'yin qoidasini o'rtasida o'zgartiryapsiz.\n\n` +
+          `«${cur.name}»: ${parts.join(" · ")}\n` +
+          `Shu sovringa allaqachon ${cur.sold} ta chipta sotilgan.\n\n` +
+          `Chipta olganlar boshqa narx/imkoniyat bilan to'lagan edi — ularning yutish\n` +
+          `imkoniyati o'zgaradi va bu haqda xabar bormaydi.\n\n` +
+          `Davom etasizmi?`,
+        );
+        if (!ok) return;
+      }
+    }
     try {
       const prizes = (await adminApi.upsertOyinPrize({
         key, icon: d.icon, name: d.name, valueLabel: d.valueLabel,
@@ -975,6 +1045,23 @@ function ControlCards() {
     return { sum, price, limit, plan, realCost, perDay };
   };
 
+  // 🔒 FINAL-48 holati. Server `buyTicket` da mavsum tugashiga ≤OYIN_FINAL_LOCK_MS qolganda
+  // xaridni RAD etadi — panel buni ko'rsatmasa ega "🟢 ochiq" deb o'ylab yuradi, mijoz esa
+  // yopiq tugmani ko'radi. Daqiqalik tick: panel soatlab ochiq tursa ham yolg'on gapirmasin.
+  const msLeft = season?.endMs != null ? season.endMs - nowTs : null;
+  const finalLock = season?.phase === "active" && msLeft != null && msLeft <= OYIN_FINAL_LOCK_MS;
+  const hoursLeft = msLeft != null ? Math.max(0, Math.ceil(msLeft / 3600_000)) : 0;
+
+  // ⚠️ Mavsum OYNASI TORAYSA chipta YO'QOLADI. `ticketInSeason` (oyinService.ts) har chiptani
+  // `startMs ≤ ts ≤ endMs` bo'yicha filtrlaydi — oynadan tashqarida qolgan chipta mijozning
+  // "Mening chiptalarim" ro'yxatidan, chipta-hisobidan va tiraj eksportidan tushib qoladi
+  // (bundan tashqari sarflangan ball qaytib kelib, reyting o'zgaradi). Panel matni esa
+  // "eski chiptalar joyida qoladi" deb YOLG'ON aytardi.
+  const savedStart = season?.startIso?.slice(0, 16) ?? "";
+  const savedEnd = season?.endIso?.slice(0, 16) ?? "";
+  const startMovedForward = !!savedStart && !!seasonStart && seasonStart > savedStart;
+  const endMovedBack = !!savedEnd && !!seasonEnd && seasonEnd < savedEnd;
+
   return (
     <>
       {bonusEcon && (
@@ -1017,10 +1104,17 @@ function ControlCards() {
         </p>
         {season && (
           <div style={{ display: "grid", gap: 8, maxWidth: 520 }}>
-            <div style={{ fontSize: 12.5, padding: "8px 12px", borderRadius: 10, background: season.phase === "active" ? "rgba(52,211,153,.12)" : "rgba(255,255,255,.05)" }}>
+            <div style={{ fontSize: 12.5, padding: "8px 12px", borderRadius: 10, background: season.phase === "active" ? (finalLock ? "rgba(240,180,41,.14)" : "rgba(52,211,153,.12)") : "rgba(255,255,255,.05)" }}>
               {season.phase === "unset" && <><b>Sozlanmagan</b> — o'yin yopiq, hech kimda ball yo'q</>}
               {season.phase === "upcoming" && <>🚀 <b>Boshlanishi kutilmoqda</b> — {season.startIso?.slice(0, 16).replace("T", " ")} dan</>}
-              {season.phase === "active" && <>🟢 <b>Mavsum ochiq</b> — {season.endIso?.slice(0, 16).replace("T", " ")} gacha</>}
+              {/* 🔒 FINAL-48: server `buyTicket` da mavsum tugashiga ≤48 soat qolganda xaridni RAD
+                  etadi (reason:"final_lock"). Panel esa baribir "🟢 Mavsum ochiq" derdi — ega
+                  hammasi joyida deb o'ylab turardi, mijoz esa chipta sotib ololmasdi. */}
+              {season.phase === "active" && !finalLock && <>🟢 <b>Mavsum ochiq</b> — {season.endIso?.slice(0, 16).replace("T", " ")} gacha</>}
+              {season.phase === "active" && finalLock && (
+                <>🔒 <b>FINAL-48 — chipta xaridi YOPIQ</b> ({hoursLeft} soat qoldi, tugashi {season.endIso?.slice(0, 16).replace("T", " ")}).<br />
+                  <span className="muted">Ro'yxat tirajga qotdi: mijoz ball sarflay olmaydi, ball yig'ish esa davom etadi. Ega ham istisno emas.</span></>
+              )}
               {season.phase === "ended" && <>🏁 <b>Mavsum yakunlandi</b></>}
               <span className="muted"> · {season.seasonId}-mavsum</span>
             </div>
@@ -1036,14 +1130,30 @@ function ControlCards() {
               <span style={{ fontSize: 12, minWidth: 84 }}>Nomi</span>
               <input type="text" value={seasonLabel} onChange={(e) => setSeasonLabel(e.target.value)} placeholder="Avgust mavsumi (ixtiyoriy)" maxLength={40} style={{ flex: 1, minWidth: 160 }} />
             </div>
+            {/* ⚠️ Oyna toraysa chipta yo'qoladi — ega buni SAQLASHDAN OLDIN ko'rsin. */}
+            {(startMovedForward || endMovedBack) && (
+              <div style={{ fontSize: 12, lineHeight: 1.6, color: "#ff6b6b", background: "rgba(255,107,107,.10)", border: "1px solid rgba(255,107,107,.35)", borderRadius: 8, padding: "8px 10px" }}>
+                ⛔ <b>Diqqat: mavsum oynasi torayyapti.</b><br />
+                {startMovedForward && <>Boshlanish sanasi <b>oldinga</b> surildi ({savedStart.replace("T", " ")} → {seasonStart.replace("T", " ")}).<br /></>}
+                {endMovedBack && <>Tugash sanasi <b>orqaga</b> tortildi ({savedEnd.replace("T", " ")} → {seasonEnd.replace("T", " ")}).<br /></>}
+                Yangi oynadan tashqarida qolgan <b>chiptalar mijozning «Mening chiptalarim» ro'yxatidan,
+                chipta-hisobidan va tiraj eksportidan YO'QOLADI</b>, sarflangan ball esa ularga qaytib
+                kelib reytingni o'zgartiradi. Xabar bormaydi.
+              </div>
+            )}
             {seasonMsg && <div style={{ fontSize: 12, color: seasonMsg.startsWith("✓") ? "#34d399" : "#ff9a9e" }}>{seasonMsg}</div>}
             <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
               <button className="btn sm" disabled={!seasonStart || !seasonEnd} onClick={() => void saveSeason()}>Sanalarni saqlash</button>
               <button className="btn sm danger" disabled={!seasonStart || !seasonEnd} onClick={() => void resetSeason()}>🧹 Yangi mavsumni toza boshlash</button>
             </div>
             <p className="muted" style={{ fontSize: 11, margin: 0, lineHeight: 1.5 }}>
-              <b>Sanalarni saqlash</b> — faqat vaqtni o'zgartiradi, eski chiptalar joyida qoladi.<br />
-              <b>Toza boshlash</b> — eski chiptalar, sotilgan-hisoblagichlar va kunlik belgilar arxivga ko'chadi, sovrinlar zaxirasi 0 dan boshlanadi. Sovrinlar ro'yxati o'chmaydi.
+              {/* Eski matn "eski chiptalar joyida qoladi" derdi — bu YOLG'ON edi: chipta mavsum
+                  oynasiga qarab filtrlanadi (ticketInSeason), demak oyna torayganda chipta yo'qoladi. */}
+              <b>Sanalarni saqlash</b> — vaqtni o'zgartiradi. Oyna <b>kengaysa</b> hech narsa yo'qolmaydi.
+              Oyna <b>toraysa</b> (boshlanish oldinga / tugash orqaga) — tashqarida qolgan chiptalar
+              mijoz ro'yxatidan va tirajdan tushib qoladi, sarflangan ball qaytadi.<br />
+              <b>Toza boshlash</b> — eski chiptalar, sotilgan-hisoblagichlar va kunlik belgilar arxivga ko'chadi, sovrinlar zaxirasi 0 dan boshlanadi. Sovrinlar ro'yxati o'chmaydi.<br />
+              🔒 <b>FINAL-48</b> — tugashiga 48 soat qolganda chipta xaridi avtomatik yopiladi (ro'yxat tirajga qotadi). Yuqoridagi holat satri buni aytadi.
             </p>
           </div>
         )}
@@ -1107,6 +1217,20 @@ function ControlCards() {
                     <input type="number" min={1} value={d.limit} onChange={(e) => setD({ limit: e.target.value })} style={{ width: 70 }} />
                     <span className="muted" style={{ fontSize: 11 }}>sotilgan: {p.sold}</span>
                   </div>
+                  {/* 🚫 Saqlashdan OLDIN ko'rinadigan ogohlantirish — dialog kutib turishning o'zi kam:
+                      ega raqamni yozayotgan paytdayoq nima bo'lishini bilsin. */}
+                  {(Number(d.limit) || 0) < p.sold && (
+                    <div style={{ fontSize: 11.5, color: "#ff6b6b", lineHeight: 1.6 }}>
+                      ⛔ <b>{p.sold} ta chipta allaqachon sotilgan</b> — o'rinni {Number(d.limit) || 0} ta qilsangiz sovrin
+                      darhol «tugagan» bo'ladi va chipta olganlarning imkoniyati jimgina o'zgaradi.
+                    </div>
+                  )}
+                  {season?.phase === "active" && p.sold > 0 && ((Number(d.price) || 0) !== p.price || (Number(d.limit) || 0) !== p.limit) && (Number(d.limit) || 0) >= p.sold && (
+                    <div style={{ fontSize: 11.5, color: "#f0b429", lineHeight: 1.6 }}>
+                      ⚠️ <b>Mavsum faol</b> — {p.sold} ta chipta sotilgan. Narx/o'rinni o'zgartirish o'yin qoidasini
+                      o'rtasida o'zgartirish demak: chipta olganlarning imkoniyati o'zgaradi.
+                    </div>
+                  )}
                   {(() => {
                     const r = planOf(d.valueLabel, d.price, d.limit);
                     if (!r) return <div style={{ fontSize: 11, color: "#f0b429" }}>⚠️ Sovrinning real narxini (so'm) yozing — ball o'zi hisoblanadi</div>;
@@ -1212,9 +1336,11 @@ function ControlCards() {
       </section>
       <section className="card">
         <h3>🔌 Mexanika kill-switch (deploy'siz o'chirish)</h3>
-        <p className="muted" style={{ margin: "0 0 8px", fontSize: 12 }}>Har flag yonida <b>ta'sir doirasi</b>: 💰 pul (real tanga/emissiya), 👁 UX (foydalanuvchi oqimi), ◽ kosmetik (xavfsiz). Yoqishdan oldin nimaga tegishini bilib turing.</p>
-        {(["money", "ux", "cosmetic"] as FlagRisk[]).map((risk) => {
-          const list = (flags ?? []).filter((f) => (FLAG_INFO[f.name]?.risk ?? "cosmetic") === risk);
+        <p className="muted" style={{ margin: "0 0 8px", fontSize: 12 }}>Har flag yonida <b>ta'sir doirasi</b>: 💰 pul (real tanga/emissiya), 👁 UX (foydalanuvchi oqimi), ◽ kosmetik (xavfsiz), ❔ toifasi yozilmagan (panel bu bayroq nimaga tegishini BILMAYDI — «xavfsiz» degani emas). Yoqishdan oldin nimaga tegishini bilib turing.</p>
+        {(["money", "ux", "cosmetic", "unknown"] as FlagRisk[]).map((risk) => {
+          // ⚠️ Fallback ENDI "cosmetic" EMAS, "unknown". Eski fallback ro'yxatga kiritilmagan har
+          // bayroqni jimgina "xavfsiz" deb ko'rsatardi (aynan shu `oyin` bilan sodir bo'lgan).
+          const list = (flags ?? []).filter((f) => (FLAG_INFO[f.name]?.risk ?? "unknown") === risk);
           if (list.length === 0) return null;
           const rs = RISK_STYLE[risk];
           return (
@@ -1224,7 +1350,7 @@ function ControlCards() {
                 {list.map((f) => (
                   <div key={f.name} style={{ display: "flex", gap: 8, alignItems: "center", padding: "4px 8px", borderRadius: 8, background: rs.bg }}>
                     <span style={{ fontWeight: 700, minWidth: 110 }}>{f.name}</span>
-                    <span className="muted" style={{ flex: 1, minWidth: 140, fontSize: 12 }}>{FLAG_INFO[f.name]?.desc ?? ""}</span>
+                    <span className="muted" style={{ flex: 1, minWidth: 140, fontSize: 12 }}>{FLAG_INFO[f.name]?.desc ?? "— tavsif yozilmagan (ta'siri noma'lum)"}</span>
                     <button className={f.on ? "btn sm" : "btn sm danger"} onClick={() => toggle(f.name, !f.on)}>{f.on ? "🟢 YONIQ" : "🔴 o'chiq"}</button>
                   </div>
                 ))}
@@ -5690,17 +5816,149 @@ function IntercityAdmin() {
 
 // ─── 👥 referallar ──────────────────────────────────────────────────────────
 // ─── 🎮 BirJoy O'yinlar Mavsumi — kim-nima-qildi (B3) ──────────────────────────────────────────────────────
+// ─── 📊 Mavsum ko'rsatkichlari — ega ko'radigan YAGONA umumiy raqamlar ─────────────────────────
+// Avval panel faqat "kim-nima-qildi" jadvalini ko'rsatardi: ega mavsum qanday ketayotganini
+// (nechta chipta ketdi, katalog qancha turadi, bu ballni yig'ish uchun necha safar kerak)
+// umuman bilmasdi — bularning hammasi uchun SSH kerak edi. YANGI ROUTE YO'Q: hammasi mavjud
+// `oyin/season` + `oyin/catalog` + `bonus-economy` javoblaridan hisoblanadi.
+function OyinSeasonMetricsCard() {
+  const [season, setSeason] = useState<OyinSeasonView | null>(null);
+  const [catalog, setCatalog] = useState<OyinAdminPrizeRow[] | null>(null);
+  const [rideBall, setRideBall] = useState<number | null>(null);
+  const [failed, setFailed] = useState(false);
+  const [nowTs, setNowTs] = useState(() => Date.now());
+  useEffect(() => { const t = setInterval(() => setNowTs(Date.now()), 60_000); return () => clearInterval(t); }, []);
+  useEffect(() => {
+    adminApi.oyinSeason().then(setSeason).catch(() => setFailed(true));
+    adminApi.oyinCatalog().then((r) => setCatalog(r.prizes)).catch(() => setFailed(true));
+    adminApi.bonusEconomy().then((e) => setRideBall(Number(e.values.oyinRideBall) || 0)).catch(() => setRideBall(0));
+  }, []);
+
+  if (failed) return <section className="panel"><div className="muted">Mavsum ko'rsatkichlarini yuklab bo'lmadi — sahifani yangilang.</div></section>;
+  if (!season || !catalog) return <section className="panel"><div className="screen center"><div className="spinner" /></div></section>;
+
+  const active = catalog.filter((p) => p.active);
+  const soldTotal = catalog.reduce((n, p) => n + Math.max(0, p.sold), 0); // yashirilganlar ham — chipta sotilgan-sotilgan
+  const capacityActive = active.reduce((n, p) => n + Math.max(0, p.limit), 0);
+  const hiddenSold = catalog.filter((p) => !p.active).reduce((n, p) => n + Math.max(0, p.sold), 0);
+  // Katalog qiymati: faqat `valueLabel` dan raqam o'qilgan sovrinlar. O'qilmaganini JIM
+  // 0 deb qo'shib yubormaymiz — aks holda "katalog 0 so'm" degan yolg'on chiqadi.
+  const valued = active.map((p) => parseSum(p.valueLabel)).filter((v): v is number => v != null);
+  const catalogValue = valued.reduce((n, v) => n + v, 0);
+  const unpriced = active.length - valued.length;
+  // Katalog "yutadigan" ball = hamma o'rin sotilsa yig'iladigan ball.
+  const ballCapacity = active.reduce((n, p) => n + Math.max(0, p.limit) * Math.max(0, p.price), 0);
+  const ballSold = catalog.reduce((n, p) => n + Math.min(Math.max(0, p.sold), Math.max(0, p.limit)) * Math.max(0, p.price), 0);
+  const revenueIfSold = ballCapacity * OYIN_SOM_PER_BALL;
+  const costPct = revenueIfSold > 0 && catalogValue > 0 ? (catalogValue / revenueIfSold) * 100 : null;
+  // "~N safarlik ball" — bitta safar `oyinRideBall` ball beradi. Knob 0 bo'lsa bo'lish YO'Q
+  // (NaN/∞ ekranga chiqmaydi — DIZAYN_QOIDALARI).
+  const ridesWorth = rideBall != null && rideBall > 0 ? Math.round(ballCapacity / rideBall) : null;
+  const msLeft = season.endMs != null ? season.endMs - nowTs : null;
+  const finalLock = season.phase === "active" && msLeft != null && msLeft <= OYIN_FINAL_LOCK_MS;
+  const daysLeft = msLeft != null ? Math.max(0, Math.ceil(msLeft / 86400_000)) : null;
+  const soldPct = capacityActive > 0 ? Math.min(100, Math.round((soldTotal / capacityActive) * 100)) : 0;
+
+  return (
+    <section className="panel">
+      <div className="panel-title">📊 Mavsum ko'rsatkichlari{season.label ? ` — ${season.label}` : ""} <span className="muted" style={{ fontSize: 12 }}>({season.seasonId})</span></div>
+      <div style={{ fontSize: 12.5, padding: "8px 12px", borderRadius: 10, marginBottom: 12, background: season.phase === "active" ? (finalLock ? "rgba(240,180,41,.14)" : "rgba(52,211,153,.12)") : "rgba(255,255,255,.05)" }}>
+        {season.phase === "unset" && <><b>Mavsum sozlanmagan</b> — o'yin butunlay yopiq (Amallar → «Mavsum vaqtlari»)</>}
+        {season.phase === "upcoming" && <>🚀 <b>Boshlanmagan</b> — {season.startIso?.slice(0, 16).replace("T", " ")} dan</>}
+        {season.phase === "active" && !finalLock && <>🟢 <b>Ochiq</b> — {daysLeft} kun qoldi ({season.endIso?.slice(0, 16).replace("T", " ")})</>}
+        {season.phase === "active" && finalLock && <>🔒 <b>FINAL-48 — chipta xaridi YOPIQ</b> (tugashiga {Math.max(0, Math.ceil((msLeft ?? 0) / 3600_000))} soat). Mijoz ball sarflay olmaydi.</>}
+        {season.phase === "ended" && <>🏁 <b>Yakunlandi</b> — tiraj vaqti</>}
+      </div>
+      <div className="cards" style={{ marginBottom: 12 }}>
+        <Card icon="🎟" label="Tarqatilgan chipta" value={`${formatNumber(soldTotal)} / ${formatNumber(capacityActive)}`} sub={`${soldPct}% sig'imdan`} accent />
+        <Card icon="🎁" label="Faol sovrin" value={formatNumber(active.length)} sub={catalog.length !== active.length ? `${catalog.length - active.length} ta yashirilgan` : "hammasi ko'rinadi"} />
+        <Card icon="💰" label="Katalog qiymati" value={catalogValue > 0 ? `${formatNumber(catalogValue)} so'm` : "—"} sub={unpriced > 0 ? `${unpriced} ta sovrinda narx yozilmagan` : "faol sovrinlar bo'yicha"} />
+        <Card icon="🎯" label="Katalog yutadigan ball" value={ridesWorth != null ? `~${formatNumber(ridesWorth)} safar` : "—"} sub={ridesWorth != null ? `${formatNumber(ballCapacity)} ball` : "safar bali 0 ga sozlangan"} />
+      </div>
+      <div className="muted" style={{ fontSize: 12, lineHeight: 1.8, background: "rgba(255,255,255,.04)", borderRadius: 8, padding: "10px 12px", marginBottom: 12 }}>
+        💵 Hamma o'rin sotilsa kassaga <b style={{ color: "var(--text)" }}>{formatNumber(revenueIfSold)} so'm</b> keladi
+        (1 ball = {OYIN_SOM_PER_BALL} so'm sof daromad), siz sovrinlarga <b style={{ color: "var(--text)" }}>{catalogValue > 0 ? `${formatNumber(catalogValue)} so'm` : "—"}</b> to'laysiz
+        {costPct != null && <> — ya'ni xarajatingiz <b style={{ color: costPct > OYIN_TARGET_COST_PCT * 1.35 ? "#ff6b6b" : "var(--text)" }}>{costPct.toFixed(0)}%</b> (mo'ljal {OYIN_TARGET_COST_PCT}%)</>}.<br />
+        🎟 Hozirgacha sotilgan chiptalar <b style={{ color: "var(--text)" }}>{formatNumber(ballSold)} ball</b> = <b style={{ color: "var(--text)" }}>{formatNumber(ballSold * OYIN_SOM_PER_BALL)} so'm</b> daromadga to'g'ri keladi.
+        {hiddenSold > 0 && <><br />⚠️ Yashirilgan sovrinlarda ham <b style={{ color: "var(--text)" }}>{formatNumber(hiddenSold)} ta</b> chipta bor — tirajda ular ham qatnashadi.</>}
+      </div>
+      <div className="table-wrap">
+        <table>
+          <thead><tr><th>Sovrin</th><th className="num">Narx (ball)</th><th className="num">Sotilgan</th><th>To'lganligi</th><th className="num">Qiymati</th><th>Holat</th></tr></thead>
+          <tbody>
+            {[...catalog].sort((a, b) => (b.sold / Math.max(1, b.limit)) - (a.sold / Math.max(1, a.limit))).map((p) => {
+              const pct = p.limit > 0 ? Math.min(100, Math.round((p.sold / p.limit) * 100)) : 0;
+              const over = p.sold > p.limit; // limit sotilgandan past qilib qo'yilgan holat — jimgina o'tib ketmasin
+              return (
+                <tr key={p.key} style={p.active ? undefined : { opacity: 0.5 }}>
+                  <td className="td-name">{p.photoUrl ? "🖼" : p.icon} {p.name}</td>
+                  <td className="num">{formatNumber(p.price)}</td>
+                  <td className="num strong">{formatNumber(p.sold)} / {formatNumber(p.limit)}</td>
+                  <td style={{ minWidth: 120 }}>
+                    <div style={{ height: 6, borderRadius: 3, background: "rgba(255,255,255,.10)", overflow: "hidden" }}>
+                      <div style={{ width: `${pct}%`, height: "100%", background: over ? "#ff6b6b" : pct >= 100 ? "#f0b429" : "#34d399" }} />
+                    </div>
+                    <span className="muted" style={{ fontSize: 10 }}>{pct}%</span>
+                  </td>
+                  <td className="num muted">{parseSum(p.valueLabel) != null ? `${formatNumber(parseSum(p.valueLabel) as number)} so'm` : "—"}</td>
+                  <td>
+                    {over ? <span className="badge badge-bad">⛔ limit sotilgandan past</span>
+                      : !p.active ? <span className="muted">yashirilgan</span>
+                      : pct >= 100 ? <span style={{ color: "#f0b429" }}>tugadi</span>
+                      : <span style={{ color: "#34d399" }}>ochiq</span>}
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+        {catalog.length === 0 && <div className="muted" style={{ padding: 16, textAlign: "center" }}>Katalog bo'sh — sovrin qo'shilmagan (Amallar → «Sovrin-katalog»).</div>}
+      </div>
+    </section>
+  );
+}
+
+// Yorliqlar ro'yxati: `story` va `streak` YO'Q edi → jadvalda xom kalit ("story") chizilardi.
+// Har yangi harakat turi shu yerga qo'shilishi SHART. `quest`/`home` — server agenti qo'shayotgan
+// yangi turlar (kunlik topshiriq + ilovani ekranga qo'shish); ular kelguncha yorliq bekor turadi,
+// kelganda esa darhol o'zbekcha ko'rinadi (xom kalit hech qachon chiqmaydi).
 const OYIN_ACTION_LABEL: Record<string, string> = {
   ride: "🚕 Safar", first_ride: "🚕 Birinchi safar", phone: "📱 Telefon tasdiqlash",
   refer_join: "🤝 Do'st ulandi", refer_first_ride: "🤝 Do'st birinchi safari", refer_ride: "🤝 Do'stning safari",
-  login: "📲 Kunlik kirish", share: "📤 Ulashish", sprint_bonus: "🏁 Sprint bonusi", ticket_buy: "🎟 Chipta xaridi",
+  login: "📲 Kunlik kirish", share: "📤 Ulashish", story: "📸 Hikoya-isbot", streak: "🔥 Zanjir bonusi",
+  quest: "🎯 Kunlik topshiriq", home: "🏠 Ekranga qo'shish",
+  sprint_bonus: "🏁 Sprint bonusi", ticket_buy: "🎟 Chipta xaridi",
 };
 function OyinActivityView() {
   const [data, setData] = useState<OyinActivityResponse | null>(null);
+  const [loading, setLoading] = useState(true);
   const [q, setQ] = useState("");
   const [action, setAction] = useState<OyinActivityAction | "">("");
-  const load = () => { adminApi.oyinActivity({ action: action || undefined }).then(setData).catch(() => setData({ rows: [], total: 0, page: 1, pageSize: 50 })); };
-  useEffect(() => { load(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [action]);
+  // 🔎 A'zo raqami bo'yicha filtr: API'da BOR edi (`memberId`), UI'da YO'Q edi — ega bitta
+  // mijozning butun tarixini ko'rish uchun (abuz tekshiruvi) SSH'siz imkoni yo'q edi.
+  const [memberIdInput, setMemberIdInput] = useState("");
+  const [memberId, setMemberId] = useState<number | null>(null);
+  // 📄 Sahifa: `page` server API'sida BOR edi, panel esa hech qachon uzatmasdi — 500 mijozda
+  // 1-sahifadan (50 qator) nariga o'tib bo'lmasdi, ya'ni tarixning 90% i ko'rinmas edi.
+  const [page, setPage] = useState(1);
+
+  const load = () => {
+    setLoading(true);
+    adminApi.oyinActivity({ action: action || undefined, memberId: memberId ?? undefined, page })
+      .then(setData)
+      .catch(() => setData({ rows: [], total: 0, page: 1, pageSize: 50 }))
+      .finally(() => setLoading(false));
+  };
+  useEffect(() => { load(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [action, memberId, page]);
+  // Filtr o'zgarsa 1-sahifaga qaytamiz — aks holda 7-sahifada turib filtr bosilsa bo'sh ekran chiqadi.
+  const setActionAndReset = (a: OyinActivityAction | "") => { setAction(a); setPage(1); };
+  const applyMemberId = () => {
+    const raw = memberIdInput.trim();
+    const n = Number(raw);
+    setPage(1);
+    setMemberId(raw && Number.isFinite(n) && n > 0 ? n : null);
+  };
+
   const filtered = useMemo(() => {
     if (!data) return [];
     const s = q.trim().toLowerCase();
@@ -5708,23 +5966,47 @@ function OyinActivityView() {
     return data.rows.filter((r) => [r.name, r.helpedName].some((v) => v?.toLowerCase().includes(s)));
   }, [data, q]);
   if (!data) return <div className="screen center"><div className="spinner" /></div>;
+  // ⚠️ Bu ikki summa FAQAT shu sahifadagi 50 qatordan yig'iladi. Avval ular "Jami keldi/sarflandi"
+  // deb yozilardi, sarlavhada esa haqiqiy `data.total` turardi — bitta ekranda ikki xil "jami",
+  // ega esa mavsum bo'yicha butunlay noto'g'ri xulosa chiqarardi. Endi yorliq HAQIQATNI aytadi.
+  // (Mavsum bo'yicha haqiqiy yig'indi uchun serverdan `totals` kerak — javobdagi ro'yxatga qarang.)
   const positive = data.rows.filter((r) => r.ball > 0).reduce((s, r) => s + r.ball, 0);
   const spent = data.rows.filter((r) => r.ball < 0).reduce((s, r) => s + -r.ball, 0);
+  const pageCount = Math.max(1, Math.ceil(data.total / Math.max(1, data.pageSize)));
+  const firstNo = data.total === 0 ? 0 : (data.page - 1) * data.pageSize + 1;
+  const lastNo = Math.min(data.total, data.page * data.pageSize);
   return (
     <section className="panel">
       <div className="panel-head">
-        <div className="panel-title">🎮 O'yin mavsumi — faoliyat ({data.total} voqea, so'nggi {data.pageSize})</div>
-        <input className="search" placeholder="🔍 Ism bo'yicha…" value={q} onChange={(e) => setQ(e.target.value)} />
+        <div className="panel-title">🎮 O'yin mavsumi — faoliyat · jami {formatNumber(data.total)} voqea</div>
+        <input className="search" placeholder="🔍 Ism (faqat shu sahifada)…" value={q} onChange={(e) => setQ(e.target.value)} />
       </div>
       <div className="cards" style={{ marginBottom: 12 }}>
-        <Card icon="🎮" label="Ko'rsatilgan voqealar" value={formatNumber(data.rows.length)} accent />
-        <Card icon="🟢" label="Jami keldi (ball)" value={formatNumber(positive)} />
-        <Card icon="🎟" label="Jami sarflandi (ball)" value={formatNumber(spent)} sub="chipta xaridlari" />
+        <Card icon="🎮" label="Mavsumdagi jami voqea" value={formatNumber(data.total)} accent sub={`${pageCount} sahifa`} />
+        <Card icon="🟢" label="Keldi — SHU SAHIFADA" value={formatNumber(positive)} sub="ball" />
+        <Card icon="🎟" label="Sarflandi — SHU SAHIFADA" value={formatNumber(spent)} sub="ball · chipta xaridi" />
+      </div>
+      <div style={{ display: "flex", gap: 8, marginBottom: 10, flexWrap: "wrap", alignItems: "center" }}>
+        <span className="muted" style={{ fontSize: 11 }}>🔎 A'zo raqami</span>
+        <input
+          type="number" min={1} value={memberIdInput} placeholder="masalan 1234" style={{ width: 120 }}
+          onChange={(e) => setMemberIdInput(e.target.value)}
+          onKeyDown={(e) => { if (e.key === "Enter") applyMemberId(); }}
+        />
+        <button className="btn sm" onClick={applyMemberId}>Ko'rish</button>
+        {memberId != null && (
+          <button className="btn sm danger" onClick={() => { setMemberIdInput(""); setMemberId(null); setPage(1); }}>
+            ✕ #{memberId} filtrini olib tashlash
+          </button>
+        )}
+        <span className="muted" style={{ fontSize: 11 }}>Bo'sh = hamma a'zo</span>
       </div>
       <div style={{ display: "flex", gap: 8, marginBottom: 10, flexWrap: "wrap" }}>
-        <button className={"btn sm" + (action === "" ? " active" : "")} onClick={() => setAction("")}>Hammasi</button>
-        {Object.entries(OYIN_ACTION_LABEL).map(([k, label]) => (
-          <button key={k} className={"btn sm" + (action === k ? " active" : "")} onClick={() => setAction(k as OyinActivityAction)}>{label}</button>
+        <button className={"btn sm" + (action === "" ? " active" : "")} onClick={() => setActionAndReset("")}>Hammasi</button>
+        {/* Tugmalar `OYIN_ACTIVITY_ACTIONS` (shared) dan chiziladi — server bilmagan turga tugma
+            chiqib qolmaydi, va server yangi tur qo'shsa tugma O'ZI paydo bo'ladi. */}
+        {OYIN_ACTIVITY_ACTIONS.map((k) => (
+          <button key={k} className={"btn sm" + (action === k ? " active" : "")} onClick={() => setActionAndReset(k)}>{OYIN_ACTION_LABEL[k] ?? k}</button>
         ))}
       </div>
       <div className="table-wrap">
@@ -5734,7 +6016,14 @@ function OyinActivityView() {
             {filtered.map((r, i) => (
               <tr key={`${r.at}-${r.memberId}-${r.action}-${i}`}>
                 <td className="muted">{fmtTime(r.at)}</td>
-                <td className="td-name">{r.name}</td>
+                <td className="td-name">
+                  {r.name}{" "}
+                  <button
+                    className="btn sm" title="Shu a'zoning butun tarixini ko'rish"
+                    style={{ padding: "0 6px", fontSize: 10 }}
+                    onClick={() => { setMemberIdInput(String(r.memberId)); setMemberId(r.memberId); setPage(1); }}
+                  >#{r.memberId}</button>
+                </td>
                 <td>{OYIN_ACTION_LABEL[r.action] ?? r.action}</td>
                 <td className="num strong" style={{ color: r.ball >= 0 ? "var(--green)" : "var(--red)" }}>{r.ball >= 0 ? "+" : ""}{formatNumber(r.ball)}</td>
                 <td className="muted">{r.helpedName ?? "—"}</td>
@@ -5743,6 +6032,16 @@ function OyinActivityView() {
             ))}
           </tbody>
         </table>
+        {data.total === 0 && <div className="muted" style={{ padding: 16, textAlign: "center" }}>Bu filtr bo'yicha voqea yo'q.</div>}
+      </div>
+      <div style={{ display: "flex", gap: 8, marginTop: 10, alignItems: "center", flexWrap: "wrap" }}>
+        <button className="btn sm" disabled={loading || data.page <= 1} onClick={() => setPage(1)}>⏮ Boshi</button>
+        <button className="btn sm" disabled={loading || data.page <= 1} onClick={() => setPage((p) => Math.max(1, p - 1))}>← Oldingi</button>
+        <span className="muted" style={{ fontSize: 12 }}>
+          {loading ? "Yuklanmoqda…" : <>Sahifa <b>{data.page}</b> / {pageCount} · <b>{formatNumber(firstNo)}–{formatNumber(lastNo)}</b> ({formatNumber(data.total)} dan)</>}
+        </span>
+        <button className="btn sm" disabled={loading || data.page >= pageCount} onClick={() => setPage((p) => p + 1)}>Keyingi →</button>
+        <button className="btn sm" disabled={loading || data.page >= pageCount} onClick={() => setPage(pageCount)}>Oxiri ⏭</button>
       </div>
     </section>
   );

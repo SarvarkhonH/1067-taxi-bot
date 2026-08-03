@@ -370,14 +370,22 @@ async function main(): Promise<void> {
           const { runTierLoyaltyDailyAll } = await import("./services/tierLoyaltyService");
           await runTierLoyaltyDailyAll(bot).catch((e) => console.error("[tierdaily] failed:", e));
           // 🎮 KOSON O'YINI — haftalik sprint-baholash (o'z-ichida idempotent: hafta almashmaguncha
-          // no-op) + mavsum-yopilish (ichkarida SEASON_END-darvozasi bor — real tanga beradi, shuning
-          // uchun muvaffaqiyatli konvertatsiyada egaga alert). Ikkalasi ham flag "oyin" ichida gated.
+          // no-op) + mavsum-yopilish (ichkarida SEASON_END-darvozasi bor). Ikkalasi ham flag
+          // "oyin" ichida gated.
           const { sprintCheck, seasonClose } = await import("./services/oyinService");
           await sprintCheck().catch((e) => console.error("[oyin] sprintCheck failed:", e));
           const oyinClose = await seasonClose().catch((e) => { console.error("[oyin] seasonClose failed:", e); return null; });
           if (oyinClose && oyinClose.convertedCount > 0) {
             const { alertAdmins } = await import("./services/economyService");
-            await alertAdmins(`🎮 BirJoy O'yinlar Mavsumi yopildi: ${oyinClose.convertedCount} a'zoga jami ${oyinClose.totalTanga} tanga berildi (qoldiq balldan).`).catch(() => undefined);
+            // ⚠️ Matn 2026-08-03 da TUZATILDI. Avval "jami ${totalTanga} tanga berildi" deb yozardi —
+            // ega har mavsum yopilishida shu satrni ko'rardi va u YOLG'ON edi: ball→tanga
+            // konvertatsiyasi ega qarori bilan OLIB TASHLANGAN (`seasonClose` endi `grantCoins`
+            // umuman chaqirmaydi, `totalTanga` doim 0). Sarflanmagan ball mavsum oxirida KUYADI.
+            await alertAdmins(
+              `🎮 <b>BirJoy O'yinlar Mavsumi yopildi</b>\n\n` +
+              `${oyinClose.convertedCount} a'zoning sarflanmagan balli kuydi (tanga TO'LANMAYDI — ` +
+              `konvertatsiya olib tashlangan). Chipta ro'yxati tirajga tayyor.`,
+            ).catch(() => undefined);
           }
           const { settleGapsWeekly } = await import("./services/gapService");
           if (new Date(Date.now() + 5 * 3600_000).getUTCDay() === 1) await settleGapsWeekly(bot).catch((e) => console.error("[gap] failed:", e));

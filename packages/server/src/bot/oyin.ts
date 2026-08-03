@@ -33,7 +33,7 @@ export async function sendOyinJoinCard(bot: Bot, chatId: string | number, invite
     `Bu yerda <b>hech narsa to'lamaysiz</b>. Shunchaki taksida yuring — har safar <b>ball</b> beradi. ` +
     `Ball chiptaga aylanadi, chipta esa mavsum oxiridagi <b>jonli tirajga</b> tushadi.\n\n` +
     `🏆 Bosh sovrin: <b>${esc(data.prizeName)}</b>\n` +
-    `🎟 Jami <b>${data.slots} ta</b> ta chipta\n\n` +
+    `🎟 Jami <b>${data.slots} ta</b> chipta\n\n` +
     `Boshlash uchun raqamingizni ulang va birinchi safaringizni qiling 👇`;
 
   const btn = appBtn("🎮 O'yinni ochish", "oyin");

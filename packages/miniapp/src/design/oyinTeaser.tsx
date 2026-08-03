@@ -6,14 +6,32 @@
 //
 // Bu ekran a'zo ma'lumotini SO'RAMAYDI (`/api/oyin/teaser` ochiq) — faqat sovrinlar va mavsum
 // holati. Yagona harakat: raqamni ulash.
-import { useEffect, useState } from "react";
-import type { OyinTeaserResponse } from "@t1067/shared";
+//
+// 2026-08-03 QAYTA QURILDI, uchta aniq kamchilik uchun:
+//  1) MAVSUM YOPIQ bo'lsa ham "ball yig'ishni boshlang" deb chaqirardi — bo'lmagan o'yinga
+//     taklif (DIZAYN_QOIDALARI #8: va'da qilingan narsa REAL berilishi shart). Endi matn
+//     fazaga qarab o'zgaradi va yopiq mavsumda hech narsa va'da qilinmaydi.
+//  2) Tarmoq yiqilsa `return null` edi — mehmon BO'M-BO'SH ekran ko'rardi (faqat pastdagi
+//     "Ulash" paneli). Endi xato + "Qayta urinish".
+//  3) Ekran botdagi qizil-oltin sovg'a kartochkasidan va uy ekranidagi yangi qizil posterdan
+//     BUTUNLAY boshqacha (oq/binafsha) edi. Endi u aynan O'SHA poster (`.nh-oyin*`).
+import { useCallback, useEffect, useState } from "react";
+import { OYIN_FINAL_LOCK_MS, type OyinTeaserResponse } from "@t1067/shared";
 import { api } from "../api";
-import "./feat/oyk.css";
+// ⏳ Sanoq va faza matnlari UY KARTASI bilan BITTA manbadan (`seasonCountdown`) — ikki ekran
+// bir xil mavsum haqida boshqa-boshqa gapirmasligi uchun.
+import { seasonCountdown } from "../uy";
 
 export function OyinTeaser({ onLink, busy }: { onLink: () => void; busy: boolean }) {
   const [data, setData] = useState<OyinTeaserResponse | null>(null);
   const [failed, setFailed] = useState(false);
+  const [bad, setBad] = useState<Set<string>>(new Set());
+
+  const load = useCallback(() => {
+    setFailed(false);
+    setData(null);
+    api.oyinTeaser().then(setData).catch(() => setFailed(true));
+  }, []);
 
   useEffect(() => {
     let alive = true;
@@ -21,72 +39,148 @@ export function OyinTeaser({ onLink, busy }: { onLink: () => void; busy: boolean
     return () => { alive = false; };
   }, []);
 
-  if (failed) return null;
-  if (!data) {
+  if (failed) {
     return (
-      <div className="oyk-skel">
-        <div className="oyk-skel-block oyk-skel-head" />
-        <div className="oyk-skel-block oyk-skel-hero" />
+      <div className="nh-tsr">
+        <div className="nh-tsr-bad">
+          <div className="nh-tsr-bad-i" aria-hidden="true">📡</div>
+          <div className="nh-tsr-bad-t">Sovrinlar yuklanmadi</div>
+          <div className="nh-tsr-bad-s">Internet aloqasi uzilgan ko'rinadi. Ulanishni tekshirib, qayta urinib ko'ring.</div>
+          <button type="button" className="nh-tsr-bad-b" onClick={load}>Qayta urinish</button>
+        </div>
       </div>
     );
   }
 
-  const upcoming = data.season.phase === "upcoming";
-  const closed = !data.season.configured || data.season.phase === "ended";
-  const top = data.prizes[0];
+  // Skeleton REAL layoutning nusxasi (#11): poster + 2×2 sovrin panjarasi.
+  if (!data) {
+    return (
+      <div className="nh-tsr">
+        <div className="nh-skel nh-tsr-sk-post" />
+        <div className="nh-tsr-rail">
+          {[0, 1, 2, 3].map((i) => <div key={i} className="nh-skel nh-tsr-sk-p" />)}
+        </div>
+      </div>
+    );
+  }
+
+  // 🕰 MAVSUM FAZASI — TO'RT holat, ikki emas. Avval `closed = !configured || ended` bo'lib,
+  // YAKUNLANGAN mavsum ham, HALI TUZILMAGAN mavsum ham bir xil "TEZ ORADA" derdi: tugagan
+  // narsani "tez orada boshlanadi" deb ko'rsatish ochiq yolg'on (DIZAYN_QOIDALARI #6/#8).
+  const phase = data.season.phase;
+  const ended = data.season.configured && phase === "ended";
+  const upcoming = data.season.configured && phase === "upcoming";
+  // To'rtinchi holat — "unset" (mavsum hali TUZILMAGAN) — quyidagi zanjirlarning OXIRGI
+  // `else` shoxi. Alohida o'zgaruvchi ataylab yo'q: bo'lsa ishlatilmay o'lik kod bo'lardi.
+  const cd = seasonCountdown(upcoming ? data.season.startIso : data.season.endIso, upcoming);
+  // 🔒 Oxirgi 48 soat: hozir ulangan mehmon bu mavsumda CHIPTA OLOLMAYDI (uy kartasi va
+  // `oyin.tsx` bilan bir xil qoida) — unga "chipta olib sovg'a yuting" deyish yolg'on bo'lardi.
+  const final48 = data.season.configured && phase === "active" && cd.leftMs <= OYIN_FINAL_LOCK_MS;
+  const open = (upcoming || phase === "active") && data.season.configured && !final48;
+  const shots = data.prizes.slice().sort((a, b) => b.price - a.price).slice(0, 4);
+  const slots = data.prizes.reduce((s, p) => s + p.limit, 0);
 
   return (
-    <div className="oyk oyk-teaser">
-      <div className="oyk-scroll">
-        <div className="oyk-head">
-          <div className="oyk-title">🎮 BirJoy O'yinlar Mavsumi</div>
-        </div>
+    <div className="nh-tsr">
+      {/* Uy ekranidagi QIZIL POSTERNING O'ZI — bot yuborgan kartochka bilan bir xil til.
+          Butun poster bosiladi: mehmonda yagona harakat — raqamni ulash. */}
+      <div className="nh-oyin">
+        <button type="button" className="nh-oyin-hero" onClick={onLink} disabled={busy} aria-label="Raqamni ulash">
+          <span className="nh-oyin-conf" aria-hidden="true" />
+          <span className="nh-oyin-gift" aria-hidden="true">🎁</span>
+          <span className="nh-oyin-h1">BEPUL</span>
+          <span className="nh-oyin-h2">SOVG'ALAR</span>
+          {/* Matnlar 2 satrga sig'adigan qilib qisqartirilgan va `.nh-tsr .nh-oyin-lead` ga
+              2 satrlik joy AJRATILGAN — shunda poster balandligi HAR fazada bir xil bo'ladi
+              va yuqoridagi skeleton unga teng tura oladi (#11). */}
+          <span className="nh-oyin-lead">
+            {open ? <>Bepul chipta olib, <b>sovg'alar</b> egasi bo'ling!</>
+              : final48 ? <>Chipta olish yopildi — <b>tiraj yaqin!</b></>
+                : ended ? <>Mavsum yakunlandi — <b>keyingisi</b> yaqin!</>
+                  : <>Yangi mavsum <b>tayyorlanmoqda</b>.</>}
+          </span>
 
-        <div className="oyk-hero is-new">
-          <div className="oyk-hero-glow" />
-          <div className="oyk-hero-label">{closed ? "TEZ ORADA" : upcoming ? "TEZ ORADA BOSHLANADI" : "MAVSUM OCHIQ"}</div>
-          <div className="oyk-hero-new-title">
-            {top ? <>Bosh sovrin — {top.name}</> : <>Sovrinlar mavsumi</>}
-          </div>
-          <div className="oyk-hero-new-sub">
-            Hech narsa to'lamaysiz. Taksida yuring — har safar <b>ball</b> beradi.
-            Ball chiptaga aylanadi, chipta esa mavsum oxiridagi <b>jonli tirajga</b>.
-          </div>
-        </div>
+          {/* Sanoq FAQAT mavsum ochiq bo'lganda RAQAM ko'rsatadi; yakunlangan va hali
+              tuzilmagan mavsum ENDI BOSHQA-BOSHQA gapiradi (avval ikkalasi "TEZ ORADA" edi). */}
+          <span className="nh-oyin-cd">
+            <span className="nh-oyin-cd-ic" aria-hidden="true">{open ? "📅" : final48 ? "🔒" : ended ? "🏁" : "🔔"}</span>
+            <span className="nh-oyin-cd-tx">
+              {open
+                ? <><small>{upcoming ? "MAVSUM BOSHLANISHIGA" : "SOVG'ALAR TOPSHIRILISHIGA"}</small><b>{cd.text}</b></>
+                : final48 ? <><small>TIRAJGA</small><b>{cd.text}</b></>
+                  : ended ? <><small>SHU MAVSUM</small><b>YAKUNLANDI</b></>
+                    : <><small>YANGI MAVSUM</small><b>TAYYORLANMOQDA</b></>}
+            </span>
+          </span>
 
-        {data.prizes.length > 0 && (
-          <div>
-            <div className="oyk-rail-head">
-              <div className="oyk-rail-title">🎁 Sovrinlar</div>
-              <div className="oyk-rail-sub">{data.prizes.reduce((s, p) => s + p.limit, 0)} ta chipta</div>
-            </div>
-            <div className="oyk-rail">
-              {data.prizes.map((p) => (
-                <div key={p.key} className="oyk-pcard">
-                  <div className="oyk-pcard-icon">
-                    {p.photoUrl
-                      ? <img src={p.photoUrl} alt="" loading="lazy" onError={(e) => { (e.target as HTMLImageElement).replaceWith(document.createTextNode(p.icon)); }} />
-                      : p.icon}
-                  </div>
-                  <div className="oyk-pcard-name">{p.name}</div>
-                  <div className="oyk-pcard-meta">{p.valueLabel || `${p.limit} o'rin`}</div>
-                </div>
+          {shots.length > 0 && (
+            <span className="nh-oyin-shots">
+              {shots.map((p) => (
+                <span key={p.key} className="nh-oyin-shot">
+                  {p.photoUrl && !bad.has(p.key)
+                    ? <img src={p.photoUrl} alt="" loading="lazy" onError={() => setBad((b) => new Set(b).add(p.key))} />
+                    : <span className="nh-oyin-shot-em">{p.icon}</span>}
+                </span>
               ))}
-            </div>
-          </div>
-        )}
+            </span>
+          )}
 
-        <button type="button" className="oyk-cta" disabled={busy} onClick={onLink}>
-          <span className="oyk-cta-label">{busy ? "⏳ Ulanmoqda…" : "📱 Raqamni ulang — ball yig'ishni boshlang"}</span>
-          <span className="oyk-cta-shine" />
+          {data.prizes.length > 0 && (
+            <span className="nh-oyin-badge">⭐ {data.prizes.length} TA REAL SOVG'A</span>
+          )}
         </button>
 
-        <div className="oyk-sponsor">
-          <div className="oyk-sponsor-logo">{data.sponsor.name[0] ?? "B"}</div>
-          <div className="oyk-sponsor-text">Homiy — <b>{data.sponsor.name}</b></div>
+        <button type="button" className={`nh-oyin-cta${open ? "" : " is-soon"}`} disabled={busy} onClick={onLink}>
+          <span className="nh-oyin-cta-ic" aria-hidden="true">📱</span>
+          <span>{busy ? "ULANMOQDA…" : "RAQAMNI ULASH"}</span>
+          <span className="nh-oyin-cta-go" aria-hidden="true">›</span>
+        </button>
+
+        {/* 4 qadam — "bepul" so'zi qanday ishlashini DARHOL tushuntiradi. Mavsum yopiq bo'lsa
+            ham qoladi: bu mexanikaning TA'RIFI ("shunday ishlaydi"), hozirgi va'da emas. */}
+        <div className="nh-oyin-steps">
+          {([["🚕", "Safar qil"], ["⭐", "Ball yig'"], ["🎟", "Chipta ol"], ["🎁", "Sovg'a yut"]] as const).map(([em, tx], i) => (
+            <div key={tx} className="nh-oyin-step">
+              <span className="nh-oyin-step-em">{em}</span>
+              <span className="nh-oyin-step-tx">{i + 1}. {tx}</span>
+            </div>
+          ))}
         </div>
-        <div className="oyk-legal">Chipta — tirajda qatnashish huquqi. G'olib tasodifiy tanlanadi.</div>
       </div>
+
+      {data.prizes.length > 0 && (
+        <>
+          <div className="nh-tsr-h">
+            🎁 {open || final48 ? "Sovrinlar" : ended ? "Shu mavsumda o'ynalgan sovrinlar" : "Shunday sovrinlar o'ynaladi"}
+            <small>
+              {open ? `Jami ${slots} ta chipta · g'olib tirajda aniqlanadi`
+                : final48 ? `Jami ${slots} ta chipta tarqatildi · tiraj yaqin`
+                  : ended ? "G'oliblar aniqlandi" : "Yangi mavsumda ro'yxat yangilanadi"}
+            </small>
+          </div>
+          <div className="nh-tsr-rail">
+            {data.prizes.map((p) => (
+              <div key={p.key} className="nh-tsr-p">
+                <div className="nh-tsr-p-im">
+                  {p.photoUrl && !bad.has(p.key)
+                    ? <img src={p.photoUrl} alt="" loading="lazy" onError={() => setBad((b) => new Set(b).add(p.key))} />
+                    : p.icon}
+                </div>
+                <div className="nh-tsr-p-b">
+                  <div className="nh-tsr-p-n">{p.name}</div>
+                  <div className="nh-tsr-p-m">{p.valueLabel || `${p.limit} o'rin`}</div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </>
+      )}
+
+      <div className="nh-tsr-foot">
+        <span className="nh-tsr-logo">{data.sponsor.name[0] ?? "B"}</span>
+        <span>Homiy — <b>{data.sponsor.name}</b></span>
+      </div>
+      <div className="nh-tsr-legal">Chipta — tirajda qatnashish huquqi. G'olib tasodifiy tanlanadi.</div>
     </div>
   );
 }

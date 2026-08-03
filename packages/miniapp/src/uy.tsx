@@ -3,10 +3,34 @@
 // NewUyView (feature "newhome", UY_REDESIGN Bosqich 1) = the premium super-app home below.
 import { useEffect, useState } from "react";
 import type { ClassifiedCard, HomeBanner, HomeFeedItem, MeResponse, OyinPrizeView, OyinStateResponse, SavedAddressView, ServiceListingCard } from "@t1067/shared";
-import { INSP_TIER_EMOJI, INSP_TIER_LABEL } from "@t1067/shared";
+import { INSP_TIER_EMOJI, INSP_TIER_LABEL, OYIN_FINAL_LOCK_MS } from "@t1067/shared";
 import { api, apiUrl } from "./api";
 import { haptic } from "./telegram";
 import { HomeGames } from "./homeGames";
+
+/** ⏳ Mavsum sanog'i — uy kartasi VA mehmon-teaser uchun YAGONA manba (ikkalasi ham shu
+ *  funksiyani chaqiradi, aks holda matn va faza qoidalari vaqt o'tib bir-biridan uzoqlashadi).
+ *
+ *  Ikki qoida shu yerda qulflangan:
+ *  • `Date.parse(null) → NaN` → ekranda "NaN kun" (DIZAYN_QOIDALARI #5). Sana yo'q bo'lsa
+ *    RAQAM umuman chizilmaydi — faza so'z bilan aytiladi.
+ *  • "0 SOAT QOLDI" TAQIQ (#5: nol raqam ekranga chiqmaydi). Bir soatdan kam qolganda daqiqa,
+ *    daqiqa ham qolmasa "BUGUN BOSHLANADI/YAKUNLANADI".
+ *  Qaytadigan `leftMs` chaqiruvchiga FINAL-48 ni hisoblash uchun kerak; sana yo'q bo'lsa
+ *  `Infinity` — ya'ni sanasiz mavsum hech qachon "oxirgi 48 soat" deb qaralmaydi. */
+export function seasonCountdown(iso: string | null, upcoming: boolean): { has: boolean; text: string; leftMs: number } {
+  const ms = iso ? Date.parse(iso) : NaN;
+  if (!Number.isFinite(ms)) return { has: false, text: upcoming ? "TEZ ORADA" : "DAVOM ETMOQDA", leftMs: Infinity };
+  const left = Math.max(0, ms - Date.now());
+  const d = Math.floor(left / 86400_000);
+  const h = Math.floor((left % 86400_000) / 3600_000);
+  const m = Math.floor((left % 3600_000) / 60_000);
+  const text = d > 0 ? `${d} KUN QOLDI`
+    : h > 0 ? `${h} SOAT QOLDI`
+      : m > 0 ? `${m} DAQIQA QOLDI`
+        : upcoming ? "BUGUN BOSHLANADI" : "BUGUN YAKUNLANADI";
+  return { has: true, text, leftMs: left };
+}
 
 // 🎮 Koson O'yini — uy-ekran HERO kartasi (feature "oyin", ega redizayni 2026-08-02: "katta va
 // chiroyli preview kerak"). "Bugungi tavsiya" banneri o'rnini oladi (uy renderida f.oyin bilan
@@ -15,16 +39,23 @@ import { HomeGames } from "./homeGames";
 function KosonOyinCard({ onNav }: { onNav: (t: string) => void }) {
   const [state, setState] = useState<OyinStateResponse | null>(null);
   const [prizes, setPrizes] = useState<OyinPrizeView[] | null>(null);
+  const [dead, setDead] = useState(false); // holat so'rovi YIQILDI (tarmoq/server)
   const [bad, setBad] = useState<Set<string>>(new Set());
   useEffect(() => {
     let alive = true;
-    api.oyinState().then((s) => { if (alive) setState(s); }).catch(() => undefined);
-    api.oyinVitrina().then((v) => { if (alive) setPrizes(v.prizes); }).catch(() => undefined);
+    api.oyinState().then((s) => { if (alive) setState(s); }).catch(() => { if (alive) setDead(true); });
+    // ⚠️ Vitrina XATOSI ham "javob keldi" deb belgilanadi (bo'sh ro'yxat bilan): aks holda
+    // `prizes` abadiy `null` qolib, quyidagi o'rin-egal plitkalar hech qachon almashmasdi.
+    api.oyinVitrina().then((v) => { if (alive) setPrizes(v.prizes); }).catch(() => { if (alive) setPrizes([]); });
     return () => { alive = false; };
   }, []);
 
   const goOyin = () => { haptic(); onNav("oyin"); };
 
+  // ⛔ So'rov yiqildi — karta CHIZILMAYDI. Avval `catch(() => undefined)` edi: `state` abadiy
+  // `null` qolib, 554px'lik shimmer-skeleton ekranda MANGU turardi (internet uzilganda uy
+  // sahifasining yarmi "yuklanyapti" holatida qotib qolardi). O'yinga ikkinchi yo'l — rail.
+  if (dead) return null;
   // Skeleton balandligi real kartaga TENG — aks holda yuklanganda sahifa sakraydi.
   if (!state) return <div className="nh-oyin"><div className="nh-skel" style={{ height: 554, borderRadius: 22 }} /></div>;
   if (!state.season.configured || state.season.phase === "ended") return null;
@@ -32,18 +63,25 @@ function KosonOyinCard({ onNav }: { onNav: (t: string) => void }) {
   // bo'lmasligi — yolg'on va'da. Ayni paytda bu balandlik o'zgarishini ham yo'q qiladi.
   if (state.prizeCount <= 0) return null;
 
-  // ⚠️ `Date.parse(null) → NaN` → `Math.max(0, NaN) → NaN` → ekranda "NaN kun". Qo'riqlanadi.
   const upcoming = state.season.phase === "upcoming";
-  const targetIso = upcoming ? state.season.startIso : state.season.endIso;
-  const targetMs = targetIso ? Date.parse(targetIso) : NaN;
-  const left = Number.isFinite(targetMs) ? Math.max(0, targetMs - Date.now()) : 0;
-  const days = Math.floor(left / 86400_000);
-  const hours = Math.floor((left % 86400_000) / 3600_000);
+  const cd = seasonCountdown(upcoming ? state.season.startIso : state.season.endIso, upcoming);
+  // 🔒 FINAL-48 — mavsum tugashiga `OYIN_FINAL_LOCK_MS` dan kam qolganda CHIPTA OLISH YOPILADI.
+  // Qoida `oyin.tsx:screenPhase` bilan AYNAN bir xil va server ham mustaqil to'sadi
+  // (`final_lock`). Avval uy kartasi bu fazani bilmasdi va oxirgi 48 soatda ham
+  // "BEPUL CHIPTA OLISH" deb chaqirardi — bosgan mijoz vitrinada muzlagan tugmalarni
+  // ko'rardi (DIZAYN_QOIDALARI #8: bajarilmaydigan va'da).
+  const final48 = !upcoming && cd.leftMs <= OYIN_FINAL_LOCK_MS;
 
   // Sovrin plitkalari — eng qimmatidan 4 tasi. Rasmi bor bo'lsa REAL rasm (DIZAYN_QOIDALARI
   // #10), yo'q/buzuq bo'lsa RANGLI plitka + emoji. Sovrin qatordan TUSHIRILMAYDI: aks holda
   // karta balandligi o'zgarib skeleton bilan mos kelmay qoladi va sahifa sakraydi (#11).
   const shots = (prizes ?? []).slice().sort((a, b) => b.price - a.price).slice(0, 4);
+  // ⚠️ IKKI SO'ROV, IKKI VAQT: `oyinState` va `oyinVitrina` alohida keladi. Holat birinchi
+  // kelganda sovrin qatori BO'SH bo'lardi (80px past karta) va vitrina kelgach sahifa
+  // SAKRARDI. Endi vitrina kutilayotganda o'rin-egal plitkalar turadi — soni `prizeCount`
+  // dan olinadi (soxta emas: sovrin borligini server allaqachon aytgan), balandlik esa
+  // birinchi chizishdan oxirgisigacha BIR XIL.
+  const shotCount = prizes === null ? Math.min(4, state.prizeCount) : shots.length;
 
   // Progress — UMUMIY (shaxsiy ball EMAS). Nol-bo'linish qo'riqlangan.
   const cap = Math.max(0, state.capacityTotal);
@@ -57,25 +95,38 @@ function KosonOyinCard({ onNav }: { onNav: (t: string) => void }) {
         <span className="nh-oyin-gift" aria-hidden="true">🎁</span>
         <span className="nh-oyin-h1">BEPUL</span>
         <span className="nh-oyin-h2">SOVG'ALAR</span>
-        <span className="nh-oyin-lead">Bepul chipta olib, <b>sovg'alar</b> egasi bo'ling!</span>
+        {/* ⚠️ Matnlar QASDAN qisqa: eng tor telefonda ham bitta satrga sig'ishi kerak —
+            ikkinchi satrga o'tsa karta balandligi 554px'dan oshib skeleton bilan mos kelmay
+            qoladi va sahifa sakraydi (#11). O'LCHANDI: 320/360/375/390/412/428 kengliklarda
+            VA oltita fazada (active · upcoming · final48 · daqiqa · sanasiz · o'rin-egal
+            plitkalar) — 36 ta kombinatsiyaning HAMMASIDA 553.88px. */}
+        <span className="nh-oyin-lead">
+          {final48
+            ? <>Chipta olish yopildi — <b>tiraj yaqin!</b></>
+            : <>Bepul chipta olib, <b>sovg'alar</b> egasi bo'ling!</>}
+        </span>
 
         <span className="nh-oyin-cd">
-          <span className="nh-oyin-cd-ic" aria-hidden="true">📅</span>
+          <span className="nh-oyin-cd-ic" aria-hidden="true">{final48 ? "🔒" : "📅"}</span>
           <span className="nh-oyin-cd-tx">
-            <small>{upcoming ? "SOVG'ALAR MAVSUMI BOSHLANISHIGA" : "SOVG'ALAR TOPSHIRILISHIGA"}</small>
-            <b>{days > 0 ? `${days} KUN` : `${hours} SOAT`} QOLDI</b>
+            <small>{final48 ? "TIRAJGA" : upcoming ? "MAVSUM BOSHLANISHIGA" : "SOVG'ALAR TOPSHIRILISHIGA"}</small>
+            <b>{cd.text}</b>
           </span>
         </span>
 
-        {shots.length > 0 && (
+        {shotCount > 0 && (
           <span className="nh-oyin-shots">
-            {shots.map((p) => (
-              <span key={p.key} className="nh-oyin-shot">
-                {p.photoUrl && !bad.has(p.key)
-                  ? <img src={p.photoUrl} alt="" loading="lazy" onError={() => setBad((b) => new Set(b).add(p.key))} />
-                  : <span className="nh-oyin-shot-em">{p.icon}</span>}
-              </span>
-            ))}
+            {prizes === null
+              ? Array.from({ length: shotCount }, (_, i) => (
+                <span key={`ph${i}`} className="nh-oyin-shot"><span className="nh-oyin-shot-em">🎁</span></span>
+              ))
+              : shots.map((p) => (
+                <span key={p.key} className="nh-oyin-shot">
+                  {p.photoUrl && !bad.has(p.key)
+                    ? <img src={p.photoUrl} alt="" loading="lazy" onError={() => setBad((b) => new Set(b).add(p.key))} />
+                    : <span className="nh-oyin-shot-em">{p.icon}</span>}
+                </span>
+              ))}
           </span>
         )}
 
@@ -100,9 +151,11 @@ function KosonOyinCard({ onNav }: { onNav: (t: string) => void }) {
         </div>
       </div>
 
+      {/* CTA UCH holatli: mavsum boshlanmagan / oxirgi 48 soat (chipta yopiq) / ochiq.
+          Avval ikki holat edi va final-48 "BEPUL CHIPTA OLISH" ga tushib qolardi. */}
       <button className="nh-oyin-cta" onClick={goOyin}>
-        <span className="nh-oyin-cta-ic" aria-hidden="true">🎟</span>
-        <span>{upcoming ? "SOVG'ALARNI KO'RISH" : "BEPUL CHIPTA OLISH"}</span>
+        <span className="nh-oyin-cta-ic" aria-hidden="true">{final48 || upcoming ? "🎁" : "🎟"}</span>
+        <span>{final48 || upcoming ? "SOVG'ALARNI KO'RISH" : "BEPUL CHIPTA OLISH"}</span>
         <span className="nh-oyin-cta-go" aria-hidden="true">›</span>
       </button>
 
@@ -126,7 +179,11 @@ function KosonOyinCard({ onNav }: { onNav: (t: string) => void }) {
 // Data: ONE /api/home/feed aggregate (Bosqich 2) — server computes banner + image-forward feed from
 // local DB (shop + restoran views), so the client makes a single call. Themes via data-theme.
 // ═══════════════════════════════════════════════════════════════════════════
-const num = (n: number) => n.toLocaleString("ru-RU");
+// ⚠️ NaN/undefined QO'RIQCHISI (DIZAYN_QOIDALARI #5). `num` uy sahifasidagi HAR raqamni
+// chizadi (balans, cashback, chipta soni, narx). Server bitta maydonni `null` qaytarsa —
+// `null.toLocaleString` XATO tashlab butun uy ekranini oq qilardi, `NaN` esa ekranda
+// "NaN" bo'lib chiqardi. Endi ikkalasi ham "0" ga tushadi.
+const num = (n: number) => (Number.isFinite(n) ? n : 0).toLocaleString("ru-RU");
 function timeAgo(iso: string): string {
   const s = (Date.now() - Date.parse(iso)) / 1000;
   if (!Number.isFinite(s) || s < 0) return "";
@@ -144,16 +201,32 @@ const COMING_SOON_MSG = "🔒 Tez orada! Hozircha Do'kon, Restoran va Taxi'ga fo
 export function NewUyView({ me, onBook, onNav, onBanner }: { me: MeResponse; onBook: () => void; onNav: (t: string) => void; onBanner?: (msg: string) => void }) {
   const [feed, setFeed] = useState<HomeFeedItem[] | null>(null);
   const [banner, setBanner] = useState<HomeBanner | null>(null);
+  // 🚨 "Bo'sh" va "yuklanmadi" — IKKI XIL HOLAT. Avval ikkalasi ham `[]` edi va tarmoq
+  // uzilganda ekran JIM qolardi: na xato, na qayta-urinish tugmasi.
+  const [feedErr, setFeedErr] = useState(false);
   const [hub, setHub] = useState(false);
+  // 🖼 Yuklanmagan brend-logotiplari (Ravella) — REACT HOLATIDA. Avval `onError` ichida
+  // `img.replaceWith(textNode)` chaqirilardi: bu React boshqaradigan DOM tugunini tashqaridan
+  // olib tashlash, ya'ni keyingi render'da React yo'q tugunni yangilamoqchi bo'lib yiqilishi
+  // mumkin. Uy/o'yin ekranlarida bu naqsh allaqachon tashlangan edi — rail orqada qolgan edi.
+  const [badIc, setBadIc] = useState<Set<string>>(new Set());
   const [ustas, setUstas] = useState<ServiceListingCard[] | null>(null);
   const [elons, setElons] = useState<ClassifiedCard[] | null>(null);
   const f = me.flags ?? {};
+
+  const loadFeed = () => {
+    setFeedErr(false);
+    setFeed(null);
+    api.homeFeed()
+      .then((r) => { setFeed(r.items); setBanner(r.banner); })
+      .catch(() => { setFeed([]); setFeedErr(true); });
+  };
 
   useEffect(() => {
     let alive = true;
     api.homeFeed()
       .then((r) => { if (alive) { setFeed(r.items); setBanner(r.banner); } })
-      .catch(() => { if (alive) setFeed([]); });
+      .catch(() => { if (alive) { setFeed([]); setFeedErr(true); } });
     return () => { alive = false; };
   }, []);
 
@@ -168,8 +241,9 @@ export function NewUyView({ me, onBook, onNav, onBanner }: { me: MeResponse; onB
   }, []);
 
   const rail = [
-    // 🎮 O'yin rail'da ham bor: hero'dan pastga o'tib ketgan odam uchun IKKINCHI yo'l (avval
-    // o'yinga faqat hero orqali kirilardi, hub'da ham yo'q edi).
+    // 🎮 O'yin rail'da ham bor — IKKINCHI yo'l (DIZAYN_QOIDALARI #4: har bo'limga kamida ikki
+    // kirish). Bu ayniqsa MUHIM: poster kartasi tarmoq xatosida umuman chizilmaydi, o'shanda
+    // o'yinga yagona yo'l shu ikonka bo'lib qoladi.
     { on: !!f.oyin, ic: "nh-i-g", em: "🎮", lb: "O'yin", nav: "oyin", locked: false },
     { on: !!f.shop, ic: "nh-i-b", em: "🏪", lb: "Do'kon", nav: "dokon", locked: false },
     { on: !!f.restoran, ic: "nh-i-o", em: "🍽", lb: "Restoran", nav: "restoran", locked: false },
@@ -196,9 +270,17 @@ export function NewUyView({ me, onBook, onNav, onBanner }: { me: MeResponse; onB
           <div>
             <div className="k">🪙 Tanga balansi</div>
             <div className="b">{num(me.coins)}</div>
-            <div className="cb">🚕 {num(me.stats.points)} so'm cashback</div>
+            {/* Cashback — ALOHIDA pul turi, shuning uchun alohida "pill". Nol bo'lsa satr
+                UMUMAN chizilmaydi: "0 so'm cashback" yangi mijozga hech nima aytmaydi,
+                faqat kartani to'ldiradi (DIZAYN_QOIDALARI #7). */}
+            {me.stats.points > 0 && <div className="cb">🚕 {num(me.stats.points)} so'm cashback</div>}
           </div>
-          <button className="yc" onClick={() => go("wallet")}>Yechish →</button>
+          {/* ⚠️ Yangi mijozda yechadigan hech narsa YO'Q — unga "Yechish" deb va'da qilish
+              yolg'on tugma (#14/#8): bosadi, hamyonda 0 turadi. Shu holatda tugma o'z nomi
+              bilan "Hamyon" bo'ladi — bir xil ekran, halol yozuv. */}
+          <button className="yc" onClick={() => go("wallet")}>
+            {me.coins > 0 || me.stats.points > 0 ? "Yechish →" : "Hamyon →"}
+          </button>
         </div>
       </div>
 
@@ -210,15 +292,19 @@ export function NewUyView({ me, onBook, onNav, onBanner }: { me: MeResponse; onB
         <span className="go">→</span>
       </button>
 
-      {f.oyin && <KosonOyinCard onNav={onNav} />}
-
+      {/* ⚠️ TARTIB (o'lchab tuzatildi 2026-08-03): rail AVVAL o'yin kartasidan KEYIN turardi.
+          390×844 (iPhone 14) da o'lchandi — rail'ning yuqori chekkasi y=761, suzuvchi pastki
+          menyu esa y=760 dan boshlanadi: ya'ni 9 ta xizmat ikonkasidan ekranga 0 PIKSEL
+          tushardi. 554px'lik o'yin posteri ularni butunlay itarib yuborgan edi. Endi rail
+          taksidan keyin, poster undan keyin: poster hamon ekranning ~85%ini egallaydi va
+          "BEPUL CHIPTA OLISH" tugmasi ham menyudan yuqorida qoladi. */}
       {(rail.length > 0) && (
         <div className="nh-rail">
           {rail.map((r) => (
             <button key={r.nav} className={`nh-svc${r.locked ? " locked" : ""}`} onClick={() => tapRail(r)}>
               <span className={`ic ${r.ic}`}>
-                {"img" in r && r.img
-                  ? <img className="nh-brand-ic" src={r.img} alt="" onError={(e) => ((e.target as HTMLImageElement).replaceWith(document.createTextNode(r.em)))} />
+                {"img" in r && r.img && !badIc.has(r.nav)
+                  ? <img className="nh-brand-ic" src={r.img} alt="" onError={() => setBadIc((s) => new Set(s).add(r.nav))} />
                   : r.em}
                 {r.locked && <span className="soon-bd" aria-hidden="true">🔒</span>}
               </span>
@@ -230,6 +316,8 @@ export function NewUyView({ me, onBook, onNav, onBanner }: { me: MeResponse; onB
           </button>
         </div>
       )}
+
+      {f.oyin && <KosonOyinCard onNav={onNav} />}
 
       {/* "Bugungi tavsiya" banneri o'yin yoniq bo'lganda chiqmaydi (ega qarori 2026-08-02) —
           o'rnini yuqoridagi Koson hero-kartasi oladi; o'yin o'chirilsa banner avvalgidek qaytadi. */}
@@ -273,6 +361,14 @@ export function NewUyView({ me, onBook, onNav, onBanner }: { me: MeResponse; onB
             ))}
           </div>
         </>
+      ) : feedErr ? (
+        // Tarmoq/server yiqildi — "tavsiya yo'q" EMAS, "yuklanmadi". Farqi muhim: birinchisida
+        // odam kutadi, ikkinchisida qayta uradi. Tugma bor, chunki yozuv harakat va'da qiladi (#14).
+        <div className="nh-err">
+          <span className="ei" aria-hidden="true">📡</span>
+          <span className="et">Tavsiyalar yuklanmadi — internet aloqasini tekshiring.</span>
+          <button className="eb" onClick={() => { haptic(); loadFeed(); }}>Qayta</button>
+        </div>
       ) : null}
 
       {!FOCUS_MODE && f.xizmatlar && ustas !== null && ustas.length > 0 && (

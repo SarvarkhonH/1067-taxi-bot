@@ -2272,6 +2272,11 @@ export function createApiServer(opts: ApiOptions = {}) {
       to: q.to,
       page: q.page ? Number(q.page) : undefined,
       pageSize: q.pageSize ? Number(q.pageSize) : undefined,
+      // ⚠️ `scope` UZATILISHI SHART. Avval bu satr yo'q edi: `OyinActivityFilter.scope` tipda bor,
+      // servis uni o'qiydi, lekin route HECH QACHON to'ldirmasdi — ya'ni "butun tarix" rejimi
+      // MAVJUD BO'LMAGAN funksiya edi (tip yolg'on aytardi). Noto'g'ri qiymat `undefined` bo'ladi
+      // → servis defolti ("season") ishlaydi, ya'ni jadval reyting bilan kelishgan holicha qoladi.
+      scope: q.scope === "all" ? "all" : q.scope === "season" ? "season" : undefined,
     }));
   });
   // ── 🛍 SHOP admin (owner-gated writes) ────────────────────────────────────────────────────────

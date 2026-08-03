@@ -113,8 +113,12 @@ export function validateSeasonInput(i: OyinSeasonInput, prevEndMs?: number | nul
   // ⚠️ Mavsum FINAL-48 qulfidan uzun bo'lishi SHART. Aks holda `buyTicket` birinchi
   // soniyadan boshlab `final_lock` qaytaradi: mijozlar ball yig'adi, chipta hech qachon
   // ololmaydi, ekranda butun mavsum "🔒 yopiq" turadi.
+  // ⚠️ Matn TEKSHIRUVDAN chiqariladi, qo'lda yozilmaydi. Avval shart `> 48 soat` edi-yu, xato
+  // matni "kamida 3 kun" derdi: 60 soatlik mavsum QABUL qilinardi, ega esa rad javobini kutardi
+  // (yoki aksincha — 3 kun deb kiritib, nega o'tmadi deb o'ylardi). Endi ikkalasi bitta sondan.
   if (endMs - startMs <= OYIN_FINAL_LOCK_MS) {
-    return { ok: false, error: "Mavsum kamida 3 kun bo'lishi kerak (oxirgi 48 soat chipta olish yopiq)" };
+    const lockH = Math.round(OYIN_FINAL_LOCK_MS / 3600_000);
+    return { ok: false, error: `Mavsum ${lockH} soatdan uzun bo'lishi kerak (oxirgi ${lockH} soat chipta olish yopiq)` };
   }
   if (endMs - startMs > 365 * 86400_000) return { ok: false, error: "Mavsum 1 yildan uzun bo'lolmaydi" };
   if (endMs <= Date.now()) return { ok: false, error: "O'tgan sanaga mavsum belgilab bo'lmaydi" };
