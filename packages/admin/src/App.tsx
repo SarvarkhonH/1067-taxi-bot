@@ -791,6 +791,25 @@ function StoryModerationCard() {
 }
 
 // kill-switch toggles + mashina fund + B2B corp registry
+// ── 💰 Sovrin narxi qiymatga ERGASHSIN (OYIN_YAKUNIY_DIZAYN §3) ────────────────────────────
+// Jonli prototipda katalog TESKARI edi: pech ~600 000 so'm bo'lib 600 ball, dazmol ~180 000
+// bo'lib 1 000 ball — bitta ball uchun pech 13× ko'p berardi. Natija: hamma faqat pechni oladi,
+// qolgani o'lik zaxira bo'lib qoladi va o'yin tanlovsiz qoladi. Shuning uchun panel `so'm/ball`
+// nisbatini o'lchaydi va katalog medianasidan 2× chetga chiqqan qatorni qizil bilan belgilaydi.
+/** "~120 000 so'm" → 120000. Raqam topilmasa null (valueLabel ERKIN matn — majburiy emas). */
+function parseSum(valueLabel: string): number | null {
+  const digits = valueLabel.replace(/[^\d]/g, "");
+  if (!digits) return null;
+  const n = Number(digits);
+  return Number.isFinite(n) && n > 0 ? n : null;
+}
+function median(xs: number[]): number | null {
+  if (!xs.length) return null;
+  const s = [...xs].sort((a, b) => a - b);
+  const m = Math.floor(s.length / 2);
+  return s.length % 2 ? (s[m] as number) : (((s[m - 1] as number) + (s[m] as number)) / 2);
+}
+
 function ControlCards() {
   const [flags, setFlags] = useState<{ name: string; on: boolean }[] | null>(null);
   const [fund, setFund] = useState(0);
@@ -938,6 +957,22 @@ function ControlCards() {
     }
   };
 
+  // Nisbat TAHRIRLANAYOTGAN qiymatlardan hisoblanadi (draft), saqlangandan emas — ega narxni
+  // yozayotgan paytdayoq ogohlantirish ko'rinsin, saqlab, tekshirib, qaytadan ochib emas.
+  const catalogRatio = (() => {
+    if (!catalog) return null;
+    const rows = catalog.map((p) => {
+      const d = catalogDraft[p.key];
+      const sum = parseSum(d?.valueLabel ?? p.valueLabel);
+      const price = Number(d?.price ?? p.price);
+      return { key: p.key, k: sum && price > 0 ? sum / price : null };
+    });
+    const med = median(rows.filter((r) => r.k != null).map((r) => r.k as number));
+    // Bitta sovrin bilan "median" ma'nosiz — solishtiradigan narsa yo'q.
+    if (med == null || rows.filter((r) => r.k != null).length < 2) return null;
+    return { med, byKey: Object.fromEntries(rows.map((r) => [r.key, r.k])) as Record<string, number | null> };
+  })();
+
   return (
     <>
       {bonusEcon && (
@@ -1035,6 +1070,12 @@ function ControlCards() {
         <p className="muted" style={{ margin: "0 0 8px", fontSize: 12 }}>
           Yangi sovrin qo'shish, mavjudini narxi/soni/rasmi bilan tahrirlash, vitrinadan yashirish yoki (chiptasi sotilmagan bo'lsa) butunlay o'chirish.
         </p>
+        {catalogRatio && (
+          <p className="muted" style={{ margin: "0 0 8px", fontSize: 12 }}>
+            📐 Katalog o'lchovi: <b>1 ball ≈ {Math.round(catalogRatio.med).toLocaleString("ru-RU")} so'm</b>.
+            Sovrin narxi shu o'lchovga ergashsa tanlov haqiqiy bo'ladi; 2× chetga chiqqan qator qizil bilan belgilanadi.
+          </p>
+        )}
         {catalog && (
           <div style={{ display: "grid", gap: 10, maxWidth: 640 }}>
             {catalog.map((p) => {
@@ -1060,6 +1101,25 @@ function ControlCards() {
                     <input type="number" min={1} value={d.limit} onChange={(e) => setD({ limit: e.target.value })} style={{ width: 70 }} />
                     <span className="muted" style={{ fontSize: 11 }}>sotilgan: {p.sold}</span>
                   </div>
+                  {(() => {
+                    const k = catalogRatio?.byKey[p.key];
+                    if (!catalogRatio || k == null) return null;
+                    const off = k / catalogRatio.med;
+                    const tavsiya = Math.max(1, Math.round((parseSum(d.valueLabel) ?? 0) / catalogRatio.med));
+                    if (off >= 2) return (
+                      <div style={{ fontSize: 11.5, color: "#ff6b6b", lineHeight: 1.5 }}>
+                        ⚠️ <b>Juda arzon</b>: 1 ball = {Math.round(k).toLocaleString("ru-RU")} so'm — katalog o'rtachasidan <b>{off.toFixed(1)}×</b> foydali.
+                        Hamma faqat shuni oladi. Tavsiya: <b>{tavsiya} ball</b>.
+                      </div>
+                    );
+                    if (off <= 0.5) return (
+                      <div style={{ fontSize: 11.5, color: "#ff6b6b", lineHeight: 1.5 }}>
+                        ⚠️ <b>Juda qimmat</b>: 1 ball = {Math.round(k).toLocaleString("ru-RU")} so'm — katalog o'rtachasidan <b>{(1 / off).toFixed(1)}×</b> yomon.
+                        Buni hech kim olmaydi. Tavsiya: <b>{tavsiya} ball</b>.
+                      </div>
+                    );
+                    return <div className="muted" style={{ fontSize: 11 }}>✓ 1 ball = {Math.round(k).toLocaleString("ru-RU")} so'm — o'lchovga mos</div>;
+                  })()}
                   <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
                     <input type="text" value={d.photoUrl} onChange={(e) => setD({ photoUrl: e.target.value })} placeholder="Rasm URL (ixtiyoriy — bo'sh = emoji)" style={{ flex: 1 }} />
                     <button className="btn sm" style={savedPrizeKey === p.key ? { background: "rgba(52,211,153,.25)", color: "#34d399" } : undefined} onClick={() => void saveCatalogPrize(p.key)}>{savedPrizeKey === p.key ? "✓ Saqlandi" : "Saqlash"}</button>

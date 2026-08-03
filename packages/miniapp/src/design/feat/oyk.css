@@ -110,6 +110,14 @@
   white-space: nowrap; cursor: pointer; transition: transform var(--dur-press);
 }
 .oyk-chip-rank:active { transform: scale(.95); }
+/* "?" — ma'lumot to'plami. Doim ko'rinadi, lekin eng jim element (yordam bosim qilmaydi). */
+.oyk-chip-help {
+  width: 26px; height: 26px; flex-shrink: 0; border-radius: 50%;
+  font-size: 13px; font-weight: 900; color: var(--oyk-text-3);
+  background: var(--oyk-fill); border: 1px solid var(--oyk-line);
+  cursor: pointer; transition: transform var(--dur-press);
+}
+.oyk-chip-help:active { transform: scale(.9); }
 
 /* ── xazina-hero ── */
 .oyk-hero {
@@ -629,35 +637,157 @@
   transition: transform var(--dur-press);
 }
 .oyk-howto:active { transform: scale(.98); }
-.oyk-howto-go { color: var(--oyk-text-3); }
-.oyk-howto-list { display: flex; flex-direction: column; gap: 2px; }
-.oyk-howto-row { display: flex; align-items: center; gap: 10px; padding: 9px 4px; border-bottom: 1px solid var(--oyk-line); }
-.oyk-howto-row:last-child { border-bottom: none; }
-.oyk-howto-ic { font-size: 18px; width: 24px; text-align: center; flex-shrink: 0; }
-.oyk-howto-lb { flex: 1; min-width: 0; font-size: 13px; font-weight: 700; display: flex; flex-direction: column; }
-.oyk-howto-lb small { font-size: 11px; font-weight: 400; color: var(--oyk-text-3); margin-top: 1px; }
-.oyk-howto-ball { font-size: 15px; font-weight: 900; color: var(--oyk-gold-deep); font-variant-numeric: tabular-nums; flex-shrink: 0; }
-.oyk-howto-tip { font-size: 12px; color: var(--oyk-text-2); line-height: 1.5; padding-top: 4px; }
-.oyk-howto-tip b { color: var(--oyk-text); }
 
-/* ── 🎟 Mening chiptalarim ── */
-.oyk-tk-list { display: flex; flex-direction: column; gap: 8px; }
-.oyk-tk {
-  display: flex; align-items: center; gap: 11px; padding: 10px 12px; border-radius: 14px;
-  background: var(--oyk-fill); border: 1px solid var(--oyk-line);
+.oyk-howto-go { color: var(--oyk-text-3); }
+/* `.oyk-howto-list/-row/-ic/-lb/-ball/-tip` va `.oyk-tk*` OLIB TASHLANDI: ball jadvali endi
+   varaqda emas EKRANDA (.oyk-ball*), chiptalar esa o'z tabida bilet-obyekti bo'lib (.oyk-tkt*). */
+/* ── 🎯 Maqsad-hero (YAKUNIY DIZAYN §1) ── */
+.oyk-hero-top { position: relative; display: flex; align-items: flex-start; gap: 12px; }
+.oyk-hero-side { flex: 1; min-width: 0; }
+.oyk-hero-goal {
+  display: inline-block; font-size: 9.5px; font-weight: 900; letter-spacing: .09em;
+  color: var(--oyk-gold-deep); background: var(--oyk-gold-pale); border-radius: 7px; padding: 3px 7px;
 }
-.oyk-tk-ic {
-  width: 44px; height: 44px; border-radius: 11px; flex-shrink: 0; font-size: 22px;
-  display: flex; align-items: center; justify-content: center; overflow: hidden;
-  background: linear-gradient(150deg, rgba(245,183,0,.16), rgba(110,90,255,.14));
+.oyk-hero-prize { font-size: 12px; color: var(--oyk-text-2); margin-top: 3px; }
+.oyk-hero-img {
+  position: relative; width: 74px; height: 62px; border-radius: 13px; flex-shrink: 0; overflow: hidden;
+  background: linear-gradient(150deg, rgba(245,183,0,.18), rgba(110,90,255,.15));
+  display: flex; align-items: center; justify-content: center;
 }
-.oyk-tk-ic img { width: 100%; height: 100%; object-fit: cover; }
-.oyk-tk-body { flex: 1; min-width: 0; }
-.oyk-tk-name { font-size: 13.5px; font-weight: 800; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.oyk-tk-meta { font-size: 11px; color: var(--oyk-text-3); font-variant-numeric: tabular-nums; }
-.oyk-tk-no {
-  font-size: 15px; font-weight: 900; color: var(--oyk-gold-deep); flex-shrink: 0;
-  font-variant-numeric: tabular-nums; letter-spacing: .02em;
+.oyk-hero-img img { width: 100%; height: 100%; object-fit: cover; }
+.oyk-hero-emoji { font-size: 32px; }
+
+/* 💡 Eng tez yo'l — alohida qator */
+.oyk-fast {
+  display: flex; align-items: center; gap: 7px; padding: 9px 12px; border-radius: 13px;
+  background: var(--oyk-gold-pale); color: var(--oyk-gold-deep); font-size: 11.5px; font-weight: 700;
 }
-.oyk-tk-note { font-size: 12px; color: var(--oyk-text-2); line-height: 1.55; padding-top: 4px; }
-.oyk-tk-note b { color: var(--oyk-text); }
+.oyk-fast-ic { font-size: 14px; }
+
+/* 🚕 Ikkita asosiy harakat — mukofot tugmaning o'zida */
+.oyk-acts { display: grid; grid-template-columns: 1fr 1fr; gap: 9px; }
+.oyk-act {
+  border: none; border-radius: 15px; padding: 12px 10px; color: #fff; text-align: left;
+  font-family: inherit; cursor: pointer; line-height: 1.25; transition: transform var(--dur-press);
+}
+.oyk-act:active { transform: scale(.97); }
+.oyk-act-ic { font-size: 19px; display: block; margin-bottom: 3px; }
+.oyk-act b { display: block; font-size: 12.5px; font-weight: 900; }
+.oyk-act small { font-size: 10.5px; opacity: .9; }
+/* "Safar qilish" BREND rangida — bizga daromad keltiradigan harakat ilova bilan bir xil his qilinsin */
+.oyk-act.is-ride { background: linear-gradient(140deg, #FDB022, #F79009); color: #2B1A00; }
+.oyk-act.is-invite { background: linear-gradient(140deg, #6B5BF0, #5B46F0); }
+
+/* 🚦 O'lchangan tanqislik */
+.oyk-scarce { font-size: 11px; font-weight: 800; border-radius: 9px; padding: 6px 10px; }
+.oyk-scarce.is-warn { background: var(--oyk-gold-pale); color: var(--oyk-gold-deep); }
+.oyk-scarce.is-hot { background: rgba(229,72,77,.10); color: var(--oyk-red-soft); }
+
+/* 🎯 Maqsad qilish */
+.oyk-goal-btn {
+  min-height: 40px; border: 1px solid var(--oyk-line); border-radius: 12px; background: var(--oyk-fill);
+  color: var(--oyk-text); font-size: 12px; font-weight: 800; font-family: inherit; cursor: pointer;
+  transition: transform var(--dur-press);
+}
+.oyk-goal-btn:active { transform: scale(.97); }
+.oyk-goal-on {
+  min-height: 40px; display: flex; align-items: center; justify-content: center;
+  border-radius: 12px; background: var(--oyk-gold-pale); color: var(--oyk-gold-deep);
+  font-size: 12px; font-weight: 800;
+}
+
+/* ── 🎟 Chipta — ko'rinadigan buyum (YAKUNIY DIZAYN §2) ── */
+.oyk-tkt { border-radius: 16px; overflow: hidden; background: var(--oyk-surface); box-shadow: var(--oyk-shadow); border: 1px solid var(--oyk-line); }
+.oyk-tkt-stub {
+  position: relative; padding: 14px 16px 15px; color: #fff;
+  background: linear-gradient(120deg, #6B5BF0, #5B46F0);
+}
+.oyk-tkt-stub::before, .oyk-tkt-stub::after {
+  content: ""; position: absolute; width: 15px; height: 15px; border-radius: 50%;
+  background: var(--oyk-bg-solid, #f1f3fa); right: 52px;
+}
+.oyk-tkt-stub::before { top: -8px; }
+.oyk-tkt-stub::after { bottom: -8px; }
+.oyk-tkt-brand { font-size: 8.5px; font-weight: 900; letter-spacing: .12em; opacity: .8; }
+.oyk-tkt-no { font-size: 20px; font-weight: 900; letter-spacing: .03em; margin-top: 4px; }
+.oyk-tkt-side {
+  position: absolute; right: 0; top: 0; bottom: 0; width: 52px;
+  border-left: 2px dashed rgba(255,255,255,.42);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 9.5px; font-weight: 800; letter-spacing: .1em; opacity: .85;
+  writing-mode: vertical-rl;
+}
+.oyk-tkt-body { display: flex; align-items: center; gap: 9px; padding: 10px 14px; }
+.oyk-tkt-info { flex: 1; min-width: 0; }
+.oyk-tkt-prize { font-size: 13px; font-weight: 900; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.oyk-tkt-when { font-size: 11px; color: var(--oyk-text-3); }
+.oyk-tkt-badge {
+  font-size: 10px; font-weight: 900; letter-spacing: .05em; border-radius: 8px; padding: 4px 8px;
+  background: rgba(31,157,85,.12); color: var(--oyk-green); flex-shrink: 0;
+}
+
+/* ── 💡 Ball jadvali — EKRANDA (YAKUNIY DIZAYN §4) ──────────────────────────────────────
+   Avval varaq ortida edi va deyarli hech kim ochmasdi: "nima qilsam ball ko'payadi?"
+   degan asosiy savol javobsiz qolardi. Endi ro'yxat oqimning bir qismi. */
+.oyk-ball {
+  background: var(--oyk-surface); border: 1px solid var(--oyk-line); border-radius: 20px;
+  box-shadow: var(--oyk-shadow); overflow: hidden;
+}
+.oyk-ball-head { padding: 13px 15px 9px; font-size: 14px; font-weight: 900; }
+.oyk-ball-list { display: flex; flex-direction: column; }
+.oyk-ball-row {
+  display: flex; align-items: center; gap: 10px; padding: 9px 15px;
+  border-top: 1px solid var(--oyk-line);
+}
+.oyk-ball-ic { font-size: 17px; width: 22px; text-align: center; flex-shrink: 0; }
+.oyk-ball-lb { flex: 1; min-width: 0; font-size: 12.5px; font-weight: 700; line-height: 1.25; }
+.oyk-ball-lb small { display: block; font-size: 10.5px; font-weight: 600; color: var(--oyk-text-3); margin-top: 1px; }
+.oyk-ball-num {
+  flex-shrink: 0; font-size: 13.5px; font-weight: 900; color: var(--oyk-violet-soft);
+  font-variant-numeric: tabular-nums;
+}
+/* Birinchi qator — eng katta mukofot. Ierarxiya ko'z bilan ham o'qilsin (ega qarori 2026-08-02). */
+.oyk-ball-row:first-child { background: rgba(110, 90, 255, .06); }
+.oyk-ball-row:first-child .oyk-ball-num { font-size: 15px; }
+.oyk-ball-chain {
+  padding: 11px 15px; font-size: 11.5px; line-height: 1.45; color: var(--oyk-violet-soft);
+  background: rgba(110, 90, 255, .07); border-top: 1px solid var(--oyk-line);
+}
+/* Doimiy ogohlantirish — ball hech qachon pulga aylanmaydi. */
+.oyk-ball-warn {
+  padding: 10px 15px; font-size: 11px; font-weight: 800; text-align: center;
+  color: var(--oyk-text-3); background: var(--oyk-fill); border-top: 1px solid var(--oyk-line);
+}
+
+/* ── ❓ Savol-javob varag'i ── */
+.oyk-info { display: flex; flex-direction: column; gap: 14px; }
+.oyk-info-b {
+  background: var(--oyk-fill); border: 1px solid var(--oyk-line); border-radius: 16px; padding: 12px 14px;
+}
+.oyk-info-t { font-size: 13.5px; font-weight: 900; margin-bottom: 5px; }
+.oyk-info-x { font-size: 12px; line-height: 1.55; color: var(--oyk-text-2); }
+
+/* ── 🎟 "Xariddan keyin qoladi" — xarid varag'idagi hisob ── */
+.oyk-buy-after {
+  background: var(--oyk-fill); border: 1px solid var(--oyk-line); border-radius: 14px;
+  padding: 4px 12px; margin-bottom: 10px;
+}
+.oyk-buy-after-r {
+  display: flex; align-items: center; justify-content: space-between; gap: 10px;
+  padding: 7px 0; font-size: 12px; color: var(--oyk-text-2);
+}
+.oyk-buy-after-r b { font-weight: 900; color: var(--oyk-text); font-variant-numeric: tabular-nums; }
+.oyk-buy-after-r b.is-minus { color: var(--oyk-red); }
+.oyk-buy-after-r.is-total { border-top: 1px solid var(--oyk-line); font-weight: 800; color: var(--oyk-text); }
+.oyk-buy-after-r.is-total b { font-size: 15px; color: var(--oyk-violet-soft); }
+
+/* ── 🚀 Mavsum boshlanmagan ekran — sanoq + sovrin ko'rgazmasi ── */
+.oyk-soon-top { display: flex; flex-direction: column; align-items: center; gap: 10px; text-align: center; padding: 18px 4px 2px; }
+.oyk-cdown { display: flex; gap: 8px; }
+.oyk-cdown-c {
+  min-width: 66px; padding: 9px 6px; border-radius: 16px;
+  background: var(--oyk-surface); border: 1px solid var(--oyk-line); box-shadow: var(--oyk-shadow);
+  display: flex; flex-direction: column; align-items: center; gap: 1px;
+}
+.oyk-cdown-c b { font-size: 26px; font-weight: 900; line-height: 1; color: var(--oyk-violet-soft); font-variant-numeric: tabular-nums; }
+.oyk-cdown-c small { font-size: 10px; font-weight: 800; color: var(--oyk-text-3); letter-spacing: .04em; }

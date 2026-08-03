@@ -230,8 +230,11 @@ export interface OyinStateResponse {
   season: OyinSeasonClientView;
   // 📸 Hikoya-poster holati (HIKOYA_POSTER_PLAN.md).
   story: OyinStoryState;
-  // 🎟 Mavsumda olingan chipta soni — "Mening chiptalarim" qatorini ko'rsatish uchun.
+  // 🎟 Mavsumda olingan chipta soni.
   ticketCount: number;
+  // 🎯 Mijoz TANLAGAN maqsad-sovrin (YAKUNIY DIZAYN §1). null = tanlamagan → eng arzoni.
+  // Hero shunga qarab chiziladi: "660 ball qoldi — Choy serviz". Mavhum "340 ball" o'rniga.
+  goalPrizeKey: string | null;
 }
 
 // ── 📸 HIKOYA-POSTER ─────────────────────────────────────────────────────────────────────────
@@ -294,6 +297,7 @@ export interface OyinPrizeView {
 /** 🎟 Mijozning MAVSUM chiptalari. Avval chipta raqami bayram-oynasida bir marta ko'rinib
  *  abadiy yo'qolardi — odam 600 ball to'lab qo'lida hech narsa qolmasdi. */
 export interface OyinMyTicket {
+  gno: number; // 🎟 GLOBAL noyob raqam (№ 729475) — chipta "ko'rinadigan buyum" bo'lgani uchun
   prizeKey: string;
   prizeName: string;
   prizeIcon: string;

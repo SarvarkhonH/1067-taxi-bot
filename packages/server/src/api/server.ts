@@ -1577,6 +1577,13 @@ export function createApiServer(opts: ApiOptions = {}) {
     const { getBoard } = await import("../services/oyinService");
     res.json(await getBoard(memberId));
   });
+  // 🎯 Maqsad-sovrinni tanlash — hero shunga qarab chiziladi.
+  app.post("/api/oyin/goal", requireUser, rateLimit(20), async (req, res) => {
+    const memberId = await getMemberId(res.locals.telegramId as string);
+    if (!memberId) { res.status(404).json({ error: "not linked" }); return; }
+    const { setGoalPrize } = await import("../services/oyinService");
+    res.json(await setGoalPrize(memberId, String((req.body as { prizeKey?: string })?.prizeKey ?? "")));
+  });
   app.get("/api/oyin/tickets", requireUser, async (_req, res) => {
     const memberId = await getMemberId(res.locals.telegramId as string);
     if (!memberId) { res.status(404).json({ error: "not linked" }); return; }

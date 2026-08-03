@@ -67,7 +67,10 @@ interface MemberBallRow {
 
 interface AppStateRow { key: string; value: string }
 
-interface TicketRecord { prizeKey: OyinPrizeKey; no: number; priceAtPurchase: number; ts: string }
+// `no` — sovrin ICHIDAGI ketma-ket raqam (N-limit hisobi shunga bog'liq, o'zgarmaydi).
+// `gno` — GLOBAL noyob raqam, mijozga ko'rsatiladi (chipta = ko'rinadigan buyum).
+// Eski chiptalarda `gno` yo'q — o'sha holda `no` ko'rsatiladi (moslik).
+interface TicketRecord { prizeKey: OyinPrizeKey; no: number; gno?: number; priceAtPurchase: number; ts: string }
 
 function parseTickets(raw: string | undefined): TicketRecord[] {
   if (!raw) return [];
@@ -405,7 +408,11 @@ export async function getOyinState(memberId: number): Promise<OyinStateResponse>
   const ticketCount = season.configured
     ? myTickets.filter((t) => ticketInSeason(t, season.startMs as number, season.endMs as number)).length
     : 0;
-  const topPrizeName = (await getCatalog()).filter((p) => p.active).sort((a, b) => b.price - a.price)[0]?.name ?? "sovrin";
+  const activeCatalog = (await getCatalog()).filter((p) => p.active);
+  const topPrizeName = [...activeCatalog].sort((a, b) => b.price - a.price)[0]?.name ?? "sovrin";
+  // Maqsad: sovrin keyin o'chirilgan/yashirilgan bo'lsa null (hero avtomatik eng arzonga tushadi).
+  const goalRow = await prisma.appState.findUnique({ where: { key: `${GOAL_PREFIX}${memberId}` } });
+  const goalPrizeKey = goalRow && activeCatalog.some((p) => p.key === goalRow.value) ? goalRow.value : null;
   const storyState = await storyStateOf(memberId, econ.oyinStoryProofBall ?? 0, {
     ism: mine?.name ?? "Do'st",
     chipta: ticketCount,
@@ -443,6 +450,7 @@ export async function getOyinState(memberId: number): Promise<OyinStateResponse>
     week,
     story: storyState,
     ticketCount,
+    goalPrizeKey,
     season: {
       configured: season.configured,
       phase: season.phase,
@@ -551,6 +559,20 @@ export async function adminListCatalog(): Promise<OyinAdminPrizeRow[]> {
   return catalog.map((p) => ({ ...p, sold: soldMap.get(p.key) ?? 0 }));
 }
 
+// 🎯 Maqsad-sovrin (YAKUNIY DIZAYN §1): mijoz qaysi sovrin uchun ball yig'ayotganini O'ZI
+// tanlaydi. Avval tizim eng arzonini avtomatik olardi — mavhum "340 ball" o'rniga
+// "Choy servizgacha 660 qoldi" degan aniq maqsad ancha kuchli.
+const GOAL_PREFIX = "oyin:goal:";
+
+export async function setGoalPrize(memberId: number, prizeKey: string): Promise<{ ok: boolean }> {
+  const catalog = await getCatalog();
+  // Faol bo'lmagan/mavjud bo'lmagan sovrin maqsad bo'la olmaydi (hero bo'sh qolmasin).
+  if (!catalog.some((p) => p.key === prizeKey && p.active)) return { ok: false };
+  const key = `${GOAL_PREFIX}${memberId}`;
+  await prisma.appState.upsert({ where: { key }, create: { key, value: prizeKey }, update: { value: prizeKey } });
+  return { ok: true };
+}
+
 /** 🎟 Mijozning mavsum chiptalari — sovrin nomi/rasmi bilan birga. Chipta raqami avval faqat
  *  bayram-oynasida bir marta ko'rinardi va qayta ko'rishning YO'LI yo'q edi. */
 export async function myTickets(memberId: number): Promise<OyinMyTicketsResponse> {
@@ -571,6 +593,7 @@ export async function myTickets(memberId: number): Promise<OyinMyTicketsResponse
         prizeName: p?.name ?? t.prizeKey,
         prizeIcon: p?.icon ?? "🎟",
         photoUrl: p?.photoUrl ?? null,
+        gno: t.gno ?? t.no, // eski chiptalarda global raqam yo'q — sovrin-ichi raqami ko'rsatiladi
         no: t.no,
         at: t.ts,
         price: t.priceAtPurchase,
@@ -672,6 +695,20 @@ async function reserveSoldSlot(prizeKey: OyinPrizeKey, limit: number): Promise<n
  *  BUTUN oqimni sinab ko'radi. shopService.buyProduct / classifiedService.buyTopBoost / ravella
  *  bilan AYNAN bir xil naqsh; avtorizatsiya route qatlamida qoladi, servis faqat boolean oladi.
  *  ⚠️ preview BAYROQNI aylanib o'tadi, MAVSUMNI emas — mavsum mahsulot qoidasi, ega uchun ham. */
+/** 🎟 Global chipta raqami — butun tizim bo'ylab noyob. `reserveSoldSlot` bilan bir xil atomik
+ *  naqsh (raw SQL upsert-increment), ya'ni parallel xaridlarda ham takrorlanmaydi.
+ *  Boshlang'ich 729474 — birinchi chipta 729475 bo'ladi (dizayndagi namuna raqam). */
+async function nextGlobalTicketNo(): Promise<number> {
+  const key = "oyin:ticketno";
+  await prisma.$executeRaw`
+    INSERT INTO "AppState" ("key","value","updatedAt")
+    VALUES (${key}, '729475', NOW())
+    ON CONFLICT ("key") DO UPDATE
+      SET "value" = CAST((CAST("AppState"."value" AS INTEGER) + 1) AS TEXT), "updatedAt" = NOW()`;
+  const row = await prisma.appState.findUnique({ where: { key } });
+  return row ? Number(row.value) || 0 : 0;
+}
+
 export async function buyTicket(memberId: number, prizeKeyRaw: string, preview = false): Promise<OyinBuyResult> {
   if (!preview && !(await featureOn("oyin"))) return { ok: false, reason: "off" };
   if ((await getSeason()).phase !== "active") return { ok: false, reason: "season_off" };
@@ -703,7 +740,8 @@ export async function buyTicket(memberId: number, prizeKeyRaw: string, preview =
     const key = `oyin:tickets:${memberId}`;
     const row = await prisma.appState.findUnique({ where: { key } });
     const tickets = parseTickets(row?.value);
-    tickets.push({ prizeKey: prize.key, no: ticketNo, priceAtPurchase: prize.price, ts: new Date().toISOString() });
+    const gno = await nextGlobalTicketNo();
+    tickets.push({ prizeKey: prize.key, no: ticketNo, gno, priceAtPurchase: prize.price, ts: new Date().toISOString() });
     await prisma.appState.upsert({
       where: { key },
       create: { key, value: JSON.stringify(tickets) },

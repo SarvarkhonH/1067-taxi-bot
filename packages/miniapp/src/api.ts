@@ -303,6 +303,7 @@ export const api = {
   // serverda kunlik-kirish belgisi ham qo'yiladi ("miniapp ochish" = kirish, alohida POST shart emas).
   oyinThanks: (friendMemberId: number) => post<OyinThanksResult>("/api/oyin/thanks", { friendMemberId }),
   oyinStory: (url: string) => post<OyinStorySubmitResult>("/api/oyin/story", { url }),
+  oyinGoal: (prizeKey: string) => post<{ ok: boolean }>("/api/oyin/goal", { prizeKey }),
   oyinTickets: () => get<OyinMyTicketsResponse>("/api/oyin/tickets"),
   oyinTeaser: () => get<OyinTeaserResponse>("/api/oyin/teaser"),
   oyinState: () => get<OyinStateResponse>("/api/oyin/state"),
