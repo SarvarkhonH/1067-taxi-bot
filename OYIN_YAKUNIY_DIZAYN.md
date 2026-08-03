@@ -187,22 +187,32 @@ do'stlar ro'yxati (Rahmat ayt / Uyg'ot) · reyting · "Do'st chaqirish".
 
 ## 8. Kodda nima o'zgaradi
 
-| # | O'zgarish | Hajm |
-|:--:|---|:--:|
-| 1 | Maqsad-sovrin: `oyin:goal:<id>`, `POST /api/oyin/goal`, hero qayta yozilishi | O |
-| 2 | Chipta **global raqami** + tiraj **vaqti** | O |
-| 3 | "Chiptalarim" varaqdan **tabga** chiqadi, bilet grafikasi | O |
-| 4 | Ball jadvali varaqdan **ekranga**, "ball pul emas" qatori | K |
-| 5 | Tugmalarga mukofot, sovrin kartasiga "olingan/qolgan" | K |
-| 6 | O'lchangan tanqislik (3 daraja) | K |
-| 7 | "Xariddan keyin qoladi" | K |
-| 8 | Ma'lumot to'plami ("?" ortida 4 ekran) | O |
-| 9 | Countdown va tiraj-kuni ekranlari | O |
-| 10 | G'oliblar: yozish + ko'rsatish | **KT** |
-| 11 | Admin: narx/qiymat nisbati ogohlantirishi | K |
-| 12 | *(ixtiyoriy)* 25-chipta qulfi + byudjet hisobi panelda | **KT** |
+| # | O'zgarish | Hajm | Holat |
+|:--:|---|:--:|---|
+| 1 | Maqsad-sovrin: `oyin:goal:<id>`, `POST /api/oyin/goal`, hero qayta yozilishi | O | ✅ `67d883f4` |
+| 2 | Chipta **global raqami** + tiraj **vaqti** | O | ✅ `67d883f4` |
+| 3 | "Chiptalarim" varaqdan **tabga** chiqadi, bilet grafikasi | O | ✅ `67d883f4` |
+| 4 | Ball jadvali varaqdan **ekranga**, "ball pul emas" qatori | K | ✅ `67d883f4` |
+| 5 | Tugmalarga mukofot, sovrin kartasiga "olingan/qolgan" | K | ✅ `67d883f4` |
+| 6 | O'lchangan tanqislik (3 daraja) | K | ✅ `67d883f4` |
+| 7 | "Xariddan keyin qoladi" | K | ✅ `67d883f4` |
+| 8 | Ma'lumot to'plami ("?" ortida 4 ekran) | O | ✅ `67d883f4` |
+| 9 | Countdown va tiraj-kuni ekranlari | O | ⚠️ **yarim** — countdown ✅, tiraj-KUNI ekrani ❌ |
+| 10 | G'oliblar: yozish + ko'rsatish | **KT** | ❌ boshlanmagan |
+| 11 | Admin: narx/qiymat nisbati ogohlantirishi | K | ✅ `67d883f4` |
+| 12 | *(ixtiyoriy)* 25-chipta qulfi + byudjet hisobi panelda | **KT** | ❌ **egadan raqam kutilmoqda** (§5) |
 
 **K** kichik · **O** o'rta · **KT** katta
+
+**Qolgan uchtasi nega qolgani:**
+- **№9 ikkinchi yarmi (tiraj-kuni ekrani)** — g'oliblar yozilmagani uchun ko'rsatadigan narsa yo'q;
+  №10 dan keyin ma'noga ega bo'ladi.
+- **№10 (g'oliblar)** — `drawExport` hozir READ-ONLY: g'olibni TANLAYDIGAN va YOZADIGAN qadam
+  yo'q. Bu pul-tegishli qaror (kim yutdi — qaytarib bo'lmaydi), shuning uchun alohida DoD talab
+  qiladi, UI ishiga qo'shib ketilmaydi.
+- **№12 (25-chipta qulfi)** — §5 hisobi tayyor, lekin bitta kirish raqami yetishmaydi:
+  **bitta safardan sizga qancha sof daromad qoladi?** Egadan shu raqam kelsa, byudjet o'zi
+  chiqadi (1 000 so'm/safar → pech qo'shsa bo'ladi · 500 → dazmol · 200 → faqat voucher).
 
 ---
 
