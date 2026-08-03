@@ -40,6 +40,7 @@ import {
   type OyinVitrinaResponse,
   type OyinAdminActionResult,
   type OyinAdminMemberDetail,
+  type OyinAdminMemberHit,
   type OyinBallAdjustEntry,
   type OyinBallAdjustInput,
   type OyinFreezeState,
@@ -1363,9 +1364,25 @@ export async function thankFriend(memberId: number, friendMemberId: number, prev
   // Blok va "bildirishnoma o'chiq" SAQLANADI; `kind` ichida yuboruvchi id'si — bitta odam bitta
   // do'stiga kuniga bir marta, ya'ni spam yo'li ochilmaydi.
   const { notifyUserInitiated } = await import("./notifyService");
+  // ⚠️ MATN 2026-08-03 da TUZATILDI (ega ko'rib topdi). Ikki xato bor edi:
+  //  1. «Siz ham o'yinga qo'shiling» — bu xabar FAQAT taklif juftligi bor va SAFAR QILGAN
+  //     odamga boradi (yuqoridagi `pair` tekshiruvi), ya'ni u ALLAQACHON o'yin ichida.
+  //     Unga begonaday murojaat qilinardi.
+  //  2. Tugma YO'Q edi. Matn harakat va'da qilardi ("qo'shiling"), bosadigan joy yo'q —
+  //     DIZAYN_QOIDALARI #14 buzilishi. Rejada tugma yozilgan, qurilmagan.
+  // Raqam KNOBDAN olinadi: qotirilsa ega knobni o'zgartirganda xabar yolg'on aytardi.
+  const econ = await getBonusEcon();
+  const perRide = econ.oyinReferRideBall ?? 0;
+  const { appBtn } = await import("../bot/webAppUrl");
   const sent = await notifyUserInitiated(
     bot, friendTu.id, friendMemberId, `oyin_thanks:${memberId}`,
-    `🤝 <b>${shortName(myTu)}</b> sizga rahmat aytdi!\n\nSizning safaringiz unga ball olib keldi. Siz ham o'yinga qo'shiling — sovrinlar kutmoqda 🎁`,
+    `🤝 <b>${shortName(myTu)}</b> sizga rahmat aytdi!\n\n`
+      + (perRide > 0
+        ? `Bugungi safaringiz unga <b>${perRide} ball</b> olib keldi. Sizda ham ball yig'ilyapti — sovrinlarni ko'ring 🎁`
+        : `Safaringiz unga ball olib keldi. Sizda ham ball yig'ilyapti — sovrinlarni ko'ring 🎁`),
+    // `appBtn` O'ZI `{reply_markup:…}` qaytaradi — qayta o'rash tugmani yo'q qilardi.
+    // Klient WebApp'ni qo'llab-quvvatlamasa `undefined` qaytadi va xabar tugmasiz ketadi.
+    appBtn("🎮 O'yinni ochish", "oyin"),
   );
   if (!sent.ok) {
     // Har sabab O'ZI aytiladi — mijozga yolg'on tashxis qo'yilmaydi.
@@ -1671,6 +1688,45 @@ export async function adminSetFreeze(frozen: boolean): Promise<OyinFreezeState> 
   const value = JSON.stringify({ at: state.at, ticketCount: state.ticketCount });
   await prisma.appState.upsert({ where: { key: FREEZE_KEY }, create: { key: FREEZE_KEY, value }, update: { value } });
   return state;
+}
+
+/** 🔎 A'zo qidiruvi: raqamli `memberId`, telefon (bo'lak ham bo'ladi) yoki ism/username.
+ *  ⚠️ Nega kerak: `adminMemberDetail` faqat `memberId` oladi, ega esa o'z memberId'sini bilmaydi —
+ *  jonli sinovda kartochka shu sababdan ishlamadi. Telefon/ism bo'yicha qidiruv shu to'siqni
+ *  olib tashlaydi. Natija 10 ta bilan cheklangan (admin paneli, cheksiz ro'yxat kerak emas). */
+export async function adminFindMembers(q: string): Promise<OyinAdminMemberHit[]> {
+  const s = (q || "").trim();
+  if (!s) return [];
+  const map = await computeBallMap();
+  const asId = Number(s);
+  // Aniq ID topilsa — boshqa hech narsa qidirilmaydi (eng aniq javob birinchi).
+  if (Number.isFinite(asId) && asId > 0) {
+    const row = map.get(asId);
+    if (row) {
+      const tu = await prisma.telegramUser.findFirst({ where: { memberId: asId }, select: { phone: true } });
+      return [{ memberId: asId, name: row.name, phone: tu?.phone ?? null, ball: row.breakdown.ball }];
+    }
+  }
+  // ⚠️ Telefon raqamlari bazada har xil formatda ("+998…", "998…", probel bilan) — faqat
+  // RAQAMLAR bo'yicha solishtiramiz, aks holda ega o'z raqamini yozib hech nima topmasdi.
+  const digits = s.replace(/\D/g, "");
+  const needle = s.toLowerCase();
+  const tus = await prisma.telegramUser.findMany({
+    where: { memberId: { not: null } },
+    select: { memberId: true, phone: true, firstName: true, lastName: true, username: true },
+  });
+  const hits: OyinAdminMemberHit[] = [];
+  for (const tu of tus) {
+    if (!tu.memberId) continue;
+    const row = map.get(tu.memberId);
+    if (!row) continue;
+    const phoneDigits = (tu.phone ?? "").replace(/\D/g, "");
+    const nameHit = shortName(tu).toLowerCase().includes(needle) || (tu.username ?? "").toLowerCase().includes(needle);
+    const phoneHit = digits.length >= 4 && phoneDigits.includes(digits);
+    if (nameHit || phoneHit) hits.push({ memberId: tu.memberId, name: row.name, phone: tu.phone ?? null, ball: row.breakdown.ball });
+    if (hits.length >= 10) break;
+  }
+  return hits;
 }
 
 /** 🔍 Bitta a'zoning TO'LIQ holati — 12 manba alohida, chiptalari, jazolari, tuzatish jurnali.

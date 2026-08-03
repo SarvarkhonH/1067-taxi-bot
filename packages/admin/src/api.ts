@@ -24,6 +24,7 @@ import type {
   OyinActivityResponse,
   OyinAdminActionResult,
   OyinAdminMemberDetail,
+  OyinAdminMemberHit,
   OyinAdminPrizeRow,
   OyinDeleteResult,
   OyinFreezeState,
@@ -153,6 +154,7 @@ export const adminApi = {
     postJson<{ prizes: OyinAdminPrizeRow[] }>("/api/admin/oyin/prize/active", { key, active }),
   deleteOyinPrize: (key: string) => postJson<OyinDeleteResult>("/api/admin/oyin/prize/delete", { key }),
   // ── 🛠 O'yin nazorati (ega talabi 2026-08-03: "oddiy kuzatuv emas") ────────────────────────
+  oyinFind: (q: string) => req<{ hits: OyinAdminMemberHit[] }>(`/api/admin/oyin/find?q=${encodeURIComponent(q)}`),
   oyinMember: (memberId: number) => req<OyinAdminMemberDetail>(`/api/admin/oyin/member/${memberId}`),
   oyinAdjustBall: (memberId: number, ball: number, reason: string) =>
     postJson<OyinAdminActionResult>("/api/admin/oyin/ball", { memberId, ball, reason }),

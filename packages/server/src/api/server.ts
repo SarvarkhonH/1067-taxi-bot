@@ -2263,6 +2263,12 @@ export function createApiServer(opts: ApiOptions = {}) {
   // adolatga tegadi, operator-token bilan bajarilmasligi kerak.
   // ⚠️ HAR BIRI `alertAdmins` bilan e'lon qilinadi. Loyiha qoidasi (CLAUDE.md): jim toggle TAQIQ —
   // ega o'z telefonida ko'rmagan harakat keyin "men qilmadim" bahsiga aylanadi.
+  // 🔎 Qidiruv: ID, telefon yoki ism. Ega o'z `memberId`sini bilmaydi — jonli sinovda
+  // kartochka shu sababdan ochilmadi ("admin panel qo'shib bo'lmadiku").
+  app.get("/api/admin/oyin/find", requireAdmin, async (req, res) => {
+    const { adminFindMembers } = await import("../services/oyinService");
+    res.json({ hits: await adminFindMembers(String((req.query as { q?: string }).q ?? "")) });
+  });
   app.get("/api/admin/oyin/member/:id", requireAdmin, async (req, res) => {
     const { adminMemberDetail } = await import("../services/oyinService");
     const d = await adminMemberDetail(Number(req.params.id));

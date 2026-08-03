@@ -310,6 +310,15 @@ export interface OyinAdminMemberDetail {
   tickets: OyinMyTicket[];
   adjustLog: OyinBallAdjustEntry[];
 }
+/** 🔎 A'zo qidiruvi natijasi. Ega o'z `memberId`sini YODDA SAQLAMAYDI — jonli sinovda aynan shu
+ *  to'siq bo'ldi ("admin panel qo'shib bo'lmadiku"): kartochka faqat raqamli ID qabul qilardi.
+ *  Endi telefon yoki ism bilan ham topiladi. */
+export interface OyinAdminMemberHit {
+  memberId: number;
+  name: string;
+  phone: string | null;
+  ball: number;
+}
 export interface OyinBallAdjustEntry {
   ball: number; // musbat = qo'shildi, manfiy = olindi
   reason: string;

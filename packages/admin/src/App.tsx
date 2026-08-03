@@ -37,6 +37,7 @@ import {
   type OyinActivityAction,
   type OyinActivityResponse,
   type OyinAdminMemberDetail,
+  type OyinAdminMemberHit,
   type OyinAdminPrizeRow,
   type OyinBallBreakdown,
   type OyinFreezeState,
@@ -5831,6 +5832,7 @@ function IntercityAdmin() {
 function OyinControlCard() {
   const [idInput, setIdInput] = useState("");
   const [d, setD] = useState<OyinAdminMemberDetail | null>(null);
+  const [hits, setHits] = useState<OyinAdminMemberHit[] | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [freeze, setFreeze] = useState<OyinFreezeState | null>(null);
@@ -5840,10 +5842,22 @@ function OyinControlCard() {
   useEffect(() => { adminApi.oyinFreeze().then(setFreeze).catch(() => setFreeze(null)); }, []);
 
   const load = async (id: number) => {
-    setBusy(true); setErr(null);
+    setBusy(true); setErr(null); setHits(null);
     try { setD(await adminApi.oyinMember(id)); }
     catch { setD(null); setErr(`#${id} topilmadi — bu a'zo o'yin ro'yxatida yo'q (raqami ulanganmi?)`); }
     finally { setBusy(false); }
+  };
+  // 🔎 ID, telefon yoki ism. Avval FAQAT raqamli ID qabul qilinardi va ega o'z memberId'sini
+  // bilmagani uchun kartochkani umuman ocha olmadi (jonli sinov, 2026-08-03).
+  const search = async () => {
+    const q = idInput.trim();
+    if (!q) return;
+    setBusy(true); setErr(null); setD(null); setHits(null);
+    const r = await adminApi.oyinFind(q).catch(() => null);
+    setBusy(false);
+    if (!r || r.hits.length === 0) { setErr(`«${q}» bo'yicha hech kim topilmadi. ID, telefon (masalan 901234567) yoki ism yozing.`); return; }
+    if (r.hits.length === 1 && r.hits[0]) { void load(r.hits[0].memberId); return; }
+    setHits(r.hits);
   };
   const reload = () => { if (d) void load(d.memberId); };
 
@@ -5911,11 +5925,34 @@ function OyinControlCard() {
       </div>
 
       <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 12 }}>
-        <input value={idInput} onChange={(e) => setIdInput(e.target.value)} placeholder="A'zo ID (masalan 1234)" style={{ maxWidth: 200 }} />
-        <button className="btn" disabled={busy || !idInput.trim()} onClick={() => void load(Number(idInput.trim()))}>🔍 Ochish</button>
+        <input
+          value={idInput}
+          onChange={(e) => setIdInput(e.target.value)}
+          onKeyDown={(e) => { if (e.key === "Enter") void search(); }}
+          placeholder="ID, telefon yoki ism"
+          style={{ maxWidth: 260 }}
+        />
+        <button className="btn" disabled={busy || !idInput.trim()} onClick={() => void search()}>🔍 Qidirish</button>
         {d && <button className="btn" disabled={busy} onClick={reload}>↻ Yangilash</button>}
       </div>
       {err && <div style={{ fontSize: 12.5, color: "#ff6b6b", marginBottom: 10 }}>{err}</div>}
+      {hits && hits.length > 0 && (
+        <div className="table-wrap" style={{ marginBottom: 12 }}>
+          <table>
+            <thead><tr><th>A'zo</th><th>Telefon</th><th className="num">Ball</th><th /></tr></thead>
+            <tbody>
+              {hits.map((h) => (
+                <tr key={h.memberId}>
+                  <td className="td-name">{h.name} <span className="muted">#{h.memberId}</span></td>
+                  <td className="muted">{h.phone ?? "—"}</td>
+                  <td className="num strong">{formatNumber(h.ball)}</td>
+                  <td><button className="btn" disabled={busy} onClick={() => void load(h.memberId)}>Ochish</button></td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
 
       {d && (
         <>
