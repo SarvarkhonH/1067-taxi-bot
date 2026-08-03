@@ -101,6 +101,52 @@ export interface OyinPrizeUpsertInput {
 }
 export interface OyinAdminPrizeRow extends OyinCatalogPrize {
   sold: number; // nazorat uchun — nechta chipta allaqachon sotilgan (o'chirish xavfsizligini ko'rsatadi)
+  minSell: number; // 🛡 tirajda o'ynalishi uchun kerak bo'lgan chipta soni (oyinMinSellPct dan)
+  willDraw: boolean; // sold >= minSell — hozirgi holatda tirajga tushadimi
+}
+
+// ── 💰 MAVSUM BYUDJETI (ega talabi 2026-08-03: "aqlli hisoblash kerakmi menga tavsiya kerak") ──
+// Panel avval TESKARI ishlardi: ega sovrinni qo'yardi, panel esa faqat KEYIN foizni aytardi.
+// Natijada jonli katalog 1003% xarajat bilan turib qoldi. Endi byudjet BIRINCHI: real safar
+// sonidan boshlanadi, katalog esa unga sig'ishi kerak.
+export interface OyinBudgetView {
+  rides30d: number; // o'tgan 30 kundagi REAL safarlar (taxmin EMAS — RideReward dan)
+  seasonDays: number; // mavsum uzunligi (byudjet shunga proporsional)
+  projectedRides: number; // rides30d × (seasonDays / 30)
+  somPerRide: number; // ega komissiyasi (knobdan)
+  revenueSom: number; // projectedRides × somPerRide
+  budgetSom: number; // revenueSom × targetPct — katalog SHUNDAN oshmasligi kerak
+  catalogSom: number; // hozirgi faol katalog qiymati
+  overBudget: boolean;
+  targetPct: number;
+}
+
+/** 🎯 "Necha safarlik" o'lchovi — ega ball bilan emas, MEHNAT bilan o'ylaydi.
+ *  `ballPrice = rides × rideBall` · `slots = value / (targetPct × ballPrice × somPerBall)`
+ *  Jonli xato (2026-08-03): 900 000 so'mlik pech 600 ball × 15 chipta qilib qo'yilgan edi —
+ *  ya'ni 4 safarlik mehnat va 15 ta o'rin. To'g'risi ~30 safar (4 500 ball) va ~133 o'rin. */
+export interface OyinRidePlan {
+  ballPrice: number;
+  slots: number;
+  costPct: number; // shu narx+o'rin bilan haqiqiy xarajat foizi
+  ballCapacity: number; // slots × ballPrice — sotilib bo'lgach yig'iladigan ball
+}
+export function oyinPlanFromRides(
+  valueSom: number,
+  rides: number,
+  rideBall: number,
+  targetPct = OYIN_TARGET_COST_PCT,
+): OyinRidePlan {
+  const v = Math.max(0, Math.round(valueSom));
+  const r = Math.max(1, Math.round(rides));
+  const rb = Math.max(1, Math.round(rideBall));
+  const a = Math.max(0.01, targetPct / 100);
+  // 100 ga yaxlitlash — ekranda "4 537 ball" emas, "4 500 ball" turadi (o'qiladigan raqam).
+  const ballPrice = Math.max(100, Math.round((r * rb) / 100) * 100);
+  const slots = Math.max(1, Math.ceil(v / (a * ballPrice * OYIN_SOM_PER_BALL)));
+  const ballCapacity = slots * ballPrice;
+  const costPct = ballCapacity > 0 ? (v / (ballCapacity * OYIN_SOM_PER_BALL)) * 100 : 0;
+  return { ballPrice, slots, costPct, ballCapacity };
 }
 export interface OyinDeleteResult {
   ok: boolean;
@@ -292,6 +338,9 @@ export interface OyinDrawExport {
   // chetlatilgan a'zo chiptasi). "Ro'yxat qisqartirilgan" ayblovi raqam bilan javob topadi.
   excludedTest: number;
   excludedBanned: number;
+  // 🛡 Chegaraga yetmagani uchun O'YNALMAYDIGAN sovrinlar. Eksportdan jimgina tushib qolmaydi —
+  // nomi, sotilgani va kerakli soni bilan alohida sanaladi (jonli efirda savol berilsa javob bor).
+  skippedPrizes: { prizeKey: string; name: string; sold: number; minSell: number }[];
 }
 
 // ── 🛠 ADMIN NAZORATI (ega talabi 2026-08-03: "oddiy kuzatuv emas") ────────────────────────────
@@ -519,6 +568,10 @@ export interface OyinPrizeView {
   mine: number; // shu foydalanuvchining shu sovringa nechta chiptasi bor
   chancePct: number | null; // null = hali chiptasi yo'q; aks holda mine/sold %
   photoUrl: string | null; // admin qo'ygan real rasm — null bo'lsa `icon` emoji fallback ishlatiladi
+  // 🛡 TIRAJ QO'RIG'I — mijozga OLDINDAN aytiladi. Yashirin shart ishonchni buzadi: odam ball
+  // sarflab chipta oladi, keyin "yetarli sotilmadi" deyilishi kutilmagan bo'lmasligi kerak.
+  minSell: number; // o'ynalishi uchun kerak bo'lgan chipta soni
+  willDraw: boolean; // hozirgi holatda tirajga tushadimi (sold >= minSell)
 }
 
 /** 🎟 Mijozning MAVSUM chiptalari. Avval chipta raqami bayram-oynasida bir marta ko'rinib

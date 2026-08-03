@@ -2263,6 +2263,23 @@ export function createApiServer(opts: ApiOptions = {}) {
   // adolatga tegadi, operator-token bilan bajarilmasligi kerak.
   // ⚠️ HAR BIRI `alertAdmins` bilan e'lon qilinadi. Loyiha qoidasi (CLAUDE.md): jim toggle TAQIQ —
   // ega o'z telefonida ko'rmagan harakat keyin "men qilmadim" bahsiga aylanadi.
+  // 💰 Mavsum byudjeti — REAL safar sonidan (taxmin emas). Panel avval teskari ishlardi:
+  // sovrin qo'yilgach foiz aytilardi va katalog 1003% bo'lib qolgan edi.
+  app.get("/api/admin/oyin/budget", requireAdmin, async (_req, res) => {
+    const { adminBudget } = await import("../services/oyinService");
+    res.json(await adminBudget());
+  });
+  // 🛡 Sovrinning HAMMA chiptasini bekor qilish (ball egalariga qaytadi). Chegaraga yetmagan
+  // sovrinni FINAL-48 dan OLDIN olib tashlash uchun — mijozga qayta sarflashga vaqt qolsin.
+  app.post("/api/admin/oyin/prize/cancel-tickets", requireAdmin, requireOwner, rateLimit(10), async (req, res) => {
+    const b = req.body as { key?: string };
+    if (typeof b?.key !== "string" || !b.key) { res.status(400).json({ error: "key required" }); return; }
+    const { adminCancelPrizeTickets } = await import("../services/oyinService");
+    const r = await adminCancelPrizeTickets(b.key);
+    const { alertAdmins } = await import("../services/economyService");
+    await alertAdmins(`🛡 <b>Sovrin chiptalari bekor qilindi</b>\n«${b.key}» — ${r.cancelled} ta chipta, ${r.members} ta a'zo.\nBall egalariga qaytarildi, o'rinlar bo'shatildi.`).catch(() => undefined);
+    res.json(r);
+  });
   // 🔎 Qidiruv: ID, telefon yoki ism. Ega o'z `memberId`sini bilmaydi — jonli sinovda
   // kartochka shu sababdan ochilmadi ("admin panel qo'shib bo'lmadiku").
   app.get("/api/admin/oyin/find", requireAdmin, async (req, res) => {

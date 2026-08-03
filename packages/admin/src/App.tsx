@@ -39,6 +39,8 @@ import {
   type OyinAdminMemberDetail,
   type OyinAdminMemberHit,
   type OyinAdminPrizeRow,
+  type OyinBudgetView,
+  oyinPlanFromRides,
   type OyinBallBreakdown,
   type OyinFreezeState,
   type OyinPosterText,
@@ -252,7 +254,7 @@ export function App() {
           {tab === "restoran" && (<><RestoranAdminView /><RestoranCatalogAdminView /></>)}
           {tab === "ravella" && <RavellaAdminView />}
           {tab === "jamoa" && <JamoaAdminView />}
-          {tab === "oyin" && <><OyinSeasonMetricsCard /><OyinControlCard /><OyinActivityView /></>}
+          {tab === "oyin" && <><OyinBudgetCard /><OyinSeasonMetricsCard /><OyinControlCard /><OyinActivityView /></>}
           {tab === "bilim" && <KnowledgeAdminView />}
           {tab === "topshiriq" && <><QuickAnnounceView /><CampaignsView /><DriverMissionsView /></>}
           {tab === "actions" && <><ActionsView onHistory={() => goTab("broadcasts")} /><ControlCards /></>}
@@ -5825,6 +5827,58 @@ function IntercityAdmin() {
 // (nechta chipta ketdi, katalog qancha turadi, bu ballni yig'ish uchun necha safar kerak)
 // umuman bilmasdi — bularning hammasi uchun SSH kerak edi. YANGI ROUTE YO'Q: hammasi mavjud
 // `oyin/season` + `oyin/catalog` + `bonus-economy` javoblaridan hisoblanadi.
+// ─── 💰 MAVSUM BYUDJETI + SOVRIN REJALASHTIRUVCHISI (ega talabi 2026-08-03: "aniq reja qilsak
+// yaxshida ... aqlli hisoblash kerakmi menga tavsiya kerak").
+// Panel avval TESKARI ishlardi: ega sovrinni qo'yardi, panel esa faqat KEYIN foizni aytardi.
+// Natija jonli katalogda ko'rindi: 2 988 000 so'mlik sovrin, 298 000 so'mlik daromad = 1003%.
+// Endi byudjet BIRINCHI (real safar sonidan), sovrin esa "necha safarlik mehnat" bilan o'lchanadi.
+function OyinBudgetCard() {
+  const [b, setB] = useState<OyinBudgetView | null>(null);
+  const [failed, setFailed] = useState(false);
+  const [rideBall, setRideBall] = useState(150);
+  // Rejalashtiruvchi: ega ball emas, MEHNAT bilan o'ylaydi.
+  const [pv, setPv] = useState("900000");
+  const [pr, setPr] = useState("30");
+  useEffect(() => {
+    adminApi.oyinBudget().then(setB).catch(() => setFailed(true));
+    adminApi.bonusEconomy().then((e) => setRideBall(Number(e.values?.oyinRideBall ?? 150) || 150)).catch(() => undefined);
+  }, []);
+  if (failed) return null;
+  if (!b) return <section className="panel"><div className="panel-title">💰 Mavsum byudjeti</div><div className="muted">Yuklanmoqda…</div></section>;
+
+  const plan = oyinPlanFromRides(Number(pv.replace(/\D/g, "")) || 0, Number(pr) || 1, rideBall);
+  const usedPct = b.budgetSom > 0 ? Math.round((b.catalogSom / b.budgetSom) * 100) : 0;
+
+  return (
+    <section className="panel">
+      <div className="panel-title">💰 Mavsum byudjeti — katalog shundan oshmasin</div>
+      <div style={{ fontSize: 12.5, padding: "10px 12px", borderRadius: 10, marginBottom: 12, background: b.overBudget ? "rgba(255,107,107,.16)" : "rgba(52,211,153,.12)" }}>
+        {b.overBudget
+          ? <>🔴 <b>Katalog byudjetdan {formatNumber(b.catalogSom - b.budgetSom)} so'm OSHIB KETDI</b> ({usedPct}%). Sovrinlarni arzonlashtiring, chipta sonini oshiring yoki ball narxini ko'taring.</>
+          : <>🟢 <b>Byudjet ichida</b> — {usedPct}% ishlatilgan, yana {formatNumber(b.budgetSom - b.catalogSom)} so'mlik sovrin qo'shsangiz bo'ladi.</>}
+      </div>
+      <div className="cards" style={{ marginBottom: 12 }}>
+        <Card icon="🚕" label="Oxirgi 30 kun safar" value={formatNumber(b.rides30d)} sub="real raqam, taxmin emas" />
+        <Card icon="📅" label={`Mavsum (${b.seasonDays} kun) prognozi`} value={formatNumber(b.projectedRides)} sub="safar" />
+        <Card icon="💵" label="Kassaga keladi" value={`${formatNumber(b.revenueSom)} so'm`} sub={`${formatNumber(b.somPerRide)} so'm/safar`} />
+        <Card icon="🎁" label={`Sovrin byudjeti (${b.targetPct}%)`} value={`${formatNumber(b.budgetSom)} so'm`} sub={`hozir: ${formatNumber(b.catalogSom)} so'm`} accent />
+      </div>
+
+      <div style={{ fontSize: 13, fontWeight: 500, marginBottom: 8 }}>🎯 Sovrin rejalashtiruvchi — ball emas, «necha safarlik» deb o'ylang</div>
+      <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center", marginBottom: 10 }}>
+        <input value={pv} onChange={(e) => setPv(e.target.value)} placeholder="Sovrin qiymati (so'm)" style={{ maxWidth: 180 }} />
+        <input value={pr} onChange={(e) => setPr(e.target.value)} placeholder="Necha safarlik" style={{ maxWidth: 140 }} />
+      </div>
+      <div className="muted" style={{ fontSize: 12.5, lineHeight: 1.9, background: "rgba(255,255,255,.04)", borderRadius: 8, padding: "10px 12px" }}>
+        Ball narxi: <b style={{ color: "var(--text)" }}>{formatNumber(plan.ballPrice)} ball</b> ({pr} safar × {rideBall})<br />
+        Chipta soni: <b style={{ color: "var(--text)" }}>{formatNumber(plan.slots)} ta</b> — shuncha bo'lsa xarajat {plan.costPct.toFixed(0)}%<br />
+        Hammasi sotilsa yig'iladi: <b style={{ color: "var(--text)" }}>{formatNumber(plan.ballCapacity)} ball</b> = {formatNumber(plan.ballCapacity * OYIN_SOM_PER_BALL)} so'm<br />
+        <span style={{ color: "var(--text-muted)" }}>Sovrinni shu narx va shu chipta soni bilan qo'ying — foiz o'zi joyiga tushadi.</span>
+      </div>
+    </section>
+  );
+}
+
 // ─── 🛠 O'YIN NAZORATI (ega talabi 2026-08-03: "admin panelga ham kuchli nazorat kerak oddiy
 // kuzatuv emas"). To'rtta kuch: ball tuzatish · chipta bekor qilish · chetlatish · tiraj muzlatish.
 // Har biri serverda `requireOwner` bilan qo'riqlanadi va `alertAdmins` orqali e'lon qilinadi —
@@ -6086,7 +6140,7 @@ function OyinSeasonMetricsCard() {
       </div>
       <div className="table-wrap">
         <table>
-          <thead><tr><th>Sovrin</th><th className="num">Narx (ball)</th><th className="num">Sotilgan</th><th>To'lganligi</th><th className="num">Qiymati</th><th>Holat</th></tr></thead>
+          <thead><tr><th>Sovrin</th><th className="num">Narx (ball)</th><th className="num">Sotilgan</th><th>To'lganligi</th><th className="num">Qiymati</th><th>🛡 Tirajda</th><th>Holat</th></tr></thead>
           <tbody>
             {[...catalog].sort((a, b) => (b.sold / Math.max(1, b.limit)) - (a.sold / Math.max(1, a.limit))).map((p) => {
               const pct = p.limit > 0 ? Math.min(100, Math.round((p.sold / p.limit) * 100)) : 0;
@@ -6103,6 +6157,13 @@ function OyinSeasonMetricsCard() {
                     <span className="muted" style={{ fontSize: 10 }}>{pct}%</span>
                   </td>
                   <td className="num muted">{parseSum(p.valueLabel) != null ? `${formatNumber(parseSum(p.valueLabel) as number)} so'm` : "—"}</td>
+                  {/* 🛡 TIRAJ QO'RIG'I — chegaraga yetmagan sovrin O'YNALMAYDI. Bu ustun eganing
+                      asosiy nazorat nuqtasi: FINAL-48 dan OLDIN ko'rib qaror qabul qiladi. */}
+                  <td>
+                    {p.minSell <= 0 ? <span className="muted">qo'riq o'chiq</span>
+                      : p.willDraw ? <span style={{ color: "#34d399" }}>✅ o'ynaladi</span>
+                      : <span style={{ color: "#ff6b6b" }}>⛔ yetmaydi<br /><span className="muted" style={{ fontSize: 10 }}>{p.sold} / {p.minSell} kerak</span></span>}
+                  </td>
                   <td>
                     {over ? <span className="badge badge-bad">⛔ limit sotilgandan past</span>
                       : !p.active ? <span className="muted">yashirilgan</span>

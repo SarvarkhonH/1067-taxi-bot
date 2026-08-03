@@ -1122,6 +1122,19 @@ Taksida yur, ball yig', chipta ol. Mavsum oxiri jonli tirajda o'ynaladi. Mening 
                       {scarcity(p) === "hot" ? `🔥 ${p.remaining} ta qoldi — tugayapti` : `${p.remaining} ta qoldi`}
                     </div>
                   )}
+                  {/* 🛡 TIRAJ SHARTI — xariddan OLDIN, ochiq. Sovrin chiptalarining ma'lum qismi
+                      sotilmasa tirajda o'ynalmaydi (ega qarori 2026-08-03: busiz xarajat foizi
+                      cheksiz bo'lardi — 133 chiptalik sovringa 5 ta sotilsa ham beriladi).
+                      Bu shartni YASHIRISH ishonchni bir marta va butunlay buzadi: odam ball
+                      sarflab chipta oladi, keyin "yetarli sotilmadi" degan gapni birinchi marta
+                      eshitadi. Shuning uchun kartada, xarid varag'ida va chiptada turadi. */}
+                  {p.minSell > 0 && (
+                    <div className={`oyk-vcard-path${p.willDraw ? " is-ok" : ""}`}>
+                      {p.willDraw
+                        ? `🛡 Tirajda o'ynaladi — kerakli ${p.minSell} ta chipta yig'ildi`
+                        : `🛡 Tirajda o'ynashi uchun ${p.minSell} ta chipta kerak — hozir ${p.sold} ta`}
+                    </div>
+                  )}
                   {/* ⚠️ Tugagan sovringa "eng tez yo'l" ko'rsatish — bo'sh va'da: yo'l bor,
                       lekin oxirida olib bo'lmaydi. Tugaganda faqat qatnashgan bo'lsa gap qoladi. */}
                   {(!p.soldOut || p.mine > 0) && (

@@ -295,6 +295,16 @@ export const BONUS_ECON_KNOBS: BonusEconKnob[] = [
   // qoladi va 90 kunlik mavsumda ham oshmaydi (1 650 tomning ichida 300 ulushi kichik).
   { key: "oyinHomeScreenBall", label: "🏠 Ilovani ekranga o'rnatish — bonus ball", def: 300, min: 0, max: 5000, step: 50, group: "Koson O'yini" },
   { key: "oyinSprintBonusBall", label: "🎮 Haftalik sprint top-3 — bonus ball", def: 300, min: 0, max: 5000, step: 10, group: "Koson O'yini" },
+  // 🛡 TIRAJ QO'RIG'I (ega qarori 2026-08-03, jonli sinovdan keyin). Sovrin chiptalarining shu
+  // foizi sotilmasa — TIRAJDA O'YNALMAYDI.
+  // Nega kerak: sovrin sotilgan chipta soniga QARAMASDAN beriladi. 900 000 so'mlik pechga 133 ta
+  // chipta qo'yilib 5 tasi sotilsa, ega 900 000 so'mni 30 000 so'm evaziga berardi — ya'ni 3000%.
+  // Narx formulasi qanchalik to'g'ri bo'lmasin, bu teshik ochiq turganda xarajat foizi CHEKSIZ
+  // bo'lib qolaveradi. Chegara xarajatni eng yomon holatda mo'ljaldan 100/pct barobar oshishi
+  // bilan CHEKLAYDI (50% → 2×).
+  // ⚠️ Mijozga OLDINDAN ochiq aytiladi (vitrina + chipta + varaq): "kamida N ta chipta sotilsa
+  // o'ynaladi · hozir M ta". Yashirin shart = ishonchni buzish.
+  { key: "oyinMinSellPct", label: "🛡 Tiraj qo'rig'i — sovrin o'ynalishi uchun min sotilgan (%)", def: 50, min: 0, max: 100, step: 5, group: "Koson O'yini" },
   // ⚠️ Zanjir endi SAFAR kunlari bo'yicha (avval ilova ochish sanalardi — safarsiz 500 ball/oy).
   { key: "oyinStreakBall", label: "🔥 3 kunlik SAFAR zanjiri — bonus ball", def: 50, min: 0, max: 1000, step: 10, group: "Koson O'yini" },
   // ⚖️ Adolat qo'rig'i: do'st-safari 40 ga chiqqach, ko'p do'stli odam bitta sovrinning BARCHA

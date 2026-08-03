@@ -9,7 +9,9 @@
 import {
   OYIN_FINAL_LOCK_MS,
   OYIN_SEED_CATALOG,
+  OYIN_SOM_PER_BALL,
   OYIN_STORY_SEASON_LIMIT,
+  OYIN_TARGET_COST_PCT,
   oyinQuestOf,
   SPRINT_MAX_WINS_PER_ROLLING_4W,
   type OyinActivityAction,
@@ -41,6 +43,7 @@ import {
   type OyinAdminActionResult,
   type OyinAdminMemberDetail,
   type OyinAdminMemberHit,
+  type OyinBudgetView,
   type OyinBallAdjustEntry,
   type OyinBallAdjustInput,
   type OyinFreezeState,
@@ -746,14 +749,24 @@ export async function getOyinState(memberId: number): Promise<OyinStateResponse>
 // reyting to'g'ri xatti-harakatni JAZOLARDI. O'rniga qo'ng'iroq: ball qayerdan kelgani.
 
 
+/** 🛡 Tirajda o'ynalishi uchun kerak bo'lgan chipta soni. `limit` 0 bo'lsa 0 (bo'linish yo'q).
+ *  Foiz 0 bo'lsa qo'riq O'CHIQ — `minSell` 0, hamma sovrin har doim o'ynaladi (eski xatti-atvor). */
+function minSellOf(limit: number, pct: number): number {
+  const p = Math.max(0, Math.min(100, Math.round(pct)));
+  if (p <= 0 || limit <= 0) return 0;
+  return Math.min(limit, Math.ceil((limit * p) / 100));
+}
+
 export async function getVitrina(memberId: number): Promise<OyinVitrinaResponse> {
-  const [season, catalog, soldMap, ticketsRow, sponsor] = await Promise.all([
+  const [season, catalog, soldMap, ticketsRow, sponsor, econV] = await Promise.all([
     getSeason(),
     getCatalog(),
     getSoldMap(),
     prisma.appState.findUnique({ where: { key: `oyin:tickets:${memberId}` } }),
     getSponsor(),
+    getBonusEcon(),
   ]);
+  const minPct = econV.oyinMinSellPct ?? 50;
   // `mine` FAQAT joriy mavsum chiptalaridan — aks holda toza-boshlashdan keyin `sold: 0` bo'lgan
   // sovrinda "Sizniki: 3" ko'rinardi (ochiq-oydin yolg'on).
   const mine = season.configured
@@ -776,6 +789,10 @@ export async function getVitrina(memberId: number): Promise<OyinVitrinaResponse>
         // Limit bo'yicha: raqam faqat O'SADI (yana chipta olsang) — va'da haqiqatga aylanadi.
         mine: myCount, chancePct: myCount > 0 && p.limit > 0 ? Math.round((myCount / p.limit) * 10000) / 100 : null,
         photoUrl: p.photoUrl,
+        // 🛡 Shart OLDINDAN ko'rsatiladi. Mijoz ball sarflaganidan KEYIN "yetarli sotilmadi"
+        // deb eshitmasligi kerak — bu ishonchni bir marta va butunlay buzadi.
+        minSell: minSellOf(p.limit, minPct),
+        willDraw: sold >= minSellOf(p.limit, minPct),
       };
     });
   return { prizes, sponsor: { name: sponsor.name, photoUrl: sponsor.photoUrl } };
@@ -870,8 +887,49 @@ function uniqueCatalogKey(name: string, existing: OyinCatalogPrize[]): string {
 
 /** Admin: butun katalog, har biriga sotilgan-son qo'shilgan (o'chirish xavfsizligini ko'rsatish uchun). */
 export async function adminListCatalog(): Promise<OyinAdminPrizeRow[]> {
-  const [catalog, soldMap] = await Promise.all([getCatalog(), getSoldMap()]);
-  return catalog.map((p) => ({ ...p, sold: soldMap.get(p.key) ?? 0 }));
+  const [catalog, soldMap, econC] = await Promise.all([getCatalog(), getSoldMap(), getBonusEcon()]);
+  const minPct = econC.oyinMinSellPct ?? 50;
+  return catalog.map((p) => {
+    const sold = soldMap.get(p.key) ?? 0;
+    const minSell = minSellOf(p.limit, minPct);
+    return { ...p, sold, minSell, willDraw: sold >= minSell };
+  });
+}
+
+/** 💰 Mavsum byudjeti — REAL safar sonidan. Bu funksiya panelning eng muhim raqamini beradi:
+ *  katalog qancha turishi MUMKIN. Avval panel teskari ishlardi (sovrin qo'yilgach foiz aytilardi)
+ *  va jonli katalog 1003% bo'lib qolgan edi. */
+export async function adminBudget(): Promise<OyinBudgetView> {
+  const [season, catalog, econB] = await Promise.all([getSeason(), getCatalog(), getBonusEcon()]);
+  const since = new Date(Date.now() - 30 * 86400_000);
+  // ⚠️ Taxmin EMAS: o'tgan 30 kunning haqiqiy safarlari. `RideReward` — clamp'dan o'tgan real
+  // safar yozuvi, ya'ni "buyurtma bo'ldi" emas, "safar tugadi va mukofot berildi".
+  const rides30d = await prisma.rideReward.count({ where: { createdAt: { gte: since } } });
+  const seasonDays = season.configured && season.startMs != null && season.endMs != null
+    ? Math.max(1, Math.round((season.endMs - season.startMs) / 86400_000))
+    : 30;
+  const projectedRides = Math.round(rides30d * (seasonDays / 30));
+  // Ega raqami: bitta buyurtmadan 2 000 so'm. Ball shkalasidan chiqariladi (1 ball = 10 so'm,
+  // safar 200 ball) — knob o'zgarsa byudjet ham o'zi moslashadi, qotirilgan son yo'q.
+  const somPerRide = ((econB.oyinRideBall ?? 150) + (econB.oyinReferRideBall ?? 50)) * OYIN_SOM_PER_BALL;
+  const revenueSom = projectedRides * somPerRide;
+  const budgetSom = Math.round((revenueSom * OYIN_TARGET_COST_PCT) / 100);
+  const catalogSom = catalog
+    .filter((p) => p.active)
+    .reduce((s, p) => s + (parseSumLabel(p.valueLabel) ?? 0), 0);
+  return {
+    rides30d, seasonDays, projectedRides, somPerRide, revenueSom, budgetSom,
+    catalogSom, overBudget: catalogSom > budgetSom, targetPct: OYIN_TARGET_COST_PCT,
+  };
+}
+
+/** `valueLabel` — ega qo'lda yozadigan matn ("900 000 so'm", "1 mln", "189000"). Raqamni
+ *  ajratib olamiz; topilmasa `null` (byudjet hisobida 0 deb olinadi va panel buni AYTADI). */
+function parseSumLabel(label: string): number | null {
+  const digits = (label || "").replace(/[^\d]/g, "");
+  if (!digits) return null;
+  const n = Number(digits);
+  return Number.isFinite(n) && n > 0 ? n : null;
 }
 
 // 🎯 Maqsad-sovrin (YAKUNIY DIZAYN §1): mijoz qaysi sovrin uchun ball yig'ayotganini O'ZI
@@ -1493,15 +1551,32 @@ export async function sprintCheck(): Promise<OyinSprintResult | null> {
 /** Tiraj uchun raqamlangan chipta-ro'yxati — READ-ONLY (hech narsa yozmaydi), shuning uchun
  *  tabiiy idempotent: necha marta chaqirilsa ham bir xil natija (chiptalar o'zgarmaguncha). */
 export async function drawExport(): Promise<OyinDrawExport> {
-  const [season, ticketRows, telegramUsers, banRows, freeze] = await Promise.all([
+  const [season, ticketRows, telegramUsers, banRows, freeze, catalogD, soldMapD, econD] = await Promise.all([
     getSeason(),
     prisma.appState.findMany({ where: { key: { startsWith: "oyin:tickets:" } } }) as Promise<AppStateRow[]>,
     prisma.telegramUser.findMany({ where: { memberId: { not: null } }, select: { memberId: true, firstName: true, lastName: true, username: true } }),
     prisma.appState.findMany({ where: { key: { startsWith: BAN_PREFIX } }, select: { key: true } }),
     getFreeze(),
+    getCatalog(),
+    getSoldMap(),
+    getBonusEcon(),
   ]);
-  const empty = { generatedAt: new Date().toISOString(), tickets: [], frozenAt: freeze.at, excludedTest: 0, excludedBanned: 0 };
+  const empty = { generatedAt: new Date().toISOString(), tickets: [], frozenAt: freeze.at, excludedTest: 0, excludedBanned: 0, skippedPrizes: [] };
   if (!season.configured) return empty;
+
+  // 🛡 TIRAJ QO'RIG'I: chegaraga yetmagan sovrin O'YNALMAYDI. Bu eksportda hal qilinadi, chunki
+  // eksport — tirajning YAGONA haqiqat manbai (jonli efirda shu ro'yxat o'qiladi).
+  const minPctD = econD.oyinMinSellPct ?? 50;
+  const skippedPrizes: { prizeKey: string; name: string; sold: number; minSell: number }[] = [];
+  const skippedKeys = new Set<string>();
+  for (const p of catalogD) {
+    const sold = soldMapD.get(p.key) ?? 0;
+    const minSell = minSellOf(p.limit, minPctD);
+    if (minSell > 0 && sold < minSell) {
+      skippedKeys.add(p.key);
+      skippedPrizes.push({ prizeKey: p.key, name: p.name, sold, minSell });
+    }
+  }
   const nameByMember = new Map<number, string>();
   for (const tu of telegramUsers) if (tu.memberId) nameByMember.set(tu.memberId, shortName(tu));
   const banned = new Set<number>();
@@ -1525,6 +1600,9 @@ export async function drawExport(): Promise<OyinDrawExport> {
       // sarlavhasining oldini oladigan YAGONA joy — o'chirilsa sinov chiptalari jonli
       // efirdagi ro'yxatga tushib ketadi.
       if (t.test) { excludedTest += 1; return []; }
+      // 🛡 Chegaraga yetmagan sovrin chiptalari eksportga TUSHMAYDI. `skippedPrizes` da nomi
+      // bilan sanaladi, ya'ni jimgina yo'qolmaydi.
+      if (skippedKeys.has(t.prizeKey)) return [];
       return [{
         // ⚠️ `t.no` — sovrin-ichi tartib raqami; mijoz esa ekranida GLOBAL `gno` ni ko'radi.
         // Eksportda `no` qolsa jonli efirda o'qiladigan raqam mijoz qo'lidagi raqam BO'LMAYDI.
@@ -1533,7 +1611,32 @@ export async function drawExport(): Promise<OyinDrawExport> {
     });
   });
   tickets.sort((a, b) => a.prizeKey.localeCompare(b.prizeKey) || a.ticketNo - b.ticketNo);
-  return { generatedAt: new Date().toISOString(), tickets, frozenAt: freeze.at, excludedTest, excludedBanned };
+  return { generatedAt: new Date().toISOString(), tickets, frozenAt: freeze.at, excludedTest, excludedBanned, skippedPrizes };
+}
+
+/** 🛡 Sovrinning HAMMA chiptasini bekor qilish — ball egalariga qaytadi (jonli hisob:
+ *  chipta o'chgach `spent` kamayadi). Ega chegaraga yetmagan sovrinni olib tashlamoqchi
+ *  bo'lganda ishlatiladi: mijoz ballini boshqa sovringa sarflay oladi.
+ *  ⚠️ ATAYLAB avtomatik EMAS. Avtomatik qaytarish mavsum tugashida ma'nosiz bo'lardi (ball
+ *  baribir kuyadi) — ega buni FINAL-48 dan OLDIN, mijozga vaqt qolganda bosishi kerak. */
+export async function adminCancelPrizeTickets(prizeKey: string): Promise<{ ok: boolean; cancelled: number; members: number }> {
+  const rows = await prisma.appState.findMany({ where: { key: { startsWith: "oyin:tickets:" } } }) as AppStateRow[];
+  let cancelled = 0;
+  let members = 0;
+  for (const row of rows) {
+    const tickets = parseTickets(row.value);
+    const keep = tickets.filter((t) => t.prizeKey !== prizeKey);
+    if (keep.length === tickets.length) continue;
+    const gone = tickets.length - keep.length;
+    await prisma.appState.update({ where: { key: row.key }, data: { value: JSON.stringify(keep) } });
+    for (const t of tickets) {
+      if (t.prizeKey === prizeKey) await releaseSoldSlot(prizeKey, t.test === true).catch(() => undefined);
+    }
+    cancelled += gone;
+    members += 1;
+  }
+  invalidateBallCache();
+  return { ok: true, cancelled, members };
 }
 
 // ── Mavsum yopilishi: ≥1 real safar qilganlarga qoldiq ball × 50% = tanga (max 500/odam).
