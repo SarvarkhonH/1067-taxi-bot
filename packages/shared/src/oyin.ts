@@ -634,7 +634,9 @@ export interface OyinDrawRecordResult {
   /** `not_ready` — kerakli karta soni yig'ilmagan · `not_frozen` — ro'yxat muzlatilmagan
    *  (aks holda g'olib yozilgandan keyin ham karta qo'shilishi mumkin) · `not_in_list` —
    *  kiritilgan raqam ro'yxatda YO'Q · `already` — bayonnoma allaqachon yozilgan. */
-  reason?: "not_ready" | "not_frozen" | "not_in_list" | "already" | "unknown_prize";
+  /** `write_failed` — 🟡 (nazoratchi №13): avval har qanday DB nosozligi "already" bo'lardi va
+   *  ega jonli efirda "allaqachon yozilgan" xabarini ko'rardi, aslida yozilmagan bo'lsa ham. */
+  reason?: "not_ready" | "not_frozen" | "not_in_list" | "already" | "unknown_prize" | "write_failed";
   winner?: OyinWinner;
 }
 

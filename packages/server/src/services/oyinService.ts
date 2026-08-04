@@ -351,12 +351,24 @@ async function computeBallMap(): Promise<Map<number, MemberBallRow>> {
     if (ms > cur) lastActivityByMember.set(memberId, ms);
   };
   for (const r of rideDayRows) touch(r.memberId, r.createdAt.getTime());
-  for (const row of loginRows) {
-    const memberId = Number(row.key.slice("oyin:login:".length));
-    if (!Number.isFinite(memberId)) continue;
-    const last = parseDayList(row.value).sort().at(-1);
-    if (last) touch(memberId, Date.parse(`${last}T00:00:00+05:00`));
-  }
+  // 🔴 S8-7 (nazoratchi 2026-08-04): avval FAQAT safar · kirish · karta sanalardi. Ya'ni
+  // har kuni hikoya yuklaydigan, vazifa bajaradigan, ulashadigan yoki do'stlari yuradigan
+  // mijoz "harakatsiz" deb belgilanib 6 oydan keyin BUTUN ballini yo'qotardi — hech qanday
+  // ogohlantirishsiz. Harakat ta'rifi ball manbalari bilan BIR XIL bo'lishi shart.
+  const touchDays = (rows: { key: string; value: string }[], prefix: string): void => {
+    for (const row of rows) {
+      const memberId = Number(row.key.slice(prefix.length));
+      if (!Number.isFinite(memberId)) continue;
+      const last = parseDayList(row.value).sort().at(-1);
+      if (last) touch(memberId, Date.parse(`${last}T00:00:00+05:00`));
+    }
+  };
+  touchDays(loginRows, "oyin:login:");
+  touchDays(shareRows, "oyin:share:");
+  touchDays(questRows, "oyin:quest:");
+  touchDays(homeRows, "oyin:home:");
+  // Telefon ulash — bir martalik, lekin HARAKAT: raqam ulab miniapp ochmagan odam jazolanmasin.
+  for (const tu of telegramUsers) if (tu.memberId && tu.linkedAt) touch(tu.memberId, tu.linkedAt.getTime());
 
   // ⚠️ `spent` endi DAVRGA KESILMAYDI (S8): karta abadiy bo'lgani uchun uning narxi ham abadiy
   // hisobda qoladi. Ikkalasi bir xil umr ko'radi — aks holda balans asossiz siljiydi.
@@ -627,7 +639,13 @@ export async function getFreeze(): Promise<OyinFreezeState> {
     const v = JSON.parse(row.value) as { at?: string; ticketCount?: number };
     return { frozen: true, at: typeof v.at === "string" ? v.at : null, ticketCount: Number(v.ticketCount) || 0 };
   } catch {
-    return { frozen: true, at: null, ticketCount: 0 };
+    // 🟡 (nazoratchi 2026-08-04 №14): avval `{ frozen: true, at: null }` qaytardi — o'zaro ZID.
+    // `buyTicket` `frozen` ni ko'rib HAMMA xaridni to'sardi, `adminRecordWinner` esa
+    // `frozenAt: null` ni ko'rib `not_frozen` berardi va admin tugmasi ham o'chiq bo'lardi:
+    // na sotib olish, na tortish mumkin — tizim o'z-o'zini qulflab qo'yardi.
+    // Endi: buzuq qator = muzlatish YO'Q. Ega qayta muzlatadi (ro'yxat baribir qayta olinadi).
+    console.error("[oyin] muzlatish qatori BUZUQ — muzlatish yo'q deb hisoblandi, ega qayta muzlatsin");
+    return { frozen: false, at: null, ticketCount: 0 };
   }
 }
 
@@ -2148,7 +2166,11 @@ export async function getDrawList(prizeKey: string): Promise<OyinDrawList | null
   const minSell = minSellOf(prize.limit, econ.oyinMinSellPct ?? OYIN_MIN_SELL_PCT_DEFAULT);
   return {
     prizeKey, prizeName: prize.name, sold, limit: prize.limit, minSell,
-    ready: sold >= minSell && cards.length > 0,
+    // 🟡 (nazoratchi 2026-08-04 №11): avval `sold >= minSell` edi. `sold` xodim/chetlatilgan/
+    // sinov kartalarini HAM sanaydi, `cards` esa ularni CHIQARIB tashlagan. Mukofot 20/20 bilan
+    // "tayyor" bo'lardi, qutiga esa 12 ta karta tushardi — e'lon qilingan imkoniyat (1/20) va
+    // haqiqiy tortish (1/12) bir-biriga mos kelmasdi. Endi CHEGARA HAM haqiqiy hovuzga qo'yiladi.
+    ready: sold >= minSell && cards.length >= minSell && cards.length > 0,
     frozenAt: freeze.at,
     hash: hashCards(cards.map((c) => c.gno)),
     cards, excluded,
@@ -2191,8 +2213,15 @@ export async function adminRecordWinner(prizeKey: string, gno: number, note: str
   // va bayonnoma ustidan yozilmaydi.
   try {
     await prisma.appState.create({ data: { key, value: JSON.stringify(winner) } });
-  } catch {
-    return { ok: false, reason: "already" };
+  } catch (e) {
+    // 🟡 (nazoratchi 2026-08-04 №13): avval KO'R `catch` edi — DB uzilishi, timeout, validatsiya
+    // xatosi HAMMASI "already" bo'lardi va ega JONLI EFIRDA «bayonnoma allaqachon yozilgan»
+    // xabarini ko'rardi, aslida hech narsa yozilmagan bo'lsa ham. Endi faqat unique-to'qnashuv
+    // (P2002) "already"; qolgani ochiq xato — jurnalga ham tushadi.
+    const code = (e as { code?: string } | null)?.code;
+    if (code === "P2002") return { ok: false, reason: "already" };
+    console.error("[oyin] bayonnoma yozilmadi:", e);
+    return { ok: false, reason: "write_failed" };
   }
   return { ok: true, winner };
 }

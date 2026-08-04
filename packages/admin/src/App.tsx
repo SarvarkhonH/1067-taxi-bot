@@ -6731,6 +6731,7 @@ function OyinDrawCard_() {
       : r?.reason === "not_frozen" ? "⛔ Avval tirajni MUZLATING (O'yin nazorati bloki)"
       : r?.reason === "not_ready" ? `⛔ Yetarli karta tarqatilmagan (${list.sold}/${list.minSell})`
       : r?.reason === "already" ? "⛔ Bu mukofot bo'yicha bayonnoma allaqachon yozilgan"
+      : r?.reason === "write_failed" ? "🔴 Yozilmadi — bazaga ulanishda xato. QAYTA URINING (bayonnoma hali YO'Q)."
       : "⛔ Bajarilmadi");
   };
 
