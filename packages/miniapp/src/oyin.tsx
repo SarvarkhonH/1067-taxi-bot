@@ -10,7 +10,7 @@
 // soxta QR-kvadrat — real QR-generatsiya (referralQrService) B1-B5 doirasida qurilmagan, shuning
 // uchun olib tashlandi (ishlamaydigan grafika ko'rsatish — yolg'on).
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
-import { OYIN_FINAL_LOCK_MS, type OyinActivityAction, type OyinActivityResponse, type OyinJamoamResponse, type OyinJamoaView, type OyinMyTicketsResponse, type OyinPrizeView, type OyinSeasonClientView, type OyinStateResponse, type OyinVitrinaResponse } from "@t1067/shared";
+import { OYIN_FINAL_LOCK_MS, oyinHintOf, type OyinActivityAction, type OyinActivityResponse, type OyinJamoamResponse, type OyinJamoaView, type OyinMyTicketsResponse, type OyinPrizeView, type OyinSeasonClientView, type OyinStateResponse, type OyinVitrinaResponse } from "@t1067/shared";
 import { api, apiUrl } from "./api";
 import { addToHomeScreen, copyText, haptic, homeScreenStatus, inviteLandingUrl, onHomeScreenAdded, shareLink } from "./telegram";
 import "./design/feat/oyk.css"; // bu ekran ochilgandagina yuklanadi (kritik yo'lda emas)
@@ -369,7 +369,10 @@ function RulesSheet({ season, prizes, maxPerPrize, onClose }: {
           </RuleSec>
 
           <RuleSec n={8} t="Soliq">
-            Yutuq solig'i (12%) 500 000 so'mgacha bo'lgan mukofotlarda tashkilotchi zimmasida.
+            {/* ⚠️ «Yutuq solig'i» — Soliq kodeksidagi RASMIY atama. Uni butunlay olib tashlash
+                huquqiy hujjatni noaniq qilardi, shuning uchun mahsulot tili birinchi, rasmiy
+                atama qavsda: hujjat ham to'g'ri, ekran ham lug'atga mos. */}
+            Mukofot solig'i (qonunda «yutuq solig'i», 12%) 500 000 so'mgacha bo'lgan mukofotlarda tashkilotchi zimmasida.
             Undan qimmatroq mukofotlarda soliq mukofot egasi bilan birgalikda rasmiylashtiriladi.
           </RuleSec>
 
@@ -536,6 +539,9 @@ export function OyinView({ onTaxi }: { onTaxi?: () => void } = {}) {
 
   // 🤝 Gap-jamoa (gashtak). Alohida yuklanadi — do'st-ro'yxati bilan bog'liq emas va biri
   // yiqilsa ikkinchisi ko'rinishda qolsin.
+  // 💡 Kunlik maslahat — a'zo va kun bo'yicha deterministik, so'rov ham saqlash ham KERAK EMAS.
+  const dailyHint = oyinHintOf(new Date(Date.now() + 5 * 3600_000).toISOString().slice(0, 10));
+
   const [jamoa, setJamoa] = useState<OyinJamoaView | null>(null);
   const [jamoaInput, setJamoaInput] = useState("");
   const [jamoaBusy, setJamoaBusy] = useState(false);
@@ -1259,6 +1265,16 @@ Taksida yur, ball yig', sodiqlik kartasini ol. Davr oxirida jonli efirda mukofot
                 </span>
                 <span className="oyk-quest-b">{state.homeTask.done ? `✓ +${state.homeTask.ball}` : `+${state.homeTask.ball}`}</span>
               </button>
+            )}
+
+            {/* 💡 KUNLIK MASLAHAT — har kuni boshqa, a'zo bo'yicha deterministik.
+                ⛔ Qizil emas, miltillamaydi: maslahat SHOSHILINCH EMAS. Har kuni yonib tursa
+                odam ko'rmay qo'yadi va haqiqatan muhim narsa uchun urg'u qolmaydi. */}
+            {!ended && (
+              <div className="oyk-hint">
+                <span className="oyk-hint-ic" aria-hidden="true">{dailyHint.icon}</span>
+                <span className="oyk-hint-tx">{dailyHint.text}</span>
+              </div>
             )}
 
             {/* 💡 Eng tez yo'l — ega talabi 2026-08-03: "do'stinga ayt, SEN ORQALI taksi

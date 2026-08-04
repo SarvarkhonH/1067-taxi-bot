@@ -2121,3 +2121,13 @@ body {
   --oyk-celebrate-title: #3a1040;
   --oyk-celebrate-sub: #6b4a5b;
 }
+
+/* 💡 Uy kartasidagi kunlik maslahat — jim, urg'usiz (o'yin ekranidagi `.oyk-hint` bilan bir xil
+   qoida: qizil/miltillash yo'q, chunki maslahat shoshilinch emas). */
+.nh-oyin-hint {
+  display: flex; align-items: flex-start; gap: 8px; margin: 10px 0 0;
+  padding: 9px 11px; border-radius: 11px;
+  background: rgba(255, 255, 255, .14); color: rgba(255, 255, 255, .92);
+  font-size: 12px; line-height: 1.5; text-align: left;
+}
+.nh-oyin-hint > span:first-child { font-size: 15px; line-height: 1.25; flex-shrink: 0; }

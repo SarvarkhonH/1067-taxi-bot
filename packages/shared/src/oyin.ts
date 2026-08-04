@@ -500,6 +500,41 @@ export interface OyinDrawExport {
   skippedPrizes: { prizeKey: string; name: string; sold: number; minSell: number }[];
 }
 
+// ── 💡 KUNLIK MASLAHAT (ega g'oyasi 2026-08-04: "hintlar doim bo'ladi va ularga foydadek
+// tuyuladi, aslida bizga foyda bo'ladi").
+//
+// ⚠️ MUHIM CHEGARA: har maslahat IKKALA tomonga ham ROSTAKAM foydali bo'lishi shart. Masalan
+// "taksi ko'p chaqiradigan tanishingizni chaqiring" — odam ko'proq ball oladi, biz ko'proq
+// safar olamiz. Manfaatlar BIR YO'NALISHDA. Agar maslahat faqat bizga foydali bo'lsa (odam
+// uchun bahona bo'lsa) — u yolg'on va bir marta ishlaydi, keyin ishonch ketadi.
+//
+// ⛔ QIZIL/MILTILLASH YO'Q. Qizil + harakat = shoshilinch signal, maslahat esa shoshilinch
+// EMAS. Har kuni ishlatilsa odam ko'rmay qo'yadi va HAQIQATAN muhim narsa («3 karta qoldi»)
+// uchun urg'u qolmaydi.
+export interface OyinHint { icon: string; text: string }
+export const OYIN_HINT_POOL: OyinHint[] = [
+  { icon: "🚕", text: "Taksini ko'p chaqiradigan tanishingizni jamoaga qo'shing — har safari sizga ham ball" },
+  { icon: "🤝", text: "Jamoa navbati aylanadi: bugun boshqaning, keyingi oy sizning navbatingiz" },
+  { icon: "🌙", text: "Kechqurun ishdan qaytishda ham BirJoy orqali chaqiring — o'sha safar ball beradi" },
+  { icon: "🎯", text: "Bitta mukofotni maqsad qiling — tarqoq yig'ishdan ko'ra tezroq yetasiz" },
+  { icon: "📅", text: "Uch kun ketma-ket safar qilsangiz zanjir bonusi qo'shiladi" },
+  { icon: "👨‍👩‍👧", text: "Uydagilar ham o'z raqami bilan ulansin — jamoa safari ko'payadi" },
+  { icon: "🛒", text: "Bozorga borishda ham chaqiring — kunlik yurish ham ball" },
+  { icon: "📸", text: "Hikoya joylang — haftada bir marta qo'shimcha ball beradi" },
+  { icon: "⏰", text: "Kam karta qolgan mukofotga e'tibor bering — u tezroq topshiriladi" },
+  { icon: "🎁", text: "Arzon mukofotlar tez to'ladi — birinchi g'olib bo'lish imkoniyati shu yerda" },
+];
+
+/** Kunlik maslahat — KUN bo'yicha deterministik: bir kunda HAMMA bir xil maslahatni ko'radi.
+ *  Ataylab a'zoga bog'lanmagan — shunda ega bugun nima ko'rinayotganini oldindan biladi va
+ *  kanal posti bilan bir xil gapni ayta oladi. Saqlash ham, so'rov ham kerak emas. */
+export function oyinHintOf(dayKey: string): OyinHint {
+  let h = 2166136261;
+  const src = `hint:${dayKey}`;
+  for (let i = 0; i < src.length; i++) { h ^= src.charCodeAt(i); h = Math.imul(h, 16777619); }
+  return OYIN_HINT_POOL[Math.abs(h) % OYIN_HINT_POOL.length] as OyinHint;
+}
+
 // ── 🤝 GAP-JAMOA (ega g'oyasi 2026-08-04: "gashtak modeli juda kuchli ... 10 kishi har mavsumda
 // bir kishini tanlab unga karta olishiga yordam berishi juda virallik olib kelishi mumkin").
 //

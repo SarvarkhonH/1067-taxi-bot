@@ -3,7 +3,7 @@
 // NewUyView (feature "newhome", UY_REDESIGN Bosqich 1) = the premium super-app home below.
 import { useEffect, useState } from "react";
 import type { ClassifiedCard, HomeBanner, HomeFeedItem, MeResponse, OyinPrizeView, OyinStateResponse, SavedAddressView, ServiceListingCard } from "@t1067/shared";
-import { INSP_TIER_EMOJI, INSP_TIER_LABEL, OYIN_FINAL_LOCK_MS } from "@t1067/shared";
+import { INSP_TIER_EMOJI, INSP_TIER_LABEL, OYIN_FINAL_LOCK_MS, oyinHintOf } from "@t1067/shared";
 import { api, apiUrl } from "./api";
 import { haptic } from "./telegram";
 import { HomeGames } from "./homeGames";
@@ -71,6 +71,8 @@ function KosonOyinCard({ onNav }: { onNav: (t: string) => void }) {
   // "BEPUL CHIPTA OLISH" deb chaqirardi — bosgan mijoz vitrinada muzlagan tugmalarni
   // ko'rardi (DIZAYN_QOIDALARI #8: bajarilmaydigan va'da).
   const final48 = !upcoming && cd.leftMs <= OYIN_FINAL_LOCK_MS;
+  // 💡 Kunlik maslahat — Toshkent kuni bo'yicha, hammaga bir xil.
+  const dailyHint = oyinHintOf(new Date(Date.now() + 5 * 3600_000).toISOString().slice(0, 10));
 
   // Sovrin plitkalari — eng qimmatidan 4 tasi. Rasmi bor bo'lsa REAL rasm (DIZAYN_QOIDALARI
   // #10), yo'q/buzuq bo'lsa RANGLI plitka + emoji. Sovrin qatordan TUSHIRILMAYDI: aks holda
@@ -158,6 +160,14 @@ function KosonOyinCard({ onNav }: { onNav: (t: string) => void }) {
         <span>{final48 || upcoming ? "SOVG'ALARNI KO'RISH" : "BEPUL KARTA OLISH"}</span>
         <span className="nh-oyin-cta-go" aria-hidden="true">›</span>
       </button>
+
+      {/* 💡 KUNLIK MASLAHAT — uy ekrani birinchi ko'riladigan joy, shuning uchun maslahat
+          SHU YERDA ham turadi (ega talabi 2026-08-04). Kun bo'yicha, hammaga bir xil.
+          ⛔ Qizil/miltillash YO'Q — pastdagi izohga qarang (oyk.css `.oyk-hint`). */}
+      <div className="nh-oyin-hint">
+        <span aria-hidden="true">{dailyHint.icon}</span>
+        <span>{dailyHint.text}</span>
+      </div>
 
       {/* 4 qadam — "bepul" so'zi qanday ishlashini DARHOL tushuntiradi (aks holda
           "bepul chipta" va'dasi o'yin ekranidagi ball talabiga zid ko'rinadi). */}
