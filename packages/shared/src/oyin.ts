@@ -498,6 +498,60 @@ export interface OyinDrawExport {
   skippedPrizes: { prizeKey: string; name: string; sold: number; minSell: number }[];
 }
 
+// ── 🎬 MUKOFOT KUNI (ega dizayni 2026-08-04: kartalar qutiga solinadi, ishonchli bloger
+// tortadi, raqam aytiladi, g'olib qo'ng'iroq qiladi, do'kondan oladi).
+//
+// ⚠️ DASTUR G'OLIBNI TANLAMAYDI — buni bloger jismonan qiladi. Dasturning vazifasi boshqa va
+// undan MUHIMROQ: qutini EGA to'ldiradi, ya'ni "bitta kartani solmagansiz" degan da'voga jonli
+// video javob BERMAYDI. Shuning uchun hash g'olib tanlashga emas, RO'YXAT BUTUNLIGIGA ishlatiladi:
+//   1. ro'yxat muzlatiladi → to'liq raqamlar + SHA-256 hash ommaga chiqadi
+//   2. kartalar O'SHA ro'yxatdan chop etiladi
+//   3. bloger tortadi, raqam aytiladi
+//   4. admin raqamni KIRITADI → tizim uni muzlatilgan ro'yxatda borligini TEKSHIRADI
+//   5. bayonnoma yoziladi — qaytarib bo'lmaydigan
+export interface OyinDrawCard {
+  gno: number; // ko'rinadigan global raqam — qog'ozga shu yoziladi
+  memberId: number;
+  name: string;
+}
+export interface OyinDrawList {
+  prizeKey: string;
+  prizeName: string;
+  sold: number;
+  limit: number;
+  minSell: number;
+  ready: boolean; // sold >= minSell — mukofot kuniga tayyormi
+  frozenAt: string | null; // tiraj muzlatilgan lahza (yo'q bo'lsa ro'yxat hali o'zgarishi mumkin)
+  /** SHA-256(tartiblangan gno ro'yxati). Kanalga SHU e'lon qilinadi — keyin har kim
+   *  ro'yxatni qayta hash qilib solishtira oladi. */
+  hash: string;
+  cards: OyinDrawCard[];
+  excluded: number; // xodim/chetlatilgan sababli chiqarilgan kartalar soni
+}
+export interface OyinWinner {
+  prizeKey: string;
+  prizeName: string;
+  prizeValueLabel: string;
+  gno: number;
+  memberId: number;
+  name: string;
+  phone: string | null;
+  drawnAt: string; // ISO — bayonnoma sanasi
+  listHash: string; // o'sha lahzadagi ro'yxat hashi
+  poolSize: number; // nechta karta ichidan
+  note: string | null; // bloger ismi, guvohlar, video havolasi
+  handedAt: string | null; // topshirilgan sana
+  photoUrl: string | null; // topshirish fotosi
+}
+export interface OyinDrawRecordResult {
+  ok: boolean;
+  /** `not_ready` — kerakli karta soni yig'ilmagan · `not_frozen` — ro'yxat muzlatilmagan
+   *  (aks holda g'olib yozilgandan keyin ham karta qo'shilishi mumkin) · `not_in_list` —
+   *  kiritilgan raqam ro'yxatda YO'Q · `already` — bayonnoma allaqachon yozilgan. */
+  reason?: "not_ready" | "not_frozen" | "not_in_list" | "already" | "unknown_prize";
+  winner?: OyinWinner;
+}
+
 // ── 🛠 ADMIN NAZORATI (ega talabi 2026-08-03: "oddiy kuzatuv emas") ────────────────────────────
 /** Bitta a'zoning TO'LIQ o'yin holati — 12 ta ball manbai alohida, chiptalari, jazolari. */
 export interface OyinAdminMemberDetail {

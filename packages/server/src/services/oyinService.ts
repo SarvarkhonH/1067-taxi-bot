@@ -50,12 +50,17 @@ import {
   type OyinAdminMemberHit,
   type OyinBudgetView,
   type OyinCapacityView,
+  type OyinDrawCard,
+  type OyinDrawList,
+  type OyinDrawRecordResult,
   type OyinPrizeStage,
+  type OyinWinner,
   type OyinTier,
   type OyinBallAdjustEntry,
   type OyinBallAdjustInput,
   type OyinFreezeState,
 } from "@t1067/shared";
+import crypto from "node:crypto";
 import { prisma } from "../db";
 import { getBonusEcon } from "./bonusConfig";
 import { featureOn } from "./featureFlags";
@@ -1731,6 +1736,140 @@ export async function adminCancelPrizeTickets(prizeKey: string): Promise<{ ok: b
   return { ok: true, cancelled, members };
 }
 
+// ── 🎬 MUKOFOT KUNI ──────────────────────────────────────────────────────────────────────────
+const WINNER_PREFIX = "oyin:winner:";
+
+/** SHA-256(tartiblangan raqamlar, vergul bilan). Kanalga SHU e'lon qilinadi.
+ *  ⚠️ Tartiblash MAJBURIY: aks holda bir xil ro'yxat har chaqiruvda boshqa hash berardi
+ *  (kartalar a'zolar bo'yicha yig'iladi, tartibi DB o'qish tartibiga bog'liq) va ega
+ *  e'lon qilgan hash tekshirishda MOS KELMASDI. */
+function hashCards(gnos: number[]): string {
+  const line = [...gnos].sort((a, b) => a - b).join(",");
+  return crypto.createHash("sha256").update(line).digest("hex");
+}
+
+/** 🎬 Bitta mukofotning MUZLATILGAN karta ro'yxati — jonli efirda o'qiladigan yagona haqiqat.
+ *  Xodim va chetlatilgan a'zolar kartalari CHIQARILADI (qoidalar §9) va soni ochiq sanaladi. */
+export async function getDrawList(prizeKey: string): Promise<OyinDrawList | null> {
+  const [season, catalog, soldMap, econ, freeze, ticketRows, tus, banRows] = await Promise.all([
+    getSeason(),
+    getCatalog(),
+    getSoldMap(),
+    getBonusEcon(),
+    getFreeze(),
+    prisma.appState.findMany({ where: { key: { startsWith: "oyin:tickets:" } } }) as Promise<AppStateRow[]>,
+    prisma.telegramUser.findMany({ where: { memberId: { not: null } }, select: { id: true, memberId: true, firstName: true, lastName: true, username: true } }),
+    prisma.appState.findMany({ where: { key: { startsWith: BAN_PREFIX } }, select: { key: true } }),
+  ]);
+  const prize = catalog.find((p) => p.key === prizeKey);
+  if (!prize || !season.configured) return null;
+
+  const nameByMember = new Map<number, string>();
+  const staffMembers = new Set<number>();
+  for (const tu of tus) {
+    if (!tu.memberId) continue;
+    nameByMember.set(tu.memberId, shortName(tu));
+    if (isAdmin(tu.id)) staffMembers.add(tu.memberId);
+  }
+  const banned = new Set<number>();
+  for (const r of banRows) {
+    const id = Number(r.key.slice(BAN_PREFIX.length));
+    if (Number.isFinite(id)) banned.add(id);
+  }
+
+  const cards: OyinDrawCard[] = [];
+  let excluded = 0;
+  for (const row of ticketRows) {
+    const memberId = Number(row.key.slice("oyin:tickets:".length));
+    if (!Number.isFinite(memberId)) continue;
+    for (const t of parseTickets(row.value)) {
+      if (t.prizeKey !== prizeKey) continue;
+      if (!ticketInSeason(t, season.startMs as number, season.endMs as number)) continue;
+      // 🧪 eski sinov kartasi · 🚫 chetlatilgan · 👔 xodim — hammasi ro'yxatdan tashqarida
+      if (t.test || banned.has(memberId) || staffMembers.has(memberId)) { excluded++; continue; }
+      cards.push({ gno: t.gno ?? t.no, memberId, name: nameByMember.get(memberId) ?? `#${memberId}` });
+    }
+  }
+  cards.sort((a, b) => a.gno - b.gno);
+  const sold = soldMap.get(prizeKey) ?? 0;
+  const minSell = minSellOf(prize.limit, econ.oyinMinSellPct ?? OYIN_MIN_SELL_PCT_DEFAULT);
+  return {
+    prizeKey, prizeName: prize.name, sold, limit: prize.limit, minSell,
+    ready: sold >= minSell && cards.length > 0,
+    frozenAt: freeze.at,
+    hash: hashCards(cards.map((c) => c.gno)),
+    cards, excluded,
+  };
+}
+
+/** 🎬 BAYONNOMA — bloger tortgan raqamni yozadi.
+ *
+ *  ⚠️ Dastur g'olibni TANLAMAYDI, faqat TEKSHIRADI. Uch shart: mukofot tayyor · ro'yxat
+ *  MUZLATILGAN (aks holda yozuvdan keyin ham karta qo'shilishi mumkin) · raqam ro'yxatda BOR.
+ *  Yozuv QAYTARIB BO'LMAYDI — `already` qaytadi, ustidan yozilmaydi. */
+export async function adminRecordWinner(prizeKey: string, gno: number, note: string): Promise<OyinDrawRecordResult> {
+  const key = `${WINNER_PREFIX}${prizeKey}`;
+  const existing = await prisma.appState.findUnique({ where: { key } });
+  if (existing) return { ok: false, reason: "already" };
+
+  const list = await getDrawList(prizeKey);
+  if (!list) return { ok: false, reason: "unknown_prize" };
+  if (!list.ready) return { ok: false, reason: "not_ready" };
+  // 🔒 Muzlatilmagan ro'yxat bilan bayonnoma yozish — o'z-o'zini yolg'onga chiqarish: hash
+  // e'lon qilingandan keyin yangi karta sotilsa, e'lon qilingan hash mos kelmay qoladi.
+  if (!list.frozenAt) return { ok: false, reason: "not_frozen" };
+
+  const hit = list.cards.find((c) => c.gno === Math.round(Number(gno)));
+  if (!hit) return { ok: false, reason: "not_in_list" };
+
+  const [tu, catalog] = await Promise.all([
+    prisma.telegramUser.findFirst({ where: { memberId: hit.memberId }, select: { phone: true } }),
+    getCatalog(),
+  ]);
+  const winner: OyinWinner = {
+    prizeKey, prizeName: list.prizeName,
+    prizeValueLabel: catalog.find((p) => p.key === prizeKey)?.valueLabel ?? "",
+    gno: hit.gno, memberId: hit.memberId, name: hit.name, phone: tu?.phone ?? null,
+    drawnAt: new Date().toISOString(), listHash: list.hash, poolSize: list.cards.length,
+    note: (note || "").trim().slice(0, 300) || null,
+    handedAt: null, photoUrl: null,
+  };
+  // `create` (upsert EMAS): ikkita parallel yozuv bo'lsa ikkinchisi unique-xato bilan yiqiladi
+  // va bayonnoma ustidan yozilmaydi.
+  try {
+    await prisma.appState.create({ data: { key, value: JSON.stringify(winner) } });
+  } catch {
+    return { ok: false, reason: "already" };
+  }
+  return { ok: true, winner };
+}
+
+/** 🎬 Topshirilganini belgilash — bayonnomani yakunlaydi (sana + foto). */
+export async function adminMarkHandover(prizeKey: string, photoUrl: string | null): Promise<{ ok: boolean }> {
+  const key = `${WINNER_PREFIX}${prizeKey}`;
+  const row = await prisma.appState.findUnique({ where: { key } });
+  if (!row) return { ok: false };
+  try {
+    const w = JSON.parse(row.value) as OyinWinner;
+    w.handedAt = new Date().toISOString();
+    w.photoUrl = (photoUrl || "").trim().slice(0, 500) || null;
+    await prisma.appState.update({ where: { key }, data: { value: JSON.stringify(w) } });
+    return { ok: true };
+  } catch {
+    return { ok: false };
+  }
+}
+
+/** 🎬 G'oliblar tarixi — tekshiruv uchun ochiq. Eng yangisi birinchi. */
+export async function getWinners(): Promise<OyinWinner[]> {
+  const rows = await prisma.appState.findMany({ where: { key: { startsWith: WINNER_PREFIX } } });
+  const out: OyinWinner[] = [];
+  for (const r of rows) {
+    try { out.push(JSON.parse(r.value) as OyinWinner); } catch { /* buzuq qator — jimgina o'tkazamiz */ }
+  }
+  return out.sort((a, b) => Date.parse(b.drawnAt) - Date.parse(a.drawnAt));
+}
+
 // ── Mavsum yopilishi: ≥1 real safar qilganlarga qoldiq ball × 50% = tanga (max 500/odam).
 // IKKI QAVAT idempotentlik: (1) tashqi `oyin:seasonclosed` marker — butun funksiya boshqa yugur-
 // maydi (2) HAR grantCoins o'zining idempotencyKey'i bilan ham himoyalangan — agar (1) yozilishdan
@@ -1808,6 +1947,11 @@ const ARCHIVED_PREFIXES = [
   "oyin_sold:", "oyin:weeksnap:", "oyin:sprintdone:", "oyin:thanks:",
   "oyin:quest:", "oyin:home:", "oyin:story:", "oyin:goal:",
   "oyin:adj:", "oyin:ban:", "oyin_sold_test:",
+  // 🎬 `oyin:winner:` — bayonnomalar. Arxivlanadi, O'CHIRILMAYDI: `oyin:arch:sN:oyin:winner:*`
+  // bo'lib qoladi, ya'ni o'tgan to'plamlarning g'oliblari tekshiruv uchun saqlanib turadi.
+  // Arxivlanmasa yangi to'plamda eski mukofot kaliti bo'yicha bayonnoma bor deb hisoblanardi
+  // va o'sha mukofot QAYTA o'ynala olmasdi (`adminRecordWinner` → `already`).
+  "oyin:winner:",
 ];
 // `oyin:freeze` MAJBURIY: qolsa yangi mavsum MUZLATILGAN holda ochilardi va hech kim chipta
 // ola olmasdi — tugma nomi ("Yangi mavsumni toza boshlash") ochiq yolg'on bo'lardi.

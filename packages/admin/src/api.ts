@@ -27,7 +27,11 @@ import type {
   OyinAdminMemberHit,
   OyinAdminPrizeRow,
   OyinBudgetView,
+  OyinCapacityView,
   OyinDeleteResult,
+  OyinDrawList,
+  OyinDrawRecordResult,
+  OyinWinner,
   OyinFreezeState,
   OyinDrawExport,
   OyinPosterText,
@@ -155,6 +159,15 @@ export const adminApi = {
     postJson<{ prizes: OyinAdminPrizeRow[] }>("/api/admin/oyin/prize/active", { key, active }),
   deleteOyinPrize: (key: string) => postJson<OyinDeleteResult>("/api/admin/oyin/prize/delete", { key }),
   // ── 🛠 O'yin nazorati (ega talabi 2026-08-03: "oddiy kuzatuv emas") ────────────────────────
+  // 🎬 Mukofot kuni
+  oyinDrawList: (key: string) => req<OyinDrawList>(`/api/admin/oyin/draw/${encodeURIComponent(key)}`),
+  oyinWinners: () => req<{ winners: OyinWinner[] }>("/api/admin/oyin/winners"),
+  oyinRecordWinner: (key: string, gno: number, note: string) =>
+    postJson<OyinDrawRecordResult>("/api/admin/oyin/draw/winner", { key, gno, note }),
+  oyinMarkHandover: (key: string, photoUrl: string | null) =>
+    postJson<{ ok: boolean }>("/api/admin/oyin/draw/handover", { key, photoUrl }),
+  oyinCapacity: () => req<OyinCapacityView>("/api/admin/oyin/capacity"),
+  oyinOpenQueued: () => postJson<{ opened: string[]; reason: string; capacity: OyinCapacityView }>("/api/admin/oyin/capacity/open", {}),
   oyinBudget: () => req<OyinBudgetView>("/api/admin/oyin/budget"),
   oyinCancelPrizeTickets: (key: string) =>
     postJson<{ ok: boolean; cancelled: number; members: number }>("/api/admin/oyin/prize/cancel-tickets", { key }),

@@ -40,6 +40,8 @@ import {
   type OyinAdminMemberHit,
   type OyinAdminPrizeRow,
   type OyinBudgetView,
+  type OyinDrawList,
+  type OyinWinner,
   OYIN_PRIZE_MULTIPLIER,
   oyinCardPlan,
   oyinSuggestTier,
@@ -256,7 +258,7 @@ export function App() {
           {tab === "restoran" && (<><RestoranAdminView /><RestoranCatalogAdminView /></>)}
           {tab === "ravella" && <RavellaAdminView />}
           {tab === "jamoa" && <JamoaAdminView />}
-          {tab === "oyin" && <><OyinBudgetCard /><OyinSeasonMetricsCard /><OyinControlCard /><OyinActivityView /></>}
+          {tab === "oyin" && <><OyinBudgetCard /><OyinSeasonMetricsCard /><OyinDrawCard_ /><OyinControlCard /><OyinActivityView /></>}
           {tab === "bilim" && <KnowledgeAdminView />}
           {tab === "topshiriq" && <><QuickAnnounceView /><CampaignsView /><DriverMissionsView /></>}
           {tab === "actions" && <><ActionsView onHistory={() => goTab("broadcasts")} /><ControlCards /></>}
@@ -5894,6 +5896,114 @@ function OyinBudgetCard() {
           To'lmasa bir so'm ham sarflanmaydi.
         </span>
       </div>
+    </section>
+  );
+}
+
+// ─── 🎬 MUKOFOT KUNI (ega dizayni 2026-08-04: kartalar qutiga, bloger tortadi, raqam aytiladi).
+// ⚠️ Panel G'OLIBNI TANLAMAYDI. Uning vazifasi — qutini EGA to'ldirgani uchun paydo bo'ladigan
+// "bitta kartani solmagansiz" da'vosiga javob berish: ro'yxat muzlatiladi, hash bilan e'lon
+// qilinadi, kiritilgan raqam esa o'sha ro'yxatda BORLIGI tekshiriladi.
+function OyinDrawCard_() {
+  const [prizes, setPrizes] = useState<OyinAdminPrizeRow[] | null>(null);
+  const [sel, setSel] = useState<string>("");
+  const [list, setList] = useState<OyinDrawList | null>(null);
+  const [winners, setWinners] = useState<OyinWinner[]>([]);
+  const [gno, setGno] = useState("");
+  const [note, setNote] = useState("");
+  const [msg, setMsg] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  const reloadWinners = (): void => { void adminApi.oyinWinners().then((r) => setWinners(r.winners)).catch(() => undefined); };
+  useEffect(() => {
+    adminApi.oyinCatalog().then((r) => setPrizes(r.prizes)).catch(() => setPrizes([]));
+    reloadWinners();
+  }, []);
+  const openList = async (key: string): Promise<void> => {
+    setSel(key); setList(null); setMsg(null); setBusy(true);
+    setList(await adminApi.oyinDrawList(key).catch(() => null));
+    setBusy(false);
+  };
+  const record = async (): Promise<void> => {
+    if (!list) return;
+    const num = Math.round(Number(gno));
+    if (!Number.isFinite(num) || num <= 0) { setMsg("Karta raqamini yozing"); return; }
+    if (!confirm(`№${num} raqamini BAYONNOMAGA yozamizmi?\n\nMukofot: ${list.prizeName}\n\n⚠️ Bu yozuv QAYTARIB BO'LMAYDI.`)) return;
+    setBusy(true);
+    const r = await adminApi.oyinRecordWinner(list.prizeKey, num, note.trim()).catch(() => null);
+    setBusy(false);
+    if (r?.ok && r.winner) {
+      setMsg(`✅ Bayonnoma yozildi — g'olib ${r.winner.name} (${r.winner.phone ?? "telefon yo'q"})`);
+      setGno(""); setNote(""); reloadWinners(); void openList(list.prizeKey);
+      return;
+    }
+    setMsg(r?.reason === "not_in_list" ? `⛔ №${num} bu ro'yxatda YO'Q — qayta tekshiring`
+      : r?.reason === "not_frozen" ? "⛔ Avval tirajni MUZLATING (O'yin nazorati bloki)"
+      : r?.reason === "not_ready" ? `⛔ Yetarli karta tarqatilmagan (${list.sold}/${list.minSell})`
+      : r?.reason === "already" ? "⛔ Bu mukofot bo'yicha bayonnoma allaqachon yozilgan"
+      : "⛔ Bajarilmadi");
+  };
+
+  const ready = (prizes ?? []).filter((p) => p.willDraw && p.sold > 0);
+  return (
+    <section className="panel">
+      <div className="panel-title">🎬 Mukofot kuni</div>
+      <div className="muted" style={{ fontSize: 12.5, lineHeight: 1.8, background: "rgba(255,255,255,.04)", borderRadius: 8, padding: "10px 12px", marginBottom: 12 }}>
+        <b style={{ color: "var(--text)" }}>Tartib:</b> 1) tirajni muzlating → 2) ro'yxatni va hash'ni kanalga chiqaring →
+        3) kartalarni SHU ro'yxatdan chop eting → 4) bloger tortadi → 5) raqamni quyida kiriting.
+        Tizim raqamni ro'yxatda borligini tekshiradi va bayonnoma yozadi.
+      </div>
+
+      <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 12 }}>
+        {ready.length === 0 && <span className="muted" style={{ fontSize: 12.5 }}>Hali birorta mukofot tayyor emas (kerakli karta soni tarqatilmagan).</span>}
+        {ready.map((p) => (
+          <button key={p.key} className={sel === p.key ? "btn primary" : "btn"} disabled={busy} onClick={() => void openList(p.key)}>
+            {p.icon} {p.name} · {p.sold}/{p.limit}
+          </button>
+        ))}
+      </div>
+
+      {msg && <div style={{ fontSize: 12.5, marginBottom: 10, color: msg.startsWith("✅") ? "#34d399" : "#ff6b6b" }}>{msg}</div>}
+
+      {list && (
+        <>
+          <div className="cards" style={{ marginBottom: 12 }}>
+            <Card icon="🎟" label="Ro'yxatdagi karta" value={formatNumber(list.cards.length)} sub={list.excluded > 0 ? `${list.excluded} ta chiqarildi (xodim/chetlatilgan)` : "hammasi kirdi"} accent />
+            <Card icon="🔒" label="Muzlatilgan" value={list.frozenAt ? "HA" : "YO'Q"} sub={list.frozenAt ? list.frozenAt.slice(0, 16).replace("T", " ") : "avval muzlating!"} />
+            <Card icon="#️⃣" label="Ro'yxat hash" value={`${list.hash.slice(0, 10)}…`} sub="kanalga shu chiqadi" />
+          </div>
+          <textarea readOnly rows={4} style={{ width: "100%", fontFamily: "monospace", fontSize: 12, marginBottom: 10 }}
+            value={`${list.prizeName} — ${list.cards.length} ta sodiqlik kartasi\nSHA-256: ${list.hash}\n\n${list.cards.map((c) => `№${c.gno} — ${c.name}`).join("\n")}`} />
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center", marginBottom: 12 }}>
+            <input value={gno} onChange={(e) => setGno(e.target.value)} placeholder="Chiqqan raqam" style={{ maxWidth: 150 }} />
+            <input value={note} onChange={(e) => setNote(e.target.value)} placeholder="Bloger, guvohlar, video havolasi" style={{ flex: 1, minWidth: 200 }} />
+            <button className="btn danger" disabled={busy || !list.frozenAt} onClick={() => void record()}>🎬 Bayonnomaga yozish</button>
+          </div>
+        </>
+      )}
+
+      {winners.length > 0 && (
+        <div className="table-wrap">
+          <table>
+            <thead><tr><th>Sana</th><th>Mukofot</th><th>G'olib</th><th className="num">Karta</th><th className="num">Hovuz</th><th>Topshirildi</th></tr></thead>
+            <tbody>
+              {winners.map((w) => (
+                <tr key={w.prizeKey}>
+                  <td className="muted">{w.drawnAt.slice(0, 16).replace("T", " ")}</td>
+                  <td className="td-name">{w.prizeName}</td>
+                  <td>{w.name} <span className="muted">{w.phone ?? ""}</span></td>
+                  <td className="num strong">№{w.gno}</td>
+                  <td className="num muted">{formatNumber(w.poolSize)}</td>
+                  <td>
+                    {w.handedAt ? <span style={{ color: "#34d399" }}>✅ {w.handedAt.slice(0, 10)}</span>
+                      : <button className="btn" disabled={busy} onClick={() => { void adminApi.oyinMarkHandover(w.prizeKey, prompt("Topshirish fotosi (URL, ixtiyoriy):") || null).then(reloadWinners); }}>Topshirildi</button>}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
     </section>
   );
 }

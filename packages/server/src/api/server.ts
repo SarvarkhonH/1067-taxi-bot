@@ -2263,6 +2263,37 @@ export function createApiServer(opts: ApiOptions = {}) {
   // adolatga tegadi, operator-token bilan bajarilmasligi kerak.
   // ⚠️ HAR BIRI `alertAdmins` bilan e'lon qilinadi. Loyiha qoidasi (CLAUDE.md): jim toggle TAQIQ —
   // ega o'z telefonida ko'rmagan harakat keyin "men qilmadim" bahsiga aylanadi.
+  // ── 🎬 MUKOFOT KUNI ──────────────────────────────────────────────────────────────────────
+  // Dastur G'OLIBNI TANLAMAYDI — buni bloger jismonan qiladi. Dastur ro'yxat BUTUNLIGINI
+  // kafolatlaydi: muzlatilgan ro'yxat + hash ommaga chiqadi, kiritilgan raqam esa o'sha
+  // ro'yxatda borligi TEKSHIRILADI.
+  app.get("/api/admin/oyin/draw/:key", requireAdmin, async (req, res) => {
+    const { getDrawList } = await import("../services/oyinService");
+    const l = await getDrawList(String(req.params.key));
+    if (!l) { res.status(404).json({ error: "not_found" }); return; }
+    res.json(l);
+  });
+  app.get("/api/admin/oyin/winners", requireAdmin, async (_req, res) => {
+    const { getWinners } = await import("../services/oyinService");
+    res.json({ winners: await getWinners() });
+  });
+  app.post("/api/admin/oyin/draw/winner", requireAdmin, requireOwner, rateLimit(20), async (req, res) => {
+    const b = req.body as { key?: string; gno?: number; note?: string };
+    if (typeof b?.key !== "string" || !b.key) { res.status(400).json({ error: "key required" }); return; }
+    const { adminRecordWinner } = await import("../services/oyinService");
+    const r = await adminRecordWinner(b.key, Number(b?.gno), String(b?.note ?? ""));
+    if (r.ok && r.winner) {
+      const { alertAdmins } = await import("../services/economyService");
+      await alertAdmins(`🎬 <b>BAYONNOMA yozildi</b>\n${r.winner.prizeName}\nG'olib: <b>${r.winner.name}</b> · karta №${r.winner.gno}\n${r.winner.poolSize} ta karta ichidan\nHash: <code>${r.winner.listHash.slice(0, 16)}…</code>\n⚠️ Bu yozuv QAYTARIB BO'LMAYDI.`).catch(() => undefined);
+    }
+    res.json(r);
+  });
+  app.post("/api/admin/oyin/draw/handover", requireAdmin, requireOwner, rateLimit(20), async (req, res) => {
+    const b = req.body as { key?: string; photoUrl?: string | null };
+    if (typeof b?.key !== "string" || !b.key) { res.status(400).json({ error: "key required" }); return; }
+    const { adminMarkHandover } = await import("../services/oyinService");
+    res.json(await adminMarkHandover(b.key, b.photoUrl ?? null));
+  });
   // 🛡 Sig'im o'lchovi + navbatdan ochish. `GET` faqat o'lchaydi; `POST` navbatdan ochadi
   // (panel «Ochish» tugmasi). Ochish IDEMPOTENT — sig'im yetarli bo'lsa hech narsa qilmaydi.
   app.get("/api/admin/oyin/capacity", requireAdmin, async (_req, res) => {
