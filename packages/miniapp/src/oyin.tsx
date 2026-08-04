@@ -333,7 +333,7 @@ function RulesSheet({ season, prizes, maxPerPrize, onClose }: {
             {prizes.length === 0 ? (
               <>
                 Mukofotlar ro'yxati hali e'lon qilinmagan. E'lon qilingach shu yerda to'liq
-                ko'rinadi: har mukofotning nomi, sodiqlik kartalari soni va o'ynalishi uchun
+                ko'rinadi: har mukofotning nomi, sodiqlik kartalari soni va topshirilishi uchun
                 kerak bo'lgan karta soni.
               </>
             ) : (
@@ -343,7 +343,7 @@ function RulesSheet({ season, prizes, maxPerPrize, onClose }: {
                   {prizes.map((p) => (
                     <li key={p.key}>
                       <b>{p.name}</b> — {p.limit} ta sodiqlik kartasi
-                      {p.minSell > 0 ? <> · o'ynalishi uchun kamida {p.minSell} ta karta tarqatilishi kerak</> : null}
+                      {p.minSell > 0 ? <> · topshirilishi uchun kamida {p.minSell} ta karta tarqatilishi kerak</> : null}
                     </li>
                   ))}
                 </ul>
@@ -352,7 +352,7 @@ function RulesSheet({ season, prizes, maxPerPrize, onClose }: {
           </RuleSec>
 
           <RuleSec n={6} t="Mukofot egasi qanday aniqlanadi">
-            Har mukofot o'z sodiqlik kartalarining belgilangan qismi tarqatilganda o'ynaladi —
+            Har mukofot o'z sodiqlik kartalarining belgilangan qismi tarqatilganda EGASIGA TOPSHIRILADI —
             kerakli son har mukofot yonida (5-band) OLDINDAN ko'rsatilgan. Kerakli son
             yig'ilmasa, o'sha mukofot o'ynalmaydi va bu haqda ochiq e'lon qilinadi.<br />
             Muddat tugashiga <b>{lockH} soat</b> qolganda karta berish to'xtaydi: ro'yxat
@@ -1396,8 +1396,8 @@ Taksida yur, ball yig', sodiqlik kartasini ol. Davr oxirida jonli efirda mukofot
                   {p.minSell > 0 && (
                     <div className={`oyk-vcard-path${p.willDraw ? " is-ok" : ""}`}>
                       {p.willDraw
-                        ? `🛡 Mukofot kunida o'ynaladi — kerakli ${p.minSell} ta karta yig'ildi`
-                        : `🛡 Mukofot kunida o'ynashi uchun ${p.minSell} ta karta kerak — hozir ${p.sold} ta`}
+                        ? `🛡 Mukofot kunida topshiriladi — kerakli ${p.minSell} ta karta yig'ildi`
+                        : `🛡 Topshirilishi uchun ${p.minSell} ta karta kerak — hozir ${p.sold} ta`}
                     </div>
                   )}
                   {/* ⚠️ Tugagan sovringa "eng tez yo'l" ko'rsatish — bo'sh va'da: yo'l bor,
