@@ -176,11 +176,24 @@ function keyOf(name: string, taken: Set<string>): string {
   return `${base}-${i}`;
 }
 
+/** `--fresh` — eski yuklamani ALMASHTIRISH.
+ *  ⚠️ Sotilgan kartasi BOR mukofot HECH QACHON o'chirilmaydi: uning egasi bor va mukofot
+ *  kunini kutyapti. Faqat `sold === 0` bo'lganlari tozalanadi. */
+const FRESH = process.argv.includes("--fresh");
+
 async function main(): Promise<void> {
   const row = await prisma.appState.findUnique({ where: { key: "oyin:catalog" } });
   let existing: OyinCatalogPrize[] = [];
   if (row) {
     try { existing = JSON.parse(row.value) as OyinCatalogPrize[]; } catch { existing = []; }
+  }
+  if (FRESH && existing.length > 0) {
+    const soldRows = await prisma.appState.findMany({ where: { key: { startsWith: "oyin_sold:" } } });
+    const sold = new Map<string, number>();
+    for (const r of soldRows) sold.set(r.key.slice("oyin_sold:".length), Number(r.value) || 0);
+    const before = existing.length;
+    existing = existing.filter((p) => (sold.get(p.key) ?? 0) > 0);
+    console.log(`♻️ FRESH: ${before} tadan ${existing.length} tasi saqlandi (sotilgan kartasi bor), ${before - existing.length} tasi tozalandi\n`);
   }
   const takenKeys = new Set(existing.map((p) => p.key));
   const takenNames = new Set(existing.map((p) => p.name.toLowerCase().trim()));
