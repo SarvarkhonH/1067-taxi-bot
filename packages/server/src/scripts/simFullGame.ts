@@ -263,6 +263,34 @@ console.log("\n⑤ drawPrize — to'lmasa O'YNALMAYDI, xodim/chetlatilgan CHIQAD
   world.prizes = []; world.members.clear(); world.ownerSpend = 0; world.revenue = 0; world.emitted = 0; world.gno = 729474;
 }
 
+console.log("\n⑤b HARAKATSIZLIK — ball 6 oyda so'nadi, KARTA hech qachon");
+{
+  // `computeBallMap` (oyinService.ts) mantig'i: `dormant = now − lastActivity > BALL_INACTIVITY_MS`
+  // → `earned` VA `spent` ikkalasi ham 0. Kartalar esa TEGILMAYDI.
+  const INACTIVITY = 183 * 86400_000;
+  const ballWithDormancy = (earned: number, spent: number, daysSinceAct: number): number => {
+    const dormant = daysSinceAct * 86400_000 > INACTIVITY;
+    return Math.max(0, (dormant ? 0 : earned) - (dormant ? 0 : spent));
+  };
+  ok(ballWithDormancy(5000, 1200, 30) === 3800, "30 kun — balans tirik (3 800)");
+  ok(ballWithDormancy(5000, 1200, 182) === 3800, "182 kun — hali tirik (chegara ichida)");
+  ok(ballWithDormancy(5000, 1200, 184) === 0, "184 kun — ball so'ndi");
+  // ⚠️ ENG MUHIM: uyquga ketgan odam qaytganda 0 dan boshlaydi, MANFIYDAN emas.
+  // `spent` ham nolga tushmasa `max(0, 0 − 1200)` bilan abadiy 0 da QAMALIB qolardi va
+  // yangi safarlari ham ko'rinmasdi — jim, xatosiz, tuzatib bo'lmaydigan holat.
+  const returned = ballWithDormancy(0 + 350, 0, 1); // qaytdi, 10 safar qildi
+  ok(returned === 350, `qaytgan odam yangi ballni KO'RADI (${returned}) — 0 da qamalib qolmaydi`);
+  // Karta abadiy: davr chegarasi kartalarga TEGMAYDI
+  world.prizes = []; world.members.clear();
+  const p = addPrize("Uzoq", 100_000, false);
+  const m = addMember(1, null); doRide(m); m.ball = 999_999;
+  buyCard(m, p);
+  const before = m.cards.length;
+  // "yangi davr" — S8 dan keyin bu FAQAT yorliq, ma'lumot reset qilinmaydi
+  ok(m.cards.length === before && before === 1, `davr almashdi → karta joyida (${m.cards.length} ta)`);
+  world.prizes = []; world.members.clear();
+}
+
 console.log("\n⑥ capacity + autoOpen — navbat teshigi");
 {
   addPrize("Ochiq", 100_000, false);
