@@ -10,6 +10,7 @@ import {
   OYIN_FINAL_LOCK_MS,
   OYIN_SEED_CATALOG,
   OYIN_SOM_PER_BALL,
+  OYIN_SOM_PER_RIDE,
   OYIN_STORY_SEASON_LIMIT,
   OYIN_TARGET_COST_PCT,
   oyinQuestOf,
@@ -909,9 +910,14 @@ export async function adminBudget(): Promise<OyinBudgetView> {
     ? Math.max(1, Math.round((season.endMs - season.startMs) / 86400_000))
     : 30;
   const projectedRides = Math.round(rides30d * (seasonDays / 30));
-  // Ega raqami: bitta buyurtmadan 2 000 so'm. Ball shkalasidan chiqariladi (1 ball = 10 so'm,
-  // safar 200 ball) — knob o'zgarsa byudjet ham o'zi moslashadi, qotirilgan son yo'q.
-  const somPerRide = ((econB.oyinRideBall ?? 150) + (econB.oyinReferRideBall ?? 50)) * OYIN_SOM_PER_BALL;
+  // ⚠️ TUZATILDI (nazoratchi agent 2026-08-04). Avval bu son BALL SHKALASIDAN chiqarilardi:
+  //   `(oyinRideBall + oyinReferRideBall) × OYIN_SOM_PER_BALL`
+  // Bu eski langarda tasodifan to'g'ri chiqardi (150+50) × 10 = 2 000. Yangi jadval bilan esa
+  // (35+10) × 20 = 900 so'm — ya'ni byudjet kartasi daromadni 2,2× KAM ko'rsatardi va sig'adigan
+  // katalogda ham "byudjetdan oshdi" deb qizil yonardi.
+  // Endi bevosita: komissiya — MAHSULOT fakti, ball shkalasi esa mustaqil dial. Ikkalasi
+  // bog'lanmasligi kerak, aks holda knob o'zgarganda daromad "o'zgarib ketadi".
+  const somPerRide = OYIN_SOM_PER_RIDE;
   const revenueSom = projectedRides * somPerRide;
   const budgetSom = Math.round((revenueSom * OYIN_TARGET_COST_PCT) / 100);
   const catalogSom = catalog
@@ -1092,31 +1098,10 @@ async function releaseSoldSlot(prizeKey: OyinPrizeKey, test = false): Promise<vo
     WHERE "key" = ${`${test ? "oyin_sold_test:" : "oyin_sold:"}${prizeKey}`}`;
 }
 
-/** 🧪 TEST o'rni — EGA/ADMIN uchun ALOHIDA hisoblagich (`oyin_sold_test:`). Nega alohida:
- *  ega sinov qilganda mijozlarning tanqis sovrin-o'rinlari YEYILMASLIGI shart. Aks holda
- *  "20 ta chipta bor" deb e'lon qilingan sovrindan 3 tasi eganing sinoviga ketardi va bu
- *  hech qayerda ko'rinmasdi. Limit ham alohida: sinov mijoz limitidan mustaqil. */
-async function reserveTestSlot(prizeKey: OyinPrizeKey): Promise<number> {
-  const rows = await prisma.$queryRaw<{ value: string }[]>`
-    INSERT INTO "AppState" ("key","value","updatedAt")
-    VALUES (${`oyin_sold_test:${prizeKey}`}, '1', NOW())
-    ON CONFLICT ("key") DO UPDATE
-      SET "value" = CAST((CAST("AppState"."value" AS INTEGER) + 1) AS TEXT), "updatedAt" = NOW()
-    RETURNING "value"`;
-  return Number(rows[0]?.value) || 1;
-}
-
-/** 🧪 TEST global raqami — 900000 dan boshlanadi, ya'ni mijoz raqamlari (729475+) bilan
- *  hech qachon TO'QNASHMAYDI va jonli efirda ko'rilganda darhol ajralib turadi. */
-async function nextTestTicketNo(): Promise<number> {
-  const rows = await prisma.$queryRaw<{ value: string }[]>`
-    INSERT INTO "AppState" ("key","value","updatedAt")
-    VALUES ('oyin:ticketno:test', '900001', NOW())
-    ON CONFLICT ("key") DO UPDATE
-      SET "value" = CAST((CAST("AppState"."value" AS INTEGER) + 1) AS TEXT), "updatedAt" = NOW()
-    RETURNING "value"`;
-  return Number(rows[0]?.value) || 900001;
-}
+// 🧪 `reserveTestSlot` / `nextTestTicketNo` OLIB TASHLANDI (2026-08-04) — test-rejimi bekor
+// qilingani uchun ular yangi karta YARATMAYDI. Lekin `test` maydonini O'QISH saqlanadi
+// (`parseTickets`, `drawExport`, `releaseSoldSlot`): jonli bazada eski sinov kartalari BOR va
+// ular tirajdan tashqarida qolishi SHART. Yangi xaridlar — oddiy karta.
 
 /** `preview=true` (ega/admin) — bayroq DARK bo'lsa ham xarid ishlaydi, shunda ega QABUL'dan oldin
  *  BUTUN oqimni sinab ko'radi. shopService.buyProduct / classifiedService.buyTopBoost / ravella
@@ -1163,18 +1148,25 @@ export async function buyTicket(memberId: number, prizeKeyRaw: string, preview =
     // `drawExport` dan chiqariladi.
     if (await isBanned(memberId)) return { ok: false, reason: "banned" as const, ballLeft: await getBall(memberId) };
 
-    // 🧪 EGA/XODIM — TIRAJDAN TASHQARIDA, LEKIN TO'SILMAYDI (ega qarori 2026-08-03).
-    // Avval bu yerda qattiq `reason: "staff"` to'sig'i turardi va ega BUTUN oqimni (ball →
-    // chipta → raqam → bayram oynasi → «Chiptalarim») HECH QACHON sinab ko'ra olmasdi —
-    // ya'ni mijozga chiqadigan eng muhim yo'l tekshirilmagan holda jo'natilardi.
-    // Endi xarid o'tadi, lekin chipta `test:true` bo'ladi:
-    //   · `drawExport` uni CHIQARIB TASHLAYDI → "ega o'z tirajida yutdi" imkonsiz;
-    //   · alohida hisoblagich (`oyin_sold_test:`) → mijozlarning o'rinlari YEYILMAYDI;
-    //   · raqam 900001+ seriyasidan → mijoz raqamlari bilan to'qnashmaydi;
-    //   · ekranda ochiq "🧪 TEST" deb turadi → yashirin emas.
-    // Ball ROSTAN yechiladi — sinov haqiqiy bo'lishi uchun (admin paneldan qayta qo'shiladi).
-    const myTu = await prisma.telegramUser.findFirst({ where: { memberId }, select: { id: true } });
-    const isTest = !!(myTu && isAdmin(myTu.id));
+    // 🧪 TEST-REJIMI OLIB TASHLANDI (ega qarori 2026-08-04: "test emas, to'liq jarayoni ko'rishim
+    // kerak"). Avval ega xaridi alohida hisoblagichga (`oyin_sold_test:`) yozilardi va jonli
+    // sinovda AYNAN SHU chalkashlik chiqdi: ega kartani oldi, vitrinada esa «Olingan: 0» turdi
+    // (`getVitrina` haqiqiy `oyin_sold:` dan o'qiydi). Ya'ni "to'liq jarayonni ko'rish" imkonsiz
+    // edi — sinov mijoz ko'radigan raqamlarga TEGMASDI.
+    //
+    // Endi ega oddiy mijozdek o'ynaydi.
+    //
+    // ⚠️ OCHIQ QARZ (nazoratchi agent 2026-08-04 topdi). Bu yerda avval uchta "qo'riq" sanalgan
+    // edi, ulardan IKKITASI mavjud emas — ya'ni izoh kod bajarmaydigan narsani va'da qilardi:
+    //   ❌ "qoidalar sahifasida xodimlar ishtirok etmaydi deb yoziladi" — bunday matn butun
+    //      repoda YO'Q (miniapp «📋 Qoidalar» bloki 5 qatordan iborat, xodim haqida so'z yo'q).
+    //      → S4 bosqichida qoidalar sahifasi bilan birga yoziladi.
+    //   ❌ "bitta tugma bilan tozalaydi" — `adminCancelPrizeTickets` API'da BOR, admin panelda
+    //      TUGMASI YO'Q; qolaversa u sovrinning HAMMA mijoz kartasini o'chiradi, eganikini emas.
+    //      → S5 (panel) da "mening kartalarimni tozalash" tugmasi qilinadi.
+    //   ✅ "muzlatilgan ro'yxat ommaga ochiq" — `drawExport` bor va ishlaydi.
+    // Ya'ni HOZIR yagona haqiqiy qo'riq — ochiq ro'yxat. Ega bayroqni yoqishdan OLDIN o'z
+    // kartalarini qo'lda (`adminCancelTicket`, bitta-bitta) tozalashi SHART.
 
     // 🚧 SAFAR DARVOZASI — o'yindagi eng katta struktur teshik shu yerda edi.
     // Pul yo'lida (`seasonClose`) "≥1 real safar" sharti BOR edi, SOVRIN yo'lida YO'Q.
@@ -1205,9 +1197,7 @@ export async function buyTicket(memberId: number, prizeKeyRaw: string, preview =
       .length;
     if (ownCount >= maxOwn) return { ok: false, reason: "own_limit" as const, ballLeft: ball };
 
-    // 🧪 Test xaridi ALOHIDA hisoblagichdan o'rin oladi — mijozlarning `oyin_sold:` soni
-    // o'zgarmaydi, ya'ni vitrinada "qoldi N" raqami eganing sinovidan kamaymaydi.
-    const ticketNo = isTest ? await reserveTestSlot(prize.key) : await reserveSoldSlot(prize.key, prize.limit);
+    const ticketNo = await reserveSoldSlot(prize.key, prize.limit);
     if (ticketNo === null) return { ok: false, reason: "sold_out" as const, ballLeft: ball };
 
     // ⚠️ `reserveSoldSlot` o'rinni ALLAQACHON band qildi. Quyidagi 3 DB operatsiyasidan
@@ -1218,20 +1208,17 @@ export async function buyTicket(memberId: number, prizeKeyRaw: string, preview =
       const key = `oyin:tickets:${memberId}`;
       const row = await prisma.appState.findUnique({ where: { key } });
       const tickets = parseTickets(row?.value);
-      const gno = isTest ? await nextTestTicketNo() : await nextGlobalTicketNo();
-      tickets.push({
-        prizeKey: prize.key, no: ticketNo, gno, priceAtPurchase: prize.price,
-        ts: new Date().toISOString(), ...(isTest ? { test: true as const } : {}),
-      });
+      const gno = await nextGlobalTicketNo();
+      tickets.push({ prizeKey: prize.key, no: ticketNo, gno, priceAtPurchase: prize.price, ts: new Date().toISOString() });
       await prisma.appState.upsert({
         where: { key },
         create: { key, value: JSON.stringify(tickets) },
         update: { value: JSON.stringify(tickets) },
       });
       invalidateBallCache();
-      return { ok: true, ticketNo, gno, prizeKey: prize.key, ballLeft: ball - prize.price, ...(isTest ? { test: true } : {}) };
+      return { ok: true, ticketNo, gno, prizeKey: prize.key, ballLeft: ball - prize.price };
     } catch (e) {
-      await releaseSoldSlot(prize.key, isTest).catch(() => undefined);
+      await releaseSoldSlot(prize.key).catch(() => undefined);
       throw e;
     }
   });

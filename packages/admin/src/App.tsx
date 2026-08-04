@@ -40,7 +40,9 @@ import {
   type OyinAdminMemberHit,
   type OyinAdminPrizeRow,
   type OyinBudgetView,
-  oyinPlanFromRides,
+  OYIN_PRIZE_MULTIPLIER,
+  oyinCardPlan,
+  oyinSuggestTier,
   type OyinBallBreakdown,
   type OyinFreezeState,
   type OyinPosterText,
@@ -5846,7 +5848,13 @@ function OyinBudgetCard() {
   if (failed) return null;
   if (!b) return <section className="panel"><div className="panel-title">💰 Mavsum byudjeti</div><div className="muted">Yuklanmoqda…</div></section>;
 
-  const plan = oyinPlanFromRides(Number(pv.replace(/\D/g, "")) || 0, Number(pr) || 1, rideBall);
+  // ⚠️ `oyinPlanFromRides` (eski 15%-formula) O'RNIGA `oyinCardPlan` (m=3 kafolati). Nazoratchi
+  // agent 2026-08-04 da yangi formula O'LIK KOD ekanini topdi: `OYIN_TIERS`/`oyinCardPlan` hech
+  // qayerdan chaqirilmasdi va ega sovrin yaratadigan yagona joy hali eski langarda ishlardi
+  // (500 000 so'm → 8 300 ball = 237 safar/karta). Ya'ni "3× kafolat" mahsulotda MAVJUD EMAS edi.
+  const pvNum = Number(pv.replace(/\D/g, "")) || 0;
+  const tier = oyinSuggestTier(pvNum, rideBall);
+  const plan = oyinCardPlan(pvNum, tier, rideBall);
   const usedPct = b.budgetSom > 0 ? Math.round((b.catalogSom / b.budgetSom) * 100) : 0;
 
   return (
@@ -5864,16 +5872,27 @@ function OyinBudgetCard() {
         <Card icon="🎁" label={`Sovrin byudjeti (${b.targetPct}%)`} value={`${formatNumber(b.budgetSom)} so'm`} sub={`hozir: ${formatNumber(b.catalogSom)} so'm`} accent />
       </div>
 
-      <div style={{ fontSize: 13, fontWeight: 500, marginBottom: 8 }}>🎯 Sovrin rejalashtiruvchi — ball emas, «necha safarlik» deb o'ylang</div>
+      <div style={{ fontSize: 13, fontWeight: 500, marginBottom: 8 }}>🎯 Mukofot rejalashtiruvchi — faqat narxni yozing</div>
       <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center", marginBottom: 10 }}>
-        <input value={pv} onChange={(e) => setPv(e.target.value)} placeholder="Sovrin qiymati (so'm)" style={{ maxWidth: 180 }} />
-        <input value={pr} onChange={(e) => setPr(e.target.value)} placeholder="Necha safarlik" style={{ maxWidth: 140 }} />
+        <input value={pv} onChange={(e) => setPv(e.target.value)} placeholder="Mukofot narxi (so'm)" style={{ maxWidth: 200 }} />
       </div>
+      {plan.clamped && (
+        <div style={{ fontSize: 12.5, color: "#ff6b6b", marginBottom: 8 }}>
+          ⛔ Narx 100 mln so'm shipidan oshdi — quyidagi hisob KESILGAN qiymatdan, kafolat buzilgan. Narxni kamaytiring.
+        </div>
+      )}
       <div className="muted" style={{ fontSize: 12.5, lineHeight: 1.9, background: "rgba(255,255,255,.04)", borderRadius: 8, padding: "10px 12px" }}>
-        Ball narxi: <b style={{ color: "var(--text)" }}>{formatNumber(plan.ballPrice)} ball</b> ({pr} safar × {rideBall})<br />
-        Chipta soni: <b style={{ color: "var(--text)" }}>{formatNumber(plan.slots)} ta</b> — shuncha bo'lsa xarajat {plan.costPct.toFixed(0)}%<br />
-        Hammasi sotilsa yig'iladi: <b style={{ color: "var(--text)" }}>{formatNumber(plan.ballCapacity)} ball</b> = {formatNumber(plan.ballCapacity * OYIN_SOM_PER_BALL)} so'm<br />
-        <span style={{ color: "var(--text-muted)" }}>Sovrinni shu narx va shu chipta soni bilan qo'ying — foiz o'zi joyiga tushadi.</span>
+        Daraja: <b style={{ color: "var(--text)" }}>{tier}</b> — karta bahosi <b style={{ color: "var(--text)" }}>{formatNumber(plan.ballPrice)} ball</b>
+        {plan.rides > 0 ? <> (≈ {plan.rides} safarlik mehnat)</> : <> (safar bali 0 ga sozlangan)</>}<br />
+        Kartalar soni: <b style={{ color: "var(--text)" }}>{formatNumber(plan.slots)} ta</b>
+        {plan.slots > 100 && <span style={{ color: "#f0b429" }}> — 100 dan ko'p, imkoniyat 1% dan past</span>}
+        {plan.slots < 20 && <span style={{ color: "var(--text-muted)" }}> — kam, tez to'ladi</span>}<br />
+        To'lganda yig'iladi: <b style={{ color: "var(--text)" }}>{formatNumber(plan.ballCapacity)} ball</b> = {formatNumber(plan.somCapacity)} so'm
+        {" "}(<b style={{ color: "#34d399" }}>{(plan.somCapacity / Math.max(1, pvNum)).toFixed(1)}× qoplash</b>)<br />
+        <span style={{ color: "var(--text-muted)" }}>
+          Mukofot FAQAT hamma karta sotilganda o'ynaladi — shuning uchun xarajat har doim {(100 / OYIN_PRIZE_MULTIPLIER).toFixed(0)}%.
+          To'lmasa bir so'm ham sarflanmaydi.
+        </span>
       </div>
     </section>
   );

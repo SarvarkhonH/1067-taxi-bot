@@ -28,18 +28,129 @@ export interface OyinCatalogPrize {
 // TO'LIQ admin qo'lida — bu massiv faqat BIR MARTALIK boshlang'ich holat, keyin o'qilmaydi.
 /** 💰 BALL SHKALASI — 1 ball = shuncha so'm SOF daromad (ega raqami: buyurtmadan 2000 so'm).
  *  Butun iqtisod shu bitta sondan chiqadi: safar bali ham, sovrin narxi ham. */
-export const OYIN_SOM_PER_BALL = 10;
+// ⚠️ 10 → 20 (ega qarori 2026-08-04). Sabab: jonli katalogda uchta har xil matematika yashab
+// kelgan edi va natijada xarajat 1003% bo'lib chiqdi. Endi langar BITTA va o'zgarmaydi —
+// butun katalog shu tilda yoziladi.
+export const OYIN_SOM_PER_BALL = 20;
 
-/** 🎯 BirJoy'ning sovrin xarajati — o'sha sovrin uchun kassaga kelgan daromadning necha foizi.
- *  15% — sog'lom marketing byudjeti. Bu YAGONA dial: qolgan hamma raqam undan chiqadi. */
+/** 🛡 MUKOFOT MULTIPLIKATORI — kartalar qiymati mukofot narxidan necha barobar katta.
+ *
+ *  `m = 3` degani: mukofot to'lganda uning narxidan **3 barobar ko'p** karta-qiymat yig'ilgan
+ *  bo'ladi (1× xarajat + 2× qoladi). Va bu KAFOLAT, prognoz emas — chunki mukofot faqat
+ *  hamma karta sotilganda o'ynaladi (`oyinMinSellPct = 100`).
+ *
+ *  ⚠️ Bu `OYIN_TARGET_COST_PCT` ning O'RNIGA keladi: foiz endi mo'ljal emas, formuladan
+ *  chiqadigan NATIJA (1/m = 33% emissiyadan, ya'ni ~16-21% daromaddan). */
+export const OYIN_PRIZE_MULTIPLIER = 3;
+
+/** 💵 Bitta yakunlangan safardan tushadigan komissiya (ega raqami). Tizimga pul kiradigan
+ *  YAGONA eshik — byudjet hisobi shundan boshlanadi.
+ *  ⚠️ Ball shkalasidan CHIQARILMAYDI. Avval `adminBudget` uni `(rideBall + referRideBall) ×
+ *  somPerBall` deb hisoblardi va eski langarda tasodifan 2 000 chiqardi; ball jadvali
+ *  o'zgarganda esa daromad "o'zgarib ketardi" (900 so'm). Komissiya — mahsulot fakti,
+ *  ball shkalasi — mustaqil dial. */
+export const OYIN_SOM_PER_RIDE = 2000;
+
+/** @deprecated `OYIN_PRIZE_MULTIPLIER` ishlatiladi. Byudjet kartasi uchun qoldirildi:
+ *  emissiyaning 1/m ulushi daromadning taxminan shuncha foizini tashkil qiladi. */
 export const OYIN_TARGET_COST_PCT = 15;
+
+// ── 🎟 KARTA BAHOSI — to'rt daraja. Ega ball emas, MEHNAT bilan o'ylaydi.
+// Safar = 35 ball, ya'ni daraja ≈ necha safarlik ekanini bevosita aytadi.
+// ⚠️ 3 600 dan yuqori daraja YO'Q: 120 safar/oy qiladigan eng og'ir mijoz ham bir oyda
+// bittasini zo'rg'a oladi. Undan qimmat karta = o'lik zaxira.
+export const OYIN_TIERS = {
+  kichik: 600, // ~17 safar
+  orta: 1200, // ~34 safar
+  katta: 2400, // ~69 safar
+  bosh: 3600, // ~103 safar
+} as const;
+export type OyinTier = keyof typeof OYIN_TIERS;
+
+/** 📐 `Z = ⌈3X ÷ (20·Y)⌉` — mukofot narxi va darajasidan KARTALAR SONI.
+ *
+ *  Ega faqat ikki narsani beradi: narx va daraja. Karta soni QO'LDA tanlanmaydi — aynan shu
+ *  jonli xatoning manbai edi (900 000 so'mlik pech 600 ball × 15 karta = 4 safarlik mehnat). */
+export interface OyinCardPlan {
+  ballPrice: number; // Y — karta bahosi (ball)
+  slots: number; // Z — kartalar soni
+  rides: number; // karta ≈ necha safar
+  ballCapacity: number; // Z × Y — to'lganda yig'iladigan ball
+  somCapacity: number; // ballCapacity × 20 — so'mda
+  costPct: number; // mukofot narxi / somCapacity — kafolatlangan 1/m
+  // ⚠️ Narx shipdan (100 mln) OSHGAN. `costPct` KESILGAN qiymatdan hisoblanadi, ya'ni u
+  // haqiqatni AYTMAYDI — kafolat buzilgan. UI bu bayroqni ko'rsatishi SHART.
+  clamped: boolean;
+}
+/** ⚠️ Mukofot narxining shipi. `Number.isFinite` YETARLI EMAS: `1e308` ham "finite", lekin
+ *  undan chiqadigan `slots` astronomik bo'ladi. Ship real mahsulot narxidan ancha yuqori
+ *  (100 mln so'm), ya'ni halol qiymatni hech qachon kesmaydi, buzuq kiritishni esa to'xtatadi. */
+const MAX_PRIZE_SOM = 100_000_000;
+
+export function oyinCardPlan(valueSom: number, tier: OyinTier, rideBall = 35): OyinCardPlan {
+  // ⚠️ `Number(x) || 0` YETARLI EMAS — `Infinity || 0` = Infinity. Sinov (simLoyalty.ts)
+  // aynan shuni ushladi: `slots = Infinity`, `costPct = NaN` bo'lib ekranga chiqardi. Bu
+  // `adminUpsertPrize` dagi `1e999 → Infinity → JSON null → BEPUL chipta` bugining aynan
+  // o'sha oilasi, faqat boshqa funksiyada.
+  const raw = Number(valueSom);
+  const safe = Number.isFinite(raw) ? Math.max(0, Math.round(raw)) : 0;
+  const v = Math.min(MAX_PRIZE_SOM, safe);
+  // ⚠️ `tier` O'QI HAM QO'RIQLANADI. Avval faqat `valueSom` tekshirilardi va noto'g'ri daraja
+  // (`"buyuk"`) `ballPrice = undefined` berardi → `slots`, `ballCapacity`, `somCapacity` NaN,
+  // JSON'da esa `null` bo'lib chiqardi. Bu aynan shu kodbazadagi `1e999 → Infinity → JSON null
+  // → BEPUL chipta` bugining o'sha oilasi, faqat boshqa o'qda. Nazoratchi agent ushladi.
+  const ballPrice = OYIN_TIERS[tier] ?? OYIN_TIERS.orta;
+  const slots = Math.max(1, Math.ceil((OYIN_PRIZE_MULTIPLIER * v) / (OYIN_SOM_PER_BALL * ballPrice)));
+  const ballCapacity = slots * ballPrice;
+  const somCapacity = ballCapacity * OYIN_SOM_PER_BALL;
+  // `rides` — ega uchun tarjima ("bu karta ≈ 34 safarlik mehnat"). Safar balli 0 ga sozlangan
+  // bo'lsa tarjima MA'NOSIZ: 0 qaytaramiz va UI "—" chizadi. Avval `Math.max(1, rideBall)`
+  // tufayli "1 200 safar" degan bema'ni son chiqardi.
+  const rb = Number(rideBall);
+  const rides = Number.isFinite(rb) && rb > 0 ? Math.max(1, Math.round(ballPrice / rb)) : 0;
+  return {
+    ballPrice,
+    slots,
+    rides,
+    ballCapacity,
+    somCapacity,
+    costPct: somCapacity > 0 ? (v / somCapacity) * 100 : 0,
+    clamped: safe > MAX_PRIZE_SOM,
+  };
+}
+
+/** 🎯 Berilgan narx uchun ENG MUVOZANATLI darajani tanlaydi — `Z` ni 50 ga eng yaqin qiladi.
+ *
+ *  ⚠️ Avval bu funksiya `Z ≤ 100` bo'lgan BIRINCHI darajani olardi, ya'ni deyarli har doim eng
+ *  arzonini: 350 000 so'mlik mukofot 88 ta kartaga bo'linardi (to'g'risi — 44). Sinov shuni
+ *  ushladi. 50 — oltin o'rta: imkoniyat 2% (real tuyuladi) va to'lish tezligi maqbul. */
+export function oyinSuggestTier(valueSom: number, rideBall = 35): OyinTier {
+  const order: OyinTier[] = ["kichik", "orta", "katta", "bosh"];
+  const TARGET_SLOTS = 50;
+  let best: OyinTier = "kichik";
+  let bestDist = Infinity;
+  for (const t of order) {
+    const s = oyinCardPlan(valueSom, t, rideBall).slots;
+    // 100 dan oshgani jarima oladi (imkoniyat 1% dan tushadi), lekin butunlay rad etilmaydi —
+    // 10 mln so'mlik orzu mukofotida hamma daraja 100 dan oshadi va baribir birini tanlash kerak.
+    const dist = Math.abs(s - TARGET_SLOTS) + (s > 100 ? 1000 : 0);
+    if (dist < bestDist) { bestDist = dist; best = t; }
+  }
+  return best;
+}
 
 /** 🎟 Yangi sovrin uchun taklif etiladigan boshlang'ich chipta-o'rin soni. */
 export const OYIN_DEFAULT_SLOTS = 20;
 
 /** ⚠️ Bitta o'yinchi bir mavsumda yig'a oladigan REAL eng katta ball (kuchli profil:
  *  kuniga 1 safar + 20 faol do'st). Chipta narxi bundan oshsa sovrin O'LIK ZAXIRA bo'ladi. */
-export const OYIN_MAX_REALISTIC_BALL = 25_000;
+// ⚠️ 25 000 → 4 000 (2026-08-04, nazoratchi agent topdi). Eski son ESKI langarda hisoblangan
+// edi: 25 000 ÷ 150 ball/safar = 167 safar. Yangi langarda (35 ball/safar) o'sha son 714 safar
+// degani — ya'ni panel 714 safarlik kartani ham "yetib boriladi" deb yashil ko'rsatardi.
+// Yangi qiymat eng og'ir profildan chiqadi: 120 safar/oy + 10 do'st ≈ 7 400 ball/oy, ya'ni
+// bir oyda zo'rg'a olinadigan eng qimmat karta ≈ 3 600 (`OYIN_TIERS.bosh`). 4 000 — shu
+// darajaning ustidagi kichik zaxira.
+export const OYIN_MAX_REALISTIC_BALL = 4_000;
 
 export interface OyinPrizePlan {
   ballPrice: number; // chipta ball-narxi

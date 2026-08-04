@@ -43,6 +43,13 @@ jobs:
       - name: Economy invariant — Monte-Carlo sim (≤350/ride, no DB)
         run: pnpm --filter @t1067/server exec tsx src/scripts/simEconomy.ts
 
+      # 🎁 Sodiqlik dasturi iqtisodi. `simEconomy.ts` da `oyin` so'zi UMUMAN yo'q — ya'ni u
+      # yashil bo'lishi ball/mukofot o'zgarishi haqida HECH NARSA demasdi (nazoratchi agent
+      # 2026-08-04 topdi). Bu sinov m=3 kafolatini, NaN/Infinity qo'riqlarini va bepul yo'l
+      # chegarasini tekshiradi. DB kerak emas.
+      - name: Loyalty invariant — m=3 kafolati + chekka qiymatlar (no DB)
+        run: pnpm --filter @t1067/server exec tsx src/scripts/simLoyalty.ts
+
   # CI-gated deploy (2026-07-21 incident): a red shield must block the release —
   # previously a push with a missing file deployed anyway and the bot crash-looped.
   # 2026-07-25: target moved from Render to the Contabo VPS. deploy.sh pulls, builds
