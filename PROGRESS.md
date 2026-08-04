@@ -1,5 +1,46 @@
 # PROGRESS
 
+## 🔴 2026-08-04 — NAZORAT NATIJASI: S2/S3 va S7/S8 RAD ETILDI, 22 ta topilma yopildi
+
+Ikki mustaqil nazoratchi agent (kodni yozMAGAN) bosqichlarni qayta tekshirdi va **ikkalasini
+ham rad etdi**: 16 ta 🔴 (pul/adolat) + 16 ta 🟡. Bu — DoD R4 qoidasi ishlaganining isboti:
+builder da'vosi yolg'iz tursa, bu xatolar jonli mijozga yetib borardi.
+
+**Holat: `ready for verification` (owner-accepted EMAS).** Bayroq DARK — mijoz ko'rmaydi.
+
+### ✅ Yopildi (22) — commit `41ea652d` + `da2f0b55`, jonlida
+Pul/adolat: bir mukofot ikki marta o'ynalishi · yashirin qarz (`earned` arxivlanardi, `spent`
+qolardi) · `spent` filtrsizligi · dormancy teskariligi · yolg'iz «jamoa» +17% ball ·
+navbat retroaktiv qayta taqsimlanishi (ball 0 ga tushirildi) · buzuq `createdAt` butun o'yinni
+yiqitishi · o'ynalgan mukofotga karta sotilishi · tiraj hash'i eksportga mos kelmasligi ·
+harakatsizlik ta'rifining tor bo'lishi · «tayyor» va tortish hovuzining farqi.
+Mijoz/ega: navbatdagi sovg'alar mijoz ekranida sanalishi · narx→daraja moslashuvi ·
+sig'im shipining aylanib o'tilishi · avto-ochilish tetigi · byudjet/hujjatda navbatdagilar ·
+qoidalar va admin matnining kod bilan zidligi · muzlatishning o'zini qulflashi · ko'r `catch`.
+
+### ⚠️ Yopilmadi — ochiq qarz (ataylab, isbot bilan aytiladi)
+| № | Nima | Og'irlik | Nega hozir emas |
+|---|---|---|---|
+| S8-8 | `getActivity` davr-doirali, `computeBallMap` 24 oylik → **admin jadvali reyting bilan mos kelmaydi** | 🟡 ega ko'radi | Ikkala yo'lni bitta manbaga yig'ish talab qiladi; alohida tiket |
+| №8 | Katalog yozuvlari qulfsiz — ega narx tahrirlayotganda xarid bo'lsa tahrir jimgina yo'qoladi | 🟡 ega ko'radi | `withMemberLock` naqshini katalogga kengaytirish kerak |
+| №12 | «Xodim» ikki xil ta'rifda (`.env` ro'yxati vs `TelegramUser.isAdmin`) | 🟡 | Bazadagi xodim tirajda qatnashadi; ega qarori kerak |
+| S7-3 | Jamoa yaratish/qo'shilishda qulf yo'q | ⚪ hozir | Jamoa balli 0 — pul yo'liga tegmaydi |
+| S7-2b | Navbat `oyin:jamoaturn:` bilan yozib qo'yilishi | 🔴 yoqishdan oldin | Jamoa balli 0 bo'lgani uchun to'silgan; **yoqishdan oldin SHART** |
+| S8-4/9, №15-20 | Eskirgan izohlar, `seasonClose` hisoboti, `gno ?? no` to'qnashuvi | ⚪ | Kosmetik |
+
+### 🛡 Sinovdagi tuzatish (eng muhim saboq)
+Nazoratchining eng chuqur tanqidi: `simFullGame.ts` **ball formulasining qayta yozilgan
+nusxasini** sinardi, `computeBallMap` ning o'zini emas — shuning uchun 32 ta topilmaning
+birortasini ham ushlamadi. Yangi **`simGuards.ts`** faqat moduldan IMPORT qilingan qiymatlarni
+sinaydi (31 ta tekshiruv) va CI'ga ulandi. Qoida: **sinov nusxani emas, kodni sinaydi.**
+
+### Tekshiruv isboti
+`typecheck 4/4` · `vitest 90/90` · `simEconomy ≤350` · `simLoyalty 17.1%` · `simGuards 31/31` ·
+`miniapp+admin build` · VPS `git log` = `41ea652` · jonli bundle
+`/var/www/miniapp/assets/oyin-C-T7dV0t.js` da yangi qoidalar matni bor ·
+`bonus:econ` da `oyinJamoaBallPerRide` YO'Q → kod default'i (0) amalda.
+
+
 ## Jarayonda (yangi)
 
 ### 🎮 KOSON O'YINI (KOSON_OYIN_PLAN.md v9.2, KOSON_ADMIN_DOD.md) — B1-B5 **ready for verification**
