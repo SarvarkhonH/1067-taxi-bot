@@ -95,7 +95,7 @@ export async function renderPoster(input: PosterInput): Promise<Blob | null> {
   c.fillText("BirJoy", PAD, 132);
   c.font = `500 30px system-ui, -apple-system, "Segoe UI", Roboto, sans-serif`;
   c.fillStyle = GOLD_DEEP;
-  const badge = "O'yin mavsumi";
+  const badge = "Sodiqlik dasturi";
   const bw = c.measureText(badge).width + 44;
   c.fillStyle = "#fff4d6";
   roundRect(c, W - PAD - bw, 96, bw, 52, 26);
@@ -185,7 +185,7 @@ export async function renderPoster(input: PosterInput): Promise<Blob | null> {
   c.fillText("Skanerla — bepul qatnash", tx, qrY + 112);
   c.fillStyle = GOLD_DEEP;
   c.font = `500 32px system-ui, -apple-system, "Segoe UI", Roboto, sans-serif`;
-  c.fillText(`Tiraj: ${input.drawDate}`, tx, qrY + 164);
+  c.fillText(`Mukofot kuni: ${input.drawDate}`, tx, qrY + 164);
 
   return new Promise((resolve) => canvas.toBlob((b) => resolve(b), "image/png"));
 }

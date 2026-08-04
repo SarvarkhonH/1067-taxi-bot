@@ -36,8 +36,11 @@ export { OYIN_STORY_SEASON_LIMIT as STORY_SEASON_LIMIT };
 const ALLOWED_HOSTS = ["instagram.com", "www.instagram.com", "t.me", "telegram.me", "facebook.com", "www.facebook.com", "fb.watch"];
 
 const SEED_TEXTS: OyinPosterText[] = [
-  { id: "t1", text: "Men {chipta} ta chipta oldim", active: true },
-  { id: "t2", text: "Sen ham yutib ol", active: true },
+  // ⚠️ Bu matnlar POSTERGA chiqadi, ya'ni MIJOZ EKRANIDA ko'rinadi — sodiqlik dasturi tilida
+  // bo'lishi shart (S6, 2026-08-04). `{chipta}`/`{sovrin}` — SHABLON kalitlari, ular
+  // `fillPlaceholders` bilan bog'langan, shuning uchun o'zgarmaydi (kod identifikatori).
+  { id: "t1", text: "Menda {chipta} ta sodiqlik kartasi bor", active: true },
+  { id: "t2", text: "Sen ham qo'shil", active: true },
   { id: "t3", text: "{sovrin} meniki bo'ladi", active: true },
 ];
 

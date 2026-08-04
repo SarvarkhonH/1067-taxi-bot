@@ -90,7 +90,7 @@ function KosonOyinCard({ onNav }: { onNav: (t: string) => void }) {
 
   return (
     <div className="nh-oyin">
-      <button className="nh-oyin-hero" onClick={goOyin} aria-label="Sovg'alar mavsumini ochish">
+      <button className="nh-oyin-hero" onClick={goOyin} aria-label="Sodiqlik dasturini ochish">
         <span className="nh-oyin-conf" aria-hidden="true" />
         <span className="nh-oyin-gift" aria-hidden="true">🎁</span>
         <span className="nh-oyin-h1">BEPUL</span>
@@ -102,14 +102,14 @@ function KosonOyinCard({ onNav }: { onNav: (t: string) => void }) {
             plitkalar) — 36 ta kombinatsiyaning HAMMASIDA 553.88px. */}
         <span className="nh-oyin-lead">
           {final48
-            ? <>Chipta olish yopildi — <b>tiraj yaqin!</b></>
-            : <>Bepul chipta olib, <b>sovg'alar</b> egasi bo'ling!</>}
+            ? <>Karta olish yopildi — <b>mukofot yaqin!</b></>
+            : <>Bepul karta olib, <b>sovg'alar</b> egasi bo'ling!</>}
         </span>
 
         <span className="nh-oyin-cd">
           <span className="nh-oyin-cd-ic" aria-hidden="true">{final48 ? "🔒" : "📅"}</span>
           <span className="nh-oyin-cd-tx">
-            <small>{final48 ? "TIRAJGA" : upcoming ? "MAVSUM BOSHLANISHIGA" : "SOVG'ALAR TOPSHIRILISHIGA"}</small>
+            <small>{final48 ? "MUKOFOT KUNIGA" : upcoming ? "DASTUR BOSHLANISHIGA" : "SOVG'ALAR TOPSHIRILISHIGA"}</small>
             <b>{cd.text}</b>
           </span>
         </span>
@@ -138,16 +138,16 @@ function KosonOyinCard({ onNav }: { onNav: (t: string) => void }) {
       {/* Oq panel — UMUMIY raqamlar (ijtimoiy isbot), mijozning shaxsiy balli EMAS. */}
       <div className="nh-oyin-stats">
         <div className="nh-oyin-stat">
-          <div className="nh-oyin-stat-k">🎟 CHIPTALAR SONI</div>
+          <div className="nh-oyin-stat-k">🎟 KARTALAR SONI</div>
           <div className="nh-oyin-stat-v"><b>{num(sold)}</b> <span>/ {num(cap)}</span></div>
           <div className="nh-oyin-stat-s">tarqatildi</div>
           <div className="nh-oyin-bar"><span style={{ width: `${pct}%` }} /></div>
           <div className="nh-oyin-pct">{pct.toFixed(1)}%</div>
         </div>
         <div className="nh-oyin-stat is-side">
-          <div className="nh-oyin-stat-k">🎟 Har chipta</div>
+          <div className="nh-oyin-stat-k">🎟 Har karta</div>
           <div className="nh-oyin-stat-v2">1 imkoniyat!</div>
-          <div className="nh-oyin-stat-s">Ko'proq chipta — ko'proq imkoniyat!</div>
+          <div className="nh-oyin-stat-s">Ko'proq karta — ko'proq imkoniyat!</div>
         </div>
       </div>
 
@@ -155,14 +155,14 @@ function KosonOyinCard({ onNav }: { onNav: (t: string) => void }) {
           Avval ikki holat edi va final-48 "BEPUL CHIPTA OLISH" ga tushib qolardi. */}
       <button className="nh-oyin-cta" onClick={goOyin}>
         <span className="nh-oyin-cta-ic" aria-hidden="true">{final48 || upcoming ? "🎁" : "🎟"}</span>
-        <span>{final48 || upcoming ? "SOVG'ALARNI KO'RISH" : "BEPUL CHIPTA OLISH"}</span>
+        <span>{final48 || upcoming ? "SOVG'ALARNI KO'RISH" : "BEPUL KARTA OLISH"}</span>
         <span className="nh-oyin-cta-go" aria-hidden="true">›</span>
       </button>
 
       {/* 4 qadam — "bepul" so'zi qanday ishlashini DARHOL tushuntiradi (aks holda
           "bepul chipta" va'dasi o'yin ekranidagi ball talabiga zid ko'rinadi). */}
       <div className="nh-oyin-steps">
-        {([["🚕", "Safar qil"], ["⭐", "Ball yig'"], ["🎟", "Chipta ol"], ["🎁", "Sovg'a yut"]] as const).map(([em, tx], i) => (
+        {([["🚕", "Safar qil"], ["⭐", "Ball yig'"], ["🎟", "Karta ol"], ["🎁", "Sovg'a ol"]] as const).map(([em, tx], i) => (
           <div key={tx} className="nh-oyin-step">
             <span className="nh-oyin-step-em">{em}</span>
             <span className="nh-oyin-step-tx">{i + 1}. {tx}</span>
@@ -244,7 +244,7 @@ export function NewUyView({ me, onBook, onNav, onBanner }: { me: MeResponse; onB
     // 🎮 O'yin rail'da ham bor — IKKINCHI yo'l (DIZAYN_QOIDALARI #4: har bo'limga kamida ikki
     // kirish). Bu ayniqsa MUHIM: poster kartasi tarmoq xatosida umuman chizilmaydi, o'shanda
     // o'yinga yagona yo'l shu ikonka bo'lib qoladi.
-    { on: !!f.oyin, ic: "nh-i-g", em: "🎮", lb: "O'yin", nav: "oyin", locked: false },
+    { on: !!f.oyin, ic: "nh-i-g", em: "🎮", lb: "Dastur", nav: "oyin", locked: false },
     { on: !!f.shop, ic: "nh-i-b", em: "🏪", lb: "Do'kon", nav: "dokon", locked: false },
     { on: !!f.restoran, ic: "nh-i-o", em: "🍽", lb: "Restoran", nav: "restoran", locked: false },
     // 🎀 Ravella — hamkor-brend (ega qarori 2026-07-27): rail'da KICHIK tugma, ikonkasi emoji emas,
@@ -432,7 +432,7 @@ function ServicesHub({ me, onNav, onClose, onBanner }: { me: MeResponse; onNav: 
   const f = me.flags ?? {};
   const items = [
     { on: true, ic: "nh-i-o", em: "🚖", n: "Taxi", s: "Chaqirish", nav: "uy", locked: false },
-    { on: !!f.oyin, ic: "nh-i-g", em: "🎮", n: "O'yin mavsumi", s: "Ball · sovrinlar", nav: "oyin", locked: false },
+    { on: !!f.oyin, ic: "nh-i-g", em: "🎮", n: "Sodiqlik dasturi", s: "Ball · mukofotlar", nav: "oyin", locked: false },
     { on: !!f.shop, ic: "nh-i-b", em: "🏪", n: "Do'kon", s: "Mahsulot xarid", nav: "dokon", locked: false },
     { on: !!f.restoran, ic: "nh-i-o", em: "🍽", n: "Restoran", s: "Taom yetkazish", nav: "restoran", locked: false },
     { on: !!f.xizmatlar, ic: "nh-i-v", em: "🔧", n: "Xizmatlar", s: FOCUS_MODE ? "🔒 Tez orada" : "Usta · master", nav: "xizmat", locked: FOCUS_MODE },

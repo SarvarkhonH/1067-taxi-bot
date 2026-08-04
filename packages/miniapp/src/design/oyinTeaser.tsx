@@ -44,7 +44,7 @@ export function OyinTeaser({ onLink, busy }: { onLink: () => void; busy: boolean
       <div className="nh-tsr">
         <div className="nh-tsr-bad">
           <div className="nh-tsr-bad-i" aria-hidden="true">📡</div>
-          <div className="nh-tsr-bad-t">Sovrinlar yuklanmadi</div>
+          <div className="nh-tsr-bad-t">Mukofotlar yuklanmadi</div>
           <div className="nh-tsr-bad-s">Internet aloqasi uzilgan ko'rinadi. Ulanishni tekshirib, qayta urinib ko'ring.</div>
           <button type="button" className="nh-tsr-bad-b" onClick={load}>Qayta urinish</button>
         </div>
@@ -94,10 +94,10 @@ export function OyinTeaser({ onLink, busy }: { onLink: () => void; busy: boolean
               2 satrlik joy AJRATILGAN — shunda poster balandligi HAR fazada bir xil bo'ladi
               va yuqoridagi skeleton unga teng tura oladi (#11). */}
           <span className="nh-oyin-lead">
-            {open ? <>Bepul chipta olib, <b>sovg'alar</b> egasi bo'ling!</>
-              : final48 ? <>Chipta olish yopildi — <b>tiraj yaqin!</b></>
-                : ended ? <>Mavsum yakunlandi — <b>keyingisi</b> yaqin!</>
-                  : <>Yangi mavsum <b>tayyorlanmoqda</b>.</>}
+            {open ? <>Bepul karta olib, <b>sovg'alar</b> egasi bo'ling!</>
+              : final48 ? <>Karta olish yopildi — <b>mukofot yaqin!</b></>
+                : ended ? <>Dastur davri yakunlandi — <b>keyingisi</b> yaqin!</>
+                  : <>Yangi davr <b>tayyorlanmoqda</b>.</>}
           </span>
 
           {/* Sanoq FAQAT mavsum ochiq bo'lganda RAQAM ko'rsatadi; yakunlangan va hali
@@ -106,10 +106,10 @@ export function OyinTeaser({ onLink, busy }: { onLink: () => void; busy: boolean
             <span className="nh-oyin-cd-ic" aria-hidden="true">{open ? "📅" : final48 ? "🔒" : ended ? "🏁" : "🔔"}</span>
             <span className="nh-oyin-cd-tx">
               {open
-                ? <><small>{upcoming ? "MAVSUM BOSHLANISHIGA" : "SOVG'ALAR TOPSHIRILISHIGA"}</small><b>{cd.text}</b></>
-                : final48 ? <><small>TIRAJGA</small><b>{cd.text}</b></>
-                  : ended ? <><small>SHU MAVSUM</small><b>YAKUNLANDI</b></>
-                    : <><small>YANGI MAVSUM</small><b>TAYYORLANMOQDA</b></>}
+                ? <><small>{upcoming ? "DASTUR BOSHLANISHIGA" : "SOVG'ALAR TOPSHIRILISHIGA"}</small><b>{cd.text}</b></>
+                : final48 ? <><small>MUKOFOT KUNIGA</small><b>{cd.text}</b></>
+                  : ended ? <><small>SHU DAVR</small><b>YAKUNLANDI</b></>
+                    : <><small>YANGI DAVR</small><b>TAYYORLANMOQDA</b></>}
             </span>
           </span>
 
@@ -139,7 +139,7 @@ export function OyinTeaser({ onLink, busy }: { onLink: () => void; busy: boolean
         {/* 4 qadam — "bepul" so'zi qanday ishlashini DARHOL tushuntiradi. Mavsum yopiq bo'lsa
             ham qoladi: bu mexanikaning TA'RIFI ("shunday ishlaydi"), hozirgi va'da emas. */}
         <div className="nh-oyin-steps">
-          {([["🚕", "Safar qil"], ["⭐", "Ball yig'"], ["🎟", "Chipta ol"], ["🎁", "Sovg'a yut"]] as const).map(([em, tx], i) => (
+          {([["🚕", "Safar qil"], ["⭐", "Ball yig'"], ["🎟", "Karta ol"], ["🎁", "Sovg'a ol"]] as const).map(([em, tx], i) => (
             <div key={tx} className="nh-oyin-step">
               <span className="nh-oyin-step-em">{em}</span>
               <span className="nh-oyin-step-tx">{i + 1}. {tx}</span>
@@ -151,11 +151,11 @@ export function OyinTeaser({ onLink, busy }: { onLink: () => void; busy: boolean
       {data.prizes.length > 0 && (
         <>
           <div className="nh-tsr-h">
-            🎁 {open || final48 ? "Sovrinlar" : ended ? "Shu mavsumda o'ynalgan sovrinlar" : "Shunday sovrinlar o'ynaladi"}
+            🎁 {open || final48 ? "Mukofotlar" : ended ? "Shu davrda o'ynalgan mukofotlar" : "Shunday mukofotlar o'ynaladi"}
             <small>
-              {open ? `Jami ${slots} ta chipta · g'olib tirajda aniqlanadi`
-                : final48 ? `Jami ${slots} ta chipta tarqatildi · tiraj yaqin`
-                  : ended ? "G'oliblar aniqlandi" : "Yangi mavsumda ro'yxat yangilanadi"}
+              {open ? `Jami ${slots} ta karta · egasi mukofot kunida aniqlanadi`
+                : final48 ? `Jami ${slots} ta karta tarqatildi · mukofot kuni yaqin`
+                  : ended ? "Mukofot egalari aniqlandi" : "Yangi davrda ro'yxat yangilanadi"}
             </small>
           </div>
           <div className="nh-tsr-rail">
@@ -180,7 +180,7 @@ export function OyinTeaser({ onLink, busy }: { onLink: () => void; busy: boolean
         <span className="nh-tsr-logo">{data.sponsor.name[0] ?? "B"}</span>
         <span>Homiy — <b>{data.sponsor.name}</b></span>
       </div>
-      <div className="nh-tsr-legal">Chipta — tirajda qatnashish huquqi. G'olib tasodifiy tanlanadi.</div>
+      <div className="nh-tsr-legal">Sodiqlik kartasi — mukofot kunida qatnashish huquqi. Mukofot egasi tasodifiy aniqlanadi.</div>
     </div>
   );
 }

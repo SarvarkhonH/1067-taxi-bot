@@ -28,15 +28,15 @@ export async function sendOyinJoinCard(bot: Bot, chatId: string | number, invite
   const who = inviterName ? `<b>${esc(inviterName)}</b> sizni taklif qildi` : "Sizni do'stingiz taklif qildi";
   const season = data.seasonLabel ? ` · ${esc(data.seasonLabel)}` : "";
   const caption =
-    `🎮 <b>BirJoy O'yinlar Mavsumi</b>${season}\n` +
+    `🎁 <b>BirJoy sodiqlik dasturi</b>${season}\n` +
     `${who} 🤝\n\n` +
     `Bu yerda <b>hech narsa to'lamaysiz</b>. Shunchaki taksida yuring — har safar <b>ball</b> beradi. ` +
-    `Ball chiptaga aylanadi, chipta esa mavsum oxiridagi <b>jonli tirajga</b> tushadi.\n\n` +
-    `🏆 Bosh sovrin: <b>${esc(data.prizeName)}</b>\n` +
-    `🎟 Jami <b>${data.slots} ta</b> chipta\n\n` +
+    `Ball sodiqlik kartasiga aylanadi, karta esa davr oxiridagi <b>mukofot kunida</b> qatnashadi.\n\n` +
+    `🏆 Bosh mukofot: <b>${esc(data.prizeName)}</b>\n` +
+    `🎟 Jami <b>${data.slots} ta</b> sodiqlik kartasi\n\n` +
     `Boshlash uchun raqamingizni ulang va birinchi safaringizni qiling 👇`;
 
-  const btn = appBtn("🎮 O'yinni ochish", "oyin");
+  const btn = appBtn("🎁 Dasturni ochish", "oyin");
   try {
     if (data.photoUrl) {
       await bot.api.sendPhoto(chatId, data.photoUrl, { caption, parse_mode: "HTML", ...(btn ?? {}) });

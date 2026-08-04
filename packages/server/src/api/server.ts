@@ -2235,7 +2235,7 @@ export function createApiServer(opts: ApiOptions = {}) {
     res.json({ prizes: await adminListCatalog() });
   });
   app.post("/api/admin/oyin/prize", requireAdmin, requireOwner, async (req, res) => {
-    const b = req.body as { key?: string; icon?: string; name?: string; valueLabel?: string; price?: number; limit?: number; photoUrl?: string | null };
+    const b = req.body as { key?: string; icon?: string; name?: string; valueLabel?: string; price?: number; limit?: number; photoUrl?: string | null; queued?: boolean };
     if (typeof b?.name !== "string" || !b.name.trim()) { res.status(400).json({ error: "name required" }); return; }
     const { adminUpsertPrize } = await import("../services/oyinService");
     res.json({
@@ -2243,6 +2243,10 @@ export function createApiServer(opts: ApiOptions = {}) {
         key: typeof b.key === "string" ? b.key : undefined,
         icon: String(b.icon ?? ""), name: b.name, valueLabel: String(b.valueLabel ?? ""),
         price: Number(b.price) || 0, limit: Number(b.limit) || 0, photoUrl: b.photoUrl ?? null,
+        // 📋 `queued` UZATILISHI SHART — aks holda panel mukofotni navbatga qo'ya ham,
+        // qo'lda ocha ham olmaydi (S5 agenti topdi: tipda bor edi, route to'ldirmasdi —
+        // `OyinActivityFilter.scope` bilan aynan bir xil xato).
+        ...(typeof b.queued === "boolean" ? { queued: b.queued } : {}),
       }),
     });
   });

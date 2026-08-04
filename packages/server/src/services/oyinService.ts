@@ -852,6 +852,13 @@ function parseCatalog(raw: string | undefined): OyinCatalogPrize[] {
         limit: limitOk ? Math.round(limit) : 0,
         photoUrl: typeof p.photoUrl === "string" && p.photoUrl ? p.photoUrl : null,
         active: p.active === true && priceOk && limitOk,
+        // 🔴 BUG (S5 agenti topdi, 2026-08-04): bu qator YO'Q edi va butun NAVBAT o'lik edi.
+        // `parseCatalog` har o'qishda yangi obyekt yasaydi — `queued` nusxalanmagani uchun
+        // (a) `stageOf` hech qachon "queued" qaytarmasdi, (b) `adminUpsertPrize` yangi mukofotni
+        // `queued:true` bilan yozardi-yu, KEYINGI har saqlash butun katalogni `queued`siz qayta
+        // yozib navbat holatini YO'Q QILARDI. Ya'ni S2 ning asosiy funksiyasi ishlamasdi.
+        // ⚠️ Faqat qat'iy `true` — buzuq qiymat mukofotni jimgina yashirib qo'ymasin.
+        ...(p.queued === true ? { queued: true as const } : {}),
       });
     }
     return out;

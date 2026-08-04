@@ -767,7 +767,7 @@ function GuestApp({ flags }: { flags: MeResponse["flags"] }) {
   // 🎮 O'yin mehmonga ham ko'rinadi: taklif havolasi orqali kelgan odam sovrinlarni ko'rmasa,
   // butun viral halqa shu yerda uziladi (avval u Do'kon ro'yxatiga tushib qolardi).
   const tabs = [
-    flags?.oyin ? { id: "oyin" as const, icon: "gift", label: "O'yin" } : null,
+    flags?.oyin ? { id: "oyin" as const, icon: "gift", label: "Sodiqlik" } : null,
     flags?.shop ? { id: "dokon" as const, icon: "market", label: "Do'kon" } : null,
     flags?.restoran ? { id: "restoran" as const, icon: "food", label: "Restoran" } : null,
     flags?.xizmatlar ? { id: "xizmat" as const, icon: "search", label: "Xizmatlar" } : null,
@@ -819,7 +819,7 @@ function GuestApp({ flags }: { flags: MeResponse["flags"] }) {
       </div>
       {/* Doimiy taklif — bosim emas, taklif: nima ochilishini aytadi va bir bosishda ulaydi. */}
       <button className="guest-bar" onClick={() => void link.start()} disabled={link.busy}>
-        <span className="gb-txt"><b>Raqamni ulang</b><small>{tab === "oyin" ? "Ball yig'ish va sovrinlarda qatnashish uchun" : "Buyurtma berish, taksi va tanga uchun"}</small></span>
+        <span className="gb-txt"><b>Raqamni ulang</b><small>{tab === "oyin" ? "Ball yig'ish va mukofotlarda qatnashish uchun" : "Buyurtma berish, taksi va tanga uchun"}</small></span>
         <span className="gb-cta">{link.busy ? "⏳" : "Ulash"}</span>
       </button>
       <nav className="tabbar">

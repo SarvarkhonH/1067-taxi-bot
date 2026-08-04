@@ -118,6 +118,34 @@ for (const v of VALUES) {
 }
 ok(outOfRange <= 3, `Z>100 bo'lgan narxlar: ${outOfRange} ta (faqat 2 mln+ orzu mukofotlarda kutiladi)`);
 
+// ── C2. Katalog SAQLANISHI — `queued` maydoni omon qoladimi ─────────────────────────────────
+// ⚠️ S5 agenti 2026-08-04 da topgan bug: `parseCatalog` `queued` ni NUSXALAMASDI, ya'ni butun
+// navbat o'lik edi — mukofot `queued:true` bilan yozilardi-yu, keyingi har saqlash uni yo'q
+// qilardi. Sinov bu holatni USHLAMAGAN edi (sof funksiyalar sinaladi, saqlash yo'li emas).
+// Endi saqlash-o'qish aylanasi model bilan tekshiriladi.
+console.log("\n── C2. Katalog saqlash aylanasi (`queued` omon qoladimi) ──");
+{
+  interface Row { key: string; icon: string; name: string; valueLabel: string; price: number; limit: number; photoUrl: string | null; active: boolean; queued?: boolean }
+  // `parseCatalog` (oyinService.ts:820) ning AYNAN o'sha maydon-ro'yxati.
+  const roundTrip = (rows: Row[]): Row[] => JSON.parse(JSON.stringify(rows)).map((p: Record<string, unknown>) => ({
+    key: String(p.key), icon: String(p.icon || "🎁"), name: String(p.name || p.key),
+    valueLabel: String(p.valueLabel ?? ""), price: Number(p.price), limit: Number(p.limit),
+    photoUrl: typeof p.photoUrl === "string" && p.photoUrl ? p.photoUrl : null,
+    active: p.active === true,
+    ...(p.queued === true ? { queued: true as const } : {}),
+  }));
+  const before: Row[] = [
+    { key: "a", icon: "🎁", name: "Ochiq", valueLabel: "100 000", price: 600, limit: 10, photoUrl: null, active: true },
+    { key: "b", icon: "🎁", name: "Navbatda", valueLabel: "200 000", price: 600, limit: 20, photoUrl: null, active: true, queued: true },
+  ];
+  const after = roundTrip(roundTrip(before)); // IKKI marta — "keyingi saqlash yo'q qiladi" holati
+  ok(after[1]?.queued === true, `ikki marta saqlashdan keyin navbat holati SAQLANDI (queued=${String(after[1]?.queued)})`);
+  ok(after[0]?.queued === undefined, "ochiq mukofot navbatga TUSHIB QOLMADI");
+  // Buzuq qiymat mukofotni jimgina yashirmasin
+  const bad = roundTrip([{ ...before[0]!, queued: "ha" as unknown as boolean }]);
+  ok(bad[0]?.queued === undefined, "`queued: \"ha\"` (buzuq) → navbatga TUSHMAYDI");
+}
+
 // ── D. Ball jadvali — mijoz profillari ──────────────────────────────────────────────────────
 console.log("\n── D. Mijoz profillari (oyiga) ──");
 const QUEST = knob("oyinDailyQuestBall");
