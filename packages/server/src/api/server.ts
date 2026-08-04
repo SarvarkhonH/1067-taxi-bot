@@ -2263,6 +2263,21 @@ export function createApiServer(opts: ApiOptions = {}) {
   // adolatga tegadi, operator-token bilan bajarilmasligi kerak.
   // ⚠️ HAR BIRI `alertAdmins` bilan e'lon qilinadi. Loyiha qoidasi (CLAUDE.md): jim toggle TAQIQ —
   // ega o'z telefonida ko'rmagan harakat keyin "men qilmadim" bahsiga aylanadi.
+  // 🛡 Sig'im o'lchovi + navbatdan ochish. `GET` faqat o'lchaydi; `POST` navbatdan ochadi
+  // (panel «Ochish» tugmasi). Ochish IDEMPOTENT — sig'im yetarli bo'lsa hech narsa qilmaydi.
+  app.get("/api/admin/oyin/capacity", requireAdmin, async (_req, res) => {
+    const { getCapacity } = await import("../services/oyinService");
+    res.json(await getCapacity());
+  });
+  app.post("/api/admin/oyin/capacity/open", requireAdmin, requireOwner, rateLimit(20), async (_req, res) => {
+    const { autoOpenPrizes, getCapacity } = await import("../services/oyinService");
+    const r = await autoOpenPrizes();
+    if (r.opened.length > 0) {
+      const { alertAdmins } = await import("../services/economyService");
+      await alertAdmins(`📋 <b>Navbatdan ochildi</b>\n${r.opened.length} ta mukofot: ${r.opened.join(", ")}\nSabab: ${r.reason}`).catch(() => undefined);
+    }
+    res.json({ ...r, capacity: await getCapacity() });
+  });
   // 💰 Mavsum byudjeti — REAL safar sonidan (taxmin emas). Panel avval teskari ishlardi:
   // sovrin qo'yilgach foiz aytilardi va katalog 1003% bo'lib qolgan edi.
   app.get("/api/admin/oyin/budget", requireAdmin, async (_req, res) => {

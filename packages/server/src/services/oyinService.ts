@@ -7,8 +7,11 @@
 // pastda ko'ring). Faqat kunlik-kirish/ulashish va chipta-xarid/sotilgan-son AppState'da yoziladi
 // (`oyin:*` prefiks). Yangi Prisma model YO'Q, yangi poller YO'Q (ARCHITECTURE.md invariantlari).
 import {
+  OYIN_CAPACITY_RATIO,
   OYIN_FINAL_LOCK_MS,
+  OYIN_MAX_OPEN_PRIZES,
   OYIN_SEED_CATALOG,
+  OYIN_TIERS,
   OYIN_SOM_PER_BALL,
   OYIN_SOM_PER_RIDE,
   OYIN_STORY_SEASON_LIMIT,
@@ -45,6 +48,9 @@ import {
   type OyinAdminMemberDetail,
   type OyinAdminMemberHit,
   type OyinBudgetView,
+  type OyinCapacityView,
+  type OyinPrizeStage,
+  type OyinTier,
   type OyinBallAdjustEntry,
   type OyinBallAdjustInput,
   type OyinFreezeState,
@@ -777,7 +783,9 @@ export async function getVitrina(memberId: number): Promise<OyinVitrinaResponse>
   for (const t of mine) mineByPrize.set(t.prizeKey, (mineByPrize.get(t.prizeKey) ?? 0) + 1);
 
   const prizes = catalog
-    .filter((p) => p.active)
+    // 📋 NAVBATDAGI mukofot mijozga KO'RINMAYDI. Ega 100+ mukofot yuklashi mumkin — hammasi
+    // birdan ko'rinsa ball tarqalib hech biri to'lmaydi (to'lish-qulfi bilan bu o'lim).
+    .filter((p) => p.active && p.queued !== true)
     .map((p) => {
       const sold = soldMap.get(p.key) ?? 0;
       const myCount = mineByPrize.get(p.key) ?? 0;
@@ -887,14 +895,99 @@ function uniqueCatalogKey(name: string, existing: OyinCatalogPrize[]): string {
 }
 
 /** Admin: butun katalog, har biriga sotilgan-son qo'shilgan (o'chirish xavfsizligini ko'rsatish uchun). */
+/** 📋 Mukofotning navbat holati. `queued` maydoni YO'Q bo'lsa — ochiq (eski katalog moslik). */
+function stageOf(p: OyinCatalogPrize, sold: number): OyinPrizeStage {
+  if (sold >= p.limit) return "filled";
+  return p.queued === true ? "queued" : "open";
+}
+
 export async function adminListCatalog(): Promise<OyinAdminPrizeRow[]> {
   const [catalog, soldMap, econC] = await Promise.all([getCatalog(), getSoldMap(), getBonusEcon()]);
-  const minPct = econC.oyinMinSellPct ?? 50;
+  const minPct = econC.oyinMinSellPct ?? 100;
   return catalog.map((p) => {
     const sold = soldMap.get(p.key) ?? 0;
     const minSell = minSellOf(p.limit, minPct);
-    return { ...p, sold, minSell, willDraw: sold >= minSell };
+    return { ...p, sold, minSell, willDraw: sold >= minSell, stage: stageOf(p, sold) };
   });
+}
+
+/** 🛡 SIG'IM O'LCHOVI — o'yinni o'ldiradigan yagona holatni ushlaydi: odamda ball bor, sotib
+ *  oladigan narsa yo'q. Panel buni BITTA qator qilib ko'rsatadi. */
+export async function getCapacity(): Promise<OyinCapacityView> {
+  const [catalog, soldMap, map] = await Promise.all([getCatalog(), getSoldMap(), computeBallMap()]);
+  let circulatingBall = 0;
+  for (const row of map.values()) circulatingBall += row.breakdown.ball;
+
+  let openBall = 0;
+  let openCount = 0;
+  let queuedCount = 0;
+  let filledCount = 0;
+  const openTiers = new Set<OyinTier>();
+  for (const p of catalog) {
+    if (!p.active) continue;
+    const sold = soldMap.get(p.key) ?? 0;
+    const st = stageOf(p, sold);
+    if (st === "filled") { filledCount++; continue; }
+    if (st === "queued") { queuedCount++; continue; }
+    openCount++;
+    // ⚠️ QOLGAN o'rinlar, limit EMAS: sotilgan karta endi sig'im emas, u allaqachon yeyilgan.
+    openBall += Math.max(0, p.limit - sold) * p.price;
+    for (const [t, ballPrice] of Object.entries(OYIN_TIERS) as [OyinTier, number][]) {
+      if (p.price === ballPrice) openTiers.add(t);
+    }
+  }
+  const missingTiers = (Object.keys(OYIN_TIERS) as OyinTier[]).filter((t) => !openTiers.has(t));
+  // Xalqda ball bo'lmasa nisbat cheksiz — `healthy: true`, lekin NaN/Infinity ekranga chiqmasin.
+  const ratio = circulatingBall > 0 ? openBall / circulatingBall : (openBall > 0 ? OYIN_CAPACITY_RATIO : 0);
+  return {
+    openBall, circulatingBall,
+    ratio: Number.isFinite(ratio) ? Math.round(ratio * 100) / 100 : 0,
+    healthy: circulatingBall === 0 || ratio >= OYIN_CAPACITY_RATIO,
+    openCount, queuedCount, filledCount, missingTiers,
+  };
+}
+
+/** 📋 NAVBATDAN OCHISH — sig'im chegaradan tushganda yoki daraja bo'sh qolganda.
+ *
+ *  Ikki mezon bo'yicha ochadi:
+ *   1. Bo'sh qolgan DARAJA — eng arzon navbatdagi mukofot (800 balli odam qamalib qolmasin)
+ *   2. Sig'im < 1,5× — yetguncha, `OYIN_MAX_OPEN_PRIZES` gacha
+ *
+ *  ⚠️ Yangi poller YO'Q (ARCHITECTURE.md invarianti): bu funksiya xariddan keyin va admin
+ *  paneli ochilganda chaqiriladi. Ochish IDEMPOTENT — ochilgan mukofot qayta ochilmaydi. */
+export async function autoOpenPrizes(): Promise<{ opened: string[]; reason: string }> {
+  const cap = await getCapacity();
+  if (cap.healthy && cap.missingTiers.length === 0) return { opened: [], reason: "sig'im yetarli" };
+  if (cap.openCount >= OYIN_MAX_OPEN_PRIZES) {
+    return { opened: [], reason: `ochiq mukofotlar shipi (${OYIN_MAX_OPEN_PRIZES}) — pul oqimi qo'rig'i` };
+  }
+
+  const [catalog, soldMap] = await Promise.all([getCatalog(), getSoldMap()]);
+  const queued = catalog
+    .filter((p) => p.active && p.queued === true && (soldMap.get(p.key) ?? 0) < p.limit)
+    .sort((a, b) => a.price - b.price); // arzondan boshlanadi — bo'sh darajalarni tezroq yopadi
+  if (queued.length === 0) return { opened: [], reason: "navbat BO'SH — yangi mukofot yuklang" };
+
+  const opened: string[] = [];
+  let openBall = cap.openBall;
+  let openCount = cap.openCount;
+  const need = cap.circulatingBall * OYIN_CAPACITY_RATIO;
+  const missing = new Set(cap.missingTiers);
+
+  for (const p of queued) {
+    if (openCount >= OYIN_MAX_OPEN_PRIZES) break;
+    const tier = (Object.entries(OYIN_TIERS) as [OyinTier, number][]).find(([, b]) => b === p.price)?.[0];
+    const fillsGap = tier != null && missing.has(tier);
+    if (!fillsGap && openBall >= need) break; // sig'im yetdi va daraja teshigi ham yo'q
+    p.queued = false;
+    opened.push(p.key);
+    openBall += Math.max(0, p.limit - (soldMap.get(p.key) ?? 0)) * p.price;
+    openCount++;
+    if (tier != null) missing.delete(tier);
+  }
+  if (opened.length === 0) return { opened: [], reason: "mos mukofot topilmadi" };
+  await saveCatalog(catalog);
+  return { opened, reason: `sig'im ${cap.ratio}× → ochildi` };
 }
 
 /** 💰 Mavsum byudjeti — REAL safar sonidan. Bu funksiya panelning eng muhim raqamini beradi:
@@ -1026,6 +1119,9 @@ export async function adminUpsertPrize(input: OyinPrizeUpsertInput): Promise<Oyi
   const limitRaw = Math.max(1, Math.round(Number(input.limit) || 0));
   const photoUrl = input.photoUrl?.trim().slice(0, 500) || null;
 
+  // 📋 Navbat bayrog'i. Tahrirlashda BERILMASA eski holat saqlanadi (ochiq mukofot tasodifan
+  // navbatga qaytib qolmasin — mijoz uni ko'rib turgan bo'lishi mumkin).
+  const queued = typeof input.queued === "boolean" ? input.queued : undefined;
   const existing = input.key ? catalog.find((p) => p.key === input.key) : undefined;
   // 🛡 `limit < sold` SERVERDA to'siladi. Admin panelda tasdiq oynasi bor, LEKIN u faqat klientda —
   // to'g'ridan-to'g'ri API so'rovi (yoki eski panel tab'i) uni aylanib o'tadi. Limit sotilganidan
@@ -1038,9 +1134,11 @@ export async function adminUpsertPrize(input: OyinPrizeUpsertInput): Promise<Oyi
     console.warn(`[oyin] adminUpsertPrize: "${existing?.key}" limiti ${limitRaw} → ${limit} ga ko'tarildi (allaqachon ${sold} ta sotilgan; chipta egalarining ehtimoli jim o'zgarmasin)`);
   }
   if (existing) {
-    Object.assign(existing, { name, icon, valueLabel, price, limit, photoUrl });
+    Object.assign(existing, { name, icon, valueLabel, price, limit, photoUrl, ...(queued !== undefined ? { queued } : {}) });
   } else {
-    catalog.push({ key: uniqueCatalogKey(name, catalog), icon, name, valueLabel, price, limit, photoUrl, active: true });
+    // Yangi mukofot DEFAULT bo'yicha NAVBATGA tushadi. Sabab: ega 100 ta yuklaganda hammasi
+    // birdan ochilib ketmasin — ball tarqalib hech biri to'lmaydi (to'lish-qulfi bilan bu o'lim).
+    catalog.push({ key: uniqueCatalogKey(name, catalog), icon, name, valueLabel, price, limit, photoUrl, active: true, queued: queued ?? true });
   }
   await saveCatalog(catalog);
   return adminListCatalog();
@@ -1136,7 +1234,9 @@ export async function buyTicket(memberId: number, prizeKeyRaw: string, preview =
   // uchun yagona ishonchli holat ("keyin qo'shib qo'ydi" ayblovi imkonsiz bo'ladi).
   if ((await getFreeze()).frozen) return { ok: false, reason: "frozen" };
   const catalog = await getCatalog();
-  const prize = catalog.find((p) => p.key === prizeKeyRaw && p.active);
+  // 📋 `queued !== true` — navbatdagi mukofotga karta SOTILMAYDI. Vitrina uni ko'rsatmaydi,
+  // lekin to'g'ridan-to'g'ri API so'rovi kalitni bilishi mumkin (eski ekran, kesh, qo'lda).
+  const prize = catalog.find((p) => p.key === prizeKeyRaw && p.active && p.queued !== true);
   if (!prize) return { ok: false, reason: "unknown_prize" };
 
   // withMemberLock: bitta a'zoning ketma-ket xaridlarini serializatsiya qiladi — ball-tekshiruv va
@@ -1216,6 +1316,10 @@ export async function buyTicket(memberId: number, prizeKeyRaw: string, preview =
         update: { value: JSON.stringify(tickets) },
       });
       invalidateBallCache();
+      // 📋 Xariddan keyin sig'im tekshiriladi — yangi poller YO'Q (ARCHITECTURE.md invarianti).
+      // Xarid sig'imni kamaytiradi, ya'ni chegaradan tushishning eng ehtimolli lahzasi shu.
+      // Yiqilsa xarid BEKOR QILINMAYDI: mijoz kartasini oldi, navbat esa keyingi safar ochiladi.
+      void autoOpenPrizes().catch((e2) => console.warn("[oyin] autoOpen yiqildi:", e2));
       return { ok: true, ticketNo, gno, prizeKey: prize.key, ballLeft: ball - prize.price };
     } catch (e) {
       await releaseSoldSlot(prize.key).catch(() => undefined);

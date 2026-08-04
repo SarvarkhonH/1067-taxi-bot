@@ -21,6 +21,10 @@ export interface OyinCatalogPrize {
   active: boolean; // false = vitrinada/xariddan yashiringan, lekin tarixiy yozuvlar (tiraj/
                     // faoliyat-jadval) uchun katalogda QOLADI — hech qachon chin o'chirilmaydi
                     // (sotilgan chiptasi bo'lsa kalit "yetim" bo'lib qolmasin).
+  // 📋 NAVBAT: `true` = yuklangan, lekin HALI OCHILMAGAN (mijoz ko'rmaydi, karta sotilmaydi).
+  // Ega 100+ mukofot yuklashi mumkin — bu bir so'm ham turmaydi. Sig'im kamayganda tizim
+  // navbatdan avtomatik ochadi. Maydon YO'Q bo'lsa — ochiq (eski katalog uchun moslik).
+  queued?: boolean;
 }
 
 // Birinchi ishga tushirishda (`oyin:catalog` AppState hali yo'q) shu default bilan urug'lanadi —
@@ -209,11 +213,45 @@ export interface OyinPrizeUpsertInput {
   price: number;
   limit: number;
   photoUrl: string | null;
+  // 📋 `true` = navbatga qo'yiladi (mijoz ko'rmaydi, karta sotilmaydi). Ega 100+ mukofot
+  // yuklaganda hammasi navbatga tushadi va tizim sig'imga qarab birma-bir ochadi.
+  queued?: boolean;
 }
 export interface OyinAdminPrizeRow extends OyinCatalogPrize {
   sold: number; // nazorat uchun — nechta chipta allaqachon sotilgan (o'chirish xavfsizligini ko'rsatadi)
   minSell: number; // 🛡 tirajda o'ynalishi uchun kerak bo'lgan chipta soni (oyinMinSellPct dan)
   willDraw: boolean; // sold >= minSell — hozirgi holatda tirajga tushadimi
+  stage: OyinPrizeStage; // 📋 navbat holati
+}
+
+// ── 📋 NAVBAT (ega teshigi 2026-08-04: "6 ta mukofot bir oy, lekin 25-kuni ball bor odamlar
+// bor, sotib oladigan narsa yo'q"). Ega 100+ mukofot YUKLAYDI — bu faqat ro'yxat, bir so'm ham
+// sarflanmaydi. Bir vaqtda 6-10 tasi OCHIQ; biri to'lganda navbatdan keyingisi ochiladi.
+export type OyinPrizeStage = "open" | "queued" | "filled";
+
+/** 🛡 SIG'IM QOIDASI — o'yinni o'ldiradigan yagona holatni to'sadi.
+ *
+ *  «Bittasi sotilsa bittasi ochiladi» YETARLI EMAS: ikkitasi bir kunda sotilsa teshik yana
+ *  ochiladi. Shuning uchun o'lchov mutlaq:
+ *
+ *      Ochiq sig'im ≥ 1,5 × Xalqdagi ball
+ *
+ *  Chegaradan tushsa — navbatdan avtomatik ochiladi, yetguncha. Ikkinchi shart: HAR DARAJADAN
+ *  kamida bittasi ochiq tursin (800 balli odam faqat 2 400 lik kartalarni ko'rsa — u ham qamalgan). */
+export const OYIN_CAPACITY_RATIO = 1.5;
+/** Bir vaqtda ochiq turadigan mukofotlar soni — pul oqimi qo'rig'i: bir oyda 10 ta mukofot
+ *  birdan to'lsa hammasini sotib olish kerak bo'ladi. */
+export const OYIN_MAX_OPEN_PRIZES = 10;
+
+export interface OyinCapacityView {
+  openBall: number; // ochiq mukofotlarning (qolgan karta × baho) yig'indisi
+  circulatingBall: number; // hamma a'zoning sarflanmagan balli
+  ratio: number; // openBall / circulatingBall
+  healthy: boolean; // ratio >= OYIN_CAPACITY_RATIO
+  openCount: number;
+  queuedCount: number;
+  filledCount: number;
+  missingTiers: OyinTier[]; // ochiq mukofoti yo'q darajalar
 }
 
 // ── 💰 MAVSUM BYUDJETI (ega talabi 2026-08-03: "aqlli hisoblash kerakmi menga tavsiya kerak") ──
