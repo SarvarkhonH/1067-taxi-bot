@@ -1029,6 +1029,39 @@ async function saveCatalog(catalog: OyinCatalogPrize[]): Promise<void> {
   await prisma.appState.upsert({ where: { key: CATALOG_KEY }, create: { key: CATALOG_KEY, value }, update: { value } });
 }
 
+/** 🔒 KATALOGNI ATOMIK O'ZGARTIRISH (nazoratchi 2026-08-04, №8).
+ *
+ *  Avval to'rtta funksiya (`autoOpenPrizes` · `adminUpsertPrize` · `adminSetPrizeActive` ·
+ *  `adminDeletePrize`) bitta `oyin:catalog` qatorini QULFSIZ o'qib-o'zgartirib-yozardi.
+ *  `buyTicket` esa har xaridda `void autoOpenPrizes()` ni KUTMASDAN uchiradi — ya'ni
+ *  to'qnashuv oynasi kun bo'yi ochiq edi. Natija: ega narxni tahrirlayotgan lahzada xarid
+ *  bo'lsa TAHRIR JIMGINA YO'QOLADI (yoki teskarisi — endigina ochilgan mukofot navbatga
+ *  qaytadi). Hech qanday xato belgisi yo'q — eng yomon turdagi bug.
+ *
+ *  CAS: `WHERE value = <o'qilgan qiymat>`. Orada kimdir yozgan bo'lsa `n === 0` bo'ladi va
+ *  biz QAYTA O'QIB qayta uriniladi — ya'ni o'zgarish yo'qolmaydi, ustma-ust tushadi.
+ *  `mutate` `null` qaytarsa — o'zgarish shart emas. */
+async function mutateCatalog(mutate: (cur: OyinCatalogPrize[]) => OyinCatalogPrize[] | null): Promise<boolean> {
+  for (let attempt = 0; attempt < 5; attempt++) {
+    const row = await prisma.appState.findUnique({ where: { key: CATALOG_KEY } });
+    if (!row) {
+      const next = mutate(OYIN_SEED_CATALOG.map((p) => ({ ...p })));
+      if (!next) return false;
+      try {
+        await prisma.appState.create({ data: { key: CATALOG_KEY, value: JSON.stringify(next) } });
+        return true;
+      } catch { continue; } // parallel `create` bizdan oldin ulgurdi — qayta o'qiymiz
+    }
+    const next = mutate(parseCatalog(row.value));
+    if (!next) return false;
+    const value = JSON.stringify(next);
+    const n = await prisma.$executeRaw`UPDATE "AppState" SET "value" = ${value} WHERE "key" = ${CATALOG_KEY} AND "value" = ${row.value}`;
+    if (n === 1) return true;
+  }
+  console.error("[oyin] mutateCatalog: 5 urinishda ham yozilmadi — katalog band");
+  return false;
+}
+
 async function getSoldMap(): Promise<Map<string, number>> {
   const rows = await prisma.appState.findMany({ where: { key: { startsWith: "oyin_sold:" } } });
   const map = new Map<string, number>();
@@ -1163,8 +1196,18 @@ export async function autoOpenPrizes(): Promise<{ opened: string[]; reason: stri
     if (tier != null) missing.delete(tier);
   }
   if (opened.length === 0) return { opened: [], reason: "mos mukofot topilmadi" };
-  await saveCatalog(catalog);
-  return { opened, reason: `sig'im ${cap.ratio}× → ochildi` };
+  // №8: qaror yuqorida (o'qish nusxasida) qabul qilindi, YOZUV esa kalit bo'yicha CAS ichida —
+  // shunda parallel admin tahriri yo'qolmaydi. Ichkarida QAYTA tekshiriladi: orada mukofot
+  // o'chirilgan yoki allaqachon ochilgan bo'lishi mumkin.
+  const wanted = new Set(opened);
+  const applied: string[] = [];
+  await mutateCatalog((cur) => {
+    applied.length = 0;
+    for (const p of cur) if (wanted.has(p.key) && p.queued === true) { p.queued = false; applied.push(p.key); }
+    return applied.length > 0 ? cur : null;
+  });
+  if (applied.length === 0) return { opened: [], reason: "orada boshqa so'rov ochib bo'lgan" };
+  return { opened: applied, reason: `sig'im ${cap.ratio}× → ochildi` };
 }
 
 /** 💰 Mavsum byudjeti — REAL safar sonidan. Bu funksiya panelning eng muhim raqamini beradi:
@@ -1291,7 +1334,7 @@ export async function joinCardData(): Promise<{ prizeName: string; photoUrl: str
 
 /** Admin: sovrin qo'shish (key bo'sh/topilmasa) yoki tahrirlash (key mavjud bo'lsa). */
 export async function adminUpsertPrize(input: OyinPrizeUpsertInput): Promise<OyinAdminPrizeRow[]> {
-  const [catalog, soldMap] = await Promise.all([getCatalog(), getSoldMap()]);
+  const soldMap = await getSoldMap();
   const name = (input.name || "").trim().slice(0, 60) || "Sovrin";
   const icon = (input.icon || "🎁").trim().slice(0, 8) || "🎁";
   const valueLabel = (input.valueLabel || "").trim().slice(0, 60);
@@ -1305,45 +1348,51 @@ export async function adminUpsertPrize(input: OyinPrizeUpsertInput): Promise<Oyi
   // 📋 Navbat bayrog'i. Tahrirlashda BERILMASA eski holat saqlanadi (ochiq mukofot tasodifan
   // navbatga qaytib qolmasin — mijoz uni ko'rib turgan bo'lishi mumkin).
   const queued = typeof input.queued === "boolean" ? input.queued : undefined;
-  const existing = input.key ? catalog.find((p) => p.key === input.key) : undefined;
   // 🛡 `limit < sold` SERVERDA to'siladi. Admin panelda tasdiq oynasi bor, LEKIN u faqat klientda —
   // to'g'ridan-to'g'ri API so'rovi (yoki eski panel tab'i) uni aylanib o'tadi. Limit sotilganidan
   // past qo'yilsa allaqachon chipta olganlarning yutish ehtimoli JIM o'zgaradi (ular buni hech
   // qachon bilmaydi) va `reserveSoldSlot` keyingi har xaridni rad etadi — ya'ni sovrin "tugagan"
   // ko'rinadi. Shuning uchun limit sotilganidan PAST tushirilmaydi: sotilganiga qisiladi.
-  const sold = existing ? (soldMap.get(existing.key) ?? 0) : 0;
-  const limit = Math.max(limitRaw, sold);
-  if (limit !== limitRaw) {
-    console.warn(`[oyin] adminUpsertPrize: "${existing?.key}" limiti ${limitRaw} → ${limit} ga ko'tarildi (allaqachon ${sold} ta sotilgan; chipta egalarining ehtimoli jim o'zgarmasin)`);
-  }
-  if (existing) {
-    Object.assign(existing, { name, icon, valueLabel, price, limit, photoUrl, ...(queued !== undefined ? { queued } : {}) });
-  } else {
-    // Yangi mukofot DEFAULT bo'yicha NAVBATGA tushadi. Sabab: ega 100 ta yuklaganda hammasi
-    // birdan ochilib ketmasin — ball tarqalib hech biri to'lmaydi (to'lish-qulfi bilan bu o'lim).
-    catalog.push({ key: uniqueCatalogKey(name, catalog), icon, name, valueLabel, price, limit, photoUrl, active: true, queued: queued ?? true });
-  }
-  await saveCatalog(catalog);
+  // №8: butun o'zgartirish CAS ichida — ega tahrirlayotgan lahzada `autoOpenPrizes` (xariddan)
+  // yozsa, tahrir yo'qolmaydi: qayta o'qib ustma-ust tushadi.
+  await mutateCatalog((catalog) => {
+    const existing = input.key ? catalog.find((p) => p.key === input.key) : undefined;
+    const sold = existing ? (soldMap.get(existing.key) ?? 0) : 0;
+    const limit = Math.max(limitRaw, sold);
+    if (limit !== limitRaw) {
+      console.warn(`[oyin] adminUpsertPrize: "${existing?.key}" limiti ${limitRaw} → ${limit} ga ko'tarildi (allaqachon ${sold} ta sotilgan; chipta egalarining ehtimoli jim o'zgarmasin)`);
+    }
+    if (existing) {
+      Object.assign(existing, { name, icon, valueLabel, price, limit, photoUrl, ...(queued !== undefined ? { queued } : {}) });
+    } else {
+      // Yangi mukofot DEFAULT bo'yicha NAVBATGA tushadi. Sabab: ega 100 ta yuklaganda hammasi
+      // birdan ochilib ketmasin — ball tarqalib hech biri to'lmaydi (to'lish-qulfi bilan bu o'lim).
+      catalog.push({ key: uniqueCatalogKey(name, catalog), icon, name, valueLabel, price, limit, photoUrl, active: true, queued: queued ?? true });
+    }
+    return catalog;
+  });
   return adminListCatalog();
 }
 
 /** Admin: vitrinadan yashirish/qaytarish — chin o'chirishning xavfsiz muqobili. */
 export async function adminSetPrizeActive(key: string, active: boolean): Promise<OyinAdminPrizeRow[]> {
-  const catalog = await getCatalog();
-  const existing = catalog.find((p) => p.key === key);
-  if (existing) {
+  await mutateCatalog((cur) => {
+    const existing = cur.find((p) => p.key === key);
+    if (!existing || existing.active === active) return null;
     existing.active = active;
-    await saveCatalog(catalog);
-  }
+    return cur;
+  });
   return adminListCatalog();
 }
 
 /** Admin: chin o'chirish — FAQAT sotilgan chiptasi yo'q sovrinlar uchun (aks holda active:false tavsiya). */
 export async function adminDeletePrize(key: string): Promise<OyinDeleteResult> {
-  const [catalog, soldMap] = await Promise.all([getCatalog(), getSoldMap()]);
+  const soldMap = await getSoldMap();
   if ((soldMap.get(key) ?? 0) > 0) return { ok: false, reason: "has_sales" };
-  const next = catalog.filter((p) => p.key !== key);
-  if (next.length !== catalog.length) await saveCatalog(next);
+  await mutateCatalog((cur) => {
+    const next = cur.filter((p) => p.key !== key);
+    return next.length !== cur.length ? next : null;
+  });
   return { ok: true };
 }
 
@@ -1832,6 +1881,15 @@ export async function sprintCheck(): Promise<OyinSprintResult | null> {
 
 /** Tiraj uchun raqamlangan chipta-ro'yxati — READ-ONLY (hech narsa yozmaydi), shuning uchun
  *  tabiiy idempotent: necha marta chaqirilsa ham bir xil natija (chiptalar o'zgarmaguncha). */
+/** 🟡 №12 (nazoratchi 2026-08-04): "xodim" IKKI XIL ta'rifda edi — `isAdmin()` faqat
+ *  `.env` dagi `ADMIN_TELEGRAM_IDS` ni o'qiydi, bazada esa alohida `TelegramUser.isAdmin`
+ *  ustuni bor va u boshqa joylarda ishlatiladi. Bazada xodim deb belgilangan, lekin `.env`
+ *  ro'yxatida yo'q odam TIRAJDA QATNASHARDI. Tiraj uchun ta'rif BITTA bo'lishi shart va
+ *  KENGROG'I olinadi: ikkalasidan biri ham yetarli. */
+function isStaffUser(tu: { id: string; isAdmin?: boolean | null }): boolean {
+  return isAdmin(tu.id) || tu.isAdmin === true;
+}
+
 export async function drawExport(): Promise<OyinDrawExport> {
   const [season, ticketRows, telegramUsers, banRows, freeze, catalogD, soldMapD, econD] = await Promise.all([
     getSeason(),
@@ -1840,7 +1898,7 @@ export async function drawExport(): Promise<OyinDrawExport> {
     // eksport XODIMNI chiqarmasdi — `getDrawList` esa chiqarardi. Natijada kanalga e'lon
     // qilingan hash eksport raqamlaridan qayta hisoblanganda BOSHQA chiqardi va "ro'yxatni
     // keyin o'zgartirgansiz" ayblovi javobsiz qolardi. Ikkala yo'l endi BIR XIL saraydi.
-    prisma.telegramUser.findMany({ where: { memberId: { not: null } }, select: { id: true, memberId: true, firstName: true, lastName: true, username: true } }),
+    prisma.telegramUser.findMany({ where: { memberId: { not: null } }, select: { id: true, isAdmin: true, memberId: true, firstName: true, lastName: true, username: true } }),
     prisma.appState.findMany({ where: { key: { startsWith: BAN_PREFIX } }, select: { key: true } }),
     getFreeze(),
     getCatalog(),
@@ -1871,7 +1929,7 @@ export async function drawExport(): Promise<OyinDrawExport> {
   const staffMembersD = new Set<number>();
   for (const tu of telegramUsers) if (tu.memberId) {
     nameByMember.set(tu.memberId, shortName(tu));
-    if (isAdmin(tu.id)) staffMembersD.add(tu.memberId); // 🔴 №2: `getDrawList` bilan BIR XIL
+    if (isStaffUser(tu)) staffMembersD.add(tu.memberId); // 🔴 №2 + 🟡 №12: BITTA ta'rif
   }
   const banned = new Set<number>();
   for (const r of banRows) {
@@ -1943,9 +2001,25 @@ export async function adminCancelPrizeTickets(prizeKey: string): Promise<{ ok: b
 const JAMOA_PREFIX = "oyin:jamoa:";
 const JAMOA_MEM_PREFIX = "oyin:jamoamem:";
 
-interface JamoaRecord { id: string; name: string; createdAt: string; members: number[] }
+/** 🔴 S7-2b (nazoratchi 2026-08-04) — `turns` MAYDONI QO'SHILDI.
+ *
+ *  Avval navbat `members[oy_indeksi % N]` bilan HAR CHAQIRUVDA qayta hisoblanardi. `N` esa
+ *  a'zo qo'shilganda o'zgaradi — ya'ni O'TGAN oylarning navbatchisi ham o'zgarardi. Karta esa
+ *  abadiy (S8). Ikkalasi birga ekspluatatsiya berardi: A 3 600 ball olib kartaga sarflaydi →
+ *  yangi a'zo qo'shiladi → o'sha oy B ga o'tadi → B ham o'sha 3 600 ni oladi → cheksiz.
+ *
+ *  Endi navbat A'ZO QO'SHILGANDA BIR MARTA yoziladi va HECH QACHON o'zgarmaydi.
+ *  Qoida: **har a'zoga umri davomida BITTA navbat.** 10 kishilik guruh = 10 oy = 10 xil odam.
+ *  Bu ega tasvirlagan gashtak modelining aynan o'zi ("10 kishi navbat bilan bir kishiga yordam
+ *  beradi") va shu bilan birga umrbod shift ham beradi: jamoadan bir odam ko'pi bilan
+ *  `oyinJamoaMaxBall` (3 600) ball oladi, ko'pi emas — qo'shimcha hisoblagich shart emas. */
+export interface JamoaRecord {
+  id: string; name: string; createdAt: string; members: number[];
+  /** `{ "2026-08": 1234 }` — oy → navbatchi. YOZILGACH O'ZGARMAYDI. */
+  turns: Record<string, number>;
+}
 
-function parseJamoa(raw: string | undefined): JamoaRecord | null {
+export function parseJamoa(raw: string | undefined): JamoaRecord | null {
   if (!raw) return null;
   try {
     const v = JSON.parse(raw) as Partial<JamoaRecord>;
@@ -1960,6 +2034,9 @@ function parseJamoa(raw: string | undefined): JamoaRecord | null {
       createdAt: typeof v.createdAt === "string" && Number.isFinite(Date.parse(v.createdAt))
         ? v.createdAt : new Date().toISOString(),
       members: v.members.filter((m): m is number => typeof m === "number" && Number.isFinite(m)),
+      // Eski yozuvda `turns` YO'Q → bo'sh xarita, ya'ni navbat ham, ball ham yo'q. Bu XAVFSIZ
+      // sukut: hisoblab tashlashdan ko'ra bermaslik afzal (hisoblash aynan bugni keltirgan).
+      turns: parseTurns((v as { turns?: unknown }).turns),
     };
   } catch {
     return null;
@@ -1979,13 +2056,53 @@ function monthKeyOf(d: Date): string {
  *  bo'lgan manba. Formula esa har kim tekshira oladi: «tuzilgandan beri N-oy → N mod jamoa soni».
  *  ⚠️ A'zo qo'shilsa/chiqsa tartib siljiydi — bu qabul qilingan narx, muqobil (qotirilgan navbat
  *  jadvali) chiqib ketgan a'zoga navbat berib qo'yardi. */
-function navbatchiOf(j: JamoaRecord, monthKey: string): number | null {
-  if (j.members.length === 0) return null;
-  const startM = monthKeyOf(new Date(j.createdAt));
-  const idx = monthsBetween(startM, monthKey);
-  const first = j.members[0];
-  if (first === undefined) return null;
-  return j.members[((idx % j.members.length) + j.members.length) % j.members.length] ?? first;
+/** `turns` xaritasini xavfsiz o'qish — kalit `YYYY-MM`, qiymat butun son bo'lishi shart. */
+function parseTurns(raw: unknown): Record<string, number> {
+  const out: Record<string, number> = {};
+  if (!raw || typeof raw !== "object") return out;
+  for (const [k, v] of Object.entries(raw as Record<string, unknown>)) {
+    if (/^\d{4}-\d{2}$/.test(k) && typeof v === "number" && Number.isFinite(v)) out[k] = v;
+  }
+  return out;
+}
+
+/** 🔴 S7-2b: SOF QIDIRUV — hisob YO'Q. Shuning uchun o'tgan oy hech qachon qayta taqsimlanmaydi.
+ *  Navbatchi guruhdan chiqib ketgan bo'lsa navbat BEKOR (ball yo'q) — chiqib-qayta kirish bilan
+ *  qayta ball olishning oldi olinadi. */
+export function navbatchiOf(j: JamoaRecord, monthKey: string): number | null {
+  // ⚠️ A'ZOLIK ATAYLAB TEKSHIRILMAYDI. Ikki sabab:
+  //  1. `assignTurn` har odamga UMRI DAVOMIDA bitta navbat beradi (pastga qarang), ya'ni
+  //     a'zolikni tekshirish qo'shimcha himoya BERMAYDI — jami ball baribir chegaralangan.
+  //  2. Tekshirilsa, guruhdan chiqqan odamning O'TGAN oydagi balli YO'QOLARDI. U o'sha ballni
+  //     allaqachon kartaga sarflagan bo'lishi mumkin → `ball = max(0, earned − spent)` bilan
+  //     KO'RINMAYDIGAN QARZ paydo bo'lardi. Bu — S8-2 dagi aynan o'sha xato shakli.
+  return j.turns[monthKey] ?? null;
+}
+
+/** Yangi a'zoga navbat oyini biriktiradi: band bo'lmagan ENG YAQIN oy (guruh tuzilganidan
+ *  boshlab). Biriktirilgan oy hech qachon bo'shatilmaydi — a'zo chiqsa ham (aks holda
+ *  chiq-kir aylanishi bilan navbat qayta sotilardi). */
+export function assignTurn(j: JamoaRecord, memberId: number): string {
+  // 🔴 Sinov (`simGuards` D-bo'limi) topdi: chiq→QAYTA KIR ikkinchi navbat berardi va odam
+  // ikki oylik ball olardi. Navbat — UMRBOD BITTA. Qayta kirgan odam o'sha eski oyini
+  // qaytaradi (u allaqachon o'tgan), yangisini EMAS.
+  const had = Object.entries(j.turns).find(([, m]) => m === memberId);
+  if (had) return had[0];
+  const start = monthKeyOf(new Date(j.createdAt));
+  for (let i = 0; i < OYIN_JAMOA_MAX * 4; i++) {
+    const mk = addMonths(start, i);
+    if (j.turns[mk] === undefined) { j.turns[mk] = memberId; return mk; }
+  }
+  return start;
+}
+
+/** `YYYY-MM` + n oy. `monthsBetween` ning teskarisi — ikkalasi bir xil ta'rifda bo'lishi shart. */
+export function addMonths(monthKey: string, n: number): string {
+  const y = Number(monthKey.slice(0, 4));
+  const m = Number(monthKey.slice(5, 7));
+  if (!Number.isFinite(y) || !Number.isFinite(m)) return monthKey;
+  const total = y * 12 + (m - 1) + n;
+  return `${String(Math.floor(total / 12)).padStart(4, "0")}-${String((total % 12) + 1).padStart(2, "0")}`;
 }
 function monthsBetween(a: string, b: string): number {
   const [ay, am] = a.split("-").map(Number);
@@ -1995,6 +2112,28 @@ function monthsBetween(a: string, b: string): number {
 }
 
 /** 🤝 A'zoning jamoasi (yoki `null`). */
+/** 🔒 CAS (compare-and-set) — `value` o'zgarmagan bo'lsagina yozadi, aks holda qayta o'qib
+ *  qayta uriniladi. Prisma'da o'qib-o'zgartirib-yozish ATOMIK EMAS: ikki parallel so'rov
+ *  bir-birining natijasini jimgina yo'q qiladi (nazoratchi 2026-08-04, S7-3 va №8).
+ *  Interaktiv tranzaksiya o'rniga shu tanlandi — u ulanishni butun ish davomida ushlab
+ *  turadi va ichkarida boshqa so'rov bo'lsa pool qulflanib qolishi mumkin.
+ *  `mutate` `null` qaytarsa — o'zgarish shart emas, `null` qaytariladi. */
+async function casJamoa(key: string, mutate: (cur: JamoaRecord) => JamoaRecord | null): Promise<JamoaRecord | null> {
+  for (let attempt = 0; attempt < 5; attempt++) {
+    const row = await prisma.appState.findUnique({ where: { key } });
+    const cur = parseJamoa(row?.value);
+    if (!row || !cur) return null;
+    const next = mutate(cur);
+    if (!next) return null;
+    const value = JSON.stringify(next);
+    const n = await prisma.$executeRaw`UPDATE "AppState" SET "value" = ${value} WHERE "key" = ${key} AND "value" = ${row.value}`;
+    if (n === 1) return next;
+    // n === 0 → orada boshqa so'rov yozgan. Qayta o'qiymiz.
+  }
+  console.error(`[oyin] casJamoa: 5 urinishda ham yozilmadi (${key})`);
+  return null;
+}
+
 async function jamoaOf(memberId: number): Promise<JamoaRecord | null> {
   const link = await prisma.appState.findUnique({ where: { key: `${JAMOA_MEM_PREFIX}${memberId}` } });
   if (!link?.value) return null;
@@ -2021,13 +2160,26 @@ export async function createJamoa(memberId: number, nameRaw: string): Promise<Oy
     id = "";
   }
   if (!id) return { ok: false, reason: "not_found" };
-  const rec: JamoaRecord = { id, name, createdAt: new Date().toISOString(), members: [memberId] };
-  await prisma.appState.create({ data: { key: `${JAMOA_PREFIX}${id}`, value: JSON.stringify(rec) } });
-  await prisma.appState.upsert({
-    where: { key: `${JAMOA_MEM_PREFIX}${memberId}` },
-    create: { key: `${JAMOA_MEM_PREFIX}${memberId}`, value: id },
-    update: { value: id },
-  });
+  // 🔴 S7-3 (nazoratchi 2026-08-04): avval na qulf, na tranzaksiya bor edi va a'zolik yozuvi
+  // `upsert` bilan yozilardi. Ikki parallel so'rov IKKI guruh yaratardi (a'zo ikkalasida —
+  // ikki barobar ball), guruh yozuvi yiqilsa esa a'zo "yetim" indeksda qolardi.
+  // Tartib TESKARIGA aylantirildi: avval A'ZOLIK indeksi `create` bilan (kalit — memberId,
+  // ya'ni baza o'zi ikkinchisini rad etadi), keyin guruh. Guruh yozilmasa indeks qaytariladi.
+  const memKey = `${JAMOA_MEM_PREFIX}${memberId}`;
+  try {
+    await prisma.appState.create({ data: { key: memKey, value: id } });
+  } catch {
+    return { ok: false, reason: "already_in" }; // parallel so'rov bizdan oldin ulgurdi
+  }
+  const rec: JamoaRecord = { id, name, createdAt: new Date().toISOString(), members: [memberId], turns: {} };
+  assignTurn(rec, memberId); // tuzuvchining navbati — guruh tuzilgan OY
+  try {
+    await prisma.appState.create({ data: { key: `${JAMOA_PREFIX}${id}`, value: JSON.stringify(rec) } });
+  } catch (e) {
+    await prisma.appState.deleteMany({ where: { key: memKey } }); // yetim indeks QOLMAYDI
+    console.error("[oyin] jamoa yaratilmadi, a'zolik qaytarildi:", e);
+    return { ok: false, reason: "not_found" };
+  }
   invalidateBallCache();
   return { ok: true };
 }
@@ -2042,13 +2194,27 @@ export async function joinJamoa(memberId: number, codeRaw: string): Promise<Oyin
   if (!j) return { ok: false, reason: "not_found" };
   if (j.members.includes(memberId)) return { ok: false, reason: "already_in" };
   if (j.members.length >= OYIN_JAMOA_MAX) return { ok: false, reason: "full" };
-  j.members.push(memberId);
-  await prisma.appState.update({ where: { key }, data: { value: JSON.stringify(j) } });
-  await prisma.appState.upsert({
-    where: { key: `${JAMOA_MEM_PREFIX}${memberId}` },
-    create: { key: `${JAMOA_MEM_PREFIX}${memberId}`, value: code },
-    update: { value: code },
+  // 🔴 S7-3: avval `upsert` + filtrsiz `update` edi — ikki parallel qo'shilish bir-birini
+  // ustidan yozib, `OYIN_JAMOA_MAX` ni chetlab o'tardi va a'zo ro'yxatda IKKI marta chiqardi.
+  // Endi: (1) a'zolik indeksi `create` bilan — baza ikkinchisini rad etadi;
+  //       (2) guruh yozuvi CAS bilan — orada o'zgargan bo'lsa qayta o'qib qayta uriniladi.
+  const memKey = `${JAMOA_MEM_PREFIX}${memberId}`;
+  try {
+    await prisma.appState.create({ data: { key: memKey, value: code } });
+  } catch {
+    return { ok: false, reason: "already_in" };
+  }
+  const joined = await casJamoa(key, (cur) => {
+    if (cur.members.includes(memberId)) return null;          // boshqa so'rov qo'shib bo'lgan
+    if (cur.members.length >= OYIN_JAMOA_MAX) return null;     // orada to'lib qolgan
+    cur.members.push(memberId);
+    assignTurn(cur, memberId);                                 // navbat SHU YERDA qotadi
+    return cur;
   });
+  if (!joined) {
+    await prisma.appState.deleteMany({ where: { key: memKey } }); // yetim indeks QOLMAYDI
+    return { ok: false, reason: "full" };
+  }
   invalidateBallCache();
   return { ok: true };
 }
@@ -2056,11 +2222,19 @@ export async function joinJamoa(memberId: number, codeRaw: string): Promise<Oyin
 export async function leaveJamoa(memberId: number): Promise<OyinJamoaResult> {
   const j = await jamoaOf(memberId);
   if (!j) return { ok: false, reason: "not_in" };
-  j.members = j.members.filter((m) => m !== memberId);
   const key = `${JAMOA_PREFIX}${j.id}`;
-  // Oxirgi a'zo chiqsa guruh o'chadi — bo'sh guruh navbat ham, ball ham bermaydi.
-  if (j.members.length === 0) await prisma.appState.deleteMany({ where: { key } });
-  else await prisma.appState.update({ where: { key }, data: { value: JSON.stringify(j) } });
+  // 🔴 S7-3: CAS — orada boshqa a'zo qo'shilgan bo'lsa uni o'chirib yubormaymiz.
+  // ⚠️ `turns` TEGILMAYDI: chiqqan odamning navbat oyi BAND bo'lib qoladi. Bo'shatilsa
+  // chiq→kir aylanishi bilan o'sha oy qayta sotilardi. `navbatchiOf` a'zo emasligini
+  // ko'rib ball bermaydi — oy shunchaki bo'sh o'tadi.
+  const left = await casJamoa(key, (cur) => {
+    cur.members = cur.members.filter((m) => m !== memberId);
+    return cur;
+  });
+  if (left && left.members.length === 0) {
+    // Oxirgi a'zo chiqdi — guruh o'chadi (bo'sh guruh navbat ham, ball ham bermaydi).
+    await prisma.appState.deleteMany({ where: { key } });
+  }
   await prisma.appState.deleteMany({ where: { key: `${JAMOA_MEM_PREFIX}${memberId}` } });
   invalidateBallCache();
   return { ok: true };
@@ -2084,20 +2258,28 @@ export async function getJamoaView(memberId: number): Promise<OyinJamoaView> {
   for (const r of rides) ridesBy.set(r.memberId, (ridesBy.get(r.memberId) ?? 0) + 1);
 
   const navbatchi = navbatchiOf(j, monthKey);
-  const turnIdx = ((monthsBetween(monthKeyOf(new Date(j.createdAt)), monthKey) % j.members.length) + j.members.length) % j.members.length;
+  // 🟡 S7-10 (nazoratchi 2026-08-04): `hadTurn` `i < turnIdx` bilan hisoblanardi — a'zolik
+  // o'zgarishi bilan XATO bo'lardi va o'z navbatini kutayotgan odamga "navbating o'tib
+  // bo'lgan" deb ko'rsatardi. Endi yozib qo'yilgan `turns` dan o'qiladi.
+  const turnOf = new Map<number, string>();
+  for (const [mk, m] of Object.entries(j.turns)) if (!turnOf.has(m)) turnOf.set(m, mk);
   const ballPerRide = econ.oyinJamoaBallPerRide ?? 6;
   const maxBall = econ.oyinJamoaMaxBall ?? 3600;
   const ridesThisMonth = rides.length;
   return {
     jamoa: {
       id: j.id, name: j.name, code: j.id, createdAt: j.createdAt, monthKey,
-      members: j.members.map((m, i) => ({
-        memberId: m,
-        name: nameBy.get(m) ?? `#${m}`,
-        ridesThisMonth: ridesBy.get(m) ?? 0,
-        isNavbatchi: m === navbatchi,
-        hadTurn: i < turnIdx, // shu aylanada navbati o'tib bo'lgan
-      })),
+      members: j.members.map((m) => {
+        const mk = turnOf.get(m) ?? null;
+        return {
+          memberId: m,
+          name: nameBy.get(m) ?? `#${m}`,
+          ridesThisMonth: ridesBy.get(m) ?? 0,
+          isNavbatchi: m === navbatchi,
+          hadTurn: mk != null && mk < monthKey, // navbat oyi o'tib bo'lgan (satr-solishtiruv: YYYY-MM)
+          turnMonth: mk,                        // "sizning navbatingiz: 2026-11" deb ko'rsatish uchun
+        };
+      }),
       ridesThisMonth,
       ballPerRide,
       navbatchiBall: Math.min(maxBall, ridesThisMonth * ballPerRide),
@@ -2130,7 +2312,7 @@ export async function getDrawList(prizeKey: string): Promise<OyinDrawList | null
     getBonusEcon(),
     getFreeze(),
     prisma.appState.findMany({ where: { key: { startsWith: "oyin:tickets:" } } }) as Promise<AppStateRow[]>,
-    prisma.telegramUser.findMany({ where: { memberId: { not: null } }, select: { id: true, memberId: true, firstName: true, lastName: true, username: true } }),
+    prisma.telegramUser.findMany({ where: { memberId: { not: null } }, select: { id: true, isAdmin: true, memberId: true, firstName: true, lastName: true, username: true } }),
     prisma.appState.findMany({ where: { key: { startsWith: BAN_PREFIX } }, select: { key: true } }),
   ]);
   const prize = catalog.find((p) => p.key === prizeKey);
@@ -2141,7 +2323,7 @@ export async function getDrawList(prizeKey: string): Promise<OyinDrawList | null
   for (const tu of tus) {
     if (!tu.memberId) continue;
     nameByMember.set(tu.memberId, shortName(tu));
-    if (isAdmin(tu.id)) staffMembers.add(tu.memberId);
+    if (isStaffUser(tu)) staffMembers.add(tu.memberId); // 🟡 №12: `.env` YOKI bazadagi belgi
   }
   const banned = new Set<number>();
   for (const r of banRows) {
@@ -2574,16 +2756,22 @@ function weekKeyToISO(wk: string): string {
 
 export async function getActivity(filters: OyinActivityFilter): Promise<OyinActivityResponse> {
   const [econ, season] = await Promise.all([getBonusEcon(), getSeason()]);
-  // Default `season` — jadval reyting bilan KELISHISHI shart (admin "raqamlar to'g'ri kelmayapti"
-  // deb aylanmasin). `all` — mavsumgacha bo'lgan tarixni ko'rishning yagona yo'li.
-  const seasonScoped = filters.scope !== "all" && season.configured;
-  const fromMs = filters.from ? Date.parse(filters.from) : seasonScoped ? (season.startMs as number) : -Infinity;
-  const toMs = filters.to ? Date.parse(filters.to) : seasonScoped ? (season.endMs as number) : Infinity;
+  void season; // (mavsum endi oynani belgilamaydi — pastdagi izohga qarang)
+  // 🟡 S8-8 (nazoratchi 2026-08-04): oyna MAVSUM edi, `computeBallMap` esa 24 OYLIK siljiydigan
+  // oynaga o'tgan (S8). Ya'ni admin faoliyat jadvali va reyting IKKI XIL davrni sanardi va
+  // raqamlar hech qachon to'g'ri kelmasdi — bu funksiyaning O'Z izohi "jadval reyting bilan
+  // kelishishi SHART" deb yozilgan bo'lsa ham. Endi oyna `computeBallMap` bilan AYNAN bir xil:
+  // `[hozir − BALL_DATA_WINDOW_MS, hozir]`. Ikkalasi bitta konstantadan oziqlanadi, ya'ni
+  // kelajakda ajralib keta olmaydi.
+  const nowActMs = Date.now();
+  const ballScoped = filters.scope !== "all";
+  const fromMs = filters.from ? Date.parse(filters.from) : ballScoped ? nowActMs - BALL_DATA_WINDOW_MS : -Infinity;
+  const toMs = filters.to ? Date.parse(filters.to) : ballScoped ? nowActMs : Infinity;
   // ⚠️ login/share qatorlari UTC yarim tuni bilan yoziladi (pastda), ball esa TOSHKENT kunini
-  // sanaydi — 5 soatlik farq mavsum chegarasida jadvalni reytingdan ajratib yuborardi. Shu sababli
-  // ular kun-SATRI bo'yicha alohida filtrlanadi.
-  const dayFrom = seasonScoped ? (season.startDayKey as string) : null;
-  const dayTo = seasonScoped ? (season.endDayKey as string) : null;
+  // sanaydi — 5 soatlik farq chegarada jadvalni reytingdan ajratib yuborardi. Shu sababli
+  // ular kun-SATRI bo'yicha alohida filtrlanadi — `computeBallMap` dagi `countDays` kabi.
+  const dayFrom = Number.isFinite(fromMs) ? tashkentDayKey(new Date(fromMs)) : null;
+  const dayTo = Number.isFinite(toMs) ? tashkentDayKey(new Date(toMs)) : null;
   // DB filtri uchun chegaralar. `-Infinity`/`Infinity` ni `Date` ga berib bo'lmaydi —
   // `scope:"all"` da amalda cheksiz oyna (1970 → +10 yil) ishlatiladi.
   const winFrom = new Date(Number.isFinite(fromMs) ? fromMs : 0);
@@ -2681,7 +2869,7 @@ export async function getActivity(filters: OyinActivityFilter): Promise<OyinActi
   // (computeBallMap). Avval butun tarix bo'yicha aniqlanardi va jadval reytingdan farq qilardi.
   for (const [memberId, rides] of ridesByMember) {
     const sorted = [...rides].sort((a, b) => a.at.getTime() - b.at.getTime());
-    const firstInSeasonIdx = seasonScoped ? sorted.findIndex((r) => r.at.getTime() >= fromMs) : 0;
+    const firstInSeasonIdx = ballScoped ? sorted.findIndex((r) => r.at.getTime() >= fromMs) : 0;
     sorted.forEach((r, i) => {
       const isFirst = i === firstInSeasonIdx;
       push(r.at.toISOString(), memberId, isFirst ? "first_ride" : "ride", isFirst ? (econ.oyinFirstRideBall ?? 0) : (econ.oyinRideBall ?? 0), null, `#${r.bookingId}`);
@@ -2832,7 +3020,7 @@ export async function getActivity(filters: OyinActivityFilter): Promise<OyinActi
       for (const it of approved) {
         const t = Date.parse(String(it.at));
         const inWin = Number.isFinite(t) && t >= fromMs && t <= toMs;
-        const over = seasonScoped && inWin && paid >= OYIN_STORY_SEASON_LIMIT;
+        const over = ballScoped && inWin && paid >= OYIN_STORY_SEASON_LIMIT;
         if (inWin && !over) paid++;
         push(
           String(it.at), memberId, "story",

@@ -9,7 +9,10 @@
  *
  * DB'ga TEGMAYDI: faqat sof funksiya va konstantalar o'qiladi (prisma so'rov yo'q).
  */
-import { ARCHIVED_PREFIXES, tierOfPrice } from "../services/oyinService";
+import {
+  ARCHIVED_PREFIXES, tierOfPrice,
+  navbatchiOf, assignTurn, addMonths, parseJamoa, type JamoaRecord,
+} from "../services/oyinService";
 import { OYIN_TIERS, OYIN_JAMOA_MIN, OYIN_SEED_CATALOG } from "@t1067/shared";
 import { BONUS_ECON_KNOBS } from "@t1067/shared";
 
@@ -59,13 +62,52 @@ for (const [t, b] of Object.entries(OYIN_TIERS)) {
   ok(tierOfPrice(b) === t, `tierOfPrice(${b}) === "${t}"`);
 }
 
-// ── 🔴 S7-2: jamoa balli o'chiqligi ────────────────────────────────────────────────
-console.log("\nC) Gap-jamoa — navbat saqlanmagunga qadar ball BERMASLIGI kerak");
+// ── 🔴 S7-1 / S7-2b: jamoa knoblari ────────────────────────────────────────────────
+console.log("\nC) Gap-jamoa knoblari");
 const jk = BONUS_ECON_KNOBS.find((k) => k.key === "oyinJamoaBallPerRide");
 ok(jk != null, "oyinJamoaBallPerRide knobi mavjud");
-ok(jk?.def === 0, `def = ${jk?.def} (0 bo'lishi shart — navbat retroaktiv qayta taqsimlanadi)`);
+ok(jk?.def === 6, `def = ${jk?.def} (S7-2b bajarilgandan keyin qayta yoqildi)`);
 ok(jk?.min === 0, "knobni 0 ga tushirish mumkin (kill-switch)");
 ok(OYIN_JAMOA_MIN >= 3, `OYIN_JAMOA_MIN = ${OYIN_JAMOA_MIN} (yolg'iz «jamoa» bo'lmaydi)`);
+
+
+// ── 🔴 S7-2b: NAVBAT QAYTA TAQSIMLANMASLIGI — ekspluatatsiyaning O'ZIGA sinov ───────
+console.log("\nD) Gap-jamoa navbati — a'zo qo'shilsa O'TGAN oy O'ZGARMASLIGI kerak");
+const g: JamoaRecord = { id: "TEST01", name: "Sinov", createdAt: "2026-01-15T00:00:00.000Z", members: [], turns: {} };
+// Uch a'zo ketma-ket qo'shiladi.
+for (const m of [101, 102, 103]) { g.members.push(m); assignTurn(g, m); }
+const before = { "2026-01": navbatchiOf(g, "2026-01"), "2026-02": navbatchiOf(g, "2026-02"), "2026-03": navbatchiOf(g, "2026-03") };
+ok(before["2026-01"] === 101, `1-oy navbatchisi = ${before["2026-01"]} (tuzuvchi)`);
+ok(before["2026-02"] === 102, `2-oy navbatchisi = ${before["2026-02"]}`);
+ok(before["2026-03"] === 103, `3-oy navbatchisi = ${before["2026-03"]}`);
+// ⚡ EKSPLUATATSIYA URINISHI: to'rtinchi a'zo qo'shiladi. Eski kodda `members[i % N]` edi va
+// N 3→4 bo'lishi bilan HAMMA o'tgan oy qayta taqsimlanardi.
+g.members.push(104); assignTurn(g, 104);
+ok(navbatchiOf(g, "2026-01") === before["2026-01"], "a'zo qo'shildi — 1-oy O'ZGARMADI");
+ok(navbatchiOf(g, "2026-02") === before["2026-02"], "a'zo qo'shildi — 2-oy O'ZGARMADI");
+ok(navbatchiOf(g, "2026-03") === before["2026-03"], "a'zo qo'shildi — 3-oy O'ZGARMADI");
+ok(navbatchiOf(g, "2026-04") === 104, "4-a'zo KEYINGI bo'sh oyni oldi");
+// ⚡ CHIQ→QAYTA KIR: navbat bo'shatilmasligi kerak, aks holda o'sha oy qayta sotilardi.
+g.members = g.members.filter((m) => m !== 102);
+ok(navbatchiOf(g, "2026-02") === 102, "chiqqan a'zoning O'TGAN oyi saqlanadi (yashirin qarz bo'lmasin)");
+g.members.push(102); const again = assignTurn(g, 102);
+ok(again === "2026-02", `qayta kirgan a'zo O'SHA oyini oldi, yangisini EMAS (${again})`);
+ok(navbatchiOf(g, "2026-05") === null, "chiq→kir aylanishi YANGI navbat oyi yaratmadi");
+// Har a'zoga bitta navbat — umrbod shift strukturaviy.
+const counts = new Map<number, number>();
+for (const m of Object.values(g.turns)) counts.set(m, (counts.get(m) ?? 0) + 1);
+ok([...counts.values()].every((c) => c === 1), "har a'zoga UMRI DAVOMIDA bitta navbat");
+
+console.log("\nE) addMonths — `monthsBetween` bilan bir xil ta'rifda");
+ok(addMonths("2026-01", 0) === "2026-01", "addMonths(+0)");
+ok(addMonths("2026-11", 2) === "2027-01", "addMonths yil chegarasidan o'tadi: 2026-11 +2 → 2027-01");
+ok(addMonths("2026-12", 1) === "2027-01", "addMonths(2026-12,+1) → 2027-01");
+
+console.log("\nF) parseJamoa — buzuq qator butun o'yinni yiqitmasligi kerak");
+ok(parseJamoa('{"id":"X","members":[1],"createdAt":"salom"}')?.createdAt !== "salom", "buzuq createdAt almashtirildi (RangeError yo'q)");
+ok(Object.keys(parseJamoa('{"id":"X","members":[1],"turns":{"salom":5,"2026-01":7}}')?.turns ?? {}).length === 1, "turns'dagi buzuq kalit tashlandi");
+const legacy = parseJamoa('{"id":"X","members":[1]}');
+ok(legacy != null && Object.keys(legacy.turns).length === 0, "eski yozuvda turns bo'sh → ball yo'q (xavfsiz sukut)");
 
 console.log(fail === 0 ? "\n🛡 simGuards: HAMMA QO'RIQ JOYIDA\n" : `\n❌ simGuards: ${fail} ta qo'riq YO'Q\n`);
 process.exit(fail === 0 ? 0 : 1);

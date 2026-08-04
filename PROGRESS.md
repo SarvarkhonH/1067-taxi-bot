@@ -18,14 +18,24 @@ Mijoz/ega: navbatdagi sovg'alar mijoz ekranida sanalishi · narx→daraja moslas
 sig'im shipining aylanib o'tilishi · avto-ochilish tetigi · byudjet/hujjatda navbatdagilar ·
 qoidalar va admin matnining kod bilan zidligi · muzlatishning o'zini qulflashi · ko'r `catch`.
 
-### ⚠️ Yopilmadi — ochiq qarz (ataylab, isbot bilan aytiladi)
+### ✅ 2026-08-04 (kechqurun) — QOLGAN 4 TA OCHIQ QARZ HAM YOPILDI
+
+| Qarz | Nima qilindi |
+|---|---|
+| **S7-2b** navbat saqlanmasligi | `JamoaRecord.turns` — navbat a'zo qo'shilganda BIR MARTA yoziladi va o'zgarmaydi. `navbatchiOf` endi SOF QIDIRUV (hisob yo'q) → o'tgan oy qayta taqsimlanmaydi. **Har a'zoga umri davomida bitta navbat** → umrbod shift strukturaviy (≤ `oyinJamoaMaxBall`). Jamoa balli QAYTA YOQILDI (def 0 → 6). |
+| **S7-3** qulf yo'qligi | `casJamoa` — compare-and-set qayta urinish bilan. A'zolik indeksi endi `create` (upsert emas): baza parallel ikkinchi so'rovni o'zi rad etadi. Guruh yozilmasa indeks qaytariladi (yetim qator yo'q). |
+| **№8** katalog lost update | `mutateCatalog` — to'rttala yozuvchi (`autoOpenPrizes`, `adminUpsertPrize`, `adminSetPrizeActive`, `adminDeletePrize`) CAS bilan. Ega tahrirlayotganda xarid bo'lsa tahrir endi yo'qolmaydi. |
+| **№12** ikki xil «xodim» | `isStaffUser` — `.env` ro'yxati **YOKI** `TelegramUser.isAdmin`. Ikkala tiraj yo'li (`getDrawList` + `drawExport`) bitta ta'rifdan. |
+| **S8-8** jadval ≠ reyting | `getActivity` oynasi endi `computeBallMap` bilan AYNAN bir xil (`BALL_DATA_WINDOW_MS`). Bitta konstantadan oziqlanadi — kelajakda ajralib keta olmaydi. |
+
+**Sinov haqiqiy bug topdi:** `simGuards` D-bo'limi jamoadan **chiqib qayta kirish ikkinchi navbat
+berishini** ushladi (odam ikki oylik ball olardi). `assignTurn` tuzatildi — qayta kirgan a'zo
+o'sha eski oyini qaytaradi, yangisini emas. Bu — sinovni nusxaga emas, KODGA yozishning
+birinchi qaytimi.
+
+### ⚠️ Yopilmagan (kosmetik, pul yo'liga tegmaydi)
 | № | Nima | Og'irlik | Nega hozir emas |
 |---|---|---|---|
-| S8-8 | `getActivity` davr-doirali, `computeBallMap` 24 oylik → **admin jadvali reyting bilan mos kelmaydi** | 🟡 ega ko'radi | Ikkala yo'lni bitta manbaga yig'ish talab qiladi; alohida tiket |
-| №8 | Katalog yozuvlari qulfsiz — ega narx tahrirlayotganda xarid bo'lsa tahrir jimgina yo'qoladi | 🟡 ega ko'radi | `withMemberLock` naqshini katalogga kengaytirish kerak |
-| №12 | «Xodim» ikki xil ta'rifda (`.env` ro'yxati vs `TelegramUser.isAdmin`) | 🟡 | Bazadagi xodim tirajda qatnashadi; ega qarori kerak |
-| S7-3 | Jamoa yaratish/qo'shilishda qulf yo'q | ⚪ hozir | Jamoa balli 0 — pul yo'liga tegmaydi |
-| S7-2b | Navbat `oyin:jamoaturn:` bilan yozib qo'yilishi | 🔴 yoqishdan oldin | Jamoa balli 0 bo'lgani uchun to'silgan; **yoqishdan oldin SHART** |
 | S8-4/9, №15-20 | Eskirgan izohlar, `seasonClose` hisoboti, `gno ?? no` to'qnashuvi | ⚪ | Kosmetik |
 
 ### 🛡 Sinovdagi tuzatish (eng muhim saboq)

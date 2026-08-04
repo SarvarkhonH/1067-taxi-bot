@@ -316,12 +316,12 @@ export const BONUS_ECON_KNOBS: BonusEconKnob[] = [
   // Xarajat hisobi: 10 kishi × 20 safar = 200 safar × 6 ball = 1 200 ball — bu aynan bitta
   // «o'rta» darajali karta. Safar boshiga +6 ball = 35 ustiga 17% qo'shimcha emissiya.
   // ⛔ Ball KO'CHIRILMAYDI — bonusni tizim yaratadi (shared/oyin.ts izohiga qarang).
-  // 🔴 def 6 → 0 (nazoratchi 2026-08-04, S7-2). Navbat SAQLANMAYDI: `navbatchiOf` har chaqiruvda
-  // qayta hisoblaydi, ya'ni a'zo qo'shilsa O'TGAN oylarning navbatchisi ham o'zgaradi. Karta esa
-  // abadiy → bir oylik 3 600 ball qayta-qayta kartaga aylantirilardi. Jamoa hozir ijtimoiy
-  // funksiya sifatida ishlaydi (tuzish · qo'shilish · navbatni ko'rish), BALL BERMAYDI.
-  // Yoqishdan oldin: navbat oy bo'yicha bir marta yozilsin (`oyin:jamoaturn:`) + umrbod shift.
-  { key: "oyinJamoaBallPerRide", label: "🤝 Gap-jamoa — navbatchiga ball (⛔ 0 = o'chiq, S7-2)", def: 0, min: 0, max: 100, step: 1, group: "Koson O'yini" },
+  // 🔓 def 0 → 6 QAYTA YOQILDI (2026-08-04, S7-2b bajarilgandan keyin). To'sgan uchta sabab
+  // ham yopildi: (1) navbat endi a'zo qo'shilganda BIR MARTA yoziladi va o'zgarmaydi —
+  // o'tgan oy qayta taqsimlanmaydi; (2) `OYIN_JAMOA_MIN` ball yo'lida tekshiriladi —
+  // yolg'iz "jamoa" ball olmaydi; (3) yaratish/qo'shilish/chiqish CAS bilan atomik.
+  // Umrbod shift STRUKTURAVIY: har a'zoga bitta navbat → ko'pi bilan `oyinJamoaMaxBall`.
+  { key: "oyinJamoaBallPerRide", label: "🤝 Gap-jamoa — navbatchiga ball", def: 6, min: 0, max: 100, step: 1, group: "Koson O'yini" },
   // Oylik shift: jamoa juda faol bo'lsa ham navbatchi bir oyda bundan ko'p ololmaydi.
   // 3 600 = eng qimmat karta (`OYIN_TIERS.bosh`) — ya'ni navbat oyiga max bitta katta karta.
   { key: "oyinJamoaMaxBall", label: "🤝 Gap-jamoa — navbatchiga oylik shift", def: 3600, min: 0, max: 20000, step: 100, group: "Koson O'yini" },

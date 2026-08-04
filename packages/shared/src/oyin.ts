@@ -553,13 +553,19 @@ export function oyinHintOf(dayKey: string): OyinHint {
 // tepasi ham, tagi ham yo'q: kim yursa — navbatchiga foyda. Piramida emas, gashtak.
 export const OYIN_JAMOA_MIN = 3;
 export const OYIN_JAMOA_MAX = 10;
+/** 🤝 Har a'zoga UMRI DAVOMIDA bitta navbat (S7-2b). Ya'ni jamoadan olinadigan ball
+ *  strukturaviy ravishda `oyinJamoaMaxBall` bilan chegaralangan — alohida hisoblagich
+ *  shart emas. 10 kishilik guruh = 10 oy = 10 xil odam, keyin aylana tugaydi. */
+export const OYIN_JAMOA_ONE_TURN_PER_MEMBER = true;
 
 export interface OyinJamoaMember {
   memberId: number;
   name: string;
   ridesThisMonth: number;
   isNavbatchi: boolean;
-  hadTurn: boolean; // shu aylanada navbatini olganmi
+  hadTurn: boolean; // navbat oyi o'tib bo'lganmi (yozib qo'yilgan `turns` dan)
+  /** `YYYY-MM` — a'zoning BIRIKTIRILGAN navbat oyi. Qo'shilganda qotadi, o'zgarmaydi. */
+  turnMonth: string | null;
 }
 export interface OyinJamoaView {
   /** `null` = a'zo hech qanday jamoada emas (ekran «jamoa tuzing» taklifini ko'rsatadi). */
@@ -735,7 +741,10 @@ export interface OyinActivityFilter {
   to?: string; // ISO
   page?: number;
   pageSize?: number;
-  // "season" (default) = faqat joriy mavsum — jadval reyting bilan KELISHADI. "all" = butun tarix
+  // 🟡 S8-8 (2026-08-04): "season" endi MAVSUMNI emas, BALL OYNASINI (24 oy) bildiradi —
+  // `computeBallMap` bilan aynan bir xil. Avval mavsum edi va jadval reyting bilan hech qachon
+  // to'g'ri kelmasdi. Nom saqlandi (klient shartnomasi buzilmasin), MA'NOSI to'g'rilandi.
+  // "all" = butun tarix (chegarasiz).
   // (mavsumgacha bo'lgan davrni ko'rishning yagona yo'li, faqat tekshiruv uchun).
   scope?: "season" | "all";
 }
