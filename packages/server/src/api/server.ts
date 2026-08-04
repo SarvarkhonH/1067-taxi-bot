@@ -2321,7 +2321,14 @@ export function createApiServer(opts: ApiOptions = {}) {
   // 🛡 Sig'im o'lchovi + navbatdan ochish. `GET` faqat o'lchaydi; `POST` navbatdan ochadi
   // (panel «Ochish» tugmasi). Ochish IDEMPOTENT — sig'im yetarli bo'lsa hech narsa qilmaydi.
   app.get("/api/admin/oyin/capacity", requireAdmin, async (_req, res) => {
-    const { getCapacity } = await import("../services/oyinService");
+    // 🔴 (nazoratchi 2026-08-04 №5): avtomatik ochilishning YAGONA tetigi xarid edi. Lekin
+    // hamma ochiq mukofot to'lganda `buyTicket` `sold_out` bilan ERTAROQ qaytadi va
+    // `autoOpenPrizes` ga umuman yetib bormaydi — tetik o'zi imkon beradigan harakatning O'ZI.
+    // Natija: «xalqda ball bor, sotib oladigan narsa yo'q» — navbat aynan shuni to'sish uchun
+    // qurilgan edi. Endi panel ochilishi ham tetik (izohda va'da qilingani kabi).
+    // Yangi poller EMAS — mavjud so'rov yo'lida, ARCHITECTURE.md invarianti buzilmaydi.
+    const { getCapacity, autoOpenPrizes } = await import("../services/oyinService");
+    await autoOpenPrizes().catch(() => undefined);
     res.json(await getCapacity());
   });
   app.post("/api/admin/oyin/capacity/open", requireAdmin, requireOwner, rateLimit(20), async (_req, res) => {

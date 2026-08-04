@@ -144,6 +144,7 @@ function ballRows(h: OyinStateResponse["hints"]): BallRow[] {
 function buyReasonText(reason: string | undefined): string {
   switch (reason) {
     case "sold_out": return "😔 Bu mukofot uchun o'rinlar tugadi";
+    case "drawn": return "🏁 Bu mukofot allaqachon egasiga topshirilgan";
     case "off": return "Dastur hali yopiq";
     case "season_off": return "📅 Dastur hozir faol emas — karta olish yopiq";
     case "final_lock": return "🔒 Karta olish yopildi — ro'yxat mukofot kuniga tayyor. Kartalaringiz «Kartalarim» bo'limida";
@@ -307,7 +308,7 @@ function RulesSheet({ season, prizes, maxPerPrize, onClose }: {
                 {to
                   ? <>Yakunlanishi va mukofot kuni: <b>{to}</b>.<br /></>
                   : <>Yakunlanish sanasi hali e'lon qilinmagan.<br /></>}
-                Ball faqat shu muddat ichida qilingan harakatlardan yig'iladi.
+                Sodiqlik kartalari va ularning raqamlari <b>muddatdan keyin ham saqlanadi</b>.
               </>
             ) : (
               <>Muddat hali e'lon qilinmagan. Sana belgilangach shu yerda ko'rsatiladi.</>
@@ -393,7 +394,15 @@ function RulesSheet({ season, prizes, maxPerPrize, onClose }: {
               <li>Sodiqlik kartasi pulga sotilmaydi, boshqa odamga berilmaydi va naqd pulga almashtirilmaydi.</li>
               <li>Ball ham sotilmaydi, boshqa hisobga o'tkazilmaydi va pulga almashtirilmaydi.</li>
               <li>Kartaga sarflangan ball qaytarilmaydi.</li>
-              <li>Muddat tugagunga qadar sarflanmagan ball kuyadi.</li>
+              {/* 🟡 S8-5 (nazoratchi 2026-08-04): avvalgi matn ("muddat tugaguncha sarflanmasa
+                   kuyadi") KOD BILAN ZID edi — ball davr bilan bog'liq emas. Amaldagi ikki
+                   qoida esa mijozga HECH QAYERDA aytilmagan edi: bu ochiq aytilishi SHART,
+                   chunki ikkalasi ham ballni kamaytiradi. */}
+              <li>Ball muddatga bog'liq emas — u sarflanmaguncha hisobingizda turadi.</li>
+              <li><b>6 oy davomida hech qanday harakat bo'lmasa</b> (safar, kirish, karta) ball nolga
+                tushadi. Bitta harakat hisobni yana faollashtiradi.</li>
+              <li>Ball tarixi <b>24 oy</b> saqlanadi; undan eskisi hisobdan chiqadi. Sodiqlik
+                kartalari esa o'chmaydi — ular ro'yxatda abadiy qoladi.</li>
               <li>Bir odam bitta mukofot uchun ko'pi bilan {maxPerPrize} ta karta ola oladi.</li>
             </ul>
           </RuleSec>
@@ -714,7 +723,7 @@ export function OyinView({ onTaxi }: { onTaxi?: () => void } = {}) {
         showToast(buyReasonText(stopReason));
         // Server "yopildi" yoki "mavsum faol emas" desa — ekran ESKI holatda qolmasin:
         // haqiqiy fazani serverdan olib kelamiz (klient soatiga ishonmaymiz, G7).
-        if (stopReason === "final_lock" || stopReason === "season_off" || stopReason === "sold_out") loadHome(true);
+        if (stopReason === "final_lock" || stopReason === "season_off" || stopReason === "sold_out" || stopReason === "drawn") loadHome(true);
       }
     } catch {
       // ⚠️ Tsikl o'rtasida tarmoq uzilsa `got` ALLAQACHON olingan chiptalar sonini bildiradi.

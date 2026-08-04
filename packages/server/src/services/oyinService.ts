@@ -365,9 +365,19 @@ async function computeBallMap(): Promise<Map<number, MemberBallRow>> {
     const memberId = Number(row.key.slice("oyin:tickets:".length));
     if (!Number.isFinite(memberId)) continue;
     const tickets = parseTickets(row.value);
-    const sum = tickets.reduce((s, t) => s + (t.priceAtPurchase || 0), 0);
+    // 🔴 S8-1 (nazoratchi 2026-08-04): `spent` FILTRSIZ edi, `earned` esa 24 oylik oynada —
+    // ya'ni izohning O'ZI xato deb ta'riflagan holat, faqat mavsum o'rniga 24 oyga surilgan.
+    // 25 oy oldin karta olgan sodiq mijoz: earned=415 spent=3000 → ball 0, YASHIRIN QARZ 2585.
+    // Endi ikkalasi BIR XIL oynada. Oynadan tashqaridagi karta `drawExport`/`myTickets` da
+    // KO'RINAVERADI (karta abadiy) — faqat BALL hisobidan chiqadi.
+    let sum = 0;
+    for (const t of tickets) {
+      const ms = Date.parse(t.ts);
+      touch(memberId, ms);
+      // `ts` buzuq bo'lsa HISOBGA OLINADI: tashlash = sarflangan ball qaytishi = ekspluatatsiya.
+      if (!Number.isFinite(ms) || ms >= fromMs) sum += t.priceAtPurchase || 0;
+    }
     spentByMember.set(memberId, sum);
-    for (const t of tickets) touch(memberId, Date.parse(t.ts));
   }
   // Kun-kalitlari SATR sifatida solishtiriladi — ular `tashkentDayKey` chiqargan qiymatlar, mavsum
   // chegarasi ham shundan. `new Date(d)` bilan solishtirish UTC/+05:00 farqidan 5 soatga adashadi.
@@ -400,7 +410,20 @@ async function computeBallMap(): Promise<Map<number, MemberBallRow>> {
   // ⚠️ Ball KO'CHIRILMAYDI: bu tizim yaratadigan bonus, a'zolar orasidagi o'tkazma EMAS.
   const jamoaByMember = new Map<number, number>();
   {
-    const jamoaPerRide = econ.oyinJamoaBallPerRide ?? 6;
+    // 🔴 S7-2 (nazoratchi 2026-08-04) — JAMOA BALLI VAQTINCHA O'CHIRILDI (knob def 0).
+    //
+    // Sabab: navbat SAQLANMAYDI (`navbatchiOf` har chaqiruvda qayta hisoblaydi), shuning uchun
+    // a'zo qo'shilsa/chiqsa O'TGAN oylarning navbatchisi ham O'ZGARADI. Karta esa ABADIY (S8).
+    // Ikkalasi birga ekspluatatsiya beradi:
+    //   1. A navbatchi bo'lib 3600 ball oladi → kartaga sarflaydi (karta abadiy qoladi)
+    //   2. yangi a'zo qo'shiladi → o'sha oy B ga o'tadi → A ning earned tushadi, KARTASI qoladi
+    //   3. B endi o'sha 3600 ni oladi → yana karta. Cheksiz takrorlanadi.
+    // Yana: oylik shift bor, UMRBOD shift YO'Q — 8 oylik guruh 28 800 ball bera oladi.
+    //
+    // TO'G'RI YECHIM (S7b): navbat oy bo'yicha BIR MARTA yozib qo'yiladi (`oyin:jamoaturn:`)
+    // va keyin o'zgarmaydi + umrbod shift. Ungacha ball 0 — jamoa ijtimoiy funksiya sifatida
+    // ishlaydi (tuzish, qo'shilish, kim navbatda ekanini ko'rish), ball bermaydi.
+    const jamoaPerRide = econ.oyinJamoaBallPerRide ?? 0;
     const jamoaMax = econ.oyinJamoaMaxBall ?? 3600;
     if (jamoaPerRide > 0) {
       // Safarlarni a'zo × oy bo'yicha yig'amiz (`rideDayRows` allaqachon o'qilgan).
@@ -412,7 +435,10 @@ async function computeBallMap(): Promise<Map<number, MemberBallRow>> {
       const nowMonth = monthKeyOf(new Date(nowMs));
       for (const row of jamoaRows) {
         const j = parseJamoa(row.value);
-        if (!j || j.members.length === 0) continue;
+        // 🔴 S7-1: `OYIN_JAMOA_MIN` avval FAQAT ekranga chiqarilardi, ball yo'lida
+        // tekshirilmasdi. Natijada istalgan odam o'ziga YOLG'IZ "jamoa" tuzib har safaridan
+        // +17% ball olardi — gashtak modelining butun mantig'i chetlab o'tilardi.
+        if (!j || j.members.length < OYIN_JAMOA_MIN) continue;
         const startMonth = monthKeyOf(new Date(j.createdAt));
         // Guruh tuzilganidan BUGUNGI oygacha — har oy uchun o'sha oyning navbatchisiga.
         const span = Math.max(0, monthsBetween(startMonth, nowMonth));
@@ -524,8 +550,14 @@ async function computeBallMap(): Promise<Map<number, MemberBallRow>> {
     // kartaning `spent` i qoladi → balans asossiz tushardi. Harakatsizlik varianti esa
     // aviakompaniya/bank sodiqlik dasturlarining standart javobi va faol mijozga HECH QACHON
     // tegmaydi — bitta safar butun balansni tirik saqlaydi.
+    // 🔴 S8-6 (nazoratchi 2026-08-04): avval `lastAct === 0` bo'lsa `earnedRaw > 0` → DARHOL
+    // dormant edi. Ya'ni admin odamga ball qo'shsa u KO'RINMASDI (`adminAdjustBall` javobda
+    // 0 qaytarardi), telefon ulagan-u miniapp ochmagan odam `phoneBall` ni hech qachon
+    // ko'rmasdi. Va mantiq nomutanosib edi: MANFIY tuzatish o'tardi, musbat o'tmasdi.
+    // Endi: harakat yozuvi YO'Q bo'lsa dormant EMAS. Harakatsizlik faqat MA'LUM oxirgi
+    // harakatdan hisoblanadi — noma'lumlik jazo bo'lmaydi.
     const lastAct = lastActivityByMember.get(memberId) ?? 0;
-    const dormant = lastAct > 0 ? nowMs - lastAct > BALL_INACTIVITY_MS : earnedRaw > 0;
+    const dormant = lastAct > 0 && nowMs - lastAct > BALL_INACTIVITY_MS;
     const earned = dormant ? 0 : earnedRaw;
     // ⚠️ `spent` ham nolga tushadi: aks holda uyquga ketgan odam qaytganda `earned` 0 dan
     // boshlaydi-yu, eski `spent` qolib `max(0, 0 − spent)` bilan abadiy 0 da qamalib qolardi.
@@ -709,7 +741,11 @@ export async function getOyinState(memberId: number): Promise<OyinStateResponse>
   const ticketCount = season.configured
     ? myTickets.length
     : 0;
-  const activeCatalog = catalog.filter((p) => p.active);
+  // 🔴 (nazoratchi 2026-08-04 №4): `queued` filtri YO'Q edi. Ega 100 ta mukofot yuklashi bilan
+  // uy kartasi «⭐ 105 TA REAL SOVG'A» deb yozardi, vitrinada esa 5 tasi turardi; progress
+  // `12 / 2 400` bo'lib qolardi — ijtimoiy isbot o'rniga "hech kim olmayapti" signali.
+  // Mijozga KO'RINADIGAN har son faqat SOTUVDAGI mukofotlardan hisoblanadi.
+  const activeCatalog = catalog.filter((p) => p.active && p.queued !== true);
   // 📊 UY KARTASI uchun UMUMIY hisob — mijozning shaxsiy balli emas, butun mavsum bo'yicha.
   const capacityTotal = activeCatalog.reduce((n, p) => n + Math.max(0, p.limit), 0);
   const soldTotal = activeCatalog.reduce((n, p) => n + Math.min(p.limit, soldMapAll.get(p.key) ?? 0), 0);
@@ -996,6 +1032,19 @@ function uniqueCatalogKey(name: string, existing: OyinCatalogPrize[]): string {
 
 /** Admin: butun katalog, har biriga sotilgan-son qo'shilgan (o'chirish xavfsizligini ko'rsatish uchun). */
 /** 📋 Mukofotning navbat holati. `queued` maydoni YO'Q bo'lsa — ochiq (eski katalog moslik). */
+/** 💰 Narx -> eng YAQIN daraja. Teng-solishtiruv EMAS: jonli katalog narxlari erkin
+ *  (ega qo'lda kiritadi), shuning uchun `price === OYIN_TIERS[t]` hech qachon mos kelmaydi. */
+export function tierOfPrice(price: number): OyinTier {
+  const entries = Object.entries(OYIN_TIERS) as [OyinTier, number][];
+  let bestT: OyinTier = "orta";
+  let bestD = Infinity;
+  for (const [t, b] of entries) {
+    const d = Math.abs(b - price);
+    if (d < bestD) { bestD = d; bestT = t; }
+  }
+  return bestT;
+}
+
 function stageOf(p: OyinCatalogPrize, sold: number): OyinPrizeStage {
   if (sold >= p.limit) return "filled";
   return p.queued === true ? "queued" : "open";
@@ -1023,6 +1072,12 @@ export async function getCapacity(): Promise<OyinCapacityView> {
   let queuedCount = 0;
   let filledCount = 0;
   const openTiers = new Set<OyinTier>();
+  // 🟡 (nazoratchi 2026-08-04 №6): avval `p.price === OYIN_TIERS[t]` BITMA-BIT solishtirilardi.
+  // Jonli katalogda birorta narx tier qiymatiga TENG EMAS (1000·4000·6000·11700·16700 vs
+  // 600·1200·2400·3600), ya'ni har mukofot "darajasiz" edi. Uch oqibat: panelda o'chmaydigan
+  // sariq ogohlantirish · «Navbatdan ochish» tugmasi hech narsa qilmasdi (`opened: []`) ·
+  // `getCapacity` tez-chiqishi ishlamay HAR xaridda butun `computeBallMap()` qayta hisoblanardi.
+  // Endi narx eng YAQIN darajaga bog'lanadi — daraja o'lchov, teng-solishtiruv emas.
   for (const p of catalog) {
     if (!p.active) continue;
     const sold = soldMap.get(p.key) ?? 0;
@@ -1032,9 +1087,7 @@ export async function getCapacity(): Promise<OyinCapacityView> {
     openCount++;
     // ⚠️ QOLGAN o'rinlar, limit EMAS: sotilgan karta endi sig'im emas, u allaqachon yeyilgan.
     openBall += Math.max(0, p.limit - sold) * p.price;
-    for (const [t, ballPrice] of Object.entries(OYIN_TIERS) as [OyinTier, number][]) {
-      if (p.price === ballPrice) openTiers.add(t);
-    }
+    openTiers.add(tierOfPrice(p.price));
   }
   const missingTiers = (Object.keys(OYIN_TIERS) as OyinTier[]).filter((t) => !openTiers.has(t));
   // Xalqda ball bo'lmasa nisbat cheksiz — `healthy: true`, lekin NaN/Infinity ekranga chiqmasin.
@@ -1076,9 +1129,15 @@ export async function autoOpenPrizes(): Promise<{ opened: string[]; reason: stri
 
   for (const p of queued) {
     if (openCount >= OYIN_MAX_OPEN_PRIZES) break;
-    const tier = (Object.entries(OYIN_TIERS) as [OyinTier, number][]).find(([, b]) => b === p.price)?.[0];
-    const fillsGap = tier != null && missing.has(tier);
-    if (!fillsGap && openBall >= need) break; // sig'im yetdi va daraja teshigi ham yo'q
+    const tier = tierOfPrice(p.price);
+    const fillsGap = missing.has(tier);
+    // 🟡 (nazoratchi №7): avval `fillsGap` sig'im shartini BUTUNLAY aylanib o'tardi — xalqda
+    // 10 ball, ochiq sig'im 60 000 ball (4 000× ortiqcha) bo'lsa ham yana 3 ta mukofot
+    // ochilardi. `oyinMinSellPct = 100` bilan birga bu ballni ko'proq mukofotga tarqatib
+    // HECH BIRI to'lmasligiga olib kelardi — navbat mexanizmi aynan shu o'limni to'sish uchun
+    // qurilgan edi. Endi daraja teshigi HAM sig'im shipiga bo'ysunadi, faqat shipi kengroq.
+    const gapCeiling = need * 2;
+    if (openBall >= (fillsGap ? gapCeiling : need)) break;
     p.queued = false;
     opened.push(p.key);
     openBall += Math.max(0, p.limit - (soldMap.get(p.key) ?? 0)) * p.price;
@@ -1113,8 +1172,11 @@ export async function adminBudget(): Promise<OyinBudgetView> {
   const somPerRide = OYIN_SOM_PER_RIDE;
   const revenueSom = projectedRides * somPerRide;
   const budgetSom = Math.round((revenueSom * OYIN_TARGET_COST_PCT) / 100);
+  // 🟡 (nazoratchi №10): navbatdagi mukofot hali PUL EMAS — sotuvga qo'yilmagan. Filtrsiz
+  // ega 100 ta yuklashi bilan «🔴 Katalog byudjetdan OSHIB KETDI» yonardi, o'sha ekranning
+  // o'zida esa "navbat bepul" deb yozilgan edi — bir savolga ikki xil javob.
   const catalogSom = catalog
-    .filter((p) => p.active)
+    .filter((p) => p.active && p.queued !== true)
     .reduce((s, p) => s + (parseSumLabel(p.valueLabel) ?? 0), 0);
   return {
     rides30d, seasonDays, projectedRides, somPerRide, revenueSom, budgetSom,
@@ -1139,7 +1201,8 @@ const GOAL_PREFIX = "oyin:goal:";
 export async function setGoalPrize(memberId: number, prizeKey: string): Promise<{ ok: boolean }> {
   const catalog = await getCatalog();
   // Faol bo'lmagan/mavjud bo'lmagan sovrin maqsad bo'la olmaydi (hero bo'sh qolmasin).
-  if (!catalog.some((p) => p.key === prizeKey && p.active)) return { ok: false };
+  // Navbatdagi mukofot maqsad qilib QO'YILMAYDI — hero ko'rinmaydigan sovringa ishora qilardi.
+  if (!catalog.some((p) => p.key === prizeKey && p.active && p.queued !== true)) return { ok: false };
   const key = `${GOAL_PREFIX}${memberId}`;
   await prisma.appState.upsert({ where: { key }, create: { key, value: prizeKey }, update: { value: prizeKey } });
   return { ok: true };
@@ -1184,7 +1247,9 @@ export async function teaserData(): Promise<OyinTeaserResponse> {
   return {
     season: { configured: season.configured, phase: season.phase, label: season.label, startIso: season.startIso, endIso: season.endIso },
     sponsor: { name: sponsor.name, photoUrl: sponsor.photoUrl },
-    prizes: catalog.filter((p) => p.active).sort((a, b) => b.price - a.price)
+    // Mehmon ekrani: navbatdagi CHIQARILADI, aks holda eng qimmat, sotib bo'lmaydigan
+    // mukofot birinchi turardi (tartib narx bo'yicha kamayuvchi).
+    prizes: catalog.filter((p) => p.active && p.queued !== true).sort((a, b) => b.price - a.price)
       .map((p) => ({ key: p.key, icon: p.icon, name: p.name, valueLabel: p.valueLabel, price: p.price, limit: p.limit, photoUrl: p.photoUrl })),
   };
 }
@@ -1194,7 +1259,7 @@ export async function teaserData(): Promise<OyinTeaserResponse> {
 export async function joinCardData(): Promise<{ prizeName: string; photoUrl: string | null; icon: string; slots: number; seasonLabel: string | null } | null> {
   const season = await getSeason();
   if (season.phase !== "active" && season.phase !== "upcoming") return null;
-  const catalog = (await getCatalog()).filter((p) => p.active);
+  const catalog = (await getCatalog()).filter((p) => p.active && p.queued !== true);
   if (!catalog.length) return null;
   const top = [...catalog].sort((a, b) => b.price - a.price)[0] as OyinCatalogPrize;
   return {
@@ -1337,6 +1402,14 @@ export async function buyTicket(memberId: number, prizeKeyRaw: string, preview =
   // 📋 `queued !== true` — navbatdagi mukofotga karta SOTILMAYDI. Vitrina uni ko'rsatmaydi,
   // lekin to'g'ridan-to'g'ri API so'rovi kalitni bilishi mumkin (eski ekran, kesh, qo'lda).
   const prize = catalog.find((p) => p.key === prizeKeyRaw && p.active && p.queued !== true);
+  // 🔴 (nazoratchi 2026-08-04 №3): o'ynalgan mukofotga karta sotilishini to'sish.
+  // `oyinMinSellPct = 100` da `reserveSoldSlot` o'zi to'sadi, LEKIN knob 0…100 sozlanadi.
+  // pct=50 da: 10/20 sotilganda ega muzlatadi -> g'olibni yozadi -> muzlatishni OCHADI
+  // (boshqa mukofotlar sotilishi uchun) -> mijoz 11-kartani ALLAQACHON o'ynalgan mukofotga
+  // sotib olib ballini kuydirardi. Endi xarid yo'lining o'zi biladi.
+  if (prize && (await prisma.appState.findUnique({ where: { key: `${WINNER_PREFIX}${prize.key}` }, select: { key: true } }))) {
+    return { ok: false, reason: "drawn" };
+  }
   if (!prize) return { ok: false, reason: "unknown_prize" };
 
   // withMemberLock: bitta a'zoning ketma-ket xaridlarini serializatsiya qiladi — ball-tekshiruv va
@@ -1745,14 +1818,18 @@ export async function drawExport(): Promise<OyinDrawExport> {
   const [season, ticketRows, telegramUsers, banRows, freeze, catalogD, soldMapD, econD] = await Promise.all([
     getSeason(),
     prisma.appState.findMany({ where: { key: { startsWith: "oyin:tickets:" } } }) as Promise<AppStateRow[]>,
-    prisma.telegramUser.findMany({ where: { memberId: { not: null } }, select: { memberId: true, firstName: true, lastName: true, username: true } }),
+    // 🔴 (nazoratchi 2026-08-04 №2): `id` OLINMAGANI uchun `isAdmin()` tekshirib bo'lmasdi va
+    // eksport XODIMNI chiqarmasdi — `getDrawList` esa chiqarardi. Natijada kanalga e'lon
+    // qilingan hash eksport raqamlaridan qayta hisoblanganda BOSHQA chiqardi va "ro'yxatni
+    // keyin o'zgartirgansiz" ayblovi javobsiz qolardi. Ikkala yo'l endi BIR XIL saraydi.
+    prisma.telegramUser.findMany({ where: { memberId: { not: null } }, select: { id: true, memberId: true, firstName: true, lastName: true, username: true } }),
     prisma.appState.findMany({ where: { key: { startsWith: BAN_PREFIX } }, select: { key: true } }),
     getFreeze(),
     getCatalog(),
     getSoldMap(),
     getBonusEcon(),
   ]);
-  const empty = { generatedAt: new Date().toISOString(), tickets: [], frozenAt: freeze.at, excludedTest: 0, excludedBanned: 0, skippedPrizes: [] };
+  const empty = { generatedAt: new Date().toISOString(), tickets: [], frozenAt: freeze.at, excludedTest: 0, excludedBanned: 0, excludedStaff: 0, skippedPrizes: [] };
   if (!season.configured) return empty;
 
   // 🛡 TIRAJ QO'RIG'I: chegaraga yetmagan sovrin O'YNALMAYDI. Bu eksportda hal qilinadi, chunki
@@ -1761,6 +1838,10 @@ export async function drawExport(): Promise<OyinDrawExport> {
   const skippedPrizes: { prizeKey: string; name: string; sold: number; minSell: number }[] = [];
   const skippedKeys = new Set<string>();
   for (const p of catalogD) {
+    // 🟡 (nazoratchi №9): navbatdagi va yashirilgan mukofot SOTUVGA QO'YILMAGAN — uni
+    // "chegaraga yetmadi" deb ayblash noto'g'ri. Ommaviy hujjatda «100 ta mukofot chegaraga
+    // yetmadi» degan ro'yxat chiqardi.
+    if (!p.active || p.queued === true) continue;
     const sold = soldMapD.get(p.key) ?? 0;
     const minSell = minSellOf(p.limit, minPctD);
     if (minSell > 0 && sold < minSell) {
@@ -1769,7 +1850,11 @@ export async function drawExport(): Promise<OyinDrawExport> {
     }
   }
   const nameByMember = new Map<number, string>();
-  for (const tu of telegramUsers) if (tu.memberId) nameByMember.set(tu.memberId, shortName(tu));
+  const staffMembersD = new Set<number>();
+  for (const tu of telegramUsers) if (tu.memberId) {
+    nameByMember.set(tu.memberId, shortName(tu));
+    if (isAdmin(tu.id)) staffMembersD.add(tu.memberId); // 🔴 №2: `getDrawList` bilan BIR XIL
+  }
   const banned = new Set<number>();
   for (const r of banRows) {
     const id = Number(r.key.slice(BAN_PREFIX.length));
@@ -1780,12 +1865,16 @@ export async function drawExport(): Promise<OyinDrawExport> {
   // `oyin_sold` 1 dan qayta boshlagani uchun ro'yxatda IKKI xil odamda bir xil raqam chiqadi.
   let excludedTest = 0;
   let excludedBanned = 0;
+  let excludedStaff = 0;
   const tickets = ticketRows.flatMap((row) => {
     const memberId = Number(row.key.slice("oyin:tickets:".length));
     if (!Number.isFinite(memberId)) return [];
     const inSeason = parseTickets(row.value);
     // 🚫 Chetlatilgan a'zoning HAMMA chiptasi tirajdan chiqadi — chetlatishning butun ma'nosi shu.
     if (banned.has(memberId)) { excludedBanned += inSeason.length; return []; }
+    // 🔴 №2: xodim `getDrawList` da chiqarilardi, eksportda QOLARDI — ikki xil ro'yxat, ikki
+    // xil hash. Tiraj hujjati va e'lon qilingan hash bitta haqiqatdan chiqishi SHART.
+    if (staffMembersD.has(memberId)) { excludedStaff += inSeason.length; return []; }
     return inSeason.flatMap((t) => {
       // 🧪 Ega/admin sinov chiptasi TIRAJGA KIRMAYDI. Bu qator "ega o'z tirajida yutdi"
       // sarlavhasining oldini oladigan YAGONA joy — o'chirilsa sinov chiptalari jonli
@@ -1802,7 +1891,7 @@ export async function drawExport(): Promise<OyinDrawExport> {
     });
   });
   tickets.sort((a, b) => a.prizeKey.localeCompare(b.prizeKey) || a.ticketNo - b.ticketNo);
-  return { generatedAt: new Date().toISOString(), tickets, frozenAt: freeze.at, excludedTest, excludedBanned, skippedPrizes };
+  return { generatedAt: new Date().toISOString(), tickets, frozenAt: freeze.at, excludedTest, excludedBanned, excludedStaff, skippedPrizes };
 }
 
 /** 🛡 Sovrinning HAMMA chiptasini bekor qilish — ball egalariga qaytadi (jonli hisob:
@@ -1846,7 +1935,12 @@ function parseJamoa(raw: string | undefined): JamoaRecord | null {
     return {
       id: String(v.id),
       name: typeof v.name === "string" && v.name ? v.name : "Jamoa",
-      createdAt: typeof v.createdAt === "string" ? v.createdAt : new Date().toISOString(),
+      // 🔴 S7-6 (nazoratchi 2026-08-04): avval faqat SATRligi tekshirilardi. `createdAt:"salom"`
+      // → `monthKeyOf(new Date("salom"))` → `.toISOString()` RangeError THROW qiladi va u
+      // `computeBallMap` ichida ushlanmaydi → getBall/getOyinState/buyTicket/adminMemberDetail
+      // HAMMASI yiqiladi. Bitta buzuq AppState qatori butun o'yinni o'chirardi.
+      createdAt: typeof v.createdAt === "string" && Number.isFinite(Date.parse(v.createdAt))
+        ? v.createdAt : new Date().toISOString(),
       members: v.members.filter((m): m is number => typeof m === "number" && Number.isFinite(m)),
     };
   } catch {
@@ -2206,18 +2300,35 @@ export async function seasonClose(): Promise<OyinSeasonCloseResult> {
 // nolga tushardi — sotilgan kartalar yo'qolar, mukofot esa HECH QACHON to'lmasdi, ya'ni
 // to'lish-qulfi (S2/S3 ning butun mantig'i) ishlamasdi. Endi «yangi davr» — faqat YORLIQ
 // va sana; ma'lumot RESET QILINMAYDI.
-const ARCHIVED_PREFIXES = [
-  "oyin:login:", "oyin:share:", "oyin:sprintwin:",
-  "oyin:weeksnap:", "oyin:sprintdone:", "oyin:thanks:",
-  "oyin:quest:", "oyin:home:", "oyin:story:", "oyin:goal:",
-  "oyin:adj:", "oyin:ban:", "oyin_sold_test:",
-  // 🤝 Jamoalar davr bilan arxivlanadi: yangi davr = yangi navbat aylanasi.
-  "oyin:jamoa:", "oyin:jamoamem:",
-  // 🎬 `oyin:winner:` — bayonnomalar. Arxivlanadi, O'CHIRILMAYDI: `oyin:arch:sN:oyin:winner:*`
-  // bo'lib qoladi, ya'ni o'tgan to'plamlarning g'oliblari tekshiruv uchun saqlanib turadi.
-  // Arxivlanmasa yangi to'plamda eski mukofot kaliti bo'yicha bayonnoma bor deb hisoblanardi
-  // va o'sha mukofot QAYTA o'ynala olmasdi (`adminRecordWinner` → `already`).
-  "oyin:winner:",
+// 🔴 S8-2 (nazoratchi 2026-08-04) — RO'YXAT QAYTA YOZILDI. Avval bu yerda ball BERADIGAN
+// hamma manba (login · share · sprintwin · quest · home · story · adj · jamoa) turardi, kartalar
+// (`oyin:tickets:`) esa S8 qaroridan keyin JOYIDA qolardi. Nomutanosiblik:
+//   `earned` nolga tushardi, `spent` esa QOLARDI  →  `ball = max(0, earned − spent)`
+// Probe: earned=350 spent=4700 → mijozda 4 350 ball YASHIRIN QARZ. U yangi safar qiladi,
+// ball ko'rinmaydi ("nega ballim tushmayapti?"), qarz to'langunga qadar butun mehnati bekor.
+// Tugma nomi ("toza boshlash") aynan teskarisini qilardi.
+//
+// Yangi qoida: **ball tarixi hech qachon arxivlanmaydi.** Ball 24 oylik siljiydigan oynada
+// o'zi eskiradi (`BALL_DATA_WINDOW_MS`) va 6 oy harakatsizlikda o'zi nolga tushadi
+// (`BALL_INACTIVITY_MS`) — qo'lda tozalash SHART EMAS va xavfli.
+// Bu tugmaning qolgan ishi: haftalik sprint holatini va davr hisoblagichini qayta boshlash.
+export const ARCHIVED_PREFIXES = [
+  // ✅ Arxivlanadi — ball BERMAYDI, faqat holat/marker:
+  "oyin:weeksnap:",    // sprint bazasi — yangi davrda qayta bazalanishi SHART
+  "oyin:sprintdone:",  // "bu hafta hisoblandi" markeri
+  "oyin:thanks:",      // "bugun rahmat aytdim" kun-belgisi
+  "oyin:goal:",        // mijozning maqsad-sovrini (UI tanlovi)
+  "oyin_sold_test:",   // o'lik test-hisoblagichlari
+  // ⛔ ATAYLAB YO'Q (har biri nega):
+  //  · oyin:tickets: / oyin_sold: — karta ABADIY (ega qarori: "kartalar admin panelda abadiy
+  //    bo'lishi kerak egallari bilan"). Sotilgan-hisoblagich ham qolishi shart, aks holda
+  //    global karta raqami takrorlanadi.
+  //  · oyin:winner: — bayonnoma karta bilan BIR XIL taqdirni ko'radi (🔴 №1), aks holda
+  //    bir mukofot ikki marta o'ynaladi.
+  //  · oyin:login: · oyin:share: · oyin:quest: · oyin:home: · oyin:story: · oyin:sprintwin:
+  //    · oyin:adj: · oyin:jamoa: · oyin:jamoamem: — hammasi `earned` manbai. Yuqoridagi
+  //    yashirin-qarz sababi.
+  //  · oyin:ban: — chetlatish JAZO. Davr almashgani bilan bekor bo'lmaydi.
 ];
 // `oyin:freeze` MAJBURIY: qolsa yangi mavsum MUZLATILGAN holda ochilardi va hech kim chipta
 // ola olmasdi — tugma nomi ("Yangi mavsumni toza boshlash") ochiq yolg'on bo'lardi.

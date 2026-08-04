@@ -6430,7 +6430,11 @@ function OyinSeasonSettingsCard() {
             <b>Sanalarni saqlash</b> — vaqtni o'zgartiradi. Oyna <b>kengaysa</b> hech narsa yo'qolmaydi.
             Oyna <b>toraysa</b> (boshlanish oldinga / tugash orqaga) — tashqarida qolgan kartalar
             mijoz ro'yxatidan va tirajdan tushib qoladi, sarflangan ball qaytadi.<br />
-            <b>Toza boshlash</b> — eski kartalar, sotilgan-hisoblagichlar va kunlik belgilar arxivga ko'chadi, mukofotlar zaxirasi 0 dan boshlanadi. Mukofotlar ro'yxati o'chmaydi.<br />
+            <b>Toza boshlash</b> — faqat <b>haftalik sprint holati</b> va davr hisoblagichi qayta boshlanadi.<br />
+            ⛔ Kartalar, sotilgan-hisoblagichlar, ball va bayonnomalar <b>TEGILMAYDI</b> — ular abadiy.
+            (2026-08-04: avval bu tugma ball manbalarini arxivlab, kartalarni qoldirardi — natijada
+            mijozda ko'rinmaydigan qarz qolardi va yangi safarlari bekorga ketardi.)
+            Ball 24 oyda o'zi eskiradi va 6 oy harakatsizlikda o'zi nolga tushadi — qo'lda tozalash shart emas.<br />
             🔒 <b>FINAL-48</b> — tugashiga 48 soat qolganda karta xaridi avtomatik yopiladi (ro'yxat tirajga qotadi). Yuqoridagi holat satri buni aytadi.
           </p>
         </div>

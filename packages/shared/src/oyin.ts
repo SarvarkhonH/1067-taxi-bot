@@ -495,6 +495,8 @@ export interface OyinDrawExport {
   // chetlatilgan a'zo chiptasi). "Ro'yxat qisqartirilgan" ayblovi raqam bilan javob topadi.
   excludedTest: number;
   excludedBanned: number;
+  /** 🔴 (nazoratchi 2026-08-04 №2): xodim chiptalari eksportda ham chiqariladi — farq OSHKOR. */
+  excludedStaff: number;
   // 🛡 Chegaraga yetmagani uchun O'YNALMAYDIGAN sovrinlar. Eksportdan jimgina tushib qolmaydi —
   // nomi, sotilgani va kerakli soni bilan alohida sanaladi (jonli efirda savol berilsa javob bor).
   skippedPrizes: { prizeKey: string; name: string; sold: number; minSell: number }[];
@@ -958,7 +960,7 @@ export interface OyinBuyResult {
   // qotdi, hech kim (EGA HAM) yangi chipta ola olmaydi.
   // ⚠️ `staff` ENDI QAYTARILMAYDI — ega/admin xaridi to'silish o'rniga TEST-CHIPTA bo'ladi
   // (`test:true`, `drawExport` dan chiqarilgan). Union'da moslik uchun qoldirildi.
-  reason?: "insufficient" | "sold_out" | "unknown_prize" | "off" | "season_off" | "own_limit" | "final_lock" | "no_ride" | "staff" | "banned" | "frozen";
+  reason?: "insufficient" | "sold_out" | "unknown_prize" | "off" | "season_off" | "own_limit" | "final_lock" | "no_ride" | "staff" | "banned" | "frozen" | "drawn";
   // 🧪 Bu xarid TEST edi — ega/admin butun oqimni sinaydi, chipta esa tirajga KIRMAYDI va
   // mijozlarning sovrin-o'rinlarini YEMAYDI (alohida hisoblagich).
   test?: boolean;
