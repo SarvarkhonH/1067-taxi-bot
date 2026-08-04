@@ -799,6 +799,40 @@
 }
 .oyk-info-link:active { transform: scale(.98); }
 
+/* ── 📋 Rasmiy qoidalar varag'i (S4 — huquqiy qalqon) ──────────────────────────────────────
+   Uzun matn O'QILADIGAN bo'lishi kerak: qator ~62 belgi, bandlar orasida havo, har band
+   raqamlangan sarlavha bilan. Varaqning o'zi `.oyk-sheet` (max-height 82% + overflow-y auto)
+   ichida — hujjat uzun bo'lsa VARAQ aylanadi, sahifa emas. */
+.oyk-rules { display: flex; flex-direction: column; gap: 14px; width: 100%; max-width: 62ch; margin: 0 auto; }
+.oyk-rules-lead {
+  padding: 12px 14px; border-radius: 16px;
+  background: rgba(110, 90, 255, .07); border: 1px solid rgba(110, 90, 255, .28);
+}
+.oyk-rules-lead b { display: block; font-size: 14px; font-weight: 900; line-height: 1.35; }
+.oyk-rules-lead small { display: block; margin-top: 5px; font-size: 11.5px; line-height: 1.5; color: var(--oyk-text-2); }
+.oyk-rules-n {
+  display: flex; align-items: center; gap: 8px; margin: 0 0 5px;
+  font-size: 13px; font-weight: 900; color: var(--oyk-text);
+}
+.oyk-rules-n i {
+  width: 20px; height: 20px; border-radius: 50%; flex-shrink: 0;
+  background: var(--oyk-fill); color: var(--oyk-text-2);
+  font-size: 11px; font-style: normal; font-weight: 900;
+  display: flex; align-items: center; justify-content: center;
+}
+.oyk-rules-x { font-size: 12.5px; line-height: 1.6; color: var(--oyk-text-2); }
+.oyk-rules-x b { color: var(--oyk-text); font-weight: 800; }
+.oyk-rules-ul { margin: 6px 0 0; padding-left: 18px; display: flex; flex-direction: column; gap: 4px; }
+.oyk-rules-ul li { line-height: 1.55; }
+/* To'ldirilmagan rekvizit — ATAYLAB KO'ZGA TASHLANADI. Yashirilgan bo'sh joy hech qachon
+   to'ldirilmaydi; ko'rinib turgani esa ega to'ldirmaguncha "hujjat tayyor emas" deb turadi. */
+.oyk-rules-fill {
+  display: inline-block; padding: 1px 7px; border-radius: 7px; font-weight: 800;
+  background: rgba(245, 183, 0, .16); border: 1px dashed var(--oyk-gold-soft); color: var(--oyk-gold-deep);
+}
+.oyk-rules-fill i { font-style: normal; font-weight: 700; font-size: 11px; }
+.oyk-rules-foot { font-size: 11px; line-height: 1.5; color: var(--oyk-text-3); text-align: center; }
+
 /* 🔔 Qo'ng'iroq ro'yxati */
 .oyk-bell-list { display: flex; flex-direction: column; }
 .oyk-bell-row { display: flex; align-items: center; gap: 11px; padding: 10px 2px; border-bottom: 1px solid var(--oyk-line); }

@@ -10,6 +10,7 @@ import {
   OYIN_CAPACITY_RATIO,
   OYIN_FINAL_LOCK_MS,
   OYIN_MAX_OPEN_PRIZES,
+  OYIN_MIN_SELL_PCT_DEFAULT,
   OYIN_SEED_CATALOG,
   OYIN_TIERS,
   OYIN_SOM_PER_BALL,
@@ -773,7 +774,7 @@ export async function getVitrina(memberId: number): Promise<OyinVitrinaResponse>
     getSponsor(),
     getBonusEcon(),
   ]);
-  const minPct = econV.oyinMinSellPct ?? 50;
+  const minPct = econV.oyinMinSellPct ?? OYIN_MIN_SELL_PCT_DEFAULT;
   // `mine` FAQAT joriy mavsum chiptalaridan — aks holda toza-boshlashdan keyin `sold: 0` bo'lgan
   // sovrinda "Sizniki: 3" ko'rinardi (ochiq-oydin yolg'on).
   const mine = season.configured
@@ -903,7 +904,7 @@ function stageOf(p: OyinCatalogPrize, sold: number): OyinPrizeStage {
 
 export async function adminListCatalog(): Promise<OyinAdminPrizeRow[]> {
   const [catalog, soldMap, econC] = await Promise.all([getCatalog(), getSoldMap(), getBonusEcon()]);
-  const minPct = econC.oyinMinSellPct ?? 100;
+  const minPct = econC.oyinMinSellPct ?? OYIN_MIN_SELL_PCT_DEFAULT;
   return catalog.map((p) => {
     const sold = soldMap.get(p.key) ?? 0;
     const minSell = minSellOf(p.limit, minPct);
@@ -1657,7 +1658,7 @@ export async function drawExport(): Promise<OyinDrawExport> {
 
   // 🛡 TIRAJ QO'RIG'I: chegaraga yetmagan sovrin O'YNALMAYDI. Bu eksportda hal qilinadi, chunki
   // eksport — tirajning YAGONA haqiqat manbai (jonli efirda shu ro'yxat o'qiladi).
-  const minPctD = econD.oyinMinSellPct ?? 50;
+  const minPctD = econD.oyinMinSellPct ?? OYIN_MIN_SELL_PCT_DEFAULT;
   const skippedPrizes: { prizeKey: string; name: string; sold: number; minSell: number }[] = [];
   const skippedKeys = new Set<string>();
   for (const p of catalogD) {

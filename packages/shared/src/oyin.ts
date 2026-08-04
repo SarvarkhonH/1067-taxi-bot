@@ -55,6 +55,12 @@ export const OYIN_PRIZE_MULTIPLIER = 3;
  *  ball shkalasi — mustaqil dial. */
 export const OYIN_SOM_PER_RIDE = 2000;
 
+/** 🛡 Tiraj qo'rig'ining fallback qiymati — `oyinMinSellPct` knobi o'qilmasa ishlatiladi.
+ *  ⚠️ Nega KONSTANTA: kodda uchta joyda `?? 50` yozilgan edi, knob default'i esa 100 ga
+ *  o'zgartirilgandi. Ya'ni knob yo'q bo'lsa MIJOZ EKRANI 50% deb yozardi, admin paneli 100%
+ *  deb — bitta savolga ikki xil javob. Endi manba BITTA. */
+export const OYIN_MIN_SELL_PCT_DEFAULT = 100;
+
 /** @deprecated `OYIN_PRIZE_MULTIPLIER` ishlatiladi. Byudjet kartasi uchun qoldirildi:
  *  emissiyaning 1/m ulushi daromadning taxminan shuncha foizini tashkil qiladi. */
 export const OYIN_TARGET_COST_PCT = 15;

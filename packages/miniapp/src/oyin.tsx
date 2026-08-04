@@ -9,7 +9,7 @@
 // `shareLink`/`shareStory` (telegram.ts) orqali Telegramning HAQIQIY ulashish oynasini ochadi;
 // soxta QR-kvadrat — real QR-generatsiya (referralQrService) B1-B5 doirasida qurilmagan, shuning
 // uchun olib tashlandi (ishlamaydigan grafika ko'rsatish — yolg'on).
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { OYIN_FINAL_LOCK_MS, type OyinActivityAction, type OyinActivityResponse, type OyinJamoamResponse, type OyinMyTicketsResponse, type OyinPrizeView, type OyinSeasonClientView, type OyinStateResponse, type OyinVitrinaResponse } from "@t1067/shared";
 import { api, apiUrl } from "./api";
 import { addToHomeScreen, copyText, haptic, homeScreenStatus, inviteLandingUrl, onHomeScreenAdded, shareLink } from "./telegram";
@@ -43,6 +43,23 @@ export function uzDate(iso: string | null): string {
 
 function pad(n: number): string {
   return String(n).padStart(2, "0");
+}
+/** 📋 Huquqiy hujjat uchun TO'LIQ sana — YIL bilan ("4-avgust 2026-yil"). `uzDate` yilni
+ *  ko'rsatmaydi: kartada bu yetarli, rasmiy qoidalarda esa muddat yilsiz ma'nosiz.
+ *  Sana yo'q yoki buzuq bo'lsa BO'SH qaytadi — chaqiruvchi o'sha qatorni umuman chizmaydi
+ *  (DIZAYN_QOIDALARI #5: `NaN` hech qachon ekranga chiqmaydi). */
+function uzDateFull(iso: string | null): string {
+  if (!iso) return "";
+  const d = new Date(iso);
+  if (!Number.isFinite(d.getTime())) return "";
+  return `${d.getDate()}-${UZ_OYLAR[d.getMonth()] ?? ""} ${d.getFullYear()}-yil`;
+}
+/** Sana + soat. Mukofot kuni uchun soat MUHIM (efir necha soatda boshlanadi). */
+function uzDateTimeFull(iso: string | null): string {
+  const day = uzDateFull(iso);
+  if (!day || !iso) return day;
+  const d = new Date(iso);
+  return `${day}, ${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
 /** 🔔 Qo'ng'iroq qatorining vaqti. Avval faqat `uzDate` turardi va bir kunda tushgan hamma
  *  ball "3-avgust" bo'lib chiqardi — ro'yxat tartibi ko'rinardi, VAQTI ko'rinmasdi ("bu safar
@@ -196,8 +213,199 @@ function actionEmoji(a: string): string {
   return (ACTION_EMOJI as Record<string, string | undefined>)[a] ?? "•";
 }
 
+// ── 📋 RASMIY QOIDALAR (S4 — huquqiy qalqon) ─────────────────────────────────────────────
+// O'zbekiston "Reklama to'g'risida"gi qonunining rag'batlantiruvchi (sovg'ali) aksiyalarga oid
+// talablari UCHTA narsani so'raydi: (1) tashkilotchi ANIQ ko'rsatilgan; (2) qoidalar OCHIQ
+// e'lon qilingan — muddat, mukofotlar soni, mukofot egasini aniqlash hamda topshirish tartibi
+// va joyi; (3) ishtirok xizmatning ODATDAGI narxi ichida (alohida to'lov yo'q).
+//
+// ⚠️ TIL: bu varaqda "lotereya / qimor / stavka / tiraj / chipta" atamalari ISHLATILMAYDI —
+// ular boshqa, litsenziya talab qiladigan faoliyatning atamalari. Bu yerda faqat:
+// sodiqlik kartasi · mukofot · mukofot kuni · sovg'ali aksiya.
+//
+// ⚠️ MA'LUMOT MANBAI: muddat `season` dan, mukofotlar ro'yxati/soni va har mukofotning
+// chegarasi `prizes` dan — JONLI. Qotirilgan sana yoki qotirilgan sovrin ro'yxati YO'Q: ega
+// katalogni yoki mavsumni o'zgartirsa, qoidalar hujjati o'zi bilan birga o'zgaradi.
+
+/** ⚠️ EGA TO'LDIRADI — huquqiy majburiy rekvizitlar, UCHALASI SHU YERDA (bitta joy).
+ *  Bo'sh qolsa varaqda "______ (ega to'ldiradi)" bo'lib KO'RINIB turadi. Soxta tashkilotchi
+ *  nomi, soxta manzil yoki soxta telefon O'YLAB TOPILMAYDI: yolg'on rekvizit huquqiy qalqonni
+ *  qalqon emas, mijozga qarshi ishlaydigan dalilga aylantiradi.
+ *  Tip ATAYLAB `string` (literal `""` emas) — aks holda TypeScript qiymatni "har doim bo'sh"
+ *  deb toraytiradi va to'ldirilgach shartlar ustida ogohlantirish beradi. */
+const RULES_ORGANIZER: string = ""; // YaTT/MChJ TO'LIQ nomi + STIR
+const RULES_HANDOVER: string = ""; // mukofot topshiriladigan JOY va MUDDAT
+const RULES_CONTACT: string = ""; // savol/shikoyat uchun bog'lanish (telefon yoki @username)
+
+/** To'ldirilmagan rekvizit — YASHIRILMAYDI. Yashirilgan bo'sh joy hech qachon to'ldirilmaydi;
+ *  ko'rinib turgani esa to'ldirilmaguncha "hujjat tayyor emas" deb turadi. */
+function RuleFill({ value }: { value: string }) {
+  const v = value.trim();
+  if (v) return <>{v}</>;
+  return <span className="oyk-rules-fill">______ <i>(ega to'ldiradi)</i></span>;
+}
+
+function RuleSec({ n, t, children }: { n: number; t: string; children: ReactNode }) {
+  return (
+    <section className="oyk-rules-s">
+      <h3 className="oyk-rules-n"><i>{n}</i>{t}</h3>
+      <div className="oyk-rules-x">{children}</div>
+    </section>
+  );
+}
+
+/** Qoidalar varag'i. ⚠️ O'Z scrim'i bilan keladi (umumiy `sheet` konteyneri ichida EMAS):
+ *  qoidalar mavsum BOSHLANMAGAN ekranda ham ochilishi kerak, u ekran esa erta `return`
+ *  bilan chiqadi va umumiy konteynergacha yetmaydi. Huquqiy hujjat "mavsum faol bo'lsa
+ *  ko'rinadi" bo'lishi mumkin emas — u DOIM ochiq bo'lishi shart. */
+function RulesSheet({ season, prizes, maxPerPrize, onClose }: {
+  season: OyinSeasonClientView;
+  prizes: OyinPrizeView[];
+  maxPerPrize: number;
+  onClose: () => void;
+}) {
+  const from = uzDateFull(season.startIso);
+  const to = uzDateTimeFull(season.endIso);
+  // Qulf oynasi SERVER bilan bitta manbadan (soat qotirilmagan): ega oynani o'zgartirsa
+  // qoidalar matni ham o'zgaradi, aks holda hujjat serverdan boshqa gap aytardi.
+  const lockH = Math.round(OYIN_FINAL_LOCK_MS / 3600_000);
+  const cards = prizes.reduce((s, p) => s + p.limit, 0);
+  return (
+    <div className="oyk-scrim" onClick={onClose}>
+      <div className="oyk-sheet" onClick={(e) => e.stopPropagation()}>
+        <div className="oyk-sheet-grip" />
+        <div className="oyk-sheet-title">📋 Dastur qoidalari</div>
+        <div className="oyk-rules">
+          <div className="oyk-rules-lead">
+            <b>BirJoy sodiqlik dasturi qoidalari</b>
+            <small>
+              BirJoy taksi xizmati mijozlari uchun sovg'ali aksiya. Dasturda qatnashish — shu
+              qoidalarga rozilik bildirish demakdir.
+            </small>
+          </div>
+
+          <RuleSec n={1} t="Dastur nomi">
+            <b>BirJoy sodiqlik dasturi.</b> Mijoz BirJoy orqali taksi chaqiradi, ball yig'adi va
+            yig'ilgan ballga sodiqlik kartasi oladi. Mukofot kunida shu kartalar orasidan mukofot
+            egalari aniqlanadi.
+          </RuleSec>
+
+          <RuleSec n={2} t="Tashkilotchi">
+            Tashkilotchi: <RuleFill value={RULES_ORGANIZER} /><br />
+            Mukofotlar bo'yicha barcha majburiyat tashkilotchi zimmasida.
+          </RuleSec>
+
+          {/* ⏳ Muddat — JONLI (`season.startIso` / `endIso`). Mavsum sozlanmagan bo'lsa
+              (`configured: false`) ikkala sana ham `null` bo'ladi va bu yerda "NaN" emas,
+              rost gap chiqadi: sana hali e'lon qilinmagan. */}
+          <RuleSec n={3} t="Dastur muddati">
+            {from || to ? (
+              <>
+                {from ? <>Boshlanishi: <b>{from}</b>.<br /></> : null}
+                {to
+                  ? <>Yakunlanishi va mukofot kuni: <b>{to}</b>.<br /></>
+                  : <>Yakunlanish sanasi hali e'lon qilinmagan.<br /></>}
+                Ball faqat shu muddat ichida qilingan harakatlardan yig'iladi.
+              </>
+            ) : (
+              <>Muddat hali e'lon qilinmagan. Sana belgilangach shu yerda ko'rsatiladi.</>
+            )}
+          </RuleSec>
+
+          {/* 🛡 ENG MUHIM BAND: ishtirok xizmatning ODATDAGI narxi ichida. Aynan shu gap
+              sovg'ali aksiyani litsenziya talab qiladigan faoliyatdan ajratadi. */}
+          <RuleSec n={4} t="Qanday qatnashiladi">
+            BirJoy orqali taksi chaqirasiz va safar uchun xizmatning <b>odatdagi narxini</b>
+            {" "}to'laysiz. Safar va boshqa bepul harakatlar uchun ball yig'iladi. Yig'ilgan
+            ballga sodiqlik kartasi olasiz.<br />
+            <b>Sodiqlik kartasi uchun alohida pul to'lanmaydi.</b> Ishtirok safarning odatdagi
+            narxi ichida: xizmat narxi dastur tufayli oshirilmaydi va dasturda qatnashmaydigan
+            mijoz ham aynan shu narxni to'laydi. Ball ham, karta ham faqat ilova ichidagi hisob
+            birligi — ular pul emas.
+          </RuleSec>
+
+          {/* 🎁 Mukofotlar — JONLI katalogdan. Qotirilgan ro'yxat yo'q: ega mukofot qo'shsa
+              yoki olib tashlasa hujjat o'zi yangilanadi. Katalog bo'sh bo'lsa soxta ro'yxat
+              o'ylab topilmaydi (DIZAYN_QOIDALARI #7) — rost gap aytiladi. */}
+          <RuleSec n={5} t="Mukofotlar">
+            {prizes.length === 0 ? (
+              <>
+                Mukofotlar ro'yxati hali e'lon qilinmagan. E'lon qilingach shu yerda to'liq
+                ko'rinadi: har mukofotning nomi, sodiqlik kartalari soni va o'ynalishi uchun
+                kerak bo'lgan karta soni.
+              </>
+            ) : (
+              <>
+                Jami <b>{prizes.length} ta mukofot</b> · <b>{cards} ta sodiqlik kartasi</b>.
+                <ul className="oyk-rules-ul">
+                  {prizes.map((p) => (
+                    <li key={p.key}>
+                      <b>{p.name}</b> — {p.limit} ta sodiqlik kartasi
+                      {p.minSell > 0 ? <> · o'ynalishi uchun kamida {p.minSell} ta karta tarqatilishi kerak</> : null}
+                    </li>
+                  ))}
+                </ul>
+              </>
+            )}
+          </RuleSec>
+
+          <RuleSec n={6} t="Mukofot egasi qanday aniqlanadi">
+            Har mukofot o'z sodiqlik kartalarining belgilangan qismi tarqatilganda o'ynaladi —
+            kerakli son har mukofot yonida (5-band) OLDINDAN ko'rsatilgan. Kerakli son
+            yig'ilmasa, o'sha mukofot o'ynalmaydi va bu haqda ochiq e'lon qilinadi.<br />
+            Muddat tugashiga <b>{lockH} soat</b> qolganda karta berish to'xtaydi: ro'yxat
+            muzlatiladi va ommaga e'lon qilinadi.<br />
+            Mukofot egasi <b>jonli efirda</b>, ishonchli guvoh ishtirokida, muzlatilgan
+            ro'yxatdan tasodifiy tanlash yo'li bilan aniqlanadi. Natija va ro'yxat keyinchalik
+            tekshirish uchun saqlanadi.
+          </RuleSec>
+
+          <RuleSec n={7} t="Mukofotni topshirish">
+            Topshirish joyi va muddati: <RuleFill value={RULES_HANDOVER} /><br />
+            Mukofot faqat egasining o'ziga topshiriladi: shaxsni tasdiqlovchi hujjat va dasturda
+            ro'yxatdan o'tgan telefon raqami talab qilinadi.
+          </RuleSec>
+
+          <RuleSec n={8} t="Soliq">
+            Yutuq solig'i (12%) 500 000 so'mgacha bo'lgan mukofotlarda tashkilotchi zimmasida.
+            Undan qimmatroq mukofotlarda soliq mukofot egasi bilan birgalikda rasmiylashtiriladi.
+          </RuleSec>
+
+          <RuleSec n={9} t="Kim qatnasha olmaydi">
+            Tashkilotchi, uning xodimlari va ularning oila a'zolari mukofot kunida qatnasha
+            olmaydi.<br />
+            Bir odam bir nechta hisob ochsa, soxta ma'lumot yoki qalbaki taklif ishlatsa — uning
+            bali va kartalari bekor qilinadi.
+          </RuleSec>
+
+          <RuleSec n={10} t="Savol va shikoyat">
+            Murojaat uchun: <RuleFill value={RULES_CONTACT} /><br />
+            Har bir murojaat ko'rib chiqiladi va javob beriladi.
+          </RuleSec>
+
+          <RuleSec n={11} t="Muhim chegaralar">
+            <ul className="oyk-rules-ul">
+              <li>Sodiqlik kartasi pulga sotilmaydi, boshqa odamga berilmaydi va naqd pulga almashtirilmaydi.</li>
+              <li>Ball ham sotilmaydi, boshqa hisobga o'tkazilmaydi va pulga almashtirilmaydi.</li>
+              <li>Kartaga sarflangan ball qaytarilmaydi.</li>
+              <li>Muddat tugagunga qadar sarflanmagan ball kuyadi.</li>
+              <li>Bir odam bitta mukofot uchun ko'pi bilan {maxPerPrize} ta karta ola oladi.</li>
+            </ul>
+          </RuleSec>
+
+          <div className="oyk-rules-foot">
+            Qoidalarning amaldagi tahriri shu varaqda turadi. O'zgarish bo'lsa, yangi tahrir shu
+            yerda e'lon qilinadi.
+          </div>
+        </div>
+        <button type="button" className="oyk-sheet-ok" onClick={onClose}>Yopish</button>
+      </div>
+    </div>
+  );
+}
+
 type OyinTab = "home" | "vitrina" | "tickets" | "jamoam";
-type SheetKind = "buy" | "info" | "how" | "ball" | "bell" | null;
+type SheetKind = "buy" | "info" | "how" | "ball" | "bell" | "rules" | null;
 type LoadState = "loading" | "ready" | "error";
 
 export function OyinView({ onTaxi }: { onTaxi?: () => void } = {}) {
@@ -683,7 +891,26 @@ Taksida yur, ball yig', chipta ol. Mavsum oxiri jonli tirajda o'ynaladi. Mening 
             <span className="oyk-cta-label">👥 Do'stni chaqirib qo'y — start birga bo'lsin</span>
             <span className="oyk-cta-shine" />
           </button>
+
+          {/* 📋 Qoidalar SHU EKRANDA HAM ochilishi shart. Bu ekran erta `return` bilan
+              chiqadi, ya'ni tepadagi "?" tugmasi ham, umumiy varaq konteyneri ham bu yerda
+              yo'q — qoidalarga yagona yo'l aynan shu tugma. Huquqiy hujjat "mavsum faol
+              bo'lsagina ko'rinadi" bo'lishi mumkin emas: odam qoidani mavsum boshlanishidan
+              OLDIN o'qiydi. */}
+          <button type="button" className="oyk-info-link" onClick={() => { haptic(); setSheet("rules"); }}>
+            <span>📋 Dastur qoidalari</span>
+            <span aria-hidden="true">›</span>
+          </button>
         </div>
+
+        {sheet === "rules" && (
+          <RulesSheet
+            season={state.season}
+            prizes={vitrina.prizes}
+            maxPerPrize={state.hints.maxPerPrize}
+            onClose={() => setSheet(null)}
+          />
+        )}
       </div>
     );
   }
@@ -1191,6 +1418,13 @@ Taksida yur, ball yig', chipta ol. Mavsum oxiri jonli tirajda o'ynaladi. Mening 
                 <b>Mavsum oxirida:</b> JONLI TIRAJ — Telegram efirida 🔴
               </div>
             </div>
+            {/* 📋 Qoidalarga IKKINCHI yo'l (DIZAYN_QOIDALARI #4: har bo'limga kamida ikki
+                kirish). Mijoz ballini AYNAN shu tabda sarflaydi — rasmiy shartlar shu qaror
+                oldida qo'l ostida turishi kerak, "?" tugmasining ichida yashiringan emas. */}
+            <button type="button" className="oyk-info-link" onClick={() => { haptic(); setSheet("rules"); }}>
+              <span>📋 Dastur qoidalari</span>
+              <span aria-hidden="true">›</span>
+            </button>
           </>
         )}
 
@@ -1487,7 +1721,18 @@ Taksida yur, ball yig', chipta ol. Mavsum oxiri jonli tirajda o'ynaladi. Mening 
 
       {toast && <div className="oyk-toast">{toast}</div>}
 
-      {sheet && (
+      {/* 📋 Qoidalar O'Z scrim'i bilan keladi (RulesSheet) — shuning uchun umumiy
+          konteynerdan chiqarib olingan. */}
+      {sheet === "rules" && (
+        <RulesSheet
+          season={state.season}
+          prizes={vitrina.prizes}
+          maxPerPrize={state.hints.maxPerPrize}
+          onClose={() => setSheet(null)}
+        />
+      )}
+
+      {sheet && sheet !== "rules" && (
         <div className="oyk-scrim" onClick={() => { setSheet(null); setBuyKey(null); }}>
           <div className="oyk-sheet" onClick={(e) => e.stopPropagation()}>
             <div className="oyk-sheet-grip" />
@@ -1637,16 +1882,16 @@ Taksida yur, ball yig', chipta ol. Mavsum oxiri jonli tirajda o'ynaladi. Mening 
                       hamma ko'rib turadi. Yutsangiz — botdan darhol xabar keladi.
                     </div>
                   </div>
-                  <div className="oyk-info-b">
-                    <div className="oyk-info-t">📋 Qoidalar</div>
-                    <div className="oyk-info-x">
-                      • Ball <b>pul emas</b> — yechib bo'lmaydi, faqat chiptaga almashadi.<br />
-                      • Ball faqat <b>mavsum ichida</b> qilingan harakatlardan yig'iladi.<br />
-                      • Chipta uchun to'langan ball <b>qaytarilmaydi</b>.<br />
-                      • Bitta sovringa bir odam cheklangan sondan ko'p chipta ola olmaydi.<br />
-                      • Soxta hikoya yoki qalbaki taklif — ball bekor qilinadi.
-                    </div>
-                  </div>
+                  {/* 📋 Bu yerda 5 qatorlik "Qoidalar" bloki turardi (S4'da ALMASHTIRILDI).
+                      U sovg'ali aksiya uchun MAJBURIY bandlarning birortasini ham qamramasdi:
+                      tashkilotchi kim, muddat qachon, mukofotlar nechta, mukofot qayerda va
+                      qachon topshiriladi, kim qatnasha olmaydi. Qisqacha nusxa SAQLANMADI —
+                      bitta savolga ikki joyda ikki xil javob turishi qaysi biri rasmiy ekanini
+                      noaniq qiladi (yuqoridagi "Qanday ishlaydi" saboqi bilan bir xil qoida). */}
+                  <button type="button" className="oyk-info-link" onClick={() => { haptic(); setSheet("rules"); }}>
+                    <span>📋 Dastur qoidalari — rasmiy hujjat</span>
+                    <span aria-hidden="true">›</span>
+                  </button>
                 </div>
                 <button type="button" className="oyk-sheet-ok" onClick={() => { haptic(); setSheet(null); }}>Yopish</button>
               </>
