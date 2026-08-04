@@ -1598,6 +1598,26 @@ export function createApiServer(opts: ApiOptions = {}) {
     res.json(r);
   });
 
+  // 🤝 GAP-JAMOA (gashtak modeli) — guruh tuzish/qo'shilish/chiqish + ko'rinish.
+  // ⛔ Ball KO'CHIRISH route'i YO'Q va bo'lmaydi: ball o'tkazma valyutaga aylantiradi va
+  // «karta pulga sotilmaydi» himoyasini buzadi. Bonusni faqat TIZIM yaratadi.
+  app.get("/api/oyin/jamoa", requireUser, async (_req, res) => {
+    const memberId = await getMemberId(res.locals.telegramId as string);
+    if (!memberId) { res.status(404).json({ error: "not linked" }); return; }
+    const { getJamoaView } = await import("../services/oyinService");
+    res.json(await getJamoaView(memberId));
+  });
+  app.post("/api/oyin/jamoa", requireUser, rateLimit(10), async (req, res) => {
+    const memberId = await getMemberId(res.locals.telegramId as string);
+    if (!memberId) { res.status(404).json({ error: "not linked" }); return; }
+    const b = req.body as { action?: string; name?: string; code?: string };
+    const { createJamoa, joinJamoa, leaveJamoa, getJamoaView } = await import("../services/oyinService");
+    const r = b?.action === "create" ? await createJamoa(memberId, String(b.name ?? ""))
+      : b?.action === "join" ? await joinJamoa(memberId, String(b.code ?? ""))
+      : b?.action === "leave" ? await leaveJamoa(memberId)
+      : { ok: false as const, reason: "not_found" as const };
+    res.json({ ...r, view: await getJamoaView(memberId) });
+  });
   // 🏠 Ilova ekranga o'rnatilgani — Telegram hodisasidan keyin. `added:false` belgini olib tashlaydi.
   app.post("/api/oyin/home", requireUser, rateLimit(10), async (req, res) => {
     const memberId = await getMemberId(res.locals.telegramId as string);

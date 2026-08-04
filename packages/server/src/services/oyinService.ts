@@ -9,6 +9,8 @@
 import {
   OYIN_CAPACITY_RATIO,
   OYIN_FINAL_LOCK_MS,
+  OYIN_JAMOA_MAX,
+  OYIN_JAMOA_MIN,
   OYIN_MAX_OPEN_PRIZES,
   OYIN_MIN_SELL_PCT_DEFAULT,
   OYIN_SEED_CATALOG,
@@ -51,6 +53,8 @@ import {
   type OyinBudgetView,
   type OyinCapacityView,
   type OyinDrawCard,
+  type OyinJamoaResult,
+  type OyinJamoaView,
   type OyinDrawList,
   type OyinDrawRecordResult,
   type OyinPrizeStage,
@@ -81,7 +85,7 @@ function withMemberLock<T>(memberId: number, fn: () => Promise<T>): Promise<T> {
 
 const EMPTY_BREAKDOWN: OyinBallBreakdown = {
   rides: 0, phone: 0, referJoin: 0, referFirstRide: 0, referRides: 0, login: 0, share: 0,
-  quest: 0, home: 0, story: 0, streak: 0, sprintBonus: 0, adjust: 0, earned: 0, spent: 0, ball: 0,
+  quest: 0, home: 0, story: 0, streak: 0, sprintBonus: 0, adjust: 0, jamoa: 0, earned: 0, spent: 0, ball: 0,
 };
 
 interface MemberBallRow {
@@ -284,7 +288,7 @@ async function computeBallMap(): Promise<Map<number, MemberBallRow>> {
   const fromWeek = weekKey(from);
   const toWeek = weekKey(to);
 
-  const [rideCounts, rideDayRows, referrals, telegramUsers, ticketRows, loginRows, shareRows, questRows, homeRows, sprintWinRows, storyRows, adjRows] = await Promise.all([
+  const [rideCounts, rideDayRows, referrals, telegramUsers, ticketRows, loginRows, shareRows, questRows, homeRows, sprintWinRows, storyRows, adjRows, jamoaRows] = await Promise.all([
     // 1) YAGONA DB-darajasidagi sana filtri — katta jadval va indeksi bor (@@index([createdAt])).
     prisma.rideReward.groupBy({ by: ["memberId"], _count: { _all: true }, where: { createdAt: { gte: from, lte: to } } }),
     // 1b) ⚠️ Zanjir uchun SAFAR KUNLARI. Avval zanjir `oyin:login:` (ILOVA OCHISH) bo'yicha edi —
@@ -314,6 +318,9 @@ async function computeBallMap(): Promise<Map<number, MemberBallRow>> {
     // 🛠 Admin qo'lda tuzatgan ball. Mavsumga KESILMAYDI (qator mavsum bilan arxivlanadi, ya'ni
     //    yangi mavsumda o'zi bo'shaydi) — sanani ikkinchi marta filtrlash ikki qavat qoida bo'lardi.
     prisma.appState.findMany({ where: { key: { startsWith: ADJ_PREFIX } } }) as Promise<AppStateRow[]>,
+    // 🤝 Gap-jamoalar — navbatchiga oylik bonus. Guruhlar kam (a'zolar soni ÷ 3..10), shuning
+    //    uchun to'liq o'qish arzon.
+    prisma.appState.findMany({ where: { key: { startsWith: JAMOA_PREFIX } } }) as Promise<AppStateRow[]>,
   ]);
 
   // Nomi ATAYLAB "season…" — endi ikki vazifa bajaradi (o'z safari + referee safari), kelajakda
@@ -388,6 +395,44 @@ async function computeBallMap(): Promise<Map<number, MemberBallRow>> {
     const memberId = Number(row.key.slice("oyin:share:".length));
     if (Number.isFinite(memberId)) shareDaysByMember.set(memberId, countDays(row.value));
   }
+  // 🤝 GAP-JAMOA — har guruh, har oy: jamoaning umumiy safarlari NAVBATCHIGA ball beradi.
+  // Oylik shift bilan (`oyinJamoaMaxBall`) — juda faol jamoa cheksiz ball chiqarmasin.
+  // ⚠️ Ball KO'CHIRILMAYDI: bu tizim yaratadigan bonus, a'zolar orasidagi o'tkazma EMAS.
+  const jamoaByMember = new Map<number, number>();
+  {
+    const jamoaPerRide = econ.oyinJamoaBallPerRide ?? 6;
+    const jamoaMax = econ.oyinJamoaMaxBall ?? 3600;
+    if (jamoaPerRide > 0) {
+      // Safarlarni a'zo × oy bo'yicha yig'amiz (`rideDayRows` allaqachon o'qilgan).
+      const ridesByMemberMonth = new Map<string, number>();
+      for (const r of rideDayRows) {
+        const k = `${r.memberId}|${monthKeyOf(r.createdAt)}`;
+        ridesByMemberMonth.set(k, (ridesByMemberMonth.get(k) ?? 0) + 1);
+      }
+      const nowMonth = monthKeyOf(new Date(nowMs));
+      for (const row of jamoaRows) {
+        const j = parseJamoa(row.value);
+        if (!j || j.members.length === 0) continue;
+        const startMonth = monthKeyOf(new Date(j.createdAt));
+        // Guruh tuzilganidan BUGUNGI oygacha — har oy uchun o'sha oyning navbatchisiga.
+        const span = Math.max(0, monthsBetween(startMonth, nowMonth));
+        for (let i = 0; i <= span; i++) {
+          const [sy, sm] = startMonth.split("-").map(Number);
+          if (!sy || !sm) break;
+          const d = new Date(Date.UTC(sy, sm - 1 + i, 1));
+          const mk = `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}`;
+          let groupRides = 0;
+          for (const m of j.members) groupRides += ridesByMemberMonth.get(`${m}|${mk}`) ?? 0;
+          if (groupRides === 0) continue;
+          const winner = navbatchiOf(j, mk);
+          if (winner == null) continue;
+          const gain = Math.min(jamoaMax, groupRides * jamoaPerRide);
+          jamoaByMember.set(winner, (jamoaByMember.get(winner) ?? 0) + gain);
+        }
+      }
+    }
+  }
+
   // 🛠 Admin tuzatishi — musbat ham, manfiy ham bo'lishi mumkin.
   const adjustByMember = new Map<number, number>();
   for (const row of adjRows) {
@@ -468,7 +513,8 @@ async function computeBallMap(): Promise<Map<number, MemberBallRow>> {
   const storyBall = Math.min(storyByMember.get(memberId) ?? 0, OYIN_STORY_SEASON_LIMIT) * (econ.oyinStoryProofBall ?? 0);
     const streakBall = (streakByMember.get(memberId) ?? 0) * (econ.oyinStreakBall ?? 0);
     const adjustBall = adjustByMember.get(memberId) ?? 0;
-    const earnedRaw = ridesBall + phoneBall + referJoinBall + referFirstBall + referRideBall + loginBall + shareBall + storyBall + streakBall + sprintBall + questBall + homeBall + adjustBall;
+    const jamoaBall = jamoaByMember.get(memberId) ?? 0;
+    const earnedRaw = ridesBall + phoneBall + referJoinBall + referFirstBall + referRideBall + loginBall + shareBall + storyBall + streakBall + sprintBall + questBall + homeBall + adjustBall + jamoaBall;
     const spentRaw = spentByMember.get(memberId) ?? 0;
     // ⏳ HARAKATSIZLIK QOIDASI (S8, ega qarori): ball 6 oy hech qanday harakatsiz qolsa so'nadi.
     //
@@ -495,7 +541,7 @@ async function computeBallMap(): Promise<Map<number, MemberBallRow>> {
         referRides: referRideBall, login: loginBall, share: shareBall,
         // `quest`/`home` avval faqat `earned` ichiga qo'shilardi va alohida ko'rinmasdi.
         quest: questBall, home: homeBall, story: storyBall,
-        streak: streakBall, sprintBonus: sprintBall, adjust: adjustBall,
+        streak: streakBall, sprintBonus: sprintBall, adjust: adjustBall, jamoa: jamoaBall,
         earned, spent, ball: Math.max(0, earned - spent),
       },
     });
@@ -1784,6 +1830,172 @@ export async function adminCancelPrizeTickets(prizeKey: string): Promise<{ ok: b
   return { ok: true, cancelled, members };
 }
 
+// ── 🤝 GAP-JAMOA ─────────────────────────────────────────────────────────────────────────────
+// Saqlash: `oyin:jamoa:<id>` (guruh) + `oyin:jamoamem:<memberId>` (teskari indeks — a'zoning
+// jamoasini BITTA so'rovda topish uchun; aks holda har o'qishda hamma guruh skanlanardi).
+const JAMOA_PREFIX = "oyin:jamoa:";
+const JAMOA_MEM_PREFIX = "oyin:jamoamem:";
+
+interface JamoaRecord { id: string; name: string; createdAt: string; members: number[] }
+
+function parseJamoa(raw: string | undefined): JamoaRecord | null {
+  if (!raw) return null;
+  try {
+    const v = JSON.parse(raw) as Partial<JamoaRecord>;
+    if (!v.id || !Array.isArray(v.members)) return null;
+    return {
+      id: String(v.id),
+      name: typeof v.name === "string" && v.name ? v.name : "Jamoa",
+      createdAt: typeof v.createdAt === "string" ? v.createdAt : new Date().toISOString(),
+      members: v.members.filter((m): m is number => typeof m === "number" && Number.isFinite(m)),
+    };
+  } catch {
+    return null;
+  }
+}
+
+/** Oy kaliti (Toshkent) — `2026-08`. Navbat SHU birlikda aylanadi. */
+function monthKeyOf(d: Date): string {
+  return tashkentDayKey(d).slice(0, 7);
+}
+
+/** 🔄 NAVBAT — kim shu oyning navbatchisi.
+ *
+ *  Deterministik: jamoa tuzilganidan beri o'tgan oylar soni `members` ro'yxati bo'ylab aylanadi.
+ *  Alohida saqlash YO'Q va bu ATAYLAB: (a) navbatni qo'lda tanlash imkoni bo'lsa, jamoa boshlig'i
+ *  o'zini har oy tanlab qo'ya olardi; (b) saqlanadigan holat — yana bitta buzilishi mumkin
+ *  bo'lgan manba. Formula esa har kim tekshira oladi: «tuzilgandan beri N-oy → N mod jamoa soni».
+ *  ⚠️ A'zo qo'shilsa/chiqsa tartib siljiydi — bu qabul qilingan narx, muqobil (qotirilgan navbat
+ *  jadvali) chiqib ketgan a'zoga navbat berib qo'yardi. */
+function navbatchiOf(j: JamoaRecord, monthKey: string): number | null {
+  if (j.members.length === 0) return null;
+  const startM = monthKeyOf(new Date(j.createdAt));
+  const idx = monthsBetween(startM, monthKey);
+  const first = j.members[0];
+  if (first === undefined) return null;
+  return j.members[((idx % j.members.length) + j.members.length) % j.members.length] ?? first;
+}
+function monthsBetween(a: string, b: string): number {
+  const [ay, am] = a.split("-").map(Number);
+  const [by, bm] = b.split("-").map(Number);
+  if (!ay || !am || !by || !bm) return 0;
+  return (by - ay) * 12 + (bm - am);
+}
+
+/** 🤝 A'zoning jamoasi (yoki `null`). */
+async function jamoaOf(memberId: number): Promise<JamoaRecord | null> {
+  const link = await prisma.appState.findUnique({ where: { key: `${JAMOA_MEM_PREFIX}${memberId}` } });
+  if (!link?.value) return null;
+  const row = await prisma.appState.findUnique({ where: { key: `${JAMOA_PREFIX}${link.value}` } });
+  const j = parseJamoa(row?.value);
+  // ⚠️ Yetim havola: guruh o'chirilgan, indeks qolgan. Jimgina `null` — a'zo yangisini tuza oladi.
+  if (!j || !j.members.includes(memberId)) return null;
+  return j;
+}
+
+export async function createJamoa(memberId: number, nameRaw: string): Promise<OyinJamoaResult> {
+  if (!(await featureOn("oyin"))) return { ok: false, reason: "off" };
+  const name = (nameRaw || "").trim().slice(0, 40);
+  if (name.length < 2) return { ok: false, reason: "bad_name" };
+  if (await jamoaOf(memberId)) return { ok: false, reason: "already_in" };
+  // Kod — qo'shilish uchun ulashiladigan qisqa satr. 6 belgi, chalkashadigan harflar YO'Q
+  // (0/O, 1/I) — odam uni og'zaki aytadi va yozib oladi.
+  const ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+  let id = "";
+  for (let attempt = 0; attempt < 5; attempt++) {
+    id = Array.from({ length: 6 }, () => ALPHABET[Math.floor(Math.random() * ALPHABET.length)]).join("");
+    const clash = await prisma.appState.findUnique({ where: { key: `${JAMOA_PREFIX}${id}` } });
+    if (!clash) break;
+    id = "";
+  }
+  if (!id) return { ok: false, reason: "not_found" };
+  const rec: JamoaRecord = { id, name, createdAt: new Date().toISOString(), members: [memberId] };
+  await prisma.appState.create({ data: { key: `${JAMOA_PREFIX}${id}`, value: JSON.stringify(rec) } });
+  await prisma.appState.upsert({
+    where: { key: `${JAMOA_MEM_PREFIX}${memberId}` },
+    create: { key: `${JAMOA_MEM_PREFIX}${memberId}`, value: id },
+    update: { value: id },
+  });
+  invalidateBallCache();
+  return { ok: true };
+}
+
+export async function joinJamoa(memberId: number, codeRaw: string): Promise<OyinJamoaResult> {
+  if (!(await featureOn("oyin"))) return { ok: false, reason: "off" };
+  if (await jamoaOf(memberId)) return { ok: false, reason: "already_in" };
+  const code = (codeRaw || "").trim().toUpperCase().slice(0, 6);
+  const key = `${JAMOA_PREFIX}${code}`;
+  const row = await prisma.appState.findUnique({ where: { key } });
+  const j = parseJamoa(row?.value);
+  if (!j) return { ok: false, reason: "not_found" };
+  if (j.members.includes(memberId)) return { ok: false, reason: "already_in" };
+  if (j.members.length >= OYIN_JAMOA_MAX) return { ok: false, reason: "full" };
+  j.members.push(memberId);
+  await prisma.appState.update({ where: { key }, data: { value: JSON.stringify(j) } });
+  await prisma.appState.upsert({
+    where: { key: `${JAMOA_MEM_PREFIX}${memberId}` },
+    create: { key: `${JAMOA_MEM_PREFIX}${memberId}`, value: code },
+    update: { value: code },
+  });
+  invalidateBallCache();
+  return { ok: true };
+}
+
+export async function leaveJamoa(memberId: number): Promise<OyinJamoaResult> {
+  const j = await jamoaOf(memberId);
+  if (!j) return { ok: false, reason: "not_in" };
+  j.members = j.members.filter((m) => m !== memberId);
+  const key = `${JAMOA_PREFIX}${j.id}`;
+  // Oxirgi a'zo chiqsa guruh o'chadi — bo'sh guruh navbat ham, ball ham bermaydi.
+  if (j.members.length === 0) await prisma.appState.deleteMany({ where: { key } });
+  else await prisma.appState.update({ where: { key }, data: { value: JSON.stringify(j) } });
+  await prisma.appState.deleteMany({ where: { key: `${JAMOA_MEM_PREFIX}${memberId}` } });
+  invalidateBallCache();
+  return { ok: true };
+}
+
+/** 🤝 Ekran uchun to'liq ko'rinish — a'zolar, navbatchi, shu oydagi safarlar va to'plangan ball. */
+export async function getJamoaView(memberId: number): Promise<OyinJamoaView> {
+  const base = { minSize: OYIN_JAMOA_MIN, maxSize: OYIN_JAMOA_MAX };
+  const j = await jamoaOf(memberId);
+  if (!j) return { jamoa: null, ...base };
+  const econ = await getBonusEcon();
+  const monthKey = monthKeyOf(new Date());
+  const monthStart = new Date(`${monthKey}-01T00:00:00+05:00`);
+  const [tus, rides] = await Promise.all([
+    prisma.telegramUser.findMany({ where: { memberId: { in: j.members } }, select: { memberId: true, firstName: true, lastName: true, username: true } }),
+    prisma.rideReward.findMany({ where: { memberId: { in: j.members }, createdAt: { gte: monthStart } }, select: { memberId: true } }),
+  ]);
+  const nameBy = new Map<number, string>();
+  for (const tu of tus) if (tu.memberId) nameBy.set(tu.memberId, shortName(tu));
+  const ridesBy = new Map<number, number>();
+  for (const r of rides) ridesBy.set(r.memberId, (ridesBy.get(r.memberId) ?? 0) + 1);
+
+  const navbatchi = navbatchiOf(j, monthKey);
+  const turnIdx = ((monthsBetween(monthKeyOf(new Date(j.createdAt)), monthKey) % j.members.length) + j.members.length) % j.members.length;
+  const ballPerRide = econ.oyinJamoaBallPerRide ?? 6;
+  const maxBall = econ.oyinJamoaMaxBall ?? 3600;
+  const ridesThisMonth = rides.length;
+  return {
+    jamoa: {
+      id: j.id, name: j.name, code: j.id, createdAt: j.createdAt, monthKey,
+      members: j.members.map((m, i) => ({
+        memberId: m,
+        name: nameBy.get(m) ?? `#${m}`,
+        ridesThisMonth: ridesBy.get(m) ?? 0,
+        isNavbatchi: m === navbatchi,
+        hadTurn: i < turnIdx, // shu aylanada navbati o'tib bo'lgan
+      })),
+      ridesThisMonth,
+      ballPerRide,
+      navbatchiBall: Math.min(maxBall, ridesThisMonth * ballPerRide),
+      maxBall,
+      isMine: navbatchi === memberId,
+    },
+    ...base,
+  };
+}
+
 // ── 🎬 MUKOFOT KUNI ──────────────────────────────────────────────────────────────────────────
 const WINNER_PREFIX = "oyin:winner:";
 
@@ -1999,6 +2211,8 @@ const ARCHIVED_PREFIXES = [
   "oyin:weeksnap:", "oyin:sprintdone:", "oyin:thanks:",
   "oyin:quest:", "oyin:home:", "oyin:story:", "oyin:goal:",
   "oyin:adj:", "oyin:ban:", "oyin_sold_test:",
+  // 🤝 Jamoalar davr bilan arxivlanadi: yangi davr = yangi navbat aylanasi.
+  "oyin:jamoa:", "oyin:jamoamem:",
   // 🎬 `oyin:winner:` — bayonnomalar. Arxivlanadi, O'CHIRILMAYDI: `oyin:arch:sN:oyin:winner:*`
   // bo'lib qoladi, ya'ni o'tgan to'plamlarning g'oliblari tekshiruv uchun saqlanib turadi.
   // Arxivlanmasa yangi to'plamda eski mukofot kaliti bo'yicha bayonnoma bor deb hisoblanardi
@@ -2262,7 +2476,7 @@ export async function getActivity(filters: OyinActivityFilter): Promise<OyinActi
       ? prisma.appState.findMany({ where: { key: `${prefix}${filters.memberId}` } })
       : prisma.appState.findMany({ where: { key: { startsWith: prefix } } })) as Promise<AppStateRow[]>;
 
-  const [telegramUsers, rideRows, referrals, ticketRows, loginRows, shareRows, questRows, homeRows, sprintWinRows, storyRows, adjActRows] = await Promise.all([
+  const [telegramUsers, rideRows, referrals, ticketRows, loginRows, shareRows, questRows, homeRows, sprintWinRows, storyRows, adjActRows, jamoaActRows] = await Promise.all([
     prisma.telegramUser.findMany({
       // Ism-xaritasi uchun: mijoz-yo'lida FAQAT o'zi + do'stlari kerak (`helpedName` shulardan
       // chiqadi), butun populyatsiya emas.
@@ -2299,6 +2513,7 @@ export async function getActivity(filters: OyinActivityFilter): Promise<OyinActi
     // 🛠 Admin qo'lda tuzatgan ball — BALL BERADI, demak jadvalda ham, mijozning qo'ng'irog'ida
     // ham ko'rinishi SHART. Yashirin tuzatish = "ball qayerdan keldi" savoli javobsiz qolishi.
     stateRows(ADJ_PREFIX),
+    stateRows(JAMOA_PREFIX),
   ]);
 
   const nameByMember = new Map<number, string>();
@@ -2401,6 +2616,37 @@ export async function getActivity(filters: OyinActivityFilter): Promise<OyinActi
   // 🔥 SAFAR ZANJIRI — ball beradi (`oyinStreakBall`), demak jadvalda ham ko'rinishi shart.
   // Manba `computeBallMap` bilan AYNAN bir xil: mavsum ichidagi safar-kunlari, har TO'LIQ
   // 3 ketma-ket kun = 1 bonus (bir-birini qoplamaydi). Qator sanasi — zanjirni YOPGAN kun.
+  // GAP-JAMOA - har guruh, har oy: navbatchiga bitta qator. Ball beradi, demak jadvalda
+  // ham ko'rinishi SHART (qoida: har ball manbai qo'ng'iroqda va admin jadvalida bo'ladi).
+  {
+    const perRide = econ.oyinJamoaBallPerRide ?? 6;
+    const maxB = econ.oyinJamoaMaxBall ?? 3600;
+    if (perRide > 0) {
+      const ridesMM = new Map<string, number>();
+      const months = new Set<string>();
+      for (const [mid, rides] of ridesByMember) {
+        for (const r of rides) {
+          const mk = tashkentDayKey(r.at).slice(0, 7);
+          months.add(mk);
+          const k = mid + "|" + mk;
+          ridesMM.set(k, (ridesMM.get(k) ?? 0) + 1);
+        }
+      }
+      for (const row of jamoaActRows) {
+        const j = parseJamoa(row.value);
+        if (!j || j.members.length === 0) continue;
+        for (const mk of months) {
+          let g = 0;
+          for (const m of j.members) g += ridesMM.get(m + "|" + mk) ?? 0;
+          if (g === 0) continue;
+          const w = navbatchiOf(j, mk);
+          if (w == null) continue;
+          push(dayAt(mk + "-01"), w, "jamoa", Math.min(maxB, g * perRide), null, j.name + " - " + g + " safar");
+        }
+      }
+    }
+  }
+
   const STREAK_TARGET_ROWS = 3;
   for (const [memberId, rides] of ridesByMember) {
     const days = [...new Set(rides.map((r) => tashkentDayKey(r.at)))].filter(inDayWindow).sort();

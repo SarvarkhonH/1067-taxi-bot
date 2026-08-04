@@ -312,6 +312,14 @@ export const BONUS_ECON_KNOBS: BonusEconKnob[] = [
   // ⚠️ Mijozga OLDINDAN ochiq aytiladi (vitrina + chipta + varaq): "kamida N ta chipta sotilsa
   // o'ynaladi · hozir M ta". Yashirin shart = ishonchni buzish.
   { key: "oyinMinSellPct", label: "🛡 Tiraj qo'rig'i — sovrin o'ynalishi uchun min sotilgan (%)", def: 100, min: 0, max: 100, step: 5, group: "Koson O'yini" },
+  // 🤝 GAP-JAMOA (gashtak modeli): jamoaning oylik UMUMIY safarlari NAVBATCHIGA ball beradi.
+  // Xarajat hisobi: 10 kishi × 20 safar = 200 safar × 6 ball = 1 200 ball — bu aynan bitta
+  // «o'rta» darajali karta. Safar boshiga +6 ball = 35 ustiga 17% qo'shimcha emissiya.
+  // ⛔ Ball KO'CHIRILMAYDI — bonusni tizim yaratadi (shared/oyin.ts izohiga qarang).
+  { key: "oyinJamoaBallPerRide", label: "🤝 Gap-jamoa — jamoa safaridan navbatchiga ball", def: 6, min: 0, max: 100, step: 1, group: "Koson O'yini" },
+  // Oylik shift: jamoa juda faol bo'lsa ham navbatchi bir oyda bundan ko'p ololmaydi.
+  // 3 600 = eng qimmat karta (`OYIN_TIERS.bosh`) — ya'ni navbat oyiga max bitta katta karta.
+  { key: "oyinJamoaMaxBall", label: "🤝 Gap-jamoa — navbatchiga oylik shift", def: 3600, min: 0, max: 20000, step: 100, group: "Koson O'yini" },
   // ⚠️ Zanjir endi SAFAR kunlari bo'yicha (avval ilova ochish sanalardi — safarsiz 500 ball/oy).
   { key: "oyinStreakBall", label: "🔥 3 kunlik SAFAR zanjiri — bonus ball", def: 35, min: 0, max: 1000, step: 10, group: "Koson O'yini" },
   // ⚖️ Adolat qo'rig'i: do'st-safari 40 ga chiqqach, ko'p do'stli odam bitta sovrinning BARCHA

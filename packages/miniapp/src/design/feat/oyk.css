@@ -970,3 +970,54 @@
   display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
 }
 .oyk-pcard-meta { font-size: 10.5px; color: var(--oyk-text-3); text-align: center; font-variant-numeric: tabular-nums; }
+
+/* 🤝 GAP-JAMOA (gashtak) — Jamoa tabining tepasida. Do'st-ro'yxatidan kuchliroq mexanika,
+   shuning uchun birinchi ko'rinadi. */
+.oyk-jamoa {
+  background: var(--oyk-surface); border: 1px solid var(--oyk-line); border-radius: 16px;
+  padding: 14px 15px; margin-bottom: 12px; box-shadow: var(--oyk-shadow);
+}
+.oyk-jamoa-empty { font-size: 12.5px; color: var(--oyk-text-2); }
+.oyk-jamoa-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; }
+.oyk-jamoa-name { font-size: 15px; font-weight: 900; }
+.oyk-jamoa-code { font-size: 11.5px; color: var(--oyk-text-2); margin-top: 2px; }
+.oyk-jamoa-code b { color: var(--oyk-text); letter-spacing: .08em; font-variant-numeric: tabular-nums; }
+.oyk-jamoa-copy {
+  flex-shrink: 0; min-height: 32px; padding: 0 12px; border: 1px solid var(--oyk-line);
+  background: var(--oyk-fill); border-radius: 9px; font-size: 12px; font-weight: 800;
+  color: var(--oyk-text); cursor: pointer;
+}
+.oyk-jamoa-copy:active { transform: scale(.96); }
+.oyk-jamoa-turn {
+  margin-top: 11px; padding: 10px 12px; border-radius: 11px; font-size: 12.5px; line-height: 1.55;
+  background: var(--oyk-fill); color: var(--oyk-text-2);
+}
+/* Navbat SIZDA bo'lgan holat — yagona urg'u. Har doim yonib tursa urg'u ma'nosini yo'qotadi. */
+.oyk-jamoa-turn.is-mine { background: var(--oyk-gold-fill, #fdf3d8); color: var(--oyk-text); }
+.oyk-jamoa-turn b { color: var(--oyk-text); }
+.oyk-jamoa-list { margin-top: 10px; display: flex; flex-direction: column; gap: 1px; }
+.oyk-jamoa-row {
+  display: flex; align-items: center; justify-content: space-between; gap: 10px;
+  padding: 8px 10px; border-radius: 9px; font-size: 12.5px; background: var(--oyk-fill);
+}
+.oyk-jamoa-row.is-turn { background: var(--oyk-gold-fill, #fdf3d8); font-weight: 800; }
+.oyk-jamoa-who { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.oyk-jamoa-rides { flex-shrink: 0; color: var(--oyk-text-2); font-variant-numeric: tabular-nums; }
+.oyk-jamoa-note { margin-top: 10px; font-size: 11.5px; line-height: 1.6; color: var(--oyk-text-2); }
+.oyk-jamoa-note b { color: var(--oyk-text); }
+.oyk-jamoa-acts { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 11px; }
+.oyk-jamoa-inp {
+  flex: 1; min-width: 140px; min-height: 42px; padding: 0 12px; font-size: 13px;
+  border: 1px solid var(--oyk-line); border-radius: 11px; background: var(--oyk-page); color: var(--oyk-text);
+}
+.oyk-jamoa-btn {
+  min-height: 42px; padding: 0 16px; border: none; border-radius: 11px; font-size: 13px;
+  font-weight: 900; cursor: pointer; background: var(--oyk-violet-grad); color: var(--oyk-on);
+}
+.oyk-jamoa-btn.is-ghost { background: var(--oyk-fill); color: var(--oyk-text); border: 1px solid var(--oyk-line); }
+.oyk-jamoa-btn:disabled { opacity: .5; cursor: default; }
+.oyk-jamoa-btn:active:not(:disabled) { transform: scale(.97); }
+.oyk-jamoa-leave {
+  margin-top: 11px; width: 100%; min-height: 38px; border: 1px solid var(--oyk-line);
+  background: transparent; border-radius: 10px; font-size: 12px; color: var(--oyk-text-3); cursor: pointer;
+}

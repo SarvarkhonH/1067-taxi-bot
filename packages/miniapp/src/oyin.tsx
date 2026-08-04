@@ -10,7 +10,7 @@
 // soxta QR-kvadrat — real QR-generatsiya (referralQrService) B1-B5 doirasida qurilmagan, shuning
 // uchun olib tashlandi (ishlamaydigan grafika ko'rsatish — yolg'on).
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
-import { OYIN_FINAL_LOCK_MS, type OyinActivityAction, type OyinActivityResponse, type OyinJamoamResponse, type OyinMyTicketsResponse, type OyinPrizeView, type OyinSeasonClientView, type OyinStateResponse, type OyinVitrinaResponse } from "@t1067/shared";
+import { OYIN_FINAL_LOCK_MS, type OyinActivityAction, type OyinActivityResponse, type OyinJamoamResponse, type OyinJamoaView, type OyinMyTicketsResponse, type OyinPrizeView, type OyinSeasonClientView, type OyinStateResponse, type OyinVitrinaResponse } from "@t1067/shared";
 import { api, apiUrl } from "./api";
 import { addToHomeScreen, copyText, haptic, homeScreenStatus, inviteLandingUrl, onHomeScreenAdded, shareLink } from "./telegram";
 import "./design/feat/oyk.css"; // bu ekran ochilgandagina yuklanadi (kritik yo'lda emas)
@@ -176,7 +176,7 @@ const ACTION_EMOJI: Record<OyinActivityAction, string> = {
   ride: "🚕", first_ride: "🥇", phone: "📱",
   refer_join: "👥", refer_first_ride: "🎉", refer_ride: "🤝",
   login: "🗓", share: "📤", quest: "🎯", home: "🏠",
-  story: "📸", streak: "🔥", sprint_bonus: "🏁", ticket_buy: "🎟", adjust: "🛠",
+  story: "📸", streak: "🔥", sprint_bonus: "🏁", ticket_buy: "🎟", adjust: "🛠", jamoa: "🤝",
 };
 const ACTION_LABEL: Record<OyinActivityAction, string> = {
   ride: "Safar qildingiz",
@@ -196,6 +196,8 @@ const ACTION_LABEL: Record<OyinActivityAction, string> = {
   // 🛠 Admin qo'lda tuzatgan ball. Sabab qatorning `note` maydonida chiqadi — mijoz nima
   // uchun ekanini KO'RADI (yashirin tuzatish = "ball qayerdan keldi" savoli javobsiz qolishi).
   adjust: "Ball tuzatildi (admin)",
+  // 🤝 Gashtak navbati — jamoaning umumiy safarlari navbatchiga ball olib keladi.
+  jamoa: "Jamoa navbati sizda edi",
 };
 /** Do'st ishtirok etgan voqealar — ism EGA bo'lgan shakl ("Amir safar qildi"). */
 const FRIEND_LABEL: Partial<Record<OyinActivityAction, string>> = {
@@ -521,6 +523,7 @@ export function OyinView({ onTaxi }: { onTaxi?: () => void } = {}) {
   useEffect(() => { loadJamoam(); }, [loadJamoam]);
 
 
+
   // Jamoam tabiga har kirganda yangilanadi — "do'stingiz bugun yurdi" kartasi eskirmasin.
   useEffect(() => { if (tab === "jamoam") loadJamoam(); }, [tab, loadJamoam]);
 
@@ -530,6 +533,41 @@ export function OyinView({ onTaxi }: { onTaxi?: () => void } = {}) {
     toastT.current = setTimeout(() => setToast(null), ms);
   }, []);
   useEffect(() => () => clearTimeout(toastT.current), []);
+
+  // 🤝 Gap-jamoa (gashtak). Alohida yuklanadi — do'st-ro'yxati bilan bog'liq emas va biri
+  // yiqilsa ikkinchisi ko'rinishda qolsin.
+  const [jamoa, setJamoa] = useState<OyinJamoaView | null>(null);
+  const [jamoaInput, setJamoaInput] = useState("");
+  const [jamoaBusy, setJamoaBusy] = useState(false);
+  const loadJamoa = useCallback(() => { api.oyinJamoa().then(setJamoa).catch(() => undefined); }, []);
+  useEffect(() => { loadJamoa(); }, [loadJamoa]);
+  const doJamoa = useCallback(async (action: "create" | "join" | "leave", v?: string) => {
+    haptic();
+    setJamoaBusy(true);
+    try {
+      const r = await api.oyinJamoaAct(action, v);
+      setJamoa(r.view);
+      if (r.ok) {
+        setJamoaInput("");
+        loadHome(true); // jamoa balli darhol balansda ko'rinsin
+        showToast(action === "leave" ? "Jamoadan chiqdingiz" : action === "create" ? "🤝 Jamoa tuzildi — kodni do'stlaringizga yuboring" : "🤝 Jamoaga qo'shildingiz");
+      } else {
+        // Har sabab O'Z matni bilan — "xatolik" degan umumiy so'z hech narsa aytmaydi.
+        showToast(
+          r.reason === "already_in" ? "Siz allaqachon jamoadasiz"
+            : r.reason === "not_found" ? "Bunday kodli jamoa topilmadi"
+            : r.reason === "full" ? `Jamoa to'lgan (${jamoa?.maxSize ?? 10} kishi)`
+            : r.reason === "bad_name" ? "Nom kamida 2 harf bo'lsin"
+            : r.reason === "not_in" ? "Siz jamoada emassiz"
+            : "Bajarilmadi — birozdan keyin urinib ko'ring",
+        );
+      }
+    } catch {
+      showToast("Aloqa uzildi — birozdan keyin urinib ko'ring");
+    } finally {
+      setJamoaBusy(false);
+    }
+  }, [loadHome, showToast, jamoa?.maxSize]);
 
   // 🏠 Ekranga o'rnatish — ⚠️ 2026-08-03 QAYTA YOZILDI (ega jonli sinovda topdi: "men ekranga
   // qo'shmagankuman nega ball bergan").
@@ -1426,6 +1464,59 @@ Taksida yur, ball yig', sodiqlik kartasini ol. Davr oxirida jonli efirda mukofot
               <span aria-hidden="true">›</span>
             </button>
           </>
+        )}
+
+        {/* 🤝 GAP-JAMOA — gashtak modeli. Jamoa tabining TEPASIDA: bu do'st-ro'yxatidan
+            kuchliroq mexanika (jamoa umumiy ishlaydi, navbatchi oladi) va u birinchi
+            ko'rinishi kerak. Ball KO'CHIRILMAYDI — bonusni tizim yaratadi. */}
+        {tab === "jamoam" && !ended && (
+          <div className="oyk-jamoa">
+            {jamoa === null ? (
+              <div className="oyk-jamoa-empty">Yuklanmoqda…</div>
+            ) : jamoa.jamoa ? (
+              <>
+                <div className="oyk-jamoa-head">
+                  <div>
+                    <div className="oyk-jamoa-name">🤝 {jamoa.jamoa.name}</div>
+                    <div className="oyk-jamoa-code">Kod: <b>{jamoa.jamoa.code}</b> — do'stlaringizga yuboring</div>
+                  </div>
+                  <button type="button" className="oyk-jamoa-copy" onClick={() => { haptic(); void copyText(jamoa.jamoa!.code); showToast("Kod nusxalandi"); }}>Nusxa</button>
+                </div>
+                <div className={`oyk-jamoa-turn${jamoa.jamoa.isMine ? " is-mine" : ""}`}>
+                  {jamoa.jamoa.isMine
+                    ? <>🎯 <b>Bu oy NAVBAT SIZDA</b> — jamoa {jamoa.jamoa.ridesThisMonth} safar qildi, sizga <b>{jamoa.jamoa.navbatchiBall} ball</b></>
+                    : <>Bu oy navbat: <b>{jamoa.jamoa.members.find((m) => m.isNavbatchi)?.name ?? "—"}</b> · jamoa {jamoa.jamoa.ridesThisMonth} safar qildi</>}
+                </div>
+                <div className="oyk-jamoa-list">
+                  {jamoa.jamoa.members.map((m) => (
+                    <div key={m.memberId} className={`oyk-jamoa-row${m.isNavbatchi ? " is-turn" : ""}`}>
+                      <span className="oyk-jamoa-who">{m.isNavbatchi ? "🎯" : m.hadTurn ? "✓" : "•"} {m.name}</span>
+                      <span className="oyk-jamoa-rides">{m.ridesThisMonth} safar</span>
+                    </div>
+                  ))}
+                </div>
+                <div className="oyk-jamoa-note">
+                  Har oy navbat keyingi odamga o'tadi. Jamoaning umumiy safarlari navbatchiga ball olib keladi —
+                  har safar <b>{jamoa.jamoa.ballPerRide} ball</b>, oyiga eng ko'pi {jamoa.jamoa.maxBall}.
+                  {jamoa.jamoa.members.length < jamoa.minSize && <> Jamoa {jamoa.minSize} kishidan boshlanadi — yana {jamoa.minSize - jamoa.jamoa.members.length} kishi qo'shilsin.</>}
+                </div>
+                <button type="button" className="oyk-jamoa-leave" disabled={jamoaBusy} onClick={() => { void doJamoa("leave"); }}>Jamoadan chiqish</button>
+              </>
+            ) : (
+              <>
+                <div className="oyk-jamoa-name">🤝 Gap-jamoa</div>
+                <div className="oyk-jamoa-note">
+                  {jamoa.minSize}–{jamoa.maxSize} kishilik jamoa tuzing. Har oy navbat bitta a'zoga o'tadi va
+                  jamoaning umumiy safarlari <b>o'sha navbatchiga</b> ball olib keladi. Keyingi oy — boshqasiga.
+                </div>
+                <div className="oyk-jamoa-acts">
+                  <input className="oyk-jamoa-inp" value={jamoaInput} onChange={(e) => setJamoaInput(e.target.value)} placeholder="Jamoa nomi yoki kod" maxLength={40} />
+                  <button type="button" className="oyk-jamoa-btn" disabled={jamoaBusy || jamoaInput.trim().length < 2} onClick={() => { void doJamoa("create", jamoaInput.trim()); }}>Tuzish</button>
+                  <button type="button" className="oyk-jamoa-btn is-ghost" disabled={jamoaBusy || jamoaInput.trim().length < 4} onClick={() => { void doJamoa("join", jamoaInput.trim()); }}>Qo'shilish</button>
+                </div>
+              </>
+            )}
+          </div>
         )}
 
         {/* 🎟 CHIPTALARIM — endi tab. Chipta "ko'rinadigan buyum" (YAKUNIY DIZAYN §2):

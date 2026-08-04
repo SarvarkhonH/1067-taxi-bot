@@ -329,6 +329,8 @@ export interface OyinBallBreakdown {
   // audit-logga tushadi. `earned` ichida — ya'ni yuqoridagi maydonlar yig'indisi baribir
   // `earned` ga teng qoladi (o'sha invariantni buzmaslik uchun alohida maydon).
   adjust: number;
+  // 🤝 Gap-jamoa navbatchisiga tushgan bonus (gashtak modeli).
+  jamoa: number;
   earned: number; // yig'indi (yuqoridagi HAMMASI — yangi manba qo'shilsa maydoni ham qo'shiladi)
   spent: number; // chiptalarga sarflangan
   ball: number; // earned − spent (manfiy bo'lmaydi)
@@ -498,6 +500,53 @@ export interface OyinDrawExport {
   skippedPrizes: { prizeKey: string; name: string; sold: number; minSell: number }[];
 }
 
+// ── 🤝 GAP-JAMOA (ega g'oyasi 2026-08-04: "gashtak modeli juda kuchli ... 10 kishi har mavsumda
+// bir kishini tanlab unga karta olishiga yordam berishi juda virallik olib kelishi mumkin").
+//
+// Gashtak — Koson madaniyatining tayyor shakli: guruh har oy BITTA a'zoga navbat beradi.
+// Bu yerda ham xuddi shunday: jamoaning o'sha oydagi UMUMIY safarlari NAVBATCHIGA ball
+// olib keladi. Keyingi oy navbat boshqasiga — hamma navbatini olmaguncha takror yo'q.
+//
+// ⛔ BALL KO'CHIRILMAYDI. Bir odamdan ikkinchisiga ball o'tkazish — ballni VALYUTAGA
+// aylantiradi, ya'ni uni tashqarida pulga sotish mumkin bo'ladi va «karta pulga sotilmaydi»
+// degan butun huquqiy himoya qulaydi (§8 qizil chizig'i #1). Jamoa bonusini TIZIM yaratadi.
+//
+// ⚖️ Va u ikkinchi muammoni ham yopadi: hozirgi «men → do'stim» munosabati BIR TOMONLAMA va
+// abadiy — bu MLM ko'rinishi (Ahmadboy piramidasi assotsiatsiyasi, huquqiy xavf). Jamoada
+// tepasi ham, tagi ham yo'q: kim yursa — navbatchiga foyda. Piramida emas, gashtak.
+export const OYIN_JAMOA_MIN = 3;
+export const OYIN_JAMOA_MAX = 10;
+
+export interface OyinJamoaMember {
+  memberId: number;
+  name: string;
+  ridesThisMonth: number;
+  isNavbatchi: boolean;
+  hadTurn: boolean; // shu aylanada navbatini olganmi
+}
+export interface OyinJamoaView {
+  /** `null` = a'zo hech qanday jamoada emas (ekran «jamoa tuzing» taklifini ko'rsatadi). */
+  jamoa: {
+    id: string;
+    name: string;
+    code: string; // qo'shilish kodi — ulashiladi
+    createdAt: string;
+    members: OyinJamoaMember[];
+    monthKey: string; // joriy oy (Toshkent)
+    ridesThisMonth: number; // jamoaning UMUMIY safarlari
+    ballPerRide: number; // knobdan
+    navbatchiBall: number; // shu oyda navbatchiga to'planган ball
+    maxBall: number; // oylik shift — cheksiz emissiya bo'lmasin
+    isMine: boolean; // men navbatchimanmi
+  } | null;
+  minSize: number;
+  maxSize: number;
+}
+export interface OyinJamoaResult {
+  ok: boolean;
+  reason?: "already_in" | "not_found" | "full" | "not_in" | "bad_name" | "off" | "season_off";
+}
+
 // ── 🎬 MUKOFOT KUNI (ega dizayni 2026-08-04: kartalar qutiga solinadi, ishonchli bloger
 // tortadi, raqam aytiladi, g'olib qo'ng'iroq qiladi, do'kondan oladi).
 //
@@ -625,6 +674,8 @@ export const OYIN_ACTIVITY_ACTIONS = [
   // 🛠 Admin qo'lda tuzatgan ball. Ball BERADI (yoki OLADI), demak shu ro'yxatda BO'LISHI SHART —
   // aks holda mijozning qo'ng'irog'ida "ball qayerdan keldi" savoli javobsiz qolardi.
   "adjust",
+  // 🤝 Jamoa navbat bonusi — ball beradi, demak qo'ng'iroq ro'yxatida ham bo'lishi SHART.
+  "jamoa",
 ] as const;
 export type OyinActivityAction = (typeof OYIN_ACTIVITY_ACTIONS)[number];
 

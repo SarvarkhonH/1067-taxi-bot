@@ -29,6 +29,8 @@ import type {
   TierBenefitsResponse,
   OyinBuyResult,
   OyinJamoamResponse,
+  OyinJamoaResult,
+  OyinJamoaView,
   OyinActivityResponse,
   OyinMyTicketsResponse,
   OyinStateResponse,
@@ -312,6 +314,11 @@ export const api = {
   oyinState: () => get<OyinStateResponse>("/api/oyin/state"),
   oyinVitrina: () => get<OyinVitrinaResponse>("/api/oyin/vitrina"),
   oyinJamoam: () => get<OyinJamoamResponse>("/api/oyin/jamoam"),
+  // 🤝 Gap-jamoa (gashtak) — guruh tuzish/qo'shilish/chiqish. Ball ko'chirish YO'Q.
+  oyinJamoa: () => get<OyinJamoaView>("/api/oyin/jamoa"),
+  oyinJamoaAct: (action: "create" | "join" | "leave", v?: string) =>
+    post<OyinJamoaResult & { view: OyinJamoaView }>("/api/oyin/jamoa",
+      action === "create" ? { action, name: v } : action === "join" ? { action, code: v } : { action }),
   oyinBuyTicket: (prizeKey: string) => post<OyinBuyResult>("/api/oyin/ticket", { prizeKey }),
   oyinShare: () => post<{ ok: boolean }>("/api/oyin/share"),
   checkin: () => post<CheckInResponse>("/api/checkin"),
