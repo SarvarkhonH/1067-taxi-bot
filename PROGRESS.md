@@ -5298,3 +5298,15 @@ topadi; `/jamoa` va kechki karta endi "⏳ Eski tasdiqsiz kunlar: N ta · jami X
 "✅ Barchasini tasdiqlash" tugmasi bilan ko'rsatadi (`staffConfirmAllPending`, faqat ega,
 ochiq smenalarga tegmaydi). Isbot: jonli tsx bilan sinaldi — 1 ta eski kun (52 604 so'm)
 to'g'ri topildi.
+
+### 2026-08-05 — 👔 JAMOA: real-vaqtli xabarlar (kechikish/erta kelish/pul-olish jami)
+
+**Sabab (ega talabi):** kechqurungi jamlangan karta yetarli emas edi — "bugun kechikib keldi",
+"vaqtidan oldin keldi", "pul oldi" HAR SAFAR DARHOL bilinishi kerak, kechqurunni kutmasdan.
+- `staffCheckIn`: kechikish (grace'dan oshsa) va erta kelish (15+ daq oldin) endi DARHOL
+  egaga xabar beradi (`notifyOwner`, `getBotInstance` naqshi — operatorConsole/oyinService
+  bilan bir xil). Yarim tunga o'tuvchi kechagi-smena tarmog'ida ham kechikish xabari bor.
+  Ega=xodim bo'lsa (test holati) o'ziga xabar bormaydi.
+- `staffSelfPayout`: xabar matniga "📊 Bugun jami olingan (hammasi): X so'm" qo'shildi —
+  ega har to'lov xabarida kunlik yig'indini ham ko'radi, panelga kirmasdan (org-wide, kunlik).
+- Kechki jamlangan karta o'zgarmadi — ikkalasi ham bor: darhol + kechqurun xulosa.

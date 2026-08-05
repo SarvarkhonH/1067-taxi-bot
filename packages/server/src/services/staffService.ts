@@ -64,6 +64,22 @@ function hhmm(min: number): string {
   return `${String(Math.floor(m / 60)).padStart(2, "0")}:${String(m % 60).padStart(2, "0")}`;
 }
 
+const EARLY_NOTIFY_MIN = 15; // shu daqdan ko'proq erta kelsa egaga xabar (2-3 daq erta — spam emas)
+
+/** Ega DARHOL xabar olsin (ega talabi 2026-08-05): kechikish/erta kelish/pul olish
+ *  sodir bo'lganda kechqurungi jamlangan kartani kutmasdan. Xato bo'lsa loglanadi,
+ *  lekin xodimning o'z javobiga hech qachon to'sqinlik qilmaydi. */
+async function notifyOwner(ownerTelegramId: string, text: string): Promise<void> {
+  try {
+    const { getBotInstance } = await import("../botInstance");
+    const bot = getBotInstance();
+    if (!bot) return;
+    await bot.api.sendMessage(ownerTelegramId, text, { parse_mode: "HTML" });
+  } catch (e) {
+    console.error("[staff] notifyOwner failed:", e);
+  }
+}
+
 /** "✅ Keldim" — open today's session. Idempotent: a second tap just re-reports. */
 export async function staffCheckIn(telegramId: string, now = new Date()): Promise<StaffActionResult> {
   const emp = await employeeFor(telegramId);
@@ -86,6 +102,10 @@ export async function staffCheckIn(telegramId: string, now = new Date()): Promis
       const pend = hhmmToMin(ppol.shiftEnd);
       if (pend <= pstart && minutesSinceTashkentMidnight(now, yDate) < pend + 1440 + 60) {
         await prisma.workSession.update({ where: { id: prev.id }, data: { dayStatus: "ishladi", checkIn: now } });
+        const arrivalMin = minutesSinceTashkentMidnight(now, yDate); // allaqachon 1440+ (kechagi kundan)
+        if (arrivalMin > pstart + ppol.graceMin && emp.org.ownerTelegramId !== telegramId) {
+          await notifyOwner(emp.org.ownerTelegramId, `⏰ <b>${esc(emp.name)}</b> kechikib keldi: ${hhmm(t.minutes)} (kechagi smena ${ppol.shiftStart}–${ppol.shiftEnd})`);
+        }
         return { ok: true, text: `✅ Keldingiz: <b>${hhmm(t.minutes)}</b> · Kechagi ${ppol.shiftStart}–${ppol.shiftEnd} smenaga yozildi.` };
       }
     }
@@ -99,7 +119,18 @@ export async function staffCheckIn(telegramId: string, now = new Date()): Promis
     update: { dayStatus: "ishladi", checkIn: now },
   });
   const damNote = kind !== "ish" ? `\n⚠️ Bugun jadval bo'yicha ${kind === "bayram" ? "bayram" : "dam"} kuni — baribir yozildi, ega tasdiqlashda ko'radi.` : "";
-  const late = t.minutes > hhmmToMin(pol.shiftStart) + pol.graceMin;
+  const shiftStartMin = hhmmToMin(pol.shiftStart);
+  const late = t.minutes > shiftStartMin + pol.graceMin;
+  const early = t.minutes < shiftStartMin - EARLY_NOTIFY_MIN;
+  // Ega talabi 2026-08-05: kechikish/erta kelish kechqurungi kartani kutmasdan DARHOL
+  // xabar bo'lsin — kunlik xulosa (buildDailySummary) hali ham 21:00'da hammasini jamlab beradi.
+  if (emp.org.ownerTelegramId !== telegramId) {
+    if (late) {
+      await notifyOwner(emp.org.ownerTelegramId, `⏰ <b>${esc(emp.name)}</b> kechikib keldi: ${hhmm(t.minutes)} (smena ${pol.shiftStart}, +${t.minutes - shiftStartMin - pol.graceMin} daq)`);
+    } else if (early) {
+      await notifyOwner(emp.org.ownerTelegramId, `🕗 <b>${esc(emp.name)}</b> erta keldi: ${hhmm(t.minutes)} (smena ${pol.shiftStart})`);
+    }
+  }
   return {
     ok: true,
     text:
@@ -228,13 +259,32 @@ async function ledgerBalance(employeeId: number, openingBalance: number): Promis
   return bal;
 }
 
-function selfPayoutOwnerCard(emp: { name: string; org: { ownerTelegramId: string } }, a: number, note: string, bal: number, ledgerId: number) {
+/** Bugun (Toshkent) shu korxonada JAMI qancha pul olingan — har payout xabariga
+ *  qo'shiladi (ega talabi 2026-08-05: "olingan pullarni doim ko'rib borishim kerak"
+ *  — har alohida xabarda ham kunlik yig'indi ko'rinsin, panelga kirmasdan). */
+async function orgTodayPayoutTotal(orgId: number, date: string): Promise<number> {
+  const from = tkInstant(date, 0);
+  const to = tkInstant(date, 1440);
+  const rows = await prisma.staffLedger.aggregate({
+    where: { kind: "payout", createdAt: { gte: from, lt: to }, employee: { orgId } },
+    _sum: { amount: true },
+  });
+  return rows._sum.amount ?? 0;
+}
+
+function tkInstant(date: string, minutes: number): Date {
+  const [y, m, d] = ymd(date);
+  return new Date(Date.UTC(y, m - 1, d) - TASHKENT_UTC_OFFSET_MIN * 60_000 + minutes * 60_000);
+}
+
+function selfPayoutOwnerCard(emp: { name: string; orgId: number; org: { ownerTelegramId: string } }, a: number, note: string, bal: number, ledgerId: number, todayTotal: number) {
   return {
     chatId: emp.org.ownerTelegramId,
     ledgerId,
     text:
       `💸 <b>${esc(emp.name)}</b> "pul oldim" deb yozdi: <b>${fmt(a)} so'm</b>` +
-      `${note ? ` (${esc(note.slice(0, 80))})` : ""}\n💰 Qoldig'i: <b>${fmt(bal)} so'm</b>${bal < 0 ? " ⚠️minus" : ""}`,
+      `${note ? ` (${esc(note.slice(0, 80))})` : ""}\n💰 Qoldig'i: <b>${fmt(bal)} so'm</b>${bal < 0 ? " ⚠️minus" : ""}` +
+      `\n📊 Bugun jami olingan (hammasi): <b>${fmt(todayTotal)} so'm</b>`,
   };
 }
 
@@ -250,11 +300,13 @@ export async function staffSelfPayout(
   if (!Number.isFinite(a) || a <= 0 || a > 100_000_000) return { ok: false, text: "Summa noto'g'ri. Masalan: <code>500000</code> yoki <code>500000 avans</code>" };
   const key = `staffself:${emp.id}:${msgKey}`; // bir xabar — bir yozuv (retry ikkilamaydi)
   const existing = await prisma.staffLedger.findUnique({ where: { idempotencyKey: key } });
+  const t0 = tashkentDayMinutes(new Date());
   if (existing) {
     if (existing.kind !== "payout") return { ok: true, text: "Bu yozuv bekor qilingan edi." }; // soft-bekor tombstone
     // Qayta-yetkazish: ega kartasi ham QAYTA yuborilsin — birinchi urinishda yetmagan bo'lishi mumkin.
     const bal0 = await ledgerBalance(emp.id, emp.openingBalance);
-    return { ok: true, text: "Bu xabar allaqachon yozilgan.", owner: selfPayoutOwnerCard(emp, existing.amount, existing.note ?? "", bal0, existing.id) };
+    const today0 = await orgTodayPayoutTotal(emp.orgId, t0.date);
+    return { ok: true, text: "Bu xabar allaqachon yozilgan.", owner: selfPayoutOwnerCard(emp, existing.amount, existing.note ?? "", bal0, existing.id, today0) };
   }
   let row;
   try {
@@ -265,11 +317,12 @@ export async function staffSelfPayout(
     return { ok: true, text: "Bu xabar allaqachon yozilgan." }; // P2002 poyga — birinchi yozuv g'olib
   }
   const bal = await ledgerBalance(emp.id, emp.openingBalance);
+  const today = await orgTodayPayoutTotal(emp.orgId, t0.date);
   const minusNote = bal < 0 ? `\n⚠️ Qoldiq minusda — oldindan olingan pul keyingi hisoblardan yopiladi.` : "";
   return {
     ok: true,
     text: `💸 Yozildi: <b>−${fmt(a)} so'm</b>${note ? ` (${esc(note.slice(0, 80))})` : ""}\n💰 Qoldiq: <b>${fmt(bal)} so'm</b>${minusNote}`,
-    owner: selfPayoutOwnerCard(emp, a, note, bal, row.id),
+    owner: selfPayoutOwnerCard(emp, a, note, bal, row.id, today),
   };
 }
 
