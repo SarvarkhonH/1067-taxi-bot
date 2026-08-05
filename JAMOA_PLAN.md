@@ -283,3 +283,91 @@ avto-yopish, oy chegarasi). Pul matematikasi UI dan butunlay ajratilgan.
 Xodimlar ro'yxati va eski oyliklar — J5 da kiritiladi, tayyorlab qo'ying.
 J1 tarkibi: sxema (Organization/Employee/WorkSession/StaffLedger) + `computeDayPay`
 sof funksiya + to'liq vitest + `jamoa` flag. Bot/panel J2–J3 da.
+
+---
+
+## 7. 🚀 KUCHLI JAMOA 2.0 — "oddiy davomat" dan "to'liq workforce management" ga
+
+> Ega qarori 2026-08-05: hozirgi Jamoa (V1, jonli) ISHLAYDI, lekin oddiy. Endi
+> maqsad — Deputy/Homebase/Connecteam darajasidagi kuch, lekin BirJoy botining
+> o'zida: xodim uchun ham, ega uchun ham. Hech narsa qayta qurilmaydi — V1
+> yadrosi (computeDayPay, StaffLedger, idempotent yozuvlar) ustiga qatlam.
+> V1'dan farqi: V1 "vaziyatni yozib boradi", V2.0 "vaziyatni BOSHQARADI" —
+> xodim o'zi so'rov yuboradi, ega bitta joydan hammasini ko'radi va hal qiladi.
+
+**Allaqachon jonli (2026-08-05):** kechikish/erta-kelish/pul-olish DARHOL xabar
+(kechqurunni kutmasdan) + har pul-xabarida kunlik jami — shu kunning o'zida
+qurildi, pastdagi A1/B3 elementlarining boshlanishi.
+
+### 7.1 🤖 BOT TOMONI — xodim uchun kuchli qulayliklar
+
+**A — Real-vaqtli xabarlar (A1 jonli, qolgani navbatda)**
+| # | Qulaylik | Tavsif |
+|---|---|---|
+| A1 ✅ | Kechikish/erta kelish/pul-olish darhol | Ega kechqurunni kutmaydi — hodisa sodir bo'lishi bilan xabar (JONLI). |
+| A2 | Ertangi smena eslatmasi | Kechqurun soat 20:00 atrofida: "Ertaga smenangiz 09:00 da". Kelmay qolish sonini kamaytiradi. |
+| A3 | "Ketdimni unutdingiz" darhol xabari egaga | Hozir faqat ⚠️avto belgi — endi avto-yopilgan zahoti egaga ham qisqa xabar: "Aziza Ketdim bosmadi, smena oxiriga yopildi". |
+| A4 | Haftalik shaxsiy xulosa | Har dushanba xodimning o'ziga: "O'tgan hafta: 6 kun, 48 soat, 620 000 so'm". |
+
+**B — Xodim BOSHLAYDIGAN so'rovlar (hozir bo'lmagan, eng katta bo'shliq)**
+| # | Qulaylik | Tavsif |
+|---|---|---|
+| B1 | 🏖 Ta'til/kasallik so'rash | `/tatil` — sana oralig'i + sabab → egaga tasdiq-karta (✅/❌). Tasdiqlansa avtomatik `dayStatus` yoziladi (hozir buni FAQAT ega panelda qo'lda qiladi). |
+| B2 | 🔄 Smena almashish so'rovi | "Ertangi smenamni Bekzod bilan almashtirmoqchiman" — ikkala xodim + ega tasdiqlaydi, uch tomonlama karta. |
+| B3 | ⏰ Erta ketish/kech kelish oldindan xabari | "Bugun shifoxonaga borishim kerak, 11:00 da kelaman" — ega oldindan biladi, kelganda "kechikdi" degan qattiq ohang o'rniga tushunish bilan kutiladi (matnda farq qilinadi). |
+| B4 | 🤒 Bitta tugma: "Bugun kasalman" | Hozir kasallik holatini FAQAT ega qo'yadi. Xodimning o'zi ham /ish menyusidan belgilay olsin (ega baribir kechqurun ko'radi/rad eta oladi). |
+
+**C — Shaxsiy shaffoflik va motivatsiya**
+| # | Qulaylik | Tavsif |
+|---|---|---|
+| C1 | 📊 "Mening natijalarim" | Streak (necha kun ketma-ket vaqtida kelgan), oylik intizom %, o'rtacha ish soati. |
+| C2 | 🧾 Avtomatik oylik varaqcha (V2.1 dan) | Oy yopilganda PDF/rasm shaklida botga — kunlar, soatlar, hisob, olingan, qoldiq. |
+| C3 | 🏆 "Oyning xodimi" (ixtiyoriy) | Eng yuqori intizom % — jamoaviy motivatsiya, ega yoqadi/o'chiradi. |
+| C4 | 📅 `/jadval` — shaxsiy taqvim | Xodim o'z haftalik/oylik jadvalini (smena, dam kunlari) istalgan payt so'raydi. |
+
+**D — Joy isboti (V2.2 dan, muhimligi oshdi)**
+| # | Qulaylik | Tavsif |
+|---|---|---|
+| D1 | 📍 QR check-in | Ish joyidagi QR skan = Keldim. Haydovchi-QR pipeline tayyor. |
+| D2 | 📸 Rasm-tasdiqli Keldim (QR'gacha oraliq) | Ish joyi rasmi ilova qilinadi — arzon, tezkor variant. |
+
+### 7.2 🖥 ADMIN PANEL — ega uchun kuchli qulayliklar
+
+**E — Jonli boshqaruv markazi (bosh sahifa qayta ko'rib chiqiladi)**
+| # | Qulaylik | Tavsif |
+|---|---|---|
+| E1 | 📡 Jonli holat-kartasi | Hozir kim ishda/kech/kelmagan — avtomatik yangilanadigan (hozirgi ro'yxat statik, sahifa yangilashda). Bugungi umumiy xarajat counter yuqorida doim ko'rinadi. |
+| E2 | 🔔 "Kutilayotgan ishlar" yagona navbati | Tasdiqsiz kunlar + ta'til so'rovlari (B1) + smena-almashish so'rovlari (B2) + tasdiqlanmagan jarima — BITTA ro'yxat, sidebar'da son-badge bilan («👔 Jamoa ⑶»). |
+| E3 | 📈 Trend grafiklari | Oylik xarajat trendi, kim ko'p kechikadi (dataviz skill bilan) — bugungi raqam-jadvaldan grafikka. |
+
+**F — Tezlik va ko'lam (jamoa kattalashsa kerak bo'ladi)**
+| # | Qulaylik | Tavsif |
+|---|---|---|
+| F1 | 🔍 Qidiruv/filtr | Ism/lavozim/holat bo'yicha — 5 xodimda shart emas, 30+ da majburiy. |
+| F2 | ⚡ Ommaviy amallar | Bir nechta xodimni belgilab, birdan bonus/eslatma/holat. |
+| F3 | 🏗 Smena-shablon quruvchisi | "Ofis 09-18", "Kechki 14-23" tayyor shablonlar — bir bosishda xodimga biriktirish (hozir har birini qo'lda yozasiz). |
+
+**G — Hisobot va nazorat**
+| # | Qulaylik | Tavsif |
+|---|---|---|
+| G1 | 📄 PDF oylik varaq | CSV ustiga — chiroyli, imzo-joyi bilan (mavjud PDF pipeline). |
+| G2 | 🕰 To'liq audit-jurnal tab | `editedBy` allaqachon yozilyapti — alohida "Jurnal" ko'rinishi: kim, qachon, nimani o'zgartirdi. |
+| G3 | 🏅 Xodim reyting/KPI jadvali | Punctuality score, ishlagan soat — ustunlar bo'yicha saralanadigan jadval. |
+
+### 7.3 Ustuvorlik (nimadan boshlash tavsiyasi)
+
+**P1 — eng tez ta'sir, kichik hajm** (birinchi navbat):
+A2 (ertangi eslatma) · A3 (unutish darhol xabari) · B4 (o'zi-kasal tugmasi) ·
+E2 (kutilayotgan ishlar navbati — B1/B2 kelmasa ham hoziroq tasdiqsiz+jarima
+uchun qurilishi mumkin) · F1 (qidiruv)
+
+**P2 — eng katta bo'shliqni yopadi** (xodim o'zi harakatga kirishadi):
+B1 (ta'til so'rash) · B2 (smena almashish) · C1 (mening natijalarim) · C4 (/jadval)
+
+**P3 — chuqurroq, ko'proq ish talab qiladi**:
+D1/D2 (joy isboti) · E1 (jonli avto-yangilanuvchi dashboard) · E3 (trend
+grafiklari) · F2/F3 (ommaviy amallar, shablon quruvchisi) · G1/G2/G3
+
+Har blok — o'z DoD'i + ega QABUL'i bilan, alohida so'rovga qadar boshlanmaydi
+(CLAUDE.md qoidasi). **"P1 boshla"** yoki aniq raqam (masalan "B1 va B2 ni
+qil") desangiz — o'sha bilan boshlayman.
