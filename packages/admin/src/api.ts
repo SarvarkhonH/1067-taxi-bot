@@ -26,6 +26,9 @@ import type {
   OyinAdminMemberDetail,
   OyinAdminMemberHit,
   OyinAdminPrizeRow,
+  OyinAdminGashtakRow,
+  OyinAdminGashtakDetail,
+  OyinJamoaResult,
   OyinBudgetView,
   OyinCapacityView,
   OyinDeleteResult,
@@ -193,6 +196,14 @@ export const adminApi = {
     return req<OyinActivityResponse>(`/api/admin/oyin/activity?${p.toString()}`);
   },
   oyinDraw: () => req<OyinDrawExport>("/api/admin/oyin/draw"),
+  // 👑 Gashtak nazorati (2026-08-05, ega talabi). Nom "oyinGashtak*" — admin panelda
+  // ALLAQACHON "Jamoa" (xodimlar moduli) bor, bu BOSHQA narsa, to'qnashuv bo'lmasin.
+  oyinGashtakList: () => req<{ rows: OyinAdminGashtakRow[] }>("/api/admin/oyin/gashtak"),
+  oyinGashtakDetail: (code: string) => req<OyinAdminGashtakDetail>(`/api/admin/oyin/gashtak/${encodeURIComponent(code)}`),
+  oyinGashtakKick: (code: string, targetMemberId: number) =>
+    postJson<OyinJamoaResult>(`/api/admin/oyin/gashtak/${encodeURIComponent(code)}/kick`, { targetMemberId }),
+  oyinGashtakDisband: (code: string) =>
+    postJson<OyinJamoaResult>(`/api/admin/oyin/gashtak/${encodeURIComponent(code)}/disband`, {}),
   corps: () => req<{ corps: { id: number; name: string; balance: number; employees: number }[] }>("/api/admin/corps"),
   corpCreate: (name: string, cap: number) => postJson<{ id: number }>("/api/admin/corps", { name, cap }),
   corpAddEmployee: (id: number, phone: string, name?: string) => postJson<{ ok: boolean; reason?: string }>(`/api/admin/corps/${id}/employees`, { phone, name }),
@@ -391,6 +402,10 @@ export const adminApi = {
   staffKpi: (orgId: number, month?: string) => req<{ rows: import("./jamoa").StaffKpiRow[] }>(`/api/admin/staff/kpi?orgId=${orgId}${month ? `&month=${month}` : ""}`),
   staffCoverSet: (p: { date: string; absentEmployeeId: number; coverEmployeeId: number | null; amount?: number }) => postJson<{ ok: boolean; error?: string; amount?: number }>("/api/admin/staff/cover", p),
   staffReport: (orgId: number, month?: string) => req<import("./jamoa").MonthReport>(`/api/admin/staff/report?orgId=${orgId}${month ? `&month=${month}` : ""}`),
+  staffTemplateAdd: (orgId: number, name: string, start: string, end: string) => postJson<{ ok: boolean; error?: string }>("/api/admin/staff/template", { orgId, action: "add", name, start, end }),
+  staffTemplateRemove: (orgId: number, name: string) => postJson<{ ok: boolean; error?: string }>("/api/admin/staff/template", { orgId, action: "remove", name }),
+  staffAuditLog: (orgId: number) => req<{ entries: import("./jamoa").AuditEntry[] }>(`/api/admin/staff/audit-log?orgId=${orgId}`),
+  staffKpi: (orgId: number, month?: string) => req<{ rows: import("./jamoa").StaffKpiRow[] }>(`/api/admin/staff/kpi?orgId=${orgId}${month ? `&month=${month}` : ""}`),
   staffImport: (orgId: number, text: string) => postJson<{ ok: boolean; error?: string; results?: { line: string; ok: boolean; info: string }[] }>("/api/admin/staff/import", { orgId, text }),
 
   // 🎀 ravella — bezak konstruktori: kategoriya/bezak/qo'shimcha CRUD + rasm + buyurtma navbati

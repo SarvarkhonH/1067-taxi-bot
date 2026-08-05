@@ -37,12 +37,12 @@ export async function refreshWebAppVer(): Promise<void> {
 /** Push/xabar uchun «ilovani ochish» tugmasi. Matn «falon joyga boring» deb yozib, tugma
  *  bermasligi — mijoz uchun bajarib bo'lmaydigan ko'rsatma (ega, 2026-08-01: «barbir mini app
  *  siz keldi»). Oddiy obyekt qaytaradi, ya'ni InlineKeyboard import qilish shart emas. */
-export function appBtn(label: string, go: string): { reply_markup: { inline_keyboard: { text: string; web_app: { url: string } }[][] } } | undefined {
+export function appBtn(label: string, go: string, extra?: Record<string, string>): { reply_markup: { inline_keyboard: { text: string; web_app: { url: string } }[][] } } | undefined {
   if (!canWebApp) return undefined;
-  return { reply_markup: { inline_keyboard: [[{ text: label, web_app: { url: webAppUrl(go) } }]] } };
+  return { reply_markup: { inline_keyboard: [[{ text: label, web_app: { url: webAppUrl(go, extra) } }]] } };
 }
 
-export function webAppUrl(go?: string): string {
+export function webAppUrl(go?: string, extra?: Record<string, string>): string {
   // Always emit a URL with an explicit `/` path before the query — some Telegram clients (older
   // Android, Web Z) parse `https://host?…` differently from `https://host/?…` and can drop the
   // hash they need to append (#tgWebAppData=…) → initData missing → "Telegram orqali oching".
@@ -53,7 +53,11 @@ export function webAppUrl(go?: string): string {
     if (qi === -1) u = u.replace(/\/?$/, "/");
     else u = u.slice(0, qi).replace(/\/?$/, "/") + u.slice(qi);
   }
-  return u + (u.includes("?") ? "&" : "?") + "v=" + webAppVer + (go ? "&go=" + go : "");
+  let out = u + (u.includes("?") ? "&" : "?") + "v=" + webAppVer + (go ? "&go=" + go : "");
+  // 🤝 Gashtak chuqur havolasi (`gsk_` — bot.ts) uchun: `?go=oyin&gsk=<code>`. `extra` ATAYLAB
+  // qo'shimcha — mavjud HAMMA chaqiruv (`go` bilan bittasi) o'zgarishsiz qoladi.
+  if (extra) for (const [k, v] of Object.entries(extra)) out += `&${k}=${encodeURIComponent(v)}`;
+  return out;
 }
 
 // 🩹 STALE MENU BUTTON (2026-07-31, haydovchi 6497 «Zafar» hodisasi): `setChatMenuButton` GLOBAL

@@ -325,6 +325,11 @@ export const BONUS_ECON_KNOBS: BonusEconKnob[] = [
   // Oylik shift: jamoa juda faol bo'lsa ham navbatchi bir oyda bundan ko'p ololmaydi.
   // 3 600 = eng qimmat karta (`OYIN_TIERS.bosh`) — ya'ni navbat oyiga max bitta katta karta.
   { key: "oyinJamoaMaxBall", label: "🤝 Gap-jamoa — navbatchiga oylik shift", def: 3600, min: 0, max: 20000, step: 100, group: "Koson O'yini" },
+  // 🛡 Gashtak rejasi (2026-08-05, ega talabi bilan topilgan TOPILMA 2): navbat GURUH ICHIDA
+  // takror-turmaydi (S7-2b), lekin GURUHLARARO cheklov yo'q edi — chiq → boshqa faol guruhga
+  // qo'shil → yangi navbat oyi ol, takrorlana beradi. Chiqish/chiqarilish/tarqatilishdan keyin
+  // shuncha kun HECH qaysi guruhga (yangisini tuzishga ham) qo'shilib bo'lmaydi.
+  { key: "oyinGashtakRejoinCooldownDays", label: "🤝 Gashtak — qayta qo'shilish sovutish kuni", def: 30, min: 0, max: 180, step: 1, group: "Koson O'yini" },
   // ⚠️ Zanjir endi SAFAR kunlari bo'yicha (avval ilova ochish sanalardi — safarsiz 500 ball/oy).
   { key: "oyinStreakBall", label: "🔥 3 kunlik SAFAR zanjiri — bonus ball", def: 35, min: 0, max: 1000, step: 10, group: "Koson O'yini" },
   // ⚖️ Adolat qo'rig'i: do'st-safari 40 ga chiqqach, ko'p do'stli odam bitta sovrinning BARCHA

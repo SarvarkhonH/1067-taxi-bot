@@ -58,7 +58,7 @@ import {
 import { getFareConfig } from "../services/clientInfoService";
 import { markSeen } from "../services/presence";
 import { isTgBanned } from "../services/banService";
-import { canWebApp, ensureChatMenuButton, getWebAppVer, refreshWebAppVer, webAppUrl } from "./webAppUrl";
+import { appBtn, canWebApp, ensureChatMenuButton, getWebAppVer, refreshWebAppVer, webAppUrl } from "./webAppUrl";
 export { webAppUrl } from "./webAppUrl"; // re-export: existing importers (broadcast.ts, shop.ts) keep working
 
 // The friend-facing invite message (the text Telegram prepends before the link in the
@@ -374,6 +374,18 @@ export function createBot(): Bot {
     } else if (payload === "shop") {
       const { sendShopCard } = await import("./shop");
       await sendShopCard(bot, id).catch(() => undefined);
+    }
+    // 🤝 Gashtak taklif-havolasi (t.me/<bot>?start=gsk_<code>, 2026-08-05) — `svc_`/`shop_`
+    // naqshi bilan bir xil: ilovani TO'G'RIDAN-TO'G'RI o'yin ekraniga, qo'shilish kodi
+    // oldindan to'ldirilgan holda ochadigan tugma. Kod o'zi bu yerda TEKSHIRILMAYDI — buzuq/
+    // eskirgan kod bo'lsa ilova ichida (`joinJamoa`) "topilmadi"/"tarqatilgan" deb aytiladi,
+    // bot darajasida oldindan tekshirish shart emas (ikki xil xato-matn manbai bo'lmasin).
+    if (payload.startsWith("gsk_")) {
+      const code = payload.slice(4).toUpperCase();
+      await ctx.reply(
+        "🤝 Sizni <b>gashtak</b>ga taklif qilishdi — birga safar qilib navbat bilan ball yig'asiz.",
+        { parse_mode: "HTML", reply_markup: appBtn("🎮 Qo'shilish", "oyin", { gsk: code })?.reply_markup },
+      ).catch(() => undefined);
     }
     // /start = BITTA xabar, ikkalasi uchun ham: poster + qisqa matn + tugmalar.
     // Oldin bu yerda 2-3 ta xabar ketardi (renderProfile'ning 20 qatorlik statistikasi + alohida

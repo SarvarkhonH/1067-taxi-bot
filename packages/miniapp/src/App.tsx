@@ -137,6 +137,18 @@ function readGo(): string {
   }
 }
 
+// 🤝 Gashtak taklif-havolasi: bot "?go=oyin&gsk=<code>" bilan ochadi (2026-08-05) — svc_/shop_
+// bilan bir xil naqsh, `readDeepProduct` qardoshi. Bir marta o'qiladi, qo'shilish maydonini
+// oldindan to'ldirish uchun.
+function readDeepGashtakCode(): string | null {
+  try {
+    const v = new URLSearchParams(location.search).get("gsk");
+    return v && /^[A-Za-z0-9]{4,8}$/.test(v) ? v.toUpperCase() : null;
+  } catch {
+    return null;
+  }
+}
+
 // 🛍 shared-product deep-link: the bot's "🛍 Ochish" button opens the Mini App with ?go=dokon&p=<id>
 // (constructed server-side, not via start_param) — read once so ShopView can auto-open that item.
 function readDeepProduct(): number | null {
@@ -195,6 +207,7 @@ export function App() {
   const [booking, setBooking] = useState(() => readGo() === "book");
   const [invite, setInvite] = useState(() => readGo() === "invite"); // 🎁 invite overlay (one-tap from home / ?go=invite)
   const [history, setHistory] = useState(() => readGo() === "history"); // 📜 ride-history overlay
+  const [deepGashtakCode] = useState(() => readDeepGashtakCode()); // 🤝 taklif-havolasi kod
   const [deepProduct] = useState(() => readDeepProduct()); // 🛍 auto-open a shared product once
   // 🏠 UY feed cards (bento) carry their real id via nav("dokon:<id>"/"restoran:<id>") so tapping one
   // opens THAT product/restaurant's detail, not just the bare tab list — parsed in nav() below.
@@ -489,7 +502,7 @@ export function App() {
             {tab === "ravella" && <RavellaView me={me} onBanner={flash} />}
             {/* O'yindagi "Safar qilish" tugmasi taksi formasini TO'G'RIDAN ochadi — avval u
                 faqat "Uy ekranidan chaqiring" degan toast chiqaradigan boshi berk tugma edi. */}
-            {tab === "oyin" && <OyinView onTaxi={() => { haptic(); setBooking(true); }} />}
+            {tab === "oyin" && <OyinView onTaxi={() => { haptic(); setBooking(true); }} joinCode={deepGashtakCode} />}
             {tab === "driver" && <DriverView me={me} />}
             {tab === "profile" && <NewProfileView me={me} onNav={nav} onBanner={flash} />}
           </Suspense>

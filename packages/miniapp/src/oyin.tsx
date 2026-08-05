@@ -10,7 +10,7 @@
 // soxta QR-kvadrat — real QR-generatsiya (referralQrService) B1-B5 doirasida qurilmagan, shuning
 // uchun olib tashlandi (ishlamaydigan grafika ko'rsatish — yolg'on).
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
-import { OYIN_FINAL_LOCK_MS, oyinHintOf, type OyinActivityAction, type OyinActivityResponse, type OyinJamoamResponse, type OyinJamoaView, type OyinMyTicketsResponse, type OyinPrizeView, type OyinSeasonClientView, type OyinStateResponse, type OyinVitrinaResponse } from "@t1067/shared";
+import { OYIN_FINAL_LOCK_MS, oyinHintOf, type OyinActivityAction, type OyinActivityResponse, type OyinGashtakSearchHit, type OyinJamoamResponse, type OyinJamoaResult, type OyinJamoaView, type OyinMyTicketsResponse, type OyinPrizeView, type OyinSeasonClientView, type OyinStateResponse, type OyinVitrinaResponse } from "@t1067/shared";
 import { api, apiUrl } from "./api";
 import { addToHomeScreen, copyText, haptic, homeScreenStatus, inviteLandingUrl, onHomeScreenAdded, shareLink } from "./telegram";
 import "./design/feat/oyk.css"; // bu ekran ochilgandagina yuklanadi (kritik yo'lda emas)
@@ -419,10 +419,10 @@ function RulesSheet({ season, prizes, maxPerPrize, onClose }: {
 }
 
 type OyinTab = "home" | "vitrina" | "tickets" | "jamoam";
-type SheetKind = "buy" | "info" | "how" | "ball" | "bell" | "rules" | null;
+type SheetKind = "buy" | "info" | "how" | "ball" | "bell" | "rules" | "gashtak" | null;
 type LoadState = "loading" | "ready" | "error";
 
-export function OyinView({ onTaxi }: { onTaxi?: () => void } = {}) {
+export function OyinView({ onTaxi, joinCode }: { onTaxi?: () => void; joinCode?: string | null } = {}) {
   const [loadState, setLoadState] = useState<LoadState>("loading");
   const [state, setState] = useState<OyinStateResponse | null>(null);
   const [vitrina, setVitrina] = useState<OyinVitrinaResponse | null>(null);
@@ -552,10 +552,30 @@ export function OyinView({ onTaxi }: { onTaxi?: () => void } = {}) {
   const dailyHint = oyinHintOf(new Date(Date.now() + 5 * 3600_000).toISOString().slice(0, 10));
 
   const [jamoa, setJamoa] = useState<OyinJamoaView | null>(null);
-  const [jamoaInput, setJamoaInput] = useState("");
+  // 🤝 Gashtak taklif-havolasi (`?go=oyin&gsk=<code>`, 2026-08-05): odam hali guruhda bo'lmasa
+  // qo'shilish maydoni OLDINDAN TO'LDIRILADI. Faqat BIRINCHI yuklashda — keyin foydalanuvchi
+  // o'zi tahrirlashi mumkin bo'lishi kerak (har `jamoa` yangilanishida qayta yozib qo'ymaymiz).
+  const [jamoaInput, setJamoaInput] = useState(() => joinCode ?? "");
   const [jamoaBusy, setJamoaBusy] = useState(false);
   const loadJamoa = useCallback(() => { api.oyinJamoa().then(setJamoa).catch(() => undefined); }, []);
   useEffect(() => { loadJamoa(); }, [loadJamoa]);
+  const jamoaReasonText = useCallback((reason: OyinJamoaResult["reason"], cooldownDaysLeft?: number): string => {
+    // Har sabab O'Z matni bilan — "xatolik" degan umumiy so'z hech narsa aytmaydi (T4 saboqi).
+    switch (reason) {
+      case "already_in": return "Siz allaqachon jamoadasiz";
+      case "not_found": return "Bunday kodli jamoa topilmadi";
+      case "full": return `Jamoa to'lgan (${jamoa?.maxSize ?? 10} kishi)`;
+      case "bad_name": return "Nom kamida 2 harf bo'lsin";
+      case "not_in": return "Siz jamoada emassiz";
+      case "off": return "Dastur hali yopiq";
+      case "disbanded": return "Bu guruh tarqatilgan — havola endi ishlamaydi";
+      case "leader_only": return "Faqat guruh boshlig'i qila oladi";
+      case "self_target": return "O'zingizni chiqara olmaysiz — «Guruhni tarqatish» dan foydalaning";
+      case "already_in_group": return "Bu odam allaqachon boshqa guruhda";
+      case "cooldown": return `Yana ${cooldownDaysLeft ?? "bir necha"} kundan keyin qo'shilishingiz mumkin`;
+      default: return "Bajarilmadi — birozdan keyin urinib ko'ring";
+    }
+  }, [jamoa?.maxSize]);
   const doJamoa = useCallback(async (action: "create" | "join" | "leave", v?: string) => {
     haptic();
     setJamoaBusy(true);
@@ -567,25 +587,83 @@ export function OyinView({ onTaxi }: { onTaxi?: () => void } = {}) {
         loadHome(true); // jamoa balli darhol balansda ko'rinsin
         showToast(action === "leave" ? "Jamoadan chiqdingiz" : action === "create" ? "🤝 Jamoa tuzildi — kodni do'stlaringizga yuboring" : "🤝 Jamoaga qo'shildingiz");
       } else {
-        // Har sabab O'Z matni bilan — "xatolik" degan umumiy so'z hech narsa aytmaydi.
-        showToast(
-          r.reason === "already_in" ? "Siz allaqachon jamoadasiz"
-            : r.reason === "not_found" ? "Bunday kodli jamoa topilmadi"
-            : r.reason === "full" ? `Jamoa to'lgan (${jamoa?.maxSize ?? 10} kishi)`
-            : r.reason === "bad_name" ? "Nom kamida 2 harf bo'lsin"
-            : r.reason === "not_in" ? "Siz jamoada emassiz"
-            // "off" avval shu yerda YO'Q edi — server "off" qaytarganda mijoz umumiy
-            // "Bajarilmadi" ko'rardi, sababi noma'lum qolardi ("gap bo'limi ishlamadi").
-            : r.reason === "off" ? "Dastur hali yopiq"
-            : "Bajarilmadi — birozdan keyin urinib ko'ring",
-        );
+        showToast(jamoaReasonText(r.reason, r.cooldownDaysLeft));
       }
     } catch {
       showToast("Aloqa uzildi — birozdan keyin urinib ko'ring");
     } finally {
       setJamoaBusy(false);
     }
-  }, [loadHome, showToast, jamoa?.maxSize]);
+  }, [loadHome, showToast, jamoaReasonText]);
+
+  // ── 👑 Gashtak boshlig'i (2026-08-05) — kick/add/qidiruv/kod-yangilash/tarqatish/xabar ─────
+  const [gashtakSearchPhone, setGashtakSearchPhone] = useState("");
+  const [gashtakHits, setGashtakHits] = useState<OyinGashtakSearchHit[] | null>(null);
+  const [gashtakMsgTarget, setGashtakMsgTarget] = useState<number | "all" | null>(null);
+  const [gashtakMsgText, setGashtakMsgText] = useState("");
+  const doGashtakKick = useCallback(async (targetMemberId: number) => {
+    if (!window.confirm("Bu a'zoni guruhdan chiqarasizmi?")) return;
+    haptic();
+    setJamoaBusy(true);
+    try {
+      const r = await api.oyinGashtakKick(targetMemberId);
+      setJamoa(r.view);
+      showToast(r.ok ? "Chiqarildi" : jamoaReasonText(r.reason));
+    } catch { showToast("Aloqa uzildi — birozdan keyin urinib ko'ring"); }
+    finally { setJamoaBusy(false); }
+  }, [jamoaReasonText, showToast]);
+  const doGashtakAdd = useCallback(async (targetMemberId: number) => {
+    haptic();
+    setJamoaBusy(true);
+    try {
+      const r = await api.oyinGashtakAdd(targetMemberId);
+      setJamoa(r.view);
+      if (r.ok) { setGashtakHits(null); setGashtakSearchPhone(""); }
+      showToast(r.ok ? "🤝 Qo'shildi" : jamoaReasonText(r.reason, r.cooldownDaysLeft));
+    } catch { showToast("Aloqa uzildi — birozdan keyin urinib ko'ring"); }
+    finally { setJamoaBusy(false); }
+  }, [jamoaReasonText, showToast]);
+  const doGashtakSearch = useCallback(async () => {
+    if (gashtakSearchPhone.replace(/\D/g, "").length < 7) { showToast("To'liq telefon raqamini kiriting"); return; }
+    haptic();
+    try {
+      setGashtakHits(await api.oyinGashtakSearch(gashtakSearchPhone));
+    } catch { showToast("Aloqa uzildi — birozdan keyin urinib ko'ring"); }
+  }, [gashtakSearchPhone, showToast]);
+  const doGashtakRotate = useCallback(async () => {
+    if (!window.confirm("Eski havola ishlamay qoladi. Kodni yangilaysizmi?")) return;
+    haptic();
+    setJamoaBusy(true);
+    try {
+      const r = await api.oyinGashtakRotateCode();
+      setJamoa(r.view);
+      showToast(r.ok ? "🔄 Kod yangilandi" : jamoaReasonText(r.reason));
+    } catch { showToast("Aloqa uzildi — birozdan keyin urinib ko'ring"); }
+    finally { setJamoaBusy(false); }
+  }, [jamoaReasonText, showToast]);
+  const doGashtakDisband = useCallback(async () => {
+    if (!window.confirm("Guruh butunlay tarqatiladi — hamma chiqariladi. Davom etasizmi?")) return;
+    haptic();
+    setJamoaBusy(true);
+    try {
+      const r = await api.oyinGashtakDisband();
+      setJamoa(r.view);
+      showToast(r.ok ? "Guruh tarqatildi" : jamoaReasonText(r.reason));
+    } catch { showToast("Aloqa uzildi — birozdan keyin urinib ko'ring"); }
+    finally { setJamoaBusy(false); }
+  }, [jamoaReasonText, showToast]);
+  const doGashtakMessage = useCallback(async () => {
+    const text = gashtakMsgText.trim();
+    if (!text || gashtakMsgTarget == null) return;
+    haptic();
+    setJamoaBusy(true);
+    try {
+      const r = await api.oyinGashtakMessage(text, gashtakMsgTarget === "all" ? undefined : gashtakMsgTarget);
+      if (r.sent > 0) { setGashtakMsgText(""); setGashtakMsgTarget(null); }
+      showToast(r.sent > 0 && r.failed === 0 ? `📨 ${r.sent} kishiga yetdi` : r.sent > 0 ? `📨 ${r.sent} kishiga yetdi, ${r.failed} taga yo'q` : "Yetkazib bo'lmadi");
+    } catch { showToast("Aloqa uzildi — birozdan keyin urinib ko'ring"); }
+    finally { setJamoaBusy(false); }
+  }, [gashtakMsgText, gashtakMsgTarget, showToast]);
 
   // 🏠 Ekranga o'rnatish — ⚠️ 2026-08-03 QAYTA YOZILDI (ega jonli sinovda topdi: "men ekranga
   // qo'shmagankuman nega ball bergan").
@@ -1505,10 +1583,13 @@ Taksida yur, ball yig', sodiqlik kartasini ol. Davr oxirida jonli efirda mukofot
               <>
                 <div className="oyk-jamoa-head">
                   <div>
-                    <div className="oyk-jamoa-name">🤝 {jamoa.jamoa.name}</div>
+                    <div className="oyk-jamoa-name">🤝 {jamoa.jamoa.name}{jamoa.jamoa.isLeader && <span className="oyk-jamoa-crown" title="Siz boshliqsiz">👑</span>}</div>
                     <div className="oyk-jamoa-code">Kod: <b>{jamoa.jamoa.code}</b> — do'stlaringizga yuboring</div>
                   </div>
-                  <button type="button" className="oyk-jamoa-copy" onClick={() => { haptic(); void copyText(jamoa.jamoa!.code); showToast("Kod nusxalandi"); }}>Nusxa</button>
+                  <div className="oyk-jamoa-head-acts">
+                    <button type="button" className="oyk-jamoa-copy" onClick={() => { haptic(); shareLink(jamoa.jamoa!.inviteLink, `🤝 «${jamoa.jamoa!.name}» gashtakiga qo'shiling — birga safar qilib navbat bilan ball yig'amiz!`); }}>Havola</button>
+                    <button type="button" className="oyk-jamoa-copy is-ghost" onClick={() => { haptic(); void copyText(jamoa.jamoa!.code); showToast("Kod nusxalandi"); }}>Nusxa</button>
+                  </div>
                 </div>
                 <div className={`oyk-jamoa-turn${jamoa.jamoa.isMine ? " is-mine" : ""}`}>
                   {jamoa.jamoa.isMine
@@ -1518,8 +1599,11 @@ Taksida yur, ball yig', sodiqlik kartasini ol. Davr oxirida jonli efirda mukofot
                 <div className="oyk-jamoa-list">
                   {jamoa.jamoa.members.map((m) => (
                     <div key={m.memberId} className={`oyk-jamoa-row${m.isNavbatchi ? " is-turn" : ""}`}>
-                      <span className="oyk-jamoa-who">{m.isNavbatchi ? "🎯" : m.hadTurn ? "✓" : "•"} {m.name}</span>
-                      <span className="oyk-jamoa-rides">{m.ridesThisMonth} safar</span>
+                      <span className="oyk-jamoa-who">{m.isNavbatchi ? "🎯" : m.hadTurn ? "✓" : "•"} {m.name}{m.isLeader && <span className="oyk-jamoa-crown" title="Boshliq">👑</span>}</span>
+                      <span className="oyk-jamoa-rides">{m.ridesThisMonth} safar · {m.ballEarnedTotal} ball</span>
+                      {jamoa.jamoa!.isLeader && !m.isLeader && (
+                        <button type="button" className="oyk-jamoa-kick" disabled={jamoaBusy} title="Chiqarish" onClick={() => { void doGashtakKick(m.memberId); }}>✕</button>
+                      )}
                     </div>
                   ))}
                 </div>
@@ -1528,11 +1612,16 @@ Taksida yur, ball yig', sodiqlik kartasini ol. Davr oxirida jonli efirda mukofot
                   har safar <b>{jamoa.jamoa.ballPerRide} ball</b>, oyiga eng ko'pi {jamoa.jamoa.maxBall}.
                   {jamoa.jamoa.members.length < jamoa.minSize && <> Jamoa {jamoa.minSize} kishidan boshlanadi — yana {jamoa.minSize - jamoa.jamoa.members.length} kishi qo'shilsin.</>}
                 </div>
-                <button type="button" className="oyk-jamoa-leave" disabled={jamoaBusy} onClick={() => { void doJamoa("leave"); }}>Jamoadan chiqish</button>
+                <div className="oyk-jamoa-foot">
+                  {jamoa.jamoa.isLeader && (
+                    <button type="button" className="oyk-jamoa-manage" disabled={jamoaBusy} onClick={() => { haptic(); setSheet("gashtak"); }}>⚙️ Boshqarish</button>
+                  )}
+                  <button type="button" className="oyk-jamoa-leave" disabled={jamoaBusy} onClick={() => { void doJamoa("leave"); }}>Jamoadan chiqish</button>
+                </div>
               </>
             ) : (
               <>
-                <div className="oyk-jamoa-name">🤝 Gap-jamoa</div>
+                <div className="oyk-jamoa-name">🤝 Gashtak</div>
                 <div className="oyk-jamoa-note">
                   {jamoa.minSize}–{jamoa.maxSize} kishilik jamoa tuzing. Har oy navbat bitta a'zoga o'tadi va
                   jamoaning umumiy safarlari <b>o'sha navbatchiga</b> ball olib keladi. Keyingi oy — boshqasiga.
@@ -1970,6 +2059,63 @@ Taksida yur, ball yig', sodiqlik kartasini ol. Davr oxirida jonli efirda mukofot
                   </>
                 )}
                 <button type="button" className="oyk-sheet-ok" onClick={() => { haptic(); setSheet(null); }}>Yopish</button>
+              </>
+            )}
+
+            {/* 👑 Gashtak boshqaruvi (2026-08-05, ega talabi) — faqat boshliqqa ko'rinadi
+                (JSX qo'shilish joyida `isLeader` bilan qo'riqlangan). */}
+            {sheet === "gashtak" && jamoa?.jamoa && (
+              <>
+                <div className="oyk-sheet-title">⚙️ Gashtak boshqaruvi</div>
+                <button type="button" className="oyk-jamoa-btn" onClick={() => { haptic(); shareLink(jamoa.jamoa!.inviteLink, `🤝 «${jamoa.jamoa!.name}» gashtakiga qo'shiling — birga safar qilib navbat bilan ball yig'amiz!`); }}>
+                  🔗 Havola ulashish
+                </button>
+
+                <div className="oyk-gashtak-block">
+                  <div className="oyk-gashtak-label">🔍 Telefon bilan qo'shish</div>
+                  <div className="oyk-jamoa-acts">
+                    <input className="oyk-jamoa-inp" value={gashtakSearchPhone} onChange={(e) => setGashtakSearchPhone(e.target.value)} placeholder="+998 90 123 45 67" inputMode="tel" maxLength={20} />
+                    <button type="button" className="oyk-jamoa-btn is-ghost" disabled={jamoaBusy} onClick={() => { void doGashtakSearch(); }}>Qidirish</button>
+                  </div>
+                  {gashtakHits && (
+                    gashtakHits.length === 0 ? (
+                      <div className="oyk-note-violet">Bu raqam bilan hech kim topilmadi.</div>
+                    ) : (
+                      <div className="oyk-jamoa-list">
+                        {gashtakHits.map((h) => (
+                          <div key={h.memberId} className="oyk-jamoa-row">
+                            <span className="oyk-jamoa-who">{h.name}</span>
+                            {h.alreadyInGroup ? (
+                              <span className="oyk-jamoa-rides">band</span>
+                            ) : (
+                              <button type="button" className="oyk-jamoa-copy" disabled={jamoaBusy} onClick={() => { void doGashtakAdd(h.memberId); }}>Qo'shish</button>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    )
+                  )}
+                </div>
+
+                <div className="oyk-gashtak-block">
+                  <div className="oyk-gashtak-label">📢 Xabar yuborish</div>
+                  <select className="oyk-jamoa-inp" value={gashtakMsgTarget ?? ""} onChange={(e) => setGashtakMsgTarget(e.target.value === "all" ? "all" : e.target.value ? Number(e.target.value) : null)}>
+                    <option value="">Kimga?</option>
+                    <option value="all">👥 Hammaga</option>
+                    {jamoa.jamoa.members.filter((m) => !m.isLeader).map((m) => (
+                      <option key={m.memberId} value={m.memberId}>{m.name}</option>
+                    ))}
+                  </select>
+                  <textarea className="oyk-gashtak-msg" value={gashtakMsgText} onChange={(e) => setGashtakMsgText(e.target.value)} placeholder="Masalan: bu oy yana 2 marta safar qilsak yetadi 🚕" maxLength={300} rows={3} />
+                  <button type="button" className="oyk-jamoa-btn" disabled={jamoaBusy || !gashtakMsgText.trim() || gashtakMsgTarget == null} onClick={() => { void doGashtakMessage(); }}>Yuborish</button>
+                </div>
+
+                <div className="oyk-gashtak-danger">
+                  <button type="button" className="oyk-jamoa-copy is-ghost" disabled={jamoaBusy} onClick={() => { void doGashtakRotate(); }}>🔄 Kodni yangilash</button>
+                  <button type="button" className="oyk-jamoa-leave" disabled={jamoaBusy} onClick={() => { void doGashtakDisband(); }}>🗑 Guruhni tarqatish</button>
+                </div>
+
+                <button type="button" className="oyk-sheet-ok" onClick={() => { haptic(); setSheet(null); setGashtakHits(null); setGashtakSearchPhone(""); setGashtakMsgTarget(null); setGashtakMsgText(""); }}>Yopish</button>
               </>
             )}
 

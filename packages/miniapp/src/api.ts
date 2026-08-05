@@ -31,6 +31,8 @@ import type {
   OyinJamoamResponse,
   OyinJamoaResult,
   OyinJamoaView,
+  OyinGashtakSearchHit,
+  OyinJamoaMessageResult,
   OyinActivityResponse,
   OyinMyTicketsResponse,
   OyinStateResponse,
@@ -319,6 +321,19 @@ export const api = {
   oyinJamoaAct: (action: "create" | "join" | "leave", v?: string) =>
     post<OyinJamoaResult & { view: OyinJamoaView }>("/api/oyin/jamoa",
       action === "create" ? { action, name: v } : action === "join" ? { action, code: v } : { action }),
+  // 👑 Gashtak boshlig'i (2026-08-05) — havola, qo'shish/chiqarish, kod yangilash, xabar.
+  oyinGashtakKick: (targetMemberId: number) =>
+    post<OyinJamoaResult & { view: OyinJamoaView }>("/api/oyin/jamoa/kick", { targetMemberId }),
+  oyinGashtakAdd: (targetMemberId: number) =>
+    post<OyinJamoaResult & { view: OyinJamoaView }>("/api/oyin/jamoa/add", { targetMemberId }),
+  oyinGashtakSearch: (phone: string) =>
+    get<OyinGashtakSearchHit[]>(`/api/oyin/jamoa/search?phone=${encodeURIComponent(phone)}`),
+  oyinGashtakRotateCode: () =>
+    post<OyinJamoaResult & { newCode?: string; view: OyinJamoaView }>("/api/oyin/jamoa/rotate-code"),
+  oyinGashtakDisband: () =>
+    post<OyinJamoaResult & { view: OyinJamoaView }>("/api/oyin/jamoa/disband"),
+  oyinGashtakMessage: (text: string, targetMemberId?: number) =>
+    post<OyinJamoaMessageResult>("/api/oyin/jamoa/message", { text, targetMemberId }),
   oyinBuyTicket: (prizeKey: string) => post<OyinBuyResult>("/api/oyin/ticket", { prizeKey }),
   oyinShare: () => post<{ ok: boolean }>("/api/oyin/share"),
   checkin: () => post<CheckInResponse>("/api/checkin"),

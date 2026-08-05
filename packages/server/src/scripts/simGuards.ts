@@ -11,7 +11,7 @@
  */
 import {
   ARCHIVED_PREFIXES, tierOfPrice,
-  navbatchiOf, assignTurn, addMonths, parseJamoa, type JamoaRecord,
+  navbatchiOf, assignTurn, addMonths, parseJamoa, applyRemoveMember, type JamoaRecord,
 } from "../services/oyinService";
 import { OYIN_TIERS, OYIN_JAMOA_MIN, OYIN_SEED_CATALOG } from "@t1067/shared";
 import { BONUS_ECON_KNOBS } from "@t1067/shared";
@@ -69,11 +69,15 @@ ok(jk != null, "oyinJamoaBallPerRide knobi mavjud");
 ok(jk?.def === 6, `def = ${jk?.def} (S7-2b bajarilgandan keyin qayta yoqildi)`);
 ok(jk?.min === 0, "knobni 0 ga tushirish mumkin (kill-switch)");
 ok(OYIN_JAMOA_MIN >= 3, `OYIN_JAMOA_MIN = ${OYIN_JAMOA_MIN} (yolg'iz «jamoa» bo'lmaydi)`);
+// 🟡 TOPILMA 2 (2026-08-05): guruhlararo cheklov — cooldown knobi mavjud va yoqiq bo'lishi shart.
+const cdk = BONUS_ECON_KNOBS.find((k) => k.key === "oyinGashtakRejoinCooldownDays");
+ok(cdk != null, "oyinGashtakRejoinCooldownDays knobi mavjud");
+ok((cdk?.def ?? 0) > 0, `def = ${cdk?.def} (0 bo'lsa ketma-ket guruh almashtirib navbat termash cheklanmaydi)`);
 
 
 // ── 🔴 S7-2b: NAVBAT QAYTA TAQSIMLANMASLIGI — ekspluatatsiyaning O'ZIGA sinov ───────
 console.log("\nD) Gap-jamoa navbati — a'zo qo'shilsa O'TGAN oy O'ZGARMASLIGI kerak");
-const g: JamoaRecord = { id: "TEST01", name: "Sinov", createdAt: "2026-01-15T00:00:00.000Z", members: [], turns: {} };
+const g: JamoaRecord = { id: "TEST01", name: "Sinov", createdAt: "2026-01-15T00:00:00.000Z", members: [], turns: {}, leaderId: 101, joinedAt: {}, disbandedAt: null };
 // Uch a'zo ketma-ket qo'shiladi.
 for (const m of [101, 102, 103]) { g.members.push(m); assignTurn(g, m); }
 const before = { "2026-01": navbatchiOf(g, "2026-01"), "2026-02": navbatchiOf(g, "2026-02"), "2026-03": navbatchiOf(g, "2026-03") };
@@ -108,6 +112,29 @@ ok(parseJamoa('{"id":"X","members":[1],"createdAt":"salom"}')?.createdAt !== "sa
 ok(Object.keys(parseJamoa('{"id":"X","members":[1],"turns":{"salom":5,"2026-01":7}}')?.turns ?? {}).length === 1, "turns'dagi buzuq kalit tashlandi");
 const legacy = parseJamoa('{"id":"X","members":[1]}');
 ok(legacy != null && Object.keys(legacy.turns).length === 0, "eski yozuvda turns bo'sh → ball yo'q (xavfsiz sukut)");
+// Yangi maydonlar (2026-08-05, Gashtak boshlig'i rejasi) — xavfsiz default.
+ok(parseJamoa('{"id":"X","members":[7,8]}')?.leaderId === 7, "leaderId yo'q → birinchi a'zo (tuzuvchi taxmin qilinadi)");
+ok(parseJamoa('{"id":"X","members":[7,8],"leaderId":99}')?.leaderId === 7, "leaderId a'zolikda YO'Q qiymat → birinchi a'zoga qaytariladi (jazo emas)");
+ok(parseJamoa('{"id":"X","members":[7,8],"leaderId":8}')?.leaderId === 8, "leaderId to'g'ri saqlangan bo'lsa o'zgarmaydi");
+ok(parseJamoa('{"id":"X","members":[1]}')?.disbandedAt === null, "disbandedAt yo'q → faol (null)");
+ok(parseJamoa('{"id":"X","members":[1],"disbandedAt":"salom"}')?.disbandedAt === null, "buzuq disbandedAt → faol deb hisoblanadi (RangeError yo'q)");
+
+// ── 🔴 TOPILMA 1 (2026-08-05 ekspluatatsiya tahlili) — guruh bo'shasa TARIX SAQLANADI ──────
+console.log("\nG) applyRemoveMember — guruh bo'shaganda qator SOFT-DELETE bo'ladi, tarix yo'qolmaydi");
+// Bu — jonli kodda hozirgacha yo'q bo'lgan sinov: `leaveJamoa` avval oxirgi a'zo chiqqanda
+// qatorni HARD DELETE qilardi (`deleteMany`), ya'ni `turns` (ball tarixi) ham yo'qolardi.
+const solo: JamoaRecord = { id: "SOLO1", name: "Yakka", createdAt: "2026-01-01T00:00:00.000Z", members: [201], turns: { "2026-01": 201 }, leaderId: 201, joinedAt: {}, disbandedAt: null };
+const afterLeave = applyRemoveMember(solo, 201);
+ok(afterLeave.members.length === 0, "oxirgi a'zo chiqqach members bo'sh");
+ok(afterLeave.disbandedAt != null, "disbandedAt YOZILDI (soft-delete belgisi)");
+ok(Object.keys(afterLeave.turns).length === 1 && afterLeave.turns["2026-01"] === 201, "🔴 turns (ball tarixi) TO'LIQ SAQLANDI — qator o'chirilmagan bo'lsa bu son 0 bo'lardi");
+ok(afterLeave.id === solo.id, "guruh IDENTITETI saqlanadi — bu obyektni keyin qayta topish mumkin (adminGashtakDetail)");
+// Ko'p a'zoli guruhda BITTASI chiqsa — guruh FAOL qoladi, faqat o'sha kishi yo'qoladi.
+const trio: JamoaRecord = { id: "TRIO1", name: "Uchtasi", createdAt: "2026-01-01T00:00:00.000Z", members: [1, 2, 3], turns: { "2026-01": 1, "2026-02": 2 }, leaderId: 1, joinedAt: {}, disbandedAt: null };
+const afterOneLeaves = applyRemoveMember(trio, 2);
+ok(afterOneLeaves.members.length === 2 && !afterOneLeaves.members.includes(2), "faqat chiqqan a'zo olib tashlandi");
+ok(afterOneLeaves.disbandedAt === null, "guruh hali faol — disbandedAt YOZILMAYDI (hammasi chiqmagan)");
+ok(afterOneLeaves.turns["2026-02"] === 2, "chiqqan a'zoning O'TGAN navbati BAND qoladi (ball tarixi buzilmaydi)");
 
 console.log(fail === 0 ? "\n🛡 simGuards: HAMMA QO'RIQ JOYIDA\n" : `\n❌ simGuards: ${fail} ta qo'riq YO'Q\n`);
 process.exit(fail === 0 ? 0 : 1);

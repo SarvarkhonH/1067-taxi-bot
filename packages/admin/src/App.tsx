@@ -37,6 +37,8 @@ import {
   type OyinActivityAction,
   type OyinActivityResponse,
   type OyinAdminMemberDetail,
+  type OyinAdminGashtakRow,
+  type OyinAdminGashtakDetail,
   type OyinAdminMemberHit,
   type OyinAdminPrizeRow,
   type OyinBudgetView,
@@ -5430,12 +5432,13 @@ function IntercityAdmin() {
 //
 // ⚠️ Ishlaydigan bloklar KO'CHIRILDI, qayta yozilmadi: OyinBudgetCard · OyinSeasonMetricsCard ·
 // OyinDrawCard_ · OyinControlCard · OyinActivityView · StoryModerationCard — ichi o'zgarmadi.
-type OyinSection = "mukofot" | "kun" | "odam" | "karta" | "men" | "sozlama";
+type OyinSection = "mukofot" | "kun" | "odam" | "karta" | "gashtak" | "men" | "sozlama";
 const OYIN_SECTIONS: { id: OyinSection; label: string }[] = [
   { id: "mukofot", label: "🎁 Mukofotlar" },
   { id: "kun", label: "🎬 Mukofot kuni" },
   { id: "odam", label: "👥 Odamlar" },
   { id: "karta", label: "💳 Kartalar" },
+  { id: "gashtak", label: "👑 Gashtak" },
   { id: "men", label: "🧪 Men" },
   { id: "sozlama", label: "⚙️ Sozlamalar" },
 ];
@@ -5454,6 +5457,7 @@ function OyinTab() {
       {sec === "kun" && <OyinDrawCard_ />}
       {sec === "odam" && <OyinPeopleBlock />}
       {sec === "karta" && <OyinCardsBlock />}
+      {sec === "gashtak" && <OyinGashtakBlock />}
       {sec === "men" && <OyinMeBlock />}
       {sec === "sozlama" && <OyinSettingsBlock />}
     </>
@@ -6158,6 +6162,123 @@ function OyinCardsBlock() {
         <div style={{ marginTop: 10 }}>
           <button className="btn sm" onClick={() => setShown((n) => n + 300)}>Yana 300 ta ko'rsatish ({formatNumber(rows.length - shown)} qoldi)</button>
         </div>
+      )}
+    </section>
+  );
+}
+
+// ─── 👑 GASHTAK — guruh nazorati (2026-08-05, ega talabi) ──────────────────────────────────────
+// ⚠️ Nom "Gashtak" — admin panelda ALLAQACHON "👔 Jamoa" tab bor (xodimlar moduli, jamoa.tsx).
+// Bu BOSHQA narsa: ega tomonidan boshqariladigan gap-jamoa (gashtak) o'yin doiralari.
+// Ro'yxat — `OyinCardsBlock` uslubi (qidiruv + `.table-wrap`). Tafsilot — `OyinControlCard`
+// uslubi (qatorda "Ochish" → tafsilot XUDDI SHU panelda pastda, modal EMAS).
+function OyinGashtakBlock() {
+  const [rows, setRows] = useState<OyinAdminGashtakRow[] | null>(null);
+  const [q, setQ] = useState("");
+  const [d, setD] = useState<OyinAdminGashtakDetail | null>(null);
+  const [dCode, setDCode] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+
+  const load = () => { adminApi.oyinGashtakList().then((r) => setRows(r.rows)).catch(() => setRows([])); };
+  useEffect(() => { load(); }, []);
+
+  const openDetail = async (code: string) => {
+    setBusy(true); setErr(null);
+    try { setD(await adminApi.oyinGashtakDetail(code)); setDCode(code); }
+    catch { setErr(`«${code}» guruhi topilmadi.`); }
+    finally { setBusy(false); }
+  };
+  const reloadDetail = () => { if (dCode) void openDetail(dCode); };
+
+  const doKick = async (targetMemberId: number, name: string) => {
+    if (!dCode || !confirm(`${name} guruhdan CHIQARILSINMI?\n\nO'tgan navbat ballari SAQLANADI — faqat kelajakdagi a'zolik bekor bo'ladi.`)) return;
+    setBusy(true);
+    await adminApi.oyinGashtakKick(dCode, targetMemberId).catch(() => null);
+    setBusy(false); reloadDetail(); load();
+  };
+  const doDisband = async () => {
+    if (!dCode || !d || !confirm(`«${d.name}» guruhi BUTUNLAY TARQATILSINMI?\n\nHamma a'zo chiqariladi. O'tgan oylarning ball tarixi SAQLANADI (buzilmaydi) — faqat guruh endi faol bo'lmaydi. Bu amal qaytarilmaydi.`)) return;
+    setBusy(true);
+    await adminApi.oyinGashtakDisband(dCode).catch(() => null);
+    setBusy(false); reloadDetail(); load();
+  };
+
+  const filtered = useMemo(() => {
+    if (!rows) return [];
+    const s = q.trim().toLowerCase();
+    if (!s) return rows;
+    return rows.filter((r) => r.name.toLowerCase().includes(s) || r.code.toLowerCase().includes(s) || r.leaderName.toLowerCase().includes(s) || String(r.leaderId) === s);
+  }, [rows, q]);
+
+  if (!rows) {
+    return (
+      <section className="panel">
+        <div className="panel-title">👑 Gashtak</div>
+        <div style={{ display: "grid", gap: 6 }}>{[0, 1, 2].map((i) => <div key={i} style={{ height: 34, borderRadius: 8, background: "rgba(255,255,255,.05)" }} />)}</div>
+      </section>
+    );
+  }
+
+  return (
+    <section className="panel">
+      <div className="panel-head">
+        <div className="panel-title">👑 Gashtak — {formatNumber(rows.length)} ta guruh</div>
+        <input className="search" placeholder="🔍 Nom, kod yoki boshliq…" value={q} onChange={(e) => setQ(e.target.value)} />
+      </div>
+      <div className="muted" style={{ fontSize: 12, lineHeight: 1.7, background: "rgba(255,255,255,.04)", borderRadius: 8, padding: "10px 12px", marginBottom: 12 }}>
+        Gap-jamoa (gashtak) — kichik guruh birga safar qilib navbat bilan ball yig'adi. Har guruhning boshlig'i bor —
+        u havola ulashadi, odam qo'shadi/chiqaradi. Guruh chiqarilgan/tarqatilgan bo'lsa ham
+        <b style={{ color: "var(--text)" }}> o'tgan ball tarixi buzilmaydi</b> — hisob shu tamoyilga quriladi.
+      </div>
+      {err && <div style={{ fontSize: 12.5, color: "#ff6b6b", marginBottom: 10 }}>{err}</div>}
+      <div className="table-wrap" style={{ marginBottom: 12 }}>
+        <table>
+          <thead><tr><th>Guruh</th><th>Boshliq</th><th className="num">A'zo</th><th className="num">Jami ball</th><th>Holat</th><th /></tr></thead>
+          <tbody>
+            {filtered.map((r) => (
+              <tr key={r.code}>
+                <td className="td-name">{r.name} <span className="muted">{r.code}</span></td>
+                <td className="muted">{r.leaderName} <span className="muted">#{r.leaderId}</span></td>
+                <td className="num">{r.memberCount}</td>
+                <td className="num strong">{formatNumber(r.ballEarnedTotal)}</td>
+                <td>{r.disbandedAt ? <span className="muted">tarqatilgan</span> : <span style={{ color: "#34d399" }}>faol</span>}</td>
+                <td><button className="btn" disabled={busy} onClick={() => void openDetail(r.code)}>Ochish</button></td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+        {filtered.length === 0 && <div className="muted" style={{ padding: 16, textAlign: "center" }}>{rows.length === 0 ? "Hali birorta gashtak yo'q." : "Bu qidiruv bo'yicha guruh yo'q."}</div>}
+      </div>
+
+      {d && (
+        <>
+          <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", marginBottom: 10 }}>
+            <b style={{ fontSize: 15 }}>{d.name}</b>
+            <span className="muted" style={{ fontSize: 12 }}>{d.code}</span>
+            {d.disbandedAt
+              ? <span style={{ fontSize: 11, fontWeight: 800, padding: "3px 8px", borderRadius: 6, background: "rgba(255,255,255,.08)", color: "var(--text-2)" }}>TARQATILGAN — {d.disbandedAt.slice(0, 16).replace("T", " ")}</span>
+              : <button className="btn danger" disabled={busy} onClick={() => void doDisband()}>🗑 Tarqatish</button>}
+          </div>
+          <div className="table-wrap">
+            <table>
+              <thead><tr><th>A'zo</th><th>Telefon</th><th>Qo'shilgan</th><th>Navbat oyi</th><th className="num">Umrbod safar</th><th className="num">Jami ball</th><th /></tr></thead>
+              <tbody>
+                {d.members.map((m) => (
+                  <tr key={m.memberId} style={!m.inGroup ? { opacity: 0.55 } : undefined}>
+                    <td className="td-name">{m.isLeader ? "👑 " : ""}{m.name} <span className="muted">#{m.memberId}</span>{!m.inGroup && <span className="muted"> · chiqib ketgan</span>}</td>
+                    <td className="muted">{m.phone ?? "—"}</td>
+                    <td className="muted">{m.joinedAt ? m.joinedAt.slice(0, 10) : "—"}</td>
+                    <td className="muted">{m.turnMonth ?? "—"}</td>
+                    <td className="num">{formatNumber(m.ridesLifetime)}</td>
+                    <td className="num strong">{formatNumber(m.ballEarnedTotal)}</td>
+                    <td>{m.inGroup && !m.isLeader && !d.disbandedAt && <button className="btn sm" disabled={busy} onClick={() => void doKick(m.memberId, m.name)}>Chiqarish</button>}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </>
       )}
     </section>
   );

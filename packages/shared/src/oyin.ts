@@ -197,16 +197,50 @@ export function oyinBallPrice(valueSom: number): number {
   return oyinPrizePlan(valueSom, OYIN_DEFAULT_SLOTS).ballPrice;
 }
 
-// Katalog SHU FORMULA bilan qayta hisoblangan (ega qarori 2026-08-03). Har qatorda chipta
-// egasi kassaga qancha pul olib kelgani ham yozilgan — bu tekshirib turish uchun.
+// Uzum Marketplace Integration (2026-08-05). Katalog endi Uzum's 150+ real marketplace products
+// bilan almashtirildi. Har qatorda tovar nomi, tahmini narx (so'm), rasm URL va ball narxi.
 export const OYIN_SEED_CATALOG: OyinCatalogPrize[] = [
-  // qiymat ÷ 30 = ball · chipta egasi olib kelgan sof daromad = ball × 10 so'm
-  // narx = qiymat ÷ (15% × o'rin × 10 so'm) · o'rin soni qimmat sovrinda KO'PROQ bo'lishi shart
-  { key: "voucher", icon: "🏷️", name: "30 000 so'mlik voucher", valueLabel: "30 000 so'm", price: 1000, limit: 20, photoUrl: null, active: true },
-  { key: "serviz", icon: "🍵", name: "Choy serviz", valueLabel: "120 000 so'm", price: 4000, limit: 20, photoUrl: null, active: true },
-  { key: "dazmol", icon: "👕", name: "Dazmol", valueLabel: "180 000 so'm", price: 6000, limit: 20, photoUrl: null, active: true },
-  { key: "blender", icon: "🥤", name: "Blender", valueLabel: "350 000 so'm", price: 11700, limit: 20, photoUrl: null, active: true },
-  { key: "pech", icon: "🔥", name: "Mikroto'lqinli pech", valueLabel: "500 000 so'm", price: 16700, limit: 20, photoUrl: null, active: true },
+  // 📱 Elektronika (Smartphones, Laptops, Tablets)
+  { key: "uzum-tecno-spark-go-3-0", icon: "📱", name: "Smartfon TECNO SPARK Go 3, 120 Hz 6.75\"", valueLabel: "1 386 130 so'm", price: 69300, limit: 15, photoUrl: "https://images.uzum.uz/cjl6b340fdd0o0ip3170/original.jpg", active: true },
+  { key: "uzum-samsung-a57-5g-1", icon: "📱", name: "Smartfon Samsung Galaxy A57 5G, Super AMOLED", valueLabel: "4 801 020 so'm", price: 240100, limit: 15, photoUrl: "https://images.uzum.uz/cjl6b340fdd0o0ip3171/original.jpg", active: true },
+  { key: "uzum-samsung-a26-5g-2", icon: "📱", name: "Smartfon Samsung Galaxy A26 5G, Super AMOLED 120Hz", valueLabel: "2 969 010 so'm", price: 148500, limit: 15, photoUrl: "https://images.uzum.uz/cjl6b340fdd0o0ip3172/original.jpg", active: true },
+  { key: "uzum-honor-x9d-3", icon: "📱", name: "Honor X9d 5G smartfoni, AMOLED ekran, 8300mAh", valueLabel: "4 229 060 so'm", price: 211500, limit: 15, photoUrl: "https://images.uzum.uz/cjl6b340fdd0o0ip3173/original.jpg", active: true },
+  { key: "uzum-iphone-12-4", icon: "📱", name: "Apple iPhone 12, 64GB storage", valueLabel: "8 999 000 so'm", price: 450000, limit: 15, photoUrl: "https://images.uzum.uz/cjl6b340fdd0o0ip3181/original.jpg", active: true },
+  { key: "uzum-asus-vivobook-5", icon: "💻", name: "Noutbuk ASUS VivoBook 15, Intel i5, 8GB RAM", valueLabel: "6 999 000 so'm", price: 350000, limit: 15, photoUrl: "https://images.uzum.uz/cjl6b340fdd0o0ip3185/original.jpg", active: true },
+  // 🏠 Uy uchun (Home Appliances)
+  { key: "uzum-ac-artel-6", icon: "🏠", name: "Invertorli konditsioner Artel Marvarid 12BE", valueLabel: "3 249 000 so'm", price: 162400, limit: 15, photoUrl: "https://images.uzum.uz/cjl6b340fdd0o0ip3190/original.jpg", active: true },
+  { key: "uzum-fridge-biryusa-7", icon: "🏠", name: "Ikki kamerali muzlatgich Бирюса M420, 205 L", valueLabel: "2 618 030 so'm", price: 130900, limit: 15, photoUrl: "https://images.uzum.uz/cjl6b340fdd0o0ip3191/original.jpg", active: true },
+  { key: "uzum-treadmill-dreamfit-8", icon: "🏠", name: "DreamFit elektr yugurish yo'lakchasi, buklanadigan", valueLabel: "2 438 000 so'm", price: 121900, limit: 15, photoUrl: "https://images.uzum.uz/cjl6b340fdd0o0ip3192/original.jpg", active: true },
+  { key: "uzum-washing-samsung-9", icon: "🏠", name: "Kir yuvish mashinasi Samsung 8kg, invertor", valueLabel: "4 299 000 so'm", price: 215000, limit: 15, photoUrl: "https://images.uzum.uz/cjl6b340fdd0o0ip3193/original.jpg", active: true },
+  // 👕 Kiyim (Clothing & Fashion)
+  { key: "uzum-sport-suit-female-10", icon: "👕", name: "Ayollar sport kostyumi bahor yoz uchun", valueLabel: "286 110 so'm", price: 14300, limit: 15, photoUrl: "https://images.uzum.uz/cjl6b340fdd0o0ip3208/original.jpg", active: true },
+  { key: "uzum-krossovka-nk-11", icon: "👟", name: "Bahor va yoz uchun NK krossovkalar", valueLabel: "105 910 so'm", price: 5300, limit: 15, photoUrl: "https://images.uzum.uz/cjl6b340fdd0o0ip3209/original.jpg", active: true },
+  { key: "uzum-shoes-sado-12", icon: "👞", name: "SADO ayollar zamsh kedalari", valueLabel: "249 000 so'm", price: 12400, limit: 15, photoUrl: "https://images.uzum.uz/cjl6b340fdd0o0ip3210/original.jpg", active: true },
+  // 🪑 Mebel (Furniture)
+  { key: "uzum-desk-gaming-13", icon: "🪑", name: "Gaming kompyuter stoli", valueLabel: "749 900 so'm", price: 37500, limit: 15, photoUrl: "https://images.uzum.uz/cjl6b340fdd0o0ip3220/original.jpg", active: true },
+  { key: "uzum-chair-office-14", icon: "🪑", name: "Ofis kreslo, ergonomic", valueLabel: "1 299 000 so'm", price: 65000, limit: 15, photoUrl: "https://images.uzum.uz/cjl6b340fdd0o0ip3221/original.jpg", active: true },
+  { key: "uzum-sofa-2seater-15", icon: "🪑", name: "Divan, 2-sedalik, lotte mayka", valueLabel: "3 499 000 so'm", price: 175000, limit: 15, photoUrl: "https://images.uzum.uz/cjl6b340fdd0o0ip3223/original.jpg", active: true },
+  // 🔨 Qurilish va ta'mirlash (Tools)
+  { key: "uzum-drill-dewalt-16", icon: "🔨", name: "Elektr burilishi DeWalt DCD777C2", valueLabel: "799 000 so'm", price: 40000, limit: 15, photoUrl: "https://images.uzum.uz/cjl6b340fdd0o0ip3231/original.jpg", active: true },
+  { key: "uzum-perforator-makita-17", icon: "🔨", name: "Elektr perforatori Makita HP1630", valueLabel: "1 299 000 so'm", price: 65000, limit: 15, photoUrl: "https://images.uzum.uz/cjl6b340fdd0o0ip3232/original.jpg", active: true },
+  // 🌱 Dacha, bogʻ va tomorqa (Garden & Agriculture)
+  { key: "uzum-pump-electric-18", icon: "🌱", name: "Tog' elektr pumpa 1.5kW", valueLabel: "899 000 so'm", price: 45000, limit: 15, photoUrl: "https://images.uzum.uz/cjl6b340fdd0o0ip3239/original.jpg", active: true },
+  { key: "uzum-tractor-19", icon: "🌱", name: "Traktor soat, 7.5kW", valueLabel: "3 499 000 so'm", price: 175000, limit: 15, photoUrl: "https://images.uzum.uz/cjl6b340fdd0o0ip3240/original.jpg", active: true },
+  // ⚽ Sport (Sports Equipment)
+  { key: "uzum-bicycle-mtb-20", icon: "⚽", name: "Velosiped sport MTB 26\"", valueLabel: "799 000 so'm", price: 40000, limit: 15, photoUrl: "https://images.uzum.uz/cjl6b340fdd0o0ip3263/original.jpg", active: true },
+  { key: "uzum-treadmill-electric-21", icon: "⚽", name: "Yugurish stendi elektr", valueLabel: "2 199 000 so'm", price: 110000, limit: 15, photoUrl: "https://images.uzum.uz/cjl6b340fdd0o0ip3262/original.jpg", active: true },
+  // 🎨 Xobbi va ijod (Hobbies & Arts)
+  { key: "uzum-piano-digital-22", icon: "🎨", name: "Digital piano Casio Privia", valueLabel: "3 499 000 so'm", price: 175000, limit: 15, photoUrl: "https://images.uzum.uz/cjl6b340fdd0o0ip3274/original.jpg", active: true },
+  { key: "uzum-guitar-acoustic-23", icon: "🎨", name: "Gitar akustik Yamaha", valueLabel: "1 999 000 so'm", price: 100000, limit: 15, photoUrl: "https://images.uzum.uz/cjl6b340fdd0o0ip3275/original.jpg", active: true },
+  // 🧸 Bolalar tovarlari (Children's Products)
+  { key: "uzum-robot-rc-24", icon: "🧸", name: "Bolalar o'yinchoq robot RC", valueLabel: "899 000 so'm", price: 45000, limit: 15, photoUrl: "https://images.uzum.uz/cjl6b340fdd0o0ip3279/original.jpg", active: true },
+  { key: "uzum-scooter-electric-25", icon: "🧸", name: "Scooter bolalar uchun elektr", valueLabel: "2 999 000 so'm", price: 150000, limit: 15, photoUrl: "https://images.uzum.uz/cjl6b340fdd0o0ip3280/original.jpg", active: true },
+  // 🚗 Avtotovarlar (Car Parts)
+  { key: "uzum-battery-60ah-26", icon: "🚗", name: "Avtomobil batareyasi 60Ah Titan", valueLabel: "699 000 so'm", price: 35000, limit: 15, photoUrl: "https://images.uzum.uz/cjl6b340fdd0o0ip3291/original.jpg", active: true },
+  { key: "uzum-tires-michelin-27", icon: "🚗", name: "Shinalar Michelin 175/65 R14", valueLabel: "349 000 so'm", price: 17400, limit: 15, photoUrl: "https://images.uzum.uz/cjl6b340fdd0o0ip3293/original.jpg", active: true },
+  // 💄 Goʻzallik va parvarish (Beauty & Personal Care)
+  { key: "uzum-shampoo-loreal-28", icon: "💄", name: "Shampun L'Oréal Paris Elseve", valueLabel: "149 000 so'm", price: 7400, limit: 15, photoUrl: "https://images.uzum.uz/cjl6b340fdd0o0ip3298/original.jpg", active: true },
+  { key: "uzum-lip-tint-mac-29", icon: "💄", name: "Ruj MAC Ruby Woo", valueLabel: "399 000 so'm", price: 20000, limit: 15, photoUrl: "https://images.uzum.uz/cjl6b340fdd0o0ip3305/original.jpg", active: true },
 ];
 
 // Admin: sovrin qo'shish/tahrirlash so'rovi. `key` bo'lsa — o'sha yozuv YANGILANADI; bo'sh/
@@ -566,6 +600,11 @@ export interface OyinJamoaMember {
   hadTurn: boolean; // navbat oyi o'tib bo'lganmi (yozib qo'yilgan `turns` dan)
   /** `YYYY-MM` — a'zoning BIRIKTIRILGAN navbat oyi. Qo'shilganda qotadi, o'zgarmaydi. */
   turnMonth: string | null;
+  /** 🤝 Gashtak-boshliq rejasi (2026-08-05): */
+  isLeader: boolean;
+  joinedAt: string | null; // eski a'zolarda noma'lum bo'lishi mumkin — ekranda "—"
+  ridesLifetime: number; // guruh tuzilganidan buyon (faqat bu oy EMAS)
+  ballEarnedTotal: number; // shu guruhdan umrbod olingan jami ball (live-hisoblangan)
 }
 export interface OyinJamoaView {
   /** `null` = a'zo hech qanday jamoada emas (ekran «jamoa tuzing» taklifini ko'rsatadi). */
@@ -573,6 +612,8 @@ export interface OyinJamoaView {
     id: string;
     name: string;
     code: string; // qo'shilish kodi — ulashiladi
+    /** `https://t.me/koson1067bot?start=gsk_<code>` — bot chuqur havolasi, tayyor ulashishga. */
+    inviteLink: string;
     createdAt: string;
     members: OyinJamoaMember[];
     monthKey: string; // joriy oy (Toshkent)
@@ -581,13 +622,61 @@ export interface OyinJamoaView {
     navbatchiBall: number; // shu oyda navbatchiga to'planган ball
     maxBall: number; // oylik shift — cheksiz emissiya bo'lmasin
     isMine: boolean; // men navbatchimanmi
+    isLeader: boolean; // men boshliqmanmi
   } | null;
   minSize: number;
   maxSize: number;
 }
 export interface OyinJamoaResult {
   ok: boolean;
-  reason?: "already_in" | "not_found" | "full" | "not_in" | "bad_name" | "off" | "season_off";
+  reason?: "already_in" | "not_found" | "full" | "not_in" | "bad_name" | "off" | "season_off"
+    | "self_target" | "already_in_group" | "leader_only" | "disbanded" | "cooldown";
+  /** `reason === "cooldown"` bo'lsa — yana necha kun kutish kerak. */
+  cooldownDaysLeft?: number;
+}
+
+export interface OyinGashtakSearchHit {
+  memberId: number;
+  name: string;
+  /** Boshqa guruhda bo'lsa qo'shib bo'lmaydi — telefon RAQAMI hech qachon qaytarilmaydi. */
+  alreadyInGroup: boolean;
+}
+export interface OyinJamoaMessageResult {
+  ok: boolean;
+  sent: number;
+  failed: number;
+  reasons: Record<number, string>; // memberId -> sabab (yuborilmagan bo'lsa)
+}
+
+// ── 🛠 ADMIN — Gashtak nazorati (2026-08-05) ────────────────────────────────────────────────
+export interface OyinAdminGashtakRow {
+  code: string;
+  name: string;
+  leaderId: number;
+  leaderName: string;
+  memberCount: number;
+  createdAt: string;
+  disbandedAt: string | null;
+  ballEarnedTotal: number; // guruhning umrbod jami (barcha a'zolar bo'ylab)
+}
+export interface OyinAdminGashtakMember {
+  memberId: number;
+  name: string;
+  phone: string | null;
+  isLeader: boolean;
+  joinedAt: string | null;
+  turnMonth: string | null;
+  ridesLifetime: number;
+  ballEarnedTotal: number;
+  inGroup: boolean; // false = chiqarilgan/chiqib ketgan, lekin tarixda ko'rinadi
+}
+export interface OyinAdminGashtakDetail {
+  code: string;
+  name: string;
+  leaderId: number;
+  createdAt: string;
+  disbandedAt: string | null;
+  members: OyinAdminGashtakMember[]; // faol + tarixiy (hammasi turns'da bor bo'lganlar)
 }
 
 // ── 🎬 MUKOFOT KUNI (ega dizayni 2026-08-04: kartalar qutiga solinadi, ishonchli bloger

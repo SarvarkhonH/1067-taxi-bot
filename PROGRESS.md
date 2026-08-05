@@ -1,5 +1,40 @@
 # PROGRESS
 
+## 🟡 2026-08-05 — GASHTAK BOSHLIG'I: havola, qo'shish/chiqarish, admin nazorati — READY FOR VERIFICATION
+
+Ega talabi: gap-jamoa (endi UI'da "Gashtak") ga guruh boshlig'i tushunchasi qo'shildi
+(havola bilan taklif, telefon bilan qo'shish, chiqarish, xabar/topshiriq yozish) + admin
+panelda to'liq nazorat (ro'yxat, tafsilot, kick, tarqatish). Reja: `[[koson-oyin-clean]]`
+sessiyasi, `~/.claude/plans/eager-crafting-dusk.md`.
+
+**Kod yozishdan OLDIN ekspluatatsiya tahlili** (ega so'ragan) ikkita topilma berdi:
+- 🔴 **TOPILMA 1 — jonli kodda ALLAQACHON bor edi** (S7-3 sessiyasidan): oxirgi a'zo
+  chiqqanda guruh qatori HARD DELETE qilinardi. Ball ledger emas, har safar `turns`
+  xaritasidan qayta hisoblanadi — qator o'chsa BUTUN o'tgan ball tarixi RETROAKTIV
+  yo'qolardi. 0 ta guruh borligi uchun hali zarar yetkazmagan, lekin birinchi bo'shashda
+  portlagan bo'lardi. **Tuzatildi**: `disbandedAt` bilan SOFT-DELETE, `turns` abadiy qoladi.
+- 🟡 **TOPILMA 2 — yangi**: guruhlararo cheklov yo'q edi — chiq → boshqa faol guruhga
+  qo'shil → yangi navbat oyi ol, takrorlana beradi (navbatchining o'zi safar qilmasa ham
+  guruh ball beradi). **Tuzatildi**: `oyinGashtakRejoinCooldownDays` knob (def 30 kun),
+  create/join/add uchalasi tekshiradi.
+
+Ikkalasi ham `simGuards.ts`da HAQIQIY funksiyaga (`applyRemoveMember`, nusxa emas) qarshi
+sinaladi — 43 → 68 tekshiruv.
+
+**Qamrov**: `JamoaRecord` +3 maydon (`leaderId`/`joinedAt`/`disbandedAt`) · server: 10 yangi
+funksiya + `jamoaMemberStats` (bitta manba, S8-8 saboqi) · 6 yangi mijoz route +
+4 yangi admin route (`/api/admin/oyin/gashtak*`) · bot `gsk_` chuqur havolasi + `webAppUrl`
+extra-query kengaytmasi · miniapp: boshliq belgisi, per-a'zo ball/safar, "⚙️ Boshqarish"
+varag'i (havola/qidiruv-qo'shish/xabar/kod-yangilash/tarqatish) · admin panel: yangi
+"👑 Gashtak" bo'limi (`OyinTab` ichida — yangi top-level tab EMAS, IA qoidasi).
+
+Tekshiruv: `typecheck 4/4` · `vitest 90/90` · `simGuards 68/68` · `simEconomy`/`simLoyalty`
+yashil · admin+miniapp build yashil.
+
+**Ochiq**: DB'ga tegadigan uchidan-uchiga oqim (guruh tuz → qo'shil → kick → tarqat → admin
+panelda ball tarixi saqlanganini ko'rish) lokal sinalMAGAN — lokal Postgres ATAYLAB yopiq
+(CLAUDE.md invarianti). Deploy'dan keyin VPS'da ega-preview orqali ega o'zi sinaydi.
+
 ## 🔴 2026-08-04 — NAZORAT NATIJASI: S2/S3 va S7/S8 RAD ETILDI, 22 ta topilma yopildi
 
 Ikki mustaqil nazoratchi agent (kodni yozMAGAN) bosqichlarni qayta tekshirdi va **ikkalasini

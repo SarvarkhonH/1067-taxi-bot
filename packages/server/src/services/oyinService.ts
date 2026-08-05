@@ -55,6 +55,10 @@ import {
   type OyinDrawCard,
   type OyinJamoaResult,
   type OyinJamoaView,
+  type OyinGashtakSearchHit,
+  type OyinJamoaMessageResult,
+  type OyinAdminGashtakRow,
+  type OyinAdminGashtakDetail,
   type OyinDrawList,
   type OyinDrawRecordResult,
   type OyinPrizeStage,
@@ -2017,6 +2021,29 @@ export interface JamoaRecord {
   id: string; name: string; createdAt: string; members: number[];
   /** `{ "2026-08": 1234 }` — oy → navbatchi. YOZILGACH O'ZGARMAYDI. */
   turns: Record<string, number>;
+  /** 🤝 Gashtak-boshliq rejasi (2026-08-05). Tuzuvchi bilan default, kick/disband bilan
+   *  o'zgarmaydi (V1'da boshliqlik topshirish YO'Q — faqat tarqatish). */
+  leaderId: number;
+  /** memberId -> ISO qo'shilgan sana. Eski a'zolarda yo'q — ekranda "—" ko'rsatiladi. */
+  joinedAt: Record<number, string>;
+  /** ⚠️ TOPILMA 1 (2026-08-05 ekspluatatsiya tahlili): guruh bo'shasa qator HECH QACHON
+   *  o'chirilmaydi, faqat shu maydon yoziladi. Sabab: ball ledger emas, HAR safar `turns`
+   *  xaritasidan qayta hisoblanadi (`computeBallMap`) — qator o'chsa BARCHA o'tgan oylarning
+   *  ball tarixi RETROAKTIV yo'qolardi (S8-2 "yashirin qarz" bilan bir xil oila, teskari
+   *  yo'nalishda). `null` = faol guruh. */
+  disbandedAt: string | null;
+}
+
+/** memberId -> ISO sana xaritasini xavfsiz o'qish (`joinedAt` uchun — `turns`ning `parseTurns`
+ *  qardoshi, lekin kalit-son emas kalit-son:qiymat-satr). */
+function parseJoinedAt(raw: unknown): Record<number, string> {
+  const out: Record<number, string> = {};
+  if (!raw || typeof raw !== "object") return out;
+  for (const [k, v] of Object.entries(raw as Record<string, unknown>)) {
+    const id = Number(k);
+    if (Number.isFinite(id) && typeof v === "string" && Number.isFinite(Date.parse(v))) out[id] = v;
+  }
+  return out;
 }
 
 export function parseJamoa(raw: string | undefined): JamoaRecord | null {
@@ -2024,6 +2051,7 @@ export function parseJamoa(raw: string | undefined): JamoaRecord | null {
   try {
     const v = JSON.parse(raw) as Partial<JamoaRecord>;
     if (!v.id || !Array.isArray(v.members)) return null;
+    const members = v.members.filter((m): m is number => typeof m === "number" && Number.isFinite(m));
     return {
       id: String(v.id),
       name: typeof v.name === "string" && v.name ? v.name : "Jamoa",
@@ -2033,10 +2061,15 @@ export function parseJamoa(raw: string | undefined): JamoaRecord | null {
       // HAMMASI yiqiladi. Bitta buzuq AppState qatori butun o'yinni o'chirardi.
       createdAt: typeof v.createdAt === "string" && Number.isFinite(Date.parse(v.createdAt))
         ? v.createdAt : new Date().toISOString(),
-      members: v.members.filter((m): m is number => typeof m === "number" && Number.isFinite(m)),
+      members,
       // Eski yozuvda `turns` YO'Q → bo'sh xarita, ya'ni navbat ham, ball ham yo'q. Bu XAVFSIZ
       // sukut: hisoblab tashlashdan ko'ra bermaslik afzal (hisoblash aynan bugni keltirgan).
       turns: parseTurns((v as { turns?: unknown }).turns),
+      // Eski yozuvda `leaderId` yo'q/aralash — birinchi a'zo (tuzuvchi taxmin qilinadi).
+      // Noma'lumlik JAZO emas (S7-6/S8-6 uslubi): 0 EMAS, mavjud a'zolardan biri.
+      leaderId: typeof v.leaderId === "number" && members.includes(v.leaderId) ? v.leaderId : (members[0] ?? 0),
+      joinedAt: parseJoinedAt((v as { joinedAt?: unknown }).joinedAt),
+      disbandedAt: typeof v.disbandedAt === "string" && Number.isFinite(Date.parse(v.disbandedAt)) ? v.disbandedAt : null,
     };
   } catch {
     return null;
@@ -2139,9 +2172,40 @@ async function jamoaOf(memberId: number): Promise<JamoaRecord | null> {
   if (!link?.value) return null;
   const row = await prisma.appState.findUnique({ where: { key: `${JAMOA_PREFIX}${link.value}` } });
   const j = parseJamoa(row?.value);
-  // ⚠️ Yetim havola: guruh o'chirilgan, indeks qolgan. Jimgina `null` — a'zo yangisini tuza oladi.
-  if (!j || !j.members.includes(memberId)) return null;
+  // ⚠️ Yetim havola: guruh o'chirilgan/tarqatilgan, indeks qolgan. Jimgina `null` — a'zo
+  // yangisini tuza oladi. `disbandedAt` tekshiruvi qo'shimcha xavfsizlik qatlami (2026-08-05
+  // rejasi) — pointer xato qolib ketgan taqdirda ham mijoz o'lik guruhga "osilib" qolmaydi.
+  if (!j || j.disbandedAt != null || !j.members.includes(memberId)) return null;
   return j;
+}
+
+const COOLDOWN_PREFIX = "oyin:gashtakcooldown:";
+
+/** 🛡 TOPILMA 2 (2026-08-05 ekspluatatsiya tahlili): navbat BIR guruh ICHIDA takror-turmaydi
+ *  (S7-2b), lekin guruhlararo cheklov yo'q edi — chiq → boshqa faol guruhga qo'shil → yangi
+ *  navbat oyi ol, takrorlana beradi (guruh ball hajmi butun guruhning safariga bog'liq,
+ *  navbatchining o'zi safar qilishi shart emas). `create`/`join`/`add` UCHALASI shu BITTA
+ *  funksiyani chaqiradi — nusxa emas. */
+async function checkGashtakCooldown(memberId: number): Promise<{ ok: true } | { ok: false; daysLeft: number }> {
+  const row = await prisma.appState.findUnique({ where: { key: `${COOLDOWN_PREFIX}${memberId}` } });
+  if (!row?.value) return { ok: true };
+  const at = Date.parse(row.value);
+  if (!Number.isFinite(at)) return { ok: true }; // buzuq qator — jazo emas
+  const econ = await getBonusEcon();
+  const days = econ.oyinGashtakRejoinCooldownDays ?? 30;
+  const elapsedDays = (Date.now() - at) / 86_400_000;
+  if (elapsedDays >= days) return { ok: true };
+  return { ok: false, daysLeft: Math.max(1, Math.ceil(days - elapsedDays)) };
+}
+
+async function stampGashtakCooldown(memberId: number): Promise<void> {
+  const key = `${COOLDOWN_PREFIX}${memberId}`;
+  const value = new Date().toISOString();
+  await prisma.appState.upsert({ where: { key }, create: { key, value }, update: { value } });
+}
+
+function inviteLinkOf(code: string): string {
+  return `https://t.me/koson1067bot?start=gsk_${code}`;
 }
 
 /** `preview=true` (ega/admin) — bayroq DARK bo'lsa ham ishlaydi, xuddi `buyTicket`/`markLogin`
@@ -2152,6 +2216,8 @@ export async function createJamoa(memberId: number, nameRaw: string, preview = f
   const name = (nameRaw || "").trim().slice(0, 40);
   if (name.length < 2) return { ok: false, reason: "bad_name" };
   if (await jamoaOf(memberId)) return { ok: false, reason: "already_in" };
+  const cd = await checkGashtakCooldown(memberId);
+  if (!cd.ok) return { ok: false, reason: "cooldown", cooldownDaysLeft: cd.daysLeft };
   // Kod — qo'shilish uchun ulashiladigan qisqa satr. 6 belgi, chalkashadigan harflar YO'Q
   // (0/O, 1/I) — odam uni og'zaki aytadi va yozib oladi.
   const ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
@@ -2174,7 +2240,11 @@ export async function createJamoa(memberId: number, nameRaw: string, preview = f
   } catch {
     return { ok: false, reason: "already_in" }; // parallel so'rov bizdan oldin ulgurdi
   }
-  const rec: JamoaRecord = { id, name, createdAt: new Date().toISOString(), members: [memberId], turns: {} };
+  const now = new Date().toISOString();
+  const rec: JamoaRecord = {
+    id, name, createdAt: now, members: [memberId], turns: {},
+    leaderId: memberId, joinedAt: { [memberId]: now }, disbandedAt: null,
+  };
   assignTurn(rec, memberId); // tuzuvchining navbati — guruh tuzilgan OY
   try {
     await prisma.appState.create({ data: { key: `${JAMOA_PREFIX}${id}`, value: JSON.stringify(rec) } });
@@ -2190,11 +2260,15 @@ export async function createJamoa(memberId: number, nameRaw: string, preview = f
 export async function joinJamoa(memberId: number, codeRaw: string, preview = false): Promise<OyinJamoaResult> {
   if (!preview && !(await featureOn("oyin"))) return { ok: false, reason: "off" };
   if (await jamoaOf(memberId)) return { ok: false, reason: "already_in" };
+  const cd = await checkGashtakCooldown(memberId);
+  if (!cd.ok) return { ok: false, reason: "cooldown", cooldownDaysLeft: cd.daysLeft };
   const code = (codeRaw || "").trim().toUpperCase().slice(0, 6);
   const key = `${JAMOA_PREFIX}${code}`;
   const row = await prisma.appState.findUnique({ where: { key } });
   const j = parseJamoa(row?.value);
   if (!j) return { ok: false, reason: "not_found" };
+  // 🛡 TOPILMA 1: tarqatilgan guruh eski havola bilan "tiriltirilmaydi".
+  if (j.disbandedAt != null) return { ok: false, reason: "disbanded" };
   if (j.members.includes(memberId)) return { ok: false, reason: "already_in" };
   if (j.members.length >= OYIN_JAMOA_MAX) return { ok: false, reason: "full" };
   // 🔴 S7-3: avval `upsert` + filtrsiz `update` edi — ikki parallel qo'shilish bir-birini
@@ -2208,9 +2282,11 @@ export async function joinJamoa(memberId: number, codeRaw: string, preview = fal
     return { ok: false, reason: "already_in" };
   }
   const joined = await casJamoa(key, (cur) => {
+    if (cur.disbandedAt != null) return null;                  // orada tarqatilgan
     if (cur.members.includes(memberId)) return null;          // boshqa so'rov qo'shib bo'lgan
     if (cur.members.length >= OYIN_JAMOA_MAX) return null;     // orada to'lib qolgan
     cur.members.push(memberId);
+    cur.joinedAt[memberId] = new Date().toISOString();
     assignTurn(cur, memberId);                                 // navbat SHU YERDA qotadi
     return cur;
   });
@@ -2222,6 +2298,24 @@ export async function joinJamoa(memberId: number, codeRaw: string, preview = fal
   return { ok: true };
 }
 
+/** 🔴 TOPILMA 1 (2026-08-05 ekspluatatsiya tahlili — jonli kodda ALLAQACHON bor edi, S7-3
+ *  sessiyasidan): oxirgi a'zo chiqqanda qator ILGARI O'CHIRILARDI (`deleteMany`). Ball hech
+ *  qachon ledger emas — HAR safar `turns` xaritasidan qayta hisoblanadi. Qator o'chsa BARCHA
+ *  o'tgan oylarning ball tarixi RETROAKTIV yo'qolardi (S8-2 "yashirin qarz" bilan bir xil oila,
+ *  teskari yo'nalishda: qarz emas, YO'QOLGAN mulk). Endi SOFT-DELETE: `disbandedAt` yoziladi,
+ *  `turns`/`joinedAt` ABADIY qoladi — tickets/winners bilan bir xil falsafa.
+ *  `members.length < OYIN_JAMOA_MIN` qo'rig'i (S7-1) kelajak oylarni baribir to'xtatadi,
+ *  o'tganlar esa buzilmaydi.
+ *
+ *  SOF FUNKSIYA — `leaveJamoa`/`kickFromJamoa`/`adminKickFromJamoa` UCHALASI ham shundan
+ *  (S8-8 saboqi: bir xil mantiqni uch joyda nusxalash — ertami-kechmi biri unutilib qoladi).
+ *  `simGuards` HAQIQIY shu funksiyaga qarshi sinaydi, nusxaga emas. */
+export function applyRemoveMember(j: JamoaRecord, targetId: number): JamoaRecord {
+  const next: JamoaRecord = { ...j, members: j.members.filter((m) => m !== targetId) };
+  if (next.members.length === 0) next.disbandedAt = new Date().toISOString();
+  return next;
+}
+
 export async function leaveJamoa(memberId: number): Promise<OyinJamoaResult> {
   const j = await jamoaOf(memberId);
   if (!j) return { ok: false, reason: "not_in" };
@@ -2230,17 +2324,74 @@ export async function leaveJamoa(memberId: number): Promise<OyinJamoaResult> {
   // ⚠️ `turns` TEGILMAYDI: chiqqan odamning navbat oyi BAND bo'lib qoladi. Bo'shatilsa
   // chiq→kir aylanishi bilan o'sha oy qayta sotilardi. `navbatchiOf` a'zo emasligini
   // ko'rib ball bermaydi — oy shunchaki bo'sh o'tadi.
-  const left = await casJamoa(key, (cur) => {
-    cur.members = cur.members.filter((m) => m !== memberId);
-    return cur;
-  });
-  if (left && left.members.length === 0) {
-    // Oxirgi a'zo chiqdi — guruh o'chadi (bo'sh guruh navbat ham, ball ham bermaydi).
-    await prisma.appState.deleteMany({ where: { key } });
-  }
+  const left = await casJamoa(key, (cur) => applyRemoveMember(cur, memberId));
   await prisma.appState.deleteMany({ where: { key: `${JAMOA_MEM_PREFIX}${memberId}` } });
+  // 🛡 TOPILMA 2: chiqqan odam darhol boshqa guruhga o'tib yangi navbat "termasin".
+  if (left) await stampGashtakCooldown(memberId);
   invalidateBallCache();
   return { ok: true };
+}
+
+/** 🤝 BITTA guruh uchun a'zo-statistikasi — `getJamoaView` (o'zini ko'rish) VA
+ *  `adminGashtakDetail` (admin) IKKALASI ham shu funksiyani chaqiradi (S8-8 saboqi: ikki xil
+ *  joyda bir xil raqamni ikki xil hisoblash — o'sha bugning o'zi shu edi).
+ *
+ *  ⚠️ Bilib qilingan cheklov: `ballEarnedTotal` `computeBallMap`dagi jamoa-sikli bilan AYNAN
+ *  bir xil formuladan hisoblanadi — u HAR oy uchun `groupRides`ni GURUHNING HOZIRGI (bugungi)
+ *  a'zolari bo'yicha yig'adi, o'sha oydagi TARIXIY tarkib bo'yicha emas (bu xususiyat S7-2b/
+ *  S7-3 sessiyasidan meros, endi ham o'zgartirilmadi — oylik a'zo-snapshot alohida struktura
+ *  talab qiladi, bu safar so'ralgan ish doirasidan tashqarida). Natija: kimdir chiqib ketsa,
+ *  o'tgan oylarning `groupRides`i (demak balli) SILJISHI mumkin. Ikkala chaqiruvchi ham BIR XIL
+ *  formuladan foydalanadi — shu bilan hech bo'lmasa ko'rsatilgan raqam HAQIQIY balansga mos
+ *  keladi (S8-8 buzilishi qaytarilmaydi), garchi formulaning o'zi tarixiy jihatdan "sirpanchiq"
+ *  bo'lsa ham. */
+async function jamoaMemberStats(j: JamoaRecord): Promise<Map<number, {
+  ridesThisMonth: number; ridesLifetime: number; ballEarnedTotal: number;
+}>> {
+  const econ = await getBonusEcon();
+  const ballPerRide = econ.oyinJamoaBallPerRide ?? 0;
+  const maxBall = econ.oyinJamoaMaxBall ?? 3600;
+  const nowMonth = monthKeyOf(new Date());
+  const monthStart = new Date(`${nowMonth}-01T00:00:00+05:00`);
+  // Hozirgi a'zolar + hech bo'lmasa bir marta navbat olgan HAMMA (tarixiy, chiqib ketgan bo'lsa
+  // ham) — admin/leader tarixni ko'rishi uchun.
+  const allIds = new Set<number>(j.members);
+  for (const m of Object.values(j.turns)) allIds.add(m);
+  const ids = [...allIds];
+  const out = new Map<number, { ridesThisMonth: number; ridesLifetime: number; ballEarnedTotal: number }>();
+  for (const id of ids) out.set(id, { ridesThisMonth: 0, ridesLifetime: 0, ballEarnedTotal: 0 });
+  if (ids.length === 0) return out;
+  const rides = await prisma.rideReward.findMany({
+    where: { memberId: { in: ids }, createdAt: { gte: new Date(j.createdAt) } },
+    select: { memberId: true, createdAt: true },
+  });
+  const ridesByMemberMonth = new Map<string, number>();
+  for (const r of rides) {
+    const stat = out.get(r.memberId);
+    if (stat) {
+      stat.ridesLifetime++;
+      if (r.createdAt >= monthStart) stat.ridesThisMonth++;
+    }
+    const k = `${r.memberId}|${monthKeyOf(r.createdAt)}`;
+    ridesByMemberMonth.set(k, (ridesByMemberMonth.get(k) ?? 0) + 1);
+  }
+  if (ballPerRide > 0 && j.members.length >= OYIN_JAMOA_MIN) {
+    const startMonth = monthKeyOf(new Date(j.createdAt));
+    const span = Math.max(0, monthsBetween(startMonth, nowMonth));
+    for (let i = 0; i <= span; i++) {
+      const mk = addMonths(startMonth, i);
+      const winner = navbatchiOf(j, mk);
+      if (winner == null) continue;
+      // `computeBallMap` bilan BIR XIL: HOZIRGI a'zolar bo'yicha (yuqoridagi izohga qarang).
+      let groupRides = 0;
+      for (const m of j.members) groupRides += ridesByMemberMonth.get(`${m}|${mk}`) ?? 0;
+      if (groupRides === 0) continue;
+      const gain = Math.min(maxBall, groupRides * ballPerRide);
+      const stat = out.get(winner);
+      if (stat) stat.ballEarnedTotal += gain;
+    }
+  }
+  return out;
 }
 
 /** 🤝 Ekran uchun to'liq ko'rinish — a'zolar, navbatchi, shu oydagi safarlar va to'plangan ball. */
@@ -2250,15 +2401,12 @@ export async function getJamoaView(memberId: number): Promise<OyinJamoaView> {
   if (!j) return { jamoa: null, ...base };
   const econ = await getBonusEcon();
   const monthKey = monthKeyOf(new Date());
-  const monthStart = new Date(`${monthKey}-01T00:00:00+05:00`);
-  const [tus, rides] = await Promise.all([
+  const [tus, stats] = await Promise.all([
     prisma.telegramUser.findMany({ where: { memberId: { in: j.members } }, select: { memberId: true, firstName: true, lastName: true, username: true } }),
-    prisma.rideReward.findMany({ where: { memberId: { in: j.members }, createdAt: { gte: monthStart } }, select: { memberId: true } }),
+    jamoaMemberStats(j),
   ]);
   const nameBy = new Map<number, string>();
   for (const tu of tus) if (tu.memberId) nameBy.set(tu.memberId, shortName(tu));
-  const ridesBy = new Map<number, number>();
-  for (const r of rides) ridesBy.set(r.memberId, (ridesBy.get(r.memberId) ?? 0) + 1);
 
   const navbatchi = navbatchiOf(j, monthKey);
   // 🟡 S7-10 (nazoratchi 2026-08-04): `hadTurn` `i < turnIdx` bilan hisoblanardi — a'zolik
@@ -2268,19 +2416,24 @@ export async function getJamoaView(memberId: number): Promise<OyinJamoaView> {
   for (const [mk, m] of Object.entries(j.turns)) if (!turnOf.has(m)) turnOf.set(m, mk);
   const ballPerRide = econ.oyinJamoaBallPerRide ?? 6;
   const maxBall = econ.oyinJamoaMaxBall ?? 3600;
-  const ridesThisMonth = rides.length;
+  const ridesThisMonth = j.members.reduce((n, m) => n + (stats.get(m)?.ridesThisMonth ?? 0), 0);
   return {
     jamoa: {
-      id: j.id, name: j.name, code: j.id, createdAt: j.createdAt, monthKey,
+      id: j.id, name: j.name, code: j.id, inviteLink: inviteLinkOf(j.id), createdAt: j.createdAt, monthKey,
       members: j.members.map((m) => {
         const mk = turnOf.get(m) ?? null;
+        const s = stats.get(m);
         return {
           memberId: m,
           name: nameBy.get(m) ?? `#${m}`,
-          ridesThisMonth: ridesBy.get(m) ?? 0,
+          ridesThisMonth: s?.ridesThisMonth ?? 0,
           isNavbatchi: m === navbatchi,
           hadTurn: mk != null && mk < monthKey, // navbat oyi o'tib bo'lgan (satr-solishtiruv: YYYY-MM)
           turnMonth: mk,                        // "sizning navbatingiz: 2026-11" deb ko'rsatish uchun
+          isLeader: m === j.leaderId,
+          joinedAt: j.joinedAt[m] ?? null,
+          ridesLifetime: s?.ridesLifetime ?? 0,
+          ballEarnedTotal: s?.ballEarnedTotal ?? 0,
         };
       }),
       ridesThisMonth,
@@ -2288,9 +2441,268 @@ export async function getJamoaView(memberId: number): Promise<OyinJamoaView> {
       navbatchiBall: Math.min(maxBall, ridesThisMonth * ballPerRide),
       maxBall,
       isMine: navbatchi === memberId,
+      isLeader: j.leaderId === memberId,
     },
     ...base,
   };
+}
+
+// ── 👑 GASHTAK BOSHLIG'I (2026-08-05, ega talabi) — havola, qo'shish/chiqarish, xabar ────────
+
+/** Xabar matni HTML sifatida yuboriladi (`parse_mode: "HTML"`) — mijoz kiritgan erkin matn
+ *  (topshiriq/guruh nomi) qochirilmasa Telegram xabarni buzib yuboradi yoki rad etadi. */
+function esc(s: string): string {
+  return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+}
+
+/** Boshliq tashabbusi bilan a'zoga push. `notifyOnce` EMAS — `notifyUserInitiated` (T4/"Rahmat
+ *  ayt" bilan bir xil falsafa): kunlik push-cap'ni aylanib o'tadi, blok/"o'chiq" hurmat qiladi.
+ *  Uch chaqiruvchi (kick/add/message) shu BITTA yordamchidan — boilerplate nusxa emas. */
+async function pushGashtakMember(targetMemberId: number, kind: string, html: string): Promise<{ ok: true } | { ok: false; reason: string }> {
+  const tu = await prisma.telegramUser.findUnique({ where: { memberId: targetMemberId }, select: { id: true } });
+  if (!tu) return { ok: false, reason: "no_chat" };
+  const { getBotInstance } = await import("../botInstance");
+  const bot = getBotInstance();
+  if (!bot) return { ok: false, reason: "unreachable" };
+  const { notifyUserInitiated } = await import("./notifyService");
+  const { appBtn } = await import("../bot/webAppUrl");
+  const sent = await notifyUserInitiated(bot, tu.id, targetMemberId, kind, html, appBtn("🎮 O'yinni ochish", "oyin"));
+  return sent.ok ? { ok: true } : { ok: false, reason: sent.reason };
+}
+
+/** 🔒 Faqat boshliq. O'zini chiqara olmaydi (`self_target` — tark etmoqchi bo'lsa "guruhni
+ *  tarqatish" bor). `turns` TEGILMAYDI (S7-2b falsafasi: chiqarish o'tgan navbatni tortib
+ *  olmaydi, aks holda yashirin qarz). Kicklanganga cooldown belgisi (TOPILMA 2). */
+export async function kickFromJamoa(leaderId: number, targetMemberId: number): Promise<OyinJamoaResult> {
+  if (targetMemberId === leaderId) return { ok: false, reason: "self_target" };
+  const j = await jamoaOf(leaderId);
+  if (!j) return { ok: false, reason: "not_in" };
+  if (j.leaderId !== leaderId) return { ok: false, reason: "leader_only" };
+  const key = `${JAMOA_PREFIX}${j.id}`;
+  const kicked = await casJamoa(key, (cur) => cur.members.includes(targetMemberId) ? applyRemoveMember(cur, targetMemberId) : null);
+  if (!kicked) return { ok: false, reason: "not_found" };
+  await prisma.appState.deleteMany({ where: { key: `${JAMOA_MEM_PREFIX}${targetMemberId}` } });
+  await stampGashtakCooldown(targetMemberId);
+  invalidateBallCache();
+  await pushGashtakMember(targetMemberId, `gashtak_kick:${j.id}`,
+    `👔 Siz <b>«${esc(j.name)}»</b> gashtakidan chiqarildingiz.`).catch(() => undefined);
+  return { ok: true };
+}
+
+/** 🔒 Faqat boshliq, telefon bilan qidirilgan odamni to'g'ridan-to'g'ri qo'shadi. */
+export async function addMemberToJamoa(leaderId: number, targetMemberId: number): Promise<OyinJamoaResult> {
+  if (targetMemberId === leaderId) return { ok: false, reason: "self_target" };
+  const j = await jamoaOf(leaderId);
+  if (!j) return { ok: false, reason: "not_in" };
+  if (j.leaderId !== leaderId) return { ok: false, reason: "leader_only" };
+  if (j.members.length >= OYIN_JAMOA_MAX) return { ok: false, reason: "full" };
+  if (await jamoaOf(targetMemberId)) return { ok: false, reason: "already_in_group" };
+  const cd = await checkGashtakCooldown(targetMemberId);
+  if (!cd.ok) return { ok: false, reason: "cooldown", cooldownDaysLeft: cd.daysLeft };
+  const memKey = `${JAMOA_MEM_PREFIX}${targetMemberId}`;
+  try {
+    await prisma.appState.create({ data: { key: memKey, value: j.id } });
+  } catch {
+    return { ok: false, reason: "already_in_group" }; // parallel so'rov bizdan oldin ulgurdi
+  }
+  const key = `${JAMOA_PREFIX}${j.id}`;
+  const added = await casJamoa(key, (cur) => {
+    // TOCTOU: yuqoridagi tekshiruvlar CAS'DAN OLDIN — orada o'zgargan bo'lishi mumkin, shuning
+    // uchun HAMMASI shu yerda QAYTA tekshiriladi (searchJoinable natijasiga ishonilmaydi).
+    if (cur.disbandedAt != null) return null;
+    if (cur.members.includes(targetMemberId)) return null;
+    if (cur.members.length >= OYIN_JAMOA_MAX) return null;
+    cur.members.push(targetMemberId);
+    cur.joinedAt[targetMemberId] = new Date().toISOString();
+    assignTurn(cur, targetMemberId);
+    return cur;
+  });
+  if (!added) {
+    await prisma.appState.deleteMany({ where: { key: memKey } }); // yetim indeks QOLMAYDI
+    return { ok: false, reason: "full" };
+  }
+  invalidateBallCache();
+  await pushGashtakMember(targetMemberId, `gashtak_add:${j.id}`,
+    `🤝 Siz <b>«${esc(j.name)}»</b> gashtakiga qo'shildingiz — navbat bilan ball olasiz.`).catch(() => undefined);
+  return { ok: true };
+}
+
+/** 🔒 Maxfiylik uchun ATAYLAB `adminFindMembers`dan (substring, ism ham) FARQLI: faqat TO'LIQ
+ *  raqam mosligi, FAQAT telefon — begona odamni "topib ko'zdan kechirish" imkoni yo'q.
+ *  Telefon RAQAMI qaytarilmaydi, faqat ism+memberId (+ band bo'lsa belgi, guruh nomi EMAS). */
+export async function searchJoinable(leaderId: number, phoneRaw: string): Promise<OyinGashtakSearchHit[]> {
+  const digits = (phoneRaw || "").replace(/\D/g, "");
+  if (digits.length < 7) return []; // qisqa qidiruv = tasodifiy topish urinishi, rad etiladi
+  const tus = await prisma.telegramUser.findMany({
+    where: { memberId: { not: null }, phone: { not: null } },
+    select: { memberId: true, phone: true, firstName: true, lastName: true, username: true },
+  });
+  const hits: OyinGashtakSearchHit[] = [];
+  for (const tu of tus) {
+    if (!tu.memberId || tu.memberId === leaderId) continue;
+    const phoneDigits = (tu.phone ?? "").replace(/\D/g, "");
+    if (phoneDigits !== digits) continue; // TO'LIQ moslik — substring EMAS
+    const already = (await jamoaOf(tu.memberId)) != null;
+    hits.push({ memberId: tu.memberId, name: shortName(tu), alreadyInGroup: already });
+    break; // telefon noyob — bittadan ortiq topilmaydi
+  }
+  return hits;
+}
+
+/** 🔒 Faqat boshliq. Eski havola darhol ishlamay qoladi — `id` (= saqlash kaliti) o'zi
+ *  almashtiriladi, alohida `inviteCode` maydoni EMAS (soddaroq). Guruh ≤10 kishi — HAR
+ *  a'zoning ko'rsatkichi bitta tranzaksiyada yangi kodga o'tkaziladi. Kamdan-kam, pul yo'liga
+ *  tegmaydigan amal — kichik poyga oynasi (rotatsiya paytida parallel qo'shilish) qabul
+ *  qilinadi, `casJamoa` darajasidagi qulf shart emas. */
+export async function regenerateJamoaCode(leaderId: number): Promise<OyinJamoaResult & { newCode?: string }> {
+  const j = await jamoaOf(leaderId);
+  if (!j) return { ok: false, reason: "not_in" };
+  if (j.leaderId !== leaderId) return { ok: false, reason: "leader_only" };
+  const code = j.id;
+  const ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+  let newCode = "";
+  for (let attempt = 0; attempt < 5; attempt++) {
+    newCode = Array.from({ length: 6 }, () => ALPHABET[Math.floor(Math.random() * ALPHABET.length)]).join("");
+    if (!(await prisma.appState.findUnique({ where: { key: `${JAMOA_PREFIX}${newCode}` } }))) break;
+    newCode = "";
+  }
+  if (!newCode) return { ok: false, reason: "not_found" };
+  const next: JamoaRecord = { ...j, id: newCode };
+  await prisma.$transaction([
+    prisma.appState.create({ data: { key: `${JAMOA_PREFIX}${newCode}`, value: JSON.stringify(next) } }),
+    prisma.appState.deleteMany({ where: { key: `${JAMOA_PREFIX}${code}` } }),
+    ...j.members.map((m) => prisma.appState.upsert({
+      where: { key: `${JAMOA_MEM_PREFIX}${m}` },
+      create: { key: `${JAMOA_MEM_PREFIX}${m}`, value: newCode },
+      update: { value: newCode },
+    })),
+  ]);
+  return { ok: true, newCode };
+}
+
+/** 📨 Boshliqning topshirig'i/xabari — erkin matn (2026-08-05 aniqlashtirishda tanlangan:
+ *  vazifa-kuzatuv EMAS). `targetMemberId` berilsa shaxsiy, berilmasa o'zidan boshqa BARCHA
+ *  a'zoga. Yetkazish `pushGashtakMember` orqali — kunlik-dublikat chegarasi bir boshliq bitta
+ *  a'zoga kuniga bir marta (spam yo'li ochilmaydi, "Rahmat" bilan bir xil falsafa). */
+export async function sendJamoaMessage(leaderId: number, textRaw: string, targetMemberId?: number): Promise<OyinJamoaMessageResult> {
+  const text = (textRaw || "").trim().slice(0, 300);
+  if (!text) return { ok: false, sent: 0, failed: 0, reasons: {} };
+  const j = await jamoaOf(leaderId);
+  if (!j) return { ok: false, sent: 0, failed: 0, reasons: {} };
+  if (j.leaderId !== leaderId) return { ok: false, sent: 0, failed: 0, reasons: {} };
+  const tus = await prisma.telegramUser.findMany({ where: { memberId: leaderId }, select: { firstName: true, lastName: true, username: true } });
+  const leaderName = tus[0] ? shortName(tus[0]) : "Boshliq";
+  const targets = targetMemberId != null
+    ? (j.members.includes(targetMemberId) ? [targetMemberId] : [])
+    : j.members.filter((m) => m !== leaderId);
+  let sent = 0, failed = 0;
+  const reasons: Record<number, string> = {};
+  for (const target of targets) {
+    const r = await pushGashtakMember(target, `gashtak_msg:${leaderId}:${target}`,
+      `👔 <b>${leaderName}</b> («${esc(j.name)}») sizga yozdi:\n\n${esc(text)}`);
+    if (r.ok) sent++; else { failed++; reasons[target] = r.reason; }
+  }
+  return { ok: sent > 0, sent, failed, reasons };
+}
+
+/** Ikkala chaqiruvchi (boshliq va admin) bitta haqiqatdan — TOPILMA 1: qator HECH QACHON
+ *  o'chirilmaydi, faqat `members:[]` + `disbandedAt` yoziladi (o'tgan ball buzilmasin).
+ *  Guruhda hali qolgan HAR a'zoning ko'rsatkichi tozalanadi VA cooldown belgisi qo'yiladi
+ *  (TOPILMA 2 — "tarqat → hammaga darhol yangi guruh" teshigini yopadi). */
+async function disbandJamoaInternal(code: string): Promise<OyinJamoaResult> {
+  const key = `${JAMOA_PREFIX}${code}`;
+  const before = parseJamoa((await prisma.appState.findUnique({ where: { key } }))?.value);
+  if (!before) return { ok: false, reason: "not_found" };
+  const disbanded = await casJamoa(key, (cur) => {
+    cur.members = [];
+    cur.disbandedAt = new Date().toISOString();
+    return cur;
+  });
+  if (!disbanded) return { ok: false, reason: "not_found" };
+  await Promise.all(before.members.map(async (m) => {
+    await prisma.appState.deleteMany({ where: { key: `${JAMOA_MEM_PREFIX}${m}` } });
+    await stampGashtakCooldown(m);
+  }));
+  invalidateBallCache();
+  return { ok: true };
+}
+
+/** 🔒 Faqat boshliq — o'zini ham, hammani ham chiqaradi (kick o'z-o'ziga ishlamaydi, shuning
+ *  uchun tark etishning yagona yo'li shu). */
+export async function disbandJamoaByLeader(leaderId: number): Promise<OyinJamoaResult> {
+  const j = await jamoaOf(leaderId);
+  if (!j) return { ok: false, reason: "not_in" };
+  if (j.leaderId !== leaderId) return { ok: false, reason: "leader_only" };
+  return disbandJamoaInternal(j.id);
+}
+
+/** Admin versiyasi — `leaderId` tekshiruvisiz (moderatsiya). */
+export async function adminDisbandJamoa(code: string): Promise<OyinJamoaResult> {
+  return disbandJamoaInternal(code);
+}
+
+/** Admin versiyasi — `leaderId` tekshiruvisiz (moderatsiya). `turns` TEGILMAYDI (kick bilan
+ *  bir xil falsafa). */
+export async function adminKickFromJamoa(code: string, targetMemberId: number): Promise<OyinJamoaResult> {
+  const key = `${JAMOA_PREFIX}${code}`;
+  const kicked = await casJamoa(key, (cur) => cur.members.includes(targetMemberId) ? applyRemoveMember(cur, targetMemberId) : null);
+  if (!kicked) return { ok: false, reason: "not_found" };
+  await prisma.appState.deleteMany({ where: { key: `${JAMOA_MEM_PREFIX}${targetMemberId}` } });
+  await stampGashtakCooldown(targetMemberId);
+  invalidateBallCache();
+  return { ok: true };
+}
+
+/** 🛠 Admin: barcha gashtak guruhlari — kod, nom, boshliq, a'zo soni, umumiy ball. */
+export async function adminListGashtak(): Promise<OyinAdminGashtakRow[]> {
+  const rows = await prisma.appState.findMany({ where: { key: { startsWith: JAMOA_PREFIX } } }) as AppStateRow[];
+  const groups = rows.map((r) => parseJamoa(r.value)).filter((j): j is JamoaRecord => j != null);
+  const allIds = [...new Set(groups.flatMap((j) => [j.leaderId, ...j.members]))];
+  const tus = allIds.length > 0
+    ? await prisma.telegramUser.findMany({ where: { memberId: { in: allIds } }, select: { memberId: true, firstName: true, lastName: true, username: true } })
+    : [];
+  const nameBy = new Map<number, string>();
+  for (const tu of tus) if (tu.memberId) nameBy.set(tu.memberId, shortName(tu));
+  const out: OyinAdminGashtakRow[] = [];
+  for (const j of groups) {
+    const stats = await jamoaMemberStats(j);
+    let total = 0;
+    for (const s of stats.values()) total += s.ballEarnedTotal;
+    out.push({
+      code: j.id, name: j.name, leaderId: j.leaderId, leaderName: nameBy.get(j.leaderId) ?? `#${j.leaderId}`,
+      memberCount: j.members.length, createdAt: j.createdAt, disbandedAt: j.disbandedAt, ballEarnedTotal: total,
+    });
+  }
+  out.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+  return out;
+}
+
+/** 🛠 Admin: bitta guruh to'liq — faol + tarixiy (chiqib ketgan/chiqarilgan, lekin navbat
+ *  olgan) a'zolar. `jamoaMemberStats` bilan BIR XIL manba (S8-8 saboqi). */
+export async function adminGashtakDetail(code: string): Promise<OyinAdminGashtakDetail | null> {
+  const row = await prisma.appState.findUnique({ where: { key: `${JAMOA_PREFIX}${code}` } });
+  const j = parseJamoa(row?.value);
+  if (!j) return null;
+  const stats = await jamoaMemberStats(j);
+  const allIds = [...stats.keys()];
+  const tus = allIds.length > 0
+    ? await prisma.telegramUser.findMany({ where: { memberId: { in: allIds } }, select: { memberId: true, phone: true, firstName: true, lastName: true, username: true } })
+    : [];
+  const byId = new Map(tus.filter((tu) => tu.memberId != null).map((tu) => [tu.memberId as number, tu]));
+  const turnOf = new Map<number, string>();
+  for (const [mk, m] of Object.entries(j.turns)) if (!turnOf.has(m)) turnOf.set(m, mk);
+  const members = allIds.map((id) => {
+    const tu = byId.get(id);
+    const s = stats.get(id);
+    return {
+      memberId: id, name: tu ? shortName(tu) : `#${id}`, phone: tu?.phone ?? null,
+      isLeader: id === j.leaderId, joinedAt: j.joinedAt[id] ?? null, turnMonth: turnOf.get(id) ?? null,
+      ridesLifetime: s?.ridesLifetime ?? 0, ballEarnedTotal: s?.ballEarnedTotal ?? 0,
+      inGroup: j.members.includes(id),
+    };
+  });
+  members.sort((a, b) => (b.isLeader ? 1 : 0) - (a.isLeader ? 1 : 0) || (a.turnMonth ?? "").localeCompare(b.turnMonth ?? ""));
+  return { code: j.id, name: j.name, leaderId: j.leaderId, createdAt: j.createdAt, disbandedAt: j.disbandedAt, members };
 }
 
 // ── 🎬 MUKOFOT KUNI ──────────────────────────────────────────────────────────────────────────
@@ -2533,6 +2945,7 @@ export const ARCHIVED_PREFIXES = [
   "oyin:thanks:",      // "bugun rahmat aytdim" kun-belgisi
   "oyin:goal:",        // mijozning maqsad-sovrini (UI tanlovi)
   "oyin_sold_test:",   // o'lik test-hisoblagichlari
+  "oyin:gashtakcooldown:", // 2026-08-05: qayta-qo'shilish sovutish belgisi — ball manbai EMAS
   // ⛔ ATAYLAB YO'Q (har biri nega):
   //  · oyin:tickets: / oyin_sold: — karta ABADIY (ega qarori: "kartalar admin panelda abadiy
   //    bo'lishi kerak egallari bilan"). Sotilgan-hisoblagich ham qolishi shart, aks holda

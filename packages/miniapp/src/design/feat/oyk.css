@@ -997,12 +997,41 @@
 .oyk-jamoa-turn b { color: var(--oyk-text); }
 .oyk-jamoa-list { margin-top: 10px; display: flex; flex-direction: column; gap: 1px; }
 .oyk-jamoa-row {
-  display: flex; align-items: center; justify-content: space-between; gap: 10px;
+  display: flex; align-items: center; gap: 8px;
   padding: 8px 10px; border-radius: 9px; font-size: 12.5px; background: var(--oyk-fill);
 }
 .oyk-jamoa-row.is-turn { background: var(--oyk-gold-fill, #fdf3d8); font-weight: 800; }
-.oyk-jamoa-who { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.oyk-jamoa-who { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .oyk-jamoa-rides { flex-shrink: 0; color: var(--oyk-text-2); font-variant-numeric: tabular-nums; }
+/* 👑 Boshliq belgisi — ism yonida, kichik. */
+.oyk-jamoa-crown { margin-left: 4px; font-size: 11px; }
+/* 👑 Havola + Nusxa — ikkalasi ham teng vaznda, "Havola" birlamchi (ulashish endi asosiy yo'l). */
+.oyk-jamoa-head-acts { display: flex; flex-direction: column; gap: 6px; flex-shrink: 0; }
+/* ✕ Chiqarish — kichik, o'chirilgan holatda ko'zga tashlanmaydi, faqat boshliqqa ko'rinadi. */
+.oyk-jamoa-kick {
+  flex-shrink: 0; width: 22px; height: 22px; border-radius: 50%; border: none;
+  background: transparent; color: var(--oyk-text-3); font-size: 13px; line-height: 1; cursor: pointer;
+}
+.oyk-jamoa-kick:active:not(:disabled) { transform: scale(.9); background: var(--oyk-danger-fill, #fde2e2); }
+.oyk-jamoa-kick:disabled { opacity: .4; cursor: default; }
+.oyk-jamoa-foot { display: flex; gap: 8px; margin-top: 11px; }
+.oyk-jamoa-foot .oyk-jamoa-leave { margin-top: 0; flex: 1; }
+.oyk-jamoa-manage {
+  flex: 1; min-height: 38px; border: 1px solid var(--oyk-line); background: var(--oyk-fill);
+  border-radius: 10px; font-size: 12px; font-weight: 800; color: var(--oyk-text); cursor: pointer;
+}
+.oyk-jamoa-manage:active:not(:disabled) { transform: scale(.97); }
+
+/* ⚙️ Gashtak boshqaruvi varag'i (2026-08-05) — qidiruv/xabar bloklari. */
+.oyk-gashtak-block { margin-top: 16px; padding-top: 14px; border-top: 1px solid var(--oyk-line); }
+.oyk-gashtak-label { font-size: 12.5px; font-weight: 800; margin-bottom: 8px; }
+.oyk-gashtak-msg {
+  width: 100%; margin-top: 8px; padding: 10px 12px; font-size: 13px; font-family: inherit;
+  border: 1px solid var(--oyk-line); border-radius: 11px; background: var(--oyk-page);
+  color: var(--oyk-text); resize: vertical;
+}
+.oyk-gashtak-danger { display: flex; gap: 8px; margin-top: 16px; }
+.oyk-gashtak-danger .oyk-jamoa-copy, .oyk-gashtak-danger .oyk-jamoa-leave { flex: 1; margin-top: 0; }
 .oyk-jamoa-note { margin-top: 10px; font-size: 11.5px; line-height: 1.6; color: var(--oyk-text-2); }
 .oyk-jamoa-note b { color: var(--oyk-text); }
 .oyk-jamoa-acts { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 11px; }
