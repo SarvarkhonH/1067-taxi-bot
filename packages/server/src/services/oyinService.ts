@@ -2810,7 +2810,10 @@ export async function adminAddTestMember(code: string, nameRaw: string, initialM
     }
     if (!negId) return null;
     cur.members.push(negId);
-    cur.testNames[negId] = `🧪 ${name}`;
+    // ⚠️ Emoji BU YERDA yozilmaydi — `isTest: memberId < 0` ekranlarda YAGONA manba (miniapp
+    // ham, admin panel ham `{m.isTest && "🧪 "}` bilan chizadi). Avval shu yerda ham
+    // qo'shilardi va ikki marta "🧪 🧪" chiqardi (2026-08-05, jonli demo QA'da topildi).
+    cur.testNames[negId] = name;
     assignTurn(cur, negId); // HAQIQIY funksiya — virtual a'zo ham navbat oladi
     return cur;
   });

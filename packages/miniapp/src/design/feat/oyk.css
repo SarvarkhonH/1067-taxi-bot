@@ -1035,6 +1035,29 @@
 }
 .oyk-gashtak-danger { display: flex; gap: 8px; margin-top: 16px; }
 .oyk-gashtak-danger .oyk-jamoa-copy, .oyk-gashtak-danger .oyk-jamoa-leave { flex: 1; margin-top: 0; }
+
+/* 🧭 Segmentlangan navigatsiya — "⚙️ Boshqarish" varag'i (2026-08-05, "qulayroq interfeys"
+   so'ralgach). Admin paneldagi OYIN_SECTIONS bilan bir xil g'oya: bitta vaqtda bitta bo'lim. */
+.oyk-gashtak-seg {
+  display: flex; gap: 4px; margin-top: 14px; padding: 3px; border-radius: 12px;
+  background: var(--oyk-fill);
+}
+.oyk-gashtak-seg-btn {
+  flex: 1; min-height: 34px; border: none; border-radius: 9px; background: transparent;
+  color: var(--oyk-text-2); font-size: 11.5px; font-weight: 800; cursor: pointer;
+}
+.oyk-gashtak-seg-btn.is-active { background: var(--oyk-surface); color: var(--oyk-text); box-shadow: var(--oyk-shadow); }
+.oyk-gashtak-seg-btn:active:not(.is-active) { transform: scale(.96); }
+
+/* 🎯 Chip-tanlov — a'zo tanlash uchun NATIV `<select>` o'rniga (Telegram WebView'da OS-select
+   qorong'i mavzu bilan mos kelmaydi; guruh ≤10 kishi bo'lgani uchun chip ro'yxati qulayroq). */
+.oyk-chip-row { display: flex; flex-wrap: wrap; gap: 6px; }
+.oyk-chip {
+  min-height: 34px; padding: 0 12px; border: 1px solid var(--oyk-line); border-radius: 999px;
+  background: var(--oyk-fill); color: var(--oyk-text); font-size: 12px; font-weight: 700; cursor: pointer;
+}
+.oyk-chip.is-active { background: var(--oyk-violet-grad); color: var(--oyk-on); border-color: transparent; }
+.oyk-chip:active { transform: scale(.96); }
 .oyk-jamoa-note { margin-top: 10px; font-size: 11.5px; line-height: 1.6; color: var(--oyk-text-2); }
 .oyk-jamoa-note b { color: var(--oyk-text); }
 .oyk-jamoa-acts { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 11px; }

@@ -606,6 +606,9 @@ export function OyinView({ onTaxi, joinCode }: { onTaxi?: () => void; joinCode?:
   // ko'rinadigan e'lon bo'ladi (asosiy banner, yuqorida).
   const [gashtakTurnTarget, setGashtakTurnTarget] = useState<number | null>(null);
   const [gashtakTurnNote, setGashtakTurnNote] = useState("");
+  // ⚙️ Boshqarish varag'i endi segmentlangan (2026-08-05, "qulayroq interfeys" so'ralgach) —
+  // avval 5 ta bo'lim bitta uzun ro'yxatda edi, boshliq birinchi ochganda cho'kib qolardi.
+  const [gashtakSheetTab, setGashtakSheetTab] = useState<"ball" | "add" | "message" | "settings">("ball");
   const doGashtakSetTurn = useCallback(async () => {
     if (gashtakTurnTarget == null) return;
     haptic();
@@ -2095,69 +2098,91 @@ Taksida yur, ball yig', sodiqlik kartasini ol. Davr oxirida jonli efirda mukofot
                   🔗 Havola ulashish
                 </button>
 
+                {/* Segmentlangan navigatsiya (2026-08-05, "qulayroq interfeys" so'ralgach) — admin
+                    paneldagi OYIN_SECTIONS bilan bir xil naqsh: bitta vaqtda BITTA bo'lim ko'rinadi,
+                    boshliq birinchi ochganda 5 ta bo'lim bir vaqtda cho'kib qolmaydi. */}
+                <div className="oyk-gashtak-seg">
+                  {([
+                    ["ball", "🎯 Ball"], ["add", "🔍 Qo'shish"], ["message", "📢 Xabar"], ["settings", "⚙️ Sozlama"],
+                  ] as const).map(([id, label]) => (
+                    <button key={id} type="button" className={`oyk-gashtak-seg-btn${gashtakSheetTab === id ? " is-active" : ""}`} onClick={() => { haptic(); setGashtakSheetTab(id); }}>{label}</button>
+                  ))}
+                </div>
+
                 {/* 🎯 "Kimga ball yig'amiz" (2026-08-05, ega talabi): boshliq ONGLI belgilaydi,
                     HAMMA a'zoga ko'rinadigan e'lon bo'lib chiqadi (asosiy banner). Avtomatik
                     navbat DEFAULT bo'lib qolaveradi — bu shunchaki e'lon qilish imkoni. */}
-                <div className="oyk-gashtak-block">
-                  <div className="oyk-gashtak-label">🎯 Kimga ball yig'amiz</div>
-                  <select className="oyk-jamoa-inp" value={gashtakTurnTarget ?? ""} onChange={(e) => setGashtakTurnTarget(e.target.value ? Number(e.target.value) : null)}>
-                    <option value="">Odam tanlang…</option>
-                    {jamoa.jamoa.members.map((m) => (
-                      <option key={m.memberId} value={m.memberId}>{m.isTest && "🧪 "}{m.name}{m.isNavbatchi ? " (hozirgi navbat)" : ""}</option>
-                    ))}
-                  </select>
-                  <input className="oyk-jamoa-inp" value={gashtakTurnNote} onChange={(e) => setGashtakTurnNote(e.target.value)} placeholder="Nima uchun (ixtiyoriy) — masalan «karta uchun»" maxLength={120} />
-                  <button type="button" className="oyk-jamoa-btn" disabled={jamoaBusy || gashtakTurnTarget == null} onClick={() => { void doGashtakSetTurn(); }}>E'lon qilish</button>
-                  {jamoa.jamoa.turnNote && (
-                    <div className="oyk-note-violet">Joriy e'lon: {jamoa.jamoa.turnNote}</div>
-                  )}
-                </div>
-
-                <div className="oyk-gashtak-block">
-                  <div className="oyk-gashtak-label">🔍 Telefon bilan qo'shish</div>
-                  <div className="oyk-jamoa-acts">
-                    <input className="oyk-jamoa-inp" value={gashtakSearchPhone} onChange={(e) => setGashtakSearchPhone(e.target.value)} placeholder="+998 90 123 45 67" inputMode="tel" maxLength={20} />
-                    <button type="button" className="oyk-jamoa-btn is-ghost" disabled={jamoaBusy} onClick={() => { void doGashtakSearch(); }}>Qidirish</button>
+                {gashtakSheetTab === "ball" && (
+                  <div className="oyk-gashtak-block">
+                    <div className="oyk-gashtak-label">🎯 Kimga ball yig'amiz</div>
+                    <div className="oyk-chip-row">
+                      {jamoa.jamoa.members.map((m) => (
+                        <button key={m.memberId} type="button" className={`oyk-chip${gashtakTurnTarget === m.memberId ? " is-active" : ""}`} onClick={() => { haptic(); setGashtakTurnTarget(m.memberId); }}>
+                          {m.isTest && "🧪 "}{m.name}{m.isNavbatchi && " · navbatda"}
+                        </button>
+                      ))}
+                    </div>
+                    <input className="oyk-jamoa-inp" value={gashtakTurnNote} onChange={(e) => setGashtakTurnNote(e.target.value)} placeholder="Nima uchun (ixtiyoriy) — masalan «karta uchun»" maxLength={120} />
+                    <button type="button" className="oyk-jamoa-btn" disabled={jamoaBusy || gashtakTurnTarget == null} onClick={() => { void doGashtakSetTurn(); }}>E'lon qilish</button>
+                    {jamoa.jamoa.turnNote && (
+                      <div className="oyk-note-violet">Joriy e'lon: {jamoa.jamoa.turnNote}</div>
+                    )}
                   </div>
-                  {gashtakHits && (
-                    gashtakHits.length === 0 ? (
-                      <div className="oyk-note-violet">Bu raqam bilan hech kim topilmadi.</div>
-                    ) : (
-                      <div className="oyk-jamoa-list">
-                        {gashtakHits.map((h) => (
-                          <div key={h.memberId} className="oyk-jamoa-row">
-                            <span className="oyk-jamoa-who">{h.name}</span>
-                            {h.alreadyInGroup ? (
-                              <span className="oyk-jamoa-rides">band</span>
-                            ) : (
-                              <button type="button" className="oyk-jamoa-copy" disabled={jamoaBusy} onClick={() => { void doGashtakAdd(h.memberId); }}>Qo'shish</button>
-                            )}
-                          </div>
-                        ))}
-                      </div>
-                    )
-                  )}
-                </div>
+                )}
 
-                <div className="oyk-gashtak-block">
-                  <div className="oyk-gashtak-label">📢 Xabar yuborish</div>
-                  <select className="oyk-jamoa-inp" value={gashtakMsgTarget ?? ""} onChange={(e) => setGashtakMsgTarget(e.target.value === "all" ? "all" : e.target.value ? Number(e.target.value) : null)}>
-                    <option value="">Kimga?</option>
-                    <option value="all">👥 Hammaga</option>
-                    {jamoa.jamoa.members.filter((m) => !m.isLeader).map((m) => (
-                      <option key={m.memberId} value={m.memberId}>{m.name}</option>
-                    ))}
-                  </select>
-                  <textarea className="oyk-gashtak-msg" value={gashtakMsgText} onChange={(e) => setGashtakMsgText(e.target.value)} placeholder="Masalan: bu oy yana 2 marta safar qilsak yetadi 🚕" maxLength={300} rows={3} />
-                  <button type="button" className="oyk-jamoa-btn" disabled={jamoaBusy || !gashtakMsgText.trim() || gashtakMsgTarget == null} onClick={() => { void doGashtakMessage(); }}>Yuborish</button>
-                </div>
+                {gashtakSheetTab === "add" && (
+                  <div className="oyk-gashtak-block">
+                    <div className="oyk-gashtak-label">🔍 Telefon bilan qo'shish</div>
+                    <div className="oyk-jamoa-acts">
+                      <input className="oyk-jamoa-inp" value={gashtakSearchPhone} onChange={(e) => setGashtakSearchPhone(e.target.value)} placeholder="+998 90 123 45 67" inputMode="tel" maxLength={20} />
+                      <button type="button" className="oyk-jamoa-btn is-ghost" disabled={jamoaBusy} onClick={() => { void doGashtakSearch(); }}>Qidirish</button>
+                    </div>
+                    {gashtakHits && (
+                      gashtakHits.length === 0 ? (
+                        <div className="oyk-note-violet">Bu raqam bilan hech kim topilmadi.</div>
+                      ) : (
+                        <div className="oyk-jamoa-list">
+                          {gashtakHits.map((h) => (
+                            <div key={h.memberId} className="oyk-jamoa-row">
+                              <span className="oyk-jamoa-who">{h.name}</span>
+                              {h.alreadyInGroup ? (
+                                <span className="oyk-jamoa-rides">band</span>
+                              ) : (
+                                <button type="button" className="oyk-jamoa-copy" disabled={jamoaBusy} onClick={() => { void doGashtakAdd(h.memberId); }}>Qo'shish</button>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      )
+                    )}
+                  </div>
+                )}
 
-                <div className="oyk-gashtak-danger">
-                  <button type="button" className="oyk-jamoa-copy is-ghost" disabled={jamoaBusy} onClick={() => { void doGashtakRotate(); }}>🔄 Kodni yangilash</button>
-                  <button type="button" className="oyk-jamoa-leave" disabled={jamoaBusy} onClick={() => { void doGashtakDisband(); }}>🗑 Guruhni tarqatish</button>
-                </div>
+                {gashtakSheetTab === "message" && (
+                  <div className="oyk-gashtak-block">
+                    <div className="oyk-gashtak-label">📢 Xabar yuborish</div>
+                    <div className="oyk-chip-row">
+                      <button type="button" className={`oyk-chip${gashtakMsgTarget === "all" ? " is-active" : ""}`} onClick={() => { haptic(); setGashtakMsgTarget("all"); }}>👥 Hammaga</button>
+                      {jamoa.jamoa.members.filter((m) => !m.isLeader).map((m) => (
+                        <button key={m.memberId} type="button" className={`oyk-chip${gashtakMsgTarget === m.memberId ? " is-active" : ""}`} onClick={() => { haptic(); setGashtakMsgTarget(m.memberId); }}>{m.isTest && "🧪 "}{m.name}</button>
+                      ))}
+                    </div>
+                    <textarea className="oyk-gashtak-msg" value={gashtakMsgText} onChange={(e) => setGashtakMsgText(e.target.value)} placeholder="Masalan: bu oy yana 2 marta safar qilsak yetadi 🚕" maxLength={300} rows={3} />
+                    <button type="button" className="oyk-jamoa-btn" disabled={jamoaBusy || !gashtakMsgText.trim() || gashtakMsgTarget == null} onClick={() => { void doGashtakMessage(); }}>Yuborish</button>
+                  </div>
+                )}
 
-                <button type="button" className="oyk-sheet-ok" onClick={() => { haptic(); setSheet(null); setGashtakHits(null); setGashtakSearchPhone(""); setGashtakMsgTarget(null); setGashtakMsgText(""); }}>Yopish</button>
+                {gashtakSheetTab === "settings" && (
+                  <div className="oyk-gashtak-block">
+                    <div className="oyk-gashtak-label">⚙️ Sozlama</div>
+                    <div className="oyk-gashtak-danger">
+                      <button type="button" className="oyk-jamoa-copy is-ghost" disabled={jamoaBusy} onClick={() => { void doGashtakRotate(); }}>🔄 Kodni yangilash</button>
+                      <button type="button" className="oyk-jamoa-leave" disabled={jamoaBusy} onClick={() => { void doGashtakDisband(); }}>🗑 Guruhni tarqatish</button>
+                    </div>
+                  </div>
+                )}
+
+                <button type="button" className="oyk-sheet-ok" onClick={() => { haptic(); setSheet(null); setGashtakHits(null); setGashtakSearchPhone(""); setGashtakMsgTarget(null); setGashtakMsgText(""); setGashtakSheetTab("ball"); }}>Yopish</button>
               </>
             )}
 

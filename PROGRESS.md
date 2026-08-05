@@ -1,5 +1,34 @@
 # PROGRESS
 
+## 🟡 2026-08-05 (kech) — GASHTAK: "⚙️ Boshqarish" segmentlandi + 🧪🧪 bug tuzatildi — READY FOR VERIFICATION
+
+Ega ikki narsa so'radi: (1) "gashtak bo'limi qulayroq interfeys" — "⚙️ Boshqarish" varag'i
+5 ta bo'lim (havola/ball/qidiruv/xabar/sozlama) bitta uzun ro'yxatda edi; (2) "xabarlar
+qanday tarzda boradi — gashtak nomidanmi?"
+
+**Jonli demo QA orqali (birinchi marta bu sessiyada — `#oyindemo` `window.fetch` ushlab
+qolish bilan kengaytirildi, HAQIQIY komponent daraxti, backend shart emas) real xato
+topildi**: sinov a'zo nomi ikki marta "🧪 🧪" bilan chiqardi — server ham (`adminAddTestMember`)
+ism boshiga emoji qo'shardi, ekran ham (`{m.isTest && "🧪 "}`) qo'shardi. Tuzatildi:
+server endi TOZA ism saqlaydi, `isTest` bayrog'i YAGONA manba — miniapp va admin
+panelning HAMMA ko'rsatish joyi shundan chizadi.
+
+**"⚙️ Boshqarish" segmentlandi** — admin paneldagi `OYIN_SECTIONS` bilan bir xil g'oya:
+🎯 Ball · 🔍 Qo'shish · 📢 Xabar · ⚙️ Sozlama, bitta vaqtda BITTA bo'lim ko'rinadi ("🔗 Havola
+ulashish" — eng tez-tez bosiladigan amal — doim tepada qoladi). Native `<select>` (Telegram
+WebView'da OS-uslubda, qorong'i mavzuga mos kelmaydi) chip-tanlovga almashtirildi — guruh
+≤10 kishi bo'lgani uchun teginish-qulay.
+
+**Xabarlar savoliga javob** (kod o'zgarishsiz — allaqachon to'g'ri): Telegram xabarlari
+DOIM bot akkountidan keladi (platforma cheklovi, o'zgartirib bo'lmaydi), lekin matn HAR
+doim guruh nomini ko'rsatadi: kick `👔 Siz «{guruh}»dan chiqarildingiz`, qo'shilish
+`🤝 Siz «{guruh}» gashtakiga qo'shildingiz`, boshliq xabari `👔 {boshliq ismi} («{guruh}»)
+sizga yozdi`.
+
+Tekshiruv: `typecheck 4/4` · `vitest 90/90` · `simGuards` yashil · admin+miniapp build
+yashil · **`#oyindemo` orqali brauzerda VIZUAL tekshirildi** (segment almashtirish, chip
+tanlash, ikkilamchi emoji yo'qligi — barchasi tasdiqlandi).
+
 ## 🟡 2026-08-05 (kechqurun) — GASHTAK: "kimga ball" boshliq hal qiladi + jonli sinov uchun sun'iy a'zolar — READY FOR VERIFICATION
 
 Ega uch narsa so'radi: (1) "kimga ball yozilishi ega doim hal qilishi kerak" — birinchi
