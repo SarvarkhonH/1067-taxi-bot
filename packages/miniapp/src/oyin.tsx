@@ -464,7 +464,9 @@ export function OyinView({ onTaxi, joinCode }: { onTaxi?: () => void; joinCode?:
   const markBadPhoto = useCallback((key: string) => setBadPhoto((s) => (s.has(key) ? s : new Set(s).add(key))), []);
   const [toast, setToast] = useState<string | null>(null);
   const [thanked, setThanked] = useState<Set<number>>(new Set());
-  const [storyUrl, setStoryUrl] = useState("");
+  // Ikkita alohida, aniq nomlangan havola-maydoni (Instagram / Telegram) — pastdagi JSX'da.
+  const [igUrl, setIgUrl] = useState("");
+  const [tgUrl, setTgUrl] = useState("");
   // 🖼 2026-08-05: dinamik Canvas-generatsiya (matn+shablon+QR) BEKOR QILINDI — ega "oddiygina
   // qilib qo'y" dedi, 20 ta TAYYOR rasm (`state.story.posters`, statik fayl) bor, hech narsa
   // chizilmaydi. Mijoz galereyadan birini tanlaydi (`selectedPoster` = o'sha rasmning haqiqiy
@@ -872,13 +874,29 @@ export function OyinView({ onTaxi, joinCode }: { onTaxi?: () => void; joinCode?:
   const pickPoster = useCallback((url: string) => { haptic(); setSelectedPoster(url); }, []);
   const closePosterPreview = useCallback(() => setSelectedPoster(null), []);
 
-  const submitStory = useCallback(async () => {
+  // 📸 Uy-tabidagi promo-kartochkadan Jamoam-tabidagi hikoya-bo'limiga o'tish + shu yerga
+  // scroll qilish (bo'lim tab ichida pastda, o'zi ko'rinmasligi mumkin).
+  const [scrollToStoryPending, setScrollToStoryPending] = useState(false);
+  const storyAnchorRef = useRef<HTMLDivElement>(null);
+  const goToStory = useCallback(() => { haptic(); setTab("jamoam"); setScrollToStoryPending(true); }, []);
+  useEffect(() => {
+    if (scrollToStoryPending && tab === "jamoam") {
+      storyAnchorRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+      setScrollToStoryPending(false);
+    }
+  }, [scrollToStoryPending, tab]);
+
+  // 🖼 2026-08-05: bitta umumiy input o'rniga IKKITA alohida, aniq nomlangan maydon
+  // (Instagram / Telegram) — ega talabi: mijoz "bu yerga qaysi havola" deb chalkashmasin.
+  // Serverning o'zi ikkalasini ham qabul qiladi (`ALLOWED_HOSTS`), shuning uchun bitta
+  // umumiy `submitStory(url, clear)` yetarli — faqat qaysi input tozalanishi farq qiladi.
+  const submitStory = useCallback(async (url: string, clear: () => void) => {
     if (posterBusy) return;
     setPosterBusy(true);
     try {
-      const r = await api.oyinStory(storyUrl.trim());
+      const r = await api.oyinStory(url.trim());
       if (r.ok) {
-        setStoryUrl("");
+        clear();
         showToast("✅ Yuborildi — 24 soat ichida tekshiramiz", 3400);
         loadHome();
         return;
@@ -898,7 +916,7 @@ export function OyinView({ onTaxi, joinCode }: { onTaxi?: () => void; joinCode?:
     } finally {
       setPosterBusy(false);
     }
-  }, [posterBusy, storyUrl, showToast, loadHome]);
+  }, [posterBusy, showToast, loadHome]);
 
   // ⚠️ Avval bu tugma HECH NARSA ulashmasdan ball berardi (bepul ball, ulashuv nol).
   // Endi avval Telegram ulashish oynasi ochiladi, ball undan KEYIN beriladi.
@@ -1336,6 +1354,26 @@ Taksida yur, ball yig', sodiqlik kartasini ol. Davr oxirida jonli efirda mukofot
                 </span>
                 <span className="oyk-quest-b">{state.quest.done ? `✓ +${state.quest.ball}` : `+${state.quest.ball}`}</span>
               </div>
+            )}
+
+            {/* 📸 Hikoya-qo'yish — PROMO kartochka, HAQIQIY "topshiriq" EMAS (2026-08-05, ega
+                talabi + xavfsizlik cheklovi). Ball haqiqiy va ko'rinadigan (`state.story.ballEach`)
+                — bu odamni harakatga undaydi — lekin bosish HECH QACHON `done`/ball bermaydi,
+                faqat hikoya bo'limiga OLIB BORADI. Sabab: server hikoyani serverga TEKSHIRA
+                OLMAYDI (faqat admin ko'radi) — 2026-08-03'da "story" aynan shu sabab bilan
+                `OYIN_QUEST_POOL`dan OLIB TASHLANGAN (izohga qarang) — mavsumda BIR MARTA
+                tasdiqlangan odam shundan keyin HAR KUNI bepul "bajarildi" olardi. Bu kartochka
+                o'sha xatoni QAYTARMAYDI: haqiqiy ball hamon FAQAT admin tasdig'idan keyin,
+                `computeBallMap` orqali, mavjud yo'l bilan tushadi. */}
+            {!ended && state.story.ballEach > 0 && state.story.approved < state.story.limit && (
+              <button type="button" className="oyk-quest is-story" onClick={goToStory}>
+                <span className="oyk-quest-em">📸</span>
+                <span className="oyk-quest-tx">
+                  <b>Hikoya qo'ying — ball oling</b>
+                  <small>{state.story.pending ? "Yuborilgan — 24 soat ichida tekshiramiz" : "Instagram yoki Telegram'ga qo'ying"}</small>
+                </span>
+                <span className="oyk-quest-b">+{state.story.ballEach}</span>
+              </button>
             )}
 
             {/* 🏠 DOIMIY topshiriq — ilovani telefon ekraniga o'rnatish.
@@ -1869,7 +1907,7 @@ Taksida yur, ball yig', sodiqlik kartasini ol. Davr oxirida jonli efirda mukofot
                 yasab, hikoyasiga qo'yib, havolasini yuborardi — server esa `season_off`
                 qaytarardi. Ya'ni ekran bajarib bo'lmaydigan ishga chaqirardi (G5b). */}
             {!ended && state.story.ballEach > 0 && (
-              <div className="oyk-poster">
+              <div className="oyk-poster" ref={storyAnchorRef}>
                 <div className="oyk-poster-head">
                   <span className="oyk-poster-title">📸 Hikoya qo'y — <b>+{state.story.ballEach} ball</b></span>
                   <span className="oyk-poster-count">{state.story.approved}/{state.story.limit}</span>
@@ -1906,14 +1944,35 @@ Taksida yur, ball yig', sodiqlik kartasini ol. Davr oxirida jonli efirda mukofot
                         <button type="button" className="oyk-poster-chip" onClick={closePosterPreview}>Yopish</button>
                       </div>
                     )}
-                    <input
-                      className="oyk-poster-input" type="url"
-                      value={storyUrl} onChange={(e) => setStoryUrl(e.target.value)}
-                      placeholder="Hikoya havolasini joylashtiring"
-                    />
-                    <button type="button" className="oyk-poster-btn ghost" disabled={!storyUrl.trim() || posterBusy} onClick={() => void submitStory()}>
-                      Havolani yuborish →
-                    </button>
+                    {/* 🖼 2026-08-05: ikkita ALOHIDA, aniq nomlangan maydon — mijoz "bu yerga
+                        qaysi havola" deb chalkashmasin (ega talabi). Ikkalasi ham xuddi shu
+                        `submitStory`ga boradi — server ikkalasini ham qabul qiladi. */}
+                    <div className="oyk-poster-link-row">
+                      <span className="oyk-poster-link-label">📷 Instagram</span>
+                      <input
+                        className="oyk-poster-input" type="url"
+                        value={igUrl} onChange={(e) => setIgUrl(e.target.value)}
+                        placeholder="instagram.com/stories/…"
+                      />
+                      <button
+                        type="button" className="oyk-poster-btn ghost sm"
+                        disabled={!igUrl.trim() || posterBusy}
+                        onClick={() => void submitStory(igUrl, () => setIgUrl(""))}
+                      >Yuborish</button>
+                    </div>
+                    <div className="oyk-poster-link-row">
+                      <span className="oyk-poster-link-label">✈️ Telegram</span>
+                      <input
+                        className="oyk-poster-input" type="url"
+                        value={tgUrl} onChange={(e) => setTgUrl(e.target.value)}
+                        placeholder="t.me/…"
+                      />
+                      <button
+                        type="button" className="oyk-poster-btn ghost sm"
+                        disabled={!tgUrl.trim() || posterBusy}
+                        onClick={() => void submitStory(tgUrl, () => setTgUrl(""))}
+                      >Yuborish</button>
+                    </div>
                   </>
                 )}
               </div>

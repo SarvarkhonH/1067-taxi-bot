@@ -306,8 +306,10 @@
   padding: 12px 13px; border-radius: 16px; font-family: inherit;
   background: var(--oyk-surface); border: 1px solid var(--oyk-line); box-shadow: var(--oyk-shadow);
 }
-.oyk-quest.is-home { cursor: pointer; transition: transform var(--dur-press); }
-.oyk-quest.is-home:active { transform: scale(.98); }
+.oyk-quest.is-home,
+.oyk-quest.is-story { cursor: pointer; transition: transform var(--dur-press); }
+.oyk-quest.is-home:active,
+.oyk-quest.is-story:active { transform: scale(.98); }
 .oyk-quest.is-home:disabled { cursor: default; }
 .oyk-quest.is-done { background: rgba(31, 157, 85, .07); border-color: rgba(31, 157, 85, .28); }
 .oyk-quest-em { font-size: 24px; line-height: 1; flex-shrink: 0; }
@@ -694,6 +696,11 @@
   transition: transform var(--dur-press);
 }
 .oyk-poster-btn:active { transform: scale(.97); }
+/* 🖼 2026-08-05: Instagram/Telegram — ikkita nomlangan qator, har biri o'z kichik tugmasi bilan. */
+.oyk-poster-link-row { display: flex; align-items: center; gap: 6px; }
+.oyk-poster-link-label { flex-shrink: 0; font-size: 12px; font-weight: 800; color: var(--oyk-text-2); min-width: 66px; }
+.oyk-poster-link-row .oyk-poster-input { flex: 1; min-width: 0; width: auto; }
+.oyk-poster-btn.sm { min-height: 40px; width: auto; flex-shrink: 0; padding: 0 14px; }
 .oyk-poster-btn:disabled { opacity: .5; cursor: not-allowed; }
 .oyk-poster-btn.ghost { background: var(--oyk-fill); color: var(--oyk-text); border: 1px solid var(--oyk-line); }
 .oyk-poster-preview {

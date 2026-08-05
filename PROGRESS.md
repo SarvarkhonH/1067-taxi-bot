@@ -5617,3 +5617,55 @@ Kechagi 1-bosqich (9 ta Canvas-chizilgan shablon) BUTUNLAY BEKOR QILINDI — ega
   "SODIQLIK KARTASI" yozib QOPLASHGA urinaman (natija original-generatsiyadek silliq
   bo'lmasligi mumkin), yoki (c) ega ONGLI ravishda shu 7 tasini hozircha shu holda qoldirishga
   qaror qiladi. **Hech biri tanlanmagan — push qilishdan oldin ega javobi kerak.**
+
+### 2026-08-06 (tong) — 🖼 STORY-POSTER 2-to'lqin: hikoya-promo + IG/TG maydonlari + v2 admin
+
+**Holat: ready for verification — VPS db push shart EMAS; ega hali telefonda/v2 panelda
+qayta ko'rmagan**
+
+Ega jonli sinovda 3 ta narsa topdi/so'radi:
+
+1. **Hikoya link admin panelga "kelmadi"** — TEKSHIRILDI: aslida VPS'da saqlangan
+   (`oyin:story:26`, status "pending", to'g'ri). Sabab — moderatsiya bo'limi FAQAT eski v1
+   panelda bor edi (`App.tsx`), yangi v2 panelda (`AdminV2.tsx`) umuman yo'q edi. Ma'lumot
+   yo'qolmagan, ekran yo'q edi.
+2. **Yon-yo'lakay yuridik-emas, iqtisodiy topilma**: ega "10 kishi gashtak qilib bir oyda TV
+   yuta oladimi" deb so'radi — tekshiruv shuni ko'rsatdiki (`convertUzumToCatalog.ts:36-38`),
+   YAQINDA import qilingan 30 ta Uzum mahsuloti narxi BUZUQ formula bilan hisoblangan
+   (`ballPrice = qiymat ÷ 20`, TO'G'RI `oyinCardPlan`/tier-tizimi O'RNIGA) — masalan iPhone 12
+   uchun BITTA chipta 450 000 ball (realistik oylik maksimum ≈ 4 000 ball — ya'ni ~9 YIL kerak
+   bitta chipta uchun). Barcha 30 mahsulot amalda O'LIK ZAXIRA. **Ega qarori: hozircha
+   tuzatilmaydi — o'zi mahsulotlarni qayta yuklaydi** (bir-ma-bir, taxminan admin panel
+   orqali, TO'G'RI formula bilan — u ALLAQACHON to'g'ri ishlaydi, faqat import-skript buzuq
+   edi). Bu topilma FAQAT xabar qilindi, kod O'ZGARTIRILMADI.
+3. **Hikoya-qo'yishni "topshiriq"ga qo'shish so'raldi** — ⚠️ MUHIM: `story` 2026-08-03'da
+   AYNAN shu sabab bilan `OYIN_QUEST_POOL`dan OLIB TASHLANGAN edi (server hikoyani tekshira
+   olmaydi, faqat admin — avtomatik "bajarildi" ikki marta ekspluatatsiya qilingan: (a) har
+   qanday havola yuborib darhol ball, (b) mavsumda BIR MARTA tasdiqlangan odam SHUNDAN KEYIN
+   HAR KUNI bepul ball olardi). Ega "ball ko'rinmasa hech kim qilmaydi" dedi (haqli tashvish)
+   — YECHIM: promo-kartochka ball SONINI ko'rsatadi (+100, chindan matvatlantiruvchi), lekin
+   bosish HECH QACHON `done`/ball bermaydi — faqat hikoya bo'limiga OLIB BORADI. Haqiqiy ball
+   hamon FAQAT admin tasdig'idan keyin, mavjud xavfsiz yo'l bilan.
+
+**O'zgarishlar:**
+- **`oyin.tsx`**: uy-tabida yangi `.oyk-quest.is-story` kartochka (mavjud "🎯 Bugungi
+  topshiriq" yonida, bir xil vizual til) — `state.story.approved < limit` bo'lsa ko'rinadi,
+  bosilsa `setTab("jamoam")` + `storyAnchorRef.current.scrollIntoView()` (yangi
+  `scrollToStoryPending` + `useEffect` — tab almashgach DOM tayyor bo'lishini kutadi).
+- **Instagram/Telegram alohida maydon**: bitta umumiy `storyUrl` input o'rniga ikkita
+  (`igUrl`/`tgUrl`), har biri o'z "Yuborish" tugmasi bilan, ikkalasi ham xuddi shu
+  `submitStory(url, clear)`ga boradi (server ikkalasini ham allaqachon qabul qiladi —
+  `ALLOWED_HOSTS`, kod o'zgarishi shart emas edi, faqat UI aniqlashtirildi).
+- **V2 admin panel — yangi `views/Hikoyalar.tsx`**: v1'dagi `StoryModerationCard`ning hikoya-
+  tekshirish qismi (poster-matnlarsiz — o'sha tizim allaqachon o'chirilgan) v2 naqshiga
+  ko'chirildi: `DataTable` (mijoz/havola/kutgan-soat/mavsumda/amal ustunlari), rad etish uchun
+  `Modal`+`Field`+`Input` (native `prompt()` o'rniga — v2'ning "inline stil yo'q, hammasi
+  kit'dan" qoidasiga mos). `nav.ts`ga "O'sish" guruhiga "📸 Hikoyalar" qo'shildi —
+  **`ownerOnly` YO'Q** (backend faqat `requireAdmin`, operator ham ko'ra/tekshira oladi).
+  Yangi CSS: `.tb-link` (`table.css` — tashqi havola uchun, token-asosli, inline stil emas).
+- Isbot: `pnpm -r typecheck` (4/4) toza, build (admin+miniapp) yashil, brauzerda
+  (`#oyindemo`) promo-kartochka bosilganda Jamoam tabiga o'tib scroll qilishi, Instagram/
+  Telegram maydonlari MUSTAQIL ishlashi (biriga yozilsa faqat o'sha tugma yonadi) tasdiqlandi,
+  konsolda yangi xato yo'q. **V2 admin `Hikoyalar.tsx` jonli LOGIN bilan sinalmadi** (lokal
+  backend yo'q, auth kerak) — faqat typecheck + mavjud `Jonli.tsx` naqshiga qat'iy moslik
+  orqali tekshirildi.

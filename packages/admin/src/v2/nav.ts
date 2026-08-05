@@ -65,6 +65,9 @@ export const NAV: NavGroup[] = [
       { id: "puls", icon: "❧", label: "Puls", ownerOnly: true },
       { id: "referallar", icon: "⚯", label: "Referallar", ownerOnly: true },
       { id: "topshiriq", icon: "◈", label: "Topshiriqlar", ownerOnly: true },
+      // ⚠️ ownerOnly YO'Q — backend `/api/admin/oyin/stories*` faqat `requireAdmin`
+      // (operator ham ko'ra/tekshira oladi, v1'dagi bilan bir xil ruxsat).
+      { id: "hikoyalar", icon: "📸", label: "Hikoyalar" },
       { id: "xabarlar", icon: "✉", label: "Xabarlar", ownerOnly: true },
       { id: "bilim", icon: "◆", label: "AI Bilim", ownerOnly: true },
     ],

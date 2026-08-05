@@ -180,6 +180,12 @@
   color: var(--text-3);
   margin-top: 1px;
 }
+/* tashqi havola (masalan hikoya-isbot manzili) — Hikoyalar.tsx */
+.tb-link {
+  color: var(--brand-ink);
+  text-decoration: none;
+}
+.tb-link:hover { text-decoration: underline; }
 
 /* ── sahifalash ── */
 .tb-foot {
