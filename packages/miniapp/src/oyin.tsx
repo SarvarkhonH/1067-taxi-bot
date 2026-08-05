@@ -574,6 +574,9 @@ export function OyinView({ onTaxi }: { onTaxi?: () => void } = {}) {
             : r.reason === "full" ? `Jamoa to'lgan (${jamoa?.maxSize ?? 10} kishi)`
             : r.reason === "bad_name" ? "Nom kamida 2 harf bo'lsin"
             : r.reason === "not_in" ? "Siz jamoada emassiz"
+            // "off" avval shu yerda YO'Q edi — server "off" qaytarganda mijoz umumiy
+            // "Bajarilmadi" ko'rardi, sababi noma'lum qolardi ("gap bo'limi ishlamadi").
+            : r.reason === "off" ? "Dastur hali yopiq"
             : "Bajarilmadi — birozdan keyin urinib ko'ring",
         );
       }

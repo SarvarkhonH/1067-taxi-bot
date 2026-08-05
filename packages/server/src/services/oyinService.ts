@@ -2144,8 +2144,11 @@ async function jamoaOf(memberId: number): Promise<JamoaRecord | null> {
   return j;
 }
 
-export async function createJamoa(memberId: number, nameRaw: string): Promise<OyinJamoaResult> {
-  if (!(await featureOn("oyin"))) return { ok: false, reason: "off" };
+/** `preview=true` (ega/admin) — bayroq DARK bo'lsa ham ishlaydi, xuddi `buyTicket`/`markLogin`
+ *  kabi (2-QISM naqshi). Bu yo'q edi: bayroq qorong'ida ega jamoa tuza/qo'shila OLMASDI —
+ *  "gap bo'limi ishlamadi" shikoyatining sababi. */
+export async function createJamoa(memberId: number, nameRaw: string, preview = false): Promise<OyinJamoaResult> {
+  if (!preview && !(await featureOn("oyin"))) return { ok: false, reason: "off" };
   const name = (nameRaw || "").trim().slice(0, 40);
   if (name.length < 2) return { ok: false, reason: "bad_name" };
   if (await jamoaOf(memberId)) return { ok: false, reason: "already_in" };
@@ -2184,8 +2187,8 @@ export async function createJamoa(memberId: number, nameRaw: string): Promise<Oy
   return { ok: true };
 }
 
-export async function joinJamoa(memberId: number, codeRaw: string): Promise<OyinJamoaResult> {
-  if (!(await featureOn("oyin"))) return { ok: false, reason: "off" };
+export async function joinJamoa(memberId: number, codeRaw: string, preview = false): Promise<OyinJamoaResult> {
+  if (!preview && !(await featureOn("oyin"))) return { ok: false, reason: "off" };
   if (await jamoaOf(memberId)) return { ok: false, reason: "already_in" };
   const code = (codeRaw || "").trim().toUpperCase().slice(0, 6);
   const key = `${JAMOA_PREFIX}${code}`;

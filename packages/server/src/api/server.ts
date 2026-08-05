@@ -1612,8 +1612,12 @@ export function createApiServer(opts: ApiOptions = {}) {
     if (!memberId) { res.status(404).json({ error: "not linked" }); return; }
     const b = req.body as { action?: string; name?: string; code?: string };
     const { createJamoa, joinJamoa, leaveJamoa, getJamoaView } = await import("../services/oyinService");
-    const r = b?.action === "create" ? await createJamoa(memberId, String(b.name ?? ""))
-      : b?.action === "join" ? await joinJamoa(memberId, String(b.code ?? ""))
+    // gap bo'limi ishlamadi (2026-08-04): `createJamoa`/`joinJamoa` ega-preview yo'lisiz edi —
+    // bayroq qorong'ida ega HECH JAMOA tuza, HECH qo'shila olmasdi. Boshqa yozuv yo'llarining
+    // hammasida (`buyTicket`, `markLogin`, `markHomeScreen`…) bu bor edi, jamoada unutilgan.
+    const preview = oyinPreviewOf(res);
+    const r = b?.action === "create" ? await createJamoa(memberId, String(b.name ?? ""), preview)
+      : b?.action === "join" ? await joinJamoa(memberId, String(b.code ?? ""), preview)
       : b?.action === "leave" ? await leaveJamoa(memberId)
       : { ok: false as const, reason: "not_found" as const };
     res.json({ ...r, view: await getJamoaView(memberId) });
