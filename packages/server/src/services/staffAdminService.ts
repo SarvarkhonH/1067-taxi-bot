@@ -50,6 +50,17 @@ async function balanceOf(employeeId: number, openingBalance: number): Promise<{ 
   return { plus, minus, balance: openingBalance + plus - minus };
 }
 
+/** E2: sidebar-badge uchun — barcha korxonalarda yopiq-lekin-tasdiqsiz kunlar soni
+ *  (ochiq smenalar sanalmaydi — hali tasdiqqa loyiq emas). */
+export async function staffAdminPendingCount(): Promise<number> {
+  return prisma.workSession.count({
+    where: {
+      confirmedAt: null,
+      NOT: { dayStatus: "ishladi", checkIn: { not: null }, checkOut: null },
+    },
+  });
+}
+
 /** Roster: every org with employees, today's live status, month accrual, full balance. */
 export async function staffAdminOverview(now = new Date()) {
   const t = tashkentDayMinutes(now);

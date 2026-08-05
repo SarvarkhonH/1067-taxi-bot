@@ -2062,6 +2062,11 @@ export function createApiServer(opts: ApiOptions = {}) {
     const { staffAdminOverview } = await import("../services/staffAdminService");
     res.json(await staffAdminOverview());
   });
+  // E2: sidebar-badge — "kutilayotgan ishlar" soni (yengil, tez-tez so'raladi)
+  app.get("/api/admin/staff/pending-count", requireAdmin, requireOwner, async (_req, res) => {
+    const { staffAdminPendingCount } = await import("../services/staffAdminService");
+    res.json({ count: await staffAdminPendingCount() });
+  });
   app.get("/api/admin/staff/employee/:id", requireAdmin, requireOwner, async (req, res) => {
     const { staffAdminEmployee } = await import("../services/staffAdminService");
     const r = await staffAdminEmployee(Number(req.params.id), String(req.query.month ?? ""));

@@ -77,6 +77,7 @@ export function JamoaAdminView() {
   const [showAdd, setShowAdd] = useState(false);
   const [showReport, setShowReport] = useState(false);
   const [showImport, setShowImport] = useState(false);
+  const [q, setQ] = useState(""); // F1: ism/lavozim bo'yicha qidiruv
   const [msg, setMsg] = useState("");
   const flash = (t: string) => { setMsg(t); setTimeout(() => setMsg(""), 3000); };
 
@@ -100,19 +101,23 @@ export function JamoaAdminView() {
             <button className="btn" onClick={() => setShowSettings((s) => !s)}>⚙️ Korxona sozlamalari va taqvim</button>
             <button className="btn" onClick={() => setShowReport((s) => !s)}>📄 Oylik hisobot</button>
             <button className="btn" onClick={() => setShowImport((s) => !s)}>📥 Eski oyliklar (import)</button>
+            <input className="inp" style={{ marginLeft: "auto", minWidth: 180 }} placeholder="🔍 Ism yoki lavozim…" value={q} onChange={(e) => setQ(e.target.value)} />
           </div>
           {showAdd && <AddEmpForm orgs={orgs} onDone={() => { setShowAdd(false); load(); flash("✅ Xodim saqlandi"); }} flash={flash} />}
           {showSettings && <OrgSettings orgs={orgs} onChanged={() => { adminApi.staffOrgs().then((r) => setOrgs(r.orgs)).catch(() => undefined); }} flash={flash} />}
           {showReport && <MonthReportView orgs={orgs} />}
           {showImport && <BulkImportView orgs={orgs} onDone={load} />}
-          {roster.orgs.map((org) => (
+          {roster.orgs.map((org) => {
+            const qq = q.trim().toLowerCase();
+            const filtered = qq ? org.employees.filter((e) => e.name.toLowerCase().includes(qq) || e.role.toLowerCase().includes(qq)) : org.employees;
+            return (
             <div key={org.id} className="panel" style={{ marginBottom: 16 }}>
               <div className="panel-head"><div className="panel-title">🏢 {org.name}{!org.active && " (o'chirilgan)"} — {roster.today}</div></div>
               <div className="table-wrap">
                 <table>
                   <thead><tr><th>Xodim</th><th>Bugun</th><th>Keldi</th><th>Ketdi</th><th>Shu oy</th><th>Qoldiq</th></tr></thead>
                   <tbody>
-                    {org.employees.map((e) => {
+                    {filtered.map((e) => {
                       const b = STATUS_BADGE[e.todayStatus] ?? { cls: "badge-bad", label: "⚪ kelmagan" };
                       return (
                         <tr key={e.id} style={{ cursor: "pointer", opacity: e.active ? 1 : 0.5 }} onClick={() => setOpenEmp(e.id)}>
@@ -125,12 +130,13 @@ export function JamoaAdminView() {
                         </tr>
                       );
                     })}
-                    {org.employees.length === 0 && <tr><td colSpan={6} className="muted">Xodim yo'q — «➕ Xodim qo'shish»</td></tr>}
+                    {filtered.length === 0 && <tr><td colSpan={6} className="muted">{qq ? `«${q}» bo'yicha topilmadi` : "Xodim yo'q — «➕ Xodim qo'shish»"}</td></tr>}
                   </tbody>
                 </table>
               </div>
             </div>
-          ))}
+            );
+          })}
         </>
       )}
     </div>

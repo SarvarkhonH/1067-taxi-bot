@@ -376,6 +376,7 @@ export const adminApi = {
   // 👔 jamoa — xodimlar davomati + oylik (owner-only; JAMOA_PLAN J3). Tiplar jamoa.tsx'da
   // (type-only import — runtime aylanish yo'q).
   staffOverview: () => req<import("./jamoa").JamoaOverview>("/api/admin/staff/overview"),
+  staffPendingCount: () => req<{ count: number }>("/api/admin/staff/pending-count"),
   staffOrgs: () => req<{ orgs: import("./jamoa").OrgRow[] }>("/api/admin/staff/orgs"),
   staffEmployee: (id: number, month?: string) => req<import("./jamoa").EmpDetail>(`/api/admin/staff/employee/${id}${month ? `?month=${month}` : ""}`),
   staffEmployeeSave: (p: Record<string, unknown>) => postJson<{ ok: boolean; id?: number; error?: string }>("/api/admin/staff/employee", p),

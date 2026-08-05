@@ -5310,3 +5310,23 @@ to'g'ri topildi.
 - `staffSelfPayout`: xabar matniga "📊 Bugun jami olingan (hammasi): X so'm" qo'shildi —
   ega har to'lov xabarida kunlik yig'indini ham ko'radi, panelga kirmasdan (org-wide, kunlik).
 - Kechki jamlangan karta o'zgarmadi — ikkalasi ham bor: darhol + kechqurun xulosa.
+
+### 2026-08-05 — 👔 JAMOA P1: A2/A3/B4/E2/F1 (Kuchli Jamoa 2.0 boshlanishi)
+
+**Holat: ready for verification (kod-daraja)**
+- **A2** ertangi smena eslatmasi — 20:00 dan keyin har faol xodimga, agar ertaga taqvim
+  bo'yicha ish/to'lanadigan-bayram kuni bo'lsa va oldindan maxsus holat qo'yilmagan bo'lsa.
+- **A3** "Ketdim"ni unutib avto-yopilgan zahoti egaga darhol xabar (ilgari faqat kechki
+  kartada ⚠️avto belgisi bilan ko'rinardi).
+- **B4** "🤒 Bugun kasalman" — xodim o'zi (faqat hali Keldim bosmagan kunda), darhol
+  egaga xabar bilan.
+- **E2** admin panel sidebar'da "👔 Jamoa" belgisi — tasdiqsiz kunlar soni (faqat owner
+  ro'liga, 30s poll).
+- **F1** xodimlar ro'yxatida ism/lavozim bo'yicha qidiruv.
+- Mustaqil tekshiruv (R4): 2 bug topildi va tuzatildi — B4'da poyga-holati (Keldim va
+  Kasalman bir vaqtda bosilsa haqiqiy kelish vaqti o'chib ketishi mumkin edi — endi
+  create-yoki-shartli-updateMany bilan DB darajasida atomik), A2'da ertangi kun uchun
+  oldindan qo'yilgan maxsus smena/holat e'tiborsiz qoldirilardi (endi hisobga olinadi,
+  "ishladi"dan boshqa holat bo'lsa jim). QR (D1/D2) ATAYLAB rejadan olib tashlandi — ega:
+  statik poster rasmga olinib uydan ishlatilishi mumkin, joy-isbotini bekor qiladi.
+- Isbot: typecheck server toza, admin build ✓, shared 90/90.

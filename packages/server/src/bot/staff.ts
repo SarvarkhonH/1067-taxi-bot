@@ -16,7 +16,9 @@ function ishKeyboard(): InlineKeyboard {
     .text("🏁 Ketdim", "ish:out")
     .row()
     .text("📊 Mening hisobim", "ish:acct")
-    .text("💸 Pul oldim", "ish:pay");
+    .text("💸 Pul oldim", "ish:pay")
+    .row()
+    .text("🤒 Bugun kasalman", "ish:sick");
 }
 
 // ForceReply-prompt matni = sessiyasiz "wizard": javob-xabar aynan shu promptga
@@ -93,6 +95,7 @@ export function registerStaff(bot: Bot): void {
   bot.callbackQuery("ish:in", onTap(async (tg) => (await import("../services/staffService")).staffCheckIn(tg)));
   bot.callbackQuery("ish:out", onTap(async (tg) => (await import("../services/staffService")).staffCheckOut(tg)));
   bot.callbackQuery("ish:acct", onTap(async (tg) => (await import("../services/staffService")).staffMyAccount(tg)));
+  bot.callbackQuery("ish:sick", onTap(async (tg) => (await import("../services/staffService")).staffSelfReportSick(tg)));
 
   // 💸 Xodim "Pul oldim" bosdi → ForceReply-prompt (sessiyasiz, faqat shaxsiy chat).
   bot.callbackQuery("ish:pay", async (ctx) => {

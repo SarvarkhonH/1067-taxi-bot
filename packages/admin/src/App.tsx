@@ -136,6 +136,7 @@ export function App() {
   const [authed, setAuthed] = useState<boolean>(hasAdminToken);
   const [role, setRole] = useState<string | null>(null);
   const [operatorName, setOperatorName] = useState<string | undefined>(undefined);
+  const [jamoaPending, setJamoaPending] = useState(0);
 
   useEffect(() => {
     if (!authed) return;
@@ -152,6 +153,16 @@ export function App() {
     const t = setInterval(load, 30000);
     return () => clearInterval(t);
   }, [authed]);
+
+  // E2: 👔 Jamoa sidebar-belgisi — "kutilayotgan ishlar" soni (tasdiqsiz kunlar).
+  // Faqat "owner" so'raydi — boshqa rollarda /api/admin/staff/* 403 (kerak emas, jim yutiladi).
+  useEffect(() => {
+    if (!authed || role !== "owner") return;
+    const load = () => adminApi.staffPendingCount().then((r) => setJamoaPending(r.count)).catch(() => undefined);
+    load();
+    const t = setInterval(load, 30000);
+    return () => clearInterval(t);
+  }, [authed, role]);
 
   // 🛍 shopseller: faqat Do'kon paneli — narrower token, narrower UI. Owner tab'ini o'zgartirsa
   // ham (masalan eski localStorage tab) darhol Do'kon'ga qaytariladi (defense-in-depth; server
@@ -218,6 +229,7 @@ export function App() {
                 >
                   <span className="sb-icon">{item.icon}</span>
                   <span className="sb-label">{item.label}</span>
+                  {item.id === "jamoa" && jamoaPending > 0 && <span className="badge badge-warn" style={{ marginLeft: "auto" }}>{jamoaPending}</span>}
                 </button>
               ))}
             </div>

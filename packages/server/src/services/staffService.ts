@@ -211,6 +211,44 @@ export async function staffCheckOut(telegramId: string, now = new Date()): Promi
   };
 }
 
+/**
+ * B4 (ega talabi 2026-08-05): "🤒 Bugun kasalman" — xodim o'zi belgilaydi, TASDIQ
+ * KUTMASDAN darhol yoziladi (ega darhol xabar oladi, panelda istalgan payt
+ * bekor/tuzatishi mumkin — bu B1'dagi to'liq so'rov-tasdiq oqimidan farqli,
+ * ataylab eng tez/eng oddiy variant). FAQAT hali "Keldim" bosilmagan kunda —
+ * ishlab turgan kunni kasallikka aylantirish ish soatlarini o'chirib yuboradi,
+ * bu ega qaroriga qoldiriladi (panel → kun tuzatish).
+ */
+export async function staffSelfReportSick(telegramId: string, now = new Date()): Promise<StaffActionResult> {
+  const emp = await employeeFor(telegramId);
+  if (!emp) return { ok: false, text: "Siz xodim sifatida ro'yxatda emassiz." };
+  const t = tashkentDayMinutes(now);
+  const existing = await prisma.workSession.findUnique({ where: { employeeId_date: { employeeId: emp.id, date: t.date } } });
+  if (existing?.checkIn) return { ok: false, text: `Siz bugun allaqachon ${hhmm(minutesSinceTashkentMidnight(existing.checkIn, t.date))} da kelib, ish boshlagansiz. O'zgartirish kerak bo'lsa, ega bilan bog'laning.` };
+  if (existing?.dayStatus === "kasallik") return { ok: true, text: "Bugun allaqachon kasallik deb belgilangan." };
+  // Atomik yozuv: "Keldim" bilan bir vaqtda bosilsa (poyga), haqiqiy kelish vaqti
+  // O'CHIB KETMASIN (tekshiruv topgan TOCTOU) — read-then-upsert o'rniga create-yoki-
+  // faqat-checkIn-yo'q-bo'lsa-yangilash, DB darajasida atomik.
+  let sessionId: number;
+  try {
+    sessionId = (await prisma.workSession.create({ data: { employeeId: emp.id, date: t.date, dayStatus: "kasallik" } })).id;
+  } catch {
+    const r = await prisma.workSession.updateMany({ where: { employeeId: emp.id, date: t.date, checkIn: null }, data: { dayStatus: "kasallik" } });
+    if (r.count === 0) {
+      const now2 = await prisma.workSession.findUnique({ where: { employeeId_date: { employeeId: emp.id, date: t.date } } });
+      if (now2?.checkIn) return { ok: false, text: `Siz bugun allaqachon ${hhmm(minutesSinceTashkentMidnight(now2.checkIn, t.date))} da kelib, ish boshlagansiz. O'zgartirish kerak bo'lsa, ega bilan bog'laning.` };
+      return { ok: true, text: "Bugun allaqachon kasallik deb belgilangan." };
+    }
+    const s2 = await prisma.workSession.findUniqueOrThrow({ where: { employeeId_date: { employeeId: emp.id, date: t.date } } });
+    sessionId = s2.id;
+  }
+  const pay = await recomputeSession(sessionId);
+  if (emp.org.ownerTelegramId !== telegramId) {
+    await notifyOwner(emp.org.ownerTelegramId, `🤒 <b>${esc(emp.name)}</b> bugun o'zini kasal deb belgiladi.\nHisob: <b>${fmt(pay?.amountEarned ?? 0)} so'm</b> (kasallik %)\nKerak bo'lsa: Admin panel → 👔 Jamoa → kunni tuzating.`);
+  }
+  return { ok: true, text: `🤒 Bugun kasallik deb belgilandi. Tuzalib qoling! Egangizga xabar berildi.` };
+}
+
 /** "📊 Hisobim" — month-to-date + full balance, the anti-argument screen. */
 export async function staffMyAccount(telegramId: string, now = new Date()): Promise<StaffActionResult> {
   const emp = await employeeFor(telegramId);
@@ -352,6 +390,8 @@ export async function staffSelfPayoutCancel(ledgerId: number, actorTgId: string)
 // ---------------------------------------------------------------------------
 
 const SUMMARY_AFTER_MIN = 21 * 60; // 21:00 Toshkent — kun yakuni xulosasi shu vaqtdan keyin
+const TOMORROW_REMIND_MIN = 20 * 60; // 20:00 dan — ertangi smena eslatmasi (kechki kartadan OLDIN)
+const TOMORROW_REMIND_WINDOW = 20; // 15-daq tick granulyarligi uchun oyna
 const REMIND_IN_WINDOW = 90; // smena boshidan shuncha daqiqagacha "Keldim" eslatmasi aktual
 const REMIND_OUT_WINDOW = 45; // smena oxiridan keyin "Ketdim" eslatmasi oynasi (OT-off rejim)
 
@@ -616,6 +656,41 @@ export async function staffConfirmDay(orgId: number, date: string, actorTgId: st
   return { ok: true, text: r.count ? `✅ ${date} tasdiqlandi (${r.count} ta yozuv)${openNote}` : `✅ ${date} — hammasi allaqachon tasdiqlangan${openNote}` };
 }
 
+/**
+ * A2 (ega talabi 2026-08-05): 20:00 Toshkentdan keyin, har faol xodimga — agar
+ * ERTAGA taqvim bo'yicha ish kuni bo'lsa va ertangi sessiya hali yo'q bo'lsa —
+ * bitta eslatma: "Ertaga smenangiz bor". Marker `stftmrw:<empId>:<ertangiSana>`
+ * bir marta — 15-daq tick ichida har chaqiruvda qayta yubormaydi.
+ */
+async function staffTomorrowRemindersTick(bot: import("grammy").Bot, now: Date): Promise<void> {
+  const t = tashkentDayMinutes(now);
+  if (t.minutes < TOMORROW_REMIND_MIN || t.minutes > TOMORROW_REMIND_MIN + TOMORROW_REMIND_WINDOW) return;
+  const tmrw = tashkentDayMinutes(new Date(now.getTime() + 86_400_000)).date;
+  const [ty, tm, td] = ymd(tmrw);
+  const orgs = await prisma.organization.findMany({ where: { active: true }, include: { employees: { where: { active: true } } } });
+  for (const org of orgs) {
+    for (const e of org.employees) {
+      const marker = `stftmrw:${e.id}:${tmrw}`;
+      if (await prisma.appState.findUnique({ where: { key: marker } })) continue;
+      // Ertangi kun uchun sessiya OLDINDAN yaratilgan bo'lishi mumkin (ega kun-tuzatishda
+      // maxsus smena/holat qo'ygan bo'lishi mumkin) — tekshiruv topdi: buni e'tiborsiz
+      // qoldirish noto'g'ri smena vaqtini ko'rsatardi. Bor bo'lsa policyga uzatiladi VA
+      // "ishladi"dan boshqa holat oldindan qo'yilgan bo'lsa (ta'til/javobli/...) — jim.
+      const tmrwSession = await prisma.workSession.findUnique({ where: { employeeId_date: { employeeId: e.id, date: tmrw } } });
+      if (tmrwSession && tmrwSession.dayStatus !== "ishladi") continue;
+      const pol = resolveStaffPolicy({ ...org, calendar: org.calendar ?? undefined }, e, tmrwSession ?? undefined);
+      const kind = dayKindFor(ty, tm, td, pol.workDays, pol.calendar);
+      if (kind !== "ish" && !(kind === "bayram" && pol.holidayPaid)) continue; // dam kuni — jim
+      try {
+        await bot.api.sendMessage(e.telegramId, `🌙 Ertaga smenangiz bor: <b>${pol.shiftStart}–${pol.shiftEnd}</b>. Ko'rishguncha!`, { parse_mode: "HTML" });
+      } catch {
+        continue; // marker YO'Q — keyingi kunning oynasida qayta urinilmaydi (bir martalik eslatma), lekin ertaga uchun emas — zarar yo'q
+      }
+      await prisma.appState.upsert({ where: { key: marker }, create: { key: marker, value: "1" }, update: { value: "1" } });
+    }
+  }
+}
+
 /** 15-min tick entry (index.ts): auto-close forgotten sessions, then after 21:00
  *  Tashkent send each org-owner ONE summary card (AppState marker = once per day,
  *  set only after a successful send — failed evening send retries next tick). */
@@ -625,6 +700,7 @@ export async function staffDailyTick(bot: import("grammy").Bot, now = new Date()
   // ("vaxtiga eslatsin", ega 2026-08-01): daqiqa aniqligi. Markerlar bir xil,
   // shuning uchun ikkala yo'l to'qnashsa ham dublikat bo'lmaydi.
   await staffAutoCloseOverdue(now).catch((e) => console.error("[staff] autoclose failed:", e));
+  await staffTomorrowRemindersTick(bot, now).catch((e) => console.error("[staff] tomorrow-remind failed:", e));
   const t = tashkentDayMinutes(now);
   if (t.minutes < SUMMARY_AFTER_MIN) return;
   const orgs = await prisma.organization.findMany({ where: { active: true }, include: { employees: { where: { active: true }, orderBy: { name: "asc" } } } });
@@ -674,7 +750,15 @@ export async function staffAutoCloseOverdue(now = new Date()): Promise<number> {
     const [y, m, d] = ymd(s.date);
     const checkOutAt = new Date(Date.UTC(y, m - 1, d) - TASHKENT_UTC_OFFSET_MIN * 60_000 + end * 60_000);
     await prisma.workSession.update({ where: { id: s.id }, data: { checkOut: checkOutAt, autoClosed: true } });
-    await recomputeSession(s.id);
+    const pay = await recomputeSession(s.id);
+    // A3 (ega talabi 2026-08-05): ega kechqurunni kutmasdan DARHOL bilsin — ⚠️avto
+    // belgisi ilgari faqat kechki kartada/panelda ko'rinardi.
+    if (s.employee.org.ownerTelegramId !== s.employee.telegramId) {
+      await notifyOwner(
+        s.employee.org.ownerTelegramId,
+        `⚠️ <b>${esc(s.employee.name)}</b> "Ketdim" bosishni unutdi — smena oxiriga (${pol.shiftEnd}) avto-yopildi.\n💵 Hisob: <b>${fmt(pay?.amountEarned ?? 0)} so'm</b>\nBoshqacha bo'lsa: Admin panel → 👔 Jamoa → kunni tuzating.`
+      );
+    }
     closed++;
   }
   return closed;

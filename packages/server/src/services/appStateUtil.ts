@@ -102,7 +102,7 @@ const EPHEMERAL_MARKER_PREFIXES = [
   "finishcard:", "faredone:", "fundride:", "farepending:", "cancels:", "tracknudge:", "icbrd:", "icdep:",
   "oprpause:", // 🆘 operator-escalation AI-pause marker (operatorPause.ts) — logically expires in 1h, this is just table hygiene
   "staffsummary:", // 👔 JAMOA J4 kechki xulosa once-marker — kaliti sanali, replay oynasi o'sha kechqurunning o'zi
-  "stfremin:", "stfremout:", "stfotping:", // 👔 JAMOA eslatma-markerlari (Keldim/Ketdim/OT-soat) — bir kunlik
+  "stfremin:", "stfremout:", "stfotping:", "stftmrw:", // 👔 JAMOA eslatma-markerlari (Keldim/Ketdim/OT-soat/ertangi) — bir kunlik
 ];
 // LONGER: kept 30 days (metrics / analytics reads, not per-ride ephemera).
 const LONG_MARKER_PREFIXES = ["trackjoin:"];
