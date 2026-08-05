@@ -12,7 +12,7 @@ const WD = ["Du", "Se", "Ch", "Pa", "Ju", "Sh", "Ya"]; // isoWeekday 1..7
 export interface RosterEmp {
   id: number; orgId: number; telegramId: string; name: string; role: string; active: boolean;
   payType: string; monthlySalary: number; dailyRate: number; hourlyRate: number;
-  todayIn: string | null; todayOut: string | null; todayStatus: string;
+  todayIn: string | null; todayOut: string | null; todayStatus: string; todayEarned: number;
   monthEarned: number; monthMinutes: number; balance: number;
 }
 export interface RosterOrg { id: number; name: string; active: boolean; employees: RosterEmp[] }
@@ -52,6 +52,12 @@ export interface OrgRow {
   overtimeMode: string; overtimeMult: number; sickPct: number; vacationPct: number;
   holidayPaid: boolean; workDays: string; shiftStart: string; shiftEnd: string;
   calendar: Record<string, "ish" | "dam" | "bayram">;
+  shiftTemplates: { name: string; start: string; end: string }[];
+}
+export interface AuditEntry { at: string; actor: string; action: string; detail: string }
+export interface StaffKpiRow {
+  id: number; name: string; role: string;
+  workedDays: number; lateDays: number; absentDays: number; minutes: number; earned: number; punctualityPct: number;
 }
 
 const STATUS_BADGE: Record<string, { cls: string; label: string }> = {
@@ -77,6 +83,8 @@ export function JamoaAdminView() {
   const [showAdd, setShowAdd] = useState(false);
   const [showReport, setShowReport] = useState(false);
   const [showImport, setShowImport] = useState(false);
+  const [showKpi, setShowKpi] = useState(false);
+  const [showAudit, setShowAudit] = useState(false);
   const [q, setQ] = useState(""); // F1: ism/lavozim bo'yicha qidiruv
   const [msg, setMsg] = useState("");
   const flash = (t: string) => { setMsg(t); setTimeout(() => setMsg(""), 3000); };
@@ -86,8 +94,17 @@ export function JamoaAdminView() {
     adminApi.staffOrgs().then((r) => setOrgs(r.orgs)).catch(() => undefined);
   };
   useEffect(load, []);
+  // E1: jonli boshqaruv — ro'yxat 30s'da o'zi yangilanadi (ega qayta yuklashni kutmaydi).
+  // Faqat biror form/kun ochilmagan bo'lsa (aks holda foydalanuvchi kiritayotgan matn ustiga yozib yuborardi).
+  useEffect(() => {
+    if (openEmp != null) return;
+    const t = setInterval(() => adminApi.staffOverview().then(setRoster).catch(() => undefined), 30000);
+    return () => clearInterval(t);
+  }, [openEmp]);
 
   if (!roster) return <div className="card">Yuklanmoqda… (faqat EGA ko'ra oladi)</div>;
+
+  const todayTotal = roster.orgs.flatMap((o) => o.employees).reduce((a, e) => a + e.todayEarned, 0);
 
   return (
     <div>
@@ -96,16 +113,28 @@ export function JamoaAdminView() {
         <EmpDetailView empId={openEmp} roster={roster.orgs.flatMap((o) => o.employees)} onBack={() => { setOpenEmp(null); load(); }} flash={flash} />
       ) : (
         <>
+          <div className="card" style={{ marginBottom: 12, display: "flex", alignItems: "center", gap: 16 }}>
+            <div><div className="card-label">📡 Bugun YAKUNLANGAN kunlar bo'yicha jami</div><div className="card-value">{som(todayTotal)} so'm</div></div>
+            <div className="muted" style={{ fontSize: 12, marginLeft: "auto" }}>
+              {roster.orgs.flatMap((o) => o.employees).filter((e) => e.todayStatus === "ishda").length > 0
+                ? `${roster.orgs.flatMap((o) => o.employees).filter((e) => e.todayStatus === "ishda").length} kishi hali ishda — ularniki Ketdim bosilgach qo'shiladi`
+                : "hammaning kuni yakunlangan"} · 30s da o'zi yangilanadi · {roster.today}
+            </div>
+          </div>
           <div className="adm-toolbar" style={{ display: "flex", gap: 8, marginBottom: 12, flexWrap: "wrap" }}>
             <button className="btn" onClick={() => setShowAdd((s) => !s)}>➕ Xodim qo'shish</button>
             <button className="btn" onClick={() => setShowSettings((s) => !s)}>⚙️ Korxona sozlamalari va taqvim</button>
             <button className="btn" onClick={() => setShowReport((s) => !s)}>📄 Oylik hisobot</button>
+            <button className="btn" onClick={() => setShowKpi((s) => !s)}>🏅 Reyting</button>
+            <button className="btn" onClick={() => setShowAudit((s) => !s)}>📜 Jurnal</button>
             <button className="btn" onClick={() => setShowImport((s) => !s)}>📥 Eski oyliklar (import)</button>
             <input className="inp" style={{ marginLeft: "auto", minWidth: 180 }} placeholder="🔍 Ism yoki lavozim…" value={q} onChange={(e) => setQ(e.target.value)} />
           </div>
           {showAdd && <AddEmpForm orgs={orgs} onDone={() => { setShowAdd(false); load(); flash("✅ Xodim saqlandi"); }} flash={flash} />}
           {showSettings && <OrgSettings orgs={orgs} onChanged={() => { adminApi.staffOrgs().then((r) => setOrgs(r.orgs)).catch(() => undefined); }} flash={flash} />}
           {showReport && <MonthReportView orgs={orgs} />}
+          {showKpi && <KpiView orgs={orgs} />}
+          {showAudit && <AuditLogView orgs={orgs} />}
           {showImport && <BulkImportView orgs={orgs} onDone={load} />}
           {roster.orgs.map((org) => {
             const qq = q.trim().toLowerCase();
@@ -139,6 +168,95 @@ export function JamoaAdminView() {
           })}
         </>
       )}
+    </div>
+  );
+}
+
+// ── 🏅 G3: xodim reyting/KPI (davomat intizomi) ──
+function KpiView({ orgs }: { orgs: OrgRow[] }) {
+  const now = new Date();
+  const [orgId, setOrgId] = useState<number>(orgs[0]?.id ?? 0);
+  const [month, setMonth] = useState(`${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`);
+  const [rows, setRows] = useState<StaffKpiRow[] | null>(null);
+  const [sortKey, setSortKey] = useState<keyof StaffKpiRow>("punctualityPct");
+  const [sortDir, setSortDir] = useState<1 | -1>(-1);
+  useEffect(() => {
+    if (!orgId) return;
+    let stale = false; // tez org/oy almashtirishda eski javob ustiga yozib yubormasin
+    adminApi.staffKpi(orgId, month).then((r) => { if (!stale) setRows(r.rows); }).catch(() => { if (!stale) setRows(null); });
+    return () => { stale = true; };
+  }, [orgId, month]);
+  const sorted = rows ? [...rows].sort((a, b) => (a[sortKey] as number) < (b[sortKey] as number) ? sortDir : (a[sortKey] as number) > (b[sortKey] as number) ? -sortDir : 0) : [];
+  const Th = ({ k, label }: { k: keyof StaffKpiRow; label: string }) => (
+    <th style={{ cursor: "pointer" }} onClick={() => { if (sortKey === k) setSortDir((d) => (d === 1 ? -1 : 1)); else { setSortKey(k); setSortDir(-1); } }}>
+      {label}{sortKey === k ? (sortDir === 1 ? " ▲" : " ▼") : ""}
+    </th>
+  );
+  return (
+    <div className="panel" style={{ marginBottom: 12 }}>
+      <div className="panel-head" style={{ display: "flex", gap: 8, alignItems: "center" }}>
+        {orgs.length > 1 && <select className="inp" value={orgId} onChange={(e) => setOrgId(Number(e.target.value))}>{orgs.map((o) => <option key={o.id} value={o.id}>{o.name}</option>)}</select>}
+        <div className="panel-title">🏅 Reyting — {month}</div>
+        <span className="muted" style={{ fontSize: 12 }}>ustun nomini bosing — saralanadi</span>
+      </div>
+      <div className="table-wrap">
+        <table>
+          <thead><tr><th>Xodim</th><Th k="workedDays" label="Ish kun" /><Th k="lateDays" label="Kechikish" /><Th k="absentDays" label="Kelmadi" /><Th k="minutes" label="Soat" /><Th k="earned" label="Hisoblangan" /><Th k="punctualityPct" label="Intizom %" /></tr></thead>
+          <tbody>
+            {sorted.map((r) => (
+              <tr key={r.id}>
+                <td className="td-name">{r.name}<div className="td-sub muted">{r.role}</div></td>
+                <td>{r.workedDays}</td>
+                <td>{r.lateDays > 0 ? <span className="badge badge-warn">{r.lateDays}</span> : "—"}</td>
+                <td>{r.absentDays > 0 ? <span className="badge badge-bad">{r.absentDays}</span> : "—"}</td>
+                <td>{Math.floor(r.minutes / 60)}:{String(r.minutes % 60).padStart(2, "0")}</td>
+                <td>{som(r.earned)}</td>
+                <td><b style={{ color: r.punctualityPct >= 90 ? "#3fb26f" : r.punctualityPct >= 70 ? undefined : "#e05555" }}>{r.punctualityPct}%</b></td>
+              </tr>
+            ))}
+            {rows && rows.length === 0 && <tr><td colSpan={7} className="muted">Xodim yo'q</td></tr>}
+            {!rows && <tr><td colSpan={7} className="muted">Yuklanmoqda…</td></tr>}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+// ── 📜 G2: audit-jurnal — kim, qachon, nimani o'zgartirdi ──
+function AuditLogView({ orgs }: { orgs: OrgRow[] }) {
+  const [orgId, setOrgId] = useState<number>(orgs[0]?.id ?? 0);
+  const [entries, setEntries] = useState<AuditEntry[] | null>(null);
+  useEffect(() => {
+    if (!orgId) return;
+    let stale = false;
+    adminApi.staffAuditLog(orgId).then((r) => { if (!stale) setEntries(r.entries); }).catch(() => { if (!stale) setEntries(null); });
+    return () => { stale = true; };
+  }, [orgId]);
+  const ACTION_LABEL: Record<string, string> = { "kun-tuzatish": "✏️ kun tuzatildi", bonus: "🎁 bonus", jarima: "⚠️ jarima", "to'lov": "💸 to'lov", "ta'til-tasdiq": "🏖 ta'til tasdiqlandi", "ta'til-rad": "🏖 ta'til rad etildi", "almashish-tasdiq": "🔄 almashish tasdiqlandi", "almashish-rad": "🔄 almashish rad etildi" };
+  return (
+    <div className="panel" style={{ marginBottom: 12 }}>
+      <div className="panel-head" style={{ display: "flex", gap: 8, alignItems: "center" }}>
+        {orgs.length > 1 && <select className="inp" value={orgId} onChange={(e) => setOrgId(Number(e.target.value))}>{orgs.map((o) => <option key={o.id} value={o.id}>{o.name}</option>)}</select>}
+        <div className="panel-title">📜 Jurnal — oxirgi 100 hodisa</div>
+      </div>
+      <div className="table-wrap">
+        <table>
+          <thead><tr><th>Vaqt</th><th>Kim</th><th>Nima</th><th>Tafsilot</th></tr></thead>
+          <tbody>
+            {(entries ?? []).map((e, i) => (
+              <tr key={i}>
+                <td className="muted">{new Date(e.at).toLocaleString("uz-UZ", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })}</td>
+                <td className="muted">{e.actor === "system" ? "avto" : e.actor}</td>
+                <td>{ACTION_LABEL[e.action] ?? e.action}</td>
+                <td>{e.detail}</td>
+              </tr>
+            ))}
+            {entries && entries.length === 0 && <tr><td colSpan={4} className="muted">Hozircha hech narsa yo'q</td></tr>}
+            {!entries && <tr><td colSpan={4} className="muted">Yuklanmoqda…</td></tr>}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 }
@@ -281,6 +399,7 @@ function AddEmpForm({ orgs, onDone, flash }: { orgs: OrgRow[]; onDone: () => voi
     if (!r.ok) { flash("❌ " + (r.error ?? "Saqlanmadi")); return; }
     onDone();
   };
+  const templates = orgs.find((o) => o.id === f.orgId)?.shiftTemplates ?? [];
   return (
     <div className="card" style={{ marginBottom: 12 }}>
       <div className="card-title">➕ Yangi xodim</div>
@@ -298,6 +417,12 @@ function AddEmpForm({ orgs, onDone, flash }: { orgs: OrgRow[]; onDone: () => voi
         </select>
         <input className="inp" placeholder={f.payType === "oylik" ? "Oylik (so'm), mas. 3000000" : f.payType === "kunlik" ? "Kunlik (so'm)" : "Soatlik (so'm)"} value={f.amount} onChange={(e) => set("amount", e.target.value)} />
         <input className="inp" placeholder="Eski haq/qarz (so'm, ±)" value={f.openingBalance} onChange={(e) => set("openingBalance", e.target.value)} />
+        {templates.length > 0 && (
+          <select className="inp" defaultValue="" onChange={(e) => { const t = templates.find((tt) => tt.name === e.target.value); if (t) setF((p) => ({ ...p, shiftStart: t.start, shiftEnd: t.end })); }}>
+            <option value="">🏗 Shablondan tanlang…</option>
+            {templates.map((t) => <option key={t.name} value={t.name}>{t.name} ({t.start}–{t.end})</option>)}
+          </select>
+        )}
         <input className="inp" placeholder="Smena boshi (bo'sh=korxona)" value={f.shiftStart} onChange={(e) => set("shiftStart", e.target.value)} />
         <input className="inp" placeholder="Smena oxiri (mas. 18:00)" value={f.shiftEnd} onChange={(e) => set("shiftEnd", e.target.value)} />
         <input className="inp" placeholder="Ish kunlari (mas. 123456)" value={f.workDays} onChange={(e) => set("workDays", e.target.value)} />
@@ -616,6 +741,21 @@ function OrgSettings({ orgs, onChanged, flash }: { orgs: OrgRow[]; onChanged: ()
 
   // key: org almashsa YOKI server qiymatni normallashtirsa (Math.round) inputlar
   // yangi defaultValue bilan remount bo'ladi — ko'rsatilgan ≠ saqlangan bo'lib qolmaydi
+  const [newTpl, setNewTpl] = useState({ name: "", start: "09:00", end: "18:00" });
+  const addTemplate = async () => {
+    if (!newTpl.name.trim()) { flash("❌ Shablon nomi kerak"); return; }
+    // Atomik server-endpoint (tekshiruv topgan: butun massivni yuborish ikki admin
+    // bir vaqtda ochsa bir-birini bosib yozib yuborardi).
+    const r = await adminApi.staffTemplateAdd(org.id, newTpl.name.trim(), newTpl.start, newTpl.end).catch(() => ({ ok: false, error: "tarmoq" }));
+    if (!r.ok) { flash("❌ " + (r.error ?? "Saqlanmadi")); return; }
+    setNewTpl({ name: "", start: "09:00", end: "18:00" });
+    flash("✅ Shablon qo'shildi"); onChanged();
+  };
+  const removeTemplate = async (name: string) => {
+    const r = await adminApi.staffTemplateRemove(org.id, name).catch(() => ({ ok: false, error: "tarmoq" }));
+    if (!r.ok) { flash("❌ " + (r.error ?? "Saqlanmadi")); return; }
+    flash("✅ Shablon o'chirildi"); onChanged();
+  };
   const orgKey = [org.id, org.graceMin, org.lunchMin, org.fixedDivisor, org.overtimeMult, org.sickPct, org.vacationPct, org.shiftStart, org.shiftEnd, org.workDays].join(":");
   return (
     <div className="card" style={{ marginBottom: 12 }} key={orgKey}>
@@ -661,6 +801,26 @@ function OrgSettings({ orgs, onChanged, flash }: { orgs: OrgRow[]; onChanged: ()
           <input className="inp" style={{ width: 55 }} defaultValue={org.vacationPct} onBlur={(e) => Number(e.target.value) !== org.vacationPct && patch({ vacationPct: Number(e.target.value) })} />
           <label className="muted"><input type="checkbox" checked={org.holidayPaid} onChange={(e) => patch({ holidayPaid: e.target.checked })} /> bayram to'lanadi</label>
         </Row>
+      </div>
+
+      <div style={{ marginTop: 14 }}>
+        <b>🏗 Smena shablonlari</b>
+        <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 6 }}>
+          {org.shiftTemplates.map((t) => (
+            <span key={t.name} className="badge badge-muted" style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+              {t.name} ({t.start}–{t.end}) <button className="btn" style={{ padding: "0 4px", fontSize: 11 }} onClick={() => removeTemplate(t.name)}>✕</button>
+            </span>
+          ))}
+          {org.shiftTemplates.length === 0 && <span className="muted" style={{ fontSize: 12 }}>Hali shablon yo'q — pastda qo'shing</span>}
+        </div>
+        <div style={{ display: "flex", gap: 6, marginTop: 8, alignItems: "center" }}>
+          <input className="inp" style={{ width: 140 }} placeholder="Nomi (Ofis 09-18)" value={newTpl.name} onChange={(e) => setNewTpl((p) => ({ ...p, name: e.target.value }))} />
+          <input className="inp" style={{ width: 70 }} value={newTpl.start} onChange={(e) => setNewTpl((p) => ({ ...p, start: e.target.value }))} />
+          <span>–</span>
+          <input className="inp" style={{ width: 70 }} value={newTpl.end} onChange={(e) => setNewTpl((p) => ({ ...p, end: e.target.value }))} />
+          <button className="btn" onClick={addTemplate}>➕ Qo'shish</button>
+        </div>
+        <div className="muted" style={{ fontSize: 12, marginTop: 4 }}>Xodim qo'shishda bir bosishda tanlanadi.</div>
       </div>
 
       <div style={{ marginTop: 14 }}>

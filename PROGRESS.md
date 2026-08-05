@@ -5360,3 +5360,38 @@ to'g'ri topildi.
 - Isbot: typecheck toza, prisma validate OK, shared 90/90.
 - ⚠️ **VPS db push HALI QILINMAGAN** — 2 yangi jadval (LeaveRequest, ShiftSwapRequest) +
   Employee'ga 3 ta relation qatori. Kod push'idan OLDIN alohida ongli qadam.
+
+### 2026-08-05 — 👔 JAMOA P3 wave 1: E1/F3/G2/G3
+
+**Holat: ready for verification (kod-daraja) — 1 yangi ustun (WorkSession.editedAt),
+VPS db push kerak bo'ladi**
+- **E1**: jonli boshqaruv — ro'yxat 30s'da o'zi yangilanadi (kun ochilganda to'xtaydi),
+  "Bugun YAKUNLANGAN kunlar bo'yicha jami" counter (hali ishlayotganlar sonini ham
+  ko'rsatadi — tekshiruv topgan: "jonli hisob" degan noto'g'ri taassurot berardi).
+- **F3**: smena-shablon quruvchisi (Organization.shiftTemplates — J1'dan beri ishlatilmay
+  yotgan maydon) — sozlamalarda qo'shish/o'chirish, xodim qo'shishda bir bosishda tanlash.
+- **G2**: audit-jurnal — kun-tuzatish/bonus/jarima/to'lov/ta'til-qaror/almashish-qaror
+  bitta vaqt-tartibli lentada.
+- **G3**: xodim reyting/KPI — ish kun, kechikish, kelmadi, soat, hisob, intizom %
+  (ustun bosilsa saralanadi).
+- Mustaqil tekshiruv (R4): 6 topilma, BARI tuzatildi:
+  1. [HIGH] KPI kun-o'ziga-xos smenani (masalan tasdiqlangan almashish) e'tiborsiz
+     qoldirib, o'z vaqtida kelganni "7 soat kech" deb ko'rsatardi — endi har sessiya
+     uchun alohida policy.
+  2. [HIGH] Audit-jurnalda tahrirlangan kun "createdAt" (birinchi Keldim vaqti) bilan
+     tartiblanardi, haqiqiy tahrir vaqti bilan emas — yangi `editedAt` ustuni qo'shildi
+     (faqat qo'lda tuzatishda yoziladi, har oddiy checkout'da emas — aks holda jurnalni
+     to'ldirib yuborardi). Ta'til/almashish qarorlari ham endi decidedAt bo'yicha.
+  3. [MED] Shablon qo'shish/o'chirish klient butun massivni yuborardi — ikki admin bir
+     vaqtda ochsa bir-birini bosib yozib yuborishi mumkin edi — endi server-tomonli
+     atomik add/remove (staffAdminTemplateAdd/Remove).
+  4. [MED] Bir xil nomli ikkita shablon oldini olinmagan edi (noaniq tanlov) — endi
+     server rad etadi (case-insensitive).
+  5. [LOW] KpiView/AuditLogView'da tez org/oy almashtirishda eski javob ustiga yozib
+     yuborish mumkin edi — stale-guard qo'shildi (MonthReportView'dagi naqsh).
+  6. [LOW/UX] "Bugungi jami" jonli hisob taassurotini berardi, aslida faqat yakunlangan
+     kunlar — matn to'g'irlandi + "N kishi hali ishda" izohi qo'shildi.
+- ⚠️ `packages/admin/src/api.ts` — boshqa sessiyaning "Koson O'yini" WIP'i bilan
+  aralashgan, commitga KIRMADI (mening 3 qatorim tree'da, deploy'da alohida qo'shiladi).
+- ⚠️ **VPS db push HALI QILINMAGAN** — `WorkSession.editedAt` (Int emas, DateTime?,
+  additive) qo'shiladi.

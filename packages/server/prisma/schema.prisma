@@ -1793,6 +1793,9 @@ model WorkSession {
   autoClosed    Boolean   @default(false) // "Ketdim" forgotten → closed at shift end
   confirmedAt   DateTime? // owner's daily "Tasdiqlash"
   editedBy      String? // telegramId of the admin who hand-edited times (audit)
+  editedAt      DateTime? // WHEN the hand-edit happened — set explicitly in staffAdminSessionSet
+  // (plain, NOT @updatedAt: that would also fire on every routine recomputeSession write,
+  // flooding the audit log with non-edits — G2 tekshiruv topgan)
   createdAt     DateTime  @default(now())
   employee      Employee  @relation(fields: [employeeId], references: [id])
 

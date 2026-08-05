@@ -89,6 +89,7 @@ export async function staffAdminOverview(now = new Date()) {
         todayIn: hhmmOf(today?.checkIn ?? null, t.date),
         todayOut: hhmmOf(today?.checkOut ?? null, t.date),
         todayStatus: today?.checkIn ? (today.checkOut ? "ketgan" : "ishda") : (today?.dayStatus && today.dayStatus !== "ishladi" ? today.dayStatus : "kelmagan"),
+        todayEarned: today?.amountEarned ?? 0, // E1: "bugungi jami" counter uchun — qo'shimcha so'rovsiz
         monthEarned: monthAgg._sum.amountEarned ?? 0,
         monthMinutes: monthAgg._sum.minutesWorked ?? 0,
         balance: bal.balance,
@@ -300,7 +301,7 @@ export async function staffAdminSessionSet(input: {
   const emp = await prisma.employee.findUnique({ where: { id: input.employeeId }, include: { org: true } });
   if (!emp) return { ok: false, error: "Xodim topilmadi" };
   const existing = await prisma.workSession.findUnique({ where: { employeeId_date: { employeeId: emp.id, date: input.date } } });
-  const data: Record<string, unknown> = { editedBy: input.actor };
+  const data: Record<string, unknown> = { editedBy: input.actor, editedAt: new Date() };
   if (input.dayStatus !== undefined) {
     if (!["ishladi", "kelmadi", "javobli", "kasallik", "tatil", "bayram"].includes(input.dayStatus)) return { ok: false, error: "Holat noto'g'ri" };
     data.dayStatus = input.dayStatus;
@@ -524,9 +525,43 @@ export async function staffAdminOrgSave(orgId: number, patch: Record<string, unk
     } else if (k === "ownerTelegramId") {
       if (!/^\d{5,15}$/.test(String(v))) return { ok: false, error: "ownerTelegramId raqam" };
       data[k] = String(v);
+      // F3 shablonlar: shiftTemplates BU YERDA emas — staffAdminTemplateAdd/Remove orqali
+      // (bitta atomik yo'l, ikki admin bir vaqtda ochsa bir-birini bosib yozmasin, tekshiruv topgan).
     } else return { ok: false, error: `Noma'lum maydon: ${k}` };
   }
   await prisma.organization.update({ where: { id: orgId }, data });
+  return { ok: true };
+}
+
+/** F3 shablon qo'shish/o'chirish — SERVER TOMONIDA joriy holatni o'qib yozadi
+ *  (tekshiruv topgan: klient butun massivni yuborsa, ikki admin bir vaqtda
+ *  ochsa, biri ikkinchisining o'zgarishini jimgina ustidan bosib yozib
+ *  yuborardi). To'liq atomik emas (Postgres-darajali qulf yo'q), lekin
+ *  klient-round-trip oynasini yopadi — sozlamalar sahifasi past-raqobatli
+ *  ish uchun yetarli. Nomlar takrorlanmaydi (case-insensitive). */
+export async function staffAdminTemplateAdd(orgId: number, name: string, start: string, end: string): Promise<{ ok: boolean; error?: string }> {
+  const clean = name.trim().slice(0, 40);
+  if (!clean) return { ok: false, error: "Shablon nomi bo'sh" };
+  try {
+    hhmmToMin(start);
+    hhmmToMin(end);
+  } catch {
+    return { ok: false, error: "Vaqt HH:MM formatida" };
+  }
+  const org = await prisma.organization.findUnique({ where: { id: orgId } });
+  if (!org) return { ok: false, error: "Korxona topilmadi" };
+  const current = (Array.isArray(org.shiftTemplates) ? org.shiftTemplates : []) as { name: string; start: string; end: string }[];
+  if (current.length >= 20) return { ok: false, error: "Ko'pi bilan 20 ta shablon" };
+  if (current.some((t) => t.name.toLowerCase() === clean.toLowerCase())) return { ok: false, error: `"${clean}" nomli shablon allaqachon bor` };
+  await prisma.organization.update({ where: { id: orgId }, data: { shiftTemplates: [...current, { name: clean, start, end }] } });
+  return { ok: true };
+}
+
+export async function staffAdminTemplateRemove(orgId: number, name: string): Promise<{ ok: boolean; error?: string }> {
+  const org = await prisma.organization.findUnique({ where: { id: orgId } });
+  if (!org) return { ok: false, error: "Korxona topilmadi" };
+  const current = (Array.isArray(org.shiftTemplates) ? org.shiftTemplates : []) as { name: string; start: string; end: string }[];
+  await prisma.organization.update({ where: { id: orgId }, data: { shiftTemplates: current.filter((t) => t.name !== name) } });
   return { ok: true };
 }
 
@@ -540,7 +575,11 @@ export async function staffAdminOrgCreate(name: string, ownerTelegramId: string)
 /** Org list + this month's calendar (settings card). */
 export async function staffAdminOrgs() {
   const orgs = await prisma.organization.findMany({ orderBy: { id: "asc" } });
-  return orgs.map((o) => ({ ...o, calendar: (o.calendar as StaffCalendar | null) ?? {} }));
+  return orgs.map((o) => ({
+    ...o,
+    calendar: (o.calendar as StaffCalendar | null) ?? {},
+    shiftTemplates: (Array.isArray(o.shiftTemplates) ? o.shiftTemplates : []) as { name: string; start: string; end: string }[],
+  }));
 }
 
 // ---------------------------------------------------------------------------
@@ -641,4 +680,106 @@ export async function staffAdminCalendarSet(orgId: number, date: string, kind: S
   const sessions = await prisma.workSession.findMany({ where: { date: { startsWith: month }, employee: { orgId } }, select: { id: true } });
   for (const s of sessions) await recomputeSession(s.id);
   return { ok: true };
+}
+
+// ---------------------------------------------------------------------------
+// 📜 G2 — audit-jurnal: qo'lda tuzatilgan kunlar + bonus/jarima/to'lov + ta'til/
+// almashish qarorlari, BITTA vaqt-tartibli lentaga birlashtiriladi.
+// ---------------------------------------------------------------------------
+
+export interface AuditEntry {
+  at: string; // ISO
+  actor: string; // telegramId
+  action: string;
+  detail: string;
+}
+
+export async function staffAdminAuditLog(orgId: number, limit = 100): Promise<AuditEntry[]> {
+  const empIds = (await prisma.employee.findMany({ where: { orgId }, select: { id: true, name: true } }));
+  const nameOf = new Map(empIds.map((e) => [e.id, e.name]));
+  const ids = empIds.map((e) => e.id);
+  // Har manba O'ZINING haqiqiy vaqt-ustuniga qarab tartiblanadi (tekshiruv topgan: id/createdAt
+  // bo'yicha tartiblab keyin decidedAt/editedAt bo'yicha ko'rsatish — yaqinda HAL QILINGAN/
+  // TAHRIRLANGAN, lekin AVVAL YARATILGAN yozuvni cap'dan tashqarida qoldirib yuborardi).
+  const [editedSessions, ledgerRows, leaveDecisions, swapDecisions] = await Promise.all([
+    prisma.workSession.findMany({ where: { employeeId: { in: ids }, editedBy: { not: null } }, orderBy: [{ editedAt: "desc" }, { id: "desc" }], take: limit }),
+    prisma.staffLedger.findMany({ where: { employeeId: { in: ids }, kind: { in: ["bonus", "adjust", "payout"] }, createdBy: { not: "system" } }, orderBy: { createdAt: "desc" }, take: limit }),
+    prisma.leaveRequest.findMany({ where: { employeeId: { in: ids }, status: { not: "pending" }, decidedAt: { not: null } }, orderBy: { decidedAt: "desc" }, take: limit }),
+    prisma.shiftSwapRequest.findMany({ where: { OR: [{ requesterId: { in: ids } }, { partnerId: { in: ids } }], status: { in: ["approved", "rejected"] }, decidedAt: { not: null } }, orderBy: { decidedAt: "desc" }, take: limit }),
+  ]);
+  const entries: AuditEntry[] = [];
+  for (const s of editedSessions) {
+    // editedAt eski (migratsiyadan oldingi) qatorlarda bo'sh bo'lishi mumkin — createdAt zaxira.
+    entries.push({ at: (s.editedAt ?? s.createdAt).toISOString(), actor: s.editedBy ?? "?", action: "kun-tuzatish", detail: `${nameOf.get(s.employeeId) ?? "?"} — ${s.date}` });
+  }
+  for (const l of ledgerRows) {
+    const label = l.kind === "bonus" ? "bonus" : l.kind === "adjust" ? "jarima" : "to'lov";
+    entries.push({ at: l.createdAt.toISOString(), actor: l.createdBy, action: label, detail: `${nameOf.get(l.employeeId) ?? "?"} — ${l.amount.toLocaleString()} so'm${l.note ? ` (${l.note})` : ""}` });
+  }
+  for (const r of leaveDecisions) {
+    entries.push({ at: (r.decidedAt ?? r.createdAt).toISOString(), actor: r.decidedBy ?? "?", action: r.status === "approved" ? "ta'til-tasdiq" : "ta'til-rad", detail: `${nameOf.get(r.employeeId) ?? "?"} — ${r.fromDate}${r.fromDate !== r.toDate ? `..${r.toDate}` : ""}` });
+  }
+  for (const s of swapDecisions) {
+    entries.push({ at: (s.decidedAt ?? s.createdAt).toISOString(), actor: s.decidedBy ?? "?", action: s.status === "approved" ? "almashish-tasdiq" : "almashish-rad", detail: `${nameOf.get(s.requesterId) ?? "?"} ↔ ${nameOf.get(s.partnerId) ?? "?"} — ${s.date}` });
+  }
+  entries.sort((a, b) => b.at.localeCompare(a.at));
+  return entries.slice(0, limit);
+}
+
+// ---------------------------------------------------------------------------
+// 🏅 G3 — xodim reyting/KPI: bir oy uchun davomat intizomi.
+// ---------------------------------------------------------------------------
+
+export interface StaffKpiRow {
+  id: number;
+  name: string;
+  role: string;
+  workedDays: number;
+  lateDays: number;
+  absentDays: number;
+  minutes: number;
+  earned: number;
+  punctualityPct: number; // (workedDays-lateDays)/workedDays*100, ishlagan kun bo'lmasa 100
+}
+
+export async function staffAdminKpi(orgId: number, month: string): Promise<StaffKpiRow[]> {
+  const m = /^(\d{4})-(\d{2})$/.exec(month) ? month : tashkentDayMinutes(new Date()).date.slice(0, 7);
+  const org = await prisma.organization.findUnique({ where: { id: orgId }, include: { employees: { where: { active: true }, orderBy: { name: "asc" } } } });
+  if (!org) return [];
+  const rows: StaffKpiRow[] = [];
+  for (const e of org.employees) {
+    const sessions = await prisma.workSession.findMany({ where: { employeeId: e.id, date: { startsWith: m } } });
+    let lateDays = 0;
+    let workedDays = 0;
+    let minutes = 0;
+    let earned = 0;
+    let absentDays = 0;
+    for (const s of sessions) {
+      earned += s.amountEarned;
+      if (s.dayStatus === "kelmadi") absentDays++;
+      if (s.dayStatus !== "ishladi" || !s.checkIn || s.minutesWorked <= 0) continue;
+      workedDays++;
+      minutes += s.minutesWorked;
+      // Kun-o'ziga-xos smena (masalan tasdiqlangan almashish/to'y-kechasi) — HAR
+      // SESSIYA uchun alohida resolveStaffPolicy (tekshiruv topgan: bitta umumiy
+      // policy standart smenani ishlatib, o'z vaqtida kelganni "7 soat kech" deb
+      // ko'rsatardi).
+      const pol = resolveStaffPolicy({ ...org, calendar: org.calendar ?? undefined }, e, s);
+      const shiftStart = hhmmToMin(pol.shiftStart);
+      const arrivalMin = minutesSinceTashkentMidnight(s.checkIn, s.date);
+      if (arrivalMin > shiftStart + pol.graceMin) lateDays++;
+    }
+    rows.push({
+      id: e.id,
+      name: e.name,
+      role: e.role,
+      workedDays,
+      lateDays,
+      absentDays,
+      minutes,
+      earned,
+      punctualityPct: workedDays > 0 ? Math.round(((workedDays - lateDays) / workedDays) * 100) : 100,
+    });
+  }
+  return rows;
 }
