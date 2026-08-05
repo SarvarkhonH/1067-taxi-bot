@@ -29,6 +29,7 @@ import {
   type OyinBallBreakdown,
   type OyinBoardResponse,
   type OyinBuyResult,
+  type OyinCancelTicketResult,
   type OyinCatalogPrize,
   type OyinDeleteResult,
   type OyinDrawExport,
@@ -1271,17 +1272,25 @@ export async function setGoalPrize(memberId: number, prizeKey: string): Promise<
 /** 🎟 Mijozning mavsum chiptalari — sovrin nomi/rasmi bilan birga. Chipta raqami avval faqat
  *  bayram-oynasida bir marta ko'rinardi va qayta ko'rishning YO'LI yo'q edi. */
 export async function myTickets(memberId: number): Promise<OyinMyTicketsResponse> {
-  const [season, catalog, row] = await Promise.all([
+  const [season, catalog, row, soldMap, econ] = await Promise.all([
     getSeason(),
     getCatalog(),
     prisma.appState.findUnique({ where: { key: `oyin:tickets:${memberId}` } }),
+    getSoldMap(),
+    getBonusEcon(),
   ]);
   if (!season.configured) return { tickets: [], drawIso: null };
   const byKey = new Map(catalog.map((p) => [p.key, p]));
+  const minPct = econ.oyinMinSellPct ?? OYIN_MIN_SELL_PCT_DEFAULT;
   const tickets = parseTickets(row?.value)
-    
+
     .map((t) => {
       const p = byKey.get(t.prizeKey);
+      // 🛡 Sovrin katalogdan o'chirilgan bo'lsa (`p` yo'q) — qoidasi bilinmaydi, xavfsiz
+      // taraf: `willDraw: true` (bekor qilib bo'lmaydi, admin qo'lida qoladi).
+      const sold = soldMap.get(t.prizeKey) ?? 0;
+      const minSell = p ? minSellOf(p.limit, minPct) : 0;
+      const willDraw = !p || minSell <= 0 || sold >= minSell;
       return {
         prizeKey: t.prizeKey,
         // Sovrin katalogdan o'chirilgan bo'lsa ham chipta YO'QOLMAYDI — kalitni ko'rsatamiz.
@@ -1295,10 +1304,45 @@ export async function myTickets(memberId: number): Promise<OyinMyTicketsResponse
         // 🧪 Ekranda OCHIQ belgilanadi. Yashirilsa ega o'z sinov chiptasini haqiqiy deb o'ylab
         // tirajni kutib qolardi — va "nega yutmadim" savoli javobsiz bo'lardi.
         ...(t.test ? { test: true } : {}),
+        willDraw,
       };
     })
     .sort((a, b) => Date.parse(b.at) - Date.parse(a.at));
   return { tickets, drawIso: season.endIso };
+}
+
+/** 🎟 Mijoz O'ZI chegaraga yetmagan (hozircha tirajda o'ynalmaydigan) kartasini bekor qiladi —
+ *  ball qaytadi. Ega qarori (2026-08-06): mijoz ball "abadiy band" qolib ketmasligi uchun o'zi
+ *  chiqib, boshqa sovringa sarflay olishi kerak — avval bu FAQAT admin qo'lida edi.
+ *  ⚠️ ATAYLAB faqat "hozircha yetmagan" holatda: g'olib bo'lish ehtimoli bor (tirajga tushadigan)
+ *  kartani bekor qilishga ruxsat YO'Q — buning hojati yo'q va chalkash bo'lardi. Yadro
+ *  `adminCancelTicket` bilan BIR XIL (`releaseSoldSlot`), faqat ikkita qo'shimcha qo'riq bor. */
+export async function cancelOwnTicket(memberId: number, gno: number): Promise<OyinCancelTicketResult> {
+  const season = await getSeason();
+  if (season.phase !== "active") return { ok: false, reason: "season_off" };
+  if (season.endMs != null && season.endMs - Date.now() <= OYIN_FINAL_LOCK_MS) return { ok: false, reason: "final_lock" };
+
+  const key = `oyin:tickets:${memberId}`;
+  const row = await prisma.appState.findUnique({ where: { key } });
+  if (!row) return { ok: false, reason: "not_found" };
+  const tickets = parseTickets(row.value);
+  const idx = tickets.findIndex((t) => (t.gno ?? t.no) === gno);
+  if (idx < 0) return { ok: false, reason: "not_ticket" };
+  const target = tickets[idx];
+  if (!target) return { ok: false, reason: "not_ticket" };
+
+  const [catalog, soldMap, econ] = await Promise.all([getCatalog(), getSoldMap(), getBonusEcon()]);
+  const prize = catalog.find((p) => p.key === target.prizeKey);
+  const minPct = econ.oyinMinSellPct ?? OYIN_MIN_SELL_PCT_DEFAULT;
+  const minSell = prize ? minSellOf(prize.limit, minPct) : 0;
+  const sold = soldMap.get(target.prizeKey) ?? 0;
+  if (!prize || minSell <= 0 || sold >= minSell) return { ok: false, reason: "will_draw" };
+
+  tickets.splice(idx, 1);
+  await prisma.appState.update({ where: { key }, data: { value: JSON.stringify(tickets) } });
+  await releaseSoldSlot(target.prizeKey, target.test === true).catch(() => undefined);
+  invalidateBallCache();
+  return { ok: true, ball: await getBall(memberId) };
 }
 
 /** 👀 Mehmon-teaser: sovrinlar + mavsum holati. A'zo ma'lumoti YO'Q, shuning uchun auth kerak emas. */

@@ -46,7 +46,15 @@ const MOCK_VITRINA: OyinVitrinaResponse = {
 };
 
 const MOCK_BELL: OyinActivityResponse = { rows: [], total: 0, page: 1, pageSize: 20 };
-const MOCK_TICKETS: OyinMyTicketsResponse = { tickets: [], drawIso: null };
+// 🎟 2026-08-06: ikkitadan — biri tirajga TAYYOR (`willDraw:true`, bekor tugmasi YO'Q), biri
+// HALI YETMAGAN (`willDraw:false`, "bekor qilish" tugmasi ko'rinishi kerak) — QA uchun.
+const MOCK_TICKETS: OyinMyTicketsResponse = {
+  tickets: [
+    { gno: 729480, prizeKey: "p1", prizeName: "Nonstick qadoq to'plami", prizeIcon: "🍳", photoUrl: null, no: 3, at: "2026-08-04T10:00:00.000Z", price: 1200, willDraw: true },
+    { gno: 729481, prizeKey: "uzum-iphone-12-4", prizeName: "Apple iPhone 12, 64GB", prizeIcon: "📱", photoUrl: null, no: 1, at: "2026-08-05T09:00:00.000Z", price: 450000, willDraw: false },
+  ],
+  drawIso: "2026-09-15T00:00:00+05:00",
+};
 const MOCK_JAMOAM: OyinJamoamResponse = { friends: [], totalBall: 0, oneTimeBall: 0, rideBall: 0 };
 
 // 🤝 Gashtak — realistik holat: boshliq (SIZ), yana bir haqiqiy a'zo, ikkita 🧪 sinov a'zo

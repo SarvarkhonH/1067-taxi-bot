@@ -5618,19 +5618,20 @@ interface OyinPrizeDraft { icon: string; name: string; valueLabel: string; price
 /** 📐 Bitta mukofot uchun TAVSIYA + HAQIQAT. Manba `oyinCardPlan` (m=3 kafolati) — ya'ni
  *  byudjet kartasi bilan BIR XIL matematika. Avval bu ikki joyda ikki xil formula edi
  *  (`oyinPrizePlan` 15%-langari) va bitta qator uchun ikki xil "to'g'ri narx" chiqardi. */
-function oyinAdvice(sum: number | null, price: number, limit: number, rideBall: number) {
+function oyinAdvice(sum: number | null, price: number, limit: number, rideBall: number, multiplier: number) {
   if (sum == null || sum <= 0) return null;
-  const tier = oyinSuggestTier(sum, rideBall);
-  const plan = oyinCardPlan(sum, tier, rideBall);
+  const tier = oyinSuggestTier(sum, rideBall, multiplier);
+  const plan = oyinCardPlan(sum, tier, rideBall, multiplier);
   const capacitySom = Math.max(0, limit) * Math.max(0, price) * OYIN_SOM_PER_BALL;
   const cover = capacitySom / sum;
-  return { tier, plan, capacitySom, cover, ok: cover >= OYIN_PRIZE_MULTIPLIER };
+  return { tier, plan, capacitySom, cover, ok: cover >= multiplier };
 }
 
 function OyinPrizeBoard() {
   const [catalog, setCatalog] = useState<OyinAdminPrizeRow[] | null>(null);
   const [season, setSeason] = useState<OyinSeasonView | null>(null);
   const [rideBall, setRideBall] = useState(35);
+  const [multiplier, setMultiplier] = useState(OYIN_PRIZE_MULTIPLIER);
   const [draft, setDraft] = useState<Record<string, OyinPrizeDraft>>({});
   const [openKey, setOpenKey] = useState<string | null>(null);
   const [savedKey, setSavedKey] = useState<string | null>(null);
@@ -5655,7 +5656,10 @@ function OyinPrizeBoard() {
   const load = () => {
     adminApi.oyinCatalog().then((r) => applyCatalog(r.prizes)).catch(() => setCatalog([]));
     adminApi.oyinSeason().then(setSeason).catch(() => undefined);
-    adminApi.bonusEconomy().then((e) => setRideBall(Number(e.values?.oyinRideBall ?? 35) || 35)).catch(() => undefined);
+    adminApi.bonusEconomy().then((e) => {
+      setRideBall(Number(e.values?.oyinRideBall ?? 35) || 35);
+      setMultiplier(Number(e.values?.oyinPrizeMultiplier ?? OYIN_PRIZE_MULTIPLIER) || OYIN_PRIZE_MULTIPLIER);
+    }).catch(() => undefined);
   };
   useEffect(() => { load(); }, []);
 
@@ -5735,8 +5739,8 @@ function OyinPrizeBoard() {
 
   // ── ➕ Qo'shish: ega FAQAT narx yozadi ────────────────────────────────────────────────────
   const addSum = parseSum(addSom);
-  const addTier = addSum ? oyinSuggestTier(addSum, rideBall) : null;
-  const addPlan = addSum && addTier ? oyinCardPlan(addSum, addTier, rideBall) : null;
+  const addTier = addSum ? oyinSuggestTier(addSum, rideBall, multiplier) : null;
+  const addPlan = addSum && addTier ? oyinCardPlan(addSum, addTier, rideBall, multiplier) : null;
   const addPrize = async () => {
     if (!addName.trim() || !addSum || !addPlan) return;
     setAddBusy(true); setAddMsg(null);
@@ -5776,8 +5780,8 @@ function OyinPrizeBoard() {
     let last: OyinAdminPrizeRow[] | null = null;
     for (const [i, row] of bulkOk.entries()) {
       const sum = row.sum as number;
-      const tier = oyinSuggestTier(sum, rideBall);
-      const plan = oyinCardPlan(sum, tier, rideBall);
+      const tier = oyinSuggestTier(sum, rideBall, multiplier);
+      const plan = oyinCardPlan(sum, tier, rideBall, multiplier);
       try {
         last = (await adminApi.upsertOyinPrize({
           icon: "🎁", name: row.name, valueLabel: `${formatNumber(sum)} so'm`,
@@ -5840,7 +5844,7 @@ function OyinPrizeBoard() {
                     const left = Math.max(0, p.limit - p.sold);
                     const sum = parseSum(p.valueLabel);
                     const isOpen = openKey === p.key;
-                    const adv = oyinAdvice(parseSum(d.valueLabel), Number(d.price) || 0, Number(d.limit) || 0, rideBall);
+                    const adv = oyinAdvice(parseSum(d.valueLabel), Number(d.price) || 0, Number(d.limit) || 0, rideBall, multiplier);
                     return (
                       <div key={p.key} style={{ borderRadius: 10, background: "rgba(255,255,255,.04)", opacity: p.active ? 1 : 0.6 }}>
                         {/* ── qisqa qator: rasm · nom · baho · 34/48 · chiziq · qoldiq · qiymat · 🛡 ── */}
@@ -5899,10 +5903,10 @@ function OyinPrizeBoard() {
                             {adv ? (
                               <div style={{ fontSize: 11.5, lineHeight: 1.75, background: "rgba(255,255,255,.03)", borderRadius: 6, padding: "7px 9px" }}>
                                 {adv.ok
-                                  ? <div style={{ color: "#34d399" }}>✓ To'lganda <b>{adv.cover.toFixed(1)}× qoplash</b> — kafolat bajarilgan (kerak {OYIN_PRIZE_MULTIPLIER}×)</div>
+                                  ? <div style={{ color: "#34d399" }}>✓ To'lganda <b>{adv.cover.toFixed(1)}× qoplash</b> — kafolat bajarilgan (kerak {multiplier}×)</div>
                                   : (
                                     <div style={{ color: "#ff6b6b" }}>
-                                      ⚠️ To'lganda faqat <b>{adv.cover.toFixed(1)}× qoplash</b> — kerak {OYIN_PRIZE_MULTIPLIER}×.{" "}
+                                      ⚠️ To'lganda faqat <b>{adv.cover.toFixed(1)}× qoplash</b> — kerak {multiplier}×.{" "}
                                       Tavsiya: <b>{formatNumber(adv.plan.ballPrice)} ball × {formatNumber(adv.plan.slots)} karta</b> («{adv.tier}» darajasi)
                                       <button className="btn sm" style={{ marginLeft: 6 }} onClick={() => setD({ price: String(adv.plan.ballPrice), limit: String(Math.max(adv.plan.slots, p.sold)) })}>📐 Qo'yish</button>
                                     </div>
@@ -6702,6 +6706,8 @@ function oyinKnobEffect(key: string, value: number, rides30d: number | null): st
       return value > 0
         ? `Mukofot o'ynalishi uchun kartalarning ${value}% i sotilishi SHART — yetmasa tirajga tushmaydi`
         : "0 — qo'riq o'chiq: kam sotilgan mukofot ham o'ynaladi";
+    case "oyinPrizeMultiplier":
+      return `To'lganda ${value}× ball yig'ilgan bo'ladi — mukofot narxining ${(100 / value).toFixed(0)}%i xarajat, qolgani marja. Yangi qo'shiladigan mukofotlarga darhol ta'sir qiladi (mavjudlariga tegmaydi).`;
     case "oyinMaxTicketsPerPrize":
       return `Bitta odam bitta mukofotdan ko'pi bilan ${value} ta karta oladi`;
     default:
@@ -6822,12 +6828,16 @@ function OyinBudgetCard() {
   const [b, setB] = useState<OyinBudgetView | null>(null);
   const [failed, setFailed] = useState(false);
   const [rideBall, setRideBall] = useState(150);
+  const [multiplier, setMultiplier] = useState(OYIN_PRIZE_MULTIPLIER);
   // Rejalashtiruvchi: ega ball emas, MEHNAT bilan o'ylaydi.
   const [pv, setPv] = useState("900000");
   const [pr, setPr] = useState("30");
   useEffect(() => {
     adminApi.oyinBudget().then(setB).catch(() => setFailed(true));
-    adminApi.bonusEconomy().then((e) => setRideBall(Number(e.values?.oyinRideBall ?? 150) || 150)).catch(() => undefined);
+    adminApi.bonusEconomy().then((e) => {
+      setRideBall(Number(e.values?.oyinRideBall ?? 150) || 150);
+      setMultiplier(Number(e.values?.oyinPrizeMultiplier ?? OYIN_PRIZE_MULTIPLIER) || OYIN_PRIZE_MULTIPLIER);
+    }).catch(() => undefined);
   }, []);
   if (failed) return null;
   if (!b) return <section className="panel"><div className="panel-title">💰 Mavsum byudjeti</div><div className="muted">Yuklanmoqda…</div></section>;
@@ -6837,8 +6847,8 @@ function OyinBudgetCard() {
   // qayerdan chaqirilmasdi va ega sovrin yaratadigan yagona joy hali eski langarda ishlardi
   // (500 000 so'm → 8 300 ball = 237 safar/karta). Ya'ni "3× kafolat" mahsulotda MAVJUD EMAS edi.
   const pvNum = Number(pv.replace(/\D/g, "")) || 0;
-  const tier = oyinSuggestTier(pvNum, rideBall);
-  const plan = oyinCardPlan(pvNum, tier, rideBall);
+  const tier = oyinSuggestTier(pvNum, rideBall, multiplier);
+  const plan = oyinCardPlan(pvNum, tier, rideBall, multiplier);
   const usedPct = b.budgetSom > 0 ? Math.round((b.catalogSom / b.budgetSom) * 100) : 0;
 
   return (
@@ -6874,7 +6884,7 @@ function OyinBudgetCard() {
         To'lganda yig'iladi: <b style={{ color: "var(--text)" }}>{formatNumber(plan.ballCapacity)} ball</b> = {formatNumber(plan.somCapacity)} so'm
         {" "}(<b style={{ color: "#34d399" }}>{(plan.somCapacity / Math.max(1, pvNum)).toFixed(1)}× qoplash</b>)<br />
         <span style={{ color: "var(--text-muted)" }}>
-          Mukofot FAQAT hamma karta sotilganda o'ynaladi — shuning uchun xarajat har doim {(100 / OYIN_PRIZE_MULTIPLIER).toFixed(0)}%.
+          Mukofot FAQAT hamma karta sotilganda o'ynaladi — shuning uchun xarajat har doim {(100 / multiplier).toFixed(0)}%.
           To'lmasa bir so'm ham sarflanmaydi.
         </span>
       </div>

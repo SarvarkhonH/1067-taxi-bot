@@ -312,6 +312,13 @@ export const BONUS_ECON_KNOBS: BonusEconKnob[] = [
   // ⚠️ Mijozga OLDINDAN ochiq aytiladi (vitrina + chipta + varaq): "kamida N ta chipta sotilsa
   // o'ynaladi · hozir M ta". Yashirin shart = ishonchni buzish.
   { key: "oyinMinSellPct", label: "🛡 Tiraj qo'rig'i — sovrin o'ynalishi uchun min sotilgan (%)", def: 100, min: 0, max: 100, step: 5, group: "Koson O'yini" },
+  // 📐 MUKOFOT MULTIPLIKATORI — avval `OYIN_PRIZE_MULTIPLIER` qattiq kod edi (2026-08-06'gacha).
+  // Ega qarori: pastroq son = sovrin TEZROQ "ochiladi" (kamroq karta kerak, mijoz tezroq g'olib
+  // ko'radi) — marja evaziga. Bu SIZGA zarar keltirmaydi (sovrin baribir narxidan kam yig'ilib
+  // berilmaydi, `min = 1`), faqat qancha marja qolishini belgilaydi. `oyinCardPlan`/
+  // `oyinSuggestTier` (shared/oyin.ts) parametr sifatida qabul qiladi — knob o'qilmasa
+  // `OYIN_PRIZE_MULTIPLIER` (3) fallback bo'lib qoladi (eski skript/testlar buzilmasin).
+  { key: "oyinPrizeMultiplier", label: "📐 Mukofot multiplikatori — to'lganda necha barobar ball yig'ilgan bo'lishi kerak", def: 3, min: 1, max: 10, step: 0.5, group: "Koson O'yini" },
   // 🤝 GAP-JAMOA (gashtak modeli): jamoaning oylik UMUMIY safarlari NAVBATCHIGA ball beradi.
   // Xarajat hisobi: 10 kishi × 20 safar = 200 safar × 6 ball = 1 200 ball — bu aynan bitta
   // «o'rta» darajali karta. Safar boshiga +6 ball = 35 ustiga 17% qo'shimcha emissiya.

@@ -551,6 +551,14 @@
   background: rgba(31, 157, 85, .12); color: var(--oyk-green); flex-shrink: 0;
 }
 .oyk-tkt-badge.is-done { background: var(--oyk-fill); color: var(--oyk-text-3); }
+/* 🎟 2026-08-06: chegaraga yetmagan kartani bekor qilish — karta ostida, kichik, e'tibor
+   tortmaydigan (bu kamdan-kam bosiladigan amal, asosiy e'tibor kartaning o'zida qolishi kerak). */
+.oyk-tkt-cancel {
+  display: block; width: 100%; border: none; border-top: 1px dashed var(--oyk-line);
+  background: transparent; color: var(--oyk-text-3); font-size: 10.5px; font-family: inherit;
+  padding: 8px 14px; text-align: left; cursor: pointer;
+}
+.oyk-tkt-cancel:active { color: var(--oyk-red-soft); }
 /* Skeleton — REAL chiptaning nusxasi: o'sha tuzilma, o'sha padding'lar, o'sha 42px kvadrat.
    Balandlik shu sababli o'zi to'g'ri chiqadi (~131px) — avval qotirilgan 122px turardi va
    yuklanganda ro'yxat har chiptada sakrardi (DIZAYN_QOIDALARI #11). */

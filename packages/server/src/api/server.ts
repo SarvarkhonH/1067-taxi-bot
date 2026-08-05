@@ -1708,6 +1708,15 @@ export function createApiServer(opts: ApiOptions = {}) {
     const { buyTicket } = await import("../services/oyinService");
     res.json(await buyTicket(memberId, String((req.body as { prizeKey?: string })?.prizeKey ?? ""), oyinPreviewOf(res)));
   });
+  // 🎟 Mijoz O'ZI chegaraga yetmagan kartasini bekor qiladi (ega qarori 2026-08-06 — ball
+  // "abadiy band" qolib ketmasin). `cancelOwnTicket` o'zi qo'shimcha qo'riqlaydi
+  // ("will_draw" bo'lsa rad etadi) — bu yerda faqat auth.
+  app.post("/api/oyin/tickets/cancel", requireUser, rateLimit(10), async (req, res) => {
+    const memberId = await getMemberId(res.locals.telegramId as string);
+    if (!memberId) { res.status(404).json({ error: "not linked" }); return; }
+    const { cancelOwnTicket } = await import("../services/oyinService");
+    res.json(await cancelOwnTicket(memberId, Number((req.body as { gno?: number })?.gno)));
+  });
   app.post("/api/oyin/share", requireUser, rateLimit(10), async (_req, res) => {
     const memberId = await getMemberId(res.locals.telegramId as string);
     if (!memberId) { res.status(404).json({ error: "not linked" }); return; }

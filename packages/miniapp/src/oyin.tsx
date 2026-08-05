@@ -552,6 +552,32 @@ export function OyinView({ onTaxi, joinCode }: { onTaxi?: () => void; joinCode?:
   }, []);
   useEffect(() => () => clearTimeout(toastT.current), []);
 
+  // 🎟 2026-08-06 (ega qarori): mijoz O'ZI chegaraga yetmagan kartasini bekor qila oladi —
+  // ball qaytadi, boshqa sovringa sarflay oladi. Faqat `!t.willDraw` (hozircha tirajga
+  // tayyor EMAS) — g'olib bo'lishi mumkin bo'lgan kartani bekor qilishga ruxsat YO'Q.
+  const cancelTicket = useCallback(async (gno: number) => {
+    if (!window.confirm("Bu karta bekor qilinsin — ball hisobingizga qaytadi. Davom etasizmi?")) return;
+    try {
+      const r = await api.oyinCancelTicket(gno);
+      if (r.ok) {
+        haptic();
+        showToast("✅ Bekor qilindi — ballingiz qaytdi", 3400);
+        loadTickets();
+        loadHome();
+        return;
+      }
+      showToast(
+        r.reason === "will_draw" ? "Bu sovrin allaqachon tirajga tayyor — bekor qilib bo'lmaydi"
+          : r.reason === "final_lock" ? "Davr yakuniga yaqin — bekor qilish yopiq"
+          : r.reason === "season_off" ? "Dastur hozir faol emas"
+          : "Bekor qilib bo'lmadi",
+        3400,
+      );
+    } catch {
+      showToast("Bekor qilib bo'lmadi — internetni tekshiring");
+    }
+  }, [showToast, loadTickets, loadHome]);
+
   // 🤝 Gap-jamoa (gashtak). Alohida yuklanadi — do'st-ro'yxati bilan bog'liq emas va biri
   // yiqilsa ikkinchisi ko'rinishda qolsin.
   // 💡 Kunlik maslahat — a'zo va kun bo'yicha deterministik, so'rov ham saqlash ham KERAK EMAS.
@@ -1768,6 +1794,14 @@ Taksida yur, ball yig', sodiqlik kartasini ol. Davr oxirida jonli efirda mukofot
                           «QATNASHDI» ham o'lchandi — u kengroq bo'lib sana qatorini ikkiga bo'lardi. */}
                       <span className={`oyk-tkt-badge${ended ? " is-done" : ""}`}>{ended ? "TUGADI" : "KUCHDA"}</span>
                     </div>
+                    {/* 🎟 2026-08-06 (ega qarori): FAQAT hozircha chegaraga yetmagan (tirajga
+                        tayyor EMAS) sovrindan bekor qilish mumkin — ball "abadiy band" bo'lib
+                        qolmasin. G'olib bo'lishi mumkin kartani bekor qilish TAQIQ. */}
+                    {!t.willDraw && !t.test && !ended && (
+                      <button type="button" className="oyk-tkt-cancel" onClick={() => void cancelTicket(t.gno)}>
+                        🛡 Bu sovrin hozircha chegaraga yetmagan — bekor qilish (ball qaytadi)
+                      </button>
+                    )}
                   </div>
                 ))}
                 <div className="oyk-note-violet">

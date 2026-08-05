@@ -5669,3 +5669,37 @@ Ega jonli sinovda 3 ta narsa topdi/so'radi:
   konsolda yangi xato yo'q. **V2 admin `Hikoyalar.tsx` jonli LOGIN bilan sinalmadi** (lokal
   backend yo'q, auth kerak) — faqat typecheck + mavjud `Jonli.tsx` naqshiga qat'iy moslik
   orqali tekshirildi.
+
+### 2026-08-06 (tong, davomi) — 💰 IQTISOD: multiplikator admin-knob + mijoz o'z-bekor
+
+**Holat: ready for verification — VPS db push shart EMAS (Prisma o'zgarishi yo'q, faqat AppState
+knob); ega hali telefonda/admin panelda ko'rmagan**
+
+Ega "10 kishi gashtak bilan bir oyda TV yutish mumkinmi" savolidan iqtisod suhbatiga o'tdi:
+tekshiruv shuni ko'rsatdiki, u SIZGA hech qanday zarar keltirmaydi (`oyinMinSellPct=100` +
+multiplikator ≥1 — sovrin narxidan KAM yig'ilib hech qachon berilmaydi), risk faqat mijoz
+tomonida (ball chegaraga yetmagan sovrinda "band" bo'lib qolishi). Ega ikkita real qaror qildi:
+
+1. **`OYIN_PRIZE_MULTIPLIER` (avval qattiq kod, 3x) → admin knob** (`oyinPrizeMultiplier`,
+   def 3, min 1, max 10, step 0.5, "Koson O'yini" guruhi — boshqa knoblar bilan BIR XIL
+   generic render, alohida UI kod shart emas). `oyinCardPlan`/`oyinSuggestTier` (shared/oyin.ts)
+   endi `multiplier` PARAMETR qabul qiladi (berilmasa `OYIN_PRIZE_MULTIPLIER`=3 fallback —
+   eski skript/testlar buzilmaydi). Admin App.tsx'dagi 3 ta chaqiruvchi joy (`OyinPrizeBoard`
+   — qo'shish/tahrirlash/ommaviy yuklash, `OyinBudgetCard` — rejalashtiruvchi) hammasi knobni
+   `bonusEconomy()`dan o'qib uzatadi. ⚠️ Faqat YANGI qo'shiladigan sovrinlarga ta'sir qiladi —
+   mavjud katalogdagi `price`/`limit` allaqachon YOZIB QO'YILGAN, retroaktiv o'zgarmaydi.
+2. **Mijoz o'zi chegaraga yetmagan kartasini bekor qila oladi** (`cancelOwnTicket`,
+   `POST /api/oyin/tickets/cancel {gno}`) — `adminCancelTicket` bilan BIR XIL yadro
+   (`releaseSoldSlot`), ustiga IKKI qo'riq: (a) faqat `!willDraw` (hozircha tirajga TAYYOR
+   EMAS — g'olib bo'lishi mumkin kartani bekor qilib bo'lmaydi), (b) final-48soat qulfidan
+   OLDIN (`OYIN_FINAL_LOCK_MS`, `buyTicket` bilan bir xil qo'riq). `OyinMyTicket`ga `willDraw`
+   qo'shildi (`myTickets()` endi `getSoldMap`+`getBonusEcon` ham o'qiydi — vitrina kartasidagi
+   BILAN BIR XIL manba/formula). Miniapp: "Kartalarim" ro'yxatida faqat `!willDraw` kartalarda
+   kichik "🛡 ... bekor qilish" tugmasi (`window.confirm` bilan — mavjud gashtak-kick/disband
+   naqshi), bosilsa ball qaytadi va ro'yxat+bosh sahifa yangilanadi.
+- Isbot: `pnpm -r typecheck` (4/4) toza, `simGuards` yangi bo'lim J (5 holat — fallback
+  moslik, multiplikator slots'ga chiziqli ta'siri, buzuq qiymat himoyasi) yashil, build
+  (admin+miniapp) yashil, `#oyindemo`da (2 ta sun'iy karta — biri `willDraw:true`, biri
+  `false`) tugma FAQAT kerakli kartada chiqishi tasdiqlandi, konsolda yangi xato yo'q.
+  **Admin panel (multiplikator knob UI) jonli LOGIN bilan sinalmadi** — avvalgi gap bilan
+  bir xil sabab (lokal backend/auth yo'q).

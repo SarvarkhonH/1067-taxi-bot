@@ -97,7 +97,10 @@ export interface OyinCardPlan {
  *  (100 mln so'm), ya'ni halol qiymatni hech qachon kesmaydi, buzuq kiritishni esa to'xtatadi. */
 const MAX_PRIZE_SOM = 100_000_000;
 
-export function oyinCardPlan(valueSom: number, tier: OyinTier, rideBall = 35): OyinCardPlan {
+// ⚠️ 2026-08-06 (ega qarori): multiplikator ENDI PARAMETR — `oyinPrizeMultiplier` admin
+// knobidan keladi (chaqiruvchi `getBonusEcon()`dan o'qib uzatadi). Berilmasa `OYIN_PRIZE_
+// MULTIPLIER` (3) fallback — eski skript/testlar (import qilmagan joylar) buzilmasin.
+export function oyinCardPlan(valueSom: number, tier: OyinTier, rideBall = 35, multiplier = OYIN_PRIZE_MULTIPLIER): OyinCardPlan {
   // ⚠️ `Number(x) || 0` YETARLI EMAS — `Infinity || 0` = Infinity. Sinov (simLoyalty.ts)
   // aynan shuni ushladi: `slots = Infinity`, `costPct = NaN` bo'lib ekranga chiqardi. Bu
   // `adminUpsertPrize` dagi `1e999 → Infinity → JSON null → BEPUL chipta` bugining aynan
@@ -110,7 +113,8 @@ export function oyinCardPlan(valueSom: number, tier: OyinTier, rideBall = 35): O
   // JSON'da esa `null` bo'lib chiqardi. Bu aynan shu kodbazadagi `1e999 → Infinity → JSON null
   // → BEPUL chipta` bugining o'sha oilasi, faqat boshqa o'qda. Nazoratchi agent ushladi.
   const ballPrice = OYIN_TIERS[tier] ?? OYIN_TIERS.orta;
-  const slots = Math.max(1, Math.ceil((OYIN_PRIZE_MULTIPLIER * v) / (OYIN_SOM_PER_BALL * ballPrice)));
+  const m = Number.isFinite(multiplier) && multiplier >= 1 ? multiplier : OYIN_PRIZE_MULTIPLIER;
+  const slots = Math.max(1, Math.ceil((m * v) / (OYIN_SOM_PER_BALL * ballPrice)));
   const ballCapacity = slots * ballPrice;
   const somCapacity = ballCapacity * OYIN_SOM_PER_BALL;
   // `rides` — ega uchun tarjima ("bu karta ≈ 34 safarlik mehnat"). Safar balli 0 ga sozlangan
@@ -134,13 +138,13 @@ export function oyinCardPlan(valueSom: number, tier: OyinTier, rideBall = 35): O
  *  ⚠️ Avval bu funksiya `Z ≤ 100` bo'lgan BIRINCHI darajani olardi, ya'ni deyarli har doim eng
  *  arzonini: 350 000 so'mlik mukofot 88 ta kartaga bo'linardi (to'g'risi — 44). Sinov shuni
  *  ushladi. 50 — oltin o'rta: imkoniyat 2% (real tuyuladi) va to'lish tezligi maqbul. */
-export function oyinSuggestTier(valueSom: number, rideBall = 35): OyinTier {
+export function oyinSuggestTier(valueSom: number, rideBall = 35, multiplier = OYIN_PRIZE_MULTIPLIER): OyinTier {
   const order: OyinTier[] = ["kichik", "orta", "katta", "bosh"];
   const TARGET_SLOTS = 50;
   let best: OyinTier = "kichik";
   let bestDist = Infinity;
   for (const t of order) {
-    const s = oyinCardPlan(valueSom, t, rideBall).slots;
+    const s = oyinCardPlan(valueSom, t, rideBall, multiplier).slots;
     // 100 dan oshgani jarima oladi (imkoniyat 1% dan tushadi), lekin butunlay rad etilmaydi —
     // 10 mln so'mlik orzu mukofotida hamma daraja 100 dan oshadi va baribir birini tanlash kerak.
     const dist = Math.abs(s - TARGET_SLOTS) + (s > 100 ? 1000 : 0);
@@ -994,10 +998,22 @@ export interface OyinMyTicket {
   // 🧪 TEST chipta (ega/admin sinovi). Ekranda ochiq belgilanadi va TIRAJGA KIRMAYDI.
   // Yashirilmaydi — yashirilgan test chipta "ega o'z tirajida qatnashdi" ayblovini keltiradi.
   test?: boolean;
+  // 🛡 2026-08-06: shu sovrin HOZIR tirajda o'ynaladimi (kerakli % sotilganmi) — vitrina
+  // kartasidagi bilan BIR XIL manba. `false` bo'lsa mijoz shu kartani o'zi bekor qila oladi
+  // (`cancelOwnTicket`) — ball qaytadi, chegaraga hech qachon yetmaydigan sovrinda ball
+  // abadiy "band" bo'lib qolmasin.
+  willDraw: boolean;
 }
 export interface OyinMyTicketsResponse {
   tickets: OyinMyTicket[];
   drawIso: string | null; // mavsum tugash sanasi — "tiraj qachon" savoliga javob
+}
+
+/** 🎟 Mijoz o'zi chegaraga yetmagan kartasini bekor qiladi (ball qaytadi). */
+export interface OyinCancelTicketResult {
+  ok: boolean;
+  reason?: "not_found" | "not_ticket" | "season_off" | "final_lock" | "will_draw";
+  ball?: number; // yangi balans
 }
 
 /** 👀 Mehmon (raqami ulanmagan) ko'radigan teaser — a'zo ma'lumoti YO'Q, hammasi ochiq axborot.

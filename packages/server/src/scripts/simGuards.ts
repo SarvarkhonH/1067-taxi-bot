@@ -14,7 +14,7 @@ import {
   navbatchiOf, assignTurn, addMonths, parseJamoa, applyRemoveMember, applySetTurn, type JamoaRecord,
 } from "../services/oyinService";
 import { STORY_COOLDOWN_HOURS, storyCooldownHoursLeft } from "../services/oyinStory";
-import { OYIN_TIERS, OYIN_JAMOA_MIN, OYIN_SEED_CATALOG } from "@t1067/shared";
+import { OYIN_TIERS, OYIN_JAMOA_MIN, OYIN_SEED_CATALOG, OYIN_PRIZE_MULTIPLIER, oyinCardPlan, oyinSuggestTier } from "@t1067/shared";
 import { BONUS_ECON_KNOBS } from "@t1067/shared";
 
 let fail = 0;
@@ -169,6 +169,20 @@ const exactly72 = new Date(NOW - STORY_COOLDOWN_HOURS * 3600_000).toISOString();
 ok(storyCooldownHoursLeft(exactly72, NOW) === 0, "AYNAN 72 soat oldin → tanaffus TUGAGAN (0)");
 const wayPast = new Date(NOW - 200 * 3600_000).toISOString();
 ok(storyCooldownHoursLeft(wayPast, NOW) === 0, "200 soat oldin → tanaffus tugagan (0)");
+
+// ── 📐 MUKOFOT MULTIPLIKATORI ENDI PARAMETR (2026-08-06, ega talabi) — HAQIQIY funksiyaga qarshi ─
+console.log("\nJ) oyinCardPlan/oyinSuggestTier — multiplikator parametr, knob o'qilmasa fallback 3x");
+const V = 3_000_000;
+const planDefault = oyinCardPlan(V, "bosh"); // multiplier berilmadi → OYIN_PRIZE_MULTIPLIER (3) fallback
+const planExplicit3 = oyinCardPlan(V, "bosh", 35, OYIN_PRIZE_MULTIPLIER);
+ok(planDefault.slots === planExplicit3.slots, "parametr berilmasa aynan eski konstantaga teng natija (orqaga moslik)");
+const planHalf = oyinCardPlan(V, "bosh", 35, OYIN_PRIZE_MULTIPLIER / 2);
+ok(planHalf.slots < planDefault.slots, "pastroq multiplikator → kamroq karta kerak (sovrin TEZROQ ochiladi)");
+ok(Math.abs(planHalf.slots * 2 - planDefault.slots) <= 1, "slots multiplikatorga TO'G'RI CHIZIQLI (2x kam multiplikator ≈ yarim karta)");
+const tierDefault = oyinSuggestTier(V);
+const tierExplicit = oyinSuggestTier(V, 35, OYIN_PRIZE_MULTIPLIER);
+ok(tierDefault === tierExplicit, "oyinSuggestTier ham xuddi shu fallback bilan ishlaydi");
+ok(oyinCardPlan(V, "bosh", 35, 0.1).slots >= 1, "buzuq/juda kichik multiplikator (< 1) → ichkarida 3x fallback, hech qachon 0/manfiy slots emas");
 
 console.log(fail === 0 ? "\n🛡 simGuards: HAMMA QO'RIQ JOYIDA\n" : `\n❌ simGuards: ${fail} ta qo'riq YO'Q\n`);
 process.exit(fail === 0 ? 0 : 1);
