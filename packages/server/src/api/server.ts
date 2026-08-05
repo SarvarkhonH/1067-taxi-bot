@@ -1622,6 +1622,53 @@ export function createApiServer(opts: ApiOptions = {}) {
       : { ok: false as const, reason: "not_found" as const };
     res.json({ ...r, view: await getJamoaView(memberId) });
   });
+  // ── 👑 Gashtak boshlig'i (2026-08-05, ega talabi) ────────────────────────────────────────
+  app.post("/api/oyin/jamoa/kick", requireUser, rateLimit(20), async (req, res) => {
+    const memberId = await getMemberId(res.locals.telegramId as string);
+    if (!memberId) { res.status(404).json({ error: "not linked" }); return; }
+    const { kickFromJamoa, getJamoaView } = await import("../services/oyinService");
+    const target = Number((req.body as { targetMemberId?: unknown } | undefined)?.targetMemberId);
+    const r = Number.isFinite(target) ? await kickFromJamoa(memberId, target) : { ok: false as const, reason: "not_found" as const };
+    res.json({ ...r, view: await getJamoaView(memberId) });
+  });
+  app.post("/api/oyin/jamoa/add", requireUser, rateLimit(20), async (req, res) => {
+    const memberId = await getMemberId(res.locals.telegramId as string);
+    if (!memberId) { res.status(404).json({ error: "not linked" }); return; }
+    const { addMemberToJamoa, getJamoaView } = await import("../services/oyinService");
+    const target = Number((req.body as { targetMemberId?: unknown } | undefined)?.targetMemberId);
+    const r = Number.isFinite(target) ? await addMemberToJamoa(memberId, target) : { ok: false as const, reason: "not_found" as const };
+    res.json({ ...r, view: await getJamoaView(memberId) });
+  });
+  // 🔒 Qattiq rate-limit — telefon-qidiruv scraping'ga qarshi (10/daqiqa).
+  app.get("/api/oyin/jamoa/search", requireUser, rateLimit(10), async (req, res) => {
+    const memberId = await getMemberId(res.locals.telegramId as string);
+    if (!memberId) { res.status(404).json({ error: "not linked" }); return; }
+    const { searchJoinable } = await import("../services/oyinService");
+    res.json(await searchJoinable(memberId, String(req.query.phone ?? "")));
+  });
+  // 🔒 Kamdan-kam amal — leader tasodifan/injiqlik bilan takror-takror bosmasin.
+  app.post("/api/oyin/jamoa/rotate-code", requireUser, rateLimit(3), async (_req, res) => {
+    const memberId = await getMemberId(res.locals.telegramId as string);
+    if (!memberId) { res.status(404).json({ error: "not linked" }); return; }
+    const { regenerateJamoaCode, getJamoaView } = await import("../services/oyinService");
+    const r = await regenerateJamoaCode(memberId);
+    res.json({ ...r, view: await getJamoaView(memberId) });
+  });
+  app.post("/api/oyin/jamoa/disband", requireUser, rateLimit(5), async (_req, res) => {
+    const memberId = await getMemberId(res.locals.telegramId as string);
+    if (!memberId) { res.status(404).json({ error: "not linked" }); return; }
+    const { disbandJamoaByLeader, getJamoaView } = await import("../services/oyinService");
+    const r = await disbandJamoaByLeader(memberId);
+    res.json({ ...r, view: await getJamoaView(memberId) });
+  });
+  app.post("/api/oyin/jamoa/message", requireUser, rateLimit(5), async (req, res) => {
+    const memberId = await getMemberId(res.locals.telegramId as string);
+    if (!memberId) { res.status(404).json({ error: "not linked" }); return; }
+    const { sendJamoaMessage } = await import("../services/oyinService");
+    const b = req.body as { text?: string; targetMemberId?: unknown } | undefined;
+    const target = Number(b?.targetMemberId);
+    res.json(await sendJamoaMessage(memberId, String(b?.text ?? ""), Number.isFinite(target) ? target : undefined));
+  });
   // 🏠 Ilova ekranga o'rnatilgani — Telegram hodisasidan keyin. `added:false` belgini olib tashlaydi.
   app.post("/api/oyin/home", requireUser, rateLimit(10), async (req, res) => {
     const memberId = await getMemberId(res.locals.telegramId as string);
@@ -2467,6 +2514,38 @@ export function createApiServer(opts: ApiOptions = {}) {
       // → servis defolti ("season") ishlaydi, ya'ni jadval reyting bilan kelishgan holicha qoladi.
       scope: q.scope === "all" ? "all" : q.scope === "season" ? "season" : undefined,
     }));
+  });
+  // ── 👑 GASHTAK admin nazorati (2026-08-05, ega talabi) — o'qish ochiq, yozish faqat owner ──
+  // ⚠️ Nom: "oyinGashtak*"/"Gashtak*" — admin panelda ALLAQACHON "Jamoa" tab bor (xodimlar
+  // moduli, jamoa.tsx). Bu BOSHQA narsa — nom to'qnashuvi bo'lmasin deb ataylab boshqa nom.
+  app.get("/api/admin/oyin/gashtak", requireAdmin, async (_req, res) => {
+    const { adminListGashtak } = await import("../services/oyinService");
+    res.json({ rows: await adminListGashtak() });
+  });
+  app.get("/api/admin/oyin/gashtak/:code", requireAdmin, async (req, res) => {
+    const { adminGashtakDetail } = await import("../services/oyinService");
+    const d = await adminGashtakDetail(String(req.params.code));
+    if (!d) { res.status(404).json({ error: "not_found" }); return; }
+    res.json(d);
+  });
+  app.post("/api/admin/oyin/gashtak/:code/kick", requireAdmin, requireOwner, rateLimit(30), async (req, res) => {
+    const target = Number((req.body as { targetMemberId?: unknown } | undefined)?.targetMemberId);
+    const { adminKickFromJamoa } = await import("../services/oyinService");
+    const r = Number.isFinite(target) ? await adminKickFromJamoa(String(req.params.code), target) : { ok: false as const, reason: "not_found" as const };
+    if (r.ok) {
+      const { alertAdmins } = await import("../services/economyService");
+      await alertAdmins(`👔 <b>Gashtakdan chiqarildi</b>\nGuruh: ${req.params.code} · a'zo #${target}`).catch(() => undefined);
+    }
+    res.json(r);
+  });
+  app.post("/api/admin/oyin/gashtak/:code/disband", requireAdmin, requireOwner, rateLimit(10), async (req, res) => {
+    const { adminDisbandJamoa } = await import("../services/oyinService");
+    const r = await adminDisbandJamoa(String(req.params.code));
+    if (r.ok) {
+      const { alertAdmins } = await import("../services/economyService");
+      await alertAdmins(`🗑 <b>Gashtak tarqatildi (admin)</b>\nGuruh: ${req.params.code}`).catch(() => undefined);
+    }
+    res.json(r);
   });
   // ── 🛍 SHOP admin (owner-gated writes) ────────────────────────────────────────────────────────
   // V1.7: seller-token FAQAT o'z scope'i (sellerShopId majburiy); owner (scope yo'q) `?shopId=`/body

@@ -402,10 +402,6 @@ export const adminApi = {
   staffKpi: (orgId: number, month?: string) => req<{ rows: import("./jamoa").StaffKpiRow[] }>(`/api/admin/staff/kpi?orgId=${orgId}${month ? `&month=${month}` : ""}`),
   staffCoverSet: (p: { date: string; absentEmployeeId: number; coverEmployeeId: number | null; amount?: number }) => postJson<{ ok: boolean; error?: string; amount?: number }>("/api/admin/staff/cover", p),
   staffReport: (orgId: number, month?: string) => req<import("./jamoa").MonthReport>(`/api/admin/staff/report?orgId=${orgId}${month ? `&month=${month}` : ""}`),
-  staffTemplateAdd: (orgId: number, name: string, start: string, end: string) => postJson<{ ok: boolean; error?: string }>("/api/admin/staff/template", { orgId, action: "add", name, start, end }),
-  staffTemplateRemove: (orgId: number, name: string) => postJson<{ ok: boolean; error?: string }>("/api/admin/staff/template", { orgId, action: "remove", name }),
-  staffAuditLog: (orgId: number) => req<{ entries: import("./jamoa").AuditEntry[] }>(`/api/admin/staff/audit-log?orgId=${orgId}`),
-  staffKpi: (orgId: number, month?: string) => req<{ rows: import("./jamoa").StaffKpiRow[] }>(`/api/admin/staff/kpi?orgId=${orgId}${month ? `&month=${month}` : ""}`),
   staffImport: (orgId: number, text: string) => postJson<{ ok: boolean; error?: string; results?: { line: string; ok: boolean; info: string }[] }>("/api/admin/staff/import", { orgId, text }),
 
   // 🎀 ravella — bezak konstruktori: kategoriya/bezak/qo'shimcha CRUD + rasm + buyurtma navbati
