@@ -474,6 +474,12 @@ export function OyinView({ onTaxi, joinCode }: { onTaxi?: () => void; joinCode?:
   const [posterTemplateKey, setPosterTemplateKey] = useState<OyinPosterTemplateKey>("prize");
   const [posterName, setPosterName] = useState("");
   const [storyUrl, setStoryUrl] = useState("");
+  // 🖼 Telegram WebView (ayniqsa iOS)'da `<a download>` KO'PINCHA HECH NARSA QILMAYDI — tugma
+  // "tayyor" deydi, lekin fayl hech qayerda ko'rinmaydi (ega 2026-08-05 xabar berdi). Shuning
+  // uchun endi generatsiyadan keyin rasm EKRANDA ko'rsatiladi — mijoz uzoq bosib "Rasmni
+  // saqlash"ni tanlaydi (mobil brauzerlarning tabiiy, 100% ishlaydigan usuli). Avtomatik
+  // yuklab-olish HAM sinaladi (ba'zi qurilmada ishlaydi) — kafolat esa shu ko'rinadigan rasm.
+  const [posterPreviewUrl, setPosterPreviewUrl] = useState<string | null>(null);
   const [onboard, setOnboard] = useState<number | null>(() => {
     try { return localStorage.getItem(OB_SEEN_KEY) ? null : 0; } catch { return 0; }
   });
@@ -895,14 +901,24 @@ export function OyinView({ onTaxi, joinCode }: { onTaxi?: () => void; joinCode?:
         drawDate,
       });
       if (!blob) { showToast("Posterni yasab bo'lmadi"); return; }
+      // Avtomatik yuklab-olishni SINAYMIZ (ba'zi qurilma/brauzerda ishlaydi) — lekin bunga
+      // TAYANMAYMIZ: Telegram WebView'da (ayniqsa iOS) bu ko'pincha JIM ishlamaydi ("tayyor"
+      // toast chiqadi-yu, fayl hech qayerda ko'rinmaydi — ega 2026-08-05 topilmasi).
       downloadBlob(blob, "birjoy-poster.png");
-      showToast("⬇️ Poster yuklandi — endi hikoyangizga qo'ying!", 3400);
+      setPosterPreviewUrl(URL.createObjectURL(blob));
+      showToast("Poster tayyor — pastda ko'ring", 3400);
     } catch {
       showToast("Posterni yasab bo'lmadi — qayta urinib ko'ring");
     } finally {
       setPosterBusy(false);
     }
   }, [posterBusy, vitrina, state, posterText, posterTemplateKey, posterName, showToast]);
+
+  // Ekrandan yopilganda obyekt-URL xotiradan tozalanadi (memory leak yo'q).
+  const closePosterPreview = useCallback(() => {
+    setPosterPreviewUrl((old) => { if (old) URL.revokeObjectURL(old); return null; });
+  }, []);
+  useEffect(() => () => { if (posterPreviewUrl) URL.revokeObjectURL(posterPreviewUrl); }, [posterPreviewUrl]);
 
   const submitStory = useCallback(async () => {
     if (posterBusy) return;
@@ -1945,6 +1961,16 @@ Taksida yur, ball yig', sodiqlik kartasini ol. Davr oxirida jonli efirda mukofot
                     <button type="button" className="oyk-poster-btn" disabled={posterBusy} onClick={() => void makePoster()}>
                       {posterBusy ? "⏳ Tayyorlanmoqda…" : "⬇️ Posterni yuklab olish"}
                     </button>
+                    {/* 🖼 2026-08-05: Telegram WebView'da avtomatik yuklab-olish ko'pincha JIM
+                        ishlamaydi — rasm HAR DOIM shu yerda ko'rinadi, mijoz uzoq bosib
+                        "Rasmni saqlash"ni tanlaydi (100% ishonchli, brauzer-tabiiy usul). */}
+                    {posterPreviewUrl && (
+                      <div className="oyk-poster-preview">
+                        <img src={posterPreviewUrl} alt="Poster" className="oyk-poster-preview-img" />
+                        <div className="oyk-poster-preview-hint">👆 Rasmni bosib turing → "Rasmni saqlash"</div>
+                        <button type="button" className="oyk-poster-chip" onClick={closePosterPreview}>Yopish</button>
+                      </div>
+                    )}
                     <input
                       className="oyk-poster-input" type="url"
                       value={storyUrl} onChange={(e) => setStoryUrl(e.target.value)}

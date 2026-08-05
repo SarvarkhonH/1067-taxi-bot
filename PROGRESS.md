@@ -5554,3 +5554,16 @@ statik shablon (raqamli/hisoblash talab qiladigan qolgan ~11 tasi 2-bosqich, HAL
      admin backend yo'q; kod typecheck'dan o'tdi, mavjud qator bilan BIR XIL naqsh.
   5. **Ega hali real telefonda ko'rmagan** — DoD R6 QABUL kutilmoqda, shundan keyingina
      2-bosqichga o'tiladi (rejaga muvofiq).
+
+**🔴 Jonli topilma (ega, deploy'dan keyin, real telefon)**: "Posterni yuklab olish" bosilgach
+toast "tayyor" derdi, lekin fayl hech qayerda topilmasdi. Sabab: `downloadBlob` (`poster.ts`)
+`<a download>` triki ishlatardi — bu Telegram WebView'da (ayniqsa iOS, ko'pincha Android ham)
+JIM ishlamaydi, hech qanday xato bermaydi, shunchaki hech narsa saqlanmaydi. **Tuzatildi**
+(`oyin.tsx`): generatsiyadan keyin poster endi EKRANDA ko'rsatiladi (`posterPreviewUrl`,
+object-URL bilan `<img>`) + "👆 Rasmni bosib turing → 'Rasmni saqlash'" ko'rsatmasi — bu mobil
+brauzerlarning tabiiy, platformadan qat'i nazar 100% ishlaydigan usuli (uzun-bosish → OS'ning
+o'z "rasmni saqlash" menyusi). Avtomatik yuklab-olish HAM sinaladi (ba'zi qurilmada foydali),
+lekin endi KAFOLAT emas — ko'rinadigan rasm kafolat. Isbot: typecheck toza, build yashil,
+brauzerda (`#oyindemo`) generatsiya→preview→yopish siklini to'liq sinadim (rasm chiqdi, "Yopish"
+tugmasi tozaladi, konsolda yangi xato yo'q). **Ega hali telefonda qayta sinamagan** — shu
+tuzatish bilan.

@@ -690,6 +690,12 @@
 .oyk-poster-btn:active { transform: scale(.97); }
 .oyk-poster-btn:disabled { opacity: .5; cursor: not-allowed; }
 .oyk-poster-btn.ghost { background: var(--oyk-fill); color: var(--oyk-text); border: 1px solid var(--oyk-line); }
+.oyk-poster-preview {
+  display: flex; flex-direction: column; align-items: center; gap: 8px;
+  padding: 10px; border-radius: 14px; background: var(--oyk-fill); border: 1px solid var(--oyk-line);
+}
+.oyk-poster-preview-img { width: 100%; max-width: 260px; border-radius: 12px; display: block; }
+.oyk-poster-preview-hint { font-size: 12px; color: var(--oyk-text-2); text-align: center; }
 
 /* ── pastki tab-bar ───────────────────────────────────────────────────────────────────── */
 /* 💧 Liquid glass: tab-qatori ekran pastida SUZIB turadi va HAR DOIM ko'rinadi (ega 2026-08-02:
