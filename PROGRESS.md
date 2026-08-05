@@ -5571,7 +5571,8 @@ tuzatish bilan.
 ### 2026-08-05 (tun) — 🖼 STORY-POSTER: to'liq soddalashtirish — 20 ta ASL statik rasm, Canvas/QR/shablon YO'Q
 
 **Holat: ready for verification — VPS db push shart EMAS (Prisma o'zgarishi yo'q); ega hali
-telefonda ko'rmagan, PASTDA 1 ta HAL QILINMAGAN savol bor (chipta so'zi)**
+telefonda ko'rmagan. "Chipta" so'zi savolига ega javob berdi (pastda) — ONGLI qoldirilgan,
+bloklovchi emas.**
 
 Ega jonli sinovda 2 ta muammo topdi, so'ng aniq buyruq berdi: "men bergan posterlar yo'q,
 QR shart emas, ularni doim oddiy 20 qilib serverga qo'y, xohlagani tanlab yuklab olib post
@@ -5605,11 +5606,13 @@ Kechagi 1-bosqich (9 ta Canvas-chizilgan shablon) BUTUNLAY BEKOR QILINDI — ega
   tasdiqlandi, brauzerda (`#oyindemo`) 20/20 thumbnail to'g'ri fayl bilan render bo'lishi
   (`fetch` orqali 200 OK + to'g'ri hajm tasdiqlandi), bosilganda to'g'ri preview ochilishi,
   "Yopish" tozalashi, konsolda yangi xato yo'qligi tekshirildi.
-- ⛔ **HAL QILINMAGAN — ega tasdig'i kerak**: 20 rasmning **7 tasida** (01, 03, 06, 09, 11, 13,
-  17 — hammasini ko'rib chiqib aniqlandi) "CHIPTA" so'zi rasmga BEVOSITA CHIZILGAN (sarlavha
-  matnida VA/YOKI karta-illyustratsiyasidagi "BIRJOY CHIPTA" yozuvida) — bu ILGARIGI yuridik
-  qoidaga ("lotereya"/"tiraj"/"chipta"/"yutuq" emas — "sodiqlik kartasi"/"mukofot") TO'G'RIDAN
-  TO'G'RI ZID. Matn PIKSELGA CHIZILGAN — kodda o'zgartirib bo'lmaydi, faqat: (a) ega rasmlarni
+- ⚠️ **ONGLI QOLDIRILGAN — ega qarori (2026-08-05)**: 20 rasmning **7 tasida** (01, 03, 06, 09,
+  11, 13, 17 — hammasini ko'rib chiqib aniqlandi) "CHIPTA" so'zi rasmga BEVOSITA CHIZILGAN
+  (sarlavha matnida VA/YOKI karta-illyustratsiyasidagi "BIRJOY CHIPTA" yozuvida) — bu ILGARIGI
+  yuridik qoidaga ("lotereya"/"tiraj"/"chipta"/"yutuq" emas — "sodiqlik kartasi"/"mukofot")
+  TO'G'RIDAN TO'G'RI ZID. Ega savolga javob berdi: **"Hozircha shu holda qoldir"** — 20 rasm
+  o'zgarishsiz ishga tushiriladi, "chipta" qoidasi keyinroq alohida hal qilinadi. Matn
+  PIKSELGA CHIZILGAN — kodda o'zgartirib bo'lmaydi, faqat: (a) ega rasmlarni
   qayta generatsiya qilsin (to'g'ri so'z bilan), yoki (b) men "CHIPTA" ustiga oq/mos fon +
   "SODIQLIK KARTASI" yozib QOPLASHGA urinaman (natija original-generatsiyadek silliq
   bo'lmasligi mumkin), yoki (c) ega ONGLI ravishda shu 7 tasini hozircha shu holda qoldirishga
