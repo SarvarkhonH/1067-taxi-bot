@@ -5492,3 +5492,65 @@ VPS db push kerak bo'ladi**
   aralashgan, commitga KIRMADI (mening 3 qatorim tree'da, deploy'da alohida qo'shiladi).
 - ⚠️ **VPS db push HALI QILINMAGAN** — `WorkSession.editedAt` (Int emas, DateTime?,
   additive) qo'shiladi.
+
+### 2026-08-05 (kech) — 🖼 STORY-POSTER: 9 rasm-shablon + 72-soat tanaffus + shareToStory ulash (1-bosqich)
+
+**Holat: ready for verification — VPS db push shart EMAS (yangi Prisma jadval yo'q,
+faqat AppState JSON kengaytirildi); yangi kod, hali VPS'da/jonli Telegram'da ega
+tomonidan sinalmagan**
+
+Ega ikkinchi 20-rasm gridni qayta yubordi — tahlil natijasida ma'lum bo'ldiki, bu shunchaki
+10 ta yangi sarlavha matni EMAS, 20 tasi to'liq mustaqil VIZUAL dizayn (mahsulot fotosi,
+shahar-manzara, statistika-kartochka, checklist va h.k). Reja qayta yozildi: shablon-mexanizmi
++ 1/2-bosqich taqsimoti (`eager-crafting-dusk.md`). Bu commit — 1-bosqich: arxitektura + 9 ta
+statik shablon (raqamli/hisoblash talab qiladigan qolgan ~11 tasi 2-bosqich, HALI BOSHLANMAGAN).
+
+- **`poster.ts`**: bitta qattiq shablondan `POSTER_TEMPLATES` registriga o'tildi — 9 ta
+  chizuvchi (`prize` — eski yagona shablon + 8 yangi: `city`/`citygift`/`dissolve`/
+  `network`/`road`/`gift`/`tickets`/`phone`, hammasi Canvas primitiv bilan, tashqi asset
+  yo'q). Umumiy narsalar (brend qatori, headline, ism, QR-karta) baham ko'riladi; headline
+  endi hero-vizualdan OLDIN chiqadi (20 rasmning umumiy joylashuviga mos — avval fotodan
+  KEYIN edi). Hero balandligi headline uzunligi + ixtiyoriy sovrin-nomi/ism qatorlariga
+  QARAB HISOBLANADI (`qrBoxTop - reserveBottom - heroY`) — 3-qatorli headline ham QR-karta
+  bilan ustma-ust tushmaydi (barcha kombinatsiya qo'lda hisoblab tekshirilmadi, faqat
+  formulaviy — brauzerda 9/9 shablon muvaffaqiyatli chizildi, pixel-sample bilan tekshirilgan).
+- **`oyinStory.ts`**: `OyinPosterText.templateKey` qo'shildi (eski qatorlar `normalizeTemplateKey`
+  bilan xavfsiz `"prize"`ga tushadi). `BUILTIN_TEMPLATES` (8 ta yangi shablon, curated matn,
+  "chipta"→"sodiqlik kartasi" reworded) — `getPosterTexts()` mavjud saqlangan ro'yxatga id
+  bo'yicha YO'Q bo'lganini QO'SHADI, borini tegmaydi (admin allaqachon o'chirgan/o'zgartirgan
+  bo'lsa qayta tirilmaydi). **72-soatlik tanaffus** — `storyCooldownHoursLeft` (sof funksiya,
+  `simGuards.ts` bo'lim I, 6 ta holat) `submitStory`ga ulandi, mavsumiy 3-marta limitning
+  USTIGA (ikkalasi ham bajarilishi kerak), holatidan qat'i nazar ENG SO'NGGI arizadan
+  hisoblanadi (rad etilgan ham sanaladi — aks holda qasddan rad etiladigan havola bilan
+  aylanib o'tish mumkin edi).
+- **Ulashish (`doShareBonus`)**: avval FAQAT `shareLink` (bitta chatga forward). Endi avval
+  `shareStory()` (Telegram Bot API 7.8 — kod ALLAQACHON bor edi, lekin hech qayerda
+  chaqirilmasdi, o'lik kod) sinaladi — mijozning O'Z HIKOYASIGA bir bosishda qo'yadi, ya'ni
+  hammasi bir yo'la ko'radi (ega so'ragan "hammani belgilab birdan tashlash"ning Telegram
+  platformasidagi haqiqiy analogi). Eski klientda `false` qaytsa avvalgi `shareLink`ga
+  qaytiladi — hech kim "hech narsa bo'lmadi" holatida qolmaydi.
+- **Miniapp UI**: matn-chip o'rniga rasm-shablon galereya (`state.story.texts` endi
+  `{text, templateKey}[]`, chipda kichik emoji-ko'rsatkich). Admin panelda har matn
+  qatoriga `<select>` — qaysi 9 shablonga bog'lanishini tanlaydi.
+- Isbot: `pnpm -r typecheck` (4/4) toza, `simGuards` 100% yashil (yangi bo'lim I qo'shilib),
+  build (server/admin/miniapp) yashil, `#oyindemo`da BRAUZERDA jonli tekshirildi — 9/9
+  shablon xatosiz PNG chiqardi (600 KB–1.3 MB), pixel-sample har biri o'z rangida ekanini
+  tasdiqladi (masalan `city`→tungi ko'k, `gift`→BLUE lenta, `phone`→oq ekran), galereya
+  bosilganda `is-on` klassi to'g'ri almashdi, konsolda YANGI xato/ogohlantirish yo'q.
+- ⛔ **OCHIQ / hali qilinmagan**:
+  1. **2-bosqich BUTUNLAY boshlanmagan** — raqamli/struktura shablonlar (bugungi
+     chipta-son, kun-qoldi, jami-son, bugungi-ball, checklist-kartochka) `fillPlaceholders`ga
+     yangi kalit qo'shishni talab qiladi — reja faylida yozilgan, kod yo'q.
+  2. **`shareStory()` haqiqiy Telegram klientida BOSILMADI** — faqat kod o'qish + `tg`
+     obyekti yo'q muhitda fallback yo'lining ishlashi tasdiqlandi (demo muhitda
+     `Telegram.WebApp` mock 6.0 versiyasida, `shareToStory` metodi yo'q — demak har doim
+     `shareLink`ga tushadi, bu KUTILGAN, lekin haqiqiy Bot API 7.8+ klientida
+     `shareStory` yo'lining o'zi hali sinalmagan).
+  3. **Statik `invite-poster.jpg`** (ulashish-uchun-story, `telegram.ts:storyMediaUrl`)
+     ESKI holicha qoldi — yangi "tickets" dizayniga almashtirilmadi (rejada yozilgan
+     edi, vaqt tejash uchun bu bosqichga kiritilmadi — mexanizm ESKI asset bilan ham
+     to'liq ishlaydi, faqat rasm eski).
+  4. **Admin panel `<select>` jonli renderda ko'rilmadi** — auth kerak, lokal muhitda
+     admin backend yo'q; kod typecheck'dan o'tdi, mavjud qator bilan BIR XIL naqsh.
+  5. **Ega hali real telefonda ko'rmagan** — DoD R6 QABUL kutilmoqda, shundan keyingina
+     2-bosqichga o'tiladi (rejaga muvofiq).

@@ -26,7 +26,21 @@ const MOCK_STATE: OyinStateResponse = {
   live: { name: "Aziz", ball: 175 },
   week: { streak: 2, target: 3, bonusBall: 35, done: false },
   season: { configured: true, phase: "active", label: "Avgust", startIso: "2026-08-01T00:00:00+05:00", endIso: "2026-09-15T00:00:00+05:00" },
-  story: { approved: 1, limit: 3, pending: false, ballEach: 100, lastRejectReason: null, texts: [] },
+  story: {
+    approved: 1, limit: 3, pending: false, ballEach: 100, lastRejectReason: null,
+    // 🖼 9 ta rasm-shablon (2026-08-05) — hammasi bittadan, real render/gallereya QA'si uchun.
+    texts: [
+      { text: "Menda 2 ta sodiqlik kartasi bor", templateKey: "prize" },
+      { text: "Kosonliklar allaqachon sodiqlik kartasi yig'yapti", templateKey: "city" },
+      { text: "Koson uchun yangi sovrinlar o'yini boshlandi", templateKey: "citygift" },
+      { text: "Bu oy o'tkazib yuborma — keyingi oyga qolmasin", templateKey: "dissolve" },
+      { text: "Do'stlarim yig'ishni boshladi", templateKey: "network" },
+      { text: "Har safar maqsadga yaqinlashtiradi", templateKey: "road" },
+      { text: "Men o'yindaman — BirJoy sovrinlar dasturi", templateKey: "gift" },
+      { text: "Birga yig'amiz — ko'proq do'st, ko'proq sodiqlik kartasi!", templateKey: "tickets" },
+      { text: "Bir tap bilan qo'shil — boshlash juda oson!", templateKey: "phone" },
+    ],
+  },
   ticketCount: 2,
   quest: { key: "invite", icon: "🎯", title: "Sovrinni ulashing", hint: "Do'stlaringizga ulashing", ball: 20, done: false },
   homeTask: { ball: 20, done: true },

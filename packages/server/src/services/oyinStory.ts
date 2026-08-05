@@ -8,7 +8,7 @@
 // ⚠️ Ball BU YERDA berilmaydi. Ball `computeBallMap()` da jonli hisoblanadi (tasdiqlangan va
 // mavsum oynasidagi arizalar × knob) — boshqa hamma manba bilan bir xil. Shunda "grant yozildi-yu
 // ball ko'rinmadi" degan holat tug'ilmaydi.
-import { OYIN_STORY_SEASON_LIMIT, type OyinPosterText, type OyinStoryAdminRow, type OyinStoryItem, type OyinStorySubmitResult } from "@t1067/shared";
+import { OYIN_STORY_SEASON_LIMIT, type OyinPosterTemplateKey, type OyinPosterText, type OyinStoryAdminRow, type OyinStoryItem, type OyinStorySubmitResult } from "@t1067/shared";
 import { prisma } from "../db";
 import { getSeason } from "./oyinSeason";
 
@@ -35,13 +35,45 @@ export { OYIN_STORY_SEASON_LIMIT as STORY_SEASON_LIMIT };
 // Faqat haqiqiy hikoya joylanadigan platformalar. Tasodifiy matn / o'z saytiga havola o'tmaydi.
 const ALLOWED_HOSTS = ["instagram.com", "www.instagram.com", "t.me", "telegram.me", "facebook.com", "www.facebook.com", "fb.watch"];
 
+// ⏳ Ketma-ket ikki hikoya orasidagi eng kam tanaffus (ega talabi, 2026-08-05) — mavsumiy
+// `STORY_SEASON_LIMIT`ning USTIGA qo'shiladigan qoida (ikkalasi ham bajarilishi kerak).
+export const STORY_COOLDOWN_HOURS = 72;
+
+const TEMPLATE_KEYS: OyinPosterTemplateKey[] = ["prize", "city", "citygift", "dissolve", "network", "road", "gift", "tickets", "phone"];
+
+/** 72 soatlik tanaffusdan necha soat qolgani (0 = tanaffus tugagan/umuman yo'q — birinchi ariza).
+ *  Sof funksiya — DB'siz sinaladi (`simGuards.ts`). */
+export function storyCooldownHoursLeft(lastAtIso: string | undefined, nowMs: number): number {
+  if (!lastAtIso) return 0;
+  const lastAt = Date.parse(lastAtIso);
+  if (!Number.isFinite(lastAt)) return 0;
+  const hoursSince = (nowMs - lastAt) / 3600_000;
+  if (hoursSince >= STORY_COOLDOWN_HOURS) return 0;
+  return Math.max(1, Math.ceil(STORY_COOLDOWN_HOURS - hoursSince));
+}
+
 const SEED_TEXTS: OyinPosterText[] = [
   // ⚠️ Bu matnlar POSTERGA chiqadi, ya'ni MIJOZ EKRANIDA ko'rinadi — sodiqlik dasturi tilida
   // bo'lishi shart (S6, 2026-08-04). `{chipta}`/`{sovrin}` — SHABLON kalitlari, ular
   // `fillPlaceholders` bilan bog'langan, shuning uchun o'zgarmaydi (kod identifikatori).
-  { id: "t1", text: "Menda {chipta} ta sodiqlik kartasi bor", active: true },
-  { id: "t2", text: "Sen ham qo'shil", active: true },
-  { id: "t3", text: "{sovrin} meniki bo'ladi", active: true },
+  { id: "t1", text: "Menda {chipta} ta sodiqlik kartasi bor", active: true, templateKey: "prize" },
+  { id: "t2", text: "Sen ham qo'shil", active: true, templateKey: "prize" },
+  { id: "t3", text: "{sovrin} meniki bo'ladi", active: true, templateKey: "prize" },
+];
+
+// 🖼 8 ta yangi rasm-shablon (2026-08-05, ega yuborgan 20 ta dizayn tahlili — statik, raqamsiz
+// qism, `poster.ts`da chizuvchisi bor). `getPosterTexts()` bularni MAVJUD saqlangan ro'yxatga
+// (bo'sh bo'lmasa ham) id bo'yicha yo'q bo'lsa QO'SHADI — shu bilan eski 3 ta matn ustiga
+// tinch-tinch yangi shablonlar paydo bo'ladi, birortasi ham qayta yozilmaydi/yo'qolmaydi.
+const BUILTIN_TEMPLATES: OyinPosterText[] = [
+  { id: "tpl_city", text: "Kosonliklar allaqachon sodiqlik kartasi yig'yapti", active: true, templateKey: "city" },
+  { id: "tpl_citygift", text: "Koson uchun yangi sovrinlar o'yini boshlandi", active: true, templateKey: "citygift" },
+  { id: "tpl_dissolve", text: "Bu oy o'tkazib yuborma — keyingi oyga qolmasin", active: true, templateKey: "dissolve" },
+  { id: "tpl_network", text: "Do'stlarim yig'ishni boshladi", active: true, templateKey: "network" },
+  { id: "tpl_road", text: "Har safar maqsadga yaqinlashtiradi", active: true, templateKey: "road" },
+  { id: "tpl_gift", text: "Men o'yindaman — BirJoy sovrinlar dasturi", active: true, templateKey: "gift" },
+  { id: "tpl_tickets", text: "Birga yig'amiz — ko'proq do'st, ko'proq sodiqlik kartasi!", active: true, templateKey: "tickets" },
+  { id: "tpl_phone", text: "Bir tap bilan qo'shil — boshlash juda oson!", active: true, templateKey: "phone" },
 ];
 
 interface StoreShape<T> { items: T[] }
@@ -62,23 +94,34 @@ async function saveItems<T>(key: string, items: T[]): Promise<void> {
 }
 
 // ── Poster matnlari (admin) ──────────────────────────────────────────────────────────────────
+/** Eski qatorlar `templateKey`siz saqlangan bo'lishi mumkin (2026-08-05'dan oldingi) — xavfsiz
+ *  standart "prize" (sovrin-fotosi bilan, eski yagona shablon), noma'lum kalit ham shunga tushadi. */
+function normalizeTemplateKey(k: unknown): OyinPosterTemplateKey {
+  return typeof k === "string" && (TEMPLATE_KEYS as string[]).includes(k) ? (k as OyinPosterTemplateKey) : "prize";
+}
+
 export async function getPosterTexts(): Promise<OyinPosterText[]> {
   const row = await prisma.appState.findUnique({ where: { key: TEXT_KEY } });
-  const items = parseItems<OyinPosterText>(row?.value);
-  if (!items.length) {
-    await saveItems(TEXT_KEY, SEED_TEXTS).catch(() => undefined);
-    return SEED_TEXTS;
+  let items = parseItems<OyinPosterText>(row?.value).map((t) => ({ ...t, templateKey: normalizeTemplateKey(t.templateKey) }));
+  if (!items.length) items = SEED_TEXTS;
+  // Yangi 8 ta rasm-shablon — mavjud ro'yxatga id bo'yicha YO'Q bo'lganini QO'SHADI, borini
+  // TEGMAYDI (admin allaqachon o'chirgan/o'zgartirgan bo'lsa qayta tirilmasin).
+  const missing = BUILTIN_TEMPLATES.filter((b) => !items.some((t) => t.id === b.id));
+  if (missing.length || !row) {
+    items = [...items, ...missing];
+    await saveItems(TEXT_KEY, items).catch(() => undefined);
   }
   return items;
 }
 
-export async function adminUpsertPosterText(input: { id?: string; text: string; active?: boolean }): Promise<OyinPosterText[]> {
+export async function adminUpsertPosterText(input: { id?: string; text: string; active?: boolean; templateKey?: string }): Promise<OyinPosterText[]> {
   const items = await getPosterTexts();
   const text = (input.text || "").trim().slice(0, 60);
   if (!text) return items;
+  const templateKey = normalizeTemplateKey(input.templateKey);
   const found = input.id ? items.find((t) => t.id === input.id) : undefined;
-  if (found) Object.assign(found, { text, active: input.active ?? found.active });
-  else items.push({ id: `t${Date.now().toString(36)}`, text, active: true });
+  if (found) Object.assign(found, { text, active: input.active ?? found.active, templateKey });
+  else items.push({ id: `t${Date.now().toString(36)}`, text, active: true, templateKey });
   await saveItems(TEXT_KEY, items);
   return items;
 }
@@ -112,7 +155,8 @@ function inSeasonItems(items: OyinStoryItem[], startMs: number, endMs: number): 
 
 /** Mijoz ko'radigan holat (OyinStateResponse ichida). */
 export async function storyStateOf(memberId: number, ballEach: number, ctx: { ism: string; chipta: number; sovrin: string }): Promise<{
-  approved: number; limit: number; pending: boolean; ballEach: number; lastRejectReason: string | null; texts: string[];
+  approved: number; limit: number; pending: boolean; ballEach: number; lastRejectReason: string | null;
+  texts: { text: string; templateKey: OyinPosterTemplateKey }[];
 }> {
   const [season, items, texts] = await Promise.all([getSeason(), itemsOf(memberId), getPosterTexts()]);
   const scoped = season.configured ? inSeasonItems(items, season.startMs as number, season.endMs as number) : [];
@@ -123,7 +167,7 @@ export async function storyStateOf(memberId: number, ballEach: number, ctx: { is
     pending: scoped.some((i) => i.status === "pending"),
     ballEach,
     lastRejectReason: rejected?.reason ?? null,
-    texts: texts.filter((t) => t.active).map((t) => fillPlaceholders(t.text, ctx)),
+    texts: texts.filter((t) => t.active).map((t) => ({ text: fillPlaceholders(t.text, ctx), templateKey: t.templateKey })),
   };
 }
 
@@ -146,6 +190,12 @@ export async function submitStory(memberId: number, urlRaw: string): Promise<Oyi
   if (scoped.some((i) => i.status === "pending")) return { ok: false, reason: "pending" };
   // Rad etilganlar limitdan SANALMAYDI — xato qilgan odam yana urinadi (adolat).
   if (scoped.filter((i) => i.status === "approved").length >= STORY_SEASON_LIMIT) return { ok: false, reason: "limit" };
+  // ⏳ 72-soatlik tanaffus (ega talabi, 2026-08-05) — mavsumiy limitning USTIGA, holatidan
+  // qat'i nazar ENG SO'NGGI arizadan hisoblanadi (rad etilgan bo'lsa ham — aks holda mijoz
+  // qasddan rad etiladigan havola yuborib tanaffusni "aylanib o'tishi" mumkin edi).
+  const lastAt = [...items].sort((a, b) => Date.parse(b.at) - Date.parse(a.at))[0]?.at;
+  const hoursLeft = storyCooldownHoursLeft(lastAt, Date.now());
+  if (hoursLeft > 0) return { ok: false, reason: "cooldown", hoursLeft };
   // ⚠️ Dedup BUTUN POPULYATSIYA bo'ylab va NORMALIZATSIYA bilan. Avval (a) faqat o'z
   // arizalari ichida tekshirilardi — bitta real hikoyani 20 ta akkaunt yuborib 20×150 ball
   // olardi; (b) aniq satr solishtiruvi edi — `…/p/abc`, `…/p/abc/`, `…/p/abc?x=1` va

@@ -13,6 +13,7 @@ import {
   ARCHIVED_PREFIXES, tierOfPrice,
   navbatchiOf, assignTurn, addMonths, parseJamoa, applyRemoveMember, applySetTurn, type JamoaRecord,
 } from "../services/oyinService";
+import { STORY_COOLDOWN_HOURS, storyCooldownHoursLeft } from "../services/oyinStory";
 import { OYIN_TIERS, OYIN_JAMOA_MIN, OYIN_SEED_CATALOG } from "@t1067/shared";
 import { BONUS_ECON_KNOBS } from "@t1067/shared";
 
@@ -154,6 +155,20 @@ ok(cleared != null && !("2026-01" in cleared.turns) && !("2026-01" in cleared.tu
 const withTest: JamoaRecord = { id: "SQ2", name: "Sinovli", createdAt: "2026-01-01T00:00:00.000Z", members: [1, -483921], turns: {}, leaderId: 1, joinedAt: {}, disbandedAt: null, testNames: { [-483921]: "🧪 Test 1" }, turnOverrides: {} };
 const setTest = applySetTurn(withTest, "2026-02", -483921, "");
 ok(setTest?.turnOverrides["2026-02"] === "Bu oy ball 🧪 Test 1 uchun yig'ilmoqda", "sinov a'zo uchun ism `testNames`dan olinadi, `#-483921` emas");
+
+// ── ⏳ 72-SOATLIK HIKOYA TANAFFUSI (2026-08-05, ega talabi) — HAQIQIY funksiyaga qarshi ─────
+console.log("\nI) storyCooldownHoursLeft — ketma-ket ikki hikoya orasidagi eng kam tanaffus");
+const NOW = Date.parse("2026-08-05T12:00:00.000Z");
+ok(storyCooldownHoursLeft(undefined, NOW) === 0, "birinchi ariza — tanaffus YO'Q");
+ok(storyCooldownHoursLeft("not-a-date", NOW) === 0, "buzuq sana — tanaffus qo'llanmaydi (RangeError yo'q)");
+const oneHourAgo = new Date(NOW - 1 * 3600_000).toISOString();
+ok(storyCooldownHoursLeft(oneHourAgo, NOW) === STORY_COOLDOWN_HOURS - 1, `1 soat oldin → ${STORY_COOLDOWN_HOURS - 1} soat qoldi`);
+const seventyOneHoursAgo = new Date(NOW - 71 * 3600_000).toISOString();
+ok(storyCooldownHoursLeft(seventyOneHoursAgo, NOW) === 1, "71 soat oldin → 1 soat qoldi (hali RAD etiladi)");
+const exactly72 = new Date(NOW - STORY_COOLDOWN_HOURS * 3600_000).toISOString();
+ok(storyCooldownHoursLeft(exactly72, NOW) === 0, "AYNAN 72 soat oldin → tanaffus TUGAGAN (0)");
+const wayPast = new Date(NOW - 200 * 3600_000).toISOString();
+ok(storyCooldownHoursLeft(wayPast, NOW) === 0, "200 soat oldin → tanaffus tugagan (0)");
 
 console.log(fail === 0 ? "\n🛡 simGuards: HAMMA QO'RIQ JOYIDA\n" : `\n❌ simGuards: ${fail} ta qo'riq YO'Q\n`);
 process.exit(fail === 0 ? 0 : 1);

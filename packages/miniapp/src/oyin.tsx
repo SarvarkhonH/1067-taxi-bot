@@ -10,9 +10,9 @@
 // soxta QR-kvadrat — real QR-generatsiya (referralQrService) B1-B5 doirasida qurilmagan, shuning
 // uchun olib tashlandi (ishlamaydigan grafika ko'rsatish — yolg'on).
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
-import { OYIN_FINAL_LOCK_MS, oyinHintOf, type OyinActivityAction, type OyinActivityResponse, type OyinGashtakSearchHit, type OyinJamoamResponse, type OyinJamoaResult, type OyinJamoaView, type OyinMyTicketsResponse, type OyinPrizeView, type OyinSeasonClientView, type OyinStateResponse, type OyinVitrinaResponse } from "@t1067/shared";
+import { OYIN_FINAL_LOCK_MS, oyinHintOf, type OyinActivityAction, type OyinActivityResponse, type OyinGashtakSearchHit, type OyinJamoamResponse, type OyinJamoaResult, type OyinJamoaView, type OyinMyTicketsResponse, type OyinPosterTemplateKey, type OyinPrizeView, type OyinSeasonClientView, type OyinStateResponse, type OyinVitrinaResponse } from "@t1067/shared";
 import { api, apiUrl } from "./api";
-import { addToHomeScreen, copyText, haptic, homeScreenStatus, inviteLandingUrl, onHomeScreenAdded, shareLink } from "./telegram";
+import { addToHomeScreen, copyText, haptic, homeScreenStatus, inviteLandingUrl, onHomeScreenAdded, shareLink, shareStory } from "./telegram";
 import "./design/feat/oyk.css"; // bu ekran ochilgandagina yuklanadi (kritik yo'lda emas)
 
 // ⚠️ Raqamlar KNOBDAN. Avval "+30 ball" qotirilgan edi — ega knobni o'zgartirsa ilovaning
@@ -25,6 +25,12 @@ function obSlides(h: OyinStateResponse["hints"]): { icon: string; text: string }
     { icon: "🎁", text: "Oy oxiri — jonli mukofot kuni. Real mukofotlar!" },
   ];
 }
+// 🖼 Rasm-shablon galereyasi (poster.ts'dagi 9 chizuvchiga mos) — chip ustida kichik ko'rsatkich,
+// to'liq fidelity-preview EMAS (canvas-thumbnail har ochilishda 9 marta chizish — ortiqcha xarajat,
+// haqiqiy poster baribir "⬇️ Yuklab olish"da bir marta chiziladi).
+const TEMPLATE_ICON: Record<OyinPosterTemplateKey, string> = {
+  prize: "🎁", city: "🌃", citygift: "🌆", dissolve: "🎫", network: "🤝", road: "🛣", gift: "🎉", tickets: "🎟", phone: "📱",
+};
 const OB_SEEN_KEY = "oyk_onboard_seen";
 const START_TAB_KEY = "oyk_start_tab"; // uy-hero'dagi "Sovrinlarni ko'rish" shu orqali vitrina'ga ochadi
 // Qulf oynasi SERVER bilan BITTA manbadan. Avval mustaqil `48 * 3600_000` turardi: ega
@@ -465,6 +471,7 @@ export function OyinView({ onTaxi, joinCode }: { onTaxi?: () => void; joinCode?:
   const [toast, setToast] = useState<string | null>(null);
   const [thanked, setThanked] = useState<Set<number>>(new Set());
   const [posterText, setPosterText] = useState("");
+  const [posterTemplateKey, setPosterTemplateKey] = useState<OyinPosterTemplateKey>("prize");
   const [posterName, setPosterName] = useState("");
   const [storyUrl, setStoryUrl] = useState("");
   const [onboard, setOnboard] = useState<number | null>(() => {
@@ -878,7 +885,8 @@ export function OyinView({ onTaxi, joinCode }: { onTaxi?: () => void; joinCode?:
       const endIso = state?.season.endIso ?? null;
       const drawDate = uzDate(endIso);
       const blob = await renderPoster({
-        headline: posterText.trim() || state?.story.texts[0] || "Men ham qatnashyapman",
+        templateKey: posterTemplateKey,
+        headline: posterText.trim() || state?.story.texts[0]?.text || "Men ham qatnashyapman",
         name: posterName,
         prizeName: top?.name ?? "Mukofot",
         prizePhotoUrl: top?.photoUrl ? apiUrl(`/api/oyin/prizephoto?key=${encodeURIComponent(top.key)}`) : null,
@@ -894,7 +902,7 @@ export function OyinView({ onTaxi, joinCode }: { onTaxi?: () => void; joinCode?:
     } finally {
       setPosterBusy(false);
     }
-  }, [posterBusy, vitrina, state, posterText, posterName, showToast]);
+  }, [posterBusy, vitrina, state, posterText, posterTemplateKey, posterName, showToast]);
 
   const submitStory = useCallback(async () => {
     if (posterBusy) return;
@@ -913,6 +921,7 @@ export function OyinView({ onTaxi, joinCode }: { onTaxi?: () => void; joinCode?:
           : r.reason === "limit" ? "Bu davrda limitga yetdingiz"
           : r.reason === "duplicate" ? "Bu havola allaqachon yuborilgan"
           : r.reason === "season_off" ? "Dastur hozir faol emas"
+          : r.reason === "cooldown" ? `Keyingi hikoyani ${r.hoursLeft ?? 72} soatdan keyin joylay olasiz`
           : "Yuborib bo'lmadi",
         3400,
       );
@@ -925,19 +934,26 @@ export function OyinView({ onTaxi, joinCode }: { onTaxi?: () => void; joinCode?:
 
   // ⚠️ Avval bu tugma HECH NARSA ulashmasdan ball berardi (bepul ball, ulashuv nol).
   // Endi avval Telegram ulashish oynasi ochiladi, ball undan KEYIN beriladi.
+  //
+  // 🖼 2026-08-05: avval FAQAT `shareLink` (bitta chatga yuborish) chaqirilardi. Endi avval
+  // `shareStory` (Telegram Bot API 7.8) sinaladi — bu mijozning O'Z HIKOYASIGA rasm bilan
+  // qo'yadi, ya'ni BITTA bosishda BARCHA obunachi/kontaktlariga bir yo'la ko'rinadi (ega
+  // so'ragan "hammani belgilab birdan tashlash"ning Telegram platformasidagi HAQIQIY analogi —
+  // chatga bitta-bittadan forward qilishdan farqli, umuman tanlov talab qilmaydi). Eski/mos
+  // kelmaydigan klientda `shareStory` `false` qaytaradi — o'sha holda avvalgi `shareLink`
+  // (bitta chatga forward) yo'liga qaytiladi, hech kim "hech narsa bo'lmadi" holatida qolmaydi.
   const doShareBonus = useCallback(async () => {
     haptic();
     try {
       const r = await api.referral();
       const topPrize = [...(vitrina?.prizes ?? [])].sort((a, b) => b.price - a.price)[0];
-      shareLink(
-        inviteLandingUrl(r.link),
-        topPrize
-          ? `🎁 BirJoy sodiqlik dasturi — bosh mukofot: ${topPrize.name}!
+      const link = inviteLandingUrl(r.link);
+      const text = topPrize
+        ? `🎁 BirJoy sodiqlik dasturi — bosh mukofot: ${topPrize.name}!
 
 Taksida yur, ball yig', sodiqlik kartasini ol. Davr oxirida jonli efirda mukofot egalari aniqlanadi. Mening havolam bilan kirsang — ikkalamizga ham ball 🤝`
-          : "🎁 BirJoy sodiqlik dasturi — taksida yur, ball yig', jonli efirda mukofot egasi bo'l 🤝",
-      );
+        : "🎁 BirJoy sodiqlik dasturi — taksida yur, ball yig', jonli efirda mukofot egasi bo'l 🤝";
+      if (!shareStory(text, link)) shareLink(link, text);
       const b = await api.oyinShare();
       // ⚠️ Avval bu yerda `loadHome` YO'Q edi: server ballni yozardi, ekran esa eski holatda
       // qolardi — "Ball qo'shildi" toast'i chiqib, balans o'zgarmasdi va "Ulashish" qatori
@@ -1906,10 +1922,13 @@ Taksida yur, ball yig', sodiqlik kartasini ol. Davr oxirida jonli efirda mukofot
                       <div className="oyk-poster-texts">
                         {state.story.texts.map((t) => (
                           <button
-                            key={t} type="button"
-                            className={`oyk-poster-chip${posterText === t ? " is-on" : ""}`}
-                            onClick={() => { haptic(); setPosterText(t); }}
-                          >{t}</button>
+                            key={t.text + t.templateKey} type="button"
+                            className={`oyk-poster-chip${posterText === t.text && posterTemplateKey === t.templateKey ? " is-on" : ""}`}
+                            onClick={() => { haptic(); setPosterText(t.text); setPosterTemplateKey(t.templateKey); }}
+                          >
+                            <span className="oyk-poster-chip-icon">{TEMPLATE_ICON[t.templateKey] ?? "🖼"}</span>
+                            {t.text}
+                          </button>
                         ))}
                       </div>
                     )}

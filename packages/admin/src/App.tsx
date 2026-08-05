@@ -51,6 +51,7 @@ import {
   oyinSuggestTier,
   type OyinBallBreakdown,
   type OyinFreezeState,
+  type OyinPosterTemplateKey,
   type OyinPosterText,
   type OyinSeasonView,
   type OyinStoryAdminRow,
@@ -759,12 +760,22 @@ const RISK_STYLE: Record<FlagRisk, { label: string; color: string; bg: string }>
   unknown: { label: "❔ TOIFASI YOZILMAGAN — bosishdan oldin so'rang", color: "#c084fc", bg: "rgba(192,132,252,.12)" },
 };
 
+// 🖼 9 ta rasm-shablon (poster.ts, 2026-08-05) — admin har matnni qaysi dizaynga bog'lashini
+// shu ro'yxatdan tanlaydi.
+const TEMPLATE_LABELS: Record<OyinPosterTemplateKey, string> = {
+  prize: "🎁 Sovrin fotosi", city: "🌃 Shahar (tungi)", citygift: "🌆 Shahar + sovg'a",
+  dissolve: "🎫 Tarqalayotgan karta", network: "🤝 Do'stlar tarmog'i", road: "🛣 Yo'l + belgi",
+  gift: "🎉 Sovg'a qutisi", tickets: "🎟 Sodiqlik kartalari", phone: "📱 Telefon-mokap",
+};
+const TEMPLATE_KEYS = Object.keys(TEMPLATE_LABELS) as OyinPosterTemplateKey[];
+
 // 📸 Hikoya-isbot moderatsiyasi + poster matnlari (HIKOYA_POSTER_PLAN.md).
 // Avtomatik tasdiq YO'Q — havola haqiqiyligini faqat odam ko'radi, shuning uchun bu ekran bor.
 function StoryModerationCard() {
   const [rows, setRows] = useState<OyinStoryAdminRow[] | null>(null);
   const [texts, setTexts] = useState<OyinPosterText[] | null>(null);
   const [newText, setNewText] = useState("");
+  const [newTemplateKey, setNewTemplateKey] = useState<OyinPosterTemplateKey>("prize");
   const [busy, setBusy] = useState<string | null>(null);
 
   const load = () => {
@@ -808,27 +819,38 @@ function StoryModerationCard() {
           </div>
         )}
 
-      <h3 style={{ marginTop: 16 }}>📝 Poster matnlari</h3>
+      <h3 style={{ marginTop: 16 }}>📝 Poster matnlari — 9 ta rasm-shablon</h3>
       <p className="muted" style={{ margin: "0 0 8px", fontSize: 12 }}>
-        Mijoz shu matnlardan birini tanlaydi yoki o'zi yozadi. O'rin-egallar: <code>{"{ism}"}</code> <code>{"{chipta}"}</code> <code>{"{sovrin}"}</code>
+        Mijoz shu matnlardan birini tanlaydi yoki o'zi yozadi — har biri qaysi rasm-dizaynda
+        chiqishini pastdagi ro'yxatdan belgilaysiz. O'rin-egallar (faqat "🎁 Sovrin fotosi"
+        shablonida mazmunli): <code>{"{ism}"}</code> <code>{"{chipta}"}</code> <code>{"{sovrin}"}</code>
       </p>
       {texts && (
-        <div style={{ display: "grid", gap: 6, maxWidth: 520 }}>
+        <div style={{ display: "grid", gap: 6, maxWidth: 640 }}>
           {texts.map((t) => (
             <div key={t.id} style={{ display: "flex", gap: 8, alignItems: "center" }}>
               <input
                 type="text" defaultValue={t.text} maxLength={60} style={{ flex: 1 }}
-                onBlur={(e) => { if (e.target.value !== t.text) void adminApi.saveOyinPosterText(e.target.value, t.id, t.active).then((r) => setTexts(r.texts)); }}
+                onBlur={(e) => { if (e.target.value !== t.text) void adminApi.saveOyinPosterText(e.target.value, t.id, t.active, t.templateKey).then((r) => setTexts(r.texts)); }}
               />
-              <button className="btn sm" onClick={() => void adminApi.saveOyinPosterText(t.text, t.id, !t.active).then((r) => setTexts(r.texts))}>
+              <select
+                value={t.templateKey}
+                onChange={(e) => void adminApi.saveOyinPosterText(t.text, t.id, t.active, e.target.value).then((r) => setTexts(r.texts))}
+              >
+                {TEMPLATE_KEYS.map((k) => <option key={k} value={k}>{TEMPLATE_LABELS[k]}</option>)}
+              </select>
+              <button className="btn sm" onClick={() => void adminApi.saveOyinPosterText(t.text, t.id, !t.active, t.templateKey).then((r) => setTexts(r.texts))}>
                 {t.active ? "🟢 Yoniq" : "🔴 O'chiq"}
               </button>
               <button className="btn sm danger" onClick={() => void adminApi.deleteOyinPosterText(t.id).then((r) => setTexts(r.texts))}>O'chirish</button>
             </div>
           ))}
           <div style={{ display: "flex", gap: 8 }}>
-            <input type="text" value={newText} onChange={(e) => setNewText(e.target.value)} placeholder="Yangi matn — masalan: Men {chipta} ta chipta oldim" maxLength={60} style={{ flex: 1 }} />
-            <button className="btn sm" disabled={!newText.trim()} onClick={() => void adminApi.saveOyinPosterText(newText).then((r) => { setTexts(r.texts); setNewText(""); })}>Qo'shish</button>
+            <input type="text" value={newText} onChange={(e) => setNewText(e.target.value)} placeholder="Yangi matn — masalan: Menda {chipta} ta sodiqlik kartasi bor" maxLength={60} style={{ flex: 1 }} />
+            <select value={newTemplateKey} onChange={(e) => setNewTemplateKey(e.target.value as OyinPosterTemplateKey)}>
+              {TEMPLATE_KEYS.map((k) => <option key={k} value={k}>{TEMPLATE_LABELS[k]}</option>)}
+            </select>
+            <button className="btn sm" disabled={!newText.trim()} onClick={() => void adminApi.saveOyinPosterText(newText, undefined, undefined, newTemplateKey).then((r) => { setTexts(r.texts); setNewText(""); })}>Qo'shish</button>
           </div>
         </div>
       )}

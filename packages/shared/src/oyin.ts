@@ -932,6 +932,17 @@ export interface OyinStoryItem {
   reason: string | null; // rad etilganda sabab (mijozga aynan shu matn boradi)
 }
 
+// 🖼 20 ta hikoya-poster dizayni (2026-08-05, ega yuborgan rasmlar) — har biri `poster.ts`da
+// o'z chizuvchi funksiyasiga ega. "prize" — eski yagona shablon (sovrin fotosi). Qolganlari
+// sof illyustratsiya (ma'lumot kerak emas) yoki raqamli (2-bosqichda ulanadi).
+export type OyinPosterTemplateKey =
+  | "prize" | "city" | "citygift" | "dissolve" | "network" | "road" | "gift" | "tickets" | "phone";
+
+export interface OyinPosterTemplateChoice {
+  text: string; // o'rin-egallar ALMASHTIRILGAN holda (fillPlaceholders'dan o'tgan)
+  templateKey: OyinPosterTemplateKey;
+}
+
 /** Mijoz ko'radigan holat: nechta tasdiqlangan, qancha qoldi, kutilayotgani bormi. */
 export interface OyinStoryState {
   approved: number; // shu mavsumda tasdiqlangan
@@ -939,12 +950,13 @@ export interface OyinStoryState {
   pending: boolean; // hozir tekshiruvda turgani bormi
   ballEach: number; // bittasi uchun ball (oyinStoryProofBall knobi)
   lastRejectReason: string | null; // oxirgi rad sababi — mijoz nimani tuzatishini bilsin
-  texts: string[]; // admin sozlagan poster matnlari (o'rin-egallar ALMASHTIRILGAN holda)
+  texts: OyinPosterTemplateChoice[]; // admin sozlagan rasm-shablonlar (matn + qaysi dizayn)
 }
 
 export interface OyinStorySubmitResult {
   ok: boolean;
-  reason?: "off" | "season_off" | "limit" | "pending" | "bad_url" | "duplicate";
+  reason?: "off" | "season_off" | "limit" | "pending" | "bad_url" | "duplicate" | "cooldown";
+  hoursLeft?: number; // faqat reason==="cooldown" — keyingi hikoyagacha necha soat qoldi
 }
 
 /** Admin moderatsiya jadvali qatori. */
@@ -955,11 +967,13 @@ export interface OyinStoryAdminRow extends OyinStoryItem {
   hoursWaiting: number; // 24 dan oshgani panelda QIZIL
 }
 
-/** Admin sozlaydigan poster matni. `{ism}` / `{chipta}` / `{sovrin}` o'rin-egallari. */
+/** Admin sozlaydigan poster matni. `{ism}` / `{chipta}` / `{sovrin}` o'rin-egallari.
+ *  `templateKey` — 20 rasm-dizaynidan qaysi biriga bog'langan (`poster.ts`). */
 export interface OyinPosterText {
   id: string;
   text: string;
   active: boolean;
+  templateKey: OyinPosterTemplateKey;
 }
 
 export interface OyinPrizeView {

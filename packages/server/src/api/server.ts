@@ -2295,10 +2295,10 @@ export function createApiServer(opts: ApiOptions = {}) {
     res.json({ texts: await getPosterTexts() });
   });
   app.post("/api/admin/oyin/poster-texts", requireAdmin, requireOwner, async (req, res) => {
-    const b = req.body as { id?: string; text?: string; active?: boolean };
+    const b = req.body as { id?: string; text?: string; active?: boolean; templateKey?: string };
     if (typeof b?.text !== "string" || !b.text.trim()) { res.status(400).json({ error: "text required" }); return; }
     const { adminUpsertPosterText } = await import("../services/oyinStory");
-    res.json({ texts: await adminUpsertPosterText({ id: b.id, text: b.text, active: b.active }) });
+    res.json({ texts: await adminUpsertPosterText({ id: b.id, text: b.text, active: b.active, templateKey: b.templateKey }) });
   });
   app.post("/api/admin/oyin/poster-texts/delete", requireAdmin, requireOwner, async (req, res) => {
     const b = req.body as { id?: string };

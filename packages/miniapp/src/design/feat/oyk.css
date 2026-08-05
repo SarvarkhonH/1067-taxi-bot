@@ -676,6 +676,7 @@
 }
 .oyk-poster-chip:active { transform: scale(.96); }
 .oyk-poster-chip.is-on { background: var(--oyk-gold-pale); border-color: var(--oyk-gold); color: var(--oyk-gold-deep); }
+.oyk-poster-chip-icon { margin-right: 4px; }
 .oyk-poster-input {
   min-height: 44px; border: 1px solid var(--oyk-line); border-radius: 12px; padding: 0 12px;
   font-size: 13px; font-family: inherit; color: var(--oyk-text); background: var(--oyk-surface);
