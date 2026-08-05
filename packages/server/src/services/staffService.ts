@@ -7,6 +7,7 @@ import {
   type StaffDayPay,
   computeDayPay,
   dailyRateFor,
+  dateKey,
   dayKindFor,
   hhmmToMin,
   hourlyRateFor,
@@ -247,6 +248,246 @@ export async function staffSelfReportSick(telegramId: string, now = new Date()):
     await notifyOwner(emp.org.ownerTelegramId, `🤒 <b>${esc(emp.name)}</b> bugun o'zini kasal deb belgiladi.\nHisob: <b>${fmt(pay?.amountEarned ?? 0)} so'm</b> (kasallik %)\nKerak bo'lsa: Admin panel → 👔 Jamoa → kunni tuzating.`);
   }
   return { ok: true, text: `🤒 Bugun kasallik deb belgilandi. Tuzalib qoling! Egangizga xabar berildi.` };
+}
+
+// ---------------------------------------------------------------------------
+// 🏖 B1 — Ta'til so'rash (P2, ega talabi 2026-08-05). To'liq so'rov→tasdiq oqimi:
+// B4'dan farqi — kelajakdagi/ko'p kunlik, EGA TASDIQLASHI kerak (darhol amalga
+// oshmaydi). Tasdiqlansa har kunga WorkSession.dayStatus="tatil" (recomputeSession
+// orqali — bir xil pul-yadro), rad etilsa hech narsa yozilmaydi.
+// ---------------------------------------------------------------------------
+
+const MAX_LEAVE_DAYS = 30; // bitta so'rovda maksimal kun soni (aql bovar qilmas xato-kiritishdan himoya)
+
+function parseIsoDate(s: string): boolean {
+  return /^\d{4}-\d{2}-\d{2}$/.test(s) && !Number.isNaN(Date.parse(s));
+}
+
+function dateRange(from: string, to: string): string[] {
+  const out: string[] = [];
+  const [fy, fm, fd] = ymd(from);
+  const [ty2, tm2, td2] = ymd(to);
+  let cur = Date.UTC(fy, fm - 1, fd);
+  const end = Date.UTC(ty2, tm2 - 1, td2);
+  while (cur <= end) {
+    const d = new Date(cur);
+    out.push(dateKey(d.getUTCFullYear(), d.getUTCMonth() + 1, d.getUTCDate()));
+    cur += 86_400_000;
+  }
+  return out;
+}
+
+export async function staffRequestLeave(
+  telegramId: string,
+  fromDate: string,
+  toDate: string,
+  reason: string,
+  now = new Date()
+): Promise<{ ok: boolean; text: string }> {
+  const emp = await employeeFor(telegramId);
+  if (!emp) return { ok: false, text: "Siz xodim sifatida ro'yxatda emassiz." };
+  if (!parseIsoDate(fromDate) || !parseIsoDate(toDate)) return { ok: false, text: "Sana formati: 2026-08-10 2026-08-12 sabab" };
+  if (toDate < fromDate) return { ok: false, text: "Oxirgi sana boshlanish sanasidan oldin bo'lolmaydi." };
+  const days = dateRange(fromDate, toDate);
+  if (days.length > MAX_LEAVE_DAYS) return { ok: false, text: `Juda uzoq oraliq (${days.length} kun) — bir so'rovda ${MAX_LEAVE_DAYS} kungacha.` };
+  const today = tashkentDayMinutes(now).date;
+  // Ikkalasi ham BUGUNDAN kech bo'lishi shart — o'tmish yoki bugungi kun allaqachon
+  // haqiqiy ishlangan bo'lishi mumkin (tekshiruv topgan: aks holda tasdiqlash real
+  // hisoblangan pulni ta'til-puliga almashtirib yuborardi). O'tgan kun tuzatishi —
+  // faqat ega panel orqali (bilib turib).
+  if (fromDate < today) return { ok: false, text: "Bugundan oldingi sana uchun so'rov yubora olmaysiz — ega bilan bog'laning." };
+  if (toDate < today) return { ok: false, text: "O'tgan sana uchun so'rov yubora olmaysiz — ega bilan bog'laning." };
+  const req = await prisma.leaveRequest.create({
+    data: { employeeId: emp.id, kind: "tatil", fromDate, toDate, reason: reason.trim().slice(0, 200) || null },
+  });
+  const kunSoz = days.length === 1 ? `${fromDate}` : `${fromDate} – ${toDate} (${days.length} kun)`;
+  if (emp.org.ownerTelegramId === telegramId) {
+    return { ok: true, text: `🏖 So'rov yozildi (siz ham ega bo'lgani uchun o'zingiz tasdiqlaysiz — panel/`+"`/tatillar`"+` orqali).` };
+  }
+  const { InlineKeyboard } = await import("grammy");
+  const kb = new InlineKeyboard().text("✅ Ruxsat", `ishlv:${req.id}:y`).text("❌ Rad", `ishlv:${req.id}:n`);
+  try {
+    const { getBotInstance } = await import("../botInstance");
+    const bot = getBotInstance();
+    await bot?.api.sendMessage(
+      emp.org.ownerTelegramId,
+      `🏖 <b>${esc(emp.name)}</b> ta'til so'ramoqda: <b>${kunSoz}</b>${reason ? `\nSabab: ${esc(reason.slice(0, 200))}` : ""}`,
+      { parse_mode: "HTML", reply_markup: kb }
+    );
+  } catch (e) {
+    console.error("[staff] leave-request owner notify failed:", e);
+  }
+  return { ok: true, text: `🏖 So'rovingiz egaga yuborildi: <b>${kunSoz}</b>. Javobini shu yerda bilasiz.` };
+}
+
+/** Ega ✅/❌ bosdi. Tasdiqlansa — oraliqdagi HAR kunga dayStatus yoziladi va
+ *  recomputeSession orqali hisoblanadi (kelmagan/allaqachon ishlangan kunlar ham
+ *  qayta yoziladi — ega ongli tasdiqlagani uchun bu kutilgan xatti-harakat). */
+export async function staffDecideLeave(requestId: number, approve: boolean, actorTgId: string): Promise<{ ok: boolean; text: string }> {
+  const req = await prisma.leaveRequest.findUnique({ where: { id: requestId }, include: { employee: { include: { org: true } } } });
+  if (!req) return { ok: false, text: "So'rov topilmadi." };
+  if (req.employee.org.ownerTelegramId !== actorTgId) return { ok: false, text: "Faqat korxona egasi hal qiladi." };
+  // Atomik: ikki marta bosish (yoki qayta-yetkazish) ikkinchi marta yozmasin
+  // (tekshiruv topgan poyga — staffSelfPayoutCancel'dagi bir xil naqsh).
+  const claim = await prisma.leaveRequest.updateMany({
+    where: { id: req.id, status: "pending" },
+    data: { status: approve ? "approved" : "rejected", decidedBy: actorTgId, decidedAt: new Date() },
+  });
+  if (claim.count === 0) {
+    const now2 = await prisma.leaveRequest.findUnique({ where: { id: req.id }, select: { status: true } });
+    return { ok: true, text: `Bu so'rov allaqachon "${now2?.status ?? "?"}" holatida.` };
+  }
+  const days = dateRange(req.fromDate, req.toDate);
+  const skipped: string[] = [];
+  if (approve) {
+    for (const date of days) {
+      const existing = await prisma.workSession.findUnique({ where: { employeeId_date: { employeeId: req.employeeId, date } } });
+      // Allaqachon haqiqiy ishlab, KETGAN kunni ta'til-puliga almashtirib yubormaymiz
+      // (tekshiruv topgan: real hisoblangan pul jimgina o'chib ketardi). Bunday kun
+      // o'tkazib yuboriladi — ega ro'yxatda ko'radi, kerak bo'lsa panelda qo'lda hal qiladi.
+      if (existing?.dayStatus === "ishladi" && existing.checkIn && existing.checkOut) {
+        skipped.push(date);
+        continue;
+      }
+      const s = await prisma.workSession.upsert({
+        where: { employeeId_date: { employeeId: req.employeeId, date } },
+        create: { employeeId: req.employeeId, date, dayStatus: req.kind },
+        update: { dayStatus: req.kind },
+      });
+      await recomputeSession(s.id);
+    }
+  }
+  const kunSoz = req.fromDate === req.toDate ? req.fromDate : `${req.fromDate} – ${req.toDate}`;
+  const skipNote = skipped.length ? `\n⚠️ ${skipped.length} kun allaqachon ishlangani uchun o'zgartirilmadi: ${skipped.join(", ")}` : "";
+  const empText = approve ? `✅ Ta'til so'rovingiz TASDIQLANDI: <b>${kunSoz}</b>${skipNote}` : `❌ Ta'til so'rovingiz RAD ETILDI: <b>${kunSoz}</b>`;
+  if (req.employee.telegramId !== actorTgId) await notifyOwner(req.employee.telegramId, empText); // notifyOwner — xodimga ham ishlaydi, chatId parametr
+  return { ok: true, text: (approve ? `✅ Tasdiqlandi: ${esc(req.employee.name)} — ${kunSoz}` : `❌ Rad etildi: ${esc(req.employee.name)} — ${kunSoz}`) + skipNote };
+}
+
+// ---------------------------------------------------------------------------
+// 🔄 B2 — Smena almashish so'rovi (P2). Uch bosqich: hamkasb rozi → ega tasdiq.
+// Tasdiqlansa: so'ragan kuni "javobli" (0 so'm, kelmadi emas), hamkasb o'sha kuni
+// so'raganning smenasi bilan ishladi deb yoziladi (shiftStartOvr/EndOvr).
+// ---------------------------------------------------------------------------
+
+export async function staffRequestSwap(
+  telegramId: string,
+  partnerNameQuery: string,
+  date: string,
+  now = new Date()
+): Promise<{ ok: boolean; text: string }> {
+  const emp = await employeeFor(telegramId);
+  if (!emp) return { ok: false, text: "Siz xodim sifatida ro'yxatda emassiz." };
+  if (!parseIsoDate(date)) return { ok: false, text: "Format: <hamkasb ismi> 2026-08-10" };
+  const today = tashkentDayMinutes(now).date;
+  if (date < today) return { ok: false, text: "O'tgan kun uchun almashtirib bo'lmaydi." };
+  const candidates = await prisma.employee.findMany({ where: { orgId: emp.orgId, active: true, id: { not: emp.id } } });
+  const q = partnerNameQuery.trim().toLowerCase();
+  // Aniq mos kelish (masalan "Ali") qisman moslardan ("Alisher" ham "Ali"ni o'z ichiga
+  // oladi) USTUN turadi — tekshiruv topgan: aks holda aniq ism ham "noaniq" deb rad etilardi.
+  const exact = candidates.find((c) => c.name.toLowerCase() === q);
+  const matches = exact ? [exact] : candidates.filter((c) => c.name.toLowerCase().includes(q));
+  if (matches.length === 0) {
+    const names = candidates.map((c) => c.name).join(", ") || "(hozircha hamkasb yo'q)";
+    return { ok: false, text: `«${partnerNameQuery}» topilmadi. Mavjud hamkasblar: ${names}` };
+  }
+  if (matches.length > 1) return { ok: false, text: `Bir nechta mos keldi: ${matches.map((c) => c.name).join(", ")} — to'liqroq yozing.` };
+  const partner = matches[0];
+  if (!partner) return { ok: false, text: "Xodim topilmadi." };
+  const swap = await prisma.shiftSwapRequest.create({ data: { requesterId: emp.id, partnerId: partner.id, date } });
+  const { InlineKeyboard } = await import("grammy");
+  const kb = new InlineKeyboard().text("✅ Roziman", `ishsw:${swap.id}:y`).text("❌ Yo'q", `ishsw:${swap.id}:n`);
+  try {
+    const { getBotInstance } = await import("../botInstance");
+    const bot = getBotInstance();
+    await bot?.api.sendMessage(partner.telegramId, `🔄 <b>${esc(emp.name)}</b> sizdan <b>${date}</b> kuni smena almashishni so'ramoqda. Roziman desangiz, o'sha kuni ${esc(emp.name)} smenasida siz ishlaysiz.`, { parse_mode: "HTML", reply_markup: kb });
+  } catch (e) {
+    console.error("[staff] swap-request partner notify failed:", e);
+  }
+  return { ok: true, text: `🔄 So'rov <b>${esc(partner.name)}</b>ga yuborildi (${date}). Rozi bo'lsa, ega ham tasdiqlaydi.` };
+}
+
+/** Hamkasb ✅/❌ bosdi (bosqich 1). Rozi bo'lsa → egaga o'tadi; yo'q desa — tugadi. */
+export async function staffDecideSwapPartner(swapId: number, accept: boolean, actorTgId: string): Promise<{ ok: boolean; text: string }> {
+  const s = await prisma.shiftSwapRequest.findUnique({ where: { id: swapId }, include: { requester: { include: { org: true } }, partner: true } });
+  if (!s) return { ok: false, text: "So'rov topilmadi." };
+  if (s.partner.telegramId !== actorTgId) return { ok: false, text: "Bu so'rov sizga tegishli emas." };
+  if (s.status !== "pending_partner") return { ok: true, text: `Bu so'rov allaqachon "${s.status}" holatida.` };
+  if (!accept) {
+    const claim = await prisma.shiftSwapRequest.updateMany({ where: { id: swapId, status: "pending_partner" }, data: { status: "rejected", decidedBy: actorTgId, decidedAt: new Date() } });
+    if (claim.count === 0) return { ok: true, text: "Bu so'rov allaqachon hal qilingan." };
+    await notifyOwner(s.requester.telegramId, `❌ <b>${esc(s.partner.name)}</b> ${s.date} kuni almashishga rozi bo'lmadi.`);
+    return { ok: true, text: "Rad etdingiz — so'ragan xodimga xabar berildi." };
+  }
+  const claim = await prisma.shiftSwapRequest.updateMany({ where: { id: swapId, status: "pending_partner" }, data: { status: "pending_owner" } });
+  if (claim.count === 0) return { ok: true, text: "Bu so'rov allaqachon hal qilingan." };
+  const { InlineKeyboard } = await import("grammy");
+  const kb = new InlineKeyboard().text("✅ Tasdiqlash", `ishsw:${swapId}:oy`).text("❌ Rad", `ishsw:${swapId}:on`);
+  await notifyOwner(
+    s.requester.org.ownerTelegramId,
+    `🔄 <b>${esc(s.requester.name)}</b> va <b>${esc(s.partner.name)}</b> <b>${s.date}</b> kuni smena almashmoqchi (${esc(s.partner.name)} rozi). Tasdiqlaysizmi?`
+  );
+  // notifyOwner ichida keyboard yo'q — alohida yuboramiz (tugma kerak)
+  try {
+    const { getBotInstance } = await import("../botInstance");
+    const bot = getBotInstance();
+    await bot?.api.sendMessage(s.requester.org.ownerTelegramId, `👆 Tasdiqlash uchun:`, { reply_markup: kb });
+  } catch (e) {
+    console.error("[staff] swap owner-decide keyboard failed:", e);
+  }
+  return { ok: true, text: "Rozi bo'ldingiz — endi ega tasdiqlaydi." };
+}
+
+/** Ega ✅/❌ bosdi (bosqich 2, yakuniy). Tasdiqlansa ikkala kunga ham yoziladi. */
+export async function staffDecideSwapOwner(swapId: number, approve: boolean, actorTgId: string): Promise<{ ok: boolean; text: string }> {
+  const s = await prisma.shiftSwapRequest.findUnique({ where: { id: swapId }, include: { requester: { include: { org: true } }, partner: true } });
+  if (!s) return { ok: false, text: "So'rov topilmadi." };
+  if (s.requester.org.ownerTelegramId !== actorTgId) return { ok: false, text: "Faqat korxona egasi hal qiladi." };
+  if (s.status !== "pending_owner") return { ok: true, text: `Bu so'rov allaqachon "${s.status}" holatida.` };
+  if (approve) {
+    // Double-booking himoyasi (tekshiruv topgan): agar ikkalasidan biri o'sha kuni
+    // ALLAQACHON haqiqiy ishlab-ketgan bo'lsa (o'z oddiy smenasi yoki boshqa sabab),
+    // avtomatik ustiga yozib yubormaymiz — bu pul-yo'qotish xavfi. Ega qo'lda hal qiladi.
+    const [reqExisting, partExisting] = await Promise.all([
+      prisma.workSession.findUnique({ where: { employeeId_date: { employeeId: s.requesterId, date: s.date } } }),
+      prisma.workSession.findUnique({ where: { employeeId_date: { employeeId: s.partnerId, date: s.date } } }),
+    ]);
+    const conflict = [
+      reqExisting?.dayStatus === "ishladi" && reqExisting.checkIn && reqExisting.checkOut ? s.requester.name : null,
+      partExisting?.dayStatus === "ishladi" && partExisting.checkIn && partExisting.checkOut ? s.partner.name : null,
+    ].filter((n): n is string => !!n);
+    if (conflict.length) {
+      return { ok: false, text: `⚠️ ${conflict.join(" va ")} ${s.date} kuni allaqachon ishlab-ketgan — avtomatik almashtirib bo'lmaydi. Panelda qo'lda hal qiling.` };
+    }
+  }
+  const claim = await prisma.shiftSwapRequest.updateMany({
+    where: { id: swapId, status: "pending_owner" },
+    data: { status: approve ? "approved" : "rejected", decidedBy: actorTgId, decidedAt: new Date() },
+  });
+  if (claim.count === 0) return { ok: true, text: "Bu so'rov allaqachon hal qilingan." };
+  if (approve) {
+    // Talabgorning O'SHA KUNGA XOS smenasi (agar oldindan maxsus smena qo'yilgan bo'lsa —
+    // masalan to'y kechasi 16:00-00:30) — tekshiruv topgan: bu uzatilmasa hamkasb
+    // noto'g'ri (standart) smena bilan yoziladi.
+    const reqDaySession = await prisma.workSession.findUnique({ where: { employeeId_date: { employeeId: s.requesterId, date: s.date } } });
+    const reqPol = resolveStaffPolicy({ ...s.requester.org, calendar: s.requester.org.calendar ?? undefined }, s.requester, reqDaySession ?? undefined);
+    const reqSession = await prisma.workSession.upsert({
+      where: { employeeId_date: { employeeId: s.requesterId, date: s.date } },
+      create: { employeeId: s.requesterId, date: s.date, dayStatus: "javobli" },
+      update: { dayStatus: "javobli", checkIn: null, checkOut: null },
+    });
+    await recomputeSession(reqSession.id);
+    const partnerSession = await prisma.workSession.upsert({
+      where: { employeeId_date: { employeeId: s.partnerId, date: s.date } },
+      create: { employeeId: s.partnerId, date: s.date, dayStatus: "ishladi", shiftStartOvr: reqPol.shiftStart, shiftEndOvr: reqPol.shiftEnd },
+      update: { dayStatus: "ishladi", shiftStartOvr: reqPol.shiftStart, shiftEndOvr: reqPol.shiftEnd },
+    });
+    await recomputeSession(partnerSession.id);
+  }
+  const text = approve ? `✅ Almashish tasdiqlandi: <b>${s.date}</b>` : `❌ Almashish rad etildi: <b>${s.date}</b>`;
+  await notifyOwner(s.requester.telegramId, text);
+  await notifyOwner(s.partner.telegramId, text);
+  return { ok: true, text: approve ? `✅ Tasdiqlandi: ${esc(s.requester.name)} ↔ ${esc(s.partner.name)}, ${s.date}` : `❌ Rad etildi.` };
 }
 
 /** "📊 Hisobim" — month-to-date + full balance, the anti-argument screen. */

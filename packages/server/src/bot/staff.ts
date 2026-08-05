@@ -18,22 +18,34 @@ function ishKeyboard(): InlineKeyboard {
     .text("📊 Mening hisobim", "ish:acct")
     .text("💸 Pul oldim", "ish:pay")
     .row()
-    .text("🤒 Bugun kasalman", "ish:sick");
+    .text("🤒 Bugun kasalman", "ish:sick")
+    .row()
+    .text("🏖 Ta'til so'rash", "ish:leave")
+    .text("🔄 Smena almashish", "ish:swap");
 }
 
 // ForceReply-prompt matni = sessiyasiz "wizard": javob-xabar aynan shu promptga
 // reply bo'lsa, summa deb qabul qilamiz (bot restartida ham yo'qolmaydi).
 const PAY_PROMPT = "💸 Qancha pul oldingiz? Faqat summa yozing (masalan: 500000). Izoh qo'shsangiz bo'ladi: 500000 avans";
+const LEAVE_PROMPT = "🏖 Necha kundan-necha kungacha ta'til so'raysiz? Sana va sababini yozing.\nMasalan: 2026-08-10 2026-08-12 oilaviy safar\nBitta kunlik: 2026-08-10 2026-08-10 shifoxona";
+const SWAP_PROMPT = "🔄 Kim bilan almashmoqchisiz va qaysi kun? Hamkasb ismini va sanani yozing.\nMasalan: Bekzod 2026-08-10";
 
 // Summa: yaxlit son YOKI 3-xonali guruhlar ("1 000 000"). `[\d\s]+` ochko'z variant
 // "100000 2 kun avans"ni 1 000 002 qilib yuborardi (tekshiruv topgan) — endi
 // raqam-boshli izoh summaga qo'shilib ketolmaydi.
 const PAY_AMOUNT_RE = /^(\d{1,3}(?: \d{3})+|\d+)(?:\s+(.{0,80}))?$/;
+const LEAVE_RE = /^(\d{4}-\d{2}-\d{2})\s+(\d{4}-\d{2}-\d{2})(?:\s+(.{0,200}))?$/;
+const SWAP_RE = /^(.+?)\s+(\d{4}-\d{2}-\d{2})$/;
 const FORCE_REPLY = { force_reply: true as const, input_field_placeholder: "500000 avans" };
+const LEAVE_FORCE_REPLY = { force_reply: true as const, input_field_placeholder: "2026-08-10 2026-08-12 sabab" };
+const SWAP_FORCE_REPLY = { force_reply: true as const, input_field_placeholder: "Bekzod 2026-08-10" };
 
-function isPayReply(replyTo: unknown, botId: number): boolean {
+function isReplyTo(replyTo: unknown, botId: number, promptText: string): boolean {
   const r = replyTo as { from?: { id?: number }; text?: string } | undefined;
-  return r?.from?.id === botId && r?.text === PAY_PROMPT;
+  return r?.from?.id === botId && r?.text === promptText;
+}
+function isPayReply(replyTo: unknown, botId: number): boolean {
+  return isReplyTo(replyTo, botId, PAY_PROMPT);
 }
 
 // Answer the spinner FIRST (before DB work), reply after; a service throw must
@@ -140,6 +152,79 @@ export function registerStaff(bot: Bot): void {
   bot.on("message:photo", async (ctx, next) => {
     if (!isPayReply(ctx.message.reply_to_message, ctx.me.id) || ctx.chat.type !== "private") { await next(); return; }
     await ctx.reply("Faqat matn bilan yozing, masalan: 500000 avans", { reply_markup: FORCE_REPLY }).catch(() => undefined);
+  });
+
+  // 🏖 B1: "Ta'til so'rash" tugmasi → ForceReply-prompt.
+  bot.callbackQuery("ish:leave", async (ctx) => {
+    if (ctx.chat && ctx.chat.type !== "private") {
+      await ctx.answerCallbackQuery({ text: "Botga shaxsiy yozing: /ish", show_alert: true }).catch(() => undefined);
+      return;
+    }
+    await ctx.answerCallbackQuery().catch(() => undefined);
+    const { employeeFor } = await import("../services/staffService");
+    if (!(await employeeFor(String(ctx.from.id)))) return;
+    await ctx.reply(LEAVE_PROMPT, { reply_markup: LEAVE_FORCE_REPLY }).catch(() => undefined);
+  });
+
+  // Ta'til promptiga javob = "<sanadan> <sanagacha> [sabab]".
+  bot.on("message:text", async (ctx, next) => {
+    if (!isReplyTo(ctx.message.reply_to_message, ctx.me.id, LEAVE_PROMPT) || ctx.chat.type !== "private") { await next(); return; }
+    const m = LEAVE_RE.exec(ctx.message.text.trim());
+    const { staffRequestLeave } = await import("../services/staffService");
+    const r = m
+      ? await staffRequestLeave(String(ctx.from.id), m[1] ?? "", m[2] ?? "", m[3] ?? "")
+      : { ok: false, text: "Format: 2026-08-10 2026-08-12 sabab" };
+    await ctx.reply(r.text, { parse_mode: "HTML", reply_markup: r.ok ? ishKeyboard() : LEAVE_FORCE_REPLY }).catch(() => undefined);
+  });
+
+  // Ega ta'til-so'rovini ✅/❌: ishlv:<id>:y|n
+  bot.callbackQuery(/^ishlv:(\d+):(y|n)$/, async (ctx) => {
+    await ctx.answerCallbackQuery().catch(() => undefined);
+    const { staffDecideLeave } = await import("../services/staffService");
+    const r = await staffDecideLeave(Number(ctx.match[1]), ctx.match[2] === "y", String(ctx.from.id));
+    if (r.ok) await ctx.editMessageReplyMarkup({ reply_markup: undefined }).catch(() => undefined);
+    await ctx.reply(r.text, { parse_mode: "HTML" }).catch(() => undefined);
+  });
+
+  // 🔄 B2: "Smena almashish" tugmasi → ForceReply-prompt.
+  bot.callbackQuery("ish:swap", async (ctx) => {
+    if (ctx.chat && ctx.chat.type !== "private") {
+      await ctx.answerCallbackQuery({ text: "Botga shaxsiy yozing: /ish", show_alert: true }).catch(() => undefined);
+      return;
+    }
+    await ctx.answerCallbackQuery().catch(() => undefined);
+    const { employeeFor } = await import("../services/staffService");
+    if (!(await employeeFor(String(ctx.from.id)))) return;
+    await ctx.reply(SWAP_PROMPT, { reply_markup: SWAP_FORCE_REPLY }).catch(() => undefined);
+  });
+
+  // Almashish promptiga javob = "<hamkasb ismi> <sana>".
+  bot.on("message:text", async (ctx, next) => {
+    if (!isReplyTo(ctx.message.reply_to_message, ctx.me.id, SWAP_PROMPT) || ctx.chat.type !== "private") { await next(); return; }
+    const m = SWAP_RE.exec(ctx.message.text.trim());
+    const { staffRequestSwap } = await import("../services/staffService");
+    const r = m
+      ? await staffRequestSwap(String(ctx.from.id), (m[1] ?? "").trim(), m[2] ?? "")
+      : { ok: false, text: "Format: Bekzod 2026-08-10" };
+    await ctx.reply(r.text, { parse_mode: "HTML", reply_markup: r.ok ? ishKeyboard() : SWAP_FORCE_REPLY }).catch(() => undefined);
+  });
+
+  // Hamkasb ✅/❌ (bosqich 1): ishsw:<id>:y|n
+  bot.callbackQuery(/^ishsw:(\d+):(y|n)$/, async (ctx) => {
+    await ctx.answerCallbackQuery().catch(() => undefined);
+    const { staffDecideSwapPartner } = await import("../services/staffService");
+    const r = await staffDecideSwapPartner(Number(ctx.match[1]), ctx.match[2] === "y", String(ctx.from.id));
+    if (r.ok) await ctx.editMessageReplyMarkup({ reply_markup: undefined }).catch(() => undefined);
+    await ctx.reply(r.text, { parse_mode: "HTML" }).catch(() => undefined);
+  });
+
+  // Ega ✅/❌ (bosqich 2, yakuniy): ishsw:<id>:oy|on
+  bot.callbackQuery(/^ishsw:(\d+):(oy|on)$/, async (ctx) => {
+    await ctx.answerCallbackQuery().catch(() => undefined);
+    const { staffDecideSwapOwner } = await import("../services/staffService");
+    const r = await staffDecideSwapOwner(Number(ctx.match[1]), ctx.match[2] === "oy", String(ctx.from.id));
+    if (r.ok) await ctx.editMessageReplyMarkup({ reply_markup: undefined }).catch(() => undefined);
+    await ctx.reply(r.text, { parse_mode: "HTML" }).catch(() => undefined);
   });
 
   // Ega ❌ Bekor bosdi — xodim o'zi yozgan payout o'chiriladi, xodimga xabar.

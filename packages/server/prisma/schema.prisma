@@ -1770,6 +1770,9 @@ model Employee {
   org            Organization  @relation(fields: [orgId], references: [id])
   sessions       WorkSession[]
   ledger         StaffLedger[]
+  leaveRequests  LeaveRequest[]
+  swapRequested  ShiftSwapRequest[] @relation("SwapRequester")
+  swapReceived   ShiftSwapRequest[] @relation("SwapPartner")
 
   @@index([orgId, active])
 }
@@ -1812,4 +1815,47 @@ model StaffLedger {
   employee       Employee @relation(fields: [employeeId], references: [id])
 
   @@index([employeeId, createdAt])
+}
+
+// 👔 JAMOA P2 B1 (JAMOA_PLAN.md §7.1): xodim o'zi ta'til/kasallik so'raydi, ega
+// bir bosishda tasdiqlaydi/rad etadi. Tasdiqlansa fromDate..toDate oralig'idagi
+// har kunga WorkSession.dayStatus=kind yoziladi (staffAdminService bilan bir xil
+// recomputeSession — pul matematikasi bitta manba).
+model LeaveRequest {
+  id         Int       @id @default(autoincrement())
+  employeeId Int
+  kind       String    @default("tatil") // tatil | kasallik | javobli
+  fromDate   String // "YYYY-MM-DD" Toshkent
+  toDate     String // inclusive
+  reason     String?
+  status     String    @default("pending") // pending | approved | rejected
+  decidedBy  String?
+  decidedAt  DateTime?
+  createdAt  DateTime  @default(now())
+  employee   Employee  @relation(fields: [employeeId], references: [id])
+
+  @@index([employeeId])
+  @@index([status])
+}
+
+// 👔 JAMOA P2 B2: uch bosqichli tasdiq — hamkasb rozi bo'lishi, keyin ega
+// tasdiqlashi kerak. Tasdiqlansa: requester kuni "javobli" (0 so'm, kelmadi
+// emas), partner kuni requester'ning smenasi bilan ishladi deb yoziladi
+// (shiftStartOvr/EndOvr orqali — WorkSession'dagi kunlik istisno naqshi).
+model ShiftSwapRequest {
+  id          Int       @id @default(autoincrement())
+  requesterId Int
+  partnerId   Int
+  date        String // "YYYY-MM-DD" — almashtiriladigan kun
+  note        String?
+  status      String    @default("pending_partner") // pending_partner | pending_owner | approved | rejected
+  decidedBy   String?
+  decidedAt   DateTime?
+  createdAt   DateTime  @default(now())
+  requester   Employee  @relation("SwapRequester", fields: [requesterId], references: [id])
+  partner     Employee  @relation("SwapPartner", fields: [partnerId], references: [id])
+
+  @@index([requesterId])
+  @@index([partnerId])
+  @@index([status])
 }

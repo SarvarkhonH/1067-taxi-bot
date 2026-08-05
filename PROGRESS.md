@@ -5330,3 +5330,33 @@ to'g'ri topildi.
   "ishladi"dan boshqa holat bo'lsa jim). QR (D1/D2) ATAYLAB rejadan olib tashlandi — ega:
   statik poster rasmga olinib uydan ishlatilishi mumkin, joy-isbotini bekor qiladi.
 - Isbot: typecheck server toza, admin build ✓, shared 90/90.
+
+### 2026-08-05 — 👔 JAMOA P2: B1 (ta'til so'rash) + B2 (smena almashish)
+
+**Holat: ready for verification (kod-daraja) — YANGI JADVALLAR, VPS db push KERAK bo'ladi**
+- **B1**: `LeaveRequest` jadvali. Xodim `/ish` → "🏖 Ta'til so'rash" → sana-oralig'i+sabab
+  yozadi → egaga ✅/❌ karta. Tasdiqlansa har kunga `dayStatus="tatil"` (recomputeSession
+  orqali — bir xil pul-yadro).
+- **B2**: `ShiftSwapRequest` jadvali. Uch bosqich: xodim A hamkasb B nomi+sanani yozadi →
+  B ga ✅/❌ (rozi/yo'q) → rozi bo'lsa egaga ✅/❌ → tasdiqlansa A kuni "javobli" (0 so'm),
+  B kuni A ning smenasi bilan "ishladi" (shiftStartOvr/EndOvr).
+- Mustaqil tekshiruv (R4): 5 bug topildi, BARI tuzatildi:
+  1. [HIGH] Ta'til tasdiqlansa allaqachon ishlab-ketgan kunlar real puli o'chib, ta'til
+     puliga almashinib ketardi — endi o'tgan/bugungi kun uchun so'rov rad etiladi VA
+     tasdiqlashda haqiqiy ishlangan kunlar o'tkazib yuboriladi (ega ⚠️ ro'yxatini ko'radi).
+  2. [HIGH] Smena almashish tasdiqlansa, ikkala tomondan biri o'sha kuni ALLAQACHON
+     ishlab-ketgan bo'lsa, uning haqiqiy puli jimgina noto'g'ri smena bilan qayta
+     hisoblanib ketardi — endi oldindan tekshiriladi, ziddiyat bo'lsa rad etiladi
+     ("panelda qo'lda hal qiling").
+  3. [MED-HIGH] Hamkasb talabgorning O'SHA KUNGA XOS smenasini emas, standart smenasini
+     merosga olar edi (masalan to'y-kechasi maxsus smena hisobga olinmasdi) — endi
+     talabgorning o'sha kundagi haqiqiy sessiyasi policy'ga uzatiladi.
+  4. [MED] Uch qaror-funksiyada (`staffDecideLeave`/`SwapPartner`/`SwapOwner`) poyga —
+     ikki marta bosish ikkilamchi xabar/nomuvofiqlikka olib kelishi mumkin edi — endi
+     `updateMany({where:{status:"pending..."}})` bilan atomik (staffSelfPayoutCancel
+     naqshi).
+  5. [LOW] Aniq ism moslashuvi ("Ali") qisman moslarga ("Alisher") qarshi "noaniq" deb
+     rad etilardi — endi aniq mos ustunlik oladi.
+- Isbot: typecheck toza, prisma validate OK, shared 90/90.
+- ⚠️ **VPS db push HALI QILINMAGAN** — 2 yangi jadval (LeaveRequest, ShiftSwapRequest) +
+  Employee'ga 3 ta relation qatori. Kod push'idan OLDIN alohida ongli qadam.
