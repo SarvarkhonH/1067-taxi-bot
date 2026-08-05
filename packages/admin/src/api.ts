@@ -204,6 +204,16 @@ export const adminApi = {
     postJson<OyinJamoaResult>(`/api/admin/oyin/gashtak/${encodeURIComponent(code)}/kick`, { targetMemberId }),
   oyinGashtakDisband: (code: string) =>
     postJson<OyinJamoaResult>(`/api/admin/oyin/gashtak/${encodeURIComponent(code)}/disband`, {}),
+  // 🧪 Sinov a'zolari (2026-08-05, ega talabi: "3-4 fake kishi qo'shib jonli testlash").
+  oyinGashtakAddTestMember: (code: string, name: string, rides: number) =>
+    postJson<OyinJamoaResult>(`/api/admin/oyin/gashtak/${encodeURIComponent(code)}/test-member`, { name, rides }),
+  oyinGashtakSetTestRides: (code: string, negativeId: number, monthKey: string, rides: number) =>
+    postJson<OyinJamoaResult>(`/api/admin/oyin/gashtak/${encodeURIComponent(code)}/test-rides`, { negativeId, monthKey, rides }),
+  oyinGashtakClearTest: (code: string) =>
+    postJson<{ ok: boolean; removed: number }>(`/api/admin/oyin/gashtak/${encodeURIComponent(code)}/test-clear`, {}),
+  // 🎯 Moderatsiya — boshliq noto'g'ri bosgan/nizo chiqqan holatlar uchun.
+  oyinGashtakSetTurn: (code: string, monthKey: string, memberId: number | null, note: string) =>
+    postJson<OyinJamoaResult>(`/api/admin/oyin/gashtak/${encodeURIComponent(code)}/turn`, { monthKey, memberId, note }),
   corps: () => req<{ corps: { id: number; name: string; balance: number; employees: number }[] }>("/api/admin/corps"),
   corpCreate: (name: string, cap: number) => postJson<{ id: number }>("/api/admin/corps", { name, cap }),
   corpAddEmployee: (id: number, phone: string, name?: string) => postJson<{ ok: boolean; reason?: string }>(`/api/admin/corps/${id}/employees`, { phone, name }),

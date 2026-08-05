@@ -334,6 +334,9 @@ export const api = {
     post<OyinJamoaResult & { view: OyinJamoaView }>("/api/oyin/jamoa/disband"),
   oyinGashtakMessage: (text: string, targetMemberId?: number) =>
     post<OyinJamoaMessageResult>("/api/oyin/jamoa/message", { text, targetMemberId }),
+  // 🎯 "Kimga ball yig'amiz" (2026-08-05) — faqat boshliq, joriy oy. `memberId: null` = bekor.
+  oyinGashtakSetTurn: (memberId: number | null, note?: string) =>
+    post<OyinJamoaResult & { view: OyinJamoaView }>("/api/oyin/jamoa/turn", { memberId, note }),
   oyinBuyTicket: (prizeKey: string) => post<OyinBuyResult>("/api/oyin/ticket", { prizeKey }),
   oyinShare: () => post<{ ok: boolean }>("/api/oyin/share"),
   checkin: () => post<CheckInResponse>("/api/checkin"),

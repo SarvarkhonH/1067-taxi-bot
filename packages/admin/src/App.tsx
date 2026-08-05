@@ -6179,6 +6179,14 @@ function OyinGashtakBlock() {
   const [dCode, setDCode] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  // 🧪 Sinov a'zolari (2026-08-05, ega talabi: "3-4 fake kishi qo'shib jonli testlash").
+  const [testName, setTestName] = useState("");
+  const [testRides, setTestRides] = useState("");
+  // 🎯 Moderatsiya — boshliq o'zi noto'g'ri bosgan/nizo chiqqan holatlar uchun (leader'ning
+  // o'zi shu funksiyani miniappda, joriy oy uchun ishlatadi — bu admin uchun QOLGAN yo'l).
+  const [turnMonth, setTurnMonth] = useState(() => new Date().toISOString().slice(0, 7));
+  const [turnTarget, setTurnTarget] = useState("");
+  const [turnNote, setTurnNote] = useState("");
 
   const load = () => { adminApi.oyinGashtakList().then((r) => setRows(r.rows)).catch(() => setRows([])); };
   useEffect(() => { load(); }, []);
@@ -6202,6 +6210,35 @@ function OyinGashtakBlock() {
     setBusy(true);
     await adminApi.oyinGashtakDisband(dCode).catch(() => null);
     setBusy(false); reloadDetail(); load();
+  };
+  const doAddTestMember = async () => {
+    if (!dCode || !testName.trim()) return;
+    setBusy(true); setErr(null);
+    const r = await adminApi.oyinGashtakAddTestMember(dCode, testName.trim(), Number(testRides) || 0).catch(() => null);
+    setBusy(false);
+    if (!r?.ok) { setErr("Sinov a'zo qo'shilmadi (guruh to'lgan bo'lishi mumkin, ≤10 kishi)."); return; }
+    setTestName(""); setTestRides(""); reloadDetail(); load();
+  };
+  const doSetTestRides = async (negativeId: number, rides: string) => {
+    if (!dCode) return;
+    const n = Math.max(0, Math.round(Number(rides) || 0));
+    setBusy(true);
+    await adminApi.oyinGashtakSetTestRides(dCode, negativeId, turnMonth, n).catch(() => null);
+    setBusy(false); reloadDetail();
+  };
+  const doClearTest = async () => {
+    if (!dCode || !confirm("Barcha SINOV a'zolari olib tashlansinmi? Haqiqiy a'zolarga tegilmaydi.")) return;
+    setBusy(true);
+    await adminApi.oyinGashtakClearTest(dCode).catch(() => null);
+    setBusy(false); reloadDetail(); load();
+  };
+  const doSetTurn = async () => {
+    if (!dCode || !turnTarget) return;
+    setBusy(true); setErr(null);
+    const r = await adminApi.oyinGashtakSetTurn(dCode, turnMonth, Number(turnTarget), turnNote.trim()).catch(() => null);
+    setBusy(false);
+    if (!r?.ok) { setErr("Belgilanmadi — odam shu guruhning a'zosi ekanini tekshiring."); return; }
+    setTurnTarget(""); setTurnNote(""); reloadDetail();
   };
 
   const filtered = useMemo(() => {
@@ -6260,17 +6297,39 @@ function OyinGashtakBlock() {
               ? <span style={{ fontSize: 11, fontWeight: 800, padding: "3px 8px", borderRadius: 6, background: "rgba(255,255,255,.08)", color: "var(--text-2)" }}>TARQATILGAN — {d.disbandedAt.slice(0, 16).replace("T", " ")}</span>
               : <button className="btn danger" disabled={busy} onClick={() => void doDisband()}>🗑 Tarqatish</button>}
           </div>
+
+          {/* 🧪 Sinov a'zolari (2026-08-05, ega talabi) — haqiqiy Telegram akkaunt/RideReward/
+              Member'ga TEGMAYDI (oyinService.ts izohida batafsil). Faqat aktiv guruhda. */}
+          {!d.disbandedAt && (
+            <div className="muted" style={{ fontSize: 12, lineHeight: 1.7, background: "rgba(255,255,255,.04)", borderRadius: 8, padding: "10px 12px", marginBottom: 12 }}>
+              <b style={{ color: "var(--text)" }}>🧪 Sinov a'zo qo'shish</b> — jonli testlash uchun, haqiqiy Telegram akkaunt shart emas.
+              <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 8 }}>
+                <input value={testName} onChange={(e) => setTestName(e.target.value)} placeholder="Ism (masalan «Test 1»)" style={{ maxWidth: 180 }} />
+                <input value={testRides} onChange={(e) => setTestRides(e.target.value)} placeholder="Boshlang'ich safar soni" style={{ maxWidth: 160 }} />
+                <button className="btn" disabled={busy || !testName.trim()} onClick={() => void doAddTestMember()}>+ Qo'shish</button>
+                {d.members.some((m) => m.isTest) && <button className="btn sm" disabled={busy} onClick={() => void doClearTest()}>🧹 Sinov a'zolarni tozalash</button>}
+              </div>
+            </div>
+          )}
+
           <div className="table-wrap">
             <table>
               <thead><tr><th>A'zo</th><th>Telefon</th><th>Qo'shilgan</th><th>Navbat oyi</th><th className="num">Umrbod safar</th><th className="num">Jami ball</th><th /></tr></thead>
               <tbody>
                 {d.members.map((m) => (
                   <tr key={m.memberId} style={!m.inGroup ? { opacity: 0.55 } : undefined}>
-                    <td className="td-name">{m.isLeader ? "👑 " : ""}{m.name} <span className="muted">#{m.memberId}</span>{!m.inGroup && <span className="muted"> · chiqib ketgan</span>}</td>
+                    <td className="td-name">{m.isLeader ? "👑 " : ""}{m.isTest && "🧪 "}{m.name} <span className="muted">#{m.memberId}</span>{!m.inGroup && <span className="muted"> · chiqib ketgan</span>}</td>
                     <td className="muted">{m.phone ?? "—"}</td>
                     <td className="muted">{m.joinedAt ? m.joinedAt.slice(0, 10) : "—"}</td>
                     <td className="muted">{m.turnMonth ?? "—"}</td>
-                    <td className="num">{formatNumber(m.ridesLifetime)}</td>
+                    <td className="num">
+                      {m.isTest && m.inGroup ? (
+                        // 🧪 Sinov a'zo — safar soni QO'LDA kiritiladi (ega jonli sinov uchun,
+                        // "bu oy N marta safar qildi desam ball qanday o'zgaradi" ko'rish).
+                        <input defaultValue={m.ridesLifetime} onBlur={(e) => { if (e.target.value !== String(m.ridesLifetime)) void doSetTestRides(m.memberId, e.target.value); }}
+                          style={{ maxWidth: 70, textAlign: "right" }} disabled={busy} />
+                      ) : formatNumber(m.ridesLifetime)}
+                    </td>
                     <td className="num strong">{formatNumber(m.ballEarnedTotal)}</td>
                     <td>{m.inGroup && !m.isLeader && !d.disbandedAt && <button className="btn sm" disabled={busy} onClick={() => void doKick(m.memberId, m.name)}>Chiqarish</button>}</td>
                   </tr>
@@ -6278,6 +6337,32 @@ function OyinGashtakBlock() {
               </tbody>
             </table>
           </div>
+
+          {/* 🎯 "Kimga ball yig'amiz" — moderatsiya yo'li (leader'ning o'zi shu funksiyani
+              miniappda, joriy oy uchun ishlatadi — bu QOLGAN yo'l, nizo/xato holatlar uchun,
+              istalgan oyni tuzatish imkoni bilan). */}
+          {!d.disbandedAt && (
+            <div className="muted" style={{ fontSize: 12, lineHeight: 1.7, background: "rgba(255,255,255,.04)", borderRadius: 8, padding: "10px 12px", marginTop: 12 }}>
+              <b style={{ color: "var(--text)" }}>🎯 Navbatni qo'lda belgilash</b> — moderatsiya (boshliqning o'zi miniappda shuni qiladi, bu — nizo/xato holatlar uchun).
+              <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 8, alignItems: "center" }}>
+                <input value={turnMonth} onChange={(e) => setTurnMonth(e.target.value)} placeholder="YYYY-MM" style={{ maxWidth: 100 }} />
+                <select value={turnTarget} onChange={(e) => setTurnTarget(e.target.value)} style={{ maxWidth: 200 }}>
+                  <option value="">Odam tanlang…</option>
+                  {d.members.filter((m) => m.inGroup).map((m) => (
+                    <option key={m.memberId} value={m.memberId}>{m.isTest ? "🧪 " : ""}{m.name}</option>
+                  ))}
+                </select>
+                <input value={turnNote} onChange={(e) => setTurnNote(e.target.value)} placeholder="Sabab/e'lon matni (ixtiyoriy)" style={{ flex: 1, minWidth: 160 }} />
+                <button className="btn" disabled={busy || !turnTarget} onClick={() => void doSetTurn()}>Belgilash</button>
+              </div>
+              {d.turnOverrides.length > 0 && (
+                <div style={{ marginTop: 10 }}>
+                  <b style={{ color: "var(--text)" }}>📅 Tarix:</b>
+                  {d.turnOverrides.map((t) => <div key={t.monthKey}>{t.monthKey}: {t.note}</div>)}
+                </div>
+              )}
+            </div>
+          )}
         </>
       )}
     </section>

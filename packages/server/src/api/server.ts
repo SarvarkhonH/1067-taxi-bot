@@ -1669,6 +1669,18 @@ export function createApiServer(opts: ApiOptions = {}) {
     const target = Number(b?.targetMemberId);
     res.json(await sendJamoaMessage(memberId, String(b?.text ?? ""), Number.isFinite(target) ? target : undefined));
   });
+  // 🎯 "Kimga ball yig'amiz" (2026-08-05, ega talabi) — faqat boshliq, joriy oy uchun.
+  app.post("/api/oyin/jamoa/turn", requireUser, rateLimit(10), async (req, res) => {
+    const memberId = await getMemberId(res.locals.telegramId as string);
+    if (!memberId) { res.status(404).json({ error: "not linked" }); return; }
+    const { setGashtakTurnByLeader, getJamoaView } = await import("../services/oyinService");
+    const b = req.body as { memberId?: unknown; note?: string } | undefined;
+    const target = b?.memberId == null ? null : Number(b.memberId);
+    const r = target === null || Number.isFinite(target)
+      ? await setGashtakTurnByLeader(memberId, target, String(b?.note ?? ""))
+      : { ok: false as const, reason: "not_group_member" as const };
+    res.json({ ...r, view: await getJamoaView(memberId) });
+  });
   // 🏠 Ilova ekranga o'rnatilgani — Telegram hodisasidan keyin. `added:false` belgini olib tashlaydi.
   app.post("/api/oyin/home", requireUser, rateLimit(10), async (req, res) => {
     const memberId = await getMemberId(res.locals.telegramId as string);
@@ -2545,6 +2557,34 @@ export function createApiServer(opts: ApiOptions = {}) {
       const { alertAdmins } = await import("../services/economyService");
       await alertAdmins(`🗑 <b>Gashtak tarqatildi (admin)</b>\nGuruh: ${req.params.code}`).catch(() => undefined);
     }
+    res.json(r);
+  });
+  // 🧪 Sinov a'zolari (2026-08-05, ega talabi: "3-4 fake kishi qo'shib jonli testlash").
+  // Haqiqiy Telegram akkaunt/Member/RideReward'ga TEGMAYDI — batafsil oyinService.ts izohida.
+  app.post("/api/admin/oyin/gashtak/:code/test-member", requireAdmin, requireOwner, rateLimit(20), async (req, res) => {
+    const b = req.body as { name?: string; rides?: unknown } | undefined;
+    const { adminAddTestMember } = await import("../services/oyinService");
+    res.json(await adminAddTestMember(String(req.params.code), String(b?.name ?? ""), Number(b?.rides) || 0));
+  });
+  app.post("/api/admin/oyin/gashtak/:code/test-rides", requireAdmin, requireOwner, rateLimit(30), async (req, res) => {
+    const b = req.body as { negativeId?: unknown; monthKey?: string; rides?: unknown } | undefined;
+    const negId = Number(b?.negativeId);
+    const { adminSetTestRides } = await import("../services/oyinService");
+    const r = Number.isFinite(negId) ? await adminSetTestRides(String(req.params.code), negId, String(b?.monthKey ?? ""), Number(b?.rides) || 0) : { ok: false as const, reason: "not_found" as const };
+    res.json(r);
+  });
+  app.post("/api/admin/oyin/gashtak/:code/test-clear", requireAdmin, requireOwner, rateLimit(10), async (req, res) => {
+    const { adminClearTestMembers } = await import("../services/oyinService");
+    res.json(await adminClearTestMembers(String(req.params.code)));
+  });
+  // 🎯 Admin moderatsiya versiyasi — boshliq o'zi noto'g'ri bosgan/nizo chiqqan holatlar uchun.
+  app.post("/api/admin/oyin/gashtak/:code/turn", requireAdmin, requireOwner, rateLimit(20), async (req, res) => {
+    const b = req.body as { monthKey?: string; memberId?: unknown; note?: string } | undefined;
+    const target = b?.memberId == null ? null : Number(b.memberId);
+    const { adminSetGashtakTurn } = await import("../services/oyinService");
+    const r = target === null || Number.isFinite(target)
+      ? await adminSetGashtakTurn(String(req.params.code), String(b?.monthKey ?? ""), target, String(b?.note ?? ""))
+      : { ok: false as const, reason: "not_group_member" as const };
     res.json(r);
   });
   // ── 🛍 SHOP admin (owner-gated writes) ────────────────────────────────────────────────────────

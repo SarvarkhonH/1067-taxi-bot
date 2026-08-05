@@ -1024,9 +1024,12 @@
 
 /* ⚙️ Gashtak boshqaruvi varag'i (2026-08-05) — qidiruv/xabar bloklari. */
 .oyk-gashtak-block { margin-top: 16px; padding-top: 14px; border-top: 1px solid var(--oyk-line); }
+/* Layout qiladi spacing'ni — inline stil YO'Q. Label→boshqaruv→boshqaruv→natija, hammasi
+   izchil 8px oraliq bilan (select/input/textarea/button/note — nechta bo'lishidan qat'iy nazar). */
+.oyk-gashtak-block > * + * { margin-top: 8px; }
 .oyk-gashtak-label { font-size: 12.5px; font-weight: 800; margin-bottom: 8px; }
 .oyk-gashtak-msg {
-  width: 100%; margin-top: 8px; padding: 10px 12px; font-size: 13px; font-family: inherit;
+  width: 100%; padding: 10px 12px; font-size: 13px; font-family: inherit;
   border: 1px solid var(--oyk-line); border-radius: 11px; background: var(--oyk-page);
   color: var(--oyk-text); resize: vertical;
 }

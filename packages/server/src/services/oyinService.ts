@@ -2032,6 +2032,16 @@ export interface JamoaRecord {
    *  ball tarixi RETROAKTIV yo'qolardi (S8-2 "yashirin qarz" bilan bir xil oila, teskari
    *  yo'nalishda). `null` = faol guruh. */
   disbandedAt: string | null;
+  /** 🧪 Virtual (sinov) a'zolar — manfiy `memberId`. `Member.id` faqat MUSBAT son beradi
+   *  (`@default(autoincrement())`), shuning uchun manfiy raqam haqiqiy a'zo bilan HECH QACHON
+   *  to'qnashmaydi. Bu a'zolar HECH QANDAY boshqa jadvalga (Member/TelegramUser/RideReward)
+   *  yozilmaydi — faqat shu ro'yxatda ism sifatida yashaydi. `oyin:testrides:*` kaliti ularning
+   *  "safari"ni beradi (2026-08-05, ega jonli sinov talabi). */
+  testNames: Record<number, string>;
+  /** 🎯 Boshliq/admin ONGLI ravishda "bu oy KIM UCHUN ball yig'amiz" deb E'LON QILGAN matn —
+   *  oy -> HAMMA A'ZOGA ko'rinadigan xabar (audit-izoh EMAS, ijtimoiy e'lon). `getJamoaView`
+   *  asosiy banner shundan o'qiydi (2026-08-05, ega talabi: "hammaga bilinishi kerak"). */
+  turnOverrides: Record<string, string>;
 }
 
 /** memberId -> ISO sana xaritasini xavfsiz o'qish (`joinedAt` uchun — `turns`ning `parseTurns`
@@ -2042,6 +2052,28 @@ function parseJoinedAt(raw: unknown): Record<number, string> {
   for (const [k, v] of Object.entries(raw as Record<string, unknown>)) {
     const id = Number(k);
     if (Number.isFinite(id) && typeof v === "string" && Number.isFinite(Date.parse(v))) out[id] = v;
+  }
+  return out;
+}
+
+/** `testNames` — kalit = memberId (MANFIY ham bo'ladi, `joinedAt` qardoshi, lekin qiymat sana
+ *  emas erkin ism). */
+function parseTestNames(raw: unknown): Record<number, string> {
+  const out: Record<number, string> = {};
+  if (!raw || typeof raw !== "object") return out;
+  for (const [k, v] of Object.entries(raw as Record<string, unknown>)) {
+    const id = Number(k);
+    if (Number.isFinite(id) && typeof v === "string" && v.length > 0) out[id] = v.slice(0, 60);
+  }
+  return out;
+}
+
+/** `turnOverrides` — kalit = oy (`YYYY-MM`), qiymat = HAMMAGA ko'rinadigan e'lon matni. */
+function parseStringMap(raw: unknown): Record<string, string> {
+  const out: Record<string, string> = {};
+  if (!raw || typeof raw !== "object") return out;
+  for (const [k, v] of Object.entries(raw as Record<string, unknown>)) {
+    if (/^\d{4}-\d{2}$/.test(k) && typeof v === "string" && v.length > 0) out[k] = v.slice(0, 300);
   }
   return out;
 }
@@ -2070,6 +2102,8 @@ export function parseJamoa(raw: string | undefined): JamoaRecord | null {
       leaderId: typeof v.leaderId === "number" && members.includes(v.leaderId) ? v.leaderId : (members[0] ?? 0),
       joinedAt: parseJoinedAt((v as { joinedAt?: unknown }).joinedAt),
       disbandedAt: typeof v.disbandedAt === "string" && Number.isFinite(Date.parse(v.disbandedAt)) ? v.disbandedAt : null,
+      testNames: parseTestNames((v as { testNames?: unknown }).testNames),
+      turnOverrides: parseStringMap((v as { turnOverrides?: unknown }).turnOverrides),
     };
   } catch {
     return null;
@@ -2244,6 +2278,7 @@ export async function createJamoa(memberId: number, nameRaw: string, preview = f
   const rec: JamoaRecord = {
     id, name, createdAt: now, members: [memberId], turns: {},
     leaderId: memberId, joinedAt: { [memberId]: now }, disbandedAt: null,
+    testNames: {}, turnOverrides: {},
   };
   assignTurn(rec, memberId); // tuzuvchining navbati — guruh tuzilgan OY
   try {
@@ -2361,10 +2396,22 @@ async function jamoaMemberStats(j: JamoaRecord): Promise<Map<number, {
   const out = new Map<number, { ridesThisMonth: number; ridesLifetime: number; ballEarnedTotal: number }>();
   for (const id of ids) out.set(id, { ridesThisMonth: 0, ridesLifetime: 0, ballEarnedTotal: 0 });
   if (ids.length === 0) return out;
-  const rides = await prisma.rideReward.findMany({
-    where: { memberId: { in: ids }, createdAt: { gte: new Date(j.createdAt) } },
-    select: { memberId: true, createdAt: true },
-  });
+  // 🧪 VIRTUAL (manfiy ID) a'zolar `RideReward`ga YOZILMAGAN — ular uchun `oyin:testrides:*`
+  // dan o'qiladi, xuddi shu `ridesByMemberMonth` xaritasiga (ikki manba, bitta iste'mol —
+  // pastdagi ball-sikli farqni bilmaydi, mavjud musbat-ID yo'liga TEGMAYDI).
+  const positiveIds = ids.filter((id) => id > 0);
+  const negativeIds = ids.filter((id) => id < 0);
+  const [rides, testRideRows] = await Promise.all([
+    positiveIds.length > 0
+      ? prisma.rideReward.findMany({
+          where: { memberId: { in: positiveIds }, createdAt: { gte: new Date(j.createdAt) } },
+          select: { memberId: true, createdAt: true },
+        })
+      : Promise.resolve([] as { memberId: number; createdAt: Date }[]),
+    negativeIds.length > 0
+      ? prisma.appState.findMany({ where: { key: { startsWith: `${TEST_RIDES_PREFIX}${j.id}:` } }, select: { key: true, value: true } })
+      : Promise.resolve([] as { key: string; value: string }[]),
+  ]);
   const ridesByMemberMonth = new Map<string, number>();
   for (const r of rides) {
     const stat = out.get(r.memberId);
@@ -2374,6 +2421,24 @@ async function jamoaMemberStats(j: JamoaRecord): Promise<Map<number, {
     }
     const k = `${r.memberId}|${monthKeyOf(r.createdAt)}`;
     ridesByMemberMonth.set(k, (ridesByMemberMonth.get(k) ?? 0) + 1);
+  }
+  // `oyin:testrides:<code>:<negId>:<monthKey>` — kalitni qattiq ajratib olish (`negId` o'zi
+  // manfiy belgi tashiydi, `split(":")` bilan ajratish xavfsiz: prefiks o'zida `:` yo'q).
+  for (const row of testRideRows) {
+    const rest = row.key.slice(`${TEST_RIDES_PREFIX}${j.id}:`.length);
+    const sep = rest.lastIndexOf(":");
+    if (sep < 0) continue;
+    const negId = Number(rest.slice(0, sep));
+    const mk = rest.slice(sep + 1);
+    const n = Math.max(0, Math.round(Number(row.value)));
+    if (!Number.isFinite(negId) || !Number.isFinite(n)) continue;
+    const stat = out.get(negId);
+    if (stat) {
+      stat.ridesLifetime += n;
+      if (mk === nowMonth) stat.ridesThisMonth += n;
+    }
+    const k = `${negId}|${mk}`;
+    ridesByMemberMonth.set(k, (ridesByMemberMonth.get(k) ?? 0) + n);
   }
   if (ballPerRide > 0 && j.members.length >= OYIN_JAMOA_MIN) {
     const startMonth = monthKeyOf(new Date(j.createdAt));
@@ -2425,7 +2490,8 @@ export async function getJamoaView(memberId: number): Promise<OyinJamoaView> {
         const s = stats.get(m);
         return {
           memberId: m,
-          name: nameBy.get(m) ?? `#${m}`,
+          // 🧪 Manfiy ID (virtual/sinov a'zo) — `TelegramUser` yo'q, ism `testNames`dan.
+          name: nameBy.get(m) ?? j.testNames[m] ?? `#${m}`,
           ridesThisMonth: s?.ridesThisMonth ?? 0,
           isNavbatchi: m === navbatchi,
           hadTurn: mk != null && mk < monthKey, // navbat oyi o'tib bo'lgan (satr-solishtiruv: YYYY-MM)
@@ -2434,6 +2500,7 @@ export async function getJamoaView(memberId: number): Promise<OyinJamoaView> {
           joinedAt: j.joinedAt[m] ?? null,
           ridesLifetime: s?.ridesLifetime ?? 0,
           ballEarnedTotal: s?.ballEarnedTotal ?? 0,
+          isTest: m < 0,
         };
       }),
       ridesThisMonth,
@@ -2442,6 +2509,10 @@ export async function getJamoaView(memberId: number): Promise<OyinJamoaView> {
       maxBall,
       isMine: navbatchi === memberId,
       isLeader: j.leaderId === memberId,
+      // 🎯 HAMMA a'zoga ko'rinadigan e'lon (2026-08-05, ega talabi). Joriy oy uchun
+      // `turnOverrides` bo'lsa o'sha ko'rsatiladi, bo'lmasa `null` (miniapp avtomatik
+      // navbat matnini chizadi).
+      turnNote: j.turnOverrides[monthKey] ?? null,
     },
     ...base,
   };
@@ -2695,14 +2766,145 @@ export async function adminGashtakDetail(code: string): Promise<OyinAdminGashtak
     const tu = byId.get(id);
     const s = stats.get(id);
     return {
-      memberId: id, name: tu ? shortName(tu) : `#${id}`, phone: tu?.phone ?? null,
+      memberId: id, name: tu ? shortName(tu) : (j.testNames[id] ?? `#${id}`), phone: tu?.phone ?? null,
       isLeader: id === j.leaderId, joinedAt: j.joinedAt[id] ?? null, turnMonth: turnOf.get(id) ?? null,
       ridesLifetime: s?.ridesLifetime ?? 0, ballEarnedTotal: s?.ballEarnedTotal ?? 0,
-      inGroup: j.members.includes(id),
+      inGroup: j.members.includes(id), isTest: id < 0,
     };
   });
   members.sort((a, b) => (b.isLeader ? 1 : 0) - (a.isLeader ? 1 : 0) || (a.turnMonth ?? "").localeCompare(b.turnMonth ?? ""));
-  return { code: j.id, name: j.name, leaderId: j.leaderId, createdAt: j.createdAt, disbandedAt: j.disbandedAt, members };
+  const turnOverrides = Object.entries(j.turnOverrides).map(([monthKey, note]) => ({ monthKey, note })).sort((a, b) => b.monthKey.localeCompare(a.monthKey));
+  return { code: j.id, name: j.name, leaderId: j.leaderId, createdAt: j.createdAt, disbandedAt: j.disbandedAt, members, turnOverrides };
+}
+
+// ── 🧪 SINOV A'ZOLARI (2026-08-05, ega talabi: "3-4 fake kishi qo'shib jonli testlash") ──────
+//
+// ⚠️ ARXITEKTURA QARORI: `RideReward`/`Member`/`TelegramUser`ga UMUMAN TEGILMAYDI. `RideReward`
+// 23 ta boshqa faylda o'qiladi (cashbackService, corpService, campaignService, rollupService,
+// analyticsService...) — sun'iy qator qo'shish real dashboard/hisobot/korp-balansni buzardi.
+// `Member.kasId` esa "kas1067'dan sinxronlanadi" — fake qiymat tungi sinxronizatsiyani
+// buzishi mumkin edi. Yechim: MANFIY memberId — `Member.id` `@default(autoincrement())`
+// faqat MUSBAT son beradi, ya'ni manfiy raqam HAQIQIY a'zo bilan hech qachon to'qnashmaydi.
+// Virtual a'zo hech qanday jadvalga yozilmaydi — faqat `JamoaRecord.testNames` da ism sifatida
+// va `oyin:testrides:*` da "safar soni" sifatida yashaydi. Navbat/ball/kick — HAMMASI HAQIQIY
+// kod (`assignTurn`/`navbatchiOf`/`applyRemoveMember`/`casJamoa`) — faqat "kimning safari"
+// manbai farq qiladi (`jamoaMemberStats` ichida, pastda).
+const TEST_RIDES_PREFIX = "oyin:testrides:";
+
+function testRidesKey(code: string, negativeId: number, monthKey: string): string {
+  return `${TEST_RIDES_PREFIX}${code}:${negativeId}:${monthKey}`;
+}
+
+/** 🔒 Admin-only. Yangi VIRTUAL (sinov) a'zo qo'shadi — haqiqiy Telegram akkaunt shart emas. */
+export async function adminAddTestMember(code: string, nameRaw: string, initialMonthlyRides: number): Promise<OyinJamoaResult> {
+  const name = (nameRaw || "").trim().slice(0, 40) || "Sinov a'zo";
+  const key = `${JAMOA_PREFIX}${code}`;
+  let negId = 0;
+  const added = await casJamoa(key, (cur) => {
+    if (cur.members.length >= OYIN_JAMOA_MAX) return null;
+    // Manfiy ID — guruh 6-xonali kod generatsiyasi bilan bir xil "urinib ko'r, to'qnashsa
+    // qayta" naqshi (bu safar DB emas, xotiradagi `cur.members`ga qarshi tekshiriladi).
+    for (let attempt = 0; attempt < 5; attempt++) {
+      const cand = -(1_000_000 + Math.floor(Math.random() * 8_999_999));
+      if (!cur.members.includes(cand)) { negId = cand; break; }
+    }
+    if (!negId) return null;
+    cur.members.push(negId);
+    cur.testNames[negId] = `🧪 ${name}`;
+    assignTurn(cur, negId); // HAQIQIY funksiya — virtual a'zo ham navbat oladi
+    return cur;
+  });
+  if (!added || !negId) return { ok: false, reason: "full" };
+  if (initialMonthlyRides > 0) {
+    const monthKey = monthKeyOf(new Date());
+    await prisma.appState.create({ data: { key: testRidesKey(code, negId, monthKey), value: String(Math.max(0, Math.round(initialMonthlyRides))) } }).catch(() => undefined);
+  }
+  invalidateBallCache();
+  return { ok: true };
+}
+
+/** 🔒 Admin-only. Mavjud sinov a'zoning "bu oy N safar qildi" sonini o'rnatadi — ega jonli
+ *  ko'radi: raqamni o'zgartirib, navbatchi/ball formulasi darhol qanday javob berishini kuzatadi. */
+export async function adminSetTestRides(code: string, negativeId: number, monthKeyRaw: string, rides: number): Promise<OyinJamoaResult> {
+  if (negativeId >= 0) return { ok: false, reason: "not_group_member" };
+  const monthKey = /^\d{4}-\d{2}$/.test(monthKeyRaw) ? monthKeyRaw : monthKeyOf(new Date());
+  const row = await prisma.appState.findUnique({ where: { key: `${JAMOA_PREFIX}${code}` } });
+  const j = parseJamoa(row?.value);
+  if (!j || !(negativeId in j.testNames)) return { ok: false, reason: "not_found" };
+  const value = String(Math.max(0, Math.round(rides)));
+  const key = testRidesKey(code, negativeId, monthKey);
+  await prisma.appState.upsert({ where: { key }, create: { key, value }, update: { value } });
+  invalidateBallCache();
+  return { ok: true };
+}
+
+/** 🔒 Admin-only. Guruhdagi HAMMA sinov a'zoni bir yo'la olib tashlaydi — har biriga HAQIQIY
+ *  `applyRemoveMember` (kick bilan bir xil, `turns` tegilmaydi) + `oyin:testrides:*` tozalanadi.
+ *  Boshqa hech qanday jadvalga tegilmagani uchun bu 100% to'liq va xavfsiz. */
+export async function adminClearTestMembers(code: string): Promise<{ ok: boolean; removed: number }> {
+  const key = `${JAMOA_PREFIX}${code}`;
+  const before = parseJamoa((await prisma.appState.findUnique({ where: { key } }))?.value);
+  if (!before) return { ok: false, removed: 0 };
+  const testIds = before.members.filter((m) => m < 0);
+  if (testIds.length === 0) return { ok: true, removed: 0 };
+  let cur2 = before;
+  for (const id of testIds) {
+    const next = await casJamoa(key, (cur) => cur.members.includes(id) ? applyRemoveMember(cur, id) : null);
+    if (next) cur2 = next;
+  }
+  const rows = await prisma.appState.findMany({ where: { key: { startsWith: `${TEST_RIDES_PREFIX}${code}:` } }, select: { key: true } });
+  if (rows.length > 0) await prisma.appState.deleteMany({ where: { key: { in: rows.map((r) => r.key) } } });
+  void cur2;
+  invalidateBallCache();
+  return { ok: true, removed: testIds.length };
+}
+
+// ── 🎯 KIMGA BALL YIG'AMIZ (2026-08-05, ega talabi) ──────────────────────────────────────────
+// "Ega doim hal qilishi kerak" — TUZATILDI: bu ADMIN emas, GURUHNI YARATGAN ODAM (boshliq)
+// hal qiladi, miniappning o'zida, VA bu tanlov HAMMA A'ZOGA OCHIQ ko'rinishi shart. Avtomatik
+// navbat (`assignTurn`/`navbatchiOf`) DEFAULT bo'lib qolaveradi — S7-2b/S7-3 adolat-invarianti
+// buzilmaydi. Boshliq ustiga ONGLI ravishda "bu oy KIM UCHUN yig'amiz" deb E'LON QILA OLADI —
+// bu backend tuzatish emas, ijtimoiy koordinatsiya (gashtak — birga yig'ib bitta odamga
+// yordam berish g'oyasi). Admin xuddi shu funksiyani moderatsiya sifatida ishlatadi
+// (kick/disband'dagi ikki-yo'l-bitta-haqiqat naqshi — lekin BIRLAMCHI foydalanuvchi BOSHLIQ).
+
+/** ICHKI — `setGashtakTurnByLeader` VA `adminSetGashtakTurn` ikkalasi ham shundan. */
+/** SOF FUNKSIYA — `setGashtakTurnInternal` ichida (`casJamoa` orqali) chaqiriladi.
+ *  `simGuards` HAQIQIY shu funksiyaga qarshi sinaydi (S8-8/applyRemoveMember naqshi):
+ *  DB kerak emas, faqat `JamoaRecord` kirish-chiqishi.
+ *  ⚠️ Ataylab: bir-navbat-umrbod avtomatik qo'riqini (`assignTurn`) AYLANIB O'TADI — bu
+ *  ONGLI, OCHIQ qaror (inson qarori + hammaga ko'rinadigan matn qo'riq o'rnini bosadi). */
+export function applySetTurn(j: JamoaRecord, monthKey: string, memberId: number | null, noteRaw: string): JamoaRecord | null {
+  if (memberId != null && !j.members.includes(memberId)) return null; // typo/tasodifiy xato himoyasi
+  const next: JamoaRecord = { ...j, turns: { ...j.turns }, turnOverrides: { ...j.turnOverrides } };
+  if (memberId == null) { delete next.turns[monthKey]; delete next.turnOverrides[monthKey]; return next; }
+  next.turns[monthKey] = memberId;
+  const name = next.testNames[memberId] ?? `#${memberId}`;
+  next.turnOverrides[monthKey] = (noteRaw || "").trim().slice(0, 300) || `Bu oy ball ${name} uchun yig'ilmoqda`;
+  return next;
+}
+
+async function setGashtakTurnInternal(code: string, monthKeyRaw: string, memberId: number | null, noteRaw: string): Promise<OyinJamoaResult> {
+  if (!/^\d{4}-\d{2}$/.test(monthKeyRaw)) return { ok: false, reason: "not_found" };
+  const key = `${JAMOA_PREFIX}${code}`;
+  const result = await casJamoa(key, (cur) => applySetTurn(cur, monthKeyRaw, memberId, noteRaw));
+  if (!result) return { ok: false, reason: "not_group_member" };
+  invalidateBallCache();
+  return { ok: true };
+}
+
+/** 🎯 BIRLAMCHI YO'L — miniappda, faqat guruh boshlig'i. */
+export async function setGashtakTurnByLeader(leaderId: number, memberId: number | null, note: string): Promise<OyinJamoaResult> {
+  const j = await jamoaOf(leaderId);
+  if (!j) return { ok: false, reason: "not_in" };
+  if (j.leaderId !== leaderId) return { ok: false, reason: "leader_only" };
+  return setGashtakTurnInternal(j.id, monthKeyOf(new Date()), memberId, note);
+}
+
+/** Admin moderatsiya versiyasi — masalan boshliq noto'g'ri bosgan yoki nizo chiqqan holatlar
+ *  uchun, istalgan oyni tuzatish imkoni bilan. */
+export async function adminSetGashtakTurn(code: string, monthKey: string, memberId: number | null, note: string): Promise<OyinJamoaResult> {
+  return setGashtakTurnInternal(code, monthKey, memberId, note);
 }
 
 // ── 🎬 MUKOFOT KUNI ──────────────────────────────────────────────────────────────────────────
@@ -2955,6 +3157,9 @@ export const ARCHIVED_PREFIXES = [
   //  · oyin:login: · oyin:share: · oyin:quest: · oyin:home: · oyin:story: · oyin:sprintwin:
   //    · oyin:adj: · oyin:jamoa: · oyin:jamoamem: — hammasi `earned` manbai. Yuqoridagi
   //    yashirin-qarz sababi.
+  //  · oyin:testrides: — 2026-08-05: sinov a'zolarining "safar soni", `jamoaMemberStats`
+  //    uchun `RideReward` bilan BIR XIL rolda (ball manbai). Arxivlansa sinov guruhining
+  //    o'tgan ball tarixi ko'rinmas bo'lardi — `oyin:jamoa:` bilan bir xil sabab.
   //  · oyin:ban: — chetlatish JAZO. Davr almashgani bilan bekor bo'lmaydi.
 ];
 // `oyin:freeze` MAJBURIY: qolsa yangi mavsum MUZLATILGAN holda ochilardi va hech kim chipta

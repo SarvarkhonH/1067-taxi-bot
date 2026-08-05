@@ -605,6 +605,9 @@ export interface OyinJamoaMember {
   joinedAt: string | null; // eski a'zolarda noma'lum bo'lishi mumkin — ekranda "—"
   ridesLifetime: number; // guruh tuzilganidan buyon (faqat bu oy EMAS)
   ballEarnedTotal: number; // shu guruhdan umrbod olingan jami ball (live-hisoblangan)
+  /** 🧪 Virtual (sinov) a'zo — manfiy memberId, haqiqiy Telegram akkaunt YO'Q (2026-08-05,
+   *  ega jonli sinov talabi). Xabar yuborib bo'lmaydi, ekranda "🧪" bilan ajratiladi. */
+  isTest: boolean;
 }
 export interface OyinJamoaView {
   /** `null` = a'zo hech qanday jamoada emas (ekran «jamoa tuzing» taklifini ko'rsatadi). */
@@ -623,6 +626,10 @@ export interface OyinJamoaView {
     maxBall: number; // oylik shift — cheksiz emissiya bo'lmasin
     isMine: boolean; // men navbatchimanmi
     isLeader: boolean; // men boshliqmanmi
+    /** 🎯 Boshliq (yoki admin) ONGLI ravishda "bu oy KIM UCHUN yig'amiz" deb yozgan e'lon
+     *  matni — HAMMA a'zoga ko'rinadi (2026-08-05, ega talabi: "hammaga bilinishi kerak").
+     *  `null` = hali hech kim belgilamagan, avtomatik navbat ko'rsatiladi. */
+    turnNote: string | null;
   } | null;
   minSize: number;
   maxSize: number;
@@ -630,7 +637,7 @@ export interface OyinJamoaView {
 export interface OyinJamoaResult {
   ok: boolean;
   reason?: "already_in" | "not_found" | "full" | "not_in" | "bad_name" | "off" | "season_off"
-    | "self_target" | "already_in_group" | "leader_only" | "disbanded" | "cooldown";
+    | "self_target" | "already_in_group" | "leader_only" | "disbanded" | "cooldown" | "not_group_member";
   /** `reason === "cooldown"` bo'lsa — yana necha kun kutish kerak. */
   cooldownDaysLeft?: number;
 }
@@ -669,6 +676,7 @@ export interface OyinAdminGashtakMember {
   ridesLifetime: number;
   ballEarnedTotal: number;
   inGroup: boolean; // false = chiqarilgan/chiqib ketgan, lekin tarixda ko'rinadi
+  isTest: boolean; // 🧪 virtual (sinov) a'zo — manfiy memberId
 }
 export interface OyinAdminGashtakDetail {
   code: string;
@@ -677,6 +685,8 @@ export interface OyinAdminGashtakDetail {
   createdAt: string;
   disbandedAt: string | null;
   members: OyinAdminGashtakMember[]; // faol + tarixiy (hammasi turns'da bor bo'lganlar)
+  /** 🎯 "Kimga ball yig'amiz" e'lonlari tarixi — oy + hammaga ko'rinadigan matn. */
+  turnOverrides: { monthKey: string; note: string }[];
 }
 
 // ── 🎬 MUKOFOT KUNI (ega dizayni 2026-08-04: kartalar qutiga solinadi, ishonchli bloger

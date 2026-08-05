@@ -11,7 +11,7 @@
  */
 import {
   ARCHIVED_PREFIXES, tierOfPrice,
-  navbatchiOf, assignTurn, addMonths, parseJamoa, applyRemoveMember, type JamoaRecord,
+  navbatchiOf, assignTurn, addMonths, parseJamoa, applyRemoveMember, applySetTurn, type JamoaRecord,
 } from "../services/oyinService";
 import { OYIN_TIERS, OYIN_JAMOA_MIN, OYIN_SEED_CATALOG } from "@t1067/shared";
 import { BONUS_ECON_KNOBS } from "@t1067/shared";
@@ -77,7 +77,7 @@ ok((cdk?.def ?? 0) > 0, `def = ${cdk?.def} (0 bo'lsa ketma-ket guruh almashtirib
 
 // ── 🔴 S7-2b: NAVBAT QAYTA TAQSIMLANMASLIGI — ekspluatatsiyaning O'ZIGA sinov ───────
 console.log("\nD) Gap-jamoa navbati — a'zo qo'shilsa O'TGAN oy O'ZGARMASLIGI kerak");
-const g: JamoaRecord = { id: "TEST01", name: "Sinov", createdAt: "2026-01-15T00:00:00.000Z", members: [], turns: {}, leaderId: 101, joinedAt: {}, disbandedAt: null };
+const g: JamoaRecord = { id: "TEST01", name: "Sinov", createdAt: "2026-01-15T00:00:00.000Z", members: [], turns: {}, leaderId: 101, joinedAt: {}, disbandedAt: null, testNames: {}, turnOverrides: {} };
 // Uch a'zo ketma-ket qo'shiladi.
 for (const m of [101, 102, 103]) { g.members.push(m); assignTurn(g, m); }
 const before = { "2026-01": navbatchiOf(g, "2026-01"), "2026-02": navbatchiOf(g, "2026-02"), "2026-03": navbatchiOf(g, "2026-03") };
@@ -123,18 +123,37 @@ ok(parseJamoa('{"id":"X","members":[1],"disbandedAt":"salom"}')?.disbandedAt ===
 console.log("\nG) applyRemoveMember — guruh bo'shaganda qator SOFT-DELETE bo'ladi, tarix yo'qolmaydi");
 // Bu — jonli kodda hozirgacha yo'q bo'lgan sinov: `leaveJamoa` avval oxirgi a'zo chiqqanda
 // qatorni HARD DELETE qilardi (`deleteMany`), ya'ni `turns` (ball tarixi) ham yo'qolardi.
-const solo: JamoaRecord = { id: "SOLO1", name: "Yakka", createdAt: "2026-01-01T00:00:00.000Z", members: [201], turns: { "2026-01": 201 }, leaderId: 201, joinedAt: {}, disbandedAt: null };
+const solo: JamoaRecord = { id: "SOLO1", name: "Yakka", createdAt: "2026-01-01T00:00:00.000Z", members: [201], turns: { "2026-01": 201 }, leaderId: 201, joinedAt: {}, disbandedAt: null, testNames: {}, turnOverrides: {} };
 const afterLeave = applyRemoveMember(solo, 201);
 ok(afterLeave.members.length === 0, "oxirgi a'zo chiqqach members bo'sh");
 ok(afterLeave.disbandedAt != null, "disbandedAt YOZILDI (soft-delete belgisi)");
 ok(Object.keys(afterLeave.turns).length === 1 && afterLeave.turns["2026-01"] === 201, "🔴 turns (ball tarixi) TO'LIQ SAQLANDI — qator o'chirilmagan bo'lsa bu son 0 bo'lardi");
 ok(afterLeave.id === solo.id, "guruh IDENTITETI saqlanadi — bu obyektni keyin qayta topish mumkin (adminGashtakDetail)");
 // Ko'p a'zoli guruhda BITTASI chiqsa — guruh FAOL qoladi, faqat o'sha kishi yo'qoladi.
-const trio: JamoaRecord = { id: "TRIO1", name: "Uchtasi", createdAt: "2026-01-01T00:00:00.000Z", members: [1, 2, 3], turns: { "2026-01": 1, "2026-02": 2 }, leaderId: 1, joinedAt: {}, disbandedAt: null };
+const trio: JamoaRecord = { id: "TRIO1", name: "Uchtasi", createdAt: "2026-01-01T00:00:00.000Z", members: [1, 2, 3], turns: { "2026-01": 1, "2026-02": 2 }, leaderId: 1, joinedAt: {}, disbandedAt: null, testNames: {}, turnOverrides: {} };
 const afterOneLeaves = applyRemoveMember(trio, 2);
 ok(afterOneLeaves.members.length === 2 && !afterOneLeaves.members.includes(2), "faqat chiqqan a'zo olib tashlandi");
 ok(afterOneLeaves.disbandedAt === null, "guruh hali faol — disbandedAt YOZILMAYDI (hammasi chiqmagan)");
 ok(afterOneLeaves.turns["2026-02"] === 2, "chiqqan a'zoning O'TGAN navbati BAND qoladi (ball tarixi buzilmaydi)");
+
+// ── 🎯 KIMGA BALL YIG'AMIZ (2026-08-05, ega talabi) — HAQIQIY funksiyaga qarshi ─────────────
+console.log("\nH) applySetTurn — boshliq/admin ONGLI belgilashi, hammaga ko'rinadigan e'lon");
+const squad: JamoaRecord = { id: "SQ1", name: "Kvadrat", createdAt: "2026-01-01T00:00:00.000Z", members: [1, 2, 3], turns: { "2026-01": 1 }, leaderId: 1, joinedAt: {}, disbandedAt: null, testNames: {}, turnOverrides: {} };
+const set1 = applySetTurn(squad, "2026-03", 2, "Sardorga karta uchun");
+ok(set1 != null && set1.turns["2026-03"] === 2, "yangi oy belgilandi");
+ok(set1?.turnOverrides["2026-03"] === "Sardorga karta uchun", "HAMMAGA ko'rinadigan matn saqlandi (audit-izoh EMAS, e'lon)");
+const setEmpty = applySetTurn(squad, "2026-04", 3, "");
+ok(setEmpty?.turnOverrides["2026-04"] === "Bu oy ball #3 uchun yig'ilmoqda", "matn bo'sh qoldirilsa avtomatik hosil bo'ladi");
+ok(applySetTurn(squad, "2026-05", 999, "xato") === null, "guruh a'zosi BO'LMAGAN odamga belgilab bo'lmaydi (typo himoyasi)");
+// ⚠️ ATAYLAB: bir-navbat-umrbod avtomatik qo'riqini AYLANIB O'TADI — ONGLI qaror.
+const overrideExisting = applySetTurn(squad, "2026-01", 2, "Qayta belgilandi");
+ok(overrideExisting?.turns["2026-01"] === 2, "1-a'zoning ESKI oyi 2-a'zoga QAYTA berildi (inson qarori qo'riq o'rnini bosadi)");
+const cleared = applySetTurn(squad, "2026-01", null, "");
+ok(cleared != null && !("2026-01" in cleared.turns) && !("2026-01" in cleared.turnOverrides), "memberId:null — oy BUTUNLAY bekor qilinadi (hech kim olmaydi)");
+// Manfiy ID (sinov a'zo) ham xuddi shu HAQIQIY funksiya bilan ishlaydi — ikkinchi yo'l yo'q.
+const withTest: JamoaRecord = { id: "SQ2", name: "Sinovli", createdAt: "2026-01-01T00:00:00.000Z", members: [1, -483921], turns: {}, leaderId: 1, joinedAt: {}, disbandedAt: null, testNames: { [-483921]: "🧪 Test 1" }, turnOverrides: {} };
+const setTest = applySetTurn(withTest, "2026-02", -483921, "");
+ok(setTest?.turnOverrides["2026-02"] === "Bu oy ball 🧪 Test 1 uchun yig'ilmoqda", "sinov a'zo uchun ism `testNames`dan olinadi, `#-483921` emas");
 
 console.log(fail === 0 ? "\n🛡 simGuards: HAMMA QO'RIQ JOYIDA\n" : `\n❌ simGuards: ${fail} ta qo'riq YO'Q\n`);
 process.exit(fail === 0 ? 0 : 1);

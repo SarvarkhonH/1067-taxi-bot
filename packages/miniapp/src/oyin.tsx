@@ -572,6 +572,7 @@ export function OyinView({ onTaxi, joinCode }: { onTaxi?: () => void; joinCode?:
       case "leader_only": return "Faqat guruh boshlig'i qila oladi";
       case "self_target": return "O'zingizni chiqara olmaysiz — «Guruhni tarqatish» dan foydalaning";
       case "already_in_group": return "Bu odam allaqachon boshqa guruhda";
+      case "not_group_member": return "Bu odam guruhda emas";
       case "cooldown": return `Yana ${cooldownDaysLeft ?? "bir necha"} kundan keyin qo'shilishingiz mumkin`;
       default: return "Bajarilmadi — birozdan keyin urinib ko'ring";
     }
@@ -601,6 +602,22 @@ export function OyinView({ onTaxi, joinCode }: { onTaxi?: () => void; joinCode?:
   const [gashtakHits, setGashtakHits] = useState<OyinGashtakSearchHit[] | null>(null);
   const [gashtakMsgTarget, setGashtakMsgTarget] = useState<number | "all" | null>(null);
   const [gashtakMsgText, setGashtakMsgText] = useState("");
+  // 🎯 "Kimga ball yig'amiz" (2026-08-05, ega talabi) — boshliq ONGLI belgilaydi, HAMMAGA
+  // ko'rinadigan e'lon bo'ladi (asosiy banner, yuqorida).
+  const [gashtakTurnTarget, setGashtakTurnTarget] = useState<number | null>(null);
+  const [gashtakTurnNote, setGashtakTurnNote] = useState("");
+  const doGashtakSetTurn = useCallback(async () => {
+    if (gashtakTurnTarget == null) return;
+    haptic();
+    setJamoaBusy(true);
+    try {
+      const r = await api.oyinGashtakSetTurn(gashtakTurnTarget, gashtakTurnNote.trim() || undefined);
+      setJamoa(r.view);
+      if (r.ok) { setGashtakTurnTarget(null); setGashtakTurnNote(""); }
+      showToast(r.ok ? "🎯 E'lon qilindi" : jamoaReasonText(r.reason));
+    } catch { showToast("Aloqa uzildi — birozdan keyin urinib ko'ring"); }
+    finally { setJamoaBusy(false); }
+  }, [gashtakTurnTarget, gashtakTurnNote, jamoaReasonText, showToast]);
   const doGashtakKick = useCallback(async (targetMemberId: number) => {
     if (!window.confirm("Bu a'zoni guruhdan chiqarasizmi?")) return;
     haptic();
@@ -1592,14 +1609,21 @@ Taksida yur, ball yig', sodiqlik kartasini ol. Davr oxirida jonli efirda mukofot
                   </div>
                 </div>
                 <div className={`oyk-jamoa-turn${jamoa.jamoa.isMine ? " is-mine" : ""}`}>
-                  {jamoa.jamoa.isMine
-                    ? <>🎯 <b>Bu oy NAVBAT SIZDA</b> — jamoa {jamoa.jamoa.ridesThisMonth} safar qildi, sizga <b>{jamoa.jamoa.navbatchiBall} ball</b></>
-                    : <>Bu oy navbat: <b>{jamoa.jamoa.members.find((m) => m.isNavbatchi)?.name ?? "—"}</b> · jamoa {jamoa.jamoa.ridesThisMonth} safar qildi</>}
+                  {jamoa.jamoa.turnNote ? (
+                    // 🎯 Boshliq/admin ONGLI belgilagan (2026-08-05, ega talabi: "hammaga
+                    // bilinishi kerak bugun shu uchun ball yig'ilmoqda deb") — bu HAR DOIM
+                    // avtomatik navbat matnidan USTUN, chunki inson qarori.
+                    <>🎯 Bugun ball <b>{jamoa.jamoa.members.find((m) => m.isNavbatchi)?.name ?? "—"}</b> uchun yig'ilmoqda — {jamoa.jamoa.turnNote}</>
+                  ) : jamoa.jamoa.isMine ? (
+                    <>🎯 <b>Bu oy NAVBAT SIZDA</b> — jamoa {jamoa.jamoa.ridesThisMonth} safar qildi, sizga <b>{jamoa.jamoa.navbatchiBall} ball</b></>
+                  ) : (
+                    <>Bu oy navbat: <b>{jamoa.jamoa.members.find((m) => m.isNavbatchi)?.name ?? "—"}</b> · jamoa {jamoa.jamoa.ridesThisMonth} safar qildi</>
+                  )}
                 </div>
                 <div className="oyk-jamoa-list">
                   {jamoa.jamoa.members.map((m) => (
                     <div key={m.memberId} className={`oyk-jamoa-row${m.isNavbatchi ? " is-turn" : ""}`}>
-                      <span className="oyk-jamoa-who">{m.isNavbatchi ? "🎯" : m.hadTurn ? "✓" : "•"} {m.name}{m.isLeader && <span className="oyk-jamoa-crown" title="Boshliq">👑</span>}</span>
+                      <span className="oyk-jamoa-who">{m.isNavbatchi ? "🎯" : m.hadTurn ? "✓" : "•"} {m.isTest && "🧪 "}{m.name}{m.isLeader && <span className="oyk-jamoa-crown" title="Boshliq">👑</span>}</span>
                       <span className="oyk-jamoa-rides">{m.ridesThisMonth} safar · {m.ballEarnedTotal} ball</span>
                       {jamoa.jamoa!.isLeader && !m.isLeader && (
                         <button type="button" className="oyk-jamoa-kick" disabled={jamoaBusy} title="Chiqarish" onClick={() => { void doGashtakKick(m.memberId); }}>✕</button>
@@ -2070,6 +2094,24 @@ Taksida yur, ball yig', sodiqlik kartasini ol. Davr oxirida jonli efirda mukofot
                 <button type="button" className="oyk-jamoa-btn" onClick={() => { haptic(); shareLink(jamoa.jamoa!.inviteLink, `🤝 «${jamoa.jamoa!.name}» gashtakiga qo'shiling — birga safar qilib navbat bilan ball yig'amiz!`); }}>
                   🔗 Havola ulashish
                 </button>
+
+                {/* 🎯 "Kimga ball yig'amiz" (2026-08-05, ega talabi): boshliq ONGLI belgilaydi,
+                    HAMMA a'zoga ko'rinadigan e'lon bo'lib chiqadi (asosiy banner). Avtomatik
+                    navbat DEFAULT bo'lib qolaveradi — bu shunchaki e'lon qilish imkoni. */}
+                <div className="oyk-gashtak-block">
+                  <div className="oyk-gashtak-label">🎯 Kimga ball yig'amiz</div>
+                  <select className="oyk-jamoa-inp" value={gashtakTurnTarget ?? ""} onChange={(e) => setGashtakTurnTarget(e.target.value ? Number(e.target.value) : null)}>
+                    <option value="">Odam tanlang…</option>
+                    {jamoa.jamoa.members.map((m) => (
+                      <option key={m.memberId} value={m.memberId}>{m.isTest && "🧪 "}{m.name}{m.isNavbatchi ? " (hozirgi navbat)" : ""}</option>
+                    ))}
+                  </select>
+                  <input className="oyk-jamoa-inp" value={gashtakTurnNote} onChange={(e) => setGashtakTurnNote(e.target.value)} placeholder="Nima uchun (ixtiyoriy) — masalan «karta uchun»" maxLength={120} />
+                  <button type="button" className="oyk-jamoa-btn" disabled={jamoaBusy || gashtakTurnTarget == null} onClick={() => { void doGashtakSetTurn(); }}>E'lon qilish</button>
+                  {jamoa.jamoa.turnNote && (
+                    <div className="oyk-note-violet">Joriy e'lon: {jamoa.jamoa.turnNote}</div>
+                  )}
+                </div>
 
                 <div className="oyk-gashtak-block">
                   <div className="oyk-gashtak-label">🔍 Telefon bilan qo'shish</div>

@@ -1,5 +1,38 @@
 # PROGRESS
 
+## 🟡 2026-08-05 (kechqurun) — GASHTAK: "kimga ball" boshliq hal qiladi + jonli sinov uchun sun'iy a'zolar — READY FOR VERIFICATION
+
+Ega uch narsa so'radi: (1) "kimga ball yozilishi ega doim hal qilishi kerak" — birinchi
+loyihada bu ADMIN panelga qo'yilgan edi, ega TUZATDI: **guruhni yaratgan odam (boshliq)**
+hal qiladi, miniappning o'zida, va tanlov **hamma a'zoga OCHIQ** ko'rinishi shart ("bugun
+shu uchun ball yig'ilmoqda"); (2) 3-4 fake odam bilan jonli testlash; (3) mavsum/hikoya
+savollari (javob kodsiz berildi — pastda).
+
+**Arxitektura qarori — sinov a'zolari `RideReward`ga TEGMAYDI.** Birinchi o'ylangan
+yondashuv (haqiqiy `Member`+`TelegramUser`+`RideReward` yaratish) tekshiruvda rad etildi:
+`RideReward` 23 ta boshqa faylda o'qiladi (cashback/corp/campaign/rollup/analytics...) —
+sun'iy qator real dashboard/hisobotni buzardi. Yechim: **manfiy `memberId`** (`Member.id`
+faqat musbat beradi — abadiy xavfsiz ajratuvchi chiziq), hech qanday jadvalga yozilmaydi,
+faqat `JamoaRecord.testNames` (ism) va `oyin:testrides:*` (safar soni, o'zi alohida
+AppState kaliti) da yashaydi. Navbat/ball/kick — HAMMASI haqiqiy kod (`assignTurn`,
+`applyRemoveMember`, `casJamoa`), faqat "kimning safari" manbai farq qiladi.
+
+**Yangi**: `setGashtakTurnByLeader`/`adminSetGashtakTurn` (bitta sof `applySetTurn` orqali,
+kick/disband naqshi) — `turns[oy]` ni ONGLI belgilaydi, `turnOverrides[oy]` ga HAMMAGA
+ko'rinadigan matn yozadi (audit-izoh emas, ijtimoiy e'lon). Ataylab bir-navbat-umrbod
+qo'riqini aylanib o'tadi — inson qarori + ochiq matn qo'riq o'rnini bosadi. `adminAddTestMember`/
+`adminSetTestRides`/`adminClearTestMembers` — admin panelda "🧪 Sinov a'zo qo'shish" bloki.
+Miniappda asosiy banner endi `turnNote` bo'lsa uni ko'rsatadi (hamma a'zoga).
+
+Savollarga javob (kod kerak emas): mavsum tugasa gashtakka **hech narsa bo'lmaydi** —
+`oyin:jamoa:`/`oyin:jamoamem:` "toza boshlash" ro'yxatida ataylab yo'q, guruhlar abadiy
+davom etadi. Hikoya yuklash gashtakka **aloqasi yo'q** — alohida shaxsiy ball manbai
+(`oyinStoryProofBall`, admin tasdig'idan keyin, mavsumda 3 tagacha).
+
+Tekshiruv: `typecheck 4/4` · `vitest 90/90` · `simGuards 68→74` · build ikkalasi yashil.
+Ochiq: DB'ga tegadigan uchidan-uchiga oqim lokal sinalmadi (Postgres yopiq) — ega o'zi
+boshliq sifatida miniappda sinaydi.
+
 ## 🟡 2026-08-05 — GASHTAK BOSHLIG'I: havola, qo'shish/chiqarish, admin nazorati — READY FOR VERIFICATION
 
 Ega talabi: gap-jamoa (endi UI'da "Gashtak") ga guruh boshlig'i tushunchasi qo'shildi
