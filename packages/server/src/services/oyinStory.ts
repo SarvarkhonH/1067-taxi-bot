@@ -1,14 +1,17 @@
-// 📸 HIKOYA-ISBOT — mijoz posterni hikoyasiga qo'yadi, havolasini yuboradi, admin tekshiradi,
-// tasdiqlangach ball tushadi (HIKOYA_POSTER_PLAN.md, ega talabi 2026-08-02).
+// 📸 HIKOYA-ISBOT — mijoz TAYYOR postelardan birini tanlaydi (statik rasm, `packages/miniapp/
+// public/posters/01.jpg…20.jpg` — ega bergan asl dizaynlar), hikoyasiga qo'yadi, havolasini
+// yuboradi, admin tekshiradi, tasdiqlangach ball tushadi (ega talabi 2026-08-02, soddalashtirish
+// 2026-08-05: avvalgi Canvas-generatsiya/shablon/QR/matn-o'rin-egasi tizimi BUTUNLAY OLIB
+// TASHLANDI — ega "oddiygina qilib qo'y" dedi, rasmlar allaqachon tayyor, hech narsa chizish
+// shart emas).
 //
-// Naqsh: sovrin-katalog bilan bir xil — AppState JSON, yangi Prisma model YO'Q.
-//   `oyin:story:<memberId>` = { items: [...] }   — bitta mijozning arizalari
-//   `oyin:postertext`       = { items: [...] }   — admin sozlagan poster matnlari
+// Naqsh: `oyin:story:<memberId>` = { items: [...] } — bitta mijozning arizalari (AppState JSON,
+// Prisma model yo'q).
 //
 // ⚠️ Ball BU YERDA berilmaydi. Ball `computeBallMap()` da jonli hisoblanadi (tasdiqlangan va
 // mavsum oynasidagi arizalar × knob) — boshqa hamma manba bilan bir xil. Shunda "grant yozildi-yu
 // ball ko'rinmadi" degan holat tug'ilmaydi.
-import { OYIN_STORY_SEASON_LIMIT, type OyinPosterTemplateKey, type OyinPosterText, type OyinStoryAdminRow, type OyinStoryItem, type OyinStorySubmitResult } from "@t1067/shared";
+import { OYIN_STORY_SEASON_LIMIT, type OyinStoryAdminRow, type OyinStoryItem, type OyinStorySubmitResult } from "@t1067/shared";
 import { prisma } from "../db";
 import { getSeason } from "./oyinSeason";
 
@@ -23,7 +26,6 @@ function normalizeStoryUrl(raw: string): string {
   } catch { return raw.trim().toLowerCase(); }
 }
 
-const TEXT_KEY = "oyin:postertext";
 const STORY_PREFIX = "oyin:story:";
 
 /** Mavsumda eng ko'pi shuncha tasdiqlangan isbot. Cheksiz bo'lsa bitta odam ballni yeb qo'yadi. */
@@ -39,8 +41,6 @@ const ALLOWED_HOSTS = ["instagram.com", "www.instagram.com", "t.me", "telegram.m
 // `STORY_SEASON_LIMIT`ning USTIGA qo'shiladigan qoida (ikkalasi ham bajarilishi kerak).
 export const STORY_COOLDOWN_HOURS = 72;
 
-const TEMPLATE_KEYS: OyinPosterTemplateKey[] = ["prize", "city", "citygift", "dissolve", "network", "road", "gift", "tickets", "phone"];
-
 /** 72 soatlik tanaffusdan necha soat qolgani (0 = tanaffus tugagan/umuman yo'q — birinchi ariza).
  *  Sof funksiya — DB'siz sinaladi (`simGuards.ts`). */
 export function storyCooldownHoursLeft(lastAtIso: string | undefined, nowMs: number): number {
@@ -52,29 +52,13 @@ export function storyCooldownHoursLeft(lastAtIso: string | undefined, nowMs: num
   return Math.max(1, Math.ceil(STORY_COOLDOWN_HOURS - hoursSince));
 }
 
-const SEED_TEXTS: OyinPosterText[] = [
-  // ⚠️ Bu matnlar POSTERGA chiqadi, ya'ni MIJOZ EKRANIDA ko'rinadi — sodiqlik dasturi tilida
-  // bo'lishi shart (S6, 2026-08-04). `{chipta}`/`{sovrin}` — SHABLON kalitlari, ular
-  // `fillPlaceholders` bilan bog'langan, shuning uchun o'zgarmaydi (kod identifikatori).
-  { id: "t1", text: "Menda {chipta} ta sodiqlik kartasi bor", active: true, templateKey: "prize" },
-  { id: "t2", text: "Sen ham qo'shil", active: true, templateKey: "prize" },
-  { id: "t3", text: "{sovrin} meniki bo'ladi", active: true, templateKey: "prize" },
-];
-
-// 🖼 8 ta yangi rasm-shablon (2026-08-05, ega yuborgan 20 ta dizayn tahlili — statik, raqamsiz
-// qism, `poster.ts`da chizuvchisi bor). `getPosterTexts()` bularni MAVJUD saqlangan ro'yxatga
-// (bo'sh bo'lmasa ham) id bo'yicha yo'q bo'lsa QO'SHADI — shu bilan eski 3 ta matn ustiga
-// tinch-tinch yangi shablonlar paydo bo'ladi, birortasi ham qayta yozilmaydi/yo'qolmaydi.
-const BUILTIN_TEMPLATES: OyinPosterText[] = [
-  { id: "tpl_city", text: "Kosonliklar allaqachon sodiqlik kartasi yig'yapti", active: true, templateKey: "city" },
-  { id: "tpl_citygift", text: "Koson uchun yangi sovrinlar o'yini boshlandi", active: true, templateKey: "citygift" },
-  { id: "tpl_dissolve", text: "Bu oy o'tkazib yuborma — keyingi oyga qolmasin", active: true, templateKey: "dissolve" },
-  { id: "tpl_network", text: "Do'stlarim yig'ishni boshladi", active: true, templateKey: "network" },
-  { id: "tpl_road", text: "Har safar maqsadga yaqinlashtiradi", active: true, templateKey: "road" },
-  { id: "tpl_gift", text: "Men o'yindaman — BirJoy sovrinlar dasturi", active: true, templateKey: "gift" },
-  { id: "tpl_tickets", text: "Birga yig'amiz — ko'proq do'st, ko'proq sodiqlik kartasi!", active: true, templateKey: "tickets" },
-  { id: "tpl_phone", text: "Bir tap bilan qo'shil — boshlash juda oson!", active: true, templateKey: "phone" },
-];
+// 🖼 20 ta tayyor rasm — `packages/miniapp/public/posters/01.jpg`…`20.jpg`. Fayl nomi ham,
+// soni ham QATTIQ KODLANGAN: bular ega bergan asl dizaynlar, admin panelda o'zgartirish yo'q
+// (shuning uchun "oddiygina" — hech qanday CRUD/matn/shablon boshqaruvi kerak emas).
+export const STORY_POSTER_COUNT = 20;
+export function storyPosterPaths(): string[] {
+  return Array.from({ length: STORY_POSTER_COUNT }, (_, i) => `/posters/${String(i + 1).padStart(2, "0")}.jpg`);
+}
 
 interface StoreShape<T> { items: T[] }
 
@@ -93,53 +77,6 @@ async function saveItems<T>(key: string, items: T[]): Promise<void> {
   await prisma.appState.upsert({ where: { key }, create: { key, value }, update: { value } });
 }
 
-// ── Poster matnlari (admin) ──────────────────────────────────────────────────────────────────
-/** Eski qatorlar `templateKey`siz saqlangan bo'lishi mumkin (2026-08-05'dan oldingi) — xavfsiz
- *  standart "prize" (sovrin-fotosi bilan, eski yagona shablon), noma'lum kalit ham shunga tushadi. */
-function normalizeTemplateKey(k: unknown): OyinPosterTemplateKey {
-  return typeof k === "string" && (TEMPLATE_KEYS as string[]).includes(k) ? (k as OyinPosterTemplateKey) : "prize";
-}
-
-export async function getPosterTexts(): Promise<OyinPosterText[]> {
-  const row = await prisma.appState.findUnique({ where: { key: TEXT_KEY } });
-  let items = parseItems<OyinPosterText>(row?.value).map((t) => ({ ...t, templateKey: normalizeTemplateKey(t.templateKey) }));
-  if (!items.length) items = SEED_TEXTS;
-  // Yangi 8 ta rasm-shablon — mavjud ro'yxatga id bo'yicha YO'Q bo'lganini QO'SHADI, borini
-  // TEGMAYDI (admin allaqachon o'chirgan/o'zgartirgan bo'lsa qayta tirilmasin).
-  const missing = BUILTIN_TEMPLATES.filter((b) => !items.some((t) => t.id === b.id));
-  if (missing.length || !row) {
-    items = [...items, ...missing];
-    await saveItems(TEXT_KEY, items).catch(() => undefined);
-  }
-  return items;
-}
-
-export async function adminUpsertPosterText(input: { id?: string; text: string; active?: boolean; templateKey?: string }): Promise<OyinPosterText[]> {
-  const items = await getPosterTexts();
-  const text = (input.text || "").trim().slice(0, 60);
-  if (!text) return items;
-  const templateKey = normalizeTemplateKey(input.templateKey);
-  const found = input.id ? items.find((t) => t.id === input.id) : undefined;
-  if (found) Object.assign(found, { text, active: input.active ?? found.active, templateKey });
-  else items.push({ id: `t${Date.now().toString(36)}`, text, active: true, templateKey });
-  await saveItems(TEXT_KEY, items);
-  return items;
-}
-
-export async function adminDeletePosterText(id: string): Promise<OyinPosterText[]> {
-  const items = (await getPosterTexts()).filter((t) => t.id !== id);
-  await saveItems(TEXT_KEY, items);
-  return items;
-}
-
-/** O'rin-egallarni almashtirish. Mijozga TAYYOR matnlar boradi — miniapp shablon bilan ovora bo'lmaydi. */
-export function fillPlaceholders(text: string, v: { ism: string; chipta: number; sovrin: string }): string {
-  return text
-    .replace(/\{ism\}/g, v.ism)
-    .replace(/\{chipta\}/g, String(v.chipta))
-    .replace(/\{sovrin\}/g, v.sovrin);
-}
-
 // ── Mijoz arizalari ──────────────────────────────────────────────────────────────────────────
 async function itemsOf(memberId: number): Promise<OyinStoryItem[]> {
   const row = await prisma.appState.findUnique({ where: { key: `${STORY_PREFIX}${memberId}` } });
@@ -154,11 +91,11 @@ function inSeasonItems(items: OyinStoryItem[], startMs: number, endMs: number): 
 }
 
 /** Mijoz ko'radigan holat (OyinStateResponse ichida). */
-export async function storyStateOf(memberId: number, ballEach: number, ctx: { ism: string; chipta: number; sovrin: string }): Promise<{
+export async function storyStateOf(memberId: number, ballEach: number): Promise<{
   approved: number; limit: number; pending: boolean; ballEach: number; lastRejectReason: string | null;
-  texts: { text: string; templateKey: OyinPosterTemplateKey }[];
+  posters: string[];
 }> {
-  const [season, items, texts] = await Promise.all([getSeason(), itemsOf(memberId), getPosterTexts()]);
+  const [season, items] = await Promise.all([getSeason(), itemsOf(memberId)]);
   const scoped = season.configured ? inSeasonItems(items, season.startMs as number, season.endMs as number) : [];
   const rejected = [...scoped].filter((i) => i.status === "rejected").sort((a, b) => Date.parse(b.at) - Date.parse(a.at))[0];
   return {
@@ -167,7 +104,7 @@ export async function storyStateOf(memberId: number, ballEach: number, ctx: { is
     pending: scoped.some((i) => i.status === "pending"),
     ballEach,
     lastRejectReason: rejected?.reason ?? null,
-    texts: texts.filter((t) => t.active).map((t) => ({ text: fillPlaceholders(t.text, ctx), templateKey: t.templateKey })),
+    posters: storyPosterPaths(),
   };
 }
 

@@ -771,24 +771,19 @@ export async function getOyinState(memberId: number): Promise<OyinStateResponse>
   // 📊 UY KARTASI uchun UMUMIY hisob — mijozning shaxsiy balli emas, butun mavsum bo'yicha.
   const capacityTotal = activeCatalog.reduce((n, p) => n + Math.max(0, p.limit), 0);
   const soldTotal = activeCatalog.reduce((n, p) => n + Math.min(p.limit, soldMapAll.get(p.key) ?? 0), 0);
-  const topPrizeName = [...activeCatalog].sort((a, b) => b.price - a.price)[0]?.name ?? "sovrin";
   // Maqsad: sovrin keyin o'chirilgan/yashirilgan bo'lsa null (hero avtomatik eng arzonga tushadi).
   const goalPrizeKey = goalRow && activeCatalog.some((p) => p.key === goalRow.value) ? goalRow.value : null;
 
   // ── 3-TO'LQIN — 2-to'lqin natijasiga bog'liq, lekin o'zaro bog'liq EMAS.
-  // 📸 Hikoya-poster holati. Matnlardagi {ism}/{chipta}/{sovrin} SERVERDA almashtiriladi —
-  // miniapp shablon bilan ovora bo'lmaydi va admin matnni istagancha o'zgartiraveradi.
+  // 📸 Hikoya-poster holati — 20 ta TAYYOR statik rasm-yo'l (`storyPosterPaths()`), matn/shablon
+  // yo'q (2026-08-05 soddalashtirish).
   const { storyStateOf } = await import("./oyinStory");
   const [referRideToday, storyState] = await Promise.all([
     // 🤝 Do'stlarim BUGUN safar qildimi (kunlik topshiriq uchun) — faqat o'z doirasi bo'yicha.
     active && refereeIds.length
       ? prisma.rideReward.count({ where: { memberId: { in: refereeIds }, createdAt: { gte: dayStart } } })
       : Promise.resolve(0),
-    storyStateOf(memberId, econ.oyinStoryProofBall ?? 0, {
-      ism: mine?.name ?? "Do'st",
-      chipta: ticketCount,
-      sovrin: topPrizeName,
-    }),
+    storyStateOf(memberId, econ.oyinStoryProofBall ?? 0),
   ]);
 
   // ── 🎯 BUGUNGI TOPSHIRIQ ────────────────────────────────────────────────────────────────

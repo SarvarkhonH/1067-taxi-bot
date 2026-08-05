@@ -2289,23 +2289,9 @@ export function createApiServer(opts: ApiOptions = {}) {
     }
     res.json(r);
   });
-  // 📸 Poster matnlari — sovrin-katalog bilan bir xil CRUD naqshi.
-  app.get("/api/admin/oyin/poster-texts", requireAdmin, async (_req, res) => {
-    const { getPosterTexts } = await import("../services/oyinStory");
-    res.json({ texts: await getPosterTexts() });
-  });
-  app.post("/api/admin/oyin/poster-texts", requireAdmin, requireOwner, async (req, res) => {
-    const b = req.body as { id?: string; text?: string; active?: boolean; templateKey?: string };
-    if (typeof b?.text !== "string" || !b.text.trim()) { res.status(400).json({ error: "text required" }); return; }
-    const { adminUpsertPosterText } = await import("../services/oyinStory");
-    res.json({ texts: await adminUpsertPosterText({ id: b.id, text: b.text, active: b.active, templateKey: b.templateKey }) });
-  });
-  app.post("/api/admin/oyin/poster-texts/delete", requireAdmin, requireOwner, async (req, res) => {
-    const b = req.body as { id?: string };
-    if (typeof b?.id !== "string") { res.status(400).json({ error: "id required" }); return; }
-    const { adminDeletePosterText } = await import("../services/oyinStory");
-    res.json({ texts: await adminDeletePosterText(b.id) });
-  });
+  // ⛔ /api/admin/oyin/poster-texts* OLIB TASHLANDI (2026-08-05) — story-poster endi 20 ta
+  // qattiq-kodlangan statik rasm (`packages/miniapp/public/posters/`), admin-boshqariladigan
+  // matn/shablon yo'q (ega: "oddiygina qilib qo'y").
   // 📅 Mavsum sanalari — admin kiritadi (ega talabi 2026-08-02). Sozlanmaguncha o'yin YOPIQ.
   app.get("/api/admin/oyin/season", requireAdmin, async (_req, res) => {
     const { getSeason } = await import("../services/oyinSeason");

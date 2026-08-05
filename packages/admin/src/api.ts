@@ -37,7 +37,6 @@ import type {
   OyinWinner,
   OyinFreezeState,
   OyinDrawExport,
-  OyinPosterText,
   OyinPrizeUpsertInput,
   OyinSeasonResetResult,
   OyinStoryAdminRow,
@@ -147,10 +146,6 @@ export const adminApi = {
   oyinStories: (all = false) => req<{ rows: OyinStoryAdminRow[] }>(`/api/admin/oyin/stories${all ? "?all=1" : ""}`),
   reviewOyinStory: (memberId: number, storyId: string, approve: boolean, reason?: string) =>
     postJson<{ ok: boolean }>("/api/admin/oyin/stories/review", { memberId, storyId, approve, reason }),
-  oyinPosterTexts: () => req<{ texts: OyinPosterText[] }>("/api/admin/oyin/poster-texts"),
-  saveOyinPosterText: (text: string, id?: string, active?: boolean, templateKey?: string) =>
-    postJson<{ texts: OyinPosterText[] }>("/api/admin/oyin/poster-texts", { text, id, active, templateKey }),
-  deleteOyinPosterText: (id: string) => postJson<{ texts: OyinPosterText[] }>("/api/admin/oyin/poster-texts/delete", { id }),
   oyinSeason: () => req<OyinSeasonView>("/api/admin/oyin/season"),
   setOyinSeason: (startIso: string, endIso: string, label: string | null) =>
     postJson<OyinSeasonView>("/api/admin/oyin/season", { startIso, endIso, label }),

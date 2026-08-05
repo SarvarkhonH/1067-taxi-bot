@@ -5567,3 +5567,50 @@ lekin endi KAFOLAT emas — ko'rinadigan rasm kafolat. Isbot: typecheck toza, bu
 brauzerda (`#oyindemo`) generatsiya→preview→yopish siklini to'liq sinadim (rasm chiqdi, "Yopish"
 tugmasi tozaladi, konsolda yangi xato yo'q). **Ega hali telefonda qayta sinamagan** — shu
 tuzatish bilan.
+
+### 2026-08-05 (tun) — 🖼 STORY-POSTER: to'liq soddalashtirish — 20 ta ASL statik rasm, Canvas/QR/shablon YO'Q
+
+**Holat: ready for verification — VPS db push shart EMAS (Prisma o'zgarishi yo'q); ega hali
+telefonda ko'rmagan, PASTDA 1 ta HAL QILINMAGAN savol bor (chipta so'zi)**
+
+Ega jonli sinovda 2 ta muammo topdi, so'ng aniq buyruq berdi: "men bergan posterlar yo'q,
+QR shart emas, ularni doim oddiy 20 qilib serverga qo'y, xohlagani tanlab yuklab olib post
+qilib link shu yerga yuklasib bo'ldi — hamma qiyin kodlarni o'chirib oddiygina qilib qo'y."
+Kechagi 1-bosqich (9 ta Canvas-chizilgan shablon) BUTUNLAY BEKOR QILINDI — ega o'zining ASL
+20 ta dizaynini xohlagan, mening taxminiy chizmalarim emas.
+
+- **Rasmlar**: ega `Desktop/posters/`ga BITTA grid-rasm qo'ydi (5×4, 20 karta, 1024×1536,
+  ChatGPT bilan yaratilgan). Python+PIL+numpy bilan avtomatik kesildi: har qatorning/ustunning
+  piksel-varianti orqali gutter chiziqlari topildi (variance-based edge detection — qo'lda
+  taxminiy o'lchash EMAS), 20 ta aniq chegarali JPG hosil bo'ldi (~26 KB/dona, jami 528 KB),
+  har biri tekshirib chiqildi (bir nechtasi to'g'ridan-to'g'ri ko'rib tasdiqlandi — bleed/
+  kesish xatosi yo'q). `packages/miniapp/public/posters/01.jpg`…`20.jpg`.
+- **Butunlay olib tashlandi**: `poster.ts` (Canvas chizuvchi, 9 shablon) O'CHIRILDI. `OyinPosterText`/
+  `OyinPosterTemplateKey`/`OyinPosterTemplateChoice`/`fillPlaceholders`/`SEED_TEXTS`/
+  `BUILTIN_TEMPLATES`/`getPosterTexts`/`adminUpsertPosterText`/`adminDeletePosterText` —
+  BARCHASI o'chirildi (shared/oyin.ts, oyinStory.ts, server.ts routes, admin App.tsx/api.ts).
+  QR-kod, mijoz ismi, sarlavha-matn kompozitsiyasi — HAMMASI yo'q.
+- **Yangi, oddiy oqim**: `storyStateOf()` endi shunchaki `storyPosterPaths()` qaytaradi (qattiq
+  kodlangan `/posters/01.jpg`…`20.jpg` ro'yxati — DB'siz, hisoblashsiz). Miniapp: 5-ustunli
+  rasm-galereya (`oyk-poster-grid`/`oyk-poster-thumb`) — bosilganda HAQIQIY statik URL
+  ko'rsatiladi (avvalgi `blob:` EMAS — shuning uchun "qayerda u" muammosi ham tuzaladi: `blob:`
+  vaqtinchalik va tushunarsiz edi, `/posters/NN.jpg` esa doimiy, uzoq bosib saqlash to'g'ri
+  ishlaydi). 72-soat tanaffus, havola-yuborish, admin moderatsiya — TEGILMADI.
+- 72-soatlik `blob:` havolasi haqida ega savol berdi ("xavfsizlikka zararmi?") — javob berildi:
+  YO'Q (vaqtinchalik, faqat o'sha tab uchun, boshqa hech kimga ochilmaydi), lekin shu bilan
+  birga aynan shu muammoning ILDIZI ekani tan olindi va endi statik-rasm yechimi bilan
+  BUTUNLAY yo'qoladi.
+- Isbot: `pnpm -r typecheck` (4/4) toza, `simGuards` yashil (72-soat bo'limi tegilmadi, hamon
+  o'tadi), build (shared/admin/miniapp) yashil, `dist/posters/` da 20 ta fayl borligi
+  tasdiqlandi, brauzerda (`#oyindemo`) 20/20 thumbnail to'g'ri fayl bilan render bo'lishi
+  (`fetch` orqali 200 OK + to'g'ri hajm tasdiqlandi), bosilganda to'g'ri preview ochilishi,
+  "Yopish" tozalashi, konsolda yangi xato yo'qligi tekshirildi.
+- ⛔ **HAL QILINMAGAN — ega tasdig'i kerak**: 20 rasmning **7 tasida** (01, 03, 06, 09, 11, 13,
+  17 — hammasini ko'rib chiqib aniqlandi) "CHIPTA" so'zi rasmga BEVOSITA CHIZILGAN (sarlavha
+  matnida VA/YOKI karta-illyustratsiyasidagi "BIRJOY CHIPTA" yozuvida) — bu ILGARIGI yuridik
+  qoidaga ("lotereya"/"tiraj"/"chipta"/"yutuq" emas — "sodiqlik kartasi"/"mukofot") TO'G'RIDAN
+  TO'G'RI ZID. Matn PIKSELGA CHIZILGAN — kodda o'zgartirib bo'lmaydi, faqat: (a) ega rasmlarni
+  qayta generatsiya qilsin (to'g'ri so'z bilan), yoki (b) men "CHIPTA" ustiga oq/mos fon +
+  "SODIQLIK KARTASI" yozib QOPLASHGA urinaman (natija original-generatsiyadek silliq
+  bo'lmasligi mumkin), yoki (c) ega ONGLI ravishda shu 7 tasini hozircha shu holda qoldirishga
+  qaror qiladi. **Hech biri tanlanmagan — push qilishdan oldin ega javobi kerak.**

@@ -10,8 +10,8 @@
 // soxta QR-kvadrat — real QR-generatsiya (referralQrService) B1-B5 doirasida qurilmagan, shuning
 // uchun olib tashlandi (ishlamaydigan grafika ko'rsatish — yolg'on).
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
-import { OYIN_FINAL_LOCK_MS, oyinHintOf, type OyinActivityAction, type OyinActivityResponse, type OyinGashtakSearchHit, type OyinJamoamResponse, type OyinJamoaResult, type OyinJamoaView, type OyinMyTicketsResponse, type OyinPosterTemplateKey, type OyinPrizeView, type OyinSeasonClientView, type OyinStateResponse, type OyinVitrinaResponse } from "@t1067/shared";
-import { api, apiUrl } from "./api";
+import { OYIN_FINAL_LOCK_MS, oyinHintOf, type OyinActivityAction, type OyinActivityResponse, type OyinGashtakSearchHit, type OyinJamoamResponse, type OyinJamoaResult, type OyinJamoaView, type OyinMyTicketsResponse, type OyinPrizeView, type OyinSeasonClientView, type OyinStateResponse, type OyinVitrinaResponse } from "@t1067/shared";
+import { api } from "./api";
 import { addToHomeScreen, copyText, haptic, homeScreenStatus, inviteLandingUrl, onHomeScreenAdded, shareLink, shareStory } from "./telegram";
 import "./design/feat/oyk.css"; // bu ekran ochilgandagina yuklanadi (kritik yo'lda emas)
 
@@ -25,12 +25,6 @@ function obSlides(h: OyinStateResponse["hints"]): { icon: string; text: string }
     { icon: "🎁", text: "Oy oxiri — jonli mukofot kuni. Real mukofotlar!" },
   ];
 }
-// 🖼 Rasm-shablon galereyasi (poster.ts'dagi 9 chizuvchiga mos) — chip ustida kichik ko'rsatkich,
-// to'liq fidelity-preview EMAS (canvas-thumbnail har ochilishda 9 marta chizish — ortiqcha xarajat,
-// haqiqiy poster baribir "⬇️ Yuklab olish"da bir marta chiziladi).
-const TEMPLATE_ICON: Record<OyinPosterTemplateKey, string> = {
-  prize: "🎁", city: "🌃", citygift: "🌆", dissolve: "🎫", network: "🤝", road: "🛣", gift: "🎉", tickets: "🎟", phone: "📱",
-};
 const OB_SEEN_KEY = "oyk_onboard_seen";
 const START_TAB_KEY = "oyk_start_tab"; // uy-hero'dagi "Sovrinlarni ko'rish" shu orqali vitrina'ga ochadi
 // Qulf oynasi SERVER bilan BITTA manbadan. Avval mustaqil `48 * 3600_000` turardi: ega
@@ -470,16 +464,13 @@ export function OyinView({ onTaxi, joinCode }: { onTaxi?: () => void; joinCode?:
   const markBadPhoto = useCallback((key: string) => setBadPhoto((s) => (s.has(key) ? s : new Set(s).add(key))), []);
   const [toast, setToast] = useState<string | null>(null);
   const [thanked, setThanked] = useState<Set<number>>(new Set());
-  const [posterText, setPosterText] = useState("");
-  const [posterTemplateKey, setPosterTemplateKey] = useState<OyinPosterTemplateKey>("prize");
-  const [posterName, setPosterName] = useState("");
   const [storyUrl, setStoryUrl] = useState("");
-  // 🖼 Telegram WebView (ayniqsa iOS)'da `<a download>` KO'PINCHA HECH NARSA QILMAYDI — tugma
-  // "tayyor" deydi, lekin fayl hech qayerda ko'rinmaydi (ega 2026-08-05 xabar berdi). Shuning
-  // uchun endi generatsiyadan keyin rasm EKRANDA ko'rsatiladi — mijoz uzoq bosib "Rasmni
-  // saqlash"ni tanlaydi (mobil brauzerlarning tabiiy, 100% ishlaydigan usuli). Avtomatik
-  // yuklab-olish HAM sinaladi (ba'zi qurilmada ishlaydi) — kafolat esa shu ko'rinadigan rasm.
-  const [posterPreviewUrl, setPosterPreviewUrl] = useState<string | null>(null);
+  // 🖼 2026-08-05: dinamik Canvas-generatsiya (matn+shablon+QR) BEKOR QILINDI — ega "oddiygina
+  // qilib qo'y" dedi, 20 ta TAYYOR rasm (`state.story.posters`, statik fayl) bor, hech narsa
+  // chizilmaydi. Mijoz galereyadan birini tanlaydi (`selectedPoster` = o'sha rasmning haqiqiy
+  // URL'i, `blob:` EMAS — shuning uchun uzoq bosib saqlash Telegram WebView'da ham to'g'ri
+  // ishlaydi, avvalgi `blob:` versiyasi tushunarsiz vaqtinchalik havola ko'rsatgan edi).
+  const [selectedPoster, setSelectedPoster] = useState<string | null>(null);
   const [onboard, setOnboard] = useState<number | null>(() => {
     try { return localStorage.getItem(OB_SEEN_KEY) ? null : 0; } catch { return 0; }
   });
@@ -876,49 +867,10 @@ export function OyinView({ onTaxi, joinCode }: { onTaxi?: () => void; joinCode?:
     }
   }, [showToast]);
 
-  // 📸 Poster: rasm ham, QR ham O'Z domenimizdan olinadi — aks holda canvas "iflos" bo'lib
-  // `toBlob` ishlamaydi va poster saqlanmaydi.
-  const makePoster = useCallback(async () => {
-    if (posterBusy) return;
-    setPosterBusy(true);
-    try {
-      const [{ renderPoster, downloadBlob }, ref] = await Promise.all([
-        import("./design/poster"),
-        api.referral().catch(() => null),
-      ]);
-      const top = [...(vitrina?.prizes ?? [])].sort((a, b) => b.price - a.price)[0];
-      const code = ref?.link.match(/start=ref_([A-Za-z0-9_-]+)/)?.[1] ?? null;
-      const endIso = state?.season.endIso ?? null;
-      const drawDate = uzDate(endIso);
-      const blob = await renderPoster({
-        templateKey: posterTemplateKey,
-        headline: posterText.trim() || state?.story.texts[0]?.text || "Men ham qatnashyapman",
-        name: posterName,
-        prizeName: top?.name ?? "Mukofot",
-        prizePhotoUrl: top?.photoUrl ? apiUrl(`/api/oyin/prizephoto?key=${encodeURIComponent(top.key)}`) : null,
-        prizeIcon: top?.icon ?? "🎁",
-        qrUrl: code ? apiUrl(`/api/oyin/qr?code=${encodeURIComponent(code)}`) : null,
-        drawDate,
-      });
-      if (!blob) { showToast("Posterni yasab bo'lmadi"); return; }
-      // Avtomatik yuklab-olishni SINAYMIZ (ba'zi qurilma/brauzerda ishlaydi) — lekin bunga
-      // TAYANMAYMIZ: Telegram WebView'da (ayniqsa iOS) bu ko'pincha JIM ishlamaydi ("tayyor"
-      // toast chiqadi-yu, fayl hech qayerda ko'rinmaydi — ega 2026-08-05 topilmasi).
-      downloadBlob(blob, "birjoy-poster.png");
-      setPosterPreviewUrl(URL.createObjectURL(blob));
-      showToast("Poster tayyor — pastda ko'ring", 3400);
-    } catch {
-      showToast("Posterni yasab bo'lmadi — qayta urinib ko'ring");
-    } finally {
-      setPosterBusy(false);
-    }
-  }, [posterBusy, vitrina, state, posterText, posterTemplateKey, posterName, showToast]);
-
-  // Ekrandan yopilganda obyekt-URL xotiradan tozalanadi (memory leak yo'q).
-  const closePosterPreview = useCallback(() => {
-    setPosterPreviewUrl((old) => { if (old) URL.revokeObjectURL(old); return null; });
-  }, []);
-  useEffect(() => () => { if (posterPreviewUrl) URL.revokeObjectURL(posterPreviewUrl); }, [posterPreviewUrl]);
+  // 🖼 Rasm tanlash — HECH NARSA generatsiya qilinmaydi, shunchaki tayyor statik faylning
+  // haqiqiy URL'i ko'rsatiladi (uzoq bosib saqlash uchun).
+  const pickPoster = useCallback((url: string) => { haptic(); setSelectedPoster(url); }, []);
+  const closePosterPreview = useCallback(() => setSelectedPoster(null), []);
 
   const submitStory = useCallback(async () => {
     if (posterBusy) return;
@@ -1934,40 +1886,23 @@ Taksida yur, ball yig', sodiqlik kartasini ol. Davr oxirida jonli efirda mukofot
                     {state.story.lastRejectReason && (
                       <div className="oyk-poster-reject">⛔ Oxirgi urinish rad etildi: {state.story.lastRejectReason}</div>
                     )}
-                    {state.story.texts.length > 0 && (
-                      <div className="oyk-poster-texts">
-                        {state.story.texts.map((t) => (
-                          <button
-                            key={t.text + t.templateKey} type="button"
-                            className={`oyk-poster-chip${posterText === t.text && posterTemplateKey === t.templateKey ? " is-on" : ""}`}
-                            onClick={() => { haptic(); setPosterText(t.text); setPosterTemplateKey(t.templateKey); }}
-                          >
-                            <span className="oyk-poster-chip-icon">{TEMPLATE_ICON[t.templateKey] ?? "🖼"}</span>
-                            {t.text}
-                          </button>
-                        ))}
-                      </div>
-                    )}
-                    <input
-                      className="oyk-poster-input" type="text" maxLength={40}
-                      value={posterText} onChange={(e) => setPosterText(e.target.value)}
-                      placeholder="Yoki o'z matningizni yozing"
-                    />
-                    <input
-                      className="oyk-poster-input" type="text" maxLength={24}
-                      value={posterName} onChange={(e) => setPosterName(e.target.value)}
-                      placeholder="Ismingiz (ixtiyoriy)"
-                    />
-                    <button type="button" className="oyk-poster-btn" disabled={posterBusy} onClick={() => void makePoster()}>
-                      {posterBusy ? "⏳ Tayyorlanmoqda…" : "⬇️ Posterni yuklab olish"}
-                    </button>
-                    {/* 🖼 2026-08-05: Telegram WebView'da avtomatik yuklab-olish ko'pincha JIM
-                        ishlamaydi — rasm HAR DOIM shu yerda ko'rinadi, mijoz uzoq bosib
-                        "Rasmni saqlash"ni tanlaydi (100% ishonchli, brauzer-tabiiy usul). */}
-                    {posterPreviewUrl && (
+                    {/* 🖼 2026-08-05: 20 ta TAYYOR statik rasm (ega bergan asl dizaynlar) —
+                        hech narsa generatsiya qilinmaydi, shunchaki tanlanadi va ko'rsatiladi. */}
+                    <div className="oyk-poster-grid">
+                      {state.story.posters.map((url) => (
+                        <button
+                          key={url} type="button"
+                          className={`oyk-poster-thumb${selectedPoster === url ? " is-on" : ""}`}
+                          onClick={() => pickPoster(url)}
+                        >
+                          <img src={url} alt="" loading="lazy" />
+                        </button>
+                      ))}
+                    </div>
+                    {selectedPoster && (
                       <div className="oyk-poster-preview">
-                        <img src={posterPreviewUrl} alt="Poster" className="oyk-poster-preview-img" />
-                        <div className="oyk-poster-preview-hint">👆 Rasmni bosib turing → "Rasmni saqlash"</div>
+                        <img src={selectedPoster} alt="Poster" className="oyk-poster-preview-img" />
+                        <div className="oyk-poster-preview-hint">👆 Rasmni bosib turing → "Rasmni saqlash", so'ng hikoyangizga qo'ying</div>
                         <button type="button" className="oyk-poster-chip" onClick={closePosterPreview}>Yopish</button>
                       </div>
                     )}

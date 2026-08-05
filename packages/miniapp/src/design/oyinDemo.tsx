@@ -28,18 +28,8 @@ const MOCK_STATE: OyinStateResponse = {
   season: { configured: true, phase: "active", label: "Avgust", startIso: "2026-08-01T00:00:00+05:00", endIso: "2026-09-15T00:00:00+05:00" },
   story: {
     approved: 1, limit: 3, pending: false, ballEach: 100, lastRejectReason: null,
-    // 🖼 9 ta rasm-shablon (2026-08-05) — hammasi bittadan, real render/gallereya QA'si uchun.
-    texts: [
-      { text: "Menda 2 ta sodiqlik kartasi bor", templateKey: "prize" },
-      { text: "Kosonliklar allaqachon sodiqlik kartasi yig'yapti", templateKey: "city" },
-      { text: "Koson uchun yangi sovrinlar o'yini boshlandi", templateKey: "citygift" },
-      { text: "Bu oy o'tkazib yuborma — keyingi oyga qolmasin", templateKey: "dissolve" },
-      { text: "Do'stlarim yig'ishni boshladi", templateKey: "network" },
-      { text: "Har safar maqsadga yaqinlashtiradi", templateKey: "road" },
-      { text: "Men o'yindaman — BirJoy sovrinlar dasturi", templateKey: "gift" },
-      { text: "Birga yig'amiz — ko'proq do'st, ko'proq sodiqlik kartasi!", templateKey: "tickets" },
-      { text: "Bir tap bilan qo'shil — boshlash juda oson!", templateKey: "phone" },
-    ],
+    // 🖼 2026-08-05: 20 ta TAYYOR statik rasm (ega bergan asl dizaynlar).
+    posters: Array.from({ length: 20 }, (_, i) => `/posters/${String(i + 1).padStart(2, "0")}.jpg`),
   },
   ticketCount: 2,
   quest: { key: "invite", icon: "🎯", title: "Sovrinni ulashing", hint: "Do'stlaringizga ulashing", ball: 20, done: false },
