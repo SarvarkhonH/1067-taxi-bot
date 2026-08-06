@@ -400,7 +400,7 @@ export const adminApi = {
   staffSessionSet: (p: Record<string, unknown>) => postJson<{ ok: boolean; error?: string; amountEarned?: number }>("/api/admin/staff/session", p),
   staffOrgCreate: (name: string, ownerTelegramId: string) => postJson<{ ok: boolean; id?: number; error?: string }>("/api/admin/staff/org", { name, ownerTelegramId }),
   staffOrgSave: (id: number, patch: Record<string, unknown>) => postJson<{ ok: boolean; error?: string }>(`/api/admin/staff/org/${id}`, patch),
-  staffCalendarSet: (orgId: number, date: string, kind: string | null) => postJson<{ ok: boolean; error?: string }>("/api/admin/staff/calendar", { orgId, date, kind }),
+  staffCalendarSet: (orgId: number, date: string, kind: string | null) => postJson<{ ok: boolean; error?: string; recomputed?: number; skippedConfirmed?: number }>("/api/admin/staff/calendar", { orgId, date, kind }),
   staffTemplateAdd: (orgId: number, name: string, start: string, end: string) => postJson<{ ok: boolean; error?: string }>("/api/admin/staff/template", { orgId, action: "add", name, start, end }),
   staffTemplateRemove: (orgId: number, name: string) => postJson<{ ok: boolean; error?: string }>("/api/admin/staff/template", { orgId, action: "remove", name }),
   staffAuditLog: (orgId: number) => req<{ entries: import("./jamoa").AuditEntry[] }>(`/api/admin/staff/audit-log?orgId=${orgId}`),

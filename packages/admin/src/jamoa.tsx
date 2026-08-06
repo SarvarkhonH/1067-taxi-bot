@@ -726,8 +726,9 @@ function OrgSettings({ orgs, onChanged, flash }: { orgs: OrgRow[]; onChanged: ()
     let next = order[0] ?? null;
     // defaultga teng override saqlanmasin
     if (next === defaultKind) next = order[1] ?? null;
-    const r = await adminApi.staffCalendarSet(org.id, date, next).catch(() => ({ ok: false }));
+    const r = await adminApi.staffCalendarSet(org.id, date, next).catch(() => ({ ok: false } as { ok: boolean; skippedConfirmed?: number }));
     if (!r.ok) { flash("❌ Saqlanmadi"); return; }
+    flash(r.skippedConfirmed ? `✅ Saqlandi (${r.skippedConfirmed} ta tasdiqlangan kun o'zgartirilmadi — kun-tuzatishdan foydalaning)` : "✅ Saqlandi");
     onChanged();
   };
 
