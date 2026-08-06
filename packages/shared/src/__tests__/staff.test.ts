@@ -222,6 +222,39 @@ describe("computeDayPay — overtime policy", () => {
     const hourly = (111_111 * 60) / 480;
     expect(r.amountEarned).toBe(111_111 + Math.round(2 * hourly * 1.5));
   });
+
+  // Simmetrik erta-kelish overtime (ega qarori 2026-08-06: "hamma xodimni har
+  // daqiqasi uchun qo'shimcha to'lanishi kerak" — Elbek voqeasi). Off rejimda
+  // yuqoridagi "no silent overtime" test o'zgarmagan (§136) — bu FAQAT avto rejimda.
+  it("avto: EARLY arrival (before shiftStart) also pays overtime, symmetric to late", () => {
+    const r = computeDayPay(D({ overtimeMode: "avto" }), { ...JUL, dayStatus: "ishladi", checkInMin: hhmmToMin("07:30"), checkOutMin: hhmmToMin("18:00") });
+    expect(r.minutesWorked).toBe(480); // asosiy kun o'zgarmagan — kafolatlangan
+    expect(r.overtimeMin).toBe(90); // 07:30-09:00 = 90 daq erta
+    const hourly = (111_111 * 60) / 480;
+    expect(r.amountEarned).toBe(111_111 + Math.round((90 / 60) * hourly * 1.5));
+  });
+  it("avto: early arrival + late leave — BOTH sides pay overtime (contrast with off-mode §136)", () => {
+    const r = computeDayPay(D({ overtimeMode: "avto" }), { ...JUL, dayStatus: "ishladi", checkInMin: hhmmToMin("07:30"), checkOutMin: hhmmToMin("21:00") });
+    expect(r.minutesWorked).toBe(480);
+    expect(r.overtimeMin).toBe(270); // 90 erta + 180 kech
+    const hourly = (111_111 * 60) / 480;
+    expect(r.amountEarned).toBe(111_111 + Math.round((270 / 60) * hourly * 1.5));
+    expect(r.amountEarned).toBeGreaterThan(111_111); // off-mode'dagi §136 testidan farqli — endi OSHADI
+  });
+  it("avto: arriving right at shiftStart earns zero early-overtime (not off-by-one)", () => {
+    const r = computeDayPay(D({ overtimeMode: "avto" }), { ...JUL, dayStatus: "ishladi", checkInMin: hhmmToMin("09:00"), checkOutMin: hhmmToMin("18:00") });
+    expect(r.overtimeMin).toBe(0);
+    expect(r.amountEarned).toBe(111_111);
+  });
+  it("avto: absurdly-early check-in is capped at 4h — no unbounded 'overtime farming' (tekshiruv topgan)", () => {
+    const r = computeDayPay(D({ overtimeMode: "avto" }), { ...JUL, dayStatus: "ishladi", checkInMin: hhmmToMin("03:00"), checkOutMin: hhmmToMin("18:00") });
+    expect(r.overtimeMin).toBe(240); // 6 soat erta bo'lsa ham, 4 soatdan oshmaydi
+  });
+  it("avto: a zero-work session (checked out before shift even started) still caps early-OT sanely", () => {
+    const r = computeDayPay(D({ overtimeMode: "avto" }), { ...JUL, dayStatus: "ishladi", checkInMin: hhmmToMin("07:00"), checkOutMin: hhmmToMin("07:05") });
+    expect(r.minutesWorked).toBe(0); // hech qanday asosiy ish yo'q
+    expect(r.overtimeMin).toBe(5); // faqat haqiqatda "u yerda bo'lgan" 5 daq
+  });
 });
 
 describe("resolveStaffPolicy — org ← employee ← day hierarchy", () => {

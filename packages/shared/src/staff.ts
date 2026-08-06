@@ -234,11 +234,23 @@ export function computeDayPay(policy: StaffDayPolicy, day: StaffDayInput): Staff
 
   let overtimeMin = 0;
   if (policy.overtimeMode === "qolda") {
+    // Ega bitta sonni qo'lda kiritadi — erta+kech birgalikda tasdiqlangan qo'shimcha daqiqa.
     overtimeMin = Math.max(0, Math.floor(day.approvedOvertimeMin ?? 0));
   } else if (policy.overtimeMode === "avto") {
-    // From when they were ACTUALLY there past shift end — an evening-only
-    // check-in must not earn overtime for the empty hours before arrival.
-    overtimeMin = roundTo(Math.max(0, checkOut - Math.max(shiftEnd, checkIn)), policy.roundMin);
+    // Simmetrik qoida (ega 2026-08-06: "hamma xodimni har daqiqasi uchun qo'shimcha
+    // to'lanishi kerak"): smenadan TASHQARIDAGI har daqiqa — erta kelgan (shiftStart'dan
+    // oldin) VA kech ketgan (shiftEnd'dan keyin) — bir xil overtime formulasi bilan
+    // to'lanadi. Kam ishlash (kech kelish/erta ketish) bunga aloqasiz — u `worked`/`base`
+    // orqali proporsional KAMAYTIRISH bilan alohida hisoblanadi (yuqorida, o'zgarmagan).
+    // Sanoat-cheklov (tekshiruv topgan): xodim tasodifan (yoki suiste'mol qilib) juda
+    // erta "Keldim" bossa, cheklovsiz overtime "farming" xavfi bor edi — hech qanday
+    // fizik-borlik tekshiruvi yo'q. Har tomon (erta/kech) alohida bitta smenaga oqilona
+    // chegara bilan cheklanadi — "qolda" rejimdagi qo'lda-kiritish 0-720 chegarasi bilan
+    // bir xil ruhda (staffAdminSessionSet).
+    const EARLY_LATE_CAP_MIN = 240; // 4 soat — bir tomonga oqilona maksimal overtime
+    const lateMin = Math.min(EARLY_LATE_CAP_MIN, Math.max(0, checkOut - Math.max(shiftEnd, checkIn)));
+    const earlyMin = Math.min(EARLY_LATE_CAP_MIN, Math.max(0, Math.min(shiftStart, checkOut) - checkIn));
+    overtimeMin = roundTo(lateMin + earlyMin, policy.roundMin);
   }
   const overtimePay = Math.round((overtimeMin / 60) * hourly * policy.overtimeMult);
 
