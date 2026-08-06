@@ -108,7 +108,11 @@ interface AppStateRow { key: string; value: string }
 // Eski chiptalarda `gno` yo'q — o'sha holda `no` ko'rsatiladi (moslik).
 // `test` — ega/admin sinov chiptasi: butun oqim AYNAN mijoznikidek yuriladi, lekin `drawExport`
 // uni chiqarib tashlaydi va u mijozlarning sovrin-o'rinlarini YEMAYDI (alohida hisoblagich).
-interface TicketRecord { prizeKey: OyinPrizeKey; no: number; gno?: number; priceAtPurchase: number; ts: string; test?: boolean }
+// `result` — 2026-08-06 (ega talabi): g'olib bayonnomaga yozilgach, o'sha sovrindagi BOSHQA
+// barcha ishtirokchi kartalar ham "yutuqsiz" deb shu yerga YOZILADI (`adminRecordWinner`).
+// Faqat admin+Telegram kanal ko'radi — mijoz ilovasida (`OyinMyTicket`) HECH NARSA
+// o'zgarmaydi (ega qarori, ataylab qurilmagan).
+interface TicketRecord { prizeKey: OyinPrizeKey; no: number; gno?: number; priceAtPurchase: number; ts: string; test?: boolean; result?: "won" | "lost" }
 
 // ⚠️ VALIDATSIYA, sof `as` o'girish EMAS. Avval JSON massiv to'g'ridan-to'g'ri `TicketRecord[]`
 // deb e'lon qilinardi — tiplar YOLG'ON edi va bitta buzuq qator butun iqtisodni chalkashtirardi:
@@ -143,6 +147,9 @@ function parseTickets(raw: string | undefined): TicketRecord[] {
         // ⚠️ FAQAT qat'iy `true` test hisoblanadi. `"false"`/`0`/`"1"` kabi qiymatlar test
         // BO'LMAYDI — aks holda buzuq qator chiptani jimgina tirajdan chiqarib tashlardi.
         ...(t.test === true ? { test: true as const } : {}),
+        // Faqat aniq "won"/"lost" qabul qilinadi — boshqa (buzuq) qiymat "belgilanmagan" deb
+        // o'qiladi, mijozga hech qanday soxta natija ko'rsatilmasin.
+        ...(t.result === "won" || t.result === "lost" ? { result: t.result } : {}),
       });
     }
     return out;
@@ -1723,7 +1730,13 @@ export async function getJamoam(memberId: number): Promise<OyinJamoamResponse> {
       const rides = ridesByMember.get(friendId) ?? [];
       const todayCount = rides.filter((d) => tashkentDayKey(d) === today).length;
       const gainToday = todayCount * (econ.oyinReferRideBall ?? 0);
-      totalBall += (econ.oyinReferJoinBall ?? 0) + (r.referrerPaidAt ? (econ.oyinReferFirstRideBall ?? 0) : 0);
+      const oneTimeFromFriend = (econ.oyinReferJoinBall ?? 0) + (r.referrerPaidAt ? (econ.oyinReferFirstRideBall ?? 0) : 0);
+      // Shu do'stdan mavsum davomida (yuqoridagi `ridesSince` oynasi) kelgan JAMI ball — bir
+      // martalik ulanish/birinchi-safar + shu oynadagi har safar. `computeBallMap` bo'yicha
+      // per-do'st taqsimot yo'q, shuning uchun aggregat `totalBall` bilan bir xil (14 kun/mavsum)
+      // oynadan hisoblanadi — izchillik uchun ataylab shunday.
+      const totalBallFromMe = oneTimeFromFriend + rides.length * (econ.oyinReferRideBall ?? 0);
+      totalBall += oneTimeFromFriend;
       const lastRide = rides.length ? new Date(Math.max(...rides.map((d) => d.getTime()))) : null;
       let status: OyinFriendRow["status"];
       let daysSilent = 0;
@@ -1734,7 +1747,8 @@ export async function getJamoam(memberId: number): Promise<OyinJamoamResponse> {
         daysSilent = lastRide ? Math.floor((Date.now() - lastRide.getTime()) / 86400_000) : 999;
       }
       return {
-        memberId: friendId, name: tu ? shortName(tu) : "Mijoz", status, daysSilent, gainToday,
+        memberId: friendId, name: tu ? shortName(tu) : "Mijoz", username: tu?.username ?? null,
+        status, daysSilent, gainToday, totalBallFromMe,
         ridesToday: todayCount, thankedToday: thankedToday.has(friendId),
       };
     });
@@ -3064,6 +3078,41 @@ export async function adminRecordWinner(prizeKey: string, gno: number, note: str
     console.error("[oyin] bayonnoma yozilmadi:", e);
     return { ok: false, reason: "write_failed" };
   }
+
+  // 🎟 2026-08-06 (ega talabi): endi shu SOVRINDAGI qolgan barcha ishtirokchi kartalar
+  // "yutuqsiz" deb DBga yoziladi (avval bu faqat admin panelda, DBga tegmasdan, har safar
+  // `drawExport()`+`getWinners()` solishtirilib QAYTA HISOBLANARDI). BEST-EFFORT: yuqoridagi
+  // bayonnoma (audit uchun eng muhimi) ALLAQACHON muvaffaqiyatli yozilgan — bu yerda xato
+  // chiqsa jarayon TO'XTAMAYDI va mijozga "write_failed" qaytarilmaydi, faqat jurnalga
+  // tushadi. Ega tanlagan ko'lam: faqat admin+Telegram kanal ko'radi, mijoz ilovasida
+  // (`OyinMyTicket`/"KUCHDA"-"TUGADI" belgisi) HECH NARSA o'zgarmaydi.
+  const gnosByMember = new Map<number, number[]>();
+  for (const c of list.cards) {
+    const arr = gnosByMember.get(c.memberId) ?? [];
+    arr.push(c.gno);
+    gnosByMember.set(c.memberId, arr);
+  }
+  await Promise.all(
+    [...gnosByMember.entries()].map(async ([memberId, gnos]) => {
+      const tKey = `oyin:tickets:${memberId}`;
+      try {
+        const row = await prisma.appState.findUnique({ where: { key: tKey } });
+        const tickets = parseTickets(row?.value);
+        let changed = false;
+        for (const t of tickets) {
+          if (t.prizeKey !== prizeKey) continue;
+          const g = t.gno ?? t.no;
+          if (!gnos.includes(g)) continue;
+          const nextResult: "won" | "lost" = g === hit.gno ? "won" : "lost";
+          if (t.result !== nextResult) { t.result = nextResult; changed = true; }
+        }
+        if (changed) await prisma.appState.update({ where: { key: tKey }, data: { value: JSON.stringify(tickets) } });
+      } catch (e) {
+        console.error(`[oyin] g'olib-belgilash: a'zo ${memberId} kartalari yangilanmadi:`, e);
+      }
+    }),
+  );
+
   return { ok: true, winner };
 }
 

@@ -1045,9 +1045,17 @@ export type OyinFriendStatus = "active_today" | "silent" | "never_rode";
 export interface OyinFriendRow {
   memberId: number; // "Rahmat ayt" tugmasi shu id bo'yicha yuboradi (server juftlikni tekshiradi)
   name: string;
+  // Telegram @username, bor bo'lsagina (2026-08-06). "Turtki"/"Uyg'ot" shu bo'lsa DO'STNING
+  // ANIQ chatini ochadi (tayyor matn bilan); bo'lmasa umumiy ulashish oynasiga tushiladi —
+  // Telegram username'siz odamning chatini tashqaridan ochishga ruxsat bermaydi.
+  username: string | null;
   status: OyinFriendStatus;
   daysSilent: number; // faqat status="silent" bo'lganda ma'noli
   gainToday: number; // bugun shu do'stdan taklifchiga kelgan ball
+  // Shu mavsumda ushbu do'stdan jami kelgan ball (bir martalik + safar-oqimi). `gainToday`
+  // faqat BUGUNni ko'rsatadi — ega "menga qancha ball olib kelayotganini" so'ragan, jami esa
+  // kimning eng foydali do'st ekanini ko'rsatadi (2026-08-06).
+  totalBallFromMe: number;
   ridesToday: number; // bugungi safarlar soni — "3-safarini qildi!" matni uchun
   thankedToday: boolean; // bugun rahmat aytilganmi (tugma "✓ Aytildi" holatida chiqadi)
 }

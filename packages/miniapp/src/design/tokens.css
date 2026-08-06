@@ -2087,11 +2087,15 @@ body {
 
 /* 🎮 BirJoy O'YINLAR MAVSUMI (feature "oyin") — YORUG' tema (ega qarori 2026-08-02:
    "light tursin va yengil chaqmoqdek bo'lsin"). Avval qorong'i "Game World" edi.
-   Falsafa: oq havo + yumshoq soya (chegara-chiziq emas) + oltin/binafsha aksent.
-   Ekran o'z fonini beradi — ilovaning umumiy mavzusiga bog'lanmaydi (DIZAYN_QOIDALARI #13). */
+   Falsafa: oq havo + yumshoq soya (chegara-chiziq emas) + BirJoy logotip-ko'k aksent.
+   Ekran o'z fonini beradi — ilovaning umumiy mavzusiga bog'lanmaydi (DIZAYN_QOIDALARI #13).
+   ⚠️ 2026-08-06: aksent OLTINDAN BirJoy logotipining haqiqiy KO'K rangiga o'tkazildi (ega
+   talabi: "yorqin rang va logotip ranglari yaxshiroq"). Qiymatlar shu faylning o'z --bj-*
+   blokidan olingan (pastda, "BirJoy BOZOR" bo'limi) — Bozor'da allaqachon ishlatilgan,
+   sinovdan o'tgan brend-konstanta (--bj-logo-blue: #2158d6), yangidan o'ylab topilmagan. */
 :root {
   --oyk-bg-grad: linear-gradient(180deg, #f7f8fc, #f1f3fa 45%, #eef1f9);
-  --oyk-halo: radial-gradient(900px 460px at 50% -12%, rgba(110, 90, 255, 0.10), transparent 62%);
+  --oyk-halo: radial-gradient(900px 460px at 50% -12%, rgba(33, 88, 214, 0.08), transparent 62%);
   --oyk-text: #141a2e;
   --oyk-text-2: rgba(20, 26, 46, 0.74);
   --oyk-text-3: rgba(20, 26, 46, 0.58);
@@ -2100,19 +2104,15 @@ body {
   --oyk-line: rgba(20, 26, 46, 0.09);
   --oyk-shadow: 0 2px 10px rgba(20, 26, 46, 0.06), 0 8px 28px rgba(20, 26, 46, 0.05);
   --oyk-shadow-lift: 0 6px 18px rgba(20, 26, 46, 0.10), 0 16px 42px rgba(20, 26, 46, 0.08);
-  --oyk-gold: #f5b700;
-  --oyk-gold-hi: #ffd34d;
-  --oyk-gold-soft: #b07d0a;
-  --oyk-gold-pale: #fff4d6;
-  --oyk-gold-deep: #8a6207;
-  --oyk-gold-grad: linear-gradient(180deg, #ffd34d, #f5b700);
-  --oyk-gold-text-grad: linear-gradient(180deg, #c98a2e, #8a6207);
-  --oyk-ink: #24190a;
+  --oyk-accent: #2158d6;
+  --oyk-accent-soft: #1f4fc4;
+  --oyk-accent-pale: #e6edfd;
+  --oyk-accent-deep: #163a82;
+  --oyk-accent-grad: linear-gradient(180deg, #4d7ff0, #2158d6);
   --oyk-violet: #5b46f0;
   --oyk-violet-soft: #6e5aff;
   --oyk-red: #e5484d;
   --oyk-red-soft: #c0343a;
-  --oyk-red-live: #e5484d;
   --oyk-green: #1f9d55;
   --oyk-sheet-bg: #ffffff;
   --oyk-toast-bg: rgba(20, 26, 46, 0.94);

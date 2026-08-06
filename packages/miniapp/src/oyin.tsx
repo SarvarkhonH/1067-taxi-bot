@@ -10,9 +10,9 @@
 // soxta QR-kvadrat — real QR-generatsiya (referralQrService) B1-B5 doirasida qurilmagan, shuning
 // uchun olib tashlandi (ishlamaydigan grafika ko'rsatish — yolg'on).
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
-import { OYIN_FINAL_LOCK_MS, oyinHintOf, type OyinActivityAction, type OyinActivityResponse, type OyinGashtakSearchHit, type OyinJamoamResponse, type OyinJamoaResult, type OyinJamoaView, type OyinMyTicketsResponse, type OyinPrizeView, type OyinSeasonClientView, type OyinStateResponse, type OyinVitrinaResponse } from "@t1067/shared";
+import { OYIN_FINAL_LOCK_MS, oyinHintOf, type OyinActivityAction, type OyinActivityResponse, type OyinFriendRow, type OyinGashtakSearchHit, type OyinJamoamResponse, type OyinJamoaResult, type OyinJamoaView, type OyinMyTicketsResponse, type OyinPrizeView, type OyinSeasonClientView, type OyinStateResponse, type OyinVitrinaResponse } from "@t1067/shared";
 import { api } from "./api";
-import { addToHomeScreen, copyText, haptic, homeScreenStatus, inviteLandingUrl, onHomeScreenAdded, shareLink, shareStory } from "./telegram";
+import { addToHomeScreen, copyText, haptic, homeScreenStatus, inviteLandingUrl, onHomeScreenAdded, openUserChat, shareLink, shareStory } from "./telegram";
 import "./design/feat/oyk.css"; // bu ekran ochilgandagina yuklanadi (kritik yo'lda emas)
 
 // ⚠️ Raqamlar KNOBDAN. Avval "+30 ball" qotirilgan edi — ega knobni o'zgartirsa ilovaning
@@ -26,6 +26,23 @@ function obSlides(h: OyinStateResponse["hints"]): { icon: string; text: string }
   ];
 }
 const OB_SEEN_KEY = "oyk_onboard_seen";
+const FRIENDS_PAGE = 8; // "Do'stlarim" ro'yxati shuncha ko'rsatiladi, keyin "ko'proq" tugmasi
+
+/** 🤝 Gashtak-tushuntirish (2026-08-06, ega talabi — "rasmli, story-uslubida bir-ma-bir
+ *  o'tiladigan varoq"). YANGIDAN CSS/animatsiya yozilmadi — `obSlides`/`.oyk-onboard` bilan
+ *  BIR XIL naqsh qayta ishlatildi (alohida state+localStorage kalit bilan). Gashtak sof
+ *  ta'rif/mexanika — jismoniy buyum emas, shuning uchun rasm o'rniga katta emoji-belgi
+ *  (DIZAYN_QOIDALARI #10 faqat "jismoniy narsa"ga tegishli — bu istisno). */
+const GASHTAK_HELP_SEEN_KEY = "oyk_gashtak_help_seen";
+function gashtakSlides(): { icon: string; text: string }[] {
+  return [
+    { icon: "🤝", text: "Gashtak — o'zbekona hamjihatlik: bir nechta kishi birlashib, navbat bilan ball yig'adi" },
+    { icon: "👥", text: "3–10 kishilik gashtak tuzing yoki mavjudiga kod yoki havola bilan qo'shiling" },
+    { icon: "🎯", text: "Har oy navbat bitta a'zoga o'tadi — gashtakning UMUMIY safarlari o'sha navbatchiga ball olib keladi" },
+    { icon: "📢", text: "Boshliq a'zolarga to'g'ridan-to'g'ri xabar yubora oladi — masalan \"yana 2 safar qilsak yetadi\"" },
+    { icon: "🚪", text: "Istalgan payt chiqishingiz mumkin. Boshliq gashtakni butunlay tarqatishi ham mumkin — bu qaytarib bo'lmaydi" },
+  ];
+}
 const START_TAB_KEY = "oyk_start_tab"; // uy-hero'dagi "Sovrinlarni ko'rish" shu orqali vitrina'ga ochadi
 // Qulf oynasi SERVER bilan BITTA manbadan. Avval mustaqil `48 * 3600_000` turardi: ega
 // oynani o'zgartirsa ekran va server ayri ketardi (ekran "yopiq" der, server sotardi).
@@ -82,20 +99,6 @@ function uzWhen(iso: string | null): string {
 function avatarClass(memberId: number): string {
   return `oyk-av-${Math.abs(Math.trunc(memberId)) % 5}`;
 }
-// ⚠️ `referCombo` = do'st ulandi + birinchi safari (masalan 40+120=160). Ekranning boshqa
-// joyida do'st "+40" deb ko'rsatilardi va ikkalasi bir-biriga zid chiqardi — endi "Ball qanday
-// yig'iladi" varag'ida uchala do'st-bali ham alohida yozilgan, ya'ni ziddiyat yo'q.
-function fastPath(remaining: number, referCombo: number, rideBall: number): string {
-  if (remaining <= 0) return "Ball yetdi — kartani oling!";
-  if (referCombo <= 0 && rideBall <= 0) return `${remaining} ball qoldi`;
-  const dd = referCombo > 0 ? Math.floor(remaining / referCombo) : 0;
-  const left = remaining - dd * referCombo;
-  const sf = rideBall > 0 ? Math.ceil(left / rideBall) : 0;
-  const parts: string[] = [];
-  if (dd > 0) parts.push(`${dd} do'st`);
-  if (sf > 0) parts.push(`${sf} safar`);
-  return parts.length ? `Eng tez yo'l: ${parts.join(" + ")}` : `${remaining} ball qoldi`;
-}
 // Ekran fazasi = server fazasi + "final48" (oxirgi 48 soat — chipta olish yopiladi).
 type ScreenPhase = "unset" | "upcoming" | "active" | "final48" | "ended";
 function screenPhase(season: OyinSeasonClientView): ScreenPhase {
@@ -141,14 +144,16 @@ function ballRows(h: OyinStateResponse["hints"]): BallRow[] {
 /** Xarid xatolari — HAR BIRI o'z matni bilan. Avval nomlanmagan sabablar (`unknown_prize`,
  *  `final_lock`) "Ball yetarli emas" ga tushardi: balansi to'la mijozga balansi haqida yolg'on
  *  aytilardi va u nima qilishni bilmay qolardi. */
-function buyReasonText(reason: string | undefined): string {
+function buyReasonText(reason: string | undefined, maxPerPrize?: number): string {
   switch (reason) {
-    case "sold_out": return "😔 Bu mukofot uchun o'rinlar tugadi";
+    case "sold_out": return "😔 Bu mukofot uchun o'rinlar tugadi — boshqasini tanlang";
     case "drawn": return "🏁 Bu mukofot allaqachon egasiga topshirilgan";
-    case "off": return "Dastur hali yopiq";
+    case "off": return "📅 Dastur hali yopiq — tez orada boshlanadi";
     case "season_off": return "📅 Dastur hozir faol emas — karta olish yopiq";
     case "final_lock": return "🔒 Karta olish yopildi — ro'yxat mukofot kuniga tayyor. Kartalaringiz «Kartalarim» bo'limida";
-    case "own_limit": return "⚖️ Bu mukofotdan limitga yetdingiz — boshqasini tanlang";
+    case "own_limit": return maxPerPrize
+      ? `⚖️ Bu mukofotdan limitga yetdingiz (${maxPerPrize} ta) — boshqasini tanlang`
+      : "⚖️ Bu mukofotdan limitga yetdingiz — boshqasini tanlang";
     case "unknown_prize": return "🚫 Bu mukofot ro'yxatdan olib tashlandi — boshqasini tanlang";
     // ⚠️ `staff` ENDI SERVERDAN KELMAYDI — ega/admin xaridi to'silish o'rniga TEST-karta bo'ladi.
     // Matn eski javoblar (kesh/qayta urinish) uchun qoldirildi.
@@ -476,6 +481,13 @@ export function OyinView({ onTaxi, joinCode }: { onTaxi?: () => void; joinCode?:
   const [onboard, setOnboard] = useState<number | null>(() => {
     try { return localStorage.getItem(OB_SEEN_KEY) ? null : 0; } catch { return 0; }
   });
+  // 🤝 Gashtak-tushuntirish — avtomatik CHIQMAYDI (onboard'dan farqli), faqat "?" varag'idan
+  // yoki Gashtak bo'sh-holat ekranidagi "Qanday ishlaydi" havolasidan ochiladi.
+  const [gashtakHelp, setGashtakHelp] = useState<number | null>(null);
+  const finishGashtakHelp = useCallback(() => {
+    setGashtakHelp(null);
+    try { localStorage.setItem(GASHTAK_HELP_SEEN_KEY, "1"); } catch { /* xotira yopiq — muhim emas */ }
+  }, []);
   const [, forceTick] = useState(0); // countdown daqiqada bir yangilansin
   const toastT = useRef<ReturnType<typeof setTimeout>>();
 
@@ -523,6 +535,9 @@ export function OyinView({ onTaxi, joinCode }: { onTaxi?: () => void; joinCode?:
   // deb o'qirdi — ya'ni ilova aloqa uzilganini mijozning bo'shligi deb TARJIMA qilardi.
   const [ticketsErr, setTicketsErr] = useState(false);
   const [jamoamErr, setJamoamErr] = useState(false);
+  // 👥 Do'stlar ro'yxati uzun bo'lishi mumkin (ega talabi 2026-08-06: "ko'proqni bosib
+  // hammasini ko'ray") — birinchi bosqichda qisqa, "ko'proq" bosilsa to'liq.
+  const [friendsExpanded, setFriendsExpanded] = useState(false);
   const loadTickets = useCallback(() => {
     setTicketsErr(false);
     api.oyinTickets().then(setTickets).catch(() => setTicketsErr(true));
@@ -555,8 +570,16 @@ export function OyinView({ onTaxi, joinCode }: { onTaxi?: () => void; joinCode?:
   // 🎟 2026-08-06 (ega qarori): mijoz O'ZI chegaraga yetmagan kartasini bekor qila oladi —
   // ball qaytadi, boshqa sovringa sarflay oladi. Faqat `!t.willDraw` (hozircha tirajga
   // tayyor EMAS) — g'olib bo'lishi mumkin bo'lgan kartani bekor qilishga ruxsat YO'Q.
+  const [cancellingGno, setCancellingGno] = useState<number | null>(null);
+  // ⚠️ Hook Qoidasi buzilgan edi (2026-08-06): `goalBusyKey` avval `setGoal` yonida, YA'NI
+  // "unset/upcoming/skeleton/error" erta-return'laridan KEYIN e'lon qilingan edi — shu holatlarda
+  // hook chaqirilmay qolib, "Rendered more hooks than during the previous render" xatosini berardi
+  // (brauzerda `#oyindemo` orqali darhol topildi). Barcha hooklar erta-return'lardan OLDIN bo'lishi
+  // SHART — shuning uchun bu yerga, boshqa `useState`lar bilan bir qatorga ko'chirildi.
+  const [goalBusyKey, setGoalBusyKey] = useState<string | null>(null);
   const cancelTicket = useCallback(async (gno: number) => {
     if (!window.confirm("Bu karta bekor qilinsin — ball hisobingizga qaytadi. Davom etasizmi?")) return;
+    setCancellingGno(gno);
     try {
       const r = await api.oyinCancelTicket(gno);
       if (r.ok) {
@@ -567,7 +590,7 @@ export function OyinView({ onTaxi, joinCode }: { onTaxi?: () => void; joinCode?:
         return;
       }
       showToast(
-        r.reason === "will_draw" ? "Bu sovrin allaqachon tirajga tayyor — bekor qilib bo'lmaydi"
+        r.reason === "will_draw" ? "Bu sovrin allaqachon mukofot kuniga tayyor — bekor qilib bo'lmaydi"
           : r.reason === "final_lock" ? "Davr yakuniga yaqin — bekor qilish yopiq"
           : r.reason === "season_off" ? "Dastur hozir faol emas"
           : "Bekor qilib bo'lmadi",
@@ -575,6 +598,8 @@ export function OyinView({ onTaxi, joinCode }: { onTaxi?: () => void; joinCode?:
       );
     } catch {
       showToast("Bekor qilib bo'lmadi — internetni tekshiring");
+    } finally {
+      setCancellingGno((g) => (g === gno ? null : g));
     }
   }, [showToast, loadTickets, loadHome]);
 
@@ -584,7 +609,7 @@ export function OyinView({ onTaxi, joinCode }: { onTaxi?: () => void; joinCode?:
   const dailyHint = oyinHintOf(new Date(Date.now() + 5 * 3600_000).toISOString().slice(0, 10));
 
   const [jamoa, setJamoa] = useState<OyinJamoaView | null>(null);
-  // 🤝 Gashtak taklif-havolasi (`?go=oyin&gsk=<code>`, 2026-08-05): odam hali guruhda bo'lmasa
+  // 🤝 Gashtak taklif-havolasi (`?go=oyin&gsk=<code>`, 2026-08-05): odam hali gashtakda bo'lmasa
   // qo'shilish maydoni OLDINDAN TO'LDIRILADI. Faqat BIRINCHI yuklashda — keyin foydalanuvchi
   // o'zi tahrirlashi mumkin bo'lishi kerak (har `jamoa` yangilanishida qayta yozib qo'ymaymiz).
   const [jamoaInput, setJamoaInput] = useState(() => joinCode ?? "");
@@ -599,13 +624,13 @@ export function OyinView({ onTaxi, joinCode }: { onTaxi?: () => void; joinCode?:
       case "full": return `Jamoa to'lgan (${jamoa?.maxSize ?? 10} kishi)`;
       case "bad_name": return "Nom kamida 2 harf bo'lsin";
       case "not_in": return "Siz jamoada emassiz";
-      case "off": return "Dastur hali yopiq";
-      case "disbanded": return "Bu guruh tarqatilgan — havola endi ishlamaydi";
-      case "leader_only": return "Faqat guruh boshlig'i qila oladi";
-      case "self_target": return "O'zingizni chiqara olmaysiz — «Guruhni tarqatish» dan foydalaning";
-      case "already_in_group": return "Bu odam allaqachon boshqa guruhda";
-      case "not_group_member": return "Bu odam guruhda emas";
-      case "cooldown": return `Yana ${cooldownDaysLeft ?? "bir necha"} kundan keyin qo'shilishingiz mumkin`;
+      case "off": return "📅 Dastur hali yopiq — tez orada boshlanadi";
+      case "disbanded": return "Bu gashtak tarqatilgan — havola endi ishlamaydi";
+      case "leader_only": return "Faqat gashtak boshlig'i qila oladi";
+      case "self_target": return "O'zingizni chiqara olmaysiz — «Gashtakni tarqatish» dan foydalaning";
+      case "already_in_group": return "Bu odam allaqachon boshqa gashtakda";
+      case "not_group_member": return "Bu odam gashtakda emas";
+      case "cooldown": return `⏳ Yana ${cooldownDaysLeft ?? "bir necha"} kundan keyin qo'shilishingiz mumkin — bu gashtak almashtirishni tez-tez qilishning oldini oladi`;
       default: return "Bajarilmadi — birozdan keyin urinib ko'ring";
     }
   }, [jamoa?.maxSize]);
@@ -654,7 +679,7 @@ export function OyinView({ onTaxi, joinCode }: { onTaxi?: () => void; joinCode?:
     finally { setJamoaBusy(false); }
   }, [gashtakTurnTarget, gashtakTurnNote, jamoaReasonText, showToast]);
   const doGashtakKick = useCallback(async (targetMemberId: number) => {
-    if (!window.confirm("Bu a'zoni guruhdan chiqarasizmi?")) return;
+    if (!window.confirm("Bu a'zoni gashtakdan chiqarasizmi?")) return;
     haptic();
     setJamoaBusy(true);
     try {
@@ -694,13 +719,13 @@ export function OyinView({ onTaxi, joinCode }: { onTaxi?: () => void; joinCode?:
     finally { setJamoaBusy(false); }
   }, [jamoaReasonText, showToast]);
   const doGashtakDisband = useCallback(async () => {
-    if (!window.confirm("Guruh butunlay tarqatiladi — hamma chiqariladi. Davom etasizmi?")) return;
+    if (!window.confirm("Gashtak butunlay tarqatiladi — hamma chiqariladi. Davom etasizmi?")) return;
     haptic();
     setJamoaBusy(true);
     try {
       const r = await api.oyinGashtakDisband();
       setJamoa(r.view);
-      showToast(r.ok ? "Guruh tarqatildi" : jamoaReasonText(r.reason));
+      showToast(r.ok ? "Gashtak tarqatildi" : jamoaReasonText(r.reason));
     } catch { showToast("Aloqa uzildi — birozdan keyin urinib ko'ring"); }
     finally { setJamoaBusy(false); }
   }, [jamoaReasonText, showToast]);
@@ -790,9 +815,21 @@ export function OyinView({ onTaxi, joinCode }: { onTaxi?: () => void; joinCode?:
     }
   }, [showToast, vitrina]);
 
+  // 🚕⏰ "Turtki"/"Uyg'ot" — ANIQ do'stning chatini ochish, tayyor matn bilan (2026-08-06, ega
+  // talabi). Username bo'lsa to'g'ridan-to'g'ri o'sha odamning suhbati ochiladi; bo'lmasa (ko'p
+  // foydalanuvchida ochiq username yo'q) umumiy ulashish oynasiga tushamiz — lekin bu holatda
+  // mijozga NIMA bo'layotgani aytiladi, aks holda "Turtki" bosilgach kimga ketayotgani noaniq
+  // qolib ketardi (oynada o'nlab chat bor, mijoz Ismni o'zi topib tanlashi kerak).
+  const nudgeFriend = useCallback((f: OyinFriendRow, text: string) => {
+    haptic();
+    if (f.username) { openUserChat(f.username, text); return; }
+    showToast(`Ochilgan oynada ${f.name}ni tanlang`, 2600);
+    void inviteFriend(text);
+  }, [inviteFriend, showToast]);
+
   const tapPrize = useCallback((p: OyinPrizeView) => {
     haptic();
-    if (p.soldOut) { showToast("😔 Bu mukofot uchun o'rinlar tugadi — boshqasini tanlang"); return; }
+    if (p.soldOut) { showToast(buyReasonText("sold_out")); return; }
     // 🔒 To'siq FAQAT server aytgan fazadan (`season.phase === "ended"`).
     // ⚠️ Avval bu yerda klient hisoblagan `final48` ham to'sardi. `final48` esa QURILMA
     // soatidan chiqadi: telefoni 3 soat oldinda ketgan mijozga mavsum FAOL bo'la turib
@@ -808,7 +845,7 @@ export function OyinView({ onTaxi, joinCode }: { onTaxi?: () => void; joinCode?:
     // Limit ekranda yozilgan, lekin tugma baribir varaq ochardi va server rad etardi —
     // "bo'lmaydi / bo'ladi / bo'lmaydi" uch qadamli chalkashlik. Endi darhol aytiladi.
     const maxP = state?.hints.maxPerPrize ?? 3;
-    if (p.mine >= maxP) { showToast(`⚖️ Bu mukofotdan limitga yetdingiz (${maxP} ta) — boshqasini tanlang`); return; }
+    if (p.mine >= maxP) { showToast(buyReasonText("own_limit", maxP)); return; }
     if ((state?.ball ?? 0) < p.price) { showToast(`⚡ Yana ${p.price - (state?.ball ?? 0)} ball kerak — do'st chaqiring!`); return; }
     setBuyQty(1);
     setBuyKey(p.key);
@@ -851,9 +888,9 @@ export function OyinView({ onTaxi, joinCode }: { onTaxi?: () => void; joinCode?:
         // bayram oynasi ham, chipta raqami ham mijozga ko'rinmasdi. Yuqoridagi izoh aynan shu
         // bugni "tuzatilgan" deb yozardi — izoh haqiqat emas edi, endi kod izohga mos.
         loadHome(true);
-        if (stopReason) showToast(`${got} ta olindi. Qolganini olib bo'lmadi: ${buyReasonText(stopReason)}`, 3600);
+        if (stopReason) showToast(`${got} ta olindi. Qolganini olib bo'lmadi: ${buyReasonText(stopReason, state?.hints.maxPerPrize)}`, 3600);
       } else {
-        showToast(buyReasonText(stopReason));
+        showToast(buyReasonText(stopReason, state?.hints.maxPerPrize));
         // Server "yopildi" yoki "mavsum faol emas" desa — ekran ESKI holatda qolmasin:
         // haqiqiy fazani serverdan olib kelamiz (klient soatiga ishonmaymiz, G7).
         if (stopReason === "final_lock" || stopReason === "season_off" || stopReason === "sold_out" || stopReason === "drawn") loadHome(true);
@@ -990,11 +1027,10 @@ Taksida yur, ball yig', sodiqlik kartasini ol. Davr oxirida jonli efirda mukofot
       <div className="oyk">
         <div className="oyk-skel">
           <div className="oyk-skel-block oyk-skel-head" />
-          <div className="oyk-skel-block oyk-skel-hero" />
+          <div className="oyk-skel-block oyk-skel-draw" />
+          <div className="oyk-skel-block oyk-skel-goalc" />
+          <div className="oyk-skel-block oyk-skel-acts" />
           <div className="oyk-skel-block oyk-skel-daily" />
-          <div className="oyk-skel-rail-row">
-            {[0, 1, 2].map((i) => <div key={i} className="oyk-skel-block oyk-skel-rail-card" />)}
-          </div>
         </div>
       </div>
     );
@@ -1166,11 +1202,13 @@ Taksida yur, ball yig', sodiqlik kartasini ol. Davr oxirida jonli efirda mukofot
 
   const setGoal = async (p: OyinPrizeView) => {
     haptic();
+    setGoalBusyKey(p.key);
     try {
       await api.oyinGoal(p.key);
       showToast(`🎯 Maqsad: ${p.name}`);
       loadHome();
     } catch { showToast("Maqsadni saqlab bo'lmadi"); }
+    finally { setGoalBusyKey((k) => (k === p.key ? null : k)); }
   };
   const cd = countdownTo(state.season.endIso);
   const buyPrize = vitrina.prizes.find((p) => p.key === buyKey) ?? null;
@@ -1213,7 +1251,10 @@ Taksida yur, ball yig', sodiqlik kartasini ol. Davr oxirida jonli efirda mukofot
             "yopildi" deb yozib, tugmani ochiq qoldirish esa ochiq ziddiyat bo'lardi. Haqiqiy
             qulfni server qo'yadi va o'z matnini qaytaradi (`final_lock`). */}
         {phase === "final48" && (
-          <div className="oyk-final-banner">⏳ <b>Dastur davri tugashiga 48 soatdan kam qoldi.</b> Karta olish shu oraliqda yopiladi — kechiktirmang. Kartalaringiz "Kartalarim" bo'limida turibdi.</div>
+          <div className="oyk-final-banner">
+            ⏳ <b>Dastur davri tugashiga 48 soatdan kam qoldi.</b> Karta olish shu oraliqda yopiladi — kechiktirmang.
+            {state.ticketCount > 0 && <> Kartalaringiz "Kartalarim" bo'limida turibdi.</>}
+          </div>
         )}
 
         {tab === "home" && (
@@ -1221,15 +1262,15 @@ Taksida yur, ball yig', sodiqlik kartasini ol. Davr oxirida jonli efirda mukofot
             {ended ? (
               /* 🏁 MAVSUM YAKUNI — endi ERTA RETURN emas, O'yin tabining kontenti.
                  Tab-qatori, Chiptalarim va "?" tirik qoladi (tiraj kuni chipta kerak bo'ladi). */
-              /* Ega qarori 2026-08-03: mavsum oxirida ball TANGAGA AYLANMAYDI, kuyadi.
-                 Ekran shuni ochiq aytadi — mavsum davomida ham aytilgan (ball jadvali ostida),
-                 shuning uchun bu yerda "to'satdan" bo'lmaydi.
+              /* Ega qarori 2026-08-03: mavsum oxirida ball TANGAGA AYLANMAYDI.
+                 ⚠️ 2026-08-06: bu yerdagi matn avval "ball davr bilan kuyadi" derdi — bu Qoidalar
+                 §11 bilan ZID edi (ball 6 OY HARAKATSIZLIKDA so'nadi, mavsum bilan emas). Endi
+                 ikkalasi bir xil haqiqatni aytadi.
                  ⚠️ Avval bu blok `.oyk-hero` (sarg'ish) sinflarini ishlatardi — ular MEHMON-teaser
                  ekraniga ham tegishli. Natijada ikkita ekran bir-birini qulflab turardi va yakun
                  kartasi uy tabining yangi TO'Q uslubidan yiroqda, eski sarg'ish bo'lib qolgandi.
                  Endi yakunning O'Z sinflari bor (.oyk-fin*) — teaser tegilmagan. */
               <div className="oyk-fin">
-                <span className="oyk-fin-glow" aria-hidden="true" />
                 <div className="oyk-fin-label">🏁 DASTUR DAVRI YAKUNLANDI</div>
                 <div className="oyk-fin-title">
                   {state.ticketCount > 0 ? "Kartalaringiz mukofot kunida" : "Bu davr tugadi"}
@@ -1240,8 +1281,8 @@ Taksida yur, ball yig', sodiqlik kartasini ol. Davr oxirida jonli efirda mukofot
                 </div>
                 <div className="oyk-fin-sub">
                   {state.ticketCount > 0
-                    ? <>Sarflanmagan ball davr bilan birga yonadi. Kartalaringiz esa mukofot kunida — omad!</>
-                    : <>Sarflanmagan ball davr bilan birga yonadi. Keyingi davrda ballni kartaga aylantirishni unutmang.</>}
+                    ? <>Ball muddatga bog'liq emas — u sarflanmaguncha hisobingizda turadi. Kartalaringiz esa mukofot kunida — omad!</>
+                    : <>Ball muddatga bog'liq emas — u sarflanmaguncha hisobingizda turadi. Keyingi mukofot kuni sanasi e'lon qilinganda shu yerda ko'rinadi.</>}
                 </div>
               </div>
             ) : (
@@ -1252,29 +1293,30 @@ Taksida yur, ball yig', sodiqlik kartasini ol. Davr oxirida jonli efirda mukofot
                  ega: "o'yin uy tabida sovrinlar ham, haftalik vazifa ham, jonli ham kerak emas". */
               <>
                 <div className="oyk-draw">
-                  <span className="oyk-draw-glow" aria-hidden="true" />
                   <div className="oyk-draw-h">OY OXIRIDA MUKOFOT KUNI!</div>
-                  <div className="oyk-draw-k">Sovg'alar topshiriladi</div>
+                  <div className="oyk-draw-k">Sovg'alar topshiriladi — har oyda bir marta o'tkaziladi</div>
                   <div className="oyk-draw-d">{drawDateText}</div>
                   <button type="button" className="oyk-draw-btn" onClick={() => { haptic(); setSheet("how"); }}>
                     Qanday ishlaydi? <span aria-hidden="true">›</span>
                   </button>
-                  <span className="oyk-draw-spark" aria-hidden="true" />
                   <span className="oyk-draw-gift" aria-hidden="true">🎁</span>
                 </div>
 
-                {/* 🪙 BALANS — ega maketi 2026-08-03 (2-rasm): to'q rangli karta, sovrin
-                    FOTOSI o'ngda, katta "N ball qoldi", gradient progress va foiz.
-                    Avval sarg'ish fon + 🪙 emoji edi — ega: "rang emas, mana bunaqa
-                    chiroyli bo'lishi kerak edi". */}
+                {/* 🪙 BALANS — 2026-08-06 (ega talabi): TO'PLANGAN ball endi hero-raqam (avval
+                    "qolgan" ball edi — "nechi ball yig'ganim aniq ko'rinsin" so'ralgach), maqsad
+                    (sovrin nomi + qolgan ball) kichik chipga tushdi. Karta oq (skrinshot
+                    yo'nalishi), sovrin fotosi ko'k halqa bilan — bar/tugmalar bilan bitta rang. */}
                 <div className="oyk-goalc">
                   {cheapest ? (
                     <>
                       <div className="oyk-goalc-top">
                         <div className="oyk-goalc-side">
-                          <div className="oyk-goalc-tag"><span aria-hidden="true">🎟</span>{cheapest.name}</div>
+                          <div className="oyk-goalc-tag">
+                            <span aria-hidden="true">🎯</span>
+                            <b>{cheapest.name}{cheapest.price - state.ball > 0 ? ` — yana ${cheapest.price - state.ball} ball` : " — tayyor!"}</b>
+                          </div>
                           <div className="oyk-goalc-num">
-                            <b>{Math.max(0, cheapest.price - state.ball)}</b> <span>ball qoldi</span>
+                            <b>{state.ball}</b> <span>ball yig'dingiz</span>
                           </div>
                         </div>
                         <div className="oyk-goalc-img">
@@ -1284,7 +1326,7 @@ Taksida yur, ball yig', sodiqlik kartasini ol. Davr oxirida jonli efirda mukofot
                         </div>
                       </div>
                       <div className="oyk-goalc-bar">
-                        <span style={{ width: `${Math.min(100, (state.ball / cheapest.price) * 100).toFixed(1)}%` }} />
+                        <span style={{ transform: `scaleX(${Math.min(1, state.ball / cheapest.price)})` }} />
                       </div>
                       <div className="oyk-goalc-meta">
                         <span><b>{state.ball}</b> / {cheapest.price} = 1 ta karta</span>
@@ -1342,9 +1384,10 @@ Taksida yur, ball yig', sodiqlik kartasini ol. Davr oxirida jonli efirda mukofot
                           qolgan oq iz, oq karta ustida umuman ko'rinmasdi (halqa "osilib" turardi). */}
                       <circle cx="32" cy="32" r={R} fill="none" stroke="var(--oyk-fill)" strokeWidth="6" />
                       <circle
+                        className="oyk-daily-ring-progress"
                         cx="32" cy="32" r={R} fill="none" stroke="var(--oyk-violet)" strokeWidth="6" strokeLinecap="round"
                         strokeDasharray={C} strokeDashoffset={C * (1 - doneCount / tasks.length)}
-                        transform="rotate(-90 32 32)" style={{ transition: "stroke-dashoffset .6s ease" }}
+                        transform="rotate(-90 32 32)"
                       />
                     </svg>
                     <div className="oyk-daily-ring-num">{doneCount}/{tasks.length}</div>
@@ -1430,8 +1473,8 @@ Taksida yur, ball yig', sodiqlik kartasini ol. Davr oxirida jonli efirda mukofot
                 odam ko'rmay qo'yadi va haqiqatan muhim narsa uchun urg'u qolmaydi. */}
             {!ended && (
               <div className="oyk-hint">
-                <span className="oyk-hint-ic" aria-hidden="true">{dailyHint.icon}</span>
-                <span className="oyk-hint-tx">{dailyHint.text}</span>
+                <span className="oyk-hint-ic" aria-hidden="true">{isNew ? "👋" : dailyHint.icon}</span>
+                <span className="oyk-hint-tx">{isNew ? "Xush kelibsiz! Birinchi safaringizdan darhol ball tushadi — boshlash uchun taksi chaqiring." : dailyHint.text}</span>
               </div>
             )}
 
@@ -1501,7 +1544,6 @@ Taksida yur, ball yig', sodiqlik kartasini ol. Davr oxirida jonli efirda mukofot
                 ichida ikkita ekran ikki xil ilovadek ko'rinardi. Endi tiraj sanasi qayerda
                 ko'rinsa ham AYNAN bir xil chiziladi (bitta narsa — bitta ko'rinish). */}
             <div className="oyk-vtop">
-              <span className="oyk-draw-glow" aria-hidden="true" />
               <div className="oyk-vtop-h">📅 MUKOFOT KUNI</div>
               {state.season.endIso
                 ? <div className="oyk-vtop-d">{drawDateText}</div>
@@ -1546,7 +1588,7 @@ Taksida yur, ball yig', sodiqlik kartasini ol. Davr oxirida jonli efirda mukofot
                     {[p.valueLabel, `${p.limit} dona`].filter(Boolean).join(" · ")}
                   </div>
                   <div className="oyk-vbar">
-                    <div className="oyk-vbar-fill" style={{ width: `${Math.min(100, Math.round((state.ball / p.price) * 100))}%` }} />
+                    <div className="oyk-vbar-fill" style={{ transform: `scaleX(${Math.min(1, state.ball / p.price)})` }} />
                   </div>
                   {/* Olingan/qolgan JUFTLIGI (YAKUNIY DIZAYN §7): faqat "qolgan" ijtimoiy isbot
                       bermaydi — "olingan" boshqalar ham olayotganini ko'rsatadi. */}
@@ -1584,13 +1626,15 @@ Taksida yur, ball yig', sodiqlik kartasini ol. Davr oxirida jonli efirda mukofot
                           // oshadigan joyi yo'q va bu tiraj emas, sotib olish bo'lib qoladi.
                           ? "Bu mukofotning yagona kartasi sizda"
                           : `Sizda ${p.mine} ta karta bor — imkoniyat ${p.chancePct ?? 0}%`)
-                        : fastPath(p.price - state.ball, state.hints.referComboBall, state.hints.rideBall)}
+                        : p.price - state.ball <= 0
+                          ? "Ball yetdi — kartani oling!"
+                          : "Do'stingizga ayting — sizning havolangiz orqali taksi chaqirsin"}
                     </div>
                   )}
                   {/* Limit xariddan OLDIN aytiladi — avval mijoz unga faqat tugmani bosgandan
                       keyin duch kelardi ("limitga yetdingiz", raqamsiz). */}
                   {p.mine > 0 && p.mine >= state.hints.maxPerPrize && (
-                    <div className="oyk-vcard-path">⚖️ Bu mukofotdan limitga yetdingiz ({state.hints.maxPerPrize} ta)</div>
+                    <div className="oyk-vcard-path">⚖️ Bu mukofotdan limitga yetdingiz ({state.hints.maxPerPrize} ta) — boshqasini tanlang</div>
                   )}
                   {/* 🎯 Maqsad qilish + chipta olish BITTA qatorda. Avval ikkalasi ham butun
                       enlik blok edi: har kartada ikkita bir xil vaznli tugma turib, qaysi biri
@@ -1651,7 +1695,7 @@ Taksida yur, ball yig', sodiqlik kartasini ol. Davr oxirida jonli efirda mukofot
               <>
                 <div className="oyk-jamoa-head">
                   <div>
-                    <div className="oyk-jamoa-name">🤝 {jamoa.jamoa.name}{jamoa.jamoa.isLeader && <span className="oyk-jamoa-crown" title="Siz boshliqsiz">👑</span>}</div>
+                    <div className="oyk-jamoa-name">🤝 {jamoa.jamoa.name}{jamoa.jamoa.isLeader && <span className="oyk-jamoa-crown">👑<small> siz boshliqsiz</small></span>}</div>
                     <div className="oyk-jamoa-code">Kod: <b>{jamoa.jamoa.code}</b> — do'stlaringizga yuboring</div>
                   </div>
                   <div className="oyk-jamoa-head-acts">
@@ -1674,7 +1718,7 @@ Taksida yur, ball yig', sodiqlik kartasini ol. Davr oxirida jonli efirda mukofot
                 <div className="oyk-jamoa-list">
                   {jamoa.jamoa.members.map((m) => (
                     <div key={m.memberId} className={`oyk-jamoa-row${m.isNavbatchi ? " is-turn" : ""}`}>
-                      <span className="oyk-jamoa-who">{m.isNavbatchi ? "🎯" : m.hadTurn ? "✓" : "•"} {m.isTest && "🧪 "}{m.name}{m.isLeader && <span className="oyk-jamoa-crown" title="Boshliq">👑</span>}</span>
+                      <span className="oyk-jamoa-who">{m.isNavbatchi ? "🎯" : m.hadTurn ? "✓" : "•"} {m.isTest && "🧪 "}{m.name}{m.isLeader && <span className="oyk-jamoa-crown">👑<small> boshliq</small></span>}</span>
                       <span className="oyk-jamoa-rides">{m.ridesThisMonth} safar · {m.ballEarnedTotal} ball</span>
                       {jamoa.jamoa!.isLeader && !m.isLeader && (
                         <button type="button" className="oyk-jamoa-kick" disabled={jamoaBusy} title="Chiqarish" onClick={() => { void doGashtakKick(m.memberId); }}>✕</button>
@@ -1696,15 +1740,28 @@ Taksida yur, ball yig', sodiqlik kartasini ol. Davr oxirida jonli efirda mukofot
               </>
             ) : (
               <>
-                <div className="oyk-jamoa-name">🤝 Gashtak</div>
+                <div className="oyk-jamoa-head">
+                  <div className="oyk-jamoa-name">🤝 Gashtak</div>
+                  <button type="button" className="oyk-info-link is-compact" onClick={() => { haptic(); setGashtakHelp(0); }}>
+                    ❔ Qanday ishlaydi
+                  </button>
+                </div>
                 <div className="oyk-jamoa-note">
-                  {jamoa.minSize}–{jamoa.maxSize} kishilik jamoa tuzing. Har oy navbat bitta a'zoga o'tadi va
-                  jamoaning umumiy safarlari <b>o'sha navbatchiga</b> ball olib keladi. Keyingi oy — boshqasiga.
+                  {joinCode
+                    ? <>Sizni gashtakka taklif qilishdi — kodni tasdiqlab qo'shiling.</>
+                    : <>{jamoa.minSize}–{jamoa.maxSize} kishilik gashtak tuzing. Har oy navbat bitta a'zoga o'tadi va
+                      gashtakning umumiy safarlari <b>o'sha navbatchiga</b> ball olib keladi. Keyingi oy — boshqasiga.</>}
                 </div>
                 <div className="oyk-jamoa-acts">
                   <input className="oyk-jamoa-inp" value={jamoaInput} onChange={(e) => setJamoaInput(e.target.value)} placeholder="Jamoa nomi yoki kod" maxLength={40} />
-                  <button type="button" className="oyk-jamoa-btn" disabled={jamoaBusy || jamoaInput.trim().length < 2} onClick={() => { void doJamoa("create", jamoaInput.trim()); }}>Tuzish</button>
-                  <button type="button" className="oyk-jamoa-btn is-ghost" disabled={jamoaBusy || jamoaInput.trim().length < 4} onClick={() => { void doJamoa("join", jamoaInput.trim()); }}>Qo'shilish</button>
+                  {/* Taklif-kodi bilan kelgan mijoz FAQAT "Qo'shilish"ni ko'radi — "Tuzish" tugmasi
+                      shu holatda ekranda turmasligi kerak, aks holda ikkalasi ham yoqilgan bo'lib
+                      qolib, mijoz noto'g'ri tugmani bosib tasodifan YANGI gashtak yaratib qo'yishi
+                      mumkin (2026-08-06, ega talabi). */}
+                  {!joinCode && (
+                    <button type="button" className="oyk-jamoa-btn" disabled={jamoaBusy || jamoaInput.trim().length < 2} onClick={() => { void doJamoa("create", jamoaInput.trim()); }}>Tuzish</button>
+                  )}
+                  <button type="button" className={`oyk-jamoa-btn${joinCode ? "" : " is-ghost"}`} disabled={jamoaBusy || jamoaInput.trim().length < 4} onClick={() => { void doJamoa("join", jamoaInput.trim()); }}>Qo'shilish</button>
                 </div>
               </>
             )}
@@ -1798,8 +1855,13 @@ Taksida yur, ball yig', sodiqlik kartasini ol. Davr oxirida jonli efirda mukofot
                         tayyor EMAS) sovrindan bekor qilish mumkin — ball "abadiy band" bo'lib
                         qolmasin. G'olib bo'lishi mumkin kartani bekor qilish TAQIQ. */}
                     {!t.willDraw && !t.test && !ended && (
-                      <button type="button" className="oyk-tkt-cancel" onClick={() => void cancelTicket(t.gno)}>
-                        🛡 Bu sovrin hozircha chegaraga yetmagan — bekor qilish (ball qaytadi)
+                      <button
+                        type="button" className="oyk-tkt-cancel"
+                        disabled={cancellingGno === t.gno}
+                        onClick={() => void cancelTicket(t.gno)}
+                      >
+                        <span className="oyk-tkt-cancel-x" aria-hidden="true">{cancellingGno === t.gno ? "…" : "✕"}</span>
+                        Bu sovrin hozircha chegaraga yetmagan — bekor qilish (ball qaytadi)
                       </button>
                     )}
                   </div>
@@ -1816,7 +1878,14 @@ Taksida yur, ball yig', sodiqlik kartasini ol. Davr oxirida jonli efirda mukofot
 
         {tab === "jamoam" && (
           <>
-            <div className="oyk-j-title">👥 Jamoam <span className="oyk-j-count">({jamoam?.friends.length ?? "…"})</span></div>
+            {/* R21 (audit): Gashtak (jamoaviy — yuqorida) va bu bo'lim (shaxsiy takliflar)
+                serverda ham, mantiqda ham mustaqil ikki tizim edi, lekin ekranda sarlavhasiz
+                ustma-ust turardi — mijoz "nega ikki xil ro'yxat bor" deb chalkashardi. Endi
+                aniq ajratuvchi + ikkinchisi endi "Jamoam" emas "Do'stlarim" (R17 — ikkalasi
+                "Jamoam" deb atalgani, tab nomi bilan ham to'qnashib, chalkashlik yaratardi). */}
+            {!ended && <div className="oyk-section-div" aria-hidden="true" />}
+            <div className="oyk-j-title">🔗 Do'stlarim <span className="oyk-j-count">({jamoam?.friends.length ?? "…"})</span></div>
+            <div className="oyk-j-sub">Sizning shaxsiy taklifingiz orqali qo'shilganlar — Gashtakdan mustaqil.</div>
             {jamoamErr ? (
               /* Tarmoq xatosi ≠ "do'stingiz yo'q" (G8) */
               <div className="oyk-load-err">
@@ -1841,7 +1910,7 @@ Taksida yur, ball yig', sodiqlik kartasini ol. Davr oxirida jonli efirda mukofot
               </>
             ) : (
               <div className="oyk-friends">
-                {jamoam.friends.map((f) => (
+                {(friendsExpanded ? jamoam.friends : jamoam.friends.slice(0, FRIENDS_PAGE)).map((f) => (
                   <div key={f.memberId} className="oyk-friend">
                     {/* Rang a'zo raqamidan — avval hammaga `oyk-av-0` qotirilgan edi. */}
                     <div className={`oyk-avatar ${avatarClass(f.memberId)}`}>{f.name[0] ?? "?"}</div>
@@ -1853,6 +1922,11 @@ Taksida yur, ball yig', sodiqlik kartasini ol. Davr oxirida jonli efirda mukofot
                           : f.status === "never_rode" ? "hali safar qilmadi"
                           : `💤 ${f.daysSilent} kun jim`}
                       </div>
+                      {/* Jami olib kelgan ball — "aktiv/aktivmasligi" statusidan tashqari,
+                          ega qanchalik foydali do'st ekanini ko'rishni so'ragan (2026-08-06). */}
+                      {f.totalBallFromMe > 0 && (
+                        <div className="oyk-friend-total">Jami olib kelgan: <b>{f.totalBallFromMe} ball</b></div>
+                      )}
                     </div>
                     {/* ⚠️ HAR QATORDA TUGMA (DIZAYN_QOIDALARI #14). Avval faqat "bugun yurgan" va
                         "5+ kun jim" do'stlarda tugma bor edi: "hali safar qilmadi" va 0–4 kun jim
@@ -1869,16 +1943,22 @@ Taksida yur, ball yig', sodiqlik kartasini ol. Davr oxirida jonli efirda mukofot
                     ) : f.status === "never_rode" ? (
                       <button
                         type="button" className="oyk-wake"
-                        onClick={() => void inviteFriend(`${f.name}, birinchi safaringni qil — men senga BirJoy'ni shuning uchun tashlagandim 🚕🎁`)}
+                        onClick={() => nudgeFriend(f, `${f.name}, birinchi safaringni qil — 1067 (BirJoy)dan foydalansang menga sovg'a berishadi 🚕🎁`)}
                       >🚕 Turtki</button>
                     ) : (
                       <button
                         type="button" className="oyk-wake"
-                        onClick={() => void inviteFriend(`${f.name}, yur birga — menga ball, senga sovg'a 🎁`)}
+                        onClick={() => nudgeFriend(f, `${f.name}, yur birga — 1067 (BirJoy)dan foydalansang menga sovg'a berishadi 🎁`)}
                       >⏰ Uyg'ot</button>
                     )}
                   </div>
                 ))}
+                {!friendsExpanded && jamoam.friends.length > FRIENDS_PAGE && (
+                  <button type="button" className="oyk-info-link" onClick={() => { haptic(); setFriendsExpanded(true); }}>
+                    <span>Yana {jamoam.friends.length - FRIENDS_PAGE} ta ko'rsatish</span>
+                    <span aria-hidden="true">›</span>
+                  </button>
+                )}
               </div>
             )}
             {/* IKKITA SUMMA ALOHIDA (YAKUNIY DIZAYN §7). Bitta yig'indi o'yinning asosiy
@@ -1888,7 +1968,7 @@ Taksida yur, ball yig', sodiqlik kartasini ol. Davr oxirida jonli efirda mukofot
             {jamoam && jamoam.friends.length > 0 && (
               <div className="oyk-jsum">
                 <div className="oyk-jsum-row">
-                  <span className="oyk-jsum-lb">🎁 Bir martalik mukofot<small>ulanish + birinchi safar</small></span>
+                  <span className="oyk-jsum-lb">🎁 Bir martalik bonus<small>ulanish + birinchi safar</small></span>
                   <b>+{jamoam.oneTimeBall}</b>
                 </div>
                 <div className="oyk-jsum-row is-flow">
@@ -1901,7 +1981,7 @@ Taksida yur, ball yig', sodiqlik kartasini ol. Davr oxirida jonli efirda mukofot
                 </div>
               </div>
             )}
-            <div className="oyk-j-hint">💡 Taksi <b>KO'P chaqiradigan</b> tanishingizni chaqiring — u sizga eng ko'p ball olib keladi</div>
+            <div className="oyk-j-hint">💡 <b>Ko'p taksi chaqiradigan</b> tanishingizni chaqiring — u sizga eng ko'p ball olib keladi</div>
             {/* ⚠️ Bu yerda IKKITA ulashish tugmasi yonma-yon turardi: "👥 Do'stimga yubor"
                 (`inviteFriend`, ball bermaydi) va "📤 Sovrinni ulashish (bugungi bonus)"
                 (`doShareBonus`, ball beradi). Ikkalasi ham AYNAN bir xil Telegram ulashish
@@ -2109,12 +2189,12 @@ Taksida yur, ball yig', sodiqlik kartasini ol. Davr oxirida jonli efirda mukofot
               )}
               {/* Doimiy qator (YAKUNIY DIZAYN §4). Ball hech qachon pulga aylanmaydi —
                   buni bir marta onboarding'da aytib qo'yish yetarli emas, doim ko'rinib tursin. */}
-              {/* Endi bu qator TO'LIQ haqiqat: mavsum oxirida konvertatsiya YO'Q (ega qarori
-                  2026-08-03) — ball hech qanday shaklda pulga aylanmaydi. Va kuyishi mavsum
-                  DAVOMIDA aytiladi, oxirida to'satdan emas. */}
+              {/* ⚠️ 2026-08-06: avvalgi matn ("davr oxirigacha sarflanmagan ball yonadi") KOD
+                  BILAN ZID edi — ball mavsum bilan emas, 6 oylik FAOLSIZLIK bilan bog'liq
+                  (Qoidalar §11 bilan bir xil manba, RulesSheet'dagi `oyk-rules-n` 11-band). */}
               <div className="oyk-ball-warn">
                 Ball pul emas — faqat sodiqlik kartasi olish uchun.<br />
-                Davr oxirigacha sarflanmagan ball yonadi.
+                Ball muddatga bog'liq emas: 6 oy harakatsiz qolsangiz nolga tushadi, aks holda saqlanadi.
               </div>
             </div>
                 {/* Yopish tugmasi HAR varaqda. Avval faqat "Qanday ishlaydi"da bor edi —
@@ -2212,14 +2292,14 @@ Taksida yur, ball yig', sodiqlik kartasini ol. Davr oxirida jonli efirda mukofot
                     </div>
                     {gashtakHits && (
                       gashtakHits.length === 0 ? (
-                        <div className="oyk-note-violet">Bu raqam bilan hech kim topilmadi.</div>
+                        <div className="oyk-note-violet">Bu raqam bilan hech kim topilmadi — ehtimol hali BirJoy'da ro'yxatdan o'tmagan. Yuqoridagi havolani yuboring.</div>
                       ) : (
                         <div className="oyk-jamoa-list">
                           {gashtakHits.map((h) => (
                             <div key={h.memberId} className="oyk-jamoa-row">
                               <span className="oyk-jamoa-who">{h.name}</span>
                               {h.alreadyInGroup ? (
-                                <span className="oyk-jamoa-rides">band</span>
+                                <span className="oyk-jamoa-rides">band — boshqa gashtakda</span>
                               ) : (
                                 <button type="button" className="oyk-jamoa-copy" disabled={jamoaBusy} onClick={() => { void doGashtakAdd(h.memberId); }}>Qo'shish</button>
                               )}
@@ -2250,7 +2330,7 @@ Taksida yur, ball yig', sodiqlik kartasini ol. Davr oxirida jonli efirda mukofot
                     <div className="oyk-gashtak-label">⚙️ Sozlama</div>
                     <div className="oyk-gashtak-danger">
                       <button type="button" className="oyk-jamoa-copy is-ghost" disabled={jamoaBusy} onClick={() => { void doGashtakRotate(); }}>🔄 Kodni yangilash</button>
-                      <button type="button" className="oyk-jamoa-leave" disabled={jamoaBusy} onClick={() => { void doGashtakDisband(); }}>🗑 Guruhni tarqatish</button>
+                      <button type="button" className="oyk-jamoa-leave" disabled={jamoaBusy} onClick={() => { void doGashtakDisband(); }}>🗑 Gashtakni tarqatish</button>
                     </div>
                   </div>
                 )}
@@ -2274,12 +2354,20 @@ Taksida yur, ball yig', sodiqlik kartasini ol. Davr oxirida jonli efirda mukofot
                     <span>🎮 Qanday ishlaydi — 5 qadam</span>
                     <span aria-hidden="true">›</span>
                   </button>
+                  {/* R19 (audit): Gashtak — eng yangi/murakkab mexanika — "?" varag'ida UMUMAN
+                      tushuntirilmagan edi. */}
+                  <button type="button" className="oyk-info-link" onClick={() => { haptic(); setSheet(null); setGashtakHelp(0); }}>
+                    <span>🤝 Gashtak nima — 5 qadam</span>
+                    <span aria-hidden="true">›</span>
+                  </button>
                   <div className="oyk-info-b">
                     <div className="oyk-info-t">🎟 Sodiqlik kartasi nima</div>
                     <div className="oyk-info-x">
                       Sodiqlik kartasi — <b>mukofot kunida qatnashish huquqi</b>, mukofot kafolati emas.
                       Har kartaning o'z raqami bor va u <b>Kartalarim</b> tabida doim turadi.
-                      Bir mukofotga nechta kartangiz bo'lsa, imkoningiz shuncha yuqori.
+                      Bir mukofotga nechta kartangiz bo'lsa, imkoningiz shuncha yuqori: <b>imkoniyat %</b> —
+                      sizning kartalaringiz shu mukofotga sotilgan jami kartalarga nisbati, boshqalar
+                      ko'p olsa foiz pasayadi.
                     </div>
                   </div>
                   <div className="oyk-info-b">
@@ -2289,8 +2377,8 @@ Taksida yur, ball yig', sodiqlik kartasini ol. Davr oxirida jonli efirda mukofot
                         ? <>Davr tugagach — <b>{uzDate(tickets?.drawIso ?? state.season.endIso)}{drawTime ? `, ${drawTime}` : ""}</b> — </>
                         : <>Davr tugagach </>}
                       Telegram kanalimizda jonli efir bo'ladi. Mukofot egalari kartalar orasidan
-                      tasodifiy aniqlanadi, hamma ko'rib turadi. Mukofotga ega bo'lsangiz — botdan
-                      darhol xabar keladi.
+                      tasodifiy aniqlanadi, hamma ko'rib turadi. Natijalar Telegram kanalimizda
+                      e'lon qilinadi.
                     </div>
                   </div>
                   {/* 📋 Bu yerda 5 qatorlik "Qoidalar" bloki turardi (S4'da ALMASHTIRILDI).
@@ -2410,6 +2498,29 @@ Taksida yur, ball yig', sodiqlik kartasini ol. Davr oxirida jonli efirda mukofot
             onClick={() => (onboard >= slides.length - 1 ? finishOnboard() : setOnboard(onboard + 1))}
           >{onboard === slides.length - 1 ? "Boshladik! 🚀" : "Keyingisi"}</button>
           <button type="button" className="oyk-ob-skip" onClick={finishOnboard}>O'tkazib yuborish</button>
+        </div>
+        );
+      })()}
+
+      {/* 🤝 Gashtak-tushuntirish — `obSlides`/`.oyk-onboard` bilan BIR XIL naqsh, alohida
+          holat+kalit bilan (yuqoridagi `gashtakSlides` izohiga qarang). */}
+      {gashtakHelp !== null && (() => {
+        const slides = gashtakSlides();
+        const cur = slides[gashtakHelp];
+        if (!cur) return null;
+        return (
+        <div className="oyk-onboard">
+          <div className="oyk-ob-icon">{cur.icon}</div>
+          <div className="oyk-ob-step">{gashtakHelp + 1} / {slides.length} QADAM</div>
+          <div className="oyk-ob-text">{cur.text}</div>
+          <div className="oyk-ob-dots">
+            {slides.map((sl, i) => <div key={sl.icon} className={`oyk-ob-dot${i === gashtakHelp ? " is-active" : ""}`} />)}
+          </div>
+          <button
+            type="button" className="oyk-ob-next"
+            onClick={() => (gashtakHelp >= slides.length - 1 ? finishGashtakHelp() : setGashtakHelp(gashtakHelp + 1))}
+          >{gashtakHelp === slides.length - 1 ? "Tushunarli! 🤝" : "Keyingisi"}</button>
+          <button type="button" className="oyk-ob-skip" onClick={finishGashtakHelp}>Yopish</button>
         </div>
         );
       })()}

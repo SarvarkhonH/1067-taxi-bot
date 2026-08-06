@@ -612,6 +612,17 @@ export function shareLink(url: string, text: string): void {
   else window.open(share, "_blank");
 }
 
+/** Do'stning ANIQ chatini tayyor matn bilan ochish (2026-08-06, ega talabi — "Turtki"/"Uyg'ot"
+ *  aynan o'sha odamning suhbatini ochsin, umumiy tanlov oynasi emas). Faqat @username borlarda
+ *  ishlaydi: Telegram xavfsizlik siyosati bo'yicha tashqi havola foydalanuvchining chatini
+ *  faqat OCHIQ username orqali ochishga ruxsat beradi, ichki `memberId`/user-id orqali emas —
+ *  shuning uchun bu funksiya chaqiruvchisi username yo'qligida `shareLink`ga qaytishi kerak. */
+export function openUserChat(username: string, text: string): void {
+  const url = `https://t.me/${username}?text=${encodeURIComponent(text)}`;
+  if (tg?.openTelegramLink) tg.openTelegramLink(url);
+  else window.open(url, "_blank");
+}
+
 export async function copyText(s: string): Promise<void> {
   try {
     await navigator.clipboard.writeText(s);

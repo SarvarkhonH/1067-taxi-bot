@@ -55,7 +55,23 @@ const MOCK_TICKETS: OyinMyTicketsResponse = {
   ],
   drawIso: "2026-09-15T00:00:00+05:00",
 };
-const MOCK_JAMOAM: OyinJamoamResponse = { friends: [], totalBall: 0, oneTimeBall: 0, rideBall: 0 };
+// 👥 Do'stlar ro'yxati — 2026-08-06 QA: username BOR/YO'Q aralash (Turtki/Uyg'ot ikkala yo'lini
+// ko'rish uchun), FRIENDS_PAGE (8) dan ko'p a'zo ("ko'proq" tugmasini sinash uchun), turli status.
+const MOCK_JAMOAM: OyinJamoamResponse = {
+  friends: [
+    { memberId: 601, name: "Amir", username: "amir_test", status: "active_today", daysSilent: 0, gainToday: 40, totalBallFromMe: 620, ridesToday: 2, thankedToday: false },
+    { memberId: 602, name: "Nodira", username: null, status: "silent", daysSilent: 6, gainToday: 0, totalBallFromMe: 310, ridesToday: 0, thankedToday: false },
+    { memberId: 603, name: "Sardor", username: "sardor_dev", status: "never_rode", daysSilent: 0, gainToday: 0, totalBallFromMe: 0, ridesToday: 0, thankedToday: false },
+    { memberId: 604, name: "Dilnoza", username: null, status: "silent", daysSilent: 2, gainToday: 0, totalBallFromMe: 80, ridesToday: 0, thankedToday: false },
+    { memberId: 605, name: "Jasur", username: "jasur99", status: "silent", daysSilent: 12, gainToday: 0, totalBallFromMe: 940, ridesToday: 0, thankedToday: false },
+    { memberId: 606, name: "Malika", username: null, status: "never_rode", daysSilent: 0, gainToday: 0, totalBallFromMe: 0, ridesToday: 0, thankedToday: false },
+    { memberId: 607, name: "Bekzod", username: "bekzod_b", status: "silent", daysSilent: 1, gainToday: 0, totalBallFromMe: 40, ridesToday: 0, thankedToday: false },
+    { memberId: 608, name: "Zarina", username: null, status: "silent", daysSilent: 4, gainToday: 0, totalBallFromMe: 160, ridesToday: 0, thankedToday: false },
+    { memberId: 609, name: "Otabek", username: "otabek_k", status: "never_rode", daysSilent: 0, gainToday: 0, totalBallFromMe: 0, ridesToday: 0, thankedToday: false },
+    { memberId: 610, name: "Kamola", username: null, status: "silent", daysSilent: 8, gainToday: 0, totalBallFromMe: 210, ridesToday: 0, thankedToday: false },
+  ],
+  totalBall: 2360, oneTimeBall: 900, rideBall: 1460,
+};
 
 // 🤝 Gashtak — realistik holat: boshliq (SIZ), yana bir haqiqiy a'zo, ikkita 🧪 sinov a'zo
 // (turli ism uzunligi — layoutni cho'zib ko'rish uchun), joriy oy uchun ONGLI e'lon (`turnNote`).
