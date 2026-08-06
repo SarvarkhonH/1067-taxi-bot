@@ -5703,3 +5703,17 @@ tomonida (ball chegaraga yetmagan sovrinda "band" bo'lib qolishi). Ega ikkita re
   `false`) tugma FAQAT kerakli kartada chiqishi tasdiqlandi, konsolda yangi xato yo'q.
   **Admin panel (multiplikator knob UI) jonli LOGIN bilan sinalmadi** — avvalgi gap bilan
   bir xil sabab (lokal backend/auth yo'q).
+
+### 2026-08-06 — 👔 JAMOA: overtimeMin bazaga yozilmagan (pul to'g'ri, ko'rsatkich noto'g'ri)
+
+**Sabab:** ega Elbekning bir soat qo'shimcha ishlagani uchun pul qo'shilmagan deb xabar berdi.
+Tekshiruv: `recomputeSession`da `computeDayPay` overtime daqiqalarini TO'G'RI hisoblab,
+`amountEarned`ga to'g'ri qo'shib qo'ygan (08-04 kuni 57 813 so'm — boshqa kunlardan
+sezilarli ko'p, ~76 daq overtime ×1.5 mosligicha), LEKIN natijaviy `overtimeMin` ustuni
+bazaga hech qachon yozilmagan (faqat `minutesWorked`/`amountEarned` yozilardi) — shuning
+uchun panelda "0 daq overtime" ko'rinib, pul qo'shilmaganday tuyulgan.
+**Tuzatildi:** `recomputeSession`ning `workSession.update`iga `overtimeMin: pay.overtimeMin`
+qo'shildi. Avto rejimda bu FAQAT displey xatosi edi (pul har doim to'g'ri edi — avto OT
+checkOut'dan har safar qayta hisoblanadi). "Qolda" rejimda esa bu HAQIQIY pul-bug bo'lardi:
+`approvedOvertimeMin` har recompute'da bazadan 0 o'qib, ega tasdiqlagan daqiqalarni
+o'chirib yuborardi — bu ham endi to'g'irlandi.

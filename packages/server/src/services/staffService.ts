@@ -161,7 +161,12 @@ export async function recomputeSession(sessionId: number): Promise<StaffDayPay |
   await prisma.$transaction([
     prisma.workSession.update({
       where: { id: s.id },
-      data: { minutesWorked: pay.minutesWorked, amountEarned: pay.amountEarned },
+      // overtimeMin AVVAL yozilmagan edi (bug topildi 2026-08-06): pul to'g'ri hisoblanardi
+      // (avto rejimda checkOut'dan har safar qayta olinadi), lekin ustun 0'da qolib,
+      // panelda "overtime yo'q" ko'rinardi. "qolda" rejimda esa BU HAQIQIY pul-bug edi:
+      // approvedOvertimeMin har recompute'da 0 o'qilib, ega tasdiqlagan daqiqalar o'chib
+      // ketardi.
+      data: { minutesWorked: pay.minutesWorked, amountEarned: pay.amountEarned, overtimeMin: pay.overtimeMin },
     }),
     prisma.staffLedger.upsert({
       where: { idempotencyKey: `staffearn:${s.id}` },
