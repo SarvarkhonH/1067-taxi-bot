@@ -666,7 +666,7 @@ export async function staffAdminBulkImport(orgId: number, textRaw: string): Prom
 }
 
 /** Month-calendar day toggle: set "ish"|"dam"|"bayram" or null (back to weekly default). */
-export async function staffAdminCalendarSet(orgId: number, date: string, kind: StaffDayKind | null): Promise<{ ok: boolean; error?: string }> {
+export async function staffAdminCalendarSet(orgId: number, date: string, kind: StaffDayKind | null): Promise<{ ok: boolean; error?: string; recomputed?: number; skippedConfirmed?: number }> {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return { ok: false, error: "Sana noto'g'ri" };
   if (kind != null && !["ish", "dam", "bayram"].includes(kind)) return { ok: false, error: "Tur noto'g'ri" };
   const org = await prisma.organization.findUnique({ where: { id: orgId } });
@@ -676,10 +676,16 @@ export async function staffAdminCalendarSet(orgId: number, date: string, kind: S
   else cal[date] = kind;
   await prisma.organization.update({ where: { id: orgId }, data: { calendar: cal } });
   // Rates depend on the divisor → recompute every session of that month for this org's staff.
+  // TASDIQLANGAN kunlar bundan MUSTASNO (tekshiruv topgan): aks holda boshqa bir kunga
+  // taqvim o'zgartirilsa, allaqachon ega tasdiqlagan (masalan avto-overtime formulasi
+  // yangilangandan keyingi) kunlar jimgina qayta yozilib, kutilmagan pul o'zgarishi
+  // yaratardi — hech qanday iz/xabar qoldirmasdan. Tasdiqlangan kunni o'zgartirish uchun
+  // ega ONGLI ravishda kun-tuzatishdan foydalanishi kerak (u yerda editedBy yoziladi).
   const month = date.slice(0, 7);
-  const sessions = await prisma.workSession.findMany({ where: { date: { startsWith: month }, employee: { orgId } }, select: { id: true } });
+  const sessions = await prisma.workSession.findMany({ where: { date: { startsWith: month }, employee: { orgId }, confirmedAt: null }, select: { id: true } });
+  const skipped = await prisma.workSession.count({ where: { date: { startsWith: month }, employee: { orgId }, confirmedAt: { not: null } } });
   for (const s of sessions) await recomputeSession(s.id);
-  return { ok: true };
+  return { ok: true, recomputed: sessions.length, skippedConfirmed: skipped };
 }
 
 // ---------------------------------------------------------------------------

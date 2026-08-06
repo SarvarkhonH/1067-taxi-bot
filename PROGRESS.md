@@ -5717,3 +5717,29 @@ qo'shildi. Avto rejimda bu FAQAT displey xatosi edi (pul har doim to'g'ri edi �
 checkOut'dan har safar qayta hisoblanadi). "Qolda" rejimda esa bu HAQIQIY pul-bug bo'lardi:
 `approvedOvertimeMin` har recompute'da bazadan 0 o'qib, ega tasdiqlagan daqiqalarni
 o'chirib yuborardi — bu ham endi to'g'irlandi.
+
+### 2026-08-06 — 👔 JAMOA: simmetrik overtime + xavfsizlik cheklovlari (ega qarori)
+
+**Sabab:** ega Elbekning erta kelishi haqida savol berdi. Ega qarori: "hamma xodimni har
+daqiqasi uchun qo'shimcha to'lanishi kerak" — smenadan tashqarida (erta kelgan HAM, kech
+ketgan HAM) har daqiqa endi bir xil overtime formulasi bilan (avto rejimda, ×1.5) to'lanadi.
+Asosiy kun (kunlik/oylik kafolat) o'zgarmagan — bu FAQAT smenadan tashqaridagi qo'shimcha
+qatlam. Kam ishlash (kech kelish/erta ketish) allaqachon to'g'ri ishlagan — o'zgarmadi.
+
+**Formulasi** (`computeDayPay`, avto rejim): `overtimeMin = erta(shiftStart'gacha) +
+kech(shiftEnd'dan keyin)`, ikkalasi ham bitta 4-soatlik xavfsizlik-chegarasi bilan.
+
+**Mustaqil tekshiruv (R4)** 2 haqiqiy xavfsizlik-bug topdi, ikkalasi ham tuzatildi:
+1. [HIGH] Cheklovsiz erta-overtime — xodim juda erta "Keldim" bossa (tasodifan yoki
+   suiste'mol), cheklovsiz overtime "farming" xavfi bor edi (masalan 6 soat erta = ~270 000
+   so'm qo'shimcha, hech qanday fizik-borlik tekshiruvisiz). Endi har tomon (erta/kech)
+   alohida 4 soat (240 daq) bilan cheklangan.
+2. [MED-HIGH] `staffAdminCalendarSet` (oy taqvimi toggle) BUTUN oyni qayta hisoblardi,
+   TASDIQLANGAN kunlarni ham — boshqa bir kunga taqvim o'zgartirilsa, allaqachon ega
+   tasdiqlagan kunlar jimgina qayta yozilib ketishi mumkin edi, hech qanday iz qoldirmasdan.
+   Endi tasdiqlangan kunlar bundan mustasno — o'zgartirish kerak bo'lsa ega ongli
+   kun-tuzatishdan foydalanadi (u yerda editedBy audit yoziladi).
+- Isbot: 95/95 test (11 yangi: simmetrik erta-overtime, chegaralar, nol-ish holati),
+  typecheck server+admin toza.
+- Deploy'dan keyin: Elbekning avvalgi kunlari `recomputeSession` bilan qayta hisoblanadi
+  (pul faqat OSHADI — hech kim kam olmaydi; ega buni ongli ravishda so'radi).
