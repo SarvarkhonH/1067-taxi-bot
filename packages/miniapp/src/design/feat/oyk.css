@@ -42,6 +42,7 @@
      bu R10 muammosini (CTA vs ogohlantirish bir xil rangda) YECHMAYDI, faqat oltindan ko'kka
      ko'chiradi. Shuning uchun kahrabo AJRATIB QOLDIRILADI — faqat shu bitta o'rinda (o'rtacha
      tanqislik darajasi), CTA/nishonlar esa ko'k bo'lib qoladi. */
+  --oyk-warn: #f5b700;
   --oyk-warn-pale: #fff4d6;
   --oyk-warn-deep: #8a6207;
   /* Avatar palitrasi — hammasi OQ matn bilan ≥4.5:1 kontrastda. Avvalgi `#22d3ee` (och moviy)
@@ -115,7 +116,10 @@
    alohida karta (tiraj + balans). Endi skeleton HAQIQIY joriy tuzilmaga mos: tiraj-karta →
    balans-karta (rasm-plastinka bilan) → ikkita-tugma qatori → kunlik-vazifa. */
 .oyk-skel-draw { height: 148px; animation-delay: 0s, .06s; }
-.oyk-skel-goalc { height: 215px; animation-delay: 0s, .09s; }
+/* 260px — mustaqil tekshiruv qayta hisoblab tuzatdi (avval 215px, real karta ~260px chiqib,
+   ~17% qisqaroq edi: pad 14+15 + rasm-qator 108 + bar+margin 22 + meta 21 + foot-blok 32 +
+   tugma-blok 46, DevTools bilan solishtirib tasdiqlanadi). */
+.oyk-skel-goalc { height: 260px; animation-delay: 0s, .09s; }
 .oyk-skel-acts { height: 76px; animation-delay: 0s, .12s; }
 .oyk-skel-daily { height: 104px; animation-delay: 0s, .15s; }
 .oyk-skel-bell { height: 52px; border-radius: 12px; }
@@ -368,21 +372,25 @@
 .oyk-fin-sub { position: relative; font-size: 12.5px; line-height: 1.5; color: var(--oyk-text-2); margin-top: 12px; }
 
 /* ── 🤝 "Rahmat ayt" kartasi va tugmasi ───────────────────────────────────────────────── */
+/* ⚠️ 2026-08-06 (mustaqil tekshiruv topdi): gold→accent(ko'k) ko'chishda bu ikkalasi
+   "quti eski oltin, matn yangi ko'k" holatiga tushib qolgan edi — ICHKI ZIDDIYAT. Bu
+   karta ATAYLAB issiq/kahrabo qoladi ("Rahmat ayt" — do'stlik lahzasi, brend-CTA'dan
+   mustaqil), shuning uchun matn HAM issiq (--oyk-warn-deep) — quti va matn endi bitta oila. */
 .oyk-magnet {
-  background: linear-gradient(160deg, rgba(245, 183, 0, .16), rgba(255, 90, 95, .08));
-  border: 1px solid rgba(245, 183, 0, .35); border-radius: 18px; padding: 14px;
+  background: linear-gradient(160deg, color-mix(in srgb, var(--oyk-warn) 16%, transparent), color-mix(in srgb, var(--oyk-red) 8%, transparent));
+  border: 1px solid color-mix(in srgb, var(--oyk-warn) 35%, transparent); border-radius: 18px; padding: 14px;
   display: flex; gap: 12px; align-items: center;
 }
 .oyk-magnet-emoji { font-size: 28px; }
 .oyk-magnet-body { flex: 1; min-width: 0; }
 .oyk-magnet-title { font-size: 13.5px; font-weight: 900; color: var(--oyk-text); }
 .oyk-magnet-sub { font-size: 12px; color: var(--oyk-text-2); margin-top: 2px; }
-.oyk-magnet-sub b { color: var(--oyk-accent-soft); }
+.oyk-magnet-sub b { color: var(--oyk-warn-deep); }
 /* ⚠️ 44px — `.oyk-wake` bilan BIR XIL. Avval 34px edi va Jamoam ro'yxatida qatorlar
    58px/66px bo'lib sakrab ketardi (qaysi tugma tushganiga qarab). */
 .oyk-thanks {
-  min-height: 44px; padding: 0 12px; border: 1px solid rgba(245, 183, 0, .45); border-radius: 11px;
-  background: rgba(245, 183, 0, .14); color: var(--oyk-accent-soft);
+  min-height: 44px; padding: 0 12px; border: 1px solid color-mix(in srgb, var(--oyk-warn) 45%, transparent); border-radius: 11px;
+  background: color-mix(in srgb, var(--oyk-warn) 14%, transparent); color: var(--oyk-warn-deep);
   font-size: 12px; font-weight: 800; white-space: nowrap; cursor: pointer; flex-shrink: 0;
   transition: transform var(--dur-press);
 }
@@ -433,13 +441,16 @@
   font-size: 12px; color: var(--oyk-text-2);
 }
 .oyk-vtop-ball b { font-size: 22px; font-weight: 900; color: var(--oyk-accent-deep); font-variant-numeric: tabular-nums; }
+/* ⚠️ 2026-08-06 (mustaqil tekshiruv topdi): avval quti oltin, matn ko'k edi (gold→accent
+   ko'chishning to'liq bo'lmagan qoldig'i). Homiy-chizig'i alohida rang-ma'nosiga muhtoj emas —
+   endi to'liq neytral. */
 .oyk-sponsor-strip {
   display: flex; align-items: center; gap: 9px; padding: 9px 12px;
-  background: rgba(245, 183, 0, .06); border: 1px solid rgba(245, 183, 0, .2); border-radius: 12px;
+  background: var(--oyk-fill); border: 1px solid var(--oyk-line); border-radius: 12px;
 }
 .oyk-sponsor-strip .oyk-sponsor-logo { width: 24px; height: 24px; border-radius: 7px; font-size: 11px; }
 .oyk-sponsor-strip-text { font-size: 11px; color: var(--oyk-text-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.oyk-sponsor-strip-text b { color: var(--oyk-accent-soft); }
+.oyk-sponsor-strip-text b { color: var(--oyk-text); }
 
 .oyk-vcard { background: var(--oyk-surface); border: 1px solid var(--oyk-line); border-radius: 20px; box-shadow: var(--oyk-shadow); padding: 14px; display: flex; flex-direction: column; gap: 9px; }
 .oyk-vcard.is-soldout { opacity: .55; }
@@ -775,9 +786,11 @@
 .oyk-tab-label { font-size: 10px; font-weight: 800; }
 
 /* ── toast ────────────────────────────────────────────────────────────────────────────── */
+/* ⚠️ 2026-08-06 (mustaqil tekshiruv topdi — ENG KO'P ko'rinadigan element, har harakatdan
+   keyin chiqadi): chegara oltin, matn ko'k edi. Endi ikkalasi ham ko'k oilasidan. */
 .oyk-toast {
   position: absolute; top: calc(var(--safe-top) + 12px); left: 20px; right: 20px; z-index: 30;
-  background: var(--oyk-toast-bg); border: 1px solid rgba(245, 183, 0, .4); border-radius: 14px;
+  background: var(--oyk-toast-bg); border: 1px solid color-mix(in srgb, var(--oyk-accent) 45%, transparent); border-radius: 14px;
   padding: 12px 14px; font-size: 13px; font-weight: 800; color: var(--oyk-accent-pale); text-align: center;
   box-shadow: 0 10px 30px rgba(0, 0, 0, .5); animation: oyk-fadeup .25s ease-out;
 }
@@ -884,9 +897,12 @@
 .oyk-rules-ul li { line-height: 1.55; }
 /* To'ldirilmagan rekvizit — ATAYLAB KO'ZGA TASHLANADI. Yashirilgan bo'sh joy hech qachon
    to'ldirilmaydi; ko'rinib turgani esa ega to'ldirmaguncha "hujjat tayyor emas" deb turadi. */
+/* ⚠️ 2026-08-06 (mustaqil tekshiruv topdi): quti oltin, chegara+matn ko'k edi — "ATAYLAB
+   ko'zga tashlanadi" izohiga ko'k mos kelmaydi (bu diqqat-belgisi, brend-CTA emas). Endi
+   to'liq kahrabo — bitta izchil "e'tibor bering" rangi. */
 .oyk-rules-fill {
   display: inline-block; padding: 1px 7px; border-radius: 7px; font-weight: 800;
-  background: rgba(245, 183, 0, .16); border: 1px dashed var(--oyk-accent-soft); color: var(--oyk-accent-deep);
+  background: var(--oyk-warn-pale); border: 1px dashed var(--oyk-warn-deep); color: var(--oyk-warn-deep);
 }
 .oyk-rules-fill i { font-style: normal; font-weight: 700; font-size: 11px; }
 .oyk-rules-foot { font-size: 11px; line-height: 1.5; color: var(--oyk-text-3); text-align: center; }
@@ -960,7 +976,7 @@
 }
 .oyk-ticket {
   position: relative; background: var(--oyk-celebrate-grad); border-radius: 22px; padding: 26px 30px; text-align: center;
-  animation: oyk-pop .5s var(--ease-out); box-shadow: 0 0 60px rgba(245, 183, 0, .4);
+  animation: oyk-pop .5s var(--ease-out); box-shadow: 0 0 60px color-mix(in srgb, var(--oyk-warn) 40%, transparent);
 }
 .oyk-ticket-emoji { font-size: 46px; }
 .oyk-ticket-emoji img { width: 72px; height: 72px; margin: 0 auto; border-radius: 16px; object-fit: cover; display: block; box-shadow: 0 8px 20px rgba(0, 0, 0, .25); }
@@ -1025,7 +1041,7 @@
 /* Rasm yo'q holati — rangli fon + katta emoji. Bo'sh kulrang kvadrat TAQIQ (#10). */
 .oyk-pcard-icon:not(:has(img)) {
   height: 120px; border-radius: 12px; font-size: 44px; display: flex; align-items: center; justify-content: center;
-  background: linear-gradient(150deg, rgba(245, 183, 0, .16), rgba(110, 90, 255, .14));
+  background: linear-gradient(150deg, var(--oyk-accent-pale), rgba(110, 90, 255, .12));
 }
 .oyk-pcard-name {
   font-size: 12px; font-weight: 800; text-align: center; line-height: 1.25;
