@@ -2467,9 +2467,6 @@ export async function leaveJamoa(memberId: number): Promise<OyinJamoaResult> {
 async function jamoaMemberStats(j: JamoaRecord): Promise<Map<number, {
   ridesThisMonth: number; ridesLifetime: number; ballEarnedTotal: number; ballEarnedThisMonth: number;
 }>> {
-  const econ = await getBonusEcon();
-  const ballPerRide = econ.oyinJamoaBallPerRide ?? 0;
-  const maxBall = econ.oyinJamoaMaxBall ?? 3600;
   const nowMonth = monthKeyOf(new Date());
   const monthStart = new Date(`${nowMonth}-01T00:00:00+05:00`);
   // Hozirgi a'zolar + hech bo'lmasa bir marta navbat olgan HAMMA (tarixiy, chiqib ketgan bo'lsa
@@ -2496,9 +2493,6 @@ async function jamoaMemberStats(j: JamoaRecord): Promise<Map<number, {
       ? prisma.appState.findMany({ where: { key: { startsWith: `${TEST_RIDES_PREFIX}${j.id}:` } }, select: { key: true, value: true } })
       : Promise.resolve([] as { key: string; value: string }[]),
   ]);
-  // 🧪 Faqat TEST (virtual) safarlar uchun — real safarlar endi ledgerdan o'qiladi (pastda),
-  // ikki marta sanalmasin.
-  const testRidesByMemberMonth = new Map<string, number>();
   for (const r of rides) {
     const stat = out.get(r.memberId);
     if (stat) {
@@ -2521,8 +2515,6 @@ async function jamoaMemberStats(j: JamoaRecord): Promise<Map<number, {
       stat.ridesLifetime += n;
       if (mk === nowMonth) stat.ridesThisMonth += n;
     }
-    const k = `${negId}|${mk}`;
-    testRidesByMemberMonth.set(k, (testRidesByMemberMonth.get(k) ?? 0) + n);
   }
 
   // 🤝 REAL qism — o'zgarmas ledgerdan (`GashtakReward`, `creditGashtakLedger` real safar
@@ -2543,28 +2535,17 @@ async function jamoaMemberStats(j: JamoaRecord): Promise<Map<number, {
     }
     realByMonth.set(row.monthKey, (realByMonth.get(row.monthKey) ?? 0) + amt);
   }
-  // 🧪 TEST qism — virtual a'zolar HECH QACHON ledgerga yozilmaydi (real safar emas, `rollRideCashback`
-  // orqali o'tmaydi), shuning uchun ularning guruhga qo'shgan hissasi shu yerda, ALOHIDA taxmin
-  // qilinadi — faqat sinov-oynidan (ledgerdagi real miqdordan ORTIQ QOLGAN sig'im ichida).
-  if (ballPerRide > 0 && j.members.length >= OYIN_JAMOA_MIN) {
-    const startMonth = monthKeyOf(new Date(j.createdAt));
-    const span = Math.max(0, monthsBetween(startMonth, nowMonth));
-    for (let i = 0; i <= span; i++) {
-      const mk = addMonths(startMonth, i);
-      const winner = navbatchiOf(j, mk);
-      if (winner == null) continue;
-      let testGroupRides = 0;
-      for (const m of j.members) testGroupRides += testRidesByMemberMonth.get(`${m}|${mk}`) ?? 0;
-      if (testGroupRides === 0) continue;
-      const headroom = Math.max(0, maxBall - (realByMonth.get(mk) ?? 0));
-      const gain = Math.min(headroom, testGroupRides * ballPerRide);
-      const stat = out.get(winner);
-      if (stat) {
-        stat.ballEarnedTotal += gain;
-        if (mk === nowMonth) stat.ballEarnedThisMonth += gain;
-      }
-    }
-  }
+  // 🔴 5-CHI TESHIK (2026-08-07, jonli sinov skripti topdi): ATAYLAB OLIB TASHLANDI. Bu blok
+  // test-a'zolarning ball-hissasini HAR CHAQIRUVDA `navbatchiOf(j, mk)`dan QAYTA HISOBLARDI —
+  // xuddi computeBallMap/getActivity/navbatchiBall'da tuzatilgan bug bilan BIR XIL shakl, faqat
+  // sinov-yo'lida. Dalil: jonli guruhda 3 ta eski sinov-a'zo (jami 358 "safar") bor edi — ular
+  // HECH QACHON `GashtakReward` ledgeriga yozilmagan, lekin shu blok tufayli ularning 358×6=2148
+  // balli joriy oy navbatchisiga (haqiqiy a'zo!) "tegishli" bo'lib ko'rsatilardi — va navbat
+  // qayta belgilansa (`applySetTurn`), bu 2148 boshqa odamga DARHOL "ko'chib" ketardi. Ya'ni
+  // ega ko'rgan "ball Elboyevga o'tib ketdi" muammosi aynan shu yerdan edi, REAL ledger emas.
+  // Yechim: TEST a'zolar endi ridesLifetime/ridesThisMonth (informatsion, "safar sinovi") beradi,
+  // lekin ballEarnedTotal/ballEarnedThisMonth ga HECH QACHON qo'shilmaydi — faqat REAL, ledgerda
+  // yozilgan ball hisoblanadi. Sinov endi "navbat/tuzilma" ni ko'rsatadi, ball-proyeksiyani emas.
   return out;
 }
 
