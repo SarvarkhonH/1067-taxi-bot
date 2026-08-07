@@ -482,7 +482,9 @@ export function playRepairFail(): void {
 export function inviteText(bonus: number): string {
   const n = formatNumber(bonus); // KEEP IN SYNC with the bot's clientInviteText (server/src/bot/bot.ts)
   // Short + warm (owner: less "spammy"). The rich image card is carried by the landing URL's OG tags.
-  return `🚕 BirJoy — senga ${n} so'm bonus. Bir tap bilan taxi. Qo'shil 👇`;
+  // ⚠️ 2026-08-07 (ega talabi): "5000 emas, ball, o'yin" — sarlavha endi sovg'a/ball, real son
+  // (hamon `firstRide` tanga, pul-mexanika O'ZGARMAGAN) qavs ichida qoladi.
+  return `🎮 BirJoy — senga sovg'a va ball kutmoqda (+${n} so'm). Bir tap bilan taxi. Qo'shil 👇`;
 }
 
 // Wrap the bot ref-link in our OG landing page (/j/?r=<code>) so Telegram renders a rich IMAGE
@@ -493,8 +495,9 @@ export function inviteLandingUrl(botLink: string): string {
   const m = botLink.match(/(?:start|startapp)=ref_?([a-zA-Z0-9_-]+)/);
   // &v bumps the URL when the OG card content changes → Telegram fetches a FRESH preview
   // instead of showing a stale cached card (v3 = og:image ‘o‘lik Vercel hostidan app.birjoy.online’ga ko‘chdi;
-  // v4 = 2026-08-07 yangi "Sodiqlik kartasi" poster + BirJoy brendlash, eski "1067 Taxi/5000" karta eskirgandi).
-  return m && m[1] ? `${INVITE_LANDING}?r=${encodeURIComponent(m[1])}&v=4` : botLink;
+  // v4 = 2026-08-07 yangi "Sodiqlik kartasi" poster + BirJoy brendlash; v5 = matn "5000 so'm"dan
+  // ball/o'yin ohangiga o'tdi, real bonus son o'zgarmagan).
+  return m && m[1] ? `${INVITE_LANDING}?r=${encodeURIComponent(m[1])}&v=5` : botLink;
 }
 
 // ── ⏸ FAOLLIK: ilova fonda bo'lsa so'rov yubormaymiz (Bot API 8.0 `activated`/`deactivated`) ──

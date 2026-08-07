@@ -107,15 +107,16 @@ export function TrackView({ token }: { token: string }) {
 
   const ended = !!trip && !trip.active;
   const dismissCta = () => { setCtaGone(true); try { sessionStorage.setItem("tv_cta_off", "1"); } catch { /* private mode */ } };
-  // ONE beautiful invite card, reused mid-trip (after a delay) + on the end screen. Not "first ride
-  // free" — the owner's copy: "join too, get 5000 tanga bonus".
+  // ONE beautiful invite card, reused mid-trip (after a delay) + on the end screen. Copy shifted
+  // 2026-08-07 (ega talabi): "5000" so'm/tanga sonidan emas, Koson O'yini (ball/sovg'a) dan gapiradi —
+  // taklif-postering/OG-sahifa (packages/miniapp/public/j/index.html) bilan bir xil ohang.
   const cta = trip?.ctaLink && !ctaGone ? (
     <div className="tv-cta">
       <button className="tv-cta-x" aria-label="Yopish" onClick={dismissCta}>✕</button>
       <div className="tv-cta-emoji">🎁</div>
-      <div className="tv-cta-t">Siz ham 1067'ga ulaning</div>
-      <div className="tv-cta-sub">Haydovchi tasdiqlangan · narx oldindan · har safar jonli kuzatuv</div>
-      <a className="tv-cta-btn" href={trip.ctaLink}>5000 tanga bonus oling 🚕</a>
+      <div className="tv-cta-t">Siz ham BirJoy'ga ulaning</div>
+      <div className="tv-cta-sub">Haydovchi tasdiqlangan · narx oldindan · ball yig'ib sovrinlar yuting</div>
+      <a className="tv-cta-btn" href={trip.ctaLink}>Hoziroq qo'shiling 🚕</a>
     </div>
   ) : null;
   return (
