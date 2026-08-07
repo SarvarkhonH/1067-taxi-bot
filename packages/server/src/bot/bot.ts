@@ -68,8 +68,10 @@ export { webAppUrl } from "./webAppUrl"; // re-export: existing importers (broad
 // never "hozir oling". UI currency stays "tanga" (project rule), the free-ride hook carries
 // the real-money feel for someone who's never heard of tanga.
 // Short + warm (owner: less spammy). The rich IMAGE card is carried by the landing URL's OG tags.
+// ⚠️ 2026-08-07 (ega talabi): "5000 emas, ball, o'yin" — sarlavha endi sovg'a/ball, real son
+// (hamon `firstRide` tanga, pul-mexanika O'ZGARMAGAN) qavs ichida qoladi. KEEP IN SYNC with miniapp.
 const clientInviteText = (bonus: number): string =>
-  `🚕 BirJoy — senga ${formatNumber(bonus)} so'm bonus. Bir tap bilan taxi. Qo'shil 👇`;
+  `🎮 BirJoy — senga sovg'a va ball kutmoqda (+${formatNumber(bonus)} so'm). Bir tap bilan taxi. Qo'shil 👇`;
 
 // Wrap the bot ref-link in the OG landing page (/j/?r=<code>) so Telegram renders a rich poster
 // card (KEEP IN SYNC with miniapp/src/telegram.ts inviteLandingUrl). The page forwards ?r → the
@@ -79,8 +81,9 @@ function inviteLandingUrl(botLink: string): string {
   const m = botLink.match(/(?:start|startapp)=ref_?([a-zA-Z0-9_-]+)/);
   // &v bumps the URL when the OG card content changes → Telegram fetches a FRESH preview
   // instead of showing a stale cached card (v3 = og:image ‘o‘lik Vercel hostidan app.birjoy.online’ga ko‘chdi;
-  // v4 = 2026-08-07 yangi poster + BirJoy brendlash). KEEP IN SYNC with miniapp.
-  return m && m[1] ? `${INVITE_LANDING}?r=${encodeURIComponent(m[1])}&v=4` : botLink;
+  // v4 = 2026-08-07 yangi poster + BirJoy brendlash; v5 = matn "5000 so'm"dan ball/o'yin ohangiga
+  // o'tdi, real bonus son o'zgarmagan). KEEP IN SYNC with miniapp.
+  return m && m[1] ? `${INVITE_LANDING}?r=${encodeURIComponent(m[1])}&v=5` : botLink;
 }
 
 // webAppUrl()/refreshWebAppVer()/canWebApp now live in ./webAppUrl (single source of truth —
@@ -1489,7 +1492,7 @@ export function createBot(): Bot {
         `  kas1067 ${dot(h.kas.ok)} ${h.kas.ms}ms · baza ${dot(h.db.ok)} · bot ${dot(h.bot)}\n` +
         `  Sync: ${h.lastSync ? `${h.lastSync.status} (${h.lastSync.ageMin} daq)` : "—"} · Booking: ${h.bookingLive ? "JONLI" : "test"}\n\n` +
         `💰 <b>Iqtisod (tanga)</b>\n` +
-        `  Muomalada: <b>${formatNumber(e.coinsOutstanding)}</b> · Jackpot: ${formatNumber(e.jackpot)}\n` +
+        `  Muomalada: <b>${formatNumber(e.coinsOutstanding)}</b>\n` +
         `  Berilgan ${formatNumber(e.emitted)} · Sarflangan ${formatNumber(e.sunk)}\n` +
         `  💸 So'mga bugun: <b>${formatNumber(e.withdrawnToday)}</b> (jami ${formatNumber(e.withdrawnTotal)})\n\n` +
         `🛡 <b>Revenue byudjet</b> (${b.rides} safardan)\n` +
