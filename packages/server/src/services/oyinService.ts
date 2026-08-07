@@ -63,6 +63,7 @@ import {
   type OyinDrawList,
   type OyinDrawRecordResult,
   type OyinPrizeStage,
+  type OyinPrizeVelocity,
   type OyinWinner,
   type OyinTier,
   type OyinBallAdjustEntry,
@@ -1115,6 +1116,47 @@ export async function adminListCatalog(): Promise<OyinAdminPrizeRow[]> {
     const sold = soldMap.get(p.key) ?? 0;
     const minSell = minSellOf(p.limit, minPct);
     return { ...p, sold, minSell, willDraw: sold >= minSell, stage: stageOf(p, sold) };
+  });
+}
+
+/** 🧮 Sof hisob — DB'siz sinaladi (simGuards). Qolgan o'rin + so'nggi 7 kunlik sotuvdan
+ *  "necha kunda to'ladi" chiqaradi. `null` = ma'lumot yetarli emas (so'nggi 7 kunda sotuv
+ *  yo'q) — 0ga bo'lib cheksiz/yolg'on raqam chiqarmaslik uchun ATAYLAB `null`, `Infinity` emas. */
+export function projectedDaysToFill(remaining: number, soldLast7d: number): number | null {
+  if (remaining <= 0) return 0;
+  const perDay = soldLast7d / 7;
+  return perDay > 0 ? Math.ceil(remaining / perDay) : null;
+}
+
+/** 📊 2026-08-07 (ega so'rovi): "qaysi sovg'aga yaqin, qanday tez to'lyapti" — admin
+ *  "Bir qarashda" paneli uchun. `adminListCatalog`dan ATAYLAB ALOHIDA: bu butun
+ *  `oyin:tickets:*` jadvalini skanerlaydi (og'ir), `adminListCatalog` esa har sovrin
+ *  CRUD amalidan keyin ham chaqiriladi — birlashtirsak har tahrirda keraksiz to'liq skan
+ *  qo'shilardi. Sinov chiptalar (`test: true`) tezlikka KIRMAYDI — haqiqiy talabni
+ *  bo'yaydi. Proyeksiya faqat sof "so'nggi 7 kunlik o'rtacha" — trend/tezlashish
+ *  hisobga olinmaydi (v1, ega ko'rib "yetarli" desa shu holda qoladi). */
+export async function getPrizeVelocity(): Promise<OyinPrizeVelocity[]> {
+  const [catalog, soldMap, ticketRows] = await Promise.all([
+    getCatalog(),
+    getSoldMap(),
+    prisma.appState.findMany({ where: { key: { startsWith: "oyin:tickets:" } } }) as Promise<AppStateRow[]>,
+  ]);
+  const DAY_MS = 24 * 60 * 60 * 1000;
+  const cutoff7 = Date.now() - 7 * DAY_MS;
+  const soldLast7d = new Map<string, number>();
+  for (const row of ticketRows) {
+    for (const t of parseTickets(row.value)) {
+      if (t.test) continue;
+      const at = Date.parse(t.ts);
+      if (!Number.isFinite(at) || at < cutoff7) continue;
+      soldLast7d.set(t.prizeKey, (soldLast7d.get(t.prizeKey) ?? 0) + 1);
+    }
+  }
+  return catalog.map((p) => {
+    const sold = soldMap.get(p.key) ?? 0;
+    const last7d = soldLast7d.get(p.key) ?? 0;
+    const remaining = Math.max(0, p.limit - sold);
+    return { key: p.key, soldLast7d: last7d, projectedDays: projectedDaysToFill(remaining, last7d) };
   });
 }
 

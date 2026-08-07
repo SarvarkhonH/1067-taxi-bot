@@ -3,7 +3,9 @@ import {
   OYIN_ACTIVITY_ACTIONS,
   OYIN_CAPACITY_RATIO,
   OYIN_FINAL_LOCK_MS,
+  OYIN_MAX_REALISTIC_BALL,
   OYIN_SOM_PER_BALL,
+  OYIN_SOM_PER_RIDE,
   OYIN_STORY_SEASON_LIMIT,
   OYIN_TARGET_COST_PCT,
   formatNumber,
@@ -45,6 +47,7 @@ import {
   type OyinCapacityView,
   type OyinDrawExport,
   type OyinDrawList,
+  type OyinPrizeVelocity,
   type OyinWinner,
   OYIN_PRIZE_MULTIPLIER,
   oyinCardPlan,
@@ -5406,9 +5409,10 @@ function IntercityAdmin() {
 //
 // ⚠️ Ishlaydigan bloklar KO'CHIRILDI, qayta yozilmadi: OyinBudgetCard · OyinSeasonMetricsCard ·
 // OyinDrawCard_ · OyinControlCard · OyinActivityView · StoryModerationCard — ichi o'zgarmadi.
-type OyinSection = "mukofot" | "kun" | "odam" | "karta" | "gashtak" | "men" | "sozlama";
+type OyinSection = "mukofot" | "narx" | "kun" | "odam" | "karta" | "gashtak" | "men" | "sozlama";
 const OYIN_SECTIONS: { id: OyinSection; label: string }[] = [
   { id: "mukofot", label: "🎁 Mukofotlar" },
+  { id: "narx", label: "🧮 Narxlash" },
   { id: "kun", label: "🎬 Mukofot kuni" },
   { id: "odam", label: "👥 Odamlar" },
   { id: "karta", label: "💳 Kartalar" },
@@ -5427,7 +5431,8 @@ function OyinTab() {
           <button key={s.id} className={"seg-btn" + (sec === s.id ? " active" : "")} onClick={() => setSec(s.id)}>{s.label}</button>
         ))}
       </div>
-      {sec === "mukofot" && <><OyinBudgetCard /><OyinPrizeBoard /><OyinSeasonMetricsCard /></>}
+      {sec === "mukofot" && <><OyinVelocityBoard /><OyinBudgetCard /><OyinPrizeBoard /><OyinSeasonMetricsCard /></>}
+      {sec === "narx" && <OyinPriceCalcBlock />}
       {sec === "kun" && <OyinDrawCard_ />}
       {sec === "odam" && <OyinPeopleBlock />}
       {sec === "karta" && <OyinCardsBlock />}
@@ -5916,6 +5921,13 @@ function OyinPrizeBoard() {
                                   💰 Hammasi sotilsa kassaga <b>{formatNumber(adv.capacitySom)} so'm</b>, siz to'laysiz <b>{formatNumber(parseSum(d.valueLabel) ?? 0)} so'm</b>
                                 </div>
                                 {adv.plan.clamped && <div style={{ color: "#ff6b6b" }}>⛔ Narx 100 mln so'm shipidan oshdi — hisob KESILGAN qiymatdan, kafolat buzilgan.</div>}
+                                {adv.plan.ballPrice > OYIN_MAX_REALISTIC_BALL && (
+                                  <div style={{ color: "#f0b429", marginTop: 4 }}>
+                                    ⚠️ Bu tavsiya ({formatNumber(adv.plan.ballPrice)} ball) real foydalanuvchi uchun yetib bo'lmaydigan darajada
+                                    yuqori — bu yerdagi 4-pog'onali zinapoya (100..3600) past-narxli mukofotlar uchun mo'ljallangan.
+                                    Yuqori/qimmat sovrinlar uchun <b>«🧮 Narxlash»</b> tabidan foydalaning — u "necha oyda yetadi"ga qarab hisoblaydi.
+                                  </div>
+                                )}
                               </div>
                             ) : (
                               <div style={{ fontSize: 11, color: "#f0b429" }}>⚠️ Mukofotning real narxini (so'm) yozing — qoplash hisobi shundan chiqadi</div>
@@ -6150,6 +6162,193 @@ function OyinCardsBlock() {
 // Bu BOSHQA narsa: ega tomonidan boshqariladigan gap-jamoa (gashtak) o'yin doiralari.
 // Ro'yxat — `OyinCardsBlock` uslubi (qidiruv + `.table-wrap`). Tafsilot — `OyinControlCard`
 // uslubi (qatorda "Ochish" → tafsilot XUDDI SHU panelda pastda, modal EMAS).
+// ─── 🧮 NARXLASH — maqsadli "necha oyda yetadi"dan ball-narxni TESKARI hisoblaydi ──────────────
+// Ega talabi (2026-08-06): yuqori darajali sovrinlar (masalan iPhone 12, jonli katalogda 450 000
+// ball) real foydalanuvchi uchun yuzlab oy talab qiladi — vitrina "o'lik dekoratsiya"ga aylanadi.
+// Bu blok teskari yo'ldan boradi: ADMIN necha oyda yetishini belgilaydi, ball-narx va o'rin-soni
+// shundan chiqadi (`maqsad oy × oylik ball`, 100 ga yaxlitlangan — `oyinRidePlan` bilan bir xil
+// shakl). FAQAT reja/hisoblagich — hech qanday yozuvni o'zgartirmaydi; natija "🎁 Mukofotlar"ga
+// qo'lda ko'chiriladi (u yerdagi mavsum-o'rtasi ogohlantirish-dialoglari shu bilan ishlaydi,
+// ikkinchi yozish yo'li ochilmaydi).
+//
+// ⚠️ Diqqat: bu yerdagi formula "🎁 Mukofotlar"dagi `oyinAdvice` (`oyinCardPlan`, OYIN_TIERS
+// zinapoyasi 100..3600) dan BOSHQA — ikkalasi boshqa maqsadga xizmat qiladi: u yerdagi 4-pog'onali
+// zinapoya past-narxli mukofotlarga tez tavsiya beradi (yuqori chegarasi 3600 — shu sabab
+// zinapoya YOLG'IZ 450 000 ballik mukofot uchun ishlamaydi), bu esa istalgan yuqori darajani
+// aniq oy-maqsadiga moslaydi. Ikkalasi tasodifan boshqa-boshqa "to'g'ri narx" berishi mumkin —
+// buni bilib, real o'zgartirishdan oldin solishtirib ko'rish kerak (xuddi shu turdagi "ikki xil
+// matematika" muammosi `oyinAdvice` izohida ham eslatilgan).
+interface OyinPriceTier { key: string; name: string; months: number; monthlyBall: number; gashtak: boolean; gashtakBall: number; costPct: number }
+
+const OYIN_PRICE_TIER_DEFAULTS: OyinPriceTier[] = [
+  { key: "kichik", name: "Kichik", months: 3, monthlyBall: 350, gashtak: false, gashtakBall: 150, costPct: 15 },
+  { key: "orta", name: "O'rta", months: 6, monthlyBall: 700, gashtak: false, gashtakBall: 150, costPct: 15 },
+  { key: "premium", name: "Premium", months: 10, monthlyBall: 1350, gashtak: true, gashtakBall: 150, costPct: 12 },
+];
+const OYIN_PRICE_TIER_FALLBACK: OyinPriceTier = { key: "orta", name: "O'rta", months: 6, monthlyBall: 700, gashtak: false, gashtakBall: 150, costPct: 15 };
+
+function oyinPriceTierResult(t: OyinPriceTier, rideBall: number) {
+  const monthly = t.monthlyBall + (t.gashtak ? t.gashtakBall : 0);
+  const ballPrice = Math.max(100, Math.round((t.months * monthly) / 100) * 100);
+  const rides = monthly > 0 && rideBall > 0 ? Math.round(ballPrice / rideBall) : 0;
+  const monthsBack = monthly > 0 ? ballPrice / monthly : 0;
+  return { monthly, ballPrice, rides, monthsBack, reachable: ballPrice <= OYIN_MAX_REALISTIC_BALL };
+}
+
+function OyinPriceCalcBlock() {
+  const [catalog, setCatalog] = useState<OyinAdminPrizeRow[] | null>(null);
+  const [rideBall, setRideBall] = useState(35);
+  const [tiers, setTiers] = useState<OyinPriceTier[]>(OYIN_PRICE_TIER_DEFAULTS);
+  const [rowTier, setRowTier] = useState<Record<string, string>>({});
+  const [copiedKey, setCopiedKey] = useState<string | null>(null);
+
+  useEffect(() => {
+    adminApi.oyinCatalog().then((r) => setCatalog(r.prizes)).catch(() => setCatalog([]));
+    adminApi.bonusEconomy().then((e) => setRideBall(Number(e.values?.oyinRideBall ?? 35) || 35)).catch(() => undefined);
+  }, []);
+
+  const updateTier = (key: string, patch: Partial<OyinPriceTier>) =>
+    setTiers((cur) => cur.map((t) => (t.key === key ? { ...t, ...patch } : t)));
+
+  const tierByKey = (key: string): OyinPriceTier => tiers.find((x) => x.key === key) ?? OYIN_PRICE_TIER_FALLBACK;
+  const tierFor = (key: string) => rowTier[key] ?? "orta";
+
+  const copyRow = (key: string, price: number, limit: number) => {
+    navigator.clipboard?.writeText(`${price}\t${limit}`).then(() => {
+      setCopiedKey(key);
+      setTimeout(() => setCopiedKey((cur) => (cur === key ? null : cur)), 1500);
+    }).catch(() => undefined);
+  };
+
+  if (!catalog) {
+    return (
+      <section className="panel">
+        <div className="panel-title">🧮 Narxlash</div>
+        <div style={{ display: "grid", gap: 6 }}>{[0, 1, 2].map((i) => <div key={i} style={{ height: 34, borderRadius: 8, background: "rgba(255,255,255,.05)" }} />)}</div>
+      </section>
+    );
+  }
+
+  return (
+    <>
+      <section className="panel">
+        <div className="panel-title">🧮 Narxlash — maqsadli oyga qarab ball-narx</div>
+        <p style={{ fontSize: 12.5, color: "var(--muted)", lineHeight: 1.6, margin: "0 0 14px" }}>
+          Har daraja uchun <b>necha oyda yetishini</b> va foydalanuvchi tezligini belgilang — ball-narx
+          avtomatik chiqadi (<code>maqsad oy × oylik ball</code>, 100 ga yaxlitlangan). Faqat reja —
+          hech narsa yozilmaydi; natijani pastdagi jadvaldan nusxalab, «🎁 Mukofotlar»da qo'lda kiritasiz.
+        </p>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", gap: 12 }}>
+          {tiers.map((t) => {
+            const r = oyinPriceTierResult(t, rideBall);
+            return (
+              <div key={t.key} style={{ border: "1px solid var(--line)", borderRadius: 10, padding: 14 }}>
+                <div style={{ fontWeight: 700, marginBottom: 10 }}>{t.name}</div>
+                <label style={{ display: "block", fontSize: 11.5, color: "var(--muted)", marginBottom: 4 }}>Maqsadli oy</label>
+                <input
+                  type="number" min={1} max={36} className="search" value={t.months}
+                  onChange={(e) => updateTier(t.key, { months: Math.max(1, Number(e.target.value) || 1) })}
+                  style={{ width: "100%", marginBottom: 10 }}
+                />
+                <label style={{ display: "block", fontSize: 11.5, color: "var(--muted)", marginBottom: 4 }}>Foydalanuvchi tezligi (ball/oy)</label>
+                <input
+                  type="number" min={0} step={35} className="search" value={t.monthlyBall}
+                  onChange={(e) => updateTier(t.key, { monthlyBall: Math.max(0, Number(e.target.value) || 0) })}
+                  style={{ width: "100%" }}
+                />
+                <div style={{ fontSize: 11, color: "var(--muted)", margin: "4px 0 10px" }}>≈ {rideBall > 0 ? Math.round(t.monthlyBall / rideBall) : 0} safar/oy</div>
+                <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, marginBottom: 10 }}>
+                  <input type="checkbox" checked={t.gashtak} onChange={(e) => updateTier(t.key, { gashtak: e.target.checked })} />
+                  + Gashtak bonusi (taxminiy)
+                  <input
+                    type="number" min={0} step={10} className="search" value={t.gashtakBall} disabled={!t.gashtak}
+                    onChange={(e) => updateTier(t.key, { gashtakBall: Math.max(0, Number(e.target.value) || 0) })}
+                    style={{ width: 70 }}
+                  />
+                </label>
+                <label style={{ display: "block", fontSize: 11.5, color: "var(--muted)", marginBottom: 4 }}>Maqsadli xarajat %</label>
+                <input
+                  type="number" min={1} max={60} className="search" value={t.costPct}
+                  onChange={(e) => updateTier(t.key, { costPct: Math.min(60, Math.max(1, Number(e.target.value) || 15)) })}
+                  style={{ width: "100%", marginBottom: 12 }}
+                />
+                <div style={{ borderTop: "1px dashed var(--line)", paddingTop: 10 }}>
+                  <div style={{ fontSize: 22, fontWeight: 800 }}>
+                    {formatNumber(r.ballPrice)} <small style={{ fontSize: 11, color: "var(--muted)" }}>BALL / chipta</small>
+                  </div>
+                  <div style={{ fontSize: 11.5, color: "var(--muted)", marginTop: 4 }}>
+                    ≈ {formatNumber(r.rides)} safarlik mehnat · {r.monthsBack.toFixed(1)} oyda yetadi
+                  </div>
+                  <div style={{ fontSize: 11.5, marginTop: 6, color: r.reachable ? "var(--green)" : "var(--red)" }}>
+                    {r.reachable ? "✓" : "⚠"} OYIN_MAX_REALISTIC_BALL ({formatNumber(OYIN_MAX_REALISTIC_BALL)}) {r.reachable ? "dan past" : "dan yuqori"}
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </section>
+
+      <section className="panel" style={{ marginTop: 16 }}>
+        <div className="panel-title">Jonli katalog → yangi narx taklifi ({formatNumber(catalog.length)} ta)</div>
+        <p style={{ fontSize: 11.5, color: "var(--muted)", margin: "0 0 12px" }}>
+          Bu yerdagi formula «🎁 Mukofotlar»dagi tez-tavsiyadan (100..3600 zinapoya) FARQLI, ATAYLAB: o'sha zinapoya
+          past-narxli mukofotlar uchun yetarli, lekin yuqori darajaga (masalan iPhone) tegishli emas — 4000 dan
+          yuqori narx kerak bo'lsa, aynan shu yerdan (maqsadli-oy) foydalaning. Past-narxli mukofotlar uchun esa
+          «🎁 Mukofotlar»dagi tez-tavsiya yetarli.
+        </p>
+        <div style={{ overflowX: "auto" }}>
+          <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 860 }}>
+            <thead>
+              <tr>
+                <th>Mahsulot</th>
+                <th>Real narx</th>
+                <th>Daraja</th>
+                <th>Eski → Yangi ball</th>
+                <th>Eski → Yangi o'rin</th>
+                <th>Yangida yetadi</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody>
+              {catalog.filter((p) => p.active).map((p) => {
+                const sum = parseSum(p.valueLabel);
+                if (!sum) {
+                  return (
+                    <tr key={p.key}>
+                      <td className="td-name">{p.name}</td>
+                      <td colSpan={6} className="muted">real narx aniqlanmadi ({p.valueLabel})</td>
+                    </tr>
+                  );
+                }
+                const tKey = tierFor(p.key);
+                const t = tierByKey(tKey);
+                const r = oyinPriceTierResult(t, rideBall);
+                const slots = Math.max(1, Math.ceil(sum / ((t.costPct / 100) * r.ballPrice * OYIN_SOM_PER_BALL)));
+                return (
+                  <tr key={p.key}>
+                    <td className="td-name">{p.name}</td>
+                    <td className="num">{formatNumber(sum)} so'm</td>
+                    <td>
+                      <select className="search" value={tKey} onChange={(e) => setRowTier((cur) => ({ ...cur, [p.key]: e.target.value }))}>
+                        {tiers.map((x) => <option key={x.key} value={x.key}>{x.name}</option>)}
+                      </select>
+                    </td>
+                    <td className="num"><span className="muted" style={{ textDecoration: "line-through" }}>{formatNumber(p.price)}</span> → <b>{formatNumber(r.ballPrice)}</b></td>
+                    <td className="num"><span className="muted" style={{ textDecoration: "line-through" }}>{p.limit}</span> → <b>{slots}</b></td>
+                    <td className="num">{r.monthsBack.toFixed(1)} oy</td>
+                    <td><button className="btn sm" onClick={() => copyRow(p.key, r.ballPrice, slots)}>{copiedKey === p.key ? "✓ Nusxalandi" : "📋 Nusxa"}</button></td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      </section>
+    </>
+  );
+}
+
 function OyinGashtakBlock() {
   const [rows, setRows] = useState<OyinAdminGashtakRow[] | null>(null);
   const [q, setQ] = useState("");
@@ -6887,6 +7086,85 @@ function OyinBudgetCard() {
           Mukofot FAQAT hamma karta sotilganda o'ynaladi — shuning uchun xarajat har doim {(100 / multiplier).toFixed(0)}%.
           To'lmasa bir so'm ham sarflanmaydi.
         </span>
+      </div>
+    </section>
+  );
+}
+
+// 📊 2026-08-07 (ega so'rovi): "bir safar qancha pul keltiradi, unga berilgan ball qaysi
+// sovg'aga yaqin, qanday tez to'lyapti — keyingi oy qaror qilish oson bo'lishi uchun". Faqat
+// OCHIQ (mijoz hozir ko'radigan) sovrinlar — navbatdagilarga tezlik ma'nosiz (hali sotilmaydi).
+function OyinVelocityBoard() {
+  const [catalog, setCatalog] = useState<OyinAdminPrizeRow[] | null>(null);
+  const [velocity, setVelocity] = useState<OyinPrizeVelocity[] | null>(null);
+  const [rideBall, setRideBall] = useState(35);
+  const [multiplier, setMultiplier] = useState(OYIN_PRIZE_MULTIPLIER);
+  useEffect(() => {
+    adminApi.oyinCatalog().then((r) => setCatalog(r.prizes)).catch(() => setCatalog([]));
+    adminApi.oyinVelocity().then((r) => setVelocity(r.rows)).catch(() => setVelocity([]));
+    adminApi.bonusEconomy().then((e) => {
+      setRideBall(Number(e.values?.oyinRideBall ?? 35) || 35);
+      setMultiplier(Number(e.values?.oyinPrizeMultiplier ?? OYIN_PRIZE_MULTIPLIER) || OYIN_PRIZE_MULTIPLIER);
+    }).catch(() => undefined);
+  }, []);
+  if (!catalog || !velocity) {
+    return <section className="panel"><div className="panel-title">📊 Bir qarashda</div><div className="muted">Yuklanmoqda…</div></section>;
+  }
+
+  const ballSom = Math.round(rideBall * OYIN_SOM_PER_BALL);
+  const prizeCostPerRide = Math.round(ballSom / Math.max(1, multiplier));
+  const profitPerRide = OYIN_SOM_PER_RIDE - prizeCostPerRide;
+
+  const velByKey = new Map(velocity.map((v) => [v.key, v]));
+  const rows = catalog
+    .filter((p) => p.active && p.stage === "open")
+    .map((p) => {
+      const v = velByKey.get(p.key);
+      const pct = p.limit > 0 ? Math.min(100, Math.round((p.sold / p.limit) * 100)) : 0;
+      return { p, pct, soldLast7d: v?.soldLast7d ?? 0, projectedDays: v?.projectedDays ?? null };
+    })
+    .sort((a, b) => {
+      const ad = a.projectedDays ?? Infinity;
+      const bd = b.projectedDays ?? Infinity;
+      if (ad !== bd) return ad - bd;
+      return b.pct - a.pct;
+    });
+
+  return (
+    <section className="panel">
+      <div className="panel-title">📊 Bir qarashda — pul, ball, qaysi sovg'a yaqin</div>
+      <div className="cards" style={{ marginBottom: 14 }}>
+        <Card icon="🚕" label="1 safar" value={`${formatNumber(OYIN_SOM_PER_RIDE)} so'm`} sub="kassaga keladi" />
+        <Card icon="🪙" label="Shundan ball" value={`${formatNumber(ballSom)} so'm`} sub={`${rideBall} ball beriladi`} />
+        <Card icon="🎁" label="Sovrinlarga ketadi" value={`${formatNumber(prizeCostPerRide)} so'm`} sub={`${multiplier}× kafolatda`} />
+        <Card icon="💰" label="Sizga qoladi" value={`${formatNumber(profitPerRide)} so'm`} sub={`${Math.round((profitPerRide / OYIN_SOM_PER_RIDE) * 100)}%`} accent />
+      </div>
+
+      {rows.length === 0
+        ? <div className="muted" style={{ fontSize: 12.5 }}>Hozir ochiq sovrin yo'q.</div>
+        : (
+          <div style={{ display: "grid", gap: 6 }}>
+            {rows.map(({ p, pct, soldLast7d, projectedDays }) => (
+              <div key={p.key} style={{ display: "flex", gap: 10, alignItems: "center", padding: "8px 10px", borderRadius: 8, background: "rgba(255,255,255,.03)" }}>
+                <span style={{ fontSize: 18, width: 26, textAlign: "center", flexShrink: 0 }}>{p.icon || "🎁"}</span>
+                <div style={{ flex: 2, minWidth: 140 }}>
+                  <div style={{ fontWeight: 700, fontSize: 13 }}>{p.name}</div>
+                  <div className="muted" style={{ fontSize: 11 }}>{formatNumber(p.sold)} / {formatNumber(p.limit)} · {pct}%</div>
+                </div>
+                <div style={{ flex: 1, minWidth: 130, fontSize: 11.5 }}>
+                  <div className="muted">So'nggi 7 kun: <b style={{ color: "var(--text)" }}>{soldLast7d} ta</b></div>
+                  {projectedDays == null
+                    ? <div style={{ color: "var(--text-muted)" }}>ma'lumot yetarli emas</div>
+                    : projectedDays === 0
+                      ? <div style={{ color: "#34d399", fontWeight: 700 }}>✅ to'ldi</div>
+                      : <div style={{ color: projectedDays <= 14 ? "#34d399" : projectedDays <= 45 ? "#f0b429" : "#ff6b6b" }}>≈ {projectedDays} kunda to'ladi</div>}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      <div className="muted" style={{ fontSize: 11, marginTop: 10, lineHeight: 1.6 }}>
+        Proyeksiya — so'nggi 7 kunlik o'rtacha sotuvga asoslangan taxmin, kafolat emas (savdo hali kam bo'lsa ko'pi "ma'lumot yetarli emas" ko'rsatadi). Sinov kartalar hisobga kirmaydi.
       </div>
     </section>
   );

@@ -12,6 +12,7 @@
 import {
   ARCHIVED_PREFIXES, tierOfPrice,
   navbatchiOf, assignTurn, addMonths, parseJamoa, applyRemoveMember, applySetTurn, type JamoaRecord,
+  projectedDaysToFill,
 } from "../services/oyinService";
 import { STORY_COOLDOWN_HOURS, storyCooldownHoursLeft } from "../services/oyinStory";
 import { OYIN_TIERS, OYIN_JAMOA_MIN, OYIN_SEED_CATALOG, OYIN_PRIZE_MULTIPLIER, oyinCardPlan, oyinSuggestTier } from "@t1067/shared";
@@ -183,6 +184,15 @@ const tierDefault = oyinSuggestTier(V);
 const tierExplicit = oyinSuggestTier(V, 35, OYIN_PRIZE_MULTIPLIER);
 ok(tierDefault === tierExplicit, "oyinSuggestTier ham xuddi shu fallback bilan ishlaydi");
 ok(oyinCardPlan(V, "bosh", 35, 0.1).slots >= 1, "buzuq/juda kichik multiplikator (< 1) → ichkarida 3x fallback, hech qachon 0/manfiy slots emas");
+
+// ── 📊 BIR QARASHDA — sovrin-sotuv proyeksiyasi (2026-08-07, ega talabi) — HAQIQIY funksiyaga qarshi ─
+console.log("\nK) projectedDaysToFill — 'qanday tez to'lyapti' proyeksiyasi");
+ok(projectedDaysToFill(0, 5) === 0, "qolgan o'rin 0 → allaqachon to'lgan (0 kun)");
+ok(projectedDaysToFill(10, 0) === null, "so'nggi 7 kunda sotuv yo'q → ma'lumot yetarli emas (null, Infinity emas)");
+ok(projectedDaysToFill(7, 7) === 7, "haftasiga 7 ta sotilsa (kuniga 1) → 7 o'rin uchun 7 kun");
+ok(projectedDaysToFill(1, 7) === 1, "haftasiga 7 ta sotilsa, 1 o'rin qoldi → 1 kun (yaxlitlash yuqoriga)");
+ok(projectedDaysToFill(8, 7) === 8, "kuniga 1 tadan, 8 o'rin → 8 kun (bo'linmasa yuqoriga yaxlitlanadi)");
+ok(projectedDaysToFill(-3, 5) === 0, "manfiy 'qolgan' (buzuq kirish) → 0, manfiy kun chiqmaydi");
 
 console.log(fail === 0 ? "\n🛡 simGuards: HAMMA QO'RIQ JOYIDA\n" : `\n❌ simGuards: ${fail} ta qo'riq YO'Q\n`);
 process.exit(fail === 0 ? 0 : 1);

@@ -268,6 +268,19 @@ export interface OyinAdminPrizeRow extends OyinCatalogPrize {
   stage: OyinPrizeStage; // 📋 navbat holati
 }
 
+// 📊 2026-08-07 (ega so'rovi): "qaysi sovg'aga yaqin, qanday tez to'lyapti" — admin "Bir
+// qarashda" panelining chipta-sotish tezligi. Alohida so'rov (adminListCatalog'dan AJRATILGAN
+// — u har bir sovrin CRUD amalidan keyin ham chaqiriladi, tezlik-hisoblash esa butun
+// `oyin:tickets:*` jadvalini skanerlaydi; ikkalasini birlashtirsak har tahrirda keraksiz
+// og'ir so'rov qo'shilardi).
+export interface OyinPrizeVelocity {
+  key: string;
+  soldLast7d: number; // so'nggi 7 kunda sotilgan chipta soni
+  // Joriy tezlikda qolgan o'rin to'lishi uchun necha kun kerakligi. `null` = ma'lumot yetarli
+  // emas (so'nggi 7 kunda sotuv yo'q) — 0ga bo'lib cheksiz/yolg'on raqam chiqarmaslik uchun.
+  projectedDays: number | null;
+}
+
 // ── 📋 NAVBAT (ega teshigi 2026-08-04: "6 ta mukofot bir oy, lekin 25-kuni ball bor odamlar
 // bor, sotib oladigan narsa yo'q"). Ega 100+ mukofot YUKLAYDI — bu faqat ro'yxat, bir so'm ham
 // sarflanmaydi. Bir vaqtda 6-10 tasi OCHIQ; biri to'lganda navbatdan keyingisi ochiladi.

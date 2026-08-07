@@ -38,6 +38,7 @@ import type {
   OyinFreezeState,
   OyinDrawExport,
   OyinPrizeUpsertInput,
+  OyinPrizeVelocity,
   OyinSeasonResetResult,
   OyinStoryAdminRow,
   OyinSeasonView,
@@ -152,6 +153,7 @@ export const adminApi = {
   resetOyinSeason: (startIso: string, endIso: string, label: string | null) =>
     postJson<OyinSeasonResetResult>("/api/admin/oyin/season/reset", { startIso, endIso, label }),
   oyinCatalog: () => req<{ prizes: OyinAdminPrizeRow[] }>("/api/admin/oyin/catalog"),
+  oyinVelocity: () => req<{ rows: OyinPrizeVelocity[] }>("/api/admin/oyin/velocity"),
   upsertOyinPrize: (input: OyinPrizeUpsertInput) => postJson<{ prizes: OyinAdminPrizeRow[] }>("/api/admin/oyin/prize", input),
   setOyinPrizeActive: (key: string, active: boolean) =>
     postJson<{ prizes: OyinAdminPrizeRow[] }>("/api/admin/oyin/prize/active", { key, active }),

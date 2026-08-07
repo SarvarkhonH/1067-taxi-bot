@@ -2339,6 +2339,12 @@ export function createApiServer(opts: ApiOptions = {}) {
     const { adminListCatalog } = await import("../services/oyinService");
     res.json({ prizes: await adminListCatalog() });
   });
+  // 📊 2026-08-07: "Bir qarashda" paneli — sovrin-sotuv tezligi (7-kunlik). Katalog-CRUD
+  // javobidan ATAYLAB ALOHIDA route (oyinService.ts'dagi getPrizeVelocity izohiga qarang).
+  app.get("/api/admin/oyin/velocity", requireAdmin, async (_req, res) => {
+    const { getPrizeVelocity } = await import("../services/oyinService");
+    res.json({ rows: await getPrizeVelocity() });
+  });
   app.post("/api/admin/oyin/prize", requireAdmin, requireOwner, async (req, res) => {
     const b = req.body as { key?: string; icon?: string; name?: string; valueLabel?: string; price?: number; limit?: number; photoUrl?: string | null; queued?: boolean };
     if (typeof b?.name !== "string" || !b.name.trim()) { res.status(400).json({ error: "name required" }); return; }
