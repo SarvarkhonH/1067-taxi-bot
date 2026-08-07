@@ -2465,7 +2465,7 @@ export async function leaveJamoa(memberId: number): Promise<OyinJamoaResult> {
  *  ular haqiqiy safar qilmagani uchun ledgerga umuman yozilmaydi, shuning uchun ularning ta'siri
  *  alohida, real-ledger sig'imidan ORTIQ QOLGAN joyda taxmin qilinadi (pastga qarang). */
 async function jamoaMemberStats(j: JamoaRecord): Promise<Map<number, {
-  ridesThisMonth: number; ridesLifetime: number; ballEarnedTotal: number;
+  ridesThisMonth: number; ridesLifetime: number; ballEarnedTotal: number; ballEarnedThisMonth: number;
 }>> {
   const econ = await getBonusEcon();
   const ballPerRide = econ.oyinJamoaBallPerRide ?? 0;
@@ -2477,8 +2477,8 @@ async function jamoaMemberStats(j: JamoaRecord): Promise<Map<number, {
   const allIds = new Set<number>(j.members);
   for (const m of Object.values(j.turns)) allIds.add(m);
   const ids = [...allIds];
-  const out = new Map<number, { ridesThisMonth: number; ridesLifetime: number; ballEarnedTotal: number }>();
-  for (const id of ids) out.set(id, { ridesThisMonth: 0, ridesLifetime: 0, ballEarnedTotal: 0 });
+  const out = new Map<number, { ridesThisMonth: number; ridesLifetime: number; ballEarnedTotal: number; ballEarnedThisMonth: number }>();
+  for (const id of ids) out.set(id, { ridesThisMonth: 0, ridesLifetime: 0, ballEarnedTotal: 0, ballEarnedThisMonth: 0 });
   if (ids.length === 0) return out;
   // 🧪 VIRTUAL (manfiy ID) a'zolar `RideReward`ga YOZILMAGAN — ular uchun `oyin:testrides:*`
   // dan o'qiladi, xuddi shu `ridesByMemberMonth` xaritasiga (ikki manba, bitta iste'mol —
@@ -2537,7 +2537,10 @@ async function jamoaMemberStats(j: JamoaRecord): Promise<Map<number, {
   for (const row of ledgerRows) {
     const stat = out.get(row.memberId);
     const amt = row._sum.amount ?? 0;
-    if (stat) stat.ballEarnedTotal += amt;
+    if (stat) {
+      stat.ballEarnedTotal += amt;
+      if (row.monthKey === nowMonth) stat.ballEarnedThisMonth += amt;
+    }
     realByMonth.set(row.monthKey, (realByMonth.get(row.monthKey) ?? 0) + amt);
   }
   // 🧪 TEST qism — virtual a'zolar HECH QACHON ledgerga yozilmaydi (real safar emas, `rollRideCashback`
@@ -2556,7 +2559,10 @@ async function jamoaMemberStats(j: JamoaRecord): Promise<Map<number, {
       const headroom = Math.max(0, maxBall - (realByMonth.get(mk) ?? 0));
       const gain = Math.min(headroom, testGroupRides * ballPerRide);
       const stat = out.get(winner);
-      if (stat) stat.ballEarnedTotal += gain;
+      if (stat) {
+        stat.ballEarnedTotal += gain;
+        if (mk === nowMonth) stat.ballEarnedThisMonth += gain;
+      }
     }
   }
   return out;
@@ -2608,7 +2614,11 @@ export async function getJamoaView(memberId: number): Promise<OyinJamoaView> {
       }),
       ridesThisMonth,
       ballPerRide,
-      navbatchiBall: Math.min(maxBall, ridesThisMonth * ballPerRide),
+      // ✅ TUZATILDI (2026-08-07): endi ledgerdan (navbatchining shu oydagi haqiqiy yig'indisi) —
+      // avval `ridesThisMonth × ballPerRide` deb QAYTA HISOBLANARDI, ya'ni a'zo shu oy ICHIDA
+      // chiqib ketsa, uning ALLAQACHON ledgerga yozilgan hissasi bu ko'rsatkichdan yo'qolib
+      // qolardi (haqiqiy balansdan kam ko'rsatardi).
+      navbatchiBall: navbatchi != null ? Math.min(maxBall, stats.get(navbatchi)?.ballEarnedThisMonth ?? 0) : 0,
       maxBall,
       isMine: navbatchi === memberId,
       isLeader: j.leaderId === memberId,
