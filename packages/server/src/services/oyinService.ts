@@ -3566,7 +3566,7 @@ export async function getActivity(filters: OyinActivityFilter): Promise<OyinActi
       ? prisma.appState.findMany({ where: { key: `${prefix}${filters.memberId}` } })
       : prisma.appState.findMany({ where: { key: { startsWith: prefix } } })) as Promise<AppStateRow[]>;
 
-  const [telegramUsers, rideRows, referrals, ticketRows, loginRows, shareRows, questRows, homeRows, sprintWinRows, storyRows, adjActRows, jamoaActRows] = await Promise.all([
+  const [telegramUsers, rideRows, referrals, ticketRows, loginRows, shareRows, questRows, homeRows, sprintWinRows, storyRows, adjActRows] = await Promise.all([
     prisma.telegramUser.findMany({
       // Ism-xaritasi uchun: mijoz-yo'lida FAQAT o'zi + do'stlari kerak (`helpedName` shulardan
       // chiqadi), butun populyatsiya emas.
@@ -3603,7 +3603,6 @@ export async function getActivity(filters: OyinActivityFilter): Promise<OyinActi
     // 🛠 Admin qo'lda tuzatgan ball — BALL BERADI, demak jadvalda ham, mijozning qo'ng'irog'ida
     // ham ko'rinishi SHART. Yashirin tuzatish = "ball qayerdan keldi" savoli javobsiz qolishi.
     stateRows(ADJ_PREFIX),
-    stateRows(JAMOA_PREFIX),
   ]);
 
   const nameByMember = new Map<number, string>();
@@ -3709,30 +3708,30 @@ export async function getActivity(filters: OyinActivityFilter): Promise<OyinActi
   // GAP-JAMOA - har guruh, har oy: navbatchiga bitta qator. Ball beradi, demak jadvalda
   // ham ko'rinishi SHART (qoida: har ball manbai qo'ng'iroqda va admin jadvalida bo'ladi).
   {
-    const perRide = econ.oyinJamoaBallPerRide ?? 6;
-    const maxB = econ.oyinJamoaMaxBall ?? 3600;
-    if (perRide > 0) {
-      const ridesMM = new Map<string, number>();
-      const months = new Set<string>();
-      for (const [mid, rides] of ridesByMember) {
-        for (const r of rides) {
-          const mk = tashkentDayKey(r.at).slice(0, 7);
-          months.add(mk);
-          const k = mid + "|" + mk;
-          ridesMM.set(k, (ridesMM.get(k) ?? 0) + 1);
-        }
-      }
-      for (const row of jamoaActRows) {
+    // ✅ TUZATILDI (2026-08-07): endi o'zgarmas ledgerdan (`GashtakReward`) — qayta hisoblash
+    // YO'Q. Eski bug: navbat qayta belgilansa (`applySetTurn`), feed'dagi O'TGAN oylarning
+    // jamoa-qatori ham YANGI navbatchiga "ko'chib" ketardi (`computeBallMap` allaqachon shu
+    // ledgerga o'tkazilgan, lekin bu — mustaqil, alohida qayta-hisoblovchi joy edi, o'sha
+    // safar unutilib qolgan).
+    const gRows = await prisma.gashtakReward.groupBy({
+      by: ["memberId", "jamoaId", "monthKey"],
+      _sum: { amount: true },
+      _count: { _all: true },
+      where: { createdAt: { gte: winFrom, lte: winTo }, ...(rideMemberIds ? { memberId: { in: rideMemberIds } } : {}) },
+    });
+    if (gRows.length > 0) {
+      const jamoaIds = [...new Set(gRows.map((r) => r.jamoaId))];
+      const jamoaNameRows = await prisma.appState.findMany({ where: { key: { in: jamoaIds.map((id) => `${JAMOA_PREFIX}${id}`) } } });
+      const nameByJamoaId = new Map<string, string>();
+      for (const row of jamoaNameRows) {
         const j = parseJamoa(row.value);
-        if (!j || j.members.length === 0) continue;
-        for (const mk of months) {
-          let g = 0;
-          for (const m of j.members) g += ridesMM.get(m + "|" + mk) ?? 0;
-          if (g === 0) continue;
-          const w = navbatchiOf(j, mk);
-          if (w == null) continue;
-          push(dayAt(mk + "-01"), w, "jamoa", Math.min(maxB, g * perRide), null, j.name + " - " + g + " safar");
-        }
+        if (j) nameByJamoaId.set(j.id, j.name);
+      }
+      for (const r of gRows) {
+        const amount = r._sum.amount ?? 0;
+        if (amount <= 0) continue;
+        const groupName = nameByJamoaId.get(r.jamoaId) ?? "Gashtak";
+        push(dayAt(`${r.monthKey}-01`), r.memberId, "jamoa", amount, null, `${groupName} - ${r._count._all} safar`);
       }
     }
   }

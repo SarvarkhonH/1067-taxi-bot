@@ -29,31 +29,57 @@ function obSlides(h: OyinStateResponse["hints"]): { icon: string; text: string }
 const OB_SEEN_KEY = "oyk_onboard_seen";
 const FRIENDS_PAGE = 8; // "Do'stlarim" ro'yxati shuncha ko'rsatiladi, keyin "ko'proq" tugmasi
 
-/** 🤝 Gashtak-tushuntirish (2026-08-06, ega talabi — "rasmli, story-uslubida bir-ma-bir
- *  o'tiladigan varoq"). `obSlides`/`.oyk-onboard` bilan BIR XIL naqsh qayta ishlatildi (alohida
- *  state+localStorage kalit bilan). Gashtak sof ta'rif/mexanika — jismoniy buyum emas, shuning
- *  uchun rasm o'rniga katta emoji-belgi (DIZAYN_QOIDALARI #10 faqat "jismoniy narsa"ga tegishli —
- *  bu istisno). "Nega" slaydida esa (2026-08-07, ega talabi: "chiroyli animatsiya bilan bo'lishi
- *  kerak odamlar tushunsin") matn o'rniga jonli taqqoslash-animatsiyasi — solo va gashtak-oyidagi
- *  ball tezligi yonma-yon, DIZAYN_QOIDALARI #16 (faqat transform/opacity, reduced-motion hurmat
- *  qilinadi — global `.oyk` qoidasi CSS'da avtomatik o'chiradi, alohida override shart emas). */
+/** 🤝 Gashtak-tushuntirish (2026-08-06/07, ega talabi — "rasmli, story-uslubida bir-ma-bir
+ *  o'tiladigan varoq", "hamma slayd chiroyli animatsiya bilan bo'lsin"). `obSlides`/`.oyk-onboard`
+ *  bilan BIR XIL naqsh qayta ishlatildi. HAR slaydda — matn o'rniga/ustiga jonli, qo'lda qurilgan
+ *  illyustratsiya (tashqi rasm/video EMAS — mualliflik-huquq xavfi + DIZAYN_QOIDALARI #16 faqat
+ *  transform/opacity talabi). Faqat oxirgi (chiqish/tarqatish) slayd ATAYLAB oddiy qoldirildi —
+ *  bu ogohlantirish, "quvnoq" animatsiya ohangga zid bo'lardi. */
 const GASHTAK_HELP_SEEN_KEY = "oyk_gashtak_help_seen";
-function gashtakSlides(): { icon: string; text: string; visual?: "compare" }[] {
+function gashtakSlides(): { icon: string; text: string; visual?: "unity" | "join" | "compare" | "goal" | "message" }[] {
   return [
-    { icon: "🤝", text: "Gashtak — o'zbekona hamjihatlik: bir nechta kishi birlashib, navbat bilan ball yig'adi" },
-    { icon: "👥", text: "3–10 kishilik gashtak tuzing yoki mavjudiga kod yoki havola bilan qo'shiling" },
+    { icon: "🤝", text: "Gashtak — o'zbekona hamjihatlik: yaqinlaringiz bilan birlashib, navbat bilan bir-biringizga yordam berasiz", visual: "unity" },
+    { icon: "👥", text: "3–10 kishi — oila, do'stlar, mahalla. Kod yoki havola bilan qo'shiling", visual: "join" },
     {
       icon: "🎯",
-      text: "Har oy navbat bitta a'zoga o'tadi — gashtakning UMUMIY safarlari o'sha navbatchiga ball olib keladi. Navbatingiz kelgan oy — oddiy oydan SEZILARLI tezroq yig'asiz",
+      text: "Har oy — BITTA odamning navbati. O'sha oyda hammaning safari o'sha bitta odamga ishlaydi",
       visual: "compare",
     },
-    { icon: "📢", text: "Boshliq a'zolarga to'g'ridan-to'g'ri xabar yubora oladi — masalan \"yana 2 safar qilsak yetadi\"" },
+    {
+      icon: "📱",
+      text: "Misol: yolg'iz yursangiz, telefon kabi katta sovg'aga yetish ancha vaqt oladi. Lekin navbatingiz kelgan oyda — 10 kishi birga yursa, o'sha BIR OYNING o'zida odatdagidan 2-3 baravar ko'p ball yig'asiz. Katta orzuga eng tez yetish yo'li — birga yurish",
+      visual: "goal",
+    },
+    { icon: "📢", text: "Boshliq a'zolarga to'g'ridan-to'g'ri xabar yubora oladi — masalan \"yana 2 safar qilsak yetadi\"", visual: "message" },
     { icon: "🚪", text: "Istalgan payt chiqishingiz mumkin. Boshliq gashtakni butunlay tarqatishi ham mumkin — bu qaytarib bo'lmaydi" },
   ];
 }
+/** 🎬 "Hamjihatlik" — bir qator odam birga "nafas oladi" (navbat bilan pulslanadi), ostida
+ *  ularni bog'lovchi chiziq. Slayd 1. */
+function GashtakUnityViz() {
+  return (
+    <div className="oyk-gun" aria-hidden="true">
+      <div className="oyk-gun-line" />
+      {[0, 1, 2, 3, 4].map((i) => (
+        <span key={i} className="oyk-gun-dot" style={{ animationDelay: `${i * 150}ms` }} />
+      ))}
+    </div>
+  );
+}
+/** 🎬 "Qo'shilish" — a'zolar birma-bir paydo bo'ladi (guruh tuzilishi). Slayd 2. */
+function GashtakJoinViz() {
+  return (
+    <div className="oyk-gjoin" aria-hidden="true">
+      {[0, 1, 2, 3, 4].map((i) => (
+        <span key={i} className="oyk-gjoin-dot" style={{ animationDelay: `${i * 220}ms` }} />
+      ))}
+    </div>
+  );
+}
 /** 🎬 Solo vs gashtak-oyi — ball tezligi taqqoslash animatsiyasi. Ikkita panjara chizig'i bir
  *  vaqtda to'ladi, gashtak chizig'i ANIQ tezroq va uzoqroqqa yetadi. Real nisbat emas (bu his-
- *  tuyg'u uchun illyustratsiya) — lekin yo'nalish rost: gashtak-oyi doim solo-oydan ko'proq beradi. */
+ *  tuyg'u uchun illyustratsiya) — lekin yo'nalish rost: gashtak-oyi doim solo-oydan ko'proq beradi.
+ *  Slayd 3. */
 function GashtakCompareViz() {
   return (
     <div className="oyk-gcmp" aria-hidden="true">
@@ -70,6 +96,28 @@ function GashtakCompareViz() {
         </div>
         <div className="oyk-gcmp-label is-accent">Navbat oyi</div>
       </div>
+    </div>
+  );
+}
+/** 🎬 "Maqsadga oqim" — atrofdan zarrachalar markazdagi orzu-belgiga uchib kiradi, u esa
+ *  nafas oladi — guruhning hissasi bitta katta maqsadga yig'ilishini ko'rsatadi. Slayd 4. */
+function GashtakGoalViz() {
+  const angles = [0, 60, 120, 180, 240, 300];
+  return (
+    <div className="oyk-ggoal" aria-hidden="true">
+      <div className="oyk-ggoal-icon">📱</div>
+      {angles.map((deg, i) => (
+        <span key={deg} className="oyk-ggoal-spark" style={{ ["--ang" as string]: `${deg}deg`, animationDelay: `${i * 200}ms` }} />
+      ))}
+    </div>
+  );
+}
+/** 🎬 "Xabar yuborish" — chat-belgisi jo'natilayotgandek suriladi va so'nadi, qayta paydo bo'ladi.
+ *  Slayd 5. */
+function GashtakMessageViz() {
+  return (
+    <div className="oyk-gmsg" aria-hidden="true">
+      <span className="oyk-gmsg-bubble">💬</span>
     </div>
   );
 }
@@ -1383,10 +1431,7 @@ Taksida yur, ball yig', sodiqlik kartasini ol. Davr oxirida jonli efirda mukofot
                     <small>+{state.hints.rideBall} ball</small>
                   </button>
                   <button type="button" className="oyk-act is-invite" onClick={() => void inviteFriend()}>
-                    <span className="oyk-act-ic oyk-act-ic--brand">
-                      <BirJoyMark size={32} />
-                      <span className="oyk-act-crown" aria-hidden="true">👑</span>
-                    </span>
+                    <span className="oyk-act-ic">👥</span>
                     <b>Do'st chaqirish</b>
                     <small>+{state.hints.referFirstRideBall} ball</small>
                   </button>
@@ -1587,7 +1632,10 @@ Taksida yur, ball yig', sodiqlik kartasini ol. Davr oxirida jonli efirda mukofot
               <div className="oyk-vtop-ball"><span>Sizning ballingiz</span><b>{state.ball}</b></div>
             </div>
             <div className="oyk-sponsor-strip">
-              <div className="oyk-sponsor-logo">{vitrina.sponsor.name[0] ?? "B"}</div>
+              <div className="oyk-sponsor-logo">
+                <BirJoyMark size={18} />
+                <span className="oyk-sponsor-crown" aria-hidden="true">👑</span>
+              </div>
               <div className="oyk-sponsor-strip-text">Mukofotlar homiysi — <b>{vitrina.sponsor.name}</b></div>
             </div>
             {vitrina.prizes.length === 0 && (
@@ -2131,7 +2179,10 @@ Taksida yur, ball yig', sodiqlik kartasini ol. Davr oxirida jonli efirda mukofot
         )}
 
         <div className="oyk-sponsor">
-          <div className="oyk-sponsor-logo">{vitrina.sponsor.name[0] ?? "B"}</div>
+          <div className="oyk-sponsor-logo">
+            <BirJoyMark size={20} />
+            <span className="oyk-sponsor-crown" aria-hidden="true">👑</span>
+          </div>
           <div className="oyk-sponsor-text">Dastur homiysi — <b>{vitrina.sponsor.name}</b></div>
         </div>
         <div className="oyk-legal">Sodiqlik kartasi — ishtirok huquqi, mukofot kafolati emas. Mukofot kuni davr oxirida jonli efirda.</div>
@@ -2547,7 +2598,11 @@ Taksida yur, ball yig', sodiqlik kartasini ol. Davr oxirida jonli efirda mukofot
         <div className="oyk-onboard">
           <div className="oyk-ob-icon">{cur.icon}</div>
           <div className="oyk-ob-step">{gashtakHelp + 1} / {slides.length} QADAM</div>
+          {cur.visual === "unity" && <GashtakUnityViz />}
+          {cur.visual === "join" && <GashtakJoinViz />}
           {cur.visual === "compare" && <GashtakCompareViz />}
+          {cur.visual === "goal" && <GashtakGoalViz />}
+          {cur.visual === "message" && <GashtakMessageViz />}
           <div className="oyk-ob-text">{cur.text}</div>
           <div className="oyk-ob-dots">
             {slides.map((sl, i) => <div key={sl.icon} className={`oyk-ob-dot${i === gashtakHelp ? " is-active" : ""}`} />)}
