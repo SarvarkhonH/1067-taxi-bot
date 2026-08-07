@@ -329,9 +329,14 @@ export const BONUS_ECON_KNOBS: BonusEconKnob[] = [
   // yolg'iz "jamoa" ball olmaydi; (3) yaratish/qo'shilish/chiqish CAS bilan atomik.
   // Umrbod shift STRUKTURAVIY: har a'zoga bitta navbat → ko'pi bilan `oyinJamoaMaxBall`.
   { key: "oyinJamoaBallPerRide", label: "🤝 Gap-jamoa — navbatchiga ball", def: 6, min: 0, max: 100, step: 1, group: "Koson O'yini" },
-  // Oylik shift: jamoa juda faol bo'lsa ham navbatchi bir oyda bundan ko'p ololmaydi.
-  // 3 600 = eng qimmat karta (`OYIN_TIERS.bosh`) — ya'ni navbat oyiga max bitta katta karta.
-  { key: "oyinJamoaMaxBall", label: "🤝 Gap-jamoa — navbatchiga oylik shift", def: 3600, min: 0, max: 20000, step: 100, group: "Koson O'yini" },
+  // ⚠️ 3600 → 200000 (ega qarori 2026-08-07, gashtak-ledger tuzatilgandan keyin — oyinService.ts
+  // `GashtakReward`). Avval bu "windfall"ni cheklovchi qaror edi, lekin xarajat REAL, guruh
+  // hajmidan mustaqil himoyalangan: chipta-tizimi (3× kafolat + `oyinMaxTicketsPerPrize`) xarajatni
+  // qanday ball kelishidan qat'i nazar sovrin qiymatining taxminan 1/3 qismida ushlab turadi.
+  // Real (eng og'ir) holat: `OYIN_JAMOA_MAX`(50) a'zo × kuniga 10 safar × 30 kun × 6 ball ≈ 90 000 —
+  // 200 000 shu darajadan ham keng zaxira bilan yuqori, amalda cheksiz. Bayroq — kill-switch
+  // sifatida qoladi (min:0 — kerak bo'lsa qayta tortilishi mumkin), o'chirilmagan.
+  { key: "oyinJamoaMaxBall", label: "🤝 Gap-jamoa — navbatchiga oylik shift", def: 200000, min: 0, max: 500000, step: 1000, group: "Koson O'yini" },
   // 🛡 Gashtak rejasi (2026-08-05, ega talabi bilan topilgan TOPILMA 2): navbat GURUH ICHIDA
   // takror-turmaydi (S7-2b), lekin GURUHLARARO cheklov yo'q edi — chiq → boshqa faol guruhga
   // qo'shil → yangi navbat oyi ol, takrorlana beradi. Chiqish/chiqarilish/tarqatilishdan keyin

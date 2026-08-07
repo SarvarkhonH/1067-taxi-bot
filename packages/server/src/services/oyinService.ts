@@ -301,7 +301,7 @@ async function computeBallMap(): Promise<Map<number, MemberBallRow>> {
   const fromWeek = weekKey(from);
   const toWeek = weekKey(to);
 
-  const [rideCounts, rideDayRows, referrals, telegramUsers, ticketRows, loginRows, shareRows, questRows, homeRows, sprintWinRows, storyRows, adjRows, jamoaRows] = await Promise.all([
+  const [rideCounts, rideDayRows, referrals, telegramUsers, ticketRows, loginRows, shareRows, questRows, homeRows, sprintWinRows, storyRows, adjRows, gashtakLedgerRows] = await Promise.all([
     // 1) YAGONA DB-darajasidagi sana filtri — katta jadval va indeksi bor (@@index([createdAt])).
     prisma.rideReward.groupBy({ by: ["memberId"], _count: { _all: true }, where: { createdAt: { gte: from, lte: to } } }),
     // 1b) ⚠️ Zanjir uchun SAFAR KUNLARI. Avval zanjir `oyin:login:` (ILOVA OCHISH) bo'yicha edi —
@@ -331,9 +331,10 @@ async function computeBallMap(): Promise<Map<number, MemberBallRow>> {
     // 🛠 Admin qo'lda tuzatgan ball. Mavsumga KESILMAYDI (qator mavsum bilan arxivlanadi, ya'ni
     //    yangi mavsumda o'zi bo'shaydi) — sanani ikkinchi marta filtrlash ikki qavat qoida bo'lardi.
     prisma.appState.findMany({ where: { key: { startsWith: ADJ_PREFIX } } }) as Promise<AppStateRow[]>,
-    // 🤝 Gap-jamoalar — navbatchiga oylik bonus. Guruhlar kam (a'zolar soni ÷ 3..10), shuning
-    //    uchun to'liq o'qish arzon.
-    prisma.appState.findMany({ where: { key: { startsWith: JAMOA_PREFIX } } }) as Promise<AppStateRow[]>,
+    // 🤝 Gashtak-ledger — o'zgarmas yozuvlar, oynadagi yig'indi memberId bo'yicha. Xuddi
+    //    RideReward kabi: har yozuv REAL safar tasdiqlanganda bir marta yozilgan, keyin
+    //    o'zgarmaydi (guruh tarkibi keyinroq o'zgarsa ham).
+    prisma.gashtakReward.groupBy({ by: ["memberId"], _sum: { amount: true }, where: { createdAt: { gte: from, lte: to } } }),
   ]);
 
   // Nomi ATAYLAB "season…" — endi ikki vazifa bajaradi (o'z safari + referee safari), kelajakda
@@ -430,58 +431,13 @@ async function computeBallMap(): Promise<Map<number, MemberBallRow>> {
     const memberId = Number(row.key.slice("oyin:share:".length));
     if (Number.isFinite(memberId)) shareDaysByMember.set(memberId, countDays(row.value));
   }
-  // 🤝 GAP-JAMOA — har guruh, har oy: jamoaning umumiy safarlari NAVBATCHIGA ball beradi.
-  // Oylik shift bilan (`oyinJamoaMaxBall`) — juda faol jamoa cheksiz ball chiqarmasin.
-  // ⚠️ Ball KO'CHIRILMAYDI: bu tizim yaratadigan bonus, a'zolar orasidagi o'tkazma EMAS.
+  // 🤝 GAP-JAMOA — endi o'zgarmas ledgerdan (`GashtakReward`, `creditGashtakLedger` real safar
+  // tasdiqlanganda yozadi) oddiy YIG'INDI. Qayta hisoblash YO'Q — guruh tarkibi keyinroq
+  // o'zgarsa ham, allaqachon yozilgan yozuvlar TEGILMAYDI (eski "computeBallMap har safar
+  // qayta hisoblaydi" bugi shu bilan yopildi — RideReward/CoinTxn bilan bir xil falsafa).
   const jamoaByMember = new Map<number, number>();
-  {
-    // 🔴 S7-2 (nazoratchi 2026-08-04) — JAMOA BALLI VAQTINCHA O'CHIRILDI (knob def 0).
-    //
-    // Sabab: navbat SAQLANMAYDI (`navbatchiOf` har chaqiruvda qayta hisoblaydi), shuning uchun
-    // a'zo qo'shilsa/chiqsa O'TGAN oylarning navbatchisi ham O'ZGARADI. Karta esa ABADIY (S8).
-    // Ikkalasi birga ekspluatatsiya beradi:
-    //   1. A navbatchi bo'lib 3600 ball oladi → kartaga sarflaydi (karta abadiy qoladi)
-    //   2. yangi a'zo qo'shiladi → o'sha oy B ga o'tadi → A ning earned tushadi, KARTASI qoladi
-    //   3. B endi o'sha 3600 ni oladi → yana karta. Cheksiz takrorlanadi.
-    // Yana: oylik shift bor, UMRBOD shift YO'Q — 8 oylik guruh 28 800 ball bera oladi.
-    //
-    // TO'G'RI YECHIM (S7b): navbat oy bo'yicha BIR MARTA yozib qo'yiladi (`oyin:jamoaturn:`)
-    // va keyin o'zgarmaydi + umrbod shift. Ungacha ball 0 — jamoa ijtimoiy funksiya sifatida
-    // ishlaydi (tuzish, qo'shilish, kim navbatda ekanini ko'rish), ball bermaydi.
-    const jamoaPerRide = econ.oyinJamoaBallPerRide ?? 0;
-    const jamoaMax = econ.oyinJamoaMaxBall ?? 3600;
-    if (jamoaPerRide > 0) {
-      // Safarlarni a'zo × oy bo'yicha yig'amiz (`rideDayRows` allaqachon o'qilgan).
-      const ridesByMemberMonth = new Map<string, number>();
-      for (const r of rideDayRows) {
-        const k = `${r.memberId}|${monthKeyOf(r.createdAt)}`;
-        ridesByMemberMonth.set(k, (ridesByMemberMonth.get(k) ?? 0) + 1);
-      }
-      const nowMonth = monthKeyOf(new Date(nowMs));
-      for (const row of jamoaRows) {
-        const j = parseJamoa(row.value);
-        // 🔴 S7-1: `OYIN_JAMOA_MIN` avval FAQAT ekranga chiqarilardi, ball yo'lida
-        // tekshirilmasdi. Natijada istalgan odam o'ziga YOLG'IZ "jamoa" tuzib har safaridan
-        // +17% ball olardi — gashtak modelining butun mantig'i chetlab o'tilardi.
-        if (!j || j.members.length < OYIN_JAMOA_MIN) continue;
-        const startMonth = monthKeyOf(new Date(j.createdAt));
-        // Guruh tuzilganidan BUGUNGI oygacha — har oy uchun o'sha oyning navbatchisiga.
-        const span = Math.max(0, monthsBetween(startMonth, nowMonth));
-        for (let i = 0; i <= span; i++) {
-          const [sy, sm] = startMonth.split("-").map(Number);
-          if (!sy || !sm) break;
-          const d = new Date(Date.UTC(sy, sm - 1 + i, 1));
-          const mk = `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}`;
-          let groupRides = 0;
-          for (const m of j.members) groupRides += ridesByMemberMonth.get(`${m}|${mk}`) ?? 0;
-          if (groupRides === 0) continue;
-          const winner = navbatchiOf(j, mk);
-          if (winner == null) continue;
-          const gain = Math.min(jamoaMax, groupRides * jamoaPerRide);
-          jamoaByMember.set(winner, (jamoaByMember.get(winner) ?? 0) + gain);
-        }
-      }
-    }
+  for (const row of gashtakLedgerRows) {
+    jamoaByMember.set(row.memberId, row._sum.amount ?? 0);
   }
 
   // 🛠 Admin tuzatishi — musbat ham, manfiy ham bo'lishi mumkin.
@@ -2210,6 +2166,42 @@ function monthKeyOf(d: Date): string {
   return tashkentDayKey(d).slice(0, 7);
 }
 
+/** 🤝 GASHTAK-LEDGER YOZUVI — safar HAQIQIY tasdiqlanganda (RideReward yaratilgan zahoti)
+ *  DARHOL chaqiriladi (`cashbackService.rollRideCashback`dan). `GashtakReward` bir marta
+ *  yozilgach O'ZGARMAYDI — guruh tarkibi keyin o'zgarsa ham, bu yozuv o'sha kunlik haqiqatni
+ *  abadiy saqlaydi (eski "computeBallMap har safar qayta hisoblaydi" bugining tuzatilishi).
+ *
+ *  Best-effort: bu YORDAMCHI bonus, asosiy pul-yo'liga (RideReward/CoinTxn) TA'SIR QILMAYDI —
+ *  xato bo'lsa jim log qilinadi, safar-cashback jarayoni to'xtamaydi. */
+export async function creditGashtakLedger(riderId: number, rideRewardId: number): Promise<void> {
+  try {
+    if (!(await featureOn("oyin"))) return;
+    const econ = await getBonusEcon();
+    const perRide = econ.oyinJamoaBallPerRide ?? 0;
+    if (perRide <= 0) return;
+    const j = await jamoaOf(riderId);
+    if (!j || j.members.length < OYIN_JAMOA_MIN) return;
+    const monthKey = monthKeyOf(new Date());
+    const navbatchi = navbatchiOf(j, monthKey);
+    if (navbatchi == null) return;
+    const maxBall = econ.oyinJamoaMaxBall ?? 3600;
+    const sofar = await prisma.gashtakReward.aggregate({
+      where: { memberId: navbatchi, jamoaId: j.id, monthKey },
+      _sum: { amount: true },
+    });
+    const already = sofar._sum.amount ?? 0;
+    if (already >= maxBall) return;
+    const amount = Math.min(perRide, maxBall - already);
+    await prisma.gashtakReward.create({
+      data: { memberId: navbatchi, jamoaId: j.id, rideRewardId, monthKey, amount },
+    });
+  } catch (e) {
+    // `rideRewardId` unique — qayta so'rov (@@unique buzilishi) jim o'tkaziladi; boshqa xato log
+    // qilinadi, lekin bu funksiya HECH QACHON chaqiruvchiga (safar-cashback) tashlamaydi.
+    console.error("[oyin] creditGashtakLedger:", e);
+  }
+}
+
 /** 🔄 NAVBAT — kim shu oyning navbatchisi.
  *
  *  Deterministik: jamoa tuzilganidan beri o'tgan oylar soni `members` ro'yxati bo'ylab aylanadi.
@@ -2466,15 +2458,12 @@ export async function leaveJamoa(memberId: number): Promise<OyinJamoaResult> {
  *  `adminGashtakDetail` (admin) IKKALASI ham shu funksiyani chaqiradi (S8-8 saboqi: ikki xil
  *  joyda bir xil raqamni ikki xil hisoblash — o'sha bugning o'zi shu edi).
  *
- *  ⚠️ Bilib qilingan cheklov: `ballEarnedTotal` `computeBallMap`dagi jamoa-sikli bilan AYNAN
- *  bir xil formuladan hisoblanadi — u HAR oy uchun `groupRides`ni GURUHNING HOZIRGI (bugungi)
- *  a'zolari bo'yicha yig'adi, o'sha oydagi TARIXIY tarkib bo'yicha emas (bu xususiyat S7-2b/
- *  S7-3 sessiyasidan meros, endi ham o'zgartirilmadi — oylik a'zo-snapshot alohida struktura
- *  talab qiladi, bu safar so'ralgan ish doirasidan tashqarida). Natija: kimdir chiqib ketsa,
- *  o'tgan oylarning `groupRides`i (demak balli) SILJISHI mumkin. Ikkala chaqiruvchi ham BIR XIL
- *  formuladan foydalanadi — shu bilan hech bo'lmasa ko'rsatilgan raqam HAQIQIY balansga mos
- *  keladi (S8-8 buzilishi qaytarilmaydi), garchi formulaning o'zi tarixiy jihatdan "sirpanchiq"
- *  bo'lsa ham. */
+ *  ✅ TUZATILDI (2026-08-07): `ballEarnedTotal`ning REAL qismi endi `GashtakReward` ledgeridan
+ *  o'qiladi — `computeBallMap` bilan AYNAN BIR XIL manba, qayta hisoblash YO'Q. Eski bug (guruh
+ *  tarkibi o'zgarsa o'tgan oylarning balli SILJIYDI) shu bilan yopildi: ledger yozuvi bir marta
+ *  yozilgach O'ZGARMAYDI. Faqat TEST (virtual, manfiy ID) a'zolarning hissasi hamon taxminiy —
+ *  ular haqiqiy safar qilmagani uchun ledgerga umuman yozilmaydi, shuning uchun ularning ta'siri
+ *  alohida, real-ledger sig'imidan ORTIQ QOLGAN joyda taxmin qilinadi (pastga qarang). */
 async function jamoaMemberStats(j: JamoaRecord): Promise<Map<number, {
   ridesThisMonth: number; ridesLifetime: number; ballEarnedTotal: number;
 }>> {
@@ -2507,15 +2496,15 @@ async function jamoaMemberStats(j: JamoaRecord): Promise<Map<number, {
       ? prisma.appState.findMany({ where: { key: { startsWith: `${TEST_RIDES_PREFIX}${j.id}:` } }, select: { key: true, value: true } })
       : Promise.resolve([] as { key: string; value: string }[]),
   ]);
-  const ridesByMemberMonth = new Map<string, number>();
+  // 🧪 Faqat TEST (virtual) safarlar uchun — real safarlar endi ledgerdan o'qiladi (pastda),
+  // ikki marta sanalmasin.
+  const testRidesByMemberMonth = new Map<string, number>();
   for (const r of rides) {
     const stat = out.get(r.memberId);
     if (stat) {
       stat.ridesLifetime++;
       if (r.createdAt >= monthStart) stat.ridesThisMonth++;
     }
-    const k = `${r.memberId}|${monthKeyOf(r.createdAt)}`;
-    ridesByMemberMonth.set(k, (ridesByMemberMonth.get(k) ?? 0) + 1);
   }
   // `oyin:testrides:<code>:<negId>:<monthKey>` — kalitni qattiq ajratib olish (`negId` o'zi
   // manfiy belgi tashiydi, `split(":")` bilan ajratish xavfsiz: prefiks o'zida `:` yo'q).
@@ -2533,8 +2522,27 @@ async function jamoaMemberStats(j: JamoaRecord): Promise<Map<number, {
       if (mk === nowMonth) stat.ridesThisMonth += n;
     }
     const k = `${negId}|${mk}`;
-    ridesByMemberMonth.set(k, (ridesByMemberMonth.get(k) ?? 0) + n);
+    testRidesByMemberMonth.set(k, (testRidesByMemberMonth.get(k) ?? 0) + n);
   }
+
+  // 🤝 REAL qism — o'zgarmas ledgerdan (`GashtakReward`, `creditGashtakLedger` real safar
+  // tasdiqlanganda yozadi). Qayta hisoblash YO'Q — bu `computeBallMap` bilan BIR XIL manba,
+  // shuning uchun ekranda ko'rsatilgan raqam HAQIQIY balansga har doim mos keladi.
+  const ledgerRows = await prisma.gashtakReward.groupBy({
+    by: ["memberId", "monthKey"],
+    _sum: { amount: true },
+    where: { jamoaId: j.id },
+  });
+  const realByMonth = new Map<string, number>(); // monthKey -> ledgerda shu oy uchun yozilgan jami (cap-hisobi uchun)
+  for (const row of ledgerRows) {
+    const stat = out.get(row.memberId);
+    const amt = row._sum.amount ?? 0;
+    if (stat) stat.ballEarnedTotal += amt;
+    realByMonth.set(row.monthKey, (realByMonth.get(row.monthKey) ?? 0) + amt);
+  }
+  // 🧪 TEST qism — virtual a'zolar HECH QACHON ledgerga yozilmaydi (real safar emas, `rollRideCashback`
+  // orqali o'tmaydi), shuning uchun ularning guruhga qo'shgan hissasi shu yerda, ALOHIDA taxmin
+  // qilinadi — faqat sinov-oynidan (ledgerdagi real miqdordan ORTIQ QOLGAN sig'im ichida).
   if (ballPerRide > 0 && j.members.length >= OYIN_JAMOA_MIN) {
     const startMonth = monthKeyOf(new Date(j.createdAt));
     const span = Math.max(0, monthsBetween(startMonth, nowMonth));
@@ -2542,11 +2550,11 @@ async function jamoaMemberStats(j: JamoaRecord): Promise<Map<number, {
       const mk = addMonths(startMonth, i);
       const winner = navbatchiOf(j, mk);
       if (winner == null) continue;
-      // `computeBallMap` bilan BIR XIL: HOZIRGI a'zolar bo'yicha (yuqoridagi izohga qarang).
-      let groupRides = 0;
-      for (const m of j.members) groupRides += ridesByMemberMonth.get(`${m}|${mk}`) ?? 0;
-      if (groupRides === 0) continue;
-      const gain = Math.min(maxBall, groupRides * ballPerRide);
+      let testGroupRides = 0;
+      for (const m of j.members) testGroupRides += testRidesByMemberMonth.get(`${m}|${mk}`) ?? 0;
+      if (testGroupRides === 0) continue;
+      const headroom = Math.max(0, maxBall - (realByMonth.get(mk) ?? 0));
+      const gain = Math.min(headroom, testGroupRides * ballPerRide);
       const stat = out.get(winner);
       if (stat) stat.ballEarnedTotal += gain;
     }

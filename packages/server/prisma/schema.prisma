@@ -239,6 +239,26 @@ model RideReward {
   @@index([createdAt]) // T2: cross-member monthly counts — corp/gap (AUDIT 2.11)
 }
 
+// 🤝 Gashtak (Koson O'yini group-loyalty) bonus ledger — ONE immutable row per real ride that
+// counted toward a gashtak turn. Written the moment the ride's RideReward is confirmed (never
+// recomputed later): fixes the pre-existing bug where a member leaving/joining a group could
+// retroactively shift a past month's already-"earned" ball to someone else (oyinService.ts
+// computeBallMap history). `rideRewardId` is unique — one ride credits at most once, and doubles
+// as the audit trail ("nega 640 ball?" → list these rows for the member/month).
+model GashtakReward {
+  id           Int      @id @default(autoincrement())
+  memberId     Int // qabul qiluvchi — o'sha oy/guruh uchun navbatchi (bo'lgan payt)
+  jamoaId      String // qaysi gashtak guruhi (AppState `oyin:jamoa:<id>` kaliti bilan bir xil)
+  rideRewardId Int // qaysi safar sabab bo'ldi — RideReward.id
+  monthKey     String // "YYYY-MM", navbat qaysi oyga tegishli ekanini qotiradi
+  amount       Float
+  createdAt    DateTime @default(now())
+
+  @@unique([rideRewardId])
+  @@index([memberId, createdAt])
+  @@index([jamoaId, monthKey])
+}
+
 // 🪙 Wait compensation (feature "waitcomp"): tanga paid for search time before a driver accepted,
 // scaled by a grace→ceiling ramp and gated on active play (score>0). OUTSIDE the 350/ride clamp
 // (rollRideCashback) — this is compensation for OUR failure to find a driver fast, not stacked
