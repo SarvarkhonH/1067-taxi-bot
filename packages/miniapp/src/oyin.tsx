@@ -1305,7 +1305,8 @@ Taksida yur, ball yig', sodiqlik kartasini ol. Davr oxirida jonli efirda mukofot
         <div className="oyk-top">
           <div className="oyk-top-me">
             <div className="oyk-top-av">
-              <span>{(state.sponsor.name[0] ?? "B").toUpperCase()}</span>
+              <BirJoyMark size={28} />
+              <span className="oyk-top-av-crown" aria-hidden="true">👑</span>
               {state.ticketCount > 0 && <i className="oyk-top-av-b">{state.ticketCount}</i>}
             </div>
             <div className="oyk-top-nm">
