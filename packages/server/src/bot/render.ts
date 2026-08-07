@@ -329,17 +329,13 @@ export function renderCheckIn(r: CheckInResult): string {
 }
 
 export function renderWheel(r: WheelResult): string {
-  const pool = `\n\n🎰 JACKPOT hozir: <b>${formatNumber(r.jackpot)} tanga</b> — har safar uni oshiradi!`;
   if (r.noRide) {
-    return `🎡 <b>Omad g'ildiragi endi SAFAR ICHIDA aylanadi!</b>\n\nTaxi chaqiring — mashinada ketayotganingizda aylantirasiz. Har spin YUTADI! 🚕${pool}`;
+    return `🎡 <b>Omad g'ildiragi endi SAFAR ICHIDA aylanadi!</b>\n\nTaxi chaqiring — mashinada ketayotganingizda aylantirasiz. Har spin YUTADI! 🚕`;
   }
   if (r.alreadySpun) {
-    return `🎡 Bu safarning spini ishlatilgan.\nYutuq: ${r.prize.emoji} <b>${esc(r.prize.label)}</b>\n\nKeyingi safarda yana aylantirasiz! 🚕${pool}`;
+    return `🎡 Bu safarning spini ishlatilgan.\nYutuq: ${r.prize.emoji} <b>${esc(r.prize.label)}</b>\n\nKeyingi safarda yana aylantirasiz! 🚕`;
   }
-  if (r.prize.label.startsWith("JACKPOT")) {
-    return `🎰🎰🎰 <b>JACKPOT!!!</b> 🎰🎰🎰\n\n💥 <b>+${formatNumber(r.prize.amount)} tanga</b>${r.applied ? " — hamyoningizga tushdi 🪙" : ""}!\n\nButun jamg'arma sizniki bo'ldi! 👑${pool}`;
-  }
-  return `🎉 ${r.prize.emoji} <b>${esc(r.prize.label)}!</b>\n\n+${formatNumber(r.prize.amount)} tanga${r.applied ? " — hamyoningizga tushdi 🪙" : ""}!${pool}`;
+  return `🎉 ${r.prize.emoji} <b>${esc(r.prize.label)}!</b>\n\n+${formatNumber(r.prize.amount)} tanga${r.applied ? " — hamyoningizga tushdi 🪙" : ""}!`;
 }
 
 /** Driver earnings panel (text). */

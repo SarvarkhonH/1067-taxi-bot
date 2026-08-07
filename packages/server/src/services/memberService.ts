@@ -16,7 +16,6 @@ import { prisma } from "../db";
 import { env } from "../env";
 import { getDataSource } from "../kas";
 import { canSpinWheel, getStreak } from "./rewardService";
-import { getJackpot } from "./weeklyService";
 import { featureOn } from "./featureFlags";
 import { decayStatus } from "./tierLoyaltyService";
 import { ONLINE_WINDOW_MS } from "./presence";
@@ -109,14 +108,13 @@ async function buildMe(
   const decay = tierOn ? await decayStatus(member.lastActiveDay) : { idleDays: 0, decayWarning: false };
 
   // T2 (AUDIT 2.1 + 2.10): rank/total via indeksli COUNT (butun jadval emas),
-  // streak/wheel/jackpot bilan birga PARALLEL — 5 ketma-ket so'rov → 1 to'lqin.
-  const [ahead, totalMembers, botMembers, streak, wheelAvailable, jackpot] = await Promise.all([
+  // streak/wheel bilan birga PARALLEL — ketma-ket so'rov → 1 to'lqin.
+  const [ahead, totalMembers, botMembers, streak, wheelAvailable] = await Promise.all([
     prisma.member.count({ where: { type, points: { gt: member.points } } }),
     prisma.member.count({ where: { type } }),
     prisma.telegramUser.count(), // 👥 REAL bot a'zolari (kas1067 bazasi EMAS) — social-proof chip uchun
     getStreak(member.id),
     canSpinWheel(member.id),
-    getJackpot(),
   ]);
   const rank = ahead + 1;
 
@@ -153,7 +151,6 @@ async function buildMe(
     badges,
     streak,
     wheelAvailable,
-    jackpot,
     coins: member.coins,
     leagueTier: member.leagueTier,
   };

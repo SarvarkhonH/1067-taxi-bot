@@ -1,5 +1,4 @@
 import {
-  JACKPOT_FLOOR,
   LEAGUE_TIERS,
   SURPRISE_PRIZES,
   WEEKLY_PRIZES,
@@ -209,37 +208,4 @@ export async function maybeSurpriseDrop(notify: Notify, probability = 0.0015): P
     ).catch(() => undefined);
   }
   return dropped;
-}
-
-// ─── jackpot pool (escalating, global) ────────────────────────────────────────
-const JACKPOT_KEY = "jackpot_pool";
-
-export async function getJackpot(): Promise<number> {
-  const row = await prisma.appState.findUnique({ where: { key: JACKPOT_KEY } });
-  const pool = row ? Number(row.value) || 0 : 0;
-  return Math.max(JACKPOT_FLOOR, pool);
-}
-
-/** Add to the pool (every spin) and return the new displayed jackpot. Atomic
- *  DB-side add — concurrent feeders are safe. */
-export async function growJackpot(by: number): Promise<number> {
-  const inc = Math.floor(by);
-  await prisma.$executeRaw`
-    INSERT INTO "AppState" ("key","value","updatedAt")
-    VALUES (${JACKPOT_KEY}, ${String(JACKPOT_FLOOR + inc)}, NOW())
-    ON CONFLICT ("key") DO UPDATE
-      SET "value" = CAST((CAST("AppState"."value" AS DOUBLE PRECISION) + ${inc}) AS TEXT),
-          "updatedAt" = NOW()`;
-  return getJackpot();
-}
-
-/** Jackpot won: return the payout and reset the pool to the floor. */
-export async function claimJackpot(): Promise<number> {
-  const payout = await getJackpot();
-  await prisma.appState.upsert({
-    where: { key: JACKPOT_KEY },
-    create: { key: JACKPOT_KEY, value: String(JACKPOT_FLOOR) },
-    update: { value: String(JACKPOT_FLOOR) },
-  });
-  return payout;
 }

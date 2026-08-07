@@ -25,21 +25,21 @@ function ev(prizes: { amount: number; weight: number }[]): number {
   return prizes.reduce((s, p) => s + p.amount * p.weight, 0) / total;
 }
 
-// wheel: every spin wins, EV ≤ 80, jackpot slice pays the pool (amount 0 here)
+// wheel: every spin wins, EV ≤ 80
 const wheelEv = ev(WHEEL_PRIZES);
 ok(wheelEv <= 80, `wheel EV ${wheelEv.toFixed(1)} ≤ 80`);
-ok(WHEEL_PRIZES.every((p) => p.amount > 0 || p.label.startsWith("JACKPOT")), `every wheel slice wins (no losing slice)`);
+ok(WHEEL_PRIZES.every((p) => p.amount > 0), `every wheel slice wins (no losing slice)`);
 
 // box: EV ~200, ride-anchored unlock is enforced in boxService (daily_ride in set)
 const boxEv = ev(BOX_PRIZES);
 ok(boxEv >= 150 && boxEv <= 250, `box EV ${boxEv.toFixed(0)} in [150..250]`);
 ok(MISSIONS.some((m) => m.code === "daily_ride" && m.period === "daily"), `free box stays ride-anchored (daily_ride in dailies)`);
 
-// ride roll: base 100, weights 80/15/4/1, worst non-jackpot ≤ cap with one boost
+// ride roll: base 100, weights 80/15/4, worst tier ≤ cap with one boost
 ok(RIDE_REWARD_BASE === 100, `roll base = 100`);
 const w = Object.fromEntries(RIDE_REWARD_TIERS.map((t) => [t.tier, t.weight]));
-ok(w.standard === 80 && w.double === 15 && w.triple === 4 && w.jackpot === 1, `roll weights 80/15/4/1`);
-const rollEv = (80 * 100 + 15 * 200 + 4 * 300) / 100;
+ok(w.standard === 80 && w.double === 15 && w.triple === 4, `roll weights 80/15/4`);
+const rollEv = (80 * 100 + 15 * 200 + 4 * 300) / 99;
 ok(rollEv < 130, `roll EV ${rollEv.toFixed(0)} < 130`);
 
 // the combination ceiling: typical ride (roll EV + wheel EV + garage headroom) ≤ cap

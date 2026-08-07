@@ -183,8 +183,8 @@ async function main(): Promise<void> {
   // economy alerts (withdraws, anomalies) → admins
   const { registerAdminNotifier } = await import("./services/economyService");
   registerAdminNotifier(sendTg);
-  // 📣 W1 №2: public-channel sender (jackpot wins + Monday digest). Same sendTg — a channel id is
-  // just a chat id. Double-gated inside (KOSON_CHANNEL_ID env + "jackpotpost" flag).
+  // 📣 public-channel sender (e.g. XIZMATLAR weekly digest). Same sendTg — a channel id is
+  // just a chat id. Gated inside per-caller (KOSON_CHANNEL_ID env + its own feature flag).
   const { registerChannelSender } = await import("./services/channelService");
   registerChannelSender(sendTg);
 
@@ -401,10 +401,8 @@ async function main(): Promise<void> {
           await maybeDailyMarkerCleanup().catch((e) => console.error("[cleanup] failed:", e));
         }
         {
-          // 📣 W1 №2: Monday channel digest (self-gated once/ISO-Monday; no-op while flag/env off)
-          const { maybeWeeklyChannelDigest, maybeWeeklyServicesDigest } = await import("./services/channelService");
-          await maybeWeeklyChannelDigest().catch((e) => console.error("[channel] digest failed:", e));
-          // 🔎 XIZMATLAR P4: same tick, own flag+marker — killing one never silences the other
+          // 🔎 XIZMATLAR P4: Monday channel digest (self-gated once/ISO-Monday; no-op while flag/env off)
+          const { maybeWeeklyServicesDigest } = await import("./services/channelService");
           await maybeWeeklyServicesDigest().catch((e) => console.error("[channel] services digest failed:", e));
         }
         {

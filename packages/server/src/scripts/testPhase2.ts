@@ -24,7 +24,7 @@ async function main(): Promise<void> {
 
   // one ride → one roll, coins granted, valid tier
   const r1 = await rollRideCashback(m.id, 555001);
-  ok(!!r1 && ["standard", "double", "triple", "jackpot"].includes(r1.tier), `roll fired (${r1?.tier} +${r1?.amount})`);
+  ok(!!r1 && ["standard", "double", "triple"].includes(r1.tier), `roll fired (${r1?.tier} +${r1?.amount})`);
   const bal1 = (await prisma.member.findUnique({ where: { id: m.id } }))!.coins;
   ok(bal1 === (r1?.amount ?? -1), `coins granted exactly once (${bal1})`);
 
@@ -48,7 +48,6 @@ async function main(): Promise<void> {
     if (r.tier === "standard" && ![100, 200].includes(r.amount)) valid = false;
     if (r.tier === "double" && ![200, 350].includes(r.amount)) valid = false; // lucky 400 → clamp 350
     if (r.tier === "triple" && ![300, 350].includes(r.amount)) valid = false; // lucky 600 → clamp 350
-    if (r.tier === "jackpot" && r.amount < 5000) valid = false; // pool floor
   }
   ok(valid, `30 rolls — every tier amount consistent with base 100 ×mult(×lucky), clamp ≤350`);
 

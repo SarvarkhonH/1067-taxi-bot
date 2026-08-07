@@ -63,17 +63,15 @@ export interface CashoutResponse {
   min?: number; // present on "below_min" — the threshold that wasn't met
 }
 
-// ── 🎲 variable ride-cashback (the book's 80/15/4/1 — Hooked variable reward) ─
+// ── 🎲 variable ride-cashback (the book's 80/15/4 — Hooked variable reward) ─
 // Multiplier is applied to the ride's fare-derived base bonus and granted as
-// COINS (never direct kas money). Jackpot pays the whole shared pool.
-export const RIDE_REWARD_TIERS: { tier: "standard" | "double" | "triple" | "jackpot"; mult: number; weight: number; label: string }[] = [
+// COINS (never direct kas money).
+export const RIDE_REWARD_TIERS: { tier: "standard" | "double" | "triple"; mult: number; weight: number; label: string }[] = [
   { tier: "standard", mult: 1, weight: 80, label: "Cashback" },
   { tier: "double", mult: 2, weight: 15, label: "2x DOUBLE" },
   { tier: "triple", mult: 3, weight: 4, label: "3x TRIPLE" },
-  { tier: "jackpot", mult: 0, weight: 1, label: "JACKPOT" }, // pays the pool instead
 ];
 export const RIDE_REWARD_BASE = 100; // fixed roll base (so'm) — sized to 2000/ride net
-export const RIDE_JACKPOT_FEED = 50; // every completed ride grows the pool
 export const DRIVER_DAILY_BONUS_CAP = 10000;
 // Weekly tier rebate per completed ride (commission-discount equivalent we
 // fully control). Tiers recomputed every Monday from MEASURED percentiles.
@@ -168,7 +166,6 @@ export const BONUS_ECON_KNOBS: BonusEconKnob[] = [
   { key: "wdMin", label: "💸 Minimal yechish (tanga)", def: 5000, min: 1000, max: 50000, step: 500, group: "Naqd fond" },
   // ── Safar mukofoti ──
   { key: "rideBase", label: "🎲 Safar cashback bazasi (×1/×2/×3)", def: 100, min: 0, max: 2000, step: 10, group: "Safar mukofoti" },
-  { key: "jackpotFeed", label: "🎰 Jackpot pul to'ldirish (/safar)", def: 50, min: 0, max: 1000, step: 10, group: "Safar mukofoti" },
   { key: "driverDailyCap", label: "🚕 Haydovchi kunlik bonus cap", def: 10000, min: 0, max: 100000, step: 1000, group: "Safar mukofoti" },
   // ── Haydovchi tier rebate (/safar) ──
   { key: "tierKumush", label: "🥈 Kumush rebate (/safar)", def: 50, min: 0, max: 2000, step: 10, group: "Haydovchi tier" },

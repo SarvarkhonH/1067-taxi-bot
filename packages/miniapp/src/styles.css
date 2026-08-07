@@ -161,13 +161,6 @@ body {
 .game-card { display: flex; flex-direction: column; gap: 14px; }
 .game-head { display: flex; justify-content: space-between; align-items: center; }
 .game-hint { font-size: 11px; text-align: center; }
-.jackpot-badge {
-  background: rgba(239, 68, 68, 0.1); border: 1px solid var(--red);
-  color: #fecaca; font-size: 12px; font-weight: 800; padding: 6px 13px; border-radius: 999px;
-  animation: jackglow 2.2s ease-in-out infinite;
-}
-.jackpot-badge b { color: var(--red); font-size: 14px; }
-@keyframes jackglow { 0%, 100% { box-shadow: 0 0 12px -6px var(--red); } 50% { box-shadow: 0 0 24px -4px var(--red); } }
 .wheel-wrap { position: relative; width: 240px; height: 240px; margin: 0 auto; }
 .wheel { width: 240px; height: 240px; filter: drop-shadow(0 12px 30px rgba(0, 0, 0, 0.6)); }
 .wheel-pointer { position: absolute; top: -8px; left: 50%; transform: translateX(-50%); font-size: 26px; color: var(--gold); z-index: 2; text-shadow: 0 2px 4px #000; }

@@ -1,4 +1,4 @@
-// T0.5 PUL-QALQON util: (1) atomicIncrement — raw upsert (jackpot patterni),
+// T0.5 PUL-QALQON util: (1) atomicIncrement — raw upsert bilan
 // read-modify-write race'larsiz; (2) pending-marker — pul o'tishi tugamay
 // qolsa (crash/PG drop) periodik tick qayta uradi; 5 urinishdan keyin
 // to'xtab egaga TG alert ("qo'lda ko'rish kerak").

@@ -11,7 +11,6 @@
 .b3-top { position: absolute; top: 0; left: 0; right: 0; z-index: 3; display: flex; align-items: center; gap: 10px; padding: calc(8px + var(--safe-top)) 14px 8px; background: linear-gradient(180deg, rgba(11,15,26,.82), transparent); }
 .b3-x { width: 38px; height: 38px; border-radius: 12px; border: 1px solid var(--line); background: var(--surface-2); color: var(--text); font-size: 18px; cursor: pointer; flex: none; }
 .b3-stats { display: flex; gap: 12px; font-size: 13px; font-weight: 800; color: var(--text); align-items: center; background: rgba(21,27,43,.7); backdrop-filter: blur(8px); border: 1px solid var(--line); border-radius: 999px; padding: 6px 12px; }
-.b3-jack { color: var(--brand); }
 .b3-msg { position: absolute; top: calc(8px + var(--safe-top) + 44px + 46px + 10px); left: 14px; right: 14px; z-index: 7; background: var(--surface-2); border: 1px solid var(--line); border-radius: 12px; padding: 10px 14px; font-size: 13px; box-shadow: var(--shadow-1); animation: d-page 220ms var(--ease-out); }
 .b3-sheet { position: absolute; left: 0; right: 0; bottom: 0; z-index: 3; background: var(--surface-2); border-radius: 20px 20px 0 0; padding: 8px 16px calc(18px + var(--safe-bottom)); box-shadow: 0 -8px 30px rgba(0,0,0,.5); animation: d-up var(--dur-card) var(--ease-out); }
 .b3-grip { width: 44px; height: 5px; border-radius: 99px; background: var(--line); margin: 2px auto 10px; }

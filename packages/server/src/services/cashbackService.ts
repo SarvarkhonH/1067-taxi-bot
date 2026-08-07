@@ -1,16 +1,15 @@
-// 🎲 Variable ride-cashback — the book's core HOOKED mechanic (80/15/4/1).
+// 🎲 Variable ride-cashback — the book's core HOOKED mechanic (80/15/4).
 //
 // Fires SERVER-SIDE from the booking sweep when a real metered ride finishes
 // (the client can never claim a ride completed). The roll multiplies the
 // ride's fare-derived base bonus and grants COINS via the idempotent ledger —
 // a re-polled finish grants nothing, no ride = no roll, and real money still
 // exits only through the budget-gated withdraw door.
-import { RIDE_JACKPOT_FEED, RIDE_REWARD_BASE, RIDE_REWARD_TIERS, computeXp, formatNumber, levelForXp, tierMultFor } from "@t1067/shared";
+import { RIDE_REWARD_BASE, RIDE_REWARD_TIERS, computeXp, formatNumber, levelForXp, tierMultFor } from "@t1067/shared";
 import { prisma } from "../db";
 import { grantCoins, withMemberLock } from "./coinService";
 import { featureOn } from "./featureFlags";
 import { weekKey } from "./missionService";
-import { claimJackpot, growJackpot } from "./weeklyService";
 import { getBonusEcon } from "./bonusConfig";
 
 export interface RideRollResult {
@@ -18,7 +17,6 @@ export interface RideRollResult {
   label: string;
   amount: number;
   lucky: boolean;
-  jackpot: boolean;
 }
 
 /** Deterministic lucky weekday for an ISO week (no cron, same for everyone). */
@@ -66,27 +64,21 @@ export async function rollRideCashback(
   // 🎁 comeback win-back: the first ride inside the offer window is a
   // GUARANTEED 3x (then the offer is consumed)
   const comeback = !!member?.comebackOfferUntil && member.comebackOfferUntil.getTime() > Date.now();
-  if (comeback && t.tier !== "jackpot") t = RIDE_REWARD_TIERS.find((x) => x.tier === "triple")!;
+  if (comeback) t = RIDE_REWARD_TIERS.find((x) => x.tier === "triple")!;
 
-  let amount: number;
   const econ = await getBonusEcon();
-  const jackpot = t.tier === "jackpot";
-  if (jackpot) {
-    amount = 0; // pool claimed ONLY after the unique insert wins (T0.5 / AUDIT 3.1)
-  } else {
-    // 🏅 Tier loyalty multiplier (feature "tierloyalty", DARK): higher tier → bigger per-ride
-    // cashback. Applied to the roll BEFORE grantRideCoins, so the ≤350 clamp is NEVER bypassed.
-    // OFF (or no member) → levelMult = 1.0, identical to legacy behaviour.
-    let levelMult = 1.0;
-    if (member && (await featureOn("tierloyalty"))) {
-      const lvl = levelForXp(computeXp({ points: member.points, trips: member.trips, ballPoints: member.ballPoints })).level;
-      levelMult = tierMultFor(lvl.index, econ);
-    }
-    amount = (econ.rideBase ?? RIDE_REWARD_BASE) * t.mult * (lucky ? 2 : 1) * (combo ? 2 : 1) * levelMult;
-    // 💎 Plus: ×1.5 on the roll, extra capped at +150 (ride clamp still rules)
-    const plus = !!member?.plusUntil && member.plusUntil.getTime() > Date.now();
-    if (plus) amount += Math.min(150, Math.floor(amount * 0.5));
+  // 🏅 Tier loyalty multiplier (feature "tierloyalty", DARK): higher tier → bigger per-ride
+  // cashback. Applied to the roll BEFORE grantRideCoins, so the ≤350 clamp is NEVER bypassed.
+  // OFF (or no member) → levelMult = 1.0, identical to legacy behaviour.
+  let levelMult = 1.0;
+  if (member && (await featureOn("tierloyalty"))) {
+    const lvl = levelForXp(computeXp({ points: member.points, trips: member.trips, ballPoints: member.ballPoints })).level;
+    levelMult = tierMultFor(lvl.index, econ);
   }
+  let amount = (econ.rideBase ?? RIDE_REWARD_BASE) * t.mult * (lucky ? 2 : 1) * (combo ? 2 : 1) * levelMult;
+  // 💎 Plus: ×1.5 on the roll, extra capped at +150 (ride clamp still rules)
+  const plus = !!member?.plusUntil && member.plusUntil.getTime() > Date.now();
+  if (plus) amount += Math.min(150, Math.floor(amount * 0.5));
 
   let rewardId: number;
   try {
@@ -103,46 +95,18 @@ export async function rollRideCashback(
     const { creditGashtakLedger } = await import("./oyinService");
     await creditGashtakLedger(memberId, rewardId);
   }
-  if (jackpot) {
-    // duplicate race lost above, so this claim happens at most once per ride
-    amount = Math.floor(await claimJackpot());
-    await prisma.rideReward.update({ where: { id: rewardId }, data: { amount } }).catch(() => undefined);
-  }
 
   if (comeback) await prisma.member.update({ where: { id: memberId }, data: { comebackOfferUntil: null } }).catch(() => undefined);
   const reason = `🎲 Safar cashback ${t.label}${lucky ? " · OMAD KUNI 2x" : ""}${combo ? " · KOMBO 2x" : ""}${comeback ? " · QAYTISH SOVG'ASI 3x" : ""}${member?.plusUntil && member.plusUntil.getTime() > Date.now() ? " · 💎PLUS" : ""}`;
-  if (jackpot) {
-    // jackpot pays the pre-funded pool in full — outside the per-ride clamp
-    await grantCoins(memberId, amount, "cashback", reason, `jackpotwin:${bookingId}:m${memberId}`);
-  } else {
-    const { grantRideCoins } = await import("./coinService");
-    const g = await grantRideCoins(memberId, bookingId, amount, "cashback", reason, "cashback");
-    if (g.clamped) amount -= g.clamped; // report what was actually paid
-  }
-  // every ride feeds the pool — the most exciting reward grows with orders/day
-  await growJackpot(econ.jackpotFeed ?? RIDE_JACKPOT_FEED).catch(() => undefined);
+  const { grantRideCoins } = await import("./coinService");
+  const g = await grantRideCoins(memberId, bookingId, amount, "cashback", reason, "cashback");
+  if (g.clamped) amount -= g.clamped; // report what was actually paid
 
-  if (jackpot) {
-    const { alertAdmins } = await import("./economyService");
-    const m = await prisma.member.findUnique({ where: { id: memberId }, select: { fullName: true, displayName: true } });
-    await alertAdmins(`🎰 RIDE-JACKPOT: <b>${m?.fullName ?? memberId}</b> yutdi — ${formatNumber(amount)} tanga!`).catch(() => undefined);
-    // 📣 W1 №2 jackpot-shou: publish the win to the public Koson channel (first name only). Sits
-    // AFTER the idempotent claim → fires at most once per win; postToChannel never throws and is a
-    // no-op while the "jackpotpost" flag / KOSON_CHANNEL_ID env are off — the money path above is
-    // untouched either way.
-    try {
-      const { announceJackpotWin, channelName } = await import("./channelService");
-      await announceJackpotWin(channelName(m?.displayName ?? null, m?.fullName ?? ""), amount);
-    } catch (e) {
-      console.error("[channel] jackpot announce failed:", e);
-    }
-  }
-  return { tier: t.tier, label: t.label, amount, lucky, jackpot };
+  return { tier: t.tier, label: t.label, amount, lucky };
 }
 
 /** Push text for the completion message. */
 export function renderRideRoll(r: RideRollResult): string {
-  if (r.jackpot) return `🎰🎰🎰 <b>JACKPOT!</b> Bu safar butun jamg'armani yutdingiz: <b>+${formatNumber(r.amount)} tanga</b>! 👑`;
   const head = r.tier === "standard" ? "💰" : r.tier === "double" ? "✨ 2x DOUBLE!" : "🔥 3x TRIPLE!";
   return `${head} Safar cashback: <b>+${formatNumber(r.amount)} tanga</b>${r.lucky ? " · 🍀 OMAD KUNI (2x)" : ""}`;
 }

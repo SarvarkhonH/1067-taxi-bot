@@ -93,8 +93,7 @@ export function SpinWheelGame({ me, onReward, celebrate }: { me: MeResponse; onR
   const [target, setTarget] = useState<number | null>(null);
   const [spinning, setSpinning] = useState(false);
   const [freeUsed, setFreeUsed] = useState(!me.wheelAvailable);
-  const [jackpot, setJackpot] = useState(me.jackpot);
-  const pend = useRef<{ msg: string; jackpot: number; win: boolean; amount: number; emoji: string } | null>(null);
+  const pend = useRef<{ msg: string; win: boolean; amount: number; emoji: string } | null>(null);
 
   const spin = async () => {
     if (spinning) return;
@@ -118,7 +117,6 @@ export function SpinWheelGame({ me, onReward, celebrate }: { me: MeResponse; onR
         win: res.prize.amount > 0,
         amount: res.prize.amount,
         emoji: res.prize.emoji,
-        jackpot: res.jackpot,
         msg: res.prize.amount > 0 ? `${res.prize.emoji} +${formatNumber(res.prize.amount)} tanga!` : `${res.prize.emoji} ${res.prize.label} — yana urinib ko'ring!`,
       };
       setTarget(idx);
@@ -141,7 +139,7 @@ export function SpinWheelGame({ me, onReward, celebrate }: { me: MeResponse; onR
         return;
       }
       const idx = Math.max(0, WHEEL_PRIZES.findIndex((p) => p.label === res.prize.label));
-      pend.current = { win: res.prize.amount > 0, amount: res.prize.amount, emoji: res.prize.emoji, jackpot: res.jackpot, msg: `${res.prize.emoji} +${formatNumber(res.prize.amount)} tanga!` };
+      pend.current = { win: res.prize.amount > 0, amount: res.prize.amount, emoji: res.prize.emoji, msg: `${res.prize.emoji} +${formatNumber(res.prize.amount)} tanga!` };
       setTarget(idx);
       setSpinId((n) => n + 1);
     } catch {
@@ -154,7 +152,6 @@ export function SpinWheelGame({ me, onReward, celebrate }: { me: MeResponse; onR
     setSpinning(false);
     setFreeUsed(true);
     if (!pend.current) return;
-    setJackpot(pend.current.jackpot);
     const p = pend.current;
     pend.current = null;
     if (p.win) celebrate(p.amount, p.emoji, "Omad g'ildiragi");
@@ -165,7 +162,6 @@ export function SpinWheelGame({ me, onReward, celebrate }: { me: MeResponse; onR
     <section className="glass pad game-card">
       <div className="game-head">
         <div className="section-title">🎡 Omad g'ildiragi</div>
-        <div className="jackpot-badge">🎰 <b>{formatNumber(jackpot)}</b></div>
       </div>
       <RouletteWheel prizes={WHEEL_PRIZES} targetIndex={target} spinId={spinId} onDone={onWheelDone} />
       {me.wheelAvailable && !freeUsed ? (
@@ -177,10 +173,9 @@ export function SpinWheelGame({ me, onReward, celebrate }: { me: MeResponse; onR
           <button className="btn-primary" onClick={freeSpinFn} disabled={spinning}>
             {spinning ? "Aylanmoqda…" : "🎁 Bepul kunlik spin"}
           </button>
-          <div className="muted game-hint">Kuniga 1 bepul spin. Safar paytida g'ildirak ko'proq yutadi + JACKPOT!</div>
+          <div className="muted game-hint">Kuniga 1 bepul spin. Safar paytida g'ildirak ko'proq yutadi!</div>
         </>
       )}
-      <div className="muted game-hint">Har safar JACKPOT'ni oshiradi — JACKPOT tushsa butun jamg'arma sizniki!</div>
     </section>
   );
 }

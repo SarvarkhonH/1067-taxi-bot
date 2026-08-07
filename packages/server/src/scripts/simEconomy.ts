@@ -9,7 +9,6 @@
 // grants from, so a divergence here is a real economic regression.
 // Run: dotenv -e ../../.env -- tsx src/scripts/simEconomy.ts [customers] [days] [seed]
 import { RIDE_REWARD_BASE, RIDE_REWARD_TIERS, RIDE_EMISSION_CAP, WHEEL_PRIZES } from "@t1067/shared";
-import { JACKPOT_FLOOR, JACKPOT_INCREMENT } from "@t1067/shared";
 
 // ── seeded PRNG (LCG) so the proof is reproducible run-to-run ───────────────
 function makeRng(seed: number) {
@@ -48,23 +47,15 @@ interface Customer {
 
 // One completed ride's CLAMPED customer emission (mirrors server grantRideCoins:
 // every mechanic shares the single RIDE_EMISSION_CAP room). Returns the minted
-// coins, the clamped-away excess, and the jackpot payout (paid from the pool,
-// OUTSIDE the per-ride clamp).
-function rideEmission(c: Customer, lucky: boolean, pool: number): { emitted: number; clamped: number; jackpotPayout: number } {
+// coins and the clamped-away excess.
+function rideEmission(c: Customer, lucky: boolean): { emitted: number; clamped: number } {
   const tier = pickWeighted(RIDE_REWARD_TIERS);
-  let desired = 0;
-  let jackpotPayout = 0;
-  if (tier.tier === "jackpot") {
-    jackpotPayout = pool; // wins the whole pool (paid outside the clamp)
-  } else {
-    let cb = RIDE_REWARD_BASE * tier.mult * (lucky ? 2 : 1) * (rnd() < P_COMBO ? 2 : 1);
-    if (c.plus) cb += Math.min(150, Math.floor(cb * 0.5));
-    desired += cb;
-  }
+  let desired = RIDE_REWARD_BASE * tier.mult * (lucky ? 2 : 1) * (rnd() < P_COMBO ? 2 : 1);
+  if (c.plus) desired += Math.min(150, Math.floor(desired * 0.5));
   desired += pickWeighted(WHEEL_PRIZES).amount; // in-ride wheel, 1 spin/ride
   if (rnd() < P_GUESS_RIGHT) desired += 50; // ETA guess correct
   const emitted = Math.min(desired, RIDE_EMISSION_CAP);
-  return { emitted, clamped: Math.max(0, desired - RIDE_EMISSION_CAP), jackpotPayout };
+  return { emitted, clamped: Math.max(0, desired - RIDE_EMISSION_CAP) };
 }
 
 function percentile(sorted: number[], p: number): number {
@@ -77,13 +68,10 @@ function main(): void {
     plus: rnd() < P_PLUS,
   }));
 
-  let pool = JACKPOT_FLOOR;
   let totalRides = 0;
   let totalClampEmission = 0; // clamped per-ride customer emission (the ≤350 part)
   let totalClampedAway = 0; // excess cut by the clamp
-  let totalJackpotPaid = 0;
   let clampHits = 0;
-  let jackpotWins = 0;
   let maxPerRide = 0;
   let invariantViolations = 0;
   const dailyEmission: number[] = [];
@@ -94,15 +82,8 @@ function main(): void {
     for (const c of customers) {
       const rides = pick(RIDES_PER_DAY);
       for (let i = 0; i < rides; i++) {
-        const r = rideEmission(c, lucky, pool);
+        const r = rideEmission(c, lucky);
         totalRides++;
-        // jackpot pool dynamics: every ride feeds it; a jackpot-tier ride drains it to the floor
-        if (r.jackpotPayout > 0) {
-          totalJackpotPaid += r.jackpotPayout;
-          jackpotWins++;
-          pool = JACKPOT_FLOOR;
-        }
-        pool += JACKPOT_INCREMENT;
         totalClampEmission += r.emitted;
         totalClampedAway += r.clamped;
         if (r.clamped > 0) clampHits++;
@@ -119,12 +100,11 @@ function main(): void {
   const worstDay = sortedDaily[sortedDaily.length - 1] ?? 0;
   const p95Daily = percentile(sortedDaily, 95);
   const meanDaily = dailyEmission.reduce((s, x) => s + x, 0) / DAYS;
-  const monthlyMint = totalClampEmission + totalJackpotPaid;
+  const monthlyMint = totalClampEmission;
 
   console.log(`🎲 ECONOMY SIM — ${N} customers × ${DAYS} days (seed ${SEED})`);
   console.log(`   rides simulated:        ${totalRides.toLocaleString("ru-RU")}`);
   console.log(`   clamp emission (coins): ${Math.round(totalClampEmission).toLocaleString("ru-RU")}`);
-  console.log(`   jackpot paid (coins):   ${Math.round(totalJackpotPaid).toLocaleString("ru-RU")} (${jackpotWins} wins)`);
   console.log(`   total mint (coins):     ${Math.round(monthlyMint).toLocaleString("ru-RU")}`);
   console.log(`   mean per ride:          ${meanPerRide.toFixed(1)} (cap ${RIDE_EMISSION_CAP})`);
   console.log(`   MAX per ride:           ${maxPerRide} (cap ${RIDE_EMISSION_CAP})`);

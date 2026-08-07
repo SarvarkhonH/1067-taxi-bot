@@ -2,12 +2,12 @@
 // Uses throwaway PHONE-LESS members so grantCashback records ledger rows but
 // never writes real money to kas1067. Cleans up after itself.
 import "../env";
-import { BOX_PRIZES, JACKPOT_FLOOR } from "@t1067/shared";
+import { BOX_PRIZES } from "@t1067/shared";
 import { prisma } from "../db";
 import { claimMission, getMissions, incrementMission } from "../services/missionService";
 import { getBoxStatus, openBox } from "../services/boxService";
 import { attachPendingReferral, completeReferral, getReferralInfo } from "../services/referralService";
-import { getJackpot, getWeeklyBoard, growJackpot, payWeeklyPrizes } from "../services/weeklyService";
+import { getWeeklyBoard, payWeeklyPrizes } from "../services/weeklyService";
 import { spinWheel } from "../services/rewardService";
 import { getCoins, getWallet, grantCoins, withdraw } from "../services/coinService";
 
@@ -170,21 +170,9 @@ async function main(): Promise<void> {
   const wallet = await getWallet(memberC.id);
   ok(wallet.coins === 8000 && wallet.withdrawMin === 5000 && wallet.txns.length >= 3, `wallet view: balance+txns ok`);
 
-  // ── jackpot pool ─────────────────────────────────────────────────────────
-  const rawBefore = (await prisma.appState.findUnique({ where: { key: "jackpot_pool" } }))?.value ?? null;
-  const j0 = await getJackpot();
-  ok(j0 >= JACKPOT_FLOOR, `jackpot >= floor (${j0})`);
-  const j1 = await growJackpot(50);
-  ok(j1 >= j0, `jackpot grows (${j0} -> ${j1})`);
   // in-ride gating: phone-less test member has no active kas ride → blocked
   const spin = await spinWheel(memberB.id);
-  ok(spin.noRide === true && spin.jackpot >= JACKPOT_FLOOR, `wheel BLOCKED without an active ride (in-ride only)`);
-  // restore the real pool exactly as it was (tests must not move prod state)
-  if (rawBefore === null) {
-    await prisma.appState.deleteMany({ where: { key: "jackpot_pool" } });
-  } else {
-    await prisma.appState.update({ where: { key: "jackpot_pool" }, data: { value: rawBefore } });
-  }
+  ok(spin.noRide === true, `wheel BLOCKED without an active ride (in-ride only)`);
 
   const grants = await prisma.coinTxn.findMany({ where: { memberId: { in: [memberA.id, memberB.id] } }, orderBy: { id: "asc" } });
   console.log(`\n   coin ledger: ${grants.map((g) => `${g.kind}${g.amount > 0 ? "+" : ""}${g.amount}`).join(", ")}`);

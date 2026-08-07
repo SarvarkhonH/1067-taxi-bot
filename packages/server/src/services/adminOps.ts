@@ -11,7 +11,6 @@ import { LEVELS, computeXp, levelForXp } from "@t1067/shared";
 import { prisma } from "../db";
 import { env } from "../env";
 import { getDataSource } from "../kas";
-import { getJackpot } from "./weeklyService";
 import { grantCoins, withPhoneLock } from "./coinService";
 
 // ─── 🚦 system health ───────────────────────────────────────────────────────
@@ -76,12 +75,11 @@ export async function getHealth(): Promise<AdminHealth> {
 // ─── 💰 economy ─────────────────────────────────────────────────────────────
 export async function getEconomy(): Promise<AdminEconomy> {
   const { getWithdrawBudget } = await import("./economyService");
-  const [outstanding, byKindRaw, wAll, wToday, jackpot, budget] = await Promise.all([
+  const [outstanding, byKindRaw, wAll, wToday, budget] = await Promise.all([
     prisma.member.aggregate({ _sum: { coins: true } }),
     prisma.coinTxn.groupBy({ by: ["kind"], _sum: { amount: true }, _count: true }),
     prisma.withdrawal.aggregate({ where: { kasApplied: true }, _sum: { amount: true } }),
     prisma.withdrawal.aggregate({ where: { kasApplied: true, createdAt: { gte: new Date(Date.now() - 24 * 3600 * 1000) } }, _sum: { amount: true } }),
-    getJackpot(),
     getWithdrawBudget(),
   ]);
 
@@ -102,7 +100,6 @@ export async function getEconomy(): Promise<AdminEconomy> {
     sunk,
     withdrawnTotal: wAll._sum.amount ?? 0,
     withdrawnToday: wToday._sum.amount ?? 0,
-    jackpot,
     byKind,
     withdrawBudget: budget,
   };

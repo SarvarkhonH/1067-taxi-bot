@@ -152,7 +152,6 @@ function mockMe(shopv2: boolean): MeResponse {
     badges: [],
     streak: { current: 3, longest: 10, checkedToday: true },
     wheelAvailable: false,
-    jackpot: 0,
     coins: 45000,
     leagueTier: "Kumush",
     flags: { shop: true, bazar: true, bazarcart: true, shopstory: true, shopchat: true, revtanga: true, shopv2 },

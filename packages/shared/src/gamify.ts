@@ -133,22 +133,15 @@ export interface WheelPrize {
   color: string;
 }
 
-// Escalating jackpot: every spin feeds the pool; the JACKPOT slice pays the
-// whole pool (never less than the floor). Near-miss + visible growth.
-export const JACKPOT_FLOOR = 5000;
-export const JACKPOT_INCREMENT = 50; // so'm added to the pool per spin
-
 // In-ride wheel: EVERY spin wins (no losing slice — legal posture + better
-// psychology), no paid entry anywhere. EV = (40·42+50·30+100·17+200·7+500·3)/100
-// ≈ 78 so'm — 3.9% of per-ride net, inside the ≤80 target. The JACKPOT slice
-// pays the shared ride-fed pool.
+// psychology), no paid entry anywhere. EV = (40·42+50·30+100·17+200·7+500·3)/99
+// ≈ 79 so'm — inside the ≤80 target.
 export const WHEEL_PRIZES: WheelPrize[] = [
   { label: "40 so'm", emoji: "🪙", amount: 40, weight: 42, color: "#9CA3AF" },
   { label: "50 so'm", emoji: "💵", amount: 50, weight: 30, color: "#CD7F32" },
   { label: "100 so'm", emoji: "💰", amount: 100, weight: 17, color: "#F59E0B" },
   { label: "200 so'm", emoji: "💎", amount: 200, weight: 7, color: "#22D3EE" },
   { label: "500 so'm", emoji: "🔥", amount: 500, weight: 3, color: "#A855F7" },
-  { label: "JACKPOT", emoji: "🎰", amount: 0, weight: 1, color: "#EF4444" }, // pays the pool
 ];
 
 // ─── mystery box (perfect-day meta reward) ────────────────────

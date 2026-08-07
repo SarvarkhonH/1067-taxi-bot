@@ -33,7 +33,7 @@ export interface PublicTrip {
   // Server-gated — absent means the public page renders exactly as before. Never carries PII:
   // the code is the same 6-char invite code the sharer already hands out publicly.
   ctaLink?: string | null;
-  // Jackpot-badge fusion: the rider won a mid-ride wheel prize on THIS booking — the family viewer
+  // Win-badge fusion: the rider won a mid-ride wheel prize on THIS booking — the family viewer
   // sees "sovg'a oldi" (never the amount — win-publicity stays halal-safe). trackcta-gated.
   won?: boolean;
 }
@@ -75,7 +75,7 @@ export async function resolveTrack(token: string): Promise<PublicTrip> {
   // finished / cancelled → stop revealing position, BUT keep the CTA so the end screen can invite.
   if (!b) return { active: false, ended: true, ctaLink };
   const d = b.driver;
-  // jackpot-badge fusion: a winning mid-ride spin on THIS booking → "sovg'a oldi" (amount never shown)
+  // win-badge fusion: a winning mid-ride spin on THIS booking → "sovg'a oldi" (amount never shown)
   let won = false;
   if (trackCtaOn) {
     const spin = await prisma.wheelSpin

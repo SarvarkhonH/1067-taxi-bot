@@ -201,7 +201,7 @@ model DriverRecruit {
 model NotifyLog {
   id       Int      @id @default(autoincrement())
   memberId Int
-  kind     String // streak_saver | lucky_day | jackpot | comeback | garage_service | recap
+  kind     String // lucky_day | comeback | freespin_wait | garage_service | recap
   dayKey   String
   sentAt   DateTime @default(now())
 

@@ -16,7 +16,6 @@ const SEED: { code: string; name: string; emoji: string; rarity: string; kind: s
   { code: "tesla_1067", name: "Tesla 1067", emoji: "⚡", rarity: "nodir", kind: "car", mintCap: 50, mintPrice: 15000 },
   { code: "tilla_cobalt", name: "Tilla Cobalt", emoji: "👑", rarity: "afsonaviy", kind: "car", mintCap: 20, mintPrice: 25000 },
   { code: "founder", name: "Asoschi", emoji: "🌟", rarity: "nodir", kind: "badge", mintCap: 100, mintPrice: 0 },
-  { code: "jackpot_trophy", name: "Jackpot kubogi", emoji: "🏆", rarity: "kam", kind: "trophy", mintCap: 0, mintPrice: 0 },
   { code: "sayyoh", name: "Koson sayyohi", emoji: "🗺", rarity: "kam", kind: "badge", mintCap: 0, mintPrice: 0 },
   { code: "car_full", name: "Yig'ilgan mashina", emoji: "🚙", rarity: "nodir", kind: "car", mintCap: 0, mintPrice: 0 },
   ...CAR_PARTS.map((p) => ({ code: `part_${p.replace(/[^a-z]/gi, "")}`, name: `Qism: ${p}`, emoji: "🔧", rarity: "oddiy", kind: "part", mintCap: 0, mintPrice: 0 })),

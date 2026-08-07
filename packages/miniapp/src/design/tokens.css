@@ -532,7 +532,7 @@ body {
 /* grip = tap to collapse/expand the panel (bigger map for the route trail) */
 /* driver card — mirrors the in-app b3-driver row */
 /* end screen — a clean finished-card */
-/* tv-win: jackpot-badge fusion — the family viewer learns riding 1067 pays (no amount shown) */
+/* tv-win: win-badge fusion — the family viewer learns riding 1067 pays (no amount shown) */
 /* tv-cta: viral invite card ("Siz ham ulaning — 5000 bonus") — big gold button, dismissible */
 @keyframes tv-cta-in { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
 /* ── M7 center-pin map pick ── */

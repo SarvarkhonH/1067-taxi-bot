@@ -4,7 +4,6 @@
 import "../env";
 import { prisma } from "../db";
 import { grantCoins } from "../services/coinService";
-import { rollRideCashback } from "../services/cashbackService";
 import { atomicIncrement, pendingCreate, pendingScan, pendingResolve } from "../services/appStateUtil";
 import { retryPendingMoney } from "../services/coinService";
 import { mintItem, buyListedItem, listItem, seedItemTypes } from "../services/itemService";
@@ -41,7 +40,6 @@ async function cleanup(): Promise<void> {
 async function main(): Promise<void> {
   await cleanup();
   await seedItemTypes();
-  const jackpotBefore = (await prisma.appState.findUnique({ where: { key: "jackpot_pool" } }))?.value ?? null;
   const fundBefore = (await prisma.appState.findUnique({ where: { key: "mashina_fund" } }))?.value ?? null; // global — restore at end
 
   const a = await prisma.member.create({ data: { type: "client", kasId: `${TAG}-A`, fullName: "Shield A", phone: "+998900011001", trips: 5 } });
@@ -62,21 +60,6 @@ async function main(): Promise<void> {
   ok(raceBal === 250, `P0 grantCoins: 8 concurrent same-key → balance EXACTLY +250 once (got ${raceBal})`);
   ok(raceRows === 1, `P0 grantCoins: exactly 1 CoinTxn audit row for the key (got ${raceRows})`);
   ok(raceOk === 1, `P0 grantCoins: exactly 1 call returned ok, 7 skipped as duplicate (got ${raceOk} ok)`);
-
-  // ── 3.1 JACKPOT: duplicate'da pool TEGILMAYDI ───────────────────────────
-  await prisma.appState.upsert({ where: { key: "jackpot_pool" }, update: { value: "44444" }, create: { key: "jackpot_pool", value: "44444" } });
-  // duplicate stsenariy: roll allaqachon bo'lgan safar uchun jackpot-roll keladi
-  await prisma.rideReward.create({ data: { memberId: a.id, bookingId: 888901, tier: "standard", amount: 100 } });
-  const dup = await rollRideCashback(a.id, 888901, { _forceTier: "jackpot" });
-  const poolAfterDup = (await prisma.appState.findUnique({ where: { key: "jackpot_pool" } }))!.value;
-  ok(dup === null && poolAfterDup === "44444", `3.1 duplicate jackpot-roll: pool TEGILMAGAN (44444 → ${poolAfterDup})`);
-  // sof yo'l: yangi bookingda jackpot to'liq to'lanadi
-  const aBefore31 = await bal(a.id);
-  const win = await rollRideCashback(a.id, 888902, { _forceTier: "jackpot" });
-  const aAfter31 = await bal(a.id);
-  ok(!!win && aAfter31 - aBefore31 === 44444, `3.1 sof jackpot: +44444 to'landi (got ${aAfter31 - aBefore31})`);
-  const row31 = await prisma.rideReward.findUnique({ where: { memberId_bookingId: { memberId: a.id, bookingId: 888902 } } });
-  ok(row31?.amount === 44444, `3.1 RideReward.amount = claimed (${row31?.amount})`);
 
   // ── 3.2 REFERRAL konvergensiya: paidAt yiqilsa ham double-pay YO'Q ──────
   await prisma.telegramUser.createMany({ data: [{ id: `${TAG}-tg-ref` }, { id: `${TAG}-tg-ree` }] });
@@ -181,9 +164,7 @@ async function main(): Promise<void> {
     ok(Math.abs((await bal(id)) - (await ledger(id))) < 0.001, `ledger invariant (member ${id})`);
   }
 
-  // jonli jackpot + mashina-fond global holatini tiklash
-  if (jackpotBefore === null) await prisma.appState.deleteMany({ where: { key: "jackpot_pool" } });
-  else await prisma.appState.upsert({ where: { key: "jackpot_pool" }, update: { value: jackpotBefore }, create: { key: "jackpot_pool", value: jackpotBefore } });
+  // jonli mashina-fond global holatini tiklash
   if (fundBefore === null) await prisma.appState.deleteMany({ where: { key: "mashina_fund" } });
   else await prisma.appState.upsert({ where: { key: "mashina_fund" }, update: { value: fundBefore }, create: { key: "mashina_fund", value: fundBefore } });
   await cleanup();

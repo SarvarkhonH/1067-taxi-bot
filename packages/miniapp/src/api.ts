@@ -344,7 +344,7 @@ export const api = {
   checkin: () => post<CheckInResponse>("/api/checkin"),
   spinWheel: () => request<WheelSpinResponse>("POST", "/api/wheel", undefined, 1),
   wheelFree: () =>
-    request<{ ok: boolean; alreadyUsed?: boolean; prize: { label: string; emoji: string; amount: number }; jackpot: number }>(
+    request<{ ok: boolean; alreadyUsed?: boolean; prize: { label: string; emoji: string; amount: number } }>(
       "POST",
       "/api/wheel/free",
       undefined,

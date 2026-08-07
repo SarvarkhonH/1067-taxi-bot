@@ -768,7 +768,6 @@ function guestMe(flags: MeResponse["flags"]): MeResponse {
     badges: [],
     streak: { current: 0, longest: 0, checkedToday: false },
     wheelAvailable: false,
-    jackpot: 0,
     coins: 0,
     leagueTier: "Bronza",
     flags,

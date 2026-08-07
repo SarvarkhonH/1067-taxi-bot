@@ -11,7 +11,7 @@ import { grantRideCoins } from "../services/coinService";
 import { spinWheel } from "../services/rewardService";
 import { mintItem } from "../services/itemService";
 import { setFeature } from "../services/featureFlags";
-import { RIDE_EMISSION_CAP, WHEEL_PRIZES, JACKPOT_FLOOR } from "@t1067/shared";
+import { RIDE_EMISSION_CAP, WHEEL_PRIZES } from "@t1067/shared";
 
 const TAG = "racefix-test";
 let failed = 0;
@@ -35,10 +35,9 @@ async function cleanup(): Promise<void> {
 async function main(): Promise<void> {
   // snapshot the recruit flag (restore exactly at the end), force ON for the test
   const snap = await prisma.appState.findUnique({ where: { key: "feature:recruit" } });
-  const jpSnap = await prisma.appState.findUnique({ where: { key: "jackpot_pool" } }); // global — restore at end
   const wheelSnap = await prisma.appState.findUnique({ where: { key: "feature:wheel" } });
   await setFeature("recruit", true);
-  await setFeature("wheel", true); // jackpot block needs it ON; the kill-switch block flips it OFF
+  await setFeature("wheel", true); // the kill-switch block below flips it OFF
   await cleanup();
   try {
     // ── completeReferral concurrent-duplicate → 1 Referral row, 1 non-null credit ──
@@ -87,24 +86,15 @@ async function main(): Promise<void> {
     const ridePaid = (await prisma.coinTxn.aggregate({ where: { memberId: clampM.id, amount: { gt: 0 }, idempotencyKey: { endsWith: `:${clampM.id}:${bid}` } }, _sum: { amount: true } }))._sum.amount ?? 0;
     ok(ridePaid <= RIDE_EMISSION_CAP, `grantRideCoins race → combined ride emission CLAMPED ≤${RIDE_EMISSION_CAP} (got ${ridePaid})`);
 
-    // ── wheel JACKPOT: concurrent spins → pool claimed ONCE, NO drain-without-payout ──
-    // (T0.5/3.1: wheelSpin insert BEFORE claim → only the winner claims AND pays out)
-    const jpLabel = WHEEL_PRIZES.find((p) => p.label.startsWith("JACKPOT"))!.label;
-    const jpPool = JACKPOT_FLOOR + 5000; // clearly above the floor so "claimed→reset" is visible
-    await prisma.appState.upsert({ where: { key: "jackpot_pool" }, update: { value: String(jpPool) }, create: { key: "jackpot_pool", value: String(jpPool) } });
+    // ── wheel spin: concurrent double-tap → exactly ONE wheelSpin row, NO double-payout ──
     const jm = await prisma.member.create({ data: { type: "client", kasId: `${TAG}-jp`, fullName: "JP", phone: "+998900022007", trips: 1 } });
     const jbid = 7700;
-    const jpBefore = await bal(jm.id);
     const active = { id: jbid, status: "started" };
-    await Promise.all([spinWheel(jm.id, { _forcePrize: jpLabel, _active: active }), spinWheel(jm.id, { _forcePrize: jpLabel, _active: active })]);
-    const jpAfter = await bal(jm.id);
+    await Promise.all([spinWheel(jm.id, { _active: active }), spinWheel(jm.id, { _active: active })]);
     const spinRows = await prisma.wheelSpin.count({ where: { memberId: jm.id, bookingId: jbid } });
-    const jpGrants = await prisma.coinTxn.count({ where: { memberId: jm.id, idempotencyKey: `jackpotwin:${jbid}:m${jm.id}` } });
-    const poolNow = Number((await prisma.appState.findUnique({ where: { key: "jackpot_pool" } }))!.value);
-    ok(spinRows === 1, `wheel jackpot race → exactly 1 wheelSpin row (got ${spinRows})`);
-    ok(jpGrants === 1, `wheel jackpot race → exactly 1 jackpot grant, NO double-payout (got ${jpGrants})`);
-    ok(jpAfter - jpBefore >= jpPool, `wheel jackpot → full pool PAID OUT to winner (claim→payout, got +${jpAfter - jpBefore} of ${jpPool})`);
-    ok(poolNow <= JACKPOT_FLOOR + 200, `wheel jackpot → pool claimed once & reset to floor (no drain-without-payout, got ${poolNow})`);
+    const spinGrants = await prisma.coinTxn.count({ where: { memberId: jm.id, kind: "wheel" } });
+    ok(spinRows === 1, `wheel double-tap race → exactly 1 wheelSpin row (got ${spinRows})`);
+    ok(spinGrants <= 1, `wheel double-tap race → at most 1 grant, NO double-payout (got ${spinGrants})`);
 
     // ── mintItem: SOLD-OUT must NOT deduct coins (spend is now INSIDE the mint tx → rolls back) ──
     await prisma.itemType.create({ data: { code: `${TAG}-so`, name: "SoldOut", kind: "plate", mintPrice: 500, mintCap: 1, mintedCount: 1 } });
@@ -123,7 +113,7 @@ async function main(): Promise<void> {
     // ── P0-sec: wheel kill-switch enforced at the SERVICE (bot handlers bypassed /api/wheel) ──
     await setFeature("wheel", false);
     const wm = await prisma.member.create({ data: { type: "client", kasId: `${TAG}-wheeloff`, fullName: "WheelOff", phone: "+998900022009", trips: 1 } });
-    const offRes = await spinWheel(wm.id, { _forcePrize: jpLabel, _active: { id: 7701, status: "started" } });
+    const offRes = await spinWheel(wm.id, { _forcePrize: WHEEL_PRIZES[0]!.label, _active: { id: 7701, status: "started" } });
     const wmSpins = await prisma.wheelSpin.count({ where: { memberId: wm.id } });
     const wmCoins = await bal(wm.id);
     ok(offRes.noRide === true && offRes.applied === false, `wheel OFF → spinWheel no-op (noRide, no grant)`);
@@ -135,8 +125,6 @@ async function main(): Promise<void> {
     // restore the recruit flag exactly as it was
     if (!snap) await prisma.appState.deleteMany({ where: { key: "feature:recruit" } });
     else await prisma.appState.update({ where: { key: "feature:recruit" }, data: { value: snap.value } });
-    if (!jpSnap) await prisma.appState.deleteMany({ where: { key: "jackpot_pool" } });
-    else await prisma.appState.update({ where: { key: "jackpot_pool" }, data: { value: jpSnap.value } });
     if (!wheelSnap) await prisma.appState.deleteMany({ where: { key: "feature:wheel" } });
     else await prisma.appState.update({ where: { key: "feature:wheel" }, data: { value: wheelSnap.value } });
     await prisma.$disconnect();

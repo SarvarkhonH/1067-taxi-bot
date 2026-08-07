@@ -14,7 +14,7 @@ import { execSync } from "node:child_process";
 const SUITES = [
   "simEconomy.ts", // pure economy invariant (≤350/ride) — no DB
   "testMoneyShield.ts", // money races · idempotency · clamp · ledger invariants
-  "testRaceFixes.ts", // concurrent grant / kill-switch / jackpot pool
+  "testRaceFixes.ts", // concurrent grant / kill-switch
   "testWithdrawRace.ts", // withdraw daily-cap race
   "testPhantomRide.ts", // phantom/cancel finish · rateRide ownership · finish-card idempotency
   "testAdminModules.ts", // T7 read-only aggregates (pulse + finance)

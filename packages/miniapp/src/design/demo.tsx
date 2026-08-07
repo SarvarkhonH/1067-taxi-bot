@@ -8,8 +8,8 @@ import { BonusCenterView } from "../rewards";
 import { BugunStripView } from "../wallet";
 import { confetti } from "../util";
 
-// Action-first home fixture (streak + jackpot for the Bugun strip).
-const demoMeHome = { streak: { current: 12, longest: 30, checkedToday: true }, jackpot: 44120 } as unknown as MeResponse;
+// Action-first home fixture (streak for the Bugun strip).
+const demoMeHome = { streak: { current: 12, longest: 30, checkedToday: true } } as unknown as MeResponse;
 
 // T6 render-proof fixtures (pure view, no API).
 const demoMeActive = { streak: { current: 12, longest: 30, checkedToday: false } } as unknown as MeResponse;

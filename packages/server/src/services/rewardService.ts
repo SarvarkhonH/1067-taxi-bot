@@ -1,5 +1,4 @@
 import {
-  JACKPOT_INCREMENT,
   nextStreakMilestone,
   streakReward,
   WHEEL_PRIZES,
@@ -111,20 +110,18 @@ export interface WheelResult {
   alreadySpun: boolean; // this ride's spin already used
   prize: { label: string; emoji: string; amount: number };
   applied: boolean;
-  jackpot: number; // displayed pool after this call
 }
 
 /**
  * IN-RIDE wheel: ONE spin per real ride, only while the booking is in
  * "started" (you're in the car). Every spin wins (no losing slice) and there
  * is no paid entry anywhere — chance rewards are only ever EARNED by riding
- * (UZ gambling posture). The JACKPOT slice pays the shared ride-fed pool.
+ * (UZ gambling posture).
  */
 export async function spinWheel(
   memberId: number,
   opts: { _forcePrize?: string; _active?: { id: number; status: string } } = {},
 ): Promise<WheelResult> {
-  const { getJackpot, growJackpot, claimJackpot } = await import("./weeklyService");
   const { getActiveBookingFor } = await import("./bookingService");
   const empty = { label: "", emoji: "🎡", amount: 0 };
 
@@ -133,12 +130,12 @@ export async function spinWheel(
   // every caller is covered: disabled → no spin, no grant (graceful no-op).
   const { featureOn } = await import("./featureFlags");
   if (!(await featureOn("wheel"))) {
-    return { noRide: true, alreadySpun: false, prize: empty, applied: false, jackpot: await getJackpot() };
+    return { noRide: true, alreadySpun: false, prize: empty, applied: false };
   }
 
   const active = opts._active ?? (await getActiveBookingFor(memberId).catch(() => null));
   if (!active || active.status !== "started") {
-    return { noRide: true, alreadySpun: false, prize: empty, applied: false, jackpot: await getJackpot() };
+    return { noRide: true, alreadySpun: false, prize: empty, applied: false };
   }
 
   const used = await prisma.wheelSpin.findFirst({ where: { memberId, bookingId: active.id } });
@@ -148,44 +145,18 @@ export async function spinWheel(
       alreadySpun: true,
       prize: { label: used.prize, emoji: def?.emoji ?? "🎡", amount: used.amount },
       applied: false,
-      jackpot: await getJackpot(),
     };
   }
 
-  let picked = (opts._forcePrize ? WHEEL_PRIZES.find((p) => p.label === opts._forcePrize) : undefined) ?? weightedPick();
-  let jackpot = await growJackpot(JACKPOT_INCREMENT);
-  let isJackpot = picked.label.startsWith("JACKPOT");
-  const jackpotKey = `jackpotwin:${active.id}:m${memberId}`; // SHARED with the finish-roll — one jackpot per ride
-  // A4 (audit P1): the finish-roll can claim THIS ride's jackpot with the same shared key. The old
-  // order claimed (reset) the pool FIRST and only then discovered the duplicate grant — the pool
-  // was reset with NO payout and the UI showed a phantom win. Check the shared key BEFORE claiming;
-  // an already-taken jackpot downgrades to a regular prize instead of draining the pool.
-  if (isJackpot && (await prisma.coinTxn.findUnique({ where: { idempotencyKey: jackpotKey } }).catch(() => null))) {
-    let repick = weightedPick();
-    for (let i = 0; i < 8 && repick.label.startsWith("JACKPOT"); i++) repick = weightedPick();
-    if (repick.label.startsWith("JACKPOT")) repick = WHEEL_PRIZES.find((p) => !p.label.startsWith("JACKPOT")) ?? repick;
-    picked = repick;
-    isJackpot = false;
-  }
-  // T0.5 / AUDIT 3.1 pattern: insert the wheelSpin (unique [member,booking]) FIRST. The
-  // jackpot pool is claimed ONLY after we win that insert — so a duplicate/concurrent spin
-  // can never drain the pool without paying out, and the pool is claimed at most once per ride.
-  let amount = isJackpot ? 0 : picked.amount; // jackpot amount is set after the insert wins
-  let spinId: number;
+  const picked = (opts._forcePrize ? WHEEL_PRIZES.find((p) => p.label === opts._forcePrize) : undefined) ?? weightedPick();
+  const amount = picked.amount;
   try {
-    const row = await prisma.wheelSpin.create({
+    await prisma.wheelSpin.create({
       data: { memberId, dayKey: tashkentDayKey(new Date()), bookingId: active.id, prize: picked.label, amount, paid: false },
     });
-    spinId = row.id;
   } catch {
     // unique [memberId, bookingId] — concurrent double-tap lost the race; NO claim happened
-    return { alreadySpun: true, prize: empty, applied: false, jackpot };
-  }
-  if (isJackpot) {
-    // we won the insert above → this claim happens at most once per ride (no double-drain)
-    amount = Math.floor(await claimJackpot());
-    jackpot = await getJackpot(); // back to the floor
-    await prisma.wheelSpin.update({ where: { id: spinId }, data: { amount } }).catch(() => undefined);
+    return { alreadySpun: true, prize: empty, applied: false };
   }
   await bumpMission(memberId, "daily_spin");
   await bumpScore(memberId, "spin");
@@ -193,24 +164,10 @@ export async function spinWheel(
   let applied = false;
   if (amount > 0) {
     const { grantRideCoins } = await import("./coinService");
-    // jackpot pays the pre-funded pool in full (outside the per-ride clamp);
-    // regular prizes share the ride's emission cap
-    if (isJackpot) {
-      const g = await grantCoins(memberId, amount, "wheel", `G'ildirak: JACKPOT`, jackpotKey);
-      applied = g.ok;
-      if (!g.ok) {
-        // backstop for the micro-race (finish-roll claimed between our check and our claim):
-        // the pool was already reset by US with no payout — put the value back + tell the owner.
-        await growJackpot(amount).catch(() => undefined);
-        const { alertAdmins } = await import("./economyService");
-        await alertAdmins(`⚠️ Wheel-jackpot race (booking ${active.id}, m${memberId}): pool qaytarildi (+${amount}).`).catch(() => undefined);
-      }
-    } else {
-      const g = await grantRideCoins(memberId, active.id, amount, "wheel", `G'ildirak: ${picked.label}`, "wheel");
-      applied = g.ok;
-    }
+    const g = await grantRideCoins(memberId, active.id, amount, "wheel", `G'ildirak: ${picked.label}`, "wheel");
+    applied = g.ok;
   }
-  return { alreadySpun: false, prize: { label: picked.label, emoji: picked.emoji, amount }, applied, jackpot };
+  return { alreadySpun: false, prize: { label: picked.label, emoji: picked.emoji, amount }, applied };
 }
 
 /** True when a spin is available RIGHT NOW: active started ride, not yet spun. */
@@ -228,19 +185,17 @@ export async function getStreak(memberId: number): Promise<{ current: number; lo
 }
 
 // 🎁 Free DAILY spin — the wheel is always playable now (not just in-ride). One per Tashkent
-// day, idempotent by key, prizes capped to the wheel set minus the in-ride-only JACKPOT — a
-// small, money-safe engagement faucet (real money still exits only via the budget-gated withdraw).
-const FREE_SPIN_PRIZES = WHEEL_PRIZES.filter((p) => p.amount > 0);
-export async function freeSpin(memberId: number): Promise<{ ok: boolean; alreadyUsed?: boolean; prize: WheelPrize; jackpot: number }> {
-  const { getJackpot } = await import("./weeklyService");
+// day, idempotent by key — a small, money-safe engagement faucet (real money still exits only
+// via the budget-gated withdraw).
+export async function freeSpin(memberId: number): Promise<{ ok: boolean; alreadyUsed?: boolean; prize: WheelPrize }> {
   const key = `freespin:${memberId}:${tashkentDayKey(new Date())}`;
   if (await prisma.coinTxn.findUnique({ where: { idempotencyKey: key } })) {
-    return { ok: false, alreadyUsed: true, prize: FREE_SPIN_PRIZES[0]!, jackpot: await getJackpot() };
+    return { ok: false, alreadyUsed: true, prize: WHEEL_PRIZES[0]! };
   }
-  const total = FREE_SPIN_PRIZES.reduce((s, p) => s + p.weight, 0);
+  const total = WHEEL_PRIZES.reduce((s, p) => s + p.weight, 0);
   let r = Math.random() * total;
-  let prize = FREE_SPIN_PRIZES[0]!;
-  for (const p of FREE_SPIN_PRIZES) {
+  let prize = WHEEL_PRIZES[0]!;
+  for (const p of WHEEL_PRIZES) {
     r -= p.weight;
     if (r <= 0) {
       prize = p;
@@ -251,5 +206,5 @@ export async function freeSpin(memberId: number): Promise<{ ok: boolean; already
   // C: the ride-independent daily quest — spinning the free wheel progresses it (bumpMission is
   // idempotent per period, so a second same-day spin is blocked upstream anyway by the freespin key).
   await bumpMission(memberId, "daily_freespin").catch(() => undefined);
-  return { ok: true, prize, jackpot: await getJackpot() };
+  return { ok: true, prize };
 }

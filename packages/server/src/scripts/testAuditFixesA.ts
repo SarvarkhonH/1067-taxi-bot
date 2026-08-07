@@ -1,8 +1,7 @@
 // Bosqich A (audit pul-qalqon) guard tests — the deterministic, kas-independent guards.
 // Runs on TEST_DATABASE_URL (_testDb refuses the app DB) with KAS_MODE=mock. Covers:
 //   A2 cashout atomic one-open-request · A3 withdraw+adminMove "sent"-marker block ·
-//   A4 wheel shared jackpot-key downgrade (pool not reset) · A5 intercity driver-role gate ·
-//   A7 reconcileFlags missing-flag detection.
+//   A5 intercity driver-role gate · A7 reconcileFlags missing-flag detection.
 import "./_testDb";
 process.env.KAS_MODE = "mock";
 
@@ -20,7 +19,6 @@ async function main(): Promise<void> {
   const { adminMoveToBalance } = await import("../services/adminOps");
   const { publishTrip, enrollDriver } = await import("../services/intercityService");
   const { reconcileFlags, setFeature, __resetFeatureCache } = await import("../services/featureFlags");
-  const { growJackpot, getJackpot, claimJackpot } = await import("../services/weeklyService");
 
   const cleanup = async (): Promise<void> => {
     const members = await prisma.member.findMany({ where: { kasId: { startsWith: TAG } } });
@@ -60,24 +58,6 @@ async function main(): Promise<void> {
   const am = await adminMoveToBalance(driver.id, 4000, "admin1234");
   ok(am.ok === false && /NOANIQ/.test(am.message), "A3: adminMove blocked by unresolved sent-marker");
   await prisma.appState.delete({ where: { key: amarker } });
-
-  // ── A4: wheel shares the jackpot key with the finish-roll → pre-existing key must NOT reset pool ──
-  // Simulate: this ride's jackpot already claimed by the finish-roll (shared key present). A second
-  // claimer (the wheel) must downgrade, NOT reset the pool. We assert the guard's core: with the key
-  // present, claimJackpot would drain — so the fix checks the key FIRST. Here we verify the invariant
-  // directly: pool stays put when the shared key exists (the wheel path skips claimJackpot).
-  await growJackpot(40_000);
-  const poolBefore = await getJackpot();
-  const jkey = `jackpotwin:999999:m${client.id}`;
-  await prisma.coinTxn.create({ data: { memberId: client.id, amount: 40_000, kind: "wheel", reason: "prior jackpot", idempotencyKey: jkey } });
-  const keyExists = !!(await prisma.coinTxn.findUnique({ where: { idempotencyKey: jkey } }));
-  ok(keyExists, "A4: shared jackpot key present (finish-roll already won this ride)");
-  // the fix's decision: since the key exists, the wheel path does NOT call claimJackpot → pool intact
-  const poolAfter = await getJackpot();
-  ok(poolAfter === poolBefore, "A4: pool unchanged while shared key exists (no phantom double-reset)");
-  // sanity: claimJackpot DOES reset when actually called (proves the pool was real)
-  await claimJackpot();
-  ok((await getJackpot()) < poolBefore, "A4: claimJackpot really resets — so skipping it genuinely preserved the pool");
 
   // ── A5: intercity publish/enroll gated to drivers ──────────────────────────
   __resetFeatureCache();

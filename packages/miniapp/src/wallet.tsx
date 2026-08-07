@@ -572,8 +572,8 @@ function TopupSheet({ wallet, onClose, onDone }: { wallet: WalletResponse; onClo
   );
 }
 
-// "Bugun" strip — the action-first glance under the hero CTA: streak · missions-ready
-// · jackpot. Each cell deep-jumps to its tab. Missions-ready is fetched once.
+// "Bugun" strip — the action-first glance under the hero CTA: streak · missions-ready.
+// Each cell deep-jumps to its tab. Missions-ready is fetched once.
 export function BugunStripView({ me, ready, onNav }: { me: MeResponse; ready: number | null; onNav: (t: "rewards" | "missions") => void }) {
   return (
     <div className="bugun-strip">
@@ -586,11 +586,6 @@ export function BugunStripView({ me, ready, onNav }: { me: MeResponse; ready: nu
         <span className="bugun-ico">🎁</span>
         <span className="bugun-val">{ready ?? "·"}</span>
         <span className="bugun-lbl">vazifa tayyor</span>
-      </button>
-      <button className="bugun-cell" onClick={() => { haptic(); onNav("rewards"); }}>
-        <span className="bugun-ico">🎰</span>
-        <span className="bugun-val">{formatNumber(me.jackpot)}</span>
-        <span className="bugun-lbl">jackpot</span>
       </button>
     </div>
   );

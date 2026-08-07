@@ -40,7 +40,6 @@ export interface MeResponse {
   badges: BadgeView[];
   streak: { current: number; longest: number; checkedToday: boolean };
   wheelAvailable: boolean; // a spin is available RIGHT NOW (active started ride, not yet spun)
-  jackpot: number; // current escalating wheel jackpot
   coins: number; // game-wallet balance (1 coin = 1 so'm)
   leagueTier: string; // Bronza | Kumush | Oltin | Platina | Olmos
   // 🏅 Tier loyalty loop (feature "tierloyalty") — present/meaningful only when the flag is ON.
@@ -99,7 +98,6 @@ export interface WheelSpinResponse {
   alreadySpun: boolean; // this ride's spin was already used
   prize: { label: string; emoji: string; amount: number };
   applied: boolean;
-  jackpot: number; // pool value after this spin
 }
 
 export interface LeaderboardEntry {
@@ -196,7 +194,6 @@ export interface AdminEconomy {
   sunk: number; // total coins spent in games (-, excl withdraw)
   withdrawnTotal: number; // coins → real cashback (all time)
   withdrawnToday: number;
-  jackpot: number;
   byKind: { kind: string; total: number; count: number }[]; // coin flow per source/sink
   withdrawBudget: { total: number; used: number; remaining: number; rides: number }; // revenue-linked
 }

@@ -1,7 +1,7 @@
 // 🔔 Smart push engine (Duolingo architecture, rules-only — no LLM needed):
 // max 2 pushes per member per day, never the same trigger twice a day, silent
-// 21:00-08:00 Tashkent. Triggers by priority: streak-saver → comeback →
-// lucky-day → garage-service → jackpot. Plus the Monday recap "mini-Wrapped".
+// 21:00-08:00 Tashkent. Triggers by priority: comeback → lucky-day →
+// free-spin reminder. Plus the Monday recap "mini-Wrapped".
 import type { Bot } from "grammy";
 import { formatNumber } from "@t1067/shared";
 import { prisma } from "../db";
@@ -99,35 +99,33 @@ export async function pushEngineTick(bot: Bot): Promise<void> {
 
   const { isLuckyToday } = await import("./cashbackService");
   const lucky = isLuckyToday();
-  const { getJackpot } = await import("./weeklyService");
-  const jackpot = await getJackpot();
 
   // 🎁 free-spin reminder (flag "spinreminder"): surface the forgotten free daily wheel. ONE batched
   // query for who already spun today (freespin idempotency key) → the loop nudges only those who
   // HAVEN'T, in a midday window, within the same 2/day cap + quiet hours. Read-only.
   const spinReminderOn = await (await import("./featureFlags")).featureOn("spinreminder");
   const spunToday = new Set<number>();
+  // Cadence guard: a member can only get this nudge once every ≥48h (was: once per day whenever
+  // eligible) — batched with spunToday so this stays one extra query, not N+1.
+  const recentlyNudged = new Set<number>();
   if (spinReminderOn) {
     const rows = await prisma.coinTxn.findMany({
       where: { kind: "freespin", idempotencyKey: { endsWith: `:${dk}` } },
       select: { memberId: true },
     });
     for (const r of rows) spunToday.add(r.memberId);
+    const since48h = new Date(Date.now() - 48 * 3600 * 1000);
+    const nudgeRows = await prisma.notifyLog.findMany({
+      where: { kind: "freespin_wait", sentAt: { gte: since48h } },
+      select: { memberId: true },
+    });
+    for (const r of nudgeRows) recentlyNudged.add(r.memberId);
   }
 
   for (const m of linked) {
     const chatId = m.telegramUser!.id;
 
-    // ① streak-saver: evening, streak alive but today unchecked (loss aversion)
-    if (hour >= 18 && (m.streak?.current ?? 0) >= 2) {
-      const checkedToday = m.streak?.lastCheckIn ? dayKey(m.streak.lastCheckIn) === dk : false;
-      if (!checkedToday) {
-        const sent = await trySend(bot, chatId, m.id, "streak_saver", `🔥 <b>${m.streak!.current} kunlik streak xavfda!</b>\nBugun belgilamasangiz — kuyadi. Bir bosishda saqlang 👇`, appBtn("✅ Bugunni belgilash", "play"));
-        if (sent) continue;
-      }
-    }
-
-    // ② comeback: 7+ days without a ride → 48h guaranteed-3x offer
+    // ① comeback: 7+ days without a ride → 48h guaranteed-3x offer
     if (m.type === "client" && !m.comebackOfferUntil) {
       const lastRide = await prisma.rideReward.findFirst({ where: { memberId: m.id }, orderBy: { createdAt: "desc" } });
       if (lastRide && Date.now() - lastRide.createdAt.getTime() > 7 * 24 * 3600 * 1000) {
@@ -140,22 +138,17 @@ export async function pushEngineTick(bot: Bot): Promise<void> {
       }
     }
 
-    // ③ lucky-day morning announce (scarcity — only fires on the lucky weekday)
+    // ② lucky-day morning announce (scarcity — only fires on the lucky weekday)
     if (lucky && hour >= 8 && hour < 12) {
       const sent = await trySend(bot, chatId, m.id, "lucky_day", `🍀 <b>BUGUN OMAD KUNI!</b>\nHar safar ruletasi <b>2 BARAVAR</b> to'laydi — bugun yo'lga chiqish ayni payt! 🚕`, appBtn("🚕 Taxi chaqirish", "book"));
       if (sent) continue;
     }
 
-    // ④ free-spin reminder (midday 11–17): a real rider who hasn't spun the free wheel today. Lower
-    // priority than streak/comeback/lucky above (they `continue` first) so it never crowds them out.
-    if (spinReminderOn && hour >= 11 && hour < 17 && m.phone && !spunToday.has(m.id)) {
-      const sent = await trySend(bot, chatId, m.id, "freespin_wait", `🎁 <b>Bugungi bepul aylantirishingiz kutmoqda!</b>\nSafarsiz ham tanga yutib oling — bir bosishda 👇 🍀`, appBtn("🎡 Aylantirish", "play"));
-      if (sent) continue;
-    }
-
-    // ⑤ big jackpot teaser
-    if (jackpot >= 20000) {
-      await trySend(bot, chatId, m.id, "jackpot", `🎰 JACKPOT <b>${formatNumber(jackpot)} tanga</b>ga yetdi!\nHar safarda 1% imkon — butun jamg'arma sizniki bo'lishi mumkin. 🚕`, appBtn("🚕 Taxi chaqirish", "book"));
+    // ③ free-spin reminder (midday 11–17): a real rider who hasn't spun the free wheel today AND
+    // hasn't gotten this same nudge in the last 48h (≈ every 2-3 days, not daily). Lower priority
+    // than comeback/lucky above (they `continue` first) so it never crowds them out.
+    if (spinReminderOn && hour >= 11 && hour < 17 && m.phone && !spunToday.has(m.id) && !recentlyNudged.has(m.id)) {
+      await trySend(bot, chatId, m.id, "freespin_wait", `🎁 <b>Bugungi bepul aylantirishingiz kutmoqda!</b>\nSafarsiz ham tanga yutib oling — bir bosishda 👇 🍀`, appBtn("🎡 Aylantirish", "play"));
     }
   }
 }

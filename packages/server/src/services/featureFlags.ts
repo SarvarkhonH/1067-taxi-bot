@@ -13,6 +13,8 @@ export const FEATURES = [
   "baraban", // 🎰 post-ride spin wheel (5-min token on ride finish → one spin, real tanga) — LIVE, owner-accepted
   "komissiya", // 💸 platform commission on transfers/tips/fares (configurable %); OFF until owner QABUL
   "promo", // 🎁 admin-configurable promo campaigns ("tasks with promises") + completion pushes; OFF until owner QABUL
+  // "jackpotpost" — 2026-08-07 da butunlay olib tashlandi (jackpot mexanikasi HAMMA joydan —
+  // safar-tugash mukofoti VA g'ildirak — o'chirildi, kanal e'loni ham shu bilan birga ketdi).
   "qarz", // 💸 Bosqich 3: driver pays kas company debt with tanga (real kas write); OFF until owner pilot
   "welcomebonus", // 🎁 universal first-ride bonus (REFEREE_REWARD=5000 tanga) for riders who did NOT arrive via referral/recruit — every new bot user gets exactly one; OFF until owner pilot
   "refstaged", // 👥 STAGED referral payout: inviter earns in 3 steps (friend START → +refStart, friend links number → +refShare, friend 1st ride → +refRide); friend gets 5000 on JOIN like everyone. OFF = legacy (all on first ride). DARK until owner QABUL
@@ -31,9 +33,6 @@ export const FEATURES = [
               // safar bepul" banner linking t.me/<bot>?start=reft_<sharer code> (EXISTING referral
               // pipeline pays both sides — no new money mechanic), + the live ride card's share
               // button sends the real live-track link instead of plain text. DARK until owner QABUL
-  "jackpotpost", // 📣 W1 №2 jackpot-shou: har ride-jackpot yutug'i + dushanba haftalik digest Koson
-              // kanaliga post qilinadi (KOSON_CHANNEL_ID env ham shart). Pul mexanikasi EMAS —
-              // faqat mavjud yutuqlarni ommaviy qilish. DARK until owner QABUL
   "instantstatus", // ⚡ W2 №1: kas CLIENT Netty socket (46.8.176.53:1114) — active-ride mijoz uchun
               // holat o'zgarishini SONIYALARDA push qiladi → sweep'ni darhol trigger qiladi (90s emas).
               // Soket PUL BERMAYDI/karta chizMAYDI — faqat trigger; sweep yagona renderer/pul-yo'li
@@ -157,7 +156,7 @@ export type FeatureName = (typeof FEATURES)[number];
 // Off until explicitly enabled (go-live flip = setFeature(name, true) after owner QABUL).
 // booking3 = the new map/trip flow; owner still gets a preview via server.ts owner-branch,
 // but real users stay on the (fixed) classic flow until it's accepted. A missing row → OFF.
-const DEFAULT_OFF = new Set<FeatureName>(["booking3", "aibrain", "mahalla", "tolqin", "baraban", "komissiya", "qarz", "welcomebonus", "refstaged", "drvstaged", "drvrecruit", "drvpush", "promo", "clientbooking", "cashout", "carupgrade", "intercity", "tierloyalty", "waitcomp", "trackcta", "jackpotpost", "drvrank", "instantstatus", "spinreminder", "shop", "xizmatlar", "elonlar", "elontop", "restoran", "bazarcart", "shopcashback", "revtanga", "airemind", "aihisob", "aidost", "aicity", "aibilim", "aineeds", "shopstory", "shopchat", "mktexpire", "mktlife", "ravella", "linkinapp", "homescreen", "storyshare", "autoloc", "operatorAssist", "jamoa", "oyin"]);
+const DEFAULT_OFF = new Set<FeatureName>(["booking3", "aibrain", "mahalla", "tolqin", "baraban", "komissiya", "qarz", "welcomebonus", "refstaged", "drvstaged", "drvrecruit", "drvpush", "promo", "clientbooking", "cashout", "carupgrade", "intercity", "tierloyalty", "waitcomp", "trackcta", "drvrank", "instantstatus", "spinreminder", "shop", "xizmatlar", "elonlar", "elontop", "restoran", "bazarcart", "shopcashback", "revtanga", "airemind", "aihisob", "aidost", "aicity", "aibilim", "aineeds", "shopstory", "shopchat", "mktexpire", "mktlife", "ravella", "linkinapp", "homescreen", "storyshare", "autoloc", "operatorAssist", "jamoa", "oyin"]);
 
 let cache: { at: number; map: Record<string, boolean> } = { at: 0, map: {} };
 
@@ -191,7 +190,9 @@ export async function setFeature(name: FeatureName, on: boolean): Promise<void> 
 // at every QABUL / intentional off); boot logs the effective state and ALERTS on any mismatch —
 // it never auto-flips (an intentional off must stay off until this list is edited).
 export const EXPECTED_ON: FeatureName[] = [
-  "wheel", "items", "transfers", "push", "gap", "plus", "recruit", "booking3",
+  "wheel", "items", "transfers", "push", "recruit", "booking3",
+  // "gap" (gashtak) va "plus" (obuna) — 2026-08-07 da ega buyrug'i bilan o'chirildi ("kerak emas,
+  // vazifasini bajardi"/"to'liq yuqot"). Ro'yxatga ATAYLAB qo'shilmadi: off qolishi kerak.
   // livinghome 2026-07-29 da BUTUNLAY olib tashlandi (TOZALASH_DOD.md Blok A1): bayroq nomi,
   // server quvuri (/api/me + /api/booking/info), shared tipi, admin toggle'i va home.tsx'ning
   // o'zi. Sabab: 2026-07-23 dagi UY_REDESIGN (ce9ba6a) NewUyView'ni ternaryda uning OLDIGA
@@ -200,7 +201,9 @@ export const EXPECTED_ON: FeatureName[] = [
   // tarixida: `git show c5ef1e47:packages/miniapp/src/home.tsx`. MUKAMMAL_DASTUR.md §5b dagi
   // qaytarish sharti O'ZGARMAYDI - u xaritani NewUyView ICHIGA qism sifatida olib kirishni
   // nazarda tutadi, ya'ni home.tsx'ga bog'liq emas.
-  "baraban", "komissiya", "promo", "qarz", "refstaged", "drvstaged", "drvrecruit",
+  // "baraban" (safar-tugash spin) — 2026-08-07 da ega buyrug'i bilan BUTUNLAY o'chirildi
+  // ("vazifasini bajardi, kerak emas"). Ro'yxatga ATAYLAB qo'shilmadi: off qolishi kerak.
+  "komissiya", "promo", "qarz", "refstaged", "drvstaged", "drvrecruit",
   "welcomebonus", // 🎁 2026-07-17 da ega o'chirgan edi ("o'chirganman"), LEKIN 2026-07-22 13:44 da
              // QAYTA YOQILGAN (jonli AppState qatorining updatedAt'i) va shundan beri ishlayapti —
              // 2026-07-26 dagi "welcome 5000 ko'chmaydigan" himoyasi ham aynan shu yoqiq bo'lgani
@@ -212,7 +215,9 @@ export const EXPECTED_ON: FeatureName[] = [
   // loyiha") — keyingi bosqich sifatida rejalashtiriladi, hozircha diqqat markazida emas.
   // Flag setFlag.ts orqali off qilindi (alertAdmins jo'natildi). Qayta yoqilganda shu yerga qaytariladi.
   "drvpush", "clientbooking", "cashout", "tierloyalty", "waitcomp", "trackcta",
-  "jackpotpost", "instantstatus", "drvrank",
+  // "jackpotpost" — 2026-08-07 da flag'ning o'zi bilan birga BUTUNLAY o'chirildi (jackpot
+  // mexanikasi hamma joydan olib tashlandi — endi FeatureName ham emas).
+  "instantstatus", "drvrank",
   "shop", // 🛍 tanga do'kon — owner GO LIVE 2026-07-06 (100 ta KOSON_AKSIYA mahsuloti + naqd/tanga)
   "xizmatlar", // 🔎 Koson xizmatlar katalogi — owner GO LIVE 2026-07-06 (67 ta seed listing, soft-launch: foto/narx/1067-audit hali bo'sh — jonli boyitiladi)
   "elonlar", // 📋 E'lonlar (mahalla e'lon taxtasi) — owner GO LIVE 2026-07-07 (E1-E4 owner-accepted 2026-07-06,
@@ -237,7 +242,8 @@ export const EXPECTED_ON: FeatureName[] = [
   "bazarcart",    // 🧺 2026-07-26 18:25 — savat/checkout (bazar bilan bitta to'plamda)
   "shopchat",     // 💬 2026-07-26 18:25 — mijoz↔do'kon chat
   "shopstory",    // 📹 2026-07-26 18:25 — do'kon hikoyalari
-  "revtanga",     // 🗣 2026-07-27 09:52 — sharh-uchun-tanga
+  // "revtanga" (sharh-uchun-tanga) — 2026-08-07 da ega buyrug'i bilan BUTUNLAY o'chirildi.
+  // Ro'yxatga ATAYLAB qo'shilmadi: off qolishi kerak.
   "shopcashback", // 🪙 2026-07-27 10:22 — xarid-cashback
   // 📱 Telegram-mahalliy qatlam — ega QABUL 2026-07-27 (kod-ko'rigi oldin ma'qullangan,
   // «QABUL deploydan keyin»; deploy 1d18a7e, keyin ega yoqishga ruxsat berdi). Pul YO'Q.

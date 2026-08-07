@@ -103,8 +103,6 @@ async function attempt(): Promise<number> {
   calls.stopLoc = 0;
   calls.texts = [];
   calls.lastEditKb = undefined;
-  // tests roll REAL cashback against the live DB — protect the live jackpot pool
-  const jackpotBefore = (await prisma.appState.findUnique({ where: { key: "jackpot_pool" } }))?.value ?? null;
   await cleanup();
 
   // echo real members' active rides back unchanged (zero interference)
@@ -187,7 +185,7 @@ async function attempt(): Promise<number> {
   ok(calls.send === 4, `finish: 1 summary added on top of searching-card + driver-found + arrival pings (total sends ${calls.send})`);
   ok(calls.stopLoc === 1, `live pin stopped`);
   const summary = calls.texts.find((t) => t.includes("yakunlandi")) ?? calls.texts[calls.texts.length - 1]!;
-  ok(summary.includes("Safar cashback") || summary.includes("JACKPOT"), `summary contains the roll result`);
+  ok(summary.includes("Safar cashback"), `summary contains the roll result`);
   ok(summary.includes("TOPDINGIZ"), `ETA-guess resolved as WIN (7 min in 6-9)`);
   ok(summary.includes("🔥 Streak:") && summary.includes("5 kun"), `end-card shows streak line (5 kun)`);
   ok(summary.includes("Yo'l haqi") && summary.includes("15 000"), `end-card shows the FARE (🧾 Yo'l haqi 15 000 so'm) — kas1067 SMS equivalent`);
@@ -221,8 +219,6 @@ async function attempt(): Promise<number> {
   ok(stillActive === realActives.length, `real members' rides untouched (${stillActive})`);
 
   await cleanup();
-  if (jackpotBefore === null) await prisma.appState.deleteMany({ where: { key: "jackpot_pool" } });
-  else await prisma.appState.upsert({ where: { key: "jackpot_pool" }, update: { value: jackpotBefore }, create: { key: "jackpot_pool", value: jackpotBefore } });
   return failed;
 }
 

@@ -466,7 +466,7 @@ function Overview({ health }: { health: AdminHealth | null }) {
             <Card icon="🎮" label="Sarflangan" value={formatNumber(eco.sunk)} sub="o'yinlarda" />
             <Card icon="💸" label="So'mga (jami)" value={formatNumber(eco.withdrawnTotal)} sub={`bugun ${formatNumber(eco.withdrawnToday)}`} />
           </div>
-          <div className="panel-title" style={{ fontSize: 12 }}>🎰 Jackpot: {formatNumber(eco.jackpot)} · manba/sarf bo'yicha</div>
+          <div className="panel-title" style={{ fontSize: 12 }}>Manba/sarf bo'yicha</div>
           <div className="chart">
             {eco.byKind.slice(0, 12).map((k) => {
               const max = Math.max(1, ...eco.byKind.map((x) => Math.abs(x.total)));
@@ -746,7 +746,6 @@ const FLAG_INFO: Record<string, { risk: FlagRisk; desc: string }> = {
   clientbooking: { risk: "ux", desc: "GPS «new» aniq-pin buyurtma" },
   instantstatus: { risk: "ux", desc: "Tez holat — kas soket (~1s)" },
   trackcta: { risk: "cosmetic", desc: "Kuzatuv-sahifa taklif CTA" },
-  jackpotpost: { risk: "cosmetic", desc: "Jackpot → Koson kanaliga post" },
   drvrank: { risk: "cosmetic", desc: "Haydovchi QR reyting (o'chirilgan)" },
   tolqin: { risk: "cosmetic", desc: "Tolqin o'yin (olib tashlangan)" },
   mahalla: { risk: "cosmetic", desc: "Mahalla reyting (olib tashlangan)" },
@@ -8093,7 +8092,6 @@ const BLOCK_KIND_LABEL: Record<string, string> = {
   lucky_day: "🍀 Omad kuni",
   streak_saver: "🔥 Streak xavfda",
   comeback: "🎁 Sizni sog'indik",
-  jackpot: "🎰 Jackpot",
   recap: "📊 Haftalik hisobot",
   decay_warn: "📉 Ball yechilmoqda",
   link_remind: "👋 Raqamni ulang",

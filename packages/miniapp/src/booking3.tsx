@@ -1212,13 +1212,12 @@ function Booking3Inner({ me, info, onClose }: { me: MeResponse; info: BookingInf
 
   return (
     <div className="b3-screen">
-      {/* top status bar — tanga · streak · jackpot ticker */}
+      {/* top status bar — tanga · streak */}
       <div className="b3-top">
         <button className="b3-x" onClick={onClose}>←</button>
         <div className="b3-stats">
           <span>🪙 {formatNumber(me.coins)}</span>
           {me.streak?.current ? <span>🔥 {me.streak.current}</span> : null}
-          <span className="b3-jack">🎰 {formatNumber(me.jackpot)}</span>
         </div>
       </div>
 

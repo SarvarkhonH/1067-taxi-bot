@@ -41,8 +41,9 @@ const schema = z.object({
   // When "true", the API trusts X-Debug-Telegram-Id even with a bot token (LOCAL admin/miniapp viewing only).
   ALLOW_DEBUG_AUTH: z.string().optional().default("false"),
 
-  // 📣 Koson public channel (W1 №2 jackpot-shou): "-100…" id yoki "@username". Bo'sh = post yo'q.
-  // Bot kanalga ADMIN qilib qo'shilishi shart (ega ops). Flag "jackpotpost" bilan ham gate'lanadi.
+  // 📣 Koson public channel (masalan XIZMATLAR haftalik digest): "-100…" id yoki "@username".
+  // Bo'sh = post yo'q. Bot kanalga ADMIN qilib qo'shilishi shart (ega ops). Har initsiativa o'z
+  // feature flagi bilan ham gate'lanadi.
   KOSON_CHANNEL_ID: z.string().optional().default(""),
 
   PORT: z.coerce.number().default(8080),
