@@ -13,6 +13,7 @@ import { useCallback, useEffect, useRef, useState, type ReactNode } from "react"
 import { OYIN_FINAL_LOCK_MS, oyinHintOf, type OyinActivityAction, type OyinActivityResponse, type OyinFriendRow, type OyinGashtakSearchHit, type OyinJamoamResponse, type OyinJamoaResult, type OyinJamoaView, type OyinMyTicketsResponse, type OyinPrizeView, type OyinSeasonClientView, type OyinStateResponse, type OyinVitrinaResponse } from "@t1067/shared";
 import { api } from "./api";
 import { addToHomeScreen, copyText, haptic, homeScreenStatus, inviteLandingUrl, onHomeScreenAdded, openUserChat, shareLink, shareStory } from "./telegram";
+import { BirJoyMark } from "./design/birjoy";
 import "./design/feat/oyk.css"; // bu ekran ochilgandagina yuklanadi (kritik yo'lda emas)
 
 // ⚠️ Raqamlar KNOBDAN. Avval "+30 ball" qotirilgan edi — ega knobni o'zgartirsa ilovaning
@@ -29,19 +30,48 @@ const OB_SEEN_KEY = "oyk_onboard_seen";
 const FRIENDS_PAGE = 8; // "Do'stlarim" ro'yxati shuncha ko'rsatiladi, keyin "ko'proq" tugmasi
 
 /** 🤝 Gashtak-tushuntirish (2026-08-06, ega talabi — "rasmli, story-uslubida bir-ma-bir
- *  o'tiladigan varoq"). YANGIDAN CSS/animatsiya yozilmadi — `obSlides`/`.oyk-onboard` bilan
- *  BIR XIL naqsh qayta ishlatildi (alohida state+localStorage kalit bilan). Gashtak sof
- *  ta'rif/mexanika — jismoniy buyum emas, shuning uchun rasm o'rniga katta emoji-belgi
- *  (DIZAYN_QOIDALARI #10 faqat "jismoniy narsa"ga tegishli — bu istisno). */
+ *  o'tiladigan varoq"). `obSlides`/`.oyk-onboard` bilan BIR XIL naqsh qayta ishlatildi (alohida
+ *  state+localStorage kalit bilan). Gashtak sof ta'rif/mexanika — jismoniy buyum emas, shuning
+ *  uchun rasm o'rniga katta emoji-belgi (DIZAYN_QOIDALARI #10 faqat "jismoniy narsa"ga tegishli —
+ *  bu istisno). "Nega" slaydida esa (2026-08-07, ega talabi: "chiroyli animatsiya bilan bo'lishi
+ *  kerak odamlar tushunsin") matn o'rniga jonli taqqoslash-animatsiyasi — solo va gashtak-oyidagi
+ *  ball tezligi yonma-yon, DIZAYN_QOIDALARI #16 (faqat transform/opacity, reduced-motion hurmat
+ *  qilinadi — global `.oyk` qoidasi CSS'da avtomatik o'chiradi, alohida override shart emas). */
 const GASHTAK_HELP_SEEN_KEY = "oyk_gashtak_help_seen";
-function gashtakSlides(): { icon: string; text: string }[] {
+function gashtakSlides(): { icon: string; text: string; visual?: "compare" }[] {
   return [
     { icon: "🤝", text: "Gashtak — o'zbekona hamjihatlik: bir nechta kishi birlashib, navbat bilan ball yig'adi" },
     { icon: "👥", text: "3–10 kishilik gashtak tuzing yoki mavjudiga kod yoki havola bilan qo'shiling" },
-    { icon: "🎯", text: "Har oy navbat bitta a'zoga o'tadi — gashtakning UMUMIY safarlari o'sha navbatchiga ball olib keladi" },
+    {
+      icon: "🎯",
+      text: "Har oy navbat bitta a'zoga o'tadi — gashtakning UMUMIY safarlari o'sha navbatchiga ball olib keladi. Navbatingiz kelgan oy — oddiy oydan SEZILARLI tezroq yig'asiz",
+      visual: "compare",
+    },
     { icon: "📢", text: "Boshliq a'zolarga to'g'ridan-to'g'ri xabar yubora oladi — masalan \"yana 2 safar qilsak yetadi\"" },
     { icon: "🚪", text: "Istalgan payt chiqishingiz mumkin. Boshliq gashtakni butunlay tarqatishi ham mumkin — bu qaytarib bo'lmaydi" },
   ];
+}
+/** 🎬 Solo vs gashtak-oyi — ball tezligi taqqoslash animatsiyasi. Ikkita panjara chizig'i bir
+ *  vaqtda to'ladi, gashtak chizig'i ANIQ tezroq va uzoqroqqa yetadi. Real nisbat emas (bu his-
+ *  tuyg'u uchun illyustratsiya) — lekin yo'nalish rost: gashtak-oyi doim solo-oydan ko'proq beradi. */
+function GashtakCompareViz() {
+  return (
+    <div className="oyk-gcmp" aria-hidden="true">
+      <div className="oyk-gcmp-col">
+        <div className="oyk-gcmp-track"><span className="oyk-gcmp-fill is-solo" /></div>
+        <div className="oyk-gcmp-label">Yolg'iz oy</div>
+      </div>
+      <div className="oyk-gcmp-col">
+        <div className="oyk-gcmp-track">
+          <span className="oyk-gcmp-fill is-group" />
+          {[0, 1, 2, 3].map((i) => (
+            <span key={i} className="oyk-gcmp-spark" style={{ animationDelay: `${i * 260}ms` }} />
+          ))}
+        </div>
+        <div className="oyk-gcmp-label is-accent">Navbat oyi</div>
+      </div>
+    </div>
+  );
 }
 const START_TAB_KEY = "oyk_start_tab"; // uy-hero'dagi "Sovrinlarni ko'rish" shu orqali vitrina'ga ochadi
 // Qulf oynasi SERVER bilan BITTA manbadan. Avval mustaqil `48 * 3600_000` turardi: ega
@@ -1353,7 +1383,10 @@ Taksida yur, ball yig', sodiqlik kartasini ol. Davr oxirida jonli efirda mukofot
                     <small>+{state.hints.rideBall} ball</small>
                   </button>
                   <button type="button" className="oyk-act is-invite" onClick={() => void inviteFriend()}>
-                    <span className="oyk-act-ic">👥</span>
+                    <span className="oyk-act-ic oyk-act-ic--brand">
+                      <BirJoyMark size={32} />
+                      <span className="oyk-act-crown" aria-hidden="true">👑</span>
+                    </span>
                     <b>Do'st chaqirish</b>
                     <small>+{state.hints.referFirstRideBall} ball</small>
                   </button>
@@ -2514,6 +2547,7 @@ Taksida yur, ball yig', sodiqlik kartasini ol. Davr oxirida jonli efirda mukofot
         <div className="oyk-onboard">
           <div className="oyk-ob-icon">{cur.icon}</div>
           <div className="oyk-ob-step">{gashtakHelp + 1} / {slides.length} QADAM</div>
+          {cur.visual === "compare" && <GashtakCompareViz />}
           <div className="oyk-ob-text">{cur.text}</div>
           <div className="oyk-ob-dots">
             {slides.map((sl, i) => <div key={sl.icon} className={`oyk-ob-dot${i === gashtakHelp ? " is-active" : ""}`} />)}

@@ -52,10 +52,11 @@ export function storyCooldownHoursLeft(lastAtIso: string | undefined, nowMs: num
   return Math.max(1, Math.ceil(STORY_COOLDOWN_HOURS - hoursSince));
 }
 
-// 🖼 20 ta tayyor rasm — `packages/miniapp/public/posters/01.jpg`…`20.jpg`. Fayl nomi ham,
+// 🖼 30 ta tayyor rasm — `packages/miniapp/public/posters/01.jpg`…`30.jpg`. Fayl nomi ham,
 // soni ham QATTIQ KODLANGAN: bular ega bergan asl dizaynlar, admin panelda o'zgartirish yo'q
 // (shuning uchun "oddiygina" — hech qanday CRUD/matn/shablon boshqaruvi kerak emas).
-export const STORY_POSTER_COUNT = 20;
+// ⚠️ 20 → 30 (2026-08-07, ega yangi, sifatliroq to'plam berdi — eskisi xira edi).
+export const STORY_POSTER_COUNT = 30;
 export function storyPosterPaths(): string[] {
   return Array.from({ length: STORY_POSTER_COUNT }, (_, i) => `/posters/${String(i + 1).padStart(2, "0")}.jpg`);
 }

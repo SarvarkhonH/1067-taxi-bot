@@ -97,6 +97,12 @@ export async function rollRideCashback(
   } catch {
     return null; // already rolled for this ride (unique [memberId, bookingId]) — pool untouched
   }
+  // 🤝 Gashtak-ledger — safar HAQIQIY tasdiqlangan zahoti, o'zgarmas yozuv (oyinService.ts).
+  // Best-effort, hech qachon ushbu pul-yo'liga ta'sir qilmaydi (funksiya o'z ichida xatoni yutadi).
+  {
+    const { creditGashtakLedger } = await import("./oyinService");
+    await creditGashtakLedger(memberId, rewardId);
+  }
   if (jackpot) {
     // duplicate race lost above, so this claim happens at most once per ride
     amount = Math.floor(await claimJackpot());

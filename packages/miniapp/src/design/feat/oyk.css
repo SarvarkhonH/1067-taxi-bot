@@ -266,12 +266,18 @@
   font-family: inherit; cursor: pointer; line-height: 1.25; transition: transform var(--dur-press);
 }
 .oyk-act:active { transform: scale(.97); }
-.oyk-act-ic { font-size: 19px; display: block; margin-bottom: 3px; }
+.oyk-act-ic { font-size: 19px; display: block; margin-bottom: 3px; position: relative; }
+.oyk-act-ic--brand { width: 32px; height: 20px; line-height: 0; }
+.oyk-act-ic--brand .bj-mark { display: block; }
+.oyk-act-crown {
+  position: absolute; top: -9px; left: 50%; transform: translateX(-50%);
+  font-size: 12px; line-height: 1; filter: drop-shadow(0 1px 1px rgba(0, 0, 0, .3));
+}
 .oyk-act b { display: block; font-size: 12.5px; font-weight: 900; }
 .oyk-act small { font-size: 10.5px; opacity: .9; }
 /* "Safar qilish" BREND rangida — bizga daromad keltiradigan harakat ilova bilan bir xil his qilinsin */
 .oyk-act.is-ride { background: var(--oyk-ride-grad); color: var(--oyk-ride-ink); }
-.oyk-act.is-invite { background: var(--oyk-violet-grad); }
+.oyk-act.is-invite { background: var(--oyk-accent-grad); }
 
 /* ── 🎯 Kunlik vazifalar (halqa + 3 qator) ────────────────────────────────────────────── */
 .oyk-daily {
@@ -1007,6 +1013,32 @@
 }
 .oyk-ob-next:active { transform: scale(.97); }
 .oyk-ob-skip { min-height: 44px; border: none; background: transparent; color: var(--oyk-text-3); font-size: 13px; font-weight: 700; cursor: pointer; }
+
+/* ── 🎬 Gashtak "nega" slaydi — solo vs navbat-oyi taqqoslash animatsiyasi ───────────────
+   Faqat transform/opacity (Qoida #16). Reduced-motion: `.oyk` global qoidasi (yuqorida,
+   satr ~80) animatsiyani o'chiradi — shunda chiziqlar shu yerdagi BAZA (yakuniy) qiymatda
+   qotib qoladi, buzuq/bo'sh ko'rinmaydi. */
+.oyk-gcmp { display: flex; gap: 18px; width: 100%; max-width: 280px; margin: 2px 0; }
+.oyk-gcmp-col { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 7px; }
+.oyk-gcmp-track { position: relative; width: 100%; height: 12px; border-radius: 99px; background: var(--oyk-fill); overflow: hidden; }
+.oyk-gcmp-fill { position: absolute; inset: 0; border-radius: 99px; transform-origin: left; background: var(--oyk-text-3); }
+.oyk-gcmp-fill.is-solo { transform: scaleX(.22); animation: oyk-gcmp-solo 2.6s ease-out; }
+.oyk-gcmp-fill.is-group { transform: scaleX(.92); background: var(--oyk-accent-grad); animation: oyk-gcmp-group 2.6s ease-out; }
+@keyframes oyk-gcmp-solo { from { transform: scaleX(0); } to { transform: scaleX(.22); } }
+@keyframes oyk-gcmp-group { from { transform: scaleX(0); } to { transform: scaleX(.92); } }
+.oyk-gcmp-spark {
+  position: absolute; top: 50%; left: 0; width: 6px; height: 6px; border-radius: 50%;
+  background: var(--oyk-accent); opacity: 0; transform: translate(-4px, -50%) scale(0);
+  animation: oyk-gcmp-spark 2.6s ease-in infinite;
+}
+@keyframes oyk-gcmp-spark {
+  0% { opacity: 0; transform: translate(-4px, -50%) scale(0); }
+  8% { opacity: 1; transform: translate(-4px, -50%) scale(1); }
+  75% { opacity: 1; }
+  100% { opacity: 0; transform: translate(230%, -50%) scale(.5); }
+}
+.oyk-gcmp-label { font-size: 10.5px; font-weight: 800; color: var(--oyk-text-3); }
+.oyk-gcmp-label.is-accent { color: var(--oyk-accent-soft); }
 
 /* ── 🚀 Mavsum boshlanmagan / sozlanmagan ekran ───────────────────────────────────────── */
 .oyk-soon-top { display: flex; flex-direction: column; align-items: center; gap: 10px; text-align: center; padding: 18px 4px 2px; }

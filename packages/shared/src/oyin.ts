@@ -590,7 +590,12 @@ export function oyinHintOf(dayKey: string): OyinHint {
 // abadiy — bu MLM ko'rinishi (Ahmadboy piramidasi assotsiatsiyasi, huquqiy xavf). Jamoada
 // tepasi ham, tagi ham yo'q: kim yursa — navbatchiga foyda. Piramida emas, gashtak.
 export const OYIN_JAMOA_MIN = 3;
-export const OYIN_JAMOA_MAX = 10;
+// ⚠️ 10 → 50 (ega qarori 2026-08-07). Iqtisodiy sabab yo'q edi — chipta-tizimi (3× kafolat +
+// `oyinMaxTicketsPerPrize`) xarajatni guruh hajmidan MUSTAQIL himoyalaydi. Chegara FAQAT texnik:
+// `JamoaRecord` bitta JSON qatorida saqlanadi (baza jadvali emas), juda katta guruh har
+// join/leave/turn-tekshiruvda shu bitta blokni o'qib-yozishni sekinlashtiradi. 50 — amalda
+// cheksizga yaqin, texnik jihatdan xavfsiz.
+export const OYIN_JAMOA_MAX = 50;
 /** 🤝 Har a'zoga UMRI DAVOMIDA bitta navbat (S7-2b). Ya'ni jamoadan olinadigan ball
  *  strukturaviy ravishda `oyinJamoaMaxBall` bilan chegaralangan — alohida hisoblagich
  *  shart emas. 10 kishilik guruh = 10 oy = 10 xil odam, keyin aylana tugaydi. */
