@@ -1,0 +1,346 @@
+<!doctype html>
+<!-- 📊 Raqamli Egizak dashboard — vanilla JS + canvas, CDN'siz. server.ts dan /runs, /data, /events
+     ni 3s da so'rab 4 grafik chizadi (safarlar, funnel, ega-kassa+solvency, o'yin+churn). -->
+<html lang="uz">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>BirJoy Raqamli Egizak</title>
+<style>
+  :root {
+    --bg: #0b0e14; --card: #121724; --border: #1e2637; --text: #e6e9f0;
+    --muted: #8b93a7; --accent: #7c6cf0;
+    --rides: #7c6cf0; --riders: #34d399; --aware: #64748b; --installed: #60a5fa;
+    --linked: #22d3ee; --rode: #34d399; --cash: #fbbf24; --tickets: #a78bfa;
+    --winners: #fbbf24; --churn: #f87171;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: var(--bg); color: var(--text); min-height: 100vh; padding: 16px 20px 32px;
+    font: 14px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  }
+  header { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; margin-bottom: 14px; }
+  h1 { font-size: 17px; font-weight: 650; letter-spacing: .2px; }
+  h1 span { color: var(--muted); font-weight: 400; }
+  select {
+    background: var(--card); color: var(--text); border: 1px solid var(--border);
+    border-radius: 8px; padding: 6px 10px; font: inherit; outline: none; min-width: 180px;
+  }
+  .dot { width: 8px; height: 8px; border-radius: 50%; background: #475069; display: inline-block; }
+  .dot.ok { background: #34d399; } .dot.err { background: #f87171; }
+  #meta { color: var(--muted); font-size: 12.5px; }
+  .badge {
+    font-size: 12px; font-weight: 600; padding: 2px 9px; border-radius: 999px;
+    border: 1px solid var(--border); background: var(--card);
+  }
+  .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  @media (max-width: 900px) { .grid { grid-template-columns: 1fr; } }
+  .card {
+    background: var(--card); border: 1px solid var(--border); border-radius: 12px;
+    padding: 12px 14px 10px;
+  }
+  .card h2 { font-size: 13px; font-weight: 600; color: var(--muted); margin-bottom: 8px; }
+  canvas { width: 100%; height: 220px; display: block; }
+  .legend { display: flex; gap: 14px; flex-wrap: wrap; margin-top: 6px; font-size: 12px; color: var(--muted); }
+  .legend i { width: 9px; height: 9px; border-radius: 2px; display: inline-block; margin-right: 5px; vertical-align: -1px; }
+  .events { margin-top: 14px; }
+  .events ul { list-style: none; max-height: 180px; overflow-y: auto; }
+  .events li { padding: 4px 0; border-bottom: 1px solid var(--border); font-size: 12.5px; color: var(--muted); }
+  .events li b { color: var(--text); font-weight: 600; margin-right: 8px; }
+  .events li .day { color: var(--accent); margin-right: 8px; font-variant-numeric: tabular-nums; }
+</style>
+</head>
+<body>
+<header>
+  <h1>🏙 BirJoy <span>· Raqamli Egizak</span></h1>
+  <select id="runSel" aria-label="Run tanlash"></select>
+  <span id="statusDot" class="dot"></span>
+  <span id="solvBadge" class="badge" hidden></span>
+  <span id="meta">run kutilmoqda…</span>
+</header>
+
+<main class="grid">
+  <section class="card">
+    <h2>Kunlik BirJoy safarlari va faol riderlar</h2>
+    <canvas id="c1"></canvas>
+    <div class="legend">
+      <span><i style="background:var(--rides)"></i>Safarlar/kun</span>
+      <span><i style="background:var(--riders)"></i>Faol riderlar (7 kun)</span>
+    </div>
+  </section>
+  <section class="card">
+    <h2>Funnel-holatlar</h2>
+    <canvas id="c2"></canvas>
+    <div class="legend">
+      <span><i style="background:var(--aware)"></i>Eshitgan</span>
+      <span><i style="background:var(--installed)"></i>O'rnatgan</span>
+      <span><i style="background:var(--linked)"></i>Ulangan</span>
+      <span><i style="background:var(--rode)"></i>Safar qilgan</span>
+    </div>
+  </section>
+  <section class="card">
+    <h2>Ega-kassa (so'm) — rang = solvency</h2>
+    <canvas id="c3"></canvas>
+    <div class="legend">
+      <span><i style="background:#34d399"></i>Healthy</span>
+      <span><i style="background:#60a5fa"></i>Growing</span>
+      <span><i style="background:#fbbf24"></i>Fragile</span>
+      <span><i style="background:#fb923c"></i>Critical</span>
+      <span><i style="background:#f87171"></i>Insolvent</span>
+    </div>
+  </section>
+  <section class="card">
+    <h2>O'yin va churn</h2>
+    <canvas id="c4"></canvas>
+    <div class="legend">
+      <span><i style="background:var(--tickets)"></i>Chipta/kun</span>
+      <span><i style="background:var(--winners)"></i>G'oliblar</span>
+      <span><i style="background:var(--churn)"></i>Churn/kun</span>
+    </div>
+  </section>
+</main>
+
+<section class="card events">
+  <h2>So'nggi hodisalar</h2>
+  <ul id="evList"><li>hodisa yo'q</li></ul>
+</section>
+
+<script>
+"use strict";
+const POLL_MS = 3000;
+const SOLV_COLOR = {
+  Healthy: "#34d399", Growing: "#60a5fa", Fragile: "#fbbf24",
+  Critical: "#fb923c", Insolvent: "#f87171",
+};
+const runSel = document.getElementById("runSel");
+const statusDot = document.getElementById("statusDot");
+const meta = document.getElementById("meta");
+const solvBadge = document.getElementById("solvBadge");
+const evList = document.getElementById("evList");
+
+let runs = [];
+let currentRun = null;
+let metrics = [];
+
+async function getJson(path) {
+  const r = await fetch(path);
+  if (!r.ok) throw new Error(path + " → " + r.status);
+  return r.json();
+}
+
+function fmt(n) {
+  if (n == null || !isFinite(n)) return "–";
+  const a = Math.abs(n);
+  if (a >= 1e9) return (n / 1e9).toFixed(1) + " mlrd";
+  if (a >= 1e6) return (n / 1e6).toFixed(1) + " mln";
+  if (a >= 1e4) return Math.round(n / 1e3) + " k";
+  return String(Math.round(n));
+}
+
+// ── Kanvas-yordamchi: chiziq/bar grafik, kutubxonasiz ──────────────────────────
+function plot(canvasId, days, series, opts) {
+  const canvas = document.getElementById(canvasId);
+  const dpr = window.devicePixelRatio || 1;
+  const W = canvas.clientWidth, H = canvas.clientHeight || 220;
+  canvas.width = W * dpr; canvas.height = H * dpr;
+  const ctx = canvas.getContext("2d");
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  ctx.clearRect(0, 0, W, H);
+
+  if (!days.length) {
+    ctx.fillStyle = "#59617a";
+    ctx.font = "13px system-ui";
+    ctx.textAlign = "center";
+    ctx.fillText("Ma'lumot yo'q — run kutilmoqda", W / 2, H / 2);
+    return;
+  }
+
+  const padL = 46, padR = 8, padT = 8, padB = 20;
+  const pw = W - padL - padR, ph = H - padT - padB;
+  let lo = opts && opts.includeZero ? 0 : Infinity;
+  let hi = -Infinity;
+  for (const s of series) for (const v of s.values) {
+    if (v == null || !isFinite(v)) continue;
+    if (v < lo) lo = v;
+    if (v > hi) hi = v;
+  }
+  if (!isFinite(lo)) lo = 0;
+  if (!isFinite(hi)) hi = 1;
+  if (hi === lo) hi = lo + 1;
+  const span = hi - lo;
+  lo -= span * 0.05; hi += span * 0.05;
+
+  const x = (i) => padL + (days.length === 1 ? pw / 2 : (i / (days.length - 1)) * pw);
+  const y = (v) => padT + ph - ((v - lo) / (hi - lo)) * ph;
+
+  // panjara + Y yorliqlar
+  ctx.font = "10.5px system-ui";
+  ctx.textAlign = "right"; ctx.textBaseline = "middle";
+  for (let g = 0; g <= 4; g++) {
+    const v = lo + ((hi - lo) * g) / 4;
+    const yy = y(v);
+    ctx.strokeStyle = "#1c2334"; ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(padL, yy); ctx.lineTo(W - padR, yy); ctx.stroke();
+    ctx.fillStyle = "#59617a";
+    ctx.fillText(fmt(v), padL - 6, yy);
+  }
+  // X yorliqlar (siyrak kunlar)
+  ctx.textAlign = "center"; ctx.textBaseline = "top";
+  const step = Math.max(1, Math.ceil(days.length / 7));
+  for (let i = 0; i < days.length; i += step) {
+    ctx.fillText("K" + days[i], x(i), H - padB + 5);
+  }
+  // nol-chiziq (kassa manfiy bo'lsa ko'rinsin)
+  if (lo < 0 && hi > 0) {
+    ctx.strokeStyle = "#3a4258"; ctx.setLineDash([4, 4]);
+    ctx.beginPath(); ctx.moveTo(padL, y(0)); ctx.lineTo(W - padR, y(0)); ctx.stroke();
+    ctx.setLineDash([]);
+  }
+
+  for (const s of series) {
+    if (s.type === "bar") {
+      const bw = Math.max(1, (pw / days.length) * 0.55);
+      for (let i = 0; i < s.values.length; i++) {
+        const v = s.values[i];
+        if (v == null || !isFinite(v)) continue;
+        ctx.fillStyle = s.color;
+        const yy = y(v), y0 = y(Math.max(lo, 0));
+        ctx.fillRect(x(i) - bw / 2, Math.min(yy, y0), bw, Math.max(1, Math.abs(y0 - yy)));
+      }
+    } else {
+      ctx.lineWidth = 1.8; ctx.lineJoin = "round"; ctx.lineCap = "round";
+      if (s.pointColors) {
+        // segment-rang (solvency): har bo'lak o'z holat-rangida
+        for (let i = 1; i < s.values.length; i++) {
+          ctx.strokeStyle = s.pointColors[i] || s.color;
+          ctx.beginPath();
+          ctx.moveTo(x(i - 1), y(s.values[i - 1]));
+          ctx.lineTo(x(i), y(s.values[i]));
+          ctx.stroke();
+        }
+        if (s.values.length === 1) {
+          ctx.fillStyle = s.pointColors[0] || s.color;
+          ctx.beginPath(); ctx.arc(x(0), y(s.values[0]), 3, 0, Math.PI * 2); ctx.fill();
+        }
+      } else {
+        ctx.strokeStyle = s.color;
+        ctx.beginPath();
+        for (let i = 0; i < s.values.length; i++) {
+          const yy = y(s.values[i]);
+          if (i === 0) ctx.moveTo(x(i), yy); else ctx.lineTo(x(i), yy);
+        }
+        ctx.stroke();
+      }
+    }
+  }
+}
+
+function col(name) {
+  return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+}
+
+function draw() {
+  const days = metrics.map((m) => m.day);
+  plot("c1", days, [
+    { values: metrics.map((m) => m.rides.birjoy), color: col("--rides") },
+    { values: metrics.map((m) => m.pop.active7), color: col("--riders") },
+  ], { includeZero: true });
+
+  plot("c2", days, [
+    { values: metrics.map((m) => m.pop.aware), color: col("--aware") },
+    { values: metrics.map((m) => m.pop.installed), color: col("--installed") },
+    { values: metrics.map((m) => m.pop.linked), color: col("--linked") },
+    { values: metrics.map((m) => m.pop.rode), color: col("--rode") },
+  ], { includeZero: true });
+
+  plot("c3", days, [
+    {
+      values: metrics.map((m) => m.money.ownerCash),
+      color: col("--cash"),
+      pointColors: metrics.map((m) => SOLV_COLOR[m.money.solvency] || col("--cash")),
+    },
+  ], { includeZero: true });
+
+  plot("c4", days, [
+    { values: metrics.map((m) => m.oyin.ticketsSold), color: col("--tickets"), type: "bar" },
+    { values: metrics.map((m) => m.oyin.winners), color: col("--winners") },
+    { values: metrics.map((m) => m.mood.churnedToday), color: col("--churn") },
+  ], { includeZero: true });
+
+  const last = metrics[metrics.length - 1];
+  if (last) {
+    meta.textContent =
+      "Kun " + last.day + " · " + last.simDate.slice(0, 10) +
+      " · ulush " + last.rides.sharePct.toFixed(1) + "% · kayfiyat " +
+      Math.round(last.mood.avgSatisfaction);
+    solvBadge.hidden = false;
+    solvBadge.textContent = last.money.solvency;
+    solvBadge.style.color = SOLV_COLOR[last.money.solvency] || "";
+    solvBadge.style.borderColor = SOLV_COLOR[last.money.solvency] || "";
+  } else {
+    meta.textContent = "metrics.jsonl hali bo'sh…";
+    solvBadge.hidden = true;
+  }
+}
+
+function renderEvents(events) {
+  if (!events.length) {
+    evList.innerHTML = "<li>hodisa yo'q</li>";
+    return;
+  }
+  evList.innerHTML = events.slice(-12).reverse().map((e) =>
+    '<li><span class="day">K' + e.day + '</span><b>' + escapeHtml(e.type) + "</b>" +
+    escapeHtml(e.detail || "") + "</li>"
+  ).join("");
+}
+
+function escapeHtml(s) {
+  return String(s).replace(/[&<>"']/g, (c) =>
+    ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
+}
+
+function renderRunOptions() {
+  runSel.innerHTML = runs.map((r) =>
+    '<option value="' + escapeHtml(r) + '"' + (r === currentRun ? " selected" : "") + ">" +
+    escapeHtml(r) + "</option>"
+  ).join("");
+}
+
+runSel.addEventListener("change", () => {
+  currentRun = runSel.value;
+  metrics = [];
+  refresh();
+});
+
+async function refresh() {
+  try {
+    const newRuns = await getJson("/runs");
+    if (JSON.stringify(newRuns) !== JSON.stringify(runs)) {
+      runs = newRuns;
+      if (!currentRun || !runs.includes(currentRun)) currentRun = runs[0] || null;
+      renderRunOptions();
+    }
+    if (currentRun) {
+      const [m, e] = await Promise.all([
+        getJson("/data?run=" + encodeURIComponent(currentRun)),
+        getJson("/events?run=" + encodeURIComponent(currentRun)),
+      ]);
+      metrics = m;
+      draw();
+      renderEvents(e);
+    } else {
+      meta.textContent = "sim-out ichida run topilmadi";
+    }
+    statusDot.className = "dot ok";
+  } catch (err) {
+    statusDot.className = "dot err";
+    meta.textContent = "server bilan aloqa yo'q: " + err.message;
+  }
+}
+
+window.addEventListener("resize", () => { if (metrics.length) draw(); });
+refresh();
+setInterval(refresh, POLL_MS);
+</script>
+</body>
+</html>

@@ -30,3 +30,7 @@ _pushHelper.mjs
 PUSH_QILISH.bat
 zaxira-*/
 packages/server/src/scripts/renewSystemRental.ts
+
+# Raqamli Egizak — yugurish natijalari (qayta-yaratiladi, repoda saqlanmaydi)
+sim-out/
+packages/server/src/sim/.env.sim

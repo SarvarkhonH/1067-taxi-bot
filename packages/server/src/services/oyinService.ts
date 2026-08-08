@@ -2465,11 +2465,8 @@ export async function leaveJamoa(memberId: number): Promise<OyinJamoaResult> {
  *  ular haqiqiy safar qilmagani uchun ledgerga umuman yozilmaydi, shuning uchun ularning ta'siri
  *  alohida, real-ledger sig'imidan ORTIQ QOLGAN joyda taxmin qilinadi (pastga qarang). */
 async function jamoaMemberStats(j: JamoaRecord): Promise<Map<number, {
-  ridesThisMonth: number; ridesLifetime: number; ballEarnedTotal: number;
+  ridesThisMonth: number; ridesLifetime: number; ballEarnedTotal: number; ballEarnedThisMonth: number;
 }>> {
-  const econ = await getBonusEcon();
-  const ballPerRide = econ.oyinJamoaBallPerRide ?? 0;
-  const maxBall = econ.oyinJamoaMaxBall ?? 3600;
   const nowMonth = monthKeyOf(new Date());
   const monthStart = new Date(`${nowMonth}-01T00:00:00+05:00`);
   // Hozirgi a'zolar + hech bo'lmasa bir marta navbat olgan HAMMA (tarixiy, chiqib ketgan bo'lsa
@@ -2477,8 +2474,8 @@ async function jamoaMemberStats(j: JamoaRecord): Promise<Map<number, {
   const allIds = new Set<number>(j.members);
   for (const m of Object.values(j.turns)) allIds.add(m);
   const ids = [...allIds];
-  const out = new Map<number, { ridesThisMonth: number; ridesLifetime: number; ballEarnedTotal: number }>();
-  for (const id of ids) out.set(id, { ridesThisMonth: 0, ridesLifetime: 0, ballEarnedTotal: 0 });
+  const out = new Map<number, { ridesThisMonth: number; ridesLifetime: number; ballEarnedTotal: number; ballEarnedThisMonth: number }>();
+  for (const id of ids) out.set(id, { ridesThisMonth: 0, ridesLifetime: 0, ballEarnedTotal: 0, ballEarnedThisMonth: 0 });
   if (ids.length === 0) return out;
   // 🧪 VIRTUAL (manfiy ID) a'zolar `RideReward`ga YOZILMAGAN — ular uchun `oyin:testrides:*`
   // dan o'qiladi, xuddi shu `ridesByMemberMonth` xaritasiga (ikki manba, bitta iste'mol —
@@ -2496,9 +2493,6 @@ async function jamoaMemberStats(j: JamoaRecord): Promise<Map<number, {
       ? prisma.appState.findMany({ where: { key: { startsWith: `${TEST_RIDES_PREFIX}${j.id}:` } }, select: { key: true, value: true } })
       : Promise.resolve([] as { key: string; value: string }[]),
   ]);
-  // 🧪 Faqat TEST (virtual) safarlar uchun — real safarlar endi ledgerdan o'qiladi (pastda),
-  // ikki marta sanalmasin.
-  const testRidesByMemberMonth = new Map<string, number>();
   for (const r of rides) {
     const stat = out.get(r.memberId);
     if (stat) {
@@ -2521,8 +2515,6 @@ async function jamoaMemberStats(j: JamoaRecord): Promise<Map<number, {
       stat.ridesLifetime += n;
       if (mk === nowMonth) stat.ridesThisMonth += n;
     }
-    const k = `${negId}|${mk}`;
-    testRidesByMemberMonth.set(k, (testRidesByMemberMonth.get(k) ?? 0) + n);
   }
 
   // 🤝 REAL qism — o'zgarmas ledgerdan (`GashtakReward`, `creditGashtakLedger` real safar
@@ -2537,28 +2529,23 @@ async function jamoaMemberStats(j: JamoaRecord): Promise<Map<number, {
   for (const row of ledgerRows) {
     const stat = out.get(row.memberId);
     const amt = row._sum.amount ?? 0;
-    if (stat) stat.ballEarnedTotal += amt;
+    if (stat) {
+      stat.ballEarnedTotal += amt;
+      if (row.monthKey === nowMonth) stat.ballEarnedThisMonth += amt;
+    }
     realByMonth.set(row.monthKey, (realByMonth.get(row.monthKey) ?? 0) + amt);
   }
-  // 🧪 TEST qism — virtual a'zolar HECH QACHON ledgerga yozilmaydi (real safar emas, `rollRideCashback`
-  // orqali o'tmaydi), shuning uchun ularning guruhga qo'shgan hissasi shu yerda, ALOHIDA taxmin
-  // qilinadi — faqat sinov-oynidan (ledgerdagi real miqdordan ORTIQ QOLGAN sig'im ichida).
-  if (ballPerRide > 0 && j.members.length >= OYIN_JAMOA_MIN) {
-    const startMonth = monthKeyOf(new Date(j.createdAt));
-    const span = Math.max(0, monthsBetween(startMonth, nowMonth));
-    for (let i = 0; i <= span; i++) {
-      const mk = addMonths(startMonth, i);
-      const winner = navbatchiOf(j, mk);
-      if (winner == null) continue;
-      let testGroupRides = 0;
-      for (const m of j.members) testGroupRides += testRidesByMemberMonth.get(`${m}|${mk}`) ?? 0;
-      if (testGroupRides === 0) continue;
-      const headroom = Math.max(0, maxBall - (realByMonth.get(mk) ?? 0));
-      const gain = Math.min(headroom, testGroupRides * ballPerRide);
-      const stat = out.get(winner);
-      if (stat) stat.ballEarnedTotal += gain;
-    }
-  }
+  // 🔴 5-CHI TESHIK (2026-08-07, jonli sinov skripti topdi): ATAYLAB OLIB TASHLANDI. Bu blok
+  // test-a'zolarning ball-hissasini HAR CHAQIRUVDA `navbatchiOf(j, mk)`dan QAYTA HISOBLARDI —
+  // xuddi computeBallMap/getActivity/navbatchiBall'da tuzatilgan bug bilan BIR XIL shakl, faqat
+  // sinov-yo'lida. Dalil: jonli guruhda 3 ta eski sinov-a'zo (jami 358 "safar") bor edi — ular
+  // HECH QACHON `GashtakReward` ledgeriga yozilmagan, lekin shu blok tufayli ularning 358×6=2148
+  // balli joriy oy navbatchisiga (haqiqiy a'zo!) "tegishli" bo'lib ko'rsatilardi — va navbat
+  // qayta belgilansa (`applySetTurn`), bu 2148 boshqa odamga DARHOL "ko'chib" ketardi. Ya'ni
+  // ega ko'rgan "ball Elboyevga o'tib ketdi" muammosi aynan shu yerdan edi, REAL ledger emas.
+  // Yechim: TEST a'zolar endi ridesLifetime/ridesThisMonth (informatsion, "safar sinovi") beradi,
+  // lekin ballEarnedTotal/ballEarnedThisMonth ga HECH QACHON qo'shilmaydi — faqat REAL, ledgerda
+  // yozilgan ball hisoblanadi. Sinov endi "navbat/tuzilma" ni ko'rsatadi, ball-proyeksiyani emas.
   return out;
 }
 
@@ -2608,7 +2595,11 @@ export async function getJamoaView(memberId: number): Promise<OyinJamoaView> {
       }),
       ridesThisMonth,
       ballPerRide,
-      navbatchiBall: Math.min(maxBall, ridesThisMonth * ballPerRide),
+      // ✅ TUZATILDI (2026-08-07): endi ledgerdan (navbatchining shu oydagi haqiqiy yig'indisi) —
+      // avval `ridesThisMonth × ballPerRide` deb QAYTA HISOBLANARDI, ya'ni a'zo shu oy ICHIDA
+      // chiqib ketsa, uning ALLAQACHON ledgerga yozilgan hissasi bu ko'rsatkichdan yo'qolib
+      // qolardi (haqiqiy balansdan kam ko'rsatardi).
+      navbatchiBall: navbatchi != null ? Math.min(maxBall, stats.get(navbatchi)?.ballEarnedThisMonth ?? 0) : 0,
       maxBall,
       isMine: navbatchi === memberId,
       isLeader: j.leaderId === memberId,
