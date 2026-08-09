@@ -88,7 +88,9 @@ function patchFetch(): void {
     if (url.includes("/api/booking/places")) return json(PLACES);
     if (url.includes("/api/booking/nearby")) return json({ pins: [], freeDrivers: 4 });
     if (url.includes("/api/booking/active")) return json(ACTIVE(RIDE));
-    if (url.includes("/api/booking/scheduled")) return json([]);
+    // ⚠️ Bu yo'l `{ family, scheduled }` OBYEKTI qaytaradi — ilgari bo'sh massiv edi va
+    // «Oila uchun» ekrani ochilganda `d.family` undefined bo'lib butun ekran qulardi.
+    if (url.includes("/api/booking/scheduled")) return json({ family: [{ id: 1, name: "Dilnoza", phone: "+998901112233" }], scheduled: [] });
     if (url.includes("/api/booking/nearest")) return json(at(0));
     if (url.includes("/api/booking/search")) {
       let q = "";

@@ -553,10 +553,17 @@
   --surface: #F4F6F9;
   --surface-2: #FFFFFF;
   --card: #FFFFFF;
+  --card-solid: #F4F6F9;
   --text: #0B0C10;
   --text-dim: #7E8190;
   --muted: #7E8190;
   --line: #ECEEF3;
+  /* 🔑 Brend rangi ham almashadi — AKS HOLDA mavjud `<Button>`lar (jadval «Saqlash», oila
+     «Chaqir», yakun «Baholash») OLTIN-SARIQ bo'lib qolardi. Ega aynan shuni ko'rdi:
+     «bu yangi dizayn emas, faqat eski oqartirilgani». Maketda asosiy harakat — YASHIL.
+     `--gold` ATAYLAB tegilmaydi: tanga/yulduz oltin bo'lishi ma'noli. */
+  --brand: #01A95E;
+  --brand-grad: linear-gradient(135deg, #12B36C, #01A159);
   --shadow-1: 0 4px 24px rgba(11,12,16,.10);
   --glass-bg: rgba(255,255,255,.92);
   --glass-bg-strong: #FFFFFF;
@@ -567,6 +574,26 @@
   background: #FFFFFF;
   color: #0B0C10;
 }
+/* ⚠️ `tokens.css:371` asosiy tugmaga OLTIN gradientni `!important` bilan yozadi — shuning uchun
+   `--brand` ni almashtirish YETMAYDI (ega aynan shu sariq tugmani ko'rib «eski dizayn» dedi).
+   Bu yerda o'sha qoidani ANIQ ustma-ust bosamiz: yashil fon, oq matn, maketdagi 56px/r14. */
+.b3-screen.b3-p2-lt .d-btn:not(.ghost):not(.danger) {
+  background: #01A95E !important;
+  color: #FFFFFF !important;
+  box-shadow: 0 6px 18px rgba(1,169,94,.30) !important;
+  min-height: 56px; border-radius: 14px; font-size: 14.5px; font-weight: 800;
+  letter-spacing: .035em; text-transform: uppercase;
+}
+.b3-screen.b3-p2-lt .d-btn:not(.ghost):not(.danger):active { background: #018B4D !important; }
+.b3-screen.b3-p2-lt .d-btn.ghost { color: #464F5F; background: #FFFFFF; border-color: #ECEEF3;
+  text-transform: none; letter-spacing: 0; font-weight: 700; box-shadow: none; }
+.b3-screen.b3-p2-lt .d-btn.danger { color: #FFFFFF; background: #FB2750; box-shadow: none; }
+/* Matn maydonlari `--card-solid` dan boqiladi — u ham yorug' bo'lishi kerak. */
+.b3-screen.b3-p2-lt .bk-input { background: #F4F6F9; border-color: #ECEEF3; color: #0B0C10; }
+.b3-screen.b3-p2-lt .bk-input::placeholder { color: #A7ADBA; }
+/* Chip'lar ham yorug' dunyoda o'qiladigan bo'lsin (jadval kunlari, oila ro'yxati). */
+.b3-screen.b3-p2-lt .d-chip { background: #F4F6F9; border-color: #ECEEF3; color: #464F5F; }
+.b3-screen.b3-p2-lt .d-chip.on { background: #EAF7EF; border-color: rgba(1,169,94,.35); color: #067A45; }
 /* Xarita maketdagidek TABIIY rangda — qorong'i rejimdagi teskari filtr olib tashlanadi. */
 .b3-screen.b3-p2-lt .b3-map .leaflet-tile-pane { filter: none; }
 .b3-screen.b3-p2-lt .b3-map .leaflet-container { background: #EAECF1; }
@@ -734,6 +761,36 @@
 .b3-p2-rail button { border:0; background:transparent; padding:0; width:22px; line-height:1.15;
   font:inherit; font-size:10.5px; font-weight:800; color:var(--p2-ink-3); cursor:pointer; }
 .b3-p2-rail button:active { color:var(--p2-g); }
+
+/* ── Narx tasdig'i — maketning tilida (emoji yo'q, toza ierarxiya) ────────────────────────────
+   Ega e'tirozi: «bu yangi dizayn emas, faqat eski oqartirilgani». Eski ekranda sariq tugma,
+   emojili qatorlar va uchta bir xil vaznli tugma bor edi. Endi: bitta yashil asosiy harakat,
+   ikkilamchi yo'llar past-kontrastda, uchinchi darajali «Bekor» eng past kontrastda.           */
+.b3-p2-conf-head { display:flex; align-items:flex-start; gap:12px; padding:6px 0 14px; }
+.b3-p2-conf-lbl { font-size:12.5px; font-weight:700; color:var(--p2-g-ink); }
+.b3-p2-conf-name { font-size:23px; font-weight:800; letter-spacing:-.02em; line-height:1.2;
+  margin-top:3px; color:var(--p2-ink); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.b3-p2-conf-change { margin-left:auto; flex:none; border:0; background:transparent; font:inherit;
+  font-size:13.5px; font-weight:700; color:var(--p2-blue); cursor:pointer; padding:4px 0; }
+.b3-p2-conf-change:active { opacity:.6; }
+
+.b3-p2-fare { border:1px solid var(--p2-line); border-radius:16px; overflow:hidden;
+  background:var(--p2-card); }
+.b3-p2-fare-row { display:flex; justify-content:space-between; align-items:center;
+  padding:13px 15px; font-size:15px; color:var(--p2-ink-2); }
+.b3-p2-fare-row + .b3-p2-fare-row { border-top:1px solid var(--p2-line); }
+.b3-p2-fare-row b { font-size:16px; font-weight:800; color:var(--p2-ink);
+  font-variant-numeric:tabular-nums; }
+.b3-p2-conf-note { font-size:12.5px; line-height:1.45; color:var(--p2-ink-3); margin:12px 2px 0; }
+
+.b3-p2-conf-extra { display:flex; gap:10px; margin-top:12px; }
+.b3-p2-conf-extra button { flex:1; height:46px; border:1px solid var(--p2-line); border-radius:14px;
+  background:var(--p2-card); color:var(--p2-ink-2); font:inherit; font-size:14px; font-weight:700;
+  cursor:pointer; }
+.b3-p2-conf-extra button:active { opacity:.7; }
+.b3-p2-conf-cancel { display:block; width:100%; margin-top:10px; padding:12px; border:0;
+  background:transparent; color:var(--p2-ink-3); font:inherit; font-size:14px; cursor:pointer; }
+.b3-p2-conf-cancel:active { opacity:.6; }
 
 /* ── 5-ekran «Xaritadan tanlash»: pin kartasi + masshtab tugmalari ────────────────────────────
    Bu ZAXIRA yo'l (98% odam nomidan topadi) — lekin to'liq ishlaydi va maketdagidek ko'rinadi.

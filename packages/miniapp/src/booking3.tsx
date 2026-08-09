@@ -563,7 +563,11 @@ function Booking3Inner({ me, info, onClose }: { me: MeResponse; info: BookingInf
   const loadFamily = async (): Promise<void> => {
     if (famLoaded) return;
     const d = await api.bookingScheduled().catch(() => null);
-    if (d) { setFamList(d.family); setSchedList(d.scheduled); }
+    // ⚠️ `?? []` SHART: javob kutilganidan boshqacha kelsa (bo'sh massiv, qisman obyekt, eski
+    // server) `d.family` undefined bo'lardi va keyingi `.length` BUTUN taksi ekranini
+    // qulatardi (xato-chegarasi Booking3Inner ni qayta yaratardi — mijoz buyurtmasini
+    // yo'qotardi). Ro'yxat bo'sh bo'lgani — ekran o'lgani emas.
+    if (d) { setFamList(d.family ?? []); setSchedList(d.scheduled ?? []); }
     setFamLoaded(true);
   };
 
@@ -1795,7 +1799,49 @@ function Booking3Inner({ me, info, onClose }: { me: MeResponse; info: BookingInf
       )}
 
       {/* ── E3: confirm ── */}
-      {screen === "confirm" && pickup && (
+      {/* ── Narx tasdig'i — pickup2 da maketning tilida QAYTA QURILGAN (ega: «bu yangi dizayn
+             emas, faqat eski oqartirilgani»). Emoji yo'q · qatorlar toza · asosiy harakat
+             boshqa ekranlar bilan bir xil yashil 56px tugma · ikkilamchi yo'llar past-kontrastda. ── */}
+      {screen === "confirm" && pickup && pickup2 && (
+        <div className={`b3-sheet b3-p2-sheet${lite}`}>
+          <div className="b3-grip" />
+          <div className="b3-p2-conf-head">
+            <div>
+              <div className="b3-p2-conf-lbl">Olib ketish joyi</div>
+              <div className="b3-p2-conf-name">{pickup.name}</div>
+            </div>
+            <button className="b3-p2-conf-change" onClick={() => { haptic(); setScreen("map"); }}>O'zgartirish</button>
+          </div>
+
+          <div className="b3-p2-fare">
+            {info.tariff ? (
+              <>
+                <div className="b3-p2-fare-row"><span>Boshlanish</span><b>{formatNumber(info.tariff.minimalPayment)} so'm</b></div>
+                <div className="b3-p2-fare-row"><span>Har km</span><b>{formatNumber(info.tariff.perKmCity)} so'm</b></div>
+                <div className="b3-p2-fare-row"><span>Kutish · daqiqasiga</span><b>{formatNumber(info.tariff.perMinute)} so'm</b></div>
+              </>
+            ) : (
+              <div className="b3-p2-fare-row"><span>Narx</span><b>taksometr bo'yicha</b></div>
+            )}
+          </div>
+          <div className="b3-p2-conf-note">
+            Aniq summa safar oxirida chiqadi. To'lovni haydovchiga naqd yoki karta bilan berasiz.
+            {freeDrivers > 0 ? ` Yaqin atrofda ${freeDrivers} ta bo'sh mashina.` : ""}
+          </div>
+
+          <button className="b3-p2-cta" disabled={busy} onClick={call}>
+            {busy ? "Chaqirilmoqda…" : "Taxi chaqirish"}
+          </button>
+
+          <div className="b3-p2-conf-extra">
+            <button onClick={() => { haptic(); setScreen("schedule"); }}>Keyinroqqa</button>
+            <button onClick={() => { haptic(); void loadFamily(); setScreen("family"); }}>Oila uchun</button>
+          </div>
+          <button className="b3-p2-conf-cancel" onClick={() => { haptic(); setScreen("map"); }}>Bekor qilish</button>
+        </div>
+      )}
+
+      {screen === "confirm" && pickup && !pickup2 && (
         <div className="b3-sheet">
           <div className="b3-grip" />
           <div className="b3-picked">📍 <b>{pickup.name}</b><button className="b3-change" onClick={() => setScreen("map")}>o'zgartirish</button></div>
