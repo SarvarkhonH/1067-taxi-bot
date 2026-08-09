@@ -65,6 +65,7 @@ export interface MeResponse {
     autoloc?: boolean; // 📍 taksi xaritasi ochilganda joylashuvni O'ZI aniqlash; OFF = pin shahar markazida/oxirgi manzilda qoladi
     pickup2?: boolean; // 🚕 olib ketish joyini tanlashning yangi varag'i; OFF = bugungi b3-pinbar + eski qidiruv sheet
     pickup2b?: boolean; // 🚕 pickup2 ning B tartibi (ro'yxat birinchi); OFF = A tartibi (javob birinchi)
+    pickup2lt?: boolean; // ☀️ pickup2 varag'ining YORUG' ko'rinishi (ega maketi); OFF = ilovaning qorong'i uslubi
     taxistory?: boolean; // 📖 taksi o'rgatuvchi story (6 karta); OFF = hech kim ko'rmaydi, "?" tugmasi ham chizilmaydi
     oyin?: boolean; // 🎮 Koson O'yini — ball→chipta→tiraj mavsumi (owner-preview: admins see it while DARK)
   };
