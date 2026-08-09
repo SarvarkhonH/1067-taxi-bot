@@ -118,6 +118,25 @@ export const FEATURES = [
               // o'zgarmaydi — faqat xarita KO'RINISHI; mijoz baribir tasdiqlaydi. Rad etilsa yoki
               // topilmasa avvalgi holat qoladi. Ega-preview ATAYLAB yo'q: ega va mijoz bir xil
               // ko'rishi shart (owner-preview-masks-dark-flags saboqi).
+  "pickup2", // 🚕 Olib ketish joyini tanlashning yangi varag'i: toza nom (masofasiz) + bitta bosishda
+             // chaqirish + jonli filtrli qidiruv + atrofdagi joylar + «Barchasi» katalogi. Xarita
+             // ENTRY bo'lib qoladi (map-is-picker qarori buzilmaydi) — faqat pastki bar boyiydi;
+             // pin surish va katalog zaxira yo'l bo'lib qoladi. Pul-mantiq YO'Q, dispetcherlik yo'li
+             // AYNAN o'sha (addressId bilan). OFF = bugungi b3-pinbar + eski qidiruv sheet AYNAN.
+             // Ega-preview ATAYLAB yo'q (owner-preview-masks-dark-flags saboqi).
+  "pickup2b", // 🚕 `pickup2` ning B tartibi (ro'yxat birinchi: ingichka xarita + kattaklar tepada).
+             // OFF = A tartibi (javob birinchi: katta nom + yashil tugma tepada). Faqat JOYLASHUV
+             // farqi — bir xil ma'lumot, bir xil harakatlar. Ega ikkalasini real telefonda ko'rib
+             // bittasini tanlaydi, keyin yutqazganining kodi o'chiriladi (ikki yo'l qoldirilmaydi).
+  "taxistory", // 📖 Taksi o'rgatuvchi story: 6 karta (joy · borar-manzil yo'q · narx · keyin nima
+             // bo'ladi · bekor qilish · tanga). Mavzu `intent.ts` FAQ ro'yxatidan — odamlar ANIQ
+             // shu savollarni beradi. Taksi ekrani BIRINCHI ochilganda avtomatik (localStorage
+             // `b3story1`, bir marta), qayta ko'rish uchun ekran tepasida «?» tugmasi.
+             // KO'RSATUVCHI-ONLY: pul yo'q, grant yo'q, dispetcherlikka tegmaydi. Raqamlar
+             // (tarif, cashback) JONLI `/api/booking/info` dan o'qiladi — qattiq yozilmaydi, 0
+             // bo'lsa o'sha karta CHIZILMAYDI (DIZAYN_QOIDALARI #9). OFF = story umuman yo'q,
+             // «?» tugmasi ham chizilmaydi — bugungi ekran AYNAN o'zgarishsiz qoladi.
+             // Ega-preview ATAYLAB yo'q (owner-preview-masks-dark-flags saboqi).
   "mktlife", // 🔔 V4: hayot-sikli push'lari — «qidirganingiz keldi» (MarketDemand) va «sevimlingiz
              // arzonlashdi» (ProductFavorite). TRANZAKSION push'lar (buyurtma holati/ETA) BU
              // BAYROQDAN MUSTAQIL — ular doim ishlaydi. OFF = hech kimga hech narsa bormaydi.
@@ -156,7 +175,7 @@ export type FeatureName = (typeof FEATURES)[number];
 // Off until explicitly enabled (go-live flip = setFeature(name, true) after owner QABUL).
 // booking3 = the new map/trip flow; owner still gets a preview via server.ts owner-branch,
 // but real users stay on the (fixed) classic flow until it's accepted. A missing row → OFF.
-const DEFAULT_OFF = new Set<FeatureName>(["booking3", "aibrain", "mahalla", "tolqin", "baraban", "komissiya", "qarz", "welcomebonus", "refstaged", "drvstaged", "drvrecruit", "drvpush", "promo", "clientbooking", "cashout", "carupgrade", "intercity", "tierloyalty", "waitcomp", "trackcta", "drvrank", "instantstatus", "spinreminder", "shop", "xizmatlar", "elonlar", "elontop", "restoran", "bazarcart", "shopcashback", "revtanga", "airemind", "aihisob", "aidost", "aicity", "aibilim", "aineeds", "shopstory", "shopchat", "mktexpire", "mktlife", "ravella", "linkinapp", "homescreen", "storyshare", "autoloc", "operatorAssist", "jamoa", "oyin"]);
+const DEFAULT_OFF = new Set<FeatureName>(["booking3", "aibrain", "mahalla", "tolqin", "baraban", "komissiya", "qarz", "welcomebonus", "refstaged", "drvstaged", "drvrecruit", "drvpush", "promo", "clientbooking", "cashout", "carupgrade", "intercity", "tierloyalty", "waitcomp", "trackcta", "drvrank", "instantstatus", "spinreminder", "shop", "xizmatlar", "elonlar", "elontop", "restoran", "bazarcart", "shopcashback", "revtanga", "airemind", "aihisob", "aidost", "aicity", "aibilim", "aineeds", "shopstory", "shopchat", "mktexpire", "mktlife", "ravella", "linkinapp", "homescreen", "storyshare", "autoloc", "pickup2", "pickup2b", "taxistory", "operatorAssist", "jamoa", "oyin"]);
 
 let cache: { at: number; map: Record<string, boolean> } = { at: 0, map: {} };
 

@@ -6,10 +6,10 @@
 // feature:booking3 gated; when off, falls back to the classic Leaflet BookingView (zero regression).
 // kas is PICKUP-ONLY (taximeter, no destination routing) — so we honestly select the PICKUP and
 // show a history-based fare "≈" (not a promise). Gold is ONLY on the CALL button.
-import { lazy, Suspense, useEffect, useRef, useState } from "react";
+import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
-import { formatNumber, haversineKm, type ActiveBookingView, type BookingDriverView, type BookingInfoResponse, type MeResponse, type SavedAddressView, type WheelSpinResponse } from "@t1067/shared";
+import { foldName, formatNumber, fuzzyFilter, haversineKm, placeIcon, type ActiveBookingView, type BookingDriverView, type BookingInfoResponse, type MeResponse, type SavedAddressView, type WheelSpinResponse } from "@t1067/shared";
 import { api } from "./api";
 import { loadErrorText } from "./util";
 import { haptic, hapticSuccess, tg, tgGetLocation, tgHasLocationManager, tgOpenLocationSettings } from "./telegram";
@@ -39,6 +39,7 @@ function WaitTicker({ waitComp, startAt, mini }: { waitComp: BookingInfoResponse
 import { confetti } from "./util";
 import { Button, Sheet, Skeleton } from "./design/components";
 import { useIsActive } from "./useIsActive";
+import { TaxiStory, storySeen } from "./taxiStory";
 import "./design/feat/b3.css"; // bu tab ochilgandagina yuklanadi (kritik yo'lda emas)
 
 const BookingViewOld = lazy(() => import("./booking").then((m) => ({ default: m.BookingView })));
@@ -184,6 +185,28 @@ function mapAllowed(): boolean {
     return new URLSearchParams(location.search).get("nomap") !== "1";
   } catch {
     return true;
+  }
+}
+
+type SpeechRec = {
+  lang: string;
+  interimResults: boolean;
+  onresult: ((e: { results: ArrayLike<ArrayLike<{ transcript: string }>> }) => void) | null;
+  onerror: (() => void) | null;
+  onend: (() => void) | null;
+  start: () => void;
+  abort: () => void;
+};
+
+/** Browser speech-to-text, present on Android Telegram (Chromium WebView) and absent on iOS
+ *  (WKWebView ships no SpeechRecognition). We probe for the constructor and only draw the mic when
+ *  it exists — a mic button that silently does nothing is worse than no mic (DIZAYN_QOIDALARI #14). */
+function speechCtor(): (new () => SpeechRec) | null {
+  try {
+    const w = window as unknown as { SpeechRecognition?: new () => SpeechRec; webkitSpeechRecognition?: new () => SpeechRec };
+    return w.SpeechRecognition ?? w.webkitSpeechRecognition ?? null;
+  } catch {
+    return null;
   }
 }
 
@@ -382,19 +405,37 @@ function Booking3Inner({ me, info, onClose }: { me: MeResponse; info: BookingInf
   const [pinAddr, setPinAddr] = useState<SavedAddressView | null>(null); // M7: nearest saved addr (proximity hint)
   const [pinPt, setPinPt] = useState<{ lat: number; lng: number } | null>(null); // M7: the dragged map center
   const [pinBusy, setPinBusy] = useState(false);
+  // Two pin lookups can be in flight at once (autoloc recenters the map while the entry lookup is
+  // still out). Without a sequence guard the SLOWER, older response wins and the sheet prints a
+  // place the rider is not standing at — a name the driver is then told. Newest answer only.
+  const snapSeq = useRef(0);
   const [mapReady, setMapReady] = useState(false); // map-is-picker: the pinpick drag effect waits for the Leaflet map to exist (pinpick is now the ENTRY, so it can mount before the map)
   const [walking, setWalking] = useState(false); // center-pin character walks while the map is dragged
+  // 📖 O'rgatuvchi story (flag `taxistory`) — taksi ekrani BIRINCHI ochilganda avtomatik, bir marta.
+  // Faol safar ustidan CHIQMAYDI: safar ketayotganda odamga darsning keragi yo'q, unga mashina kerak.
+  const [story, setStory] = useState(false);
+  const storyArmed = useRef(false);
+  useEffect(() => {
+    if (storyArmed.current || !me.flags?.taxistory || info.active || storySeen()) return;
+    storyArmed.current = true;
+    setStory(true);
+  }, [me.flags?.taxistory, info.active]);
+
   // 🗺 one-time coach-mark: people didn't realise the center pin marks pickup + you drag→confirm.
   const [coach, setCoach] = useState(false);
   const dismissCoach = () => { setCoach(false); try { localStorage.setItem("b3coach1", "1"); } catch { /* private mode */ } };
   useEffect(() => {
     if (screen !== "pinpick") return;
+    // Story ochiq — ikkita o'rgatuvchi qatlam ustma-ust turmaydi (qoida #1 ruhi). Effektlar
+    // tartibi bo'yicha coach story'dan OLDIN yoqilgan bo'lishi mumkin, shuning uchun shunchaki
+    // `return` yetarli emas — allaqachon yoqilganini SO'NDIRAMIZ.
+    if (story) { setCoach(false); return; }
     try { if (localStorage.getItem("b3coach1")) return; } catch { return; }
     setCoach(true);
     const t = setTimeout(dismissCoach, 6000); // auto-dismiss so it never lingers
     return () => clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [screen]);
+  }, [screen, story]);
   useEffect(() => { if (walking && coach) dismissCoach(); // first drag = they got it
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [walking]);
@@ -407,6 +448,15 @@ function Booking3Inner({ me, info, onClose }: { me: MeResponse; info: BookingInf
   const [q, setQ] = useState("");
   const [results, setResults] = useState<SavedAddressView[]>([]);
   const [searching, setSearching] = useState(false);
+  // ── pickup2: the rebuilt pickup sheet. OFF → every branch below falls back to today's UI. ──
+  const pickup2 = !!me.flags?.pickup2;
+  const layoutB = !!me.flags?.pickup2b; // B = list-first; A (default) = answer-first
+  const [allPlaces, setAllPlaces] = useState<SavedAddressView[] | null>(null);
+  const [showAll, setShowAll] = useState(false); // "Barchasi" — the alphabetical full catalog
+  const [p2min, setP2min] = useState(false); // "Xaritadan ko'rsatish" → shrink the sheet, free the map
+  const [listening, setListening] = useState(false);
+  const recRef = useRef<SpeechRec | null>(null);
+  const micOk = useRef(speechCtor() !== null).current;
   const [freeDrivers, setFreeDrivers] = useState(0);
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
@@ -877,18 +927,24 @@ function Booking3Inner({ me, info, onClose }: { me: MeResponse; info: BookingInf
     let deb: ReturnType<typeof setTimeout> | undefined;
     const snap = () => {
       const c = m.getCenter();
+      const seq = ++snapSeq.current; // only the NEWEST lookup may label the pin (see below)
       setPinPt({ lat: c.lat, lng: c.lng });
       setPinBusy(true);
       api.bookingNearestAddr(c.lat, c.lng)
-        .then((a) => { if (alive) { setPinAddr(a); setPinBusy(false); } })
-        .catch(() => { if (alive) setPinBusy(false); });
+        .then((a) => { if (alive && seq === snapSeq.current) { setPinAddr(a); setPinBusy(false); } })
+        .catch(() => { if (alive && seq === snapSeq.current) setPinBusy(false); });
     };
     const onMove = () => { setWalking(false); if (deb) clearTimeout(deb); deb = setTimeout(snap, 450); };
     const onStart = () => setWalking(true); // dragging → the traveler walks
     m.on("movestart", onStart);
     m.on("moveend", onMove);
+    // pickup2 only: label wherever the map already sits, without waiting for a move. The usual path
+    // (setZoom → moveend → snap) needs the container to have a real size; when it doesn't yet, no
+    // moveend fires, and the new sheet then sat on a skeleton with a dead CTA — observed on entry
+    // with location denied. Flag OFF keeps the exact old sequence, extra request and all.
+    if (pickup2) snap();
     if (m.getZoom() < 16) m.setZoom(16); // tighter zoom for precise picking (fires moveend → snap)
-    else snap();
+    else if (!pickup2) snap();
     return () => { alive = false; setWalking(false); if (deb) clearTimeout(deb); m.off("movestart", onStart); m.off("moveend", onMove); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [screen, mapReady]);
@@ -948,6 +1004,9 @@ function Booking3Inner({ me, info, onClose }: { me: MeResponse; info: BookingInf
   const search = async (text: string) => {
     setQ(text);
     if (text.trim().length < 2) return setResults([]);
+    // pickup2: once the catalog is in memory the filter is local, so asking kas per keystroke would
+    // buy nothing — the upstream results get discarded by `hits` anyway.
+    if (pickup2 && allPlaces?.length) return;
     setSearching(true);
     const r = await api.bookingSearch(text).catch(() => []);
     setResults(r);
@@ -959,8 +1018,39 @@ function Booking3Inner({ me, info, onClose }: { me: MeResponse; info: BookingInf
     setPickup(a);
     setResults([]);
     setQ("");
+    setShowAll(false);
     setScreen("confirm");
   };
+
+  // pickup2: pull the whole catalog once, lazily — kas caches it for 6h upstream, so this costs no
+  // extra dispatch-backend call and lets every later keystroke filter locally.
+  useEffect(() => {
+    if (!pickup2 || allPlaces !== null) return;
+    if (screen !== "pinpick" && screen !== "map") return;
+    let alive = true;
+    void api.bookingPlaces().then((r) => { if (alive) setAllPlaces(r); }).catch(() => { if (alive) setAllPlaces([]); });
+    return () => { alive = false; };
+  }, [pickup2, allPlaces, screen]);
+
+  // 🎤 one utterance → the search box. The browser does the recognition; we make no network call.
+  const listenOnce = (): void => {
+    const Ctor = speechCtor();
+    if (!Ctor || listening) return;
+    haptic();
+    const rec = new Ctor();
+    rec.lang = "uz-UZ"; // unsupported locales fall back to the device default rather than failing
+    rec.interimResults = false;
+    rec.onresult = (e) => {
+      const said = e.results?.[0]?.[0]?.transcript ?? "";
+      if (said) void search(said);
+    };
+    rec.onerror = () => setListening(false);
+    rec.onend = () => setListening(false);
+    recRef.current = rec;
+    setListening(true);
+    try { rec.start(); } catch { setListening(false); }
+  };
+  useEffect(() => () => { try { recRef.current?.abort(); } catch { /* already stopped */ } }, []);
 
   // 📍 "turgan joyim" — recenter the map on the device GPS. The FIRST getCurrentPosition fix is
   // often a coarse network position (~50 m off) because the GPS chip hasn't locked yet — that was the
@@ -1195,9 +1285,11 @@ function Booking3Inner({ me, info, onClose }: { me: MeResponse; info: BookingInf
   // M7: label the dragged pin with the nearest REAL catalog place (~111 places cover the city, so
   // there's almost always one close). On it (≤150m) → the bare name ("Shabada"); a bit off → "… yaqini".
   // The server re-resolves this name authoritatively at booking, so the driver always gets a real place.
+  // pickup2 (ega, 2026-08-08): the "… yaqini" suffix is dropped — the driver is dispatched to the
+  // catalog place either way, so the rider seeing a hedged name only made the answer look unsure.
   const pinNear =
     pinPt && pinAddr && typeof pinAddr.lat === "number" && typeof pinAddr.lng === "number"
-      ? haversineKm(pinPt, { lat: pinAddr.lat, lng: pinAddr.lng }) <= 0.15
+      ? pickup2 || haversineKm(pinPt, { lat: pinAddr.lat, lng: pinAddr.lng }) <= 0.15
         ? pinAddr.name
         : `${pinAddr.name} yaqini`
       : null;
@@ -1208,7 +1300,52 @@ function Booking3Inner({ me, info, onClose }: { me: MeResponse; info: BookingInf
     setScreen("confirm");
   };
 
-  const recents = info.savedAddresses.slice(0, 3);
+  // quickPickup is usually ALSO the top saved address, so listing both printed the same place twice
+  // on one screen ("one of each thing"). Under pickup2 the quick one wins and recents drop it.
+  const recents = pickup2
+    ? info.savedAddresses.filter((a) => !info.quickPickup || foldName(a.name) !== foldName(info.quickPickup.name)).slice(0, 3)
+    : info.savedAddresses.slice(0, 3);
+
+  // pickup2: places nearest to where the pin actually sits — real GPS distance, not an invented
+  // "popular" ranking we have no data for (DIZAYN_QOIDALARI #7). Names already offered as
+  // quickPickup/recents are dropped so the same place never appears twice on one screen.
+  const nearPlaces = useMemo(() => {
+    if (!pickup2 || !allPlaces || !pinPt) return [] as SavedAddressView[];
+    const shown = new Set([info.quickPickup?.name, ...recents.map((r) => r.name)].filter((n): n is string => !!n).map(foldName));
+    return allPlaces
+      .filter((a) => typeof a.lat === "number" && typeof a.lng === "number" && !shown.has(foldName(a.name)))
+      .map((a) => ({ a, km: haversineKm(pinPt, { lat: a.lat as number, lng: a.lng as number }) }))
+      .sort((x, y) => x.km - y.km)
+      .slice(0, 6)
+      .map((x) => x.a);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pickup2, allPlaces, pinPt?.lat, pinPt?.lng, info.quickPickup?.name, info.savedAddresses]);
+
+  const hits = useMemo(() => (allPlaces?.length ? fuzzyFilter(q, allPlaces) : results), [q, allPlaces, results]);
+  const sortedAll = useMemo(() => (allPlaces ?? []).slice().sort((a, b) => a.name.localeCompare(b.name)), [allPlaces]);
+  const letters = useMemo(() => [...new Set(sortedAll.map((a) => a.name.charAt(0).toUpperCase()))], [sortedAll]);
+
+  const placeRow = (a: SavedAddressView, tag?: string) => (
+    <button key={`${a.id}-${a.name}`} className="b3-p2-row" onClick={() => choose(a)}>
+      <span className="b3-p2-ico">{placeIcon(a.name)}</span>
+      <span className="b3-p2-rname">{a.name}</span>
+      {tag && <span className="b3-p2-tag">{tag}</span>}
+    </button>
+  );
+  const placeTile = (a: SavedAddressView) => (
+    <button key={`${a.id}-${a.name}`} className="b3-p2-tile" onClick={() => choose(a)}>
+      <span className="b3-p2-tico">{placeIcon(a.name)}</span>
+      <span>{a.name}</span>
+    </button>
+  );
+  const searchField = (
+    <div className="b3-p2-fieldwrap">
+      <input className="bk-input" placeholder="Joy nomini yozing" autoFocus value={q} onChange={(e) => void search(e.target.value)} />
+      {micOk && (
+        <button className={`b3-p2-mic${listening ? " on" : ""}`} onClick={listenOnce} aria-label="Aytib qidirish" title="Aytib qidirish">🎤</button>
+      )}
+    </div>
+  );
 
   return (
     <div className="b3-screen">
@@ -1219,6 +1356,10 @@ function Booking3Inner({ me, info, onClose }: { me: MeResponse; info: BookingInf
           <span>🪙 {formatNumber(me.coins)}</span>
           {me.streak?.current ? <span>🔥 {me.streak.current}</span> : null}
         </div>
+        {/* 📖 story'ni QAYTA ochish — flag OFF bo'lsa tugma umuman chizilmaydi (jim tugma yo'q, qoida #14) */}
+        {me.flags?.taxistory && (
+          <button className="b3-help" onClick={() => { haptic(); setStory(true); }} aria-label="Taksi qanday chaqiriladi" title="Qanday ishlaydi?">?</button>
+        )}
       </div>
 
       <div ref={mapRef} className="b3-map" />
@@ -1232,11 +1373,15 @@ function Booking3Inner({ me, info, onClose }: { me: MeResponse; info: BookingInf
 
       {screen === "pinpick" && (
         <>
-          {/* top search pill — tap to TYPE an address (opens the search sheet) */}
-          <button className={`b3-pin-search${walking ? " hide" : ""}`} onClick={() => { haptic(); setScreen("map"); }}>
-            <span className="b3-pin-search-ico">🔍</span>
-            <span>Qayerdan?</span>
-          </button>
+          {/* top search pill — tap to TYPE an address (opens the search sheet). Hidden under pickup2:
+              the sheet carries its own search field, and two search entries on one screen is the
+              duplicated-chrome the minimalism pass removed everywhere else. */}
+          {(!pickup2 || p2min) && (
+            <button className={`b3-pin-search${walking ? " hide" : ""}`} onClick={() => { haptic(); setScreen("map"); }}>
+              <span className="b3-pin-search-ico">🔍</span>
+              <span>Qayerdan?</span>
+            </button>
+          )}
           <div className={`b3-centerpin${walking ? " b3-walking" : ""}`} aria-hidden="true">
             <svg viewBox="0 0 44 60" width="44" height="60">
               <ellipse className="b3-hail-shadow" cx="22" cy="56" rx="10" ry="2.6" />
@@ -1293,7 +1438,70 @@ function Booking3Inner({ me, info, onClose }: { me: MeResponse; info: BookingInf
       )}
 
       {/* ── E1/E2: pickup selection sheet ── */}
-      {screen === "map" && (
+      {screen === "map" && pickup2 && (
+        <div className="b3-sheet b3-p2-sheet">
+          <div className="b3-grip" />
+          <div className="b3-sheet-head">
+            <button className="b3-sheet-back" onClick={() => { haptic(); setQ(""); setResults([]); setShowAll(false); setScreen("pinpick"); }}>Orqaga</button>
+            <div className="b3-sheet-title">{showAll ? `Barchasi — ${sortedAll.length} joy` : "Qayerdan olib ketamiz?"}</div>
+          </div>
+          {!showAll && searchField}
+          {!showAll && listening && <div className="dim fs13 mt6">🎤 Eshityapman — joy nomini ayting…</div>}
+          {showAll ? (
+            <>
+              {letters.length > 1 && (
+                <div className="b3-p2-idx">
+                  {letters.map((L) => (
+                    <button key={L} className="b3-p2-ic" onClick={() => { haptic(); document.getElementById(`b3L${L}`)?.scrollIntoView({ block: "start" }); }}>{L}</button>
+                  ))}
+                </div>
+              )}
+              <div className="b3-p2-list b3-p2-all">
+                {sortedAll.length === 0
+                  ? [0, 1, 2, 3, 4, 5].map((i) => <Skeleton key={i} h={44} className="b3-p2-rowskel" />)
+                  : sortedAll.map((a, i) => {
+                      const L = a.name.charAt(0).toUpperCase();
+                      const first = sortedAll[i - 1]?.name.charAt(0).toUpperCase() !== L;
+                      return first ? <div key={`g${L}`} id={`b3L${L}`}>{placeRow(a)}</div> : placeRow(a);
+                    })}
+              </div>
+            </>
+          ) : q.trim().length > 0 ? (
+            hits.length > 0 ? (
+              <div className="b3-p2-list">{hits.slice(0, 20).map((a) => placeRow(a))}</div>
+            ) : (
+              <div className="d-empty">
+                <div className="d-empty-ico">🔍</div>
+                <div>«{q}» topilmadi</div>
+                <div className="dim fs12 mt4">Boshqacha yozib ko'ring yoki pastdan barcha joylarni oching</div>
+              </div>
+            )
+          ) : (
+            <>
+              {(info.quickPickup || recents.length > 0) && (
+                <div className="b3-p2-list">
+                  {info.quickPickup && placeRow(info.quickPickup, "odatdagi")}
+                  {recents.map((a) => placeRow(a, "oxirgi"))}
+                </div>
+              )}
+              <div className="b3-p2-hd">Atrofingizdagi joylar</div>
+              {nearPlaces.length > 0 ? (
+                <div className="b3-p2-grid">{nearPlaces.map(placeTile)}</div>
+              ) : (
+                <div className="b3-p2-grid">{[0, 1, 2, 3, 4, 5].map((i) => <Skeleton key={i} h={58} className="b3-p2-tileskel" />)}</div>
+              )}
+            </>
+          )}
+          <div className="b3-p2-foot">
+            <button className="b3-p2-ghost" onClick={() => { haptic(); setShowAll(!showAll); }}>
+              {showAll ? "← Qaytish" : `Barchasi — ${sortedAll.length || 150} joy`}
+            </button>
+            <button className="b3-p2-ghost" onClick={() => { haptic(); setQ(""); setResults([]); setShowAll(false); setP2min(true); setScreen("pinpick"); }}>Xaritadan ko'rsatish</button>
+          </div>
+        </div>
+      )}
+
+      {screen === "map" && !pickup2 && (
         <div className="b3-sheet">
           <div className="b3-grip" />
           <div className="b3-sheet-head">
@@ -1328,13 +1536,13 @@ function Booking3Inner({ me, info, onClose }: { me: MeResponse; info: BookingInf
 
       {/* ── Map-is-picker: compact bar — slides DOWN while dragging (map open, character walks),
              returns when you stop. Detected place + quick chips + the single confirm CTA. ── */}
-      {screen === "pinpick" && (
+      {screen === "pinpick" && (!pickup2 || p2min) && (
         <div className={`b3-pinbar${walking ? " dragging" : ""}`}>
-          <div className="b3-grip" />
+          <div className="b3-grip" onClick={pickup2 ? () => { haptic(); setP2min(false); } : undefined} />
           <div className="b3-pin-label">
             {pinBusy ? "⏳ Manzil aniqlanmoqda…" : pinNear ? <>📍 <b>{pinNear}</b></> : "📍 Xaritani suring — joyni belgilang"}
           </div>
-          {(info.quickPickup || recents.length > 0) && (
+          {!pickup2 && (info.quickPickup || recents.length > 0) && (
             <div className="b3-chips b3-pin-chips">
               {info.quickPickup && <button className="d-chip" onClick={() => choose(info.quickPickup!)}>🏠 {info.quickPickup.name}</button>}
               {recents.slice(0, 2).map((a) => (
@@ -1343,6 +1551,48 @@ function Booking3Inner({ me, info, onClose }: { me: MeResponse; info: BookingInf
             </div>
           )}
           <Button className={pinPt && !pinBusy ? "b3-confirm-pulse" : undefined} disabled={!pinPt || pinBusy} onClick={confirmPin}>✅ Shu yerdan</Button>
+        </div>
+      )}
+
+      {/* ── pickup2: the rebuilt pickup sheet. A = answer first, B = list first. Same data and same
+             actions in both — only the order changes, so the owner can compare them on a real phone. ── */}
+      {screen === "pinpick" && pickup2 && !p2min && (
+        <div className={`b3-p2bar${walking ? " dragging" : ""}`}>
+          <div className="b3-grip" />
+          {layoutB ? (
+            <button className="b3-p2-answer-row" disabled={!pinPt || pinBusy} onClick={confirmPin}>
+              <span className="b3-p2-ico">📍</span>
+              <span className="b3-p2-rname"><b>{pinBusy || !pinNear ? "Aniqlanmoqda…" : pinNear}</b></span>
+              <span className="b3-p2-tag">shu yerdan chaqirish</span>
+            </button>
+          ) : (
+            <>
+              <div className="b3-p2-lbl">Sizni shu yerdan olamiz</div>
+              {pinBusy || !pinNear ? <Skeleton h={26} w="62%" className="b3-p2-nameskel" /> : <div className="b3-p2-name">{pinNear}</div>}
+              <Button className={pinPt && !pinBusy ? "b3-confirm-pulse" : undefined} disabled={!pinPt || pinBusy} onClick={confirmPin}>🚕 Taxi chaqirish</Button>
+            </>
+          )}
+          <button className="b3-p2-field" onClick={() => { haptic(); setScreen("map"); }}>
+            <span>🔍</span><span>{layoutB ? "Nom yozing" : "Boshqa joy — nom yozing"}</span>
+          </button>
+          {layoutB ? (
+            nearPlaces.length > 0 ? (
+              <>
+                <div className="b3-p2-hd">Atrofingizdagi joylar</div>
+                <div className="b3-p2-grid">{nearPlaces.slice(0, 4).map(placeTile)}</div>
+              </>
+            ) : (
+              <div className="b3-p2-grid">{[0, 1, 2, 3].map((i) => <Skeleton key={i} h={58} className="b3-p2-tileskel" />)}</div>
+            )
+          ) : (
+            (info.quickPickup || recents.length > 0) && (
+              <div className="b3-p2-list">
+                {info.quickPickup && placeRow(info.quickPickup, "odatdagi")}
+                {recents.slice(0, 2).map((a) => placeRow(a, "oxirgi"))}
+              </div>
+            )
+          )}
+          <button className="b3-p2-ghost" onClick={() => { haptic(); setP2min(true); }}>Xaritadan ko'rsatish</button>
         </div>
       )}
 
@@ -1665,6 +1915,19 @@ function Booking3Inner({ me, info, onClose }: { me: MeResponse; info: BookingInf
           </div>
         );
       })()}
+
+      {/* 📖 O'rgatuvchi story — eng ustki qatlam. Yopilganda coach-mark ham "ko'rilgan" deb belgilanadi:
+          story pin/joy tanlashni allaqachon tushuntirdi, ketma-ket ikkita dars berilmaydi. */}
+      {story && (
+        <TaxiStory
+          info={info}
+          onClose={() => {
+            setStory(false);
+            setCoach(false);
+            try { localStorage.setItem("b3coach1", "1"); } catch { /* private mode */ }
+          }}
+        />
+      )}
     </div>
   );
 }

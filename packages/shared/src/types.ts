@@ -63,6 +63,9 @@ export interface MeResponse {
     homescreen?: boolean; // 🏠 telefon ekraniga qo'shish taklifi (addToHomeScreen) (owner-preview)
     storyshare?: boolean; // 📸 taklifni Telegram hikoyasiga ulashish (shareToStory) (owner-preview)
     autoloc?: boolean; // 📍 taksi xaritasi ochilganda joylashuvni O'ZI aniqlash; OFF = pin shahar markazida/oxirgi manzilda qoladi
+    pickup2?: boolean; // 🚕 olib ketish joyini tanlashning yangi varag'i; OFF = bugungi b3-pinbar + eski qidiruv sheet
+    pickup2b?: boolean; // 🚕 pickup2 ning B tartibi (ro'yxat birinchi); OFF = A tartibi (javob birinchi)
+    taxistory?: boolean; // 📖 taksi o'rgatuvchi story (6 karta); OFF = hech kim ko'rmaydi, "?" tugmasi ham chizilmaydi
     oyin?: boolean; // 🎮 Koson O'yini — ball→chipta→tiraj mavsumi (owner-preview: admins see it while DARK)
   };
 }
